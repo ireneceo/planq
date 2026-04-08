@@ -1,0 +1,10 @@
+node_modules/
+.env
+*.log
+uploads/
+dev-frontend-build/
+q-note/venv/
+__pycache__/
+*.pyc
+.DS_Store
+.server.pid
