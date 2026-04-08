@@ -5,6 +5,12 @@ if (process.env.pm_id === undefined) {
   process.exit(1);
 }
 
+// ROOT 실행 방지 — irene 유저로만 실행
+if (process.getuid && process.getuid() === 0) {
+  console.error('Do NOT run this server as root! Use irene user via PM2.');
+  process.exit(1);
+}
+
 require('dotenv').config();
 
 const express = require('express');
