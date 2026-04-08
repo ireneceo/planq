@@ -21,7 +21,7 @@ const sequelize = new Sequelize(
     },
     dialectOptions: {
       connectTimeout: 60000,
-      multipleStatements: true,
+      multipleStatements: false,
       timezone: '+00:00',
       dateStrings: false,
       typeCast: true

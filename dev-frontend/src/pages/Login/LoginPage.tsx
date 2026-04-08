@@ -1,0 +1,345 @@
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
+import styled from 'styled-components';
+import { useAuth } from '../../contexts/AuthContext';
+
+const Container = styled.div`
+  min-height: 100vh;
+  background: linear-gradient(180deg, #F8FAFC 0%, #E2E8F0 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+`;
+
+const LoginBox = styled.div`
+  background: white;
+  border-radius: 20px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  width: 100%;
+  max-width: 900px;
+  display: flex;
+  overflow: hidden;
+
+  @media (max-width: 768px) {
+    flex-direction: column;
+    max-width: 440px;
+  }
+`;
+
+const LeftSection = styled.div`
+  flex: 1;
+  background: linear-gradient(180deg, #0D9488 0%, #134E4A 100%);
+  padding: 60px 48px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  min-height: 480px;
+
+  @media (max-width: 768px) {
+    padding: 40px 30px;
+    min-height: auto;
+  }
+`;
+
+const BrandLogo = styled.div`
+  font-size: 40px;
+  font-weight: 800;
+  color: #FFFFFF;
+  letter-spacing: -1px;
+  margin-bottom: 16px;
+
+  span {
+    color: #5EEAD4;
+  }
+`;
+
+const BrandTagline = styled.p`
+  color: #CCFBF1;
+  font-size: 16px;
+  line-height: 1.6;
+  margin: 0;
+  max-width: 280px;
+`;
+
+const BrandDescription = styled.p`
+  color: rgba(204, 251, 241, 0.6);
+  font-size: 13px;
+  margin-top: 24px;
+  max-width: 260px;
+  line-height: 1.5;
+`;
+
+const RightSection = styled.div`
+  flex: 1;
+  padding: 60px 48px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+
+  @media (max-width: 768px) {
+    padding: 40px 30px;
+  }
+`;
+
+const FormTitle = styled.h2`
+  font-size: 24px;
+  font-weight: 700;
+  color: #0F172A;
+  margin: 0 0 8px 0;
+`;
+
+const FormSubtitle = styled.p`
+  font-size: 14px;
+  color: #475569;
+  margin: 0 0 32px 0;
+`;
+
+const Form = styled.form`
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+`;
+
+const InputGroup = styled.div`
+  display: flex;
+  flex-direction: column;
+`;
+
+const Input = styled.input`
+  padding: 14px 16px;
+  border: 1px solid #E2E8F0;
+  border-radius: 50px;
+  font-size: 16px;
+  transition: all 0.2s;
+  width: 100%;
+  box-sizing: border-box;
+  background: #F8FAFC;
+  color: #0F172A;
+
+  &::placeholder {
+    color: #94A3B8;
+  }
+
+  &:hover {
+    border-color: #CBD5E1;
+  }
+
+  &:focus {
+    outline: none;
+    border-color: #14B8A6;
+    box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.1);
+    background: #FFFFFF;
+  }
+`;
+
+const PasswordWrapper = styled.div`
+  position: relative;
+  display: flex;
+  align-items: center;
+`;
+
+const PasswordToggle = styled.button`
+  position: absolute;
+  right: 14px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #94A3B8;
+  transition: color 0.2s;
+
+  &:hover {
+    color: #475569;
+  }
+
+  svg {
+    width: 20px;
+    height: 20px;
+  }
+`;
+
+const Button = styled.button`
+  padding: 14px 24px;
+  background: #0D9488;
+  color: white;
+  border: none;
+  border-radius: 50px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-top: 8px;
+
+  &:hover {
+    background: #0F766E;
+    transform: translateY(-2px);
+    box-shadow: 0 10px 20px rgba(13, 148, 136, 0.3);
+  }
+
+  &:active {
+    transform: translateY(0);
+    background: #115E59;
+  }
+
+  &:disabled {
+    background: #99F6E4;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+  }
+`;
+
+const ErrorMessage = styled.div`
+  background: #FEF2F2;
+  color: #DC2626;
+  padding: 12px 16px;
+  border-radius: 8px;
+  font-size: 14px;
+  border: 1px solid #FEE2E2;
+`;
+
+const Divider = styled.div`
+  width: 100%;
+  height: 1px;
+  background: #E2E8F0;
+  margin: 24px 0;
+`;
+
+const BottomLinks = styled.div`
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: center;
+  font-size: 14px;
+  color: #475569;
+
+  a {
+    color: #0D9488;
+    text-decoration: none;
+    font-weight: 500;
+    &:hover { text-decoration: underline; color: #0F766E; }
+  }
+`;
+
+const LoginPage: React.FC = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { login, user, isAuthenticated, isLoading: authLoading } = useAuth();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+
+  useEffect(() => {
+    if (!authLoading && isAuthenticated && user) {
+      const from = (location.state as { from?: { pathname: string } })?.from?.pathname;
+      const isValidPath = from && from.startsWith('/') && !from.startsWith('//') && !from.includes('javascript:');
+      if (isValidPath && from !== '/login' && from !== '/register') {
+        navigate(from, { replace: true });
+      } else {
+        navigate('/dashboard', { replace: true });
+      }
+    }
+  }, [authLoading, isAuthenticated, user, navigate, location]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setIsLoading(true);
+
+    try {
+      const success = await login(email, password);
+      if (!success) {
+        setError('Invalid email or password');
+      }
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Login failed. Please try again.';
+      setError(message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <Container>
+      <LoginBox>
+        <LeftSection>
+          <BrandLogo>Plan<span>Q</span></BrandLogo>
+          <BrandTagline>
+            요청은 Queue로, 실행은 Cue로.
+          </BrandTagline>
+          <BrandDescription>
+            업무 전용 고객 채팅과 실행 구조를 하나로 통합하는 B2B SaaS OS
+          </BrandDescription>
+        </LeftSection>
+
+        <RightSection>
+          <FormTitle>로그인</FormTitle>
+          <FormSubtitle>계정 정보를 입력하세요</FormSubtitle>
+
+          <Form onSubmit={handleSubmit}>
+            <InputGroup>
+              <Input
+                type="text"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="이메일 또는 아이디"
+                required
+                autoComplete="username"
+              />
+            </InputGroup>
+
+            <InputGroup>
+              <PasswordWrapper>
+                <Input
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="비밀번호"
+                  required
+                  autoComplete="current-password"
+                />
+                <PasswordToggle type="button" onClick={() => setShowPassword(!showPassword)} tabIndex={-1}>
+                  {showPassword ? (
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/>
+                      <line x1="1" y1="1" x2="23" y2="23"/>
+                    </svg>
+                  ) : (
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                      <circle cx="12" cy="12" r="3"/>
+                    </svg>
+                  )}
+                </PasswordToggle>
+              </PasswordWrapper>
+            </InputGroup>
+
+            {error && <ErrorMessage>{error}</ErrorMessage>}
+
+            <Button type="submit" disabled={isLoading}>
+              {isLoading ? '로그인 중...' : '로그인'}
+            </Button>
+          </Form>
+
+          <Divider />
+
+          <BottomLinks>
+            <span>아직 계정이 없으신가요? <Link to="/register">회원가입</Link></span>
+          </BottomLinks>
+        </RightSection>
+      </LoginBox>
+    </Container>
+  );
+};
+
+export default LoginPage;

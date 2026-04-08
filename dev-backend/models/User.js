@@ -14,6 +14,11 @@ User.init({
     allowNull: false,
     unique: true
   },
+  username: {
+    type: DataTypes.STRING(50),
+    allowNull: true,
+    unique: true
+  },
   password_hash: {
     type: DataTypes.STRING(255),
     allowNull: false
@@ -39,6 +44,18 @@ User.init({
     defaultValue: 'active'
   },
   last_login_at: {
+    type: DataTypes.DATE,
+    allowNull: true
+  },
+  refresh_token: {
+    type: DataTypes.STRING(500),
+    allowNull: true
+  },
+  reset_token: {
+    type: DataTypes.STRING(255),
+    allowNull: true
+  },
+  reset_token_expires: {
     type: DataTypes.DATE,
     allowNull: true
   }

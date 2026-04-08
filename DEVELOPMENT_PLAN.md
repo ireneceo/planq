@@ -1,12 +1,15 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-04-08
+> **최종 업데이트:** 2026-04-09
 > **데이터베이스:** planq_dev_db (MySQL)
 > **프로젝트:** B2B SaaS — 업무 전용 고객 채팅 + 실행 구조 통합 OS
+> **로드맵 상세:** `docs/DEVELOPMENT_ROADMAP.md`
 
 ---
 
-## Phase 0: 개발환경 세팅 ✅
+## Phase 1: 서버 분리 + PlanQ 초기 세팅 ✅
+
+**완료: 2026-04-08**
 
 | # | 작업 | 상태 |
 |---|------|:----:|
@@ -18,164 +21,175 @@
 | 6 | Q Note (FastAPI, port 8000) | ✅ |
 | 7 | Git (github-planq:ireneceo/planq) | ✅ |
 | 8 | CLAUDE.md + DEVELOPMENT_PLAN.md | ✅ |
+| 9 | 개발 인프라 명령어 (/개발시작, /개발완료, /저장, /검증, /배포, /복원) | ✅ |
+| 10 | 보안 미들웨어 POS 수준 업그레이드 (SSRF, CSP, SQL Injection, Socket.IO 인증) | ✅ |
+| 11 | 설계 문서 정리 (docs/ — 아키텍처, ERD, IA, API, 기능정의서, 보안, 로드맵) | ✅ |
 
 ---
 
-## Phase 1: Auth + Business 기본 구조
+## ✅ 완료: Phase 2 최소 세트 — 인증 시스템 (2026-04-08)
 
-> 로그인/회원가입 + Business 생성 + 멤버 초대 + 기본 레이아웃
+### 완료된 작업
 
 | # | 작업 | 상태 |
 |---|------|:----:|
-| 1 | 로그인/회원가입 페이지 (이메일+비밀번호) | |
-| 2 | AuthContext + ProtectedRoute + JWT 관리 | |
-| 3 | MainLayout (사이드바 + 헤더 + 콘텐츠 영역) | |
-| 4 | Business 생성/선택 페이지 | |
-| 5 | Business Settings 페이지 (이름, 로고, 플랜 표시) | |
-| 6 | 멤버 초대 + 멤버 목록 페이지 | |
-| 7 | Platform Admin 대시보드 (유저/비즈니스 목록) | |
+| 1 | POST /api/auth/register (User+Business+Member 트랜잭션 생성, JWT 발급) | ✅ |
+| 2 | POST /api/auth/login (이메일/username 둘 다 지원, Access 15분 + Refresh 7일) | ✅ |
+| 3 | POST /api/auth/refresh (HttpOnly Cookie, Refresh Token rotation) | ✅ |
+| 4 | POST /api/auth/logout (Refresh Token DB 무효화 + cookie 삭제) | ✅ |
+| 5 | POST /api/auth/forgot-password + reset-password | 미구현 (나중에) |
+| 6 | AuthContext (메모리 토큰 + 14분 자동갱신) + ProtectedRoute | ✅ |
+| 7 | LoginPage + RegisterPage (PlanQ 컬러, pill shape, placeholder only) | ✅ |
+| 8 | MainLayout (딥틸 사이드바 + LanguageSelector + PlanQ 브랜딩) | ✅ |
+
+### 추가 구현
+- User 모델: username, refresh_token, reset_token 필드 추가
+- COLOR_GUIDE.md 전면 재작성 (딥 틸 컬러 시스템, 11개 섹션)
+- cookie-parser 추가, CORS credentials 설정
+
+### 수정된 파일
+- `dev-backend/models/User.js` — username, refresh_token 등 필드 추가
+- `dev-backend/routes/auth.js` — register/login/refresh/logout 전면 재작성
+- `dev-backend/server.js` — cookie-parser 추가
+- `dev-backend/.env` — JWT_REFRESH_SECRET, JWT_EXPIRES_IN=15m
+- `dev-frontend/src/pages/Login/LoginPage.tsx` — 신규
+- `dev-frontend/src/pages/Register/RegisterPage.tsx` — 신규
+- `dev-frontend/src/contexts/AuthContext.tsx` — 전면 재작성
+- `dev-frontend/src/components/ProtectedRoute.tsx` — PlanQ 컬러
+- `dev-frontend/src/components/Layout/MainLayout.tsx` — 딥틸 사이드바
+- `dev-frontend/src/components/Common/LanguageSelector.tsx` — 다크 사이드바 대응
+- `dev-frontend/src/App.tsx` — 실제 라우팅 연결
+- `dev-frontend/COLOR_GUIDE.md` — 전면 재작성
 
 ---
 
-## Phase 2: Q Talk (대화)
+## Phase 3: 사업자 + 고객 관리
 
-> Client 초대 + 1:1/그룹 대화 + 실시간 메시지 + 파일 첨부
+> 사업자 프로필 + 멤버 초대 + 고객 초대 (초대 링크로 간편 가입) + 대화방 자동 생성
 
 | # | 작업 | 상태 |
 |---|------|:----:|
-| 1 | Client 초대 (이메일 링크) + Client 가입 플로우 | |
-| 2 | Client 목록/관리 페이지 | |
-| 3 | 대화 목록 (사이드바) + 대화방 생성 | |
-| 4 | 채팅 UI (메시지 입력, 말풍선, 시간 표시) | |
-| 5 | Socket.IO 실시간 메시지 송수신 | |
-| 6 | 메시지 첨부파일 (이미지/문서 업로드) | |
-| 7 | 메시지 수정/삭제 | |
-| 8 | 읽음 표시 + 안 읽은 메시지 카운트 | |
+| 1 | 사업자 정보 조회/수정 API | |
+| 2 | 멤버 초대/목록/제거 API + 이메일 발송 | |
+| 3 | 고객 초대 API (Client 생성 + Conversation 자동 생성 + 초대 이메일) | |
+| 4 | 초대 수락 페이지 (/invite/:token → 간편 가입) | |
+| 5 | 고객 목록/상세 페이지 | |
+| 6 | 팀 관리 페이지 (Owner만) | |
+| 7 | 사업자 설정 페이지 (프로필, 구독, 알림) | |
 
 ---
 
-## Phase 3: Q Task (할일)
+## Phase 4: Q Bill (청구서)
 
-> 대화에서 할일 생성 + 칸반 보드 + 담당자/마감일
+> 청구서 작성 + 이메일 발송 + 입금 확인 + 상태 관리
 
 | # | 작업 | 상태 |
 |---|------|:----:|
-| 1 | 태스크 CRUD (제목, 설명, 담당자, 마감일, 우선순위) | |
-| 2 | 대화 메시지 → 태스크 변환 (소스 메시지 연결) | |
-| 3 | 칸반 보드 뷰 (Pending/In Progress/Completed) | |
-| 4 | 리스트 뷰 (필터: 상태, 담당자, 마감일) | |
-| 5 | 태스크 상태 변경 알림 (채팅방에 자동 메시지) | |
-| 6 | 마감일 임박 알림 | |
+| 1 | 청구서 CRUD API (자동 번호생성, 부가세 자동계산) | |
+| 2 | 청구서 이메일 발송 (Nodemailer + HTML 템플릿) | |
+| 3 | 입금 확인/취소 API | |
+| 4 | 청구서 목록 페이지 (전체/미결/완료 탭) | |
+| 5 | 청구서 작성 폼 (항목 동적 추가/삭제) | |
+| 6 | 청구서 상세 페이지 (발송/입금확인 버튼) | |
 
 ---
 
-## Phase 4: Q File (자료)
+## Phase 5: Q Talk (대화)
 
-> 비즈니스/클라이언트별 파일 관리 + 공유
+> Socket.IO 실시간 채팅 + 메시지 수정/삭제 + 파일 첨부 + 할일 연결
 
 | # | 작업 | 상태 |
 |---|------|:----:|
-| 1 | 파일 업로드/다운로드 | |
-| 2 | 클라이언트별 파일 폴더 뷰 | |
-| 3 | 파일 목록 (이름, 크기, 업로드일, 업로더) | |
-| 4 | 이미지 미리보기 + 문서 아이콘 | |
-| 5 | 스토리지 사용량 표시 (플랜별 제한) | |
+| 1 | 대화 목록 API + 메시지 목록 (페이징) | |
+| 2 | 메시지 전송 + Socket.IO 실시간 | |
+| 3 | 메시지 수정 (is_edited) + 삭제 (is_deleted 마스킹) | |
+| 4 | 첨부파일 업로드 (MessageAttachment) | |
+| 5 | 3단 레이아웃: 대화목록 / 채팅 / Q Task 패널 | |
+| 6 | MessageInput (텍스트 + 📎 첨부 + Enter 전송) | |
+| 7 | typing 표시, 스크롤 자동 하단 | |
+| 8 | 메시지에서 할일 만들기 버튼 (Phase 6과 연결) | |
 
 ---
 
-## Phase 5: Q Bill (청구)
+## Phase 6: Q Task (할일)
 
-> 간편 인보이스 생성/발송 + 상태 관리
+> 할일 CRUD + 메시지↔할일 양방향 링크 + 필터/정렬 + 마감 지연 표시
 
 | # | 작업 | 상태 |
 |---|------|:----:|
-| 1 | 인보이스 생성 (항목 추가, 세금, 합계 자동 계산) | |
-| 2 | 인보이스 목록 (상태별 필터) | |
-| 3 | 인보이스 상세 보기 + PDF 미리보기 | |
-| 4 | 이메일 발송 (인보이스 링크) | |
-| 5 | 상태 관리 (Draft → Sent → Paid/Overdue) | |
-| 6 | 클라이언트 인보이스 조회 페이지 (공개 링크) | |
+| 1 | 할일 CRUD API (필터: status, assignee, client, due) | |
+| 2 | 메시지 → 할일 생성 (source_message_id 양방향 링크) | |
+| 3 | 상태 변경 API + Socket.IO emit | |
+| 4 | 할일 목록 페이지 (오늘/이번주/전체 탭, 필터) | |
+| 5 | 마감 지연 🔴 / 오늘 마감 🟠 / 임박 🟡 표시 | |
+| 6 | Q Talk 우측 패널 (해당 고객 할일) | |
+| 7 | 원문 메시지 ↔ 할일 상호 이동 | |
 
 ---
 
-## Phase 6: Q Note (음성/요약)
+## Phase 7: Q File (자료함)
 
-> 음성 녹음 + AI 요약 + 텍스트 변환
+> 고객별 파일 관리 + 업로드/다운로드 + 용량 제한
 
 | # | 작업 | 상태 |
 |---|------|:----:|
-| 1 | FastAPI 음성 업로드 API | |
-| 2 | Whisper/STT 연동 (음성 → 텍스트) | |
-| 3 | AI 요약 (텍스트 → 핵심 정리) | |
-| 4 | 녹음 UI (브라우저 MediaRecorder) | |
-| 5 | 노트 목록 + 검색 | |
-| 6 | 대화방에서 음성 메모 첨부 | |
+| 1 | 파일 업로드 API (Multer, UUID 파일명, 확장자 검증) | |
+| 2 | 파일 목록/다운로드/삭제 API | |
+| 3 | 자료함 페이지 (고객별 폴더/탭) | |
+| 4 | 드래그 앤 드롭 업로드 UI | |
+| 5 | 스토리지 사용량 표시 (요금제별 제한) | |
 
 ---
 
-## Phase 7: Client 웹 경험
+## Phase 8: Q Note (음성/회의 정리)
 
-> 클라이언트 전용 웹 뷰 (앱 설치 없이 링크로 접속)
+> FastAPI — 음성 STT + AI 요약 + 질문 추출 + 답변 생성
 
 | # | 작업 | 상태 |
 |---|------|:----:|
-| 1 | Client 전용 레이아웃 (간결한 UI) | |
-| 2 | 대화 목록 + 채팅 | |
-| 3 | 받은 태스크 보기 + 상태 업데이트 | |
-| 4 | 받은 인보이스 보기 | |
-| 5 | 공유 파일 보기/다운로드 | |
+| 1 | 음성 업로드 + Whisper STT | |
+| 2 | 텍스트 → AI 요약 (LLM) | |
+| 3 | 질문 추출 + 중요도 표시 | |
+| 4 | 문서 기반 답변 생성 | |
+| 5 | Q Note 프론트엔드 (업로드 + 결과 뷰) | |
+| 6 | 할일로 전환 + Q Talk 공유 연동 | |
 
 ---
 
-## Phase 8: 알림 시스템
+## Phase 9: 알림 시스템
 
-> 이메일 + 브라우저 푸시 + 인앱 알림
+> 인앱 알림 + 이메일 알림
 
 | # | 작업 | 상태 |
 |---|------|:----:|
 | 1 | 알림 모델 + API | |
-| 2 | 인앱 알림 (헤더 벨 아이콘 + 드롭다운) | |
-| 3 | 이메일 알림 (새 메시지, 태스크 배정, 인보이스) | |
+| 2 | 인앱 알림 (헤더 벨 + 드롭다운) | |
+| 3 | 이메일 알림 (새 메시지, 할일 배정, 마감 임박, 청구서) | |
 | 4 | 알림 설정 (카테고리별 on/off) | |
-| 5 | 브라우저 푸시 알림 (Service Worker) | |
 
 ---
 
-## Phase 9: 구독 + 결제
+## Phase 10: 구독 관리
 
-> 플랜 관리 + 결제 연동
+> 요금제(Free/Basic/Pro) + 결제 + 미납 처리
 
 | # | 작업 | 상태 |
 |---|------|:----:|
-| 1 | 플랜 페이지 (Free/Basic/Pro 비교) | |
-| 2 | 결제 연동 (Stripe/PayPal) | |
+| 1 | 플랜 페이지 (비교 테이블) | |
+| 2 | 결제 연동 | |
 | 3 | 구독 관리 (업그레이드/다운그레이드/취소) | |
-| 4 | 사용량 기반 제한 (스토리지, 멤버 수) | |
-| 5 | Platform Admin 매출 대시보드 | |
+| 4 | 사용량 기반 제한 (스토리지, 멤버 수, Q Note 횟수) | |
+| 5 | 미납 처리 흐름 (유예 → 읽기전용 → 차단 → 삭제) | |
 
 ---
 
-## Phase 10: 감사 로그 + 보안 강화
+## Phase 11: 운영 배포 + Landing
 
-> 활동 기록 + 보안 고도화
-
-| # | 작업 | 상태 |
-|---|------|:----:|
-| 1 | 감사 로그 뷰어 (Platform Admin) | |
-| 2 | 비즈니스별 활동 로그 | |
-| 3 | 2FA (이메일 인증 코드) | |
-| 4 | 세션 관리 (동시 로그인 제한) | |
-| 5 | IP 기반 접근 제어 | |
-
----
-
-## Phase 11: Landing + 마케팅
-
-> 퍼블릭 랜딩 페이지 + SEO
+> 배포 스크립트 + 랜딩 페이지 + SEO
 
 | # | 작업 | 상태 |
 |---|------|:----:|
-| 1 | 랜딩 페이지 (Hero, Features, Pricing, CTA) | |
-| 2 | 회원가입 플로우 (랜딩 → 가입 → Business 생성) | |
+| 1 | 운영서버 배포 스크립트 | |
+| 2 | 랜딩 페이지 (Hero, Features, Pricing, CTA) | |
 | 3 | SEO 메타태그 + OG 이미지 | |
-| 4 | 블로그/도움말 페이지 | |
+| 4 | Platform Admin 대시보드 | |

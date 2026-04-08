@@ -1,12 +1,195 @@
+/**
+ * PlanQ 보안 미들웨어 모음
+ * POS 동일 수준: Helmet, CORS, Rate Limiting, SSRF, CSP, SQL Injection, Security Headers, Cookie
+ */
+
 const helmet = require('helmet');
 const cors = require('cors');
 const rateLimit = require('express-rate-limit');
+
+// ============================================
+// SSRF 방어
+// ============================================
+
+const ALLOWED_EXTERNAL_DOMAINS = [];
+
+const isInternalIP = (hostname) => {
+  if (hostname === 'localhost' || hostname === '127.0.0.1') return true;
+  const privateRanges = [
+    /^10\./,
+    /^172\.(1[6-9]|2[0-9]|3[01])\./,
+    /^192\.168\./,
+    /^169\.254\./,
+    /^0\./,
+    /^::1$/,
+    /^fc00:/,
+    /^fe80:/
+  ];
+  return privateRanges.some(range => range.test(hostname));
+};
+
+const validateExternalUrl = (targetUrl) => {
+  try {
+    const parsed = new URL(targetUrl);
+    if (parsed.protocol !== 'https:') {
+      return { valid: false, reason: 'Only HTTPS URLs are allowed' };
+    }
+    if (isInternalIP(parsed.hostname)) {
+      return { valid: false, reason: 'Internal IP addresses are not allowed' };
+    }
+    if (ALLOWED_EXTERNAL_DOMAINS.length > 0) {
+      const isAllowed = ALLOWED_EXTERNAL_DOMAINS.some(domain =>
+        parsed.hostname === domain || parsed.hostname.endsWith('.' + domain)
+      );
+      if (!isAllowed) {
+        return { valid: false, reason: 'Domain not in allowed list' };
+      }
+    }
+    return { valid: true };
+  } catch (e) {
+    return { valid: false, reason: 'Invalid URL format' };
+  }
+};
+
+const ssrfProtection = (req, res, next) => {
+  const urlParams = ['url', 'redirect', 'callback', 'return_url', 'next'];
+  for (const param of urlParams) {
+    const value = req.body?.[param] || req.query?.[param];
+    if (value) {
+      const validation = validateExternalUrl(value);
+      if (!validation.valid) {
+        return res.status(400).json({
+          success: false,
+          message: `Invalid URL parameter: ${param}`
+        });
+      }
+    }
+  }
+  next();
+};
+
+// ============================================
+// Cookie 보안 설정
+// ============================================
+
+const cookieOptions = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === 'production',
+  sameSite: 'strict',
+  maxAge: 7 * 24 * 60 * 60 * 1000, // 7일 (Refresh Token)
+  path: '/'
+};
+
+// ============================================
+// 추가 보안 헤더
+// ============================================
+
+const securityHeaders = (req, res, next) => {
+  res.setHeader('X-XSS-Protection', '1; mode=block');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('Permissions-Policy', 'geolocation=(), microphone=(), camera=()');
+
+  // API 응답은 캐시 금지
+  if (req.path.startsWith('/api/')) {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+  }
+
+  next();
+};
+
+// ============================================
+// CSP 설정 (Content Security Policy)
+// ============================================
+
+const cspMiddleware = (req, res, next) => {
+  if (req.path.startsWith('/api/')) {
+    return next();
+  }
+
+  const cspDirectives = [
+    "default-src 'self'",
+    "script-src 'self' 'unsafe-inline'",
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+    "font-src 'self' https://fonts.gstatic.com",
+    "img-src 'self' data: https: blob:",
+    "connect-src 'self' wss:",
+    "frame-src 'none'",
+    "object-src 'none'",
+    "base-uri 'self'",
+    "form-action 'self'"
+  ];
+
+  res.setHeader('Content-Security-Policy', cspDirectives.join('; '));
+  next();
+};
+
+// ============================================
+// SQL Injection 패턴 감지 (추가 방어층)
+// ============================================
+
+const sqlInjectionPatterns = [
+  /(\%27)|(\')|(\-\-)|(\%23)|(#)/i,
+  /(\%3D)|(=)[^\s]*((\%27)|(\')|(\-\-)|(\%3B)|(;))/i,
+  /\w*((\%27)|(\'))((\%6F)|o|(\%4F))((\%72)|r|(\%52))/i,
+  /union[\s\S]*select/i,
+  /exec(\s|\+)+(s|x)p\w+/i
+];
+
+const sqlInjectionProtection = (req, res, next) => {
+  const checkValue = (value, path) => {
+    if (typeof value === 'string') {
+      for (const pattern of sqlInjectionPatterns) {
+        if (pattern.test(value)) {
+          console.warn(`[SECURITY] Potential SQL injection detected at ${path}: ${value.substring(0, 50)}`);
+          return true;
+        }
+      }
+    }
+    return false;
+  };
+
+  for (const [key, value] of Object.entries(req.query)) {
+    if (checkValue(value, `query.${key}`)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid characters detected in request'
+      });
+    }
+  }
+
+  if (req.body && typeof req.body === 'object') {
+    for (const [key, value] of Object.entries(req.body)) {
+      if (checkValue(value, `body.${key}`)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid characters detected in request'
+        });
+      }
+    }
+  }
+
+  next();
+};
+
+// ============================================
+// 메인 Security 설정
+// ============================================
 
 const setupSecurity = (app) => {
   // Helmet
   app.use(helmet({
     crossOriginResourcePolicy: { policy: 'cross-origin' }
   }));
+
+  // 추가 보안 헤더
+  app.use(securityHeaders);
+
+  // CSP
+  app.use(cspMiddleware);
 
   // CORS
   const allowedOrigins = (process.env.ALLOWED_ORIGINS || '').split(',').filter(Boolean);
@@ -23,20 +206,61 @@ const setupSecurity = (app) => {
     allowedHeaders: ['Content-Type', 'Authorization']
   }));
 
-  // Rate limiting
+  // Rate Limiting — 전체 API
   const apiLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000,
-    max: 1000,
+    windowMs: 1 * 60 * 1000, // 1분
+    max: 100,
     message: { success: false, message: 'Too many requests, please try again later' }
   });
   app.use('/api/', apiLimiter);
 
-  const authLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000,
-    max: 20,
-    message: { success: false, message: 'Too many login attempts' }
+  // Rate Limiting — 로그인
+  const loginLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15분
+    max: 5,
+    message: { success: false, message: 'Too many login attempts, please try again later' }
   });
-  app.use('/api/auth/login', authLimiter);
+  app.use('/api/auth/login', loginLimiter);
+
+  // Rate Limiting — 회원가입
+  const registerLimiter = rateLimit({
+    windowMs: 60 * 60 * 1000, // 1시간
+    max: 3,
+    message: { success: false, message: 'Too many registration attempts' }
+  });
+  app.use('/api/auth/register', registerLimiter);
+
+  // Rate Limiting — 비밀번호 재설정
+  const forgotPasswordLimiter = rateLimit({
+    windowMs: 60 * 60 * 1000, // 1시간
+    max: 3,
+    message: { success: false, message: 'Too many password reset requests' }
+  });
+  app.use('/api/auth/forgot-password', forgotPasswordLimiter);
+
+  // Rate Limiting — 파일 업로드
+  const uploadLimiter = rateLimit({
+    windowMs: 1 * 60 * 1000, // 1분
+    max: 10,
+    message: { success: false, message: 'Too many upload requests' }
+  });
+  app.use('/api/files', uploadLimiter);
+  app.use('/api/messages/*/attachments', uploadLimiter);
+
+  // SSRF 방어
+  app.use(ssrfProtection);
+
+  // SQL Injection 패턴 감지
+  app.use(sqlInjectionProtection);
 };
 
-module.exports = { setupSecurity };
+module.exports = {
+  setupSecurity,
+  ssrfProtection,
+  validateExternalUrl,
+  isInternalIP,
+  cookieOptions,
+  securityHeaders,
+  cspMiddleware,
+  sqlInjectionProtection
+};

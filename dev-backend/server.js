@@ -13,8 +13,16 @@ if (process.getuid && process.getuid() === 0) {
 
 require('dotenv').config();
 
+// JWT_SECRET 필수 체크
+if (!process.env.JWT_SECRET) {
+  console.error('JWT_SECRET environment variable is not set!');
+  process.exit(1);
+}
+
 const express = require('express');
 const http = require('http');
+const jwt = require('jsonwebtoken');
+const cookieParser = require('cookie-parser');
 const { Server } = require('socket.io');
 const { setupSecurity } = require('./middleware/security');
 const { errorHandler } = require('./middleware/errorHandler');
@@ -22,14 +30,29 @@ const { errorHandler } = require('./middleware/errorHandler');
 const app = express();
 const server = http.createServer(app);
 
-// Socket.IO
+// Socket.IO with authentication
 const allowedOrigins = (process.env.ALLOWED_ORIGINS || '').split(',').filter(Boolean);
 const io = new Server(server, {
   cors: { origin: allowedOrigins, credentials: true }
 });
 
+// Socket.IO 인증 미들웨어
+io.use((socket, next) => {
+  const token = socket.handshake.auth?.token || socket.handshake.headers?.authorization?.split(' ')[1];
+  if (!token) {
+    return next(new Error('Authentication required'));
+  }
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    socket.userId = decoded.userId || decoded.id;
+    next();
+  } catch (err) {
+    return next(new Error('Invalid token'));
+  }
+});
+
 io.on('connection', (socket) => {
-  console.log('Socket connected:', socket.id);
+  console.log('Socket connected:', socket.id, 'userId:', socket.userId);
   socket.on('disconnect', () => {
     console.log('Socket disconnected:', socket.id);
   });
@@ -40,9 +63,10 @@ app.set('io', io);
 // Security
 setupSecurity(app);
 
-// Body parser
+// Body parser + Cookie parser
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(cookieParser());
 
 // Health check
 app.get('/api/health', (req, res) => {

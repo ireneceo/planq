@@ -121,6 +121,19 @@ pm2 restart planq-dev-backend
 
 ---
 
+## 기술 스택
+
+| 영역 | 스택 |
+|------|------|
+| Frontend | React + TypeScript + Vite + styled-components |
+| Backend | Node.js + Express + Sequelize (MySQL 8.0) + Socket.IO |
+| Q Note | Python + FastAPI (별도 프로세스) |
+| 인증 | JWT (Access 15분 + Refresh 7일) |
+| 이메일 | Nodemailer |
+| 프로세스 | PM2 |
+
+---
+
 ## 코딩 가이드
 
 ### API 응답 형식 (표준)
@@ -128,6 +141,9 @@ pm2 restart planq-dev-backend
 // 성공
 res.json({ success: true, data: result });
 res.json({ success: true, data: result, message: '선택적 메시지' });
+
+// 성공 (목록)
+res.json({ success: true, data: [...], pagination: { page, limit, total } });
 
 // 실패
 res.status(400).json({ success: false, message: 'Error description' });
@@ -140,7 +156,12 @@ res.status(400).json({ success: false, message: 'Error description' });
 ### 백엔드 엔트리 포인트
 - PM2 실행 파일: `server.js`만 사용
 
-### 코드 스타일 (POS 패턴 동일)
+### 코드 스타일
+- 들여쓰기: 2 spaces
+- 세미콜론: 사용
+- 문자열: 작은따옴표
+- async/await 사용 (콜백/then 금지)
+- 에러 처리: try/catch + 공통 에러 핸들러
 - Sequelize 모델: `class X extends Model`, `X.init({...}, { sequelize, tableName, timestamps, underscored: true })`
 - 라우트: `express.Router()`, `successResponse/errorResponse` 헬퍼 사용
 - snake_case: DB 컬럼, API 응답 필드
@@ -149,6 +170,11 @@ res.status(400).json({ success: false, message: 'Error description' });
 ---
 
 ## 보안
+
+### 인증
+- JWT (Authorization: Bearer {token})
+- Access Token: 15분, Refresh Token: 7일 (HttpOnly Cookie)
+- bcryptjs salt rounds: 12
 
 ### 인증/인가 미들웨어
 | 미들웨어 | 용도 |
@@ -165,10 +191,67 @@ res.status(400).json({ success: false, message: 'Error description' });
 | 비즈니스 데이터 | authenticateToken + checkBusinessAccess |
 | 플랫폼 관리 | authenticateToken + requireRole('platform_admin') |
 
+### 보안 미들웨어 (middleware/security.js)
+- Helmet: 보안 헤더
+- CORS: dev.planq.kr, planq.kr만 허용
+- Rate Limit: 로그인 5회/15분, 회원가입 3회/1시간, 일반 100회/분
+- SSRF 방어: URL 파라미터 검사, 내부 IP 차단
+- SQL Injection 패턴 감지: 추가 방어층
+- CSP: Content Security Policy
+- 보안 헤더: XSS-Protection, X-Frame-Options, Referrer-Policy, Cache-Control
+
+### 멀티테넌트 격리
+- 모든 쿼리에 `WHERE business_id = ?` 필수
+- JOIN 시에도 business_id 조건 유지
+- Client는 자기 대화방/할일/파일만 접근
+
 ### 체크리스트
 - 사용자 입력 검증 필수
 - business_id 파라미터 신뢰 금지 → checkBusinessAccess로 소유권 확인
 - 민감한 데이터 로깅 금지 (비밀번호, 토큰)
+
+---
+
+## 운영 정책
+
+- 메시지 삭제: 마스킹 (is_deleted=true, 원본은 DB 유지, UI에서 "삭제된 메시지")
+- 메시지 수정: 허용 (is_edited=true, edited_at 기록, UI에서 "(수정됨)")
+- 할일 마감 지연: 빨간 뱃지, 마감 연장은 담당자 이상
+- 감사 로그: 모든 CUD 작업 AuditLog에 기록 (old_value/new_value JSON)
+
+---
+
+## DB 테이블 (13개)
+
+users, businesses, business_members, clients,
+conversations, conversation_participants,
+messages, message_attachments, tasks, files,
+invoices, invoice_items, audit_logs
+
+---
+
+## 파일 저장
+
+- 경로: `/opt/planq/dev-backend/uploads/{business_id}/{yyyy-mm}/`
+- 파일명: UUID로 변환 (원본 파일명은 DB에 저장)
+- 용량 제한: Free 10MB, Basic 30MB, Pro 50MB (파일당)
+- 허용 확장자: jpg, jpeg, png, gif, pdf, doc, docx, xls, xlsx, ppt, pptx, zip, txt
+
+---
+
+## 설계 문서
+
+| 문서 | 경로 |
+|------|------|
+| 시스템 아키텍처 | `docs/SYSTEM_ARCHITECTURE.md` |
+| ERD 데이터베이스 | `docs/DATABASE_ERD.md` |
+| 정보구조 (IA) | `docs/INFORMATION_ARCHITECTURE.md` |
+| API 설계 | `docs/API_DESIGN.md` |
+| 기능 정의서 | `docs/FEATURE_SPECIFICATION.md` |
+| 보안 설계 | `docs/SECURITY_DESIGN.md` |
+| 개발 로드맵 + 프롬프트 | `docs/DEVELOPMENT_ROADMAP.md` |
+| UI 디자인 가이드 | `dev-frontend/UI_DESIGN_GUIDE.md` |
+| 색상 가이드 | `dev-frontend/COLOR_GUIDE.md` |
 
 ---
 
@@ -177,6 +260,18 @@ res.status(400).json({ success: false, message: 'Error description' });
 - 저장소: `git@github-planq:ireneceo/planq.git`
 - SSH Host: `github-planq` (id_ed25519 키 사용)
 - 기본 브랜치: main
+
+---
+
+## 자동저장 (필수)
+
+- **저장이 필요한 모든 입력 폼은 AutoSaveField 컴포넌트를 사용**
+- 저장 버튼 없음 → 입력하면 자동 저장 (debounce: input 2초, select/toggle 300ms)
+- 성공: ✓ 뱃지만 표시 (2초 후 페이드), 에러: ! 뱃지 (4초 후 페이드)
+- 성공 팝업/토스트 절대 금지
+- 예외: 청구서 작성처럼 복잡한 폼은 저장 버튼 사용 가능
+- 컴포넌트: `src/components/Common/AutoSaveField.tsx`
+- 상세: `dev-frontend/UI_DESIGN_GUIDE.md` 섹션 7
 
 ---
 
