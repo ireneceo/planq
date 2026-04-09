@@ -274,67 +274,61 @@ CLAUDE.md를 읽고 Phase 7 (Q File 자료함)을 구현해줘.
 
 ---
 
-### Phase 8: Q Note (음성/회의 정리)
+### Phase 8: Q Note (실시간 회의 전사 + AI 분석)
 
-**예상 소요: 1-2일 (독립 개발, 우선 진행 가능)**
+**예상 소요: 3-4일 (독립 개발, 우선 진행)**
+**상세 기능 정의: `docs/FEATURE_SPECIFICATION.md` Phase 8 참조**
+
+#### 작업 단계
+
+| 단계 | 작업 | 내용 |
+|------|------|------|
+| B-1 | FastAPI 구조 + Deepgram WebSocket 프록시 | 프로젝트 구조, DB(SQLite), 인증, Deepgram 연동 |
+| B-2 | GPT-4o-mini 연동 (번역 + 질문 감지) | final result → 번역+질문판별 한 번에 처리 |
+| B-3 | 프론트엔드 라이브 모드 | 녹음 시작/종료, 실시간 전사+번역 표시, 질문 하이라이트 |
+| B-4 | 세션 저장 + 리뷰 모드 | 세션 목록, 기록 열람, 요약 생성 |
+| B-5 | 문서 업로드 + 답변 찾기 (RAG) | 문서 업로드, FTS5 검색, LLM 답변 생성 |
+| B-6 | 결과 연동 (Q Task, Q Talk) | 요약→할일, 결과→대화방 공유 (2차) |
+
+#### 프로젝트 구조
 
 ```
-PlanQ의 Q Note 기능을 구현해줘.
-/opt/planq/q-note 디렉토리에 FastAPI 프로젝트를 만들어.
-PlanQ 백엔드(/opt/planq/dev-backend)와 직접 코드 연결하지 마.
+q-note/
+├── main.py                  ← FastAPI entry + WebSocket
+├── .env                     ← DEEPGRAM_API_KEY, OPENAI_API_KEY, JWT_SECRET
+├── requirements.txt
+├── routers/
+│   ├── live.py              ← WebSocket /ws/live (실시간 STT 프록시)
+│   ├── sessions.py          ← GET/POST /api/sessions (세션 CRUD)
+│   ├── summary.py           ← POST /api/summary (요약 생성)
+│   ├── questions.py         ← GET /api/sessions/:id/questions (질문 목록)
+│   ├── answers.py           ← POST /api/answers (답변 찾기)
+│   └── documents.py         ← POST /api/documents/upload (문서 업로드)
+├── services/
+│   ├── deepgram_service.py  ← Deepgram WebSocket 연결 관리
+│   ├── llm_service.py       ← GPT-4o-mini (번역/질문감지/요약/답변)
+│   └── document_service.py  ← 문서 텍스트 추출 + FTS5 인덱싱
+├── middleware/
+│   └── auth.py              ← JWT 검증 (PlanQ 백엔드 SECRET_KEY 공유)
+├── data/
+│   └── qnote.db             ← SQLite (세션, 발화, 문서, 질문)
+└── uploads/                 ← 문서 파일 저장
+    └── {business_id}/
+```
 
-1. 환경 세팅
-   cd /opt/planq/q-note
-   python3.11 -m venv venv
-   source venv/bin/activate
+#### 필요 API 키
+- **Deepgram**: 실시간 STT ($0.0077/분)
+- **OpenAI**: GPT-4o-mini 번역/요약/답변 ($0.15/1M tokens)
 
-2. 프로젝트 구조
-   q-note/
-   ├── main.py              ← FastAPI entry
-   ├── .env
-   ├── requirements.txt
-   ├── routers/
-   │   ├── stt.py           ← POST /api/stt/upload (음성→텍스트)
-   │   ├── summary.py       ← POST /api/summary (텍스트→요약)
-   │   ├── questions.py     ← POST /api/questions (질문 추출)
-   │   ├── answers.py       ← POST /api/answers (답변 생성)
-   │   └── documents.py     ← POST /api/documents/upload (문서 업로드)
-   ├── services/
-   │   ├── whisper_service.py  ← OpenAI Whisper API 호출
-   │   ├── llm_service.py     ← Claude/OpenAI API 호출
-   │   └── document_service.py
-   ├── uploads/
-   └── CLAUDE.md
+#### Nginx WebSocket 프록시 (추가 필요)
 
-3. requirements.txt
-   fastapi, uvicorn[standard], python-multipart,
-   openai, anthropic, python-dotenv, pydub
-
-4. .env
-   PORT=8000
-   OPENAI_API_KEY=(설정)
-   ANTHROPIC_API_KEY=(설정)
-
-5. 각 라우터 구현
-   - /api/stt/upload: 음성 파일 → Whisper API → 텍스트 반환
-   - /api/summary: 텍스트 → LLM → 핵심요약 + bullet summary
-   - /api/questions: 대화 텍스트 → LLM → 질문 리스트 + 중요 표시
-   - /api/answers: 질문 + 문서 → LLM → 답변 (짧은/설명형)
-   - /api/documents/upload: PDF/텍스트 업로드 + 저장
-   - GET /health → { status: "ok" }
-
-6. PM2 등록
-   pm2 start "source venv/bin/activate && uvicorn main:app --host 0.0.0.0 --port 8000" \
-   --name planq-qnote --cwd /opt/planq/q-note
-
-7. Nginx 프록시 추가 (/etc/nginx/sites-available/planq-dev)
-   location /qnote/ {
-       proxy_pass http://localhost:8000/;
-   }
-
-8. 확인
-   curl localhost:8000/health → ok
-   curl dev.planq.kr/qnote/health → ok
+```nginx
+location /qnote/ {
+    proxy_pass http://localhost:8000/;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+}
 ```
 
 ---

@@ -1,26 +1,24 @@
 ## 현재 작업 상태
-**마지막 업데이트:** 2026-04-08
+**마지막 업데이트:** 2026-04-09
 **작업 상태:** 완료
 
 ### 진행 중인 작업
 - 없음
 
 ### 완료된 작업 (이번 세션)
-- Phase 2 최소 세트 (인증 시스템) 구현
-  - Backend: register(User+Business+Member 트랜잭션), login(이메일/username), refresh(HttpOnly cookie rotation), logout
-  - Frontend: LoginPage, RegisterPage (pill shape, placeholder only), AuthContext(메모리 토큰 + 자동갱신), ProtectedRoute
-  - MainLayout: 딥틸 사이드바 + LanguageSelector
-  - User 모델: username, refresh_token 필드 추가
-- COLOR_GUIDE.md 전면 재작성 (딥 틸 컬러 시스템)
-- Irene 계정 생성 (irene / irene@irenecompany.com / 워프로랩)
+- Q Note 구조 변경 확정: 배치(Whisper) → 실시간(Deepgram WebSocket) 전환
+- Q Note 설계 문서화: FEATURE_SPECIFICATION.md Phase 8 전면 재작성
+- DEVELOPMENT_ROADMAP.md Phase 8 프롬프트 재작성 (B-1~B-6)
+- DEVELOPMENT_PLAN.md Phase 8 작업 목록 교체
 
 ### 다음 할 일
-- B단계: Q Note 개발
-  - B-1: FastAPI 서비스 구조 + OpenAI 연동 (Whisper STT + GPT-4o-mini)
-  - B-2: 음성 업로드 + Whisper STT
-  - B-3~B-5: 요약, 질문 추출, 문서 기반 답변
-  - B-6: Q Note 프론트엔드 페이지
-- OpenAI API 키 필요 (Irene에게 확인)
+- B-1: Q Note FastAPI 구조 + Deepgram WebSocket 프록시 + 실시간 STT
+  - 프로젝트 구조 (routers, services, middleware)
+  - SQLite DB 설정 (sessions, utterances, documents 등)
+  - JWT 인증 미들웨어 (PlanQ 백엔드 SECRET_KEY 공유)
+  - Deepgram WebSocket 프록시 구현
+  - `.env` 설정 (DEEPGRAM_API_KEY, OPENAI_API_KEY, JWT_SECRET)
+- **필요 API 키: Deepgram + OpenAI (Irene에게 확인)**
 
 ---
 

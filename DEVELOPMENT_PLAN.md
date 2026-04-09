@@ -63,6 +63,24 @@
 
 ---
 
+## ✅ 완료: Q Note 설계 문서화 (2026-04-09)
+
+### 완료된 작업
+
+| 작업 | 설명 | 상태 |
+|------|------|:----:|
+| Q Note 구조 변경 확정 | 배치(Whisper) → 실시간(Deepgram) 전환, 라이브+리뷰 2모드 | ✅ |
+| FEATURE_SPECIFICATION.md | Phase 8 전면 재작성 — F8-1~F8-5, 아키텍처, 비용 예측 | ✅ |
+| DEVELOPMENT_ROADMAP.md | Phase 8 프롬프트 재작성 — B-1~B-6 단계, 프로젝트 구조 | ✅ |
+| DEVELOPMENT_PLAN.md | Phase 8 작업 목록 B-1~B-6으로 교체 | ✅ |
+
+### 수정된 파일
+- `DEVELOPMENT_PLAN.md` — Phase 8 작업 목록 변경
+- `docs/FEATURE_SPECIFICATION.md` — Phase 8 전면 재작성
+- `docs/DEVELOPMENT_ROADMAP.md` — Phase 8 프롬프트 재작성
+
+---
+
 ## Phase 3: 사업자 + 고객 관리
 
 > 사업자 프로필 + 멤버 초대 + 고객 초대 (초대 링크로 간편 가입) + 대화방 자동 생성
@@ -141,18 +159,19 @@
 
 ---
 
-## Phase 8: Q Note (음성/회의 정리)
+## Phase 8: Q Note (실시간 회의 전사 + AI 분석)
 
-> FastAPI — 음성 STT + AI 요약 + 질문 추출 + 답변 생성
+> 실시간 STT (Deepgram) + 번역/질문감지 (GPT-4o-mini) + 문서 기반 답변 (RAG)
+> 상세 설계: `docs/FEATURE_SPECIFICATION.md` Phase 8
 
 | # | 작업 | 상태 |
 |---|------|:----:|
-| 1 | 음성 업로드 + Whisper STT | |
-| 2 | 텍스트 → AI 요약 (LLM) | |
-| 3 | 질문 추출 + 중요도 표시 | |
-| 4 | 문서 기반 답변 생성 | |
-| 5 | Q Note 프론트엔드 (업로드 + 결과 뷰) | |
-| 6 | 할일로 전환 + Q Talk 공유 연동 | |
+| B-1 | FastAPI 구조 + Deepgram WebSocket 프록시 + 실시간 STT | |
+| B-2 | GPT-4o-mini 연동 (번역 + 질문 감지) | |
+| B-3 | 프론트엔드 라이브 모드 UI (녹음, 실시간 표시) | |
+| B-4 | 세션 저장 + 리뷰 모드 (기록 열람, 요약 생성) | |
+| B-5 | 문서 업로드 + 답변 찾기 (RAG, SQLite FTS5) | |
+| B-6 | 결과 연동 — Q Task 할일 전환 + Q Talk 공유 (2차) | |
 
 ---
 
