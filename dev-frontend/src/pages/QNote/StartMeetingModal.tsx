@@ -523,7 +523,7 @@ const StartMeetingModal = ({ open, userLanguage, onClose, onStart }: Props) => {
         <Footer>
           <SecondaryBtn onClick={onClose}>취소</SecondaryBtn>
           <PrimaryBtn onClick={handleStart} disabled={!canStart}>
-            녹음 시작
+            회의 진행
           </PrimaryBtn>
         </Footer>
       </ModalBox>

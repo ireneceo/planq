@@ -29,6 +29,7 @@ class DeepgramSession:
       f'&interim_results=true'
       f'&utterance_end_ms=1000'
       f'&vad_events=true'
+      f'&diarize=true'
       f'&encoding=linear16'
       f'&sample_rate=16000'
       f'&channels=1'
@@ -100,6 +101,18 @@ class DeepgramSession:
       duration = data.get('duration', 0)
       detected_language = channel.get('detected_language', self.language)
 
+      # Diarization: pick the majority speaker across words (fallback: first word)
+      words = best.get('words', []) or []
+      speaker_id = None
+      if words:
+        counts = {}
+        for w in words:
+          sp = w.get('speaker')
+          if sp is not None:
+            counts[sp] = counts.get(sp, 0) + 1
+        if counts:
+          speaker_id = max(counts.items(), key=lambda x: x[1])[0]
+
       result = {
         'type': 'transcript',
         'transcript': transcript,
@@ -109,6 +122,7 @@ class DeepgramSession:
         'start': start,
         'end': start + duration,
         'language': detected_language,
+        'deepgram_speaker_id': speaker_id,
       }
 
       if self.on_transcript:

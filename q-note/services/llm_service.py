@@ -3,11 +3,17 @@ LLM service — translation, question detection, summary, answer generation.
 
 LLM_PROVIDER 환경변수로 제공자 교체 가능 (현재 openai만 지원).
 모델 교체 시 LLM_MODEL 변경.
+
+All public functions accept an optional `meeting_context` dict with:
+  - brief: str (회의 안내)
+  - participants: list[{name, role}]
+  - pasted_context: str (붙여넣은 참고 텍스트)
+Any present field is prepended to the system prompt as context prefix.
 """
 import os
 import json
 import logging
-from typing import Optional
+from typing import Optional, Any
 from openai import AsyncOpenAI
 
 logger = logging.getLogger('q-note.llm')
@@ -26,6 +32,44 @@ def get_client() -> AsyncOpenAI:
       raise RuntimeError('OPENAI_API_KEY not configured')
     _client = AsyncOpenAI(api_key=OPENAI_API_KEY)
   return _client
+
+
+# ─────────────────────────────────────────────────────────
+# Meeting context prefix
+# ─────────────────────────────────────────────────────────
+
+def _build_context_prefix(meeting_context: Optional[dict]) -> str:
+  """Format optional meeting context as a prefix block for the system prompt."""
+  if not meeting_context:
+    return ''
+  parts = []
+  brief = meeting_context.get('brief')
+  if brief:
+    parts.append(f'## Meeting Brief\n{brief.strip()}')
+
+  participants = meeting_context.get('participants')
+  if participants and isinstance(participants, list):
+    lines = []
+    for p in participants:
+      if not isinstance(p, dict):
+        continue
+      name = p.get('name', '').strip()
+      role = (p.get('role') or '').strip()
+      if not name:
+        continue
+      lines.append(f'- {name}' + (f' ({role})' if role else ''))
+    if lines:
+      parts.append('## Participants\n' + '\n'.join(lines))
+
+  pasted = meeting_context.get('pasted_context')
+  if pasted:
+    # Keep it bounded — llm calls are per-utterance and context could be huge
+    snippet = pasted.strip()[:4000]
+    parts.append(f'## Reference Notes\n{snippet}')
+
+  if not parts:
+    return ''
+  return '\n\n'.join(parts) + '\n\n---\n\n'
 
 
 # ─────────────────────────────────────────────────────────
@@ -52,7 +96,7 @@ Respond ONLY with strict JSON:
 """
 
 
-async def translate_and_detect_question(text: str) -> dict:
+async def translate_and_detect_question(text: str, meeting_context: Optional[dict] = None) -> dict:
   """
   Returns: {"translation": str, "is_question": bool, "detected_language": str}
   """
@@ -61,10 +105,11 @@ async def translate_and_detect_question(text: str) -> dict:
 
   try:
     client = get_client()
+    system_content = _build_context_prefix(meeting_context) + TRANSLATE_SYSTEM
     response = await client.chat.completions.create(
       model=LLM_MODEL,
       messages=[
-        {'role': 'system', 'content': TRANSLATE_SYSTEM},
+        {'role': 'system', 'content': system_content},
         {'role': 'user', 'content': text},
       ],
       response_format={'type': 'json_object'},
@@ -103,16 +148,17 @@ Respond ONLY with strict JSON:
 """
 
 
-async def generate_summary(transcript: str) -> dict:
+async def generate_summary(transcript: str, meeting_context: Optional[dict] = None) -> dict:
   """Returns: {"key_points": list[str], "full_summary": str}"""
   if not transcript.strip():
     return {'key_points': [], 'full_summary': ''}
 
   client = get_client()
+  system_content = _build_context_prefix(meeting_context) + SUMMARY_SYSTEM
   response = await client.chat.completions.create(
     model=LLM_MODEL,
     messages=[
-      {'role': 'system', 'content': SUMMARY_SYSTEM},
+      {'role': 'system', 'content': system_content},
       {'role': 'user', 'content': transcript},
     ],
     response_format={'type': 'json_object'},
@@ -138,16 +184,17 @@ Respond ONLY with strict JSON:
 """
 
 
-async def generate_answer(question: str, context_chunks: list) -> dict:
+async def generate_answer(question: str, context_chunks: list, meeting_context: Optional[dict] = None) -> dict:
   """Returns: {"answer": str, "confidence": str}"""
   context = '\n\n---\n\n'.join(context_chunks) if context_chunks else '(no documents)'
   user_msg = f'Context:\n{context}\n\nQuestion: {question}'
 
   client = get_client()
+  system_content = _build_context_prefix(meeting_context) + ANSWER_SYSTEM
   response = await client.chat.completions.create(
     model=LLM_MODEL,
     messages=[
-      {'role': 'system', 'content': ANSWER_SYSTEM},
+      {'role': 'system', 'content': system_content},
       {'role': 'user', 'content': user_msg},
     ],
     response_format={'type': 'json_object'},

@@ -10,7 +10,6 @@ import {
   MonitorIcon,
   StopIcon,
   PlusIcon,
-  CheckIcon,
   ArrowRightIcon,
   HelpCircleIcon,
 } from '../../components/Common/Icons';
@@ -61,7 +60,7 @@ const QNotePage = () => {
     setConfig(cfg);
     setShowStartModal(false);
     setViewMode('live');
-    setIsRecording(true);
+    setIsRecording(false);
   };
 
   return (
@@ -154,16 +153,23 @@ const QNotePage = () => {
                 </SessionMeta>
               </HeaderLeft>
               <HeaderRight>
-                {isRecording && (
-                  <RecordingIndicator>
-                    <RecordDot />
-                    녹음 중 · 04:38
-                  </RecordingIndicator>
+                {isRecording ? (
+                  <>
+                    <RecordingIndicator>
+                      <RecordDot />
+                      녹음 중 · 04:38
+                    </RecordingIndicator>
+                    <StopBtn onClick={() => setIsRecording(false)}>
+                      <StopIcon size={14} />
+                      <span>중지</span>
+                    </StopBtn>
+                  </>
+                ) : (
+                  <StopBtn onClick={() => setIsRecording(true)}>
+                    <MicIcon size={14} />
+                    <span>녹음 시작</span>
+                  </StopBtn>
                 )}
-                <StopBtn onClick={() => setIsRecording(false)}>
-                  {isRecording ? <StopIcon size={14} /> : <CheckIcon size={14} />}
-                  <span>{isRecording ? '중지' : '완료'}</span>
-                </StopBtn>
               </HeaderRight>
             </MainHeader>
 

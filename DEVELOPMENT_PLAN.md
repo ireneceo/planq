@@ -7,6 +7,65 @@
 
 ---
 
+## 완료: Q Note B-3 Backend Wiring Step 1–5 (2026-04-10)
+
+### 완료된 작업
+
+| 구분 | 작업 | 상태 |
+|------|------|:----:|
+| **Step 1 DB 스키마** | sessions 컬럼 6종 추가 (brief, participants, urls, meeting_languages, translation_language, answer_language) | 완료 |
+| **Step 1 DB 스키마** | sessions.pasted_context 컬럼 추가 | 완료 |
+| **Step 1 DB 스키마** | speakers 신규 테이블 (session_id, deepgram_speaker_id, participant_name, is_self) | 완료 |
+| **Step 1 DB 스키마** | utterances.speaker_id FK 추가 | 완료 |
+| **Step 1 DB 스키마** | documents.session_id FK + 인덱스 추가 | 완료 |
+| **Step 1 DB 스키마** | 기존 데이터 보존 마이그레이션 (PRAGMA table_info 체크 → ALTER) | 완료 |
+| **Step 2 세션 API** | POST /api/sessions — brief/participants/언어3종/pasted_context 수신 | 완료 |
+| **Step 2 세션 API** | PUT /api/sessions/:id — 모든 필드 부분 업데이트 + JSON 역직렬화 | 완료 |
+| **Step 2 세션 API** | GET /api/sessions/:id — utterances + documents + speakers 포함 | 완료 |
+| **Step 2 문서** | POST /api/sessions/:id/documents — multipart 업로드 (10MB, 확장자 화이트리스트) | 완료 |
+| **Step 2 문서** | DELETE /api/sessions/:id/documents/:doc_id — DB + 디스크 파일 정리 | 완료 |
+| **Step 2 URL** | POST /api/sessions/:id/urls — https + SSRF 방어 (내부 IP/loopback/link-local 차단) | 완료 |
+| **Step 2 URL** | DELETE /api/sessions/:id/urls/:url_id | 완료 |
+| **Step 3 Deepgram** | deepgram_service.py `diarize=true` 추가 | 완료 |
+| **Step 3 Deepgram** | 단어 리스트 다수결로 deepgram_speaker_id 추출 | 완료 |
+| **Step 3 Deepgram** | meeting_languages → language 파라미터 매핑 (1개=단일, 여러개=multi) | 완료 |
+| **Step 4 화자 매칭** | POST /api/sessions/:id/speakers/:speaker_id/match | 완료 |
+| **Step 4 화자 매칭** | is_self=true 소급 적용 — 해당 화자의 is_question 플래그 해제 + detected_questions 삭제 | 완료 |
+| **Step 4 화자 매칭** | live.py speaker upsert (WebSocket utterance 수신 시 자동) | 완료 |
+| **Step 5 LLM 컨텍스트** | `_build_context_prefix()` — brief/participants/pasted_context → system prompt 접두 | 완료 |
+| **Step 5 LLM 컨텍스트** | translate/summary/answer 모두 meeting_context 파라미터 지원 | 완료 |
+| **Step 5 LLM 컨텍스트** | live.py 세션 시작 시 컨텍스트 로드 → 모든 enrichment 호출에 주입 | 완료 |
+| **Step 5 LLM 컨텍스트** | /api/llm/translate, /summary 에 session_id 옵션 추가 (소유 검증 후 컨텍스트 로드) | 완료 |
+| **부수 수정** | SQLite FK 활성화 — services/database.py `connect()` 헬퍼, 모든 커넥션에 PRAGMA foreign_keys=ON | 완료 |
+| **부수 수정** | aiosqlite.connect(DB_PATH) → db_connect() 일괄 교체 (sessions/live/llm 라우터) | 완료 |
+| **부수 수정** | python-multipart 의존성 추가 | 완료 |
+| **프론트 UX** | 모달 "녹음 시작" → "회의 진행" 변경, 회의 준비 / 녹음 분리 | 완료 |
+| **프론트 UX** | 메인 헤더 녹음 시작/중지 버튼 state 분기 | 완료 |
+
+### 검증 결과
+
+- **Step 1 DB 마이그레이션**: PRAGMA table_info 로 모든 컬럼/테이블/인덱스 존재 확인
+- **Step 2 세션 API E2E (13/13)**: 생성/조회/업데이트 round-trip, 파일 업로드/삭제 + 디스크 검증, 확장자 블랙리스트, URL 4종 SSRF 차단(http/loopback/private/link-local), 인증 미적용 401
+- **Step 3-5 E2E (10/10)**: 화자 seed/매칭, is_self 소급 (본인 질문 제거, 타인 질문 보존), GET 에 speakers 포함, 404 처리, LLM 컨텍스트 주입, CASCADE 삭제 검증
+- **헬스체크 19/19 전체 통과** (변경 전후 유지)
+
+### 수정된 파일
+
+**백엔드 (Q Note):**
+- `q-note/services/database.py` — 마이그레이션 로직 + speakers 테이블 + connect() 헬퍼 (FK 활성화)
+- `q-note/services/deepgram_service.py` — diarize + speaker_id 추출
+- `q-note/services/llm_service.py` — `_build_context_prefix` + meeting_context 파라미터
+- `q-note/routers/sessions.py` — 전면 재작성 (세션 CRUD 확장 + 문서/URL/화자 매칭)
+- `q-note/routers/live.py` — 컨텍스트 로드 + 화자 upsert + is_self 필터링
+- `q-note/routers/llm.py` — session_id 옵션 + _load_meeting_context
+- `q-note/requirements.txt` — python-multipart==0.0.12 추가
+
+**프론트엔드:**
+- `dev-frontend/src/pages/QNote/QNotePage.tsx` — 녹음 시작/중지 분리
+- `dev-frontend/src/pages/QNote/StartMeetingModal.tsx` — 버튼 "회의 진행"
+
+---
+
 ## ✅ 완료: Q Note Phase 8 — B-1, B-2 + B-3 mock UI + 인프라 정비 (2026-04-10)
 
 ### 완료된 작업
