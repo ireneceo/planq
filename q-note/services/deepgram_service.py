@@ -26,6 +26,7 @@ class DeepgramSession:
       f'?model=nova-3'
       f'&language={self.language}'
       f'&punctuate=true'
+      f'&smart_format=true'
       f'&interim_results=true'
       f'&utterance_end_ms=1000'
       f'&vad_events=true'

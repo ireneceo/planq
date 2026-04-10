@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import styled from 'styled-components';
 import PlanQSelect from '../../components/Common/PlanQSelect';
 import {
@@ -90,6 +90,28 @@ const StartMeetingModal = ({ open, userLanguage, onClose, onStart }: Props) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const allLangOptions = useMemo(() => langToOption(), []);
+
+  // 모달이 열릴 때마다 이전 입력 초기화 (이전 회의 데이터 잔존 방지)
+  useEffect(() => {
+    if (open) {
+      setTitle('');
+      setBrief('');
+      setParticipants([]);
+      setPName('');
+      setPRole('');
+      setMeetingLangs([]);
+      setTranslationLang(effectiveUserLanguage);
+      setAnswerLang('');
+      setAdding(false);
+      setCaptureMode('browser_tab');
+      setDocuments([]);
+      setPastedContext('');
+      setUrls([]);
+      setUrlInput('');
+      setFileError(null);
+      setIsDragging(false);
+    }
+  }, [open, effectiveUserLanguage]);
 
   if (!open) return null;
 

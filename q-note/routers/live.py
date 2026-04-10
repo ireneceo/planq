@@ -195,6 +195,22 @@ async def websocket_live(websocket: WebSocket, session_id: int = Query(...)):
       except Exception as e:
         logger.error(f'Failed to persist utterance: {e}')
 
+      # Notify client of persisted row so it can correlate future enrichment events
+      if utterance_id:
+        try:
+          await websocket.send_json({
+            'type': 'finalized',
+            'utterance_id': utterance_id,
+            'transcript': transcript_text,
+            'language': result.get('language'),
+            'deepgram_speaker_id': dg_speaker_id,
+            'speaker_id': speaker_row_id,
+            'start': result.get('start'),
+            'end': result.get('end'),
+          })
+        except Exception:
+          pass
+
       # Fire-and-forget enrichment (translation + question detection)
       if utterance_id and transcript_text.strip():
         asyncio.create_task(
@@ -238,15 +254,8 @@ async def websocket_live(websocket: WebSocket, session_id: int = Query(...)):
     logger.error(f'WS error: {e}')
   finally:
     await dg.close()
-    try:
-      async with db_connect() as db:
-        await db.execute(
-          "UPDATE sessions SET status = ?, updated_at = datetime('now') WHERE id = ?",
-          ('completed', session_id)
-        )
-        await db.commit()
-    except Exception:
-      pass
+    # status 는 명시적 종료(PUT /api/sessions/:id status=completed)로만 변경.
+    # WS 일시 중지/재시작을 허용하기 위해 여기서 자동 completed 처리하지 않음.
     try:
       await websocket.close()
     except Exception:
