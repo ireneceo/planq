@@ -1,16 +1,26 @@
 // ============================================================================
 // PlanQ Design Token System — 프로젝트의 유일한 디자인 값 소스
 // 모든 색상, 간격, 폰트 등은 반드시 이 파일에서 import하여 사용
-// 하드코딩 금지: #6C5CE7 → theme.colors.primary
+// 하드코딩 금지: #14B8A6 → theme.colors.primary
+// 상세: COLOR_GUIDE.md 참조
 // ============================================================================
 
 export const theme = {
   colors: {
-    // Brand
-    primary: '#6C5CE7',
-    primaryHover: '#5B4ED6',
-    primaryLight: 'rgba(108, 92, 231, 0.1)',
-    primaryShadow: 'rgba(108, 92, 231, 0.3)',
+    // Brand — PlanQ Deep Teal
+    primary: '#14B8A6',          // Primary 500
+    primaryHover: '#0D9488',     // Primary 600
+    primaryLight: 'rgba(20, 184, 166, 0.1)',
+    primaryShadow: 'rgba(20, 184, 166, 0.3)',
+
+    // Point (Coral/Rose) — 포인트 컬러, 절제 사용. COLOR_GUIDE.md §2.5 참조.
+    point: '#F43F5E',            // Point 500 — 핵심 CTA, AI 감지 강조
+    pointHover: '#E11D48',       // Point 600
+    pointPressed: '#BE123C',     // Point 700
+    pointLight50: '#FFF1F2',     // 라이트 배경
+    pointLight100: '#FFE4E6',    // 뱃지 배경
+    pointLight200: '#FECDD3',    // 보더
+    pointDark: '#9F1239',        // Point 800 — 뱃지 텍스트
 
     secondary: '#0A2540',
     secondaryLight: '#F8FAFC',
@@ -65,7 +75,7 @@ export const theme = {
     disabled: {
       background: '#F3F4F6',
       text: '#D1D5DB',
-      primaryBg: '#B8B3FF',
+      primaryBg: '#99F6E4',
       dangerBg: '#FCA5A5',
     },
   },
@@ -111,7 +121,7 @@ export const theme = {
     md: '0 4px 6px rgba(0, 0, 0, 0.07), 0 2px 4px rgba(0, 0, 0, 0.05)',
     lg: '0 10px 15px rgba(0, 0, 0, 0.1), 0 4px 6px rgba(0, 0, 0, 0.05)',
     xl: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
-    primaryHover: '0 4px 12px rgba(108, 92, 231, 0.3)',
+    primaryHover: '0 4px 12px rgba(20, 184, 166, 0.3)',
     dangerHover: '0 4px 12px rgba(220, 38, 38, 0.3)',
   },
 

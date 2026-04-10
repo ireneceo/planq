@@ -40,8 +40,16 @@ router.put('/:id', authenticateToken, async (req, res, next) => {
     const user = await User.findByPk(req.params.id);
     if (!user) return errorResponse(res, 'User not found', 404);
 
-    const { name, phone, avatar_url } = req.body;
-    await user.update({ name, phone, avatar_url });
+    const { name, phone, avatar_url, language } = req.body;
+    const updates = { name, phone, avatar_url };
+    if (language !== undefined) {
+      // ISO 639-1 코드 검증 (2~10자, 알파벳/하이픈만)
+      if (typeof language !== 'string' || !/^[a-z]{2}(-[A-Z]{2})?$/.test(language)) {
+        return errorResponse(res, 'Invalid language code', 400);
+      }
+      updates.language = language;
+    }
+    await user.update(updates);
 
     const updated = await User.findByPk(req.params.id, {
       attributes: { exclude: ['password_hash'] }

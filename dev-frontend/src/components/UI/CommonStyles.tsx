@@ -45,12 +45,12 @@ export const BaseButton = styled.button<{
     switch (props.variant) {
       case 'primary':
         return css`
-          background: #6C5CE7;
+          background: #14B8A6;
           color: white;
           &:hover:not(:disabled) {
-            background: #5B4ED6;
+            background: #0D9488;
             transform: translateY(-1px);
-            box-shadow: 0 4px 12px rgba(108, 92, 231, 0.3);
+            box-shadow: 0 4px 12px rgba(20, 184, 166, 0.3);
           }
         `;
       case 'secondary':
@@ -104,12 +104,12 @@ export const BaseButton = styled.button<{
         `;
       default:
         return css`
-          background: #6C5CE7;
+          background: #14B8A6;
           color: white;
           &:hover:not(:disabled) {
-            background: #5B4ED6;
+            background: #0D9488;
             transform: translateY(-1px);
-            box-shadow: 0 4px 12px rgba(108, 92, 231, 0.3);
+            box-shadow: 0 4px 12px rgba(20, 184, 166, 0.3);
           }
         `;
     }
@@ -128,7 +128,7 @@ export const BaseButton = styled.button<{
 
   &:focus {
     outline: none;
-    box-shadow: 0 0 0 3px rgba(108, 92, 231, 0.2);
+    box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.2);
   }
 `;
 
@@ -278,10 +278,10 @@ export const SaveButton = styled.button<{ variant?: 'primary' | 'secondary' }>`
   cursor: pointer;
   transition: all 0.2s;
   border: ${props => props.variant === 'secondary' ? '1px solid #E5E7EB' : 'none'};
-  background: ${props => props.variant === 'secondary' ? 'white' : '#6C5CE7'};
+  background: ${props => props.variant === 'secondary' ? 'white' : '#14B8A6'};
   color: ${props => props.variant === 'secondary' ? '#6B7280' : 'white'};
   &:hover:not(:disabled) {
-    background: ${props => props.variant === 'secondary' ? '#F9FAFB' : '#5B4ED6'};
+    background: ${props => props.variant === 'secondary' ? '#F9FAFB' : '#0D9488'};
     transform: translateY(-1px);
   }
   &:disabled {

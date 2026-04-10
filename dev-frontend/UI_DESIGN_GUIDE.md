@@ -58,7 +58,15 @@ setFormError(null);
 ### 1.5 이모지/아이콘 금지
 
 - 페이지 내 안내 메시지에 이모지 사용 금지
+- 국기 이모지(🇰🇷 🇺🇸 등) 사용 금지 — 언어는 텍스트("한국어", "English")로
+- 아이콘 필요 시: `components/Common/Icons.tsx` (Feather-style stroke SVG, 사이드바와 동일 디자인 시스템)
 - 텍스트만으로 명확하게 전달
+
+### 1.6 셀렉트(드롭다운) — PlanQSelect 강제
+
+- 모든 셀렉트는 `components/Common/PlanQSelect.tsx` 사용
+- raw `<select>`, styled `select`, react-select 직접 import 금지 — 헬스체크 린트가 차단
+- 검색 가능, 멀티 셀렉트, 아이콘/설명 옵션 지원
 
 ---
 

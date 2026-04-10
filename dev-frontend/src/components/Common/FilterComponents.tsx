@@ -29,7 +29,7 @@ const CommonSearchInput = styled.input`
   font-size: 14px;
   background: white;
   &::placeholder { color: #9CA3AF; }
-  &:focus { outline: none; border-color: #6C5CE7; box-shadow: 0 0 0 3px rgba(108, 92, 231, 0.1); }
+  &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.1); }
   @media (max-width: 600px) { width: 100%; min-width: 100%; max-width: 100%; }
 `;
 
@@ -71,7 +71,7 @@ const CommonFilterSelect = styled.select`
   min-width: 140px;
   max-width: 180px;
   flex-shrink: 0;
-  &:focus { outline: none; border-color: #6C5CE7; box-shadow: 0 0 0 3px rgba(108, 92, 231, 0.1); }
+  &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.1); }
   &:disabled { background: #F8FAFC; color: #6B7280; cursor: not-allowed; }
   @media (max-width: 600px) { width: 100%; min-width: 100%; max-width: 100%; padding: 12px 16px; font-size: 14px; }
 `;

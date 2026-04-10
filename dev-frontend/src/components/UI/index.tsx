@@ -3,7 +3,6 @@ export * from './StatCard';
 export * from './CommonStyles';
 export * from './Tabs';
 export * from './Modal';
-export * from './SelectComponents';
 
 export {
   AlertMessage,

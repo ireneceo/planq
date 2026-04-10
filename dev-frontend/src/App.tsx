@@ -4,6 +4,7 @@ import ProtectedRoute from './components/ProtectedRoute';
 import MainLayout from './components/Layout/MainLayout';
 import LoginPage from './pages/Login/LoginPage';
 import RegisterPage from './pages/Register/RegisterPage';
+import QNotePage from './pages/QNote/QNotePage';
 import './App.css';
 
 // Placeholder pages - will be replaced per phase
@@ -55,7 +56,7 @@ function App() {
 
         <Route path="/notes" element={
           <ProtectedRoute>
-            <MainLayout><PlaceholderPage title="Q Note" /></MainLayout>
+            <MainLayout><QNotePage /></MainLayout>
           </ProtectedRoute>
         } />
 

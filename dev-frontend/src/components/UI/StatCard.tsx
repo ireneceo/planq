@@ -15,7 +15,7 @@ export const StatCard = styled.div<{ color?: string }>`
   border-radius: 12px;
   padding: 20px;
   border: 1px solid #E6EBF1;
-  border-left: 4px solid ${props => props.color || '#6C5CE7'};
+  border-left: 4px solid ${props => props.color || '#14B8A6'};
   transition: all 0.2s;
   &:hover { box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08); transform: translateY(-2px); }
   @media (max-width: 768px) { padding: 12px 14px; }
@@ -72,7 +72,7 @@ export const DashboardStatCard = styled.div<{ color?: string }>`
   border-radius: 12px;
   padding: 24px;
   border: 1px solid #E6EBF1;
-  border-left: 4px solid ${props => props.color || '#6C5CE7'};
+  border-left: 4px solid ${props => props.color || '#14B8A6'};
   transition: all 0.2s;
   &:hover { box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08); transform: translateY(-2px); }
 `;

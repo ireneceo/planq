@@ -27,8 +27,8 @@ const StyledInput = styled.input<{ hasError?: boolean }>`
   box-sizing: border-box;
   &:focus {
     outline: none;
-    border-color: ${props => props.hasError ? '#EF4444' : '#6C5CE7'};
-    box-shadow: 0 0 0 3px ${props => props.hasError ? 'rgba(239, 68, 68, 0.1)' : 'rgba(108, 92, 231, 0.1)'};
+    border-color: ${props => props.hasError ? '#EF4444' : '#14B8A6'};
+    box-shadow: 0 0 0 3px ${props => props.hasError ? 'rgba(239, 68, 68, 0.1)' : 'rgba(20, 184, 166, 0.1)'};
   }
   &::placeholder { color: #9CA3AF; }
   &:disabled { background: #F3F4F6; cursor: not-allowed; }

@@ -20,17 +20,17 @@ export const RadioButton = styled.button<{ selected?: boolean }>`
   padding: 12px 16px;
   min-height: 44px;
   border-radius: 8px;
-  border: 1px solid ${props => props.selected ? '#6C5CE7' : '#E6EBF1'};
-  background: ${props => props.selected ? 'rgba(108, 92, 231, 0.1)' : 'white'};
-  color: ${props => props.selected ? '#6C5CE7' : '#374151'};
+  border: 1px solid ${props => props.selected ? '#14B8A6' : '#E6EBF1'};
+  background: ${props => props.selected ? 'rgba(20, 184, 166, 0.1)' : 'white'};
+  color: ${props => props.selected ? '#14B8A6' : '#374151'};
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.15s;
   text-align: center;
   &:hover {
-    border-color: ${props => props.selected ? '#6C5CE7' : '#D1D5DB'};
-    background: ${props => props.selected ? 'rgba(108, 92, 231, 0.1)' : '#F9FAFB'};
+    border-color: ${props => props.selected ? '#14B8A6' : '#D1D5DB'};
+    background: ${props => props.selected ? 'rgba(20, 184, 166, 0.1)' : '#F9FAFB'};
   }
 `;
 
@@ -56,7 +56,7 @@ export const CheckboxLabel = styled.label`
 export const CheckboxInput = styled.input`
   width: 16px;
   height: 16px;
-  accent-color: #6C5CE7;
+  accent-color: #14B8A6;
   cursor: pointer;
   border-radius: 4px;
 `;

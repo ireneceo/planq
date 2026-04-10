@@ -21,13 +21,13 @@ interface FileUploadProps {
 const Container = styled.div`margin-top: 8px;`;
 
 const DropZone = styled.div<{ isDragging: boolean; disabled?: boolean }>`
-  border: 2px dashed ${props => props.isDragging ? '#6C5CE7' : '#CBD5E1'};
+  border: 2px dashed ${props => props.isDragging ? '#14B8A6' : '#CBD5E1'};
   border-radius: 8px; padding: 16px; text-align: center;
-  background: ${props => props.isDragging ? 'rgba(108, 92, 231, 0.05)' : '#F8FAFC'};
+  background: ${props => props.isDragging ? 'rgba(20, 184, 166, 0.05)' : '#F8FAFC'};
   cursor: ${props => props.disabled ? 'not-allowed' : 'pointer'};
   transition: all 0.2s;
   opacity: ${props => props.disabled ? 0.5 : 1};
-  &:hover { border-color: ${props => props.disabled ? '#CBD5E1' : '#6C5CE7'}; }
+  &:hover { border-color: ${props => props.disabled ? '#CBD5E1' : '#14B8A6'}; }
 `;
 
 const DropText = styled.p`font-size: 13px; color: #6B7280; margin: 0 0 4px 0;`;
@@ -53,12 +53,12 @@ const RemoveBtn = styled.button`
 
 const UploadingIndicator = styled.div`
   display: flex; align-items: center; gap: 8px;
-  padding: 8px 10px; background: #F0ECFF; border-radius: 6px;
-  font-size: 12px; color: #6C5CE7;
+  padding: 8px 10px; background: #F0FDFA; border-radius: 6px;
+  font-size: 12px; color: #14B8A6;
 `;
 
 const Spinner = styled.div`
-  width: 14px; height: 14px; border: 2px solid #E5E7EB; border-top-color: #6C5CE7;
+  width: 14px; height: 14px; border: 2px solid #E5E7EB; border-top-color: #14B8A6;
   border-radius: 50%; animation: spin 0.8s linear infinite; flex-shrink: 0;
   @keyframes spin { to { transform: rotate(360deg); } }
 `;

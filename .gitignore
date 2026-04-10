@@ -4,6 +4,8 @@ node_modules/
 uploads/
 dev-frontend-build/
 q-note/venv/
+q-note/data/
+backups/
 __pycache__/
 *.pyc
 .DS_Store

@@ -96,7 +96,7 @@ export const ActionButton = styled.button`
   cursor: pointer;
   transition: all 0.2s;
   white-space: nowrap;
-  &:hover { border-color: #6C5CE7; color: #6C5CE7; background: #F0ECFF; }
+  &:hover { border-color: #14B8A6; color: #14B8A6; background: #F0FDFA; }
   @media (max-width: 768px) { padding: 6px 10px; font-size: 11px; flex: 0 0 auto; }
 `;
 

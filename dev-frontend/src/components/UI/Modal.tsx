@@ -110,31 +110,14 @@ export const FormInput = styled.input`
   transition: all 0.15s;
   &:focus {
     outline: none;
-    border-color: #6C5CE7;
-    box-shadow: 0 0 0 3px rgba(108, 92, 231, 0.1);
+    border-color: #14B8A6;
+    box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.1);
   }
   &:disabled { background: #F9FAFB; color: #6B7280; cursor: not-allowed; }
   &::placeholder { color: #9CA3AF; }
 `;
 
-export const FormSelect = styled.select`
-  width: 100%;
-  max-width: 100%;
-  box-sizing: border-box;
-  padding: 8px 12px;
-  border: 1px solid #E6EBF1;
-  border-radius: 6px;
-  font-size: 14px;
-  background: white;
-  transition: all 0.15s;
-  cursor: pointer;
-  &:focus {
-    outline: none;
-    border-color: #6C5CE7;
-    box-shadow: 0 0 0 3px rgba(108, 92, 231, 0.1);
-  }
-  &:disabled { background: #F9FAFB; color: #6B7280; cursor: not-allowed; }
-`;
+// FormSelect 제거됨 — PlanQSelect (components/Common/PlanQSelect.tsx) 사용
 
 export const FormTextArea = styled.textarea`
   width: 100%;
@@ -149,8 +132,8 @@ export const FormTextArea = styled.textarea`
   transition: all 0.15s;
   &:focus {
     outline: none;
-    border-color: #6C5CE7;
-    box-shadow: 0 0 0 3px rgba(108, 92, 231, 0.1);
+    border-color: #14B8A6;
+    box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.1);
   }
   &::placeholder { color: #9CA3AF; }
 `;
@@ -183,7 +166,7 @@ export const ModalButton = styled.button<{ variant?: 'primary' | 'secondary' | '
   }};
   background: ${props => {
     switch (props.variant) {
-      case 'primary': return '#6C5CE7';
+      case 'primary': return '#14B8A6';
       case 'danger': return '#DC2626';
       default: return 'white';
     }
@@ -198,7 +181,7 @@ export const ModalButton = styled.button<{ variant?: 'primary' | 'secondary' | '
   &:hover:not(:disabled) {
     background: ${props => {
       switch (props.variant) {
-        case 'primary': return '#5B4ED6';
+        case 'primary': return '#0D9488';
         case 'danger': return '#B91C1C';
         default: return '#F8FAFC';
       }
@@ -208,7 +191,7 @@ export const ModalButton = styled.button<{ variant?: 'primary' | 'secondary' | '
   &:disabled {
     background: ${props => {
       switch (props.variant) {
-        case 'primary': return '#B8B3FF';
+        case 'primary': return '#99F6E4';
         case 'danger': return '#FCA5A5';
         default: return '#F3F4F6';
       }

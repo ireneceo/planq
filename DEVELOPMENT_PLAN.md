@@ -1,9 +1,115 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-04-09
-> **데이터베이스:** planq_dev_db (MySQL)
+> **최종 업데이트:** 2026-04-10
+> **데이터베이스:** planq_dev_db (MySQL) + qnote.db (SQLite, FTS5)
 > **프로젝트:** B2B SaaS — 업무 전용 고객 채팅 + 실행 구조 통합 OS
 > **로드맵 상세:** `docs/DEVELOPMENT_ROADMAP.md`
+
+---
+
+## ✅ 완료: Q Note Phase 8 — B-1, B-2 + B-3 mock UI + 인프라 정비 (2026-04-10)
+
+### 완료된 작업
+
+| 구분 | 작업 | 상태 |
+|------|------|:----:|
+| **B-1 백엔드** | Q Note FastAPI 구조 (routers/services/middleware/data) | ✅ |
+| **B-1 백엔드** | SQLite 6 테이블 + FTS5 (sessions, utterances, documents, document_chunks, summaries, detected_questions) | ✅ |
+| **B-1 백엔드** | JWT 인증 미들웨어 (PlanQ 백엔드 SECRET_KEY 공유) | ✅ |
+| **B-1 백엔드** | Deepgram WebSocket 프록시 (Nova-3, language=multi) | ✅ |
+| **B-1 백엔드** | 세션 CRUD API (POST/GET/PUT/DELETE /api/sessions) | ✅ |
+| **B-1 백엔드** | WebSocket /ws/live 엔드포인트 | ✅ |
+| **B-1 인프라** | Nginx WebSocket 프록시 헤더 추가 | ✅ |
+| **B-2 백엔드** | OpenAI GPT-5-mini 연동 (translate, summary, answer) | ✅ |
+| **B-2 백엔드** | LLM 서비스 (translate_and_detect_question, generate_summary, generate_answer) | ✅ |
+| **B-2 백엔드** | /api/llm/translate, /api/llm/summary 엔드포인트 | ✅ |
+| **B-2 백엔드** | live.py에 background enrichment 통합 (utterance → 번역+질문감지) | ✅ |
+| **B-2 검증** | 실제 한→영 / 영→한 번역 + is_question 감지 동작 확인 (19/19 헬스체크) | ✅ |
+| **헬스체크** | scripts/health-check.js — 19개 체크 (Infra/Auth/B-1/External/B-2/Frontend Lint) | ✅ |
+| **헬스체크** | /검증 + /개발완료 명령어에 0단계 헬스체크 통과 강제 추가 | ✅ |
+| **헬스체크** | 토큰 캐시 (rate limit 회피) | ✅ |
+| **린트** | Frontend 린트 3종 (POS 컬러 잔재 / raw <select> / react-select 직접 import) | ✅ |
+| **컴포넌트** | PlanQSelect (react-select 기반 검색 가능 통합 셀렉트, 사이즈/multi/icon 지원) | ✅ |
+| **컴포넌트** | Icons.tsx (Feather-style stroke SVG, MicIcon/MonitorIcon/StopIcon 등 11개) | ✅ |
+| **POS 정리** | POS 보라색 잔재 17개 파일 약 30곳 일괄 정리 (#6C5CE7→#14B8A6 등) | ✅ |
+| **POS 정리** | theme.ts brand 컬러 PlanQ 딥틸로 교체 + Point 컬러 추가 | ✅ |
+| **POS 정리** | legacy SelectComponents.tsx 삭제, ThemedSelect/FormSelect 제거 | ✅ |
+| **컬러 시스템** | Point 컬러 Coral/Rose #F43F5E 정의 (CTA + AI 감지 강조용) | ✅ |
+| **컬러 시스템** | COLOR_GUIDE.md §2.5 Point 컬러 섹션 신규 추가 | ✅ |
+| **DB** | users.language 컬럼 추가 (사용자 모국어, ISO 639-1) | ✅ |
+| **DB** | PUT /api/users/:id에 language 업데이트 + 검증 추가 | ✅ |
+| **B-3 mock UI** | Q Note 페이지 (사이드바 + 라이브/리뷰 모드 + 트랜스크립트) | ✅ |
+| **B-3 mock UI** | StartMeetingModal — 회의 시작 입력 폼 | ✅ |
+| **B-3 mock UI** | 회의 시작 모달 — 제목, 회의 안내(brief), 참여자, 메인/답변/번역 언어, 자료(파일/텍스트/URL), 캡처 방식 | ✅ |
+| **B-3 mock UI** | 메인 언어 멀티 셀렉트 (pill + "+ 언어 추가") — 빈 상태 시작 | ✅ |
+| **B-3 mock UI** | 답변 언어 (메인 언어 중 선택), 번역 언어 (모든 언어, 디폴트 사용자 모국어) | ✅ |
+| **B-3 mock UI** | 참여자 입력 (이름 + 역할/메모, 그룹 표현 가능) | ✅ |
+| **B-3 mock UI** | 자료 — 파일 업로드 (10MB 검증) + 텍스트 붙여넣기 (10만자) + URL (http/https 검증) | ✅ |
+| **B-3 mock UI** | 본인 발화 질문 제외 (isSelf 필드, 좌측 코랄 보더 + "질문" 라벨 + "답변 찾기" 버튼 제외) | ✅ |
+| **B-3 mock UI** | 질문 발화 텍스트 굵게 + 코랄 좌측 보더 강조 | ✅ |
+| **B-3 mock UI** | 사이드바 접기 토글 (미팅 풀스크린) | ✅ |
+| **B-3 mock UI** | AudioCapture 추상화 인터페이스 (마이크/탭, 미래 데스크톱 앱 대응) | ✅ |
+| **B-3 mock UI** | LANGUAGES.ts 상수 (23개 언어, ISO 639-1 + Deepgram 지원 정보) | ✅ |
+| **워크플로우** | UI-First 개발 원칙 영구 규칙화 (CLAUDE.md + 메모리) | ✅ |
+
+### 미완료 / 다음 단계 (B-3 backend wiring + B-4~B-6)
+
+| 작업 | 상태 |
+|------|:----:|
+| Deepgram WebSocket에 `diarize=true` 옵션 추가 (화자 분리) | ⏳ |
+| sessions 테이블에 brief, participants(JSON), urls 컬럼 추가 | ⏳ |
+| speakers 테이블 신규 (session_id, speaker_id, participant_name, is_self) | ⏳ |
+| 화자 매칭 API (POST /api/sessions/:id/speakers/:speaker_id/match) | ⏳ |
+| LLM 호출 시 brief + participants를 system prompt에 prefix 주입 | ⏳ |
+| isSelf 자동 마킹 (사용자가 "나"로 매칭한 speaker_id 발화 모두) | ⏳ |
+| 본인 발화는 detected_questions 테이블에 INSERT 안 함 | ⏳ |
+| URL fetcher (trafilatura/readability) + SSRF 방어 (내부 IP 차단, HTTPS 강제) | ⏳ |
+| 문서 업로드 + 텍스트 추출 + 청크 분할 + FTS5 인덱싱 (B-5 RAG) | ⏳ |
+| 회의 음성 캡처 → WebSocket 전송 (PCM16 16kHz mono) | ⏳ |
+| 라이브 모드 mock 데이터 → 실 WebSocket 연결로 교체 | ⏳ |
+| 리뷰 모드 → 실 세션 데이터로 교체 | ⏳ |
+| 사용자 프로필 페이지 (language 필드 변경 UI) | ⏳ |
+| 회의 도중 연결 끊김 처리 (재연결 + 버퍼 + 이어쓰기) | ⏳ |
+| 4시간 회의 한계 처리 (Deepgram 세션 split) | ⏳ |
+| 음성 핑거프린트 등록/매칭 (선택 기능) | ⏳ |
+| 법적 동의 1회 모달 (녹음 동의, AI 데이터 처리 안내) | ⏳ |
+
+### 수정/생성된 파일 (이번 세션)
+
+**생성:**
+- `dev-frontend/src/components/Common/PlanQSelect.tsx`
+- `dev-frontend/src/components/Common/Icons.tsx`
+- `dev-frontend/src/constants/languages.ts`
+- `dev-frontend/src/services/audio/AudioCaptureSource.ts`
+- `dev-frontend/src/services/audio/MicrophoneCapture.ts`
+- `dev-frontend/src/services/audio/BrowserTabCapture.ts`
+- `dev-frontend/src/services/audio/index.ts`
+- `dev-frontend/src/pages/QNote/QNotePage.tsx`
+- `dev-frontend/src/pages/QNote/StartMeetingModal.tsx`
+- `dev-frontend/src/pages/QNote/mockData.ts`
+- `q-note/middleware/auth.py`
+- `q-note/services/database.py`
+- `q-note/services/deepgram_service.py`
+- `q-note/services/llm_service.py`
+- `q-note/routers/live.py`
+- `q-note/routers/sessions.py`
+- `q-note/routers/llm.py`
+- `q-note/.env` (개인 키 — git 제외)
+- `scripts/health-check.js`
+
+**수정:**
+- `q-note/main.py`, `q-note/requirements.txt`
+- `dev-backend/models/User.js` (language 컬럼 추가)
+- `dev-backend/routes/users.js` (language 업데이트 검증)
+- `dev-frontend/src/styles/theme.ts` (PlanQ 컬러 + Point 컬러)
+- `dev-frontend/COLOR_GUIDE.md` (Point 컬러 §2.5 추가)
+- `dev-frontend/src/App.tsx` (Q Note 라우트 활성화)
+- `CLAUDE.md` (UI-First 워크플로우 명시)
+- `.claude/commands/검증.md`, `.claude/commands/개발완료.md` (헬스체크 0단계 추가)
+- POS 컬러 잔재 17개 파일 (보라색 → 딥틸)
+
+**삭제:**
+- `dev-frontend/src/components/UI/SelectComponents.tsx` (가짜 SearchableSelect)
 
 ---
 
@@ -161,14 +267,14 @@
 
 ## Phase 8: Q Note (실시간 회의 전사 + AI 분석)
 
-> 실시간 STT (Deepgram) + 번역/질문감지 (GPT-4o-mini) + 문서 기반 답변 (RAG)
+> 실시간 STT (Deepgram Nova-3) + 번역/질문감지 (GPT-5-mini) + 문서 기반 답변 (RAG)
 > 상세 설계: `docs/FEATURE_SPECIFICATION.md` Phase 8
 
 | # | 작업 | 상태 |
 |---|------|:----:|
-| B-1 | FastAPI 구조 + Deepgram WebSocket 프록시 + 실시간 STT | |
-| B-2 | GPT-4o-mini 연동 (번역 + 질문 감지) | |
-| B-3 | 프론트엔드 라이브 모드 UI (녹음, 실시간 표시) | |
+| B-1 | FastAPI 구조 + Deepgram WebSocket 프록시 + 실시간 STT | ✅ |
+| B-2 | GPT-5-mini 연동 (번역 + 질문 감지) | ✅ |
+| B-3 | 프론트엔드 라이브 모드 UI (mock + 실 백엔드 연결) | 🔄 mock UI 완료, 백엔드 연결 대기 |
 | B-4 | 세션 저장 + 리뷰 모드 (기록 열람, 요약 생성) | |
 | B-5 | 문서 업로드 + 답변 찾기 (RAG, SQLite FTS5) | |
 | B-6 | 결과 연동 — Q Task 할일 전환 + Q Talk 공유 (2차) | |

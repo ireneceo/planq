@@ -50,9 +50,9 @@ export const ThemedButton = styled.button<{
         `;
       default:
         return `
-          background: #6C5CE7;
+          background: #14B8A6;
           color: white;
-          &:hover { background: #5B4ED6; transform: translateY(-2px); box-shadow: 0 4px 12px rgba(108, 92, 231, 0.3); }
+          &:hover { background: #0D9488; transform: translateY(-2px); box-shadow: 0 4px 12px rgba(20, 184, 166, 0.3); }
         `;
     }
   }}
@@ -81,19 +81,7 @@ export const ThemedButton = styled.button<{
   }
 `;
 
-export const ThemedSelect = styled.select`
-  padding: 8px 12px;
-  border: 1px solid #E5E7EB;
-  border-radius: 6px;
-  font-size: 14px;
-  background: white;
-  color: #374151;
-  min-width: 120px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  &:focus { outline: none; border-color: #6C5CE7; box-shadow: 0 0 0 3px rgba(108, 92, 231, 0.2); }
-  &:hover { border-color: #7C6FE7; }
-`;
+// ThemedSelect 제거됨 — PlanQSelect (components/Common/PlanQSelect.tsx) 사용
 
 export const ThemedInput = styled.input`
   padding: 8px 12px;
@@ -103,8 +91,8 @@ export const ThemedInput = styled.input`
   background: white;
   color: #374151;
   transition: all 0.2s ease;
-  &:focus { outline: none; border-color: #6C5CE7; box-shadow: 0 0 0 3px rgba(108, 92, 231, 0.2); }
-  &:hover { border-color: #7C6FE7; }
+  &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.2); }
+  &:hover { border-color: #0D9488; }
 `;
 
 export const ThemedCard = styled.div<{ accent?: boolean }>`
@@ -113,6 +101,6 @@ export const ThemedCard = styled.div<{ accent?: boolean }>`
   border: 1px solid #E5E7EB;
   padding: 16px;
   transition: all 0.2s ease;
-  ${props => props.accent && `border-color: #6C5CE7; box-shadow: 0 4px 6px -1px rgba(108, 92, 231, 0.2);`}
-  &:hover { border-color: #7C6FE7; box-shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.1); }
+  ${props => props.accent && `border-color: #14B8A6; box-shadow: 0 4px 6px -1px rgba(20, 184, 166, 0.2);`}
+  &:hover { border-color: #0D9488; box-shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.1); }
 `;

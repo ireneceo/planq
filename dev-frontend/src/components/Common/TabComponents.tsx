@@ -19,13 +19,13 @@ const TabButton = styled.button<{ active?: boolean }>`
   border: none;
   font-size: 14px;
   font-weight: 500;
-  color: ${props => props.active ? '#6C5CE7' : '#6B7C93'};
+  color: ${props => props.active ? '#14B8A6' : '#6B7C93'};
   cursor: pointer;
   position: relative;
   transition: all 0.15s;
   white-space: nowrap;
   flex-shrink: 0;
-  &:hover { color: #6C5CE7; }
+  &:hover { color: #14B8A6; }
   &::after {
     content: '';
     position: absolute;
@@ -33,7 +33,7 @@ const TabButton = styled.button<{ active?: boolean }>`
     left: 0;
     right: 0;
     height: 2px;
-    background: ${props => props.active ? '#6C5CE7' : 'transparent'};
+    background: ${props => props.active ? '#14B8A6' : 'transparent'};
     transition: all 0.15s;
   }
 `;

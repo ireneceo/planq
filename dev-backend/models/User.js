@@ -58,6 +58,13 @@ User.init({
   reset_token_expires: {
     type: DataTypes.DATE,
     allowNull: true
+  },
+  // 사용자 인터페이스/번역 기본 언어 (ISO 639-1 코드: ko, en, ja, zh, ...)
+  // Q Note 등에서 "내가 보고 싶은 언어"의 디폴트로 사용. 회원가입 시 브라우저 언어로 자동 세팅.
+  language: {
+    type: DataTypes.STRING(10),
+    allowNull: false,
+    defaultValue: 'ko'
   }
 }, {
   sequelize,

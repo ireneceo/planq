@@ -57,9 +57,9 @@ export const Button = styled.button<{ variant?: 'primary' | 'secondary' | 'dange
     switch (props.variant) {
       case 'primary':
         return `
-          background: #6C5CE7;
+          background: #14B8A6;
           color: white;
-          &:hover { background: #5B4ED6; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(108, 92, 231, 0.3); }
+          &:hover { background: #0D9488; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(20, 184, 166, 0.3); }
         `;
       case 'secondary':
         return `
@@ -83,9 +83,9 @@ export const Button = styled.button<{ variant?: 'primary' | 'secondary' | 'dange
         `;
       default:
         return `
-          background: #6C5CE7;
+          background: #14B8A6;
           color: white;
-          &:hover { background: #5B4ED6; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(108, 92, 231, 0.3); }
+          &:hover { background: #0D9488; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(20, 184, 166, 0.3); }
         `;
     }
   }}
