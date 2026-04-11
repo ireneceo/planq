@@ -1,3 +1,4 @@
+import asyncio
 import json
 import os
 import socket
@@ -6,12 +7,18 @@ import ipaddress
 from typing import Optional, List
 from urllib.parse import urlparse
 
+import io
 import aiosqlite
-from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Form
 from pydantic import BaseModel, Field
 
 from middleware.auth import get_current_user
 from services.database import DB_PATH, connect as db_connect
+from services.ingest import ingest_document, log_task_exception
+from services.speaker_clustering import cluster_and_merge_speakers
+from services.voice_fingerprint import (
+  embed_pcm16, blob_to_embedding, cosine_similarity, SELF_MATCH_THRESHOLD,
+)
 
 router = APIRouter(prefix='/api/sessions', tags=['sessions'])
 
@@ -26,7 +33,8 @@ ALLOWED_EXTENSIONS = {
   'pdf', 'doc', 'docx', 'txt', 'md', 'ppt', 'pptx', 'xls', 'xlsx', 'csv',
 }
 
-JSON_COLUMNS = {'participants', 'urls', 'meeting_languages'}
+# NOTE: 'urls' 컬럼은 deprecated — 이제 documents 테이블(source_type='url')이 source of truth
+JSON_COLUMNS = {'participants', 'meeting_languages'}
 
 
 # ─────────────────────────────────────────────────────────
@@ -92,6 +100,8 @@ def _deserialize_session(row: aiosqlite.Row) -> dict:
         data[col] = None
     else:
       data[col] = None
+  # 'urls' 컬럼은 deprecated — 응답에서 제거 (프론트는 documents[source_type='url']을 사용)
+  data.pop('urls', None)
   return data
 
 
@@ -268,8 +278,9 @@ async def get_session(session_id: int, user: dict = Depends(get_current_user)):
     utterances = [dict(r) for r in await cursor.fetchall()]
 
     cursor = await db.execute(
-      'SELECT id, filename, original_filename, file_size, mime_type, status, created_at '
-      'FROM documents WHERE session_id = ? ORDER BY id ASC',
+      '''SELECT id, filename, original_filename, file_size, mime_type, status,
+                source_type, source_url, title, error_message, chunk_count, indexed_at, created_at
+         FROM documents WHERE session_id = ? ORDER BY id ASC''',
       (session_id,)
     )
     documents = [dict(r) for r in await cursor.fetchall()]
@@ -309,7 +320,17 @@ async def update_session(
       await db.commit()
 
     cursor = await db.execute('SELECT * FROM sessions WHERE id = ?', (session_id,))
-    return success(_deserialize_session(await cursor.fetchone()))
+    result = _deserialize_session(await cursor.fetchone())
+
+  # 세션이 completed 로 전환되는 시점에 배치 화자 병합 실행 (D-3)
+  if body.status == 'completed':
+    try:
+      task = asyncio.create_task(cluster_and_merge_speakers(session_id))
+      task.add_done_callback(log_task_exception)
+    except Exception:
+      pass  # 병합 실패는 세션 종료를 막지 않음
+
+  return success(result)
 
 
 @router.delete('/{session_id}')
@@ -358,23 +379,31 @@ async def upload_document(
     cursor = await db.execute(
       '''INSERT INTO documents
            (business_id, user_id, session_id, filename, original_filename,
-            file_size, mime_type, status)
-         VALUES (?, ?, ?, ?, ?, ?, ?, 'uploaded')''',
+            file_size, mime_type, status, source_type, title)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', 'file', ?)''',
       (
         business_id, user['user_id'], session_id,
         stored_filename, original_name,
         len(content), file.content_type or 'application/octet-stream',
+        original_name,
       )
     )
     await db.commit()
     doc_id = cursor.lastrowid
 
     cursor = await db.execute(
-      'SELECT id, filename, original_filename, file_size, mime_type, status, created_at '
-      'FROM documents WHERE id = ?',
+      '''SELECT id, filename, original_filename, file_size, mime_type, status,
+                source_type, source_url, title, error_message, chunk_count, indexed_at, created_at
+         FROM documents WHERE id = ?''',
       (doc_id,)
     )
-    return success(dict(await cursor.fetchone()))
+    doc_dict = dict(await cursor.fetchone())
+
+  # Background ingest — 예외 silent drop 방지를 위해 add_done_callback
+  task = asyncio.create_task(ingest_document(doc_id))
+  task.add_done_callback(log_task_exception)
+
+  return success(doc_dict)
 
 
 @router.delete('/{session_id}/documents/{document_id}')
@@ -417,40 +446,238 @@ async def add_url(
   body: AddUrlRequest,
   user: dict = Depends(get_current_user)
 ):
+  """
+  URL 을 documents 테이블에 source_type='url' 로 등록하고 background 에서 fetch + extract + index.
+  프론트는 GET /sessions/:id 의 documents 에서 source_type='url' 행들을 필터링해 표시.
+  """
   _validate_url_ssrf(body.url)
 
   async with db_connect() as db:
     db.row_factory = aiosqlite.Row
     session = await _load_session_or_403(db, session_id, user['user_id'])
+    business_id = session['business_id']
 
-    existing = []
-    if session['urls']:
-      try:
-        existing = json.loads(session['urls'])
-      except (TypeError, ValueError):
-        existing = []
-
-    if len(existing) >= MAX_URL_LIST:
+    # 세션당 URL 개수 제한 (documents 에서 source_type='url' 카운트)
+    cursor = await db.execute(
+      "SELECT COUNT(*) AS cnt FROM documents WHERE session_id = ? AND source_type = 'url'",
+      (session_id,)
+    )
+    url_count = (await cursor.fetchone())['cnt']
+    if url_count >= MAX_URL_LIST:
       raise HTTPException(status_code=400, detail=f'url list full (max {MAX_URL_LIST})')
 
-    entry = {
-      'id': uuid.uuid4().hex,
-      'url': body.url,
-      'status': 'pending',  # B-5에서 fetched/failed로 갱신
-    }
-    existing.append(entry)
+    # filename 은 NOT NULL 이라 placeholder 사용 (실제 저장 파일 없음)
+    placeholder_filename = f'url-{uuid.uuid4().hex[:12]}'
+    parsed = urlparse(body.url)
+    hostname = parsed.hostname or body.url
+    title_hint = hostname  # 인덱싱 후 실제 제목으로 덮어써짐
 
-    await db.execute(
-      "UPDATE sessions SET urls = ?, updated_at = datetime('now') WHERE id = ?",
-      (json.dumps(existing), session_id)
+    cursor = await db.execute(
+      '''INSERT INTO documents
+           (business_id, user_id, session_id, filename, original_filename,
+            file_size, mime_type, status, source_type, source_url, title)
+         VALUES (?, ?, ?, ?, ?, 0, '', 'pending', 'url', ?, ?)''',
+      (
+        business_id, user['user_id'], session_id,
+        placeholder_filename, body.url,
+        body.url, title_hint,
+      )
     )
     await db.commit()
-    return success(entry)
+    doc_id = cursor.lastrowid
+
+    cursor = await db.execute(
+      '''SELECT id, filename, original_filename, file_size, mime_type, status,
+                source_type, source_url, title, error_message, chunk_count, indexed_at, created_at
+         FROM documents WHERE id = ?''',
+      (doc_id,)
+    )
+    doc_dict = dict(await cursor.fetchone())
+
+  # Background ingest
+  task = asyncio.create_task(ingest_document(doc_id))
+  task.add_done_callback(log_task_exception)
+
+  return success(doc_dict)
 
 
 # ─────────────────────────────────────────────────────────
 # Speakers (화자 매칭)
 # ─────────────────────────────────────────────────────────
+
+@router.post('/{session_id}/self-voice-sample')
+async def upload_self_voice_sample(
+  session_id: int,
+  file: UploadFile = File(...),
+  dg_speaker_hint: Optional[int] = Form(None),
+  user: dict = Depends(get_current_user),
+):
+  """
+  웹 화상회의 모드의 본인 매칭용 **마이크 전용** 오디오 샘플.
+
+  매칭 알고리즘:
+  1. 업로드 오디오로 깨끗한 임베딩 계산
+  2. 저장된 모든 언어 핑거프린트와 비교 → max similarity
+  3. 최고 유사도가 임계값 ≥ 이면 본인 판정
+  4. 대상 dg_speaker_id 결정 순위:
+     (a) 클라이언트가 보낸 dg_speaker_hint (프론트가 최초 10초 창에서 관찰한 ID)
+     (b) fallback: 직전 N초 내 가장 많이 발화한 dg_speaker_id
+  """
+  async with db_connect() as db:
+    db.row_factory = aiosqlite.Row
+    await _load_session_or_403(db, session_id, user['user_id'])
+
+    cursor = await db.execute(
+      'SELECT embedding FROM voice_fingerprints WHERE user_id = ?', (user['user_id'],)
+    )
+    fp_rows = await cursor.fetchall()
+  if not fp_rows:
+    raise HTTPException(status_code=400, detail='등록된 음성 핑거프린트가 없습니다 — 프로필에서 등록해주세요')
+  stored_embeddings = [blob_to_embedding(r['embedding']) for r in fp_rows]
+
+  content = await file.read()
+  if not content:
+    raise HTTPException(status_code=400, detail='빈 파일')
+  if len(content) > 10 * 1024 * 1024:
+    raise HTTPException(status_code=400, detail='파일이 너무 큽니다 (10MB 초과)')
+
+  try:
+    import librosa
+    import numpy as _np
+    y, sr = librosa.load(io.BytesIO(content), sr=16000, mono=True)
+  except Exception as e:
+    raise HTTPException(status_code=400, detail=f'오디오 디코딩 실패: {type(e).__name__}')
+  if y.size < 16000 * 3:
+    raise HTTPException(status_code=400, detail='오디오가 너무 짧습니다 (최소 3초)')
+  y_clip = _np.clip(y, -1.0, 1.0)
+  pcm = (y_clip * 32767).astype(_np.int16).tobytes()
+
+  try:
+    test_emb = await embed_pcm16(pcm)
+  except Exception as e:
+    raise HTTPException(status_code=500, detail=f'임베딩 실패: {type(e).__name__}')
+
+  # 다국어 max similarity
+  best_sim = -1.0
+  per_lang_sims = []
+  for emb in stored_embeddings:
+    s = float(cosine_similarity(emb, test_emb))
+    per_lang_sims.append(round(s, 3))
+    if s > best_sim:
+      best_sim = s
+  import logging as _lg
+  _lg.getLogger('q-note.live').info(
+    f'self-voice-sample: session={session_id} best_sim={best_sim:.3f} '
+    f'per_lang={per_lang_sims} hint={dg_speaker_hint}'
+  )
+
+  async with db_connect() as db:
+    db.row_factory = aiosqlite.Row
+
+    target_row = None
+    # (a) hint 우선
+    if dg_speaker_hint is not None:
+      cursor = await db.execute(
+        'SELECT id, deepgram_speaker_id FROM speakers WHERE session_id = ? AND deepgram_speaker_id = ?',
+        (session_id, dg_speaker_hint)
+      )
+      target_row = await cursor.fetchone()
+
+    # (b) fallback: 직전 30초 내 가장 많이 발화한 화자
+    if target_row is None:
+      cursor = await db.execute(
+        '''SELECT s.id AS id, s.deepgram_speaker_id, COUNT(u.id) AS cnt
+           FROM speakers s
+           LEFT JOIN utterances u ON u.speaker_id = s.id
+             AND u.created_at >= datetime('now', '-30 seconds')
+           WHERE s.session_id = ?
+           GROUP BY s.id
+           ORDER BY cnt DESC
+           LIMIT 1''',
+        (session_id,)
+      )
+      target_row = await cursor.fetchone()
+
+    matched = False
+    target_speaker_id = None
+    target_dg = None
+    if best_sim >= SELF_MATCH_THRESHOLD and target_row:
+      target_speaker_id = target_row['id']
+      target_dg = target_row['deepgram_speaker_id']
+      await db.execute(
+        'UPDATE speakers SET is_self = 1 WHERE id = ?', (target_speaker_id,)
+      )
+      await db.execute(
+        '''DELETE FROM detected_questions
+           WHERE session_id = ?
+             AND utterance_id IN (SELECT id FROM utterances WHERE speaker_id = ?)''',
+        (session_id, target_speaker_id)
+      )
+      await db.execute(
+        'UPDATE utterances SET is_question = 0 WHERE speaker_id = ?', (target_speaker_id,)
+      )
+      await db.commit()
+      matched = True
+
+  return success({
+    'similarity': round(float(best_sim), 3),
+    'threshold': SELF_MATCH_THRESHOLD,
+    'matched': matched,
+    'speaker_id': target_speaker_id,
+    'dg_speaker_id': target_dg,
+    'used_hint': dg_speaker_hint is not None and matched,
+  })
+
+
+@router.post('/{session_id}/speakers/{from_speaker_id}/merge-into/{into_speaker_id}')
+async def merge_speakers(
+  session_id: int,
+  from_speaker_id: int,
+  into_speaker_id: int,
+  user: dict = Depends(get_current_user)
+):
+  """
+  두 speaker 를 수동 병합. D-3 자동 클러스터링이 놓친 경우의 fallback.
+  from_speaker_id 를 지우고 해당 발화를 into_speaker_id 로 이관.
+  """
+  if from_speaker_id == into_speaker_id:
+    raise HTTPException(status_code=400, detail='같은 화자를 병합할 수 없습니다')
+
+  async with db_connect() as db:
+    db.row_factory = aiosqlite.Row
+    await _load_session_or_403(db, session_id, user['user_id'])
+
+    cursor = await db.execute(
+      'SELECT id, is_self FROM speakers WHERE id IN (?, ?) AND session_id = ?',
+      (from_speaker_id, into_speaker_id, session_id)
+    )
+    rows = await cursor.fetchall()
+    if len(rows) != 2:
+      raise HTTPException(status_code=404, detail='두 화자 모두 존재해야 합니다')
+
+    # from 이 is_self 면 into 에 상속 + 과거 is_question 소급 클리어
+    from_self = any(r['id'] == from_speaker_id and r['is_self'] for r in rows)
+
+    await db.execute(
+      'UPDATE utterances SET speaker_id = ? WHERE speaker_id = ?',
+      (into_speaker_id, from_speaker_id)
+    )
+    if from_self:
+      await db.execute('UPDATE speakers SET is_self = 1 WHERE id = ?', (into_speaker_id,))
+      await db.execute(
+        '''DELETE FROM detected_questions
+           WHERE session_id = ?
+             AND utterance_id IN (SELECT id FROM utterances WHERE speaker_id = ?)''',
+        (session_id, into_speaker_id)
+      )
+      await db.execute(
+        'UPDATE utterances SET is_question = 0 WHERE speaker_id = ?', (into_speaker_id,)
+      )
+    await db.execute('DELETE FROM speakers WHERE id = ?', (from_speaker_id,))
+    await db.commit()
+
+  return success({'into': into_speaker_id, 'from': from_speaker_id})
+
 
 @router.post('/{session_id}/speakers/{speaker_id}/match')
 async def match_speaker(
@@ -508,27 +735,22 @@ async def match_speaker(
 @router.delete('/{session_id}/urls/{url_id}')
 async def delete_url(
   session_id: int,
-  url_id: str,
+  url_id: int,
   user: dict = Depends(get_current_user)
 ):
+  """url_id 는 documents.id (source_type='url')."""
   async with db_connect() as db:
     db.row_factory = aiosqlite.Row
-    session = await _load_session_or_403(db, session_id, user['user_id'])
+    await _load_session_or_403(db, session_id, user['user_id'])
 
-    existing = []
-    if session['urls']:
-      try:
-        existing = json.loads(session['urls'])
-      except (TypeError, ValueError):
-        existing = []
-
-    remaining = [e for e in existing if e.get('id') != url_id]
-    if len(remaining) == len(existing):
+    cursor = await db.execute(
+      "SELECT id FROM documents WHERE id = ? AND session_id = ? AND source_type = 'url'",
+      (url_id, session_id)
+    )
+    row = await cursor.fetchone()
+    if not row:
       raise HTTPException(status_code=404, detail='URL not found')
 
-    await db.execute(
-      "UPDATE sessions SET urls = ?, updated_at = datetime('now') WHERE id = ?",
-      (json.dumps(remaining), session_id)
-    )
+    await db.execute('DELETE FROM documents WHERE id = ?', (url_id,))
     await db.commit()
     return success({'id': url_id})

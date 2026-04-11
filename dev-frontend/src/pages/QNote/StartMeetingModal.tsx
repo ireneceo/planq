@@ -80,7 +80,7 @@ const StartMeetingModal = ({ open, userLanguage, onClose, onStart }: Props) => {
   const [translationLang, setTranslationLang] = useState<string>(effectiveUserLanguage);
   const [answerLang, setAnswerLang] = useState<string>('');
   const [adding, setAdding] = useState(false);
-  const [captureMode, setCaptureMode] = useState<CaptureMode>('browser_tab');
+  const [captureMode, setCaptureMode] = useState<CaptureMode>('web_conference');
   const [documents, setDocuments] = useState<File[]>([]);
   const [pastedContext, setPastedContext] = useState('');
   const [urls, setUrls] = useState<string[]>([]);
@@ -103,7 +103,7 @@ const StartMeetingModal = ({ open, userLanguage, onClose, onStart }: Props) => {
       setTranslationLang(effectiveUserLanguage);
       setAnswerLang('');
       setAdding(false);
-      setCaptureMode('browser_tab');
+      setCaptureMode('web_conference');
       setDocuments([]);
       setPastedContext('');
       setUrls([]);
@@ -517,7 +517,7 @@ const StartMeetingModal = ({ open, userLanguage, onClose, onStart }: Props) => {
               {ALL_CAPTURE_CAPABILITIES.map((cap) => {
                 const available = cap.isAvailable();
                 const selected = captureMode === cap.mode;
-                const Icon = cap.mode === 'browser_tab' ? MonitorIcon : MicIcon;
+                const Icon = cap.mode === 'web_conference' ? MonitorIcon : MicIcon;
                 return (
                   <CaptureCard
                     key={cap.mode}

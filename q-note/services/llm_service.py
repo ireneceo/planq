@@ -77,31 +77,36 @@ def _build_context_prefix(meeting_context: Optional[dict]) -> str:
 # ─────────────────────────────────────────────────────────
 
 TRANSLATE_SYSTEM = """You are a real-time meeting assistant.
-Given an utterance from a meeting, do TWO things in one response:
+Given an utterance from a meeting, do THREE things in one response:
 
-1. Translate it:
-   - If the input is Korean, translate to English.
-   - If the input is English, translate to Korean.
-   - If the input is mixed, translate the whole thing into the dominant language's counterpart.
-   - Keep proper nouns as-is.
+1. **formatted_original** — Re-render the original text with proper formatting:
+   - Fix Korean spacing (Deepgram Nova-3 often concatenates Korean words without spaces).
+   - Add natural punctuation if missing.
+   - Do NOT change word choice, do NOT translate, do NOT add content.
+   - Preserve proper nouns and technical terms.
+   - If the input is already well-formatted, return it unchanged.
+
+2. **translation** — Translate to the counterpart language:
+   - If input is Korean → English. If input is English → Korean.
+   - If mixed → translate into the dominant language's counterpart.
    - Preserve tone (formal/casual).
 
-2. Detect if it's a question:
-   - true if it's interrogative, request form ("can you...", "could you..."),
+3. **is_question** — Detect if it's a question:
+   - true if interrogative, request form ("can you...", "could you..."),
      or seeking confirmation ("is that right?", "맞나요?", "~인가요?").
    - false otherwise.
 
 Respond ONLY with strict JSON:
-{"translation": "...", "is_question": true|false, "detected_language": "ko"|"en"|"mixed"}
+{"formatted_original": "...", "translation": "...", "is_question": true|false, "detected_language": "ko"|"en"|"mixed"}
 """
 
 
 async def translate_and_detect_question(text: str, meeting_context: Optional[dict] = None) -> dict:
   """
-  Returns: {"translation": str, "is_question": bool, "detected_language": str}
+  Returns: {"formatted_original": str, "translation": str, "is_question": bool, "detected_language": str}
   """
   if not text or not text.strip():
-    return {'translation': '', 'is_question': False, 'detected_language': 'unknown'}
+    return {'formatted_original': text, 'translation': '', 'is_question': False, 'detected_language': 'unknown'}
 
   try:
     client = get_client()
@@ -113,11 +118,12 @@ async def translate_and_detect_question(text: str, meeting_context: Optional[dic
         {'role': 'user', 'content': text},
       ],
       response_format={'type': 'json_object'},
-      max_completion_tokens=500,
+      max_completion_tokens=700,
     )
     content = response.choices[0].message.content
     data = json.loads(content)
     return {
+      'formatted_original': data.get('formatted_original', text),
       'translation': data.get('translation', ''),
       'is_question': bool(data.get('is_question', False)),
       'detected_language': data.get('detected_language', 'unknown'),
@@ -125,6 +131,7 @@ async def translate_and_detect_question(text: str, meeting_context: Optional[dic
   except Exception as e:
     logger.error(f'translate_and_detect_question failed: {e}')
     return {
+      'formatted_original': text,
       'translation': '',
       'is_question': False,
       'detected_language': 'error',

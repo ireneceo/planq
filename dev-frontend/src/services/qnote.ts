@@ -7,6 +7,10 @@ export interface QNoteParticipant {
   role?: string | null;
 }
 
+/**
+ * @deprecated sessions.urls 컬럼은 제거되었음. documents 테이블에 source_type='url' 로 통합.
+ * 남겨둔 이유: 기존 참조 오류 방지. 새 코드는 QNoteDocument 사용.
+ */
 export interface QNoteUrlEntry {
   id: string;
   url: string;
@@ -19,7 +23,13 @@ export interface QNoteDocument {
   original_filename: string;
   file_size: number;
   mime_type: string;
-  status: string;
+  status: 'pending' | 'processing' | 'indexed' | 'failed';
+  source_type: 'file' | 'url';
+  source_url: string | null;
+  title: string | null;
+  error_message: string | null;
+  chunk_count: number;
+  indexed_at: string | null;
   created_at: string;
 }
 
@@ -154,14 +164,14 @@ export async function addUrl(sessionId: number, url: string) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ url }),
   });
-  return handle<QNoteUrlEntry>(res);
+  return handle<QNoteDocument>(res);
 }
 
-export async function deleteUrl(sessionId: number, urlId: string) {
+export async function deleteUrl(sessionId: number, urlId: number) {
   const res = await apiFetch(`${BASE}/sessions/${sessionId}/urls/${urlId}`, {
     method: 'DELETE',
   });
-  return handle<{ id: string }>(res);
+  return handle<{ id: number }>(res);
 }
 
 export async function matchSpeaker(
@@ -175,6 +185,76 @@ export async function matchSpeaker(
     body: JSON.stringify(body),
   });
   return handle<QNoteSpeaker>(res);
+}
+
+export async function mergeSpeakers(sessionId: number, fromSpeakerId: number, intoSpeakerId: number) {
+  const res = await apiFetch(
+    `${BASE}/sessions/${sessionId}/speakers/${fromSpeakerId}/merge-into/${intoSpeakerId}`,
+    { method: 'POST' }
+  );
+  return handle<{ into: number; from: number }>(res);
+}
+
+// ─── 음성 핑거프린트 (다국어) ────────────────────────────
+
+export interface VoiceFingerprintLanguage {
+  language: string;
+  sample_seconds: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface VoiceFingerprintList {
+  registered: boolean;
+  count: number;
+  languages: VoiceFingerprintLanguage[];
+}
+
+export async function getVoiceFingerprints() {
+  const res = await apiFetch(`${BASE}/voice-fingerprint`);
+  return handle<VoiceFingerprintList>(res);
+}
+
+export async function registerVoiceFingerprint(language: string, wavBlob: Blob) {
+  const form = new FormData();
+  form.append('language', language);
+  form.append('file', wavBlob, 'voice.wav');
+  const res = await apiFetch(`${BASE}/voice-fingerprint`, {
+    method: 'POST',
+    body: form,
+  });
+  return handle<{ language: string; sample_seconds: number }>(res);
+}
+
+export async function deleteVoiceFingerprintLanguage(language: string) {
+  const res = await apiFetch(`${BASE}/voice-fingerprint/${encodeURIComponent(language)}`, {
+    method: 'DELETE',
+  });
+  return handle<{ language: string; deleted: boolean }>(res);
+}
+
+export async function deleteAllVoiceFingerprints() {
+  const res = await apiFetch(`${BASE}/voice-fingerprint`, { method: 'DELETE' });
+  return handle<{ registered: boolean }>(res);
+}
+
+export interface VoiceTestResult {
+  similarity: number;
+  threshold: number;
+  match: boolean;
+  best_language: string;
+  per_language: { language: string; similarity: number }[];
+  message: string;
+}
+
+export async function verifyVoiceMatch(wavBlob: Blob) {
+  const form = new FormData();
+  form.append('file', wavBlob, 'verify.wav');
+  const res = await apiFetch(`${BASE}/voice-fingerprint/test`, {
+    method: 'POST',
+    body: form,
+  });
+  return handle<VoiceTestResult>(res);
 }
 
 /**

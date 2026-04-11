@@ -11,6 +11,8 @@ import {
   updateSession,
   uploadDocument,
   addUrl,
+  matchSpeaker,
+  mergeSpeakers,
 } from '../../services/qnote';
 import type { QNoteSession, QNoteUtterance, QNoteSpeaker } from '../../services/qnote';
 import { LiveSession } from '../../services/qnoteLive';
@@ -56,6 +58,8 @@ interface BlockSegment {
   translation: string | null;
   start: number | null;
   end: number | null;
+  detectedLanguage?: string | null;
+  outOfScope?: boolean;
 }
 
 interface TranscriptBlock {
@@ -152,6 +156,13 @@ const QNotePage = () => {
   const [pending, setPending] = useState<PendingBuffer | null>(null);
   const [interimText, setInterimText] = useState<string>('');
   const [liveError, setLiveError] = useState<string | null>(null);
+  const [liveNotice, setLiveNotice] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!liveNotice) return;
+    const t = window.setTimeout(() => setLiveNotice(null), 5000);
+    return () => window.clearTimeout(t);
+  }, [liveNotice]);
 
   const liveRef = useRef<LiveSession | null>(null);
   const speakersRef = useRef<QNoteSpeaker[]>([]);
@@ -187,40 +198,49 @@ const QNotePage = () => {
   }, []);
 
   // ── pending 을 블록으로 커밋 (speech 는 직전 같은 화자 블록과 병합) ──
+  // 방어: 같은 utterance_id 가 중복 append 되지 않도록 dedup.
   const commitPendingAsBlock = useCallback((p: PendingBuffer, kind: BlockKind) => {
+    const dedup = (segs: BlockSegment[]) => {
+      const seen = new Set<number>();
+      return segs.filter((s) => {
+        if (seen.has(s.utteranceId)) return false;
+        seen.add(s.utteranceId);
+        return true;
+      });
+    };
     const newBlock: TranscriptBlock = {
       id: `b${++blockCounterRef.current}`,
       kind,
       speakerRowId: p.speakerRowId,
       speakerLabel: p.speakerLabel,
       timestamp: formatTime(p.firstStart),
-      segments: p.segments,
+      segments: dedup(p.segments),
       firstStart: p.firstStart,
       lastEnd: p.lastEnd,
       lastDgSpeakerId: p.dgSpeakerId,
     };
 
+    // 2초 이내 같은 화자면 speech/question 상관없이 merge
+    const LIVE_MERGE_GAP = 2.0;
     setBlocks((prev) => {
-      if (kind === 'speech') {
-        const last = prev[prev.length - 1];
-        if (
-          last &&
-          last.kind === 'speech' &&
-          last.speakerRowId === p.speakerRowId &&
-          (
-            last.lastEnd == null ||
-            p.firstStart == null ||
-            p.firstStart - last.lastEnd < SILENCE_HARD_CAP_SEC
-          )
-        ) {
-          const merged: TranscriptBlock = {
-            ...last,
-            segments: [...last.segments, ...p.segments],
-            lastEnd: p.lastEnd ?? last.lastEnd,
-            lastDgSpeakerId: p.dgSpeakerId ?? last.lastDgSpeakerId,
-          };
-          return [...prev.slice(0, -1), merged];
-        }
+      const last = prev[prev.length - 1];
+      if (
+        last &&
+        last.speakerRowId === p.speakerRowId &&
+        (
+          last.lastEnd == null ||
+          p.firstStart == null ||
+          p.firstStart - last.lastEnd < LIVE_MERGE_GAP
+        )
+      ) {
+        const merged: TranscriptBlock = {
+          ...last,
+          kind: kind === 'question' || last.kind === 'question' ? 'question' : 'speech',
+          segments: dedup([...last.segments, ...p.segments]),
+          lastEnd: p.lastEnd ?? last.lastEnd,
+          lastDgSpeakerId: p.dgSpeakerId ?? last.lastDgSpeakerId,
+        };
+        return [...prev.slice(0, -1), merged];
       }
       return [...prev, newBlock];
     });
@@ -237,7 +257,9 @@ const QNotePage = () => {
     setPending(null);
   }, [commitPendingAsBlock]);
 
-  // ── 세션 클릭 → 리뷰 모드 ─────────────────────────────
+  // ── 세션 클릭 → status 기반 phase 결정 ─────────────────
+  //   completed → review (리뷰 모드)
+  //   그 외     → paused (이어서 녹음 가능)
   const openReview = async (sessionId: number) => {
     if (liveRef.current) {
       liveRef.current.stop();
@@ -248,11 +270,34 @@ const QNotePage = () => {
       const detail = await getSession(sessionId);
       setActiveSession(detail);
       speakersRef.current = detail.speakers || [];
-      setPhase('review');
-      setBlocks([]);
+      const nextPhase: Phase = detail.status === 'completed' ? 'review' : 'paused';
+      setPhase(nextPhase);
+      // paused 로 진입 시 서버 utterances 에서 blocks 재구성 → 화면에 바로 노출.
+      // review 는 useMemo(reviewBlocks) 사용하므로 blocks 는 비움.
+      if (nextPhase === 'paused') {
+        setBlocks(buildBlocksFromSession(detail));
+      } else {
+        setBlocks([]);
+      }
       setInterimText('');
       setLiveError(null);
-      setPendingConfig(null);
+      // paused 진입 시, 재개를 위해 기본 pendingConfig 구성 (참여자/언어 유지)
+      if (nextPhase === 'paused') {
+        setPendingConfig({
+          title: detail.title,
+          brief: detail.brief || '',
+          participants: (detail.participants || []).map((p) => ({ name: p.name, role: p.role || '' })),
+          meetingLanguages: detail.meeting_languages || ['ko'],
+          translationLanguage: detail.translation_language || 'ko',
+          answerLanguage: detail.answer_language || '',
+          pastedContext: detail.pasted_context || '',
+          documents: [],
+          urls: [],
+          captureMode: 'microphone',
+        });
+      } else {
+        setPendingConfig(null);
+      }
       pendingRef.current = null;
       setPending(null);
     } catch (err) {
@@ -339,14 +384,22 @@ const QNotePage = () => {
     }
 
     if (ev.type === 'enrichment') {
-      // 블록과 pending 모두에서 해당 utterance_id 를 찾아 번역 주입
+      // 블록과 pending 모두에서 해당 utterance_id 를 찾아 번역/언어/정제 원문 주입
+      const patch = (seg: BlockSegment): BlockSegment => ({
+        ...seg,
+        // GPT 가 정제한 원문(한국어 띄어쓰기 등)이 있으면 교체
+        original: ev.formatted_original || seg.original,
+        translation: ev.translation,
+        detectedLanguage: ev.detected_language ?? seg.detectedLanguage ?? null,
+        outOfScope: ev.out_of_scope ?? seg.outOfScope ?? false,
+      });
       setBlocks((prev) =>
         prev.map((block) => {
           let changed = false;
           const newSegs = block.segments.map((seg) => {
             if (seg.utteranceId !== ev.utterance_id) return seg;
             changed = true;
-            return { ...seg, translation: ev.translation };
+            return patch(seg);
           });
           return changed ? { ...block, segments: newSegs } : block;
         })
@@ -357,13 +410,36 @@ const QNotePage = () => {
         const newSegs = prev.segments.map((seg) => {
           if (seg.utteranceId !== ev.utterance_id) return seg;
           changed = true;
-          return { ...seg, translation: ev.translation };
+          return patch(seg);
         });
         if (!changed) return prev;
         const updated = { ...prev, segments: newSegs };
         pendingRef.current = updated;
         return updated;
       });
+      return;
+    }
+
+    if (ev.type === 'self_matched') {
+      // 라이브 본인 매칭 성공 → speakers 배열을 즉시 갱신
+      setActiveSession((prev) => {
+        if (!prev) return prev;
+        const next = {
+          ...prev,
+          speakers: (prev.speakers || []).map((s) =>
+            s.id === ev.speaker_id ? { ...s, is_self: 1 } : s
+          ),
+        };
+        speakersRef.current = next.speakers || [];
+        return next;
+      });
+      setLiveNotice(`본인 인식됨 (유사도 ${ev.similarity.toFixed(2)})`);
+      return;
+    }
+
+    if (ev.type === 'self_match_failed') {
+      // 매칭 실패 — 사용자에게 명시적으로 알려서 수동 지정 경로로 유도
+      setLiveError(`본인 자동 인식 실패: ${ev.reason}`);
       return;
     }
 
@@ -380,11 +456,19 @@ const QNotePage = () => {
 
   // ── 녹음 시작 (prepared/paused → recording) ───────────
   const startRecording = async () => {
-    if (!activeSession || !pendingConfig) return;
+    if (!activeSession) {
+      setLiveError('활성 세션이 없습니다');
+      return;
+    }
+    if (!pendingConfig) {
+      // paused 상태에서 이어하기 시 pendingConfig 가 없으면 기본값 (마이크 모드) 으로 복구
+      setLiveError('회의 설정 복원 실패 — 마이크 모드로 이어갑니다');
+    }
     setLiveError(null);
+    const captureMode = pendingConfig?.captureMode || 'microphone';
     const live = new LiveSession({
       sessionId: activeSession.id,
-      captureMode: pendingConfig.captureMode,
+      captureMode,
       onEvent: handleLiveEvent,
     });
     try {
@@ -392,7 +476,18 @@ const QNotePage = () => {
       liveRef.current = live;
       setPhase('recording');
     } catch (err) {
-      setLiveError(err instanceof Error ? err.message : '라이브 연결 실패');
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error('[QNote] live.start failed:', err);
+      // 사용자에게 구체적 힌트
+      let hint = msg;
+      if (/Permission denied|NotAllowedError/i.test(msg)) {
+        hint = '마이크 또는 탭 공유 권한이 거부되었습니다. 브라우저 주소창 좌측 자물쇠 아이콘에서 권한을 허용해주세요.';
+      } else if (/tab|display/i.test(msg)) {
+        hint = '탭 오디오 공유가 취소되었습니다. 다시 시도할 때 공유 다이얼로그에서 "탭 오디오 공유" 체크를 확인해주세요.';
+      } else if (/WebSocket/i.test(msg)) {
+        hint = 'Q Note 서버 연결 실패. 새로고침 후 다시 시도해주세요.';
+      }
+      setLiveError(`녹음 시작 실패: ${hint}`);
       live.stop();
     }
   };
@@ -479,32 +574,35 @@ const QNotePage = () => {
     }
   };
 
-  // ── 리뷰 모드 블록 구성 (동일 규칙: 터미네이터 기반) ──
-  const reviewBlocks = useMemo<TranscriptBlock[]>(() => {
-    if (!activeSession?.utterances) return [];
-    const speakers = activeSession.speakers || [];
-    const speakerById = new Map(speakers.map((s) => [s.id, s]));
-    const out: TranscriptBlock[] = [];
-    let counter = 0;
-    let buf: PendingBuffer | null = null;
+  // ── 서버 utterances 를 블록으로 재구성 (리뷰/paused 공용) ──
+  const buildBlocksFromSession = useCallback(
+    (sess: QNoteSession | null): TranscriptBlock[] => {
+      if (!sess?.utterances) return [];
+      const speakers = sess.speakers || [];
+      const speakerById = new Map(speakers.map((s) => [s.id, s]));
+      const out: TranscriptBlock[] = [];
+      let counter = 0;
+      let buf: PendingBuffer | null = null;
 
+    // 연속 merge gap — 같은 화자, 2초 이내 발화는 한 블록으로 묶어 "두 번씩 나오는" 시각적 중복 제거.
+    // question 도 merge 대상 (같은 화자 짧은 연속 질문들은 같은 카드)
+    const MERGE_GAP_SEC = 2.0;
     const flush = (p: PendingBuffer, kind: BlockKind) => {
-      if (kind === 'speech') {
-        const last = out[out.length - 1];
-        if (
-          last &&
-          last.kind === 'speech' &&
-          last.speakerRowId === p.speakerRowId &&
-          (
-            last.lastEnd == null ||
-            p.firstStart == null ||
-            p.firstStart - last.lastEnd < SILENCE_HARD_CAP_SEC
-          )
-        ) {
-          last.segments.push(...p.segments);
-          last.lastEnd = p.lastEnd ?? last.lastEnd;
-          return;
-        }
+      const last = out[out.length - 1];
+      if (
+        last &&
+        last.speakerRowId === p.speakerRowId &&
+        (
+          last.lastEnd == null ||
+          p.firstStart == null ||
+          p.firstStart - last.lastEnd < MERGE_GAP_SEC
+        )
+      ) {
+        // kind 가 달라도 합쳐서 question 이 하나라도 포함되면 question 카드로
+        last.segments.push(...p.segments);
+        last.lastEnd = p.lastEnd ?? last.lastEnd;
+        if (kind === 'question') last.kind = 'question';
+        return;
       }
       out.push({
         id: `r${++counter}`,
@@ -519,7 +617,7 @@ const QNotePage = () => {
       });
     };
 
-    for (const u of activeSession.utterances as QNoteUtterance[]) {
+    for (const u of sess.utterances as QNoteUtterance[]) {
       const start = typeof u.start_time === 'number' ? u.start_time : null;
       const end = typeof u.end_time === 'number' ? u.end_time : start;
       const dgSp = u.speaker_id != null
@@ -578,10 +676,73 @@ const QNotePage = () => {
     }
 
     return out;
-  }, [activeSession]);
+  }, []);
 
+  // 리뷰 모드용: activeSession 변경 시 자동 재계산
+  const reviewBlocks = useMemo<TranscriptBlock[]>(
+    () => buildBlocksFromSession(activeSession),
+    [activeSession, buildBlocksFromSession]
+  );
+
+  // 원래 로직 복원: review 는 reviewBlocks, 그 외는 blocks.
+  // paused 는 openReview 에서 blocks 를 미리 하이드레이트 하므로 blocks 사용.
   const renderBlocks = phase === 'review' ? reviewBlocks : blocks;
   const showRecordingUI = phase === 'prepared' || phase === 'recording' || phase === 'paused';
+
+  // ─── 화자 인라인 할당 팝오버 상태 ───────────────────
+  // 자동 인식 실패 시 수동 지정이 필요하므로 recording 중에도 허용.
+  // (사용자 요청: "화자 선택이 안 됨" — 녹음 중에도 열려야 함)
+  const speakerAssignAllowed = phase !== 'empty' && phase !== 'prepared';
+  // 팝오버는 클릭한 **그 블록**에만 떠야 함. 같은 speakerRowId 여러 블록에 동시 렌더 금지.
+  const [speakerPopoverFor, setSpeakerPopoverFor] = useState<string | null>(null); // block.id
+  const [assignSaving, setAssignSaving] = useState(false);
+
+  const refreshActiveSession = useCallback(async () => {
+    if (!activeSession) return;
+    const refreshed = await getSession(activeSession.id);
+    setActiveSession(refreshed);
+    speakersRef.current = refreshed.speakers || [];
+  }, [activeSession]);
+
+  // 이름 할당 — 이미 다른 speaker 가 같은 이름이면 자동 병합
+  const assignSpeakerName = useCallback(async (speakerRowId: number, name: string) => {
+    if (!activeSession) return;
+    setAssignSaving(true);
+    try {
+      const speakers = activeSession.speakers || [];
+      const existing = speakers.find(
+        (s) => s.id !== speakerRowId && (s.participant_name || '').trim() === name.trim() && name.trim() !== ''
+      );
+      if (existing) {
+        await mergeSpeakers(activeSession.id, speakerRowId, existing.id);
+      } else {
+        await matchSpeaker(activeSession.id, speakerRowId, { participant_name: name || undefined });
+      }
+      await refreshActiveSession();
+      setSpeakerPopoverFor(null);
+    } finally {
+      setAssignSaving(false);
+    }
+  }, [activeSession, refreshActiveSession]);
+
+  // "나" 할당 — 이미 다른 speaker 가 is_self 면 자동 병합
+  const assignSpeakerSelf = useCallback(async (speakerRowId: number) => {
+    if (!activeSession) return;
+    setAssignSaving(true);
+    try {
+      const speakers = activeSession.speakers || [];
+      const existingSelf = speakers.find((s) => s.id !== speakerRowId && s.is_self);
+      if (existingSelf) {
+        await mergeSpeakers(activeSession.id, speakerRowId, existingSelf.id);
+      } else {
+        await matchSpeaker(activeSession.id, speakerRowId, { is_self: true });
+      }
+      await refreshActiveSession();
+      setSpeakerPopoverFor(null);
+    } finally {
+      setAssignSaving(false);
+    }
+  }, [activeSession, refreshActiveSession]);
 
   // 라이브 자동 하단 스크롤
   useEffect(() => {
@@ -596,12 +757,57 @@ const QNotePage = () => {
     const originalText = joinText(block.segments);
     const { text: translatedText, hasAny, allTranslated } = joinTranslation(block.segments);
 
+    // 언어 필터: 블록의 모든 segment 가 out_of_scope 면 흐리게 + 언어 태그
+    const allOutOfScope = block.segments.length > 0 && block.segments.every((s) => s.outOfScope);
+    const outOfScopeLang = allOutOfScope
+      ? (block.segments.find((s) => s.detectedLanguage)?.detectedLanguage || null)
+      : null;
+    const outOfScopeLabel = outOfScopeLang
+      ? (getLanguageByCode(outOfScopeLang)?.label || outOfScopeLang.toUpperCase())
+      : null;
+
+    // 동적 speakerLabel — self_matched 나 수동 지정 후 즉시 반영되도록 매 렌더마다 재계산
+    // (block.speakerLabel 은 생성 시점 snapshot 이라 stale)
+    const liveLabel = speakerLabelFor(
+      block.speakerRowId,
+      block.lastDgSpeakerId,
+      activeSession?.speakers || []
+    );
+
+    const speakerBadge = (
+      <SpeakerBadgeWrap>
+        <BlockSpeaker
+          as={speakerAssignAllowed ? 'button' : 'span'}
+          $clickable={speakerAssignAllowed}
+          disabled={!speakerAssignAllowed}
+          onClick={(e: React.MouseEvent) => {
+            if (!speakerAssignAllowed || block.speakerRowId == null) return;
+            e.stopPropagation();
+            setSpeakerPopoverFor((prev) => (prev === block.id ? null : block.id));
+          }}
+        >
+          {liveLabel}
+          {speakerAssignAllowed && block.speakerRowId != null && <SpeakerCaret>▾</SpeakerCaret>}
+        </BlockSpeaker>
+        {speakerAssignAllowed && speakerPopoverFor === block.id && block.speakerRowId != null && (
+          <SpeakerPopover
+            speakerRowId={block.speakerRowId}
+            participants={activeSession?.participants || []}
+            onClose={() => setSpeakerPopoverFor(null)}
+            onAssignName={(name) => assignSpeakerName(block.speakerRowId!, name)}
+            onAssignSelf={() => assignSpeakerSelf(block.speakerRowId!)}
+            disabled={assignSaving}
+          />
+        )}
+      </SpeakerBadgeWrap>
+    );
+
     if (block.kind === 'question') {
       return (
         <QuestionCard key={block.id}>
           <QuestionCardBody>
             <BlockHeader>
-              <BlockSpeaker>{block.speakerLabel}</BlockSpeaker>
+              {speakerBadge}
               <BlockTime>{block.timestamp}</BlockTime>
               <QuestionInlineLabel>
                 <HelpCircleIcon size={11} />
@@ -629,13 +835,14 @@ const QNotePage = () => {
     }
 
     return (
-      <SpeechBlockWrap key={block.id}>
+      <SpeechBlockWrap key={block.id} $dimmed={allOutOfScope}>
         <BlockHeader>
-          <BlockSpeaker>{block.speakerLabel}</BlockSpeaker>
+          {speakerBadge}
           <BlockTime>{block.timestamp}</BlockTime>
+          {outOfScopeLabel && <OutOfScopeTag>{outOfScopeLabel} · 선택 언어 아님</OutOfScopeTag>}
         </BlockHeader>
         <SpeechOriginal>{originalText}</SpeechOriginal>
-        {hasAny ? (
+        {allOutOfScope ? null : hasAny ? (
           <SpeechTranslation>
             {translatedText}
             {!allTranslated && <PendingHint> …</PendingHint>}
@@ -772,6 +979,7 @@ const QNotePage = () => {
             </MainHeader>
 
             {liveError && <ErrorBar>{liveError}</ErrorBar>}
+            {liveNotice && <NoticeBar>{liveNotice}</NoticeBar>}
 
             <Transcript ref={transcriptRef}>
               {renderBlocks.length === 0 && !pending && phase === 'prepared' && (
@@ -810,6 +1018,7 @@ const QNotePage = () => {
                 <SecondaryBtn>질문 보기</SecondaryBtn>
               </HeaderRight>
             </MainHeader>
+
             <Transcript>
               {renderBlocks.length === 0 && <EmptyTranscript>발화 기록이 없습니다.</EmptyTranscript>}
               {renderBlocks.map((block) => renderBlock(block))}
@@ -828,6 +1037,187 @@ const QNotePage = () => {
 };
 
 export default QNotePage;
+
+// ─────────────────────────────────────────────────────────
+// SpeakerPopover — 발화 블록의 [화자 N ▾] 클릭 시 인라인 팝오버
+//   참여자/나 선택 시 즉시 적용. 같은 이름/나가 이미 있으면 자동 병합.
+// ─────────────────────────────────────────────────────────
+interface ParticipantLite {
+  name: string;
+  role?: string | null;
+}
+
+interface SpeakerPopoverProps {
+  speakerRowId: number;
+  participants: ParticipantLite[];
+  onClose: () => void;
+  onAssignName: (name: string) => Promise<void>;
+  onAssignSelf: () => Promise<void>;
+  disabled: boolean;
+}
+
+const SpeakerPopover = ({ participants, onClose, onAssignName, onAssignSelf, disabled }: SpeakerPopoverProps) => {
+  const [customName, setCustomName] = useState('');
+  const ref = useRef<HTMLDivElement>(null);
+
+  // click 이벤트 기준. 버튼 onClick 에서 stopPropagation 하므로 toggle 경로와 충돌 없음.
+  // 마이크로 이벤트 순서: 버튼 click (stopPropagation) → document click 호출 안 됨.
+  // 팝오버 밖 click → document click → 닫힘.
+  useEffect(() => {
+    const onDocClick = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
+    };
+    // setTimeout 으로 현재 event 루프 이후에 등록 (toggle click 과 동일 tick 에서 바로 닫히는 것 방지)
+    const t = window.setTimeout(() => document.addEventListener('click', onDocClick), 0);
+    return () => {
+      window.clearTimeout(t);
+      document.removeEventListener('click', onDocClick);
+    };
+  }, [onClose]);
+
+  return (
+    <PopoverWrap ref={ref} onClick={(e) => e.stopPropagation()}>
+      <PopoverTitle>이 사람은</PopoverTitle>
+      <PopoverBtn onClick={onAssignSelf} disabled={disabled} $primary>
+        나
+      </PopoverBtn>
+      {participants.length > 0 && (
+        <>
+          <PopoverDivider />
+          <PopoverLabel>등록된 참여자</PopoverLabel>
+          {participants.map((p) => (
+            <PopoverBtn
+              key={p.name}
+              onClick={() => onAssignName(p.name)}
+              disabled={disabled}
+            >
+              {p.name}
+              {p.role && <PopoverRole>{p.role}</PopoverRole>}
+            </PopoverBtn>
+          ))}
+        </>
+      )}
+      <PopoverDivider />
+      <PopoverLabel>직접 입력</PopoverLabel>
+      <PopoverInputRow>
+        <PopoverInput
+          type="text"
+          placeholder="이름"
+          value={customName}
+          onChange={(e) => setCustomName(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && customName.trim()) {
+              onAssignName(customName.trim());
+            }
+          }}
+          disabled={disabled}
+          autoFocus
+        />
+        <PopoverInputBtn
+          onClick={() => customName.trim() && onAssignName(customName.trim())}
+          disabled={disabled || !customName.trim()}
+        >
+          저장
+        </PopoverInputBtn>
+      </PopoverInputRow>
+    </PopoverWrap>
+  );
+};
+
+const PopoverWrap = styled.div`
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 50;
+  min-width: 200px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+`;
+
+const PopoverTitle = styled.div`
+  font-size: 10px;
+  font-weight: 700;
+  color: #94a3b8;
+  padding: 4px 8px 2px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+`;
+
+const PopoverLabel = styled.div`
+  font-size: 10px;
+  font-weight: 600;
+  color: #94a3b8;
+  padding: 2px 8px;
+`;
+
+const PopoverDivider = styled.div`
+  height: 1px;
+  background: #f1f5f9;
+  margin: 4px 0;
+`;
+
+const PopoverBtn = styled.button<{ $primary?: boolean }>`
+  text-align: left;
+  font-size: 13px;
+  font-weight: ${(p) => (p.$primary ? 700 : 500)};
+  color: ${(p) => (p.$primary ? '#0d9488' : '#0f172a')};
+  background: ${(p) => (p.$primary ? '#f0fdfa' : 'transparent')};
+  border: 1px solid ${(p) => (p.$primary ? '#99f6e4' : 'transparent')};
+  border-radius: 6px;
+  padding: 8px 10px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+
+  &:hover:not(:disabled) { background: ${(p) => (p.$primary ? '#ccfbf1' : '#f8fafc')}; }
+  &:disabled { opacity: 0.5; cursor: not-allowed; }
+`;
+
+const PopoverRole = styled.span`
+  font-size: 10px;
+  font-weight: 500;
+  color: #94a3b8;
+`;
+
+const PopoverInputRow = styled.div`
+  display: flex;
+  gap: 4px;
+  padding: 0 4px 4px;
+`;
+
+const PopoverInput = styled.input`
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  padding: 6px 8px;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  outline: none;
+  color: #0f172a;
+  &:focus { border-color: #14b8a6; }
+  &:disabled { background: #f1f5f9; }
+`;
+
+const PopoverInputBtn = styled.button`
+  font-size: 11px;
+  font-weight: 600;
+  padding: 6px 10px;
+  background: #0d9488;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  &:hover:not(:disabled) { background: #0f766e; }
+  &:disabled { background: #cbd5e1; cursor: not-allowed; }
+`;
 
 // ─────────────────────────────────────────────────────────
 // PRIMARY: #14B8A6 #0D9488 #115E59 #F0FDFA #CCFBF1 #99F6E4
@@ -1118,6 +1508,21 @@ const ErrorBar = styled.div`
   font-size: 13px;
 `;
 
+const NoticeBar = styled.div`
+  margin: 12px 32px 0;
+  padding: 10px 14px;
+  background: #f0fdfa;
+  color: #0f766e;
+  border: 1px solid #99f6e4;
+  border-radius: 8px;
+  font-size: 13px;
+  animation: fadeOut 4s forwards;
+  @keyframes fadeOut {
+    0%, 70% { opacity: 1; }
+    100% { opacity: 0; visibility: hidden; }
+  }
+`;
+
 const Transcript = styled.div`
   flex: 1;
   overflow-y: auto;
@@ -1136,10 +1541,21 @@ const EmptyTranscript = styled.div`
 `;
 
 // ─── Speech 블록 (평문 transcript) ────────────────
-const SpeechBlockWrap = styled.div`
+const SpeechBlockWrap = styled.div<{ $dimmed?: boolean }>`
   display: flex;
   flex-direction: column;
   gap: 4px;
+  opacity: ${(p) => (p.$dimmed ? 0.45 : 1)};
+`;
+
+const OutOfScopeTag = styled.span`
+  font-size: 10px;
+  font-weight: 600;
+  color: #94a3b8;
+  background: #f1f5f9;
+  padding: 2px 6px;
+  border-radius: 4px;
+  letter-spacing: 0.02em;
 `;
 
 const BlockHeader = styled.div`
@@ -1149,10 +1565,36 @@ const BlockHeader = styled.div`
   margin-bottom: 2px;
 `;
 
-const BlockSpeaker = styled.span`
+const SpeakerBadgeWrap = styled.span`
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+`;
+
+const BlockSpeaker = styled.span<{ $clickable?: boolean }>`
   font-size: 12px;
   font-weight: 700;
   color: #0d9488;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: ${(p) => (p.$clickable ? '3px 7px' : '0')};
+  border-radius: 6px;
+  background: ${(p) => (p.$clickable ? '#f0fdfa' : 'transparent')};
+  border: ${(p) => (p.$clickable ? '1px solid #99f6e4' : 'none')};
+  cursor: ${(p) => (p.$clickable ? 'pointer' : 'default')};
+  transition: background 120ms, border-color 120ms;
+
+  &:hover {
+    ${(p) => p.$clickable && 'background: #ccfbf1; border-color: #5eead4;'}
+  }
+`;
+
+const SpeakerCaret = styled.span`
+  font-size: 9px;
+  color: #0d9488;
+  opacity: 0.7;
+  margin-left: 2px;
 `;
 
 const BlockTime = styled.span`

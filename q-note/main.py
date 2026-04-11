@@ -14,7 +14,7 @@ logging.basicConfig(
 logger = logging.getLogger('q-note')
 
 from services.database import init_db
-from routers import live, sessions, llm
+from routers import live, sessions, llm, voice
 
 
 @asynccontextmanager
@@ -43,6 +43,7 @@ app.add_middleware(
 app.include_router(sessions.router)
 app.include_router(llm.router)
 app.include_router(live.router)
+app.include_router(voice.router)
 
 
 @app.get('/health')

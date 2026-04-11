@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import LanguageSelector from '../Common/LanguageSelector';
 
@@ -154,6 +154,7 @@ interface MainLayoutProps { children: React.ReactNode; }
 const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   const { user, logout, hasRole } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
 
@@ -267,7 +268,23 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
           <div style={{ marginBottom: 8 }}>
             <LanguageSelector variant="sidebar" />
           </div>
-          <UserInfo>
+          <UserInfo
+            as="button"
+            type="button"
+            onClick={() => navigate('/profile')}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              textAlign: 'left',
+              cursor: 'pointer',
+              padding: 0,
+              width: '100%',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+            }}
+            title="내 프로필"
+          >
             <UserAvatar>{user?.name?.charAt(0)?.toUpperCase() || 'U'}</UserAvatar>
             <div style={{ overflow: 'hidden' }}>
               <UserName>{user?.name}</UserName>

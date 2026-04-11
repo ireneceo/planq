@@ -12,6 +12,7 @@ export interface User {
   business_id?: number | null;
   business_name?: string | null;
   business_role?: string | null;
+  language?: string | null;
 }
 
 interface AuthContextType {

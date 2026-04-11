@@ -36,7 +36,7 @@ const LanguageSelector: React.FC<LanguageSelectorProps> = ({ variant = 'dropdown
     if (user) {
       try {
         const { apiFetch } = await import('../../contexts/AuthContext');
-        await apiFetch('/api/users/language', {
+        await apiFetch(`/api/users/${user.id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ language: code })

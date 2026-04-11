@@ -1,71 +1,83 @@
 ## 현재 작업 상태
-**마지막 업데이트:** 2026-04-10
-**작업 상태:** 완료 — Q Note B-3 Step 8 프론트 실 API 연결 + 라이브 UX 재설계 완료
+**마지막 업데이트:** 2026-04-11
+**작업 상태:** 완료 — Q Note Phase A + Phase D + 라이브 UX 전면 안정화
 
 ### 진행 중인 작업
 - 없음
 
 ### 완료된 작업 (이번 세션)
 
-**Q Note B-3 Step 8 — 프론트 실 API 연결**
-- `services/qnote.ts` 신규 — API 클라이언트 (세션 CRUD / 문서 / URL / 화자 매칭 + WebSocket URL 빌더)
-- `services/qnoteLive.ts` 신규 — `LiveSession` (캡처 + WebSocket + PCM 파이프 + 이벤트 라우팅)
-- `services/audio/PCMStreamer.ts` 신규 — MediaStream → 16kHz mono PCM16 (ScriptProcessorNode)
-- `QNotePage.tsx` 대폭 재설계 (mock 제거 + 실 API + 상태 머신 + 트랜스크립트 블록)
-- `StartMeetingModal.tsx` — 모달 open 시 state 리셋
-- `mockData.ts` 삭제
+**Phase A — 인제스트 파이프라인 (문서/URL 통합)**
+- `documents` 테이블 확장: `source_type`, `source_url`, `title`, `error_message`, `indexed_at`
+- `services/url_fetcher.py` — hop별 SSRF 재검증(DNS rebinding 방어), HTTPS 강제, 10MB 스트리밍 캡, 타임아웃, 리다이렉트 3회, Content-Type 화이트리스트
+- `services/extractors.py` — HTML(trafilatura)/PDF(pdfplumber)/DOCX(python-docx)/TXT 다중 인코딩. asyncio.to_thread 래핑
+- `services/chunker.py` — 단락+문장 hybrid 청크 (500자/50자 overlap)
+- `services/ingest.py` — file/url 공통 진입점, `pending→processing→indexed/failed`, `add_done_callback` silent drop 방지
+- `sessions.py` 라우터 재배선: POST /documents·POST /urls가 background ingest 트리거, `sessions.urls` JSON 컬럼 deprecated
 
-**라이브 UX 재설계 (Irene 피드백 반영)**
-- **상태 머신**: empty → prepared → recording ⇄ paused → review (자동 녹음 방지)
-- **터미네이터 기반 커밋**: Deepgram final 들을 pending 버퍼에 누적, `? . !` 도착 시에만 커밋 → 한 질문이 여러 카드로 쪼개지는 문제 해결
-- **Pending 유령 블록**: 미완성 문장을 opacity 0.55 이탤릭 + `…` 실시간 표시
-- **카드 패러다임 전환**: 일반 발화 = flat transcript 블록 (보더 없음), **질문만 카드** — 공간 밀도 4-5배
-- **질문 카드 수평 레이아웃**: 좌측 본문 + 우측 답변 찾기 → 높이 42% 감소
-- **플리커 내성 병합**: 같은 dg_speaker 또는 갭 < 1.5초 → 병합. 20초 침묵 → 강제 flush
-- **낙관 질문 감지**: `?`, wh-word, 한국어 의문 어미 → GPT 기다리지 않음
-- **번역 부분 표시**: 일부만 도착해도 렌더, 끝에 `…`
-- **자동 하단 스크롤**: 라이브 모드에서 블록/interim 업데이트 시 smooth scroll
-- **Speaker 라벨 fallback**: DB 매칭 실패해도 dg_speaker_id로 "화자 1", "화자 2"
+**Phase D — 화자 인식 + 언어 + 프라이버시**
+- **D-0 캡처**: `WebConferenceCapture` 신규 (mic+tab mix via Web Audio API). 탭 단독 `BrowserTabCapture.ts` 삭제. 무음 감지 워치독
+- **D-1 언어 필터**: `detected_language ∉ meeting_languages` → `out_of_scope=True` + 프론트 opacity 0.45 + 언어 태그
+- **D-2 음성 핑거프린트**: Resemblyzer (CPU, 256-d) + `services/voice_fingerprint.py` + `services/audio_buffer.py` (RollingAudioBuffer 60s + SpeakerAudioCollector)
+- **D-2 다국어 핑거프린트**: `voice_fingerprints (user_id, language) UNIQUE` + `speaker_embeddings` 테이블 신규. 마이그레이션으로 기존 데이터 `'unknown'` 보존
+- **D-2 마이크 사이드 채널**: web_conference 모드에서 10초 마이크 전용 샘플 → `/self-voice-sample` → `dg_speaker_hint` + max similarity 매칭
+- **D-3 배치 화자 병합**: sklearn AgglomerativeClustering (cosine, sim ≥ 0.65), PUT status='completed' 트리거
+- **D-4 화자 네이밍**: 발화 블록 `[화자 N ▾]` 클릭 → `SpeakerPopover` (나/참여자/직접 입력). `block.id` 기반 스코프로 중복 팝오버 버그 수정. 같은 이름/is_self 자동 병합
+- **D-5 개인정보**: 회의 종료 시 PCM 버퍼 즉시 drop, 프로필 안내 4항, 다국어 삭제 API
 
-**백엔드 보강**
-- `live.py`: `finalized` 이벤트 추가 (DB insert 후 utterance_id 즉시 통지 → enrichment 상관관계)
-- `live.py`: WS 종료 시 자동 status=completed 제거 → pause/resume 가능, 명시적 PUT으로만 종료
-- `deepgram_service.py`: `smart_format=true` — 구두점 + 숫자/날짜 자동 포맷
+**프로필 페이지 신규 (`/profile`)**
+- `pages/Profile/ProfilePage.tsx` + `services/audio/recordToWav.ts` (AudioContext → WAV Blob, ffmpeg 무의존)
+- 다국어 음성 등록/재등록/삭제 + **매칭 확인하기** (verify) 언어별 유사도 분해 표시
+- 언어 드롭다운 선택 즉시 녹음 시작 (버튼 2개 → 드롭다운 1개 단순화)
+- 하드 상한 30초만 자동 종료, 사용자 수동 종료 권장 UI (문장 잘림 방지)
+- `window.confirm` → `ConfirmDialog` 컴포넌트 전환
+
+**버그 수정 — 이번 세션 주요**
+- **본인 인식 UI 반영 실패**: `speakerLabel` 동적 계산 — 블록 렌더마다 `speakerLabelFor()` 실시간 호출. `self_matched` WS 이벤트 즉시 "나"로 전환
+- **텍스트 중복**: Deepgram `is_final=true` 모든 이벤트 commit (speech_final 필터 함정 제거). **2중 dedup** (시간 오버랩 + 직전 3개 정규화 텍스트 비교)
+- **한국어 띄어쓰기 실패**: GPT-5-mini(reasoning, empty response) → **gpt-4o-mini** 교체. `translate_and_detect_question failed` 근절
+- **리프레시 시 회의 종료**: `openReview`에서 session.status 기반 phase 결정 (`recording→paused`). `buildBlocksFromSession` 공용 헬퍼로 paused 진입 시 하이드레이트
+- **연속 발화 쪼개짐**: `MERGE_GAP_SEC=2.0` — 같은 화자 + 2초 이내 발화는 speech/question 구분 없이 병합
+- **녹음 이어하기 멈춤**: 실패 원인을 NotAllowedError/탭 공유 취소/WS 실패 카테고리로 분류해 **유저 친화 메시지** 노출. `pendingConfig=null` 시 마이크 모드 폴백
+- **사이드바 언어 저장 403**: `/api/users/language`(존재 안 함) → `/api/users/:id` 경로 수정
+
+**검증 스크립트 v2 이식**
+- `scripts/health-check.js` — POS `/var/www/dev-backend/scripts/health-check.js` v2 구조 차용
+- CLI 옵션 시스템 (`--category`, `--verbose`, `--quiet`, `--host`)
+- 카테고리 기반 테스트 등록 + 그룹 출력
+- 19 → **27 체크** 확장 (infra/auth/security/qnote/voice/external/frontend)
 
 ### 검증 결과
-- 헬스체크: **19/19 통과**
-- Step 8 API E2E: **14/14 통과** (CRUD + round-trip + SSRF 3종 + 확장자 블랙리스트 + pagination + CASCADE)
-- 유저 플로 E2E: **6/6 통과**
-- 빌드: tsc 0 error, vite 147 modules, 497KB 번들
-- 페이지 서빙 /q-note 200
+- **헬스체크 27/27 통과**
+- **Ingest E2E 12/12** (파일 + URL 인제스트 + SSRF 4종 차단)
+- **Voice Fingerprint E2E 10/10**
+- **Speaker Merge E2E 5/5**
+- **턴 검증 E2E 12/12** — 한국어 띄어쓰기 실 LLM 4건 전부 복구 확인
+- 빌드: tsc 0 error · 151 modules · 536KB · `iQIgwuc5`
+- 백엔드 에러로그 clean (gpt-4o-mini 전환 후)
 
 ### 메모리 추가
-- `feedback_qnote_transcript_design.md` — Q Note 트랜스크립트 설계 원칙 (flat + 질문만 카드, 터미네이터 기반 커밋, 플리커 내성, 시간/길이 캡 금지)
+- `feedback_qnote_stt_llm_quirks.md` — Deepgram multi 모드 금지, speech_final 필터 금지, reasoning LLM 금지
 
-### 다음 할 일 — Q Note B-3 Step 6, 7
+### 다음 할 일
 
-**Step 6: URL Fetcher (B-5 RAG 선행)**
-- trafilatura 또는 readability 추가
-- https 강제 + SSRF 방어 재사용
-- 응답 크기 10MB / 타임아웃 15초
-- sessions.urls JSON 배열의 status 갱신 (pending → fetched / failed)
-- 추출 텍스트 저장
+**즉시 우선순위**
+1. **실라이브 본인 인식 임계값 튜닝** — 실제 회의 녹음 로그 기반 Resemblyzer threshold 0.68 재조정
+2. **모달 참여자 재사용 UX** — localStorage 캐시로 직전 세션 participants를 다음 모달 기본값으로 제안
+3. **Deepgram 세션 split (4시간 한계)** — 재연결 로직과 묶어서 구현. 사용자 당 최대 3시간 리밋
 
-**Step 7: B-5 RAG 기초**
-- 문서 텍스트 추출 (PDF: pdfplumber, DOCX: python-docx, TXT/MD: 직접)
-- 청크 분할 (500자 / overlap 50자)
-- SQLite FTS5 인덱싱 (document_chunks_fts 이미 존재)
-- 답변 찾기 — session_id 필터 검색 → GPT 컨텍스트 주입 + 출처 표시
-- 프론트엔드 답변 찾기 버튼 활성화 (현재 disabled)
+**Phase B — 답변 찾기 API (백엔드)**
+- `POST /api/sessions/:id/answer` — body: `{utterance_id}`
+- 서버: 직전 5개 발화 컨텍스트 조합 → GPT 쿼리 확장 → FTS5 BM25 top-5 (문서당 max 2) → GPT-4o-mini 답변 + `sources[]`
+- 메모리 규칙 적용: 업로드 자료 우선, 없으면 "일반 지식 기반" 명시
 
-**실제 회의 테스트 필요**
-- 라이브 녹음 시 pending 유령 블록 자연스러움
-- 터미네이터 기반 커밋이 실제 문장 단위로 동작하는지
-- 낙관 질문 감지 정확도
-- 화자 플리커 내성 동작
+**Phase C — 답변 찾기 UI (프론트)**
+- 질문 카드의 `답변 찾기` 버튼 활성화 (현재 disabled)
+- 답변 표시 패널 mock → **Irene 승인** → 실 API 연결 (UI-First 원칙 준수)
+- 자료 인덱싱 진행 상태 배지 (pending/processing/indexed/failed)
 
-### 나머지 로드맵 (B-3 완료 후)
-- 프로필 페이지 (language 변경 UI, 음성 핑거프린트)
+**나머지 로드맵**
+- 프로필 페이지 음성 핑거프린트 **실라이브 매칭 정확도 개선**
 - 연결 끊김 처리 (WebSocket 재연결 + 오디오 버퍼)
 - 4시간 회의 한계 처리 (Deepgram 세션 split)
 - 법적 동의 1회 모달

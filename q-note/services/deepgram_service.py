@@ -113,6 +113,12 @@ class DeepgramSession:
             counts[sp] = counts.get(sp, 0) + 1
         if counts:
           speaker_id = max(counts.items(), key=lambda x: x[1])[0]
+        elif is_final:
+          # diarize 가 켜져있는데 words 에 speaker 필드가 없는 경우 로깅 (원인 추적)
+          logger.warning(
+            f'Deepgram words have no speaker field (len={len(words)}) — '
+            f'diarization may be disabled for language={self.language}'
+          )
 
       result = {
         'type': 'transcript',

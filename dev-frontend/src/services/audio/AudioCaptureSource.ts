@@ -14,7 +14,16 @@
  *   - WebSocket binary frame으로 전송
  */
 
-export type CaptureMode = 'microphone' | 'browser_tab';
+/**
+ * 캡처 모드.
+ *
+ * - microphone: 대면 회의, 인터뷰, 강의 참석, 음성 메모 등 로컬 오디오만 녹음.
+ * - web_conference: 웹 화상회의(Google Meet / MS Teams 웹 / Zoom 웹) + 온라인 강의.
+ *   마이크(본인 발화) + 탭 오디오(상대 발화)를 동시 캡처 후 Web Audio API 로 믹싱해
+ *   하나의 MediaStream 으로 만든다. 탭 단독 캡처는 상대방이 재생되는 소리만 잡혀
+ *   본인 발화가 누락되므로 제공하지 않는다.
+ */
+export type CaptureMode = 'microphone' | 'web_conference';
 
 export interface CaptureCapabilities {
   mode: CaptureMode;
