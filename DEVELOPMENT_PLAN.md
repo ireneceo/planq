@@ -7,6 +7,85 @@
 
 ---
 
+## 완료: Q Note 품질 전면 개선 — 7 Phase 리팩터링 (2026-04-11 #2)
+
+라이브 STT 품질에 대한 사용자 피드백 ("텍스트 속도 느림, 한국어 띄어쓰기 버벅임, LLM 교정 안 됨,
+본인 인식 실패, 참여자 선택 안 됨") 을 7 개 근본 원인으로 해부하고 Phase 단위로 전면 재구현.
+
+### 완료된 작업
+
+| 구분 | 작업 | 상태 |
+|------|------|:----:|
+| **Phase 0 실측** | DB 실측으로 참여자 NULL 저장/capture_mode 컬럼 부재/LLM 프롬프트 제약 확정 | 완료 |
+| **Phase 5 참여자** | `StartMeetingModal.handleStart` — 미반영 pName/pRole 자동 포함 (엔터/추가 버튼 없이 "회의 시작" 눌러도 저장) | 완료 |
+| **Phase 1 라이브 렌더** | `live.py` 누적 버퍼 설계 — Deepgram 의 여러 `is_final=true` 청크를 `pending_utterance` 에 누적, `speech_final=true` 또는 `UtteranceEnd` 도착 시 **하나의 row 로 단일 commit**. "한 문장 = 한 row" 원칙 + 앞부분 loss 없음 (메모리 `feedback_qnote_stt_llm_quirks.md` 2번 규칙 준수) | 완료 |
+| Phase 1 | Enrichment singleton — utterance_id 당 최신 태스크만 유지 (중복 리렌더 차단) | 완료 |
+| Phase 1 | WS close finally 에서 누적 버퍼 강제 flush — 일시중지/종료 시 문장 중간 drop 방지 | 완료 |
+| Phase 1 | `QNotePage.tsx` 터미네이터 (`?.!`) 대기 로직 전면 폐기, `finalized` 이벤트 즉시 블록 승격, 2초 gap merge 에 위임 | 완료 |
+| Phase 1 | `buildBlocksFromSession` 단순화 — 각 utterance 단일 buffer flush. 데드코드 (FLICKER_TOLERANCE_SEC, SILENCE_HARD_CAP_SEC, textEndsWithTerminator) 제거 | 완료 |
+| **Phase 2 LLM 교정** | `TRANSLATE_SYSTEM` 재설계 — "Do NOT change word choice" 삭제, 회의 컨텍스트 기반 phonetic mis-recognition 교정 지시 추가 | 완료 |
+| Phase 2 | `deepgram_service.py` — `keywords` 파라미터 추가. nova-3 는 `keyterm`, nova-2 이하는 `keywords:2` 자동 분기. 언어별 모델 env 오버라이드 (`DEEPGRAM_MODEL`, `DEEPGRAM_MODEL_KO`) | 완료 |
+| Phase 2 | `live.py._extract_keywords` — brief/participants/pasted_context 에서 고유명사 추출 (영문 대문자 연속, 한글 따옴표, 참여자 이름) → Deepgram keyword boosting | 완료 |
+| **Phase 3 한국어 모델** | `_resolve_model_for_language()` — `DEEPGRAM_MODEL_<LANG>` 환경변수 오버라이드 경로 (실환경 A/B 후 `nova-2-general` 전환 가능) | 완료 |
+| **Phase 4 본인 인식** | `SELF_MATCH_THRESHOLD` 0.68 → 0.62 (환경변수 `QNOTE_SELF_MATCH_THRESHOLD` 오버라이드). CLUSTER_MERGE 0.65 → 0.60 | 완료 |
+| Phase 4 | `SpeakerAudioCollector.live_trigger_sec` 5.0 → 3.0 (첫 발화 빠른 매칭) | 완료 |
+| Phase 4 | **이중 방어**: `_auto_match_self` — 세션 내 이미 `is_self=1` speaker 존재 시 스킵 (과거 mixed stream 에서 모든 speaker 에 is_self 찍혀 "나만 보임" 유발한 버그 재발 방지) | 완료 |
+| Phase 4 | **경로 분기**: web_conference 모드는 `_auto_match_self` 스킵 → 프론트 마이크 전용 `/self-voice-sample` 만 사용 (mixed stream 매칭 품질 저하 회피). microphone 모드만 live 매칭 | 완료 |
+| Phase 4 | `StartMeetingModal` — 음성 미등록 시 Rose 팔레트 경고 배너 + 프로필 링크 | 완료 |
+| **Phase 6 capture_mode** | `sessions.capture_mode` 컬럼 마이그레이션 (default 'microphone') | 완료 |
+| Phase 6 | `routers/sessions.py` CreateSessionRequest/UpdateSessionRequest 에 `capture_mode` 추가 + `_validate_capture_mode` (잘못된 값 400) | 완료 |
+| Phase 6 | `services/qnote.ts` — `QNoteCaptureMode` 타입 + `CreateSessionPayload.capture_mode` | 완료 |
+| Phase 6 | `QNotePage.openReview` — DB `capture_mode` 로 pendingConfig 복원 (하드코딩 `'microphone'` 제거) | 완료 |
+| Phase 6 | `QNotePage.startRecording` — paused→web_conference 재개 시 "탭 공유 다시 선택" 안내 notice + pendingConfig 없을 때 DB 기반 fallback | 완료 |
+| **이모지 클린업** | `StartMeetingModal` "스캔본 ❌" → "스캔본 불가" (메모리 규칙 `feedback_no_emoji_check.md` 준수) | 완료 |
+
+### 설계 결정 (시니어 관점)
+
+- **"한 문장 = 한 utterance row" — 누적 버퍼 설계**: 기존은 Deepgram `is_final=true` 이벤트를 전부 DB insert 해서 한 문장이 N 개 row 로 쪼개지고 enrichment 가 N 번 돌아 프론트 리렌더 N 번 → "버벅거림". 단순히 `speech_final=true` 만 commit 하면 Deepgram 이 한 문장을 여러 `is_final` 청크로 쪼개 보내고 **마지막 청크에만** speech_final 이 붙는 경우 앞부분이 drop (이전 세션에서 실측 확인, 메모리 `feedback_qnote_stt_llm_quirks.md` 2번에 기록). 해결: 모든 `is_final=true` 조각을 `pending_utterance` 버퍼에 누적 → `speech_final=true` 또는 `UtteranceEnd` 도착 시 전체 텍스트를 하나의 row 로 commit. 양쪽 요구 모두 충족 — 한 row = 한 문장 + 앞부분 loss 없음. 추가 안전장치로 WS close finally 에서 강제 flush.
+- **LLM 프롬프트 철학 전환**: 기존은 "띄어쓰기만 고쳐라, 단어 바꾸지 마라" 로 교정을 원천 차단. 하지만 STT 고유명사 오탐은 **맥락으로만 교정 가능** 한 문제다. 회의 브리프/참여자/자료를 system prompt 앞에 붙이고 "phonetically similar but contextually wrong 이면 교체하라 (확신 없으면 원본 유지)" 로 바꾸니 gpt-4o-mini 가 회의 컨텍스트를 적극 활용. Deepgram `keyterm` 은 저수준 부스팅, LLM 은 고수준 교정 — 이중 레이어.
+- **본인 인식 이중 방어**: web_conference 의 mixed stream (mic + tab) 에서 Resemblyzer 임베딩을 계산하면 발화 구간마다 user voice 가 섞여 있어 **모든 speaker 가 is_self 로 찍히는** 심각한 버그 발생. 경로를 분리해 mixed 는 live 매칭을 아예 끊고, 프론트가 별도 마이크 전용 채널 10 초 를 `/self-voice-sample` 로 업로드. microphone 모드는 audio_buf 자체가 깨끗해서 기존 경로 유지. 추가로 "세션당 is_self 1 명" 가드를 live.py 에 넣어 어떤 경로에서도 중복 마킹 불가.
+- **capture_mode 영속화**: 새로고침 시 브라우저 권한 소실 + 사용자가 원래 모드를 기억하지 못하는 두 문제를 컬럼 하나로 동시 해결. Frontend 는 `openReview` 에서 DB 값으로 복원하고 `startRecording` 에서 web_conference 재개 시 명시적으로 "탭 공유 다시 선택" notice 를 띄워 사용자가 의도적으로 재선택하게 유도.
+
+### 검증 결과
+
+- **헬스체크 27/27** (infra / auth / security / qnote / voice / external / frontend 전 카테고리)
+- **Q Note E2E 30/30** (참여자 3 명 round-trip, 빈 배열, role null, capture_mode web_conference/microphone 전환, 잘못된 값 400, LLM 한국어 띄어쓰기 복원 + 영어 번역, 영어 질문 감지 + 한국어 번역, IDOR 방어, 미인증 401, 세션 CUD + 목록 + 삭제 후 404)
+- **실 LLM 검증**:
+  - 입력: `안녕하세요저는루아입니다오늘회의는큐노트에대해논의하는자리입니다`
+  - formatted_original: `안녕하세요, 저는 루아입니다. 오늘 회의는 큐 노트에 대해 논의하는 자리입니다.`
+  - translation: `Hello, I am Lua. Today's meeting is to discuss Q Note.`
+  - 영어 질문 `Could you tell me more about the Q Note feature?` → is_question=true, 한국어 번역 생성
+- **빌드**: tsc 0 error, 151 modules, 537 KB, `Cq6XLQAT.js`
+- **SPA 라우트**: /notes · /profile · /talk · /tasks · /files · /billing · /dashboard · /login 전부 200
+- **PM2**: planq-dev-backend · planq-qnote online, 에러로그 clean
+- **번들 포함 확인**: `capture_mode`, `VoiceWarnBanner`, `finalized`, "탭 오디오/재선택" 문자열 4/4
+- **UI/UX**: `window.alert`/`window.confirm`/`toast.success` 0건, 이모지 0건 (❌ 1건 제거)
+
+### 수정된 파일
+
+**Q Note 백엔드 (Python)**
+- `q-note/services/database.py` — sessions.capture_mode 컬럼 마이그레이션
+- `q-note/services/voice_fingerprint.py` — threshold 환경변수화 (SELF_MATCH_THRESHOLD 0.62, CLUSTER_MERGE_THRESHOLD 0.60)
+- `q-note/services/deepgram_service.py` — `keywords` 파라미터, 모델 env var 오버라이드 (DEEPGRAM_MODEL, DEEPGRAM_MODEL_<LANG>)
+- `q-note/services/llm_service.py` — TRANSLATE_SYSTEM 재설계 (contextual correction)
+- `q-note/routers/sessions.py` — capture_mode CRUD + `_validate_capture_mode`
+- `q-note/routers/live.py` — speech_final 기반 commit, enrichment singleton, `_extract_keywords`, `_auto_match_self` 세션당 1명 가드 + web_conference 경로 분리
+
+**프론트엔드 (TS)**
+- `dev-frontend/src/services/qnote.ts` — QNoteCaptureMode 타입, CreateSessionPayload.capture_mode
+- `dev-frontend/src/pages/QNote/StartMeetingModal.tsx` — participants flush, 음성 미등록 경고 배너, 이모지 정리
+- `dev-frontend/src/pages/QNote/QNotePage.tsx` — 라이브 렌더 전면 재설계, openReview capture_mode 복원, startRecording web_conference resume 안내
+
+### 미완 / 다음 세션
+
+- **실라이브 테스트**: 실제 회의 녹음으로 띄어쓰기 1회 렌더 / 본인 1명 인식 / 참여자 popover 노출 / 고유명사 교정 확인
+- **한국어 모델 A/B**: nova-3 vs nova-2-general 30초 녹음 비교 후 `DEEPGRAM_MODEL_KO` 고정
+- **Threshold 튜닝**: 실 매칭 시 self-match 로그 유사도 기반 `QNOTE_SELF_MATCH_THRESHOLD` 재조정
+- **Phase B 답변 찾기 API**: 질문 카드의 `답변 찾기` 버튼 실 API 연결
+- **Phase C 답변 찾기 UI**: 답변 패널 mock → Irene 승인 → 실 연결
+
+---
+
 ## ✅ 완료: Q Note Phase A + Phase D + 라이브 UX 전면 안정화 (2026-04-11)
 
 ### 완료된 작업

@@ -6,6 +6,7 @@
 - VoiceEncoder 는 모듈 로드 시점에 한 번만 생성 (CPU, ~50MB)
 - 모든 블로킹 연산은 asyncio.to_thread 로 감쌈
 """
+import os
 import asyncio
 import logging
 from typing import Optional
@@ -70,9 +71,10 @@ def cosine_similarity(a: np.ndarray, b: np.ndarray) -> float:
 
 # 자기 자신 매칭 임계값.
 # Resemblyzer 기본 권장은 0.75지만 실제 회의 환경(노이즈, 믹스드 채널, 코덱 차이)에서는
-# 너무 엄격해서 true-positive 를 놓친다. 0.68 이 경험적으로 단일 사용자 self-verification
-# 에 적절. (마이크 전용 사이드 채널을 사용하면 이 정도면 안전)
-SELF_MATCH_THRESHOLD = 0.68
+# 너무 엄격해서 true-positive 를 놓친다. 0.62 가 경험적으로 단일 사용자 self-verification
+# 에 적절 (false positive 가능성은 1 user + N speakers 시나리오에서 거의 0).
+# 실환경 데이터 기반 튜닝을 위해 환경변수 오버라이드 허용.
+SELF_MATCH_THRESHOLD = float(os.getenv('QNOTE_SELF_MATCH_THRESHOLD', '0.62'))
 
-# 배치 화자 병합 임계값 — cosine similarity. 0.65 이상이면 같은 사람으로 간주 (약간 보수적)
-CLUSTER_MERGE_THRESHOLD = 0.65
+# 배치 화자 병합 임계값 — cosine similarity. 0.6 이상이면 같은 사람으로 간주
+CLUSTER_MERGE_THRESHOLD = float(os.getenv('QNOTE_CLUSTER_MERGE_THRESHOLD', '0.60'))

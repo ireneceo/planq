@@ -11,6 +11,7 @@ import {
 import { LANGUAGES, getDefaultLanguageFromBrowser } from '../../constants/languages';
 import { ALL_CAPTURE_CAPABILITIES } from '../../services/audio';
 import type { CaptureMode } from '../../services/audio';
+import { getVoiceFingerprints } from '../../services/qnote';
 
 interface Props {
   open: boolean;
@@ -89,6 +90,9 @@ const StartMeetingModal = ({ open, userLanguage, onClose, onStart }: Props) => {
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // 본인 음성 핑거프린트 등록 여부 — 미등록이면 본인 자동 인식 불가능 → 배너로 안내
+  const [voiceRegistered, setVoiceRegistered] = useState<boolean | null>(null);
+
   const allLangOptions = useMemo(() => langToOption(), []);
 
   // 모달이 열릴 때마다 이전 입력 초기화 (이전 회의 데이터 잔존 방지)
@@ -110,6 +114,12 @@ const StartMeetingModal = ({ open, userLanguage, onClose, onStart }: Props) => {
       setUrlInput('');
       setFileError(null);
       setIsDragging(false);
+
+      // 본인 음성 핑거프린트 등록 여부 조회 (본인 자동 인식 사전 조건)
+      setVoiceRegistered(null);
+      getVoiceFingerprints()
+        .then((fp) => setVoiceRegistered(fp.registered && fp.count > 0))
+        .catch(() => setVoiceRegistered(false));
     }
   }, [open, effectiveUserLanguage]);
 
@@ -216,10 +226,18 @@ const StartMeetingModal = ({ open, userLanguage, onClose, onStart }: Props) => {
   };
 
   const handleStart = () => {
+    // 입력 중인 참여자 이름이 "+ 추가" 없이 남아있으면 자동으로 포함.
+    // 사용자가 한 명만 입력하고 엔터/버튼 없이 바로 "회의 시작"을 눌러도 저장되도록.
+    const pendingName = pName.trim();
+    const pendingRole = pRole.trim();
+    const finalParticipants = pendingName
+      ? [...participants, { name: pendingName, role: pendingRole }]
+      : participants;
+
     onStart({
       title: title.trim() || '제목 없는 회의',
       brief: brief.trim(),
-      participants,
+      participants: finalParticipants,
       meetingLanguages: meetingLangs,
       translationLanguage: translationLang,
       answerLanguage: answerLang,
@@ -241,6 +259,17 @@ const StartMeetingModal = ({ open, userLanguage, onClose, onStart }: Props) => {
         </Header>
 
         <Body>
+          {voiceRegistered === false && (
+            <VoiceWarnBanner>
+              <strong>본인 음성이 등록되어 있지 않습니다.</strong>
+              <div>
+                프로필 → "내 음성 인식"에서 등록하면 회의 중 본인 발화가 자동으로 "나"로 표시됩니다.
+                지금 시작하면 회의 종료 후 발화 블록에서 직접 본인 화자를 지정해야 합니다.
+              </div>
+              <a href="/profile" target="_blank" rel="noreferrer">프로필로 이동</a>
+            </VoiceWarnBanner>
+          )}
+
           <Field>
             <Label>회의 제목</Label>
             <Input
@@ -395,7 +424,7 @@ const StartMeetingModal = ({ open, userLanguage, onClose, onStart }: Props) => {
               <br />
               <strong>텍스트나 링크를 우선 사용해주세요.</strong> 파일은 작은 슬라이드/문서 위주.
               <br />
-              파일당 10 MB · 최대 5개 · PDF·DOCX·TXT·MD · 텍스트 PDF만 (스캔본 ❌)
+              파일당 10 MB · 최대 5개 · PDF·DOCX·TXT·MD · 텍스트 PDF만 (스캔본 불가)
             </Hint>
 
             {fileError && <ErrorBanner>{fileError}</ErrorBanner>}
@@ -619,6 +648,37 @@ const Body = styled.div`
   flex-direction: column;
   gap: 22px;
   overflow-y: auto;
+`;
+
+const VoiceWarnBanner = styled.div`
+  padding: 14px 16px;
+  border-radius: 10px;
+  background: #fff1f2;
+  border: 1px solid #fecdd3;
+  color: #9f1239;
+  font-size: 13px;
+  line-height: 1.55;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+
+  strong {
+    font-size: 13px;
+    font-weight: 700;
+    color: #9f1239;
+  }
+
+  div {
+    color: #9f1239;
+  }
+
+  a {
+    align-self: flex-start;
+    color: #e11d48;
+    font-weight: 700;
+    text-decoration: underline;
+    font-size: 12px;
+  }
 `;
 
 const Field = styled.div`

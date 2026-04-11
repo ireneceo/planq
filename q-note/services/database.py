@@ -49,6 +49,7 @@ async def _run_migrations(db):
     ('translation_language', 'TEXT'),
     ('answer_language', 'TEXT'),
     ('pasted_context', 'TEXT'),                # 회의 자료로 붙여넣은 텍스트
+    ('capture_mode', "TEXT NOT NULL DEFAULT 'microphone'"),  # 'microphone' | 'web_conference'
   ]
   for col, typ in session_cols:
     if not await _column_exists(db, 'sessions', col):

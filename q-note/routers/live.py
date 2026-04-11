@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import re
 import numpy as np
 import aiosqlite
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
@@ -16,6 +17,53 @@ from services.voice_fingerprint import (
 
 router = APIRouter()
 logger = logging.getLogger('q-note.live')
+
+
+def _extract_keywords(meeting_context: dict | None) -> list[str]:
+  """회의 컨텍스트(브리프, 참여자, 붙여넣은 자료)에서 Deepgram keyword boosting 용 단어 추출.
+
+  규칙:
+    - 참여자 이름: 전부 (2~30자)
+    - 브리프/자료: 대문자로 시작하는 영문 단어 3자 이상, 따옴표로 감싼 고유명사, 한글 2~15자 연속
+    - 최대 50개 (Deepgram keyterm 가이드 권장치)
+  """
+  if not meeting_context:
+    return []
+  found: set[str] = set()
+
+  for p in (meeting_context.get('participants') or []):
+    if isinstance(p, dict):
+      name = (p.get('name') or '').strip()
+      if 1 < len(name) <= 30:
+        found.add(name)
+
+  texts = []
+  if meeting_context.get('brief'):
+    texts.append(meeting_context['brief'])
+  if meeting_context.get('pasted_context'):
+    # 상한 8000자 — 너무 큰 문서에서 모든 고유명사 뽑지 않도록
+    texts.append(meeting_context['pasted_context'][:8000])
+
+  for text in texts:
+    # 영문: 대문자로 시작하는 연속 단어 (ex: Google Meet, Planq)
+    for m in re.findall(r'\b[A-Z][A-Za-z0-9]{2,}(?:\s+[A-Z][A-Za-z0-9]{2,}){0,2}\b', text):
+      if len(m) <= 60:
+        found.add(m)
+    # 따옴표로 감싼 고유명사
+    for m in re.findall(r'["\u201c\u201d]([^"\u201c\u201d]{2,40})["\u201c\u201d]', text):
+      found.add(m.strip())
+    for m in re.findall(r"[\u2018\u2019']([^\u2018\u2019']{2,40})[\u2018\u2019']", text):
+      found.add(m.strip())
+
+  # 중복 + 공백 정리
+  cleaned = []
+  for kw in sorted(found, key=lambda s: (-len(s), s)):  # 긴 것 우선
+    kw = ' '.join(kw.split())
+    if kw and kw not in cleaned:
+      cleaned.append(kw)
+    if len(cleaned) >= 50:
+      break
+  return cleaned
 
 
 async def _upsert_speaker(db, session_id: int, dg_speaker_id: int) -> int | None:
@@ -77,6 +125,10 @@ async def _auto_match_self(
 ):
   """
   라이브 핑거프린트 매칭 — 여러 언어 등록 시 max similarity 사용.
+
+  이중 방어: 세션당 "나"는 1명. 이미 is_self=1 인 speaker 가 있으면 스킵.
+  (과거 버그: mixed stream 잘림 + 관대한 threshold 로 모든 speaker 에 is_self=1 이 찍혀
+  SpeakerPopover 에 "나" 만 보이는 문제를 유발했다.)
   """
   try:
     emb = await embed_pcm16(pcm_bytes)
@@ -89,6 +141,16 @@ async def _auto_match_self(
 
   async with db_connect() as db:
     db.row_factory = aiosqlite.Row
+    # 세션당 "나"는 1명 가드 — 이미 is_self=1 인 speaker 가 있으면 스킵
+    cursor = await db.execute(
+      'SELECT COUNT(*) AS cnt FROM speakers WHERE session_id = ? AND is_self = 1',
+      (session_id,)
+    )
+    existing = await cursor.fetchone()
+    if existing and existing['cnt'] > 0:
+      logger.info(f'self-match: session={session_id} skip (is_self already assigned)')
+      return
+
     cursor = await db.execute(
       'SELECT id FROM speakers WHERE session_id = ? AND deepgram_speaker_id = ?',
       (session_id, dg_speaker_id)
@@ -198,6 +260,9 @@ async def _enrich_and_persist(
       })
     except Exception:
       pass
+  except asyncio.CancelledError:
+    # 최신 태스크로 교체된 경우 — 정상 흐름
+    raise
   except Exception as e:
     logger.error(f'Enrichment failed for utterance {utterance_id}: {e}')
 
@@ -247,19 +312,50 @@ async def websocket_live(websocket: WebSocket, session_id: int = Query(...)):
 
   # 라이브 오디오 버퍼 + 화자별 수집기 (핑거프린트 매칭 / 배치 클러스터링용)
   audio_buf = RollingAudioBuffer(max_seconds=60)
-  speaker_collector = SpeakerAudioCollector(live_trigger_sec=5.0, max_sec=30.0)
+  speaker_collector = SpeakerAudioCollector(live_trigger_sec=3.0, max_sec=30.0)
 
   # 사용자의 저장된 핑거프린트 (라이브 매칭용). 없으면 라이브 매칭 스킵.
   user_fingerprints = await _load_user_fingerprints(user['user_id'])
 
+  # utterance_id 별 enrichment 태스크 singleton — 동일 utterance 에 대해 중복 enrichment 가
+  # 발생하면 직전 태스크를 cancel 하고 최신 태스크만 유지.
+  enrichment_tasks: dict[int, asyncio.Task] = {}
+
+  # Utterance 누적 버퍼 — Deepgram 한 문장을 여러 `is_final=true` 청크로 쪼개 보내고
+  # **마지막 청크에만** `speech_final=true` 가 붙는다. speech_final 만 commit 하면 앞부분이 drop
+  # 되므로 (메모리 `feedback_qnote_stt_llm_quirks.md` 참조), 모든 is_final 을 버퍼에 누적하다가
+  # speech_final 이나 UtteranceEnd 이벤트 도착 시 전체를 **단일 row** 로 commit 한다.
+  # → 한 문장 = 한 row 원칙 + 앞부분 loss 없음.
+  pending_utterance = {
+    'text_parts': [],           # list[str] — 각 is_final 조각
+    'start_time': None,         # 첫 조각의 start
+    'end_time': None,           # 마지막 조각의 end
+    'language': None,
+    'dg_speaker_id': None,      # 다수결 기반 결정
+    'speaker_counts': {},       # {dg_speaker_id: count}
+    'confidence_sum': 0.0,
+    'confidence_count': 0,
+  }
+
+  def _reset_pending():
+    pending_utterance['text_parts'] = []
+    pending_utterance['start_time'] = None
+    pending_utterance['end_time'] = None
+    pending_utterance['language'] = None
+    pending_utterance['dg_speaker_id'] = None
+    pending_utterance['speaker_counts'] = {}
+    pending_utterance['confidence_sum'] = 0.0
+    pending_utterance['confidence_count'] = 0
+
   # Verify session ownership + load meeting_languages and context for Deepgram/LLM
   meeting_context: dict | None = None
   allowed_languages: list[str] | None = None
+  capture_mode: str = 'microphone'
   try:
     async with db_connect() as db:
       db.row_factory = aiosqlite.Row
       cursor = await db.execute(
-        'SELECT id, business_id, user_id, meeting_languages, brief, participants, pasted_context '
+        'SELECT id, business_id, user_id, meeting_languages, brief, participants, pasted_context, capture_mode '
         'FROM sessions WHERE id = ?',
         (session_id,)
       )
@@ -273,6 +369,7 @@ async def websocket_live(websocket: WebSocket, session_id: int = Query(...)):
         await websocket.close(code=4003)
         return
       dg_language = _resolve_deepgram_language(session['meeting_languages'])
+      capture_mode = session['capture_mode'] or 'microphone'
 
       # 세션의 allowed languages 파싱 (언어 필터용)
       allowed_languages: list[str] | None = None
@@ -301,123 +398,174 @@ async def websocket_live(websocket: WebSocket, session_id: int = Query(...)):
     await websocket.close(code=1011)
     return
 
-  # Forward transcripts back to client and persist final ones
+  # 회의 컨텍스트 기반 Deepgram keyword boosting.
+  # 참여자 이름 · 브리프/자료의 고유명사를 Deepgram 에 힌트로 전달해 STT 정확도를 올린다.
+  dg_keywords = _extract_keywords(meeting_context)
+  if dg_keywords:
+    logger.info(f'session={session_id} deepgram keywords={len(dg_keywords)}: {dg_keywords[:8]}...')
+
+  async def _commit_pending_utterance():
+    """누적 버퍼의 조각들을 하나의 row 로 insert + enrichment 태스크 스케줄."""
+    parts = pending_utterance['text_parts']
+    if not parts:
+      return
+    transcript_text = ' '.join(p for p in parts if p).strip()
+    # Deepgram 이 같은 조각을 재전송하는 경우 (정규화 후) 중복 제거
+    seen = set()
+    dedup_parts = []
+    for p in parts:
+      key = ''.join(p.split())
+      if key and key not in seen:
+        seen.add(key)
+        dedup_parts.append(p)
+    transcript_text = ' '.join(dedup_parts).strip()
+    if not transcript_text:
+      _reset_pending()
+      return
+
+    # 화자 다수결
+    counts = pending_utterance['speaker_counts']
+    dg_speaker_id = None
+    if counts:
+      dg_speaker_id = max(counts.items(), key=lambda x: x[1])[0]
+
+    start_time = pending_utterance['start_time']
+    end_time = pending_utterance['end_time']
+    language = pending_utterance['language']
+    avg_conf = (
+      pending_utterance['confidence_sum'] / pending_utterance['confidence_count']
+      if pending_utterance['confidence_count'] > 0 else None
+    )
+
+    _reset_pending()
+
+    utterance_id = None
+    speaker_row_id = None
+    try:
+      async with db_connect() as db:
+        db.row_factory = aiosqlite.Row
+        # 텍스트 dedup — 직전 utterance 와 같으면 skip (retransmit 방어)
+        cursor = await db.execute(
+          'SELECT original_text FROM utterances WHERE session_id = ? ORDER BY id DESC LIMIT 1',
+          (session_id,)
+        )
+        last = await cursor.fetchone()
+        if last and last['original_text']:
+          if ''.join(last['original_text'].split()) == ''.join(transcript_text.split()):
+            logger.info(f'dedup: skip text-match session={session_id} text={transcript_text[:40]!r}')
+            return
+
+        speaker_row_id = await _upsert_speaker(db, session_id, dg_speaker_id)
+        cursor = await db.execute(
+          '''INSERT INTO utterances
+             (session_id, original_text, original_language, is_final, start_time, end_time, confidence, speaker_id)
+             VALUES (?, ?, ?, 1, ?, ?, ?, ?)''',
+          (session_id, transcript_text, language, start_time, end_time, avg_conf, speaker_row_id)
+        )
+        utterance_id = cursor.lastrowid
+        await db.execute(
+          "UPDATE sessions SET utterance_count = utterance_count + 1, updated_at = datetime('now') WHERE id = ?",
+          (session_id,)
+        )
+        await db.commit()
+    except Exception as e:
+      logger.error(f'Failed to persist utterance: {e}')
+      return
+
+    if not utterance_id:
+      return
+
+    # 화자 PCM 수집 (핑거프린트 매칭 / 배치 클러스터링용)
+    if dg_speaker_id is not None and start_time is not None and end_time is not None:
+      pcm_slice = audio_buf.extract(float(start_time), float(end_time))
+      if pcm_slice:
+        trigger = speaker_collector.add(dg_speaker_id, pcm_slice)
+        if (
+          trigger == 'trigger_live'
+          and user_fingerprints
+          and capture_mode == 'microphone'
+        ):
+          collected = speaker_collector.get(dg_speaker_id)
+          asyncio.create_task(
+            _auto_match_self(
+              session_id, user['user_id'], dg_speaker_id,
+              collected, user_fingerprints, websocket,
+            )
+          )
+
+    # 프론트에 finalized 이벤트 + enrichment 스케줄
+    try:
+      await websocket.send_json({
+        'type': 'finalized',
+        'utterance_id': utterance_id,
+        'transcript': transcript_text,
+        'language': language,
+        'deepgram_speaker_id': dg_speaker_id,
+        'speaker_id': speaker_row_id,
+        'start': start_time,
+        'end': end_time,
+      })
+    except Exception:
+      pass
+
+    # Enrichment singleton
+    prev_task = enrichment_tasks.get(utterance_id)
+    if prev_task and not prev_task.done():
+      prev_task.cancel()
+    new_task = asyncio.create_task(
+      _enrich_and_persist(
+        session_id, websocket, utterance_id, transcript_text, speaker_row_id,
+        meeting_context, allowed_languages,
+      )
+    )
+    enrichment_tasks[utterance_id] = new_task
+    def _cleanup(t: asyncio.Task, uid: int = utterance_id):
+      enrichment_tasks.pop(uid, None)
+    new_task.add_done_callback(_cleanup)
+
+  # Forward transcripts back to client and accumulate/commit utterances
   async def on_transcript(result: dict):
     try:
       await websocket.send_json(result)
     except Exception:
       return
 
-    # Deepgram 중복 방지:
-    # - is_final=true 인 모든 final 이벤트 commit (speech_final 만 쓰면 앞부분 손실)
-    # - 시간 오버랩 dedup: 직전 utterance 의 end 보다 앞에서 시작 → duplicate
-    # - 텍스트 dedup: 직전 3개와 정규화 텍스트 비교 → 같으면 skip
+    # Deepgram UtteranceEnd 이벤트 — VAD 가 utterance 종료를 감지한 시점.
+    # 누적 버퍼를 commit 한다 (speech_final 누락 상황 안전장치).
+    if result.get('type') == 'utterance_end':
+      await _commit_pending_utterance()
+      return
+
+    # is_final=true 조각은 전부 누적 (speech_final 무관).
+    # 이전 버그 재발 방지: speech_final 만 쓰면 문장 앞부분 조각이 drop 된다.
     if result.get('type') == 'transcript' and result.get('is_final'):
       transcript_text = (result.get('transcript') or '').strip()
-      if not transcript_text:
-        return
-      dg_speaker_id = result.get('deepgram_speaker_id')
-      new_start = float(result.get('start') or 0)
-      new_end = float(result.get('start') or 0) + float(result.get('duration') or 0)
-      utterance_id = None
-      speaker_row_id = None
-      try:
-        async with db_connect() as db:
-          db.row_factory = aiosqlite.Row
-          # 직전 3개 utterance 조회 (시간 + 텍스트 dedup 용)
-          recent_rows = await (await db.execute(
-            'SELECT start_time, end_time, original_text FROM utterances '
-            'WHERE session_id = ? ORDER BY id DESC LIMIT 3',
-            (session_id,)
-          )).fetchall()
+      if transcript_text:
+        pending_utterance['text_parts'].append(transcript_text)
+        if pending_utterance['start_time'] is None:
+          pending_utterance['start_time'] = result.get('start')
+        if result.get('end') is not None:
+          pending_utterance['end_time'] = result.get('end')
+        if result.get('language') and not pending_utterance['language']:
+          pending_utterance['language'] = result.get('language')
+        dg_sp = result.get('deepgram_speaker_id')
+        if dg_sp is not None:
+          pending_utterance['speaker_counts'][dg_sp] = \
+            pending_utterance['speaker_counts'].get(dg_sp, 0) + 1
+        conf = result.get('confidence')
+        if conf is not None:
+          pending_utterance['confidence_sum'] += float(conf)
+          pending_utterance['confidence_count'] += 1
 
-          # (a) 시간 오버랩 검사 — 직전 utterance 기준
-          if recent_rows and recent_rows[0]['end_time'] is not None:
-            OVERLAP_TOLERANCE = 0.1
-            if new_start < float(recent_rows[0]['end_time']) - OVERLAP_TOLERANCE:
-              logger.info(
-                f'dedup: skip overlap session={session_id} '
-                f'new=[{new_start:.2f}-{new_end:.2f}] last_end={recent_rows[0]["end_time"]:.2f} text={transcript_text[:40]!r}'
-              )
-              return
+      # speech_final=true → utterance 경계. 누적된 조각 전체를 단일 row 로 commit.
+      if result.get('speech_final'):
+        await _commit_pending_utterance()
+      return
 
-          # (b) 텍스트 dedup — 최근 3개 중 정확히 같은 text 면 skip
-          norm_new = ''.join(transcript_text.split())
-          for r in recent_rows:
-            if r['original_text'] and ''.join(r['original_text'].split()) == norm_new:
-              logger.info(
-                f'dedup: skip text-match session={session_id} text={transcript_text[:40]!r}'
-              )
-              return
+    # 그 외 이벤트 (interim transcript, metadata 등) 는 위에서 프론트로 전달만 하고 종료.
 
-          speaker_row_id = await _upsert_speaker(db, session_id, dg_speaker_id)
-          cursor = await db.execute(
-            '''INSERT INTO utterances
-               (session_id, original_text, original_language, is_final, start_time, end_time, confidence, speaker_id)
-               VALUES (?, ?, ?, 1, ?, ?, ?, ?)''',
-            (
-              session_id,
-              transcript_text,
-              result.get('language'),
-              result.get('start'),
-              result.get('end'),
-              result.get('confidence'),
-              speaker_row_id,
-            )
-          )
-          utterance_id = cursor.lastrowid
-          await db.execute(
-            "UPDATE sessions SET utterance_count = utterance_count + 1, updated_at = datetime('now') WHERE id = ?",
-            (session_id,)
-          )
-          await db.commit()
-      except Exception as e:
-        logger.error(f'Failed to persist utterance: {e}')
-
-      # Notify client of persisted row so it can correlate future enrichment events
-      if utterance_id:
-        try:
-          await websocket.send_json({
-            'type': 'finalized',
-            'utterance_id': utterance_id,
-            'transcript': transcript_text,
-            'language': result.get('language'),
-            'deepgram_speaker_id': dg_speaker_id,
-            'speaker_id': speaker_row_id,
-            'start': result.get('start'),
-            'end': result.get('end'),
-          })
-        except Exception:
-          pass
-
-      # 화자별 오디오 수집: 이번 utterance 의 PCM 을 rolling buffer 에서 추출해 컬렉터에 추가
-      u_start = result.get('start')
-      u_end = result.get('end')
-      if dg_speaker_id is not None and u_start is not None and u_end is not None:
-        pcm_slice = audio_buf.extract(float(u_start), float(u_end))
-        if pcm_slice:
-          trigger = speaker_collector.add(dg_speaker_id, pcm_slice)
-          # 첫 5초 누적 완료 → 본인 매칭 fire-and-forget (사용자 핑거프린트 있을 때만)
-          if trigger == 'trigger_live' and user_fingerprints:
-            collected = speaker_collector.get(dg_speaker_id)
-            asyncio.create_task(
-              _auto_match_self(
-                session_id, user['user_id'], dg_speaker_id,
-                collected, user_fingerprints, websocket,
-              )
-            )
-
-      # Fire-and-forget enrichment (translation + question detection + language filter)
-      if utterance_id and transcript_text.strip():
-        asyncio.create_task(
-          _enrich_and_persist(
-            session_id, websocket, utterance_id, transcript_text, speaker_row_id,
-            meeting_context, allowed_languages,
-          )
-        )
-
-  # Connect to Deepgram with the resolved language
-  dg = DeepgramSession(language=dg_language, on_transcript=on_transcript)
+  # Connect to Deepgram with the resolved language + keyword boosting
+  dg = DeepgramSession(language=dg_language, on_transcript=on_transcript, keywords=dg_keywords)
   try:
     await dg.connect()
   except Exception as e:
@@ -451,6 +599,12 @@ async def websocket_live(websocket: WebSocket, session_id: int = Query(...)):
   except Exception as e:
     logger.error(f'WS error: {e}')
   finally:
+    # WS 종료 시 누적 버퍼 강제 flush — 사용자가 문장 중간에 일시중지/종료한 경우 drop 방지
+    try:
+      await _commit_pending_utterance()
+    except Exception as e:
+      logger.warning(f'final flush failed: {e}')
+
     await dg.close()
     # status 는 명시적 종료(PUT /api/sessions/:id status=completed)로만 변경.
     # WS 일시 중지/재시작을 허용하기 위해 여기서 자동 completed 처리하지 않음.

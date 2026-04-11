@@ -40,13 +40,13 @@ import {
  *   일반 발화 → flat transcript 블록 (보더/배경 없음)
  *   질문      → 카드 (코랄 보더 + 수평 레이아웃 + 우측 답변 찾기)
  *
- * 커밋 규칙 (터미네이터 기반):
- *   Deepgram final 들을 pending 버퍼에 누적
- *   "?" / "." / "!" 로 끝나는 final 이 오면 pending 전체를 한 번에 커밋
- *     - ? 로 끝남 → 질문 카드
- *     - . ! 로 끝남 → speech 블록 (직전 같은 화자 speech 블록과 병합)
- *   화자 교체(갭 ≥ 1.5초) 또는 침묵 ≥ 20초 → pending 강제 flush (미완성 문장도)
- *   일시중지 / 회의종료 → 강제 flush
+ * 커밋 규칙 (speech_final 기반):
+ *   백엔드(live.py)가 Deepgram `speech_final=true` 이벤트에 대해서만 DB insert + `finalized`
+ *   이벤트 발행. 그 전 `is_final=true && !speech_final` 은 interim 으로 취급.
+ *   프론트는 `finalized` 를 받는 즉시 새 블록으로 승격 — 한 문장이 여러 카드로 쪼개지는
+ *   "버벅거림" 을 원천 차단.
+ *   2초 이내 같은 화자의 연속 finalized 는 직전 블록과 merge.
+ *   질문 감지는 텍스트 끝 `?` 로 낙관 판정, enrichment 도착 후 백엔드 판정으로 덮어씀.
  */
 
 type Phase = 'empty' | 'prepared' | 'recording' | 'paused' | 'review';
@@ -83,18 +83,8 @@ interface PendingBuffer {
   speakerLabel: string;
 }
 
-// 하드 캡 — 20초 이상 침묵이면 pending 강제 flush
-const SILENCE_HARD_CAP_SEC = 20;
-// 플리커 내성 — 다른 speaker 라도 침묵 갭이 짧으면 Deepgram 플리커로 간주
-const FLICKER_TOLERANCE_SEC = 1.5;
-
-// ─── 문장 경계 판정 ──────────────────────────────────────
-const ENDS_WITH_TERMINATOR = /[.!?。！？][\s"')\]]*$/;
+// ─── 질문 판정 (낙관적, 백엔드 enrichment 가 덮어씀) ───
 const ENDS_WITH_QUESTION = /[?？][\s"')\]]*$/;
-
-function textEndsWithTerminator(text: string): boolean {
-  return ENDS_WITH_TERMINATOR.test(text.trim());
-}
 
 function textEndsWithQuestion(text: string): boolean {
   return ENDS_WITH_QUESTION.test(text.trim());
@@ -281,7 +271,9 @@ const QNotePage = () => {
       }
       setInterimText('');
       setLiveError(null);
-      // paused 진입 시, 재개를 위해 기본 pendingConfig 구성 (참여자/언어 유지)
+      // paused 진입 시, 재개를 위해 기본 pendingConfig 구성 (참여자/언어/캡처모드 원본 유지).
+      // capture_mode 는 DB 에 영속화 되어 있음 — web_conference 면 재개 시 탭 공유 다이얼로그가
+      // 다시 떠서 사용자가 재선택해야 함 (새로고침 시 브라우저 권한 소실되는 것과 동일).
       if (nextPhase === 'paused') {
         setPendingConfig({
           title: detail.title,
@@ -293,7 +285,7 @@ const QNotePage = () => {
           pastedContext: detail.pasted_context || '',
           documents: [],
           urls: [],
-          captureMode: 'microphone',
+          captureMode: detail.capture_mode || 'microphone',
         });
       } else {
         setPendingConfig(null);
@@ -313,7 +305,11 @@ const QNotePage = () => {
     }
 
     if (ev.type === 'finalized') {
+      // speech_final 기반 — 한 utterance = 한 문장. 즉시 블록으로 승격.
+      // 2초 이내 같은 화자면 `commitPendingAsBlock` 내부에서 직전 블록과 merge.
       setInterimText('');
+      pendingRef.current = null;
+      setPending(null);
 
       const text = ev.transcript;
       const segStart = typeof ev.start === 'number' ? ev.start : null;
@@ -329,57 +325,16 @@ const QNotePage = () => {
         end: segEnd,
       };
 
-      // 현재 pending 을 ref 에서 읽어 즉시 처리
-      let current = pendingRef.current;
-
-      // 화자 교체 / 침묵 갭 flush 판정
-      if (current) {
-        const gap =
-          segStart != null && current.lastEnd != null ? segStart - current.lastEnd : 0;
-        const differentSpeaker =
-          current.dgSpeakerId != null &&
-          dgSpeakerId != null &&
-          current.dgSpeakerId !== dgSpeakerId;
-        const speakerChanged = differentSpeaker && gap >= FLICKER_TOLERANCE_SEC;
-        const silenceExceeded = gap >= SILENCE_HARD_CAP_SEC;
-
-        if (speakerChanged || silenceExceeded) {
-          const currentText = joinText(current.segments);
-          const prevKind: BlockKind = textEndsWithQuestion(currentText) ? 'question' : 'speech';
-          commitPendingAsBlock(current, prevKind);
-          current = null;
-        }
-      }
-
-      // append or create
-      if (current) {
-        current = {
-          ...current,
-          segments: [...current.segments, newSegment],
-          lastEnd: segEnd ?? current.lastEnd,
-          dgSpeakerId: dgSpeakerId ?? current.dgSpeakerId,
-        };
-      } else {
-        current = {
-          segments: [newSegment],
-          firstStart: segStart,
-          lastEnd: segEnd,
-          dgSpeakerId,
-          speakerRowId,
-          speakerLabel: speakerLabelFor(speakerRowId, dgSpeakerId, speakersRef.current),
-        };
-      }
-
-      // 이번 final 이 terminator 로 끝나면 즉시 커밋
-      if (textEndsWithTerminator(text)) {
-        const isQuestion = textEndsWithQuestion(text);
-        commitPendingAsBlock(current, isQuestion ? 'question' : 'speech');
-        pendingRef.current = null;
-        setPending(null);
-      } else {
-        pendingRef.current = current;
-        setPending(current);
-      }
+      const buffer: PendingBuffer = {
+        segments: [newSegment],
+        firstStart: segStart,
+        lastEnd: segEnd,
+        dgSpeakerId,
+        speakerRowId,
+        speakerLabel: speakerLabelFor(speakerRowId, dgSpeakerId, speakersRef.current),
+      };
+      const kind: BlockKind = textEndsWithQuestion(text) ? 'question' : 'speech';
+      commitPendingAsBlock(buffer, kind);
       return;
     }
 
@@ -461,11 +416,28 @@ const QNotePage = () => {
       return;
     }
     if (!pendingConfig) {
-      // paused 상태에서 이어하기 시 pendingConfig 가 없으면 기본값 (마이크 모드) 으로 복구
-      setLiveError('회의 설정 복원 실패 — 마이크 모드로 이어갑니다');
+      // paused 상태에서 이어하기 시 pendingConfig 가 없으면 DB 의 capture_mode 로 복구
+      const fallback: StartConfig = {
+        title: activeSession.title,
+        brief: activeSession.brief || '',
+        participants: (activeSession.participants || []).map((p) => ({ name: p.name, role: p.role || '' })),
+        meetingLanguages: activeSession.meeting_languages || ['ko'],
+        translationLanguage: activeSession.translation_language || 'ko',
+        answerLanguage: activeSession.answer_language || '',
+        pastedContext: activeSession.pasted_context || '',
+        documents: [],
+        urls: [],
+        captureMode: activeSession.capture_mode || 'microphone',
+      };
+      setPendingConfig(fallback);
     }
     setLiveError(null);
-    const captureMode = pendingConfig?.captureMode || 'microphone';
+    const captureMode = pendingConfig?.captureMode || activeSession.capture_mode || 'microphone';
+    // web_conference 재개 시: 탭 공유 다이얼로그가 다시 뜸 → 사용자가 어떤 탭을 공유할지
+    // 재선택해야 한다는 점을 명확히 알려줌 (새로고침으로 브라우저 권한 소실)
+    if (captureMode === 'web_conference' && phase === 'paused') {
+      setLiveNotice('탭 오디오 공유를 다시 선택해주세요. 공유 다이얼로그에서 "탭 오디오 공유" 체크를 확인하세요.');
+    }
     const live = new LiveSession({
       sessionId: activeSession.id,
       captureMode,
@@ -552,6 +524,7 @@ const QNotePage = () => {
         translation_language: cfg.translationLanguage,
         answer_language: cfg.answerLanguage,
         pasted_context: cfg.pastedContext || undefined,
+        capture_mode: cfg.captureMode,
       });
 
       for (const file of cfg.documents) {
@@ -582,7 +555,6 @@ const QNotePage = () => {
       const speakerById = new Map(speakers.map((s) => [s.id, s]));
       const out: TranscriptBlock[] = [];
       let counter = 0;
-      let buf: PendingBuffer | null = null;
 
     // 연속 merge gap — 같은 화자, 2초 이내 발화는 한 블록으로 묶어 "두 번씩 나오는" 시각적 중복 제거.
     // question 도 merge 대상 (같은 화자 짧은 연속 질문들은 같은 카드)
@@ -617,13 +589,15 @@ const QNotePage = () => {
       });
     };
 
+    // 각 utterance 는 (speech_final 기반 commit 이후) 이미 한 문장 단위.
+    // 매 utterance 를 단일 buffer 로 감싸 flush — merge 는 flush() 내부의 2초 gap 로직이 처리.
     for (const u of sess.utterances as QNoteUtterance[]) {
       const start = typeof u.start_time === 'number' ? u.start_time : null;
       const end = typeof u.end_time === 'number' ? u.end_time : start;
       const dgSp = u.speaker_id != null
         ? (speakerById.get(u.speaker_id)?.deepgram_speaker_id ?? null)
         : null;
-      const text = u.original_text;
+      const text = u.original_text || '';
       const seg: BlockSegment = {
         utteranceId: u.id,
         original: text,
@@ -631,48 +605,15 @@ const QNotePage = () => {
         start,
         end,
       };
-
-      // speaker / silence flush 체크
-      if (buf) {
-        const gap = start != null && buf.lastEnd != null ? start - buf.lastEnd : 0;
-        const differentSpeaker =
-          buf.dgSpeakerId != null && dgSp != null && buf.dgSpeakerId !== dgSp;
-        const speakerChanged = differentSpeaker && gap >= FLICKER_TOLERANCE_SEC;
-        const silenceExceeded = gap >= SILENCE_HARD_CAP_SEC;
-
-        if (speakerChanged || silenceExceeded) {
-          const cText = joinText(buf.segments);
-          flush(buf, textEndsWithQuestion(cText) ? 'question' : 'speech');
-          buf = null;
-        }
-      }
-
-      if (buf) {
-        buf.segments.push(seg);
-        buf.lastEnd = end ?? buf.lastEnd;
-        buf.dgSpeakerId = dgSp ?? buf.dgSpeakerId;
-      } else {
-        buf = {
-          segments: [seg],
-          firstStart: start,
-          lastEnd: end,
-          dgSpeakerId: dgSp,
-          speakerRowId: u.speaker_id,
-          speakerLabel: speakerLabelFor(u.speaker_id, dgSp, speakers),
-        };
-      }
-
-      if (textEndsWithTerminator(text)) {
-        const isQuestion = textEndsWithQuestion(text);
-        flush(buf, isQuestion ? 'question' : 'speech');
-        buf = null;
-      }
-    }
-
-    // 남은 buf 마지막 flush
-    if (buf) {
-      const cText = joinText(buf.segments);
-      flush(buf, textEndsWithQuestion(cText) ? 'question' : 'speech');
+      const single: PendingBuffer = {
+        segments: [seg],
+        firstStart: start,
+        lastEnd: end,
+        dgSpeakerId: dgSp,
+        speakerRowId: u.speaker_id,
+        speakerLabel: speakerLabelFor(u.speaker_id, dgSp, speakers),
+      };
+      flush(single, textEndsWithQuestion(text) ? 'question' : 'speech');
     }
 
     return out;

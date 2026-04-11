@@ -55,6 +55,8 @@ export interface QNoteUtterance {
   created_at: string;
 }
 
+export type QNoteCaptureMode = 'microphone' | 'web_conference';
+
 export interface QNoteSession {
   id: number;
   business_id: number;
@@ -69,6 +71,7 @@ export interface QNoteSession {
   translation_language: string | null;
   answer_language: string | null;
   pasted_context: string | null;
+  capture_mode: QNoteCaptureMode | null;
   utterance_count: number;
   created_at: string;
   updated_at: string;
@@ -106,6 +109,7 @@ export interface CreateSessionPayload {
   translation_language?: string;
   answer_language?: string;
   pasted_context?: string;
+  capture_mode?: QNoteCaptureMode;
 }
 
 export async function listSessions(businessId: number, page = 1, limit = 20) {

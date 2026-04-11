@@ -46,6 +46,9 @@ class Participant(BaseModel):
   role: Optional[str] = Field(None, max_length=200)
 
 
+CAPTURE_MODES = {'microphone', 'web_conference'}
+
+
 class CreateSessionRequest(BaseModel):
   business_id: int
   title: Optional[str] = 'Untitled Session'
@@ -55,6 +58,7 @@ class CreateSessionRequest(BaseModel):
   translation_language: Optional[str] = None
   answer_language: Optional[str] = None
   pasted_context: Optional[str] = None
+  capture_mode: Optional[str] = None
 
 
 class UpdateSessionRequest(BaseModel):
@@ -66,6 +70,7 @@ class UpdateSessionRequest(BaseModel):
   translation_language: Optional[str] = None
   answer_language: Optional[str] = None
   pasted_context: Optional[str] = None
+  capture_mode: Optional[str] = None
 
 
 class AddUrlRequest(BaseModel):
@@ -118,6 +123,11 @@ def _validate_pasted_context(text: Optional[str]) -> None:
 def _validate_participants(plist: Optional[List[Participant]]) -> None:
   if plist is not None and len(plist) > MAX_PARTICIPANTS:
     raise HTTPException(status_code=400, detail=f'too many participants (max {MAX_PARTICIPANTS})')
+
+
+def _validate_capture_mode(mode: Optional[str]) -> None:
+  if mode is not None and mode not in CAPTURE_MODES:
+    raise HTTPException(status_code=400, detail=f'invalid capture_mode (must be one of {sorted(CAPTURE_MODES)})')
 
 
 async def _load_session_or_403(db, session_id: int, user_id: int) -> aiosqlite.Row:
@@ -196,6 +206,9 @@ def _build_field_updates(body: UpdateSessionRequest):
   if body.pasted_context is not None:
     _validate_pasted_context(body.pasted_context)
     fields.append('pasted_context = ?'); values.append(body.pasted_context)
+  if body.capture_mode is not None:
+    _validate_capture_mode(body.capture_mode)
+    fields.append('capture_mode = ?'); values.append(body.capture_mode)
   return fields, values
 
 
@@ -208,6 +221,7 @@ async def create_session(body: CreateSessionRequest, user: dict = Depends(get_cu
   _validate_brief(body.brief)
   _validate_pasted_context(body.pasted_context)
   _validate_participants(body.participants)
+  _validate_capture_mode(body.capture_mode)
 
   language = 'multi'
   if body.meeting_languages and len(body.meeting_languages) == 1:
@@ -215,18 +229,19 @@ async def create_session(body: CreateSessionRequest, user: dict = Depends(get_cu
 
   participants_json = json.dumps([p.model_dump() for p in body.participants]) if body.participants else None
   languages_json = json.dumps(body.meeting_languages) if body.meeting_languages else None
+  capture_mode = body.capture_mode or 'microphone'
 
   async with db_connect() as db:
     db.row_factory = aiosqlite.Row
     cursor = await db.execute(
       '''INSERT INTO sessions
            (business_id, user_id, title, language, brief, participants,
-            meeting_languages, translation_language, answer_language, pasted_context)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+            meeting_languages, translation_language, answer_language, pasted_context, capture_mode)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
       (
         body.business_id, user['user_id'], body.title, language,
         body.brief, participants_json, languages_json,
-        body.translation_language, body.answer_language, body.pasted_context,
+        body.translation_language, body.answer_language, body.pasted_context, capture_mode,
       )
     )
     await db.commit()
