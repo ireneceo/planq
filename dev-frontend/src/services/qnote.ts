@@ -57,6 +57,13 @@ export interface QNoteUtterance {
 
 export type QNoteCaptureMode = 'microphone' | 'web_conference';
 
+export interface QNoteDetectedQuestion {
+  utterance_id: number;
+  answer_text: string;
+  answer_tier: string | null;
+  matched_qa_id: number | null;
+}
+
 export interface QNoteSession {
   id: number;
   business_id: number;
@@ -78,6 +85,7 @@ export interface QNoteSession {
   utterances?: QNoteUtterance[];
   documents?: QNoteDocument[];
   speakers?: QNoteSpeaker[];
+  detected_questions?: QNoteDetectedQuestion[];
 }
 
 interface ApiEnvelope<T> {
@@ -110,6 +118,11 @@ export interface CreateSessionPayload {
   answer_language?: string;
   pasted_context?: string;
   capture_mode?: QNoteCaptureMode;
+  user_name?: string;
+  user_bio?: string;
+  user_expertise?: string;
+  user_organization?: string;
+  user_job_title?: string;
 }
 
 export async function listSessions(businessId: number, page = 1, limit = 20) {
@@ -191,6 +204,19 @@ export async function matchSpeaker(
   return handle<QNoteSpeaker>(res);
 }
 
+export async function reassignUtteranceSpeaker(
+  sessionId: number,
+  utteranceId: number,
+  body: { participant_name?: string; is_self?: boolean }
+) {
+  const res = await apiFetch(`${BASE}/sessions/${sessionId}/utterances/${utteranceId}/reassign-speaker`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  return handle<{ utterance_id: number; speaker_id: number }>(res);
+}
+
 export async function mergeSpeakers(sessionId: number, fromSpeakerId: number, intoSpeakerId: number) {
   const res = await apiFetch(
     `${BASE}/sessions/${sessionId}/speakers/${fromSpeakerId}/merge-into/${intoSpeakerId}`,
@@ -259,6 +285,112 @@ export async function verifyVoiceMatch(wavBlob: Blob) {
     body: form,
   });
   return handle<VoiceTestResult>(res);
+}
+
+// ─── Q&A Pairs (답변 찾기) ─────────────────────────────────
+
+export interface QAPair {
+  id: number;
+  session_id: number;
+  source: 'custom' | 'generated';
+  category: string | null;
+  question_text: string;
+  answer_text: string | null;
+  answer_translation: string | null;
+  answer_sources: string | null;
+  parent_id: number | null;
+  confidence: string | null;
+  is_reviewed: number;
+  sort_order: number;
+  created_at: string;
+  updated_at: string | null;
+}
+
+export interface FindAnswerResult {
+  tier: 'custom' | 'generated' | 'rag' | 'general' | 'none';
+  answer: string | null;
+  answer_translation: string | null;
+  confidence: string | null;
+  sources: { chunk_id: number; snippet: string }[];
+  matched_qa_id: number | null;
+}
+
+export interface CachedAnswerResult {
+  answer: string;
+  answer_tier: string | null;
+  matched_qa_id: number | null;
+  sources: { chunk_id: number; snippet: string }[];
+}
+
+export async function listQAPairs(sessionId: number, source?: string) {
+  const qs = source ? `?source=${source}` : '';
+  const res = await apiFetch(`${BASE}/sessions/${sessionId}/qa-pairs${qs}`);
+  return handle<QAPair[]>(res);
+}
+
+export async function createQAPair(sessionId: number, body: { question_text: string; answer_text?: string; category?: string }) {
+  const res = await apiFetch(`${BASE}/sessions/${sessionId}/qa-pairs`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  return handle<QAPair>(res);
+}
+
+export async function updateQAPair(sessionId: number, qaId: number, body: { question_text?: string; answer_text?: string; category?: string }) {
+  const res = await apiFetch(`${BASE}/sessions/${sessionId}/qa-pairs/${qaId}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  return handle<QAPair>(res);
+}
+
+export async function deleteQAPair(sessionId: number, qaId: number) {
+  const res = await apiFetch(`${BASE}/sessions/${sessionId}/qa-pairs/${qaId}`, { method: 'DELETE' });
+  return handle<{ id: number }>(res);
+}
+
+export async function uploadQACSV(sessionId: number, file: File) {
+  const form = new FormData();
+  form.append('file', file);
+  const res = await apiFetch(`${BASE}/sessions/${sessionId}/qa-pairs/upload-csv`, {
+    method: 'POST',
+    body: form,
+  });
+  return handle<{ inserted: number; updated: number; total: number }>(res);
+}
+
+export function getQATemplateUrl(sessionId: number): string {
+  return `${BASE}/sessions/${sessionId}/qa-pairs/template`;
+}
+
+export async function triggerQAGeneration(sessionId: number) {
+  const res = await apiFetch(`${BASE}/sessions/${sessionId}/qa-pairs/generate`, { method: 'POST' });
+  return handle<{ message: string }>(res);
+}
+
+export async function findAnswer(sessionId: number, questionText: string, utteranceId?: number) {
+  const res = await apiFetch(`${BASE}/sessions/${sessionId}/find-answer`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ question_text: questionText, utterance_id: utteranceId }),
+  });
+  return handle<FindAnswerResult>(res);
+}
+
+export async function translateAnswer(sessionId: number, text: string) {
+  const res = await apiFetch(`${BASE}/sessions/${sessionId}/translate-answer`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ question_text: text }),  // reuse FindAnswerRequest schema
+  });
+  return handle<{ translation: string }>(res);
+}
+
+export async function getCachedAnswer(sessionId: number, utteranceId: number) {
+  const res = await apiFetch(`${BASE}/sessions/${sessionId}/utterances/${utteranceId}/cached-answer`);
+  return handle<CachedAnswerResult>(res);
 }
 
 /**

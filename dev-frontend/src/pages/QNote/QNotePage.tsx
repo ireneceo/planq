@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import StartMeetingModal from './StartMeetingModal';
 import type { StartConfig } from './StartMeetingModal';
@@ -11,8 +12,10 @@ import {
   updateSession,
   uploadDocument,
   addUrl,
-  matchSpeaker,
-  mergeSpeakers,
+  reassignUtteranceSpeaker,
+  getCachedAnswer,
+  findAnswer,
+  translateAnswer,
 } from '../../services/qnote';
 import type { QNoteSession, QNoteUtterance, QNoteSpeaker } from '../../services/qnote';
 import { LiveSession } from '../../services/qnoteLive';
@@ -21,7 +24,6 @@ import {
   MicIcon,
   StopIcon,
   PlusIcon,
-  ArrowRightIcon,
   HelpCircleIcon,
 } from '../../components/Common/Icons';
 
@@ -84,11 +86,6 @@ interface PendingBuffer {
 }
 
 // ─── 질문 판정 (낙관적, 백엔드 enrichment 가 덮어씀) ───
-const ENDS_WITH_QUESTION = /[?？][\s"')\]]*$/;
-
-function textEndsWithQuestion(text: string): boolean {
-  return ENDS_WITH_QUESTION.test(text.trim());
-}
 
 function formatTime(sec: number | string | null | undefined): string {
   if (sec == null) return '';
@@ -100,21 +97,37 @@ function formatTime(sec: number | string | null | undefined): string {
   return '';
 }
 
+interface SpeakerLabelContext {
+  speakers: QNoteSpeaker[];
+  participants?: { name: string; role?: string | null }[] | null;
+}
+
 function speakerLabelFor(
   speakerRowId: number | null,
   dgSpeakerId: number | null,
-  speakers: QNoteSpeaker[],
+  ctx: SpeakerLabelContext,
 ): string {
+  const { speakers, participants } = ctx;
   if (speakerRowId != null) {
     const match = speakers.find((s) => s.id === speakerRowId);
     if (match) {
       if (match.is_self) return '나';
       if (match.participant_name) return match.participant_name;
+      // 참여자 1명 → 나 아닌 모든 화자를 그 참여자 이름으로
+      // 참여자 다수 → "상대"
+      const pCount = participants?.length ?? 0;
+      if (pCount === 1 && participants![0].name) return participants![0].name;
+      if (pCount > 1) return '상대';
       return `화자 ${(match.deepgram_speaker_id ?? 0) + 1}`;
     }
   }
-  if (dgSpeakerId != null) return `화자 ${dgSpeakerId + 1}`;
-  return '화자';
+  if (dgSpeakerId != null) {
+    const pCount = participants?.length ?? 0;
+    if (pCount === 1 && participants![0].name) return participants![0].name;
+    if (pCount > 1) return '상대';
+    return `화자 ${dgSpeakerId + 1}`;
+  }
+  return '상대';
 }
 
 function joinText(segments: BlockSegment[]): string {
@@ -135,6 +148,9 @@ const QNotePage = () => {
   const { user } = useAuth();
   const businessId = user?.business_id ?? null;
 
+  const { sessionId: urlSessionId } = useParams<{ sessionId?: string }>();
+  const navigate = useNavigate();
+
   const [showStartModal, setShowStartModal] = useState(false);
   const [phase, setPhase] = useState<Phase>('empty');
   const [sessions, setSessions] = useState<QNoteSession[]>([]);
@@ -147,6 +163,22 @@ const QNotePage = () => {
   const [interimText, setInterimText] = useState<string>('');
   const [liveError, setLiveError] = useState<string | null>(null);
   const [liveNotice, setLiveNotice] = useState<string | null>(null);
+  const [editingTitle, setEditingTitle] = useState(false);
+
+  // 회의 제목 인라인 수정 + 자동저장
+  const handleTitleSave = useCallback(async (newTitle: string) => {
+    const trimmed = newTitle.trim();
+    setEditingTitle(false);
+    const sess = activeSessionRef.current;
+    if (!sess || !trimmed || trimmed === sess.title) return;
+    try {
+      await updateSession(sess.id, { title: trimmed });
+      setActiveSession((prev) => prev ? { ...prev, title: trimmed } : prev);
+      setSessions((prev) => prev.map((s) => s.id === sess.id ? { ...s, title: trimmed } : s));
+    } catch {
+      // 실패 시 무시 (원본 유지)
+    }
+  }, []);
 
   useEffect(() => {
     if (!liveNotice) return;
@@ -156,9 +188,13 @@ const QNotePage = () => {
 
   const liveRef = useRef<LiveSession | null>(null);
   const speakersRef = useRef<QNoteSpeaker[]>([]);
+  const activeSessionRef = useRef<QNoteSession | null>(null);
   const pendingRef = useRef<PendingBuffer | null>(null);  // 즉시 읽기용
   const blockCounterRef = useRef(0);
   const transcriptRef = useRef<HTMLDivElement | null>(null);
+
+  // activeSession 변경 시 ref 동기화 (useCallback 내부에서 stale closure 방지)
+  useEffect(() => { activeSessionRef.current = activeSession; }, [activeSession]);
 
   const meetingLangLabels = useMemo(() => {
     const langs = activeSession?.meeting_languages || [];
@@ -180,6 +216,16 @@ const QNotePage = () => {
     loadSessions();
   }, [loadSessions]);
 
+  // URL 파라미터로 세션 자동 열기 (/notes/:sessionId)
+  const urlSessionIdHandled = useRef(false);
+  useEffect(() => {
+    if (!urlSessionId || urlSessionIdHandled.current || phase !== 'empty') return;
+    const id = parseInt(urlSessionId, 10);
+    if (isNaN(id)) return;
+    urlSessionIdHandled.current = true;
+    openReview(id);
+  }, [urlSessionId, phase]);
+
   useEffect(() => {
     return () => {
       liveRef.current?.stop();
@@ -187,8 +233,7 @@ const QNotePage = () => {
     };
   }, []);
 
-  // ── pending 을 블록으로 커밋 (speech 는 직전 같은 화자 블록과 병합) ──
-  // 방어: 같은 utterance_id 가 중복 append 되지 않도록 dedup.
+  // ── pending 을 블록으로 커밋 — 각 문장을 독립 블록으로 생성 (merge 없음) ──
   const commitPendingAsBlock = useCallback((p: PendingBuffer, kind: BlockKind) => {
     const dedup = (segs: BlockSegment[]) => {
       const seen = new Set<number>();
@@ -209,40 +254,14 @@ const QNotePage = () => {
       lastEnd: p.lastEnd,
       lastDgSpeakerId: p.dgSpeakerId,
     };
-
-    // 2초 이내 같은 화자면 speech/question 상관없이 merge
-    const LIVE_MERGE_GAP = 2.0;
-    setBlocks((prev) => {
-      const last = prev[prev.length - 1];
-      if (
-        last &&
-        last.speakerRowId === p.speakerRowId &&
-        (
-          last.lastEnd == null ||
-          p.firstStart == null ||
-          p.firstStart - last.lastEnd < LIVE_MERGE_GAP
-        )
-      ) {
-        const merged: TranscriptBlock = {
-          ...last,
-          kind: kind === 'question' || last.kind === 'question' ? 'question' : 'speech',
-          segments: dedup([...last.segments, ...p.segments]),
-          lastEnd: p.lastEnd ?? last.lastEnd,
-          lastDgSpeakerId: p.dgSpeakerId ?? last.lastDgSpeakerId,
-        };
-        return [...prev.slice(0, -1), merged];
-      }
-      return [...prev, newBlock];
-    });
+    setBlocks((prev) => [...prev, newBlock]);
   }, []);
 
   // pending 강제 flush (pause/end/speaker-change/silence 시)
   const flushPending = useCallback(() => {
     const p = pendingRef.current;
     if (!p) return;
-    const text = joinText(p.segments);
-    const kind: BlockKind = textEndsWithQuestion(text) ? 'question' : 'speech';
-    commitPendingAsBlock(p, kind);
+    commitPendingAsBlock(p, 'speech');
     pendingRef.current = null;
     setPending(null);
   }, [commitPendingAsBlock]);
@@ -260,6 +279,32 @@ const QNotePage = () => {
       const detail = await getSession(sessionId);
       setActiveSession(detail);
       speakersRef.current = detail.speakers || [];
+      navigate(`/notes/${sessionId}`, { replace: true });
+
+      // 저장된 답변 있는 질문들 → 초기 상태 세팅 (답변 보기 버튼으로 시작)
+      if (detail.detected_questions && detail.detected_questions.length > 0) {
+        const readySet = new Set<number>();
+        const dataInit: Record<number, { tier: string; answer: string; collapsed: boolean }> = {};
+        detail.detected_questions.forEach((dq) => {
+          if (dq.utterance_id && dq.answer_text) {
+            readySet.add(dq.utterance_id);
+            dataInit[dq.utterance_id] = {
+              tier: dq.answer_tier || 'cached',
+              answer: dq.answer_text,
+              collapsed: true,  // 새로고침 시 기본 접힘 → "답변 보기" 표시
+            };
+          }
+        });
+        setAnswerReadySet(readySet);
+        setAnswerData((prev) => {
+          const next = { ...prev };
+          Object.entries(dataInit).forEach(([k, v]) => {
+            next[Number(k)] = { ...next[Number(k)], ...v };
+          });
+          return next;
+        });
+      }
+
       const nextPhase: Phase = detail.status === 'completed' ? 'review' : 'paused';
       setPhase(nextPhase);
       // paused 로 진입 시 서버 utterances 에서 blocks 재구성 → 화면에 바로 노출.
@@ -317,6 +362,26 @@ const QNotePage = () => {
       const dgSpeakerId = ev.deepgram_speaker_id ?? null;
       const speakerRowId = ev.speaker_id ?? null;
 
+      // 서버가 보낸 is_self 로 speakersRef 즉시 갱신 (세션 새로고침 없이 "나" 라벨 반영)
+      if (speakerRowId != null) {
+        const existing = speakersRef.current.find((s) => s.id === speakerRowId);
+        if (!existing) {
+          const newSpeaker = {
+            id: speakerRowId,
+            deepgram_speaker_id: dgSpeakerId ?? 0,
+            participant_name: null as string | null,
+            is_self: ev.is_self ? 1 : 0,
+          };
+          speakersRef.current = [...speakersRef.current, newSpeaker];
+          setActiveSession((prev) => prev ? { ...prev, speakers: speakersRef.current } : prev);
+        } else if (ev.is_self && !existing.is_self) {
+          speakersRef.current = speakersRef.current.map((s) =>
+            s.id === speakerRowId ? { ...s, is_self: 1 } : s
+          );
+          setActiveSession((prev) => prev ? { ...prev, speakers: speakersRef.current } : prev);
+        }
+      }
+
       const newSegment: BlockSegment = {
         utteranceId: ev.utterance_id,
         original: text,
@@ -331,10 +396,10 @@ const QNotePage = () => {
         lastEnd: segEnd,
         dgSpeakerId,
         speakerRowId,
-        speakerLabel: speakerLabelFor(speakerRowId, dgSpeakerId, speakersRef.current),
+        speakerLabel: speakerLabelFor(speakerRowId, dgSpeakerId, { speakers: speakersRef.current, participants: activeSessionRef.current?.participants }),
       };
-      const kind: BlockKind = textEndsWithQuestion(text) ? 'question' : 'speech';
-      commitPendingAsBlock(buffer, kind);
+      // 질문 판정은 서버 enrichment 결과로만 (낙관 판정 제거 — 오판 방지)
+      commitPendingAsBlock(buffer, 'speech');
       return;
     }
 
@@ -348,6 +413,8 @@ const QNotePage = () => {
         detectedLanguage: ev.detected_language ?? seg.detectedLanguage ?? null,
         outOfScope: ev.out_of_scope ?? seg.outOfScope ?? false,
       });
+      // enrichment의 is_question으로 block.kind 교정 (낙관 판정 덮어씀)
+      const enrichedKind: BlockKind = ev.is_question ? 'question' : 'speech';
       setBlocks((prev) =>
         prev.map((block) => {
           let changed = false;
@@ -356,7 +423,8 @@ const QNotePage = () => {
             changed = true;
             return patch(seg);
           });
-          return changed ? { ...block, segments: newSegs } : block;
+          if (!changed) return block;
+          return { ...block, segments: newSegs, kind: enrichedKind };
         })
       );
       setPending((prev) => {
@@ -375,26 +443,9 @@ const QNotePage = () => {
       return;
     }
 
-    if (ev.type === 'self_matched') {
-      // 라이브 본인 매칭 성공 → speakers 배열을 즉시 갱신
-      setActiveSession((prev) => {
-        if (!prev) return prev;
-        const next = {
-          ...prev,
-          speakers: (prev.speakers || []).map((s) =>
-            s.id === ev.speaker_id ? { ...s, is_self: 1 } : s
-          ),
-        };
-        speakersRef.current = next.speakers || [];
-        return next;
-      });
-      setLiveNotice(`본인 인식됨 (유사도 ${ev.similarity.toFixed(2)})`);
-      return;
-    }
-
-    if (ev.type === 'self_match_failed') {
-      // 매칭 실패 — 사용자에게 명시적으로 알려서 수동 지정 경로로 유도
-      setLiveError(`본인 자동 인식 실패: ${ev.reason}`);
+    if ((ev as any).type === 'answer_ready') {
+      const uttId = (ev as any).utterance_id as number;
+      setAnswerReadySet((prev) => new Set(prev).add(uttId));
       return;
     }
 
@@ -409,14 +460,13 @@ const QNotePage = () => {
     }
   }, [commitPendingAsBlock]);
 
-  // ── 녹음 시작 (prepared/paused → recording) ───────────
+  // ── 녹음 시작 ──────────────────────────────────────────
   const startRecording = async () => {
     if (!activeSession) {
       setLiveError('활성 세션이 없습니다');
       return;
     }
     if (!pendingConfig) {
-      // paused 상태에서 이어하기 시 pendingConfig 가 없으면 DB 의 capture_mode 로 복구
       const fallback: StartConfig = {
         title: activeSession.title,
         brief: activeSession.brief || '',
@@ -432,9 +482,8 @@ const QNotePage = () => {
       setPendingConfig(fallback);
     }
     setLiveError(null);
+
     const captureMode = pendingConfig?.captureMode || activeSession.capture_mode || 'microphone';
-    // web_conference 재개 시: 탭 공유 다이얼로그가 다시 뜸 → 사용자가 어떤 탭을 공유할지
-    // 재선택해야 한다는 점을 명확히 알려줌 (새로고침으로 브라우저 권한 소실)
     if (captureMode === 'web_conference' && phase === 'paused') {
       setLiveNotice('탭 오디오 공유를 다시 선택해주세요. 공유 다이얼로그에서 "탭 오디오 공유" 체크를 확인하세요.');
     }
@@ -450,12 +499,11 @@ const QNotePage = () => {
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       console.error('[QNote] live.start failed:', err);
-      // 사용자에게 구체적 힌트
       let hint = msg;
       if (/Permission denied|NotAllowedError/i.test(msg)) {
         hint = '마이크 또는 탭 공유 권한이 거부되었습니다. 브라우저 주소창 좌측 자물쇠 아이콘에서 권한을 허용해주세요.';
       } else if (/tab|display/i.test(msg)) {
-        hint = '탭 오디오 공유가 취소되었습니다. 다시 시도할 때 공유 다이얼로그에서 "탭 오디오 공유" 체크를 확인해주세요.';
+        hint = '탭 오디오 공유가 취소되었습니다. 다시 시도할 때 공유 다이얼로그에서 "탭 오디오 공유" 체크를 확인하세요.';
       } else if (/WebSocket/i.test(msg)) {
         hint = 'Q Note 서버 연결 실패. 새로고침 후 다시 시도해주세요.';
       }
@@ -506,7 +554,6 @@ const QNotePage = () => {
     setInterimText('');
     pendingRef.current = null;
     setPending(null);
-
     try {
       if (liveRef.current) {
         liveRef.current.stop();
@@ -525,6 +572,12 @@ const QNotePage = () => {
         answer_language: cfg.answerLanguage,
         pasted_context: cfg.pastedContext || undefined,
         capture_mode: cfg.captureMode,
+        // 사용자 프로필 스냅샷 — 답변을 "나"로서 생성하기 위한 배경
+        user_name: user?.name || undefined,
+        user_bio: user?.bio || undefined,
+        user_expertise: user?.expertise || undefined,
+        user_organization: user?.organization || undefined,
+        user_job_title: user?.job_title || undefined,
       });
 
       for (const file of cfg.documents) {
@@ -542,6 +595,7 @@ const QNotePage = () => {
       setSessions((prev) => [detail, ...prev]);
       setPendingConfig(cfg);
       setPhase('prepared');
+      navigate(`/notes/${created.id}`, { replace: true });
     } catch (err) {
       setLiveError(err instanceof Error ? err.message : '세션 생성 실패');
     }
@@ -556,41 +610,7 @@ const QNotePage = () => {
       const out: TranscriptBlock[] = [];
       let counter = 0;
 
-    // 연속 merge gap — 같은 화자, 2초 이내 발화는 한 블록으로 묶어 "두 번씩 나오는" 시각적 중복 제거.
-    // question 도 merge 대상 (같은 화자 짧은 연속 질문들은 같은 카드)
-    const MERGE_GAP_SEC = 2.0;
-    const flush = (p: PendingBuffer, kind: BlockKind) => {
-      const last = out[out.length - 1];
-      if (
-        last &&
-        last.speakerRowId === p.speakerRowId &&
-        (
-          last.lastEnd == null ||
-          p.firstStart == null ||
-          p.firstStart - last.lastEnd < MERGE_GAP_SEC
-        )
-      ) {
-        // kind 가 달라도 합쳐서 question 이 하나라도 포함되면 question 카드로
-        last.segments.push(...p.segments);
-        last.lastEnd = p.lastEnd ?? last.lastEnd;
-        if (kind === 'question') last.kind = 'question';
-        return;
-      }
-      out.push({
-        id: `r${++counter}`,
-        kind,
-        speakerRowId: p.speakerRowId,
-        speakerLabel: p.speakerLabel,
-        timestamp: formatTime(p.firstStart),
-        segments: p.segments.slice(),
-        firstStart: p.firstStart,
-        lastEnd: p.lastEnd,
-        lastDgSpeakerId: p.dgSpeakerId,
-      });
-    };
-
-    // 각 utterance 는 (speech_final 기반 commit 이후) 이미 한 문장 단위.
-    // 매 utterance 를 단일 buffer 로 감싸 flush — merge 는 flush() 내부의 2초 gap 로직이 처리.
+    // 각 utterance를 독립 블록으로 생성 (merge 없음 — 문장별 분리)
     for (const u of sess.utterances as QNoteUtterance[]) {
       const start = typeof u.start_time === 'number' ? u.start_time : null;
       const end = typeof u.end_time === 'number' ? u.end_time : start;
@@ -611,9 +631,20 @@ const QNotePage = () => {
         lastEnd: end,
         dgSpeakerId: dgSp,
         speakerRowId: u.speaker_id,
-        speakerLabel: speakerLabelFor(u.speaker_id, dgSp, speakers),
+        speakerLabel: speakerLabelFor(u.speaker_id, dgSp, { speakers, participants: sess.participants }),
       };
-      flush(single, textEndsWithQuestion(text) ? 'question' : 'speech');
+      const kind: BlockKind = u.is_question ? 'question' : 'speech';
+      out.push({
+        id: `r${++counter}`,
+        kind,
+        speakerRowId: single.speakerRowId,
+        speakerLabel: single.speakerLabel,
+        timestamp: formatTime(single.firstStart),
+        segments: single.segments.slice(),
+        firstStart: single.firstStart,
+        lastEnd: single.lastEnd,
+        lastDgSpeakerId: single.dgSpeakerId,
+      });
     }
 
     return out;
@@ -638,52 +669,97 @@ const QNotePage = () => {
   const [speakerPopoverFor, setSpeakerPopoverFor] = useState<string | null>(null); // block.id
   const [assignSaving, setAssignSaving] = useState(false);
 
+  // ── 답변 찾기 상태 ──
+  const [answerData, setAnswerData] = useState<Record<number, {
+    loading?: boolean;
+    tier?: string;
+    answer?: string;
+    answer_translation?: string;
+    error?: string;
+    collapsed?: boolean;
+    editedQuestion?: string;      // 수정된 질문 (undefined면 원본)
+    mergedBlockIds?: string[];    // 합친 블록 ID 목록 (순서 유지)
+  }>>({});
+  const [answerReadySet, setAnswerReadySet] = useState<Set<number>>(new Set());
+  const [editingQuestionId, setEditingQuestionId] = useState<number | null>(null);
+
+  // 현재 합쳐진(숨겨진) 블록 ID set — 렌더링 시 스킵
+  const hiddenBlockIds = useMemo(() => {
+    const set = new Set<string>();
+    Object.values(answerData).forEach((ad) => {
+      ad.mergedBlockIds?.forEach((id) => set.add(id));
+    });
+    return set;
+  }, [answerData]);
+
+  // ── Merge 상태 localStorage persistence ──
+  // 세션별로 merge 정보만 저장/복원 (답변/로딩 상태는 저장 안 함)
+  const mergeStorageKey = activeSession ? `qnote-merge-${activeSession.id}` : null;
+
+  // 세션 변경 시 저장된 merge 상태 복원
+  useEffect(() => {
+    if (!mergeStorageKey) return;
+    try {
+      const raw = localStorage.getItem(mergeStorageKey);
+      if (!raw) return;
+      const saved: Record<number, { editedQuestion?: string; mergedBlockIds?: string[] }> = JSON.parse(raw);
+      setAnswerData((prev) => {
+        const next = { ...prev };
+        Object.entries(saved).forEach(([uttId, data]) => {
+          const id = Number(uttId);
+          next[id] = { ...next[id], editedQuestion: data.editedQuestion, mergedBlockIds: data.mergedBlockIds };
+        });
+        return next;
+      });
+    } catch { /* ignore parse errors */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mergeStorageKey]);
+
+  // answerData 의 merge 관련 필드가 변경되면 localStorage 저장
+  useEffect(() => {
+    if (!mergeStorageKey) return;
+    const toSave: Record<number, { editedQuestion?: string; mergedBlockIds?: string[] }> = {};
+    Object.entries(answerData).forEach(([uttId, data]) => {
+      if (data.editedQuestion !== undefined || (data.mergedBlockIds && data.mergedBlockIds.length > 0)) {
+        toSave[Number(uttId)] = {
+          editedQuestion: data.editedQuestion,
+          mergedBlockIds: data.mergedBlockIds,
+        };
+      }
+    });
+    try {
+      if (Object.keys(toSave).length > 0) {
+        localStorage.setItem(mergeStorageKey, JSON.stringify(toSave));
+      } else {
+        localStorage.removeItem(mergeStorageKey);
+      }
+    } catch { /* storage full or unavailable */ }
+  }, [answerData, mergeStorageKey]);
+
   const refreshActiveSession = useCallback(async () => {
-    if (!activeSession) return;
-    const refreshed = await getSession(activeSession.id);
+    const sess = activeSessionRef.current;
+    if (!sess) return;
+    const refreshed = await getSession(sess.id);
     setActiveSession(refreshed);
     speakersRef.current = refreshed.speakers || [];
-  }, [activeSession]);
-
-  // 이름 할당 — 이미 다른 speaker 가 같은 이름이면 자동 병합
-  const assignSpeakerName = useCallback(async (speakerRowId: number, name: string) => {
-    if (!activeSession) return;
-    setAssignSaving(true);
-    try {
-      const speakers = activeSession.speakers || [];
-      const existing = speakers.find(
-        (s) => s.id !== speakerRowId && (s.participant_name || '').trim() === name.trim() && name.trim() !== ''
+    // blocks 의 speakerRowId 를 서버 utterances 기준으로 즉시 갱신
+    if (refreshed.utterances) {
+      const uttMap = new Map(
+        (refreshed.utterances as QNoteUtterance[]).map((u) => [u.id, u])
       );
-      if (existing) {
-        await mergeSpeakers(activeSession.id, speakerRowId, existing.id);
-      } else {
-        await matchSpeaker(activeSession.id, speakerRowId, { participant_name: name || undefined });
-      }
-      await refreshActiveSession();
-      setSpeakerPopoverFor(null);
-    } finally {
-      setAssignSaving(false);
+      setBlocks((prev) =>
+        prev.map((block) => {
+          const uttId = block.segments[0]?.utteranceId;
+          if (!uttId) return block;
+          const u = uttMap.get(uttId);
+          if (!u) return block;
+          const newKind: BlockKind = u.is_question ? 'question' : 'speech';
+          if (block.speakerRowId === u.speaker_id && block.kind === newKind) return block;
+          return { ...block, speakerRowId: u.speaker_id, kind: newKind };
+        })
+      );
     }
-  }, [activeSession, refreshActiveSession]);
-
-  // "나" 할당 — 이미 다른 speaker 가 is_self 면 자동 병합
-  const assignSpeakerSelf = useCallback(async (speakerRowId: number) => {
-    if (!activeSession) return;
-    setAssignSaving(true);
-    try {
-      const speakers = activeSession.speakers || [];
-      const existingSelf = speakers.find((s) => s.id !== speakerRowId && s.is_self);
-      if (existingSelf) {
-        await mergeSpeakers(activeSession.id, speakerRowId, existingSelf.id);
-      } else {
-        await matchSpeaker(activeSession.id, speakerRowId, { is_self: true });
-      }
-      await refreshActiveSession();
-      setSpeakerPopoverFor(null);
-    } finally {
-      setAssignSaving(false);
-    }
-  }, [activeSession, refreshActiveSession]);
+  }, []);
 
   // 라이브 자동 하단 스크롤
   useEffect(() => {
@@ -694,102 +770,343 @@ const QNotePage = () => {
   }, [blocks, pending, interimText, phase]);
 
   // ─── 블록 렌더 ─────────────────────────────────────
-  const renderBlock = (block: TranscriptBlock) => {
+  const currentCaptureMode = pendingConfig?.captureMode || activeSession?.capture_mode || 'microphone';
+  const isMicMode = currentCaptureMode === 'microphone';
+
+  const renderBlock = (block: TranscriptBlock, _prevBlock: TranscriptBlock | null, blockIndex: number, visibleBlocks: TranscriptBlock[]) => {
     const originalText = joinText(block.segments);
     const { text: translatedText, hasAny, allTranslated } = joinTranslation(block.segments);
 
-    // 언어 필터: 블록의 모든 segment 가 out_of_scope 면 흐리게 + 언어 태그
     const allOutOfScope = block.segments.length > 0 && block.segments.every((s) => s.outOfScope);
-    const outOfScopeLang = allOutOfScope
-      ? (block.segments.find((s) => s.detectedLanguage)?.detectedLanguage || null)
-      : null;
-    const outOfScopeLabel = outOfScopeLang
-      ? (getLanguageByCode(outOfScopeLang)?.label || outOfScopeLang.toUpperCase())
-      : null;
 
-    // 동적 speakerLabel — self_matched 나 수동 지정 후 즉시 반영되도록 매 렌더마다 재계산
-    // (block.speakerLabel 은 생성 시점 snapshot 이라 stale)
-    const liveLabel = speakerLabelFor(
-      block.speakerRowId,
-      block.lastDgSpeakerId,
-      activeSession?.speakers || []
-    );
+    const speakerCtx = { speakers: activeSession?.speakers || [], participants: activeSession?.participants };
 
-    const speakerBadge = (
-      <SpeakerBadgeWrap>
-        <BlockSpeaker
-          as={speakerAssignAllowed ? 'button' : 'span'}
-          $clickable={speakerAssignAllowed}
-          disabled={!speakerAssignAllowed}
-          onClick={(e: React.MouseEvent) => {
-            if (!speakerAssignAllowed || block.speakerRowId == null) return;
-            e.stopPropagation();
-            setSpeakerPopoverFor((prev) => (prev === block.id ? null : block.id));
-          }}
-        >
-          {liveLabel}
-          {speakerAssignAllowed && block.speakerRowId != null && <SpeakerCaret>▾</SpeakerCaret>}
-        </BlockSpeaker>
-        {speakerAssignAllowed && speakerPopoverFor === block.id && block.speakerRowId != null && (
-          <SpeakerPopover
-            speakerRowId={block.speakerRowId}
-            participants={activeSession?.participants || []}
-            onClose={() => setSpeakerPopoverFor(null)}
-            onAssignName={(name) => assignSpeakerName(block.speakerRowId!, name)}
-            onAssignSelf={() => assignSpeakerSelf(block.speakerRowId!)}
-            disabled={assignSaving}
-          />
-        )}
-      </SpeakerBadgeWrap>
-    );
+    // 마이크 모드: 수동 지정된 이름(participant_name / is_self)만 표시. 자동 라벨("화자 1", "상대") 안 붙음.
+    let liveLabel = '';
+    if (isMicMode) {
+      if (block.speakerRowId != null) {
+        const match = speakerCtx.speakers.find((s) => s.id === block.speakerRowId);
+        if (match?.is_self) liveLabel = '나';
+        else if (match?.participant_name) liveLabel = match.participant_name;
+      }
+    } else {
+      liveLabel = speakerLabelFor(block.speakerRowId, block.lastDgSpeakerId, speakerCtx);
+    }
 
-    if (block.kind === 'question') {
+    const isSelfSpeaker = block.speakerRowId != null &&
+      speakerCtx.speakers.some((s) => s.id === block.speakerRowId && s.is_self);
+
+    // 문장 단위 화자 변경 (utterance 기반)
+    const uttId = block.segments[0]?.utteranceId;
+    const renderAssignBtn = () => {
+      if (!speakerAssignAllowed || !uttId) return null;
+      // 현재 블록에 이미 지정된 화자 이름 (팝오버에서 제외하기 위해)
+      const currentSpeaker = speakerCtx.speakers.find((s) => s.id === block.speakerRowId);
+      const currentSpeakerName = currentSpeaker?.participant_name || null;
+      const currentIsSelf = currentSpeaker?.is_self ?? false;
+      return (
+        <SpeakerAssignWrap>
+          <SpeakerAssignBtn
+            onClick={(e: React.MouseEvent) => {
+              e.stopPropagation();
+              setSpeakerPopoverFor((prev) => (prev === block.id ? null : block.id));
+            }}
+          >
+            ▾
+          </SpeakerAssignBtn>
+          {speakerPopoverFor === block.id && (
+            <SpeakerPopover
+              currentSpeakerName={currentSpeakerName}
+              currentIsSelf={currentIsSelf}
+              participants={activeSession?.participants || []}
+              onClose={() => setSpeakerPopoverFor(null)}
+              onAssignName={async (name) => {
+                const sess = activeSessionRef.current;
+                if (!sess) return;
+                setAssignSaving(true);
+                try {
+                  await reassignUtteranceSpeaker(sess.id, uttId, { participant_name: name });
+                  await refreshActiveSession();
+                  setSpeakerPopoverFor(null);
+                } finally {
+                  setAssignSaving(false);
+                }
+              }}
+              onAssignSelf={async () => {
+                const sess = activeSessionRef.current;
+                if (!sess) return;
+                setAssignSaving(true);
+                try {
+                  await reassignUtteranceSpeaker(sess.id, uttId, { is_self: true });
+                  await refreshActiveSession();
+                  setSpeakerPopoverFor(null);
+                } finally {
+                  setAssignSaving(false);
+                }
+              }}
+              disabled={assignSaving}
+            />
+          )}
+        </SpeakerAssignWrap>
+      );
+    };
+
+    // 마이크 모드: 화자를 모르므로 모든 질문이 카드
+    // 웹 화상회의: 내 질문은 카드 아님 (기존 규칙)
+    const showAsQuestion = isMicMode
+      ? block.kind === 'question'
+      : block.kind === 'question' && !isSelfSpeaker;
+
+    if (showAsQuestion) {
+      const questionUttId = block.segments[0]?.utteranceId;
+      const ad = questionUttId ? answerData[questionUttId] : undefined;
+      const hasReadyAnswer = questionUttId ? answerReadySet.has(questionUttId) : false;
+      const hasAnswer = ad && !ad.loading && ad.answer && !ad.error;
+      const isCollapsed = ad?.collapsed ?? false;
+      const isEditing = editingQuestionId === questionUttId;
+
+      const fetchTranslation = (sessId: number, uttId: number, answerText: string) => {
+        translateAnswer(sessId, answerText)
+          .then((res) => {
+            if (res.translation) {
+              setAnswerData((prev) => {
+                const cur = prev[uttId];
+                if (!cur) return prev;
+                return { ...prev, [uttId]: { ...cur, answer_translation: res.translation } };
+              });
+            }
+          })
+          .catch(() => {});
+      };
+
+      const doSearch = async (searchText: string) => {
+        if (!questionUttId || !activeSessionRef.current) return;
+        const sessId = activeSessionRef.current.id;
+
+        setAnswerData((prev) => ({ ...prev, [questionUttId]: { ...prev[questionUttId], loading: true, error: undefined, collapsed: false } }));
+
+        // 수정 안 한 원본이면 캐시 시도
+        if (searchText === originalText) {
+          try {
+            const cached = await getCachedAnswer(sessId, questionUttId);
+            setAnswerData((prev) => ({
+              ...prev,
+              [questionUttId]: {
+                ...prev[questionUttId],
+                tier: cached.answer_tier || 'cached',
+                answer: cached.answer,
+                loading: false,
+                collapsed: false,
+              },
+            }));
+            fetchTranslation(sessId, questionUttId, cached.answer);
+            return;
+          } catch { /* 캐시 없음 */ }
+        }
+
+        try {
+          const result = await findAnswer(sessId, searchText, questionUttId);
+          if (result.tier === 'none') {
+            setAnswerData((prev) => ({
+              ...prev,
+              [questionUttId]: { ...prev[questionUttId], answer: '등록된 자료에서 답을 찾지 못했습니다.', tier: 'none', loading: false, collapsed: false },
+            }));
+          } else {
+            setAnswerData((prev) => ({
+              ...prev,
+              [questionUttId]: {
+                ...prev[questionUttId],
+                tier: result.tier,
+                answer: result.answer || '',
+                answer_translation: result.answer_translation || undefined,
+                loading: false,
+                collapsed: false,
+              },
+            }));
+            if (result.answer && !result.answer_translation) {
+              fetchTranslation(sessId, questionUttId, result.answer);
+            }
+          }
+        } catch (err) {
+          setAnswerData((prev) => ({
+            ...prev,
+            [questionUttId]: { ...prev[questionUttId], error: err instanceof Error ? err.message : '답변 찾기 실패', loading: false },
+          }));
+        }
+      };
+
+      const handleBtnClick = () => {
+        if (!questionUttId) return;
+        if (ad?.loading) return;
+        if (hasAnswer) {
+          // 답변 있음 → 접기/펼치기 토글
+          setAnswerData((prev) => ({
+            ...prev,
+            [questionUttId]: { ...prev[questionUttId], collapsed: !isCollapsed },
+          }));
+        } else {
+          // 답변 없음 → 검색
+          const searchText = ad?.editedQuestion ?? originalText;
+          doSearch(searchText);
+        }
+      };
+
+      // 질문 텍스트 수정 시작
+      const startEdit = () => {
+        if (!questionUttId) return;
+        setEditingQuestionId(questionUttId);
+      };
+
+      const commitEdit = (newText: string) => {
+        if (!questionUttId) return;
+        setEditingQuestionId(null);
+        const trimmed = newText.trim();
+        if (!trimmed || trimmed === originalText) {
+          // 원본과 같거나 빈 값 → 수정 취소, editedQuestion 제거
+          setAnswerData((prev) => {
+            const cur = { ...prev[questionUttId] };
+            delete cur.editedQuestion;
+            return { ...prev, [questionUttId]: cur };
+          });
+          return;
+        }
+        // 수정됨 → 기존 답변 클리어 + 새 질문으로 자동 검색
+        setAnswerData((prev) => ({
+          ...prev,
+          [questionUttId]: { editedQuestion: trimmed },
+        }));
+        doSearch(trimmed);
+      };
+
+      // 다음 블록 텍스트 합치기 (다음 블록은 숨김 처리)
+      const handleMergeNext = () => {
+        if (!questionUttId) return;
+        const nextBlock = visibleBlocks[blockIndex + 1];
+        if (!nextBlock) return;
+        const nextText = joinText(nextBlock.segments);
+        if (!nextText) return;
+        const currentText = ad?.editedQuestion || originalText;
+        const merged = currentText + ' ' + nextText;
+        const prevMergedIds = ad?.mergedBlockIds || [];
+        setAnswerData((prev) => ({
+          ...prev,
+          [questionUttId]: {
+            ...prev[questionUttId],
+            editedQuestion: merged,
+            mergedBlockIds: [...prevMergedIds, nextBlock.id],
+          },
+        }));
+        doSearch(merged);
+      };
+
+      // 합친 블록 분리 — 숨김 해제 + 질문 원본 복귀
+      const handleUnmerge = () => {
+        if (!questionUttId) return;
+        setAnswerData((prev) => {
+          const cur = { ...prev[questionUttId] };
+          delete cur.editedQuestion;
+          delete cur.mergedBlockIds;
+          delete cur.answer;
+          delete cur.answer_translation;
+          delete cur.tier;
+          delete cur.collapsed;
+          return { ...prev, [questionUttId]: cur };
+        });
+      };
+
+      const hasNextBlock = blockIndex + 1 < visibleBlocks.length;
+      const mergedCount = ad?.mergedBlockIds?.length || 0;
+
       return (
         <QuestionCard key={block.id}>
-          <QuestionCardBody>
-            <BlockHeader>
-              {speakerBadge}
-              <BlockTime>{block.timestamp}</BlockTime>
+          <QuestionCardHeader>
+            <QuestionHeaderLeft>
+              {liveLabel && <SpeakerInline $self={isSelfSpeaker}>{liveLabel}</SpeakerInline>}
+              {renderAssignBtn()}
               <QuestionInlineLabel>
                 <HelpCircleIcon size={11} />
-                <span>질문</span>
               </QuestionInlineLabel>
-            </BlockHeader>
-            <QuestionOriginal>{originalText}</QuestionOriginal>
-            {hasAny ? (
+              {isEditing ? (
+                <QuestionEditInput
+                  defaultValue={ad?.editedQuestion ?? originalText}
+                  autoFocus
+                  onBlur={(e) => commitEdit(e.currentTarget.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') { e.preventDefault(); commitEdit(e.currentTarget.value); }
+                    if (e.key === 'Escape') {
+                      setEditingQuestionId(null);
+                    }
+                  }}
+                />
+              ) : (
+                <QuestionOriginal onClick={startEdit} title="클릭하여 수정" style={{ cursor: 'text' }}>
+                  {ad?.editedQuestion || originalText}
+                  {ad?.editedQuestion && <EditedMark>(수정됨)</EditedMark>}
+                  {mergedCount > 0 && <MergedBadge>+{mergedCount} 합침</MergedBadge>}
+                </QuestionOriginal>
+              )}
+              {hasNextBlock && !isEditing && (
+                <MergeNextBtn onClick={handleMergeNext} title="다음 문장 합치기">+</MergeNextBtn>
+              )}
+              {mergedCount > 0 && !isEditing && (
+                <UnmergeBtn onClick={handleUnmerge} title="합친 문장 분리">분리</UnmergeBtn>
+              )}
+              <InlineTime>{block.timestamp}</InlineTime>
+            </QuestionHeaderLeft>
+            {hasAnswer ? (
+              <CollapseBtn onClick={handleBtnClick}>
+                {isCollapsed ? '답변 보기' : '답변 접기'}
+              </CollapseBtn>
+            ) : (
+              <FindAnswerBtn
+                onClick={handleBtnClick}
+                disabled={ad?.loading}
+                $ready={hasReadyAnswer}
+              >
+                답변 생성
+              </FindAnswerBtn>
+            )}
+          </QuestionCardHeader>
+          <QuestionContentArea>
+            {hasAny && !isEditing && (
               <QuestionTranslation>
                 {translatedText}
-                {!allTranslated && <PendingHint> …</PendingHint>}
+                {!allTranslated && <PendingHint> ...</PendingHint>}
               </QuestionTranslation>
-            ) : (
-              <TranslationPending>번역 중…</TranslationPending>
             )}
-          </QuestionCardBody>
-          <QuestionCardAside>
-            <FindAnswerBtn disabled title="아직 개발 중입니다">
-              <span>답변 찾기</span>
-              <ArrowRightIcon size={14} />
-            </FindAnswerBtn>
-          </QuestionCardAside>
+            {hasAnswer && !isCollapsed && (
+              <AnswerPanel>
+                <AnswerTierBadge $tier={ad.tier || 'general'}>
+                  {ad.tier === 'custom' ? '등록 답변' : ad.tier === 'generated' ? 'AI 사전 답변' : ad.tier === 'rag' ? '자료 기반' : ad.tier === 'none' ? '미발견' : 'AI 답변'}
+                </AnswerTierBadge>
+                <AnswerText>{ad.answer}</AnswerText>
+                {ad.answer_translation ? (
+                  <AnswerTranslation>{ad.answer_translation}</AnswerTranslation>
+                ) : ad.tier !== 'none' ? (
+                  <AnswerTranslation style={{ fontStyle: 'italic', color: '#94a3b8' }}>번역 중...</AnswerTranslation>
+                ) : null}
+              </AnswerPanel>
+            )}
+            {ad?.loading && <AnswerLoading>답변 검색 중...</AnswerLoading>}
+            {ad?.error && <AnswerError>{ad.error}</AnswerError>}
+          </QuestionContentArea>
         </QuestionCard>
       );
     }
 
     return (
       <SpeechBlockWrap key={block.id} $dimmed={allOutOfScope}>
-        <BlockHeader>
-          {speakerBadge}
-          <BlockTime>{block.timestamp}</BlockTime>
-          {outOfScopeLabel && <OutOfScopeTag>{outOfScopeLabel} · 선택 언어 아님</OutOfScopeTag>}
-        </BlockHeader>
-        <SpeechOriginal>{originalText}</SpeechOriginal>
-        {allOutOfScope ? null : hasAny ? (
+        <SpeechRow>
+          {liveLabel && <SpeakerInline $self={isSelfSpeaker}>{liveLabel}</SpeakerInline>}
+          {renderAssignBtn()}
+          <SpeechOriginal>{originalText}</SpeechOriginal>
+          <InlineTime>{block.timestamp}</InlineTime>
+        </SpeechRow>
+        {!allOutOfScope && hasAny && (
           <SpeechTranslation>
             {translatedText}
-            {!allTranslated && <PendingHint> …</PendingHint>}
+            {!allTranslated && <PendingHint> ...</PendingHint>}
           </SpeechTranslation>
-        ) : (
-          <TranslationPending>번역 중…</TranslationPending>
         )}
       </SpeechBlockWrap>
     );
@@ -827,21 +1144,41 @@ const QNotePage = () => {
         <SessionList>
           {sessions.length === 0 && <EmptySessionMsg>아직 세션이 없습니다.</EmptySessionMsg>}
           {sessions.map((session) => {
-            const lang = getLanguageByCode(session.language);
             const isActive = activeSession?.id === session.id;
+            const statusLabel =
+              session.status === 'recording' ? '녹음 중' :
+              session.status === 'paused' ? '일시 중지' :
+              session.status === 'completed' ? '종료' : '대기';
+            const statusColor =
+              session.status === 'recording' ? '#dc2626' :
+              session.status === 'paused' ? '#f59e0b' :
+              session.status === 'completed' ? '#64748b' : '#94a3b8';
+            const participants = session.participants || [];
+            const participantNames = participants.map((p) => p.name).join(', ');
             return (
               <SessionItem
                 key={session.id}
                 $active={isActive}
                 onClick={() => openReview(session.id)}
               >
-                <SessionItemTitle>{session.title}</SessionItemTitle>
+                <SessionItemRow>
+                  <SessionItemTitle>{session.title}</SessionItemTitle>
+                  <SessionStatusBadge style={{ color: statusColor, borderColor: statusColor }}>{statusLabel}</SessionStatusBadge>
+                </SessionItemRow>
                 <SessionItemMeta>
                   <span>{new Date(session.created_at).toLocaleDateString()}</span>
-                  <Dot>·</Dot>
-                  <span>{session.utterance_count} 발화</span>
-                  <Dot>·</Dot>
-                  <span>{lang?.label || session.language}</span>
+                  {session.utterance_count > 0 && (
+                    <>
+                      <Dot>·</Dot>
+                      <span>{session.utterance_count}문장</span>
+                    </>
+                  )}
+                  {participantNames && (
+                    <>
+                      <Dot>·</Dot>
+                      <SessionParticipants>{participantNames}</SessionParticipants>
+                    </>
+                  )}
                 </SessionItemMeta>
               </SessionItem>
             );
@@ -879,7 +1216,21 @@ const QNotePage = () => {
           <>
             <MainHeader>
               <HeaderLeft>
-                <SessionTitle>{activeSession.title}</SessionTitle>
+                {editingTitle ? (
+                  <SessionTitleInput
+                    defaultValue={activeSession.title}
+                    autoFocus
+                    onBlur={(e) => handleTitleSave(e.currentTarget.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') { e.preventDefault(); handleTitleSave(e.currentTarget.value); }
+                      if (e.key === 'Escape') setEditingTitle(false);
+                    }}
+                  />
+                ) : (
+                  <SessionTitle onClick={() => setEditingTitle(true)} title="클릭하여 수정">
+                    {activeSession.title}
+                  </SessionTitle>
+                )}
                 <SessionMeta>
                   {meetingLangLabels && <Badge>{meetingLangLabels}</Badge>}
                   {phase === 'prepared' && <Badge>녹음 대기</Badge>}
@@ -919,6 +1270,17 @@ const QNotePage = () => {
               </HeaderRight>
             </MainHeader>
 
+            <ParticipantBar>
+              <ParticipantBarLabel>참여자 ({(activeSession.participants?.length ?? 0) + 1}명)</ParticipantBarLabel>
+              <ParticipantPill key="self">나</ParticipantPill>
+              {(activeSession.participants || []).map((p, i) => (
+                <ParticipantPill key={i}>
+                  {p.name}
+                  {p.role && <ParticipantPillRole>{p.role}</ParticipantPillRole>}
+                </ParticipantPill>
+              ))}
+            </ParticipantBar>
+
             {liveError && <ErrorBar>{liveError}</ErrorBar>}
             {liveNotice && <NoticeBar>{liveNotice}</NoticeBar>}
 
@@ -931,7 +1293,7 @@ const QNotePage = () => {
                 </EmptyTranscript>
               )}
 
-              {renderBlocks.map((block) => renderBlock(block))}
+              {renderBlocks.filter((b) => !hiddenBlockIds.has(b.id)).map((block, idx, arr) => renderBlock(block, idx > 0 ? arr[idx - 1] : null, idx, arr))}
               {renderPending()}
 
               {phase === 'recording' && (
@@ -948,10 +1310,24 @@ const QNotePage = () => {
           <>
             <MainHeader>
               <HeaderLeft>
-                <SessionTitle>{activeSession.title}</SessionTitle>
+                {editingTitle ? (
+                  <SessionTitleInput
+                    defaultValue={activeSession.title}
+                    autoFocus
+                    onBlur={(e) => handleTitleSave(e.currentTarget.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') { e.preventDefault(); handleTitleSave(e.currentTarget.value); }
+                      if (e.key === 'Escape') setEditingTitle(false);
+                    }}
+                  />
+                ) : (
+                  <SessionTitle onClick={() => setEditingTitle(true)} title="클릭하여 수정">
+                    {activeSession.title}
+                  </SessionTitle>
+                )}
                 <SessionMeta>
                   <Badge>리뷰</Badge>
-                  <Badge>{activeSession.utterance_count} 발화</Badge>
+                  <Badge>{activeSession.utterance_count}문장</Badge>
                 </SessionMeta>
               </HeaderLeft>
               <HeaderRight>
@@ -960,9 +1336,20 @@ const QNotePage = () => {
               </HeaderRight>
             </MainHeader>
 
+            <ParticipantBar>
+              <ParticipantBarLabel>참여자 ({(activeSession.participants?.length ?? 0) + 1}명)</ParticipantBarLabel>
+              <ParticipantPill key="self">나</ParticipantPill>
+              {(activeSession.participants || []).map((p, i) => (
+                <ParticipantPill key={i}>
+                  {p.name}
+                  {p.role && <ParticipantPillRole>{p.role}</ParticipantPillRole>}
+                </ParticipantPill>
+              ))}
+            </ParticipantBar>
+
             <Transcript>
-              {renderBlocks.length === 0 && <EmptyTranscript>발화 기록이 없습니다.</EmptyTranscript>}
-              {renderBlocks.map((block) => renderBlock(block))}
+              {renderBlocks.length === 0 && <EmptyTranscript>기록된 문장이 없습니다.</EmptyTranscript>}
+              {renderBlocks.filter((b) => !hiddenBlockIds.has(b.id)).map((block, idx, arr) => renderBlock(block, idx > 0 ? arr[idx - 1] : null, idx, arr))}
             </Transcript>
           </>
         )}
@@ -989,7 +1376,8 @@ interface ParticipantLite {
 }
 
 interface SpeakerPopoverProps {
-  speakerRowId: number;
+  currentSpeakerName: string | null;
+  currentIsSelf: boolean | number;
   participants: ParticipantLite[];
   onClose: () => void;
   onAssignName: (name: string) => Promise<void>;
@@ -997,18 +1385,14 @@ interface SpeakerPopoverProps {
   disabled: boolean;
 }
 
-const SpeakerPopover = ({ participants, onClose, onAssignName, onAssignSelf, disabled }: SpeakerPopoverProps) => {
+const SpeakerPopover = ({ currentSpeakerName, currentIsSelf, participants, onClose, onAssignName, onAssignSelf, disabled }: SpeakerPopoverProps) => {
   const [customName, setCustomName] = useState('');
   const ref = useRef<HTMLDivElement>(null);
 
-  // click 이벤트 기준. 버튼 onClick 에서 stopPropagation 하므로 toggle 경로와 충돌 없음.
-  // 마이크로 이벤트 순서: 버튼 click (stopPropagation) → document click 호출 안 됨.
-  // 팝오버 밖 click → document click → 닫힘.
   useEffect(() => {
     const onDocClick = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) onClose();
     };
-    // setTimeout 으로 현재 event 루프 이후에 등록 (toggle click 과 동일 tick 에서 바로 닫히는 것 방지)
     const t = window.setTimeout(() => document.addEventListener('click', onDocClick), 0);
     return () => {
       window.clearTimeout(t);
@@ -1016,17 +1400,27 @@ const SpeakerPopover = ({ participants, onClose, onAssignName, onAssignSelf, dis
     };
   }, [onClose]);
 
+  // 이미 지정된 화자 제외: 현재 블록의 화자 이름과 같은 참여자는 숨김
+  const filteredParticipants = participants.filter(
+    (p) => p.name !== currentSpeakerName
+  );
+
+  // "나" 버튼: 이미 "나"로 지정된 블록이면 숨김
+  const showSelfBtn = !currentIsSelf;
+
   return (
     <PopoverWrap ref={ref} onClick={(e) => e.stopPropagation()}>
       <PopoverTitle>이 사람은</PopoverTitle>
-      <PopoverBtn onClick={onAssignSelf} disabled={disabled} $primary>
-        나
-      </PopoverBtn>
-      {participants.length > 0 && (
+      {showSelfBtn && (
+        <PopoverBtn onClick={onAssignSelf} disabled={disabled} $primary>
+          나
+        </PopoverBtn>
+      )}
+      {filteredParticipants.length > 0 && (
         <>
           <PopoverDivider />
           <PopoverLabel>등록된 참여자</PopoverLabel>
-          {participants.map((p) => (
+          {filteredParticipants.map((p) => (
             <PopoverBtn
               key={p.name}
               onClick={() => onAssignName(p.name)}
@@ -1037,6 +1431,9 @@ const SpeakerPopover = ({ participants, onClose, onAssignName, onAssignSelf, dis
             </PopoverBtn>
           ))}
         </>
+      )}
+      {!showSelfBtn && filteredParticipants.length === 0 && (
+        <PopoverHint>회의 시작 시 참여자를 등록하면 여기서 선택할 수 있습니다</PopoverHint>
       )}
       <PopoverDivider />
       <PopoverLabel>직접 입력</PopoverLabel>
@@ -1095,6 +1492,13 @@ const PopoverLabel = styled.div`
   font-weight: 600;
   color: #94a3b8;
   padding: 2px 8px;
+`;
+
+const PopoverHint = styled.div`
+  font-size: 11px;
+  color: #94a3b8;
+  padding: 6px 8px;
+  line-height: 1.4;
 `;
 
 const PopoverDivider = styled.div`
@@ -1255,14 +1659,39 @@ const SessionItem = styled.div<{ $active: boolean }>`
   &:hover { background: #f8fafc; }
 `;
 
+const SessionItemRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+`;
+
 const SessionItemTitle = styled.div`
   font-size: 14px;
   font-weight: 600;
   color: #0f172a;
-  margin-bottom: 4px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  flex: 1;
+  min-width: 0;
+`;
+
+const SessionStatusBadge = styled.span`
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 700;
+  border: 1px solid;
+  border-radius: 4px;
+  padding: 1px 6px;
+  white-space: nowrap;
+`;
+
+const SessionParticipants = styled.span`
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 120px;
 `;
 
 const SessionItemMeta = styled.div`
@@ -1338,6 +1767,22 @@ const SessionTitle = styled.h2`
   font-weight: 700;
   color: #0f172a;
   margin: 0;
+  cursor: text;
+  &:hover { color: #475569; }
+`;
+
+const SessionTitleInput = styled.input`
+  font-size: 20px;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0;
+  border: 1px solid #14b8a6;
+  border-radius: 4px;
+  padding: 0 4px;
+  outline: none;
+  background: #f0fdfa;
+  min-width: 200px;
+  &:focus { border-color: #0d9488; }
 `;
 
 const SessionMeta = styled.div`
@@ -1439,6 +1884,43 @@ const DangerBtn = styled.button`
   }
 `;
 
+const ParticipantBar = styled.div`
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 8px 32px 0;
+  padding: 8px 12px;
+  background: #f8fafc;
+  border-radius: 8px;
+`;
+
+const ParticipantBarLabel = styled.span`
+  font-size: 11px;
+  font-weight: 600;
+  color: #94a3b8;
+  letter-spacing: 0.03em;
+`;
+
+const ParticipantPill = styled.span`
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #115e59;
+  background: #f0fdfa;
+  border: 1px solid #ccfbf1;
+  border-radius: 12px;
+  padding: 3px 10px;
+`;
+
+const ParticipantPillRole = styled.span`
+  font-size: 10px;
+  font-weight: 400;
+  color: #64748b;
+`;
+
 const ErrorBar = styled.div`
   margin: 12px 32px 0;
   padding: 10px 14px;
@@ -1485,18 +1967,48 @@ const EmptyTranscript = styled.div`
 const SpeechBlockWrap = styled.div<{ $dimmed?: boolean }>`
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
   opacity: ${(p) => (p.$dimmed ? 0.45 : 1)};
 `;
 
-const OutOfScopeTag = styled.span`
-  font-size: 10px;
-  font-weight: 600;
+const SpeakerInline = styled.span<{ $self: boolean }>`
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: ${(p) => (p.$self ? '#0d9488' : '#6366f1')};
+  margin-right: 6px;
+`;
+
+const SpeechRow = styled.div`
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+`;
+
+const InlineTime = styled.span`
+  font-size: 11px;
+  color: #cbd5e1;
+  white-space: nowrap;
+  flex-shrink: 0;
+`;
+
+const SpeakerAssignWrap = styled.span`
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+  margin-right: 8px;
+`;
+
+const SpeakerAssignBtn = styled.button`
+  font-size: 11px;
   color: #94a3b8;
-  background: #f1f5f9;
-  padding: 2px 6px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
   border-radius: 4px;
-  letter-spacing: 0.02em;
+  cursor: pointer;
+  padding: 2px 6px;
+  white-space: nowrap;
+  &:hover { color: #0d9488; border-color: #99f6e4; background: #f0fdfa; }
 `;
 
 const BlockHeader = styled.div`
@@ -1504,12 +2016,6 @@ const BlockHeader = styled.div`
   align-items: center;
   gap: 10px;
   margin-bottom: 2px;
-`;
-
-const SpeakerBadgeWrap = styled.span`
-  position: relative;
-  display: inline-flex;
-  align-items: center;
 `;
 
 const BlockSpeaker = styled.span<{ $clickable?: boolean }>`
@@ -1531,13 +2037,6 @@ const BlockSpeaker = styled.span<{ $clickable?: boolean }>`
   }
 `;
 
-const SpeakerCaret = styled.span`
-  font-size: 9px;
-  color: #0d9488;
-  opacity: 0.7;
-  margin-left: 2px;
-`;
-
 const BlockTime = styled.span`
   font-size: 11px;
   color: #94a3b8;
@@ -1555,13 +2054,13 @@ const SpeechTranslation = styled.div`
   color: #64748b;
   line-height: 1.55;
   word-break: break-word;
+  padding-left: 8px;
 `;
 
-// ─── 질문 카드 — 수평 레이아웃 (좌 본문 / 우 답변 버튼) ─
+// ─── 질문 카드 — 세로 레이아웃 (헤더: 질문+버튼 / 본문: 번역+답변) ─
 const QuestionCard = styled.div`
   display: flex;
-  align-items: stretch;
-  gap: 16px;
+  flex-direction: column;
   background: #ffffff;
   border: 1px solid #fecdd3;
   border-left: 4px solid #f43f5e;
@@ -1570,18 +2069,44 @@ const QuestionCard = styled.div`
   box-shadow: 0 1px 3px rgba(244, 63, 94, 0.06);
 `;
 
-const QuestionCardBody = styled.div`
+const QuestionCardHeader = styled.div`
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+`;
+
+const QuestionHeaderLeft = styled.div`
   flex: 1;
   min-width: 0;
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 6px;
+`;
+
+const QuestionContentArea = styled.div`
   display: flex;
   flex-direction: column;
   gap: 4px;
 `;
 
-const QuestionCardAside = styled.div`
+const CollapseBtn = styled.button`
   flex-shrink: 0;
-  display: flex;
+  display: inline-flex;
   align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+  background: #ffffff;
+  color: #64748b;
+  border: 1px solid #e2e8f0;
+  height: 34px;
+  padding: 0 14px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 120ms;
+  &:hover { background: #f8fafc; color: #475569; border-color: #cbd5e1; }
 `;
 
 const QuestionInlineLabel = styled.span`
@@ -1602,6 +2127,76 @@ const QuestionOriginal = styled.div`
   color: #0f172a;
   line-height: 1.55;
   word-break: break-word;
+  flex: 1;
+`;
+
+const QuestionEditInput = styled.input`
+  font-size: 15px;
+  font-weight: 600;
+  color: #0f172a;
+  line-height: 1.55;
+  flex: 1;
+  border: 1px solid #f43f5e;
+  border-radius: 4px;
+  padding: 2px 6px;
+  outline: none;
+  background: #fff1f2;
+  &:focus { border-color: #e11d48; }
+`;
+
+const EditedMark = styled.span`
+  font-size: 11px;
+  font-weight: 400;
+  color: #f43f5e;
+  margin-left: 6px;
+`;
+
+const MergeNextBtn = styled.button`
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  border: 1px solid #fecdd3;
+  background: #fff1f2;
+  color: #f43f5e;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  &:hover { background: #fecdd3; }
+`;
+
+const UnmergeBtn = styled.button`
+  flex-shrink: 0;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 4px;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  line-height: 1;
+  &:hover { background: #f8fafc; color: #475569; border-color: #cbd5e1; }
+`;
+
+const MergedBadge = styled.span`
+  display: inline-flex;
+  align-items: center;
+  margin-left: 6px;
+  padding: 1px 6px;
+  font-size: 10px;
+  font-weight: 700;
+  color: #9f1239;
+  background: #ffe4e6;
+  border-radius: 4px;
+  vertical-align: middle;
 `;
 
 const QuestionTranslation = styled.div`
@@ -1609,25 +2204,22 @@ const QuestionTranslation = styled.div`
   color: #64748b;
   line-height: 1.5;
   word-break: break-word;
+  padding-left: 8px;
 `;
 
-const TranslationPending = styled.div`
-  font-size: 13px;
-  color: #cbd5e1;
-  font-style: italic;
-`;
+// TranslationPending 제거 — 번역이 없으면 영역 자체를 숨김 (placeholder 대신)
 
 const PendingHint = styled.span`
   color: #cbd5e1;
   font-style: italic;
 `;
 
-const FindAnswerBtn = styled.button`
+const FindAnswerBtn = styled.button<{ $ready?: boolean }>`
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  justify-content: center;
   white-space: nowrap;
-  background: #f43f5e;
+  background: ${(p) => (p.$ready ? '#e11d48' : '#f43f5e')};
   color: #ffffff;
   border: none;
   height: 34px;
@@ -1637,12 +2229,71 @@ const FindAnswerBtn = styled.button`
   font-weight: 600;
   cursor: pointer;
   transition: background 120ms;
+  ${(p) => p.$ready && 'animation: pulse-ready 1.5s ease-in-out 2;'}
   &:hover:not(:disabled) { background: #e11d48; }
   &:disabled {
     background: #fecdd3;
     cursor: not-allowed;
   }
+  @keyframes pulse-ready {
+    0%, 100% { box-shadow: none; }
+    50% { box-shadow: 0 0 0 3px rgba(244, 63, 94, 0.3); }
+  }
 `;
+
+// ─── 답변 표시 패널 ─────
+const AnswerPanel = styled.div`
+  margin-top: 8px;
+  padding: 10px 12px;
+  background: #fefce8;
+  border: 1px solid #fef08a;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+`;
+
+const AnswerTierBadge = styled.span<{ $tier: string }>`
+  font-size: 10px;
+  font-weight: 700;
+  color: ${(p) =>
+    p.$tier === 'custom' ? '#15803d' :
+    p.$tier === 'generated' ? '#1d4ed8' :
+    p.$tier === 'rag' ? '#9333ea' :
+    p.$tier === 'none' ? '#94a3b8' : '#64748b'};
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+`;
+
+const AnswerText = styled.div`
+  font-size: 14px;
+  color: #0f172a;
+  line-height: 1.6;
+  white-space: pre-wrap;
+`;
+
+const AnswerTranslation = styled.div`
+  font-size: 13px;
+  color: #64748b;
+  line-height: 1.55;
+  border-top: 1px solid #fef08a;
+  padding-top: 6px;
+  margin-top: 2px;
+`;
+
+const AnswerLoading = styled.div`
+  margin-top: 6px;
+  font-size: 12px;
+  color: #94a3b8;
+  font-style: italic;
+`;
+
+const AnswerError = styled.div`
+  margin-top: 6px;
+  font-size: 12px;
+  color: #dc2626;
+`;
+
 
 // ─── Pending (미완성 문장) 렌더 — 유령 블록 ─────
 const PendingBlockWrap = styled.div`

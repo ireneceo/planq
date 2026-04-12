@@ -11,7 +11,6 @@ import {
 import { LANGUAGES, getDefaultLanguageFromBrowser } from '../../constants/languages';
 import { ALL_CAPTURE_CAPABILITIES } from '../../services/audio';
 import type { CaptureMode } from '../../services/audio';
-import { getVoiceFingerprints } from '../../services/qnote';
 
 interface Props {
   open: boolean;
@@ -77,10 +76,10 @@ const StartMeetingModal = ({ open, userLanguage, onClose, onStart }: Props) => {
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [pName, setPName] = useState('');
   const [pRole, setPRole] = useState('');
-  const [meetingLangs, setMeetingLangs] = useState<string[]>([]);
+  const [meetingLang, setMeetingLang] = useState<string>('');
   const [translationLang, setTranslationLang] = useState<string>(effectiveUserLanguage);
   const [answerLang, setAnswerLang] = useState<string>('');
-  const [adding, setAdding] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const [captureMode, setCaptureMode] = useState<CaptureMode>('web_conference');
   const [documents, setDocuments] = useState<File[]>([]);
   const [pastedContext, setPastedContext] = useState('');
@@ -91,7 +90,6 @@ const StartMeetingModal = ({ open, userLanguage, onClose, onStart }: Props) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // 본인 음성 핑거프린트 등록 여부 — 미등록이면 본인 자동 인식 불가능 → 배너로 안내
-  const [voiceRegistered, setVoiceRegistered] = useState<boolean | null>(null);
 
   const allLangOptions = useMemo(() => langToOption(), []);
 
@@ -103,10 +101,10 @@ const StartMeetingModal = ({ open, userLanguage, onClose, onStart }: Props) => {
       setParticipants([]);
       setPName('');
       setPRole('');
-      setMeetingLangs([]);
+      setMeetingLang('');
       setTranslationLang(effectiveUserLanguage);
       setAnswerLang('');
-      setAdding(false);
+      setShowAdvanced(false);
       setCaptureMode('web_conference');
       setDocuments([]);
       setPastedContext('');
@@ -115,40 +113,15 @@ const StartMeetingModal = ({ open, userLanguage, onClose, onStart }: Props) => {
       setFileError(null);
       setIsDragging(false);
 
-      // 본인 음성 핑거프린트 등록 여부 조회 (본인 자동 인식 사전 조건)
-      setVoiceRegistered(null);
-      getVoiceFingerprints()
-        .then((fp) => setVoiceRegistered(fp.registered && fp.count > 0))
-        .catch(() => setVoiceRegistered(false));
     }
   }, [open, effectiveUserLanguage]);
 
   if (!open) return null;
 
-  // 선택 안 된 언어만 추가 가능
-  const addableOptions = allLangOptions.filter((o) => !meetingLangs.includes(o.value));
+  const selectedMeetingOpt = allLangOptions.find((o) => o.value === meetingLang) || null;
   const selectedTranslationOpt = allLangOptions.find((o) => o.value === translationLang) || null;
-  // 답변 언어 옵션은 메인 언어 중에서 선택 (기본 케이스) 또는 어떤 언어든
-  const answerLangOptions = allLangOptions.filter((o) => meetingLangs.includes(o.value));
-  const selectedAnswerOpt = answerLangOptions.find((o) => o.value === answerLang) || null;
 
-  const addMeetingLang = (code: string) => {
-    if (!meetingLangs.includes(code)) {
-      const next = [...meetingLangs, code];
-      setMeetingLangs(next);
-      // 답변 언어가 빈 값이거나 메인에 없으면 첫 번째로 자동 세팅
-      if (!answerLang || !next.includes(answerLang)) setAnswerLang(next[0]);
-    }
-    setAdding(false);
-  };
-
-  const removeMeetingLang = (code: string) => {
-    const next = meetingLangs.filter((c) => c !== code);
-    setMeetingLangs(next);
-    if (answerLang === code) setAnswerLang(next[0] || '');
-  };
-
-  const canStart = meetingLangs.length > 0 && answerLang;
+  const canStart = !!meetingLang;
 
   const showFileError = (msg: string) => {
     setFileError(msg);
@@ -238,9 +211,9 @@ const StartMeetingModal = ({ open, userLanguage, onClose, onStart }: Props) => {
       title: title.trim() || '제목 없는 회의',
       brief: brief.trim(),
       participants: finalParticipants,
-      meetingLanguages: meetingLangs,
-      translationLanguage: translationLang,
-      answerLanguage: answerLang,
+      meetingLanguages: [meetingLang],
+      translationLanguage: translationLang || (meetingLang === 'ko' ? 'en' : 'ko'),
+      answerLanguage: answerLang || meetingLang,
       captureMode,
       documents,
       pastedContext: pastedContext.trim(),
@@ -259,17 +232,6 @@ const StartMeetingModal = ({ open, userLanguage, onClose, onStart }: Props) => {
         </Header>
 
         <Body>
-          {voiceRegistered === false && (
-            <VoiceWarnBanner>
-              <strong>본인 음성이 등록되어 있지 않습니다.</strong>
-              <div>
-                프로필 → "내 음성 인식"에서 등록하면 회의 중 본인 발화가 자동으로 "나"로 표시됩니다.
-                지금 시작하면 회의 종료 후 발화 블록에서 직접 본인 화자를 지정해야 합니다.
-              </div>
-              <a href="/profile" target="_blank" rel="noreferrer">프로필로 이동</a>
-            </VoiceWarnBanner>
-          )}
-
           <Field>
             <Label>회의 제목</Label>
             <Input
@@ -347,75 +309,50 @@ const StartMeetingModal = ({ open, userLanguage, onClose, onStart }: Props) => {
 
           <Field>
             <Label>
-              회의 메인 언어 <Required>*</Required>
+              회의 언어 <Required>*</Required>
             </Label>
-            <Hint>
-              발화자가 실제로 사용하는 언어. 2개 이상이면 자동으로 코드스위칭 모드로 인식합니다.
-            </Hint>
-            <LangPills>
-              {meetingLangs.map((code) => (
-                <LangPill key={code}>
-                  <span>{getLanguageLabel(code)}</span>
-                  <PillRemove onClick={() => removeMeetingLang(code)} aria-label="제거">
-                    <CloseIcon size={12} />
-                  </PillRemove>
-                </LangPill>
-              ))}
-              {meetingLangs.length === 0 && !adding && (
-                <PillsPlaceholder>아직 선택된 언어가 없습니다</PillsPlaceholder>
-              )}
-              {!adding && addableOptions.length > 0 && (
-                <AddLangBtn onClick={() => setAdding(true)}>
-                  <PlusIcon size={12} />
-                  <span>언어 추가</span>
-                </AddLangBtn>
-              )}
-            </LangPills>
-            {adding && (
-              <AddLangSelectWrap>
-                <PlanQSelect
-                  options={addableOptions}
-                  value={null}
-                  onChange={(opt: any) => opt && addMeetingLang(opt.value)}
-                  placeholder="추가할 언어 선택"
-                  autoFocus
-                  onBlur={() => setAdding(false)}
-                />
-              </AddLangSelectWrap>
-            )}
+            <PlanQSelect
+              options={allLangOptions}
+              value={selectedMeetingOpt}
+              onChange={(opt: any) => setMeetingLang(opt?.value || '')}
+              placeholder="회의에서 사용하는 언어"
+            />
           </Field>
 
-          <LangRow>
-            <Field>
-              <Label>
-                답변 언어 <Required>*</Required>
-              </Label>
-              <PlanQSelect
-                options={answerLangOptions}
-                value={selectedAnswerOpt}
-                onChange={(opt: any) => setAnswerLang(opt?.value || meetingLangs[0])}
-                placeholder="답변 언어 선택"
-              />
-              <Hint>
-                "답변 찾기" 결과 + 회의에서 실제로 말할 언어
-              </Hint>
-            </Field>
-
-            <Field>
-              <Label>
-                번역 언어 <Required>*</Required>
-              </Label>
-              <PlanQSelect
-                options={allLangOptions}
-                value={selectedTranslationOpt}
-                onChange={(opt: any) => setTranslationLang(opt?.value || effectiveUserLanguage)}
-                placeholder="내가 보고 싶은 언어"
-              />
-              <Hint>
-                보조 번역 표시용. 디폴트 = 내 언어({getLanguageLabel(effectiveUserLanguage)}).
-              </Hint>
-            </Field>
-          </LangRow>
+          {showAdvanced ? (
+            <AdvancedSection>
+              <AdvancedToggle onClick={() => setShowAdvanced(false)}>
+                고급 설정 접기
+              </AdvancedToggle>
+              <LangRow>
+                <Field>
+                  <Label>번역 언어</Label>
+                  <PlanQSelect
+                    options={allLangOptions}
+                    value={selectedTranslationOpt}
+                    onChange={(opt: any) => setTranslationLang(opt?.value || effectiveUserLanguage)}
+                    placeholder="번역 표시 언어"
+                  />
+                  <Hint>
+                    발화 아래 보조 번역. 기본 = 내 언어({getLanguageLabel(effectiveUserLanguage)}).
+                  </Hint>
+                </Field>
+                <Field>
+                  <Label>답변 언어</Label>
+                  <PlanQSelect
+                    options={allLangOptions}
+                    value={allLangOptions.find((o) => o.value === answerLang) || null}
+                    onChange={(opt: any) => setAnswerLang(opt?.value || meetingLang)}
+                    placeholder="답변 찾기 결과 언어"
+                  />
+                </Field>
+              </LangRow>
+            </AdvancedSection>
+          ) : (
+            <AdvancedToggle onClick={() => setShowAdvanced(true)}>
+              고급 설정
+            </AdvancedToggle>
+          )}
 
           <Field>
             <Label>참고 자료 (선택)</Label>
@@ -650,41 +587,28 @@ const Body = styled.div`
   overflow-y: auto;
 `;
 
-const VoiceWarnBanner = styled.div`
-  padding: 14px 16px;
-  border-radius: 10px;
-  background: #fff1f2;
-  border: 1px solid #fecdd3;
-  color: #9f1239;
-  font-size: 13px;
-  line-height: 1.55;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-
-  strong {
-    font-size: 13px;
-    font-weight: 700;
-    color: #9f1239;
-  }
-
-  div {
-    color: #9f1239;
-  }
-
-  a {
-    align-self: flex-start;
-    color: #e11d48;
-    font-weight: 700;
-    text-decoration: underline;
-    font-size: 12px;
-  }
-`;
-
 const Field = styled.div`
   display: flex;
   flex-direction: column;
   gap: 8px;
+`;
+
+const AdvancedSection = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+`;
+
+const AdvancedToggle = styled.button`
+  font-size: 12px;
+  font-weight: 500;
+  color: #94a3b8;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px 0;
+  text-align: left;
+  &:hover { color: #64748b; }
 `;
 
 const LangRow = styled.div`
@@ -694,73 +618,6 @@ const LangRow = styled.div`
   @media (max-width: 600px) {
     grid-template-columns: 1fr;
   }
-`;
-
-const LangPills = styled.div`
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  align-items: center;
-  min-height: 44px;
-  padding: 6px;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  background: #ffffff;
-`;
-
-const LangPill = styled.div`
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 30px;
-  padding: 0 8px 0 12px;
-  background: #f0fdfa;
-  border: 1px solid #99f6e4;
-  color: #0f766e;
-  border-radius: 8px;
-  font-size: 13px;
-  font-weight: 600;
-`;
-
-const PillRemove = styled.button`
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 18px;
-  height: 18px;
-  border: none;
-  background: transparent;
-  color: #0d9488;
-  border-radius: 4px;
-  cursor: pointer;
-  &:hover {
-    background: #ccfbf1;
-    color: #0f766e;
-  }
-`;
-
-const AddLangBtn = styled.button`
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  height: 30px;
-  padding: 0 12px;
-  background: transparent;
-  border: 1px dashed #cbd5e1;
-  color: #64748b;
-  border-radius: 8px;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  &:hover {
-    border-color: #14b8a6;
-    color: #0d9488;
-    background: #f0fdfa;
-  }
-`;
-
-const AddLangSelectWrap = styled.div`
-  margin-top: 8px;
 `;
 
 const Label = styled.label`
@@ -1059,12 +916,6 @@ const PrimaryBtn = styled.button`
     background: #cbd5e1;
     cursor: not-allowed;
   }
-`;
-
-const PillsPlaceholder = styled.span`
-  font-size: 13px;
-  color: #94a3b8;
-  padding: 0 6px;
 `;
 
 const ParticipantList = styled.div`

@@ -74,6 +74,8 @@ export class WebConferenceCapture implements AudioCaptureSource {
       // 비디오 트랙은 즉시 정리 (오디오만 필요)
       displayStream.getVideoTracks().forEach((t) => t.stop());
       this.tabStream = new MediaStream(audioTracks);
+      // Chrome은 탭 선택 후 해당 탭으로 포커스를 이동시킴 — PlanQ 탭으로 즉시 복귀
+      window.focus();
       // 사용자가 공유 중지 누르면 자동 정리
       audioTracks[0].addEventListener('ended', () => this.stop());
     } catch (err) {
@@ -84,24 +86,32 @@ export class WebConferenceCapture implements AudioCaptureSource {
       throw new Error('탭 공유가 취소되었습니다.');
     }
 
-    // 3) 두 스트림을 Web Audio API 로 믹싱
+    // 3) 두 스트림을 Web Audio API 로 스테레오 믹싱 (mic=Left, tab=Right)
+    //    Deepgram multichannel 로 채널별 개별 STT → channel 0=나, channel 1=상대
     const AC: typeof AudioContext =
       (window as unknown as { AudioContext: typeof AudioContext }).AudioContext ||
       (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
     this.audioContext = new AC();
 
     const dest = this.audioContext.createMediaStreamDestination();
+    // destination 을 스테레오로 설정
+    dest.channelCount = 2;
+    dest.channelCountMode = 'explicit';
+    dest.channelInterpretation = 'discrete';
+
     const micSource = this.audioContext.createMediaStreamSource(this.micStream);
     const tabSource = this.audioContext.createMediaStreamSource(this.tabStream);
 
-    // 마이크/탭 각각 게인 노드로 분리해 추후 조정 여지 남김 (현재 1.0)
     const micGain = this.audioContext.createGain();
     const tabGain = this.audioContext.createGain();
     micGain.gain.value = 1.0;
     tabGain.gain.value = 1.0;
 
-    micSource.connect(micGain).connect(dest);
-    tabSource.connect(tabGain).connect(dest);
+    // ChannelMerger: 입력 0 → Left(나), 입력 1 → Right(상대)
+    const merger = this.audioContext.createChannelMerger(2);
+    micSource.connect(micGain).connect(merger, 0, 0);   // mic → channel 0 (Left)
+    tabSource.connect(tabGain).connect(merger, 0, 1);    // tab → channel 1 (Right)
+    merger.connect(dest);
 
     this.mixedStream = dest.stream;
 

@@ -1,113 +1,113 @@
 ## 현재 작업 상태
-**마지막 업데이트:** 2026-04-11
-**작업 상태:** 완료 — Q Note 품질 전면 개선 (7 Phase 리팩터링)
+**마지막 업데이트:** 2026-04-12
+**작업 상태:** 완료 — Q Note 답변 찾기 시스템 + 프로필 페르소나 + 사이드바 확장
 
 ### 진행 중인 작업
 - 없음
 
 ### 완료된 작업 (이번 세션)
 
-**Phase 0 — 실측**
-- DB 실측: 최근 세션 3건 participants=NULL 확정
-- voice_fingerprints DB 등록 상태 확인
-- sessions.capture_mode 컬럼 없음 확인
-- LLM TRANSLATE_SYSTEM 의 "Do NOT change word choice" 제약 확인
+**답변 찾기 시스템 (Q Note Phase B+C)**
+1. **DB 스키마** — qa_pairs 테이블 + FTS5 + 트리거. detected_questions 확장. sessions에 user 프로필 스냅샷 5개 컬럼
+2. **answer_service.py** — 4단계 우선순위 탐색 (custom → generated → RAG → general)
+3. **한국어 FTS5 매칭** — 2자 prefix(`회의*`) + stopwords 필터로 조사 변형 대응
+4. **qa_generator.py** — 문서 인제스트 완료 후 자동 사전 Q&A 생성
+5. **LLM 프롬프트 분리** — ANSWER_SYSTEM_RAG / ANSWER_SYSTEM_GENERAL (자료 유무별)
+6. **Q&A CRUD API** — 생성/조회/수정/삭제, 소스 필터
+7. **CSV 템플릿/업로드** — BOM UTF-8, 중복 UPDATE, 긴 답변 예시
+8. **답변 prefetch** — 라이브 질문 감지 즉시 백그라운드 답변 탐색 + WS answer_ready 이벤트
+9. **find-answer 저장** — utterance_id 제공 시 detected_questions에 저장 (새로고침 후 복원)
+10. **답변/번역 분리** — translate_text 함수 별도. 답변 먼저 표시, 번역 백그라운드
 
-**Phase 5 — 참여자 flush 버그**
-- StartMeetingModal.handleStart — 미반영 pName/pRole 을 submit 직전 자동 포함
+**프로필 기반 답변 (사용자 페르소나)**
+11. **PlanQ users 테이블 확장** — bio, expertise, organization, job_title 필드 + sync
+12. **PUT /api/users/:id** — 프로필 필드 업데이트 + 길이 검증 + IDOR 방어
+13. **프롬프트 재작성** — "You are NOT an AI, you ARE this person". 1인칭 관점 강제
+14. **user_profile 블록 주입** — `_build_context_prefix`에 Name/Job/Org/Expertise/Background
+15. **ProfilePage "내 프로필 (Q Note 답변 생성용)" 카드** — 4개 AutoSaveField, 2초 debounce
+16. **AuthContext 확장** — User interface + normalizeUser 프로필 매핑
+17. **Q Note 세션 생성 시 프로필 자동 전달** — user.bio/expertise/organization/job_title
 
-**Phase 1 — 라이브 렌더 재설계 (누적 버퍼 설계)**
-- live.py `pending_utterance` 버퍼:
-  - 모든 `is_final=true` 조각을 버퍼에 누적 (메모리 feedback_qnote_stt_llm_quirks 2번 규칙 준수 — speech_final 만 쓰면 앞부분 drop)
-  - `speech_final=true` 또는 `UtteranceEnd` 도착 시 전체를 단일 row 로 commit
-  - WS close finally 에서 강제 flush (문장 중간 drop 방지)
-- `enrichment_tasks` singleton — utterance_id 당 최신 태스크만 유지
-- 조각 중복 정규화 dedup (Deepgram retransmit 방어)
-- 화자 다수결 결정 (per-commit)
-- 프론트 `QNotePage.tsx`:
-  - finalized 이벤트는 즉시 블록 승격 (터미네이터 대기 폐기)
-  - 같은 화자 2초 이내 → commitPendingAsBlock 내부 merge
-  - buildBlocksFromSession 단순화
-- 데드코드 정리: FLICKER_TOLERANCE_SEC, SILENCE_HARD_CAP_SEC, textEndsWithTerminator, ENDS_WITH_TERMINATOR
+**답변 UI 재설계**
+18. **버튼 3단계 분리** — 답변 생성(빨강) / 답변 보기·접기(흰) 같은 크기, 우측 상단 고정
+19. **질문 인라인 수정** — 클릭→편집→Enter 자동 검색. editingQuestionId state 분리
+20. **+ 합치기 + 분리** — 다음 블록 숨김 (localStorage 저장, 새로고침 후 복원)
+21. **번역 좌측 정렬** — 원문과 padding-left 통일
+22. **답변 영역 full-width** — QuestionCardHeader/QuestionContentArea 세로 구조
+23. **리뷰 모드 답변 버튼 상태 복원** — 세션 상세 detected_questions 로드 → "답변 보기"로 시작
 
-**Phase 2 — LLM 교정 + Deepgram keyword boosting**
-- llm_service.py TRANSLATE_SYSTEM 재설계:
-  - "Do NOT change word choice" 삭제
-  - "Contextual correction: phonetically similar mis-recognitions → correct term using meeting brief/participants/reference notes" 추가
-  - 보수적 교정 (의심스러우면 원본 유지)
-- deepgram_service.py:
-  - `keywords` 파라미터 추가 + `_resolve_model_for_language()`
-  - nova-3 는 `keyterm`, nova-2 이하는 `keywords:2` 자동 분기
-- live.py `_extract_keywords()`:
-  - 참여자 이름, 영문 대문자 연속 단어, 따옴표 내부 고유명사
-  - 상한 50개
+**세션 UX 개선**
+24. **회의 제목 인라인 수정** — 헤더 제목 클릭→편집→자동저장
+25. **세션 목록 개선** — 상태 뱃지(녹음중/일시중지/종료), 참여자 이름 표시
+26. **"발화" → "문장"** 용어 교체
 
-**Phase 3 — 한국어 모델 경로**
-- `DEEPGRAM_MODEL` 기본 nova-3
-- `DEEPGRAM_MODEL_KO` 등 언어별 env 오버라이드 경로
+**사이드바 메뉴 확장**
+27. **Q Calendar 메뉴 추가** (/calendar) — Task 다음, placeholder 페이지
+28. **Q Docs 메뉴 추가** (/docs) — Note 다음, placeholder 페이지
+29. **메뉴 재배열** — 업무 흐름 순: Talk → Task → Calendar → Note → Docs → File → Bill
 
-**Phase 4 — 본인 인식 정상화**
-- SELF_MATCH_THRESHOLD 0.68 → 0.62 (env override)
-- CLUSTER_MERGE_THRESHOLD 0.65 → 0.60
-- SpeakerAudioCollector.live_trigger_sec 5.0 → 3.0
-- **이중 방어**: `_auto_match_self` 세션당 is_self 1명 가드 (과거 "나만 보임" 버그 방지)
-- **경로 분기**: web_conference 모드는 `_auto_match_self` 스킵, 프론트 `/self-voice-sample` 마이크 전용 채널만 사용
-- StartMeetingModal Rose 팔레트 미등록 경고 배너
-
-**Phase 6 — capture_mode 영속 + resume 재모달**
-- sessions.capture_mode 컬럼 마이그레이션 (default 'microphone')
-- routers/sessions.py CreateSessionRequest/UpdateSessionRequest + _validate_capture_mode
-- services/qnote.ts QNoteCaptureMode 타입
-- QNotePage.openReview DB 값으로 복원 (하드코딩 제거)
-- QNotePage.startRecording paused→web_conference 재개 시 "탭 재선택" notice
-
-**이모지 클린업**
-- StartMeetingModal "❌" → "불가"
+**검증 중 발견 + 수정한 버그**
+- FTS5 매칭 임계값 너무 엄격 (`<= -0.5`) → `<= 0`으로 완화
+- 자료 없는 general tier에서 RAG 프롬프트 재사용 → "자료에서 답을 찾지 못했습니다" 강제. 프롬프트 2개로 분리
+- `_build_field_updates`/INSERT에 user 프로필 필드 누락 → 저장 안 됨
+- `_load_session_or_403` sqlite3.Row에 .get() 호출 에러
+- 후속 질문 제거 (불필요한 토큰 낭비) — Irene 판단: "질문 나오면 그때 답하면 됨"
+- "Can you help me?" 같은 대화형 질문에 "자료에서 답 못 찾음" 반환 → 프로필 기반 1인칭 답변으로 수정
 
 ### 검증 결과
-- **헬스체크 27/27** (수정 후 재검증 포함)
-- **Q Note E2E 30/30** (participants round-trip, capture_mode CRUD, LLM, IDOR, 세션 CUD)
-- **실 LLM**:
-  - "안녕하세요저는루아입니다오늘회의는큐노트에대해논의하는자리입니다" → "안녕하세요, 저는 루아입니다. 오늘 회의는 큐 노트에 대해 논의하는 자리입니다."
-  - Translation: "Hello, I am Lua. Today's meeting is to discuss Q Note."
-- **빌드**: tsc 0 error, 151 modules, 537KB, `Cq6XLQAT.js`
-- **SPA 라우트**: /notes /profile /talk /tasks /files /billing /dashboard /login 전부 200
-- **PM2**: 에러로그 clean
+- **헬스체크 27/27** 통과
+- **Q&A 시스템 E2E 26/26** 통과 (CRUD, CSV, 3단계 탐색, 보안, Q Note 통합)
+- **프로필 기능 E2E** 전체 통과 (저장/조회/부분수정/null/길이제한/IDOR/미인증)
+- **1인칭 답변 검증**: AI 자기부정 0건, 프로필(Warplo/KAIST/NLP) 완벽 반영
+- **빌드**: tsc 0 error, 540KB
+- **SPA 라우트**: /calendar /docs 포함 11개 전체 200
+- **속도**: Tier 1 ~860ms / Tier 4 ~2.3초 / 번역 ~640ms
 
 ### 수정된 파일
 
-**Q Note 백엔드**
-- q-note/services/database.py
-- q-note/services/voice_fingerprint.py
-- q-note/services/deepgram_service.py
-- q-note/services/llm_service.py
-- q-note/routers/sessions.py
-- q-note/routers/live.py
+**Q Note 백엔드 (Python)**
+- 신규: `q-note/services/answer_service.py`
+- 신규: `q-note/services/qa_generator.py`
+- 수정: `q-note/services/database.py` — qa_pairs + sessions 프로필 필드
+- 수정: `q-note/services/llm_service.py` — 프롬프트 재설계, translate_text
+- 수정: `q-note/services/ingest.py` — Q&A 생성 트리거
+- 수정: `q-note/routers/sessions.py` — Q&A CRUD, CSV, find-answer, translate-answer, cached-answer
+- 수정: `q-note/routers/live.py` — _prefetch_answer, answer_ready 이벤트
 
-**프론트엔드**
-- dev-frontend/src/services/qnote.ts
-- dev-frontend/src/pages/QNote/StartMeetingModal.tsx
-- dev-frontend/src/pages/QNote/QNotePage.tsx
+**PlanQ 백엔드 (Node)**
+- `dev-backend/models/User.js` — 프로필 필드 4개
+- `dev-backend/routes/users.js` — 프로필 업데이트 + 검증
+
+**프론트엔드 (TS)**
+- `dev-frontend/src/App.tsx` — /calendar /docs 라우트
+- `dev-frontend/src/components/Layout/MainLayout.tsx` — 사이드바 재배열
+- `dev-frontend/src/contexts/AuthContext.tsx` — User interface 확장
+- `dev-frontend/src/pages/Profile/ProfilePage.tsx` — Q Note 프로필 카드
+- `dev-frontend/src/pages/QNote/QNotePage.tsx` — 답변 UI 전면 재설계
+- `dev-frontend/src/services/qnote.ts` — Q&A API 함수 + 타입
+
+**문서**
+- `DEVELOPMENT_PLAN.md` — 새 섹션 추가
+- `dev-frontend/UI_DESIGN_GUIDE.md` — Profile 자동저장 항목에 Q Note 프로필 추가
+- 신규 메모리: `feedback_qnote_personal_tool.md`, `feedback_qnote_answer_priority.md`
 
 ### 다음 할 일
 
-**즉시 우선순위**
-1. **실라이브 회의 테스트** — 한국어 띄어쓰기, 본인 1명 인식, 참여자 popover 노출, 고유명사 교정 체감 확인
-2. **한국어 모델 A/B** — nova-3 vs nova-2-general 30초 녹음 비교 후 `DEEPGRAM_MODEL_KO` 고정
-3. **Threshold 튜닝** — self-match 로그 유사도 기반 `QNOTE_SELF_MATCH_THRESHOLD` 재조정
+**우선순위 1: Q Calendar 실 구현**
+- 일정 CRUD, 반복 이벤트
+- Q Task와 연동 (할일 → 일정 자동 배치)
+- 월/주/일 뷰
+- 관련 설계: `docs/FEATURE_SPECIFICATION.md` 확인 필요
 
-**Phase B — 답변 찾기 API (백엔드)**
-- POST /api/sessions/:id/answer
-- 직전 5개 발화 컨텍스트 → GPT 쿼리 확장 → FTS5 BM25 top-5 → gpt-4o-mini 답변 + sources[]
+**우선순위 2: Q Docs 실 구현**
+- 문서 에디터 (마크다운/리치 텍스트)
+- 버전 관리
+- Q Note 답변 찾기와의 연동 (문서가 Q Docs에 있으면 자동 참조)
 
-**Phase C — 답변 찾기 UI (프론트)**
-- 질문 카드 `답변 찾기` 버튼 활성화
-- mock → Irene 승인 → 실 API 연결
-
-**나머지**
-- WebSocket 재연결
-- Deepgram 세션 split (4시간 한계)
-- 법적 동의 모달
+**Q Note 확장 (추후)**
+- 프로필 다중 페르소나 ("영업용 나" / "기획용 나")
+- 회의별 세밀한 컨텍스트 주입
+- 답변 신뢰도 향상 (사용자 피드백 기반 리랭킹)
 
 ---
 

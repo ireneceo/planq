@@ -13,6 +13,11 @@ export interface User {
   business_name?: string | null;
   business_role?: string | null;
   language?: string | null;
+  // Q Note 답변 생성용 프로필
+  bio?: string | null;
+  expertise?: string | null;
+  organization?: string | null;
+  job_title?: string | null;
 }
 
 interface AuthContextType {
@@ -113,6 +118,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     business_id: (apiUser.business_id as number) || null,
     business_name: (apiUser.business_name as string) || null,
     business_role: (apiUser.business_role as string) || null,
+    language: (apiUser.language as string) || null,
+    bio: (apiUser.bio as string) || null,
+    expertise: (apiUser.expertise as string) || null,
+    organization: (apiUser.organization as string) || null,
+    job_title: (apiUser.job_title as string) || null,
   });
 
   // UserRole 매핑: platform_role + business_role → 사이드바용 role

@@ -65,6 +65,23 @@ User.init({
     type: DataTypes.STRING(10),
     allowNull: false,
     defaultValue: 'ko'
+  },
+  // 사용자 프로필 (Q Note 답변을 "나"로서 생성할 때 사용)
+  bio: {
+    type: DataTypes.TEXT,
+    allowNull: true
+  },
+  expertise: {
+    type: DataTypes.STRING(500),
+    allowNull: true
+  },
+  organization: {
+    type: DataTypes.STRING(200),
+    allowNull: true
+  },
+  job_title: {
+    type: DataTypes.STRING(100),
+    allowNull: true
   }
 }, {
   sequelize,

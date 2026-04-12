@@ -43,7 +43,7 @@ def success(data=None, **kwargs):
   return res
 
 
-def _decode_audio_to_pcm16(body: bytes, mime: Optional[str]) -> bytes:
+def _decode_audio_to_pcm16(body: bytes, mime: Optional[str], min_sec: float = MIN_SECONDS) -> bytes:
   import librosa
   try:
     y, sr = librosa.load(io.BytesIO(body), sr=16000, mono=True)
@@ -52,8 +52,8 @@ def _decode_audio_to_pcm16(body: bytes, mime: Optional[str]) -> bytes:
   if y.size == 0:
     raise HTTPException(status_code=400, detail='빈 오디오 파일')
   duration = y.size / 16000
-  if duration < MIN_SECONDS:
-    raise HTTPException(status_code=400, detail=f'오디오가 너무 짧습니다 (최소 {MIN_SECONDS:.0f}초)')
+  if duration < min_sec:
+    raise HTTPException(status_code=400, detail=f'오디오가 너무 짧습니다 (최소 {min_sec:.0f}초)')
   if duration > MAX_SECONDS:
     raise HTTPException(status_code=400, detail=f'오디오가 너무 깁니다 (최대 {MAX_SECONDS:.0f}초)')
   y_clip = np.clip(y, -1.0, 1.0)
@@ -206,7 +206,7 @@ async def test_fingerprint(
   if len(content) > MAX_AUDIO_BYTES:
     raise HTTPException(status_code=400, detail='파일이 너무 큽니다')
 
-  pcm = _decode_audio_to_pcm16(content, file.content_type)
+  pcm = _decode_audio_to_pcm16(content, file.content_type, min_sec=3.0)
   try:
     test_emb = await embed_pcm16(pcm)
   except ValueError as e:

@@ -1,4 +1,6 @@
 import asyncio
+import csv
+import io
 import json
 import os
 import socket
@@ -7,9 +9,9 @@ import ipaddress
 from typing import Optional, List
 from urllib.parse import urlparse
 
-import io
 import aiosqlite
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Form
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from middleware.auth import get_current_user
@@ -19,6 +21,8 @@ from services.speaker_clustering import cluster_and_merge_speakers
 from services.voice_fingerprint import (
   embed_pcm16, blob_to_embedding, cosine_similarity, SELF_MATCH_THRESHOLD,
 )
+from services.answer_service import find_answer, translate_answer_text
+from services.qa_generator import generate_qa_for_session, generate_qa_for_document, log_task_exception as qa_log_task_exception
 
 router = APIRouter(prefix='/api/sessions', tags=['sessions'])
 
@@ -59,6 +63,11 @@ class CreateSessionRequest(BaseModel):
   answer_language: Optional[str] = None
   pasted_context: Optional[str] = None
   capture_mode: Optional[str] = None
+  user_name: Optional[str] = Field(None, max_length=100)
+  user_bio: Optional[str] = Field(None, max_length=1000)
+  user_expertise: Optional[str] = Field(None, max_length=500)
+  user_organization: Optional[str] = Field(None, max_length=200)
+  user_job_title: Optional[str] = Field(None, max_length=100)
 
 
 class UpdateSessionRequest(BaseModel):
@@ -71,6 +80,11 @@ class UpdateSessionRequest(BaseModel):
   answer_language: Optional[str] = None
   pasted_context: Optional[str] = None
   capture_mode: Optional[str] = None
+  user_name: Optional[str] = Field(None, max_length=100)
+  user_bio: Optional[str] = Field(None, max_length=1000)
+  user_expertise: Optional[str] = Field(None, max_length=500)
+  user_organization: Optional[str] = Field(None, max_length=200)
+  user_job_title: Optional[str] = Field(None, max_length=100)
 
 
 class AddUrlRequest(BaseModel):
@@ -78,6 +92,11 @@ class AddUrlRequest(BaseModel):
 
 
 class MatchSpeakerRequest(BaseModel):
+  participant_name: Optional[str] = Field(None, max_length=100)
+  is_self: Optional[bool] = None
+
+
+class ReassignUtteranceRequest(BaseModel):
   participant_name: Optional[str] = Field(None, max_length=100)
   is_self: Optional[bool] = None
 
@@ -209,6 +228,17 @@ def _build_field_updates(body: UpdateSessionRequest):
   if body.capture_mode is not None:
     _validate_capture_mode(body.capture_mode)
     fields.append('capture_mode = ?'); values.append(body.capture_mode)
+  # 사용자 프로필 스냅샷
+  if body.user_name is not None:
+    fields.append('user_name = ?'); values.append(body.user_name)
+  if body.user_bio is not None:
+    fields.append('user_bio = ?'); values.append(body.user_bio)
+  if body.user_expertise is not None:
+    fields.append('user_expertise = ?'); values.append(body.user_expertise)
+  if body.user_organization is not None:
+    fields.append('user_organization = ?'); values.append(body.user_organization)
+  if body.user_job_title is not None:
+    fields.append('user_job_title = ?'); values.append(body.user_job_title)
   return fields, values
 
 
@@ -236,12 +266,14 @@ async def create_session(body: CreateSessionRequest, user: dict = Depends(get_cu
     cursor = await db.execute(
       '''INSERT INTO sessions
            (business_id, user_id, title, language, brief, participants,
-            meeting_languages, translation_language, answer_language, pasted_context, capture_mode)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+            meeting_languages, translation_language, answer_language, pasted_context, capture_mode,
+            user_name, user_bio, user_expertise, user_organization, user_job_title)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
       (
         body.business_id, user['user_id'], body.title, language,
         body.brief, participants_json, languages_json,
         body.translation_language, body.answer_language, body.pasted_context, capture_mode,
+        body.user_name, body.user_bio, body.user_expertise, body.user_organization, body.user_job_title,
       )
     )
     await db.commit()
@@ -307,10 +339,20 @@ async def get_session(session_id: int, user: dict = Depends(get_current_user)):
     )
     speakers = [dict(r) for r in await cursor.fetchall()]
 
+    # 답변이 있는 질문들 — 프론트가 "답변 보기" 버튼 상태 초기화에 사용
+    cursor = await db.execute(
+      '''SELECT utterance_id, answer_text, answer_tier, matched_qa_id
+         FROM detected_questions
+         WHERE session_id = ? AND utterance_id IS NOT NULL AND answer_text IS NOT NULL''',
+      (session_id,)
+    )
+    detected_questions = [dict(r) for r in await cursor.fetchall()]
+
     data = _deserialize_session(row)
     data['utterances'] = utterances
     data['documents'] = documents
     data['speakers'] = speakers
+    data['detected_questions'] = detected_questions
     return success(data)
 
 
@@ -747,6 +789,83 @@ async def match_speaker(
     return success(dict(await cursor.fetchone()))
 
 
+@router.post('/{session_id}/utterances/{utterance_id}/reassign-speaker')
+async def reassign_utterance_speaker(
+  session_id: int,
+  utterance_id: int,
+  body: ReassignUtteranceRequest,
+  user: dict = Depends(get_current_user)
+):
+  """
+  문장 단위 화자 변경 — 이 utterance만 다른 speaker로 이동.
+  같은 이름/is_self의 speaker가 이미 있으면 거기로, 없으면 새로 생성.
+  """
+  async with db_connect() as db:
+    db.row_factory = aiosqlite.Row
+    await _load_session_or_403(db, session_id, user['user_id'])
+
+    cursor = await db.execute(
+      'SELECT * FROM utterances WHERE id = ? AND session_id = ?',
+      (utterance_id, session_id)
+    )
+    utt = await cursor.fetchone()
+    if not utt:
+      raise HTTPException(status_code=404, detail='Utterance not found')
+
+    target_speaker_id = None
+
+    if body.is_self:
+      # "나" — 기존 is_self speaker 찾기
+      cursor = await db.execute(
+        'SELECT id FROM speakers WHERE session_id = ? AND is_self = 1',
+        (session_id,)
+      )
+      existing = await cursor.fetchone()
+      if existing:
+        target_speaker_id = existing['id']
+      else:
+        # 새 speaker 생성 — deepgram_speaker_id 는 UNIQUE이므로 음수 자동 감소
+        cursor = await db.execute(
+          'SELECT COALESCE(MIN(deepgram_speaker_id), 0) - 1 AS next_id FROM speakers WHERE session_id = ?',
+          (session_id,)
+        )
+        next_dg_id = (await cursor.fetchone())['next_id']
+        cursor = await db.execute(
+          'INSERT INTO speakers (session_id, deepgram_speaker_id, is_self) VALUES (?, ?, 1)',
+          (session_id, next_dg_id)
+        )
+        target_speaker_id = cursor.lastrowid
+    elif body.participant_name:
+      # 이름으로 — 같은 이름 speaker 찾기
+      cursor = await db.execute(
+        'SELECT id FROM speakers WHERE session_id = ? AND participant_name = ?',
+        (session_id, body.participant_name)
+      )
+      existing = await cursor.fetchone()
+      if existing:
+        target_speaker_id = existing['id']
+      else:
+        cursor = await db.execute(
+          'SELECT COALESCE(MIN(deepgram_speaker_id), 0) - 1 AS next_id FROM speakers WHERE session_id = ?',
+          (session_id,)
+        )
+        next_dg_id = (await cursor.fetchone())['next_id']
+        cursor = await db.execute(
+          'INSERT INTO speakers (session_id, deepgram_speaker_id, participant_name) VALUES (?, ?, ?)',
+          (session_id, next_dg_id, body.participant_name)
+        )
+        target_speaker_id = cursor.lastrowid
+
+    if target_speaker_id and target_speaker_id != utt['speaker_id']:
+      await db.execute(
+        'UPDATE utterances SET speaker_id = ? WHERE id = ?',
+        (target_speaker_id, utterance_id)
+      )
+      await db.commit()
+
+    return success({'utterance_id': utterance_id, 'speaker_id': target_speaker_id})
+
+
 @router.delete('/{session_id}/urls/{url_id}')
 async def delete_url(
   session_id: int,
@@ -769,3 +888,401 @@ async def delete_url(
     await db.execute('DELETE FROM documents WHERE id = ?', (url_id,))
     await db.commit()
     return success({'id': url_id})
+
+
+# ─────────────────────────────────────────────────────────
+# Q&A Pairs — CRUD + CSV + Find Answer
+# ─────────────────────────────────────────────────────────
+
+class QAPairCreate(BaseModel):
+  question_text: str = Field(..., min_length=1, max_length=2000)
+  answer_text: Optional[str] = Field(None, max_length=5000)
+  category: Optional[str] = Field(None, max_length=200)
+
+
+class QAPairUpdate(BaseModel):
+  question_text: Optional[str] = Field(None, min_length=1, max_length=2000)
+  answer_text: Optional[str] = Field(None, max_length=5000)
+  category: Optional[str] = Field(None, max_length=200)
+
+
+class FindAnswerRequest(BaseModel):
+  question_text: str = Field(..., min_length=1, max_length=2000)
+  utterance_id: Optional[int] = None  # 제공되면 detected_questions에 저장/업데이트
+
+
+@router.get('/{session_id}/qa-pairs')
+async def list_qa_pairs(
+  session_id: int,
+  source: Optional[str] = Query(None, pattern='^(custom|generated)$'),
+  user: dict = Depends(get_current_user)
+):
+  """Q&A 목록 조회. source 필터 가능. 꼬리질문은 parent_id로 연결."""
+  async with db_connect() as db:
+    db.row_factory = aiosqlite.Row
+    await _load_session_or_403(db, session_id, user['user_id'])
+
+    query = 'SELECT * FROM qa_pairs WHERE session_id = ?'
+    params: list = [session_id]
+    if source:
+      query += ' AND source = ?'
+      params.append(source)
+    query += ' ORDER BY source DESC, sort_order, id'  # custom first
+
+    cursor = await db.execute(query, params)
+    rows = await cursor.fetchall()
+    return success([dict(r) for r in rows])
+
+
+@router.post('/{session_id}/qa-pairs')
+async def create_qa_pair(
+  session_id: int,
+  body: QAPairCreate,
+  user: dict = Depends(get_current_user)
+):
+  """Q&A 단건 등록 (고객 직접 등록 = source='custom')."""
+  async with db_connect() as db:
+    db.row_factory = aiosqlite.Row
+    await _load_session_or_403(db, session_id, user['user_id'])
+
+    cursor = await db.execute('''
+      INSERT INTO qa_pairs (session_id, source, category, question_text, answer_text)
+      VALUES (?, 'custom', ?, ?, ?)
+    ''', (session_id, body.category, body.question_text.strip(), (body.answer_text or '').strip() or None))
+    await db.commit()
+
+    cursor = await db.execute('SELECT * FROM qa_pairs WHERE id = ?', (cursor.lastrowid,))
+    row = await cursor.fetchone()
+    return success(dict(row))
+
+
+@router.put('/{session_id}/qa-pairs/{qa_id}')
+async def update_qa_pair(
+  session_id: int,
+  qa_id: int,
+  body: QAPairUpdate,
+  user: dict = Depends(get_current_user)
+):
+  """Q&A 수정. AI 생성 답변 수정 시 is_reviewed=1 자동 설정."""
+  async with db_connect() as db:
+    db.row_factory = aiosqlite.Row
+    await _load_session_or_403(db, session_id, user['user_id'])
+
+    cursor = await db.execute(
+      'SELECT * FROM qa_pairs WHERE id = ? AND session_id = ?', (qa_id, session_id)
+    )
+    row = await cursor.fetchone()
+    if not row:
+      raise HTTPException(status_code=404, detail='Q&A pair not found')
+
+    fields = ["updated_at = datetime('now')"]
+    values: list = []
+    if body.question_text is not None:
+      fields.append('question_text = ?'); values.append(body.question_text.strip())
+    if body.answer_text is not None:
+      fields.append('answer_text = ?'); values.append(body.answer_text.strip())
+    if body.category is not None:
+      fields.append('category = ?'); values.append(body.category.strip() or None)
+
+    # AI 생성 답변을 수정하면 custom급 신뢰도로 승격
+    if row['source'] == 'generated' and body.answer_text is not None:
+      fields.append('is_reviewed = 1')
+
+    values.append(qa_id)
+    await db.execute(f'UPDATE qa_pairs SET {", ".join(fields)} WHERE id = ?', values)
+    await db.commit()
+
+    cursor = await db.execute('SELECT * FROM qa_pairs WHERE id = ?', (qa_id,))
+    updated = await cursor.fetchone()
+    return success(dict(updated))
+
+
+@router.delete('/{session_id}/qa-pairs/{qa_id}')
+async def delete_qa_pair(
+  session_id: int,
+  qa_id: int,
+  user: dict = Depends(get_current_user)
+):
+  """Q&A 삭제. 꼬리질문도 함께 삭제."""
+  async with db_connect() as db:
+    db.row_factory = aiosqlite.Row
+    await _load_session_or_403(db, session_id, user['user_id'])
+
+    cursor = await db.execute(
+      'SELECT id FROM qa_pairs WHERE id = ? AND session_id = ?', (qa_id, session_id)
+    )
+    if not await cursor.fetchone():
+      raise HTTPException(status_code=404, detail='Q&A pair not found')
+
+    # 꼬리질문도 삭제
+    await db.execute('DELETE FROM qa_pairs WHERE parent_id = ?', (qa_id,))
+    await db.execute('DELETE FROM qa_pairs WHERE id = ?', (qa_id,))
+    await db.commit()
+    return success({'id': qa_id})
+
+
+@router.get('/{session_id}/qa-pairs/template')
+async def download_qa_template(
+  session_id: int,
+  user: dict = Depends(get_current_user)
+):
+  """CSV 템플릿 다운로드."""
+  async with db_connect() as db:
+    db.row_factory = aiosqlite.Row
+    await _load_session_or_403(db, session_id, user['user_id'])
+
+  output = io.StringIO()
+  writer = csv.writer(output)
+  writer.writerow(['question', 'answer', 'category'])
+  writer.writerow([
+    'Why did you choose this topic?',
+    'The digital nomad workforce has grown 300% since 2020 according to MBO Partners. However, most existing research on remote work focuses on traditional office-based employees. There is a critical gap in understanding how location-independent workers maintain productivity, especially when they lack fixed organizational structures. This study addresses that gap by examining the specific factors that drive job performance in digital nomad contexts.',
+    'Research Background',
+  ])
+  writer.writerow([
+    'What is your research gap?',
+    'Previous studies on remote work primarily examine employees who work from home within a single organization. They assume stable internet, fixed time zones, and employer-provided infrastructure. Digital nomads operate without these assumptions — they change locations frequently, work across time zones, and self-manage their work environment. No existing study combines self-leadership, self-efficacy, and digital work competency as predictors of performance in this population.',
+    'Research Gap',
+  ])
+  writer.writerow([
+    'How do you measure job performance?',
+    'Job performance is measured using the Task Performance scale by Williams & Anderson (1991), adapted for remote work contexts. The scale includes 7 items rated on a 5-point Likert scale, covering core job duties completion, meeting formal performance requirements, and fulfilling responsibilities specified in the job description. We chose task performance specifically (rather than contextual or adaptive performance) because it represents the baseline output that digital nomad clients and employers most directly evaluate.',
+    'Methodology',
+  ])
+
+  content = output.getvalue()
+  return StreamingResponse(
+    io.BytesIO(content.encode('utf-8-sig')),  # BOM for Excel compatibility
+    media_type='text/csv',
+    headers={'Content-Disposition': 'attachment; filename=qa_template.csv'},
+  )
+
+
+@router.post('/{session_id}/qa-pairs/upload-csv')
+async def upload_qa_csv(
+  session_id: int,
+  file: UploadFile = File(...),
+  user: dict = Depends(get_current_user)
+):
+  """CSV 업로드로 Q&A 일괄 등록. 같은 question_text면 UPDATE."""
+  async with db_connect() as db:
+    db.row_factory = aiosqlite.Row
+    await _load_session_or_403(db, session_id, user['user_id'])
+
+  raw = await file.read()
+  if len(raw) > 2 * 1024 * 1024:
+    raise HTTPException(status_code=400, detail='파일이 너무 큽니다 (최대 2MB)')
+
+  # 인코딩 감지: UTF-8 BOM → UTF-8 → CP949
+  text = None
+  for enc in ('utf-8-sig', 'utf-8', 'cp949', 'euc-kr'):
+    try:
+      text = raw.decode(enc)
+      break
+    except (UnicodeDecodeError, ValueError):
+      continue
+  if text is None:
+    raise HTTPException(status_code=400, detail='파일 인코딩을 인식할 수 없습니다 (UTF-8 또는 CP949)')
+
+  reader = csv.DictReader(io.StringIO(text))
+  if not reader.fieldnames or 'question' not in [f.strip().lower() for f in reader.fieldnames]:
+    raise HTTPException(status_code=400, detail='CSV에 question 열이 필요합니다. 템플릿을 다운로드해 확인하세요.')
+
+  # 헤더 정규화
+  field_map = {}
+  for f in reader.fieldnames:
+    fl = f.strip().lower()
+    if fl == 'question':
+      field_map['question'] = f
+    elif fl == 'answer':
+      field_map['answer'] = f
+    elif fl == 'category':
+      field_map['category'] = f
+
+  rows_to_insert = []
+  for i, row in enumerate(reader):
+    if i >= 500:
+      break
+    q = (row.get(field_map.get('question', '')) or '').strip()
+    if not q:
+      continue
+    a = (row.get(field_map.get('answer', '')) or '').strip()
+    cat = (row.get(field_map.get('category', '')) or '').strip() or None
+    rows_to_insert.append((q, a or None, cat))
+
+  if not rows_to_insert:
+    raise HTTPException(status_code=400, detail='유효한 Q&A 항목이 없습니다')
+
+  inserted = 0
+  updated = 0
+  async with db_connect() as db:
+    for q, a, cat in rows_to_insert:
+      # 같은 session + 같은 question_text (custom) 있으면 UPDATE
+      cursor = await db.execute(
+        "SELECT id FROM qa_pairs WHERE session_id = ? AND source = 'custom' AND question_text = ?",
+        (session_id, q)
+      )
+      existing = await cursor.fetchone()
+      if existing:
+        await db.execute(
+          "UPDATE qa_pairs SET answer_text = ?, category = ?, updated_at = datetime('now') WHERE id = ?",
+          (a, cat, existing[0])
+        )
+        updated += 1
+      else:
+        await db.execute(
+          'INSERT INTO qa_pairs (session_id, source, question_text, answer_text, category, sort_order) VALUES (?, ?, ?, ?, ?, ?)',
+          (session_id, 'custom', q, a, cat, inserted)
+        )
+        inserted += 1
+    await db.commit()
+
+  return success({'inserted': inserted, 'updated': updated, 'total': inserted + updated})
+
+
+@router.post('/{session_id}/qa-pairs/generate')
+async def trigger_qa_generation(
+  session_id: int,
+  user: dict = Depends(get_current_user)
+):
+  """자료 기반 Q&A 자동 생성 (수동 트리거). 백그라운드 실행."""
+  async with db_connect() as db:
+    db.row_factory = aiosqlite.Row
+    await _load_session_or_403(db, session_id, user['user_id'])
+
+    # indexed 문서가 있는지 확인
+    cursor = await db.execute(
+      "SELECT COUNT(*) as cnt FROM documents WHERE session_id = ? AND status = 'indexed'",
+      (session_id,)
+    )
+    row = await cursor.fetchone()
+    if not row or row['cnt'] == 0:
+      raise HTTPException(status_code=400, detail='인덱싱된 자료가 없습니다. 먼저 자료를 업로드하세요.')
+
+  task = asyncio.create_task(generate_qa_for_session(session_id))
+  task.add_done_callback(qa_log_task_exception)
+  return success({'message': 'Q&A 생성이 시작되었습니다. 완료까지 잠시 기다려주세요.'})
+
+
+@router.post('/{session_id}/find-answer')
+async def find_answer_endpoint(
+  session_id: int,
+  body: FindAnswerRequest,
+  user: dict = Depends(get_current_user)
+):
+  """
+  답변 찾기 — 답변 즉시 반환, 번역은 백그라운드.
+  utterance_id 제공 시 detected_questions 에 저장/업데이트 (새로고침 후에도 유지).
+  """
+  async with db_connect() as db:
+    db.row_factory = aiosqlite.Row
+    await _load_session_or_403(db, session_id, user['user_id'])
+
+  result = await find_answer(session_id, body.question_text.strip())
+
+  # 번역 언어 정보를 추출하고 응답에서 제거 (내부용)
+  translation_lang = result.pop('_translation_lang', None)
+
+  # 답변이 있고 번역이 아직 없으면 → 백그라운드 번역 시작
+  if result.get('answer') and not result.get('answer_translation') and translation_lang:
+    async def _bg_translate():
+      try:
+        translated = await translate_answer_text(result['answer'], translation_lang)
+        if translated:
+          result['answer_translation'] = translated
+      except Exception:
+        pass
+    import asyncio
+    task = asyncio.create_task(_bg_translate())
+    try:
+      await asyncio.wait_for(asyncio.shield(task), timeout=1.0)
+    except asyncio.TimeoutError:
+      pass
+
+  # utterance_id 제공 시 detected_questions 에 저장 (persistence)
+  if body.utterance_id and result.get('answer'):
+    try:
+      async with db_connect() as db:
+        db.row_factory = aiosqlite.Row
+        # 기존 row 있으면 UPDATE, 없으면 INSERT
+        cur = await db.execute(
+          'SELECT id FROM detected_questions WHERE session_id = ? AND utterance_id = ?',
+          (session_id, body.utterance_id)
+        )
+        existing = await cur.fetchone()
+        sources_json = json.dumps(result.get('sources', []), ensure_ascii=False) if result.get('sources') else None
+        if existing:
+          await db.execute('''
+            UPDATE detected_questions
+            SET answer_text = ?, answer_tier = ?, matched_qa_id = ?,
+                answer_sources = ?, answered_at = datetime('now')
+            WHERE id = ?
+          ''', (
+            result['answer'], result.get('tier'), result.get('matched_qa_id'),
+            sources_json, existing['id']
+          ))
+        else:
+          await db.execute('''
+            INSERT INTO detected_questions
+              (session_id, utterance_id, question_text, answer_text, answer_tier, matched_qa_id, answer_sources, answered_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
+          ''', (
+            session_id, body.utterance_id, body.question_text.strip(),
+            result['answer'], result.get('tier'), result.get('matched_qa_id'), sources_json
+          ))
+        await db.commit()
+    except Exception as e:
+      import logging
+      logging.getLogger('q-note').warning(f'find-answer persist failed: {e}')
+
+  return success(result)
+
+
+@router.post('/{session_id}/translate-answer')
+async def translate_answer_endpoint(
+  session_id: int,
+  body: FindAnswerRequest,
+  user: dict = Depends(get_current_user)
+):
+  """답변 텍스트 번역 (프론트에서 답변 표시 후 별도 호출)."""
+  async with db_connect() as db:
+    db.row_factory = aiosqlite.Row
+    await _load_session_or_403(db, session_id, user['user_id'])
+
+  from services.answer_service import _get_session_languages
+  answer_lang, translation_lang, meeting_lang = await _get_session_languages(session_id)
+  effective_answer_lang = answer_lang or meeting_lang
+  effective_trans = translation_lang or ('en' if effective_answer_lang == 'ko' else 'ko')
+
+  translated = await translate_answer_text(body.question_text.strip(), effective_trans)
+  return success({'translation': translated})
+
+
+@router.get('/{session_id}/utterances/{utterance_id}/cached-answer')
+async def get_cached_answer(
+  session_id: int,
+  utterance_id: int,
+  user: dict = Depends(get_current_user)
+):
+  """
+  Prefetch된 답변 캐시 조회. 있으면 즉시 반환 (0ms), 없으면 404.
+  프론트에서: 먼저 이것 시도 → 404면 find-answer 호출.
+  """
+  async with db_connect() as db:
+    db.row_factory = aiosqlite.Row
+    await _load_session_or_403(db, session_id, user['user_id'])
+
+    cursor = await db.execute(
+      'SELECT * FROM detected_questions WHERE session_id = ? AND utterance_id = ? AND answer_text IS NOT NULL',
+      (session_id, utterance_id)
+    )
+    row = await cursor.fetchone()
+    if not row:
+      raise HTTPException(status_code=404, detail='No cached answer')
+
+    return success({
+      'answer': row['answer_text'],
+      'answer_tier': row['answer_tier'],
+      'matched_qa_id': row['matched_qa_id'],
+      'sources': json.loads(row['answer_sources']) if row['answer_sources'] else [],
+    })

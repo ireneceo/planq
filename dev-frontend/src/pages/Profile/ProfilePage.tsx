@@ -14,6 +14,7 @@ import {
 import { LANGUAGES, getLanguageByCode, type LanguageOption } from '../../constants/languages';
 import PlanQSelect from '../../components/Common/PlanQSelect';
 import ConfirmDialog from '../../components/Common/ConfirmDialog';
+import AutoSaveField from '../../components/Common/AutoSaveField';
 import { MicIcon, CheckIcon, XIcon, TrashIcon } from '../../components/Common/Icons';
 
 const MIN_SEC = 10;           // 등록 최소 길이
@@ -57,6 +58,31 @@ export default function ProfilePage() {
   // 언어 선택 (기본 언어)
   const [language, setLanguage] = useState<string>(user?.language || 'ko');
   const [langSaving, setLangSaving] = useState(false);
+
+  // Q Note 답변 생성용 프로필
+  const [bio, setBio] = useState<string>(user?.bio || '');
+  const [expertise, setExpertise] = useState<string>(user?.expertise || '');
+  const [organization, setOrganization] = useState<string>(user?.organization || '');
+  const [jobTitle, setJobTitle] = useState<string>(user?.job_title || '');
+
+  useEffect(() => {
+    if (user?.bio !== undefined) setBio(user.bio || '');
+    if (user?.expertise !== undefined) setExpertise(user.expertise || '');
+    if (user?.organization !== undefined) setOrganization(user.organization || '');
+    if (user?.job_title !== undefined) setJobTitle(user.job_title || '');
+  }, [user?.bio, user?.expertise, user?.organization, user?.job_title]);
+
+  const saveProfileField = useCallback(async (field: 'bio' | 'expertise' | 'organization' | 'job_title', value: string) => {
+    if (!user?.id) throw new Error('Not logged in');
+    const res = await apiFetch(`/api/users/${user.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ [field]: value || null }),
+    });
+    const data = await res.json();
+    if (!res.ok || !data.success) throw new Error(data.message || '저장 실패');
+    if (updateUser) updateUser({ [field]: value || null });
+  }, [user?.id, updateUser]);
 
   // 언어 추가 — 드롭다운 선택 시 즉시 startRecording 호출 (별도 state 불필요)
   const errorBannerRef = useRef<HTMLDivElement>(null);
@@ -301,6 +327,75 @@ export default function ProfilePage() {
                 size="sm"
               />
               <Hint>회의 시 번역 기본값으로 사용됩니다</Hint>
+            </FieldBody>
+          </FieldRow>
+        </Card>
+
+        {/* Q Note 답변 생성 프로필 */}
+        <Card>
+          <SectionTitle>내 프로필 (Q Note 답변 생성용)</SectionTitle>
+          <Description>
+            Q Note가 회의 중 답변을 만들 때 <strong>"나"로서 답변</strong>하기 위한 정보입니다.
+            직책/회사/전문분야/자기소개를 채우면 AI가 당신을 대변해 더 정확하고 자연스러운 답변을 생성합니다.
+            <br />비어있으면 일반 AI 답변으로 대체됩니다.
+          </Description>
+
+          <FieldRow>
+            <Label>회사/조직</Label>
+            <FieldBody>
+              <AutoSaveField onSave={() => saveProfileField('organization', organization)}>
+                <TextInput
+                  value={organization}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setOrganization(e.target.value)}
+                  placeholder="예: LG전자, Warplo Lab"
+                  maxLength={200}
+                />
+              </AutoSaveField>
+            </FieldBody>
+          </FieldRow>
+
+          <FieldRow>
+            <Label>직책</Label>
+            <FieldBody>
+              <AutoSaveField onSave={() => saveProfileField('job_title', jobTitle)}>
+                <TextInput
+                  value={jobTitle}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setJobTitle(e.target.value)}
+                  placeholder="예: 기획팀 과장, Founder, 개발자"
+                  maxLength={100}
+                />
+              </AutoSaveField>
+            </FieldBody>
+          </FieldRow>
+
+          <FieldRow>
+            <Label>전문 분야</Label>
+            <FieldBody>
+              <AutoSaveField onSave={() => saveProfileField('expertise', expertise)}>
+                <TextInput
+                  value={expertise}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setExpertise(e.target.value)}
+                  placeholder="예: IoT, UX 기획, 시장 분석"
+                  maxLength={500}
+                />
+              </AutoSaveField>
+              <Hint>쉼표로 구분하여 여러 개 입력 가능</Hint>
+            </FieldBody>
+          </FieldRow>
+
+          <FieldRow>
+            <Label>자기소개</Label>
+            <FieldBody>
+              <AutoSaveField onSave={() => saveProfileField('bio', bio)}>
+                <TextArea
+                  value={bio}
+                  onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setBio(e.target.value)}
+                  placeholder="예: LG전자 기획팀 8년차. 스마트홈 제품 전략 담당. 최근에는 AI 기반 개인화에 집중하고 있습니다."
+                  maxLength={2000}
+                  rows={4}
+                />
+              </AutoSaveField>
+              <Hint>AI가 이 정보를 바탕으로 당신의 배경과 말투를 반영해 답변합니다 ({bio.length}/2000)</Hint>
             </FieldBody>
           </FieldRow>
         </Card>
@@ -609,6 +704,38 @@ const ReadOnly = styled.div`
 const Hint = styled.div`
   font-size: 11px;
   color: #94a3b8;
+`;
+
+const TextInput = styled.input`
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 14px;
+  color: #0f172a;
+  background: #ffffff;
+  outline: none;
+  transition: border-color 120ms;
+  &:focus { border-color: #14b8a6; }
+  &::placeholder { color: #cbd5e1; }
+`;
+
+const TextArea = styled.textarea`
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 14px;
+  color: #0f172a;
+  background: #ffffff;
+  outline: none;
+  resize: vertical;
+  min-height: 100px;
+  font-family: inherit;
+  line-height: 1.5;
+  transition: border-color 120ms;
+  &:focus { border-color: #14b8a6; }
+  &::placeholder { color: #cbd5e1; }
 `;
 
 const Banner = styled.div<{ $kind: 'error' | 'success' }>`

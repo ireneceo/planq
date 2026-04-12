@@ -31,31 +31,35 @@ def _resolve_model_for_language(language: str) -> str:
 class DeepgramSession:
   """Manages a single Deepgram WebSocket connection for real-time STT."""
 
-  def __init__(self, language='multi', on_transcript=None, keywords=None):
+  def __init__(self, language='multi', on_transcript=None, keywords=None, multichannel=False):
     self.language = language
     self.on_transcript = on_transcript
-    # keywords: 회의 컨텍스트에서 추출한 고유명사 · 전문용어. Deepgram 은 인식 시
-    # 이 term 들을 더 높은 가중치로 매칭한다. nova-3 는 `keyterm` 사용, 이전 모델은 `keywords`.
     self.keywords = keywords or []
+    self.multichannel = multichannel  # True → 2ch stereo (web_conference)
     self._ws = None
     self._receive_task = None
     self._closed = False
 
   async def connect(self):
     model = _resolve_model_for_language(self.language)
+    channels = 2 if self.multichannel else 1
     params_list = [
       f'model={model}',
       f'language={self.language}',
       'punctuate=true',
       'smart_format=true',
       'interim_results=true',
-      'utterance_end_ms=1000',
+      'utterance_end_ms=2000',
+      'endpointing=500',
       'vad_events=true',
-      'diarize=true',
       'encoding=linear16',
       'sample_rate=16000',
-      'channels=1',
+      f'channels={channels}',
     ]
+    if self.multichannel:
+      params_list.append('multichannel=true')
+    else:
+      params_list.append('diarize=true')
 
     # Keyword boosting — 회의 컨텍스트(참여자 이름, 브리프에 등장한 고유명사 등)를 힌트로 주입.
     # - nova-3: `keyterm` (Keyterm Prompting, 다중 지원)
@@ -111,15 +115,27 @@ class DeepgramSession:
           await self._handle_message(data)
         except json.JSONDecodeError:
           logger.warning('Non-JSON message from Deepgram')
-    except ConnectionClosed:
-      logger.info('Deepgram WebSocket disconnected')
+        except Exception as e:
+          logger.error(f'Deepgram handle_message error: {e}', exc_info=True)
+    except ConnectionClosed as e:
+      logger.warning(f'Deepgram WebSocket disconnected: code={e.code} reason={e.reason}')
     except asyncio.CancelledError:
       pass
+    except Exception as e:
+      logger.error(f'Deepgram receive loop error: {e}')
 
   async def _handle_message(self, data: dict):
     msg_type = data.get('type', '')
 
     if msg_type == 'Results':
+      # Deepgram multichannel: channel_index = [채널번호, 총채널수] (예: [0,2] = ch0, [1,2] = ch1)
+      raw_ch = data.get('channel_index', 0)
+      if isinstance(raw_ch, list) and len(raw_ch) >= 1:
+        channel_index = int(raw_ch[0])
+      elif isinstance(raw_ch, (int, float)):
+        channel_index = int(raw_ch)
+      else:
+        channel_index = 0
       channel = data.get('channel', {})
       alternatives = channel.get('alternatives', [])
       if not alternatives:
@@ -137,23 +153,18 @@ class DeepgramSession:
       duration = data.get('duration', 0)
       detected_language = channel.get('detected_language', self.language)
 
-      # Diarization: pick the majority speaker across words (fallback: first word)
+      # Diarization speaker (mono only — multichannel 에서는 channel_index 가 화자)
       words = best.get('words', []) or []
       speaker_id = None
-      if words:
-        counts = {}
+      if not self.multichannel and words:
+        counts: dict[int, int] = {}
         for w in words:
           sp = w.get('speaker')
-          if sp is not None:
-            counts[sp] = counts.get(sp, 0) + 1
+          if sp is not None and isinstance(sp, (int, float)):
+            sp_int = int(sp)
+            counts[sp_int] = counts.get(sp_int, 0) + 1
         if counts:
           speaker_id = max(counts.items(), key=lambda x: x[1])[0]
-        elif is_final:
-          # diarize 가 켜져있는데 words 에 speaker 필드가 없는 경우 로깅 (원인 추적)
-          logger.warning(
-            f'Deepgram words have no speaker field (len={len(words)}) — '
-            f'diarization may be disabled for language={self.language}'
-          )
 
       result = {
         'type': 'transcript',
@@ -165,6 +176,7 @@ class DeepgramSession:
         'end': start + duration,
         'language': detected_language,
         'deepgram_speaker_id': speaker_id,
+        'channel_index': channel_index,  # multichannel: 0=mic(나), 1=tab(상대)
       }
 
       if self.on_transcript:
@@ -172,7 +184,14 @@ class DeepgramSession:
 
     elif msg_type == 'UtteranceEnd':
       if self.on_transcript:
-        await self.on_transcript({'type': 'utterance_end'})
+        raw_ch2 = data.get('channel_index', 0)
+        if isinstance(raw_ch2, list) and len(raw_ch2) >= 1:
+          ch2 = int(raw_ch2[0])
+        elif isinstance(raw_ch2, (int, float)):
+          ch2 = int(raw_ch2)
+        else:
+          ch2 = 0
+        await self.on_transcript({'type': 'utterance_end', 'channel_index': ch2})
 
     elif msg_type == 'Metadata':
       logger.info(f'Deepgram metadata: {data.get("request_id", "")}')

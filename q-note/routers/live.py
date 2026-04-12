@@ -9,6 +9,7 @@ from middleware.auth import ws_authenticate
 from services.deepgram_service import DeepgramSession
 from services.database import DB_PATH, connect as db_connect
 from services.llm_service import translate_and_detect_question
+from services.answer_service import find_answer as _find_answer, translate_answer_text
 from services.audio_buffer import RollingAudioBuffer, SpeakerAudioCollector
 from services.voice_fingerprint import (
   embed_pcm16, blob_to_embedding, cosine_similarity, SELF_MATCH_THRESHOLD,
@@ -141,15 +142,6 @@ async def _auto_match_self(
 
   async with db_connect() as db:
     db.row_factory = aiosqlite.Row
-    # 세션당 "나"는 1명 가드 — 이미 is_self=1 인 speaker 가 있으면 스킵
-    cursor = await db.execute(
-      'SELECT COUNT(*) AS cnt FROM speakers WHERE session_id = ? AND is_self = 1',
-      (session_id,)
-    )
-    existing = await cursor.fetchone()
-    if existing and existing['cnt'] > 0:
-      logger.info(f'self-match: session={session_id} skip (is_self already assigned)')
-      return
 
     cursor = await db.execute(
       'SELECT id FROM speakers WHERE session_id = ? AND deepgram_speaker_id = ?',
@@ -171,29 +163,58 @@ async def _auto_match_self(
     )
 
     if sim >= SELF_MATCH_THRESHOLD:
-      await db.execute(
-        'UPDATE speakers SET is_self = 1 WHERE id = ?', (speaker_row_id,)
-      )
-      # 과거 발화 소급: is_question 해제 + detected_questions 삭제
-      await db.execute(
-        '''DELETE FROM detected_questions
-           WHERE session_id = ?
-             AND utterance_id IN (SELECT id FROM utterances WHERE speaker_id = ?)''',
+      # 이미 is_self인 다른 speaker가 있으면 → 같은 사람 (Deepgram이 다른 ID 부여)
+      # 기존 is_self speaker에 현재 speaker의 utterances를 병합
+      cursor = await db.execute(
+        'SELECT id FROM speakers WHERE session_id = ? AND is_self = 1 AND id != ?',
         (session_id, speaker_row_id)
       )
-      await db.execute(
-        'UPDATE utterances SET is_question = 0 WHERE speaker_id = ?', (speaker_row_id,)
-      )
-      await db.commit()
-      try:
-        await websocket.send_json({
-          'type': 'self_matched',
-          'speaker_id': speaker_row_id,
-          'deepgram_speaker_id': dg_speaker_id,
-          'similarity': round(sim, 3),
-        })
-      except Exception:
-        pass
+      existing_self = await cursor.fetchone()
+      if existing_self:
+        # 현재 speaker의 utterances를 기존 is_self speaker로 이동
+        await db.execute(
+          'UPDATE utterances SET speaker_id = ? WHERE speaker_id = ?',
+          (existing_self['id'], speaker_row_id)
+        )
+        # 현재 speaker 삭제
+        await db.execute('DELETE FROM speaker_embeddings WHERE speaker_id = ?', (speaker_row_id,))
+        await db.execute('DELETE FROM speakers WHERE id = ?', (speaker_row_id,))
+        await db.commit()
+        logger.info(f'self-match: session={session_id} merged speaker {speaker_row_id} into {existing_self["id"]} (same person, different dg_id)')
+        try:
+          await websocket.send_json({
+            'type': 'self_matched',
+            'speaker_id': existing_self['id'],
+            'deepgram_speaker_id': dg_speaker_id,
+            'similarity': round(sim, 3),
+          })
+        except Exception:
+          pass
+      else:
+        # 첫 is_self 마킹
+        await db.execute(
+          'UPDATE speakers SET is_self = 1 WHERE id = ?', (speaker_row_id,)
+        )
+        await db.execute(
+          '''DELETE FROM detected_questions
+             WHERE session_id = ?
+               AND utterance_id IN (SELECT id FROM utterances WHERE speaker_id = ?)''',
+          (session_id, speaker_row_id)
+        )
+        await db.execute(
+          'UPDATE utterances SET is_question = 0 WHERE speaker_id = ?', (speaker_row_id,)
+        )
+        await db.commit()
+        logger.info(f'self-match: session={session_id} marked speaker {speaker_row_id} as self')
+        try:
+          await websocket.send_json({
+            'type': 'self_matched',
+            'speaker_id': speaker_row_id,
+            'deepgram_speaker_id': dg_speaker_id,
+            'similarity': round(sim, 3),
+          })
+        except Exception:
+          pass
     else:
       await db.commit()
 
@@ -206,6 +227,7 @@ async def _enrich_and_persist(
   speaker_row_id: int | None,
   meeting_context: dict | None,
   allowed_languages: list[str] | None,
+  session_language: str | None = None,
 ):
   """
   Background task: translate + question-detect, then update DB and notify client.
@@ -214,7 +236,7 @@ async def _enrich_and_persist(
   out_of_scope=True 로 마킹하고 번역/질문감지를 생략한다 (프론트에서 흐리게 + 태그 표시).
   """
   try:
-    enriched = await translate_and_detect_question(text, meeting_context=meeting_context)
+    enriched = await translate_and_detect_question(text, meeting_context=meeting_context, language=session_language)
     formatted_original = enriched.get('formatted_original') or text
     translation = enriched.get('translation', '')
     is_question = enriched.get('is_question', False)
@@ -248,6 +270,12 @@ async def _enrich_and_persist(
         )
       await db.commit()
 
+    # 질문 감지 즉시 → 백그라운드 답변 prefetch (사용자 클릭 전에 답 준비)
+    if final_is_question:
+      asyncio.create_task(
+        _prefetch_answer(session_id, utterance_id, formatted_original, meeting_context, websocket)
+      )
+
     try:
       await websocket.send_json({
         'type': 'enrichment',
@@ -265,6 +293,57 @@ async def _enrich_and_persist(
     raise
   except Exception as e:
     logger.error(f'Enrichment failed for utterance {utterance_id}: {e}')
+
+
+async def _prefetch_answer(
+  session_id: int,
+  utterance_id: int,
+  question_text: str,
+  meeting_context: dict | None,
+  websocket: WebSocket,
+):
+  """
+  질문 감지 즉시 호출. 답변을 미리 찾아 detected_questions에 캐시.
+  사용자가 "답변 찾기" 클릭 시 cached-answer API로 즉시 반환.
+  """
+  try:
+    result = await _find_answer(session_id, question_text, meeting_context)
+    if result['tier'] == 'none':
+      return
+
+    translation_lang = result.pop('_translation_lang', None)
+
+    import json as _json
+    # 답변 즉시 저장 (번역 없이)
+    async with db_connect() as db:
+      await db.execute('''
+        UPDATE detected_questions
+        SET answer_text = ?, answer_tier = ?, matched_qa_id = ?,
+            answer_sources = ?, answered_at = datetime('now')
+        WHERE session_id = ? AND utterance_id = ?
+      ''', (
+        result['answer'],
+        result['tier'],
+        result.get('matched_qa_id'),
+        _json.dumps(result.get('sources', []), ensure_ascii=False) if result.get('sources') else None,
+        session_id,
+        utterance_id,
+      ))
+      await db.commit()
+
+    # 프론트에 답변 준비 완료 알림
+    try:
+      await websocket.send_json({
+        'type': 'answer_ready',
+        'utterance_id': utterance_id,
+        'tier': result['tier'],
+      })
+    except Exception:
+      pass
+
+    logger.info(f'prefetch: session={session_id} utt={utterance_id} tier={result["tier"]}')
+  except Exception as e:
+    logger.warning(f'prefetch_answer failed: session={session_id} utt={utterance_id} err={e}')
 
 
 def _resolve_deepgram_language(meeting_languages_json: str | None) -> str:
@@ -302,50 +381,42 @@ async def websocket_live(websocket: WebSocket, session_id: int = Query(...)):
     { type: 'error', message }
   """
   await websocket.accept()
+  logger.info(f'WS live: accepted session_id={session_id}')
 
   # Authenticate
   try:
     user = await ws_authenticate(websocket)
+    logger.info(f'WS live: auth OK user={user.get("user_id")} session={session_id}')
   except Exception as e:
     logger.warning(f'WS auth failed: {e}')
     return
 
-  # 라이브 오디오 버퍼 + 화자별 수집기 (핑거프린트 매칭 / 배치 클러스터링용)
+  # 라이브 오디오 버퍼 + 화자별 수집기 (배치 클러스터링용)
   audio_buf = RollingAudioBuffer(max_seconds=60)
   speaker_collector = SpeakerAudioCollector(live_trigger_sec=3.0, max_sec=30.0)
-
-  # 사용자의 저장된 핑거프린트 (라이브 매칭용). 없으면 라이브 매칭 스킵.
-  user_fingerprints = await _load_user_fingerprints(user['user_id'])
 
   # utterance_id 별 enrichment 태스크 singleton — 동일 utterance 에 대해 중복 enrichment 가
   # 발생하면 직전 태스크를 cancel 하고 최신 태스크만 유지.
   enrichment_tasks: dict[int, asyncio.Task] = {}
 
-  # Utterance 누적 버퍼 — Deepgram 한 문장을 여러 `is_final=true` 청크로 쪼개 보내고
-  # **마지막 청크에만** `speech_final=true` 가 붙는다. speech_final 만 commit 하면 앞부분이 drop
-  # 되므로 (메모리 `feedback_qnote_stt_llm_quirks.md` 참조), 모든 is_final 을 버퍼에 누적하다가
-  # speech_final 이나 UtteranceEnd 이벤트 도착 시 전체를 **단일 row** 로 commit 한다.
-  # → 한 문장 = 한 row 원칙 + 앞부분 loss 없음.
-  pending_utterance = {
-    'text_parts': [],           # list[str] — 각 is_final 조각
-    'start_time': None,         # 첫 조각의 start
-    'end_time': None,           # 마지막 조각의 end
-    'language': None,
-    'dg_speaker_id': None,      # 다수결 기반 결정
-    'speaker_counts': {},       # {dg_speaker_id: count}
-    'confidence_sum': 0.0,
-    'confidence_count': 0,
-  }
+  def _make_pending():
+    return {
+      'text_parts': [],
+      'start_time': None,
+      'end_time': None,
+      'language': None,
+      'speaker_counts': {},
+      'confidence_sum': 0.0,
+      'confidence_count': 0,
+      'channel_index': 0,
+    }
 
-  def _reset_pending():
-    pending_utterance['text_parts'] = []
-    pending_utterance['start_time'] = None
-    pending_utterance['end_time'] = None
-    pending_utterance['language'] = None
-    pending_utterance['dg_speaker_id'] = None
-    pending_utterance['speaker_counts'] = {}
-    pending_utterance['confidence_sum'] = 0.0
-    pending_utterance['confidence_count'] = 0
+  # channel_index → pending buffer (is_multichannel 은 세션 로드 후 설정)
+  pending_buffers: dict[int, dict] = {0: _make_pending()}
+
+  def _reset_pending(ch: int = 0):
+    pending_buffers[ch] = _make_pending()
+    pending_buffers[ch]['channel_index'] = ch
 
   # Verify session ownership + load meeting_languages and context for Deepgram/LLM
   meeting_context: dict | None = None
@@ -398,15 +469,25 @@ async def websocket_live(websocket: WebSocket, session_id: int = Query(...)):
     await websocket.close(code=1011)
     return
 
+  # multichannel (web_conference): 채널별 독립 버퍼 — Deepgram 이 ch0/ch1 결과를 인터리브로
+  # 보내므로 하나의 버퍼에 합치면 두 화자의 텍스트가 섞인다.
+  is_multichannel = capture_mode == 'web_conference'
+  if is_multichannel:
+    pending_buffers[1] = _make_pending()
+    pending_buffers[1]['channel_index'] = 1
+
   # 회의 컨텍스트 기반 Deepgram keyword boosting.
   # 참여자 이름 · 브리프/자료의 고유명사를 Deepgram 에 힌트로 전달해 STT 정확도를 올린다.
   dg_keywords = _extract_keywords(meeting_context)
   if dg_keywords:
     logger.info(f'session={session_id} deepgram keywords={len(dg_keywords)}: {dg_keywords[:8]}...')
 
-  async def _commit_pending_utterance():
+  async def _commit_pending_utterance(ch: int = 0):
     """누적 버퍼의 조각들을 하나의 row 로 insert + enrichment 태스크 스케줄."""
-    parts = pending_utterance['text_parts']
+    buf = pending_buffers.get(ch)
+    if not buf:
+      return
+    parts = buf['text_parts']
     if not parts:
       return
     transcript_text = ' '.join(p for p in parts if p).strip()
@@ -420,24 +501,25 @@ async def websocket_live(websocket: WebSocket, session_id: int = Query(...)):
         dedup_parts.append(p)
     transcript_text = ' '.join(dedup_parts).strip()
     if not transcript_text:
-      _reset_pending()
+      _reset_pending(ch)
       return
 
-    # 화자 다수결
-    counts = pending_utterance['speaker_counts']
+    # 화자 다수결 (mono/diarize 용). multichannel 에서는 channel 이 화자.
+    counts = buf['speaker_counts']
     dg_speaker_id = None
     if counts:
       dg_speaker_id = max(counts.items(), key=lambda x: x[1])[0]
 
-    start_time = pending_utterance['start_time']
-    end_time = pending_utterance['end_time']
-    language = pending_utterance['language']
+    start_time = buf['start_time']
+    end_time = buf['end_time']
+    language = buf['language']
+    channel_index = buf['channel_index']
     avg_conf = (
-      pending_utterance['confidence_sum'] / pending_utterance['confidence_count']
-      if pending_utterance['confidence_count'] > 0 else None
+      buf['confidence_sum'] / buf['confidence_count']
+      if buf['confidence_count'] > 0 else None
     )
 
-    _reset_pending()
+    _reset_pending(ch)
 
     utterance_id = None
     speaker_row_id = None
@@ -455,7 +537,19 @@ async def websocket_live(websocket: WebSocket, session_id: int = Query(...)):
             logger.info(f'dedup: skip text-match session={session_id} text={transcript_text[:40]!r}')
             return
 
-        speaker_row_id = await _upsert_speaker(db, session_id, dg_speaker_id)
+        if is_multichannel:
+          # multichannel: channel 기반 speaker. channel 0 = 나(mic), channel 1 = 상대(tab)
+          # dg_speaker_id 대신 channel_index 를 speaker 식별자로 사용
+          speaker_row_id = await _upsert_speaker(db, session_id, channel_index)
+          if speaker_row_id and channel_index == 0:
+            # channel 0 = mic = 나 → is_self 자동 마킹
+            await db.execute(
+              'UPDATE speakers SET is_self = 1 WHERE id = ? AND is_self = 0',
+              (speaker_row_id,)
+            )
+        else:
+          speaker_row_id = await _upsert_speaker(db, session_id, dg_speaker_id)
+
         cursor = await db.execute(
           '''INSERT INTO utterances
              (session_id, original_text, original_language, is_final, start_time, end_time, confidence, speaker_id)
@@ -475,25 +569,26 @@ async def websocket_live(websocket: WebSocket, session_id: int = Query(...)):
     if not utterance_id:
       return
 
-    # 화자 PCM 수집 (핑거프린트 매칭 / 배치 클러스터링용)
+    # 화자 PCM 수집 (배치 클러스터링용)
     if dg_speaker_id is not None and start_time is not None and end_time is not None:
       pcm_slice = audio_buf.extract(float(start_time), float(end_time))
       if pcm_slice:
-        trigger = speaker_collector.add(dg_speaker_id, pcm_slice)
-        if (
-          trigger == 'trigger_live'
-          and user_fingerprints
-          and capture_mode == 'microphone'
-        ):
-          collected = speaker_collector.get(dg_speaker_id)
-          asyncio.create_task(
-            _auto_match_self(
-              session_id, user['user_id'], dg_speaker_id,
-              collected, user_fingerprints, websocket,
-            )
-          )
+        speaker_collector.add(dg_speaker_id, pcm_slice)
 
     # 프론트에 finalized 이벤트 + enrichment 스케줄
+    # is_self 플래그 조회 (프론트가 즉시 "나"/"상대" 라벨에 반영)
+    finalized_is_self = False
+    if speaker_row_id:
+      try:
+        async with db_connect() as db2:
+          db2.row_factory = aiosqlite.Row
+          cur2 = await db2.execute('SELECT is_self FROM speakers WHERE id = ?', (speaker_row_id,))
+          row2 = await cur2.fetchone()
+          if row2:
+            finalized_is_self = bool(row2['is_self'])
+      except Exception:
+        pass
+
     try:
       await websocket.send_json({
         'type': 'finalized',
@@ -502,22 +597,28 @@ async def websocket_live(websocket: WebSocket, session_id: int = Query(...)):
         'language': language,
         'deepgram_speaker_id': dg_speaker_id,
         'speaker_id': speaker_row_id,
+        'is_self': finalized_is_self,
         'start': start_time,
         'end': end_time,
+        'channel_index': channel_index,
       })
     except Exception:
       pass
 
-    # Enrichment singleton
+    # Enrichment singleton — 질문(?로 끝나는 발화) 우선 처리
     prev_task = enrichment_tasks.get(utterance_id)
     if prev_task and not prev_task.done():
       prev_task.cancel()
-    new_task = asyncio.create_task(
-      _enrich_and_persist(
+
+    is_likely_question = transcript_text.rstrip().endswith('?') or transcript_text.rstrip().endswith('\uff1f')
+
+    async def _delayed_enrich():
+      await _enrich_and_persist(
         session_id, websocket, utterance_id, transcript_text, speaker_row_id,
-        meeting_context, allowed_languages,
+        meeting_context, allowed_languages, session_language=dg_language,
       )
-    )
+
+    new_task = asyncio.create_task(_delayed_enrich())
     enrichment_tasks[utterance_id] = new_task
     def _cleanup(t: asyncio.Task, uid: int = utterance_id):
       enrichment_tasks.pop(uid, None)
@@ -530,10 +631,12 @@ async def websocket_live(websocket: WebSocket, session_id: int = Query(...)):
     except Exception:
       return
 
+    ch = result.get('channel_index', 0)
+
     # Deepgram UtteranceEnd 이벤트 — VAD 가 utterance 종료를 감지한 시점.
     # 누적 버퍼를 commit 한다 (speech_final 누락 상황 안전장치).
     if result.get('type') == 'utterance_end':
-      await _commit_pending_utterance()
+      await _commit_pending_utterance(ch)
       return
 
     # is_final=true 조각은 전부 누적 (speech_final 무관).
@@ -541,36 +644,53 @@ async def websocket_live(websocket: WebSocket, session_id: int = Query(...)):
     if result.get('type') == 'transcript' and result.get('is_final'):
       transcript_text = (result.get('transcript') or '').strip()
       if transcript_text:
-        pending_utterance['text_parts'].append(transcript_text)
-        if pending_utterance['start_time'] is None:
-          pending_utterance['start_time'] = result.get('start')
+        buf = pending_buffers.get(ch)
+        if buf is None:
+          pending_buffers[ch] = _make_pending()
+          pending_buffers[ch]['channel_index'] = ch
+          buf = pending_buffers[ch]
+        buf['text_parts'].append(transcript_text)
+        if buf['start_time'] is None:
+          buf['start_time'] = result.get('start')
         if result.get('end') is not None:
-          pending_utterance['end_time'] = result.get('end')
-        if result.get('language') and not pending_utterance['language']:
-          pending_utterance['language'] = result.get('language')
+          buf['end_time'] = result.get('end')
+        if result.get('language') and not buf['language']:
+          buf['language'] = result.get('language')
         dg_sp = result.get('deepgram_speaker_id')
         if dg_sp is not None:
-          pending_utterance['speaker_counts'][dg_sp] = \
-            pending_utterance['speaker_counts'].get(dg_sp, 0) + 1
+          buf['speaker_counts'][dg_sp] = buf['speaker_counts'].get(dg_sp, 0) + 1
         conf = result.get('confidence')
         if conf is not None:
-          pending_utterance['confidence_sum'] += float(conf)
-          pending_utterance['confidence_count'] += 1
+          buf['confidence_sum'] += float(conf)
+          buf['confidence_count'] += 1
 
       # speech_final=true → utterance 경계. 누적된 조각 전체를 단일 row 로 commit.
       if result.get('speech_final'):
-        await _commit_pending_utterance()
+        await _commit_pending_utterance(ch)
       return
 
     # 그 외 이벤트 (interim transcript, metadata 등) 는 위에서 프론트로 전달만 하고 종료.
 
-  # Connect to Deepgram with the resolved language + keyword boosting
-  dg = DeepgramSession(language=dg_language, on_transcript=on_transcript, keywords=dg_keywords)
+  # Connect to Deepgram with keyword boosting → 실패 시 키워드 없이 재시도
+  dg = DeepgramSession(
+    language=dg_language, on_transcript=on_transcript,
+    keywords=dg_keywords, multichannel=is_multichannel,
+  )
+  logger.info(f'WS live: connecting Deepgram lang={dg_language} multichannel={is_multichannel} keywords={len(dg_keywords)}')
   try:
     await dg.connect()
+    logger.info(f'WS live: Deepgram connected OK session={session_id}')
   except Exception as e:
-    logger.error(f'Failed to connect to Deepgram: {e}')
-    await websocket.send_json({'type': 'error', 'message': f'STT connection failed: {str(e)}'})
+    logger.warning(f'Deepgram connect failed with keywords ({len(dg_keywords)}), retrying without: {e}')
+    dg = DeepgramSession(
+      language=dg_language, on_transcript=on_transcript,
+      keywords=[], multichannel=is_multichannel,
+    )
+    try:
+      await dg.connect()
+    except Exception as e2:
+      logger.error(f'Failed to connect to Deepgram (retry without keywords): {e2}')
+      await websocket.send_json({'type': 'error', 'message': f'STT connection failed: {str(e2)}'})
     await websocket.close(code=1011)
     return
 
@@ -599,11 +719,12 @@ async def websocket_live(websocket: WebSocket, session_id: int = Query(...)):
   except Exception as e:
     logger.error(f'WS error: {e}')
   finally:
-    # WS 종료 시 누적 버퍼 강제 flush — 사용자가 문장 중간에 일시중지/종료한 경우 drop 방지
-    try:
-      await _commit_pending_utterance()
-    except Exception as e:
-      logger.warning(f'final flush failed: {e}')
+    # WS 종료 시 모든 채널 버퍼 강제 flush — 사용자가 문장 중간에 일시중지/종료한 경우 drop 방지
+    for ch_key in list(pending_buffers.keys()):
+      try:
+        await _commit_pending_utterance(ch_key)
+      except Exception as e:
+        logger.warning(f'final flush ch={ch_key} failed: {e}')
 
     await dg.close()
     # status 는 명시적 종료(PUT /api/sessions/:id status=completed)로만 변경.

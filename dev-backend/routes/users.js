@@ -40,14 +40,34 @@ router.put('/:id', authenticateToken, async (req, res, next) => {
     const user = await User.findByPk(req.params.id);
     if (!user) return errorResponse(res, 'User not found', 404);
 
-    const { name, phone, avatar_url, language } = req.body;
+    const { name, phone, avatar_url, language, bio, expertise, organization, job_title } = req.body;
     const updates = { name, phone, avatar_url };
     if (language !== undefined) {
-      // ISO 639-1 코드 검증 (2~10자, 알파벳/하이픈만)
       if (typeof language !== 'string' || !/^[a-z]{2}(-[A-Z]{2})?$/.test(language)) {
         return errorResponse(res, 'Invalid language code', 400);
       }
       updates.language = language;
+    }
+    // Q Note 답변 생성용 프로필 필드 (모두 선택)
+    if (bio !== undefined) {
+      if (bio !== null && typeof bio !== 'string') return errorResponse(res, 'Invalid bio', 400);
+      if (bio && bio.length > 2000) return errorResponse(res, 'bio too long (max 2000)', 400);
+      updates.bio = bio || null;
+    }
+    if (expertise !== undefined) {
+      if (expertise !== null && typeof expertise !== 'string') return errorResponse(res, 'Invalid expertise', 400);
+      if (expertise && expertise.length > 500) return errorResponse(res, 'expertise too long (max 500)', 400);
+      updates.expertise = expertise || null;
+    }
+    if (organization !== undefined) {
+      if (organization !== null && typeof organization !== 'string') return errorResponse(res, 'Invalid organization', 400);
+      if (organization && organization.length > 200) return errorResponse(res, 'organization too long (max 200)', 400);
+      updates.organization = organization || null;
+    }
+    if (job_title !== undefined) {
+      if (job_title !== null && typeof job_title !== 'string') return errorResponse(res, 'Invalid job_title', 400);
+      if (job_title && job_title.length > 100) return errorResponse(res, 'job_title too long (max 100)', 400);
+      updates.job_title = job_title || null;
     }
     await user.update(updates);
 

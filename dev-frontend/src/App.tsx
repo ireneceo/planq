@@ -49,15 +49,32 @@ function App() {
           </ProtectedRoute>
         } />
 
-        <Route path="/files" element={
+        <Route path="/calendar" element={
           <ProtectedRoute>
-            <MainLayout><PlaceholderPage title="Q File" /></MainLayout>
+            <MainLayout><PlaceholderPage title="Q Calendar" /></MainLayout>
           </ProtectedRoute>
         } />
 
         <Route path="/notes" element={
           <ProtectedRoute>
             <MainLayout><QNotePage /></MainLayout>
+          </ProtectedRoute>
+        } />
+        <Route path="/notes/:sessionId" element={
+          <ProtectedRoute>
+            <MainLayout><QNotePage /></MainLayout>
+          </ProtectedRoute>
+        } />
+
+        <Route path="/docs" element={
+          <ProtectedRoute>
+            <MainLayout><PlaceholderPage title="Q Docs" /></MainLayout>
+          </ProtectedRoute>
+        } />
+
+        <Route path="/files" element={
+          <ProtectedRoute>
+            <MainLayout><PlaceholderPage title="Q File" /></MainLayout>
           </ProtectedRoute>
         } />
 

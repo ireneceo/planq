@@ -140,6 +140,16 @@ async def ingest_document(doc_id: int) -> None:
       await _update_status(db, doc_id, 'indexed', chunk_count=len(chunks), title=final_title, error_message=None)
       logger.info('ingest_document: doc %s indexed (%s chunks)', doc_id, len(chunks))
 
+      # 인제스트 완료 → 사전 Q&A 자동 생성 (백그라운드)
+      if row['session_id']:
+        try:
+          import asyncio
+          from services.qa_generator import generate_qa_for_document, log_task_exception as qa_log
+          task = asyncio.create_task(generate_qa_for_document(doc_id, row['session_id']))
+          task.add_done_callback(qa_log)
+        except Exception as e:
+          logger.warning('ingest_document: qa generation trigger failed: %s', e)
+
     except ExtractError as e:
       await _update_status(db, doc_id, 'failed', error_message=str(e))
       logger.warning('ingest_document: doc %s failed: %s', doc_id, e)

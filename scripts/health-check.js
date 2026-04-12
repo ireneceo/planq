@@ -410,7 +410,7 @@ function defineQnoteTests() {
   test('qnote', 'LLM 번역 (영→한) + 질문 감지', async () => {
     const r = await http('POST', `${QNOTE}/api/llm/translate`, {
       headers: auth(),
-      body: { text: 'Could you send me the report by Friday?' },
+      body: { text: 'What is the deadline for the report?' },
     });
     if (!r.success || !r.data.translation) throw new Error('no translation');
     if (r.data.is_question !== true) throw new Error(`is_question=${r.data.is_question}`);

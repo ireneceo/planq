@@ -1,9 +1,177 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-04-11
+> **최종 업데이트:** 2026-04-12
 > **데이터베이스:** planq_dev_db (MySQL) + qnote.db (SQLite, FTS5)
 > **프로젝트:** B2B SaaS — 업무 전용 고객 채팅 + 실행 구조 통합 OS
 > **로드맵 상세:** `docs/DEVELOPMENT_ROADMAP.md`
+
+---
+
+## 완료: Q Note 답변 찾기 시스템 + 프로필 페르소나 + 사이드바 확장 (2026-04-12 #3)
+
+Q Note의 "답변 찾기" 기능을 완전히 구현. 고객 등록 Q&A / AI 사전 생성 Q&A / 문서 RAG / 일반 AI
+4단계 우선순위로 답변 탐색. 답변은 "AI 어시스턴트"가 아닌 "사용자 본인"으로서 생성되며,
+프로필 정보(bio/expertise/organization/job_title)를 반영해 자연스러운 1인칭 답변.
+사이드바에 Q Calendar/Q Docs 메뉴 추가.
+
+### 완료된 작업
+
+| 구분 | 작업 | 상태 |
+|------|------|:----:|
+| **DB 스키마** | `qa_pairs` 테이블 + FTS5 + 트리거. `detected_questions` 확장(matched_qa_id, answer_tier). `sessions`에 user 프로필 스냅샷 5개 컬럼 | 완료 |
+| **answer_service.py** | `find_answer` — 4단계 우선순위 매칭 (custom > generated > RAG > general). 한국어 2자 prefix 매칭으로 조사/어미 변형 대응 | 완료 |
+| **llm_service.py 재설계** | `ANSWER_SYSTEM_RAG` / `ANSWER_SYSTEM_GENERAL` 분리. "You are NOT an AI, you ARE this person" — 1인칭 관점 강제. `translate_text` 별도 함수 (답변/번역 분리) | 완료 |
+| **프롬프트 프로필 주입** | `_build_context_prefix`에 `## Your Profile (You are this person)` 블록 — Name/Job/Org/Expertise/Background | 완료 |
+| **qa_generator.py** | 문서 인제스트 완료 시 자동으로 예상 Q&A 생성 → `qa_pairs` 저장 | 완료 |
+| **find-answer 엔드포인트** | 답변 즉시 반환 + 번역은 백그라운드. utterance_id 제공 시 detected_questions 저장 (새로고침 후 복원) | 완료 |
+| **Q&A CRUD API** | `GET/POST/PUT/DELETE /qa-pairs`. 소스 필터, 부분 수정, 꼬리질문 함께 삭제 | 완료 |
+| **CSV 템플릿/업로드** | BOM UTF-8 템플릿 다운로드 (실질적 긴 답변 예시). 업로드 시 중복 question 자동 UPDATE. 길이 검증 | 완료 |
+| **답변 캐시/prefetch** | 라이브 질문 감지 즉시 `_prefetch_answer` 백그라운드 실행 → WS `answer_ready` 이벤트 | 완료 |
+| **Korean FTS5 매칭** | SQLite unicode61 tokenizer의 조사 분리 한계 → 2자 prefix(`회의*`) + stopwords 필터링 | 완료 |
+| **PlanQ 프로필 필드** | users 테이블에 `bio`(TEXT), `expertise`, `organization`, `job_title` 추가. User 모델 sync | 완료 |
+| **PUT /api/users/:id 확장** | 프로필 필드 업데이트 + 길이 검증(2000/500/200/100) + IDOR 방어 | 완료 |
+| **ProfilePage "내 프로필 (Q Note 답변 생성용)"** | 4개 `AutoSaveField` 입력 필드. 2초 debounce 자동저장 + 녹색 체크 뱃지 | 완료 |
+| **AuthContext 확장** | User interface + normalizeUser에 프로필 필드 매핑. Q Note 세션 생성 시 user 객체에서 자동 전달 | 완료 |
+| **답변 UI — 질문 카드 재설계** | 답변 생성(빨강) / 답변 보기·접기(흰) 버튼 분리. 우측 상단 고정. 아이콘 제거. 답변 영역 full-width | 완료 |
+| **질문 수정 + 합치기** | 질문 클릭→인라인 수정, Enter 확정. `+`버튼→다음 문장 합쳐서 숨김, `분리`로 복원. localStorage로 새로고침 후 복원 | 완료 |
+| **번역 좌측 정렬** | 원문과 번역 padding-left 통일 | 완료 |
+| **세션 목록 개선** | 상태 뱃지(녹음중/일시중지/종료), 참여자 이름 표시. "발화" → "문장" 용어 교체 | 완료 |
+| **회의 제목 인라인 수정** | 헤더 제목 클릭→편집→Enter 자동저장 | 완료 |
+| **세션 상세 detected_questions** | 리뷰 모드 새로고침 시 답변 있는 질문 → "답변 보기" 버튼으로 시작 | 완료 |
+| **사이드바 메뉴 재배열 + 신규** | Q Talk → Task → **Q Calendar**(신규) → Note → **Q Docs**(신규) → File → Bill. 업무 흐름 순 | 완료 |
+| **답변 품질 수정** | "As an AI..." 자기부정 완전 제거. 자료 없어도 프로필 기반 1인칭 자연 답변 ("Can you help me?" → "Of course!...") | 완료 |
+| **후속 질문 제거** | 불필요한 토큰 낭비 — 질문 나오면 그때 답하면 됨. 프롬프트/응답/UI 전부 제거 | 완료 |
+
+### 설계 결정 (시니어 관점)
+
+- **4단계 우선순위 (custom > generated > RAG > general)**: 고객이 직접 등록한 Q&A가 최우선 — 회사 방침/톤이 반영된 "정답"이기 때문. AI 생성은 자료 기반 자동이지만 2순위. 둘 다 없으면 문서 청크 RAG, 그것도 없으면 일반 AI. 매 단계에서 FTS5 매칭 실패 시 다음 단계로 fallback.
+- **"You are this person" 프롬프트**: Q Note가 "나만의 메모, 내 능력 향상 도구"라는 정체성을 프롬프트에 반영. 공유 안 하는 사적 공간이므로, AI가 제3자 도우미가 아닌 사용자 본인의 분신이 되어야 함. "As an AI" 자기부정을 프롬프트에서 명시적으로 금지.
+- **한국어 FTS5 prefix 매칭**: SQLite unicode61 tokenizer는 한국어 조사를 별개 단어로 인식 — "회의"와 "회의는"이 매칭 안 됨. 2자 prefix(`회의*`)로 해결. 영어는 stem이 길어 prefix 대신 원형 사용.
+- **답변/번역 분리**: 단일 LLM 호출로 답변+번역+꼬리질문을 한 번에 생성하면 6초. 답변만 1초 → 번역 0.6초(백그라운드). 사용자 체감 1초. 번역은 "번역 중..." placeholder로 표시 후 도착 시 교체.
+- **합치기 + 숨김 (+ localStorage)**: STT가 긴 질문을 문장으로 쪼갠 경우 대비. DB 삭제 대신 화면에서만 숨겨 데이터 안전성 확보. localStorage 저장으로 새로고침 후 상태 유지. 공식 기록(트랜스크립트)은 원본 보존.
+- **프로필 스냅샷**: 세션 생성 시 PlanQ users → Q Note sessions에 복사. 이후 프로필 변경에 영향 받지 않음(세션마다 당시 프로필로 답변 고정). 회의 후 프로필이 바뀌어도 과거 답변은 일관성 유지.
+- **검증 중 발견한 critical 버그**:
+  - `_build_field_updates`/INSERT에 신규 user 프로필 필드 누락 → 저장되지 않음 → 수정
+  - FTS5 매칭 임계값이 `<= -0.5`로 너무 엄격 → `<= 0`으로 완화
+  - 자료 없는 general tier에서 RAG 프롬프트가 재사용되어 "자료에서 답을 찾지 못했습니다" 강제 → 프롬프트 2개로 분리
+
+### 검증 결과
+
+- **헬스체크 27/27** 통과
+- **Q&A CRUD E2E 26/26** (길이 검증, IDOR, 401, CSV, 답변 생성, 프로필 반영, Warplo Lab 언급 확인)
+- **프로필 필드 E2E**: 전체 저장 / 부분 수정 / null 설정 / 길이 초과 400 / 다른 사용자 403 / 미인증 401 / Q Note 세션 통합
+- **1인칭 답변 검증**: "As an AI" 자기부정 0건. "At Warplo Lab, we focus on...", "advancing our research in NLP..." 등 프로필 정확 반영
+- **빌드**: tsc 0 error, 540KB (`index-BGw3OmKv.js`)
+- **SPA 라우트**: /calendar /docs 포함 11개 전체 200
+- **속도**: Tier 1 custom ~860ms, Tier 4 general ~2.3초, 번역 별도 ~640ms
+
+### 수정된 파일
+
+**Q Note 백엔드 (Python)**
+- 신규: `q-note/services/answer_service.py` — 4단계 우선순위 답변 탐색
+- 신규: `q-note/services/qa_generator.py` — 문서 기반 사전 Q&A 자동 생성
+- 수정: `q-note/services/database.py` — qa_pairs 테이블 + FTS5, sessions 프로필 필드
+- 수정: `q-note/services/llm_service.py` — RAG/GENERAL 프롬프트 분리, translate_text, user_profile prefix
+- 수정: `q-note/services/ingest.py` — 인제스트 완료 후 Q&A 생성 트리거
+- 수정: `q-note/routers/sessions.py` — Q&A CRUD, CSV 템플릿/업로드, find-answer, translate-answer, cached-answer, 프로필 저장, detected_questions 응답 포함
+- 수정: `q-note/routers/live.py` — _prefetch_answer 백그라운드, answer_ready WS 이벤트
+- 수정: `q-note/routers/voice.py` — min_sec 파라미터 (기존 유지)
+- 수정: `q-note/services/deepgram_service.py` (기존 유지)
+
+**PlanQ 백엔드 (Node)**
+- `dev-backend/models/User.js` — bio, expertise, organization, job_title 컬럼
+- `dev-backend/routes/users.js` — PUT /api/users/:id 프로필 필드 처리 + 검증
+
+**프론트엔드 (TS)**
+- `dev-frontend/src/App.tsx` — /calendar /docs 라우트 추가
+- `dev-frontend/src/components/Layout/MainLayout.tsx` — 사이드바 재배열 + Q Calendar / Q Docs 메뉴
+- `dev-frontend/src/contexts/AuthContext.tsx` — User interface + normalizeUser 프로필 필드
+- `dev-frontend/src/pages/Profile/ProfilePage.tsx` — "내 프로필 (Q Note 답변 생성용)" 카드 + AutoSaveField × 4
+- `dev-frontend/src/pages/QNote/QNotePage.tsx` — 답변 UI 재설계, 질문 수정/합치기, localStorage, 세션 목록 상태 뱃지, 제목 인라인 수정, 프로필 전달
+- `dev-frontend/src/services/qnote.ts` — Q&A API 함수 + 타입, translate-answer, cached-answer, 프로필 필드
+- `dev-frontend/src/pages/QNote/StartMeetingModal.tsx` (기존 유지)
+- 기타 오디오 관련 파일 (기존 유지)
+
+### 미완 / 다음 세션
+
+- **Q Calendar 실 구현**: 현재 placeholder 페이지. 일정 CRUD, 반복 이벤트, Q Task 연동
+- **Q Docs 실 구현**: 현재 placeholder 페이지. 문서 에디터, 버전 관리, Q Note 답변 찾기와의 연동
+- **프로필 확장 2단계**: "영업용 나" / "기획용 나" 같은 다중 페르소나
+- **회의별 추가 컨텍스트**: 세션별로 `brief`를 넘는 세밀한 문맥 주입
+
+---
+
+## 완료: Q Note 라이브 전사 전면 개선 — LLM 재설계 + 질문 판정 + 채널 화자 + UX 재구조 (2026-04-12)
+
+실 테스트 피드백 기반 전면 개선. LLM 프롬프트 언어별 분리, 질문 오판 대폭 감소, 채널 기반 화자 식별,
+트랜스크립트 렌더링 재설계, 회의 시작 모달 단순화.
+
+### 완료된 작업
+
+| 구분 | 작업 | 상태 |
+|------|------|:----:|
+| **LLM 모델 분리** | 실시간 정제: gpt-4.1-nano (속도), 요약/답변: gpt-4o-mini (품질). `LLM_MODEL_ANSWER` env 추가 | 완료 |
+| **언어별 전용 프롬프트** | `TRANSLATE_SYSTEM` 단일 → `SYSTEM_KO` / `SYSTEM_EN` / `SYSTEM_DEFAULT` 자기완결 프롬프트 | 완료 |
+| **질문 판정 전면 재설계** | 한국어: ~지?/~잖아?/~할까? 등 false. 영어: tag/rhetorical/request false. "의심되면 false" 원칙 | 완료 |
+| **max_completion_tokens** | 700 → 300 (속도 개선) | 완료 |
+| **프론트 낙관 질문 판정 제거** | `textEndsWithQuestion` 삭제 → 서버 `is_question`만으로 판정 | 완료 |
+| **enrichment → block.kind 교정** | enrichment `is_question`으로 block `kind` 실시간 전환 (speech ↔ question) | 완료 |
+| **2초 merge 완전 제거** | 라이브 `commitPendingAsBlock` + 리뷰 `buildBlocksFromSession` 모두. 각 utterance 독립 블록 | 완료 |
+| **블록 렌더 수평 레이아웃** | `SpeechRow`/`QuestionRow` 인라인 — 화자 + 본문 + 시간 한 줄 | 완료 |
+| **"번역 중..." 제거** | 번역 미도착 시 표시 없음 | 완료 |
+| **WebConferenceCapture 스테레오** | ChannelMerger — mic=Left(나), tab=Right(상대) | 완료 |
+| **window.focus()** | 탭 공유 후 PlanQ 탭 자동 복귀 | 완료 |
+| **PCMStreamer 스테레오** | 2채널 인터리브 모드 | 완료 |
+| **Deepgram multichannel** | web_conference → channels=2, multichannel=true. diarize는 mono만 | 완료 |
+| **채널별 독립 버퍼** | `pending_buffers` dict — multichannel에서 두 화자 텍스트 혼합 방지 | 완료 |
+| **채널 기반 화자** | channel 0=mic=나(is_self 자동), channel 1=tab=상대 | 완료 |
+| **finalized에 is_self/channel_index** | 세션 새로고침 없이 즉시 "나"/"상대" 라벨 반영 | 완료 |
+| **문장 단위 화자 변경 API** | `POST /{session_id}/utterances/{utterance_id}/reassign-speaker` 신규 | 완료 |
+| **speakerLabelFor 참여자 기반** | 참여자 1명→이름, 다수→"상대". 미할당 기본값 "상대" | 완료 |
+| **마이크 모드 라벨 분기** | 수동 지정(participant_name/is_self)만 표시. 자동 라벨 안 붙음 | 완료 |
+| **_auto_match_self 병합** | 중복 is_self → utterances 기존 speaker로 이동, 중복 speaker 삭제 | 완료 |
+| **SpeakerPopover 필터링** | 이미 지정된 화자 숨김, "나" 지정됐으면 "나" 버튼 숨김, 빈 팝오버 힌트 | 완료 |
+| **voiceCheck/핑거프린트 제거** | self-voice 업로드, LiveSelfMatched 이벤트, VoiceWarnBanner 전부 삭제 | 완료 |
+| **/notes/:sessionId 라우트** | URL 기반 세션 접근 + 자동 열기 | 완료 |
+| **ParticipantBar UI** | 헤더 아래 참여자 목록 바 (나 + 참여자 이름/역할) | 완료 |
+| **StartMeetingModal 단순화** | 회의 언어 다중→단일 선택. 번역/답변 언어는 "고급 설정" 접기 | 완료 |
+| **Deepgram 파라미터** | utterance_end_ms 1000→2000, endpointing=500. 연결 실패 시 키워드 없이 재시도 | 완료 |
+
+### 설계 결정 (시니어 관점)
+
+- **LLM 모델 2단 분리**: 실시간 정제(gpt-4.1-nano)는 속도가 관건 — 사용자가 말하는 즉시 띄어쓰기/구두점이 교정되어야 한다. 요약/답변(gpt-4o-mini)은 사용자 클릭 후 대기 가능하므로 품질 우선. 한 모델로 통일하면 속도/품질 중 하나를 포기해야.
+- **언어별 자기완결 프롬프트**: 기존 단일 프롬프트는 한국어/영어 규칙이 뒤섞여 LLM이 혼동. 한국어 조사 규칙("나는", "회의를")과 영어 capitalization 규칙을 동시에 넣으면 어느 쪽도 제대로 적용 안 됨. 언어별로 해당 언어에만 집중하는 프롬프트가 정확도 훨씬 높음.
+- **질문 판정 strict false**: false positive(평서문이 질문 카드로 표시)가 누락(질문 놓침)보다 훨씬 나쁨. 사용자가 보는 화면에서 "질문이 아닌 게 질문으로 뜸" = 신뢰도 하락. 반면 질문 놓침은 트랜스크립트 스크롤로 보완 가능. 따라서 의심되면 무조건 false. 한국어 ~지?/~잖아?/~할까? 같은 확인/제안/가정 어미를 명시적으로 false 패턴에 열거.
+- **2초 merge 제거**: merge 로직은 "같은 화자 연속 발화를 합치면 깔끔" 이란 가정이었으나, Deepgram이 문장을 쪼개는 방식과 충돌 — 다른 사람의 발화가 같은 블록에 합쳐지거나, 질문이 이전 speech에 흡수되는 부작용. 각 utterance를 독립 블록으로 두면 서버 is_question이 block.kind를 정확히 제어 가능.
+- **채널 = 화자 (web_conference)**: ML 기반 화자 식별(Resemblyzer, Deepgram diarize)은 실제로 불안정. 웹 화상회의에서는 mic=나, tab=상대가 물리적으로 보장됨. 채널 분리가 100% 정확한 유일한 방법.
+- **문장 단위 화자 변경(reassign-speaker)**: 기존 speaker-merge 방식은 "화자 A의 모든 발화를 화자 B로" 이동 — 이건 Deepgram이 화자를 잘 분리했을 때만 유효. 실제로는 한 speaker 안에 여러 사람 발화가 섞여 있으므로, 문장 단위로 "이 발화는 누구 것" 지정이 더 정확.
+
+### 검증 결과
+
+- 실 테스트 (Irene 직접 수행)
+
+### 수정된 파일
+
+**Q Note 백엔드 (Python)**
+- `q-note/services/llm_service.py` — LLM 모델 분리, 언어별 프롬프트, 질문 판정 재설계
+- `q-note/services/deepgram_service.py` — multichannel, utterance_end_ms/endpointing, channel_index 파싱
+- `q-note/routers/live.py` — 채널별 버퍼, multichannel 화자, _auto_match_self 병합, finalized is_self, 키워드 재시도
+- `q-note/routers/sessions.py` — reassign_utterance_speaker API 신규
+- `q-note/routers/voice.py` — min_sec 파라미터
+
+**프론트엔드 (TS)**
+- `dev-frontend/src/App.tsx` — /notes/:sessionId 라우트
+- `dev-frontend/src/pages/QNote/QNotePage.tsx` — 질문 판정/merge/렌더/화자/URL 전면 재설계
+- `dev-frontend/src/pages/QNote/StartMeetingModal.tsx` — 단일 언어 선택, 고급 설정, VoiceWarn 삭제
+- `dev-frontend/src/services/qnote.ts` — reassignUtteranceSpeaker API
+- `dev-frontend/src/services/qnoteLive.ts` — self-voice 제거, stereo 파라미터
+- `dev-frontend/src/services/audio/PCMStreamer.ts` — stereo 모드
+- `dev-frontend/src/services/audio/WebConferenceCapture.ts` — ChannelMerger 스테레오, window.focus()
+
+### 미완 / 다음 세션
+
+- **Phase B 답변 찾기 API**: 질문 카드의 "답변 찾기" 실 API 연결
+- **Phase C 답변 찾기 UI**: 답변 패널 mock → Irene 승인 → 실 연결
 
 ---
 

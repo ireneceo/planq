@@ -83,6 +83,27 @@ async def _run_migrations(db):
   # documents.filename 은 NOT NULL 이지만 URL 은 파일이 아님 → 가상 파일명 사용
   # (마이그레이션 불필요, 라우터에서 url_<hex>.url 형태로 생성)
 
+  # detected_questions: 답변 찾기 결과 캐시용
+  dq_cols = [
+    ('matched_qa_id', 'INTEGER'),       # qa_pairs 에서 매칭된 경우 해당 ID
+    ('answer_tier', 'TEXT'),            # 'custom' | 'generated' | 'rag' | 'general' | NULL
+  ]
+  for col, typ in dq_cols:
+    if not await _column_exists(db, 'detected_questions', col):
+      await db.execute(f"ALTER TABLE detected_questions ADD COLUMN {col} {typ}")
+
+  # sessions: 사용자 프로필 스냅샷 (답변 생성 시 "나"로서 답하기 위한 정보)
+  session_profile_cols = [
+    ('user_name', 'TEXT'),              # 사용자 이름
+    ('user_bio', 'TEXT'),               # 자기소개
+    ('user_expertise', 'TEXT'),         # 전문 분야
+    ('user_organization', 'TEXT'),      # 회사/조직
+    ('user_job_title', 'TEXT'),         # 직책
+  ]
+  for col, typ in session_profile_cols:
+    if not await _column_exists(db, 'sessions', col):
+      await db.execute(f"ALTER TABLE sessions ADD COLUMN {col} {typ}")
+
   # voice_fingerprints: 단일 언어(user_id PK) → 다국어(UNIQUE user_id + language) 로 전환
   # 기존 Table 에 language 컬럼이 없으면 migration 수행
   if not await _column_exists(db, 'voice_fingerprints', 'language'):
@@ -249,4 +270,55 @@ CREATE TABLE IF NOT EXISTS speaker_embeddings (
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   FOREIGN KEY (speaker_id) REFERENCES speakers(id) ON DELETE CASCADE
 );
+
+-- ─── Q&A 지식 베이스 ───
+-- 고객 직접 등록(custom) + AI 사전 생성(generated) Q&A 쌍.
+-- 답변 찾기 시 우선순위: custom > generated > RAG > general AI
+CREATE TABLE IF NOT EXISTS qa_pairs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  session_id INTEGER NOT NULL,
+  source TEXT NOT NULL DEFAULT 'custom',   -- 'custom' | 'generated'
+  category TEXT,                           -- 선택적 분류
+  question_text TEXT NOT NULL,
+  answer_text TEXT,                         -- custom: 고객 입력. generated: AI 생성
+  answer_translation TEXT,                 -- 번역된 답변
+  answer_sources TEXT,                     -- JSON: [{"chunk_id":N, "snippet":"..."}]
+  parent_id INTEGER,                       -- 꼬리질문이면 원래 질문 ID
+  confidence TEXT,                         -- generated만: 'high' | 'medium' | 'low'
+  is_reviewed INTEGER DEFAULT 0,           -- 고객 확인/수정 → 1 (custom급 신뢰도)
+  sort_order INTEGER DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT,
+  FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE,
+  FOREIGN KEY (parent_id) REFERENCES qa_pairs(id) ON DELETE SET NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_qa_session ON qa_pairs(session_id);
+CREATE INDEX IF NOT EXISTS idx_qa_source ON qa_pairs(session_id, source);
+CREATE INDEX IF NOT EXISTS idx_qa_parent ON qa_pairs(parent_id);
+
+-- FTS5: 질문+답변 전문 검색 (매칭용)
+CREATE VIRTUAL TABLE IF NOT EXISTS qa_pairs_fts USING fts5(
+  question_text,
+  answer_text,
+  content='qa_pairs',
+  content_rowid='id'
+);
+
+CREATE TRIGGER IF NOT EXISTS qa_fts_ai AFTER INSERT ON qa_pairs BEGIN
+  INSERT INTO qa_pairs_fts(rowid, question_text, answer_text)
+  VALUES (new.id, new.question_text, COALESCE(new.answer_text, ''));
+END;
+
+CREATE TRIGGER IF NOT EXISTS qa_fts_ad AFTER DELETE ON qa_pairs BEGIN
+  INSERT INTO qa_pairs_fts(qa_pairs_fts, rowid, question_text, answer_text)
+  VALUES ('delete', old.id, old.question_text, COALESCE(old.answer_text, ''));
+END;
+
+CREATE TRIGGER IF NOT EXISTS qa_fts_au AFTER UPDATE ON qa_pairs BEGIN
+  INSERT INTO qa_pairs_fts(qa_pairs_fts, rowid, question_text, answer_text)
+  VALUES ('delete', old.id, old.question_text, COALESCE(old.answer_text, ''));
+  INSERT INTO qa_pairs_fts(rowid, question_text, answer_text)
+  VALUES (new.id, new.question_text, COALESCE(new.answer_text, ''));
+END;
 """
