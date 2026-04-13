@@ -26,6 +26,14 @@ export class WebConferenceCapture implements AudioCaptureSource {
   private mixedStream: MediaStream | null = null;
   private audioContext: AudioContext | null = null;
 
+  // 명시적 disconnect 를 위해 노드 참조 보관
+  private nodes: AudioNode[] = [];
+  // tab 트랙 'ended' 리스너 — stop 시 제거해야 stale 인스턴스 이중 호출 방지
+  private tabEndedHandler: (() => void) | null = null;
+  private tabEndedTrack: MediaStreamTrack | null = null;
+  // 재진입 방지 (ended 이벤트 + app stop 이 동시에 stop 호출할 수 있음)
+  private stopping = false;
+
   get isActive() {
     return this.mixedStream !== null && this.mixedStream.active;
   }
@@ -55,6 +63,8 @@ export class WebConferenceCapture implements AudioCaptureSource {
     }
 
     // 2) 탭 오디오 — 공유 다이얼로그 띄움
+    // 품질 개선: 48kHz stereo 요청. 원격 화자 목소리가 약해도 Deepgram 이 잘 인식하도록
+    // Web Audio 단에서 gain boost + compressor 적용 (아래 믹싱 단계).
     try {
       const displayStream = await navigator.mediaDevices.getDisplayMedia({
         video: true,
@@ -62,7 +72,10 @@ export class WebConferenceCapture implements AudioCaptureSource {
           echoCancellation: false,
           noiseSuppression: false,
           autoGainControl: false,
-        },
+          sampleRate: 48000,
+          sampleSize: 16,
+          channelCount: 2,
+        } as MediaTrackConstraints,
       });
       const audioTracks = displayStream.getAudioTracks();
       if (audioTracks.length === 0) {
@@ -76,8 +89,10 @@ export class WebConferenceCapture implements AudioCaptureSource {
       this.tabStream = new MediaStream(audioTracks);
       // Chrome은 탭 선택 후 해당 탭으로 포커스를 이동시킴 — PlanQ 탭으로 즉시 복귀
       window.focus();
-      // 사용자가 공유 중지 누르면 자동 정리
-      audioTracks[0].addEventListener('ended', () => this.stop());
+      // 사용자가 공유 중지 누르면 자동 정리 — 리스너 참조 보관 (stop 시 제거)
+      this.tabEndedTrack = audioTracks[0];
+      this.tabEndedHandler = () => { void this.stop(); };
+      this.tabEndedTrack.addEventListener('ended', this.tabEndedHandler);
     } catch (err) {
       // 마이크는 이미 잡았으므로 정리
       this.micStream.getTracks().forEach((t) => t.stop());
@@ -102,80 +117,90 @@ export class WebConferenceCapture implements AudioCaptureSource {
     const micSource = this.audioContext.createMediaStreamSource(this.micStream);
     const tabSource = this.audioContext.createMediaStreamSource(this.tabStream);
 
+    // 마이크: 기본 1.0 (이미 에코캔슬/노이즈억제 적용됨)
     const micGain = this.audioContext.createGain();
-    const tabGain = this.audioContext.createGain();
     micGain.gain.value = 1.0;
-    tabGain.gain.value = 1.0;
+
+    // 탭(상대): 원격 스트림이 시스템 볼륨에 의존하므로 약할 때가 많음.
+    //   Compressor 로 동적 범위 압축 → 조용한 부분을 끌어올림
+    //   Gain 부스트로 전체 레벨 ~2배
+    //   HighShelf 로 고주파 강조 → 자음 명료도 개선
+    const tabCompressor = this.audioContext.createDynamicsCompressor();
+    tabCompressor.threshold.value = -28;   // -28 dB 부터 압축 시작
+    tabCompressor.knee.value = 24;
+    tabCompressor.ratio.value = 4;         // 4:1 압축
+    tabCompressor.attack.value = 0.003;
+    tabCompressor.release.value = 0.1;
+
+    const tabHighShelf = this.audioContext.createBiquadFilter();
+    tabHighShelf.type = 'highshelf';
+    tabHighShelf.frequency.value = 3000;
+    tabHighShelf.gain.value = 3;            // +3dB above 3kHz (자음 명료도)
+
+    const tabGain = this.audioContext.createGain();
+    tabGain.gain.value = 2.0;               // 레벨 부스트
 
     // ChannelMerger: 입력 0 → Left(나), 입력 1 → Right(상대)
     const merger = this.audioContext.createChannelMerger(2);
-    micSource.connect(micGain).connect(merger, 0, 0);   // mic → channel 0 (Left)
-    tabSource.connect(tabGain).connect(merger, 0, 1);    // tab → channel 1 (Right)
+    micSource.connect(micGain).connect(merger, 0, 0);
+    tabSource
+      .connect(tabHighShelf)
+      .connect(tabCompressor)
+      .connect(tabGain)
+      .connect(merger, 0, 1);
     merger.connect(dest);
 
-    this.mixedStream = dest.stream;
+    // stop() 에서 disconnect 하기 위해 노드 참조 저장.
+    // 탭 오디오 참조가 micSource/tabSource 외에 남아있으면 Chrome 이 "공유 중"
+    // 표시를 끄지 않아 재공유 시 두 번 표시되는 버그의 원인.
+    this.nodes = [micSource, tabSource, micGain, tabHighShelf, tabCompressor, tabGain, merger];
 
-    // 탭 오디오 무음 감지: 3초 동안 탭 트랙에서 신호가 전혀 없으면 경고
-    // (사용자가 "탭 오디오 공유" 체크박스를 안 켰거나 상대방이 말하고 있지 않은 경우)
-    this.startTabSilenceWatchdog(this.tabStream);
+    this.mixedStream = dest.stream;
 
     return this.mixedStream;
   }
 
-  /** 탭 오디오 트랙이 3초간 0 이면 console.warn. 이후 추가 조치는 UI 계층에서. */
-  private startTabSilenceWatchdog(tabStream: MediaStream) {
-    if (!this.audioContext || !tabStream) return;
-    try {
-      const analyserCtx = this.audioContext;
-      const source = analyserCtx.createMediaStreamSource(tabStream);
-      const analyser = analyserCtx.createAnalyser();
-      analyser.fftSize = 256;
-      source.connect(analyser);
-      const data = new Uint8Array(analyser.frequencyBinCount);
-      const startAt = Date.now();
-      let peak = 0;
-      const check = () => {
-        if (!this.audioContext || !this.mixedStream?.active) return;
-        analyser.getByteTimeDomainData(data);
-        let localPeak = 0;
-        for (let i = 0; i < data.length; i++) {
-          const v = Math.abs(data[i] - 128);
-          if (v > localPeak) localPeak = v;
-        }
-        if (localPeak > peak) peak = localPeak;
-        if (Date.now() - startAt < 3000) {
-          setTimeout(check, 200);
-        } else {
-          if (peak < 2) {
-            console.warn(
-              '[Q Note] 탭 오디오 신호 없음: 공유 다이얼로그에서 "탭 오디오 공유"를 체크했는지 확인하세요. ' +
-              '혹은 상대방이 아직 말하지 않은 상태일 수 있습니다.'
-            );
-          }
-        }
-      };
-      setTimeout(check, 200);
-    } catch {
-      /* ignore watchdog errors */
-    }
-  }
+  async stop(): Promise<void> {
+    if (this.stopping) return;
+    this.stopping = true;
 
-  stop(): void {
-    try { this.audioContext?.close(); } catch { /* ignore */ }
-    this.audioContext = null;
-
-    if (this.micStream) {
-      this.micStream.getTracks().forEach((t) => t.stop());
-      this.micStream = null;
+    // 1) tab 트랙 'ended' 리스너 먼저 제거 — stop 재진입 방지
+    if (this.tabEndedTrack && this.tabEndedHandler) {
+      try { this.tabEndedTrack.removeEventListener('ended', this.tabEndedHandler); } catch { /* ignore */ }
     }
+    this.tabEndedTrack = null;
+    this.tabEndedHandler = null;
+
+    // 2) 모든 AudioNode 명시적 disconnect — AudioContext 에 매달린 참조 해제
+    for (const node of this.nodes) {
+      try { node.disconnect(); } catch { /* ignore */ }
+    }
+    this.nodes = [];
+
+    // 3) 트랙 정지 — Chrome "공유 중" 배너가 사라지려면 tab 트랙이 stop 되어야 함
     if (this.tabStream) {
-      this.tabStream.getTracks().forEach((t) => t.stop());
+      this.tabStream.getTracks().forEach((t) => { try { t.stop(); } catch { /* ignore */ } });
       this.tabStream = null;
     }
+    if (this.micStream) {
+      this.micStream.getTracks().forEach((t) => { try { t.stop(); } catch { /* ignore */ } });
+      this.micStream = null;
+    }
     if (this.mixedStream) {
-      this.mixedStream.getTracks().forEach((t) => t.stop());
+      this.mixedStream.getTracks().forEach((t) => { try { t.stop(); } catch { /* ignore */ } });
       this.mixedStream = null;
     }
+
+    // 4) AudioContext close 는 async — 완료를 기다려야 Chrome 이 소비자 해제를 인식
+    if (this.audioContext) {
+      const ctx = this.audioContext;
+      this.audioContext = null;
+      try {
+        if (ctx.state !== 'closed') await ctx.close();
+      } catch { /* ignore */ }
+    }
+
+    this.stopping = false;
   }
 }
 

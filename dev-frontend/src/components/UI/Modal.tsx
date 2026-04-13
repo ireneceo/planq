@@ -12,7 +12,7 @@ export const ModalOverlay = styled.div`
   display: flex;
   align-items: flex-start;
   justify-content: center;
-  z-index: 1000;
+  z-index: 2000;
   overflow-y: auto;
   padding: 40px 0;
 `;

@@ -1,0 +1,92 @@
+{
+  "header": {
+    "title": "내 프로필",
+    "subtitle": "음성 핑거프린트와 기본 설정을 관리합니다"
+  },
+  "basic": {
+    "sectionTitle": "기본 정보",
+    "name": "이름",
+    "email": "이메일",
+    "defaultLanguage": "기본 언어",
+    "languagePlaceholder": "언어 선택",
+    "languageHint": "회의 시 번역 기본값으로 사용됩니다"
+  },
+  "qnoteProfile": {
+    "sectionTitle": "내 프로필 (Q note 답변 생성용)",
+    "description": "Q note가 회의 중 답변을 만들 때 <1>\"나\"로서 답변</1>하기 위한 정보입니다. 직책/회사/전문분야/자기소개를 채우면 AI가 당신을 대변해 더 정확하고 자연스러운 답변을 생성합니다.<2></2>비어있으면 일반 AI 답변으로 대체됩니다.",
+    "organization": "회사/조직",
+    "organizationPlaceholder": "예: LG전자, Warplo Lab",
+    "jobTitle": "직책",
+    "jobTitlePlaceholder": "예: 기획팀 과장, Founder, 개발자",
+    "expertise": "전문 분야",
+    "expertisePlaceholder": "예: IoT, UX 기획, 시장 분석",
+    "expertiseHint": "쉼표로 구분하여 여러 개 입력 가능",
+    "bio": "자기소개",
+    "bioPlaceholder": "예: LG전자 기획팀 8년차. 스마트홈 제품 전략 담당. 최근에는 AI 기반 개인화에 집중하고 있습니다.",
+    "bioHint": "AI가 이 정보를 바탕으로 당신의 배경과 말투를 반영해 답변합니다 ({{length}}/{{max}})"
+  },
+  "voice": {
+    "sectionTitle": "내 목소리 등록",
+    "description": "회의 중 <1>본인 발화를 자동으로 인식</1>하려면 목소리를 등록해주세요. 회의에서 사용하는 언어가 여러 개면 <2>각 언어별로 한 번씩 등록</2>해야 합니다. 영어로 등록한 목소리로는 한국어 발화 인식 정확도가 떨어집니다.",
+    "loading": "불러오는 중...",
+    "empty": "아직 등록된 목소리가 없습니다. 아래에서 언어를 선택하고 녹음해주세요.",
+    "legacyLabel": "언어 미지정 (과거 등록)",
+    "sampleSeconds": "{{sec}}초",
+    "reregister": "재등록",
+    "addLangPrompt": "등록할 언어를 선택하면 <1>바로 녹음이 시작</1>됩니다",
+    "addLangPlaceholder": "＋ 언어 선택해서 등록하기",
+    "verifyBtn": "매칭 확인하기",
+    "verifyHint": "지금 목소리로 5초 녹음해 저장된 핑거프린트와 정확히 매칭되는지 확인합니다",
+    "deleteAllBtn": "전체 삭제"
+  },
+  "verify": {
+    "matched": "본인으로 인식됩니다",
+    "notMatched": "본인으로 인식되지 않습니다",
+    "similarityLine": "최고 유사도 {{similarity}} / 임계값 {{threshold}}"
+  },
+  "recorder": {
+    "sampleLabel": "{{label}} · 아래 문장을 자연스럽게 낭독해주세요 (최소 {{minSec}}초)",
+    "elapsedHint": "/ 최소 {{minSec}}s · 권장 {{softTarget}}s · 최대 {{hardMax}}s",
+    "remainNeedMore": "{{seconds}}초 더 녹음",
+    "remainEnough": "충분합니다 — 완료해도 됩니다",
+    "remainAllowed": "완료 버튼을 누를 수 있습니다",
+    "finishRegister": "녹음 완료",
+    "finishVerify": "확인 완료",
+    "finishSuffix": "({{seconds}}초 더)",
+    "cancel": "취소",
+    "hintLine": "문장을 끝까지 말씀한 뒤 직접 \"녹음 완료\"를 눌러주세요. {{hardMax}}초 도달 시 자동 종료됩니다.",
+    "processing": "임베딩 계산 중..."
+  },
+  "privacy": {
+    "sectionTitle": "개인정보 처리",
+    "item1": "<1>등록 데이터</1>: 원본 오디오는 저장되지 않습니다. Resemblyzer 모델이 추출한 256차원 벡터(수학적 특징)만 DB에 저장되며, 이 벡터로는 원본 음성을 <2>복원할 수 없습니다</2>. 재생 기능이 없는 이유입니다.",
+    "item2": "<1>사용처</1>: 회의 중 본인 발화 자동 감지, 회의 종료 시 같은 사람의 발화 자동 병합. 외부 서비스로 전송되지 않습니다.",
+    "item3": "<1>회의 오디오</1>: 회의 중 메모리에 일시적으로 버퍼링되며, 회의 종료 시 즉시 폐기됩니다.",
+    "item4": "<1>삭제 권리</1>: 위 \"삭제\" 또는 \"전체 삭제\" 버튼으로 언제든 등록을 철회할 수 있습니다."
+  },
+  "confirm": {
+    "deleteLangTitle": "음성 등록 삭제",
+    "deleteLangMessage": "{{label}} 음성 등록을 삭제하시겠습니까? 다음 회의부터 본인 자동 감지에 이 언어는 사용되지 않습니다.",
+    "deleteAllTitle": "모든 음성 등록 삭제",
+    "deleteAllMessage": "등록된 모든 언어의 음성 핑거프린트를 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.",
+    "deleteText": "삭제",
+    "cancelText": "취소"
+  },
+  "messages": {
+    "errorLoadStatus": "상태 조회 실패",
+    "errorMicPermission": "마이크 권한 필요",
+    "errorSave": "저장 실패",
+    "errorProcess": "처리 실패",
+    "errorDelete": "삭제 실패",
+    "errorLanguageSave": "언어 저장 실패",
+    "errorTooShortVerify": "매칭 확인 실패: 최소 {{minSec}}초 이상 녹음이 필요합니다 (현재 {{elapsed}}초). 다시 시도해주세요.",
+    "errorTooShortRegister": "등록 실패: 최소 {{minSec}}초 이상 녹음이 필요합니다 (현재 {{elapsed}}초). 예시 문장을 끝까지 읽고 \"녹음 완료\"를 눌러주세요.",
+    "errorPrefixVerify": "매칭 확인 실패",
+    "errorPrefixRegister": "등록 실패",
+    "successRegister": "{{label}} 음성이 등록되었습니다",
+    "successDeleteLanguage": "{{label}} 등록이 삭제되었습니다",
+    "successDeleteAll": "모든 음성 등록이 삭제되었습니다",
+    "successLanguageChanged": "기본 언어가 변경되었습니다",
+    "closeBtn": "닫기"
+  }
+}

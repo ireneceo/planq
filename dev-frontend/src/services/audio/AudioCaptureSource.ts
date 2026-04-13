@@ -45,8 +45,8 @@ export interface AudioCaptureSource {
    */
   start(): Promise<MediaStream>;
 
-  /** 캡처 중지 + 리소스 정리 */
-  stop(): void;
+  /** 캡처 중지 + 리소스 정리. Promise 반환 가능 (AudioContext.close() 등 비동기 해제). */
+  stop(): void | Promise<void>;
 
   /** 현재 활성화 여부 */
   readonly isActive: boolean;

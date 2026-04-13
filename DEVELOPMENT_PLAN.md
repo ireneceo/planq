@@ -1,9 +1,120 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-04-12
+> **최종 업데이트:** 2026-04-13
 > **데이터베이스:** planq_dev_db (MySQL) + qnote.db (SQLite, FTS5)
 > **프로젝트:** B2B SaaS — 업무 전용 고객 채팅 + 실행 구조 통합 OS
 > **로드맵 상세:** `docs/DEVELOPMENT_ROADMAP.md`
+
+---
+
+## 완료: Q note 품질 전면 개선 + i18n + 편집 UX + 준비 상태 가시화 (2026-04-13)
+
+하루 동안 i18n 기반 구축, Q note 답변 품질·속도·데이터 정합성 전면 개선,
+편집 모드 신설, 준비 상태 실시간 가시화까지 대규모 리팩터링.
+
+### 완료된 작업
+
+| 영역 | 작업 | 상태 |
+|------|------|:----:|
+| **i18n** | `i18next` + `react-i18next` 전 페이지 적용 (Login/Register/MainLayout/Profile/QNotePage/StartMeetingModal). 네임스페이스 5개 (common/auth/layout/profile/qnote) × ko·en. 총 304 key 동수. 한국어 하드코딩 533 → 309 (잔여는 코드 주석). CLAUDE.md 에 "다국어 i18n — 필수" 규칙 섹션 + 감지 grep. | ✅ |
+| **브랜드 네이밍** | "Q Talk/Task/Note" → **"Q talk/task/note"** 소문자 통일. locales/페이지/뱃지 전수 교체 | ✅ |
+| **모달 z-index** | 공통 Modal 1000 → 2000, ConfirmDialog 1100 → 2100, StartMeetingModal 200 → 2000. 모바일 헤더(999)/사이드바(1000) 위에 덮이는 문제 해결 | ✅ |
+| **번역 정렬** | SpeechBlockWrap 재구조화. 번역문이 원문과 동일한 왼쪽 위치에서 시작 (`[speaker][col: original+translation]`) | ✅ |
+| **Q note 답변 tier 6단계** | `answer_service.py` 재구성: priority > custom > session_reuse > generated > rag > general. 각 tier 에 시맨틱 임베딩(OpenAI text-embedding-3-small) 재랭킹 + LLM 2차 매칭 (gpt-4.1-nano) hybrid. Priority tier 는 FTS5 우회 전수 탐색 + LLM 매칭으로 paraphrase 대응 | ✅ |
+| **임베딩 서비스** | `embedding_service.py` 신규 (1536차원, cosine sim, BLOB 변환). `qa_pairs.embedding` BLOB 컬럼 + `is_priority` flag. Priority Q&A 생성 시 동기 임베딩 (race 방지) | ✅ |
+| **Priority Q&A 전용 업로드** | UI 에서 "일반 자료" 와 **완전히 분리**. 단건 폼 (질문/답변/short_answer/keywords) + CSV 업로드 (BOM UTF-8, 5 컬럼). CSV 템플릿 다운로드 (apiFetch blob). 편집 모드에서 **드래그앤드롭 + 즉시 업로드** (파일 선택 = 바로 서버 반영) | ✅ |
+| **short_answer + keywords 필드** | qa_pairs 컬럼 추가. `meeting_answer_length='short'` 일 때 `short_answer` 우선 반환. `keywords` 는 FTS5 인덱스에 합쳐 검색 정확도·속도 향상 + 임베딩 input 에도 포함 | ✅ |
+| **답변 길이·난이도 제어** | `meeting_answer_length` (short/medium/long) → 1-2/2-3/3-4 문장, 27/55/85 단어 하드캡 (서버 `_enforce_length_cap` 후처리). 프롬프트 맨 끝 재강조. `user_language_levels` (언어별 4-skill) + `user_expertise_level` (layman/practitioner/expert). "말하기 좋은 단어" 규칙 언어별 (영어 Anglo-Saxon 우선, 한국어 순우리말/구어체 등) | ✅ |
+| **회의별 스타일 프롬프트** | StartMeetingModal 에 `meetingAnswerStyle` textarea + `meetingAnswerLength` 3버튼. 세션에 저장, generate_answer 프롬프트 style prefix 주입 | ✅ |
+| **빠른 질문 판정 병렬화** | `detect_question_fast` (gpt-4.1-nano, ~300ms) 신규. finalized 즉시 fast-path 로 질문 판정 + `quick_question` WS 이벤트 → 카드 즉시 승격 + prefetch answer 시작. enrichment 는 병렬로 돌며 나중에 덮어씀. 본인 발화 스킵 | ✅ |
+| **어휘사전 (STT 교정)** | `generate_vocabulary_list` 프롬프트 재작성: **"TERM EXTRACTOR, NOT brainstormer"** 복사 전용. `document_excerpts` 파라미터 (인덱싱된 문서 청크가 최우선 소스). `meeting_languages` 강제 — 자료 원어로 복사, 번역 금지. 검증: brief 만 있으면 0개, 자료 있으면 verbatim 용어만 (환각 0/4, 매칭 5/5) | ✅ |
+| **문서 인덱싱 후 자동 어휘 재추출** | `ingest.py` 에 post-index hook: `refresh_session_vocabulary` 자동 트리거. 기존 사용자 수동 키워드 보존하고 새 키워드 병합 | ✅ |
+| **어휘 수동 재추출 API** | `POST /sessions/:id/refresh-vocabulary` 신규. 편집 모달 "📄 문서 기반 재추출" 버튼 | ✅ |
+| **STT 실시간 교정** | `translate_and_detect_question` 에 `vocabulary` + `recent_utterances` 파라미터. 프롬프트 prefix 로 주입. SYSTEM_KO/EN 규칙 "원본 보존 우선, 명백한 오인식만 교체" 재강화 (과잉 교정 방지) | ✅ |
+| **Deepgram 키워드 부스팅 확장** | 사용자 검토한 `session.keywords` 우선 + auto_extracted 보강. Deepgram 50개 한계 | ✅ |
+| **편집 모드 (설정 버튼)** | StartMeetingModal `editMode` + `initialConfig` + `editingSessionId`. 편집 배너, 기존 Priority Q&A/문서 로드 + 삭제 버튼, 기존 어휘사전 chip 편집, "📄 재추출" 버튼. 저장 시 PUT session + 신규 items POST | ✅ |
+| **초안 자동저장** | StartMeetingModal localStorage `qnote_meeting_draft_v1`. debounce 500ms, 모달 재오픈 시 복원, "초안 복원됨" 뱃지 + "초안 지우기" 버튼. 파일/CSV 는 제외 (재첨부 필요) | ✅ |
+| **준비 상태 패널** | QNotePage 헤더 하단에 `prepared`/`paused` phase 에서 실시간 표시. 3초 폴링으로 문서 인덱싱 N/M, Priority Q&A 임베딩 N/M, 어휘사전 개수 + 전체 준비 완료 초록 뱃지. `qa_pairs.has_embedding` 필드 신규 | ✅ |
+| **화자 라벨 수정** | 참여자 0명 또는 다수면 "화자 1/2/3" 대신 "상대"로 통일 (Deepgram ID 신뢰도 낮음) | ✅ |
+| **내 발화 처리 모드 3단계** | 참여자 바에 `skip`(기본, finalized 드롭)/`hide`(렌더 필터)/`show` 토글. 답변 읽기에 집중 가능. localStorage 저장 | ✅ |
+| **탭 오디오 품질 개선** | WebConferenceCapture 에 `DynamicsCompressor` + `HighShelfBiquad` (+3dB @3kHz) + `Gain` ×2. 상대 목소리 STT 정확도 향상. 48kHz sampleRate 명시 | ✅ |
+| **탭 재공유 이중 표시 버그 fix** | WebConferenceCapture `stop()` async 전환: 노드 명시적 disconnect → 트랙 stop → `await audioContext.close()`. tab track 'ended' listener 제거. Chrome "공유 중" 배너가 다시 공유 시 2개 겹치는 문제 해결 | ✅ |
+| **녹음 critical 버그 fix** | `live.py` Deepgram 재시도 블록 들여쓰기 실수 수정. `close + return` 이 except 블록 밖에 있어 재시도 성공 후에도 WS 닫고 종료되던 문제 | ✅ |
+| **회의 생성 후 화면 사라지는 버그 fix** | URL 핸들러 경합 제거: navigate 전에 `urlSessionIdHandled.current = true` + `activeSessionRef.current = detail`. DB 기본 `status='recording'` → **'prepared'** 변경. openReview 에 prepared 케이스 추가. 사이드바 뱃지 "준비됨" 추가 | ✅ |
+| **PlanQ 사용자 프로필 확장** | User 모델에 `language_levels` JSON, `expertise_level`, `answer_style_default`, `answer_length_default` 컬럼 추가. PUT /api/users/:id 검증 (언어별 4-skill 1-6, 범위 초과 거부). ProfilePage 에 "내 언어 레벨 (답변 난이도 조절용)" 카드 신규 — 7개 언어 × R/S/L/W PlanQSelect + 전문지식 4 버튼 | ✅ |
+| **auto_keywords 추출** | create_session 시점에 brief/pasted/participants/profile 기반 초안 30~80개 추출 (비동기 문서 인덱싱 완료 후 refresh_session_vocabulary 로 교체·병합) | ✅ |
+
+### 수정된 파일
+
+**Q note 백엔드 (Python)**
+- 신규: `services/embedding_service.py` (OpenAI embedding wrapper)
+- 수정: `services/database.py` (qa_pairs.embedding/is_priority/short_answer/keywords, sessions.language_levels/expertise_level/meeting_answer_style/meeting_answer_length/keywords, FTS5 트리거 rebuild)
+- 수정: `services/llm_service.py` (style prefix, vocab extract 복사 전용, detect_question_fast, llm_match_question, RAG/GENERAL 프롬프트 재설계, 길이 캡)
+- 수정: `services/answer_service.py` (6단계 tier + hybrid semantic/LLM, refresh_session_vocabulary, short_answer 우선 반환)
+- 수정: `services/ingest.py` (post-index vocab refresh hook)
+- 수정: `services/qa_generator.py` (임베딩 포함)
+- 수정: `routers/live.py` (fast-path 병렬, session keywords, recent utterances, Deepgram 재시도 들여쓰기 fix)
+- 수정: `routers/sessions.py` (priority-qa CRUD + CSV 템플릿/업로드 + refresh-vocabulary, 편집 가능한 모든 필드, has_embedding 노출)
+
+**PlanQ 백엔드 (Node)**
+- 수정: `models/User.js` (language_levels, expertise_level, answer_style_default, answer_length_default)
+- 수정: `routes/users.js` (신규 필드 검증 + 저장)
+
+**프론트엔드 (TS)**
+- 수정: `contexts/AuthContext.tsx` (User interface 확장)
+- 수정: `i18n.ts` (5 네임스페이스)
+- 수정: `pages/Login/LoginPage.tsx`, `pages/Register/RegisterPage.tsx`, `components/Layout/MainLayout.tsx`, `pages/Profile/ProfilePage.tsx`, `pages/QNote/QNotePage.tsx`, `pages/QNote/StartMeetingModal.tsx` (i18n 리트로핏 + 신규 기능)
+- 수정: `pages/QNote/QNotePage.tsx` (편집 모드 버튼, readiness panel, self-mode 토글, 화자 라벨, URL race fix)
+- 수정: `pages/QNote/StartMeetingModal.tsx` (편집 모드, CSV 드롭존, 초안 자동저장, 어휘사전 카드)
+- 수정: `services/qnote.ts` (priority-qa + refresh-vocabulary + QAPair 확장)
+- 수정: `services/qnoteLive.ts` (quick_question 이벤트)
+- 수정: `services/audio/WebConferenceCapture.ts` (compressor/highshelf/gain + async stop)
+- 수정: `services/audio/AudioCaptureSource.ts` (stop 시그니처 void|Promise<void>)
+- 수정: `components/UI/Modal.tsx`, `components/Common/ConfirmDialog.tsx` (z-index 2000/2100)
+- 수정: `App.tsx` (브랜드 네이밍 소문자)
+
+**Locales**
+- 신규: `public/locales/{ko,en}/{layout,profile,qnote}.json`
+- 수정: `public/locales/{ko,en}/{common,auth}.json`
+
+**문서**
+- `CLAUDE.md` — "다국어 i18n — 필수" 섹션 신규, 감지 grep, 금지 사항 추가
+- `dev-frontend/UI_DESIGN_GUIDE.md` — 2026-04-12 업데이트 유지
+
+### 설계 결정 (시니어 관점)
+
+- **i18n 먼저**: 기획·UI 작업 진행 전에 i18n 기반을 제대로 까는 것이 이후 모든 기능 개발의 부채를 덜어준다. 하드코딩된 상태에서 기능을 추가하면 나중에 갈아엎을 때 범위가 폭발한다. 사용자가 명시적으로 "i18n 제대로 구현해줘. 지금 개발한 Q note 지장없게" 를 최우선순위로 지정한 것도 이 이유.
+- **Answer tier 6단계 + hybrid 매칭**: 단순 FTS5 로는 paraphrase 매칭이 불가능하고 (한국어 조사, 영어 "research" vs "researching" 접미사, 동의어), 단순 임베딩은 short 질문에 정확도가 낮다 (실측 0.27~0.5). FTS5 → 임베딩 rerank → LLM 2차 검증 → (선택) 재순위 의 3단 파이프라인이 정확도·비용 균형점. LLM 2차는 gpt-4.1-nano (~200ms, 저비용) 로 수용 가능.
+- **어휘사전은 자료에서 복사만**: LLM 에게 "extract"만 시키고 "brainstorm" 을 금지하는 프롬프트 기법. "If source provides nothing, return empty list" 명시로 환각 제거. 검증 결과 자료 0건 → 0개, 자료 있음 → verbatim 5/5 매칭, 일반 용어 환각 0/4.
+- **문서 인덱싱 후 vocab 재추출 hook**: 세션 생성 시점엔 문서가 없으므로 brief 만으로 초안. 실제 유용한 어휘는 문서 인덱싱이 끝나야 뽑을 수 있으므로 ingest post-hook 으로 재추출 + 기존 사용자 수동 키워드 병합. 사용자가 회의 시작 전 준비 패널에서 변화를 실시간 확인 가능.
+- **길이 캡 이중 방어**: LLM 은 길이 규칙을 자주 어긴다. 프롬프트 맨 끝에 "FINAL REMINDER" 로 재강조 + 서버 후처리 `_enforce_length_cap` (문장 수·단어 수 기준 자름). "If you write N+1 words, you have failed the task" 처럼 강한 표현이 효과 있음.
+- **편집 모드 데이터 정합성**: 편집 모달에서 기존 DB 자료를 보여주지 않으면 사용자가 "사라졌다" 고 오해하고 중복 업로드한다. 편집 모달 열릴 때 getSession + listQAPairs priority 호출해서 기존 목록 표시 + 개별 삭제 버튼.
+- **회의 생성 후 화면 사라지는 버그 원인**: React 18 의 navigate + setState 경합. `urlSessionIdHandled.current = true` 를 navigate 전에 세팅하고 `activeSessionRef.current = detail` 동기 반영. DB 기본 status='recording' 이 "이 세션은 이미 녹음 중" 처럼 오판을 유발했던 것도 'prepared' 로 바꿔 해결.
+- **탭 공유 이중 표시**: Chrome 의 "공유 중" 배너는 tab track 을 참조하는 모든 AudioNode 가 명시적으로 disconnect 될 때까지 유지된다. stop() 을 async 로 전환해 `audioContext.close()` 를 await 하고 모든 노드를 순서대로 disconnect → 트랙 stop → context close 순으로 정리.
+
+### 검증 결과
+
+- **헬스체크**: 27/27 ✓ (모든 개발완료 시점에서 통과)
+- **빌드**: tsc 0 error, vite 500~600ms, 572~582 KB
+- **i18n**: ko/en 5 네임스페이스 × 304 key 동수 매칭 ✓
+- **API E2E** (여러 세션에 걸쳐 검증):
+  - Priority Q&A CSV 업로드 → 동기 임베딩 ✓
+  - Paraphrase 매칭 (임베딩 + LLM hybrid): 다수 케이스에서 priority tier 반환
+  - 무관 질문 false positive 방지 ✓
+  - short_answer 우선 반환 (length=short) vs full answer (length=medium/long) ✓
+  - 길이 캡: short 18w/1s, medium 48w/4s, long 84w/8s 모두 cap 이내
+  - 어휘 추출: 자료에 있는 5/5 verbatim 매칭, 자료에 없는 4/4 환각 제거, 언어별 강제 (ko→한국어, en→영어)
+  - 편집 모드: PUT session + POST priority-qa + DELETE priority-qa 전부 작동
+  - 보안: 익명 401, 잘못된 세션 404, IDOR 403
+- **프론트 SPA**: 11개 라우트 전부 200
+
+### 미완 / 다음 세션
+- **Q Calendar 실 구현** (현재 placeholder)
+- **Q Docs 실 구현** (현재 placeholder)
+- **프로필 다중 페르소나** ("영업용 나" / "기획용 나" 전환)
+- **Q note 세션 목록 검색** (현재 placeholder input)
+- **메뉴별 기획 심화** — user feedback "메뉴 순서대로 기획설계 자세히 할게" 지시에 따라 Q talk → Q task → Q calendar → Q docs → Q file → Q bill 순으로 설계서 작성
+- **운영 배포 스크립트** (지금은 dev 서버에서만 테스트)
 
 ---
 

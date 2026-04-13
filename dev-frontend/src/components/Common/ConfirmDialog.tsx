@@ -34,7 +34,7 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   );
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={title} footer={footer} zIndex={1100}>
+    <Modal isOpen={isOpen} onClose={onClose} title={title} footer={footer} zIndex={2100}>
       <div style={{ textAlign: 'center', padding: '32px 0' }}>
         <p style={{ fontSize: '16px', color: '#4B5563', lineHeight: '1.6', margin: '0' }}>{message}</p>
       </div>

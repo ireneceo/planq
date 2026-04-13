@@ -4,6 +4,17 @@ import { useNavigate } from 'react-router-dom';
 
 export type UserRole = 'platform_admin' | 'business_owner' | 'business_member' | 'client';
 
+export type LanguageSkillLevel = 1 | 2 | 3 | 4 | 5 | 6;
+export interface LanguageLevelBlock {
+  reading?: LanguageSkillLevel;
+  speaking?: LanguageSkillLevel;
+  listening?: LanguageSkillLevel;
+  writing?: LanguageSkillLevel;
+}
+export type LanguageLevels = Record<string, LanguageLevelBlock>;
+export type ExpertiseLevel = 'layman' | 'practitioner' | 'expert';
+export type AnswerLength = 'short' | 'medium' | 'long';
+
 export interface User {
   id: string;
   email: string;
@@ -13,11 +24,15 @@ export interface User {
   business_name?: string | null;
   business_role?: string | null;
   language?: string | null;
-  // Q Note 답변 생성용 프로필
+  // Q note 답변 생성용 프로필
   bio?: string | null;
   expertise?: string | null;
   organization?: string | null;
   job_title?: string | null;
+  language_levels?: LanguageLevels | null;
+  expertise_level?: ExpertiseLevel | null;
+  answer_style_default?: string | null;
+  answer_length_default?: AnswerLength | null;
 }
 
 interface AuthContextType {
@@ -123,6 +138,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     expertise: (apiUser.expertise as string) || null,
     organization: (apiUser.organization as string) || null,
     job_title: (apiUser.job_title as string) || null,
+    language_levels: (apiUser.language_levels as LanguageLevels) || null,
+    expertise_level: (apiUser.expertise_level as ExpertiseLevel) || null,
+    answer_style_default: (apiUser.answer_style_default as string) || null,
+    answer_length_default: (apiUser.answer_length_default as AnswerLength) || null,
   });
 
   // UserRole 매핑: platform_role + business_role → 사이드바용 role

@@ -92,6 +92,132 @@ def _build_context_prefix(meeting_context: Optional[dict]) -> str:
 
 
 # ─────────────────────────────────────────────────────────
+# Answer style prefix — 언어 레벨, 답변 길이, 회의별 스타일
+# ─────────────────────────────────────────────────────────
+
+_LEVEL_LABELS = {
+  1: 'Beginner (CEFR A1)',
+  2: 'Elementary (CEFR A2)',
+  3: 'Intermediate (CEFR B1)',
+  4: 'Upper Intermediate (CEFR B2)',
+  5: 'Advanced (CEFR C1)',
+  6: 'Native / Proficient (C2)',
+}
+
+_LENGTH_INSTRUCTIONS = {
+  'short': (
+    '1-2 SENTENCES ONLY. STRICT MAX 25 WORDS. '
+    'One key point. No examples, no elaboration. '
+    'If you write 3 sentences or 26+ words, you have failed.'
+  ),
+  'medium': (
+    '2-3 SENTENCES ONLY. STRICT MAX 50 WORDS. '
+    'One key point + one brief supporting detail. '
+    'If you write 4 sentences or 51+ words, you have failed.'
+  ),
+  'long': (
+    '3-4 SENTENCES ONLY. STRICT MAX 80 WORDS. '
+    'One key point, reasoning, and optionally one brief example. '
+    'If you write 5 sentences or 81+ words, you have failed.'
+  ),
+}
+
+
+def _level_label(n: Optional[int]) -> str:
+  if not n:
+    return ''
+  try:
+    n = int(n)
+  except (TypeError, ValueError):
+    return ''
+  return _LEVEL_LABELS.get(max(1, min(6, n)), '')
+
+
+def _build_answer_style_prefix(
+  answer_language: Optional[str],
+  language_levels: Optional[dict],
+  expertise_level: Optional[str],
+  meeting_style: Optional[str],
+  meeting_length: Optional[str],
+) -> str:
+  """답변 생성용 스타일/난이도/길이 규칙 블록."""
+  lines = ['## Answer Style Rules — CRITICAL, obey exactly']
+
+  # 답변 길이
+  length_rule = _LENGTH_INSTRUCTIONS.get(meeting_length or 'medium', _LENGTH_INSTRUCTIONS['medium'])
+  lines.append(f'### Length\n{length_rule}')
+
+  # 언어 난이도 (reading/speaking 우선 — 대본은 읽고 말하는 것)
+  if answer_language and language_levels and isinstance(language_levels, dict):
+    lang_block = language_levels.get(answer_language)
+    if isinstance(lang_block, dict):
+      reading = _level_label(lang_block.get('reading'))
+      speaking = _level_label(lang_block.get('speaking'))
+      listening = _level_label(lang_block.get('listening'))
+      writing = _level_label(lang_block.get('writing'))
+      if reading or speaking:
+        parts_l = []
+        if reading: parts_l.append(f'Reading {reading}')
+        if speaking: parts_l.append(f'Speaking {speaking}')
+        if listening: parts_l.append(f'Listening {listening}')
+        if writing: parts_l.append(f'Writing {writing}')
+        lines.append(
+          f'### Reader Language Level ({answer_language})\n'
+          f'{", ".join(parts_l)}.\n'
+          f'- Write so the reader can both READ this aloud and UNDERSTAND it at their reading level.\n'
+          f'- Pick the LOWER of reading/speaking levels as your ceiling.\n'
+          f'- For Beginner/Elementary: only the 1500 most common words. Present tense. No idioms, no phrasal verbs, no loanwords.\n'
+          f'- For Intermediate: common everyday vocabulary. Avoid jargon unless essential and then explain it in one word.\n'
+          f'- For Advanced/Native: natural register, but still prefer short common words when possible.'
+        )
+
+  # 전문 지식 레벨
+  exp = (expertise_level or '').lower()
+  if exp:
+    exp_map = {
+      'layman': 'The listener is a non-expert — explain in plain terms, no domain jargon.',
+      'practitioner': 'The listener knows the field at a working level — use standard terms but avoid obscure research jargon.',
+      'expert': 'The listener is an expert — use precise domain terminology freely.',
+    }
+    if exp in exp_map:
+      lines.append(f'### Expertise Level\n{exp_map[exp]}')
+
+  # 말하기 좋은 단어 규칙 (모든 언어 공통 + 언어별 세부)
+  speakable = [
+    '### Speakable Vocabulary — you are writing a SPOKEN script, not written text',
+    '- The user will READ THIS ALOUD in a meeting. Every word must be easy to pronounce out loud.',
+    '- Prefer short, common words over long fancy ones.',
+    '- Avoid tongue-twisters, complex consonant clusters, rare loanwords.',
+    '- Use contractions and natural spoken register where appropriate.',
+    '- Break long sentences into short ones. One idea per sentence.',
+  ]
+  if answer_language == 'en':
+    speakable.append(
+      '- English specifics: prefer Anglo-Saxon roots (get, show, help, need, make) '
+      'over Latinate (obtain, demonstrate, facilitate, require, generate). '
+      'Prefer 1-2 syllable words. Avoid academic connectors (moreover, furthermore, nonetheless).'
+    )
+  elif answer_language == 'ko':
+    speakable.append(
+      '- 한국어 규칙: 한자어보다 순우리말/일상어 우선 (예: "수행한다"보다 "한다", "제공한다"보다 "준다"). '
+      '긴 명사구(~에 대한 ~의)를 풀어서 동사구로. 격식체보다 자연스러운 구어체. '
+      '전문 용어는 필요할 때만 쓰고 한 번 풀어서 설명.'
+    )
+  elif answer_language == 'ja':
+    speakable.append(
+      '- 日本語ルール: 漢語より和語 (例: 「実施する」→「やる」). 長い名詞句を動詞句に. '
+      '自然な会話体, 専門用語は必要最小限.'
+    )
+  lines.append('\n'.join(speakable))
+
+  # 회의별 사용자 지정 스타일
+  if meeting_style and meeting_style.strip():
+    lines.append(f'### Meeting-specific Style (user-provided)\n{meeting_style.strip()}')
+
+  return '\n\n'.join(lines) + '\n\n---\n\n'
+
+
+# ─────────────────────────────────────────────────────────
 # Translation + Question Detection — 언어별 완전 프롬프트
 # ─────────────────────────────────────────────────────────
 #
@@ -122,11 +248,25 @@ SYSTEM_KO = """당신은 실시간 회의 어시스턴트입니다. 음성인식
   - 나열/전환에 쉼표(,) 추가
   - 물음표는 실제 질문일 때만. 억양 때문에 올라간 평서문에는 마침표(.)
 
-단어 교정 (매우 보수적으로):
-  - 교정 대상: 회의 참여자 이름, 회사명, 제품명 등 고유명사가 STT에서 발음 유사한 다른 단어로 잘못 인식된 경우만
-  - 교정 금지: 일반 단어 변경, 문장 구조 변경, 어순 변경, 단어 추가/삭제, 의역
-  - 화자가 실제로 한 말을 그대로 보존. 어색하거나 문법이 틀려도 고치지 않음
-  - 띄어쓰기와 구두점만 수정하고 단어 자체는 건드리지 않는 것이 기본 원칙
+단어 교정 (보수적 원칙, 명백한 오인식만 교체):
+
+  **교정 가능한 조건 — 모두 충족해야 함:**
+  1. 현재 단어가 **명백히 STT 오인식으로 보임** — 실제 단어로서 말이 안 되거나 (비단어), 문장 안에서 말이 전혀 안 통함
+  2. **발음 유사성**이 있음 — 교체 후보 단어와 음가가 거의 동일
+  3. 교체 후보가 **어휘 사전(Meeting Vocabulary) 안에 실제로 존재**함
+
+  **우선순위:**
+  - 1순위: Meeting Vocabulary 리스트와 음가 매우 유사 + 원본이 비단어/엉뚱 → 사전 단어로 교체.
+    예: "레몬 워크" (한국어 문장에 섞여 말 안 됨) + vocab "remote work" → 교체.
+  - 2순위: Recent Conversation 은 **참고용**으로만 사용. 원본 단어가 **그 자체로 말이 되면 절대 바꾸지 않는다**.
+    예: 화자가 "지금은 요리 얘기인데..." 라고 맥락을 벗어나면 원본 그대로 보존. 맥락과 달라도 의도일 수 있음.
+  - 3순위: 참여자 이름, 회사명, 제품명 등 고유명사의 명백한 음가 오인식.
+
+  **교정 금지 (절대):**
+  - 원본 단어가 **정상적인 단어이고 문장에서 의미가 통하면** 바꾸지 않는다. 주제와 달라도 유지.
+  - 문장 구조/어순 변경, 단어 추가/삭제, 의역 금지. 단어 수준 1:1 교체만.
+  - 의심되면 원본 보존. 과잉 교정이 누락 교정보다 훨씬 나쁨.
+  - 어휘 사전이 없으면 고유명사 외에는 거의 교정하지 않는다.
 
 ## 2. translation (영어 번역)
 
@@ -202,11 +342,25 @@ Punctuation rules:
   - Question marks ONLY for genuine questions — NOT for statements with rising intonation
   - Capitalize sentence starts, proper nouns, acronyms
 
-Word correction (very conservative):
-  - ONLY correct proper nouns (participant names, company names, product names) that STT mis-recognized as phonetically similar words
-  - NEVER change ordinary words, sentence structure, word order, or add/remove words
-  - Preserve exactly what the speaker said, even if awkward or grammatically incorrect
-  - Default: fix only spacing and punctuation, leave words untouched
+Word correction (conservative principle, fix only clear STT mis-hears):
+
+  **Correction is allowed ONLY when ALL of these hold:**
+  1. The current word is **clearly an STT mis-recognition** — it's a non-word, or makes zero sense in the sentence
+  2. There's strong **phonetic similarity** to the candidate replacement
+  3. The replacement exists in the **Meeting Vocabulary list** (or is a listed proper noun)
+
+  **Priorities:**
+  - Priority 1: Phonetically close to a Meeting Vocabulary item AND the original is nonsense/non-word → replace.
+    Example: "in Lemont Walk" (Lemont Walk makes no sense mid-sentence) + vocab contains "remote work" → replace with "in remote work".
+  - Priority 2: Recent Conversation is **reference only**. If the original word **is a real word and makes sense on its own**, DO NOT change it, even if it's off-topic.
+    Example: speaker suddenly says "let's talk about cooking for a second" — keep as-is; going off-topic is intentional.
+  - Priority 3: Proper nouns — participant names, company names, product names with clear phonetic mis-hears.
+
+  **NEVER:**
+  - Replace a word that is a normal word and makes sense in the sentence, even if it's off-topic.
+  - Change sentence structure, word order, add/remove words, paraphrase. Word-level 1:1 substitution only.
+  - When in doubt, preserve the original. Over-correction is far worse than missed correction.
+  - Without a vocabulary list, only correct obvious proper-noun mis-hears.
 
 ## 2. translation (Korean translation)
 
@@ -292,21 +446,58 @@ def _build_translate_system(language: Optional[str] = None) -> str:
   return _SYSTEM_MAP.get(language or '', SYSTEM_DEFAULT)
 
 
+def _build_stt_correction_prefix(
+  vocabulary: Optional[list[str]],
+  recent_utterances: Optional[list[str]],
+) -> str:
+  """STT 교정용 컨텍스트 주입 블록 — 어휘 사전 + 직전 대화 맥락.
+  중요: 이 블록은 "참고용 힌트". 원본 단어가 말이 되면 그대로 두어야 한다."""
+  parts = []
+  if vocabulary:
+    items = vocabulary[:60]
+    parts.append(
+      '## Meeting Vocabulary (replacement candidates — USE ONLY IF original is a clear mis-hear)\n'
+      'These terms appear in this meeting. If the input contains a nonsense/garbled word that '
+      'sounds almost identical to one of these, replace it. Do NOT replace sensible words.\n- '
+      + '\n- '.join(items)
+    )
+  if recent_utterances:
+    recent = [u for u in recent_utterances[-3:] if u and u.strip()]
+    if recent:
+      parts.append(
+        '## Recent Conversation (REFERENCE ONLY — not a filter)\n'
+        'Background context of the meeting. Do NOT change words just because they are off-topic. '
+        'Speakers may intentionally bring up unrelated things.\n'
+        + '\n'.join(f'→ {u.strip()[:200]}' for u in recent)
+      )
+  if not parts:
+    return ''
+  return '\n\n'.join(parts) + '\n\n---\n\n'
+
+
 async def translate_and_detect_question(
   text: str,
   meeting_context: Optional[dict] = None,
   language: Optional[str] = None,
+  vocabulary: Optional[list[str]] = None,
+  recent_utterances: Optional[list[str]] = None,
 ) -> dict:
   """
   Returns: {"formatted_original": str, "translation": str, "is_question": bool, "detected_language": str}
   language: 세션의 meeting_language (ko, en 등). 해당 언어의 질문 판정 규칙 적용.
+  vocabulary: STT 교정용 어휘 사전 (고유명사/전문용어/외래어).
+  recent_utterances: 직전 발화 3개까지 — 주제 문맥 기반 교정에 사용.
   """
   if not text or not text.strip():
     return {'formatted_original': text, 'translation': '', 'is_question': False, 'detected_language': 'unknown'}
 
   try:
     client = get_client()
-    system_content = _build_context_prefix(meeting_context) + _build_translate_system(language)
+    system_content = (
+      _build_context_prefix(meeting_context)
+      + _build_stt_correction_prefix(vocabulary, recent_utterances)
+      + _build_translate_system(language)
+    )
     response = await client.chat.completions.create(
       model=LLM_MODEL,
       messages=[
@@ -333,6 +524,272 @@ async def translate_and_detect_question(
       'detected_language': 'error',
       'error': str(e),
     }
+
+
+# ─────────────────────────────────────────────────────────
+# Fast question detection — 병렬 경로용 (enrichment 기다리지 않음)
+# ─────────────────────────────────────────────────────────
+#
+# 목표: STT 원문이 들어온 즉시 ~300ms 내에 질문 여부만 판정.
+# 결과가 true 면 라이브 라우터가 prefetch_answer 를 즉시 시작.
+# enrichment(정제+번역+정확 판정)는 병렬로 돌며 나중에 덮어쓴다.
+
+FAST_QUESTION_SYSTEM_KO = """다음 한국어 발화가 "다른 사람에게 정보를 요청하는 질문" 인지 판정.
+
+true 조건: 화자가 답을 모르고, 상대에게 구체 정보를 요청, 의문사+의문 어미 구조.
+false: 확인("~지?"), 제안("~할까요?"), 요청("~해줘"), 감탄, 인사, 독백, 수사적 질문, 혼잣말.
+의심되면 false.
+
+JSON 1필드만 응답: {"q": true|false}"""
+
+FAST_QUESTION_SYSTEM_EN = """Decide if the following English utterance is a real question asking someone else for information they don't know.
+
+true: speaker doesn't know the answer, asks for specific info, proper Wh/yes-no structure.
+false: requests, commands, tag questions, rhetorical, suggestions, embedded questions, greetings, self-directed.
+When in doubt, false.
+
+Respond with 1 JSON field only: {"q": true|false}"""
+
+FAST_QUESTION_SYSTEM_DEFAULT = """Decide if the following utterance is a real information-seeking question.
+true: speaker asks someone for specific unknown info.
+false: requests, commands, rhetorical, greetings, self-talk, suggestions.
+When in doubt, false.
+Respond with 1 JSON field only: {"q": true|false}"""
+
+_FAST_Q_MAP = {
+  'ko': FAST_QUESTION_SYSTEM_KO,
+  'en': FAST_QUESTION_SYSTEM_EN,
+  'en-US': FAST_QUESTION_SYSTEM_EN,
+  'en-GB': FAST_QUESTION_SYSTEM_EN,
+}
+
+
+QA_MATCH_SYSTEM = """You decide whether a user question matches any of the pre-registered questions.
+
+Given:
+- A user question (the thing the user/speaker just asked)
+- A numbered list of candidate registered questions
+
+Pick the candidate number whose registered question is asking about the **same topic** as the user question, even if worded differently.
+
+Rules:
+- Match = same information need (paraphrases, synonyms, different wordings are fine)
+- Not a match = different topic/aspect, even if some words overlap
+- If multiple candidates match, pick the CLOSEST one
+- If none match clearly, return 0
+
+Respond ONLY with JSON: {"match": N}
+Where N = 1..K for a match, or 0 for no match.
+"""
+
+
+async def llm_match_question(
+  query: str,
+  candidates: list[str],
+) -> int:
+  """LLM 2차 매칭. query 가 candidates 중 어느 것과 의미가 같은지 판단.
+  Returns: 1-based index of the matching candidate, or 0 if none."""
+  if not candidates:
+    return 0
+  # 최대 5개까지만 (비용·지연 억제)
+  candidates = candidates[:5]
+  lines = '\n'.join(f'{i+1}. {c}' for i, c in enumerate(candidates))
+  user_msg = f'User question: {query}\n\nCandidates:\n{lines}'
+  try:
+    client = get_client()
+    resp = await client.chat.completions.create(
+      model=LLM_MODEL,  # gpt-4.1-nano
+      messages=[
+        {'role': 'system', 'content': QA_MATCH_SYSTEM},
+        {'role': 'user', 'content': user_msg},
+      ],
+      response_format={'type': 'json_object'},
+      max_completion_tokens=30,
+    )
+    data = json.loads(resp.choices[0].message.content or '{}')
+    n = int(data.get('match', 0))
+    if 1 <= n <= len(candidates):
+      return n
+    return 0
+  except Exception as e:
+    logger.warning(f'llm_match_question failed: {e}')
+    return 0
+
+
+async def detect_question_fast(text: str, language: Optional[str] = None) -> bool:
+  """초경량 질문 판정. gpt-4.1-nano + 20 토큰.
+  Returns: True if likely question. 실패 시 False (보수적)."""
+  if not text or not text.strip():
+    return False
+  system = _FAST_Q_MAP.get(language or '', FAST_QUESTION_SYSTEM_DEFAULT)
+  try:
+    client = get_client()
+    resp = await client.chat.completions.create(
+      model=LLM_MODEL,  # gpt-4.1-nano
+      messages=[
+        {'role': 'system', 'content': system},
+        {'role': 'user', 'content': text[:500]},
+      ],
+      response_format={'type': 'json_object'},
+      max_completion_tokens=20,
+    )
+    data = json.loads(resp.choices[0].message.content or '{}')
+    return bool(data.get('q', False))
+  except Exception as e:
+    logger.warning(f'detect_question_fast failed: {e}')
+    return False
+
+
+# ─────────────────────────────────────────────────────────
+# Vocabulary extraction — 회의 자료/브리프에서 STT 보정용 어휘 사전 추출
+# ─────────────────────────────────────────────────────────
+#
+# 사용자가 "remote work" 라고 말했는데 STT 가 "Lemont Walk" 로 잡는 문제 해결:
+#   1) Deepgram keyword boosting → 같은 음가의 정답 단어 후보 제공
+#   2) LLM 교정 시 이 사전을 주입 → 문맥상 교정 가능
+# 추출 대상: 회의 주제의 핵심 용어, 도메인 용어, 고유명사, 외래어
+
+VOCAB_EXTRACT_SYSTEM = """You extract a vocabulary list for speech-to-text correction in a live meeting.
+
+# ABSOLUTE RULE — EXTRACTION ONLY, NO INFERENCE
+
+You are a **TERM EXTRACTOR**, not a brainstormer.
+
+- **ONLY output terms that appear VERBATIM in the source materials below.**
+- **NEVER invent, generalize, summarize, or infer terms.** If the brief says "Research on remote work" do NOT add "productivity", "time management", "collaboration tools" — those are GUESSES.
+- If a term is not literally present in the provided text, it must NOT appear in your output.
+- Prefer longer multi-word phrases verbatim over split words.
+- Preserve original capitalization, spelling, punctuation.
+- Copy proper nouns, product names, technical terms, acronyms exactly as written.
+- If the Meeting Language is different from the source language, still COPY source terms AS-IS (speakers code-switch).
+
+# What to extract
+
+From the source materials, copy:
+- Proper nouns (people, places, companies, products, publications)
+- Technical terms and domain jargon
+- Acronyms and their expansions (if both appear)
+- Multi-word compounds likely to be spoken (e.g. "machine learning", "self-efficacy")
+- Numbers + units (e.g. "300%", "47 participants")
+- Author/researcher names
+- Method/theory names (e.g. "grounded theory", "regression analysis")
+
+# What NOT to extract
+- Common function words ("the", "and", "of")
+- Generic single words not in the source ("productivity", "performance" — unless literally in text)
+- Your own paraphrases or synonyms
+- Terms that are NOT in the source — even if they seem related
+
+# Quantity
+- **If source materials are rich**: 40-80 verbatim terms
+- **If source materials are minimal (only a short brief)**: 5-20 terms maximum. Do NOT pad by inventing.
+- **If source provides nothing extractable**: return an empty list `{"vocabulary": []}` — DO NOT GUESS.
+
+Respond ONLY with strict JSON:
+{"vocabulary": ["term 1", "term 2", "..."]}
+"""
+
+
+async def generate_vocabulary_list(
+  brief: Optional[str] = None,
+  pasted_context: Optional[str] = None,
+  participants: Optional[list] = None,
+  user_profile: Optional[dict] = None,
+  meeting_languages: Optional[list] = None,
+  document_excerpts: Optional[list] = None,
+) -> list[str]:
+  """회의 컨텍스트에서 STT 보정용 어휘 사전 추출.
+
+  meeting_languages: ISO 639-1 코드 리스트 (e.g. ['en'], ['ko'], ['en','ko']).
+    LLM 에게 이 언어로만 키워드 반환하라고 지시.
+  document_excerpts: 인덱싱된 문서의 청크 텍스트 리스트 (최대 ~6000자).
+    원자료에서 직접 추출 → 가장 정확한 키워드 소스.
+  """
+  parts = []
+
+  # 회의 언어 명시 — LLM 이 해당 언어로만 키워드 반환
+  if meeting_languages:
+    langs = [l for l in meeting_languages if isinstance(l, str)]
+    if langs:
+      lang_names = {
+        'ko': 'Korean (한국어)',
+        'en': 'English',
+        'ja': 'Japanese (日本語)',
+        'zh': 'Chinese (中文)',
+        'es': 'Spanish',
+        'fr': 'French',
+        'de': 'German',
+      }
+      names = ', '.join(lang_names.get(l, l) for l in langs)
+      parts.append(f'## Meeting Language(s) — KEYWORDS MUST BE IN THESE LANGUAGE(S)\n{names}')
+
+  if brief:
+    parts.append(f'## Meeting Brief\n{brief.strip()[:3000]}')
+  if participants and isinstance(participants, list):
+    names = []
+    for p in participants:
+      if isinstance(p, dict):
+        n = (p.get('name') or '').strip()
+        r = (p.get('role') or '').strip()
+        if n:
+          names.append(f'- {n}' + (f' ({r})' if r else ''))
+    if names:
+      parts.append('## Participants\n' + '\n'.join(names))
+  if user_profile and isinstance(user_profile, dict):
+    lines = []
+    for k in ('job_title', 'organization', 'expertise', 'bio'):
+      v = user_profile.get(k)
+      if v:
+        lines.append(f'- {k}: {v}')
+    if lines:
+      parts.append('## User Profile\n' + '\n'.join(lines))
+  if pasted_context:
+    parts.append(f'## Reference Text (pasted)\n{pasted_context.strip()[:6000]}')
+
+  # 문서 발췌 — 가장 강력한 소스. 원어 그대로
+  if document_excerpts:
+    combined = '\n\n---\n\n'.join(e for e in document_excerpts if e)[:8000]
+    if combined:
+      parts.append(f'## Source Document Excerpts (most important — extract keywords from here as-is)\n{combined}')
+
+  if not parts:
+    return []
+
+  user_msg = '\n\n'.join(parts)
+  try:
+    client = get_client()
+    resp = await client.chat.completions.create(
+      model=LLM_MODEL_ANSWER,
+      messages=[
+        {'role': 'system', 'content': VOCAB_EXTRACT_SYSTEM},
+        {'role': 'user', 'content': user_msg},
+      ],
+      response_format={'type': 'json_object'},
+      max_completion_tokens=2000,
+    )
+    data = json.loads(resp.choices[0].message.content or '{}')
+    raw = data.get('vocabulary', [])
+    if not isinstance(raw, list):
+      return []
+    out = []
+    seen = set()
+    for w in raw:
+      if not isinstance(w, str):
+        continue
+      w = ' '.join(w.split()).strip()
+      if not w or len(w) < 2 or len(w) > 80:
+        continue
+      k = w.lower()
+      if k in seen:
+        continue
+      seen.add(k)
+      out.append(w)
+      if len(out) >= 80:
+        break
+    return out
+  except Exception as e:
+    logger.warning(f'generate_vocabulary_list failed: {e}')
+    return []
 
 
 # ─────────────────────────────────────────────────────────
@@ -378,43 +835,45 @@ async def generate_summary(transcript: str, meeting_context: Optional[dict] = No
 # Answer generation (RAG, B-5)
 # ─────────────────────────────────────────────────────────
 
-ANSWER_SYSTEM_RAG = """You are preparing an answer that the user (described in "Your Profile" above) will speak in their meeting.
+ANSWER_SYSTEM_RAG = """You are preparing an answer that the user (described in "Your Profile" above) will SPEAK ALOUD in their meeting.
 
 **CRITICAL: You are NOT an AI assistant. You ARE the person described in the profile.**
 Speak in first person as that person. Use "I", "my", "we" naturally.
 Never say "As an AI", "I don't have personal preferences", "I'm here to help". You are a real human answering.
 
+**CRITICAL: Obey the Answer Style Rules above (length, language level, speakable vocabulary, expertise level, meeting-specific style). They override any tendency you have to write longer, fancier, or more academic answers.**
+
 Rules:
 1. Answer in {answer_lang_name}, in first person, as the profile's person.
-2. Use the document excerpts below to ground your answer when they're relevant to the question.
-3. Match the person's tone — if they're an expert in X, speak with that authority. If they run a company, speak from that position.
-4. For conversational questions ("How are you?", "What do you like?"), answer as the person would — based on their bio, role, interests.
-5. Include concrete details from the context (numbers, names, dates) when they answer the question.
-6. Only say "자료에서 답을 찾지 못했습니다" if the question clearly requires specific document content AND the context has nothing relevant.
-7. Structure longer answers with line breaks for readability.
+2. Use the document excerpts below to ground your answer when relevant.
+3. Match the person's tone authentically.
+4. For conversational questions, answer as the person would based on their bio.
+5. Only say "자료에서 답을 찾지 못했습니다" if the question clearly requires specific document content AND the context has nothing relevant.
+6. Respect the Length rule strictly. Short means SHORT. Do not pad.
 
 Confidence:
-- "high" — answer grounded in context or profile
-- "medium" — reasonable inference from profile/context
+- "high" — grounded in context or profile
+- "medium" — reasonable inference
 - "low" — speculative
 
 Respond ONLY with strict JSON:
 {{"answer": "...", "confidence": "high"|"medium"|"low"}}
 """
 
-ANSWER_SYSTEM_GENERAL = """You are preparing an answer that the user (described in "Your Profile" above) will speak in their meeting.
+ANSWER_SYSTEM_GENERAL = """You are preparing an answer that the user (described in "Your Profile" above) will SPEAK ALOUD in their meeting.
 
 **CRITICAL: You are NOT an AI assistant. You ARE the person described in the profile.**
 Speak in first person as that person. Use "I", "my", "we" naturally.
 Never say "As an AI", "I don't have personal preferences", "I'm here to help", or anything that breaks the first-person persona. You are a real human answering.
 
+**CRITICAL: Obey the Answer Style Rules above (length, language level, speakable vocabulary, expertise level, meeting-specific style). They override any tendency you have to write longer, fancier, or more academic answers.**
+
 Rules:
 1. Answer in {answer_lang_name}, in first person, as the profile's person.
 2. Base your answer on the profile — the person's role, expertise, organization, background.
 3. For factual questions, use general knowledge as that person would know it.
-4. For conversational questions ("What do you like?", "How are you?"), answer naturally based on the profile — not generically.
-5. If asked about something the person couldn't plausibly know (e.g., internal company info not in profile), say so briefly as that person would ("I'd need to check with the team on that").
-6. Be specific and personal. Avoid generic "I appreciate a wide range of topics" type answers.
+4. Be specific and personal, not generic.
+5. Respect the Length rule strictly. Short means SHORT. Do not pad.
 
 Respond ONLY with strict JSON:
 {{"answer": "...", "confidence": "high"|"medium"|"low"}}
@@ -435,32 +894,81 @@ def _lang_name(code: Optional[str]) -> str:
   return _LANG_NAMES.get(code, code)
 
 
+_LENGTH_MAX_TOKENS = {
+  'short': 150,
+  'medium': 300,
+  'long': 500,
+}
+
+
 async def generate_answer(
   question: str,
   context_chunks: list,
   meeting_context: Optional[dict] = None,
   answer_language: Optional[str] = None,
+  language_levels: Optional[dict] = None,
+  expertise_level: Optional[str] = None,
+  meeting_style: Optional[str] = None,
+  meeting_length: Optional[str] = None,
+  session_history: Optional[list] = None,
 ) -> dict:
   """
   답변 생성 (번역 없음 — 속도 우선).
   context_chunks 유무에 따라 RAG vs general 프롬프트 분기.
+  style_prefix 로 언어 레벨/길이/말하기 규칙/회의별 스타일 주입.
+  session_history: 같은 세션의 이전 질문-답변 리스트 (중복 방지용). [{q, a}]
   Returns: {"answer": str, "confidence": str}
   """
   ans_lang = answer_language or 'the same language as the question'
   ans_lang_name = _lang_name(ans_lang) if ans_lang != 'the same language as the question' else ans_lang
 
+  style_prefix = _build_answer_style_prefix(
+    answer_language=answer_language,
+    language_levels=language_levels,
+    expertise_level=expertise_level,
+    meeting_style=meeting_style,
+    meeting_length=meeting_length,
+  )
+
+  # 세션 이력: 최근 Q&A 3-5개 주입 (중복 답변 방지)
+  history_block = ''
+  if session_history:
+    lines = []
+    for i, item in enumerate(session_history[-5:], 1):
+      q = (item.get('q') or '').strip()[:200]
+      a = (item.get('a') or '').strip()[:300]
+      if q and a:
+        lines.append(f'{i}. Q: {q}\n   A: {a}')
+    if lines:
+      history_block = (
+        '## Prior Q&A in THIS meeting (do not repeat verbatim; '
+        'build on or cross-reference when relevant)\n'
+        + '\n'.join(lines) + '\n\n---\n\n'
+      )
+
   if context_chunks:
-    # RAG 모드: 자료 있음
     context = '\n\n---\n\n'.join(context_chunks)
     user_msg = f'Context:\n{context}\n\nQuestion: {question}'
     system_prompt = ANSWER_SYSTEM_RAG.replace('{answer_lang_name}', ans_lang_name)
   else:
-    # General 모드: 자료 없음 — 일반 지식으로 답변
     user_msg = f'Question: {question}'
     system_prompt = ANSWER_SYSTEM_GENERAL.replace('{answer_lang_name}', ans_lang_name)
 
   client = get_client()
-  system_content = _build_context_prefix(meeting_context) + system_prompt
+  # 길이 규칙을 프롬프트 맨 끝에 다시 한번 강조 — LLM 은 마지막 텍스트를 더 잘 따른다
+  final_length_reminder = (
+    f'\n\n---\nFINAL REMINDER — length rule for THIS answer: '
+    f'{_LENGTH_INSTRUCTIONS.get(meeting_length or "medium", _LENGTH_INSTRUCTIONS["medium"])}\n'
+    f'Write only the answer. Count your words before returning JSON.'
+  )
+  system_content = (
+    _build_context_prefix(meeting_context)
+    + style_prefix
+    + history_block
+    + system_prompt
+    + final_length_reminder
+  )
+  max_tokens = _LENGTH_MAX_TOKENS.get(meeting_length or 'medium', 400)
   try:
     response = await client.chat.completions.create(
       model=LLM_MODEL_ANSWER,
@@ -469,16 +977,47 @@ async def generate_answer(
         {'role': 'user', 'content': user_msg},
       ],
       response_format={'type': 'json_object'},
-      max_completion_tokens=1000,
+      max_completion_tokens=max_tokens,
     )
     data = json.loads(response.choices[0].message.content)
+    answer = data.get('answer', '')
+    # 서버 하드 캡 — LLM 이 지시를 안 지키는 경우 안전망
+    if answer and meeting_length:
+      answer = _enforce_length_cap(answer, meeting_length)
     return {
-      'answer': data.get('answer', ''),
+      'answer': answer,
       'confidence': data.get('confidence', 'low'),
     }
   except Exception as e:
     logger.error(f'generate_answer failed: {e}')
     return {'answer': '', 'confidence': 'low', 'error': str(e)}
+
+
+_LENGTH_WORD_CAP = {'short': 27, 'medium': 55, 'long': 85}
+_LENGTH_SENT_CAP = {'short': 2, 'medium': 3, 'long': 4}
+
+
+def _enforce_length_cap(text: str, length: str) -> str:
+  """LLM 이 길이 규칙을 어겼을 때 후처리로 자름.
+  단어 캡 + 문장 캡 중 먼저 도달하는 것 기준."""
+  import re
+  word_cap = _LENGTH_WORD_CAP.get(length, 85)
+  sent_cap = _LENGTH_SENT_CAP.get(length, 4)
+  # 문장 분리 (한/영 공통)
+  sentences = re.split(r'(?<=[.!?。!?])\s+', text.strip())
+  sentences = [s for s in sentences if s]
+  if len(sentences) > sent_cap:
+    sentences = sentences[:sent_cap]
+  capped = ' '.join(sentences).strip()
+  # 단어 캡 (공백 기준, 한국어도 공백 단위라 단어수 대략적)
+  words = capped.split()
+  if len(words) > word_cap:
+    words = words[:word_cap]
+    capped = ' '.join(words)
+    # 문장 끝 기호 추가 (없으면)
+    if not re.search(r'[.!?。!?]$', capped):
+      capped += '.'
+  return capped
 
 
 async def translate_text(text: str, target_language: str) -> str:

@@ -1,0 +1,31 @@
+{
+  "nav": {
+    "sectionMain": "Main",
+    "sectionBusiness": "Business",
+    "sectionFeatures": "Features",
+    "sectionAdmin": "Admin",
+    "dashboard": "Dashboard",
+    "settings": "Settings",
+    "members": "Members",
+    "clients": "Clients",
+    "talk": "Q talk",
+    "task": "Q task",
+    "calendar": "Q calendar",
+    "note": "Q note",
+    "docs": "Q docs",
+    "file": "Q file",
+    "bill": "Q bill",
+    "users": "Users",
+    "businesses": "Businesses"
+  },
+  "user": {
+    "profile": "My Profile",
+    "logout": "Logout"
+  },
+  "role": {
+    "platform_admin": "Platform Admin",
+    "business_owner": "Business Owner",
+    "business_member": "Member",
+    "user": "User"
+  }
+}

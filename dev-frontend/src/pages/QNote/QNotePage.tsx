@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import styled from 'styled-components';
 import StartMeetingModal from './StartMeetingModal';
 import type { StartConfig } from './StartMeetingModal';
@@ -16,6 +17,9 @@ import {
   getCachedAnswer,
   findAnswer,
   translateAnswer,
+  createPriorityQA,
+  uploadPriorityQACSV,
+  listQAPairs,
 } from '../../services/qnote';
 import type { QNoteSession, QNoteUtterance, QNoteSpeaker } from '../../services/qnote';
 import { LiveSession } from '../../services/qnoteLive';
@@ -100,6 +104,7 @@ function formatTime(sec: number | string | null | undefined): string {
 interface SpeakerLabelContext {
   speakers: QNoteSpeaker[];
   participants?: { name: string; role?: string | null }[] | null;
+  labels: { self: string; other: string; numbered: (n: number) => string };
 }
 
 function speakerLabelFor(
@@ -107,27 +112,24 @@ function speakerLabelFor(
   dgSpeakerId: number | null,
   ctx: SpeakerLabelContext,
 ): string {
-  const { speakers, participants } = ctx;
+  const { speakers, participants, labels } = ctx;
+  const pCount = participants?.length ?? 0;
   if (speakerRowId != null) {
     const match = speakers.find((s) => s.id === speakerRowId);
     if (match) {
-      if (match.is_self) return '나';
+      if (match.is_self) return labels.self;
       if (match.participant_name) return match.participant_name;
-      // 참여자 1명 → 나 아닌 모든 화자를 그 참여자 이름으로
-      // 참여자 다수 → "상대"
-      const pCount = participants?.length ?? 0;
+      // 참여자 1명만 등록 → 그 이름으로.
+      // 그 외(미등록 or 다수 등록)는 그냥 "상대/화자" — Deepgram 화자 ID 신뢰도 낮아 번호 안 붙임.
       if (pCount === 1 && participants![0].name) return participants![0].name;
-      if (pCount > 1) return '상대';
-      return `화자 ${(match.deepgram_speaker_id ?? 0) + 1}`;
+      return labels.other;
     }
   }
   if (dgSpeakerId != null) {
-    const pCount = participants?.length ?? 0;
     if (pCount === 1 && participants![0].name) return participants![0].name;
-    if (pCount > 1) return '상대';
-    return `화자 ${dgSpeakerId + 1}`;
+    return labels.other;
   }
-  return '상대';
+  return labels.other;
 }
 
 function joinText(segments: BlockSegment[]): string {
@@ -145,17 +147,88 @@ function joinTranslation(segments: BlockSegment[]): { text: string; hasAny: bool
 }
 
 const QNotePage = () => {
+  const { t } = useTranslation('qnote');
   const { user } = useAuth();
   const businessId = user?.business_id ?? null;
+
+  const speakerLabels = useMemo(() => ({
+    self: t('page.speaker.self'),
+    other: t('page.speaker.other'),
+    numbered: (n: number) => t('page.speaker.numbered', { n }),
+  }), [t]);
 
   const { sessionId: urlSessionId } = useParams<{ sessionId?: string }>();
   const navigate = useNavigate();
 
   const [showStartModal, setShowStartModal] = useState(false);
+  const [editingSession, setEditingSession] = useState<boolean>(false);
   const [phase, setPhase] = useState<Phase>('empty');
   const [sessions, setSessions] = useState<QNoteSession[]>([]);
   const [activeSession, setActiveSession] = useState<QNoteSession | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  // ── 준비 상태 (phase='prepared' 일 때 폴링) ──
+  type Readiness = {
+    docsIndexed: number;
+    docsTotal: number;
+    docsFailed: number;
+    pqTotal: number;
+    pqEmbedded: number;
+    keywordsCount: number;
+    allReady: boolean;
+  };
+  const [readiness, setReadiness] = useState<Readiness | null>(null);
+
+  useEffect(() => {
+    // 녹음 시작 전 상태 — prepared / paused 모두에서 표시
+    if ((phase !== 'prepared' && phase !== 'paused') || !activeSession) {
+      setReadiness(null);
+      return;
+    }
+    let cancelled = false;
+    const fetchReadiness = async () => {
+      try {
+        const detail = await getSession(activeSession.id);
+        let pqs: Array<{ has_embedding?: boolean }> = [];
+        try {
+          pqs = await listQAPairs(activeSession.id, 'priority');
+        } catch { /* priority 조회 실패 — 빈 배열로 */ }
+        if (cancelled) return;
+        const docs = detail.documents || [];
+        const docsIndexed = docs.filter((d) => d.status === 'indexed').length;
+        const docsFailed = docs.filter((d) => d.status === 'failed').length;
+        const pqTotal = pqs.length;
+        const pqEmbedded = pqs.filter((p) => p.has_embedding).length;
+        const keywordsCount = (detail.keywords || []).length;
+        const allReady =
+          docs.length === docsIndexed + docsFailed &&  // 처리 완료
+          pqTotal === pqEmbedded;                      // 임베딩 완료
+        setReadiness({ docsIndexed, docsTotal: docs.length, docsFailed, pqTotal, pqEmbedded, keywordsCount, allReady });
+      } catch {
+        /* ignore — 다음 폴링에서 재시도 */
+      }
+    };
+    fetchReadiness();
+    const timer = window.setInterval(fetchReadiness, 3000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [phase, activeSession]);
+
+  // 내 발화 처리 모드: 'skip' (기본 — 아예 블록 생성 안 함) | 'hide' (생성 후 숨김) | 'show' (다 보임)
+  type SelfMode = 'skip' | 'hide' | 'show';
+  const [selfMode, setSelfMode] = useState<SelfMode>(() => {
+    try {
+      const v = localStorage.getItem('qnote_self_mode');
+      if (v === 'skip' || v === 'hide' || v === 'show') return v;
+    } catch { /* ignore */ }
+    return 'skip';
+  });
+  useEffect(() => {
+    try { localStorage.setItem('qnote_self_mode', selfMode); } catch { /* ignore */ }
+  }, [selfMode]);
+  const selfModeRef = useRef<SelfMode>(selfMode);
+  useEffect(() => { selfModeRef.current = selfMode; }, [selfMode]);
   const [pendingConfig, setPendingConfig] = useState<StartConfig | null>(null);
 
   const [blocks, setBlocks] = useState<TranscriptBlock[]>([]);
@@ -217,13 +290,23 @@ const QNotePage = () => {
   }, [loadSessions]);
 
   // URL 파라미터로 세션 자동 열기 (/notes/:sessionId)
+  // handleStartMeeting 이 직접 navigate 했을 때는 openReview 를 다시 부르면 안 됨
+  // → urlSessionIdHandled 를 navigate 전에 세팅 + activeSessionRef 가 이미 해당 id 이면 스킵
   const urlSessionIdHandled = useRef(false);
   useEffect(() => {
-    if (!urlSessionId || urlSessionIdHandled.current || phase !== 'empty') return;
+    if (!urlSessionId || urlSessionIdHandled.current) return;
     const id = parseInt(urlSessionId, 10);
     if (isNaN(id)) return;
-    urlSessionIdHandled.current = true;
-    openReview(id);
+    // 이미 같은 세션이 active 상태라면 URL 핸들러 스킵
+    if (activeSessionRef.current?.id === id) {
+      urlSessionIdHandled.current = true;
+      return;
+    }
+    // phase 가 empty 가 아니어도 진행 — 사용자가 다른 세션을 URL 로 열었을 수 있음
+    if (phase === 'empty') {
+      urlSessionIdHandled.current = true;
+      openReview(id);
+    }
   }, [urlSessionId, phase]);
 
   useEffect(() => {
@@ -305,7 +388,12 @@ const QNotePage = () => {
         });
       }
 
-      const nextPhase: Phase = detail.status === 'completed' ? 'review' : 'paused';
+      // 'prepared' (신규 생성, 녹음 한 번도 안 함) → 'prepared' 유지
+      // 'completed' → 리뷰 모드
+      // 'recording'/'paused' → 'paused' (이어서 녹음 가능)
+      const nextPhase: Phase =
+        detail.status === 'completed' ? 'review' :
+        detail.status === 'prepared' ? 'prepared' : 'paused';
       setPhase(nextPhase);
       // paused 로 진입 시 서버 utterances 에서 blocks 재구성 → 화면에 바로 노출.
       // review 는 useMemo(reviewBlocks) 사용하므로 blocks 는 비움.
@@ -331,6 +419,10 @@ const QNotePage = () => {
           documents: [],
           urls: [],
           captureMode: detail.capture_mode || 'microphone',
+          priorityQAs: [],
+          priorityQACsv: null,
+          meetingAnswerStyle: '',
+          meetingAnswerLength: 'medium',
         });
       } else {
         setPendingConfig(null);
@@ -351,10 +443,14 @@ const QNotePage = () => {
 
     if (ev.type === 'finalized') {
       // speech_final 기반 — 한 utterance = 한 문장. 즉시 블록으로 승격.
-      // 2초 이내 같은 화자면 `commitPendingAsBlock` 내부에서 직전 블록과 merge.
       setInterimText('');
       pendingRef.current = null;
       setPending(null);
+
+      // "내 발화 처리 안 함" 모드 — is_self 발화는 블록 자체를 만들지 않음
+      if (selfModeRef.current === 'skip' && ev.is_self) {
+        return;
+      }
 
       const text = ev.transcript;
       const segStart = typeof ev.start === 'number' ? ev.start : null;
@@ -396,7 +492,7 @@ const QNotePage = () => {
         lastEnd: segEnd,
         dgSpeakerId,
         speakerRowId,
-        speakerLabel: speakerLabelFor(speakerRowId, dgSpeakerId, { speakers: speakersRef.current, participants: activeSessionRef.current?.participants }),
+        speakerLabel: speakerLabelFor(speakerRowId, dgSpeakerId, { speakers: speakersRef.current, participants: activeSessionRef.current?.participants, labels: speakerLabels }),
       };
       // 질문 판정은 서버 enrichment 결과로만 (낙관 판정 제거 — 오판 방지)
       commitPendingAsBlock(buffer, 'speech');
@@ -443,6 +539,18 @@ const QNotePage = () => {
       return;
     }
 
+    if ((ev as any).type === 'quick_question') {
+      // Fast-path 질문 판정 — 즉시 해당 블록을 question 카드로 승격
+      const uttId = (ev as any).utterance_id as number;
+      setBlocks((prev) =>
+        prev.map((block) => {
+          const has = block.segments.some((seg) => seg.utteranceId === uttId);
+          return has ? { ...block, kind: 'question' as BlockKind } : block;
+        })
+      );
+      return;
+    }
+
     if ((ev as any).type === 'answer_ready') {
       const uttId = (ev as any).utterance_id as number;
       setAnswerReadySet((prev) => new Set(prev).add(uttId));
@@ -463,7 +571,7 @@ const QNotePage = () => {
   // ── 녹음 시작 ──────────────────────────────────────────
   const startRecording = async () => {
     if (!activeSession) {
-      setLiveError('활성 세션이 없습니다');
+      setLiveError(t('page.errors.noActiveSession'));
       return;
     }
     if (!pendingConfig) {
@@ -478,6 +586,10 @@ const QNotePage = () => {
         documents: [],
         urls: [],
         captureMode: activeSession.capture_mode || 'microphone',
+        priorityQAs: [],
+        priorityQACsv: null,
+        meetingAnswerStyle: '',
+        meetingAnswerLength: 'medium',
       };
       setPendingConfig(fallback);
     }
@@ -485,7 +597,7 @@ const QNotePage = () => {
 
     const captureMode = pendingConfig?.captureMode || activeSession.capture_mode || 'microphone';
     if (captureMode === 'web_conference' && phase === 'paused') {
-      setLiveNotice('탭 오디오 공유를 다시 선택해주세요. 공유 다이얼로그에서 "탭 오디오 공유" 체크를 확인하세요.');
+      setLiveNotice(t('page.errors.reshareTab'));
     }
     const live = new LiveSession({
       sessionId: activeSession.id,
@@ -501,13 +613,13 @@ const QNotePage = () => {
       console.error('[QNote] live.start failed:', err);
       let hint = msg;
       if (/Permission denied|NotAllowedError/i.test(msg)) {
-        hint = '마이크 또는 탭 공유 권한이 거부되었습니다. 브라우저 주소창 좌측 자물쇠 아이콘에서 권한을 허용해주세요.';
+        hint = t('page.errors.permissionDenied');
       } else if (/tab|display/i.test(msg)) {
-        hint = '탭 오디오 공유가 취소되었습니다. 다시 시도할 때 공유 다이얼로그에서 "탭 오디오 공유" 체크를 확인하세요.';
+        hint = t('page.errors.shareCancelled');
       } else if (/WebSocket/i.test(msg)) {
-        hint = 'Q Note 서버 연결 실패. 새로고침 후 다시 시도해주세요.';
+        hint = t('page.errors.serverConnection');
       }
-      setLiveError(`녹음 시작 실패: ${hint}`);
+      setLiveError(t('page.errors.startPrefix', { hint }));
       live.stop();
     }
   };
@@ -542,10 +654,61 @@ const QNotePage = () => {
     loadSessions();
   };
 
+  // ── 설정 편집 저장 ───────────────────────────────────
+  const handleSaveSessionEdit = async (cfg: StartConfig) => {
+    if (!activeSession) return;
+    setShowStartModal(false);
+    setEditingSession(false);
+    try {
+      // 세션 본문 PUT
+      await updateSession(activeSession.id, {
+        title: cfg.title || activeSession.title,
+        brief: cfg.brief || undefined,
+        participants: cfg.participants.length > 0
+          ? cfg.participants.map((p) => ({ name: p.name, role: p.role || null }))
+          : undefined,
+        meeting_languages: cfg.meetingLanguages,
+        translation_language: cfg.translationLanguage,
+        answer_language: cfg.answerLanguage,
+        pasted_context: cfg.pastedContext || undefined,
+        meeting_answer_style: cfg.meetingAnswerStyle || undefined,
+        meeting_answer_length: cfg.meetingAnswerLength || undefined,
+      });
+      // 새로 추가된 Priority Q&A
+      for (const pq of cfg.priorityQAs) {
+        try {
+          await createPriorityQA(activeSession.id, {
+            question_text: pq.question, answer_text: pq.answer,
+            short_answer: pq.shortAnswer, keywords: pq.keywords,
+          });
+        } catch (err) { console.error('Priority Q&A add failed:', err); }
+      }
+      if (cfg.priorityQACsv) {
+        try { await uploadPriorityQACSV(activeSession.id, cfg.priorityQACsv); }
+        catch (err) { console.error('Priority Q&A CSV upload failed:', err); }
+      }
+      // 새 문서/URL
+      for (const file of cfg.documents) {
+        try { await uploadDocument(activeSession.id, file); }
+        catch (err) { console.error(`Upload failed: ${file.name}`, err); }
+      }
+      for (const url of cfg.urls) {
+        try { await addUrl(activeSession.id, url); }
+        catch (err) { console.error(`URL add failed: ${url}`, err); }
+      }
+      // 세션 상세 재조회 → 화면 동기화
+      const detail = await getSession(activeSession.id);
+      setActiveSession(detail);
+      setSessions((prev) => prev.map((s) => s.id === detail.id ? detail : s));
+    } catch (err) {
+      setLiveError(err instanceof Error ? err.message : t('page.errors.sessionCreate'));
+    }
+  };
+
   // ── 새 회의 생성 ──────────────────────────────────────
   const handleStartMeeting = async (cfg: StartConfig) => {
     if (!businessId) {
-      setLiveError('비즈니스 정보가 없습니다.');
+      setLiveError(t('page.errors.noBusiness'));
       return;
     }
     setShowStartModal(false);
@@ -562,7 +725,7 @@ const QNotePage = () => {
 
       const created = await createSession({
         business_id: businessId,
-        title: cfg.title || '제목 없는 회의',
+        title: cfg.title || t('startModal.defaultTitle'),
         brief: cfg.brief || undefined,
         participants: cfg.participants.length > 0
           ? cfg.participants.map((p) => ({ name: p.name, role: p.role || null }))
@@ -578,7 +741,28 @@ const QNotePage = () => {
         user_expertise: user?.expertise || undefined,
         user_organization: user?.organization || undefined,
         user_job_title: user?.job_title || undefined,
+        user_language_levels: user?.language_levels || undefined,
+        user_expertise_level: user?.expertise_level || undefined,
+        meeting_answer_style: cfg.meetingAnswerStyle || user?.answer_style_default || undefined,
+        meeting_answer_length: cfg.meetingAnswerLength || user?.answer_length_default || 'medium',
+        // keywords 는 서버가 자동 추출 — 프론트에서 전달하지 않음
       });
+
+      // Priority Q&A — 다른 자료보다 먼저 업로드해 prefetch 에 즉시 반영
+      for (const pq of cfg.priorityQAs) {
+        try {
+          await createPriorityQA(created.id, {
+            question_text: pq.question,
+            answer_text: pq.answer,
+            short_answer: pq.shortAnswer,
+            keywords: pq.keywords,
+          });
+        } catch (err) { console.error('Priority Q&A add failed:', err); }
+      }
+      if (cfg.priorityQACsv) {
+        try { await uploadPriorityQACSV(created.id, cfg.priorityQACsv); }
+        catch (err) { console.error('Priority Q&A CSV upload failed:', err); }
+      }
 
       for (const file of cfg.documents) {
         try { await uploadDocument(created.id, file); }
@@ -590,6 +774,9 @@ const QNotePage = () => {
       }
 
       const detail = await getSession(created.id);
+      // URL 핸들러가 이 새 세션을 openReview 하는 경합 방지 — navigate 전에 플래그 set
+      urlSessionIdHandled.current = true;
+      activeSessionRef.current = detail;
       setActiveSession(detail);
       speakersRef.current = detail.speakers || [];
       setSessions((prev) => [detail, ...prev]);
@@ -597,7 +784,7 @@ const QNotePage = () => {
       setPhase('prepared');
       navigate(`/notes/${created.id}`, { replace: true });
     } catch (err) {
-      setLiveError(err instanceof Error ? err.message : '세션 생성 실패');
+      setLiveError(err instanceof Error ? err.message : t('page.errors.sessionCreate'));
     }
   };
 
@@ -631,7 +818,7 @@ const QNotePage = () => {
         lastEnd: end,
         dgSpeakerId: dgSp,
         speakerRowId: u.speaker_id,
-        speakerLabel: speakerLabelFor(u.speaker_id, dgSp, { speakers, participants: sess.participants }),
+        speakerLabel: speakerLabelFor(u.speaker_id, dgSp, { speakers, participants: sess.participants, labels: speakerLabels }),
       };
       const kind: BlockKind = u.is_question ? 'question' : 'speech';
       out.push({
@@ -691,6 +878,12 @@ const QNotePage = () => {
     });
     return set;
   }, [answerData]);
+
+  // 내 스크립트 숨기기 — 본인 speech 블록 필터 (질문 카드는 예외로 노출)
+  const isSelfBlock = useCallback((block: TranscriptBlock): boolean => {
+    if (block.speakerRowId == null) return false;
+    return speakersRef.current.some((s) => s.id === block.speakerRowId && !!s.is_self);
+  }, []);
 
   // ── Merge 상태 localStorage persistence ──
   // 세션별로 merge 정보만 저장/복원 (답변/로딩 상태는 저장 안 함)
@@ -779,14 +972,14 @@ const QNotePage = () => {
 
     const allOutOfScope = block.segments.length > 0 && block.segments.every((s) => s.outOfScope);
 
-    const speakerCtx = { speakers: activeSession?.speakers || [], participants: activeSession?.participants };
+    const speakerCtx = { speakers: activeSession?.speakers || [], participants: activeSession?.participants, labels: speakerLabels };
 
-    // 마이크 모드: 수동 지정된 이름(participant_name / is_self)만 표시. 자동 라벨("화자 1", "상대") 안 붙음.
+    // 마이크 모드: 수동 지정된 이름(participant_name / is_self)만 표시. 자동 라벨 안 붙음.
     let liveLabel = '';
     if (isMicMode) {
       if (block.speakerRowId != null) {
         const match = speakerCtx.speakers.find((s) => s.id === block.speakerRowId);
-        if (match?.is_self) liveLabel = '나';
+        if (match?.is_self) liveLabel = speakerLabels.self;
         else if (match?.participant_name) liveLabel = match.participant_name;
       }
     } else {
@@ -909,7 +1102,7 @@ const QNotePage = () => {
           if (result.tier === 'none') {
             setAnswerData((prev) => ({
               ...prev,
-              [questionUttId]: { ...prev[questionUttId], answer: '등록된 자료에서 답을 찾지 못했습니다.', tier: 'none', loading: false, collapsed: false },
+              [questionUttId]: { ...prev[questionUttId], answer: t('page.question.notFound'), tier: 'none', loading: false, collapsed: false },
             }));
           } else {
             setAnswerData((prev) => ({
@@ -930,7 +1123,7 @@ const QNotePage = () => {
         } catch (err) {
           setAnswerData((prev) => ({
             ...prev,
-            [questionUttId]: { ...prev[questionUttId], error: err instanceof Error ? err.message : '답변 찾기 실패', loading: false },
+            [questionUttId]: { ...prev[questionUttId], error: err instanceof Error ? err.message : t('page.question.findError'), loading: false },
           }));
         }
       };
@@ -1039,23 +1232,23 @@ const QNotePage = () => {
                   }}
                 />
               ) : (
-                <QuestionOriginal onClick={startEdit} title="클릭하여 수정" style={{ cursor: 'text' }}>
+                <QuestionOriginal onClick={startEdit} title={t('page.header.editTitleHint')} style={{ cursor: 'text' }}>
                   {ad?.editedQuestion || originalText}
-                  {ad?.editedQuestion && <EditedMark>(수정됨)</EditedMark>}
-                  {mergedCount > 0 && <MergedBadge>+{mergedCount} 합침</MergedBadge>}
+                  {ad?.editedQuestion && <EditedMark>{t('page.question.editedMark')}</EditedMark>}
+                  {mergedCount > 0 && <MergedBadge>{t('page.question.mergedBadge', { count: mergedCount })}</MergedBadge>}
                 </QuestionOriginal>
               )}
               {hasNextBlock && !isEditing && (
-                <MergeNextBtn onClick={handleMergeNext} title="다음 문장 합치기">+</MergeNextBtn>
+                <MergeNextBtn onClick={handleMergeNext} title={t('page.question.mergeNextTitle')}>+</MergeNextBtn>
               )}
               {mergedCount > 0 && !isEditing && (
-                <UnmergeBtn onClick={handleUnmerge} title="합친 문장 분리">분리</UnmergeBtn>
+                <UnmergeBtn onClick={handleUnmerge} title={t('page.question.unmergeTitle')}>{t('page.question.unmergeLabel')}</UnmergeBtn>
               )}
               <InlineTime>{block.timestamp}</InlineTime>
             </QuestionHeaderLeft>
             {hasAnswer ? (
               <CollapseBtn onClick={handleBtnClick}>
-                {isCollapsed ? '답변 보기' : '답변 접기'}
+                {isCollapsed ? t('page.question.showAnswer') : t('page.question.hideAnswer')}
               </CollapseBtn>
             ) : (
               <FindAnswerBtn
@@ -1063,7 +1256,7 @@ const QNotePage = () => {
                 disabled={ad?.loading}
                 $ready={hasReadyAnswer}
               >
-                답변 생성
+                {t('page.question.findAnswer')}
               </FindAnswerBtn>
             )}
           </QuestionCardHeader>
@@ -1077,17 +1270,17 @@ const QNotePage = () => {
             {hasAnswer && !isCollapsed && (
               <AnswerPanel>
                 <AnswerTierBadge $tier={ad.tier || 'general'}>
-                  {ad.tier === 'custom' ? '등록 답변' : ad.tier === 'generated' ? 'AI 사전 답변' : ad.tier === 'rag' ? '자료 기반' : ad.tier === 'none' ? '미발견' : 'AI 답변'}
+                  {ad.tier === 'priority' ? t('page.question.tier.priority') : ad.tier === 'custom' ? t('page.question.tier.custom') : ad.tier === 'session_reuse' ? t('page.question.tier.sessionReuse') : ad.tier === 'generated' ? t('page.question.tier.generated') : ad.tier === 'rag' ? t('page.question.tier.rag') : ad.tier === 'none' ? t('page.question.tier.none') : t('page.question.tier.general')}
                 </AnswerTierBadge>
                 <AnswerText>{ad.answer}</AnswerText>
                 {ad.answer_translation ? (
                   <AnswerTranslation>{ad.answer_translation}</AnswerTranslation>
                 ) : ad.tier !== 'none' ? (
-                  <AnswerTranslation style={{ fontStyle: 'italic', color: '#94a3b8' }}>번역 중...</AnswerTranslation>
+                  <AnswerTranslation style={{ fontStyle: 'italic', color: '#94a3b8' }}>{t('page.question.translating')}</AnswerTranslation>
                 ) : null}
               </AnswerPanel>
             )}
-            {ad?.loading && <AnswerLoading>답변 검색 중...</AnswerLoading>}
+            {ad?.loading && <AnswerLoading>{t('page.question.searching')}</AnswerLoading>}
             {ad?.error && <AnswerError>{ad.error}</AnswerError>}
           </QuestionContentArea>
         </QuestionCard>
@@ -1096,18 +1289,20 @@ const QNotePage = () => {
 
     return (
       <SpeechBlockWrap key={block.id} $dimmed={allOutOfScope}>
-        <SpeechRow>
-          {liveLabel && <SpeakerInline $self={isSelfSpeaker}>{liveLabel}</SpeakerInline>}
-          {renderAssignBtn()}
-          <SpeechOriginal>{originalText}</SpeechOriginal>
-          <InlineTime>{block.timestamp}</InlineTime>
-        </SpeechRow>
-        {!allOutOfScope && hasAny && (
-          <SpeechTranslation>
-            {translatedText}
-            {!allTranslated && <PendingHint> ...</PendingHint>}
-          </SpeechTranslation>
-        )}
+        {liveLabel && <SpeakerInline $self={isSelfSpeaker}>{liveLabel}</SpeakerInline>}
+        {renderAssignBtn()}
+        <SpeechTextCol>
+          <SpeechRow>
+            <SpeechOriginal>{originalText}</SpeechOriginal>
+            <InlineTime>{block.timestamp}</InlineTime>
+          </SpeechRow>
+          {!allOutOfScope && hasAny && (
+            <SpeechTranslation>
+              {translatedText}
+              {!allTranslated && <PendingHint> ...</PendingHint>}
+            </SpeechTranslation>
+          )}
+        </SpeechTextCol>
       </SpeechBlockWrap>
     );
   };
@@ -1132,27 +1327,29 @@ const QNotePage = () => {
     <Layout $collapsed={sidebarCollapsed}>
       <Sidebar $collapsed={sidebarCollapsed}>
         <SidebarHeader>
-          <SidebarTitle>Q Note</SidebarTitle>
+          <SidebarTitle>Q note</SidebarTitle>
           <NewSessionBtn onClick={() => setShowStartModal(true)}>
             <PlusIcon size={14} />
-            <span>새 회의</span>
+            <span>{t('page.newMeeting')}</span>
           </NewSessionBtn>
         </SidebarHeader>
 
-        <SearchBox placeholder="세션 검색" />
+        <SearchBox placeholder={t('page.sessionSearchPlaceholder')} />
 
         <SessionList>
-          {sessions.length === 0 && <EmptySessionMsg>아직 세션이 없습니다.</EmptySessionMsg>}
+          {sessions.length === 0 && <EmptySessionMsg>{t('page.emptySessionList')}</EmptySessionMsg>}
           {sessions.map((session) => {
             const isActive = activeSession?.id === session.id;
             const statusLabel =
-              session.status === 'recording' ? '녹음 중' :
-              session.status === 'paused' ? '일시 중지' :
-              session.status === 'completed' ? '종료' : '대기';
+              session.status === 'recording' ? t('page.sessionStatus.recording') :
+              session.status === 'paused' ? t('page.sessionStatus.paused') :
+              session.status === 'completed' ? t('page.sessionStatus.completed') :
+              session.status === 'prepared' ? t('page.sessionStatus.prepared') : t('page.sessionStatus.pending');
             const statusColor =
               session.status === 'recording' ? '#dc2626' :
               session.status === 'paused' ? '#f59e0b' :
-              session.status === 'completed' ? '#64748b' : '#94a3b8';
+              session.status === 'completed' ? '#64748b' :
+              session.status === 'prepared' ? '#0d9488' : '#94a3b8';
             const participants = session.participants || [];
             const participantNames = participants.map((p) => p.name).join(', ');
             return (
@@ -1170,7 +1367,7 @@ const QNotePage = () => {
                   {session.utterance_count > 0 && (
                     <>
                       <Dot>·</Dot>
-                      <span>{session.utterance_count}문장</span>
+                      <span>{t('page.sessionUtteranceCount', { count: session.utterance_count })}</span>
                     </>
                   )}
                   {participantNames && (
@@ -1189,7 +1386,7 @@ const QNotePage = () => {
       <Main>
         <CollapseToggle
           onClick={() => setSidebarCollapsed((v) => !v)}
-          aria-label={sidebarCollapsed ? '사이드바 열기' : '사이드바 닫기'}
+          aria-label={sidebarCollapsed ? t('page.sidebarOpen') : t('page.sidebarCollapse')}
         >
           {sidebarCollapsed ? '›' : '‹'}
         </CollapseToggle>
@@ -1199,15 +1396,15 @@ const QNotePage = () => {
             <EmptyIconWrap>
               <MicIcon size={36} />
             </EmptyIconWrap>
-            <EmptyTitle>회의를 시작해보세요</EmptyTitle>
+            <EmptyTitle>{t('page.empty.title')}</EmptyTitle>
             <EmptyDesc>
-              실시간 음성 인식, 번역, 질문 감지로
+              {t('page.empty.line1')}
               <br />
-              회의록을 자동으로 만들어드립니다.
+              {t('page.empty.line2')}
             </EmptyDesc>
             <EmptyBtn onClick={() => setShowStartModal(true)}>
               <PlusIcon size={16} />
-              <span>새 회의 시작</span>
+              <span>{t('page.newMeetingStart')}</span>
             </EmptyBtn>
           </EmptyState>
         )}
@@ -1227,79 +1424,127 @@ const QNotePage = () => {
                     }}
                   />
                 ) : (
-                  <SessionTitle onClick={() => setEditingTitle(true)} title="클릭하여 수정">
+                  <SessionTitle onClick={() => setEditingTitle(true)} title={t('page.header.editTitleHint')}>
                     {activeSession.title}
                   </SessionTitle>
                 )}
                 <SessionMeta>
                   {meetingLangLabels && <Badge>{meetingLangLabels}</Badge>}
-                  {phase === 'prepared' && <Badge>녹음 대기</Badge>}
-                  {phase === 'recording' && <Badge>녹음 중</Badge>}
-                  {phase === 'paused' && <Badge>일시 중지</Badge>}
+                  {phase === 'prepared' && <Badge>{t('page.phase.prepared')}</Badge>}
+                  {phase === 'recording' && <Badge>{t('page.phase.recording')}</Badge>}
+                  {phase === 'paused' && <Badge>{t('page.phase.paused')}</Badge>}
                 </SessionMeta>
               </HeaderLeft>
               <HeaderRight>
+                <SecondaryBtn onClick={() => { setEditingSession(true); setShowStartModal(true); }} title="회의 설정·자료·Q&A 편집">
+                  설정
+                </SecondaryBtn>
                 {phase === 'prepared' && (
                   <PrimaryBtn onClick={startRecording}>
                     <MicIcon size={14} />
-                    <span>녹음 시작</span>
+                    <span>{t('page.controls.startRecording')}</span>
                   </PrimaryBtn>
                 )}
                 {phase === 'recording' && (
                   <>
                     <RecordingIndicator>
                       <RecordDot />
-                      녹음 중
+                      {t('page.controls.recordingNow')}
                     </RecordingIndicator>
                     <SecondaryBtn onClick={pauseRecording}>
                       <StopIcon size={14} />
-                      <span>중지</span>
+                      <span>{t('page.controls.pause')}</span>
                     </SecondaryBtn>
-                    <DangerBtn onClick={endMeeting}>회의 종료</DangerBtn>
+                    <DangerBtn onClick={endMeeting}>{t('page.controls.endMeeting')}</DangerBtn>
                   </>
                 )}
                 {phase === 'paused' && (
                   <>
                     <PrimaryBtn onClick={startRecording}>
                       <MicIcon size={14} />
-                      <span>녹음 이어하기</span>
+                      <span>{t('page.controls.resume')}</span>
                     </PrimaryBtn>
-                    <DangerBtn onClick={endMeeting}>회의 종료</DangerBtn>
+                    <DangerBtn onClick={endMeeting}>{t('page.controls.endMeeting')}</DangerBtn>
                   </>
                 )}
               </HeaderRight>
             </MainHeader>
 
             <ParticipantBar>
-              <ParticipantBarLabel>참여자 ({(activeSession.participants?.length ?? 0) + 1}명)</ParticipantBarLabel>
-              <ParticipantPill key="self">나</ParticipantPill>
+              <ParticipantBarLabel>{t('page.participantBar.label', { count: (activeSession.participants?.length ?? 0) + 1 })}</ParticipantBarLabel>
+              <ParticipantPill key="self">{t('page.participantBar.self')}</ParticipantPill>
               {(activeSession.participants || []).map((p, i) => (
                 <ParticipantPill key={i}>
                   {p.name}
                   {p.role && <ParticipantPillRole>{p.role}</ParticipantPillRole>}
                 </ParticipantPill>
               ))}
+              <SelfModeGroup>
+                <SelfModeLabel>내 발화</SelfModeLabel>
+                <SelfModeBtn $active={selfMode === 'skip'} onClick={() => setSelfMode('skip')} title="내 발화는 아예 처리 안 함 (가장 빠름)">처리 안 함</SelfModeBtn>
+                <SelfModeBtn $active={selfMode === 'hide'} onClick={() => setSelfMode('hide')} title="내 발화는 녹음·저장하되 화면에서 숨김">숨김</SelfModeBtn>
+                <SelfModeBtn $active={selfMode === 'show'} onClick={() => setSelfMode('show')} title="내 발화도 다 보여줌">보기</SelfModeBtn>
+              </SelfModeGroup>
             </ParticipantBar>
 
             {liveError && <ErrorBar>{liveError}</ErrorBar>}
             {liveNotice && <NoticeBar>{liveNotice}</NoticeBar>}
 
+            {(phase === 'prepared' || phase === 'paused') && readiness && (
+              <ReadinessPanel $ready={readiness.allReady}>
+                <ReadinessHeader>
+                  <ReadinessDot $ready={readiness.allReady} />
+                  {readiness.allReady ? '✓ 모든 자료 준비 완료 — 녹음 시작 가능' : '⏳ 자료 준비 중...'}
+                </ReadinessHeader>
+                <ReadinessGrid>
+                  <ReadinessItem>
+                    <ReadinessLabel>참고 문서</ReadinessLabel>
+                    <ReadinessValue $ok={readiness.docsTotal === 0 || readiness.docsIndexed === readiness.docsTotal}>
+                      {readiness.docsTotal === 0
+                        ? '없음'
+                        : `${readiness.docsIndexed}/${readiness.docsTotal} 인덱싱 완료`}
+                      {readiness.docsFailed > 0 && <FailedBadge>실패 {readiness.docsFailed}</FailedBadge>}
+                    </ReadinessValue>
+                  </ReadinessItem>
+                  <ReadinessItem>
+                    <ReadinessLabel>최우선 Q&A</ReadinessLabel>
+                    <ReadinessValue $ok={readiness.pqTotal === readiness.pqEmbedded}>
+                      {readiness.pqTotal === 0 ? '없음' : `${readiness.pqEmbedded}/${readiness.pqTotal} 임베딩 완료`}
+                    </ReadinessValue>
+                  </ReadinessItem>
+                  <ReadinessItem>
+                    <ReadinessLabel>어휘사전 (STT 교정)</ReadinessLabel>
+                    <ReadinessValue $ok={readiness.keywordsCount > 0}>
+                      {readiness.keywordsCount > 0 ? `${readiness.keywordsCount}개 준비됨` : '미생성'}
+                    </ReadinessValue>
+                  </ReadinessItem>
+                </ReadinessGrid>
+                <ReadinessHint>
+                  "설정" 버튼에서 자료·Q&A·어휘사전을 확인·편집할 수 있습니다.
+                  인덱싱은 파일 크기에 따라 10초~1분 걸릴 수 있어요.
+                </ReadinessHint>
+              </ReadinessPanel>
+            )}
+
             <Transcript ref={transcriptRef}>
               {renderBlocks.length === 0 && !pending && phase === 'prepared' && (
                 <EmptyTranscript>
-                  회의 준비가 완료되었습니다.
+                  {t('page.prepared.ready')}
                   <br />
-                  "녹음 시작"을 누르면 실시간 음성 인식이 시작됩니다.
+                  {t('page.prepared.hint')}
                 </EmptyTranscript>
               )}
 
-              {renderBlocks.filter((b) => !hiddenBlockIds.has(b.id)).map((block, idx, arr) => renderBlock(block, idx > 0 ? arr[idx - 1] : null, idx, arr))}
+              {renderBlocks
+                .filter((b) => !hiddenBlockIds.has(b.id))
+                .filter((b) => selfMode === 'show' || b.kind === 'question' || !isSelfBlock(b))
+                .map((block, idx, arr) => renderBlock(block, idx > 0 ? arr[idx - 1] : null, idx, arr))}
               {renderPending()}
 
               {phase === 'recording' && (
                 <InterimLine>
                   <InterimDot />
-                  {interimText || '듣는 중...'}
+                  {interimText || t('page.interim.listening')}
                 </InterimLine>
               )}
             </Transcript>
@@ -1321,44 +1566,76 @@ const QNotePage = () => {
                     }}
                   />
                 ) : (
-                  <SessionTitle onClick={() => setEditingTitle(true)} title="클릭하여 수정">
+                  <SessionTitle onClick={() => setEditingTitle(true)} title={t('page.header.editTitleHint')}>
                     {activeSession.title}
                   </SessionTitle>
                 )}
                 <SessionMeta>
-                  <Badge>리뷰</Badge>
-                  <Badge>{activeSession.utterance_count}문장</Badge>
+                  <Badge>{t('page.phase.review')}</Badge>
+                  <Badge>{t('page.sessionUtteranceCount', { count: activeSession.utterance_count })}</Badge>
                 </SessionMeta>
               </HeaderLeft>
               <HeaderRight>
-                <SecondaryBtn>요약 생성</SecondaryBtn>
-                <SecondaryBtn>질문 보기</SecondaryBtn>
+                <SecondaryBtn>{t('page.reviewBar.summary')}</SecondaryBtn>
+                <SecondaryBtn>{t('page.reviewBar.questions')}</SecondaryBtn>
               </HeaderRight>
             </MainHeader>
 
             <ParticipantBar>
-              <ParticipantBarLabel>참여자 ({(activeSession.participants?.length ?? 0) + 1}명)</ParticipantBarLabel>
-              <ParticipantPill key="self">나</ParticipantPill>
+              <ParticipantBarLabel>{t('page.participantBar.label', { count: (activeSession.participants?.length ?? 0) + 1 })}</ParticipantBarLabel>
+              <ParticipantPill key="self">{t('page.participantBar.self')}</ParticipantPill>
               {(activeSession.participants || []).map((p, i) => (
                 <ParticipantPill key={i}>
                   {p.name}
                   {p.role && <ParticipantPillRole>{p.role}</ParticipantPillRole>}
                 </ParticipantPill>
               ))}
+              <SelfModeGroup>
+                <SelfModeLabel>내 발화</SelfModeLabel>
+                <SelfModeBtn $active={selfMode === 'skip'} onClick={() => setSelfMode('skip')} title="내 발화는 아예 처리 안 함 (가장 빠름)">처리 안 함</SelfModeBtn>
+                <SelfModeBtn $active={selfMode === 'hide'} onClick={() => setSelfMode('hide')} title="내 발화는 녹음·저장하되 화면에서 숨김">숨김</SelfModeBtn>
+                <SelfModeBtn $active={selfMode === 'show'} onClick={() => setSelfMode('show')} title="내 발화도 다 보여줌">보기</SelfModeBtn>
+              </SelfModeGroup>
             </ParticipantBar>
 
             <Transcript>
-              {renderBlocks.length === 0 && <EmptyTranscript>기록된 문장이 없습니다.</EmptyTranscript>}
-              {renderBlocks.filter((b) => !hiddenBlockIds.has(b.id)).map((block, idx, arr) => renderBlock(block, idx > 0 ? arr[idx - 1] : null, idx, arr))}
+              {renderBlocks.length === 0 && <EmptyTranscript>{t('page.reviewEmpty')}</EmptyTranscript>}
+              {renderBlocks
+                .filter((b) => !hiddenBlockIds.has(b.id))
+                .filter((b) => selfMode === 'show' || b.kind === 'question' || !isSelfBlock(b))
+                .map((block, idx, arr) => renderBlock(block, idx > 0 ? arr[idx - 1] : null, idx, arr))}
             </Transcript>
           </>
         )}
       </Main>
 
       <StartMeetingModal
-        open={showStartModal}
+        open={showStartModal && !editingSession}
         onClose={() => setShowStartModal(false)}
         onStart={handleStartMeeting}
+      />
+
+      <StartMeetingModal
+        open={showStartModal && editingSession}
+        editMode
+        editingSessionId={activeSession?.id}
+        initialConfig={activeSession ? {
+          title: activeSession.title,
+          brief: activeSession.brief || '',
+          participants: (activeSession.participants || []).map((p) => ({ name: p.name, role: p.role || '' })),
+          meetingLanguages: activeSession.meeting_languages || [],
+          translationLanguage: activeSession.translation_language || '',
+          answerLanguage: activeSession.answer_language || '',
+          captureMode: activeSession.capture_mode || 'web_conference',
+          pastedContext: activeSession.pasted_context || '',
+          urls: [],
+          priorityQAs: [],
+          priorityQACsv: null,
+          meetingAnswerStyle: activeSession.meeting_answer_style || '',
+          meetingAnswerLength: (activeSession.meeting_answer_length as 'short'|'medium'|'long') || 'medium',
+        } : undefined}
+        onClose={() => { setShowStartModal(false); setEditingSession(false); }}
+        onStart={handleSaveSessionEdit}
       />
     </Layout>
   );
@@ -1386,6 +1663,7 @@ interface SpeakerPopoverProps {
 }
 
 const SpeakerPopover = ({ currentSpeakerName, currentIsSelf, participants, onClose, onAssignName, onAssignSelf, disabled }: SpeakerPopoverProps) => {
+  const { t } = useTranslation('qnote');
   const [customName, setCustomName] = useState('');
   const ref = useRef<HTMLDivElement>(null);
 
@@ -1410,16 +1688,16 @@ const SpeakerPopover = ({ currentSpeakerName, currentIsSelf, participants, onClo
 
   return (
     <PopoverWrap ref={ref} onClick={(e) => e.stopPropagation()}>
-      <PopoverTitle>이 사람은</PopoverTitle>
+      <PopoverTitle>{t('page.popover.title')}</PopoverTitle>
       {showSelfBtn && (
         <PopoverBtn onClick={onAssignSelf} disabled={disabled} $primary>
-          나
+          {t('page.popover.self')}
         </PopoverBtn>
       )}
       {filteredParticipants.length > 0 && (
         <>
           <PopoverDivider />
-          <PopoverLabel>등록된 참여자</PopoverLabel>
+          <PopoverLabel>{t('page.popover.registered')}</PopoverLabel>
           {filteredParticipants.map((p) => (
             <PopoverBtn
               key={p.name}
@@ -1433,14 +1711,14 @@ const SpeakerPopover = ({ currentSpeakerName, currentIsSelf, participants, onClo
         </>
       )}
       {!showSelfBtn && filteredParticipants.length === 0 && (
-        <PopoverHint>회의 시작 시 참여자를 등록하면 여기서 선택할 수 있습니다</PopoverHint>
+        <PopoverHint>{t('page.popover.hintRegister')}</PopoverHint>
       )}
       <PopoverDivider />
-      <PopoverLabel>직접 입력</PopoverLabel>
+      <PopoverLabel>{t('page.popover.custom')}</PopoverLabel>
       <PopoverInputRow>
         <PopoverInput
           type="text"
-          placeholder="이름"
+          placeholder={t('page.popover.namePlaceholder')}
           value={customName}
           onChange={(e) => setCustomName(e.target.value)}
           onKeyDown={(e) => {
@@ -1455,7 +1733,7 @@ const SpeakerPopover = ({ currentSpeakerName, currentIsSelf, participants, onClo
           onClick={() => customName.trim() && onAssignName(customName.trim())}
           disabled={disabled || !customName.trim()}
         >
-          저장
+          {t('page.popover.save')}
         </PopoverInputBtn>
       </PopoverInputRow>
     </PopoverWrap>
@@ -1895,11 +2173,123 @@ const ParticipantBar = styled.div`
   border-radius: 8px;
 `;
 
+const ReadinessPanel = styled.div<{ $ready: boolean }>`
+  margin: 12px 32px 0;
+  padding: 14px 18px;
+  background: ${(p) => (p.$ready ? '#f0fdfa' : '#fffbeb')};
+  border: 1px solid ${(p) => (p.$ready ? '#99f6e4' : '#fde68a')};
+  border-left: 3px solid ${(p) => (p.$ready ? '#0d9488' : '#f59e0b')};
+  border-radius: 10px;
+`;
+
+const ReadinessHeader = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #0f172a;
+  margin-bottom: 10px;
+`;
+
+const ReadinessDot = styled.span<{ $ready: boolean }>`
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: ${(p) => (p.$ready ? '#0d9488' : '#f59e0b')};
+  ${(p) => !p.$ready && 'animation: pulse 1.2s ease-in-out infinite;'}
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+`;
+
+const ReadinessGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  @media (max-width: 768px) { grid-template-columns: 1fr; }
+`;
+
+const ReadinessItem = styled.div`
+  padding: 8px 12px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+`;
+
+const ReadinessLabel = styled.div`
+  font-size: 11px;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin-bottom: 3px;
+`;
+
+const ReadinessValue = styled.div<{ $ok: boolean }>`
+  font-size: 13px;
+  font-weight: 600;
+  color: ${(p) => (p.$ok ? '#0d9488' : '#d97706')};
+  display: flex;
+  align-items: center;
+  gap: 6px;
+`;
+
+const FailedBadge = styled.span`
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 6px;
+  font-size: 10px;
+  font-weight: 700;
+  color: #ffffff;
+  background: #dc2626;
+  border-radius: 3px;
+`;
+
+const ReadinessHint = styled.div`
+  margin-top: 10px;
+  font-size: 11px;
+  color: #64748b;
+  line-height: 1.5;
+`;
+
 const ParticipantBarLabel = styled.span`
   font-size: 11px;
   font-weight: 600;
   color: #94a3b8;
   letter-spacing: 0.03em;
+`;
+
+const SelfModeGroup = styled.div`
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  padding-left: 8px;
+  border-left: 1px solid #e2e8f0;
+`;
+
+const SelfModeLabel = styled.span`
+  font-size: 11px;
+  color: #64748b;
+  margin-right: 4px;
+`;
+
+const SelfModeBtn = styled.button<{ $active?: boolean }>`
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  border: 1px solid ${(p) => (p.$active ? '#0d9488' : '#e2e8f0')};
+  background: ${(p) => (p.$active ? '#0d9488' : '#ffffff')};
+  color: ${(p) => (p.$active ? '#ffffff' : '#64748b')};
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 120ms;
+  &:hover {
+    border-color: ${(p) => (p.$active ? '#0f766e' : '#cbd5e1')};
+  }
 `;
 
 const ParticipantPill = styled.span`
@@ -1966,9 +2356,17 @@ const EmptyTranscript = styled.div`
 // ─── Speech 블록 (평문 transcript) ────────────────
 const SpeechBlockWrap = styled.div<{ $dimmed?: boolean }>`
   display: flex;
+  align-items: baseline;
+  gap: 0;
+  opacity: ${(p) => (p.$dimmed ? 0.45 : 1)};
+`;
+
+const SpeechTextCol = styled.div`
+  flex: 1;
+  min-width: 0;
+  display: flex;
   flex-direction: column;
   gap: 2px;
-  opacity: ${(p) => (p.$dimmed ? 0.45 : 1)};
 `;
 
 const SpeakerInline = styled.span<{ $self: boolean }>`
@@ -2054,7 +2452,6 @@ const SpeechTranslation = styled.div`
   color: #64748b;
   line-height: 1.55;
   word-break: break-word;
-  padding-left: 8px;
 `;
 
 // ─── 질문 카드 — 세로 레이아웃 (헤더: 질문+버튼 / 본문: 번역+답변) ─
@@ -2257,7 +2654,9 @@ const AnswerTierBadge = styled.span<{ $tier: string }>`
   font-size: 10px;
   font-weight: 700;
   color: ${(p) =>
+    p.$tier === 'priority' ? '#f43f5e' :
     p.$tier === 'custom' ? '#15803d' :
+    p.$tier === 'session_reuse' ? '#0891b2' :
     p.$tier === 'generated' ? '#1d4ed8' :
     p.$tier === 'rag' ? '#9333ea' :
     p.$tier === 'none' ? '#94a3b8' : '#64748b'};

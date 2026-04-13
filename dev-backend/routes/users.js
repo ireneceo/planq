@@ -40,7 +40,12 @@ router.put('/:id', authenticateToken, async (req, res, next) => {
     const user = await User.findByPk(req.params.id);
     if (!user) return errorResponse(res, 'User not found', 404);
 
-    const { name, phone, avatar_url, language, bio, expertise, organization, job_title } = req.body;
+    const {
+      name, phone, avatar_url, language,
+      bio, expertise, organization, job_title,
+      language_levels, expertise_level,
+      answer_style_default, answer_length_default,
+    } = req.body;
     const updates = { name, phone, avatar_url };
     if (language !== undefined) {
       if (typeof language !== 'string' || !/^[a-z]{2}(-[A-Z]{2})?$/.test(language)) {
@@ -68,6 +73,50 @@ router.put('/:id', authenticateToken, async (req, res, next) => {
       if (job_title !== null && typeof job_title !== 'string') return errorResponse(res, 'Invalid job_title', 400);
       if (job_title && job_title.length > 100) return errorResponse(res, 'job_title too long (max 100)', 400);
       updates.job_title = job_title || null;
+    }
+    // 언어 레벨: { ko: { reading, speaking, listening, writing }, en: ... }
+    if (language_levels !== undefined) {
+      if (language_levels !== null && (typeof language_levels !== 'object' || Array.isArray(language_levels))) {
+        return errorResponse(res, 'Invalid language_levels', 400);
+      }
+      const SKILLS = ['reading', 'speaking', 'listening', 'writing'];
+      const cleaned = {};
+      if (language_levels) {
+        for (const [lang, block] of Object.entries(language_levels)) {
+          if (!/^[a-z]{2}(-[A-Z]{2})?$/.test(lang)) continue;
+          if (!block || typeof block !== 'object') continue;
+          const out = {};
+          for (const s of SKILLS) {
+            const v = block[s];
+            if (v == null) continue;
+            const n = parseInt(v, 10);
+            if (Number.isInteger(n) && n >= 1 && n <= 6) out[s] = n;
+          }
+          if (Object.keys(out).length) cleaned[lang] = out;
+        }
+      }
+      updates.language_levels = Object.keys(cleaned).length ? cleaned : null;
+    }
+    if (expertise_level !== undefined) {
+      if (expertise_level !== null && !['layman', 'practitioner', 'expert'].includes(expertise_level)) {
+        return errorResponse(res, 'Invalid expertise_level', 400);
+      }
+      updates.expertise_level = expertise_level || null;
+    }
+    if (answer_style_default !== undefined) {
+      if (answer_style_default !== null && typeof answer_style_default !== 'string') {
+        return errorResponse(res, 'Invalid answer_style_default', 400);
+      }
+      if (answer_style_default && answer_style_default.length > 2000) {
+        return errorResponse(res, 'answer_style_default too long (max 2000)', 400);
+      }
+      updates.answer_style_default = answer_style_default || null;
+    }
+    if (answer_length_default !== undefined) {
+      if (answer_length_default !== null && !['short', 'medium', 'long'].includes(answer_length_default)) {
+        return errorResponse(res, 'Invalid answer_length_default', 400);
+      }
+      updates.answer_length_default = answer_length_default || null;
     }
     await user.update(updates);
 

@@ -1,0 +1,31 @@
+{
+  "nav": {
+    "sectionMain": "Main",
+    "sectionBusiness": "Business",
+    "sectionFeatures": "Features",
+    "sectionAdmin": "Admin",
+    "dashboard": "대시보드",
+    "settings": "설정",
+    "members": "멤버",
+    "clients": "고객",
+    "talk": "Q talk",
+    "task": "Q task",
+    "calendar": "Q calendar",
+    "note": "Q note",
+    "docs": "Q docs",
+    "file": "Q file",
+    "bill": "Q bill",
+    "users": "사용자",
+    "businesses": "비즈니스"
+  },
+  "user": {
+    "profile": "내 프로필",
+    "logout": "로그아웃"
+  },
+  "role": {
+    "platform_admin": "플랫폼 관리자",
+    "business_owner": "사업자",
+    "business_member": "멤버",
+    "user": "사용자"
+  }
+}

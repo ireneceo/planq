@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import styled from 'styled-components';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -243,6 +244,7 @@ const CheckIcon = () => (
 );
 
 const RegisterPage: React.FC = () => {
+  const { t } = useTranslation('auth');
   const navigate = useNavigate();
   const { register, isAuthenticated, isLoading: authLoading } = useAuth();
   const [name, setName] = useState('');
@@ -263,20 +265,20 @@ const RegisterPage: React.FC = () => {
   const validate = (): boolean => {
     const errors: Record<string, string> = {};
 
-    if (!name.trim()) errors.name = '이름을 입력하세요';
+    if (!name.trim()) errors.name = t('register.validation.nameRequired');
     if (!email.trim()) {
-      errors.email = '이메일을 입력하세요';
+      errors.email = t('register.validation.emailRequired');
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      errors.email = '올바른 이메일 형식이 아닙니다';
+      errors.email = t('register.validation.emailInvalid');
     }
     if (!password) {
-      errors.password = '비밀번호를 입력하세요';
+      errors.password = t('register.validation.passwordRequired');
     } else if (password.length < 8) {
-      errors.password = '8자 이상 입력하세요';
+      errors.password = t('register.validation.passwordTooShort');
     } else if (!/[a-zA-Z]/.test(password) || !/[0-9]/.test(password)) {
-      errors.password = '영문과 숫자를 모두 포함해야 합니다';
+      errors.password = t('register.validation.passwordComplexity');
     }
-    if (!businessName.trim()) errors.businessName = '사업자명을 입력하세요';
+    if (!businessName.trim()) errors.businessName = t('register.validation.businessNameRequired');
 
     setFieldErrors(errors);
     return Object.keys(errors).length === 0;
@@ -292,10 +294,10 @@ const RegisterPage: React.FC = () => {
     try {
       const success = await register(name.trim(), email.trim(), password, businessName.trim());
       if (!success) {
-        setError('Registration failed');
+        setError(t('register.errorGeneric'));
       }
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Registration failed. Please try again.';
+      const message = err instanceof Error ? err.message : t('register.errorGeneric');
       setError(message);
     } finally {
       setIsLoading(false);
@@ -308,20 +310,20 @@ const RegisterPage: React.FC = () => {
         <LeftSection>
           <BrandLogo>Plan<span>Q</span></BrandLogo>
           <BrandTagline>
-            업무 전용 고객 채팅 + 실행 구조 통합 OS
+            {t('brand.description')}
           </BrandTagline>
           <FeatureList>
-            <FeatureItem><CheckIcon /> Q Talk — 고객과 실시간 대화</FeatureItem>
-            <FeatureItem><CheckIcon /> Q Task — 대화에서 바로 할일 생성</FeatureItem>
-            <FeatureItem><CheckIcon /> Q Note — 음성 회의록 AI 정리</FeatureItem>
-            <FeatureItem><CheckIcon /> Q File — 고객별 자료 관리</FeatureItem>
-            <FeatureItem><CheckIcon /> Q Bill — 간편 청구서 발송</FeatureItem>
+            <FeatureItem><CheckIcon /> {t('brand.featureTalk')}</FeatureItem>
+            <FeatureItem><CheckIcon /> {t('brand.featureTask')}</FeatureItem>
+            <FeatureItem><CheckIcon /> {t('brand.featureNote')}</FeatureItem>
+            <FeatureItem><CheckIcon /> {t('brand.featureFile')}</FeatureItem>
+            <FeatureItem><CheckIcon /> {t('brand.featureBill')}</FeatureItem>
           </FeatureList>
         </LeftSection>
 
         <RightSection>
-          <FormTitle>회원가입</FormTitle>
-          <FormSubtitle>무료로 시작하세요. 신용카드 불필요.</FormSubtitle>
+          <FormTitle>{t('register.title')}</FormTitle>
+          <FormSubtitle>{t('register.subtitle')}</FormSubtitle>
 
           <Form onSubmit={handleSubmit}>
             <InputGroup>
@@ -329,7 +331,7 @@ const RegisterPage: React.FC = () => {
                 type="text"
                 value={name}
                 onChange={(e) => { setName(e.target.value); setFieldErrors(prev => ({ ...prev, name: '' })); }}
-                placeholder="이름"
+                placeholder={t('register.namePlaceholder')}
                 $hasError={!!fieldErrors.name}
                 autoComplete="name"
               />
@@ -341,7 +343,7 @@ const RegisterPage: React.FC = () => {
                 type="email"
                 value={email}
                 onChange={(e) => { setEmail(e.target.value); setFieldErrors(prev => ({ ...prev, email: '' })); }}
-                placeholder="이메일"
+                placeholder={t('register.emailPlaceholder')}
                 $hasError={!!fieldErrors.email}
                 autoComplete="email"
               />
@@ -354,7 +356,7 @@ const RegisterPage: React.FC = () => {
                   type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => { setPassword(e.target.value); setFieldErrors(prev => ({ ...prev, password: '' })); }}
-                  placeholder="비밀번호 (영문+숫자 8자 이상)"
+                  placeholder={t('register.passwordPlaceholder')}
                   $hasError={!!fieldErrors.password}
                   autoComplete="new-password"
                 />
@@ -380,7 +382,7 @@ const RegisterPage: React.FC = () => {
                 type="text"
                 value={businessName}
                 onChange={(e) => { setBusinessName(e.target.value); setFieldErrors(prev => ({ ...prev, businessName: '' })); }}
-                placeholder="사업자명"
+                placeholder={t('register.businessNamePlaceholder')}
                 $hasError={!!fieldErrors.businessName}
                 autoComplete="organization"
               />
@@ -390,14 +392,14 @@ const RegisterPage: React.FC = () => {
             {error && <ErrorMessage>{error}</ErrorMessage>}
 
             <Button type="submit" disabled={isLoading}>
-              {isLoading ? '가입 중...' : '무료로 시작하기'}
+              {isLoading ? t('register.submitting') : t('register.submit')}
             </Button>
           </Form>
 
           <Divider />
 
           <BottomLinks>
-            이미 계정이 있으신가요? <Link to="/login">로그인</Link>
+            {t('register.hasAccount')} <Link to="/login">{t('register.signIn')}</Link>
           </BottomLinks>
         </RightSection>
       </RegisterBox>

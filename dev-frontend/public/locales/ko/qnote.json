@@ -1,0 +1,152 @@
+{
+  "page": {
+    "sidebarTitle": "Q note",
+    "newMeeting": "새 회의",
+    "newMeetingStart": "새 회의 시작",
+    "sessionSearchPlaceholder": "세션 검색",
+    "emptySessionList": "아직 세션이 없습니다.",
+    "sessionUtteranceCount": "{{count}}문장",
+    "sessionStatus": {
+      "recording": "녹음 중",
+      "paused": "일시 중지",
+      "completed": "종료",
+      "prepared": "준비됨",
+      "pending": "대기"
+    },
+    "sidebarOpen": "사이드바 열기",
+    "sidebarCollapse": "사이드바 닫기",
+    "empty": {
+      "title": "회의를 시작해보세요",
+      "line1": "실시간 음성 인식, 번역, 질문 감지로",
+      "line2": "회의록을 자동으로 만들어드립니다."
+    },
+    "header": {
+      "editTitleHint": "클릭하여 수정"
+    },
+    "phase": {
+      "prepared": "녹음 대기",
+      "recording": "녹음 중",
+      "paused": "일시 중지",
+      "review": "리뷰"
+    },
+    "controls": {
+      "startRecording": "녹음 시작",
+      "recordingNow": "녹음 중",
+      "pause": "중지",
+      "endMeeting": "회의 종료",
+      "resume": "녹음 이어하기"
+    },
+    "participantBar": {
+      "label": "참여자 ({{count}}명)",
+      "self": "나"
+    },
+    "prepared": {
+      "ready": "회의 준비가 완료되었습니다.",
+      "hint": "\"녹음 시작\"을 누르면 실시간 음성 인식이 시작됩니다."
+    },
+    "interim": {
+      "listening": "듣는 중..."
+    },
+    "reviewBar": {
+      "summary": "요약 생성",
+      "questions": "질문 보기"
+    },
+    "reviewEmpty": "기록된 문장이 없습니다.",
+    "speaker": {
+      "self": "나",
+      "other": "상대",
+      "numbered": "화자 {{n}}"
+    },
+    "question": {
+      "editedMark": "(수정됨)",
+      "mergedBadge": "+{{count}} 합침",
+      "mergeNextTitle": "다음 문장 합치기",
+      "unmergeTitle": "합친 문장 분리",
+      "unmergeLabel": "분리",
+      "showAnswer": "답변 보기",
+      "hideAnswer": "답변 접기",
+      "findAnswer": "답변 생성",
+      "translating": "번역 중...",
+      "searching": "답변 검색 중...",
+      "notFound": "등록된 자료에서 답을 찾지 못했습니다.",
+      "findError": "답변 찾기 실패",
+      "tier": {
+        "priority": "최우선 답변",
+        "custom": "등록 답변",
+        "sessionReuse": "이전 답변 재사용",
+        "generated": "AI 사전 답변",
+        "rag": "자료 기반",
+        "none": "미발견",
+        "general": "AI 답변"
+      }
+    },
+    "popover": {
+      "title": "이 사람은",
+      "self": "나",
+      "registered": "등록된 참여자",
+      "hintRegister": "회의 시작 시 참여자를 등록하면 여기서 선택할 수 있습니다",
+      "custom": "직접 입력",
+      "namePlaceholder": "이름",
+      "save": "저장"
+    },
+    "errors": {
+      "noActiveSession": "활성 세션이 없습니다",
+      "reshareTab": "탭 오디오 공유를 다시 선택해주세요. 공유 다이얼로그에서 \"탭 오디오 공유\" 체크를 확인하세요.",
+      "permissionDenied": "마이크 또는 탭 공유 권한이 거부되었습니다. 브라우저 주소창 좌측 자물쇠 아이콘에서 권한을 허용해주세요.",
+      "shareCancelled": "탭 오디오 공유가 취소되었습니다. 다시 시도할 때 공유 다이얼로그에서 \"탭 오디오 공유\" 체크를 확인하세요.",
+      "serverConnection": "Q note 서버 연결 실패. 새로고침 후 다시 시도해주세요.",
+      "startPrefix": "녹음 시작 실패: {{hint}}",
+      "noBusiness": "비즈니스 정보가 없습니다.",
+      "sessionCreate": "세션 생성 실패"
+    }
+  },
+  "startModal": {
+    "header": "새 회의 시작",
+    "closeLabel": "닫기",
+    "titleLabel": "회의 제목",
+    "titlePlaceholder": "예: 월요일 팀 스탠드업",
+    "defaultTitle": "제목 없는 회의",
+    "briefLabel": "회의 안내 (선택)",
+    "briefHint": "회의 목적, 주의사항, 다룰 내용을 적어두면 번역·요약·답변 품질이 크게 향상됩니다.",
+    "briefPlaceholder": "예시:\n- 목적: 신규 SaaS 제품 투자 유치 미팅\n- 자료: 피칭 덱 v3 첨부\n- 주의: 매출 수치는 NDA 대상",
+    "participantsLabel": "참여자 (선택)",
+    "participantsHint": "개별 또는 그룹 단위 자유 입력. 회의 후 화자 매칭에 사용됩니다.",
+    "participantNamePlaceholder": "이름 (예: Sarah, 우리 PM)",
+    "participantRolePlaceholder": "역할/메모 (선택, 예: Acme사 CEO)",
+    "removeLabel": "제거",
+    "meetingLanguageLabel": "회의 언어",
+    "meetingLanguagePlaceholder": "회의에서 사용하는 언어",
+    "advancedShow": "고급 설정",
+    "advancedHide": "고급 설정 접기",
+    "translationLanguageLabel": "번역 언어",
+    "translationLanguagePlaceholder": "번역 표시 언어",
+    "translationHint": "발화 아래 보조 번역. 기본 = 내 언어({{lang}}).",
+    "answerLanguageLabel": "답변 언어",
+    "answerLanguagePlaceholder": "답변 찾기 결과 언어",
+    "materialsLabel": "참고 자료 (선택)",
+    "materialsHintLine1": "\"답변 찾기\"는 이 자료를 우선 검색합니다. 자료가 없으면 일반 AI 지식으로 답변합니다.",
+    "materialsHintLine2": "<1>텍스트나 링크를 우선 사용해주세요.</1> 파일은 작은 슬라이드/문서 위주.",
+    "materialsHintLine3": "파일당 10 MB · 최대 5개 · PDF·DOCX·TXT·MD · 텍스트 PDF만 (스캔본 불가)",
+    "dropzoneText": "파일을 끌어다 놓거나 클릭해서 선택",
+    "dropzoneSub": "PDF · DOCX · TXT · MD",
+    "dividerText": "또는 텍스트 붙여넣기",
+    "pastedPlaceholder": "이메일, 노션, 웹페이지에서 복사한 텍스트를 붙여넣으세요.\n파일과 함께 사용 가능합니다.",
+    "dividerUrl": "또는 링크 (URL)",
+    "urlPlaceholder": "https://... (블로그, 노션 공개 페이지, PDF 링크 등)",
+    "urlHint": "공개 페이지만 자동 추출 가능. 비공개/로그인 페이지는 텍스트로 직접 붙여넣어주세요.",
+    "urlStatusPending": "대기",
+    "captureLabel": "캡처 방식",
+    "unavailable": " (지원 안 함)",
+    "cancel": "취소",
+    "start": "회의 진행",
+    "fileError": {
+      "unsupported": "\"{{name}}\" — 지원하지 않는 형식. PDF·DOCX·TXT·MD만 가능.",
+      "empty": "\"{{name}}\" — 빈 파일입니다.",
+      "tooLarge": "\"{{name}}\" — 파일이 너무 큽니다 (최대 10 MB).",
+      "tooMany": "파일은 최대 {{max}}개까지 업로드 가능합니다.",
+      "duplicate": "\"{{name}}\" — 이미 추가된 파일입니다.",
+      "urlInvalid": "URL은 http:// 또는 https://로 시작해야 합니다.",
+      "urlDuplicate": "이미 추가된 URL입니다."
+    }
+  }
+}

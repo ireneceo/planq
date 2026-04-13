@@ -8,7 +8,7 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
 from middleware.auth import ws_authenticate
 from services.deepgram_service import DeepgramSession
 from services.database import DB_PATH, connect as db_connect
-from services.llm_service import translate_and_detect_question
+from services.llm_service import translate_and_detect_question, detect_question_fast
 from services.answer_service import find_answer as _find_answer, translate_answer_text
 from services.audio_buffer import RollingAudioBuffer, SpeakerAudioCollector
 from services.voice_fingerprint import (
@@ -219,6 +219,23 @@ async def _auto_match_self(
       await db.commit()
 
 
+async def _load_recent_utterances(session_id: int, before_id: int, limit: int = 3) -> list[str]:
+  """현재 utterance 이전의 최근 3개 발화 텍스트 조회 (주제 맥락 기반 STT 교정용)."""
+  try:
+    async with db_connect() as db:
+      db.row_factory = aiosqlite.Row
+      cursor = await db.execute(
+        '''SELECT original_text FROM utterances
+           WHERE session_id = ? AND id < ?
+           ORDER BY id DESC LIMIT ?''',
+        (session_id, before_id, limit),
+      )
+      rows = await cursor.fetchall()
+    return [r['original_text'] for r in reversed(rows) if r['original_text']]
+  except Exception:
+    return []
+
+
 async def _enrich_and_persist(
   session_id: int,
   websocket: WebSocket,
@@ -228,15 +245,22 @@ async def _enrich_and_persist(
   meeting_context: dict | None,
   allowed_languages: list[str] | None,
   session_language: str | None = None,
+  vocabulary: list[str] | None = None,
 ):
   """
   Background task: translate + question-detect, then update DB and notify client.
 
-  allowed_languages: 세션의 meeting_languages. detected_language 가 이 리스트에 없으면
-  out_of_scope=True 로 마킹하고 번역/질문감지를 생략한다 (프론트에서 흐리게 + 태그 표시).
+  vocabulary: 사용자 검토된 어휘 사전 (LLM 교정 시 1순위)
   """
   try:
-    enriched = await translate_and_detect_question(text, meeting_context=meeting_context, language=session_language)
+    recent = await _load_recent_utterances(session_id, utterance_id)
+    enriched = await translate_and_detect_question(
+      text,
+      meeting_context=meeting_context,
+      language=session_language,
+      vocabulary=vocabulary,
+      recent_utterances=recent,
+    )
     formatted_original = enriched.get('formatted_original') or text
     translation = enriched.get('translation', '')
     is_question = enriched.get('is_question', False)
@@ -270,11 +294,27 @@ async def _enrich_and_persist(
         )
       await db.commit()
 
-    # 질문 감지 즉시 → 백그라운드 답변 prefetch (사용자 클릭 전에 답 준비)
+    # 질문 감지 즉시 → 백그라운드 답변 prefetch (fast path 에서 이미 답변이 왔다면 스킵)
     if final_is_question:
-      asyncio.create_task(
-        _prefetch_answer(session_id, utterance_id, formatted_original, meeting_context, websocket)
-      )
+      already_answered = False
+      try:
+        async with db_connect() as dbx:
+          dbx.row_factory = aiosqlite.Row
+          cur = await dbx.execute(
+            '''SELECT answer_text FROM detected_questions
+               WHERE session_id = ? AND utterance_id = ?
+               ORDER BY id DESC LIMIT 1''',
+            (session_id, utterance_id),
+          )
+          row = await cur.fetchone()
+          if row and (row['answer_text'] or '').strip():
+            already_answered = True
+      except Exception:
+        pass
+      if not already_answered:
+        asyncio.create_task(
+          _prefetch_answer(session_id, utterance_id, formatted_original, meeting_context, websocket)
+        )
 
     try:
       await websocket.send_json({
@@ -426,7 +466,7 @@ async def websocket_live(websocket: WebSocket, session_id: int = Query(...)):
     async with db_connect() as db:
       db.row_factory = aiosqlite.Row
       cursor = await db.execute(
-        'SELECT id, business_id, user_id, meeting_languages, brief, participants, pasted_context, capture_mode '
+        'SELECT id, business_id, user_id, meeting_languages, brief, participants, pasted_context, capture_mode, keywords '
         'FROM sessions WHERE id = ?',
         (session_id,)
       )
@@ -464,6 +504,16 @@ async def websocket_live(websocket: WebSocket, session_id: int = Query(...)):
       if session['pasted_context']:
         ctx['pasted_context'] = session['pasted_context']
       meeting_context = ctx or None
+
+      # 세션의 사전 어휘 사전 (사용자 검토된 STT 보정 키워드 리스트)
+      session_keywords: list[str] = []
+      if session['keywords']:
+        try:
+          raw = json.loads(session['keywords'])
+          if isinstance(raw, list):
+            session_keywords = [str(x) for x in raw if isinstance(x, str)]
+        except (TypeError, ValueError):
+          pass
   except Exception as e:
     logger.error(f'Session check failed: {e}')
     await websocket.close(code=1011)
@@ -477,10 +527,20 @@ async def websocket_live(websocket: WebSocket, session_id: int = Query(...)):
     pending_buffers[1]['channel_index'] = 1
 
   # 회의 컨텍스트 기반 Deepgram keyword boosting.
-  # 참여자 이름 · 브리프/자료의 고유명사를 Deepgram 에 힌트로 전달해 STT 정확도를 올린다.
-  dg_keywords = _extract_keywords(meeting_context)
+  # 사용자가 검토한 session.keywords 를 우선 + _extract_keywords(브리프 고유명사) 로 보강.
+  auto_extracted = _extract_keywords(meeting_context)
+  # 사용자 키워드 먼저, 자동 추출은 중복 제거 후 뒤에 (Deepgram 한계 50개)
+  dg_keywords: list[str] = []
+  seen_kw: set[str] = set()
+  for kw in session_keywords + auto_extracted:
+    k = kw.lower().strip()
+    if k and k not in seen_kw:
+      seen_kw.add(k)
+      dg_keywords.append(kw)
+    if len(dg_keywords) >= 50:
+      break
   if dg_keywords:
-    logger.info(f'session={session_id} deepgram keywords={len(dg_keywords)}: {dg_keywords[:8]}...')
+    logger.info(f'session={session_id} deepgram keywords={len(dg_keywords)} (user={len(session_keywords)}, auto={len(auto_extracted)})')
 
   async def _commit_pending_utterance(ch: int = 0):
     """누적 버퍼의 조각들을 하나의 row 로 insert + enrichment 태스크 스케줄."""
@@ -605,17 +665,64 @@ async def websocket_live(websocket: WebSocket, session_id: int = Query(...)):
     except Exception:
       pass
 
-    # Enrichment singleton — 질문(?로 끝나는 발화) 우선 처리
+    # Enrichment singleton — 질문 우선 처리
     prev_task = enrichment_tasks.get(utterance_id)
     if prev_task and not prev_task.done():
       prev_task.cancel()
 
-    is_likely_question = transcript_text.rstrip().endswith('?') or transcript_text.rstrip().endswith('\uff1f')
+    # ── 빠른 질문 판정 병렬 경로 (gpt-4.1-nano, ~300ms) ──
+    # 본인 발화는 즉시 스킵 (prefetch 대상 아님 — 내 질문은 상대가 답해야 함).
+    # 상대 발화는 finalized 와 동시에 fast-path 실행 → 질문이면 즉시 prefetch_answer.
+    # 그 뒤 enrichment(정제+번역+정확 판정)는 병렬로 돌며 나중에 덮어쓴다.
+    fast_started = False
+    try:
+      # 실제 is_self 는 _commit 에서 이미 finalized_is_self 로 계산됨
+      if not finalized_is_self:
+        async def _fast_question_path():
+          try:
+            is_q = await detect_question_fast(transcript_text, language=dg_language)
+            if is_q:
+              # DB 에 임시 is_question 마킹 + detected_questions row 생성
+              async with db_connect() as dbx:
+                await dbx.execute(
+                  'UPDATE utterances SET is_question = 1 WHERE id = ? AND is_question = 0',
+                  (utterance_id,),
+                )
+                # detected_questions 에 중복 방지 INSERT
+                await dbx.execute('''
+                  INSERT INTO detected_questions (session_id, utterance_id, question_text)
+                  SELECT ?, ?, ?
+                  WHERE NOT EXISTS (
+                    SELECT 1 FROM detected_questions
+                    WHERE session_id = ? AND utterance_id = ?
+                  )
+                ''', (session_id, utterance_id, transcript_text, session_id, utterance_id))
+                await dbx.commit()
+              # 프론트에 빠른 질문 카드 표시
+              try:
+                await websocket.send_json({
+                  'type': 'quick_question',
+                  'utterance_id': utterance_id,
+                  'transcript': transcript_text,
+                })
+              except Exception:
+                pass
+              # 즉시 답변 prefetch
+              asyncio.create_task(
+                _prefetch_answer(session_id, utterance_id, transcript_text, meeting_context, websocket)
+              )
+          except Exception as e:
+            logger.warning(f'fast_question_path failed utt={utterance_id}: {e}')
+        asyncio.create_task(_fast_question_path())
+        fast_started = True
+    except Exception as e:
+      logger.warning(f'fast path schedule failed: {e}')
 
     async def _delayed_enrich():
       await _enrich_and_persist(
         session_id, websocket, utterance_id, transcript_text, speaker_row_id,
         meeting_context, allowed_languages, session_language=dg_language,
+        vocabulary=session_keywords,
       )
 
     new_task = asyncio.create_task(_delayed_enrich())
@@ -688,11 +795,18 @@ async def websocket_live(websocket: WebSocket, session_id: int = Query(...)):
     )
     try:
       await dg.connect()
+      logger.info(f'WS live: Deepgram connected OK session={session_id} (retry without keywords)')
     except Exception as e2:
       logger.error(f'Failed to connect to Deepgram (retry without keywords): {e2}')
-      await websocket.send_json({'type': 'error', 'message': f'STT connection failed: {str(e2)}'})
-    await websocket.close(code=1011)
-    return
+      try:
+        await websocket.send_json({'type': 'error', 'message': f'STT connection failed: {str(e2)}'})
+      except Exception:
+        pass
+      try:
+        await websocket.close(code=1011)
+      except Exception:
+        pass
+      return
 
   await websocket.send_json({'type': 'ready', 'language': dg_language})
 

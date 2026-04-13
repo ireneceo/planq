@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../contexts/AuthContext';
 import LanguageSelector from '../Common/LanguageSelector';
 
@@ -152,6 +153,7 @@ const SidebarOpenButton = styled.button<{ $isCollapsed?: boolean }>`
 interface MainLayoutProps { children: React.ReactNode; }
 
 const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
+  const { t } = useTranslation('layout');
   const { user, logout, hasRole } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
@@ -164,10 +166,10 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
 
   const getRoleLabel = (u: typeof user) => {
     if (!u) return '';
-    if (u.platform_role === 'platform_admin') return 'Platform Admin';
-    if (u.business_role === 'owner') return 'Business Owner';
-    if (u.business_role === 'member') return 'Member';
-    return 'User';
+    if (u.platform_role === 'platform_admin') return t('role.platform_admin');
+    if (u.business_role === 'owner') return t('role.business_owner');
+    if (u.business_role === 'member') return t('role.business_member');
+    return t('role.user');
   };
 
   return (
@@ -196,62 +198,62 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
 
         <SidebarNav>
           <NavSection>
-            <NavTitle>Main</NavTitle>
+            <NavTitle>{t('nav.sectionMain')}</NavTitle>
             <NavItem to="/dashboard" $active={isActive('/dashboard')}>
               <NavIcon><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg></NavIcon>
-              Dashboard
+              {t('nav.dashboard')}
             </NavItem>
           </NavSection>
 
           {hasRole('business_owner', 'business_member') && (
             <NavSection>
-              <NavTitle>Business</NavTitle>
+              <NavTitle>{t('nav.sectionBusiness')}</NavTitle>
               <NavItem to="/business/settings" $active={isActive('/business/settings')}>
                 <NavIcon><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></NavIcon>
-                Settings
+                {t('nav.settings')}
               </NavItem>
               <NavItem to="/business/members" $active={isActive('/business/members')}>
                 <NavIcon><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></NavIcon>
-                Members
+                {t('nav.members')}
               </NavItem>
               <NavItem to="/business/clients" $active={isActive('/business/clients')}>
                 <NavIcon><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></NavIcon>
-                Clients
+                {t('nav.clients')}
               </NavItem>
             </NavSection>
           )}
 
           {hasRole('business_owner', 'business_member', 'client') && (
             <NavSection>
-              <NavTitle>Features</NavTitle>
+              <NavTitle>{t('nav.sectionFeatures')}</NavTitle>
               <NavItem to="/talk" $active={isActive('/talk')}>
                 <NavIcon><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></NavIcon>
-                Q Talk
+                {t('nav.talk')}
               </NavItem>
               <NavItem to="/tasks" $active={isActive('/tasks')}>
                 <NavIcon><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></NavIcon>
-                Q Task
+                {t('nav.task')}
               </NavItem>
               <NavItem to="/calendar" $active={isActive('/calendar')}>
                 <NavIcon><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></NavIcon>
-                Q Calendar
+                {t('nav.calendar')}
               </NavItem>
               <NavItem to="/notes" $active={isActive('/notes')}>
                 <NavIcon><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg></NavIcon>
-                Q Note
+                {t('nav.note')}
               </NavItem>
               <NavItem to="/docs" $active={isActive('/docs')}>
                 <NavIcon><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg></NavIcon>
-                Q Docs
+                {t('nav.docs')}
               </NavItem>
               <NavItem to="/files" $active={isActive('/files')}>
                 <NavIcon><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></NavIcon>
-                Q File
+                {t('nav.file')}
               </NavItem>
               {hasRole('business_owner') && (
                 <NavItem to="/billing" $active={isActive('/billing')}>
                   <NavIcon><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg></NavIcon>
-                  Q Bill
+                  {t('nav.bill')}
                 </NavItem>
               )}
             </NavSection>
@@ -259,14 +261,14 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
 
           {hasRole('platform_admin') && (
             <NavSection>
-              <NavTitle>Admin</NavTitle>
+              <NavTitle>{t('nav.sectionAdmin')}</NavTitle>
               <NavItem to="/admin/users" $active={isActive('/admin/users')}>
                 <NavIcon><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg></NavIcon>
-                Users
+                {t('nav.users')}
               </NavItem>
               <NavItem to="/admin/businesses" $active={isActive('/admin/businesses')}>
                 <NavIcon><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/></svg></NavIcon>
-                Businesses
+                {t('nav.businesses')}
               </NavItem>
             </NavSection>
           )}
@@ -291,7 +293,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
               alignItems: 'center',
               gap: 8,
             }}
-            title="내 프로필"
+            title={t('user.profile')}
           >
             <UserAvatar>{user?.name?.charAt(0)?.toUpperCase() || 'U'}</UserAvatar>
             <div style={{ overflow: 'hidden' }}>
@@ -299,7 +301,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
               <UserRoleText>{getRoleLabel(user)}</UserRoleText>
             </div>
           </UserInfo>
-          <LogoutButton onClick={logout}>Logout</LogoutButton>
+          <LogoutButton onClick={logout}>{t('user.logout')}</LogoutButton>
         </SidebarFooter>
       </Sidebar>
 

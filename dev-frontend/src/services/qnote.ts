@@ -86,6 +86,12 @@ export interface QNoteSession {
   documents?: QNoteDocument[];
   speakers?: QNoteSpeaker[];
   detected_questions?: QNoteDetectedQuestion[];
+  // 답변 수준/스타일 제어
+  user_language_levels?: Record<string, { reading?: number; speaking?: number; listening?: number; writing?: number }> | null;
+  user_expertise_level?: string | null;
+  meeting_answer_style?: string | null;
+  meeting_answer_length?: string | null;
+  keywords?: string[] | null;
 }
 
 interface ApiEnvelope<T> {
@@ -123,6 +129,14 @@ export interface CreateSessionPayload {
   user_expertise?: string;
   user_organization?: string;
   user_job_title?: string;
+  // 답변 수준 제어
+  user_language_levels?: Record<string, { reading?: number; speaking?: number; listening?: number; writing?: number }>;
+  user_expertise_level?: 'layman' | 'practitioner' | 'expert';
+  meeting_answer_style?: string;
+  meeting_answer_length?: 'short' | 'medium' | 'long';
+  // NOTE: keywords 는 서버 측에서 brief/pasted/participants/profile 을 기반으로 자동 추출.
+  // 필요 시 수동 override 도 받도록 열어둠.
+  keywords?: string[];
 }
 
 export async function listSessions(businessId: number, page = 1, limit = 20) {
@@ -301,13 +315,19 @@ export interface QAPair {
   parent_id: number | null;
   confidence: string | null;
   is_reviewed: number;
+  is_priority: number;
   sort_order: number;
+  short_answer?: string | null;
+  keywords?: string | null;
+  has_embedding?: boolean;
   created_at: string;
   updated_at: string | null;
 }
 
+export type AnswerTier = 'priority' | 'custom' | 'session_reuse' | 'generated' | 'rag' | 'general' | 'none';
+
 export interface FindAnswerResult {
-  tier: 'custom' | 'generated' | 'rag' | 'general' | 'none';
+  tier: AnswerTier;
   answer: string | null;
   answer_translation: string | null;
   confidence: string | null;
@@ -368,6 +388,85 @@ export function getQATemplateUrl(sessionId: number): string {
 export async function triggerQAGeneration(sessionId: number) {
   const res = await apiFetch(`${BASE}/sessions/${sessionId}/qa-pairs/generate`, { method: 'POST' });
   return handle<{ message: string }>(res);
+}
+
+// ─── Priority Q&A (최우선 답변) ───
+export async function createPriorityQA(sessionId: number, body: {
+  question_text: string;
+  answer_text: string;
+  short_answer?: string;
+  keywords?: string;
+  category?: string;
+}) {
+  const res = await apiFetch(`${BASE}/sessions/${sessionId}/priority-qa`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  return handle<QAPair>(res);
+}
+
+export async function deletePriorityQA(sessionId: number, qaId: number) {
+  const res = await apiFetch(`${BASE}/sessions/${sessionId}/priority-qa/${qaId}`, { method: 'DELETE' });
+  return handle<{ id: number }>(res);
+}
+
+// ─── Vocabulary (STT 교정용 어휘 사전) ───
+export async function generateKeywords(input: {
+  brief?: string;
+  pasted_context?: string;
+  participants?: { name: string; role?: string | null }[];
+  include_user_profile?: boolean;
+}) {
+  const res = await apiFetch(`${BASE}/sessions/generate-keywords`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  return handle<{ keywords: string[] }>(res);
+}
+
+export async function refreshSessionVocabulary(sessionId: number) {
+  const res = await apiFetch(`${BASE}/sessions/${sessionId}/refresh-vocabulary`, {
+    method: 'POST',
+  });
+  return handle<{ total: number; keywords: string[] }>(res);
+}
+
+export async function uploadPriorityQACSV(sessionId: number, file: File) {
+  const form = new FormData();
+  form.append('file', file);
+  const res = await apiFetch(`${BASE}/sessions/${sessionId}/priority-qa/upload-csv`, {
+    method: 'POST',
+    body: form,
+  });
+  return handle<{ created: number; updated: number; errors: string[] }>(res);
+}
+
+export function getPriorityQATemplateUrl(): string {
+  return `${BASE}/sessions/templates/priority-qa-csv`;
+}
+
+/**
+ * Priority Q&A CSV 템플릿을 인증 헤더와 함께 다운로드한다.
+ * `<a href download>` 는 JWT Authorization 헤더를 붙이지 못해 401 을 받으므로
+ * blob 으로 가져와 Object URL 로 임시 anchor 를 클릭하는 방식이 필요하다.
+ */
+export async function downloadPriorityQATemplate(): Promise<void> {
+  const res = await apiFetch(`${BASE}/sessions/templates/priority-qa-csv`);
+  if (!res.ok) throw new Error(`템플릿 다운로드 실패: HTTP ${res.status}`);
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  try {
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'priority_qa_template.csv';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  } finally {
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
 }
 
 export async function findAnswer(sessionId: number, questionText: string, utteranceId?: number) {

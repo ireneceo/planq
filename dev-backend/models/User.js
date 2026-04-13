@@ -82,6 +82,28 @@ User.init({
   job_title: {
     type: DataTypes.STRING(100),
     allowNull: true
+  },
+  // 언어별 4개 skill (reading/speaking/listening/writing) 수준 1-6
+  // 예: {"ko":{"reading":6,"speaking":6,"listening":6,"writing":6},"en":{"reading":4,"speaking":3,"listening":3,"writing":3}}
+  language_levels: {
+    type: DataTypes.JSON,
+    allowNull: true
+  },
+  // 전문 지식 수준: 'layman' | 'practitioner' | 'expert'
+  expertise_level: {
+    type: DataTypes.STRING(20),
+    allowNull: true
+  },
+  // 답변 스타일 기본값 (회의 시작 시 override 가능)
+  answer_style_default: {
+    type: DataTypes.STRING(2000),
+    allowNull: true
+  },
+  // 답변 길이 기본값: 'short' | 'medium' | 'long'
+  answer_length_default: {
+    type: DataTypes.STRING(20),
+    allowNull: true,
+    defaultValue: 'medium'
   }
 }, {
   sequelize,

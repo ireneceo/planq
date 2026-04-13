@@ -268,6 +268,41 @@ invoices, invoice_items, audit_logs
 
 ---
 
+## 다국어 (i18n — 필수)
+
+PlanQ는 **한국어/영어 두 언어를 동시 지원**한다. 모든 사용자 노출 문자열은 처음부터 ko/en 양쪽을 작성해야 한다.
+
+### 규칙
+- **사용자에게 보이는 모든 문자열은 하드코딩 금지** — `useTranslation('<네임스페이스>')` + `t('key')` 사용
+- **기획 단계에서부터 ko/en 문구를 함께 정의** — 설계 문서에 영어 텍스트 없는 항목은 미완으로 간주
+- 새 페이지/기능 개발 시: **JSON(ko/en) 작성 → 컴포넌트에서 `t()` 사용** 순서
+- 인라인 HTML 태그가 포함된 문구는 `<Trans i18nKey="..." components={{ 1: <strong /> }} />` 사용
+- 동적 값은 `{{name}}` 보간: `t('register.hello', { name })`
+- 제외: 코드 주석, 개발용 로그, 언어별 예시 문장(예: 음성 등록용 한국어 샘플)
+
+### 네임스페이스 구조
+- `common` — 공통 버튼/상태/메시지/역할
+- `auth` — 로그인/회원가입
+- `layout` — 사이드바 메뉴/사용자 영역
+- `profile` — 내 프로필
+- `qnote` — Q note 페이지 + 회의 시작 모달
+- (신규 기능 추가 시: `qtalk`, `qtask`, `qcalendar`, `qdocs`, `qfile`, `qbill`, `dashboard` …)
+
+### 파일 위치
+- ko: `dev-frontend/public/locales/ko/<namespace>.json`
+- en: `dev-frontend/public/locales/en/<namespace>.json`
+- 설정: `dev-frontend/src/i18n.ts` (`ns` 배열에 신규 네임스페이스 등록 필수)
+
+### 검사
+```bash
+# 한국어 하드코딩 감지 (주석 제외, 코드 내부 문자열만)
+grep -rEn "(['\"\`])[^'\"\`]*[가-힣][^'\"\`]*\1" dev-frontend/src --include='*.tsx' --include='*.ts' \
+  | grep -v -E '//|/\*|\*/|^\s*\*' | grep -v '/locales/'
+```
+결과에 줄이 나오면 해당 위치를 i18n으로 전환해야 한다.
+
+---
+
 ## 자동저장 (필수)
 
 - **저장이 필요한 모든 입력 폼은 AutoSaveField 컴포넌트를 사용**
@@ -287,3 +322,4 @@ invoices, invoice_items, audit_logs
 - alert(), toast.success() 사용
 - 샘플/가짜 데이터 사용 → 모든 데이터는 DB에서 API로
 - API 테스트 시 기존 계정 비밀번호 변경 금지
+- **프론트엔드 문자열 하드코딩 (한국어/영어 모두)** → 반드시 `t()` 사용

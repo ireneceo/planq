@@ -39,19 +39,19 @@ function App() {
 
         <Route path="/talk" element={
           <ProtectedRoute>
-            <MainLayout><PlaceholderPage title="Q Talk" /></MainLayout>
+            <MainLayout><PlaceholderPage title="Q talk" /></MainLayout>
           </ProtectedRoute>
         } />
 
         <Route path="/tasks" element={
           <ProtectedRoute>
-            <MainLayout><PlaceholderPage title="Q Task" /></MainLayout>
+            <MainLayout><PlaceholderPage title="Q task" /></MainLayout>
           </ProtectedRoute>
         } />
 
         <Route path="/calendar" element={
           <ProtectedRoute>
-            <MainLayout><PlaceholderPage title="Q Calendar" /></MainLayout>
+            <MainLayout><PlaceholderPage title="Q calendar" /></MainLayout>
           </ProtectedRoute>
         } />
 
@@ -68,13 +68,13 @@ function App() {
 
         <Route path="/docs" element={
           <ProtectedRoute>
-            <MainLayout><PlaceholderPage title="Q Docs" /></MainLayout>
+            <MainLayout><PlaceholderPage title="Q docs" /></MainLayout>
           </ProtectedRoute>
         } />
 
         <Route path="/files" element={
           <ProtectedRoute>
-            <MainLayout><PlaceholderPage title="Q File" /></MainLayout>
+            <MainLayout><PlaceholderPage title="Q file" /></MainLayout>
           </ProtectedRoute>
         } />
 
@@ -86,7 +86,7 @@ function App() {
 
         <Route path="/billing" element={
           <ProtectedRoute requiredRole={['business_owner']}>
-            <MainLayout><PlaceholderPage title="Q Bill" /></MainLayout>
+            <MainLayout><PlaceholderPage title="Q bill" /></MainLayout>
           </ProtectedRoute>
         } />
 

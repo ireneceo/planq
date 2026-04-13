@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import styled from 'styled-components';
+import { useTranslation, Trans } from 'react-i18next';
 import { useAuth, apiFetch } from '../../contexts/AuthContext';
+import type { LanguageLevels, LanguageSkillLevel } from '../../contexts/AuthContext';
 import { WavRecorder } from '../../services/audio/recordToWav';
 import {
   getVoiceFingerprints,
@@ -39,6 +41,7 @@ type RecState = 'idle' | 'recording' | 'processing' | 'error';
 type RecPurpose = 'register' | 'verify';
 
 export default function ProfilePage() {
+  const { t } = useTranslation('profile');
   const { user, updateUser } = useAuth();
   const [fpList, setFpList] = useState<VoiceFingerprintList | null>(null);
   const [loading, setLoading] = useState(true);
@@ -65,12 +68,29 @@ export default function ProfilePage() {
   const [organization, setOrganization] = useState<string>(user?.organization || '');
   const [jobTitle, setJobTitle] = useState<string>(user?.job_title || '');
 
+  // 언어 레벨 (언어별 4-skill 1-6)
+  type Skill = 'reading' | 'speaking' | 'listening' | 'writing';
+  const [languageLevels, setLanguageLevels] = useState<LanguageLevels>(user?.language_levels || {});
+  const [expertiseLevel, setExpertiseLevel] = useState<'layman' | 'practitioner' | 'expert' | ''>(user?.expertise_level || '');
+
   useEffect(() => {
     if (user?.bio !== undefined) setBio(user.bio || '');
     if (user?.expertise !== undefined) setExpertise(user.expertise || '');
     if (user?.organization !== undefined) setOrganization(user.organization || '');
     if (user?.job_title !== undefined) setJobTitle(user.job_title || '');
-  }, [user?.bio, user?.expertise, user?.organization, user?.job_title]);
+    if (user?.language_levels !== undefined) setLanguageLevels(user.language_levels || {});
+    if (user?.expertise_level !== undefined) setExpertiseLevel(user.expertise_level || '');
+  }, [user?.bio, user?.expertise, user?.organization, user?.job_title, user?.language_levels, user?.expertise_level]);
+
+  const LEVEL_OPTIONS = [
+    { value: 0, label: '—' },
+    { value: 1, label: '1 초급' },
+    { value: 2, label: '2 기초' },
+    { value: 3, label: '3 중급' },
+    { value: 4, label: '4 중상급' },
+    { value: 5, label: '5 고급' },
+    { value: 6, label: '6 원어민' },
+  ];
 
   const saveProfileField = useCallback(async (field: 'bio' | 'expertise' | 'organization' | 'job_title', value: string) => {
     if (!user?.id) throw new Error('Not logged in');
@@ -80,9 +100,48 @@ export default function ProfilePage() {
       body: JSON.stringify({ [field]: value || null }),
     });
     const data = await res.json();
-    if (!res.ok || !data.success) throw new Error(data.message || '저장 실패');
+    if (!res.ok || !data.success) throw new Error(data.message || t('messages.errorSave'));
     if (updateUser) updateUser({ [field]: value || null });
-  }, [user?.id, updateUser]);
+  }, [user?.id, updateUser, t]);
+
+  const saveLanguageLevel = useCallback(async (lang: string, skill: Skill, level: number) => {
+    if (!user?.id) throw new Error('Not logged in');
+    const next: LanguageLevels = { ...languageLevels };
+    if (level === 0) {
+      if (next[lang]) {
+        const block = { ...next[lang] };
+        delete block[skill];
+        if (Object.keys(block).length) next[lang] = block;
+        else delete next[lang];
+      }
+    } else {
+      next[lang] = { ...(next[lang] || {}), [skill]: level as LanguageSkillLevel };
+    }
+    const payload = Object.keys(next).length ? next : null;
+    const res = await apiFetch(`/api/users/${user.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ language_levels: payload }),
+    });
+    const data = await res.json();
+    if (!res.ok || !data.success) throw new Error(data.message || t('messages.errorSave'));
+    setLanguageLevels(next);
+    if (updateUser) updateUser({ language_levels: payload });
+  }, [user?.id, languageLevels, updateUser, t]);
+
+  const saveExpertiseLevel = useCallback(async (level: string) => {
+    if (!user?.id) throw new Error('Not logged in');
+    const val = level || null;
+    const res = await apiFetch(`/api/users/${user.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ expertise_level: val }),
+    });
+    const data = await res.json();
+    if (!res.ok || !data.success) throw new Error(data.message || t('messages.errorSave'));
+    setExpertiseLevel((val as 'layman' | 'practitioner' | 'expert' | null) || '');
+    if (updateUser) updateUser({ expertise_level: val as 'layman' | 'practitioner' | 'expert' | null });
+  }, [user?.id, updateUser, t]);
 
   // 언어 추가 — 드롭다운 선택 시 즉시 startRecording 호출 (별도 state 불필요)
   const errorBannerRef = useRef<HTMLDivElement>(null);
@@ -103,11 +162,11 @@ export default function ProfilePage() {
       const s = await getVoiceFingerprints();
       setFpList(s);
     } catch (e) {
-      setError(e instanceof Error ? e.message : '상태 조회 실패');
+      setError(e instanceof Error ? e.message : t('messages.errorLoadStatus'));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -153,7 +212,7 @@ export default function ProfilePage() {
         if (e >= hardMax) stopRecording();
       }, 100);
     } catch (e) {
-      setError(e instanceof Error ? e.message : '마이크 권한 필요');
+      setError(e instanceof Error ? e.message : t('messages.errorMicPermission'));
       setRecState('error');
     }
   };
@@ -173,8 +232,8 @@ export default function ProfilePage() {
       const minSec = purpose === 'verify' ? VERIFY_MIN_SEC : MIN_SEC;
       if (capturedElapsed < minSec) {
         const msg = purpose === 'verify'
-          ? `매칭 확인 실패: 최소 ${minSec}초 이상 녹음이 필요합니다 (현재 ${capturedElapsed.toFixed(1)}초). 다시 시도해주세요.`
-          : `등록 실패: 최소 ${minSec}초 이상 녹음이 필요합니다 (현재 ${capturedElapsed.toFixed(1)}초). 예시 문장을 끝까지 읽고 "녹음 완료"를 눌러주세요.`;
+          ? t('messages.errorTooShortVerify', { minSec, elapsed: capturedElapsed.toFixed(1) })
+          : t('messages.errorTooShortRegister', { minSec, elapsed: capturedElapsed.toFixed(1) });
         setError(msg);
         setRecState('idle');
         return;
@@ -186,12 +245,12 @@ export default function ProfilePage() {
         await registerVoiceFingerprint(lang, wavBlob);
         await load();
         const langLabel = getLanguageByCode(lang)?.label || lang;
-        setSuccess(`${langLabel} 음성이 등록되었습니다`);
+        setSuccess(t('messages.successRegister', { label: langLabel }));
       }
       setRecState('idle');
     } catch (e) {
-      const base = e instanceof Error ? e.message : '처리 실패';
-      const prefix = purpose === 'verify' ? '매칭 확인 실패' : '등록 실패';
+      const base = e instanceof Error ? e.message : t('messages.errorProcess');
+      const prefix = purpose === 'verify' ? t('messages.errorPrefixVerify') : t('messages.errorPrefixRegister');
       setError(`${prefix}: ${base}`);
       setRecState('idle');
     }
@@ -213,16 +272,16 @@ export default function ProfilePage() {
     const label = getLanguageByCode(lang)?.label || lang;
     setConfirm({
       open: true,
-      title: '음성 등록 삭제',
-      message: `${label} 음성 등록을 삭제하시겠습니까? 다음 회의부터 본인 자동 감지에 이 언어는 사용되지 않습니다.`,
+      title: t('confirm.deleteLangTitle'),
+      message: t('confirm.deleteLangMessage', { label }),
       onConfirm: async () => {
         closeConfirm();
         try {
           await deleteVoiceFingerprintLanguage(lang);
           await load();
-          setSuccess(`${label} 등록이 삭제되었습니다`);
+          setSuccess(t('messages.successDeleteLanguage', { label }));
         } catch (e) {
-          setError(e instanceof Error ? e.message : '삭제 실패');
+          setError(e instanceof Error ? e.message : t('messages.errorDelete'));
         }
       },
     });
@@ -231,16 +290,16 @@ export default function ProfilePage() {
   const handleDeleteAll = () => {
     setConfirm({
       open: true,
-      title: '모든 음성 등록 삭제',
-      message: '등록된 모든 언어의 음성 핑거프린트를 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.',
+      title: t('confirm.deleteAllTitle'),
+      message: t('confirm.deleteAllMessage'),
       onConfirm: async () => {
         closeConfirm();
         try {
           await deleteAllVoiceFingerprints();
           await load();
-          setSuccess('모든 음성 등록이 삭제되었습니다');
+          setSuccess(t('messages.successDeleteAll'));
         } catch (e) {
-          setError(e instanceof Error ? e.message : '삭제 실패');
+          setError(e instanceof Error ? e.message : t('messages.errorDelete'));
         }
       },
     });
@@ -258,12 +317,12 @@ export default function ProfilePage() {
         body: JSON.stringify({ language: code }),
       });
       const data = await res.json();
-      if (!res.ok || !data.success) throw new Error(data.message || '언어 저장 실패');
+      if (!res.ok || !data.success) throw new Error(data.message || t('messages.errorLanguageSave'));
       setLanguage(code);
       if (updateUser) updateUser({ language: code });
-      setSuccess('기본 언어가 변경되었습니다');
+      setSuccess(t('messages.successLanguageChanged'));
     } catch (e) {
-      setError(e instanceof Error ? e.message : '언어 저장 실패');
+      setError(e instanceof Error ? e.message : t('messages.errorLanguageSave'));
     } finally {
       setLangSaving(false);
     }
@@ -293,8 +352,8 @@ export default function ProfilePage() {
     <Page>
       <Container>
         <Header>
-          <Title>내 프로필</Title>
-          <Subtitle>음성 핑거프린트와 기본 설정을 관리합니다</Subtitle>
+          <Title>{t('header.title')}</Title>
+          <Subtitle>{t('header.subtitle')}</Subtitle>
         </Header>
 
         <div ref={errorBannerRef} />
@@ -303,17 +362,17 @@ export default function ProfilePage() {
 
         {/* 기본 정보 */}
         <Card>
-          <SectionTitle>기본 정보</SectionTitle>
+          <SectionTitle>{t('basic.sectionTitle')}</SectionTitle>
           <FieldRow>
-            <Label>이름</Label>
+            <Label>{t('basic.name')}</Label>
             <ReadOnly>{user?.name || '-'}</ReadOnly>
           </FieldRow>
           <FieldRow>
-            <Label>이메일</Label>
+            <Label>{t('basic.email')}</Label>
             <ReadOnly>{user?.email || '-'}</ReadOnly>
           </FieldRow>
           <FieldRow>
-            <Label>기본 언어</Label>
+            <Label>{t('basic.defaultLanguage')}</Label>
             <FieldBody>
               <PlanQSelect
                 value={langOptions.find((o) => o.value === language) || null}
@@ -322,32 +381,30 @@ export default function ProfilePage() {
                   if (v) handleLanguageChange(v);
                 }}
                 options={langOptions}
-                placeholder="언어 선택"
+                placeholder={t('basic.languagePlaceholder')}
                 isDisabled={langSaving}
                 size="sm"
               />
-              <Hint>회의 시 번역 기본값으로 사용됩니다</Hint>
+              <Hint>{t('basic.languageHint')}</Hint>
             </FieldBody>
           </FieldRow>
         </Card>
 
-        {/* Q Note 답변 생성 프로필 */}
+        {/* Q note 답변 생성 프로필 */}
         <Card>
-          <SectionTitle>내 프로필 (Q Note 답변 생성용)</SectionTitle>
+          <SectionTitle>{t('qnoteProfile.sectionTitle')}</SectionTitle>
           <Description>
-            Q Note가 회의 중 답변을 만들 때 <strong>"나"로서 답변</strong>하기 위한 정보입니다.
-            직책/회사/전문분야/자기소개를 채우면 AI가 당신을 대변해 더 정확하고 자연스러운 답변을 생성합니다.
-            <br />비어있으면 일반 AI 답변으로 대체됩니다.
+            <Trans i18nKey="qnoteProfile.description" ns="profile" components={{ 1: <strong />, 2: <br /> }} />
           </Description>
 
           <FieldRow>
-            <Label>회사/조직</Label>
+            <Label>{t('qnoteProfile.organization')}</Label>
             <FieldBody>
               <AutoSaveField onSave={() => saveProfileField('organization', organization)}>
                 <TextInput
                   value={organization}
                   onChange={(e: React.ChangeEvent<HTMLInputElement>) => setOrganization(e.target.value)}
-                  placeholder="예: LG전자, Warplo Lab"
+                  placeholder={t('qnoteProfile.organizationPlaceholder')}
                   maxLength={200}
                 />
               </AutoSaveField>
@@ -355,13 +412,13 @@ export default function ProfilePage() {
           </FieldRow>
 
           <FieldRow>
-            <Label>직책</Label>
+            <Label>{t('qnoteProfile.jobTitle')}</Label>
             <FieldBody>
               <AutoSaveField onSave={() => saveProfileField('job_title', jobTitle)}>
                 <TextInput
                   value={jobTitle}
                   onChange={(e: React.ChangeEvent<HTMLInputElement>) => setJobTitle(e.target.value)}
-                  placeholder="예: 기획팀 과장, Founder, 개발자"
+                  placeholder={t('qnoteProfile.jobTitlePlaceholder')}
                   maxLength={100}
                 />
               </AutoSaveField>
@@ -369,55 +426,126 @@ export default function ProfilePage() {
           </FieldRow>
 
           <FieldRow>
-            <Label>전문 분야</Label>
+            <Label>{t('qnoteProfile.expertise')}</Label>
             <FieldBody>
               <AutoSaveField onSave={() => saveProfileField('expertise', expertise)}>
                 <TextInput
                   value={expertise}
                   onChange={(e: React.ChangeEvent<HTMLInputElement>) => setExpertise(e.target.value)}
-                  placeholder="예: IoT, UX 기획, 시장 분석"
+                  placeholder={t('qnoteProfile.expertisePlaceholder')}
                   maxLength={500}
                 />
               </AutoSaveField>
-              <Hint>쉼표로 구분하여 여러 개 입력 가능</Hint>
+              <Hint>{t('qnoteProfile.expertiseHint')}</Hint>
             </FieldBody>
           </FieldRow>
 
           <FieldRow>
-            <Label>자기소개</Label>
+            <Label>{t('qnoteProfile.bio')}</Label>
             <FieldBody>
               <AutoSaveField onSave={() => saveProfileField('bio', bio)}>
                 <TextArea
                   value={bio}
                   onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setBio(e.target.value)}
-                  placeholder="예: LG전자 기획팀 8년차. 스마트홈 제품 전략 담당. 최근에는 AI 기반 개인화에 집중하고 있습니다."
+                  placeholder={t('qnoteProfile.bioPlaceholder')}
                   maxLength={2000}
                   rows={4}
                 />
               </AutoSaveField>
-              <Hint>AI가 이 정보를 바탕으로 당신의 배경과 말투를 반영해 답변합니다 ({bio.length}/2000)</Hint>
+              <Hint>{t('qnoteProfile.bioHint', { length: bio.length, max: 2000 })}</Hint>
+            </FieldBody>
+          </FieldRow>
+        </Card>
+
+        {/* 언어 레벨 — 답변 난이도 조절 */}
+        <Card>
+          <SectionTitle>내 언어 레벨 (답변 난이도 조절용)</SectionTitle>
+          <Description>
+            언어별 <strong>읽기·말하기·듣기·쓰기</strong> 4개 영역의 수준을 설정하세요.
+            Q note 가 답변을 생성할 때 이 레벨에 맞춰 <strong>너무 어려운 단어를 피하고 발음하기 쉬운 문장</strong>으로 작성합니다.
+            <br />특히 답변을 따라 읽어야 하는 언어(영어 등)의 <strong>읽기·말하기 레벨</strong>이 중요합니다.
+          </Description>
+
+          <LevelTableHead>
+            <LevelTableCell $head>언어</LevelTableCell>
+            <LevelTableCell $head>읽기</LevelTableCell>
+            <LevelTableCell $head>말하기</LevelTableCell>
+            <LevelTableCell $head>듣기</LevelTableCell>
+            <LevelTableCell $head>쓰기</LevelTableCell>
+          </LevelTableHead>
+          {['ko', 'en', 'ja', 'zh', 'es', 'fr', 'de'].map((code) => {
+            const meta = LANGUAGES.find((l) => l.code === code);
+            const label = meta?.label || code.toUpperCase();
+            const block = languageLevels[code] || {};
+            return (
+              <LevelRow key={code}>
+                <LevelLangCell>{label}</LevelLangCell>
+                {(['reading', 'speaking', 'listening', 'writing'] as const).map((skill) => {
+                  const current = block[skill] ?? 0;
+                  return (
+                    <LevelCell key={skill}>
+                      <PlanQSelect
+                        size="sm"
+                        isClearable={false}
+                        isSearchable={false}
+                        value={LEVEL_OPTIONS.find((o) => o.value === current) || LEVEL_OPTIONS[0]}
+                        onChange={(opt) => {
+                          const v = (opt as { value: number } | null)?.value ?? 0;
+                          saveLanguageLevel(code, skill, v);
+                        }}
+                        options={LEVEL_OPTIONS}
+                      />
+                    </LevelCell>
+                  );
+                })}
+              </LevelRow>
+            );
+          })}
+          <Hint style={{ marginTop: 10 }}>
+            미설정("—")은 해당 언어를 별도 조정 안 함 — 기본값으로 답변 생성됩니다.
+          </Hint>
+
+          <FieldRow style={{ marginTop: 16, borderTop: '1px solid #e2e8f0', paddingTop: 16 }}>
+            <Label>전문 지식 수준</Label>
+            <FieldBody>
+              <ExpertiseRow>
+                {([
+                  { val: '', label: '미설정' },
+                  { val: 'layman', label: '일반인' },
+                  { val: 'practitioner', label: '실무자' },
+                  { val: 'expert', label: '전문가' },
+                ] as const).map((opt) => (
+                  <ExpertiseBtn
+                    key={opt.val}
+                    type="button"
+                    $active={expertiseLevel === opt.val}
+                    onClick={() => saveExpertiseLevel(opt.val)}
+                  >
+                    {opt.label}
+                  </ExpertiseBtn>
+                ))}
+              </ExpertiseRow>
+              <Hint>
+                듣는 사람 기준이 아닌 <strong>대답하는 내 수준</strong>. 전문가면 정확한 용어 그대로, 일반인이면 쉬운 말로 답변합니다.
+              </Hint>
             </FieldBody>
           </FieldRow>
         </Card>
 
         {/* 음성 핑거프린트 (다국어) */}
         <Card>
-          <SectionTitle>내 목소리 등록</SectionTitle>
+          <SectionTitle>{t('voice.sectionTitle')}</SectionTitle>
           <Description>
-            회의 중 <strong>본인 발화를 자동으로 인식</strong>하려면 목소리를 등록해주세요.
-            {' '}회의에서 사용하는 언어가 여러 개면 <strong>각 언어별로 한 번씩 등록</strong>해야 합니다.
-            영어로 등록한 목소리로는 한국어 발화 인식 정확도가 떨어집니다.
+            <Trans i18nKey="voice.description" ns="profile" components={{ 1: <strong />, 2: <strong /> }} />
           </Description>
 
           {loading ? (
-            <Hint>불러오는 중...</Hint>
+            <Hint>{t('voice.loading')}</Hint>
           ) : (
             <>
               <RegList>
                 {(fpList?.languages || []).length === 0 && (
-                  <EmptyHint>
-                    아직 등록된 목소리가 없습니다. 아래에서 언어를 선택하고 녹음해주세요.
-                  </EmptyHint>
+                  <EmptyHint>{t('voice.empty')}</EmptyHint>
                 )}
                 {(fpList?.languages || []).map((lang) => {
                   const meta = getLanguageByCode(lang.language);
@@ -426,10 +554,10 @@ export default function ProfilePage() {
                   return (
                     <RegItem key={lang.language}>
                       <RegLeft>
-                        <RegLabel>{isLegacy ? '언어 미지정 (과거 등록)' : label}</RegLabel>
+                        <RegLabel>{isLegacy ? t('voice.legacyLabel') : label}</RegLabel>
                         <RegMeta>
-                          {lang.sample_seconds ? `${lang.sample_seconds.toFixed(1)}초` : ''}
-                          {lang.updated_at ? ` · ${new Date(lang.updated_at).toLocaleString('ko-KR')}` : ''}
+                          {lang.sample_seconds ? t('voice.sampleSeconds', { sec: lang.sample_seconds.toFixed(1) }) : ''}
+                          {lang.updated_at ? ` · ${new Date(lang.updated_at).toLocaleString()}` : ''}
                         </RegMeta>
                       </RegLeft>
                       <RegActions>
@@ -437,7 +565,7 @@ export default function ProfilePage() {
                           onClick={() => startRecording('register', lang.language === 'unknown' ? 'ko' : lang.language)}
                           disabled={recState !== 'idle'}
                         >
-                          재등록
+                          {t('voice.reregister')}
                         </SecondaryBtn>
                         <DangerIconBtn onClick={() => handleDeleteLanguage(lang.language)}>
                           <TrashIcon size={12} />
@@ -454,7 +582,7 @@ export default function ProfilePage() {
                   <AddLangLabel>
                     <MicIcon size={14} />
                     <span>
-                      등록할 언어를 선택하면 <strong>바로 녹음이 시작</strong>됩니다
+                      <Trans i18nKey="voice.addLangPrompt" ns="profile" components={{ 1: <strong /> }} />
                     </span>
                   </AddLangLabel>
                   <PlanQSelect
@@ -464,7 +592,7 @@ export default function ProfilePage() {
                       if (v) startRecording('register', v);
                     }}
                     options={addableOptions}
-                    placeholder="＋ 언어 선택해서 등록하기"
+                    placeholder={t('voice.addLangPlaceholder')}
                     size="sm"
                   />
                 </AddLangRow>
@@ -474,14 +602,12 @@ export default function ProfilePage() {
               {(fpList?.languages.length || 0) > 0 && recState === 'idle' && (
                 <ActionRow>
                   <SecondaryBtn onClick={() => startRecording('verify')}>
-                    매칭 확인하기
+                    {t('voice.verifyBtn')}
                   </SecondaryBtn>
-                  <Hint style={{ flex: 1 }}>
-                    지금 목소리로 5초 녹음해 저장된 핑거프린트와 정확히 매칭되는지 확인합니다
-                  </Hint>
+                  <Hint style={{ flex: 1 }}>{t('voice.verifyHint')}</Hint>
                   <DangerBtn onClick={handleDeleteAll}>
                     <TrashIcon size={12} />
-                    <span>전체 삭제</span>
+                    <span>{t('voice.deleteAllBtn')}</span>
                   </DangerBtn>
                 </ActionRow>
               )}
@@ -492,8 +618,8 @@ export default function ProfilePage() {
           {verifyResult && (
             <VerifyResultBox $match={verifyResult.match}>
               <VerifyResultLine>
-                <strong>{verifyResult.match ? '본인으로 인식됩니다' : '본인으로 인식되지 않습니다'}</strong>
-                <span>최고 유사도 {verifyResult.similarity.toFixed(3)} / 임계값 {verifyResult.threshold.toFixed(2)}</span>
+                <strong>{verifyResult.match ? t('verify.matched') : t('verify.notMatched')}</strong>
+                <span>{t('verify.similarityLine', { similarity: verifyResult.similarity.toFixed(3), threshold: verifyResult.threshold.toFixed(2) })}</span>
               </VerifyResultLine>
               <VerifyResultMsg>{verifyResult.message}</VerifyResultMsg>
               {verifyResult.per_language.length > 1 && (
@@ -518,7 +644,7 @@ export default function ProfilePage() {
               {recPurpose === 'register' && (
                 <SampleSentenceBox>
                   <SampleLabel>
-                    {getLanguageByCode(recLanguage)?.label || recLanguage.toUpperCase()} · 아래 문장을 자연스럽게 낭독해주세요 (최소 {MIN_SEC}초)
+                    {t('recorder.sampleLabel', { label: getLanguageByCode(recLanguage)?.label || recLanguage.toUpperCase(), minSec: MIN_SEC })}
                   </SampleLabel>
                   <SampleSentence>{sampleSentence}</SampleSentence>
                 </SampleSentenceBox>
@@ -531,15 +657,15 @@ export default function ProfilePage() {
                     <RecElapsed>
                       {elapsed.toFixed(1)}s
                       <RecHint>
-                        {' '}/ 최소 {minSec}s · 권장 {softTarget}s · 최대 {hardMax}s
+                        {' '}{t('recorder.elapsedHint', { minSec, softTarget, hardMax })}
                       </RecHint>
                     </RecElapsed>
                     <RecRemaining>
                       {!readyToStop
-                        ? `${Math.ceil(minSec - elapsed)}초 더 녹음`
+                        ? t('recorder.remainNeedMore', { seconds: Math.ceil(minSec - elapsed) })
                         : reachedSoftTarget
-                          ? '충분합니다 — 완료해도 됩니다'
-                          : '완료 버튼을 누를 수 있습니다'}
+                          ? t('recorder.remainEnough')
+                          : t('recorder.remainAllowed')}
                     </RecRemaining>
                   </RecordingRow>
                   <LevelBar>
@@ -549,23 +675,23 @@ export default function ProfilePage() {
                     <PrimaryBtn onClick={stopRecording} disabled={!readyToStop}>
                       <CheckIcon size={14} />
                       <span>
-                        {recPurpose === 'verify' ? '확인 완료' : '녹음 완료'}
-                        {!readyToStop ? ` (${Math.ceil(minSec - elapsed)}초 더)` : ''}
+                        {recPurpose === 'verify' ? t('recorder.finishVerify') : t('recorder.finishRegister')}
+                        {!readyToStop ? ` ${t('recorder.finishSuffix', { seconds: Math.ceil(minSec - elapsed) })}` : ''}
                       </span>
                     </PrimaryBtn>
                     <SecondaryBtn onClick={cancelRecording}>
                       <XIcon size={14} />
-                      <span>취소</span>
+                      <span>{t('recorder.cancel')}</span>
                     </SecondaryBtn>
                   </RecBtnRow>
                   <RecHintLine>
-                    문장을 끝까지 말씀한 뒤 직접 "녹음 완료"를 눌러주세요. {hardMax}초 도달 시 자동 종료됩니다.
+                    {t('recorder.hintLine', { hardMax })}
                   </RecHintLine>
                 </RecordingUI>
               )}
 
               {recState === 'processing' && (
-                <ProcessingUI>임베딩 계산 중...</ProcessingUI>
+                <ProcessingUI>{t('recorder.processing')}</ProcessingUI>
               )}
             </RecorderBox>
           )}
@@ -575,27 +701,26 @@ export default function ProfilePage() {
             <InlineError>
               <XIcon size={14} />
               <span>{error}</span>
-              <RetryBtn onClick={() => setError(null)}>닫기</RetryBtn>
+              <RetryBtn onClick={() => setError(null)}>{t('messages.closeBtn')}</RetryBtn>
             </InlineError>
           )}
         </Card>
 
         {/* 개인정보 안내 */}
         <Card>
-          <SectionTitle>개인정보 처리</SectionTitle>
+          <SectionTitle>{t('privacy.sectionTitle')}</SectionTitle>
           <PrivacyList>
             <PrivacyItem>
-              <strong>등록 데이터</strong>: 원본 오디오는 저장되지 않습니다. Resemblyzer 모델이 추출한 256차원 벡터(수학적 특징)만 DB에 저장되며,
-              이 벡터로는 원본 음성을 <strong>복원할 수 없습니다</strong>. 재생 기능이 없는 이유입니다.
+              <Trans i18nKey="privacy.item1" ns="profile" components={{ 1: <strong />, 2: <strong /> }} />
             </PrivacyItem>
             <PrivacyItem>
-              <strong>사용처</strong>: 회의 중 본인 발화 자동 감지, 회의 종료 시 같은 사람의 발화 자동 병합. 외부 서비스로 전송되지 않습니다.
+              <Trans i18nKey="privacy.item2" ns="profile" components={{ 1: <strong /> }} />
             </PrivacyItem>
             <PrivacyItem>
-              <strong>회의 오디오</strong>: 회의 중 메모리에 일시적으로 버퍼링되며, 회의 종료 시 즉시 폐기됩니다.
+              <Trans i18nKey="privacy.item3" ns="profile" components={{ 1: <strong /> }} />
             </PrivacyItem>
             <PrivacyItem>
-              <strong>삭제 권리</strong>: 위 "삭제" 또는 "전체 삭제" 버튼으로 언제든 등록을 철회할 수 있습니다.
+              <Trans i18nKey="privacy.item4" ns="profile" components={{ 1: <strong /> }} />
             </PrivacyItem>
           </PrivacyList>
         </Card>
@@ -607,8 +732,8 @@ export default function ProfilePage() {
         onConfirm={() => confirm.onConfirm()}
         title={confirm.title}
         message={confirm.message}
-        confirmText="삭제"
-        cancelText="취소"
+        confirmText={t('confirm.deleteText')}
+        cancelText={t('confirm.cancelText')}
         variant="danger"
       />
     </Page>
@@ -704,6 +829,64 @@ const ReadOnly = styled.div`
 const Hint = styled.div`
   font-size: 11px;
   color: #94a3b8;
+`;
+
+const LevelTableHead = styled.div`
+  display: grid;
+  grid-template-columns: 1.2fr 1fr 1fr 1fr 1fr;
+  gap: 6px;
+  padding: 6px 0;
+  border-bottom: 1px solid #e2e8f0;
+`;
+
+const LevelTableCell = styled.div<{ $head?: boolean }>`
+  font-size: ${(p) => (p.$head ? '11px' : '13px')};
+  font-weight: ${(p) => (p.$head ? 700 : 500)};
+  color: ${(p) => (p.$head ? '#64748b' : '#0f172a')};
+  letter-spacing: 0.03em;
+  text-transform: ${(p) => (p.$head ? 'uppercase' : 'none')};
+`;
+
+const LevelRow = styled.div`
+  display: grid;
+  grid-template-columns: 1.2fr 1fr 1fr 1fr 1fr;
+  gap: 6px;
+  padding: 8px 0;
+  align-items: center;
+  border-bottom: 1px solid #f1f5f9;
+`;
+
+const LevelLangCell = styled.div`
+  font-size: 13px;
+  font-weight: 600;
+  color: #0f172a;
+`;
+
+const LevelCell = styled.div`
+  display: flex;
+  align-items: center;
+`;
+
+
+const ExpertiseRow = styled.div`
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+`;
+
+const ExpertiseBtn = styled.button<{ $active?: boolean }>`
+  padding: 8px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  color: ${(p) => (p.$active ? '#ffffff' : '#475569')};
+  background: ${(p) => (p.$active ? '#0d9488' : '#ffffff')};
+  border: 1px solid ${(p) => (p.$active ? '#0d9488' : '#e2e8f0')};
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 120ms;
+  &:hover {
+    border-color: ${(p) => (p.$active ? '#0f766e' : '#0d9488')};
+  }
 `;
 
 const TextInput = styled.input`

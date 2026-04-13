@@ -54,10 +54,17 @@ export interface LiveAnswerReadyEvent {
   tier: string;
 }
 
+export interface LiveQuickQuestionEvent {
+  type: 'quick_question';
+  utterance_id: number;
+  transcript: string;
+}
+
 export type LiveEvent =
   | LiveTranscriptEvent
   | LiveFinalizedEvent
   | LiveEnrichmentEvent
+  | LiveQuickQuestionEvent
   | LiveAnswerReadyEvent
   | LiveReadyEvent
   | LiveErrorEvent
@@ -134,7 +141,15 @@ export class LiveSession {
       }
     } catch { /* ignore */ }
     try { this.pcm?.stop(); } catch { /* ignore */ }
-    try { this.capture?.stop(); } catch { /* ignore */ }
+    // capture.stop() 은 Promise 가능 (WebConferenceCapture 는 AudioContext close 를 await).
+    // 결과를 기다리지 않아도 내부적으로 tab 트랙을 동기적으로 stop 하므로 Chrome "공유 중"
+    // 배너는 즉시 사라진다. AudioContext 정리는 백그라운드에서 완결.
+    try {
+      const result = this.capture?.stop();
+      if (result && typeof (result as Promise<void>).then === 'function') {
+        (result as Promise<void>).catch(() => { /* ignore */ });
+      }
+    } catch { /* ignore */ }
     try { this.ws?.close(); } catch { /* ignore */ }
     this.pcm = null;
     this.capture = null;

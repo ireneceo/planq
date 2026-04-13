@@ -22,6 +22,7 @@ from services.voice_fingerprint import (
   embed_pcm16, blob_to_embedding, cosine_similarity, SELF_MATCH_THRESHOLD,
 )
 from services.answer_service import find_answer, translate_answer_text
+from services.llm_service import generate_vocabulary_list
 from services.qa_generator import generate_qa_for_session, generate_qa_for_document, log_task_exception as qa_log_task_exception
 
 router = APIRouter(prefix='/api/sessions', tags=['sessions'])
@@ -38,7 +39,7 @@ ALLOWED_EXTENSIONS = {
 }
 
 # NOTE: 'urls' 컬럼은 deprecated — 이제 documents 테이블(source_type='url')이 source of truth
-JSON_COLUMNS = {'participants', 'meeting_languages'}
+JSON_COLUMNS = {'participants', 'meeting_languages', 'user_language_levels', 'keywords'}
 
 
 # ─────────────────────────────────────────────────────────
@@ -53,6 +54,10 @@ class Participant(BaseModel):
 CAPTURE_MODES = {'microphone', 'web_conference'}
 
 
+ANSWER_LENGTHS = {'short', 'medium', 'long'}
+EXPERTISE_LEVELS = {'layman', 'practitioner', 'expert'}
+
+
 class CreateSessionRequest(BaseModel):
   business_id: int
   title: Optional[str] = 'Untitled Session'
@@ -64,10 +69,15 @@ class CreateSessionRequest(BaseModel):
   pasted_context: Optional[str] = None
   capture_mode: Optional[str] = None
   user_name: Optional[str] = Field(None, max_length=100)
-  user_bio: Optional[str] = Field(None, max_length=1000)
+  user_bio: Optional[str] = Field(None, max_length=2000)
   user_expertise: Optional[str] = Field(None, max_length=500)
   user_organization: Optional[str] = Field(None, max_length=200)
   user_job_title: Optional[str] = Field(None, max_length=100)
+  user_language_levels: Optional[dict] = None
+  user_expertise_level: Optional[str] = Field(None, max_length=20)
+  meeting_answer_style: Optional[str] = Field(None, max_length=2000)
+  meeting_answer_length: Optional[str] = Field(None, max_length=20)
+  keywords: Optional[List[str]] = None  # STT 보정용 어휘 사전
 
 
 class UpdateSessionRequest(BaseModel):
@@ -81,10 +91,15 @@ class UpdateSessionRequest(BaseModel):
   pasted_context: Optional[str] = None
   capture_mode: Optional[str] = None
   user_name: Optional[str] = Field(None, max_length=100)
-  user_bio: Optional[str] = Field(None, max_length=1000)
+  user_bio: Optional[str] = Field(None, max_length=2000)
   user_expertise: Optional[str] = Field(None, max_length=500)
   user_organization: Optional[str] = Field(None, max_length=200)
   user_job_title: Optional[str] = Field(None, max_length=100)
+  user_language_levels: Optional[dict] = None
+  user_expertise_level: Optional[str] = Field(None, max_length=20)
+  meeting_answer_style: Optional[str] = Field(None, max_length=2000)
+  meeting_answer_length: Optional[str] = Field(None, max_length=20)
+  keywords: Optional[List[str]] = None
 
 
 class AddUrlRequest(BaseModel):
@@ -239,12 +254,89 @@ def _build_field_updates(body: UpdateSessionRequest):
     fields.append('user_organization = ?'); values.append(body.user_organization)
   if body.user_job_title is not None:
     fields.append('user_job_title = ?'); values.append(body.user_job_title)
+  if body.user_language_levels is not None:
+    fields.append('user_language_levels = ?'); values.append(json.dumps(body.user_language_levels))
+  if body.user_expertise_level is not None:
+    if body.user_expertise_level and body.user_expertise_level not in EXPERTISE_LEVELS:
+      raise HTTPException(status_code=400, detail='invalid expertise_level')
+    fields.append('user_expertise_level = ?'); values.append(body.user_expertise_level or None)
+  if body.meeting_answer_style is not None:
+    fields.append('meeting_answer_style = ?'); values.append(body.meeting_answer_style)
+  if body.meeting_answer_length is not None:
+    if body.meeting_answer_length and body.meeting_answer_length not in ANSWER_LENGTHS:
+      raise HTTPException(status_code=400, detail='invalid answer_length')
+    fields.append('meeting_answer_length = ?'); values.append(body.meeting_answer_length or None)
+  if body.keywords is not None:
+    cleaned = _sanitize_keywords(body.keywords)
+    fields.append('keywords = ?'); values.append(json.dumps(cleaned) if cleaned else None)
   return fields, values
+
+
+def _sanitize_keywords(raw: Optional[List[str]]) -> List[str]:
+  if not raw:
+    return []
+  seen: set[str] = set()
+  out: List[str] = []
+  for w in raw:
+    if not isinstance(w, str):
+      continue
+    w = ' '.join(w.split()).strip()
+    if not w or len(w) < 2 or len(w) > 80:
+      continue
+    k = w.lower()
+    if k in seen:
+      continue
+    seen.add(k)
+    out.append(w)
+    if len(out) >= 200:
+      break
+  return out
 
 
 # ─────────────────────────────────────────────────────────
 # Session CRUD
 # ─────────────────────────────────────────────────────────
+
+class GenerateKeywordsRequest(BaseModel):
+  brief: Optional[str] = Field(None, max_length=MAX_BRIEF_LEN)
+  pasted_context: Optional[str] = Field(None, max_length=MAX_PASTED_CONTEXT_LEN)
+  participants: Optional[List[Participant]] = None
+  include_user_profile: Optional[bool] = True
+
+
+@router.post('/generate-keywords')
+async def generate_keywords(
+  body: GenerateKeywordsRequest,
+  user: dict = Depends(get_current_user),
+):
+  """회의 브리프·자료·참여자·사용자 프로필에서 STT 보정용 어휘 사전을 AI로 추출.
+  사용자가 검토·수정 후 세션 생성 시 전달하는 흐름."""
+  # 사용자 프로필 조회 (Node 백엔드의 User 테이블) — 미지원이면 메모리 내 user 객체 사용
+  user_profile = None
+  if body.include_user_profile:
+    try:
+      user_profile = {
+        'name': user.get('name'),
+        'job_title': user.get('job_title'),
+        'organization': user.get('organization'),
+        'expertise': user.get('expertise'),
+        'bio': user.get('bio'),
+      }
+    except Exception:
+      pass
+
+  participants_list = None
+  if body.participants:
+    participants_list = [p.model_dump() for p in body.participants]
+
+  vocab = await generate_vocabulary_list(
+    brief=body.brief,
+    pasted_context=body.pasted_context,
+    participants=participants_list,
+    user_profile=user_profile,
+  )
+  return success({'keywords': vocab})
+
 
 @router.post('')
 async def create_session(body: CreateSessionRequest, user: dict = Depends(get_current_user)):
@@ -261,19 +353,57 @@ async def create_session(body: CreateSessionRequest, user: dict = Depends(get_cu
   languages_json = json.dumps(body.meeting_languages) if body.meeting_languages else None
   capture_mode = body.capture_mode or 'microphone'
 
+  # 새 필드 검증
+  if body.user_expertise_level and body.user_expertise_level not in EXPERTISE_LEVELS:
+    raise HTTPException(status_code=400, detail='invalid expertise_level')
+  if body.meeting_answer_length and body.meeting_answer_length not in ANSWER_LENGTHS:
+    raise HTTPException(status_code=400, detail='invalid answer_length')
+  language_levels_json = json.dumps(body.user_language_levels) if body.user_language_levels else None
+
+  # 사용자가 keywords 를 주지 않았으면 브리프/자료/참여자/프로필에서 자동 추출
+  # (회의 시작 전에 미리 사전을 만들어두기 위함 — STT 부팅 시점에 이미 가지고 있음)
+  # NOTE: 문서는 이 시점에 아직 업로드되기 전이므로 brief 기반 초안만. 문서 인덱싱 완료 후
+  # ingest.py 가 refresh_session_vocabulary 를 호출해 문서 내용 기반으로 재추출 + 병합.
+  keywords_list = _sanitize_keywords(body.keywords)
+  if not keywords_list and (body.brief or body.pasted_context or body.participants or body.user_bio or body.user_expertise):
+    try:
+      user_profile = {}
+      if body.user_name: user_profile['name'] = body.user_name
+      if body.user_job_title: user_profile['job_title'] = body.user_job_title
+      if body.user_organization: user_profile['organization'] = body.user_organization
+      if body.user_expertise: user_profile['expertise'] = body.user_expertise
+      if body.user_bio: user_profile['bio'] = body.user_bio
+      auto_keywords = await generate_vocabulary_list(
+        brief=body.brief,
+        pasted_context=body.pasted_context,
+        participants=[p.model_dump() for p in body.participants] if body.participants else None,
+        user_profile=user_profile or None,
+        meeting_languages=body.meeting_languages,
+      )
+      keywords_list = _sanitize_keywords(auto_keywords)
+    except Exception as _e:
+      keywords_list = []
+  keywords_json = json.dumps(keywords_list) if keywords_list else None
+
   async with db_connect() as db:
     db.row_factory = aiosqlite.Row
+    # 신규 세션은 'prepared' 상태 — 사용자가 "녹음 시작" 을 눌러야 'recording' 으로 전환
     cursor = await db.execute(
       '''INSERT INTO sessions
-           (business_id, user_id, title, language, brief, participants,
+           (business_id, user_id, title, language, status, brief, participants,
             meeting_languages, translation_language, answer_language, pasted_context, capture_mode,
-            user_name, user_bio, user_expertise, user_organization, user_job_title)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+            user_name, user_bio, user_expertise, user_organization, user_job_title,
+            user_language_levels, user_expertise_level, meeting_answer_style, meeting_answer_length,
+            keywords)
+         VALUES (?, ?, ?, ?, 'prepared', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
       (
         body.business_id, user['user_id'], body.title, language,
         body.brief, participants_json, languages_json,
         body.translation_language, body.answer_language, body.pasted_context, capture_mode,
         body.user_name, body.user_bio, body.user_expertise, body.user_organization, body.user_job_title,
+        language_levels_json, body.user_expertise_level,
+        body.meeting_answer_style, body.meeting_answer_length,
+        keywords_json,
       )
     )
     await db.commit()
@@ -911,27 +1041,38 @@ class FindAnswerRequest(BaseModel):
   utterance_id: Optional[int] = None  # 제공되면 detected_questions에 저장/업데이트
 
 
+def _strip_qa_blob(row: dict) -> dict:
+  """SELECT * 결과에서 embedding BLOB 을 제거 (JSON 직렬화 실패 방지).
+  has_embedding 불리언을 남겨 프론트에서 준비 상태 표시."""
+  row = dict(row)
+  row['has_embedding'] = bool(row.get('embedding'))
+  row.pop('embedding', None)
+  return row
+
+
 @router.get('/{session_id}/qa-pairs')
 async def list_qa_pairs(
   session_id: int,
-  source: Optional[str] = Query(None, pattern='^(custom|generated)$'),
+  source: Optional[str] = Query(None, pattern='^(custom|generated|priority)$'),
   user: dict = Depends(get_current_user)
 ):
-  """Q&A 목록 조회. source 필터 가능. 꼬리질문은 parent_id로 연결."""
+  """Q&A 목록 조회. source 필터 가능 (custom|generated|priority)."""
   async with db_connect() as db:
     db.row_factory = aiosqlite.Row
     await _load_session_or_403(db, session_id, user['user_id'])
 
     query = 'SELECT * FROM qa_pairs WHERE session_id = ?'
     params: list = [session_id]
-    if source:
-      query += ' AND source = ?'
+    if source == 'priority':
+      query += ' AND is_priority = 1'
+    elif source:
+      query += ' AND source = ? AND is_priority = 0'
       params.append(source)
-    query += ' ORDER BY source DESC, sort_order, id'  # custom first
+    query += ' ORDER BY is_priority DESC, source DESC, sort_order, id'
 
     cursor = await db.execute(query, params)
     rows = await cursor.fetchall()
-    return success([dict(r) for r in rows])
+    return success([_strip_qa_blob(r) for r in rows])
 
 
 @router.post('/{session_id}/qa-pairs')
@@ -946,14 +1087,270 @@ async def create_qa_pair(
     await _load_session_or_403(db, session_id, user['user_id'])
 
     cursor = await db.execute('''
-      INSERT INTO qa_pairs (session_id, source, category, question_text, answer_text)
-      VALUES (?, 'custom', ?, ?, ?)
+      INSERT INTO qa_pairs (session_id, source, category, question_text, answer_text, is_priority)
+      VALUES (?, 'custom', ?, ?, ?, 0)
     ''', (session_id, body.category, body.question_text.strip(), (body.answer_text or '').strip() or None))
     await db.commit()
+    new_id = cursor.lastrowid
 
-    cursor = await db.execute('SELECT * FROM qa_pairs WHERE id = ?', (cursor.lastrowid,))
+    # 임베딩 백그라운드 계산
+    try:
+      from services.answer_service import ensure_qa_embedding
+      asyncio.create_task(ensure_qa_embedding(new_id, body.question_text.strip()))
+    except Exception:
+      pass
+
+    cursor = await db.execute('SELECT * FROM qa_pairs WHERE id = ?', (new_id,))
     row = await cursor.fetchone()
-    return success(dict(row))
+    return success(_strip_qa_blob(row))
+
+
+# ─────────────────────────────────────────────────────────
+# Priority Q&A — 최우선 답변 업로드 (별도 섹션)
+# ─────────────────────────────────────────────────────────
+
+class PriorityQACreate(BaseModel):
+  question_text: str = Field(..., min_length=1, max_length=2000)
+  answer_text: str = Field(..., min_length=1, max_length=5000)
+  short_answer: Optional[str] = Field(None, max_length=500)
+  keywords: Optional[str] = Field(None, max_length=500)   # 쉼표 구분 문자열
+  category: Optional[str] = Field(None, max_length=200)
+
+
+@router.get('/templates/priority-qa-csv')
+async def download_priority_qa_template(user: dict = Depends(get_current_user)):
+  """Priority Q&A CSV 템플릿 다운로드 (pre-session, 세션 없이 호출).
+
+  컬럼:
+    - question (필수) — 질문 원문
+    - answer (필수) — 정식 답변 (길어도 OK, 말할 그대로)
+    - short_answer (선택) — 1문장 버전 (meeting_answer_length='short' 일 때 우선 사용)
+    - keywords (선택) — 쉼표 구분 키워드. FTS5 인덱스에 합쳐져 검색 정확도·속도 ↑
+    - category (선택)
+  업로드 시 같은 question 은 UPDATE, 없으면 INSERT.
+  """
+  output = io.StringIO()
+  writer = csv.writer(output)
+  writer.writerow(['question', 'answer', 'short_answer', 'keywords', 'category'])
+  writer.writerow([
+    'What is your core research topic?',
+    'I study how remote work and digital nomad lifestyles change job performance. I look at self-leadership, self-efficacy, and digital work skills as key drivers.',
+    'I study how remote work and nomad life change job performance.',
+    'remote work, digital nomad, job performance, self-leadership, self-efficacy, digital work',
+    'Research Topic',
+  ])
+  writer.writerow([
+    'Why is this important?',
+    'The digital nomad workforce grew more than 300% since 2020. Most remote work research covers traditional employees in one office, so there is a clear gap for location-independent workers.',
+    'Nomad workers grew 300% since 2020, and existing research misses them.',
+    'growth, 300%, 2020, research gap, location independent',
+    'Significance',
+  ])
+  writer.writerow([
+    '저희 제품의 가장 큰 강점은 무엇인가요?',
+    '저희는 대화에서 바로 할일과 청구까지 한 번에 이어지는 업무 OS입니다. 특히 고객 초대 한 번이면 바로 접속해서 쓸 수 있는 점이 가장 큰 차이입니다.',
+    '대화에서 할일·청구까지 한 번에 이어지는 업무 OS입니다.',
+    '강점, 제품, 업무 OS, 대화, 할일, 청구, 고객 초대',
+    '제품 소개',
+  ])
+
+  content = output.getvalue()
+  return StreamingResponse(
+    io.BytesIO(content.encode('utf-8-sig')),
+    media_type='text/csv',
+    headers={'Content-Disposition': 'attachment; filename=priority_qa_template.csv'},
+  )
+
+
+@router.post('/{session_id}/refresh-vocabulary')
+async def refresh_vocabulary_endpoint(
+  session_id: int,
+  user: dict = Depends(get_current_user),
+):
+  """세션의 어휘사전을 현재 인덱싱된 문서 기반으로 재추출.
+  기존 수동 추가 키워드는 보존. 편집 모달 "어휘 재추출" 버튼용."""
+  async with db_connect() as db:
+    db.row_factory = aiosqlite.Row
+    await _load_session_or_403(db, session_id, user['user_id'])
+
+  from services.answer_service import refresh_session_vocabulary
+  total = await refresh_session_vocabulary(session_id, merge=True)
+
+  # 갱신된 keywords 조회해서 반환
+  async with db_connect() as db:
+    db.row_factory = aiosqlite.Row
+    cur = await db.execute('SELECT keywords FROM sessions WHERE id = ?', (session_id,))
+    row = await cur.fetchone()
+    kws = []
+    if row and row['keywords']:
+      try:
+        kws = json.loads(row['keywords'])
+      except Exception:
+        pass
+  return success({'total': total, 'keywords': kws})
+
+
+@router.post('/{session_id}/priority-qa')
+async def create_priority_qa(
+  session_id: int,
+  body: PriorityQACreate,
+  user: dict = Depends(get_current_user)
+):
+  """Priority Q&A 단건 등록 (is_priority=1, 최우선 답변).
+  임베딩은 SYNC 로 계산 — 생성 직후 find-answer 가 즉시 매칭 가능해야 한다."""
+  async with db_connect() as db:
+    db.row_factory = aiosqlite.Row
+    await _load_session_or_403(db, session_id, user['user_id'])
+
+    short_ans = (body.short_answer or '').strip() or None
+    kw_clean = (body.keywords or '').strip() or None
+
+    cursor = await db.execute(
+      'SELECT id FROM qa_pairs WHERE session_id = ? AND question_text = ? AND is_priority = 1',
+      (session_id, body.question_text.strip()),
+    )
+    existing = await cursor.fetchone()
+    if existing:
+      await db.execute(
+        """UPDATE qa_pairs SET answer_text = ?, short_answer = ?, keywords = ?, category = ?,
+           updated_at = datetime('now') WHERE id = ?""",
+        (body.answer_text.strip(), short_ans, kw_clean, body.category, existing['id']),
+      )
+      new_id = existing['id']
+    else:
+      cursor = await db.execute('''
+        INSERT INTO qa_pairs (session_id, source, category, question_text, answer_text, short_answer, keywords, is_priority)
+        VALUES (?, 'custom', ?, ?, ?, ?, ?, 1)
+      ''', (session_id, body.category, body.question_text.strip(), body.answer_text.strip(), short_ans, kw_clean))
+      new_id = cursor.lastrowid
+    await db.commit()
+
+    # 동기 임베딩 — priority Q&A 는 즉시 검색 가능해야 함.
+    # 질문 + 키워드를 합쳐 임베딩 → 키워드가 의미 벡터에도 포함됨.
+    try:
+      from services.answer_service import ensure_qa_embedding
+      emb_text = body.question_text.strip()
+      if kw_clean:
+        emb_text = f'{emb_text} {kw_clean}'
+      await ensure_qa_embedding(new_id, emb_text)
+    except Exception:
+      pass
+
+    cursor = await db.execute('SELECT * FROM qa_pairs WHERE id = ?', (new_id,))
+    row = await cursor.fetchone()
+    return success(_strip_qa_blob(row))
+
+
+@router.post('/{session_id}/priority-qa/upload-csv')
+async def upload_priority_qa_csv(
+  session_id: int,
+  file: UploadFile = File(...),
+  user: dict = Depends(get_current_user)
+):
+  """CSV 일괄 업로드 (is_priority=1). 컬럼: question, answer, category."""
+  async with db_connect() as db:
+    db.row_factory = aiosqlite.Row
+    await _load_session_or_403(db, session_id, user['user_id'])
+
+  raw = await file.read()
+  if len(raw) > 2 * 1024 * 1024:
+    raise HTTPException(status_code=400, detail='파일이 너무 큽니다 (최대 2MB)')
+
+  text = None
+  for enc in ('utf-8-sig', 'utf-8', 'cp949', 'euc-kr'):
+    try:
+      text = raw.decode(enc)
+      break
+    except UnicodeDecodeError:
+      continue
+  if text is None:
+    raise HTTPException(status_code=400, detail='CSV 인코딩을 인식할 수 없습니다')
+
+  reader = csv.DictReader(io.StringIO(text))
+  created = 0
+  updated = 0
+  errors: list[str] = []
+  created_ids: list[int] = []
+
+  async with db_connect() as db:
+    db.row_factory = aiosqlite.Row
+    for i, row in enumerate(reader, start=2):
+      q = (row.get('question') or '').strip()
+      a = (row.get('answer') or '').strip()
+      sa = (row.get('short_answer') or '').strip() or None
+      kw = (row.get('keywords') or '').strip() or None
+      cat = (row.get('category') or '').strip() or None
+      if not q or not a:
+        errors.append(f'행 {i}: question/answer 필수')
+        continue
+      if len(q) > 2000 or len(a) > 5000 or (sa and len(sa) > 500) or (kw and len(kw) > 500):
+        errors.append(f'행 {i}: 길이 초과')
+        continue
+      cursor = await db.execute(
+        'SELECT id FROM qa_pairs WHERE session_id = ? AND question_text = ? AND is_priority = 1',
+        (session_id, q),
+      )
+      existing = await cursor.fetchone()
+      if existing:
+        await db.execute(
+          """UPDATE qa_pairs SET answer_text = ?, short_answer = ?, keywords = ?, category = ?,
+             updated_at = datetime('now') WHERE id = ?""",
+          (a, sa, kw, cat, existing['id']),
+        )
+        created_ids.append(existing['id'])
+        updated += 1
+      else:
+        cursor = await db.execute(
+          """INSERT INTO qa_pairs (session_id, source, question_text, answer_text, short_answer, keywords, category, is_priority)
+             VALUES (?, 'custom', ?, ?, ?, ?, ?, 1)""",
+          (session_id, q, a, sa, kw, cat),
+        )
+        created_ids.append(cursor.lastrowid)
+        created += 1
+    await db.commit()
+
+  # 임베딩 SYNC 계산 — 업로드 리턴 시점에 모든 Q&A 가 검색 가능해야 함.
+  # 사용자가 업로드 후 즉시 질문할 수 있으므로 race 를 허용하면 안 됨.
+  embedded = 0
+  if created_ids:
+    try:
+      from services.answer_service import ensure_qa_embedding
+      async with db_connect() as db2:
+        db2.row_factory = aiosqlite.Row
+        for _id in created_ids:
+          cur = await db2.execute('SELECT question_text, keywords FROM qa_pairs WHERE id = ?', (_id,))
+          r = await cur.fetchone()
+          if r:
+            emb_text = r['question_text']
+            if r['keywords']:
+              emb_text = f"{emb_text} {r['keywords']}"
+            await ensure_qa_embedding(_id, emb_text)
+            embedded += 1
+    except Exception as e:
+      import logging
+      logging.getLogger('q-note.live').warning(f'CSV sync embed failed: {e}')
+
+  return success({'created': created, 'updated': updated, 'embedded': embedded, 'errors': errors})
+
+
+@router.delete('/{session_id}/priority-qa/{qa_id}')
+async def delete_priority_qa(
+  session_id: int,
+  qa_id: int,
+  user: dict = Depends(get_current_user)
+):
+  async with db_connect() as db:
+    db.row_factory = aiosqlite.Row
+    await _load_session_or_403(db, session_id, user['user_id'])
+    cursor = await db.execute(
+      'SELECT id FROM qa_pairs WHERE id = ? AND session_id = ? AND is_priority = 1',
+      (qa_id, session_id),
+    )
+    if not await cursor.fetchone():
+      raise HTTPException(status_code=404, detail='priority Q&A not found')
+    await db.execute('DELETE FROM qa_pairs WHERE id = ?', (qa_id,))
+    await db.commit()
+    return success({'id': qa_id})
 
 
 @router.put('/{session_id}/qa-pairs/{qa_id}')
@@ -992,9 +1389,17 @@ async def update_qa_pair(
     await db.execute(f'UPDATE qa_pairs SET {", ".join(fields)} WHERE id = ?', values)
     await db.commit()
 
+    # 질문 텍스트가 변경되면 임베딩 재계산
+    if body.question_text is not None:
+      try:
+        from services.answer_service import ensure_qa_embedding
+        asyncio.create_task(ensure_qa_embedding(qa_id, body.question_text.strip()))
+      except Exception:
+        pass
+
     cursor = await db.execute('SELECT * FROM qa_pairs WHERE id = ?', (qa_id,))
     updated = await cursor.fetchone()
-    return success(dict(updated))
+    return success(_strip_qa_blob(updated))
 
 
 @router.delete('/{session_id}/qa-pairs/{qa_id}')

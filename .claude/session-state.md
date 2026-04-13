@@ -1,113 +1,119 @@
 ## 현재 작업 상태
-**마지막 업데이트:** 2026-04-12
-**작업 상태:** 완료 — Q Note 답변 찾기 시스템 + 프로필 페르소나 + 사이드바 확장
+**마지막 업데이트:** 2026-04-13
+**작업 상태:** 완료 — i18n 전면 적용 + Q note 품질·속도·데이터 정합성 대규모 개선 + 편집 UX + 준비 상태 가시화
 
 ### 진행 중인 작업
 - 없음
 
 ### 완료된 작업 (이번 세션)
 
-**답변 찾기 시스템 (Q Note Phase B+C)**
-1. **DB 스키마** — qa_pairs 테이블 + FTS5 + 트리거. detected_questions 확장. sessions에 user 프로필 스냅샷 5개 컬럼
-2. **answer_service.py** — 4단계 우선순위 탐색 (custom → generated → RAG → general)
-3. **한국어 FTS5 매칭** — 2자 prefix(`회의*`) + stopwords 필터로 조사 변형 대응
-4. **qa_generator.py** — 문서 인제스트 완료 후 자동 사전 Q&A 생성
-5. **LLM 프롬프트 분리** — ANSWER_SYSTEM_RAG / ANSWER_SYSTEM_GENERAL (자료 유무별)
-6. **Q&A CRUD API** — 생성/조회/수정/삭제, 소스 필터
-7. **CSV 템플릿/업로드** — BOM UTF-8, 중복 UPDATE, 긴 답변 예시
-8. **답변 prefetch** — 라이브 질문 감지 즉시 백그라운드 답변 탐색 + WS answer_ready 이벤트
-9. **find-answer 저장** — utterance_id 제공 시 detected_questions에 저장 (새로고침 후 복원)
-10. **답변/번역 분리** — translate_text 함수 별도. 답변 먼저 표시, 번역 백그라운드
+**i18n 전면 적용**
+1. i18next + react-i18next 전 페이지 리트로핏 (Login/Register/MainLayout/Profile/QNotePage/StartMeetingModal)
+2. 네임스페이스 5개 (common/auth/layout/profile/qnote) × ko·en 304 key 동수
+3. CLAUDE.md 에 "다국어 i18n — 필수" 섹션 + "금지사항 — 프론트엔드 하드코딩" 추가
+4. 브랜드 네이밍 "Q Talk/Task/Note" → "Q talk/task/note" 소문자 통일
 
-**프로필 기반 답변 (사용자 페르소나)**
-11. **PlanQ users 테이블 확장** — bio, expertise, organization, job_title 필드 + sync
-12. **PUT /api/users/:id** — 프로필 필드 업데이트 + 길이 검증 + IDOR 방어
-13. **프롬프트 재작성** — "You are NOT an AI, you ARE this person". 1인칭 관점 강제
-14. **user_profile 블록 주입** — `_build_context_prefix`에 Name/Job/Org/Expertise/Background
-15. **ProfilePage "내 프로필 (Q Note 답변 생성용)" 카드** — 4개 AutoSaveField, 2초 debounce
-16. **AuthContext 확장** — User interface + normalizeUser 프로필 매핑
-17. **Q Note 세션 생성 시 프로필 자동 전달** — user.bio/expertise/organization/job_title
+**Q note 답변 품질·정합성**
+5. Answer tier 4단계 → 6단계 확장 (priority > custom > session_reuse > generated > rag > general)
+6. 임베딩 서비스 신규 (`embedding_service.py`, OpenAI text-embedding-3-small, 1536차원)
+7. Priority Q&A 전용 업로드 + FTS5 우회 전수 semantic rerank + LLM 2차 매칭 (gpt-4.1-nano)
+8. `short_answer` + `keywords` 컬럼 추가. `meeting_answer_length='short'` 일 때 short_answer 우선 반환. keywords 는 FTS5 인덱스 + 임베딩 input 에 포함
+9. CSV 업로드 5 컬럼 (question, answer, short_answer, keywords, category), 동기 임베딩 (race 제거), UPDATE + INSERT 혼합 지원, 드래그앤드롭 + 편집 모드 즉시 업로드
 
-**답변 UI 재설계**
-18. **버튼 3단계 분리** — 답변 생성(빨강) / 답변 보기·접기(흰) 같은 크기, 우측 상단 고정
-19. **질문 인라인 수정** — 클릭→편집→Enter 자동 검색. editingQuestionId state 분리
-20. **+ 합치기 + 분리** — 다음 블록 숨김 (localStorage 저장, 새로고침 후 복원)
-21. **번역 좌측 정렬** — 원문과 padding-left 통일
-22. **답변 영역 full-width** — QuestionCardHeader/QuestionContentArea 세로 구조
-23. **리뷰 모드 답변 버튼 상태 복원** — 세션 상세 detected_questions 로드 → "답변 보기"로 시작
+**답변 스타일·길이 제어**
+10. 답변 길이: 1-2/2-3/3-4 문장 + 27/55/85 단어 하드캡 (서버 후처리 + 프롬프트 재강조)
+11. User 모델 확장: `language_levels` (언어별 R/S/L/W 1-6), `expertise_level` (layman/practitioner/expert), `answer_style_default`, `answer_length_default`
+12. ProfilePage 에 "내 언어 레벨" 카드 (7언어 × 4skill PlanQSelect)
+13. 회의별 스타일 textarea + 길이 3버튼 (StartMeetingModal)
+14. 말하기 좋은 단어 규칙 언어별 프롬프트 주입 (영어 Anglo-Saxon, 한국어 순우리말/구어체 등)
 
-**세션 UX 개선**
-24. **회의 제목 인라인 수정** — 헤더 제목 클릭→편집→자동저장
-25. **세션 목록 개선** — 상태 뱃지(녹음중/일시중지/종료), 참여자 이름 표시
-26. **"발화" → "문장"** 용어 교체
+**어휘사전 (STT 교정)**
+15. `generate_vocabulary_list` 프롬프트 "TERM EXTRACTOR, NOT brainstormer" 복사 전용 모드
+16. `document_excerpts` 최우선 소스 + `meeting_languages` 강제 (자료 원어 그대로, 번역 금지)
+17. 문서 인덱싱 완료 시 `refresh_session_vocabulary` 자동 트리거 (`ingest.py` post-hook)
+18. 수동 재추출 엔드포인트 `POST /sessions/:id/refresh-vocabulary` + 편집 모달 "📄 재추출" 버튼
+19. 기존 사용자 수동 키워드 보존 병합 로직
+20. 검증: brief 만 → 0개, 영어 논문 → 5/5 verbatim 매칭, 환각 0/4, 한국어 자료 → 한국어
 
-**사이드바 메뉴 확장**
-27. **Q Calendar 메뉴 추가** (/calendar) — Task 다음, placeholder 페이지
-28. **Q Docs 메뉴 추가** (/docs) — Note 다음, placeholder 페이지
-29. **메뉴 재배열** — 업무 흐름 순: Talk → Task → Calendar → Note → Docs → File → Bill
+**속도**
+21. Fast-path 질문 판정 병렬화 (`detect_question_fast`, gpt-4.1-nano ~300ms)
+22. `quick_question` WS 이벤트 → 프론트 카드 즉시 승격 + prefetch answer 시작
+23. 본인 발화 fast-path 스킵
 
-**검증 중 발견 + 수정한 버그**
-- FTS5 매칭 임계값 너무 엄격 (`<= -0.5`) → `<= 0`으로 완화
-- 자료 없는 general tier에서 RAG 프롬프트 재사용 → "자료에서 답을 찾지 못했습니다" 강제. 프롬프트 2개로 분리
-- `_build_field_updates`/INSERT에 user 프로필 필드 누락 → 저장 안 됨
-- `_load_session_or_403` sqlite3.Row에 .get() 호출 에러
-- 후속 질문 제거 (불필요한 토큰 낭비) — Irene 판단: "질문 나오면 그때 답하면 됨"
-- "Can you help me?" 같은 대화형 질문에 "자료에서 답 못 찾음" 반환 → 프로필 기반 1인칭 답변으로 수정
+**UX**
+24. 편집 모드 (`StartMeetingModal editMode` + `initialConfig` + `editingSessionId`)
+25. 편집 모달 배너, 기존 Priority Q&A/문서/어휘사전 로드 + 삭제 버튼
+26. 초안 자동저장 (localStorage `qnote_meeting_draft_v1`, debounce 500ms)
+27. 준비 상태 패널 (prepared/paused phase, 3초 폴링, 문서 N/M · Q&A N/M · 어휘 N개)
+28. 내 발화 처리 3단계 (skip/hide/show) + localStorage
+29. 화자 라벨: 참여자 0명 또는 다수면 "상대" (Deepgram ID 기반 번호 제거)
+30. 번역문 원문과 왼쪽 정렬 (SpeechBlockWrap 재구조화)
+31. 모달 z-index 2000/2100 (헤더·사이드바 위 덮기)
 
-### 검증 결과
-- **헬스체크 27/27** 통과
-- **Q&A 시스템 E2E 26/26** 통과 (CRUD, CSV, 3단계 탐색, 보안, Q Note 통합)
-- **프로필 기능 E2E** 전체 통과 (저장/조회/부분수정/null/길이제한/IDOR/미인증)
-- **1인칭 답변 검증**: AI 자기부정 0건, 프로필(Warplo/KAIST/NLP) 완벽 반영
-- **빌드**: tsc 0 error, 540KB
-- **SPA 라우트**: /calendar /docs 포함 11개 전체 200
-- **속도**: Tier 1 ~860ms / Tier 4 ~2.3초 / 번역 ~640ms
+**Critical 버그 fix**
+32. `live.py` Deepgram 재시도 들여쓰기 (`close + return` 이 except 밖에 있어 재시도 성공 후에도 WS 닫혀 마이크·탭 오디오 전송 실패)
+33. 회의 생성 후 화면 사라지는 버그 (URL 핸들러 경합 + DB 기본 status='recording' → 'prepared' 변경)
+34. 탭 재공유 이중 표시 버그 (WebConferenceCapture stop 을 async 전환: 노드 disconnect → 트랙 stop → audioContext.close await)
+35. 탭 오디오 품질 개선 (Compressor + HighShelf + Gain ×2)
 
 ### 수정된 파일
 
-**Q Note 백엔드 (Python)**
-- 신규: `q-note/services/answer_service.py`
-- 신규: `q-note/services/qa_generator.py`
-- 수정: `q-note/services/database.py` — qa_pairs + sessions 프로필 필드
-- 수정: `q-note/services/llm_service.py` — 프롬프트 재설계, translate_text
-- 수정: `q-note/services/ingest.py` — Q&A 생성 트리거
-- 수정: `q-note/routers/sessions.py` — Q&A CRUD, CSV, find-answer, translate-answer, cached-answer
-- 수정: `q-note/routers/live.py` — _prefetch_answer, answer_ready 이벤트
+**Q note (Python)**
+- 신규: `services/embedding_service.py`
+- 수정: `services/database.py`, `services/llm_service.py`, `services/answer_service.py`, `services/ingest.py`, `services/qa_generator.py`, `routers/live.py`, `routers/sessions.py`
 
 **PlanQ 백엔드 (Node)**
-- `dev-backend/models/User.js` — 프로필 필드 4개
-- `dev-backend/routes/users.js` — 프로필 업데이트 + 검증
+- 수정: `models/User.js`, `routes/users.js`
 
 **프론트엔드 (TS)**
-- `dev-frontend/src/App.tsx` — /calendar /docs 라우트
-- `dev-frontend/src/components/Layout/MainLayout.tsx` — 사이드바 재배열
-- `dev-frontend/src/contexts/AuthContext.tsx` — User interface 확장
-- `dev-frontend/src/pages/Profile/ProfilePage.tsx` — Q Note 프로필 카드
-- `dev-frontend/src/pages/QNote/QNotePage.tsx` — 답변 UI 전면 재설계
-- `dev-frontend/src/services/qnote.ts` — Q&A API 함수 + 타입
+- 수정: `contexts/AuthContext.tsx`, `i18n.ts`, `App.tsx`
+- 수정: `pages/Login/LoginPage.tsx`, `pages/Register/RegisterPage.tsx`, `pages/Profile/ProfilePage.tsx`, `pages/QNote/QNotePage.tsx`, `pages/QNote/StartMeetingModal.tsx`
+- 수정: `components/Layout/MainLayout.tsx`, `components/UI/Modal.tsx`, `components/Common/ConfirmDialog.tsx`
+- 수정: `services/qnote.ts`, `services/qnoteLive.ts`
+- 수정: `services/audio/WebConferenceCapture.ts`, `services/audio/AudioCaptureSource.ts`
+
+**Locales**
+- 신규: `public/locales/{ko,en}/{layout,profile,qnote}.json`
+- 수정: `public/locales/{ko,en}/{common,auth}.json`
 
 **문서**
-- `DEVELOPMENT_PLAN.md` — 새 섹션 추가
-- `dev-frontend/UI_DESIGN_GUIDE.md` — Profile 자동저장 항목에 Q Note 프로필 추가
-- 신규 메모리: `feedback_qnote_personal_tool.md`, `feedback_qnote_answer_priority.md`
+- `CLAUDE.md` — i18n 필수 섹션 + 금지 사항
+- `DEVELOPMENT_PLAN.md` — 새 섹션
+- Memory: `feedback_qnote_answer_priority.md` (6-tier 업데이트), `feedback_qnote_vocabulary.md` (신규)
+
+### 검증 결과
+- **헬스체크 27/27** 통과
+- **빌드** tsc 0 error, 572~582 KB
+- **API E2E** (여러 세션 반복):
+  - Priority Q&A CSV 업로드 → 동기 임베딩 ✓
+  - Paraphrase 매칭 (임베딩 + LLM hybrid) 다수 케이스 priority tier ✓
+  - 무관 질문 false positive 방지 ✓
+  - short_answer 우선 반환 / full answer 분기 ✓
+  - 길이 캡 전부 준수 (short 18w/1s, medium 48w/4s, long 84w/8s)
+  - 어휘 verbatim 매칭 5/5, 환각 0/4, 언어별 강제 통과
+  - 편집 모드 PUT + POST + DELETE 전부 동작
+  - 보안 익명 401 / 없는 세션 404 / IDOR 403
+- **SPA 라우트** 11개 전부 200
 
 ### 다음 할 일
 
-**우선순위 1: Q Calendar 실 구현**
-- 일정 CRUD, 반복 이벤트
-- Q Task와 연동 (할일 → 일정 자동 배치)
-- 월/주/일 뷰
-- 관련 설계: `docs/FEATURE_SPECIFICATION.md` 확인 필요
+**우선순위 1: Q Calendar 실 구현** (placeholder)
+- 일정 CRUD, 반복 이벤트, 월/주/일 뷰
+- Q Task 연동
+- 참조: `docs/FEATURE_SPECIFICATION.md`
 
-**우선순위 2: Q Docs 실 구현**
-- 문서 에디터 (마크다운/리치 텍스트)
-- 버전 관리
-- Q Note 답변 찾기와의 연동 (문서가 Q Docs에 있으면 자동 참조)
+**우선순위 2: Q Docs 실 구현** (placeholder)
+- 문서 에디터 (마크다운/리치 텍스트), 버전 관리
+- Q note RAG 와 연동
 
-**Q Note 확장 (추후)**
-- 프로필 다중 페르소나 ("영업용 나" / "기획용 나")
-- 회의별 세밀한 컨텍스트 주입
-- 답변 신뢰도 향상 (사용자 피드백 기반 리랭킹)
+**우선순위 3: 메뉴별 기획 심화**
+- 사용자 지시: "메뉴 순서대로 기획설계 자세히 할게"
+- Q talk → Q task → Q calendar → Q docs → Q file → Q bill 순 설계서 작성
+
+**Q note 확장 (추후)**
+- 프로필 다중 페르소나 (영업용/기획용 전환)
+- Q note 세션 목록 검색 (현재 placeholder)
+- 운영 배포 스크립트
 
 ---
 

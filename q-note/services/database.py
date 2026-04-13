@@ -99,10 +99,57 @@ async def _run_migrations(db):
     ('user_expertise', 'TEXT'),         # 전문 분야
     ('user_organization', 'TEXT'),      # 회사/조직
     ('user_job_title', 'TEXT'),         # 직책
+    # 답변 수준 제어 (프로필 스냅샷 + 회의별 override)
+    ('user_language_levels', 'TEXT'),   # JSON: { ko: {reading,speaking,listening,writing}, en: ... }
+    ('user_expertise_level', 'TEXT'),   # 'layman' | 'practitioner' | 'expert'
+    ('meeting_answer_style', 'TEXT'),   # 이번 회의 답변 스타일 자유 입력
+    ('meeting_answer_length', 'TEXT'),  # 'short' | 'medium' | 'long'
+    ('keywords', 'TEXT'),               # JSON string[] — STT 보정용 어휘 사전
   ]
   for col, typ in session_profile_cols:
     if not await _column_exists(db, 'sessions', col):
       await db.execute(f"ALTER TABLE sessions ADD COLUMN {col} {typ}")
+
+  # qa_pairs: 임베딩 + priority 플래그 + 1문장 답변 + 키워드
+  qa_extra_cols = [
+    ('embedding', 'BLOB'),              # OpenAI text-embedding-3-small (1536 × float32)
+    ('is_priority', 'INTEGER NOT NULL DEFAULT 0'),  # 1 = 최우선 Q&A (별도 업로드 분리)
+    ('short_answer', 'TEXT'),           # 1문장 버전 — meeting_answer_length='short' 일 때 우선 사용
+    ('keywords', 'TEXT'),               # JSON string[] — Q&A 별 핵심 키워드 (FTS5 인덱스에 합침)
+  ]
+  for col, typ in qa_extra_cols:
+    if not await _column_exists(db, 'qa_pairs', col):
+      await db.execute(f"ALTER TABLE qa_pairs ADD COLUMN {col} {typ}")
+  await db.execute("CREATE INDEX IF NOT EXISTS idx_qa_priority ON qa_pairs(session_id, is_priority DESC)")
+
+  # qa_pairs FTS5: keywords 를 question_text 에 합쳐 인덱싱.
+  # 기존 트리거는 question_text 만 인덱싱 — keywords 를 합친 버전으로 rebuild 필요.
+  # 전략: 기존 트리거 유지 + 별도 UPDATE 트리거로 keywords 변경 시 재인덱싱.
+  # 여기서는 INSERT 시점에 keywords 가 포함된 복합 텍스트를 FTS5 에 넣도록 트리거 교체.
+  await db.execute('DROP TRIGGER IF EXISTS qa_fts_ai')
+  await db.execute('DROP TRIGGER IF EXISTS qa_fts_ad')
+  await db.execute('DROP TRIGGER IF EXISTS qa_fts_au')
+  await db.executescript('''
+    CREATE TRIGGER IF NOT EXISTS qa_fts_ai AFTER INSERT ON qa_pairs BEGIN
+      INSERT INTO qa_pairs_fts(rowid, question_text, answer_text)
+      VALUES (new.id, new.question_text || ' ' || COALESCE(new.keywords, ''), COALESCE(new.answer_text, ''));
+    END;
+    CREATE TRIGGER IF NOT EXISTS qa_fts_ad AFTER DELETE ON qa_pairs BEGIN
+      INSERT INTO qa_pairs_fts(qa_pairs_fts, rowid, question_text, answer_text)
+      VALUES ('delete', old.id, old.question_text || ' ' || COALESCE(old.keywords, ''), COALESCE(old.answer_text, ''));
+    END;
+    CREATE TRIGGER IF NOT EXISTS qa_fts_au AFTER UPDATE ON qa_pairs BEGIN
+      INSERT INTO qa_pairs_fts(qa_pairs_fts, rowid, question_text, answer_text)
+      VALUES ('delete', old.id, old.question_text || ' ' || COALESCE(old.keywords, ''), COALESCE(old.answer_text, ''));
+      INSERT INTO qa_pairs_fts(rowid, question_text, answer_text)
+      VALUES (new.id, new.question_text || ' ' || COALESCE(new.keywords, ''), COALESCE(new.answer_text, ''));
+    END;
+  ''')
+  # 기존 데이터 재인덱싱 — keywords 컬럼 신규 추가 후 FTS5 와 sync 맞춤
+  try:
+    await db.execute("INSERT INTO qa_pairs_fts(qa_pairs_fts) VALUES('rebuild')")
+  except Exception:
+    pass
 
   # voice_fingerprints: 단일 언어(user_id PK) → 다국어(UNIQUE user_id + language) 로 전환
   # 기존 Table 에 language 컬럼이 없으면 migration 수행

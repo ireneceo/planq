@@ -1,5 +1,6 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import styled from 'styled-components';
+import { useTranslation, Trans } from 'react-i18next';
 import PlanQSelect from '../../components/Common/PlanQSelect';
 import {
   MicIcon,
@@ -11,10 +12,25 @@ import {
 import { LANGUAGES, getDefaultLanguageFromBrowser } from '../../constants/languages';
 import { ALL_CAPTURE_CAPABILITIES } from '../../services/audio';
 import type { CaptureMode } from '../../services/audio';
+import {
+  downloadPriorityQATemplate,
+  uploadPriorityQACSV,
+  getSession,
+  listQAPairs,
+  deletePriorityQA,
+  refreshSessionVocabulary,
+} from '../../services/qnote';
+import type { QAPair, QNoteDocument } from '../../services/qnote';
+import { apiFetch } from '../../contexts/AuthContext';
 
 interface Props {
   open: boolean;
   userLanguage?: string; // 사용자 프로필 language (회의 시작 시 자동으로 번역 대상 됨)
+  // 편집 모드 — 기존 세션 수정. onStart 대신 onSave 가 호출되고 "회의 진행" 버튼이 "저장" 으로 바뀜
+  editMode?: boolean;
+  initialConfig?: Partial<StartConfig>;
+  // 편집 모드에서 세션이 이미 존재하므로 파일 drop/select 시 바로 업로드 가능
+  editingSessionId?: number;
   onClose: () => void;
   onStart: (config: StartConfig) => void;
 }
@@ -24,17 +40,29 @@ export interface Participant {
   role: string;
 }
 
+export interface PriorityQAItem {
+  question: string;
+  answer: string;
+  shortAnswer?: string;
+  keywords?: string;
+}
+
 export interface StartConfig {
   title: string;
   brief: string;
-  participants: Participant[];   // 자유 입력. 개별 또는 그룹.
+  participants: Participant[];
   meetingLanguages: string[];
   translationLanguage: string;
   answerLanguage: string;
   captureMode: CaptureMode;
   documents: File[];
   pastedContext: string;
-  urls: string[];                // 참고 URL 목록
+  urls: string[];
+  priorityQAs: PriorityQAItem[];
+  priorityQACsv: File | null;
+  meetingAnswerStyle: string;
+  meetingAnswerLength: 'short' | 'medium' | 'long';
+  // NOTE: STT 보정용 어휘 사전은 서버가 세션 생성 시 자동 추출 (UI 노출 없음)
 }
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
@@ -69,7 +97,8 @@ function getLanguageLabel(code: string): string {
   return LANGUAGES.find((l) => l.code === code)?.label || code;
 }
 
-const StartMeetingModal = ({ open, userLanguage, onClose, onStart }: Props) => {
+const StartMeetingModal = ({ open, userLanguage, editMode, initialConfig, editingSessionId, onClose, onStart }: Props) => {
+  const { t } = useTranslation('qnote');
   const effectiveUserLanguage = userLanguage || getDefaultLanguageFromBrowser();
   const [title, setTitle] = useState('');
   const [brief, setBrief] = useState('');
@@ -89,32 +118,202 @@ const StartMeetingModal = ({ open, userLanguage, onClose, onStart }: Props) => {
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Priority Q&A (최우선 답변)
+  const [priorityQAs, setPriorityQAs] = useState<PriorityQAItem[]>([]);
+  const [pqQuestion, setPqQuestion] = useState('');
+  const [pqAnswer, setPqAnswer] = useState('');
+  const [pqShortAnswer, setPqShortAnswer] = useState('');
+  const [pqKeywords, setPqKeywords] = useState('');
+  const [priorityCsv, setPriorityCsv] = useState<File | null>(null);
+  const [priorityCsvDragging, setPriorityCsvDragging] = useState(false);
+  const [priorityCsvUploading, setPriorityCsvUploading] = useState(false);
+  const [priorityCsvResult, setPriorityCsvResult] = useState<string | null>(null);
+  const priorityCsvInputRef = useRef<HTMLInputElement>(null);
+
+  // 회의별 답변 스타일 + 길이
+  const [meetingAnswerStyle, setMeetingAnswerStyle] = useState('');
+  const [meetingAnswerLength, setMeetingAnswerLength] = useState<'short' | 'medium' | 'long'>('medium');
+
+  // 초안 자동저장 (localStorage) — 모달 닫아도 입력 보존
+  const DRAFT_KEY = 'qnote_meeting_draft_v1';
+  const [draftRestored, setDraftRestored] = useState(false);
+  const hasDraftRef = useRef(false);
+
+  // 편집 모드 — 기존에 저장된 자료 (DB 에서 로드)
+  const [existingPriorityQAs, setExistingPriorityQAs] = useState<QAPair[]>([]);
+  const [existingDocuments, setExistingDocuments] = useState<QNoteDocument[]>([]);
+  const [loadingExisting, setLoadingExisting] = useState(false);
+
+  // 편집 모드 — 어휘사전 (STT 교정용). 서버가 자동 추출한 것 + 사용자 수동 편집
+  const [sessionKeywords, setSessionKeywords] = useState<string[]>([]);
+  const [keywordInput, setKeywordInput] = useState('');
+  const [refreshingVocab, setRefreshingVocab] = useState(false);
+
   // 본인 음성 핑거프린트 등록 여부 — 미등록이면 본인 자동 인식 불가능 → 배너로 안내
 
   const allLangOptions = useMemo(() => langToOption(), []);
 
-  // 모달이 열릴 때마다 이전 입력 초기화 (이전 회의 데이터 잔존 방지)
+  // 모달 열릴 때 localStorage 초안 복원 (있으면) 또는 초기화
   useEffect(() => {
-    if (open) {
-      setTitle('');
-      setBrief('');
-      setParticipants([]);
-      setPName('');
-      setPRole('');
-      setMeetingLang('');
-      setTranslationLang(effectiveUserLanguage);
-      setAnswerLang('');
-      setShowAdvanced(false);
-      setCaptureMode('web_conference');
-      setDocuments([]);
-      setPastedContext('');
-      setUrls([]);
-      setUrlInput('');
-      setFileError(null);
-      setIsDragging(false);
-
+    if (!open) {
+      setDraftRestored(false);
+      return;
     }
+    // 먼저 전부 리셋
+    setPName('');
+    setPRole('');
+    setPqQuestion('');
+    setPqAnswer('');
+    setPqShortAnswer('');
+    setPqKeywords('');
+    setUrlInput('');
+    setFileError(null);
+    setIsDragging(false);
+    setDocuments([]);
+    setPriorityCsv(null);
+
+    // 편집 모드 — initialConfig 로 채우고 초안 복원 건너뜀
+    if (editMode && initialConfig) {
+      setTitle(initialConfig.title || '');
+      setBrief(initialConfig.brief || '');
+      setParticipants(initialConfig.participants || []);
+      setMeetingLang(initialConfig.meetingLanguages?.[0] || '');
+      setTranslationLang(initialConfig.translationLanguage || effectiveUserLanguage);
+      setAnswerLang(initialConfig.answerLanguage || '');
+      setShowAdvanced(true);
+      setCaptureMode(initialConfig.captureMode || 'web_conference');
+      setPastedContext(initialConfig.pastedContext || '');
+      setUrls(initialConfig.urls || []);
+      setPriorityQAs(initialConfig.priorityQAs || []);
+      setMeetingAnswerStyle(initialConfig.meetingAnswerStyle || '');
+      setMeetingAnswerLength(initialConfig.meetingAnswerLength || 'medium');
+      hasDraftRef.current = false;
+      setDraftRestored(false);
+
+      // 기존 자료를 DB 에서 로드 (documents + priority Q&A + keywords)
+      if (editingSessionId) {
+        setLoadingExisting(true);
+        (async () => {
+          try {
+            const [sess, pqs] = await Promise.all([
+              getSession(editingSessionId),
+              listQAPairs(editingSessionId, 'priority'),
+            ]);
+            setExistingDocuments(sess.documents || []);
+            setExistingPriorityQAs(pqs || []);
+            setSessionKeywords(Array.isArray(sess.keywords) ? sess.keywords : []);
+          } catch (err) {
+            console.error('Failed to load existing materials:', err);
+          } finally {
+            setLoadingExisting(false);
+          }
+        })();
+      }
+      return;
+    }
+
+    // 신규 생성 모드 — 기존 자료 상태 비움
+    setExistingDocuments([]);
+    setExistingPriorityQAs([]);
+    setSessionKeywords([]);
+    setKeywordInput('');
+
+    // 저장된 초안 복원 시도
+    try {
+      const raw = localStorage.getItem(DRAFT_KEY);
+      if (raw) {
+        const d = JSON.parse(raw);
+        setTitle(d.title || '');
+        setBrief(d.brief || '');
+        setParticipants(Array.isArray(d.participants) ? d.participants : []);
+        setMeetingLang(d.meetingLang || '');
+        setTranslationLang(d.translationLang || effectiveUserLanguage);
+        setAnswerLang(d.answerLang || '');
+        setShowAdvanced(!!d.showAdvanced);
+        setCaptureMode(d.captureMode || 'web_conference');
+        setPastedContext(d.pastedContext || '');
+        setUrls(Array.isArray(d.urls) ? d.urls : []);
+        setPriorityQAs(Array.isArray(d.priorityQAs) ? d.priorityQAs : []);
+        setMeetingAnswerStyle(d.meetingAnswerStyle || '');
+        setMeetingAnswerLength((['short','medium','long'].includes(d.meetingAnswerLength) ? d.meetingAnswerLength : 'medium') as 'short'|'medium'|'long');
+        hasDraftRef.current = true;
+        setDraftRestored(true);
+        return;
+      }
+    } catch { /* ignore parse errors */ }
+
+    // 초안 없으면 전부 빈 값
+    hasDraftRef.current = false;
+    setTitle('');
+    setBrief('');
+    setParticipants([]);
+    setMeetingLang('');
+    setTranslationLang(effectiveUserLanguage);
+    setAnswerLang('');
+    setShowAdvanced(false);
+    setCaptureMode('web_conference');
+    setPastedContext('');
+    setUrls([]);
+    setPriorityQAs([]);
+    setMeetingAnswerStyle('');
+    setMeetingAnswerLength('medium');
   }, [open, effectiveUserLanguage]);
+
+  // 초안 자동 저장 — 필드 변경 시 debounce 500ms. 편집 모드는 저장 안 함.
+  useEffect(() => {
+    if (!open || editMode) return;
+    const handle = setTimeout(() => {
+      try {
+        const draft = {
+          title, brief, participants,
+          meetingLang, translationLang, answerLang, showAdvanced,
+          captureMode, pastedContext, urls,
+          priorityQAs, meetingAnswerStyle, meetingAnswerLength,
+        };
+        // 전부 비어있으면 저장하지 않음 (빈 초안 유령 방지)
+        const hasAny = title || brief || participants.length || meetingLang ||
+          pastedContext || urls.length || priorityQAs.length || meetingAnswerStyle;
+        if (hasAny) {
+          localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+          hasDraftRef.current = true;
+        } else {
+          localStorage.removeItem(DRAFT_KEY);
+          hasDraftRef.current = false;
+        }
+      } catch { /* ignore quota errors */ }
+    }, 500);
+    return () => clearTimeout(handle);
+  }, [open, title, brief, participants, meetingLang, translationLang, answerLang,
+      showAdvanced, captureMode, pastedContext, urls, priorityQAs, meetingAnswerStyle, meetingAnswerLength]);
+
+  const clearDraft = () => {
+    try { localStorage.removeItem(DRAFT_KEY); } catch { /* ignore */ }
+    hasDraftRef.current = false;
+    setDraftRestored(false);
+    setTitle('');
+    setBrief('');
+    setParticipants([]);
+    setPName('');
+    setPRole('');
+    setMeetingLang('');
+    setTranslationLang(effectiveUserLanguage);
+    setAnswerLang('');
+    setShowAdvanced(false);
+    setCaptureMode('web_conference');
+    setDocuments([]);
+    setPastedContext('');
+    setUrls([]);
+    setUrlInput('');
+    setPriorityQAs([]);
+    setPqQuestion('');
+    setPqAnswer('');
+    setPqShortAnswer('');
+    setPqKeywords('');
+    setPriorityCsv(null);
+    setPriorityCsvResult(null);
+    setMeetingAnswerStyle('');
+    setMeetingAnswerLength('medium');
+  };
 
   if (!open) return null;
 
@@ -135,19 +334,19 @@ const StartMeetingModal = ({ open, userLanguage, onClose, onStart }: Props) => {
       const ext = '.' + (f.name.split('.').pop() || '').toLowerCase();
 
       if (!ACCEPTED_TYPES.includes(ext) && !ACCEPTED_MIME.includes(f.type)) {
-        showFileError(`"${f.name}" — 지원하지 않는 형식. PDF·DOCX·TXT·MD만 가능.`);
+        showFileError(t('startModal.fileError.unsupported', { name: f.name }));
         continue;
       }
       if (f.size === 0) {
-        showFileError(`"${f.name}" — 빈 파일입니다.`);
+        showFileError(t('startModal.fileError.empty', { name: f.name }));
         continue;
       }
       if (f.size > MAX_FILE_SIZE) {
-        showFileError(`"${f.name}" — 파일이 너무 큽니다 (최대 10 MB).`);
+        showFileError(t('startModal.fileError.tooLarge', { name: f.name }));
         continue;
       }
       if (documents.length + accepted.length >= MAX_FILES) {
-        showFileError(`파일은 최대 ${MAX_FILES}개까지 업로드 가능합니다.`);
+        showFileError(t('startModal.fileError.tooMany', { max: MAX_FILES }));
         break;
       }
       // 중복 검사 (이름 + 크기)
@@ -155,7 +354,7 @@ const StartMeetingModal = ({ open, userLanguage, onClose, onStart }: Props) => {
         documents.some((d) => d.name === f.name && d.size === f.size) ||
         accepted.some((d) => d.name === f.name && d.size === f.size)
       ) {
-        showFileError(`"${f.name}" — 이미 추가된 파일입니다.`);
+        showFileError(t('startModal.fileError.duplicate', { name: f.name }));
         continue;
       }
       accepted.push(f);
@@ -183,11 +382,11 @@ const StartMeetingModal = ({ open, userLanguage, onClose, onStart }: Props) => {
     const url = urlInput.trim();
     if (!url) return;
     if (!/^https?:\/\//.test(url)) {
-      showFileError('URL은 http:// 또는 https://로 시작해야 합니다.');
+      showFileError(t('startModal.fileError.urlInvalid'));
       return;
     }
     if (urls.includes(url)) {
-      showFileError('이미 추가된 URL입니다.');
+      showFileError(t('startModal.fileError.urlDuplicate'));
       return;
     }
     setUrls((prev) => [...prev, url]);
@@ -198,6 +397,143 @@ const StartMeetingModal = ({ open, userLanguage, onClose, onStart }: Props) => {
     setUrls((prev) => prev.filter((_, i) => i !== idx));
   };
 
+  const addPriorityQA = () => {
+    const q = pqQuestion.trim();
+    const a = pqAnswer.trim();
+    if (!q || !a) return;
+    const sa = pqShortAnswer.trim();
+    const kw = pqKeywords.trim();
+    setPriorityQAs((prev) => [...prev, {
+      question: q, answer: a,
+      shortAnswer: sa || undefined,
+      keywords: kw || undefined,
+    }]);
+    setPqQuestion('');
+    setPqAnswer('');
+    setPqShortAnswer('');
+    setPqKeywords('');
+  };
+
+  const removePriorityQA = (idx: number) => {
+    setPriorityQAs((prev) => prev.filter((_, i) => i !== idx));
+  };
+
+  const handlePriorityCsvSelect = async (f: File | null) => {
+    if (!f) {
+      setPriorityCsv(null);
+      setPriorityCsvResult(null);
+      return;
+    }
+    if (f.size > 2 * 1024 * 1024) {
+      showFileError('CSV 파일이 너무 큽니다 (최대 2MB)');
+      return;
+    }
+    const ext = (f.name.split('.').pop() || '').toLowerCase();
+    if (ext !== 'csv') {
+      showFileError(`"${f.name}" — CSV 파일만 업로드 가능합니다`);
+      return;
+    }
+    setPriorityCsv(f);
+    setPriorityCsvResult(null);
+
+    // 편집 모드 + 세션 ID 있으면 **즉시 업로드**
+    if (editMode && editingSessionId) {
+      setPriorityCsvUploading(true);
+      try {
+        const res = await uploadPriorityQACSV(editingSessionId, f);
+        const parts = [];
+        if (res.created) parts.push(`새로 ${res.created}개`);
+        if (res.updated) parts.push(`업데이트 ${res.updated}개`);
+        let msg = parts.length ? parts.join(', ') + ' 등록' : '변경 없음';
+        if (res.errors && res.errors.length > 0) msg += ` (오류 ${res.errors.length}행)`;
+        setPriorityCsvResult(msg);
+      } catch (err) {
+        setPriorityCsvResult('업로드 실패: ' + (err instanceof Error ? err.message : '알 수 없는 오류'));
+        showFileError('CSV 업로드 실패: ' + (err instanceof Error ? err.message : ''));
+      } finally {
+        setPriorityCsvUploading(false);
+      }
+      // 업로드 후 기존 목록 재조회
+      if (editingSessionId) {
+        try {
+          const pqs = await listQAPairs(editingSessionId, 'priority');
+          setExistingPriorityQAs(pqs || []);
+        } catch { /* ignore */ }
+      }
+    }
+  };
+
+  const handleDeleteExistingPriority = async (qaId: number) => {
+    if (!editingSessionId) return;
+    try {
+      await deletePriorityQA(editingSessionId, qaId);
+      setExistingPriorityQAs((prev) => prev.filter((q) => q.id !== qaId));
+    } catch (err) {
+      showFileError(err instanceof Error ? err.message : 'Q&A 삭제 실패');
+    }
+  };
+
+  const handleDeleteExistingDocument = async (docId: number) => {
+    if (!editingSessionId) return;
+    try {
+      const res = await apiFetch(`/qnote/api/sessions/${editingSessionId}/documents/${docId}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      setExistingDocuments((prev) => prev.filter((d) => d.id !== docId));
+    } catch (err) {
+      showFileError(err instanceof Error ? err.message : '문서 삭제 실패');
+    }
+  };
+
+  // 어휘사전 — 즉시 PUT session.keywords
+  const saveKeywords = async (next: string[]) => {
+    setSessionKeywords(next);
+    if (!editingSessionId) return;
+    try {
+      const res = await apiFetch(`/qnote/api/sessions/${editingSessionId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ keywords: next }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    } catch (err) {
+      showFileError(err instanceof Error ? err.message : '어휘사전 저장 실패');
+    }
+  };
+
+  const addSessionKeyword = () => {
+    const items = keywordInput.split(/[,\n]/).map((s) => s.trim()).filter((s) => s.length >= 2 && s.length <= 80);
+    if (items.length === 0) return;
+    const seen = new Set(sessionKeywords.map((k) => k.toLowerCase()));
+    const next = [...sessionKeywords];
+    for (const k of items) {
+      if (!seen.has(k.toLowerCase())) {
+        seen.add(k.toLowerCase());
+        next.push(k);
+      }
+    }
+    saveKeywords(next.slice(0, 200));
+    setKeywordInput('');
+  };
+
+  const removeSessionKeyword = (idx: number) => {
+    saveKeywords(sessionKeywords.filter((_, i) => i !== idx));
+  };
+
+  // 어휘 재추출 — 현재 인덱싱된 문서 기반으로 다시 뽑고 기존에 합침
+  const handleRefreshVocab = async () => {
+    if (!editingSessionId) return;
+    setRefreshingVocab(true);
+    try {
+      const res = await refreshSessionVocabulary(editingSessionId);
+      setSessionKeywords(res.keywords || []);
+    } catch (err) {
+      showFileError(err instanceof Error ? err.message : '어휘 재추출 실패');
+    } finally {
+      setRefreshingVocab(false);
+    }
+  };
+
+
   const handleStart = () => {
     // 입력 중인 참여자 이름이 "+ 추가" 없이 남아있으면 자동으로 포함.
     // 사용자가 한 명만 입력하고 엔터/버튼 없이 바로 "회의 시작"을 눌러도 저장되도록.
@@ -207,8 +543,23 @@ const StartMeetingModal = ({ open, userLanguage, onClose, onStart }: Props) => {
       ? [...participants, { name: pendingName, role: pendingRole }]
       : participants;
 
+    // 입력 중인 priority Q&A 자동 포함
+    const pendingPQ = pqQuestion.trim() && pqAnswer.trim()
+      ? [{
+          question: pqQuestion.trim(),
+          answer: pqAnswer.trim(),
+          shortAnswer: pqShortAnswer.trim() || undefined,
+          keywords: pqKeywords.trim() || undefined,
+        }]
+      : [];
+    const finalPriorityQAs = [...priorityQAs, ...pendingPQ];
+
+    // 회의 시작 성공 → 초안 삭제
+    try { localStorage.removeItem(DRAFT_KEY); } catch { /* ignore */ }
+    hasDraftRef.current = false;
+
     onStart({
-      title: title.trim() || '제목 없는 회의',
+      title: title.trim() || t('startModal.defaultTitle'),
       brief: brief.trim(),
       participants: finalParticipants,
       meetingLanguages: [meetingLang],
@@ -218,6 +569,10 @@ const StartMeetingModal = ({ open, userLanguage, onClose, onStart }: Props) => {
       documents,
       pastedContext: pastedContext.trim(),
       urls,
+      priorityQAs: finalPriorityQAs,
+      priorityQACsv: priorityCsv,
+      meetingAnswerStyle: meetingAnswerStyle.trim(),
+      meetingAnswerLength,
     });
   };
 
@@ -225,18 +580,35 @@ const StartMeetingModal = ({ open, userLanguage, onClose, onStart }: Props) => {
     <Backdrop onClick={onClose}>
       <ModalBox onClick={(e) => e.stopPropagation()}>
         <Header>
-          <Title>새 회의 시작</Title>
-          <CloseBtn onClick={onClose} aria-label="닫기">
-            <CloseIcon size={18} />
-          </CloseBtn>
+          <Title>{editMode ? '회의 설정 편집' : t('startModal.header')}</Title>
+          <HeaderRight>
+            {!editMode && draftRestored && (
+              <>
+                <DraftBadge>초안 복원됨</DraftBadge>
+                <DraftResetBtn type="button" onClick={clearDraft} title="저장된 초안을 지우고 처음부터 새로 시작">
+                  초안 지우기
+                </DraftResetBtn>
+              </>
+            )}
+            <CloseBtn onClick={onClose} aria-label={t('startModal.closeLabel')}>
+              <CloseIcon size={18} />
+            </CloseBtn>
+          </HeaderRight>
         </Header>
 
         <Body>
+          {editMode && (
+            <EditModeBanner>
+              <strong>편집 모드</strong> — 기존 자료는 DB 에 안전하게 저장되어 있습니다.
+              여기서 <strong>추가한 항목은 기존 자료에 합쳐</strong>지며, <strong>✗ 버튼으로 개별 삭제</strong>할 수 있습니다.
+              {loadingExisting && <span style={{ marginLeft: 8, color: '#0d9488' }}>(기존 자료 불러오는 중...)</span>}
+            </EditModeBanner>
+          )}
           <Field>
-            <Label>회의 제목</Label>
+            <Label>{t('startModal.titleLabel')}</Label>
             <Input
               type="text"
-              placeholder="예: 월요일 팀 스탠드업"
+              placeholder={t('startModal.titlePlaceholder')}
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               maxLength={100}
@@ -244,14 +616,10 @@ const StartMeetingModal = ({ open, userLanguage, onClose, onStart }: Props) => {
           </Field>
 
           <Field>
-            <Label>회의 안내 (선택)</Label>
-            <Hint>
-              회의 목적, 주의사항, 다룰 내용을 적어두면 번역·요약·답변 품질이 크게 향상됩니다.
-            </Hint>
+            <Label>{t('startModal.briefLabel')}</Label>
+            <Hint>{t('startModal.briefHint')}</Hint>
             <TextArea
-              placeholder={
-                '예시:\n- 목적: 신규 SaaS 제품 투자 유치 미팅\n- 자료: 피칭 덱 v3 첨부\n- 주의: 매출 수치는 NDA 대상'
-              }
+              placeholder={t('startModal.briefPlaceholder')}
               value={brief}
               onChange={(e) => setBrief(e.target.value)}
               maxLength={2000}
@@ -261,17 +629,15 @@ const StartMeetingModal = ({ open, userLanguage, onClose, onStart }: Props) => {
           </Field>
 
           <Field>
-            <Label>참여자 (선택)</Label>
-            <Hint>
-              개별 또는 그룹 단위 자유 입력. 회의 후 화자 매칭에 사용됩니다.
-            </Hint>
+            <Label>{t('startModal.participantsLabel')}</Label>
+            <Hint>{t('startModal.participantsHint')}</Hint>
             {participants.length > 0 && (
               <ParticipantList>
                 {participants.map((p, idx) => (
                   <ParticipantRow key={idx}>
                     <ParticipantName>{p.name}</ParticipantName>
                     {p.role && <ParticipantRole>{p.role}</ParticipantRole>}
-                    <RemoveBtn onClick={() => removeParticipant(idx)} aria-label="제거">
+                    <RemoveBtn onClick={() => removeParticipant(idx)} aria-label={t('startModal.removeLabel')}>
                       <CloseIcon size={14} />
                     </RemoveBtn>
                   </ParticipantRow>
@@ -280,7 +646,7 @@ const StartMeetingModal = ({ open, userLanguage, onClose, onStart }: Props) => {
             )}
             <ParticipantInputs>
               <ParticipantInput
-                placeholder="이름 (예: Sarah, 우리 PM)"
+                placeholder={t('startModal.participantNamePlaceholder')}
                 value={pName}
                 onChange={(e) => setPName(e.target.value)}
                 onKeyDown={(e) => {
@@ -291,7 +657,7 @@ const StartMeetingModal = ({ open, userLanguage, onClose, onStart }: Props) => {
                 }}
               />
               <ParticipantInput
-                placeholder="역할/메모 (선택, 예: Acme사 CEO)"
+                placeholder={t('startModal.participantRolePlaceholder')}
                 value={pRole}
                 onChange={(e) => setPRole(e.target.value)}
                 onKeyDown={(e) => {
@@ -309,60 +675,317 @@ const StartMeetingModal = ({ open, userLanguage, onClose, onStart }: Props) => {
 
           <Field>
             <Label>
-              회의 언어 <Required>*</Required>
+              {t('startModal.meetingLanguageLabel')} <Required>*</Required>
             </Label>
             <PlanQSelect
               options={allLangOptions}
               value={selectedMeetingOpt}
               onChange={(opt: any) => setMeetingLang(opt?.value || '')}
-              placeholder="회의에서 사용하는 언어"
+              placeholder={t('startModal.meetingLanguagePlaceholder')}
             />
           </Field>
 
           {showAdvanced ? (
             <AdvancedSection>
               <AdvancedToggle onClick={() => setShowAdvanced(false)}>
-                고급 설정 접기
+                {t('startModal.advancedHide')}
               </AdvancedToggle>
               <LangRow>
                 <Field>
-                  <Label>번역 언어</Label>
+                  <Label>{t('startModal.translationLanguageLabel')}</Label>
                   <PlanQSelect
                     options={allLangOptions}
                     value={selectedTranslationOpt}
                     onChange={(opt: any) => setTranslationLang(opt?.value || effectiveUserLanguage)}
-                    placeholder="번역 표시 언어"
+                    placeholder={t('startModal.translationLanguagePlaceholder')}
                   />
-                  <Hint>
-                    발화 아래 보조 번역. 기본 = 내 언어({getLanguageLabel(effectiveUserLanguage)}).
-                  </Hint>
+                  <Hint>{t('startModal.translationHint', { lang: getLanguageLabel(effectiveUserLanguage) })}</Hint>
                 </Field>
                 <Field>
-                  <Label>답변 언어</Label>
+                  <Label>{t('startModal.answerLanguageLabel')}</Label>
                   <PlanQSelect
                     options={allLangOptions}
                     value={allLangOptions.find((o) => o.value === answerLang) || null}
                     onChange={(opt: any) => setAnswerLang(opt?.value || meetingLang)}
-                    placeholder="답변 찾기 결과 언어"
+                    placeholder={t('startModal.answerLanguagePlaceholder')}
                   />
                 </Field>
               </LangRow>
             </AdvancedSection>
           ) : (
             <AdvancedToggle onClick={() => setShowAdvanced(true)}>
-              고급 설정
+              {t('startModal.advancedShow')}
             </AdvancedToggle>
           )}
 
           <Field>
-            <Label>참고 자료 (선택)</Label>
+            <PriorityLabel>
+              <PriorityBadge>최우선</PriorityBadge>
+              Q&amp;A 자료 (답변 1순위)
+              {editMode && existingPriorityQAs.length > 0 && (
+                <ExistingCount>기존 {existingPriorityQAs.length}개</ExistingCount>
+              )}
+            </PriorityLabel>
             <Hint>
-              "답변 찾기"는 이 자료를 우선 검색합니다. 자료가 없으면 일반 AI 지식으로 답변합니다.
-              <br />
-              <strong>텍스트나 링크를 우선 사용해주세요.</strong> 파일은 작은 슬라이드/문서 위주.
-              <br />
-              파일당 10 MB · 최대 5개 · PDF·DOCX·TXT·MD · 텍스트 PDF만 (스캔본 불가)
+              여기에 등록한 Q&amp;A는 <strong>다른 모든 자료보다 먼저</strong> 사용됩니다.
+              회의에서 반드시 이 답변으로 응답해야 할 질문이 있다면 여기에 넣으세요.
+              비워둬도 됩니다.
             </Hint>
+
+            {editMode && existingPriorityQAs.length > 0 && (
+              <FileList>
+                {existingPriorityQAs.map((pq) => (
+                  <FileRow key={pq.id}>
+                    <FileIcon>
+                      <FileTextIcon size={14} />
+                    </FileIcon>
+                    <PQQuestionText>{pq.question_text}</PQQuestionText>
+                    <RemoveBtn onClick={() => handleDeleteExistingPriority(pq.id)} aria-label={t('startModal.removeLabel')}>
+                      <CloseIcon size={14} />
+                    </RemoveBtn>
+                  </FileRow>
+                ))}
+              </FileList>
+            )}
+
+            <PQRow>
+              <ParticipantInput
+                placeholder="질문 예: 왜 이 주제를 선택했나요?"
+                value={pqQuestion}
+                onChange={(e) => setPqQuestion(e.target.value)}
+              />
+            </PQRow>
+            <PQRow>
+              <TextArea
+                placeholder="정확한 답변 (말할 그대로, 길어도 OK)"
+                value={pqAnswer}
+                onChange={(e) => setPqAnswer(e.target.value)}
+                rows={2}
+              />
+            </PQRow>
+            <PQRow>
+              <ParticipantInput
+                placeholder="1문장 버전 (선택, 회의 답변 길이가 '짧게'일 때 우선 사용)"
+                value={pqShortAnswer}
+                onChange={(e) => setPqShortAnswer(e.target.value)}
+                maxLength={500}
+              />
+            </PQRow>
+            <PQRow>
+              <ParticipantInput
+                placeholder="핵심 키워드 (선택, 쉼표 구분 — 검색 속도·정확도 ↑)"
+                value={pqKeywords}
+                onChange={(e) => setPqKeywords(e.target.value)}
+                maxLength={500}
+              />
+              <AddRowBtn type="button" onClick={addPriorityQA} disabled={!pqQuestion.trim() || !pqAnswer.trim()}>
+                <PlusIcon size={14} />
+              </AddRowBtn>
+            </PQRow>
+
+            {priorityQAs.length > 0 && (
+              <FileList>
+                {priorityQAs.map((qa, idx) => (
+                  <FileRow key={idx}>
+                    <FileIcon>
+                      <FileTextIcon size={14} />
+                    </FileIcon>
+                    <PQQuestionText>{qa.question}</PQQuestionText>
+                    <RemoveBtn onClick={() => removePriorityQA(idx)} aria-label={t('startModal.removeLabel')}>
+                      <CloseIcon size={14} />
+                    </RemoveBtn>
+                  </FileRow>
+                ))}
+              </FileList>
+            )}
+
+            <Divider>
+              <DividerText>또는 CSV 업로드</DividerText>
+            </Divider>
+            <input
+              ref={priorityCsvInputRef}
+              type="file"
+              accept=".csv"
+              hidden
+              onChange={(e) => {
+                handlePriorityCsvSelect(e.target.files?.[0] || null);
+                // 같은 파일 다시 고를 수 있게 value 리셋
+                if (e.target) e.target.value = '';
+              }}
+            />
+            <CSVDropzone
+              $dragging={priorityCsvDragging}
+              $uploading={priorityCsvUploading}
+              onClick={() => !priorityCsvUploading && priorityCsvInputRef.current?.click()}
+              onDragOver={(e) => {
+                e.preventDefault();
+                setPriorityCsvDragging(true);
+              }}
+              onDragLeave={() => setPriorityCsvDragging(false)}
+              onDrop={(e) => {
+                e.preventDefault();
+                setPriorityCsvDragging(false);
+                const f = e.dataTransfer.files?.[0];
+                if (f) handlePriorityCsvSelect(f);
+              }}
+            >
+              <DropzoneIcon>
+                <FileTextIcon size={20} />
+              </DropzoneIcon>
+              <DropzoneText>
+                {priorityCsvUploading
+                  ? '업로드 중...'
+                  : priorityCsv
+                    ? priorityCsv.name
+                    : 'CSV 파일 끌어다 놓거나 클릭해서 선택'}
+                <DropzoneSubText>
+                  {priorityCsvResult
+                    ? priorityCsvResult
+                    : editMode
+                      ? '파일 선택 즉시 업로드됩니다'
+                      : '회의 시작 시 자동 업로드됩니다'}
+                </DropzoneSubText>
+              </DropzoneText>
+              {priorityCsv && !priorityCsvUploading && (
+                <RemoveBtn
+                  onClick={(e) => { e.stopPropagation(); handlePriorityCsvSelect(null); }}
+                  aria-label={t('startModal.removeLabel')}
+                >
+                  <CloseIcon size={14} />
+                </RemoveBtn>
+              )}
+            </CSVDropzone>
+            <TemplateLink
+              type="button"
+              onClick={async () => {
+                try {
+                  await downloadPriorityQATemplate();
+                } catch (err) {
+                  showFileError(err instanceof Error ? err.message : '템플릿 다운로드 실패');
+                }
+              }}
+            >
+              샘플 CSV 다운로드 (question, answer, short_answer, keywords, category)
+            </TemplateLink>
+          </Field>
+
+          {editMode && (
+            <Field>
+              <Label>
+                어휘사전 (STT 교정용)
+                {sessionKeywords.length > 0 && <ExistingCount>{sessionKeywords.length}개</ExistingCount>}
+              </Label>
+              <Hint>
+                여기 등록된 단어는 <strong>Deepgram 이 음성인식 시 우선 매칭</strong>하고,
+                AI 가 "remote work" 같은 구절을 잘못 듣는 문제를 고쳐줍니다.
+                <br />
+                <strong>업로드한 문서가 최우선 소스</strong>입니다. 문서 인덱싱이 끝나면 자동으로 재추출되며,
+                그 전이면 아래 "문서 기반 재추출" 버튼으로 즉시 뽑을 수 있습니다.
+              </Hint>
+              <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+                <GenerateKeywordsBtn
+                  type="button"
+                  onClick={handleRefreshVocab}
+                  disabled={refreshingVocab}
+                  title="현재 인덱싱된 문서에서 어휘를 다시 추출 (기존 수동 추가 키워드는 유지)"
+                >
+                  {refreshingVocab ? '재추출 중...' : '📄 문서 기반 재추출'}
+                </GenerateKeywordsBtn>
+              </div>
+
+              {sessionKeywords.length > 0 ? (
+                <KeywordChipList>
+                  {sessionKeywords.map((kw, idx) => (
+                    <KeywordChip key={idx}>
+                      <span>{kw}</span>
+                      <KeywordChipRemove onClick={() => removeSessionKeyword(idx)} aria-label={t('startModal.removeLabel')}>
+                        <CloseIcon size={11} />
+                      </KeywordChipRemove>
+                    </KeywordChip>
+                  ))}
+                </KeywordChipList>
+              ) : (
+                <EmptyHint>자동 추출된 어휘가 없습니다. 아래에서 직접 추가하세요.</EmptyHint>
+              )}
+
+              <KeywordAddRow>
+                <ParticipantInput
+                  placeholder="단어/구절 추가 (쉼표나 엔터로 여러 개 한번에)"
+                  value={keywordInput}
+                  onChange={(e) => setKeywordInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      addSessionKeyword();
+                    }
+                  }}
+                />
+                <AddRowBtn type="button" onClick={addSessionKeyword} disabled={!keywordInput.trim()}>
+                  <PlusIcon size={14} />
+                </AddRowBtn>
+              </KeywordAddRow>
+            </Field>
+          )}
+
+          <Field>
+            <Label>답변 스타일 · 길이</Label>
+            <Hint>
+              답변이 너무 어렵거나 길면 여기서 조정하세요. 말하기 좋은 단어로, 언어 레벨에 맞게 생성됩니다.
+            </Hint>
+            <LengthRow>
+              <LengthBtn type="button" $active={meetingAnswerLength === 'short'} onClick={() => setMeetingAnswerLength('short')}>
+                짧게 (1-2문장)
+              </LengthBtn>
+              <LengthBtn type="button" $active={meetingAnswerLength === 'medium'} onClick={() => setMeetingAnswerLength('medium')}>
+                보통 (2-3문장)
+              </LengthBtn>
+              <LengthBtn type="button" $active={meetingAnswerLength === 'long'} onClick={() => setMeetingAnswerLength('long')}>
+                길게 (3-4문장)
+              </LengthBtn>
+            </LengthRow>
+            <TextArea
+              placeholder={
+                '예시: 짧고 자신감 있게. 전문용어 금지. 구체적 숫자 포함. 반드시 질문을 되묻지 말 것.'
+              }
+              value={meetingAnswerStyle}
+              onChange={(e) => setMeetingAnswerStyle(e.target.value)}
+              rows={3}
+              maxLength={2000}
+            />
+          </Field>
+
+          <Field>
+            <Label>
+              {t('startModal.materialsLabel')}
+              {editMode && existingDocuments.length > 0 && (
+                <ExistingCount>기존 {existingDocuments.length}개</ExistingCount>
+              )}
+            </Label>
+            <Hint>
+              {t('startModal.materialsHintLine1')}
+              <br />
+              <Trans i18nKey="startModal.materialsHintLine2" ns="qnote" components={{ 1: <strong /> }} />
+              <br />
+              {t('startModal.materialsHintLine3')}
+            </Hint>
+
+            {/* 편집 모드: 기존 문서 목록 (읽기 + 삭제) */}
+            {editMode && existingDocuments.length > 0 && (
+              <FileList>
+                {existingDocuments.map((doc) => (
+                  <FileRow key={doc.id}>
+                    <FileIcon>
+                      <FileTextIcon size={14} />
+                    </FileIcon>
+                    <FileName>{doc.original_filename || doc.title || `문서 #${doc.id}`}</FileName>
+                    <FileSize>{doc.status === 'indexed' ? `${doc.chunk_count || 0} chunks` : doc.status}</FileSize>
+                    <RemoveBtn onClick={() => handleDeleteExistingDocument(doc.id)} aria-label={t('startModal.removeLabel')}>
+                      <CloseIcon size={14} />
+                    </RemoveBtn>
+                  </FileRow>
+                ))}
+              </FileList>
+            )}
 
             {fileError && <ErrorBanner>{fileError}</ErrorBanner>}
             <Dropzone
@@ -383,8 +1006,8 @@ const StartMeetingModal = ({ open, userLanguage, onClose, onStart }: Props) => {
                 <PlusIcon size={20} />
               </DropzoneIcon>
               <DropzoneText>
-                파일을 끌어다 놓거나 클릭해서 선택
-                <DropzoneSubText>PDF · DOCX · TXT · MD</DropzoneSubText>
+                {t('startModal.dropzoneText')}
+                <DropzoneSubText>{t('startModal.dropzoneSub')}</DropzoneSubText>
               </DropzoneText>
               <input
                 ref={fileInputRef}
@@ -408,7 +1031,7 @@ const StartMeetingModal = ({ open, userLanguage, onClose, onStart }: Props) => {
                     </FileIcon>
                     <FileName>{file.name}</FileName>
                     <FileSize>{formatFileSize(file.size)}</FileSize>
-                    <RemoveBtn onClick={() => removeFile(idx)} aria-label="제거">
+                    <RemoveBtn onClick={() => removeFile(idx)} aria-label={t('startModal.removeLabel')}>
                       <CloseIcon size={14} />
                     </RemoveBtn>
                   </FileRow>
@@ -417,13 +1040,11 @@ const StartMeetingModal = ({ open, userLanguage, onClose, onStart }: Props) => {
             )}
 
             <Divider>
-              <DividerText>또는 텍스트 붙여넣기</DividerText>
+              <DividerText>{t('startModal.dividerText')}</DividerText>
             </Divider>
 
             <TextArea
-              placeholder={
-                '이메일, 노션, 웹페이지에서 복사한 텍스트를 붙여넣으세요.\n파일과 함께 사용 가능합니다.'
-              }
+              placeholder={t('startModal.pastedPlaceholder')}
               value={pastedContext}
               onChange={(e) => setPastedContext(e.target.value)}
               maxLength={MAX_TEXT_CHARS}
@@ -434,12 +1055,12 @@ const StartMeetingModal = ({ open, userLanguage, onClose, onStart }: Props) => {
             </CharCount>
 
             <Divider>
-              <DividerText>또는 링크 (URL)</DividerText>
+              <DividerText>{t('startModal.dividerUrl')}</DividerText>
             </Divider>
 
             <UrlRow>
               <ParticipantInput
-                placeholder="https://... (블로그, 노션 공개 페이지, PDF 링크 등)"
+                placeholder={t('startModal.urlPlaceholder')}
                 value={urlInput}
                 onChange={(e) => setUrlInput(e.target.value)}
                 onKeyDown={(e) => {
@@ -453,9 +1074,7 @@ const StartMeetingModal = ({ open, userLanguage, onClose, onStart }: Props) => {
                 <PlusIcon size={14} />
               </AddRowBtn>
             </UrlRow>
-            <Hint>
-              공개 페이지만 자동 추출 가능. 비공개/로그인 페이지는 텍스트로 직접 붙여넣어주세요.
-            </Hint>
+            <Hint>{t('startModal.urlHint')}</Hint>
 
             {urls.length > 0 && (
               <FileList>
@@ -465,8 +1084,8 @@ const StartMeetingModal = ({ open, userLanguage, onClose, onStart }: Props) => {
                       <FileTextIcon size={14} />
                     </FileIcon>
                     <FileName>{u}</FileName>
-                    <UrlStatus>대기</UrlStatus>
-                    <RemoveBtn onClick={() => removeUrl(idx)} aria-label="제거">
+                    <UrlStatus>{t('startModal.urlStatusPending')}</UrlStatus>
+                    <RemoveBtn onClick={() => removeUrl(idx)} aria-label={t('startModal.removeLabel')}>
                       <CloseIcon size={14} />
                     </RemoveBtn>
                   </FileRow>
@@ -477,7 +1096,7 @@ const StartMeetingModal = ({ open, userLanguage, onClose, onStart }: Props) => {
 
           <Field>
             <Label>
-              캡처 방식 <Required>*</Required>
+              {t('startModal.captureLabel')} <Required>*</Required>
             </Label>
             <CaptureCards>
               {ALL_CAPTURE_CAPABILITIES.map((cap) => {
@@ -497,7 +1116,7 @@ const StartMeetingModal = ({ open, userLanguage, onClose, onStart }: Props) => {
                       </CaptureIconWrap>
                       <CaptureLabel>
                         {cap.label}
-                        {!available && <Unavailable> (지원 안 함)</Unavailable>}
+                        {!available && <Unavailable>{t('startModal.unavailable')}</Unavailable>}
                       </CaptureLabel>
                     </CaptureLabelRow>
                     <CaptureDesc>{cap.description}</CaptureDesc>
@@ -509,9 +1128,9 @@ const StartMeetingModal = ({ open, userLanguage, onClose, onStart }: Props) => {
         </Body>
 
         <Footer>
-          <SecondaryBtn onClick={onClose}>취소</SecondaryBtn>
+          <SecondaryBtn onClick={onClose}>{t('startModal.cancel')}</SecondaryBtn>
           <PrimaryBtn onClick={handleStart} disabled={!canStart}>
-            회의 진행
+            {editMode ? '저장' : t('startModal.start')}
           </PrimaryBtn>
         </Footer>
       </ModalBox>
@@ -531,7 +1150,7 @@ const Backdrop = styled.div`
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 200;
+  z-index: 2000;
   padding: 20px;
 `;
 
@@ -738,6 +1357,231 @@ const Divider = styled.div`
     right: 0;
     top: 50%;
     border-top: 1px solid #e2e8f0;
+  }
+`;
+
+const PriorityLabel = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #0f172a;
+  margin-bottom: 4px;
+`;
+
+const EditModeBanner = styled.div`
+  margin: -4px 0 12px;
+  padding: 12px 14px;
+  background: #f0fdfa;
+  border: 1px solid #99f6e4;
+  border-left: 3px solid #0d9488;
+  border-radius: 8px;
+  font-size: 12px;
+  color: #134e4a;
+  line-height: 1.55;
+  strong { color: #0f766e; font-weight: 700; }
+`;
+
+const ExistingCount = styled.span`
+  display: inline-flex;
+  align-items: center;
+  margin-left: auto;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #0f766e;
+  background: #ccfbf1;
+  border-radius: 10px;
+`;
+
+const GenerateKeywordsBtn = styled.button`
+  padding: 8px 14px;
+  background: #ffffff;
+  color: #0d9488;
+  border: 1px solid #99f6e4;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 120ms;
+  &:hover:not(:disabled) {
+    background: #f0fdfa;
+    border-color: #0d9488;
+  }
+  &:disabled {
+    color: #cbd5e1;
+    border-color: #e2e8f0;
+    cursor: not-allowed;
+  }
+`;
+
+const KeywordAddRow = styled.div`
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+`;
+
+const KeywordChipList = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+  padding: 10px;
+  background: #f8fafc;
+  border-radius: 8px;
+  max-height: 200px;
+  overflow-y: auto;
+`;
+
+const KeywordChip = styled.div`
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 4px 4px 10px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  font-size: 12px;
+  color: #0f172a;
+`;
+
+const KeywordChipRemove = styled.button`
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  background: none;
+  border: none;
+  border-radius: 50%;
+  color: #94a3b8;
+  cursor: pointer;
+  &:hover { color: #dc2626; background: #fef2f2; }
+`;
+
+const EmptyHint = styled.div`
+  padding: 12px;
+  margin-top: 8px;
+  background: #f8fafc;
+  color: #94a3b8;
+  font-size: 12px;
+  text-align: center;
+  border-radius: 8px;
+`;
+
+const PriorityBadge = styled.span`
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  font-size: 10px;
+  font-weight: 700;
+  color: #ffffff;
+  background: #f43f5e;
+  border-radius: 4px;
+  letter-spacing: 0.03em;
+`;
+
+const PQRow = styled.div`
+  display: flex;
+  gap: 6px;
+  margin-top: 4px;
+  align-items: flex-start;
+`;
+
+const PQQuestionText = styled.div`
+  flex: 1;
+  font-size: 13px;
+  color: #0f172a;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+`;
+
+const CSVDropzone = styled.div<{ $dragging?: boolean; $uploading?: boolean }>`
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 2px dashed ${(p) => (p.$dragging ? '#0d9488' : '#cbd5e1')};
+  background: ${(p) => (p.$dragging ? '#f0fdfa' : p.$uploading ? '#f8fafc' : '#ffffff')};
+  color: #475569;
+  border-radius: 10px;
+  cursor: ${(p) => (p.$uploading ? 'wait' : 'pointer')};
+  transition: border-color 120ms, background 120ms;
+  &:hover {
+    ${(p) => !p.$uploading && 'border-color: #0d9488; background: #f0fdfa;'}
+  }
+`;
+
+const LengthRow = styled.div`
+  display: flex;
+  gap: 6px;
+  margin-bottom: 4px;
+`;
+
+const LengthBtn = styled.button<{ $active?: boolean }>`
+  flex: 1;
+  padding: 10px 12px;
+  border: 1px solid ${(p) => (p.$active ? '#0d9488' : '#e2e8f0')};
+  background: ${(p) => (p.$active ? '#0d9488' : '#ffffff')};
+  color: ${(p) => (p.$active ? '#ffffff' : '#475569')};
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 120ms;
+  &:hover {
+    border-color: ${(p) => (p.$active ? '#0f766e' : '#0d9488')};
+  }
+`;
+
+const TemplateLink = styled.button`
+  display: inline-block;
+  margin-top: 6px;
+  padding: 0;
+  background: none;
+  border: none;
+  font-size: 11px;
+  color: #0d9488;
+  text-decoration: none;
+  cursor: pointer;
+  &:hover { text-decoration: underline; }
+`;
+
+const HeaderRight = styled.div`
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+`;
+
+const DraftBadge = styled.span`
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  font-size: 10px;
+  font-weight: 700;
+  color: #0f766e;
+  background: #ccfbf1;
+  border-radius: 4px;
+  letter-spacing: 0.03em;
+`;
+
+const DraftResetBtn = styled.button`
+  padding: 5px 10px;
+  background: #ffffff;
+  color: #64748b;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 120ms;
+  &:hover {
+    background: #f8fafc;
+    color: #dc2626;
+    border-color: #fecaca;
   }
 `;
 

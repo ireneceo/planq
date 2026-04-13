@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import styled from 'styled-components';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -230,6 +231,7 @@ const BottomLinks = styled.div`
 `;
 
 const LoginPage: React.FC = () => {
+  const { t } = useTranslation('auth');
   const navigate = useNavigate();
   const location = useLocation();
   const { login, user, isAuthenticated, isLoading: authLoading } = useAuth();
@@ -259,10 +261,10 @@ const LoginPage: React.FC = () => {
     try {
       const success = await login(email, password);
       if (!success) {
-        setError('Invalid email or password');
+        setError(t('login.errorInvalid'));
       }
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Login failed. Please try again.';
+      const message = err instanceof Error ? err.message : t('login.errorGeneric');
       setError(message);
     } finally {
       setIsLoading(false);
@@ -275,16 +277,16 @@ const LoginPage: React.FC = () => {
         <LeftSection>
           <BrandLogo>Plan<span>Q</span></BrandLogo>
           <BrandTagline>
-            요청은 Queue로, 실행은 Cue로.
+            {t('brand.tagline')}
           </BrandTagline>
           <BrandDescription>
-            업무 전용 고객 채팅과 실행 구조를 하나로 통합하는 B2B SaaS OS
+            {t('brand.description')}
           </BrandDescription>
         </LeftSection>
 
         <RightSection>
-          <FormTitle>로그인</FormTitle>
-          <FormSubtitle>계정 정보를 입력하세요</FormSubtitle>
+          <FormTitle>{t('login.title')}</FormTitle>
+          <FormSubtitle>{t('login.subtitle')}</FormSubtitle>
 
           <Form onSubmit={handleSubmit}>
             <InputGroup>
@@ -292,7 +294,7 @@ const LoginPage: React.FC = () => {
                 type="text"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="이메일 또는 아이디"
+                placeholder={t('login.emailPlaceholder')}
                 required
                 autoComplete="username"
               />
@@ -304,7 +306,7 @@ const LoginPage: React.FC = () => {
                   type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="비밀번호"
+                  placeholder={t('login.passwordPlaceholder')}
                   required
                   autoComplete="current-password"
                 />
@@ -327,14 +329,14 @@ const LoginPage: React.FC = () => {
             {error && <ErrorMessage>{error}</ErrorMessage>}
 
             <Button type="submit" disabled={isLoading}>
-              {isLoading ? '로그인 중...' : '로그인'}
+              {isLoading ? t('login.submitting') : t('login.submit')}
             </Button>
           </Form>
 
           <Divider />
 
           <BottomLinks>
-            <span>아직 계정이 없으신가요? <Link to="/register">회원가입</Link></span>
+            <span>{t('login.noAccount')} <Link to="/register">{t('login.signUp')}</Link></span>
           </BottomLinks>
         </RightSection>
       </LoginBox>

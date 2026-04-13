@@ -94,6 +94,7 @@ async def generate_qa_for_document(doc_id: int, session_id: int) -> int:
 
   # 4. DB 저장
   count = 0
+  new_ids: list[int] = []
   async with db_connect() as db:
     for idx, pair in enumerate(qa_pairs):
       q = (pair.get('question') or '').strip()
@@ -101,7 +102,7 @@ async def generate_qa_for_document(doc_id: int, session_id: int) -> int:
       if not q:
         continue
 
-      await db.execute('''
+      cursor = await db.execute('''
         INSERT INTO qa_pairs (session_id, source, category, question_text, answer_text, answer_translation, confidence, sort_order)
         VALUES (?, 'generated', ?, ?, ?, ?, ?, ?)
       ''', (
@@ -113,9 +114,19 @@ async def generate_qa_for_document(doc_id: int, session_id: int) -> int:
         pair.get('confidence', 'medium'),
         idx,
       ))
+      new_ids.append((cursor.lastrowid, q))
       count += 1
 
     await db.commit()
+
+  # 임베딩 백그라운드 계산
+  try:
+    from services.answer_service import ensure_qa_embedding
+    import asyncio as _asyncio
+    for _id, _q in new_ids:
+      _asyncio.create_task(ensure_qa_embedding(_id, _q))
+  except Exception as e:
+    logger.warning(f'qa_gen embedding schedule failed: {e}')
 
   logger.info(f'qa_gen: doc {doc_id} session {session_id} → {count} Q&A pairs generated')
   return count

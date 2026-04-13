@@ -140,15 +140,29 @@ async def ingest_document(doc_id: int) -> None:
       await _update_status(db, doc_id, 'indexed', chunk_count=len(chunks), title=final_title, error_message=None)
       logger.info('ingest_document: doc %s indexed (%s chunks)', doc_id, len(chunks))
 
-      # 인제스트 완료 → 사전 Q&A 자동 생성 (백그라운드)
+      # 인제스트 완료 → 후처리 (백그라운드)
       if row['session_id']:
+        sid = row['session_id']
+        import asyncio as _asyncio
+        # 1) 사전 Q&A 자동 생성
         try:
-          import asyncio
           from services.qa_generator import generate_qa_for_document, log_task_exception as qa_log
-          task = asyncio.create_task(generate_qa_for_document(doc_id, row['session_id']))
+          task = _asyncio.create_task(generate_qa_for_document(doc_id, sid))
           task.add_done_callback(qa_log)
         except Exception as e:
           logger.warning('ingest_document: qa generation trigger failed: %s', e)
+        # 2) 어휘사전 재추출 — 문서 내용 기반으로 session.keywords 갱신 (사용자 수동 추가 보존)
+        try:
+          from services.answer_service import refresh_session_vocabulary
+          async def _refresh_vocab(_sid: int):
+            try:
+              n = await refresh_session_vocabulary(_sid, merge=True)
+              logger.info('ingest_document: vocab refreshed session=%s total=%s', _sid, n)
+            except Exception as _e:
+              logger.warning('vocab refresh failed session=%s err=%s', _sid, _e)
+          _asyncio.create_task(_refresh_vocab(sid))
+        except Exception as e:
+          logger.warning('ingest_document: vocab refresh trigger failed: %s', e)
 
     except ExtractError as e:
       await _update_status(db, doc_id, 'failed', error_message=str(e))

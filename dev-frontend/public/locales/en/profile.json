@@ -1,0 +1,92 @@
+{
+  "header": {
+    "title": "My Profile",
+    "subtitle": "Manage voice fingerprints and default settings"
+  },
+  "basic": {
+    "sectionTitle": "Basic Info",
+    "name": "Name",
+    "email": "Email",
+    "defaultLanguage": "Default Language",
+    "languagePlaceholder": "Select language",
+    "languageHint": "Used as the default for meeting translation"
+  },
+  "qnoteProfile": {
+    "sectionTitle": "My Profile (for Q note answer generation)",
+    "description": "Information Q note uses to <1>answer as \"me\"</1> during meetings. Filling in job title/company/expertise/bio helps the AI speak on your behalf with more accurate and natural answers.<2></2>If empty, answers fall back to generic AI responses.",
+    "organization": "Company / Organization",
+    "organizationPlaceholder": "e.g. LG Electronics, Warplo Lab",
+    "jobTitle": "Job Title",
+    "jobTitlePlaceholder": "e.g. Product Manager, Founder, Developer",
+    "expertise": "Expertise",
+    "expertisePlaceholder": "e.g. IoT, UX design, market analysis",
+    "expertiseHint": "Comma-separated, multiple values allowed",
+    "bio": "Bio",
+    "bioPlaceholder": "e.g. 8 years in LG Electronics product planning, smart-home strategy lead. Recently focused on AI-driven personalization.",
+    "bioHint": "The AI uses this to reflect your background and voice in answers ({{length}}/{{max}})"
+  },
+  "voice": {
+    "sectionTitle": "Register My Voice",
+    "description": "To <1>automatically recognize your own speech</1> during meetings, register your voice. If your meetings use multiple languages, <2>register once per language</2>. A voice registered in English will not reliably recognize Korean speech.",
+    "loading": "Loading...",
+    "empty": "No voice registered yet. Choose a language below and start recording.",
+    "legacyLabel": "Language unspecified (legacy)",
+    "sampleSeconds": "{{sec}}s",
+    "reregister": "Re-register",
+    "addLangPrompt": "Pick a language to <1>start recording immediately</1>",
+    "addLangPlaceholder": "＋ Select language to register",
+    "verifyBtn": "Verify Match",
+    "verifyHint": "Records 5 seconds of your current voice and checks whether it matches the stored fingerprint",
+    "deleteAllBtn": "Delete All"
+  },
+  "verify": {
+    "matched": "Recognized as you",
+    "notMatched": "Not recognized as you",
+    "similarityLine": "Top similarity {{similarity}} / threshold {{threshold}}"
+  },
+  "recorder": {
+    "sampleLabel": "{{label}} · Please read the sentence below naturally (minimum {{minSec}}s)",
+    "elapsedHint": "/ min {{minSec}}s · recommended {{softTarget}}s · max {{hardMax}}s",
+    "remainNeedMore": "Record {{seconds}}s more",
+    "remainEnough": "Enough — you can finish now",
+    "remainAllowed": "You can press finish",
+    "finishRegister": "Finish Recording",
+    "finishVerify": "Finish Verify",
+    "finishSuffix": "({{seconds}}s more)",
+    "cancel": "Cancel",
+    "hintLine": "Finish the sentence and press \"Finish Recording\" yourself. Automatically stops at {{hardMax}}s.",
+    "processing": "Computing embedding..."
+  },
+  "privacy": {
+    "sectionTitle": "Privacy",
+    "item1": "<1>Registered data</1>: Raw audio is not stored. Only the 256-dim vector (mathematical features) extracted by the Resemblyzer model is saved to the DB, and the original voice <2>cannot be reconstructed</2> from it. This is why there is no playback feature.",
+    "item2": "<1>Usage</1>: Automatically detect your speech during meetings and merge your utterances after meetings end. Never sent to external services.",
+    "item3": "<1>Meeting audio</1>: Temporarily buffered in memory during meetings and discarded immediately when the meeting ends.",
+    "item4": "<1>Right to delete</1>: You can revoke your registration at any time via the \"Delete\" or \"Delete All\" buttons above."
+  },
+  "confirm": {
+    "deleteLangTitle": "Delete Voice Registration",
+    "deleteLangMessage": "Delete the {{label}} voice registration? This language will no longer be used for self-detection in future meetings.",
+    "deleteAllTitle": "Delete All Voice Registrations",
+    "deleteAllMessage": "Delete the voice fingerprints of all registered languages? This action cannot be undone.",
+    "deleteText": "Delete",
+    "cancelText": "Cancel"
+  },
+  "messages": {
+    "errorLoadStatus": "Failed to load status",
+    "errorMicPermission": "Microphone permission required",
+    "errorSave": "Save failed",
+    "errorProcess": "Processing failed",
+    "errorDelete": "Delete failed",
+    "errorLanguageSave": "Failed to save language",
+    "errorTooShortVerify": "Verification failed: recording must be at least {{minSec}}s (current {{elapsed}}s). Please try again.",
+    "errorTooShortRegister": "Registration failed: recording must be at least {{minSec}}s (current {{elapsed}}s). Please read the full sentence and press \"Finish Recording\".",
+    "errorPrefixVerify": "Verification failed",
+    "errorPrefixRegister": "Registration failed",
+    "successRegister": "{{label}} voice registered",
+    "successDeleteLanguage": "{{label}} registration deleted",
+    "successDeleteAll": "All voice registrations deleted",
+    "successLanguageChanged": "Default language updated",
+    "closeBtn": "Close"
+  }
+}

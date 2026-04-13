@@ -1,0 +1,152 @@
+{
+  "page": {
+    "sidebarTitle": "Q note",
+    "newMeeting": "New Meeting",
+    "newMeetingStart": "Start New Meeting",
+    "sessionSearchPlaceholder": "Search sessions",
+    "emptySessionList": "No sessions yet.",
+    "sessionUtteranceCount": "{{count}} utterances",
+    "sessionStatus": {
+      "recording": "Recording",
+      "paused": "Paused",
+      "completed": "Ended",
+      "prepared": "Ready",
+      "pending": "Pending"
+    },
+    "sidebarOpen": "Open sidebar",
+    "sidebarCollapse": "Collapse sidebar",
+    "empty": {
+      "title": "Start a meeting",
+      "line1": "Real-time speech recognition, translation, and question detection",
+      "line2": "automatically build your meeting notes."
+    },
+    "header": {
+      "editTitleHint": "Click to edit"
+    },
+    "phase": {
+      "prepared": "Ready",
+      "recording": "Recording",
+      "paused": "Paused",
+      "review": "Review"
+    },
+    "controls": {
+      "startRecording": "Start Recording",
+      "recordingNow": "Recording",
+      "pause": "Pause",
+      "endMeeting": "End Meeting",
+      "resume": "Resume Recording"
+    },
+    "participantBar": {
+      "label": "Participants ({{count}})",
+      "self": "Me"
+    },
+    "prepared": {
+      "ready": "The meeting is ready.",
+      "hint": "Press \"Start Recording\" to begin real-time speech recognition."
+    },
+    "interim": {
+      "listening": "Listening..."
+    },
+    "reviewBar": {
+      "summary": "Generate Summary",
+      "questions": "View Questions"
+    },
+    "reviewEmpty": "No utterances recorded.",
+    "speaker": {
+      "self": "Me",
+      "other": "Other",
+      "numbered": "Speaker {{n}}"
+    },
+    "question": {
+      "editedMark": "(edited)",
+      "mergedBadge": "+{{count}} merged",
+      "mergeNextTitle": "Merge next utterance",
+      "unmergeTitle": "Split merged utterances",
+      "unmergeLabel": "Split",
+      "showAnswer": "Show Answer",
+      "hideAnswer": "Hide Answer",
+      "findAnswer": "Generate Answer",
+      "translating": "Translating...",
+      "searching": "Searching answer...",
+      "notFound": "No answer found in registered materials.",
+      "findError": "Failed to find answer",
+      "tier": {
+        "priority": "Top Priority",
+        "custom": "Custom Answer",
+        "sessionReuse": "Reused from meeting",
+        "generated": "AI Pre-generated",
+        "rag": "Material-based",
+        "none": "Not found",
+        "general": "AI Answer"
+      }
+    },
+    "popover": {
+      "title": "This person is",
+      "self": "Me",
+      "registered": "Registered participants",
+      "hintRegister": "Register participants when starting a meeting to select them here",
+      "custom": "Enter manually",
+      "namePlaceholder": "Name",
+      "save": "Save"
+    },
+    "errors": {
+      "noActiveSession": "No active session",
+      "reshareTab": "Please re-share the tab audio. Make sure \"Share tab audio\" is checked in the share dialog.",
+      "permissionDenied": "Microphone or tab-share permission denied. Please allow it from the lock icon in the browser address bar.",
+      "shareCancelled": "Tab audio sharing was cancelled. When retrying, make sure \"Share tab audio\" is checked.",
+      "serverConnection": "Failed to connect to the Q note server. Please refresh and try again.",
+      "startPrefix": "Failed to start recording: {{hint}}",
+      "noBusiness": "No business information.",
+      "sessionCreate": "Failed to create session"
+    }
+  },
+  "startModal": {
+    "header": "Start New Meeting",
+    "closeLabel": "Close",
+    "titleLabel": "Meeting Title",
+    "titlePlaceholder": "e.g. Monday Team Standup",
+    "defaultTitle": "Untitled Meeting",
+    "briefLabel": "Meeting Brief (optional)",
+    "briefHint": "Adding meeting purpose, caveats, and topics greatly improves translation, summary, and answer quality.",
+    "briefPlaceholder": "Example:\n- Purpose: Investor pitch for a new SaaS product\n- Materials: Pitch deck v3 attached\n- Caveat: Revenue figures are under NDA",
+    "participantsLabel": "Participants (optional)",
+    "participantsHint": "Enter individuals or groups. Used for speaker matching after the meeting.",
+    "participantNamePlaceholder": "Name (e.g. Sarah, our PM)",
+    "participantRolePlaceholder": "Role/note (optional, e.g. Acme CEO)",
+    "removeLabel": "Remove",
+    "meetingLanguageLabel": "Meeting Language",
+    "meetingLanguagePlaceholder": "Language spoken in the meeting",
+    "advancedShow": "Advanced settings",
+    "advancedHide": "Hide advanced settings",
+    "translationLanguageLabel": "Translation Language",
+    "translationLanguagePlaceholder": "Translation display language",
+    "translationHint": "Sub-translation below each utterance. Default = your language ({{lang}}).",
+    "answerLanguageLabel": "Answer Language",
+    "answerLanguagePlaceholder": "Language for Find Answer results",
+    "materialsLabel": "Reference Materials (optional)",
+    "materialsHintLine1": "\"Find Answer\" searches these materials first. If nothing is found, it falls back to general AI knowledge.",
+    "materialsHintLine2": "<1>Prefer text or links.</1> Use files for small slides/docs.",
+    "materialsHintLine3": "Max 10 MB per file · up to 5 files · PDF · DOCX · TXT · MD · text-based PDFs only (no scans)",
+    "dropzoneText": "Drag & drop files or click to select",
+    "dropzoneSub": "PDF · DOCX · TXT · MD",
+    "dividerText": "or paste text",
+    "pastedPlaceholder": "Paste text copied from email, Notion, or a web page.\nCan be used together with files.",
+    "dividerUrl": "or link (URL)",
+    "urlPlaceholder": "https://... (blog, public Notion page, PDF link, etc.)",
+    "urlHint": "Only public pages can be auto-extracted. For private/login pages, paste the text directly.",
+    "urlStatusPending": "Pending",
+    "captureLabel": "Capture Mode",
+    "unavailable": " (not supported)",
+    "cancel": "Cancel",
+    "start": "Start Meeting",
+    "fileError": {
+      "unsupported": "\"{{name}}\" — unsupported format. Only PDF·DOCX·TXT·MD.",
+      "empty": "\"{{name}}\" — empty file.",
+      "tooLarge": "\"{{name}}\" — file too large (max 10 MB).",
+      "tooMany": "You can upload at most {{max}} files.",
+      "duplicate": "\"{{name}}\" — already added.",
+      "urlInvalid": "URL must start with http:// or https://.",
+      "urlDuplicate": "URL already added."
+    }
+  }
+}
