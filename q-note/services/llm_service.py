@@ -564,22 +564,28 @@ _FAST_Q_MAP = {
 }
 
 
-QA_MATCH_SYSTEM = """You decide whether a user question matches any of the pre-registered questions.
+QA_MATCH_SYSTEM = """You are a strict question-matching verifier. Your job is to PREVENT wrong answers by rejecting uncertain matches.
 
 Given:
-- A user question (the thing the user/speaker just asked)
-- A numbered list of candidate registered questions
+- A user question (what the speaker just asked)
+- A numbered list of candidate pre-registered questions
 
-Pick the candidate number whose registered question is asking about the **same topic** as the user question, even if worded differently.
+Pick the candidate whose registered question is asking for the EXACT same information as the user question.
 
-Rules:
-- Match = same information need (paraphrases, synonyms, different wordings are fine)
-- Not a match = different topic/aspect, even if some words overlap
-- If multiple candidates match, pick the CLOSEST one
-- If none match clearly, return 0
+STRICT RULES (prefer 0 over a wrong guess):
+- MATCH only if both questions ask for the same specific answer. Paraphrases and synonyms are OK, but the information need must be identical.
+- NOT A MATCH cases (return 0):
+  * The candidate is about a related but different aspect ("Why did you choose X?" vs "How does X work?" → 0)
+  * The candidate has a broader or narrower scope
+  * The candidate mentions X in passing but is really asking about Y
+  * Word overlap exists but the questions are about different things
+  * Candidate question is truncated or malformed (ends mid-word, missing subject, etc.)
+  * You are not 100% sure
+- If TWO candidates both match, pick the one whose wording is closer to the user question.
+- If NONE match with certainty, return 0. Returning 0 is the safe default — wrong matches damage user trust far more than missing a match.
 
-Respond ONLY with JSON: {"match": N}
-Where N = 1..K for a match, or 0 for no match.
+Respond ONLY with JSON: {"match": N, "reason": "<one sentence>"}
+Where N = 1..K for a confident match, or 0 for no match.
 """
 
 
@@ -604,12 +610,15 @@ async def llm_match_question(
         {'role': 'user', 'content': user_msg},
       ],
       response_format={'type': 'json_object'},
-      max_completion_tokens=30,
+      max_completion_tokens=120,
+      temperature=0,
     )
     data = json.loads(resp.choices[0].message.content or '{}')
     n = int(data.get('match', 0))
     if 1 <= n <= len(candidates):
+      logger.info(f'llm_match_question: matched={n} reason={data.get("reason", "")[:80]}')
       return n
+    logger.info(f'llm_match_question: no-match reason={data.get("reason", "")[:80]}')
     return 0
   except Exception as e:
     logger.warning(f'llm_match_question failed: {e}')
@@ -848,8 +857,9 @@ Rules:
 2. Use the document excerpts below to ground your answer when relevant.
 3. Match the person's tone authentically.
 4. For conversational questions, answer as the person would based on their bio.
-5. Only say "자료에서 답을 찾지 못했습니다" if the question clearly requires specific document content AND the context has nothing relevant.
-6. Respect the Length rule strictly. Short means SHORT. Do not pad.
+5. If the question asks about SPECIFIC DATA of THIS study (sample size, participant count, data collection date, results numbers, effect sizes) AND the excerpts do NOT clearly contain that data from the study's own methodology/results section, answer NATURALLY as the researcher still working it out. Use casual first-person phrases that deflect gracefully — e.g. "I haven't finalized that yet", "I'm still working out the exact number", "That's something I'm still determining", "아직 그 부분은 확정하지 못했어요", "그 수치는 아직 정리 중이에요". Adapt to the answer language. NEVER sound robotic with phrases like "not specified in the available materials" or "자료에서 답을 찾지 못했습니다" — you are a human researcher, not a database.
+6. Numbers appearing in excerpts may be from CITED prior studies (Ragu-Nathan et al. 2008, Stajkovic & Luthans 1998, etc.), not from THIS study. Only attribute a number to THIS study if the excerpt clearly states it (e.g., "our sample", "we collected", "this study included", "participants in this research"). DO NOT fabricate by picking a cited reference number.
+7. Respect the Length rule strictly. Short means SHORT. Do not pad.
 
 Confidence:
 - "high" — grounded in context or profile
@@ -1077,6 +1087,195 @@ Respond ONLY with strict JSON:
   ]
 }}
 """
+
+
+async def augment_answer_with_rag(
+  question: str,
+  registered_answer: str,
+  doc_chunks: list[str],
+  meeting_context: Optional[dict] = None,
+  answer_language: Optional[str] = None,
+  meeting_length: Optional[str] = None,
+) -> dict:
+  """Priority/custom tier 의 등록된 답변을 문서 RAG 로 보강.
+
+  정책:
+  - 등록된 답변이 사용자 질문을 충분히 커버하면 원문 그대로 유지.
+  - 사용자가 구체 정보 (숫자/날짜/이름/횟수 등) 를 묻는데 등록된 답변이 일반적이면,
+    문서 청크에서 해당 구체 정보만 찾아 등록된 답변에 자연스럽게 추가.
+  - 등록된 답변과 모순되는 내용은 절대 추가하지 않음.
+  - 문서에도 정보가 없으면 등록된 답변을 그대로 반환.
+
+  Returns: {"answer": str, "augmented": bool, "reason": str}
+  """
+  if not doc_chunks:
+    return {'answer': registered_answer, 'augmented': False, 'reason': 'no chunks'}
+
+  ans_lang = answer_language or 'the same language as the question'
+  ans_lang_name = _lang_name(ans_lang) if ans_lang != 'the same language as the question' else ans_lang
+
+  # 길이 예산 — meeting_length 에 따라 cap. 이 cap 안에서 augment 해야 함.
+  # short: 2문장, medium: 3문장, long: 4문장
+  length_budget = {
+    'short': '2 sentences maximum, under 27 words total. Be very concise.',
+    'medium': '3 sentences maximum, under 55 words total.',
+    'long': '4 sentences maximum, under 85 words total.',
+  }.get(meeting_length or 'medium', '3 sentences maximum, under 55 words total.')
+
+  # 토큰 예산: 청크 10000자 cap
+  chunks_text = '\n\n---\n\n'.join(doc_chunks)
+  if len(chunks_text) > 10000:
+    chunks_text = chunks_text[:10000] + '\n\n[... truncated]'
+
+  system = (
+    f'You are reviewing whether a pre-registered answer fully addresses a user question. '
+    f'Respond in {ans_lang_name}.\n\n'
+    'You have THREE inputs:\n'
+    '1. User question (what the speaker just asked)\n'
+    '2. Pre-registered answer (the canonical answer already chosen from the user\'s Q&A file)\n'
+    '3. Supplementary document chunks (the user\'s uploaded research/reference materials)\n\n'
+    'STEP 1 — Determine what SPECIFIC DETAIL the user is asking for:\n'
+    '- "how many / how much / what is the number / count / size": requires a NUMBER (digit)\n'
+    '- "when / what date / what year": requires a DATE or YEAR\n'
+    '- "who / by whom": requires a NAME (person or organization)\n'
+    '- "where / what location": requires a LOCATION\n'
+    '- "what percentage / ratio": requires a PERCENTAGE\n'
+    '- "what is X / define X / explain X": definitional — qualitative answer is OK\n\n'
+    'STEP 2 — Check if the required specific type is PRESENT in the pre-registered answer.\n'
+    'Example: if user asked "how many" and the answer says "sufficient" with no digit, the NUMBER is MISSING.\n'
+    'Qualitative adjectives ("sufficient", "adequate", "enough", "many", "few") do NOT count as a number.\n\n'
+    'STEP 3 — Apply one of these rules and return JSON:\n'
+    '(A) Pre-registered answer FULLY covers the question (no specific detail required, OR specific detail is present) → '
+    '{"answer": "<verbatim>", "augmented": false, "reason": "complete"}\n'
+    '(B) Specific detail MISSING from pre-registered answer, BUT PRESENT in document chunks → '
+    'augment by adding that concrete detail in a short natural sentence (keep original voice). '
+    '{"answer": "<enriched>", "augmented": true, "reason": "added <specific>"}\n'
+    '(C) Specific detail MISSING from pre-registered answer AND NOT found in document chunks → '
+    'rewrite the answer as a natural first-person acknowledgment that THIS detail is still being worked out, '
+    'while preserving the core message of the pre-registered answer. '
+    'Use casual phrases like "I haven\'t finalized that yet", "still working on the exact number", '
+    '"그 수치는 아직 정리 중이에요", "아직 확정하지는 않았어요" — match the answer language. '
+    'Sound like a human researcher mid-project, NOT like a database saying "not specified". '
+    '{"answer": "<natural rewrite>", "augmented": true, "reason": "data not yet finalized"}\n\n'
+    'HARD CONSTRAINTS:\n'
+    '- NEVER contradict the pre-registered answer.\n'
+    '- NEVER invent information not present in the chunks.\n'
+    '- Keep language, tone, and first-person voice of the original.\n'
+    f'- LENGTH BUDGET: {length_budget} The ENTIRE final answer (including any augmentation or note) must fit within this budget. '
+    'If needed, REPLACE a less critical part of the original with the specific detail or missing-data note so the total stays within budget. '
+    'Preserve the factual core of the original.\n\n'
+    'OUTPUT: strict JSON only. No markdown.'
+  )
+
+  user_msg = (
+    f'User question:\n{question}\n\n'
+    f'Pre-registered answer:\n{registered_answer}\n\n'
+    f'Document chunks (supplementary):\n{chunks_text}'
+  )
+
+  client = get_client()
+  try:
+    resp = await client.chat.completions.create(
+      model=LLM_MODEL_ANSWER,
+      messages=[
+        {'role': 'system', 'content': _build_context_prefix(meeting_context) + system},
+        {'role': 'user', 'content': user_msg},
+      ],
+      response_format={'type': 'json_object'},
+      max_completion_tokens=500,
+      temperature=0,
+    )
+    raw = resp.choices[0].message.content or '{}'
+    data = json.loads(raw)
+    answer = (data.get('answer') or registered_answer).strip()
+    augmented = bool(data.get('augmented', False))
+    reason = (data.get('reason') or '').strip()[:120]
+    # 디버깅: LLM 이 augmented=true 라고 했는데 answer 가 원문과 동일하면 flag 로그
+    if augmented and answer.strip() == registered_answer.strip():
+      logger.warning(f'augment: LLM claimed augmented but answer unchanged. reason={reason!r} raw={raw[:200]!r}')
+    return {'answer': answer, 'augmented': augmented, 'reason': reason}
+  except Exception as e:
+    logger.warning(f'augment_answer_with_rag failed: {e}')
+    return {'answer': registered_answer, 'augmented': False, 'reason': f'error: {type(e).__name__}'}
+
+
+async def extract_qa_pairs_from_text(
+  text: str,
+  source_hint: Optional[str] = None,
+) -> list[dict]:
+  """
+  자유 형식 텍스트(PDF/DOCX/TXT/MD)에서 Q&A 쌍을 복사 추출.
+
+  *추출 전용* — 원문에 있는 Q&A 를 verbatim 으로 뽑기만 한다. 없는 것을 만들지 않는다.
+  Returns: [{"question": str, "answer": str, "short_answer": str|None, "keywords": str|None, "category": str|None}]
+  """
+  if not text or not text.strip():
+    return []
+
+  # 토큰 예산: ~15000자 (약 5000 토큰). 초과 시 잘라냄.
+  src = text.strip()
+  if len(src) > 15000:
+    src = src[:15000] + '\n\n[... truncated]'
+
+  system = (
+    "You are a Q&A EXTRACTOR. Copy Q&A pairs verbatim from the source text.\n"
+    "\n"
+    "HARD RULES:\n"
+    "- Extract ONLY question+answer pairs that explicitly exist in the source.\n"
+    "- Copy text verbatim. Do not paraphrase, rewrite, or summarize.\n"
+    "- Do not invent Q&A from general knowledge. If source has no Q&A, return empty list.\n"
+    "- Detect patterns: 'Q: ... A: ...', 'Question: ... Answer: ...', '질문: ... 답변: ...', "
+    "numbered Q1./A1., FAQ style, dialog blocks, or tables with Q/A columns.\n"
+    "- Preserve the original language of each Q&A (do not translate).\n"
+    "- If an answer has multiple paragraphs, keep them all together as one answer.\n"
+    "- If the same question appears multiple times, include it only once (keep the most detailed answer).\n"
+    "\n"
+    "OPTIONAL FIELDS (leave null if not clearly in source):\n"
+    "- short_answer: one-sentence compressed version (only if source provides a clearly separate short form).\n"
+    "- keywords: comma-separated key terms from the Q&A text.\n"
+    "- category: section/topic heading the Q&A appeared under.\n"
+    "\n"
+    "OUTPUT: JSON {\"qa_pairs\": [{\"question\": str, \"answer\": str, "
+    "\"short_answer\": str|null, \"keywords\": str|null, \"category\": str|null}]}\n"
+    "If no Q&A found, return {\"qa_pairs\": []}."
+  )
+
+  user_msg = f'Source text{f" (from {source_hint})" if source_hint else ""}:\n\n{src}'
+
+  client = get_client()
+  try:
+    response = await client.chat.completions.create(
+      model=LLM_MODEL_ANSWER,
+      messages=[
+        {'role': 'system', 'content': system},
+        {'role': 'user', 'content': user_msg},
+      ],
+      response_format={'type': 'json_object'},
+      max_completion_tokens=4000,
+      temperature=0,
+    )
+    data = json.loads(response.choices[0].message.content)
+    pairs = data.get('qa_pairs', [])
+    out: list[dict] = []
+    for p in pairs:
+      if not isinstance(p, dict):
+        continue
+      q = (p.get('question') or '').strip()
+      a = (p.get('answer') or '').strip()
+      if not q or not a:
+        continue
+      out.append({
+        'question': q[:2000],
+        'answer': a[:5000],
+        'short_answer': ((p.get('short_answer') or '').strip() or None) if isinstance(p.get('short_answer'), str) else None,
+        'keywords': ((p.get('keywords') or '').strip() or None) if isinstance(p.get('keywords'), str) else None,
+        'category': ((p.get('category') or '').strip() or None) if isinstance(p.get('category'), str) else None,
+      })
+    logger.info(f'extract_qa_pairs_from_text: {len(out)} pairs extracted (source={source_hint})')
+    return out
+  except Exception as e:
+    logger.error(f'extract_qa_pairs_from_text failed: {e}')
+    return []
 
 
 async def generate_qa_from_chunks(

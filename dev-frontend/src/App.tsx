@@ -6,6 +6,8 @@ import LoginPage from './pages/Login/LoginPage';
 import RegisterPage from './pages/Register/RegisterPage';
 import QNotePage from './pages/QNote/QNotePage';
 import ProfilePage from './pages/Profile/ProfilePage';
+import WorkspaceSettingsPage from './pages/Settings/WorkspaceSettingsPage';
+import QTalkPage from './pages/QTalk/QTalkPage';
 import './App.css';
 
 // Placeholder pages - will be replaced per phase
@@ -39,7 +41,12 @@ function App() {
 
         <Route path="/talk" element={
           <ProtectedRoute>
-            <MainLayout><PlaceholderPage title="Q talk" /></MainLayout>
+            <MainLayout><QTalkPage /></MainLayout>
+          </ProtectedRoute>
+        } />
+        <Route path="/talk/:conversationId" element={
+          <ProtectedRoute>
+            <MainLayout><QTalkPage /></MainLayout>
           </ProtectedRoute>
         } />
 
@@ -81,6 +88,17 @@ function App() {
         <Route path="/profile" element={
           <ProtectedRoute>
             <MainLayout><ProfilePage /></MainLayout>
+          </ProtectedRoute>
+        } />
+
+        <Route path="/settings" element={
+          <ProtectedRoute>
+            <MainLayout><WorkspaceSettingsPage /></MainLayout>
+          </ProtectedRoute>
+        } />
+        <Route path="/settings/:tab" element={
+          <ProtectedRoute>
+            <MainLayout><WorkspaceSettingsPage /></MainLayout>
           </ProtectedRoute>
         } />
 

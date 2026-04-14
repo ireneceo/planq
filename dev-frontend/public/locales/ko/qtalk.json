@@ -1,0 +1,67 @@
+{
+  "page": {
+    "title": "Q talk",
+    "subtitle": "고객과 실시간 대화 + Cue(AI 팀원) 공동 응대",
+    "empty": {
+      "title": "아직 대화가 없어요",
+      "desc": "고객을 초대하면 여기에 대화가 쌓입니다.",
+      "invite": "고객 초대"
+    },
+    "listHeader": {
+      "search": "고객 이름 검색",
+      "all": "전체",
+      "mine": "내 담당",
+      "unread": "읽지 않음"
+    },
+    "state": {
+      "cueActive": "Cue 활동 중",
+      "cuePaused": "Cue 대기",
+      "humanResponding": "사람 응답 중"
+    },
+    "sidebar": {
+      "profile": "고객 정보",
+      "summary": "자동 요약",
+      "summaryEmpty": "대화가 쌓이면 Cue 가 요약합니다",
+      "inProgress": "진행 중 업무",
+      "cueSuggestions": "Cue 답변 후보",
+      "cueSuggestionsEmpty": "추천 답변이 준비되면 여기에 표시됩니다",
+      "internalNote": "내부 메모",
+      "internalNotePlaceholder": "멤버만 볼 수 있는 메모..."
+    },
+    "composer": {
+      "placeholder": "메시지를 입력하세요...",
+      "internal": "내부 메모",
+      "send": "보내기",
+      "pauseCue": "이 대화에서 Cue 멈추기",
+      "resumeCue": "Cue 재개"
+    },
+    "message": {
+      "cueBadge": "Cue",
+      "draftBadge": "초안 (승인 대기)",
+      "internalBadge": "내부 메모",
+      "approve": "승인 후 발송",
+      "reject": "거절",
+      "sources": "출처",
+      "editedMark": "(수정됨)",
+      "deletedMark": "삭제된 메시지",
+      "makeTask": "할일 만들기",
+      "makeInvoice": "청구서 만들기",
+      "makeEvent": "일정 잡기",
+      "copyMessage": "메시지 복사"
+    },
+    "comingSoon": {
+      "title": "Q talk 개발 진행 중",
+      "desc": "이 화면은 기획 승인용 목업입니다. 곧 실제 대화가 여기에 뜹니다.",
+      "done": [
+        "워크스페이스 정보 (브랜드/법인) + Cue AI 팀원 기반",
+        "Q Talk 백엔드 — KB 검색 · Cue 오케스트레이터 · 메시지 API",
+        "3단 레이아웃 스켈레톤"
+      ],
+      "next": [
+        "대화 리스트 · 메시지 실시간 수신",
+        "Draft 승인/거절 UI",
+        "고객 뷰 (간소화된 화면)"
+      ]
+    }
+  }
+}

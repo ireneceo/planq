@@ -38,6 +38,8 @@ class DeepgramSession:
     self.multichannel = multichannel  # True → 2ch stereo (web_conference)
     self._ws = None
     self._receive_task = None
+    self._keepalive_task = None
+    self._bytes_sent = 0
     self._closed = False
 
   async def connect(self):
@@ -79,12 +81,32 @@ class DeepgramSession:
 
     self._ws = await ws_connect(url, extra_headers=extra_headers)
     self._receive_task = asyncio.create_task(self._receive_loop())
+    self._keepalive_task = asyncio.create_task(self._keepalive_loop())
+    self._bytes_sent = 0
     logger.info(f'Deepgram WebSocket connected (model={model}, keywords={len(self.keywords)})')
+
+  async def _keepalive_loop(self):
+    """Deepgram 은 ~10s 무응답 시 WS 를 닫는다 (net0000/net0001).
+    오디오가 silent 이거나 라이브 스트림이 느린 경우 대비해 주기적으로 KeepAlive 전송.
+    """
+    try:
+      while not self._closed:
+        await asyncio.sleep(5.0)
+        if self._ws and not self._closed:
+          try:
+            await self._ws.send(json.dumps({'type': 'KeepAlive'}))
+          except ConnectionClosed:
+            return
+          except Exception:
+            return
+    except asyncio.CancelledError:
+      pass
 
   async def send_audio(self, audio_data: bytes):
     if self._ws and not self._closed:
       try:
         await self._ws.send(audio_data)
+        self._bytes_sent += len(audio_data)
       except ConnectionClosed:
         logger.warning('Deepgram connection closed while sending audio')
 
@@ -101,6 +123,12 @@ class DeepgramSession:
       self._receive_task.cancel()
       try:
         await self._receive_task
+      except asyncio.CancelledError:
+        pass
+    if self._keepalive_task:
+      self._keepalive_task.cancel()
+      try:
+        await self._keepalive_task
       except asyncio.CancelledError:
         pass
     logger.info('Deepgram session closed')

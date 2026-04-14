@@ -85,6 +85,7 @@ app.use('/api/conversations', require('./routes/conversations'));
 app.use('/api/tasks', require('./routes/tasks'));
 app.use('/api/files', require('./routes/files'));
 app.use('/api/invoices', require('./routes/invoices'));
+app.use('/api', require('./routes/kb'));
 
 // Error handler
 app.use(errorHandler);

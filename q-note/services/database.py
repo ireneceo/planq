@@ -116,6 +116,7 @@ async def _run_migrations(db):
     ('is_priority', 'INTEGER NOT NULL DEFAULT 0'),  # 1 = 최우선 Q&A (별도 업로드 분리)
     ('short_answer', 'TEXT'),           # 1문장 버전 — meeting_answer_length='short' 일 때 우선 사용
     ('keywords', 'TEXT'),               # JSON string[] — Q&A 별 핵심 키워드 (FTS5 인덱스에 합침)
+    ('source_filename', 'TEXT'),        # 업로드 원본 파일명 (수동 입력 시 NULL)
   ]
   for col, typ in qa_extra_cols:
     if not await _column_exists(db, 'qa_pairs', col):

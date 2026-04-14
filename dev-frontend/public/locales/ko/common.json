@@ -66,8 +66,14 @@
   },
   "role": {
     "platform_admin": "플랫폼 관리자",
-    "business_owner": "사업자",
+    "business_owner": "관리자",
     "business_member": "멤버",
+    "ai": "Cue (AI 팀원)",
     "client": "고객"
+  },
+  "workspace": {
+    "label": "워크스페이스",
+    "switcher": "워크스페이스 선택",
+    "member": "멤버"
   }
 }

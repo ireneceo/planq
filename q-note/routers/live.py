@@ -617,8 +617,15 @@ async def websocket_live(websocket: WebSocket, session_id: int = Query(...)):
           (session_id, transcript_text, language, start_time, end_time, avg_conf, speaker_row_id)
         )
         utterance_id = cursor.lastrowid
+        # 상태 생명주기: 첫 utterance 가 commit 되는 순간 prepared → recording 으로 전이.
+        # 이로써 프론트가 새로고침 시 status 로 phase 를 판단할 때 올바른 paused 경로로 진입.
+        # 이미 recording/paused/completed 면 그대로 둠 (명시적 completed 는 PUT 으로만 변경).
         await db.execute(
-          "UPDATE sessions SET utterance_count = utterance_count + 1, updated_at = datetime('now') WHERE id = ?",
+          """UPDATE sessions
+             SET utterance_count = utterance_count + 1,
+                 status = CASE WHEN status = 'prepared' THEN 'recording' ELSE status END,
+                 updated_at = datetime('now')
+             WHERE id = ?""",
           (session_id,)
         )
         await db.commit()
@@ -811,6 +818,9 @@ async def websocket_live(websocket: WebSocket, session_id: int = Query(...)):
   await websocket.send_json({'type': 'ready', 'language': dg_language})
 
   # Pipe audio from client to Deepgram
+  bytes_received = 0
+  chunks_received = 0
+  last_log_time = asyncio.get_event_loop().time()
   try:
     while True:
       message = await websocket.receive()
@@ -819,8 +829,19 @@ async def websocket_live(websocket: WebSocket, session_id: int = Query(...)):
         break
 
       if 'bytes' in message and message['bytes'] is not None:
-        audio_buf.append(message['bytes'])
-        await dg.send_audio(message['bytes'])
+        chunk = message['bytes']
+        bytes_received += len(chunk)
+        chunks_received += 1
+        # 5초마다 오디오 유입량 로깅 (디버깅용, 매 청크 로깅하면 시끄러움)
+        now = asyncio.get_event_loop().time()
+        if now - last_log_time >= 5.0:
+          logger.info(
+            f'session={session_id} audio: chunks={chunks_received} '
+            f'bytes={bytes_received} (~{bytes_received / 32000:.1f}s mono16k)'
+          )
+          last_log_time = now
+        audio_buf.append(chunk)
+        await dg.send_audio(chunk)
       elif 'text' in message and message['text'] is not None:
         try:
           control = json.loads(message['text'])
@@ -829,7 +850,7 @@ async def websocket_live(websocket: WebSocket, session_id: int = Query(...)):
         except json.JSONDecodeError:
           pass
   except WebSocketDisconnect:
-    logger.info(f'Client disconnected from session {session_id}')
+    logger.info(f'Client disconnected from session {session_id} (received {bytes_received} bytes)')
   except Exception as e:
     logger.error(f'WS error: {e}')
   finally:
@@ -841,8 +862,21 @@ async def websocket_live(websocket: WebSocket, session_id: int = Query(...)):
         logger.warning(f'final flush ch={ch_key} failed: {e}')
 
     await dg.close()
-    # status 는 명시적 종료(PUT /api/sessions/:id status=completed)로만 변경.
-    # WS 일시 중지/재시작을 허용하기 위해 여기서 자동 completed 처리하지 않음.
+    # WS 종료 시 상태 전이: recording → paused (pause/중단/탭닫힘 어떤 경우든 재개 가능 상태로).
+    # completed 는 명시적 PUT status='completed' 로만 전이 → 여기서 건드리지 않음.
+    # 이로써 사용자가 녹음 중 브라우저를 닫거나 네트워크가 끊겨도 다음 접속 시 올바른 상태 복원.
+    try:
+      async with db_connect() as dbx:
+        await dbx.execute(
+          """UPDATE sessions
+             SET status = CASE WHEN status = 'recording' THEN 'paused' ELSE status END,
+                 updated_at = datetime('now')
+             WHERE id = ?""",
+          (session_id,),
+        )
+        await dbx.commit()
+    except Exception as e:
+      logger.warning(f'status transition on WS close failed: {e}')
 
     # 회의 종료 시점에 수집한 화자별 최종 오디오로 임베딩 생성 후 캐싱
     # (배치 클러스터링 함수가 이 캐시를 사용)

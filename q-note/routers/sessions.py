@@ -1039,6 +1039,7 @@ class QAPairUpdate(BaseModel):
 class FindAnswerRequest(BaseModel):
   question_text: str = Field(..., min_length=1, max_length=2000)
   utterance_id: Optional[int] = None  # 제공되면 detected_questions에 저장/업데이트
+  target_language: Optional[str] = Field(None, max_length=10)  # translate-answer 전용: 목적지 언어 명시 (없으면 세션 translation_language 사용)
 
 
 def _strip_qa_blob(row: dict) -> dict:
@@ -1241,51 +1242,27 @@ async def create_priority_qa(
     return success(_strip_qa_blob(row))
 
 
-@router.post('/{session_id}/priority-qa/upload-csv')
-async def upload_priority_qa_csv(
+async def _ingest_priority_qa_pairs(
   session_id: int,
-  file: UploadFile = File(...),
-  user: dict = Depends(get_current_user)
-):
-  """CSV 일괄 업로드 (is_priority=1). 컬럼: question, answer, category."""
-  async with db_connect() as db:
-    db.row_factory = aiosqlite.Row
-    await _load_session_or_403(db, session_id, user['user_id'])
+  pairs: list[dict],
+  source_filename: Optional[str],
+) -> tuple[int, int, int]:
+  """pairs(list of {question, answer, short_answer, keywords, category}) 를 DB 에 저장 + 임베딩.
+  Returns: (created, updated, embedded)"""
+  if not pairs:
+    return 0, 0, 0
 
-  raw = await file.read()
-  if len(raw) > 2 * 1024 * 1024:
-    raise HTTPException(status_code=400, detail='파일이 너무 큽니다 (최대 2MB)')
-
-  text = None
-  for enc in ('utf-8-sig', 'utf-8', 'cp949', 'euc-kr'):
-    try:
-      text = raw.decode(enc)
-      break
-    except UnicodeDecodeError:
-      continue
-  if text is None:
-    raise HTTPException(status_code=400, detail='CSV 인코딩을 인식할 수 없습니다')
-
-  reader = csv.DictReader(io.StringIO(text))
+  created_ids: list[int] = []
   created = 0
   updated = 0
-  errors: list[str] = []
-  created_ids: list[int] = []
-
   async with db_connect() as db:
     db.row_factory = aiosqlite.Row
-    for i, row in enumerate(reader, start=2):
-      q = (row.get('question') or '').strip()
-      a = (row.get('answer') or '').strip()
-      sa = (row.get('short_answer') or '').strip() or None
-      kw = (row.get('keywords') or '').strip() or None
-      cat = (row.get('category') or '').strip() or None
-      if not q or not a:
-        errors.append(f'행 {i}: question/answer 필수')
-        continue
-      if len(q) > 2000 or len(a) > 5000 or (sa and len(sa) > 500) or (kw and len(kw) > 500):
-        errors.append(f'행 {i}: 길이 초과')
-        continue
+    for p in pairs:
+      q = p['question']
+      a = p['answer']
+      sa = p.get('short_answer')
+      kw = p.get('keywords')
+      cat = p.get('category')
       cursor = await db.execute(
         'SELECT id FROM qa_pairs WHERE session_id = ? AND question_text = ? AND is_priority = 1',
         (session_id, q),
@@ -1294,23 +1271,24 @@ async def upload_priority_qa_csv(
       if existing:
         await db.execute(
           """UPDATE qa_pairs SET answer_text = ?, short_answer = ?, keywords = ?, category = ?,
+             source_filename = COALESCE(?, source_filename),
              updated_at = datetime('now') WHERE id = ?""",
-          (a, sa, kw, cat, existing['id']),
+          (a, sa, kw, cat, source_filename, existing['id']),
         )
         created_ids.append(existing['id'])
         updated += 1
       else:
         cursor = await db.execute(
-          """INSERT INTO qa_pairs (session_id, source, question_text, answer_text, short_answer, keywords, category, is_priority)
-             VALUES (?, 'custom', ?, ?, ?, ?, ?, 1)""",
-          (session_id, q, a, sa, kw, cat),
+          """INSERT INTO qa_pairs
+             (session_id, source, question_text, answer_text, short_answer, keywords, category, is_priority, source_filename)
+             VALUES (?, 'custom', ?, ?, ?, ?, ?, 1, ?)""",
+          (session_id, q, a, sa, kw, cat, source_filename),
         )
         created_ids.append(cursor.lastrowid)
         created += 1
     await db.commit()
 
-  # 임베딩 SYNC 계산 — 업로드 리턴 시점에 모든 Q&A 가 검색 가능해야 함.
-  # 사용자가 업로드 후 즉시 질문할 수 있으므로 race 를 허용하면 안 됨.
+  # 임베딩 SYNC — 업로드 리턴 시점에 모든 Q&A 가 검색 가능해야 함.
   embedded = 0
   if created_ids:
     try:
@@ -1328,9 +1306,80 @@ async def upload_priority_qa_csv(
             embedded += 1
     except Exception as e:
       import logging
-      logging.getLogger('q-note.live').warning(f'CSV sync embed failed: {e}')
+      logging.getLogger('q-note.live').warning(f'priority sync embed failed: {e}')
 
-  return success({'created': created, 'updated': updated, 'embedded': embedded, 'errors': errors})
+  return created, updated, embedded
+
+
+@router.post('/{session_id}/priority-qa/upload')
+async def upload_priority_qa_file(
+  session_id: int,
+  file: UploadFile = File(...),
+  user: dict = Depends(get_current_user)
+):
+  """Priority Q&A 파일 업로드 (is_priority=1).
+
+  지원 포맷: csv, tsv, xlsx, xls, json, txt, md, pdf, docx
+  - 구조화 (csv/xlsx/json): 컬럼명 alias 허용 (question/질문/Q, answer/답변/A, short_answer, keywords, category)
+  - 비구조화 (txt/md/pdf/docx): 정규식 Q/A 패턴 → fallback 으로 LLM 추출
+  """
+  async with db_connect() as db:
+    db.row_factory = aiosqlite.Row
+    await _load_session_or_403(db, session_id, user['user_id'])
+
+  raw = await file.read()
+  if len(raw) > 10 * 1024 * 1024:
+    raise HTTPException(status_code=400, detail='파일이 너무 큽니다 (최대 10MB)')
+
+  filename = file.filename or 'upload'
+  from services.qa_upload_parser import parse_qa_file
+  pairs, parse_errors = await parse_qa_file(raw, filename)
+
+  if not pairs and parse_errors:
+    # 파싱 에러 — 400 으로 내보내서 프론트에서 표시
+    raise HTTPException(status_code=400, detail='; '.join(parse_errors))
+
+  created, updated, embedded = await _ingest_priority_qa_pairs(session_id, pairs, filename)
+
+  return success({
+    'created': created,
+    'updated': updated,
+    'embedded': embedded,
+    'parsed': len(pairs),
+    'source_filename': filename,
+    'errors': parse_errors,
+  })
+
+
+# 구 엔드포인트 — 하위 호환용 alias
+@router.post('/{session_id}/priority-qa/upload-csv')
+async def upload_priority_qa_csv(
+  session_id: int,
+  file: UploadFile = File(...),
+  user: dict = Depends(get_current_user)
+):
+  return await upload_priority_qa_file(session_id, file, user)
+
+
+@router.delete('/{session_id}/priority-qa/by-file')
+async def delete_priority_qa_by_file(
+  session_id: int,
+  filename: str = Query(..., min_length=1, max_length=300),
+  user: dict = Depends(get_current_user)
+):
+  """특정 업로드 파일에서 온 priority Q&A 를 일괄 삭제.
+  주의: /{qa_id} 보다 먼저 선언되어야 한다 (FastAPI 라우팅 매칭 순서)."""
+  async with db_connect() as db:
+    db.row_factory = aiosqlite.Row
+    await _load_session_or_403(db, session_id, user['user_id'])
+    cursor = await db.execute(
+      '''DELETE FROM qa_pairs
+         WHERE session_id = ? AND is_priority = 1 AND source_filename = ?''',
+      (session_id, filename),
+    )
+    deleted = cursor.rowcount
+    await db.commit()
+    return success({'deleted': deleted, 'filename': filename})
 
 
 @router.delete('/{session_id}/priority-qa/{qa_id}')
@@ -1657,7 +1706,11 @@ async def translate_answer_endpoint(
   from services.answer_service import _get_session_languages
   answer_lang, translation_lang, meeting_lang = await _get_session_languages(session_id)
   effective_answer_lang = answer_lang or meeting_lang
-  effective_trans = translation_lang or ('en' if effective_answer_lang == 'ko' else 'ko')
+  # 명시적 target_language 가 오면 그걸로, 아니면 세션 translation_language 로
+  if body.target_language:
+    effective_trans = body.target_language
+  else:
+    effective_trans = translation_lang or ('en' if effective_answer_lang == 'ko' else 'ko')
 
   translated = await translate_answer_text(body.question_text.strip(), effective_trans)
   return success({'translation': translated})

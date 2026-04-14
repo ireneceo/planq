@@ -24,8 +24,9 @@
   },
   "role": {
     "platform_admin": "플랫폼 관리자",
-    "business_owner": "사업자",
+    "business_owner": "관리자",
     "business_member": "멤버",
+    "ai": "Cue",
     "user": "사용자"
   }
 }

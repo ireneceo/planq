@@ -21,7 +21,9 @@
       "line2": "회의록을 자동으로 만들어드립니다."
     },
     "header": {
-      "editTitleHint": "클릭하여 수정"
+      "editTitleHint": "클릭하여 수정",
+      "collapse": "헤더 접기",
+      "expand": "헤더 펼치기"
     },
     "phase": {
       "prepared": "녹음 대기",
@@ -34,7 +36,8 @@
       "recordingNow": "녹음 중",
       "pause": "중지",
       "endMeeting": "회의 종료",
-      "resume": "녹음 이어하기"
+      "resume": "녹음 이어하기",
+      "settings": "설정"
     },
     "participantBar": {
       "label": "참여자 ({{count}}명)",

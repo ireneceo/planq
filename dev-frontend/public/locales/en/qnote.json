@@ -21,7 +21,9 @@
       "line2": "automatically build your meeting notes."
     },
     "header": {
-      "editTitleHint": "Click to edit"
+      "editTitleHint": "Click to edit",
+      "collapse": "Collapse header",
+      "expand": "Expand header"
     },
     "phase": {
       "prepared": "Ready",
@@ -34,7 +36,8 @@
       "recordingNow": "Recording",
       "pause": "Pause",
       "endMeeting": "End Meeting",
-      "resume": "Resume Recording"
+      "resume": "Resume Recording",
+      "settings": "Settings"
     },
     "participantBar": {
       "label": "Participants ({{count}})",

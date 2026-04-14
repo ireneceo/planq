@@ -30,6 +30,23 @@ Conversation.init({
   last_message_at: {
     type: DataTypes.DATE,
     allowNull: true
+  },
+  // ─── Cue 제어 ───
+  // 이 대화방에서 Cue 활동 여부 (사람이 명시적으로 멈추면 false)
+  cue_enabled: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: true,
+    allowNull: false
+  },
+  // 사람이 타이핑 중일 때 해당 턴 스킵용 임시 억제 타임스탬프
+  cue_suppressed_until: {
+    type: DataTypes.DATE,
+    allowNull: true
+  },
+  // 고객 히스토리 자동 요약 마지막 갱신 시점
+  last_ai_summary_at: {
+    type: DataTypes.DATE,
+    allowNull: true
   }
 }, {
   sequelize,

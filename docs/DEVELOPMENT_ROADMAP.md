@@ -5,25 +5,52 @@
 ## 1. 전체 개발 순서
 
 ```
-PART 1: 인프라                    PART 2: PlanQ 핵심
-──────────────────                ──────────────────
-Phase 1: 서버 분리 + 세팅 ✅       Phase 2: 인증 시스템
-                                  Phase 3: 사업자 + 고객
-                                  Phase 4: Q Bill (청구서)
-                                  Phase 5: Q Talk (대화)
-                                  Phase 6: Q Task (할일)
-                                  Phase 7: Q File (자료함)
+PART 0: 기초 정비                   PART 1: 인프라
+──────────────────                 ──────────────────
+Phase 0: 네이밍·Workspace·Cue 기반  Phase 1: 서버 분리 ✅
+         (Q Talk 직전 선행 필수)
 
-PART 3: Q Note (독립 개발 가능)    PART 4: 확장
-──────────────────                ──────────────────
-Phase 8: Q Note (1-2일 집중)       Phase 9: 알림
-                                  Phase 10: 구독 관리
-                                  Phase 11: 운영 배포
+PART 2: PlanQ 핵심 메뉴             PART 3: Q Note (독립)
+──────────────────                 ──────────────────
+Phase 2: 인증 시스템                 Phase 8: Q Note ✅
+Phase 3: 워크스페이스 + 고객
+Phase 4: Q Bill (청구서)            PART 4: 확장
+Phase 5: Q Talk (Cue + 사람)        ──────────────────
+Phase 6: Q Task (할일)              Phase 9: 알림
+Phase 7: Q File (자료함)            Phase 10: 구독 관리
+                                   Phase 11: 운영 배포
 ```
 
 ---
 
 ## 2. Phase별 상세 + Claude Code 프롬프트
+
+---
+
+### Phase 0: 기초 정비 (Q Talk 선행 필수)
+
+**예상 소요: 2-3일**
+**상세: `docs/FEATURE_SPECIFICATION.md` Phase 0 참조**
+
+#### 작업 단계
+
+| 단계 | 작업 | 내용 |
+|------|------|------|
+| 0-1 | 네이밍 i18n 교체 | `사업자→워크스페이스`, `Owner→관리자` (locales/*.json 일괄) |
+| 0-2 | businesses 테이블 확장 | brand/legal 컬럼 추가, 기존 `name` → `brand_name` 마이그레이션 |
+| 0-3 | users.is_ai 추가 + Cue 계정 자동 생성 | register 트랜잭션 확장, 기존 워크스페이스에 Cue 주입 스크립트 |
+| 0-4 | business_members.role ENUM 확장 | `+ 'ai'` 값 추가 |
+| 0-5 | 워크스페이스 설정 페이지 신규 | `/app/settings/brand` · `/legal` · `/language` · `/members` · `/cue` |
+| 0-6 | 가시성 미들웨어 신규 | `checkVisibility()` — 각 메뉴 Phase 에서 활용 |
+| 0-7 | 설계 문서 완성 | 본 단계 완료 시점에 5개 문서 모두 업데이트됨 |
+
+#### 완료 확인
+- [ ] 로그인 후 UI 모든 화면에서 "사업자" 문자열 없음 (한국어 검증)
+- [ ] 회원가입 → 워크스페이스 생성 + Cue 멤버 1개 자동 생성
+- [ ] `/app/settings/brand` 에서 brand_name·logo·color 자동저장 동작
+- [ ] `/app/settings/legal` 에서 legal_name·tax_id 자동저장 동작
+- [ ] `/app/settings/members` 상단에 Cue 카드 고정 표시
+- [ ] Cue 관련 API (`/businesses/:id/cue`) 스텁 응답
 
 ---
 
@@ -176,42 +203,69 @@ CLAUDE.md를 읽고 Phase 4 (Q Bill 청구서)를 구현해줘.
 
 ---
 
-### Phase 5: Q Talk (대화)
+### Phase 5: Q Talk (Cue + 사람 공동 응대)
 
-**예상 소요: 3-4일 (핵심 기능)**
+**예상 소요: 6-8일 (핵심 기능, Cue 통합 포함)**
+**상세 기획: `docs/FEATURE_SPECIFICATION.md` Phase 5 (F5-0 ~ F5-16)**
+
+#### 구현 단계
+
+| 단계 | 작업 | 기간 |
+|------|------|------|
+| 5-1 | Socket.IO 초기화 + 대화 기본 CRUD | 1일 |
+| 5-2 | Messages 테이블 확장 필드 적용 (`is_ai`, `kind`, `is_internal` 등) | 0.5일 |
+| 5-3 | 대화 자료 (KB) 관리 페이지 + 업로드 + 인덱싱 파이프라인 (Q Note 엔진 래핑) | 2일 |
+| 5-4 | Pinned FAQ CRUD + CSV 템플릿·업로드 | 1일 |
+| 5-5 | `cue_orchestrator.py` — Tier 매칭 + 답변 생성 + 비용 집계 | 2일 |
+| 5-6 | Auto/Draft/Smart 모드 분기 + 민감 키워드 강제 Draft | 0.5일 |
+| 5-7 | Cue 메시지 실시간 발송 (WS `cue_thinking` → `new_message`) | 0.5일 |
+| 5-8 | Cue 사이드패널 (고객 프로필·요약·답변 후보·내부 메모) | 1.5일 |
+| 5-9 | Draft 승인/거절 워크플로우 | 0.5일 |
+| 5-10 | 고객 히스토리 자동 요약 배치 | 0.5일 |
+| 5-11 | Cue 일시정지·재개 (전역·대화별·턴단위 스킵) | 0.5일 |
+| 5-12 | 인라인 카드 (task/invoice/event 생성 메시지) | 1일 |
+| 5-13 | 검증 + 버그 수정 | 1일 |
+
+#### Claude Code 실행 프롬프트
 
 ```
-CLAUDE.md를 읽고 Phase 5 (Q Talk 대화 시스템)를 구현해줘.
+CLAUDE.md + docs/FEATURE_SPECIFICATION.md Phase 5 + docs/DATABASE_ERD.md 를
+읽고 Phase 5 (Q Talk Cue 팀원 시스템)를 구현해줘.
 
-구현할 것:
+Phase 0 선행 작업이 모두 완료된 상태여야 함.
 
-1. Socket.IO 설정 (server.js에서 초기화)
-   - JWT 인증
-   - 대화방 join/leave
+구현 우선순위 (단계별 커밋):
+  5-1: Socket.IO + routes/conversations.js 기본 CRUD (기존 보완)
+  5-2: DB 마이그레이션 (messages 확장 필드, conversations Cue 필드)
+  5-3: 대화 자료 (KB) 관리 — /app/talks/kb, routes/kb.js
+       · Q Note embedding_service.py 를 q-note/services 에서
+         backend/services/kb_service.js (또는 FastAPI 확장)로 연결
+  5-4: Pinned FAQ CRUD + CSV 업로드 (Q Note priority-qa 로직 재사용)
+  5-5: cue_orchestrator.py — 4-tier 매칭 + Auto/Draft/Smart + 비용 집계
+  5-6: 고객 메시지 수신 시 Cue 자동 트리거 (post-insert hook)
+  5-7: 프론트엔드 Q Talk 3단 레이아웃 (좌: 대화목록, 중: 채팅, 우: Cue 사이드패널)
+  5-8: Cue 사이드패널 — 고객 요약, 진행 업무 카드, Draft 답변 후보, 내부 메모
+  5-9: Draft 승인/거절 UI + API
+  5-10: 고객 히스토리 자동 요약 (20턴 트리거 + 일 배치)
+  5-11: Cue 일시정지·재개 (전역·대화별·턴단위)
+  5-12: 인라인 카드 (task/invoice/event 카드 메시지)
 
-2. routes/conversations.js
-   - GET /api/businesses/:id/conversations — 대화 목록
-   - GET /api/conversations/:convId/messages — 메시지 목록 (페이징, 최신순)
-   - POST /api/conversations/:convId/messages — 메시지 전송 + Socket emit
-   - PUT /api/messages/:msgId — 메시지 수정 (is_edited, edited_at)
-   - DELETE /api/messages/:msgId — 메시지 삭제 (is_deleted 마스킹)
-   - POST /api/messages/:msgId/attachments — 첨부파일 업로드
-
-3. 프론트엔드 (핵심 화면)
-   - /app/talks — 3단 레이아웃:
-     - 좌: 대화방 목록 (ConversationList)
-     - 중: 채팅 영역 (MessageList + MessageInput)
-     - 우: Q Task 패널 (해당 고객 할일)
-   - MessageItem: 내용, 시간, 수정됨 표시, 삭제됨 표시, 첨부파일
-   - MessageInput: 텍스트 입력, 📎 첨부, Enter 전송
-   - Socket.IO 연결: 실시간 메시지 수신
-
-4. Socket.IO 이벤트
-   - new_message, message_updated, message_deleted
-   - typing (입력 중 표시)
-
-빌드하고 PM2 재시작해줘.
+각 단계마다 검증 후 커밋.
+최종 검증: 9단계 검증 프로세스 전부 통과.
 ```
+
+#### 완료 확인
+- [ ] 고객 초대 → 가입 → 첫 대화 1분 내
+- [ ] 대화 자료 업로드 → 인덱싱 → Cue 답변 소스로 사용
+- [ ] Pinned FAQ 등록 → 유사 질문 paraphrase 매칭
+- [ ] Cue Smart 모드: confidence 높은 질문은 Auto 발송, 낮은 건 Draft
+- [ ] Draft 메시지 사이드패널 표시 + 승인/거절 동작
+- [ ] Cue 메시지에 출처 문서·섹션 인라인 표시
+- [ ] 고객별 자동 요약 생성 + 수동 갱신
+- [ ] Cue 일시정지 (전역·대화별·턴단위) 동작
+- [ ] 메시지에서 할일·청구서·일정 생성 → 인라인 카드 표시
+- [ ] `cue_usage` 한도 도달 시 "휴식 중" UI + 액션 거부
+- [ ] 9단계 검증 프로세스 전체 통과
 
 ---
 

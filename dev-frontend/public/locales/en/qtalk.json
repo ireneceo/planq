@@ -1,0 +1,67 @@
+{
+  "page": {
+    "title": "Q talk",
+    "subtitle": "Real-time customer conversations with Cue (AI teammate)",
+    "empty": {
+      "title": "No conversations yet",
+      "desc": "Invite customers and their conversations will appear here.",
+      "invite": "Invite Customer"
+    },
+    "listHeader": {
+      "search": "Search customer name",
+      "all": "All",
+      "mine": "Mine",
+      "unread": "Unread"
+    },
+    "state": {
+      "cueActive": "Cue Active",
+      "cuePaused": "Cue Paused",
+      "humanResponding": "Human Responding"
+    },
+    "sidebar": {
+      "profile": "Customer Profile",
+      "summary": "Auto Summary",
+      "summaryEmpty": "Cue will summarize as conversations accumulate",
+      "inProgress": "In Progress",
+      "cueSuggestions": "Cue Suggestions",
+      "cueSuggestionsEmpty": "Suggestions will appear when ready",
+      "internalNote": "Internal Memo",
+      "internalNotePlaceholder": "Only visible to members..."
+    },
+    "composer": {
+      "placeholder": "Type a message...",
+      "internal": "Internal Memo",
+      "send": "Send",
+      "pauseCue": "Pause Cue in this conversation",
+      "resumeCue": "Resume Cue"
+    },
+    "message": {
+      "cueBadge": "Cue",
+      "draftBadge": "Draft (pending approval)",
+      "internalBadge": "Internal memo",
+      "approve": "Approve & Send",
+      "reject": "Reject",
+      "sources": "Sources",
+      "editedMark": "(edited)",
+      "deletedMark": "Deleted message",
+      "makeTask": "Create Task",
+      "makeInvoice": "Create Invoice",
+      "makeEvent": "Schedule Event",
+      "copyMessage": "Copy message"
+    },
+    "comingSoon": {
+      "title": "Q talk in progress",
+      "desc": "This screen is a planning-approval mockup. Real conversations will appear here soon.",
+      "done": [
+        "Workspace info (brand/legal) + Cue AI teammate foundation",
+        "Q Talk backend — KB search, Cue orchestrator, messages API",
+        "3-panel layout skeleton"
+      ],
+      "next": [
+        "Conversation list + real-time messages",
+        "Draft approve/reject UI",
+        "Customer view (simplified)"
+      ]
+    }
+  }
+}

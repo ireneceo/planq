@@ -28,7 +28,10 @@ import {
   MicIcon,
   StopIcon,
   PlusIcon,
-  HelpCircleIcon,
+  SettingsIcon,
+  PowerIcon,
+  ChevronUpIcon,
+  ChevronDownIcon,
 } from '../../components/Common/Icons';
 
 /**
@@ -78,6 +81,7 @@ interface TranscriptBlock {
   firstStart: number | null;
   lastEnd: number | null;
   lastDgSpeakerId: number | null;
+  isManual?: boolean;  // 사용자가 직접 입력한 질문 블록 (hint 뱃지 표시용)
 }
 
 interface PendingBuffer {
@@ -160,12 +164,52 @@ const QNotePage = () => {
   const { sessionId: urlSessionId } = useParams<{ sessionId?: string }>();
   const navigate = useNavigate();
 
+  // ── Refresh 성능 계측기 (일회성 진단용) ──
+  // 브라우저 DevTools Console 에 [QNOTE-TIMING] 로 찍어 어디가 느린지 사용자가 공유 가능하게.
+  useEffect(() => {
+    const t0 = performance.now();
+    const mark = (label: string) => {
+      const ms = Math.round(performance.now() - t0);
+      // eslint-disable-next-line no-console
+      console.log(`[QNOTE-TIMING] ${ms}ms  ${label}`);
+    };
+    mark('QNotePage mounted');
+    const onLoad = () => mark('window.load fired');
+    if (document.readyState === 'complete') mark('already complete');
+    else window.addEventListener('load', onLoad, { once: true });
+    return () => { window.removeEventListener('load', onLoad); };
+  }, []);
+
   const [showStartModal, setShowStartModal] = useState(false);
   const [editingSession, setEditingSession] = useState<boolean>(false);
   const [phase, setPhase] = useState<Phase>('empty');
   const [sessions, setSessions] = useState<QNoteSession[]>([]);
   const [activeSession, setActiveSession] = useState<QNoteSession | null>(null);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') return window.innerWidth < 900;
+    return false;
+  });
+  const [viewportNarrow, setViewportNarrow] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') return window.innerWidth < 900;
+    return false;
+  });
+
+  useEffect(() => {
+    const mql = window.matchMedia('(max-width: 900px)');
+    const handler = (e: MediaQueryListEvent | MediaQueryList) => {
+      const narrow = 'matches' in e ? e.matches : false;
+      setViewportNarrow(narrow);
+      if (narrow) setSidebarCollapsed(true);
+      else setSidebarCollapsed(false);
+    };
+    if (mql.addEventListener) mql.addEventListener('change', handler as (e: MediaQueryListEvent) => void);
+    else mql.addListener(handler as (e: MediaQueryListEvent) => void);
+    return () => {
+      if (mql.removeEventListener) mql.removeEventListener('change', handler as (e: MediaQueryListEvent) => void);
+      else mql.removeListener(handler as (e: MediaQueryListEvent) => void);
+    };
+  }, []);
+
   // ── 준비 상태 (phase='prepared' 일 때 폴링) ──
   type Readiness = {
     docsIndexed: number;
@@ -177,43 +221,80 @@ const QNotePage = () => {
     allReady: boolean;
   };
   const [readiness, setReadiness] = useState<Readiness | null>(null);
+  // 준비 패널 수동 expand 여부 (allReady=true 면 기본 collapsed, 사용자가 확장하면 열림)
+  const [readinessExpanded, setReadinessExpanded] = useState(false);
 
+  // 준비 상태 폴링 — prepared / paused 에서만, "모두 준비 완료" 되면 자동 중단.
+  // 핵심 최적화: getSession 중복 호출 제거. 이미 activeSession 에 문서/키워드가 있음.
+  // 오직 qa-pairs (has_embedding 갱신) + documents (status 변화) 만 필요 → 두 개만 폴링.
+  // documents 는 인덱싱 중일 때만 바뀌므로 activeSession 상태로 초기값 잡고, 변경 감지 시만 getSession.
+  const activeSessionId = activeSession?.id;
   useEffect(() => {
-    // 녹음 시작 전 상태 — prepared / paused 모두에서 표시
-    if ((phase !== 'prepared' && phase !== 'paused') || !activeSession) {
+    if ((phase !== 'prepared' && phase !== 'paused') || !activeSessionId) {
       setReadiness(null);
       return;
     }
     let cancelled = false;
+    let stopped = false;
+    let timer: number | undefined;
+
     const fetchReadiness = async () => {
+      if (stopped || cancelled) return;
       try {
-        const detail = await getSession(activeSession.id);
-        let pqs: Array<{ has_embedding?: boolean }> = [];
-        try {
-          pqs = await listQAPairs(activeSession.id, 'priority');
-        } catch { /* priority 조회 실패 — 빈 배열로 */ }
+        // activeSession 의 docs 가 전부 indexed 면 priority 만 확인 (getSession 생략 가능)
+        const currentDocs = activeSessionRef.current?.documents || [];
+        const docsAllDone = currentDocs.every(
+          (d) => d.status === 'indexed' || d.status === 'failed'
+        );
+        // 인덱싱 중이면 getSession 도 함께, 아니면 qa-pairs 만.
+        const [detail, pqsResult] = await Promise.all([
+          docsAllDone ? Promise.resolve(null) : getSession(activeSessionId),
+          listQAPairs(activeSessionId, 'priority').catch(() => [] as Array<{ has_embedding?: boolean }>),
+        ]);
         if (cancelled) return;
-        const docs = detail.documents || [];
+        const pqs = pqsResult || [];
+        const docs = detail?.documents || currentDocs;
         const docsIndexed = docs.filter((d) => d.status === 'indexed').length;
         const docsFailed = docs.filter((d) => d.status === 'failed').length;
         const pqTotal = pqs.length;
         const pqEmbedded = pqs.filter((p) => p.has_embedding).length;
-        const keywordsCount = (detail.keywords || []).length;
+        const keywordsCount = (detail?.keywords ?? activeSessionRef.current?.keywords ?? []).length;
         const allReady =
-          docs.length === docsIndexed + docsFailed &&  // 처리 완료
-          pqTotal === pqEmbedded;                      // 임베딩 완료
-        setReadiness({ docsIndexed, docsTotal: docs.length, docsFailed, pqTotal, pqEmbedded, keywordsCount, allReady });
+          docs.length === docsIndexed + docsFailed &&
+          pqTotal === pqEmbedded;
+        // equality 체크: 값이 달라질 때만 setState → 불필요한 re-render 제거
+        setReadiness((prev) => {
+          if (
+            prev &&
+            prev.docsIndexed === docsIndexed &&
+            prev.docsTotal === docs.length &&
+            prev.docsFailed === docsFailed &&
+            prev.pqTotal === pqTotal &&
+            prev.pqEmbedded === pqEmbedded &&
+            prev.keywordsCount === keywordsCount &&
+            prev.allReady === allReady
+          ) {
+            return prev;
+          }
+          return { docsIndexed, docsTotal: docs.length, docsFailed, pqTotal, pqEmbedded, keywordsCount, allReady };
+        });
+        if (allReady) {
+          stopped = true;
+          if (timer) window.clearInterval(timer);
+        }
       } catch {
         /* ignore — 다음 폴링에서 재시도 */
       }
     };
     fetchReadiness();
-    const timer = window.setInterval(fetchReadiness, 3000);
+    timer = window.setInterval(fetchReadiness, 5000);
     return () => {
       cancelled = true;
-      window.clearInterval(timer);
+      stopped = true;
+      if (timer) window.clearInterval(timer);
     };
-  }, [phase, activeSession]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase, activeSessionId]);
 
   // 내 발화 처리 모드: 'skip' (기본 — 아예 블록 생성 안 함) | 'hide' (생성 후 숨김) | 'show' (다 보임)
   type SelfMode = 'skip' | 'hide' | 'show';
@@ -233,6 +314,15 @@ const QNotePage = () => {
 
   const [blocks, setBlocks] = useState<TranscriptBlock[]>([]);
   const [pending, setPending] = useState<PendingBuffer | null>(null);
+
+  // ── 수동 질문 입력 (사용자가 직접 질문 입력 → 답변 생성) ──
+  // 제출 시점에 synthetic TranscriptBlock 을 `blocks` state 에 직접 push —
+  // 그래야 이후 들어오는 live 이벤트가 자연스럽게 뒤에 붙어 시간 순서 보존.
+  // 별도 manualQuestions state 금지. blocks 가 유일한 source of truth.
+  // review 모드에서는 setBlocks 가 비어있으므로 reviewBlocks 뒤에 수동 블록만 표시.
+  const [manualInput, setManualInput] = useState('');
+  const [manualSubmitting, setManualSubmitting] = useState(false);
+  const manualIdRef = useRef(-1);
   const [interimText, setInterimText] = useState<string>('');
   const [liveError, setLiveError] = useState<string | null>(null);
   const [liveNotice, setLiveNotice] = useState<string | null>(null);
@@ -265,6 +355,24 @@ const QNotePage = () => {
   const pendingRef = useRef<PendingBuffer | null>(null);  // 즉시 읽기용
   const blockCounterRef = useRef(0);
   const transcriptRef = useRef<HTMLDivElement | null>(null);
+  const stickToBottomRef = useRef(true);
+  const [headerCollapsed, setHeaderCollapsed] = useState<boolean>(() => {
+    try { return localStorage.getItem('qnote_header_collapsed') === '1'; } catch { return false; }
+  });
+  const toggleHeaderCollapsed = useCallback(() => {
+    setHeaderCollapsed((v) => {
+      const next = !v;
+      try { localStorage.setItem('qnote_header_collapsed', next ? '1' : '0'); } catch { /* quota */ }
+      return next;
+    });
+  }, []);
+
+  const handleTranscriptScroll = useCallback(() => {
+    const el = transcriptRef.current;
+    if (!el) return;
+    const distance = el.scrollHeight - el.scrollTop - el.clientHeight;
+    stickToBottomRef.current = distance < 80;
+  }, []);
 
   // activeSession 변경 시 ref 동기화 (useCallback 내부에서 stale closure 방지)
   useEffect(() => { activeSessionRef.current = activeSession; }, [activeSession]);
@@ -277,8 +385,11 @@ const QNotePage = () => {
   // ── 세션 목록 로드 ────────────────────────────────────
   const loadSessions = useCallback(async () => {
     if (!businessId) return;
+    const _t0 = performance.now();
     try {
       const data = await listSessions(businessId);
+      // eslint-disable-next-line no-console
+      console.log(`[QNOTE-TIMING] ${Math.round(performance.now() - _t0)}ms loadSessions done (${data.length} sessions)`);
       setSessions(data);
     } catch (err) {
       console.error('Failed to load sessions:', err);
@@ -353,6 +464,9 @@ const QNotePage = () => {
   //   completed → review (리뷰 모드)
   //   그 외     → paused (이어서 녹음 가능)
   const openReview = async (sessionId: number) => {
+    const _t0 = performance.now();
+    // eslint-disable-next-line no-console
+    console.log(`[QNOTE-TIMING] openReview(${sessionId}) start`);
     if (liveRef.current) {
       liveRef.current.stop();
       liveRef.current = null;
@@ -360,6 +474,8 @@ const QNotePage = () => {
     flushPending();
     try {
       const detail = await getSession(sessionId);
+      // eslint-disable-next-line no-console
+      console.log(`[QNOTE-TIMING] ${Math.round(performance.now() - _t0)}ms getSession done (${detail.utterances?.length || 0} utt)`);
       setActiveSession(detail);
       speakersRef.current = detail.speakers || [];
       navigate(`/notes/${sessionId}`, { replace: true });
@@ -388,11 +504,18 @@ const QNotePage = () => {
         });
       }
 
-      // 'prepared' (신규 생성, 녹음 한 번도 안 함) → 'prepared' 유지
-      // 'completed' → 리뷰 모드
-      // 'recording'/'paused' → 'paused' (이어서 녹음 가능)
+      // Phase 결정 정책 (데이터 우선):
+      //   1. status='completed' → review 모드
+      //   2. utterances 가 이미 있다 → paused (status 가 'prepared' 이어도 실제로 녹음된 데이터가 있으면 보여줌)
+      //   3. status='prepared' + utterances 없음 → prepared
+      //   4. status='recording'/'paused' → paused
+      //
+      // 이는 백엔드 status 생명주기 버그 또는 비정상 종료(탭닫힘 등) 상황에서도
+      // 녹음된 텍스트가 화면에서 사라지지 않도록 하는 데이터 보존 장치.
+      const hasUtterances = (detail.utterances?.length ?? 0) > 0;
       const nextPhase: Phase =
         detail.status === 'completed' ? 'review' :
+        hasUtterances ? 'paused' :
         detail.status === 'prepared' ? 'prepared' : 'paused';
       setPhase(nextPhase);
       // paused 로 진입 시 서버 utterances 에서 blocks 재구성 → 화면에 바로 노출.
@@ -429,6 +552,8 @@ const QNotePage = () => {
       }
       pendingRef.current = null;
       setPending(null);
+      // eslint-disable-next-line no-console
+      console.log(`[QNOTE-TIMING] ${Math.round(performance.now() - _t0)}ms openReview done`);
     } catch (err) {
       console.error('Failed to load session:', err);
     }
@@ -843,10 +968,102 @@ const QNotePage = () => {
     [activeSession, buildBlocksFromSession]
   );
 
-  // 원래 로직 복원: review 는 reviewBlocks, 그 외는 blocks.
-  // paused 는 openReview 에서 blocks 를 미리 하이드레이트 하므로 blocks 사용.
-  const renderBlocks = phase === 'review' ? reviewBlocks : blocks;
+  // review 는 reviewBlocks (from DB) + blocks (추가된 수동 질문).
+  // 그 외 (recording/paused/prepared) 는 blocks — live + 수동 질문이 시간 순 자동 정렬.
+  const renderBlocks = useMemo<TranscriptBlock[]>(() => {
+    if (phase === 'review') {
+      return blocks.length > 0 ? [...reviewBlocks, ...blocks] : reviewBlocks;
+    }
+    return blocks;
+  }, [phase, reviewBlocks, blocks]);
   const showRecordingUI = phase === 'prepared' || phase === 'recording' || phase === 'paused';
+
+  // ── 수동 질문 submit — 사용자가 직접 입력한 질문을 회의언어로 자동 번역 후 답변 생성 ──
+  // 정책: 입력 언어 감지 없이 LLM auto-detect + translate to meeting_language.
+  // synthetic TranscriptBlock 을 `blocks` 에 직접 push → live 이벤트와 시간 순서로 자연스럽게 혼재.
+  const submitManualQuestion = useCallback(async () => {
+    const raw = manualInput.trim();
+    if (!raw || manualSubmitting) return;
+    const sess = activeSessionRef.current;
+    if (!sess) return;
+    const sessId = sess.id;
+    const meetingLang = sess.meeting_languages?.[0];
+
+    setManualSubmitting(true);
+    const virtualId = manualIdRef.current--;
+
+    // 1) 회의언어로 번역 (meetingLang 없으면 raw 그대로)
+    let displayText = raw;
+    if (meetingLang) {
+      try {
+        const res = await translateAnswer(sessId, raw, meetingLang);
+        if (res.translation && res.translation.trim()) {
+          displayText = res.translation.trim();
+        }
+      } catch { /* fallback to raw */ }
+    }
+
+    // 2) synthetic question block 을 blocks 끝에 push
+    //    isManual 플래그로 "입력한 질문" 뱃지 렌더링용 구분
+    const syntheticBlock: TranscriptBlock = {
+      id: `manual-${virtualId}`,
+      kind: 'question',
+      speakerRowId: null,
+      speakerLabel: '',
+      timestamp: '',
+      segments: [{
+        utteranceId: virtualId,
+        original: displayText,
+        translation: (raw && raw !== displayText) ? raw : null,
+        start: null,
+        end: null,
+      }],
+      firstStart: null,
+      lastEnd: null,
+      lastDgSpeakerId: null,
+      isManual: true,
+    };
+    setBlocks((prev) => [...prev, syntheticBlock]);
+    setAnswerData((prev) => ({ ...prev, [virtualId]: { loading: true, collapsed: false } }));
+    setManualInput('');
+
+    // 3) 답변 생성 (utterance_id 없이 — detected_questions 에 저장 안 됨)
+    try {
+      const result = await findAnswer(sessId, displayText);
+      setAnswerData((prev) => ({
+        ...prev,
+        [virtualId]: {
+          ...prev[virtualId],
+          tier: result.tier,
+          answer: result.answer || '',
+          answer_translation: result.answer_translation || undefined,
+          loading: false,
+          collapsed: false,
+        },
+      }));
+      // 답변 번역이 없으면 백그라운드로 가져옴
+      if (result.answer && !result.answer_translation) {
+        try {
+          const tres = await translateAnswer(sessId, result.answer);
+          setAnswerData((prev) => ({
+            ...prev,
+            [virtualId]: { ...prev[virtualId], answer_translation: tres.translation || '' },
+          }));
+        } catch { /* ignore */ }
+      }
+    } catch (err) {
+      setAnswerData((prev) => ({
+        ...prev,
+        [virtualId]: {
+          ...prev[virtualId],
+          loading: false,
+          error: err instanceof Error ? err.message : '답변 생성 실패',
+        },
+      }));
+    } finally {
+      setManualSubmitting(false);
+    }
+  }, [manualInput, manualSubmitting]);
 
   // ─── 화자 인라인 할당 팝오버 상태 ───────────────────
   // 자동 인식 실패 시 수동 지정이 필요하므로 recording 중에도 허용.
@@ -864,8 +1081,9 @@ const QNotePage = () => {
     answer_translation?: string;
     error?: string;
     collapsed?: boolean;
-    editedQuestion?: string;      // 수정된 질문 (undefined면 원본)
-    mergedBlockIds?: string[];    // 합친 블록 ID 목록 (순서 유지)
+    editedQuestion?: string;          // 수정된 질문 (undefined면 원본)
+    editedTranslation?: string;       // 수정된 질문의 번역 (editedQuestion 변경 시 재계산)
+    mergedBlockIds?: string[];        // 합친 블록 ID 목록 (순서 유지)
   }>>({});
   const [answerReadySet, setAnswerReadySet] = useState<Set<number>>(new Set());
   const [editingQuestionId, setEditingQuestionId] = useState<number | null>(null);
@@ -954,13 +1172,21 @@ const QNotePage = () => {
     }
   }, []);
 
-  // 라이브 자동 하단 스크롤
+  // 라이브 자동 하단 스크롤 (sticky-to-bottom: 사용자가 위로 스크롤했으면 멈춤)
   useEffect(() => {
     if (phase !== 'recording' && phase !== 'paused') return;
     const el = transcriptRef.current;
     if (!el) return;
+    if (!stickToBottomRef.current) return;
     el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
   }, [blocks, pending, interimText, phase]);
+
+  // phase 전환 시 sticky 초기화
+  useEffect(() => {
+    if (phase === 'recording' || phase === 'paused') {
+      stickToBottomRef.current = true;
+    }
+  }, [phase]);
 
   // ─── 블록 렌더 ─────────────────────────────────────
   const currentCaptureMode = pendingConfig?.captureMode || activeSession?.capture_mode || 'microphone';
@@ -1150,24 +1376,39 @@ const QNotePage = () => {
         setEditingQuestionId(questionUttId);
       };
 
+      // 질문 텍스트 번역 (편집/합침 시 재계산) — 기존 translate-answer 엔드포인트 재사용
+      const retranslateQuestion = async (sessId: number, uttId: number, text: string) => {
+        try {
+          const res = await translateAnswer(sessId, text);
+          setAnswerData((prev) => ({
+            ...prev,
+            [uttId]: { ...prev[uttId], editedTranslation: res.translation || '' },
+          }));
+        } catch { /* 실패 시 기존 segment 번역이 폴백으로 표시됨 */ }
+      };
+
       const commitEdit = (newText: string) => {
         if (!questionUttId) return;
         setEditingQuestionId(null);
         const trimmed = newText.trim();
         if (!trimmed || trimmed === originalText) {
-          // 원본과 같거나 빈 값 → 수정 취소, editedQuestion 제거
+          // 원본과 같거나 빈 값 → 수정 취소, editedQuestion/editedTranslation 제거
           setAnswerData((prev) => {
             const cur = { ...prev[questionUttId] };
             delete cur.editedQuestion;
+            delete cur.editedTranslation;
             return { ...prev, [questionUttId]: cur };
           });
           return;
         }
-        // 수정됨 → 기존 답변 클리어 + 새 질문으로 자동 검색
+        // 수정됨 → 기존 답변+번역 클리어 + 새 질문으로 자동 번역 + 자동 검색
         setAnswerData((prev) => ({
           ...prev,
           [questionUttId]: { editedQuestion: trimmed },
         }));
+        if (activeSession) {
+          retranslateQuestion(activeSession.id, questionUttId, trimmed);
+        }
         doSearch(trimmed);
       };
 
@@ -1186,9 +1427,16 @@ const QNotePage = () => {
           [questionUttId]: {
             ...prev[questionUttId],
             editedQuestion: merged,
+            editedTranslation: undefined,  // 다시 계산하도록 초기화
+            answer: undefined,
+            answer_translation: undefined,
+            tier: undefined,
             mergedBlockIds: [...prevMergedIds, nextBlock.id],
           },
         }));
+        if (activeSession) {
+          retranslateQuestion(activeSession.id, questionUttId, merged);
+        }
         doSearch(merged);
       };
 
@@ -1198,6 +1446,7 @@ const QNotePage = () => {
         setAnswerData((prev) => {
           const cur = { ...prev[questionUttId] };
           delete cur.editedQuestion;
+          delete cur.editedTranslation;
           delete cur.mergedBlockIds;
           delete cur.answer;
           delete cur.answer_translation;
@@ -1212,13 +1461,13 @@ const QNotePage = () => {
 
       return (
         <QuestionCard key={block.id}>
-          <QuestionCardHeader>
-            <QuestionHeaderLeft>
-              {liveLabel && <SpeakerInline $self={isSelfSpeaker}>{liveLabel}</SpeakerInline>}
-              {renderAssignBtn()}
-              <QuestionInlineLabel>
-                <HelpCircleIcon size={11} />
-              </QuestionInlineLabel>
+          <QuestionLeadCol>
+            {liveLabel && <SpeakerInline $self={isSelfSpeaker}>{liveLabel}</SpeakerInline>}
+            {renderAssignBtn()}
+          </QuestionLeadCol>
+          <QuestionBodyCol>
+            <QuestionTopRow>
+              {block.isManual && <ManualBadge>입력한 질문</ManualBadge>}
               {isEditing ? (
                 <QuestionEditInput
                   defaultValue={ad?.editedQuestion ?? originalText}
@@ -1238,35 +1487,45 @@ const QNotePage = () => {
                   {mergedCount > 0 && <MergedBadge>{t('page.question.mergedBadge', { count: mergedCount })}</MergedBadge>}
                 </QuestionOriginal>
               )}
-              {hasNextBlock && !isEditing && (
-                <MergeNextBtn onClick={handleMergeNext} title={t('page.question.mergeNextTitle')}>+</MergeNextBtn>
-              )}
-              {mergedCount > 0 && !isEditing && (
-                <UnmergeBtn onClick={handleUnmerge} title={t('page.question.unmergeTitle')}>{t('page.question.unmergeLabel')}</UnmergeBtn>
-              )}
-              <InlineTime>{block.timestamp}</InlineTime>
-            </QuestionHeaderLeft>
-            {hasAnswer ? (
-              <CollapseBtn onClick={handleBtnClick}>
-                {isCollapsed ? t('page.question.showAnswer') : t('page.question.hideAnswer')}
-              </CollapseBtn>
-            ) : (
-              <FindAnswerBtn
-                onClick={handleBtnClick}
-                disabled={ad?.loading}
-                $ready={hasReadyAnswer}
-              >
-                {t('page.question.findAnswer')}
-              </FindAnswerBtn>
-            )}
-          </QuestionCardHeader>
-          <QuestionContentArea>
-            {hasAny && !isEditing && (
+              <QuestionTopActions>
+                {hasNextBlock && !isEditing && (
+                  <MergeNextBtn onClick={handleMergeNext} title={t('page.question.mergeNextTitle')}>+</MergeNextBtn>
+                )}
+                {mergedCount > 0 && !isEditing && (
+                  <UnmergeBtn onClick={handleUnmerge} title={t('page.question.unmergeTitle')}>{t('page.question.unmergeLabel')}</UnmergeBtn>
+                )}
+                <InlineTime>{block.timestamp}</InlineTime>
+                {hasAnswer ? (
+                  <CollapseBtn onClick={handleBtnClick}>
+                    {isCollapsed ? t('page.question.showAnswer') : t('page.question.hideAnswer')}
+                  </CollapseBtn>
+                ) : (
+                  <FindAnswerBtn
+                    onClick={handleBtnClick}
+                    disabled={ad?.loading}
+                    $ready={hasReadyAnswer}
+                  >
+                    {t('page.question.findAnswer')}
+                  </FindAnswerBtn>
+                )}
+              </QuestionTopActions>
+            </QuestionTopRow>
+            {!isEditing && (ad?.editedQuestion ? (
+              ad?.editedTranslation !== undefined ? (
+                ad.editedTranslation ? (
+                  <QuestionTranslation>{ad.editedTranslation}</QuestionTranslation>
+                ) : null
+              ) : (
+                <QuestionTranslation style={{ fontStyle: 'italic', color: '#94a3b8' }}>
+                  {t('page.question.translating')}
+                </QuestionTranslation>
+              )
+            ) : (hasAny && (
               <QuestionTranslation>
                 {translatedText}
                 {!allTranslated && <PendingHint> ...</PendingHint>}
               </QuestionTranslation>
-            )}
+            )))}
             {hasAnswer && !isCollapsed && (
               <AnswerPanel>
                 <AnswerTierBadge $tier={ad.tier || 'general'}>
@@ -1282,7 +1541,7 @@ const QNotePage = () => {
             )}
             {ad?.loading && <AnswerLoading>{t('page.question.searching')}</AnswerLoading>}
             {ad?.error && <AnswerError>{ad.error}</AnswerError>}
-          </QuestionContentArea>
+          </QuestionBodyCol>
         </QuestionCard>
       );
     }
@@ -1383,6 +1642,10 @@ const QNotePage = () => {
         </SessionList>
       </Sidebar>
 
+      {viewportNarrow && !sidebarCollapsed && (
+        <SidebarBackdrop onClick={() => setSidebarCollapsed(true)} />
+      )}
+
       <Main>
         <CollapseToggle
           onClick={() => setSidebarCollapsed((v) => !v)}
@@ -1411,122 +1674,194 @@ const QNotePage = () => {
 
         {showRecordingUI && activeSession && (
           <>
-            <MainHeader>
-              <HeaderLeft>
-                {editingTitle ? (
-                  <SessionTitleInput
-                    defaultValue={activeSession.title}
-                    autoFocus
-                    onBlur={(e) => handleTitleSave(e.currentTarget.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') { e.preventDefault(); handleTitleSave(e.currentTarget.value); }
-                      if (e.key === 'Escape') setEditingTitle(false);
-                    }}
-                  />
-                ) : (
-                  <SessionTitle onClick={() => setEditingTitle(true)} title={t('page.header.editTitleHint')}>
-                    {activeSession.title}
-                  </SessionTitle>
-                )}
-                <SessionMeta>
-                  {meetingLangLabels && <Badge>{meetingLangLabels}</Badge>}
-                  {phase === 'prepared' && <Badge>{t('page.phase.prepared')}</Badge>}
-                  {phase === 'recording' && <Badge>{t('page.phase.recording')}</Badge>}
-                  {phase === 'paused' && <Badge>{t('page.phase.paused')}</Badge>}
-                </SessionMeta>
-              </HeaderLeft>
-              <HeaderRight>
-                <SecondaryBtn onClick={() => { setEditingSession(true); setShowStartModal(true); }} title="회의 설정·자료·Q&A 편집">
-                  설정
-                </SecondaryBtn>
-                {phase === 'prepared' && (
-                  <PrimaryBtn onClick={startRecording}>
-                    <MicIcon size={14} />
-                    <span>{t('page.controls.startRecording')}</span>
-                  </PrimaryBtn>
-                )}
+            {headerCollapsed ? (
+              <CollapsedHeader>
+                <CollapsedTitle onClick={() => setEditingTitle(true)} title={t('page.header.editTitleHint')}>
+                  {activeSession.title}
+                </CollapsedTitle>
+                {phase === 'recording' && <Badge>{t('page.phase.recording')}</Badge>}
+                {phase === 'paused' && <Badge>{t('page.phase.paused')}</Badge>}
+                {phase === 'prepared' && <Badge>{t('page.phase.prepared')}</Badge>}
+                <CollapsedSpacer />
                 {phase === 'recording' && (
                   <>
-                    <RecordingIndicator>
-                      <RecordDot />
-                      {t('page.controls.recordingNow')}
-                    </RecordingIndicator>
-                    <SecondaryBtn onClick={pauseRecording}>
+                    <IconBtn onClick={pauseRecording} title={t('page.controls.pause')} aria-label={t('page.controls.pause')}>
                       <StopIcon size={14} />
-                      <span>{t('page.controls.pause')}</span>
-                    </SecondaryBtn>
-                    <DangerBtn onClick={endMeeting}>{t('page.controls.endMeeting')}</DangerBtn>
+                    </IconBtn>
+                    <IconBtn $danger onClick={endMeeting} title={t('page.controls.endMeeting')} aria-label={t('page.controls.endMeeting')}>
+                      <PowerIcon size={14} />
+                    </IconBtn>
                   </>
                 )}
                 {phase === 'paused' && (
                   <>
-                    <PrimaryBtn onClick={startRecording}>
+                    <IconBtn $primary onClick={startRecording} title={t('page.controls.resume')} aria-label={t('page.controls.resume')}>
                       <MicIcon size={14} />
-                      <span>{t('page.controls.resume')}</span>
-                    </PrimaryBtn>
-                    <DangerBtn onClick={endMeeting}>{t('page.controls.endMeeting')}</DangerBtn>
+                    </IconBtn>
+                    <IconBtn $danger onClick={endMeeting} title={t('page.controls.endMeeting')} aria-label={t('page.controls.endMeeting')}>
+                      <PowerIcon size={14} />
+                    </IconBtn>
                   </>
                 )}
-              </HeaderRight>
-            </MainHeader>
+                {phase === 'prepared' && (
+                  <IconBtn $primary onClick={startRecording} title={t('page.controls.startRecording')} aria-label={t('page.controls.startRecording')}>
+                    <MicIcon size={14} />
+                  </IconBtn>
+                )}
+                <IconBtn onClick={toggleHeaderCollapsed} title={t('page.header.expand')} aria-label={t('page.header.expand')}>
+                  <ChevronDownIcon size={16} />
+                </IconBtn>
+              </CollapsedHeader>
+            ) : (
+              <MainHeader>
+                <HeaderLeft>
+                  {editingTitle ? (
+                    <SessionTitleInput
+                      defaultValue={activeSession.title}
+                      autoFocus
+                      onBlur={(e) => handleTitleSave(e.currentTarget.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') { e.preventDefault(); handleTitleSave(e.currentTarget.value); }
+                        if (e.key === 'Escape') setEditingTitle(false);
+                      }}
+                    />
+                  ) : (
+                    <SessionTitle onClick={() => setEditingTitle(true)} title={t('page.header.editTitleHint')}>
+                      {activeSession.title}
+                    </SessionTitle>
+                  )}
+                  <SessionMeta>
+                    {meetingLangLabels && <Badge>{meetingLangLabels}</Badge>}
+                    {phase === 'prepared' && <Badge>{t('page.phase.prepared')}</Badge>}
+                    {phase === 'recording' && <Badge>{t('page.phase.recording')}</Badge>}
+                    {phase === 'paused' && <Badge>{t('page.phase.paused')}</Badge>}
+                  </SessionMeta>
+                </HeaderLeft>
+                <HeaderRight>
+                  <SecondaryBtn $compact onClick={() => { setEditingSession(true); setShowStartModal(true); }} title={t('page.controls.settings')} aria-label={t('page.controls.settings')}>
+                    <SettingsIcon size={14} />
+                    <BtnLabel>{t('page.controls.settings')}</BtnLabel>
+                  </SecondaryBtn>
+                  {phase === 'prepared' && (
+                    <PrimaryBtn $compact onClick={startRecording} title={t('page.controls.startRecording')} aria-label={t('page.controls.startRecording')}>
+                      <MicIcon size={14} />
+                      <BtnLabel>{t('page.controls.startRecording')}</BtnLabel>
+                    </PrimaryBtn>
+                  )}
+                  {phase === 'recording' && (
+                    <>
+                      <RecordingIndicator>
+                        <RecordDot />
+                        <BtnLabel>{t('page.controls.recordingNow')}</BtnLabel>
+                      </RecordingIndicator>
+                      <SecondaryBtn $compact onClick={pauseRecording} title={t('page.controls.pause')} aria-label={t('page.controls.pause')}>
+                        <StopIcon size={14} />
+                        <BtnLabel>{t('page.controls.pause')}</BtnLabel>
+                      </SecondaryBtn>
+                      <DangerBtn $compact onClick={endMeeting} title={t('page.controls.endMeeting')} aria-label={t('page.controls.endMeeting')}>
+                        <PowerIcon size={14} />
+                        <BtnLabel>{t('page.controls.endMeeting')}</BtnLabel>
+                      </DangerBtn>
+                    </>
+                  )}
+                  {phase === 'paused' && (
+                    <>
+                      <PrimaryBtn $compact onClick={startRecording} title={t('page.controls.resume')} aria-label={t('page.controls.resume')}>
+                        <MicIcon size={14} />
+                        <BtnLabel>{t('page.controls.resume')}</BtnLabel>
+                      </PrimaryBtn>
+                      <DangerBtn $compact onClick={endMeeting} title={t('page.controls.endMeeting')} aria-label={t('page.controls.endMeeting')}>
+                        <PowerIcon size={14} />
+                        <BtnLabel>{t('page.controls.endMeeting')}</BtnLabel>
+                      </DangerBtn>
+                    </>
+                  )}
+                  <IconBtn onClick={toggleHeaderCollapsed} title={t('page.header.collapse')} aria-label={t('page.header.collapse')}>
+                    <ChevronUpIcon size={16} />
+                  </IconBtn>
+                </HeaderRight>
+              </MainHeader>
+            )}
 
-            <ParticipantBar>
-              <ParticipantBarLabel>{t('page.participantBar.label', { count: (activeSession.participants?.length ?? 0) + 1 })}</ParticipantBarLabel>
-              <ParticipantPill key="self">{t('page.participantBar.self')}</ParticipantPill>
-              {(activeSession.participants || []).map((p, i) => (
-                <ParticipantPill key={i}>
-                  {p.name}
-                  {p.role && <ParticipantPillRole>{p.role}</ParticipantPillRole>}
-                </ParticipantPill>
-              ))}
-              <SelfModeGroup>
-                <SelfModeLabel>내 발화</SelfModeLabel>
-                <SelfModeBtn $active={selfMode === 'skip'} onClick={() => setSelfMode('skip')} title="내 발화는 아예 처리 안 함 (가장 빠름)">처리 안 함</SelfModeBtn>
-                <SelfModeBtn $active={selfMode === 'hide'} onClick={() => setSelfMode('hide')} title="내 발화는 녹음·저장하되 화면에서 숨김">숨김</SelfModeBtn>
-                <SelfModeBtn $active={selfMode === 'show'} onClick={() => setSelfMode('show')} title="내 발화도 다 보여줌">보기</SelfModeBtn>
-              </SelfModeGroup>
-            </ParticipantBar>
+            {!headerCollapsed && (
+              <ParticipantBar>
+                <ParticipantBarLabel>{t('page.participantBar.label', { count: (activeSession.participants?.length ?? 0) + 1 })}</ParticipantBarLabel>
+                <ParticipantPill key="self">{t('page.participantBar.self')}</ParticipantPill>
+                {(activeSession.participants || []).map((p, i) => (
+                  <ParticipantPill key={i}>
+                    {p.name}
+                    {p.role && <ParticipantPillRole>{p.role}</ParticipantPillRole>}
+                  </ParticipantPill>
+                ))}
+                <SelfModeGroup>
+                  <SelfModeLabel>내 발화</SelfModeLabel>
+                  <SelfModeBtn $active={selfMode === 'skip'} onClick={() => setSelfMode('skip')} title="내 발화는 아예 처리 안 함 (가장 빠름)">처리 안 함</SelfModeBtn>
+                  <SelfModeBtn $active={selfMode === 'hide'} onClick={() => setSelfMode('hide')} title="내 발화는 녹음·저장하되 화면에서 숨김">숨김</SelfModeBtn>
+                  <SelfModeBtn $active={selfMode === 'show'} onClick={() => setSelfMode('show')} title="내 발화도 다 보여줌">보기</SelfModeBtn>
+                </SelfModeGroup>
+              </ParticipantBar>
+            )}
 
             {liveError && <ErrorBar>{liveError}</ErrorBar>}
             {liveNotice && <NoticeBar>{liveNotice}</NoticeBar>}
 
-            {(phase === 'prepared' || phase === 'paused') && readiness && (
-              <ReadinessPanel $ready={readiness.allReady}>
-                <ReadinessHeader>
-                  <ReadinessDot $ready={readiness.allReady} />
-                  {readiness.allReady ? '✓ 모든 자료 준비 완료 — 녹음 시작 가능' : '⏳ 자료 준비 중...'}
-                </ReadinessHeader>
-                <ReadinessGrid>
-                  <ReadinessItem>
-                    <ReadinessLabel>참고 문서</ReadinessLabel>
-                    <ReadinessValue $ok={readiness.docsTotal === 0 || readiness.docsIndexed === readiness.docsTotal}>
-                      {readiness.docsTotal === 0
-                        ? '없음'
-                        : `${readiness.docsIndexed}/${readiness.docsTotal} 인덱싱 완료`}
-                      {readiness.docsFailed > 0 && <FailedBadge>실패 {readiness.docsFailed}</FailedBadge>}
-                    </ReadinessValue>
-                  </ReadinessItem>
-                  <ReadinessItem>
-                    <ReadinessLabel>최우선 Q&A</ReadinessLabel>
-                    <ReadinessValue $ok={readiness.pqTotal === readiness.pqEmbedded}>
-                      {readiness.pqTotal === 0 ? '없음' : `${readiness.pqEmbedded}/${readiness.pqTotal} 임베딩 완료`}
-                    </ReadinessValue>
-                  </ReadinessItem>
-                  <ReadinessItem>
-                    <ReadinessLabel>어휘사전 (STT 교정)</ReadinessLabel>
-                    <ReadinessValue $ok={readiness.keywordsCount > 0}>
-                      {readiness.keywordsCount > 0 ? `${readiness.keywordsCount}개 준비됨` : '미생성'}
-                    </ReadinessValue>
-                  </ReadinessItem>
-                </ReadinessGrid>
-                <ReadinessHint>
-                  "설정" 버튼에서 자료·Q&A·어휘사전을 확인·편집할 수 있습니다.
-                  인덱싱은 파일 크기에 따라 10초~1분 걸릴 수 있어요.
-                </ReadinessHint>
-              </ReadinessPanel>
-            )}
+            {(phase === 'prepared' || phase === 'paused') && readiness && (() => {
+              // allReady 면 기본 collapsed (한 줄 요약만). 클릭/토글로 펼침.
+              // 준비 중이면 항상 펼쳐서 진행 상황 표시.
+              const collapsed = readiness.allReady && !readinessExpanded;
+              const summary = readiness.allReady
+                ? `✓ 준비 완료 · 문서 ${readiness.docsIndexed}/${readiness.docsTotal || 0} · Q&A ${readiness.pqEmbedded}/${readiness.pqTotal} · 어휘 ${readiness.keywordsCount}`
+                : '⏳ 자료 준비 중...';
+              return (
+                <ReadinessPanel
+                  $ready={readiness.allReady}
+                  $collapsed={collapsed}
+                  onClick={() => readiness.allReady && setReadinessExpanded((v) => !v)}
+                  title={readiness.allReady ? '클릭하여 펼치기/접기' : ''}
+                >
+                  <ReadinessHeader $collapsed={collapsed}>
+                    <ReadinessDot $ready={readiness.allReady} />
+                    {collapsed ? summary : (readiness.allReady ? '✓ 모든 자료 준비 완료 — 녹음 시작 가능' : '⏳ 자료 준비 중...')}
+                    {readiness.allReady && (
+                      <ReadinessToggleHint>{collapsed ? '자세히 ▾' : '접기 ▴'}</ReadinessToggleHint>
+                    )}
+                  </ReadinessHeader>
+                  {!collapsed && (
+                    <>
+                      <ReadinessGrid>
+                        <ReadinessItem>
+                          <ReadinessLabel>참고 문서</ReadinessLabel>
+                          <ReadinessValue $ok={readiness.docsTotal === 0 || readiness.docsIndexed === readiness.docsTotal}>
+                            {readiness.docsTotal === 0
+                              ? '없음'
+                              : `${readiness.docsIndexed}/${readiness.docsTotal} 인덱싱 완료`}
+                            {readiness.docsFailed > 0 && <FailedBadge>실패 {readiness.docsFailed}</FailedBadge>}
+                          </ReadinessValue>
+                        </ReadinessItem>
+                        <ReadinessItem>
+                          <ReadinessLabel>최우선 Q&A</ReadinessLabel>
+                          <ReadinessValue $ok={readiness.pqTotal === readiness.pqEmbedded}>
+                            {readiness.pqTotal === 0 ? '없음' : `${readiness.pqEmbedded}/${readiness.pqTotal} 임베딩 완료`}
+                          </ReadinessValue>
+                        </ReadinessItem>
+                        <ReadinessItem>
+                          <ReadinessLabel>어휘사전 (STT 교정)</ReadinessLabel>
+                          <ReadinessValue $ok={readiness.keywordsCount > 0}>
+                            {readiness.keywordsCount > 0 ? `${readiness.keywordsCount}개 준비됨` : '미생성'}
+                          </ReadinessValue>
+                        </ReadinessItem>
+                      </ReadinessGrid>
+                      <ReadinessHint>
+                        "설정" 버튼에서 자료·Q&A·어휘사전을 확인·편집할 수 있습니다.
+                        인덱싱은 파일 크기에 따라 10초~1분 걸릴 수 있어요.
+                      </ReadinessHint>
+                    </>
+                  )}
+                </ReadinessPanel>
+              );
+            })()}
 
-            <Transcript ref={transcriptRef}>
+            <Transcript ref={transcriptRef} onScroll={handleTranscriptScroll}>
               {renderBlocks.length === 0 && !pending && phase === 'prepared' && (
                 <EmptyTranscript>
                   {t('page.prepared.ready')}
@@ -1548,6 +1883,30 @@ const QNotePage = () => {
                 </InterimLine>
               )}
             </Transcript>
+
+            {phase !== 'prepared' && (
+              <ManualQuestionBar>
+                <ManualQuestionInput
+                  placeholder="직접 질문을 입력하세요 (어떤 언어든 OK — 회의언어로 자동 번역됩니다)"
+                  value={manualInput}
+                  onChange={(e) => setManualInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    // nativeEvent.isComposing 으로 IME 조합 중 Enter 무시 (한글/일본어 입력)
+                    if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+                      e.preventDefault();
+                      submitManualQuestion();
+                    }
+                  }}
+                  disabled={manualSubmitting}
+                />
+                <ManualSubmitBtn
+                  onClick={submitManualQuestion}
+                  disabled={!manualInput.trim() || manualSubmitting}
+                >
+                  {manualSubmitting ? '처리 중...' : '답변 생성'}
+                </ManualSubmitBtn>
+              </ManualQuestionBar>
+            )}
           </>
         )}
 
@@ -1605,6 +1964,27 @@ const QNotePage = () => {
                 .filter((b) => selfMode === 'show' || b.kind === 'question' || !isSelfBlock(b))
                 .map((block, idx, arr) => renderBlock(block, idx > 0 ? arr[idx - 1] : null, idx, arr))}
             </Transcript>
+
+            <ManualQuestionBar>
+              <ManualQuestionInput
+                placeholder="직접 질문을 입력하세요 (어떤 언어든 OK — 회의언어로 자동 번역됩니다)"
+                value={manualInput}
+                onChange={(e) => setManualInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+                    e.preventDefault();
+                    submitManualQuestion();
+                  }
+                }}
+                disabled={manualSubmitting}
+              />
+              <ManualSubmitBtn
+                onClick={submitManualQuestion}
+                disabled={!manualInput.trim() || manualSubmitting}
+              >
+                {manualSubmitting ? '처리 중...' : '답변 생성'}
+              </ManualSubmitBtn>
+            </ManualQuestionBar>
           </>
         )}
       </Main>
@@ -1854,6 +2234,10 @@ const Layout = styled.div<{ $collapsed: boolean }>`
   height: calc(100vh - 64px);
   background: #f8fafc;
   transition: grid-template-columns 200ms ease;
+  position: relative;
+  @media (max-width: 900px) {
+    display: block;
+  }
 `;
 
 const Sidebar = styled.aside<{ $collapsed: boolean }>`
@@ -1865,6 +2249,27 @@ const Sidebar = styled.aside<{ $collapsed: boolean }>`
   transform: translateX(${(p) => (p.$collapsed ? '-100%' : '0')});
   transition: transform 200ms ease;
   visibility: ${(p) => (p.$collapsed ? 'hidden' : 'visible')};
+  @media (max-width: 900px) {
+    position: absolute;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 300px;
+    max-width: 85vw;
+    z-index: 30;
+    box-shadow: 4px 0 16px rgba(15, 23, 42, 0.12);
+  }
+`;
+
+const SidebarBackdrop = styled.div`
+  display: none;
+  @media (max-width: 900px) {
+    display: block;
+    position: absolute;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.35);
+    z-index: 25;
+  }
 `;
 
 const SidebarHeader = styled.div`
@@ -1989,6 +2394,9 @@ const Main = styled.section`
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  @media (max-width: 900px) {
+    height: 100%;
+  }
 `;
 
 const CollapseToggle = styled.button`
@@ -2019,29 +2427,90 @@ const CollapseToggle = styled.button`
 `;
 
 const MainHeader = styled.div`
-  padding: 20px 32px;
+  padding: 10px 32px 8px;
   background: #ffffff;
   border-bottom: 1px solid #e2e8f0;
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
+  align-items: center;
   gap: 16px;
+  @media (max-width: 768px) {
+    padding: 8px 16px;
+    gap: 8px;
+  }
+`;
+
+const CollapsedHeader = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 16px;
+  background: #ffffff;
+  border-bottom: 1px solid #e2e8f0;
+  min-height: 36px;
+`;
+
+const CollapsedTitle = styled.h2`
+  font-size: 13px;
+  font-weight: 600;
+  color: #0f172a;
+  margin: 0;
+  cursor: text;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 40%;
+  &:hover { color: #475569; }
+`;
+
+const CollapsedSpacer = styled.div`
+  flex: 1;
+`;
+
+const BtnLabel = styled.span`
+  @media (max-width: 768px) {
+    display: none;
+  }
+`;
+
+const IconBtn = styled.button<{ $primary?: boolean; $danger?: boolean }>`
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  background: ${(p) => p.$primary ? '#14b8a6' : '#ffffff'};
+  color: ${(p) => p.$primary ? '#ffffff' : p.$danger ? '#9f1239' : '#475569'};
+  border: 1px solid ${(p) => p.$primary ? 'transparent' : p.$danger ? '#fecdd3' : '#e2e8f0'};
+  border-radius: 8px;
+  cursor: pointer;
+  &:hover {
+    background: ${(p) => p.$primary ? '#0d9488' : p.$danger ? '#fff1f2' : '#f0fdfa'};
+    border-color: ${(p) => p.$primary ? 'transparent' : p.$danger ? '#f43f5e' : '#14b8a6'};
+    color: ${(p) => p.$primary ? '#ffffff' : p.$danger ? '#9f1239' : '#0d9488'};
+  }
 `;
 
 const HeaderLeft = styled.div`
   display: flex;
-  flex-direction: column;
-  gap: 8px;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  min-width: 0;
+  flex: 1 1 auto;
 `;
 
 const HeaderRight = styled.div`
   display: flex;
-  gap: 10px;
+  gap: 8px;
   align-items: center;
+  flex-shrink: 0;
 `;
 
 const SessionTitle = styled.h2`
-  font-size: 20px;
+  font-size: 16px;
   font-weight: 700;
   color: #0f172a;
   margin: 0;
@@ -2050,7 +2519,7 @@ const SessionTitle = styled.h2`
 `;
 
 const SessionTitleInput = styled.input`
-  font-size: 20px;
+  font-size: 16px;
   font-weight: 700;
   color: #0f172a;
   margin: 0;
@@ -2094,6 +2563,12 @@ const RecordingIndicator = styled.div`
   border-radius: 8px;
   font-size: 13px;
   font-weight: 600;
+  @media (max-width: 768px) {
+    width: 36px;
+    padding: 0;
+    justify-content: center;
+    gap: 0;
+  }
 `;
 
 const RecordDot = styled.span`
@@ -2108,9 +2583,18 @@ const RecordDot = styled.span`
   }
 `;
 
-const PrimaryBtn = styled.button`
+const compactResponsive = `
+  @media (max-width: 768px) {
+    width: 36px;
+    padding: 0;
+    gap: 0;
+  }
+`;
+
+const PrimaryBtn = styled.button<{ $compact?: boolean }>`
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
   height: 36px;
   padding: 0 18px;
@@ -2122,11 +2606,13 @@ const PrimaryBtn = styled.button`
   font-weight: 600;
   cursor: pointer;
   &:hover { background: #0d9488; }
+  ${(p) => p.$compact ? compactResponsive : ''}
 `;
 
-const SecondaryBtn = styled.button`
+const SecondaryBtn = styled.button<{ $compact?: boolean }>`
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
   height: 36px;
   padding: 0 16px;
@@ -2141,11 +2627,13 @@ const SecondaryBtn = styled.button`
     background: #f0fdfa;
     border-color: #14b8a6;
   }
+  ${(p) => p.$compact ? compactResponsive : ''}
 `;
 
-const DangerBtn = styled.button`
+const DangerBtn = styled.button<{ $compact?: boolean }>`
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
   height: 36px;
   padding: 0 16px;
@@ -2160,36 +2648,50 @@ const DangerBtn = styled.button`
     background: #fff1f2;
     border-color: #f43f5e;
   }
+  ${(p) => p.$compact ? compactResponsive : ''}
 `;
 
 const ParticipantBar = styled.div`
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 8px;
-  margin: 8px 32px 0;
-  padding: 8px 12px;
+  gap: 6px;
+  margin: 4px 32px 0;
+  padding: 4px 10px;
   background: #f8fafc;
-  border-radius: 8px;
+  border-radius: 6px;
+  font-size: 12px;
 `;
 
-const ReadinessPanel = styled.div<{ $ready: boolean }>`
-  margin: 12px 32px 0;
-  padding: 14px 18px;
+const ReadinessPanel = styled.div<{ $ready: boolean; $collapsed: boolean }>`
+  margin: ${(p) => (p.$collapsed ? '6px 32px 0' : '12px 32px 0')};
+  padding: ${(p) => (p.$collapsed ? '6px 12px' : '14px 18px')};
   background: ${(p) => (p.$ready ? '#f0fdfa' : '#fffbeb')};
   border: 1px solid ${(p) => (p.$ready ? '#99f6e4' : '#fde68a')};
   border-left: 3px solid ${(p) => (p.$ready ? '#0d9488' : '#f59e0b')};
-  border-radius: 10px;
+  border-radius: ${(p) => (p.$collapsed ? '6px' : '10px')};
+  cursor: ${(p) => (p.$ready ? 'pointer' : 'default')};
+  transition: all 0.15s ease;
+  &:hover {
+    ${(p) => p.$ready && 'background: #ccfbf1;'}
+  }
 `;
 
-const ReadinessHeader = styled.div`
+const ReadinessHeader = styled.div<{ $collapsed?: boolean }>`
   display: flex;
   align-items: center;
   gap: 10px;
-  font-size: 13px;
+  font-size: ${(p) => (p.$collapsed ? '12px' : '13px')};
   font-weight: 700;
   color: #0f172a;
-  margin-bottom: 10px;
+  margin-bottom: ${(p) => (p.$collapsed ? '0' : '10px')};
+`;
+
+const ReadinessToggleHint = styled.span`
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 500;
+  color: #64748b;
 `;
 
 const ReadinessDot = styled.span<{ $ready: boolean }>`
@@ -2353,6 +2855,49 @@ const EmptyTranscript = styled.div`
   line-height: 1.6;
 `;
 
+// ─── 직접 질문 입력 바 ─────────────────────────────
+const ManualQuestionBar = styled.div`
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+  margin: 0 32px 16px;
+  padding: 10px 12px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
+`;
+
+const ManualQuestionInput = styled.input`
+  flex: 1;
+  border: none;
+  outline: none;
+  font-size: 13px;
+  padding: 8px 10px;
+  color: #0f172a;
+  background: transparent;
+  &::placeholder { color: #94a3b8; }
+  &:disabled { opacity: 0.6; }
+`;
+
+const ManualSubmitBtn = styled.button`
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #ffffff;
+  background: #F43F5E;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s ease;
+  &:hover:not(:disabled) { background: #E11D48; }
+  &:disabled {
+    background: #cbd5e1;
+    cursor: not-allowed;
+  }
+`;
+
 // ─── Speech 블록 (평문 transcript) ────────────────
 const SpeechBlockWrap = styled.div<{ $dimmed?: boolean }>`
   display: flex;
@@ -2454,10 +2999,12 @@ const SpeechTranslation = styled.div`
   word-break: break-word;
 `;
 
-// ─── 질문 카드 — 세로 레이아웃 (헤더: 질문+버튼 / 본문: 번역+답변) ─
+// ─── 질문 카드 — 좌측 화자열 + 우측 본문열 (원문·번역·답변 동일 좌측정렬) ─
 const QuestionCard = styled.div`
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 10px;
   background: #ffffff;
   border: 1px solid #fecdd3;
   border-left: 4px solid #f43f5e;
@@ -2466,25 +3013,36 @@ const QuestionCard = styled.div`
   box-shadow: 0 1px 3px rgba(244, 63, 94, 0.06);
 `;
 
-const QuestionCardHeader = styled.div`
+const QuestionLeadCol = styled.div`
   display: flex;
-  align-items: flex-start;
-  gap: 12px;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  padding-top: 2px;
 `;
 
-const QuestionHeaderLeft = styled.div`
+const QuestionBodyCol = styled.div`
   flex: 1;
   min-width: 0;
   display: flex;
-  align-items: baseline;
-  flex-wrap: wrap;
-  gap: 6px;
-`;
-
-const QuestionContentArea = styled.div`
-  display: flex;
   flex-direction: column;
   gap: 4px;
+`;
+
+const QuestionTopRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+`;
+
+const QuestionTopActions = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  margin-left: auto;
 `;
 
 const CollapseBtn = styled.button`
@@ -2504,18 +3062,6 @@ const CollapseBtn = styled.button`
   cursor: pointer;
   transition: all 120ms;
   &:hover { background: #f8fafc; color: #475569; border-color: #cbd5e1; }
-`;
-
-const QuestionInlineLabel = styled.span`
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 11px;
-  font-weight: 700;
-  color: #9f1239;
-  background: #ffe4e6;
-  padding: 2px 8px;
-  border-radius: 10px;
 `;
 
 const QuestionOriginal = styled.div`
@@ -2546,6 +3092,20 @@ const EditedMark = styled.span`
   font-weight: 400;
   color: #f43f5e;
   margin-left: 6px;
+`;
+
+const ManualBadge = styled.span`
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  font-size: 10px;
+  font-weight: 700;
+  color: #ffffff;
+  background: #F43F5E;
+  border-radius: 10px;
+  letter-spacing: 0.03em;
+  margin-right: 6px;
+  flex-shrink: 0;
 `;
 
 const MergeNextBtn = styled.button`
@@ -2601,7 +3161,6 @@ const QuestionTranslation = styled.div`
   color: #64748b;
   line-height: 1.5;
   word-break: break-word;
-  padding-left: 8px;
 `;
 
 // TranslationPending 제거 — 번역이 없으면 영역 자체를 숨김 (placeholder 대신)

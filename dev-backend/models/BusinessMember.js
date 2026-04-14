@@ -19,8 +19,9 @@ BusinessMember.init({
     allowNull: false,
     references: { model: 'users', key: 'id' }
   },
+  // 'owner' = 관리자 (사용자 표기), 'member' = 멤버, 'ai' = Cue 전용
   role: {
-    type: DataTypes.ENUM('owner', 'member'),
+    type: DataTypes.ENUM('owner', 'member', 'ai'),
     defaultValue: 'member'
   },
   invited_by: {

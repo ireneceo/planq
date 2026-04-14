@@ -14,10 +14,11 @@ import { ALL_CAPTURE_CAPABILITIES } from '../../services/audio';
 import type { CaptureMode } from '../../services/audio';
 import {
   downloadPriorityQATemplate,
-  uploadPriorityQACSV,
+  uploadPriorityQAFile,
   getSession,
   listQAPairs,
   deletePriorityQA,
+  deletePriorityQAByFile,
   refreshSessionVocabulary,
 } from '../../services/qnote';
 import type { QAPair, QNoteDocument } from '../../services/qnote';
@@ -418,19 +419,21 @@ const StartMeetingModal = ({ open, userLanguage, editMode, initialConfig, editin
     setPriorityQAs((prev) => prev.filter((_, i) => i !== idx));
   };
 
+  const PQ_ALLOWED_EXT = ['csv', 'tsv', 'xlsx', 'xls', 'json', 'txt', 'md', 'pdf', 'docx', 'doc'];
+
   const handlePriorityCsvSelect = async (f: File | null) => {
     if (!f) {
       setPriorityCsv(null);
       setPriorityCsvResult(null);
       return;
     }
-    if (f.size > 2 * 1024 * 1024) {
-      showFileError('CSV 파일이 너무 큽니다 (최대 2MB)');
+    if (f.size > 10 * 1024 * 1024) {
+      showFileError('파일이 너무 큽니다 (최대 10MB)');
       return;
     }
     const ext = (f.name.split('.').pop() || '').toLowerCase();
-    if (ext !== 'csv') {
-      showFileError(`"${f.name}" — CSV 파일만 업로드 가능합니다`);
+    if (!PQ_ALLOWED_EXT.includes(ext)) {
+      showFileError(`"${f.name}" — 지원하지 않는 포맷 (${PQ_ALLOWED_EXT.join(', ')})`);
       return;
     }
     setPriorityCsv(f);
@@ -440,16 +443,20 @@ const StartMeetingModal = ({ open, userLanguage, editMode, initialConfig, editin
     if (editMode && editingSessionId) {
       setPriorityCsvUploading(true);
       try {
-        const res = await uploadPriorityQACSV(editingSessionId, f);
+        const res = await uploadPriorityQAFile(editingSessionId, f);
         const parts = [];
         if (res.created) parts.push(`새로 ${res.created}개`);
         if (res.updated) parts.push(`업데이트 ${res.updated}개`);
         let msg = parts.length ? parts.join(', ') + ' 등록' : '변경 없음';
-        if (res.errors && res.errors.length > 0) msg += ` (오류 ${res.errors.length}행)`;
+        if (res.errors && res.errors.length > 0) msg += ` (경고 ${res.errors.length}건)`;
         setPriorityCsvResult(msg);
+        // 성공 시 드롭존 파일 상태 비움 (파일 박스는 "기존 파일 목록"으로 넘어감)
+        if (res.created || res.updated) {
+          setPriorityCsv(null);
+        }
       } catch (err) {
         setPriorityCsvResult('업로드 실패: ' + (err instanceof Error ? err.message : '알 수 없는 오류'));
-        showFileError('CSV 업로드 실패: ' + (err instanceof Error ? err.message : ''));
+        showFileError('파일 업로드 실패: ' + (err instanceof Error ? err.message : ''));
       } finally {
         setPriorityCsvUploading(false);
       }
@@ -460,6 +467,16 @@ const StartMeetingModal = ({ open, userLanguage, editMode, initialConfig, editin
           setExistingPriorityQAs(pqs || []);
         } catch { /* ignore */ }
       }
+    }
+  };
+
+  const handleDeleteExistingPriorityFile = async (filename: string) => {
+    if (!editingSessionId) return;
+    try {
+      await deletePriorityQAByFile(editingSessionId, filename);
+      setExistingPriorityQAs((prev) => prev.filter((q) => q.source_filename !== filename));
+    } catch (err) {
+      showFileError(err instanceof Error ? err.message : '파일 삭제 실패');
     }
   };
 
@@ -723,30 +740,114 @@ const StartMeetingModal = ({ open, userLanguage, editMode, initialConfig, editin
               <PriorityBadge>최우선</PriorityBadge>
               Q&amp;A 자료 (답변 1순위)
               {editMode && existingPriorityQAs.length > 0 && (
-                <ExistingCount>기존 {existingPriorityQAs.length}개</ExistingCount>
+                <ExistingCount>총 {existingPriorityQAs.length}개</ExistingCount>
               )}
             </PriorityLabel>
             <Hint>
               여기에 등록한 Q&amp;A는 <strong>다른 모든 자료보다 먼저</strong> 사용됩니다.
-              회의에서 반드시 이 답변으로 응답해야 할 질문이 있다면 여기에 넣으세요.
-              비워둬도 됩니다.
+              파일 업로드 또는 직접 입력 두 가지 방식 모두 지원합니다.
             </Hint>
 
-            {editMode && existingPriorityQAs.length > 0 && (
-              <FileList>
-                {existingPriorityQAs.map((pq) => (
-                  <FileRow key={pq.id}>
-                    <FileIcon>
-                      <FileTextIcon size={14} />
-                    </FileIcon>
-                    <PQQuestionText>{pq.question_text}</PQQuestionText>
-                    <RemoveBtn onClick={() => handleDeleteExistingPriority(pq.id)} aria-label={t('startModal.removeLabel')}>
-                      <CloseIcon size={14} />
-                    </RemoveBtn>
-                  </FileRow>
-                ))}
-              </FileList>
-            )}
+            {/* ── 1) 파일 업로드 영역 (먼저) ── */}
+            <input
+              ref={priorityCsvInputRef}
+              type="file"
+              accept=".csv,.tsv,.xlsx,.xls,.json,.txt,.md,.pdf,.docx,.doc"
+              hidden
+              onChange={(e) => {
+                handlePriorityCsvSelect(e.target.files?.[0] || null);
+                if (e.target) e.target.value = '';
+              }}
+            />
+            <CSVDropzone
+              $dragging={priorityCsvDragging}
+              $uploading={priorityCsvUploading}
+              onClick={() => !priorityCsvUploading && priorityCsvInputRef.current?.click()}
+              onDragOver={(e) => { e.preventDefault(); setPriorityCsvDragging(true); }}
+              onDragLeave={() => setPriorityCsvDragging(false)}
+              onDrop={(e) => {
+                e.preventDefault();
+                setPriorityCsvDragging(false);
+                const f = e.dataTransfer.files?.[0];
+                if (f) handlePriorityCsvSelect(f);
+              }}
+            >
+              <DropzoneIcon>
+                <FileTextIcon size={20} />
+              </DropzoneIcon>
+              <DropzoneText>
+                {priorityCsvUploading
+                  ? '업로드 중... (PDF/DOCX 는 LLM 추출로 20~30초 걸릴 수 있습니다)'
+                  : priorityCsv
+                    ? priorityCsv.name
+                    : '파일 끌어다 놓거나 클릭해서 선택'}
+                <DropzoneSubText>
+                  {priorityCsvResult
+                    ? priorityCsvResult
+                    : editMode
+                      ? 'CSV · Excel · JSON · TXT · MD · PDF · DOCX — 선택 즉시 업로드'
+                      : 'CSV · Excel · JSON · TXT · MD · PDF · DOCX — 회의 시작 시 업로드'}
+                </DropzoneSubText>
+              </DropzoneText>
+              {priorityCsv && !priorityCsvUploading && (
+                <RemoveBtn
+                  onClick={(e) => { e.stopPropagation(); handlePriorityCsvSelect(null); }}
+                  aria-label={t('startModal.removeLabel')}
+                >
+                  <CloseIcon size={14} />
+                </RemoveBtn>
+              )}
+            </CSVDropzone>
+
+            {/* ── 2) 업로드된 파일 목록 (드롭존 바로 아래 — 업로드 즉시 여기서 확인) ── */}
+            {editMode && existingPriorityQAs.filter((p) => p.source_filename).length > 0 && (() => {
+              const byFile = new Map<string, QAPair[]>();
+              for (const pq of existingPriorityQAs) {
+                if (pq.source_filename) {
+                  const arr = byFile.get(pq.source_filename) || [];
+                  arr.push(pq);
+                  byFile.set(pq.source_filename, arr);
+                }
+              }
+              return (
+                <FileList>
+                  {Array.from(byFile.entries()).map(([fname, items]) => (
+                    <FileRow key={`file:${fname}`}>
+                      <FileIcon>
+                        <FileTextIcon size={14} />
+                      </FileIcon>
+                      <PQQuestionText title={items.map((i) => i.question_text).join('\n')}>
+                        {fname} <span style={{ color: '#888', fontWeight: 400 }}>· {items.length}개</span>
+                      </PQQuestionText>
+                      <RemoveBtn
+                        onClick={() => handleDeleteExistingPriorityFile(fname)}
+                        aria-label={t('startModal.removeLabel')}
+                      >
+                        <CloseIcon size={14} />
+                      </RemoveBtn>
+                    </FileRow>
+                  ))}
+                </FileList>
+              );
+            })()}
+
+            <TemplateLink
+              type="button"
+              onClick={async () => {
+                try {
+                  await downloadPriorityQATemplate();
+                } catch (err) {
+                  showFileError(err instanceof Error ? err.message : '템플릿 다운로드 실패');
+                }
+              }}
+            >
+              샘플 CSV 다운로드 (컬럼명은 question/질문 · answer/답변 · short_answer · keywords · category 중 어떤 이름이든 OK)
+            </TemplateLink>
+
+            {/* ── 3) 직접 입력 영역 ── */}
+            <Divider>
+              <DividerText>또는 직접 입력</DividerText>
+            </Divider>
 
             <PQRow>
               <ParticipantInput
@@ -783,90 +884,39 @@ const StartMeetingModal = ({ open, userLanguage, editMode, initialConfig, editin
               </AddRowBtn>
             </PQRow>
 
-            {priorityQAs.length > 0 && (
-              <FileList>
-                {priorityQAs.map((qa, idx) => (
-                  <FileRow key={idx}>
-                    <FileIcon>
-                      <FileTextIcon size={14} />
-                    </FileIcon>
-                    <PQQuestionText>{qa.question}</PQQuestionText>
-                    <RemoveBtn onClick={() => removePriorityQA(idx)} aria-label={t('startModal.removeLabel')}>
-                      <CloseIcon size={14} />
-                    </RemoveBtn>
-                  </FileRow>
-                ))}
-              </FileList>
-            )}
-
-            <Divider>
-              <DividerText>또는 CSV 업로드</DividerText>
-            </Divider>
-            <input
-              ref={priorityCsvInputRef}
-              type="file"
-              accept=".csv"
-              hidden
-              onChange={(e) => {
-                handlePriorityCsvSelect(e.target.files?.[0] || null);
-                // 같은 파일 다시 고를 수 있게 value 리셋
-                if (e.target) e.target.value = '';
-              }}
-            />
-            <CSVDropzone
-              $dragging={priorityCsvDragging}
-              $uploading={priorityCsvUploading}
-              onClick={() => !priorityCsvUploading && priorityCsvInputRef.current?.click()}
-              onDragOver={(e) => {
-                e.preventDefault();
-                setPriorityCsvDragging(true);
-              }}
-              onDragLeave={() => setPriorityCsvDragging(false)}
-              onDrop={(e) => {
-                e.preventDefault();
-                setPriorityCsvDragging(false);
-                const f = e.dataTransfer.files?.[0];
-                if (f) handlePriorityCsvSelect(f);
-              }}
-            >
-              <DropzoneIcon>
-                <FileTextIcon size={20} />
-              </DropzoneIcon>
-              <DropzoneText>
-                {priorityCsvUploading
-                  ? '업로드 중...'
-                  : priorityCsv
-                    ? priorityCsv.name
-                    : 'CSV 파일 끌어다 놓거나 클릭해서 선택'}
-                <DropzoneSubText>
-                  {priorityCsvResult
-                    ? priorityCsvResult
-                    : editMode
-                      ? '파일 선택 즉시 업로드됩니다'
-                      : '회의 시작 시 자동 업로드됩니다'}
-                </DropzoneSubText>
-              </DropzoneText>
-              {priorityCsv && !priorityCsvUploading && (
-                <RemoveBtn
-                  onClick={(e) => { e.stopPropagation(); handlePriorityCsvSelect(null); }}
-                  aria-label={t('startModal.removeLabel')}
-                >
-                  <CloseIcon size={14} />
-                </RemoveBtn>
-              )}
-            </CSVDropzone>
-            <TemplateLink
-              type="button"
-              onClick={async () => {
-                try {
-                  await downloadPriorityQATemplate();
-                } catch (err) {
-                  showFileError(err instanceof Error ? err.message : '템플릿 다운로드 실패');
-                }
-              }}
-            >
-              샘플 CSV 다운로드 (question, answer, short_answer, keywords, category)
-            </TemplateLink>
+            {/* ── 직접 입력한 것 (신규 + 기존 수동) 목록 ── */}
+            {(() => {
+              const manualExisting = editMode
+                ? existingPriorityQAs.filter((p) => !p.source_filename)
+                : [];
+              if (manualExisting.length === 0 && priorityQAs.length === 0) return null;
+              return (
+                <FileList>
+                  {manualExisting.map((pq) => (
+                    <FileRow key={`existing:${pq.id}`}>
+                      <FileIcon>
+                        <FileTextIcon size={14} />
+                      </FileIcon>
+                      <PQQuestionText>{pq.question_text}</PQQuestionText>
+                      <RemoveBtn onClick={() => handleDeleteExistingPriority(pq.id)} aria-label={t('startModal.removeLabel')}>
+                        <CloseIcon size={14} />
+                      </RemoveBtn>
+                    </FileRow>
+                  ))}
+                  {priorityQAs.map((qa, idx) => (
+                    <FileRow key={`new:${idx}`}>
+                      <FileIcon>
+                        <FileTextIcon size={14} />
+                      </FileIcon>
+                      <PQQuestionText>{qa.question}</PQQuestionText>
+                      <RemoveBtn onClick={() => removePriorityQA(idx)} aria-label={t('startModal.removeLabel')}>
+                        <CloseIcon size={14} />
+                      </RemoveBtn>
+                    </FileRow>
+                  ))}
+                </FileList>
+              );
+            })()}
           </Field>
 
           {editMode && (

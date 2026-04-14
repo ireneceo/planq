@@ -1,9 +1,87 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-04-13
+> **최종 업데이트:** 2026-04-14
 > **데이터베이스:** planq_dev_db (MySQL) + qnote.db (SQLite, FTS5)
 > **프로젝트:** B2B SaaS — 업무 전용 고객 채팅 + 실행 구조 통합 OS
 > **로드맵 상세:** `docs/DEVELOPMENT_ROADMAP.md`
+
+---
+
+## 완료: Phase 0 기초 정비 + Phase 5 Q Talk 백엔드 + UI 목업 (2026-04-14)
+
+설계 7 문서 전면 정비 후, Q Talk 의 기초(워크스페이스 · Cue AI 팀원 · 가시성)와
+대화 자료(KB) + Cue 오케스트레이터 백엔드까지 자율 구현. Q Talk 메인 UI 는
+UI-First 원칙에 따라 목업까지만 제작 (Irene 아침 승인 대기).
+
+### 완료된 작업
+
+| 영역 | 작업 | 상태 |
+|------|------|:----:|
+| **설계 문서** | 7 개 전면 정비 — SYSTEM_ARCHITECTURE (네이밍·가시성·Cue·사용량) / DATABASE_ERD (신규 4 테이블 + 마이그레이션 DDL) / API_DESIGN / SECURITY_DESIGN (Cue 안전장치) / INFORMATION_ARCHITECTURE / FEATURE_SPECIFICATION (Phase 0 + Phase 5 재작성) / DEVELOPMENT_ROADMAP (Phase 0 + Phase 5 13 단계) | ✅ |
+| **DB 마이그레이션** | users.is_ai / businesses 확장 (brand/legal/default_language/cue_*) / business_members.role 에 'ai' / conversations Cue 필드 / messages AI·internal 필드 / clients.summary / 신규 테이블 4 개 (kb_documents · kb_chunks · kb_pinned_faqs · cue_usage) | ✅ |
+| **Phase 0 마이그레이션 스크립트** | 기존 5 워크스페이스에 brand_name 백필 + Cue 계정 자동 생성 | ✅ |
+| **Auth 확장** | register 트랜잭션에 Cue 계정 자동 생성 / login·refresh 에서 is_ai=true 차단 / 예약 이메일 패턴 차단 | ✅ |
+| **Workspace API** | GET detail (Cue 포함 멤버) / PUT brand / PUT legal / PUT settings / GET members (Cue 포함) / GET cue (사용량 포함) / PUT cue (모드·pause) / 감사 로그 | ✅ |
+| **i18n 네이밍** | locales ko/en 에서 business_owner → 관리자/Admin, 워크스페이스 label 추가, businessName → workspaceName 병행 | ✅ |
+| **가시성 미들웨어** | `middleware/visibility.js` — canAccess·loadResource·checkVisibility 스켈레톤 (리소스별 적용은 각 메뉴 Phase 에서) | ✅ |
+| **워크스페이스 설정 페이지** | `WorkspaceSettingsPage.tsx` — 5 탭 통합 (Brand/Legal/Language/Members/Cue), 모든 입력 AutoSaveField, default_language='en' 일 때 영문 필드 자동 숨김, Cue 모드 카드 라디오, 사용량 바 + 종류별 집계 | ✅ |
+| **KB 서비스** | `services/kb_service.js` — OpenAI text-embedding-3-small 래퍼, sliding-window 청킹, Float32 BLOB 직렬화, 코사인 유사도, 하이브리드 검색 (임베딩 + LIKE 폴백) | ✅ |
+| **Cue 오케스트레이터** | `services/cue_orchestrator.js` — 4-tier 매칭, 민감 키워드 감지, Auto/Draft/Smart 모드, CueUsage UPSERT, 비용 계산, generateClientSummary, OpenAI 키 없을 때 graceful fallback | ✅ |
+| **KB 라우터** | `routes/kb.js` — 문서 CRUD + 비동기 인덱싱 + Pinned FAQ CRUD + CSV 템플릿 + 하이브리드 검색 테스트 엔드포인트 | ✅ |
+| **Conversations 라우터 확장** | Cue 자동 참여자 등록, Cue trigger, 대화별 pause/resume, suggestions, Draft approve/reject, 고객 요약 갱신, Client 역할 is_internal/Draft 필터링 | ✅ |
+| **Q Talk UI 목업** | `QTalkPage.tsx` — 3 단 반응형 레이아웃 (좌: 필터·대화 리스트 / 중: 메시지·Cue 뱃지·출처 인라인·컴포저 / 우: 고객 프로필·자동 요약·진행 업무·Cue 답변 후보·내부 메모), i18n ko/en, 목업 데이터로 화면 확인 가능 | ✅ |
+
+### 수정된 파일
+
+**설계 문서 (7)**
+- 전 문서 업데이트 — `docs/{SYSTEM_ARCHITECTURE,DATABASE_ERD,API_DESIGN,SECURITY_DESIGN,INFORMATION_ARCHITECTURE,FEATURE_SPECIFICATION,DEVELOPMENT_ROADMAP}.md`
+
+**백엔드 (Node)**
+- 모델: `User.js`, `BusinessMember.js`, `Conversation.js`, `Message.js`, `Client.js`, `index.js` 수정 / `Business.js` 전체 재작성 / `KbDocument.js`, `KbChunk.js`, `KbPinnedFaq.js`, `CueUsage.js` 신규
+- 미들웨어: `auth.js` (businessRole 세팅) / `visibility.js` 신규
+- 라우트: `auth.js` (Cue 계정 생성 + AI 차단), `businesses.js` 전체 재작성, `conversations.js` 전체 재작성 / `kb.js` 신규
+- 서비스: `kb_service.js`, `cue_orchestrator.js` 신규
+- 스크립트: `scripts/phase0-migrate.js` 신규
+
+**프론트엔드 (TS)**
+- `src/i18n.ts`, `src/App.tsx` 수정
+- `src/pages/Settings/WorkspaceSettingsPage.tsx`, `src/pages/QTalk/QTalkPage.tsx`, `src/services/workspace.ts` 신규
+
+**Locales**
+- `{ko,en}/common.json`, `{ko,en}/layout.json`, `{ko,en}/auth.json` 수정
+- `{ko,en}/settings.json`, `{ko,en}/qtalk.json` 신규
+
+### 설계 결정 (시니어 관점)
+
+- **"사업자 / Owner" 라벨만 교체**: 스키마 rename (10+ 테이블 FK) 은 비용 대비 가치 0. i18n 레이어에서만 "워크스페이스 / 관리자"로 표기하고, DB·코드는 `businesses`, `business_owner` 내부 이름 유지. Slack/Linear/Notion 모두 동일 패턴.
+- **Cue = 팀원 한 명**: 핸드오프 개념 제거. `users(is_ai=true)` + `business_members(role='ai')` 로 모델링. 사람 멤버와 동일한 할당·참여 시스템을 그대로 타면서 로그인만 불가. 실제 팀원이 업무 바통 터치하는 것처럼, 명시적 pause 외엔 자동 퇴장 없음.
+- **플랜별 기능 차등 금지**: Cue 는 전 플랜 동일 기능. 월 **액션 수** 한도만 차등 (Free 500 / Basic 5K / Pro 25K). 한도 초과 시 Cue 조용해지고 다음 달 복귀. Q Note 에서 이미 검증된 비용 모델 (액션당 ~$0.0005) 기준 Basic 마진 91%.
+- **KB 엔진은 Q Note 재사용**: `text-embedding-3-small` + 하이브리드 검색 + LLM 2차 매칭 파이프라인을 복사하지 않고 Node 서비스로 래핑 (OpenAI API 직접 호출). Q Note Python 과는 독립적으로 동작하되 동일 모델·동일 임베딩 차원.
+- **민감 키워드 강제 Draft**: Auto 모드라도 환불·계약해지·법적·금액 100만원 이상 감지 시 Draft 전환. 사람이 먼저 검토 후 발송. 오작동 리스크 차단.
+- **OpenAI 키 없을 때 graceful fallback**: Cue 오케스트레이터는 API 키 없어도 예외 던지지 않고 "확인 후 답변드리겠습니다" 폴백 + LLM 0 토큰 기록. 테스트/개발 환경에서 크래시 없이 전체 플로우 검증 가능.
+- **Q Talk UI 는 목업까지만**: UI-First 원칙 + 저장된 `feedback_ui_first.md` 메모리 준수. Irene 승인 전 실 API 연결 금지. 대신 현실적인 목업 데이터로 화면 방향성 확인 가능하게 만듦.
+- **통합 설정 페이지 (5 탭)**: 별도 5 페이지 대신 `/settings` 단일 라우트 + 내부 탭. 유지비 낮고 네비 단순.
+
+### 검증 결과
+
+- **헬스체크**: 27/27 ✓
+- **빌드**: tsc 0 error, vite 562ms, 637.58 KB (`index-DbkEa0cN.js`)
+- **Phase 0 API E2E** (test-phase0.js — 검증 후 삭제):
+  - Cue 계정 로그인 차단 ✓ / 기존 유저 로그인 ✓
+  - PUT brand/legal/cue ✓ / invalid value 거부 ✓
+  - GET members (Cue 포함) ✓ / GET cue (사용량) ✓
+- **Phase 5 백엔드 E2E** (test-phase5-backend.js — 검증 후 삭제): 13/13 ✓
+  - Pinned FAQ CRUD ✓ / KB document 업로드 + 비동기 인덱싱 `ready` ✓
+  - 하이브리드 검색 ✓ / Cue usage 집계 ✓
+- **SPA 라우트**: `/settings` `/talk` `/notes` `/profile` 전부 200
+
+### 미반영 / 다음 세션 (Irene 승인 후)
+- **Q Talk 실 UI 바인딩**: 3 단 레이아웃에 실제 API 연결, Socket.IO 이벤트 (new_message, cue_thinking, cue_draft_ready), Draft 승인/거절 UI
+- **고객 포털 뷰**: Client 역할용 간소 화면
+- **KB 관리 페이지**: `/talk/kb` 문서 업로드 드래그앤드롭 + Pinned FAQ CRUD UI
+- **파일 업로드 파싱**: 현재는 body 텍스트만. pdf/docx/xlsx multer 연결 + 파서 필요
+- **Cue task 실행**: Phase 6 Q Task 기획과 연계
+- **민감 키워드 다국어 확장**
 
 ---
 

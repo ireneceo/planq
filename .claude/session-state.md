@@ -1,119 +1,116 @@
 ## 현재 작업 상태
-**마지막 업데이트:** 2026-04-13
-**작업 상태:** 완료 — i18n 전면 적용 + Q note 품질·속도·데이터 정합성 대규모 개선 + 편집 UX + 준비 상태 가시화
+**마지막 업데이트:** 2026-04-14
+**작업 상태:** Phase 0 (기초 정비) + Phase 5 백엔드 완료 · Q Talk UI 목업 준비됨 · Irene 승인 대기
 
-### 진행 중인 작업
-- 없음
+### 이번 세션 완료 (자율 구현)
 
-### 완료된 작업 (이번 세션)
+**설계 문서 전면 정비 (7 문서)**
+- `docs/SYSTEM_ARCHITECTURE.md` — §8 네이밍 정책, §9 가시성 정책, §10 Cue, §11 Cue 사용량 추적
+- `docs/DATABASE_ERD.md` — users/businesses/business_members/conversations/messages/clients 확장 + 신규 kb_documents/kb_chunks/kb_pinned_faqs/cue_usage + Phase 0 마이그레이션 DDL
+- `docs/API_DESIGN.md` — register 응답, brand/legal/settings/cue 엔드포인트, 대화 자료(KB) 11개 엔드포인트
+- `docs/SECURITY_DESIGN.md` — Cue 감사 액션, §3.5 Cue 안전장치, §3.6 가시성 시행
+- `docs/INFORMATION_ARCHITECTURE.md` — 네이밍 반영 (워크스페이스/관리자), Q Talk 3단 레이아웃 재설계
+- `docs/FEATURE_SPECIFICATION.md` — Phase 0 섹션 신설 + Phase 5 Q Talk 전면 재작성 (F5-0~F5-16, Cue 팀원 모델)
+- `docs/DEVELOPMENT_ROADMAP.md` — Phase 0 신규 + Phase 5 13 단계 + Cue 통합 프롬프트
 
-**i18n 전면 적용**
-1. i18next + react-i18next 전 페이지 리트로핏 (Login/Register/MainLayout/Profile/QNotePage/StartMeetingModal)
-2. 네임스페이스 5개 (common/auth/layout/profile/qnote) × ko·en 304 key 동수
-3. CLAUDE.md 에 "다국어 i18n — 필수" 섹션 + "금지사항 — 프론트엔드 하드코딩" 추가
-4. 브랜드 네이밍 "Q Talk/Task/Note" → "Q talk/task/note" 소문자 통일
+**Phase 0 — 기초 정비 완료**
+1. DB 스키마 마이그레이션 (Sequelize sync + Phase 0 migrate 스크립트)
+   - `users.is_ai` 추가
+   - `businesses` 대폭 확장: default_language + brand_* + legal_* + timezone + work_hours + plan_expires_at + cue_mode + cue_user_id + cue_paused
+   - `business_members.role` ENUM 에 `'ai'` 추가
+   - `conversations` Cue 제어 필드
+   - `messages` kind/is_ai/ai_confidence/ai_source/ai_sources/ai_model/ai_mode_used/ai_draft_approved*/is_internal/invoice_id
+   - `clients.summary*` + assigned_member_id
+2. 신규 테이블 4 개: kb_documents, kb_chunks, kb_pinned_faqs, cue_usage
+3. `scripts/phase0-migrate.js` 실행 — 기존 5개 워크스페이스에 brand_name 백필 + Cue 계정 자동 생성
+4. `routes/auth.js` register 트랜잭션 확장 — 가입 시 Cue 시스템 계정 자동 생성
+5. `routes/auth.js` login/refresh 에서 `is_ai=true` 차단
+6. `routes/businesses.js` 전체 재작성 — brand/legal/settings/cue/members 엔드포인트
+7. `middleware/auth.js` — `req.businessRole` 세팅 추가
+8. `middleware/visibility.js` 신설 — canAccess/loadResource/checkVisibility
+9. i18n ko/en 라벨 교체 — 사업자/Owner → 워크스페이스/관리자
 
-**Q note 답변 품질·정합성**
-5. Answer tier 4단계 → 6단계 확장 (priority > custom > session_reuse > generated > rag > general)
-6. 임베딩 서비스 신규 (`embedding_service.py`, OpenAI text-embedding-3-small, 1536차원)
-7. Priority Q&A 전용 업로드 + FTS5 우회 전수 semantic rerank + LLM 2차 매칭 (gpt-4.1-nano)
-8. `short_answer` + `keywords` 컬럼 추가. `meeting_answer_length='short'` 일 때 short_answer 우선 반환. keywords 는 FTS5 인덱스 + 임베딩 input 에 포함
-9. CSV 업로드 5 컬럼 (question, answer, short_answer, keywords, category), 동기 임베딩 (race 제거), UPDATE + INSERT 혼합 지원, 드래그앤드롭 + 편집 모드 즉시 업로드
+**Phase 0 — 프론트엔드 완료**
+- `src/pages/Settings/WorkspaceSettingsPage.tsx` 신규 (통합 설정 페이지, 5 탭: Brand/Legal/Language/Members/Cue)
+  - Brand: brand_name, brand_name_en(조건부), tagline, logo, color swatch + hex
+  - Legal: legal_name, entity_type(PlanQSelect), tax_id, representative, address, phone, email, website
+  - Language: default_language, timezone
+  - Members: Cue 카드 (사용량 바 + 비용) + 사람 멤버 리스트
+  - Cue: smart/auto/draft 모드 라디오 + 전역 일시정지 토글 + 이번 달 사용량 바 + 종류별 집계
+- `src/services/workspace.ts` 신규 — API 클라이언트
+- `src/App.tsx` 라우트 추가: /settings, /settings/:tab, /talk, /talk/:conversationId
+- `public/locales/{ko,en}/settings.json` 신규 네임스페이스
+- `src/i18n.ts` ns 배열 확장
 
-**답변 스타일·길이 제어**
-10. 답변 길이: 1-2/2-3/3-4 문장 + 27/55/85 단어 하드캡 (서버 후처리 + 프롬프트 재강조)
-11. User 모델 확장: `language_levels` (언어별 R/S/L/W 1-6), `expertise_level` (layman/practitioner/expert), `answer_style_default`, `answer_length_default`
-12. ProfilePage 에 "내 언어 레벨" 카드 (7언어 × 4skill PlanQSelect)
-13. 회의별 스타일 textarea + 길이 3버튼 (StartMeetingModal)
-14. 말하기 좋은 단어 규칙 언어별 프롬프트 주입 (영어 Anglo-Saxon, 한국어 순우리말/구어체 등)
+**Phase 5 백엔드 완료**
+- `services/kb_service.js` — OpenAI text-embedding-3-small 임베딩, 청킹, 하이브리드 검색 (FTS + 코사인)
+- `services/cue_orchestrator.js` — 4 tier 매칭, Auto/Draft/Smart 모드, 민감 키워드 강제 Draft, 사용량 집계 UPSERT
+- `routes/kb.js` — 문서/Pinned FAQ CRUD + CSV 템플릿 + 하이브리드 검색 테스트
+- `routes/conversations.js` 전면 확장 — Cue trigger, 대화별 pause/resume, suggestions, Draft approve/reject, 고객 요약 갱신
+- `server.js` — /api kb 라우터 등록
 
-**어휘사전 (STT 교정)**
-15. `generate_vocabulary_list` 프롬프트 "TERM EXTRACTOR, NOT brainstormer" 복사 전용 모드
-16. `document_excerpts` 최우선 소스 + `meeting_languages` 강제 (자료 원어 그대로, 번역 금지)
-17. 문서 인덱싱 완료 시 `refresh_session_vocabulary` 자동 트리거 (`ingest.py` post-hook)
-18. 수동 재추출 엔드포인트 `POST /sessions/:id/refresh-vocabulary` + 편집 모달 "📄 재추출" 버튼
-19. 기존 사용자 수동 키워드 보존 병합 로직
-20. 검증: brief 만 → 0개, 영어 논문 → 5/5 verbatim 매칭, 환각 0/4, 한국어 자료 → 한국어
-
-**속도**
-21. Fast-path 질문 판정 병렬화 (`detect_question_fast`, gpt-4.1-nano ~300ms)
-22. `quick_question` WS 이벤트 → 프론트 카드 즉시 승격 + prefetch answer 시작
-23. 본인 발화 fast-path 스킵
-
-**UX**
-24. 편집 모드 (`StartMeetingModal editMode` + `initialConfig` + `editingSessionId`)
-25. 편집 모달 배너, 기존 Priority Q&A/문서/어휘사전 로드 + 삭제 버튼
-26. 초안 자동저장 (localStorage `qnote_meeting_draft_v1`, debounce 500ms)
-27. 준비 상태 패널 (prepared/paused phase, 3초 폴링, 문서 N/M · Q&A N/M · 어휘 N개)
-28. 내 발화 처리 3단계 (skip/hide/show) + localStorage
-29. 화자 라벨: 참여자 0명 또는 다수면 "상대" (Deepgram ID 기반 번호 제거)
-30. 번역문 원문과 왼쪽 정렬 (SpeechBlockWrap 재구조화)
-31. 모달 z-index 2000/2100 (헤더·사이드바 위 덮기)
-
-**Critical 버그 fix**
-32. `live.py` Deepgram 재시도 들여쓰기 (`close + return` 이 except 밖에 있어 재시도 성공 후에도 WS 닫혀 마이크·탭 오디오 전송 실패)
-33. 회의 생성 후 화면 사라지는 버그 (URL 핸들러 경합 + DB 기본 status='recording' → 'prepared' 변경)
-34. 탭 재공유 이중 표시 버그 (WebConferenceCapture stop 을 async 전환: 노드 disconnect → 트랙 stop → audioContext.close await)
-35. 탭 오디오 품질 개선 (Compressor + HighShelf + Gain ×2)
-
-### 수정된 파일
-
-**Q note (Python)**
-- 신규: `services/embedding_service.py`
-- 수정: `services/database.py`, `services/llm_service.py`, `services/answer_service.py`, `services/ingest.py`, `services/qa_generator.py`, `routers/live.py`, `routers/sessions.py`
-
-**PlanQ 백엔드 (Node)**
-- 수정: `models/User.js`, `routes/users.js`
-
-**프론트엔드 (TS)**
-- 수정: `contexts/AuthContext.tsx`, `i18n.ts`, `App.tsx`
-- 수정: `pages/Login/LoginPage.tsx`, `pages/Register/RegisterPage.tsx`, `pages/Profile/ProfilePage.tsx`, `pages/QNote/QNotePage.tsx`, `pages/QNote/StartMeetingModal.tsx`
-- 수정: `components/Layout/MainLayout.tsx`, `components/UI/Modal.tsx`, `components/Common/ConfirmDialog.tsx`
-- 수정: `services/qnote.ts`, `services/qnoteLive.ts`
-- 수정: `services/audio/WebConferenceCapture.ts`, `services/audio/AudioCaptureSource.ts`
-
-**Locales**
-- 신규: `public/locales/{ko,en}/{layout,profile,qnote}.json`
-- 수정: `public/locales/{ko,en}/{common,auth}.json`
-
-**문서**
-- `CLAUDE.md` — i18n 필수 섹션 + 금지 사항
-- `DEVELOPMENT_PLAN.md` — 새 섹션
-- Memory: `feedback_qnote_answer_priority.md` (6-tier 업데이트), `feedback_qnote_vocabulary.md` (신규)
+**Q Talk UI Mock (승인 대기)**
+- `src/pages/QTalk/QTalkPage.tsx` 신규 — 3단 레이아웃 스켈레톤
+  - Left: 대화 리스트 + 필터(All/Mine/Unread) + 상태 점(Cue/Human/Paused)
+  - Middle: 대화 헤더 + 메시지 리스트 (Cue 뱃지 + 출처 인라인) + 컴포저 (내부 메모 토글)
+  - Right: 고객 프로필 + 자동 요약 + 진행 업무 + Cue 답변 후보 + 내부 메모
+  - "Coming soon" 배너로 구현 완료/남은 단계 명시
+- `public/locales/{ko,en}/qtalk.json` 신규 네임스페이스
+- `/talk` 라우트 연결, 목업 데이터로 화면 확인 가능
 
 ### 검증 결과
-- **헬스체크 27/27** 통과
-- **빌드** tsc 0 error, 572~582 KB
-- **API E2E** (여러 세션 반복):
-  - Priority Q&A CSV 업로드 → 동기 임베딩 ✓
-  - Paraphrase 매칭 (임베딩 + LLM hybrid) 다수 케이스 priority tier ✓
-  - 무관 질문 false positive 방지 ✓
-  - short_answer 우선 반환 / full answer 분기 ✓
-  - 길이 캡 전부 준수 (short 18w/1s, medium 48w/4s, long 84w/8s)
-  - 어휘 verbatim 매칭 5/5, 환각 0/4, 언어별 강제 통과
-  - 편집 모드 PUT + POST + DELETE 전부 동작
-  - 보안 익명 401 / 없는 세션 404 / IDOR 403
-- **SPA 라우트** 11개 전부 200
 
-### 다음 할 일
+- **헬스체크**: 27/27 ✓ (매 단계마다 통과)
+- **빌드**: tsc 0 error, vite 562ms, 637.58 KB (`index-DbkEa0cN.js`)
+- **Phase 0 API E2E** (검증 후 삭제됨): 17/18 (1개 false-fail 은 MySQL bool 리턴 타입 이슈, 실제 DB 확인 정상)
+  - Cue 로그인 차단 ✓ / 기존 유저 로그인 ✓ / brand·legal·cue PUT ✓ / cue mode 변경 ✓ / 멤버 목록 ✓ / 잘못된 값 거부 ✓
+- **Phase 5 백엔드 E2E** (검증 후 삭제됨): 13/13 모두 통과
+  - Pinned FAQ CRUD ✓ / KB document 업로드·인덱싱(ready) ✓ / 하이브리드 검색 ✓ / Cue 사용량 조회 ✓ / 삭제 ✓
+- **SPA 라우트**: /settings /talk /notes /profile 전부 200
 
-**우선순위 1: Q Calendar 실 구현** (placeholder)
-- 일정 CRUD, 반복 이벤트, 월/주/일 뷰
-- Q Task 연동
-- 참조: `docs/FEATURE_SPECIFICATION.md`
+### 수정/신규 파일
 
-**우선순위 2: Q Docs 실 구현** (placeholder)
-- 문서 에디터 (마크다운/리치 텍스트), 버전 관리
-- Q note RAG 와 연동
+**백엔드 (Node)**
+- 수정: `models/User.js`, `models/BusinessMember.js`, `models/Conversation.js`, `models/Message.js`, `models/Client.js`, `models/index.js`, `middleware/auth.js`, `routes/auth.js`, `routes/businesses.js`, `routes/conversations.js`, `server.js`
+- 전체 재작성: `models/Business.js`
+- 신규: `models/KbDocument.js`, `models/KbChunk.js`, `models/KbPinnedFaq.js`, `models/CueUsage.js`, `middleware/visibility.js`, `services/kb_service.js`, `services/cue_orchestrator.js`, `routes/kb.js`, `scripts/phase0-migrate.js`
 
-**우선순위 3: 메뉴별 기획 심화**
-- 사용자 지시: "메뉴 순서대로 기획설계 자세히 할게"
-- Q talk → Q task → Q calendar → Q docs → Q file → Q bill 순 설계서 작성
+**프론트엔드 (TS)**
+- 수정: `src/i18n.ts`, `src/App.tsx`
+- 신규: `src/pages/Settings/WorkspaceSettingsPage.tsx`, `src/pages/QTalk/QTalkPage.tsx`, `src/services/workspace.ts`
 
-**Q note 확장 (추후)**
-- 프로필 다중 페르소나 (영업용/기획용 전환)
-- Q note 세션 목록 검색 (현재 placeholder)
-- 운영 배포 스크립트
+**Locales (ko/en)**
+- 수정: `common.json`, `layout.json`, `auth.json`
+- 신규: `settings.json`, `qtalk.json`
+
+**설계 문서**
+- `SYSTEM_ARCHITECTURE.md`, `DATABASE_ERD.md`, `API_DESIGN.md`, `SECURITY_DESIGN.md`, `INFORMATION_ARCHITECTURE.md`, `FEATURE_SPECIFICATION.md`, `DEVELOPMENT_ROADMAP.md`
+
+### 미반영 (다음 세션에서 Irene 승인 후)
+
+**Phase 5 UI 본 구현 (Irene 승인 대기)**
+- Q Talk 실 데이터 바인딩 (대화 리스트·메시지 실시간 수신·컴포저 전송)
+- Draft 승인/거절 UI 와 API 연결
+- Socket.IO 실시간 이벤트 (new_message, cue_thinking, cue_draft_ready, cue_paused 등)
+- 고객 포털 뷰 (Client 역할용 간소 화면)
+- KB 관리 UI (`/talk/kb` — 문서 업로드, Pinned FAQ CRUD)
+- 파일 업로드 multer 연결 (현재는 body 텍스트 인덱싱만)
+
+**Phase 5 백엔드 확장 (후순위)**
+- 문서 파일 파싱 (pdf/docx/xlsx) — 현재는 본문 텍스트만 지원
+- Cue task 실행 (Phase 1 범위 밖, Phase 6 Q Task 와 연계)
+- 민감 키워드 감지 다국어 확장
+
+### 회귀 위험 체크 결과
+- Q Note 정상 동작 ✓ (health check 27/27)
+- 기존 로그인 플로우 ✓
+- 멀티테넌트 격리 ✓ (Cue 계정 로그인 차단 확인)
+
+### Irene 첫 확인 포인트 (아침에)
+1. https://dev.planq.kr/settings — 브랜드/법인/언어/멤버(Cue)/Cue 모드 저장 동작 확인
+2. https://dev.planq.kr/talk — Q Talk 목업 화면 (3단 레이아웃 + Cue 뱃지 + 출처 표시) 방향 승인 여부
+3. 로그인 시 헤더 아래 "사업자" → "관리자" 라벨 변경 확인
+4. 새 계정 회원가입 시 워크스페이스 자동으로 Cue 멤버 생성되는지 확인 (선택)
 
 ---
 

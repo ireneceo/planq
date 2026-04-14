@@ -25,13 +25,34 @@ import aiosqlite
 import numpy as np
 
 from services.database import connect as db_connect
-from services.llm_service import generate_answer, translate_text, llm_match_question, generate_vocabulary_list
+from services.llm_service import (
+  generate_answer, translate_text, llm_match_question, generate_vocabulary_list,
+  augment_answer_with_rag,
+  _enforce_length_cap,
+)
 from services.embedding_service import (
   embed_text, blob_to_embedding, cosine_similarity as embed_cosine,
   embedding_to_blob,
 )
 
 logger = logging.getLogger('q-note.answer')
+
+
+def _detect_simple_lang(text: str) -> Optional[str]:
+  """Minimal heuristic language detection for pre-registered Q&A answers.
+  - 한글 음절 포함 → 'ko'
+  - 아니고 ASCII 라틴 문자 포함 → 'en'
+  - 그 외 (JP/ZH 등) → None (번역 스킵)
+  """
+  if not text:
+    return None
+  has_hangul = any('\uAC00' <= c <= '\uD7A3' for c in text)
+  if has_hangul:
+    return 'ko'
+  has_latin = any(('a' <= c <= 'z') or ('A' <= c <= 'Z') for c in text)
+  if has_latin:
+    return 'en'
+  return None
 
 # FTS5 BM25 rank 임계값 (1차 필터용 — 관대하게)
 FTS_THRESHOLD = 0.0
@@ -43,7 +64,9 @@ FTS_THRESHOLD = 0.0
 SEMANTIC_THRESHOLD_PRIORITY = 0.35
 SEMANTIC_THRESHOLD_CUSTOM = 0.50
 SEMANTIC_THRESHOLD_GENERATED = 0.60
-SEMANTIC_THRESHOLD_SESSION_HISTORY = 0.80
+# Session history 는 near-duplicate 질문만 재사용. 관련 있지만 다른 질문은 절대 재사용 금지.
+# 실측: 동일 질문 paraphrase 0.88~0.96, 같은 주제 다른 aspect 0.78~0.88 → 0.93 으로 엄격히.
+SEMANTIC_THRESHOLD_SESSION_HISTORY = 0.93
 SEMANTIC_THRESHOLD_RAG = 0.50
 
 
@@ -169,14 +192,16 @@ async def _semantic_rerank(
 async def _search_priority_qa(
   session_id: int, question_text: str, q_emb: Optional[np.ndarray]
 ) -> Optional[dict]:
-  """Priority Q&A — 2단계 매칭:
-  1) 임베딩 top-5 후보 추출 (sim > 0.20 minimum floor)
-  2) sim > 0.55 → 바로 반환 (명백한 paraphrase)
-  3) sim ∈ [0.20, 0.55] → LLM 에게 2차 검증 (gpt-4.1-nano, ~200ms)
-  4) LLM 매칭 성공 → 반환. 실패 → None.
+  """Priority Q&A — 3단계 보수적 매칭:
+  1) 임베딩 top-5 후보 추출
+  2) top sim >= 0.72 AND 상위 2위 sim 과 차이 >= 0.08 → 직접 반환 (명백한 paraphrase)
+  3) top sim ∈ [0.30, 0.72) → LLM 에게 엄격한 2차 검증, 확신 없으면 None
+  4) top sim < 0.30 → None (너무 낮으면 애초에 관련 없음)
 
-  사용자가 등록한 Q&A 는 의미 기반 매칭이 최우선 — 임베딩 모델 한계로 놓치는
-  paraphrase 를 LLM 이 구조적으로 구제한다."""
+  정책: **잘못된 매칭은 누락보다 훨씬 해롭다**. 사용자 신뢰가 1순위.
+  - 임베딩 top 이 부정확할 수 있으므로 (예: 키워드 overlap 만 있는 경우) 절대 우선 받지 않음
+  - LLM 은 엄격 프롬프트로 의심 시 0 반환
+  - 여기서 None 반환하면 다음 tier(custom → session reuse → generated → RAG → general)로 fallback"""
   async with db_connect() as db:
     db.row_factory = aiosqlite.Row
     cursor = await db.execute('''
@@ -230,31 +255,38 @@ async def _search_priority_qa(
   scored.sort(key=lambda x: -x[0])
 
   top_sim, top = scored[0]
-  logger.info(f'priority top sim={top_sim:.3f} id={top.get("id")}')
+  second_sim = scored[1][0] if len(scored) > 1 else 0.0
+  logger.info(
+    f'priority top sim={top_sim:.3f} (2nd={second_sim:.3f}) '
+    f'id={top.get("id")} q={(top.get("question_text") or "")[:60]!r}'
+  )
 
-  # 명백한 매칭
-  if top_sim >= 0.55:
-    top['semantic_score'] = top_sim
-    return top
-
-  # 사용자가 직접 등록한 priority Q&A — 임베딩 점수가 낮아도 LLM 이 paraphrase 를 잡아낼 수 있음.
-  # 완전 노이즈 하한만 제외 (0.10) 하고 LLM 에 판단 위임.
-  if top_sim < 0.10:
+  # 하드 하한 — 너무 낮으면 완전 무관. 다음 tier 로.
+  if top_sim < 0.30:
+    logger.info(f'priority: sim below hard floor (0.30) → skip tier')
     return None
 
-  # 중간 구간 — LLM 2차 검증 (top-5)
+  # 명백한 매칭: top sim 이 매우 높고 + 2위와의 gap 도 충분 (ambiguity 없음)
+  # 실측: 동일 질문 paraphrase → 0.75~0.95, 관련 없는 질문 → 0.2~0.5
+  # 0.72 + gap 0.08 이면 "확실" 인정.
+  if top_sim >= 0.72 and (top_sim - second_sim) >= 0.08:
+    top['semantic_score'] = top_sim
+    logger.info(f'priority: direct-accept (high sim, clear gap)')
+    return top
+
+  # 중간 구간 — LLM 엄격 검증 (top-5)
   top_candidates = [s[1] for s in scored[:5]]
   qs = [c.get('question_text') or '' for c in top_candidates]
   n = await llm_match_question(question_text, qs)
   logger.info(f'priority LLM verify: n={n} (of {len(qs)})')
   if n > 0 and n <= len(top_candidates):
     result = top_candidates[n - 1]
-    # LLM 이 고른 인덱스의 sim 값 추출
     for s, c in scored[:5]:
       if c is result:
         result['semantic_score'] = s
         break
     return result
+  # LLM 도 no-match → 다음 tier 로 (절대 잘못된 답 반환 금지)
   return None
 
 
@@ -300,28 +332,51 @@ async def _load_session_history(session_id: int, limit: int = 30) -> list[dict]:
 async def _search_session_history(
   session_id: int, question_text: str, q_emb: Optional[np.ndarray]
 ) -> Optional[dict]:
-  """같은 세션에서 이미 답변한 질문 중 시맨틱 유사도 높은 것 재사용."""
+  """같은 세션에서 이미 답변한 질문 중 시맨틱 유사도 매우 높은 것만 재사용.
+
+  보수적 정책 (정확성 > 재사용):
+  1) 임베딩 sim >= 0.93 (사실상 동일 질문의 paraphrase 만)
+  2) 같은 주제 다른 aspect 는 재사용 금지 (예: "choose X" vs "what is X" → 다름)
+  3) LLM 엄격 verify 로 2차 확인 — 확신 없으면 None → 다음 tier 로 fallback
+  """
   if q_emb is None:
     return None
   history = await _load_session_history(session_id)
   if not history:
     return None
-  # 각 질문을 다시 임베딩 (캐시 없음 — 세션당 수십개라 감당 가능)
-  # 성능 최적화: 배치 임베딩
   from services.embedding_service import embed_batch
   texts = [h['question_text'] for h in history]
   embs = await embed_batch(texts)
-  best_sim = -1.0
-  best_item = None
+  # 임베딩 기준 top 5 후보
+  scored: list[tuple[float, dict]] = []
   for h, emb in zip(history, embs):
     if emb is None:
       continue
     sim = embed_cosine(q_emb, emb)
-    if sim > best_sim:
-      best_sim = sim
-      best_item = h
-  if best_item is None or best_sim < SEMANTIC_THRESHOLD_SESSION_HISTORY:
+    scored.append((sim, h))
+  if not scored:
     return None
+  scored.sort(key=lambda x: -x[0])
+  top_sim, top_item = scored[0]
+  logger.info(f'session_reuse top sim={top_sim:.3f} q={(top_item.get("question_text") or "")[:60]!r}')
+
+  # 하드 하한 — 진짜 거의 같은 질문만
+  if top_sim < SEMANTIC_THRESHOLD_SESSION_HISTORY:
+    return None
+
+  # 여기서 LLM 한 번 더 검증 — session_reuse 는 데이터 오염이 전파되는 tier 이므로 엄격하게
+  top_candidates = [s[1] for s in scored[:5] if s[0] >= 0.85]
+  if top_candidates:
+    qs = [c.get('question_text') or '' for c in top_candidates]
+    n = await llm_match_question(question_text, qs)
+    if n == 0:
+      logger.info('session_reuse: LLM verify rejected — fallback to next tier')
+      return None
+    if 1 <= n <= len(top_candidates):
+      top_item = top_candidates[n - 1]
+      top_sim = next((s for s, c in scored if c is top_item), top_sim)
+  best_sim = top_sim
+  best_item = top_item
   return {
     'answer_text': best_item['answer_text'],
     'answer_translation': '',
@@ -641,17 +696,59 @@ async def find_answer(
   except Exception as e:
     logger.warning(f'backfill_qa_embeddings failed: {e}')
 
-  def _qa_result(match: dict, tier: str) -> dict:
+  async def _qa_result(match: dict, tier: str) -> dict:
     # length='short' 이고 short_answer 가 있으면 그것을 우선 반환
     ans = match['answer_text']
     if prefer_short and match.get('short_answer'):
       ans = match['short_answer']
+    # 언어 강제 — Q&A 에 한글로 등록됐는데 answer_language='en' 이면 즉시 번역.
+    if ans and effective_answer_lang:
+      detected = _detect_simple_lang(ans)
+      if detected and detected != effective_answer_lang:
+        try:
+          translated = await translate_text(ans, effective_answer_lang)
+          if translated:
+            ans = translated
+        except Exception as e:
+          logger.warning(f'priority answer translate failed: {e}')
+
+    # ── RAG 보강 ──
+    # 등록된 답변이 사용자 질문의 구체 정보 (숫자/날짜/이름 등) 를 빠뜨렸을 수 있음.
+    # 문서 청크에서 보강 가능한 정보를 찾아 자연스럽게 추가.
+    # LLM 이 스스로 판단: 보강 필요 → 답변 업데이트, 불필요 → 원문 그대로.
+    # session_reuse 는 이미 다른 경로에서 augment 된 것일 수 있으므로 priority/custom/generated 에만 적용.
+    augment_sources: list[dict] = []
+    if ans and tier in ('priority', 'custom', 'generated'):
+      try:
+        chunks = await _search_document_chunks(session_id, question_text, top_k=5)
+        if chunks:
+          aug = await augment_answer_with_rag(
+            question=question_text,
+            registered_answer=ans,
+            doc_chunks=[c['content'] for c in chunks],
+            meeting_context=meeting_context,
+            answer_language=effective_answer_lang,
+            meeting_length=meeting_length,
+          )
+          if aug.get('augmented') and aug.get('answer'):
+            logger.info(f'{tier} augmented: {aug.get("reason", "")[:60]}')
+            ans = aug['answer']
+            augment_sources = [
+              {'chunk_id': c['id'], 'snippet': c['content'][:150]}
+              for c in chunks[:3]
+            ]
+      except Exception as e:
+        logger.warning(f'{tier} augment failed: {e}')
+
+    # 길이 캡 — 사용자가 등록한 전체 답변이 길어도 회의별 length 설정에 맞춰 잘라냄.
+    if ans and meeting_length:
+      ans = _enforce_length_cap(ans, meeting_length)
     return {
       'tier': tier,
       'answer': ans,
       'answer_translation': match.get('answer_translation') or '',
       'confidence': match.get('confidence') or 'high',
-      'sources': [],
+      'sources': augment_sources,
       'matched_qa_id': match.get('id'),
       'semantic_score': match.get('semantic_score'),
       '_translation_lang': effective_translation_lang,
@@ -660,19 +757,32 @@ async def find_answer(
   # ── Tier 1: Priority Q&A (최우선) ──
   m = await _search_priority_qa(session_id, question_text, q_emb)
   if m:
-    return _qa_result(m, 'priority')
+    return await _qa_result(m, 'priority')
 
   # ── Tier 2: Custom Q&A (사용자 직접 등록) ──
   m = await _search_custom_qa(session_id, question_text, q_emb)
   if m:
-    return _qa_result(m, 'custom')
+    return await _qa_result(m, 'custom')
 
   # ── Tier 3: Session history — 이미 답변한 유사 질문 재사용 ──
   hist = await _search_session_history(session_id, question_text, q_emb)
   if hist:
+    hist_ans = hist['answer_text']
+    # 언어 강제 (session history 는 과거 답변 재사용인데 언어가 바뀌었을 수 있음)
+    if hist_ans and effective_answer_lang:
+      detected = _detect_simple_lang(hist_ans)
+      if detected and detected != effective_answer_lang:
+        try:
+          t = await translate_text(hist_ans, effective_answer_lang)
+          if t:
+            hist_ans = t
+        except Exception:
+          pass
+    if hist_ans and meeting_length:
+      hist_ans = _enforce_length_cap(hist_ans, meeting_length)
     return {
       'tier': 'session_reuse',
-      'answer': hist['answer_text'],
+      'answer': hist_ans,
       'answer_translation': '',
       'confidence': hist['confidence'],
       'sources': [],
@@ -684,7 +794,7 @@ async def find_answer(
   # ── Tier 4: Generated Q&A (문서에서 사전 생성) ──
   m = await _search_generated_qa(session_id, question_text, q_emb)
   if m:
-    return _qa_result(m, 'generated')
+    return await _qa_result(m, 'generated')
 
   # 이력에서 최근 Q&A 3-5개 추출 (generate_answer 에 주입)
   history = await _load_session_history(session_id, limit=5)

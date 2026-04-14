@@ -70,12 +70,24 @@ const getUserWithBusiness = async (userId) => {
 router.post('/register', async (req, res, next) => {
   const transaction = await sequelize.transaction();
   try {
-    const { email, password, name, business_name } = req.body;
+    const {
+      email,
+      password,
+      name,
+      // 신규: 워크스페이스 이름(브랜드) — 레거시 호환 위해 business_name 도 허용
+      workspace_name,
+      business_name,
+      brand_name_en,
+      default_language
+    } = req.body;
+
+    const brandName = workspace_name || business_name;
+    const lang = default_language === 'en' ? 'en' : 'ko';
 
     // Validation
-    if (!email || !password || !name || !business_name) {
+    if (!email || !password || !name || !brandName) {
       await transaction.rollback();
-      return errorResponse(res, 'Email, password, name, and business name are required', 400);
+      return errorResponse(res, 'Email, password, name, and workspace name are required', 400);
     }
 
     if (password.length < 8) {
@@ -94,6 +106,12 @@ router.post('/register', async (req, res, next) => {
       return errorResponse(res, 'Invalid email format', 400);
     }
 
+    // Cue 시스템 이메일 차단 (일반 가입에서 사용 불가)
+    if (/^cue\+\d+@system\.planq\.kr$/.test(email)) {
+      await transaction.rollback();
+      return errorResponse(res, 'Reserved email address', 400);
+    }
+
     // Check duplicate
     const existing = await User.findOne({ where: { email }, transaction });
     if (existing) {
@@ -101,21 +119,26 @@ router.post('/register', async (req, res, next) => {
       return errorResponse(res, 'Email already registered', 409);
     }
 
-    // 1. Create User
+    // 1. Create human User
     const password_hash = await bcrypt.hash(password, 12);
     const user = await User.create({
-      email, password_hash, name
+      email, password_hash, name, language: lang, is_ai: false
     }, { transaction });
 
-    // 2. Create Business
-    const slug = generateSlug(business_name);
+    // 2. Create Business (워크스페이스)
+    const slug = generateSlug(brandName);
     const business = await Business.create({
-      name: business_name,
+      name: brandName,                // legacy 호환
+      brand_name: brandName,
+      brand_name_en: lang === 'ko' ? (brand_name_en || null) : null,
       slug,
-      owner_id: user.id
+      owner_id: user.id,
+      default_language: lang,
+      cue_mode: 'smart',
+      cue_paused: false
     }, { transaction });
 
-    // 3. Create BusinessMember (owner)
+    // 3. Create BusinessMember (관리자)
     await BusinessMember.create({
       business_id: business.id,
       user_id: user.id,
@@ -123,11 +146,35 @@ router.post('/register', async (req, res, next) => {
       joined_at: new Date()
     }, { transaction });
 
-    // 4. Generate tokens
+    // 4. Create Cue 시스템 계정 (AI 팀원)
+    const cueRandomHash = await bcrypt.hash(Math.random().toString(36) + Date.now(), 12);
+    const cueUser = await User.create({
+      email: `cue+${business.id}@system.planq.kr`,
+      password_hash: cueRandomHash,
+      name: 'Cue',
+      avatar_url: '/static/cue.svg',
+      is_ai: true,
+      platform_role: 'user',
+      status: 'active',
+      language: lang
+    }, { transaction });
+
+    // Cue 의 email 은 business.id 가 필요하므로 이미 반영됨.
+    // business.cue_user_id 업데이트
+    await business.update({ cue_user_id: cueUser.id }, { transaction });
+
+    await BusinessMember.create({
+      business_id: business.id,
+      user_id: cueUser.id,
+      role: 'ai',
+      joined_at: new Date()
+    }, { transaction });
+
+    // 5. Generate tokens
     const accessToken = generateAccessToken(user);
     const refreshToken = generateRefreshToken(user);
 
-    // 5. Save refresh token
+    // 6. Save refresh token
     await user.update({ refresh_token: refreshToken }, { transaction });
 
     await transaction.commit();
@@ -176,6 +223,11 @@ router.post('/login', async (req, res, next) => {
       where: isEmail ? { email } : { username: email }
     });
     if (!user) {
+      return errorResponse(res, 'Invalid email or password', 401);
+    }
+
+    // AI 계정(Cue) 로그인 차단
+    if (user.is_ai) {
       return errorResponse(res, 'Invalid email or password', 401);
     }
 
@@ -242,7 +294,7 @@ router.post('/refresh', async (req, res, next) => {
       where: { id: decoded.userId, refresh_token: refreshToken }
     });
 
-    if (!user || user.status !== 'active') {
+    if (!user || user.status !== 'active' || user.is_ai) {
       return errorResponse(res, 'Invalid refresh token', 401);
     }
 

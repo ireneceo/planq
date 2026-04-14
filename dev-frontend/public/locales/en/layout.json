@@ -24,8 +24,9 @@
   },
   "role": {
     "platform_admin": "Platform Admin",
-    "business_owner": "Business Owner",
+    "business_owner": "Admin",
     "business_member": "Member",
+    "ai": "Cue",
     "user": "User"
   }
 }

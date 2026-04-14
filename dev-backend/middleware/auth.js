@@ -71,6 +71,7 @@ const checkBusinessAccess = async (req, res, next) => {
     }
 
     req.businessMember = membership;
+    req.businessRole = membership.role;
     next();
   } catch (error) {
     return res.status(500).json({ success: false, message: 'Internal server error' });

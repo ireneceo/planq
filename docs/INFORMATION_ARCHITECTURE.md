@@ -7,17 +7,20 @@
 ### 인증 전
 ```
 /login                          로그인
-/register                       회원가입 (사업자 등록)
+/register                       회원가입 (워크스페이스 생성)
 /forgot-password                비밀번호 재설정
 /invite/:token                  고객 초대 수락 (간편 가입)
 ```
 
-### Business Owner / Business Member
+### 관리자 / 멤버
 ```
 /app                            대시보드 (리다이렉트)
 /app/dashboard                  대시보드
 /app/talks                      Q Talk — 대화 목록
 /app/talks/:conversationId      Q Talk — 대화방
+/app/talks/kb                   Q Talk — 대화 자료 관리 (KB)
+/app/talks/kb/documents         대화 자료 — 문서 업로드
+/app/talks/kb/faq               대화 자료 — Pinned FAQ
 /app/tasks                      Q Task — 할일 목록
 /app/tasks/:taskId              Q Task — 할일 상세
 /app/files                      Q File — 자료함
@@ -29,11 +32,14 @@
 /app/notes/:noteId              Q Note — 결과 상세
 /app/clients                    고객 관리
 /app/clients/:clientId          고객 상세
-/app/team                       팀 관리 (Owner만)
-/app/settings                   설정 (Owner만)
-/app/settings/profile           사업자 프로필
+/app/settings                   설정 (관리자만)
+/app/settings/brand             워크스페이스 브랜드 (BI)
+/app/settings/legal             법인 정보
+/app/settings/members           멤버 관리 (Cue 포함)
+/app/settings/cue               Cue 모드·사용량
 /app/settings/subscription      구독 관리
 /app/settings/notifications     알림 설정
+/app/settings/language          기본 언어·타임존·근무시간
 ```
 
 ### Client (고객)
@@ -95,28 +101,47 @@
 
 ### 2.2 Q Talk — 대화 화면 (핵심 화면)
 
+3단 레이아웃: 대화 목록 / 채팅 / 고객·Cue 사이드패널
+
 ```
-┌────────┬──────────────────────────────┬──────────────────┐
-│        │          Q Talk               │    Q Task 패널    │
-│  Side  │                              │                  │
-│  bar   │  ┌────────────────────────┐  │  오늘 ─────────  │
-│        │  │ 고객A 대화방            │  │  □ 시안 수정     │
-│  ────  │  │                        │  │    ~4/10 ⚠️     │
-│  고객A  │  │  고객: 시안 수정         │  │                  │
-│  고객B  │  │  부탁드려요 📎          │  │  이번주 ─────── │
-│  고객C  │  │         2:30 PM       │  │  □ 로고 시안     │
-│  고객D  │  │                        │  │    ~4/12        │
-│        │  │  나: 네 확인했습니다      │  │  ☑ 컬러 확정    │
-│        │  │        2:31 PM         │  │    완료          │
-│        │  │                        │  │                  │
-│        │  │  [+ 할일만들기]          │  │  ─────────────  │
-│        │  │                        │  │  전체보기 →       │
-│        │  └────────────────────────┘  │                  │
-│        │  ┌────────────────────────┐  │                  │
-│        │  │ 메시지 입력...    [📎][➤]│  │                  │
-│        │  └────────────────────────┘  │                  │
-└────────┴──────────────────────────────┴──────────────────┘
+┌────────┬──────────────────────┬─────────────────────────┐
+│        │     대화 (중앙)       │  고객 사이드패널 (우측)    │
+│  Side  │                      │                         │
+│  bar   │  고객A — 워프로랩     │  👤 고객A                │
+│        │  [Cue 활동 중] [⏸]   │  회사: A사               │
+│  ────  │  ───────────────     │  담당: Irene (사람)       │
+│  🔵 고객A│                      │  가입: 2026-03-22        │
+│  🟢 고객B│  고객: 시안 2개 금요일까지   │  ───────────           │
+│  🟡 고객C│        보내주실 수 있나요?   │  📝 Cue 자동 요약        │
+│  ⚪ 고객D│          2:30 PM    │  • 로고 리뉴얼 진행 중    │
+│        │                      │  • 시안 납기 4/14 이슈   │
+│  ────  │  🤖 Cue:              │  • 다음: 시안 승인       │
+│  대화자료│  금요일 오후 2시까지 드리는  │                         │
+│  └ 문서 │  일정으로 확인됐습니다.     │  📊 진행 중 업무          │
+│  └ FAQ  │  [출처: 작업일정 가이드] │  • 할일 2건              │
+│        │          2:30 PM    │  • 청구서 1건 발송대기    │
+│        │                      │                         │
+│        │  🤖 Cue: 시안 방향은   │  💡 Cue 답변 후보 (3)     │
+│        │  기존 유지인지요?       │  [ 후보1 ] 보내기          │
+│        │          2:30 PM    │  [ 후보2 ] 보내기          │
+│        │                      │  [ 후보3 ] 보내기          │
+│        │  나(Irene): 기존 방향   │                         │
+│        │  그대로 진행합니다       │  🔒 내부 메모             │
+│        │          2:31 PM    │  [메모 입력...]          │
+│        │                      │                         │
+│        │  ┌──────────────────┐│                         │
+│        │  │ 메시지... [📎][➤]││                         │
+│        │  └──────────────────┘│                         │
+└────────┴──────────────────────┴─────────────────────────┘
 ```
+
+**표시 원칙**
+- 발신자 뱃지: 사람 이름 또는 `🤖 Cue` (작은 AI 뱃지 + 프로필 이미지)
+- Cue 답변에 **출처 문서·섹션** 인라인 표시 (접힘/펼침 가능)
+- Draft 모드 메시지는 대화창엔 안 보이고 사이드패널 "Cue 답변 후보" 카드로만
+- 우측 사이드패널은 고객 프로필 + 자동 요약 + 진행 업무 + Cue 제안 + 내부 메모
+- 좌측 사이드바에 "대화 자료" 서브메뉴 (문서 / FAQ)
+- 대화 리스트 상단 뱃지: 🔵 Cue 답변 중 / 🟢 사람 응답 중 / 🟡 대기 / ⚪ 종료
 
 ### 2.3 Q Task — 할일 목록 화면
 
@@ -253,15 +278,17 @@ App
 │   │   │   ├── NotificationBell
 │   │   │   └── ProfileMenu
 │   │   ├── Sidebar
+│   │   │   ├── WorkspaceSwitcher (현재 워크스페이스 + brand 표시)
 │   │   │   ├── NavItem (대시보드)
 │   │   │   ├── NavItem (Q Talk)
 │   │   │   ├── NavItem (Q Task)
+│   │   │   ├── NavItem (Q Calendar)
+│   │   │   ├── NavItem (Q Docs)
 │   │   │   ├── NavItem (Q File)
 │   │   │   ├── NavItem (Q Bill)
 │   │   │   ├── NavItem (Q Note)
 │   │   │   ├── NavItem (고객)
-│   │   │   ├── NavItem (팀) [Owner만]
-│   │   │   └── NavItem (설정) [Owner만]
+│   │   │   └── NavItem (설정) [관리자만]
 │   │   └── MainContent
 │   │       ├── DashboardPage
 │   │       ├── TalkListPage → TalkRoomPage

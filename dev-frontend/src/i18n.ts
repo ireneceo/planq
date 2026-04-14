@@ -11,7 +11,7 @@ i18n
     fallbackLng: 'en',
     supportedLngs: ['en', 'ko'],
 
-    ns: ['common', 'auth', 'layout', 'profile', 'qnote'],
+    ns: ['common', 'auth', 'layout', 'profile', 'qnote', 'settings', 'qtalk'],
     defaultNS: 'common',
 
     backend: {

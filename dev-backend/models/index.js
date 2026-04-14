@@ -11,6 +11,10 @@ const File = require('./File');
 const Invoice = require('./Invoice');
 const InvoiceItem = require('./InvoiceItem');
 const AuditLog = require('./AuditLog');
+const KbDocument = require('./KbDocument');
+const KbChunk = require('./KbChunk');
+const KbPinnedFaq = require('./KbPinnedFaq');
+const CueUsage = require('./CueUsage');
 
 // ============================================
 // Associations
@@ -89,6 +93,35 @@ Invoice.hasMany(InvoiceItem, { as: 'items', foreignKey: 'invoice_id' });
 AuditLog.belongsTo(User, { foreignKey: 'user_id' });
 AuditLog.belongsTo(Business, { foreignKey: 'business_id' });
 
+// ─── Cue 전용 관계 ───
+Business.belongsTo(User, { as: 'cueUser', foreignKey: 'cue_user_id' });
+
+// Message 확장 관계
+Message.belongsTo(Invoice, { foreignKey: 'invoice_id' });
+
+// Client 담당 멤버
+Client.belongsTo(User, { as: 'assignedMember', foreignKey: 'assigned_member_id' });
+
+// KbDocument
+KbDocument.belongsTo(Business, { foreignKey: 'business_id' });
+KbDocument.belongsTo(User, { as: 'uploader', foreignKey: 'uploaded_by' });
+Business.hasMany(KbDocument, { as: 'kbDocuments', foreignKey: 'business_id' });
+
+// KbChunk
+KbChunk.belongsTo(KbDocument, { foreignKey: 'kb_document_id', onDelete: 'CASCADE' });
+KbChunk.belongsTo(Business, { foreignKey: 'business_id' });
+KbDocument.hasMany(KbChunk, { as: 'chunks', foreignKey: 'kb_document_id', onDelete: 'CASCADE' });
+Business.hasMany(KbChunk, { as: 'kbChunks', foreignKey: 'business_id' });
+
+// KbPinnedFaq
+KbPinnedFaq.belongsTo(Business, { foreignKey: 'business_id' });
+KbPinnedFaq.belongsTo(User, { as: 'creator', foreignKey: 'created_by' });
+Business.hasMany(KbPinnedFaq, { as: 'kbPinnedFaqs', foreignKey: 'business_id' });
+
+// CueUsage
+CueUsage.belongsTo(Business, { foreignKey: 'business_id' });
+Business.hasMany(CueUsage, { as: 'cueUsage', foreignKey: 'business_id' });
+
 module.exports = {
   User,
   Business,
@@ -102,5 +135,9 @@ module.exports = {
   File,
   Invoice,
   InvoiceItem,
-  AuditLog
+  AuditLog,
+  KbDocument,
+  KbChunk,
+  KbPinnedFaq,
+  CueUsage
 };

@@ -89,6 +89,62 @@ BusinessMember 또는 Client 테이블에서
 - 모든 SELECT 쿼리에 `WHERE business_id = ?` 필수
 - JOIN 시에도 business_id 조건 유지
 - Client는 자기 대화방/할일/파일만 접근 가능
+- Cue 계정은 `is_ai=true` AND `business_members.role='ai'` 로만 접근 가능 (로그인 금지)
+- Cue 는 오직 자기 워크스페이스의 리소스에만 접근 (타 워크스페이스 격리 동일)
+- 메시지 조회 시 `is_internal=true` 는 Client 에게 반환 금지 (서버 레벨에서 제외)
+- Draft 메시지 (`is_ai=true` AND `ai_mode_used='draft'`) 는 Client 에게 반환 금지, 멤버만 조회
+
+---
+
+## 3.5 Cue 안전장치
+
+### 3.5.1 로그인 불가
+- Cue user (`is_ai=true`) 는 JWT 발급 대상에서 제외 — `/auth/login` 에서 `WHERE is_ai=false` 강제
+- Cue 이메일·패스워드 NULL, 로그인 시도 시 무조건 `INVALID_CREDENTIALS`
+
+### 3.5.2 사용량 hard cap
+- 모든 Cue 액션 실행 전 `cue_usage` 에서 `year_month + business_id` 로 집계 조회
+- 플랜 한도 초과 시 액션 거부 + "이번 달 휴식 중" 응답
+- 한도 도달 후에도 기존 메시지 조회·UI 는 영향 없음 (읽기는 가능)
+
+### 3.5.3 비용 통제 가드
+- 프롬프트당 최대 input 토큰 한도 (대화 8K, task 실행 16K)
+- 한 세션에서 Cue 연속 호출 3회 이상 시 간격 규칙 (중복 응답 방지)
+- gpt-4o 호출 시 워크스페이스 설정에 명시적 허용 필요 (기본 차단)
+
+### 3.5.4 응답 필터링
+- 민감 키워드(환불·계약해지·법적·금액) 감지 시 Cue 답변을 Auto 모드라도 Draft 로 강제 전환 → 사람 검토 요구
+- 개인정보(주민번호·카드번호 패턴) 노출 차단 정규식
+
+### 3.5.5 프롬프트 주입 방어
+- 고객 메시지 내 `{{ system }}`, `ignore previous instructions` 등 패턴 sanitize
+- KB 문서 청크도 인덱싱 시 시스템 지시어 escape
+
+---
+
+## 3.6 가시성 정책 시행
+
+### 가시성 열거형 (visibility)
+- `private`: 소유자만
+- `workspace`: 워크스페이스 멤버 전체 (기본)
+- `custom`: shared_with 배열에 포함된 user_id 만
+
+### 메뉴별 기본값 (SYSTEM_ARCHITECTURE 9. 참조)
+| 메뉴 | 기본 | 예외 |
+|---|---|---|
+| Q Talk | workspace | `is_internal=true` 메시지는 멤버 전용, Client 차단 |
+| Q Task | workspace | "내 할일" 필터 (private 생성 가능) |
+| Q Calendar | workspace | 개인 일정 private 토글 |
+| Q Docs | workspace | 관리자 전용 / 멤버 열람 |
+| Q File | private | "고객 공유" 토글 시 해당 client 에게 공개 |
+| Q Bill | 관리자 한정 | 담당 member 열람 가능 |
+| Q Note | private | "팀 공개" 시 렌더 타임 "나 → 이름" 치환 |
+
+### 적용 순서
+1. 인증 (`authenticateToken`)
+2. 워크스페이스 격리 (`checkBusinessAccess`)
+3. 리소스 단위 가시성 (`checkVisibility`) — 신규 미들웨어
+4. 역할 기반 권한 (`requireRole` / 리소스별 비즈니스 로직)
 
 ---
 
@@ -124,6 +180,22 @@ BusinessMember 또는 Client 테이블에서
 | invoice.paid | 입금 확인 |
 | file.upload | 파일 업로드 |
 | file.delete | 파일 삭제 |
+| workspace.brand_update | 브랜드 정보 수정 |
+| workspace.legal_update | 법인 정보 수정 |
+| cue.message | Cue 가 대화 메시지 생성 (auto/draft) |
+| cue.task_execute | Cue 가 task 를 실제 수행 |
+| cue.summary | Cue 가 고객 요약 생성 |
+| cue.kb_answer | Cue 가 KB 검색해서 답변 (source 포함) |
+| cue.pause | Cue 수동 일시정지 |
+| cue.resume | Cue 재개 |
+| cue.mode_change | Cue 모드 변경 (smart/auto/draft) |
+| cue.draft_approve | 사람이 Draft 메시지 승인 발송 |
+| cue.draft_reject | 사람이 Draft 메시지 거절 |
+| kb.document_upload | 대화 자료 문서 업로드 |
+| kb.document_delete | 대화 자료 문서 삭제 |
+| kb.pinned_faq_create | Pinned FAQ 등록 |
+| kb.pinned_faq_update | FAQ 수정 |
+| kb.pinned_faq_delete | FAQ 삭제 |
 
 ### audit 미들웨어 사용법
 ```javascript

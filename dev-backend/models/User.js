@@ -104,6 +104,12 @@ User.init({
     type: DataTypes.STRING(20),
     allowNull: true,
     defaultValue: 'medium'
+  },
+  // AI 팀원(Cue) 플래그. true 면 로그인 불가, 자동 생성된 시스템 계정
+  is_ai: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false,
+    allowNull: false
   }
 }, {
   sequelize,

@@ -319,6 +319,7 @@ export interface QAPair {
   sort_order: number;
   short_answer?: string | null;
   keywords?: string | null;
+  source_filename?: string | null;
   has_embedding?: boolean;
   created_at: string;
   updated_at: string | null;
@@ -433,14 +434,40 @@ export async function refreshSessionVocabulary(sessionId: number) {
   return handle<{ total: number; keywords: string[] }>(res);
 }
 
-export async function uploadPriorityQACSV(sessionId: number, file: File) {
+export interface PriorityQAUploadResult {
+  created: number;
+  updated: number;
+  embedded: number;
+  parsed: number;
+  source_filename: string;
+  errors: string[];
+}
+
+/**
+ * Priority Q&A 파일 업로드.
+ * 지원 포맷: csv, tsv, xlsx, xls, json, txt, md, pdf, docx
+ * - 구조화 (csv/xlsx/json): 컬럼명 alias 허용 (question/질문/Q, answer/답변/A, ...)
+ * - 비구조화 (txt/md/pdf/docx): 정규식 Q/A 패턴 → fallback LLM 추출
+ */
+export async function uploadPriorityQAFile(sessionId: number, file: File) {
   const form = new FormData();
   form.append('file', file);
-  const res = await apiFetch(`${BASE}/sessions/${sessionId}/priority-qa/upload-csv`, {
+  const res = await apiFetch(`${BASE}/sessions/${sessionId}/priority-qa/upload`, {
     method: 'POST',
     body: form,
   });
-  return handle<{ created: number; updated: number; errors: string[] }>(res);
+  return handle<PriorityQAUploadResult>(res);
+}
+
+// 구 API 이름 유지 (호환성)
+export const uploadPriorityQACSV = uploadPriorityQAFile;
+
+export async function deletePriorityQAByFile(sessionId: number, filename: string) {
+  const qs = `?filename=${encodeURIComponent(filename)}`;
+  const res = await apiFetch(`${BASE}/sessions/${sessionId}/priority-qa/by-file${qs}`, {
+    method: 'DELETE',
+  });
+  return handle<{ deleted: number; filename: string }>(res);
 }
 
 export function getPriorityQATemplateUrl(): string {
@@ -478,11 +505,13 @@ export async function findAnswer(sessionId: number, questionText: string, uttera
   return handle<FindAnswerResult>(res);
 }
 
-export async function translateAnswer(sessionId: number, text: string) {
+export async function translateAnswer(sessionId: number, text: string, targetLanguage?: string) {
+  const body: { question_text: string; target_language?: string } = { question_text: text };
+  if (targetLanguage) body.target_language = targetLanguage;
   const res = await apiFetch(`${BASE}/sessions/${sessionId}/translate-answer`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ question_text: text }),  // reuse FindAnswerRequest schema
+    body: JSON.stringify(body),
   });
   return handle<{ translation: string }>(res);
 }

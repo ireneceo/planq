@@ -47,6 +47,25 @@ Client.init({
   status: {
     type: DataTypes.ENUM('invited', 'active', 'archived'),
     defaultValue: 'invited'
+  },
+  // ─── Cue 자동 히스토리 요약 ───
+  summary: {
+    type: DataTypes.TEXT,
+    allowNull: true
+  },
+  summary_updated_at: {
+    type: DataTypes.DATE,
+    allowNull: true
+  },
+  summary_manual: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
+  },
+  // ─── 기본 담당 멤버 (사람) ───
+  assigned_member_id: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    references: { model: 'users', key: 'id' }
   }
 }, {
   sequelize,
