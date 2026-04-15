@@ -164,6 +164,121 @@ def _validate_capture_mode(mode: Optional[str]) -> None:
     raise HTTPException(status_code=400, detail=f'invalid capture_mode (must be one of {sorted(CAPTURE_MODES)})')
 
 
+# ─────────────────────────────────────────────────────────
+# Recorder lock (같은 세션 동시 녹음 방지)
+# ─────────────────────────────────────────────────────────
+RECORDER_LOCK_STALE_SECONDS = 12  # heartbeat 5s × 2회 + 버퍼 — 탭이 정상 release 못 해도 빠르게 회복
+
+
+def _recorder_lock_state(row: aiosqlite.Row) -> dict:
+  """세션 row 에서 녹음 락 상태를 유도. stale(30s 초과) 이면 active=False."""
+  from datetime import datetime, timezone
+  token = None
+  hb = None
+  try:
+    token = row['active_recorder_token']
+  except (KeyError, IndexError):
+    pass
+  try:
+    hb = row['recorder_heartbeat_at']
+  except (KeyError, IndexError):
+    pass
+  if not token or not hb:
+    return {'active': False, 'token': None, 'heartbeat_at': hb, 'stale': False}
+  try:
+    hb_dt = datetime.fromisoformat(hb.replace('Z', '+00:00'))
+    if hb_dt.tzinfo is None:
+      hb_dt = hb_dt.replace(tzinfo=timezone.utc)
+    age = (datetime.now(timezone.utc) - hb_dt).total_seconds()
+  except Exception:
+    age = RECORDER_LOCK_STALE_SECONDS + 1
+  stale = age > RECORDER_LOCK_STALE_SECONDS
+  return {
+    'active': not stale,
+    'token': token,
+    'heartbeat_at': hb,
+    'stale': stale,
+  }
+
+
+class RecorderLockBody(BaseModel):
+  token: str = Field(..., min_length=8, max_length=64)
+
+
+@router.post('/{session_id}/recorder/acquire')
+async def recorder_acquire(
+  session_id: int,
+  body: RecorderLockBody,
+  user: dict = Depends(get_current_user)
+):
+  """녹음 시작 시 호출. 다른 탭/기기가 이미 활성 락을 쥐고 있으면 409."""
+  async with db_connect() as db:
+    db.row_factory = aiosqlite.Row
+    row = await _load_session_or_403(db, session_id, user['user_id'])
+    state = _recorder_lock_state(row)
+    if state['active'] and state['token'] != body.token:
+      raise HTTPException(
+        status_code=409,
+        detail={
+          'message': 'recorder_locked',
+          'heartbeat_at': state['heartbeat_at'],
+        }
+      )
+    await db.execute(
+      "UPDATE sessions SET active_recorder_token = ?, recorder_heartbeat_at = datetime('now') "
+      "WHERE id = ?",
+      (body.token, session_id)
+    )
+    await db.commit()
+    return success({'token': body.token})
+
+
+@router.post('/{session_id}/recorder/heartbeat')
+async def recorder_heartbeat(
+  session_id: int,
+  body: RecorderLockBody,
+  user: dict = Depends(get_current_user)
+):
+  """녹음 중 5초마다 호출. 내 토큰이 아니면 409 → 프론트가 녹음 중단."""
+  async with db_connect() as db:
+    db.row_factory = aiosqlite.Row
+    row = await _load_session_or_403(db, session_id, user['user_id'])
+    state = _recorder_lock_state(row)
+    if state['token'] != body.token:
+      # 다른 탭이 가로챘거나 이미 release 됨
+      raise HTTPException(
+        status_code=409,
+        detail={'message': 'recorder_lost', 'current_token': state['token']}
+      )
+    await db.execute(
+      "UPDATE sessions SET recorder_heartbeat_at = datetime('now') WHERE id = ?",
+      (session_id,)
+    )
+    await db.commit()
+    return success({'token': body.token})
+
+
+@router.post('/{session_id}/recorder/release')
+async def recorder_release(
+  session_id: int,
+  body: RecorderLockBody,
+  user: dict = Depends(get_current_user)
+):
+  """녹음 종료/일시정지 시 호출. 내 토큰일 때만 해제."""
+  async with db_connect() as db:
+    db.row_factory = aiosqlite.Row
+    row = await _load_session_or_403(db, session_id, user['user_id'])
+    state = _recorder_lock_state(row)
+    if state['token'] == body.token:
+      await db.execute(
+        "UPDATE sessions SET active_recorder_token = NULL, recorder_heartbeat_at = NULL "
+        "WHERE id = ?",
+        (session_id,)
+      )
+      await db.commit()
+    return success({'released': True})
+
+
 async def _load_session_or_403(db, session_id: int, user_id: int) -> aiosqlite.Row:
   cursor = await db.execute('SELECT * FROM sessions WHERE id = ?', (session_id,))
   row = await cursor.fetchone()
@@ -483,6 +598,13 @@ async def get_session(session_id: int, user: dict = Depends(get_current_user)):
     data['documents'] = documents
     data['speakers'] = speakers
     data['detected_questions'] = detected_questions
+    lock_state = _recorder_lock_state(row)
+    data['recorder_lock'] = {
+      'active': lock_state['active'],
+      'heartbeat_at': lock_state['heartbeat_at'],
+    }
+    data.pop('active_recorder_token', None)
+    data.pop('recorder_heartbeat_at', None)
     return success(data)
 
 

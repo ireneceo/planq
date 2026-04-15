@@ -110,6 +110,12 @@ User.init({
     type: DataTypes.BOOLEAN,
     defaultValue: false,
     allowNull: false
+  },
+  // 마지막으로 선택한 워크스페이스 — 로그인 후 자동 진입 + 워크스페이스 스위처 기본값
+  // 멤버십이 끊기거나 삭제되면 SET NULL → 첫 가용 워크스페이스로 fallback
+  active_business_id: {
+    type: DataTypes.INTEGER,
+    allowNull: true
   }
 }, {
   sequelize,

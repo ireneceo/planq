@@ -100,7 +100,10 @@
       "serverConnection": "Q note 서버 연결 실패. 새로고침 후 다시 시도해주세요.",
       "startPrefix": "녹음 시작 실패: {{hint}}",
       "noBusiness": "비즈니스 정보가 없습니다.",
-      "sessionCreate": "세션 생성 실패"
+      "sessionCreate": "세션 생성 실패",
+      "recorderLocked": "이 회의는 다른 탭/기기에서 이미 녹음 중입니다. 그쪽에서 먼저 일시 정지하거나 종료해주세요.",
+      "recorderLost": "다른 탭에서 녹음을 이어받아 현재 탭의 녹음이 중단되었습니다.",
+      "recorderLockedBanner": "다른 탭/기기에서 이 회의를 녹음 중입니다. 중복 녹음은 되지 않습니다."
     }
   },
   "startModal": {

@@ -15,6 +15,12 @@ const KbDocument = require('./KbDocument');
 const KbChunk = require('./KbChunk');
 const KbPinnedFaq = require('./KbPinnedFaq');
 const CueUsage = require('./CueUsage');
+const Project = require('./Project');
+const ProjectMember = require('./ProjectMember');
+const ProjectClient = require('./ProjectClient');
+const ProjectNote = require('./ProjectNote');
+const ProjectIssue = require('./ProjectIssue');
+const TaskCandidate = require('./TaskCandidate');
 
 // ============================================
 // Associations
@@ -122,6 +128,43 @@ Business.hasMany(KbPinnedFaq, { as: 'kbPinnedFaqs', foreignKey: 'business_id' })
 CueUsage.belongsTo(Business, { foreignKey: 'business_id' });
 Business.hasMany(CueUsage, { as: 'cueUsage', foreignKey: 'business_id' });
 
+// Project
+Project.belongsTo(Business, { foreignKey: 'business_id' });
+Project.belongsTo(User, { as: 'owner', foreignKey: 'owner_user_id' });
+Project.belongsTo(User, { as: 'defaultAssignee', foreignKey: 'default_assignee_user_id' });
+Business.hasMany(Project, { as: 'projects', foreignKey: 'business_id' });
+
+ProjectMember.belongsTo(Project, { foreignKey: 'project_id', onDelete: 'CASCADE' });
+ProjectMember.belongsTo(User, { foreignKey: 'user_id' });
+Project.hasMany(ProjectMember, { as: 'projectMembers', foreignKey: 'project_id' });
+
+ProjectClient.belongsTo(Project, { foreignKey: 'project_id', onDelete: 'CASCADE' });
+ProjectClient.belongsTo(Client, { foreignKey: 'client_id' });
+ProjectClient.belongsTo(User, { as: 'contactUser', foreignKey: 'contact_user_id' });
+Project.hasMany(ProjectClient, { as: 'projectClients', foreignKey: 'project_id' });
+
+// ProjectNote / ProjectIssue / TaskCandidate
+ProjectNote.belongsTo(Project, { foreignKey: 'project_id', onDelete: 'CASCADE' });
+ProjectNote.belongsTo(User, { as: 'author', foreignKey: 'author_user_id' });
+Project.hasMany(ProjectNote, { as: 'notes', foreignKey: 'project_id' });
+
+ProjectIssue.belongsTo(Project, { foreignKey: 'project_id', onDelete: 'CASCADE' });
+ProjectIssue.belongsTo(User, { as: 'author', foreignKey: 'author_user_id' });
+Project.hasMany(ProjectIssue, { as: 'issues', foreignKey: 'project_id' });
+
+TaskCandidate.belongsTo(Project, { foreignKey: 'project_id', onDelete: 'CASCADE' });
+TaskCandidate.belongsTo(Conversation, { foreignKey: 'conversation_id' });
+TaskCandidate.belongsTo(User, { as: 'guessedAssignee', foreignKey: 'guessed_assignee_user_id' });
+Project.hasMany(TaskCandidate, { as: 'taskCandidates', foreignKey: 'project_id' });
+
+// Project ↔ Conversation
+Conversation.belongsTo(Project, { foreignKey: 'project_id' });
+Project.hasMany(Conversation, { as: 'conversations', foreignKey: 'project_id' });
+
+// Project ↔ Task
+Task.belongsTo(Project, { foreignKey: 'project_id' });
+Project.hasMany(Task, { as: 'tasks', foreignKey: 'project_id' });
+
 module.exports = {
   User,
   Business,
@@ -139,5 +182,11 @@ module.exports = {
   KbDocument,
   KbChunk,
   KbPinnedFaq,
-  CueUsage
+  CueUsage,
+  Project,
+  ProjectMember,
+  ProjectClient,
+  ProjectNote,
+  ProjectIssue,
+  TaskCandidate,
 };

@@ -28,5 +28,15 @@
     "business_member": "멤버",
     "ai": "Cue",
     "user": "사용자"
+  },
+  "switcher": {
+    "tooltip": "워크스페이스 전환",
+    "menuTitle": "내 워크스페이스",
+    "role": {
+      "owner": "관리자",
+      "member": "멤버",
+      "client": "고객",
+      "ai": "AI"
+    }
   }
 }

@@ -1,9 +1,100 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-04-14
+> **최종 업데이트:** 2026-04-15
 > **데이터베이스:** planq_dev_db (MySQL) + qnote.db (SQLite, FTS5)
 > **프로젝트:** B2B SaaS — 업무 전용 고객 채팅 + 실행 구조 통합 OS
 > **로드맵 상세:** `docs/DEVELOPMENT_ROADMAP.md`
+
+---
+
+## ✅ 완료: Q Note 동시 녹음 방지 + Q Talk 프로젝트 중심 재설계 + 실데이터 연결 Chunk 1~2 (2026-04-15)
+
+하루 동안 Q Note recorder lock, 테스트 계정 + 워크스페이스 스위처 (멀티 역할), Q Talk 전면 재설계 (프로젝트 중심, 채팅-first UI), 설계 문서 5개 갱신, 청크 1 프로젝트 CRUD 실데이터 + 시드, 청크 2 메시지 전송·채널 설정 실 API 완료.
+
+### 완료된 작업
+
+| 영역 | 작업 | 상태 |
+|------|------|:----:|
+| **Q Note recorder lock** | 2탭 동시 녹음 차단: `sessions.active_recorder_token` + `recorder_heartbeat_at` 컬럼, acquire/heartbeat/release 엔드포인트, stale 12s, 프론트 fetch keepalive unload 핸들러, 5초 heartbeat, 다른 탭 4초 폴링. i18n ko/en. | ✅ |
+| **테스트 계정 5종** | admin/owner/member1/member2/client @test.planq.kr — 비밀번호 Test1234!, idempotent 스크립트, 로그인 rate limit 화이트리스트. | ✅ |
+| **로그인 퀵로그인 패널** | dev.planq.kr/localhost 에서만 노출, 5개 계정 클릭 로그인, full page nav 로 세션 충돌 방지. | ✅ |
+| **워크스페이스 스위처** | `users.active_business_id` 컬럼, `/api/auth/me` 에 workspaces[] 배열 반환, `/api/auth/switch-workspace` 엔드포인트, 사이드바 상단 dark-teal 드롭다운 (WorkspaceSwitcher.tsx). irene 계정에 3 역할 × 3 워크스페이스 세팅 (워프로랩 owner / 테스트 member / 파트너스 client). E2E 14/14. | ✅ |
+| **LanguageSelector 리디자인** | 사이드바 variant 풀폭 hit area + 다크 드롭다운, 흰 카드 제거, 두 컨트롤 시각 통일. | ✅ |
+| **LetterAvatar 공용 컴포넌트** | 중성 회색 그라데이션 + active/cue variant, 프로젝트·멤버·고객 모두 동일 스타일. | ✅ |
+| **Q Talk UI Mock (승인 전)** | 3단 레이아웃 + 좌/우 접기 + 5 섹션 아코디언 (이슈/내 할일/프로젝트업무/메모/정보) + 프로젝트 생성 모달 + 업무 후보 카드 + 채팅 flat 리스트 + 채팅 이름 인라인 편집 (mock.ts/LeftPanel/ChatPanel/RightPanel/NewProjectModal). | ✅ |
+| **설계 문서 5개 갱신** | FEATURE_SPECIFICATION.md Phase 5 F5-0 ~ F5-24 재작성 + F5-2b 초대 링크 미가입/기가입 분기 명시 / INFORMATION_ARCHITECTURE.md 사이트맵/3단 레이아웃/고객 권한 필터 / DATABASE_ERD.md 섹션 6 신규 6 테이블 + 확장 DDL / API_DESIGN.md 섹션 11.5 Q Talk API / SECURITY_DESIGN.md 섹션 3.7 권한 매트릭스. | ✅ |
+| **DB 마이그레이션 (청크 1~5 기반)** | 신규: `projects`/`project_members`/`project_clients`/`project_notes`/`project_issues`/`task_candidates`. 확장: `conversations`(project_id/channel_type/auto_extract/cursor), `messages`(reply_to/cue_draft_processing_*), `tasks`(project_id/from_candidate/recurrence/status ENUM), `business_members.default_role`. | ✅ |
+| **Sequelize 모델** | Project, ProjectMember, ProjectClient, ProjectNote, ProjectIssue, TaskCandidate 신규 + Conversation/Message 필드 보강 + associations 14개 추가. | ✅ |
+| **청크 1 프로젝트 CRUD API** | POST/GET(list)/GET(detail)/PUT/DELETE + PUT /members. 권한 검증 (owner/member/client), 생성자 자동 project_members 등록, 초대 토큰 자동 생성 (crypto.randomBytes 24). | ✅ |
+| **청크 1 시드 스크립트** | `scripts/seed-qtalk-demo.js` idempotent — 테스트 워크스페이스 3 프로젝트 (브랜드 리뉴얼/패키지 디자인/내부 툴 개선) + 워프로랩 2 프로젝트 (온보딩 자동화/AI 리서치). 각 프로젝트마다 채널 2개 + 메시지 9개 + 업무 5개 + 메모 4개 + 이슈 4개 + 후보 2개. client@test 를 contact_user_id 로 연결. | ✅ |
+| **청크 1 읽기 API** | GET /api/projects/:id/conversations/tasks/notes/issues/task-candidates + /api/projects/conversations/:id/messages. 권한 필터 자동 주입 (고객 internal 차단, 개인 메모는 본인만). | ✅ |
+| **청크 1 프론트엔드** | `services/qtalk.ts` 전 API 래퍼. QTalkPage 전면 재작성 — 실 API 기반 로드, 프로젝트 선택 시 채널+메시지+업무+메모+이슈+후보 병렬 fetch. NewProjectModal 에서 `listBusinessMembers` 로 실 워크스페이스 멤버 fetch. | ✅ |
+| **청크 2 쓰기 API** | POST /api/projects/conversations/:id/messages (reply_to 지원, Socket.IO broadcast), PATCH /api/projects/conversations/:id (rename + auto_extract 토글). 권한 필터 엄격. | ✅ |
+| **청크 2 프론트엔드** | `sendMessage`/`updateConversation` 서비스, ChatPanel → QTalkPage 핸들러로 실 API 호출. | ✅ |
+| **검증** | 헬스체크 27/27 통과 (매 단계), 청크 1 CRUD E2E 16/16, 청크 1 읽기 API 13/13, 청크 1 전수 회귀 29/29 (owner/member1/client 3 역할 × 13 케이스), 청크 2 E2E 16/16, recorder lock E2E 8/8, 워크스페이스 스위처 E2E 14/14. SPA 라우트 /talk /notes /settings /dashboard /login 전부 200. | ✅ |
+
+### 수정된 파일 (주요)
+
+**백엔드 (Node)**
+- 수정: `routes/auth.js` (workspaces[] + switch-workspace), `routes/projects.js` (청크 1+2 전체), `server.js` (projects router 등록 + body parser 순서 교정), `middleware/security.js` (dev 테스트 이메일 rate-limit skip), `models/User.js` (active_business_id), `models/Conversation.js` (project_id/channel_type 등), `models/Message.js` (reply_to/cue_draft_processing_*), `models/index.js` (14개 associations)
+- 신규: `models/Project.js`, `ProjectMember.js`, `ProjectClient.js`, `ProjectNote.js`, `ProjectIssue.js`, `TaskCandidate.js`, `routes/projects.js`, `scripts/create-test-accounts.js`, `scripts/seed-qtalk-demo.js`
+
+**Q Note (Python)**
+- 수정: `q-note/services/database.py` (active_recorder_token + recorder_heartbeat_at 마이그레이션), `q-note/routers/sessions.py` (recorder acquire/heartbeat/release + GET 응답에 recorder_lock 필드)
+
+**프론트엔드 (TS)**
+- 수정: `contexts/AuthContext.tsx` (WorkspaceMembership 타입 + switchWorkspace), `components/Layout/MainLayout.tsx` (WorkspaceSwitcher 통합), `components/Common/LanguageSelector.tsx` (사이드바 다크 변형), `pages/Login/LoginPage.tsx` (dev 퀵로그인 패널 + full page nav), `pages/QNote/QNotePage.tsx` (recorder lock 로직 + keepalive fetch unload), `pages/QTalk/QTalkPage.tsx` (실 API 기반 재작성), `services/qnote.ts` (recorder lock API)
+- 신규: `components/Common/LetterAvatar.tsx`, `components/Layout/WorkspaceSwitcher.tsx`, `pages/QTalk/LeftPanel.tsx`, `pages/QTalk/ChatPanel.tsx`, `pages/QTalk/RightPanel.tsx`, `pages/QTalk/NewProjectModal.tsx`, `pages/QTalk/mock.ts`, `pages/QTalk/QDataContext.tsx` (Mock 시절 유물, 향후 제거 예정), `services/qtalk.ts`
+
+**Locales (ko/en)**
+- 수정: `auth.json` (devPanel 키), `layout.json` (switcher 키), `qnote.json` (recorderLocked/recorderLost/recorderLockedBanner), `qtalk.json` 신규 재작성 (left/chat/right/modal)
+
+**설계 문서 (5)**
+- `docs/FEATURE_SPECIFICATION.md` (Phase 5 전면 재작성, 778→959 줄)
+- `docs/INFORMATION_ARCHITECTURE.md` (사이트맵/3단 레이아웃, 340→446 줄)
+- `docs/DATABASE_ERD.md` (섹션 6 신규, 677→911 줄)
+- `docs/API_DESIGN.md` (섹션 11.5 Q Talk, 496→696 줄)
+- `docs/SECURITY_DESIGN.md` (섹션 3.7 권한 매트릭스, 287→456 줄)
+
+### 설계 결정 (시니어 관점)
+
+- **Q Talk UI 주인은 채팅, 프로젝트는 메타데이터**: 초기 "project-centric" 해석을 "data-model centric, chat-first UI" 로 정정. 채팅 헤더에서 프로젝트 breadcrumb 제거, 소속 서브라벨로 격하. 프로젝트 없는 채팅 지원 준비. Slack/Discord 패턴.
+- **멤버 역할은 팀 설정에 저장, 프로젝트에 이어받음**: `business_members.default_role` 컬럼 추가. 프로젝트 모달은 팀 레벨 default 를 불러와 표시, 프로젝트별 override 가능. "직접 넣은 내용이 나와야 한다" Irene 피드백 반영.
+- **역할 자유 입력**: 하드코딩 ROLE_OPTIONS 드롭다운 제거 검토. 팀설정 UI 는 추후 구현.
+- **초대 링크 2분기 설계**: 미가입(가입폼 → clients insert) / 기가입(검증 → contact_user_id 연결). 7일 TTL, 1회성 토큰, 피싱 방어 이메일 일치 검증. Phase 2 에 랜딩 페이지 구현 예정.
+- **AI 최소 사용**: 기존 데이터로 가능한 건 DB 쿼리로 해결. 업무 후보 히스토리 재조회, 주요 이슈 CRUD, 메모 조회 전부 AI 없음. 메모리 `feedback_ai_minimal_usage.md` 로 저장.
+- **청크 단위 검증**: 청크 7 에 몰아두지 않고 각 청크 끝날 때마다 E2E + 헬스체크 돌리도록 절차 교정 (Irene "검증하면서 하고 있어?" 피드백 반영).
+- **시드에 client@test 연결 실수 즉시 수정**: 첫 시드에 contact_user_id 누락 → client 로그인 시 빈 화면. 재검증 중 발견하여 재시드 + 29/29 재검증.
+- **Rate limit body parser 순서**: express-rate-limit skip 함수에서 req.body 를 보려면 body-parser 가 security 미들웨어보다 먼저 실행되어야 함. server.js 미들웨어 순서 교정.
+
+### 검증 결과
+
+- **헬스체크 27/27** (매 단계마다 통과)
+- **빌드**: tsc 0 error, vite 566~661ms, 649~703 KB (`index-BsrszKEA.js` 최종)
+- **Recorder Lock E2E 8/8**: acquire/heartbeat/release 정상 + 409 충돌 처리
+- **워크스페이스 스위처 E2E 14/14**: 3 역할 × 워크스페이스 전환, 권한 403
+- **청크 1 CRUD E2E 16/16**: POST/GET/PUT/DELETE + 권한 (owner/member1 양쪽)
+- **청크 1 읽기 API 13/13**: 채널/메시지/업무/메모/이슈/후보 + 권한 필터
+- **청크 1 전수 회귀 29/29**: owner/member1/client × 13 케이스 + 권한 위반 3
+- **청크 2 E2E 16/16**: 메시지 전송/reply/rename/auto_extract 토글 + 권한 필터
+- **SPA 라우트**: `/talk`, `/notes`, `/settings`, `/dashboard`, `/login` 전부 200
+
+### 미완 / 다음 세션 (Irene 화면 확인 후)
+
+- **청크 3**: 업무 후보 자동 추출 (Cue 오케스트레이터 확장, 커서 기반 LLM 호출, task_candidates 저장)
+- **청크 4**: 프로젝트 메모/이슈/업무 쓰기 API + 프론트 연결
+- **청크 5**: Q Task 페이지 실데이터 + tasks 상태 전환 API
+- **청크 6**: Socket.IO 이벤트 broadcast (message:new, cue:draft_* 등) + 실시간 UI 반영
+- **청크 7**: 9단계 전수 검증 + UI/UX 최종 확인
+- **Team Settings**: `/settings/workspace` Members 탭에서 default_role 편집 UI
+- **Q Task page**: 전체 업무 조회 화면
+- **채팅 검색**: 좌측 리스트 인라인 검색 결과 전환
+
+### Irene 에게 요청 (UI/UX 8단계 확인)
+1. owner@test.planq.kr → /talk → 3 프로젝트 실데이터 표시, 메시지/업무/메모/이슈/후보 확인
+2. client@test.planq.kr → /talk → 브랜드 리뉴얼 + 패키지 디자인 2개만, internal 채널 숨김
+3. irene 계정 → 워크스페이스 스위처로 워프로랩/테스트/파트너스 3 개 전환, 각 워크스페이스별 프로젝트 로드
+4. 메시지 전송 실제 작동 (청크 2), 채널 이름 변경 인라인, 자동 추출 토글 작동 확인
 
 ---
 

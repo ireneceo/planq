@@ -675,3 +675,237 @@ ALTER TABLE clients
 4. 각 워크스페이스에 Cue 계정 생성 (`users` insert + `business_members` insert)
 5. 나머지 확장 + 신규 테이블 생성
 6. 정합성 검증 스크립트 실행
+
+---
+
+## 6. Phase 5 마이그레이션 (Q Talk 프로젝트 중심 재설계, 2026-04-15)
+
+### 6.1 신규 테이블 6 개
+
+#### 6.1.1 `projects` — 프로젝트 (1급 개체)
+
+```sql
+CREATE TABLE projects (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  business_id BIGINT NOT NULL,
+  name VARCHAR(200) NOT NULL,
+  description TEXT,
+  client_id BIGINT DEFAULT NULL,          -- clients.id, 프로젝트:고객사 = 1:1
+  status ENUM('active','paused','closed') DEFAULT 'active',
+  start_date DATE,
+  end_date DATE,
+  default_assignee_user_id BIGINT,        -- 자동 추출 담당자 매핑 실패 시 fallback
+  owner_user_id BIGINT NOT NULL,          -- 프로젝트 생성자
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_business_status (business_id, status),
+  INDEX idx_client (client_id),
+  FOREIGN KEY (business_id) REFERENCES businesses(id) ON DELETE CASCADE,
+  FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE SET NULL,
+  FOREIGN KEY (owner_user_id) REFERENCES users(id),
+  FOREIGN KEY (default_assignee_user_id) REFERENCES users(id) ON DELETE SET NULL
+);
+```
+
+#### 6.1.2 `project_members` — 멤버 + 역할 매핑
+
+```sql
+CREATE TABLE project_members (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  project_id BIGINT NOT NULL,
+  user_id BIGINT NOT NULL,
+  role VARCHAR(50),                       -- '기획','디자인','개발','영업','운영','기타' 또는 자유 입력
+  role_order INT DEFAULT 0,               -- 같은 역할 내 우선순위 (자동 배정용, 0 = 최우선)
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uniq_project_user (project_id, user_id),
+  INDEX idx_project_role (project_id, role, role_order),
+  FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+```
+
+#### 6.1.3 `project_clients` — 고객 참여자
+
+```sql
+CREATE TABLE project_clients (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  project_id BIGINT NOT NULL,
+  client_id BIGINT NOT NULL,              -- clients.id (고객사)
+  contact_user_id BIGINT,                 -- users.id (로그인 가능한 고객 연락자)
+  invited_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  invited_by BIGINT,                      -- 초대한 멤버 user_id
+  UNIQUE KEY uniq_project_client_contact (project_id, client_id, contact_user_id),
+  INDEX idx_project (project_id),
+  INDEX idx_contact (contact_user_id),
+  FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+  FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE,
+  FOREIGN KEY (contact_user_id) REFERENCES users(id) ON DELETE SET NULL
+);
+```
+
+#### 6.1.4 `project_notes` — 프로젝트 메모 (개인/내부)
+
+```sql
+CREATE TABLE project_notes (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  project_id BIGINT NOT NULL,
+  author_user_id BIGINT NOT NULL,
+  visibility ENUM('personal','internal') NOT NULL,
+  body TEXT NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_project_recent (project_id, created_at DESC),
+  INDEX idx_author (author_user_id, visibility),
+  FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+  FOREIGN KEY (author_user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+```
+
+**가시성 쿼리 예시**:
+```sql
+-- 멤버 조회 (internal + 본인의 personal)
+SELECT * FROM project_notes
+WHERE project_id = :pid
+  AND (visibility = 'internal' OR (visibility = 'personal' AND author_user_id = :me))
+ORDER BY created_at DESC;
+
+-- 고객 조회 (본인의 personal 만)
+SELECT * FROM project_notes
+WHERE project_id = :pid
+  AND visibility = 'personal' AND author_user_id = :me
+ORDER BY created_at DESC;
+```
+
+#### 6.1.5 `project_issues` — 주요 이슈 (완전 수동 CRUD)
+
+```sql
+CREATE TABLE project_issues (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  project_id BIGINT NOT NULL,
+  body TEXT NOT NULL,
+  author_user_id BIGINT NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_project_recent (project_id, created_at DESC),
+  FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+  FOREIGN KEY (author_user_id) REFERENCES users(id)
+);
+```
+
+**중요**: LLM 자동 생성 없음 — 전적으로 사용자 CRUD (AI 최소 사용 원칙).
+
+#### 6.1.6 `task_candidates` — 업무 추출 후보 (영구 저장 히스토리)
+
+```sql
+CREATE TABLE task_candidates (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  project_id BIGINT NOT NULL,
+  conversation_id BIGINT NOT NULL,
+  extracted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  extracted_by_user_id BIGINT DEFAULT NULL,   -- 누가 트리거 (NULL = 자동)
+  source_message_ids JSON NOT NULL,           -- [123, 124, 127]
+  title VARCHAR(300) NOT NULL,
+  description TEXT,
+  guessed_role VARCHAR(50),                   -- LLM 제안 역할
+  guessed_assignee_user_id BIGINT,            -- 결정론적 매핑 결과
+  guessed_due_date DATE,
+  similar_task_id BIGINT DEFAULT NULL,        -- 유사 기존 업무
+  recurrence_hint VARCHAR(20),                -- 'weekly' | 'monthly' 등
+  status ENUM('pending','registered','merged','rejected') DEFAULT 'pending',
+  registered_task_id BIGINT DEFAULT NULL,     -- status=registered/merged 시 연결
+  resolved_at TIMESTAMP NULL,
+  resolved_by_user_id BIGINT DEFAULT NULL,
+  INDEX idx_project_status (project_id, status, extracted_at DESC),
+  INDEX idx_conv (conversation_id),
+  INDEX idx_registered (registered_task_id),
+  FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+  FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE,
+  FOREIGN KEY (guessed_assignee_user_id) REFERENCES users(id) ON DELETE SET NULL,
+  FOREIGN KEY (similar_task_id) REFERENCES tasks(id) ON DELETE SET NULL,
+  FOREIGN KEY (registered_task_id) REFERENCES tasks(id) ON DELETE SET NULL
+);
+```
+
+**영구 저장 이유**: 거절/등록/병합 히스토리는 AI 재호출 없이 조회·재사용 가능해야 함.
+
+### 6.2 기존 테이블 확장
+
+```sql
+-- conversations: 프로젝트 소속 + 채널 타입 + 자동 추출 커서
+ALTER TABLE conversations
+  ADD COLUMN project_id BIGINT DEFAULT NULL AFTER business_id,
+  ADD COLUMN channel_type ENUM('customer','internal','group') DEFAULT 'internal' AFTER project_id,
+  ADD COLUMN auto_extract_enabled BOOLEAN DEFAULT FALSE,
+  ADD COLUMN last_extracted_message_id BIGINT DEFAULT NULL,
+  ADD COLUMN last_extracted_at TIMESTAMP NULL,
+  ADD COLUMN extraction_in_progress_at TIMESTAMP NULL,   -- 동시 추출 방지 (TTL 2분)
+  ADD INDEX idx_project (project_id),
+  ADD FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE SET NULL;
+
+-- messages: 답글 + FULLTEXT + Cue draft 잠금
+ALTER TABLE messages
+  ADD COLUMN reply_to_message_id BIGINT DEFAULT NULL,
+  ADD COLUMN cue_draft_processing_by BIGINT DEFAULT NULL,
+  ADD COLUMN cue_draft_processing_at TIMESTAMP NULL,
+  ADD INDEX idx_reply (reply_to_message_id),
+  ADD FULLTEXT INDEX ft_body (body) WITH PARSER ngram,  -- 한국어 검색
+  ADD FOREIGN KEY (reply_to_message_id) REFERENCES messages(id) ON DELETE SET NULL,
+  ADD FOREIGN KEY (cue_draft_processing_by) REFERENCES users(id) ON DELETE SET NULL;
+
+-- tasks: 프로젝트 + 후보 연결 + 반복 + 상태 확장
+ALTER TABLE tasks
+  ADD COLUMN project_id BIGINT DEFAULT NULL AFTER business_id,
+  ADD COLUMN from_candidate_id BIGINT DEFAULT NULL,
+  ADD COLUMN recurrence VARCHAR(20) DEFAULT NULL,
+  MODIFY COLUMN status ENUM(
+    'task_requested','task_re_requested',
+    'waiting','not_started','in_progress',
+    'review_requested','re_review_requested',
+    'customer_confirm','completed','canceled'
+  ) DEFAULT 'task_requested',
+  ADD INDEX idx_project_status (project_id, status),
+  ADD FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE SET NULL,
+  ADD FOREIGN KEY (from_candidate_id) REFERENCES task_candidates(id) ON DELETE SET NULL;
+
+-- files: 프로젝트 소속
+ALTER TABLE files
+  ADD COLUMN project_id BIGINT DEFAULT NULL,
+  ADD INDEX idx_project (project_id),
+  ADD FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE SET NULL;
+
+-- invoices: 프로젝트 소속
+ALTER TABLE invoices
+  ADD COLUMN project_id BIGINT DEFAULT NULL,
+  ADD INDEX idx_project (project_id),
+  ADD FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE SET NULL;
+```
+
+### 6.3 마이그레이션 순서
+
+1. `projects` 생성 (의존성 없음)
+2. `project_members`, `project_clients` 생성
+3. `project_notes`, `project_issues` 생성
+4. `task_candidates` 생성 (tasks FK 있으므로 tasks 확장 이후)
+5. `conversations` 확장 (project_id 포함)
+6. `messages` 확장 (FULLTEXT ngram 인덱스)
+7. `tasks` 확장 (status ENUM 확장 + project_id)
+8. `task_candidates` FK 최종 연결
+9. `files`, `invoices` 확장
+10. 정합성 검증:
+    - `conversations.project_id IS NOT NULL` 체크 (Phase 5 이후 생성된 것은 반드시 있어야 함)
+    - `project_members` 에 프로젝트 오너는 반드시 포함
+    - `project_clients.contact_user_id` 가 있으면 해당 user 의 clients 레코드 일치
+
+### 6.4 인덱스 확장
+
+| 테이블 | 추가 인덱스 | 용도 |
+|---|---|---|
+| `projects` | (business_id, status) | 워크스페이스별 활성 프로젝트 |
+| `project_members` | (project_id, role, role_order) | 역할 기반 담당자 매핑 |
+| `project_notes` | (project_id, created_at DESC) | 최신순 메모 |
+| `project_notes` | (author_user_id, visibility) | 고객의 개인 메모 조회 |
+| `project_issues` | (project_id, created_at DESC) | 주요 이슈 최신순 |
+| `task_candidates` | (project_id, status, extracted_at DESC) | 후보 리스트 |
+| `messages` | FULLTEXT ngram on `body` | 한국어 채팅 검색 |
+| `conversations` | (project_id) | 프로젝트별 채널 조회 |
+| `tasks` | (project_id, status) | 프로젝트별 업무 조회 |

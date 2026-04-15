@@ -50,6 +50,8 @@ async def _run_migrations(db):
     ('answer_language', 'TEXT'),
     ('pasted_context', 'TEXT'),                # 회의 자료로 붙여넣은 텍스트
     ('capture_mode', "TEXT NOT NULL DEFAULT 'microphone'"),  # 'microphone' | 'web_conference'
+    ('active_recorder_token', 'TEXT'),          # 현재 녹음 중인 탭/기기의 토큰 (UUID)
+    ('recorder_heartbeat_at', 'TEXT'),          # 마지막 heartbeat ISO 시각 — 30s 초과 시 stale
   ]
   for col, typ in session_cols:
     if not await _column_exists(db, 'sessions', col):

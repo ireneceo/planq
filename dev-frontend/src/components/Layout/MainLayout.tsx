@@ -4,6 +4,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../contexts/AuthContext';
 import LanguageSelector from '../Common/LanguageSelector';
+import WorkspaceSwitcher from './WorkspaceSwitcher';
 
 const LayoutContainer = styled.div`
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -195,6 +196,8 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
           </SidebarToggleButton>
         </SidebarHeader>
+
+        <WorkspaceSwitcher />
 
         <SidebarNav>
           <NavSection>

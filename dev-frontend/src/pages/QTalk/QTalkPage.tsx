@@ -1,749 +1,474 @@
-import { useState, useMemo } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import styled from 'styled-components';
-import { useTranslation } from 'react-i18next';
-import { HelpCircleIcon, PlusIcon } from '../../components/Common/Icons';
+import LeftPanel from './LeftPanel';
+import ChatPanel from './ChatPanel';
+import RightPanel from './RightPanel';
+import NewProjectModal, { type ProjectFormData } from './NewProjectModal';
+import {
+  type MockTaskCandidate, type MockMessage, type MockProject,
+  type MockConversation, type MockTask, type MockNote, type MockIssue,
+  type TaskStatus,
+} from './mock';
+import { useAuth } from '../../contexts/AuthContext';
+import * as qtalkApi from '../../services/qtalk';
 
-// ─────────────────────────────────────────────────────────
-// Q Talk Page — Phase 5 UI Mock (승인 대기용)
-// 실제 API 연결은 Irene 승인 후 별도 세션에서 진행됩니다.
-// ─────────────────────────────────────────────────────────
+/**
+ * QTalkPage — 실데이터 기반 (시드 데이터 로드)
+ *
+ * 프로젝트 선택 시 해당 프로젝트의 채널/메시지/업무/메모/이슈/후보 를 전부 fetch.
+ * Write 엔드포인트는 청크 2~5 에서 추가 (현재는 읽기만).
+ */
 
-const Layout = styled.div`
-  display: grid;
-  grid-template-columns: 300px 1fr 320px;
-  height: calc(100vh - 64px);
-  background: #f8fafc;
-  position: relative;
-  @media (max-width: 1200px) {
-    grid-template-columns: 280px 1fr;
-  }
-  @media (max-width: 900px) {
-    display: block;
-  }
-`;
+const STORAGE_LEFT = 'qtalk_left_collapsed';
+const STORAGE_RIGHT = 'qtalk_right_collapsed';
 
-const LeftPanel = styled.aside`
-  background: #ffffff;
-  border-right: 1px solid #e2e8f0;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  @media (max-width: 900px) {
-    display: none;
-  }
-`;
+// ─────────────────────────────────────────────
+// API → Mock 타입 변환 (기존 panel 컴포넌트 호환)
+// ─────────────────────────────────────────────
+function apiProjectToMock(p: qtalkApi.ApiProject): MockProject {
+  return {
+    id: p.id,
+    name: p.name,
+    description: p.description || undefined,
+    client_company: p.client_company || '(미지정)',
+    status: p.status,
+    start_date: p.start_date || undefined,
+    end_date: p.end_date || undefined,
+    default_assignee_id: p.default_assignee_user_id || p.owner_user_id,
+    members: (p.projectMembers || []).map((m) => ({
+      user_id: m.user_id,
+      name: m.User?.name || `user ${m.user_id}`,
+      role: m.role,
+      avatar_color: '#64748B',
+      is_default_assignee: m.user_id === p.default_assignee_user_id,
+    })),
+    clients: (p.projectClients || []).map((c) => ({
+      user_id: c.contact_user_id || 0,
+      name: c.contact_name || '(이름 없음)',
+      company: p.client_company || '(고객사)',
+      avatar_color: '#64748B',
+    })),
+    unread_count: 0,
+    has_cue_activity: false,
+  };
+}
 
-const LeftHeader = styled.div`
-  padding: 20px 20px 12px;
-  border-bottom: 1px solid #f1f5f9;
-`;
+function apiConversationToMock(c: qtalkApi.ApiConversation): MockConversation {
+  return {
+    id: c.id,
+    project_id: c.project_id || 0,
+    channel_type: c.channel_type,
+    name: c.display_name || c.title || '(이름 없음)',
+    auto_extract_enabled: c.auto_extract_enabled,
+    unread_count: 0,
+    last_extracted_message_id: c.last_extracted_message_id,
+  };
+}
 
-const LeftTitle = styled.h1`
-  font-size: 18px;
-  font-weight: 700;
-  color: #0f172a;
-  margin: 0 0 4px;
-`;
+function apiMessageToMock(m: qtalkApi.ApiMessage): MockMessage {
+  return {
+    id: m.id,
+    conversation_id: m.conversation_id,
+    sender_id: m.sender_id,
+    sender_name: m.sender?.name || `user ${m.sender_id}`,
+    sender_role: m.is_ai ? 'cue' : 'member',
+    sender_color: '#64748B',
+    body: m.content,
+    created_at: m.created_at,
+    reply_to_message_id: m.reply_to_message_id,
+    is_question: m.content.trim().endsWith('?'),
+  };
+}
 
-const LeftSub = styled.p`
-  font-size: 12px;
-  color: #94a3b8;
-  margin: 0;
-`;
+function apiTaskToMock(t: qtalkApi.ApiTask): MockTask {
+  return {
+    id: t.id,
+    project_id: t.project_id || 0,
+    title: t.title,
+    assignee_id: t.assigned_to || 0,
+    assignee_name: '',
+    due_date: t.due_date || undefined,
+    status: (t.status as TaskStatus),
+    recurrence: t.recurrence || undefined,
+  };
+}
 
-const FilterRow = styled.div`
-  display: flex;
-  gap: 6px;
-  padding: 10px 14px;
-  border-bottom: 1px solid #f1f5f9;
-`;
+function apiNoteToMock(n: qtalkApi.ApiNote): MockNote {
+  return {
+    id: n.id,
+    project_id: n.project_id,
+    author_id: n.author_user_id,
+    author_name: n.author?.name || `user ${n.author_user_id}`,
+    visibility: n.visibility,
+    body: n.body,
+    created_at: n.created_at,
+  };
+}
 
-const FilterBtn = styled.button<{ $active?: boolean }>`
-  padding: 6px 12px;
-  font-size: 12px;
-  font-weight: 600;
-  border: 1px solid ${(p) => (p.$active ? '#14b8a6' : '#e2e8f0')};
-  background: ${(p) => (p.$active ? '#f0fdfa' : '#ffffff')};
-  color: ${(p) => (p.$active ? '#0d9488' : '#475569')};
-  border-radius: 999px;
-  cursor: pointer;
-  &:hover {
-    border-color: #14b8a6;
-    color: #0d9488;
-  }
-`;
+function apiIssueToMock(i: qtalkApi.ApiIssue): MockIssue {
+  return {
+    id: i.id,
+    project_id: i.project_id,
+    body: i.body,
+    author_name: i.author?.name || `user ${i.author_user_id}`,
+    created_at: i.created_at,
+    updated_at: i.updated_at,
+  };
+}
 
-const ConvList = styled.div`
-  flex: 1;
-  overflow-y: auto;
-  padding: 6px 0;
-`;
+function apiCandidateToMock(c: qtalkApi.ApiTaskCandidate): MockTaskCandidate {
+  return {
+    id: c.id,
+    project_id: c.project_id,
+    conversation_id: c.conversation_id || undefined,
+    title: c.title,
+    description: c.description || '',
+    source_message_ids: [],
+    guessed_assignee: c.guessedAssignee ? { user_id: c.guessedAssignee.id, name: c.guessedAssignee.name } : undefined,
+    guessed_role: c.guessed_role || undefined,
+    guessed_due_date: c.guessed_due_date || undefined,
+    similar_task_id: c.similar_task_id || undefined,
+    status: c.status,
+  };
+}
 
-const ConvItem = styled.div<{ $active?: boolean }>`
-  padding: 14px 18px;
-  border-left: 3px solid ${(p) => (p.$active ? '#14b8a6' : 'transparent')};
-  background: ${(p) => (p.$active ? '#f0fdfa' : 'transparent')};
-  cursor: pointer;
-  display: flex;
-  gap: 12px;
-  align-items: flex-start;
-  &:hover {
-    background: #f8fafc;
-  }
-`;
+const QTalkPage: React.FC = () => {
+  const { user } = useAuth();
+  const businessId = user?.business_id || null;
 
-const Avatar = styled.div<{ $color?: string }>`
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  background: ${(p) => p.$color || '#14b8a6'};
-  color: #ffffff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 700;
-  font-size: 14px;
-  flex-shrink: 0;
-`;
+  const [projects, setProjects] = useState<MockProject[]>([]);
+  const [conversations, setConversations] = useState<MockConversation[]>([]);
+  const [messages, setMessages] = useState<Record<number, MockMessage[]>>({});
+  const [tasks, setTasks] = useState<MockTask[]>([]);
+  const [notes, setNotes] = useState<MockNote[]>([]);
+  const [issues, setIssues] = useState<MockIssue[]>([]);
+  const [candidates, setCandidates] = useState<MockTaskCandidate[]>([]);
 
-const ConvInfo = styled.div`
-  flex: 1;
-  min-width: 0;
-`;
+  const [activeProjectId, setActiveProjectId] = useState<number | null>(null);
+  const [activeConversationId, setActiveConversationId] = useState<number | null>(null);
 
-const ConvNameRow = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-`;
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
-const ConvName = styled.div`
-  font-size: 14px;
-  font-weight: 700;
-  color: #0f172a;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-`;
+  const [leftCollapsed, setLeftCollapsed] = useState<boolean>(() => {
+    try { return localStorage.getItem(STORAGE_LEFT) === '1'; } catch { return false; }
+  });
+  const [rightCollapsed, setRightCollapsed] = useState<boolean>(() => {
+    try { return localStorage.getItem(STORAGE_RIGHT) === '1'; } catch { return false; }
+  });
 
-const ConvTime = styled.div`
-  font-size: 11px;
-  color: #94a3b8;
-  flex-shrink: 0;
-`;
+  const [modalOpen, setModalOpen] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
 
-const ConvPreview = styled.div`
-  font-size: 12px;
-  color: #64748b;
-  margin-top: 3px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-`;
+  const showNotice = useCallback((msg: string) => {
+    setNotice(msg);
+    window.setTimeout(() => setNotice(null), 3500);
+  }, []);
 
-const StateDot = styled.span<{ $color: string }>`
-  display: inline-block;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: ${(p) => p.$color};
-  margin-right: 6px;
-`;
+  // ── 초기 로드: 프로젝트 목록 ──
+  useEffect(() => {
+    if (!businessId) { setLoading(false); return; }
+    let cancelled = false;
+    (async () => {
+      try {
+        setLoading(true);
+        setLoadError(null);
+        const list = await qtalkApi.listProjects(businessId);
+        if (cancelled) return;
+        const mapped = list.map(apiProjectToMock);
+        setProjects(mapped);
+        if (mapped.length > 0) {
+          setActiveProjectId((prev) => prev ?? mapped[0].id);
+        }
+      } catch (err: unknown) {
+        if (cancelled) return;
+        setLoadError(err instanceof Error ? err.message : '프로젝트 목록 로드 실패');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [businessId]);
 
-const MainPanel = styled.section`
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  min-width: 0;
-`;
+  // ── 프로젝트 선택 시 해당 프로젝트 데이터 전부 fetch ──
+  useEffect(() => {
+    if (!activeProjectId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const [convList, tasksList, notesList, issuesList, candidatesList] = await Promise.all([
+          qtalkApi.listProjectConversations(activeProjectId),
+          qtalkApi.listProjectTasks(activeProjectId).catch(() => [] as qtalkApi.ApiTask[]),
+          qtalkApi.listProjectNotes(activeProjectId).catch(() => [] as qtalkApi.ApiNote[]),
+          qtalkApi.listProjectIssues(activeProjectId).catch(() => [] as qtalkApi.ApiIssue[]),
+          qtalkApi.listProjectCandidates(activeProjectId).catch(() => [] as qtalkApi.ApiTaskCandidate[]),
+        ]);
+        if (cancelled) return;
 
-const MainHeader = styled.div`
-  padding: 14px 24px;
-  background: #ffffff;
-  border-bottom: 1px solid #e2e8f0;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-`;
+        const mappedConvs = convList.map(apiConversationToMock);
+        setConversations((prev) => {
+          // 다른 프로젝트 대화는 유지
+          const others = prev.filter((c) => c.project_id !== activeProjectId);
+          return [...others, ...mappedConvs];
+        });
 
-const MainHeaderLeft = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 10px;
-`;
+        // 활성 대화 자동 선택 (customer 채널 우선)
+        if (!cancelled && mappedConvs.length > 0) {
+          const current = mappedConvs.find((c) => c.id === activeConversationId);
+          if (!current) {
+            const customer = mappedConvs.find((c) => c.channel_type === 'customer');
+            setActiveConversationId(customer?.id ?? mappedConvs[0].id);
+          }
+        }
 
-const HeaderName = styled.div`
-  font-size: 15px;
-  font-weight: 700;
-  color: #0f172a;
-`;
+        // 각 채널의 메시지 병렬 로드
+        const messagesByConv: Record<number, MockMessage[]> = {};
+        await Promise.all(
+          mappedConvs.map(async (c) => {
+            try {
+              const msgs = await qtalkApi.listConversationMessages(c.id);
+              messagesByConv[c.id] = msgs.map(apiMessageToMock);
+            } catch {
+              messagesByConv[c.id] = [];
+            }
+          })
+        );
+        if (cancelled) return;
+        setMessages((prev) => ({ ...prev, ...messagesByConv }));
 
-const HeaderMeta = styled.div`
-  font-size: 11px;
-  color: #64748b;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-`;
+        // 기타 데이터 누적
+        setTasks((prev) => {
+          const others = prev.filter((t) => t.project_id !== activeProjectId);
+          return [...others, ...tasksList.map(apiTaskToMock)];
+        });
+        setNotes((prev) => {
+          const others = prev.filter((n) => n.project_id !== activeProjectId);
+          return [...others, ...notesList.map(apiNoteToMock)];
+        });
+        setIssues((prev) => {
+          const others = prev.filter((i) => i.project_id !== activeProjectId);
+          return [...others, ...issuesList.map(apiIssueToMock)];
+        });
+        setCandidates((prev) => {
+          const others = prev.filter((c) => c.project_id !== activeProjectId);
+          return [...others, ...candidatesList.map(apiCandidateToMock)];
+        });
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.error('[QTalk] project data load failed', err);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [activeProjectId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-const CueStatus = styled.span`
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 10px;
-  font-size: 11px;
-  font-weight: 700;
-  color: #9f1239;
-  background: #ffe4e6;
-  border-radius: 10px;
-`;
+  const toggleLeft = () => {
+    setLeftCollapsed((v) => {
+      const next = !v;
+      try { localStorage.setItem(STORAGE_LEFT, next ? '1' : '0'); } catch { /* quota */ }
+      return next;
+    });
+  };
+  const toggleRight = () => {
+    setRightCollapsed((v) => {
+      const next = !v;
+      try { localStorage.setItem(STORAGE_RIGHT, next ? '1' : '0'); } catch { /* quota */ }
+      return next;
+    });
+  };
 
-const MessageArea = styled.div`
-  flex: 1;
-  overflow-y: auto;
-  padding: 20px 24px;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-`;
+  const handleSelectConversation = (projectId: number, conversationId: number) => {
+    setActiveProjectId(projectId);
+    setActiveConversationId(conversationId);
+  };
+  const handleSelectChannel = (conversationId: number) => setActiveConversationId(conversationId);
 
-const MsgRow = styled.div<{ $mine?: boolean; $cue?: boolean }>`
-  display: flex;
-  gap: 10px;
-  flex-direction: ${(p) => (p.$mine ? 'row-reverse' : 'row')};
-`;
+  // ── 프로젝트 생성 ──
+  const handleCreateProject = async (data: ProjectFormData) => {
+    if (!businessId) return;
+    try {
+      const created = await qtalkApi.createProject({
+        business_id: businessId,
+        name: data.name,
+        description: data.description || undefined,
+        client_company: data.client_company || undefined,
+        start_date: data.start_date || undefined,
+        end_date: data.end_date || undefined,
+        members: data.members.map((m) => ({ user_id: m.user_id, role: m.role, is_default: m.is_default })),
+        clients: data.clients.map((c) => ({ name: c.name, email: c.email })),
+      });
+      const mapped = apiProjectToMock(created);
+      setProjects((prev) => [mapped, ...prev]);
+      setActiveProjectId(mapped.id);
+      setActiveConversationId(null);
+      setModalOpen(false);
+      showNotice(`프로젝트 "${mapped.name}" 생성됨`);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : '프로젝트 생성 실패';
+      showNotice(`생성 실패: ${msg}`);
+    }
+  };
 
-const MsgAvatar = styled.div<{ $cue?: boolean }>`
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background: ${(p) => (p.$cue ? '#f43f5e' : '#14b8a6')};
-  color: #ffffff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 12px;
-  font-weight: 700;
-  flex-shrink: 0;
-`;
+  // ── 쓰기 핸들러 ──
+  const notYet = (feature: string) => {
+    showNotice(`${feature} — 다음 청크에서 쓰기 API 연결 예정`);
+  };
 
-const MsgBody = styled.div<{ $mine?: boolean; $cue?: boolean }>`
-  max-width: 75%;
-  padding: 10px 14px;
-  border-radius: 12px;
-  background: ${(p) => (p.$mine ? '#0f172a' : p.$cue ? '#fff1f2' : '#ffffff')};
-  color: ${(p) => (p.$mine ? '#ffffff' : '#0f172a')};
-  border: 1px solid ${(p) => (p.$mine ? '#0f172a' : p.$cue ? '#fecdd3' : '#e2e8f0')};
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
-`;
+  // 청크 2: 메시지 전송
+  const handleSendMessage = async (body: string) => {
+    if (!activeConversationId) return;
+    try {
+      const created = await qtalkApi.sendMessage(activeConversationId, body);
+      const mapped = apiMessageToMock(created);
+      setMessages((prev) => ({
+        ...prev,
+        [activeConversationId]: [...(prev[activeConversationId] || []), mapped],
+      }));
+    } catch (err: unknown) {
+      showNotice(`전송 실패: ${err instanceof Error ? err.message : ''}`);
+    }
+  };
 
-const MsgHeader = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 11px;
-  font-weight: 700;
-  margin-bottom: 4px;
-`;
+  // 청크 2: 채널 이름 변경
+  const handleRenameConversation = async (conversationId: number, name: string) => {
+    try {
+      const updated = await qtalkApi.updateConversation(conversationId, { display_name: name });
+      setConversations((prev) => prev.map((c) => (c.id === conversationId ? { ...c, name: updated.display_name || updated.title || c.name } : c)));
+    } catch (err: unknown) {
+      showNotice(`채널 이름 변경 실패: ${err instanceof Error ? err.message : ''}`);
+    }
+  };
 
-const CueBadge = styled.span`
-  display: inline-flex;
-  align-items: center;
-  padding: 1px 6px;
-  background: #f43f5e;
-  color: #ffffff;
-  border-radius: 6px;
-  font-size: 9px;
-`;
+  // 청크 2: 자동 추출 토글
+  const handleToggleAutoExtract = async (conversationId: number, enabled: boolean) => {
+    try {
+      const updated = await qtalkApi.updateConversation(conversationId, { auto_extract_enabled: enabled });
+      setConversations((prev) => prev.map((c) => (c.id === conversationId ? { ...c, auto_extract_enabled: updated.auto_extract_enabled } : c)));
+    } catch (err: unknown) {
+      showNotice(`자동 추출 토글 실패: ${err instanceof Error ? err.message : ''}`);
+    }
+  };
 
-const MsgText = styled.div`
-  font-size: 14px;
-  line-height: 1.5;
-  white-space: pre-wrap;
-  word-break: break-word;
-`;
+  const activeProject = projects.find((p) => p.id === activeProjectId) || null;
+  const projectCandidates = candidates.filter((c) => c.project_id === activeProjectId && c.status === 'pending');
 
-const Sources = styled.div`
-  margin-top: 8px;
-  padding: 8px 10px;
-  background: #fafaf9;
-  border: 1px dashed #e7e5e4;
-  border-radius: 8px;
-  font-size: 11px;
-  color: #78716c;
-`;
-
-const SourceItem = styled.div`
-  display: flex;
-  gap: 6px;
-  padding: 2px 0;
-`;
-
-const MsgTime = styled.div`
-  font-size: 10px;
-  color: #94a3b8;
-  margin-top: 4px;
-`;
-
-const Composer = styled.div`
-  border-top: 1px solid #e2e8f0;
-  background: #ffffff;
-  padding: 12px 20px 16px;
-`;
-
-const ComposerInput = styled.textarea`
-  width: 100%;
-  min-height: 48px;
-  max-height: 180px;
-  padding: 10px 12px;
-  border: 1px solid #e2e8f0;
-  border-radius: 10px;
-  font-size: 14px;
-  resize: vertical;
-  outline: none;
-  font-family: inherit;
-  &:focus { border-color: #14b8a6; box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.15); }
-`;
-
-const ComposerBar = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 10px;
-`;
-
-const InternalToggle = styled.label`
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  color: #64748b;
-  cursor: pointer;
-`;
-
-const SendBtn = styled.button`
-  margin-left: auto;
-  height: 36px;
-  padding: 0 18px;
-  background: #14b8a6;
-  color: #ffffff;
-  border: none;
-  border-radius: 8px;
-  font-size: 13px;
-  font-weight: 700;
-  cursor: pointer;
-  &:hover { background: #0d9488; }
-`;
-
-const RightPanel = styled.aside`
-  background: #ffffff;
-  border-left: 1px solid #e2e8f0;
-  overflow-y: auto;
-  padding: 18px 18px 28px;
-  @media (max-width: 1200px) {
-    display: none;
-  }
-`;
-
-const SideSection = styled.div`
-  margin-bottom: 20px;
-`;
-
-const SideTitle = styled.h3`
-  font-size: 12px;
-  font-weight: 700;
-  color: #94a3b8;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  margin: 0 0 8px;
-`;
-
-const ProfileCard = styled.div`
-  display: flex;
-  gap: 10px;
-  align-items: center;
-  margin-bottom: 10px;
-`;
-
-const ProfileInfo = styled.div`
-  flex: 1;
-`;
-
-const ProfileName = styled.div`
-  font-size: 14px;
-  font-weight: 700;
-  color: #0f172a;
-`;
-
-const ProfileCompany = styled.div`
-  font-size: 12px;
-  color: #64748b;
-  margin-top: 2px;
-`;
-
-const SummaryBox = styled.div`
-  padding: 10px 12px;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  font-size: 12px;
-  color: #475569;
-  line-height: 1.5;
-`;
-
-const InProgressItem = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  font-size: 12px;
-  color: #475569;
-  margin-bottom: 6px;
-`;
-
-const StatusPill = styled.span<{ $color?: string }>`
-  font-size: 10px;
-  font-weight: 700;
-  padding: 2px 8px;
-  background: ${(p) => p.$color || '#f1f5f9'};
-  color: ${(p) => (p.$color ? '#ffffff' : '#475569')};
-  border-radius: 8px;
-`;
-
-const SuggestCard = styled.div`
-  padding: 10px 12px;
-  background: #fffbeb;
-  border: 1px solid #fde68a;
-  border-radius: 8px;
-  font-size: 12px;
-  color: #92400e;
-  margin-bottom: 8px;
-`;
-
-const SuggestPreview = styled.div`
-  color: #451a03;
-  margin-bottom: 6px;
-  line-height: 1.5;
-`;
-
-const SuggestSend = styled.button`
-  padding: 4px 10px;
-  background: #f59e0b;
-  color: #ffffff;
-  border: none;
-  border-radius: 6px;
-  font-size: 11px;
-  font-weight: 700;
-  cursor: pointer;
-  &:hover { background: #d97706; }
-`;
-
-const InternalMemo = styled.textarea`
-  width: 100%;
-  min-height: 72px;
-  padding: 10px;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  font-size: 12px;
-  font-family: inherit;
-  resize: vertical;
-  outline: none;
-  background: #fffbeb;
-  &:focus { border-color: #f59e0b; }
-`;
-
-const BannerCard = styled.div`
-  background: #ffffff;
-  border: 1px dashed #cbd5e1;
-  border-radius: 12px;
-  padding: 20px 24px;
-  margin: 24px;
-  max-width: 680px;
-`;
-
-const BannerTitle = styled.h2`
-  font-size: 16px;
-  font-weight: 700;
-  color: #0f172a;
-  margin: 0 0 4px;
-`;
-
-const BannerDesc = styled.p`
-  font-size: 13px;
-  color: #64748b;
-  margin: 0 0 16px;
-`;
-
-const BannerSubTitle = styled.div`
-  font-size: 12px;
-  font-weight: 700;
-  color: #94a3b8;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  margin: 12px 0 6px;
-`;
-
-const BannerList = styled.ul`
-  margin: 0;
-  padding: 0 0 0 18px;
-  font-size: 13px;
-  color: #475569;
-  line-height: 1.7;
-`;
-
-// ─────────────────────────────────────────────────────────
-// 목업 데이터 (실 API 연결 전 화면 확인용)
-// ─────────────────────────────────────────────────────────
-type MockConv = { id: number; name: string; company: string; avatar: string; color: string; preview: string; time: string; state: 'cue' | 'human' | 'paused' };
-type MockMsg = { id: number; sender: 'client' | 'human' | 'cue'; name: string; text: string; time: string; sources?: { title: string; section: string }[] };
-
-const MOCK_CONVS: MockConv[] = [
-  { id: 1, name: '김서연', company: 'A사', avatar: '김', color: '#14b8a6', preview: '시안 수정 부탁드려요', time: '14:32', state: 'cue' },
-  { id: 2, name: 'Sarah Lee', company: 'B Corp', avatar: 'S', color: '#0ea5e9', preview: 'When can we schedule...', time: '13:10', state: 'human' },
-  { id: 3, name: '이준호', company: '스타트업C', avatar: '이', color: '#f59e0b', preview: '환불 문의드립니다', time: '11:45', state: 'paused' },
-  { id: 4, name: 'Maria Rossi', company: 'D s.r.l.', avatar: 'M', color: '#a855f7', preview: 'Grazie per la risposta!', time: '어제', state: 'cue' },
-];
-
-const MOCK_MSGS: MockMsg[] = [
-  { id: 1, sender: 'client', name: '김서연', text: '안녕하세요, 지난번 시안 2개를 금요일까지 보내주실 수 있을까요?', time: '14:28' },
-  { id: 2, sender: 'cue', name: 'Cue', text: '안녕하세요 김서연님. 금요일 오후 2시까지 드리는 일정으로 확인됐습니다. 시안 방향은 기존 버전을 유지할까요?', time: '14:28',
-    sources: [
-      { title: '작업 일정 가이드', section: '시안 납기 — 3.1' },
-      { title: '서비스 정책 v2', section: '수정 횟수 — 2.4' },
-    ]
-  },
-  { id: 3, sender: 'client', name: '김서연', text: '네 기존 방향 유지하되, 컬러 톤만 조금 밝게 해주시면 좋겠어요', time: '14:30' },
-  { id: 4, sender: 'human', name: '나 (Irene)', text: '확인했습니다. 금요일 오후 2시까지 2개 시안 + 밝은 컬러 톤으로 작업해서 전달드릴게요.', time: '14:32' },
-];
-
-// ─────────────────────────────────────────────────────────
-// 컴포넌트
-// ─────────────────────────────────────────────────────────
-export default function QTalkPage() {
-  const { t } = useTranslation('qtalk');
-  const [filter, setFilter] = useState<'all' | 'mine' | 'unread'>('all');
-  const [selectedId, setSelectedId] = useState<number>(1);
-  const [composer, setComposer] = useState('');
-  const [isInternal, setIsInternal] = useState(false);
-
-  const selected = useMemo(() => MOCK_CONVS.find((c) => c.id === selectedId), [selectedId]);
+  if (!businessId) return <Empty>워크스페이스가 선택되지 않았습니다.</Empty>;
+  if (loading) return <Empty>프로젝트 로드 중...</Empty>;
+  if (loadError) return <Empty>로드 실패: {loadError}</Empty>;
 
   return (
     <Layout>
-      {/* ─── LEFT: 대화 리스트 ─── */}
-      <LeftPanel>
-        <LeftHeader>
-          <LeftTitle>{t('page.title')}</LeftTitle>
-          <LeftSub>{t('page.subtitle')}</LeftSub>
-        </LeftHeader>
+      <LeftPanel
+        projects={projects}
+        conversations={conversations}
+        activeProjectId={activeProjectId}
+        activeConversationId={activeConversationId}
+        onSelectConversation={handleSelectConversation}
+        onOpenNewProject={() => setModalOpen(true)}
+        collapsed={leftCollapsed}
+        onToggleCollapsed={toggleLeft}
+      />
+      <ChatPanel
+        project={activeProject}
+        conversations={conversations}
+        messages={messages}
+        activeConversationId={activeConversationId}
+        onSelectConversation={handleSelectChannel}
+        onOpenExtract={() => notYet('업무 추출')}
+        onSendMessage={handleSendMessage}
+        onCueDraftSend={() => notYet('Cue 답변 전송')}
+        onCueDraftReject={() => notYet('Cue 답변 거절')}
+        onToggleAutoExtract={handleToggleAutoExtract}
+        onRenameConversation={handleRenameConversation}
+        candidatesCount={projectCandidates.length}
+        leftCollapsed={leftCollapsed}
+        rightCollapsed={rightCollapsed}
+        onToggleLeft={toggleLeft}
+        onToggleRight={toggleRight}
+      />
+      <RightPanel
+        project={activeProject}
+        tasks={tasks}
+        notes={notes}
+        issues={issues}
+        candidates={projectCandidates}
+        collapsed={rightCollapsed}
+        onToggleCollapsed={toggleRight}
+        onRegisterCandidate={() => notYet('업무 후보 등록')}
+        onMergeCandidate={() => notYet('업무 후보 병합')}
+        onRejectCandidate={() => notYet('업무 후보 거절')}
+        onAddIssue={() => notYet('이슈 추가')}
+        onUpdateIssue={() => notYet('이슈 수정')}
+        onDeleteIssue={() => notYet('이슈 삭제')}
+        onAddNote={() => notYet('메모 작성')}
+        onToggleTask={() => notYet('업무 체크')}
+      />
 
-        <FilterRow>
-          <FilterBtn $active={filter === 'all'} onClick={() => setFilter('all')}>{t('page.listHeader.all')}</FilterBtn>
-          <FilterBtn $active={filter === 'mine'} onClick={() => setFilter('mine')}>{t('page.listHeader.mine')}</FilterBtn>
-          <FilterBtn $active={filter === 'unread'} onClick={() => setFilter('unread')}>{t('page.listHeader.unread')}</FilterBtn>
-        </FilterRow>
+      <NewProjectModal
+        businessId={businessId}
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+        onCreate={handleCreateProject}
+      />
 
-        <ConvList>
-          {MOCK_CONVS.map((c) => {
-            const stateColor =
-              c.state === 'cue' ? '#f43f5e' :
-              c.state === 'human' ? '#14b8a6' :
-              '#94a3b8';
-            return (
-              <ConvItem
-                key={c.id}
-                $active={c.id === selectedId}
-                onClick={() => setSelectedId(c.id)}
-              >
-                <Avatar $color={c.color}>{c.avatar}</Avatar>
-                <ConvInfo>
-                  <ConvNameRow>
-                    <ConvName>{c.name}</ConvName>
-                    <ConvTime>{c.time}</ConvTime>
-                  </ConvNameRow>
-                  <ConvPreview>
-                    <StateDot $color={stateColor} />
-                    {c.preview}
-                  </ConvPreview>
-                </ConvInfo>
-              </ConvItem>
-            );
-          })}
-        </ConvList>
-      </LeftPanel>
-
-      {/* ─── MIDDLE: 대화 메인 ─── */}
-      <MainPanel>
-        {selected ? (
-          <>
-            <MainHeader>
-              <MainHeaderLeft>
-                <Avatar $color={selected.color}>{selected.avatar}</Avatar>
-                <div>
-                  <HeaderName>{selected.name}</HeaderName>
-                  <HeaderMeta>
-                    {selected.company}
-                  </HeaderMeta>
-                </div>
-              </MainHeaderLeft>
-              <CueStatus>
-                <StateDot $color="#f43f5e" />
-                {selected.state === 'paused' ? t('page.state.cuePaused') : t('page.state.cueActive')}
-              </CueStatus>
-            </MainHeader>
-
-            <MessageArea>
-              {MOCK_MSGS.map((m) => {
-                const isMine = m.sender === 'human';
-                const isCue = m.sender === 'cue';
-                return (
-                  <MsgRow key={m.id} $mine={isMine} $cue={isCue}>
-                    {!isMine && (
-                      <MsgAvatar $cue={isCue}>
-                        {isCue ? 'C' : m.name.charAt(0)}
-                      </MsgAvatar>
-                    )}
-                    <div>
-                      <MsgBody $mine={isMine} $cue={isCue}>
-                        <MsgHeader>
-                          {isCue && <CueBadge>{t('page.message.cueBadge')}</CueBadge>}
-                          <span>{m.name}</span>
-                        </MsgHeader>
-                        <MsgText>{m.text}</MsgText>
-                        {m.sources && m.sources.length > 0 && (
-                          <Sources>
-                            <div style={{ fontWeight: 700, marginBottom: 4 }}>{t('page.message.sources')}</div>
-                            {m.sources.map((s, i) => (
-                              <SourceItem key={i}>
-                                <span>·</span>
-                                <span>{s.title} → {s.section}</span>
-                              </SourceItem>
-                            ))}
-                          </Sources>
-                        )}
-                      </MsgBody>
-                      <MsgTime style={{ textAlign: isMine ? 'right' : 'left' }}>{m.time}</MsgTime>
-                    </div>
-                  </MsgRow>
-                );
-              })}
-
-              <BannerCard>
-                <BannerTitle>{t('page.comingSoon.title')}</BannerTitle>
-                <BannerDesc>{t('page.comingSoon.desc')}</BannerDesc>
-
-                <BannerSubTitle>완료</BannerSubTitle>
-                <BannerList>
-                  {(t('page.comingSoon.done', { returnObjects: true }) as string[]).map((s, i) => (
-                    <li key={i}>{s}</li>
-                  ))}
-                </BannerList>
-
-                <BannerSubTitle>다음</BannerSubTitle>
-                <BannerList>
-                  {(t('page.comingSoon.next', { returnObjects: true }) as string[]).map((s, i) => (
-                    <li key={i}>{s}</li>
-                  ))}
-                </BannerList>
-              </BannerCard>
-            </MessageArea>
-
-            <Composer>
-              <ComposerInput
-                value={composer}
-                onChange={(e) => setComposer(e.target.value)}
-                placeholder={t('page.composer.placeholder') || ''}
-              />
-              <ComposerBar>
-                <InternalToggle>
-                  <input
-                    type="checkbox"
-                    checked={isInternal}
-                    onChange={(e) => setIsInternal(e.target.checked)}
-                  />
-                  {t('page.composer.internal')}
-                </InternalToggle>
-                <SendBtn onClick={() => { /* mock: no-op until approved */ }}>
-                  {t('page.composer.send')}
-                </SendBtn>
-              </ComposerBar>
-            </Composer>
-          </>
-        ) : (
-          <div style={{ padding: 48, textAlign: 'center' }}>
-            <HelpCircleIcon size={42} />
-            <h2 style={{ color: '#0f172a', marginTop: 14 }}>{t('page.empty.title')}</h2>
-            <p style={{ color: '#64748b' }}>{t('page.empty.desc')}</p>
-            <button style={{ marginTop: 14, background: '#14b8a6', color: '#fff', border: 'none', padding: '10px 22px', borderRadius: 8, fontSize: 14, fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
-              <PlusIcon size={14} />
-              {t('page.empty.invite')}
-            </button>
-          </div>
-        )}
-      </MainPanel>
-
-      {/* ─── RIGHT: 고객 사이드패널 ─── */}
-      <RightPanel>
-        {selected && (
-          <>
-            <SideSection>
-              <SideTitle>{t('page.sidebar.profile')}</SideTitle>
-              <ProfileCard>
-                <Avatar $color={selected.color}>{selected.avatar}</Avatar>
-                <ProfileInfo>
-                  <ProfileName>{selected.name}</ProfileName>
-                  <ProfileCompany>{selected.company}</ProfileCompany>
-                </ProfileInfo>
-              </ProfileCard>
-            </SideSection>
-
-            <SideSection>
-              <SideTitle>{t('page.sidebar.summary')}</SideTitle>
-              <SummaryBox>
-                • 로고 리뉴얼 진행 중<br />
-                • 시안 2개 금요일까지<br />
-                • 컬러 톤 밝게 요청<br />
-                • 다음 단계: 내부 검토 후 발송
-              </SummaryBox>
-            </SideSection>
-
-            <SideSection>
-              <SideTitle>{t('page.sidebar.inProgress')}</SideTitle>
-              <InProgressItem>
-                <span style={{ flex: 1 }}>시안 2개 작업</span>
-                <StatusPill $color="#f59e0b">진행중</StatusPill>
-              </InProgressItem>
-              <InProgressItem>
-                <span style={{ flex: 1 }}>4월 작업비 청구서</span>
-                <StatusPill>발송대기</StatusPill>
-              </InProgressItem>
-            </SideSection>
-
-            <SideSection>
-              <SideTitle>{t('page.sidebar.cueSuggestions')}</SideTitle>
-              <SuggestCard>
-                <SuggestPreview>
-                  "금요일 오후 2시에 작업물 전달드릴 예정이에요. 컬러 톤은 기존 대비 +15% 밝기로 조정합니다."
-                </SuggestPreview>
-                <SuggestSend>보내기</SuggestSend>
-              </SuggestCard>
-            </SideSection>
-
-            <SideSection>
-              <SideTitle>{t('page.sidebar.internalNote')}</SideTitle>
-              <InternalMemo
-                placeholder={t('page.sidebar.internalNotePlaceholder') || ''}
-                defaultValue="고객이 컬러 톤에 민감. 지난주에도 비슷한 피드백 있었음."
-              />
-            </SideSection>
-          </>
-        )}
-      </RightPanel>
+      {notice && (
+        <Toast>
+          <ToastDot />
+          {notice}
+        </Toast>
+      )}
     </Layout>
   );
-}
+};
+
+export default QTalkPage;
+
+const Empty = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: calc(100vh - 56px);
+  color: #64748B;
+  font-size: 14px;
+`;
+
+const Toast = styled.div`
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 20px;
+  background: #0F172A;
+  color: #F0FDFA;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 500;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.3);
+  z-index: 3000;
+  animation: slideUp 0.2s ease-out;
+  @keyframes slideUp {
+    from { transform: translate(-50%, 12px); opacity: 0; }
+    to { transform: translate(-50%, 0); opacity: 1; }
+  }
+`;
+
+const ToastDot = styled.span`
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #5EEAD4;
+  box-shadow: 0 0 0 2px rgba(94, 234, 212, 0.3);
+`;
+
+const Layout = styled.div`
+  display: flex;
+  height: calc(100vh - 0px);
+  background: #F8FAFC;
+  overflow: hidden;
+
+  @media (max-width: 768px) {
+    height: calc(100vh - 56px);
+  }
+`;

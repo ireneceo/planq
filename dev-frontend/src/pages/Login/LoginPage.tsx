@@ -206,6 +206,71 @@ const ErrorMessage = styled.div`
   border: 1px solid #FEE2E2;
 `;
 
+const DevPanel = styled.div`
+  margin-top: 20px;
+  padding: 16px;
+  background: #FFF7ED;
+  border: 1px dashed #FB923C;
+  border-radius: 12px;
+`;
+
+const DevPanelTitle = styled.div`
+  font-size: 12px;
+  font-weight: 700;
+  color: #9A3412;
+  margin-bottom: 4px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+`;
+
+const DevPanelHint = styled.div`
+  font-size: 11px;
+  color: #9A3412;
+  opacity: 0.8;
+  margin-bottom: 12px;
+`;
+
+const DevRoleGrid = styled.div`
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+`;
+
+const DevRoleBtn = styled.button`
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 8px 10px;
+  background: #FFFFFF;
+  border: 1px solid #FED7AA;
+  border-radius: 8px;
+  cursor: pointer;
+  text-align: left;
+  font-size: 12px;
+  color: #0F172A;
+  transition: all 0.15s;
+
+  strong {
+    font-weight: 600;
+    color: #0F172A;
+    font-size: 12px;
+    margin-bottom: 1px;
+  }
+  span {
+    color: #64748B;
+    font-size: 10px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+
+  &:hover {
+    border-color: #FB923C;
+    background: #FFF7ED;
+    transform: translateY(-1px);
+  }
+  &:active { transform: translateY(0); }
+  &:disabled { opacity: 0.5; cursor: not-allowed; }
+`;
+
 const Divider = styled.div`
   width: 100%;
   height: 1px;
@@ -234,12 +299,58 @@ const LoginPage: React.FC = () => {
   const { t } = useTranslation('auth');
   const navigate = useNavigate();
   const location = useLocation();
-  const { login, user, isAuthenticated, isLoading: authLoading } = useAuth();
+  const { login, logout, user, isAuthenticated, isLoading: authLoading } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+
+  // dev 환경에서만 퀵로그인 패널 노출. 프로덕션(planq.kr)에서는 숨김.
+  const isDev = typeof window !== 'undefined' && (
+    window.location.hostname === 'dev.planq.kr' ||
+    window.location.hostname === 'localhost' ||
+    window.location.hostname === '127.0.0.1'
+  );
+  const DEV_ACCOUNTS = [
+    { label: t('login.devPanel.admin', '플랫폼 관리자'), email: 'admin@test.planq.kr' },
+    { label: t('login.devPanel.owner', '워크스페이스 관리자'), email: 'owner@test.planq.kr' },
+    { label: t('login.devPanel.member1', '멤버 · 이디자'), email: 'member1@test.planq.kr' },
+    { label: t('login.devPanel.member2', '멤버 · 박개발'), email: 'member2@test.planq.kr' },
+    { label: t('login.devPanel.client', '고객 · 최고객'), email: 'client@test.planq.kr' },
+  ];
+  const DEV_PASSWORD = 'Test1234!';
+
+  const handleQuickLogin = async (devEmail: string) => {
+    setEmail(devEmail);
+    setPassword(DEV_PASSWORD);
+    setError('');
+    setIsLoading(true);
+    try {
+      // 기존 세션이 남아있으면 선 제거 (쿠키/토큰 충돌 방지) — logout API 실패해도 진행
+      if (isAuthenticated) {
+        try { await logout(); } catch { /* noop */ }
+      }
+      // 직접 fetch — AuthContext state 경합 피함
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ email: devEmail, password: DEV_PASSWORD }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body?.message || `HTTP ${res.status}`);
+      }
+      // full page nav — SPA state 전부 리셋하고 dashboard 진입 (세션 쿠키는 그대로 유지)
+      window.location.href = '/dashboard';
+    } catch (err: unknown) {
+      // eslint-disable-next-line no-console
+      console.error('[DevQuickLogin] failed', { email: devEmail, err });
+      setError(err instanceof Error ? err.message : t('login.errorGeneric'));
+      setIsLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (!authLoading && isAuthenticated && user) {
@@ -332,6 +443,26 @@ const LoginPage: React.FC = () => {
               {isLoading ? t('login.submitting') : t('login.submit')}
             </Button>
           </Form>
+
+          {isDev && (
+            <DevPanel>
+              <DevPanelTitle>{t('login.devPanel.title', '개발 테스트 계정')}</DevPanelTitle>
+              <DevPanelHint>{t('login.devPanel.hint', '클릭하면 즉시 로그인됩니다 · 비밀번호: Test1234!')}</DevPanelHint>
+              <DevRoleGrid>
+                {DEV_ACCOUNTS.map((a) => (
+                  <DevRoleBtn
+                    key={a.email}
+                    type="button"
+                    disabled={isLoading}
+                    onClick={() => handleQuickLogin(a.email)}
+                  >
+                    <strong>{a.label}</strong>
+                    <span>{a.email}</span>
+                  </DevRoleBtn>
+                ))}
+              </DevRoleGrid>
+            </DevPanel>
+          )}
 
           <Divider />
 

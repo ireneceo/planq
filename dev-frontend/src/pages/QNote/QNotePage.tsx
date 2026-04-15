@@ -5,7 +5,7 @@ import styled from 'styled-components';
 import StartMeetingModal from './StartMeetingModal';
 import type { StartConfig } from './StartMeetingModal';
 import { getLanguageByCode } from '../../constants/languages';
-import { useAuth } from '../../contexts/AuthContext';
+import { useAuth, getAccessToken } from '../../contexts/AuthContext';
 import {
   listSessions,
   getSession,
@@ -20,6 +20,9 @@ import {
   createPriorityQA,
   uploadPriorityQACSV,
   listQAPairs,
+  acquireRecorderLock,
+  heartbeatRecorderLock,
+  releaseRecorderLock,
 } from '../../services/qnote';
 import type { QNoteSession, QNoteUtterance, QNoteSpeaker } from '../../services/qnote';
 import { LiveSession } from '../../services/qnoteLive';
@@ -350,6 +353,11 @@ const QNotePage = () => {
   }, [liveNotice]);
 
   const liveRef = useRef<LiveSession | null>(null);
+  // ── Recorder lock (동시 녹음 방지) ──
+  // 이 탭이 녹음을 "쥐고 있을 때만" 토큰이 존재. heartbeat 5초, 서버는 30초 stale 로 판정.
+  const recorderTokenRef = useRef<string | null>(null);
+  const heartbeatTimerRef = useRef<number | null>(null);
+  const [lockedByOther, setLockedByOther] = useState(false);
   const speakersRef = useRef<QNoteSpeaker[]>([]);
   const activeSessionRef = useRef<QNoteSession | null>(null);
   const pendingRef = useRef<PendingBuffer | null>(null);  // 즉시 읽기용
@@ -421,11 +429,62 @@ const QNotePage = () => {
   }, [urlSessionId, phase]);
 
   useEffect(() => {
+    // 탭 닫기/새로고침/네비게이션 시 fetch keepalive 로 락 해제.
+    // sendBeacon 은 Authorization 헤더를 못 보내므로 JWT 기반 인증에서는 사용 불가.
+    // fetch(..., { keepalive: true }) 는 탭 종료 후에도 최대 64KB 요청 보장 + 헤더 허용.
+    const handleUnload = () => {
+      const tok = recorderTokenRef.current;
+      const sess = activeSessionRef.current;
+      if (!tok || !sess) return;
+      try {
+        const accessToken = getAccessToken();
+        fetch(`/qnote/api/sessions/${sess.id}/recorder/release`, {
+          method: 'POST',
+          keepalive: true,
+          headers: {
+            'Content-Type': 'application/json',
+            ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+          },
+          body: JSON.stringify({ token: tok }),
+        }).catch(() => { /* noop */ });
+      } catch { /* noop */ }
+    };
+    window.addEventListener('pagehide', handleUnload);
+    window.addEventListener('beforeunload', handleUnload);
     return () => {
+      window.removeEventListener('pagehide', handleUnload);
+      window.removeEventListener('beforeunload', handleUnload);
       liveRef.current?.stop();
       liveRef.current = null;
+      if (heartbeatTimerRef.current) { window.clearInterval(heartbeatTimerRef.current); heartbeatTimerRef.current = null; }
+      // React 언마운트(SPA 라우팅)에서는 fetch 로 정상 release
+      const tok = recorderTokenRef.current;
+      const sess = activeSessionRef.current;
+      if (tok && sess) {
+        releaseRecorderLock(sess.id, tok);
+        recorderTokenRef.current = null;
+      }
     };
   }, []);
+
+  // 다른 탭에서 이 세션을 녹음 중인지 주기 폴링 (내가 녹음 중이 아닐 때만)
+  useEffect(() => {
+    if (!activeSession) return;
+    if (phase !== 'prepared' && phase !== 'paused') return;
+    if (recorderTokenRef.current) return; // 내가 락을 쥐고 있으면 스킵
+    let cancelled = false;
+    const check = async () => {
+      try {
+        const detail = await getSession(activeSession.id);
+        if (cancelled) return;
+        const locked = !!detail.recorder_lock?.active;
+        setLockedByOther(locked);
+      } catch { /* noop */ }
+    };
+    check();
+    const iv = window.setInterval(check, 4000);
+    return () => { cancelled = true; window.clearInterval(iv); };
+  }, [activeSession?.id, phase]);
 
   // ── pending 을 블록으로 커밋 — 각 문장을 독립 블록으로 생성 (merge 없음) ──
   const commitPendingAsBlock = useCallback((p: PendingBuffer, kind: BlockKind) => {
@@ -518,6 +577,8 @@ const QNotePage = () => {
         hasUtterances ? 'paused' :
         detail.status === 'prepared' ? 'prepared' : 'paused';
       setPhase(nextPhase);
+      // 다른 탭/기기가 이 세션을 이미 녹음 중이면 lockedByOther = true
+      setLockedByOther(!!detail.recorder_lock?.active);
       // paused 로 진입 시 서버 utterances 에서 blocks 재구성 → 화면에 바로 노출.
       // review 는 useMemo(reviewBlocks) 사용하므로 blocks 는 비움.
       if (nextPhase === 'paused') {
@@ -724,6 +785,23 @@ const QNotePage = () => {
     if (captureMode === 'web_conference' && phase === 'paused') {
       setLiveNotice(t('page.errors.reshareTab'));
     }
+
+    // ── 1. 녹음 락 획득 — 다른 탭/기기가 이미 녹음 중이면 409 → 차단
+    const token = (crypto as any).randomUUID ? (crypto as any).randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    try {
+      await acquireRecorderLock(activeSession.id, token);
+      recorderTokenRef.current = token;
+      setLockedByOther(false);
+    } catch (err: any) {
+      if (err?.status === 409) {
+        setLockedByOther(true);
+        setLiveError(t('page.errors.recorderLocked', '이 회의는 다른 탭/기기에서 이미 녹음 중입니다. 그쪽에서 먼저 일시 정지하거나 종료해주세요.'));
+        return;
+      }
+      setLiveError(t('page.errors.startPrefix', { hint: err?.message || 'lock failed' }));
+      return;
+    }
+
     const live = new LiveSession({
       sessionId: activeSession.id,
       captureMode,
@@ -733,6 +811,28 @@ const QNotePage = () => {
       await live.start();
       liveRef.current = live;
       setPhase('recording');
+      // ── 2. heartbeat 시작 (5초) — 실패(409) 시 녹음 즉시 중단
+      if (heartbeatTimerRef.current) window.clearInterval(heartbeatTimerRef.current);
+      heartbeatTimerRef.current = window.setInterval(async () => {
+        const tok = recorderTokenRef.current;
+        if (!tok || !activeSessionRef.current) return;
+        try {
+          await heartbeatRecorderLock(activeSessionRef.current.id, tok);
+        } catch (e: any) {
+          if (e?.status === 409) {
+            // 다른 탭이 가로챘거나 서버가 stale 판정 → 현재 녹음 중단
+            if (heartbeatTimerRef.current) { window.clearInterval(heartbeatTimerRef.current); heartbeatTimerRef.current = null; }
+            recorderTokenRef.current = null;
+            liveRef.current?.stop();
+            liveRef.current = null;
+            setInterimText('');
+            flushPending();
+            setPhase('paused');
+            setLockedByOther(true);
+            setLiveError(t('page.errors.recorderLost', '다른 탭에서 녹음을 이어받아 현재 탭의 녹음이 중단되었습니다.'));
+          }
+        }
+      }, 5000);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       console.error('[QNote] live.start failed:', err);
@@ -746,16 +846,34 @@ const QNotePage = () => {
       }
       setLiveError(t('page.errors.startPrefix', { hint }));
       live.stop();
+      // live.start 실패 → 방금 획득한 락 해제
+      if (heartbeatTimerRef.current) { window.clearInterval(heartbeatTimerRef.current); heartbeatTimerRef.current = null; }
+      if (recorderTokenRef.current && activeSession) {
+        await releaseRecorderLock(activeSession.id, recorderTokenRef.current);
+        recorderTokenRef.current = null;
+      }
     }
   };
 
+  // 락 정리 공통 유틸
+  const releaseLockIfHeld = useCallback(async () => {
+    if (heartbeatTimerRef.current) { window.clearInterval(heartbeatTimerRef.current); heartbeatTimerRef.current = null; }
+    const tok = recorderTokenRef.current;
+    const sess = activeSessionRef.current;
+    if (tok && sess) {
+      await releaseRecorderLock(sess.id, tok);
+    }
+    recorderTokenRef.current = null;
+  }, []);
+
   // ── 녹음 일시 중지 ────────────────────────────────────
-  const pauseRecording = () => {
+  const pauseRecording = async () => {
     liveRef.current?.stop();
     liveRef.current = null;
     setInterimText('');
     flushPending();
     setPhase('paused');
+    await releaseLockIfHeld();
   };
 
   // ── 회의 종료 ─────────────────────────────────────────
@@ -764,6 +882,7 @@ const QNotePage = () => {
     liveRef.current = null;
     setInterimText('');
     flushPending();
+    await releaseLockIfHeld();
     if (activeSession) {
       try {
         await updateSession(activeSession.id, { status: 'completed' });
@@ -1695,7 +1814,7 @@ const QNotePage = () => {
                 )}
                 {phase === 'paused' && (
                   <>
-                    <IconBtn $primary onClick={startRecording} title={t('page.controls.resume')} aria-label={t('page.controls.resume')}>
+                    <IconBtn $primary onClick={startRecording} disabled={lockedByOther} title={lockedByOther ? t('page.errors.recorderLockedBanner') : t('page.controls.resume')} aria-label={t('page.controls.resume')}>
                       <MicIcon size={14} />
                     </IconBtn>
                     <IconBtn $danger onClick={endMeeting} title={t('page.controls.endMeeting')} aria-label={t('page.controls.endMeeting')}>
@@ -1704,7 +1823,7 @@ const QNotePage = () => {
                   </>
                 )}
                 {phase === 'prepared' && (
-                  <IconBtn $primary onClick={startRecording} title={t('page.controls.startRecording')} aria-label={t('page.controls.startRecording')}>
+                  <IconBtn $primary onClick={startRecording} disabled={lockedByOther} title={lockedByOther ? t('page.errors.recorderLockedBanner') : t('page.controls.startRecording')} aria-label={t('page.controls.startRecording')}>
                     <MicIcon size={14} />
                   </IconBtn>
                 )}
@@ -1743,7 +1862,7 @@ const QNotePage = () => {
                     <BtnLabel>{t('page.controls.settings')}</BtnLabel>
                   </SecondaryBtn>
                   {phase === 'prepared' && (
-                    <PrimaryBtn $compact onClick={startRecording} title={t('page.controls.startRecording')} aria-label={t('page.controls.startRecording')}>
+                    <PrimaryBtn $compact onClick={startRecording} disabled={lockedByOther} title={lockedByOther ? t('page.errors.recorderLockedBanner') : t('page.controls.startRecording')} aria-label={t('page.controls.startRecording')}>
                       <MicIcon size={14} />
                       <BtnLabel>{t('page.controls.startRecording')}</BtnLabel>
                     </PrimaryBtn>
@@ -1766,7 +1885,7 @@ const QNotePage = () => {
                   )}
                   {phase === 'paused' && (
                     <>
-                      <PrimaryBtn $compact onClick={startRecording} title={t('page.controls.resume')} aria-label={t('page.controls.resume')}>
+                      <PrimaryBtn $compact onClick={startRecording} disabled={lockedByOther} title={lockedByOther ? t('page.errors.recorderLockedBanner') : t('page.controls.resume')} aria-label={t('page.controls.resume')}>
                         <MicIcon size={14} />
                         <BtnLabel>{t('page.controls.resume')}</BtnLabel>
                       </PrimaryBtn>
@@ -1804,6 +1923,9 @@ const QNotePage = () => {
 
             {liveError && <ErrorBar>{liveError}</ErrorBar>}
             {liveNotice && <NoticeBar>{liveNotice}</NoticeBar>}
+            {lockedByOther && phase !== 'recording' && (
+              <LockBar>{t('page.errors.recorderLockedBanner', '다른 탭/기기에서 이 회의를 녹음 중입니다. 중복 녹음은 되지 않습니다.')}</LockBar>
+            )}
 
             {(phase === 'prepared' || phase === 'paused') && readiness && (() => {
               // allReady 면 기본 collapsed (한 줄 요약만). 클릭/토글로 펼침.
@@ -2819,6 +2941,16 @@ const ErrorBar = styled.div`
   background: #fff1f2;
   color: #9f1239;
   border: 1px solid #fecdd3;
+  border-radius: 8px;
+  font-size: 13px;
+`;
+
+const LockBar = styled.div`
+  margin: 12px 32px 0;
+  padding: 10px 14px;
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fde68a;
   border-radius: 8px;
   font-size: 13px;
 `;

@@ -148,6 +148,175 @@ BusinessMember 또는 Client 테이블에서
 
 ---
 
+## 3.7 Q Talk 프로젝트 권한 매트릭스 (Phase 5, 2026-04-15)
+
+Phase 5 에서 추가되는 프로젝트 중심 자원에 대한 권한. **같은 뼈대, 권한 필터** 원칙 준수.
+
+### 역할 체계
+- `platform_admin` — 플랫폼 전체 관리 (Q Talk 비즈니스 자원엔 접근 안 함)
+- `business_owner` (Admin) — 워크스페이스 관리자 (`business_members.role = 'owner'`)
+- `business_member` (Member) — 워크스페이스 일반 멤버 (`business_members.role = 'member'`)
+- `client` — 워크스페이스 고객 (`clients` 테이블 + optional `user_id`)
+
+한 사용자가 **워크스페이스마다 다른 역할**을 가질 수 있음 (예: irene 은 워프로랩의 Admin, 테스트 워크스페이스의 Member, 파트너스의 Client).
+
+### 프로젝트 권한
+
+| 액션 | Admin | Member | Client |
+|---|:---:|:---:|:---:|
+| 프로젝트 생성 | ✓ | ✓ | ✗ |
+| 프로젝트 조회 | ✓ (전체) | ✓ (참여 프로젝트) | ✓ (참여 프로젝트) |
+| 프로젝트 편집 (이름/설명/기간/상태) | ✓ | ✓ (자기 프로젝트) | ✗ |
+| 프로젝트 삭제 (closed 전환) | ✓ | ✓ (자기 생성) | ✗ |
+| 멤버 + 역할 매핑 변경 | ✓ | ✓ (자기 프로젝트) | ✗ |
+| 고객 참여자 초대 | ✓ | ✓ | ✗ |
+| 기본 담당자 변경 | ✓ | ✓ | ✗ |
+
+### 대화 채널 권한
+
+| 액션 | Admin | Member | Client |
+|---|:---:|:---:|:---:|
+| `customer` 채널 조회/메시지 | ✓ | ✓ | ✓ (참여) |
+| `internal` 채널 조회 | ✓ | ✓ | ✗ |
+| `internal` 채널 메시지 작성 | ✓ | ✓ | ✗ |
+| `group` 채널 (멤버 + 특정 고객) | ✓ | ✓ (참여) | ✓ (초대된 경우만) |
+| 채널 추가 생성 | ✓ | ✓ | ✗ |
+| `auto_extract_enabled` 토글 | ✓ | ✓ | ✗ |
+
+### 메시지 권한
+
+| 액션 | Admin | Member | Client |
+|---|:---:|:---:|:---:|
+| 메시지 전송 | ✓ | ✓ | ✓ (참여 채널) |
+| 본인 메시지 수정 | ✓ | ✓ | ✓ |
+| 본인 메시지 삭제 (마스킹) | ✓ | ✓ | ✓ |
+| 타인 메시지 삭제 | ✓ | ✗ | ✗ |
+| 답글 (`reply_to_message_id`) | ✓ | ✓ | ✓ |
+
+### 자동 업무 추출 권한
+
+| 액션 | Admin | Member | Client |
+|---|:---:|:---:|:---:|
+| 추출 트리거 (자동/수동) | ✓ | ✓ | ✗ |
+| 후보 리스트 조회 | ✓ | ✓ | ✗ |
+| 후보 등록 / 병합 / 거절 | ✓ | ✓ | ✗ |
+| 후보 히스토리 조회 | ✓ | ✓ | ✗ |
+
+### 프로젝트 메모 권한
+
+| 액션 | Admin | Member | Client |
+|---|:---:|:---:|:---:|
+| `personal` 메모 작성 (본인) | ✓ | ✓ | ✓ |
+| `personal` 메모 조회 (본인 것만) | ✓ | ✓ | ✓ |
+| `internal` 메모 작성 | ✓ | ✓ | ✗ |
+| `internal` 메모 조회 | ✓ | ✓ | ✗ |
+| 본인 메모 수정/삭제 | ✓ | ✓ | ✓ |
+| 타인 메모 수정/삭제 | ✗ | ✗ | ✗ |
+
+**쿼리 시행**:
+```sql
+-- 멤버/관리자 조회
+WHERE project_id = :pid
+  AND (visibility = 'internal' OR (visibility = 'personal' AND author_user_id = :me))
+
+-- 고객 조회 (자동 적용)
+WHERE project_id = :pid
+  AND visibility = 'personal' AND author_user_id = :me
+```
+
+### 주요 이슈 권한
+
+| 액션 | Admin | Member | Client |
+|---|:---:|:---:|:---:|
+| 이슈 조회 | ✓ | ✓ | ✓ |
+| 이슈 작성 / 수정 / 삭제 | ✓ | ✓ | ✗ |
+
+### Cue 답변 처리 권한
+
+| 액션 | Admin | Member | Client |
+|---|:---:|:---:|:---:|
+| Draft 카드 조회 | ✓ | ✓ | ✗ |
+| Draft 잠금 획득 / 해제 | ✓ | ✓ | ✗ |
+| Draft 전송 / 거절 | ✓ | ✓ | ✗ |
+
+**낙관적 잠금**: `processing_by` 가 다른 user 이고 `processing_at + 5분` 이내면 acquire 거절 (409). TTL 만료 시 자동 해제.
+
+### 검색 권한
+
+| 범위 | Admin | Member | Client |
+|---|---|---|---|
+| 검색 대상 | 워크스페이스 전체 메시지 | 참여 프로젝트의 모든 채널 | 참여 채널 (customer / group 참여분) |
+| 구현 | SQL `WHERE` 조건 자동 주입 | 동일 | 동일 |
+
+**쿼리 시행**:
+```sql
+-- 멤버 기본
+WHERE MATCH(body) AGAINST (:q IN NATURAL LANGUAGE MODE)
+  AND conversation_id IN (
+    SELECT id FROM conversations
+    WHERE project_id IN (SELECT project_id FROM project_members WHERE user_id = :me)
+  )
+
+-- 고객
+WHERE MATCH(body) AGAINST (:q IN NATURAL LANGUAGE MODE)
+  AND conversation_id IN (
+    SELECT c.id FROM conversations c
+    JOIN project_clients pc ON pc.project_id = c.project_id
+    WHERE pc.contact_user_id = :me
+      AND c.channel_type IN ('customer', 'group')
+  )
+```
+
+### 파일 첨부 권한 (Phase 5 데이터 모델 완결, UI Phase 2)
+
+- 업로드: 메시지 작성 가능한 사용자 모두
+- 다운로드: 해당 메시지 조회 권한자 모두
+- 삭제: 작성자 본인 + Admin
+- `files.project_id` 필터 자동 적용
+
+### 미들웨어 적용 (Phase 5 신규)
+
+```
+authenticateToken                              // JWT 검증
+  ↓
+checkBusinessAccess                            // 워크스페이스 소속 확인
+  ↓
+loadProject(:id)                               // req.project 세팅
+  ↓
+checkProjectRole(['admin','member'])           // 프로젝트 참여자 확인
+  ↓
+checkChannelVisibility(:channel_type)          // client 가 internal 접근 시도 시 403
+  ↓
+액션별 비즈니스 로직
+```
+
+**위반 응답**:
+- 401: 인증 실패
+- 403 `not_project_member`: 프로젝트 참여자 아님
+- 403 `forbidden_channel`: 채널 타입 접근 권한 없음 (예: client 가 internal 요청)
+- 403 `forbidden_note_visibility`: 메모 가시성 위반
+- 409 `locked_by_other`: Cue draft 잠금 충돌
+
+### 초대 링크 보안
+
+- 토큰: 32 bytes random (crypto.randomBytes) → base64url
+- TTL: 7일
+- 사용 후 1회성 소멸 (`project_clients.invite_token_used_at`)
+- 초대 대상 이메일 해시 검증 (피싱 방어)
+- 이메일 발송 생략(Phase 2) 상태에서는 **링크 복사 후 수동 전달** 전제
+
+### Rate Limit (Phase 5)
+
+| 엔드포인트 | 한도 |
+|---|---|
+| `POST /conversations/:id/messages` | 60 / 분 / 사용자 |
+| `POST /conversations/:id/task-candidates/extract` | 10 / 시간 / 프로젝트 (LLM 비용 제어) |
+| `GET /search/messages` | 30 / 분 / 사용자 |
+| `POST /projects` | 10 / 시간 / 사용자 |
+| `POST /cue-draft/acquire` | 제한 없음 (낙관적 잠금 자체 방어) |
+
+---
+
 ## 4. 파일 업로드 보안
 
 | 항목 | 규칙 |

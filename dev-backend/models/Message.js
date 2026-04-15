@@ -102,6 +102,19 @@ Message.init({
   deleted_at: {
     type: DataTypes.DATE,
     allowNull: true
+  },
+  // ─── Phase 5 답글 + Cue Draft 잠금 ───
+  reply_to_message_id: {
+    type: DataTypes.BIGINT,
+    allowNull: true
+  },
+  cue_draft_processing_by: {
+    type: DataTypes.INTEGER,
+    allowNull: true
+  },
+  cue_draft_processing_at: {
+    type: DataTypes.DATE,
+    allowNull: true
   }
 }, {
   sequelize,

@@ -28,5 +28,15 @@
     "business_member": "Member",
     "ai": "Cue",
     "user": "User"
+  },
+  "switcher": {
+    "tooltip": "Switch workspace",
+    "menuTitle": "My workspaces",
+    "role": {
+      "owner": "Admin",
+      "member": "Member",
+      "client": "Client",
+      "ai": "AI"
+    }
   }
 }

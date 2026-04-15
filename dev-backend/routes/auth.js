@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const { User, Business, BusinessMember } = require('../models');
+const { User, Business, BusinessMember, Client } = require('../models');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const { authenticateToken } = require('../middleware/auth');
 const { sequelize } = require('../config/database');
@@ -41,7 +41,22 @@ const generateRefreshToken = (user) => {
 };
 
 // ============================================
-// Helper: 사용자 + 소속 Business 정보 조회
+// Helper: 사용자 + 모든 소속 Workspace (멤버 + 고객)
+// ============================================
+//
+// 한 사용자가 여러 워크스페이스에 속할 수 있고(자기 회사 = 멤버, 거래처 = 고객),
+// 각 워크스페이스에서 다른 역할(owner / member / client)을 가짐.
+//
+// 반환 구조:
+//   userData.workspaces = [
+//     { business_id, brand_name, slug, role: 'owner'|'member'|'client', plan, is_active },
+//     ...
+//   ]
+//   userData.business_id   = active workspace 의 id (없으면 첫 항목)
+//   userData.business_name = active workspace 의 brand_name
+//   userData.business_role = active workspace 에서의 역할
+//
+// active workspace 는 users.active_business_id 로 영구 저장. 없으면 첫 워크스페이스 fallback.
 // ============================================
 const getUserWithBusiness = async (userId) => {
   const user = await User.findByPk(userId, {
@@ -49,18 +64,66 @@ const getUserWithBusiness = async (userId) => {
   });
   if (!user) return null;
 
-  const membership = await BusinessMember.findOne({
+  // 1) 멤버십 (owner / member)
+  const memberships = await BusinessMember.findAll({
     where: { user_id: userId },
-    include: [{ model: Business, attributes: ['id', 'name', 'slug', 'plan'] }]
+    include: [{ model: Business, attributes: ['id', 'name', 'slug', 'plan', 'brand_name'] }]
   });
 
-  const userData = user.toJSON();
-  if (membership) {
-    userData.business_id = membership.business_id;
-    userData.business_name = membership.Business?.name || null;
-    userData.business_role = membership.role;
+  // 2) 고객 (client) — 활성 상태만
+  const clientRows = await Client.findAll({
+    where: { user_id: userId, status: 'active' },
+    include: [{ model: Business, attributes: ['id', 'name', 'slug', 'plan', 'brand_name'] }]
+  });
+
+  // 3) workspaces 배열 빌드 — 같은 business 에 둘 다 있으면 멤버십 우선
+  const map = new Map();
+  for (const m of memberships) {
+    if (!m.Business) continue;
+    map.set(m.business_id, {
+      business_id: m.business_id,
+      brand_name: m.Business.brand_name || m.Business.name,
+      slug: m.Business.slug,
+      plan: m.Business.plan,
+      role: m.role,  // 'owner' | 'member' | 'ai'
+    });
+  }
+  for (const c of clientRows) {
+    if (!c.Business) continue;
+    if (!map.has(c.business_id)) {
+      map.set(c.business_id, {
+        business_id: c.business_id,
+        brand_name: c.Business.brand_name || c.Business.name,
+        slug: c.Business.slug,
+        plan: c.Business.plan,
+        role: 'client',
+      });
+    }
   }
 
+  const workspaces = Array.from(map.values()).sort((a, b) => a.business_id - b.business_id);
+
+  // 4) active workspace 결정
+  let activeId = user.active_business_id;
+  if (!activeId || !map.has(activeId)) {
+    activeId = workspaces[0]?.business_id || null;
+  }
+  const activeWs = activeId ? map.get(activeId) : null;
+
+  // 5) is_active 플래그 부착
+  for (const w of workspaces) w.is_active = (w.business_id === activeId);
+
+  const userData = user.toJSON();
+  userData.workspaces = workspaces;
+  if (activeWs) {
+    userData.business_id = activeWs.business_id;
+    userData.business_name = activeWs.brand_name;
+    userData.business_role = activeWs.role;
+  } else {
+    userData.business_id = null;
+    userData.business_name = null;
+    userData.business_role = null;
+  }
   return userData;
 };
 
@@ -359,6 +422,38 @@ router.get('/me', authenticateToken, async (req, res, next) => {
     if (!userData) {
       return errorResponse(res, 'User not found', 404);
     }
+    successResponse(res, userData);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// ============================================
+// POST /api/auth/switch-workspace { business_id }
+// 사용자가 속한 워크스페이스 중 하나로 active 전환.
+// 권한: 본인이 멤버 또는 클라이언트로 속한 워크스페이스만 가능.
+// 응답: 갱신된 user 객체 (workspaces[] + 새 active 정보 포함)
+// ============================================
+router.post('/switch-workspace', authenticateToken, async (req, res, next) => {
+  try {
+    const { business_id } = req.body || {};
+    const targetId = Number(business_id);
+    if (!targetId || Number.isNaN(targetId)) {
+      return errorResponse(res, 'business_id is required', 400);
+    }
+
+    // 권한 체크: 멤버 또는 활성 클라이언트
+    const isMember = await BusinessMember.findOne({ where: { user_id: req.user.id, business_id: targetId } });
+    const isClient = isMember ? null : await Client.findOne({
+      where: { user_id: req.user.id, business_id: targetId, status: 'active' }
+    });
+    if (!isMember && !isClient) {
+      return errorResponse(res, 'You do not have access to this workspace', 403);
+    }
+
+    await User.update({ active_business_id: targetId }, { where: { id: req.user.id } });
+
+    const userData = await getUserWithBusiness(req.user.id);
     successResponse(res, userData);
   } catch (error) {
     next(error);

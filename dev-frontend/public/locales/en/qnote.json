@@ -100,7 +100,10 @@
       "serverConnection": "Failed to connect to the Q note server. Please refresh and try again.",
       "startPrefix": "Failed to start recording: {{hint}}",
       "noBusiness": "No business information.",
-      "sessionCreate": "Failed to create session"
+      "sessionCreate": "Failed to create session",
+      "recorderLocked": "This meeting is already being recorded in another tab or device. Please pause or end it there first.",
+      "recorderLost": "Another tab took over the recording, so this tab has stopped.",
+      "recorderLockedBanner": "This meeting is being recorded in another tab or device. Duplicate recording is not allowed."
     }
   },
   "startModal": {

@@ -92,6 +92,40 @@ export interface QNoteSession {
   meeting_answer_style?: string | null;
   meeting_answer_length?: string | null;
   keywords?: string[] | null;
+  recorder_lock?: { active: boolean; heartbeat_at: string | null } | null;
+}
+
+export interface RecorderLockError extends Error {
+  status: number;
+  heartbeat_at?: string | null;
+}
+
+async function lockRequest(sessionId: number, action: 'acquire' | 'heartbeat' | 'release', token: string) {
+  const res = await apiFetch(`${BASE}/sessions/${sessionId}/recorder/${action}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token }),
+  });
+  if (res.status === 409) {
+    let detail: any = null;
+    try { detail = (await res.json())?.detail; } catch { /* noop */ }
+    const err = new Error(detail?.message || 'recorder_locked') as RecorderLockError;
+    err.status = 409;
+    err.heartbeat_at = detail?.heartbeat_at ?? null;
+    throw err;
+  }
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return true;
+}
+
+export function acquireRecorderLock(sessionId: number, token: string) {
+  return lockRequest(sessionId, 'acquire', token);
+}
+export function heartbeatRecorderLock(sessionId: number, token: string) {
+  return lockRequest(sessionId, 'heartbeat', token);
+}
+export function releaseRecorderLock(sessionId: number, token: string) {
+  return lockRequest(sessionId, 'release', token).catch(() => false);
 }
 
 interface ApiEnvelope<T> {

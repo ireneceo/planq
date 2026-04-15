@@ -47,6 +47,35 @@ Conversation.init({
   last_ai_summary_at: {
     type: DataTypes.DATE,
     allowNull: true
+  },
+  // ─── Phase 5 프로젝트 중심 확장 ───
+  project_id: {
+    type: DataTypes.BIGINT,
+    allowNull: true
+  },
+  channel_type: {
+    type: DataTypes.ENUM('customer', 'internal', 'group'),
+    defaultValue: 'internal'
+  },
+  display_name: {
+    type: DataTypes.STRING(200),
+    allowNull: true
+  },
+  auto_extract_enabled: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
+  },
+  last_extracted_message_id: {
+    type: DataTypes.BIGINT,
+    allowNull: true
+  },
+  last_extracted_at: {
+    type: DataTypes.DATE,
+    allowNull: true
+  },
+  extraction_in_progress_at: {
+    type: DataTypes.DATE,
+    allowNull: true
   }
 }, {
   sequelize,

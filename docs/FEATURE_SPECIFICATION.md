@@ -160,20 +160,19 @@ Q Talk 본격 개발 전에 반드시 선행되어야 하는 토대 작업.
 
 ---
 
-## Phase 5: Q Talk (Cue + 사람 공동 응대 대화)
+## Phase 5: Q Talk (프로젝트 중심 협업 채팅)
 
-### F5-0. 개요 및 스코프
+> **2026-04-15 전면 재작성.** 이전 "고객 1:1 persistent thread" 모델에서 **프로젝트 중심 + 다채널 + 자동 업무 추출** 모델로 전환. Cue(AI 팀원) 재사용 가능, 엔진 동일, UX/IA 완전히 갈아엎음. 이전 F5-0 ~ F5-16 의 의도는 F5-0 ~ F5-24 에 흡수됨.
 
-**포지셔닝**: 로그인한 고객(Client)과 워크스페이스의 **사람 팀원 + Cue(AI 팀원)** 가 함께 응대하는 대화 채널.
-마케팅/익명 방문자 지원은 본 Phase 범위에서 제외 (추후 Phase 2+ 로 분리).
+### F5-0. 설계 철학 3원칙
 
-**핵심 원칙**
-1. 대화는 반드시 워크스페이스-고객 쌍에 귀속 (`business_id + client_id`, persistent thread)
-2. **Cue 는 팀원 한 명** — 사람과 동시에 응대. 핸드오프 개념 없음, 멈춤은 명시적 지시만
-3. 대화 → 할일/일정/청구서 즉시 전환이 1급 기능
-4. 사용자가 "대기 공백"을 느끼지 않도록 시각·상태 피드백 지속
-5. 가시성은 메시지 단위 `is_internal` + 대화 자료(KB) 단위
-6. Cue 답변에 **출처 문서·섹션** 필수 노출 → 검증·신뢰 확보
+1. **프로젝트 중심(Project-centric)** — 모든 정보(대화·업무·메모·이슈·파일)는 프로젝트 단위로 수렴/발산. 대화 채널은 "이 프로젝트의 소통 방식" 이지 독립 단위가 아님.
+2. **결정론 우선(Deterministic-first)** — AI 는 자연어 → 구조화 데이터 변환 1회만 담당. 저장된 결과의 재조회·재표시에 AI 재호출 금지. 기존 데이터로 가능한 기능은 DB 쿼리로 해결 (메모리 `feedback_ai_minimal_usage.md` 준수).
+3. **두 얼굴, 같은 뼈대(One skeleton, two faces)** — 고객과 멤버는 같은 화면 구조에 **권한 필터**만 다름. 완전히 별도 뷰 만들지 않음.
+
+### F5-0b. 개요 및 스코프
+
+**포지셔닝**: 고객(Client)과 워크스페이스의 **사람 팀원 + Cue(AI 팀원)** 가 함께 일하는 **프로젝트 단위 협업 공간**. 한 프로젝트에 최소 2개 채널(내부 논의 + 고객 소통) 이 자동 생성되고, 대화에서 업무 후보가 자동 추출되어 Q Task 로 이어짐.
 
 **제외 (Out of scope — Phase 1)**
 - 익명 방문자 위젯, 마케팅 퍼널
@@ -181,254 +180,471 @@ Q Talk 본격 개발 전에 반드시 선행되어야 하는 토대 작업.
 - 외부 채널 연동 (카카오톡, 인스타 DM 등)
 - B2B2B 다자 대화 (사업자-사업자 공유)
 
----
-
-### F5-1. 고객 초대 및 대화 시작
-
-| 항목 | 내용 |
-|------|------|
-| 트리거 | 워크스페이스 멤버가 고객 초대 → 초대 이메일 or 초대 링크 생성 |
-| 접속 | 고객이 링크 클릭 → PlanQ 가입/로그인 → 해당 워크스페이스 client 레코드 자동 매핑 |
-| 초기 상태 | 가입 즉시 `conversations` 1행 자동 생성 (status=`active`, type=`client`) |
-| 첫 화면 | 고객은 Q Talk 전용 단순 뷰 (대화창 + 첨부 + 자기 히스토리만) |
-
-**설계 근거**: 익명 채팅을 빼는 대신 초대 링크 UX를 매끄럽게 해서 "링크 클릭 → 1분 안에 첫 대화" 를 달성.
+**후순위 (Phase 2 로 연기, 데이터 모델·API 는 Phase 1 에 완결)**
+- 이메일 초대 발송 (nodemailer 연동) — Phase 1 은 초대 링크 복사까지만
+- 고객사 전용 관리 페이지 `/clients` — Phase 1 은 프로젝트 생성 시 inline 추가
+- 파일 첨부 UI (드래그앤드롭) — `message_attachments` 테이블/API 유지, UI 만 연기
+- 반복 업무 자동 감지 — Phase 1 은 사용자가 Q Task 에서 수동 설정
 
 ---
 
-### F5-2. 대화방 구조 — Persistent Thread
+### F5-1. 프로젝트 도메인 모델
 
-| 항목 | 내용 |
-|------|------|
-| 모델 | 고객 한 명당 **대화방 1개** (persistent, 계약 전·후·운영 전부 한 흐름) |
-| 세그먼트 | AI가 주제 전환 감지 시 `segment_id` 자동 부여. 멤버가 수동 편집 가능 |
-| 정렬 | 좌측 리스트: 마지막 활동 시간 역순, 상단에 내 담당 고객 고정 옵션 |
-| 표시 | 고객명·아바타, 마지막 메시지 미리보기, unread count, AI/사람 응답 상태 뱃지 |
+```
+Business (워크스페이스, 기존)
+  └─ Project (1급 개체, 신규)
+       ├─ ProjectMember (멤버 + 역할 매핑, 신규)
+       ├─ ProjectClient (고객 참여자, 신규)
+       ├─ Conversation (확장: project_id, channel_type, auto_extract_enabled, last_extracted_message_id)
+       │    └─ Message (확장: reply_to_message_id + FULLTEXT 검색 인덱스)
+       │         └─ DetectedQuestion → CueDraft (기존 재사용 + processing_by/processing_at 낙관적 잠금)
+       ├─ TaskCandidate (신규, 추출 후보 히스토리 영구 저장)
+       ├─ Task (Q Task, project_id FK 추가)
+       ├─ ProjectNote (신규, 개인/내부 메모)
+       ├─ ProjectIssue (신규, 주요 이슈 수동 CRUD)
+       ├─ File (project_id FK 추가)
+       └─ Invoice (project_id FK 추가)
+```
 
-**세그먼트 의미**: 긴 persistent thread를 리뷰할 때 "계약 단계", "온보딩", "운영 이슈" 등으로 분기 탐색 가능. Q note의 "회의 세션" 개념 차용.
+**핵심 원칙**
+1. 프로젝트당 대화 채널 **최소 2개 자동 생성**: "내부 논의" + "{고객사명} 과의 소통"
+2. 고객 DM 없음 — 고객과의 모든 소통은 프로젝트의 고객 채널을 통함 (감사·인수인계 보존)
+3. 멤버끼리 1:1 DM 은 허용 (내부 효율)
+4. 프로젝트 : 고객사 = 1 : 1, 고객사 참여자는 N 명
+5. 한 사용자가 여러 워크스페이스에 속할 수 있음 (내 회사 = 멤버, 거래처 = 고객)
+6. Cue 는 팀원 한 명 — 사람과 동시에 응대, 명시적 지시로만 멈춤 (Phase 0 원칙 유지)
+7. 모든 Cue 답변은 출처 `ai_sources` JSON 에 기록 + UI 표시
 
 ---
 
-### F5-3. 대화 자료 (Cue 의 답변 소스) — 사용자 표기 "대화 자료" / 내부 명칭 "KB"
+### F5-2. 프로젝트 생성 (단일 모달, 위저드 없음)
 
 | 항목 | 내용 |
 |------|------|
-| 용어 | 사용자 UI 에는 "대화 자료" / "Cue 자료실" — "KB" 라는 약어는 일반 사용자엔 노출 안 함. 내부 코드·DB만 `kb_*` |
-| 진입 | `/app/talks/kb` 신규 라우트. Q File 과 완전히 분리 (용도·엔진 달라서 혼동 방지) |
-| 업로드 | 매뉴얼, FAQ, 가격표, 정책 문서, 서비스 설명. 허용 확장자: pdf, docx, xlsx, pptx, txt, md |
-| 엔진 재사용 | Q Note 의 `embedding_service.py` + FTS + chunk splitter + LLM 2차 매칭 파이프라인 재사용 |
-| 인덱싱 | 업로드 즉시 비동기 인덱싱. 상태: pending → indexing → ready. 관리자 UI에 진행 뱃지 |
-| Pinned FAQ | 관리자가 질문/답변 쌍 직접 등록 (단건 폼 + CSV 일괄). Tier 1 우선 매칭 |
-| 버전 | 문서 갱신 시 이전 버전 보존 (`kb_documents.version` 증가) — 답변 추적 감사 |
-| 가시성 | 워크스페이스 전체 공개 (관리자 수정, 멤버 열람). 고객은 접근 불가 |
+| UX | 모달 1개, 단계 분할 없음 — 30초 내 생성 가능 |
+| 입력 | 프로젝트명 *필수 / 고객사(기존 선택 or 신규 이름+이메일) / 기간(선택) / 설명(선택) / 멤버 선택 + 역할 매핑 |
+| 역할 풀 | 기본 6종: 기획·디자인·개발·영업·운영·기타 (+ 자유 추가 가능) |
+| 역할 매핑 | 멤버 추가 시 역할 드롭다운. 같은 역할 중복 가능 (디자이너 2명 등) |
+| 기본 담당자 | 생성자(owner)가 자동 세팅, 변경 가능. 자동 추출 매핑 실패 시 fallback |
+| 채널 자동 생성 | 생성 완료 즉시 `conversations` 2행 자동 생성 (internal + customer) |
+| 고객 초대 | 모달 안에 이메일+이름 추가 UI, 저장 시 **초대 링크 클립보드 복사** (메일 발송은 Phase 2) |
+
+**설계 근거**: 위저드 3단은 생성 빈도가 낮다는 착각. 에이전시 대행사 기준 주 5개 이상 생성될 수 있어 가볍고 즉각적인 단일 모달이 실무에 맞음.
+
+#### F5-2b. 고객 초대 링크 처리 (기가입 vs 신규 가입, 2026-04-15 추가)
+
+초대 링크는 `project_clients.invite_token` (32바이트 랜덤 + base64url) 로 1회성 토큰 발급. 링크 클릭 시 다음 분기:
+
+**1. PlanQ 미가입 (이메일이 `users` 테이블에 없음)**
+- 초대 랜딩 페이지 → "가입하고 {프로젝트명} 에 참여하기" 버튼
+- 클릭 → 최소 가입 폼 (이메일 prefilled / 이름 / 비밀번호)
+- 가입 완료 → `users` insert → `project_clients.contact_user_id` 업데이트 → 해당 워크스페이스의 `clients` 레코드 자동 생성 → 프로젝트의 고객 채널로 즉시 진입
+- `invite_token_used_at = NOW()` 로 토큰 소진
+
+**2. PlanQ 기가입 (이메일이 `users` 에 있고 활성)**
+- 초대 랜딩 페이지 → 로그인 상태 확인
+  - 로그인 안 됨 → 로그인 페이지 → 로그인 후 초대 수락 플로우 재진입
+  - 로그인 됨 → 그 user_id 가 초대 이메일의 소유자인지 검증 (다르면 "다른 계정으로 로그인하세요" 안내)
+- 검증 통과 → `project_clients.contact_user_id = user.id`, `clients` 레코드 없으면 생성 → 프로젝트의 고객 채널로 진입
+- `invite_token_used_at = NOW()` 로 토큰 소진
+
+**3. 토큰 만료/사용됨 (TTL 7일, 1회성)**
+- 랜딩 페이지에서 "만료/사용됨" 안내 + "워크스페이스 담당자에게 새 링크 요청"
+
+**4. 멀티 역할 대응**
+- 이미 해당 사용자가 **다른 역할** (owner/member) 로 같은 워크스페이스에 속해있다면: 고객으로도 등록 가능 (동일 워크스페이스에서 owner + client 양쪽 레코드 공존)
+- 드문 케이스이지만 (예: 본인 거래처 프로젝트에 고객으로 참여) 지원
+- UI 상 워크스페이스 스위처에선 역할 우선순위 표시 (owner > member > client)
+
+**DB 필드** (`project_clients`):
+- `invite_token` VARCHAR(64) / `invite_token_used_at` DATETIME — Phase 1 에서 이미 생성/저장
+- 랜딩 페이지 + 검증 로직은 Phase 2 (이메일 발송과 함께)
+
+**보안**:
+- 토큰 32바이트 랜덤 (`crypto.randomBytes(24).toString('hex')` — 48자)
+- TTL 7일 (초대 시점부터), 1회성 소멸
+- 로그인된 사용자 이메일과 `contact_email` 일치 검증 필수 (피싱 방어)
+- 같은 워크스페이스의 멤버가 다른 사람 토큰으로 자기 계정 연결 시도 차단
+
+---
+
+### F5-3. 대화 채널 (Conversation 확장)
+
+| 필드 | 설명 |
+|------|------|
+| `project_id` | 프로젝트 FK (신규) |
+| `channel_type` | `customer` / `internal` / `group` (3채널 이상은 group) |
+| `auto_extract_enabled` | 자동 업무 추출 on/off. 기본 customer=true, internal=false |
+| `last_extracted_message_id` | 마지막 업무 추출 커서 — 이후 메시지만 다음 추출 대상 |
+| `last_extracted_at` | 마지막 추출 시각 |
+
+프로젝트 상세 화면에서 관리자가 group 채널 추가 가능 (드문 케이스).
+
+---
+
+### F5-4. 대화 자료 (Cue 답변 소스) — 사용자 표기 "대화 자료" / 내부 `KB`
+
+| 항목 | 내용 |
+|------|------|
+| 용어 | 사용자 UI: "대화 자료" / "Cue 자료실". "KB" 약어는 코드·DB 내부만 |
+| 진입 | `/talk/p/:id/kb` (프로젝트 스코프) — 프로젝트별 자료실 |
+| 업로드 | 매뉴얼, FAQ, 가격표, 정책 문서. pdf, docx, xlsx, pptx, txt, md |
+| 엔진 재사용 | Q Note 의 `embedding_service` + FTS + chunk splitter + LLM 2차 매칭 그대로 |
+| 인덱싱 | 업로드 즉시 비동기 인덱싱. pending → indexing → ready |
+| Pinned FAQ | 관리자 직접 등록 Q&A (단건 폼 + CSV 일괄). Tier 1 우선 매칭 |
+| 버전 | 문서 갱신 시 `kb_documents.version` 증가 |
+| 가시성 | 멤버만 (고객 접근 불가) |
 | 임베딩 모델 | text-embedding-3-small (1536d, cosine sim, BLOB 저장) |
 
-**엔진 재사용 이유**: Q Note 의 6-tier 매칭 + 임베딩/FTS 하이브리드가 이미 프로덕션 품질. 별도 테이블·라우터로 격리하되 서비스 레이어는 공유.
-
 ---
 
-### F5-4. Cue 답변 Tier + Auto/Draft/Smart 모드
+### F5-5. Cue 답변 Tier + Auto/Draft/Smart 모드 (Phase 0 기존 유지)
 
 **Tier (매칭 우선순위)**
 | Tier | 설명 | 신뢰도 |
 |---|---|---|
-| 1. Pinned FAQ | 관리자가 직접 등록한 Q&A (paraphrase 매칭 + 임베딩 rerank + LLM 2차 검증) | 높음 |
+| 1. Pinned FAQ | 관리자 직접 등록 Q&A (paraphrase 매칭 + 임베딩 rerank + LLM 2차 검증) | 높음 |
 | 2. KB RAG | 대화 자료 문서 청크 검색 (FTS + 임베딩 하이브리드) | 중간~높음 |
 | 3. Session Reuse | 같은 고객 과거 대화에서 유사 답변 재활용 | 중간 |
-| 4. LLM General | KB 없음 — 워크스페이스 브랜드 톤으로 일반 답변 or 폴백 "확인 후 답변드릴게요" | 낮음 |
+| 4. LLM General | KB 없음 — 워크스페이스 브랜드 톤으로 일반 답변 or 폴백 | 낮음 |
 
-**Auto / Draft / Smart 3 모드** (워크스페이스 설정)
-
+**Auto / Draft / Smart 3 모드**
 | 내부 | UI 라벨 (ko) | 동작 | 기본값 |
 |---|---|---|:---:|
-| `smart` | 잘 아는 것만 답변한다 | Tier 1~2 + confidence ≥ 0.85 → Auto 발송, 아니면 Draft 저장 | ✓ |
+| `smart` | 잘 아는 것만 답변한다 | Tier 1~2 + confidence ≥ 0.85 → Auto, 아니면 Draft | ✓ |
 | `auto` | 일단 답변을 시도한다 | 모든 Tier 자동 발송 | |
-| `draft` | 내가 확인한 뒤 보낸다 | 전부 Draft, 사람이 승인해야 발송 | |
+| `draft` | 내가 확인한 뒤 보낸다 | 전부 Draft, 사람 승인 필요 | |
 
-**민감 키워드 자동 Draft 강제**
-- 환불, 계약 해지, 위약금, 법적, 금액(100만원 이상), 감정 부정어
-- Auto 모드라도 이 조건엔 Draft 로 자동 전환 + 사람 호출
+**민감 키워드 강제 Draft**: 환불·계약해지·위약금·법적·금액 100만원 이상·감정 부정어 → Auto 모드라도 Draft 강제.
 
-**출처 표시 의무**
-- 모든 Cue 답변은 `ai_sources` JSON 에 [{doc_id, title, section, snippet}] 기록
-- UI 에 접힘/펼침으로 노출 — 관리자가 클릭 시 원문 섹션으로 이동
+**출처 표시 의무**: 모든 Cue 답변은 `ai_sources` JSON 에 [{doc_id, title, section, snippet}] 기록 + UI 노출.
 
-**자기부정 금지 (Q Note 원칙 계승)**
-- "저는 AI라서...", "제가 답변드릴 수 없는 부분..." 같은 표현 프롬프트 차단
-- Cue 는 워크스페이스의 실제 팀원 관점으로 답변 ("저희 워프로랩에서는...")
+**자기부정 금지**: "저는 AI라서..." 같은 표현 프롬프트 차단 — 워크스페이스 팀원 관점으로 답변.
 
 ---
 
-### F5-5. 실시간 메시지 + 대기 공백 제거 UX
+### F5-6. Cue 답변 처리 + 낙관적 잠금 (신규)
+
+담당자가 여러 명일 때 같은 Draft 를 동시에 처리하는 충돌 방지.
 
 | 항목 | 내용 |
 |------|------|
-| 전송 기술 | Socket.IO (기존) |
-| 고객 send | 즉시 "받았어요 ✓" 상태 → "관련 자료 찾는 중..." (AI 검색 단계) → AI 답변 도착 |
-| 멤버 send | 일반 chat 전송 + "사람이 응답 중" 인디케이터 고객 쪽에 표시 |
-| 타이핑 | 양쪽 타이핑 인디케이터, Q note UI 재사용 |
-| 자동 상태 | AI가 답을 확정 못하면 "담당자에게 전달했어요 · 평균 응답 N분" 자동 메시지 |
-| 스크롤 | Q note의 sticky-to-bottom 패턴 재사용 (위로 스크롤 시 자동 스크롤 정지) |
-
-**설계 근거**: "사람이 있는지 없는지 상관없는 느낌" — 고객 입장에서 메시지 보낸 직후 무언가 반응이 즉시 돌아오면 기다림을 느끼지 않음. AI 검색 단계 가시화 + 못 찾으면 매끄럽게 사람으로 넘기는 전환이 핵심.
-
----
-
-### F5-6. Cue 공동 응대 · 일시정지
-
-**핵심 원칙**: Cue 는 핸드오프가 아닌 "같은 팀원". 사람이 응대를 시작해도 Cue 는 말없이 기다리거나 자기 판단으로 계속 참여. 오직 **명시적 지시**로만 멈춤.
-
-**Cue 일시정지 방법**
-1. **워크스페이스 전역**: 설정 → Cue 탭 → 전체 일시정지 토글
-2. **대화별**: 대화창 상단 Cue 뱃지 클릭 → "이 대화에서 Cue 멈추기"
-3. **턴 단위 자동 스킵**: 사람이 입력창에 포커스 + 타이핑 시작 시 `cue_suppressed_until = now + 5min` — Cue 가 해당 턴만 스킵 (사람과 동시 응답 방지)
-
-**중복 응대 방지**
-- 사람 메시지 send 전에 Cue 메시지가 이미 저장되어 있으면 덮어쓰지 않음
-- 두 개 이상의 답변이 동시에 올라올 수 있음 (사람 + Cue 의견 둘 다 고객에게 보여줌)
-- UI 상 두 답변은 순서대로 표시되고, 고객은 누가 누구인지 뱃지로 구분
-
-**재개**
-- 대화창에서 "Cue 다시 붙여주세요" 버튼 or Cue 뱃지 클릭
-- 워크스페이스 전역 재개는 설정에서
-- 자동 재개: 일시정지 후 24시간 경과 or 다음 고객 메시지 도착 시 (설정 가능)
-
-**알림 메시지 삽입 없음**
-- Cue 가 조용해지거나 재개될 때 시스템 메시지 "Cue 가 나갑니다/돌아왔어요" 삽입하지 않음
-- UI 뱃지만 변경 — 실제 팀원이 말없이 업무 바통 터치하는 것과 동일
+| 위치 | 질문 메시지 바로 아래에 "Cue 답변 대기" 소형 카드 (담당자만 표시) |
+| 담당자 입력창 | "Cue 답변 대기 N개 ↑" 뱃지 (클릭하면 첫 번째 draft 로 이동) |
+| [처리 시작] | `messages.cue_draft_processing_by = me, cue_draft_processing_at = now`. TTL 5분. |
+| [수정] → [전송] | 편집 후 전송 — 새 메시지 insert with `reply_to_message_id = 원질문.id` |
+| [그대로 전송] | 즉시 전송 |
+| [거절] | draft 상태 = rejected |
+| 충돌 | `processing_by` 이미 있으면 [처리] 버튼 disabled + "xxx 가 처리 중" 표시 |
+| TTL 만료 | 5분 경과 시 자동 해제 (abandon) → 다른 담당자 사용 가능 |
+| WS 이벤트 | `cue:draft_locked` / `cue:draft_released` / `cue:draft_sent` |
 
 ---
 
-### F5-7. 담당자 사이드패널 (관리자 화면)
+### F5-7. 자동 업무 추출 (신규 — Cue 의 구조화 기능)
 
-화면 우측 고정 패널:
-- **고객 프로필 카드**: 이름·연락처·가입일·상태 뱃지
-- **자동 요약**: 누적 대화 LLM 3~5줄 요약 (주요 관심사, 미해결, 다음 액션)
-- **진행 중 업무 카드**: 관련 task·invoice·event 링크 (클릭 → 해당 상세)
-- **AI 답변 제안**: 현재 대화 맥락 기반 추천 답변 1~3개 + 출처
-- **내부 메모**: 다른 멤버와 공유되는 고객용 안 보이는 노트
+**트리거**
+1. **자동 제안 배너** (AI 호출 아님, 조건 감지만)
+   - `auto_extract_enabled=true` + `last_extracted_message_id` 이후 새 메시지 ≥ 5개 + 마지막 메시지 20분 경과
+   - 입력창 위 배너: `"5개의 새 메시지가 있습니다 — [업무 추출] · [Q Task 에서 직접 등록]"`
+2. **수동 버튼**: [업무 추출] 버튼 상시 노출
+3. **Cue 명령**: 메시지에 "Cue, 이 내용 업무로 정리해줘" 입력 시 1회 실행 (토글 off 여부와 무관)
+
+**추출 파이프라인 (AI 호출 1회)**
+1. 컨텍스트 수집:
+   - `last_extracted_message_id` 이후 메시지 목록
+   - 프로젝트의 open 상태 `tasks` 리스트 (제목·설명만, 유사 업무 dedupe 용)
+   - 프로젝트 역할 매핑 + 기본 담당자
+   - 프로젝트 정보 (이름·기간·설명)
+2. LLM 호출 — 반환 JSON:
+   ```json
+   [{
+     "title": "로고 시안 3종 제안",
+     "description": "...",
+     "source_message_ids": [123, 124, 127],
+     "guessed_role": "디자인",
+     "guessed_due_date": "2026-03-15",
+     "similar_task_id": 88,
+     "recurrence_hint": null
+   }]
+   ```
+3. **결정론적 후처리** (AI 아님)
+   - `guessed_role` → `project_members` 역할 매핑 조회
+     - 1명이면 자동 확정
+     - 2명 이상이면 `role_order` 기준 첫 번째 자동 선택
+     - 0명이면 `project.default_assignee_user_id` 로 fallback
+   - 마감일 검증 (과거·미래 1년 초과 거절)
+   - 유사 업무 유사도 검증 (제목 트라이그램 similarity ≥ 0.6)
+4. `task_candidates` 테이블에 bulk INSERT (status=pending)
+5. `conversations.last_extracted_message_id`, `last_extracted_at` 업데이트
+6. WS 이벤트 `candidates:created` 발행
+
+**확인 UI — 우측 탭 임시 섹션 "업무 후보 N개"**
+
+각 후보 카드에 3 버튼:
+- **[등록]** — Q Task 에 INSERT (상태 `task_requested`), `task_candidates.status = registered`, `task_candidates.registered_task_id` 연결
+- **[내용 추가]** — 유사 기존 업무에 후보 내용을 코멘트로 추가, `status = merged`
+- **[거절]** — `status = rejected`
+
+카드 클릭 시 원본 메시지로 스크롤 + 3초 하이라이트.
+
+**히스토리 조회 (AI 재호출 없음)**
+- 우측 탭 [과거 후보 보기] 링크 또는 `/talk/p/:id/candidates` 화면
+- `task_candidates` 쿼리 그대로 표시 — 저장된 데이터만 사용
+- 거절한 후보도 "다시 등록" 가능 (AI 호출 X, 저장된 카드에서 바로 등록)
+
+**중복 방지**: 동일 `conversation_id` 에 `extraction_in_progress_at` (TTL 2분) 로 동시 호출 차단.
 
 ---
 
-### F5-8. 메시지에서 업무 연결
+### F5-8. 프로젝트 메모 (ProjectNote, 신규)
+
+| 항목 | 내용 |
+|------|------|
+| 스코프 | **프로젝트 단위** (대화방 스코프 아님). 어느 채널에서 작성해도 모든 채널에서 동일 노출. Q Task 프로젝트 상세에서도 동일 노출 |
+| visibility | `personal` (작성자 본인만) / `internal` (멤버만, 고객 숨김) |
+| 작성 | 우측 탭 하단 입력창 + 토글 [개인/내부] (기본 개인). 고객 뷰는 토글 자체 없음, 항상 개인 |
+| 렌더링 | 최신 3개 노출 + 스크롤 올리면 무한 로드 과거 |
+| 편집/삭제 | 본인만 가능 |
+| DB | `project_notes` 테이블 (project_id, author_user_id, visibility, body, created_at) |
+
+**설계 근거**: 메모가 대화방 스코프면 고객 채팅/내부 채팅에서 따로 쌓여 인수인계 시 누락. 프로젝트 스코프로 승격하면 한 곳에서 관리.
+
+---
+
+### F5-9. 주요 이슈 (ProjectIssue, 신규 — AI 없음)
+
+| 항목 | 내용 |
+|------|------|
+| 목적 | 프로젝트의 현재 이슈·상태를 간략히 유지 |
+| 생성 | 우측 탭 "주요 이슈" 섹션의 **[+ 추가]** 버튼, 인라인 입력창 |
+| 편집 | 이슈 텍스트 클릭 → `contenteditable` 인라인 편집 → blur 시 자동 저장 |
+| 삭제 | 각 이슈의 [삭제] 버튼 |
+| 렌더링 | 날짜 역순 최신 3개 기본 노출, [더보기] 클릭 시 과거 표시 |
+| LLM | **자동 생성·재요약 없음** — 완전 수동 CRUD (메모리 `feedback_ai_minimal_usage.md`) |
+| DB | `project_issues` 테이블 (project_id, body, author_user_id, created_at, updated_at) |
+
+---
+
+### F5-10. 채팅 통합 검색 (신규, 모달 없음)
+
+| 항목 | 내용 |
+|------|------|
+| 진입 | 좌측 리스트 상단 검색 바 + Ctrl+K / Cmd+K 포커스 단축키 |
+| UX | **모달 없음**. 검색어 입력 시 **좌측 리스트 영역이 결과 뷰로 전환** (프로젝트 리스트 일시 대체). 초기화 시 리스트 복귀 |
+| 필터 | 검색어 입력 시 상단 필터 바 나타남 — 프로젝트 / 채널 / 발신자 / 기간 |
+| 기술 | MySQL `FULLTEXT INDEX` with `ngram` parser (한국어 대응) |
+| 권한 필터 | 멤버는 참여 프로젝트 전체, 고객은 참여 채널만 |
+| 결과 클릭 | 가운데 채팅 영역이 해당 메시지로 스크롤 + 3초 코랄 하이라이트 |
+| 하이라이트 스니펫 | 서버에서 매칭 위치 기준 전후 40자 스니펫 추출, 검색어 `<mark>` 강조 |
+
+---
+
+### F5-11. 실시간 메시지 + 상태 피드백 (Phase 0 확장)
+
+| 항목 | 내용 |
+|------|------|
+| 전송 기술 | Socket.IO |
+| 이벤트 | `message:new`, `message:updated`, `message:deleted`, `cue:thinking`, `cue:draft_ready`, `cue:draft_locked`, `cue:draft_released`, `candidates:created`, `note:new`, `project:updated` |
+| 고객 send | 즉시 "받았어요" 상태 → "관련 자료 찾는 중..." → AI 답변 도착 |
+| 타이핑 | 양쪽 타이핑 인디케이터 (Q Note UI 재사용) |
+| 자동 상태 | AI 확정 못하면 "담당자에게 전달했어요 · 평균 응답 N분" 자동 시스템 메시지 |
+| 스크롤 | sticky-to-bottom (위 스크롤 시 자동 스크롤 정지) |
+| Rate limit | 같은 프로젝트 이벤트 버스트 초당 20개 제한 |
+
+---
+
+### F5-12. 3단 레이아웃 + 접기/펼치기
+
+| 영역 | 설명 | 모바일 |
+|---|---|---|
+| 좌측 리스트 | 프로젝트 리스트 + 검색 바 + 필터 + 워크스페이스 스위처. Q Note 스타일 접기/펼치기 | 햄버거 메뉴 |
+| 가운데 | 채널 탭 + 메시지 흐름 + 입력창 + 자동 추출 토글 + 업무 추출 버튼 | 풀스크린 |
+| 우측 탭 | 주요 이슈 / 내 할 일 / 프로젝트 업무 / 프로젝트 메모 / 프로젝트 정보 (아코디언) | 하단 시트 |
+
+**우측 탭 리사이즈**: 가로 핸들 드래그로 폭 조정. **2열 확장 없음** — 각 섹션에 max-height + 독립 스크롤로 높이 부담 해결.
+
+**반응형 breakpoint**:
+- ≥1200px: 3단 풀 노출
+- 992~1199px: 좌측 접힘 기본
+- 768~991px: 좌측 햄버거, 가운데+우측 2단
+- <768px: 가운데 풀스크린 + 좌우 각각 하단 시트
+
+---
+
+### F5-13. 우측 탭 섹션 상세 (5 아코디언)
+
+| 섹션 | 기본 상태 | 콘텐츠 | 높이 |
+|---|---|---|---|
+| 주요 이슈 | 펼침 | 최신 3개 + [+] 추가 + 인라인 편집 | max 180px |
+| 내 할 일 | 펼침 | 현재 프로젝트 본인 담당, 체크박스 즉시 처리, 상태 뱃지, 반복 아이콘, [Q Task 전체 보기] | max 280px, 내부 스크롤 |
+| 프로젝트 업무 | 접힘 | 프로젝트 전체 업무 최신순, 담당자 표시 없음, 반복 아이콘, 펼치면 완료 포함 | max 320px |
+| 프로젝트 메모 | 펼침 | 최신 3개 + 입력창 + 개인/내부 토글 + 스크롤 과거 로드 | max 260px |
+| 프로젝트 정보 | 접힘 | 이름/고객사/기간/상태/기본 담당자/역할 매핑 요약 + [상세 보기] | 자동 |
+
+**중요**: 각 섹션 헤더 클릭으로 접힘/펼침 토글, localStorage 상태 저장.
+
+---
+
+### F5-14. 프로젝트 상태 (3 종)
+
+| 상태 | 의미 | 자동 추출 | 리스트 노출 |
+|---|---|---|---|
+| `active` | 진행 중 | on | 기본 |
+| `paused` | 일시 중단 | off | 기본 |
+| `closed` | 종료/중단 | off | 필터 토글로 숨김/노출 |
+
+**archived 제거**: closed 와 구분 가치 없음. 완전 숨김은 필터 토글로 해결.
+
+---
+
+### F5-15. 워크스페이스 선택 (로그인 직후, 공통)
+
+| 조건 | 동작 |
+|---|---|
+| 사용자가 속한 워크스페이스 1개 | 자동 진입 |
+| 2개 이상 | 카드 리스트 선택 화면 — 각 카드에 로고/이름/내 역할/진입 버튼 |
+| 전환 | 우측 상단 드롭다운으로 언제든 전환 (Slack 패턴) |
+
+**근거**: 한 사용자가 자기 회사에서는 멤버, 다른 회사에서는 고객일 수 있음. `business_members` + `clients` 양쪽에서 조회.
+
+---
+
+### F5-16. 고객 vs 멤버 뷰 (동일 뼈대, 권한 필터)
+
+**같은 화면 구조**를 쓰되 권한별 필터로 차이 생성:
+
+| 항목 | 멤버 | 고객 |
+|---|---|---|
+| 사이드바 메뉴 | 전체 Q 시리즈 | 최소화 (언어/프로필/로그아웃) |
+| 좌측 프로젝트 리스트 | 참여 전체 | 자기 참여만, 1개면 자동 접힘 |
+| 채널 탭 | 모두 (customer + internal + group) | customer 만 |
+| 내부 메모 | 읽기·쓰기 | 숨김 |
+| 개인 메모 | 가능 | 가능 |
+| 자동 추출 토글 | 노출 | 숨김 |
+| [업무 추출] 버튼 | 노출 | 숨김 |
+| Cue 답변 대기 카드 | 표시 | 숨김 |
+| 업무 후보 섹션 | 표시 | 숨김 |
+| 내 할 일 | 노출 | 자기 담당만 노출 (동일 위젯) |
+| 프로젝트 업무 조회 | 전체 | 전체 (가시성 공유, 담당자 표시 없음) |
+| 검색 | 참여 프로젝트 전체 | 참여 채널만 |
+
+---
+
+### F5-17. 데이터 모델 (최종)
+
+`DATABASE_ERD.md` 섹션 참조. 요약:
+
+**신규 테이블 6 개**
+- `projects` — 프로젝트 1급 개체
+- `project_members` — 멤버 + 역할 매핑
+- `project_clients` — 고객 참여자
+- `project_notes` — 프로젝트 메모 (개인/내부)
+- `project_issues` — 주요 이슈 수동 CRUD
+- `task_candidates` — 업무 추출 후보 히스토리
+
+**기존 테이블 확장**
+- `conversations`: `+ project_id`, `+ channel_type`, `+ auto_extract_enabled`, `+ last_extracted_message_id`, `+ last_extracted_at`, `+ extraction_in_progress_at`
+- `messages`: `+ reply_to_message_id`, `+ cue_draft_processing_by`, `+ cue_draft_processing_at`, FULLTEXT ngram 인덱스 `ft_body`
+- `tasks`: `+ project_id`, `+ from_candidate_id`, `+ recurrence`, `status` ENUM 확장 (task_requested / task_re_requested / waiting / not_started / in_progress / review_requested / re_review_requested / customer_confirm / completed / canceled)
+- `files`: `+ project_id`
+- `invoices`: `+ project_id`
+
+**엔진 재사용**
+- Q Note `embedding_service.py`, FTS, `_llm_match_question`, 프롬프트 템플릿 그대로
+- Phase 0 `cue_orchestrator.js` 확장 — task 추출 서비스 `task_extractor.js` 신설
+- Phase 0 `kb_service.js` — 그대로 유지
+
+---
+
+### F5-18. 자동 업무 추출 — 결정론 우선 원칙
+
+**AI 호출 경계**
+- **AI 사용**: 자연어 메시지 → 구조화된 업무 후보 (title/description/role/due) 로 변환 (1회)
+- **AI 사용 금지**: 저장된 후보 재조회, 상태 전환, 담당자 매핑(결정론), 마감일 검증, 유사도 계산, 히스토리 표시
+
+**사용자 체감**: 한 번 추출한 결과는 LLM 을 다시 호출하지 않으므로 **재현 가능** — 같은 메시지에 대해 다른 결과가 나오지 않음. 거절했다가 다시 등록하는 것도 LLM 없이 DB에서 직접 가능.
+
+---
+
+### F5-19. 권한 매트릭스
+
+`SECURITY_DESIGN.md` 권한 매트릭스 참조. 요약:
+
+| 액션 | Admin (Owner) | Member | Client |
+|---|:---:|:---:|:---:|
+| 프로젝트 생성 | ✓ | ✓ | ✗ |
+| 프로젝트 편집/멤버 변경 | ✓ | ✓ (자기 프로젝트) | ✗ |
+| 고객 채널 메시지 | ✓ | ✓ | ✓ |
+| 내부 채널 메시지/조회 | ✓ | ✓ | ✗ |
+| 업무 추출 트리거 | ✓ | ✓ | ✗ |
+| 업무 후보 처리 | ✓ | ✓ | ✗ |
+| 내부 메모 | ✓ R/W | ✓ R/W | ✗ |
+| 개인 메모 (본인) | ✓ R/W | ✓ R/W | ✓ R/W |
+| 주요 이슈 CRUD | ✓ | ✓ | 읽기만 |
+| Cue 답변 처리 | ✓ | ✓ | ✗ |
+| 검색 | 워크스페이스 | 참여 프로젝트 | 참여 채널 |
+
+---
+
+### F5-20. 메시지에서 업무 전환 (기존 F5-8 유지)
 
 | 전환 | 트리거 | 결과 |
 |---|---|---|
-| → 할일 | 메시지 우클릭 → "할일 만들기" | Task 생성(`source_message_id` 연결), 대화에 인라인 카드 삽입 |
-| → 일정 | "일정 잡기" | Q Calendar 이벤트 생성, 고객에게 알림·ICS |
-| → 청구서 | "청구서 만들기" | Q Bill 초안 생성 (고객 미리 채움) |
-| → 자료 | "자료실에 저장" | Q File로 첨부 이동 |
-
-**인라인 카드**: 생성된 업무 객체는 대화 흐름에 **카드 형태 메시지**로 삽입. 상태 변경(예: task 완료) 시 자동 업데이트 메시지.
+| → 할일 | 메시지 우클릭 → "할일 만들기" | Task 생성 + 대화에 인라인 카드 삽입 |
+| → 일정 | "일정 잡기" | Q Calendar 이벤트 생성 (Phase 8) |
+| → 청구서 | "청구서 만들기" | Q Bill 초안 생성 |
+| → 자료 | "자료실에 저장" | Q File 로 첨부 이동 |
 
 ---
 
-### F5-9. 고객 히스토리 자동 요약
+### F5-21. 메시지 수정·삭제 (Phase 0 유지)
+
+- **수정**: 작성자 본인만, `is_edited=true` + `edited_at` 기록, UI "(수정됨)"
+- **삭제**: 마스킹 (`is_deleted=true`, content 유지), UI "삭제된 메시지"
+- **AuditLog**: 원본 content 전체 기록
+
+---
+
+### F5-22. 파일 첨부 (데이터 모델 완결, UI 는 Phase 2)
 
 | 항목 | 내용 |
 |------|------|
-| 생성 시점 | ① 대화 20턴 누적 시 ② 일 1회 배치 ③ 핸드오프 시 즉시 |
-| 프롬프트 | "고객 X의 전체 대화를 3~5줄로. 주요 관심사 / 미해결 이슈 / 다음 액션 순" |
-| 모델 | gpt-4.1-nano (저비용) |
-| 저장 | `clients.summary`, `clients.summary_updated_at` |
-| 표시 | 대화창 우측 상단 + 고객 상세 페이지 |
-| 편집 | 멤버가 수동 덮어쓰기 가능 (`summary_manual` flag) |
+| DB | `message_attachments` (기존 유지) + `+ project_id` FK |
+| API | 업로드·삭제·목록 엔드포인트 완결 — UI 만 연기 |
+| 제한 | Free 10MB / Basic 30MB / Pro 50MB per 파일 (기존 유지) |
+| 허용 확장자 | 기존 유지 |
 
 ---
 
-### F5-10. 상태 메시지 (진행 안내)
+### F5-23. 빈 상태 / 에러 / 로딩
 
-시스템 메시지 블록으로 대화 흐름에 삽입:
-- "담당자 [이름]에게 전달되었습니다"
-- "자료를 검토 중입니다 — 예상 2시간"
-- "할일이 등록되었습니다: [할일명]"
-- "청구서 발송 완료 — 금액 [XXX원]"
-- 고객 포털 상단에 진행률 바 (단계별: 문의 → 확인 → 처리 → 완료)
-
----
-
-### F5-11. 메시지 수정·삭제
-
-**수정**: 작성자 본인만, `is_edited=true` + `edited_at` 기록, UI에 "(수정됨)"
-**삭제**: 마스킹(`is_deleted=true`, content 유지), UI에 "삭제된 메시지"
-**AuditLog**: 원본 content 전체 기록 (기존 원칙 유지)
-
----
-
-### F5-12. 파일 첨부
-
-| 항목 | 내용 |
-|------|------|
-| 업로드 | 드래그앤드롭 + 📎 버튼 |
-| 제한 | Free 10MB / Basic 30MB / Pro 50MB per 파일 |
-| 허용 | 기존 확장자 (jpg, png, pdf, docx, xlsx, pptx, zip, txt) |
-| 저장 | `uploads/{business_id}/{yyyy-mm}/` (기존 구조) |
-| 모델 | MessageAttachment (기존 유지) + 선택적으로 Q File로 승격 |
-
----
-
-### F5-13. 가시성 정책 (Q Talk + 타 메뉴 통합 원칙)
-
-Q Talk 대화 자체는 **워크스페이스 공개 기본**. 단, 다음 항목은 가시성 구분:
-
-| 항목 | 가시성 | 결정 주체 |
-|---|---|---|
-| 대화 전체 | 워크스페이스 전체 공개 | 기본 |
-| 내부 메모 | 멤버만 (고객 불가) | 작성자 + 관리자 |
-| AI 답변 초안 | 담당자만 (검토 단계) | 워크스페이스 설정 |
-| KB 문서 | 멤버 열람 / 관리자 수정 | 업로드자 |
-
-**공통 원칙 (메모리 `feedback_qnote_personal_tool.md` + `feedback_qnote_self_question.md` 연계)**
-- Q Note는 **비공개 기본** → 공개 시 "나" → 실제 이름 렌더 타임 치환
-- Q Talk는 **공개 기본** → 내부 메모만 비공개
-- Q Task/Calendar/Bill은 공개 기본 + 개인 task 토글
-- Q File은 비공개 기본 + "고객 공유" 또는 "팀 공유" 명시적 토글
-
----
-
-### F5-14. 권한
-
-| 역할 | 권한 |
+| 상황 | UI |
 |---|---|
-| Admin (Business Owner) | 모든 대화 열람, KB 수정, 핸드오프 설정 |
-| Member (Business Member) | 자기 담당 고객 대화 + 공유 대화 열람·응답 |
-| Client | 자기 대화만 |
+| 프로젝트 0개 | 중앙 일러스트 + "새 프로젝트를 만들어 시작하세요" + [+ 새 프로젝트] |
+| 메시지 0개 | 채팅 영역에 "{채널명}에서 첫 메시지를 보내세요" |
+| Cue 생각 중 | 회전 스피너 + "답변 찾는 중..." |
+| 업무 후보 0 | 우측 탭 섹션 자체 숨김 |
+| 연결 끊김 | 상단 노란 배너 "연결이 끊어졌습니다. 재접속 중..." |
+| 락 잠김 (Cue) | 버튼 disabled + "xxx 가 처리 중 · N:NN 남음" |
+| 권한 없음 | 중앙 "이 대화방에 접근할 수 없습니다" |
+| 로딩 | 3단 스켈레톤 (Q Note 패턴 재사용) |
 
 ---
 
-### F5-15. 데이터 모델 (최종)
+### F5-24. 성공 지표
 
-DATABASE_ERD 섹션 2.1~2.17 참조. 요약:
-
-**확장 기존 테이블**
-- `users`: `+ is_ai BOOLEAN` / email·password NULL 허용
-- `businesses`: brand/legal 다수 컬럼 + `cue_mode` + `cue_user_id`
-- `business_members`: `role` ENUM 에 `'ai'` 추가
-- `conversations`: `+ cue_enabled`, `+ cue_suppressed_until`, `+ last_ai_summary_at`
-- `messages`: `+ kind('text'|'system'|'card')`, `+ is_ai`, `+ ai_confidence`, `+ ai_source`, `+ ai_sources(JSON)`, `+ ai_model`, `+ ai_mode_used('auto'|'draft')`, `+ is_internal`, `+ invoice_id`
-- `clients`: `+ summary`, `+ summary_updated_at`, `+ summary_manual`, `+ assigned_member_id`
-
-**신규 테이블**
-- `kb_documents` — 대화 자료 문서 메타
-- `kb_chunks` — 청크 + 임베딩 BLOB + FULLTEXT 인덱스
-- `kb_pinned_faqs` — 관리자 직접 등록 Q&A
-- `cue_usage` — 월별·액션별 사용량 집계 (한도 검사 + 대시보드)
-
-**엔진 재사용**
-- Q Note 의 `embedding_service.py`, FTS 검색, `_llm_match_question`, `_enforce_length_cap`, 프롬프트 템플릿을 대화 컨텍스트로 래핑만
-- 신규 서비스: `cue_orchestrator.py` — 대화 이벤트를 받아 Tier 순회 → 답변 생성 → `cue_usage` 증가 → 메시지 DB insert
-
----
-
-### F5-16. 성공 지표
-
-Phase 5 완료 후 추적할 핵심 지표:
+Phase 5 완료 후 추적:
 - **응답 속도**: 고객 메시지 → Cue 첫 응답까지 평균 < 3초
 - **Cue 자동 응답률** (smart 모드): 전체 고객 질문의 ≥ 60% 가 Cue 단독으로 해결
-- **출처 정확도**: Pinned FAQ·KB 출처 클릭 시 답변 내용과 해당 섹션 일치율 ≥ 95%
-- **Draft 승인률**: Draft 로 생성된 답변 중 사람이 수정 없이 승인하는 비율 ≥ 50%
+- **자동 업무 추출 품질**: LLM 제안 → 사용자 승인률 ≥ 70%, 거절률 < 20%
+- **담당자 자동 배정 정확도**: 추출된 후보의 자동 배정 담당자를 사용자가 수정 없이 등록하는 비율 ≥ 80%
+- **출처 정확도**: Pinned FAQ / KB 출처 클릭 시 답변 내용과 섹션 일치율 ≥ 95%
+- **Draft 승인률**: 사람 수정 없이 승인되는 비율 ≥ 50%
 - **비용 효율**: 액션당 평균 비용 ≤ $0.0008
-- **사용자 만족**: 고객 대화 종료 후 "도움이 됐어요" 평가 ≥ 80%
+- **채팅 검색 응답 속도**: 평균 < 200ms (FULLTEXT ngram 기준)
+- **우측 탭 로딩**: 프로젝트 진입 시 주요 이슈/내 할 일/메모 동시 로드 < 500ms
+
 
 ---
 

@@ -15,6 +15,15 @@ export type LanguageLevels = Record<string, LanguageLevelBlock>;
 export type ExpertiseLevel = 'layman' | 'practitioner' | 'expert';
 export type AnswerLength = 'short' | 'medium' | 'long';
 
+export interface WorkspaceMembership {
+  business_id: number;
+  brand_name: string;
+  slug: string;
+  plan: string;
+  role: 'owner' | 'member' | 'client' | 'ai';
+  is_active: boolean;
+}
+
 export interface User {
   id: string;
   email: string;
@@ -23,6 +32,7 @@ export interface User {
   business_id?: number | null;
   business_name?: string | null;
   business_role?: string | null;
+  workspaces?: WorkspaceMembership[];
   language?: string | null;
   // Q note 답변 생성용 프로필
   bio?: string | null;
@@ -44,6 +54,7 @@ interface AuthContextType {
   logout: () => void;
   updateUser: (userData: Partial<User>) => void;
   hasRole: (...roles: string[]) => boolean;
+  switchWorkspace: (businessId: number) => Promise<boolean>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -133,6 +144,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     business_id: (apiUser.business_id as number) || null,
     business_name: (apiUser.business_name as string) || null,
     business_role: (apiUser.business_role as string) || null,
+    workspaces: (apiUser.workspaces as WorkspaceMembership[]) || [],
     language: (apiUser.language as string) || null,
     bio: (apiUser.bio as string) || null,
     expertise: (apiUser.expertise as string) || null,
@@ -273,10 +285,32 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     return roles.includes(role);
   };
 
+  // 워크스페이스 전환 — 백엔드에 active_business_id 영구 저장 + user 상태 갱신
+  const switchWorkspace = async (businessId: number): Promise<boolean> => {
+    if (!user) return false;
+    if (user.business_id === businessId) return true; // 이미 active
+    try {
+      const res = await apiFetch('/api/auth/switch-workspace', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ business_id: businessId }),
+      });
+      if (!res.ok) return false;
+      const body = await res.json();
+      if (!body.success || !body.data) return false;
+      setUser(normalizeUser(body.data));
+      return true;
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error('[switchWorkspace] failed', e);
+      return false;
+    }
+  };
+
   const isAuthenticated = !!user;
 
   return (
-    <AuthContext.Provider value={{ user, isAuthenticated, isLoading, login, register, logout, updateUser, hasRole }}>
+    <AuthContext.Provider value={{ user, isAuthenticated, isLoading, login, register, logout, updateUser, hasRole, switchWorkspace }}>
       {children}
     </AuthContext.Provider>
   );

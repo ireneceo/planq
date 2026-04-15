@@ -66,7 +66,7 @@ const LanguageSelector: React.FC<LanguageSelectorProps> = ({ variant = 'dropdown
 
   if (variant === 'sidebar') {
     return (
-      <Container ref={ref} style={{ width: '100%' }}>
+      <SidebarContainer ref={ref}>
         <SidebarToggle onClick={() => setOpen(!open)}>
           <SidebarLeft>
             <FlagCircle>{currentLang.flag}</FlagCircle>
@@ -75,17 +75,17 @@ const LanguageSelector: React.FC<LanguageSelectorProps> = ({ variant = 'dropdown
           <Arrow $open={open}>&#x25BE;</Arrow>
         </SidebarToggle>
         {open && (
-          <Dropdown $direction="up">
+          <SidebarDropdown $direction="up">
             {LANGUAGES.map(lang => (
-              <Option key={lang.code} $active={lang.code === i18n.language} onClick={() => handleSelect(lang.code)}>
+              <SidebarOption key={lang.code} $active={lang.code === i18n.language} onClick={() => handleSelect(lang.code)}>
                 <FlagCircle>{lang.flag}</FlagCircle>
                 <span>{lang.label}</span>
                 {lang.code === i18n.language && <Check>&#x2713;</Check>}
-              </Option>
+              </SidebarOption>
             ))}
-          </Dropdown>
+          </SidebarDropdown>
         )}
-      </Container>
+      </SidebarContainer>
     );
   }
 
@@ -133,17 +133,54 @@ const IconToggle = styled.button`
   &:hover { background: #F3F4F6; }
 `;
 
+// ─────────────────────────────────────────────
+// Sidebar variant — SidebarFooter(padding: 12px 16px) 를 뚫고 220px 풀폭으로 확장
+// NavItem 과 동일한 hit area 패턴: 풀폭 버튼 + 16px 좌우 패딩 + 동일한 hover 색
+// 드롭다운은 사이드바 dark teal 팔레트로 통일 (흰 모달 금지)
+// ─────────────────────────────────────────────
+const SidebarContainer = styled.div`
+  position: relative;
+  margin: 0 -16px;
+`;
+
 const SidebarToggle = styled.button`
   display: flex; align-items: center; justify-content: space-between;
-  width: 100%; padding: 10px 0; background: transparent; border: none;
+  width: 100%; padding: 10px 16px; background: transparent; border: none;
   cursor: pointer; font-size: 13px; color: #CCFBF1; transition: background 0.15s;
-  border-radius: 6px;
-  &:hover { background: rgba(255, 255, 255, 0.08); }
+  &:hover { background: rgba(255, 255, 255, 0.08); color: #FFFFFF; }
 `;
 
 const SidebarLeft = styled.div`display: flex; align-items: center; gap: 10px;`;
-const SidebarLabel = styled.span`font-size: 13px; font-weight: 500; color: #CCFBF1;`;
+const SidebarLabel = styled.span`font-size: 13px; font-weight: 500; color: inherit;`;
 const FlagCircle = styled.span`font-size: 16px; line-height: 1;`;
+
+const SidebarDropdown = styled.div<{ $direction?: 'up' | 'down' }>`
+  position: absolute;
+  ${({ $direction }) => $direction === 'up' ? 'bottom: calc(100% + 6px);' : 'top: calc(100% + 6px);'}
+  left: 8px; right: 8px;
+  background: #0B3B36;
+  border: 1px solid rgba(94, 234, 212, 0.2);
+  border-radius: 12px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.4);
+  z-index: 1100; overflow: hidden;
+  padding: 6px;
+  animation: fadeIn 0.12s ease-out;
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+`;
+
+const SidebarOption = styled.button<{ $active: boolean }>`
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  padding: 10px 12px; border: none; border-radius: 8px;
+  background: ${({ $active }) => $active ? 'rgba(94, 234, 212, 0.16)' : 'transparent'};
+  cursor: pointer; font-size: 13px;
+  color: ${({ $active }) => $active ? '#FFFFFF' : '#CCFBF1'};
+  font-weight: ${({ $active }) => $active ? 600 : 500};
+  transition: background 0.1s, color 0.1s;
+  &:hover { background: rgba(255, 255, 255, 0.10); color: #FFFFFF; }
+`;
 
 const Arrow = styled.span<{ $open: boolean }>`
   font-size: 10px; color: #5EEAD4; transition: transform 0.15s;

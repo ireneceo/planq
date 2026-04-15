@@ -215,10 +215,23 @@ const setupSecurity = (app) => {
   app.use('/api/', apiLimiter);
 
   // Rate Limiting — 로그인
+  // dev 환경의 테스트 계정(5종)은 화이트리스트로 skip — 퀵로그인 UX가 브루트포스 제한에 막히지 않도록.
+  // 프로덕션에서는 동일 이메일에도 제한이 그대로 적용됨(test.planq.kr 도메인이 프로덕션에 존재하지 않음).
+  const DEV_TEST_EMAILS = new Set([
+    'admin@test.planq.kr',
+    'owner@test.planq.kr',
+    'member1@test.planq.kr',
+    'member2@test.planq.kr',
+    'client@test.planq.kr',
+  ]);
   const loginLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15분
     max: 5,
-    message: { success: false, message: 'Too many login attempts, please try again later' }
+    message: { success: false, message: 'Too many login attempts, please try again later' },
+    skip: (req) => {
+      const email = req.body?.email;
+      return typeof email === 'string' && DEV_TEST_EMAILS.has(email.toLowerCase());
+    },
   });
   app.use('/api/auth/login', loginLimiter);
 
