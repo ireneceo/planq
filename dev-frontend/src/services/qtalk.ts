@@ -163,7 +163,8 @@ export interface ApiMessage {
   is_ai: boolean;
   is_internal: boolean;
   reply_to_message_id: number | null;
-  created_at: string;
+  createdAt: string;   // Sequelize camelCase timestamp
+  updatedAt: string;
   sender?: { id: number; name: string; email: string };
 }
 
@@ -176,7 +177,7 @@ export interface ApiTask {
   status: string;
   due_date: string | null;
   recurrence: string | null;
-  created_at: string;
+  createdAt: string;
 }
 
 export interface ApiNote {
@@ -185,8 +186,8 @@ export interface ApiNote {
   author_user_id: number;
   visibility: 'personal' | 'internal';
   body: string;
-  created_at: string;
-  updated_at: string;
+  createdAt: string;
+  updatedAt: string;
   author?: { id: number; name: string };
 }
 
@@ -195,8 +196,8 @@ export interface ApiIssue {
   project_id: number;
   body: string;
   author_user_id: number;
-  created_at: string;
-  updated_at: string;
+  createdAt: string;
+  updatedAt: string;
   author?: { id: number; name: string };
 }
 
@@ -264,4 +265,53 @@ export async function updateConversation(conversationId: number, patch: { displa
     body: JSON.stringify(patch),
   });
   return handle<ApiConversation>(res);
+}
+
+// ─────────────────────────────────────────────
+// 청크 4 — 이슈 / 메모 / 업무 쓰기
+// ─────────────────────────────────────────────
+export async function addIssue(projectId: number, body: string): Promise<ApiIssue> {
+  const res = await apiFetch(`/api/projects/${projectId}/issues`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ body }),
+  });
+  return handle<ApiIssue>(res);
+}
+
+export async function updateIssue(issueId: number, body: string): Promise<ApiIssue> {
+  const res = await apiFetch(`/api/projects/issues/${issueId}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ body }),
+  });
+  return handle<ApiIssue>(res);
+}
+
+export async function deleteIssue(issueId: number): Promise<{ id: number; deleted: boolean }> {
+  const res = await apiFetch(`/api/projects/issues/${issueId}`, { method: 'DELETE' });
+  return handle(res);
+}
+
+export async function addNote(projectId: number, body: string, visibility: 'personal' | 'internal'): Promise<ApiNote> {
+  const res = await apiFetch(`/api/projects/${projectId}/notes`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ body, visibility }),
+  });
+  return handle<ApiNote>(res);
+}
+
+export async function deleteNote(noteId: number): Promise<{ id: number; deleted: boolean }> {
+  const res = await apiFetch(`/api/projects/notes/${noteId}`, { method: 'DELETE' });
+  return handle(res);
+}
+
+export async function updateTaskStatus(taskId: number, status: string): Promise<ApiTask> {
+  const res = await apiFetch(`/api/projects/tasks/${taskId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ status }),
+  });
+  return handle<ApiTask>(res);
 }

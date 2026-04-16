@@ -450,6 +450,162 @@ router.get('/:id/task-candidates', authenticateToken, async (req, res, next) => 
 });
 
 // ============================================
+// GET /api/projects/workspace/:businessId/all-tasks — 워크스페이스 전체 업무
+// 쿼리: status, assignee_id, project_id, mine=1
+// 권한: 멤버면 참여 프로젝트, 고객이면 자기 참여 채널의 프로젝트 업무 (읽기만)
+// ============================================
+router.get('/workspace/:businessId/all-tasks', authenticateToken, async (req, res, next) => {
+  try {
+    const businessId = Number(req.params.businessId);
+    const bm = await requireBusinessMember(req.user.id, businessId);
+
+    // 접근 가능한 프로젝트 id 수집
+    let projectIds;
+    if (bm && bm.role !== 'ai') {
+      // 워크스페이스 멤버 — 해당 워크스페이스 전체 프로젝트 열람 가능
+      const projs = await Project.findAll({ where: { business_id: businessId }, attributes: ['id'] });
+      projectIds = projs.map((p) => p.id);
+    } else {
+      // 고객 — 자기가 project_clients 에 등록된 프로젝트만
+      const pcs = await ProjectClient.findAll({
+        where: { contact_user_id: req.user.id },
+        include: [{ model: Project, where: { business_id: businessId }, attributes: ['id'] }],
+      });
+      projectIds = pcs.map((pc) => pc.project_id).filter(Boolean);
+    }
+
+    if (projectIds.length === 0) return successResponse(res, []);
+
+    const where = { project_id: projectIds };
+    if (req.query.status) where.status = req.query.status;
+    if (req.query.project_id) where.project_id = Number(req.query.project_id);
+    if (req.query.mine === '1') where.assigned_to = req.user.id;
+    else if (req.query.assignee_id) where.assigned_to = Number(req.query.assignee_id);
+
+    const tasks = await Task.findAll({
+      where,
+      include: [
+        { model: Project, attributes: ['id', 'name', 'client_company', 'status'] },
+        { model: User, as: 'assignee', attributes: ['id', 'name'], required: false },
+      ],
+      order: [['createdAt', 'DESC']],
+    });
+    return successResponse(res, tasks.map((t) => t.toJSON()));
+  } catch (err) { next(err); }
+});
+
+// ============================================
+// POST /api/projects/:id/issues — 이슈 추가 (멤버만)
+// ============================================
+router.post('/:id/issues', authenticateToken, async (req, res, next) => {
+  try {
+    const { project, role, error } = await loadProjectOrForbidden(Number(req.params.id), req.user.id);
+    if (error) return errorResponse(res, error.message, error.code);
+    if (role === 'client') return errorResponse(res, 'forbidden', 403);
+    const { body } = req.body || {};
+    if (!body || !String(body).trim()) return errorResponse(res, 'body is required', 400);
+    const issue = await ProjectIssue.create({
+      project_id: project.id,
+      body: String(body).trim(),
+      author_user_id: req.user.id,
+    });
+    const full = await ProjectIssue.findByPk(issue.id, {
+      include: [{ model: User, as: 'author', attributes: ['id', 'name'] }],
+    });
+    return successResponse(res, full.toJSON());
+  } catch (err) { next(err); }
+});
+
+// ============================================
+// PUT /api/projects/issues/:id — 이슈 수정
+// ============================================
+router.put('/issues/:id', authenticateToken, async (req, res, next) => {
+  try {
+    const issue = await ProjectIssue.findByPk(req.params.id);
+    if (!issue) return errorResponse(res, 'issue_not_found', 404);
+    const { role, error } = await loadProjectOrForbidden(issue.project_id, req.user.id);
+    if (error) return errorResponse(res, error.message, error.code);
+    if (role === 'client') return errorResponse(res, 'forbidden', 403);
+    const { body } = req.body || {};
+    if (!body || !String(body).trim()) return errorResponse(res, 'body is required', 400);
+    await issue.update({ body: String(body).trim() });
+    return successResponse(res, issue.toJSON());
+  } catch (err) { next(err); }
+});
+
+// ============================================
+// DELETE /api/projects/issues/:id — 이슈 삭제
+// ============================================
+router.delete('/issues/:id', authenticateToken, async (req, res, next) => {
+  try {
+    const issue = await ProjectIssue.findByPk(req.params.id);
+    if (!issue) return errorResponse(res, 'issue_not_found', 404);
+    const { role, error } = await loadProjectOrForbidden(issue.project_id, req.user.id);
+    if (error) return errorResponse(res, error.message, error.code);
+    if (role === 'client') return errorResponse(res, 'forbidden', 403);
+    await issue.destroy();
+    return successResponse(res, { id: Number(req.params.id), deleted: true });
+  } catch (err) { next(err); }
+});
+
+// ============================================
+// POST /api/projects/:id/notes — 메모 작성 (personal/internal)
+// ============================================
+router.post('/:id/notes', authenticateToken, async (req, res, next) => {
+  try {
+    const { project, role, error } = await loadProjectOrForbidden(Number(req.params.id), req.user.id);
+    if (error) return errorResponse(res, error.message, error.code);
+    const { body, visibility } = req.body || {};
+    if (!body || !String(body).trim()) return errorResponse(res, 'body is required', 400);
+    // 고객은 personal 만 작성 가능
+    let vis = visibility === 'internal' ? 'internal' : 'personal';
+    if (role === 'client') vis = 'personal';
+    const note = await ProjectNote.create({
+      project_id: project.id,
+      author_user_id: req.user.id,
+      visibility: vis,
+      body: String(body).trim(),
+    });
+    const full = await ProjectNote.findByPk(note.id, {
+      include: [{ model: User, as: 'author', attributes: ['id', 'name'] }],
+    });
+    return successResponse(res, full.toJSON());
+  } catch (err) { next(err); }
+});
+
+// ============================================
+// DELETE /api/projects/notes/:id — 메모 삭제 (본인만)
+// ============================================
+router.delete('/notes/:id', authenticateToken, async (req, res, next) => {
+  try {
+    const note = await ProjectNote.findByPk(req.params.id);
+    if (!note) return errorResponse(res, 'note_not_found', 404);
+    if (note.author_user_id !== req.user.id) return errorResponse(res, 'forbidden', 403);
+    await note.destroy();
+    return successResponse(res, { id: Number(req.params.id), deleted: true });
+  } catch (err) { next(err); }
+});
+
+// ============================================
+// PATCH /api/projects/tasks/:id — 업무 상태 전환
+// ============================================
+router.patch('/tasks/:id', authenticateToken, async (req, res, next) => {
+  try {
+    const task = await Task.findByPk(req.params.id);
+    if (!task) return errorResponse(res, 'task_not_found', 404);
+    if (!task.project_id) return errorResponse(res, 'not_a_project_task', 400);
+    const { role, error } = await loadProjectOrForbidden(task.project_id, req.user.id);
+    if (error) return errorResponse(res, error.message, error.code);
+    if (role === 'client') return errorResponse(res, 'forbidden', 403);
+    const { status } = req.body || {};
+    const allowed = ['task_requested', 'task_re_requested', 'waiting', 'not_started', 'in_progress', 'review_requested', 're_review_requested', 'customer_confirm', 'completed', 'canceled'];
+    if (!status || !allowed.includes(status)) return errorResponse(res, 'invalid status', 400);
+    await task.update({ status });
+    return successResponse(res, task.toJSON());
+  } catch (err) { next(err); }
+});
+
+// ============================================
 // Helper: 프로젝트 상세 로드 (members + clients 포함)
 // ============================================
 async function loadProjectDetail(projectId) {

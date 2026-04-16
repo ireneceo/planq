@@ -74,7 +74,7 @@ function apiMessageToMock(m: qtalkApi.ApiMessage): MockMessage {
     sender_role: m.is_ai ? 'cue' : 'member',
     sender_color: '#64748B',
     body: m.content,
-    created_at: m.created_at,
+    created_at: m.createdAt,  // Sequelize camelCase
     reply_to_message_id: m.reply_to_message_id,
     is_question: m.content.trim().endsWith('?'),
   };
@@ -101,7 +101,7 @@ function apiNoteToMock(n: qtalkApi.ApiNote): MockNote {
     author_name: n.author?.name || `user ${n.author_user_id}`,
     visibility: n.visibility,
     body: n.body,
-    created_at: n.created_at,
+    created_at: n.createdAt,
   };
 }
 
@@ -111,8 +111,8 @@ function apiIssueToMock(i: qtalkApi.ApiIssue): MockIssue {
     project_id: i.project_id,
     body: i.body,
     author_name: i.author?.name || `user ${i.author_user_id}`,
-    created_at: i.created_at,
-    updated_at: i.updated_at,
+    created_at: i.createdAt,
+    updated_at: i.updatedAt,
   };
 }
 
@@ -348,6 +348,59 @@ const QTalkPage: React.FC = () => {
     }
   };
 
+  // 청크 4: 이슈 CRUD
+  const handleAddIssue = async (body: string) => {
+    if (!activeProjectId) return;
+    try {
+      const created = await qtalkApi.addIssue(activeProjectId, body);
+      setIssues((prev) => [apiIssueToMock(created), ...prev]);
+    } catch (err: unknown) {
+      showNotice(`이슈 추가 실패: ${err instanceof Error ? err.message : ''}`);
+    }
+  };
+
+  const handleUpdateIssue = async (id: number, body: string) => {
+    try {
+      const updated = await qtalkApi.updateIssue(id, body);
+      setIssues((prev) => prev.map((i) => (i.id === id ? apiIssueToMock(updated) : i)));
+    } catch (err: unknown) {
+      showNotice(`이슈 수정 실패: ${err instanceof Error ? err.message : ''}`);
+    }
+  };
+
+  const handleDeleteIssue = async (id: number) => {
+    try {
+      await qtalkApi.deleteIssue(id);
+      setIssues((prev) => prev.filter((i) => i.id !== id));
+    } catch (err: unknown) {
+      showNotice(`이슈 삭제 실패: ${err instanceof Error ? err.message : ''}`);
+    }
+  };
+
+  // 청크 4: 메모 추가
+  const handleAddNote = async (body: string, visibility: 'personal' | 'internal') => {
+    if (!activeProjectId) return;
+    try {
+      const created = await qtalkApi.addNote(activeProjectId, body, visibility);
+      setNotes((prev) => [apiNoteToMock(created), ...prev]);
+    } catch (err: unknown) {
+      showNotice(`메모 추가 실패: ${err instanceof Error ? err.message : ''}`);
+    }
+  };
+
+  // 청크 4: 업무 체크박스 토글
+  const handleToggleTask = async (id: number) => {
+    const task = tasks.find((t) => t.id === id);
+    if (!task) return;
+    const nextStatus = task.status === 'completed' ? 'in_progress' : 'completed';
+    try {
+      const updated = await qtalkApi.updateTaskStatus(id, nextStatus);
+      setTasks((prev) => prev.map((t) => (t.id === id ? apiTaskToMock(updated) : t)));
+    } catch (err: unknown) {
+      showNotice(`업무 상태 변경 실패: ${err instanceof Error ? err.message : ''}`);
+    }
+  };
+
   const activeProject = projects.find((p) => p.id === activeProjectId) || null;
   const projectCandidates = candidates.filter((c) => c.project_id === activeProjectId && c.status === 'pending');
 
@@ -396,11 +449,11 @@ const QTalkPage: React.FC = () => {
         onRegisterCandidate={() => notYet('업무 후보 등록')}
         onMergeCandidate={() => notYet('업무 후보 병합')}
         onRejectCandidate={() => notYet('업무 후보 거절')}
-        onAddIssue={() => notYet('이슈 추가')}
-        onUpdateIssue={() => notYet('이슈 수정')}
-        onDeleteIssue={() => notYet('이슈 삭제')}
-        onAddNote={() => notYet('메모 작성')}
-        onToggleTask={() => notYet('업무 체크')}
+        onAddIssue={handleAddIssue}
+        onUpdateIssue={handleUpdateIssue}
+        onDeleteIssue={handleDeleteIssue}
+        onAddNote={handleAddNote}
+        onToggleTask={handleToggleTask}
       />
 
       <NewProjectModal

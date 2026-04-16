@@ -72,14 +72,111 @@ const ChatPanel: React.FC<Props> = ({
     if (!input.trim()) return;
     onSendMessage(input);
     setInput('');
+    // 내가 보낸 메시지는 스크롤 위치와 무관하게 항상 바닥으로
+    scrollToBottom();
   };
 
+  // 메시지 리스트 스크롤 컨테이너 + 위치 영속
+  const messageListRef = React.useRef<HTMLDivElement | null>(null);
+  const scrollKey = (convId: number | null | undefined) => convId ? `qtalk_scroll_${convId}` : null;
+
+  const scrollToBottom = React.useCallback((smooth = true) => {
+    const doIt = () => {
+      const el = messageListRef.current;
+      if (!el) return;
+      const target = el.scrollHeight - el.clientHeight;
+      if (smooth && typeof el.scrollTo === 'function') {
+        el.scrollTo({ top: target, behavior: 'smooth' });
+      } else {
+        el.scrollTop = target;
+      }
+    };
+    window.requestAnimationFrame(() => { window.requestAnimationFrame(doIt); });
+  }, []);
+
+  // 스크롤 위치 localStorage 저장 (throttled via rAF)
+  const saveScrollRaf = React.useRef(0);
+  const handleScrollSave = React.useCallback(() => {
+    if (saveScrollRaf.current) return;
+    saveScrollRaf.current = window.requestAnimationFrame(() => {
+      saveScrollRaf.current = 0;
+      const el = messageListRef.current;
+      if (!el || !activeConv) return;
+      const key = scrollKey(activeConv.id);
+      if (!key) return;
+      try { localStorage.setItem(key, String(el.scrollTop)); } catch { /* quota */ }
+    });
+  }, [activeConv?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 대화 전환 시 "초기 스크롤 미완료" 플래그 리셋
+  const initialScrolledRef = React.useRef(false);
+  const prevMessageCount = React.useRef(0);
+  React.useEffect(() => {
+    initialScrolledRef.current = false;
+    prevMessageCount.current = 0;
+  }, [activeConv?.id]);
+
+  // 메시지 렌더 시 스크롤 처리
+  // - 초기 로드: localStorage 에 저장된 위치 복원 (없으면 바닥)
+  // - 이후 새 메시지: sticky-to-bottom (바닥 근처면 자동 스크롤, 위 읽는 중이면 유지)
+  React.useLayoutEffect(() => {
+    const next = convMessages.length;
+    const prev = prevMessageCount.current;
+    prevMessageCount.current = next;
+
+    if (next === 0) return;
+
+    if (!initialScrolledRef.current) {
+      initialScrolledRef.current = true;
+      const key = scrollKey(activeConv?.id);
+      let restored = false;
+      if (key) {
+        const saved = localStorage.getItem(key);
+        if (saved !== null) {
+          const target = Number(saved);
+          if (Number.isFinite(target) && target >= 0) {
+            // DOM commit 후 적용
+            window.requestAnimationFrame(() => {
+              window.requestAnimationFrame(() => {
+                const el = messageListRef.current;
+                if (!el) return;
+                // target 이 현재 scrollHeight 범위 안이면 그대로, 밖이면 바닥
+                const max = el.scrollHeight - el.clientHeight;
+                el.scrollTop = Math.min(target, max);
+              });
+            });
+            restored = true;
+          }
+        }
+      }
+      if (!restored) scrollToBottom(false);
+      return;
+    }
+
+    if (next > prev) {
+      // 새 메시지 도착 — sticky-to-bottom
+      const list = messageListRef.current;
+      if (!list) { scrollToBottom(); return; }
+      const distance = list.scrollHeight - list.scrollTop - list.clientHeight;
+      if (distance < 120) scrollToBottom();
+    }
+  }, [convMessages, scrollToBottom, activeConv?.id]);
+
+  // 한글 IME 조합 상태 추적 — composition 중 Enter 는 확정 trigger 라서 전송하면 안 됨
+  const composingRef = React.useRef(false);
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // e.nativeEvent.isComposing 또는 keyCode 229 는 IME 조합 중임을 의미
+    // composingRef 까지 병행 체크 (브라우저/OS 조합에 따라 isComposing 이 false 로 들어올 수 있음)
+    if (e.nativeEvent.isComposing || (e.nativeEvent as KeyboardEvent).keyCode === 229 || composingRef.current) {
+      return;
+    }
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSend();
     }
   };
+  const handleCompositionStart = () => { composingRef.current = true; };
+  const handleCompositionEnd = () => { composingRef.current = false; };
 
   const handleDraftSendAsIs = (messageId: number) => {
     onCueDraftSend(messageId);
@@ -229,7 +326,7 @@ const ChatPanel: React.FC<Props> = ({
       )}
 
       {/* 메시지 흐름 */}
-      <MessageList>
+      <MessageList ref={messageListRef} onScroll={handleScrollSave}>
         {convMessages.length === 0 && (
           <EmptyState>
             <EmptyTitle>{t('chat.noMessages', '첫 메시지를 보내세요')}</EmptyTitle>
@@ -364,6 +461,8 @@ const ChatPanel: React.FC<Props> = ({
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
+            onCompositionStart={handleCompositionStart}
+            onCompositionEnd={handleCompositionEnd}
             placeholder={t('chat.input.placeholder', '메시지를 입력하세요 (Enter 전송 · Shift+Enter 줄바꿈)')}
             rows={1}
           />

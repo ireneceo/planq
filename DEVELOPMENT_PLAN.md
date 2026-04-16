@@ -1,9 +1,39 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-04-15
+> **최종 업데이트:** 2026-04-16
 > **데이터베이스:** planq_dev_db (MySQL) + qnote.db (SQLite, FTS5)
 > **프로젝트:** B2B SaaS — 업무 전용 고객 채팅 + 실행 구조 통합 OS
 > **로드맵 상세:** `docs/DEVELOPMENT_ROADMAP.md`
+
+---
+
+## ✅ 완료: 팀원 협업 환경 설계 + 서버 보안 점검 (2026-04-16)
+
+서버 SSH/워크트리 구조 파악, 팀원(lua) 계정 추가를 위한 9개 영역 25개 항목 세팅 계획 수립. 코드 변경 없음 (계획 수립 세션).
+
+### 완료된 작업
+
+| 영역 | 작업 | 상태 |
+|------|------|:----:|
+| **서버 보안 점검** | SSH 유휴 타임아웃 설정 확인 (ClientAliveInterval 0 = 기본값, 서버 측 타임아웃 없음). 개발서버는 키 인증이라 현 상태 유지, 운영서버 시 설정 예정 | ✅ |
+| **워크트리 구조 이해** | Claude Code 워크트리 동작 확인: Primary working directory 기준 생성, 변경 없으면 세션 종료 시 자동 정리 | ✅ |
+| **팀원 협업 계획** | lua 계정 세팅 계획 수립 — 리눅스 계정/SSH 키/PlanQ 디렉토리 권한/POS 차단/DB 분리/PM2 제한/Git 설정/Claude Code 환경/보안 (9개 영역 25개 항목) | ✅ |
+
+### 다음 할 일 (다음 세션 시작점)
+
+**lua 팀원 계정 세팅 (Irene 지시 시 실행)**
+- 리눅스 `lua` 계정 + `planq` 그룹 생성
+- SSH 키페어 생성 + 비밀키 전달
+- `/opt/planq/` 그룹 권한, `/var/www/` 차단
+- MySQL `lua@localhost` (planq_dev_db만)
+- PM2 sudoers 제한 (planq 프로세스만 restart)
+- Git + Claude Code 환경 설정
+
+**Q Talk 청크 3 — 업무 후보 자동 추출 (개발 작업)**
+- Cue 오케스트레이터 확장, 커서 기반 LLM 호출
+- task_candidates extract/register/merge/reject API
+- 프론트 RightPanel candidates 실 API 연결
+- E2E 검증
 
 ---
 
