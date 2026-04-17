@@ -38,6 +38,13 @@ function hoursAgo(n) {
   d.setHours(d.getHours() - n);
   return d;
 }
+function mondayOfDate(date) {
+  const d = new Date(date);
+  const day = d.getDay();
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+  d.setDate(diff);
+  return d.toISOString().slice(0, 10);
+}
 
 // ─────────────────────────────────────────────
 // 팀 기본 역할 세팅 (business_members.default_role)
@@ -177,25 +184,37 @@ async function seedOneProject({
     cue_enabled: true,
   });
 
-  // 5) Messages — 시나리오별
+  // 5) Messages — 시나리오별 (실감나는 대화, 업무 추출 가능한 구체적 요청)
   const ownerSender = ownerUserId;
   const designerSender = memberUserIds.find((m) => m.role === '디자인')?.user_id || memberUserIds[0].user_id;
   const devSender = memberUserIds.find((m) => m.role === '개발')?.user_id || memberUserIds[0].user_id;
 
-  // 내부 논의 공통 메시지
-  await Message.create({
+  const createdMsgIds = {}; // key → message.id (업무후보 source_message_ids 연결용)
+
+  // 내부 논의 — 업무가 들어있는 대화
+  createdMsgIds.internal1 = (await Message.create({
     conversation_id: internalConv.id, sender_id: ownerSender,
-    content: `${name} 킥오프 — 이번 주 내로 1차 시안 방향 잡아봅시다.`,
-    created_at: daysAgo(4), updated_at: daysAgo(4),
-  });
-  await Message.create({
+    content: `${name} 킥오프 — 이번 주 금요일까지 경쟁사 3곳 브랜드 비교분석표 만들어서 공유해주세요. 시안 방향 잡는 데 필요합니다.`,
+    created_at: daysAgo(5), updated_at: daysAgo(5),
+  })).id;
+  createdMsgIds.internal2 = (await Message.create({
     conversation_id: internalConv.id, sender_id: designerSender,
-    content: '컬러 레퍼런스 3종 정리해서 공유 드릴게요. 폰트는 Pretendard + Noto Serif 로 가볼까 해요.',
+    content: '네 진행하겠습니다. 그리고 컬러 레퍼런스 무드보드 3안도 같이 준비해서 월요일에 드릴게요.',
+    created_at: daysAgo(4), updated_at: daysAgo(4),
+  })).id;
+  createdMsgIds.internal3 = (await Message.create({
+    conversation_id: internalConv.id, sender_id: ownerSender,
+    content: '폰트 후보 3종에 대한 상업 라이선스 확인서 작성해주세요. 구매 전에 법적 검토 필요합니다.',
     created_at: daysAgo(3), updated_at: daysAgo(3),
-  });
+  })).id;
+  createdMsgIds.internal4 = (await Message.create({
+    conversation_id: internalConv.id, sender_id: devSender,
+    content: '현재 웹사이트 성능 감사 보고서 작성 중입니다. Lighthouse 기준으로 현재 점수와 개선 포인트 정리해서 내일 공유드릴게요.',
+    created_at: daysAgo(2), updated_at: daysAgo(2),
+  })).id;
   await Message.create({
     conversation_id: internalConv.id, sender_id: ownerSender,
-    content: '폰트 라이선스 확인 필요. 상업 사용 범위 체크해주세요.',
+    content: '좋습니다. 보고서 나오면 고객사 미팅 자료에 넣을 수 있게 요약 슬라이드 2장도 만들어주세요.',
     created_at: daysAgo(2), updated_at: daysAgo(2),
   });
 
@@ -203,63 +222,76 @@ async function seedOneProject({
   if (messageScenario === 'full') {
     await Message.create({
       conversation_id: customerConv.id, sender_id: ownerSender,
-      content: `안녕하세요 ${clientContacts[0]?.name || '대표'}님, ${name} 프로젝트 킥오프 일정 공유드립니다. 금주 내 1차 시안 공유 예정입니다.`,
-      created_at: daysAgo(4), updated_at: daysAgo(4),
+      content: `안녕하세요 ${clientContacts[0]?.name || '대표'}님, ${name} 프로젝트 킥오프 미팅 내용 정리해서 공유드립니다. 금주 내 1차 시안 공유 예정입니다.`,
+      created_at: daysAgo(5), updated_at: daysAgo(5),
     });
-    // 고객 질문 메시지 (is_question flag 는 현 스키마엔 없으므로 본문에 ? 포함)
+    createdMsgIds.cust1 = (await Message.create({
+      conversation_id: customerConv.id, sender_id: ownerSender,
+      content: '기존 로고 원본 파일(AI/EPS)과 브랜드 가이드라인 문서 전달 부탁드립니다. 시안 작업에 필요합니다.',
+      created_at: daysAgo(4), updated_at: daysAgo(4),
+    })).id;
     const clientMsg1 = await Message.create({
-      conversation_id: customerConv.id, sender_id: ownerSender, // mock: 외부 user 없으니 owner 를 고객 대리로
-      content: '감사합니다. 시안은 기존 컬러 방향 유지인가요, 아니면 새로운 방향도 섞이나요?',
+      conversation_id: customerConv.id, sender_id: ownerSender,
+      content: '네, 내일까지 정리해서 보내드리겠습니다. 추가로 이번에 웹사이트 리뉴얼도 같이 가능한가요? 견적서 따로 받고 싶습니다.',
       created_at: daysAgo(3), updated_at: daysAgo(3),
     });
-    await Message.create({
+    createdMsgIds.cust2 = (await Message.create({
       conversation_id: customerConv.id, sender_id: designerSender,
-      content: '기존 컬러 방향을 기반으로 하고, 보조색 2종을 추가 제안 드릴 예정입니다. 금요일까지 전달드리겠습니다.',
+      content: '웹사이트 범위 확인 후 별도 견적서 작성해서 이번 주 목요일까지 전달드리겠습니다. 페이지 수와 기능 목록 정리해서 보내주시면 더 정확한 견적이 가능합니다.',
       created_at: daysAgo(3), updated_at: daysAgo(3),
       reply_to_message_id: clientMsg1.id,
-    });
-    const clientMsg2 = await Message.create({
+    })).id;
+    createdMsgIds.cust3 = (await Message.create({
       conversation_id: customerConv.id, sender_id: ownerSender,
-      content: '월요일 임원 미팅이 있어서 금요일 오전까지 받을 수 있을까요? 주말에 검토해보고 월요일 오전에 피드백 드리겠습니다.',
+      content: '월요일 임원 보고가 있어서, 금요일 오전까지 로고 시안 3종과 컬러 시스템 제안서를 PDF로 받을 수 있을까요?',
       created_at: hoursAgo(18), updated_at: hoursAgo(18),
-    });
+    })).id;
     await Message.create({
-      conversation_id: customerConv.id, sender_id: ownerSender,
-      content: '네, 금요일 오전 11시까지 전달 가능합니다. 일정 반영해서 작업 진행하겠습니다.',
+      conversation_id: customerConv.id, sender_id: designerSender,
+      content: '네, 금요일 오전 11시까지 로고 시안 3종 PDF + 컬러 시스템 제안서 전달드리겠습니다.',
       created_at: hoursAgo(17), updated_at: hoursAgo(17),
-      reply_to_message_id: clientMsg2.id,
+      reply_to_message_id: createdMsgIds.cust3,
     });
-    await Message.create({
+    createdMsgIds.cust4 = (await Message.create({
       conversation_id: customerConv.id, sender_id: ownerSender,
-      content: '참고 이미지와 톤 레퍼런스도 같이 공유 부탁드립니다.',
+      content: '참고로 경쟁사 대비 우리 포지셔닝을 보여주는 비교 자료도 같이 넣어주시면 임원들 설득하기 좋을 것 같아요.',
       created_at: hoursAgo(2), updated_at: hoursAgo(2),
-    });
+    })).id;
   } else if (messageScenario === 'early') {
-    await Message.create({
+    createdMsgIds.cust1 = (await Message.create({
       conversation_id: customerConv.id, sender_id: ownerSender,
-      content: `안녕하세요, ${name} 프로젝트 시작합니다. 자료 준비되는 대로 공유드리겠습니다.`,
+      content: `안녕하세요, ${name} 프로젝트 시작합니다. 기존 패키지 디자인 파일과 제품 사양서 전달 부탁드립니다. 다음 주 월요일까지 컨셉 보드 3안 공유 예정입니다.`,
+      created_at: daysAgo(2), updated_at: daysAgo(2),
+    })).id;
+    createdMsgIds.cust2 = (await Message.create({
+      conversation_id: customerConv.id, sender_id: ownerSender,
+      content: '제품 촬영용 샘플도 3개 보내주세요. 패키지 목업 작업에 필요합니다.',
       created_at: daysAgo(1), updated_at: daysAgo(1),
-    });
+    })).id;
   } else if (messageScenario === 'review') {
     await Message.create({
       conversation_id: customerConv.id, sender_id: ownerSender,
-      content: '이번 주 납품본 확인 부탁드립니다.',
+      content: '최종 시안 파일 확인 부탁드립니다. 수정 사항 있으시면 피드백 시트에 정리해서 보내주세요.',
       created_at: daysAgo(2), updated_at: daysAgo(2),
     });
-    await Message.create({
+    createdMsgIds.cust1 = (await Message.create({
       conversation_id: customerConv.id, sender_id: ownerSender,
-      content: '확인했습니다. 세부 피드백 정리해서 다시 드릴게요.',
+      content: '확인했습니다. 인쇄용 고해상도 파일(300dpi CMYK)과 웹용 RGB 파일 각각 분리해서 최종 납품 패키지로 정리 부탁드립니다.',
       created_at: daysAgo(1), updated_at: daysAgo(1),
-    });
+    })).id;
   }
 
-  // 6) Tasks — 다양한 상태
+  // 6) Tasks — 결과물 기반 + 시간 추적
+  const thisMonday = mondayOfDate(new Date());
   const taskSpecs = [
-    { title: '1차 시안 3종 제안', assignee: designerSender, status: 'in_progress', due: daysFromNow(3) },
-    { title: '폰트 라이선스 검토', assignee: designerSender, status: 'task_requested', due: daysFromNow(1) },
-    { title: '컬러 팔레트 확정', assignee: ownerSender, status: 'review_requested', due: daysFromNow(7) },
-    { title: '매주 월요일 스탠드업', assignee: ownerSender, status: 'in_progress', due: null, recurrence: 'weekly' },
-    { title: '와이어프레임 초안', assignee: devSender, status: 'waiting', due: daysFromNow(14) },
+    { title: '로고 시안 3종 PDF 제작 완료', assignee: designerSender, status: 'in_progress', start: daysFromNow(-1), due: daysFromNow(2), est: 6, act: 3.5, prog: 60, week: thisMonday, cat: '디자인' },
+    { title: '폰트 후보 3종 상업 라이선스 확인서 작성', assignee: designerSender, status: 'task_requested', due: daysFromNow(1), est: 2, act: 0, prog: 0, week: thisMonday, cat: '디자인' },
+    { title: '컬러 시스템 제안서(Primary+Secondary) 완성', assignee: ownerSender, status: 'review_requested', start: daysFromNow(-3), due: daysFromNow(5), est: 4, act: 3, prog: 80, week: thisMonday, cat: '기획' },
+    { title: '주간 진행 현황 리포트 제출', assignee: ownerSender, status: 'in_progress', due: null, recurrence: 'weekly', est: 1, act: 0.5, prog: 50, week: thisMonday, cat: '기획' },
+    { title: '웹사이트 리뉴얼 기획안 작성', assignee: devSender, status: 'waiting', start: daysFromNow(3), due: daysFromNow(14), est: 12, act: 0, prog: 0, week: null, cat: '개발' },
+    // owner가 만들어서 다른 사람에게 배정 (요청한 업무 탭용)
+    { title: '경쟁사 SNS 콘텐츠 분석표 작성', assignee: designerSender, creator: ownerSender, status: 'in_progress', start: daysFromNow(-2), due: daysFromNow(3), est: 5, act: 2, prog: 40, week: thisMonday, cat: '리서치' },
+    { title: '고객 인터뷰 질문지 10항목 완성', assignee: devSender, creator: ownerSender, status: 'not_started', due: daysFromNow(5), est: 3, act: 0, prog: 0, week: thisMonday, cat: '기획' },
   ];
   const createdTasks = [];
   for (const t of taskSpecs) {
@@ -268,11 +300,18 @@ async function seedOneProject({
       project_id: project.id,
       client_id: null,
       title: t.title,
-      assigned_to: t.assignee,
-      created_by: ownerSender,
+      assignee_id: t.assignee,
+      created_by: t.creator || ownerSender,
       status: t.status,
+      start_date: t.start || null,
       due_date: t.due,
       recurrence: t.recurrence || null,
+      estimated_hours: t.est || null,
+      actual_hours: t.act || 0,
+      progress_percent: t.prog || 0,
+      planned_week_start: t.week || null,
+      category: t.cat || null,
+      priority: t.prio || 'B',
     });
     createdTasks.push(task);
   }
@@ -312,14 +351,14 @@ async function seedOneProject({
     });
   }
 
-  // 9) Task Candidates — pending 몇 개
+  // 9) Task Candidates — 대화에서 추출된 업무 후보 (결과물 기반)
   if (messageScenario === 'full') {
     await TaskCandidate.create({
       project_id: project.id,
       conversation_id: customerConv.id,
-      source_message_ids: [], // 실 메시지 id 매핑 생략 (mock 범위)
-      title: '금요일 오전 11시까지 1차 시안 3종 전달',
-      description: '고객이 월요일 임원 미팅 때문에 금요일 오전 요청. 기존 컬러 방향 유지 + 보조색 2종 제안.',
+      source_message_ids: [createdMsgIds.cust3].filter(Boolean),
+      title: '로고 시안 3종 + 컬러 시스템 제안서 PDF 납품',
+      description: '고객 요청: 금요일 오전 11시까지. 월요일 임원 보고용. 로고 시안 3종 + 컬러 시스템 제안서를 PDF 1파일로 합쳐 전달.',
       guessed_role: '디자인',
       guessed_assignee_user_id: designerSender,
       guessed_due_date: daysFromNow(2),
@@ -329,12 +368,80 @@ async function seedOneProject({
     await TaskCandidate.create({
       project_id: project.id,
       conversation_id: customerConv.id,
-      source_message_ids: [],
-      title: '참고 이미지 및 톤 레퍼런스 공유',
-      description: '고객이 별도 요청한 참고 자료 준비',
+      source_message_ids: [createdMsgIds.cust2].filter(Boolean),
+      title: '웹사이트 리뉴얼 견적서 작성 전달',
+      description: '고객이 웹사이트 리뉴얼 별도 견적 요청. 페이지 수/기능 목록 확인 후 목요일까지 견적서 PDF 작성.',
+      guessed_role: '기획',
+      guessed_assignee_user_id: ownerSender,
+      guessed_due_date: daysFromNow(3),
+      status: 'pending',
+    });
+    await TaskCandidate.create({
+      project_id: project.id,
+      conversation_id: customerConv.id,
+      source_message_ids: [createdMsgIds.cust4].filter(Boolean),
+      title: '경쟁사 대비 포지셔닝 비교 슬라이드 제작',
+      description: '임원 보고 자료에 포함. 경쟁사 3곳 vs 우리 브랜드 비교표 + 차별점 요약 슬라이드 2~3장.',
+      guessed_role: '기획',
+      guessed_assignee_user_id: ownerSender,
+      guessed_due_date: daysFromNow(2),
+      status: 'pending',
+    });
+    await TaskCandidate.create({
+      project_id: project.id,
+      conversation_id: internalConv.id,
+      source_message_ids: [createdMsgIds.internal1].filter(Boolean),
+      title: '경쟁사 3곳 브랜드 비교분석표 작성',
+      description: '시안 방향 결정 근거 자료. 로고/컬러/폰트/톤앤매너 기준으로 3곳 비교.',
+      guessed_role: '기획',
+      guessed_assignee_user_id: ownerSender,
+      guessed_due_date: daysFromNow(1),
+      status: 'pending',
+    });
+    await TaskCandidate.create({
+      project_id: project.id,
+      conversation_id: internalConv.id,
+      source_message_ids: [createdMsgIds.internal4].filter(Boolean),
+      title: '웹사이트 성능 감사 보고서(Lighthouse) 작성',
+      description: '현재 웹사이트 Lighthouse 점수 + 개선 포인트 정리. 고객사 미팅 자료용 요약 슬라이드 2장 포함.',
+      guessed_role: '개발',
+      guessed_assignee_user_id: devSender,
+      guessed_due_date: daysFromNow(1),
+      status: 'pending',
+    });
+  } else if (messageScenario === 'early') {
+    await TaskCandidate.create({
+      project_id: project.id,
+      conversation_id: customerConv.id,
+      source_message_ids: [createdMsgIds.cust1].filter(Boolean),
+      title: '패키지 컨셉 보드 3안 제작 완료',
+      description: '다음 주 월요일까지 컨셉 보드 3안 완성. 기존 패키지 파일 + 제품 사양서 기반.',
       guessed_role: '디자인',
       guessed_assignee_user_id: designerSender,
-      guessed_due_date: daysFromNow(1),
+      guessed_due_date: daysFromNow(5),
+      status: 'pending',
+    });
+    await TaskCandidate.create({
+      project_id: project.id,
+      conversation_id: customerConv.id,
+      source_message_ids: [createdMsgIds.cust2].filter(Boolean),
+      title: '제품 촬영용 목업 3종 제작',
+      description: '고객 샘플 수령 후 패키지 목업 작업. 촬영 가능한 상태로 완성.',
+      guessed_role: '디자인',
+      guessed_assignee_user_id: designerSender,
+      guessed_due_date: daysFromNow(7),
+      status: 'pending',
+    });
+  } else if (messageScenario === 'review') {
+    await TaskCandidate.create({
+      project_id: project.id,
+      conversation_id: customerConv.id,
+      source_message_ids: [createdMsgIds.cust1].filter(Boolean),
+      title: '최종 납품 패키지 정리(인쇄용 CMYK + 웹용 RGB)',
+      description: '인쇄용 300dpi CMYK 파일 + 웹용 RGB 파일 분리. 파일 네이밍 규칙 적용하여 ZIP 납품.',
+      guessed_role: '디자인',
+      guessed_assignee_user_id: designerSender,
+      guessed_due_date: daysFromNow(3),
       status: 'pending',
     });
   }

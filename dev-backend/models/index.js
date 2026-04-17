@@ -21,6 +21,8 @@ const ProjectClient = require('./ProjectClient');
 const ProjectNote = require('./ProjectNote');
 const ProjectIssue = require('./ProjectIssue');
 const TaskCandidate = require('./TaskCandidate');
+const TaskComment = require('./TaskComment');
+const TaskDailyProgress = require('./TaskDailyProgress');
 
 // ============================================
 // Associations
@@ -189,4 +191,14 @@ module.exports = {
   ProjectNote,
   ProjectIssue,
   TaskCandidate,
+  TaskComment,
+  TaskDailyProgress,
 };
+
+TaskDailyProgress.belongsTo(Task, { foreignKey: 'task_id' });
+Task.hasMany(TaskDailyProgress, { as: 'daily_progress', foreignKey: 'task_id' });
+
+// TaskComment associations
+TaskComment.belongsTo(Task, { foreignKey: 'task_id' });
+TaskComment.belongsTo(User, { as: 'author', foreignKey: 'user_id' });
+Task.hasMany(TaskComment, { as: 'comments', foreignKey: 'task_id' });

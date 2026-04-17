@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import styled from 'styled-components';
+import { io, type Socket } from 'socket.io-client';
 import LeftPanel from './LeftPanel';
 import ChatPanel from './ChatPanel';
 import RightPanel from './RightPanel';
@@ -66,17 +67,27 @@ function apiConversationToMock(c: qtalkApi.ApiConversation): MockConversation {
 }
 
 function apiMessageToMock(m: qtalkApi.ApiMessage): MockMessage {
+  // Cue AI 메시지 + draft 미승인 → cue_draft 카드 표시
+  const isDraft = m.is_ai && m.ai_draft_approved === null;
+  const isRejectedDraft = m.is_ai && m.ai_draft_approved === false;
+
   return {
     id: m.id,
     conversation_id: m.conversation_id,
     sender_id: m.sender_id,
     sender_name: m.sender?.name || `user ${m.sender_id}`,
     sender_role: m.is_ai ? 'cue' : 'member',
-    sender_color: '#64748B',
-    body: m.content,
-    created_at: m.createdAt,  // Sequelize camelCase
+    sender_color: m.is_ai ? '#F43F5E' : '#64748B',
+    body: isRejectedDraft ? '' : m.content,  // 거절된 draft는 빈 body
+    created_at: m.createdAt,
     reply_to_message_id: m.reply_to_message_id,
-    is_question: m.content.trim().endsWith('?'),
+    is_question: !m.is_ai && m.content.trim().endsWith('?'),
+    cue_draft: isDraft ? {
+      body: m.content,
+      confidence: m.ai_confidence || 0,
+      source: m.ai_source ? { title: m.ai_source, section: '' } : undefined,
+      processing_by: null,
+    } : undefined,
   };
 }
 
@@ -164,6 +175,105 @@ const QTalkPage: React.FC = () => {
     setNotice(msg);
     window.setTimeout(() => setNotice(null), 3500);
   }, []);
+
+  // ── Socket.IO 실시간 ──
+  const socketRef = useRef<Socket | null>(null);
+
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+
+    const socket = io(window.location.origin, {
+      auth: { token },
+      transports: ['websocket', 'polling'],
+      reconnection: true,
+      reconnectionDelay: 2000,
+      reconnectionAttempts: 10,
+    });
+
+    socketRef.current = socket;
+
+    // 메시지 수신
+    socket.on('message:new', (msg: qtalkApi.ApiMessage) => {
+      const mapped = apiMessageToMock(msg);
+      setMessages((prev) => {
+        const arr = prev[mapped.conversation_id] || [];
+        // 중복 방지 (자기가 보낸 메시지는 이미 추가됨)
+        if (arr.some((m) => m.id === mapped.id)) return prev;
+        return { ...prev, [mapped.conversation_id]: [...arr, mapped] };
+      });
+    });
+
+    // 후보 생성
+    socket.on('candidates:created', (data: { project_id: number; candidates: qtalkApi.ApiTaskCandidate[] }) => {
+      const mapped = data.candidates.map(apiCandidateToMock);
+      setCandidates((prev) => [...mapped, ...prev]);
+    });
+
+    // 이슈 생성
+    socket.on('issue:new', (issue: qtalkApi.ApiIssue) => {
+      const mapped = apiIssueToMock(issue);
+      setIssues((prev) => {
+        if (prev.some((i) => i.id === mapped.id)) return prev;
+        return [mapped, ...prev];
+      });
+    });
+
+    // 메시지 업데이트 (Draft 승인/거절 등)
+    socket.on('message:updated', (msg: qtalkApi.ApiMessage) => {
+      const mapped = apiMessageToMock(msg);
+      setMessages((prev) => {
+        const arr = prev[mapped.conversation_id] || [];
+        return { ...prev, [mapped.conversation_id]: arr.map((m) => (m.id === mapped.id ? mapped : m)) };
+      });
+    });
+
+    // 메모 생성
+    socket.on('note:new', (note: qtalkApi.ApiNote) => {
+      const mapped = apiNoteToMock(note);
+      setNotes((prev) => {
+        if (prev.some((n) => n.id === mapped.id)) return prev;
+        return [mapped, ...prev];
+      });
+    });
+
+    return () => {
+      socket.disconnect();
+      socketRef.current = null;
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 대화방 변경 시 room join/leave
+  useEffect(() => {
+    const socket = socketRef.current;
+    if (!socket) return;
+
+    if (activeConversationId) {
+      socket.emit('join:conversation', activeConversationId);
+    }
+
+    return () => {
+      if (activeConversationId) {
+        socket.emit('leave:conversation', activeConversationId);
+      }
+    };
+  }, [activeConversationId]);
+
+  // 프로젝트 변경 시 room join/leave
+  useEffect(() => {
+    const socket = socketRef.current;
+    if (!socket) return;
+
+    if (activeProjectId) {
+      socket.emit('join:project', activeProjectId);
+    }
+
+    return () => {
+      if (activeProjectId) {
+        socket.emit('leave:project', activeProjectId);
+      }
+    };
+  }, [activeProjectId]);
 
   // ── 초기 로드: 프로젝트 목록 ──
   useEffect(() => {
@@ -308,10 +418,7 @@ const QTalkPage: React.FC = () => {
     }
   };
 
-  // ── 쓰기 핸들러 ──
-  const notYet = (feature: string) => {
-    showNotice(`${feature} — 다음 청크에서 쓰기 API 연결 예정`);
-  };
+  const [extracting, setExtracting] = useState(false);
 
   // 청크 2: 메시지 전송
   const handleSendMessage = async (body: string) => {
@@ -401,6 +508,110 @@ const QTalkPage: React.FC = () => {
     }
   };
 
+  // 청크 3: 업무 후보 추출
+  const handleExtract = async () => {
+    if (!activeConversationId || extracting) return;
+    setExtracting(true);
+    try {
+      const result = await qtalkApi.extractTaskCandidates(activeConversationId);
+      if (result.candidates.length > 0) {
+        const mapped = result.candidates.map(apiCandidateToMock);
+        setCandidates((prev) => [...mapped, ...prev]);
+      }
+      // 대화 커서 업데이트 (UI에서 last_extracted_message_id 반영)
+      if (!result.skipped && activeProjectId) {
+        const convList = await qtalkApi.listProjectConversations(activeProjectId);
+        setConversations((prev) => {
+          const others = prev.filter((c) => c.project_id !== activeProjectId);
+          return [...others, ...convList.map(apiConversationToMock)];
+        });
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : '';
+      if (msg === 'extraction_already_in_progress') {
+        showNotice('extraction_in_progress');
+      } else if (msg === 'no_new_messages') {
+        // silent
+      } else {
+        showNotice(`extraction_failed: ${msg}`);
+      }
+    } finally {
+      setExtracting(false);
+    }
+  };
+
+  // 청크 3: 후보 등록
+  const handleRegisterCandidate = async (id: number) => {
+    try {
+      const result = await qtalkApi.registerCandidate(id);
+      // 후보 목록에서 제거 (또는 상태 변경)
+      setCandidates((prev) => prev.filter((c) => c.id !== id));
+      // 새 업무를 tasks에 추가
+      if (result.task) {
+        setTasks((prev) => [apiTaskToMock(result.task), ...prev]);
+      }
+    } catch (err: unknown) {
+      showNotice(`register_failed: ${err instanceof Error ? err.message : ''}`);
+    }
+  };
+
+  // 청크 3: 후보 병합
+  const handleMergeCandidate = async (id: number) => {
+    const candidate = candidates.find((c) => c.id === id);
+    if (!candidate?.similar_task_id) return;
+    try {
+      await qtalkApi.mergeCandidate(id, candidate.similar_task_id);
+      setCandidates((prev) => prev.filter((c) => c.id !== id));
+    } catch (err: unknown) {
+      showNotice(`merge_failed: ${err instanceof Error ? err.message : ''}`);
+    }
+  };
+
+  // 청크 3: 후보 거절
+  const handleRejectCandidate = async (id: number) => {
+    try {
+      await qtalkApi.rejectCandidate(id);
+      setCandidates((prev) => prev.filter((c) => c.id !== id));
+    } catch (err: unknown) {
+      showNotice(`reject_failed: ${err instanceof Error ? err.message : ''}`);
+    }
+  };
+
+  // Cue Draft 승인
+  const handleCueDraftSend = async (messageId: number, editedBody?: string) => {
+    try {
+      const updated = await qtalkApi.approveDraft(messageId, editedBody);
+      // 메시지 목록에서 해당 메시지 갱신
+      const mapped = apiMessageToMock(updated);
+      setMessages((prev) => {
+        const convMsgs = prev[updated.conversation_id] || [];
+        return {
+          ...prev,
+          [updated.conversation_id]: convMsgs.map((m) => (m.id === messageId ? mapped : m)),
+        };
+      });
+    } catch (err: unknown) {
+      showNotice(`draft_approve_failed: ${err instanceof Error ? err.message : ''}`);
+    }
+  };
+
+  // Cue Draft 거절
+  const handleCueDraftReject = async (messageId: number) => {
+    try {
+      await qtalkApi.rejectDraft(messageId);
+      // Draft 거절 → 메시지를 목록에서 제거 (또는 숨김 처리)
+      setMessages((prev) => {
+        const result: Record<number, MockMessage[]> = {};
+        for (const [convId, msgs] of Object.entries(prev)) {
+          result[Number(convId)] = msgs.filter((m) => m.id !== messageId);
+        }
+        return result;
+      });
+    } catch (err: unknown) {
+      showNotice(`draft_reject_failed: ${err instanceof Error ? err.message : ''}`);
+    }
+  };
+
   const activeProject = projects.find((p) => p.id === activeProjectId) || null;
   const projectCandidates = candidates.filter((c) => c.project_id === activeProjectId && c.status === 'pending');
 
@@ -426,10 +637,11 @@ const QTalkPage: React.FC = () => {
         messages={messages}
         activeConversationId={activeConversationId}
         onSelectConversation={handleSelectChannel}
-        onOpenExtract={() => notYet('업무 추출')}
+        onOpenExtract={handleExtract}
+        extracting={extracting}
         onSendMessage={handleSendMessage}
-        onCueDraftSend={() => notYet('Cue 답변 전송')}
-        onCueDraftReject={() => notYet('Cue 답변 거절')}
+        onCueDraftSend={handleCueDraftSend}
+        onCueDraftReject={handleCueDraftReject}
         onToggleAutoExtract={handleToggleAutoExtract}
         onRenameConversation={handleRenameConversation}
         candidatesCount={projectCandidates.length}
@@ -446,9 +658,9 @@ const QTalkPage: React.FC = () => {
         candidates={projectCandidates}
         collapsed={rightCollapsed}
         onToggleCollapsed={toggleRight}
-        onRegisterCandidate={() => notYet('업무 후보 등록')}
-        onMergeCandidate={() => notYet('업무 후보 병합')}
-        onRejectCandidate={() => notYet('업무 후보 거절')}
+        onRegisterCandidate={handleRegisterCandidate}
+        onMergeCandidate={handleMergeCandidate}
+        onRejectCandidate={handleRejectCandidate}
         onAddIssue={handleAddIssue}
         onUpdateIssue={handleUpdateIssue}
         onDeleteIssue={handleDeleteIssue}

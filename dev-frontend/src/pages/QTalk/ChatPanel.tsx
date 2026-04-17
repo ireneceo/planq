@@ -21,6 +21,7 @@ interface Props {
   onToggleAutoExtract: (conversationId: number, enabled: boolean) => void;
   onRenameConversation: (conversationId: number, name: string) => void;
   candidatesCount: number;
+  extracting?: boolean;
   leftCollapsed: boolean;
   rightCollapsed: boolean;
   onToggleLeft: () => void;
@@ -31,7 +32,7 @@ const ChatPanel: React.FC<Props> = ({
   project, conversations, messages, activeConversationId, onSelectConversation,
   onOpenExtract, onSendMessage, onCueDraftSend, onCueDraftReject,
   onToggleAutoExtract, onRenameConversation,
-  candidatesCount, leftCollapsed, rightCollapsed, onToggleLeft, onToggleRight,
+  candidatesCount, extracting, leftCollapsed, rightCollapsed, onToggleLeft, onToggleRight,
 }) => {
   const { t } = useTranslation('qtalk');
   const { user } = useAuth();
@@ -439,12 +440,16 @@ const ChatPanel: React.FC<Props> = ({
               <ToggleSlider $on={activeConv.auto_extract_enabled} />
               <ToggleText>{t('chat.input.autoExtract', '자동 업무 추출')}</ToggleText>
             </ToggleLabel>
-            <ExtractBtn onClick={onOpenExtract}>
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                <path d="M9 11l3 3L22 4" />
-                <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
-              </svg>
-              {t('chat.input.extractNow', '업무 추출')}
+            <ExtractBtn onClick={onOpenExtract} disabled={extracting}>
+              {extracting ? (
+                <ExtractSpinner />
+              ) : (
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <path d="M9 11l3 3L22 4" />
+                  <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+                </svg>
+              )}
+              {extracting ? t('chat.input.extracting', '추출 중...') : t('chat.input.extractNow', '업무 추출')}
             </ExtractBtn>
             {cueDraftCount > 0 && (
               <CueBadgeInline>
@@ -1024,7 +1029,18 @@ const ExtractBtn = styled.button`
   font-size: 11px;
   font-weight: 600;
   cursor: pointer;
-  &:hover { background: #CCFBF1; }
+  &:hover:not(:disabled) { background: #CCFBF1; }
+  &:disabled { opacity: 0.6; cursor: not-allowed; }
+`;
+
+const ExtractSpinner = styled.span`
+  width: 12px;
+  height: 12px;
+  border: 2px solid #99F6E4;
+  border-top-color: #0F766E;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+  @keyframes spin { to { transform: rotate(360deg); } }
 `;
 
 const CueBadgeInline = styled.div`

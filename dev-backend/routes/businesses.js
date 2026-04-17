@@ -371,4 +371,45 @@ router.put('/:businessId/cue', authenticateToken, checkBusinessAccess, async (re
   }
 });
 
+// ─── PATCH /api/businesses/:id/members/:memberId/work-hours ───
+router.patch('/:id/members/:memberId/work-hours', authenticateToken, async (req, res, next) => {
+  try {
+    const businessId = Number(req.params.id);
+    // 본인 또는 admin만
+    const member = await BusinessMember.findOne({ where: { id: req.params.memberId, business_id: businessId } });
+    if (!member) return errorResponse(res, 'member_not_found', 404);
+    if (member.user_id !== req.user.id) {
+      const reqMember = await BusinessMember.findOne({ where: { business_id: businessId, user_id: req.user.id } });
+      if (!reqMember || (reqMember.role !== 'owner' && req.user.platform_role !== 'platform_admin')) {
+        return errorResponse(res, 'forbidden', 403);
+      }
+    }
+    const updates = {};
+    if (req.body.daily_work_hours !== undefined) updates.daily_work_hours = Math.max(0, Math.min(24, Number(req.body.daily_work_hours) || 0));
+    if (req.body.weekly_work_days !== undefined) updates.weekly_work_days = Math.max(1, Math.min(7, Number(req.body.weekly_work_days) || 5));
+    if (req.body.participation_rate !== undefined) updates.participation_rate = Math.max(0, Math.min(1, Number(req.body.participation_rate) || 1));
+    await member.update(updates);
+    return successResponse(res, member.toJSON());
+  } catch (err) { next(err); }
+});
+
+// ─── PATCH /api/businesses/:id/members/:memberId/default-role ───
+router.patch('/:id/members/:memberId/default-role', authenticateToken, async (req, res, next) => {
+  try {
+    const businessId = Number(req.params.id);
+    // 권한 확인: owner만
+    const reqMember = await BusinessMember.findOne({ where: { business_id: businessId, user_id: req.user.id } });
+    if (!reqMember || (reqMember.role !== 'owner' && req.user.platform_role !== 'platform_admin')) {
+      return errorResponse(res, 'admin_only', 403);
+    }
+    const member = await BusinessMember.findOne({
+      where: { id: req.params.memberId, business_id: businessId },
+    });
+    if (!member) return errorResponse(res, 'member_not_found', 404);
+    const { default_role } = req.body || {};
+    await member.update({ default_role: default_role ? String(default_role).trim().slice(0, 50) : null });
+    return successResponse(res, member.toJSON());
+  } catch (err) { next(err); }
+});
+
 module.exports = router;

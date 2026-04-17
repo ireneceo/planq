@@ -52,9 +52,35 @@ io.use((socket, next) => {
 });
 
 io.on('connection', (socket) => {
-  console.log('Socket connected:', socket.id, 'userId:', socket.userId);
+  // 대화방 room 참가
+  socket.on('join:conversation', (conversationId) => {
+    if (conversationId) {
+      socket.join(`conv:${conversationId}`);
+    }
+  });
+
+  // 대화방 room 퇴장
+  socket.on('leave:conversation', (conversationId) => {
+    if (conversationId) {
+      socket.leave(`conv:${conversationId}`);
+    }
+  });
+
+  // 프로젝트 room 참가
+  socket.on('join:project', (projectId) => {
+    if (projectId) {
+      socket.join(`project:${projectId}`);
+    }
+  });
+
+  socket.on('leave:project', (projectId) => {
+    if (projectId) {
+      socket.leave(`project:${projectId}`);
+    }
+  });
+
   socket.on('disconnect', () => {
-    console.log('Socket disconnected:', socket.id);
+    // 자동으로 모든 room에서 퇴장됨
   });
 });
 
@@ -96,6 +122,22 @@ const PORT = process.env.PORT || 3003;
 server.listen(PORT, () => {
   console.log(`PlanQ server running on port ${PORT} (${process.env.NODE_ENV})`);
 });
+
+// 매일 00시(서버 로컬) 업무 스냅샷
+const taskSnapshot = require('./services/task_snapshot');
+function scheduleNextMidnight() {
+  const now = new Date();
+  const next = new Date(now); next.setDate(now.getDate() + 1); next.setHours(0, 0, 0, 0);
+  const delay = next.getTime() - now.getTime();
+  setTimeout(async () => {
+    try {
+      const r = await taskSnapshot.snapshotAllTasks();
+      console.log('[daily-snapshot]', r);
+    } catch (e) { console.warn('[daily-snapshot] failed', e.message); }
+    scheduleNextMidnight();
+  }, delay);
+}
+scheduleNextMidnight();
 
 // Graceful shutdown
 process.on('SIGTERM', () => {

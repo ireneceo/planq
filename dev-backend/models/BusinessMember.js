@@ -24,6 +24,24 @@ BusinessMember.init({
     type: DataTypes.ENUM('owner', 'member', 'ai'),
     defaultValue: 'member'
   },
+  // 프로젝트에서 사용하는 기본 역할 (예: '기획', '디자인', '개발')
+  default_role: {
+    type: DataTypes.STRING(50),
+    allowNull: true,
+  },
+  // ─── 가용시간 설정 ───
+  daily_work_hours: {
+    type: DataTypes.DECIMAL(4, 1),
+    defaultValue: 8.0,
+  },
+  weekly_work_days: {
+    type: DataTypes.INTEGER,
+    defaultValue: 5,
+  },
+  participation_rate: {
+    type: DataTypes.DECIMAL(3, 2),
+    defaultValue: 1.00,
+  },
   invited_by: {
     type: DataTypes.INTEGER,
     allowNull: true,

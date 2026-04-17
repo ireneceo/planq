@@ -8,6 +8,8 @@ import QNotePage from './pages/QNote/QNotePage';
 import ProfilePage from './pages/Profile/ProfilePage';
 import WorkspaceSettingsPage from './pages/Settings/WorkspaceSettingsPage';
 import QTalkPage from './pages/QTalk/QTalkPage';
+import QTaskPage from './pages/QTask/QTaskPage';
+import InvitePage from './pages/Invite/InvitePage';
 import './App.css';
 
 // Placeholder pages - will be replaced per phase
@@ -52,7 +54,7 @@ function App() {
 
         <Route path="/tasks" element={
           <ProtectedRoute>
-            <MainLayout><PlaceholderPage title="Q task" /></MainLayout>
+            <MainLayout><QTaskPage /></MainLayout>
           </ProtectedRoute>
         } />
 
@@ -113,6 +115,9 @@ function App() {
             <MainLayout><PlaceholderPage title="Admin" /></MainLayout>
           </ProtectedRoute>
         } />
+
+        {/* Invite (public — no auth required) */}
+        <Route path="/invite/:token" element={<InvitePage />} />
 
         {/* Default redirect */}
         <Route path="/" element={<Navigate to="/login" replace />} />

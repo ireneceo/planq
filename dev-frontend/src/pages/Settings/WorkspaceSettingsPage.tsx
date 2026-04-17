@@ -316,6 +316,19 @@ const RoleBadge = styled.span<{ $role?: string }>`
   flex-shrink: 0;
 `;
 
+const DefaultRoleInput = styled.input`
+  width: 80px;
+  padding: 3px 8px;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  font-size: 11px;
+  color: #0f172a;
+  background: #f8fafc;
+  flex-shrink: 0;
+  &:focus { outline: none; border-color: #14b8a6; background: #fff; }
+  &::placeholder { color: #94a3b8; }
+`;
+
 const ErrorBanner = styled.div`
   background: #fff1f2;
   border: 1px solid #fecdd3;
@@ -872,6 +885,24 @@ export default function WorkspaceSettingsPage() {
                     <MemberName>{m.user?.name}</MemberName>
                     <MemberEmail>{isAi ? t('members.cueCardDesc') : m.user?.email}</MemberEmail>
                   </MemberInfo>
+                  {!isAi && isAdmin && (
+                    <DefaultRoleInput
+                      type="text"
+                      placeholder={t('members.defaultRolePlaceholder', 'e.g. Design')}
+                      defaultValue={(m as unknown as Record<string, string>).default_role || ''}
+                      onBlur={async (e) => {
+                        const val = e.target.value.trim();
+                        try {
+                          await fetch(`/api/businesses/${businessId}/members/${m.id}/default-role`, {
+                            method: 'PATCH',
+                            headers: { 'Authorization': `Bearer ${localStorage.getItem('token') || ''}`, 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ default_role: val || null }),
+                          });
+                        } catch { /* silent */ }
+                      }}
+                      onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+                    />
+                  )}
                   <RoleBadge $role={m.role}>{roleLabel}</RoleBadge>
                 </MemberRow>
               );

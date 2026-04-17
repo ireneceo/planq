@@ -1,0 +1,19 @@
+{
+  "page": { "title": "Q task", "noWorkspace": "No workspace selected", "loading": "Loading...", "noCategory": "Uncategorized" },
+  "search": "Search tasks...",
+  "filter": { "allStatus": "All status", "hideCompleted": "Hide completed" },
+  "period": { "thisWeek": "This week" },
+  "status": { "delayed": "Delayed" },
+  "tab": { "week": "This week my tasks", "requested": "Requested tasks", "all": "All tasks" },
+  "summary": { "unit": " tasks", "est": "Est", "act": "Act" },
+  "col": { "project": "Project", "task": "Task", "status": "Status", "est": "Est(h)", "act": "Act(h)", "progress": "Progress", "start": "Start", "due": "Due" },
+  "add": { "placeholder": "Task name (Enter to save)", "btn": "Add task" },
+  "backlog": { "title": "Unassigned", "toWeek": "This week" },
+  "right": { "title": "Overview" },
+  "capacity": { "title": "Weekly Capacity", "daily": "Daily hours", "days": "Work days", "holidays": "Holidays this week", "available": "Available this week" },
+  "chart": { "weekly": "Weekly Burndown", "est": "Estimated", "act": "Actual" },
+  "projects": { "title": "Project Progress" },
+  "issues": { "title": "Issues" },
+  "notes": { "title": "Notes" },
+  "list": { "empty": "No tasks found" }
+}

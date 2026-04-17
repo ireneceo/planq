@@ -163,7 +163,12 @@ export interface ApiMessage {
   is_ai: boolean;
   is_internal: boolean;
   reply_to_message_id: number | null;
-  createdAt: string;   // Sequelize camelCase timestamp
+  ai_draft_approved: boolean | null;
+  ai_mode_used?: string;
+  ai_confidence?: number;
+  ai_source?: string;
+  is_edited?: boolean;
+  createdAt: string;
   updatedAt: string;
   sender?: { id: number; name: string; email: string };
 }
@@ -314,4 +319,77 @@ export async function updateTaskStatus(taskId: number, status: string): Promise<
     body: JSON.stringify({ status }),
   });
   return handle<ApiTask>(res);
+}
+
+// ─────────────────────────────────────────────
+// 청크 3 — 업무 후보 추출 + 등록/병합/거절
+// ─────────────────────────────────────────────
+export interface ExtractResult {
+  candidates: ApiTaskCandidate[];
+  message_count: number;
+  skipped: boolean;
+  reason?: string;
+  fallback?: boolean;
+}
+
+export interface RegisterResult {
+  candidate: ApiTaskCandidate;
+  task: ApiTask;
+}
+
+export interface MergeResult {
+  candidate: ApiTaskCandidate;
+  task: ApiTask;
+}
+
+export async function extractTaskCandidates(conversationId: number): Promise<ExtractResult> {
+  const res = await apiFetch(`/api/projects/conversations/${conversationId}/task-candidates/extract`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+  });
+  return handle<ExtractResult>(res);
+}
+
+export async function registerCandidate(candidateId: number): Promise<RegisterResult> {
+  const res = await apiFetch(`/api/projects/task-candidates/${candidateId}/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+  });
+  return handle<RegisterResult>(res);
+}
+
+export async function mergeCandidate(candidateId: number, targetTaskId: number): Promise<MergeResult> {
+  const res = await apiFetch(`/api/projects/task-candidates/${candidateId}/merge-into/${targetTaskId}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+  });
+  return handle<MergeResult>(res);
+}
+
+export async function rejectCandidate(candidateId: number): Promise<ApiTaskCandidate> {
+  const res = await apiFetch(`/api/projects/task-candidates/${candidateId}/reject`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+  });
+  return handle<ApiTaskCandidate>(res);
+}
+
+// ─────────────────────────────────────────────
+// Cue Draft 승인/거절
+// ─────────────────────────────────────────────
+export async function approveDraft(messageId: number, editedContent?: string): Promise<ApiMessage> {
+  const res = await apiFetch(`/api/projects/messages/${messageId}/approve-draft`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ edited_content: editedContent || undefined }),
+  });
+  return handle<ApiMessage>(res);
+}
+
+export async function rejectDraft(messageId: number): Promise<ApiMessage> {
+  const res = await apiFetch(`/api/projects/messages/${messageId}/reject-draft`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+  });
+  return handle<ApiMessage>(res);
 }

@@ -11,6 +11,8 @@ const {
 } = require('../models');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const { authenticateToken } = require('../middleware/auth');
+const taskExtractor = require('../services/task_extractor');
+const cueOrchestrator = require('../services/cue_orchestrator');
 
 // ============================================
 // 공통 미들웨어: 워크스페이스 접근 확인 (BusinessMember 기준)
@@ -329,13 +331,110 @@ router.post('/conversations/:id/messages', authenticateToken, async (req, res, n
       include: [{ model: User, as: 'sender', attributes: ['id', 'name', 'email'] }],
     });
 
-    // Socket.IO broadcast (있으면)
+    // Socket.IO broadcast
     const io = req.app.get('io');
     if (io) {
-      io.to(`conversation:${conv.id}`).emit('message:new', full.toJSON());
+      io.to(`conv:${conv.id}`).emit('message:new', full.toJSON());
+    }
+
+    // Cue 자동 응답 트리거 (customer 채널 + 비 AI 메시지만, 비동기)
+    if (conv.channel_type === 'customer' && !full.toJSON().is_ai) {
+      setImmediate(async () => {
+        try {
+          const business = await Business.findByPk(conv.business_id);
+          if (!business || !business.cue_user_id) return;
+          const cueResult = await cueOrchestrator.respondToMessage({
+            message: full.toJSON(),
+            conversation: conv,
+            business,
+            client: null,
+          });
+          if (!cueResult.skipped && cueResult.message) {
+            // Cue 응답 메시지에 sender 포함하여 브로드캐스트
+            const cueMsg = await Message.findByPk(cueResult.message.id, {
+              include: [{ model: User, as: 'sender', attributes: ['id', 'name', 'email'] }],
+            });
+            if (io && cueMsg) {
+              const payload = cueMsg.toJSON();
+              payload.ai_mode_used = cueResult.mode; // draft / auto
+              io.to(`conv:${conv.id}`).emit('message:new', payload);
+            }
+          }
+        } catch (err) {
+          console.warn('[cue trigger]', err.message);
+        }
+      });
     }
 
     return successResponse(res, full.toJSON());
+  } catch (err) { next(err); }
+});
+
+// ============================================
+// POST /api/projects/messages/:id/approve-draft — Cue Draft 승인
+// ============================================
+router.post('/messages/:id/approve-draft', authenticateToken, async (req, res, next) => {
+  try {
+    const msg = await Message.findByPk(req.params.id);
+    if (!msg) return errorResponse(res, 'message_not_found', 404);
+    if (!msg.is_ai) return errorResponse(res, 'not_ai_message', 400);
+    if (msg.ai_draft_approved !== null) return errorResponse(res, 'already_resolved', 400);
+
+    const conv = await Conversation.findByPk(msg.conversation_id);
+    if (conv?.project_id) {
+      const { role, error } = await loadProjectOrForbidden(conv.project_id, req.user.id);
+      if (error) return errorResponse(res, error.message, error.code);
+      if (role === 'client') return errorResponse(res, 'forbidden', 403);
+    }
+
+    // 수정된 내용이 있으면 반영
+    const { edited_content } = req.body || {};
+    const updates = { ai_draft_approved: true, ai_draft_approved_by: req.user.id, ai_draft_approved_at: new Date() };
+    if (edited_content && String(edited_content).trim()) {
+      updates.content = String(edited_content).trim();
+      updates.is_edited = true;
+      updates.edited_at = new Date();
+    }
+    await msg.update(updates);
+
+    const full = await Message.findByPk(msg.id, {
+      include: [{ model: User, as: 'sender', attributes: ['id', 'name', 'email'] }],
+    });
+
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`conv:${msg.conversation_id}`).emit('message:updated', full.toJSON());
+    }
+
+    return successResponse(res, full.toJSON());
+  } catch (err) { next(err); }
+});
+
+// ============================================
+// POST /api/projects/messages/:id/reject-draft — Cue Draft 거절
+// ============================================
+router.post('/messages/:id/reject-draft', authenticateToken, async (req, res, next) => {
+  try {
+    const msg = await Message.findByPk(req.params.id);
+    if (!msg) return errorResponse(res, 'message_not_found', 404);
+    if (!msg.is_ai) return errorResponse(res, 'not_ai_message', 400);
+    if (msg.ai_draft_approved !== null) return errorResponse(res, 'already_resolved', 400);
+
+    const conv = await Conversation.findByPk(msg.conversation_id);
+    if (conv?.project_id) {
+      const { role, error } = await loadProjectOrForbidden(conv.project_id, req.user.id);
+      if (error) return errorResponse(res, error.message, error.code);
+      if (role === 'client') return errorResponse(res, 'forbidden', 403);
+    }
+
+    await msg.update({ ai_draft_approved: false, ai_draft_approved_by: req.user.id, ai_draft_approved_at: new Date() });
+
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`conv:${msg.conversation_id}`).emit('message:updated', msg.toJSON());
+    }
+
+    return successResponse(res, msg.toJSON());
   } catch (err) { next(err); }
 });
 
@@ -450,6 +549,114 @@ router.get('/:id/task-candidates', authenticateToken, async (req, res, next) => 
 });
 
 // ============================================
+// POST /api/projects/conversations/:convId/task-candidates/extract — 수동 추출 트리거
+// 커서 기반: last_extracted_message_id 이후 메시지만 LLM에 전달
+// ============================================
+router.post('/conversations/:convId/task-candidates/extract', authenticateToken, async (req, res, next) => {
+  try {
+    const conversationId = Number(req.params.convId);
+    const conv = await Conversation.findByPk(conversationId);
+    if (!conv) return errorResponse(res, 'conversation_not_found', 404);
+    if (!conv.project_id) return errorResponse(res, 'conversation_not_in_project', 400);
+    const { role, error } = await loadProjectOrForbidden(conv.project_id, req.user.id);
+    if (error) return errorResponse(res, error.message, error.code);
+    if (role === 'client') return errorResponse(res, 'forbidden', 403);
+
+    const result = await taskExtractor.extractTaskCandidates({
+      conversationId,
+      userId: req.user.id,
+      businessId: conv.business_id,
+    });
+
+    // Socket.IO: 새 후보 알림
+    if (result.candidates?.length > 0 && conv.project_id) {
+      const io = req.app.get('io');
+      if (io) {
+        io.to(`project:${conv.project_id}`).emit('candidates:created', {
+          project_id: conv.project_id,
+          conversation_id: conversationId,
+          candidates: result.candidates,
+        });
+      }
+    }
+
+    return successResponse(res, result);
+  } catch (err) {
+    if (err.message === 'extraction_already_in_progress') {
+      return errorResponse(res, 'extraction_already_in_progress', 409);
+    }
+    next(err);
+  }
+});
+
+// ============================================
+// POST /api/projects/task-candidates/:id/register — 후보 → 정식 업무 등록
+// ============================================
+router.post('/task-candidates/:id/register', authenticateToken, async (req, res, next) => {
+  try {
+    const candidate = await TaskCandidate.findByPk(req.params.id);
+    if (!candidate) return errorResponse(res, 'candidate_not_found', 404);
+    const { role, error } = await loadProjectOrForbidden(candidate.project_id, req.user.id);
+    if (error) return errorResponse(res, error.message, error.code);
+    if (role === 'client') return errorResponse(res, 'forbidden', 403);
+
+    const result = await taskExtractor.registerCandidate(candidate.id, req.user.id);
+    return successResponse(res, result);
+  } catch (err) {
+    if (err.message === 'candidate_already_resolved') {
+      return errorResponse(res, 'candidate_already_resolved', 400);
+    }
+    next(err);
+  }
+});
+
+// ============================================
+// POST /api/projects/task-candidates/:id/merge-into/:taskId — 기존 업무에 병합
+// ============================================
+router.post('/task-candidates/:id/merge-into/:taskId', authenticateToken, async (req, res, next) => {
+  try {
+    const candidate = await TaskCandidate.findByPk(req.params.id);
+    if (!candidate) return errorResponse(res, 'candidate_not_found', 404);
+    const { role, error } = await loadProjectOrForbidden(candidate.project_id, req.user.id);
+    if (error) return errorResponse(res, error.message, error.code);
+    if (role === 'client') return errorResponse(res, 'forbidden', 403);
+
+    const targetTaskId = Number(req.params.taskId);
+    const result = await taskExtractor.mergeCandidate(candidate.id, targetTaskId, req.user.id);
+    return successResponse(res, result);
+  } catch (err) {
+    if (err.message === 'candidate_already_resolved') {
+      return errorResponse(res, 'candidate_already_resolved', 400);
+    }
+    if (err.message === 'target_task_not_found') {
+      return errorResponse(res, 'target_task_not_found', 404);
+    }
+    next(err);
+  }
+});
+
+// ============================================
+// POST /api/projects/task-candidates/:id/reject — 후보 거절
+// ============================================
+router.post('/task-candidates/:id/reject', authenticateToken, async (req, res, next) => {
+  try {
+    const candidate = await TaskCandidate.findByPk(req.params.id);
+    if (!candidate) return errorResponse(res, 'candidate_not_found', 404);
+    const { role, error } = await loadProjectOrForbidden(candidate.project_id, req.user.id);
+    if (error) return errorResponse(res, error.message, error.code);
+    if (role === 'client') return errorResponse(res, 'forbidden', 403);
+
+    const result = await taskExtractor.rejectCandidate(candidate.id, req.user.id);
+    return successResponse(res, result);
+  } catch (err) {
+    if (err.message === 'candidate_already_resolved') {
+      return errorResponse(res, 'candidate_already_resolved', 400);
+    }
+    next(err);
+  }
+});
+
+// ============================================
 // GET /api/projects/workspace/:businessId/all-tasks — 워크스페이스 전체 업무
 // 쿼리: status, assignee_id, project_id, mine=1
 // 권한: 멤버면 참여 프로젝트, 고객이면 자기 참여 채널의 프로젝트 업무 (읽기만)
@@ -479,8 +686,8 @@ router.get('/workspace/:businessId/all-tasks', authenticateToken, async (req, re
     const where = { project_id: projectIds };
     if (req.query.status) where.status = req.query.status;
     if (req.query.project_id) where.project_id = Number(req.query.project_id);
-    if (req.query.mine === '1') where.assigned_to = req.user.id;
-    else if (req.query.assignee_id) where.assigned_to = Number(req.query.assignee_id);
+    if (req.query.mine === '1') where.assignee_id = req.user.id;
+    else if (req.query.assignee_id) where.assignee_id = Number(req.query.assignee_id);
 
     const tasks = await Task.findAll({
       where,
@@ -512,6 +719,13 @@ router.post('/:id/issues', authenticateToken, async (req, res, next) => {
     const full = await ProjectIssue.findByPk(issue.id, {
       include: [{ model: User, as: 'author', attributes: ['id', 'name'] }],
     });
+
+    // Socket.IO: 이슈 생성 알림
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`project:${project.id}`).emit('issue:new', full.toJSON());
+    }
+
     return successResponse(res, full.toJSON());
   } catch (err) { next(err); }
 });
@@ -569,6 +783,15 @@ router.post('/:id/notes', authenticateToken, async (req, res, next) => {
     const full = await ProjectNote.findByPk(note.id, {
       include: [{ model: User, as: 'author', attributes: ['id', 'name'] }],
     });
+
+    // Socket.IO: 내부 메모는 프로젝트 room에만 (personal은 본인만 볼 수 있으므로 브로드캐스트 안 함)
+    if (vis === 'internal') {
+      const io = req.app.get('io');
+      if (io) {
+        io.to(`project:${project.id}`).emit('note:new', full.toJSON());
+      }
+    }
+
     return successResponse(res, full.toJSON());
   } catch (err) { next(err); }
 });
@@ -627,5 +850,45 @@ async function loadProjectDetail(projectId) {
   if (!project) return null;
   return project.toJSON();
 }
+
+// ============================================
+// GET /api/projects/invite/:token — 초대 링크 검증 (공개 — 인증 불필요)
+// ============================================
+router.get('/invite/:token', async (req, res, next) => {
+  try {
+    const pc = await ProjectClient.findOne({ where: { invite_token: req.params.token } });
+    if (!pc) return errorResponse(res, 'invalid_or_expired_invite', 404);
+
+    const project = await Project.findByPk(pc.project_id, {
+      include: [{ model: Business, attributes: ['id', 'brand_name', 'name'] }],
+    });
+    if (!project) return errorResponse(res, 'project_not_found', 404);
+
+    return successResponse(res, {
+      project_name: project.name,
+      client_company: project.client_company,
+      workspace_name: project.Business?.brand_name || project.Business?.name,
+      contact_name: pc.contact_name,
+      contact_email: pc.contact_email,
+      already_linked: !!pc.contact_user_id,
+    });
+  } catch (err) { next(err); }
+});
+
+// ============================================
+// POST /api/projects/invite/:token/accept — 초대 수락 (인증 필요 — 기가입자)
+// ============================================
+router.post('/invite/:token/accept', authenticateToken, async (req, res, next) => {
+  try {
+    const pc = await ProjectClient.findOne({ where: { invite_token: req.params.token } });
+    if (!pc) return errorResponse(res, 'invalid_or_expired_invite', 404);
+    if (pc.contact_user_id) return errorResponse(res, 'already_accepted', 400);
+
+    // 사용자 연결
+    await pc.update({ contact_user_id: req.user.id, accepted_at: new Date() });
+
+    return successResponse(res, { project_id: pc.project_id, linked: true });
+  } catch (err) { next(err); }
+});
 
 module.exports = router;
