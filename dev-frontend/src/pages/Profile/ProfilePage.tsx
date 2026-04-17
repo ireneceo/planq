@@ -17,7 +17,16 @@ import { LANGUAGES, getLanguageByCode, type LanguageOption } from '../../constan
 import PlanQSelect from '../../components/Common/PlanQSelect';
 import ConfirmDialog from '../../components/Common/ConfirmDialog';
 import AutoSaveField from '../../components/Common/AutoSaveField';
+import TimezoneSelector from '../../components/Common/TimezoneSelector';
+import PageShell from '../../components/Layout/PageShell';
 import { MicIcon, CheckIcon, XIcon, TrashIcon } from '../../components/Common/Icons';
+import { useTimezones } from '../../hooks/useTimezones';
+import {
+  cityFromTz,
+  offsetFromTz,
+  formatTimeInTz,
+  detectBrowserTz,
+} from '../../utils/timezones';
 
 const MIN_SEC = 10;           // 등록 최소 길이
 const REG_SOFT_TARGET = 15;   // 권장 길이 (자동 종료 아님, UI 안내용)
@@ -349,12 +358,8 @@ export default function ProfilePage() {
   const reachedSoftTarget = elapsed >= softTarget;
 
   return (
-    <Page>
+    <PageShell title={t('header.title')}>
       <Container>
-        <Header>
-          <Title>{t('header.title')}</Title>
-          <Subtitle>{t('header.subtitle')}</Subtitle>
-        </Header>
 
         <div ref={errorBannerRef} />
         {error && <Banner $kind="error"><XIcon size={14} />{error}</Banner>}
@@ -707,6 +712,8 @@ export default function ProfilePage() {
         </Card>
 
         {/* 개인정보 안내 */}
+        <UserTimezoneSection />
+
         <Card>
           <SectionTitle>{t('privacy.sectionTitle')}</SectionTitle>
           <PrivacyList>
@@ -736,41 +743,16 @@ export default function ProfilePage() {
         cancelText={t('confirm.cancelText')}
         variant="danger"
       />
-    </Page>
+    </PageShell>
   );
 }
 
 // ─── Styled ───────────────────────────────────
 
-const Page = styled.div`
-  min-height: calc(100vh - 64px);
-  background: #f8fafc;
-  padding: 32px 24px;
-`;
-
 const Container = styled.div`
-  max-width: 720px;
-  margin: 0 auto;
   display: flex;
   flex-direction: column;
-  gap: 20px;
-`;
-
-const Header = styled.div`
-  margin-bottom: 4px;
-`;
-
-const Title = styled.h1`
-  margin: 0;
-  font-size: 24px;
-  font-weight: 700;
-  color: #0f172a;
-`;
-
-const Subtitle = styled.p`
-  margin: 4px 0 0;
-  color: #64748b;
-  font-size: 14px;
+  gap: 16px;
 `;
 
 const Card = styled.section`
@@ -1261,3 +1243,226 @@ const PrivacyItem = styled.li`
   line-height: 1.7;
   strong { color: #0f172a; font-weight: 600; }
 `;
+
+// ─────────────────────────────────────────────
+// User Timezone Section
+// ─────────────────────────────────────────────
+const TzUserCard = styled.div`
+  background: linear-gradient(135deg, #f43f5e 0%, #be123c 100%);
+  color: #fff;
+  border-radius: 14px;
+  padding: 22px 24px;
+  margin-bottom: 16px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20px;
+  box-shadow: 0 10px 30px -12px rgba(244, 63, 94, 0.4);
+`;
+
+const TzUserLeft = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+`;
+
+const TzUserLabel = styled.div`
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: rgba(255, 228, 230, 0.9);
+`;
+
+const TzUserCity = styled.div`
+  font-size: 22px;
+  font-weight: 700;
+  color: #ffffff;
+  letter-spacing: -0.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+`;
+
+const TzUserSub = styled.div`
+  font-size: 12px;
+  color: rgba(255, 228, 230, 0.8);
+`;
+
+const TzUserTime = styled.div`
+  font-size: 40px;
+  font-weight: 700;
+  color: #ffffff;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -1.5px;
+  line-height: 1;
+`;
+
+const UChipRow = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+`;
+
+const UChip = styled.div`
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px 6px 12px;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 999px;
+  font-size: 12px;
+  color: #0f172a;
+`;
+
+const UChipCity = styled.span`font-weight: 600;`;
+const UChipMeta = styled.span`color: #64748b; font-size: 11px;`;
+
+const UChipRemove = styled.button`
+  width: 20px; height: 20px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(15, 23, 42, 0.06);
+  color: #475569;
+  cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 14px; line-height: 1; padding: 0;
+  transition: all 120ms;
+  &:hover { background: #fee2e2; color: #b91c1c; }
+`;
+
+const UAddRow = styled.div`
+  display: flex; gap: 8px; align-items: center; margin-top: 12px;
+`;
+
+const UAddButton = styled.button`
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 8px;
+  border: 1px solid #f43f5e;
+  background: #fff1f2;
+  color: #be123c;
+  font-size: 13px; font-weight: 600;
+  cursor: pointer;
+  transition: all 120ms;
+  &:hover { background: #f43f5e; color: #fff; }
+  &:disabled { opacity: 0.5; cursor: not-allowed; }
+`;
+
+const BrowserHint = styled.button`
+  background: none;
+  border: none;
+  color: #0f766e;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+  margin-top: 6px;
+  text-decoration: underline;
+  &:hover { color: #134e4a; }
+`;
+
+function UserTimezoneSection() {
+  const { t } = useTranslation('profile');
+  const { userTz, userRefs, update } = useTimezones();
+  const [now, setNow] = useState<Date>(new Date());
+  const [pickerTz, setPickerTz] = useState<string>('');
+  const browserTz = detectBrowserTz();
+
+  useEffect(() => {
+    const id = window.setInterval(() => setNow(new Date()), 10_000);
+    return () => window.clearInterval(id);
+  }, []);
+
+  const addRef = () => {
+    if (!pickerTz) return;
+    update({ userRefs: Array.from(new Set([...userRefs, pickerTz])) });
+    setPickerTz('');
+  };
+  const removeRef = (tz: string) => {
+    update({ userRefs: userRefs.filter((r) => r !== tz) });
+  };
+
+  return (
+    <>
+      <TzUserCard>
+        <TzUserLeft>
+          <TzUserLabel>{t('timezone.previewLabel')}</TzUserLabel>
+          <TzUserCity title={userTz}>{cityFromTz(userTz)}</TzUserCity>
+          <TzUserSub>
+            {userTz}{offsetFromTz(now, userTz) ? ` · UTC${offsetFromTz(now, userTz)}` : ''}
+          </TzUserSub>
+        </TzUserLeft>
+        <TzUserTime>{formatTimeInTz(now, userTz)}</TzUserTime>
+      </TzUserCard>
+
+      <Card>
+        <SectionTitle>{t('timezone.primaryTitle')}</SectionTitle>
+        <Description>{t('timezone.primaryDesc')}</Description>
+        <FieldRow>
+          <Label>{t('timezone.primaryLabel')}</Label>
+          <FieldBody>
+            <AutoSaveField
+              type="select"
+              onSave={async () => { update({ userTz }); }}
+            >
+              <TimezoneSelector
+                value={userTz}
+                onChange={(tz) => update({ userTz: tz })}
+              />
+            </AutoSaveField>
+            {userTz !== browserTz && (
+              <BrowserHint
+                type="button"
+                onClick={() => update({ userTz: browserTz })}
+              >
+                {t('timezone.useBrowser', { tz: browserTz })}
+              </BrowserHint>
+            )}
+          </FieldBody>
+        </FieldRow>
+      </Card>
+
+      <Card>
+        <SectionTitle>{t('timezone.referenceTitle')}</SectionTitle>
+        <Description>{t('timezone.referenceDesc')}</Description>
+
+        {userRefs.length === 0 ? (
+          <div style={{ color: '#94a3b8', fontSize: 13, padding: '8px 0' }}>
+            {t('timezone.referenceEmpty')}
+          </div>
+        ) : (
+          <UChipRow>
+            {userRefs.map((tz) => (
+              <UChip key={tz}>
+                <UChipCity>{cityFromTz(tz)}</UChipCity>
+                <UChipMeta>
+                  {formatTimeInTz(now, tz)}
+                  {offsetFromTz(now, tz) ? ` · UTC${offsetFromTz(now, tz)}` : ''}
+                </UChipMeta>
+                <UChipRemove type="button" aria-label="remove" onClick={() => removeRef(tz)}>×</UChipRemove>
+              </UChip>
+            ))}
+          </UChipRow>
+        )}
+
+        <UAddRow>
+          <div style={{ flex: 1 }}>
+            <TimezoneSelector
+              value={pickerTz}
+              onChange={setPickerTz}
+              exclude={[userTz, ...userRefs]}
+              placeholder={t('timezone.addPlaceholder') || ''}
+            />
+          </div>
+          <UAddButton type="button" disabled={!pickerTz} onClick={addRef}>
+            {t('timezone.addButton')}
+          </UAddButton>
+        </UAddRow>
+      </Card>
+    </>
+  );
+}

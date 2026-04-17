@@ -1,0 +1,18 @@
+{
+  "page": {
+    "title": "고객"
+  },
+  "searchPlaceholder": "이름·회사·이메일 검색",
+  "invite": "고객 초대",
+  "inviteTooltip": "초대 기능은 준비 중입니다",
+  "loading": "불러오는 중...",
+  "empty": "아직 고객이 없습니다",
+  "noResults": "검색 결과 없음",
+  "col": {
+    "name": "이름",
+    "company": "회사",
+    "email": "이메일",
+    "phone": "전화",
+    "invitedAt": "초대일"
+  }
+}

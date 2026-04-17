@@ -3,6 +3,18 @@
     "title": "My Profile",
     "subtitle": "Manage voice fingerprints and default settings"
   },
+  "timezone": {
+    "previewLabel": "Your default time",
+    "primaryTitle": "Your Timezone",
+    "primaryDesc": "All times you see are displayed in this timezone. If you are a Korean national living abroad, set this to your current city.",
+    "primaryLabel": "Default Timezone",
+    "referenceTitle": "Your Reference Timezones",
+    "referenceDesc": "Timezones you check often appear alongside yours in the sidebar clock.",
+    "referenceEmpty": "No reference timezones added.",
+    "addPlaceholder": "Search a timezone",
+    "addButton": "Add",
+    "useBrowser": "Use browser timezone ({{tz}})"
+  },
   "basic": {
     "sectionTitle": "Basic Info",
     "name": "Name",

@@ -1,0 +1,18 @@
+{
+  "page": {
+    "title": "Clients"
+  },
+  "searchPlaceholder": "Search name, company, email",
+  "invite": "Invite Client",
+  "inviteTooltip": "Invitation is coming soon",
+  "loading": "Loading...",
+  "empty": "No clients yet",
+  "noResults": "No results",
+  "col": {
+    "name": "Name",
+    "company": "Company",
+    "email": "Email",
+    "phone": "Phone",
+    "invitedAt": "Invited"
+  }
+}

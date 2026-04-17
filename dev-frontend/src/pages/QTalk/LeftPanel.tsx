@@ -118,7 +118,9 @@ const LeftPanel: React.FC<Props> = ({
             </IconBtn>
           </HeaderActions>
         </HeaderTop>
+      </Header>
 
+      <SearchSection>
         <SearchBox>
           <SearchIcon viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <circle cx="11" cy="11" r="8" />
@@ -150,7 +152,7 @@ const LeftPanel: React.FC<Props> = ({
             {t('left.filter.mine', '내 할일')}
           </FilterBtn>
         </FilterRow>
-      </Header>
+      </SearchSection>
 
       <ChatList>
         {filteredChats.length === 0 && (
@@ -247,20 +249,29 @@ const CollapsedDotWrap = styled.div<{ $hasActivity: boolean }>`
 `;
 
 const Header = styled.div`
-  padding: 14px 14px 8px;
+  padding: 14px 20px;
+  min-height: 60px;
   border-bottom: 1px solid #F1F5F9;
   flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 `;
 
 const HeaderTop = styled.div`
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 12px;
+`;
+
+const SearchSection = styled.div`
+  padding: 12px 20px 8px;
+  flex-shrink: 0;
+  border-bottom: 1px solid #F1F5F9;
 `;
 
 const HeaderTitle = styled.h1`
-  font-size: 17px;
+  font-size: 18px;
   font-weight: 700;
   color: #0F172A;
   margin: 0;

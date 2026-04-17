@@ -70,9 +70,54 @@ setFormError(null);
 
 ---
 
-## 2. 공통 컴포넌트 사용
+## 2. 페이지 레이아웃 (필수 — 2026-04-17 표준화)
 
-### 2.1 필수 Import
+**모든 신규 페이지는 아래 2가지 레이아웃 중 하나만 사용한다. 페이지 루트에 직접 styled `<Page>`/`<Header>` 선언 금지.**
+
+### 2.1 단일 컬럼 페이지 — `PageShell`
+
+설정·프로필·목록(고객/업무/문서) 페이지에 사용.
+
+```tsx
+import PageShell from '../../components/Layout/PageShell';
+
+<PageShell
+  title={t('page.title')}
+  count={items.length}                 // 제목 옆 카운트 (선택)
+  actions={<><SearchInput/><Btn/></>}  // 헤더 우측 (선택)
+>
+  {/* 본문 */}
+</PageShell>
+```
+
+잠긴 표준값:
+- 헤더 `min-height: 60px`, `padding: 14px 20px`, 배경 `#fff`, border-bottom `#e2e8f0`
+- 제목 `18px / 700 / -0.2px`
+- 페이지 배경 `#f8fafc`, Body padding 20px
+
+### 2.2 멀티 컬럼(패널) 페이지 — `PanelHeader`
+
+Q Talk/Note/Task 3컬럼. 모든 패널 `min-height: 60px` → 가로 border-bottom 수평 연결.
+
+```tsx
+import PanelHeader, { PanelTitle, PanelSubTitle, PanelMetaTitle }
+  from '../../components/Layout/PanelHeader';
+
+<PanelHeader><PanelTitle>Q talk</PanelTitle></PanelHeader>        // 앱 타이틀 18px
+<PanelHeader><PanelSubTitle>{chat.name}</PanelSubTitle></PanelHeader> // 항목명 16px
+<PanelHeader><PanelMetaTitle>프로젝트 작업대</PanelMetaTitle></PanelHeader> // 섹션 13px
+```
+
+### 2.3 금지
+- 헤더에 부제목을 **아래줄로** 쌓기 금지 (메타는 제목 옆 인라인)
+- 헤더 높이·padding·폰트 커스터마이즈 금지
+- 페이지마다 `<Page>`/`<Header>` styled 따로 선언 금지
+
+---
+
+## 3. 공통 컴포넌트 사용
+
+### 3.1 필수 Import
 
 ```typescript
 import {

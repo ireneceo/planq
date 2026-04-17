@@ -1,12 +1,17 @@
 {
   "page": {
     "title": "Workspace Settings",
-    "subtitle": "Manage brand, legal info, language, members, and Cue"
+    "subtitle": "Manage brand, legal info, language, and timezone"
+  },
+  "membersPage": {
+    "title": "Members",
+    "subtitle": "Manage teammates and the AI teammate (Cue)"
   },
   "tabs": {
     "brand": "Brand",
     "legal": "Legal Info",
-    "language": "Language & Time",
+    "language": "Language",
+    "timezone": "Timezone",
     "members": "Members",
     "cue": "Cue"
   },
@@ -58,6 +63,17 @@
     "timezone": "Timezone",
     "workHours": "Work Hours",
     "workHoursHint": "Cue responds more aggressively outside work hours"
+  },
+  "timezone": {
+    "previewLabel": "Workspace default time",
+    "primaryTitle": "Default Timezone",
+    "primaryDesc": "All schedules, deadlines, and message times are stored in UTC and displayed in each viewer's timezone. This is the workspace-wide reference.",
+    "primaryLabel": "Default Timezone",
+    "referenceTitle": "Reference Timezones",
+    "referenceDesc": "Additional timezones shown in the sidebar clock. Add zones your team frequently references.",
+    "referenceEmpty": "No reference timezones added.",
+    "addPlaceholder": "Search a timezone",
+    "addButton": "Add"
   },
   "members": {
     "sectionTitle": "Members",

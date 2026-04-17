@@ -29,6 +29,15 @@
     "ai": "Cue",
     "user": "사용자"
   },
+  "clock": {
+    "header": "시간대",
+    "workspace": "워크스페이스",
+    "you": "내 시간",
+    "reference": "참조",
+    "manage": "타임존 관리",
+    "expand": "참조 {{count}}개 더보기",
+    "collapse": "접기"
+  },
   "switcher": {
     "tooltip": "워크스페이스 전환",
     "menuTitle": "내 워크스페이스",

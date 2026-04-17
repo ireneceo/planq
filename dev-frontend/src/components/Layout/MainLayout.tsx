@@ -5,6 +5,9 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../contexts/AuthContext';
 import LanguageSelector from '../Common/LanguageSelector';
 import WorkspaceSwitcher from './WorkspaceSwitcher';
+import SidebarClock from './SidebarClock';
+import { useTimezones } from '../../hooks/useTimezones';
+import i18n from '../../i18n';
 
 const LayoutContainer = styled.div`
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -160,6 +163,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const { workspaceTz, workspaceRefs, userTz, userRefs } = useTimezones();
 
   useEffect(() => { setSidebarOpen(false); }, [location.pathname]);
 
@@ -208,24 +212,6 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
             </NavItem>
           </NavSection>
 
-          {hasRole('business_owner', 'business_member') && (
-            <NavSection>
-              <NavTitle>{t('nav.sectionBusiness')}</NavTitle>
-              <NavItem to="/business/settings" $active={isActive('/business/settings')}>
-                <NavIcon><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></NavIcon>
-                {t('nav.settings')}
-              </NavItem>
-              <NavItem to="/business/members" $active={isActive('/business/members')}>
-                <NavIcon><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></NavIcon>
-                {t('nav.members')}
-              </NavItem>
-              <NavItem to="/business/clients" $active={isActive('/business/clients')}>
-                <NavIcon><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></NavIcon>
-                {t('nav.clients')}
-              </NavItem>
-            </NavSection>
-          )}
-
           {hasRole('business_owner', 'business_member', 'client') && (
             <NavSection>
               <NavTitle>{t('nav.sectionFeatures')}</NavTitle>
@@ -262,6 +248,24 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
             </NavSection>
           )}
 
+          {hasRole('business_owner', 'business_member') && (
+            <NavSection>
+              <NavTitle>{t('nav.sectionBusiness')}</NavTitle>
+              <NavItem to="/business/settings" $active={isActive('/business/settings')}>
+                <NavIcon><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></NavIcon>
+                {t('nav.settings')}
+              </NavItem>
+              <NavItem to="/business/members" $active={isActive('/business/members')}>
+                <NavIcon><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></NavIcon>
+                {t('nav.members')}
+              </NavItem>
+              <NavItem to="/business/clients" $active={isActive('/business/clients')}>
+                <NavIcon><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></NavIcon>
+                {t('nav.clients')}
+              </NavItem>
+            </NavSection>
+          )}
+
           {hasRole('platform_admin') && (
             <NavSection>
               <NavTitle>{t('nav.sectionAdmin')}</NavTitle>
@@ -278,6 +282,14 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
         </SidebarNav>
 
         <SidebarFooter>
+          <SidebarClock
+            workspaceTz={workspaceTz}
+            workspaceLabel={user?.business_name || undefined}
+            userTz={userTz}
+            referenceTzs={[...workspaceRefs, ...userRefs]}
+            locale={(i18n.language === 'ko' ? 'ko' : 'en')}
+            isWorkspaceAdmin={hasRole('business_owner', 'platform_admin')}
+          />
           <div style={{ marginBottom: 8 }}>
             <LanguageSelector variant="sidebar" />
           </div>

@@ -444,8 +444,8 @@ const CollapsedBtn = styled.button`
 `;
 
 const HeaderBar = styled.div`
-  height: 52px;
-  padding: 0 14px 0 16px;
+  min-height: 60px;
+  padding: 14px 20px;
   border-bottom: 1px solid #E2E8F0;
   display: flex;
   align-items: center;

@@ -1,12 +1,17 @@
 {
   "page": {
     "title": "워크스페이스 설정",
-    "subtitle": "브랜드·법인 정보·언어·멤버·Cue 를 관리합니다"
+    "subtitle": "브랜드·법인 정보·언어·타임존을 관리합니다"
+  },
+  "membersPage": {
+    "title": "멤버 관리",
+    "subtitle": "팀원과 AI 팀원(Cue)을 관리합니다"
   },
   "tabs": {
     "brand": "브랜드",
     "legal": "법인 정보",
-    "language": "언어·시간",
+    "language": "언어",
+    "timezone": "타임존",
     "members": "멤버",
     "cue": "Cue"
   },
@@ -58,6 +63,17 @@
     "timezone": "타임존",
     "workHours": "근무시간",
     "workHoursHint": "근무시간 외 Cue 는 더 적극적으로 자동 응답합니다"
+  },
+  "timezone": {
+    "previewLabel": "워크스페이스 기본 시간",
+    "primaryTitle": "기본 타임존",
+    "primaryDesc": "모든 일정·마감·메시지 시각은 저장은 UTC, 표시는 각자 타임존으로 변환됩니다. 이 값은 워크스페이스 전체의 기준 시간입니다.",
+    "primaryLabel": "기본 타임존",
+    "referenceTitle": "참조 타임존",
+    "referenceDesc": "사이드바 시계에 함께 표시되는 보조 타임존입니다. 팀이 자주 보는 지역을 추가하세요.",
+    "referenceEmpty": "추가된 참조 타임존이 없습니다.",
+    "addPlaceholder": "타임존을 검색해 선택",
+    "addButton": "추가"
   },
   "members": {
     "sectionTitle": "멤버",

@@ -1,9 +1,70 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-04-16
+> **최종 업데이트:** 2026-04-17
 > **데이터베이스:** planq_dev_db (MySQL) + qnote.db (SQLite, FTS5)
 > **프로젝트:** B2B SaaS — 업무 전용 고객 채팅 + 실행 구조 통합 OS
 > **로드맵 상세:** `docs/DEVELOPMENT_ROADMAP.md`
+
+---
+
+## ✅ 완료: 타임존 기능 + 페이지 레이아웃 표준화 (2026-04-17)
+
+워크스페이스/개인 타임존 + 사이드바 시계, 3컬럼 페이지(Q Talk/Note/Task) + 단일 컬럼 페이지(Settings/Profile/Clients) 헤더 통일. 레이아웃 공통 컴포넌트 `PageShell`/`PanelHeader` 추가해 앞으로의 일관성 강제. 비즈니스 메뉴 분리(/settings, /members, /clients 3개 URL). Q Task 선커밋.
+
+### 완료된 작업
+
+| 영역 | 작업 | 상태 |
+|------|------|:----:|
+| **타임존 UI 기반** | `utils/timezones.ts` (preset 30개 + Intl 지원) / `TimezoneSelector` 공통 컴포넌트 / `useTimezones` 훅 (localStorage mock) | ✅ |
+| **사이드바 시계** | `SidebarClock` — 워크스페이스 기본 + 내 시간 + 참조 타임존 펼침, 도시·시간 1행, 가로선 풀폭, row 클릭 시 설정 페이지로 이동, 관리자만 워크스페이스 편집 | ✅ |
+| **워크스페이스 타임존 탭** | Settings `timezone` 탭 신규 (프리뷰 카드 + 기본 select + 참조 칩) | ✅ |
+| **개인 타임존 섹션** | Profile 페이지에 "내 타임존" 섹션 추가 (rose 톤 프리뷰 + 브라우저 기준 자동 감지 버튼) | ✅ |
+| **레이아웃 공통 컴포넌트** | `PageShell` (단일 컬럼) + `PanelHeader`/`PanelTitle` (3컬럼) 신규 — 60px 헤더 / 18px-700 제목 / 14x20 padding 표준 잠금 | ✅ |
+| **페이지 헤더 통일** | /profile, /business/settings, /business/members, /business/clients → PageShell 마이그레이션. 모든 헤더 동일 스타일 | ✅ |
+| **패널 헤더 통일** | Q Talk 좌/중/우, Q Note 사이드바+메인, Q Task 메인+우측 모두 min-height 60px. 가로 border-bottom 수평 연결 | ✅ |
+| **Q Note 사이드바 통일** | SearchBox/SessionList/SessionItem/EmptyMsg 를 Q Talk 기준으로 동일 스타일화 (active inset box-shadow, teal 포인트) | ✅ |
+| **Business 메뉴 분리** | /business/settings (브랜드/법인/언어/타임존 4탭) + /business/members (멤버/Cue 2탭) + /business/clients 신규 ClientsPage | ✅ |
+| **고객 페이지 신규** | `pages/Clients/ClientsPage.tsx` + `clients.json` i18n — 테이블 리스트, 검색, 초대 버튼 stub, `/api/clients/:businessId` 연결 | ✅ |
+| **Q Talk ChatPanel 소속 인라인화** | 프로젝트 표시를 제목 아래 stack → 제목 우측 인라인 (세로선 구분) 으로 변경, 헤더 60px 유지 | ✅ |
+| **Q Task 선커밋** | 이전 세션 미커밋 코드(QTask/Invite/CalendarPicker/task_extractor/task_snapshot/TaskComment/TaskDailyProgress) 커밋 65f5c2a | ✅ |
+| **문서화** | `CLAUDE.md`에 "페이지 레이아웃 표준 (필수)" 섹션 추가 — PageShell/PanelHeader 강제 사용 명시 | ✅ |
+
+### 수정된 파일 (주요)
+
+**신규**
+- `dev-frontend/src/utils/timezones.ts`
+- `dev-frontend/src/hooks/useTimezones.ts`
+- `dev-frontend/src/components/Common/TimezoneSelector.tsx`
+- `dev-frontend/src/components/Layout/SidebarClock.tsx`
+- `dev-frontend/src/components/Layout/PageShell.tsx`
+- `dev-frontend/src/components/Layout/PanelHeader.tsx`
+- `dev-frontend/src/pages/Clients/ClientsPage.tsx`
+- `dev-frontend/public/locales/{ko,en}/clients.json`
+
+**수정**
+- `dev-frontend/src/App.tsx` — /business/* 라우팅 정비 (settings/members/clients)
+- `dev-frontend/src/i18n.ts` — clients 네임스페이스
+- `dev-frontend/src/components/Layout/MainLayout.tsx` — SidebarClock 통합, Business 메뉴 Features 아래로 이동
+- `dev-frontend/src/pages/Settings/WorkspaceSettingsPage.tsx` — tab 분리 로직, timezone 탭, PageShell 사용
+- `dev-frontend/src/pages/Profile/ProfilePage.tsx` — UserTimezoneSection, PageShell 사용
+- `dev-frontend/src/pages/QTalk/{LeftPanel,ChatPanel,RightPanel}.tsx` — 헤더 60px, Search 분리, 프로젝트 인라인
+- `dev-frontend/src/pages/QNote/QNotePage.tsx` — SidebarHeader/MainHeader 60px, 사이드바 스타일 통일, 새세션 버튼 아이콘화
+- `dev-frontend/src/pages/QTask/QTaskPage.tsx` — Header/RightHeader 60px, RightTitle 복원
+- `dev-frontend/public/locales/{ko,en}/{layout,profile,settings}.json` — timezone/clock/membersPage 키
+- `CLAUDE.md` — 레이아웃 표준 섹션 추가
+
+### 다음 할 일 (다음 세션 시작점)
+
+**타임존 백엔드 연결** (UI mock 단계 완료, 실 데이터 연결 필요)
+- DB 마이그레이션: `businesses.reference_timezones` JSON, `users.timezone` + `users.reference_timezones` JSON
+- API: `PATCH /api/users/:id`에 timezone 필드 허용 + `PATCH /api/businesses/:id/settings`에 reference_timezones 확장
+- 백엔드 유틸: `dev-backend/utils/datetime.js` (UTC ↔ tz 변환)
+- 프론트: `useTimezones` 훅을 localStorage → API 기반으로 교체
+- 기존 시간 표시 화면(Q Task 마감, Q Note 일시 등) UTC 기준으로 정규화
+
+**기타**
+- lua 팀원 계정 세팅 (Irene 지시 시 실행)
+- Q Talk 청크 3 — 업무 후보 자동 추출
 
 ---
 

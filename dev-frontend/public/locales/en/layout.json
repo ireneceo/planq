@@ -29,6 +29,15 @@
     "ai": "Cue",
     "user": "User"
   },
+  "clock": {
+    "header": "Timezones",
+    "workspace": "Workspace",
+    "you": "You",
+    "reference": "Reference",
+    "manage": "Manage timezones",
+    "expand": "{{count}} more",
+    "collapse": "Collapse"
+  },
   "switcher": {
     "tooltip": "Switch workspace",
     "menuTitle": "My workspaces",

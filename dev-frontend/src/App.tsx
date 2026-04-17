@@ -9,6 +9,7 @@ import ProfilePage from './pages/Profile/ProfilePage';
 import WorkspaceSettingsPage from './pages/Settings/WorkspaceSettingsPage';
 import QTalkPage from './pages/QTalk/QTalkPage';
 import QTaskPage from './pages/QTask/QTaskPage';
+import ClientsPage from './pages/Clients/ClientsPage';
 import InvitePage from './pages/Invite/InvitePage';
 import './App.css';
 
@@ -35,9 +36,34 @@ function App() {
           </ProtectedRoute>
         } />
 
+        <Route path="/business/settings" element={
+          <ProtectedRoute requiredRole={['business_owner', 'business_member']}>
+            <MainLayout><WorkspaceSettingsPage /></MainLayout>
+          </ProtectedRoute>
+        } />
+        <Route path="/business/settings/:tab" element={
+          <ProtectedRoute requiredRole={['business_owner', 'business_member']}>
+            <MainLayout><WorkspaceSettingsPage /></MainLayout>
+          </ProtectedRoute>
+        } />
+        <Route path="/business/members" element={
+          <ProtectedRoute requiredRole={['business_owner', 'business_member']}>
+            <MainLayout><WorkspaceSettingsPage /></MainLayout>
+          </ProtectedRoute>
+        } />
+        <Route path="/business/members/:tab" element={
+          <ProtectedRoute requiredRole={['business_owner', 'business_member']}>
+            <MainLayout><WorkspaceSettingsPage /></MainLayout>
+          </ProtectedRoute>
+        } />
+        <Route path="/business/clients" element={
+          <ProtectedRoute requiredRole={['business_owner', 'business_member']}>
+            <MainLayout><ClientsPage /></MainLayout>
+          </ProtectedRoute>
+        } />
         <Route path="/business/*" element={
           <ProtectedRoute requiredRole={['business_owner', 'business_member']}>
-            <MainLayout><PlaceholderPage title="Business" /></MainLayout>
+            <Navigate to="/business/settings" replace />
           </ProtectedRoute>
         } />
 

@@ -497,7 +497,7 @@ const Container = styled.main`
 
 const HeaderBar = styled.div`
   min-height: 60px;
-  padding: 10px 16px;
+  padding: 14px 20px;
   border-bottom: 1px solid #E2E8F0;
   display: flex;
   align-items: center;
@@ -508,10 +508,11 @@ const HeaderBar = styled.div`
 
 const HeaderTitleBlock = styled.div`
   display: flex;
-  flex-direction: column;
+  align-items: center;
   min-width: 0;
   flex: 1;
-  gap: 2px;
+  gap: 10px;
+  flex-wrap: nowrap;
 `;
 
 const ChatNameRow = styled.div`
@@ -519,6 +520,7 @@ const ChatNameRow = styled.div`
   align-items: center;
   gap: 8px;
   min-width: 0;
+  flex-shrink: 1;
 `;
 
 const ChatName = styled.h2<{ $editable: boolean }>`
@@ -580,12 +582,19 @@ const CustomerTag = styled.span`
 `;
 
 const ProjectSublabel = styled.div`
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 5px;
-  font-size: 11px;
+  font-size: 12px;
   color: #94A3B8;
   font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+  flex-shrink: 1;
+  padding-left: 10px;
+  border-left: 1px solid #E2E8F0;
   span { color: #94A3B8; }
 `;
 

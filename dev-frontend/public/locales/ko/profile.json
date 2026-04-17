@@ -3,6 +3,18 @@
     "title": "내 프로필",
     "subtitle": "음성 핑거프린트와 기본 설정을 관리합니다"
   },
+  "timezone": {
+    "previewLabel": "내 기본 시간",
+    "primaryTitle": "내 타임존",
+    "primaryDesc": "내가 보는 모든 시간은 이 타임존 기준으로 표시됩니다. 한국 국적이어도 해외 거주 중이면 현재 지역으로 설정하세요.",
+    "primaryLabel": "기본 타임존",
+    "referenceTitle": "내 참조 타임존",
+    "referenceDesc": "자주 확인하는 지역을 추가하면 사이드바 시계에 함께 표시됩니다.",
+    "referenceEmpty": "추가된 참조 타임존이 없습니다.",
+    "addPlaceholder": "타임존을 검색해 선택",
+    "addButton": "추가",
+    "useBrowser": "브라우저 기준({{tz}})으로 설정"
+  },
   "basic": {
     "sectionTitle": "기본 정보",
     "name": "이름",

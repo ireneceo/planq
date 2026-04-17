@@ -1,10 +1,15 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
+import { useLocation, useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import AutoSaveField from '../../components/Common/AutoSaveField';
 import PlanQSelect from '../../components/Common/PlanQSelect';
 import { Tabs, Tab } from '../../components/Common/TabComponents';
+import TimezoneSelector from '../../components/Common/TimezoneSelector';
+import PageShell from '../../components/Layout/PageShell';
+import { useTimezones } from '../../hooks/useTimezones';
+import { cityFromTz, offsetFromTz, formatTimeInTz } from '../../utils/timezones';
 import {
   getWorkspace,
   updateBrand,
@@ -18,34 +23,11 @@ import {
   type CueInfo,
 } from '../../services/workspace';
 
-type TabKey = 'brand' | 'legal' | 'language' | 'members' | 'cue';
+type TabKey = 'brand' | 'legal' | 'language' | 'timezone' | 'members' | 'cue';
 
 // ─────────────────────────────────────────────
 // Styled
 // ─────────────────────────────────────────────
-const Page = styled.div`
-  padding: 24px 32px 48px;
-  background: #f8fafc;
-  min-height: calc(100vh - 64px);
-  @media (max-width: 768px) { padding: 16px; }
-`;
-
-const Header = styled.div`
-  margin-bottom: 24px;
-`;
-
-const Title = styled.h1`
-  font-size: 22px;
-  font-weight: 700;
-  color: #0f172a;
-  margin: 0 0 4px;
-`;
-
-const Subtitle = styled.p`
-  font-size: 13px;
-  color: #64748b;
-  margin: 0;
-`;
 
 const Card = styled.section`
   background: #ffffff;
@@ -358,7 +340,35 @@ export default function WorkspaceSettingsPage() {
   const businessId = user?.business_id || 0;
   const isAdmin = user?.business_role === 'owner' || user?.platform_role === 'platform_admin';
 
-  const [tab, setTab] = useState<TabKey>('brand');
+  const location = useLocation();
+  const params = useParams<{ tab?: string }>();
+  const navigate = useNavigate();
+
+  // /business/members 모드: 멤버/Cue 탭만 노출. 그 외: 설정 탭 4개만 노출.
+  const isMembersMode = location.pathname.includes('/business/members');
+  const visibleTabs = useMemo<TabKey[]>(() => (
+    isMembersMode ? ['members', 'cue'] : ['brand', 'legal', 'language', 'timezone']
+  ), [isMembersMode]);
+
+  const tabFromUrl = useMemo<TabKey>(() => {
+    const fromParam = (params.tab || '').toLowerCase();
+    if (visibleTabs.includes(fromParam as TabKey)) return fromParam as TabKey;
+    return visibleTabs[0];
+  }, [params.tab, visibleTabs]);
+
+  const [tab, setTab] = useState<TabKey>(tabFromUrl);
+  useEffect(() => { setTab(tabFromUrl); }, [tabFromUrl]);
+
+  const changeTab = useCallback((next: TabKey) => {
+    setTab(next);
+    if (isMembersMode) {
+      navigate(next === 'members' ? '/business/members' : `/business/members/${next}`, { replace: true });
+    } else if (location.pathname.startsWith('/business/')) {
+      navigate(`/business/settings/${next}`, { replace: true });
+    } else {
+      navigate(`/settings/${next}`, { replace: true });
+    }
+  }, [isMembersMode, location.pathname, navigate]);
   const [ws, setWs] = useState<Workspace | null>(null);
   const [members, setMembers] = useState<WorkspaceMember[]>([]);
   const [cue, setCue] = useState<CueInfo | null>(null);
@@ -476,42 +486,32 @@ export default function WorkspaceSettingsPage() {
 
   if (loading) {
     return (
-      <Page>
-        <Header>
-          <Title>{t('page.title')}</Title>
-        </Header>
+      <PageShell title={t(isMembersMode ? 'membersPage.title' : 'page.title')}>
         <Card>Loading...</Card>
-      </Page>
+      </PageShell>
     );
   }
 
   if (!businessId || !ws) {
     return (
-      <Page>
-        <Header>
-          <Title>{t('page.title')}</Title>
-        </Header>
+      <PageShell title={t(isMembersMode ? 'membersPage.title' : 'page.title')}>
         <Card>{error || 'No workspace'}</Card>
-      </Page>
+      </PageShell>
     );
   }
 
   return (
-    <Page>
-      <Header>
-        <Title>{t('page.title')}</Title>
-        <Subtitle>{t('page.subtitle')}</Subtitle>
-      </Header>
-
+    <PageShell title={t(isMembersMode ? 'membersPage.title' : 'page.title')}>
       {error && <ErrorBanner>{error}</ErrorBanner>}
       {!isAdmin && <InfoBanner>{t('messages.adminRequired')}</InfoBanner>}
 
       <Tabs>
-        <Tab active={tab === 'brand'} onClick={() => setTab('brand')}>{t('tabs.brand')}</Tab>
-        <Tab active={tab === 'legal'} onClick={() => setTab('legal')}>{t('tabs.legal')}</Tab>
-        <Tab active={tab === 'language'} onClick={() => setTab('language')}>{t('tabs.language')}</Tab>
-        <Tab active={tab === 'members'} onClick={() => setTab('members')}>{t('tabs.members')}</Tab>
-        <Tab active={tab === 'cue'} onClick={() => setTab('cue')}>{t('tabs.cue')}</Tab>
+        {visibleTabs.includes('brand') && <Tab active={tab === 'brand'} onClick={() => changeTab('brand')}>{t('tabs.brand')}</Tab>}
+        {visibleTabs.includes('legal') && <Tab active={tab === 'legal'} onClick={() => changeTab('legal')}>{t('tabs.legal')}</Tab>}
+        {visibleTabs.includes('language') && <Tab active={tab === 'language'} onClick={() => changeTab('language')}>{t('tabs.language')}</Tab>}
+        {visibleTabs.includes('timezone') && <Tab active={tab === 'timezone'} onClick={() => changeTab('timezone')}>{t('tabs.timezone')}</Tab>}
+        {visibleTabs.includes('members') && <Tab active={tab === 'members'} onClick={() => changeTab('members')}>{t('tabs.members')}</Tab>}
+        {visibleTabs.includes('cue') && <Tab active={tab === 'cue'} onClick={() => changeTab('cue')}>{t('tabs.cue')}</Tab>}
       </Tabs>
 
       {/* ─── BRAND ─── */}
@@ -800,38 +800,19 @@ export default function WorkspaceSettingsPage() {
               </AutoSaveField>
             </Field>
 
-            <Field>
-              <Label>{t('language.timezone')}</Label>
-              <AutoSaveField
-                type="select"
-                onSave={async () => { await saveSettings({ timezone }); }}
-              >
-                {(() => {
-                  const tzOpts = [
-                    { value: 'Asia/Seoul', label: 'Asia/Seoul (UTC+9)' },
-                    { value: 'Asia/Tokyo', label: 'Asia/Tokyo (UTC+9)' },
-                    { value: 'America/New_York', label: 'America/New_York (UTC-5)' },
-                    { value: 'America/Los_Angeles', label: 'America/Los_Angeles (UTC-8)' },
-                    { value: 'Europe/London', label: 'Europe/London (UTC+0)' },
-                    { value: 'UTC', label: 'UTC' },
-                  ];
-                  return (
-                    <PlanQSelect
-                      value={tzOpts.find((o) => o.value === timezone) || null}
-                      onChange={(opt) => {
-                        const v = (opt as { value: string } | null)?.value;
-                        if (v) setTimezone(v);
-                      }}
-                      options={tzOpts}
-                      isDisabled={!isAdmin}
-                      size="sm"
-                    />
-                  );
-                })()}
-              </AutoSaveField>
-            </Field>
           </FieldGrid>
         </Card>
+      )}
+
+      {/* ─── TIMEZONE ─── */}
+      {tab === 'timezone' && (
+        <WorkspaceTimezoneSection
+          businessId={businessId}
+          isAdmin={isAdmin}
+          timezone={timezone}
+          setTimezone={setTimezone}
+          saveSettings={saveSettings}
+        />
       )}
 
       {/* ─── MEMBERS ─── */}
@@ -1006,6 +987,253 @@ export default function WorkspaceSettingsPage() {
           </Card>
         </>
       )}
-    </Page>
+    </PageShell>
+  );
+}
+
+// ─────────────────────────────────────────────
+// Timezone 섹션 (서브 컴포넌트)
+// ─────────────────────────────────────────────
+const TzPreviewCard = styled.div`
+  background: linear-gradient(135deg, #0f766e 0%, #115E59 100%);
+  color: #F0FDFA;
+  border-radius: 14px;
+  padding: 22px 24px;
+  margin-bottom: 20px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20px;
+  box-shadow: 0 10px 30px -10px rgba(15, 118, 110, 0.35);
+`;
+
+const TzPreviewLeft = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+`;
+
+const TzPreviewLabel = styled.div`
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: #5EEAD4;
+`;
+
+const TzPreviewCity = styled.div`
+  font-size: 22px;
+  font-weight: 700;
+  color: #FFFFFF;
+  letter-spacing: -0.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+`;
+
+const TzPreviewSub = styled.div`
+  font-size: 12px;
+  color: rgba(204, 251, 241, 0.7);
+`;
+
+const TzPreviewTime = styled.div`
+  font-size: 40px;
+  font-weight: 700;
+  color: #FFFFFF;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -1.5px;
+  line-height: 1;
+`;
+
+const ChipRow = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+`;
+
+const Chip = styled.div`
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px 6px 12px;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 999px;
+  font-size: 12px;
+  color: #0f172a;
+`;
+
+const ChipCity = styled.span`
+  font-weight: 600;
+`;
+
+const ChipMeta = styled.span`
+  color: #64748b;
+  font-size: 11px;
+`;
+
+const ChipRemove = styled.button`
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(15, 23, 42, 0.06);
+  color: #475569;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  line-height: 1;
+  padding: 0;
+  transition: all 120ms;
+  &:hover { background: #fee2e2; color: #b91c1c; }
+  &:disabled { opacity: 0.4; cursor: not-allowed; }
+`;
+
+const AddRow = styled.div`
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 12px;
+`;
+
+const AddButton = styled.button`
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 8px;
+  border: 1px solid #14b8a6;
+  background: #f0fdfa;
+  color: #0f766e;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 120ms;
+  &:hover { background: #14b8a6; color: #ffffff; }
+  &:disabled { opacity: 0.5; cursor: not-allowed; }
+`;
+
+function WorkspaceTimezoneSection({
+  businessId,
+  isAdmin,
+  timezone,
+  setTimezone,
+  saveSettings,
+}: {
+  businessId: number;
+  isAdmin: boolean;
+  timezone: string;
+  setTimezone: (v: string) => void;
+  saveSettings: (payload: Partial<Workspace>) => Promise<void>;
+}) {
+  const { t } = useTranslation('settings');
+  const { workspaceRefs, update } = useTimezones();
+  const [now, setNow] = useState<Date>(new Date());
+  const [pickerTz, setPickerTz] = useState<string>('');
+
+  useEffect(() => {
+    const id = window.setInterval(() => setNow(new Date()), 10_000);
+    return () => window.clearInterval(id);
+  }, []);
+
+  // 워크스페이스 기본이 로컬 저장소 기본값과 동기화
+  useEffect(() => {
+    if (timezone) update({ workspaceTz: timezone });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [timezone]);
+
+  const addReference = () => {
+    if (!pickerTz) return;
+    const next = Array.from(new Set([...workspaceRefs, pickerTz]));
+    update({ workspaceRefs: next });
+    setPickerTz('');
+  };
+
+  const removeReference = (tz: string) => {
+    update({ workspaceRefs: workspaceRefs.filter((r) => r !== tz) });
+  };
+
+  return (
+    <>
+      <TzPreviewCard>
+        <TzPreviewLeft>
+          <TzPreviewLabel>{t('timezone.previewLabel')}</TzPreviewLabel>
+          <TzPreviewCity title={timezone}>{cityFromTz(timezone)}</TzPreviewCity>
+          <TzPreviewSub>
+            {timezone}{offsetFromTz(now, timezone) ? ` · UTC${offsetFromTz(now, timezone)}` : ''}
+          </TzPreviewSub>
+        </TzPreviewLeft>
+        <TzPreviewTime>{formatTimeInTz(now, timezone)}</TzPreviewTime>
+      </TzPreviewCard>
+
+      <Card>
+        <SectionTitle>{t('timezone.primaryTitle')}</SectionTitle>
+        <SectionDesc>{t('timezone.primaryDesc')}</SectionDesc>
+        <FieldGrid>
+          <Field $full>
+            <Label>{t('timezone.primaryLabel')}</Label>
+            <AutoSaveField
+              type="select"
+              onSave={async () => { if (businessId) await saveSettings({ timezone }); }}
+            >
+              <TimezoneSelector
+                value={timezone}
+                onChange={setTimezone}
+                disabled={!isAdmin}
+              />
+            </AutoSaveField>
+          </Field>
+        </FieldGrid>
+      </Card>
+
+      <Card>
+        <SectionTitle>{t('timezone.referenceTitle')}</SectionTitle>
+        <SectionDesc>{t('timezone.referenceDesc')}</SectionDesc>
+
+        {workspaceRefs.length === 0 ? (
+          <div style={{ color: '#94a3b8', fontSize: 13, padding: '8px 0' }}>
+            {t('timezone.referenceEmpty')}
+          </div>
+        ) : (
+          <ChipRow>
+            {workspaceRefs.map((tz) => (
+              <Chip key={tz}>
+                <ChipCity>{cityFromTz(tz)}</ChipCity>
+                <ChipMeta>
+                  {formatTimeInTz(now, tz)}
+                  {offsetFromTz(now, tz) ? ` · UTC${offsetFromTz(now, tz)}` : ''}
+                </ChipMeta>
+                <ChipRemove
+                  type="button"
+                  aria-label="remove"
+                  disabled={!isAdmin}
+                  onClick={() => removeReference(tz)}
+                >
+                  ×
+                </ChipRemove>
+              </Chip>
+            ))}
+          </ChipRow>
+        )}
+
+        {isAdmin && (
+          <AddRow>
+            <div style={{ flex: 1 }}>
+              <TimezoneSelector
+                value={pickerTz}
+                onChange={setPickerTz}
+                exclude={[timezone, ...workspaceRefs]}
+                placeholder={t('timezone.addPlaceholder') || ''}
+              />
+            </div>
+            <AddButton type="button" disabled={!pickerTz} onClick={addReference}>
+              {t('timezone.addButton')}
+            </AddButton>
+          </AddRow>
+        )}
+      </Card>
+    </>
   );
 }

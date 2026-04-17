@@ -926,8 +926,8 @@ export default QTaskPage;
 // ═══ Styled ═══
 const Layout=styled.div`display:flex;height:calc(100vh - 0px);background:#F8FAFC;overflow:hidden;`;
 const LeftPanel=styled.div`flex:1;min-width:0;display:flex;flex-direction:column;background:#FFF;`;
-const Header=styled.div`padding:12px 20px;display:flex;align-items:center;gap:12px;border-bottom:1px solid #E2E8F0;flex-shrink:0;flex-wrap:wrap;`;
-const PageTitle=styled.h1`font-size:16px;font-weight:700;color:#0F172A;margin:0;flex-shrink:0;`;
+const Header=styled.div`padding:14px 20px;min-height:60px;display:flex;align-items:center;gap:12px;border-bottom:1px solid #E2E8F0;flex-shrink:0;flex-wrap:wrap;`;
+const PageTitle=styled.h1`font-size:18px;font-weight:700;color:#0F172A;margin:0;flex-shrink:0;letter-spacing:-0.2px;`;
 const SearchBox=styled.input`padding:6px 12px;width:180px;border:1px solid #E2E8F0;border-radius:8px;font-size:13px;color:#0F172A;background:#F8FAFC;&:focus{outline:none;border-color:#14B8A6;background:#FFF;}&::placeholder{color:#94A3B8;}`;
 const HideCheck=styled.label`display:flex;align-items:center;gap:4px;font-size:12px;color:#64748B;cursor:pointer;white-space:nowrap;& input{accent-color:#0D9488;}`;
 const ChipRow=styled.div`display:flex;gap:4px;margin-left:auto;`;
@@ -1013,7 +1013,7 @@ const ToWeekBtn=styled.button`padding:3px 10px;font-size:11px;font-weight:600;co
 const CollapsedStrip=styled.aside`width:36px;flex-shrink:0;background:#FFF;border-left:1px solid #E2E8F0;display:flex;flex-direction:column;align-items:center;padding:12px 0;@media(max-width:1200px){display:none;}`;
 const CollapseBtn=styled.button`width:28px;height:28px;display:flex;align-items:center;justify-content:center;background:transparent;border:none;border-radius:6px;color:#64748B;cursor:pointer;&:hover{background:#F1F5F9;color:#0F172A;}`;
 const RightPanel=styled.aside`width:320px;flex-shrink:0;background:#FFF;border-left:1px solid #E2E8F0;display:flex;flex-direction:column;overflow:hidden;@media(max-width:1200px){display:none;}`;
-const RightHeader=styled.div`height:52px;padding:0 14px 0 16px;border-bottom:1px solid #E2E8F0;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;`;
+const RightHeader=styled.div`min-height:60px;padding:14px 20px;border-bottom:1px solid #E2E8F0;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;`;
 const RightTitle=styled.h2`font-size:13px;font-weight:700;color:#0F172A;margin:0;letter-spacing:-0.1px;`;
 const RightScroll=styled.div`flex:1;overflow-y:auto;&::-webkit-scrollbar{width:6px;}&::-webkit-scrollbar-thumb{background:#E2E8F0;border-radius:3px;}`;
 const RSection=styled.div`border-bottom:1px solid #F1F5F9;padding:12px 14px;`;

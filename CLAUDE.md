@@ -303,6 +303,50 @@ grep -rEn "(['\"\`])[^'\"\`]*[가-힣][^'\"\`]*\1" dev-frontend/src --include='*
 
 ---
 
+## 페이지 레이아웃 표준 (필수)
+
+모든 페이지는 아래 **2가지 레이아웃 중 하나**를 사용한다. 공통 컴포넌트 안에 표준 스타일이 잠겨있으므로 **신규 페이지는 반드시 이 둘 중 하나로 구현**한다.
+
+### 1) 단일 컬럼 페이지 — `PageShell`
+
+설정·프로필·목록(고객/업무/문서 등) 페이지에 사용.
+
+```tsx
+import PageShell from 'components/Layout/PageShell';
+
+<PageShell
+  title={t('page.title')}
+  count={items.length}                 // 선택 — 제목 옆 카운트 배지
+  actions={<><SearchInput/><InviteBtn/></>}  // 선택 — 헤더 우측
+>
+  {/* 본문 */}
+</PageShell>
+```
+
+표준값(건드리지 말 것):
+- 헤더 `min-height: 60px`, `padding: 14px 20px`, `background: #fff`, `border-bottom: #e2e8f0`
+- 제목 `18px / 700 / -0.2px`
+- 배경 `#f8fafc`, Body padding 20px
+
+### 2) 멀티 컬럼(패널) 페이지 — `PanelHeader`
+
+Q Talk / Q Note / Q Task 같은 3컬럼 레이아웃에서 각 패널 상단에 사용. **모든 패널의 헤더 `min-height: 60px`** 로 좌우 border-bottom 이 수평 연결된다.
+
+```tsx
+import PanelHeader, { PanelTitle, PanelSubTitle, PanelMetaTitle } from 'components/Layout/PanelHeader';
+
+<PanelHeader><PanelTitle>Q talk</PanelTitle></PanelHeader>       // 앱 타이틀 (18px)
+<PanelHeader><PanelSubTitle>{chat.name}</PanelSubTitle></PanelHeader>  // 선택된 항목명 (16px)
+<PanelHeader><PanelMetaTitle>프로젝트 작업대</PanelMetaTitle></PanelHeader>  // 보조 섹션 (13px)
+```
+
+### 금지
+- 페이지 루트에 직접 `<Page>`/`<Header>` styled 컴포넌트 선언 금지
+- 헤더 높이·padding·제목 폰트 커스터마이즈 금지 (일관성)
+- 헤더에 여러 줄(제목+부제) 쌓기 금지 — 부제/메타는 제목 옆 인라인으로 배치
+
+---
+
 ## 자동저장 (필수)
 
 - **저장이 필요한 모든 입력 폼은 AutoSaveField 컴포넌트를 사용**

@@ -1706,9 +1706,15 @@ const QNotePage = () => {
       <Sidebar $collapsed={sidebarCollapsed}>
         <SidebarHeader>
           <SidebarTitle>Q note</SidebarTitle>
-          <NewSessionBtn onClick={() => setShowStartModal(true)}>
-            <PlusIcon size={14} />
-            <span>{t('page.newMeeting')}</span>
+          <NewSessionBtn
+            onClick={() => setShowStartModal(true)}
+            title={t('page.newMeeting')}
+            aria-label={t('page.newMeeting')}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <line x1="12" y1="5" x2="12" y2="19" />
+              <line x1="5" y1="12" x2="19" y2="12" />
+            </svg>
           </NewSessionBtn>
         </SidebarHeader>
 
@@ -2395,7 +2401,8 @@ const SidebarBackdrop = styled.div`
 `;
 
 const SidebarHeader = styled.div`
-  padding: 20px 20px 12px;
+  padding: 14px 20px;
+  min-height: 60px;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -2406,75 +2413,83 @@ const SidebarTitle = styled.h1`
   font-weight: 700;
   color: #0f172a;
   margin: 0;
+  letter-spacing: -0.2px;
 `;
 
 const NewSessionBtn = styled.button`
-  height: 32px;
-  padding: 0 12px;
-  border: none;
-  background: #14b8a6;
-  color: #ffffff;
-  border-radius: 8px;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  display: inline-flex;
+  width: 28px;
+  height: 28px;
+  display: flex;
   align-items: center;
-  gap: 6px;
-  &:hover { background: #0d9488; }
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: #64748B;
+  cursor: pointer;
+  transition: all 0.1s;
+  padding: 0;
+  &:hover { background: #F1F5F9; color: #0F172A; }
 `;
 
 const SearchBox = styled.input`
-  margin: 0 20px 12px;
-  height: 36px;
-  padding: 0 12px;
-  border: 1px solid #e2e8f0;
+  display: block;
+  width: calc(100% - 40px);
+  margin: 12px 20px 12px;
+  padding: 8px 12px;
+  background: #F8FAFC;
+  border: 1px solid #E2E8F0;
   border-radius: 8px;
   font-size: 13px;
   color: #0f172a;
-  &::placeholder { color: #94a3b8; }
+  &::placeholder { color: #94A3B8; font-size: 12px; }
   &:focus {
     outline: none;
-    border-color: #14b8a6;
-    box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.15);
+    border-color: #14B8A6;
+    background: #FFFFFF;
+    box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.1);
   }
 `;
 
 const SessionList = styled.div`
   flex: 1;
   overflow-y: auto;
-  padding: 4px 12px 20px;
+  padding: 6px 10px 12px;
+  &::-webkit-scrollbar { width: 6px; }
+  &::-webkit-scrollbar-thumb { background: #E2E8F0; border-radius: 3px; }
 `;
 
 const EmptySessionMsg = styled.div`
-  padding: 24px 14px;
+  padding: 32px 20px;
   text-align: center;
-  color: #94a3b8;
-  font-size: 13px;
+  color: #94A3B8;
+  font-size: 12px;
 `;
 
 const SessionItem = styled.div<{ $active: boolean }>`
-  padding: 12px 14px;
+  padding: 10px 12px;
+  margin: 2px 0;
   border-radius: 10px;
   cursor: pointer;
-  background: ${(p) => (p.$active ? '#f0fdfa' : 'transparent')};
-  border: 1px solid ${(p) => (p.$active ? '#14b8a6' : 'transparent')};
-  margin-bottom: 4px;
-  transition: all 120ms;
-  &:hover { background: #f8fafc; }
+  transition: background 0.1s;
+  background: ${(p) => (p.$active ? '#F0FDFA' : 'transparent')};
+  ${(p) => p.$active && 'box-shadow: inset 3px 0 0 #0D9488;'}
+  &:hover {
+    ${(p) => !p.$active && 'background: #F8FAFC;'}
+  }
 `;
 
 const SessionItemRow = styled.div`
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 4px;
+  gap: 6px;
+  margin-bottom: 2px;
 `;
 
 const SessionItemTitle = styled.div`
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
-  color: #0f172a;
+  color: #0F172A;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2501,7 +2516,7 @@ const SessionParticipants = styled.span`
 
 const SessionItemMeta = styled.div`
   font-size: 11px;
-  color: #64748b;
+  color: #94A3B8;
   display: flex;
   gap: 6px;
   align-items: center;
@@ -2549,7 +2564,8 @@ const CollapseToggle = styled.button`
 `;
 
 const MainHeader = styled.div`
-  padding: 10px 32px 8px;
+  padding: 14px 20px;
+  min-height: 60px;
   background: #ffffff;
   border-bottom: 1px solid #e2e8f0;
   display: flex;
@@ -2557,7 +2573,8 @@ const MainHeader = styled.div`
   align-items: center;
   gap: 16px;
   @media (max-width: 768px) {
-    padding: 8px 16px;
+    padding: 10px 16px;
+    min-height: 48px;
     gap: 8px;
   }
 `;
@@ -2619,9 +2636,10 @@ const HeaderLeft = styled.div`
   flex-direction: row;
   align-items: center;
   gap: 10px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   min-width: 0;
   flex: 1 1 auto;
+  overflow: hidden;
 `;
 
 const HeaderRight = styled.div`
