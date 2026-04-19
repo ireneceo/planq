@@ -46,5 +46,69 @@
   "projects": { "title": "Project Progress" },
   "issues": { "title": "Issues" },
   "notes": { "title": "Notes" },
-  "list": { "empty": "No tasks found", "statusHint": "Click to change status" }
+  "list": { "empty": "No tasks found", "statusHint": "Click to change status" },
+  "common": { "cancel": "Cancel" },
+  "detail": {
+    "back": "Back",
+    "description": "Description",
+    "descPlaceholder": "Add description...",
+    "dailyLog": "Daily Log",
+    "noLog": "No records yet",
+    "date": "Date", "prog": "%", "estUsed": "Est used", "actUsed": "Act used",
+    "comments": "Comments",
+    "writeComment": "Write a comment...",
+    "send": "Send",
+    "open": "Open detail",
+    "actions": {
+      "assigneeTitle": "As assignee",
+      "reviewerTitle": "As reviewer",
+      "ack": "Acknowledge request",
+      "start": "Start working",
+      "submitReview": "Submit for review",
+      "resubmitReview": "Resubmit after revision",
+      "cancelReview": "Cancel review request",
+      "completeSimple": "Mark complete",
+      "complete": "Finalize",
+      "needReviewer": "Add a reviewer first",
+      "approve": "Approve",
+      "requestRevision": "Request revision",
+      "revisionPlaceholder": "What needs to change? (required)",
+      "submitRevision": "Send revision",
+      "youApproved": "You approved this round.",
+      "youRequestedRevision": "You requested revision.",
+      "revert": "Undo my decision",
+      "revertUsed": "You already used revert this round.",
+      "revertDisabled": "Revert used",
+      "approvedOf": "{{n}} of {{total}} approved"
+    },
+    "reviewers": {
+      "title": "Reviewers",
+      "empty": "No reviewers yet",
+      "add": "Add reviewer",
+      "remove": "Remove",
+      "noCandidates": "No members to add",
+      "policyAll": "All",
+      "policyAny": "Any 1",
+      "state": { "pending": "Pending", "approved": "Approved", "revision": "Revision" },
+      "warnTitle": "Reset current review round?",
+      "warnBody": "Adding a reviewer during an active round resets all reviewers to pending. Previous approvals will need to be re-confirmed.",
+      "warnConfirm": "Add and reset"
+    },
+    "history": {
+      "title": "History",
+      "showAll": "Show all",
+      "event": {
+        "ack": "acknowledged request",
+        "review_submit": "submitted for review",
+        "review_cancel": "canceled review",
+        "approve": "approved",
+        "revision": "requested revision",
+        "revert": "undid decision",
+        "completed": "marked complete",
+        "reviewer_add": "added reviewer",
+        "reviewer_remove": "removed reviewer",
+        "policy_change": "changed policy"
+      }
+    }
+  }
 }

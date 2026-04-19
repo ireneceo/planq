@@ -68,6 +68,6 @@ export const STATUS_COLOR: Record<StatusCode, { bg: string; fg: string }> = {
   reviewing:          { bg: '#FEF3C7', fg: '#92400E' },
   revision_requested: { bg: '#FCE7F3', fg: '#9F1239' },
   done_feedback:      { bg: '#DBEAFE', fg: '#1E40AF' },
-  completed:          { bg: '#D1FAE5', fg: '#065F46' },
+  completed:          { bg: '#E2E8F0', fg: '#475569' },
   canceled:           { bg: '#F1F5F9', fg: '#94A3B8' },
 };

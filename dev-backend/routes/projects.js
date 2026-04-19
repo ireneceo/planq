@@ -6,7 +6,7 @@ const { sequelize } = require('../config/database');
 const {
   Project, ProjectMember, ProjectClient,
   ProjectNote, ProjectIssue, TaskCandidate,
-  Conversation, Message, Task,
+  Conversation, Message, Task, TaskReviewer,
   BusinessMember, User, Business,
 } = require('../models');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
@@ -711,6 +711,7 @@ router.get('/workspace/:businessId/all-tasks', authenticateToken, async (req, re
         { model: Project, attributes: ['id', 'name', 'client_company', 'status'] },
         { model: User, as: 'assignee', attributes: ['id', 'name'], required: false },
         { model: User, as: 'requester', attributes: ['id', 'name'], required: false },
+        { model: TaskReviewer, as: 'reviewers', attributes: ['id', 'user_id', 'state', 'is_client'], required: false },
       ],
       order: [['createdAt', 'DESC']],
     });

@@ -29,6 +29,9 @@ interface TaskRow {
   source?: 'manual' | 'internal_request' | 'qtalk_extract';
   request_by_user_id?: number | null;
   request_ack_at?: string | null;
+  review_round?: number | null;
+  review_policy?: 'all' | 'any';
+  reviewers?: Array<{ id: number; user_id: number; state: 'pending'|'approved'|'revision'; is_client?: boolean }>;
   Project?: { id: number; name: string } | null;
   assignee?: { id: number; name: string } | null;
   requester?: { id: number; name: string } | null;
@@ -39,6 +42,8 @@ interface IssueRow { id: number; body: string; author?: { name: string }; projec
 interface NoteRow { id: number; body: string; author?: { name: string }; visibility?: string; projectName?: string; }
 interface CommentRow { id: number; content: string; createdAt: string; author?: { name: string }; Task?: { id: number; title: string }; }
 interface CandidateRow { id: number; title: string; description: string | null; project_name?: string; guessedAssignee?: { id: number; name: string }; guessed_due_date: string | null; }
+interface ReviewerRow { id: number; user_id: number; state: 'pending'|'approved'|'revision'; is_client: boolean; reverted_once: boolean; action_at: string | null; user?: { id: number; name: string }; }
+interface HistoryRow { id: number; event_type: string; from_status: string | null; to_status: string | null; actor_user_id: number | null; actor_role: string | null; target_user_id: number | null; round: number | null; note: string | null; createdAt: string; actor?: { id: number; name: string }; target?: { id: number; name: string }; }
 
 // 라벨·displayStatus·STATUS_COLOR 는 utils 로 이동 — 관점별 라벨 반영
 // (utils/taskLabel.ts + utils/taskRoles.ts)
@@ -120,9 +125,21 @@ const QTaskPage:React.FC=()=>{
   const[newTitle,setNewTitle]=useState('');
   const[newAssignee,setNewAssignee]=useState<number|null>(null);
   const[statusDropdownId,setStatusDropdownId]=useState<number|null>(null);
+  const[detailStatusOpen,setDetailStatusOpen]=useState(false);
   const[detailTaskId,setDetailTaskId]=useState<number|null>(null);
   const[detailTask,setDetailTask]=useState<(TaskRow&{comments?:CommentRow[];description?:string|null;daily_progress?:{snapshot_date:string;progress_percent:number;actual_hours:number;estimated_hours:number|null}[]})|null>(null);
   const[newComment,setNewComment]=useState('');
+  // 워크플로우 (Phase C)
+  const[reviewers,setReviewers]=useState<ReviewerRow[]>([]);
+  const[history,setHistory]=useState<HistoryRow[]>([]);
+  const[reviewPolicy,setReviewPolicy]=useState<'all'|'any'>('all');
+  const[,setReviewRound]=useState<number>(0);
+  const[revisionOpenForId,setRevisionOpenForId]=useState<number|null>(null);
+  const[revisionNote,setRevisionNote]=useState('');
+  const[addReviewerOpen,setAddReviewerOpen]=useState(false);
+  const[pendingReviewerAdd,setPendingReviewerAdd]=useState<number|null>(null);
+  const[historyExpanded,setHistoryExpanded]=useState(false);
+  const[actionBusy,setActionBusy]=useState(false);
   const[requestedComments,setRequestedComments]=useState<CommentRow[]>([]);
   const[candidates,setCandidates]=useState<CandidateRow[]>([]);
   const[periodPickerOpen,setPeriodPickerOpen]=useState(false);
@@ -233,6 +250,22 @@ const QTaskPage:React.FC=()=>{
       }catch{}
     })();
   },[bizId,periodFrom,periodTo]);
+
+  // 외부 클릭 시 상세 패널 상태 드롭다운 닫기
+  useEffect(()=>{
+    if(!detailStatusOpen)return;
+    const close=(e:MouseEvent|KeyboardEvent)=>{
+      if(e instanceof KeyboardEvent){if(e.key==='Escape')setDetailStatusOpen(false);return;}
+      const tgt=e.target as HTMLElement|null;
+      if(tgt&&tgt.closest('[data-dropdown="status-detail"]'))return;
+      setDetailStatusOpen(false);
+    };
+    const id=window.setTimeout(()=>{
+      window.addEventListener('click',close as EventListener);
+      window.addEventListener('keydown',close as EventListener);
+    },0);
+    return()=>{window.clearTimeout(id);window.removeEventListener('click',close as EventListener);window.removeEventListener('keydown',close as EventListener);};
+  },[detailStatusOpen]);
 
   // 외부 클릭 시 드롭다운 닫기
   useEffect(()=>{
@@ -371,15 +404,97 @@ const QTaskPage:React.FC=()=>{
     });
   };
 
-  // 업무 상세 로드
+  // 업무 상세 로드 + 워크플로우 병렬
+  const loadWorkflow=useCallback(async(taskId:number)=>{
+    try{
+      const r=await(await apiFetch(`/api/tasks/${taskId}/workflow`)).json();
+      if(r.success){
+        setReviewers(r.data.reviewers||[]);
+        setHistory(r.data.history||[]);
+        setReviewPolicy(r.data.task?.review_policy||'all');
+        setReviewRound(r.data.task?.review_round||0);
+      }
+    }catch{}
+  },[]);
   const openDetail=async(taskId:number)=>{
     setDetailTaskId(taskId);
+    setRevisionOpenForId(null);setRevisionNote('');setAddReviewerOpen(false);setHistoryExpanded(false);
+    try{
+      const [dr]=await Promise.all([
+        apiFetch(`/api/tasks/${taskId}/detail`).then(r=>r.json()),
+        loadWorkflow(taskId),
+      ]);
+      if(dr.success)setDetailTask(dr.data);
+    }catch{}
+  };
+  const closeDetail=()=>{
+    setDetailTaskId(null);setDetailTask(null);setNewComment('');
+    setReviewers([]);setHistory([]);setRevisionOpenForId(null);setRevisionNote('');
+    setAddReviewerOpen(false);setPendingReviewerAdd(null);setHistoryExpanded(false);
+  };
+
+  // ── 워크플로우 액션 ──
+  const refreshAfterAction=async(taskId:number)=>{
+    await loadWorkflow(taskId);
     try{
       const r=await(await apiFetch(`/api/tasks/${taskId}/detail`)).json();
       if(r.success)setDetailTask(r.data);
     }catch{}
+    // 리스트에도 반영
+    try{
+      const r=await(await apiFetch(`/api/projects/workspace/${bizId}/all-tasks`)).json();
+      if(r.success)setAllTasks(r.data||[]);
+    }catch{}
   };
-  const closeDetail=()=>{setDetailTaskId(null);setDetailTask(null);setNewComment('');};
+  const callAction=async(path:string,method:'POST'|'DELETE'|'PATCH'='POST',body?:unknown)=>{
+    if(!detailTaskId||actionBusy)return;
+    setActionBusy(true);
+    try{
+      const opts:RequestInit={method};
+      if(body){opts.headers={'Content-Type':'application/json'};opts.body=JSON.stringify(body);}
+      const r=await(await apiFetch(`/api/tasks/${detailTaskId}${path}`,opts)).json();
+      if(r.success)await refreshAfterAction(detailTaskId);
+      return r;
+    }finally{setActionBusy(false);}
+  };
+  const actAck=()=>callAction('/ack');
+  const actSubmitReview=()=>callAction('/submit-review');
+  const actCancelReview=()=>callAction('/cancel-review');
+  const actComplete=()=>callAction('/complete');
+  const actStart=async()=>{
+    if(!detailTaskId||actionBusy)return;
+    setActionBusy(true);
+    try{
+      await apiFetch(`/api/tasks/by-business/${bizId}/${detailTaskId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:'in_progress'})});
+      await refreshAfterAction(detailTaskId);
+    }finally{setActionBusy(false);}
+  };
+  const actApprove=()=>callAction('/reviewers/me/approve');
+  const actRevert=()=>callAction('/reviewers/me/revert');
+  const submitRevision=async()=>{
+    const note=revisionNote.trim();
+    if(!note)return;
+    const r=await callAction('/reviewers/me/revision','POST',{note});
+    if(r?.success){setRevisionOpenForId(null);setRevisionNote('');}
+  };
+  const addReviewer=async(userId:number)=>{
+    const inActiveRound=detailTask&&(detailTask.status==='reviewing'||detailTask.status==='revision_requested');
+    if(inActiveRound){setPendingReviewerAdd(userId);return;}
+    await callAction('/reviewers','POST',{user_id:userId});
+    setAddReviewerOpen(false);
+  };
+  const confirmAddReviewer=async()=>{
+    if(!pendingReviewerAdd)return;
+    await callAction('/reviewers','POST',{user_id:pendingReviewerAdd});
+    setPendingReviewerAdd(null);setAddReviewerOpen(false);
+  };
+  const removeReviewer=async(userId:number)=>{
+    await callAction(`/reviewers/${userId}`,'DELETE');
+  };
+  const changePolicy=async(p:'all'|'any')=>{
+    if(p===reviewPolicy)return;
+    await callAction('/policy','PATCH',{review_policy:p});
+  };
 
   const addComment=async()=>{
     if(!newComment.trim()||!detailTaskId)return;
@@ -408,7 +523,21 @@ const QTaskPage:React.FC=()=>{
     }catch{}
   };
 
-  const ALL_STATUSES:string[]=STATUS_CODES.filter(s=>s!=='task_requested');
+  // 업무 종류별 선택 가능한 단계 목록
+  const statusOptionsFor=(task:{source?:string}):string[]=>{
+    const isReq=task.source==='internal_request'||task.source==='qtalk_extract';
+    if(isReq)return ['not_started','waiting','in_progress','reviewing','revision_requested','done_feedback','completed','canceled'];
+    // 일반 업무 — waiting 제외
+    return ['not_started','in_progress','reviewing','revision_requested','done_feedback','completed','canceled'];
+  };
+  // 드롭다운 옵션 라벨 — not_started 가 요청 업무면 task_requested 라벨 사용
+  const optionLabel=(task:{source?:string;request_ack_at?:string|null},status:string,role:string):string=>{
+    const isReq=task.source==='internal_request'||task.source==='qtalk_extract';
+    if(status==='not_started'&&isReq&&!task.request_ack_at){
+      return t(`status.task_requested.${role}`,t('status.task_requested.observer','업무요청')) as string;
+    }
+    return t(`status.${status}.${role}`,t(`status.${status}.observer`,status)) as string;
+  };
 
   const changeStatus=async(taskId:number,newStatus:string)=>{
     try{
@@ -451,33 +580,33 @@ const QTaskPage:React.FC=()=>{
       if(assigneeFilter!=null)list=list.filter(t=>t.assignee_id===assigneeFilter);
     }else{
       if(tab==='week'){
-        // 이번 주 내 업무 = "지금 행동 필요" 인 것만 (역할별)
-        //   담당자 : task_requested / waiting / in_progress / revision_requested / done_feedback
-        //   컨펌자 : reviewing 상태 + 내 reviewer state=pending (실시간 데이터 없으면 단순히 reviewing 포함)
+        // 이번 주 내 업무 = "지금 내가 행동해야" 하는 것
         list=list.filter(t=>{
           const ds=displayStatus(t,todayStr);
-          // 담당자 행동 필요
+          // 담당자 행동 필요 (요청 받은 업무 + 일반 업무 공통)
           if(t.assignee_id===myId){
             if(['task_requested','waiting','in_progress','revision_requested','done_feedback'].includes(ds))return true;
           }
-          // 컨펌자 행동 필요 — reviewers 정보가 목록에 없을 수 있음 (별도 fetch 필요)
-          // 우선은 reviewing 상태의 업무 중 내가 컨펌자 후보일 때 포함
-          // TODO: task.reviewers include 필요 — 백엔드 list API 확장
+          // 컨펌자 행동 필요 — 내가 리뷰어(pending) + 업무가 reviewing/revision_requested
+          const myRev=t.reviewers?.find(rv=>rv.user_id===myId);
+          if(myRev&&myRev.state==='pending'&&(t.status==='reviewing'||t.status==='revision_requested'))return true;
           return false;
         });
       }
-      if(tab==='all')list=list.filter(t=>t.assignee_id===myId);  // 향후 reviewer=me 도 합칠 예정
+      if(tab==='all')list=list.filter(t=>t.assignee_id===myId||(t.reviewers||[]).some(rv=>rv.user_id===myId));
       if(tab==='requested')list=list.filter(t=>(t.request_by_user_id===myId)||(t.created_by===myId&&t.assignee_id!=null&&t.assignee_id!==myId));
     }
     if(search){const q=search.toLowerCase();list=list.filter(t=>t.title.toLowerCase().includes(q)||(t.Project?.name||'').toLowerCase().includes(q));}
     if(statusFilter)list=list.filter(t=>t.status===statusFilter);
     if(hideCompleted)list=list.filter(t=>t.status!=='completed'&&t.status!=='canceled');
 
-    // Sort
+    // Sort — nulls-last 원칙 (비어있는 값은 방향 무관하게 맨 아래)
     list=[...list].sort((a,b)=>{
-      let va:unknown=a[sortKey],vb:unknown=b[sortKey];
-      if(va==null)va=sortDir==='asc'?Infinity:-Infinity;
-      if(vb==null)vb=sortDir==='asc'?Infinity:-Infinity;
+      const va=a[sortKey];const vb=b[sortKey];
+      const aNull=va==null||va===''; const bNull=vb==null||vb==='';
+      if(aNull&&bNull)return 0;
+      if(aNull)return 1;
+      if(bNull)return -1;
       if(typeof va==='string'&&typeof vb==='string')return sortDir==='asc'?va.localeCompare(vb):vb.localeCompare(va);
       return sortDir==='asc'?(Number(va)-Number(vb)):(Number(vb)-Number(va));
     });
@@ -680,12 +809,6 @@ const QTaskPage:React.FC=()=>{
           <ColRow>
             <Col $w="30px" $center onClick={()=>handleSort('priority_order')}>#{sortIcon('priority_order')}</Col>
             <Col $w="80px" $hideBelow={640} onClick={()=>handleSort('title')}>{t('col.project','Project')}</Col>
-            {(scope==='workspace'||tab==='requested')&&(
-              <Col $w="90px" $hideBelow={540}>{t('col.assignee','담당자')}</Col>
-            )}
-            {scope==='mine'&&(tab==='week'||tab==='all')&&filtered.some(t2=>t2.source==='internal_request'||t2.source==='qtalk_extract')&&(
-              <Col $w="90px" $hideBelow={540}>{t('col.requester','요청자')}</Col>
-            )}
             <Col $flex onClick={()=>handleSort('title')}>{t('col.task','Task')} {sortIcon('title')}</Col>
             <Col $w="68px" $center onClick={()=>handleSort('status')}>{t('col.status','Status')} {sortIcon('status')}</Col>
             <Col $w="48px" $center $hideBelow={900} onClick={()=>handleSort('estimated_hours')}>{t('col.est','Est(h)')} {sortIcon('estimated_hours')}</Col>
@@ -707,7 +830,7 @@ const QTaskPage:React.FC=()=>{
                 const isDelayed=task.due_date&&task.due_date.slice(0,10)<today&&task.status!=='completed'&&task.status!=='canceled';
 
                 return(
-                  <TRow key={task.id} $done={task.status==='completed'} $delayed={!!isDelayed}>
+                  <TRow key={task.id} $done={task.status==='completed'} $delayed={!!isDelayed} $selected={detailTaskId===task.id}>
                     <TCell $w="30px" $center>
                       <PrioNum $active={!!task.priority_order} $disabled={task.status==='completed'||task.status==='canceled'}
                         onClick={e=>{e.stopPropagation();if(task.status!=='completed'&&task.status!=='canceled')togglePriority(task.id);}}>
@@ -717,24 +840,6 @@ const QTaskPage:React.FC=()=>{
                     <TCell $w="80px" $hideBelow={640}>
                       <ProjLabel>{task.Project?.name||'-'}</ProjLabel>
                     </TCell>
-                    {(scope==='workspace'||tab==='requested')&&(
-                      <TCell $w="90px" $hideBelow={540}>
-                        <AssigneeChip title={task.assignee?.name||''}>
-                          {task.assignee?.name||'-'}
-                        </AssigneeChip>
-                      </TCell>
-                    )}
-                    {scope==='mine'&&(tab==='week'||tab==='all')&&filtered.some(t2=>t2.source==='internal_request'||t2.source==='qtalk_extract')&&(
-                      <TCell $w="90px" $hideBelow={540}>
-                        {(task.source==='internal_request'||task.source==='qtalk_extract')?(
-                          <RequesterChip $client={task.source==='qtalk_extract'} title={task.requester?.name||''}>
-                            {task.requester?.name||'-'}
-                          </RequesterChip>
-                        ):(
-                          <span style={{color:'#CBD5E1',fontSize:11}}>—</span>
-                        )}
-                      </TCell>
-                    )}
                     <TCell $flex>
                       <TaskCheck type="checkbox" checked={task.status==='completed'} onChange={()=>toggleComplete(task)} />
                       {isEditing?(
@@ -743,23 +848,41 @@ const QTaskPage:React.FC=()=>{
                           onKeyDown={e=>{if(e.key==='Enter')(e.target as HTMLInputElement).blur();if(e.key==='Escape')setEditingTitle(null);}} />
                       ):(<>
                         <TaskTitle $done={task.status==='completed'} onClick={()=>{setEditingTitle(task.id);setTitleDraft(task.title);}}>{task.title}</TaskTitle>
+                        {(() => {
+                          // 내가 받은 요청 → 요청자 (로즈)
+                          if(task.assignee_id===myId&&(task.source==='internal_request'||task.source==='qtalk_extract')&&task.requester?.name){
+                            return <NameChip $type="from" title={t('chip.fromRequester','Requester') as string}>{task.requester.name}</NameChip>;
+                          }
+                          // 내가 보낸 요청 → 담당자 (티일)
+                          if((task.request_by_user_id===myId||task.created_by===myId)&&task.assignee?.name&&task.assignee_id!==myId){
+                            return <NameChip $type="to" title={t('chip.toAssignee','My requestee') as string}>{task.assignee.name}</NameChip>;
+                          }
+                          // 타인 담당 업무 → 담당자 (그레이, 워크스페이스 뷰)
+                          if(task.assignee?.name&&task.assignee_id!==myId){
+                            return <NameChip $type="observer" title={t('chip.assignee','Assignee') as string}>{task.assignee.name}</NameChip>;
+                          }
+                          return null;
+                        })()}
                         {isDelayed&&<DelayBadge>{t('status.delayed','Delayed')}</DelayBadge>}
-                        <DetailBtn onClick={e=>{e.stopPropagation();openDetail(task.id);}} title={t('detail.open','Open detail')}>
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+                        <DetailBtn
+                          $active={detailTaskId===task.id}
+                          onClick={e=>{e.stopPropagation();if(detailTaskId===task.id)closeDetail();else openDetail(task.id);}}
+                          title={t('detail.open','Open detail')}>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="9 18 15 12 9 6"/></svg>
                         </DetailBtn>
                       </>)}
                     </TCell>
-                    <TCell $w="68px" $center style={{position:'relative'}}>
+                    <TCell $w="68px" $center style={{position:'relative',overflow:'visible'}}>
                       <StatusPill $bg={sc.bg} $fg={sc.fg} $clickable
                         onClick={e=>{e.stopPropagation();setStatusDropdownId(statusDropdownId===task.id?null:task.id);}}
                         title={t('list.statusHint','클릭하면 단계 선택')}
                       >{_statusLabel}</StatusPill>
                       {statusDropdownId===task.id&&(
                         <StatusDropdown data-dropdown="status">
-                          {ALL_STATUSES.map(s=>{const c=STATUS_COLOR[s as StatusCode]||STATUS_COLOR.not_started;return(
+                          {statusOptionsFor(task).map(s=>{const c=STATUS_COLOR[s as StatusCode]||STATUS_COLOR.not_started;return(
                             <StatusOption key={s} $bg={c.bg} $fg={c.fg} $active={task.status===s}
                               onClick={e=>{e.stopPropagation();changeStatus(task.id,s);setStatusDropdownId(null);}}
-                            >{t(`status.${s}.observer`,s)}</StatusOption>
+                            >{optionLabel(task,s,_role)}</StatusOption>
                           );})}
                         </StatusDropdown>
                       )}
@@ -880,23 +1003,31 @@ const QTaskPage:React.FC=()=>{
                         {items.map(task=>{
                           const prog=task.progress_percent||0;
                           const isDelayed=task.due_date&&task.due_date.slice(0,10)<todayStr&&task.status!=='completed'&&task.status!=='canceled';
-                          const showRequester=(task.source==='internal_request'||task.source==='qtalk_extract');
                           const myRole=primaryPerspective(getRoles(task,myId));
                           return (
-                            <KanbanCard key={task.id} $delayed={!!isDelayed} $done={task.status==='completed'} onClick={()=>openDetail(task.id)}>
+                            <KanbanCard key={task.id} $delayed={!!isDelayed} $done={task.status==='completed'} $selected={detailTaskId===task.id} onClick={()=>openDetail(task.id)}>
+                              {isDelayed&&<KanbanDelayBadge>{t('status.delayed','Delayed')}</KanbanDelayBadge>}
                               {task.Project?.name&&<KanbanProject>{task.Project.name}</KanbanProject>}
-                              <KanbanTitle>{task.title}</KanbanTitle>
+                              <KanbanTitle>
+                                {task.title}
+                                {(() => {
+                                  if(task.assignee_id===myId&&(task.source==='internal_request'||task.source==='qtalk_extract')&&task.requester?.name){
+                                    return <NameChip $type="from">{task.requester.name}</NameChip>;
+                                  }
+                                  if((task.request_by_user_id===myId||task.created_by===myId)&&task.assignee?.name&&task.assignee_id!==myId){
+                                    return <NameChip $type="to">{task.assignee.name}</NameChip>;
+                                  }
+                                  if(task.assignee?.name&&task.assignee_id!==myId){
+                                    return <NameChip $type="observer">{task.assignee.name}</NameChip>;
+                                  }
+                                  return null;
+                                })()}
+                              </KanbanTitle>
                               <KanbanRoleRow>
                                 <KanbanRoleBadge $role={myRole}>{t(`roleBadge.${myRole}`,myRole)}</KanbanRoleBadge>
                                 <KanbanStatusText>{getStatusLabel(task,myRole,todayStr,(k,f)=>t(k,f||k))}</KanbanStatusText>
                               </KanbanRoleRow>
                               <KanbanMeta>
-                                {showRequester&&task.requester&&(
-                                  <RequesterChip $client={task.source==='qtalk_extract'}>{task.requester.name}</RequesterChip>
-                                )}
-                                {(scope==='workspace'||tab==='requested')&&task.assignee&&(
-                                  <AssigneeChip>{task.assignee.name}</AssigneeChip>
-                                )}
                                 {task.due_date&&(
                                   <KanbanDue $overdue={!!isDelayed}>{task.due_date.slice(5,10).replace('-','/')}</KanbanDue>
                                 )}
@@ -996,20 +1127,179 @@ const QTaskPage:React.FC=()=>{
             </CollapseBtn>
           </RightHeader>
           <RightScroll>
-            {detailTask?(<>
+            {detailTask?(()=>{
+              const myRoles=getRoles({assignee_id:detailTask.assignee_id,created_by:detailTask.created_by,request_by_user_id:detailTask.request_by_user_id,reviewers:reviewers.map(rv=>({user_id:rv.user_id}))},myId);
+              const iAmAssignee=myRoles.includes('assignee');
+              const iAmReviewer=myRoles.includes('reviewer');
+              const iAmRequesterOrOwner=myRoles.includes('requester');
+              const myReviewer=reviewers.find(rv=>rv.user_id===myId);
+              const dStatus=displayStatus(detailTask,todayStr);
+              const sc=STATUS_COLOR[dStatus];
+              const statusLabel=getStatusLabel(detailTask,primaryPerspective(myRoles),todayStr,(k,f)=>t(k,f||'') as string);
+              const ackAvailable=iAmAssignee&&dStatus==='task_requested';
+              // 수정필요 + 리뷰어 0명: 진행 재개 (in_progress 로) 경로 제공
+              const resumeFromRevision=iAmAssignee&&detailTask.status==='revision_requested'&&reviewers.length===0;
+              const startAvailable=iAmAssignee&&!ackAvailable&&(detailTask.status==='not_started'||detailTask.status==='waiting'||resumeFromRevision);
+              const submitAvailable=iAmAssignee&&reviewers.length>0&&(detailTask.status==='in_progress'||detailTask.status==='revision_requested');
+              const cancelReviewAvailable=iAmAssignee&&detailTask.status==='reviewing';
+              const completeSimple=iAmAssignee&&reviewers.length===0&&detailTask.status==='in_progress';
+              const completeFinal=iAmAssignee&&detailTask.status==='done_feedback';
+              const assigneeHasAction=ackAvailable||startAvailable||submitAvailable||cancelReviewAvailable||completeSimple||completeFinal||(detailTask.status==='reviewing'&&reviewers.length>0&&reviewPolicy==='all');
+              const reviewerCanAct=iAmReviewer&&(detailTask.status==='reviewing'||detailTask.status==='revision_requested');
+              const approvedCount=reviewers.filter(rv=>rv.state==='approved').length;
+              const canAddReviewer=iAmAssignee||iAmRequesterOrOwner;
+              const memberOptions=members.filter(m=>m.user_id!==detailTask.assignee_id&&!reviewers.some(rv=>rv.user_id===m.user_id));
+              const historyToShow=historyExpanded?history:history.slice(-5);
+              return(<>
               <RSection>
                 <DetailTitle>{detailTask.title}</DetailTitle>
                 <DetailMeta>
+                  <StatusBadgeWrap>
+                    <StatusBadge
+                      as="button"
+                      $bg={sc.bg} $fg={sc.fg}
+                      onClick={e=>{e.stopPropagation();setDetailStatusOpen(v=>!v);}}
+                      title={t('list.statusHint','Click to change status') as string}>
+                      {statusLabel} ▾
+                    </StatusBadge>
+                    {detailTask.review_round!=null&&detailTask.review_round>0&&(detailTask.status==='reviewing'||detailTask.status==='revision_requested'||detailTask.status==='done_feedback')&&
+                      <RoundBadge title={t('detail.reviewers.roundTip','Review round') as string}>R{detailTask.review_round}</RoundBadge>}
+                    {detailStatusOpen&&(
+                      <StatusDropdown data-dropdown="status-detail" style={{left:0,transform:'none',minWidth:140}}>
+                        {statusOptionsFor(detailTask).map(s=>{const c=STATUS_COLOR[s as StatusCode]||STATUS_COLOR.not_started;const role=primaryPerspective(myRoles);return(
+                          <StatusOption key={s} $bg={c.bg} $fg={c.fg} $active={detailTask.status===s}
+                            onClick={async e=>{e.stopPropagation();setDetailStatusOpen(false);await changeStatus(detailTask.id,s);await refreshAfterAction(detailTask.id);}}
+                          >{optionLabel(detailTask,s,role)}</StatusOption>
+                        );})}
+                      </StatusDropdown>
+                    )}
+                  </StatusBadgeWrap>
                   {detailTask.Project?.name&&<IProjTag>{detailTask.Project.name}</IProjTag>}
                   {detailTask.assignee?.name&&<span>{detailTask.assignee.name}</span>}
                   {detailTask.due_date&&<span>{detailTask.due_date.slice(0,10)}</span>}
                 </DetailMeta>
               </RSection>
+
+              {/* ── 내 액션 카드 ── */}
+              {(assigneeHasAction||reviewerCanAct)&&<RSection>
+                {assigneeHasAction&&<ActionCard>
+                  <ActionCardTitle>{t('detail.actions.assigneeTitle','As assignee')}</ActionCardTitle>
+                  {ackAvailable&&<ActionPrimary $fill={STATUS_COLOR.waiting.fg} onClick={actAck} disabled={actionBusy}>{t('detail.actions.ack','Acknowledge request')}</ActionPrimary>}
+                  {startAvailable&&<ActionPrimary $fill={STATUS_COLOR.in_progress.fg} onClick={actStart} disabled={actionBusy}>{resumeFromRevision?t('detail.actions.resume','Resume work'):t('detail.actions.start','Start working')}</ActionPrimary>}
+                  {submitAvailable&&<ActionPrimary $fill={STATUS_COLOR.reviewing.fg} onClick={actSubmitReview} disabled={actionBusy}>{detailTask.status==='revision_requested'?t('detail.actions.resubmitReview','Resubmit after revision'):t('detail.actions.submitReview','Submit for review')}</ActionPrimary>}
+                  {cancelReviewAvailable&&<ActionPrimary $fill={STATUS_COLOR.in_progress.fg} onClick={actCancelReview} disabled={actionBusy}>{t('detail.actions.cancelReview','Cancel review request')}</ActionPrimary>}
+                  {completeSimple&&<ActionPrimary $fill={STATUS_COLOR.completed.fg} onClick={actComplete} disabled={actionBusy}>{t('detail.actions.completeSimple','Mark complete')}</ActionPrimary>}
+                  {completeFinal&&<ActionPrimary $fill={STATUS_COLOR.completed.fg} onClick={actComplete} disabled={actionBusy}>{t('detail.actions.complete','Finalize')}</ActionPrimary>}
+                  {detailTask.status==='reviewing'&&reviewers.length>0&&reviewPolicy==='all'&&<ActionHint>
+                    <ReviewProgressTrack><ReviewProgressFill $w={(approvedCount/reviewers.length)*100}/></ReviewProgressTrack>
+                    <ReviewProgressText>{t('detail.actions.approvedOf','{{n}} of {{total}} approved',{n:approvedCount,total:reviewers.length})}</ReviewProgressText>
+                  </ActionHint>}
+                </ActionCard>}
+                {reviewerCanAct&&<ActionCard>
+                  <ActionCardTitle>{t('detail.actions.reviewerTitle','My actions (reviewer)')}</ActionCardTitle>
+                  {myReviewer?.state==='pending'&&<>
+                    <ActionPrimary $fill={STATUS_COLOR.done_feedback.fg} onClick={actApprove} disabled={actionBusy}>{t('detail.actions.approve','Approve')}</ActionPrimary>
+                    {revisionOpenForId===detailTaskId?(
+                      <RevisionForm>
+                        <RevisionInput
+                          placeholder={t('detail.actions.revisionPlaceholder','What needs to change? (required)')}
+                          value={revisionNote}
+                          onChange={e=>setRevisionNote(e.target.value)}
+                          autoFocus />
+                        <RevisionRow>
+                          <ActionSecondary onClick={()=>{setRevisionOpenForId(null);setRevisionNote('');}}>{t('common.cancel','Cancel')}</ActionSecondary>
+                          <ActionPrimary $fill={STATUS_COLOR.revision_requested.fg} onClick={submitRevision} disabled={actionBusy||!revisionNote.trim()}>{t('detail.actions.submitRevision','Send revision')}</ActionPrimary>
+                        </RevisionRow>
+                      </RevisionForm>
+                    ):(
+                      <ActionPrimary $fill={STATUS_COLOR.revision_requested.fg} onClick={()=>setRevisionOpenForId(detailTaskId)} disabled={actionBusy}>{t('detail.actions.requestRevision','Request revision')}</ActionPrimary>
+                    )}
+                  </>}
+                  {myReviewer&&myReviewer.state!=='pending'&&<>
+                    <ActionHintRow>
+                      <span>{myReviewer.state==='approved'?t('detail.actions.youApproved','You approved this round.'):t('detail.actions.youRequestedRevision','You requested revision.')}</span>
+                      {!myReviewer.reverted_once&&<TextLink onClick={actRevert} disabled={actionBusy}>{t('detail.actions.revert','Undo my decision')}</TextLink>}
+                      {myReviewer.reverted_once&&<MutedText title={t('detail.actions.revertUsed','You already used revert this round.') as string}>{t('detail.actions.revertDisabled','Revert used')}</MutedText>}
+                    </ActionHintRow>
+                  </>}
+                </ActionCard>}
+              </RSection>}
+
               <RSection>
                 <RSTitle>{t('detail.description','Description')}</RSTitle>
                 <DescTextarea defaultValue={detailTask.description||''} placeholder={t('detail.descPlaceholder','Add description...')}
                   onBlur={e=>saveTaskField(detailTask.id,'description',e.target.value)} />
               </RSection>
+
+              {/* ── 컨펌자 + 정책 ── */}
+              <RSection>
+                <RSTitleRow>
+                  <RSTitle>{t('detail.reviewers.title','Reviewers')} ({reviewers.length})</RSTitle>
+                  {canAddReviewer&&reviewers.length>0&&<PolicySeg>
+                    <PolicySegBtn $active={reviewPolicy==='all'} onClick={()=>changePolicy('all')} disabled={actionBusy}>{t('detail.reviewers.policyAll','All')}</PolicySegBtn>
+                    <PolicySegBtn $active={reviewPolicy==='any'} onClick={()=>changePolicy('any')} disabled={actionBusy}>{t('detail.reviewers.policyAny','Any 1')}</PolicySegBtn>
+                  </PolicySeg>}
+                </RSTitleRow>
+                {reviewers.length===0?(
+                  <EmptyChart>{t('detail.reviewers.empty','No reviewers yet')}</EmptyChart>
+                ):(
+                  <ReviewerList>
+                    {reviewers.map(rv=>(
+                      <ReviewerRowE key={rv.id}>
+                        <ReviewerName>{rv.user?.name||`user ${rv.user_id}`}</ReviewerName>
+                        <ReviewerState $state={rv.state}>{t(`detail.reviewers.state.${rv.state}`,rv.state)}</ReviewerState>
+                        {canAddReviewer&&<ReviewerRemove onClick={()=>removeReviewer(rv.user_id)} disabled={actionBusy} title={t('detail.reviewers.remove','Remove') as string}>×</ReviewerRemove>}
+                      </ReviewerRowE>
+                    ))}
+                  </ReviewerList>
+                )}
+                {canAddReviewer&&(addReviewerOpen?(
+                  <AddReviewerBox>
+                    {memberOptions.length===0?<MutedText>{t('detail.reviewers.noCandidates','No members to add')}</MutedText>:(
+                      <AddReviewerList>
+                        {memberOptions.map(m=>(
+                          <AddReviewerItem key={m.user_id} onClick={()=>addReviewer(m.user_id)} disabled={actionBusy}>{m.name}</AddReviewerItem>
+                        ))}
+                      </AddReviewerList>
+                    )}
+                    <ActionSecondary onClick={()=>setAddReviewerOpen(false)}>{t('common.cancel','Cancel')}</ActionSecondary>
+                  </AddReviewerBox>
+                ):(
+                  <ActionSecondary onClick={()=>setAddReviewerOpen(true)} disabled={actionBusy}>+ {t('detail.reviewers.add','Add reviewer')}</ActionSecondary>
+                ))}
+                {pendingReviewerAdd&&<WarnDialog>
+                  <WarnTitle>{t('detail.reviewers.warnTitle','Reset current review round?')}</WarnTitle>
+                  <WarnBody>{t('detail.reviewers.warnBody','Adding a reviewer during an active round resets all reviewers to pending. Previous approvals will need to be re-confirmed.')}</WarnBody>
+                  <WarnRow>
+                    <ActionSecondary onClick={()=>setPendingReviewerAdd(null)}>{t('common.cancel','Cancel')}</ActionSecondary>
+                    <ActionPrimary onClick={confirmAddReviewer} disabled={actionBusy}>{t('detail.reviewers.warnConfirm','Add and reset')}</ActionPrimary>
+                  </WarnRow>
+                </WarnDialog>}
+              </RSection>
+
+              {/* ── 히스토리 타임라인 ── */}
+              {history.length>0&&<RSection>
+                <RSTitle>{t('detail.history.title','History')} ({history.length})</RSTitle>
+                {!historyExpanded&&history.length>5&&<TextLink onClick={()=>setHistoryExpanded(true)}>{t('detail.history.showAll','Show all')}</TextLink>}
+                <Timeline>
+                  {historyToShow.map(h=>(
+                    <TimelineItem key={h.id}>
+                      <TimelineDot $event={h.event_type}/>
+                      <TimelineBody>
+                        <TimelineHead>
+                          <strong>{h.actor?.name||'—'}</strong>
+                          <TimelineEvent>{t(`detail.history.event.${h.event_type}`,h.event_type)}</TimelineEvent>
+                          {h.target?.name&&<TimelineTarget>→ {h.target.name}</TimelineTarget>}
+                          {h.round!=null&&<TimelineRound>R{h.round}</TimelineRound>}
+                        </TimelineHead>
+                        {h.note&&<TimelineNote>{h.note}</TimelineNote>}
+                        <TimelineTime>{h.createdAt?.slice(5,16).replace('T',' ')}</TimelineTime>
+                      </TimelineBody>
+                    </TimelineItem>
+                  ))}
+                </Timeline>
+              </RSection>}
+
               <RSection>
                 <RSTitle>{t('detail.dailyLog','Daily Log')}</RSTitle>
                 {(detailTask.daily_progress||[]).length===0?<EmptyChart>{t('detail.noLog','No records yet')}</EmptyChart>:(
@@ -1051,7 +1341,7 @@ const QTaskPage:React.FC=()=>{
                   <CommentSend onClick={addComment} disabled={!newComment.trim()}>{t('detail.send','Send')}</CommentSend>
                 </CommentComposer>
               </RSection>
-            </>):<EmptyChart>Loading...</EmptyChart>}
+            </>);})():<EmptyChart>Loading...</EmptyChart>}
           </RightScroll>
         </RightPanel>
       ):(
@@ -1225,7 +1515,7 @@ const Col=styled.span<{$w?:string;$flex?:boolean;$center?:boolean;$hideBelow?:nu
 `;
 
 
-const TRow=styled.div<{$done?:boolean;$delayed?:boolean}>`display:flex;align-items:center;gap:6px;padding:7px 14px;border-bottom:1px solid #F8FAFC;opacity:${p=>p.$done?0.45:1};${p=>p.$delayed&&!p.$done?'background:#FEF2F2;box-shadow:inset 3px 0 0 #DC2626;':''}&:hover{background:${p=>p.$delayed&&!p.$done?'#FEE2E2':'#FAFBFC'};}`;
+const TRow=styled.div<{$done?:boolean;$delayed?:boolean;$selected?:boolean}>`display:flex;align-items:center;gap:6px;padding:7px 14px;border-bottom:1px solid #F8FAFC;opacity:${p=>p.$done?0.45:1};${p=>p.$selected?'background:#FFF1F2;box-shadow:inset 3px 0 0 #F43F5E;':p.$delayed&&!p.$done?'box-shadow:inset 3px 0 0 #DC2626;':''}&:hover{background:${p=>p.$selected?'#FFE4E6':p.$delayed&&!p.$done?'#FEF2F2':'#FAFBFC'};}`;
 const TCell=styled.div<{$w?:string;$flex?:boolean;$center?:boolean;$hideBelow?:number}>`
   box-sizing:border-box;
   ${p=>p.$flex
@@ -1311,17 +1601,19 @@ const KanbanColumn=styled.div`display:flex;flex-direction:column;gap:8px;min-wid
 const KanbanColHeader=styled.div`display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-radius:8px;font-size:12px;font-weight:700;`;
 const KanbanCount=styled.span`font-size:11px;font-weight:600;opacity:0.8;`;
 const KanbanColBody=styled.div`display:flex;flex-direction:column;gap:8px;min-height:40px;`;
-const KanbanCard=styled.div<{$delayed?:boolean;$done?:boolean}>`
+const KanbanCard=styled.div<{$delayed?:boolean;$done?:boolean;$selected?:boolean}>`
+  position:relative;
   background:#FFFFFF;
-  border:1px solid #E2E8F0;
+  border:1px solid ${p=>p.$selected?'#F43F5E':'#E2E8F0'};
   border-radius:8px;
   padding:10px 12px;
   cursor:pointer;
-  transition:box-shadow 0.15s,border-color 0.15s,transform 0.15s;
+  transition:box-shadow 0.15s,border-color 0.15s;
   opacity:${p=>p.$done?0.6:1};
-  ${p=>p.$delayed&&!p.$done?'box-shadow:inset 3px 0 0 #DC2626;':''}
-  &:hover{box-shadow:0 4px 12px rgba(15,23,42,0.08);border-color:#CBD5E1;transform:translateY(-1px);}
+  ${p=>p.$selected?'box-shadow:inset 3px 0 0 #F43F5E;':''}
+  &:hover{box-shadow:${p=>p.$selected?'inset 3px 0 0 #F43F5E,0 4px 12px rgba(244,63,94,0.12)':'0 4px 12px rgba(15,23,42,0.08)'};border-color:${p=>p.$selected?'#F43F5E':'#CBD5E1'};}
 `;
+const KanbanDelayBadge=styled.span`position:absolute;top:6px;right:8px;padding:1px 6px;font-size:9px;font-weight:700;color:#B91C1C;background:#FEE2E2;border-radius:4px;letter-spacing:0.3px;`;
 const KanbanProject=styled.div`font-size:10px;font-weight:600;color:#64748B;text-transform:uppercase;letter-spacing:0.3px;margin-bottom:4px;`;
 const KanbanTitle=styled.div`font-size:13px;font-weight:600;color:#0F172A;line-height:1.4;margin-bottom:8px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;`;
 const KanbanMeta=styled.div`display:flex;flex-wrap:wrap;gap:4px;align-items:center;`;
@@ -1349,8 +1641,11 @@ const KanbanEmptyBoard=styled.div`
   border-radius:12px;
 `;
 const ScopeBtn=styled.button<{$active:boolean}>`padding:6px 14px;font-size:13px;font-weight:600;background:${p=>p.$active?'#FFFFFF':'transparent'};color:${p=>p.$active?'#0F766E':'#64748B'};border:none;border-radius:6px;cursor:pointer;box-shadow:${p=>p.$active?'0 1px 2px rgba(0,0,0,0.06)':'none'};transition:background 0.15s;&:hover{background:${p=>p.$active?'#FFFFFF':'#E2E8F0'};}`;
-const AssigneeChip=styled.span`display:inline-block;padding:2px 8px;font-size:11px;font-weight:600;color:#0F766E;background:#CCFBF1;border-radius:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;`;
-const RequesterChip=styled.span<{$client?:boolean}>`display:inline-block;padding:2px 8px;font-size:11px;font-weight:600;border-radius:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;color:${p=>p.$client?'#991B1B':'#BE123C'};background:${p=>p.$client?'#FECACA':'#FFE4E6'};`;
+const NameChip=styled.span<{$type:'from'|'to'|'observer'}>`
+  display:inline-block;margin-left:6px;padding:1px 7px;font-size:11px;font-weight:600;
+  border-radius:10px;white-space:nowrap;max-width:120px;overflow:hidden;text-overflow:ellipsis;vertical-align:middle;
+  ${p=>p.$type==='from'?'color:#BE123C;background:#FFE4E6;':p.$type==='to'?'color:#0F766E;background:#CCFBF1;':'color:#64748B;background:#F1F5F9;'}
+`;
 
 const BacklogSection=styled.div`margin:12px 14px;padding:12px;background:#FAFBFC;border:1px dashed #E2E8F0;border-radius:10px;`;
 const BacklogHeader=styled.div`font-size:12px;font-weight:700;color:#94A3B8;margin-bottom:8px;`;
@@ -1414,6 +1709,59 @@ const CandAddBtn=styled.button`margin-top:6px;padding:3px 10px;font-size:10px;fo
 // Period row (right panel)
 
 // Detail button on task row
-const DetailBtn=styled.button`display:flex;align-items:center;justify-content:center;width:20px;height:20px;background:transparent;border:none;border-radius:4px;color:#94A3B8;cursor:pointer;flex-shrink:0;&:hover{background:#F1F5F9;color:#0F766E;}`;
+const DetailBtn=styled.button<{$active?:boolean}>`display:flex;align-items:center;justify-content:center;width:28px;height:28px;background:${p=>p.$active?'#F43F5E':'transparent'};border:1px solid ${p=>p.$active?'#F43F5E':'transparent'};border-radius:6px;color:${p=>p.$active?'#FFF':'#94A3B8'};cursor:pointer;flex-shrink:0;transition:all 0.15s;&:hover{background:${p=>p.$active?'#E11D48':'#F1F5F9'};color:${p=>p.$active?'#FFF':'#0F766E'};border-color:${p=>p.$active?'#E11D48':'#E2E8F0'};}`;
 const IBody=styled.div`font-size:12px;color:#1E293B;line-height:1.4;`;
 const IMeta=styled.div`font-size:10px;color:#94A3B8;margin-top:2px;`;
+
+// ─── Phase C: 워크플로우 상세 UI ───
+const StatusBadge=styled.span<{$bg:string;$fg:string}>`display:inline-flex;align-items:center;gap:2px;padding:3px 10px;font-size:11px;font-weight:700;background:${p=>p.$bg};color:${p=>p.$fg};border:none;border-radius:10px;cursor:pointer;user-select:none;&:hover{filter:brightness(0.95);}`;
+const StatusBadgeWrap=styled.span`position:relative;display:inline-flex;align-items:center;gap:4px;`;
+const RoundBadge=styled.span`display:inline-flex;align-items:center;padding:2px 6px;font-size:10px;font-weight:800;color:#92400E;background:#FEF3C7;border-radius:6px;letter-spacing:0.3px;`;
+const ActionCard=styled.div`background:#F8FAFC;border:1px solid #E2E8F0;border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:8px;& + &{margin-top:8px;}`;
+const ActionCardTitle=styled.div`font-size:10px;font-weight:700;color:#64748B;text-transform:uppercase;letter-spacing:0.3px;`;
+const ActionPrimary=styled.button<{$fill?:string}>`padding:8px 12px;background:${p=>p.$fill||'#F43F5E'};color:#FFF;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;transition:filter 0.15s;&:disabled{background:#CBD5E1;cursor:not-allowed;}&:hover:not(:disabled){filter:brightness(1.08);}`;
+const ActionSecondary=styled.button`padding:7px 12px;background:#FFF;color:#334155;border:1px solid #CBD5E1;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;&:disabled{color:#CBD5E1;cursor:not-allowed;}&:hover:not(:disabled){border-color:#94A3B8;background:#F8FAFC;}`;
+const ActionHint=styled.div`display:flex;flex-direction:column;gap:4px;`;
+const ActionHintRow=styled.div`display:flex;align-items:center;gap:8px;font-size:12px;color:#475569;flex-wrap:wrap;`;
+const TextLink=styled.button`background:transparent;border:none;color:#0F766E;font-size:12px;font-weight:600;cursor:pointer;padding:0;text-decoration:underline;&:disabled{color:#CBD5E1;cursor:not-allowed;}&:hover:not(:disabled){color:#134E4A;}`;
+const MutedText=styled.span`font-size:11px;color:#94A3B8;`;
+const ReviewProgressTrack=styled.div`height:6px;background:#E2E8F0;border-radius:999px;overflow:hidden;`;
+const ReviewProgressFill=styled.div<{$w:number}>`height:100%;background:linear-gradient(90deg,#14B8A6,#0D9488);width:${p=>p.$w}%;transition:width 0.25s;`;
+const ReviewProgressText=styled.div`font-size:11px;color:#475569;font-weight:600;`;
+const RevisionForm=styled.div`display:flex;flex-direction:column;gap:6px;padding:8px;background:#FFF;border:1px solid #F43F5E;border-radius:8px;`;
+const RevisionInput=styled.textarea`width:100%;min-height:60px;padding:6px 8px;border:1px solid #E2E8F0;border-radius:6px;font-size:12px;color:#0F172A;resize:vertical;font-family:inherit;&:focus{outline:none;border-color:#F43F5E;}`;
+const RevisionRow=styled.div`display:flex;gap:6px;justify-content:flex-end;`;
+const RSTitleRow=styled.div`display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px;`;
+const PolicySeg=styled.div`display:inline-flex;background:#F1F5F9;border-radius:6px;padding:2px;`;
+const PolicySegBtn=styled.button<{$active:boolean}>`padding:3px 10px;font-size:11px;font-weight:600;border:none;border-radius:4px;cursor:pointer;background:${p=>p.$active?'#FFF':'transparent'};color:${p=>p.$active?'#0F766E':'#64748B'};box-shadow:${p=>p.$active?'0 1px 2px rgba(0,0,0,0.06)':'none'};&:disabled{cursor:not-allowed;opacity:0.5;}`;
+const ReviewerList=styled.div`display:flex;flex-direction:column;gap:4px;margin-bottom:6px;`;
+const ReviewerRowE=styled.div`display:flex;align-items:center;gap:8px;padding:6px 8px;background:#FFF;border:1px solid #E2E8F0;border-radius:6px;`;
+const ReviewerName=styled.span`flex:1;font-size:12px;color:#0F172A;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;`;
+const ReviewerState=styled.span<{$state:string}>`padding:1px 6px;font-size:10px;font-weight:700;border-radius:4px;${p=>p.$state==='approved'?'background:#D1FAE5;color:#065F46;':''}${p=>p.$state==='revision'?'background:#FCE7F3;color:#9F1239;':''}${p=>p.$state==='pending'?'background:#F1F5F9;color:#64748B;':''}`;
+const ReviewerRemove=styled.button`width:20px;height:20px;display:flex;align-items:center;justify-content:center;border:none;background:transparent;color:#94A3B8;border-radius:4px;cursor:pointer;font-size:14px;&:hover:not(:disabled){background:#FEE2E2;color:#DC2626;}&:disabled{cursor:not-allowed;opacity:0.5;}`;
+const AddReviewerBox=styled.div`display:flex;flex-direction:column;gap:6px;padding:8px;background:#FFF;border:1px solid #E2E8F0;border-radius:8px;margin-top:6px;`;
+const AddReviewerList=styled.div`display:flex;flex-direction:column;gap:2px;max-height:160px;overflow:auto;`;
+const AddReviewerItem=styled.button`padding:6px 8px;text-align:left;background:transparent;border:none;border-radius:4px;font-size:12px;color:#0F172A;cursor:pointer;&:hover:not(:disabled){background:#F0FDFA;color:#0F766E;}&:disabled{color:#CBD5E1;cursor:not-allowed;}`;
+const WarnDialog=styled.div`margin-top:8px;padding:10px;background:#FEF2F2;border:1px solid #FECACA;border-radius:8px;display:flex;flex-direction:column;gap:6px;`;
+const WarnTitle=styled.div`font-size:12px;font-weight:700;color:#991B1B;`;
+const WarnBody=styled.div`font-size:11px;color:#7F1D1D;line-height:1.5;`;
+const WarnRow=styled.div`display:flex;gap:6px;justify-content:flex-end;`;
+const Timeline=styled.div`display:flex;flex-direction:column;gap:8px;padding-left:6px;border-left:2px solid #E2E8F0;margin-top:6px;`;
+const TimelineItem=styled.div`display:flex;gap:8px;position:relative;padding-left:6px;`;
+const TimelineDot=styled.div<{$event:string}>`position:absolute;left:-13px;top:4px;width:10px;height:10px;border-radius:50%;border:2px solid #FFF;${p=>{
+  const e=p.$event;
+  if(e==='approve'||e==='completed')return 'background:#14B8A6;';
+  if(e==='revision')return 'background:#F43F5E;';
+  if(e==='review_submit')return 'background:#92400E;';
+  if(e==='ack')return 'background:#3730A3;';
+  if(e==='revert'||e==='review_cancel')return 'background:#94A3B8;';
+  if(e==='reviewer_add'||e==='reviewer_remove')return 'background:#1E40AF;';
+  return 'background:#CBD5E1;';
+}}`;
+const TimelineBody=styled.div`flex:1;font-size:12px;color:#334155;`;
+const TimelineHead=styled.div`display:flex;flex-wrap:wrap;align-items:center;gap:4px;`;
+const TimelineEvent=styled.span`color:#64748B;`;
+const TimelineTarget=styled.span`color:#64748B;`;
+const TimelineRound=styled.span`font-size:10px;font-weight:700;color:#0F766E;background:#CCFBF1;padding:0 5px;border-radius:4px;margin-left:auto;`;
+const TimelineNote=styled.div`margin-top:2px;padding:4px 8px;background:#F8FAFC;border-radius:4px;font-size:11px;color:#475569;`;
+const TimelineTime=styled.div`margin-top:2px;font-size:10px;color:#94A3B8;`;

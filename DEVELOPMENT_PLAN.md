@@ -1,9 +1,71 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-04-19
+> **최종 업데이트:** 2026-04-19 (Phase C 세션)
 > **데이터베이스:** planq_dev_db (MySQL) + qnote.db (SQLite, FTS5)
 > **프로젝트:** B2B SaaS — 업무 전용 고객 채팅 + 실행 구조 통합 OS
 > **로드맵 상세:** `docs/DEVELOPMENT_ROADMAP.md`
+
+---
+
+## ✅ 완료: Q Task Phase C — 상세 패널 액션 매트릭스 + 컨펌자/히스토리 UI + 종류별 스테이지 (2026-04-19)
+
+워크플로우 Phase 1~B 에서 쌓은 백엔드를 실제 조작 가능한 UI 로 연결. 상세 패널에 역할별 액션 카드 (담당자/컨펌자), 컨펌자 섹션(정책 토글·추가/제거·경고), 히스토리 타임라인, 상태 드롭다운(자유 전환), 라운드 뱃지 추가. 리스트/카드 뷰 선택 표시 통일, 상태 드롭다운 오버플로우 이슈 해결, 버튼 색 = 도착 상태 색 매핑. 일반 업무 vs 요청 업무 스테이지 분기 — `waiting` 은 요청 업무에만 노출, `not_started` 는 요청+미ack일 때 "업무요청 받음" 라벨. "이번 주 내 업무" 필터 확장 — 담당자 외에 컨펌자(pending)인 업무도 포함. irene 계정 biz=3 에 시나리오 시드 19건 배치.
+
+### 완료된 작업
+
+| 영역 | 작업 | 상태 |
+|------|------|:----:|
+| **상세 패널 액션 카드** | 역할별(담당자/컨펌자) 블록 분리. 상태별 노출: ack / start / submit / cancel-review / resubmit / complete / approve / revision(인라인 폼) / revert. 버튼 색 = 도착 상태 색. Disabled 버튼 은닉 (전제 미충족 시 버튼 자체 숨김) | ✅ |
+| **컨펌자 섹션** | 리스트(이름+state 뱃지+제거), 정책 토글(all/any), 추가 드롭다운(멤버 후보), 진행 중 라운드에 추가 시 경고 다이얼로그 ("이미 승인 N명 다시 검토 필요") | ✅ |
+| **히스토리 타임라인** | event_type 별 컬러 도트(approve/revision/ack/completed 등), actor→target 표기, round 뱃지, note, 시간. 기본 최근 5개 + 모두 보기 토글 | ✅ |
+| **상태 드롭다운 (자유 전환)** | 상태 뱃지 클릭 → 원하는 단계로 자유 전환. 리스트/상세 dropdown 상태 분리 (동시 열림 버그 수정). 업무 종류별 옵션 다름: 요청 업무 = 8단계(waiting 포함), 일반 업무 = 7단계(waiting 제외) | ✅ |
+| **종류별 라벨** | not_started + 요청업무 + 미ack → "업무요청 받음" 라벨. 그 외는 기본 상태 라벨. 관점(담당자/요청자/컨펌자/관찰자) 별 라벨 자동 적용 | ✅ |
+| **선택/지연 시각 UX** | 카드/리스트 모두 선택 시 로즈 좌측 3px 라인, 리스트 선택 시 옅은 배경. 지연 행: 배경 없이 빨간 좌측 라인만. 카드 지연: 우상단 "지연" 뱃지로 분리 | ✅ |
+| **상세 버튼 확대/토글** | 리스트의 `>` 버튼 20×20 → 28×28, 활성 시 로즈 배경 (열림 표시). 다시 누르면 닫힘 | ✅ |
+| **라운드 뱃지** | reviewing/revision_requested/done_feedback 상태에서 `R1/R2…` 뱃지 상태 뱃지 옆 노출 | ✅ |
+| **인라인 이름 칩 (요청자/담당자)** | 요청자/담당자 별도 컬럼 제거. 업무명 옆 3색 이름 칩: 🌹 내가 받은 요청의 요청자 / 🟢 내가 보낸 요청의 담당자 / ⚪ 워크스페이스 타인 담당 | ✅ |
+| **정렬 null 처리** | due_date 정렬에서 null 을 `Infinity` 숫자로 치환하여 string localeCompare 에서 NaN 나던 버그 수정 → nulls-last 원칙 | ✅ |
+| **상태 드롭다운 오버플로우** | TCell `overflow:hidden` 에 dropdown 잘리던 문제 — 해당 셀만 `overflow:visible` | ✅ |
+| **"이번 주" 필터 확장** | 담당자(행동 필요 상태) + 컨펌자(pending + reviewing/revision_requested) 조합. 단순 요청자 대기는 제외 (내가 행동할 게 없으므로) | ✅ |
+| **완료 상태 색상** | 진녹 → 슬레이트 그레이 (#E2E8F0 / #475569). 완료 뱃지/컬럼/버튼 전부 통일 | ✅ |
+| **백엔드 API 확장** | `/api/projects/workspace/:bizId/all-tasks` 응답에 `reviewers` 포함 → 프론트 "내가 컨펌자" 판정 가능 | ✅ |
+| **i18n 키 추가** | `detail.actions.*` (ack/start/submit/resubmit/cancelReview/complete/completeSimple/approve/requestRevision/revision*/revert*/roundTip 등 20+), `detail.reviewers.*` (policy/state/warn/add/remove), `detail.history.event.*` (10개), `detail.back/description/dailyLog/comments 등` (ko/en 동시) | ✅ |
+| **시드 스크립트** | `scripts/seed-qtask-workflow-test.js` — irene 활성 biz(워프로랩 3) + `워크플로우 테스트` 프로젝트에 19건 (M1~M8 일반, R1~R6 받은 요청, S1~S3 보낸 요청, C1~C2 컨펌자). idempotent (`[WF]` 접두사 기반) | ✅ |
+
+### 수정된 파일
+
+**백엔드**
+- `routes/projects.js` — all-tasks 응답에 reviewers include
+- `scripts/seed-qtask-workflow-test.js` (신규)
+
+**프론트엔드**
+- `pages/QTask/QTaskPage.tsx` — 상세 패널 확장, 액션 카드, 컨펌자/히스토리 섹션, 상태 드롭다운 분리, 드롭다운 종류별 분기, 선택 UX, 인라인 이름 칩, week 필터 확장
+- `utils/taskLabel.ts` — completed 색상 그레이 전환
+- `public/locales/{ko,en}/qtask.json` — detail.* 20여 개 키 추가, common.cancel 추가
+
+### 검증 결과
+- 헬스체크 27/27 통과
+- 빌드 성공 (gzip ≈ 250 kB)
+- 시드 idempotent — 재실행 시 기존 [WF] 전체 삭제 후 재생성
+- 백엔드 재시작 후 reviewers 필드 정상 응답 확인
+
+### 다음 할 일 (다음 세션 시작점)
+
+**Phase D — 탭 뱃지 카운트**
+- 이번 주 탭: 미확인 요청(task_requested) + 내가 리뷰어 pending 수
+- 요청하기 탭: 결과 대기 중(reviewing) 수
+- 전체업무 탭: 수정요청 받은(revision_requested) 수
+
+**Phase E — "내 전체업무" 의미 정리**
+- 현재 assignee=me OR reviewer=me 합쳐놓음. UX 리뷰 필요
+- 필터 명확화 (역할별 탭 vs 합산)
+
+**기타 백로그**
+- Q Project 상세 페이지 (`/projects/:id`)
+- Q Talk 청크 5 — Cue 자동 추출 트리거
+- Clients 초대/편집 UI (F5-2b)
+- Dashboard 구현
+- lua 팀원 계정 세팅
 
 ---
 
