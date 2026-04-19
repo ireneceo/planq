@@ -1,5 +1,5 @@
 ## 현재 작업 상태
-**마지막 업데이트:** 2026-04-19 (Phase C 세션 종료)
+**마지막 업데이트:** 2026-04-19 (Q Task 드로어 + Q Project 상세 + Q Talk 정비)
 **작업 상태:** 완료
 
 ### 진행 중인 작업
@@ -7,73 +7,60 @@
 
 ### 완료된 작업 (이번 세션)
 
-**Q Task Phase C — 상세 패널 액션 매트릭스 + UI 정합성**
+**Q Task — 드로어 오버레이 + 리치 에디터 + 첨부**
+- 드로어 `position:fixed` Linear 패턴 (기본 패널 유지)
+- 상세 섹션 순서 재배치 (액션/설명/댓글/결과물/첨부/[접기])
+- DB `tasks.body LONGTEXT` 추가, description(짧은 plain) + body(리치 HTML) 분리
+- TipTap 에디터 — / 슬래시 커맨드 9종, BubbleMenu, 이미지 paste/drag
+- `task_attachments` 테이블 + multer + 공개 UUID 경로
+- 저장 상태 pill (saving/saved/error) + 2초 debounce 자동저장
+- 드로어 닫기 3종 (X / Esc / 좌측 빈 영역)
+- URL `?task=:id` 싱크, 제목 인라인 편집
+- 초기 로딩 최적화 — 탭 전환 시 lazy
 
-1. **상세 패널 역할별 액션 카드**
-   - 담당자: ack / start / submit-review / resubmit / cancel-review / complete / completeSimple
-   - 컨펌자: approve / revision(인라인 폼) / revert (1회 per 라운드)
-   - Disabled 버튼은 전제 미충족 시 버튼 자체 숨김
-   - 버튼 색 = 도착 상태 색상 (예: `[진행 시작]` = 티일, `[승인]` = 블루)
+**Q Project — 상세 허브 신규**
+- `/projects/p/:id` 라우트 (6탭: 대시보드·업무·테이블·고객·문서·상세정보)
+- `projects.project_type` ENUM + `process_tab_label`
+- createProject: 오너 자동 참여 + 2채널 자동 생성 + 상태 옵션 4종 seed + channels 커스텀 지원
+- 프로세스 파트 테이블 (`project_process_parts`) + 상태/컬럼 커스텀 (`project_status_options`, `project_process_columns`)
+- 대시보드: 기본정보/고객/채팅방/진척/이슈/메모/업무 타임라인 순서
+- 업무 탭: Q Task 테이블 디자인 복제 + 기본 뷰(리스트+타임라인 통합)
+- 상세정보 탭: 2열 풀폭, 기본정보 편집(이름/고객사/타입/기간/색상/설명) + 채팅방/이슈/메모
+- NewProjectModal: 타입 카드, CalendarPicker 기간, 색상 팔레트, 채팅 채널 섹션(이름·참여자)
 
-2. **컨펌자 섹션 + 정책 토글**
-   - 리스트/추가/제거 + all/any 정책 세그
-   - 진행 중 라운드에 추가 시 경고 다이얼로그
+**Q Talk**
+- 전체 프로젝트 conversations 병렬 로드 — 직접 /talk 진입해도 채팅 리스트 표시
+- 이슈/메모 중복 저장 버그 (IME + submittingRef 가드)
+- PlanQSelect 기본 placeholder "선택하기"
 
-3. **히스토리 타임라인** — event_type 별 컬러 도트 + round/actor/target/note
-
-4. **상태 자유 전환 드롭다운** — 상태 뱃지 클릭, 리스트/상세 각각 독립 state
-   - 종류별 옵션: 요청업무 8단계(waiting 포함) / 일반업무 7단계(waiting 제외)
-   - 요청업무 + not_started + 미ack → "업무요청 받음" 라벨
-
-5. **카드/리스트 선택 UX** — 로즈 좌측 3px 라인 + 리스트는 옅은 배경. 지연 시각 분리 (카드 우상단 "지연" 뱃지)
-
-6. **상세 버튼 확대/토글** — 20→28px, 활성 시 로즈 배경
-
-7. **라운드 뱃지** — R1/R2 뱃지 상태 옆 노출
-
-8. **인라인 이름 칩** — 요청자/담당자 별도 컬럼 제거, 업무명 옆 3색 칩(from/to/observer)
-
-9. **버그 픽스**
-   - due_date 정렬 null-last
-   - 상태 드롭다운 TCell overflow 잘림
-   - 카드 hover translateY 지터
-
-10. **week 필터 확장** — 담당자 + 컨펌자(pending)
-
-11. **완료 상태 색상** — 진녹 → 슬레이트 그레이
-
-12. **백엔드**: all-tasks API 응답에 reviewers 포함
-
-13. **시드 19건** — `scripts/seed-qtask-workflow-test.js`, irene biz=3 `워크플로우 테스트` 프로젝트, `[WF]` 접두사
-    - M1~M8 일반 / R1~R6 받은 요청 / S1~S3 보낸 요청 / C1~C2 컨펌자
+**문서화**
+- `UI_DESIGN_GUIDE` 1.7 액션 버튼 3톤 / 1.8 중복 제출 / 1.9 URL 싱크
+- `FEATURE_SPEC` F5-24 프로젝트 타입 / F5-25 프로세스 파트 / F6 Q Task 재작성
+- `CLAUDE.md` UI 규칙 3건
+- 메모리 2건 (액션 버튼 3톤, URL 싱크)
 
 ### 검증 결과
 - 헬스체크 27/27 통과
-- 빌드 성공 (gzip ≈ 250 kB, tsc 0 error)
-- 시드 idempotent 확인 (재실행 시 기존 [WF] 삭제 후 재생성)
-- 백엔드 재시작 후 reviewers 필드 응답 확인
+- 빌드: tsc 0 error, gzip ~400 kB
+- E2E: 프로젝트 17/17, 첨부 15/15, 채널 커스텀 7/7
 
 ### 다음 할 일 (다음 세션 시작점)
 
-**Phase D — 탭 뱃지 카운트**
-- 이번 주: task_requested + reviewer pending 수
-- 요청하기: reviewing(결과 대기) 수
-- 전체업무: revision_requested 수
+**프로젝트 상세 페이지 완성 잔여**
+1. 업무 상세 드로어 — 프로젝트 페이지 안에서 같은 페이지 오버레이로 열기 (지금은 `/tasks?task=` 로 네비게이션)
+2. 타임라인 바 드래그 리사이즈/이동
+3. 프로젝트 생성 시 **채팅 채널 추가/제거 유연화** (customer+internal 2개 고정 → 0~N개 자유)
+4. **문서 탭** 실제 파일 리스트 + 업로드
+5. **멤버 관리** (상세정보 탭에서 추가/제거/역할)
 
-**Phase E — "내 전체업무" 의미 정리**
-- 현재 assignee OR reviewer 합산. UX 리뷰 필요
+**Q Talk**
+6. NewChatModal — 프로젝트 연결 + 참여자 지정 간소 모달
 
-**기타 백로그**
-- Q Project 상세 페이지 (`/projects/:id`)
-- Q Talk 청크 5 — Cue 자동 추출 트리거
-- Clients 초대/편집 UI (F5-2b)
-- Dashboard 구현
-- lua 팀원 계정 세팅
-
-### Irene 확인 필요
-- https://dev.planq.kr/tasks — `[WF]` 시드 19건으로 모든 단계 시나리오 검증
-- 요청 업무 vs 일반 업무 단계 라벨 차이 확인
-- 담당자/컨펌자 액션 흐름 확인
+**백로그**
+7. F5-2b 초대 랜딩 페이지 `/invite/:token`
+8. Q Talk 청크 5 — Cue 자동 추출 트리거
+9. Dashboard 페이지 구현
+10. lua 팀원 계정 세팅
 
 ---
 

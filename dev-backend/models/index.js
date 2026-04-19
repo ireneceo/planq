@@ -25,6 +25,10 @@ const TaskComment = require('./TaskComment');
 const TaskDailyProgress = require('./TaskDailyProgress');
 const TaskReviewer = require('./TaskReviewer');
 const TaskStatusHistory = require('./TaskStatusHistory');
+const TaskAttachment = require('./TaskAttachment');
+const ProjectStatusOption = require('./ProjectStatusOption');
+const ProjectProcessColumn = require('./ProjectProcessColumn');
+const ProjectProcessPart = require('./ProjectProcessPart');
 
 // ============================================
 // Associations
@@ -183,6 +187,13 @@ TaskStatusHistory.belongsTo(User, { as: 'actor', foreignKey: 'actor_user_id' });
 TaskStatusHistory.belongsTo(User, { as: 'target', foreignKey: 'target_user_id' });
 Task.hasMany(TaskStatusHistory, { as: 'history', foreignKey: 'task_id' });
 
+// TaskAttachment
+TaskAttachment.belongsTo(Task, { foreignKey: 'task_id', onDelete: 'CASCADE' });
+TaskAttachment.belongsTo(TaskComment, { foreignKey: 'comment_id', onDelete: 'CASCADE' });
+TaskAttachment.belongsTo(User, { as: 'uploader', foreignKey: 'uploaded_by' });
+Task.hasMany(TaskAttachment, { as: 'attachments', foreignKey: 'task_id' });
+TaskComment.hasMany(TaskAttachment, { as: 'attachments', foreignKey: 'comment_id' });
+
 module.exports = {
   User,
   Business,
@@ -211,7 +222,18 @@ module.exports = {
   TaskDailyProgress,
   TaskReviewer,
   TaskStatusHistory,
+  TaskAttachment,
+  ProjectStatusOption,
+  ProjectProcessColumn,
+  ProjectProcessPart,
 };
+
+ProjectStatusOption.belongsTo(Project, { foreignKey: 'project_id', onDelete: 'CASCADE' });
+Project.hasMany(ProjectStatusOption, { as: 'status_options', foreignKey: 'project_id' });
+ProjectProcessColumn.belongsTo(Project, { foreignKey: 'project_id', onDelete: 'CASCADE' });
+Project.hasMany(ProjectProcessColumn, { as: 'process_columns', foreignKey: 'project_id' });
+ProjectProcessPart.belongsTo(Project, { foreignKey: 'project_id', onDelete: 'CASCADE' });
+Project.hasMany(ProjectProcessPart, { as: 'process_parts', foreignKey: 'project_id' });
 
 TaskDailyProgress.belongsTo(Task, { foreignKey: 'task_id' });
 Task.hasMany(TaskDailyProgress, { as: 'daily_progress', foreignKey: 'task_id' });

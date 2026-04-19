@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import CalendarPicker from '../../components/Common/CalendarPicker';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import PlanQSelect from '../../components/Common/PlanQSelect';
@@ -22,8 +23,16 @@ export interface ProjectFormData {
   start_date: string;
   end_date: string;
   color: string;
+  project_type: 'fixed' | 'ongoing';
   members: MemberInput[];
   clients: ClientInput[];
+  channels: ChannelInput[];
+}
+
+export interface ChannelInput {
+  channel_type: 'customer' | 'internal';
+  name: string;
+  participant_user_ids: number[]; // member user ids
 }
 
 interface MemberInput {
@@ -52,11 +61,18 @@ const NewProjectModal: React.FC<Props> = ({ businessId, open, onClose, onCreate 
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [color, setColor] = useState<string>(PROJECT_COLOR_PALETTE[0].value);
+  const [projectType, setProjectType] = useState<'fixed' | 'ongoing'>('fixed');
   const [members, setMembers] = useState<MemberInput[]>([]);
   const [clients, setClients] = useState<ClientInput[]>([]);
   const [newClientName, setNewClientName] = useState('');
   const [newClientEmail, setNewClientEmail] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
+  const dateAnchorRef = useRef<HTMLButtonElement>(null);
+  const [customerChatName, setCustomerChatName] = useState('');
+  const [internalChatName, setInternalChatName] = useState('');
+  const [customerParticipants, setCustomerParticipants] = useState<Set<number>>(new Set());
+  const [internalParticipants, setInternalParticipants] = useState<Set<number>>(new Set());
 
   // 모달 열릴 때 워크스페이스 멤버 목록 fetch + 본인을 기본 멤버로
   useEffect(() => {
@@ -91,9 +107,28 @@ const NewProjectModal: React.FC<Props> = ({ businessId, open, onClose, onCreate 
       setDescription(''); setStartDate(''); setEndDate('');
       setMembers([]); setClients([]);
       setNewClientName(''); setNewClientEmail('');
+      setCustomerChatName(''); setInternalChatName('');
+      setCustomerParticipants(new Set()); setInternalParticipants(new Set());
       setSubmitting(false);
     }
   }, [open]);
+
+  // 멤버가 추가되면 기본으로 두 채널에 포함
+  useEffect(() => {
+    setCustomerParticipants(prev => {
+      const next = new Set(prev);
+      for (const m of members) if (!next.has(m.user_id)) next.add(m.user_id);
+      // 제거된 멤버는 참여자에서도 제외
+      for (const uid of Array.from(next)) if (!members.some(m => m.user_id === uid)) next.delete(uid);
+      return next;
+    });
+    setInternalParticipants(prev => {
+      const next = new Set(prev);
+      for (const m of members) if (!next.has(m.user_id)) next.add(m.user_id);
+      for (const uid of Array.from(next)) if (!members.some(m => m.user_id === uid)) next.delete(uid);
+      return next;
+    });
+  }, [members]);
 
   if (!open) return null;
 
@@ -136,10 +171,15 @@ const NewProjectModal: React.FC<Props> = ({ businessId, open, onClose, onCreate 
         client_email: clientEmail.trim(),
         description: description.trim(),
         start_date: startDate,
-        end_date: endDate,
+        end_date: projectType === 'ongoing' ? '' : endDate,
         color,
+        project_type: projectType,
         members,
         clients,
+        channels: [
+          { channel_type: 'customer', name: customerChatName.trim() || `${name.trim()} 고객`, participant_user_ids: Array.from(customerParticipants) },
+          { channel_type: 'internal', name: internalChatName.trim() || `${name.trim()} 내부`, participant_user_ids: Array.from(internalParticipants) },
+        ],
       });
     } finally {
       setSubmitting(false);
@@ -173,6 +213,20 @@ const NewProjectModal: React.FC<Props> = ({ businessId, open, onClose, onCreate 
             />
           </Field>
 
+          <Field>
+            <Label>{t('modal.type', '프로젝트 타입')} <Required>*</Required></Label>
+            <TypeRow>
+              <TypeBtn type="button" $active={projectType==='fixed'} onClick={()=>setProjectType('fixed')}>
+                <strong>{t('modal.typeFixed', '일시 프로젝트')}</strong>
+                <small>{t('modal.typeFixedDesc', '시작~종료일이 있는 계약/기간제')}</small>
+              </TypeBtn>
+              <TypeBtn type="button" $active={projectType==='ongoing'} onClick={()=>setProjectType('ongoing')}>
+                <strong>{t('modal.typeOngoing', '지속 구독')}</strong>
+                <small>{t('modal.typeOngoingDesc', '월간/구독 등 지속 계약')}</small>
+              </TypeBtn>
+            </TypeRow>
+          </Field>
+
           <Row>
             <Field>
               <Label>{t('modal.clientCompany', '고객사')}</Label>
@@ -193,16 +247,32 @@ const NewProjectModal: React.FC<Props> = ({ businessId, open, onClose, onCreate 
             </Field>
           </Row>
 
-          <Row>
-            <Field>
-              <Label>{t('modal.startDate', '시작일')}</Label>
-              <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
-            </Field>
-            <Field>
-              <Label>{t('modal.endDate', '종료일')}</Label>
-              <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
-            </Field>
-          </Row>
+          <Field>
+            <Label>{projectType === 'fixed' ? t('modal.period', '기간') : t('modal.startDate', '시작일')}</Label>
+            <DateTrigger ref={dateAnchorRef} type="button" onClick={() => setDatePickerOpen((v) => !v)}>
+              {projectType === 'fixed' ? (
+                startDate || endDate ?
+                  <>{startDate?.replace(/-/g, '/') || '—'} ~ {endDate?.replace(/-/g, '/') || '—'}</>
+                  : <DatePlaceholder>{t('modal.pickPeriod', '기간 선택')}</DatePlaceholder>
+              ) : (
+                startDate ? startDate.replace(/-/g, '/') : <DatePlaceholder>{t('modal.pickStart', '시작일 선택')}</DatePlaceholder>
+              )}
+            </DateTrigger>
+            {datePickerOpen && (
+              <CalendarPicker
+                isOpen={datePickerOpen}
+                anchorRef={dateAnchorRef}
+                startDate={startDate}
+                endDate={projectType === 'fixed' ? endDate : startDate}
+                singleMode={projectType === 'ongoing'}
+                onRangeSelect={(s, e) => {
+                  setStartDate(s || '');
+                  if (projectType === 'fixed') setEndDate(e || '');
+                }}
+                onClose={() => setDatePickerOpen(false)}
+              />
+            )}
+          </Field>
 
           <Field>
             <Label>{t('modal.description', '설명 (선택)')}</Label>
@@ -323,14 +393,46 @@ const NewProjectModal: React.FC<Props> = ({ businessId, open, onClose, onCreate 
             <HelpText>{t('modal.clientHelp', '저장 시 초대 링크가 클립보드에 복사됩니다. (이메일 발송은 추후 지원)')}</HelpText>
           </Field>
 
-          <ChannelInfo>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <circle cx="12" cy="12" r="10" />
-              <line x1="12" y1="16" x2="12" y2="12" />
-              <line x1="12" y1="8" x2="12.01" y2="8" />
-            </svg>
-            {t('modal.channelInfo', '프로젝트 생성 시 "내부 논의" + "{{client}} 과의 소통" 대화 채널 2개가 자동 생성됩니다.', { client: clientCompany || '고객' })}
-          </ChannelInfo>
+          {/* 채팅 채널 설정 */}
+          <Field>
+            <Label>{t('modal.channels', '채팅 채널')}</Label>
+            <HelpText>{t('modal.channelsHelp', '프로젝트 생성 시 2개 채널이 자동 생성됩니다. 이름과 참여자를 조정하세요.')}</HelpText>
+            {([
+              { type: 'customer' as const, defaultName: `${name || '프로젝트'} 고객`, ref: 'customer', title: '고객 채널' },
+              { type: 'internal' as const, defaultName: `${name || '프로젝트'} 내부`, ref: 'internal', title: '내부 채널' },
+            ]).map(cfg => {
+              const nameVal = cfg.type === 'customer' ? customerChatName : internalChatName;
+              const setNameVal = cfg.type === 'customer' ? setCustomerChatName : setInternalChatName;
+              const parts = cfg.type === 'customer' ? customerParticipants : internalParticipants;
+              const setParts = cfg.type === 'customer' ? setCustomerParticipants : setInternalParticipants;
+              return (
+                <ChannelCard key={cfg.type}>
+                  <ChannelTitle>{cfg.title}</ChannelTitle>
+                  <Input value={nameVal} onChange={e => setNameVal(e.target.value)} placeholder={cfg.defaultName} />
+                  <ChannelMembers>
+                    <HelpText>참여 멤버 ({parts.size}/{members.length})</HelpText>
+                    <ChannelMembersList>
+                      {members.length === 0 && <HelpText>멤버를 먼저 추가하세요</HelpText>}
+                      {members.map(m => {
+                        const checked = parts.has(m.user_id);
+                        return (
+                          <ChannelMemberChk key={m.user_id}>
+                            <input type="checkbox" checked={checked}
+                              onChange={() => {
+                                const next = new Set(parts);
+                                if (checked) next.delete(m.user_id); else next.add(m.user_id);
+                                setParts(next);
+                              }} />
+                            <span>{m.name} · {m.role}{m.is_default ? ' ★' : ''}</span>
+                          </ChannelMemberChk>
+                        );
+                      })}
+                    </ChannelMembersList>
+                  </ChannelMembers>
+                </ChannelCard>
+              );
+            })}
+          </Field>
         </ModalBody>
 
         <ModalFooter>
@@ -427,6 +529,15 @@ const Field = styled.div`
   gap: 6px;
 `;
 
+const TypeRow = styled.div`display:flex;gap:8px;`;
+const TypeBtn = styled.button<{$active?:boolean}>`
+  flex:1;display:flex;flex-direction:column;align-items:flex-start;gap:4px;
+  padding:10px 12px;border:1px solid ${p=>p.$active?'#14B8A6':'#E2E8F0'};
+  border-radius:8px;background:${p=>p.$active?'#F0FDFA':'#FFF'};cursor:pointer;text-align:left;
+  strong{font-size:13px;font-weight:600;color:${p=>p.$active?'#0F766E':'#0F172A'};}
+  small{font-size:11px;color:#64748B;}
+  &:hover{border-color:#14B8A6;}
+`;
 const Row = styled.div`
   display: flex;
   gap: 10px;
@@ -443,6 +554,8 @@ const Required = styled.span`
   color: #F43F5E;
 `;
 
+const DateTrigger = styled.button`width:100%;padding:8px 10px;border:1px solid #E2E8F0;border-radius:8px;font-size:13px;color:#0F172A;background:#FFF;font-family:inherit;text-align:left;cursor:pointer;&:hover{border-color:#14B8A6;}&:focus{outline:none;border-color:#14B8A6;box-shadow:0 0 0 2px rgba(20,184,166,0.15);}`;
+const DatePlaceholder = styled.span`color:#94A3B8;`;
 const Input = styled.input`
   padding: 9px 12px;
   background: #F8FAFC;
@@ -601,6 +714,11 @@ const NewClientRow = styled.div`
   align-items: center;
 `;
 
+const ChannelCard = styled.div`padding:12px;border:1px solid #E2E8F0;border-radius:8px;margin-top:8px;display:flex;flex-direction:column;gap:8px;`;
+const ChannelTitle = styled.div`font-size:12px;font-weight:700;color:#0F766E;`;
+const ChannelMembers = styled.div`display:flex;flex-direction:column;gap:4px;`;
+const ChannelMembersList = styled.div`display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:4px;max-height:140px;overflow-y:auto;padding:4px;background:#F8FAFC;border-radius:6px;`;
+const ChannelMemberChk = styled.label`display:flex;align-items:center;gap:6px;font-size:11px;color:#0F172A;cursor:pointer;padding:2px 4px;border-radius:4px;&:hover{background:#F0FDFA;}input{accent-color:#14B8A6;cursor:pointer;}`;
 const AddClientBtn = styled.button`
   padding: 8px 14px;
   background: #0D9488;
@@ -615,19 +733,6 @@ const AddClientBtn = styled.button`
   &:disabled { background: #CBD5E1; cursor: not-allowed; }
 `;
 
-const ChannelInfo = styled.div`
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  padding: 10px 12px;
-  background: #F0FDFA;
-  border: 1px solid #99F6E4;
-  border-radius: 8px;
-  font-size: 11px;
-  color: #0F766E;
-  line-height: 1.4;
-  svg { flex-shrink: 0; margin-top: 1px; }
-`;
 
 const ModalFooter = styled.div`
   padding: 14px 22px;

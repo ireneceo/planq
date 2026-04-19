@@ -296,6 +296,22 @@ const QTalkPage: React.FC = () => {
           const qpid = Number(params.get('project'));
           const target = qpid && mapped.some((p) => p.id === qpid) ? qpid : mapped[0].id;
           setActiveProjectId((prev) => prev ?? target);
+          // 좌측 리스트 채우기 — 모든 프로젝트의 대화를 병렬로 로드 (상단 표시용)
+          (async () => {
+            try {
+              const convArrays = await Promise.all(
+                mapped.map(p => qtalkApi.listProjectConversations(p.id).catch(() => [] as qtalkApi.ApiConversation[]))
+              );
+              if (cancelled) return;
+              const all: MockConversation[] = convArrays.flat().map(apiConversationToMock);
+              setConversations(prev => {
+                // 기존 active project 대화 유지 + 새로 받은 것 병합 (id 기준)
+                const existingIds = new Set(prev.map(c => c.id));
+                const newOnes = all.filter(c => !existingIds.has(c.id));
+                return [...prev, ...newOnes];
+              });
+            } catch {/* silent */}
+          })();
         }
       } catch (err: unknown) {
         if (cancelled) return;

@@ -68,6 +68,57 @@ setFormError(null);
 - raw `<select>`, styled `select`, react-select 직접 import 금지 — 헬스체크 린트가 차단
 - 검색 가능, 멀티 셀렉트, 아이콘/설명 옵션 지원
 
+### 1.7 액션 버튼 3톤 규칙 (필수 — 2026-04-19 표준화)
+
+**버튼은 딱 3종류만 사용한다. 상태 색(단계별 색상)을 버튼 배경으로 쓰지 말 것.**
+
+| 톤 | 용도 | 스타일 |
+|------|------|--------|
+| **Primary** | 긍정 CTA (확인/저장/승인/완료/Ack/진행 시작 등) | 배경 `#14B8A6` (Primary 500), 호버 `#0D9488` (Primary 600), 흰 글자 |
+| **Secondary** | 취소/닫기/보조 액션 (Cancel review 등) | 흰 배경 + `#CBD5E1` outline + `#334155` 글자 |
+| **Danger** | 파괴적/부정 액션 (수정 요청, 결정 취소, 삭제) | 흰 배경 + `#FECACA` outline + `#DC2626` 글자, 호버 시 `#FEF2F2` 배경 |
+
+**상태 색상(Teal/Blue/Coral/Gray)은 뱃지·진행바·드롭다운 옵션 같은 읽기 전용 UI에만 사용.**
+
+**근거**: 다양한 상태 색으로 버튼을 칠하면 한 화면에 6~7색 버튼이 섞여 디자인이 난잡해지고, 브랜드 톤(Teal/Coral)이 희석됨. Phase C 초기 구현 후 Irene 피드백으로 통일.
+
+### 1.8 중복 제출 방지
+
+모든 "생성/추가/승인" 성격의 액션은 연타·중복 실행을 막아야 한다.
+
+```tsx
+const [submitting, setSubmitting] = useState(false);
+const submit = async () => {
+  if (submitting) return;                    // 가드 1
+  setSubmitting(true);
+  try { /* POST */ } finally { setSubmitting(false); }
+};
+
+<Btn onClick={submit} disabled={submitting}>  {/* 가드 2 */}
+  {submitting ? '저장 중...' : '저장'}
+</Btn>
+```
+
+**Enter 키로 저장 트리거 금지.** 멀티필드 폼에서 Enter는 오타·연타·IME 조합 과정에 쉽게 발화 → 의도치 않은 조기 제출. 필요한 경우 **Ctrl/Cmd+Enter**만 허용.
+
+### 1.9 상세/드로어 패널은 URL 싱크
+
+"리스트 클릭 → 우측 상세" 같은 패널은 새로고침 시 상태가 사라지면 안 됨. URL 쿼리로 싱크:
+
+```tsx
+// 열기
+const sp = new URLSearchParams(location.search);
+sp.set('task', String(taskId));
+navigate(`${location.pathname}?${sp}`, { replace: true });
+
+// mount 시 복원
+const initialId = new URLSearchParams(location.search).get('task');
+```
+
+- 파라미터명: 단수형 엔티티 (task, client, project …)
+- 닫기 시 파라미터 제거
+- `replace: true` 로 뒤로가기 스택 오염 방지
+
 ---
 
 ## 2. 페이지 레이아웃 (필수 — 2026-04-17 표준화)

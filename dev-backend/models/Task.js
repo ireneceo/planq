@@ -32,6 +32,11 @@ Task.init({
     type: DataTypes.TEXT,
     allowNull: true
   },
+  // 결과물 — 리치 HTML (TipTap). 업무 완료 시 산출물 본문
+  body: {
+    type: DataTypes.TEXT('long'),
+    allowNull: true
+  },
   assignee_id: {
     type: DataTypes.INTEGER,
     allowNull: true,

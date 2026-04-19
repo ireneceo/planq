@@ -19,6 +19,10 @@ Project.init({
   owner_user_id: { type: DataTypes.INTEGER, allowNull: false },
   // 타임라인/일정 보기 구분용 프로젝트 색상 (hex) — 프리셋 10색 중 하나 기본
   color: { type: DataTypes.STRING(20), allowNull: true },
+  // 프로젝트 타입: fixed(기간 고정) / ongoing(구독·지속)
+  project_type: { type: DataTypes.ENUM('fixed', 'ongoing'), allowNull: false, defaultValue: 'fixed' },
+  // 프로세스 파트 탭 커스텀 라벨 (프로젝트별) — 기본 '테이블'
+  process_tab_label: { type: DataTypes.STRING(80), allowNull: false, defaultValue: '테이블' },
 }, {
   sequelize,
   tableName: 'projects',

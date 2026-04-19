@@ -30,7 +30,10 @@
     "task_requested": "Task request",
     "reviewing_obs": "In review",
     "revision_obs": "Revision needed",
-    "completed": "Completed"
+    "completed": "Completed",
+    "rev_pending": "Waiting my approval",
+    "rev_revision": "I requested revision",
+    "rev_approved": "I approved"
   },
   "scope": { "mine": "My tasks", "workspace": "All workspace" },
   "view": { "list": "List view", "kanban": "Kanban view" },
@@ -38,9 +41,23 @@
   "workspace": { "assignee": "Assignee", "allMembers": "All members" },
   "summary": { "unit": " tasks", "est": "Est", "act": "Act" },
   "col": { "project": "Project", "assignee": "Assignee", "requester": "Requester", "task": "Task", "status": "Status", "est": "Est(h)", "act": "Act(h)", "progress": "Progress", "start": "Start", "due": "Due" },
-  "add": { "placeholder": "Task name (Enter to save)", "btn": "Add task", "assignee": "Assignee", "assigneeDefault": "Assignee: me", "assigneeRequiredHint": "Select assignee (required)", "save": "Add", "cancel": "Cancel" },
+  "add": { "placeholder": "Task name (Ctrl+Enter to save)", "btn": "Add task", "reqBtn": "Add request", "assignee": "Assignee", "assigneeDefault": "Assignee: me", "assigneeRequiredHint": "Select assignee (required)", "project": "Project", "projectNone": "Select", "startDate": "Start", "dueDate": "Due", "estHours": "Est(h)", "descPlaceholder": "Description (optional)", "save": "Add", "saving": "Saving...", "cancel": "Cancel" },
   "backlog": { "title": "Unassigned", "toWeek": "This week" },
-  "right": { "title": "Overview" },
+  "right": {
+    "title": "Overview",
+    "received": "Incoming requests",
+    "sent": "Outgoing requests",
+    "noReceived": "No incoming requests to act on",
+    "noSent": "No outgoing requests to confirm",
+    "titleWeek": "This week",
+    "titleRequested": "Feedback",
+    "titleAll": "From Q Talk",
+    "candidates": "From Q Talk",
+    "noCandidates": "No candidates yet",
+    "addAsTask": "Add as task",
+    "recentFeedback": "Recent feedback",
+    "noFeedback": "No feedback yet"
+  },
   "capacity": { "title": "Weekly Capacity", "daily": "Daily hours", "days": "Work days", "holidays": "Holidays this week", "available": "Available this week" },
   "chart": { "weekly": "Weekly Burndown", "est": "Estimated", "act": "Actual" },
   "projects": { "title": "Project Progress" },
@@ -48,10 +65,15 @@
   "notes": { "title": "Notes" },
   "list": { "empty": "No tasks found", "statusHint": "Click to change status" },
   "common": { "cancel": "Cancel" },
+  "save": { "saving": "Saving", "saved": "Saved", "error": "Save failed" },
   "detail": {
     "back": "Back",
+    "close": "Close",
+    "meta": { "period": "Period", "est": "Est", "act": "Act", "progress": "Progress" },
     "description": "Description",
-    "descPlaceholder": "Add description...",
+    "descPlaceholder": "Brief description (1-2 lines)",
+    "body": "Deliverable",
+    "bodyPlaceholder": "Write the deliverable. Paste/drag images.",
     "dailyLog": "Daily Log",
     "noLog": "No records yet",
     "date": "Date", "prog": "%", "estUsed": "Est used", "actUsed": "Act used",
@@ -87,8 +109,8 @@
       "add": "Add reviewer",
       "remove": "Remove",
       "noCandidates": "No members to add",
-      "policyAll": "All",
-      "policyAny": "Any 1",
+      "policyAll": "All must approve",
+      "policyAny": "Any one is enough",
       "state": { "pending": "Pending", "approved": "Approved", "revision": "Revision" },
       "warnTitle": "Reset current review round?",
       "warnBody": "Adding a reviewer during an active round resets all reviewers to pending. Previous approvals will need to be re-confirmed.",
@@ -107,7 +129,7 @@
         "completed": "marked complete",
         "reviewer_add": "added reviewer",
         "reviewer_remove": "removed reviewer",
-        "policy_change": "changed policy"
+        "policy_change": "changed approval rule"
       }
     }
   }

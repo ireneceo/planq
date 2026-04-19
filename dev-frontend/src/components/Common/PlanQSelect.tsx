@@ -253,7 +253,7 @@ function PlanQSelect<IsMulti extends boolean = false>(
       noOptionsMessage={({ inputValue }) =>
         inputValue ? `'${inputValue}'에 대한 결과 없음` : '옵션 없음'
       }
-      placeholder={rest.placeholder ?? '선택하세요'}
+      placeholder={rest.placeholder ?? '선택하기'}
       isSearchable={rest.isSearchable ?? true}
     />
   );

@@ -643,6 +643,75 @@ Business (워크스페이스, 기존)
 
 ---
 
+### F5-24. 프로젝트 타입 (2026-04-19 추가)
+
+| 타입 | 키 | 설명 | 기간 |
+|---|---|---|---|
+| 일시적 프로젝트 | `fixed` | 시작·종료일이 있는 계약/기간제 | 필수 |
+| 지속 구독 | `ongoing` | 월간/구독 형태 지속 계약 | 선택 (시작일만) |
+
+- `projects.project_type ENUM('fixed','ongoing') DEFAULT 'fixed'`
+- NewProjectModal 에서 선택 라디오. `ongoing` 선택 시 종료일 입력란 숨김.
+- 대시보드/리스트에서 타입 뱃지 노출.
+
+### F5-24-a. 관리자 자동 참여
+
+프로젝트 생성 시 생성자(관리자/오너)를 `project_members` 에 **자동 추가**한다. 역할 기본값 `기획` (또는 생성자가 지정 시 해당 역할) + `is_default=true`.
+
+**Why:** 관리자가 프로젝트 생성 후 본인을 참여자에 다시 추가해야 Q Talk 에 뜨는 현상 제거. 워크스페이스 오너/매니저라도 프로젝트 레벨에서는 개별 참여자 record 필요.
+
+### F5-25. Q Project 상세 페이지 `/projects/:id` (2026-04-19 확정)
+
+프로젝트 단위의 허브. 5개 탭으로 구성.
+
+| 탭 | 내용 |
+|---|---|
+| **대시보드** | 기본 정보 + 진척 요약 + 연결된 채팅방 리스트 + 이번 주 마감 + 주요 이슈 + 메모 + 번다운 |
+| **업무** | 프로젝트 업무 전체 — 시작일 순 정렬, 담당자 컬럼 필수. 리스트/간트/칸반 전환. Q Task 드로어 재사용 |
+| **문서** | 프로젝트 업로드 파일 + KB 자료 |
+| **고객** | 참여 고객 + 초대 링크 + 연락처 |
+| **프로세스 파트** | 계층 테이블 (아래 F5-25-a) |
+
+#### F5-25-a. 프로세스 파트 테이블
+
+프로젝트 결과물/과정을 항목별로 추적. 웹사이트 사이트맵, 앱 메뉴 구조, 기능 목록 등.
+
+**기본 컬럼**
+| 컬럼 | 타입 | 설명 |
+|---|---|---|
+| depth1 / depth2 / depth3 | string | 3단계 계층 구조 |
+| description | text | 설명 |
+| status | ENUM (커스텀) | 상태 — 프로젝트별 정의 |
+| url | string | 연결 URL |
+| notes | text | 비고 |
+
+**사용자 정의 컬럼** (프로젝트별)
+- 관리자가 키/라벨/타입(text, date, select) 추가 가능
+- 데이터는 `extra JSON` 에 저장
+
+**상태 커스터마이즈**
+- 프로젝트별로 상태 라벨/색상 자유 정의
+- 기본값: `미시작` / `진행중` / `완료` / `보류`
+- 프로젝트 관리자가 자유롭게 추가/수정/삭제 가능
+
+**DB 테이블 (신규)**
+- `project_process_parts` — id, business_id, project_id, depth1, depth2, depth3, description, status_key, url, notes, extra JSON, order_index
+- `project_process_columns` — id, project_id, col_key, label, col_type ENUM('text','date','select'), order_index
+- `project_status_options` — id, project_id, status_key, label, color, order_index
+
+**UX**
+- 행 추가/편집/삭제, 순서 드래그
+- 각 행 클릭 → 연결 업무(옵션) 점프
+- 사용자 정의 컬럼은 헤더 우측 `+` 로 추가
+
+### F5-26. 프로젝트 생성 플로우
+
+1. `/projects` 헤더 `+ 새 프로젝트` 버튼
+2. NewProjectModal 전체 입력 (이름/기간/설명/색상/멤버/고객)
+3. 저장 시 백엔드가 프로젝트 + customer/internal 채팅방 자동 생성
+4. 생성 완료 → **자동으로 `/projects/:id` 대시보드로 이동**
+5. 대시보드의 "연결된 채팅방" 섹션 클릭 → `/talk?project=ID&conv=CID` 로 이동
+
 ### F5-23. 빈 상태 / 에러 / 로딩
 
 | 상황 | UI |
@@ -678,41 +747,154 @@ Phase 5 완료 후 추적:
 
 > **업무 네이밍 규칙**: F5-6b 참조. 모든 업무 제목은 결과물 기반 완료 시점 명확 형태 필수. "시장조사" X → "경쟁사 비교분석표 작성" O
 
-### F6-1. 할일 목록 + 필터
-| 항목 | 내용 |
-|------|------|
-| 화면 | /app/tasks |
-| 필터 탭 | 오늘 / 이번주 / 전체 |
-| 필터 드롭다운 | 상태별, 담당자별, 고객별 |
-| 정렬 | 마감일 순 (지연 → 임박 → 여유) |
+### F6-1. 스코프 + 탭 (2026-04-19 재정비)
 
-### F6-2. 할일 상태 변경
-| 상태 | 전환 가능 | UI |
-|------|----------|-----|
-| pending (대기) | → in_progress, completed, canceled | ⬚ 회색 |
-| in_progress (진행) | → completed, canceled, pending | 🟡 노랑 |
-| completed (완료) | → pending (재오픈) | 🟢 녹색 |
-| canceled (취소) | → pending (재오픈) | ⚫ 취소선 |
+**스코프 (URL 분리)**
+| 경로 | 의미 |
+|---|---|
+| `/tasks` | `mine` — 내가 얽힌 업무 |
+| `/tasks/workspace` | `workspace` — 워크스페이스 전체 업무 |
 
-### F6-3. 마감 지연 표시
+**내 업무 탭 3개 (좌측 리스트)**
+| 탭 | 의미 | 필터 |
+|---|---|---|
+| **이번 주 내 업무** | 주차 내 내 액션이 필요한 것 | assignee=me AND `(task_requested`(미ack) `또는 waiting/in_progress/revision_requested/done_feedback`) OR (내 reviewer state=pending AND task.status ∈ reviewing/revision_requested) |
+| **내 전체업무** | 내가 얽힌 모든 업무 (담당 OR 컨펌) | assignee=me OR `reviewers` 중 나 포함. 세그먼트 없음 — 통합 리스트. 역할은 제목 옆 3색 이름 칩으로 구분(로즈=내가 받은 요청의 요청자 / 그린=내가 보낸 요청의 담당자 / 화이트=타인 담당) |
+| **요청하기** | 내가 요청자인 업무 | request_by_user_id=me OR (created_by=me AND assignee!=me) |
+
+**탭 뱃지 카운트 (한눈에 "내 할 일 개수")**
+| 탭 | 뱃지 숫자 정의 |
+|---|---|
+| 이번 주 내 업무 | **받은 업무요청에서 내 할 일** + **보낸 업무요청에서 내 할 일** 합산 |
+| 내 전체업무 | From Q Talk 추출 후보 수 (task_candidates.status='pending') |
+| 요청하기 | 보낸 업무요청에서 내 할 일 |
+
+**정의 (SQL 조건)**
+- "받은 업무요청에서 내 할 일" = `assignee_id = me AND (displayStatus = 'task_requested' OR status = 'revision_requested')`
+- "보낸 업무요청에서 내 할 일" = `request_by_user_id = me AND status = 'reviewing' AND (reviewers 에서 나 없거나 내 state = 'pending')` — 내가 컨펌해야 할 것
+
+### F6-2. 상태 ENUM (8단계)
+
+Phase 1 워크플로우 재설계 시 확정. `docs/DATABASE_ERD.md` tasks.status 참조.
+
+| 코드 | 의미 | UI 색상 |
+|---|---|---|
+| not_started | 미시작 (일반 업무 기본) | 슬레이트 |
+| waiting | 요청 확인 완료, 진행 대기 | 바닐라 |
+| in_progress | 진행 중 | 틸 |
+| reviewing | 컨펌 요청 중 | 블루 |
+| revision_requested | 수정 요청 받음 | 앰버 |
+| done_feedback | 전원 승인 완료, 마무리 대기 | 그린-라이트 |
+| completed | 최종 완료 | 슬레이트 그레이 |
+| canceled | 취소 | 슬레이트 |
+
+**displayStatus 가상 코드**: `not_started` 인데 `source=internal_request` + `request_ack_at=null` 이면 UI에선 `task_requested` 로 표시 (관점별 라벨은 `utils/taskLabel.ts`).
+
+### F6-3. 관점별 라벨 (4차원 i18n 구조)
+
+`status.{code}.{role}` — 각 상태 코드별로 관점 4종 라벨 정의.
+
+| 관점 | 기준 |
+|---|---|
+| assignee | 내가 담당자 |
+| reviewer | 내가 컨펌자 |
+| requester | 내가 요청자 |
+| observer | 관찰자 (워크스페이스 관리자 등) |
+
+예: `reviewing` — assignee엔 "확인요청중", reviewer엔 "확인요청 받음", requester엔 "확인진행중".
+
+### F6-4. 마감 지연 표시
+
 | 조건 | 표시 |
-|------|------|
-| 마감일 지남 + 미완료 | 🔴 빨간 뱃지 + "지연" |
-| 마감일 오늘 | 🟠 주황 뱃지 + "오늘 마감" |
-| 마감일 3일 내 | 🟡 노란 뱃지 |
+|---|---|
+| 마감일 지남 + 미완료 | 좌측 빨간 라인 + 우상단 "지연" 뱃지 |
+| 마감일 오늘 | "오늘 마감" 주황 뱃지 |
+| 마감일 3일 내 | 노란 뱃지 |
 
-### F6-4. 우측 할일 패널 (Q Talk 화면)
-| 항목 | 내용 |
-|------|------|
-| 위치 | Q Talk 대화방 우측 |
-| 내용 | 해당 고객의 할일만 표시 |
-| 기능 | 상태 변경, 클릭 시 상세보기 |
+### F6-5. 상세 패널 (우측 슬라이드오버)
 
-### F6-5. 원문 메시지 링크
-| 항목 | 내용 |
-|------|------|
-| 할일 → 메시지 | 할일 상세에서 "💬 원문 보기" 클릭 → 대화방 해당 메시지로 스크롤 |
-| 메시지 → 할일 | 메시지의 🔗 뱃지 클릭 → 할일 상세 모달 |
+**URL 싱크**: `?task=:id` — 새로고침 시 자동 재오픈. 닫으면 파라미터 제거.
+
+**액션 카드 (역할별 분리)**
+| 역할 | 가능 액션 |
+|---|---|
+| 담당자 | 요청 확인(ack) / 진행 시작 / 컨펌 요청 보내기 / 컨펌 요청 취소 / 수정 반영 후 재확인요청 / 최종 완료 |
+| 컨펌자 | 컨펌 승인 / 수정 요청(인라인 폼) / 컨펌 결정 취소(1회 per 라운드) |
+
+**버튼 톤 (UI_DESIGN_GUIDE 1.7 준수)**
+- Primary (teal): 확인·승인·완료·진행 시작
+- Secondary (gray outline): 컨펌 요청 취소
+- Danger (error outline): 수정 요청
+
+**컨펌자 섹션**
+- 컨펌자 리스트 + 상태 뱃지 (대기중/승인/수정요청)
+- 컨펌자 **2명 이상일 때만** 정책 토글 `[전원 승인 필요 | 한 명만 승인해도 OK]` 표시
+- 진행 중 라운드에 추가 시 "리셋 경고 다이얼로그"
+
+**히스토리 타임라인**
+이벤트 10종, 라벨은 "컨펌" 접두어로 명확화.
+
+| event_type | 라벨 (ko) |
+|---|---|
+| ack | 업무요청 확인 |
+| review_submit | 컨펌 요청 보냄 |
+| review_cancel | 컨펌 요청 취소 |
+| approve | 컨펌 승인 |
+| revision | 수정 요청 |
+| revert | 컨펌 결정 취소 |
+| completed | 최종 완료 |
+| reviewer_add | 컨펌자 추가 |
+| reviewer_remove | 컨펌자 제거 |
+| policy_change | 컨펌 정책 변경 |
+
+### F6-6. 우측 패널 (탭별 구성)
+
+**이번 주 내 업무 탭**
+- `받은 업무요청 (N)` — assignee=me + action-pending 카드 목록 (클릭 → 상세)
+- `보낸 업무요청 (N)` — 내가 요청자 + 내가 컨펌해야 할 것 카드 목록
+- 기간/가용시간/번다운/프로젝트 진척/이슈/메모
+
+**내 전체업무 탭**
+- `From Q Talk (N)` — task_candidates 중 pending 후보. `+ 업무로 추가` 클릭 시 정식 업무 등록 + **상세 패널 자동 전환** (담당자/기간 바로 수정 가능)
+
+**요청하기 탭**
+- `보낸 업무요청 (N)` — 같은 정의, 이 탭 메인 관심사
+- `최근 피드백` — 내가 요청한 업무의 담당자 댓글
+
+### F6-7. 업무 추가 폼
+
+**확장 폼 (인라인)**
+- 업무명 (필수)
+- 선택: 프로젝트 / 담당자 / 시작일 / 마감일 / 예측(h) / 설명
+- 저장 단축키: **Ctrl+Enter** (Enter 단독은 조기 제출 방지 차 금지)
+- 중복 제출 방지: `addingSubmitting` 가드 + 버튼 disabled
+
+**담당자 기본값**
+- `mine` + 이번 주/전체 탭: 나
+- `requested` 탭: 선택 필수 (나 선택 불가)
+- `workspace` 모드: 나 (수정 가능)
+
+### F6-8. 원문 메시지 링크 (Q Talk 연동)
+
+| 전환 | 경로 |
+|---|---|
+| 메시지 → 할일 | Q Talk 메시지 우클릭 → "할일 만들기" (Phase 5 F5-20) |
+| 할일 → 원문 | 상세 패널 "원문 보기" 링크 → 메시지 앵커로 스크롤 |
+
+### F6-9. 실시간 반영
+
+- `business:{id}` Socket room 구독 → `task:new` / `task:updated` / `task:deleted` 수신
+- 다른 사용자가 만든 업무도 즉시 내 리스트에 반영
+- 중복 insert 방지: socket 수신 측 `prev.some(id===x.id)` 체크
+
+### F6-10. 일반 업무 vs 요청 업무 분기
+
+| 구분 | source | 단계 특이사항 |
+|---|---|---|
+| 일반 업무 | `manual` | `waiting` 단계 없음 (바로 in_progress) |
+| 요청 업무 | `internal_request` / `qtalk_extract` | `task_requested` → `waiting` → `in_progress` 순, ack 필요 |
+
+상태 드롭다운 옵션도 종류별로 분기 (요청 업무 8단계 / 일반 업무 7단계).
 
 ---
 

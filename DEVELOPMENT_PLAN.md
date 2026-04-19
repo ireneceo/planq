@@ -1,9 +1,156 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-04-19 (Phase C 세션)
+> **최종 업데이트:** 2026-04-19 (Q Task·Project·Chat 대규모 확장 세션)
+
+---
+
+## ✅ 완료: Q Task 결과물 편집기 + Q Project 상세 허브 + Q Talk 정비 (2026-04-19)
+
+하루 세션에서 Q Task 드로어(리치 에디터/첨부/오버레이), Q Project 상세 페이지 전체(5탭), Q Talk 일부 정비를 동시 추진. Q Task 는 상세 드로어가 Notion 스타일 편집·첨부·실시간 저장 상태 뱃지까지 완성, Q Project 는 신규 라우트 `/projects/p/:id` 에 대시보드/업무/프로세스 파트/고객/문서/상세정보 6탭 구현, Q Talk 은 첫 방문 시 모든 프로젝트의 채팅방 로드 및 새 프로젝트 모달에 채팅 채널 설정(이름+참여자) UI 추가.
+
+### 완료된 작업
+
+| 영역 | 작업 | 상태 |
+|------|------|:----:|
+| **Q Task 드로어** | Linear 패턴 오버레이 드로어 (position:fixed, 420~1000px 드래그 리사이즈). 기본 우측 패널 유지 + 드로어가 오버레이 | ✅ |
+| **Q Task 드로어 섹션 순서** | 액션 → 설명 → 댓글 → 결과물 → 첨부 → 접기(컨펌자/히스토리/일일기록) | ✅ |
+| **Q Task description/body 분리** | description = 짧은 설명(plain), body = 결과물(리치 HTML). DB `tasks.body LONGTEXT` 추가 | ✅ |
+| **TipTap 리치 에디터** | `/` 슬래시 커맨드(9종 블록) + BubbleMenu + 이미지 붙여넣기/드래그. 설치: `@tiptap/react @tiptap/starter-kit @tiptap/extension-link/image/placeholder/task-list/task-item @tiptap/suggestion @tiptap/extension-bubble-menu` | ✅ |
+| **Task/Comment 첨부** | `task_attachments` 테이블(context ENUM description/task/comment) + multer + 공개 UUID 경로(`/public/attach/:storedName`) | ✅ |
+| **저장 상태 pill** | saveTaskField 에 saving/saved/error 상태 + 드로어 헤더 배지. description·body 2초 debounce 자동저장 | ✅ |
+| **드로어 닫기 3종** | X 버튼 / Esc / 좌측 빈 영역 클릭 | ✅ |
+| **상세 URL 싱크** | `?task=:id` 쿼리로 싱크, 새로고침 시 자동 복원 | ✅ |
+| **제목 인라인 편집** | 드로어 제목 클릭 → 인라인 input, Enter/blur 저장 | ✅ |
+| **기간 CalendarPicker** | 드로어 + 업무 추가 폼 + 새 프로젝트 모달 모두 공용 CalendarPicker 사용 | ✅ |
+| **Q Task 로딩 최적화** | 첫 페인트는 allTasks + members만, 탭 전환 시 lazy load (week/requested/all 각 1회) | ✅ |
+| **Q Project `/projects/p/:id`** | 6 탭: 대시보드 · 업무 · 테이블(프로세스 파트, 이름 편집) · 고객 · 문서 · 상세정보 | ✅ |
+| **projects 테이블 확장** | `project_type` ENUM(fixed/ongoing) + `process_tab_label` VARCHAR 추가 | ✅ |
+| **createProject 고도화** | 오너 자동 project_members + customer/internal 2채널 자동 생성 + participants 커스텀 지원 + 기본 상태 옵션 4종 seed | ✅ |
+| **프로세스 파트 테이블** | `project_process_parts` (depth1~3/description/status_key/link/notes/extra JSON/order_index) + CRUD + 드래그 순서 변경 | ✅ |
+| **프로세스 파트 확장** | `project_status_options` (커스텀 상태) + `project_process_columns` (사용자 정의 컬럼) + 관리 모달 | ✅ |
+| **대시보드 구성** | 기본정보 → 고객정보 → 연결된 채팅방 → 진척 → 주요 이슈 → 프로젝트 메모 → 업무 타임라인(최하단) | ✅ |
+| **프로젝트 업무 탭** | Q Task 테이블 디자인 복제(ColRow/TRow/TCell/StatusPill/SliderWrap/DateTrigger/NameChip/DelayBadge/DetailBtn). 기본 뷰 = 리스트 + 타임라인 바 통합. 리스트/타임라인/캘린더 4뷰 | ✅ |
+| **상세정보 탭** | 2열 그리드 풀폭. 기본정보(이름/고객사/타입/기간/색상/설명) 편집 + 채팅방 + 이슈 + 메모 | ✅ |
+| **NewProjectModal 확장** | 프로젝트 타입 카드(fixed/ongoing) + CalendarPicker 기간 + 색상 팔레트 + **채팅 채널 섹션(이름·참여 멤버)** | ✅ |
+| **고객 탭 CRUD** | 프로젝트 고객 추가/삭제 (invite_token 생성) | ✅ |
+| **대시보드 이슈/메모** | 프로젝트 레벨 이슈·메모 Enter 저장 (IME + submittingRef 가드, 중복 저장 버그 수정) | ✅ |
+| **Q Talk 전체 프로젝트 채팅** | 첫 로드 시 모든 프로젝트의 conversations 병렬 로드 — 직접 /talk 진입해도 채팅 리스트 표시 | ✅ |
+| **프로세스 파트 url 필드 리네임** | SSRF 미들웨어 `url` 파라미터 충돌 → `link` 로 변경 | ✅ |
+| **PlanQSelect 기본 placeholder** | "선택하세요" → "선택하기" | ✅ |
+| **/projects 리스트** | `+ 새 프로젝트` 버튼 + 클릭 시 `/projects/p/:id` 이동 | ✅ |
+| **App 라우팅** | `/projects/p/:id` → `QProjectDetailPage` | ✅ |
+| **문서화** | `UI_DESIGN_GUIDE` 1.7~1.9(액션 버튼 3톤·중복 제출·URL 싱크), `FEATURE_SPEC` F5-24/24-a/25(프로세스 파트) + F6 Q Task 재작성, `CLAUDE.md` UI 규칙 3건 추가 | ✅ |
+| **메모리** | 액션 버튼 3톤 원칙, 상세 패널 URL 싱크 — 2건 추가 | ✅ |
+
+### 신규 파일
+
+**백엔드**
+- `models/TaskAttachment.js` / `ProjectStatusOption.js` / `ProjectProcessColumn.js` / `ProjectProcessPart.js`
+- `routes/task_attachments.js` / `project_process.js`
+
+**프론트엔드**
+- `components/Common/RichEditor.tsx` / `SlashCommand.ts` / `SlashCommandList.tsx`
+- `components/QTask/TaskAttachments.tsx`
+- `pages/QProject/QProjectDetailPage.tsx` / `TasksTab.tsx` / `ProjectTaskList.tsx` / `ProcessPartsTab.tsx`
+
+### 수정 파일
+
+- `models/Project.js` (project_type + process_tab_label), `models/Task.js` (body LONGTEXT), `models/index.js` (어소시에이션)
+- `routes/projects.js` (createProject 채널·참여자·상태seed + 고객 추가 API + put project_type/process_tab_label)
+- `routes/tasks.js` (body/start_date 허용, detail에 comment.attachments include)
+- `server.js` (신규 라우트 마운트)
+- `App.tsx` (`/projects/p/:id` 라우트)
+- `pages/QTask/QTaskPage.tsx` (드로어 재설계, 로딩 최적화, 자동저장 pill, 제목 인라인 편집 등)
+- `pages/QProject/QProjectPage.tsx` (새 프로젝트 버튼 + 네비게이션)
+- `pages/QTalk/QTalkPage.tsx` (전체 프로젝트 conversations 병렬 로드)
+- `pages/QTalk/NewProjectModal.tsx` (타입·색상·채널 섹션)
+- `components/Common/PlanQSelect.tsx` (placeholder 기본값)
+- `public/locales/{ko,en}/qtask.json` (신규 키 다수)
+
+### DB 마이그레이션
+- `projects.project_type` ENUM('fixed','ongoing')
+- `projects.process_tab_label` VARCHAR(80)
+- `tasks.body` LONGTEXT
+- 신규 테이블: `task_attachments`, `project_status_options`, `project_process_columns`, `project_process_parts`
+
+### 검증 결과
+- 헬스체크 27/27 통과
+- 최신 빌드: tsc 0 error, gzip ~400 kB
+- E2E:
+  - 프로젝트 플로우 17/17 (fixed/ongoing 생성, 오너 자동 참여, 2채널 자동 생성, 프로세스 파트 CRUD, 커스텀 상태/컬럼, 타 biz 403)
+  - 첨부 15/15 (description/body HTML 왕복, 3개 context 업로드, 공개 이미지 경로, .sh 거부, 401/403)
+  - 채널 커스텀 7/7 (기본/커스텀 이름 + 참여자)
+
+### 알려진 미구현 (다음 세션)
+- **프로젝트 상세 내 업무 상세 드로어** (현재 `>` 클릭 시 /tasks?task=:id 로 네비게이션)
+- **타임라인 바 드래그 리사이즈/이동**
+- **프로젝트 생성 시 채팅 채널 추가/제거** (현재 customer+internal 2개 고정)
+- **문서 탭** 실제 파일 리스트 + 업로드
+- **멤버 관리** (상세정보 탭에서 추가/제거/역할)
+- **Q Talk NewChatModal** (프로젝트 연결 + 참여자 지정 간소 모달)
+- **F5-2b 초대 랜딩 페이지** `/invite/:token`
+- **Q Talk 청크 5** — Cue 자동 추출 트리거
+- **Dashboard** 페이지 구현
+- **lua 팀원 계정 세팅**
+
+---
+
+## ✅ 완료: Q Task UI 재정비 + 문서화 (2026-04-19)
 > **데이터베이스:** planq_dev_db (MySQL) + qnote.db (SQLite, FTS5)
 > **프로젝트:** B2B SaaS — 업무 전용 고객 채팅 + 실행 구조 통합 OS
 > **로드맵 상세:** `docs/DEVELOPMENT_ROADMAP.md`
+
+---
+
+## ✅ 완료: Q Task UI 재정비 + 문서화 (2026-04-19)
+
+Phase D(탭 뱃지)·E(세그먼트) 1차 구현 후 Irene 피드백 반영 대폭 재설계. 세그먼트는 과잉 분할이라 제거, 뱃지 의미는 "받은/보낸 업무요청에서 내 할 일"로 재정의, 우측 패널에 상응 섹션 신설. 액션 버튼은 상태별 색칠에서 Primary/Secondary/Danger 3톤으로 통일. 업무 추가 폼 확장 + 중복 제출 가드 + 상세 패널 URL 싱크 추가. 히스토리 라벨은 "컨펌" 접두어로 의미 명확화. 관련 설계 규칙은 `UI_DESIGN_GUIDE` 와 `FEATURE_SPECIFICATION` F6 에 명문화.
+
+### 완료된 작업
+
+| 영역 | 작업 | 상태 |
+|------|------|:----:|
+| **세그먼트 제거** | `내 전체업무` 안의 담당/컨펌 서브탭 제거 — 통합 리스트 복원. 역할은 이름 칩으로 구분 | ✅ |
+| **미배정(백로그) 섹션 제거** | 전체업무 탭 하단 중복 섹션 + backlog API 로드 제거 | ✅ |
+| **탭 뱃지 재정의** | 이번 주=받은+보낸 합산 / 전체업무=From Q Talk / 요청하기=보낸. 정의는 F6-1 명기 | ✅ |
+| **우측 패널 신설** | 이번 주: `받은 업무요청 (N)` + `보낸 업무요청 (N)` 카드 섹션 / 요청하기: 같은 `보낸 (N)` 섹션 + 피드백 | ✅ |
+| **From Q Talk 추가 플로우** | `+ 업무로 추가` 클릭 → 등록 성공 즉시 `openDetail()` 호출, 상세 패널에서 담당자/기간/설명 바로 수정 | ✅ |
+| **액션 버튼 3톤** | $fill prop(상태색) 제거. Primary(teal #14B8A6)/Secondary(회색 outline)/Danger(에러 outline) 3종만 사용. `requestRevision`/`submitRevision` 은 Danger | ✅ |
+| **업무 추가 폼 확장** | 프로젝트/담당자/시작일/마감일/예측(h)/설명 선택 입력. 전부 비우면 제목만으로 저장. 중복 방지: `addingSubmitting` 가드 + disabled. Enter 단독 저장 금지, Ctrl+Enter | ✅ |
+| **백엔드 start_date 허용** | `POST /api/tasks` 에 start_date 파라미터 허용 | ✅ |
+| **상세 패널 URL 싱크** | `?task=:id` 쿼리로 싱크. 새로고침/URL 공유 시 상세 자동 재오픈, 닫기 시 제거 | ✅ |
+| **컨펌자 정책 토글 UX** | "승인 기준" 라벨 제거, 버튼 문구만으로 전달. 컨펌자 2명 이상일 때만 표시 (1명이면 무의미) | ✅ |
+| **히스토리 이벤트 라벨** | 컨펌 접두어로 의미 명확화. "확인/승인/결정" 같은 모호한 단어 교정. 예: `policy_change` = "컨펌 정책 변경" | ✅ |
+| **액션 버튼 라벨** | `resubmitReview` "수정 반영 후 재요청" → "수정 반영 후 **재확인요청**" (재요청은 요청자 측 어휘여서 담당자 버튼에 부적합) | ✅ |
+| **문서화** | `UI_DESIGN_GUIDE` 1.7 액션 버튼 3톤 + 1.8 중복 제출 가드 + 1.9 URL 싱크 / `FEATURE_SPECIFICATION` Phase 6 재작성 (F6-1 ~ F6-10) | ✅ |
+
+### 수정된 파일
+
+**프론트엔드**
+- `pages/QTask/QTaskPage.tsx` — 세그먼트 제거/뱃지 재정의/우측 패널 신설/업무 추가 폼 확장/URL 싱크/액션 버튼 3톤
+- `public/locales/{ko,en}/qtask.json` — right/add/detail.actions/detail.reviewers/detail.history.event 키 정리
+
+**백엔드**
+- `routes/tasks.js` — POST /api/tasks start_date 허용
+
+**문서**
+- `dev-frontend/UI_DESIGN_GUIDE.md` — 1.7 ~ 1.9 신규 섹션
+- `docs/FEATURE_SPECIFICATION.md` — Phase 6 (Q Task) 재작성
+- `DEVELOPMENT_PLAN.md` — 이 세션 기록
+- `CLAUDE.md` — 자동저장 섹션에 중복 제출 가드 원칙 1줄 추가
+
+### 검증
+- 빌드 성공 (gzip 253 kB, tsc 0 error)
+- DB 기준 뱃지 기대값 계산 검증 (biz=3 irene: week=3, all=n/a, requested=1)
+- 컨펌자 1명/2명 토글 분기 확인
+
+### 다음 할 일 (다음 세션 시작점)
+
+1. **Clients 초대/편집 UI** (F5-2b 포함)
+2. **Q Talk 청크 5** — Cue 자동 추출 트리거 (post-insert hook)
+3. **Q Project 상세 페이지** `/projects/:id` (대시보드/업무/문서/고객/AI 5탭)
+4. **Dashboard** (위젯 범위 합의 필요)
+5. **lua 팀원 계정 세팅**
 
 ---
 

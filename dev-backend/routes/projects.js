@@ -6,8 +6,9 @@ const { sequelize } = require('../config/database');
 const {
   Project, ProjectMember, ProjectClient,
   ProjectNote, ProjectIssue, TaskCandidate,
-  Conversation, Message, Task, TaskReviewer,
+  Conversation, ConversationParticipant, Message, Task, TaskReviewer,
   BusinessMember, User, Business,
+  ProjectStatusOption, ProjectProcessColumn, ProjectProcessPart,
 } = require('../models');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const { authenticateToken } = require('../middleware/auth');
@@ -51,8 +52,10 @@ router.post('/', authenticateToken, async (req, res, next) => {
       start_date,
       end_date,
       color,
+      project_type,
       members = [],
       clients = [],
+      channels,
     } = req.body || {};
 
     if (!business_id || !name?.trim()) {
@@ -79,6 +82,7 @@ router.post('/', authenticateToken, async (req, res, next) => {
       start_date: start_date || null,
       end_date: end_date || null,
       color: (color && HEX_RE.test(color)) ? color : null,
+      project_type: project_type === 'ongoing' ? 'ongoing' : 'fixed',
       default_assignee_user_id: defaultAssignee,
       owner_user_id: req.user.id,
     }, { transaction: t });
@@ -122,6 +126,60 @@ router.post('/', authenticateToken, async (req, res, next) => {
       });
     }
     await ProjectClient.bulkCreate(pcRows, { transaction: t });
+
+    // 5) 기본 상태 옵션 seed (프로세스 파트용)
+    const defaultStatusOptions = [
+      { status_key: 'not_started', label: '미시작', color: '#94A3B8', order_index: 0 },
+      { status_key: 'in_progress', label: '진행중', color: '#14B8A6', order_index: 1 },
+      { status_key: 'done', label: '완료', color: '#22C55E', order_index: 2 },
+      { status_key: 'hold', label: '보류', color: '#F59E0B', order_index: 3 },
+    ];
+    await ProjectStatusOption.bulkCreate(
+      defaultStatusOptions.map(o => ({ ...o, project_id: project.id })),
+      { transaction: t }
+    );
+
+    // 6) 기본 채팅방 자동 생성 — customer + internal (FEATURE_SPEC F5-3)
+    // channels 옵션이 있으면 사용자 지정값 사용, 없으면 기본값
+    const biz = await Business.findByPk(business_id, { transaction: t });
+    const defaultChannels = [
+      { channel_type: 'customer', name: `${name.trim()} 고객`, participant_user_ids: pmRows.map(r => r.user_id) },
+      { channel_type: 'internal', name: `${name.trim()} 내부`, participant_user_ids: pmRows.map(r => r.user_id) },
+    ];
+    const chList = Array.isArray(channels) && channels.length > 0 ? channels : defaultChannels;
+    const validMemberIds = new Set(pmRows.map(r => r.user_id));
+    for (const cv of chList) {
+      const type = cv.channel_type === 'customer' ? 'customer' : 'internal';
+      const title = String(cv.name || '').trim() || `${name.trim()} ${type === 'customer' ? '고객' : '내부'}`;
+      const conv = await Conversation.create({
+        business_id,
+        project_id: project.id,
+        title,
+        channel_type: type,
+        cue_enabled: type === 'customer',
+        auto_extract_enabled: type === 'customer',
+      }, { transaction: t });
+      // 사용자 지정 참여자 (유효 멤버만) 또는 전체 프로젝트 멤버
+      let participantIds = Array.isArray(cv.participant_user_ids)
+        ? cv.participant_user_ids.filter(uid => validMemberIds.has(uid))
+        : pmRows.map(r => r.user_id);
+      // 생성자는 항상 포함
+      if (!participantIds.includes(req.user.id)) participantIds = [req.user.id, ...participantIds];
+      for (const uid of participantIds) {
+        await ConversationParticipant.create({
+          conversation_id: conv.id,
+          user_id: uid,
+          role: uid === req.user.id ? 'owner' : 'member',
+        }, { transaction: t });
+      }
+      if (type === 'customer' && biz?.cue_user_id) {
+        await ConversationParticipant.create({
+          conversation_id: conv.id,
+          user_id: biz.cue_user_id,
+          role: 'member',
+        }, { transaction: t });
+      }
+    }
 
     await t.commit();
 
@@ -188,7 +246,7 @@ router.put('/:id', authenticateToken, async (req, res, next) => {
     if (error) return errorResponse(res, error.message, error.code);
     if (role === 'client') return errorResponse(res, 'forbidden', 403);
 
-    const { name, description, client_company, start_date, end_date, status, default_assignee_user_id, color } = req.body || {};
+    const { name, description, client_company, start_date, end_date, status, default_assignee_user_id, color, project_type, process_tab_label } = req.body || {};
     const patch = {};
     if (name !== undefined) patch.name = String(name).trim();
     if (description !== undefined) patch.description = description?.trim() || null;
@@ -202,6 +260,8 @@ router.put('/:id', authenticateToken, async (req, res, next) => {
       if (color && !HEX_RE.test(color)) return errorResponse(res, 'invalid color hex', 400);
       patch.color = color || null;
     }
+    if (project_type !== undefined && ['fixed', 'ongoing'].includes(project_type)) patch.project_type = project_type;
+    if (process_tab_label !== undefined) patch.process_tab_label = String(process_tab_label).trim().slice(0, 80) || '테이블';
 
     await project.update(patch);
     const detail = await loadProjectDetail(project.id);
@@ -722,6 +782,41 @@ router.get('/workspace/:businessId/all-tasks', authenticateToken, async (req, re
 // ============================================
 // POST /api/projects/:id/issues — 이슈 추가 (멤버만)
 // ============================================
+// ============================================
+// POST /api/projects/:id/clients — 기존 프로젝트에 고객 추가 (초대 토큰 발급)
+// ============================================
+router.post('/:id/clients', authenticateToken, async (req, res, next) => {
+  try {
+    const { project, role, error } = await loadProjectOrForbidden(Number(req.params.id), req.user.id);
+    if (error) return errorResponse(res, error.message, error.code);
+    if (role === 'client') return errorResponse(res, 'forbidden', 403);
+    const { name, email } = req.body || {};
+    if (!name || !String(name).trim()) return errorResponse(res, 'name is required', 400);
+    const token = crypto.randomBytes(24).toString('hex');
+    const row = await ProjectClient.create({
+      project_id: project.id,
+      contact_name: String(name).trim(),
+      contact_email: email?.trim() || null,
+      invite_token: token,
+      invited_by: req.user.id,
+    });
+    return successResponse(res, row);
+  } catch (err) { next(err); }
+});
+
+// DELETE /api/projects/:id/clients/:clientId
+router.delete('/:id/clients/:clientId', authenticateToken, async (req, res, next) => {
+  try {
+    const { project, role, error } = await loadProjectOrForbidden(Number(req.params.id), req.user.id);
+    if (error) return errorResponse(res, error.message, error.code);
+    if (role === 'client') return errorResponse(res, 'forbidden', 403);
+    const row = await ProjectClient.findOne({ where: { id: req.params.clientId, project_id: project.id } });
+    if (!row) return errorResponse(res, 'not_found', 404);
+    await row.destroy();
+    return successResponse(res, { id: Number(req.params.clientId), deleted: true });
+  } catch (err) { next(err); }
+});
+
 router.post('/:id/issues', authenticateToken, async (req, res, next) => {
   try {
     const { project, role, error } = await loadProjectOrForbidden(Number(req.params.id), req.user.id);

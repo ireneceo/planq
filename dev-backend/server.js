@@ -113,12 +113,14 @@ require('./models');
 // Routes
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/projects', require('./routes/projects'));
+app.use('/api/projects', require('./routes/project_process'));
 app.use('/api/users', require('./routes/users'));
 app.use('/api/businesses', require('./routes/businesses'));
 app.use('/api/clients', require('./routes/clients'));
 app.use('/api/conversations', require('./routes/conversations'));
 app.use('/api/tasks', require('./routes/tasks'));
 app.use('/api/tasks', require('./routes/task_workflow'));
+app.use('/api/tasks', require('./routes/task_attachments'));
 app.use('/api/files', require('./routes/files'));
 app.use('/api/invoices', require('./routes/invoices'));
 app.use('/api', require('./routes/kb'));

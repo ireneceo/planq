@@ -292,7 +292,7 @@ router.patch('/:id/time', authenticateToken, async (req, res, next) => {
 router.post('/', authenticateToken, async (req, res, next) => {
   try {
     const { business_id, project_id, title, description, assignee_id, due_date, priority,
-      estimated_hours, category, source_message_id, conversation_id, planned_week_start } = req.body;
+      estimated_hours, category, source_message_id, conversation_id, planned_week_start, start_date } = req.body;
     if (!business_id) return errorResponse(res, 'business_id required', 400);
     if (!title || !String(title).trim()) return errorResponse(res, 'title required', 400);
 
@@ -312,6 +312,7 @@ router.post('/', authenticateToken, async (req, res, next) => {
       description: description || null,
       assignee_id: finalAssignee,
       due_date: due_date || null,
+      start_date: start_date || null,
       estimated_hours: estimated_hours || null,
       category: category || null,
       source_message_id: source_message_id || null,
@@ -375,10 +376,12 @@ router.put('/by-business/:businessId/:id', authenticateToken, async (req, res, n
     const task = await Task.findOne({ where: { id: req.params.id, business_id: req.params.businessId } });
     if (!task) return errorResponse(res, 'task_not_found', 404);
 
-    const { title, description, assignee_id, status, priority, due_date, estimated_hours, actual_hours, progress_percent, category, planned_week_start } = req.body;
+    const { title, description, body, assignee_id, status, priority, due_date, start_date, estimated_hours, actual_hours, progress_percent, category, planned_week_start } = req.body;
     const updates = {};
     if (title !== undefined) updates.title = title;
     if (description !== undefined) updates.description = description;
+    if (body !== undefined) updates.body = body;
+    if (start_date !== undefined) updates.start_date = start_date;
     if (assignee_id !== undefined) updates.assignee_id = assignee_id;
     if (status !== undefined) updates.status = status;
     if (due_date !== undefined) updates.due_date = due_date;
@@ -430,12 +433,19 @@ router.delete('/by-business/:businessId/:id', authenticateToken, async (req, res
 // ============================================
 router.get('/:id/detail', authenticateToken, async (req, res, next) => {
   try {
+    const { TaskAttachment } = require('../models');
     const task = await Task.findByPk(req.params.id, {
       include: [
         { model: Project, attributes: ['id', 'name'], required: false },
         { model: User, as: 'assignee', attributes: ['id', 'name'], required: false },
         { model: User, as: 'creator', attributes: ['id', 'name'], required: false },
-        { model: TaskComment, as: 'comments', include: [{ model: User, as: 'author', attributes: ['id', 'name'] }], required: false },
+        {
+          model: TaskComment, as: 'comments', required: false,
+          include: [
+            { model: User, as: 'author', attributes: ['id', 'name'] },
+            { model: TaskAttachment, as: 'attachments', required: false, include: [{ model: User, as: 'uploader', attributes: ['id', 'name'] }] },
+          ],
+        },
         { model: TaskDailyProgress, as: 'daily_progress', required: false },
       ],
       order: [

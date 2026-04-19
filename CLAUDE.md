@@ -364,6 +364,12 @@ import PanelHeader, { PanelTitle, PanelSubTitle, PanelMetaTitle } from 'componen
 - 컴포넌트: `src/components/Common/AutoSaveField.tsx`
 - 상세: `dev-frontend/UI_DESIGN_GUIDE.md` 섹션 7
 
+## UI 규칙 — 액션 버튼 / 중복 제출 / URL 싱크
+
+- **액션 버튼 3톤** (Primary / Secondary / Danger)만 사용. 상태 색을 버튼 배경에 칠하지 말 것. `UI_DESIGN_GUIDE.md` 섹션 1.7.
+- **생성/추가/승인 액션은 중복 제출 가드 필수** — `submitting` state + 버튼 `disabled`. Enter 단독 저장 금지 (Ctrl/Cmd+Enter 만 허용). 섹션 1.8.
+- **상세/드로어 패널은 URL 싱크** — `?task=:id`, `?client=:id` 등 단수형 쿼리로 싱크. 새로고침·공유 시 컨텍스트 유지. 섹션 1.9.
+
 ---
 
 ## 절대 금지 사항

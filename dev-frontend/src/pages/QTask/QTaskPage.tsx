@@ -10,6 +10,8 @@ import PlanQSelect from '../../components/Common/PlanQSelect';
 import { todayInTz, mondayOfDateStr, addDaysStr, detectBrowserTz } from '../../utils/timezones';
 import { STATUS_CODES, STATUS_COLOR, displayStatus, getStatusLabel, type StatusCode } from '../../utils/taskLabel';
 import { getRoles, primaryPerspective } from '../../utils/taskRoles';
+import RichEditor from '../../components/Common/RichEditor';
+import TaskAttachments from '../../components/QTask/TaskAttachments';
 
 // ─── Types ───
 type Scope = 'mine' | 'workspace';
@@ -40,7 +42,8 @@ interface TaskRow {
 interface BurndownPoint { label: string; estimated_cumulative: number; actual_cumulative: number; }
 interface IssueRow { id: number; body: string; author?: { name: string }; projectName?: string; }
 interface NoteRow { id: number; body: string; author?: { name: string }; visibility?: string; projectName?: string; }
-interface CommentRow { id: number; content: string; createdAt: string; author?: { name: string }; Task?: { id: number; title: string }; }
+interface CommentAttach { id: number; stored_name?: string; original_name: string; file_size: number; mime_type: string | null; }
+interface CommentRow { id: number; content: string; createdAt: string; author?: { name: string }; Task?: { id: number; title: string }; attachments?: CommentAttach[]; }
 interface CandidateRow { id: number; title: string; description: string | null; project_name?: string; guessedAssignee?: { id: number; name: string }; guessed_due_date: string | null; }
 interface ReviewerRow { id: number; user_id: number; state: 'pending'|'approved'|'revision'; is_client: boolean; reverted_once: boolean; action_at: string | null; user?: { id: number; name: string }; }
 interface HistoryRow { id: number; event_type: string; from_status: string | null; to_status: string | null; actor_user_id: number | null; actor_role: string | null; target_user_id: number | null; round: number | null; note: string | null; createdAt: string; actor?: { id: number; name: string }; target?: { id: number; name: string }; }
@@ -92,7 +95,6 @@ const QTaskPage:React.FC=()=>{
   const[allTasks,setAllTasks]=useState<TaskRow[]>([]);
   const[members,setMembers]=useState<MemberOption[]>([]);
   const[assigneeFilter,setAssigneeFilter]=useState<number|null>(null); // workspace mode 담당자 필터
-  const[backlog,setBacklog]=useState<TaskRow[]>([]);
   const[capacity,setCapacity]=useState<{daily:number;days:number;rate:number;weekly:number}>({daily:8,days:5,rate:1,weekly:40});
   const[burndown,_setBurndown]=useState<BurndownPoint[]>([]);
   void burndown;
@@ -115,19 +117,80 @@ const QTaskPage:React.FC=()=>{
   const[search,setSearch]=useState('');
   const[statusFilter,setStatusFilter]=useState('');
   const[hideCompleted,setHideCompleted]=useState(false);
+  const[rightWidth,setRightWidth]=useState<number>(()=>{
+    try{const v=localStorage.getItem('qtask_right_width');return v?Math.max(320,Math.min(720,Number(v))):420;}catch{return 420;}
+  });
+  const rightResizingRef=useRef(false);
+  const[drawerWidth,setDrawerWidth]=useState<number>(()=>{
+    try{const v=localStorage.getItem('qtask_drawer_width');return v?Math.max(420,Math.min(1000,Number(v))):560;}catch{return 560;}
+  });
+  const drawerResizingRef=useRef(false);
+  const startDrawerResize=(e:React.MouseEvent)=>{
+    e.preventDefault();
+    drawerResizingRef.current=true;
+    document.body.style.userSelect='none';
+    document.body.style.cursor='col-resize';
+  };
+  useEffect(()=>{
+    const onMove=(e:MouseEvent)=>{
+      if(rightResizingRef.current){
+        const w=Math.max(320,Math.min(720,window.innerWidth-e.clientX));
+        setRightWidth(w);
+      }
+      if(drawerResizingRef.current){
+        const w=Math.max(420,Math.min(1000,window.innerWidth-e.clientX));
+        setDrawerWidth(w);
+      }
+    };
+    const onUp=()=>{
+      if(rightResizingRef.current){
+        rightResizingRef.current=false;
+        try{localStorage.setItem('qtask_right_width',String(rightWidth));}catch{}
+      }
+      if(drawerResizingRef.current){
+        drawerResizingRef.current=false;
+        try{localStorage.setItem('qtask_drawer_width',String(drawerWidth));}catch{}
+      }
+      document.body.style.userSelect='';
+      document.body.style.cursor='';
+    };
+    window.addEventListener('mousemove',onMove);
+    window.addEventListener('mouseup',onUp);
+    return()=>{window.removeEventListener('mousemove',onMove);window.removeEventListener('mouseup',onUp);};
+  },[rightWidth,drawerWidth]);
+  const startResize=(e:React.MouseEvent)=>{
+    e.preventDefault();
+    rightResizingRef.current=true;
+    document.body.style.userSelect='none';
+    document.body.style.cursor='col-resize';
+  };
   const[sortKey,setSortKey]=useState<SortKey>('due_date');
   const[sortDir,setSortDir]=useState<SortDir>('asc');
 
   // Inline edit
   const[editingTitle,setEditingTitle]=useState<number|null>(null);
+  const[editingDetailTitle,setEditingDetailTitle]=useState(false);
   const[titleDraft,setTitleDraft]=useState('');
   const[addingTask,setAddingTask]=useState(false);
   const[newTitle,setNewTitle]=useState('');
   const[newAssignee,setNewAssignee]=useState<number|null>(null);
+  const[newProjectId,setNewProjectId]=useState<number|null>(null);
+  const[newDueDate,setNewDueDate]=useState<string>('');
+  const[newStartDate,setNewStartDate]=useState<string>('');
+  const[newEstHours,setNewEstHours]=useState<string>('');
+  const[newDescription,setNewDescription]=useState<string>('');
+  const[addingSubmitting,setAddingSubmitting]=useState(false);
   const[statusDropdownId,setStatusDropdownId]=useState<number|null>(null);
   const[detailStatusOpen,setDetailStatusOpen]=useState(false);
-  const[detailTaskId,setDetailTaskId]=useState<number|null>(null);
-  const[detailTask,setDetailTask]=useState<(TaskRow&{comments?:CommentRow[];description?:string|null;daily_progress?:{snapshot_date:string;progress_percent:number;actual_hours:number;estimated_hours:number|null}[]})|null>(null);
+  const[detailTaskId,setDetailTaskId]=useState<number|null>(()=>{
+    const q=new URLSearchParams(location.search).get('task');
+    return q?Number(q):null;
+  });
+  const[detailTask,setDetailTask]=useState<(TaskRow&{comments?:CommentRow[];description?:string|null;body?:string|null;daily_progress?:{snapshot_date:string;progress_percent:number;actual_hours:number;estimated_hours:number|null}[]})|null>(null);
+  // 접기 섹션 상태 (컨펌자/히스토리/일일기록)
+  const[openReviewers,setOpenReviewers]=useState(false);
+  const[openHistory,setOpenHistory]=useState(false);
+  const[openDaily,setOpenDaily]=useState(false);
   const[newComment,setNewComment]=useState('');
   // 워크플로우 (Phase C)
   const[reviewers,setReviewers]=useState<ReviewerRow[]>([]);
@@ -138,7 +201,6 @@ const QTaskPage:React.FC=()=>{
   const[revisionNote,setRevisionNote]=useState('');
   const[addReviewerOpen,setAddReviewerOpen]=useState(false);
   const[pendingReviewerAdd,setPendingReviewerAdd]=useState<number|null>(null);
-  const[historyExpanded,setHistoryExpanded]=useState(false);
   const[actionBusy,setActionBusy]=useState(false);
   const[requestedComments,setRequestedComments]=useState<CommentRow[]>([]);
   const[candidates,setCandidates]=useState<CandidateRow[]>([]);
@@ -149,15 +211,13 @@ const QTaskPage:React.FC=()=>{
   const thisMonday=thisMondayStr;
 
   // ── Load ALL data once ──
+  // 1단계: 리스트(전체 업무) + 멤버 — 즉시 렌더를 위한 최소 로드
   const load=useCallback(async()=>{
     if(!bizId)return;
     setLoading(true);
     try{
-      // All my tasks (전체 — workspace 모드에서도 재사용)
       const r=await(await apiFetch(`/api/projects/workspace/${bizId}/all-tasks`)).json();
       if(r.success)setAllTasks(r.data||[]);
-
-      // 멤버 목록 (업무 추가 시 담당자 선택용)
       try{
         const mr=await(await apiFetch(`/api/businesses/${bizId}/members`)).json();
         if(mr.success){
@@ -167,50 +227,66 @@ const QTaskPage:React.FC=()=>{
           setMembers(opts);
         }
       }catch{}
-
-      // Backlog
-      const bl=await(await apiFetch(`/api/tasks/backlog?business_id=${bizId}`)).json();
-      if(bl.success)setBacklog(bl.data||[]);
-
-      // Week capacity + burndown
-      const wr=await(await apiFetch(`/api/tasks/my-week?business_id=${bizId}`)).json();
-      if(wr.success){
-        setCapacity(wr.data.capacity);
-        _setBurndown((wr.data.burndown||[]).map((b:Record<string,unknown>)=>({label:b.label as string,estimated_cumulative:b.estimated_cumulative as number,actual_cumulative:b.actual_cumulative as number})));
-      }
-
-      // Issues + Notes (프로젝트명 포함)
-      const projMap=new Map<number,string>();
-      for(const t of (r.data||[]) as TaskRow[]){if(t.project_id&&t.Project?.name)projMap.set(t.project_id,t.Project.name);}
-      const projIds=[...projMap.keys()];
-      const ai:IssueRow[]=[];const an:NoteRow[]=[];
-      for(const pid of projIds.slice(0,5)){
-        const pName=projMap.get(pid)||'';
-        try{
-          const ir=await(await apiFetch(`/api/projects/${pid}/issues`)).json();
-          if(ir.success)ai.push(...(ir.data||[]).slice(0,2).map((i:IssueRow)=>({...i,projectName:pName})));
-          const nr=await(await apiFetch(`/api/projects/${pid}/notes`)).json();
-          if(nr.success)an.push(...(nr.data||[]).slice(0,2).map((n:NoteRow)=>({...n,projectName:pName})));
-        }catch{}
-      }
-      setIssues(ai.slice(0,5));setNotes(an.slice(0,5));
-
-      // 요청한 업무 댓글
-      try{
-        const rc=await(await apiFetch(`/api/tasks/requested-comments?business_id=${bizId}`)).json();
-        if(rc.success)setRequestedComments(rc.data||[]);
-      }catch{}
-
-      // Q Talk 추출 후보 (전체업무 탭용)
-      try{
-        const ec=await(await apiFetch(`/api/tasks/extracted-candidates?business_id=${bizId}`)).json();
-        if(ec.success)setCandidates(ec.data||[]);
-      }catch{}
     }catch{}
     setLoading(false);
   },[bizId]);
 
   useEffect(()=>{load();},[load]);
+
+  // 2단계: 탭별 lazy 로드 (한 번만)
+  const loadedExtrasRef=useRef<{week?:boolean;requested?:boolean;all?:boolean}>({});
+  useEffect(()=>{
+    if(!bizId||allTasks.length===0)return;
+    const ran=loadedExtrasRef.current;
+    if(tab==='week'&&!ran.week){
+      ran.week=true;
+      (async()=>{
+        try{
+          const wr=await(await apiFetch(`/api/tasks/my-week?business_id=${bizId}`)).json();
+          if(wr.success){
+            setCapacity(wr.data.capacity);
+            _setBurndown((wr.data.burndown||[]).map((b:Record<string,unknown>)=>({label:b.label as string,estimated_cumulative:b.estimated_cumulative as number,actual_cumulative:b.actual_cumulative as number})));
+          }
+        }catch{}
+        // 이슈/메모 (프로젝트별 lazy — 최대 5개 프로젝트)
+        const projMap=new Map<number,string>();
+        for(const t of allTasks){if(t.project_id&&t.Project?.name)projMap.set(t.project_id,t.Project.name);}
+        const projIds=[...projMap.keys()].slice(0,5);
+        const ai:IssueRow[]=[];const an:NoteRow[]=[];
+        await Promise.all(projIds.map(async pid=>{
+          const pName=projMap.get(pid)||'';
+          try{
+            const [ir,nr]=await Promise.all([
+              apiFetch(`/api/projects/${pid}/issues`).then(r=>r.json()),
+              apiFetch(`/api/projects/${pid}/notes`).then(r=>r.json()),
+            ]);
+            if(ir.success)ai.push(...(ir.data||[]).slice(0,2).map((i:IssueRow)=>({...i,projectName:pName})));
+            if(nr.success)an.push(...(nr.data||[]).slice(0,2).map((n:NoteRow)=>({...n,projectName:pName})));
+          }catch{}
+        }));
+        setIssues(ai.slice(0,5));setNotes(an.slice(0,5));
+      })();
+    }
+    if(tab==='requested'&&!ran.requested){
+      ran.requested=true;
+      (async()=>{
+        try{
+          const rc=await(await apiFetch(`/api/tasks/requested-comments?business_id=${bizId}`)).json();
+          if(rc.success)setRequestedComments(rc.data||[]);
+        }catch{}
+      })();
+    }
+    if(tab==='all'&&!ran.all){
+      ran.all=true;
+      (async()=>{
+        try{
+          const ec=await(await apiFetch(`/api/tasks/extracted-candidates?business_id=${bizId}`)).json();
+          if(ec.success)setCandidates(ec.data||[]);
+        }catch{}
+      })();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[tab,bizId,allTasks.length]);
 
   // Socket.IO — 워크스페이스 room 에서 task:new 수신 (Q Talk 에서 후보 등록 시 즉시 반영)
   const socketRef = useRef<Socket | null>(null);
@@ -239,6 +315,29 @@ const QTaskPage:React.FC=()=>{
       socketRef.current = null;
     };
   }, [bizId]);
+
+  // Esc 키로 드로어 닫기 (상세 + 업무 추가)
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      if (addingTask) { setAddingTask(false); resetNewTask(); return; }
+      if (detailTaskId) { closeDetail(); return; }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [addingTask, detailTaskId]);
+
+  // URL 의 ?task=:id 로 mount 된 경우, 상세를 한 번 로드
+  const detailBootstrapRef=useRef(false);
+  useEffect(()=>{
+    if(detailBootstrapRef.current)return;
+    if(detailTaskId&&!detailTask){
+      detailBootstrapRef.current=true;
+      openDetail(detailTaskId);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[detailTaskId]);
 
   // Period 변경 시 일별 스냅샷 로드
   useEffect(()=>{
@@ -331,15 +430,19 @@ const QTaskPage:React.FC=()=>{
     }catch{}
   };
 
-  const assignToWeek=async(taskId:number)=>{
-    await saveField(taskId,'planned_week_start',thisMonday);
-    setBacklog(prev=>prev.filter(t=>t.id!==taskId));
-    // reload to refresh
-    const r=await(await apiFetch(`/api/projects/workspace/${bizId}/all-tasks`)).json();
-    if(r.success)setAllTasks(r.data||[]);
-  };
+  // 프로젝트 옵션 — allTasks 에서 distinct
+  const projectOptions=useMemo(()=>{
+    const map=new Map<number,string>();
+    for(const t of allTasks){ if(t.Project?.id&&t.Project?.name)map.set(t.Project.id,t.Project.name); }
+    return Array.from(map.entries()).map(([id,name])=>({value:String(id),label:name}));
+  },[allTasks]);
 
+  const resetNewTask=()=>{
+    setNewTitle('');setNewAssignee(null);setNewProjectId(null);
+    setNewDueDate('');setNewStartDate('');setNewEstHours('');setNewDescription('');
+  };
   const addTask=async()=>{
+    if(addingSubmitting)return; // 중복 방지
     if(!newTitle.trim()||!bizId)return;
     // 담당자 결정
     // - 내 업무 week/all : 무조건 나 (담당자 선택 UI 없음)
@@ -356,24 +459,29 @@ const QTaskPage:React.FC=()=>{
     }
     // 이번 주 탭에서는 마감일 기본값 = 오늘 (이번주 범위 안에 들어오도록)
     const defaultDue=(scope==='mine'&&tab==='week')?todayStr:null;
+    setAddingSubmitting(true);
     try{
       const r=await(await apiFetch('/api/tasks',{method:'POST',headers:{'Content-Type':'application/json'},
         body:JSON.stringify({
           business_id:Number(bizId),
           title:newTitle.trim(),
+          description:newDescription.trim()||null,
           assignee_id:targetAssignee,
+          project_id:newProjectId,
           planned_week_start:(scope==='mine'&&tab==='week')?thisMonday:null,
-          due_date:defaultDue,
+          start_date:newStartDate||null,
+          due_date:newDueDate||defaultDue,
+          estimated_hours:newEstHours?Number(newEstHours):null,
         })
       })).json();
       if(r.success){
         // Socket task:new 가 먼저 도착했을 가능성 — 중복 방지
         setAllTasks(prev=>prev.some(x=>x.id===r.data.id)?prev:[r.data,...prev]);
-        setNewTitle('');
-        setNewAssignee(null);
+        resetNewTask();
         setAddingTask(false);
       }
     }catch(e){console.error('[addTask]',e);}
+    finally{setAddingSubmitting(false);}
   };
 
   // 우선순위: 클릭 순서대로 1,2,3... / 다시 클릭하면 해제 + 번호 재정렬
@@ -418,8 +526,11 @@ const QTaskPage:React.FC=()=>{
   },[]);
   const openDetail=async(taskId:number)=>{
     setDetailTaskId(taskId);
-    setRevisionOpenForId(null);setRevisionNote('');setAddReviewerOpen(false);setHistoryExpanded(false);
-    try{
+    // URL 동기화 — 새로고침해도 상세 유지
+    const sp=new URLSearchParams(location.search);
+    sp.set('task',String(taskId));
+    navigate(`${location.pathname}?${sp.toString()}`,{replace:true});
+    setRevisionOpenForId(null);setRevisionNote('');setAddReviewerOpen(false);    try{
       const [dr]=await Promise.all([
         apiFetch(`/api/tasks/${taskId}/detail`).then(r=>r.json()),
         loadWorkflow(taskId),
@@ -428,9 +539,13 @@ const QTaskPage:React.FC=()=>{
     }catch{}
   };
   const closeDetail=()=>{
-    setDetailTaskId(null);setDetailTask(null);setNewComment('');
+    setDetailTaskId(null);setDetailTask(null);setNewComment('');setEditingDetailTitle(false);
     setReviewers([]);setHistory([]);setRevisionOpenForId(null);setRevisionNote('');
-    setAddReviewerOpen(false);setPendingReviewerAdd(null);setHistoryExpanded(false);
+    setAddReviewerOpen(false);setPendingReviewerAdd(null);    // URL 에서 task 파라미터 제거
+    const sp=new URLSearchParams(location.search);
+    sp.delete('task');
+    const qs=sp.toString();
+    navigate(qs?`${location.pathname}?${qs}`:location.pathname,{replace:true});
   };
 
   // ── 워크플로우 액션 ──
@@ -496,31 +611,74 @@ const QTaskPage:React.FC=()=>{
     await callAction('/policy','PATCH',{review_policy:p});
   };
 
+  const[commentFiles,setCommentFiles]=useState<File[]>([]);
+  const[commentSending,setCommentSending]=useState(false);
   const addComment=async()=>{
-    if(!newComment.trim()||!detailTaskId)return;
+    if(commentSending)return;
+    if(!newComment.trim()&&commentFiles.length===0)return;
+    if(!detailTaskId)return;
+    setCommentSending(true);
     try{
-      const r=await(await apiFetch(`/api/tasks/${detailTaskId}/comments`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({content:newComment.trim()})})).json();
-      if(r.success&&detailTask){
-        setDetailTask({...detailTask,comments:[...(detailTask.comments||[]),r.data]});
-        setNewComment('');
+      // 1) 댓글 생성 (빈 문자열이어도 파일만 있으면 허용 — 서버는 content_required 체크이므로 최소 1자 필요)
+      const content=newComment.trim()||'(첨부파일)';
+      const r=await(await apiFetch(`/api/tasks/${detailTaskId}/comments`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({content})})).json();
+      if(!r.success||!detailTask){return;}
+      const comment=r.data;
+      // 2) 각 파일 업로드 (comment_id 연결)
+      const attached:CommentAttach[]=[];
+      for(const f of commentFiles){
+        const fd=new FormData();
+        fd.append('file',f,f.name);
+        const ur=await apiFetch(`/api/tasks/${detailTaskId}/attachments?context=comment&commentId=${comment.id}`,{method:'POST',body:fd});
+        const uj=await ur.json();
+        if(uj.success)attached.push({id:uj.data.id,original_name:uj.data.original_name,file_size:uj.data.file_size,mime_type:uj.data.mime_type});
       }
-    }catch{}
+      setDetailTask({...detailTask,comments:[...(detailTask.comments||[]),{...comment,attachments:attached}]});
+      setNewComment('');
+      setCommentFiles([]);
+    }finally{setCommentSending(false);}
   };
 
   const registerCandidate=async(candId:number)=>{
     try{
-      await apiFetch(`/api/projects/task-candidates/${candId}/register`,{method:'POST'});
+      const r=await apiFetch(`/api/projects/task-candidates/${candId}/register`,{method:'POST'});
+      const j=await r.json();
       setCandidates(prev=>prev.filter(c=>c.id!==candId));
-      load(); // refresh
+      await load(); // 리스트 반영 후
+      if(j?.success&&j?.data?.task?.id){
+        openDetail(j.data.task.id);  // 상세 패널 자동 전환 → 담당자/기간 바로 수정 가능
+      }
     }catch{}
   };
 
+  // 자동저장 상태 표시 (드로어 헤더 pill)
+  const[saveStatus,setSaveStatus]=useState<'idle'|'saving'|'saved'|'error'>('idle');
+  const saveStatusTimerRef=useRef<number|null>(null);
+  const setSaveStatusTemp=(s:'saving'|'saved'|'error')=>{
+    setSaveStatus(s);
+    if(saveStatusTimerRef.current)window.clearTimeout(saveStatusTimerRef.current);
+    if(s==='saved')saveStatusTimerRef.current=window.setTimeout(()=>setSaveStatus('idle'),1800);
+    if(s==='error')saveStatusTimerRef.current=window.setTimeout(()=>setSaveStatus('idle'),4000);
+  };
   const saveTaskField=async(taskId:number,field:string,value:unknown)=>{
+    setSaveStatusTemp('saving');
     try{
-      await apiFetch(`/api/tasks/by-business/${bizId}/${taskId}`,{method:'PUT',headers:{'Content-Type':'application/json'},
+      const r=await apiFetch(`/api/tasks/by-business/${bizId}/${taskId}`,{method:'PUT',headers:{'Content-Type':'application/json'},
         body:JSON.stringify({[field]:value})});
+      if(!r.ok)throw new Error('save_failed');
       setAllTasks(prev=>prev.map(t=>t.id===taskId?{...t,[field]:value}:t));
-    }catch{}
+      setSaveStatusTemp('saved');
+    }catch{setSaveStatusTemp('error');}
+  };
+  // Debounced save — 텍스트/에디터 타이핑 중 자동저장 (2초 idle 뒤)
+  const debouncedSaveRef=useRef<{[key:string]:number}>({});
+  const debouncedSave=(taskId:number,field:string,value:unknown,ms=2000)=>{
+    const key=`${taskId}:${field}`;
+    if(debouncedSaveRef.current[key])window.clearTimeout(debouncedSaveRef.current[key]);
+    debouncedSaveRef.current[key]=window.setTimeout(()=>{
+      saveTaskField(taskId,field,value);
+      delete debouncedSaveRef.current[key];
+    },ms);
   };
 
   // 업무 종류별 선택 가능한 단계 목록
@@ -621,6 +779,35 @@ const QTaskPage:React.FC=()=>{
     const act=filtered.reduce((s,t)=>s+(Number(t.actual_hours)||0),0);
     return{count:filtered.length,est:Math.round(est*10)/10,act:Math.round(act*10)/10};
   },[filtered]);
+
+  // 탭 뱃지 카운트 — "내 할 일" 기준
+  // - 받은 업무요청에서 내 할 일: assignee=me && action-pending (task_requested 미ack 또는 revision_requested)
+  // - 보낸 업무요청에서 내 할 일: request_by=me && status=reviewing && 내 reviewer pending (내가 컨펌해야 함)
+  // week = 받은 + 보낸 합산
+  // all = From Q Talk 후보 수 (candidates)
+  // requested = 보낸
+  const panelCounts=useMemo(()=>{
+    let received=0,sent=0;
+    const receivedList:TaskRow[]=[], sentList:TaskRow[]=[];
+    for(const t of allTasks){
+      if(t.assignee_id===myId){
+        const ds=displayStatus(t,todayStr);
+        if(ds==='task_requested'||t.status==='revision_requested'){received++;receivedList.push(t);}
+      }
+      const isRequester=(t.request_by_user_id===myId)||(t.created_by===myId&&t.assignee_id!=null&&t.assignee_id!==myId);
+      if(isRequester&&t.status==='reviewing'){
+        const myRev=t.reviewers?.find(rv=>rv.user_id===myId);
+        if(!myRev||myRev.state==='pending'){sent++;sentList.push(t);}
+      }
+    }
+    return{received,sent,receivedList,sentList};
+  },[allTasks,myId,todayStr]);
+  const badgeCounts=useMemo(()=>({
+    week: panelCounts.received+panelCounts.sent,
+    all: candidates.length,
+    requested: panelCounts.sent,
+  }),[panelCounts,candidates.length]);
+
 
   // 전체 내 업무 집계 (우측 가용시간 — 탭 무관, 항상 동일)
   const totalMyEst=useMemo(()=>{
@@ -744,7 +931,15 @@ const QTaskPage:React.FC=()=>{
 
   return(
     <Layout>
-      <LeftPanel>
+      <LeftPanel onMouseDownCapture={(e)=>{
+        // 드로어 열린 상태에서 좌측 리스트의 빈 영역 클릭 → 드로어 닫기
+        // (행/버튼/입력 클릭은 각자 핸들러로 처리되므로 제외)
+        if(!detailTaskId&&!addingTask)return;
+        const tgt=e.target as HTMLElement;
+        if(tgt.closest('[data-task-row],button,a,input,select,textarea,[role="button"],[data-dropdown]'))return;
+        if(addingTask){setAddingTask(false);resetNewTask();}
+        else if(detailTaskId){closeDetail();}
+      }}>
         {/* Header — 제목 + 스코프 세그먼트 토글 */}
         <Header>
           <PageTitle>Q task</PageTitle>
@@ -769,11 +964,28 @@ const QTaskPage:React.FC=()=>{
         {/* Tabs — 내 업무 모드에서만 (요구 순서: 이번 주 내 / 나의 전체 / 내가 요청한) */}
         {scope==='mine'&&(
           <TabBar>
-            <TabBtn $active={tab==='week'} onClick={()=>setTab('week')}>{t('tab.week','이번 주 내 업무')}</TabBtn>
-            <TabBtn $active={tab==='all'} onClick={()=>setTab('all')}>{t('tab.all','내 전체업무')}</TabBtn>
-            <TabBtn $active={tab==='requested'} onClick={()=>setTab('requested')}>{t('tab.requested','요청하기')}</TabBtn>
+            <TabBtn $active={tab==='week'} onClick={()=>{setTab('week');closeDetail();}}>
+              {t('tab.week','이번 주 내 업무')}
+              {badgeCounts.week>0&&<TabBadge $active={tab==='week'}>{badgeCounts.week}</TabBadge>}
+            </TabBtn>
+            <TabBtn $active={tab==='all'} onClick={()=>{setTab('all');closeDetail();}}>
+              {t('tab.all','내 전체업무')}
+              {badgeCounts.all>0&&<TabBadge $active={tab==='all'}>{badgeCounts.all}</TabBadge>}
+            </TabBtn>
+            <TabBtn $active={tab==='requested'} onClick={()=>{setTab('requested');closeDetail();}}>
+              {t('tab.requested','요청하기')}
+              {badgeCounts.requested>0&&<TabBadge $active={tab==='requested'}>{badgeCounts.requested}</TabBadge>}
+            </TabBtn>
           </TabBar>
         )}
+
+        {/* 탭별 액션 바 — 업무/요청 추가 버튼 */}
+        <TabActionBar>
+          <HeaderAddBtn type="button" onClick={()=>{
+            setAddingTask(true);
+            setNewAssignee(tab==='requested'?null:myId);
+          }}>+ {scope==='mine'&&tab==='requested'?t('add.reqBtn','요청 추가'):t('add.btn','업무 추가')}</HeaderAddBtn>
+        </TabActionBar>
 
         <ListScroll>
           {/* Filter bar (탭 아래) */}
@@ -795,7 +1007,7 @@ const QTaskPage:React.FC=()=>{
                   options={members.map(m=>({value:String(m.user_id),label:m.name}))} />
               </div>
             )}
-            <HideCheck><input type="checkbox" checked={hideCompleted} onChange={e=>setHideCompleted(e.target.checked)} />{t('filter.hideCompleted','Hide completed')}</HideCheck>
+            {!(scope==='mine'&&tab==='week')&&<HideCheck><input type="checkbox" checked={hideCompleted} onChange={e=>setHideCompleted(e.target.checked)} />{t('filter.hideCompleted','Hide completed')}</HideCheck>}
             <ChipRow>
               <Chip>{summary.count}{t('summary.unit','tasks')}</Chip>
               <Chip $teal>Est {summary.est}h</Chip>
@@ -830,7 +1042,7 @@ const QTaskPage:React.FC=()=>{
                 const isDelayed=task.due_date&&task.due_date.slice(0,10)<today&&task.status!=='completed'&&task.status!=='canceled';
 
                 return(
-                  <TRow key={task.id} $done={task.status==='completed'} $delayed={!!isDelayed} $selected={detailTaskId===task.id}>
+                  <TRow key={task.id} data-task-row $done={task.status==='completed'} $delayed={!!isDelayed} $selected={detailTaskId===task.id}>
                     <TCell $w="30px" $center>
                       <PrioNum $active={!!task.priority_order} $disabled={task.status==='completed'||task.status==='canceled'}
                         onClick={e=>{e.stopPropagation();if(task.status!=='completed'&&task.status!=='canceled')togglePriority(task.id);}}>
@@ -1005,7 +1217,7 @@ const QTaskPage:React.FC=()=>{
                           const isDelayed=task.due_date&&task.due_date.slice(0,10)<todayStr&&task.status!=='completed'&&task.status!=='canceled';
                           const myRole=primaryPerspective(getRoles(task,myId));
                           return (
-                            <KanbanCard key={task.id} $delayed={!!isDelayed} $done={task.status==='completed'} $selected={detailTaskId===task.id} onClick={()=>openDetail(task.id)}>
+                            <KanbanCard key={task.id} data-task-row $delayed={!!isDelayed} $done={task.status==='completed'} $selected={detailTaskId===task.id} onClick={()=>openDetail(task.id)}>
                               {isDelayed&&<KanbanDelayBadge>{t('status.delayed','Delayed')}</KanbanDelayBadge>}
                               {task.Project?.name&&<KanbanProject>{task.Project.name}</KanbanProject>}
                               <KanbanTitle>
@@ -1047,65 +1259,6 @@ const QTaskPage:React.FC=()=>{
             </KanbanBoard>
           )}
 
-          {/* Add task — 제목 + 담당자 선택 (요청 탭/전체 모드면 담당자 강조) */}
-          <AddRow>
-            {addingTask?(
-              <AddForm>
-                <AddInput autoFocus value={newTitle} placeholder={t('add.placeholder','업무명 입력 후 Enter 로 저장')}
-                  onChange={e=>setNewTitle(e.target.value)}
-                  onKeyDown={e=>{
-                    if(e.key==='Enter'){addTask();}
-                    if(e.key==='Escape'){setAddingTask(false);setNewTitle('');setNewAssignee(null);}
-                  }} />
-                {(scope==='workspace'||tab==='requested')&&(
-                  <div style={{flex:'0 0 180px'}}>
-                    <PlanQSelect size="sm"
-                      placeholder={tab==='requested'
-                        ? t('add.assigneeRequiredHint','담당자 선택 (필수)')
-                        : t('add.assigneeDefault','담당자: 나')}
-                      value={newAssignee==null?null:{
-                        value:String(newAssignee),
-                        label:(members.find(m=>m.user_id===newAssignee)?.name||'-')+(newAssignee===myId?' (나)':''),
-                      }}
-                      onChange={(v)=>setNewAssignee((v as {value?:string})?.value?Number((v as {value:string}).value):null)}
-                      options={
-                        /* 요청하기 탭: 나 제외 (나를 담당자로 하면 일반 내 업무가 됨) */
-                        members
-                          .filter(m=>tab==='requested'?m.user_id!==myId:true)
-                          .map(m=>({value:String(m.user_id),label:m.name+(m.user_id===myId?' (나)':'')}))
-                      } />
-                  </div>
-                )}
-                <AddCancelBtn type="button" onClick={()=>{setAddingTask(false);setNewTitle('');setNewAssignee(null);}}>
-                  {t('add.cancel','취소')}
-                </AddCancelBtn>
-                <AddSaveBtn type="button" onClick={addTask}
-                  disabled={!newTitle.trim()||(tab==='requested'&&!newAssignee)}>
-                  {t('add.save','추가')}
-                </AddSaveBtn>
-              </AddForm>
-            ):(
-              <AddBtn onClick={()=>{
-                setAddingTask(true);
-                // 요청 탭이면 기본값 비움 (선택 강제), 그 외는 나
-                setNewAssignee(tab==='requested'?null:myId);
-              }}>+ {t('add.btn','업무 추가')}</AddBtn>
-            )}
-          </AddRow>
-
-          {/* Backlog (미배정) — shown in 'all' tab */}
-          {tab==='all'&&backlog.length>0&&(
-            <BacklogSection>
-              <BacklogHeader>{t('backlog.title','Unassigned')} ({backlog.length})</BacklogHeader>
-              {backlog.map(task=>(
-                <BacklogRow key={task.id}>
-                  <BacklogName>{task.title}</BacklogName>
-                  <BacklogProj>{task.Project?.name||''}</BacklogProj>
-                  <ToWeekBtn onClick={()=>assignToWeek(task.id)}>{t('backlog.toWeek','This week')}</ToWeekBtn>
-                </BacklogRow>
-              ))}
-            </BacklogSection>
-          )}
         </ListScroll>
       </LeftPanel>
 
@@ -1115,15 +1268,21 @@ const QTaskPage:React.FC=()=>{
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="15 18 9 12 15 6"/></svg>
         </CollapseBtn></CollapsedStrip>
       ):detailTaskId?(
-        /* ── 업무 상세 슬라이드오버 ── */
-        <RightPanel>
+        /* ── 업무 상세 오버레이 드로어 ── */
+        <DetailDrawer $w={drawerWidth}>
+          <DrawerResizeHandle onMouseDown={startDrawerResize} />
           <RightHeader>
             <BackBtn onClick={closeDetail}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="15 18 9 12 15 6"/></svg>
               {t('detail.back','Back')}
             </BackBtn>
-            <CollapseBtn onClick={()=>setRightCollapsed(true)}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="9 18 15 12 9 6"/></svg>
+            <SaveStatusPill $status={saveStatus}>
+              {saveStatus==='saving'&&<><SavePillSpinner/>{t('save.saving','저장 중')}</>}
+              {saveStatus==='saved'&&<>✓ {t('save.saved','저장됨')}</>}
+              {saveStatus==='error'&&<>! {t('save.error','저장 실패')}</>}
+            </SaveStatusPill>
+            <CollapseBtn onClick={closeDetail} title={t('detail.close','닫기') as string}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
             </CollapseBtn>
           </RightHeader>
           <RightScroll>
@@ -1149,10 +1308,31 @@ const QTaskPage:React.FC=()=>{
               const approvedCount=reviewers.filter(rv=>rv.state==='approved').length;
               const canAddReviewer=iAmAssignee||iAmRequesterOrOwner;
               const memberOptions=members.filter(m=>m.user_id!==detailTask.assignee_id&&!reviewers.some(rv=>rv.user_id===m.user_id));
-              const historyToShow=historyExpanded?history:history.slice(-5);
               return(<>
               <RSection>
-                <DetailTitle>{detailTask.title}</DetailTitle>
+                {editingDetailTitle?(
+                  <DetailTitleInput autoFocus value={titleDraft}
+                    onChange={e=>setTitleDraft(e.target.value)}
+                    onBlur={()=>{
+                      if(titleDraft.trim()&&titleDraft.trim()!==detailTask.title){
+                        saveTaskField(detailTask.id,'title',titleDraft.trim());
+                        setDetailTask(prev=>prev?{...prev,title:titleDraft.trim()}:prev);
+                      }
+                      setEditingDetailTitle(false);
+                    }}
+                    onKeyDown={e=>{
+                      if(e.key==='Enter'){e.preventDefault();(e.target as HTMLInputElement).blur();}
+                      if(e.key==='Escape'){setTitleDraft('');setEditingDetailTitle(false);}
+                    }} />
+                ):(
+                  <DetailTitle
+                    role="button" tabIndex={0}
+                    onMouseDown={(e)=>e.stopPropagation()}
+                    onClick={(e)=>{e.stopPropagation();setTitleDraft(detailTask.title);setEditingDetailTitle(true);}}
+                    title={t('detail.clickToEdit','클릭하여 수정') as string}>
+                    {detailTask.title}
+                  </DetailTitle>
+                )}
                 <DetailMeta>
                   <StatusBadgeWrap>
                     <StatusBadge
@@ -1176,20 +1356,57 @@ const QTaskPage:React.FC=()=>{
                   </StatusBadgeWrap>
                   {detailTask.Project?.name&&<IProjTag>{detailTask.Project.name}</IProjTag>}
                   {detailTask.assignee?.name&&<span>{detailTask.assignee.name}</span>}
-                  {detailTask.due_date&&<span>{detailTask.due_date.slice(0,10)}</span>}
                 </DetailMeta>
+                {/* 기본 정보 메타 (기간/예측/실제/진척) — 항상 보이게 */}
+                <MetaGrid>
+                  <MetaCell>
+                    <MetaLabel>{t('detail.meta.period','기간')}</MetaLabel>
+                    <DateRangeCell start={detailTask.start_date} due={detailTask.due_date}
+                      onSave={(s,d)=>{
+                        saveTaskField(detailTask.id,'start_date',s);
+                        saveTaskField(detailTask.id,'due_date',d);
+                      }} />
+                  </MetaCell>
+                  <MetaCell>
+                    <MetaLabel>{t('detail.meta.est','예측')}</MetaLabel>
+                    <MetaHourRow>
+                      <MetaNumInput defaultValue={detailTask.estimated_hours??''} placeholder="-"
+                        onBlur={e=>{const v=e.target.value===''?null:Number(e.target.value);if(v===null||!isNaN(v))saveTaskField(detailTask.id,'estimated_hours',v);}} />
+                      <MetaUnit>h</MetaUnit>
+                    </MetaHourRow>
+                  </MetaCell>
+                  <MetaCell>
+                    <MetaLabel>{t('detail.meta.act','실제')}</MetaLabel>
+                    <MetaHourRow>
+                      <MetaNumInput defaultValue={detailTask.actual_hours??''} placeholder="-"
+                        onBlur={e=>{const v=e.target.value===''?null:Number(e.target.value);if(v===null||!isNaN(v))saveTaskField(detailTask.id,'actual_hours',v);}} />
+                      <MetaUnit>h</MetaUnit>
+                    </MetaHourRow>
+                  </MetaCell>
+                  <MetaCell>
+                    <MetaLabel>{t('detail.meta.progress','진행')}</MetaLabel>
+                    <MetaProgressRow>
+                      <MetaRangeInput type="range" min="0" max="100" step="5" value={detailTask.progress_percent||0}
+                        style={{'--pq-fill':`${detailTask.progress_percent||0}%`} as React.CSSProperties}
+                        onChange={e=>{const v=Number(e.target.value);setDetailTask(prev=>prev?{...prev,progress_percent:v}:prev);}}
+                        onMouseUp={e=>saveTaskField(detailTask.id,'progress_percent',Number((e.target as HTMLInputElement).value))}
+                        onTouchEnd={e=>saveTaskField(detailTask.id,'progress_percent',Number((e.target as HTMLInputElement).value))} />
+                      <MetaProgressPct>{detailTask.progress_percent||0}%</MetaProgressPct>
+                    </MetaProgressRow>
+                  </MetaCell>
+                </MetaGrid>
               </RSection>
 
               {/* ── 내 액션 카드 ── */}
               {(assigneeHasAction||reviewerCanAct)&&<RSection>
                 {assigneeHasAction&&<ActionCard>
                   <ActionCardTitle>{t('detail.actions.assigneeTitle','As assignee')}</ActionCardTitle>
-                  {ackAvailable&&<ActionPrimary $fill={STATUS_COLOR.waiting.fg} onClick={actAck} disabled={actionBusy}>{t('detail.actions.ack','Acknowledge request')}</ActionPrimary>}
-                  {startAvailable&&<ActionPrimary $fill={STATUS_COLOR.in_progress.fg} onClick={actStart} disabled={actionBusy}>{resumeFromRevision?t('detail.actions.resume','Resume work'):t('detail.actions.start','Start working')}</ActionPrimary>}
-                  {submitAvailable&&<ActionPrimary $fill={STATUS_COLOR.reviewing.fg} onClick={actSubmitReview} disabled={actionBusy}>{detailTask.status==='revision_requested'?t('detail.actions.resubmitReview','Resubmit after revision'):t('detail.actions.submitReview','Submit for review')}</ActionPrimary>}
-                  {cancelReviewAvailable&&<ActionPrimary $fill={STATUS_COLOR.in_progress.fg} onClick={actCancelReview} disabled={actionBusy}>{t('detail.actions.cancelReview','Cancel review request')}</ActionPrimary>}
-                  {completeSimple&&<ActionPrimary $fill={STATUS_COLOR.completed.fg} onClick={actComplete} disabled={actionBusy}>{t('detail.actions.completeSimple','Mark complete')}</ActionPrimary>}
-                  {completeFinal&&<ActionPrimary $fill={STATUS_COLOR.completed.fg} onClick={actComplete} disabled={actionBusy}>{t('detail.actions.complete','Finalize')}</ActionPrimary>}
+                  {ackAvailable&&<ActionPrimary onClick={actAck} disabled={actionBusy}>{t('detail.actions.ack','Acknowledge request')}</ActionPrimary>}
+                  {startAvailable&&<ActionPrimary onClick={actStart} disabled={actionBusy}>{resumeFromRevision?t('detail.actions.resume','Resume work'):t('detail.actions.start','Start working')}</ActionPrimary>}
+                  {submitAvailable&&<ActionPrimary onClick={actSubmitReview} disabled={actionBusy}>{detailTask.status==='revision_requested'?t('detail.actions.resubmitReview','Resubmit after revision'):t('detail.actions.submitReview','Submit for review')}</ActionPrimary>}
+                  {cancelReviewAvailable&&<ActionSecondary onClick={actCancelReview} disabled={actionBusy}>{t('detail.actions.cancelReview','Cancel review request')}</ActionSecondary>}
+                  {completeSimple&&<ActionPrimary onClick={actComplete} disabled={actionBusy}>{t('detail.actions.completeSimple','Mark complete')}</ActionPrimary>}
+                  {completeFinal&&<ActionPrimary onClick={actComplete} disabled={actionBusy}>{t('detail.actions.complete','Finalize')}</ActionPrimary>}
                   {detailTask.status==='reviewing'&&reviewers.length>0&&reviewPolicy==='all'&&<ActionHint>
                     <ReviewProgressTrack><ReviewProgressFill $w={(approvedCount/reviewers.length)*100}/></ReviewProgressTrack>
                     <ReviewProgressText>{t('detail.actions.approvedOf','{{n}} of {{total}} approved',{n:approvedCount,total:reviewers.length})}</ReviewProgressText>
@@ -1198,7 +1415,7 @@ const QTaskPage:React.FC=()=>{
                 {reviewerCanAct&&<ActionCard>
                   <ActionCardTitle>{t('detail.actions.reviewerTitle','My actions (reviewer)')}</ActionCardTitle>
                   {myReviewer?.state==='pending'&&<>
-                    <ActionPrimary $fill={STATUS_COLOR.done_feedback.fg} onClick={actApprove} disabled={actionBusy}>{t('detail.actions.approve','Approve')}</ActionPrimary>
+                    <ActionPrimary onClick={actApprove} disabled={actionBusy}>{t('detail.actions.approve','Approve')}</ActionPrimary>
                     {revisionOpenForId===detailTaskId?(
                       <RevisionForm>
                         <RevisionInput
@@ -1208,11 +1425,11 @@ const QTaskPage:React.FC=()=>{
                           autoFocus />
                         <RevisionRow>
                           <ActionSecondary onClick={()=>{setRevisionOpenForId(null);setRevisionNote('');}}>{t('common.cancel','Cancel')}</ActionSecondary>
-                          <ActionPrimary $fill={STATUS_COLOR.revision_requested.fg} onClick={submitRevision} disabled={actionBusy||!revisionNote.trim()}>{t('detail.actions.submitRevision','Send revision')}</ActionPrimary>
+                          <ActionDanger onClick={submitRevision} disabled={actionBusy||!revisionNote.trim()}>{t('detail.actions.submitRevision','Send revision')}</ActionDanger>
                         </RevisionRow>
                       </RevisionForm>
                     ):(
-                      <ActionPrimary $fill={STATUS_COLOR.revision_requested.fg} onClick={()=>setRevisionOpenForId(detailTaskId)} disabled={actionBusy}>{t('detail.actions.requestRevision','Request revision')}</ActionPrimary>
+                      <ActionDanger onClick={()=>setRevisionOpenForId(detailTaskId)} disabled={actionBusy}>{t('detail.actions.requestRevision','Request revision')}</ActionDanger>
                     )}
                   </>}
                   {myReviewer&&myReviewer.state!=='pending'&&<>
@@ -1225,128 +1442,203 @@ const QTaskPage:React.FC=()=>{
                 </ActionCard>}
               </RSection>}
 
+              {/* 1. 업무 설명 (짧은 plain text) */}
               <RSection>
-                <RSTitle>{t('detail.description','Description')}</RSTitle>
-                <DescTextarea defaultValue={detailTask.description||''} placeholder={t('detail.descPlaceholder','Add description...')}
-                  onBlur={e=>saveTaskField(detailTask.id,'description',e.target.value)} />
+                <RSTitle>{t('detail.description','업무 설명')}</RSTitle>
+                <DescriptionTextarea
+                  defaultValue={detailTask.description||''}
+                  placeholder={t('detail.descPlaceholder','이 업무에 대한 간단한 설명 (한두 줄)')}
+                  onChange={e=>debouncedSave(detailTask.id,'description',e.target.value,2000)}
+                  onBlur={e=>{
+                    const key=`${detailTask.id}:description`;
+                    if(debouncedSaveRef.current[key]){window.clearTimeout(debouncedSaveRef.current[key]);delete debouncedSaveRef.current[key];}
+                    saveTaskField(detailTask.id,'description',e.target.value);
+                  }}
+                />
               </RSection>
 
-              {/* ── 컨펌자 + 정책 ── */}
-              <RSection>
-                <RSTitleRow>
-                  <RSTitle>{t('detail.reviewers.title','Reviewers')} ({reviewers.length})</RSTitle>
-                  {canAddReviewer&&reviewers.length>0&&<PolicySeg>
-                    <PolicySegBtn $active={reviewPolicy==='all'} onClick={()=>changePolicy('all')} disabled={actionBusy}>{t('detail.reviewers.policyAll','All')}</PolicySegBtn>
-                    <PolicySegBtn $active={reviewPolicy==='any'} onClick={()=>changePolicy('any')} disabled={actionBusy}>{t('detail.reviewers.policyAny','Any 1')}</PolicySegBtn>
-                  </PolicySeg>}
-                </RSTitleRow>
-                {reviewers.length===0?(
-                  <EmptyChart>{t('detail.reviewers.empty','No reviewers yet')}</EmptyChart>
-                ):(
-                  <ReviewerList>
-                    {reviewers.map(rv=>(
-                      <ReviewerRowE key={rv.id}>
-                        <ReviewerName>{rv.user?.name||`user ${rv.user_id}`}</ReviewerName>
-                        <ReviewerState $state={rv.state}>{t(`detail.reviewers.state.${rv.state}`,rv.state)}</ReviewerState>
-                        {canAddReviewer&&<ReviewerRemove onClick={()=>removeReviewer(rv.user_id)} disabled={actionBusy} title={t('detail.reviewers.remove','Remove') as string}>×</ReviewerRemove>}
-                      </ReviewerRowE>
-                    ))}
-                  </ReviewerList>
-                )}
-                {canAddReviewer&&(addReviewerOpen?(
-                  <AddReviewerBox>
-                    {memberOptions.length===0?<MutedText>{t('detail.reviewers.noCandidates','No members to add')}</MutedText>:(
-                      <AddReviewerList>
-                        {memberOptions.map(m=>(
-                          <AddReviewerItem key={m.user_id} onClick={()=>addReviewer(m.user_id)} disabled={actionBusy}>{m.name}</AddReviewerItem>
-                        ))}
-                      </AddReviewerList>
-                    )}
-                    <ActionSecondary onClick={()=>setAddReviewerOpen(false)}>{t('common.cancel','Cancel')}</ActionSecondary>
-                  </AddReviewerBox>
-                ):(
-                  <ActionSecondary onClick={()=>setAddReviewerOpen(true)} disabled={actionBusy}>+ {t('detail.reviewers.add','Add reviewer')}</ActionSecondary>
-                ))}
-                {pendingReviewerAdd&&<WarnDialog>
-                  <WarnTitle>{t('detail.reviewers.warnTitle','Reset current review round?')}</WarnTitle>
-                  <WarnBody>{t('detail.reviewers.warnBody','Adding a reviewer during an active round resets all reviewers to pending. Previous approvals will need to be re-confirmed.')}</WarnBody>
-                  <WarnRow>
-                    <ActionSecondary onClick={()=>setPendingReviewerAdd(null)}>{t('common.cancel','Cancel')}</ActionSecondary>
-                    <ActionPrimary onClick={confirmAddReviewer} disabled={actionBusy}>{t('detail.reviewers.warnConfirm','Add and reset')}</ActionPrimary>
-                  </WarnRow>
-                </WarnDialog>}
-              </RSection>
-
-              {/* ── 히스토리 타임라인 ── */}
-              {history.length>0&&<RSection>
-                <RSTitle>{t('detail.history.title','History')} ({history.length})</RSTitle>
-                {!historyExpanded&&history.length>5&&<TextLink onClick={()=>setHistoryExpanded(true)}>{t('detail.history.showAll','Show all')}</TextLink>}
-                <Timeline>
-                  {historyToShow.map(h=>(
-                    <TimelineItem key={h.id}>
-                      <TimelineDot $event={h.event_type}/>
-                      <TimelineBody>
-                        <TimelineHead>
-                          <strong>{h.actor?.name||'—'}</strong>
-                          <TimelineEvent>{t(`detail.history.event.${h.event_type}`,h.event_type)}</TimelineEvent>
-                          {h.target?.name&&<TimelineTarget>→ {h.target.name}</TimelineTarget>}
-                          {h.round!=null&&<TimelineRound>R{h.round}</TimelineRound>}
-                        </TimelineHead>
-                        {h.note&&<TimelineNote>{h.note}</TimelineNote>}
-                        <TimelineTime>{h.createdAt?.slice(5,16).replace('T',' ')}</TimelineTime>
-                      </TimelineBody>
-                    </TimelineItem>
-                  ))}
-                </Timeline>
-              </RSection>}
-
-              <RSection>
-                <RSTitle>{t('detail.dailyLog','Daily Log')}</RSTitle>
-                {(detailTask.daily_progress||[]).length===0?<EmptyChart>{t('detail.noLog','No records yet')}</EmptyChart>:(
-                  <DailyGrid>
-                    <DailyHead>
-                      <span>{t('detail.date','Date')}</span>
-                      <span>{t('detail.prog','%')}</span>
-                      <span>{t('detail.estUsed','Est used')}</span>
-                      <span>{t('detail.actUsed','Act used')}</span>
-                    </DailyHead>
-                    {(detailTask.daily_progress||[]).map(dp=>{
-                      const prog=(dp.progress_percent||0)/100;
-                      const est=Number(dp.estimated_hours)||0;
-                      const act=Number(dp.actual_hours)||0;
-                      return(
-                        <DailyRow key={dp.snapshot_date}>
-                          <span>{dp.snapshot_date.slice(0,10).slice(5).replace('-','/')}</span>
-                          <span>{dp.progress_percent||0}%</span>
-                          <span>{(est*prog).toFixed(1)}h</span>
-                          <span>{(act*prog).toFixed(1)}h</span>
-                        </DailyRow>
-                      );
-                    })}
-                  </DailyGrid>
-                )}
-              </RSection>
+              {/* 2. 댓글 — 자주 보는 대화 */}
               <RSection>
                 <RSTitle>{t('detail.comments','Comments')} ({detailTask.comments?.length||0})</RSTitle>
                 {(detailTask.comments||[]).map(c=>(
                   <CommentItem key={c.id}>
                     <CommentHead><strong>{c.author?.name}</strong><span>{c.createdAt?.slice(5,16).replace('T',' ')}</span></CommentHead>
-                    <CommentBody>{c.content}</CommentBody>
+                    {c.content&&c.content!=='(첨부파일)'&&<CommentBody>{c.content}</CommentBody>}
+                    {(c.attachments||[]).length>0&&<CmtAtts>
+                      {(c.attachments||[]).map(a=>{
+                        const isImg=a.mime_type?.startsWith('image/');
+                        const preview=(isImg&&a.stored_name)?`/api/tasks/public/attach/${a.stored_name}`:null;
+                        const dl=`/api/tasks/attachments/${a.id}/download`;
+                        return isImg&&preview?(
+                          <a key={a.id} href={dl} onClick={e=>{e.preventDefault();window.open(dl,'_blank');}}>
+                            <CmtAttImg src={preview} alt={a.original_name}/>
+                          </a>
+                        ):(
+                          <CmtAttFile key={a.id} href={dl} onClick={e=>{e.preventDefault();window.open(dl,'_blank');}}>
+                            <CmtAttIcon>{a.original_name.split('.').pop()?.slice(0,3).toUpperCase()||'FILE'}</CmtAttIcon>
+                            <CmtAttName>{a.original_name}</CmtAttName>
+                          </CmtAttFile>
+                        );
+                      })}
+                    </CmtAtts>}
                   </CommentItem>
                 ))}
                 <CommentComposer>
                   <CommentInput value={newComment} placeholder={t('detail.writeComment','Write a comment...')}
                     onChange={e=>setNewComment(e.target.value)}
-                    onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();addComment();}}} />
-                  <CommentSend onClick={addComment} disabled={!newComment.trim()}>{t('detail.send','Send')}</CommentSend>
+                    onKeyDown={e=>{if(e.key==='Enter'&&(e.ctrlKey||e.metaKey)){e.preventDefault();addComment();}}} />
+                  {commentFiles.length>0&&<CmtStagedRow>
+                    {commentFiles.map((f,i)=>(
+                      <CmtStaged key={i}>
+                        {f.name}
+                        <CmtStagedX type="button" onClick={()=>setCommentFiles(prev=>prev.filter((_,j)=>j!==i))}>×</CmtStagedX>
+                      </CmtStaged>
+                    ))}
+                  </CmtStagedRow>}
+                  <CmtComposerRow>
+                    <CmtAttachBtn type="button" title={t('detail.attachFile','파일 첨부')}
+                      onClick={()=>{const i=document.createElement('input');i.type='file';i.multiple=true;i.onchange=()=>{if(i.files)setCommentFiles(prev=>[...prev,...Array.from(i.files!)]);};i.click();}}>
+                      📎
+                    </CmtAttachBtn>
+                    <CommentSend onClick={addComment} disabled={commentSending||(!newComment.trim()&&commentFiles.length===0)}>
+                      {commentSending?t('detail.sending','전송 중...'):t('detail.send','Send')}
+                    </CommentSend>
+                  </CmtComposerRow>
                 </CommentComposer>
               </RSection>
+
+              {/* 3. 결과물 — 업무 본문 리치 에디터 (노션 스타일) */}
+              <RSection>
+                <RSTitle>{t('detail.body','결과물')}</RSTitle>
+                <RichEditor
+                  value={detailTask.body||''}
+                  onChange={(html)=>debouncedSave(detailTask.id,'body',html,2000)}
+                  onBlur={(html)=>{
+                    const key=`${detailTask.id}:body`;
+                    if(debouncedSaveRef.current[key]){window.clearTimeout(debouncedSaveRef.current[key]);delete debouncedSaveRef.current[key];}
+                    saveTaskField(detailTask.id,'body',html);
+                  }}
+                  placeholder={t('detail.bodyPlaceholder','업무 결과물을 작성하세요.  / 입력 시 블록 추가')}
+                  uploadUrl={`/api/tasks/${detailTask.id}/attachments?context=description`}
+                  minHeight={260}
+                />
+              </RSection>
+
+              {/* 4. 첨부파일 (본문에 안 들어간 것) */}
+              <TaskAttachments taskId={detailTask.id} onChangeCount={()=>{}} />
+
+              {/* ── 이하 접기: 컨펌자 / 히스토리 / 일일 기록 ── */}
+              <Collapsible>
+                <ColHeader onClick={()=>setOpenReviewers(v=>!v)}>
+                  <ColArrow $open={openReviewers}>▸</ColArrow>
+                  <span>{t('detail.reviewers.title','Reviewers')} ({reviewers.length})</span>
+                </ColHeader>
+                {openReviewers&&<ColBody>
+                  {canAddReviewer&&reviewers.length>1&&<PolicySeg>
+                    <PolicySegBtn $active={reviewPolicy==='all'} onClick={()=>changePolicy('all')} disabled={actionBusy}>{t('detail.reviewers.policyAll','All must approve')}</PolicySegBtn>
+                    <PolicySegBtn $active={reviewPolicy==='any'} onClick={()=>changePolicy('any')} disabled={actionBusy}>{t('detail.reviewers.policyAny','Any one is enough')}</PolicySegBtn>
+                  </PolicySeg>}
+                  {reviewers.length===0?<EmptyChart>{t('detail.reviewers.empty','No reviewers yet')}</EmptyChart>:(
+                    <ReviewerList>
+                      {reviewers.map(rv=>(
+                        <ReviewerRowE key={rv.id}>
+                          <ReviewerName>{rv.user?.name||`user ${rv.user_id}`}</ReviewerName>
+                          <ReviewerState $state={rv.state}>{t(`detail.reviewers.state.${rv.state}`,rv.state)}</ReviewerState>
+                          {canAddReviewer&&<ReviewerRemove onClick={()=>removeReviewer(rv.user_id)} disabled={actionBusy} title={t('detail.reviewers.remove','Remove') as string}>×</ReviewerRemove>}
+                        </ReviewerRowE>
+                      ))}
+                    </ReviewerList>
+                  )}
+                  {canAddReviewer&&(addReviewerOpen?(
+                    <AddReviewerBox>
+                      {memberOptions.length===0?<MutedText>{t('detail.reviewers.noCandidates','No members to add')}</MutedText>:(
+                        <AddReviewerList>
+                          {memberOptions.map(m=>(
+                            <AddReviewerItem key={m.user_id} onClick={()=>addReviewer(m.user_id)} disabled={actionBusy}>{m.name}</AddReviewerItem>
+                          ))}
+                        </AddReviewerList>
+                      )}
+                      <ActionSecondary onClick={()=>setAddReviewerOpen(false)}>{t('common.cancel','Cancel')}</ActionSecondary>
+                    </AddReviewerBox>
+                  ):(
+                    <ActionSecondary onClick={()=>setAddReviewerOpen(true)} disabled={actionBusy}>+ {t('detail.reviewers.add','Add reviewer')}</ActionSecondary>
+                  ))}
+                  {pendingReviewerAdd&&<WarnDialog>
+                    <WarnTitle>{t('detail.reviewers.warnTitle','Reset current review round?')}</WarnTitle>
+                    <WarnBody>{t('detail.reviewers.warnBody','Adding a reviewer during an active round resets all reviewers to pending. Previous approvals will need to be re-confirmed.')}</WarnBody>
+                    <WarnRow>
+                      <ActionSecondary onClick={()=>setPendingReviewerAdd(null)}>{t('common.cancel','Cancel')}</ActionSecondary>
+                      <ActionPrimary onClick={confirmAddReviewer} disabled={actionBusy}>{t('detail.reviewers.warnConfirm','Add and reset')}</ActionPrimary>
+                    </WarnRow>
+                  </WarnDialog>}
+                </ColBody>}
+              </Collapsible>
+
+              {history.length>0&&<Collapsible>
+                <ColHeader onClick={()=>setOpenHistory(v=>!v)}>
+                  <ColArrow $open={openHistory}>▸</ColArrow>
+                  <span>{t('detail.history.title','History')} ({history.length})</span>
+                </ColHeader>
+                {openHistory&&<ColBody>
+                  <Timeline>
+                    {history.map(h=>(
+                      <TimelineItem key={h.id}>
+                        <TimelineDot $event={h.event_type}/>
+                        <TimelineBody>
+                          <TimelineHead>
+                            <strong>{h.actor?.name||'—'}</strong>
+                            <TimelineEvent>{t(`detail.history.event.${h.event_type}`,h.event_type)}</TimelineEvent>
+                            {h.target?.name&&<TimelineTarget>→ {h.target.name}</TimelineTarget>}
+                            {h.round!=null&&<TimelineRound>R{h.round}</TimelineRound>}
+                          </TimelineHead>
+                          {h.note&&<TimelineNote>{h.note}</TimelineNote>}
+                          <TimelineTime>{h.createdAt?.slice(5,16).replace('T',' ')}</TimelineTime>
+                        </TimelineBody>
+                      </TimelineItem>
+                    ))}
+                  </Timeline>
+                </ColBody>}
+              </Collapsible>}
+
+              <Collapsible>
+                <ColHeader onClick={()=>setOpenDaily(v=>!v)}>
+                  <ColArrow $open={openDaily}>▸</ColArrow>
+                  <span>{t('detail.dailyLog','Daily Log')} ({(detailTask.daily_progress||[]).length})</span>
+                </ColHeader>
+                {openDaily&&<ColBody>
+                  {(detailTask.daily_progress||[]).length===0?<EmptyChart>{t('detail.noLog','No records yet')}</EmptyChart>:(
+                    <DailyGrid>
+                      <DailyHead>
+                        <span>{t('detail.date','Date')}</span>
+                        <span>{t('detail.prog','%')}</span>
+                        <span>{t('detail.estUsed','Est used')}</span>
+                        <span>{t('detail.actUsed','Act used')}</span>
+                      </DailyHead>
+                      {(detailTask.daily_progress||[]).map(dp=>{
+                        const prog=(dp.progress_percent||0)/100;
+                        const est=Number(dp.estimated_hours)||0;
+                        const act=Number(dp.actual_hours)||0;
+                        return(
+                          <DailyRow key={dp.snapshot_date}>
+                            <span>{dp.snapshot_date.slice(0,10).slice(5).replace('-','/')}</span>
+                            <span>{dp.progress_percent||0}%</span>
+                            <span>{(est*prog).toFixed(1)}h</span>
+                            <span>{(act*prog).toFixed(1)}h</span>
+                          </DailyRow>
+                        );
+                      })}
+                    </DailyGrid>
+                  )}
+                </ColBody>}
+              </Collapsible>
             </>);})():<EmptyChart>Loading...</EmptyChart>}
           </RightScroll>
-        </RightPanel>
-      ):(
-        /* ── 탭별 기본 패널 ── */
-        <RightPanel>
+        </DetailDrawer>
+      ):null}
+      {/* ── 탭별 기본 패널 — 항상 렌더. 상세 드로어는 position:fixed로 덮음. ── */}
+      {!rightCollapsed&&(
+        <RightPanel $w={rightWidth}>
+          {!detailTaskId&&<ResizeHandle onMouseDown={startResize} />}
           <RightHeader>
             <RightTitle>
               {tab==='week'?t('right.titleWeek','This week'):tab==='requested'?t('right.titleRequested','Feedback'):t('right.titleAll','From Q Talk')}
@@ -1356,8 +1648,34 @@ const QTaskPage:React.FC=()=>{
             </CollapseBtn>
           </RightHeader>
           <RightScroll>
-            {/* 이번 주: 기간 + 가용시간 + 번다운 + 진척 + 이슈 + 메모 */}
+            {/* 이번 주: 받은/보낸 업무요청 + 기간 + 가용시간 + 번다운 + 진척 + 이슈 + 메모 */}
             {tab==='week'&&<>
+              <RSection>
+                <RSTitle>{t('right.received','받은 업무요청')} ({panelCounts.received})</RSTitle>
+                {panelCounts.receivedList.length===0?<EmptyChart>{t('right.noReceived','지금 처리할 받은 요청이 없습니다')}</EmptyChart>:
+                  panelCounts.receivedList.map(x=>(
+                    <CandCard key={`rc-${x.id}`} onClick={()=>openDetail(x.id)} style={{cursor:'pointer'}}>
+                      <CandTitle>{x.title}</CandTitle>
+                      <IMeta>
+                        {x.Project?.name&&<IProjTag>{x.Project.name}</IProjTag>}
+                        {x.requester?.name&&<span>{x.requester.name}</span>}
+                      </IMeta>
+                    </CandCard>
+                  ))}
+              </RSection>
+              <RSection>
+                <RSTitle>{t('right.sent','보낸 업무요청')} ({panelCounts.sent})</RSTitle>
+                {panelCounts.sentList.length===0?<EmptyChart>{t('right.noSent','지금 확인할 보낸 요청이 없습니다')}</EmptyChart>:
+                  panelCounts.sentList.map(x=>(
+                    <CandCard key={`sc-${x.id}`} onClick={()=>openDetail(x.id)} style={{cursor:'pointer'}}>
+                      <CandTitle>{x.title}</CandTitle>
+                      <IMeta>
+                        {x.Project?.name&&<IProjTag>{x.Project.name}</IProjTag>}
+                        {x.assignee?.name&&<span>{x.assignee.name}</span>}
+                      </IMeta>
+                    </CandCard>
+                  ))}
+              </RSection>
               <RSection>
                 <RSTitle>{t('period.title','Period')}</RSTitle>
                 <DateTrigger ref={periodAnchorRef} style={{width:'100%',padding:'8px 10px',border:'1px solid #E2E8F0',borderRadius:8,fontSize:13,color:'#0F172A',background:'#FAFBFC'}}
@@ -1450,18 +1768,32 @@ const QTaskPage:React.FC=()=>{
               </RSection>}
             </>}
 
-            {/* 요청한 업무: 담당자 댓글 목록 */}
-            {tab==='requested'&&<RSection>
-              <RSTitle>{t('right.recentFeedback','Recent feedback')}</RSTitle>
-              {requestedComments.length===0?<EmptyChart>{t('right.noFeedback','No feedback yet')}</EmptyChart>:
-                requestedComments.map(c=>(
+            {/* 요청하기: 보낸 업무요청 중 내가 컨펌해야 할 것 + 피드백 */}
+            {tab==='requested'&&<>
+              <RSection>
+                <RSTitle>{t('right.sent','보낸 업무요청')} ({panelCounts.sent})</RSTitle>
+                {panelCounts.sentList.length===0?<EmptyChart>{t('right.noSent','지금 확인할 보낸 요청이 없습니다')}</EmptyChart>:
+                  panelCounts.sentList.map(x=>(
+                    <CandCard key={`sr-${x.id}`} onClick={()=>openDetail(x.id)} style={{cursor:'pointer'}}>
+                      <CandTitle>{x.title}</CandTitle>
+                      <IMeta>
+                        {x.Project?.name&&<IProjTag>{x.Project.name}</IProjTag>}
+                        {x.assignee?.name&&<span>{x.assignee.name}</span>}
+                      </IMeta>
+                    </CandCard>
+                  ))}
+              </RSection>
+              {requestedComments.length>0&&<RSection>
+                <RSTitle>{t('right.recentFeedback','Recent feedback')}</RSTitle>
+                {requestedComments.map(c=>(
                   <CommentItem key={c.id} onClick={()=>c.Task&&openDetail(c.Task.id)} style={{cursor:'pointer'}}>
                     <CommentHead><strong>{c.author?.name}</strong><span>{c.createdAt?.slice(5,16).replace('T',' ')}</span></CommentHead>
                     {c.Task&&<IProjTag>{c.Task.title}</IProjTag>}
                     <CommentBody>{c.content}</CommentBody>
                   </CommentItem>
                 ))}
-            </RSection>}
+              </RSection>}
+            </>}
 
             {/* 전체업무: Q Talk 추출 후보 */}
             {tab==='all'&&<RSection>
@@ -1481,6 +1813,75 @@ const QTaskPage:React.FC=()=>{
           </RightScroll>
         </RightPanel>
       )}
+      {/* ── 업무 추가 오버레이 드로어 ── */}
+      {addingTask&&(
+        <DetailDrawer $w={drawerWidth}>
+          <DrawerResizeHandle onMouseDown={startDrawerResize} />
+          <RightHeader>
+            <RightTitle>
+              + {scope==='mine'&&tab==='requested'?t('add.reqBtn','요청 추가'):t('add.btn','업무 추가')}
+            </RightTitle>
+            <CollapseBtn onClick={()=>{setAddingTask(false);resetNewTask();}}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </CollapseBtn>
+          </RightHeader>
+          <RightScroll>
+            <AddForm style={{margin:20,borderRadius:10}}>
+              <AddInput autoFocus value={newTitle} placeholder={t('add.placeholder','업무명 입력 후 Ctrl+Enter 로 저장')}
+                onChange={e=>setNewTitle(e.target.value)}
+                onKeyDown={e=>{
+                  if(e.key==='Enter'&&(e.ctrlKey||e.metaKey)){e.preventDefault();addTask();}
+                  if(e.key==='Escape'){setAddingTask(false);resetNewTask();}
+                }} />
+              <AddOptRow>
+                <AddOptField>
+                  <AddOptLabel>{t('add.project','프로젝트')}</AddOptLabel>
+                  <PlanQSelect size="sm" isClearable
+                    placeholder={t('add.projectNone','선택')}
+                    value={newProjectId==null?null:{value:String(newProjectId),label:projectOptions.find(p=>p.value===String(newProjectId))?.label||'-'}}
+                    onChange={(v)=>setNewProjectId((v as {value?:string})?.value?Number((v as {value:string}).value):null)}
+                    options={projectOptions} />
+                </AddOptField>
+                <AddOptField>
+                  <AddOptLabel>{t('add.assignee','담당자')}{tab==='requested'&&' *'}</AddOptLabel>
+                  <PlanQSelect size="sm" isClearable={tab!=='requested'}
+                    placeholder={tab==='requested'?t('add.assigneeRequiredHint','담당자 선택 (필수)'):t('add.assigneeDefault','담당자: 나')}
+                    value={newAssignee==null?null:{
+                      value:String(newAssignee),
+                      label:(members.find(m=>m.user_id===newAssignee)?.name||'-')+(newAssignee===myId?' (나)':''),
+                    }}
+                    onChange={(v)=>setNewAssignee((v as {value?:string})?.value?Number((v as {value:string}).value):null)}
+                    options={members.filter(m=>tab==='requested'?m.user_id!==myId:true)
+                      .map(m=>({value:String(m.user_id),label:m.name+(m.user_id===myId?' (나)':'')}))} />
+                </AddOptField>
+                <AddOptField>
+                  <AddOptLabel>{t('add.startDate','시작일')}</AddOptLabel>
+                  <AddDateInput type="date" value={newStartDate} onChange={e=>setNewStartDate(e.target.value)} />
+                </AddOptField>
+                <AddOptField>
+                  <AddOptLabel>{t('add.dueDate','마감일')}</AddOptLabel>
+                  <AddDateInput type="date" value={newDueDate} onChange={e=>setNewDueDate(e.target.value)} />
+                </AddOptField>
+                <AddOptField style={{flex:'0 0 90px'}}>
+                  <AddOptLabel>{t('add.estHours','예측(h)')}</AddOptLabel>
+                  <AddDateInput type="number" step="0.5" min="0" placeholder="-" value={newEstHours} onChange={e=>setNewEstHours(e.target.value)} />
+                </AddOptField>
+              </AddOptRow>
+              <AddTextArea rows={3} placeholder={t('add.descPlaceholder','설명 (선택)')}
+                value={newDescription} onChange={e=>setNewDescription(e.target.value)} />
+              <AddBtnRow>
+                <AddCancelBtn type="button" onClick={()=>{setAddingTask(false);resetNewTask();}}>
+                  {t('add.cancel','취소')}
+                </AddCancelBtn>
+                <AddSaveBtn type="button" onClick={addTask}
+                  disabled={addingSubmitting||!newTitle.trim()||(tab==='requested'&&!newAssignee)}>
+                  {addingSubmitting?t('add.saving','저장 중...'):t('add.save','추가')}
+                </AddSaveBtn>
+              </AddBtnRow>
+            </AddForm>
+          </RightScroll>
+        </DetailDrawer>
+      )}
     </Layout>
   );
 };
@@ -1489,7 +1890,7 @@ export default QTaskPage;
 // ═══ Styled ═══
 const Layout=styled.div`display:flex;height:calc(100vh - 0px);background:#F8FAFC;overflow:hidden;`;
 const LeftPanel=styled.div`flex:1;min-width:0;display:flex;flex-direction:column;background:#FFF;`;
-const Header=styled.div`padding:14px 20px;min-height:60px;display:flex;align-items:center;gap:12px;border-bottom:1px solid #E2E8F0;flex-shrink:0;flex-wrap:wrap;`;
+const Header=styled.div`padding:14px 20px;height:60px;display:flex;align-items:center;gap:12px;border-bottom:1px solid #E2E8F0;flex-shrink:0;`;
 const PageTitle=styled.h1`font-size:18px;font-weight:700;color:#0F172A;margin:0;flex-shrink:0;letter-spacing:-0.2px;`;
 const SearchBox=styled.input`height:36px;box-sizing:border-box;padding:0 12px;width:180px;border:1px solid #E2E8F0;border-radius:8px;font-size:13px;color:#0F172A;background:#F8FAFC;&:focus{outline:none;border-color:#14B8A6;background:#FFF;}&::placeholder{color:#94A3B8;}`;
 const HideCheck=styled.label`display:flex;align-items:center;gap:4px;font-size:12px;color:#64748B;cursor:pointer;white-space:nowrap;& input{accent-color:#0D9488;}`;
@@ -1497,7 +1898,8 @@ const ChipRow=styled.div`display:flex;gap:4px;margin-left:auto;`;
 const Chip=styled.span<{$teal?:boolean;$coral?:boolean}>`padding:2px 8px;font-size:11px;font-weight:600;border-radius:6px;background:${p=>p.$teal?'#F0FDFA':p.$coral?'#FFF1F2':'#F1F5F9'};color:${p=>p.$teal?'#0F766E':p.$coral?'#9F1239':'#475569'};`;
 
 const TabBar=styled.div`display:flex;border-bottom:1px solid #E2E8F0;flex-shrink:0;`;
-const TabBtn=styled.button<{$active?:boolean}>`flex:1;padding:10px;font-size:13px;font-weight:600;border:none;cursor:pointer;background:transparent;color:${p=>p.$active?'#0F766E':'#94A3B8'};border-bottom:2px solid ${p=>p.$active?'#14B8A6':'transparent'};`;
+const TabBtn=styled.button<{$active?:boolean}>`flex:1;padding:10px;font-size:13px;font-weight:600;border:none;cursor:pointer;background:transparent;color:${p=>p.$active?'#0F766E':'#94A3B8'};border-bottom:2px solid ${p=>p.$active?'#14B8A6':'transparent'};display:inline-flex;align-items:center;justify-content:center;gap:6px;`;
+const TabBadge=styled.span<{$active?:boolean}>`display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 6px;border-radius:9px;background:${p=>p.$active?'#F43F5E':'#CBD5E1'};color:#FFF;font-size:11px;font-weight:700;line-height:1;`;
 const ListScroll=styled.div`flex:1;overflow-y:auto;&::-webkit-scrollbar{width:6px;}&::-webkit-scrollbar-thumb{background:#E2E8F0;border-radius:3px;}`;
 const FilterBar=styled.div`display:flex;align-items:center;gap:10px;padding:8px 14px;border-bottom:1px solid #F1F5F9;background:#FFF;flex-wrap:wrap;`;
 
@@ -1570,7 +1972,7 @@ const SliderPct=styled.span`font-size:12px;font-weight:700;color:#475569;min-wid
 const DateTrigger=styled.button<{$color?:string;$empty?:boolean}>`
   width:100%;padding:4px 6px;font-size:12px;font-weight:600;
   background:transparent;border:1px solid transparent;border-radius:6px;cursor:pointer;
-  white-space:nowrap;font-family:inherit;
+  white-space:nowrap;font-family:inherit;text-align:left;
   color:${p=>p.$empty?'#CBD5E1':p.$color==='overdue'?'#DC2626':p.$color==='today'?'#EA580C':'#64748B'};
   ${p=>p.$color==='overdue'&&!p.$empty?'background:#FEF2F2;':p.$color==='today'&&!p.$empty?'background:#FFF7ED;':''}
   &:hover{border-color:#14B8A6;color:#0F766E;}
@@ -1578,10 +1980,16 @@ const DateTrigger=styled.button<{$color?:string;$empty?:boolean}>`
 
 const EmptyMsg=styled.div`padding:32px;text-align:center;color:#94A3B8;font-size:13px;`;
 const EmptyFull=styled.div`display:flex;align-items:center;justify-content:center;height:100vh;color:#94A3B8;`;
-const AddRow=styled.div`padding:8px 14px;`;
-const AddBtn=styled.button`font-size:13px;font-weight:500;color:#94A3B8;background:transparent;border:none;cursor:pointer;&:hover{color:#0F766E;}`;
+const TabActionBar=styled.div`display:flex;justify-content:flex-end;padding:8px 14px;border-bottom:1px solid #F1F5F9;background:#FFF;flex-shrink:0;`;
+const HeaderAddBtn=styled.button`padding:7px 14px;background:#14B8A6;color:#FFF;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;&:hover:not(:disabled){background:#0D9488;}&:disabled{background:#CBD5E1;cursor:not-allowed;}`;
 const AddInput=styled.input`flex:1 1 auto;min-width:0;font-size:14px;color:#0F172A;border:1px solid #14B8A6;background:#F0FDFA;padding:6px 10px;border-radius:6px;font-family:inherit;&:focus{outline:none;box-shadow:0 0 0 2px rgba(20,184,166,0.15);}&::placeholder{color:#94A3B8;}`;
-const AddForm=styled.div`display:flex;gap:8px;align-items:center;`;
+const AddForm=styled.div`display:flex;flex-direction:column;gap:8px;padding:12px;background:#F8FAFC;border:1px solid #14B8A6;border-radius:10px;`;
+const AddOptRow=styled.div`display:flex;gap:8px;flex-wrap:wrap;`;
+const AddOptField=styled.div`flex:1 1 140px;min-width:120px;display:flex;flex-direction:column;gap:3px;`;
+const AddOptLabel=styled.label`font-size:11px;color:#64748B;font-weight:600;`;
+const AddDateInput=styled.input`height:30px;padding:0 8px;font-size:13px;color:#0F172A;border:1px solid #E2E8F0;border-radius:6px;background:#FFF;font-family:inherit;&:focus{outline:none;border-color:#14B8A6;}`;
+const AddTextArea=styled.textarea`width:100%;resize:vertical;padding:6px 10px;font-size:13px;color:#0F172A;border:1px solid #E2E8F0;border-radius:6px;background:#FFF;font-family:inherit;line-height:1.4;&:focus{outline:none;border-color:#14B8A6;}&::placeholder{color:#94A3B8;}`;
+const AddBtnRow=styled.div`display:flex;justify-content:flex-end;gap:6px;`;
 const AddSaveBtn=styled.button`flex:0 0 auto;padding:6px 14px;font-size:13px;font-weight:600;background:#14B8A6;color:#FFFFFF;border:none;border-radius:6px;cursor:pointer;&:hover:not(:disabled){background:#0D9488;}&:disabled{background:#CBD5E1;cursor:not-allowed;}`;
 const AddCancelBtn=styled.button`flex:0 0 auto;padding:6px 10px;font-size:13px;color:#64748B;background:transparent;border:1px solid #E2E8F0;border-radius:6px;cursor:pointer;&:hover{background:#F8FAFC;color:#0F172A;}`;
 const ViewToggle=styled.div`display:inline-flex;gap:2px;padding:2px;background:#F1F5F9;border-radius:8px;margin-left:auto;`;
@@ -1591,11 +1999,11 @@ const ScopeToggle=styled.div`display:inline-flex;gap:4px;padding:3px;background:
 // ── Kanban ──
 const KanbanBoard=styled.div`
   display:grid;
-  grid-template-columns:repeat(7,minmax(220px,1fr));
+  grid-auto-flow:column;
+  grid-auto-columns:minmax(240px,1fr);
   gap:12px;
   padding:16px 14px;
   overflow-x:auto;
-  @media (max-width: 1280px){ grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); }
 `;
 const KanbanColumn=styled.div`display:flex;flex-direction:column;gap:8px;min-width:220px;`;
 const KanbanColHeader=styled.div`display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-radius:8px;font-size:12px;font-weight:700;`;
@@ -1647,20 +2055,31 @@ const NameChip=styled.span<{$type:'from'|'to'|'observer'}>`
   ${p=>p.$type==='from'?'color:#BE123C;background:#FFE4E6;':p.$type==='to'?'color:#0F766E;background:#CCFBF1;':'color:#64748B;background:#F1F5F9;'}
 `;
 
-const BacklogSection=styled.div`margin:12px 14px;padding:12px;background:#FAFBFC;border:1px dashed #E2E8F0;border-radius:10px;`;
-const BacklogHeader=styled.div`font-size:12px;font-weight:700;color:#94A3B8;margin-bottom:8px;`;
-const BacklogRow=styled.div`display:flex;align-items:center;gap:8px;padding:5px 0;& + &{border-top:1px solid #F1F5F9;}`;
-const BacklogName=styled.span`flex:1;font-size:13px;color:#475569;`;
-const BacklogProj=styled.span`font-size:11px;color:#CBD5E1;`;
-const ToWeekBtn=styled.button`padding:3px 10px;font-size:11px;font-weight:600;color:#0F766E;background:#F0FDFA;border:1px solid #99F6E4;border-radius:6px;cursor:pointer;&:hover{background:#CCFBF1;}`;
 
 // Right panel — Q Talk style
 const CollapsedStrip=styled.aside`width:36px;flex-shrink:0;background:#FFF;border-left:1px solid #E2E8F0;display:flex;flex-direction:column;align-items:center;padding:12px 0;@media(max-width:1200px){display:none;}`;
 const CollapseBtn=styled.button`width:28px;height:28px;display:flex;align-items:center;justify-content:center;background:transparent;border:none;border-radius:6px;color:#64748B;cursor:pointer;&:hover{background:#F1F5F9;color:#0F172A;}`;
-const RightPanel=styled.aside`width:320px;flex-shrink:0;background:#FFF;border-left:1px solid #E2E8F0;display:flex;flex-direction:column;overflow:hidden;@media(max-width:1200px){display:none;}`;
-const RightHeader=styled.div`min-height:60px;padding:14px 20px;border-bottom:1px solid #E2E8F0;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;`;
+const RightPanel=styled.aside<{$w?:number}>`width:${p=>p.$w||420}px;flex-shrink:0;background:#FFF;border-left:1px solid #E2E8F0;display:flex;flex-direction:column;overflow:hidden;position:relative;@media(max-width:1200px){display:none;}`;
+const ResizeHandle=styled.div`position:absolute;top:0;left:-3px;width:6px;height:100%;cursor:col-resize;z-index:5;&:hover{background:rgba(20,184,166,0.2);}&:active{background:rgba(20,184,166,0.4);}`;
+const SaveStatusPill=styled.span<{$status:'idle'|'saving'|'saved'|'error'}>`
+  display:inline-flex;align-items:center;gap:4px;margin-left:auto;
+  padding:3px 10px;border-radius:999px;font-size:11px;font-weight:600;
+  opacity:${p=>p.$status==='idle'?0:1};
+  transition:opacity 0.2s;
+  ${p=>p.$status==='saving'?'background:#F0FDFA;color:#0F766E;':''}
+  ${p=>p.$status==='saved'?'background:#D1FAE5;color:#065F46;':''}
+  ${p=>p.$status==='error'?'background:#FEE2E2;color:#991B1B;':''}
+`;
+const SavePillSpinner=styled.span`
+  width:10px;height:10px;border:1.5px solid #14B8A6;border-top-color:transparent;border-radius:50%;
+  animation:pqspin 0.7s linear infinite;
+  @keyframes pqspin{to{transform:rotate(360deg);}}
+`;
+const DetailDrawer=styled.aside<{$w?:number}>`position:fixed;top:0;right:0;bottom:0;width:${p=>p.$w||560}px;max-width:100vw;background:#FFF;border-left:1px solid #E2E8F0;box-shadow:-12px 0 28px rgba(15,23,42,0.08);display:flex;flex-direction:column;overflow:hidden;z-index:40;animation:pqSlideIn 0.18s ease-out;@keyframes pqSlideIn{from{transform:translateX(40px);opacity:0.6;}to{transform:translateX(0);opacity:1;}}`;
+const DrawerResizeHandle=styled.div`position:absolute;top:0;left:-4px;width:8px;height:100%;cursor:col-resize;z-index:45;&:hover{background:rgba(20,184,166,0.25);}&:active{background:rgba(20,184,166,0.45);}`;
+const RightHeader=styled.div`height:60px;padding:14px 20px;border-bottom:1px solid #E2E8F0;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;`;
 const RightTitle=styled.h2`font-size:13px;font-weight:700;color:#0F172A;margin:0;letter-spacing:-0.1px;`;
-const RightScroll=styled.div`flex:1;overflow-y:auto;&::-webkit-scrollbar{width:6px;}&::-webkit-scrollbar-thumb{background:#E2E8F0;border-radius:3px;}`;
+const RightScroll=styled.div`flex:1;overflow-y:auto;overflow-x:hidden;min-width:0;&>*{min-width:0;max-width:100%;}&::-webkit-scrollbar{width:6px;}&::-webkit-scrollbar-thumb{background:#E2E8F0;border-radius:3px;}`;
 const RSection=styled.div`border-bottom:1px solid #F1F5F9;padding:12px 14px;`;
 const RSTitle=styled.h4`font-size:12px;font-weight:700;color:#0F172A;margin:0 0 8px;`;
 const CapRow=styled.div`display:flex;align-items:center;gap:8px;`;
@@ -1688,15 +2107,25 @@ const IProjTag=styled.span`padding:1px 5px;background:#F1F5F9;color:#64748B;font
 
 // Detail slide-over
 const BackBtn=styled.button`display:flex;align-items:center;gap:4px;background:transparent;border:none;color:#0F766E;font-size:12px;font-weight:600;cursor:pointer;padding:0;&:hover{color:#134E4A;}`;
-const DetailTitle=styled.h3`font-size:15px;font-weight:700;color:#0F172A;margin:0 0 6px;line-height:1.4;`;
+const DetailTitle=styled.h3`font-size:19px;font-weight:700;color:#0F172A;margin:0 0 8px;line-height:1.35;cursor:text;border-radius:6px;padding:4px 6px;margin-left:-6px;transition:background 0.12s;&:hover{background:#F1F5F9;}&::before{content:'';}`;
+const DetailTitleInput=styled.input`font-size:19px;font-weight:700;color:#0F172A;line-height:1.35;width:100%;padding:4px 8px;margin-left:-6px;margin-bottom:8px;border:1px solid #14B8A6;border-radius:6px;background:#FFF;font-family:inherit;&:focus{outline:none;box-shadow:0 0 0 2px rgba(20,184,166,0.15);}`;
 const DetailMeta=styled.div`display:flex;align-items:center;gap:6px;font-size:11px;color:#64748B;flex-wrap:wrap;`;
-const DescTextarea=styled.textarea`width:100%;min-height:100px;padding:8px 10px;border:1px solid #E2E8F0;border-radius:8px;font-size:13px;color:#0F172A;background:#FAFBFC;font-family:inherit;resize:vertical;line-height:1.5;&:focus{outline:none;border-color:#14B8A6;background:#FFF;}&::placeholder{color:#94A3B8;}`;
 const CommentItem=styled.div`padding:8px 10px;background:#F8FAFC;border-radius:8px;& + &{margin-top:6px;}`;
 const CommentHead=styled.div`display:flex;gap:8px;align-items:baseline;font-size:11px;color:#64748B;margin-bottom:3px;& strong{color:#0F172A;font-weight:600;}`;
 const CommentBody=styled.div`font-size:12px;color:#1E293B;line-height:1.4;white-space:pre-wrap;`;
-const CommentComposer=styled.div`display:flex;gap:6px;margin-top:8px;`;
-const CommentInput=styled.textarea`flex:1;padding:6px 10px;border:1px solid #E2E8F0;border-radius:8px;font-size:12px;color:#0F172A;font-family:inherit;resize:none;min-height:32px;max-height:80px;&:focus{outline:none;border-color:#14B8A6;}&::placeholder{color:#94A3B8;}`;
-const CommentSend=styled.button`padding:6px 12px;background:#14B8A6;color:#FFF;border:none;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;&:disabled{background:#CBD5E1;cursor:not-allowed;}&:hover:not(:disabled){background:#0F766E;}`;
+const CommentComposer=styled.div`display:flex;flex-direction:column;gap:6px;margin-top:8px;`;
+const CmtComposerRow=styled.div`display:flex;justify-content:flex-end;gap:6px;align-items:center;`;
+const CommentInput=styled.textarea`width:100%;padding:6px 10px;border:1px solid #E2E8F0;border-radius:8px;font-size:12px;color:#0F172A;font-family:inherit;resize:vertical;min-height:40px;max-height:120px;&:focus{outline:none;border-color:#14B8A6;}&::placeholder{color:#94A3B8;}`;
+const CommentSend=styled.button`padding:6px 14px;background:#14B8A6;color:#FFF;border:none;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;&:disabled{background:#CBD5E1;cursor:not-allowed;}&:hover:not(:disabled){background:#0D9488;}`;
+const CmtAttachBtn=styled.button`width:32px;height:28px;display:flex;align-items:center;justify-content:center;background:transparent;border:1px solid #E2E8F0;border-radius:6px;cursor:pointer;font-size:14px;&:hover{border-color:#14B8A6;background:#F0FDFA;}`;
+const CmtStagedRow=styled.div`display:flex;flex-wrap:wrap;gap:4px;`;
+const CmtStaged=styled.span`display:inline-flex;align-items:center;gap:4px;padding:2px 6px 2px 8px;background:#F0FDFA;color:#0F766E;border:1px solid #99F6E4;border-radius:12px;font-size:11px;`;
+const CmtStagedX=styled.button`width:16px;height:16px;display:flex;align-items:center;justify-content:center;background:transparent;border:none;color:#0F766E;cursor:pointer;font-size:14px;line-height:1;&:hover{color:#DC2626;}`;
+const CmtAtts=styled.div`display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;`;
+const CmtAttImg=styled.img`max-width:160px;max-height:120px;object-fit:cover;border-radius:6px;border:1px solid #E2E8F0;cursor:pointer;`;
+const CmtAttFile=styled.a`display:inline-flex;align-items:center;gap:6px;padding:4px 8px;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:6px;text-decoration:none;color:#0F172A;font-size:11px;max-width:200px;&:hover{border-color:#14B8A6;background:#F0FDFA;color:#0F766E;}`;
+const CmtAttIcon=styled.span`width:22px;height:22px;flex-shrink:0;display:flex;align-items:center;justify-content:center;background:#E2E8F0;color:#475569;font-size:9px;font-weight:700;border-radius:3px;`;
+const CmtAttName=styled.span`overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`;
 const DailyGrid=styled.div`display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:1px;background:#E2E8F0;border:1px solid #E2E8F0;border-radius:8px;overflow:hidden;`;
 const DailyHead=styled.div`display:contents;& > span{padding:6px 8px;background:#F8FAFC;font-size:10px;font-weight:700;color:#94A3B8;text-align:center;}`;
 const DailyRow=styled.div`display:contents;& > span{padding:6px 8px;background:#FFF;font-size:11px;color:#0F172A;text-align:center;font-variant-numeric:tabular-nums;}`;
@@ -1719,8 +2148,10 @@ const StatusBadgeWrap=styled.span`position:relative;display:inline-flex;align-it
 const RoundBadge=styled.span`display:inline-flex;align-items:center;padding:2px 6px;font-size:10px;font-weight:800;color:#92400E;background:#FEF3C7;border-radius:6px;letter-spacing:0.3px;`;
 const ActionCard=styled.div`background:#F8FAFC;border:1px solid #E2E8F0;border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:8px;& + &{margin-top:8px;}`;
 const ActionCardTitle=styled.div`font-size:10px;font-weight:700;color:#64748B;text-transform:uppercase;letter-spacing:0.3px;`;
-const ActionPrimary=styled.button<{$fill?:string}>`padding:8px 12px;background:${p=>p.$fill||'#F43F5E'};color:#FFF;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;transition:filter 0.15s;&:disabled{background:#CBD5E1;cursor:not-allowed;}&:hover:not(:disabled){filter:brightness(1.08);}`;
+// 액션 버튼 — COLOR_GUIDE 준수 (Primary/Secondary/Danger 3톤으로 통일)
+const ActionPrimary=styled.button`padding:8px 12px;background:#14B8A6;color:#FFF;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;transition:background 0.15s;&:disabled{background:#CBD5E1;cursor:not-allowed;}&:hover:not(:disabled){background:#0D9488;}`;
 const ActionSecondary=styled.button`padding:7px 12px;background:#FFF;color:#334155;border:1px solid #CBD5E1;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;&:disabled{color:#CBD5E1;cursor:not-allowed;}&:hover:not(:disabled){border-color:#94A3B8;background:#F8FAFC;}`;
+const ActionDanger=styled.button`padding:7px 12px;background:#FFF;color:#DC2626;border:1px solid #FECACA;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;&:disabled{color:#CBD5E1;border-color:#E2E8F0;cursor:not-allowed;}&:hover:not(:disabled){background:#FEF2F2;border-color:#DC2626;}`;
 const ActionHint=styled.div`display:flex;flex-direction:column;gap:4px;`;
 const ActionHintRow=styled.div`display:flex;align-items:center;gap:8px;font-size:12px;color:#475569;flex-wrap:wrap;`;
 const TextLink=styled.button`background:transparent;border:none;color:#0F766E;font-size:12px;font-weight:600;cursor:pointer;padding:0;text-decoration:underline;&:disabled{color:#CBD5E1;cursor:not-allowed;}&:hover:not(:disabled){color:#134E4A;}`;
@@ -1731,7 +2162,28 @@ const ReviewProgressText=styled.div`font-size:11px;color:#475569;font-weight:600
 const RevisionForm=styled.div`display:flex;flex-direction:column;gap:6px;padding:8px;background:#FFF;border:1px solid #F43F5E;border-radius:8px;`;
 const RevisionInput=styled.textarea`width:100%;min-height:60px;padding:6px 8px;border:1px solid #E2E8F0;border-radius:6px;font-size:12px;color:#0F172A;resize:vertical;font-family:inherit;&:focus{outline:none;border-color:#F43F5E;}`;
 const RevisionRow=styled.div`display:flex;gap:6px;justify-content:flex-end;`;
-const RSTitleRow=styled.div`display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px;`;
+const MetaGrid=styled.div`display:grid;grid-template-columns:1.6fr 1fr 1fr 2fr;gap:10px;margin-top:12px;padding-top:12px;border-top:1px solid #F1F5F9;`;
+const MetaCell=styled.div`display:flex;flex-direction:column;gap:3px;min-width:0;`;
+const MetaLabel=styled.span`font-size:10px;font-weight:700;color:#94A3B8;text-transform:uppercase;letter-spacing:0.3px;`;
+const MetaNumInput=styled.input.attrs({type:'number',step:'0.5',min:'0'})`width:48px;font-size:13px;color:#0F172A;border:1px solid #E2E8F0;border-radius:5px;padding:3px 5px;font-family:inherit;&:focus{outline:none;border-color:#14B8A6;}`;
+const MetaUnit=styled.span`font-size:11px;color:#94A3B8;`;
+const MetaHourRow=styled.div`display:flex;align-items:center;gap:4px;`;
+const MetaProgressRow=styled.div`display:flex;align-items:center;gap:8px;`;
+const MetaProgressPct=styled.span`font-size:11px;color:#475569;font-weight:600;min-width:32px;text-align:right;`;
+// 범위 입력을 진행바처럼 보이게 — 트랙 위에 fill(teal) + 작은 thumb
+const MetaRangeInput=styled.input`
+  flex:1;appearance:none;-webkit-appearance:none;height:8px;border-radius:4px;
+  background:linear-gradient(to right,#14B8A6 0%,#14B8A6 var(--pq-fill,0%),#F1F5F9 var(--pq-fill,0%),#F1F5F9 100%);
+  outline:none;cursor:pointer;margin:0;padding:0;
+  &::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:14px;height:14px;border-radius:50%;background:#FFF;border:2px solid #14B8A6;cursor:pointer;box-shadow:0 1px 2px rgba(0,0,0,0.1);}
+  &::-moz-range-thumb{width:14px;height:14px;border-radius:50%;background:#FFF;border:2px solid #14B8A6;cursor:pointer;box-shadow:0 1px 2px rgba(0,0,0,0.1);}
+  &::-moz-range-track{background:transparent;}
+`;
+const DescriptionTextarea=styled.textarea`width:100%;min-height:46px;max-height:120px;padding:8px 10px;border:1px solid #E2E8F0;border-radius:8px;font-size:13px;color:#0F172A;background:#FAFBFC;font-family:inherit;resize:vertical;line-height:1.5;&:focus{outline:none;border-color:#14B8A6;background:#FFF;}&::placeholder{color:#94A3B8;}`;
+const Collapsible=styled.div`padding:10px 20px;border-bottom:1px solid #F1F5F9;`;
+const ColHeader=styled.button`display:flex;align-items:center;gap:8px;width:100%;padding:6px 0;background:transparent;border:none;font-size:12px;font-weight:700;color:#64748B;cursor:pointer;text-align:left;&:hover{color:#0F172A;}`;
+const ColArrow=styled.span<{$open:boolean}>`display:inline-block;font-size:10px;color:#94A3B8;transition:transform 0.15s;transform:rotate(${p=>p.$open?'90deg':'0deg'});`;
+const ColBody=styled.div`padding:8px 0 4px 0;`;
 const PolicySeg=styled.div`display:inline-flex;background:#F1F5F9;border-radius:6px;padding:2px;`;
 const PolicySegBtn=styled.button<{$active:boolean}>`padding:3px 10px;font-size:11px;font-weight:600;border:none;border-radius:4px;cursor:pointer;background:${p=>p.$active?'#FFF':'transparent'};color:${p=>p.$active?'#0F766E':'#64748B'};box-shadow:${p=>p.$active?'0 1px 2px rgba(0,0,0,0.06)':'none'};&:disabled{cursor:not-allowed;opacity:0.5;}`;
 const ReviewerList=styled.div`display:flex;flex-direction:column;gap:4px;margin-bottom:6px;`;
