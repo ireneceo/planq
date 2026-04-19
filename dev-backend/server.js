@@ -79,6 +79,14 @@ io.on('connection', (socket) => {
     }
   });
 
+  // 워크스페이스 room 참가 — Q Task 같은 전역 뷰가 사용
+  socket.on('join:business', (businessId) => {
+    if (businessId) socket.join(`business:${businessId}`);
+  });
+  socket.on('leave:business', (businessId) => {
+    if (businessId) socket.leave(`business:${businessId}`);
+  });
+
   socket.on('disconnect', () => {
     // 자동으로 모든 room에서 퇴장됨
   });
@@ -110,6 +118,7 @@ app.use('/api/businesses', require('./routes/businesses'));
 app.use('/api/clients', require('./routes/clients'));
 app.use('/api/conversations', require('./routes/conversations'));
 app.use('/api/tasks', require('./routes/tasks'));
+app.use('/api/tasks', require('./routes/task_workflow'));
 app.use('/api/files', require('./routes/files'));
 app.use('/api/invoices', require('./routes/invoices'));
 app.use('/api', require('./routes/kb'));

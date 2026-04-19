@@ -1,11 +1,11 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import {
   type MockMessage, type MockProject, type MockConversation,
-  formatTime,
 } from './mock';
 import { useAuth } from '../../contexts/AuthContext';
+import { useTimeFormat } from '../../hooks/useTimeFormat';
 import LetterAvatar from '../../components/Common/LetterAvatar';
 
 interface Props {
@@ -26,6 +26,7 @@ interface Props {
   rightCollapsed: boolean;
   onToggleLeft: () => void;
   onToggleRight: () => void;
+  onFocusCandidates?: () => void;
 }
 
 const ChatPanel: React.FC<Props> = ({
@@ -33,10 +34,18 @@ const ChatPanel: React.FC<Props> = ({
   onOpenExtract, onSendMessage, onCueDraftSend, onCueDraftReject,
   onToggleAutoExtract, onRenameConversation,
   candidatesCount, extracting, leftCollapsed, rightCollapsed, onToggleLeft, onToggleRight,
+  onFocusCandidates,
 }) => {
   const { t } = useTranslation('qtalk');
   const { user } = useAuth();
+  const { formatTime } = useTimeFormat();
   const isClient = user?.business_role === 'client';
+  const [bannerDismissed, setBannerDismissed] = useState(false);
+
+  // candidatesCount 가 변할 때마다 dismiss 리셋 (새 후보가 들어왔으니)
+  useEffect(() => {
+    setBannerDismissed(false);
+  }, [candidatesCount]);
 
   const channels = useMemo(() => {
     if (!project) return [];
@@ -200,6 +209,19 @@ const ChatPanel: React.FC<Props> = ({
   // Cue 답변 대기 카운트 — 담당자에게만 노출
   const cueDraftCount = convMessages.filter((m) => m.cue_draft).length;
 
+  // Cue draft 뱃지 클릭 시 첫 draft 메시지로 스크롤
+  const scrollToFirstDraft = () => {
+    const firstDraft = convMessages.find((m) => m.cue_draft);
+    if (!firstDraft) return;
+    const el = document.querySelector(`[data-msg-id="${firstDraft.id}"]`);
+    if (el && el instanceof HTMLElement) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      el.style.transition = 'background 0.3s';
+      el.style.background = 'rgba(244, 63, 94, 0.08)';
+      setTimeout(() => { el.style.background = ''; }, 1500);
+    }
+  };
+
   if (!project) {
     return (
       <Container>
@@ -313,15 +335,15 @@ const ChatPanel: React.FC<Props> = ({
         </HeaderRight>
       </HeaderBar>
 
-      {/* 업무 후보 안내 배너 (있을 때만) */}
-      {!isClient && candidatesCount > 0 && (
+      {/* 업무 후보 확인 배너 — pending 후보가 있을 때만, 담당자에게만, dismiss 가능 */}
+      {!isClient && candidatesCount > 0 && !bannerDismissed && (
         <CandidatesBanner>
           <BannerText>
-            {t('chat.banner.newMessages', '새 메시지 {{n}}개 — 업무로 정리할 준비가 되었어요', { n: 5 })}
+            {t('chat.banner.candidatesPending', { count: candidatesCount })}
           </BannerText>
           <BannerActions>
-            <BannerBtn onClick={onOpenExtract}>{t('chat.banner.extract', '업무 추출')}</BannerBtn>
-            <BannerBtn $ghost>{t('chat.banner.later', '나중에')}</BannerBtn>
+            <BannerBtn onClick={() => onFocusCandidates?.()}>{t('chat.banner.review', '확인하기')}</BannerBtn>
+            <BannerBtn $ghost onClick={() => setBannerDismissed(true)}>{t('chat.banner.later', '나중에')}</BannerBtn>
           </BannerActions>
         </CandidatesBanner>
       )}
@@ -334,7 +356,7 @@ const ChatPanel: React.FC<Props> = ({
           </EmptyState>
         )}
         {convMessages.map((m) => (
-          <MessageItem key={m.id}>
+          <MessageItem key={m.id} data-msg-id={m.id}>
             <LetterAvatar
               name={m.sender_name}
               size={36}
@@ -452,11 +474,15 @@ const ChatPanel: React.FC<Props> = ({
               {extracting ? t('chat.input.extracting', '추출 중...') : t('chat.input.extractNow', '업무 추출')}
             </ExtractBtn>
             {cueDraftCount > 0 && (
-              <CueBadgeInline>
+              <CueBadgeInline
+                type="button"
+                onClick={scrollToFirstDraft}
+                title={t('chat.input.cueWaitingHint', 'Cue 답변 대기 — 클릭하면 해당 메시지로 이동')}
+              >
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                   <polyline points="18 15 12 9 6 15" />
                 </svg>
-                {t('chat.input.cueWaiting', 'Cue 답변 대기 {{n}}개', { n: cueDraftCount })}
+                {t('chat.input.cueWaiting', { count: cueDraftCount })}
               </CueBadgeInline>
             )}
           </InputToolbar>
@@ -1052,7 +1078,7 @@ const ExtractSpinner = styled.span`
   @keyframes spin { to { transform: rotate(360deg); } }
 `;
 
-const CueBadgeInline = styled.div`
+const CueBadgeInline = styled.button`
   margin-left: auto;
   display: flex;
   align-items: center;
@@ -1060,9 +1086,13 @@ const CueBadgeInline = styled.div`
   padding: 4px 10px;
   background: #FFF1F2;
   color: #9F1239;
+  border: 1px solid #FECDD3;
   border-radius: 12px;
   font-size: 11px;
   font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+  &:hover { background: #FFE4E6; }
 `;
 
 const InputWrap = styled.div`

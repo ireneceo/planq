@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useAuth, apiFetch } from '../../contexts/AuthContext';
+import { useTimeFormat } from '../../hooks/useTimeFormat';
 import LetterAvatar from '../../components/Common/LetterAvatar';
 import PageShell from '../../components/Layout/PageShell';
 
@@ -25,6 +26,7 @@ type ClientRow = {
 export default function ClientsPage() {
   const { t } = useTranslation('clients');
   const { user } = useAuth();
+  const { formatDate } = useTimeFormat();
   const businessId = user?.business_id || 0;
   const isAdmin = user?.business_role === 'owner' || user?.platform_role === 'platform_admin';
 
@@ -111,9 +113,7 @@ export default function ClientsPage() {
                       <Td>{c.user?.email || '—'}</Td>
                       <Td>{c.user?.phone || '—'}</Td>
                       <Td>
-                        {c.invited_at
-                          ? new Date(c.invited_at).toLocaleDateString()
-                          : new Date(c.created_at).toLocaleDateString()}
+                        {formatDate(c.invited_at || c.created_at)}
                       </Td>
                     </Tr>
                   );

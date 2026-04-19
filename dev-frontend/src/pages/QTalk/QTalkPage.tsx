@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import styled from 'styled-components';
+import { useTranslation } from 'react-i18next';
 import { io, type Socket } from 'socket.io-client';
 import LeftPanel from './LeftPanel';
 import ChatPanel from './ChatPanel';
@@ -36,6 +37,7 @@ function apiProjectToMock(p: qtalkApi.ApiProject): MockProject {
     start_date: p.start_date || undefined,
     end_date: p.end_date || undefined,
     default_assignee_id: p.default_assignee_user_id || p.owner_user_id,
+    color: p.color || null,
     members: (p.projectMembers || []).map((m) => ({
       user_id: m.user_id,
       name: m.User?.name || `user ${m.user_id}`,
@@ -144,6 +146,7 @@ function apiCandidateToMock(c: qtalkApi.ApiTaskCandidate): MockTaskCandidate {
 }
 
 const QTalkPage: React.FC = () => {
+  const { t } = useTranslation('qtalk');
   const { user } = useAuth();
   const businessId = user?.business_id || null;
 
@@ -288,7 +291,11 @@ const QTalkPage: React.FC = () => {
         const mapped = list.map(apiProjectToMock);
         setProjects(mapped);
         if (mapped.length > 0) {
-          setActiveProjectId((prev) => prev ?? mapped[0].id);
+          // URL query param ?project=ID 로 들어오면 해당 프로젝트 선택 (Q Project 페이지에서 드릴다운)
+          const params = new URLSearchParams(window.location.search);
+          const qpid = Number(params.get('project'));
+          const target = qpid && mapped.some((p) => p.id === qpid) ? qpid : mapped[0].id;
+          setActiveProjectId((prev) => prev ?? target);
         }
       } catch (err: unknown) {
         if (cancelled) return;
@@ -403,6 +410,7 @@ const QTalkPage: React.FC = () => {
         client_company: data.client_company || undefined,
         start_date: data.start_date || undefined,
         end_date: data.end_date || undefined,
+        color: data.color || undefined,
         members: data.members.map((m) => ({ user_id: m.user_id, role: m.role, is_default: m.is_default })),
         clients: data.clients.map((c) => ({ name: c.name, email: c.email })),
       });
@@ -517,6 +525,15 @@ const QTalkPage: React.FC = () => {
       if (result.candidates.length > 0) {
         const mapped = result.candidates.map(apiCandidateToMock);
         setCandidates((prev) => [...mapped, ...prev]);
+        showNotice(t('extract.found', { count: result.candidates.length }));
+      } else if (result.skipped && result.reason === 'no_new_messages') {
+        showNotice(t('extract.noNewMessages'));
+      } else if (result.fallback) {
+        // LLM 키 미설정 또는 LLM 호출 실패
+        showNotice(t('extract.llmUnavailable'));
+      } else {
+        // 메시지는 있는데 추출된 업무 후보가 없음
+        showNotice(t('extract.noTasksFound'));
       }
       // 대화 커서 업데이트 (UI에서 last_extracted_message_id 반영)
       if (!result.skipped && activeProjectId) {
@@ -529,11 +546,9 @@ const QTalkPage: React.FC = () => {
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : '';
       if (msg === 'extraction_already_in_progress') {
-        showNotice('extraction_in_progress');
-      } else if (msg === 'no_new_messages') {
-        // silent
+        showNotice(t('extract.inProgress'));
       } else {
-        showNotice(`extraction_failed: ${msg}`);
+        showNotice(t('extract.failed', { msg }));
       }
     } finally {
       setExtracting(false);
@@ -649,6 +664,19 @@ const QTalkPage: React.FC = () => {
         rightCollapsed={rightCollapsed}
         onToggleLeft={toggleLeft}
         onToggleRight={toggleRight}
+        onFocusCandidates={() => {
+          if (rightCollapsed) setRightCollapsed(false);
+          // 다음 tick 에 우측 패널의 candidates 섹션으로 스크롤
+          setTimeout(() => {
+            const el = document.querySelector('[data-section="candidates"]');
+            if (el && el instanceof HTMLElement) {
+              el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              el.style.transition = 'background 0.3s';
+              el.style.background = 'rgba(244, 63, 94, 0.08)';
+              setTimeout(() => { el.style.background = ''; }, 1500);
+            }
+          }, 150);
+        }}
       />
       <RightPanel
         project={activeProject}

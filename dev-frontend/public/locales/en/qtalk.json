@@ -1,4 +1,25 @@
 {
+  "extract": {
+    "found": "{{count}} task candidate(s) extracted",
+    "noNewMessages": "No new messages to extract from",
+    "noTasksFound": "No actionable tasks were found in the messages",
+    "llmUnavailable": "AI extraction is not configured. Ask your admin to set OPENAI_API_KEY",
+    "inProgress": "Extraction is already in progress. Please try again shortly",
+    "failed": "Extraction failed: {{msg}}"
+  },
+  "chat": {
+    "banner": {
+      "candidatesPending_one": "1 task candidate waiting for review — register or reject it",
+      "candidatesPending_other": "{{count}} task candidates waiting for review — register or reject them",
+      "review": "Review",
+      "later": "Later"
+    },
+    "input": {
+      "cueWaiting_one": "1 Cue draft pending",
+      "cueWaiting_other": "{{count}} Cue drafts pending",
+      "cueWaitingHint": "Click to jump to the message"
+    }
+  },
   "page": {
     "title": "Q talk",
     "subtitle": "Real-time customer conversations with Cue (AI teammate)",

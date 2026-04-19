@@ -255,7 +255,7 @@ router.put('/:businessId/settings', authenticateToken, checkBusinessAccess, asyn
     const business = await Business.findByPk(req.params.businessId);
     if (!business) return errorResponse(res, 'Workspace not found', 404);
 
-    const { default_language, timezone, work_hours } = req.body;
+    const { default_language, timezone, reference_timezones, work_hours } = req.body;
     const updates = {};
 
     if (default_language !== undefined) {
@@ -264,7 +264,22 @@ router.put('/:businessId/settings', authenticateToken, checkBusinessAccess, asyn
       }
       updates.default_language = default_language;
     }
-    if (timezone !== undefined) updates.timezone = timezone || 'Asia/Seoul';
+    const TZ_RE = /^[A-Za-z_+\-0-9]+(\/[A-Za-z_+\-0-9]+){0,2}$/;
+    if (timezone !== undefined) {
+      if (timezone && !TZ_RE.test(timezone)) {
+        return errorResponse(res, 'Invalid timezone', 400);
+      }
+      updates.timezone = timezone || 'Asia/Seoul';
+    }
+    if (reference_timezones !== undefined) {
+      if (reference_timezones !== null && !Array.isArray(reference_timezones)) {
+        return errorResponse(res, 'Invalid reference_timezones', 400);
+      }
+      const cleaned = (reference_timezones || [])
+        .filter((t) => typeof t === 'string' && TZ_RE.test(t))
+        .slice(0, 20);
+      updates.reference_timezones = cleaned.length ? cleaned : null;
+    }
     if (work_hours !== undefined) updates.work_hours = work_hours || null;
 
     await business.update(updates);

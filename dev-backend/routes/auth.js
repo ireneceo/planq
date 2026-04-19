@@ -67,13 +67,13 @@ const getUserWithBusiness = async (userId) => {
   // 1) 멤버십 (owner / member)
   const memberships = await BusinessMember.findAll({
     where: { user_id: userId },
-    include: [{ model: Business, attributes: ['id', 'name', 'slug', 'plan', 'brand_name'] }]
+    include: [{ model: Business, attributes: ['id', 'name', 'slug', 'plan', 'brand_name', 'timezone', 'reference_timezones'] }]
   });
 
   // 2) 고객 (client) — 활성 상태만
   const clientRows = await Client.findAll({
     where: { user_id: userId, status: 'active' },
-    include: [{ model: Business, attributes: ['id', 'name', 'slug', 'plan', 'brand_name'] }]
+    include: [{ model: Business, attributes: ['id', 'name', 'slug', 'plan', 'brand_name', 'timezone', 'reference_timezones'] }]
   });
 
   // 3) workspaces 배열 빌드 — 같은 business 에 둘 다 있으면 멤버십 우선
@@ -86,6 +86,8 @@ const getUserWithBusiness = async (userId) => {
       slug: m.Business.slug,
       plan: m.Business.plan,
       role: m.role,  // 'owner' | 'member' | 'ai'
+      timezone: m.Business.timezone || 'Asia/Seoul',
+      reference_timezones: Array.isArray(m.Business.reference_timezones) ? m.Business.reference_timezones : [],
     });
   }
   for (const c of clientRows) {
@@ -97,6 +99,8 @@ const getUserWithBusiness = async (userId) => {
         slug: c.Business.slug,
         plan: c.Business.plan,
         role: 'client',
+        timezone: c.Business.timezone || 'Asia/Seoul',
+        reference_timezones: Array.isArray(c.Business.reference_timezones) ? c.Business.reference_timezones : [],
       });
     }
   }
@@ -119,10 +123,14 @@ const getUserWithBusiness = async (userId) => {
     userData.business_id = activeWs.business_id;
     userData.business_name = activeWs.brand_name;
     userData.business_role = activeWs.role;
+    userData.workspace_timezone = activeWs.timezone;
+    userData.workspace_reference_timezones = activeWs.reference_timezones || [];
   } else {
     userData.business_id = null;
     userData.business_name = null;
     userData.business_role = null;
+    userData.workspace_timezone = null;
+    userData.workspace_reference_timezones = [];
   }
   return userData;
 };

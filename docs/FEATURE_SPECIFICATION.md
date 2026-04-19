@@ -385,7 +385,7 @@ Business (워크스페이스, 기존)
 2. LLM 호출 — 반환 JSON:
    ```json
    [{
-     "title": "로고 시안 3종 PDF 제작 완료",
+     "title": "로고 시안 3종 PDF 제작",
      "description": "...",
      "source_message_ids": [123, 124, 127],
      "guessed_role": "디자인",

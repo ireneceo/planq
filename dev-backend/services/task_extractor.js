@@ -63,10 +63,12 @@ function buildExtractionPrompt(messagesText, memberNames, language) {
   return `You are a task extraction assistant. Analyze the chat messages below and identify actionable tasks.
 
 CRITICAL NAMING RULE:
-- Every task title MUST describe a concrete deliverable with a clear completion point.
-- BAD: "시장조사", "디자인 작업", "검토", "준비"
-- GOOD: "경쟁사 비교분석표 작성", "로고 시안 3종 PDF 제작 완료", "견적서 작성 전달", "Lighthouse 성능 감사 보고서 작성"
-- The title should answer: "What artifact/document/file is produced when this task is done?"
+- Every task title MUST describe a concrete deliverable + an action verb in its BASE form.
+- BAD (vague, no deliverable): "시장조사", "디자인 작업", "검토", "준비"
+- BAD (completion suffix — looks already done): "~ 제작 완료", "~ 작성 완료", "~ 완성", "~ 마무리"
+- GOOD (deliverable + base verb): "경쟁사 비교분석표 작성", "로고 시안 3종 PDF 제작", "견적서 작성·전달", "Lighthouse 성능 감사 보고서 작성"
+- The title should answer: "What artifact/document/file is produced?" — NOT "it was done".
+- NEVER append "완료", "완성", "마무리", "done", "finished" to titles. Completion is tracked in the status field, not the title.
 
 RULES:
 1. Only extract clear, actionable tasks (NOT questions, NOT greetings, NOT general discussion)

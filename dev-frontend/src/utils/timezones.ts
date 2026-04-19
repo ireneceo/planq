@@ -132,6 +132,38 @@ export function abbrFromTz(date: Date, tz: string): string {
 }
 
 // 브라우저 기본 타임존
+// 'YYYY-MM-DD' in given tz — 업무 시간 계산의 하루 경계는 워크스페이스 tz 기준
+export function dateStrInTz(date: Date, tz: string): string {
+  try {
+    return new Intl.DateTimeFormat('en-CA', {
+      timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit'
+    }).format(date);
+  } catch {
+    return date.toISOString().slice(0, 10);
+  }
+}
+
+export function todayInTz(tz: string): string {
+  return dateStrInTz(new Date(), tz);
+}
+
+// 주어진 YYYY-MM-DD 문자열 기준 해당 주의 월요일 (tz 무관 — 이미 해당 tz 의 날짜 문자열 가정)
+export function mondayOfDateStr(yyyyMmDd: string): string {
+  const [y, m, d] = yyyyMmDd.split('-').map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  const day = dt.getUTCDay();
+  const diff = dt.getUTCDate() - day + (day === 0 ? -6 : 1);
+  dt.setUTCDate(diff);
+  return dt.toISOString().slice(0, 10);
+}
+
+export function addDaysStr(yyyyMmDd: string, days: number): string {
+  const [y, m, d] = yyyyMmDd.split('-').map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  dt.setUTCDate(dt.getUTCDate() + days);
+  return dt.toISOString().slice(0, 10);
+}
+
 export function detectBrowserTz(): string {
   try {
     return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';

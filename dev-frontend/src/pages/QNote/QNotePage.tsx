@@ -6,6 +6,7 @@ import StartMeetingModal from './StartMeetingModal';
 import type { StartConfig } from './StartMeetingModal';
 import { getLanguageByCode } from '../../constants/languages';
 import { useAuth, getAccessToken } from '../../contexts/AuthContext';
+import { useTimeFormat } from '../../hooks/useTimeFormat';
 import {
   listSessions,
   getSession,
@@ -156,6 +157,7 @@ function joinTranslation(segments: BlockSegment[]): { text: string; hasAny: bool
 const QNotePage = () => {
   const { t } = useTranslation('qnote');
   const { user } = useAuth();
+  const { formatDate: fmtWsDate } = useTimeFormat();
   const businessId = user?.business_id ?? null;
 
   const speakerLabels = useMemo(() => ({
@@ -1747,7 +1749,7 @@ const QNotePage = () => {
                   <SessionStatusBadge style={{ color: statusColor, borderColor: statusColor }}>{statusLabel}</SessionStatusBadge>
                 </SessionItemRow>
                 <SessionItemMeta>
-                  <span>{new Date(session.created_at).toLocaleDateString()}</span>
+                  <span>{fmtWsDate(session.created_at)}</span>
                   {session.utterance_count > 0 && (
                     <>
                       <Dot>·</Dot>

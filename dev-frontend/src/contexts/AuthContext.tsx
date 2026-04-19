@@ -43,6 +43,12 @@ export interface User {
   expertise_level?: ExpertiseLevel | null;
   answer_style_default?: string | null;
   answer_length_default?: AnswerLength | null;
+  // 타임존 (개인)
+  timezone?: string | null;
+  reference_timezones?: string[] | null;
+  // active workspace 의 타임존 (표시 전용 — 워크스페이스 수정 API 로만 변경)
+  workspace_timezone?: string | null;
+  workspace_reference_timezones?: string[] | null;
 }
 
 interface AuthContextType {
@@ -154,6 +160,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     expertise_level: (apiUser.expertise_level as ExpertiseLevel) || null,
     answer_style_default: (apiUser.answer_style_default as string) || null,
     answer_length_default: (apiUser.answer_length_default as AnswerLength) || null,
+    timezone: (apiUser.timezone as string) || null,
+    reference_timezones: (apiUser.reference_timezones as string[]) || null,
+    workspace_timezone: (apiUser.workspace_timezone as string) || null,
+    workspace_reference_timezones: (apiUser.workspace_reference_timezones as string[]) || null,
   });
 
   // UserRole 매핑: platform_role + business_role → 사이드바용 role

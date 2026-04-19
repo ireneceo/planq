@@ -1,0 +1,38 @@
+{
+  "page": {
+    "title": "Q project"
+  },
+  "view": {
+    "list": "List",
+    "timeline": "Timeline",
+    "calendar": "Calendar"
+  },
+  "loading": "Loading…",
+  "empty": {
+    "title": "No projects yet",
+    "desc": "Projects created in Q talk will show up here",
+    "cta": "Go to Q talk to create a project"
+  },
+  "status": {
+    "active": "Active",
+    "paused": "Paused",
+    "closed": "Closed"
+  },
+  "stats": {
+    "tasks": "Tasks",
+    "overdue": "Overdue",
+    "period": "Period",
+    "progress": "Progress {{pct}}%"
+  },
+  "timeline": {
+    "project": "Project",
+    "expand": "Expand tasks",
+    "collapse": "Collapse tasks"
+  },
+  "cal": {
+    "today": "Today",
+    "start": "Start",
+    "end": "End",
+    "sun": "Sun", "mon": "Mon", "tue": "Tue", "wed": "Wed", "thu": "Thu", "fri": "Fri", "sat": "Sat"
+  }
+}

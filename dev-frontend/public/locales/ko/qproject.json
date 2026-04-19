@@ -1,0 +1,38 @@
+{
+  "page": {
+    "title": "Q project"
+  },
+  "view": {
+    "list": "리스트",
+    "timeline": "타임라인",
+    "calendar": "일정"
+  },
+  "loading": "불러오는 중…",
+  "empty": {
+    "title": "프로젝트가 아직 없어요",
+    "desc": "Q talk 에서 프로젝트를 만들면 여기에 표시됩니다",
+    "cta": "Q talk 로 이동해 프로젝트 만들기"
+  },
+  "status": {
+    "active": "진행 중",
+    "paused": "대기",
+    "closed": "종료"
+  },
+  "stats": {
+    "tasks": "업무",
+    "overdue": "지연",
+    "period": "기간",
+    "progress": "진행률 {{pct}}%"
+  },
+  "timeline": {
+    "project": "프로젝트",
+    "expand": "업무 펼치기",
+    "collapse": "업무 접기"
+  },
+  "cal": {
+    "today": "오늘",
+    "start": "시작",
+    "end": "마감",
+    "sun": "일", "mon": "월", "tue": "화", "wed": "수", "thu": "목", "fri": "금", "sat": "토"
+  }
+}

@@ -23,6 +23,8 @@ const ProjectIssue = require('./ProjectIssue');
 const TaskCandidate = require('./TaskCandidate');
 const TaskComment = require('./TaskComment');
 const TaskDailyProgress = require('./TaskDailyProgress');
+const TaskReviewer = require('./TaskReviewer');
+const TaskStatusHistory = require('./TaskStatusHistory');
 
 // ============================================
 // Associations
@@ -167,6 +169,20 @@ Project.hasMany(Conversation, { as: 'conversations', foreignKey: 'project_id' })
 Task.belongsTo(Project, { foreignKey: 'project_id' });
 Project.hasMany(Task, { as: 'tasks', foreignKey: 'project_id' });
 
+// Task 확장 — 요청자
+Task.belongsTo(User, { as: 'requester', foreignKey: 'request_by_user_id' });
+
+// TaskReviewer (멀티 컨펌자)
+TaskReviewer.belongsTo(Task, { foreignKey: 'task_id', onDelete: 'CASCADE' });
+TaskReviewer.belongsTo(User, { as: 'user', foreignKey: 'user_id' });
+Task.hasMany(TaskReviewer, { as: 'reviewers', foreignKey: 'task_id' });
+
+// TaskStatusHistory
+TaskStatusHistory.belongsTo(Task, { foreignKey: 'task_id', onDelete: 'CASCADE' });
+TaskStatusHistory.belongsTo(User, { as: 'actor', foreignKey: 'actor_user_id' });
+TaskStatusHistory.belongsTo(User, { as: 'target', foreignKey: 'target_user_id' });
+Task.hasMany(TaskStatusHistory, { as: 'history', foreignKey: 'task_id' });
+
 module.exports = {
   User,
   Business,
@@ -193,6 +209,8 @@ module.exports = {
   TaskCandidate,
   TaskComment,
   TaskDailyProgress,
+  TaskReviewer,
+  TaskStatusHistory,
 };
 
 TaskDailyProgress.belongsTo(Task, { foreignKey: 'task_id' });

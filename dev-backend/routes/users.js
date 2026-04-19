@@ -45,8 +45,25 @@ router.put('/:id', authenticateToken, async (req, res, next) => {
       bio, expertise, organization, job_title,
       language_levels, expertise_level,
       answer_style_default, answer_length_default,
+      timezone, reference_timezones,
     } = req.body;
     const updates = { name, phone, avatar_url };
+    // 타임존 (IANA id — 자유형식 문자열로 저장, 포맷 검증만)
+    if (timezone !== undefined) {
+      if (timezone !== null && (typeof timezone !== 'string' || !/^[A-Za-z_+\-0-9]+(\/[A-Za-z_+\-0-9]+){0,2}$/.test(timezone))) {
+        return errorResponse(res, 'Invalid timezone', 400);
+      }
+      updates.timezone = timezone || null;
+    }
+    if (reference_timezones !== undefined) {
+      if (reference_timezones !== null && !Array.isArray(reference_timezones)) {
+        return errorResponse(res, 'Invalid reference_timezones', 400);
+      }
+      const cleaned = (reference_timezones || [])
+        .filter((t) => typeof t === 'string' && /^[A-Za-z_+\-0-9]+(\/[A-Za-z_+\-0-9]+){0,2}$/.test(t))
+        .slice(0, 20);
+      updates.reference_timezones = cleaned.length ? cleaned : null;
+    }
     if (language !== undefined) {
       if (typeof language !== 'string' || !/^[a-z]{2}(-[A-Z]{2})?$/.test(language)) {
         return errorResponse(res, 'Invalid language code', 400);

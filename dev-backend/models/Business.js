@@ -110,6 +110,11 @@ Business.init({
     allowNull: true,
     defaultValue: 'Asia/Seoul'
   },
+  // 워크스페이스 참조 타임존 배열 (문자열 배열 JSON)
+  reference_timezones: {
+    type: DataTypes.JSON,
+    allowNull: true
+  },
   work_hours: {
     type: DataTypes.JSON,
     allowNull: true

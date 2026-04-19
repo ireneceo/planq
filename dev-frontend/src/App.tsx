@@ -9,6 +9,7 @@ import ProfilePage from './pages/Profile/ProfilePage';
 import WorkspaceSettingsPage from './pages/Settings/WorkspaceSettingsPage';
 import QTalkPage from './pages/QTalk/QTalkPage';
 import QTaskPage from './pages/QTask/QTaskPage';
+import QProjectPage from './pages/QProject/QProjectPage';
 import ClientsPage from './pages/Clients/ClientsPage';
 import InvitePage from './pages/Invite/InvitePage';
 import './App.css';
@@ -81,6 +82,22 @@ function App() {
         <Route path="/tasks" element={
           <ProtectedRoute>
             <MainLayout><QTaskPage /></MainLayout>
+          </ProtectedRoute>
+        } />
+        <Route path="/tasks/:scope" element={
+          <ProtectedRoute>
+            <MainLayout><QTaskPage /></MainLayout>
+          </ProtectedRoute>
+        } />
+
+        <Route path="/projects" element={
+          <ProtectedRoute>
+            <MainLayout><QProjectPage /></MainLayout>
+          </ProtectedRoute>
+        } />
+        <Route path="/projects/:view" element={
+          <ProtectedRoute>
+            <MainLayout><QProjectPage /></MainLayout>
           </ProtectedRoute>
         } />
 

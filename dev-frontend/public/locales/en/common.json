@@ -1,4 +1,10 @@
 {
+  "time": {
+    "justNow": "just now",
+    "minutesAgo": "{{n}}m ago",
+    "hoursAgo": "{{n}}h ago",
+    "yesterday": "yesterday"
+  },
   "button": {
     "save": "Save",
     "cancel": "Cancel",

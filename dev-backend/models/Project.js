@@ -17,6 +17,8 @@ Project.init({
   end_date: { type: DataTypes.DATEONLY, allowNull: true },
   default_assignee_user_id: { type: DataTypes.INTEGER, allowNull: true },
   owner_user_id: { type: DataTypes.INTEGER, allowNull: false },
+  // 타임라인/일정 보기 구분용 프로젝트 색상 (hex) — 프리셋 10색 중 하나 기본
+  color: { type: DataTypes.STRING(20), allowNull: true },
 }, {
   sequelize,
   tableName: 'projects',

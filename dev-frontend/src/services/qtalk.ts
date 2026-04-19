@@ -40,6 +40,7 @@ export interface ApiProject {
   end_date: string | null;
   default_assignee_user_id: number | null;
   owner_user_id: number;
+  color: string | null;
   created_at: string;
   updated_at: string;
   Business?: { id: number; brand_name: string | null; name: string; slug: string };
@@ -70,6 +71,7 @@ export interface CreateProjectInput {
   client_company?: string;
   start_date?: string;
   end_date?: string;
+  color?: string;
   members: Array<{ user_id: number; role: string; is_default: boolean }>;
   clients: Array<{ name: string; email?: string }>;
 }
@@ -95,7 +97,7 @@ export async function getProject(id: number): Promise<ApiProject> {
   return handle<ApiProject>(res);
 }
 
-export async function updateProject(id: number, patch: Partial<Pick<ApiProject, 'name' | 'description' | 'client_company' | 'start_date' | 'end_date' | 'status' | 'default_assignee_user_id'>>): Promise<ApiProject> {
+export async function updateProject(id: number, patch: Partial<Pick<ApiProject, 'name' | 'description' | 'client_company' | 'start_date' | 'end_date' | 'status' | 'default_assignee_user_id' | 'color'>>): Promise<ApiProject> {
   const res = await apiFetch(`/api/projects/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },

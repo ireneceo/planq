@@ -1,4 +1,25 @@
 {
+  "extract": {
+    "found": "업무 후보 {{count}}개 추출",
+    "noNewMessages": "새 메시지가 없어 추출할 내용이 없어요",
+    "noTasksFound": "메시지에서 업무로 추출할 만한 내용을 찾지 못했어요",
+    "llmUnavailable": "AI 추출 기능이 설정되지 않았습니다. 관리자에게 OPENAI_API_KEY 설정을 요청하세요",
+    "inProgress": "이미 추출이 진행 중입니다. 잠시 후 다시 시도해주세요",
+    "failed": "추출 실패: {{msg}}"
+  },
+  "chat": {
+    "banner": {
+      "candidatesPending_one": "업무 후보 1개가 확인 대기 중이에요 — 등록하거나 거절해주세요",
+      "candidatesPending_other": "업무 후보 {{count}}개가 확인 대기 중이에요 — 등록하거나 거절해주세요",
+      "review": "확인하기",
+      "later": "나중에"
+    },
+    "input": {
+      "cueWaiting_one": "Cue 답변 대기 1개",
+      "cueWaiting_other": "Cue 답변 대기 {{count}}개",
+      "cueWaitingHint": "클릭하면 해당 메시지로 이동합니다"
+    }
+  },
   "page": {
     "title": "Q talk",
     "subtitle": "고객과 실시간 대화 + Cue(AI 팀원) 공동 응대",

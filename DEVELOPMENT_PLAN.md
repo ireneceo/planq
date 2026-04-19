@@ -1,9 +1,78 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-04-17
+> **최종 업데이트:** 2026-04-19
 > **데이터베이스:** planq_dev_db (MySQL) + qnote.db (SQLite, FTS5)
 > **프로젝트:** B2B SaaS — 업무 전용 고객 채팅 + 실행 구조 통합 OS
 > **로드맵 상세:** `docs/DEVELOPMENT_ROADMAP.md`
+
+---
+
+## ✅ 완료: 타임존 백엔드 연결 + Q Talk 청크3 + Q Project 신규 + Q Task 워크플로우 재설계 (2026-04-19)
+
+한 세션에서 대형 개선 다수 수행. 타임존 실데이터 연결 + 전역 tz 표시 통일, Q Talk 업무 추출 실동작, Q Project 메뉴/페이지 신규 (리스트/타임라인/일정 3뷰 + 프로젝트 색상), Q Task 상태 머신 재설계 (멀티 컨펌자 + 관점별 라벨 + 탭별 카드 칸반).
+
+### 완료된 작업
+
+| 영역 | 작업 | 상태 |
+|------|------|:----:|
+| **타임존 백엔드 연결** | `users.timezone`/`reference_timezones`, `businesses.reference_timezones` JSON 필드 추가. `PUT /api/users/:id`/`/businesses/:id/settings` 확장. `useTimezones` 훅을 localStorage → API 기반으로 교체. `/api/auth/me`에 workspace_timezone 노출 | ✅ |
+| **전역 tz 표시 통일** | `utils/dateFormat.ts` + `hooks/useTimeFormat.ts` 신규 (워크스페이스 tz 바인딩 포맷터). Q Talk·Q Note·Q Task·Clients·Profile 모든 시각 표시 통일. `utils/datetime.js` (백엔드 유틸). Q Task my-week/month/year + task_snapshot per-business tz 적용 | ✅ |
+| **Q Talk 청크 3 — 업무 후보 추출 실동작** | task_extractor OpenAI 키 연결 (Q Note 에서 복사), 청크 3 E2E 13/13 통과, 배너/Cue 드래프트 UX 재정의, 업무명 규칙 정정 ("완료" 접미사 금지) | ✅ |
+| **Q Task ↔ Q Talk 실시간 연동** | `business:{id}` Socket room 추가. task:new/updated/deleted 양방향 전파. QTaskPage Socket 리스너 | ✅ |
+| **Q Project 신규 페이지** | `/projects` + `/projects/:view` 라우트, 리스트/타임라인/일정 3뷰, 프로젝트 색상 팔레트 (10색), 드릴다운 링크, 반응형 @media | ✅ |
+| **Q Task 워크플로우 재설계 (Phase 1)** | 8 상태 ENUM (not_started/waiting/in_progress/reviewing/revision_requested/done_feedback/completed/canceled) + `task_reviewers` 멀티 컨펌자 테이블 + `task_status_history`. 워크플로우 API 13개 (ack/submit/cancel/approve/revision/revert/complete/reviewers CRUD/policy). 정책 all/any. FK CASCADE | ✅ |
+| **Q Task 탭 재구성** | `/tasks` (내 업무) / `/tasks/workspace` URL 분리, 세그먼트 토글, 탭 이름 재정의 (이번 주/내 전체업무/요청하기), 담당자 컬럼 조건부, 업무 추가 UX (제목+담당자 인라인) | ✅ |
+| **Q Task 관점별 라벨 (Phase A+B)** | `utils/taskRoles.ts`(getRoles/primaryPerspective) + `utils/taskLabel.ts`(displayStatus/getStatusLabel). i18n `status.{code}.{role}` 4차원 구조. 탭별 카드 칸반 카테고리 컬럼. 빈 컬럼 자동 숨김 | ✅ |
+| **보기 모드 토글** | `/tasks` 에 리스트/카드 뷰 토글 (localStorage 유지). 리스트 뷰 컬럼 정렬 (flex-shrink 0, min-width 0). 반응형 breakpoint 기반 컬럼 숨김 | ✅ |
+| **버그 픽스** | FK task_comments/task_daily_progress CASCADE, 보안 필터 hex 차단 완화, 업무 추가 중복(Socket+POST 경합), 상태 드롭다운 한 번 클릭 UX, 지연 업무 정렬 어긋남(box-shadow inset), i18n 캐시 무효화(BUILD_ID 쿼리), SQL regex pattern 과차단 | ✅ |
+| **스킬 업데이트** | `.claude/commands/검증.md` 에 8단계 UI/UX 상세 템플릿 추가 (8-A~8-G) | ✅ |
+
+### 수정된 파일 (주요, 총 60개)
+
+**백엔드 (Node)**
+- 신규: `models/TaskReviewer.js`, `TaskStatusHistory.js`, `routes/task_workflow.js`, `utils/datetime.js`
+- 수정: `models/Task.js`(status ENUM 재정의 + 8 컬럼 확장), `TaskComment.js`(visibility/kind), `ProjectNote.js`(shared), `User.js`/`Business.js`(tz 필드), `Project.js`(color), `TaskDailyProgress.js`(CASCADE)
+- 수정: `routes/tasks.js`(source 자동판정 + tz 경계 계산 + FK CASCADE), `projects.js`(color + candidate register socket), `users.js`/`businesses.js`/`auth.js`(tz API), `server.js`(business room + task_workflow mount)
+- 수정: `services/task_extractor.js`(업무명 규칙 + 프롬프트), `task_snapshot.js`(per-biz tz), `middleware/security.js`(hex 허용)
+
+**프론트엔드 (TS/TSX)**
+- 신규: `utils/dateFormat.ts`, `projectColors.ts`, `taskLabel.ts`, `taskRoles.ts`, `hooks/useTimeFormat.ts`, `global.d.ts`, `pages/QProject/QProjectPage.tsx`, `public/locales/{ko,en}/qproject.json`
+- 수정: `pages/QTask/QTaskPage.tsx` 전면 재작성 (스코프/탭/보기모드/필터/칸반/관점별 라벨)
+- 수정: `pages/QTalk/QTalkPage.tsx`(query param project 파싱, 업무추출 안내), `ChatPanel.tsx`/`RightPanel.tsx`(배너/Cue 재정의), `NewProjectModal.tsx`(색상 swatch), `mock.ts`(legacy 제거)
+- 수정: `pages/Settings/WorkspaceSettingsPage.tsx`(타임존 callout + useEffect 제거), `Profile/ProfilePage.tsx`, `Clients/ClientsPage.tsx`, `QNote/QNotePage.tsx`(시각 표시 훅)
+- 수정: `App.tsx`(/tasks/:scope 라우트 + /projects 라우트), `MainLayout.tsx`(Q project 메뉴), `i18n.ts`(BUILD_ID 쿼리)
+- 수정: `vite.config.ts`(BUILD_ID define), 모든 `locales/*.json`(status/scope/view/roleBadge/columnGroup 키)
+
+**설계 문서**
+- `docs/FEATURE_SPECIFICATION.md`(업무명 예시)
+- `.claude/commands/검증.md`(8단계 UI/UX 상세 템플릿)
+
+### 검증 결과
+- 헬스체크 27/27 (매 Phase 통과)
+- 워크플로우 API E2E 18/18 (ack·submit·approve·revision·revert·complete·정책 전환·FK CASCADE)
+- 타임존 E2E 11/11 + per-biz snapshot 7/7
+- 청크3 E2E 13/13 (extract/register/merge/reject)
+- SPA 15/15 라우트 200
+- 빌드 성공 (gzip 249.18 kB, tsc 0 error)
+
+### 다음 할 일
+**Phase C — Q Task 상세 패널 액션 버튼 매트릭스 (역할별)**
+- 담당자: [요청 확인] / [확인 요청 보내기] / [확인 요청 취소] / [최종 완료]
+- 컨펌자: [승인] / [수정 요청] (댓글 필수) / [내 결정 취소] (1회)
+- 컨펌자 추가/제거 시 라운드 리셋 UI 경고
+- 히스토리 타임라인 (task_status_history 렌더)
+
+**Phase D — 탭 뱃지 카운트**
+- 이번 주: 미확인 요청 개수
+- 요청하기: 내가 컨펌해야 할 개수
+- 전체업무: 수정요청 받은 개수
+
+**기타 백로그**
+- Q Project 상세 페이지 (`/projects/:id`) — 프로젝트 허브 (대시보드/업무/문서/고객정보/AI 탭)
+- Q Talk 청크 5 — Cue 자동 추출 트리거
+- Clients 초대/편집 UI (F5-2b 설계)
+- Dashboard 구현 (placeholder)
+- lua 팀원 계정 세팅
 
 ---
 

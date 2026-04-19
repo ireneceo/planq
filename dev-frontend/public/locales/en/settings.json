@@ -65,6 +65,7 @@
     "workHoursHint": "Cue responds more aggressively outside work hours"
   },
   "timezone": {
+    "calloutBody": "All work time — deadlines, this-week tasks, progress aggregates — is calculated in this workspace timezone. Even if teammates are in different regions, the boundary of a day is based on this setting.",
     "previewLabel": "Workspace default time",
     "primaryTitle": "Default Timezone",
     "primaryDesc": "All schedules, deadlines, and message times are stored in UTC and displayed in each viewer's timezone. This is the workspace-wide reference.",

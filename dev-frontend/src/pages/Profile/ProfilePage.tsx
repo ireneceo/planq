@@ -21,6 +21,7 @@ import TimezoneSelector from '../../components/Common/TimezoneSelector';
 import PageShell from '../../components/Layout/PageShell';
 import { MicIcon, CheckIcon, XIcon, TrashIcon } from '../../components/Common/Icons';
 import { useTimezones } from '../../hooks/useTimezones';
+import { useTimeFormat } from '../../hooks/useTimeFormat';
 import {
   cityFromTz,
   offsetFromTz,
@@ -52,6 +53,7 @@ type RecPurpose = 'register' | 'verify';
 export default function ProfilePage() {
   const { t } = useTranslation('profile');
   const { user, updateUser } = useAuth();
+  const { formatDateTime } = useTimeFormat();
   const [fpList, setFpList] = useState<VoiceFingerprintList | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -562,7 +564,7 @@ export default function ProfilePage() {
                         <RegLabel>{isLegacy ? t('voice.legacyLabel') : label}</RegLabel>
                         <RegMeta>
                           {lang.sample_seconds ? t('voice.sampleSeconds', { sec: lang.sample_seconds.toFixed(1) }) : ''}
-                          {lang.updated_at ? ` · ${new Date(lang.updated_at).toLocaleString()}` : ''}
+                          {lang.updated_at ? ` · ${formatDateTime(lang.updated_at)}` : ''}
                         </RegMeta>
                       </RegLeft>
                       <RegActions>

@@ -116,6 +116,16 @@ User.init({
   active_business_id: {
     type: DataTypes.INTEGER,
     allowNull: true
+  },
+  // 개인 타임존 (IANA tz id). null 이면 프론트가 브라우저 tz 로 fallback.
+  timezone: {
+    type: DataTypes.STRING(64),
+    allowNull: true
+  },
+  // 개인 참조 타임존 배열 (문자열 배열 JSON)
+  reference_timezones: {
+    type: DataTypes.JSON,
+    allowNull: true
   }
 }, {
   sequelize,

@@ -5,6 +5,7 @@ import PlanQSelect from '../../components/Common/PlanQSelect';
 import LetterAvatar from '../../components/Common/LetterAvatar';
 import { listBusinessMembers, type WorkspaceMemberRow } from '../../services/qtalk';
 import { useAuth } from '../../contexts/AuthContext';
+import { PROJECT_COLOR_PALETTE } from '../../utils/projectColors';
 
 interface Props {
   businessId: number;
@@ -20,6 +21,7 @@ export interface ProjectFormData {
   description: string;
   start_date: string;
   end_date: string;
+  color: string;
   members: MemberInput[];
   clients: ClientInput[];
 }
@@ -49,6 +51,7 @@ const NewProjectModal: React.FC<Props> = ({ businessId, open, onClose, onCreate 
   const [description, setDescription] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [color, setColor] = useState<string>(PROJECT_COLOR_PALETTE[0].value);
   const [members, setMembers] = useState<MemberInput[]>([]);
   const [clients, setClients] = useState<ClientInput[]>([]);
   const [newClientName, setNewClientName] = useState('');
@@ -134,6 +137,7 @@ const NewProjectModal: React.FC<Props> = ({ businessId, open, onClose, onCreate 
         description: description.trim(),
         start_date: startDate,
         end_date: endDate,
+        color,
         members,
         clients,
       });
@@ -208,6 +212,23 @@ const NewProjectModal: React.FC<Props> = ({ businessId, open, onClose, onCreate 
               placeholder={t('modal.descriptionPlaceholder', '프로젝트 목적·범위·주의사항')}
               rows={2}
             />
+          </Field>
+
+          <Field>
+            <Label>{t('modal.color', '프로젝트 색상')}</Label>
+            <SwatchRow>
+              {PROJECT_COLOR_PALETTE.map((c) => (
+                <Swatch
+                  key={c.value}
+                  type="button"
+                  $color={c.value}
+                  $active={color === c.value}
+                  aria-label={c.label}
+                  title={c.label}
+                  onClick={() => setColor(c.value)}
+                />
+              ))}
+            </SwatchRow>
           </Field>
 
           {/* 멤버 + 역할 */}
@@ -615,6 +636,25 @@ const ModalFooter = styled.div`
   justify-content: flex-end;
   gap: 8px;
   flex-shrink: 0;
+`;
+
+const SwatchRow = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+`;
+const Swatch = styled.button<{ $color: string; $active: boolean }>`
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: ${(p) => p.$color};
+  border: 2px solid ${(p) => (p.$active ? '#0F172A' : 'transparent')};
+  box-shadow: ${(p) => (p.$active ? `0 0 0 3px ${p.$color}40` : 'inset 0 0 0 1px rgba(15, 23, 42, 0.08)')};
+  cursor: pointer;
+  padding: 0;
+  transition: transform 0.15s, box-shadow 0.15s;
+  &:hover { transform: scale(1.1); }
+  &:focus-visible { outline: none; box-shadow: 0 0 0 3px ${(p) => p.$color}66; }
 `;
 
 const FooterBtn = styled.button<{ $primary?: boolean }>`

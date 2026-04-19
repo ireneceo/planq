@@ -994,6 +994,36 @@ export default function WorkspaceSettingsPage() {
 // ─────────────────────────────────────────────
 // Timezone 섹션 (서브 컴포넌트)
 // ─────────────────────────────────────────────
+const TzCallout = styled.div`
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  background: #F0FDFA;
+  border: 1px solid #CCFBF1;
+  border-radius: 10px;
+  color: #0F766E;
+  font-size: 13px;
+  line-height: 1.55;
+`;
+const TzCalloutIcon = styled.span`
+  flex: 0 0 18px;
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  background: #0F766E;
+  color: #F0FDFA;
+  font-size: 11px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 1px;
+`;
+const TzCalloutBody = styled.div`
+  flex: 1 1 auto;
+`;
+
 const TzPreviewCard = styled.div`
   background: linear-gradient(135deg, #0f766e 0%, #115E59 100%);
   color: #F0FDFA;
@@ -1138,12 +1168,6 @@ function WorkspaceTimezoneSection({
     return () => window.clearInterval(id);
   }, []);
 
-  // 워크스페이스 기본이 로컬 저장소 기본값과 동기화
-  useEffect(() => {
-    if (timezone) update({ workspaceTz: timezone });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [timezone]);
-
   const addReference = () => {
     if (!pickerTz) return;
     const next = Array.from(new Set([...workspaceRefs, pickerTz]));
@@ -1157,6 +1181,11 @@ function WorkspaceTimezoneSection({
 
   return (
     <>
+      <TzCallout>
+        <TzCalloutIcon aria-hidden>i</TzCalloutIcon>
+        <TzCalloutBody>{t('timezone.calloutBody')}</TzCalloutBody>
+      </TzCallout>
+
       <TzPreviewCard>
         <TzPreviewLeft>
           <TzPreviewLabel>{t('timezone.previewLabel')}</TzPreviewLabel>

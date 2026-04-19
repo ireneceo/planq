@@ -131,11 +131,13 @@ const cspMiddleware = (req, res, next) => {
 // SQL Injection 패턴 감지 (추가 방어층)
 // ============================================
 
+// 주의: 단일 문자 `#`/`'` 는 hex 컬러·피드백 문구 등 정상 사용 빈도가 높아 차단에서 제외한다.
+// Parameterized query(Sequelize) 기준에서 SQL injection 의 실제 위험 패턴만 잡는다.
 const sqlInjectionPatterns = [
-  /(\%27)|(\')|(\-\-)|(\%23)|(#)/i,
-  /(\%3D)|(=)[^\s]*((\%27)|(\')|(\-\-)|(\%3B)|(;))/i,
-  /\w*((\%27)|(\'))((\%6F)|o|(\%4F))((\%72)|r|(\%52))/i,
-  /union[\s\S]*select/i,
+  /(\%27)|(\-\-\s)/i,                                       // '-- ' (주석 직전 공백 동반) 또는 URL 인코딩 '
+  /(\%3D)|(=)[^\s]*((\%27)|(\'))\s*(or|and)\s+/i,           // = 'xxx' OR 형태
+  /\b(union|select|insert|update|delete|drop|exec)\b[\s\S]{0,10}\b(from|into|table|select)\b/i,
+  /\bor\s+1\s*=\s*1\b/i,
   /exec(\s|\+)+(s|x)p\w+/i
 ];
 

@@ -110,6 +110,7 @@ export interface MockProject {
   start_date?: string;
   end_date?: string;
   default_assignee_id: number;
+  color?: string | null;
   members: MockMember[];
   clients: MockClient[];
   unread_count: number;
@@ -318,19 +319,4 @@ export const TASK_STATUS_COLOR: Record<TaskStatus, { bg: string; fg: string }> =
   canceled: { bg: '#F1F5F9', fg: '#94A3B8' },
 };
 
-export function formatTimeAgo(iso: string): string {
-  const d = new Date(iso);
-  const diff = Date.now() - d.getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return '방금';
-  if (mins < 60) return `${mins}분 전`;
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}시간 전`;
-  const days = Math.floor(hours / 24);
-  if (days < 7) return `${days}일 전`;
-  return d.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' });
-}
-
-export function formatTime(iso: string): string {
-  return new Date(iso).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false });
-}
+// 시각 포맷은 utils/dateFormat.ts + hooks/useTimeFormat 로 이동 (워크스페이스 tz 반영).

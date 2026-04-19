@@ -1,13 +1,21 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
-import { useAuth } from '../../contexts/AuthContext';
+import { io, type Socket } from 'socket.io-client';
+import { useAuth, getAccessToken } from '../../contexts/AuthContext';
 import { apiFetch } from '../../contexts/AuthContext';
 import CalendarPicker from '../../components/Common/CalendarPicker';
 import PlanQSelect from '../../components/Common/PlanQSelect';
+import { todayInTz, mondayOfDateStr, addDaysStr, detectBrowserTz } from '../../utils/timezones';
+import { STATUS_CODES, STATUS_COLOR, displayStatus, getStatusLabel, type StatusCode } from '../../utils/taskLabel';
+import { getRoles, primaryPerspective } from '../../utils/taskRoles';
 
 // ─── Types ───
+type Scope = 'mine' | 'workspace';
 type ListTab = 'week' | 'all' | 'requested';
+type ViewMode = 'list' | 'kanban';
+interface MemberOption { user_id: number; name: string; }
 type SortKey = 'priority_order' | 'title' | 'status' | 'estimated_hours' | 'actual_hours' | 'progress_percent' | 'due_date';
 type SortDir = 'asc' | 'desc';
 
@@ -17,8 +25,13 @@ interface TaskRow {
   estimated_hours: number | null; actual_hours: number; progress_percent: number;
   planned_week_start: string | null; category: string | null;
   assignee_id: number | null; project_id: number | null; created_by: number;
+  // Phase 1 워크플로우 필드
+  source?: 'manual' | 'internal_request' | 'qtalk_extract';
+  request_by_user_id?: number | null;
+  request_ack_at?: string | null;
   Project?: { id: number; name: string } | null;
   assignee?: { id: number; name: string } | null;
+  requester?: { id: number; name: string } | null;
   createdAt: string;
 }
 interface BurndownPoint { label: string; estimated_cumulative: number; actual_cumulative: number; }
@@ -27,28 +40,10 @@ interface NoteRow { id: number; body: string; author?: { name: string }; visibil
 interface CommentRow { id: number; content: string; createdAt: string; author?: { name: string }; Task?: { id: number; title: string }; }
 interface CandidateRow { id: number; title: string; description: string | null; project_name?: string; guessedAssignee?: { id: number; name: string }; guessed_due_date: string | null; }
 
-const STATUS_LABEL: Record<string, string> = {
-  task_requested:'업무요청',task_re_requested:'재요청',waiting:'대기',not_started:'미진행',
-  in_progress:'진행중',review_requested:'확인요청',re_review_requested:'재확인',
-  customer_confirm:'고객컨펌',completed:'완료',canceled:'취소',
-};
-const STATUS_COLOR: Record<string,{bg:string;fg:string}> = {
-  task_requested:{bg:'#FEF3C7',fg:'#92400E'},task_re_requested:{bg:'#FED7AA',fg:'#9A3412'},
-  waiting:{bg:'#E0E7FF',fg:'#3730A3'},not_started:{bg:'#F1F5F9',fg:'#475569'},
-  in_progress:{bg:'#CCFBF1',fg:'#0F766E'},review_requested:{bg:'#FCE7F3',fg:'#9F1239'},
-  re_review_requested:{bg:'#FBCFE8',fg:'#831843'},customer_confirm:{bg:'#DBEAFE',fg:'#1E40AF'},
-  completed:{bg:'#D1FAE5',fg:'#065F46'},canceled:{bg:'#F1F5F9',fg:'#94A3B8'},
-};
+// 라벨·displayStatus·STATUS_COLOR 는 utils 로 이동 — 관점별 라벨 반영
+// (utils/taskLabel.ts + utils/taskRoles.ts)
 
 function sliderColor(){return '#14B8A6';} // 단일 색상 — 깔끔하게
-
-// 로컬 타임존 기준 YYYY-MM-DD
-function localDateStr(d:Date=new Date()):string{
-  const y=d.getFullYear();
-  const m=String(d.getMonth()+1).padStart(2,'0');
-  const day=String(d.getDate()).padStart(2,'0');
-  return `${y}-${m}-${day}`;
-}
 
 // 날짜 범위 셀 — 시작+마감 통합. 클릭 시 캘린더 피커 열림
 const DateRangeCell:React.FC<{
@@ -71,15 +66,7 @@ const DateRangeCell:React.FC<{
       onRangeSelect={(a,b)=>{onSave(a||null,b||null);}} onClose={()=>setOpen(false)} />}
   </>);
 };
-function mondayOfNow(){const d=new Date();const day=d.getDay();d.setDate(d.getDate()-day+(day===0?-6:1));return localDateStr(d);}
 // fmtDate removed — using native date inputs now
-function dueDateColor(d:string|null,status:string){
-  if(!d||status==='completed'||status==='canceled')return'default';
-  const today=localDateStr();const due=d.slice(0,10);
-  if(due<today)return'overdue';
-  if(due===today)return'today';
-  return'default';
-}
 
 const QTaskPage:React.FC=()=>{
   const{t}=useTranslation('qtask');
@@ -87,8 +74,19 @@ const QTaskPage:React.FC=()=>{
   const bizId=user?.business_id||null;
   const myId=user?Number(user.id):-1;
 
+  const location=useLocation();
+  const navigate=useNavigate();
+  // pathname 기반 판정 (새로고침 시에도 안정적). useParams 는 라우트 매칭 변형에 취약해서 회피
+  const scope:Scope=location.pathname.endsWith('/tasks/workspace')?'workspace':'mine';
+  const setScope=(s:Scope)=>navigate(s==='workspace'?'/tasks/workspace':'/tasks');
   const[tab,setTab]=useState<ListTab>('week');
+  const[viewMode,setViewMode]=useState<ViewMode>(()=>{
+    try{ return (localStorage.getItem('qtask_view_mode') as ViewMode)||'list'; }catch{ return 'list'; }
+  });
+  const changeView=(v:ViewMode)=>{ setViewMode(v); try{localStorage.setItem('qtask_view_mode',v);}catch{} };
   const[allTasks,setAllTasks]=useState<TaskRow[]>([]);
+  const[members,setMembers]=useState<MemberOption[]>([]);
+  const[assigneeFilter,setAssigneeFilter]=useState<number|null>(null); // workspace mode 담당자 필터
   const[backlog,setBacklog]=useState<TaskRow[]>([]);
   const[capacity,setCapacity]=useState<{daily:number;days:number;rate:number;weekly:number}>({daily:8,days:5,rate:1,weekly:40});
   const[burndown,_setBurndown]=useState<BurndownPoint[]>([]);
@@ -99,9 +97,14 @@ const QTaskPage:React.FC=()=>{
   const[rightCollapsed,setRightCollapsed]=useState(false);
   const[holidayDays,setHolidayDays]=useState(0);
 
+  // 워크스페이스 tz 기준 오늘/월요일 — 모든 업무 경계 계산의 기준
+  const wsTz=user?.workspace_timezone||detectBrowserTz();
+  const todayStr=todayInTz(wsTz);
+  const thisMondayStr=mondayOfDateStr(todayStr);
+
   // Period range (기본: 이번 주 월~금)
-  const[periodFrom,setPeriodFrom]=useState(()=>mondayOfNow());
-  const[periodTo,setPeriodTo]=useState(()=>{const m=mondayOfNow();const d=new Date(m);d.setDate(d.getDate()+6);return localDateStr(d);});
+  const[periodFrom,setPeriodFrom]=useState(()=>thisMondayStr);
+  const[periodTo,setPeriodTo]=useState(()=>addDaysStr(thisMondayStr,6));
 
   // Filters
   const[search,setSearch]=useState('');
@@ -115,8 +118,8 @@ const QTaskPage:React.FC=()=>{
   const[titleDraft,setTitleDraft]=useState('');
   const[addingTask,setAddingTask]=useState(false);
   const[newTitle,setNewTitle]=useState('');
+  const[newAssignee,setNewAssignee]=useState<number|null>(null);
   const[statusDropdownId,setStatusDropdownId]=useState<number|null>(null);
-  const[longPressTimer,setLongPressTimer]=useState<ReturnType<typeof setTimeout>|null>(null);
   const[detailTaskId,setDetailTaskId]=useState<number|null>(null);
   const[detailTask,setDetailTask]=useState<(TaskRow&{comments?:CommentRow[];description?:string|null;daily_progress?:{snapshot_date:string;progress_percent:number;actual_hours:number;estimated_hours:number|null}[]})|null>(null);
   const[newComment,setNewComment]=useState('');
@@ -126,16 +129,27 @@ const QTaskPage:React.FC=()=>{
   const periodAnchorRef=React.useRef<HTMLButtonElement>(null);
   const[dailyProgress,setDailyProgress]=useState<{date:string;est_used:number;act_used:number}[]>([]);
 
-  const thisMonday=mondayOfNow();
+  const thisMonday=thisMondayStr;
 
   // ── Load ALL data once ──
   const load=useCallback(async()=>{
     if(!bizId)return;
     setLoading(true);
     try{
-      // All my tasks (전체)
+      // All my tasks (전체 — workspace 모드에서도 재사용)
       const r=await(await apiFetch(`/api/projects/workspace/${bizId}/all-tasks`)).json();
       if(r.success)setAllTasks(r.data||[]);
+
+      // 멤버 목록 (업무 추가 시 담당자 선택용)
+      try{
+        const mr=await(await apiFetch(`/api/businesses/${bizId}/members`)).json();
+        if(mr.success){
+          const opts=(mr.data||[])
+            .filter((m:{user?:{is_ai?:boolean}})=>!m.user?.is_ai)
+            .map((m:{user_id:number;user?:{name:string}})=>({user_id:m.user_id,name:m.user?.name||`user ${m.user_id}`}));
+          setMembers(opts);
+        }
+      }catch{}
 
       // Backlog
       const bl=await(await apiFetch(`/api/tasks/backlog?business_id=${bizId}`)).json();
@@ -181,6 +195,34 @@ const QTaskPage:React.FC=()=>{
 
   useEffect(()=>{load();},[load]);
 
+  // Socket.IO — 워크스페이스 room 에서 task:new 수신 (Q Talk 에서 후보 등록 시 즉시 반영)
+  const socketRef = useRef<Socket | null>(null);
+  useEffect(() => {
+    if (!bizId) return;
+    const token = getAccessToken();
+    if (!token) return;
+    const s = io({ auth: { token }, transports: ['websocket'] });
+    socketRef.current = s;
+    s.on('connect', () => { s.emit('join:business', bizId); });
+    s.on('task:new', (task: TaskRow) => {
+      setAllTasks((prev) => {
+        if (prev.some((t) => t.id === task.id)) return prev;
+        return [task, ...prev];
+      });
+    });
+    s.on('task:updated', (task: TaskRow) => {
+      setAllTasks((prev) => prev.map((t) => (t.id === task.id ? { ...t, ...task } : t)));
+    });
+    s.on('task:deleted', (meta: { id: number }) => {
+      setAllTasks((prev) => prev.filter((t) => t.id !== meta.id));
+    });
+    return () => {
+      s.emit('leave:business', bizId);
+      s.disconnect();
+      socketRef.current = null;
+    };
+  }, [bizId]);
+
   // Period 변경 시 일별 스냅샷 로드
   useEffect(()=>{
     if(!bizId)return;
@@ -195,9 +237,27 @@ const QTaskPage:React.FC=()=>{
   // 외부 클릭 시 드롭다운 닫기
   useEffect(()=>{
     if(!statusDropdownId)return;
-    const close=()=>setStatusDropdownId(null);
-    window.addEventListener('click',close);
-    return()=>window.removeEventListener('click',close);
+    // 바깥 클릭(또는 Escape) 시에만 닫기. 드롭다운 자체 클릭은 data-dropdown 내부면 무시.
+    const close=(e:MouseEvent|KeyboardEvent)=>{
+      if(e instanceof KeyboardEvent){
+        if(e.key==='Escape')setStatusDropdownId(null);
+        return;
+      }
+      const target=e.target as HTMLElement|null;
+      if(target&&target.closest('[data-dropdown="status"]'))return;
+      setStatusDropdownId(null);
+    };
+    // 여는 트리거 이벤트가 window.click 으로 버블되기 전에 리스너 등록되면 즉시 닫힘.
+    // 다음 틱에 등록하여 같은 이벤트에 반응 안 하도록.
+    const id=window.setTimeout(()=>{
+      window.addEventListener('click',close as EventListener);
+      window.addEventListener('keydown',close as EventListener);
+    },0);
+    return()=>{
+      window.clearTimeout(id);
+      window.removeEventListener('click',close as EventListener);
+      window.removeEventListener('keydown',close as EventListener);
+    };
   },[statusDropdownId]);
 
   // ── Save helpers ──
@@ -248,18 +308,36 @@ const QTaskPage:React.FC=()=>{
 
   const addTask=async()=>{
     if(!newTitle.trim()||!bizId)return;
+    // 담당자 결정
+    // - 내 업무 week/all : 무조건 나 (담당자 선택 UI 없음)
+    // - requested : 선택 필수
+    // - workspace : 선택 가능, 미선택이면 나
+    let targetAssignee:number|null;
+    if(scope==='mine'&&(tab==='week'||tab==='all')){
+      targetAssignee=myId;
+    }else if(tab==='requested'){
+      if(!newAssignee)return; // 필수
+      targetAssignee=newAssignee;
+    }else{
+      targetAssignee=newAssignee??myId;
+    }
+    // 이번 주 탭에서는 마감일 기본값 = 오늘 (이번주 범위 안에 들어오도록)
+    const defaultDue=(scope==='mine'&&tab==='week')?todayStr:null;
     try{
       const r=await(await apiFetch('/api/tasks',{method:'POST',headers:{'Content-Type':'application/json'},
         body:JSON.stringify({
           business_id:Number(bizId),
           title:newTitle.trim(),
-          assignee_id:myId,
-          planned_week_start:tab==='week'?thisMonday:null,
+          assignee_id:targetAssignee,
+          planned_week_start:(scope==='mine'&&tab==='week')?thisMonday:null,
+          due_date:defaultDue,
         })
       })).json();
       if(r.success){
-        setAllTasks(prev=>[r.data,...prev]);
+        // Socket task:new 가 먼저 도착했을 가능성 — 중복 방지
+        setAllTasks(prev=>prev.some(x=>x.id===r.data.id)?prev:[r.data,...prev]);
         setNewTitle('');
+        setNewAssignee(null);
         setAddingTask(false);
       }
     }catch(e){console.error('[addTask]',e);}
@@ -330,16 +408,7 @@ const QTaskPage:React.FC=()=>{
     }catch{}
   };
 
-  // 자연스러운 다음 단계
-  const STATUS_FLOW:Record<string,string>={
-    not_started:'in_progress', in_progress:'review_requested',
-    review_requested:'completed', task_requested:'in_progress',
-    task_re_requested:'in_progress', waiting:'in_progress',
-    re_review_requested:'completed', customer_confirm:'completed',
-    completed:'completed', canceled:'not_started',
-  };
-  const ALL_STATUSES=['not_started','in_progress','task_requested','task_re_requested',
-    'waiting','review_requested','re_review_requested','customer_confirm','completed','canceled'];
+  const ALL_STATUSES:string[]=STATUS_CODES.filter(s=>s!=='task_requested');
 
   const changeStatus=async(taskId:number,newStatus:string)=>{
     try{
@@ -363,11 +432,6 @@ const QTaskPage:React.FC=()=>{
     setStatusDropdownId(null);
   };
 
-  const advanceStatus=(task:TaskRow)=>{
-    const next=STATUS_FLOW[task.status]||'in_progress';
-    if(next!==task.status)changeStatus(task.id,next);
-  };
-
   const toggleComplete=(task:TaskRow)=>{
     if(task.status==='completed')changeStatus(task.id,'in_progress');
     else changeStatus(task.id,'completed');
@@ -378,28 +442,33 @@ const QTaskPage:React.FC=()=>{
     else{setSortKey(key);setSortDir('asc');}
   };
 
-  const today=localDateStr();
+  const today=todayStr;
 
   // ── Client-side filtering (no reload) ──
   const filtered=useMemo(()=>{
     let list=allTasks;
-    // Tab filter
-    if(tab==='week'){
-      // 선택한 기간에 속하는 업무 (due_date 또는 start_date가 기간과 겹치거나, planned_week_start가 기간 내)
-      list=list.filter(t=>{
-        const due=t.due_date?.slice(0,10);
-        const start=t.start_date?.slice(0,10);
-        const pw=t.planned_week_start;
-        // 기간 내 마감 or 기간 내 시작 or 기간 전 마감인데 미완료(지연)
-        return (due&&due>=periodFrom&&due<=periodTo)
-          ||(start&&start>=periodFrom&&start<=periodTo)
-          ||(pw&&pw>=periodFrom&&pw<=periodTo)
-          ||(due&&due<periodFrom&&t.status!=='completed'&&t.status!=='canceled'); // 지연 업무도 표시
-      });
-      list=list.filter(t=>t.assignee_id===myId);
+    if(scope==='workspace'){
+      if(assigneeFilter!=null)list=list.filter(t=>t.assignee_id===assigneeFilter);
+    }else{
+      if(tab==='week'){
+        // 이번 주 내 업무 = "지금 행동 필요" 인 것만 (역할별)
+        //   담당자 : task_requested / waiting / in_progress / revision_requested / done_feedback
+        //   컨펌자 : reviewing 상태 + 내 reviewer state=pending (실시간 데이터 없으면 단순히 reviewing 포함)
+        list=list.filter(t=>{
+          const ds=displayStatus(t,todayStr);
+          // 담당자 행동 필요
+          if(t.assignee_id===myId){
+            if(['task_requested','waiting','in_progress','revision_requested','done_feedback'].includes(ds))return true;
+          }
+          // 컨펌자 행동 필요 — reviewers 정보가 목록에 없을 수 있음 (별도 fetch 필요)
+          // 우선은 reviewing 상태의 업무 중 내가 컨펌자 후보일 때 포함
+          // TODO: task.reviewers include 필요 — 백엔드 list API 확장
+          return false;
+        });
+      }
+      if(tab==='all')list=list.filter(t=>t.assignee_id===myId);  // 향후 reviewer=me 도 합칠 예정
+      if(tab==='requested')list=list.filter(t=>(t.request_by_user_id===myId)||(t.created_by===myId&&t.assignee_id!=null&&t.assignee_id!==myId));
     }
-    if(tab==='all')list=list.filter(t=>t.assignee_id===myId);
-    if(tab==='requested')list=list.filter(t=>t.created_by===myId&&t.assignee_id!==myId);
     if(search){const q=search.toLowerCase();list=list.filter(t=>t.title.toLowerCase().includes(q)||(t.Project?.name||'').toLowerCase().includes(q));}
     if(statusFilter)list=list.filter(t=>t.status===statusFilter);
     if(hideCompleted)list=list.filter(t=>t.status!=='completed'&&t.status!=='canceled');
@@ -413,7 +482,7 @@ const QTaskPage:React.FC=()=>{
       return sortDir==='asc'?(Number(va)-Number(vb)):(Number(vb)-Number(va));
     });
     return list;
-  },[allTasks,tab,periodFrom,periodTo,myId,search,statusFilter,hideCompleted,sortKey,sortDir]);
+  },[allTasks,scope,tab,assigneeFilter,todayStr,myId,search,statusFilter,hideCompleted,sortKey,sortDir]);
 
   // (grouped removed — flat list with project column)
 
@@ -467,14 +536,14 @@ const QTaskPage:React.FC=()=>{
   // 실제시간: 실제시간 x 진행율% 을 작업기간에 선형 분배 → 날짜별 누적
   const computedBurndown=useMemo(()=>{
     const days:{label:string;date:string;est:number;act:number}[]=[];
-    const start=new Date(periodFrom);
-    const end=new Date(periodTo);
     const dayNames=['일','월','화','수','목','금','토'];
-    for(let d=new Date(start);d<=end;d.setDate(d.getDate()+1)){
-      const ds=localDateStr(d);
-      days.push({label:dayNames[d.getDay()],date:ds,est:0,act:0});
+    let cursor=periodFrom;
+    while(cursor<=periodTo){
+      const [y,m,d]=cursor.split('-').map(Number);
+      const dt=new Date(Date.UTC(y,m-1,d));
+      days.push({label:dayNames[dt.getUTCDay()],date:cursor,est:0,act:0});
+      cursor=addDaysStr(cursor,1);
     }
-    const todayStr=localDateStr();
     const myTasks=allTasks.filter(t=>t.assignee_id===myId);
 
     for(const task of myTasks){
@@ -547,17 +616,35 @@ const QTaskPage:React.FC=()=>{
   return(
     <Layout>
       <LeftPanel>
-        {/* Header */}
+        {/* Header — 제목 + 스코프 세그먼트 토글 */}
         <Header>
           <PageTitle>Q task</PageTitle>
+          <ViewToggle>
+            <ViewBtn $active={viewMode==='list'} onClick={()=>changeView('list')} type="button" title={t('view.list','리스트')}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+            </ViewBtn>
+            <ViewBtn $active={viewMode==='kanban'} onClick={()=>changeView('kanban')} type="button" title={t('view.kanban','카드')}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="6" height="18" rx="1"/><rect x="11" y="3" width="6" height="12" rx="1"/><rect x="19" y="3" width="2" height="7" rx="1"/></svg>
+            </ViewBtn>
+          </ViewToggle>
+          <ScopeToggle>
+            <ScopeBtn $active={scope==='mine'} onClick={()=>setScope('mine')} type="button">
+              {t('scope.mine','내 업무')}
+            </ScopeBtn>
+            <ScopeBtn $active={scope==='workspace'} onClick={()=>setScope('workspace')} type="button">
+              {t('scope.workspace','전체 업무')}
+            </ScopeBtn>
+          </ScopeToggle>
         </Header>
 
-        {/* Tabs */}
-        <TabBar>
-          <TabBtn $active={tab==='week'} onClick={()=>setTab('week')}>{t('tab.week','This week my tasks')}</TabBtn>
-          <TabBtn $active={tab==='requested'} onClick={()=>setTab('requested')}>{t('tab.requested','Requested tasks')}</TabBtn>
-          <TabBtn $active={tab==='all'} onClick={()=>setTab('all')}>{t('tab.all','All tasks')}</TabBtn>
-        </TabBar>
+        {/* Tabs — 내 업무 모드에서만 (요구 순서: 이번 주 내 / 나의 전체 / 내가 요청한) */}
+        {scope==='mine'&&(
+          <TabBar>
+            <TabBtn $active={tab==='week'} onClick={()=>setTab('week')}>{t('tab.week','이번 주 내 업무')}</TabBtn>
+            <TabBtn $active={tab==='all'} onClick={()=>setTab('all')}>{t('tab.all','내 전체업무')}</TabBtn>
+            <TabBtn $active={tab==='requested'} onClick={()=>setTab('requested')}>{t('tab.requested','요청하기')}</TabBtn>
+          </TabBar>
+        )}
 
         <ListScroll>
           {/* Filter bar (탭 아래) */}
@@ -566,10 +653,19 @@ const QTaskPage:React.FC=()=>{
             <div style={{minWidth:140}}>
               <PlanQSelect size="sm" isClearable
                 placeholder={t('filter.allStatus','All status')}
-                value={statusFilter?{value:statusFilter,label:STATUS_LABEL[statusFilter]||statusFilter}:null}
+                value={statusFilter?{value:statusFilter,label:t(`status.${statusFilter}.observer`,statusFilter)}:null}
                 onChange={(v)=>setStatusFilter((v as {value?:string})?.value||'')}
-                options={Object.entries(STATUS_LABEL).map(([k,v])=>({value:k,label:v}))} />
+                options={STATUS_CODES.filter(k=>k!=='task_requested').map(k=>({value:k,label:t(`status.${k}.observer`,k)}))} />
             </div>
+            {scope==='workspace'&&(
+              <div style={{minWidth:160}}>
+                <PlanQSelect size="sm" isClearable
+                  placeholder={t('workspace.allMembers','전체 멤버')}
+                  value={assigneeFilter==null?null:{value:String(assigneeFilter),label:members.find(m=>m.user_id===assigneeFilter)?.name||'-'}}
+                  onChange={(v)=>setAssigneeFilter((v as {value?:string})?.value?Number((v as {value:string}).value):null)}
+                  options={members.map(m=>({value:String(m.user_id),label:m.name}))} />
+              </div>
+            )}
             <HideCheck><input type="checkbox" checked={hideCompleted} onChange={e=>setHideCompleted(e.target.checked)} />{t('filter.hideCompleted','Hide completed')}</HideCheck>
             <ChipRow>
               <Chip>{summary.count}{t('summary.unit','tasks')}</Chip>
@@ -579,22 +675,34 @@ const QTaskPage:React.FC=()=>{
           </FilterBar>
 
           {/* Column headers (sortable) */}
+          {viewMode==='list'&&(
+          <>
           <ColRow>
             <Col $w="30px" $center onClick={()=>handleSort('priority_order')}>#{sortIcon('priority_order')}</Col>
-            <Col $w="80px" onClick={()=>handleSort('title')}>{t('col.project','Project')}</Col>
+            <Col $w="80px" $hideBelow={640} onClick={()=>handleSort('title')}>{t('col.project','Project')}</Col>
+            {(scope==='workspace'||tab==='requested')&&(
+              <Col $w="90px" $hideBelow={540}>{t('col.assignee','담당자')}</Col>
+            )}
+            {scope==='mine'&&(tab==='week'||tab==='all')&&filtered.some(t2=>t2.source==='internal_request'||t2.source==='qtalk_extract')&&(
+              <Col $w="90px" $hideBelow={540}>{t('col.requester','요청자')}</Col>
+            )}
             <Col $flex onClick={()=>handleSort('title')}>{t('col.task','Task')} {sortIcon('title')}</Col>
             <Col $w="68px" $center onClick={()=>handleSort('status')}>{t('col.status','Status')} {sortIcon('status')}</Col>
-            <Col $w="48px" $center onClick={()=>handleSort('estimated_hours')}>{t('col.est','Est(h)')} {sortIcon('estimated_hours')}</Col>
-            <Col $w="48px" $center onClick={()=>handleSort('actual_hours')}>{t('col.act','Act(h)')} {sortIcon('actual_hours')}</Col>
-            <Col $w="130px" $center onClick={()=>handleSort('progress_percent')}>{t('col.progress','Progress')} {sortIcon('progress_percent')}</Col>
-            <Col $w="140px" $center onClick={()=>handleSort('due_date')}>{t('col.period','Start ~ Due')} {sortIcon('due_date')}</Col>
+            <Col $w="48px" $center $hideBelow={900} onClick={()=>handleSort('estimated_hours')}>{t('col.est','Est(h)')} {sortIcon('estimated_hours')}</Col>
+            <Col $w="48px" $center $hideBelow={900} onClick={()=>handleSort('actual_hours')}>{t('col.act','Act(h)')} {sortIcon('actual_hours')}</Col>
+            <Col $w="130px" $center $hideBelow={1024} onClick={()=>handleSort('progress_percent')}>{t('col.progress','Progress')} {sortIcon('progress_percent')}</Col>
+            <Col $w="140px" $center $hideBelow={768} onClick={()=>handleSort('due_date')}>{t('col.period','Start ~ Due')} {sortIcon('due_date')}</Col>
           </ColRow>
 
           {/* Flat task list (no grouping) */}
           {filtered.map((task)=>{
-                const sc=STATUS_COLOR[task.status]||STATUS_COLOR.not_started;
+                const _dispStatus=displayStatus(task,todayStr);
+                const sc=STATUS_COLOR[_dispStatus as StatusCode]||STATUS_COLOR.not_started;
+                const _role=primaryPerspective(getRoles(task,myId));
+                const _statusLabel=getStatusLabel(task,_role,todayStr,(k,f)=>t(k,f||k));
                 const prog=task.progress_percent||0;
-                const dColor=dueDateColor(task.due_date,task.status);
+                const _due=task.due_date?task.due_date.slice(0,10):'';
+                const dColor=(!_due||task.status==='completed'||task.status==='canceled')?'default':(_due<todayStr?'overdue':(_due===todayStr?'today':'default'));
                 const isEditing=editingTitle===task.id;
                 const isDelayed=task.due_date&&task.due_date.slice(0,10)<today&&task.status!=='completed'&&task.status!=='canceled';
 
@@ -606,9 +714,27 @@ const QTaskPage:React.FC=()=>{
                         {task.priority_order||<PrioEmpty />}
                       </PrioNum>
                     </TCell>
-                    <TCell $w="80px">
+                    <TCell $w="80px" $hideBelow={640}>
                       <ProjLabel>{task.Project?.name||'-'}</ProjLabel>
                     </TCell>
+                    {(scope==='workspace'||tab==='requested')&&(
+                      <TCell $w="90px" $hideBelow={540}>
+                        <AssigneeChip title={task.assignee?.name||''}>
+                          {task.assignee?.name||'-'}
+                        </AssigneeChip>
+                      </TCell>
+                    )}
+                    {scope==='mine'&&(tab==='week'||tab==='all')&&filtered.some(t2=>t2.source==='internal_request'||t2.source==='qtalk_extract')&&(
+                      <TCell $w="90px" $hideBelow={540}>
+                        {(task.source==='internal_request'||task.source==='qtalk_extract')?(
+                          <RequesterChip $client={task.source==='qtalk_extract'} title={task.requester?.name||''}>
+                            {task.requester?.name||'-'}
+                          </RequesterChip>
+                        ):(
+                          <span style={{color:'#CBD5E1',fontSize:11}}>—</span>
+                        )}
+                      </TCell>
+                    )}
                     <TCell $flex>
                       <TaskCheck type="checkbox" checked={task.status==='completed'} onChange={()=>toggleComplete(task)} />
                       {isEditing?(
@@ -625,35 +751,32 @@ const QTaskPage:React.FC=()=>{
                     </TCell>
                     <TCell $w="68px" $center style={{position:'relative'}}>
                       <StatusPill $bg={sc.bg} $fg={sc.fg} $clickable
-                        onClick={e=>{e.stopPropagation();advanceStatus(task);}}
-                        onMouseDown={e=>{e.stopPropagation();const timer=setTimeout(()=>setStatusDropdownId(task.id),500);setLongPressTimer(timer);}}
-                        onMouseUp={()=>{if(longPressTimer)clearTimeout(longPressTimer);setLongPressTimer(null);}}
-                        onMouseLeave={()=>{if(longPressTimer)clearTimeout(longPressTimer);setLongPressTimer(null);}}
-                        onContextMenu={e=>{e.preventDefault();e.stopPropagation();setStatusDropdownId(statusDropdownId===task.id?null:task.id);}}
-                      >{STATUS_LABEL[task.status]||task.status}</StatusPill>
+                        onClick={e=>{e.stopPropagation();setStatusDropdownId(statusDropdownId===task.id?null:task.id);}}
+                        title={t('list.statusHint','클릭하면 단계 선택')}
+                      >{_statusLabel}</StatusPill>
                       {statusDropdownId===task.id&&(
-                        <StatusDropdown>
-                          {ALL_STATUSES.map(s=>{const c=STATUS_COLOR[s]||STATUS_COLOR.not_started;return(
+                        <StatusDropdown data-dropdown="status">
+                          {ALL_STATUSES.map(s=>{const c=STATUS_COLOR[s as StatusCode]||STATUS_COLOR.not_started;return(
                             <StatusOption key={s} $bg={c.bg} $fg={c.fg} $active={task.status===s}
-                              onClick={e=>{e.stopPropagation();changeStatus(task.id,s);}}
-                            >{STATUS_LABEL[s]}</StatusOption>
+                              onClick={e=>{e.stopPropagation();changeStatus(task.id,s);setStatusDropdownId(null);}}
+                            >{t(`status.${s}.observer`,s)}</StatusOption>
                           );})}
                         </StatusDropdown>
                       )}
                     </TCell>
-                    <TCell $w="48px" $center>
+                    <TCell $w="48px" $center $hideBelow={900}>
                       <NumInput key={`e${task.id}`} defaultValue={task.estimated_hours??''} placeholder="-"
                         onClick={e=>e.stopPropagation()}
                         onBlur={e=>{const v=Number(e.target.value);if(!isNaN(v))saveField(task.id,'estimated_hours',v);}}
                         onKeyDown={e=>{if(e.key==='Enter')(e.target as HTMLInputElement).blur();}} />
                     </TCell>
-                    <TCell $w="48px" $center>
+                    <TCell $w="48px" $center $hideBelow={900}>
                       <NumInput key={`a${task.id}`} defaultValue={task.actual_hours||''} placeholder="-"
                         onClick={e=>e.stopPropagation()}
                         onBlur={e=>{const v=Number(e.target.value);if(!isNaN(v))saveField(task.id,'actual_hours',v);}}
                         onKeyDown={e=>{if(e.key==='Enter')(e.target as HTMLInputElement).blur();}} />
                     </TCell>
-                    <TCell $w="130px">
+                    <TCell $w="130px" $hideBelow={1024}>
                       <SliderWrap>
                         <SliderTrack><SliderFill $w={prog} $color={sliderColor()} /></SliderTrack>
                         <SliderRange type="range" min="0" max="100" step="5" value={prog}
@@ -664,7 +787,7 @@ const QTaskPage:React.FC=()=>{
                         <SliderPct>{prog}%</SliderPct>
                       </SliderWrap>
                     </TCell>
-                    <TCell $w="140px" $center>
+                    <TCell $w="140px" $center $hideBelow={768}>
                       <DateRangeCell start={task.start_date} due={task.due_date}
                         dueColor={dColor}
                         onSave={(s,d)=>{
@@ -676,16 +799,166 @@ const QTaskPage:React.FC=()=>{
                 );
           })}
           {filtered.length===0&&<EmptyMsg>{t('list.empty','No tasks')}</EmptyMsg>}
+          </>
+          )}
+          {viewMode==='kanban'&&(
+            <KanbanBoard>
+              {(function(){
+                // 탭별 카드 분류 — 각 컬럼이 고유 필터·헤더 색·제목을 가짐
+                type KCol = { key: string; title: string; color: {bg:string;fg:string}; match: (x: TaskRow) => boolean };
+                let cols: KCol[] = [];
+                if (scope === 'mine' && tab === 'week') {
+                  cols = [
+                    { key:'requestReceived', title:t('columnGroup.requestReceived','업무요청 받음'), color:STATUS_COLOR.task_requested,
+                      match:(x)=>x.assignee_id===myId&&displayStatus(x,todayStr)==='task_requested' },
+                    { key:'waiting', title:t('columnGroup.waiting','진행대기'), color:STATUS_COLOR.waiting,
+                      match:(x)=>x.assignee_id===myId&&displayStatus(x,todayStr)==='waiting' },
+                    { key:'in_progress', title:t('columnGroup.in_progress','진행중'), color:STATUS_COLOR.in_progress,
+                      match:(x)=>x.assignee_id===myId&&displayStatus(x,todayStr)==='in_progress' },
+                    { key:'revision', title:t('columnGroup.revision_requested','수정필요'), color:STATUS_COLOR.revision_requested,
+                      match:(x)=>x.assignee_id===myId&&displayStatus(x,todayStr)==='revision_requested' },
+                    { key:'wrapup', title:t('columnGroup.done_feedback','마무리 대기'), color:STATUS_COLOR.done_feedback,
+                      match:(x)=>x.assignee_id===myId&&displayStatus(x,todayStr)==='done_feedback' },
+                  ];
+                } else if (scope === 'mine' && tab === 'requested') {
+                  // 요청자 관점
+                  cols = [
+                    { key:'requestSent', title:t('columnGroup.requestSent','요청 보냄'), color:STATUS_COLOR.task_requested,
+                      match:(x)=>displayStatus(x,todayStr)==='task_requested' },
+                    { key:'waiting', title:t('columnGroup.waiting','진행대기'), color:STATUS_COLOR.waiting,
+                      match:(x)=>displayStatus(x,todayStr)==='waiting' },
+                    { key:'in_progress', title:t('columnGroup.in_progress','진행중'), color:STATUS_COLOR.in_progress,
+                      match:(x)=>x.status==='in_progress' },
+                    { key:'reviewing_obs', title:t('columnGroup.reviewing_obs','확인진행중'), color:STATUS_COLOR.reviewing,
+                      match:(x)=>x.status==='reviewing' },
+                    { key:'revision_self', title:t('columnGroup.revision_self','수정중'), color:STATUS_COLOR.revision_requested,
+                      match:(x)=>x.status==='revision_requested' },
+                    { key:'wrapup', title:t('columnGroup.done_feedback','마무리 대기'), color:STATUS_COLOR.done_feedback,
+                      match:(x)=>x.status==='done_feedback' },
+                    { key:'completed', title:t('columnGroup.completed','완료'), color:STATUS_COLOR.completed,
+                      match:(x)=>x.status==='completed' },
+                  ];
+                } else {
+                  // all + workspace : 관찰자 기준
+                  cols = [
+                    { key:'not_started', title:t('columnGroup.not_started','미진행'), color:STATUS_COLOR.not_started,
+                      match:(x)=>displayStatus(x,todayStr)==='not_started' },
+                    { key:'task_requested', title:t('columnGroup.task_requested','업무요청'), color:STATUS_COLOR.task_requested,
+                      match:(x)=>displayStatus(x,todayStr)==='task_requested' },
+                    { key:'waiting', title:t('columnGroup.waiting','진행대기'), color:STATUS_COLOR.waiting,
+                      match:(x)=>displayStatus(x,todayStr)==='waiting' },
+                    { key:'in_progress', title:t('columnGroup.in_progress','진행중'), color:STATUS_COLOR.in_progress,
+                      match:(x)=>x.status==='in_progress' },
+                    { key:'reviewing_obs', title:t('columnGroup.reviewing_obs','확인진행중'), color:STATUS_COLOR.reviewing,
+                      match:(x)=>x.status==='reviewing' },
+                    { key:'revision_obs', title:t('columnGroup.revision_obs','수정요청'), color:STATUS_COLOR.revision_requested,
+                      match:(x)=>x.status==='revision_requested' },
+                    { key:'wrapup', title:t('columnGroup.done_feedback','마무리 대기'), color:STATUS_COLOR.done_feedback,
+                      match:(x)=>x.status==='done_feedback' },
+                    { key:'completed', title:t('columnGroup.completed','완료'), color:STATUS_COLOR.completed,
+                      match:(x)=>x.status==='completed' },
+                  ];
+                }
+                // 빈 컬럼(업무 0개) 은 숨김 — 화면 집중도 향상
+                const visibleCols=cols.filter(c=>filtered.some(c.match));
+                if(visibleCols.length===0){
+                  return (
+                    <KanbanEmptyBoard>
+                      <div>{t('list.empty','해당하는 업무가 없습니다')}</div>
+                    </KanbanEmptyBoard>
+                  );
+                }
+                return visibleCols.map(col=>{
+                  const items=filtered.filter(col.match);
+                  return (
+                    <KanbanColumn key={col.key}>
+                      <KanbanColHeader style={{background:col.color.bg,color:col.color.fg}}>
+                        <span>{col.title}</span>
+                        <KanbanCount>{items.length}</KanbanCount>
+                      </KanbanColHeader>
+                      <KanbanColBody>
+                        {items.map(task=>{
+                          const prog=task.progress_percent||0;
+                          const isDelayed=task.due_date&&task.due_date.slice(0,10)<todayStr&&task.status!=='completed'&&task.status!=='canceled';
+                          const showRequester=(task.source==='internal_request'||task.source==='qtalk_extract');
+                          const myRole=primaryPerspective(getRoles(task,myId));
+                          return (
+                            <KanbanCard key={task.id} $delayed={!!isDelayed} $done={task.status==='completed'} onClick={()=>openDetail(task.id)}>
+                              {task.Project?.name&&<KanbanProject>{task.Project.name}</KanbanProject>}
+                              <KanbanTitle>{task.title}</KanbanTitle>
+                              <KanbanRoleRow>
+                                <KanbanRoleBadge $role={myRole}>{t(`roleBadge.${myRole}`,myRole)}</KanbanRoleBadge>
+                                <KanbanStatusText>{getStatusLabel(task,myRole,todayStr,(k,f)=>t(k,f||k))}</KanbanStatusText>
+                              </KanbanRoleRow>
+                              <KanbanMeta>
+                                {showRequester&&task.requester&&(
+                                  <RequesterChip $client={task.source==='qtalk_extract'}>{task.requester.name}</RequesterChip>
+                                )}
+                                {(scope==='workspace'||tab==='requested')&&task.assignee&&(
+                                  <AssigneeChip>{task.assignee.name}</AssigneeChip>
+                                )}
+                                {task.due_date&&(
+                                  <KanbanDue $overdue={!!isDelayed}>{task.due_date.slice(5,10).replace('-','/')}</KanbanDue>
+                                )}
+                              </KanbanMeta>
+                              {prog>0&&(
+                                <KanbanProgress><KanbanProgressFill style={{width:`${prog}%`}}/></KanbanProgress>
+                              )}
+                            </KanbanCard>
+                          );
+                        })}
+                        {items.length===0&&<KanbanEmpty>—</KanbanEmpty>}
+                      </KanbanColBody>
+                    </KanbanColumn>
+                  );
+                });
+              })()}
+            </KanbanBoard>
+          )}
 
-          {/* Add task */}
+          {/* Add task — 제목 + 담당자 선택 (요청 탭/전체 모드면 담당자 강조) */}
           <AddRow>
             {addingTask?(
-              <AddInput autoFocus value={newTitle} placeholder={t('add.placeholder','Task name (Enter to save)')}
-                onChange={e=>setNewTitle(e.target.value)}
-                onBlur={()=>{if(newTitle.trim())addTask();else setAddingTask(false);}}
-                onKeyDown={e=>{if(e.key==='Enter'){addTask();}if(e.key==='Escape'){setAddingTask(false);setNewTitle('');}}} />
+              <AddForm>
+                <AddInput autoFocus value={newTitle} placeholder={t('add.placeholder','업무명 입력 후 Enter 로 저장')}
+                  onChange={e=>setNewTitle(e.target.value)}
+                  onKeyDown={e=>{
+                    if(e.key==='Enter'){addTask();}
+                    if(e.key==='Escape'){setAddingTask(false);setNewTitle('');setNewAssignee(null);}
+                  }} />
+                {(scope==='workspace'||tab==='requested')&&(
+                  <div style={{flex:'0 0 180px'}}>
+                    <PlanQSelect size="sm"
+                      placeholder={tab==='requested'
+                        ? t('add.assigneeRequiredHint','담당자 선택 (필수)')
+                        : t('add.assigneeDefault','담당자: 나')}
+                      value={newAssignee==null?null:{
+                        value:String(newAssignee),
+                        label:(members.find(m=>m.user_id===newAssignee)?.name||'-')+(newAssignee===myId?' (나)':''),
+                      }}
+                      onChange={(v)=>setNewAssignee((v as {value?:string})?.value?Number((v as {value:string}).value):null)}
+                      options={
+                        /* 요청하기 탭: 나 제외 (나를 담당자로 하면 일반 내 업무가 됨) */
+                        members
+                          .filter(m=>tab==='requested'?m.user_id!==myId:true)
+                          .map(m=>({value:String(m.user_id),label:m.name+(m.user_id===myId?' (나)':'')}))
+                      } />
+                  </div>
+                )}
+                <AddCancelBtn type="button" onClick={()=>{setAddingTask(false);setNewTitle('');setNewAssignee(null);}}>
+                  {t('add.cancel','취소')}
+                </AddCancelBtn>
+                <AddSaveBtn type="button" onClick={addTask}
+                  disabled={!newTitle.trim()||(tab==='requested'&&!newAssignee)}>
+                  {t('add.save','추가')}
+                </AddSaveBtn>
+              </AddForm>
             ):(
-              <AddBtn onClick={()=>setAddingTask(true)}>+ {t('add.btn','Add task')}</AddBtn>
+              <AddBtn onClick={()=>{
+                setAddingTask(true);
+                // 요청 탭이면 기본값 비움 (선택 강제), 그 외는 나
+                setNewAssignee(tab==='requested'?null:myId);
+              }}>+ {t('add.btn','업무 추가')}</AddBtn>
             )}
           </AddRow>
 
@@ -928,7 +1201,7 @@ const Layout=styled.div`display:flex;height:calc(100vh - 0px);background:#F8FAFC
 const LeftPanel=styled.div`flex:1;min-width:0;display:flex;flex-direction:column;background:#FFF;`;
 const Header=styled.div`padding:14px 20px;min-height:60px;display:flex;align-items:center;gap:12px;border-bottom:1px solid #E2E8F0;flex-shrink:0;flex-wrap:wrap;`;
 const PageTitle=styled.h1`font-size:18px;font-weight:700;color:#0F172A;margin:0;flex-shrink:0;letter-spacing:-0.2px;`;
-const SearchBox=styled.input`padding:6px 12px;width:180px;border:1px solid #E2E8F0;border-radius:8px;font-size:13px;color:#0F172A;background:#F8FAFC;&:focus{outline:none;border-color:#14B8A6;background:#FFF;}&::placeholder{color:#94A3B8;}`;
+const SearchBox=styled.input`height:36px;box-sizing:border-box;padding:0 12px;width:180px;border:1px solid #E2E8F0;border-radius:8px;font-size:13px;color:#0F172A;background:#F8FAFC;&:focus{outline:none;border-color:#14B8A6;background:#FFF;}&::placeholder{color:#94A3B8;}`;
 const HideCheck=styled.label`display:flex;align-items:center;gap:4px;font-size:12px;color:#64748B;cursor:pointer;white-space:nowrap;& input{accent-color:#0D9488;}`;
 const ChipRow=styled.div`display:flex;gap:4px;margin-left:auto;`;
 const Chip=styled.span<{$teal?:boolean;$coral?:boolean}>`padding:2px 8px;font-size:11px;font-weight:600;border-radius:6px;background:${p=>p.$teal?'#F0FDFA':p.$coral?'#FFF1F2':'#F1F5F9'};color:${p=>p.$teal?'#0F766E':p.$coral?'#9F1239':'#475569'};`;
@@ -939,11 +1212,28 @@ const ListScroll=styled.div`flex:1;overflow-y:auto;&::-webkit-scrollbar{width:6p
 const FilterBar=styled.div`display:flex;align-items:center;gap:10px;padding:8px 14px;border-bottom:1px solid #F1F5F9;background:#FFF;flex-wrap:wrap;`;
 
 const ColRow=styled.div`display:flex;align-items:center;gap:6px;padding:6px 14px;border-bottom:1px solid #E2E8F0;background:#F8FAFC;position:sticky;top:0;z-index:1;`;
-const Col=styled.span<{$w?:string;$flex?:boolean;$center?:boolean}>`width:${p=>p.$w||'auto'};${p=>p.$flex&&'flex:1;min-width:0;'}font-size:11px;font-weight:700;color:#94A3B8;cursor:pointer;user-select:none;${p=>p.$center&&'text-align:center;'}&:hover{color:#475569;}`;
+const Col=styled.span<{$w?:string;$flex?:boolean;$center?:boolean;$hideBelow?:number}>`
+  box-sizing:border-box;
+  ${p=>p.$flex
+    ? 'flex:1 1 0;min-width:120px;'
+    : `flex:0 0 ${p.$w||'auto'};width:${p.$w||'auto'};`}
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  font-size:11px;font-weight:700;color:#94A3B8;cursor:pointer;user-select:none;
+  ${p=>p.$center&&'text-align:center;'}
+  &:hover{color:#475569;}
+  ${p=>p.$hideBelow?`@media (max-width: ${p.$hideBelow}px){display:none;}`:''}
+`;
 
 
-const TRow=styled.div<{$done?:boolean;$delayed?:boolean}>`display:flex;align-items:center;gap:6px;padding:7px 14px;border-bottom:1px solid #F8FAFC;opacity:${p=>p.$done?0.45:1};${p=>p.$delayed&&!p.$done?'background:#FEF2F2;border-left:3px solid #DC2626;':''}&:hover{background:${p=>p.$delayed&&!p.$done?'#FEE2E2':'#FAFBFC'};}`;
-const TCell=styled.div<{$w?:string;$flex?:boolean;$center?:boolean}>`width:${p=>p.$w||'auto'};${p=>p.$flex&&'flex:1;min-width:0;display:flex;align-items:center;gap:6px;'}${p=>p.$center&&'display:flex;justify-content:center;align-items:center;'}`;
+const TRow=styled.div<{$done?:boolean;$delayed?:boolean}>`display:flex;align-items:center;gap:6px;padding:7px 14px;border-bottom:1px solid #F8FAFC;opacity:${p=>p.$done?0.45:1};${p=>p.$delayed&&!p.$done?'background:#FEF2F2;box-shadow:inset 3px 0 0 #DC2626;':''}&:hover{background:${p=>p.$delayed&&!p.$done?'#FEE2E2':'#FAFBFC'};}`;
+const TCell=styled.div<{$w?:string;$flex?:boolean;$center?:boolean;$hideBelow?:number}>`
+  box-sizing:border-box;
+  ${p=>p.$flex
+    ? 'flex:1 1 0;min-width:120px;display:flex;align-items:center;gap:6px;overflow:hidden;'
+    : `flex:0 0 ${p.$w||'auto'};width:${p.$w||'auto'};overflow:hidden;`}
+  ${p=>p.$center&&'display:flex;justify-content:center;align-items:center;'}
+  ${p=>p.$hideBelow?`@media (max-width: ${p.$hideBelow}px){display:none;}`:''}
+`;
 const ProjLabel=styled.span`font-size:11px;color:#94A3B8;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;`;
 const DelayBadge=styled.span`padding:1px 6px;font-size:9px;font-weight:700;color:#DC2626;background:#FEF2F2;border:1px solid #FECACA;border-radius:4px;flex-shrink:0;white-space:nowrap;`;
 const TaskCheck=styled.input`accent-color:#0D9488;cursor:pointer;width:15px;height:15px;flex-shrink:0;`;
@@ -1000,7 +1290,67 @@ const EmptyMsg=styled.div`padding:32px;text-align:center;color:#94A3B8;font-size
 const EmptyFull=styled.div`display:flex;align-items:center;justify-content:center;height:100vh;color:#94A3B8;`;
 const AddRow=styled.div`padding:8px 14px;`;
 const AddBtn=styled.button`font-size:13px;font-weight:500;color:#94A3B8;background:transparent;border:none;cursor:pointer;&:hover{color:#0F766E;}`;
-const AddInput=styled.input`width:100%;font-size:14px;color:#0F172A;border:1px solid #14B8A6;background:#F0FDFA;padding:6px 10px;border-radius:6px;font-family:inherit;&:focus{outline:none;box-shadow:0 0 0 2px rgba(20,184,166,0.15);}&::placeholder{color:#94A3B8;}`;
+const AddInput=styled.input`flex:1 1 auto;min-width:0;font-size:14px;color:#0F172A;border:1px solid #14B8A6;background:#F0FDFA;padding:6px 10px;border-radius:6px;font-family:inherit;&:focus{outline:none;box-shadow:0 0 0 2px rgba(20,184,166,0.15);}&::placeholder{color:#94A3B8;}`;
+const AddForm=styled.div`display:flex;gap:8px;align-items:center;`;
+const AddSaveBtn=styled.button`flex:0 0 auto;padding:6px 14px;font-size:13px;font-weight:600;background:#14B8A6;color:#FFFFFF;border:none;border-radius:6px;cursor:pointer;&:hover:not(:disabled){background:#0D9488;}&:disabled{background:#CBD5E1;cursor:not-allowed;}`;
+const AddCancelBtn=styled.button`flex:0 0 auto;padding:6px 10px;font-size:13px;color:#64748B;background:transparent;border:1px solid #E2E8F0;border-radius:6px;cursor:pointer;&:hover{background:#F8FAFC;color:#0F172A;}`;
+const ViewToggle=styled.div`display:inline-flex;gap:2px;padding:2px;background:#F1F5F9;border-radius:8px;margin-left:auto;`;
+const ViewBtn=styled.button<{$active:boolean}>`padding:6px 10px;background:${p=>p.$active?'#FFFFFF':'transparent'};color:${p=>p.$active?'#0F766E':'#94A3B8'};border:none;border-radius:6px;cursor:pointer;display:inline-flex;align-items:center;box-shadow:${p=>p.$active?'0 1px 2px rgba(0,0,0,0.06)':'none'};transition:background 0.15s;&:hover{background:${p=>p.$active?'#FFFFFF':'#E2E8F0'};color:#0F766E;}`;
+const ScopeToggle=styled.div`display:inline-flex;gap:4px;padding:3px;background:#F1F5F9;border-radius:8px;`;
+
+// ── Kanban ──
+const KanbanBoard=styled.div`
+  display:grid;
+  grid-template-columns:repeat(7,minmax(220px,1fr));
+  gap:12px;
+  padding:16px 14px;
+  overflow-x:auto;
+  @media (max-width: 1280px){ grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); }
+`;
+const KanbanColumn=styled.div`display:flex;flex-direction:column;gap:8px;min-width:220px;`;
+const KanbanColHeader=styled.div`display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-radius:8px;font-size:12px;font-weight:700;`;
+const KanbanCount=styled.span`font-size:11px;font-weight:600;opacity:0.8;`;
+const KanbanColBody=styled.div`display:flex;flex-direction:column;gap:8px;min-height:40px;`;
+const KanbanCard=styled.div<{$delayed?:boolean;$done?:boolean}>`
+  background:#FFFFFF;
+  border:1px solid #E2E8F0;
+  border-radius:8px;
+  padding:10px 12px;
+  cursor:pointer;
+  transition:box-shadow 0.15s,border-color 0.15s,transform 0.15s;
+  opacity:${p=>p.$done?0.6:1};
+  ${p=>p.$delayed&&!p.$done?'box-shadow:inset 3px 0 0 #DC2626;':''}
+  &:hover{box-shadow:0 4px 12px rgba(15,23,42,0.08);border-color:#CBD5E1;transform:translateY(-1px);}
+`;
+const KanbanProject=styled.div`font-size:10px;font-weight:600;color:#64748B;text-transform:uppercase;letter-spacing:0.3px;margin-bottom:4px;`;
+const KanbanTitle=styled.div`font-size:13px;font-weight:600;color:#0F172A;line-height:1.4;margin-bottom:8px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;`;
+const KanbanMeta=styled.div`display:flex;flex-wrap:wrap;gap:4px;align-items:center;`;
+const KanbanRoleRow=styled.div`display:flex;align-items:center;gap:6px;margin-bottom:6px;`;
+const KanbanRoleBadge=styled.span<{$role:string}>`
+  display:inline-block;padding:1px 6px;font-size:10px;font-weight:700;border-radius:4px;
+  ${p=>p.$role==='assignee'?'background:#CCFBF1;color:#0F766E;':''}
+  ${p=>p.$role==='reviewer'?'background:#FEF3C7;color:#92400E;':''}
+  ${p=>p.$role==='requester'?'background:#E0E7FF;color:#3730A3;':''}
+  ${p=>p.$role==='observer'?'background:#F1F5F9;color:#64748B;':''}
+`;
+const KanbanStatusText=styled.span`font-size:11px;color:#64748B;`;
+const KanbanDue=styled.span<{$overdue?:boolean}>`font-size:11px;font-weight:600;color:${p=>p.$overdue?'#DC2626':'#64748B'};margin-left:auto;`;
+const KanbanProgress=styled.div`height:4px;background:#F1F5F9;border-radius:999px;overflow:hidden;margin-top:8px;`;
+const KanbanProgressFill=styled.div`height:100%;background:linear-gradient(90deg,#14B8A6,#0D9488);border-radius:999px;transition:width 0.3s;`;
+const KanbanEmpty=styled.div`text-align:center;padding:20px 10px;color:#CBD5E1;font-size:12px;`;
+const KanbanEmptyBoard=styled.div`
+  grid-column:1 / -1;
+  padding:60px 20px;
+  text-align:center;
+  color:#94A3B8;
+  font-size:13px;
+  background:#FFFFFF;
+  border:1px dashed #E2E8F0;
+  border-radius:12px;
+`;
+const ScopeBtn=styled.button<{$active:boolean}>`padding:6px 14px;font-size:13px;font-weight:600;background:${p=>p.$active?'#FFFFFF':'transparent'};color:${p=>p.$active?'#0F766E':'#64748B'};border:none;border-radius:6px;cursor:pointer;box-shadow:${p=>p.$active?'0 1px 2px rgba(0,0,0,0.06)':'none'};transition:background 0.15s;&:hover{background:${p=>p.$active?'#FFFFFF':'#E2E8F0'};}`;
+const AssigneeChip=styled.span`display:inline-block;padding:2px 8px;font-size:11px;font-weight:600;color:#0F766E;background:#CCFBF1;border-radius:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;`;
+const RequesterChip=styled.span<{$client?:boolean}>`display:inline-block;padding:2px 8px;font-size:11px;font-weight:600;border-radius:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;color:${p=>p.$client?'#991B1B':'#BE123C'};background:${p=>p.$client?'#FECACA':'#FFE4E6'};`;
 
 const BacklogSection=styled.div`margin:12px 14px;padding:12px;background:#FAFBFC;border:1px dashed #E2E8F0;border-radius:10px;`;
 const BacklogHeader=styled.div`font-size:12px;font-weight:700;color:#94A3B8;margin-bottom:8px;`;

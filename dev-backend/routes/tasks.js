@@ -5,20 +5,17 @@ const { Task, User, Project, BusinessMember, Business, TaskComment, TaskDailyPro
 const taskSnapshot = require('../services/task_snapshot');
 const { authenticateToken } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
+const { todayInTz, mondayOfDateStr, addDaysStr, mondayOfIsoWeek } = require('../utils/datetime');
 
-// ─── 헬퍼: 주의 월요일 계산 ───
-function mondayOf(date) {
-  const d = new Date(date);
-  const day = d.getDay();
-  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
-  d.setDate(diff);
-  return d.toISOString().slice(0, 10);
+// 업무의 "오늘/이번 주/마감 지연" 경계는 워크스페이스 타임존 기준.
+// 아래 헬퍼는 Asia/Seoul 워크스페이스에서 00:00~23:59 이 하루의 경계가 되도록 보장한다.
+async function getWorkspaceTz(businessId) {
+  const biz = await Business.findByPk(businessId, { attributes: ['timezone'] });
+  return biz?.timezone || 'Asia/Seoul';
 }
 
 function fridayOf(mondayStr) {
-  const d = new Date(mondayStr);
-  d.setDate(d.getDate() + 4);
-  return d.toISOString().slice(0, 10);
+  return addDaysStr(mondayStr, 4);
 }
 
 // ─── 헬퍼: 멤버 가용시간 조회 ───
@@ -41,17 +38,13 @@ router.get('/my-week', authenticateToken, async (req, res, next) => {
     const businessId = req.user.active_business_id || req.query.business_id;
     if (!businessId) return errorResponse(res, 'business_id required', 400);
 
-    // 주 시작일 계산
+    // 주 시작일 계산 — 워크스페이스 타임존 기준 "오늘"
+    const tz = await getWorkspaceTz(businessId);
     let monday;
     if (req.query.week) {
-      // ISO week: 2026-W16
-      const [y, w] = req.query.week.split('-W').map(Number);
-      const jan1 = new Date(y, 0, 1);
-      const days = (w - 1) * 7;
-      jan1.setDate(jan1.getDate() + days - ((jan1.getDay() + 6) % 7));
-      monday = jan1.toISOString().slice(0, 10);
+      monday = mondayOfIsoWeek(req.query.week);
     } else {
-      monday = mondayOf(new Date());
+      monday = mondayOfDateStr(todayInTz(tz));
     }
     const friday = fridayOf(monday);
 
@@ -75,18 +68,17 @@ router.get('/my-week', authenticateToken, async (req, res, next) => {
     // 가용시간
     const capacity = await getMemberCapacity(userId, businessId);
 
-    // 번다운 데이터 (일별 예측 vs 실제 누적)
+    // 번다운 데이터 (일별 예측 vs 실제 누적) — 워크스페이스 tz 기준 날짜
+    const { dateStrInTz } = require('../utils/datetime');
     const burndown = [];
     let estCum = 0, actCum = 0;
     for (let i = 0; i < 5; i++) {
-      const d = new Date(monday);
-      d.setDate(d.getDate() + i);
-      const dateStr = d.toISOString().slice(0, 10);
+      const dateStr = addDaysStr(monday, i);
       const dayLabel = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'][i];
 
-      // 이 날까지 완료된 업무의 시간 합산
+      // 이 날까지 완료된 업무의 시간 합산 — completed_at 은 UTC, 워크스페이스 tz 날짜로 변환
       const completedByDay = tasks.filter(t =>
-        t.status === 'completed' && t.completed_at && new Date(t.completed_at).toISOString().slice(0, 10) <= dateStr
+        t.status === 'completed' && t.completed_at && dateStrInTz(t.completed_at, tz) <= dateStr
       );
       const estDay = completedByDay.reduce((s, t) => s + (Number(t.estimated_hours) || 0), 0);
       const actDay = completedByDay.reduce((s, t) => s + (Number(t.actual_hours) || 0), 0);
@@ -130,18 +122,21 @@ router.get('/my-month', authenticateToken, async (req, res, next) => {
     const businessId = req.user.active_business_id || req.query.business_id;
     if (!businessId) return errorResponse(res, 'business_id required', 400);
 
-    const month = req.query.month || new Date().toISOString().slice(0, 7);
+    const tz = await getWorkspaceTz(businessId);
+    const month = req.query.month || todayInTz(tz).slice(0, 7);
     const [y, m] = month.split('-').map(Number);
-    const firstDay = new Date(y, m - 1, 1);
-    const lastDay = new Date(y, m, 0);
+    const firstDayStr = `${y}-${String(m).padStart(2, '0')}-01`;
+    // 다음 달 1일 - 1일 = 월말
+    const nextMonthFirst = m === 12 ? `${y + 1}-01-01` : `${y}-${String(m + 1).padStart(2, '0')}-01`;
+    const lastDayStr = addDaysStr(nextMonthFirst, -1);
 
     const tasks = await Task.findAll({
       where: {
         business_id: businessId,
         assignee_id: userId,
         [Op.or]: [
-          { planned_week_start: { [Op.between]: [firstDay.toISOString().slice(0, 10), lastDay.toISOString().slice(0, 10)] } },
-          { due_date: { [Op.between]: [firstDay.toISOString().slice(0, 10), lastDay.toISOString().slice(0, 10)] } },
+          { planned_week_start: { [Op.between]: [firstDayStr, lastDayStr] } },
+          { due_date: { [Op.between]: [firstDayStr, lastDayStr] } },
         ],
       },
       include: [{ model: Project, attributes: ['id', 'name'], required: false }],
@@ -150,9 +145,9 @@ router.get('/my-month', authenticateToken, async (req, res, next) => {
 
     // 주간별 집계
     const weeks = [];
-    let d = new Date(firstDay);
-    while (d <= lastDay) {
-      const wMonday = mondayOf(d);
+    let cursor = firstDayStr;
+    while (cursor <= lastDayStr) {
+      const wMonday = mondayOfDateStr(cursor);
       const wFriday = fridayOf(wMonday);
       const weekTasks = tasks.filter(t => {
         const pw = t.planned_week_start;
@@ -165,8 +160,7 @@ router.get('/my-month', authenticateToken, async (req, res, next) => {
         actual: Math.round(weekTasks.reduce((s, t) => s + (Number(t.actual_hours) || 0), 0) * 10) / 10,
         task_count: weekTasks.length,
       });
-      d = new Date(wMonday);
-      d.setDate(d.getDate() + 7);
+      cursor = addDaysStr(wMonday, 7);
     }
 
     const capacity = await getMemberCapacity(userId, businessId);
@@ -190,7 +184,8 @@ router.get('/my-year', authenticateToken, async (req, res, next) => {
     const businessId = req.user.active_business_id || req.query.business_id;
     if (!businessId) return errorResponse(res, 'business_id required', 400);
 
-    const year = Number(req.query.year) || new Date().getFullYear();
+    const tz = await getWorkspaceTz(businessId);
+    const year = Number(req.query.year) || Number(todayInTz(tz).slice(0, 4));
     const tasks = await Task.findAll({
       where: {
         business_id: businessId,
@@ -206,8 +201,8 @@ router.get('/my-year', authenticateToken, async (req, res, next) => {
     for (let m = 1; m <= 12; m++) {
       const mStr = `${year}-${String(m).padStart(2, '0')}`;
       const monthTasks = tasks.filter(t => {
-        const pw = t.planned_week_start;
-        const dd = t.due_date;
+        const pw = t.planned_week_start ? String(t.planned_week_start).slice(0, 10) : null;
+        const dd = t.due_date ? String(t.due_date).slice(0, 10) : null;
         return (pw && pw.startsWith(mStr)) || (dd && dd.startsWith(mStr));
       });
       months.push({
@@ -304,12 +299,18 @@ router.post('/', authenticateToken, async (req, res, next) => {
     const bm = await BusinessMember.findOne({ where: { user_id: req.user.id, business_id } });
     if (!bm) return errorResponse(res, 'forbidden', 403);
 
+    // source / request_by 자동 판정:
+    //   담당자 ≠ 생성자 → 내부 요청 (생성자가 요청자)
+    //   담당자 = 생성자 → 본인 수동 업무
+    const finalAssignee = assignee_id || req.user.id;
+    const isInternalRequest = finalAssignee !== req.user.id;
+
     const task = await Task.create({
       business_id,
       project_id: project_id || null,
       title: String(title).trim(),
       description: description || null,
-      assignee_id: assignee_id || req.user.id,
+      assignee_id: finalAssignee,
       due_date: due_date || null,
       estimated_hours: estimated_hours || null,
       category: category || null,
@@ -317,19 +318,23 @@ router.post('/', authenticateToken, async (req, res, next) => {
       conversation_id: conversation_id || null,
       planned_week_start: planned_week_start || null,
       created_by: req.user.id,
+      source: isInternalRequest ? 'internal_request' : 'manual',
+      request_by_user_id: isInternalRequest ? req.user.id : null,
     });
 
     const full = await Task.findByPk(task.id, {
       include: [
         { model: Project, attributes: ['id', 'name'], required: false },
         { model: User, as: 'assignee', attributes: ['id', 'name'], required: false },
+        { model: User, as: 'requester', attributes: ['id', 'name'], required: false },
       ],
     });
 
-    // Socket.IO
+    // Socket.IO: project room + business room 양쪽 emit (Q Task 페이지가 business 룸 구독)
     const io = req.app.get('io');
-    if (io && project_id) {
-      io.to(`project:${project_id}`).emit('task:new', full.toJSON());
+    if (io) {
+      if (project_id) io.to(`project:${project_id}`).emit('task:new', full.toJSON());
+      if (business_id) io.to(`business:${business_id}`).emit('task:new', full.toJSON());
     }
 
     return successResponse(res, full.toJSON());
@@ -386,6 +391,15 @@ router.put('/by-business/:businessId/:id', authenticateToken, async (req, res, n
     if (status === 'completed' && task.status !== 'completed') updates.completed_at = new Date();
 
     await task.update(updates);
+
+    // Socket.IO: project + business room 양쪽 broadcast
+    const io = req.app.get('io');
+    if (io) {
+      const payload = task.toJSON();
+      if (task.project_id) io.to(`project:${task.project_id}`).emit('task:updated', payload);
+      io.to(`business:${task.business_id}`).emit('task:updated', payload);
+    }
+
     return successResponse(res, task.toJSON());
   } catch (err) { next(err); }
 });
@@ -397,8 +411,17 @@ router.delete('/by-business/:businessId/:id', authenticateToken, async (req, res
   try {
     const task = await Task.findOne({ where: { id: req.params.id, business_id: req.params.businessId } });
     if (!task) return errorResponse(res, 'task_not_found', 404);
+    const meta = { id: Number(req.params.id), project_id: task.project_id, business_id: task.business_id };
     await task.destroy();
-    return successResponse(res, { id: Number(req.params.id), deleted: true });
+
+    // Socket.IO
+    const io = req.app.get('io');
+    if (io) {
+      if (meta.project_id) io.to(`project:${meta.project_id}`).emit('task:deleted', meta);
+      io.to(`business:${meta.business_id}`).emit('task:deleted', meta);
+    }
+
+    return successResponse(res, { id: meta.id, deleted: true });
   } catch (err) { next(err); }
 });
 
@@ -454,10 +477,34 @@ router.post('/:id/comments', authenticateToken, async (req, res, next) => {
 // ============================================
 // GET /api/tasks/requested-comments — 내가 요청한 업무들의 최신 댓글
 // ============================================
+// ============================================
+// GET /api/tasks/requested — 내가 요청한 업무 (created_by=me AND assignee != me)
+// ============================================
+router.get('/requested', authenticateToken, async (req, res, next) => {
+  try {
+    const businessId = Number(req.query.business_id);
+    if (!Number.isFinite(businessId)) return errorResponse(res, 'business_id required', 400);
+
+    const tasks = await Task.findAll({
+      where: {
+        business_id: businessId,
+        created_by: req.user.id,
+        assignee_id: { [Op.and]: [{ [Op.ne]: null }, { [Op.ne]: req.user.id }] },
+      },
+      include: [
+        { model: Project, attributes: ['id', 'name'], required: false },
+        { model: User, as: 'assignee', attributes: ['id', 'name'], required: false },
+      ],
+      order: [['due_date', 'ASC'], ['priority_order', 'ASC'], ['created_at', 'DESC']],
+    });
+    return successResponse(res, tasks.map((t) => t.toJSON()));
+  } catch (err) { next(err); }
+});
+
 router.get('/requested-comments', authenticateToken, async (req, res, next) => {
   try {
-    const businessId = req.query.business_id;
-    if (!businessId) return errorResponse(res, 'business_id required', 400);
+    const businessId = Number(req.query.business_id);
+    if (!Number.isFinite(businessId)) return errorResponse(res, 'business_id required', 400);
     // 내가 만든 업무 (assignee != me)
     const myRequested = await Task.findAll({
       where: { business_id: businessId, created_by: req.user.id, assignee_id: { [Op.ne]: req.user.id } },
@@ -483,8 +530,8 @@ router.get('/requested-comments', authenticateToken, async (req, res, next) => {
 // ============================================
 router.get('/extracted-candidates', authenticateToken, async (req, res, next) => {
   try {
-    const businessId = req.query.business_id;
-    if (!businessId) return errorResponse(res, 'business_id required', 400);
+    const businessId = Number(req.query.business_id);
+    if (!Number.isFinite(businessId)) return errorResponse(res, 'business_id required', 400);
     const { TaskCandidate, Project: ProjectModel } = require('../models');
     const projs = await ProjectModel.findAll({ where: { business_id: businessId }, attributes: ['id', 'name'] });
     const projIds = projs.map(p => p.id);

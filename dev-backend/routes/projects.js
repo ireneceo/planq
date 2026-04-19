@@ -50,6 +50,7 @@ router.post('/', authenticateToken, async (req, res, next) => {
       client_company,
       start_date,
       end_date,
+      color,
       members = [],
       clients = [],
     } = req.body || {};
@@ -69,6 +70,7 @@ router.post('/', authenticateToken, async (req, res, next) => {
     const defaultAssignee = members.find((m) => m.is_default)?.user_id || req.user.id;
 
     // 1) Project 생성
+    const HEX_RE = /^#[0-9A-Fa-f]{6}$/;
     const project = await Project.create({
       business_id,
       name: name.trim(),
@@ -76,6 +78,7 @@ router.post('/', authenticateToken, async (req, res, next) => {
       client_company: client_company?.trim() || null,
       start_date: start_date || null,
       end_date: end_date || null,
+      color: (color && HEX_RE.test(color)) ? color : null,
       default_assignee_user_id: defaultAssignee,
       owner_user_id: req.user.id,
     }, { transaction: t });
@@ -185,7 +188,7 @@ router.put('/:id', authenticateToken, async (req, res, next) => {
     if (error) return errorResponse(res, error.message, error.code);
     if (role === 'client') return errorResponse(res, 'forbidden', 403);
 
-    const { name, description, client_company, start_date, end_date, status, default_assignee_user_id } = req.body || {};
+    const { name, description, client_company, start_date, end_date, status, default_assignee_user_id, color } = req.body || {};
     const patch = {};
     if (name !== undefined) patch.name = String(name).trim();
     if (description !== undefined) patch.description = description?.trim() || null;
@@ -194,6 +197,11 @@ router.put('/:id', authenticateToken, async (req, res, next) => {
     if (end_date !== undefined) patch.end_date = end_date || null;
     if (status !== undefined && ['active', 'paused', 'closed'].includes(status)) patch.status = status;
     if (default_assignee_user_id !== undefined) patch.default_assignee_user_id = default_assignee_user_id || null;
+    if (color !== undefined) {
+      const HEX_RE = /^#[0-9A-Fa-f]{6}$/;
+      if (color && !HEX_RE.test(color)) return errorResponse(res, 'invalid color hex', 400);
+      patch.color = color || null;
+    }
 
     await project.update(patch);
     const detail = await loadProjectDetail(project.id);
@@ -601,6 +609,14 @@ router.post('/task-candidates/:id/register', authenticateToken, async (req, res,
     if (role === 'client') return errorResponse(res, 'forbidden', 403);
 
     const result = await taskExtractor.registerCandidate(candidate.id, req.user.id);
+
+    // Socket.IO: Q Task 페이지 실시간 반영을 위해 business room 에 task:new 발행
+    const io = req.app.get('io');
+    if (io && result.task) {
+      if (result.task.project_id) io.to(`project:${result.task.project_id}`).emit('task:new', result.task);
+      if (result.task.business_id) io.to(`business:${result.task.business_id}`).emit('task:new', result.task);
+    }
+
     return successResponse(res, result);
   } catch (err) {
     if (err.message === 'candidate_already_resolved') {
@@ -694,6 +710,7 @@ router.get('/workspace/:businessId/all-tasks', authenticateToken, async (req, re
       include: [
         { model: Project, attributes: ['id', 'name', 'client_company', 'status'] },
         { model: User, as: 'assignee', attributes: ['id', 'name'], required: false },
+        { model: User, as: 'requester', attributes: ['id', 'name'], required: false },
       ],
       order: [['createdAt', 'DESC']],
     });

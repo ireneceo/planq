@@ -5,7 +5,7 @@ class TaskDailyProgress extends Model {}
 
 TaskDailyProgress.init({
   id: { type: DataTypes.BIGINT, primaryKey: true, autoIncrement: true },
-  task_id: { type: DataTypes.INTEGER, allowNull: false, references: { model: 'tasks', key: 'id' } },
+  task_id: { type: DataTypes.INTEGER, allowNull: false, references: { model: 'tasks', key: 'id' }, onDelete: 'CASCADE' },
   snapshot_date: { type: DataTypes.DATEONLY, allowNull: false },
   progress_percent: { type: DataTypes.INTEGER, defaultValue: 0 },
   actual_hours: { type: DataTypes.DECIMAL(5, 1), defaultValue: 0 },

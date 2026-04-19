@@ -1,31 +1,12 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useCallback } from 'react';
 import { detectBrowserTz } from '../utils/timezones';
+import { useAuth, apiFetch } from '../contexts/AuthContext';
 
-// 백엔드 미연결 단계에서 사용할 로컬 저장소 키
-// 백엔드 연결 후 이 훅은 API 기반으로 교체됨.
-const K_WS_TZ = 'planq:mock:workspace_timezone';
-const K_WS_REFS = 'planq:mock:workspace_reference_timezones';
-const K_USER_TZ = 'planq:mock:user_timezone';
-const K_USER_REFS = 'planq:mock:user_reference_timezones';
-
-function readList(key: string): string[] {
-  try {
-    const raw = localStorage.getItem(key);
-    if (!raw) return [];
-    const v = JSON.parse(raw);
-    return Array.isArray(v) ? v.filter((x) => typeof x === 'string') : [];
-  } catch {
-    return [];
-  }
-}
-
-function readString(key: string): string | null {
-  try {
-    return localStorage.getItem(key);
-  } catch {
-    return null;
-  }
-}
+// 타임존 상태와 갱신 훅.
+// - 워크스페이스 타임존 / 참조 타임존은 active workspace(business) 기준 — owner 만 수정 가능.
+// - 개인 타임존 / 참조 타임존은 본인 계정 기준.
+// - 소스: /api/auth/me (AuthContext.user) 에서 읽고, 수정은 PUT /api/businesses/:id/settings,
+//   PUT /api/users/:id 로 영속화 후 user 상태를 갱신한다.
 
 export type TimezonesState = {
   workspaceTz: string;
@@ -35,35 +16,64 @@ export type TimezonesState = {
 };
 
 export function useTimezones() {
+  const { user, updateUser } = useAuth();
   const browserTz = detectBrowserTz();
 
-  const load = useCallback((): TimezonesState => ({
-    workspaceTz: readString(K_WS_TZ) || 'Asia/Seoul',
-    workspaceRefs: readList(K_WS_REFS),
-    userTz: readString(K_USER_TZ) || browserTz,
-    userRefs: readList(K_USER_REFS),
-  }), [browserTz]);
+  const workspaceTz = user?.workspace_timezone || 'Asia/Seoul';
+  const workspaceRefs = Array.isArray(user?.workspace_reference_timezones)
+    ? (user!.workspace_reference_timezones as string[])
+    : [];
+  const userTz = user?.timezone || browserTz;
+  const userRefs = Array.isArray(user?.reference_timezones)
+    ? (user!.reference_timezones as string[])
+    : [];
 
-  const [state, setState] = useState<TimezonesState>(() => load());
+  const update = useCallback(async (patch: Partial<TimezonesState>) => {
+    if (!user) return;
 
-  // 같은 탭 내 다른 컴포넌트에서 변경 시 반영을 위한 이벤트
-  useEffect(() => {
-    const handler = () => setState(load());
-    window.addEventListener('planq:timezones-changed', handler);
-    window.addEventListener('storage', handler);
-    return () => {
-      window.removeEventListener('planq:timezones-changed', handler);
-      window.removeEventListener('storage', handler);
-    };
-  }, [load]);
+    // 워크스페이스 타임존 변경 — PUT /api/businesses/:id/settings
+    if (patch.workspaceTz !== undefined || patch.workspaceRefs !== undefined) {
+      const businessId = user.business_id;
+      if (businessId) {
+        const body: Record<string, unknown> = {};
+        if (patch.workspaceTz !== undefined) body.timezone = patch.workspaceTz;
+        if (patch.workspaceRefs !== undefined) body.reference_timezones = patch.workspaceRefs;
+        const res = await apiFetch(`/api/businesses/${businessId}/settings`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        if (res.ok) {
+          updateUser({
+            workspace_timezone: patch.workspaceTz ?? workspaceTz,
+            workspace_reference_timezones: patch.workspaceRefs ?? workspaceRefs,
+          });
+        } else {
+          throw new Error('workspace_timezone_update_failed');
+        }
+      }
+    }
 
-  const update = useCallback((patch: Partial<TimezonesState>) => {
-    if (patch.workspaceTz !== undefined) localStorage.setItem(K_WS_TZ, patch.workspaceTz);
-    if (patch.workspaceRefs !== undefined) localStorage.setItem(K_WS_REFS, JSON.stringify(patch.workspaceRefs));
-    if (patch.userTz !== undefined) localStorage.setItem(K_USER_TZ, patch.userTz);
-    if (patch.userRefs !== undefined) localStorage.setItem(K_USER_REFS, JSON.stringify(patch.userRefs));
-    window.dispatchEvent(new Event('planq:timezones-changed'));
-  }, []);
+    // 개인 타임존 변경 — PUT /api/users/:id
+    if (patch.userTz !== undefined || patch.userRefs !== undefined) {
+      const body: Record<string, unknown> = {};
+      if (patch.userTz !== undefined) body.timezone = patch.userTz;
+      if (patch.userRefs !== undefined) body.reference_timezones = patch.userRefs;
+      const res = await apiFetch(`/api/users/${user.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (res.ok) {
+        updateUser({
+          timezone: patch.userTz ?? userTz,
+          reference_timezones: patch.userRefs ?? userRefs,
+        });
+      } else {
+        throw new Error('user_timezone_update_failed');
+      }
+    }
+  }, [user, updateUser, workspaceTz, workspaceRefs, userTz, userRefs]);
 
-  return { ...state, update };
+  return { workspaceTz, workspaceRefs, userTz, userRefs, update };
 }

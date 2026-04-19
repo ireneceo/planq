@@ -3,9 +3,10 @@ import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import {
   type MockProject, type MockTask, type MockNote, type MockIssue, type MockTaskCandidate,
-  TASK_STATUS_LABEL, TASK_STATUS_COLOR, formatTimeAgo,
+  TASK_STATUS_LABEL, TASK_STATUS_COLOR,
 } from './mock';
 import { useAuth } from '../../contexts/AuthContext';
+import { useTimeFormat } from '../../hooks/useTimeFormat';
 import LetterAvatar from '../../components/Common/LetterAvatar';
 
 interface Props {
@@ -35,6 +36,7 @@ const RightPanel: React.FC<Props> = ({
 }) => {
   const { t } = useTranslation('qtalk');
   const { user } = useAuth();
+  const { formatTimeAgo } = useTimeFormat();
   const isClient = user?.business_role === 'client';
   const myUserId = user ? Number(user.id) : -1;
 
@@ -112,7 +114,7 @@ const RightPanel: React.FC<Props> = ({
       <Scroll>
         {/* 업무 후보 (있을 때만, 최상단) */}
         {!isClient && candidates.length > 0 && (
-          <CandidatesSection>
+          <CandidatesSection data-section="candidates">
             <CandidatesHeader>
               <CandidatesTitle>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">

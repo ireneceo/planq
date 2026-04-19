@@ -226,12 +226,19 @@ res.status(400).json({ success: false, message: 'Error description' });
 
 ---
 
-## DB 테이블 (13개)
+## DB 테이블 (25개)
 
-users, businesses, business_members, clients,
-conversations, conversation_participants,
-messages, message_attachments, tasks, files,
-invoices, invoice_items, audit_logs
+**기본 (13):** users, businesses, business_members, clients, conversations, conversation_participants, messages, message_attachments, tasks, files, invoices, invoice_items, audit_logs
+
+**Q Talk / 프로젝트 (6):** projects, project_members, project_clients, project_notes, project_issues, task_candidates
+
+**Q Task 워크플로우 (4):** task_comments, task_daily_progress, **task_reviewers**, **task_status_history**
+
+**기타 (2):** kb_chunks, kb_documents, kb_pinned_faqs, cue_usage
+
+> **Q Task 상태 ENUM:** `not_started`, `waiting`, `in_progress`, `reviewing`, `revision_requested`, `done_feedback`, `completed`, `canceled`. 관점별 UI 라벨은 `dev-frontend/src/utils/taskLabel.ts` 참조 (i18n `status.{code}.{role}` 4차원 구조).
+
+> **댓글·메모 visibility 통일:** `personal`/`internal`/`shared` — `task_comments` 와 `project_notes` 공통 ENUM.
 
 ---
 
