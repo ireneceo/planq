@@ -1,34 +1,31 @@
 // 프로젝트 업무 탭용 리스트 — Q Task 테이블 디자인 그대로
 // (프로젝트 컬럼·예측·실제 컬럼 제외)
-import React, { useRef, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import styled from 'styled-components';
+import { useTranslation } from 'react-i18next';
 import CalendarPicker from '../../components/Common/CalendarPicker';
 import { apiFetch } from '../../contexts/AuthContext';
+import { GanttHeader, GanttRowTrack, GanttBar, useGanttScrollSync, type GanttRange } from '../../components/Common/GanttTrack';
+import { STATUS_COLOR, displayStatus, getStatusLabel, type StatusCode } from '../../utils/taskLabel';
+import { getRoles, primaryPerspective } from '../../utils/taskRoles';
 
 export interface TaskRow {
   id: number; project_id: number | null; business_id: number;
-  title: string; status: string; due_date: string | null; start_date: string | null;
+  title: string; description?: string | null;
+  status: string; due_date: string | null; start_date: string | null;
   progress_percent: number; priority_order?: number | null;
   assignee_id: number | null; assignee?: { id: number; name: string } | null;
   requester?: { id: number; name: string } | null;
   source?: string; request_by_user_id?: number | null; created_by?: number;
+  request_ack_at?: string | null; review_round?: number | null;
+  reviewers?: Array<{ id: number; user_id: number; state: 'pending'|'approved'|'revision'; is_client?: boolean }>;
 }
 
-const STATUS_COLOR: Record<string, { bg: string; fg: string }> = {
-  not_started: { bg: '#F1F5F9', fg: '#475569' },
-  waiting: { bg: '#FEF3C7', fg: '#92400E' },
-  task_requested: { bg: '#FFF1F2', fg: '#9F1239' },
-  in_progress: { bg: '#CCFBF1', fg: '#0F766E' },
-  reviewing: { bg: '#DBEAFE', fg: '#1E40AF' },
-  revision_requested: { bg: '#FED7AA', fg: '#9A3412' },
-  done_feedback: { bg: '#DCFCE7', fg: '#166534' },
-  completed: { bg: '#E2E8F0', fg: '#475569' },
-  canceled: { bg: '#F1F5F9', fg: '#94A3B8' },
-};
-const STATUS_LABEL: Record<string, string> = {
-  not_started: '미시작', waiting: '대기', in_progress: '진행중',
-  reviewing: '컨펌중', revision_requested: '수정요청', done_feedback: '마무리',
-  completed: '완료', canceled: '취소',
+// 업무 종류별 드롭다운 옵션 (Q Task 와 동일)
+const statusOptionsFor = (task: { source?: string }): string[] => {
+  const isReq = task.source === 'internal_request' || task.source === 'qtalk_extract';
+  if (isReq) return ['not_started', 'waiting', 'in_progress', 'reviewing', 'revision_requested', 'done_feedback', 'completed', 'canceled'];
+  return ['not_started', 'in_progress', 'reviewing', 'revision_requested', 'done_feedback', 'completed', 'canceled'];
 };
 
 type SortKey = 'priority_order' | 'title' | 'status' | 'progress_percent' | 'due_date';
@@ -60,6 +57,19 @@ const ProjectTaskList: React.FC<Props> = ({
   const [assigneeOpenId, setAssigneeOpenId] = useState<number | null>(null);
   const dateRefs = useRef<Record<number, HTMLButtonElement | null>>({});
 
+  // 타임라인 가로 스크롤 동기화 — 공용 훅
+  const gantt = useGanttScrollSync();
+  const { t } = useTranslation('qtask');
+
+  // 상태 드롭다운 옵션 라벨 — not_started + 요청업무 + 미ack 면 task_requested 로 표시
+  const optionLabel = (task: TaskRow, status: string, role: string): string => {
+    const isReq = task.source === 'internal_request' || task.source === 'qtalk_extract';
+    if (status === 'not_started' && isReq && !task.request_ack_at) {
+      return t(`status.task_requested.${role}`, t('status.task_requested.observer', '업무요청')) as string;
+    }
+    return t(`status.${status}.${role}`, t(`status.${status}.observer`, status)) as string;
+  };
+
   const handleSort = (k: SortKey) => {
     if (sortKey === k) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
     else { setSortKey(k); setSortDir('asc'); }
@@ -88,65 +98,54 @@ const ProjectTaskList: React.FC<Props> = ({
   };
 
 
-  // 타임라인 범위
-  let tlMin: number | null = null, tlMax: number | null = null;
-  const datesAll: string[] = [];
-  if (projectStart) datesAll.push(projectStart.slice(0, 10));
-  if (projectEnd) datesAll.push(projectEnd.slice(0, 10));
-  tasks.forEach(t => { if (t.start_date) datesAll.push(t.start_date.slice(0, 10)); if (t.due_date) datesAll.push(t.due_date.slice(0, 10)); });
-  if (datesAll.length) {
+  // 타임라인 범위 — GanttRange. 업무/프로젝트 일자 합쳐서 최소·최대.
+  const range: GanttRange | null = useMemo(() => {
+    const datesAll: string[] = [];
+    if (projectStart) datesAll.push(projectStart.slice(0, 10));
+    if (projectEnd) datesAll.push(projectEnd.slice(0, 10));
+    tasks.forEach(t => { if (t.start_date) datesAll.push(t.start_date.slice(0, 10)); if (t.due_date) datesAll.push(t.due_date.slice(0, 10)); });
+    if (datesAll.length === 0) return null;
     const s = datesAll.reduce((a, b) => a < b ? a : b);
     const e = datesAll.reduce((a, b) => a > b ? a : b);
-    tlMin = new Date(s).getTime();
-    tlMax = new Date(e).getTime();
-  }
-  const tlRange = tlMax && tlMin ? Math.max(1, (tlMax - tlMin) / 86400000 + 1) : 1;
-  const pctOf = (d: string) => tlMin == null ? 0 : ((new Date(d.slice(0, 10)).getTime() - tlMin) / 86400000 / tlRange) * 100;
+    return { from: s, to: e };
+  }, [tasks, projectStart, projectEnd]);
 
   return (
     <>
       <ColRow>
         <Col $flex onClick={() => handleSort('title')}>업무 {sortIcon('title')}</Col>
-        <Col $w="110px" $hideBelow={900}>담당자</Col>
-        <Col $w="68px" $center onClick={() => handleSort('status')}>상태 {sortIcon('status')}</Col>
-        <Col $w="130px" $hideBelow={1024} $center onClick={() => handleSort('progress_percent')}>진행률 {sortIcon('progress_percent')}</Col>
-        <Col $w="140px" $center $hideBelow={768} onClick={() => handleSort('due_date')}>시작 ~ 마감 {sortIcon('due_date')}</Col>
-        {showTimeline && (
-          <Col $flex $center style={{ position: 'relative', overflow: 'visible' }}>
-            <TLScrollable>
-              <TLHeadInner $minWidth={Math.max(300, tlRange * 30)}>
-                {(() => {
-                  if (tlMin == null || tlMax == null) return null;
-                  const ticks: { date: string; label: string }[] = [];
-                  const step = Math.max(1, Math.ceil(tlRange / 10));
-                  for (let i = 0; i <= tlRange; i += step) {
-                    const d = new Date(tlMin + i * 86400000);
-                    ticks.push({ date: d.toISOString().slice(0, 10), label: `${d.getMonth() + 1}/${d.getDate()}` });
-                  }
-                  return ticks.map((tk, i) => (
-                    <TLTick key={i} style={{ left: `${((new Date(tk.date).getTime() - tlMin) / 86400000 / tlRange) * 100}%` }}>{tk.label}</TLTick>
-                  ));
-                })()}
-              </TLHeadInner>
-            </TLScrollable>
+        <Col $w={showTimeline ? '90px' : '150px'} $center $hideBelow={900}>담당자</Col>
+        <Col $w={showTimeline ? '60px' : '100px'} $center onClick={() => handleSort('status')}>상태 {sortIcon('status')}</Col>
+        <Col $w={showTimeline ? '110px' : '180px'} $hideBelow={1024} $center onClick={() => handleSort('progress_percent')}>진행률 {sortIcon('progress_percent')}</Col>
+        <Col $w={showTimeline ? '120px' : '170px'} $center $hideBelow={768} onClick={() => handleSort('due_date')}>시작 ~ 마감 {sortIcon('due_date')}</Col>
+        {showTimeline && range && (
+          <Col $flex2 $center style={{ position: 'relative', overflow: 'visible' }}>
+            <GanttHeader registry={gantt} range={range} tickMode="auto" />
           </Col>
         )}
+        {!showTimeline && <Col $flex $hideBelow={768}>설명</Col>}
       </ColRow>
 
       {sorted.map(task => {
         const isDelayed = !!(task.due_date && task.due_date.slice(0, 10) < today && task.status !== 'completed' && task.status !== 'canceled');
-        const sc = STATUS_COLOR[task.status] || STATUS_COLOR.not_started;
-        const label = STATUS_LABEL[task.status] || task.status;
+        const dispStatus = displayStatus(task, today);
+        const sc = STATUS_COLOR[dispStatus as StatusCode] || STATUS_COLOR.not_started;
+        const role = primaryPerspective(getRoles(task, myId));
+        const statusLabel = getStatusLabel(task, role, today, (k, f) => t(k, f || k));
         const isEditing = editingTitle === task.id;
         const prog = task.progress_percent || 0;
         const sliderColor = task.status === 'completed' ? '#94A3B8' : isDelayed ? '#DC2626' : '#14B8A6';
 
-        const barLeft = (task.start_date || task.due_date) ? pctOf(task.start_date || task.due_date!) : 0;
-        const barRight = (task.due_date || task.start_date) ? pctOf(task.due_date || task.start_date!) : 0;
-        const barWidth = Math.max(2, barRight - barLeft + (1 / tlRange) * 100);
 
         return (
-          <TRow key={task.id} $done={task.status === 'completed'} $delayed={isDelayed} $selected={selectedId === task.id}>
+          <TRow key={task.id} $done={task.status === 'completed'} $delayed={isDelayed} $selected={selectedId === task.id}
+            onClick={(e) => {
+              const tgt = e.target as HTMLElement;
+              if (tgt.closest('button,a,input,select,textarea,[role="button"],[data-dropdown]')) return;
+              onOpen(task.id);
+            }}
+            style={{ cursor: 'pointer' }}>
+
             <TCell $flex>
               <TaskCheck type="checkbox" checked={task.status === 'completed'}
                 onChange={() => saveField(task.id, 'status', task.status === 'completed' ? 'in_progress' : 'completed')} />
@@ -174,7 +173,7 @@ const ProjectTaskList: React.FC<Props> = ({
                 </DetailBtn>
               </>)}
             </TCell>
-            <TCell $w="110px" $hideBelow={900} style={{ position: 'relative', overflow: 'visible' }}>
+            <TCell $w={showTimeline ? '90px' : '150px'} $center $hideBelow={900} style={{ position: 'relative', overflow: 'visible' }}>
               <AssigneeLabel onClick={e => { e.stopPropagation(); setAssigneeOpenId(assigneeOpenId === task.id ? null : task.id); }}>
                 {task.assignee?.name || <span style={{ color: '#CBD5E1' }}>담당자</span>}
               </AssigneeLabel>
@@ -191,26 +190,26 @@ const ProjectTaskList: React.FC<Props> = ({
                 </AssigneeDropdown>
               )}
             </TCell>
-            <TCell $w="68px" $center style={{ position: 'relative', overflow: 'visible' }}>
+            <TCell $w={showTimeline ? '60px' : '100px'} $center style={{ position: 'relative', overflow: 'visible' }}>
               <StatusPill $bg={sc.bg} $fg={sc.fg} $clickable
                 onClick={e => { e.stopPropagation(); setStatusOpenId(statusOpenId === task.id ? null : task.id); }}>
-                {label}
+                {statusLabel}
               </StatusPill>
               {statusOpenId === task.id && (
                 <StatusDropdown>
-                  {Object.keys(STATUS_LABEL).map(s => {
-                    const c = STATUS_COLOR[s] || STATUS_COLOR.not_started;
+                  {statusOptionsFor(task).map(s => {
+                    const c = STATUS_COLOR[s as StatusCode] || STATUS_COLOR.not_started;
                     return (
                       <StatusOption key={s} $bg={c.bg} $fg={c.fg} $active={task.status === s}
                         onClick={e => { e.stopPropagation(); saveField(task.id, 'status', s); setStatusOpenId(null); }}>
-                        {STATUS_LABEL[s]}
+                        {optionLabel(task, s, role)}
                       </StatusOption>
                     );
                   })}
                 </StatusDropdown>
               )}
             </TCell>
-            <TCell $w="130px" $hideBelow={1024}>
+            <TCell $w={showTimeline ? '110px' : '180px'} $center $hideBelow={1024}>
               <SliderWrap>
                 <SliderTrack><SliderFill $w={prog} $color={sliderColor} /></SliderTrack>
                 <SliderRange type="range" min="0" max="100" step="5" value={prog}
@@ -220,14 +219,19 @@ const ProjectTaskList: React.FC<Props> = ({
                 <SliderPct>{prog}%</SliderPct>
               </SliderWrap>
             </TCell>
-            <TCell $w="140px" $center $hideBelow={768}>
+            <TCell $w={showTimeline ? '120px' : '170px'} $center $hideBelow={768}>
               <DateTrigger ref={el => { dateRefs.current[task.id] = el; }}
                 $color={isDelayed ? 'overdue' : (task.due_date?.slice(0, 10) === today ? 'today' : 'default')}
                 $empty={!(task.start_date || task.due_date)}
                 onClick={e => { e.stopPropagation(); setDateOpenId(dateOpenId === task.id ? null : task.id); }}>
-                {(task.start_date || task.due_date) ?
-                  `${task.start_date?.slice(5, 10).replace('-', '/') || '—'} ~ ${task.due_date?.slice(5, 10).replace('-', '/') || '—'}`
-                  : '—'}
+                {(() => {
+                  const s = task.start_date?.slice(0, 10);
+                  const d = task.due_date?.slice(0, 10);
+                  const fmt = (v?: string) => v ? v.slice(5).replace('-', '/') : '';
+                  if (!s && !d) return '—';
+                  if (s && d && s !== d) return `${fmt(s)} ~ ${fmt(d)}`;
+                  return fmt(d || s);
+                })()}
               </DateTrigger>
               {dateOpenId === task.id && (
                 <CalendarPicker isOpen anchorRef={{ current: dateRefs.current[task.id] }}
@@ -236,17 +240,19 @@ const ProjectTaskList: React.FC<Props> = ({
                   onClose={() => setDateOpenId(null)} />
               )}
             </TCell>
-            {showTimeline && (
-              <TCell $flex style={{ overflow: 'visible' }}>
-                <TLScrollable>
-                  <TLTrack $minWidth={Math.max(300, tlRange * 30)}>
-                    {(task.start_date || task.due_date) && (
-                      <TLBar style={{ left: `${barLeft}%`, width: `${barWidth}%`, background: sc.fg }}>
-                        <TLBarText>{task.assignee?.name || ''}</TLBarText>
-                      </TLBar>
-                    )}
-                  </TLTrack>
-                </TLScrollable>
+            {!showTimeline && (
+              <TCell $flex $hideBelow={768} style={{ padding: '0 8px' }}>
+                <DescText>{task.description || <DescEmpty>—</DescEmpty>}</DescText>
+              </TCell>
+            )}
+            {showTimeline && range && (
+              <TCell $flex2 style={{ overflow: 'visible' }}>
+                <GanttRowTrack registry={gantt} range={range} todayStr={today} showGrid>
+                  <GanttBar range={range} start={task.start_date} end={task.due_date}
+                    bg={sc.bg} fg={sc.fg} label={task.assignee?.name || ''}
+                    onClick={(e) => { e.stopPropagation(); onOpen(task.id); }}
+                    title={`${task.start_date?.slice(0,10) || ''} ~ ${task.due_date?.slice(0,10) || ''}`} />
+                </GanttRowTrack>
               </TCell>
             )}
           </TRow>
@@ -261,9 +267,9 @@ export default ProjectTaskList;
 
 // ═══ Styled (Q Task 와 완전 동일) ═══
 const ColRow = styled.div`display:flex;align-items:center;gap:6px;padding:6px 14px;border-bottom:1px solid #E2E8F0;background:#F8FAFC;position:sticky;top:0;z-index:1;`;
-const Col = styled.span<{$w?:string;$flex?:boolean;$center?:boolean;$hideBelow?:number}>`
+const Col = styled.span<{$w?:string;$flex?:boolean;$flex2?:boolean;$center?:boolean;$hideBelow?:number}>`
   box-sizing:border-box;
-  ${p=>p.$flex ? 'flex:1 1 0;min-width:120px;' : `flex:0 0 ${p.$w||'auto'};width:${p.$w||'auto'};`}
+  ${p=>p.$flex2 ? 'flex:2 1 0;min-width:240px;' : p.$flex ? 'flex:1 1 0;min-width:120px;' : `flex:0 0 ${p.$w||'auto'};width:${p.$w||'auto'};`}
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
   font-size:11px;font-weight:700;color:#94A3B8;cursor:pointer;user-select:none;
   ${p=>p.$center&&'text-align:center;'}
@@ -276,9 +282,9 @@ const TRow = styled.div<{$done?:boolean;$delayed?:boolean;$selected?:boolean}>`
   ${p=>p.$selected?'background:#FFF1F2;box-shadow:inset 3px 0 0 #F43F5E;':p.$delayed&&!p.$done?'box-shadow:inset 3px 0 0 #DC2626;':''}
   &:hover{background:${p=>p.$selected?'#FFE4E6':p.$delayed&&!p.$done?'#FEF2F2':'#FAFBFC'};}
 `;
-const TCell = styled.div<{$w?:string;$flex?:boolean;$center?:boolean;$hideBelow?:number}>`
+const TCell = styled.div<{$w?:string;$flex?:boolean;$flex2?:boolean;$center?:boolean;$hideBelow?:number}>`
   box-sizing:border-box;
-  ${p=>p.$flex ? 'flex:1 1 0;min-width:120px;display:flex;align-items:center;gap:6px;overflow:hidden;' : `flex:0 0 ${p.$w||'auto'};width:${p.$w||'auto'};overflow:hidden;`}
+  ${p=>p.$flex2 ? 'flex:2 1 0;min-width:240px;display:flex;align-items:center;gap:6px;overflow:hidden;' : p.$flex ? 'flex:1 1 0;min-width:120px;display:flex;align-items:center;gap:6px;overflow:hidden;' : `flex:0 0 ${p.$w||'auto'};width:${p.$w||'auto'};overflow:hidden;`}
   ${p=>p.$center&&'display:flex;justify-content:center;align-items:center;'}
   ${p=>p.$hideBelow?`@media (max-width: ${p.$hideBelow}px){display:none;}`:''}
 `;
@@ -294,8 +300,8 @@ const NameChip = styled.span<{$type:'from'|'to'|'observer'}>`
     :'background:#F1F5F9;color:#64748B;'}
 `;
 const StatusPill = styled.span<{$bg:string;$fg:string;$clickable?:boolean}>`
-  padding:2px 8px;background:${p=>p.$bg};color:${p=>p.$fg};font-size:10px;font-weight:700;
-  border-radius:8px;white-space:nowrap;${p=>p.$clickable?'cursor:pointer;user-select:none;&:hover{opacity:0.8;}':''}
+  padding:2px 8px;background:${p=>p.$bg};color:${p=>p.$fg};font-size:10px;font-weight:600;
+  border-radius:8px;white-space:nowrap;${p=>p.$clickable?'cursor:pointer;user-select:none;&:hover{filter:brightness(0.96);}':''}
 `;
 const StatusDropdown = styled.div`position:absolute;top:100%;left:50%;transform:translateX(-50%);z-index:100;background:#FFF;border:1px solid #E2E8F0;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,0.12);padding:4px;min-width:100px;margin-top:4px;`;
 const StatusOption = styled.button<{$bg:string;$fg:string;$active?:boolean}>`
@@ -308,7 +314,7 @@ const SliderFill = styled.div<{$w:number;$color:string}>`height:100%;width:${p=>
 const SliderRange = styled.input`position:absolute;left:0;top:-4px;width:calc(100% - 40px);height:18px;opacity:0;cursor:pointer;`;
 const SliderPct = styled.span`font-size:12px;font-weight:700;color:#475569;min-width:32px;text-align:right;`;
 const DateTrigger = styled.button<{$color?:string;$empty?:boolean}>`
-  width:100%;padding:4px 6px;font-size:12px;font-weight:600;background:transparent;border:1px solid transparent;border-radius:6px;cursor:pointer;white-space:nowrap;font-family:inherit;text-align:left;
+  width:100%;padding:4px 6px;font-size:12px;font-weight:600;background:transparent;border:1px solid transparent;border-radius:6px;cursor:pointer;white-space:nowrap;font-family:inherit;text-align:center;
   color:${p=>p.$empty?'#CBD5E1':p.$color==='overdue'?'#DC2626':p.$color==='today'?'#EA580C':'#64748B'};
   ${p=>p.$color==='overdue'&&!p.$empty?'background:#FEF2F2;':p.$color==='today'&&!p.$empty?'background:#FFF7ED;':''}
   &:hover{border-color:#14B8A6;color:#0F766E;}
@@ -317,10 +323,5 @@ const AssigneeLabel = styled.span`display:inline-block;font-size:12px;color:#0F1
 const AssigneeDropdown = styled.div`position:absolute;top:100%;left:0;z-index:100;min-width:140px;max-height:220px;overflow-y:auto;background:#FFF;border:1px solid #E2E8F0;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,0.12);padding:4px;margin-top:4px;`;
 const AssigneeOpt = styled.button<{$active?:boolean}>`display:block;width:100%;padding:5px 10px;font-size:12px;text-align:left;border:none;border-radius:6px;cursor:pointer;background:${p=>p.$active?'#F0FDFA':'transparent'};color:${p=>p.$active?'#0F766E':'#0F172A'};font-weight:${p=>p.$active?600:500};&:hover{background:#F0FDFA;color:#0F766E;}`;
 const EmptyMsg = styled.div`padding:32px;text-align:center;color:#94A3B8;font-size:13px;`;
-// 타임라인 셀 가로 스크롤 — 헤더와 행 모두 적용
-const TLScrollable = styled.div`width:100%;overflow-x:auto;overflow-y:hidden;&::-webkit-scrollbar{height:6px;}&::-webkit-scrollbar-thumb{background:#E2E8F0;border-radius:3px;}`;
-const TLHeadInner = styled.div<{$minWidth:number}>`position:relative;min-width:${p=>p.$minWidth}px;width:100%;height:24px;`;
-const TLTrack = styled.div<{$minWidth:number}>`position:relative;min-width:${p=>p.$minWidth}px;width:100%;height:20px;background:#F8FAFC;border-radius:3px;`;
-const TLBar = styled.div`position:absolute;top:2px;bottom:2px;border-radius:3px;display:flex;align-items:center;padding:0 6px;min-width:4px;overflow:hidden;`;
-const TLBarText = styled.span`font-size:10px;color:#FFF;font-weight:600;white-space:nowrap;`;
-const TLTick = styled.span`position:absolute;top:4px;font-size:10px;color:#94A3B8;font-weight:600;transform:translateX(-50%);`;
+const DescText = styled.span`font-size:12px;color:#64748B;line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;`;
+const DescEmpty = styled.span`color:#CBD5E1;`;

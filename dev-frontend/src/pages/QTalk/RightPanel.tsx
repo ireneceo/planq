@@ -90,7 +90,8 @@ const RightPanel: React.FC<Props> = ({
     );
   }
 
-  if (!project) return <Container />;
+  // 프로젝트 미선택 시 우측 패널 자체 렌더하지 않음 (Irene 요청: 필요 없음)
+  if (!project) return null;
 
   const projectTasks: MockTask[] = tasks.filter((t) => t.project_id === project.id);
   const myTasks = projectTasks.filter((x) => x.assignee_id === myUserId || x.assignee_id === 15 /* mock: owner 시점 */);
@@ -285,7 +286,11 @@ const RightPanel: React.FC<Props> = ({
                 </TaskItem>
               ))}
               {myTasks.length === 0 && <EmptyRow>{t('right.myTasks.empty', '담당 업무가 없습니다')}</EmptyRow>}
-              <QTaskLink onClick={() => window.location.href = '/tasks'}>
+              <QTaskLink onClick={() => {
+                // 리스트 뷰 강제 — 카드 뷰가 저장돼 있어도 리스트로 열림
+                try { localStorage.setItem('qtask_view_mode', 'list'); } catch { /* ignore */ }
+                window.location.href = '/tasks';
+              }}>
                 → {t('right.myTasks.viewAll', 'Q Task 에서 전체 보기')}
               </QTaskLink>
             </SectionBody>

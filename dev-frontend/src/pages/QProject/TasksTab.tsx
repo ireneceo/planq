@@ -1,11 +1,17 @@
 // 프로젝트 업무 탭 — 리스트 / 타임라인 / 캘린더 3뷰 + 추가
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import styled from 'styled-components';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { apiFetch, useAuth } from '../../contexts/AuthContext';
 import PlanQSelect from '../../components/Common/PlanQSelect';
 import CalendarPicker from '../../components/Common/CalendarPicker';
 import ProjectTaskList from './ProjectTaskList';
+import TaskDetailDrawer from '../../components/QTask/TaskDetailDrawer';
+import { todayInTz, detectBrowserTz } from '../../utils/timezones';
+import { GanttHeader, GanttRowTrack, GanttBar, useGanttScrollSync } from '../../components/Common/GanttTrack';
+import { STATUS_COLOR, displayStatus, getStatusLabel, type StatusCode } from '../../utils/taskLabel';
+import { getRoles, primaryPerspective } from '../../utils/taskRoles';
+import { useTranslation } from 'react-i18next';
 
 type ViewMode = 'split' | 'list' | 'timeline' | 'calendar';
 
@@ -25,23 +31,53 @@ type Props = {
   onRefresh: () => void;
 };
 
-const STATUS_LABEL: Record<string, { label: string; color: string }> = {
-  not_started: { label: '미시작', color: '#94A3B8' },
-  waiting: { label: '대기', color: '#EAB308' },
-  in_progress: { label: '진행중', color: '#14B8A6' },
-  reviewing: { label: '컨펌중', color: '#3B82F6' },
-  revision_requested: { label: '수정요청', color: '#F59E0B' },
-  done_feedback: { label: '마무리', color: '#22C55E' },
-  completed: { label: '완료', color: '#64748B' },
-  canceled: { label: '취소', color: '#94A3B8' },
-};
 
 const TasksTab: React.FC<Props> = ({ projectId, businessId, tasks, onRefresh }) => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useAuth();
   const myId = user ? Number(user.id) : -1;
-  const [view, setView] = useState<ViewMode>('split');
-  const [adding, setAdding] = useState(false);
+  const wsTz = user?.workspace_timezone || detectBrowserTz();
+  const todayStr = todayInTz(wsTz);
+
+  // 업무 상세 드로어 — 프로젝트 페이지 안에서 오버레이로 오픈
+  const [detailTaskId, setDetailTaskId] = useState<number | null>(() => {
+    const q = new URLSearchParams(location.search).get('task');
+    return q ? Number(q) : null;
+  });
+  const [drawerWidth, setDrawerWidth] = useState<number>(() => {
+    try { const v = localStorage.getItem('qtask_drawer_width'); return v ? Math.max(420, Math.min(1000, Number(v))) : 560; } catch { return 560; }
+  });
+  const openDetail = (id: number) => {
+    // 같은 업무 재클릭 → 드로어 닫기 (토글). 통일된 UX 원칙.
+    if (detailTaskId === id) { closeDetail(); return; }
+    setDetailTaskId(id);
+    const sp = new URLSearchParams(location.search);
+    sp.set('task', String(id));
+    navigate(`${location.pathname}?${sp.toString()}`, { replace: true });
+  };
+  const closeDetail = () => {
+    setDetailTaskId(null);
+    const sp = new URLSearchParams(location.search);
+    sp.delete('task');
+    const qs = sp.toString();
+    navigate(qs ? `${location.pathname}?${qs}` : location.pathname, { replace: true });
+  };
+  // 뷰 모드 URL 싱크 — ?view=split/list/timeline/calendar (기본 split 은 파라미터 생략)
+  const viewFromUrl = (): ViewMode => {
+    const v = new URLSearchParams(location.search).get('view');
+    if (v === 'list' || v === 'timeline' || v === 'calendar' || v === 'split') return v;
+    return 'split';
+  };
+  const [view, setViewState] = useState<ViewMode>(viewFromUrl);
+  const setView = (v: ViewMode) => {
+    setViewState(v);
+    const sp = new URLSearchParams(location.search);
+    if (v === 'split') sp.delete('view'); else sp.set('view', v);
+    const qs = sp.toString();
+    navigate(qs ? `${location.pathname}?${qs}` : location.pathname, { replace: true });
+  };
+  const [adding, setAdding] = useState<null | 'top' | 'bottom'>(null);
   const [newTitle, setNewTitle] = useState('');
   const [newAssignee, setNewAssignee] = useState<number | null>(null);
   const [newStart, setNewStart] = useState('');
@@ -90,10 +126,56 @@ const TasksTab: React.FC<Props> = ({ projectId, businessId, tasks, onRefresh }) 
         }),
       });
       resetNew();
-      setAdding(false);
+      setAdding(null);
       onRefresh();
     } finally { setSubmitting(false); }
   };
+
+  const renderAddForm = () => (
+    <AddForm>
+      <AddInput autoFocus placeholder="업무명 (Ctrl+Enter 저장)" value={newTitle}
+        onChange={e => setNewTitle(e.target.value)}
+        onKeyDown={e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); submit(); } if (e.key === 'Escape') { setAdding(null); resetNew(); } }} />
+      <AddOptRow>
+        <AddOptField>
+          <AddOptLabel>담당자</AddOptLabel>
+          <PlanQSelect size="sm" isClearable
+            placeholder="담당자: 나"
+            value={newAssignee == null ? null : { value: String(newAssignee), label: members.find(m => m.user_id === newAssignee)?.name || String(newAssignee) }}
+            onChange={v => setNewAssignee((v as { value?: string } | null)?.value ? Number((v as { value: string }).value) : null)}
+            options={members.map(m => ({ value: String(m.user_id), label: m.name + (m.user_id === myId ? ' (나)' : '') }))} />
+        </AddOptField>
+        <AddOptField style={{ flex: '1 1 240px' }}>
+          <AddOptLabel>기간</AddOptLabel>
+          <DateTrigger ref={dateAnchorRef} type="button" onClick={() => setDatePickerOpen(v => !v)}>
+            {(newStart || newDue) ? (
+              <>{newStart?.replace(/-/g, '/') || '—'} ~ {newDue?.replace(/-/g, '/') || '—'}</>
+            ) : <DatePlaceholder>기간 선택</DatePlaceholder>}
+          </DateTrigger>
+          {datePickerOpen && (
+            <CalendarPicker
+              isOpen={datePickerOpen}
+              anchorRef={dateAnchorRef}
+              startDate={newStart}
+              endDate={newDue || newStart}
+              onRangeSelect={(s, e) => { setNewStart(s || ''); setNewDue(e || ''); }}
+              onClose={() => setDatePickerOpen(false)}
+            />
+          )}
+        </AddOptField>
+        <AddOptField style={{ flex: '0 0 80px' }}>
+          <AddOptLabel>예측(h)</AddOptLabel>
+          <AddDateInput type="number" step="0.5" min="0" value={newEst} onChange={e => setNewEst(e.target.value)} />
+        </AddOptField>
+      </AddOptRow>
+      <AddBtnRow>
+        <CancelBtn type="button" onClick={() => { setAdding(null); resetNew(); }}>취소</CancelBtn>
+        <SaveBtn type="button" onClick={submit} disabled={submitting || !newTitle.trim()}>
+          {submitting ? '저장 중...' : '추가'}
+        </SaveBtn>
+      </AddBtnRow>
+    </AddForm>
+  );
 
   return (
     <Wrap>
@@ -104,134 +186,115 @@ const TasksTab: React.FC<Props> = ({ projectId, businessId, tasks, onRefresh }) 
           <ViewBtn $active={view === 'timeline'} onClick={() => setView('timeline')}>타임라인</ViewBtn>
           <ViewBtn $active={view === 'calendar'} onClick={() => setView('calendar')}>캘린더</ViewBtn>
         </ViewTabs>
-        <AddTaskBtn type="button" onClick={() => setAdding(v => !v)}>{adding ? '취소' : '+ 업무 추가'}</AddTaskBtn>
+        <AddTaskBtn type="button" onClick={() => setAdding(adding === 'top' ? null : 'top')}>{adding === 'top' ? '취소' : '+ 업무 추가'}</AddTaskBtn>
       </Toolbar>
-
-      {adding && (
-        <AddForm>
-          <AddInput autoFocus placeholder="업무명 (Ctrl+Enter 저장)" value={newTitle}
-            onChange={e => setNewTitle(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); submit(); } if (e.key === 'Escape') { setAdding(false); resetNew(); } }} />
-          <AddOptRow>
-            <AddOptField>
-              <AddOptLabel>담당자</AddOptLabel>
-              <PlanQSelect size="sm" isClearable
-                placeholder="담당자: 나"
-                value={newAssignee == null ? null : { value: String(newAssignee), label: members.find(m => m.user_id === newAssignee)?.name || String(newAssignee) }}
-                onChange={v => setNewAssignee((v as { value?: string } | null)?.value ? Number((v as { value: string }).value) : null)}
-                options={members.map(m => ({ value: String(m.user_id), label: m.name + (m.user_id === myId ? ' (나)' : '') }))} />
-            </AddOptField>
-            <AddOptField style={{ flex: '1 1 240px' }}>
-              <AddOptLabel>기간</AddOptLabel>
-              <DateTrigger ref={dateAnchorRef} type="button" onClick={() => setDatePickerOpen(v => !v)}>
-                {(newStart || newDue) ? (
-                  <>{newStart?.replace(/-/g, '/') || '—'} ~ {newDue?.replace(/-/g, '/') || '—'}</>
-                ) : <DatePlaceholder>기간 선택</DatePlaceholder>}
-              </DateTrigger>
-              {datePickerOpen && (
-                <CalendarPicker
-                  isOpen={datePickerOpen}
-                  anchorRef={dateAnchorRef}
-                  startDate={newStart}
-                  endDate={newDue || newStart}
-                  onRangeSelect={(s, e) => { setNewStart(s || ''); setNewDue(e || ''); }}
-                  onClose={() => setDatePickerOpen(false)}
-                />
-              )}
-            </AddOptField>
-            <AddOptField style={{ flex: '0 0 80px' }}>
-              <AddOptLabel>예측(h)</AddOptLabel>
-              <AddDateInput type="number" step="0.5" min="0" value={newEst} onChange={e => setNewEst(e.target.value)} />
-            </AddOptField>
-          </AddOptRow>
-          <AddBtnRow>
-            <CancelBtn type="button" onClick={() => { setAdding(false); resetNew(); }}>취소</CancelBtn>
-            <SaveBtn type="button" onClick={submit} disabled={submitting || !newTitle.trim()}>
-              {submitting ? '저장 중...' : '추가'}
-            </SaveBtn>
-          </AddBtnRow>
-        </AddForm>
-      )}
 
       {view === 'split' && (
         <TableWrap>
           <ProjectTaskList tasks={sorted} members={members} businessId={businessId} myId={myId}
-            onOpen={(id) => navigate(`/tasks?task=${id}`)} onLocalUpdate={onLocalUpdate}
+            onOpen={openDetail} onLocalUpdate={onLocalUpdate}
             showTimeline />
         </TableWrap>
       )}
       {view === 'list' && (
         <TableWrap>
           <ProjectTaskList tasks={sorted} members={members} businessId={businessId} myId={myId}
-            onOpen={(id) => navigate(`/tasks?task=${id}`)} onLocalUpdate={onLocalUpdate} />
+            onOpen={openDetail} onLocalUpdate={onLocalUpdate} />
         </TableWrap>
       )}
-      {view === 'timeline' && <TimelineView tasks={sorted} onOpen={(id) => navigate(`/tasks?task=${id}`)} />}
-      {view === 'calendar' && <CalendarView tasks={sorted} onOpen={(id) => navigate(`/tasks?task=${id}`)} />}
+      {view === 'timeline' && <TimelineView tasks={sorted} onOpen={openDetail} todayStr={todayStr} myId={myId} />}
+      {view === 'calendar' && <CalendarView tasks={sorted} onOpen={openDetail} todayStr={todayStr} myId={myId} />}
 
-      {/* 좌측 하단 간이 추가 버튼 (Q Task 패턴) */}
-      <BottomAddBtn type="button" onClick={() => setAdding(true)}>+ 업무 추가</BottomAddBtn>
+      {/* 하단 간이 추가 — 글자만 좌측정렬. 클릭 시 하단에 폼이 뜸 (표와 간격 유지) */}
+      {adding === 'bottom'
+        ? <BottomAddSlot>{renderAddForm()}</BottomAddSlot>
+        : <BottomAddLink type="button" onClick={() => setAdding('bottom')}>+ 업무 추가</BottomAddLink>}
+
+      {/* 상단 버튼 → 우측 오버레이 드로어 (Q Task 패턴). Backdrop 클릭 시 닫힘. */}
+      {adding === 'top' && (<>
+        <AddBackdrop onClick={() => { setAdding(null); resetNew(); }} />
+        <AddDrawer>
+          <AddDrawerHeader>
+            <AddDrawerTitle>+ 업무 추가</AddDrawerTitle>
+            <AddDrawerClose onClick={() => { setAdding(null); resetNew(); }} aria-label="닫기">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </AddDrawerClose>
+          </AddDrawerHeader>
+          <AddDrawerBody>
+            {renderAddForm()}
+          </AddDrawerBody>
+        </AddDrawer>
+      </>)}
+
+      {detailTaskId && (
+        <TaskDetailDrawer
+          taskId={detailTaskId}
+          bizId={businessId}
+          myId={myId}
+          todayStr={todayStr}
+          members={members.map(m => ({ user_id: m.user_id, name: m.name }))}
+          width={drawerWidth}
+          onWidthChange={(w) => { setDrawerWidth(w); try { localStorage.setItem('qtask_drawer_width', String(w)); } catch { /* ignore */ } }}
+          onClose={closeDetail}
+          onPatch={(patch) => onLocalUpdate(patch.id, patch as Partial<TaskRow>)}
+          onRefresh={onRefresh}
+        />
+      )}
     </Wrap>
   );
 };
 
 
-// ─── Timeline (간트) view ───
-const TimelineView: React.FC<{ tasks: TaskRow[]; onOpen: (id: number) => void; }> = ({ tasks, onOpen }) => {
+// ─── Timeline (간트) view — GanttTrack 공용 프리미티브 ───
+const TimelineView: React.FC<{ tasks: TaskRow[]; onOpen: (id: number) => void; todayStr: string; myId: number; }> = ({ tasks, onOpen, todayStr, myId }) => {
   const tasksWithDates = tasks.filter(t => t.start_date || t.due_date);
+  const gantt = useGanttScrollSync();
+  const { t: tr } = useTranslation('qtask');
   if (tasksWithDates.length === 0) return <EmptyBox>기간이 설정된 업무가 없습니다. 시작일/마감일을 지정하세요.</EmptyBox>;
 
-  // 범위 계산
   const dates = tasksWithDates.flatMap(t => [t.start_date, t.due_date].filter(Boolean) as string[]).map(d => d.slice(0, 10));
-  const minD = dates.reduce((a, b) => (a < b ? a : b));
-  const maxD = dates.reduce((a, b) => (a > b ? a : b));
-  const minTime = new Date(minD).getTime();
-  const maxTime = new Date(maxD).getTime();
-  const totalDays = Math.max(1, Math.round((maxTime - minTime) / 86400000) + 1);
-
-  const pct = (dateStr: string) => {
-    const t = new Date(dateStr.slice(0, 10)).getTime();
-    return ((t - minTime) / 86400000 / totalDays) * 100;
-  };
-
-  // 주요 날짜 눈금 (약 6개)
-  const ticks: string[] = [];
-  const step = Math.ceil(totalDays / 6);
-  for (let i = 0; i <= totalDays; i += step) {
-    const d = new Date(minTime + i * 86400000);
-    ticks.push(d.toISOString().slice(0, 10));
-  }
+  const from = dates.reduce((a, b) => (a < b ? a : b));
+  const to = dates.reduce((a, b) => (a > b ? a : b));
+  const range = { from, to };
 
   return (
     <TLWrap>
-      <TLHead>
-        {ticks.map((d, i) => (<TLTick key={i} style={{ left: `${((new Date(d).getTime() - minTime) / 86400000 / totalDays) * 100}%` }}>{d.slice(5).replace('-', '/')}</TLTick>))}
-      </TLHead>
-      <TLBody>
-        {tasksWithDates.map(t => {
-          const s = t.start_date || t.due_date!;
-          const e = t.due_date || t.start_date!;
-          const left = pct(s);
-          const width = Math.max(2, pct(e) - pct(s) + (2 / totalDays) * 100);
-          const color = STATUS_LABEL[t.status]?.color || '#14B8A6';
-          return (
-            <TLRow key={t.id} onClick={() => onOpen(t.id)}>
-              <TLLabel>{t.title}</TLLabel>
-              <TLTrack>
-                <TLBar style={{ left: `${left}%`, width: `${width}%`, background: color }}>
-                  <TLBarLabel>{t.assignee?.name || ''}</TLBarLabel>
-                </TLBar>
-              </TLTrack>
-            </TLRow>
-          );
-        })}
-      </TLBody>
+      <TLHeadRow>
+        <TLLabelCol />
+        <GanttHeader registry={gantt} range={range} tickMode="auto" />
+      </TLHeadRow>
+      {tasksWithDates.map(task => {
+        const dStatus = displayStatus(task, todayStr);
+        const sc = STATUS_COLOR[dStatus as StatusCode] || STATUS_COLOR.not_started;
+        const role = primaryPerspective(getRoles(task, myId));
+        const statusLabel = getStatusLabel(task, role, todayStr, (k, f) => tr(k, f || k));
+        const prog = task.progress_percent || 0;
+        return (
+          <TLRow key={task.id}>
+            <TLLabelCol onClick={() => onOpen(task.id)}>
+              <TLTitle>{task.title}</TLTitle>
+              <TLMeta>
+                <StatusPillSm $bg={sc.bg} $fg={sc.fg}>{statusLabel}</StatusPillSm>
+                {task.assignee?.name && <TLAssignee>{task.assignee.name}</TLAssignee>}
+                <TLProgress>{prog}%</TLProgress>
+              </TLMeta>
+            </TLLabelCol>
+            <GanttRowTrack registry={gantt} range={range} todayStr={todayStr} showGrid height={24}>
+              <GanttBar range={range} start={task.start_date} end={task.due_date}
+                bg={sc.bg} fg={sc.fg} label={task.assignee?.name || ''}
+                onClick={(e) => { e.stopPropagation(); onOpen(task.id); }}
+                title={`${task.start_date?.slice(0,10) || ''} ~ ${task.due_date?.slice(0,10) || ''}`} />
+            </GanttRowTrack>
+          </TLRow>
+        );
+      })}
     </TLWrap>
   );
 };
 
 // ─── Calendar view ───
-const CalendarView: React.FC<{ tasks: TaskRow[]; onOpen: (id: number) => void; }> = ({ tasks, onOpen }) => {
+const CalendarView: React.FC<{ tasks: TaskRow[]; onOpen: (id: number) => void; todayStr: string; myId: number; }> = ({ tasks, onOpen, todayStr, myId }) => {
+  const { t: tr } = useTranslation('qtask');
   const [anchorDate, setAnchorDate] = useState(new Date());
   const year = anchorDate.getFullYear();
   const month = anchorDate.getMonth();
@@ -273,12 +336,18 @@ const CalendarView: React.FC<{ tasks: TaskRow[]; onOpen: (id: number) => void; }
           <CalCell key={i} $off={!d} $today={!!d && fmt(d) === today}>
             {d && <>
               <CalDate>{d.getDate()}</CalDate>
-              {(tasksByDate[fmt(d)] || []).slice(0, 3).map(t => (
-                <CalTaskDot key={t.id} onClick={() => onOpen(t.id)} title={t.title}
-                  style={{ background: STATUS_LABEL[t.status]?.color || '#14B8A6' }}>
-                  {t.title.length > 12 ? t.title.slice(0, 12) + '…' : t.title}
-                </CalTaskDot>
-              ))}
+              {(tasksByDate[fmt(d)] || []).slice(0, 3).map(task => {
+                const dStatus = displayStatus(task, todayStr);
+                const sc = STATUS_COLOR[dStatus as StatusCode] || STATUS_COLOR.not_started;
+                const role = primaryPerspective(getRoles(task, myId));
+                const statusLabel = getStatusLabel(task, role, todayStr, (k, f) => tr(k, f || k));
+                return (
+                  <CalTaskDot key={task.id} onClick={() => onOpen(task.id)} title={`${task.title} · ${statusLabel}`}
+                    style={{ background: sc.bg, color: sc.fg, borderLeft: `3px solid ${sc.fg}` }}>
+                    {task.title.length > 11 ? task.title.slice(0, 11) + '…' : task.title}
+                  </CalTaskDot>
+                );
+              })}
               {(tasksByDate[fmt(d)] || []).length > 3 && <CalMore>+{(tasksByDate[fmt(d)] || []).length - 3}</CalMore>}
             </>}
           </CalCell>
@@ -312,19 +381,35 @@ const SaveBtn = styled.button`padding:6px 14px;background:#14B8A6;color:#FFF;bor
 const DateTrigger = styled.button`width:100%;height:32px;padding:0 10px;border:1px solid #E2E8F0;border-radius:6px;font-size:12px;color:#0F172A;background:#FFF;font-family:inherit;text-align:left;cursor:pointer;&:hover{border-color:#14B8A6;}`;
 const DatePlaceholder = styled.span`color:#94A3B8;`;
 const TableWrap = styled.div`background:#FFF;border:1px solid #E2E8F0;border-radius:8px;overflow:hidden;`;
-const BottomAddBtn = styled.button`margin-top:14px;padding:8px 14px;background:transparent;color:#94A3B8;border:1px dashed #E2E8F0;border-radius:8px;font-size:13px;font-weight:500;cursor:pointer;width:100%;&:hover{border-color:#14B8A6;color:#0F766E;background:#F0FDFA;}`;
+const BottomAddLink = styled.button`margin-top:10px;padding:8px 14px;background:transparent;color:#94A3B8;border:none;font-size:13px;font-weight:500;cursor:pointer;text-align:left;display:block;font-family:inherit;&:hover{color:#0F766E;}`;
+const BottomAddSlot = styled.div`margin-top:16px;`;
+const AddBackdrop = styled.div`
+  position:fixed;inset:0;background:rgba(15,23,42,0.12);z-index:39;
+  animation:pqFadeIn 0.15s ease-out;
+  @keyframes pqFadeIn{from{opacity:0;}to{opacity:1;}}
+`;
+const AddDrawer = styled.aside`
+  position:fixed;top:0;right:0;bottom:0;width:520px;max-width:100vw;background:#FFF;border-left:1px solid #E2E8F0;
+  box-shadow:-12px 0 28px rgba(15,23,42,0.08);display:flex;flex-direction:column;overflow:hidden;z-index:40;
+  animation:pqSlideIn 0.18s ease-out;
+  @keyframes pqSlideIn{from{transform:translateX(40px);opacity:0.6;}to{transform:translateX(0);opacity:1;}}
+`;
+const AddDrawerHeader = styled.div`height:60px;padding:14px 20px;border-bottom:1px solid #E2E8F0;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;`;
+const AddDrawerTitle = styled.h2`font-size:14px;font-weight:700;color:#0F172A;margin:0;`;
+const AddDrawerClose = styled.button`width:28px;height:28px;display:flex;align-items:center;justify-content:center;background:transparent;border:none;border-radius:6px;color:#64748B;cursor:pointer;&:hover{background:#F1F5F9;color:#0F172A;}`;
+const AddDrawerBody = styled.div`flex:1;overflow-y:auto;padding:16px;`;
 const EmptyBox = styled.div`padding:40px;text-align:center;color:#94A3B8;font-size:13px;background:#FFF;border:1px solid #E2E8F0;border-radius:8px;`;
 
 // Timeline
-const TLWrap = styled.div`background:#FFF;border:1px solid #E2E8F0;border-radius:8px;padding:12px;`;
-const TLHead = styled.div`position:relative;height:24px;margin-left:200px;border-bottom:1px solid #E2E8F0;margin-bottom:8px;`;
-const TLTick = styled.span`position:absolute;top:4px;font-size:10px;color:#94A3B8;transform:translateX(-50%);`;
-const TLBody = styled.div`display:flex;flex-direction:column;gap:4px;`;
-const TLRow = styled.div`display:flex;align-items:center;gap:8px;padding:4px 0;cursor:pointer;&:hover{background:#F8FAFC;}`;
-const TLLabel = styled.div`width:192px;font-size:12px;color:#0F172A;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;`;
-const TLTrack = styled.div`flex:1;position:relative;height:24px;background:#F8FAFC;border-radius:4px;`;
-const TLBar = styled.div`position:absolute;top:2px;bottom:2px;border-radius:4px;display:flex;align-items:center;padding:0 6px;min-width:4px;overflow:hidden;`;
-const TLBarLabel = styled.span`font-size:10px;color:#FFF;font-weight:600;white-space:nowrap;`;
+const TLWrap = styled.div`background:#FFF;border:1px solid #E2E8F0;border-radius:8px;padding:12px;display:flex;flex-direction:column;gap:4px;`;
+const TLHeadRow = styled.div`display:flex;align-items:center;gap:8px;border-bottom:1px solid #E2E8F0;padding-bottom:6px;margin-bottom:4px;`;
+const TLLabelCol = styled.div`width:220px;flex-shrink:0;display:flex;flex-direction:column;gap:3px;padding:2px 8px 2px 0;cursor:pointer;min-height:22px;&:hover > *:first-child{color:#0F766E;}`;
+const TLTitle = styled.div`font-size:12px;font-weight:600;color:#0F172A;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;`;
+const TLMeta = styled.div`display:flex;align-items:center;gap:6px;font-size:10px;color:#94A3B8;`;
+const StatusPillSm = styled.span<{ $bg:string; $fg:string }>`padding:1px 6px;background:${p=>p.$bg};color:${p=>p.$fg};font-size:9px;font-weight:600;border-radius:6px;`;
+const TLAssignee = styled.span`color:#64748B;`;
+const TLProgress = styled.span`font-weight:600;color:#475569;margin-left:auto;`;
+const TLRow = styled.div`display:flex;align-items:center;gap:8px;padding:4px 0;&:hover{background:#F8FAFC;}`;
 
 // Calendar
 const CalWrap = styled.div`background:#FFF;border:1px solid #E2E8F0;border-radius:8px;padding:12px;`;
@@ -335,5 +420,5 @@ const CalGrid = styled.div`display:grid;grid-template-columns:repeat(7,1fr);gap:
 const CalDow = styled.div`background:#F8FAFC;padding:8px;font-size:11px;font-weight:700;color:#64748B;text-align:center;`;
 const CalCell = styled.div<{$off?:boolean;$today?:boolean}>`background:${p=>p.$off?'#FAFBFC':p.$today?'#F0FDFA':'#FFF'};min-height:80px;padding:4px;display:flex;flex-direction:column;gap:2px;`;
 const CalDate = styled.div`font-size:11px;font-weight:600;color:#475569;margin-bottom:2px;`;
-const CalTaskDot = styled.div`padding:1px 4px;border-radius:3px;color:#FFF;font-size:10px;font-weight:600;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;&:hover{opacity:0.8;}`;
+const CalTaskDot = styled.div`padding:2px 6px;border-radius:4px;font-size:10px;font-weight:600;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;&:hover{filter:brightness(0.95);}`;
 const CalMore = styled.div`font-size:10px;color:#94A3B8;padding-left:4px;`;

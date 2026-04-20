@@ -7,6 +7,7 @@ import {
 import { useAuth } from '../../contexts/AuthContext';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 import LetterAvatar from '../../components/Common/LetterAvatar';
+import EmptyState from '../../components/Common/EmptyState';
 
 interface Props {
   project: MockProject | null;
@@ -27,6 +28,7 @@ interface Props {
   onToggleLeft: () => void;
   onToggleRight: () => void;
   onFocusCandidates?: () => void;
+  onOpenNewProject?: () => void;
 }
 
 const ChatPanel: React.FC<Props> = ({
@@ -34,7 +36,7 @@ const ChatPanel: React.FC<Props> = ({
   onOpenExtract, onSendMessage, onCueDraftSend, onCueDraftReject,
   onToggleAutoExtract, onRenameConversation,
   candidatesCount, extracting, leftCollapsed, rightCollapsed, onToggleLeft, onToggleRight,
-  onFocusCandidates,
+  onFocusCandidates, onOpenNewProject,
 }) => {
   const { t } = useTranslation('qtalk');
   const { user } = useAuth();
@@ -225,13 +227,27 @@ const ChatPanel: React.FC<Props> = ({
   if (!project) {
     return (
       <Container>
-        <EmptyState>
-          <EmptyIcon viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-          </EmptyIcon>
-          <EmptyTitle>{t('chat.noProject', '프로젝트를 선택하세요')}</EmptyTitle>
-          <EmptyDesc>{t('chat.noProjectDesc', '좌측 리스트에서 프로젝트를 선택하거나 새 프로젝트를 생성하세요.')}</EmptyDesc>
-        </EmptyState>
+        <EmptyState
+          icon={
+            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+            </svg>
+          }
+          title={t('chat.noProject', '대화를 시작해 보세요')}
+          description={<>
+            {t('chat.noProjectLine1', '실시간 채팅, 업무 관리, 프로젝트 연동을 위한')}
+            <br />
+            {t('chat.noProjectLine2', '대화채널을 만들어드립니다.')}
+          </>}
+          ctaLabel={onOpenNewProject ? t('chat.noProjectCta', '새 대화 시작') : undefined}
+          ctaIcon={
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+              <line x1="12" y1="5" x2="12" y2="19" />
+              <line x1="5" y1="12" x2="19" y2="12" />
+            </svg>
+          }
+          onCta={onOpenNewProject}
+        />
       </Container>
     );
   }
@@ -255,9 +271,15 @@ const ChatPanel: React.FC<Props> = ({
             </HeaderTitleBlock>
           </HeaderLeft>
         </HeaderBar>
-        <EmptyState>
-          <EmptyTitle>{t('chat.noChannel', '대화 채널이 없습니다')}</EmptyTitle>
-        </EmptyState>
+        <EmptyState
+          icon={
+            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+            </svg>
+          }
+          title={t('chat.noChannel', '대화 채널이 없습니다')}
+          description={t('chat.noChannelDesc', '좌측에서 채널을 선택하거나 새 채널을 만드세요.')}
+        />
       </Container>
     );
   }
@@ -351,9 +373,7 @@ const ChatPanel: React.FC<Props> = ({
       {/* 메시지 흐름 */}
       <MessageList ref={messageListRef} onScroll={handleScrollSave}>
         {convMessages.length === 0 && (
-          <EmptyState>
-            <EmptyTitle>{t('chat.noMessages', '첫 메시지를 보내세요')}</EmptyTitle>
-          </EmptyState>
+          <NoMsgBox>{t('chat.noMessages', '첫 메시지를 보내세요')}</NoMsgBox>
         )}
         {convMessages.map((m) => (
           <MessageItem key={m.id} data-msg-id={m.id}>
@@ -763,37 +783,13 @@ const MessageList = styled.div`
   display: flex;
   flex-direction: column;
   gap: 16px;
+  background: #F8FAFC;
   &::-webkit-scrollbar { width: 6px; }
   &::-webkit-scrollbar-thumb { background: #E2E8F0; border-radius: 3px; }
 `;
 
-const EmptyState = styled.div`
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 60px 20px;
-  text-align: center;
-`;
-
-const EmptyIcon = styled.svg`
-  width: 56px;
-  height: 56px;
-  color: #CBD5E1;
-  margin-bottom: 16px;
-`;
-
-const EmptyTitle = styled.div`
-  font-size: 15px;
-  font-weight: 600;
-  color: #475569;
-  margin-bottom: 6px;
-`;
-
-const EmptyDesc = styled.div`
-  font-size: 13px;
-  color: #94A3B8;
+const NoMsgBox = styled.div`
+  padding: 40px 20px; text-align: center; color: #94A3B8; font-size: 13px;
 `;
 
 const MessageItem = styled.div`

@@ -34,5 +34,16 @@
     "start": "시작",
     "end": "마감",
     "sun": "일", "mon": "월", "tue": "화", "wed": "수", "thu": "목", "fri": "금", "sat": "토"
+  },
+  "section": {
+    "members": "프로젝트 멤버"
+  },
+  "members": {
+    "empty": "멤버가 없습니다",
+    "add": "멤버 추가",
+    "remove": "제거",
+    "cancel": "취소",
+    "owner": "오너",
+    "noCandidates": "추가 가능한 워크스페이스 멤버가 없습니다"
   }
 }

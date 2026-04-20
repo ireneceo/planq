@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { io, type Socket } from 'socket.io-client';
@@ -6,6 +7,7 @@ import LeftPanel from './LeftPanel';
 import ChatPanel from './ChatPanel';
 import RightPanel from './RightPanel';
 import NewProjectModal, { type ProjectFormData } from './NewProjectModal';
+import NewChatModal, { type NewChatFormData } from './NewChatModal';
 import {
   type MockTaskCandidate, type MockMessage, type MockProject,
   type MockConversation, type MockTask, type MockNote, type MockIssue,
@@ -158,8 +160,27 @@ const QTalkPage: React.FC = () => {
   const [issues, setIssues] = useState<MockIssue[]>([]);
   const [candidates, setCandidates] = useState<MockTaskCandidate[]>([]);
 
-  const [activeProjectId, setActiveProjectId] = useState<number | null>(null);
-  const [activeConversationId, setActiveConversationId] = useState<number | null>(null);
+  const location = useLocation();
+  const navigate = useNavigate();
+  // URL ?project=:pid&conv=:cid — 채팅방 단위 공유/북마크 가능
+  const initialParams = new URLSearchParams(location.search);
+  const initialProject = Number(initialParams.get('project')) || null;
+  const initialConv = Number(initialParams.get('conv')) || null;
+  const [activeProjectId, setActiveProjectId] = useState<number | null>(initialProject);
+  const [activeConversationId, setActiveConversationId] = useState<number | null>(initialConv);
+
+  // 선택 상태 → URL 싱크. state 변경을 단일 소스로 유지.
+  useEffect(() => {
+    const sp = new URLSearchParams(location.search);
+    if (activeProjectId) sp.set('project', String(activeProjectId)); else sp.delete('project');
+    if (activeConversationId) sp.set('conv', String(activeConversationId)); else sp.delete('conv');
+    const qs = sp.toString();
+    const next = qs ? `${location.pathname}?${qs}` : location.pathname;
+    if (next !== `${location.pathname}${location.search}`) {
+      navigate(next, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeProjectId, activeConversationId]);
 
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -172,6 +193,7 @@ const QTalkPage: React.FC = () => {
   });
 
   const [modalOpen, setModalOpen] = useState(false);
+  const [chatModalOpen, setChatModalOpen] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
 
   const showNotice = useCallback((msg: string) => {
@@ -291,11 +313,12 @@ const QTalkPage: React.FC = () => {
         const mapped = list.map(apiProjectToMock);
         setProjects(mapped);
         if (mapped.length > 0) {
-          // URL query param ?project=ID 로 들어오면 해당 프로젝트 선택 (Q Project 페이지에서 드릴다운)
+          // URL ?project=ID 가 있을 때만 선택. 기본 자동 선택 X — 빈 상태(대화 시작하기) 를 보여줘야 함
           const params = new URLSearchParams(window.location.search);
           const qpid = Number(params.get('project'));
-          const target = qpid && mapped.some((p) => p.id === qpid) ? qpid : mapped[0].id;
-          setActiveProjectId((prev) => prev ?? target);
+          if (qpid && mapped.some((p) => p.id === qpid)) {
+            setActiveProjectId((prev) => prev ?? qpid);
+          }
           // 좌측 리스트 채우기 — 모든 프로젝트의 대화를 병렬로 로드 (상단 표시용)
           (async () => {
             try {
@@ -409,11 +432,18 @@ const QTalkPage: React.FC = () => {
     });
   };
 
+  // 같은 대화를 재클릭하면 선택 해제 (토글). 통일된 UX 원칙 — CLAUDE.md 참조.
   const handleSelectConversation = (projectId: number, conversationId: number) => {
+    if (activeConversationId === conversationId) {
+      setActiveConversationId(null);
+      return;
+    }
     setActiveProjectId(projectId);
     setActiveConversationId(conversationId);
   };
-  const handleSelectChannel = (conversationId: number) => setActiveConversationId(conversationId);
+  const handleSelectChannel = (conversationId: number) => {
+    setActiveConversationId(prev => prev === conversationId ? null : conversationId);
+  };
 
   // ── 프로젝트 생성 ──
   const handleCreateProject = async (data: ProjectFormData) => {
@@ -438,6 +468,28 @@ const QTalkPage: React.FC = () => {
       showNotice(`프로젝트 "${mapped.name}" 생성됨`);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : '프로젝트 생성 실패';
+      showNotice(`생성 실패: ${msg}`);
+    }
+  };
+
+  // ── 새 대화 생성 ──
+  const handleCreateChat = async (data: NewChatFormData) => {
+    if (!businessId) return;
+    try {
+      const conv = await qtalkApi.createConversation({
+        business_id: businessId,
+        title: data.title,
+        project_id: data.project_id,
+        participant_user_ids: data.participant_user_ids,
+      });
+      const mapped = apiConversationToMock(conv);
+      setConversations((prev) => [mapped, ...prev.filter((c) => c.id !== mapped.id)]);
+      if (conv.project_id) setActiveProjectId(conv.project_id);
+      setActiveConversationId(conv.id);
+      setChatModalOpen(false);
+      showNotice(`대화 "${conv.title}" 생성됨`);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : '대화 생성 실패';
       showNotice(`생성 실패: ${msg}`);
     }
   };
@@ -659,6 +711,7 @@ const QTalkPage: React.FC = () => {
         activeConversationId={activeConversationId}
         onSelectConversation={handleSelectConversation}
         onOpenNewProject={() => setModalOpen(true)}
+        onOpenNewChat={() => setChatModalOpen(true)}
         collapsed={leftCollapsed}
         onToggleCollapsed={toggleLeft}
       />
@@ -680,6 +733,7 @@ const QTalkPage: React.FC = () => {
         rightCollapsed={rightCollapsed}
         onToggleLeft={toggleLeft}
         onToggleRight={toggleRight}
+        onOpenNewProject={() => setChatModalOpen(true)}
         onFocusCandidates={() => {
           if (rightCollapsed) setRightCollapsed(false);
           // 다음 tick 에 우측 패널의 candidates 섹션으로 스크롤
@@ -717,6 +771,14 @@ const QTalkPage: React.FC = () => {
         open={modalOpen}
         onClose={() => setModalOpen(false)}
         onCreate={handleCreateProject}
+      />
+
+      <NewChatModal
+        businessId={businessId || 0}
+        open={chatModalOpen && !!businessId}
+        preselectedProjectId={activeProjectId}
+        onClose={() => setChatModalOpen(false)}
+        onCreate={handleCreateChat}
       />
 
       {notice && (

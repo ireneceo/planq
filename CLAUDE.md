@@ -364,6 +364,36 @@ import PanelHeader, { PanelTitle, PanelSubTitle, PanelMetaTitle } from 'componen
 - 컴포넌트: `src/components/Common/AutoSaveField.tsx`
 - 상세: `dev-frontend/UI_DESIGN_GUIDE.md` 섹션 7
 
+## 반응형 기본 원칙 (신규 코드 작성 시)
+
+본격 반응형 스프린트는 기능 완성 후 진행 예정이지만, **신규 컴포넌트는 아래 3원칙을 지켜 작성**해야 나중 리팩토링 비용이 줄어든다.
+
+1. **고정 px 폭 지양** — `width: 420px` 대신 `max-width`, `flex`, `minmax()` 사용. 불가피하게 고정이 필요하면 `dev-frontend/src/theme/breakpoints.ts` 의 미디어쿼리 토큰으로 모바일 축소 규칙을 같이 작성.
+2. **아이콘 버튼 최소 36×36** — 하단 44까지 확장 가능하도록 여백 확보. 현재 타겟은 36, Phase 5 에서 44 로 일괄 상향.
+3. **인라인 `style={{ width: '...' }}` 금지** — styled-components 또는 props 로 관리. 미디어쿼리가 끼어들 틈을 남겨둘 것.
+
+토큰:
+```ts
+import { mediaPhone, mediaTablet, BP } from 'theme/breakpoints';
+// phone: <=640 / tablet: <=1024 / desktop: >=1025
+```
+
+## UI 규칙 — 리스트 재클릭 토글
+
+**"선택된 항목을 다시 클릭하면 선택 해제"** — 리스트/드로어/탭 모두 공통.
+
+- Q Talk 대화방, Q Note 세션, Q Task 업무 드로어, Q Project 업무 드로어, Q Task 리스트 행, 카드 — 모두 동일 패턴 적용
+- 구현 원칙: 선택 핸들러 진입부에서 `active === clickedId` 검사 후 해제
+- URL 싱크된 상세(drawer) 도 같이: `closeDetail()` 호출해 `?task=` 파라미터 제거
+- 장기적으로 신규 리스트/상세 컴포넌트 추가 시 이 규칙을 먼저 적용
+
+```ts
+const handleSelect = (id) => {
+  if (activeId === id) { setActiveId(null); return; } // 토글 해제
+  setActiveId(id);
+};
+```
+
 ## UI 규칙 — 액션 버튼 / 중복 제출 / URL 싱크
 
 - **액션 버튼 3톤** (Primary / Secondary / Danger)만 사용. 상태 색을 버튼 배경에 칠하지 말 것. `UI_DESIGN_GUIDE.md` 섹션 1.7.

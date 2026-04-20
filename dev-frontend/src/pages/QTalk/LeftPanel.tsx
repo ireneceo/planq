@@ -12,11 +12,11 @@ interface Props {
   activeConversationId: number | null;
   onSelectConversation: (projectId: number, conversationId: number) => void;
   onOpenNewProject: () => void;
+  onOpenNewChat?: () => void;
   collapsed: boolean;
   onToggleCollapsed: () => void;
 }
 
-type Filter = 'all' | 'unread' | 'mine';
 
 // 대화 + 프로젝트 join — flat list 구조
 interface ChatEntry {
@@ -26,29 +26,42 @@ interface ChatEntry {
 
 const LeftPanel: React.FC<Props> = ({
   projects, conversations, activeConversationId,
-  onSelectConversation, onOpenNewProject, collapsed, onToggleCollapsed,
+  onSelectConversation, onOpenNewProject, onOpenNewChat, collapsed, onToggleCollapsed,
 }) => {
   const { t } = useTranslation('qtalk');
   const { user } = useAuth();
   const isClient = user?.business_role === 'client';
-  const [filter, setFilter] = useState<Filter>('all');
   const [query, setQuery] = useState('');
 
-  // 프로젝트를 돌며 그 프로젝트에 속한 대화를 모두 펼쳐서 1차원 리스트로
+  // 프로젝트 대화 + 프로젝트 없는 일반 대화를 순서대로 1차원 리스트화.
+  // 일반 대화는 project 자리에 null 을 둬서 렌더 시 "일반 대화" 라벨로 처리.
   const chats = useMemo<ChatEntry[]>(() => {
     const result: ChatEntry[] = [];
     for (const p of projects) {
       const convs = conversations
         .filter((c) => c.project_id === p.id)
-        .filter((c) => !isClient || c.channel_type !== 'internal'); // 고객은 internal 숨김
+        .filter((c) => !isClient || c.channel_type !== 'internal');
       for (const c of convs) result.push({ conversation: c, project: p });
+    }
+    // 일반 대화 (project_id 없음)
+    const standalone = conversations
+      .filter((c) => !c.project_id)
+      .filter((c) => !isClient || c.channel_type !== 'internal');
+    for (const c of standalone) {
+      result.push({
+        conversation: c,
+        project: {
+          id: -1, business_id: 0, name: '일반 대화', client_company: '',
+          has_cue_activity: false, unread_count: 0,
+          // MockProject 의 나머지 필수 필드들은 방어 기본값
+        } as unknown as ChatEntry['project'],
+      });
     }
     return result;
   }, [projects, conversations, isClient]);
 
   const filteredChats = useMemo(() => {
     let list = chats;
-    if (filter === 'unread') list = list.filter((x) => x.conversation.unread_count > 0);
     if (query.trim()) {
       const q = query.trim().toLowerCase();
       list = list.filter((x) =>
@@ -59,7 +72,7 @@ const LeftPanel: React.FC<Props> = ({
       );
     }
     return list;
-  }, [chats, filter, query]);
+  }, [chats, query]);
 
   if (collapsed) {
     // 접힘 상태: 고유 프로젝트만 dedupe 해서 아이콘으로 표시
@@ -103,6 +116,13 @@ const LeftPanel: React.FC<Props> = ({
         <HeaderTop>
           <HeaderTitle>{t('left.title', 'Q talk')}</HeaderTitle>
           <HeaderActions>
+            {!isClient && onOpenNewChat && (
+              <IconBtn onClick={onOpenNewChat} title={t('left.newChat', '새 대화')} aria-label="New chat">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                </svg>
+              </IconBtn>
+            )}
             {!isClient && (
               <IconBtn onClick={onOpenNewProject} title={t('left.newProject', '새 프로젝트')} aria-label="New project">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -141,17 +161,6 @@ const LeftPanel: React.FC<Props> = ({
           )}
         </SearchBox>
 
-        <FilterRow>
-          <FilterBtn $active={filter === 'all'} onClick={() => setFilter('all')}>
-            {t('left.filter.all', '전체')}
-          </FilterBtn>
-          <FilterBtn $active={filter === 'unread'} onClick={() => setFilter('unread')}>
-            {t('left.filter.unread', '읽지 않음')}
-          </FilterBtn>
-          <FilterBtn $active={filter === 'mine'} onClick={() => setFilter('mine')}>
-            {t('left.filter.mine', '내 할일')}
-          </FilterBtn>
-        </FilterRow>
       </SearchSection>
 
       <ChatList>
@@ -345,27 +354,6 @@ const ClearBtn = styled.button`
   color: #94A3B8;
   cursor: pointer;
   &:hover { background: #E2E8F0; color: #475569; }
-`;
-
-const FilterRow = styled.div`
-  display: flex;
-  gap: 4px;
-`;
-
-const FilterBtn = styled.button<{ $active: boolean }>`
-  flex: 1;
-  padding: 5px 8px;
-  font-size: 11px;
-  font-weight: 600;
-  background: ${(p) => (p.$active ? '#0F172A' : 'transparent')};
-  color: ${(p) => (p.$active ? '#FFFFFF' : '#64748B')};
-  border: 1px solid ${(p) => (p.$active ? '#0F172A' : '#E2E8F0')};
-  border-radius: 6px;
-  cursor: pointer;
-  transition: all 0.1s;
-  &:hover {
-    ${(p) => !p.$active && 'border-color: #CBD5E1; color: #0F172A;'}
-  }
 `;
 
 const ChatList = styled.div`

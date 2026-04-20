@@ -37,6 +37,7 @@ import {
   ChevronUpIcon,
   ChevronDownIcon,
 } from '../../components/Common/Icons';
+import SharedEmptyState from '../../components/Common/EmptyState';
 
 /**
  * Q Note 페이지
@@ -524,6 +525,17 @@ const QNotePage = () => {
   // ── 세션 클릭 → status 기반 phase 결정 ─────────────────
   //   completed → review (리뷰 모드)
   //   그 외     → paused (이어서 녹음 가능)
+  // 리스트 재클릭 → 선택 해제 (토글). 통일된 UX 원칙.
+  const handleSessionClick = (sessionId: number) => {
+    if (activeSession?.id === sessionId) {
+      setActiveSession(null);
+      setPhase('empty');
+      navigate('/notes', { replace: true });
+      return;
+    }
+    openReview(sessionId);
+  };
+
   const openReview = async (sessionId: number) => {
     const _t0 = performance.now();
     // eslint-disable-next-line no-console
@@ -1720,7 +1732,9 @@ const QNotePage = () => {
           </NewSessionBtn>
         </SidebarHeader>
 
-        <SearchBox placeholder={t('page.sessionSearchPlaceholder')} />
+        <SearchWrap>
+          <SearchBox placeholder={t('page.sessionSearchPlaceholder')} />
+        </SearchWrap>
 
         <SessionList>
           {sessions.length === 0 && <EmptySessionMsg>{t('page.emptySessionList')}</EmptySessionMsg>}
@@ -1731,22 +1745,24 @@ const QNotePage = () => {
               session.status === 'paused' ? t('page.sessionStatus.paused') :
               session.status === 'completed' ? t('page.sessionStatus.completed') :
               session.status === 'prepared' ? t('page.sessionStatus.prepared') : t('page.sessionStatus.pending');
-            const statusColor =
-              session.status === 'recording' ? '#dc2626' :
-              session.status === 'paused' ? '#f59e0b' :
-              session.status === 'completed' ? '#64748b' :
-              session.status === 'prepared' ? '#0d9488' : '#94a3b8';
+            // Q Task 파스텔 pill 팔레트와 통일 (bg / fg 2톤)
+            const statusStyle: { bg: string; fg: string } =
+              session.status === 'recording' ? { bg: '#FEE2E2', fg: '#B91C1C' } :
+              session.status === 'paused' ? { bg: '#FEF3C7', fg: '#92400E' } :
+              session.status === 'completed' ? { bg: '#E2E8F0', fg: '#475569' } :
+              session.status === 'prepared' ? { bg: '#CCFBF1', fg: '#0F766E' } :
+              { bg: '#F1F5F9', fg: '#64748B' };
             const participants = session.participants || [];
             const participantNames = participants.map((p) => p.name).join(', ');
             return (
               <SessionItem
                 key={session.id}
                 $active={isActive}
-                onClick={() => openReview(session.id)}
+                onClick={() => handleSessionClick(session.id)}
               >
                 <SessionItemRow>
                   <SessionItemTitle>{session.title}</SessionItemTitle>
-                  <SessionStatusBadge style={{ color: statusColor, borderColor: statusColor }}>{statusLabel}</SessionStatusBadge>
+                  <SessionStatusBadge style={{ background: statusStyle.bg, color: statusStyle.fg }}>{statusLabel}</SessionStatusBadge>
                 </SessionItemRow>
                 <SessionItemMeta>
                   <span>{fmtWsDate(session.created_at)}</span>
@@ -1782,21 +1798,14 @@ const QNotePage = () => {
         </CollapseToggle>
 
         {phase === 'empty' && (
-          <EmptyState>
-            <EmptyIconWrap>
-              <MicIcon size={36} />
-            </EmptyIconWrap>
-            <EmptyTitle>{t('page.empty.title')}</EmptyTitle>
-            <EmptyDesc>
-              {t('page.empty.line1')}
-              <br />
-              {t('page.empty.line2')}
-            </EmptyDesc>
-            <EmptyBtn onClick={() => setShowStartModal(true)}>
-              <PlusIcon size={16} />
-              <span>{t('page.newMeetingStart')}</span>
-            </EmptyBtn>
-          </EmptyState>
+          <SharedEmptyState
+            icon={<MicIcon size={36} />}
+            title={t('page.empty.title')}
+            description={<>{t('page.empty.line1')}<br />{t('page.empty.line2')}</>}
+            ctaLabel={t('page.newMeetingStart')}
+            ctaIcon={<PlusIcon size={16} />}
+            onCta={() => setShowStartModal(true)}
+          />
         )}
 
         {showRecordingUI && activeSession && (
@@ -2361,8 +2370,10 @@ const PopoverInputBtn = styled.button`
 const Layout = styled.div<{ $collapsed: boolean }>`
   display: grid;
   grid-template-columns: ${(p) => (p.$collapsed ? '0px 1fr' : '300px 1fr')};
-  height: calc(100vh - 64px);
-  background: #f8fafc;
+  /* 모바일은 상단 56px 헤더, 데스크탑은 헤더 없음 — 바닥 여백 제거 */
+  height: 100vh;
+  @media (max-width: 768px) { height: calc(100vh - 56px); }
+  background: #FFFFFF;
   transition: grid-template-columns 200ms ease;
   position: relative;
   @media (max-width: 900px) {
@@ -2408,6 +2419,7 @@ const SidebarHeader = styled.div`
   display: flex;
   justify-content: space-between;
   align-items: center;
+  border-bottom: 1px solid #F1F5F9;
 `;
 
 const SidebarTitle = styled.h1`
@@ -2434,16 +2446,21 @@ const NewSessionBtn = styled.button`
   &:hover { background: #F1F5F9; color: #0F172A; }
 `;
 
+const SearchWrap = styled.div`
+  padding: 12px 20px 12px;
+  border-bottom: 1px solid #F1F5F9;
+  flex-shrink: 0;
+`;
 const SearchBox = styled.input`
   display: block;
-  width: calc(100% - 40px);
-  margin: 12px 20px 12px;
+  width: 100%;
   padding: 8px 12px;
   background: #F8FAFC;
   border: 1px solid #E2E8F0;
   border-radius: 8px;
   font-size: 13px;
   color: #0f172a;
+  box-sizing: border-box;
   &::placeholder { color: #94A3B8; font-size: 12px; }
   &:focus {
     outline: none;
@@ -2502,10 +2519,10 @@ const SessionItemTitle = styled.div`
 const SessionStatusBadge = styled.span`
   flex-shrink: 0;
   font-size: 10px;
-  font-weight: 700;
-  border: 1px solid;
-  border-radius: 4px;
-  padding: 1px 6px;
+  font-weight: 600;
+  border: none;
+  border-radius: 8px;
+  padding: 2px 8px;
   white-space: nowrap;
 `;
 
@@ -2533,6 +2550,7 @@ const Main = styled.section`
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  background: #FFFFFF;
   @media (max-width: 900px) {
     height: 100%;
   }
@@ -3448,54 +3466,3 @@ const InterimDot = styled.span`
   }
 `;
 
-const EmptyState = styled.div`
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  padding: 40px;
-`;
-
-const EmptyIconWrap = styled.div`
-  width: 72px;
-  height: 72px;
-  border-radius: 50%;
-  background: #f0fdfa;
-  color: #0d9488;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-bottom: 20px;
-`;
-
-const EmptyTitle = styled.h2`
-  font-size: 22px;
-  font-weight: 700;
-  color: #0f172a;
-  margin: 0 0 8px;
-`;
-
-const EmptyDesc = styled.p`
-  font-size: 14px;
-  color: #64748b;
-  margin: 0 0 24px;
-  line-height: 1.6;
-`;
-
-const EmptyBtn = styled.button`
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  height: 44px;
-  padding: 0 28px;
-  background: #14b8a6;
-  color: #ffffff;
-  border: none;
-  border-radius: 10px;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  &:hover { background: #0d9488; }
-`;

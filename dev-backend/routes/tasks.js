@@ -376,7 +376,7 @@ router.put('/by-business/:businessId/:id', authenticateToken, async (req, res, n
     const task = await Task.findOne({ where: { id: req.params.id, business_id: req.params.businessId } });
     if (!task) return errorResponse(res, 'task_not_found', 404);
 
-    const { title, description, body, assignee_id, status, priority, due_date, start_date, estimated_hours, actual_hours, progress_percent, category, planned_week_start } = req.body;
+    const { title, description, body, assignee_id, status, priority, due_date, start_date, estimated_hours, actual_hours, progress_percent, category, planned_week_start, project_id } = req.body;
     const updates = {};
     if (title !== undefined) updates.title = title;
     if (description !== undefined) updates.description = description;
@@ -390,6 +390,17 @@ router.put('/by-business/:businessId/:id', authenticateToken, async (req, res, n
     if (progress_percent !== undefined) updates.progress_percent = progress_percent;
     if (category !== undefined) updates.category = category;
     if (planned_week_start !== undefined) updates.planned_week_start = planned_week_start;
+    // 프로젝트 이관 허용 — 같은 business 내 프로젝트여야 함
+    if (project_id !== undefined) {
+      if (project_id === null) {
+        updates.project_id = null;
+      } else {
+        const { Project } = require('../models');
+        const target = await Project.findOne({ where: { id: project_id, business_id: task.business_id } });
+        if (!target) return errorResponse(res, 'invalid_project', 400);
+        updates.project_id = project_id;
+      }
+    }
 
     if (status === 'completed' && task.status !== 'completed') updates.completed_at = new Date();
 

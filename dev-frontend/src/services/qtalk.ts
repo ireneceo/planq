@@ -265,6 +265,23 @@ export async function sendMessage(conversationId: number, content: string, reply
   return handle<ApiMessage>(res);
 }
 
+export interface CreateConversationInput {
+  business_id: number;
+  title: string;
+  project_id?: number | null;
+  channel_type?: 'customer' | 'internal' | 'direct';
+  participant_user_ids?: number[];
+  client_id?: number | null;
+}
+export async function createConversation(input: CreateConversationInput): Promise<ApiConversation> {
+  const { business_id, ...body } = input;
+  const res = await apiFetch(`/api/conversations/${business_id}`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  return handle<ApiConversation>(res);
+}
+
 export async function updateConversation(conversationId: number, patch: { display_name?: string; auto_extract_enabled?: boolean }): Promise<ApiConversation> {
   const res = await apiFetch(`/api/projects/conversations/${conversationId}`, {
     method: 'PATCH',

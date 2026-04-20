@@ -38,6 +38,7 @@
   "scope": { "mine": "내 업무", "workspace": "전체 업무" },
   "view": { "list": "리스트 보기", "kanban": "카드 보기" },
   "list": { "empty": "해당하는 업무가 없습니다", "statusHint": "클릭하면 단계 선택" },
+  "empty": { "title": "업무를 시작해 보세요", "line1": "요청을 받고, 배정하고, 결과까지", "line2": "한 화면에서 실행으로 연결됩니다." },
   "tab": { "week": "이번 주 내 업무", "all": "내 전체업무", "requested": "요청하기" },
   "workspace": { "assignee": "담당자", "allMembers": "전체 멤버" },
   "summary": { "unit": "개", "est": "예측", "act": "실제" },

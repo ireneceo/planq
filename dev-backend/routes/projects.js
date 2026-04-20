@@ -12,6 +12,7 @@ const {
 } = require('../models');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const { authenticateToken } = require('../middleware/auth');
+const { createAuditLog } = require('../middleware/audit');
 const taskExtractor = require('../services/task_extractor');
 const cueOrchestrator = require('../services/cue_orchestrator');
 
@@ -139,45 +140,37 @@ router.post('/', authenticateToken, async (req, res, next) => {
       { transaction: t }
     );
 
-    // 6) 기본 채팅방 자동 생성 — customer + internal (FEATURE_SPEC F5-3)
-    // channels 옵션이 있으면 사용자 지정값 사용, 없으면 기본값
-    const biz = await Business.findByPk(business_id, { transaction: t });
-    const defaultChannels = [
-      { channel_type: 'customer', name: `${name.trim()} 고객`, participant_user_ids: pmRows.map(r => r.user_id) },
-      { channel_type: 'internal', name: `${name.trim()} 내부`, participant_user_ids: pmRows.map(r => r.user_id) },
-    ];
-    const chList = Array.isArray(channels) && channels.length > 0 ? channels : defaultChannels;
-    const validMemberIds = new Set(pmRows.map(r => r.user_id));
-    for (const cv of chList) {
-      const type = cv.channel_type === 'customer' ? 'customer' : 'internal';
-      const title = String(cv.name || '').trim() || `${name.trim()} ${type === 'customer' ? '고객' : '내부'}`;
-      const conv = await Conversation.create({
-        business_id,
-        project_id: project.id,
-        title,
-        channel_type: type,
-        cue_enabled: type === 'customer',
-        auto_extract_enabled: type === 'customer',
-      }, { transaction: t });
-      // 사용자 지정 참여자 (유효 멤버만) 또는 전체 프로젝트 멤버
-      let participantIds = Array.isArray(cv.participant_user_ids)
-        ? cv.participant_user_ids.filter(uid => validMemberIds.has(uid))
-        : pmRows.map(r => r.user_id);
-      // 생성자는 항상 포함
-      if (!participantIds.includes(req.user.id)) participantIds = [req.user.id, ...participantIds];
-      for (const uid of participantIds) {
-        await ConversationParticipant.create({
-          conversation_id: conv.id,
-          user_id: uid,
-          role: uid === req.user.id ? 'owner' : 'member',
+    // 6) 채팅방 자동 생성 없음 — 프로젝트는 데이터 컨테이너.
+    //    대화가 필요하면 사용자가 Q Talk 에서 NewChatModal 로 별도 생성하고 project_id 로 연결.
+    //    호환을 위해 channels 파라미터가 명시적으로 전달된 경우에만 생성.
+    if (Array.isArray(channels) && channels.length > 0) {
+      const biz = await Business.findByPk(business_id, { transaction: t });
+      const validMemberIds = new Set(pmRows.map(r => r.user_id));
+      for (const cv of channels) {
+        const type = cv.channel_type === 'customer' ? 'customer' : 'internal';
+        const title = String(cv.name || '').trim() || `${name.trim()} ${type === 'customer' ? '고객' : '내부'}`;
+        const conv = await Conversation.create({
+          business_id,
+          project_id: project.id,
+          title,
+          channel_type: type,
+          cue_enabled: type === 'customer',
+          auto_extract_enabled: type === 'customer',
         }, { transaction: t });
-      }
-      if (type === 'customer' && biz?.cue_user_id) {
-        await ConversationParticipant.create({
-          conversation_id: conv.id,
-          user_id: biz.cue_user_id,
-          role: 'member',
-        }, { transaction: t });
+        let participantIds = Array.isArray(cv.participant_user_ids)
+          ? cv.participant_user_ids.filter(uid => validMemberIds.has(uid))
+          : pmRows.map(r => r.user_id);
+        if (!participantIds.includes(req.user.id)) participantIds = [req.user.id, ...participantIds];
+        for (const uid of participantIds) {
+          await ConversationParticipant.create({
+            conversation_id: conv.id, user_id: uid, role: uid === req.user.id ? 'owner' : 'member',
+          }, { transaction: t });
+        }
+        if (type === 'customer' && biz?.cue_user_id) {
+          await ConversationParticipant.create({
+            conversation_id: conv.id, user_id: biz.cue_user_id, role: 'member',
+          }, { transaction: t });
+        }
       }
     }
 
@@ -263,7 +256,16 @@ router.put('/:id', authenticateToken, async (req, res, next) => {
     if (project_type !== undefined && ['fixed', 'ongoing'].includes(project_type)) patch.project_type = project_type;
     if (process_tab_label !== undefined) patch.process_tab_label = String(process_tab_label).trim().slice(0, 80) || '테이블';
 
+    const prevStatus = project.status;
     await project.update(patch);
+    // 프로젝트 'closed' 전환 시 연결 대화 자동 archived (cascade, soft). 데이터는 보존.
+    if (patch.status === 'closed' && prevStatus !== 'closed') {
+      await Conversation.update(
+        { status: 'archived' },
+        { where: { project_id: project.id, status: 'active' } },
+      );
+    }
+    // 'active'로 복구 시 대화는 수동 복구 (의도치 않은 복원 방지)
     const detail = await loadProjectDetail(project.id);
     return successResponse(res, detail);
   } catch (err) { next(err); }
@@ -278,6 +280,11 @@ router.delete('/:id', authenticateToken, async (req, res, next) => {
     if (error) return errorResponse(res, error.message, error.code);
     if (role === 'client') return errorResponse(res, 'forbidden', 403);
     await project.update({ status: 'closed' });
+    // cascade: 대화 archived
+    await Conversation.update(
+      { status: 'archived' },
+      { where: { project_id: project.id, status: 'active' } },
+    );
     return successResponse(res, { id: project.id, status: 'closed' });
   } catch (err) { next(err); }
 });
@@ -540,6 +547,11 @@ router.get('/:id/tasks', authenticateToken, async (req, res, next) => {
     if (error) return errorResponse(res, error.message, error.code);
     const tasks = await Task.findAll({
       where: { project_id: project.id },
+      include: [
+        { model: User, as: 'assignee', attributes: ['id', 'name'], required: false },
+        { model: User, as: 'requester', attributes: ['id', 'name'], required: false },
+        { model: TaskReviewer, as: 'reviewers', attributes: ['id', 'user_id', 'state', 'is_client'], required: false },
+      ],
       order: [['created_at', 'DESC']],
     });
     return successResponse(res, tasks.map((t) => t.toJSON()));
@@ -793,12 +805,37 @@ router.post('/:id/clients', authenticateToken, async (req, res, next) => {
     const { name, email } = req.body || {};
     if (!name || !String(name).trim()) return errorResponse(res, 'name is required', 400);
     const token = crypto.randomBytes(24).toString('hex');
+    // email 이 이미 User 존재하면 contact_user_id 매칭 (client role 권한 체크 기준)
+    let contact_user_id = null;
+    if (email && email.trim()) {
+      const { User: UserM, Client: ClientM } = require('../models');
+      const existingUser = await UserM.findOne({ where: { email: email.trim() } });
+      if (existingUser) contact_user_id = existingUser.id;
+      // Client 테이블에도 없으면 자동 생성 (워크스페이스 고객으로 편입)
+      if (existingUser) {
+        const exists = await ClientM.findOne({ where: { business_id: project.business_id, user_id: existingUser.id } });
+        if (!exists) {
+          await ClientM.create({
+            business_id: project.business_id, user_id: existingUser.id,
+            display_name: String(name).trim(),
+            status: 'invited',
+            invited_by: req.user.id, invited_at: new Date(),
+          });
+        }
+      }
+    }
     const row = await ProjectClient.create({
       project_id: project.id,
+      contact_user_id,
       contact_name: String(name).trim(),
       contact_email: email?.trim() || null,
       invite_token: token,
       invited_by: req.user.id,
+    });
+    await createAuditLog({
+      userId: req.user.id, businessId: project.business_id,
+      action: 'project.client_added', targetType: 'project_client', targetId: row.id,
+      newValue: { project_id: project.id, project_name: project.name, client_id: contact_user_id ? (await require('../models').Client.findOne({ where: { business_id: project.business_id, user_id: contact_user_id } }))?.id : null, name: row.contact_name, email: row.contact_email },
     });
     return successResponse(res, row);
   } catch (err) { next(err); }
@@ -812,7 +849,24 @@ router.delete('/:id/clients/:clientId', authenticateToken, async (req, res, next
     if (role === 'client') return errorResponse(res, 'forbidden', 403);
     const row = await ProjectClient.findOne({ where: { id: req.params.clientId, project_id: project.id } });
     if (!row) return errorResponse(res, 'not_found', 404);
+    // client_id 매칭 — 같은 워크스페이스의 Client row 를 같은 email/user 로 찾음
+    let clientId = null;
+    try {
+      const { Client: ClientM } = require('../models');
+      const cl = await ClientM.findOne({
+        where: {
+          business_id: project.business_id,
+          ...(row.contact_user_id ? { user_id: row.contact_user_id } : {}),
+        },
+      });
+      clientId = cl?.id || null;
+    } catch { /* ignore */ }
     await row.destroy();
+    await createAuditLog({
+      userId: req.user.id, businessId: project.business_id,
+      action: 'project.client_removed', targetType: 'project_client', targetId: Number(req.params.clientId),
+      oldValue: { project_id: project.id, project_name: project.name, client_id: clientId, name: row.contact_name, email: row.contact_email },
+    });
     return successResponse(res, { id: Number(req.params.clientId), deleted: true });
   } catch (err) { next(err); }
 });

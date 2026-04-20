@@ -1,9 +1,9 @@
 {
   "nav": {
     "sectionMain": "Main",
-    "sectionBusiness": "Business",
-    "sectionFeatures": "Features",
-    "sectionAdmin": "Admin",
+    "sectionBusiness": "워크스페이스",
+    "sectionFeatures": "기능",
+    "sectionAdmin": "관리",
     "dashboard": "대시보드",
     "settings": "설정",
     "members": "멤버",

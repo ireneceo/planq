@@ -8,6 +8,12 @@
     "failed": "Extraction failed: {{msg}}"
   },
   "chat": {
+    "noProject": "Start a conversation",
+    "noProjectLine1": "Create a chat channel for real-time messaging,",
+    "noProjectLine2": "task management, and project integration.",
+    "noProjectCta": "New conversation",
+    "noChannel": "No conversation channel yet",
+    "noChannelDesc": "Pick a channel on the left or create a new one.",
     "banner": {
       "candidatesPending_one": "1 task candidate waiting for review — register or reject it",
       "candidatesPending_other": "{{count}} task candidates waiting for review — register or reject them",

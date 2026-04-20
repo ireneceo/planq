@@ -34,5 +34,16 @@
     "start": "Start",
     "end": "End",
     "sun": "Sun", "mon": "Mon", "tue": "Tue", "wed": "Wed", "thu": "Thu", "fri": "Fri", "sat": "Sat"
+  },
+  "section": {
+    "members": "Project members"
+  },
+  "members": {
+    "empty": "No members yet",
+    "add": "Add member",
+    "remove": "Remove",
+    "cancel": "Cancel",
+    "owner": "Owner",
+    "noCandidates": "No workspace members available to add"
   }
 }

@@ -16,7 +16,7 @@
     "sidebarOpen": "Open sidebar",
     "sidebarCollapse": "Collapse sidebar",
     "empty": {
-      "title": "Start a meeting",
+      "title": "Start a recording",
       "line1": "Real-time speech recognition, translation, and question detection",
       "line2": "automatically build your meeting notes."
     },

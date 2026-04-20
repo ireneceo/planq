@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { Op } = require('sequelize');
-const { Conversation, ConversationParticipant, Message, User, Client, Business } = require('../models');
+const { Conversation, ConversationParticipant, Message, User, Client, Business, Project, ProjectMember } = require('../models');
 const { authenticateToken, checkBusinessAccess } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const { createAuditLog } = require('../middleware/audit');
@@ -37,16 +37,43 @@ router.get('/:businessId', authenticateToken, checkBusinessAccess, async (req, r
 // ─────────────────────────────────────────────────────────
 router.post('/:businessId', authenticateToken, checkBusinessAccess, async (req, res, next) => {
   try {
-    const { title, client_id, participant_ids } = req.body;
+    const {
+      title, client_id, participant_ids, participant_user_ids,
+      project_id, channel_type,
+    } = req.body;
 
     const business = await Business.findByPk(req.params.businessId);
     if (!business) return errorResponse(res, 'Workspace not found', 404);
 
+    // project_id 가 있으면 해당 프로젝트가 같은 워크스페이스인지 검증
+    if (project_id) {
+      const proj = await Project.findOne({ where: { id: project_id, business_id: req.params.businessId } });
+      if (!proj) return errorResponse(res, 'invalid_project', 400);
+    }
+
+    // channel_type 정책:
+    //  - 명시되면 그 값 ('customer' | 'internal' | 'direct' — direct 는 일반 대화)
+    //  - 없고 client_id 있으면 'customer'
+    //  - 없고 project_id 있으면 'internal'
+    //  - 그 외 'direct' (프로젝트 없는 일반 대화)
+    let finalChannel = channel_type;
+    if (!finalChannel) {
+      if (client_id) finalChannel = 'customer';
+      else if (project_id) finalChannel = 'internal';
+      else finalChannel = 'direct';
+    }
+    // DB ENUM 이 direct 를 모를 수 있으므로 fallback: direct → internal
+    const allowed = ['customer', 'internal', 'direct'];
+    if (!allowed.includes(finalChannel)) finalChannel = 'internal';
+
     const conversation = await Conversation.create({
       business_id: req.params.businessId,
-      title,
+      project_id: project_id || null,
+      title: title?.trim() || '새 대화',
       client_id: client_id || null,
-      cue_enabled: true
+      channel_type: finalChannel === 'direct' ? 'internal' : finalChannel,
+      cue_enabled: finalChannel === 'customer',
+      auto_extract_enabled: finalChannel === 'customer',
     });
 
     await ConversationParticipant.create({
@@ -55,8 +82,7 @@ router.post('/:businessId', authenticateToken, checkBusinessAccess, async (req, 
       role: 'owner'
     });
 
-    // Cue 자동 참여
-    if (business.cue_user_id) {
+    if (finalChannel === 'customer' && business.cue_user_id) {
       await ConversationParticipant.create({
         conversation_id: conversation.id,
         user_id: business.cue_user_id,
@@ -64,21 +90,54 @@ router.post('/:businessId', authenticateToken, checkBusinessAccess, async (req, 
       });
     }
 
-    if (Array.isArray(participant_ids)) {
-      for (const pid of participant_ids) {
-        if (pid !== req.user.id && pid !== business.cue_user_id) {
-          await ConversationParticipant.create({
-            conversation_id: conversation.id,
-            user_id: pid,
-            role: 'member'
-          });
-        }
-      }
+    // participant_user_ids 우선, 없으면 participant_ids 호환
+    const rawParticipants = Array.isArray(participant_user_ids)
+      ? participant_user_ids
+      : (Array.isArray(participant_ids) ? participant_ids : []);
+    const uniq = [...new Set(rawParticipants.filter(Boolean))];
+    for (const pid of uniq) {
+      if (pid === req.user.id) continue;
+      if (pid === business.cue_user_id) continue;
+      await ConversationParticipant.create({
+        conversation_id: conversation.id,
+        user_id: pid,
+        role: 'member'
+      });
     }
+
+    await createAuditLog({
+      user_id: req.user.id, business_id: req.params.businessId,
+      action: 'create', entity_type: 'conversation', entity_id: conversation.id,
+      new_value: { title: conversation.title, project_id: conversation.project_id, channel_type: finalChannel },
+    });
 
     successResponse(res, conversation, 'Conversation created', 201);
   } catch (error) { next(error); }
 });
+
+// 참여자 개별 추가/제거
+router.post('/:businessId/:id/participants', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+  try {
+    const { user_id, role } = req.body;
+    const conv = await Conversation.findOne({ where: { id: req.params.id, business_id: req.params.businessId } });
+    if (!conv) return errorResponse(res, 'Conversation not found', 404);
+    const exists = await ConversationParticipant.findOne({ where: { conversation_id: conv.id, user_id } });
+    if (exists) return successResponse(res, exists);
+    const created = await ConversationParticipant.create({
+      conversation_id: conv.id, user_id, role: role || 'member',
+    });
+    successResponse(res, created, 'Participant added', 201);
+  } catch (error) { next(error); }
+});
+router.delete('/:businessId/:id/participants/:userId', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+  try {
+    const conv = await Conversation.findOne({ where: { id: req.params.id, business_id: req.params.businessId } });
+    if (!conv) return errorResponse(res, 'Conversation not found', 404);
+    await ConversationParticipant.destroy({ where: { conversation_id: conv.id, user_id: req.params.userId } });
+    successResponse(res, { removed: true });
+  } catch (error) { next(error); }
+});
+ProjectMember; // silence unused import (future: project member pre-selection)
 
 // ─────────────────────────────────────────────────────────
 // Get conversation detail + messages

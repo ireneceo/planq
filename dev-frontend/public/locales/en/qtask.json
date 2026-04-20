@@ -64,6 +64,7 @@
   "issues": { "title": "Issues" },
   "notes": { "title": "Notes" },
   "list": { "empty": "No tasks found", "statusHint": "Click to change status" },
+  "empty": { "title": "Start your first task", "line1": "Receive requests, assign, and deliver results —", "line2": "all connected in one screen." },
   "common": { "cancel": "Cancel" },
   "save": { "saving": "Saving", "saved": "Saved", "error": "Save failed" },
   "detail": {

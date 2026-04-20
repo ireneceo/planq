@@ -1,5 +1,5 @@
 ## 현재 작업 상태
-**마지막 업데이트:** 2026-04-19 (Q Task 드로어 + Q Project 상세 + Q Talk 정비)
+**마지막 업데이트:** 2026-04-20
 **작업 상태:** 완료
 
 ### 진행 중인 작업
@@ -7,60 +7,94 @@
 
 ### 완료된 작업 (이번 세션)
 
-**Q Task — 드로어 오버레이 + 리치 에디터 + 첨부**
-- 드로어 `position:fixed` Linear 패턴 (기본 패널 유지)
-- 상세 섹션 순서 재배치 (액션/설명/댓글/결과물/첨부/[접기])
-- DB `tasks.body LONGTEXT` 추가, description(짧은 plain) + body(리치 HTML) 분리
-- TipTap 에디터 — / 슬래시 커맨드 9종, BubbleMenu, 이미지 paste/drag
-- `task_attachments` 테이블 + multer + 공개 UUID 경로
-- 저장 상태 pill (saving/saved/error) + 2초 debounce 자동저장
-- 드로어 닫기 3종 (X / Esc / 좌측 빈 영역)
-- URL `?task=:id` 싱크, 제목 인라인 편집
-- 초기 로딩 최적화 — 탭 전환 시 lazy
+**공용 인프라**
+- `components/QTask/TaskDetailDrawer.tsx` 신규 (QTask + QProject 공용 드로어)
+- `components/Common/GanttTrack.tsx` 공용 간트 (ProjectTaskList·TimelineView·Dashboard 3곳 재사용)
+- `components/Common/EmptyState.tsx` 통일 (Q Note/Talk/Task 동일 스타일)
+- `theme/breakpoints.ts` 반응형 Phase 0 토큰
 
-**Q Project — 상세 허브 신규**
-- `/projects/p/:id` 라우트 (6탭: 대시보드·업무·테이블·고객·문서·상세정보)
-- `projects.project_type` ENUM + `process_tab_label`
-- createProject: 오너 자동 참여 + 2채널 자동 생성 + 상태 옵션 4종 seed + channels 커스텀 지원
-- 프로세스 파트 테이블 (`project_process_parts`) + 상태/컬럼 커스텀 (`project_status_options`, `project_process_columns`)
-- 대시보드: 기본정보/고객/채팅방/진척/이슈/메모/업무 타임라인 순서
-- 업무 탭: Q Task 테이블 디자인 복제 + 기본 뷰(리스트+타임라인 통합)
-- 상세정보 탭: 2열 풀폭, 기본정보 편집(이름/고객사/타입/기간/색상/설명) + 채팅방/이슈/메모
-- NewProjectModal: 타입 카드, CalendarPicker 기간, 색상 팔레트, 채팅 채널 섹션(이름·참여자)
+**재클릭 토글 전역 원칙**
+- Q Talk 대화, Q Note 세션, Q Task·Project 드로어 모두 재클릭 토글
+- CLAUDE.md + 메모리 `feedback_reclick_toggle.md` 명문화
 
-**Q Talk**
-- 전체 프로젝트 conversations 병렬 로드 — 직접 /talk 진입해도 채팅 리스트 표시
-- 이슈/메모 중복 저장 버그 (IME + submittingRef 가드)
-- PlanQSelect 기본 placeholder "선택하기"
+**Q Talk 재설계**
+- 독립 대화 생성 (`POST /api/conversations`) + 프로젝트 선택 연결
+- NewChatModal 신규 (이름·프로젝트·참여자). 좌측 "+ 대화/프로젝트" 분리
+- 프로젝트 자동 채널 생성 제거. 채팅방 단위 URL 싱크 `?project=X&conv=Y`
+- 프로젝트 미선택 시 우측 패널 숨김. 중앙 empty state
+- 좌측 필터 탭 제거 (미동작 코드). 일반 대화 섹션 추가
 
-**문서화**
-- `UI_DESIGN_GUIDE` 1.7 액션 버튼 3톤 / 1.8 중복 제출 / 1.9 URL 싱크
-- `FEATURE_SPEC` F5-24 프로젝트 타입 / F5-25 프로세스 파트 / F6 Q Task 재작성
-- `CLAUDE.md` UI 규칙 3건
-- 메모리 2건 (액션 버튼 3톤, URL 싱크)
+**Q Note**
+- 좌측 헤더·검색 border 통일 + Layout `100vh` (바닥 회색 제거)
+- main 배경 #FFFFFF. 세션 상태 pill Q Task 동일 파스텔 bg+fg
+
+**Q Task**
+- 리스트 빈 상태 EmptyState + CTA. `?view=` URL 싱크
+- scope 별 우측 패널 인사이트 (전체/요청하기/workspace 각각 Period·Capacity·Burndown·ProjectProgress·Issues·Notes)
+- 액션 드로어 깜빡임 수정 (병렬 fetch + 액션 섹션 display 토글)
+
+**Q Project 감사 + 샘플**
+- `docs/QPROJECT_AUDIT.md` 신규 — 미구현 목록 3단계 우선순위
+- 샘플 6 시나리오 시드 (A 진행중 / B 지연 / C 완료직전 / D 신규 / E 지속 / F 복합)
+- 프로젝트 상세정보 탭 상태 3-segment + closed 모달 (고객 체크박스 내보내기)
+- 대화 cascade archived · 멤버 관리 카드 (추가/역할/제거)
+- `PUT /tasks/by-business/:bizId/:id` project_id 이관 버그 수정
+
+**Irene 3-역할 실데이터**
+- 워프로랩 (owner·biz 3): 프로젝트 3 + 업무 39 + 대화 6
+- PlanQ 테스트 (member·biz 6): 프로젝트 6 + 업무 21 + 대화 3
+- 브랜드 파트너스 (client·biz 7): 프로젝트 2 + 업무 8 + 대화 4
+- `ProjectClient.contact_user_id` 일괄 매칭 (client role 권한 체크)
+
+**고객 페이지 (/business/clients) 마스터-디테일 드로어**
+- 리스트 인라인 편집 (이름·회사 더블클릭) · 필터 세그먼트 (활성/전체/보관)
+- 드로어: 헤더(아바타+이름+회사+Switch) · 연락처 · 메모 자동저장 · 연결 프로젝트 · 연결 대화 · 히스토리(시계 토글) · 삭제
+- 클릭 → `/projects/p/:id` · `/talk?project=X&conv=Y` 이동
+- hard delete + ProjectClient 정리 + removal-impact 경고 모달
+- `POST /api/clients/:bizId/invite` 신규 초대 (이메일 기반 User 자동 생성)
+- 프로젝트 고객 탭 "초대 대기 / 참여 중" 상태 pill
+
+**AuditLog**
+- client.invited/activated/archived/updated/deleted + project.client_added/removed
+- 미들웨어 camelCase/snake_case 호환 (기존 코드 영향 없음)
+
+**브랜드·UX**
+- `docs/BRAND_CONCEPT.md` 10섹션. 슬로건 "일을 일답게 하다" / "일이 일이되지 않게"
+- auth 로그인 슬로건 교체. Q Note/Talk empty state 문구 정리
+- 사이드바 라벨: Business→워크스페이스 / Features→기능 / Admin→관리 / Main 제거
+- 간트 바 파스텔화 (bg + border-left + fg text)
 
 ### 검증 결과
-- 헬스체크 27/27 통과
-- 빌드: tsc 0 error, gzip ~400 kB
-- E2E: 프로젝트 17/17, 첨부 15/15, 채널 커스텀 7/7
+- 헬스체크 27/27 (반복)
+- 빌드: tsc 0 error, vite ~1.2s, gzip ~414 kB
+- API 18건 PASS (client drawer/history/archive/invite + cascade + project_id 이관 + removal-impact)
+- 프론트 9개 핵심 URL 전부 200
 
 ### 다음 할 일 (다음 세션 시작점)
 
-**프로젝트 상세 페이지 완성 잔여**
-1. 업무 상세 드로어 — 프로젝트 페이지 안에서 같은 페이지 오버레이로 열기 (지금은 `/tasks?task=` 로 네비게이션)
-2. 타임라인 바 드래그 리사이즈/이동
-3. 프로젝트 생성 시 **채팅 채널 추가/제거 유연화** (customer+internal 2개 고정 → 0~N개 자유)
-4. **문서 탭** 실제 파일 리스트 + 업로드
-5. **멤버 관리** (상세정보 탭에서 추가/제거/역할)
+**1순위 — 캘린더 Phase A~E (약 5일)**
+- Phase A: DB 2테이블 (`calendar_events`, `calendar_event_attendees`) + CRUD API + 범위 쿼리
+- Phase B: 월/주/일 뷰 + 이벤트 모달 + 드로어
+- Phase C: 반복 (`rrule.js` — 매일/매주/매월/매년/커스텀)
+- Phase D: **화상 미팅 — Daily.co 임베드 + 수동 링크 입력** (Irene 결정 2026-04-20)
+- Phase E: Q Task 업무 통합 표시 + 4필터 세그먼트 (전체/내/업무만/일정만)
+- 색상: 프로젝트 색 자동 상속 + 개인일정 카테고리 팔레트 5종
 
-**Q Talk**
-6. NewChatModal — 프로젝트 연결 + 참여자 지정 간소 모달
+**2순위 — 현재 미구현 UX 잔여**
+- 문서 탭 실파일 업로드 (기존 files API 재사용)
+- 프로젝트 삭제 UI (확인 모달 + cascade 정책 안내)
+- F5-2b `/invite/:token` 수락 랜딩 페이지
 
-**백로그**
-7. F5-2b 초대 랜딩 페이지 `/invite/:token`
-8. Q Talk 청크 5 — Cue 자동 추출 트리거
-9. Dashboard 페이지 구현
-10. lua 팀원 계정 세팅
+**3순위 — 출시 직전 스프린트 (약 8일, 반응형 + 메일 + 래핑 묶음)**
+- 반응형 Phase 1~5 (사이드바 햄버거화, 마스터-디테일 모바일 패턴, 터치 타겟 44×44)
+- 메일 시스템 (SMTP 설정 페이지 + 초대 템플릿 + `/invite/:token` 연동)
+- Capacitor 하이브리드앱 래핑 (아이콘/스플래시/푸시)
+
+**백로그 (후일 업데이트)**
+- 타임라인 바 드래그 (3단계 로드맵)
+- Q Talk Cue 자동 추출 트리거
+- Dashboard 위젯
+- lua 팀원 계정 세팅
 
 ---
 
