@@ -12,6 +12,9 @@ import { STATUS_CODES, STATUS_COLOR, displayStatus, getStatusLabel, type StatusC
 import { getRoles, primaryPerspective } from '../../utils/taskRoles';
 import TaskDetailDrawer from '../../components/QTask/TaskDetailDrawer';
 import EmptyState from '../../components/Common/EmptyState';
+import FloatingPanelToggle, { PANEL_WIDTH_CSS } from '../../components/Common/FloatingPanelToggle';
+import { useIsNarrow } from '../../hooks/useMediaQuery';
+import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 
 // ─── Types ───
 type Scope = 'mine' | 'workspace';
@@ -111,6 +114,24 @@ const QTaskPage:React.FC=()=>{
   const[notes,setNotes]=useState<NoteRow[]>([]);
   const[loading,setLoading]=useState(true);
   const[rightCollapsed,setRightCollapsed]=useState(false);
+  const isNarrow=useIsNarrow(1200);
+  const[rightOverlayOpen,setRightOverlayOpen]=useState(false);
+  useBodyScrollLock(isNarrow&&rightOverlayOpen);
+
+  // 키보드 단축키: ⌘/ (mac) · Ctrl+\ (win) → 우측 패널 토글
+  useEffect(()=>{
+    const onKey=(e:KeyboardEvent)=>{
+      const mod=e.metaKey||e.ctrlKey;
+      if(!mod)return;
+      if(e.key==='/'||e.key==='\\'){
+        e.preventDefault();
+        if(isNarrow)setRightOverlayOpen(x=>!x);
+        else setRightCollapsed(x=>!x);
+      }
+    };
+    window.addEventListener('keydown',onKey);
+    return()=>window.removeEventListener('keydown',onKey);
+  },[isNarrow]);
   const[holidayDays,setHolidayDays]=useState(0);
 
   // 워크스페이스 tz 기준 오늘/월요일 — 모든 업무 경계 계산의 기준
@@ -1147,7 +1168,7 @@ const QTaskPage:React.FC=()=>{
       </LeftPanel>
 
       {/* ════ RIGHT ════ */}
-      {rightCollapsed?(
+      {!isNarrow && rightCollapsed?(
         <CollapsedStrip><CollapseBtn onClick={()=>setRightCollapsed(false)}>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="15 18 9 12 15 6"/></svg>
         </CollapseBtn></CollapsedStrip>
@@ -1166,9 +1187,17 @@ const QTaskPage:React.FC=()=>{
         />
       ):null}
       {/* ── 탭별 기본 패널 — 항상 렌더. 상세 드로어는 position:fixed로 덮음. ── */}
-      {!rightCollapsed&&(
-        <RightPanel $w={rightWidth}>
-          {!detailTaskId&&<ResizeHandle onMouseDown={startResize} />}
+      {isNarrow && rightOverlayOpen && <RightPanelBackdrop onClick={()=>setRightOverlayOpen(false)} />}
+      {isNarrow && !detailTaskId && (
+        <FloatingPanelToggle
+          open={rightOverlayOpen}
+          onToggle={()=>setRightOverlayOpen((x)=>!x)}
+          ariaLabel={t('right.toggle','인사이트 패널 토글') as string}
+        />
+      )}
+      {((!isNarrow && !rightCollapsed) || (isNarrow && rightOverlayOpen))&&(
+        <RightPanel $w={rightWidth} $overlay={isNarrow}>
+          {!isNarrow && !detailTaskId&&<ResizeHandle onMouseDown={startResize} />}
           <RightHeader>
             <RightTitle>
               {tab==='week'?t('right.titleWeek','This week'):tab==='requested'?t('right.titleRequested','Feedback'):t('right.titleAll','From Q Talk')}
@@ -1614,11 +1643,26 @@ const NameChip=styled.span<{$type:'from'|'to'|'observer'}>`
 // Right panel — Q Talk style
 const CollapsedStrip=styled.aside`width:36px;flex-shrink:0;background:#FFF;border-left:1px solid #E2E8F0;display:flex;flex-direction:column;align-items:center;padding:12px 0;@media(max-width:1200px){display:none;}`;
 const CollapseBtn=styled.button`width:28px;height:28px;display:flex;align-items:center;justify-content:center;background:transparent;border:none;border-radius:6px;color:#64748B;cursor:pointer;&:hover{background:#F1F5F9;color:#0F172A;}`;
-const RightPanel=styled.aside<{$w?:number}>`width:${p=>p.$w||420}px;flex-shrink:0;background:#FFF;border-left:1px solid #E2E8F0;display:flex;flex-direction:column;overflow:hidden;position:relative;@media(max-width:1200px){display:none;}`;
+const RightPanel=styled.aside<{$w?:number;$overlay?:boolean}>`background:#FFF;border-left:1px solid #E2E8F0;display:flex;flex-direction:column;overflow:hidden;
+  ${p=>p.$overlay?`
+    position:fixed;top:0;right:0;bottom:0;
+    width:${PANEL_WIDTH_CSS};
+    z-index:50;
+    box-shadow:-16px 0 40px rgba(15,23,42,0.14);
+    animation:pqRpSlide 0.28s cubic-bezier(0.22,1,0.36,1);
+    @keyframes pqRpSlide{from{transform:translateX(100%);}to{transform:translateX(0);}}
+    padding-bottom:env(safe-area-inset-bottom,0px);
+    @media (prefers-reduced-motion: reduce){animation:none;}
+  `:`
+    width:${p.$w||420}px;flex-shrink:0;position:relative;
+    @media(max-width:1200px){display:none;}
+  `}
+`;
+const RightPanelBackdrop=styled.div`position:fixed;inset:0;background:rgba(15, 23, 42, 0.08);-webkit-z-index:45;animation:pqRpFade 0.22s ease-out;@keyframes pqRpFade{from{opacity:0;}to{opacity:1;}}@media (prefers-reduced-motion: reduce){animation:none;}`;
 const ResizeHandle=styled.div`position:absolute;top:0;left:-3px;width:6px;height:100%;cursor:col-resize;z-index:5;&:hover{background:rgba(20,184,166,0.2);}&:active{background:rgba(20,184,166,0.4);}`;
-const DetailDrawer=styled.aside<{$w?:number}>`position:fixed;top:0;right:0;bottom:0;width:${p=>p.$w||560}px;max-width:100vw;background:#FFF;border-left:1px solid #E2E8F0;box-shadow:-12px 0 28px rgba(15,23,42,0.08);display:flex;flex-direction:column;overflow:hidden;z-index:40;animation:pqSlideIn 0.18s ease-out;@keyframes pqSlideIn{from{transform:translateX(40px);opacity:0.6;}to{transform:translateX(0);opacity:1;}}`;
-const DrawerBackdrop=styled.div`position:fixed;inset:0;background:rgba(15,23,42,0.12);z-index:39;animation:pqFadeIn 0.15s ease-out;@keyframes pqFadeIn{from{opacity:0;}to{opacity:1;}}`;
-const DrawerResizeHandle=styled.div`position:absolute;top:0;left:-4px;width:8px;height:100%;cursor:col-resize;z-index:45;&:hover{background:rgba(20,184,166,0.25);}&:active{background:rgba(20,184,166,0.45);}`;
+const DetailDrawer=styled.aside<{$w?:number}>`position:fixed;top:0;right:0;bottom:0;width:min(${p=>p.$w||560}px,calc(100vw - 56px));background:#FFF;border-left:1px solid #E2E8F0;box-shadow:-16px 0 40px rgba(15,23,42,0.14);display:flex;flex-direction:column;overflow:hidden;z-index:40;animation:pqSlideIn 0.28s cubic-bezier(0.22,1,0.36,1);@keyframes pqSlideIn{from{transform:translateX(100%);}to{transform:translateX(0);}}padding-bottom:env(safe-area-inset-bottom,0px);@media (prefers-reduced-motion: reduce){animation:none;}`;
+const DrawerBackdrop=styled.div`position:fixed;inset:0;background:rgba(15, 23, 42, 0.08);-webkit-z-index:39;animation:pqFadeIn 0.22s ease-out;@keyframes pqFadeIn{from{opacity:0;}to{opacity:1;}}@media (prefers-reduced-motion: reduce){animation:none;}`;
+const DrawerResizeHandle=styled.div`position:absolute;top:0;left:-4px;width:8px;height:100%;cursor:col-resize;z-index:45;&:hover{background:rgba(20,184,166,0.25);}&:active{background:rgba(20,184,166,0.45);}@media (max-width:1024px){display:none;}`;
 const RightHeader=styled.div`height:60px;padding:14px 20px;border-bottom:1px solid #E2E8F0;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;`;
 const RightTitle=styled.h2`font-size:13px;font-weight:700;color:#0F172A;margin:0;letter-spacing:-0.1px;`;
 const RightScroll=styled.div`flex:1;overflow-y:auto;overflow-x:hidden;min-width:0;&>*{min-width:0;max-width:100%;}&::-webkit-scrollbar{width:6px;}&::-webkit-scrollbar-thumb{background:#E2E8F0;border-radius:3px;}`;

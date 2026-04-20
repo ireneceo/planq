@@ -11,6 +11,7 @@ import { useAuth, apiFetch } from '../../contexts/AuthContext';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 import LetterAvatar from '../../components/Common/LetterAvatar';
 import PageShell from '../../components/Layout/PageShell';
+import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 
 type ClientStatus = 'invited' | 'active' | 'archived';
 
@@ -66,6 +67,7 @@ export default function ClientsPage() {
 
   // 드로어
   const [activeId, setActiveId] = useState<number | null>(null);
+  useBodyScrollLock(activeId != null);
   const [activeDetail, setActiveDetail] = useState<ClientRow | null>(null);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [historyLoaded, setHistoryLoaded] = useState(false);
@@ -569,13 +571,19 @@ const ErrorBanner = styled.div`padding:12px 16px;background:#fef2f2;border:1px s
 
 // Drawer
 const DrawerBackdrop = styled.div`
-  position:fixed;inset:0;background:rgba(15,23,42,0.12);z-index:39;
-  animation:fb 0.15s ease-out;@keyframes fb{from{opacity:0;}to{opacity:1;}}
+  position:fixed;inset:0;background:rgba(15, 23, 42, 0.08);
+  z-index:39;
+  animation:fb 0.22s ease-out;@keyframes fb{from{opacity:0;}to{opacity:1;}}
+  @media (prefers-reduced-motion: reduce){animation:none;}
 `;
 const Drawer = styled.aside`
-  position:fixed;top:0;right:0;bottom:0;width:520px;max-width:100vw;background:#FFF;border-left:1px solid #E2E8F0;
-  box-shadow:-12px 0 28px rgba(15,23,42,0.08);display:flex;flex-direction:column;overflow:hidden;z-index:40;
-  animation:ds 0.18s ease-out;@keyframes ds{from{transform:translateX(40px);opacity:0.6;}to{transform:translateX(0);opacity:1;}}
+  position:fixed;top:0;right:0;bottom:0;
+  width:min(520px, calc(100vw - 56px));
+  background:#FFF;border-left:1px solid #E2E8F0;
+  box-shadow:-16px 0 40px rgba(15,23,42,0.14);display:flex;flex-direction:column;overflow:hidden;z-index:40;
+  animation:ds 0.28s cubic-bezier(0.22,1,0.36,1);@keyframes ds{from{transform:translateX(100%);}to{transform:translateX(0);}}
+  padding-bottom:env(safe-area-inset-bottom,0px);
+  @media (prefers-reduced-motion: reduce){animation:none;}
 `;
 const DrawerHeader = styled.div`height:60px;padding:14px 20px;border-bottom:1px solid #E2E8F0;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;`;
 const DrawerBack = styled.button`display:flex;align-items:center;gap:4px;background:transparent;border:none;color:#0F766E;font-size:12px;font-weight:600;cursor:pointer;padding:0;&:hover{color:#134E4A;}`;

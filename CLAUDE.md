@@ -394,6 +394,49 @@ const handleSelect = (id) => {
 };
 ```
 
+## UI 규칙 — 드로어 접근성 (신규 코드 필수)
+
+모든 드로어·모달은 아래 3개 훅을 반드시 사용한다. 프리미티브 `DetailDrawer` 는 이미 내장.
+
+```tsx
+import { useBodyScrollLock } from 'hooks/useBodyScrollLock';
+import { useFocusTrap } from 'hooks/useFocusTrap';
+import { useEscapeStack } from 'hooks/useEscapeStack';
+
+const ref = useRef<HTMLElement>(null);
+useBodyScrollLock(open);                 // 배경 스크롤 잠금
+useEscapeStack(open, onClose);           // 중첩 모달 안전한 Esc (최상단만 닫힘)
+useFocusTrap(ref, open);                 // Tab 순회 + 복귀
+// 드로어 루트: ref + role="dialog" + aria-modal="true" + aria-label
+```
+
+**키보드 단축키 표준:** 우측 패널 토글은 `⌘/` (mac) · `Ctrl+\` (win). Q Task · Q Talk 에 구현됨.
+
+## UI 규칙 — 반응형 상세 드로어 (신규 코드 필수)
+
+우측 상세/편집 드로어는 **공통 프리미티브 `components/Common/DetailDrawer.tsx`** 를 사용한다. 기존 커스텀 드로어도 아래 반응형 CSS 를 반드시 적용.
+
+- **≥1025px:** 지정 width (기본 440px) 사이드 드로어
+- **641~1024px:** `width: min(560px, 90vw)`
+- **≤640px:** `width: 100vw` 풀스크린, border-left·box-shadow 제거, `padding-bottom: env(safe-area-inset-bottom)`
+
+공통 규칙:
+- **body 스크롤 잠금**: `hooks/useBodyScrollLock(open)` 필수 — 드로어/모달 열림 동안 배경 스크롤 차단, 스크롤바 폭 보정 포함
+- Esc 닫기 + 백드롭 클릭 닫기 + 재클릭 토글 기본
+- 폰에서 리사이즈 핸들 `@media (max-width: 1024px) { display: none; }`
+- 터치 타겟 폰에서 최소 40×40
+
+```tsx
+import DetailDrawer from 'components/Common/DetailDrawer';
+<DetailDrawer open={!!selected} onClose={close} width={440} ariaLabel="일정 상세">
+  <DetailDrawer.Header onClose={close}>...</DetailDrawer.Header>
+  <DetailDrawer.Body>...</DetailDrawer.Body>
+  <DetailDrawer.Footer>...</DetailDrawer.Footer>
+</DetailDrawer>
+```
+
+적용처: EventDrawer(신규) · TaskDetailDrawer · ClientsPage Drawer. 이후 신규 상세/편집 드로어는 반드시 DetailDrawer 사용.
+
 ## UI 규칙 — 액션 버튼 / 중복 제출 / URL 싱크
 
 - **액션 버튼 3톤** (Primary / Secondary / Danger)만 사용. 상태 색을 버튼 배경에 칠하지 말 것. `UI_DESIGN_GUIDE.md` 섹션 1.7.

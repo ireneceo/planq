@@ -67,6 +67,7 @@ setFormError(null);
 - 모든 셀렉트는 `components/Common/PlanQSelect.tsx` 사용
 - raw `<select>`, styled `select`, react-select 직접 import 금지 — 헬스체크 린트가 차단
 - 검색 가능, 멀티 셀렉트, 아이콘/설명 옵션 지원
+- **옵션이 많은 리스트 (시간, 50+ 항목)**: `density="compact"` prop 추가해 옵션 패딩 절반 (10px 12px → 5px 10px)
 
 ### 1.7 액션 버튼 3톤 규칙 (필수 — 2026-04-19 표준화)
 

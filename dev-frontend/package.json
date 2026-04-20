@@ -31,6 +31,7 @@
     "react-router-dom": "^7.14.0",
     "react-select": "^5.10.2",
     "recharts": "^3.8.1",
+    "rrule": "^2.8.1",
     "socket.io-client": "^4.8.3",
     "styled-components": "^6.3.12",
     "tippy.js": "^6.3.7"

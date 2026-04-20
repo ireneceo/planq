@@ -13,6 +13,7 @@ import QProjectPage from './pages/QProject/QProjectPage';
 import QProjectDetailPage from './pages/QProject/QProjectDetailPage';
 import ClientsPage from './pages/Clients/ClientsPage';
 import InvitePage from './pages/Invite/InvitePage';
+import QCalendarPage from './pages/QCalendar/QCalendarPage';
 import './App.css';
 
 // Placeholder pages - will be replaced per phase
@@ -109,7 +110,7 @@ function App() {
 
         <Route path="/calendar" element={
           <ProtectedRoute>
-            <MainLayout><PlaceholderPage title="Q calendar" /></MainLayout>
+            <MainLayout><QCalendarPage /></MainLayout>
           </ProtectedRoute>
         } />
 

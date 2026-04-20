@@ -10,6 +10,9 @@ import RichEditor from '../Common/RichEditor';
 import TaskAttachments from './TaskAttachments';
 import { STATUS_COLOR, displayStatus, getStatusLabel, type StatusCode } from '../../utils/taskLabel';
 import { getRoles, primaryPerspective } from '../../utils/taskRoles';
+import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
+import { useFocusTrap } from '../../hooks/useFocusTrap';
+import { useEscapeStack } from '../../hooks/useEscapeStack';
 
 export interface DrawerTaskPatch {
   id: number;
@@ -90,6 +93,10 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
   width, onWidthChange, onClose, onPatch, onRefresh,
 }) => {
   const { t } = useTranslation('qtask');
+  const drawerRef = useRef<HTMLElement>(null);
+  useBodyScrollLock(!!taskId);
+  useEscapeStack(!!taskId, onClose);
+  useFocusTrap(drawerRef, !!taskId);
 
   const [detailTask, setDetailTask] = useState<TaskDetail | null>(null);
   const [reviewers, setReviewers] = useState<ReviewerRow[]>([]);
@@ -377,7 +384,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
 
   return (<>
     <Backdrop onClick={onClose} />
-    <Drawer $w={localWidth} onMouseDown={(e) => e.stopPropagation()}>
+    <Drawer ref={drawerRef} role="dialog" aria-modal="true" aria-label={detailTask?.title || 'task detail'} $w={localWidth} onMouseDown={(e) => e.stopPropagation()}>
       <ResizeHandle onMouseDown={startResize} />
       <DrawerHeader>
         <BackBtn onClick={onClose}>
@@ -752,17 +759,27 @@ const DateRangeCell: React.FC<{
 
 // ─── styled ───
 const Backdrop = styled.div`
-  position:fixed;inset:0;background:rgba(15,23,42,0.12);z-index:39;
-  animation:pqFadeIn 0.15s ease-out;
+  position:fixed;inset:0;background:rgba(15, 23, 42, 0.08);
+  z-index:39;
+  animation:pqFadeIn 0.22s ease-out;
   @keyframes pqFadeIn{from{opacity:0;}to{opacity:1;}}
+  @media (prefers-reduced-motion: reduce){animation:none;}
 `;
 const Drawer = styled.aside<{ $w: number }>`
-  position:fixed;top:0;right:0;bottom:0;width:${p => p.$w}px;max-width:100vw;background:#FFF;border-left:1px solid #E2E8F0;
-  box-shadow:-12px 0 28px rgba(15,23,42,0.08);display:flex;flex-direction:column;overflow:hidden;z-index:40;
-  animation:pqSlideIn 0.18s ease-out;
-  @keyframes pqSlideIn{from{transform:translateX(40px);opacity:0.6;}to{transform:translateX(0);opacity:1;}}
+  position:fixed;top:0;right:0;bottom:0;
+  width:min(${p => p.$w}px, calc(100vw - 56px));
+  background:#FFF;border-left:1px solid #E2E8F0;
+  box-shadow:-16px 0 40px rgba(15,23,42,0.14);display:flex;flex-direction:column;overflow:hidden;z-index:40;
+  animation:pqSlideIn 0.28s cubic-bezier(0.22,1,0.36,1);
+  @keyframes pqSlideIn{from{transform:translateX(100%);}to{transform:translateX(0);}}
+  padding-bottom:env(safe-area-inset-bottom,0px);
+  @media (prefers-reduced-motion: reduce){animation:none;}
 `;
-const ResizeHandle = styled.div`position:absolute;top:0;left:-4px;width:8px;height:100%;cursor:col-resize;z-index:45;&:hover{background:rgba(20,184,166,0.25);}&:active{background:rgba(20,184,166,0.45);}`;
+const ResizeHandle = styled.div`
+  position:absolute;top:0;left:-4px;width:8px;height:100%;cursor:col-resize;z-index:45;
+  &:hover{background:rgba(20,184,166,0.25);}&:active{background:rgba(20,184,166,0.45);}
+  @media (max-width: 1024px) { display: none; }
+`;
 const DrawerHeader = styled.div`height:60px;padding:14px 20px;border-bottom:1px solid #E2E8F0;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;`;
 const BackBtn = styled.button`display:flex;align-items:center;gap:4px;background:transparent;border:none;color:#0F766E;font-size:12px;font-weight:600;cursor:pointer;padding:0;&:hover{color:#134E4A;}`;
 const CloseBtn = styled.button`width:28px;height:28px;display:flex;align-items:center;justify-content:center;background:transparent;border:none;border-radius:6px;color:#64748B;cursor:pointer;&:hover{background:#F1F5F9;color:#0F172A;}`;

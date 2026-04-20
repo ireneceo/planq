@@ -60,6 +60,8 @@ interface PlanQSelectProps<IsMulti extends boolean = false>
   > {
   size?: 'sm' | 'md' | 'lg';
   hasError?: boolean;
+  /** 옵션 간격 — 시간 리스트처럼 옵션 많을 때 'compact' 사용. 기본 'comfortable'. */
+  density?: 'comfortable' | 'compact';
 }
 
 // ─────────────────────────────────────────────────────────
@@ -82,10 +84,12 @@ const SIZE_FONT = {
 // ─────────────────────────────────────────────────────────
 function buildStyles(
   size: 'sm' | 'md' | 'lg',
-  hasError: boolean
+  hasError: boolean,
+  density: 'comfortable' | 'compact' = 'comfortable',
 ): StylesConfig<PlanQSelectOption, boolean, GroupBase<PlanQSelectOption>> {
   const minHeight = SIZE_HEIGHT[size];
   const fontSize = SIZE_FONT[size];
+  const optionPadding = density === 'compact' ? '5px 10px' : '10px 12px';
 
   return {
     control: (base, state) => ({
@@ -161,7 +165,7 @@ function buildStyles(
     }),
     option: (base, state) => ({
       ...base,
-      padding: '10px 12px',
+      padding: optionPadding,
       borderRadius: 6,
       fontSize,
       cursor: state.isDisabled ? 'not-allowed' : 'pointer',
@@ -243,12 +247,12 @@ const SingleValue = (props: any) => {
 function PlanQSelect<IsMulti extends boolean = false>(
   props: PlanQSelectProps<IsMulti>
 ) {
-  const { size = 'md', hasError = false, ...rest } = props;
+  const { size = 'md', hasError = false, density = 'comfortable', ...rest } = props;
 
   return (
     <Select
       {...rest}
-      styles={buildStyles(size, hasError) as any}
+      styles={buildStyles(size, hasError, density) as any}
       components={{ Option, SingleValue, ...(rest.components || {}) }}
       noOptionsMessage={({ inputValue }) =>
         inputValue ? `'${inputValue}'에 대한 결과 없음` : '옵션 없음'

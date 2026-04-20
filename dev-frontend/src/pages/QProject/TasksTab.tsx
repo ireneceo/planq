@@ -384,15 +384,21 @@ const TableWrap = styled.div`background:#FFF;border:1px solid #E2E8F0;border-rad
 const BottomAddLink = styled.button`margin-top:10px;padding:8px 14px;background:transparent;color:#94A3B8;border:none;font-size:13px;font-weight:500;cursor:pointer;text-align:left;display:block;font-family:inherit;&:hover{color:#0F766E;}`;
 const BottomAddSlot = styled.div`margin-top:16px;`;
 const AddBackdrop = styled.div`
-  position:fixed;inset:0;background:rgba(15,23,42,0.12);z-index:39;
-  animation:pqFadeIn 0.15s ease-out;
+  position:fixed;inset:0;background:rgba(15, 23, 42, 0.08);
+  z-index:39;
+  animation:pqFadeIn 0.22s ease-out;
   @keyframes pqFadeIn{from{opacity:0;}to{opacity:1;}}
+  @media (prefers-reduced-motion: reduce){animation:none;}
 `;
 const AddDrawer = styled.aside`
-  position:fixed;top:0;right:0;bottom:0;width:520px;max-width:100vw;background:#FFF;border-left:1px solid #E2E8F0;
-  box-shadow:-12px 0 28px rgba(15,23,42,0.08);display:flex;flex-direction:column;overflow:hidden;z-index:40;
-  animation:pqSlideIn 0.18s ease-out;
-  @keyframes pqSlideIn{from{transform:translateX(40px);opacity:0.6;}to{transform:translateX(0);opacity:1;}}
+  position:fixed;top:0;right:0;bottom:0;
+  width:min(520px, calc(100vw - 56px));
+  background:#FFF;border-left:1px solid #E2E8F0;
+  box-shadow:-16px 0 40px rgba(15,23,42,0.14);display:flex;flex-direction:column;overflow:hidden;z-index:40;
+  animation:pqSlideIn 0.28s cubic-bezier(0.22,1,0.36,1);
+  @keyframes pqSlideIn{from{transform:translateX(100%);}to{transform:translateX(0);}}
+  padding-bottom:env(safe-area-inset-bottom,0px);
+  @media (prefers-reduced-motion: reduce){animation:none;}
 `;
 const AddDrawerHeader = styled.div`height:60px;padding:14px 20px;border-bottom:1px solid #E2E8F0;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;`;
 const AddDrawerTitle = styled.h2`font-size:14px;font-weight:700;color:#0F172A;margin:0;`;

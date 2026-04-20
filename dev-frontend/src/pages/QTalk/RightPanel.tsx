@@ -8,6 +8,9 @@ import {
 import { useAuth } from '../../contexts/AuthContext';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 import LetterAvatar from '../../components/Common/LetterAvatar';
+import FloatingPanelToggle, { PANEL_WIDTH_CSS } from '../../components/Common/FloatingPanelToggle';
+import { useIsNarrow } from '../../hooks/useMediaQuery';
+import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 
 interface Props {
   project: MockProject | null;
@@ -78,7 +81,29 @@ const RightPanel: React.FC<Props> = ({
     setNewNoteText('');
   };
 
-  if (collapsed) {
+  const isNarrow = useIsNarrow(1200);
+  const [narrowOpen, setNarrowOpen] = useState(false);
+  useBodyScrollLock(isNarrow && narrowOpen);
+
+  // 키보드 토글 — ⌘/ (mac) · Ctrl+\ (win)
+  React.useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const mod = e.metaKey || e.ctrlKey;
+      if (!mod) return;
+      if (e.key === '/' || e.key === '\\') {
+        e.preventDefault();
+        if (isNarrow) setNarrowOpen((x) => !x);
+        else onToggleCollapsed();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [isNarrow, onToggleCollapsed]);
+
+  // 프로젝트 미선택 시 우측 패널 자체 렌더하지 않음 (Irene 요청: 필요 없음)
+  if (!project) return null;
+
+  if (!isNarrow && collapsed) {
     return (
       <CollapsedStrip>
         <CollapsedBtn onClick={onToggleCollapsed}>
@@ -90,9 +115,6 @@ const RightPanel: React.FC<Props> = ({
     );
   }
 
-  // 프로젝트 미선택 시 우측 패널 자체 렌더하지 않음 (Irene 요청: 필요 없음)
-  if (!project) return null;
-
   const projectTasks: MockTask[] = tasks.filter((t) => t.project_id === project.id);
   const myTasks = projectTasks.filter((x) => x.assignee_id === myUserId || x.assignee_id === 15 /* mock: owner 시점 */);
   const projectNotes: MockNote[] = notes.filter((n) => n.project_id === project.id);
@@ -101,14 +123,23 @@ const RightPanel: React.FC<Props> = ({
     : projectNotes;
   const projectIssues: MockIssue[] = issues.filter((i) => i.project_id === project.id);
 
-  return (
-    <Container>
+  const headerCloseHandler = isNarrow ? () => setNarrowOpen(false) : onToggleCollapsed;
+  const headerCloseIcon = isNarrow ? (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+    </svg>
+  ) : (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <polyline points="9 18 15 12 9 6" />
+    </svg>
+  );
+
+  const panelBody = (
+    <>
       <HeaderBar>
         <HeaderTitle>{t('right.title', '프로젝트 작업대')}</HeaderTitle>
-        <IconBtn onClick={onToggleCollapsed} title={t('right.collapse', '접기')}>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <polyline points="9 18 15 12 9 6" />
-          </svg>
+        <IconBtn onClick={headerCloseHandler} title={t('right.collapse', '접기')}>
+          {headerCloseIcon}
         </IconBtn>
       </HeaderBar>
 
@@ -406,22 +437,64 @@ const RightPanel: React.FC<Props> = ({
           )}
         </Section>
       </Scroll>
-    </Container>
+    </>
   );
+
+  if (isNarrow) {
+    return (
+      <>
+        <FloatingPanelToggle
+          open={narrowOpen}
+          onToggle={() => setNarrowOpen((x) => !x)}
+          ariaLabel={t('right.title', '작업대') as string}
+        />
+        {narrowOpen && (
+          <>
+            <OverlayBackdrop onClick={() => setNarrowOpen(false)} />
+            <Container $overlay>{panelBody}</Container>
+          </>
+        )}
+      </>
+    );
+  }
+
+  return <Container>{panelBody}</Container>;
 };
 
 export default RightPanel;
 
 // ─────────────────────────────────────────────
-const Container = styled.aside`
-  width: 320px;
-  flex-shrink: 0;
+const Container = styled.aside<{ $overlay?: boolean }>`
   background: #FFFFFF;
   border-left: 1px solid #E2E8F0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  @media (max-width: 1200px) { display: none; }
+  ${({ $overlay }) => $overlay
+    ? `
+      position: fixed; top: 0; right: 0; bottom: 0;
+      width: ${PANEL_WIDTH_CSS};
+      z-index: 50;
+      box-shadow: -16px 0 40px rgba(15, 23, 42, 0.14);
+      animation: pqSlideIn 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+      @keyframes pqSlideIn { from { transform: translateX(100%); } to { transform: translateX(0); } }
+      padding-bottom: env(safe-area-inset-bottom, 0px);
+      @media (prefers-reduced-motion: reduce) { animation: none; }
+    `
+    : `
+      width: 320px; flex-shrink: 0;
+      @media (max-width: 1200px) { display: none; }
+    `}
+`;
+
+const OverlayBackdrop = styled.div`
+  position: fixed; inset: 0;
+  background: rgba(15, 23, 42, 0.08);
+  
+  z-index: 45;
+  animation: pqFadeIn 0.22s ease-out;
+  @keyframes pqFadeIn { from { opacity: 0; } to { opacity: 1; } }
+  @media (prefers-reduced-motion: reduce) { animation: none; }
 `;
 
 const CollapsedStrip = styled.aside`

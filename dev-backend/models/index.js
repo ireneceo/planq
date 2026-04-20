@@ -29,6 +29,8 @@ const TaskAttachment = require('./TaskAttachment');
 const ProjectStatusOption = require('./ProjectStatusOption');
 const ProjectProcessColumn = require('./ProjectProcessColumn');
 const ProjectProcessPart = require('./ProjectProcessPart');
+const CalendarEvent = require('./CalendarEvent');
+const CalendarEventAttendee = require('./CalendarEventAttendee');
 
 // ============================================
 // Associations
@@ -226,7 +228,21 @@ module.exports = {
   ProjectStatusOption,
   ProjectProcessColumn,
   ProjectProcessPart,
+  CalendarEvent,
+  CalendarEventAttendee,
 };
+
+// CalendarEvent
+CalendarEvent.belongsTo(Business, { foreignKey: 'business_id' });
+CalendarEvent.belongsTo(Project, { foreignKey: 'project_id' });
+CalendarEvent.belongsTo(User, { as: 'creator', foreignKey: 'created_by' });
+Business.hasMany(CalendarEvent, { as: 'calendarEvents', foreignKey: 'business_id' });
+Project.hasMany(CalendarEvent, { as: 'calendarEvents', foreignKey: 'project_id' });
+
+CalendarEventAttendee.belongsTo(CalendarEvent, { foreignKey: 'event_id', onDelete: 'CASCADE' });
+CalendarEventAttendee.belongsTo(User, { as: 'user', foreignKey: 'user_id' });
+CalendarEventAttendee.belongsTo(Client, { as: 'client', foreignKey: 'client_id' });
+CalendarEvent.hasMany(CalendarEventAttendee, { as: 'attendees', foreignKey: 'event_id', onDelete: 'CASCADE' });
 
 ProjectStatusOption.belongsTo(Project, { foreignKey: 'project_id', onDelete: 'CASCADE' });
 Project.hasMany(ProjectStatusOption, { as: 'status_options', foreignKey: 'project_id' });

@@ -1,6 +1,67 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-04-20 (드로어·샘플·고객·대화·캘린더 설계 — 대규모 세션)
+> **최종 업데이트:** 2026-04-20 (Calendar Phase A~E 완주 + 드로어 반응형 통일)
+
+---
+
+## ✅ 완료: Calendar Phase A~E 전체 구현 + 드로어 반응형 통일 (2026-04-20)
+
+캘린더 시스템을 DB→API→UI→반복→화상→Q Task 통합까지 한 사이클 완주. 동시에 모든 우측 드로어를 햄버거 패턴(왼쪽 strip 남김) + 엣지 핸들 + 접근성 훅으로 통일.
+
+### 완료된 작업
+
+| 영역 | 작업 | 상태 |
+|------|------|:----:|
+| **Phase A (DB+API)** | `calendar_events` + `calendar_event_attendees` 테이블, CRUD 6개 엔드포인트, visibility personal/business, attendee 응답, AuditLog 4종 | ✅ |
+| **Phase A 검증** | API 24/24 PASS (역할별 owner/member, 엣지 케이스, 멀티테넌트 격리) | ✅ |
+| **Phase B (UI)** | `pages/QCalendar/*` 신규 8파일. 월/주/일 3뷰, NewEventModal, EventDrawer, MonthView, TimeGridView, URL 싱크, i18n ko/en | ✅ |
+| **Phase B API 연결** | Mock 제거 → `services/calendar.ts` 실 API. 낙관적 업데이트, 로딩/에러 UI | ✅ |
+| **Phase C (반복)** | `rrule.js` 설치, 백엔드 range 쿼리 RRULE expansion, 프리셋 6종(없음/매일/매주/2주마다/매월/매년), 드로어 배지 | ✅ |
+| **Phase C 검증** | DAILY 7 인스턴스, WEEKLY 4, BIWEEKLY 2, MONTHLY 6 — 10/10 PASS | ✅ |
+| **Phase D (화상미팅)** | `services/daily.js` Daily.co 래퍼, `auto_create_meeting` 옵션, 기존 이벤트 지연 방 생성, iframe 임베드, `video/status` 엔드포인트 | ✅ |
+| **Phase D 실연결** | `DAILY_API_KEY` 설정 → `planq.daily.co` 실 방 생성 확인 | ✅ |
+| **Phase E (Q Task 통합)** | `taskToEvent.ts` 변환기, due_date 있는 업무 종일 이벤트로 표시, 4필터(전체/나/업무/일정), 업무 클릭 시 캘린더에서 TaskDetailDrawer 오버레이 | ✅ |
+| **Phase E 버그픽스** | `due_date` 풀 ISO 파싱 수정, 업무 단일 날짜 표시(기간 중복 제거), 월 뷰 팝오버(+N 더보기) | ✅ |
+| **CalendarPicker 재사용** | NewEventModal 의 native datetime-local → 기존 `CalendarPicker` + `PlanQSelect` 시간 드롭다운 | ✅ |
+| **PlanQSelect 개선** | `density='compact'` prop 추가 (옵션 many 리스트용, 패딩 절반) | ✅ |
+| **DetailDrawer 프리미티브** | 공용 `components/Common/DetailDrawer.tsx` + Header/Body/Footer 서브. 반응형 3-구간 내장 | ✅ |
+| **반응형 드로어 통일** | 5개 드로어 모두 `min(desktopW, 100vw - 56px)` 폭 — 좌측 56px strip 남김 (햄버거 패턴) | ✅ |
+| **엣지 핸들 + 팝아웃 패널** | `FloatingPanelToggle.tsx` — 얇은 우측 세로 핸들(8px), 화살표 회전, 열면 right:0 → panel-width 이동. pulse 최초 1회(localStorage) | ✅ |
+| **접근성 훅 2종** | `useFocusTrap` (Tab 순회 + 복귀), `useEscapeStack` (중첩 모달 안전) — DetailDrawer·TaskDetailDrawer 에 적용 | ✅ |
+| **body scroll lock** | `useBodyScrollLock` — 5곳 (드로어·RightPanel) 통합 | ✅ |
+| **키보드 단축키** | `⌘/` · `Ctrl+\` 우측 패널 토글 — QTask, QTalk | ✅ |
+| **뒷배경 blur 제거** | Irene 피드백 — 모든 드로어 `backdrop-filter: blur` 제거, dim 0.32→0.08 | ✅ |
+| **필터 네이밍** | "내 것" → "나", "업무만/일정만" → "업무/일정" (중복어 제거) | ✅ |
+| **레거시 `/raw` URL 호환** | 구 task body 의 `/api/tasks/attachments/:id/raw` 자동 302 → `/public/attach/:storedName` | ✅ |
+
+### 신규 파일
+**Backend**
+- `models/CalendarEvent.js`, `models/CalendarEventAttendee.js`
+- `routes/calendar.js`, `services/daily.js`
+
+**Frontend**
+- `pages/QCalendar/` 9파일 (QCalendarPage, MonthView, TimeGridView, EventDrawer, NewEventModal, types, dateUtils, categoryColors, taskToEvent)
+- `components/Common/DetailDrawer.tsx`, `components/Common/FloatingPanelToggle.tsx`
+- `hooks/useBodyScrollLock.ts`, `useFocusTrap.ts`, `useEscapeStack.ts`, `useMediaQuery.ts`
+- `services/calendar.ts`
+- `public/locales/ko/qcalendar.json`, `public/locales/en/qcalendar.json`
+
+### 수정 파일
+- Backend: `routes/task_attachments.js` (레거시 raw 호환), `models/index.js` (associations), `server.js` (라우트 마운트)
+- Frontend: `App.tsx`, `i18n.ts`, `components/QTask/TaskDetailDrawer.tsx`, `components/Common/PlanQSelect.tsx`, `pages/Clients/ClientsPage.tsx`, `pages/QTask/QTaskPage.tsx`, `pages/QTalk/RightPanel.tsx`, `pages/QProject/TasksTab.tsx`
+- 원칙: `CLAUDE.md` (드로어 접근성 3훅, 반응형 드로어 3-구간 정책), 메모리 1건 추가 (`feedback_responsive_drawer.md`)
+
+### 검증 결과
+- 헬스체크 27/27 (반복)
+- Phase A+B+C+D+E E2E 20/20 PASS
+- Phase A 단독 24/24, Phase C 단독 10/10
+- 라우트 12/12 전부 200
+- 빌드 tsc 0 error, gzip ~422 kB
+
+### 알려진 제약
+- RRULE 단일 인스턴스 수정/삭제 미구현 (parent 건드리면 모든 인스턴스 영향)
+- RRULE UNTIL/COUNT 미지원 (프리셋은 무한 반복)
+- Daily.co API 키는 dev 키 (Irene 대시보드 발급). 프로덕션 배포 전 rotate 필요
 
 ---
 

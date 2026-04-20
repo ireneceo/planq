@@ -1,0 +1,106 @@
+{
+  "title": "Calendar",
+  "today": "Today",
+  "prev": "Previous",
+  "next": "Next",
+  "view": {
+    "month": "Month",
+    "week": "Week",
+    "day": "Day"
+  },
+  "new": "+ New event",
+  "filter": {
+    "all": "All",
+    "mine": "Me",
+    "tasks": "Tasks",
+    "events": "Events"
+  },
+  "taskBadge": "Task",
+  "weekday": {
+    "sun": "Sun",
+    "mon": "Mon",
+    "tue": "Tue",
+    "wed": "Wed",
+    "thu": "Thu",
+    "fri": "Fri",
+    "sat": "Sat"
+  },
+  "category": {
+    "personal": "Personal",
+    "work": "Work",
+    "meeting": "Meeting",
+    "deadline": "Deadline",
+    "other": "Other"
+  },
+  "visibility": {
+    "personal": "Personal",
+    "business": "Workspace"
+  },
+  "response": {
+    "pending": "Pending",
+    "accepted": "Going",
+    "declined": "Declined",
+    "tentative": "Maybe"
+  },
+  "recurrence": {
+    "label": "Repeats",
+    "none": "Does not repeat",
+    "daily": "Daily",
+    "weekly": "Weekly",
+    "biweekly": "Every 2 weeks",
+    "monthly": "Monthly",
+    "yearly": "Yearly",
+    "badge": "Repeats {{rule}}"
+  },
+  "form": {
+    "title": "Event title",
+    "titlePlaceholder": "e.g. Planning review",
+    "description": "Description",
+    "descriptionPlaceholder": "Details about this event",
+    "location": "Location",
+    "locationPlaceholder": "Room, address, or meeting link",
+    "startAt": "Start",
+    "endAt": "End",
+    "allDay": "All day",
+    "category": "Category",
+    "project": "Project",
+    "projectNone": "No project",
+    "visibility": "Visibility",
+    "attendees": "Attendees",
+    "attendeesEmpty": "No attendees yet",
+    "meetingUrl": "Meeting URL",
+    "meetingUrlPlaceholder": "https://meet.daily.co/...",
+    "color": "Color",
+    "colorInherit": "Inherit from project",
+    "autoCreateMeeting": "Auto-create video meeting",
+    "autoCreateMeetingHelp": "Generates a Daily.co room automatically"
+  },
+  "button": {
+    "create": "Create event",
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete event",
+    "deleteConfirm": "Delete this event?"
+  },
+  "drawer": {
+    "createdBy": "Created by",
+    "attendees": "Attendees",
+    "noAttendees": "No attendees",
+    "meeting": "Video meeting",
+    "joinMeeting": "Join meeting",
+    "openInEmbed": "Join here",
+    "closeEmbed": "Close meeting",
+    "createRoom": "Create Daily link",
+    "creating": "Creating...",
+    "copyLink": "Copy link",
+    "linkCopied": "Link copied",
+    "project": "Project"
+  },
+  "empty": {
+    "month": "No events this month",
+    "week": "No events this week",
+    "day": "No events today"
+  },
+  "more": "+ {{count}} more",
+  "allDay": "All day"
+}

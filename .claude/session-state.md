@@ -7,94 +7,87 @@
 
 ### 완료된 작업 (이번 세션)
 
-**공용 인프라**
-- `components/QTask/TaskDetailDrawer.tsx` 신규 (QTask + QProject 공용 드로어)
-- `components/Common/GanttTrack.tsx` 공용 간트 (ProjectTaskList·TimelineView·Dashboard 3곳 재사용)
-- `components/Common/EmptyState.tsx` 통일 (Q Note/Talk/Task 동일 스타일)
-- `theme/breakpoints.ts` 반응형 Phase 0 토큰
+**Calendar Phase A — DB + API**
+- `calendar_events` + `calendar_event_attendees` 모델 2개
+- `routes/calendar.js` 6 엔드포인트 (range GET, CRUD, attendee 응답, video/status)
+- AuditLog 4종 (created/updated/deleted/attendee_responded/meeting_created)
+- 멀티테넌트 격리, visibility personal/business, scope=mine 서버 지원
+- 검증 24/24 PASS
 
-**재클릭 토글 전역 원칙**
-- Q Talk 대화, Q Note 세션, Q Task·Project 드로어 모두 재클릭 토글
-- CLAUDE.md + 메모리 `feedback_reclick_toggle.md` 명문화
+**Calendar Phase B — UI + API 연결**
+- `pages/QCalendar/` 9 파일 (월/주/일 3뷰, 드로어, 모달, 유틸)
+- URL 싱크 `?view=week&date=...&event=...&scope=mine&task=...`
+- `services/calendar.ts` 래퍼 + 낙관적 업데이트 + 로딩/에러 UI
+- i18n ko/en `qcalendar` 네임스페이스
+- CalendarPicker + PlanQSelect 재사용 (native datetime-local 제거)
 
-**Q Talk 재설계**
-- 독립 대화 생성 (`POST /api/conversations`) + 프로젝트 선택 연결
-- NewChatModal 신규 (이름·프로젝트·참여자). 좌측 "+ 대화/프로젝트" 분리
-- 프로젝트 자동 채널 생성 제거. 채팅방 단위 URL 싱크 `?project=X&conv=Y`
-- 프로젝트 미선택 시 우측 패널 숨김. 중앙 empty state
-- 좌측 필터 탭 제거 (미동작 코드). 일반 대화 섹션 추가
+**Calendar Phase C — 반복 (RRULE)**
+- `rrule.js` 설치, 백엔드 range 쿼리에 expansion 로직
+- 프리셋 6종 (없음/매일/매주/2주마다/매월/매년)
+- `_parent_event_id` / `_instance_key` 메타 필드
+- 드로어 반복 배지
+- 검증 10/10 PASS
 
-**Q Note**
-- 좌측 헤더·검색 border 통일 + Layout `100vh` (바닥 회색 제거)
-- main 배경 #FFFFFF. 세션 상태 pill Q Task 동일 파스텔 bg+fg
+**Calendar Phase D — Daily.co 화상 미팅**
+- `services/daily.js` REST 래퍼 (createRoom, isConfigured)
+- `auto_create_meeting` 플래그 시 자동 방 생성
+- `POST /meeting` 지연 방 생성 엔드포인트
+- `GET /video/status` 구성 여부 감지
+- 드로어 iframe 임베드 + "여기서 참여" 버튼
+- `DAILY_API_KEY` 설정 → `planq.daily.co` 실 방 생성 확인
 
-**Q Task**
-- 리스트 빈 상태 EmptyState + CTA. `?view=` URL 싱크
-- scope 별 우측 패널 인사이트 (전체/요청하기/workspace 각각 Period·Capacity·Burndown·ProjectProgress·Issues·Notes)
-- 액션 드로어 깜빡임 수정 (병렬 fetch + 액션 섹션 display 토글)
+**Calendar Phase E — Q Task 통합**
+- `taskToEvent.ts` 변환기 (due_date 있는 업무 종일 이벤트)
+- 4필터 세그먼트: 전체 / 나 / 업무 / 일정
+- 업무 클릭 시 캘린더 페이지 위 `TaskDetailDrawer` 오버레이 (Q Task 이동 X)
+- 버그픽스: due_date 풀 ISO 파싱, 단일 날짜 표시(중복 제거)
+- 월 뷰 "+N 더보기" 팝오버 (Google Calendar 방식)
+- 그리드 행 min-height 112px + 세로 스크롤 (가려짐 해결)
 
-**Q Project 감사 + 샘플**
-- `docs/QPROJECT_AUDIT.md` 신규 — 미구현 목록 3단계 우선순위
-- 샘플 6 시나리오 시드 (A 진행중 / B 지연 / C 완료직전 / D 신규 / E 지속 / F 복합)
-- 프로젝트 상세정보 탭 상태 3-segment + closed 모달 (고객 체크박스 내보내기)
-- 대화 cascade archived · 멤버 관리 카드 (추가/역할/제거)
-- `PUT /tasks/by-business/:bizId/:id` project_id 이관 버그 수정
+**드로어 반응형 통일**
+- `DetailDrawer` 프리미티브 (Header/Body/Footer) 신규
+- 5개 드로어 전부 `min(desktopW, 100vw - 56px)` — 좌측 56px strip = 햄버거 패턴
+- `FloatingPanelToggle` — 얇은 엣지 핸들(8px) + 화살표 회전 + 펄스(최초 1회)
+- `useBodyScrollLock` · `useFocusTrap` · `useEscapeStack` · `useMediaQuery` 4 훅 신규
+- blur 백드롭 제거 (Irene 피드백), dim 0.32→0.08
+- 키보드 `⌘/` · `Ctrl+\` 토글 (QTask/QTalk)
 
-**Irene 3-역할 실데이터**
-- 워프로랩 (owner·biz 3): 프로젝트 3 + 업무 39 + 대화 6
-- PlanQ 테스트 (member·biz 6): 프로젝트 6 + 업무 21 + 대화 3
-- 브랜드 파트너스 (client·biz 7): 프로젝트 2 + 업무 8 + 대화 4
-- `ProjectClient.contact_user_id` 일괄 매칭 (client role 권한 체크)
+**레거시 호환**
+- `/api/tasks/attachments/:id/raw` 자동 302 → `/public/attach/:storedName` (구 task body 이미지 401 에러 해결)
 
-**고객 페이지 (/business/clients) 마스터-디테일 드로어**
-- 리스트 인라인 편집 (이름·회사 더블클릭) · 필터 세그먼트 (활성/전체/보관)
-- 드로어: 헤더(아바타+이름+회사+Switch) · 연락처 · 메모 자동저장 · 연결 프로젝트 · 연결 대화 · 히스토리(시계 토글) · 삭제
-- 클릭 → `/projects/p/:id` · `/talk?project=X&conv=Y` 이동
-- hard delete + ProjectClient 정리 + removal-impact 경고 모달
-- `POST /api/clients/:bizId/invite` 신규 초대 (이메일 기반 User 자동 생성)
-- 프로젝트 고객 탭 "초대 대기 / 참여 중" 상태 pill
-
-**AuditLog**
-- client.invited/activated/archived/updated/deleted + project.client_added/removed
-- 미들웨어 camelCase/snake_case 호환 (기존 코드 영향 없음)
-
-**브랜드·UX**
-- `docs/BRAND_CONCEPT.md` 10섹션. 슬로건 "일을 일답게 하다" / "일이 일이되지 않게"
-- auth 로그인 슬로건 교체. Q Note/Talk empty state 문구 정리
-- 사이드바 라벨: Business→워크스페이스 / Features→기능 / Admin→관리 / Main 제거
-- 간트 바 파스텔화 (bg + border-left + fg text)
+**PlanQSelect 개선**
+- `density='compact'` prop 추가 (시간 드롭다운 같이 옵션 많은 경우)
 
 ### 검증 결과
 - 헬스체크 27/27 (반복)
-- 빌드: tsc 0 error, vite ~1.2s, gzip ~414 kB
-- API 18건 PASS (client drawer/history/archive/invite + cascade + project_id 이관 + removal-impact)
-- 프론트 9개 핵심 URL 전부 200
+- 빌드 tsc 0 error, 290 modules, gzip 422 kB
+- Phase A+B+C+D+E 통합 E2E 20/20 PASS
+- 라우트 12/12 전부 200
+- Daily.co 실 방 생성 확인 (planq.daily.co)
 
 ### 다음 할 일 (다음 세션 시작점)
 
-**1순위 — 캘린더 Phase A~E (약 5일)**
-- Phase A: DB 2테이블 (`calendar_events`, `calendar_event_attendees`) + CRUD API + 범위 쿼리
-- Phase B: 월/주/일 뷰 + 이벤트 모달 + 드로어
-- Phase C: 반복 (`rrule.js` — 매일/매주/매월/매년/커스텀)
-- Phase D: **화상 미팅 — Daily.co 임베드 + 수동 링크 입력** (Irene 결정 2026-04-20)
-- Phase E: Q Task 업무 통합 표시 + 4필터 세그먼트 (전체/내/업무만/일정만)
-- 색상: 프로젝트 색 자동 상속 + 개인일정 카테고리 팔레트 5종
-
-**2순위 — 현재 미구현 UX 잔여**
-- 문서 탭 실파일 업로드 (기존 files API 재사용)
-- 프로젝트 삭제 UI (확인 모달 + cascade 정책 안내)
+**1순위 — 잔여 UX 정리 (DEVELOPMENT_PLAN.md 2순위)**
+- 프로젝트 문서 탭 실파일 업로드 (files API 재사용)
+- 프로젝트 삭제 UI (cascade 확인 모달)
 - F5-2b `/invite/:token` 수락 랜딩 페이지
 
-**3순위 — 출시 직전 스프린트 (약 8일, 반응형 + 메일 + 래핑 묶음)**
-- 반응형 Phase 1~5 (사이드바 햄버거화, 마스터-디테일 모바일 패턴, 터치 타겟 44×44)
-- 메일 시스템 (SMTP 설정 페이지 + 초대 템플릿 + `/invite/:token` 연동)
-- Capacitor 하이브리드앱 래핑 (아이콘/스플래시/푸시)
+**2순위 — Calendar 폴리시**
+- RRULE 단일 인스턴스 수정/삭제 ("이 이벤트만 / 이후 모두" 분기)
+- RRULE UNTIL/COUNT 종료 조건 UI
+- Calendar 알림 (이벤트 시작 N분 전 푸시)
 
-**백로그 (후일 업데이트)**
-- 타임라인 바 드래그 (3단계 로드맵)
+**3순위 — 출시 직전 스프린트 (약 8일)**
+- 반응형 Phase 1~5 (사이드바 햄버거화, 모바일 마스터-디테일, 터치 44px)
+- 메일 시스템 (SMTP 설정 + 초대 템플릿)
+- Capacitor 하이브리드앱 래핑
+
+**백로그**
 - Q Talk Cue 자동 추출 트리거
 - Dashboard 위젯
 - lua 팀원 계정 세팅
+- 타임라인 바 드래그 (3단계 로드맵)
+- 프로덕션 Daily.co 키 분리 + dev 키 rotate
 
 ---
 

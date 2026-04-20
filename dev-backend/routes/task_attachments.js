@@ -151,7 +151,15 @@ async function serveAttachment(req, res, next, asDownload) {
     fs.createReadStream(abs).pipe(res);
   } catch (err) { next(err); }
 }
-router.get('/attachments/:id/raw', authenticateToken, (req, res, next) => serveAttachment(req, res, next, false));
+// 레거시 URL 호환 — 과거 본문(body)에 저장된 `/raw` URL 은 `<img>` 에서 Authorization 헤더를 보낼 수 없어 401.
+// stored_name 이 이미 UUID 기반 접근제어이므로 공개 경로로 302 리다이렉트. 신규 업로드는 이미 /public/attach 경로.
+router.get('/attachments/:id/raw', async (req, res, next) => {
+  try {
+    const att = await TaskAttachment.findByPk(req.params.id);
+    if (!att) return errorResponse(res, 'attachment_not_found', 404);
+    return res.redirect(302, `/api/tasks/public/attach/${att.stored_name}`);
+  } catch (err) { next(err); }
+});
 router.get('/attachments/:id/download', authenticateToken, (req, res, next) => serveAttachment(req, res, next, true));
 
 // ============================================
