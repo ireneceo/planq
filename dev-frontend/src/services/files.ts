@@ -6,6 +6,12 @@ import { apiFetch } from '../contexts/AuthContext';
 export type FileSource = 'direct' | 'chat' | 'task' | 'meeting';
 export type StorageProvider = 'planq' | 'gdrive' | 'dropbox';
 
+export interface ProjectContext {
+  id: number;
+  name: string;
+  color?: string | null;
+}
+
 export interface ProjectFile {
   id: string;              // 'direct-12' / 'chat-45' / 'task-7' / 'meeting-3'
   source: FileSource;
@@ -18,6 +24,7 @@ export interface ProjectFile {
   download_url: string;
   preview_url?: string;
   context?: { kind: 'conversation' | 'task' | 'meeting'; id: number; label: string };
+  project_context?: ProjectContext | null;  // 워크스페이스 모드에서만 의미 있음
   folder_id: number | null;
   deletable: boolean;
   storage_provider: StorageProvider;
@@ -55,6 +62,13 @@ function parseFileId(composite: string): { source: FileSource; id: number } | nu
 
 export async function fetchProjectFiles(projectId: number): Promise<ProjectFile[]> {
   const r = await apiFetch(`/api/projects/${projectId}/files`);
+  const j = await r.json();
+  if (!j.success) return [];
+  return (j.data || []) as ProjectFile[];
+}
+
+export async function fetchWorkspaceFiles(businessId: number): Promise<ProjectFile[]> {
+  const r = await apiFetch(`/api/projects/workspace/${businessId}/all-files`);
   const j = await r.json();
   if (!j.success) return [];
   return (j.data || []) as ProjectFile[];

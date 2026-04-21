@@ -14,6 +14,7 @@ import QProjectDetailPage from './pages/QProject/QProjectDetailPage';
 import ClientsPage from './pages/Clients/ClientsPage';
 import InvitePage from './pages/Invite/InvitePage';
 import QCalendarPage from './pages/QCalendar/QCalendarPage';
+import QDocsPage from './pages/QDocs/QDocsPage';
 import './App.css';
 
 // Placeholder pages - will be replaced per phase
@@ -111,6 +112,12 @@ function App() {
         <Route path="/calendar" element={
           <ProtectedRoute>
             <MainLayout><QCalendarPage /></MainLayout>
+          </ProtectedRoute>
+        } />
+
+        <Route path="/docs" element={
+          <ProtectedRoute>
+            <MainLayout><QDocsPage /></MainLayout>
           </ProtectedRoute>
         } />
 

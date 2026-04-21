@@ -9,24 +9,39 @@ import DetailDrawer from '../../components/Common/DetailDrawer';
 import EmptyState from '../../components/Common/EmptyState';
 import PlanQSelect from '../../components/Common/PlanQSelect';
 import SearchBox from '../../components/Common/SearchBox';
+import { Link } from 'react-router-dom';
 import {
-  fetchProjectFiles, uploadProjectFile, deleteProjectFile, bulkDeleteFiles,
+  fetchProjectFiles, fetchWorkspaceFiles, uploadProjectFile, deleteProjectFile, bulkDeleteFiles,
   fetchFolders, createFolder, renameFolder, deleteFolder, reorderFolder, moveFile,
   formatBytes, extOf, isImage,
   type ProjectFile, type FileSource, type FileFolder,
 } from '../../services/files';
 
+export type DocScope =
+  | { type: 'project'; projectId: number; businessId: number }
+  | { type: 'workspace'; businessId: number };
+
 type SortKey = 'recent' | 'name' | 'size';
 type ViewMode = 'grid' | 'list';
 // 폴더 선택 상태: 'all' = 전체 | 'direct' = 직접 업로드 루트 | `src:chat` etc | number = 사용자 폴더 id
-type FolderSel = 'all' | 'direct' | `src:${FileSource}` | number;
+// 워크스페이스 모드: 'all' | `proj:${projectId}` | `src:...`
+type FolderSel = 'all' | 'direct' | `src:${FileSource}` | `proj:${number}` | number;
 
 interface Props {
-  projectId: number;
-  businessId: number;
+  // 하위 호환: 기존 호출부 ({ projectId, businessId }) 는 자동으로 project scope
+  projectId?: number;
+  businessId?: number;
+  scope?: DocScope;
 }
 
-const DocsTab: React.FC<Props> = ({ projectId, businessId }) => {
+const DocsTab: React.FC<Props> = (props) => {
+  const scope: DocScope = props.scope
+    || (props.projectId && props.businessId
+      ? { type: 'project', projectId: props.projectId, businessId: props.businessId }
+      : { type: 'workspace', businessId: props.businessId! });
+  const isWorkspace = scope.type === 'workspace';
+  const projectId = scope.type === 'project' ? scope.projectId : 0;
+  const businessId = scope.businessId;
   const { t } = useTranslation('qproject');
   const tr: (k: string, fb?: string) => string = (k, fb) => t(k, (fb ?? '') as string) as unknown as string;
   const { formatDate } = useTimeFormat();
@@ -51,11 +66,17 @@ const DocsTab: React.FC<Props> = ({ projectId, businessId }) => {
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    Promise.all([fetchProjectFiles(projectId), fetchFolders(projectId)]).then(([fs, fd]) => {
-      if (!cancelled) { setFiles(fs); setFolders(fd); setLoading(false); }
-    });
+    if (isWorkspace) {
+      fetchWorkspaceFiles(businessId).then(fs => {
+        if (!cancelled) { setFiles(fs); setFolders([]); setLoading(false); }
+      });
+    } else {
+      Promise.all([fetchProjectFiles(projectId), fetchFolders(projectId)]).then(([fs, fd]) => {
+        if (!cancelled) { setFiles(fs); setFolders(fd); setLoading(false); }
+      });
+    }
     return () => { cancelled = true; };
-  }, [projectId]);
+  }, [projectId, businessId, isWorkspace]);
 
   // 선택 모드 종료 시 선택 초기화
   useEffect(() => { if (!selectMode) setSelectedIds(new Set()); }, [selectMode]);
@@ -81,8 +102,25 @@ const DocsTab: React.FC<Props> = ({ projectId, businessId }) => {
       const src = folderSel.slice(4) as FileSource;
       return files.filter(f => f.source === src);
     }
+    if (typeof folderSel === 'string' && folderSel.startsWith('proj:')) {
+      const pid = Number(folderSel.slice(5));
+      return files.filter(f => f.project_context?.id === pid);
+    }
     return files.filter(f => f.source === 'direct' && f.folder_id === folderSel);
   }, [files, folderSel]);
+
+  // 워크스페이스 모드: 프로젝트별 집계
+  const projectGroups = useMemo(() => {
+    if (!isWorkspace) return [];
+    const map = new Map<number, { id: number; name: string; color?: string | null; count: number }>();
+    for (const f of files) {
+      if (!f.project_context) continue;
+      const cur = map.get(f.project_context.id);
+      if (cur) cur.count++;
+      else map.set(f.project_context.id, { ...f.project_context, count: 1 });
+    }
+    return Array.from(map.values()).sort((a, b) => b.count - a.count);
+  }, [files, isWorkspace]);
 
   const visible = useMemo(() => {
     let r = filteredByFolder.slice();
@@ -99,9 +137,17 @@ const DocsTab: React.FC<Props> = ({ projectId, businessId }) => {
   const selectedFiles = useMemo(() => files.filter(f => selectedIds.has(f.id)), [files, selectedIds]);
   const selectedDeletable = selectedFiles.filter(f => f.deletable);
 
+  const [pendingUpload, setPendingUpload] = useState<File[] | null>(null);
+  const [workspaceUploadProject, setWorkspaceUploadProject] = useState<number | null>(null);
+
   const handleFiles = useCallback(async (fileList: FileList | File[]) => {
     const arr = Array.from(fileList);
     if (arr.length === 0) return;
+    if (isWorkspace) {
+      // 워크스페이스 모드: 프로젝트 선택 모달
+      setPendingUpload(arr);
+      return;
+    }
     const targetFolderId = typeof folderSel === 'number' ? folderSel : null;
     setUploadingCount(n => n + arr.length);
     for (const f of arr) {
@@ -110,7 +156,26 @@ const DocsTab: React.FC<Props> = ({ projectId, businessId }) => {
         if (r.success && r.file) setFiles(prev => [r.file!, ...prev]);
       } finally { setUploadingCount(n => n - 1); }
     }
-  }, [businessId, projectId, folderSel]);
+  }, [businessId, projectId, folderSel, isWorkspace]);
+
+  const commitWorkspaceUpload = useCallback(async () => {
+    if (!pendingUpload || !workspaceUploadProject) return;
+    const arr = pendingUpload;
+    const targetProject = workspaceUploadProject;
+    setPendingUpload(null); setWorkspaceUploadProject(null);
+    setUploadingCount(n => n + arr.length);
+    for (const f of arr) {
+      try {
+        const r = await uploadProjectFile(businessId, targetProject, f, { folderId: null });
+        if (r.success && r.file) {
+          // project_context 수동 주입 (워크스페이스 뷰 유지)
+          const proj = projectGroups.find(p => p.id === targetProject);
+          const withCtx = proj ? { ...r.file, project_context: { id: proj.id, name: proj.name, color: proj.color } } : r.file;
+          setFiles(prev => [withCtx, ...prev]);
+        }
+      } finally { setUploadingCount(n => n - 1); }
+    }
+  }, [pendingUpload, workspaceUploadProject, businessId, projectGroups]);
 
   const toggleSelect = (id: string, e?: React.MouseEvent) => {
     setSelectedIds(prev => {
@@ -244,49 +309,59 @@ const DocsTab: React.FC<Props> = ({ projectId, businessId }) => {
         </SelectToggle>
       </Toolbar>
 
-      {/* Split: 좌 폴더 트리 + 우 파일 영역 */}
+      {/* Split: 좌 (폴더 트리 or 프로젝트 그룹) + 우 파일 영역 */}
       <Split>
         <FolderTreePanel>
-          <FolderTree
-            folders={folders}
-            counts={counts}
-            total={counts.total}
-            selected={folderSel}
-            onSelect={sel => { setFolderSel(sel); clearSelection(); }}
-            onCreate={async (parentId, name) => {
-              const f = await createFolder(projectId, name, parentId);
-              setFolders(prev => [...prev, f]);
-            }}
-            onRename={async (id, name) => {
-              await renameFolder(id, name);
-              setFolders(prev => prev.map(f => f.id === id ? { ...f, name } : f));
-            }}
-            onDelete={async (id) => {
-              await deleteFolder(id);
-              setFolders(prev => prev.filter(f => f.id !== id));
-              setFiles(prev => prev.map(f => f.folder_id === id ? { ...f, folder_id: null } : f));
-              if (folderSel === id) setFolderSel('direct');
-            }}
-            onReorder={async (id, direction) => {
-              // 낙관적 업데이트 — 같은 parent 안에서 인접 swap
-              setFolders(prev => {
-                const target = prev.find(f => f.id === id);
-                if (!target) return prev;
-                const siblings = prev
-                  .filter(f => f.parent_id === target.parent_id)
-                  .sort((a, b) => a.sort_order - b.sort_order);
-                const idx = siblings.findIndex(s => s.id === id);
-                const targetIdx = direction === 'up' ? idx - 1 : idx + 1;
-                if (targetIdx < 0 || targetIdx >= siblings.length) return prev;
-                const reordered = [...siblings];
-                [reordered[idx], reordered[targetIdx]] = [reordered[targetIdx], reordered[idx]];
-                const orderMap = new Map(reordered.map((r, i) => [r.id, i]));
-                return prev.map(f => orderMap.has(f.id) ? { ...f, sort_order: orderMap.get(f.id)! } : f);
-              });
-              await reorderFolder(id, direction);
-            }}
-            tr={tr}
-          />
+          {isWorkspace ? (
+            <ProjectGroups
+              projectGroups={projectGroups}
+              counts={counts}
+              total={counts.total}
+              selected={folderSel}
+              onSelect={sel => { setFolderSel(sel); clearSelection(); }}
+              tr={tr}
+            />
+          ) : (
+            <FolderTree
+              folders={folders}
+              counts={counts}
+              total={counts.total}
+              selected={folderSel}
+              onSelect={sel => { setFolderSel(sel); clearSelection(); }}
+              onCreate={async (parentId, name) => {
+                const f = await createFolder(projectId, name, parentId);
+                setFolders(prev => [...prev, f]);
+              }}
+              onRename={async (id, name) => {
+                await renameFolder(id, name);
+                setFolders(prev => prev.map(f => f.id === id ? { ...f, name } : f));
+              }}
+              onDelete={async (id) => {
+                await deleteFolder(id);
+                setFolders(prev => prev.filter(f => f.id !== id));
+                setFiles(prev => prev.map(f => f.folder_id === id ? { ...f, folder_id: null } : f));
+                if (folderSel === id) setFolderSel('direct');
+              }}
+              onReorder={async (id, direction) => {
+                setFolders(prev => {
+                  const target = prev.find(f => f.id === id);
+                  if (!target) return prev;
+                  const siblings = prev
+                    .filter(f => f.parent_id === target.parent_id)
+                    .sort((a, b) => a.sort_order - b.sort_order);
+                  const idx = siblings.findIndex(s => s.id === id);
+                  const targetIdx = direction === 'up' ? idx - 1 : idx + 1;
+                  if (targetIdx < 0 || targetIdx >= siblings.length) return prev;
+                  const reordered = [...siblings];
+                  [reordered[idx], reordered[targetIdx]] = [reordered[targetIdx], reordered[idx]];
+                  const orderMap = new Map(reordered.map((r, i) => [r.id, i]));
+                  return prev.map(f => orderMap.has(f.id) ? { ...f, sort_order: orderMap.get(f.id)! } : f);
+                });
+                await reorderFolder(id, direction);
+              }}
+              tr={tr}
+            />
+          )}
         </FolderTreePanel>
 
         <FilesArea>
@@ -397,7 +472,14 @@ const DocsTab: React.FC<Props> = ({ projectId, businessId }) => {
                     </RowName>
                     <RowSrc>
                       <SourcePill $src={f.source}>{sourceShortLabel(f.source, tr)}</SourcePill>
-                      {f.context && <RowCtx title={f.context.label}>{f.context.label}</RowCtx>}
+                      {isWorkspace && f.project_context ? (
+                        <ProjectLink to={`/projects/p/${f.project_context.id}?tab=docs`} onClick={e => e.stopPropagation()}>
+                          <ProjectDot $color={f.project_context.color || '#14B8A6'} />
+                          <span>{f.project_context.name}</span>
+                        </ProjectLink>
+                      ) : f.context ? (
+                        <RowCtx title={f.context.label}>{f.context.label}</RowCtx>
+                      ) : null}
                     </RowSrc>
                     <RowSize>{formatBytes(f.file_size)}</RowSize>
                     <RowUp>{f.uploader_name}</RowUp>
@@ -513,6 +595,36 @@ const DocsTab: React.FC<Props> = ({ projectId, businessId }) => {
         </Modal>
       )}
 
+      {/* 워크스페이스 업로드: 프로젝트 선택 */}
+      {pendingUpload && (
+        <Modal onMouseDown={e => { if (e.target === e.currentTarget) setPendingUpload(null); }}>
+          <Dialog>
+            <DTitle>{t('docs.wsUpload.title', '어느 프로젝트에 업로드할까요?')}</DTitle>
+            <DBody>
+              <p>{t('docs.wsUpload.desc', '{{n}}개 파일을 업로드할 프로젝트를 선택하세요', { n: pendingUpload.length })}</p>
+              <MoveTargetList>
+                {projectGroups.length === 0 ? (
+                  <Dim>{t('docs.wsUpload.noProject', '프로젝트가 없습니다')}</Dim>
+                ) : projectGroups.map(p => (
+                  <MoveTargetRow key={p.id} type="button"
+                    onClick={() => setWorkspaceUploadProject(p.id)}
+                    style={workspaceUploadProject === p.id ? { background: '#F0FDFA', borderColor: '#14B8A6' } : {}}>
+                    <ProjectDot $color={p.color || '#14B8A6'} />
+                    <span>{p.name}</span>
+                  </MoveTargetRow>
+                ))}
+              </MoveTargetList>
+            </DBody>
+            <DFooter>
+              <SecondaryBtn type="button" onClick={() => { setPendingUpload(null); setWorkspaceUploadProject(null); }}>{t('members.cancel', '취소')}</SecondaryBtn>
+              <PrimaryBtn type="button" disabled={!workspaceUploadProject} onClick={commitWorkspaceUpload}>
+                {t('docs.wsUpload.confirm', '업로드')}
+              </PrimaryBtn>
+            </DFooter>
+          </Dialog>
+        </Modal>
+      )}
+
       {/* 대량 이동 */}
       {moveTargetOpen && (
         <Modal onMouseDown={e => { if (e.target === e.currentTarget) setMoveTargetOpen(false); }}>
@@ -548,6 +660,60 @@ const DocsTab: React.FC<Props> = ({ projectId, businessId }) => {
 };
 
 export default DocsTab;
+
+// ─── 워크스페이스 모드: 프로젝트 그룹 ───
+
+interface ProjectGroupsProps {
+  projectGroups: Array<{ id: number; name: string; color?: string | null; count: number }>;
+  counts: { total: number; bySrc: Record<FileSource, number>; byFolder: Record<number, number>; directRoot: number };
+  total: number;
+  selected: FolderSel;
+  onSelect: (sel: FolderSel) => void;
+  tr: (k: string, fb?: string) => string;
+}
+
+const ProjectGroups: React.FC<ProjectGroupsProps> = ({ projectGroups, counts, total, selected, onSelect, tr }) => {
+  return (
+    <TreeRoot>
+      <FolderRow $selected={selected === 'all'} onClick={() => onSelect('all')}>
+        <FolderIconWrap $selected={selected === 'all'}><AllSvg /></FolderIconWrap>
+        <FolderName>{tr('docs.folder.all', '전체')}</FolderName>
+        <FolderCount>{total}</FolderCount>
+      </FolderRow>
+      <TreeDivider />
+      {projectGroups.map(p => {
+        const key: FolderSel = `proj:${p.id}`;
+        const sel = selected === key;
+        return (
+          <FolderRow key={p.id} $selected={sel} onClick={() => onSelect(key)}>
+            <ProjectDot $color={p.color || '#14B8A6'} />
+            <FolderName title={p.name}>{p.name}</FolderName>
+            <FolderCount>{p.count}</FolderCount>
+          </FolderRow>
+        );
+      })}
+      <TreeDivider />
+      {(['chat', 'task', 'meeting'] as FileSource[]).map(src => (
+        <FolderRow key={src} $selected={selected === `src:${src}`} onClick={() => onSelect(`src:${src}`)}>
+          <FolderIconWrap $sys={src} $selected={selected === `src:${src}`}><SystemFolderIcon src={src} /></FolderIconWrap>
+          <FolderName>{sourceShortLabel(src, tr)}</FolderName>
+          {counts.bySrc[src] > 0 && <FolderCount>{counts.bySrc[src]}</FolderCount>}
+        </FolderRow>
+      ))}
+    </TreeRoot>
+  );
+};
+const ProjectDot = styled.span<{ $color: string }>`
+  width:10px;height:10px;border-radius:50%;background:${p => p.$color};flex-shrink:0;
+`;
+const ProjectLink = styled(Link)`
+  display:inline-flex;align-items:center;gap:6px;
+  padding:2px 8px;background:#F1F5F9;border-radius:999px;
+  font-size:11px;color:#0F172A;text-decoration:none;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:160px;
+  &:hover{background:#E0F2FE;color:#075985;}
+  &:focus-visible{outline:2px solid #14B8A6;outline-offset:1px;}
+`;
 
 // ─── 폴더 트리 컴포넌트 ───
 
@@ -1127,6 +1293,14 @@ const SecondaryBtn = styled.button`
   border:1px solid #CBD5E1;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;
   display:inline-flex;align-items:center;justify-content:center;text-decoration:none;
   &:hover{background:#F8FAFC;}
+`;
+const PrimaryBtn = styled.button`
+  height:34px;padding:0 14px;background:#14B8A6;color:#fff;
+  border:1px solid #14B8A6;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;
+  display:inline-flex;align-items:center;justify-content:center;
+  &:hover:not(:disabled){background:#0D9488;border-color:#0D9488;}
+  &:disabled{opacity:0.5;cursor:not-allowed;}
+  &:focus-visible{outline:2px solid #0D9488;outline-offset:2px;}
 `;
 const DangerBtn = styled.button`
   height:34px;padding:0 14px;background:#fff;color:#DC2626;

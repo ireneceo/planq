@@ -1060,6 +1060,130 @@ router.post('/invite/:token/accept', authenticateToken, async (req, res, next) =
   } catch (err) { next(err); }
 });
 
+// ─── 워크스페이스 전역 파일 집계 (모든 프로젝트) ───
+router.get('/workspace/:bizId/all-files', authenticateToken, async (req, res, next) => {
+  try {
+    const bizId = Number(req.params.bizId);
+    // checkBusinessAccess 로직 인라인 — 멤버/오너만
+    const isMember = req.user.platform_role === 'platform_admin'
+      || await BusinessMember.findOne({ where: { business_id: bizId, user_id: req.user.id } })
+      || await Business.findOne({ where: { id: bizId, owner_id: req.user.id } });
+    if (!isMember) return errorResponse(res, 'Access denied', 403);
+
+    const projects = await Project.findAll({
+      where: { business_id: bizId },
+      attributes: ['id', 'name', 'color']
+    });
+    const projMap = new Map(projects.map(p => [p.id, p]));
+    const projIds = projects.map(p => p.id);
+    if (projIds.length === 0) return successResponse(res, []);
+
+    const results = [];
+
+    // 1) direct 파일
+    const directFiles = await File.findAll({
+      where: { business_id: bizId, project_id: { [Op.in]: projIds }, deleted_at: null },
+      include: [
+        { model: User, as: 'uploader', attributes: ['id', 'name'] },
+        { model: FileFolder, as: 'folder', attributes: ['id', 'name'] }
+      ]
+    });
+    for (const f of directFiles) {
+      const proj = projMap.get(f.project_id);
+      results.push({
+        id: `direct-${f.id}`,
+        source: 'direct',
+        file_name: f.file_name,
+        file_size: Number(f.file_size),
+        mime_type: f.mime_type,
+        uploader_id: f.uploader_id,
+        uploader_name: f.uploader ? f.uploader.name : null,
+        uploaded_at: (f.createdAt || f.created_at || new Date()).toISOString ? (f.createdAt || f.created_at).toISOString() : new Date().toISOString(),
+        download_url: `/api/files/${bizId}/${f.id}/download`,
+        folder_id: f.folder_id,
+        project_context: proj ? { id: proj.id, name: proj.name, color: proj.color } : null,
+        deletable: true,
+        storage_provider: f.storage_provider
+      });
+    }
+
+    // 2) chat 첨부
+    const conversations = await Conversation.findAll({
+      where: { business_id: bizId, project_id: { [Op.in]: projIds } },
+      attributes: ['id', 'title', 'project_id']
+    });
+    const convMap = new Map(conversations.map(c => [c.id, c]));
+    if (conversations.length > 0) {
+      const chatFiles = await MessageAttachment.findAll({
+        include: [{
+          model: Message,
+          where: { conversation_id: { [Op.in]: conversations.map(c => c.id) } },
+          attributes: ['id', 'conversation_id', 'sender_id'],
+          include: [{ model: User, as: 'sender', attributes: ['id', 'name'] }]
+        }]
+      });
+      for (const a of chatFiles) {
+        const conv = convMap.get(a.Message.conversation_id);
+        const proj = conv ? projMap.get(conv.project_id) : null;
+        results.push({
+          id: `chat-${a.id}`,
+          source: 'chat',
+          file_name: a.file_name,
+          file_size: Number(a.file_size),
+          mime_type: a.mime_type,
+          uploader_id: a.Message.sender_id,
+          uploader_name: a.Message.sender ? a.Message.sender.name : null,
+          uploaded_at: (a.createdAt || a.created_at || new Date()).toISOString ? (a.createdAt || a.created_at).toISOString() : new Date().toISOString(),
+          download_url: a.file_path ? `/uploads/${path.relative(path.join(__dirname, '..', 'uploads'), a.file_path)}` : null,
+          context: conv ? { kind: 'conversation', id: conv.id, label: conv.title || '대화방' } : undefined,
+          project_context: proj ? { id: proj.id, name: proj.name, color: proj.color } : null,
+          folder_id: null,
+          deletable: false,
+          storage_provider: 'planq'
+        });
+      }
+    }
+
+    // 3) task 첨부
+    const tasks = await Task.findAll({
+      where: { business_id: bizId, project_id: { [Op.in]: projIds } },
+      attributes: ['id', 'title', 'project_id']
+    });
+    const taskMap = new Map(tasks.map(t => [t.id, t]));
+    if (tasks.length > 0) {
+      const taskFiles = await TaskAttachment.findAll({
+        where: { task_id: { [Op.in]: tasks.map(t => t.id) } },
+        include: [{ model: User, as: 'uploader', attributes: ['id', 'name'] }]
+      });
+      for (const a of taskFiles) {
+        const task = taskMap.get(a.task_id);
+        const proj = task ? projMap.get(task.project_id) : null;
+        results.push({
+          id: `task-${a.id}`,
+          source: 'task',
+          file_name: a.original_name || a.stored_name,
+          file_size: Number(a.file_size),
+          mime_type: a.mime_type,
+          uploader_id: a.uploaded_by,
+          uploader_name: a.uploader ? a.uploader.name : null,
+          uploaded_at: (a.createdAt || a.created_at || new Date()).toISOString ? (a.createdAt || a.created_at).toISOString() : new Date().toISOString(),
+          download_url: `/public/attach/${a.stored_name}`,
+          context: task ? { kind: 'task', id: task.id, label: task.title } : undefined,
+          project_context: proj ? { id: proj.id, name: proj.name, color: proj.color } : null,
+          folder_id: null,
+          deletable: false,
+          storage_provider: 'planq'
+        });
+      }
+    }
+
+    results.sort((a, b) => new Date(b.uploaded_at) - new Date(a.uploaded_at));
+    successResponse(res, results);
+  } catch (error) {
+    next(error);
+  }
+});
+
 // ─── 프로젝트 파일 집계 (direct + chat + task + meeting) ───
 router.get('/:id/files', authenticateToken, async (req, res, next) => {
   try {
