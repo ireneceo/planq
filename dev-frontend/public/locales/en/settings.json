@@ -12,8 +12,35 @@
     "legal": "Legal Info",
     "language": "Language",
     "timezone": "Timezone",
+    "storage": "File Storage",
     "members": "Members",
     "cue": "Cue"
+  },
+  "storage": {
+    "title": "File Storage",
+    "desc": "Choose where files are stored — PlanQ's own storage or an external cloud like Google Drive. Switch anytime; existing files stay put.",
+    "active": "In use",
+    "connected": "Connected",
+    "soon": "Coming soon",
+    "connect": "Connect",
+    "connecting": "Connecting…",
+    "disconnect": "Disconnect",
+    "disconnectTitle": "Disconnect?",
+    "disconnectDesc": "After disconnecting, new uploads go back to PlanQ's own storage.",
+    "disconnectWarn": "Existing files in the external cloud remain untouched.",
+    "openInDrive": "Open in Drive",
+    "planq": {
+      "title": "PlanQ Storage",
+      "desc": "Default storage · Plan-based quota"
+    },
+    "gdrive": {
+      "title": "Google Drive",
+      "desc": "App-scoped folder (drive.file) — PlanQ only accesses files it creates",
+      "notConfigured": "Server OAuth is not configured (check .env)"
+    },
+    "dropbox": {
+      "soon": "Coming soon — App Folder isolation"
+    }
   },
   "brand": {
     "sectionTitle": "Brand",

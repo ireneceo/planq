@@ -229,8 +229,20 @@ router.delete('/attachments/:id', authenticateToken, async (req, res, next) => {
     const bm = await BusinessMember.findOne({ where: { user_id: req.user.id, business_id: att.business_id } });
     if (!bm) return errorResponse(res, 'forbidden', 403);
     if (att.uploaded_by !== req.user.id && bm.role !== 'owner') return errorResponse(res, 'forbidden', 403);
-    const abs = path.join(__dirname, '..', att.file_path);
-    try { if (fs.existsSync(abs)) fs.unlinkSync(abs); } catch (_) { /* ignore */ }
+
+    if (att.storage_provider === 'gdrive' && att.external_id) {
+      // Drive 파일 삭제 (실패해도 DB 는 제거)
+      try {
+        const cloudToken = await BusinessCloudToken.findOne({ where: { business_id: att.business_id, provider: 'gdrive' } });
+        if (cloudToken) {
+          const drive = await gdrive.getDriveClient(cloudToken);
+          await gdrive.deleteFile(drive, att.external_id);
+        }
+      } catch (e) { console.error('[task_attachments] gdrive delete failed:', e.message); }
+    } else {
+      const abs = path.join(__dirname, '..', att.file_path);
+      try { if (fs.existsSync(abs)) fs.unlinkSync(abs); } catch (_) { /* ignore */ }
+    }
     await att.destroy();
     return successResponse(res, { id: Number(req.params.id), deleted: true });
   } catch (err) { next(err); }

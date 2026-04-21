@@ -339,24 +339,43 @@ router.post('/:businessId/bulk-delete', authenticateToken, checkBusinessAccess, 
 async function softDeleteFile(file, transaction) {
   file.deleted_at = new Date();
   await file.save({ transaction });
-  // ref_count 감소 + 0이면 물리 파일 제거 (다른 File 레코드와 같은 file_path 공유 시 주의)
+  // ref_count 감소 + 0이면 물리 파일 제거
   await file.decrement('ref_count', { transaction });
   await file.reload({ transaction });
-  if (file.ref_count <= 0 && file.storage_provider === 'planq') {
-    // 동일 file_path 를 참조하는 다른 활성 레코드 존재 여부 확인
-    const siblings = await File.count({
-      where: { file_path: file.file_path, deleted_at: null, id: { [Op.ne]: file.id } },
-      transaction
-    });
-    if (siblings === 0 && fs.existsSync(file.file_path)) {
-      fs.unlinkSync(file.file_path);
+
+  if (file.ref_count <= 0) {
+    if (file.storage_provider === 'planq') {
+      // 동일 file_path 를 참조하는 다른 활성 레코드 존재 여부 확인
+      const siblings = await File.count({
+        where: { file_path: file.file_path, deleted_at: null, id: { [Op.ne]: file.id } },
+        transaction
+      });
+      if (siblings === 0 && fs.existsSync(file.file_path)) {
+        fs.unlinkSync(file.file_path);
+      }
+    } else if (file.storage_provider === 'gdrive' && file.external_id) {
+      // Drive 파일 삭제 — 실패해도 DB 소프트 삭제는 유지 (fallback)
+      try {
+        const cloudToken = await BusinessCloudToken.findOne({
+          where: { business_id: file.business_id, provider: 'gdrive' },
+          transaction
+        });
+        if (cloudToken) {
+          const drive = await gdrive.getDriveClient(cloudToken);
+          await gdrive.deleteFile(drive, file.external_id);
+        }
+      } catch (e) {
+        console.error('[files] gdrive delete failed:', e.message);
+      }
     }
   }
-  // 쿼터 반환
-  const usage = await getOrCreateUsage(file.business_id, transaction);
-  usage.bytes_used = Math.max(0, Number(usage.bytes_used) - Number(file.file_size));
-  usage.file_count = Math.max(0, usage.file_count - 1);
-  await usage.save({ transaction });
+  // 쿼터 반환 (자체 스토리지만 쿼터 사용)
+  if (file.storage_provider === 'planq') {
+    const usage = await getOrCreateUsage(file.business_id, transaction);
+    usage.bytes_used = Math.max(0, Number(usage.bytes_used) - Number(file.file_size));
+    usage.file_count = Math.max(0, usage.file_count - 1);
+    await usage.save({ transaction });
+  }
 }
 
 // ─── Download ───

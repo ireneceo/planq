@@ -259,6 +259,7 @@ router.put('/:id', authenticateToken, async (req, res, next) => {
     if (process_tab_label !== undefined) patch.process_tab_label = String(process_tab_label).trim().slice(0, 80) || '테이블';
 
     const prevStatus = project.status;
+    const prevName = project.name;
     await project.update(patch);
     // 프로젝트 'closed' 전환 시 연결 대화 자동 archived (cascade, soft). 데이터는 보존.
     if (patch.status === 'closed' && prevStatus !== 'closed') {
@@ -266,6 +267,20 @@ router.put('/:id', authenticateToken, async (req, res, next) => {
         { status: 'archived' },
         { where: { project_id: project.id, status: 'active' } },
       );
+    }
+    // Drive 폴더 이름 동기화 (Drive 연동 + 이름 변경됨 + 매핑 존재)
+    if (patch.name && patch.name !== prevName && project.gdrive_folder_id) {
+      try {
+        const gdrive = require('../services/gdrive');
+        const { BusinessCloudToken } = require('../models');
+        const cloudToken = await BusinessCloudToken.findOne({
+          where: { business_id: project.business_id, provider: 'gdrive' }
+        });
+        if (cloudToken) {
+          const drive = await gdrive.getDriveClient(cloudToken);
+          await gdrive.renameFile(drive, project.gdrive_folder_id, patch.name);
+        }
+      } catch (e) { console.error('[projects] gdrive rename failed:', e.message); }
     }
     // 'active'로 복구 시 대화는 수동 복구 (의도치 않은 복원 방지)
     const detail = await loadProjectDetail(project.id);
