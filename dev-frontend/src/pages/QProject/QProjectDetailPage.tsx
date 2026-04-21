@@ -8,6 +8,7 @@ import PageShell from '../../components/Layout/PageShell';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 import ProcessPartsTab from './ProcessPartsTab';
 import TasksTab from './TasksTab';
+import DocsTab from './DocsTab';
 import PlanQSelect from '../../components/Common/PlanQSelect';
 import CalendarPicker from '../../components/Common/CalendarPicker';
 import { PROJECT_COLOR_PALETTE } from '../../utils/projectColors';
@@ -630,7 +631,7 @@ const QProjectDetailPage: React.FC = () => {
           </Card>
         </InfoBody>
       )}
-      {tab === 'docs' && <DocsBody><Dim>문서/자료는 추후 연결</Dim></DocsBody>}
+      {tab === 'docs' && <DocsTab projectId={projectId} businessId={project.business_id} />}
       {tab === 'clients' && (
         <ClientsBody>
           <Card>
@@ -835,7 +836,6 @@ const EditDateRangeTrigger = styled.button`width:100%;height:34px;padding:0 10px
 const DatePH = styled.span`color:#94A3B8;`;
 const ColorRow = styled.div`display:flex;flex-wrap:nowrap;gap:8px;align-items:center;justify-content:space-between;padding:2px 0;width:100%;`;
 const ColorSwatch = styled.button<{$active?:boolean}>`width:28px;height:28px;border-radius:50%;border:2px solid ${p=>p.$active?'#0F172A':'#E2E8F0'};cursor:pointer;padding:0;transition:transform 0.15s;&:hover{transform:scale(1.1);}`;
-const DocsBody = styled.div``;
 const ClientsBody = styled.div``;
 const Card = styled.div`background:#FFF;border:1px solid #E2E8F0;border-radius:10px;padding:16px;`;
 const CardTitle = styled.h3`margin:0 0 12px;font-size:14px;font-weight:700;color:#0F172A;display:flex;align-items:center;gap:8px;small{font-size:11px;font-weight:600;color:#64748B;}`;

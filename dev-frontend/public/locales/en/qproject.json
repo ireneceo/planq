@@ -35,6 +35,14 @@
     "end": "End",
     "sun": "Sun", "mon": "Mon", "tue": "Tue", "wed": "Wed", "thu": "Thu", "fri": "Fri", "sat": "Sat"
   },
+  "tab": {
+    "dashboard": "Dashboard",
+    "tasks": "Tasks",
+    "process": "Table",
+    "clients": "Clients",
+    "docs": "Docs",
+    "info": "Details"
+  },
   "section": {
     "members": "Project members"
   },
@@ -45,5 +53,89 @@
     "cancel": "Cancel",
     "owner": "Owner",
     "noCandidates": "No workspace members available to add"
+  },
+  "docs": {
+    "drop": {
+      "title": "Drop files here or click to select",
+      "hint": "Up to 50MB · Multiple files supported",
+      "uploading": "Uploading {{n}}…",
+      "upload": "Upload",
+      "compactHint": "Or drag files anywhere into this tab",
+      "release": "Release to upload"
+    },
+    "source": {
+      "all": "All",
+      "direct": "Direct",
+      "chat": "Chat",
+      "task": "Task",
+      "meeting": "Meeting"
+    },
+    "view": {
+      "grid": "Grid",
+      "list": "List"
+    },
+    "sort": {
+      "recent": "Recent",
+      "name": "Name",
+      "size": "Size"
+    },
+    "col": {
+      "name": "Name",
+      "source": "Source",
+      "size": "Size",
+      "uploader": "Uploader",
+      "date": "Uploaded",
+      "mime": "Type",
+      "context": "Linked to"
+    },
+    "search": "Search files",
+    "download": "Download",
+    "delete": "Delete",
+    "empty": {
+      "title": "No files yet",
+      "desc": "Drop files into the zone above, or attach them in chats, tasks, and meetings to collect them here",
+      "filtered": "No files match the current filter"
+    },
+    "preview": {
+      "aria": "File preview",
+      "unsupported": "Preview not supported for this format. Download to view."
+    },
+    "confirmDelete": {
+      "title": "Delete this file?",
+      "desc": "This cannot be undone"
+    },
+    "bulk": {
+      "enter": "Select",
+      "exit": "Exit select",
+      "selected": "{{n}} selected",
+      "deletable": "{{n}} deletable",
+      "selectAll": "Select all",
+      "clear": "Clear",
+      "move": "Move",
+      "delete": "Delete"
+    },
+    "bulkDelete": {
+      "title": "Delete {{n}} files?",
+      "more": "and {{n}} more"
+    },
+    "move": {
+      "title": "Move to folder"
+    },
+    "folder": {
+      "all": "All",
+      "directSection": "Direct uploads",
+      "directRoot": "Root",
+      "autoSection": "Auto-collected",
+      "auto": "auto",
+      "new": "New folder",
+      "newChild": "Subfolder",
+      "rename": "Rename",
+      "delete": "Delete",
+      "placeholder": "Folder name",
+      "deleteTitle": "Delete folder?",
+      "deleteDesc": "Files inside will be moved to \"Direct root\"",
+      "deleteWithFiles": "{{n}} files inside will be moved to \"Direct root\"",
+      "deleteEmpty": "This folder is empty"
+    }
   }
 }

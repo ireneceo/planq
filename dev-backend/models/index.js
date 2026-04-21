@@ -31,6 +31,9 @@ const ProjectProcessColumn = require('./ProjectProcessColumn');
 const ProjectProcessPart = require('./ProjectProcessPart');
 const CalendarEvent = require('./CalendarEvent');
 const CalendarEventAttendee = require('./CalendarEventAttendee');
+const FileFolder = require('./FileFolder');
+const BusinessStorageUsage = require('./BusinessStorageUsage');
+const OpsCapacityLog = require('./OpsCapacityLog');
 
 // ============================================
 // Associations
@@ -89,10 +92,25 @@ Conversation.hasMany(Task, { as: 'tasks', foreignKey: 'conversation_id' });
 
 // File
 File.belongsTo(Business, { foreignKey: 'business_id' });
+File.belongsTo(Project, { foreignKey: 'project_id' });
+File.belongsTo(FileFolder, { as: 'folder', foreignKey: 'folder_id' });
 File.belongsTo(Client, { foreignKey: 'client_id' });
 File.belongsTo(User, { as: 'uploader', foreignKey: 'uploader_id' });
 Business.hasMany(File, { as: 'files', foreignKey: 'business_id' });
 Client.hasMany(File, { as: 'files', foreignKey: 'client_id' });
+
+// FileFolder
+FileFolder.belongsTo(Business, { foreignKey: 'business_id' });
+FileFolder.belongsTo(Project, { foreignKey: 'project_id' });
+FileFolder.belongsTo(FileFolder, { as: 'parent', foreignKey: 'parent_id' });
+FileFolder.hasMany(FileFolder, { as: 'children', foreignKey: 'parent_id' });
+FileFolder.belongsTo(User, { as: 'creator', foreignKey: 'created_by' });
+FileFolder.hasMany(File, { as: 'files', foreignKey: 'folder_id' });
+Project.hasMany(FileFolder, { as: 'fileFolders', foreignKey: 'project_id' });
+
+// BusinessStorageUsage
+BusinessStorageUsage.belongsTo(Business, { foreignKey: 'business_id' });
+Business.hasOne(BusinessStorageUsage, { as: 'storageUsage', foreignKey: 'business_id' });
 
 // Invoice
 Invoice.belongsTo(Business, { foreignKey: 'business_id' });
@@ -230,6 +248,9 @@ module.exports = {
   ProjectProcessPart,
   CalendarEvent,
   CalendarEventAttendee,
+  FileFolder,
+  BusinessStorageUsage,
+  OpsCapacityLog,
 };
 
 // CalendarEvent

@@ -35,6 +35,14 @@
     "end": "마감",
     "sun": "일", "mon": "월", "tue": "화", "wed": "수", "thu": "목", "fri": "금", "sat": "토"
   },
+  "tab": {
+    "dashboard": "대시보드",
+    "tasks": "업무",
+    "process": "테이블",
+    "clients": "고객",
+    "docs": "문서",
+    "info": "상세정보"
+  },
   "section": {
     "members": "프로젝트 멤버"
   },
@@ -45,5 +53,89 @@
     "cancel": "취소",
     "owner": "오너",
     "noCandidates": "추가 가능한 워크스페이스 멤버가 없습니다"
+  },
+  "docs": {
+    "drop": {
+      "title": "파일을 여기에 드롭하거나 클릭해 선택",
+      "hint": "최대 50MB · 여러 파일 동시 업로드",
+      "uploading": "{{n}}개 업로드 중…",
+      "upload": "업로드",
+      "compactHint": "여기나 리스트 영역에 파일을 끌어다 놓아도 됩니다",
+      "release": "여기에 놓아 업로드"
+    },
+    "source": {
+      "all": "전체",
+      "direct": "직접 업로드",
+      "chat": "채팅",
+      "task": "업무",
+      "meeting": "회의"
+    },
+    "view": {
+      "grid": "그리드",
+      "list": "리스트"
+    },
+    "sort": {
+      "recent": "최근 순",
+      "name": "이름 순",
+      "size": "크기 순"
+    },
+    "col": {
+      "name": "파일명",
+      "source": "출처",
+      "size": "크기",
+      "uploader": "업로더",
+      "date": "업로드",
+      "mime": "형식",
+      "context": "연결"
+    },
+    "search": "파일 검색",
+    "download": "다운로드",
+    "delete": "삭제",
+    "empty": {
+      "title": "아직 파일이 없어요",
+      "desc": "드롭존에 파일을 떨어뜨리거나, 채팅·업무·회의에 첨부하면 여기에 모입니다",
+      "filtered": "조건에 맞는 파일이 없습니다"
+    },
+    "preview": {
+      "aria": "파일 미리보기",
+      "unsupported": "미리보기를 지원하지 않는 형식입니다. 다운로드하여 확인하세요."
+    },
+    "confirmDelete": {
+      "title": "파일을 삭제할까요?",
+      "desc": "삭제한 파일은 복구할 수 없습니다"
+    },
+    "bulk": {
+      "enter": "선택",
+      "exit": "선택 종료",
+      "selected": "{{n}}개 선택됨",
+      "deletable": "삭제 가능 {{n}}개",
+      "selectAll": "전체 선택",
+      "clear": "해제",
+      "move": "이동",
+      "delete": "삭제"
+    },
+    "bulkDelete": {
+      "title": "{{n}}개 파일을 삭제할까요?",
+      "more": "외 {{n}}개"
+    },
+    "move": {
+      "title": "이동할 폴더 선택"
+    },
+    "folder": {
+      "all": "전체",
+      "directSection": "직접 업로드",
+      "directRoot": "루트",
+      "autoSection": "자동 수집",
+      "auto": "자동",
+      "new": "새 폴더",
+      "newChild": "하위 폴더",
+      "rename": "이름 변경",
+      "delete": "삭제",
+      "placeholder": "폴더 이름",
+      "deleteTitle": "폴더를 삭제할까요?",
+      "deleteDesc": "폴더 안 파일은 “직접 업로드 루트”로 옮겨집니다",
+      "deleteWithFiles": "이 폴더 안 {{n}}개 파일은 “직접 업로드 루트”로 옮겨집니다",
+      "deleteEmpty": "이 폴더는 비어있습니다"
+    }
   }
 }

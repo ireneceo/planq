@@ -1,6 +1,88 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-04-20 (Calendar Phase A~E 완주 + 드로어 반응형 통일)
+> **최종 업데이트:** 2026-04-21 (파일 시스템 Phase 1·1+·2A 완주 — 자체 스토리지 + 쿼터 + dedup + 폴더 + 대량)
+
+---
+
+## ✅ 완료: 파일 시스템 Phase 1·1+·2A — 문서 탭 실구현 (2026-04-21)
+
+**설계 문서:** `docs/FILE_SYSTEM_DESIGN.md` · `docs/OPS_ROADMAP.md`
+
+프로젝트 문서 탭을 placeholder 에서 **자체 스토리지 + SHA-256 dedup + 플랜 쿼터 + 폴더 시스템 + 대량 작업** 이 모두 작동하는 실제 파일 허브로 교체. 자동 집계(Q Talk·Q Task 첨부)도 포함. 30년차 UI/UX 감사 반영.
+
+### 완료된 작업
+
+| 영역 | 작업 | 상태 |
+|------|------|:----:|
+| **설계 문서** | `docs/FILE_SYSTEM_DESIGN.md` (스키마/API/UI/롤아웃 전 10섹션) + `docs/OPS_ROADMAP.md` (Stage 0~4 임계치) | ✅ |
+| **Phase 1 UI Mock** | `pages/QProject/DocsTab.tsx` + `services/files.ts` (타입·mock) + i18n ko/en | ✅ |
+| **Phase 1+ UI 보강** | 좌측 폴더 트리 + 대량 선택 모드 + 플로팅 액션바 + 재귀 폴더 삭제 모달 | ✅ |
+| **30년차 UI/UX 감사 8건** | SVG 아이콘(이모지→Lucide), 확장자별 색상 아이콘(PDF빨강/DOC파랑/XLS녹색/PPT주황/ZIP보라/이미지핑크), Progressive drop zone, skeleton shimmer, focus-visible 10건, 조건부 grid-template-columns, 폴더 삭제 파일수 안내, 다운로드 아이콘 헤더 상단 이동 | ✅ |
+| **Phase 2A DB 스키마** | `files` 확장 (project_id/folder_id/storage_provider/external_id/external_url/content_hash/ref_count/deleted_at) + 신규 테이블 3: `file_folders`, `business_storage_usage`, `ops_capacity_log` | ✅ |
+| **Phase 2A Backend — routes/files.js** | 업로드(쿼터+SHA256 dedup), 이동, 소프트 삭제, 대량 삭제, 다운로드, 스토리지 상태 | ✅ |
+| **Phase 2A Backend — routes/file_folders.js** | CRUD + 재귀 삭제 시 내부 파일 parent 로 자동 이동 | ✅ |
+| **Phase 2A 집계 API** | `GET /api/projects/:id/files` — direct + chat(MessageAttachment) + task(TaskAttachment) 통합. id 접두어 규칙 (`direct-12`/`chat-45`/`task-7`) | ✅ |
+| **Phase 2A OPS 자동화** | `scripts/ops-capacity-check.js` — 주간 스냅샷 + Stage 전환 감지 + provider 비중 트래킹 | ✅ |
+| **서비스 실 API 연결** | `services/files.ts` mock 전부 제거 → apiFetch 기반 실 API (upload/download/move/bulk-delete/folders/storage) | ✅ |
+| **검증** | 헬스체크 27/27, Phase 2A E2E 22/22, 빌드 tsc 0 error (gzip 433 kB), SPA 9 라우트 전부 200, 멀티테넌트 격리 (타 biz 403) | ✅ |
+
+### 플랜별 쿼터 (운영 기준)
+
+| 플랜 | 파일당 | 총 스토리지 |
+|---|---|---|
+| Free | 10 MB | **1 GB** |
+| Basic | 30 MB | **50 GB** |
+| Pro | 50 MB | **500 GB** |
+
+SHA-256 dedup: 같은 파일 여러 폴더/프로젝트 첨부 시 물리 파일 1개만 저장, `ref_count` 로 관리. 삭제 시 `ref_count` 0 도달해야 물리 제거.
+
+### 자동 타이밍 알림 (docs/OPS_ROADMAP.md)
+
+| Stage | 임계치 (biz 또는 용량) | 도입 항목 |
+|---|---|---|
+| Stage 0 (지금) | — | 쿼터 + dedup + 휴지통 + OPS 체크 스크립트 |
+| Stage 1 | 100 biz or 50 GB | 휴지통 자동 정리 cron + 썸네일 자동 생성 |
+| Stage 2 | 500 biz or 500 GB | Cold storage (B2/R2) + 서명 URL |
+| Stage 3 | 2,000 biz or 5 TB | CDN + Redis 업로드 큐 + 모니터링 스택 |
+
+주 1회 `scripts/ops-capacity-check.js` → Stage 전환 감지 시 로그 (SMTP 구축 후 이메일 전환).
+
+### 신규 파일
+
+**Backend**
+- `models/FileFolder.js`, `models/BusinessStorageUsage.js`, `models/OpsCapacityLog.js`
+- `routes/file_folders.js`, `scripts/ops-capacity-check.js`
+
+**Frontend**
+- `pages/QProject/DocsTab.tsx` (780줄 — 폴더 트리 + 대량 선택 + 드롭존 + 미리보기)
+- `services/files.ts` (실 API 래퍼)
+
+**Docs**
+- `docs/FILE_SYSTEM_DESIGN.md` · `docs/OPS_ROADMAP.md`
+
+### 수정 파일
+
+- Backend: `models/File.js`, `models/index.js`, `routes/files.js`, `routes/projects.js`, `server.js`
+- Frontend: `pages/QProject/QProjectDetailPage.tsx` (문서 탭 placeholder → DocsTab 교체)
+- 로케일: `public/locales/{ko,en}/qproject.json` (tab/docs/folder/bulk 키 추가)
+
+### 다음 (외부 클라우드 연동)
+
+| Phase | 내용 | 예상 | 상태 |
+|---|---|---|:-:|
+| **Phase 2B** | Google Drive App Folder OAuth + Direct upload + Webhook | 4일 | ⏳ 선결: OAuth 앱 등록 |
+| **Phase 2C** | Dropbox App Folder 연동 | 2일 | ⏳ |
+| **Phase 4** | Q Docs 전역 페이지 (동일 DocsTab scope 재사용) | 1일 | ⏳ |
+
+**OAuth 선결 (Irene 작업 — 각 15분)**
+- Google Cloud Console — OAuth Client ID + redirect URI (dev.planq.kr 먼저) + 동의 화면
+- Dropbox App Console — 앱 등록 (Scoped Access, App Folder 모드)
+
+### 알려진 범위 외 이슈
+- `QProjectDetailPage.tsx` 전반 기존 한글 하드코딩 62건 — 별도 작업으로 분기 (Phase 2A 와 무관)
+- express-rate-limit `X-Forwarded-For` warning — nginx proxy trust 설정 이슈
+
+---
 
 ---
 

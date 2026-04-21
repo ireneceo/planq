@@ -1,5 +1,5 @@
 ## 현재 작업 상태
-**마지막 업데이트:** 2026-04-20
+**마지막 업데이트:** 2026-04-21
 **작업 상태:** 완료
 
 ### 진행 중인 작업
@@ -7,87 +7,84 @@
 
 ### 완료된 작업 (이번 세션)
 
-**Calendar Phase A — DB + API**
-- `calendar_events` + `calendar_event_attendees` 모델 2개
-- `routes/calendar.js` 6 엔드포인트 (range GET, CRUD, attendee 응답, video/status)
-- AuditLog 4종 (created/updated/deleted/attendee_responded/meeting_created)
-- 멀티테넌트 격리, visibility personal/business, scope=mine 서버 지원
-- 검증 24/24 PASS
+**설계 문서**
+- `docs/FILE_SYSTEM_DESIGN.md` 신규 — 파일 시스템 전 10섹션 (원칙/아키텍처/스키마/쿼터/dedup/외부클라우드/API/UI/검증/롤아웃)
+- `docs/OPS_ROADMAP.md` 신규 — Stage 0~4 임계치 + 체크리스트 + 자동 경보 스크립트 스펙
 
-**Calendar Phase B — UI + API 연결**
-- `pages/QCalendar/` 9 파일 (월/주/일 3뷰, 드로어, 모달, 유틸)
-- URL 싱크 `?view=week&date=...&event=...&scope=mine&task=...`
-- `services/calendar.ts` 래퍼 + 낙관적 업데이트 + 로딩/에러 UI
-- i18n ko/en `qcalendar` 네임스페이스
-- CalendarPicker + PlanQSelect 재사용 (native datetime-local 제거)
+**Phase 1 + 1+ — UI 구현 (mock → 실 API)**
+- `pages/QProject/DocsTab.tsx` 신규 (780줄) — 드롭존, 그리드/리스트 전환, 미리보기 드로어, 폴더 트리, 대량 선택, 플로팅 액션바
+- `services/files.ts` 신규 — 타입 + mock 후 실 API 연결
+- i18n `qproject.json` ko/en — tab/docs/folder/bulk 키 세트 추가
+- QProjectDetailPage 문서 탭 placeholder → DocsTab 교체
 
-**Calendar Phase C — 반복 (RRULE)**
-- `rrule.js` 설치, 백엔드 range 쿼리에 expansion 로직
-- 프리셋 6종 (없음/매일/매주/2주마다/매월/매년)
-- `_parent_event_id` / `_instance_key` 메타 필드
-- 드로어 반복 배지
-- 검증 10/10 PASS
+**30년차 UI/UX 감사 8건 반영**
+- 이모지 → Lucide 스타일 SVG 아이콘
+- 확장자별 색상 아이콘 (PDF 빨강/DOC 파랑/XLS 녹색/PPT 주황/ZIP 보라/이미지 핑크)
+- Progressive drop zone (빈 상태 크게 / 파일 있으면 compact 바)
+- Skeleton shimmer 로딩
+- focus-visible 10건 + `type="button"` 24건
+- 리스트 grid-template-columns 조건부 (selectMode)
+- 다운로드/삭제 아이콘 드로어 헤더 상단 이동
+- 폴더 삭제 안내에 파일 수 포함
 
-**Calendar Phase D — Daily.co 화상 미팅**
-- `services/daily.js` REST 래퍼 (createRoom, isConfigured)
-- `auto_create_meeting` 플래그 시 자동 방 생성
-- `POST /meeting` 지연 방 생성 엔드포인트
-- `GET /video/status` 구성 여부 감지
-- 드로어 iframe 임베드 + "여기서 참여" 버튼
-- `DAILY_API_KEY` 설정 → `planq.daily.co` 실 방 생성 확인
+**Phase 2A Backend — DB + 라우트 + OPS**
+- `files` 컬럼 추가: `project_id`, `folder_id`, `storage_provider`, `external_id/url`, `content_hash`, `ref_count`, `deleted_at`
+- 신규 테이블 3: `file_folders`, `business_storage_usage`, `ops_capacity_log`
+- `routes/files.js` 전면 확장 — 쿼터 검사, SHA-256 dedup (같은 파일 1회만 저장, ref_count 관리), 업로드/이동/다운로드/소프트삭제/대량삭제/스토리지상태
+- `routes/file_folders.js` 신규 — CRUD + 재귀 삭제 (내부 파일 parent 로 자동 이동)
+- `routes/projects.js` 확장 — `GET /api/projects/:id/files` 집계 API (direct + chat + task, id 접두어 규칙 `direct-N`/`chat-N`/`task-N`)
+- `scripts/ops-capacity-check.js` 신규 — 주간 스냅샷 + Stage 전환 감지 + provider 비중
 
-**Calendar Phase E — Q Task 통합**
-- `taskToEvent.ts` 변환기 (due_date 있는 업무 종일 이벤트)
-- 4필터 세그먼트: 전체 / 나 / 업무 / 일정
-- 업무 클릭 시 캘린더 페이지 위 `TaskDetailDrawer` 오버레이 (Q Task 이동 X)
-- 버그픽스: due_date 풀 ISO 파싱, 단일 날짜 표시(중복 제거)
-- 월 뷰 "+N 더보기" 팝오버 (Google Calendar 방식)
-- 그리드 행 min-height 112px + 세로 스크롤 (가려짐 해결)
+**CLAUDE.md 업데이트**
+- DB 테이블 25 → 28 (+파일 시스템 3)
+- 파일 저장 섹션에 플랜별 총 쿼터 + SHA-256 dedup + 설계 문서 링크 추가
 
-**드로어 반응형 통일**
-- `DetailDrawer` 프리미티브 (Header/Body/Footer) 신규
-- 5개 드로어 전부 `min(desktopW, 100vw - 56px)` — 좌측 56px strip = 햄버거 패턴
-- `FloatingPanelToggle` — 얇은 엣지 핸들(8px) + 화살표 회전 + 펄스(최초 1회)
-- `useBodyScrollLock` · `useFocusTrap` · `useEscapeStack` · `useMediaQuery` 4 훅 신규
-- blur 백드롭 제거 (Irene 피드백), dim 0.32→0.08
-- 키보드 `⌘/` · `Ctrl+\` 토글 (QTask/QTalk)
-
-**레거시 호환**
-- `/api/tasks/attachments/:id/raw` 자동 302 → `/public/attach/:storedName` (구 task body 이미지 401 에러 해결)
-
-**PlanQSelect 개선**
-- `density='compact'` prop 추가 (시간 드롭다운 같이 옵션 많은 경우)
+**메모리 2건 추가**
+- `project_file_storage_hybrid.md` — 자체/GDrive/Dropbox 3-way 저장소 + PlanQ 유일 진입점
+- `feedback_staged_infra_rollout.md` — 가입자·용량 임계치 기반 단계적 인프라 도입
 
 ### 검증 결과
-- 헬스체크 27/27 (반복)
-- 빌드 tsc 0 error, 290 modules, gzip 422 kB
-- Phase A+B+C+D+E 통합 E2E 20/20 PASS
-- 라우트 12/12 전부 200
-- Daily.co 실 방 생성 확인 (planq.daily.co)
+- 헬스체크 27/27 PASS
+- Phase 2A API 실호출 22/22 PASS (스토리지 조회/폴더 CRUD/업로드/dedup/집계/이동/다운로드/대량삭제/소프트삭제/재귀삭제/권한격리/OPS 스크립트)
+- 빌드 tsc 0 error, 295 modules, gzip 433 kB
+- SPA 9 라우트 전부 200
+- 이번 변경 범위 한글 하드코딩 0건, alert/toast.success 0건, focus-visible 10건
+- 멀티테넌트 격리 (타 biz 403) 검증
 
-### 다음 할 일 (다음 세션 시작점)
+### 플랜별 쿼터 (운영 기준)
+| 플랜 | 파일당 | 총 스토리지 |
+|---|---|---|
+| Free | 10 MB | 1 GB |
+| Basic | 30 MB | 50 GB |
+| Pro | 50 MB | 500 GB |
 
-**1순위 — 잔여 UX 정리 (DEVELOPMENT_PLAN.md 2순위)**
-- 프로젝트 문서 탭 실파일 업로드 (files API 재사용)
-- 프로젝트 삭제 UI (cascade 확인 모달)
-- F5-2b `/invite/:token` 수락 랜딩 페이지
+### 범위 외 발견 이슈 (이번 세션 밖)
+- `QProjectDetailPage.tsx` 기존 한글 하드코딩 62건 — spawn_task 로 별도 분기
+- express-rate-limit `X-Forwarded-For` warning — nginx proxy trust 환경 설정 이슈
 
-**2순위 — Calendar 폴리시**
-- RRULE 단일 인스턴스 수정/삭제 ("이 이벤트만 / 이후 모두" 분기)
-- RRULE UNTIL/COUNT 종료 조건 UI
-- Calendar 알림 (이벤트 시작 N분 전 푸시)
+### 다음 할 일 (우선순위 순)
 
-**3순위 — 출시 직전 스프린트 (약 8일)**
-- 반응형 Phase 1~5 (사이드바 햄버거화, 모바일 마스터-디테일, 터치 44px)
-- 메일 시스템 (SMTP 설정 + 초대 템플릿)
-- Capacitor 하이브리드앱 래핑
+**1순위 — Phase 2B Google Drive App Folder 연동 (4일)**
+- Irene 선결: Google Cloud Console OAuth Client ID 발급 + redirect URI 등록 (dev.planq.kr 먼저) + 동의 화면 구성 (15분)
+- 구현: OAuth 시작/콜백 + 루트 폴더 자동 생성 + 프로젝트/업무 하위 폴더 매핑 + Direct upload + 변경 감지 Webhook
+- 스키마: `business_cloud_tokens` 테이블 신규 (access/refresh/root_folder_id)
+
+**2순위 — Phase 2C Dropbox App Folder 연동 (2일)**
+- Dropbox App Console 앱 등록 (Scoped Access, App Folder 모드)
+- 2B 패턴 재사용
+
+**3순위 — Phase 4 Q Docs 전역 페이지 (1일)**
+- 사이드바 Q Docs 메뉴 추가
+- 동일 `<DocsTab scope={{ type: 'workspace', businessId }} />` 재사용
 
 **백로그**
-- Q Talk Cue 자동 추출 트리거
-- Dashboard 위젯
-- lua 팀원 계정 세팅
-- 타임라인 바 드래그 (3단계 로드맵)
-- 프로덕션 Daily.co 키 분리 + dev 키 rotate
+- 프로젝트 상태 토글 UI (active/paused/closed)
+- 프로젝트 삭제 UI (cascade 확인 모달)
+- F5-2b `/invite/:token` 수락 랜딩 페이지
+- Calendar 폴리시 (RRULE 단일 인스턴스 수정/삭제, UNTIL/COUNT UI, 알림)
+- 반응형 Phase 1~5 (기능 95% 이후 스프린트)
+- 메일 시스템 (SMTP 설정 + 초대 템플릿, 출시 직전)
+- Capacitor 하이브리드앱 래핑
 
 ---
 

@@ -226,13 +226,15 @@ res.status(400).json({ success: false, message: 'Error description' });
 
 ---
 
-## DB 테이블 (25개)
+## DB 테이블 (28개)
 
 **기본 (13):** users, businesses, business_members, clients, conversations, conversation_participants, messages, message_attachments, tasks, files, invoices, invoice_items, audit_logs
 
 **Q Talk / 프로젝트 (6):** projects, project_members, project_clients, project_notes, project_issues, task_candidates
 
 **Q Task 워크플로우 (4):** task_comments, task_daily_progress, **task_reviewers**, **task_status_history**
+
+**파일 시스템 (3):** **file_folders**, **business_storage_usage**, **ops_capacity_log**
 
 **기타 (2):** kb_chunks, kb_documents, kb_pinned_faqs, cue_usage
 
@@ -246,8 +248,20 @@ res.status(400).json({ success: false, message: 'Error description' });
 
 - 경로: `/opt/planq/dev-backend/uploads/{business_id}/{yyyy-mm}/`
 - 파일명: UUID로 변환 (원본 파일명은 DB에 저장)
-- 용량 제한: Free 10MB, Basic 30MB, Pro 50MB (파일당)
+- **파일당 용량 제한:** Free 10MB, Basic 30MB, Pro 50MB
+- **플랜별 총 스토리지 쿼터:** Free 1GB / Basic 50GB / Pro 500GB (운영 기준)
 - 허용 확장자: jpg, jpeg, png, gif, pdf, doc, docx, xls, xlsx, ppt, pptx, zip, txt
+
+### SHA-256 dedup
+- 업로드 시 `content_hash` 계산 → 동일 해시 존재하면 물리 파일 1개만 보관, `ref_count` 증가
+- 삭제는 소프트 삭제 (`deleted_at`) + `ref_count` 감소. 0 도달 시 물리 파일 제거
+- 외부 클라우드(gdrive/dropbox) 연동 시 dedup 비활성 (외부 정책 위임)
+
+### 파일 시스템 문서
+- **설계:** `docs/FILE_SYSTEM_DESIGN.md` (스키마·API·UI·외부 연동 전 10섹션)
+- **운영 로드맵:** `docs/OPS_ROADMAP.md` (Stage 0~4 임계치, 자동 경보 스크립트)
+- **OPS 체크:** `scripts/ops-capacity-check.js` (주 1회, 가입자·용량 집계 + Stage 전환 감지)
+- **UI 컴포넌트:** `pages/QProject/DocsTab.tsx` — scope prop 으로 프로젝트/워크스페이스 재사용
 
 ---
 

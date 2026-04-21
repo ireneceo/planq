@@ -1,5 +1,6 @@
 const express = require('express');
 const crypto = require('crypto');
+const path = require('path');
 const { Op } = require('sequelize');
 const router = express.Router();
 const { sequelize } = require('../config/database');
@@ -7,8 +8,9 @@ const {
   Project, ProjectMember, ProjectClient,
   ProjectNote, ProjectIssue, TaskCandidate,
   Conversation, ConversationParticipant, Message, Task, TaskReviewer,
-  BusinessMember, User, Business,
+  BusinessMember, User, Business, Client,
   ProjectStatusOption, ProjectProcessColumn, ProjectProcessPart,
+  File, FileFolder, MessageAttachment, TaskAttachment,
 } = require('../models');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const { authenticateToken } = require('../middleware/auth');
@@ -1056,6 +1058,119 @@ router.post('/invite/:token/accept', authenticateToken, async (req, res, next) =
 
     return successResponse(res, { project_id: pc.project_id, linked: true });
   } catch (err) { next(err); }
+});
+
+// ─── 프로젝트 파일 집계 (direct + chat + task + meeting) ───
+router.get('/:id/files', authenticateToken, async (req, res, next) => {
+  try {
+    const project = await Project.findByPk(req.params.id);
+    if (!project) return errorResponse(res, 'Project not found', 404);
+
+    const bizId = project.business_id;
+    const projId = project.id;
+    const results = [];
+
+    // 1) direct 파일
+    const directFiles = await File.findAll({
+      where: { business_id: bizId, project_id: projId, deleted_at: null },
+      include: [
+        { model: User, as: 'uploader', attributes: ['id', 'name'] },
+        { model: FileFolder, as: 'folder', attributes: ['id', 'name'] }
+      ],
+      order: [['created_at', 'DESC']]
+    });
+    for (const f of directFiles) {
+      results.push({
+        id: `direct-${f.id}`,
+        source: 'direct',
+        file_name: f.file_name,
+        file_size: Number(f.file_size),
+        mime_type: f.mime_type,
+        uploader_id: f.uploader_id,
+        uploader_name: f.uploader ? f.uploader.name : null,
+        uploaded_at: f.created_at,
+        download_url: `/api/files/${bizId}/${f.id}/download`,
+        folder_id: f.folder_id,
+        deletable: true,
+        storage_provider: f.storage_provider
+      });
+    }
+
+    // 2) chat 첨부 — 프로젝트 연결된 대화의 메시지 첨부
+    const conversations = await Conversation.findAll({
+      where: { business_id: bizId, project_id: projId },
+      attributes: ['id', 'title', 'channel_type']
+    });
+    const convMap = new Map(conversations.map(c => [c.id, c]));
+    if (conversations.length > 0) {
+      const chatFiles = await MessageAttachment.findAll({
+        include: [{
+          model: Message,
+          where: { conversation_id: { [Op.in]: conversations.map(c => c.id) } },
+          attributes: ['id', 'conversation_id', 'sender_id'],
+          include: [{ model: User, as: 'sender', attributes: ['id', 'name'] }]
+        }],
+        order: [['created_at', 'DESC']]
+      });
+      for (const a of chatFiles) {
+        const conv = convMap.get(a.Message.conversation_id);
+        results.push({
+          id: `chat-${a.id}`,
+          source: 'chat',
+          file_name: a.file_name,
+          file_size: Number(a.file_size),
+          mime_type: a.mime_type,
+          uploader_id: a.Message.sender_id,
+          uploader_name: a.Message.sender ? a.Message.sender.name : null,
+          uploaded_at: a.created_at,
+          download_url: a.file_path ? `/uploads/${path.relative(path.join(__dirname, '..', 'uploads'), a.file_path)}` : null,
+          context: conv ? { kind: 'conversation', id: conv.id, label: conv.title || '대화방' } : undefined,
+          folder_id: null,
+          deletable: false,
+          storage_provider: 'planq'
+        });
+      }
+    }
+
+    // 3) task 첨부 — 프로젝트의 업무에 첨부된 파일
+    const tasks = await Task.findAll({
+      where: { business_id: bizId, project_id: projId },
+      attributes: ['id', 'title']
+    });
+    const taskMap = new Map(tasks.map(t => [t.id, t]));
+    if (tasks.length > 0) {
+      const taskFiles = await TaskAttachment.findAll({
+        where: { task_id: { [Op.in]: tasks.map(t => t.id) } },
+        include: [{ model: User, as: 'uploader', attributes: ['id', 'name'] }],
+        order: [['created_at', 'DESC']]
+      });
+      for (const a of taskFiles) {
+        const task = taskMap.get(a.task_id);
+        results.push({
+          id: `task-${a.id}`,
+          source: 'task',
+          file_name: a.original_name || a.stored_name,
+          file_size: Number(a.file_size),
+          mime_type: a.mime_type,
+          uploader_id: a.uploaded_by,
+          uploader_name: a.uploader ? a.uploader.name : null,
+          uploaded_at: a.created_at,
+          download_url: `/public/attach/${a.stored_name}`,
+          context: task ? { kind: 'task', id: task.id, label: task.title } : undefined,
+          folder_id: null,
+          deletable: false,
+          storage_provider: 'planq'
+        });
+      }
+    }
+
+    // 4) meeting (Q Note) 자료는 별도 스토리지 — 현재 연동 미구현, 빈 배열 (추후 확장)
+
+    results.sort((a, b) => new Date(b.uploaded_at) - new Date(a.uploaded_at));
+    successResponse(res, results);
+  } catch (error) {
+    next(error);
+  }
 });
 
 module.exports = router;
