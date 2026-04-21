@@ -29,7 +29,10 @@ MessageAttachment.init({
   mime_type: {
     type: DataTypes.STRING(100),
     allowNull: true
-  }
+  },
+  storage_provider: { type: DataTypes.ENUM('planq', 'gdrive', 'dropbox'), allowNull: false, defaultValue: 'planq' },
+  external_id: { type: DataTypes.STRING(255), allowNull: true },
+  external_url: { type: DataTypes.STRING(500), allowNull: true }
 }, {
   sequelize,
   tableName: 'message_attachments',

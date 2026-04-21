@@ -1099,7 +1099,11 @@ router.get('/workspace/:bizId/all-files', authenticateToken, async (req, res, ne
         uploader_id: f.uploader_id,
         uploader_name: f.uploader ? f.uploader.name : null,
         uploaded_at: (f.createdAt || f.created_at || new Date()).toISOString ? (f.createdAt || f.created_at).toISOString() : new Date().toISOString(),
-        download_url: `/api/files/${bizId}/${f.id}/download`,
+        download_url: f.storage_provider === 'gdrive' && f.external_url
+          ? f.external_url
+          : `/api/files/${bizId}/${f.id}/download`,
+        external_id: f.external_id,
+        external_url: f.external_url,
         folder_id: f.folder_id,
         project_context: proj ? { id: proj.id, name: proj.name, color: proj.color } : null,
         deletable: true,
@@ -1167,7 +1171,11 @@ router.get('/workspace/:bizId/all-files', authenticateToken, async (req, res, ne
           uploader_id: a.uploaded_by,
           uploader_name: a.uploader ? a.uploader.name : null,
           uploaded_at: (a.createdAt || a.created_at || new Date()).toISOString ? (a.createdAt || a.created_at).toISOString() : new Date().toISOString(),
-          download_url: `/public/attach/${a.stored_name}`,
+          download_url: a.storage_provider === 'gdrive' && a.external_url
+            ? a.external_url
+            : `/public/attach/${a.stored_name}`,
+          external_id: a.external_id || null,
+          external_url: a.external_url || null,
           context: task ? { kind: 'task', id: task.id, label: task.title } : undefined,
           project_context: proj ? { id: proj.id, name: proj.name, color: proj.color } : null,
           folder_id: null,
@@ -1213,7 +1221,11 @@ router.get('/:id/files', authenticateToken, async (req, res, next) => {
         uploader_id: f.uploader_id,
         uploader_name: f.uploader ? f.uploader.name : null,
         uploaded_at: (f.createdAt || f.created_at || new Date()).toISOString ? (f.createdAt || f.created_at).toISOString() : new Date().toISOString(),
-        download_url: `/api/files/${bizId}/${f.id}/download`,
+        download_url: f.storage_provider === 'gdrive' && f.external_url
+          ? f.external_url
+          : `/api/files/${bizId}/${f.id}/download`,
+        external_id: f.external_id,
+        external_url: f.external_url,
         folder_id: f.folder_id,
         deletable: true,
         storage_provider: f.storage_provider
@@ -1279,7 +1291,11 @@ router.get('/:id/files', authenticateToken, async (req, res, next) => {
           uploader_id: a.uploaded_by,
           uploader_name: a.uploader ? a.uploader.name : null,
           uploaded_at: (a.createdAt || a.created_at || new Date()).toISOString ? (a.createdAt || a.created_at).toISOString() : new Date().toISOString(),
-          download_url: `/public/attach/${a.stored_name}`,
+          download_url: a.storage_provider === 'gdrive' && a.external_url
+            ? a.external_url
+            : `/public/attach/${a.stored_name}`,
+          external_id: a.external_id || null,
+          external_url: a.external_url || null,
           context: task ? { kind: 'task', id: task.id, label: task.title } : undefined,
           folder_id: null,
           deletable: false,

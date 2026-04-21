@@ -4,9 +4,10 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const { v4: uuidv4 } = require('uuid');
-const { Task, TaskAttachment, TaskComment, User, BusinessMember } = require('../models');
+const { Task, TaskAttachment, TaskComment, User, BusinessMember, BusinessCloudToken, Project } = require('../models');
 const { authenticateToken } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
+const gdrive = require('../services/gdrive');
 
 const UPLOAD_ROOT = path.join(__dirname, '..', 'uploads');
 if (!fs.existsSync(UPLOAD_ROOT)) fs.mkdirSync(UPLOAD_ROOT, { recursive: true });
@@ -73,18 +74,57 @@ router.post('/:taskId/attachments',
       const context = ['description', 'comment'].includes(req.query.context) ? req.query.context : 'task';
       const commentId = context === 'comment' ? Number(req.query.commentId || 0) || null : null;
       if (context === 'comment' && !commentId) return errorResponse(res, 'commentId_required', 400);
-      const relativePath = path.relative(path.join(__dirname, '..'), req.file.path).replace(/\\/g, '/');
+
+      // Drive 연동 + 프로젝트 소속 task 면 Drive 로 업로드
+      let storageProvider = 'planq';
+      let externalId = null;
+      let externalUrl = null;
+      let finalFilePath = path.relative(path.join(__dirname, '..'), req.file.path).replace(/\\/g, '/');
+      let finalStoredName = path.basename(req.file.path);
+
+      const cloudToken = await BusinessCloudToken.findOne({
+        where: { business_id: req._task.business_id, provider: 'gdrive' }
+      });
+      if (cloudToken && cloudToken.root_folder_id && req._task.project_id) {
+        try {
+          const project = await Project.findByPk(req._task.project_id);
+          if (project) {
+            const drive = await gdrive.getDriveClient(cloudToken);
+            const projectFolderId = await gdrive.ensureProjectFolder(drive, cloudToken, project);
+            const driveFile = await gdrive.uploadFile(drive, {
+              name: req.file.originalname,
+              mimeType: req.file.mimetype,
+              body: fs.createReadStream(req.file.path),
+              parentId: projectFolderId
+            });
+            storageProvider = 'gdrive';
+            externalId = driveFile.id;
+            externalUrl = driveFile.webViewLink;
+            finalFilePath = driveFile.id;         // 외부 저장 시 external_id 를 경로로
+            finalStoredName = driveFile.id;
+            // 로컬 임시 파일 제거
+            fs.unlinkSync(req.file.path);
+          }
+        } catch (e) {
+          console.error('[task_attachments] gdrive upload failed:', e.message);
+          // 실패 시 로컬 유지
+        }
+      }
+
       const att = await TaskAttachment.create({
         business_id: req._task.business_id,
         task_id: req._task.id,
         comment_id: commentId,
         context,
         original_name: req.file.originalname,
-        stored_name: path.basename(req.file.path),
-        file_path: relativePath,
+        stored_name: finalStoredName,
+        file_path: finalFilePath,
         file_size: req.file.size,
         mime_type: req.file.mimetype,
         uploaded_by: req.user.id,
+        storage_provider: storageProvider,
+        external_id: externalId,
+        external_url: externalUrl,
       });
       return successResponse(res, {
         id: att.id,

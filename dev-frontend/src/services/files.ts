@@ -28,6 +28,8 @@ export interface ProjectFile {
   folder_id: number | null;
   deletable: boolean;
   storage_provider: StorageProvider;
+  external_id?: string | null;          // Drive/Dropbox 파일 id (외부 저장소)
+  external_url?: string | null;         // Drive/Dropbox webViewLink
 }
 
 export interface FileFolder {

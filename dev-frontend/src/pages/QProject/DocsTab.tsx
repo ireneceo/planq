@@ -48,6 +48,7 @@ const DocsTab: React.FC<Props> = (props) => {
 
   const [files, setFiles] = useState<ProjectFile[]>([]);
   const [folders, setFolders] = useState<FileFolder[]>([]);
+  const [projectName, setProjectName] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<ViewMode>('grid');
   const [folderSel, setFolderSel] = useState<FolderSel>('all');
@@ -72,7 +73,19 @@ const DocsTab: React.FC<Props> = (props) => {
       });
     } else {
       Promise.all([fetchProjectFiles(projectId), fetchFolders(projectId)]).then(([fs, fd]) => {
-        if (!cancelled) { setFiles(fs); setFolders(fd); setLoading(false); }
+        if (!cancelled) {
+          setFiles(fs); setFolders(fd); setLoading(false);
+          // 프로젝트 이름은 집계 파일에 있는 project_context 에서 또는 별도 조회 — 없으면 fetch
+          const fromFile = fs.find(f => f.project_context)?.project_context?.name;
+          if (fromFile) setProjectName(fromFile);
+          else {
+            import('../../contexts/AuthContext').then(({ apiFetch }) => {
+              apiFetch(`/api/projects/${projectId}`).then(r => r.json()).then(j => {
+                if (!cancelled && j.success && j.data?.name) setProjectName(j.data.name);
+              });
+            });
+          }
+        }
       });
     }
     return () => { cancelled = true; };
@@ -326,6 +339,7 @@ const DocsTab: React.FC<Props> = (props) => {
               folders={folders}
               counts={counts}
               total={counts.total}
+              projectName={projectName}
               selected={folderSel}
               onSelect={sel => { setFolderSel(sel); clearSelection(); }}
               onCreate={async (parentId, name) => {
@@ -721,6 +735,7 @@ interface FolderTreeProps {
   folders: FileFolder[];
   counts: { total: number; bySrc: Record<FileSource, number>; byFolder: Record<number, number>; directRoot: number };
   total: number;
+  projectName?: string;
   selected: FolderSel;
   onSelect: (sel: FolderSel) => void;
   onCreate: (parentId: number | null, name: string) => Promise<void>;
@@ -730,7 +745,7 @@ interface FolderTreeProps {
   tr: (k: string, fb?: string) => string;
 }
 
-const FolderTree: React.FC<FolderTreeProps> = ({ folders, counts, total, selected, onSelect, onCreate, onRename, onDelete, onReorder, tr }) => {
+const FolderTree: React.FC<FolderTreeProps> = ({ folders, counts, total, projectName, selected, onSelect, onCreate, onRename, onDelete, onReorder, tr }) => {
   const [creatingParent, setCreatingParent] = useState<number | null | undefined>(undefined);
   const [newName, setNewName] = useState('');
   const [renamingId, setRenamingId] = useState<number | null>(null);
@@ -821,11 +836,10 @@ const FolderTree: React.FC<FolderTreeProps> = ({ folders, counts, total, selecte
 
   const fileCountInFolder = (folderId: number): number => counts.byFolder[folderId] || 0;
 
-  const directTotal = counts.bySrc.direct;
-
   return (
     <>
       <TreeRoot>
+        {/* 전체 (모든 파일) */}
         <FolderRow $selected={selected === 'all'} onClick={() => onSelect('all')}>
           <FolderIconWrap $selected={selected === 'all'}><AllSvg /></FolderIconWrap>
           <FolderName>{tr('docs.folder.all', '전체')}</FolderName>
@@ -834,11 +848,11 @@ const FolderTree: React.FC<FolderTreeProps> = ({ folders, counts, total, selecte
 
         <TreeDivider />
 
-        {/* 내 업로드 — "직접 업로드" 섹션헤더 + 루트 항목 통합 */}
+        {/* 프로젝트 루트 — 프로젝트 이름이 곧 루트, 사용자 폴더 + 자동 수집 전부 하위 */}
         <FolderRow $selected={selected === 'direct'} onClick={() => onSelect('direct')}>
           <FolderIconWrap $selected={selected === 'direct'}>{selected === 'direct' ? <FolderOpenSvg /> : <FolderSvg />}</FolderIconWrap>
-          <FolderName>{tr('docs.folder.directRoot', '내 업로드')}</FolderName>
-          {directTotal > 0 && <FolderCount>{directTotal}</FolderCount>}
+          <FolderName title={projectName}>{projectName || tr('docs.folder.directRoot', '내 업로드')}</FolderName>
+          <FolderCount>{counts.bySrc.direct}</FolderCount>
           <FolderActions $visible={selected === 'direct'} onClick={e => e.stopPropagation()}>
             <FolderMiniBtn type="button" title={tr('docs.folder.new', '새 폴더')} aria-label={tr('docs.folder.new', '새 폴더')} onClick={() => startCreate(null)}>
               <PlusSvg size={12} />
@@ -858,13 +872,12 @@ const FolderTree: React.FC<FolderTreeProps> = ({ folders, counts, total, selecte
         )}
         {rootFolders.map(f => renderFolder(f, 1))}
 
-        <TreeDivider />
-
+        {/* 시스템 폴더 — 프로젝트 하위로 들여쓰기, 섹션 제목 없이 1 레벨 들여쓰기로 표현 */}
         {(['chat', 'task', 'meeting'] as FileSource[]).map(src => (
-          <FolderRow key={src} $selected={selected === `src:${src}`} onClick={() => onSelect(`src:${src}`)}>
+          <FolderRow key={src} $selected={selected === `src:${src}`} onClick={() => onSelect(`src:${src}`)} style={{ paddingLeft: 22 }}>
             <FolderIconWrap $sys={src} $selected={selected === `src:${src}`}><SystemFolderIcon src={src} /></FolderIconWrap>
             <FolderName>{sourceShortLabel(src, tr)}</FolderName>
-            {counts.bySrc[src] > 0 && <FolderCount>{counts.bySrc[src]}</FolderCount>}
+            <FolderCount>{counts.bySrc[src]}</FolderCount>
           </FolderRow>
         ))}
       </TreeRoot>
@@ -1101,7 +1114,9 @@ const FilesArea = styled.div`display:flex;flex-direction:column;gap:10px;min-wid
 const TreeRoot = styled.div`display:flex;flex-direction:column;gap:1px;`;
 const TreeDivider = styled.div`height:1px;background:#F1F5F9;margin:6px 0;`;
 const FolderRow = styled.div<{ $selected?: boolean }>`
-  display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:6px;cursor:pointer;min-height:30px;
+  display:grid;
+  grid-template-columns:auto minmax(0,1fr) auto auto;
+  align-items:center;gap:8px;padding:6px 8px;border-radius:6px;cursor:pointer;min-height:30px;
   background:${p => p.$selected ? '#F0FDFA' : 'transparent'};
   color:${p => p.$selected ? '#0F766E' : '#0F172A'};
   &:hover{background:${p => p.$selected ? '#F0FDFA' : '#F8FAFC'};}
@@ -1117,11 +1132,13 @@ const FolderIconWrap = styled.div<{ $selected?: boolean; $sys?: FileSource }>`
   }};
 `;
 const FolderName = styled.div`
-  flex:1;min-width:0;font-size:12px;font-weight:500;
+  min-width:0;font-size:12px;font-weight:500;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
 `;
 const FolderCount = styled.span`
-  font-size:10px;color:#94A3B8;font-weight:600;padding:1px 6px;background:#F1F5F9;border-radius:999px;
+  font-size:10px;color:#94A3B8;font-weight:600;
+  min-width:22px;padding:1px 6px;background:#F1F5F9;border-radius:999px;
+  text-align:center;justify-self:end;
 `;
 const FolderActions = styled.div<{ $visible?: boolean }>`
   display:flex;gap:2px;opacity:${p => p.$visible ? 1 : 0};transition:opacity .1s;flex-shrink:0;
