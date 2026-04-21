@@ -89,9 +89,9 @@ const DocsTab: React.FC<Props> = ({ projectId, businessId }) => {
       const q = query.toLowerCase();
       r = r.filter(f => f.file_name.toLowerCase().includes(q));
     }
-    if (sort === 'name') r.sort((a, b) => a.file_name.localeCompare(b.file_name));
-    else if (sort === 'size') r.sort((a, b) => b.file_size - a.file_size);
-    else r.sort((a, b) => b.uploaded_at.localeCompare(a.uploaded_at));
+    if (sort === 'name') r.sort((a, b) => (a.file_name || '').localeCompare(b.file_name || ''));
+    else if (sort === 'size') r.sort((a, b) => (b.file_size || 0) - (a.file_size || 0));
+    else r.sort((a, b) => (b.uploaded_at || '').localeCompare(a.uploaded_at || ''));
     return r;
   }, [filteredByFolder, query, sort]);
 
