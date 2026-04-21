@@ -131,6 +131,8 @@
       "newChild": "Subfolder",
       "rename": "Rename",
       "delete": "Delete",
+      "moveUp": "Move up",
+      "moveDown": "Move down",
       "placeholder": "Folder name",
       "deleteTitle": "Delete folder?",
       "deleteDesc": "Files inside will be moved to \"Direct root\"",

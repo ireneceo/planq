@@ -11,7 +11,7 @@ import PlanQSelect from '../../components/Common/PlanQSelect';
 import SearchBox from '../../components/Common/SearchBox';
 import {
   fetchProjectFiles, uploadProjectFile, deleteProjectFile, bulkDeleteFiles,
-  fetchFolders, createFolder, renameFolder, deleteFolder, moveFile,
+  fetchFolders, createFolder, renameFolder, deleteFolder, reorderFolder, moveFile,
   formatBytes, extOf, isImage,
   type ProjectFile, type FileSource, type FileFolder,
 } from '../../services/files';
@@ -266,6 +266,24 @@ const DocsTab: React.FC<Props> = ({ projectId, businessId }) => {
               setFolders(prev => prev.filter(f => f.id !== id));
               setFiles(prev => prev.map(f => f.folder_id === id ? { ...f, folder_id: null } : f));
               if (folderSel === id) setFolderSel('direct');
+            }}
+            onReorder={async (id, direction) => {
+              // 낙관적 업데이트 — 같은 parent 안에서 인접 swap
+              setFolders(prev => {
+                const target = prev.find(f => f.id === id);
+                if (!target) return prev;
+                const siblings = prev
+                  .filter(f => f.parent_id === target.parent_id)
+                  .sort((a, b) => a.sort_order - b.sort_order);
+                const idx = siblings.findIndex(s => s.id === id);
+                const targetIdx = direction === 'up' ? idx - 1 : idx + 1;
+                if (targetIdx < 0 || targetIdx >= siblings.length) return prev;
+                const reordered = [...siblings];
+                [reordered[idx], reordered[targetIdx]] = [reordered[targetIdx], reordered[idx]];
+                const orderMap = new Map(reordered.map((r, i) => [r.id, i]));
+                return prev.map(f => orderMap.has(f.id) ? { ...f, sort_order: orderMap.get(f.id)! } : f);
+              });
+              await reorderFolder(id, direction);
             }}
             tr={tr}
           />
@@ -542,10 +560,11 @@ interface FolderTreeProps {
   onCreate: (parentId: number | null, name: string) => Promise<void>;
   onRename: (id: number, name: string) => Promise<void>;
   onDelete: (id: number) => Promise<void>;
+  onReorder: (id: number, direction: 'up' | 'down') => Promise<void>;
   tr: (k: string, fb?: string) => string;
 }
 
-const FolderTree: React.FC<FolderTreeProps> = ({ folders, counts, total, selected, onSelect, onCreate, onRename, onDelete, tr }) => {
+const FolderTree: React.FC<FolderTreeProps> = ({ folders, counts, total, selected, onSelect, onCreate, onRename, onDelete, onReorder, tr }) => {
   const [creatingParent, setCreatingParent] = useState<number | null | undefined>(undefined);
   const [newName, setNewName] = useState('');
   const [renamingId, setRenamingId] = useState<number | null>(null);
@@ -575,6 +594,11 @@ const FolderTree: React.FC<FolderTreeProps> = ({ folders, counts, total, selecte
     const sel = selected === f.id;
     const children = childrenOf(f.id);
     const count = counts.byFolder[f.id] || 0;
+    // 경계 확인 — 같은 parent 안에서의 위치
+    const siblings = folders.filter(x => x.parent_id === f.parent_id).sort((a, b) => a.sort_order - b.sort_order);
+    const sibIdx = siblings.findIndex(s => s.id === f.id);
+    const isFirst = sibIdx === 0;
+    const isLast = sibIdx === siblings.length - 1;
     return (
       <React.Fragment key={f.id}>
         <FolderRow $selected={sel} style={{ paddingLeft: 8 + depth * 14 }}
@@ -594,6 +618,14 @@ const FolderTree: React.FC<FolderTreeProps> = ({ folders, counts, total, selecte
               <FolderName onDoubleClick={e => { e.stopPropagation(); startRename(f); }}>{f.name}</FolderName>
               {count > 0 && <FolderCount>{count}</FolderCount>}
               <FolderActions $visible={sel} onClick={e => e.stopPropagation()}>
+                <FolderMiniBtn type="button" title={tr('docs.folder.moveUp', '위로')} aria-label={tr('docs.folder.moveUp', '위로')}
+                  disabled={isFirst} onClick={() => !isFirst && onReorder(f.id, 'up')}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="18 15 12 9 6 15"/></svg>
+                </FolderMiniBtn>
+                <FolderMiniBtn type="button" title={tr('docs.folder.moveDown', '아래로')} aria-label={tr('docs.folder.moveDown', '아래로')}
+                  disabled={isLast} onClick={() => !isLast && onReorder(f.id, 'down')}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                </FolderMiniBtn>
                 <FolderMiniBtn type="button" title={tr('docs.folder.newChild', '하위 폴더')} onClick={() => startCreate(f.id)} aria-label={tr('docs.folder.newChild', '하위 폴더')}><PlusSvg /></FolderMiniBtn>
                 <FolderMiniBtn type="button" title={tr('docs.folder.rename', '이름 변경')} onClick={() => startRename(f)} aria-label={tr('docs.folder.rename', '이름 변경')}>
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
@@ -932,8 +964,9 @@ const FolderMiniBtn = styled.button<{ $danger?: boolean }>`
   width:22px;height:22px;display:flex;align-items:center;justify-content:center;
   background:transparent;border:none;border-radius:4px;cursor:pointer;color:#64748B;
   line-height:1;
-  &:hover{background:${p => p.$danger ? '#FEE2E2' : '#E2E8F0'};color:${p => p.$danger ? '#DC2626' : '#0F172A'};}
+  &:hover:not(:disabled){background:${p => p.$danger ? '#FEE2E2' : '#E2E8F0'};color:${p => p.$danger ? '#DC2626' : '#0F172A'};}
   &:focus-visible{outline:2px solid #14B8A6;outline-offset:1px;}
+  &:disabled{opacity:0.3;cursor:not-allowed;}
 `;
 const RenameInput = styled.input`
   flex:1;min-width:0;height:24px;padding:0 6px;

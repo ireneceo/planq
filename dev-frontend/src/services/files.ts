@@ -94,6 +94,16 @@ export async function deleteFolder(folderId: number): Promise<boolean> {
   return !!j.success;
 }
 
+export async function reorderFolder(folderId: number, direction: 'up' | 'down'): Promise<boolean> {
+  const r = await apiFetch(`/api/folders/${folderId}/reorder`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ direction })
+  });
+  const j = await r.json();
+  return !!j.success;
+}
+
 export async function moveFile(businessId: number, fileId: string, folderId: number | null): Promise<boolean> {
   const parsed = parseFileId(fileId);
   if (!parsed || parsed.source !== 'direct') return false;

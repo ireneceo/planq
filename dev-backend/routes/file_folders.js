@@ -57,6 +57,51 @@ router.post('/projects/:projectId', authenticateToken, async (req, res, next) =>
   }
 });
 
+// Reorder folder (up/down within same parent)
+router.put('/:id/reorder', authenticateToken, async (req, res, next) => {
+  try {
+    const folder = await FileFolder.findByPk(req.params.id);
+    if (!folder) return errorResponse(res, 'Folder not found', 404);
+    const direction = req.body.direction;
+    if (direction !== 'up' && direction !== 'down') {
+      return errorResponse(res, 'direction must be "up" or "down"', 400);
+    }
+
+    const siblings = await FileFolder.findAll({
+      where: {
+        business_id: folder.business_id,
+        project_id: folder.project_id,
+        parent_id: folder.parent_id
+      },
+      order: [['sort_order', 'ASC'], ['created_at', 'ASC']]
+    });
+
+    const idx = siblings.findIndex(s => s.id === folder.id);
+    const targetIdx = direction === 'up' ? idx - 1 : idx + 1;
+    if (targetIdx < 0 || targetIdx >= siblings.length) {
+      return errorResponse(res, 'already at boundary', 400);
+    }
+
+    // 인접 swap (전체 sort_order 재계산으로 안정화)
+    const reordered = [...siblings];
+    [reordered[idx], reordered[targetIdx]] = [reordered[targetIdx], reordered[idx]];
+
+    const t = await sequelize.transaction();
+    try {
+      for (let i = 0; i < reordered.length; i++) {
+        if (reordered[i].sort_order !== i) {
+          reordered[i].sort_order = i;
+          await reordered[i].save({ transaction: t });
+        }
+      }
+      await t.commit();
+      successResponse(res, { siblings: reordered.map(r => ({ id: r.id, sort_order: r.sort_order })) }, 'Reordered');
+    } catch (e) { await t.rollback(); throw e; }
+  } catch (error) {
+    next(error);
+  }
+});
+
 // Rename folder
 router.put('/:id', authenticateToken, async (req, res, next) => {
   try {

@@ -131,6 +131,8 @@
       "newChild": "하위 폴더",
       "rename": "이름 변경",
       "delete": "삭제",
+      "moveUp": "위로",
+      "moveDown": "아래로",
       "placeholder": "폴더 이름",
       "deleteTitle": "폴더를 삭제할까요?",
       "deleteDesc": "폴더 안 파일은 “직접 업로드 루트”로 옮겨집니다",
