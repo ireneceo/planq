@@ -6,8 +6,9 @@ const fs = require('fs');
 const crypto = require('crypto');
 const { Op } = require('sequelize');
 const { v4: uuidv4 } = require('uuid');
-const { File, FileFolder, User, Client, Project, Business, BusinessStorageUsage } = require('../models');
+const { File, FileFolder, User, Client, Project, Business, BusinessStorageUsage, BusinessCloudToken } = require('../models');
 const { sequelize } = require('../config/database');
+const gdrive = require('../services/gdrive');
 const { authenticateToken, checkBusinessAccess } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 
@@ -144,14 +145,66 @@ router.post('/:businessId', authenticateToken, checkBusinessAccess, upload.singl
       return errorResponse(res, 'Invalid folder_id', 400);
     }
 
-    // 쿼터 체크
-    const usage = await getOrCreateUsage(businessId);
-    const quota = await getPlanQuota(businessId);
-    if (Number(usage.bytes_used) + req.file.size > quota) {
-      fs.unlinkSync(tempPath);
-      return errorResponse(res, 'Storage quota exceeded', 413);
+    // Drive 연동 확인 → 있으면 Drive 로 업로드 (쿼터는 Drive 한도 사용)
+    const cloudToken = await BusinessCloudToken.findOne({
+      where: { business_id: businessId, provider: 'gdrive' }
+    });
+    const useGdrive = !!cloudToken && !!cloudToken.root_folder_id && projectId;
+
+    if (!useGdrive) {
+      // 자체 스토리지 쿼터 체크 (Drive 사용 시에는 skip)
+      const usage = await getOrCreateUsage(businessId);
+      const quota = await getPlanQuota(businessId);
+      if (Number(usage.bytes_used) + req.file.size > quota) {
+        fs.unlinkSync(tempPath);
+        return errorResponse(res, 'Storage quota exceeded', 413);
+      }
     }
 
+    // === Drive 경로 ===
+    if (useGdrive) {
+      try {
+        const project = await Project.findByPk(projectId);
+        const drive = await gdrive.getDriveClient(cloudToken);
+        // 프로젝트 폴더 확보
+        const projectFolderId = await gdrive.ensureProjectFolder(drive, cloudToken, project);
+        // 파일 업로드 (stream)
+        const driveFile = await gdrive.uploadFile(drive, {
+          name: req.file.originalname,
+          mimeType: req.file.mimetype,
+          body: fs.createReadStream(tempPath),
+          parentId: projectFolderId
+        });
+        // DB 에 메타 저장
+        const file = await File.create({
+          business_id: businessId,
+          project_id: projectId,
+          folder_id: folderId,
+          client_id: req.body.client_id || null,
+          uploader_id: req.user.id,
+          file_name: req.file.originalname,
+          file_path: driveFile.id,  // gdrive 는 file_path 필드를 external_id 로 활용
+          file_size: Number(driveFile.size || req.file.size),
+          mime_type: req.file.mimetype,
+          description: req.body.description || null,
+          storage_provider: 'gdrive',
+          external_id: driveFile.id,
+          external_url: driveFile.webViewLink
+        });
+        // 로컬 임시 파일 제거
+        fs.unlinkSync(tempPath);
+        tempPath = null;
+        return successResponse(res, file, 'File uploaded to Drive', 201);
+      } catch (e) {
+        console.error('[files] gdrive upload failed:', e.message);
+        if (tempPath && fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
+        return errorResponse(res, 'Google Drive upload failed: ' + e.message, 502);
+      }
+    }
+
+    // === 자체 스토리지 경로 (아래) ===
+    // Drive 미사용 시에만 쿼터/dedup 처리
+    const usage = await getOrCreateUsage(businessId);
     // SHA-256 dedup
     const hash = await sha256OfFile(tempPath);
     const existing = await File.findOne({

@@ -34,6 +34,7 @@ const CalendarEventAttendee = require('./CalendarEventAttendee');
 const FileFolder = require('./FileFolder');
 const BusinessStorageUsage = require('./BusinessStorageUsage');
 const OpsCapacityLog = require('./OpsCapacityLog');
+const BusinessCloudToken = require('./BusinessCloudToken');
 
 // ============================================
 // Associations
@@ -111,6 +112,11 @@ Project.hasMany(FileFolder, { as: 'fileFolders', foreignKey: 'project_id' });
 // BusinessStorageUsage
 BusinessStorageUsage.belongsTo(Business, { foreignKey: 'business_id' });
 Business.hasOne(BusinessStorageUsage, { as: 'storageUsage', foreignKey: 'business_id' });
+
+// BusinessCloudToken
+BusinessCloudToken.belongsTo(Business, { foreignKey: 'business_id' });
+BusinessCloudToken.belongsTo(User, { as: 'connector', foreignKey: 'connected_by' });
+Business.hasMany(BusinessCloudToken, { as: 'cloudTokens', foreignKey: 'business_id' });
 
 // Invoice
 Invoice.belongsTo(Business, { foreignKey: 'business_id' });
@@ -251,6 +257,7 @@ module.exports = {
   FileFolder,
   BusinessStorageUsage,
   OpsCapacityLog,
+  BusinessCloudToken,
 };
 
 // CalendarEvent

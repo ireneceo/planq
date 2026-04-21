@@ -23,6 +23,9 @@ Project.init({
   project_type: { type: DataTypes.ENUM('fixed', 'ongoing'), allowNull: false, defaultValue: 'fixed' },
   // 프로세스 파트 탭 커스텀 라벨 (프로젝트별) — 기본 '테이블'
   process_tab_label: { type: DataTypes.STRING(80), allowNull: false, defaultValue: '테이블' },
+  // 외부 클라우드 폴더 매핑 (Phase 2B+) — 연동 시 루트 폴더 아래 자동 생성
+  gdrive_folder_id: { type: DataTypes.STRING(255), allowNull: true },
+  dropbox_folder_id: { type: DataTypes.STRING(255), allowNull: true },
 }, {
   sequelize,
   tableName: 'projects',
