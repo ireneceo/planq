@@ -124,7 +124,7 @@
     "folder": {
       "all": "전체",
       "directSection": "직접 업로드",
-      "directRoot": "루트",
+      "directRoot": "내 업로드",
       "autoSection": "자동 수집",
       "auto": "자동",
       "new": "새 폴더",

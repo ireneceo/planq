@@ -124,7 +124,7 @@
     "folder": {
       "all": "All",
       "directSection": "Direct uploads",
-      "directRoot": "Root",
+      "directRoot": "My uploads",
       "autoSection": "Auto-collected",
       "auto": "auto",
       "new": "New folder",

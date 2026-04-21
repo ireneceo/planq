@@ -8,6 +8,7 @@ import { useTimeFormat } from '../../hooks/useTimeFormat';
 import DetailDrawer from '../../components/Common/DetailDrawer';
 import EmptyState from '../../components/Common/EmptyState';
 import PlanQSelect from '../../components/Common/PlanQSelect';
+import SearchBox from '../../components/Common/SearchBox';
 import {
   fetchProjectFiles, uploadProjectFile, deleteProjectFile, bulkDeleteFiles,
   fetchFolders, createFolder, renameFolder, deleteFolder, moveFile,
@@ -205,12 +206,12 @@ const DocsTab: React.FC<Props> = ({ projectId, businessId }) => {
 
       {/* 툴바 */}
       <Toolbar>
-        <SearchWrap>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <circle cx="11" cy="11" r="7" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
-          </svg>
-          <SearchInput placeholder={tr('docs.search', '파일 검색')} value={query} onChange={e => setQuery(e.target.value)} />
-        </SearchWrap>
+        <SearchBox
+          value={query}
+          onChange={setQuery}
+          placeholder={tr('docs.search', '파일 검색')}
+          width={260}
+        />
         <SortWrap>
           <PlanQSelect
             size="sm"
@@ -502,16 +503,16 @@ const DocsTab: React.FC<Props> = ({ projectId, businessId }) => {
             <DBody>
               <MoveTargetList>
                 <MoveTargetRow type="button" onClick={() => onMoveTo(null)}>
-                  <span>📁 {t('docs.folder.directRoot', '직접 업로드 (루트)')}</span>
+                  <span>{t('docs.folder.directRoot', '내 업로드')}</span>
                 </MoveTargetRow>
                 {folders.filter(f => f.parent_id === null).map(f => (
                   <React.Fragment key={f.id}>
                     <MoveTargetRow type="button" onClick={() => onMoveTo(f.id)}>
-                      <span>📁 {f.name}</span>
+                      <MoveTargetIcon><FolderSvg /></MoveTargetIcon><span>{f.name}</span>
                     </MoveTargetRow>
                     {folders.filter(c => c.parent_id === f.id).map(c => (
                       <MoveTargetRow key={c.id} type="button" onClick={() => onMoveTo(c.id)} style={{ paddingLeft: 34 }}>
-                        <span>📁 {c.name}</span>
+                        <MoveTargetIcon><FolderSvg /></MoveTargetIcon><span>{c.name}</span>
                       </MoveTargetRow>
                     ))}
                   </React.Fragment>
@@ -622,26 +623,29 @@ const FolderTree: React.FC<FolderTreeProps> = ({ folders, counts, total, selecte
 
   const fileCountInFolder = (folderId: number): number => counts.byFolder[folderId] || 0;
 
+  const directTotal = counts.bySrc.direct;
+
   return (
     <>
       <TreeRoot>
-        <TreeTopBar>
-          <TreeTopBtn type="button" onClick={() => startCreate(null)}>
-            <PlusSvg size={12} /> {tr('docs.folder.new', '새 폴더')}
-          </TreeTopBtn>
-        </TreeTopBar>
-
         <FolderRow $selected={selected === 'all'} onClick={() => onSelect('all')}>
           <FolderIconWrap $selected={selected === 'all'}><AllSvg /></FolderIconWrap>
           <FolderName>{tr('docs.folder.all', '전체')}</FolderName>
           <FolderCount>{total}</FolderCount>
         </FolderRow>
 
-        <TreeSectionTitle>{tr('docs.folder.directSection', '직접 업로드')}</TreeSectionTitle>
+        <TreeDivider />
+
+        {/* 내 업로드 — "직접 업로드" 섹션헤더 + 루트 항목 통합 */}
         <FolderRow $selected={selected === 'direct'} onClick={() => onSelect('direct')}>
           <FolderIconWrap $selected={selected === 'direct'}>{selected === 'direct' ? <FolderOpenSvg /> : <FolderSvg />}</FolderIconWrap>
-          <FolderName>{tr('docs.folder.directRoot', '루트')}</FolderName>
-          {counts.directRoot > 0 && <FolderCount>{counts.directRoot}</FolderCount>}
+          <FolderName>{tr('docs.folder.directRoot', '내 업로드')}</FolderName>
+          {directTotal > 0 && <FolderCount>{directTotal}</FolderCount>}
+          <FolderActions $visible={selected === 'direct'} onClick={e => e.stopPropagation()}>
+            <FolderMiniBtn type="button" title={tr('docs.folder.new', '새 폴더')} aria-label={tr('docs.folder.new', '새 폴더')} onClick={() => startCreate(null)}>
+              <PlusSvg size={12} />
+            </FolderMiniBtn>
+          </FolderActions>
         </FolderRow>
         {creatingParent === null && (
           <FolderRow style={{ paddingLeft: 22 }}>
@@ -656,7 +660,8 @@ const FolderTree: React.FC<FolderTreeProps> = ({ folders, counts, total, selecte
         )}
         {rootFolders.map(f => renderFolder(f, 1))}
 
-        <TreeSectionTitle>{tr('docs.folder.autoSection', '자동 수집')}</TreeSectionTitle>
+        <TreeDivider />
+
         {(['chat', 'task', 'meeting'] as FileSource[]).map(src => (
           <FolderRow key={src} $selected={selected === `src:${src}`} onClick={() => onSelect(`src:${src}`)}>
             <FolderIconWrap $sys={src} $selected={selected === `src:${src}`}><SystemFolderIcon src={src} /></FolderIconWrap>
@@ -861,15 +866,6 @@ const Toolbar = styled.div`
   display:flex;align-items:center;gap:8px;flex-wrap:wrap;
   padding:8px 12px;background:#fff;border:1px solid #E2E8F0;border-radius:10px;
 `;
-const SearchWrap = styled.label`
-  display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 10px;flex:1;min-width:160px;max-width:320px;
-  background:#F1F5F9;border:1px solid #E2E8F0;border-radius:8px;color:#64748B;
-  &:focus-within{background:#fff;border-color:#14B8A6;color:#0F172A;}
-`;
-const SearchInput = styled.input`
-  border:none;outline:none;background:transparent;font-size:12px;color:#0F172A;flex:1;min-width:0;
-  &::placeholder{color:#94A3B8;}
-`;
 const SortWrap = styled.div`width:130px;`;
 const ViewToggle = styled.div`display:inline-flex;background:#F1F5F9;border:1px solid #E2E8F0;border-radius:8px;padding:2px;gap:2px;`;
 const VT = styled.button<{ $active: boolean }>`
@@ -905,19 +901,7 @@ const FolderTreePanel = styled.div`
 const FilesArea = styled.div`display:flex;flex-direction:column;gap:10px;min-width:0;`;
 
 const TreeRoot = styled.div`display:flex;flex-direction:column;gap:1px;`;
-const TreeTopBar = styled.div`
-  display:flex;align-items:center;padding:4px 6px 8px;border-bottom:1px solid #F1F5F9;margin-bottom:4px;
-`;
-const TreeTopBtn = styled.button`
-  display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 10px;
-  background:#F0FDFA;color:#0F766E;border:1px solid #99F6E4;border-radius:7px;
-  font-size:12px;font-weight:600;cursor:pointer;
-  &:hover{background:#CCFBF1;}
-  &:focus-visible{outline:2px solid #14B8A6;outline-offset:2px;}
-`;
-const TreeSectionTitle = styled.div`
-  padding:10px 10px 4px;font-size:10px;font-weight:700;color:#94A3B8;text-transform:uppercase;letter-spacing:0.4px;
-`;
+const TreeDivider = styled.div`height:1px;background:#F1F5F9;margin:6px 0;`;
 const FolderRow = styled.div<{ $selected?: boolean }>`
   display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:6px;cursor:pointer;min-height:30px;
   background:${p => p.$selected ? '#F0FDFA' : 'transparent'};
@@ -1146,6 +1130,7 @@ const MoveTargetRow = styled.button`
   cursor:pointer;font-size:13px;color:#0F172A;text-align:left;
   &:hover{background:#F8FAFC;border-color:#E2E8F0;}
 `;
+const MoveTargetIcon = styled.span`display:inline-flex;color:#64748B;flex-shrink:0;`;
 
 const EmptyIcon: React.FC = () => (
   <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">

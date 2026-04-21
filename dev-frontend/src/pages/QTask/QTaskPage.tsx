@@ -12,6 +12,7 @@ import { STATUS_CODES, STATUS_COLOR, displayStatus, getStatusLabel, type StatusC
 import { getRoles, primaryPerspective } from '../../utils/taskRoles';
 import TaskDetailDrawer from '../../components/QTask/TaskDetailDrawer';
 import EmptyState from '../../components/Common/EmptyState';
+import SearchBox from '../../components/Common/SearchBox';
 import FloatingPanelToggle, { PANEL_WIDTH_CSS } from '../../components/Common/FloatingPanelToggle';
 import { useIsNarrow } from '../../hooks/useMediaQuery';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
@@ -849,7 +850,7 @@ const QTaskPage:React.FC=()=>{
         <ListScroll>
           {/* Filter bar (탭 아래) */}
           <FilterBar>
-            <SearchBox type="text" placeholder={t('search','Search tasks...')} value={search} onChange={e=>setSearch(e.target.value)} />
+            <SearchBox placeholder={t('search','Search tasks...') as string} value={search} onChange={setSearch} width={200} size="md" />
             <div style={{minWidth:140}}>
               <PlanQSelect size="sm" isClearable
                 placeholder={t('filter.allStatus','All status')}
@@ -1476,7 +1477,6 @@ const Layout=styled.div`display:flex;height:calc(100vh - 0px);background:#F8FAFC
 const LeftPanel=styled.div`flex:1;min-width:0;display:flex;flex-direction:column;background:#FFF;`;
 const Header=styled.div`padding:14px 20px;height:60px;display:flex;align-items:center;gap:12px;border-bottom:1px solid #E2E8F0;flex-shrink:0;`;
 const PageTitle=styled.h1`font-size:18px;font-weight:700;color:#0F172A;margin:0;flex-shrink:0;letter-spacing:-0.2px;`;
-const SearchBox=styled.input`height:36px;box-sizing:border-box;padding:0 12px;width:180px;border:1px solid #E2E8F0;border-radius:8px;font-size:13px;color:#0F172A;background:#F8FAFC;&:focus{outline:none;border-color:#14B8A6;background:#FFF;}&::placeholder{color:#94A3B8;}`;
 const HideCheck=styled.label`display:flex;align-items:center;gap:4px;font-size:12px;color:#64748B;cursor:pointer;white-space:nowrap;& input{accent-color:#0D9488;}`;
 const ChipRow=styled.div`display:flex;gap:4px;margin-left:auto;`;
 const Chip=styled.span<{$teal?:boolean;$coral?:boolean}>`padding:2px 8px;font-size:11px;font-weight:600;border-radius:6px;background:${p=>p.$teal?'#F0FDFA':p.$coral?'#FFF1F2':'#F1F5F9'};color:${p=>p.$teal?'#0F766E':p.$coral?'#9F1239':'#475569'};`;

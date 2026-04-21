@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { type MockProject, type MockConversation } from './mock';
 import { useAuth } from '../../contexts/AuthContext';
 import LetterAvatar from '../../components/Common/LetterAvatar';
+import SearchBoxCommon from '../../components/Common/SearchBox';
 
 interface Props {
   projects: MockProject[];
@@ -141,26 +142,13 @@ const LeftPanel: React.FC<Props> = ({
       </Header>
 
       <SearchSection>
-        <SearchBox>
-          <SearchIcon viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <circle cx="11" cy="11" r="8" />
-            <line x1="21" y1="21" x2="16.65" y2="16.65" />
-          </SearchIcon>
-          <SearchInput
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder={t('left.searchPlaceholder', '대화·프로젝트 검색  Ctrl+K')}
-          />
-          {query && (
-            <ClearBtn onClick={() => setQuery('')} aria-label="Clear">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <line x1="18" y1="6" x2="6" y2="18" />
-                <line x1="6" y1="6" x2="18" y2="18" />
-              </svg>
-            </ClearBtn>
-          )}
-        </SearchBox>
-
+        <SearchBoxCommon
+          value={query}
+          onChange={setQuery}
+          placeholder={t('left.searchPlaceholder', '대화·프로젝트 검색') as string}
+          shortcutHint="Ctrl+K"
+          width="100%"
+        />
       </SearchSection>
 
       <ChatList>
@@ -305,55 +293,6 @@ const IconBtn = styled.button`
   cursor: pointer;
   transition: all 0.1s;
   &:hover { background: #F1F5F9; color: #0F172A; }
-`;
-
-const SearchBox = styled.div`
-  position: relative;
-  display: flex;
-  align-items: center;
-  margin-bottom: 10px;
-`;
-
-const SearchIcon = styled.svg`
-  position: absolute;
-  left: 10px;
-  width: 14px;
-  height: 14px;
-  color: #94A3B8;
-  pointer-events: none;
-`;
-
-const SearchInput = styled.input`
-  width: 100%;
-  padding: 8px 32px 8px 32px;
-  background: #F8FAFC;
-  border: 1px solid #E2E8F0;
-  border-radius: 8px;
-  font-size: 13px;
-  color: #0F172A;
-  &::placeholder { color: #94A3B8; font-size: 12px; }
-  &:focus {
-    outline: none;
-    border-color: #14B8A6;
-    background: #FFFFFF;
-    box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.1);
-  }
-`;
-
-const ClearBtn = styled.button`
-  position: absolute;
-  right: 8px;
-  width: 20px;
-  height: 20px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: transparent;
-  border: none;
-  border-radius: 4px;
-  color: #94A3B8;
-  cursor: pointer;
-  &:hover { background: #E2E8F0; color: #475569; }
 `;
 
 const ChatList = styled.div`

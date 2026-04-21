@@ -38,6 +38,7 @@ import {
   ChevronDownIcon,
 } from '../../components/Common/Icons';
 import SharedEmptyState from '../../components/Common/EmptyState';
+import SearchBoxCommon from '../../components/Common/SearchBox';
 
 /**
  * Q Note 페이지
@@ -190,6 +191,7 @@ const QNotePage = () => {
   const [editingSession, setEditingSession] = useState<boolean>(false);
   const [phase, setPhase] = useState<Phase>('empty');
   const [sessions, setSessions] = useState<QNoteSession[]>([]);
+  const [sessionQuery, setSessionQuery] = useState('');
   const [activeSession, setActiveSession] = useState<QNoteSession | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
     if (typeof window !== 'undefined') return window.innerWidth < 900;
@@ -1733,12 +1735,17 @@ const QNotePage = () => {
         </SidebarHeader>
 
         <SearchWrap>
-          <SearchBox placeholder={t('page.sessionSearchPlaceholder')} />
+          <SearchBoxCommon
+            value={sessionQuery}
+            onChange={setSessionQuery}
+            placeholder={t('page.sessionSearchPlaceholder') as string}
+            width="100%"
+          />
         </SearchWrap>
 
         <SessionList>
           {sessions.length === 0 && <EmptySessionMsg>{t('page.emptySessionList')}</EmptySessionMsg>}
-          {sessions.map((session) => {
+          {(sessionQuery.trim() ? sessions.filter(s => (s.title || '').toLowerCase().includes(sessionQuery.toLowerCase())) : sessions).map((session) => {
             const isActive = activeSession?.id === session.id;
             const statusLabel =
               session.status === 'recording' ? t('page.sessionStatus.recording') :
@@ -2450,24 +2457,6 @@ const SearchWrap = styled.div`
   padding: 12px 20px 12px;
   border-bottom: 1px solid #F1F5F9;
   flex-shrink: 0;
-`;
-const SearchBox = styled.input`
-  display: block;
-  width: 100%;
-  padding: 8px 12px;
-  background: #F8FAFC;
-  border: 1px solid #E2E8F0;
-  border-radius: 8px;
-  font-size: 13px;
-  color: #0f172a;
-  box-sizing: border-box;
-  &::placeholder { color: #94A3B8; font-size: 12px; }
-  &:focus {
-    outline: none;
-    border-color: #14B8A6;
-    background: #FFFFFF;
-    box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.1);
-  }
 `;
 
 const SessionList = styled.div`

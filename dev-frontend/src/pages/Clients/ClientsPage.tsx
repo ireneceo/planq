@@ -10,6 +10,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth, apiFetch } from '../../contexts/AuthContext';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 import LetterAvatar from '../../components/Common/LetterAvatar';
+import SearchBox from '../../components/Common/SearchBox';
 import PageShell from '../../components/Layout/PageShell';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 
@@ -237,7 +238,7 @@ export default function ClientsPage() {
       count={filtered.length}
       actions={
         <>
-          <SearchInput value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t('searchPlaceholder') || '이름·회사·이메일 검색'} />
+          <SearchBox value={query} onChange={setQuery} placeholder={(t('searchPlaceholder') as string) || '이름·회사·이메일 검색'} width={240} />
           <FilterSeg>
             {(['active', 'all', 'archived'] as StatusFilter[]).map((s) => (
               <FilterSegBtn key={s} $active={statusFilter === s} onClick={() => setStatusFilter(s)}>
@@ -536,12 +537,6 @@ function renderHistoryDetail(h: HistoryEntry) {
 }
 
 // ─── styled ───
-const SearchInput = styled.input`
-  width: 220px; height: 32px; padding: 0 12px;
-  border: 1px solid #e2e8f0; border-radius: 8px; font-size: 13px; color: #0f172a; background: #f8fafc; outline: none;
-  &:focus { border-color: #14b8a6; background: #fff; }
-  &::placeholder { color: #94a3b8; }
-`;
 const FilterSeg = styled.div`display:inline-flex;background:#F1F5F9;padding:3px;border-radius:8px;gap:2px;`;
 const FilterSegBtn = styled.button<{ $active: boolean }>`
   padding:6px 12px;border:none;background:${p=>p.$active?'#FFF':'transparent'};color:${p=>p.$active?'#0F766E':'#64748B'};
