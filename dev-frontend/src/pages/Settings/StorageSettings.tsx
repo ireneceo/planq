@@ -49,10 +49,10 @@ const StorageSettings: React.FC<Props> = ({ businessId }) => {
 
   useEffect(() => { load(); }, [load]);
 
-  // OAuth 팝업 수신
+  // OAuth 팝업 수신 (gdrive + dropbox)
   useEffect(() => {
     const onMsg = (e: MessageEvent) => {
-      if (e.data?.type === 'gdrive:connected' && e.data.ok) {
+      if ((e.data?.type === 'gdrive:connected' || e.data?.type === 'dropbox:connected') && e.data.ok) {
         setConnecting(null);
         load();
       }
@@ -62,7 +62,6 @@ const StorageSettings: React.FC<Props> = ({ businessId }) => {
   }, [load]);
 
   const handleConnect = async (provider: 'gdrive' | 'dropbox') => {
-    if (provider === 'dropbox') return; // 미구현
     setConnecting(provider);
     try {
       const r = await apiFetch(`/api/cloud/connect/${provider}/${businessId}`, { method: 'POST' });
@@ -175,8 +174,8 @@ const StorageSettings: React.FC<Props> = ({ businessId }) => {
         </CardActions>
       </ProviderCard>
 
-      {/* Dropbox (준비 중) */}
-      <ProviderCard $active={false} $disabled>
+      {/* Dropbox */}
+      <ProviderCard $active={providers.dropbox.connected}>
         <CardHead>
           <CardIcon $bg="#DBEAFE" $fg="#1D4ED8">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
@@ -185,10 +184,27 @@ const StorageSettings: React.FC<Props> = ({ businessId }) => {
           </CardIcon>
           <CardTitleWrap>
             <CardTitle>Dropbox</CardTitle>
-            <CardSub>{tr('storage.dropbox.soon', '곧 지원 예정 — App Folder 격리 방식')}</CardSub>
+            <CardSub>
+              {providers.dropbox.connected
+                ? `${tr('storage.connected', '연결됨')} · ${providers.dropbox.account_email || ''}`
+                : tr('storage.dropbox.desc', 'App Folder 모드 — /Apps/PlanQ/ 폴더 외 접근 불가')}
+            </CardSub>
           </CardTitleWrap>
-          <StatusBadge $kind="soon">{tr('storage.soon', '준비 중')}</StatusBadge>
+          {providers.dropbox.connected && <StatusBadge $kind="active">{tr('storage.active', '사용 중')}</StatusBadge>}
         </CardHead>
+        <CardActions>
+          {!providers.dropbox.configured ? (
+            <InlineHint>{tr('storage.dropbox.notConfigured', '서버에 OAuth 가 설정되지 않았습니다 (.env 확인 필요)')}</InlineHint>
+          ) : providers.dropbox.connected ? (
+            <DangerBtn type="button" onClick={() => setDisconnectTarget('dropbox')}>
+              {tr('storage.disconnect', '연결 해제')}
+            </DangerBtn>
+          ) : (
+            <PrimaryBtn type="button" disabled={!!connecting} onClick={() => handleConnect('dropbox')}>
+              {connecting === 'dropbox' ? tr('storage.connecting', '연결 중…') : tr('storage.connect', '연결하기')}
+            </PrimaryBtn>
+          )}
+        </CardActions>
       </ProviderCard>
 
       {/* 연결 해제 확인 모달 */}

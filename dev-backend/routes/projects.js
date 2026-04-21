@@ -268,19 +268,29 @@ router.put('/:id', authenticateToken, async (req, res, next) => {
         { where: { project_id: project.id, status: 'active' } },
       );
     }
-    // Drive 폴더 이름 동기화 (Drive 연동 + 이름 변경됨 + 매핑 존재)
-    if (patch.name && patch.name !== prevName && project.gdrive_folder_id) {
-      try {
-        const gdrive = require('../services/gdrive');
-        const { BusinessCloudToken } = require('../models');
-        const cloudToken = await BusinessCloudToken.findOne({
-          where: { business_id: project.business_id, provider: 'gdrive' }
-        });
-        if (cloudToken) {
-          const drive = await gdrive.getDriveClient(cloudToken);
-          await gdrive.renameFile(drive, project.gdrive_folder_id, patch.name);
-        }
-      } catch (e) { console.error('[projects] gdrive rename failed:', e.message); }
+    // 외부 클라우드 폴더 이름 동기화 (이름 변경됨 + 매핑 존재)
+    if (patch.name && patch.name !== prevName) {
+      const { BusinessCloudToken } = require('../models');
+      if (project.gdrive_folder_id) {
+        try {
+          const gdrive = require('../services/gdrive');
+          const t = await BusinessCloudToken.findOne({ where: { business_id: project.business_id, provider: 'gdrive' } });
+          if (t) await gdrive.renameFile(await gdrive.getDriveClient(t), project.gdrive_folder_id, patch.name);
+        } catch (e) { console.error('[projects] gdrive rename failed:', e.message); }
+      }
+      if (project.dropbox_folder_id) {
+        try {
+          const dropboxSvc = require('../services/dropbox');
+          const t = await BusinessCloudToken.findOne({ where: { business_id: project.business_id, provider: 'dropbox' } });
+          if (t) {
+            const dbx = dropboxSvc.getDbxClient(t);
+            const renamed = await dropboxSvc.renameFile(dbx, project.dropbox_folder_id, patch.name);
+            // Dropbox 는 경로가 id 역할이므로 DB 업데이트
+            project.dropbox_folder_id = renamed.path;
+            await project.save();
+          }
+        } catch (e) { console.error('[projects] dropbox rename failed:', e.message); }
+      }
     }
     // 'active'로 복구 시 대화는 수동 복구 (의도치 않은 복원 방지)
     const detail = await loadProjectDetail(project.id);

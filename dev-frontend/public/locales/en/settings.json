@@ -39,7 +39,9 @@
       "notConfigured": "Server OAuth is not configured (check .env)"
     },
     "dropbox": {
-      "soon": "Coming soon — App Folder isolation"
+      "soon": "Coming soon — App Folder isolation",
+      "desc": "App Folder mode — access limited to /Apps/PlanQ/",
+      "notConfigured": "Server OAuth is not configured (check .env)"
     }
   },
   "brand": {
