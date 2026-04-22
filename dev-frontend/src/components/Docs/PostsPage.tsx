@@ -542,7 +542,8 @@ export default PostsPage;
 // ─── styled ─── (Q Note 패턴 — Sidebar + Content 2컬럼 + PanelHeader)
 const Layout = styled.div`
   display: grid; grid-template-columns: 320px 1fr;
-  height: 100%; min-height: 0; background: #fff;
+  height: 100%; min-height: 0;
+  background: #F8FAFC;
   overflow: hidden;
   @media (max-width: 900px) { grid-template-columns: 1fr; }
 `;
@@ -554,6 +555,7 @@ const Sidebar = styled.aside`
   min-height: 0;
   @media (max-width: 900px) { border-right: none; border-bottom: 1px solid #E2E8F0; }
 `;
+// 우측 컨텐츠 — background 를 Content 에 직접 부여
 const NewBtn = styled.button`
   width: 32px; height: 32px;
   display: inline-flex; align-items: center; justify-content: center;
@@ -644,21 +646,21 @@ const RowMeta = styled.div`
 const EmptyList = styled.div`padding: 40px 20px; color: #94A3B8; font-size: 12px; text-align: center;`;
 const Dim = styled.div`padding: 24px 16px; color: #94A3B8; font-size: 12px; text-align: center;`;
 
-// 우측 컨텐츠
 const Content = styled.section`
   display: flex; flex-direction: column;
   min-height: 0; overflow: hidden;
+  background: #fff;
 `;
 const Body = styled.div`
   flex: 1; min-height: 0;
-  padding: 20px 24px;
+  padding: 24px 28px;
   overflow-y: auto;
   display: flex; flex-direction: column; gap: 16px;
 `;
 const TitleInput = styled.input`
-  flex: 1; height: 34px; padding: 0 10px;
+  flex: 1; height: 32px; padding: 0 10px;
   background: #fff; border: 1px solid #E2E8F0; border-radius: 8px;
-  font-size: 16px; font-weight: 700; color: #0F172A;
+  font-size: 15px; font-weight: 700; color: #0F172A;
   &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 2px rgba(20,184,166,0.15); }
 `;
 const EditActions = styled.div`display: flex; gap: 8px;`;
@@ -686,10 +688,11 @@ const CategoryMini = styled.span`
   border-radius: 999px; font-size: 10px; font-weight: 600;
 `;
 
-// 첨부 섹션
+// 첨부 섹션 — 외곽 박스 없음, 상단 구분선으로 영역만 분리
 const AttachSection = styled.section`
-  background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 12px;
-  padding: 16px 20px;
+  margin-top: 12px;
+  padding-top: 16px;
+  border-top: 1px solid #EEF2F6;
   display: flex; flex-direction: column; gap: 12px;
 `;
 const AttachTitle = styled.div`font-size: 13px; font-weight: 700; color: #334155;`;
@@ -725,21 +728,21 @@ const PlaceholderText = styled.div`font-size: 13px; color: #64748B; text-align: 
 
 const ErrorBar = styled.div`font-size: 12px; color: #DC2626; background: #FEF2F2; padding: 8px 12px; border-radius: 6px;`;
 
-// 버튼 (세 톤 — CLAUDE.md 규칙)
+// 버튼 — PanelHeader 60px (padding 14*2=28 + 32 content) 와 일치하도록 32px
 const PrimaryBtn = styled.button`
-  height: 34px; padding: 0 14px; background: #14B8A6; color: #fff; border: none; border-radius: 8px;
+  height: 32px; padding: 0 14px; background: #14B8A6; color: #fff; border: none; border-radius: 8px;
   font-size: 13px; font-weight: 600; cursor: pointer;
   &:hover:not(:disabled) { background: #0D9488; }
   &:disabled { opacity: 0.5; cursor: not-allowed; }
 `;
 const SecondaryBtn = styled.button`
-  height: 34px; padding: 0 14px; background: #fff; color: #0F172A;
+  height: 32px; padding: 0 14px; background: #fff; color: #0F172A;
   border: 1px solid #CBD5E1; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer;
   &:hover:not(:disabled) { background: #F8FAFC; }
   &:disabled { opacity: 0.5; cursor: not-allowed; }
 `;
 const DangerBtn = styled.button`
-  height: 34px; padding: 0 14px; background: #fff; color: #DC2626;
+  height: 32px; padding: 0 14px; background: #fff; color: #DC2626;
   border: 1px solid #FCA5A5; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer;
   &:hover:not(:disabled) { background: #FEF2F2; border-color: #DC2626; }
 `;
