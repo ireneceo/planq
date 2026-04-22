@@ -16,6 +16,11 @@
   "titlePlaceholder": "Document title",
   "contentPlaceholder": "Start writing…",
   "selectOrCreate": "Select a document from the list or create a new one.",
+  "empty": {
+    "title": "Start a document",
+    "line1": "Manuals · guides · announcements · meeting notes — write what your team needs to read together.",
+    "line2": "Pick an existing doc from the left, or create a new one."
+  },
   "attachments": "Attachments",
   "attachAdd": "Add file",
   "attachFold": "Collapse",
