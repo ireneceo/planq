@@ -8,6 +8,7 @@ import SearchBox from '../Common/SearchBox';
 import PanelHeader, { PanelTitle, PanelSubTitle } from '../Layout/PanelHeader';
 import InlineAttachPicker from './InlineAttachPicker';
 import CategoryCombobox from '../Common/CategoryCombobox';
+import EmptyState from '../Common/EmptyState';
 import { uploadMyFile, uploadProjectFile, fetchWorkspaceFiles } from '../../services/files';
 import ConfirmDialog from '../Common/ConfirmDialog';
 import PostEditor from './PostEditor';
@@ -282,30 +283,12 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
         </SearchWrap>
 
         <FilterSection>
+          {/* 카테고리 — 전체 포함 */}
+          <FilterGroupLabel>{t('filter.byCategory', '카테고리') as string}</FilterGroupLabel>
           <Chip type="button" $active={filter.kind === 'all'} onClick={() => setFilter({ kind: 'all' })}>
             {t('filter.all', '전체') as string}
             <Count>{meta.total}</Count>
           </Chip>
-
-          {scope.type === 'workspace' && meta.projects.length > 0 && (
-            <>
-              <FilterGroupLabel>{t('filter.byProject', '프로젝트') as string}</FilterGroupLabel>
-              {meta.projects.map(p => (
-                <Chip
-                  key={p.id}
-                  type="button"
-                  $active={filter.kind === 'project' && filter.projectId === p.id}
-                  onClick={() => setFilter({ kind: 'project', projectId: p.id })}
-                >
-                  <ColorDot $color={p.color || '#14B8A6'} />
-                  {p.name}
-                  <Count>{p.count}</Count>
-                </Chip>
-              ))}
-            </>
-          )}
-
-          <FilterGroupLabel>{t('filter.byCategory', '카테고리') as string}</FilterGroupLabel>
           {meta.categories.map(c => (
             <Chip
               key={c.name}
@@ -344,6 +327,25 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
             <AddCatBtn type="button" onClick={() => setNewCatOpen(true)} title={t('filter.addCategory', '카테고리 추가') as string}>
               + {t('filter.addCategory', '카테고리 추가')}
             </AddCatBtn>
+          )}
+
+          {/* 프로젝트 — 워크스페이스 모드에서만 */}
+          {scope.type === 'workspace' && meta.projects.length > 0 && (
+            <>
+              <FilterGroupLabel>{t('filter.byProject', '프로젝트') as string}</FilterGroupLabel>
+              {meta.projects.map(p => (
+                <Chip
+                  key={p.id}
+                  type="button"
+                  $active={filter.kind === 'project' && filter.projectId === p.id}
+                  onClick={() => setFilter({ kind: 'project', projectId: p.id })}
+                >
+                  <ColorDot $color={p.color || '#14B8A6'} />
+                  {p.name}
+                  <Count>{p.count}</Count>
+                </Chip>
+              ))}
+            </>
           )}
         </FilterSection>
 
@@ -511,15 +513,33 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
             </Body>
           </>
         ) : (
-          <Placeholder>
-            <PlaceholderIcon viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-              <polyline points="14 2 14 8 20 8"/>
-              <line x1="16" y1="13" x2="8" y2="13"/>
-              <line x1="16" y1="17" x2="8" y2="17"/>
-            </PlaceholderIcon>
-            <PlaceholderText>{t('selectOrCreate', '왼쪽 목록에서 문서를 선택하거나 새 문서를 작성하세요')}</PlaceholderText>
-          </Placeholder>
+          <EmptyState
+            icon={(
+              <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                <polyline points="14 2 14 8 20 8"/>
+                <line x1="16" y1="13" x2="8" y2="13"/>
+                <line x1="16" y1="17" x2="8" y2="17"/>
+                <polyline points="10 9 9 9 8 9"/>
+              </svg>
+            )}
+            title={t('empty.title', '문서를 시작하세요') as string}
+            description={(
+              <>
+                {t('empty.line1', '매뉴얼 · 가이드 · 공지 · 회의록 — 팀이 함께 읽는 문서를 만들어 보세요.')}
+                <br />
+                {t('empty.line2', '왼쪽 목록에서 기존 문서를 선택하거나, 새로 작성할 수 있습니다.')}
+              </>
+            )}
+            ctaLabel={t('new', '새 문서') as string}
+            ctaIcon={(
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
+                <line x1="12" y1="5" x2="12" y2="19"/>
+                <line x1="5" y1="12" x2="19" y2="12"/>
+              </svg>
+            )}
+            onCta={startNew}
+          />
         )}
       </Content>
 
@@ -717,14 +737,6 @@ const RemoveBtn = styled.button`
   color: #94A3B8; border-radius: 4px; font-size: 16px;
   &:hover { background: #FEE2E2; color: #DC2626; }
 `;
-
-// 빈 상태 (우측)
-const Placeholder = styled.div`
-  flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
-  gap: 10px; padding: 40px 24px; color: #94A3B8;
-`;
-const PlaceholderIcon = styled.svg`width: 40px; height: 40px; color: #CBD5E1;`;
-const PlaceholderText = styled.div`font-size: 13px; color: #64748B; text-align: center; max-width: 320px; line-height: 1.5;`;
 
 const ErrorBar = styled.div`font-size: 12px; color: #DC2626; background: #FEF2F2; padding: 8px 12px; border-radius: 6px;`;
 
