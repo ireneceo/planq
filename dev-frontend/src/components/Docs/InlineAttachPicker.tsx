@@ -131,8 +131,7 @@ const InlineAttachPicker: React.FC<Props> = ({ businessId, excludeIds = [], onPi
 export default InlineAttachPicker;
 
 const Wrap = styled.div`
-  background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 12px;
-  padding: 14px; display: flex; flex-direction: column; gap: 12px;
+  display: flex; flex-direction: column; gap: 12px; margin-top: 4px;
 `;
 const Drop = styled.div<{ $over: boolean }>`
   border: 2px dashed ${p => p.$over ? '#14B8A6' : '#CBD5E1'};
