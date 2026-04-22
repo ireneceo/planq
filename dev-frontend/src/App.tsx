@@ -15,6 +15,7 @@ import ClientsPage from './pages/Clients/ClientsPage';
 import InvitePage from './pages/Invite/InvitePage';
 import QCalendarPage from './pages/QCalendar/QCalendarPage';
 import QDocsPage from './pages/QDocs/QDocsPage';
+import QFilePage from './pages/QFile/QFilePage';
 import AdminBusinessesPage from './pages/Admin/AdminBusinessesPage';
 import PrivacyPolicy from './pages/Legal/PrivacyPolicy';
 import TermsOfService from './pages/Legal/TermsOfService';
@@ -120,12 +121,6 @@ function App() {
           </ProtectedRoute>
         } />
 
-        <Route path="/docs" element={
-          <ProtectedRoute>
-            <MainLayout><QDocsPage /></MainLayout>
-          </ProtectedRoute>
-        } />
-
         <Route path="/notes" element={
           <ProtectedRoute>
             <MainLayout><QNotePage /></MainLayout>
@@ -137,15 +132,15 @@ function App() {
           </ProtectedRoute>
         } />
 
-        <Route path="/docs" element={
+        <Route path="/files" element={
           <ProtectedRoute>
-            <MainLayout><PlaceholderPage title="Q docs" /></MainLayout>
+            <MainLayout><QFilePage /></MainLayout>
           </ProtectedRoute>
         } />
 
-        <Route path="/files" element={
+        <Route path="/docs" element={
           <ProtectedRoute>
-            <MainLayout><PlaceholderPage title="Q file" /></MainLayout>
+            <MainLayout><QDocsPage /></MainLayout>
           </ProtectedRoute>
         } />
 

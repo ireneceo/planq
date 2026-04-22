@@ -17,7 +17,7 @@ import { STATUS_COLOR, displayStatus, type StatusCode } from '../../utils/taskLa
 
 const PROJECT_COLORS = PROJECT_COLOR_PALETTE.map(p => p.value);
 
-type TabKey = 'dashboard' | 'tasks' | 'info' | 'process' | 'clients' | 'docs';
+type TabKey = 'dashboard' | 'tasks' | 'info' | 'process' | 'clients' | 'files' | 'docs';
 
 interface BizMember { id: number; user_id: number; user?: { id: number; name: string; email?: string; is_ai?: boolean } }
 
@@ -58,7 +58,7 @@ const QProjectDetailPage: React.FC = () => {
   const projectId = id ? Number(id) : 0;
   const [searchParams, setSearchParams] = useSearchParams();
 
-  const validTabs: TabKey[] = ['dashboard', 'tasks', 'info', 'process', 'clients', 'docs'];
+  const validTabs: TabKey[] = ['dashboard', 'tasks', 'info', 'process', 'clients', 'files', 'docs'];
   const initialTab = (searchParams.get('tab') as TabKey) || 'dashboard';
   const [tab, setTabState] = useState<TabKey>(validTabs.includes(initialTab) ? initialTab : 'dashboard');
   const setTab = (k: TabKey) => {
@@ -205,7 +205,7 @@ const QProjectDetailPage: React.FC = () => {
       }
     >
       <TabBar>
-        {([['dashboard', '대시보드'], ['tasks', '업무'], ['process', project.process_tab_label || '테이블'], ['clients', '고객'], ['docs', '문서'], ['info', '상세정보']] as [TabKey, string][]).map(([k, lbl]) => {
+        {([['dashboard', '대시보드'], ['tasks', '업무'], ['process', project.process_tab_label || '테이블'], ['clients', '고객'], ['files', '파일'], ['docs', '문서'], ['info', '상세정보']] as [TabKey, string][]).map(([k, lbl]) => {
           if (k === 'process' && editingTabLabel) {
             return (
               <TabLabelInput key={k} autoFocus value={tabLabelDraft}
@@ -663,7 +663,13 @@ const QProjectDetailPage: React.FC = () => {
           </Card>
         </InfoBody>
       )}
-      {tab === 'docs' && <DocsTab projectId={projectId} businessId={project.business_id} />}
+      {tab === 'files' && <DocsTab projectId={projectId} businessId={project.business_id} />}
+      {tab === 'docs' && (
+        <EmptyBox>
+          <EmptyTitle>{t('docs.empty.title', '문서 준비 중')}</EmptyTitle>
+          <EmptyDesc>{t('docs.empty.desc', '포스팅 형식의 문서 기능은 곧 제공됩니다. 파일은 "파일" 탭을 이용해 주세요.')}</EmptyDesc>
+        </EmptyBox>
+      )}
       {tab === 'clients' && (
         <ClientsBody>
           <Card>
@@ -938,6 +944,12 @@ const ClientInput = styled.input`flex:1;padding:6px 10px;border:1px solid #E2E8F
 const AddClientBtn = styled.button`padding:6px 12px;background:#14B8A6;color:#FFF;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;&:hover:not(:disabled){background:#0D9488;}&:disabled{background:#CBD5E1;cursor:not-allowed;}`;
 
 const Dim = styled.div`padding:16px;text-align:center;font-size:12px;color:#94A3B8;`;
+const EmptyBox = styled.div`
+  background:#fff;border:1px dashed #CBD5E1;border-radius:14px;
+  padding:48px 24px;text-align:center;display:flex;flex-direction:column;gap:8px;align-items:center;
+`;
+const EmptyTitle = styled.div`font-size:14px;font-weight:700;color:#334155;`;
+const EmptyDesc = styled.div`font-size:12px;color:#64748B;line-height:1.6;max-width:400px;`;
 
 // 프로젝트 멤버 카드
 const MemberList = styled.div`display:flex;flex-direction:column;gap:6px;margin-bottom:8px;`;
