@@ -11,7 +11,7 @@ import PlanQSelect from '../../components/Common/PlanQSelect';
 import SearchBox from '../../components/Common/SearchBox';
 import { Link } from 'react-router-dom';
 import {
-  fetchProjectFiles, fetchWorkspaceFiles, uploadProjectFile, deleteProjectFile, bulkDeleteFiles,
+  fetchProjectFiles, fetchWorkspaceFiles, uploadProjectFile, uploadMyFile, deleteProjectFile, bulkDeleteFiles,
   fetchFolders, createFolder, renameFolder, deleteFolder, reorderFolder, moveFile,
   formatBytes, extOf, isImage,
   type ProjectFile, type FileSource, type FileFolder,
@@ -25,7 +25,7 @@ type SortKey = 'recent' | 'name' | 'size';
 type ViewMode = 'grid' | 'list';
 // 폴더 선택 상태: 'all' = 전체 | 'direct' = 직접 업로드 루트 | `src:chat` etc | number = 사용자 폴더 id
 // 워크스페이스 모드: 'all' | `proj:${projectId}` | `src:...`
-type FolderSel = 'all' | 'direct' | `src:${FileSource}` | `proj:${number}` | number;
+type FolderSel = 'all' | 'direct' | 'my' | `src:${FileSource}` | `proj:${number}` | number;
 
 interface Props {
   // 하위 호환: 기존 호출부 ({ projectId, businessId }) 는 자동으로 project scope
@@ -97,19 +97,22 @@ const DocsTab: React.FC<Props> = (props) => {
   const counts = useMemo(() => {
     const byFolder: Record<number, number> = {};
     let directRoot = 0;
+    let myFiles = 0;
     const bySrc: Record<FileSource, number> = { direct: 0, chat: 0, task: 0, meeting: 0 };
     for (const f of files) {
       bySrc[f.source]++;
       if (f.source === 'direct') {
+        if (f.project_context == null) myFiles++;
         if (f.folder_id == null) directRoot++;
         else byFolder[f.folder_id] = (byFolder[f.folder_id] || 0) + 1;
       }
     }
-    return { total: files.length, bySrc, byFolder, directRoot };
+    return { total: files.length, bySrc, byFolder, directRoot, myFiles };
   }, [files]);
 
   const filteredByFolder = useMemo(() => {
     if (folderSel === 'all') return files;
+    if (folderSel === 'my') return files.filter(f => f.source === 'direct' && f.project_context == null);
     if (folderSel === 'direct') return files.filter(f => f.source === 'direct' && f.folder_id == null);
     if (typeof folderSel === 'string' && folderSel.startsWith('src:')) {
       const src = folderSel.slice(4) as FileSource;
@@ -157,7 +160,19 @@ const DocsTab: React.FC<Props> = (props) => {
     const arr = Array.from(fileList);
     if (arr.length === 0) return;
     if (isWorkspace) {
-      // 워크스페이스 모드: 프로젝트 선택 모달
+      // 워크스페이스 모드:
+      //  - "내 파일" 폴더 선택 중이면 바로 업로드 (project_id 없이)
+      //  - 그 외엔 프로젝트 선택 모달 띄움
+      if (folderSel === 'my') {
+        setUploadingCount(n => n + arr.length);
+        for (const f of arr) {
+          try {
+            const r = await uploadMyFile(businessId, f);
+            if (r.success && r.file) setFiles(prev => [r.file!, ...prev]);
+          } finally { setUploadingCount(n => n - 1); }
+        }
+        return;
+      }
       setPendingUpload(arr);
       return;
     }
@@ -679,7 +694,7 @@ export default DocsTab;
 
 interface ProjectGroupsProps {
   projectGroups: Array<{ id: number; name: string; color?: string | null; count: number }>;
-  counts: { total: number; bySrc: Record<FileSource, number>; byFolder: Record<number, number>; directRoot: number };
+  counts: { total: number; bySrc: Record<FileSource, number>; byFolder: Record<number, number>; directRoot: number; myFiles: number };
   total: number;
   selected: FolderSel;
   onSelect: (sel: FolderSel) => void;
@@ -693,6 +708,11 @@ const ProjectGroups: React.FC<ProjectGroupsProps> = ({ projectGroups, counts, to
         <FolderIconWrap $selected={selected === 'all'}><AllSvg /></FolderIconWrap>
         <FolderName>{tr('docs.folder.all', '전체')}</FolderName>
         <FolderCount>{total}</FolderCount>
+      </FolderRow>
+      <FolderRow $selected={selected === 'my'} onClick={() => onSelect('my')}>
+        <FolderIconWrap $selected={selected === 'my'}><MyFilesSvg /></FolderIconWrap>
+        <FolderName>{tr('docs.folder.my', '내 파일')}</FolderName>
+        {counts.myFiles > 0 && <FolderCount>{counts.myFiles}</FolderCount>}
       </FolderRow>
       <TreeDivider />
       {projectGroups.map(p => {
@@ -990,6 +1010,12 @@ const AllSvg: React.FC<{ size?: number }> = ({ size = 14 }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" />
     <rect x="14" y="14" width="7" height="7" /><rect x="3" y="14" width="7" height="7" />
+  </svg>
+);
+const MyFilesSvg: React.FC<{ size?: number }> = ({ size = 14 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+    <circle cx="12" cy="7" r="4"/>
   </svg>
 );
 const PlusSvg: React.FC<{ size?: number }> = ({ size = 12 }) => (
