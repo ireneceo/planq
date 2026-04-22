@@ -38,11 +38,6 @@
       "title": "Google Drive",
       "desc": "App-scoped folder (drive.file) — PlanQ only accesses files it creates",
       "notConfigured": "Server OAuth is not configured (check .env)"
-    },
-    "dropbox": {
-      "soon": "Coming soon — App Folder isolation",
-      "desc": "App Folder mode — access limited to /Apps/PlanQ/",
-      "notConfigured": "Server OAuth is not configured (check .env)"
     }
   },
   "brand": {

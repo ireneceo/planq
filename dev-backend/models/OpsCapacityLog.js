@@ -35,11 +35,6 @@ OpsCapacityLog.init({
     allowNull: false,
     defaultValue: 0
   },
-  dropbox_share: {
-    type: DataTypes.INTEGER,
-    allowNull: false,
-    defaultValue: 0
-  },
   stage_reached: {
     type: DataTypes.INTEGER,
     allowNull: false,

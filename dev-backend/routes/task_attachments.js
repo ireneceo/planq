@@ -8,7 +8,6 @@ const { Task, TaskAttachment, TaskComment, User, BusinessMember, BusinessCloudTo
 const { authenticateToken } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const gdrive = require('../services/gdrive');
-const dropboxSvc = require('../services/dropbox');
 
 const UPLOAD_ROOT = path.join(__dirname, '..', 'uploads');
 if (!fs.existsSync(UPLOAD_ROOT)) fs.mkdirSync(UPLOAD_ROOT, { recursive: true });
@@ -84,12 +83,12 @@ router.post('/:taskId/attachments',
       let finalStoredName = path.basename(req.file.path);
 
       const cloudToken = await BusinessCloudToken.findOne({
-        where: { business_id: req._task.business_id, provider: ['gdrive', 'dropbox'] }
+        where: { business_id: req._task.business_id, provider: 'gdrive' }
       });
       if (cloudToken && cloudToken.root_folder_id && req._task.project_id) {
         try {
           const project = await Project.findByPk(req._task.project_id);
-          if (project && cloudToken.provider === 'gdrive') {
+          if (project) {
             const drive = await gdrive.getDriveClient(cloudToken);
             const projectFolderId = await gdrive.ensureProjectFolder(drive, cloudToken, project);
             const driveFile = await gdrive.uploadFile(drive, {
@@ -101,20 +100,6 @@ router.post('/:taskId/attachments',
             externalUrl = driveFile.webViewLink;
             finalFilePath = driveFile.id;
             finalStoredName = driveFile.id;
-            fs.unlinkSync(req.file.path);
-          } else if (project && cloudToken.provider === 'dropbox') {
-            const dbx = dropboxSvc.getDbxClient(cloudToken);
-            const projectFolderPath = await dropboxSvc.ensureProjectFolder(dbx, cloudToken, project);
-            const dropboxFile = await dropboxSvc.uploadFile(dbx, {
-              name: req.file.originalname,
-              body: fs.createReadStream(req.file.path),
-              parentPath: projectFolderPath
-            });
-            storageProvider = 'dropbox';
-            externalId = dropboxFile.id;
-            externalUrl = dropboxFile.webViewLink;
-            finalFilePath = dropboxFile.path;
-            finalStoredName = dropboxFile.id;
             fs.unlinkSync(req.file.path);
           }
         } catch (e) {

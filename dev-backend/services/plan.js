@@ -277,7 +277,7 @@ function buildQuotaError(checkResult, businessId) {
     storage_quota_exceeded: {
       message: '저장소 용량 한도 초과',
       message_en: 'Storage quota exceeded',
-      alternatives: ['외부 클라우드 연동 (Google Drive / Dropbox) 시 용량 제약 없음'],
+      alternatives: ['외부 클라우드 연동 (Google Drive) 시 용량 제약 없음'],
     },
     members_quota_exceeded: { message: '멤버 수 한도 초과', message_en: 'Member limit exceeded' },
     clients_quota_exceeded: { message: '고객 수 한도 초과', message_en: 'Client limit exceeded' },

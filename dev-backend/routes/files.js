@@ -9,7 +9,6 @@ const { v4: uuidv4 } = require('uuid');
 const { File, FileFolder, User, Client, Project, Business, BusinessStorageUsage, BusinessCloudToken } = require('../models');
 const { sequelize } = require('../config/database');
 const gdrive = require('../services/gdrive');
-const dropboxSvc = require('../services/dropbox');
 const planEngine = require('../services/plan');
 const { authenticateToken, checkBusinessAccess } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
@@ -140,61 +139,23 @@ router.post('/:businessId', authenticateToken, checkBusinessAccess, upload.singl
       return errorResponse(res, 'Invalid folder_id', 400);
     }
 
-    // 외부 클라우드 연동 확인 → 있으면 해당 제공자로 업로드 (쿼터 skip)
-    // gdrive 우선, 둘 다 있으면 gdrive. 사용자 선택 전환은 설정에서 해제 시 다른 것으로
+    // 외부 클라우드 연동 확인 → 있으면 Google Drive 로 업로드 (쿼터 skip)
     const cloudToken = await BusinessCloudToken.findOne({
-      where: { business_id: businessId, provider: ['gdrive', 'dropbox'] }
+      where: { business_id: businessId, provider: 'gdrive' }
     });
-    const useGdrive = !!cloudToken && cloudToken.provider === 'gdrive' && !!cloudToken.root_folder_id && projectId;
-    const useDropbox = !!cloudToken && cloudToken.provider === 'dropbox' && !!cloudToken.root_folder_id && projectId;
+    const useGdrive = !!cloudToken && !!cloudToken.root_folder_id && projectId;
 
     // plan engine 통합 체크 — 파일 크기 + 스토리지 쿼터 (외부 사용 시 쿼터 skip)
     // race condition 방지: 실제 usage 증가 트랜잭션은 아래에서 SELECT FOR UPDATE 로 원자화.
     // 여기서의 체크는 1차 early return (UX 개선). 최종 게이트는 트랜잭션 내 재검증.
     const canUpload = await planEngine.can(businessId, 'upload_file', {
       size: req.file.size,
-      external: useGdrive || useDropbox,
+      external: useGdrive,
     });
     if (!canUpload.ok) {
       fs.unlinkSync(tempPath);
       return res.status(canUpload.reason === 'file_size_exceeded' || canUpload.reason === 'storage_quota_exceeded' ? 413 : 403)
         .json(planEngine.buildQuotaError(canUpload, businessId));
-    }
-
-    // === Dropbox 경로 ===
-    if (useDropbox) {
-      try {
-        const project = await Project.findByPk(projectId);
-        const dbx = dropboxSvc.getDbxClient(cloudToken);
-        const projectFolderPath = await dropboxSvc.ensureProjectFolder(dbx, cloudToken, project);
-        const dropboxFile = await dropboxSvc.uploadFile(dbx, {
-          name: req.file.originalname,
-          body: fs.createReadStream(tempPath),
-          parentPath: projectFolderPath
-        });
-        const file = await File.create({
-          business_id: businessId,
-          project_id: projectId,
-          folder_id: folderId,
-          client_id: req.body.client_id || null,
-          uploader_id: req.user.id,
-          file_name: req.file.originalname,
-          file_path: dropboxFile.path,
-          file_size: Number(dropboxFile.size || req.file.size),
-          mime_type: req.file.mimetype,
-          description: req.body.description || null,
-          storage_provider: 'dropbox',
-          external_id: dropboxFile.id,
-          external_url: dropboxFile.webViewLink
-        });
-        fs.unlinkSync(tempPath);
-        tempPath = null;
-        return successResponse(res, file, 'File uploaded to Dropbox', 201);
-      } catch (e) {
-        console.error('[files] dropbox upload failed:', e.message);
-        if (tempPath && fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
-        return errorResponse(res, 'Dropbox upload failed: ' + e.message, 502);
-      }
     }
 
     // === Drive 경로 ===
@@ -423,16 +384,6 @@ async function softDeleteFile(file, transaction) {
           await gdrive.deleteFile(drive, file.external_id);
         }
       } catch (e) { console.error('[files] gdrive delete failed:', e.message); }
-    } else if (file.storage_provider === 'dropbox' && file.file_path) {
-      try {
-        const cloudToken = await BusinessCloudToken.findOne({
-          where: { business_id: file.business_id, provider: 'dropbox' }, transaction
-        });
-        if (cloudToken) {
-          const dbx = dropboxSvc.getDbxClient(cloudToken);
-          await dropboxSvc.deleteFile(dbx, file.file_path);
-        }
-      } catch (e) { console.error('[files] dropbox delete failed:', e.message); }
     }
   }
   // 쿼터 반환 (자체 스토리지만 쿼터 사용)

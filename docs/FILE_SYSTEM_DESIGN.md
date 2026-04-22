@@ -3,7 +3,7 @@
 ## 0. 원칙
 
 1. **하나의 허브, 여러 출처** — 직접 업로드 + Q Talk 첨부 + Q Task 첨부 + Q Note 자료를 프로젝트별 + 워크스페이스 전역 두 scope 로 집계한다.
-2. **저장소는 교체 가능** — 자체 스토리지 / Google Drive / Dropbox 중 고객이 선택. UI 는 동일.
+2. **저장소는 교체 가능** — 자체 스토리지 / Google Drive 중 고객이 선택. UI 는 동일.
 3. **PlanQ 는 유일 진입점** — 외부 클라우드를 쓰더라도 사용자는 PlanQ 안에서만 조작. 외부 앱 직접 열 필요 없음.
 4. **편의성 우선** — 리스트·검색·필터·정렬은 PlanQ DB 인덱스로 처리 (외부 API 호출 최소화).
 5. **운영비용 자동 조절** — 가입자·용량 임계치 도달 시 알림 → 단계적 인프라 도입.
@@ -47,8 +47,8 @@ ALTER TABLE files ADD COLUMN project_id INT NULL
   REFERENCES projects(id) ON DELETE SET NULL;
 ALTER TABLE files ADD COLUMN folder_id INT NULL
   REFERENCES file_folders(id) ON DELETE SET NULL;
-ALTER TABLE files ADD COLUMN storage_provider ENUM('planq','gdrive','dropbox') NOT NULL DEFAULT 'planq';
-ALTER TABLE files ADD COLUMN external_id VARCHAR(255) NULL;           -- Drive/Dropbox file id
+ALTER TABLE files ADD COLUMN storage_provider ENUM('planq','gdrive') NOT NULL DEFAULT 'planq';
+ALTER TABLE files ADD COLUMN external_id VARCHAR(255) NULL;           -- Drive file id
 ALTER TABLE files ADD COLUMN external_url VARCHAR(500) NULL;          -- 다운로드 URL
 ALTER TABLE files ADD COLUMN content_hash CHAR(64) NULL;              -- SHA-256 dedup
 ALTER TABLE files ADD COLUMN ref_count INT NOT NULL DEFAULT 1;        -- 중복 참조 카운트
@@ -84,7 +84,7 @@ CREATE TABLE business_storage_usage (
   business_id INT PRIMARY KEY REFERENCES businesses(id) ON DELETE CASCADE,
   bytes_used BIGINT NOT NULL DEFAULT 0,
   file_count INT NOT NULL DEFAULT 0,
-  storage_provider ENUM('planq','gdrive','dropbox') NOT NULL DEFAULT 'planq',
+  storage_provider ENUM('planq','gdrive') NOT NULL DEFAULT 'planq',
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
 ```
@@ -95,7 +95,7 @@ CREATE TABLE business_storage_usage (
 CREATE TABLE business_cloud_tokens (
   id INT AUTO_INCREMENT PRIMARY KEY,
   business_id INT NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
-  provider ENUM('gdrive','dropbox') NOT NULL,
+  provider ENUM('gdrive') NOT NULL,
   access_token TEXT NOT NULL,        -- 암호화
   refresh_token TEXT NULL,           -- 암호화
   expires_at TIMESTAMP NULL,
@@ -135,25 +135,24 @@ CREATE TABLE business_cloud_tokens (
 4. 없으면 → 정상 업로드
 5. 삭제 시 `ref_count--` → 0 이 되면 물리 파일 삭제
 
-**주의:** 외부 클라우드(Drive/Dropbox) 연동 시 dedup 비활성 (외부는 각자 정책)
+**주의:** 외부 클라우드(Drive) 연동 시 dedup 비활성 (외부는 각자 정책)
 
 ---
 
-## 5. Google Drive / Dropbox 연동
+## 5. Google Drive 연동
 
 ### 5.1 권한 (최소)
 
 | 플랫폼 | Scope | 효과 |
 |---|---|---|
 | Google Drive | `drive.file` | **앱이 만든 파일/폴더만** 접근 |
-| Dropbox | **App Folder** 모드 | `/Apps/PlanQ/` 폴더 외 접근 불가 |
 
 사용자는 "PlanQ가 내 전체 Drive 보는 거 아닌가?" 걱정 없음.
 
 ### 5.2 폴더 구조 (외부 클라우드 내부)
 
 ```
-📁 /Apps/PlanQ/  (Dropbox 는 앱 폴더 자동, Drive 는 PlanQ 가 생성)
+📁 PlanQ - {워크스페이스명}/  (Drive 는 PlanQ 가 생성)
   📁 {워크스페이스명}/
     📁 {프로젝트명}/
       📁 직접 업로드/
@@ -169,14 +168,13 @@ DB 매핑:
 
 1. 사용자 드롭존에 파일 드롭
 2. PlanQ 프론트가 백엔드에 OAuth 토큰 + 업로드 대상 폴더 id 요청 (`POST /api/cloud/upload-target`)
-3. 프론트가 **직접 Drive/Dropbox API 에 PUT** (서버 경유 안 함 — 대역폭 절약)
+3. 프론트가 **직접 Drive API 에 PUT** (서버 경유 안 함 — 대역폭 절약)
 4. 업로드 성공 후 external id 를 PlanQ 백엔드에 기록 (`POST /api/files` with storage_provider)
 5. PlanQ DB 에 메타데이터(name, size, uploader, external_id) 저장 → 이후 리스트·검색 DB 로
 
 ### 5.4 변경 감지 (Webhook)
 
 - Google Drive: `files.watch` API → 파일 삭제/이동/이름 변경 시 PlanQ 엔드포인트 호출 → DB 동기화
-- Dropbox: `/files/list_folder/longpoll` → 비슷
 - 사용자가 외부 앱에서 실수로 삭제하면 PlanQ 에 "외부에서 삭제됨" 표시 + 관리자가 복구 가능
 
 ### 5.5 제한 (솔직한 한계)
@@ -255,7 +253,7 @@ POST   /api/cloud/webhook/:provider          외부 변경 수신
 ### 7.3 외부 연동 UI
 
 - 설정 > "파일 저장소" 섹션
-- "Google Drive 연동" / "Dropbox 연동" / "PlanQ 자체" 3-way 선택
+- "Google Drive 연동" / "PlanQ 자체" 선택
 - 연동 상태 표시 (계정 이메일, 사용량)
 - 해제 시 경고 모달 (외부 파일은 그대로 남음)
 
@@ -273,7 +271,7 @@ POST   /api/cloud/webhook/:provider          외부 변경 수신
 7. 폴더 CRUD + 재귀 삭제
 8. 대량 삭제 — 10개 이상 선택 → 1회 호출
 
-### 외부 연동 (Phase 2B/2C)
+### 외부 연동 (Phase 2B)
 1. OAuth 동의 → 토큰 저장 → 루트 폴더 자동 생성 확인
 2. 프로젝트 만들기 → Drive 폴더 자동 생성 확인
 3. Direct upload → Drive 파일 존재 확인
@@ -290,10 +288,9 @@ POST   /api/cloud/webhook/:provider          외부 변경 수신
 | Phase 1+ | UI Mock 보강 (대량·폴더) | 0.5일 |
 | **Phase 2A** | 자체 스토리지 + 쿼터 + dedup + 폴더 + bulk | 2일 |
 | Phase 2B | Google Drive 연동 | 4일 |
-| Phase 2C | Dropbox 연동 | 2일 |
 | Phase 4 | Q Docs 전역 페이지 | 1일 |
 
-**OAuth 선결:** Phase 2B 시작 전 Irene 이 Google Cloud Console · Dropbox App Console 에서 앱 등록 (각 15분).
+**OAuth 선결:** Phase 2B 시작 전 Irene 이 Google Cloud Console 에서 앱 등록 (15분).
 
 ---
 

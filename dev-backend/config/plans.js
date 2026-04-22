@@ -26,7 +26,7 @@ const PLANS = {
       audit_log_retention_days: 30,
     },
     features: {
-      external_cloud: true,        // Drive/Dropbox 연동 가능 (권장)
+      external_cloud: true,        // Google Drive 연동 가능 (권장)
       data_export: false,
       api_access: false,
       sso: false,

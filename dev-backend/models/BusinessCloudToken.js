@@ -15,7 +15,7 @@ BusinessCloudToken.init({
     references: { model: 'businesses', key: 'id' }
   },
   provider: {
-    type: DataTypes.ENUM('gdrive', 'dropbox'),
+    type: DataTypes.ENUM('gdrive'),
     allowNull: false
   },
   access_token: {

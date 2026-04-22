@@ -4,7 +4,7 @@
 import { apiFetch } from '../contexts/AuthContext';
 
 export type FileSource = 'direct' | 'chat' | 'task' | 'meeting';
-export type StorageProvider = 'planq' | 'gdrive' | 'dropbox';
+export type StorageProvider = 'planq' | 'gdrive';
 
 export interface ProjectContext {
   id: number;
@@ -28,8 +28,8 @@ export interface ProjectFile {
   folder_id: number | null;
   deletable: boolean;
   storage_provider: StorageProvider;
-  external_id?: string | null;          // Drive/Dropbox 파일 id (외부 저장소)
-  external_url?: string | null;         // Drive/Dropbox webViewLink
+  external_id?: string | null;          // Drive 파일 id (외부 저장소)
+  external_url?: string | null;         // Drive webViewLink
 }
 
 export interface FileFolder {

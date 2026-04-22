@@ -30,7 +30,7 @@ MessageAttachment.init({
     type: DataTypes.STRING(100),
     allowNull: true
   },
-  storage_provider: { type: DataTypes.ENUM('planq', 'gdrive', 'dropbox'), allowNull: false, defaultValue: 'planq' },
+  storage_provider: { type: DataTypes.ENUM('planq', 'gdrive'), allowNull: false, defaultValue: 'planq' },
   external_id: { type: DataTypes.STRING(255), allowNull: true },
   external_url: { type: DataTypes.STRING(500), allowNull: true }
 }, {
