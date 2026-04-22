@@ -1211,6 +1211,44 @@ router.get('/workspace/:bizId/all-files', authenticateToken, async (req, res, ne
       }
     }
 
+    // 4) 문서(포스트) 첨부 — File 참조 기반. 좌측 "문서" 필터에서 모아 볼 수 있도록
+    //    direct 와 중복되더라도 post source 로 별도 등록 (의도된 이중 노출)
+    const { Post, PostAttachment } = require('../models');
+    const postsInBiz = await Post.findAll({
+      where: { business_id: bizId },
+      attributes: ['id', 'title', 'project_id']
+    });
+    if (postsInBiz.length > 0) {
+      const postMap = new Map(postsInBiz.map(p => [p.id, p]));
+      const postAtts = await PostAttachment.findAll({
+        where: { post_id: { [Op.in]: postsInBiz.map(p => p.id) } },
+        include: [{ model: File, as: 'file', include: [{ model: User, as: 'uploader', attributes: ['id', 'name'] }] }]
+      });
+      for (const a of postAtts) {
+        const f = a.file;
+        if (!f || f.deleted_at) continue;
+        const post = postMap.get(a.post_id);
+        const proj = post && post.project_id ? projMap.get(post.project_id) : null;
+        results.push({
+          id: `post-${a.id}`,
+          source: 'post',
+          file_name: f.file_name,
+          file_size: Number(f.file_size),
+          mime_type: f.mime_type,
+          uploader_id: f.uploader_id,
+          uploader_name: f.uploader ? f.uploader.name : null,
+          uploaded_at: (f.createdAt || f.created_at || new Date()).toISOString
+            ? (f.createdAt || f.created_at).toISOString() : new Date().toISOString(),
+          download_url: f.storage_provider === 'gdrive' && f.external_url
+            ? f.external_url : `/api/files/${bizId}/${f.id}/download`,
+          external_id: f.external_id, external_url: f.external_url,
+          context: post ? { kind: 'post', id: post.id, label: post.title } : undefined,
+          project_context: proj ? { id: proj.id, name: proj.name, color: proj.color } : null,
+          folder_id: null, deletable: false, storage_provider: f.storage_provider
+        });
+      }
+    }
+
     results.sort((a, b) => new Date(b.uploaded_at) - new Date(a.uploaded_at));
     successResponse(res, results);
   } catch (error) {

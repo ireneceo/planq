@@ -52,6 +52,13 @@
     "folder": {
       "all": "All",
       "my": "My files"
+    },
+    "source": {
+      "chat": "Chat",
+      "task": "Task",
+      "meeting": "Meeting",
+      "post": "Docs",
+      "direct": "Direct"
     }
   },
   "section": {

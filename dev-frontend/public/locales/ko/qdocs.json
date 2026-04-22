@@ -15,6 +15,17 @@
   "selectOrCreate": "왼쪽 목록에서 문서를 선택하거나 새 문서를 작성하세요",
   "attachments": "첨부 파일",
   "attachAdd": "첨부 추가",
+  "attachFold": "접기",
+  "inlineAttach": {
+    "dropHint": "파일을 드래그하거나 클릭해서 업로드",
+    "dropSub": "여러 파일 동시 선택 · 최대 50MB / 건",
+    "existingSection": "기존 파일에서 선택",
+    "searchPlaceholder": "파일명 검색",
+    "loading": "로딩 중…",
+    "noResult": "검색 결과 없음",
+    "empty": "아직 워크스페이스에 파일이 없습니다",
+    "added": "추가됨"
+  },
   "attachmentsEmpty": "첨부 파일이 없습니다",
   "attachmentsEmptyNew": "첨부를 미리 선택해두면 문서 저장 시 함께 등록됩니다",
   "pendingUpload": "업로드 대기",

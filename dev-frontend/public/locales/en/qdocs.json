@@ -15,6 +15,17 @@
   "selectOrCreate": "Select a document from the list or create a new one.",
   "attachments": "Attachments",
   "attachAdd": "Add file",
+  "attachFold": "Collapse",
+  "inlineAttach": {
+    "dropHint": "Drop files or click to upload",
+    "dropSub": "Multiple files · up to 50 MB each",
+    "existingSection": "Pick from existing files",
+    "searchPlaceholder": "Search by name",
+    "loading": "Loading…",
+    "noResult": "No matches",
+    "empty": "No files uploaded yet",
+    "added": "Added"
+  },
   "attachmentsEmpty": "No attachments yet",
   "attachmentsEmptyNew": "Select attachments now — they will be linked when you save",
   "pendingUpload": "Pending upload",

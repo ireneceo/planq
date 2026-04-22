@@ -3,7 +3,7 @@
 
 import { apiFetch } from '../contexts/AuthContext';
 
-export type FileSource = 'direct' | 'chat' | 'task' | 'meeting';
+export type FileSource = 'direct' | 'chat' | 'task' | 'meeting' | 'post';
 export type StorageProvider = 'planq' | 'gdrive';
 
 export interface ProjectContext {

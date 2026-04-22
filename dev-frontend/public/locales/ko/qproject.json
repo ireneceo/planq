@@ -52,6 +52,13 @@
     "folder": {
       "all": "전체",
       "my": "내 파일"
+    },
+    "source": {
+      "chat": "채팅",
+      "task": "업무",
+      "meeting": "회의",
+      "post": "문서",
+      "direct": "직접"
     }
   },
   "section": {
