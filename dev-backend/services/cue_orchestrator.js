@@ -28,13 +28,9 @@ const PRICING = {
   'gpt-4o': { input: 2.50, output: 10.00 }
 };
 
-// 플랜 한도
-const PLAN_LIMITS = {
-  free: 500,
-  basic: 5000,
-  pro: 25000,
-  enterprise: 100000
-};
+// 플랜 한도 — services/plan.js + config/plans.js 경유로 통합 (이 상수는 DEPRECATED, 제거 예정)
+// 하위 호환을 위해 한 곳 남겨두되 실제 조회는 plan engine 사용
+const planEngine = require('./plan');
 
 // 민감 키워드 (감지 시 Auto 모드라도 Draft 강제)
 const SENSITIVE_KEYWORDS_KO = ['환불', '계약 해지', '위약금', '소송', '변호사', '법적', '클레임', '불만'];
@@ -55,13 +51,14 @@ function currentYearMonth() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
-// ─── 사용량 한도 검사 ───
-async function checkUsageLimit(businessId, plan) {
+// ─── 사용량 한도 검사 — plan engine 경유 ───
+async function checkUsageLimit(businessId /*, plan */) {
   const ym = currentYearMonth();
   const rows = await CueUsage.findAll({ where: { business_id: businessId, year_month: ym } });
   const total = rows.reduce((s, r) => s + (r.action_count || 0), 0);
-  const limit = PLAN_LIMITS[plan] || PLAN_LIMITS.free;
-  return { total, limit, remaining: Math.max(0, limit - total), over: total >= limit };
+  const limit = await planEngine.getLimit(businessId, 'cue_actions_monthly');
+  const effectiveLimit = limit === Infinity ? Number.MAX_SAFE_INTEGER : limit;
+  return { total, limit: effectiveLimit, remaining: Math.max(0, effectiveLimit - total), over: total >= effectiveLimit };
 }
 
 // ─── 사용량 기록 (UPSERT) ───
@@ -176,7 +173,7 @@ async function respondToMessage({ message, conversation, business, client }) {
   }
 
   // 3. 월 한도 확인
-  const usage = await checkUsageLimit(business.id, business.plan);
+  const usage = await checkUsageLimit(business.id);
   if (usage.over) {
     return { skipped: true, reason: 'usage_limit_exceeded', usage };
   }
@@ -290,7 +287,7 @@ async function generateClientSummary(clientId) {
   const business = await Business.findByPk(client.business_id);
   if (!business || business.cue_paused) return null;
 
-  const usage = await checkUsageLimit(business.id, business.plan);
+  const usage = await checkUsageLimit(business.id);
   if (usage.over) return null;
 
   // 최근 40개 메시지 로드
@@ -346,6 +343,5 @@ module.exports = {
   recordUsage,
   isSensitive,
   buildSystemPrompt,
-  PLAN_LIMITS,
   PRICING
 };

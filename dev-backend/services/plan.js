@@ -4,28 +4,67 @@
 const { Op } = require('sequelize');
 const {
   Business, BusinessMember, Client, Project, Conversation,
-  File, BusinessStorageUsage, CueUsage,
+  File, BusinessStorageUsage, CueUsage, QnoteUsage, BusinessPlanHistory,
 } = require('../models');
 const { getPlan } = require('../config/plans');
+
+// ─── 메모리 캐시 (30s TTL) ───
+const _planCache = new Map();   // businessId → { data, expires }
+const _usageCache = new Map();  // businessId → { data, expires }
+const CACHE_TTL_MS = 30_000;
+
+function _cacheGet(map, key) {
+  const entry = map.get(key);
+  if (!entry) return null;
+  if (Date.now() > entry.expires) { map.delete(key); return null; }
+  return entry.data;
+}
+function _cacheSet(map, key, data) {
+  map.set(key, { data, expires: Date.now() + CACHE_TTL_MS });
+}
+function invalidateBusinessCache(businessId) {
+  _planCache.delete(Number(businessId));
+  _usageCache.delete(Number(businessId));
+}
 
 /**
  * 비즈니스의 현재 플랜 객체
  */
 async function getBusinessPlan(businessId) {
-  const biz = await Business.findByPk(businessId, { attributes: ['id', 'plan', 'subscription_status', 'plan_expires_at'] });
-  if (!biz) return { plan: getPlan('free'), biz: null, active: false };
-  // 만료된 플랜은 free 로 다운그레이드 (read-only)
-  const expired = biz.plan_expires_at && new Date(biz.plan_expires_at) < new Date();
-  const code = expired ? 'free' : (biz.plan || 'free');
-  return {
+  const key = Number(businessId);
+  const cached = _cacheGet(_planCache, key);
+  if (cached) return cached;
+
+  const biz = await Business.findByPk(key, {
+    attributes: ['id', 'plan', 'subscription_status', 'plan_expires_at', 'trial_ends_at', 'grace_ends_at']
+  });
+  if (!biz) {
+    const result = { plan: getPlan('free'), biz: null, active: false };
+    _cacheSet(_planCache, key, result);
+    return result;
+  }
+  const now = new Date();
+  const expired = biz.plan_expires_at && new Date(biz.plan_expires_at) < now;
+  const inGrace = biz.grace_ends_at && new Date(biz.grace_ends_at) > now;
+  const inTrial = biz.trial_ends_at && new Date(biz.trial_ends_at) > now;
+  // 만료 + grace 기간 밖 → free 다운그레이드
+  const code = (expired && !inGrace) ? 'free' : (biz.plan || 'free');
+  const status = biz.subscription_status || 'active';
+  const result = {
     plan: getPlan(code),
     biz,
-    active: !expired && ['active', 'trialing'].includes(biz.subscription_status || 'active'),
+    active: !expired && ['active', 'trialing'].includes(status),
+    inTrial,
+    inGrace: expired && inGrace,
+    trialEndsAt: biz.trial_ends_at,
+    graceEndsAt: biz.grace_ends_at,
   };
+  _cacheSet(_planCache, key, result);
+  return result;
 }
 
 /**
- * 특정 한도 값 (숫자) — 비교용
+ * 특정 한도 값 (숫자) — 비교용. Infinity 유지 (비교 시 필요)
  */
 async function getLimit(businessId, key) {
   const { plan } = await getBusinessPlan(businessId);
@@ -33,20 +72,31 @@ async function getLimit(businessId, key) {
 }
 
 /**
- * 사용량 집계 — 모든 키를 한 번에 (성능 우선)
+ * JSON 직렬화 안전 변환 — Infinity → null
+ */
+function limitForJson(v) {
+  return v === Infinity ? null : v;
+}
+
+/**
+ * 사용량 집계 — 모든 키를 한 번에 (성능 우선, 30s 캐시)
  */
 async function getUsage(businessId) {
+  const key = Number(businessId);
+  const cached = _cacheGet(_usageCache, key);
+  if (cached) return cached;
+
   const [memberCount, clientCount, projectCount, conversationCount, storageRow, cueThisMonth, qnoteThisMonth] = await Promise.all([
-    BusinessMember.count({ where: { business_id: businessId } }),
-    Client.count({ where: { business_id: businessId } }),
-    Project.count({ where: { business_id: businessId } }),
-    Conversation.count({ where: { business_id: businessId } }),
-    BusinessStorageUsage.findOne({ where: { business_id: businessId } }),
-    getCueActionsThisMonth(businessId),
-    getQnoteMinutesThisMonth(businessId),
+    BusinessMember.count({ where: { business_id: key } }),
+    Client.count({ where: { business_id: key } }),
+    Project.count({ where: { business_id: key } }),
+    Conversation.count({ where: { business_id: key } }),
+    BusinessStorageUsage.findOne({ where: { business_id: key } }),
+    getCueActionsThisMonth(key),
+    getQnoteMinutesThisMonth(key),
   ]);
 
-  return {
+  const result = {
     members: memberCount,
     clients: clientCount,
     projects: projectCount,
@@ -56,25 +106,41 @@ async function getUsage(businessId) {
     cue_actions_this_month: cueThisMonth,
     qnote_minutes_this_month: qnoteThisMonth,
   };
+  _cacheSet(_usageCache, key, result);
+  return result;
 }
 
 async function getCueActionsThisMonth(businessId) {
-  const monthStart = new Date();
-  monthStart.setDate(1);
-  monthStart.setHours(0, 0, 0, 0);
-  // CueUsage 모델은 (business_id, action_type, created_at) 구조 가정. 없으면 0 반환.
+  // CueUsage: (business_id, year_month 'YYYY-MM', action_type, action_count) 월 집계 구조
+  const now = new Date();
+  const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   try {
-    return await CueUsage.count({ where: { business_id: businessId, createdAt: { [Op.gte]: monthStart } } });
-  } catch {
+    const rows = await CueUsage.findAll({
+      where: { business_id: businessId, year_month: ym },
+      attributes: ['action_count']
+    });
+    return rows.reduce((sum, r) => sum + (r.action_count || 0), 0);
+  } catch (e) {
+    console.error('[plan] getCueActionsThisMonth failed:', e.message);
     return 0;
   }
 }
 
 async function getQnoteMinutesThisMonth(businessId) {
-  // Q Note 세션 시간 집계. 현재 세션 테이블에 duration 필드가 있으면 사용.
-  // 초기 구현은 0 반환 — 세션 테이블 필드 확인 후 추후 연결.
-  void businessId;
-  return 0;
+  // QnoteUsage 월 집계 테이블 조회.
+  // Python Q Note 서비스가 세션 종료 시 POST /api/qnote/usage 로 누적 기록 (TODO 연동)
+  const now = new Date();
+  const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  try {
+    const row = await QnoteUsage.findOne({
+      where: { business_id: businessId, year_month: ym },
+      attributes: ['minutes_used']
+    });
+    return row ? row.minutes_used : 0;
+  } catch (e) {
+    console.error('[plan] getQnoteMinutesThisMonth failed:', e.message);
+    return 0;
+  }
 }
 
 /**
@@ -172,10 +238,77 @@ function requireFeature(featureKey) {
   };
 }
 
+/**
+ * 플랜 변경 + 이력 기록 (트랜잭션 안전)
+ * reason: 'upgrade' | 'downgrade' | 'trial_start' | 'trial_end' | 'expire' | 'admin_adjust' | 'payment_failed' | 'refund'
+ */
+async function changePlan(businessId, { toPlan, reason, changedBy = null, note = null, expiresAt = null, trialEndsAt = null, graceEndsAt = null, scheduledPlan = null }) {
+  const biz = await Business.findByPk(businessId);
+  if (!biz) throw new Error('business_not_found');
+  const fromPlan = biz.plan;
+  const patch = { plan: toPlan };
+  if (expiresAt !== null) patch.plan_expires_at = expiresAt;
+  if (trialEndsAt !== null) patch.trial_ends_at = trialEndsAt;
+  if (graceEndsAt !== null) patch.grace_ends_at = graceEndsAt;
+  if (scheduledPlan !== null) patch.scheduled_plan = scheduledPlan;
+  await biz.update(patch);
+  await BusinessPlanHistory.create({
+    business_id: businessId,
+    from_plan: fromPlan,
+    to_plan: toPlan,
+    reason,
+    changed_by: changedBy,
+    note,
+    effective_at: new Date(),
+  });
+  invalidateBusinessCache(businessId);
+  return biz;
+}
+
+/**
+ * 플랜 쿼터 초과 에러 응답 생성 헬퍼 — 표준 포맷
+ */
+function buildQuotaError(checkResult, businessId) {
+  const MESSAGE_MAP = {
+    file_size_exceeded: {
+      message: '파일 크기 한도 초과',
+      message_en: 'File size limit exceeded',
+    },
+    storage_quota_exceeded: {
+      message: '저장소 용량 한도 초과',
+      message_en: 'Storage quota exceeded',
+      alternatives: ['외부 클라우드 연동 (Google Drive / Dropbox) 시 용량 제약 없음'],
+    },
+    members_quota_exceeded: { message: '멤버 수 한도 초과', message_en: 'Member limit exceeded' },
+    clients_quota_exceeded: { message: '고객 수 한도 초과', message_en: 'Client limit exceeded' },
+    projects_quota_exceeded: { message: '프로젝트 수 한도 초과', message_en: 'Project limit exceeded' },
+    conversations_quota_exceeded: { message: '대화방 수 한도 초과', message_en: 'Conversation limit exceeded' },
+    cue_quota_exceeded: { message: 'Cue AI 월 사용 한도 초과', message_en: 'Cue monthly limit exceeded' },
+    qnote_quota_exceeded: { message: 'Q Note 월 녹음 시간 한도 초과', message_en: 'Q Note monthly minutes exceeded' },
+    feature_not_in_plan: { message: '현재 플랜에서 지원되지 않는 기능', message_en: 'Feature not in your plan' },
+    subscription_inactive: { message: '구독이 비활성화 상태입니다', message_en: 'Subscription is inactive' },
+  };
+  const m = MESSAGE_MAP[checkResult.reason] || { message: checkResult.reason, message_en: checkResult.reason };
+  return {
+    success: false,
+    code: checkResult.reason,
+    message: m.message,
+    message_en: m.message_en,
+    limit: checkResult.limit === Infinity ? null : checkResult.limit,
+    current: checkResult.current,
+    upgrade_url: `/business/settings/plan`,
+    alternatives: m.alternatives || [],
+  };
+}
+
 module.exports = {
   getBusinessPlan,
   getLimit,
   getUsage,
   can,
   requireFeature,
+  changePlan,
+  invalidateBusinessCache,
+  limitForJson,
+  buildQuotaError,
 };

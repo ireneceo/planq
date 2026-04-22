@@ -121,11 +121,26 @@ Business.init({
   },
   // ─── 구독 ───
   plan: {
-    type: DataTypes.ENUM('free', 'basic', 'pro', 'enterprise'),
+    type: DataTypes.ENUM('free', 'starter', 'basic', 'pro', 'enterprise'),
     defaultValue: 'free'
   },
   plan_expires_at: {
     type: DataTypes.DATE,
+    allowNull: true
+  },
+  // 체험 14일 종료 시각 (Starter 이상 체험 적용)
+  trial_ends_at: {
+    type: DataTypes.DATE,
+    allowNull: true
+  },
+  // 결제 실패 grace period (7일) 또는 다운그레이드 grace (30일 read-only) 종료 시각
+  grace_ends_at: {
+    type: DataTypes.DATE,
+    allowNull: true
+  },
+  // 다음 결제주기 말 적용 예정 다운그레이드 플랜
+  scheduled_plan: {
+    type: DataTypes.ENUM('free', 'starter', 'basic', 'pro', 'enterprise'),
     allowNull: true
   },
   subscription_status: {

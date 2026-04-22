@@ -35,6 +35,8 @@ const FileFolder = require('./FileFolder');
 const BusinessStorageUsage = require('./BusinessStorageUsage');
 const OpsCapacityLog = require('./OpsCapacityLog');
 const BusinessCloudToken = require('./BusinessCloudToken');
+const QnoteUsage = require('./QnoteUsage');
+const BusinessPlanHistory = require('./BusinessPlanHistory');
 
 // ============================================
 // Associations
@@ -117,6 +119,15 @@ Business.hasOne(BusinessStorageUsage, { as: 'storageUsage', foreignKey: 'busines
 BusinessCloudToken.belongsTo(Business, { foreignKey: 'business_id' });
 BusinessCloudToken.belongsTo(User, { as: 'connector', foreignKey: 'connected_by' });
 Business.hasMany(BusinessCloudToken, { as: 'cloudTokens', foreignKey: 'business_id' });
+
+// QnoteUsage
+QnoteUsage.belongsTo(Business, { foreignKey: 'business_id' });
+Business.hasMany(QnoteUsage, { as: 'qnoteUsage', foreignKey: 'business_id' });
+
+// BusinessPlanHistory
+BusinessPlanHistory.belongsTo(Business, { foreignKey: 'business_id' });
+BusinessPlanHistory.belongsTo(User, { as: 'changer', foreignKey: 'changed_by' });
+Business.hasMany(BusinessPlanHistory, { as: 'planHistory', foreignKey: 'business_id' });
 
 // Invoice
 Invoice.belongsTo(Business, { foreignKey: 'business_id' });
@@ -258,6 +269,8 @@ module.exports = {
   BusinessStorageUsage,
   OpsCapacityLog,
   BusinessCloudToken,
+  QnoteUsage,
+  BusinessPlanHistory,
 };
 
 // CalendarEvent

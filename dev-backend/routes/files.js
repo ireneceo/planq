@@ -149,19 +149,16 @@ router.post('/:businessId', authenticateToken, checkBusinessAccess, upload.singl
     const useDropbox = !!cloudToken && cloudToken.provider === 'dropbox' && !!cloudToken.root_folder_id && projectId;
 
     // plan engine 통합 체크 — 파일 크기 + 스토리지 쿼터 (외부 사용 시 쿼터 skip)
+    // race condition 방지: 실제 usage 증가 트랜잭션은 아래에서 SELECT FOR UPDATE 로 원자화.
+    // 여기서의 체크는 1차 early return (UX 개선). 최종 게이트는 트랜잭션 내 재검증.
     const canUpload = await planEngine.can(businessId, 'upload_file', {
       size: req.file.size,
       external: useGdrive || useDropbox,
     });
     if (!canUpload.ok) {
       fs.unlinkSync(tempPath);
-      if (canUpload.reason === 'file_size_exceeded') {
-        return errorResponse(res, `파일 크기 초과 (최대 ${Math.round(canUpload.limit / (1024 * 1024))}MB)`, 413);
-      }
-      if (canUpload.reason === 'storage_quota_exceeded') {
-        return errorResponse(res, '저장소 용량 초과 — 외부 클라우드 연동 또는 플랜 업그레이드 필요', 413);
-      }
-      return errorResponse(res, canUpload.reason || 'upload_not_allowed', 403);
+      return res.status(canUpload.reason === 'file_size_exceeded' || canUpload.reason === 'storage_quota_exceeded' ? 413 : 403)
+        .json(planEngine.buildQuotaError(canUpload, businessId));
     }
 
     // === Dropbox 경로 ===
@@ -241,17 +238,40 @@ router.post('/:businessId', authenticateToken, checkBusinessAccess, upload.singl
       }
     }
 
-    // === 자체 스토리지 경로 (아래) ===
-    // Drive 미사용 시에만 쿼터/dedup 처리
-    const usage = await getOrCreateUsage(businessId);
-    // SHA-256 dedup
+    // === 자체 스토리지 경로 ===
+    // SHA-256 dedup (트랜잭션 외부에서 해시 계산만)
     const hash = await sha256OfFile(tempPath);
-    const existing = await File.findOne({
-      where: { business_id: businessId, content_hash: hash, deleted_at: null }
-    });
 
     const t = await sequelize.transaction();
     try {
+      // race condition 방지: usage 행 FOR UPDATE lock 으로 직렬화
+      await BusinessStorageUsage.findOrCreate({
+        where: { business_id: businessId },
+        defaults: { business_id: businessId, bytes_used: 0, file_count: 0, storage_provider: 'planq' },
+        transaction: t
+      });
+      const usage = await BusinessStorageUsage.findOne({
+        where: { business_id: businessId },
+        lock: t.LOCK.UPDATE,
+        transaction: t
+      });
+
+      // 트랜잭션 내 재검증 — 플랜 쿼터 (early check 이후에도 다른 동시 요청 고려)
+      const limit = await planEngine.getLimit(businessId, 'storage_bytes');
+      if (limit !== Infinity && Number(usage.bytes_used) + req.file.size > limit) {
+        await t.rollback();
+        fs.unlinkSync(tempPath);
+        return res.status(413).json(planEngine.buildQuotaError(
+          { reason: 'storage_quota_exceeded', limit, current: Number(usage.bytes_used) },
+          businessId
+        ));
+      }
+
+      const existing = await File.findOne({
+        where: { business_id: businessId, content_hash: hash, deleted_at: null },
+        transaction: t
+      });
+
       let file;
       if (existing) {
         // dedup hit — 물리 파일 제거 + 참조 증가
@@ -300,6 +320,7 @@ router.post('/:businessId', authenticateToken, checkBusinessAccess, upload.singl
         await usage.save({ transaction: t });
       }
       await t.commit();
+      planEngine.invalidateBusinessCache(businessId);
       tempPath = null;
       successResponse(res, file, 'File uploaded', 201);
     } catch (e) {
