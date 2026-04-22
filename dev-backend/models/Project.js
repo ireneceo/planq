@@ -25,7 +25,6 @@ Project.init({
   process_tab_label: { type: DataTypes.STRING(80), allowNull: false, defaultValue: '테이블' },
   // 외부 클라우드 폴더 매핑 (Phase 2B+) — 연동 시 루트 폴더 아래 자동 생성
   gdrive_folder_id: { type: DataTypes.STRING(255), allowNull: true },
-  dropbox_folder_id: { type: DataTypes.STRING(255), allowNull: true },
 }, {
   sequelize,
   tableName: 'projects',

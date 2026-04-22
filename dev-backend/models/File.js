@@ -55,7 +55,7 @@ File.init({
     allowNull: true
   },
   storage_provider: {
-    type: DataTypes.ENUM('planq', 'gdrive', 'dropbox'),
+    type: DataTypes.ENUM('planq', 'gdrive'),
     allowNull: false,
     defaultValue: 'planq'
   },

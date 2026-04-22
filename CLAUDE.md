@@ -255,7 +255,7 @@ res.status(400).json({ success: false, message: 'Error description' });
 ### SHA-256 dedup
 - 업로드 시 `content_hash` 계산 → 동일 해시 존재하면 물리 파일 1개만 보관, `ref_count` 증가
 - 삭제는 소프트 삭제 (`deleted_at`) + `ref_count` 감소. 0 도달 시 물리 파일 제거
-- 외부 클라우드(gdrive/dropbox) 연동 시 dedup 비활성 (외부 정책 위임)
+- 외부 클라우드(gdrive) 연동 시 dedup 비활성 (외부 정책 위임)
 
 ### 파일 시스템 문서
 - **설계:** `docs/FILE_SYSTEM_DESIGN.md` (스키마·API·UI·외부 연동 전 10섹션)

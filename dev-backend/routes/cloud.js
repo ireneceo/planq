@@ -1,18 +1,16 @@
-// 외부 클라우드 (Google Drive / Dropbox) OAuth + 연동 관리 라우트
+// 외부 클라우드 (Google Drive) OAuth + 연동 관리 라우트
 const express = require('express');
 const router = express.Router();
 const { BusinessCloudToken, Business, User } = require('../models');
 const { authenticateToken, checkBusinessAccess } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const gdrive = require('../services/gdrive');
-const dropboxSvc = require('../services/dropbox');
 
 // ─── 구성 상태 ───
 router.get('/providers', authenticateToken, async (req, res, next) => {
   try {
     successResponse(res, {
-      gdrive: { configured: gdrive.isConfigured() },
-      dropbox: { configured: dropboxSvc.isConfigured() }
+      gdrive: { configured: gdrive.isConfigured() }
     });
   } catch (error) { next(error); }
 });
@@ -116,71 +114,12 @@ router.get('/callback/gdrive', async (req, res) => {
   }
 });
 
-// ─── Dropbox OAuth 시작 ───
-router.post('/connect/dropbox/:businessId', authenticateToken, checkBusinessAccess, async (req, res, next) => {
-  try {
-    if (!dropboxSvc.isConfigured()) return errorResponse(res, 'Dropbox not configured on server', 500);
-    const url = await dropboxSvc.buildAuthUrl(Number(req.params.businessId), req.user.id);
-    successResponse(res, { auth_url: url });
-  } catch (error) { next(error); }
-});
-
-// ─── Dropbox OAuth 콜백 ───
-router.get('/callback/dropbox', async (req, res) => {
-  const { code, state, error: oauthError } = req.query;
-  const closeHtml = (title, body) => `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${title}</title>
-    <style>body{font-family:-apple-system,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#F8FAFC;color:#0F172A;}
-    .box{background:#fff;border:1px solid #E2E8F0;border-radius:12px;padding:28px 32px;max-width:420px;text-align:center;box-shadow:0 4px 12px rgba(15,23,42,0.06);}
-    h2{margin:0 0 8px;font-size:18px;color:#0F766E;}.err h2{color:#DC2626;}
-    p{margin:0 0 16px;font-size:13px;color:#475569;line-height:1.5;}
-    button{height:34px;padding:0 16px;background:#14B8A6;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;}</style></head>
-    <body><div class="box ${title.includes('실패') ? 'err' : ''}">${body}<button onclick="window.close()">닫기</button></div>
-    <script>setTimeout(() => { try { window.opener && window.opener.postMessage({ type: 'dropbox:connected', ok: ${!title.includes('실패')} }, '*'); } catch(e){} }, 300);</script>
-    </body></html>`;
-
-  if (oauthError) return res.status(400).send(closeHtml('연동 실패', `<h2>연동 실패</h2><p>${oauthError}</p>`));
-  if (!code || !state) return res.status(400).send(closeHtml('연동 실패', '<h2>연동 실패</h2><p>잘못된 요청</p>'));
-  const parsed = dropboxSvc.parseState(state);
-  if (!parsed) return res.status(400).send(closeHtml('연동 실패', '<h2>연동 실패</h2><p>state 검증 실패</p>'));
-
-  try {
-    const { tokens, accountEmail } = await dropboxSvc.exchangeCodeForTokens(code);
-    const [record] = await BusinessCloudToken.findOrCreate({
-      where: { business_id: parsed.businessId, provider: 'dropbox' },
-      defaults: {
-        business_id: parsed.businessId, provider: 'dropbox',
-        access_token: tokens.access_token, refresh_token: tokens.refresh_token,
-        expires_at: tokens.expires_at, scope: tokens.scope, account_email: accountEmail,
-        connected_by: parsed.userId, connected_at: new Date()
-      }
-    });
-    record.access_token = tokens.access_token;
-    if (tokens.refresh_token) record.refresh_token = tokens.refresh_token;
-    record.expires_at = tokens.expires_at;
-    record.scope = tokens.scope || record.scope;
-    record.account_email = accountEmail || record.account_email;
-    record.connected_by = parsed.userId;
-    record.connected_at = new Date();
-    if (!record.root_folder_id) {
-      const biz = await Business.findByPk(parsed.businessId);
-      const dbx = dropboxSvc.getDbxClient(record);
-      const root = await dropboxSvc.createRootFolder(dbx, biz ? biz.name : 'workspace');
-      record.root_folder_id = root.path;
-    }
-    await record.save();
-    return res.send(closeHtml('연동 완료', `<h2>Dropbox 연동 완료</h2><p>계정: <strong>${accountEmail || '(확인 불가)'}</strong><br/>루트 폴더: ${record.root_folder_id}</p>`));
-  } catch (e) {
-    console.error('[dropbox callback]', e);
-    return res.status(500).send(closeHtml('연동 실패', `<h2>연동 실패</h2><p>${e.message || '서버 오류'}</p>`));
-  }
-});
-
 // ─── 연동 해제 ───
 router.delete('/disconnect/:provider/:businessId', authenticateToken, checkBusinessAccess, async (req, res, next) => {
   try {
-    const { provider, bizId } = req.params;
-    if (!['gdrive', 'dropbox'].includes(provider)) return errorResponse(res, 'unknown provider', 400);
-    await BusinessCloudToken.destroy({ where: { business_id: bizId, provider } });
+    const { provider, businessId } = req.params;
+    if (!['gdrive'].includes(provider)) return errorResponse(res, 'unknown provider', 400);
+    await BusinessCloudToken.destroy({ where: { business_id: businessId, provider } });
     // 주의: 외부 클라우드의 실제 파일은 그대로 남음 (의도된 동작)
     successResponse(res, null, 'Disconnected');
   } catch (error) { next(error); }
