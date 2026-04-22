@@ -32,5 +32,14 @@
   },
   "validation": {
     "titleRequired": "제목을 입력하세요"
+  },
+  "categoryPlaceholder": "카테고리 (예: 매뉴얼, 가이드, 회의록)",
+  "filter": {
+    "basic": "기본",
+    "byProject": "프로젝트",
+    "byCategory": "카테고리",
+    "all": "전체",
+    "mine": "내 문서",
+    "filterBy": "이 카테고리로 필터"
   }
 }

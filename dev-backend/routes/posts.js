@@ -70,7 +70,7 @@ function serialize(p, withContent = false) {
 }
 
 // ─── 목록 ───
-// GET /api/posts?business_id=&project_id=
+// GET /api/posts?business_id=&project_id=[null|:id]&category=&mine=1&q=
 router.get('/', authenticateToken, async (req, res, next) => {
   try {
     const businessId = Number(req.query.business_id || 0);
@@ -81,10 +81,14 @@ router.get('/', authenticateToken, async (req, res, next) => {
     const where = { business_id: businessId };
     if (req.query.project_id === 'null' || req.query.project_id === '') where.project_id = null;
     else if (req.query.project_id) where.project_id = Number(req.query.project_id);
+    if (req.query.category) where.category = String(req.query.category);
+    if (req.query.mine === '1') where.author_id = req.user.id;
     if (req.query.q) {
+      const qStr = String(req.query.q);
       where[Op.or] = [
-        { title: { [Op.like]: `%${req.query.q}%` } },
-        { content_text: { [Op.like]: `%${req.query.q}%` } }
+        { title: { [Op.like]: `%${qStr}%` } },
+        { content_text: { [Op.like]: `%${qStr}%` } },
+        { category: { [Op.like]: `%${qStr}%` } },
       ];
     }
     const rows = await Post.findAll({
@@ -97,6 +101,46 @@ router.get('/', authenticateToken, async (req, res, next) => {
       limit: 200,
     });
     successResponse(res, rows.map(r => serialize(r)));
+  } catch (err) { next(err); }
+});
+
+// ─── 카테고리 목록 (distinct) + 프로젝트별 포스트 수 ───
+// GET /api/posts/meta?business_id=&project_id=[null|:id]
+// 응답: { categories: [{name, count}], projects: [{id, name, color, count}], total, myCount }
+router.get('/meta', authenticateToken, async (req, res, next) => {
+  try {
+    const businessId = Number(req.query.business_id || 0);
+    if (!businessId) return errorResponse(res, 'business_id required', 400);
+    if (!(await assertMember(req.user.id, businessId, req.user.platform_role === 'platform_admin'))) {
+      return errorResponse(res, 'forbidden', 403);
+    }
+    const scopeWhere = { business_id: businessId };
+    if (req.query.project_id === 'null' || req.query.project_id === '') scopeWhere.project_id = null;
+    else if (req.query.project_id) scopeWhere.project_id = Number(req.query.project_id);
+
+    const all = await Post.findAll({
+      where: scopeWhere,
+      attributes: ['id', 'category', 'project_id', 'author_id'],
+      include: [{ model: Project, attributes: ['id', 'name', 'color'], required: false }],
+    });
+    const catMap = new Map();
+    const projMap = new Map();
+    let myCount = 0;
+    for (const p of all) {
+      if (p.category) catMap.set(p.category, (catMap.get(p.category) || 0) + 1);
+      if (p.project_id && p.Project) {
+        const cur = projMap.get(p.project_id);
+        if (cur) cur.count++;
+        else projMap.set(p.project_id, { id: p.project_id, name: p.Project.name, color: p.Project.color, count: 1 });
+      }
+      if (p.author_id === req.user.id) myCount++;
+    }
+    successResponse(res, {
+      total: all.length,
+      myCount,
+      categories: Array.from(catMap.entries()).map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count),
+      projects: Array.from(projMap.values()).sort((a, b) => b.count - a.count),
+    });
   } catch (err) { next(err); }
 });
 

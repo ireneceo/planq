@@ -32,5 +32,14 @@
   },
   "validation": {
     "titleRequired": "Title is required"
+  },
+  "categoryPlaceholder": "Category (e.g. Manual, Guide, Minutes)",
+  "filter": {
+    "basic": "Basic",
+    "byProject": "Project",
+    "byCategory": "Category",
+    "all": "All",
+    "mine": "Mine",
+    "filterBy": "Filter by this category"
   }
 }
