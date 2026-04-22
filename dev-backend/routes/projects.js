@@ -1095,13 +1095,20 @@ router.get('/workspace/:bizId/all-files', authenticateToken, async (req, res, ne
     });
     const projMap = new Map(projects.map(p => [p.id, p]));
     const projIds = projects.map(p => p.id);
-    if (projIds.length === 0) return successResponse(res, []);
+    // 프로젝트가 없어도 "내 파일"(project_id NULL) 은 조회 필요 — 아래 로직 진행
 
     const results = [];
 
-    // 1) direct 파일
+    // 1) direct 파일 — 프로젝트 소속 + "내 파일"(project_id NULL) 둘 다 포함
     const directFiles = await File.findAll({
-      where: { business_id: bizId, project_id: { [Op.in]: projIds }, deleted_at: null },
+      where: {
+        business_id: bizId,
+        deleted_at: null,
+        [Op.or]: [
+          { project_id: { [Op.in]: projIds } },
+          { project_id: null }
+        ]
+      },
       include: [
         { model: User, as: 'uploader', attributes: ['id', 'name'] },
         { model: FileFolder, as: 'folder', attributes: ['id', 'name'] }

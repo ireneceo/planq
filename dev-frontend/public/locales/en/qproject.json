@@ -48,6 +48,10 @@
     "empty": {
       "title": "Docs coming soon",
       "desc": "Post-style docs will arrive in the next iteration. Use the \"Files\" tab for file management."
+    },
+    "folder": {
+      "all": "All",
+      "my": "My files"
     }
   },
   "section": {

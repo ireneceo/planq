@@ -168,6 +168,34 @@ export async function uploadProjectFile(
   };
 }
 
+// "내 파일" — 프로젝트에 배정하지 않은 개인 업로드 (project_id 없음)
+export async function uploadMyFile(businessId: number, file: File): Promise<UploadResult> {
+  const fd = new FormData();
+  fd.append('file', file);
+  const r = await apiFetch(`/api/files/${businessId}`, { method: 'POST', body: fd });
+  const j = await r.json();
+  if (!j.success || !j.data) return { success: false, message: j.message };
+  const f = j.data;
+  return {
+    success: true,
+    file: {
+      id: `direct-${f.id}`,
+      source: 'direct',
+      file_name: f.file_name,
+      file_size: Number(f.file_size),
+      mime_type: f.mime_type,
+      uploader_id: f.uploader_id,
+      uploader_name: '나',
+      uploaded_at: f.created_at || new Date().toISOString(),
+      download_url: `/api/files/${businessId}/${f.id}/download`,
+      preview_url: file.type.startsWith('image/') ? URL.createObjectURL(file) : undefined,
+      folder_id: f.folder_id,
+      deletable: true,
+      storage_provider: (f.storage_provider || 'planq') as StorageProvider,
+    }
+  };
+}
+
 export async function deleteProjectFile(businessId: number, fileId: string): Promise<boolean> {
   const parsed = parseFileId(fileId);
   if (!parsed || parsed.source !== 'direct') return false;
