@@ -543,7 +543,7 @@ export default PostsPage;
 const Layout = styled.div`
   display: grid; grid-template-columns: 320px 1fr;
   height: 100%; min-height: 0; background: #fff;
-  border: 1px solid #E2E8F0; border-radius: 12px; overflow: hidden;
+  overflow: hidden;
   @media (max-width: 900px) { grid-template-columns: 1fr; }
 `;
 

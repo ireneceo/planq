@@ -30,9 +30,8 @@ export default QDocsPage;
 
 const FullHeight = styled.div`
   height: 100vh;
-  background: #F8FAFC;
-  padding: 16px;
-  @media (max-width: 768px) { height: calc(100vh - 56px); padding: 12px; }
+  background: #fff;
+  @media (max-width: 768px) { height: calc(100vh - 56px); }
 `;
 const Fallback = styled.div`
   padding: 40px; text-align: center; color: #94A3B8; font-size: 13px;
