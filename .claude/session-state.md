@@ -1,98 +1,202 @@
 ## 현재 작업 상태
-**마지막 업데이트:** 2026-04-21
-**작업 상태:** 완료
+**마지막 업데이트:** 2026-04-22
+**작업 상태:** 완료 (다음 작업 대기 중)
 
-### 진행 중인 작업
-- 없음
+---
 
-### 완료된 작업 (이번 세션)
+## ⚡ 빠른 재개 (새 세션에서 이것만 붙여넣기)
 
-**설계 문서**
-- `docs/FILE_SYSTEM_DESIGN.md` 신규 — 파일 시스템 전 10섹션 (원칙/아키텍처/스키마/쿼터/dedup/외부클라우드/API/UI/검증/롤아웃)
-- `docs/OPS_ROADMAP.md` 신규 — Stage 0~4 임계치 + 체크리스트 + 자동 경보 스크립트 스펙
+> 새 대화 시작 시 **아래 한 줄만** 붙여 넣으면 됩니다. `/개발시작` 불필요.
 
-**Phase 1 + 1+ — UI 구현 (mock → 실 API)**
-- `pages/QProject/DocsTab.tsx` 신규 (780줄) — 드롭존, 그리드/리스트 전환, 미리보기 드로어, 폴더 트리, 대량 선택, 플로팅 액션바
-- `services/files.ts` 신규 — 타입 + mock 후 실 API 연결
-- i18n `qproject.json` ko/en — tab/docs/folder/bulk 키 세트 추가
-- QProjectDetailPage 문서 탭 placeholder → DocsTab 교체
+```
+session-state.md 읽고 "1번 할 일"부터 바로 착수해줘.
+```
 
-**30년차 UI/UX 감사 8건 반영**
-- 이모지 → Lucide 스타일 SVG 아이콘
-- 확장자별 색상 아이콘 (PDF 빨강/DOC 파랑/XLS 녹색/PPT 주황/ZIP 보라/이미지 핑크)
-- Progressive drop zone (빈 상태 크게 / 파일 있으면 compact 바)
-- Skeleton shimmer 로딩
-- focus-visible 10건 + `type="button"` 24건
-- 리스트 grid-template-columns 조건부 (selectMode)
-- 다운로드/삭제 아이콘 드로어 헤더 상단 이동
-- 폴더 삭제 안내에 파일 수 포함
+또는 특정 번호 지정:
+```
+session-state.md 읽고 "3번 할 일" 진행해줘.
+```
 
-**Phase 2A Backend — DB + 라우트 + OPS**
-- `files` 컬럼 추가: `project_id`, `folder_id`, `storage_provider`, `external_id/url`, `content_hash`, `ref_count`, `deleted_at`
-- 신규 테이블 3: `file_folders`, `business_storage_usage`, `ops_capacity_log`
-- `routes/files.js` 전면 확장 — 쿼터 검사, SHA-256 dedup (같은 파일 1회만 저장, ref_count 관리), 업로드/이동/다운로드/소프트삭제/대량삭제/스토리지상태
-- `routes/file_folders.js` 신규 — CRUD + 재귀 삭제 (내부 파일 parent 로 자동 이동)
-- `routes/projects.js` 확장 — `GET /api/projects/:id/files` 집계 API (direct + chat + task, id 접두어 규칙 `direct-N`/`chat-N`/`task-N`)
-- `scripts/ops-capacity-check.js` 신규 — 주간 스냅샷 + Stage 전환 감지 + provider 비중
+프로젝트 구조·규칙은 이미 아니까 재스캔 스킵. 필요한 파일만 그때그때 Read.
 
-**CLAUDE.md 업데이트**
-- DB 테이블 25 → 28 (+파일 시스템 3)
-- 파일 저장 섹션에 플랜별 총 쿼터 + SHA-256 dedup + 설계 문서 링크 추가
+---
 
-**메모리 2건 추가**
-- `project_file_storage_hybrid.md` — 자체/GDrive/Dropbox 3-way 저장소 + PlanQ 유일 진입점
-- `feedback_staged_infra_rollout.md` — 가입자·용량 임계치 기반 단계적 인프라 도입
+## 이번 세션 (2026-04-22) 완료 작업
 
-### 검증 결과
-- 헬스체크 27/27 PASS
-- Phase 2A API 실호출 22/22 PASS (스토리지 조회/폴더 CRUD/업로드/dedup/집계/이동/다운로드/대량삭제/소프트삭제/재귀삭제/권한격리/OPS 스크립트)
-- 빌드 tsc 0 error, 295 modules, gzip 433 kB
-- SPA 9 라우트 전부 200
-- 이번 변경 범위 한글 하드코딩 0건, alert/toast.success 0건, focus-visible 10건
-- 멀티테넌트 격리 (타 biz 403) 검증
+### 🗂 파일 시스템 완주
+- **Phase 2A 자체 스토리지** (쿼터·dedup·폴더·대량)
+- **Phase 2B Google Drive OAuth** 연동 + 실연결 성공 (irene@irenewp.com 4TB)
+- **Phase 2C Dropbox** 코드 + env 세팅 완료 (l8yeiu6nu4zwvcx)
+- 폴더 트리 재구성 ("내 업로드"→프로젝트명) + 카운트 우측 정렬 + ↑/↓ 순서 이동
+- task 첨부 / 파일 삭제·이름변경 Drive 동기화
+- SearchBox 공용 컴포넌트 (5곳 통일)
+- **Phase 4 Q Docs 전역 페이지** (/docs)
+- 설정 > 파일 저장소 UI (연동/해제)
 
-### 플랜별 쿼터 (운영 기준)
-| 플랜 | 파일당 | 총 스토리지 |
-|---|---|---|
-| Free | 10 MB | 1 GB |
-| Basic | 30 MB | 50 GB |
-| Pro | 50 MB | 500 GB |
+### 💳 구독 플랜 시스템
+- `config/plans.js` 5단 매트릭스 (free/starter/basic/pro/enterprise)
+- `services/plan.js` 엔진 (getBusinessPlan/can/getUsage/getLimit/changePlan)
+- **30년차 검증 Critical 8건 수정**:
+  - D1 Race condition (FOR UPDATE lock)
+  - D2 30s 메모리 캐시
+  - D3 CueUsage 쿼리 수정 (year_month + action_count)
+  - D4 QnoteUsage 테이블 연결
+  - D5 Cue 하드코딩 PLAN_LIMITS 제거 → plan engine 통합
+  - D6 `business_plan_history` 이력 테이블
+  - D7 `scripts/plan-expiry-check.js` 일 배치
+  - D8 Infinity JSON 직렬화 일관 처리
+- 에러 응답 표준화 (code/message/upgrade_url/alternatives)
+- **설정 > 구독 플랜 페이지** — 현재 플랜 카드 + 사용량 바 (80/95% 색환) + 비교표 (KRW/USD · 월/연) + 이력
+- 정책: 14일 체험 / 오버리지 + 업그레이드 제안 / 다운그레이드 30일 grace / 환불 7일·일할 / 결제실패 7일 grace
 
-### 범위 외 발견 이슈 (이번 세션 밖)
-- `QProjectDetailPage.tsx` 기존 한글 하드코딩 62건 — spawn_task 로 별도 분기
-- express-rate-limit `X-Forwarded-For` warning — nginx proxy trust 환경 설정 이슈
+### ⚖️ Legal 페이지 (실사용자 오픈 필수)
+- `/privacy` — 개인정보처리방침 (ko/en) — 제3자 제공·GDPR·개보법 커버
+- `/terms` — 이용약관 (ko/en) — 구독/환불/다운그레이드/분쟁/면책
 
-### 다음 할 일 (우선순위 순)
+### 수정 주요 파일
+- Backend: `config/plans.js`, `services/plan.js`, `services/gdrive.js`, `services/dropbox.js`, `services/cue_orchestrator.js`
+- Backend models: `Business.js`, `BusinessPlanHistory.js`, `BusinessCloudToken.js`, `QnoteUsage.js`, `Project.js`, `FileFolder.js`, `BusinessStorageUsage.js`, `OpsCapacityLog.js`
+- Backend routes: `plan.js`, `cloud.js`, `files.js`, `file_folders.js`, `projects.js`, `task_attachments.js`, `clients.js`, `conversations.js`
+- Backend scripts: `plan-expiry-check.js`, `ops-capacity-check.js`
+- Frontend: `pages/Settings/PlanSettings.tsx`, `StorageSettings.tsx`, `pages/QProject/DocsTab.tsx`, `pages/QDocs/QDocsPage.tsx`, `pages/Legal/{LegalPage,PrivacyPolicy,TermsOfService}.tsx`
+- Frontend services: `plan.ts`, `files.ts`
+- Frontend common: `components/Common/SearchBox.tsx`
+- Locales: `plan.json`, `legal.json`, `qdocs.json`, `qproject.json`, `settings.json`
 
-**1순위 — Phase 2B Google Drive App Folder 연동 (4일)**
-- Irene 선결: Google Cloud Console OAuth Client ID 발급 + redirect URI 등록 (dev.planq.kr 먼저) + 동의 화면 구성 (15분)
-- 구현: OAuth 시작/콜백 + 루트 폴더 자동 생성 + 프로젝트/업무 하위 폴더 매핑 + Direct upload + 변경 감지 Webhook
-- 스키마: `business_cloud_tokens` 테이블 신규 (access/refresh/root_folder_id)
+### 커밋 히스토리 (이번 세션)
+```
+c1c5766 Dropbox 활성화 + /privacy + /terms + Production 준비
+1de9b57 설정 > 구독 플랜 페이지 (Phase 2)
+107a799 Critical 8건 + 정책 반영 + 에러 표준화 (30년차 검증)
+1e68d65 구독 플랜 엔진 (config/plans.js + services/plan.js)
+661e467 Phase 2C Dropbox App Folder 연동 코드 선행
+3a2d19d Drive 삭제/리네임 동기화 + 설정 UI
+c391c6b Drive task 첨부 동기화 + 폴더 트리 재구성
+096b0bd Phase 2B Google Drive OAuth + 업로드 분기
+3343c88 Phase 4 Q docs 전역 페이지
+491a00e 폴더 순서 이동 ↑/↓
+75d1c10 공용 SearchBox + "루트" → "내 업로드"
+a4cadbb fix: 집계 API uploaded_at undefined
+9812941 파일 시스템 Phase 1·1+·2A
+```
 
-**2순위 — Phase 2C Dropbox App Folder 연동 (2일)**
-- Dropbox App Console 앱 등록 (Scoped Access, App Folder 모드)
-- 2B 패턴 재사용
+---
 
-**3순위 — Phase 4 Q Docs 전역 페이지 (1일)**
-- 사이드바 Q Docs 메뉴 추가
-- 동일 `<DocsTab scope={{ type: 'workspace', businessId }} />` 재사용
+## 🎯 다음 할 일 (우선순위 순)
 
-**백로그**
+### 1. 공식 브랜드 아이콘 교체 (15분, Claude)
+- `StorageSettings.tsx` 의 Dropbox/Google 아이콘을 공식 brand asset 으로 교체
+- Dropbox: https://www.dropbox.com/branding
+- Google Drive: Google Identity Platform 공식 SVG
+- 이유: Dropbox Production 심사에서 브랜드 가이드 준수 확인
+
+### 2. Irene 이 Dropbox/Google Console 에서 할 일 (30분)
+**Dropbox App Console** (`l8yeiu6nu4zwvcx`):
+- Settings → Users → **Enable additional users** 클릭
+- Branding 탭 입력 (App description/Privacy URL/Terms URL/Icon)
+- App description 영문 문구는 `c1c5766` 커밋 메시지 또는 직전 세션 보고 참조
+- **Apply for production** 신청 (심사 2~5일)
+
+**Google Cloud Console**:
+- OAuth consent screen → **PUBLISH APP** 버튼 (Testing → Production)
+- Privacy URL: `https://dev.planq.kr/privacy`
+- Terms URL: `https://dev.planq.kr/terms`
+- drive.file scope 는 verification 심사 불필요 — Publish 즉시 모든 Google 계정 OAuth 가능
+
+### 3. Platform Admin 플랜 수동 조정 UI (1일, Claude)
+- `/admin` 라우트 + `platform_admin` 권한 전용
+- 비즈니스 목록 + 플랜 수동 변경 (결제 연동 전 임시 조정)
+- 플랜 변경 이력 조회
+- 체험 기간 수동 연장
+- 사용량 overrides (enterprise 맞춤용)
+
+### 4. 결제 시스템 Phase (3~4일, Claude)
+- **Stripe 연동** (글로벌 카드) — 사업자 등록 정보 필요
+- **포트원 연동** (한국 결제 — 카카오페이, 네이버페이, 토스, 계좌이체)
+- `business_subscriptions` 테이블 (provider/currency/external_subscription_id/billing_cycle)
+- 결제 성공 webhook → `plan.changePlan` 자동 호출
+- 결제 실패 webhook → `subscription_status = past_due` + grace_ends_at 설정
+- 환불 로직 (7일 전액, 이후 일할)
+- 오버리지 청구 (Cue 건당 ₩50 / Note 분당 ₩20)
+- 사업자 등록 후 가능 (Irene 작업 선행)
+
+### 5. Q Note 회의자료 Drive 분기 (0.5일, Claude)
+- Python q-note 서비스 → Node backend 로 웹훅 (`POST /api/qnote/usage`)
+- 세션 종료 시 `QnoteUsage.minutes_used` 누적
+- 회의 자료 업로드 시 Drive 프로젝트 폴더에 자동 저장
+
+### 6. Webhook — Drive/Dropbox 외부 변경 감지 (0.5~1일, Claude)
+- Drive: `files.watch` Push Notifications
+- Dropbox: `/files/list_folder/longpoll`
+- 외부 앱에서 파일 삭제·이름변경 시 PlanQ DB 동기화
+
+### 7. 백로그
 - 프로젝트 상태 토글 UI (active/paused/closed)
 - 프로젝트 삭제 UI (cascade 확인 모달)
-- F5-2b `/invite/:token` 수락 랜딩 페이지
+- F5-2b `/invite/:token` 초대 랜딩 페이지
+- QProjectDetailPage 한글 하드코딩 62건 i18n 전환
+- Q Talk 메시지 첨부 기능 신규 (기존 기능 미구현, 구현 시 task 패턴 복제)
 - Calendar 폴리시 (RRULE 단일 인스턴스 수정/삭제, UNTIL/COUNT UI, 알림)
-- 반응형 Phase 1~5 (기능 95% 이후 스프린트)
-- 메일 시스템 (SMTP 설정 + 초대 템플릿, 출시 직전)
+- 반응형 Phase 1~5 (기능 95% 이후)
 - Capacitor 하이브리드앱 래핑
 
 ---
 
-## 복구 가이드
-
-새 Claude 세션 시작 시 아래 내용을 붙여넣으세요:
+## 🔑 환경변수 / 인증 현황 (세션 간 유지)
 
 ```
-이전 세션 이어서 작업하고 싶어.
-/opt/planq/.claude/session-state.md 읽어줘.
+GOOGLE_CLIENT_ID        = 765630237305-rm9g0emg...apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET    = 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 (.env 저장)
+GOOGLE_REDIRECT_URI     = https://dev.planq.kr/api/cloud/callback/gdrive
+
+DROPBOX_CLIENT_ID       = l8yeiu6nu4zwvcx
+DROPBOX_CLIENT_SECRET   = 557j4gpcxagli9x (.env 저장)
+DROPBOX_REDIRECT_URI    = https://dev.planq.kr/api/cloud/callback/dropbox
+
+- Google OAuth 상태: Testing → **Publish 필요** (Irene 작업)
+- Dropbox App 상태: Development → **Apply for production 필요** (Irene 작업)
+- drive.file scope = verification 불필요
+- Dropbox scope = Production 심사 필요 (50명 도달 시 2주 내)
+
+워프로랩 (biz=3) 현재 연동:
+- Google Drive: irene@irenewp.com · root folder "PlanQ - 워프로랩" 생성됨
+- Dropbox: 미연결 (연결 시 /Apps/PlanQ/워프로랩/ 자동 생성 예정)
+
+개발 DB 비즈니스 플랜:
+- Test Company / E2E Corp / 워프로랩 / QNote Test Biz / Health Check Biz / 브랜드 파트너스 → basic
+- PlanQ 테스트 워크스페이스 → pro
+```
+
+---
+
+## 📂 주요 문서 위치
+
+- 플랜 정의: `dev-backend/config/plans.js`
+- 플랜 엔진: `dev-backend/services/plan.js`
+- 파일 시스템 설계: `docs/FILE_SYSTEM_DESIGN.md`
+- OPS 로드맵: `docs/OPS_ROADMAP.md`
+- 개발 로드맵: `DEVELOPMENT_PLAN.md`
+- 프로젝트 규칙: `CLAUDE.md` (세션 자동 주입됨)
+- Q Project 감사: `docs/QPROJECT_AUDIT.md`
+- 브랜드 컨셉: `docs/BRAND_CONCEPT.md`
+
+---
+
+## 🔄 복구 가이드
+
+새 Claude 세션 시작 시 아래 중 하나:
+
+**빠른 재개** (추천):
+```
+session-state.md 읽고 "1번 할 일"부터 바로 착수해줘.
+```
+
+**자세한 시작**:
+```
+/개발시작
+```
+
+**특정 작업 지정**:
+```
+session-state.md 읽고 "결제 시스템 Phase" 진행해줘.
 ```
