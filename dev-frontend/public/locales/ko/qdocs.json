@@ -40,6 +40,8 @@
     "byCategory": "카테고리",
     "all": "전체",
     "mine": "내 문서",
-    "filterBy": "이 카테고리로 필터"
+    "filterBy": "이 카테고리로 필터",
+    "addCategory": "카테고리 추가",
+    "newCategoryPlaceholder": "카테고리 이름 (Enter)"
   }
 }

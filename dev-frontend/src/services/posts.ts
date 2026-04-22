@@ -136,3 +136,21 @@ export async function detachFromPost(postId: number, attachmentId: number): Prom
   const j = await r.json();
   return !!j.success;
 }
+
+// ─── 카테고리 마스터 (빈 카테고리 등록) ───
+export async function createCategory(businessId: number, name: string, projectId: number | null = null): Promise<{ id: number; name: string; created: boolean }> {
+  const r = await apiFetch('/api/posts/categories', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ business_id: businessId, project_id: projectId, name }),
+  });
+  const j = await r.json();
+  if (!j.success) throw new Error(j.message || 'category create failed');
+  return j.data;
+}
+
+export async function deleteCategory(categoryId: number): Promise<boolean> {
+  const r = await apiFetch(`/api/posts/categories/${categoryId}`, { method: 'DELETE' });
+  const j = await r.json();
+  return !!j.success;
+}
