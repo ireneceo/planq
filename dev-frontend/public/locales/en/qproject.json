@@ -40,8 +40,15 @@
     "tasks": "Tasks",
     "process": "Table",
     "clients": "Clients",
+    "files": "Files",
     "docs": "Docs",
     "info": "Details"
+  },
+  "docs": {
+    "empty": {
+      "title": "Docs coming soon",
+      "desc": "Post-style docs will arrive in the next iteration. Use the \"Files\" tab for file management."
+    }
   },
   "section": {
     "members": "Project members"

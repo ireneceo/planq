@@ -1,6 +1,10 @@
 {
   "page": {
     "title": "Q docs",
-    "noWorkspace": "Please select a workspace first"
+    "noWorkspace": "Please select a workspace first",
+    "empty": {
+      "title": "Docs coming soon",
+      "desc": "A post-style document space (manuals, guides, announcements) is in the works. Use Q file for file management for now."
+    }
   }
 }
