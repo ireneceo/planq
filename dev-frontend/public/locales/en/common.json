@@ -81,5 +81,21 @@
     "label": "Workspace",
     "switcher": "Switch Workspace",
     "member": "Member"
+  },
+  "cancel": "Cancel",
+  "saving": "Saving…",
+  "loading": "Loading…",
+  "filepicker": {
+    "title": "Pick files",
+    "tab": {
+      "upload": "Upload",
+      "existing": "Existing files"
+    },
+    "dropHint": "Drop files here or click to browse",
+    "dropSub": "Multiple files supported · up to 50 MB each",
+    "searchPlaceholder": "Search by name",
+    "existingEmpty": "No files uploaded to this workspace yet",
+    "upload": "Upload ({{n}})",
+    "attach": "Attach ({{n}})"
   }
 }
