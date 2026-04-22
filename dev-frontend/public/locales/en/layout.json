@@ -46,6 +46,9 @@
   "switcher": {
     "tooltip": "Switch workspace",
     "menuTitle": "My workspaces",
+    "adminSection": "System",
+    "platformAdmin": "Platform Admin",
+    "platformAdminSub": "All workspaces & users",
     "role": {
       "owner": "Admin",
       "member": "Member",

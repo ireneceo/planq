@@ -46,6 +46,9 @@
   "switcher": {
     "tooltip": "워크스페이스 전환",
     "menuTitle": "내 워크스페이스",
+    "adminSection": "시스템",
+    "platformAdmin": "플랫폼 관리자",
+    "platformAdminSub": "전체 워크스페이스·사용자",
     "role": {
       "owner": "관리자",
       "member": "멤버",

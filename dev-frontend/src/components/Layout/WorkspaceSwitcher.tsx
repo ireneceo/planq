@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth, type WorkspaceMembership } from '../../contexts/AuthContext';
 
 /**
@@ -43,6 +44,8 @@ interface Props {
 const WorkspaceSwitcher: React.FC<Props> = ({ collapsed }) => {
   const { t } = useTranslation('layout');
   const { user, switchWorkspace } = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [busyId, setBusyId] = useState<number | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -58,14 +61,43 @@ const WorkspaceSwitcher: React.FC<Props> = ({ collapsed }) => {
 
   if (!user) return null;
   const workspaces = user.workspaces || [];
-  if (workspaces.length === 0) return null;
+  if (workspaces.length === 0 && user.platform_role !== 'platform_admin') return null;
 
-  const current = workspaces.find((w) => w.is_active) || workspaces[0];
-  const multiple = workspaces.length > 1;
+  const isAdminMode = location.pathname.startsWith('/admin');
+  const isPlatformAdmin = user.platform_role === 'platform_admin';
+  const activeWs = workspaces.find((w) => w.is_active) || workspaces[0] || null;
+
+  // 트리거 표시 — 플랫폼 관리자 모드면 가상 컨텍스트, 아니면 활성 워크스페이스
+  const currentDot = isAdminMode ? '#FB7185' : (activeWs ? ROLE_DOT[activeWs.role] : '#94A3B8');
+  const currentName = isAdminMode
+    ? t('switcher.platformAdmin', '플랫폼 관리자')
+    : (activeWs?.brand_name || '—');
+  const currentSub = isAdminMode
+    ? t('switcher.platformAdminSub', '전체 워크스페이스·사용자')
+    : (activeWs ? t(ROLE_LABEL_KEY[activeWs.role], ROLE_LABEL_FALLBACK[activeWs.role]) : '');
+
+  // 옵션이 2개 이상이면 드롭다운 (워크스페이스 여러 개 OR platform_admin 추가)
+  const multiple = workspaces.length > 1 || (isPlatformAdmin && workspaces.length >= 1);
+
   const roleLabel = (w: WorkspaceMembership) => t(ROLE_LABEL_KEY[w.role], ROLE_LABEL_FALLBACK[w.role]);
 
-  const handleSwitch = async (target: WorkspaceMembership) => {
-    if (target.business_id === current.business_id) {
+  const handleSwitchWs = async (target: WorkspaceMembership) => {
+    // 플랫폼 관리자 모드에서 워크스페이스 선택 시: admin 에서 빠져나옴 + 필요시 워크스페이스 전환
+    if (isAdminMode) {
+      if (activeWs && target.business_id === activeWs.business_id) {
+        setOpen(false);
+        navigate('/talk');
+        return;
+      }
+      setBusyId(target.business_id);
+      const ok = await switchWorkspace(target.business_id);
+      setBusyId(null);
+      setOpen(false);
+      if (ok) window.location.href = '/talk';
+      return;
+    }
+    // 일반 모드 — 기존 동작
+    if (activeWs && target.business_id === activeWs.business_id) {
       setOpen(false);
       return;
     }
@@ -76,21 +108,33 @@ const WorkspaceSwitcher: React.FC<Props> = ({ collapsed }) => {
     if (ok) window.location.href = '/talk';
   };
 
+  const handleSwitchAdmin = () => {
+    setOpen(false);
+    if (!isAdminMode) navigate('/admin/businesses');
+  };
+
   return (
     <Container ref={containerRef}>
       <Trigger
         type="button"
         $multiple={multiple}
         $collapsed={!!collapsed}
+        $admin={isAdminMode}
         onClick={() => multiple && setOpen((v) => !v)}
-        title={multiple ? t('switcher.tooltip', '워크스페이스 전환') : current.brand_name}
+        title={multiple ? t('switcher.tooltip', '워크스페이스 전환') : currentName}
       >
-        <Dot $color={ROLE_DOT[current.role]} />
+        {isAdminMode ? (
+          <AdminIcon viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M2 4l3 12h14l3-12-6 4-4-8-4 8-6-4z"/>
+          </AdminIcon>
+        ) : (
+          <Dot $color={currentDot} />
+        )}
         {!collapsed && (
           <>
             <Info>
-              <Name>{current.brand_name}</Name>
-              <SubRole>{roleLabel(current)}</SubRole>
+              <Name $admin={isAdminMode}>{currentName}</Name>
+              <SubRole $admin={isAdminMode}>{currentSub}</SubRole>
             </Info>
             {multiple && (
               <Chevron viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" $open={open}>
@@ -103,32 +147,60 @@ const WorkspaceSwitcher: React.FC<Props> = ({ collapsed }) => {
 
       {open && multiple && !collapsed && (
         <Menu role="listbox">
-          <MenuLabel>{t('switcher.menuTitle', '내 워크스페이스')}</MenuLabel>
-          {workspaces.map((w) => {
-            const isCurrent = w.business_id === current.business_id;
-            const isBusy = busyId === w.business_id;
-            return (
+          {workspaces.length > 0 && (
+            <>
+              <MenuLabel>{t('switcher.menuTitle', '내 워크스페이스')}</MenuLabel>
+              {workspaces.map((w) => {
+                const isCurrent = !isAdminMode && activeWs && w.business_id === activeWs.business_id;
+                const isBusy = busyId === w.business_id;
+                return (
+                  <MenuItem
+                    key={w.business_id}
+                    type="button"
+                    $current={!!isCurrent}
+                    disabled={isBusy}
+                    onClick={() => handleSwitchWs(w)}
+                  >
+                    <Dot $color={ROLE_DOT[w.role]} />
+                    <ItemBody>
+                      <ItemName>{w.brand_name}</ItemName>
+                      <ItemSub>{roleLabel(w)}</ItemSub>
+                    </ItemBody>
+                    {isCurrent && (
+                      <Check viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                        <polyline points="20 6 9 17 4 12" />
+                      </Check>
+                    )}
+                    {isBusy && <Spinner />}
+                  </MenuItem>
+                );
+              })}
+            </>
+          )}
+
+          {isPlatformAdmin && (
+            <>
+              <MenuDivider />
+              <MenuLabel>{t('switcher.adminSection', '시스템')}</MenuLabel>
               <MenuItem
-                key={w.business_id}
                 type="button"
-                $current={isCurrent}
-                disabled={isBusy}
-                onClick={() => handleSwitch(w)}
+                $current={isAdminMode}
+                $admin
+                onClick={handleSwitchAdmin}
               >
-                <Dot $color={ROLE_DOT[w.role]} />
+                <Dot $color="#FB7185" />
                 <ItemBody>
-                  <ItemName>{w.brand_name}</ItemName>
-                  <ItemSub>{roleLabel(w)}</ItemSub>
+                  <ItemName>{t('switcher.platformAdmin', '플랫폼 관리자')}</ItemName>
+                  <ItemSub>{t('switcher.platformAdminSub', '전체 워크스페이스·사용자')}</ItemSub>
                 </ItemBody>
-                {isCurrent && (
+                {isAdminMode && (
                   <Check viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                     <polyline points="20 6 9 17 4 12" />
                   </Check>
                 )}
-                {isBusy && <Spinner />}
               </MenuItem>
-            );
-          })}
+            </>
+          )}
         </Menu>
       )}
     </Container>
@@ -145,22 +217,27 @@ const Container = styled.div`
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 `;
 
-const Trigger = styled.button<{ $multiple: boolean; $collapsed: boolean }>`
+const Trigger = styled.button<{ $multiple: boolean; $collapsed: boolean; $admin: boolean }>`
   display: flex;
   align-items: center;
   gap: 12px;
   width: 100%;
   padding: 14px 16px;
-  background: transparent;
+  background: ${(p) => p.$admin ? 'linear-gradient(135deg, rgba(244,63,94,0.14) 0%, rgba(251,113,133,0.06) 100%)' : 'transparent'};
   border: none;
   cursor: ${(p) => (p.$multiple ? 'pointer' : 'default')};
   transition: background 0.15s;
   text-align: left;
-  color: #CCFBF1;
+  color: ${(p) => p.$admin ? '#FECACA' : '#CCFBF1'};
   ${(p) => p.$collapsed && 'justify-content: center; padding: 12px 8px;'}
   &:hover {
-    ${(p) => p.$multiple && 'background: rgba(255, 255, 255, 0.08); color: #FFFFFF;'}
+    ${(p) => p.$multiple && !p.$admin && 'background: rgba(255, 255, 255, 0.08); color: #FFFFFF;'}
+    ${(p) => p.$multiple && p.$admin && 'background: linear-gradient(135deg, rgba(244,63,94,0.22) 0%, rgba(251,113,133,0.10) 100%);'}
   }
+`;
+
+const AdminIcon = styled.svg`
+  width: 16px; height: 16px; color: #FB7185; flex-shrink: 0;
 `;
 
 // 역할을 상징하는 작은 dot — 카드 배경 대신
@@ -181,20 +258,20 @@ const Info = styled.div`
   gap: 2px;
 `;
 
-const Name = styled.div`
+const Name = styled.div<{ $admin?: boolean }>`
   font-size: 14px;
   font-weight: 600;
-  color: #FFFFFF;
+  color: ${(p) => p.$admin ? '#FECACA' : '#FFFFFF'};
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   letter-spacing: -0.1px;
 `;
 
-const SubRole = styled.div`
+const SubRole = styled.div<{ $admin?: boolean }>`
   font-size: 11px;
   font-weight: 500;
-  color: #5EEAD4;
+  color: ${(p) => p.$admin ? 'rgba(252,165,165,0.75)' : '#5EEAD4'};
   letter-spacing: 0.2px;
 `;
 
@@ -241,13 +318,17 @@ const MenuLabel = styled.div`
   font-weight: 600;
 `;
 
-const MenuItem = styled.button<{ $current: boolean }>`
+const MenuItem = styled.button<{ $current: boolean; $admin?: boolean }>`
   display: flex;
   align-items: center;
   gap: 12px;
   width: 100%;
   padding: 10px 12px;
-  background: ${(p) => (p.$current ? 'rgba(94, 234, 212, 0.16)' : 'transparent')};
+  background: ${(p) => {
+    if (p.$admin && p.$current) return 'rgba(251, 113, 133, 0.22)';
+    if (p.$current) return 'rgba(94, 234, 212, 0.16)';
+    return 'transparent';
+  }};
   border: none;
   border-radius: 8px;
   cursor: pointer;
@@ -255,10 +336,17 @@ const MenuItem = styled.button<{ $current: boolean }>`
   color: ${(p) => (p.$current ? '#FFFFFF' : '#CCFBF1')};
   transition: background 0.1s, color 0.1s;
   &:hover {
-    background: ${(p) => (p.$current ? 'rgba(94, 234, 212, 0.22)' : 'rgba(255, 255, 255, 0.10)')};
+    background: ${(p) => {
+      if (p.$admin) return p.$current ? 'rgba(251, 113, 133, 0.3)' : 'rgba(251, 113, 133, 0.14)';
+      return p.$current ? 'rgba(94, 234, 212, 0.22)' : 'rgba(255, 255, 255, 0.10)';
+    }};
     color: #FFFFFF;
   }
   &:disabled { opacity: 0.6; cursor: wait; }
+`;
+
+const MenuDivider = styled.div`
+  height: 1px; background: rgba(94, 234, 212, 0.12); margin: 6px 4px;
 `;
 
 const ItemBody = styled.div`
