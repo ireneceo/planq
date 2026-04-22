@@ -42,15 +42,39 @@ export interface PostDetail extends PostRow {
   attachments: PostAttachment[];
 }
 
-export async function fetchPosts(businessId: number, projectId?: number | null, query?: string): Promise<PostRow[]> {
+export interface PostListFilter {
+  projectId?: number | null;  // undefined=무시, null='null'(워크스페이스 전역), number=프로젝트
+  query?: string;
+  category?: string;
+  mine?: boolean;
+}
+export async function fetchPosts(businessId: number, filter: PostListFilter = {}): Promise<PostRow[]> {
   const params = new URLSearchParams({ business_id: String(businessId) });
-  if (projectId === null) params.set('project_id', 'null');
-  else if (projectId !== undefined) params.set('project_id', String(projectId));
-  if (query) params.set('q', query);
+  if (filter.projectId === null) params.set('project_id', 'null');
+  else if (filter.projectId !== undefined) params.set('project_id', String(filter.projectId));
+  if (filter.query) params.set('q', filter.query);
+  if (filter.category) params.set('category', filter.category);
+  if (filter.mine) params.set('mine', '1');
   const r = await apiFetch(`/api/posts?${params}`);
   const j = await r.json();
   if (!j.success) return [];
   return j.data as PostRow[];
+}
+
+export interface PostsMeta {
+  total: number;
+  myCount: number;
+  categories: Array<{ name: string; count: number }>;
+  projects: Array<{ id: number; name: string; color: string | null; count: number }>;
+}
+export async function fetchPostsMeta(businessId: number, projectId?: number | null): Promise<PostsMeta> {
+  const params = new URLSearchParams({ business_id: String(businessId) });
+  if (projectId === null) params.set('project_id', 'null');
+  else if (projectId !== undefined) params.set('project_id', String(projectId));
+  const r = await apiFetch(`/api/posts/meta?${params}`);
+  const j = await r.json();
+  if (!j.success) return { total: 0, myCount: 0, categories: [], projects: [] };
+  return j.data as PostsMeta;
 }
 
 export async function fetchPost(id: number): Promise<PostDetail | null> {

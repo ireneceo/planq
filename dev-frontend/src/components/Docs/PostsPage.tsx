@@ -10,9 +10,16 @@ import ConfirmDialog from '../Common/ConfirmDialog';
 import PostEditor from './PostEditor';
 import {
   fetchPosts, fetchPost, createPost, updatePost, deletePost,
-  attachToPost, detachFromPost,
-  type PostRow, type PostDetail,
+  attachToPost, detachFromPost, fetchPostsMeta,
+  type PostRow, type PostDetail, type PostsMeta,
 } from '../../services/posts';
+
+// 좌측 필터: 전체 / 내 문서 / 프로젝트 그룹 / 카테고리
+type FilterSel =
+  | { kind: 'all' }
+  | { kind: 'mine' }
+  | { kind: 'project'; projectId: number }
+  | { kind: 'category'; name: string };
 
 export type PostsScope =
   | { type: 'workspace'; businessId: number }
@@ -27,29 +34,49 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
   const { formatDate } = useTimeFormat();
 
   const [rows, setRows] = useState<PostRow[]>([]);
+  const [meta, setMeta] = useState<PostsMeta>({ total: 0, myCount: 0, categories: [], projects: [] });
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
+  const [filter, setFilter] = useState<FilterSel>({ kind: 'all' });
   const [activeId, setActiveId] = useState<number | null>(null);
   const [detail, setDetail] = useState<PostDetail | null>(null);
   const [mode, setMode] = useState<'view' | 'edit' | 'new'>('view');
   const [titleDraft, setTitleDraft] = useState('');
   const [contentDraft, setContentDraft] = useState<unknown>(null);
+  const [categoryDraft, setCategoryDraft] = useState<string>('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<PostDetail | null>(null);
   const submittingRef = useRef(false);
 
+  // 워크스페이스 모드: project_id 필터 없음(모든 문서), 프로젝트 모드: project_id=scope.projectId
+  const scopeProjectId = scope.type === 'project' ? scope.projectId : undefined;
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const projectId = scope.type === 'project' ? scope.projectId : null;
-      const list = await fetchPosts(scope.businessId, projectId, query || undefined);
+      // 필터를 API 파라미터로 변환
+      const apiFilter: { projectId?: number | null; query?: string; category?: string; mine?: boolean } = {
+        query: query || undefined,
+      };
+      if (scope.type === 'project') apiFilter.projectId = scope.projectId;
+      if (filter.kind === 'mine') apiFilter.mine = true;
+      else if (filter.kind === 'project') apiFilter.projectId = filter.projectId;
+      else if (filter.kind === 'category') apiFilter.category = filter.name;
+
+      const list = await fetchPosts(scope.businessId, apiFilter);
       setRows(list);
     } finally { setLoading(false); }
-  }, [scope, query]);
+  }, [scope, query, filter]);
+
+  const loadMeta = useCallback(async () => {
+    const m = await fetchPostsMeta(scope.businessId, scopeProjectId);
+    setMeta(m);
+  }, [scope.businessId, scopeProjectId]);
 
   useEffect(() => { load(); }, [load]);
+  useEffect(() => { loadMeta(); }, [loadMeta]);
 
   useEffect(() => {
     if (!activeId) { setDetail(null); setMode('view'); return; }
@@ -62,6 +89,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
         if (d) {
           setTitleDraft(d.title);
           setContentDraft(d.content_json);
+          setCategoryDraft(d.category || '');
         }
       }
     })();
@@ -74,6 +102,8 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
     setMode('new');
     setTitleDraft('');
     setContentDraft(null);
+    // 현재 필터가 카테고리면 해당 카테고리로 프리필
+    setCategoryDraft(filter.kind === 'category' ? filter.name : '');
     setError(null);
   };
 
@@ -82,6 +112,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
     setMode('edit');
     setTitleDraft(detail.title);
     setContentDraft(detail.content_json);
+    setCategoryDraft(detail.category || '');
     setError(null);
   };
 
@@ -90,10 +121,12 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
       setMode('view');
       setTitleDraft('');
       setContentDraft(null);
+      setCategoryDraft('');
     } else if (detail) {
       setMode('view');
       setTitleDraft(detail.title);
       setContentDraft(detail.content_json);
+      setCategoryDraft(detail.category || '');
     }
     setError(null);
   };
@@ -104,6 +137,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
     submittingRef.current = true;
     setSaving(true); setError(null);
     try {
+      const categoryVal = categoryDraft.trim() || null;
       if (mode === 'new') {
         const projectId = scope.type === 'project' ? scope.projectId : null;
         const created = await createPost({
@@ -111,19 +145,21 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
           project_id: projectId,
           title: titleDraft.trim(),
           content_json: contentDraft as any,
+          category: categoryVal,
         });
         setDetail(created);
         setActiveId(created.id);
         setMode('view');
-        await load();
+        await load(); await loadMeta();
       } else if (mode === 'edit' && detail) {
         const patched = await updatePost(detail.id, {
           title: titleDraft.trim(),
           content_json: contentDraft as any,
+          category: categoryVal,
         });
         setDetail(patched);
         setMode('view');
-        await load();
+        await load(); await loadMeta();
       }
     } catch (e) { setError((e as Error).message); }
     finally { submittingRef.current = false; setSaving(false); }
@@ -136,7 +172,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
     await deletePost(id);
     setActiveId(null);
     setDetail(null);
-    await load();
+    await load(); await loadMeta();
   };
 
   const onAttach = async (r: FilePickerResult) => {
@@ -166,6 +202,54 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
           <SearchBox value={query} onChange={setQuery} placeholder={t('search.placeholder', '제목·내용 검색') as string} />
           <NewBtn type="button" onClick={startNew}>+ {t('new', '새 문서')}</NewBtn>
         </ListHeader>
+
+        <FilterSection>
+          <FilterGroupLabel>{t('filter.basic', '기본') as string}</FilterGroupLabel>
+          <Chip type="button" $active={filter.kind === 'all'} onClick={() => setFilter({ kind: 'all' })}>
+            {t('filter.all', '전체') as string}
+            <Count>{meta.total}</Count>
+          </Chip>
+          <Chip type="button" $active={filter.kind === 'mine'} onClick={() => setFilter({ kind: 'mine' })}>
+            {t('filter.mine', '내 문서') as string}
+            {meta.myCount > 0 && <Count>{meta.myCount}</Count>}
+          </Chip>
+
+          {scope.type === 'workspace' && meta.projects.length > 0 && (
+            <>
+              <FilterGroupLabel>{t('filter.byProject', '프로젝트') as string}</FilterGroupLabel>
+              {meta.projects.map(p => (
+                <Chip
+                  key={p.id}
+                  type="button"
+                  $active={filter.kind === 'project' && filter.projectId === p.id}
+                  onClick={() => setFilter({ kind: 'project', projectId: p.id })}
+                >
+                  <ColorDot $color={p.color || '#14B8A6'} />
+                  {p.name}
+                  <Count>{p.count}</Count>
+                </Chip>
+              ))}
+            </>
+          )}
+
+          {meta.categories.length > 0 && (
+            <>
+              <FilterGroupLabel>{t('filter.byCategory', '카테고리') as string}</FilterGroupLabel>
+              {meta.categories.map(c => (
+                <Chip
+                  key={c.name}
+                  type="button"
+                  $active={filter.kind === 'category' && filter.name === c.name}
+                  onClick={() => setFilter({ kind: 'category', name: c.name })}
+                >
+                  #{c.name}
+                  <Count>{c.count}</Count>
+                </Chip>
+              ))}
+            </>
+          )}
+        </FilterSection>
+
         {loading ? (
           <Dim>{t('loading', '로딩 중…')}</Dim>
         ) : filtered.length === 0 ? (
@@ -197,6 +281,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
                   {r.project && (
                     <ProjectTag $color={r.project.color || '#14B8A6'}>{r.project.name}</ProjectTag>
                   )}
+                  {r.category && <CategoryMini>#{r.category}</CategoryMini>}
                 </RowMeta>
               </RowItem>
             ))}
@@ -222,6 +307,19 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
                 </PrimaryBtn>
               </EditActions>
             </EditHead>
+            <CategoryRow>
+              <CategoryLabel>#</CategoryLabel>
+              <CategoryInput
+                list="post-category-suggestions"
+                value={categoryDraft}
+                onChange={e => setCategoryDraft(e.target.value)}
+                placeholder={t('categoryPlaceholder', '카테고리 (예: 매뉴얼, 가이드, 회의록)') as string}
+                maxLength={40}
+              />
+              <datalist id="post-category-suggestions">
+                {meta.categories.map(c => <option key={c.name} value={c.name} />)}
+              </datalist>
+            </CategoryRow>
             {error && <ErrorBar>{error}</ErrorBar>}
             <PostEditor value={contentDraft} onChange={setContentDraft} placeholder={t('contentPlaceholder', '본문을 작성하세요…') as string} />
           </EditArea>
@@ -246,6 +344,15 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
               )}
               {detail.project && (
                 <ProjectTag $color={detail.project.color || '#14B8A6'}>{detail.project.name}</ProjectTag>
+              )}
+              {detail.category && (
+                <CategoryTag
+                  type="button"
+                  onClick={() => setFilter({ kind: 'category', name: detail.category! })}
+                  title={t('filter.filterBy', '이 카테고리로 필터') as string}
+                >
+                  #{detail.category}
+                </CategoryTag>
               )}
             </ViewMeta>
             <PostEditor value={detail.content_json} onChange={() => {}} editable={false} />
@@ -327,6 +434,63 @@ const NewBtn = styled.button`
   border: none; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer;
   white-space: nowrap;
   &:hover { background: #0D9488; }
+`;
+const FilterSection = styled.div`
+  padding: 10px 12px; border-bottom: 1px solid #F1F5F9;
+  display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
+  max-height: 180px; overflow-y: auto;
+`;
+const FilterGroupLabel = styled.div`
+  width: 100%; font-size: 10px; font-weight: 700; color: #94A3B8;
+  text-transform: uppercase; letter-spacing: 0.3px;
+  margin-top: 4px;
+  &:first-child { margin-top: 0; }
+`;
+const Chip = styled.button<{ $active: boolean }>`
+  all: unset; cursor: pointer;
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 4px 10px; border-radius: 999px;
+  background: ${p => p.$active ? '#14B8A6' : '#F1F5F9'};
+  color: ${p => p.$active ? '#fff' : '#475569'};
+  border: 1px solid ${p => p.$active ? '#14B8A6' : 'transparent'};
+  font-size: 11px; font-weight: 600;
+  transition: all 0.15s;
+  &:hover { background: ${p => p.$active ? '#0D9488' : '#E2E8F0'}; }
+  &:focus-visible { outline: 2px solid #14B8A6; outline-offset: 2px; }
+`;
+const Count = styled.span`
+  background: rgba(255, 255, 255, 0.25);
+  padding: 0 6px; border-radius: 999px; font-size: 10px; font-weight: 700;
+  ${Chip}:not([aria-pressed="true"]) & {
+    background: rgba(15, 23, 42, 0.08); color: #64748B;
+  }
+`;
+const ColorDot = styled.span<{ $color: string }>`
+  width: 6px; height: 6px; border-radius: 50%; background: ${p => p.$color};
+`;
+const CategoryRow = styled.div`
+  display: flex; align-items: center; gap: 6px; padding: 0 2px;
+`;
+const CategoryLabel = styled.div`
+  font-size: 14px; color: #94A3B8; font-weight: 700;
+`;
+const CategoryInput = styled.input`
+  flex: 1; height: 32px; padding: 0 10px;
+  background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px;
+  font-size: 12px; color: #0F172A;
+  &::placeholder { color: #94A3B8; }
+  &:focus { outline: none; border-color: #14B8A6; background: #fff; box-shadow: 0 0 0 2px rgba(20,184,166,0.15); }
+`;
+const CategoryTag = styled.button`
+  all: unset; cursor: pointer;
+  display: inline-flex; align-items: center; padding: 2px 8px;
+  background: #F0FDFA; color: #0F766E;
+  border-radius: 999px; font-size: 11px; font-weight: 600;
+  &:hover { background: #CCFBF1; }
+`;
+const CategoryMini = styled.span`
+  display: inline-flex; padding: 1px 6px; background: #F0FDFA; color: #0F766E;
+  border-radius: 999px; font-size: 10px; font-weight: 600;
 `;
 const RowList = styled.div`display: flex; flex-direction: column; max-height: calc(100vh - 240px); overflow-y: auto;`;
 const RowItem = styled.button<{ $active: boolean }>`
