@@ -217,6 +217,11 @@ router.post('/:businessId/invite', authenticateToken, checkBusinessAccess, async
   try {
     const { name, email, company_name, notes } = req.body || {};
     if (!name?.trim() || !email?.trim()) return errorResponse(res, 'name and email are required', 400);
+    // 플랜 쿼터 — 고객 수 한도
+    const planCan = await require('../services/plan').can(req.params.businessId, 'add_client');
+    if (!planCan.ok) {
+      return errorResponse(res, `고객 수 한도 초과 (최대 ${planCan.limit}명) — 플랜 업그레이드 필요`, 403);
+    }
     const bcrypt = require('bcryptjs');
     const crypto = require('crypto');
     let u = await User.findOne({ where: { email: email.trim() } });

@@ -10,19 +10,15 @@ const { File, FileFolder, User, Client, Project, Business, BusinessStorageUsage,
 const { sequelize } = require('../config/database');
 const gdrive = require('../services/gdrive');
 const dropboxSvc = require('../services/dropbox');
+const planEngine = require('../services/plan');
 const { authenticateToken, checkBusinessAccess } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 
 const uploadDir = path.join(__dirname, '..', 'uploads');
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
 
-// 플랜별 쿼터 (bytes). Stage 0 — 운영 기준
-const PLAN_QUOTAS = {
-  free: 1 * 1024 * 1024 * 1024,          // 1GB
-  basic: 50 * 1024 * 1024 * 1024,        // 50GB
-  pro: 500 * 1024 * 1024 * 1024          // 500GB
-};
-const DEFAULT_PLAN = 'basic';
+// 플랜별 쿼터는 services/plan.js + config/plans.js 에서 관리.
+// 이 파일은 plan engine 경유로만 접근.
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -53,9 +49,7 @@ async function getOrCreateUsage(businessId, transaction) {
 }
 
 async function getPlanQuota(businessId) {
-  const biz = await Business.findByPk(businessId);
-  const plan = (biz && biz.plan) || DEFAULT_PLAN;
-  return PLAN_QUOTAS[plan] || PLAN_QUOTAS[DEFAULT_PLAN];
+  return await planEngine.getLimit(businessId, 'storage_bytes');
 }
 
 function sha256OfFile(filePath) {
@@ -111,14 +105,14 @@ router.get('/:businessId', authenticateToken, checkBusinessAccess, async (req, r
 router.get('/:businessId/storage', authenticateToken, checkBusinessAccess, async (req, res, next) => {
   try {
     const usage = await getOrCreateUsage(req.params.businessId);
-    const quota = await getPlanQuota(req.params.businessId);
-    const biz = await Business.findByPk(req.params.businessId);
+    const { plan } = await planEngine.getBusinessPlan(req.params.businessId);
+    const quota = plan.limits.storage_bytes;
     successResponse(res, {
       provider: usage.storage_provider,
       bytes_used: Number(usage.bytes_used),
-      bytes_quota: quota,
+      bytes_quota: quota === Infinity ? null : quota,
       file_count: usage.file_count,
-      plan: (biz && biz.plan) || DEFAULT_PLAN
+      plan: plan.code
     });
   } catch (error) {
     next(error);
@@ -154,14 +148,20 @@ router.post('/:businessId', authenticateToken, checkBusinessAccess, upload.singl
     const useGdrive = !!cloudToken && cloudToken.provider === 'gdrive' && !!cloudToken.root_folder_id && projectId;
     const useDropbox = !!cloudToken && cloudToken.provider === 'dropbox' && !!cloudToken.root_folder_id && projectId;
 
-    if (!useGdrive && !useDropbox) {
-      // 자체 스토리지 쿼터 체크 (외부 사용 시에는 skip)
-      const usage = await getOrCreateUsage(businessId);
-      const quota = await getPlanQuota(businessId);
-      if (Number(usage.bytes_used) + req.file.size > quota) {
-        fs.unlinkSync(tempPath);
-        return errorResponse(res, 'Storage quota exceeded', 413);
+    // plan engine 통합 체크 — 파일 크기 + 스토리지 쿼터 (외부 사용 시 쿼터 skip)
+    const canUpload = await planEngine.can(businessId, 'upload_file', {
+      size: req.file.size,
+      external: useGdrive || useDropbox,
+    });
+    if (!canUpload.ok) {
+      fs.unlinkSync(tempPath);
+      if (canUpload.reason === 'file_size_exceeded') {
+        return errorResponse(res, `파일 크기 초과 (최대 ${Math.round(canUpload.limit / (1024 * 1024))}MB)`, 413);
       }
+      if (canUpload.reason === 'storage_quota_exceeded') {
+        return errorResponse(res, '저장소 용량 초과 — 외부 클라우드 연동 또는 플랜 업그레이드 필요', 413);
+      }
+      return errorResponse(res, canUpload.reason || 'upload_not_allowed', 403);
     }
 
     // === Dropbox 경로 ===

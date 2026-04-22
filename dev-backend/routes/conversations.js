@@ -45,6 +45,12 @@ router.post('/:businessId', authenticateToken, checkBusinessAccess, async (req, 
     const business = await Business.findByPk(req.params.businessId);
     if (!business) return errorResponse(res, 'Workspace not found', 404);
 
+    // 플랜 쿼터 — 대화방 수 한도
+    const planCan = await require('../services/plan').can(req.params.businessId, 'create_conversation');
+    if (!planCan.ok) {
+      return errorResponse(res, `대화방 수 한도 초과 (최대 ${planCan.limit}개) — 플랜 업그레이드 필요`, 403);
+    }
+
     // project_id 가 있으면 해당 프로젝트가 같은 워크스페이스인지 검증
     if (project_id) {
       const proj = await Project.findOne({ where: { id: project_id, business_id: req.params.businessId } });
