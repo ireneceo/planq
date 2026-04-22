@@ -9,6 +9,7 @@ import { useTimeFormat } from '../../hooks/useTimeFormat';
 import ProcessPartsTab from './ProcessPartsTab';
 import TasksTab from './TasksTab';
 import DocsTab from './DocsTab';
+import PostsPage from '../../components/Docs/PostsPage';
 import PlanQSelect from '../../components/Common/PlanQSelect';
 import CalendarPicker from '../../components/Common/CalendarPicker';
 import { PROJECT_COLOR_PALETTE } from '../../utils/projectColors';
@@ -665,10 +666,7 @@ const QProjectDetailPage: React.FC = () => {
       )}
       {tab === 'files' && <DocsTab projectId={projectId} businessId={project.business_id} />}
       {tab === 'docs' && (
-        <EmptyBox>
-          <EmptyTitle>{t('docs.empty.title', '문서 준비 중')}</EmptyTitle>
-          <EmptyDesc>{t('docs.empty.desc', '포스팅 형식의 문서 기능은 곧 제공됩니다. 파일은 "파일" 탭을 이용해 주세요.')}</EmptyDesc>
-        </EmptyBox>
+        <PostsPage scope={{ type: 'project', businessId: project.business_id, projectId }} />
       )}
       {tab === 'clients' && (
         <ClientsBody>
@@ -944,12 +942,6 @@ const ClientInput = styled.input`flex:1;padding:6px 10px;border:1px solid #E2E8F
 const AddClientBtn = styled.button`padding:6px 12px;background:#14B8A6;color:#FFF;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;&:hover:not(:disabled){background:#0D9488;}&:disabled{background:#CBD5E1;cursor:not-allowed;}`;
 
 const Dim = styled.div`padding:16px;text-align:center;font-size:12px;color:#94A3B8;`;
-const EmptyBox = styled.div`
-  background:#fff;border:1px dashed #CBD5E1;border-radius:14px;
-  padding:48px 24px;text-align:center;display:flex;flex-direction:column;gap:8px;align-items:center;
-`;
-const EmptyTitle = styled.div`font-size:14px;font-weight:700;color:#334155;`;
-const EmptyDesc = styled.div`font-size:12px;color:#64748B;line-height:1.6;max-width:400px;`;
 
 // 프로젝트 멤버 카드
 const MemberList = styled.div`display:flex;flex-direction:column;gap:6px;margin-bottom:8px;`;

@@ -37,6 +37,8 @@ const OpsCapacityLog = require('./OpsCapacityLog');
 const BusinessCloudToken = require('./BusinessCloudToken');
 const QnoteUsage = require('./QnoteUsage');
 const BusinessPlanHistory = require('./BusinessPlanHistory');
+const Post = require('./Post');
+const PostAttachment = require('./PostAttachment');
 
 // ============================================
 // Associations
@@ -128,6 +130,17 @@ Business.hasMany(QnoteUsage, { as: 'qnoteUsage', foreignKey: 'business_id' });
 BusinessPlanHistory.belongsTo(Business, { foreignKey: 'business_id' });
 BusinessPlanHistory.belongsTo(User, { as: 'changer', foreignKey: 'changed_by' });
 Business.hasMany(BusinessPlanHistory, { as: 'planHistory', foreignKey: 'business_id' });
+
+// Post + PostAttachment
+Post.belongsTo(Business, { foreignKey: 'business_id' });
+Post.belongsTo(Project, { foreignKey: 'project_id' });
+Post.belongsTo(User, { as: 'author', foreignKey: 'author_id' });
+Post.belongsTo(User, { as: 'editor', foreignKey: 'editor_id' });
+Business.hasMany(Post, { as: 'posts', foreignKey: 'business_id' });
+Project.hasMany(Post, { as: 'posts', foreignKey: 'project_id' });
+PostAttachment.belongsTo(Post, { foreignKey: 'post_id', onDelete: 'CASCADE' });
+PostAttachment.belongsTo(File, { as: 'file', foreignKey: 'file_id' });
+Post.hasMany(PostAttachment, { as: 'attachments', foreignKey: 'post_id' });
 
 // Invoice
 Invoice.belongsTo(Business, { foreignKey: 'business_id' });
@@ -271,6 +284,8 @@ module.exports = {
   BusinessCloudToken,
   QnoteUsage,
   BusinessPlanHistory,
+  Post,
+  PostAttachment,
 };
 
 // CalendarEvent
