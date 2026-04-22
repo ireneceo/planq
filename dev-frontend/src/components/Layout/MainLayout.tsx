@@ -169,6 +169,9 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
 
   const isActive = (path: string) => location.pathname === path || location.pathname.startsWith(path + '/');
 
+  // 플랫폼 관리자 모드: /admin/* 경로일 때만 활성. 워크스페이스 컨텍스트와 완전 분리.
+  const isAdminMode = location.pathname.startsWith('/admin');
+
   const getRoleLabel = (u: typeof user) => {
     if (!u) return '';
     if (u.platform_role === 'platform_admin') return t('role.platform_admin');
@@ -201,9 +204,41 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
           </SidebarToggleButton>
         </SidebarHeader>
 
-        <WorkspaceSwitcher />
+        {isAdminMode ? (
+          <AdminContextBar>
+            <AdminCrown viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M2 4l3 12h14l3-12-6 4-4-8-4 8-6-4z"/>
+            </AdminCrown>
+            <AdminTitle>{t('nav.platformAdminTitle', '플랫폼 관리자')}</AdminTitle>
+            <ExitAdminButton
+              type="button"
+              title={t('nav.exitAdmin', '워크스페이스로 나가기') as string}
+              onClick={() => navigate('/talk')}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+                <path d="M15 18l-6-6 6-6"/>
+              </svg>
+            </ExitAdminButton>
+          </AdminContextBar>
+        ) : (
+          <WorkspaceSwitcher />
+        )}
 
         <SidebarNav>
+          {isAdminMode ? (
+            <NavSection>
+              <NavTitle>{t('nav.sectionAdmin')}</NavTitle>
+              <NavItem to="/admin/users" $active={isActive('/admin/users')}>
+                <NavIcon><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg></NavIcon>
+                {t('nav.users')}
+              </NavItem>
+              <NavItem to="/admin/businesses" $active={isActive('/admin/businesses')}>
+                <NavIcon><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/></svg></NavIcon>
+                {t('nav.businesses')}
+              </NavItem>
+            </NavSection>
+          ) : (
+          <>
           <NavSection>
             <NavItem to="/dashboard" $active={isActive('/dashboard')}>
               <NavIcon><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg></NavIcon>
@@ -273,16 +308,25 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
 
           {hasRole('platform_admin') && (
             <NavSection>
-              <NavTitle>{t('nav.sectionAdmin')}</NavTitle>
-              <NavItem to="/admin/users" $active={isActive('/admin/users')}>
-                <NavIcon><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg></NavIcon>
-                {t('nav.users')}
-              </NavItem>
-              <NavItem to="/admin/businesses" $active={isActive('/admin/businesses')}>
-                <NavIcon><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/></svg></NavIcon>
-                {t('nav.businesses')}
-              </NavItem>
+              <PlatformAdminEntry
+                type="button"
+                onClick={() => navigate('/admin/businesses')}
+                title={t('nav.platformAdminEntryDesc', '') as string}
+              >
+                <PAEntryIcon viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M2 4l3 12h14l3-12-6 4-4-8-4 8-6-4z"/>
+                </PAEntryIcon>
+                <PAEntryBody>
+                  <PAEntryName>{t('nav.platformAdminEntry', '플랫폼 관리자')}</PAEntryName>
+                  <PAEntryDesc>{t('nav.platformAdminEntryDesc', '전체 워크스페이스·사용자 관리')}</PAEntryDesc>
+                </PAEntryBody>
+                <PAEntryArrow viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <polyline points="9 18 15 12 9 6"/>
+                </PAEntryArrow>
+              </PlatformAdminEntry>
             </NavSection>
+          )}
+          </>
           )}
         </SidebarNav>
 
@@ -333,3 +377,56 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
 };
 
 export default MainLayout;
+
+// ─── 플랫폼 관리자 모드 전용 스타일 ───
+// /admin/* 경로에서 WorkspaceSwitcher 자리를 대체한다.
+const AdminContextBar = styled.div`
+  display: flex; align-items: center; gap: 10px;
+  padding: 14px 16px;
+  background: linear-gradient(135deg, rgba(244, 63, 94, 0.12) 0%, rgba(251, 113, 133, 0.06) 100%);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  color: #FCA5A5;
+`;
+const AdminCrown = styled.svg`
+  width: 16px; height: 16px; color: #FB7185; flex-shrink: 0;
+`;
+const AdminTitle = styled.div`
+  flex: 1; font-size: 13px; font-weight: 700; color: #FECACA;
+  letter-spacing: 0.2px;
+`;
+const ExitAdminButton = styled.button`
+  width: 24px; height: 24px; display: flex; align-items: center; justify-content: center;
+  background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.08);
+  color: #FCA5A5; border-radius: 6px; cursor: pointer; transition: all 0.15s;
+  &:hover { background: rgba(251, 113, 133, 0.15); border-color: rgba(251, 113, 133, 0.3); color: #FECACA; }
+  &:focus-visible { outline: 2px solid #FB7185; outline-offset: 2px; }
+`;
+
+// 워크스페이스 모드 사이드바 하단의 "플랫폼 관리자" 진입 버튼
+const PlatformAdminEntry = styled.button`
+  display: flex; align-items: center; gap: 10px;
+  width: calc(100% - 16px); margin: 8px;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(251, 113, 133, 0.22);
+  border-radius: 10px; cursor: pointer; text-align: left;
+  color: #FECACA; transition: all 0.15s;
+  &:hover { background: rgba(251, 113, 133, 0.12); border-color: rgba(251, 113, 133, 0.45); }
+  &:focus-visible { outline: 2px solid #FB7185; outline-offset: 2px; }
+`;
+const PAEntryIcon = styled.svg`
+  width: 16px; height: 16px; color: #FB7185; flex-shrink: 0;
+`;
+const PAEntryBody = styled.div`
+  flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px;
+`;
+const PAEntryName = styled.div`
+  font-size: 12px; font-weight: 700; color: #FECACA; letter-spacing: 0.1px;
+`;
+const PAEntryDesc = styled.div`
+  font-size: 10px; font-weight: 500; color: rgba(252, 165, 165, 0.7);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+`;
+const PAEntryArrow = styled.svg`
+  width: 12px; height: 12px; color: #FB7185; flex-shrink: 0; opacity: 0.7;
+`;

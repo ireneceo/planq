@@ -17,7 +17,11 @@
     "file": "Q file",
     "bill": "Q bill",
     "users": "Users",
-    "businesses": "Businesses"
+    "businesses": "Workspaces",
+    "platformAdminEntry": "Platform Admin",
+    "platformAdminEntryDesc": "Manage all workspaces & users",
+    "platformAdminTitle": "Platform Admin",
+    "exitAdmin": "Back to workspace"
   },
   "user": {
     "profile": "My Profile",
