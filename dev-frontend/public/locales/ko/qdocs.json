@@ -3,6 +3,9 @@
     "title": "Q docs",
     "noWorkspace": "워크스페이스를 먼저 선택하세요"
   },
+  "tab": {
+    "title": "문서"
+  },
   "new": "새 문서",
   "edit": "편집",
   "save": "저장",

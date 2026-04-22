@@ -1,10 +1,11 @@
 // 문서(포스팅) 공용 페이지 — 워크스페이스·프로젝트 공용
-// 마스터-디테일 (좌측 목록 + 우측 편집/보기) + 인라인 첨부 섹션
+// 레이아웃 패턴: Q Note 와 동일 (Sidebar + Content 2컬럼 + PanelHeader)
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 import SearchBox from '../Common/SearchBox';
+import PanelHeader, { PanelTitle, PanelSubTitle } from '../Layout/PanelHeader';
 import InlineAttachPicker from './InlineAttachPicker';
 import CategoryCombobox from '../Common/CategoryCombobox';
 import { uploadMyFile, uploadProjectFile, fetchWorkspaceFiles } from '../../services/files';
@@ -262,13 +263,23 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
 
   const filtered = useMemo(() => rows, [rows]);
 
+  const isEditing = mode === 'new' || (mode === 'edit' && !!detail);
+
   return (
     <Layout>
-      <ListPane>
-        <ListHeader>
-          <SearchBox value={query} onChange={setQuery} placeholder={t('search.placeholder', '제목·내용 검색') as string} />
-          <NewBtn type="button" onClick={startNew}>+ {t('new', '새 문서')}</NewBtn>
-        </ListHeader>
+      <Sidebar>
+        <PanelHeader>
+          <PanelTitle>{scope.type === 'workspace' ? t('page.title', 'Q docs') : t('tab.title', '문서')}</PanelTitle>
+          <NewBtn type="button" onClick={startNew} title={t('new', '새 문서') as string} aria-label={t('new', '새 문서') as string}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+          </NewBtn>
+        </PanelHeader>
+
+        <SearchWrap>
+          <SearchBox value={query} onChange={setQuery} placeholder={t('search.placeholder', '제목·내용·프로젝트 검색') as string} />
+        </SearchWrap>
 
         <FilterSection>
           <Chip type="button" $active={filter.kind === 'all'} onClick={() => setFilter({ kind: 'all' })}>
@@ -336,20 +347,13 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
           )}
         </FilterSection>
 
-        {loading ? (
-          <Dim>{t('loading', '로딩 중…')}</Dim>
-        ) : filtered.length === 0 ? (
-          <EmptyBox>
-            <EmptyIcon viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-              <polyline points="14 2 14 8 20 8"/>
-            </EmptyIcon>
-            <EmptyText>{t('list.empty', '아직 작성된 문서가 없습니다')}</EmptyText>
-            <PrimaryBtn type="button" onClick={startNew}>+ {t('list.createFirst', '첫 문서 작성')}</PrimaryBtn>
-          </EmptyBox>
-        ) : (
-          <RowList>
-            {filtered.map(r => (
+        <RowList>
+          {loading ? (
+            <Dim>{t('loading', '로딩 중…')}</Dim>
+          ) : filtered.length === 0 ? (
+            <EmptyList>{t('list.empty', '아직 작성된 문서가 없습니다')}</EmptyList>
+          ) : (
+            filtered.map(r => (
               <RowItem
                 key={r.id}
                 $active={activeId === r.id}
@@ -359,7 +363,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
                   {r.is_pinned && <PinTag>📌</PinTag>}
                   {r.title}
                 </RowTitle>
-                <RowPreview>{r.content_preview || t('list.noContent', '내용 없음')}</RowPreview>
+                {r.content_preview && <RowPreview>{r.content_preview}</RowPreview>}
                 <RowMeta>
                   <span>{r.author?.name || '—'}</span>
                   <span>·</span>
@@ -370,15 +374,15 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
                   {r.category && <CategoryMini>#{r.category}</CategoryMini>}
                 </RowMeta>
               </RowItem>
-            ))}
-          </RowList>
-        )}
-      </ListPane>
+            ))
+          )}
+        </RowList>
+      </Sidebar>
 
-      <DetailPane>
-        {mode === 'new' || (mode === 'edit' && detail) ? (
-          <EditArea>
-            <EditHead>
+      <Content>
+        {isEditing ? (
+          <>
+            <PanelHeader>
               <TitleInput
                 autoFocus={mode === 'new'}
                 value={titleDraft}
@@ -392,121 +396,120 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
                   {saving ? t('saving', '저장 중…') : t('save', '저장')}
                 </PrimaryBtn>
               </EditActions>
-            </EditHead>
-            <CategoryCombobox
-              value={categoryDraft}
-              onChange={setCategoryDraft}
-              options={meta.categories.map(c => c.name)}
-              placeholder={t('categoryPlaceholder', '카테고리 (예: 매뉴얼, 가이드, 회의록)') as string}
-            />
-            {error && <ErrorBar>{error}</ErrorBar>}
-            <PostEditor value={contentDraft} onChange={setContentDraft} placeholder={t('contentPlaceholder', '본문을 작성하세요…') as string} />
-
-            {/* 편집/신규 공통 첨부 섹션 — 상시 노출 (접기 없음) */}
-            <AttachSection>
-              <AttachTitle>{t('attachments', '첨부 파일')}</AttachTitle>
-
-              {/* 선택/연결된 파일 리스트 — 파일명 좌측정렬, 한 줄씩 세로 쌓임 */}
-              {mode === 'edit' && detail && detail.attachments.length > 0 && (
-                <AttachList>
-                  {detail.attachments.map(a => (
-                    <AttachRow key={a.id}>
-                      <AttachName href={a.file?.download_url || '#'} target="_blank" rel="noreferrer">
-                        {a.file?.file_name || '—'}
-                      </AttachName>
-                      <RemoveBtn type="button" onClick={() => detachOne(a.id)} title="제거" aria-label="제거">×</RemoveBtn>
-                    </AttachRow>
-                  ))}
-                </AttachList>
-              )}
-              {mode === 'new' && (pendingUploads.length > 0 || pendingExistingIds.length > 0) && (
-                <AttachList>
-                  {pendingUploads.map((f, i) => (
-                    <AttachRow key={`u-${i}`}>
-                      <AttachName as="span">{f.name}</AttachName>
-                      <RemoveBtn type="button" onClick={() => setPendingUploads(prev => prev.filter((_, idx) => idx !== i))} title="제거" aria-label="제거">×</RemoveBtn>
-                    </AttachRow>
-                  ))}
-                  {pendingExistingIds.map(fid => (
-                    <AttachRow key={`e-${fid}`}>
-                      <AttachName as="span">{pendingExistingMeta[fid]?.name || `file #${fid}`}</AttachName>
-                      <RemoveBtn type="button" onClick={() => {
-                        setPendingExistingIds(prev => prev.filter(x => x !== fid));
-                        setPendingExistingMeta(prev => { const c = { ...prev }; delete c[fid]; return c; });
-                      }} title="제거" aria-label="제거">×</RemoveBtn>
-                    </AttachRow>
-                  ))}
-                </AttachList>
-              )}
-
-              {/* 인라인 첨부 선택기 — 상시 노출 */}
-              <InlineAttachPicker
-                businessId={scope.businessId}
-                excludeIds={[
-                  ...(detail?.attachments?.map(a => a.file_id).filter((x): x is number => !!x) || []),
-                  ...pendingExistingIds,
-                ]}
-                onPickFiles={handlePickFiles}
-                onPickExisting={handlePickExisting}
+            </PanelHeader>
+            <Body>
+              <CategoryCombobox
+                value={categoryDraft}
+                onChange={setCategoryDraft}
+                options={meta.categories.map(c => c.name)}
+                placeholder={t('categoryPlaceholder', '카테고리 (예: 매뉴얼, 가이드, 회의록)') as string}
               />
-            </AttachSection>
-          </EditArea>
+              {error && <ErrorBar>{error}</ErrorBar>}
+              <PostEditor value={contentDraft} onChange={setContentDraft} placeholder={t('contentPlaceholder', '본문을 작성하세요…') as string} />
+
+              <AttachSection>
+                <AttachTitle>{t('attachments', '첨부 파일')}</AttachTitle>
+                {mode === 'edit' && detail && detail.attachments.length > 0 && (
+                  <AttachList>
+                    {detail.attachments.map(a => (
+                      <AttachRow key={a.id}>
+                        <AttachName href={a.file?.download_url || '#'} target="_blank" rel="noreferrer">
+                          {a.file?.file_name || '—'}
+                        </AttachName>
+                        <RemoveBtn type="button" onClick={() => detachOne(a.id)} title="제거" aria-label="제거">×</RemoveBtn>
+                      </AttachRow>
+                    ))}
+                  </AttachList>
+                )}
+                {mode === 'new' && (pendingUploads.length > 0 || pendingExistingIds.length > 0) && (
+                  <AttachList>
+                    {pendingUploads.map((f, i) => (
+                      <AttachRow key={`u-${i}`}>
+                        <AttachName as="span">{f.name}</AttachName>
+                        <RemoveBtn type="button" onClick={() => setPendingUploads(prev => prev.filter((_, idx) => idx !== i))} title="제거" aria-label="제거">×</RemoveBtn>
+                      </AttachRow>
+                    ))}
+                    {pendingExistingIds.map(fid => (
+                      <AttachRow key={`e-${fid}`}>
+                        <AttachName as="span">{pendingExistingMeta[fid]?.name || `file #${fid}`}</AttachName>
+                        <RemoveBtn type="button" onClick={() => {
+                          setPendingExistingIds(prev => prev.filter(x => x !== fid));
+                          setPendingExistingMeta(prev => { const c = { ...prev }; delete c[fid]; return c; });
+                        }} title="제거" aria-label="제거">×</RemoveBtn>
+                      </AttachRow>
+                    ))}
+                  </AttachList>
+                )}
+                <InlineAttachPicker
+                  businessId={scope.businessId}
+                  excludeIds={[
+                    ...(detail?.attachments?.map(a => a.file_id).filter((x): x is number => !!x) || []),
+                    ...pendingExistingIds,
+                  ]}
+                  onPickFiles={handlePickFiles}
+                  onPickExisting={handlePickExisting}
+                />
+              </AttachSection>
+            </Body>
+          </>
         ) : detail ? (
-          <ViewArea>
-            <ViewHead>
-              <ViewTitle>
-                {detail.is_pinned && <PinTag>📌</PinTag>}
+          <>
+            <PanelHeader>
+              <PanelSubTitle>
+                {detail.is_pinned && <PinTag>📌 </PinTag>}
                 {detail.title}
-              </ViewTitle>
-              <ViewActions>
+              </PanelSubTitle>
+              <EditActions>
                 <SecondaryBtn type="button" onClick={startEdit}>{t('edit', '편집')}</SecondaryBtn>
                 <DangerBtn type="button" onClick={() => setDeleteTarget(detail)}>{t('delete', '삭제')}</DangerBtn>
-              </ViewActions>
-            </ViewHead>
-            <ViewMeta>
-              <span>{detail.author?.name || '—'}</span>
-              <span>·</span>
-              <span>{formatDate(detail.created_at)}</span>
-              {detail.editor && detail.editor.id !== detail.author?.id && (
-                <><span>·</span><span>{t('editedBy', '수정: {{name}}', { name: detail.editor.name })}</span></>
-              )}
-              {detail.project && (
-                <ProjectTag $color={detail.project.color || '#14B8A6'}>{detail.project.name}</ProjectTag>
-              )}
-              {detail.category && (
-                <CategoryTag
-                  type="button"
-                  onClick={() => setFilter({ kind: 'category', name: detail.category! })}
-                  title={t('filter.filterBy', '이 카테고리로 필터') as string}
-                >
-                  #{detail.category}
-                </CategoryTag>
-              )}
-            </ViewMeta>
-            <PostEditor value={detail.content_json} onChange={() => {}} editable={false} />
+              </EditActions>
+            </PanelHeader>
+            <Body>
+              <ViewMeta>
+                <span>{detail.author?.name || '—'}</span>
+                <span>·</span>
+                <span>{formatDate(detail.created_at)}</span>
+                {detail.editor && detail.editor.id !== detail.author?.id && (
+                  <><span>·</span><span>{t('editedBy', '수정: {{name}}', { name: detail.editor.name })}</span></>
+                )}
+                {detail.project && (
+                  <ProjectTag $color={detail.project.color || '#14B8A6'}>{detail.project.name}</ProjectTag>
+                )}
+                {detail.category && (
+                  <CategoryTag
+                    type="button"
+                    onClick={() => setFilter({ kind: 'category', name: detail.category! })}
+                    title={t('filter.filterBy', '이 카테고리로 필터') as string}
+                  >
+                    #{detail.category}
+                  </CategoryTag>
+                )}
+              </ViewMeta>
+              <PostEditor value={detail.content_json} onChange={() => {}} editable={false} />
 
-            <AttachSection>
-              <AttachTitle>{t('attachments', '첨부 파일')}</AttachTitle>
-              {detail.attachments.length > 0 && (
-                <AttachList>
-                  {detail.attachments.map(a => (
-                    <AttachRow key={a.id}>
-                      <AttachName href={a.file?.download_url || '#'} target="_blank" rel="noreferrer">
-                        {a.file?.file_name || '—'}
-                      </AttachName>
-                      <RemoveBtn type="button" onClick={() => detachOne(a.id)} title="제거" aria-label="제거">×</RemoveBtn>
-                    </AttachRow>
-                  ))}
-                </AttachList>
-              )}
-              <InlineAttachPicker
-                businessId={scope.businessId}
-                excludeIds={detail.attachments?.map(a => a.file_id).filter((x): x is number => !!x) || []}
-                onPickFiles={handlePickFiles}
-                onPickExisting={handlePickExisting}
-              />
-            </AttachSection>
-          </ViewArea>
+              <AttachSection>
+                <AttachTitle>{t('attachments', '첨부 파일')}</AttachTitle>
+                {detail.attachments.length > 0 && (
+                  <AttachList>
+                    {detail.attachments.map(a => (
+                      <AttachRow key={a.id}>
+                        <AttachName href={a.file?.download_url || '#'} target="_blank" rel="noreferrer">
+                          {a.file?.file_name || '—'}
+                        </AttachName>
+                        <RemoveBtn type="button" onClick={() => detachOne(a.id)} title="제거" aria-label="제거">×</RemoveBtn>
+                      </AttachRow>
+                    ))}
+                  </AttachList>
+                )}
+                <InlineAttachPicker
+                  businessId={scope.businessId}
+                  excludeIds={detail.attachments?.map(a => a.file_id).filter((x): x is number => !!x) || []}
+                  onPickFiles={handlePickFiles}
+                  onPickExisting={handlePickExisting}
+                />
+              </AttachSection>
+            </Body>
+          </>
         ) : (
           <Placeholder>
             <PlaceholderIcon viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
@@ -518,7 +521,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
             <PlaceholderText>{t('selectOrCreate', '왼쪽 목록에서 문서를 선택하거나 새 문서를 작성하세요')}</PlaceholderText>
           </Placeholder>
         )}
-      </DetailPane>
+      </Content>
 
       <ConfirmDialog
         isOpen={!!deleteTarget}
@@ -536,30 +539,36 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
 
 export default PostsPage;
 
-// ─── styled ───
+// ─── styled ─── (Q Note 패턴 — Sidebar + Content 2컬럼 + PanelHeader)
 const Layout = styled.div`
-  display: grid; grid-template-columns: 320px 1fr; gap: 16px;
-  align-items: start;
+  display: grid; grid-template-columns: 320px 1fr;
+  height: 100%; min-height: 0; background: #fff;
+  border: 1px solid #E2E8F0; border-radius: 12px; overflow: hidden;
   @media (max-width: 900px) { grid-template-columns: 1fr; }
 `;
-const ListPane = styled.div`
-  background: #fff; border: 1px solid #E2E8F0; border-radius: 14px;
-  display: flex; flex-direction: column; overflow: hidden;
-`;
-const ListHeader = styled.div`
-  padding: 12px; display: flex; gap: 8px; border-bottom: 1px solid #F1F5F9;
-  > *:first-child { flex: 1; }
+
+// 좌측 사이드바 (리스트)
+const Sidebar = styled.aside`
+  display: flex; flex-direction: column;
+  background: #fff; border-right: 1px solid #E2E8F0;
+  min-height: 0;
+  @media (max-width: 900px) { border-right: none; border-bottom: 1px solid #E2E8F0; }
 `;
 const NewBtn = styled.button`
-  height: 34px; padding: 0 12px; background: #14B8A6; color: #fff;
-  border: none; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer;
-  white-space: nowrap;
+  width: 32px; height: 32px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: #14B8A6; color: #fff; border: none; border-radius: 8px; cursor: pointer;
+  transition: background 0.15s;
   &:hover { background: #0D9488; }
+  &:focus-visible { outline: 2px solid #0D9488; outline-offset: 2px; }
+`;
+const SearchWrap = styled.div`
+  padding: 12px 16px 8px; border-bottom: 1px solid #F1F5F9;
 `;
 const FilterSection = styled.div`
-  padding: 10px 12px; border-bottom: 1px solid #F1F5F9;
+  padding: 10px 16px; border-bottom: 1px solid #F1F5F9;
   display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
-  max-height: 180px; overflow-y: auto;
+  max-height: 160px; overflow-y: auto;
 `;
 const FilterGroupLabel = styled.div`
   width: 100%; font-size: 10px; font-weight: 700; color: #94A3B8;
@@ -580,11 +589,9 @@ const Chip = styled.button<{ $active: boolean }>`
   &:focus-visible { outline: 2px solid #14B8A6; outline-offset: 2px; }
 `;
 const Count = styled.span`
-  background: rgba(255, 255, 255, 0.25);
+  background: rgba(15, 23, 42, 0.08); color: #64748B;
   padding: 0 6px; border-radius: 999px; font-size: 10px; font-weight: 700;
-  ${Chip}:not([aria-pressed="true"]) & {
-    background: rgba(15, 23, 42, 0.08); color: #64748B;
-  }
+  ${Chip}[data-active="true"] & { background: rgba(255, 255, 255, 0.25); color: #fff; }
 `;
 const ColorDot = styled.span<{ $color: string }>`
   width: 6px; height: 6px; border-radius: 50%; background: ${p => p.$color};
@@ -605,20 +612,16 @@ const NewCatInput = styled.input`
   background: #fff; font-size: 11px; color: #0F172A; min-width: 140px;
   &:focus { outline: none; box-shadow: 0 0 0 2px rgba(20,184,166,0.2); }
 `;
-const CategoryTag = styled.button`
-  all: unset; cursor: pointer;
-  display: inline-flex; align-items: center; padding: 2px 8px;
-  background: #F0FDFA; color: #0F766E;
-  border-radius: 999px; font-size: 11px; font-weight: 600;
-  &:hover { background: #CCFBF1; }
+
+// 리스트 (세로 무제한 스크롤)
+const RowList = styled.div`
+  flex: 1; min-height: 0;
+  display: flex; flex-direction: column;
+  overflow-y: auto;
 `;
-const CategoryMini = styled.span`
-  display: inline-flex; padding: 1px 6px; background: #F0FDFA; color: #0F766E;
-  border-radius: 999px; font-size: 10px; font-weight: 600;
-`;
-const RowList = styled.div`display: flex; flex-direction: column; max-height: calc(100vh - 240px); overflow-y: auto;`;
 const RowItem = styled.button<{ $active: boolean }>`
-  all: unset; cursor: pointer; padding: 12px 14px;
+  all: unset; cursor: pointer;
+  padding: 12px 16px;
   border-bottom: 1px solid #F1F5F9;
   background: ${p => p.$active ? '#F0FDFA' : 'transparent'};
   &:hover { background: ${p => p.$active ? '#F0FDFA' : '#F8FAFC'}; }
@@ -633,46 +636,66 @@ const RowPreview = styled.div`
   margin-top: 4px; font-size: 12px; color: #64748B; line-height: 1.5;
   overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
 `;
-const RowMeta = styled.div`margin-top: 6px; display: flex; align-items: center; gap: 4px; font-size: 11px; color: #94A3B8; flex-wrap: wrap;`;
-const PinTag = styled.span`font-size: 11px;`;
+const RowMeta = styled.div`
+  margin-top: 6px;
+  display: flex; align-items: center; gap: 4px;
+  font-size: 11px; color: #94A3B8; flex-wrap: wrap;
+`;
+const EmptyList = styled.div`padding: 40px 20px; color: #94A3B8; font-size: 12px; text-align: center;`;
+const Dim = styled.div`padding: 24px 16px; color: #94A3B8; font-size: 12px; text-align: center;`;
+
+// 우측 컨텐츠
+const Content = styled.section`
+  display: flex; flex-direction: column;
+  min-height: 0; overflow: hidden;
+`;
+const Body = styled.div`
+  flex: 1; min-height: 0;
+  padding: 20px 24px;
+  overflow-y: auto;
+  display: flex; flex-direction: column; gap: 16px;
+`;
+const TitleInput = styled.input`
+  flex: 1; height: 34px; padding: 0 10px;
+  background: #fff; border: 1px solid #E2E8F0; border-radius: 8px;
+  font-size: 16px; font-weight: 700; color: #0F172A;
+  &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 2px rgba(20,184,166,0.15); }
+`;
+const EditActions = styled.div`display: flex; gap: 8px;`;
+const ViewMeta = styled.div`
+  display: flex; align-items: center; gap: 8px;
+  font-size: 12px; color: #94A3B8; flex-wrap: wrap;
+`;
+
+// 태그
+const PinTag = styled.span`font-size: 12px;`;
 const ProjectTag = styled.span<{ $color: string }>`
   display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px;
   background: #F1F5F9; color: #475569; border-radius: 999px; font-size: 10px; font-weight: 600;
   &::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: ${p => p.$color}; }
 `;
-const Dim = styled.div`padding: 24px 16px; color: #94A3B8; font-size: 12px; text-align: center;`;
-
-const DetailPane = styled.div`
-  background: transparent; min-height: 400px;
+const CategoryTag = styled.button`
+  all: unset; cursor: pointer;
+  display: inline-flex; align-items: center; padding: 2px 8px;
+  background: #F0FDFA; color: #0F766E;
+  border-radius: 999px; font-size: 11px; font-weight: 600;
+  &:hover { background: #CCFBF1; }
 `;
-const EditArea = styled.div`display: flex; flex-direction: column; gap: 12px;`;
-const EditHead = styled.div`display: flex; gap: 8px; align-items: center;`;
-const TitleInput = styled.input`
-  flex: 1; height: 44px; padding: 0 14px;
-  background: #fff; border: 1px solid #E2E8F0; border-radius: 10px;
-  font-size: 18px; font-weight: 700; color: #0F172A;
-  &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 2px rgba(20,184,166,0.15); }
+const CategoryMini = styled.span`
+  display: inline-flex; padding: 1px 6px; background: #F0FDFA; color: #0F766E;
+  border-radius: 999px; font-size: 10px; font-weight: 600;
 `;
-const EditActions = styled.div`display: flex; gap: 8px;`;
 
-const ViewArea = styled.div`display: flex; flex-direction: column; gap: 12px;`;
-const ViewHead = styled.div`display: flex; gap: 8px; align-items: flex-start;`;
-const ViewTitle = styled.h1`
-  flex: 1; margin: 0; font-size: 22px; font-weight: 700; color: #0F172A;
-  display: flex; align-items: center; gap: 8px;
-`;
-const ViewActions = styled.div`display: flex; gap: 8px;`;
-const ViewMeta = styled.div`display: flex; align-items: center; gap: 8px; font-size: 12px; color: #94A3B8; flex-wrap: wrap;`;
-
+// 첨부 섹션
 const AttachSection = styled.section`
-  background: #fff; border: 1px solid #E2E8F0; border-radius: 12px;
+  background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 12px;
   padding: 16px 20px;
   display: flex; flex-direction: column; gap: 12px;
 `;
 const AttachTitle = styled.div`font-size: 13px; font-weight: 700; color: #334155;`;
 const AttachList = styled.div`
   display: flex; flex-direction: column;
-  border: 1px solid #EEF2F6; border-radius: 8px; overflow: hidden;
+  background: #fff; border: 1px solid #EEF2F6; border-radius: 8px; overflow: hidden;
 `;
 const AttachRow = styled.div`
   display: flex; align-items: center; gap: 10px; padding: 10px 12px;
@@ -682,8 +705,7 @@ const AttachRow = styled.div`
 `;
 const AttachName = styled.a`
   flex: 1; min-width: 0; font-size: 13px; color: #0F172A; text-decoration: none;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  text-align: left;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left;
   &:hover { color: #0F766E; text-decoration: underline; }
 `;
 const RemoveBtn = styled.button`
@@ -693,20 +715,17 @@ const RemoveBtn = styled.button`
   &:hover { background: #FEE2E2; color: #DC2626; }
 `;
 
+// 빈 상태 (우측)
 const Placeholder = styled.div`
-  background: #fff; border: 1px dashed #CBD5E1; border-radius: 14px;
-  padding: 64px 24px; display: flex; flex-direction: column; align-items: center; gap: 10px;
+  flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 10px; padding: 40px 24px; color: #94A3B8;
 `;
-const PlaceholderIcon = styled.svg`width: 36px; height: 36px; color: #94A3B8;`;
+const PlaceholderIcon = styled.svg`width: 40px; height: 40px; color: #CBD5E1;`;
 const PlaceholderText = styled.div`font-size: 13px; color: #64748B; text-align: center; max-width: 320px; line-height: 1.5;`;
 
-const EmptyBox = styled.div`
-  padding: 40px 20px; display: flex; flex-direction: column; align-items: center; gap: 10px;
-`;
-const EmptyIcon = styled.svg`width: 32px; height: 32px; color: #94A3B8;`;
-const EmptyText = styled.div`font-size: 12px; color: #94A3B8;`;
 const ErrorBar = styled.div`font-size: 12px; color: #DC2626; background: #FEF2F2; padding: 8px 12px; border-radius: 6px;`;
 
+// 버튼 (세 톤 — CLAUDE.md 규칙)
 const PrimaryBtn = styled.button`
   height: 34px; padding: 0 14px; background: #14B8A6; color: #fff; border: none; border-radius: 8px;
   font-size: 13px; font-weight: 600; cursor: pointer;
