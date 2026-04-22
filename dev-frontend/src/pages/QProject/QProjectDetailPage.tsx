@@ -666,7 +666,9 @@ const QProjectDetailPage: React.FC = () => {
       )}
       {tab === 'files' && <DocsTab projectId={projectId} businessId={project.business_id} />}
       {tab === 'docs' && (
-        <PostsPage scope={{ type: 'project', businessId: project.business_id, projectId }} />
+        <div style={{ height: 'calc(100vh - 240px)', minHeight: '500px' }}>
+          <PostsPage scope={{ type: 'project', businessId: project.business_id, projectId }} />
+        </div>
       )}
       {tab === 'clients' && (
         <ClientsBody>

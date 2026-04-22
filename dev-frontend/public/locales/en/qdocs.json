@@ -3,6 +3,9 @@
     "title": "Q docs",
     "noWorkspace": "Please select a workspace first"
   },
+  "tab": {
+    "title": "Docs"
+  },
   "new": "New",
   "edit": "Edit",
   "save": "Save",
