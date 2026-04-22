@@ -493,12 +493,44 @@ const QProjectDetailPage: React.FC = () => {
                   {PROJECT_COLORS.map(c => (
                     <ColorSwatch key={c} type="button" $active={(project.color || '').toLowerCase() === c.toLowerCase()}
                       style={{ background: c }}
+                      title={c}
                       onClick={async () => {
                         await apiFetch(`/api/projects/${projectId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ color: c }) });
                         setProject(prev => prev ? { ...prev, color: c } : prev);
                       }} />
                   ))}
                 </ColorRow>
+                <HexRow>
+                  <HexPreview style={{ background: project.color || '#E2E8F0' }} />
+                  <HexNativePicker
+                    type="color"
+                    value={/^#[0-9a-fA-F]{6}$/.test(project.color || '') ? (project.color as string) : '#14B8A6'}
+                    onChange={async e => {
+                      const v = e.target.value;
+                      setProject(prev => prev ? { ...prev, color: v } : prev);
+                      await apiFetch(`/api/projects/${projectId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ color: v }) });
+                    }}
+                    title="색상 선택기"
+                    aria-label="색상 선택기"
+                  />
+                  <HexInput
+                    type="text"
+                    maxLength={7}
+                    placeholder="#RRGGBB"
+                    defaultValue={project.color || ''}
+                    onBlur={async e => {
+                      let v = e.target.value.trim();
+                      if (v && !v.startsWith('#')) v = '#' + v;
+                      if (v && !/^#[0-9a-fA-F]{6}$/.test(v)) {
+                        e.target.value = project.color || '';
+                        return;
+                      }
+                      const next = v || null;
+                      await apiFetch(`/api/projects/${projectId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ color: next }) });
+                      setProject(prev => prev ? { ...prev, color: next } : prev);
+                    }}
+                  />
+                </HexRow>
               </EditField>
               <EditField style={{ gridColumn: '1 / -1' }}>
                 <EditLabel>설명</EditLabel>
@@ -836,6 +868,18 @@ const EditDateRangeTrigger = styled.button`width:100%;height:34px;padding:0 10px
 const DatePH = styled.span`color:#94A3B8;`;
 const ColorRow = styled.div`display:flex;flex-wrap:nowrap;gap:8px;align-items:center;justify-content:space-between;padding:2px 0;width:100%;`;
 const ColorSwatch = styled.button<{$active?:boolean}>`width:28px;height:28px;border-radius:50%;border:2px solid ${p=>p.$active?'#0F172A':'#E2E8F0'};cursor:pointer;padding:0;transition:transform 0.15s;&:hover{transform:scale(1.1);}`;
+const HexRow = styled.div`display:flex;align-items:center;gap:8px;margin-top:8px;`;
+const HexPreview = styled.div`width:28px;height:28px;border-radius:8px;border:1px solid #E2E8F0;flex-shrink:0;`;
+const HexNativePicker = styled.input`
+  width:36px;height:28px;padding:0;border:1px solid #CBD5E1;border-radius:6px;background:transparent;cursor:pointer;
+  &::-webkit-color-swatch-wrapper{padding:2px;}
+  &::-webkit-color-swatch{border:none;border-radius:4px;}
+`;
+const HexInput = styled.input`
+  width:110px;height:28px;padding:0 10px;border:1px solid #CBD5E1;border-radius:6px;
+  font-size:12px;font-family:'SFMono-Regular',Menlo,Consolas,monospace;color:#0F172A;letter-spacing:0.5px;
+  &:focus{outline:none;border-color:#14B8A6;box-shadow:0 0 0 2px rgba(20,184,166,0.15);}
+`;
 const ClientsBody = styled.div``;
 const Card = styled.div`background:#FFF;border:1px solid #E2E8F0;border-radius:10px;padding:16px;`;
 const CardTitle = styled.h3`margin:0 0 12px;font-size:14px;font-weight:700;color:#0F172A;display:flex;align-items:center;gap:8px;small{font-size:11px;font-weight:600;color:#64748B;}`;
