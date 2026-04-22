@@ -675,6 +675,7 @@ const Body = styled.div`
   flex: 1; min-height: 0;
   padding: 24px 28px;
   overflow-y: auto;
+  background: #F8FAFC;
   display: flex; flex-direction: column; gap: 16px;
 `;
 const TitleInput = styled.input`
