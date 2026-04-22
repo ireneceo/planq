@@ -4,7 +4,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const { v4: uuidv4 } = require('uuid');
-const { Task, TaskAttachment, TaskComment, User, BusinessMember, BusinessCloudToken, Project } = require('../models');
+const { Task, TaskAttachment, TaskComment, User, BusinessMember, BusinessCloudToken, Project, File } = require('../models');
 const { authenticateToken } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const gdrive = require('../services/gdrive');
@@ -140,6 +140,55 @@ router.post('/:taskId/attachments',
     }
   }
 );
+
+// ============================================
+// POST /api/tasks/:taskId/attachments/link — 기존 Q file 파일을 task 첨부로 참조
+// body: { file_ids: number[], context?: 'task'|'comment', comment_id? }
+// 메타만 복사해 TaskAttachment 생성, 물리 파일은 원본 Files 레코드와 공유.
+// ============================================
+router.post('/:taskId/attachments/link', authenticateToken, async (req, res, next) => {
+  try {
+    if (!(await loadTaskAndGuard(req, res))) return;
+    const fileIds = Array.isArray(req.body?.file_ids) ? req.body.file_ids.map(Number).filter(Boolean) : [];
+    if (fileIds.length === 0) return errorResponse(res, 'file_ids required', 400);
+    const context = ['comment'].includes(req.body?.context) ? 'comment' : 'task';
+    const commentId = context === 'comment' ? Number(req.body?.comment_id || 0) || null : null;
+    if (context === 'comment' && !commentId) return errorResponse(res, 'comment_id required', 400);
+
+    const files = await File.findAll({
+      where: { id: fileIds, business_id: req._task.business_id, deleted_at: null }
+    });
+    const created = [];
+    for (const f of files) {
+      const att = await TaskAttachment.create({
+        business_id: req._task.business_id,
+        task_id: req._task.id,
+        comment_id: commentId,
+        context,
+        original_name: f.file_name,
+        stored_name: f.file_path.split('/').pop() || f.file_name,
+        file_path: f.file_path,
+        file_size: f.file_size,
+        mime_type: f.mime_type,
+        uploaded_by: req.user.id,
+        storage_provider: f.storage_provider,
+        external_id: f.external_id,
+        external_url: f.external_url,
+      });
+      created.push({
+        id: att.id,
+        context: att.context,
+        original_name: att.original_name,
+        file_size: att.file_size,
+        mime_type: att.mime_type,
+        download_url: `/api/tasks/attachments/${att.id}/download`,
+        preview_url: att.mime_type?.startsWith('image/') ? `/api/tasks/public/attach/${att.stored_name}` : null,
+        created_at: att.created_at,
+      });
+    }
+    return successResponse(res, created, `${created.length} file(s) linked`);
+  } catch (err) { next(err); }
+});
 
 // ============================================
 // GET /api/tasks/:taskId/attachments — 리스트 (task + comment 모두)

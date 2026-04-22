@@ -1,8 +1,9 @@
-// Task 첨부파일 UI — 드래그앤드롭 + 업로드 + 리스트 + 다운로드 + 삭제
+// Task 첨부파일 UI — 드래그앤드롭 + 업로드 + 리스트 + 다운로드 + 삭제 + 기존 파일 선택
 import { useCallback, useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
-import { apiFetch } from '../../contexts/AuthContext';
+import { apiFetch, useAuth } from '../../contexts/AuthContext';
 import ConfirmDialog from '../Common/ConfirmDialog';
+import FilePicker, { type FilePickerResult } from '../Common/FilePicker';
 
 type AttachRow = {
   id: number;
@@ -23,12 +24,15 @@ type Props = {
 };
 
 export default function TaskAttachments({ taskId, onChangeCount }: Props) {
+  const { user } = useAuth();
+  const businessId = user?.business_id || 0;
   const [rows, setRows] = useState<AttachRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<AttachRow | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
@@ -109,7 +113,7 @@ export default function TaskAttachments({ taskId, onChangeCount }: Props) {
     <Wrap>
       <Head>
         <Title>첨부파일 {visibleRows.length > 0 && <Count>({visibleRows.length})</Count>}</Title>
-        <AddBtn type="button" onClick={() => inputRef.current?.click()} disabled={uploading}>
+        <AddBtn type="button" onClick={() => setPickerOpen(true)} disabled={uploading}>
           + 파일 추가
         </AddBtn>
         <input ref={inputRef} type="file" multiple hidden
@@ -155,6 +159,29 @@ export default function TaskAttachments({ taskId, onChangeCount }: Props) {
         confirmText="삭제"
         cancelText="취소"
         variant="danger"
+      />
+      <FilePicker
+        open={pickerOpen}
+        onClose={() => setPickerOpen(false)}
+        businessId={businessId}
+        onPick={async (r: FilePickerResult) => {
+          if (r.uploaded && r.uploaded.length > 0) {
+            await upload(r.uploaded);
+          }
+          if (r.existingFileIds && r.existingFileIds.length > 0) {
+            setUploading(true);
+            try {
+              const res = await apiFetch(`/api/tasks/${taskId}/attachments/link`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ file_ids: r.existingFileIds, context: 'task' })
+              });
+              const j = await res.json();
+              if (!j.success) setError(j?.message || 'link_failed');
+              load();
+            } finally { setUploading(false); }
+          }
+        }}
       />
     </Wrap>
   );
