@@ -1,10 +1,36 @@
 {
   "page": {
     "title": "Q docs",
-    "noWorkspace": "Please select a workspace first",
-    "empty": {
-      "title": "Docs coming soon",
-      "desc": "A post-style document space (manuals, guides, announcements) is in the works. Use Q file for file management for now."
-    }
+    "noWorkspace": "Please select a workspace first"
+  },
+  "new": "New",
+  "edit": "Edit",
+  "save": "Save",
+  "saving": "Saving…",
+  "cancel": "Cancel",
+  "delete": "Delete",
+  "loading": "Loading…",
+  "titlePlaceholder": "Document title",
+  "contentPlaceholder": "Start writing…",
+  "selectOrCreate": "Select a document from the list or create a new one.",
+  "attachments": "Attachments",
+  "attachAdd": "Add file",
+  "attachmentsEmpty": "No attachments yet",
+  "editedBy": "Edited: {{name}}",
+  "deleteTitle": "Delete document",
+  "deleteMessage": "Delete \"{{title}}\"? This action cannot be undone.",
+  "search": {
+    "placeholder": "Search title / content"
+  },
+  "list": {
+    "empty": "No documents yet",
+    "createFirst": "Create first document",
+    "noContent": "(empty)"
+  },
+  "filepicker": {
+    "attachTitle": "Pick file(s) to attach"
+  },
+  "validation": {
+    "titleRequired": "Title is required"
   }
 }
