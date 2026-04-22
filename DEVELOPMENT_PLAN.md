@@ -71,12 +71,10 @@ SHA-256 dedup: 같은 파일 여러 폴더/프로젝트 첨부 시 물리 파일
 | Phase | 내용 | 예상 | 상태 |
 |---|---|---|:-:|
 | **Phase 2B** | Google Drive App Folder OAuth + Direct upload + Webhook | 4일 | ⏳ 선결: OAuth 앱 등록 |
-| **Phase 2C** | Dropbox App Folder 연동 | 2일 | ⏳ |
 | **Phase 4** | Q Docs 전역 페이지 (동일 DocsTab scope 재사용) | 1일 | ⏳ |
 
-**OAuth 선결 (Irene 작업 — 각 15분)**
+**OAuth 선결 (Irene 작업 — 15분)**
 - Google Cloud Console — OAuth Client ID + redirect URI (dev.planq.kr 먼저) + 동의 화면
-- Dropbox App Console — 앱 등록 (Scoped Access, App Folder 모드)
 
 ### 알려진 범위 외 이슈
 - `QProjectDetailPage.tsx` 전반 기존 한글 하드코딩 62건 — 별도 작업으로 분기 (Phase 2A 와 무관)

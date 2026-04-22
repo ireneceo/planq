@@ -34,8 +34,10 @@ async function run() {
     const [providerRows] = await sequelize.query(
       "SELECT storage_provider, COUNT(*) as n FROM files WHERE deleted_at IS NULL GROUP BY storage_provider"
     );
-    const byProvider = { planq: 0, gdrive: 0, dropbox: 0 };
-    for (const r of providerRows) byProvider[r.storage_provider] = Number(r.n);
+    const byProvider = { planq: 0, gdrive: 0 };
+    for (const r of providerRows) {
+      if (byProvider[r.storage_provider] !== undefined) byProvider[r.storage_provider] = Number(r.n);
+    }
 
     const stage = determineStage(bizCount, totalBytes);
 
@@ -50,14 +52,13 @@ async function run() {
       total_files: totalFiles,
       planq_share: byProvider.planq,
       gdrive_share: byProvider.gdrive,
-      dropbox_share: byProvider.dropbox,
       stage_reached: stage,
       notes: stageChanged ? `Stage changed ${prev.stage_reached} → ${stage}` : null
     });
 
     const gb = (totalBytes / (1024 * 1024 * 1024)).toFixed(2);
     const stageLabel = stage === 0 ? 'Stage 0 (OK)' : `Stage ${stage}`;
-    console.log(`[OPS] biz=${bizCount} files=${totalFiles} used=${gb}GB stage=${stageLabel} providers=planq:${byProvider.planq}/gdrive:${byProvider.gdrive}/dropbox:${byProvider.dropbox}`);
+    console.log(`[OPS] biz=${bizCount} files=${totalFiles} used=${gb}GB stage=${stageLabel} providers=planq:${byProvider.planq}/gdrive:${byProvider.gdrive}`);
 
     if (stageChanged) {
       const msg = `[OPS ALERT] Stage ${prev.stage_reached} → ${stage}: businesses=${bizCount}, storage=${gb}GB. docs/OPS_ROADMAP.md 참조.`;
