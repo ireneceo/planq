@@ -106,20 +106,32 @@ router.get('/', authenticateToken, async (req, res, next) => {
     else if (req.query.project_id) where.project_id = Number(req.query.project_id);
     if (req.query.category) where.category = String(req.query.category);
     if (req.query.mine === '1') where.author_id = req.user.id;
+
+    // 통합 검색: 제목·본문·카테고리·프로젝트명 모두 매칭
+    const include = [
+      { model: User, as: 'author', attributes: ['id', 'name'] },
+      { model: Project, attributes: ['id', 'name', 'color'], required: false },
+    ];
     if (req.query.q) {
       const qStr = String(req.query.q);
-      where[Op.or] = [
-        { title: { [Op.like]: `%${qStr}%` } },
-        { content_text: { [Op.like]: `%${qStr}%` } },
-        { category: { [Op.like]: `%${qStr}%` } },
+      const like = `%${qStr}%`;
+      // 프로젝트명 매칭 위해 project id 미리 조회 — 이름에 q 가 포함된 프로젝트 id 들
+      const projectsByName = await Project.findAll({
+        where: { business_id: businessId, name: { [Op.like]: like } },
+        attributes: ['id'],
+      });
+      const projIds = projectsByName.map(p => p.id);
+      const orConds = [
+        { title: { [Op.like]: like } },
+        { content_text: { [Op.like]: like } },
+        { category: { [Op.like]: like } },
       ];
+      if (projIds.length > 0) orConds.push({ project_id: { [Op.in]: projIds } });
+      where[Op.or] = orConds;
     }
     const rows = await Post.findAll({
       where,
-      include: [
-        { model: User, as: 'author', attributes: ['id', 'name'] },
-        { model: Project, attributes: ['id', 'name', 'color'], required: false },
-      ],
+      include,
       order: [['is_pinned', 'DESC'], ['updated_at', 'DESC']],
       limit: 200,
     });

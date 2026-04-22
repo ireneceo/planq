@@ -98,7 +98,7 @@ const DocsTab: React.FC<Props> = (props) => {
     const byFolder: Record<number, number> = {};
     let directRoot = 0;
     let myFiles = 0;
-    const bySrc: Record<FileSource, number> = { direct: 0, chat: 0, task: 0, meeting: 0 };
+    const bySrc: Record<FileSource, number> = { direct: 0, chat: 0, task: 0, meeting: 0, post: 0 };
     for (const f of files) {
       bySrc[f.source]++;
       if (f.source === 'direct') {
@@ -727,7 +727,7 @@ const ProjectGroups: React.FC<ProjectGroupsProps> = ({ projectGroups, counts, to
         );
       })}
       <TreeDivider />
-      {(['chat', 'task', 'meeting'] as FileSource[]).map(src => (
+      {(['chat', 'task', 'meeting', 'post'] as FileSource[]).map(src => (
         <FolderRow key={src} $selected={selected === `src:${src}`} onClick={() => onSelect(`src:${src}`)}>
           <FolderIconWrap $sys={src} $selected={selected === `src:${src}`}><SystemFolderIcon src={src} /></FolderIconWrap>
           <FolderName>{sourceShortLabel(src, tr)}</FolderName>
@@ -893,7 +893,7 @@ const FolderTree: React.FC<FolderTreeProps> = ({ folders, counts, total, project
         {rootFolders.map(f => renderFolder(f, 1))}
 
         {/* 시스템 폴더 — 프로젝트 하위로 들여쓰기, 섹션 제목 없이 1 레벨 들여쓰기로 표현 */}
-        {(['chat', 'task', 'meeting'] as FileSource[]).map(src => (
+        {(['chat', 'task', 'meeting', 'post'] as FileSource[]).map(src => (
           <FolderRow key={src} $selected={selected === `src:${src}`} onClick={() => onSelect(`src:${src}`)} style={{ paddingLeft: 22 }}>
             <FolderIconWrap $sys={src} $selected={selected === `src:${src}`}><SystemFolderIcon src={src} /></FolderIconWrap>
             <FolderName>{sourceShortLabel(src, tr)}</FolderName>
@@ -957,6 +957,7 @@ function sourceShortLabel(s: FileSource, t: (k: string, fb?: string) => string):
   if (s === 'chat') return t('docs.source.chat', '채팅');
   if (s === 'task') return t('docs.source.task', '업무');
   if (s === 'meeting') return t('docs.source.meeting', '회의');
+  if (s === 'post') return t('docs.source.post', '문서');
   return t('docs.source.direct', '직접');
 }
 
@@ -1027,6 +1028,14 @@ const SystemFolderIcon: React.FC<{ src: FileSource; size?: number }> = ({ src, s
   if (src === 'chat') return <ChatSvg size={size} />;
   if (src === 'task') return <TaskSvg size={size} />;
   if (src === 'meeting') return <MicSvg size={size} />;
+  if (src === 'post') return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+      <polyline points="14 2 14 8 20 8"/>
+      <line x1="16" y1="13" x2="8" y2="13"/>
+      <line x1="16" y1="17" x2="8" y2="17"/>
+    </svg>
+  );
   return <FolderSvg size={size} />;
 };
 

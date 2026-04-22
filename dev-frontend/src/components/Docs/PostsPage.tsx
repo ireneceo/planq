@@ -1,11 +1,11 @@
 // 문서(포스팅) 공용 페이지 — 워크스페이스·프로젝트 공용
-// 마스터-디테일 (좌측 목록 + 우측 편집/보기) + FilePicker 로 첨부
+// 마스터-디테일 (좌측 목록 + 우측 편집/보기) + 인라인 첨부 섹션
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 import SearchBox from '../Common/SearchBox';
-import FilePicker, { type FilePickerResult } from '../Common/FilePicker';
+import InlineAttachPicker from './InlineAttachPicker';
 import CategoryCombobox from '../Common/CategoryCombobox';
 import { uploadMyFile, uploadProjectFile, fetchWorkspaceFiles } from '../../services/files';
 import ConfirmDialog from '../Common/ConfirmDialog';
@@ -17,10 +17,10 @@ import {
   type PostRow, type PostDetail, type PostsMeta,
 } from '../../services/posts';
 
-// 좌측 필터: 전체 / 내 문서 / 프로젝트 그룹 / 카테고리
+// 좌측 필터: 전체(기본) / 프로젝트 그룹 / 카테고리
+// '내 문서'·'기본' 섹션은 제거. 상단 통합검색이 프로젝트명·제목·본문·카테고리를 모두 커버.
 type FilterSel =
   | { kind: 'all' }
-  | { kind: 'mine' }
   | { kind: 'project'; projectId: number }
   | { kind: 'category'; name: string };
 
@@ -49,7 +49,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
   const [categoryDraft, setCategoryDraft] = useState<string>('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [pickerOpen, setPickerOpen] = useState(false);
+  const [attachOpen, setAttachOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<PostDetail | null>(null);
   const [newCatOpen, setNewCatOpen] = useState(false);
   const [newCatDraft, setNewCatDraft] = useState('');
@@ -70,8 +70,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
         query: query || undefined,
       };
       if (scope.type === 'project') apiFilter.projectId = scope.projectId;
-      if (filter.kind === 'mine') apiFilter.mine = true;
-      else if (filter.kind === 'project') apiFilter.projectId = filter.projectId;
+      if (filter.kind === 'project') apiFilter.projectId = filter.projectId;
       else if (filter.kind === 'category') apiFilter.category = filter.name;
 
       const list = await fetchPosts(scope.businessId, apiFilter);
@@ -211,46 +210,48 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
     await load(); await loadMeta();
   };
 
-  const onAttach = async (r: FilePickerResult) => {
-    // 신규 작성 모드: 저장 전이라 post_id 가 없음 → pending 리스트에 예약
+  // 로컬 파일 업로드 요청 — 신규면 예약, 편집이면 즉시 upload+attach
+  const handlePickFiles = async (files: File[]) => {
     if (mode === 'new') {
-      if (r.uploaded?.length) setPendingUploads(prev => [...prev, ...r.uploaded!]);
-      if (r.existingFileIds?.length) {
-        // 메타 조회 (파일명/크기 표시용) — workspaceFiles 에서 id 매칭
-        const all = await fetchWorkspaceFiles(scope.businessId);
-        const meta = { ...pendingExistingMeta };
-        for (const fid of r.existingFileIds) {
-          const hit = all.find(f => f.id === `direct-${fid}`);
-          if (hit) meta[fid] = { name: hit.file_name, size: hit.file_size };
-        }
-        setPendingExistingMeta(meta);
-        setPendingExistingIds(prev => [...prev, ...r.existingFileIds!]);
-      }
+      setPendingUploads(prev => [...prev, ...files]);
       return;
     }
-
-    // 편집 모드: 기존 문서에 즉시 연결
     if (!detail) return;
-    const fileIdsToAttach: number[] = [];
-    if (r.uploaded && r.uploaded.length > 0) {
-      for (const f of r.uploaded) {
-        const result = scope.type === 'project'
-          ? await uploadProjectFile(scope.businessId, scope.projectId, f)
-          : await uploadMyFile(scope.businessId, f);
-        if (result.success && result.file) {
-          const fid = Number(result.file.id.replace(/^direct-/, ''));
-          if (fid) fileIdsToAttach.push(fid);
-        }
+    const fileIds: number[] = [];
+    for (const f of files) {
+      const result = scope.type === 'project'
+        ? await uploadProjectFile(scope.businessId, scope.projectId, f)
+        : await uploadMyFile(scope.businessId, f);
+      if (result.success && result.file) {
+        const fid = Number(result.file.id.replace(/^direct-/, ''));
+        if (fid) fileIds.push(fid);
       }
     }
-    if (r.existingFileIds && r.existingFileIds.length > 0) {
-      fileIdsToAttach.push(...r.existingFileIds);
-    }
-    if (fileIdsToAttach.length > 0) {
-      await attachToPost(detail.id, fileIdsToAttach);
+    if (fileIds.length > 0) {
+      await attachToPost(detail.id, fileIds);
       const reloaded = await fetchPost(detail.id);
       setDetail(reloaded);
     }
+  };
+
+  // 기존 파일 선택 — 신규면 예약, 편집이면 즉시 attach
+  const handlePickExisting = async (fileIds: number[]) => {
+    if (fileIds.length === 0) return;
+    if (mode === 'new') {
+      const all = await fetchWorkspaceFiles(scope.businessId);
+      const meta = { ...pendingExistingMeta };
+      for (const fid of fileIds) {
+        const hit = all.find(f => f.id === `direct-${fid}`);
+        if (hit) meta[fid] = { name: hit.file_name, size: hit.file_size };
+      }
+      setPendingExistingMeta(meta);
+      setPendingExistingIds(prev => [...prev, ...fileIds.filter(id => !prev.includes(id))]);
+      return;
+    }
+    if (!detail) return;
+    await attachToPost(detail.id, fileIds);
+    const reloaded = await fetchPost(detail.id);
+    setDetail(reloaded);
   };
 
   const detachOne = async (attId: number) => {
@@ -271,14 +272,9 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
         </ListHeader>
 
         <FilterSection>
-          <FilterGroupLabel>{t('filter.basic', '기본') as string}</FilterGroupLabel>
           <Chip type="button" $active={filter.kind === 'all'} onClick={() => setFilter({ kind: 'all' })}>
             {t('filter.all', '전체') as string}
             <Count>{meta.total}</Count>
-          </Chip>
-          <Chip type="button" $active={filter.kind === 'mine'} onClick={() => setFilter({ kind: 'mine' })}>
-            {t('filter.mine', '내 문서') as string}
-            {meta.myCount > 0 && <Count>{meta.myCount}</Count>}
           </Chip>
 
           {scope.type === 'workspace' && meta.projects.length > 0 && (
@@ -407,60 +403,66 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
             {error && <ErrorBar>{error}</ErrorBar>}
             <PostEditor value={contentDraft} onChange={setContentDraft} placeholder={t('contentPlaceholder', '본문을 작성하세요…') as string} />
 
-            {/* 편집 모드에서도 첨부 섹션 노출 — 기존/신규 문서 모두 */}
-            {mode === 'edit' && detail && (
-              <AttachSection>
-                <AttachHead>
-                  <AttachTitle>{t('attachments', '첨부 파일')}</AttachTitle>
-                  <SecondaryBtn type="button" onClick={() => setPickerOpen(true)}>+ {t('attachAdd', '첨부 추가')}</SecondaryBtn>
-                </AttachHead>
-                {detail.attachments.length === 0 ? (
-                  <Dim>{t('attachmentsEmpty', '첨부 파일이 없습니다')}</Dim>
-                ) : (
-                  <AttachList>
-                    {detail.attachments.map(a => (
-                      <AttachRow key={a.id}>
-                        <AttachName href={a.file?.download_url || '#'} target="_blank" rel="noreferrer">
-                          {a.file?.file_name || '—'}
-                        </AttachName>
-                        <RemoveBtn type="button" onClick={() => detachOne(a.id)} title="제거">×</RemoveBtn>
-                      </AttachRow>
-                    ))}
-                  </AttachList>
-                )}
-              </AttachSection>
-            )}
-            {mode === 'new' && (
-              <AttachSection>
-                <AttachHead>
-                  <AttachTitle>{t('attachments', '첨부 파일')}</AttachTitle>
-                  <SecondaryBtn type="button" onClick={() => setPickerOpen(true)}>+ {t('attachAdd', '첨부 추가')}</SecondaryBtn>
-                </AttachHead>
-                {pendingUploads.length === 0 && pendingExistingIds.length === 0 ? (
-                  <Dim>{t('attachmentsEmptyNew', '첨부를 미리 선택해두면 문서 저장 시 함께 등록됩니다') as string}</Dim>
-                ) : (
-                  <AttachList>
-                    {pendingUploads.map((f, i) => (
-                      <AttachRow key={`u-${i}`}>
-                        <AttachPendingBadge>{t('pendingUpload', '업로드 대기') as string}</AttachPendingBadge>
-                        <AttachName as="span">{f.name}</AttachName>
-                        <RemoveBtn type="button" onClick={() => setPendingUploads(prev => prev.filter((_, idx) => idx !== i))} title="제거">×</RemoveBtn>
-                      </AttachRow>
-                    ))}
-                    {pendingExistingIds.map(fid => (
-                      <AttachRow key={`e-${fid}`}>
-                        <AttachPendingBadge $existing>{t('pendingExisting', '기존 파일') as string}</AttachPendingBadge>
-                        <AttachName as="span">{pendingExistingMeta[fid]?.name || `file #${fid}`}</AttachName>
-                        <RemoveBtn type="button" onClick={() => {
-                          setPendingExistingIds(prev => prev.filter(x => x !== fid));
-                          setPendingExistingMeta(prev => { const c = { ...prev }; delete c[fid]; return c; });
-                        }} title="제거">×</RemoveBtn>
-                      </AttachRow>
-                    ))}
-                  </AttachList>
-                )}
-              </AttachSection>
-            )}
+            {/* 편집/신규 공통 첨부 섹션 — 인라인 확장 */}
+            <AttachSection>
+              <AttachHead>
+                <AttachTitle>{t('attachments', '첨부 파일')}</AttachTitle>
+                <SecondaryBtn type="button" onClick={() => setAttachOpen(v => !v)}>
+                  {attachOpen ? t('attachFold', '접기') : `+ ${t('attachAdd', '첨부 추가')}`}
+                </SecondaryBtn>
+              </AttachHead>
+
+              {/* 이미 선택/연결된 파일 리스트 */}
+              {mode === 'edit' && detail && detail.attachments.length > 0 && (
+                <AttachList>
+                  {detail.attachments.map(a => (
+                    <AttachRow key={a.id}>
+                      <AttachName href={a.file?.download_url || '#'} target="_blank" rel="noreferrer">
+                        {a.file?.file_name || '—'}
+                      </AttachName>
+                      <RemoveBtn type="button" onClick={() => detachOne(a.id)} title="제거">×</RemoveBtn>
+                    </AttachRow>
+                  ))}
+                </AttachList>
+              )}
+              {mode === 'new' && (pendingUploads.length > 0 || pendingExistingIds.length > 0) && (
+                <AttachList>
+                  {pendingUploads.map((f, i) => (
+                    <AttachRow key={`u-${i}`}>
+                      <AttachPendingBadge>{t('pendingUpload', '업로드 대기') as string}</AttachPendingBadge>
+                      <AttachName as="span">{f.name}</AttachName>
+                      <RemoveBtn type="button" onClick={() => setPendingUploads(prev => prev.filter((_, idx) => idx !== i))} title="제거">×</RemoveBtn>
+                    </AttachRow>
+                  ))}
+                  {pendingExistingIds.map(fid => (
+                    <AttachRow key={`e-${fid}`}>
+                      <AttachPendingBadge $existing>{t('pendingExisting', '기존 파일') as string}</AttachPendingBadge>
+                      <AttachName as="span">{pendingExistingMeta[fid]?.name || `file #${fid}`}</AttachName>
+                      <RemoveBtn type="button" onClick={() => {
+                        setPendingExistingIds(prev => prev.filter(x => x !== fid));
+                        setPendingExistingMeta(prev => { const c = { ...prev }; delete c[fid]; return c; });
+                      }} title="제거">×</RemoveBtn>
+                    </AttachRow>
+                  ))}
+                </AttachList>
+              )}
+              {mode === 'edit' && detail && detail.attachments.length === 0
+                && !attachOpen && <Dim>{t('attachmentsEmpty', '첨부 파일이 없습니다')}</Dim>}
+              {mode === 'new' && pendingUploads.length === 0 && pendingExistingIds.length === 0
+                && !attachOpen && <Dim>{t('attachmentsEmptyNew', '첨부를 미리 선택해두면 문서 저장 시 함께 등록됩니다')}</Dim>}
+
+              {/* 인라인 첨부 선택기 (펼침) */}
+              <InlineAttachPicker
+                businessId={scope.businessId}
+                hide={!attachOpen}
+                excludeIds={[
+                  ...(detail?.attachments?.map(a => a.file_id).filter((x): x is number => !!x) || []),
+                  ...pendingExistingIds,
+                ]}
+                onPickFiles={handlePickFiles}
+                onPickExisting={handlePickExisting}
+              />
+            </AttachSection>
           </EditArea>
         ) : detail ? (
           <ViewArea>
@@ -499,11 +501,13 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
             <AttachSection>
               <AttachHead>
                 <AttachTitle>{t('attachments', '첨부 파일')}</AttachTitle>
-                <SecondaryBtn type="button" onClick={() => setPickerOpen(true)}>+ {t('attachAdd', '첨부 추가')}</SecondaryBtn>
+                <SecondaryBtn type="button" onClick={() => setAttachOpen(v => !v)}>
+                  {attachOpen ? t('attachFold', '접기') : `+ ${t('attachAdd', '첨부 추가')}`}
+                </SecondaryBtn>
               </AttachHead>
-              {detail.attachments.length === 0 ? (
+              {detail.attachments.length === 0 && !attachOpen ? (
                 <Dim>{t('attachmentsEmpty', '첨부 파일이 없습니다')}</Dim>
-              ) : (
+              ) : detail.attachments.length > 0 && (
                 <AttachList>
                   {detail.attachments.map(a => (
                     <AttachRow key={a.id}>
@@ -515,6 +519,13 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
                   ))}
                 </AttachList>
               )}
+              <InlineAttachPicker
+                businessId={scope.businessId}
+                hide={!attachOpen}
+                excludeIds={detail.attachments?.map(a => a.file_id).filter((x): x is number => !!x) || []}
+                onPickFiles={handlePickFiles}
+                onPickExisting={handlePickExisting}
+              />
             </AttachSection>
           </ViewArea>
         ) : (
@@ -530,14 +541,6 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
         )}
       </DetailPane>
 
-      <FilePicker
-        open={pickerOpen}
-        onClose={() => setPickerOpen(false)}
-        businessId={scope.businessId}
-        variant="modal"
-        title={t('filepicker.attachTitle', '첨부할 파일 선택') as string}
-        onPick={onAttach}
-      />
       <ConfirmDialog
         isOpen={!!deleteTarget}
         onClose={() => setDeleteTarget(null)}
