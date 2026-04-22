@@ -7,7 +7,7 @@ import { useTimeFormat } from '../../hooks/useTimeFormat';
 import SearchBox from '../Common/SearchBox';
 import FilePicker, { type FilePickerResult } from '../Common/FilePicker';
 import CategoryCombobox from '../Common/CategoryCombobox';
-import { uploadMyFile, uploadProjectFile } from '../../services/files';
+import { uploadMyFile, uploadProjectFile, fetchWorkspaceFiles } from '../../services/files';
 import ConfirmDialog from '../Common/ConfirmDialog';
 import PostEditor from './PostEditor';
 import {
@@ -53,6 +53,10 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
   const [deleteTarget, setDeleteTarget] = useState<PostDetail | null>(null);
   const [newCatOpen, setNewCatOpen] = useState(false);
   const [newCatDraft, setNewCatDraft] = useState('');
+  // 신규 모드(Post.id 미존재) 에서 첨부 예약용 — 저장 직후 attach 일괄 처리
+  const [pendingUploads, setPendingUploads] = useState<File[]>([]);
+  const [pendingExistingIds, setPendingExistingIds] = useState<number[]>([]);
+  const [pendingExistingMeta, setPendingExistingMeta] = useState<Record<number, { name: string; size: number }>>({});
   const submittingRef = useRef(false);
 
   // 워크스페이스 모드: project_id 필터 없음(모든 문서), 프로젝트 모드: project_id=scope.projectId
@@ -109,6 +113,9 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
     setContentDraft(null);
     // 현재 필터가 카테고리면 해당 카테고리로 프리필
     setCategoryDraft(filter.kind === 'category' ? filter.name : '');
+    setPendingUploads([]);
+    setPendingExistingIds([]);
+    setPendingExistingMeta({});
     setError(null);
   };
 
@@ -127,6 +134,9 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
       setTitleDraft('');
       setContentDraft(null);
       setCategoryDraft('');
+      setPendingUploads([]);
+      setPendingExistingIds([]);
+      setPendingExistingMeta({});
     } else if (detail) {
       setMode('view');
       setTitleDraft(detail.title);
@@ -152,9 +162,30 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
           content_json: contentDraft as any,
           category: categoryVal,
         });
-        setDetail(created);
-        setActiveId(created.id);
+        // 신규 작성 시 예약된 첨부를 한 번에 처리
+        const fileIdsToAttach: number[] = [...pendingExistingIds];
+        if (pendingUploads.length > 0) {
+          for (const f of pendingUploads) {
+            const result = scope.type === 'project'
+              ? await uploadProjectFile(scope.businessId, scope.projectId, f)
+              : await uploadMyFile(scope.businessId, f);
+            if (result.success && result.file) {
+              const fid = Number(result.file.id.replace(/^direct-/, ''));
+              if (fid) fileIdsToAttach.push(fid);
+            }
+          }
+        }
+        let final = created;
+        if (fileIdsToAttach.length > 0) {
+          await attachToPost(created.id, fileIdsToAttach);
+          final = (await fetchPost(created.id)) || created;
+        }
+        setDetail(final);
+        setActiveId(final.id);
         setMode('view');
+        setPendingUploads([]);
+        setPendingExistingIds([]);
+        setPendingExistingMeta({});
         await load(); await loadMeta();
       } else if (mode === 'edit' && detail) {
         const patched = await updatePost(detail.id, {
@@ -181,10 +212,26 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
   };
 
   const onAttach = async (r: FilePickerResult) => {
+    // 신규 작성 모드: 저장 전이라 post_id 가 없음 → pending 리스트에 예약
+    if (mode === 'new') {
+      if (r.uploaded?.length) setPendingUploads(prev => [...prev, ...r.uploaded!]);
+      if (r.existingFileIds?.length) {
+        // 메타 조회 (파일명/크기 표시용) — workspaceFiles 에서 id 매칭
+        const all = await fetchWorkspaceFiles(scope.businessId);
+        const meta = { ...pendingExistingMeta };
+        for (const fid of r.existingFileIds) {
+          const hit = all.find(f => f.id === `direct-${fid}`);
+          if (hit) meta[fid] = { name: hit.file_name, size: hit.file_size };
+        }
+        setPendingExistingMeta(meta);
+        setPendingExistingIds(prev => [...prev, ...r.existingFileIds!]);
+      }
+      return;
+    }
+
+    // 편집 모드: 기존 문서에 즉시 연결
     if (!detail) return;
     const fileIdsToAttach: number[] = [];
-
-    // 1) 새로 업로드할 파일들 → Q file 로 먼저 업로드 후 file_id 수집
     if (r.uploaded && r.uploaded.length > 0) {
       for (const f of r.uploaded) {
         const result = scope.type === 'project'
@@ -196,12 +243,9 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
         }
       }
     }
-
-    // 2) 기존 파일 선택
     if (r.existingFileIds && r.existingFileIds.length > 0) {
       fileIdsToAttach.push(...r.existingFileIds);
     }
-
     if (fileIdsToAttach.length > 0) {
       await attachToPost(detail.id, fileIdsToAttach);
       const reloaded = await fetchPost(detail.id);
@@ -387,9 +431,35 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
               </AttachSection>
             )}
             {mode === 'new' && (
-              <Dim style={{ padding: '12px 2px' }}>
-                {t('attachmentHintNew', '문서 저장 후 첨부 파일을 추가할 수 있습니다') as string}
-              </Dim>
+              <AttachSection>
+                <AttachHead>
+                  <AttachTitle>{t('attachments', '첨부 파일')}</AttachTitle>
+                  <SecondaryBtn type="button" onClick={() => setPickerOpen(true)}>+ {t('attachAdd', '첨부 추가')}</SecondaryBtn>
+                </AttachHead>
+                {pendingUploads.length === 0 && pendingExistingIds.length === 0 ? (
+                  <Dim>{t('attachmentsEmptyNew', '첨부를 미리 선택해두면 문서 저장 시 함께 등록됩니다') as string}</Dim>
+                ) : (
+                  <AttachList>
+                    {pendingUploads.map((f, i) => (
+                      <AttachRow key={`u-${i}`}>
+                        <AttachPendingBadge>{t('pendingUpload', '업로드 대기') as string}</AttachPendingBadge>
+                        <AttachName as="span">{f.name}</AttachName>
+                        <RemoveBtn type="button" onClick={() => setPendingUploads(prev => prev.filter((_, idx) => idx !== i))} title="제거">×</RemoveBtn>
+                      </AttachRow>
+                    ))}
+                    {pendingExistingIds.map(fid => (
+                      <AttachRow key={`e-${fid}`}>
+                        <AttachPendingBadge $existing>{t('pendingExisting', '기존 파일') as string}</AttachPendingBadge>
+                        <AttachName as="span">{pendingExistingMeta[fid]?.name || `file #${fid}`}</AttachName>
+                        <RemoveBtn type="button" onClick={() => {
+                          setPendingExistingIds(prev => prev.filter(x => x !== fid));
+                          setPendingExistingMeta(prev => { const c = { ...prev }; delete c[fid]; return c; });
+                        }} title="제거">×</RemoveBtn>
+                      </AttachRow>
+                    ))}
+                  </AttachList>
+                )}
+              </AttachSection>
             )}
           </EditArea>
         ) : detail ? (
@@ -627,6 +697,13 @@ const AttachName = styled.a`
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   &:hover { color: #0F766E; text-decoration: underline; }
 `;
+const AttachPendingBadge = styled.span<{ $existing?: boolean }>`
+  display: inline-flex; flex-shrink: 0;
+  padding: 2px 8px; border-radius: 999px;
+  font-size: 10px; font-weight: 700; letter-spacing: 0.2px;
+  background: ${p => p.$existing ? '#EEF2FF' : '#FEF3C7'};
+  color: ${p => p.$existing ? '#4338CA' : '#92400E'};
+`;
 const RemoveBtn = styled.button`
   all: unset; cursor: pointer; width: 22px; height: 22px;
   display: flex; align-items: center; justify-content: center;
@@ -655,13 +732,13 @@ const PrimaryBtn = styled.button`
   &:disabled { opacity: 0.5; cursor: not-allowed; }
 `;
 const SecondaryBtn = styled.button`
-  height: 30px; padding: 0 12px; background: #fff; color: #0F172A;
-  border: 1px solid #CBD5E1; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer;
+  height: 34px; padding: 0 14px; background: #fff; color: #0F172A;
+  border: 1px solid #CBD5E1; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer;
   &:hover:not(:disabled) { background: #F8FAFC; }
   &:disabled { opacity: 0.5; cursor: not-allowed; }
 `;
 const DangerBtn = styled.button`
-  height: 30px; padding: 0 12px; background: #fff; color: #DC2626;
-  border: 1px solid #FCA5A5; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer;
+  height: 34px; padding: 0 14px; background: #fff; color: #DC2626;
+  border: 1px solid #FCA5A5; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer;
   &:hover:not(:disabled) { background: #FEF2F2; border-color: #DC2626; }
 `;
