@@ -1,0 +1,109 @@
+{
+  "page": {
+    "title": "워크스페이스 관리",
+    "desc": "플랫폼 관리자 전용 — 플랜 수동 조정, 체험 기간 연장, 변경 이력 조회",
+    "searchPlaceholder": "이름 · 슬러그 검색",
+    "empty": "워크스페이스가 없습니다",
+    "noResults": "검색 결과가 없습니다",
+    "count": "{{count}}개"
+  },
+  "list": {
+    "member": "{{count}}명",
+    "planBadge": {
+      "free": "Free",
+      "starter": "Starter",
+      "basic": "Basic",
+      "pro": "Pro",
+      "enterprise": "Enterprise"
+    },
+    "trialOn": "체험 중",
+    "graceOn": "유예 중",
+    "scheduled": "다음 주기 {{plan}} 예정",
+    "expired": "만료"
+  },
+  "detail": {
+    "planSection": "현재 플랜",
+    "trialSection": "체험 기간",
+    "usageSection": "사용량",
+    "historySection": "변경 이력",
+    "plan": "플랜",
+    "subscriptionStatus": "구독 상태",
+    "planExpiresAt": "유료 만료일",
+    "trialEndsAt": "체험 종료일",
+    "graceEndsAt": "유예 종료일",
+    "scheduledPlan": "예약 플랜",
+    "createdAt": "생성일",
+    "timezone": "타임존",
+    "notSet": "미설정",
+    "members": "멤버",
+    "clients": "고객",
+    "projects": "프로젝트",
+    "conversations": "대화방",
+    "storage": "저장소",
+    "files": "파일",
+    "cueThisMonth": "Cue 이번 달",
+    "qnoteThisMonth": "Q Note 이번 달",
+    "unit": {
+      "count": "{{n}}",
+      "countOf": "{{used}} / {{max}}",
+      "bytes": "{{n}}",
+      "actions": "{{n}}회",
+      "minutes": "{{n}}분"
+    },
+    "infinite": "무제한"
+  },
+  "actions": {
+    "changePlan": "플랜 변경",
+    "extendTrial": "체험 설정",
+    "endTrial": "체험 종료",
+    "cancel": "취소",
+    "save": "저장",
+    "saving": "저장 중…",
+    "saved": "저장됨"
+  },
+  "modal": {
+    "changePlan": {
+      "title": "플랜 수동 변경",
+      "desc": "결제 연동 전 임시 조정입니다. 변경 즉시 반영되며 이력이 기록됩니다.",
+      "from": "현재 플랜",
+      "to": "변경할 플랜",
+      "expiresLabel": "유료 만료일 (선택)",
+      "expiresHelp": "입력 시 해당 일자에 Free 로 자동 다운그레이드. 비우면 변경하지 않음",
+      "noteLabel": "변경 사유",
+      "notePlaceholder": "예: 프로모션 무료 업그레이드 1개월",
+      "confirm": "변경",
+      "success": "플랜이 {{plan}} 으로 변경되었습니다"
+    },
+    "trial": {
+      "title": "체험 기간 설정",
+      "desc": "체험 종료일을 설정하면 해당 일자까지 체험 중 상태가 유지됩니다.",
+      "current": "현재 체험 종료일",
+      "newDate": "새 종료일",
+      "clearDate": "체험 해제 (즉시 종료)",
+      "confirm": "저장",
+      "confirmClear": "체험을 즉시 종료하고 해제합니다.",
+      "success": "체험 기간이 업데이트되었습니다"
+    },
+    "error": "오류: {{msg}}"
+  },
+  "history": {
+    "empty": "이력이 없습니다",
+    "reason": {
+      "upgrade": "업그레이드",
+      "downgrade": "다운그레이드",
+      "trial_start": "체험 시작",
+      "trial_end": "체험 종료",
+      "expire": "만료",
+      "admin_adjust": "관리자 조정",
+      "payment_failed": "결제 실패",
+      "refund": "환불"
+    },
+    "planChange": "{{from}} → {{to}}",
+    "by": "by {{name}}",
+    "system": "시스템",
+    "note": "사유"
+  },
+  "guard": {
+    "noAccess": "플랫폼 관리자 전용 페이지입니다"
+  }
+}
