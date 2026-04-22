@@ -1,0 +1,223 @@
+{
+  "common": {
+    "lastUpdated": "Last updated",
+    "backToHome": "Back to home",
+    "effective": "Effective date"
+  },
+  "privacy": {
+    "title": "Privacy Policy",
+    "intro": "PlanQ (\"the Company\") values your privacy and complies with applicable data protection laws including the Personal Information Protection Act (Korea) and GDPR. This policy explains how we handle personal data through the PlanQ service.",
+    "s1": {
+      "title": "1. Information We Collect",
+      "items": [
+        "Required: email address, password (hashed), name",
+        "Optional: profile photo, phone number, organization name",
+        "Automatically collected: IP address, cookies, access logs, browser/device info",
+        "Payment: handled directly by payment processors (Stripe, PortOne). The Company only stores transaction ID and amount."
+      ]
+    },
+    "s2": {
+      "title": "2. Purpose of Collection",
+      "items": [
+        "Account creation and service operation",
+        "Customer support and inquiry handling",
+        "Paid service billing, refunds, and tax invoice issuance",
+        "Statistical analysis for service improvement (anonymized)",
+        "Fraud prevention and security"
+      ]
+    },
+    "s3": {
+      "title": "3. Third-Party Sharing and International Transfers",
+      "intro": "The Company does not share personal data with third parties without user consent. The following transfers occur only when the user opts in:",
+      "items": [
+        "Google LLC (USA) — when you connect Google Drive: email, OAuth token. Purpose: file storage. Retention: until disconnection.",
+        "Dropbox, Inc. (USA) — when you connect Dropbox: email, OAuth token. Purpose: file storage. Retention: until disconnection.",
+        "Stripe, Inc. (USA / Malaysia) — global card payments: amount, email. Card details handled by Stripe directly.",
+        "PortOne (Iamport Inc., Korea) — Korean payments: amount, email.",
+        "OpenAI, L.L.C. (USA) — Cue AI feature: partial conversation content. Not used for model training (per OpenAI API terms).",
+        "Deepgram, Inc. (USA) — Q Note recording: audio data. Not used for model training."
+      ]
+    },
+    "s4": {
+      "title": "4. Retention Period",
+      "items": [
+        "Upon account deletion: immediate removal (except where retention is legally required)",
+        "Trash files: retained 7 to 90 days by plan, then permanently deleted",
+        "Audit logs: retained 30 days to 7 years by plan",
+        "E-commerce records: up to 5 years per Korean e-commerce law",
+        "Complete deletion within 60 days of user request after contract termination (excluding legally required retention)"
+      ]
+    },
+    "s5": {
+      "title": "5. User Rights",
+      "intro": "Users may exercise the following rights at any time:",
+      "items": [
+        "Right to access personal data",
+        "Right to rectify inaccurate data",
+        "Right to deletion",
+        "Right to restrict processing",
+        "Requests can be submitted via in-app settings or customer support email"
+      ]
+    },
+    "s6": {
+      "title": "6. Data Destruction",
+      "content": "Personal data that has exceeded its retention period or fulfilled its purpose is destroyed without delay. Electronic files are permanently deleted in an unrecoverable manner."
+    },
+    "s7": {
+      "title": "7. Security Measures",
+      "items": [
+        "Encryption (HTTPS in transit, bcrypt password hashing)",
+        "Minimum access privileges and access logging",
+        "Security systems against hacking (firewall, intrusion detection)",
+        "Regular security audits and staff training",
+        "Multi-tenant isolation — complete separation between workspaces"
+      ]
+    },
+    "s8": {
+      "title": "8. Cookies and Similar Technologies",
+      "content": "We use cookies to provide services and improve user experience. You can disable cookies in your browser, but some features may be limited."
+    },
+    "s9": {
+      "title": "9. Children's Privacy",
+      "content": "PlanQ does not accept registrations from users under 14. Any discovered accounts are immediately deleted."
+    },
+    "s10": {
+      "title": "10. Changes to This Policy",
+      "content": "Material changes will be announced via service notice and email at least 7 days before taking effect. Significant changes may require re-consent."
+    },
+    "s11": {
+      "title": "11. Contact",
+      "content": "For privacy-related inquiries, please contact:",
+      "contact": {
+        "officer": "Data Protection Officer",
+        "name": "Irene Lee",
+        "email": "irene@irenecompany.com"
+      }
+    }
+  },
+  "terms": {
+    "title": "Terms of Service",
+    "intro": "These Terms govern the rights, obligations, and responsibilities between PlanQ (\"the Company\") and users.",
+    "s1": {
+      "title": "Article 1 (Definitions)",
+      "items": [
+        "\"Service\" means the PlanQ web application and related features provided by the Company.",
+        "\"User\" means any individual or business entity that agrees to these Terms and uses the Service.",
+        "\"Workspace\" means the organizational unit users create within the Service.",
+        "\"Paid Services\" means subscription tiers (Starter, Basic, Pro, Enterprise) requiring recurring payment."
+      ]
+    },
+    "s2": {
+      "title": "Article 2 (Account)",
+      "items": [
+        "Users must register with accurate information. Impersonation may result in service restriction.",
+        "Account credentials are the user's responsibility. The Company is not liable for losses due to user negligence.",
+        "The Company may refuse or terminate service for identity theft, false information, or Terms violations."
+      ]
+    },
+    "s3": {
+      "title": "Article 3 (Subscription and Payment)",
+      "items": [
+        "Paid Services are billed monthly or yearly with automatic renewal.",
+        "Payment methods: Stripe (global cards), PortOne (Korean payments — cards, KakaoPay, Naver Pay, bank transfer, etc.)",
+        "Users may cancel anytime before the next billing date. Cancellation takes effect from the next billing cycle.",
+        "International users may be charged additional taxes (VAT, GST, sales tax) on top of listed prices.",
+        "Failed payments enter a 7-day grace period. If unpaid, the account reverts to the Free plan."
+      ]
+    },
+    "s4": {
+      "title": "Article 4 (Refund Policy)",
+      "items": [
+        "Monthly plan: 100% refund within 7 days of payment",
+        "Monthly plan: no refund after 7 days",
+        "Yearly plan: 100% refund within 14 days of payment",
+        "Yearly plan: after 14 days, prorated refund of unused period",
+        "Refund requests: via customer support (irene@irenecompany.com)"
+      ]
+    },
+    "s5": {
+      "title": "Article 5 (Plan Changes)",
+      "items": [
+        "Upgrade: applied immediately upon payment (prior payment prorated)",
+        "Downgrade: applied at end of current billing cycle. Excess data read-only for 30 days afterward.",
+        "Scheduled downgrades can be canceled anytime before end of cycle."
+      ]
+    },
+    "s6": {
+      "title": "Article 6 (User Obligations)",
+      "items": [
+        "Users must comply with applicable laws, these Terms, and Company policies.",
+        "Prohibited: actions disrupting service operation, violating other users' rights, infringing intellectual property.",
+        "Prohibited: posting/transmitting illegal content, spam, malware, or content harmful to minors.",
+        "Prohibited: automated bulk access via bots/crawlers (except via official API)."
+      ]
+    },
+    "s7": {
+      "title": "Article 7 (External Service Integrations)",
+      "items": [
+        "Users may connect their own accounts with external cloud services like Google Drive and Dropbox.",
+        "When connected, those services' terms and privacy policies also apply.",
+        "The Company is not liable for damages caused by external service outages or policy changes.",
+        "Users may disconnect integrations anytime. Files in external clouds remain intact after disconnection."
+      ]
+    },
+    "s8": {
+      "title": "Article 8 (Company Obligations)",
+      "items": [
+        "The Company strives to provide continuous and stable service.",
+        "SLA uptime guarantees: Basic 99.0% / Pro 99.5% / Enterprise 99.9%.",
+        "The Company does not share user personal data with third parties without consent.",
+        "Scheduled maintenance and updates are announced in advance."
+      ]
+    },
+    "s9": {
+      "title": "Article 9 (Intellectual Property)",
+      "items": [
+        "Rights to PlanQ, including software, trademarks, and designs, belong to the Company.",
+        "Data uploaded by users (files, text, images) remains the property of the user or respective rights holder.",
+        "The Company uses user data solely for service provision and does not use it for AI model training."
+      ]
+    },
+    "s10": {
+      "title": "Article 10 (Service Interruption and Termination)",
+      "items": [
+        "The Company may temporarily suspend service for maintenance, updates, or force majeure, with advance notice when possible.",
+        "Users may terminate their account anytime. Paid Services end immediately upon termination.",
+        "The Company may restrict or terminate service for Terms violations or fraudulent use, with notice.",
+        "Upon termination, all data is deleted within 60 days (excluding legally required retention)."
+      ]
+    },
+    "s11": {
+      "title": "Article 11 (Disclaimer)",
+      "items": [
+        "The Company is not liable for service interruption due to force majeure, network outages, or external service outages.",
+        "Damages due to user fault (poor password management, incorrect operation) are the user's responsibility.",
+        "The Company does not intervene in transactions or disputes between users or between users and third parties."
+      ]
+    },
+    "s12": {
+      "title": "Article 12 (Governing Law)",
+      "items": [
+        "These Terms are governed by the laws of the Republic of Korea.",
+        "Disputes shall be settled in the Seoul Central District Court as the court of first instance.",
+        "International users agree to final resolution in Korean courts."
+      ]
+    },
+    "s13": {
+      "title": "Article 13 (Changes to Terms)",
+      "items": [
+        "The Company may modify these Terms in accordance with applicable laws or policy changes.",
+        "Changes are announced via service notice and email at least 7 days in advance (30 days for material changes).",
+        "Users who do not agree to modified Terms may discontinue use."
+      ]
+    },
+    "contact": {
+      "title": "Contact",
+      "content": "For inquiries regarding service or these Terms:",
+      "company": "PlanQ",
+      "officer": "Operator",
+      "name": "Irene Lee",
+      "email": "irene@irenecompany.com"
+    }
+  }
+}

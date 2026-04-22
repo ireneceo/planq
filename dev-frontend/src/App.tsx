@@ -15,6 +15,8 @@ import ClientsPage from './pages/Clients/ClientsPage';
 import InvitePage from './pages/Invite/InvitePage';
 import QCalendarPage from './pages/QCalendar/QCalendarPage';
 import QDocsPage from './pages/QDocs/QDocsPage';
+import PrivacyPolicy from './pages/Legal/PrivacyPolicy';
+import TermsOfService from './pages/Legal/TermsOfService';
 import './App.css';
 
 // Placeholder pages - will be replaced per phase
@@ -32,6 +34,8 @@ function App() {
         {/* Public routes */}
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
+        <Route path="/privacy" element={<PrivacyPolicy />} />
+        <Route path="/terms" element={<TermsOfService />} />
 
         {/* Authenticated routes with MainLayout */}
         <Route path="/dashboard" element={
