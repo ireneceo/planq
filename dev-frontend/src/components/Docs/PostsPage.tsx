@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 import SearchBox from '../Common/SearchBox';
 import FilePicker, { type FilePickerResult } from '../Common/FilePicker';
+import CategoryCombobox from '../Common/CategoryCombobox';
 import { uploadMyFile, uploadProjectFile } from '../../services/files';
 import ConfirmDialog from '../Common/ConfirmDialog';
 import PostEditor from './PostEditor';
@@ -353,21 +354,43 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
                 </PrimaryBtn>
               </EditActions>
             </EditHead>
-            <CategoryRow>
-              <CategoryLabel>#</CategoryLabel>
-              <CategoryInput
-                list="post-category-suggestions"
-                value={categoryDraft}
-                onChange={e => setCategoryDraft(e.target.value)}
-                placeholder={t('categoryPlaceholder', '카테고리 (예: 매뉴얼, 가이드, 회의록)') as string}
-                maxLength={40}
-              />
-              <datalist id="post-category-suggestions">
-                {meta.categories.map(c => <option key={c.name} value={c.name} />)}
-              </datalist>
-            </CategoryRow>
+            <CategoryCombobox
+              value={categoryDraft}
+              onChange={setCategoryDraft}
+              options={meta.categories.map(c => c.name)}
+              placeholder={t('categoryPlaceholder', '카테고리 (예: 매뉴얼, 가이드, 회의록)') as string}
+            />
             {error && <ErrorBar>{error}</ErrorBar>}
             <PostEditor value={contentDraft} onChange={setContentDraft} placeholder={t('contentPlaceholder', '본문을 작성하세요…') as string} />
+
+            {/* 편집 모드에서도 첨부 섹션 노출 — 기존/신규 문서 모두 */}
+            {mode === 'edit' && detail && (
+              <AttachSection>
+                <AttachHead>
+                  <AttachTitle>{t('attachments', '첨부 파일')}</AttachTitle>
+                  <SecondaryBtn type="button" onClick={() => setPickerOpen(true)}>+ {t('attachAdd', '첨부 추가')}</SecondaryBtn>
+                </AttachHead>
+                {detail.attachments.length === 0 ? (
+                  <Dim>{t('attachmentsEmpty', '첨부 파일이 없습니다')}</Dim>
+                ) : (
+                  <AttachList>
+                    {detail.attachments.map(a => (
+                      <AttachRow key={a.id}>
+                        <AttachName href={a.file?.download_url || '#'} target="_blank" rel="noreferrer">
+                          {a.file?.file_name || '—'}
+                        </AttachName>
+                        <RemoveBtn type="button" onClick={() => detachOne(a.id)} title="제거">×</RemoveBtn>
+                      </AttachRow>
+                    ))}
+                  </AttachList>
+                )}
+              </AttachSection>
+            )}
+            {mode === 'new' && (
+              <Dim style={{ padding: '12px 2px' }}>
+                {t('attachmentHintNew', '문서 저장 후 첨부 파일을 추가할 수 있습니다') as string}
+              </Dim>
+            )}
           </EditArea>
         ) : detail ? (
           <ViewArea>
@@ -441,6 +464,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
         open={pickerOpen}
         onClose={() => setPickerOpen(false)}
         businessId={scope.businessId}
+        variant="modal"
         title={t('filepicker.attachTitle', '첨부할 파일 선택') as string}
         onPick={onAttach}
       />
@@ -528,19 +552,6 @@ const NewCatInput = styled.input`
   height: 24px; padding: 0 10px; border: 1px solid #14B8A6; border-radius: 999px;
   background: #fff; font-size: 11px; color: #0F172A; min-width: 140px;
   &:focus { outline: none; box-shadow: 0 0 0 2px rgba(20,184,166,0.2); }
-`;
-const CategoryRow = styled.div`
-  display: flex; align-items: center; gap: 6px; padding: 0 2px;
-`;
-const CategoryLabel = styled.div`
-  font-size: 14px; color: #94A3B8; font-weight: 700;
-`;
-const CategoryInput = styled.input`
-  flex: 1; height: 32px; padding: 0 10px;
-  background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px;
-  font-size: 12px; color: #0F172A;
-  &::placeholder { color: #94A3B8; }
-  &:focus { outline: none; border-color: #14B8A6; background: #fff; box-shadow: 0 0 0 2px rgba(20,184,166,0.15); }
 `;
 const CategoryTag = styled.button`
   all: unset; cursor: pointer;

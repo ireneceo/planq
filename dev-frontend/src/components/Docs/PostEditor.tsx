@@ -1,11 +1,14 @@
 // Tiptap 기반 리치텍스트 에디터 — 문서 편집용
-// 툴바: Bold/Italic/Strike · H1~H3 · List · Link · Code · Quote
-import React, { useEffect } from 'react';
+// 툴바: Bold/Italic/Strike · H1~H3 · List · Link · Code · Quote · Image
+// 이미지: 툴바 버튼 / 드래그앤드롭 / 클립보드 붙여넣기 지원
+import React, { useCallback, useEffect, useRef } from 'react';
 import styled from 'styled-components';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
 import Link from '@tiptap/extension-link';
+import Image from '@tiptap/extension-image';
+import { apiFetch } from '../../contexts/AuthContext';
 
 interface Props {
   value: unknown | null;         // Tiptap JSON
@@ -14,7 +17,18 @@ interface Props {
   editable?: boolean;
 }
 
+async function uploadEditorImage(file: File): Promise<string | null> {
+  const fd = new FormData();
+  fd.append('file', file);
+  const r = await apiFetch('/api/posts/editor-image', { method: 'POST', body: fd });
+  const j = await r.json();
+  if (!j.success) return null;
+  return j.data.url as string;
+}
+
 const PostEditor: React.FC<Props> = ({ value, onChange, placeholder, editable = true }) => {
+  const fileRef = useRef<HTMLInputElement>(null);
+
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
@@ -22,11 +36,57 @@ const PostEditor: React.FC<Props> = ({ value, onChange, placeholder, editable = 
       }),
       Placeholder.configure({ placeholder: placeholder || '본문을 작성하세요…' }),
       Link.configure({ openOnClick: false, HTMLAttributes: { rel: 'noopener noreferrer', target: '_blank' } }),
+      Image.configure({ inline: false, allowBase64: false, HTMLAttributes: { class: 'editor-image' } }),
     ],
     content: value as any,
     editable,
     onUpdate: ({ editor }) => onChange(editor.getJSON()),
+    editorProps: {
+      handlePaste: (_view, event) => {
+        const items = event.clipboardData?.items;
+        if (!items) return false;
+        for (let i = 0; i < items.length; i++) {
+          const item = items[i];
+          if (item.type.startsWith('image/')) {
+            const f = item.getAsFile();
+            if (f) {
+              event.preventDefault();
+              uploadEditorImage(f).then(url => {
+                if (url && editor) editor.chain().focus().setImage({ src: url }).run();
+              });
+              return true;
+            }
+          }
+        }
+        return false;
+      },
+      handleDrop: (_view, event) => {
+        const files = event.dataTransfer?.files;
+        if (!files || files.length === 0) return false;
+        const imgs = Array.from(files).filter(f => f.type.startsWith('image/'));
+        if (imgs.length === 0) return false;
+        event.preventDefault();
+        (async () => {
+          for (const f of imgs) {
+            const url = await uploadEditorImage(f);
+            if (url && editor) editor.chain().focus().setImage({ src: url }).run();
+          }
+        })();
+        return true;
+      }
+    }
   });
+
+  const onPickImage = useCallback(() => fileRef.current?.click(), []);
+  const onImageInput = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files) return;
+    for (const f of Array.from(files)) {
+      const url = await uploadEditorImage(f);
+      if (url && editor) editor.chain().focus().setImage({ src: url }).run();
+    }
+    e.target.value = '';
+  }, [editor]);
 
   useEffect(() => {
     if (!editor) return;
@@ -76,6 +136,14 @@ const PostEditor: React.FC<Props> = ({ value, onChange, placeholder, editable = 
               if (url === '') editor.chain().focus().extendMarkRange('link').unsetLink().run();
               else editor.chain().focus().extendMarkRange('link').setLink({ href: url }).run();
             }} title="링크">🔗</ToolBtn>
+            <ToolBtn type="button" onClick={onPickImage} title="이미지 삽입 (또는 붙여넣기/드래그)" aria-label="이미지 삽입">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                <circle cx="8.5" cy="8.5" r="1.5"/>
+                <polyline points="21 15 16 10 5 21"/>
+              </svg>
+            </ToolBtn>
+            <input ref={fileRef} type="file" accept="image/*" multiple hidden onChange={onImageInput} />
           </Group>
           <Sep />
           <Group>
@@ -129,6 +197,8 @@ const Body = styled.div<{ $editable?: boolean }>`
     pre { background: #0F172A; color: #E2E8F0; padding: 12px 14px; border-radius: 8px; font-size: 12px; overflow-x: auto; }
     pre code { background: transparent; color: inherit; padding: 0; }
     a { color: #0D9488; text-decoration: underline; }
+    img.editor-image { max-width: 100%; height: auto; border-radius: 8px; margin: 12px 0; display: block; }
+    img.editor-image.ProseMirror-selectednode { outline: 2px solid #14B8A6; outline-offset: 2px; }
     p.is-editor-empty:first-child::before {
       color: #94A3B8; content: attr(data-placeholder);
       float: left; height: 0; pointer-events: none;

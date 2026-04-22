@@ -2,10 +2,33 @@
 // project_id NULL = 워크스페이스 전역 문서, NOT NULL = 프로젝트 소속
 const express = require('express');
 const router = express.Router();
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
+const { v4: uuidv4 } = require('uuid');
 const { Op } = require('sequelize');
 const { Post, PostAttachment, PostCategory, File, User, Project, BusinessMember, Business } = require('../models');
 const { authenticateToken } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
+
+// 에디터 인라인 이미지 저장 경로
+const EDITOR_IMG_DIR = path.join(__dirname, '..', 'uploads', 'editor-images');
+if (!fs.existsSync(EDITOR_IMG_DIR)) fs.mkdirSync(EDITOR_IMG_DIR, { recursive: true });
+const IMG_EXT = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg']);
+const editorImageUpload = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, EDITOR_IMG_DIR),
+    filename: (_req, file, cb) => {
+      const ext = path.extname(file.originalname).toLowerCase();
+      cb(null, `${uuidv4()}${ext}`);
+    }
+  }),
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+    cb(IMG_EXT.has(ext) ? null : new Error('image_only'), IMG_EXT.has(ext));
+  }
+});
 
 // 워크스페이스 멤버십 확인 헬퍼
 async function assertMember(userId, businessId, isPlatformAdmin) {
@@ -290,6 +313,29 @@ router.delete('/:id/attachments/:attId', authenticateToken, async (req, res, nex
     await att.destroy();
     successResponse(res, null, 'Detached');
   } catch (err) { next(err); }
+});
+
+// ─── 에디터 인라인 이미지 업로드 ───
+// POST /api/posts/editor-image  multipart 'file'
+// 응답: { url: '/api/posts/editor-image/:filename' }
+router.post('/editor-image', authenticateToken, (req, res, next) => {
+  editorImageUpload.single('file')(req, res, (err) => {
+    if (err) return errorResponse(res, err.message || 'upload_failed', 400);
+    if (!req.file) return errorResponse(res, 'file_required', 400);
+    successResponse(res, { url: `/api/posts/editor-image/${req.file.filename}` }, 'uploaded');
+  });
+});
+
+// GET /api/posts/editor-image/:filename — UUID 로 추측 불가, 인증 생략 (img 태그 직접 로드 용)
+router.get('/editor-image/:filename', (req, res) => {
+  const filename = String(req.params.filename || '');
+  // path traversal 방어
+  if (!/^[0-9a-f-]+\.(png|jpe?g|gif|webp|svg)$/i.test(filename)) {
+    return errorResponse(res, 'invalid_filename', 400);
+  }
+  const fp = path.join(EDITOR_IMG_DIR, filename);
+  if (!fs.existsSync(fp)) return errorResponse(res, 'not_found', 404);
+  res.sendFile(fp);
 });
 
 // ─── 카테고리 마스터 CRUD (빈 카테고리도 미리 만들어 둘 수 있음) ───
