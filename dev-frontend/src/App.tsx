@@ -15,6 +15,7 @@ import ClientsPage from './pages/Clients/ClientsPage';
 import InvitePage from './pages/Invite/InvitePage';
 import QCalendarPage from './pages/QCalendar/QCalendarPage';
 import QDocsPage from './pages/QDocs/QDocsPage';
+import AdminBusinessesPage from './pages/Admin/AdminBusinessesPage';
 import PrivacyPolicy from './pages/Legal/PrivacyPolicy';
 import TermsOfService from './pages/Legal/TermsOfService';
 import './App.css';
@@ -171,6 +172,11 @@ function App() {
           </ProtectedRoute>
         } />
 
+        <Route path="/admin/businesses" element={
+          <ProtectedRoute requiredRole={['platform_admin']}>
+            <MainLayout><AdminBusinessesPage /></MainLayout>
+          </ProtectedRoute>
+        } />
         <Route path="/admin/*" element={
           <ProtectedRoute requiredRole={['platform_admin']}>
             <MainLayout><PlaceholderPage title="Admin" /></MainLayout>

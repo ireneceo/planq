@@ -1,0 +1,109 @@
+{
+  "page": {
+    "title": "Workspace Admin",
+    "desc": "Platform-admin only — manual plan adjustment, trial extension, and change history.",
+    "searchPlaceholder": "Search name or slug",
+    "empty": "No workspaces",
+    "noResults": "No matches",
+    "count": "{{count}}"
+  },
+  "list": {
+    "member": "{{count}} members",
+    "planBadge": {
+      "free": "Free",
+      "starter": "Starter",
+      "basic": "Basic",
+      "pro": "Pro",
+      "enterprise": "Enterprise"
+    },
+    "trialOn": "Trial",
+    "graceOn": "Grace",
+    "scheduled": "Next cycle: {{plan}}",
+    "expired": "Expired"
+  },
+  "detail": {
+    "planSection": "Current plan",
+    "trialSection": "Trial",
+    "usageSection": "Usage",
+    "historySection": "Change history",
+    "plan": "Plan",
+    "subscriptionStatus": "Subscription",
+    "planExpiresAt": "Paid expires",
+    "trialEndsAt": "Trial ends",
+    "graceEndsAt": "Grace ends",
+    "scheduledPlan": "Scheduled plan",
+    "createdAt": "Created",
+    "timezone": "Timezone",
+    "notSet": "—",
+    "members": "Members",
+    "clients": "Clients",
+    "projects": "Projects",
+    "conversations": "Chats",
+    "storage": "Storage",
+    "files": "Files",
+    "cueThisMonth": "Cue this month",
+    "qnoteThisMonth": "Q Note this month",
+    "unit": {
+      "count": "{{n}}",
+      "countOf": "{{used}} / {{max}}",
+      "bytes": "{{n}}",
+      "actions": "{{n}} calls",
+      "minutes": "{{n}} min"
+    },
+    "infinite": "Unlimited"
+  },
+  "actions": {
+    "changePlan": "Change plan",
+    "extendTrial": "Trial settings",
+    "endTrial": "End trial",
+    "cancel": "Cancel",
+    "save": "Save",
+    "saving": "Saving…",
+    "saved": "Saved"
+  },
+  "modal": {
+    "changePlan": {
+      "title": "Manual plan change",
+      "desc": "Temporary adjustment before payment integration. Applies immediately and is logged in history.",
+      "from": "Current plan",
+      "to": "New plan",
+      "expiresLabel": "Paid expiry (optional)",
+      "expiresHelp": "If set, auto-downgrade to Free on that date. Leave blank to keep existing.",
+      "noteLabel": "Reason",
+      "notePlaceholder": "e.g. Promo free upgrade for 1 month",
+      "confirm": "Apply",
+      "success": "Plan changed to {{plan}}"
+    },
+    "trial": {
+      "title": "Trial settings",
+      "desc": "Set a trial end date. The workspace stays in Trial state until then.",
+      "current": "Current trial end",
+      "newDate": "New end date",
+      "clearDate": "End trial now",
+      "confirm": "Save",
+      "confirmClear": "This ends the trial immediately.",
+      "success": "Trial settings updated"
+    },
+    "error": "Error: {{msg}}"
+  },
+  "history": {
+    "empty": "No history yet",
+    "reason": {
+      "upgrade": "Upgrade",
+      "downgrade": "Downgrade",
+      "trial_start": "Trial start",
+      "trial_end": "Trial end",
+      "expire": "Expired",
+      "admin_adjust": "Admin",
+      "payment_failed": "Payment failed",
+      "refund": "Refund"
+    },
+    "planChange": "{{from}} → {{to}}",
+    "by": "by {{name}}",
+    "system": "System",
+    "note": "Note"
+  },
+  "guard": {
+    "noAccess": "Platform admin only"
+  }
+}
