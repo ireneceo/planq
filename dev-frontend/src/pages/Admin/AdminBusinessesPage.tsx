@@ -586,7 +586,10 @@ const KLabel = styled.div`width: 110px; font-size: 12px; color: #64748B; flex-sh
 const KValue = styled.div`flex: 1; font-size: 13px; color: #0F172A; display: flex; align-items: center; gap: 6px;`;
 
 // Usage
-const UsageGrid = styled.div`display: grid; grid-template-columns: 1fr 1fr; gap: 12px;`;
+const UsageGrid = styled.div`
+  display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+  @media (max-width: 640px) { grid-template-columns: 1fr; }
+`;
 const UsageCard = styled.div`
   display: flex; flex-direction: column; gap: 6px;
   padding: 10px 12px; background: #F8FAFC; border-radius: 8px;

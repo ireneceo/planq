@@ -17,7 +17,11 @@
     "file": "Q file",
     "bill": "Q bill",
     "users": "사용자",
-    "businesses": "비즈니스"
+    "businesses": "워크스페이스",
+    "platformAdminEntry": "플랫폼 관리자",
+    "platformAdminEntryDesc": "전체 워크스페이스·사용자 관리",
+    "platformAdminTitle": "플랫폼 관리자",
+    "exitAdmin": "워크스페이스로 나가기"
   },
   "user": {
     "profile": "내 프로필",
