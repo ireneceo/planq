@@ -30,7 +30,6 @@ export default QDocsPage;
 
 const FullHeight = styled.div`
   height: 100vh;
-  background: #fff;
   @media (max-width: 768px) { height: calc(100vh - 56px); }
 `;
 const Fallback = styled.div`
