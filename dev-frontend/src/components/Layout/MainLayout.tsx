@@ -213,17 +213,25 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
 
         <SidebarNav>
           {isAdminMode ? (
-            <NavSection>
-              <NavTitle>{t('nav.sectionAdmin')}</NavTitle>
-              <NavItem to="/admin/users" $active={isActive('/admin/users')}>
-                <NavIcon><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg></NavIcon>
-                {t('nav.users')}
-              </NavItem>
-              <NavItem to="/admin/businesses" $active={isActive('/admin/businesses')}>
-                <NavIcon><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/></svg></NavIcon>
-                {t('nav.businesses')}
-              </NavItem>
-            </NavSection>
+            <>
+              <NavSection>
+                <NavItem to="/admin/dashboard" $active={isActive('/admin/dashboard') || location.pathname === '/admin'}>
+                  <NavIcon><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg></NavIcon>
+                  {t('nav.dashboard')}
+                </NavItem>
+              </NavSection>
+              <NavSection>
+                <NavTitle>{t('nav.sectionAdmin')}</NavTitle>
+                <NavItem to="/admin/users" $active={isActive('/admin/users')}>
+                  <NavIcon><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg></NavIcon>
+                  {t('nav.users')}
+                </NavItem>
+                <NavItem to="/admin/businesses" $active={isActive('/admin/businesses')}>
+                  <NavIcon><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/></svg></NavIcon>
+                  {t('nav.businesses')}
+                </NavItem>
+              </NavSection>
+            </>
           ) : (
           <>
           <NavSection>

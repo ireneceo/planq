@@ -110,7 +110,7 @@ const WorkspaceSwitcher: React.FC<Props> = ({ collapsed }) => {
 
   const handleSwitchAdmin = () => {
     setOpen(false);
-    if (!isAdminMode) navigate('/admin/businesses');
+    if (!isAdminMode) navigate('/admin/dashboard');
   };
 
   return (

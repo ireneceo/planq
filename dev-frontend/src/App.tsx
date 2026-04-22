@@ -172,6 +172,12 @@ function App() {
           </ProtectedRoute>
         } />
 
+        <Route path="/admin" element={<Navigate to="/admin/dashboard" replace />} />
+        <Route path="/admin/dashboard" element={
+          <ProtectedRoute requiredRole={['platform_admin']}>
+            <MainLayout><PlaceholderPage title="Platform Dashboard" /></MainLayout>
+          </ProtectedRoute>
+        } />
         <Route path="/admin/businesses" element={
           <ProtectedRoute requiredRole={['platform_admin']}>
             <MainLayout><AdminBusinessesPage /></MainLayout>
