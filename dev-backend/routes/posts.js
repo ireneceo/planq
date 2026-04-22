@@ -3,7 +3,7 @@
 const express = require('express');
 const router = express.Router();
 const { Op } = require('sequelize');
-const { Post, PostAttachment, File, User, Project, BusinessMember, Business } = require('../models');
+const { Post, PostAttachment, PostCategory, File, User, Project, BusinessMember, Business } = require('../models');
 const { authenticateToken } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 
@@ -135,10 +135,20 @@ router.get('/meta', authenticateToken, async (req, res, next) => {
       }
       if (p.author_id === req.user.id) myCount++;
     }
+
+    // 마스터 카테고리 테이블 (빈 카테고리 포함) — scope 와 일치하는 것만
+    const masterCats = await PostCategory.findAll({
+      where: scopeWhere,
+      order: [['sort_order', 'ASC'], ['name', 'ASC']],
+    });
+    for (const mc of masterCats) {
+      if (!catMap.has(mc.name)) catMap.set(mc.name, 0);
+    }
+
     successResponse(res, {
       total: all.length,
       myCount,
-      categories: Array.from(catMap.entries()).map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count),
+      categories: Array.from(catMap.entries()).map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count || a.name.localeCompare(b.name)),
       projects: Array.from(projMap.values()).sort((a, b) => b.count - a.count),
     });
   } catch (err) { next(err); }
@@ -279,6 +289,40 @@ router.delete('/:id/attachments/:attId', authenticateToken, async (req, res, nex
     }
     await att.destroy();
     successResponse(res, null, 'Detached');
+  } catch (err) { next(err); }
+});
+
+// ─── 카테고리 마스터 CRUD (빈 카테고리도 미리 만들어 둘 수 있음) ───
+// POST /api/posts/categories  body: { business_id, project_id?, name }
+router.post('/categories', authenticateToken, async (req, res, next) => {
+  try {
+    const businessId = Number(req.body?.business_id || 0);
+    if (!businessId) return errorResponse(res, 'business_id required', 400);
+    if (!(await assertMember(req.user.id, businessId, req.user.platform_role === 'platform_admin'))) {
+      return errorResponse(res, 'forbidden', 403);
+    }
+    const name = String(req.body?.name || '').trim().slice(0, 40);
+    if (!name) return errorResponse(res, 'name required', 400);
+    const project_id = req.body?.project_id ? Number(req.body.project_id) : null;
+    const [row, created] = await PostCategory.findOrCreate({
+      where: { business_id: businessId, project_id, name },
+      defaults: { business_id: businessId, project_id, name, sort_order: 0 }
+    });
+    successResponse(res, { id: row.id, name: row.name, created });
+  } catch (err) { next(err); }
+});
+
+// DELETE /api/posts/categories/:id
+router.delete('/categories/:id', authenticateToken, async (req, res, next) => {
+  try {
+    const row = await PostCategory.findByPk(req.params.id);
+    if (!row) return errorResponse(res, 'not_found', 404);
+    if (!(await assertMember(req.user.id, row.business_id, req.user.platform_role === 'platform_admin'))) {
+      return errorResponse(res, 'forbidden', 403);
+    }
+    await row.destroy();
+    // 기존 문서의 category 값은 건드리지 않음 (유연성 보존). 단, meta 계산에서는 사라짐.
+    successResponse(res, null, 'deleted');
   } catch (err) { next(err); }
 });
 

@@ -39,6 +39,7 @@ const QnoteUsage = require('./QnoteUsage');
 const BusinessPlanHistory = require('./BusinessPlanHistory');
 const Post = require('./Post');
 const PostAttachment = require('./PostAttachment');
+const PostCategory = require('./PostCategory');
 
 // ============================================
 // Associations
@@ -141,6 +142,8 @@ Project.hasMany(Post, { as: 'posts', foreignKey: 'project_id' });
 PostAttachment.belongsTo(Post, { foreignKey: 'post_id', onDelete: 'CASCADE' });
 PostAttachment.belongsTo(File, { as: 'file', foreignKey: 'file_id' });
 Post.hasMany(PostAttachment, { as: 'attachments', foreignKey: 'post_id' });
+PostCategory.belongsTo(Business, { foreignKey: 'business_id' });
+PostCategory.belongsTo(Project, { foreignKey: 'project_id' });
 
 // Invoice
 Invoice.belongsTo(Business, { foreignKey: 'business_id' });
@@ -286,6 +289,7 @@ module.exports = {
   BusinessPlanHistory,
   Post,
   PostAttachment,
+  PostCategory,
 };
 
 // CalendarEvent

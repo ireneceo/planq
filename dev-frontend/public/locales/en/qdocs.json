@@ -40,6 +40,8 @@
     "byCategory": "Category",
     "all": "All",
     "mine": "Mine",
-    "filterBy": "Filter by this category"
+    "filterBy": "Filter by this category",
+    "addCategory": "Add category",
+    "newCategoryPlaceholder": "Name (Enter)"
   }
 }

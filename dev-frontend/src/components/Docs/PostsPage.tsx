@@ -6,11 +6,13 @@ import { useTranslation } from 'react-i18next';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 import SearchBox from '../Common/SearchBox';
 import FilePicker, { type FilePickerResult } from '../Common/FilePicker';
+import { uploadMyFile, uploadProjectFile } from '../../services/files';
 import ConfirmDialog from '../Common/ConfirmDialog';
 import PostEditor from './PostEditor';
 import {
   fetchPosts, fetchPost, createPost, updatePost, deletePost,
   attachToPost, detachFromPost, fetchPostsMeta,
+  createCategory,
   type PostRow, type PostDetail, type PostsMeta,
 } from '../../services/posts';
 
@@ -48,6 +50,8 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
   const [error, setError] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<PostDetail | null>(null);
+  const [newCatOpen, setNewCatOpen] = useState(false);
+  const [newCatDraft, setNewCatDraft] = useState('');
   const submittingRef = useRef(false);
 
   // 워크스페이스 모드: project_id 필터 없음(모든 문서), 프로젝트 모드: project_id=scope.projectId
@@ -177,13 +181,31 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
 
   const onAttach = async (r: FilePickerResult) => {
     if (!detail) return;
+    const fileIdsToAttach: number[] = [];
+
+    // 1) 새로 업로드할 파일들 → Q file 로 먼저 업로드 후 file_id 수집
+    if (r.uploaded && r.uploaded.length > 0) {
+      for (const f of r.uploaded) {
+        const result = scope.type === 'project'
+          ? await uploadProjectFile(scope.businessId, scope.projectId, f)
+          : await uploadMyFile(scope.businessId, f);
+        if (result.success && result.file) {
+          const fid = Number(result.file.id.replace(/^direct-/, ''));
+          if (fid) fileIdsToAttach.push(fid);
+        }
+      }
+    }
+
+    // 2) 기존 파일 선택
     if (r.existingFileIds && r.existingFileIds.length > 0) {
-      await attachToPost(detail.id, r.existingFileIds);
+      fileIdsToAttach.push(...r.existingFileIds);
+    }
+
+    if (fileIdsToAttach.length > 0) {
+      await attachToPost(detail.id, fileIdsToAttach);
       const reloaded = await fetchPost(detail.id);
       setDetail(reloaded);
     }
-    // 업로드 탭은 우선 "기존 파일 선택" 만 지원 (업로드는 Q file 에서 먼저 올린 후 기존 선택)
-    // 추후 인라인 업로드 지원 시 /api/files 업로드 → file_id 획득 → attach 로 이어붙이기
   };
 
   const detachOne = async (attId: number) => {
@@ -232,21 +254,45 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
             </>
           )}
 
-          {meta.categories.length > 0 && (
-            <>
-              <FilterGroupLabel>{t('filter.byCategory', '카테고리') as string}</FilterGroupLabel>
-              {meta.categories.map(c => (
-                <Chip
-                  key={c.name}
-                  type="button"
-                  $active={filter.kind === 'category' && filter.name === c.name}
-                  onClick={() => setFilter({ kind: 'category', name: c.name })}
-                >
-                  #{c.name}
-                  <Count>{c.count}</Count>
-                </Chip>
-              ))}
-            </>
+          <FilterGroupLabel>{t('filter.byCategory', '카테고리') as string}</FilterGroupLabel>
+          {meta.categories.map(c => (
+            <Chip
+              key={c.name}
+              type="button"
+              $active={filter.kind === 'category' && filter.name === c.name}
+              onClick={() => setFilter({ kind: 'category', name: c.name })}
+            >
+              #{c.name}
+              <Count>{c.count}</Count>
+            </Chip>
+          ))}
+          {newCatOpen ? (
+            <NewCatInput
+              autoFocus
+              value={newCatDraft}
+              onChange={e => setNewCatDraft(e.target.value)}
+              onBlur={async () => {
+                const v = newCatDraft.trim();
+                setNewCatOpen(false);
+                setNewCatDraft('');
+                if (!v) return;
+                try {
+                  await createCategory(scope.businessId, v, scopeProjectId ?? null);
+                  await loadMeta();
+                  setFilter({ kind: 'category', name: v });
+                } catch { /* silent */ }
+              }}
+              onKeyDown={e => {
+                if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+                if (e.key === 'Escape') { setNewCatOpen(false); setNewCatDraft(''); }
+              }}
+              placeholder={t('filter.newCategoryPlaceholder', '카테고리 이름 (Enter)') as string}
+              maxLength={40}
+            />
+          ) : (
+            <AddCatBtn type="button" onClick={() => setNewCatOpen(true)} title={t('filter.addCategory', '카테고리 추가') as string}>
+              + {t('filter.addCategory', '카테고리 추가')}
+            </AddCatBtn>
           )}
         </FilterSection>
 
@@ -395,7 +441,6 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
         open={pickerOpen}
         onClose={() => setPickerOpen(false)}
         businessId={scope.businessId}
-        mode="existing"
         title={t('filepicker.attachTitle', '첨부할 파일 선택') as string}
         onPick={onAttach}
       />
@@ -467,6 +512,22 @@ const Count = styled.span`
 `;
 const ColorDot = styled.span<{ $color: string }>`
   width: 6px; height: 6px; border-radius: 50%; background: ${p => p.$color};
+`;
+const AddCatBtn = styled.button`
+  all: unset; cursor: pointer;
+  display: inline-flex; align-items: center;
+  padding: 4px 10px; border-radius: 999px;
+  background: transparent; color: #0F766E;
+  border: 1px dashed #99F6E4;
+  font-size: 11px; font-weight: 600;
+  transition: all 0.15s;
+  &:hover { background: #F0FDFA; border-color: #14B8A6; }
+  &:focus-visible { outline: 2px solid #14B8A6; outline-offset: 2px; }
+`;
+const NewCatInput = styled.input`
+  height: 24px; padding: 0 10px; border: 1px solid #14B8A6; border-radius: 999px;
+  background: #fff; font-size: 11px; color: #0F172A; min-width: 140px;
+  &:focus { outline: none; box-shadow: 0 0 0 2px rgba(20,184,166,0.2); }
 `;
 const CategoryRow = styled.div`
   display: flex; align-items: center; gap: 6px; padding: 0 2px;
