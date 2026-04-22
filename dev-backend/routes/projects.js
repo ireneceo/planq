@@ -40,6 +40,18 @@ async function loadProjectOrForbidden(projectId, userId) {
   return { error: { code: 403, message: 'not_project_member' } };
 }
 
+// 관리자 전용 액션(프로젝트 멤버 관리·삭제·종료·이관) 가드.
+// owner 또는 platform_admin 만 통과.
+async function requireProjectAdmin(projectId, user) {
+  const loaded = await loadProjectOrForbidden(projectId, user.id);
+  if (loaded.error) return loaded;
+  const isPlatformAdmin = user.platform_role === 'platform_admin';
+  if (!isPlatformAdmin && loaded.role !== 'owner') {
+    return { error: { code: 403, message: 'owner_only' } };
+  }
+  return loaded;
+}
+
 // ============================================
 // POST /api/projects — 신규 프로젝트 생성
 // 바디: { business_id, name, description?, client_company?, start_date?, end_date?, members: [{user_id, role, is_default}], clients: [{name, email}] }
@@ -196,6 +208,8 @@ router.post('/', authenticateToken, async (req, res, next) => {
 
 // ============================================
 // GET /api/projects?business_id=X&status=active — 목록
+// N+1 최적화: loadProjectDetail(projectId) 를 프로젝트마다 호출하던 구조 제거.
+// 단일 findAll 에 include 로 연관 한 번에 로드 (기존 응답 시그니처 유지).
 // ============================================
 router.get('/', authenticateToken, async (req, res, next) => {
   try {
@@ -203,27 +217,42 @@ router.get('/', authenticateToken, async (req, res, next) => {
     if (!businessId) return errorResponse(res, 'business_id required', 400);
 
     const bm = await requireBusinessMember(req.user.id, businessId);
-    if (!bm) {
-      // 고객이면 본인 참여 프로젝트만
-      const clientRows = await ProjectClient.findAll({
-        where: { contact_user_id: req.user.id },
-        include: [{ model: Project, where: { business_id: businessId } }],
-      });
-      const list = await Promise.all(
-        clientRows.map((cr) => loadProjectDetail(cr.project_id))
-      );
-      return successResponse(res, list.filter(Boolean));
-    }
 
     const where = { business_id: businessId };
     if (req.query.status) where.status = req.query.status;
 
+    // 고객이면 본인 참여 프로젝트만
+    let projectIdFilter = null;
+    if (!bm) {
+      const myClientRows = await ProjectClient.findAll({
+        where: { contact_user_id: req.user.id },
+        attributes: ['project_id'],
+        include: [{ model: Project, attributes: ['id'], where: { business_id: businessId } }],
+      });
+      projectIdFilter = myClientRows.map(r => r.project_id);
+      if (projectIdFilter.length === 0) return successResponse(res, []);
+      where.id = { [Op.in]: projectIdFilter };
+    }
+
     const projects = await Project.findAll({
       where,
       order: [['created_at', 'DESC']],
+      include: [
+        { model: Business, attributes: ['id', 'brand_name', 'name', 'slug'] },
+        {
+          model: ProjectMember,
+          as: 'projectMembers',
+          include: [{ model: User, attributes: ['id', 'name', 'email'] }],
+        },
+        {
+          model: ProjectClient,
+          as: 'projectClients',
+          attributes: { exclude: ['invite_token'] },
+        },
+      ],
     });
-    const details = await Promise.all(projects.map((p) => loadProjectDetail(p.id)));
-    return successResponse(res, details.filter(Boolean));
+
+    return successResponse(res, projects.map(p => p.toJSON()));
   } catch (err) { next(err); }
 });
 
@@ -249,6 +278,11 @@ router.put('/:id', authenticateToken, async (req, res, next) => {
     if (role === 'client') return errorResponse(res, 'forbidden', 403);
 
     const { name, description, client_company, start_date, end_date, status, default_assignee_user_id, color, project_type, process_tab_label } = req.body || {};
+    // 프로젝트 종료/재개는 owner 또는 platform_admin 만
+    if (status !== undefined && status !== project.status) {
+      const isPlatformAdmin = req.user.platform_role === 'platform_admin';
+      if (!isPlatformAdmin && role !== 'owner') return errorResponse(res, 'owner_only', 403);
+    }
     const patch = {};
     if (name !== undefined) patch.name = String(name).trim();
     if (description !== undefined) patch.description = description?.trim() || null;
@@ -300,6 +334,8 @@ router.delete('/:id', authenticateToken, async (req, res, next) => {
     const { project, role, error } = await loadProjectOrForbidden(Number(req.params.id), req.user.id);
     if (error) return errorResponse(res, error.message, error.code);
     if (role === 'client') return errorResponse(res, 'forbidden', 403);
+    const isPlatformAdmin = req.user.platform_role === 'platform_admin';
+    if (!isPlatformAdmin && role !== 'owner') return errorResponse(res, 'owner_only', 403);
     await project.update({ status: 'closed' });
     // cascade: 대화 archived
     await Conversation.update(
@@ -858,6 +894,25 @@ router.post('/:id/clients', authenticateToken, async (req, res, next) => {
       action: 'project.client_added', targetType: 'project_client', targetId: row.id,
       newValue: { project_id: project.id, project_name: project.name, client_id: contact_user_id ? (await require('../models').Client.findOne({ where: { business_id: project.business_id, user_id: contact_user_id } }))?.id : null, name: row.contact_name, email: row.contact_email },
     });
+
+    // 초대 이메일 발송 (실패해도 초대 자체는 성공 처리)
+    if (row.contact_email) {
+      try {
+        const { sendInviteEmail } = require('../services/emailService');
+        const biz = await Business.findByPk(project.business_id, { attributes: ['brand_name', 'name'] });
+        const inviter = await User.findByPk(req.user.id, { attributes: ['name'] });
+        await sendInviteEmail({
+          to: row.contact_email,
+          workspaceName: biz?.brand_name || biz?.name || 'PlanQ',
+          inviterName: inviter?.name || '',
+          targetName: row.contact_name,
+          kind: 'project',
+          contextName: project.name,
+          token,
+        });
+      } catch (e) { console.warn('invite email send failed:', e.message); }
+    }
+
     return successResponse(res, row);
   } catch (err) { next(err); }
 });
@@ -1041,11 +1096,22 @@ async function loadProjectDetail(projectId) {
 
 // ============================================
 // GET /api/projects/invite/:token — 초대 링크 검증 (공개 — 인증 불필요)
+// 만료: invited_at 으로부터 30일
 // ============================================
+const INVITE_EXPIRY_DAYS = 30;
+function isInviteExpired(invitedAt) {
+  if (!invitedAt) return false;
+  const diffMs = Date.now() - new Date(invitedAt).getTime();
+  return diffMs > INVITE_EXPIRY_DAYS * 24 * 60 * 60 * 1000;
+}
+
 router.get('/invite/:token', async (req, res, next) => {
   try {
     const pc = await ProjectClient.findOne({ where: { invite_token: req.params.token } });
     if (!pc) return errorResponse(res, 'invalid_or_expired_invite', 404);
+    if (isInviteExpired(pc.invited_at) && !pc.contact_user_id) {
+      return errorResponse(res, 'invalid_or_expired_invite', 410);
+    }
 
     const project = await Project.findByPk(pc.project_id, {
       include: [{ model: Business, attributes: ['id', 'brand_name', 'name'] }],
@@ -1065,12 +1131,22 @@ router.get('/invite/:token', async (req, res, next) => {
 
 // ============================================
 // POST /api/projects/invite/:token/accept — 초대 수락 (인증 필요 — 기가입자)
+// 이메일 검증: 로그인 유저 email 과 초대 대상 email 이 다르면 거부
 // ============================================
 router.post('/invite/:token/accept', authenticateToken, async (req, res, next) => {
   try {
     const pc = await ProjectClient.findOne({ where: { invite_token: req.params.token } });
     if (!pc) return errorResponse(res, 'invalid_or_expired_invite', 404);
     if (pc.contact_user_id) return errorResponse(res, 'already_accepted', 400);
+    if (isInviteExpired(pc.invited_at)) return errorResponse(res, 'invalid_or_expired_invite', 410);
+
+    // 이메일 일치 검증 — 초대 시 이메일 지정된 경우에만
+    if (pc.contact_email) {
+      const me = await User.findByPk(req.user.id, { attributes: ['email'] });
+      if (!me || me.email?.toLowerCase().trim() !== pc.contact_email.toLowerCase().trim()) {
+        return errorResponse(res, 'email_mismatch', 403);
+      }
+    }
 
     // 사용자 연결
     await pc.update({ contact_user_id: req.user.id, accepted_at: new Date() });
@@ -1259,8 +1335,8 @@ router.get('/workspace/:bizId/all-files', authenticateToken, async (req, res, ne
 // ─── 프로젝트 파일 집계 (direct + chat + task + meeting) ───
 router.get('/:id/files', authenticateToken, async (req, res, next) => {
   try {
-    const project = await Project.findByPk(req.params.id);
-    if (!project) return errorResponse(res, 'Project not found', 404);
+    const { project, error } = await loadProjectOrForbidden(Number(req.params.id), req.user.id);
+    if (error) return errorResponse(res, error.message, error.code);
 
     const bizId = project.business_id;
     const projId = project.id;

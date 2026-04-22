@@ -1,4 +1,23 @@
 {
+  "invite": {
+    "loading": "초대 정보를 불러오는 중...",
+    "invalid": "유효하지 않거나 만료된 초대 링크입니다.",
+    "emailMismatch": "이 초대는 다른 이메일 주소로 발송되었습니다. 초대받은 이메일로 로그인해 주세요.",
+    "alreadyAcceptedError": "이미 수락된 초대입니다.",
+    "alreadyAccepted": "이미 수락된 초대입니다.",
+    "goLogin": "로그인 페이지로",
+    "goToApp": "PlanQ 로 이동",
+    "accepting": "수락 중...",
+    "accept": "초대 수락",
+    "loginRequired": "초대를 수락하려면 로그인 또는 회원가입이 필요합니다.",
+    "login": "로그인",
+    "register": "회원가입",
+    "subtitle": {
+      "project": "이 프로젝트에 초대되었습니다",
+      "workspaceClient": "이 워크스페이스에 고객으로 초대되었습니다",
+      "workspaceMember": "이 워크스페이스에 팀원으로 초대되었습니다"
+    }
+  },
   "time": {
     "justNow": "방금",
     "minutesAgo": "{{n}}분 전",
@@ -85,6 +104,44 @@
   "cancel": "취소",
   "saving": "처리 중…",
   "loading": "로딩 중…",
+  "comingSoon": {
+    "title": "곧 제공됩니다",
+    "defaultDesc": "이 기능은 현재 개발 중입니다. 완성되는 대로 공개됩니다.",
+    "qbillDesc": "견적·청구·결제·세금계산서를 한 화면에서 관리합니다. 개발 중입니다.",
+    "statsDesc": "통계·분석 기능은 현재 설계를 마치고 개발 중입니다. 곧 공개됩니다."
+  },
+  "forbidden": {
+    "title": "접근 권한 없음",
+    "desc": "이 페이지에 접근할 권한이 없습니다.",
+    "back": "뒤로 가기"
+  },
+  "attachments": {
+    "title": "첨부파일",
+    "add": "파일 추가",
+    "loading": "로드 중...",
+    "dropHere": "여기로 파일을 드래그하거나 [+ 파일 추가] 클릭",
+    "uploading": "업로드 중...",
+    "deleteConfirmTitle": "파일 삭제",
+    "deleteConfirmMsg": "\"{{name}}\" 파일을 삭제할까요?",
+    "delete": "삭제",
+    "cancel": "취소"
+  },
+  "calendar": {
+    "today": "오늘",
+    "thisWeek": "이번 주",
+    "thisMonth": "이번 달",
+    "clear": "비우기"
+  },
+  "combobox": {
+    "createNew": "+ \"{{value}}\" 새로 만들기",
+    "noCategory": "해당하는 카테고리가 없습니다"
+  },
+  "editor": {
+    "placeholder": "내용을 입력하세요. / 입력 시 블록 추가",
+    "linkPrompt": "링크 URL을 입력하세요",
+    "hintPrefix": "팁:",
+    "hintSuffix": "입력 → 블록 선택 · 텍스트 선택 → 서식 · 이미지는 붙여넣기/드래그"
+  },
   "filepicker": {
     "title": "파일 선택",
     "tab": {

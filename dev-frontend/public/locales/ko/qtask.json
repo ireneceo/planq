@@ -37,13 +37,21 @@
   },
   "scope": { "mine": "내 업무", "workspace": "전체 업무" },
   "view": { "list": "리스트 보기", "kanban": "카드 보기" },
-  "list": { "empty": "해당하는 업무가 없습니다", "statusHint": "클릭하면 단계 선택" },
+  "list": { "empty": "해당하는 업무가 없습니다", "statusHint": "클릭하면 단계 선택", "titleClickEdit": "클릭하여 업무명 수정" },
   "empty": { "title": "업무를 시작해 보세요", "line1": "요청을 받고, 배정하고, 결과까지", "line2": "한 화면에서 실행으로 연결됩니다." },
   "tab": { "week": "이번 주 내 업무", "all": "내 전체업무", "requested": "요청하기" },
   "workspace": { "assignee": "담당자", "allMembers": "전체 멤버" },
   "summary": { "unit": "개", "est": "예측", "act": "실제" },
-  "col": { "project": "프로젝트", "assignee": "담당자", "requester": "요청자", "task": "업무", "status": "상태", "est": "예측(h)", "act": "실제(h)", "progress": "진행율", "start": "시작일", "due": "마감일" },
-  "add": { "placeholder": "업무명 입력 후 Ctrl+Enter 저장", "btn": "업무 추가", "reqBtn": "요청 추가", "assignee": "담당자", "assigneeDefault": "담당자: 나", "assigneeRequiredHint": "담당자 선택 (필수)", "project": "프로젝트", "projectNone": "선택", "startDate": "시작일", "dueDate": "마감일", "estHours": "예측(h)", "descPlaceholder": "설명 (선택)", "save": "추가", "saving": "저장 중...", "cancel": "취소" },
+  "col": { "project": "프로젝트", "assignee": "담당자", "requester": "요청자", "task": "업무", "status": "상태", "est": "예측(h)", "act": "실제(h)", "progress": "진행율", "progressPercent": "진행률", "start": "시작일", "due": "마감일", "dates": "시작 ~ 마감", "desc": "설명" },
+  "listRow": {
+    "detailTitle": "상세 보기",
+    "assigneePlaceholder": "담당자",
+    "noMembers": "멤버 없음",
+    "noAssignee": "— 없음 —",
+    "meSuffix": " (나)",
+    "emptyDash": "—"
+  },
+  "add": { "placeholder": "업무명 입력 후 Ctrl+Enter 저장", "btn": "업무 추가", "reqBtn": "요청 추가", "assignee": "담당자", "assigneeDefault": "담당자: 나", "assigneeRequiredHint": "담당자 선택 (필수)", "project": "프로젝트", "projectNone": "선택", "startDate": "시작일", "dueDate": "마감일", "datePlaceholder": "날짜 선택", "estHours": "예측(h)", "descPlaceholder": "설명 (선택)", "save": "추가", "saving": "저장 중...", "cancel": "취소" },
   "backlog": { "title": "미배정 업무", "toWeek": "이번 주로" },
   "right": {
     "title": "현황",
@@ -105,6 +113,25 @@
       "revertDisabled": "취소 사용함",
       "approvedOf": "{{total}}명 중 {{n}}명 승인"
     },
+    "delete": {
+      "button": "업무 삭제",
+      "confirmTitle": "정말 삭제하시겠습니까?",
+      "confirmBody": "삭제된 업무는 복구할 수 없습니다. 댓글·첨부·이력도 함께 사라집니다.",
+      "confirm": "삭제",
+      "deleting": "삭제 중..."
+    },
+    "chip": {
+      "fromLabel": "{{name}}에게 요청받음",
+      "fromLabelAnon": "요청받음",
+      "toLabel": "{{name}}에게 요청함",
+      "toLabelAnon": "요청함",
+      "assigneePrefix": "담당",
+      "mine": "내 업무",
+      "fromRequester": "요청자",
+      "toAssignee": "담당자",
+      "assignee": "담당자"
+    },
+    "clickToEdit": "클릭하여 수정",
     "reviewers": {
       "title": "컨펌자",
       "empty": "아직 컨펌자가 없습니다",

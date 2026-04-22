@@ -712,7 +712,46 @@ async def upload_document(
   task = asyncio.create_task(ingest_document(doc_id))
   task.add_done_callback(log_task_exception)
 
+  # Drive 자동 저장 — Node 백엔드에 sync 요청 (실패해도 로컬 ingest 는 지속)
+  sync_task = asyncio.create_task(_sync_to_drive(
+    business_id=business_id,
+    session_id=session_id,
+    session_title=session.get('title') if isinstance(session, dict) else session['title'],
+    session_date=session.get('created_at') if isinstance(session, dict) else session['created_at'],
+    document_id=doc_id,
+    local_path=stored_path,
+    file_name=original_name,
+    mime_type=file.content_type or 'application/octet-stream',
+  ))
+  sync_task.add_done_callback(log_task_exception)
+
   return success(doc_dict)
+
+
+async def _sync_to_drive(*, business_id, session_id, session_title, session_date, document_id, local_path, file_name, mime_type):
+  """Q Note 업로드 후 Node 백엔드의 /api/cloud/qnote/sync 호출 — 해당 워크스페이스가 Drive 연동된 경우에만 실제 업로드됨."""
+  import httpx
+  node_url = os.environ.get('PLANQ_NODE_BASE_URL', 'http://localhost:3003')
+  api_key = os.environ.get('INTERNAL_API_KEY')
+  if not api_key:
+    return  # 환경변수 미설정 → 스킵
+  payload = {
+    'business_id': business_id,
+    'session_id': session_id,
+    'session_title': session_title,
+    'session_date': str(session_date) if session_date else None,
+    'document_id': document_id,
+    'local_path': local_path,
+    'file_name': file_name,
+    'mime_type': mime_type,
+  }
+  try:
+    async with httpx.AsyncClient(timeout=60.0) as client:
+      r = await client.post(f'{node_url}/api/cloud/qnote/sync', json=payload, headers={'x-internal-api-key': api_key})
+      if r.status_code >= 400:
+        print(f'[qnote→drive sync] {r.status_code}: {r.text[:200]}')
+  except Exception as e:
+    print(f'[qnote→drive sync] failed: {e}')
 
 
 @router.delete('/{session_id}/documents/{document_id}')

@@ -6,6 +6,8 @@ const { successResponse, errorResponse } = require('../middleware/errorHandler')
 const { createAuditLog } = require('../middleware/audit');
 
 // List clients for a business
+// 프로젝트 매칭은 ProjectClient.contact_user_id = Client.user_id 로 통일 (FK 기반).
+// email/name 문자열 매칭 폐기 — 고객이 이름/이메일 변경 시 연결이 끊기거나 동명이인 혼선 제거.
 router.get('/:businessId', authenticateToken, checkBusinessAccess, async (req, res, next) => {
   try {
     const clients = await Client.findAll({
@@ -13,25 +15,15 @@ router.get('/:businessId', authenticateToken, checkBusinessAccess, async (req, r
       include: [{ model: User, as: 'user', attributes: ['id', 'name', 'email', 'phone'] }],
       order: [['created_at', 'DESC']]
     });
-    // 응답에 연결된 프로젝트 수 부여 — 클라이언트 페이지 표시용
     const { ProjectClient, Project } = require('../models');
-    const emails = clients.map((c) => c.user?.email).filter(Boolean);
-    const names = clients.map((c) => c.display_name || c.user?.name).filter(Boolean);
-    // ProjectClient 는 email / contact_name 으로 저장됨 (user_id 무관). 같은 워크스페이스 프로젝트에 들어있는 것 집계.
-    const pcRows = await ProjectClient.findAll({
+    const userIds = clients.map((c) => c.user_id).filter(Boolean);
+    const pcRows = userIds.length > 0 ? await ProjectClient.findAll({
       include: [{ model: Project, attributes: ['id', 'business_id', 'name', 'status'], where: { business_id: req.params.businessId } }],
-      where: {
-        [require('sequelize').Op.or]: [
-          ...(emails.length ? [{ contact_email: emails }] : []),
-          ...(names.length ? [{ contact_name: names }] : []),
-        ],
-      },
-    });
+      where: { contact_user_id: userIds },
+    }) : [];
     const enriched = clients.map((c) => {
       const json = c.toJSON();
-      const email = c.user?.email || null;
-      const name = c.display_name || c.user?.name || null;
-      const linked = pcRows.filter((pc) => (email && pc.contact_email === email) || (name && pc.contact_name === name));
+      const linked = c.user_id ? pcRows.filter((pc) => pc.contact_user_id === c.user_id) : [];
       json.project_count = linked.length;
       json.active_project_count = linked.filter((pc) => pc.Project?.status === 'active').length;
       return json;
@@ -48,20 +40,13 @@ router.get('/:businessId/:clientId/removal-impact', authenticateToken, checkBusi
     const { ProjectClient, Project } = require('../models');
     const client = await Client.findOne({
       where: { id: req.params.clientId, business_id: req.params.businessId },
-      include: [{ model: User, as: 'user', attributes: ['email', 'name'] }],
     });
     if (!client) return errorResponse(res, 'Client not found', 404);
-    const email = client.user?.email;
-    const name = client.display_name || client.user?.name;
-    const pcRows = await ProjectClient.findAll({
+    // user_id 기반 매칭 (FK). user_id 없으면 연결 프로젝트 없음.
+    const pcRows = client.user_id ? await ProjectClient.findAll({
       include: [{ model: Project, attributes: ['id', 'name', 'status'], where: { business_id: req.params.businessId } }],
-      where: {
-        [require('sequelize').Op.or]: [
-          ...(email ? [{ contact_email: email }] : []),
-          ...(name ? [{ contact_name: name }] : []),
-        ],
-      },
-    });
+      where: { contact_user_id: client.user_id },
+    }) : [];
     const other = pcRows.map((pc) => ({ id: pc.Project?.id, name: pc.Project?.name, status: pc.Project?.status })).filter((p) => p.id);
     successResponse(res, {
       client_id: Number(req.params.clientId),
@@ -113,20 +98,12 @@ router.get('/:businessId/:id', authenticateToken, checkBusinessAccess, async (re
     });
     if (!client) return errorResponse(res, 'Client not found', 404);
 
-    const email = client.user?.email || null;
-    const name = client.display_name || client.user?.name || null;
-
-    // 연결 프로젝트 — ProjectClient contact_user_id 또는 email/name 매칭
-    const pcRows = await ProjectClient.findAll({
+    // 연결 프로젝트 — ProjectClient.contact_user_id = Client.user_id (FK 매칭).
+    // email/name 문자열 매칭 폐기 — 이름/이메일 변경 시 연결 끊김 + 동명이인 혼선 제거.
+    const pcRows = client.user_id ? await ProjectClient.findAll({
       include: [{ model: Project, attributes: ['id', 'name', 'status', 'color', 'project_type', 'start_date', 'end_date'], where: { business_id: req.params.businessId } }],
-      where: {
-        [Op.or]: [
-          ...(client.user_id ? [{ contact_user_id: client.user_id }] : []),
-          ...(email ? [{ contact_email: email }] : []),
-          ...(name ? [{ contact_name: name }] : []),
-        ],
-      },
-    });
+      where: { contact_user_id: client.user_id },
+    }) : [];
     // 중복 프로젝트 id 제거
     const seenProjects = new Set();
     const projects = [];
@@ -212,7 +189,8 @@ router.get('/:businessId/:id/history', authenticateToken, checkBusinessAccess, a
   } catch (error) { next(error); }
 });
 
-// Invite (이메일 기반 신규) — User 없으면 생성 + Client(invited) 생성
+// Invite (이메일 기반) — User 없어도 Client(invited) 생성 + 초대 토큰 발급 + 이메일 발송
+// accept 시 User 생성·연결
 router.post('/:businessId/invite', authenticateToken, checkBusinessAccess, async (req, res, next) => {
   try {
     const { name, email, company_name, notes } = req.body || {};
@@ -222,36 +200,59 @@ router.post('/:businessId/invite', authenticateToken, checkBusinessAccess, async
     if (!planCan.ok) {
       return errorResponse(res, `고객 수 한도 초과 (최대 ${planCan.limit}명) — 플랜 업그레이드 필요`, 403);
     }
-    const bcrypt = require('bcryptjs');
     const crypto = require('crypto');
-    let u = await User.findOne({ where: { email: email.trim() } });
-    if (!u) {
-      const randomPw = crypto.randomBytes(12).toString('hex');
-      u = await User.create({
-        email: email.trim(), name: name.trim(),
-        password_hash: await bcrypt.hash(randomPw, 12),
-        platform_role: 'user', status: 'active',
-      });
-    }
-    const existing = await Client.findOne({ where: { business_id: req.params.businessId, user_id: u.id } });
-    if (existing) {
-      if (existing.status === 'archived') {
-        await existing.update({ status: 'invited', display_name: name.trim(), company_name: company_name?.trim() || existing.company_name, notes: notes?.trim() || existing.notes });
-        await createAuditLog({ userId: req.user.id, businessId: req.params.businessId, action: 'client.activated', targetType: 'client', targetId: existing.id });
-        return successResponse(res, existing, 'Re-invited', 200);
+    const existingUser = await User.findOne({ where: { email: email.trim() } });
+
+    // 동일 워크스페이스에 같은 이메일·user 이미 존재하는지 체크
+    if (existingUser) {
+      const dup = await Client.findOne({ where: { business_id: req.params.businessId, user_id: existingUser.id } });
+      if (dup) {
+        if (dup.status === 'archived') {
+          await dup.update({ status: 'invited', display_name: name.trim(), company_name: company_name?.trim() || dup.company_name, notes: notes?.trim() || dup.notes });
+          return successResponse(res, dup, 'Re-invited', 200);
+        }
+        return errorResponse(res, 'Client already exists', 409);
       }
+    }
+    const dupByEmail = await Client.findOne({ where: { business_id: req.params.businessId, invite_email: email.trim() } });
+    if (dupByEmail && dupByEmail.status !== 'archived') {
       return errorResponse(res, 'Client already exists', 409);
     }
+
+    const token = crypto.randomBytes(24).toString('hex');
     const created = await Client.create({
-      business_id: req.params.businessId, user_id: u.id,
-      display_name: name.trim(), company_name: company_name?.trim() || null, notes: notes?.trim() || null,
-      status: 'invited', invited_by: req.user.id, invited_at: new Date(),
+      business_id: req.params.businessId,
+      user_id: existingUser?.id || null,
+      display_name: name.trim(),
+      company_name: company_name?.trim() || null,
+      notes: notes?.trim() || null,
+      status: 'invited',
+      invited_by: req.user.id,
+      invited_at: new Date(),
+      invite_token: token,
+      invite_email: email.trim(),
     });
     await createAuditLog({
       userId: req.user.id, businessId: req.params.businessId,
       action: 'client.invited', targetType: 'client', targetId: created.id,
-      newValue: { email: u.email, name: name.trim(), company_name: company_name || null },
+      newValue: { email: email.trim(), name: name.trim(), company_name: company_name || null },
     });
+
+    // 초대 이메일 발송 (실패해도 초대 레코드는 유지)
+    try {
+      const { sendInviteEmail } = require('../services/emailService');
+      const biz = await require('../models').Business.findByPk(req.params.businessId, { attributes: ['brand_name', 'name'] });
+      const inviter = await User.findByPk(req.user.id, { attributes: ['name'] });
+      await sendInviteEmail({
+        to: email.trim(),
+        workspaceName: biz?.brand_name || biz?.name || 'PlanQ',
+        inviterName: inviter?.name || '',
+        targetName: name.trim(),
+        kind: 'workspace_client',
+        token,
+      });
+    } catch (e) { console.warn('invite email send failed:', e.message); }
+
     successResponse(res, created, 'Client invited', 201);
   } catch (error) { next(error); }
 });

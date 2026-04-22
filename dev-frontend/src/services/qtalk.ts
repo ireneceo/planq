@@ -173,6 +173,15 @@ export interface ApiMessage {
   createdAt: string;
   updatedAt: string;
   sender?: { id: number; name: string; email: string };
+  attachments?: ApiMessageAttachment[];
+}
+
+export interface ApiMessageAttachment {
+  id: number;
+  message_id: number;
+  file_name: string;
+  file_size: number;
+  mime_type?: string | null;
 }
 
 export interface ApiTask {
@@ -263,6 +272,20 @@ export async function sendMessage(conversationId: number, content: string, reply
     body: JSON.stringify({ content, reply_to_message_id: replyTo || null }),
   });
   return handle<ApiMessage>(res);
+}
+
+export async function uploadMessageAttachment(
+  conversationId: number,
+  messageId: number,
+  file: File
+): Promise<ApiMessageAttachment> {
+  const fd = new FormData();
+  fd.append('file', file, file.name);
+  const res = await apiFetch(`/api/message-attachments/${conversationId}/${messageId}`, {
+    method: 'POST',
+    body: fd,
+  });
+  return handle<ApiMessageAttachment>(res);
 }
 
 export interface CreateConversationInput {

@@ -7,7 +7,7 @@ const {
   BusinessMember, User, Client, Project,
 } = require('../models');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
-const { authenticateToken } = require('../middleware/auth');
+const { authenticateToken, checkBusinessAccess } = require('../middleware/auth');
 const { createAuditLog } = require('../middleware/audit');
 const { RRule, rrulestr } = require('rrule');
 const dailyService = require('../services/daily');
@@ -51,7 +51,7 @@ function parseDate(value) {
 // GET /by-business/:businessId — 범위 조회
 // query: start, end, project_id?, scope=all|mine (default all)
 // ============================================
-router.get('/by-business/:businessId', authenticateToken, async (req, res, next) => {
+router.get('/by-business/:businessId', authenticateToken, checkBusinessAccess, async (req, res, next) => {
   try {
     const businessId = Number(req.params.businessId);
     const bm = await requireMember(req.user.id, businessId);
@@ -148,7 +148,7 @@ router.get('/by-business/:businessId', authenticateToken, async (req, res, next)
 //         color?, rrule?, meeting_url?, meeting_provider?, visibility?, project_id?,
 //         attendees?: [{ user_id? | client_id? }] }
 // ============================================
-router.post('/by-business/:businessId', authenticateToken, async (req, res, next) => {
+router.post('/by-business/:businessId', authenticateToken, checkBusinessAccess, async (req, res, next) => {
   const t = await sequelize.transaction();
   try {
     const businessId = Number(req.params.businessId);
@@ -271,7 +271,7 @@ router.post('/by-business/:businessId', authenticateToken, async (req, res, next
 // ============================================
 // GET /by-business/:businessId/:id — 상세
 // ============================================
-router.get('/by-business/:businessId/:id', authenticateToken, async (req, res, next) => {
+router.get('/by-business/:businessId/:id', authenticateToken, checkBusinessAccess, async (req, res, next) => {
   try {
     const businessId = Number(req.params.businessId);
     const bm = await requireMember(req.user.id, businessId);
@@ -296,7 +296,7 @@ router.get('/by-business/:businessId/:id', authenticateToken, async (req, res, n
 // PUT /by-business/:businessId/:id — 수정
 // attendees 배열이 오면 전체 교체
 // ============================================
-router.put('/by-business/:businessId/:id', authenticateToken, async (req, res, next) => {
+router.put('/by-business/:businessId/:id', authenticateToken, checkBusinessAccess, async (req, res, next) => {
   const t = await sequelize.transaction();
   try {
     const businessId = Number(req.params.businessId);
@@ -423,7 +423,7 @@ router.put('/by-business/:businessId/:id', authenticateToken, async (req, res, n
 // ============================================
 // DELETE /by-business/:businessId/:id
 // ============================================
-router.delete('/by-business/:businessId/:id', authenticateToken, async (req, res, next) => {
+router.delete('/by-business/:businessId/:id', authenticateToken, checkBusinessAccess, async (req, res, next) => {
   try {
     const businessId = Number(req.params.businessId);
     const bm = await requireMember(req.user.id, businessId);
@@ -456,7 +456,7 @@ router.delete('/by-business/:businessId/:id', authenticateToken, async (req, res
 // PUT /by-business/:businessId/:id/attendees/:attendeeId — 참석 응답
 // body: { response: 'accepted'|'declined'|'tentative'|'pending' }
 // ============================================
-router.put('/by-business/:businessId/:id/attendees/:attendeeId', authenticateToken, async (req, res, next) => {
+router.put('/by-business/:businessId/:id/attendees/:attendeeId', authenticateToken, checkBusinessAccess, async (req, res, next) => {
   try {
     const businessId = Number(req.params.businessId);
     const bm = await requireMember(req.user.id, businessId);
@@ -502,7 +502,7 @@ router.get('/video/status', authenticateToken, (req, res) => {
 // ============================================
 // POST /by-business/:businessId/:id/meeting — 기존 이벤트에 Daily.co 회의실 자동 생성
 // ============================================
-router.post('/by-business/:businessId/:id/meeting', authenticateToken, async (req, res, next) => {
+router.post('/by-business/:businessId/:id/meeting', authenticateToken, checkBusinessAccess, async (req, res, next) => {
   try {
     const businessId = Number(req.params.businessId);
     const bm = await requireMember(req.user.id, businessId);

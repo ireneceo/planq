@@ -4,7 +4,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
-import { apiFetch } from '../../contexts/AuthContext';
+import { apiFetch, useAuth } from '../../contexts/AuthContext';
 import CalendarPicker from '../Common/CalendarPicker';
 import RichEditor from '../Common/RichEditor';
 import TaskAttachments from './TaskAttachments';
@@ -65,6 +65,7 @@ interface TaskDetail {
   Project?: { id: number; name: string } | null;
   assignee?: { id: number; name: string } | null;
   requester?: { id: number; name: string } | null;
+  creator?: { id: number; name: string } | null;
   comments?: CommentRow[];
   daily_progress?: { snapshot_date: string; progress_percent: number; actual_hours: number; estimated_hours: number | null }[];
 }
@@ -93,6 +94,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
   width, onWidthChange, onClose, onPatch, onRefresh,
 }) => {
   const { t } = useTranslation('qtask');
+  const { hasRole } = useAuth();
   const drawerRef = useRef<HTMLElement>(null);
   useBodyScrollLock(!!taskId);
   useEscapeStack(!!taskId, onClose);
@@ -119,6 +121,8 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
   const [addReviewerOpen, setAddReviewerOpen] = useState(false);
   const [pendingReviewerAdd, setPendingReviewerAdd] = useState<number | null>(null);
   const [actionBusy, setActionBusy] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const [saveStatus, setSaveStatus] = useState<'idle'|'saving'|'saved'|'error'>('idle');
   const saveStatusTimerRef = useRef<number | null>(null);
@@ -191,6 +195,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
     setNewComment(''); setCommentFiles([]);
     setRevisionOpen(false); setRevisionNote('');
     setAddReviewerOpen(false); setPendingReviewerAdd(null);
+    setDeleteConfirmOpen(false); setDeleting(false);
     loadDetail(taskId);
   }, [taskId, loadDetail]);
 
@@ -348,6 +353,26 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
     await callAction('/policy', 'PATCH', { review_policy: p });
   };
 
+  const handleDelete = async () => {
+    if (!detailTask || deleting) return;
+    setDeleting(true);
+    try {
+      const r = await apiFetch(`/api/tasks/by-business/${bizId}/${detailTask.id}`, { method: 'DELETE' });
+      const j = await r.json();
+      if (!j.success) {
+        setSaveStatusTemp('error');
+        setDeleteConfirmOpen(false);
+        return;
+      }
+      onRefresh?.();
+      onClose();
+    } catch {
+      setSaveStatusTemp('error');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   const addComment = async () => {
     if (!detailTask || commentSending) return;
     if (!newComment.trim() && commentFiles.length === 0) return;
@@ -447,7 +472,13 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                   onMouseDown={(e) => e.stopPropagation()}
                   onClick={(e) => { e.stopPropagation(); setTitleDraft(detailTask.title); setEditingTitle(true); }}
                   title={t('detail.clickToEdit', '클릭하여 수정') as string}>
-                  {detailTask.title}
+                  <TitleText>{detailTask.title}</TitleText>
+                  <TitleEditIcon aria-hidden>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                    </svg>
+                  </TitleEditIcon>
                 </Title>
               )}
               <Meta>
@@ -475,7 +506,41 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                   )}
                 </StatusBadgeWrap>
                 {detailTask.Project?.name && <ProjTag>{detailTask.Project.name}</ProjTag>}
-                {detailTask.assignee?.name && <span>{detailTask.assignee.name}</span>}
+                {(() => {
+                  const isReq = detailTask.source === 'internal_request' || detailTask.source === 'qtalk_extract';
+                  const reqUserId = detailTask.request_by_user_id ?? detailTask.created_by;
+                  const reqName = detailTask.requester?.name || detailTask.creator?.name || '';
+                  const asgName = detailTask.assignee?.name || '';
+                  // 내가 받은 요청 → "{요청자}에게 요청받음" (from, 로즈)
+                  if (detailTask.assignee_id === myId && isReq) {
+                    return <DrawerNameChip $type="from" title={t('detail.chip.fromRequester', '요청자') as string}>
+                      {reqName
+                        ? t('detail.chip.fromLabel', '{{name}}에게 요청받음', { name: reqName })
+                        : t('detail.chip.fromLabelAnon', '요청받음')}
+                    </DrawerNameChip>;
+                  }
+                  // 내가 보낸 요청 → "{담당자}에게 요청함" (to, 티일)
+                  if ((reqUserId === myId) && detailTask.assignee_id != null && detailTask.assignee_id !== myId) {
+                    return <DrawerNameChip $type="to" title={t('detail.chip.toAssignee', '담당자') as string}>
+                      {asgName
+                        ? t('detail.chip.toLabel', '{{name}}에게 요청함', { name: asgName })
+                        : t('detail.chip.toLabelAnon', '요청함')}
+                    </DrawerNameChip>;
+                  }
+                  // 내가 담당자 (본인 업무, 요청 아님)
+                  if (detailTask.assignee_id === myId) {
+                    return <DrawerNameChip $type="mine" title={t('detail.chip.mine', '내 업무') as string}>
+                      {t('detail.chip.mine', '내 업무')}
+                    </DrawerNameChip>;
+                  }
+                  // 타인 담당 (관찰자 관점)
+                  if (asgName) {
+                    return <DrawerNameChip $type="observer" title={t('detail.chip.assignee', '담당자') as string}>
+                      {t('detail.chip.assigneePrefix', '담당')} · {asgName}
+                    </DrawerNameChip>;
+                  }
+                  return null;
+                })()}
               </Meta>
               <MetaGrid>
                 <MetaCell>
@@ -728,6 +793,36 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                 )}
               </ColBody>}
             </Collapsible>
+
+            {(() => {
+              const isAdmin = hasRole('platform_admin', 'business_owner');
+              const isMine = detailTask.created_by === myId
+                || detailTask.assignee_id === myId
+                || detailTask.request_by_user_id === myId;
+              if (!isAdmin && !isMine) return null;
+              return (
+                <DangerSection>
+                  {!deleteConfirmOpen ? (
+                    <ActionDanger onClick={() => setDeleteConfirmOpen(true)} disabled={deleting}>
+                      {t('detail.delete.button', '업무 삭제')}
+                    </ActionDanger>
+                  ) : (
+                    <DangerConfirm>
+                      <DangerTitle>{t('detail.delete.confirmTitle', '정말 삭제하시겠습니까?')}</DangerTitle>
+                      <DangerBody>{t('detail.delete.confirmBody', '삭제된 업무는 복구할 수 없습니다. 댓글·첨부·이력도 함께 사라집니다.')}</DangerBody>
+                      <DangerRow>
+                        <ActionSecondary onClick={() => setDeleteConfirmOpen(false)} disabled={deleting}>
+                          {t('common.cancel', '취소')}
+                        </ActionSecondary>
+                        <ActionDanger onClick={handleDelete} disabled={deleting}>
+                          {deleting ? t('detail.delete.deleting', '삭제 중...') : t('detail.delete.confirm', '삭제')}
+                        </ActionDanger>
+                      </DangerRow>
+                    </DangerConfirm>
+                  )}
+                </DangerSection>
+              );
+            })()}
           </>);
         })()}
       </Scroll>
@@ -781,8 +876,8 @@ const ResizeHandle = styled.div`
   @media (max-width: 1024px) { display: none; }
 `;
 const DrawerHeader = styled.div`height:60px;padding:14px 20px;border-bottom:1px solid #E2E8F0;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;`;
-const BackBtn = styled.button`display:flex;align-items:center;gap:4px;background:transparent;border:none;color:#0F766E;font-size:12px;font-weight:600;cursor:pointer;padding:0;&:hover{color:#134E4A;}`;
-const CloseBtn = styled.button`width:28px;height:28px;display:flex;align-items:center;justify-content:center;background:transparent;border:none;border-radius:6px;color:#64748B;cursor:pointer;&:hover{background:#F1F5F9;color:#0F172A;}`;
+const BackBtn = styled.button`display:flex;align-items:center;gap:4px;background:transparent;border:none;color:#0F766E;font-size:12px;font-weight:600;cursor:pointer;padding:0;outline:none;&:hover{color:#134E4A;}&:focus{outline:none;}&:focus-visible{outline:2px solid #14B8A6;outline-offset:2px;border-radius:4px;}`;
+const CloseBtn = styled.button`width:28px;height:28px;display:flex;align-items:center;justify-content:center;background:transparent;border:none;border-radius:6px;color:#64748B;cursor:pointer;outline:none;&:hover{background:#F1F5F9;color:#0F172A;}&:focus{outline:none;}&:focus-visible{outline:2px solid #14B8A6;outline-offset:-2px;}`;
 const SaveStatusPill = styled.span<{ $status: 'idle'|'saving'|'saved'|'error' }>`
   display:inline-flex;align-items:center;gap:4px;margin-left:auto;padding:3px 10px;border-radius:999px;font-size:11px;font-weight:600;
   opacity:${p => p.$status === 'idle' ? 0 : 1};transition:opacity 0.2s;
@@ -798,7 +893,9 @@ const PillSpinner = styled.span`
 const Scroll = styled.div`flex:1;overflow-y:auto;overflow-x:hidden;min-width:0;&>*{min-width:0;max-width:100%;}&::-webkit-scrollbar{width:6px;}&::-webkit-scrollbar-thumb{background:#E2E8F0;border-radius:3px;}`;
 const Section = styled.div`border-bottom:1px solid #F1F5F9;padding:12px 14px;`;
 const SectionTitle = styled.h4`font-size:12px;font-weight:700;color:#0F172A;margin:0 0 8px;`;
-const Title = styled.h3`font-size:19px;font-weight:700;color:#0F172A;margin:0 0 8px;line-height:1.35;cursor:text;border-radius:6px;padding:4px 6px;margin-left:-6px;transition:background 0.12s;&:hover{background:#F1F5F9;}`;
+const Title = styled.h3`font-size:19px;font-weight:700;color:#0F172A;margin:0 0 8px;line-height:1.35;cursor:pointer;border-radius:6px;padding:4px 6px;margin-left:-6px;transition:background 0.12s;display:flex;align-items:center;gap:8px;&:hover{background:#F1F5F9;}&:hover > span:last-child{opacity:1;}&:focus{outline:none;}&:focus-visible{outline:2px solid #14B8A6;outline-offset:2px;}`;
+const TitleText = styled.span`flex:1;min-width:0;`;
+const TitleEditIcon = styled.span`display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:6px;color:#94A3B8;opacity:0;transition:opacity 0.15s, background 0.12s;flex-shrink:0;`;
 const TitleInput = styled.input`font-size:19px;font-weight:700;color:#0F172A;line-height:1.35;width:100%;padding:4px 8px;margin-left:-6px;margin-bottom:8px;border:1px solid #14B8A6;border-radius:6px;background:#FFF;font-family:inherit;&:focus{outline:none;box-shadow:0 0 0 2px rgba(20,184,166,0.15);}`;
 const Meta = styled.div`display:flex;align-items:center;gap:6px;font-size:11px;color:#64748B;flex-wrap:wrap;`;
 const StatusBadgeWrap = styled.span`position:relative;display:inline-flex;align-items:center;gap:4px;`;
@@ -812,6 +909,14 @@ const StatusOption = styled.button<{ $bg: string; $fg: string; $active?: boolean
   background:${p => p.$active ? p.$bg : 'transparent'};color:${p => p.$fg};&:hover{background:${p => p.$bg};}
 `;
 const ProjTag = styled.span`padding:1px 5px;background:#F1F5F9;color:#64748B;font-size:9px;font-weight:600;border-radius:4px;`;
+const DrawerNameChip = styled.span<{ $type: 'from' | 'to' | 'observer' | 'mine' }>`
+  display:inline-flex;align-items:center;padding:2px 8px;font-size:11px;font-weight:600;
+  border-radius:10px;white-space:nowrap;max-width:220px;overflow:hidden;text-overflow:ellipsis;
+  ${p => p.$type === 'from' ? 'color:#BE123C;background:#FFE4E6;'
+    : p.$type === 'to' ? 'color:#0F766E;background:#CCFBF1;'
+    : p.$type === 'mine' ? 'color:#0F766E;background:#F0FDFA;'
+    : 'color:#64748B;background:#F1F5F9;'}
+`;
 const MetaGrid = styled.div`display:grid;grid-template-columns:1.6fr 1fr 1fr 2fr;gap:10px;margin-top:12px;padding-top:12px;border-top:1px solid #F1F5F9;`;
 const MetaCell = styled.div`display:flex;flex-direction:column;gap:3px;min-width:0;`;
 const MetaLabel = styled.span`font-size:10px;font-weight:700;color:#94A3B8;text-transform:uppercase;letter-spacing:0.3px;`;
@@ -893,6 +998,13 @@ const WarnDialog = styled.div`margin-top:8px;padding:10px;background:#FEF2F2;bor
 const WarnTitle = styled.div`font-size:12px;font-weight:700;color:#991B1B;`;
 const WarnBody = styled.div`font-size:11px;color:#7F1D1D;line-height:1.5;`;
 const WarnRow = styled.div`display:flex;gap:6px;justify-content:flex-end;`;
+
+// 업무 삭제 (위험 영역)
+const DangerSection = styled.div`margin-top:16px;padding:16px 14px 20px;border-top:1px dashed #E2E8F0;display:flex;flex-direction:column;gap:8px;`;
+const DangerConfirm = styled.div`padding:12px;background:#FEF2F2;border:1px solid #FECACA;border-radius:8px;display:flex;flex-direction:column;gap:8px;`;
+const DangerTitle = styled.div`font-size:13px;font-weight:700;color:#991B1B;`;
+const DangerBody = styled.div`font-size:12px;color:#7F1D1D;line-height:1.5;`;
+const DangerRow = styled.div`display:flex;gap:6px;justify-content:flex-end;`;
 
 // History
 const Timeline = styled.div`display:flex;flex-direction:column;gap:8px;padding-left:6px;border-left:2px solid #E2E8F0;margin-top:6px;`;

@@ -165,6 +165,59 @@ import PanelHeader, { PanelTitle, PanelSubTitle, PanelMetaTitle }
 - 헤더 높이·padding·폰트 커스터마이즈 금지
 - 페이지마다 `<Page>`/`<Header>` styled 따로 선언 금지
 
+### 2.4 관리 리스트/섹션 — 헤더 + 검색 + 추가 버튼 공통 패턴 (필수 — 2026-04-22)
+
+고객·멤버·프로젝트 고객·파일 등 **"조회 + 검색 + 추가(초대)" 3요소**를 가진 리스트 페이지/섹션은 아래 구조 고정.
+
+**A. 페이지 전체가 리스트인 경우** — `PageShell` actions 슬롯 사용 (고객 관리 `/business/clients` 기준)
+```tsx
+<PageShell
+  title={t('page.title')}
+  count={filtered.length}
+  actions={<>
+    <SearchBox value={q} onChange={setQ} placeholder="..." width={240} />
+    <FilterSeg>...</FilterSeg>               {/* 선택 */}
+    {isAdmin && <InviteBtn onClick={...}>＋ 초대</InviteBtn>}
+  </>}
+>
+  {/* 본문 — Table 또는 Card List */}
+</PageShell>
+```
+
+**B. 설정 탭 내 리스트 섹션인 경우** — `Card` 상단 `SectionHeaderRow` 사용 (워크스페이스 설정 멤버 섹션 기준)
+```tsx
+<Card>
+  <SectionHeaderRow>
+    <div>
+      <SectionTitle>...</SectionTitle>
+      <SectionDesc>...</SectionDesc>
+    </div>
+    {isAdmin && <InvitePrimaryBtn>＋ 초대</InvitePrimaryBtn>}
+  </SectionHeaderRow>
+  {/* 인라인 초대 박스 또는 모달 */}
+  {/* 리스트 */}
+</Card>
+```
+
+**잠긴 표준값 — 초대 버튼 (InviteBtn / InvitePrimaryBtn):**
+- `display:inline-flex; align-items:center; gap:6px`
+- `height:32px; padding:0 14px`
+- 배경 `#14B8A6` (Primary 500) / hover `#0D9488`
+- `color:#FFF; font-size:13px; font-weight:700; border-radius:8px`
+- **아이콘 + 텍스트** — SVG `+` 14×14px, strokeWidth 2.2
+
+**초대 UX — 입력 필드 개수로 분기:**
+- 필드 **1개 (이메일만)** → **인라인 박스** (Card 내부 `InviteBox` 펼침/접기)
+- 필드 **2개 이상** → **모달** (고객 초대: 이름·이메일·회사명)
+
+**검색 — 리스트 항목 수에 따라:**
+- 평균 20개 미만이면 생략 가능 (멤버처럼 소규모)
+- 20개 이상 가능성이 있으면 `SearchBox` 추가 (고객처럼 중규모)
+
+**금지:**
+- 페이지/섹션마다 InviteBtn 스타일 따로 정의 금지 — 반드시 위 표준값 준수
+- 인라인 박스 vs 모달 혼용 금지 — 필드 수 기준으로 선택
+
 ---
 
 ## 3. 공통 컴포넌트 사용

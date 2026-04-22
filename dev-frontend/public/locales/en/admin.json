@@ -62,6 +62,7 @@
     "saved": "Saved"
   },
   "modal": {
+    "datePlaceholder": "Select date",
     "changePlan": {
       "title": "Manual plan change",
       "desc": "Temporary adjustment before payment integration. Applies immediately and is logged in history.",

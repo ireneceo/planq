@@ -251,15 +251,24 @@ router.get('/attachments/:id/download', authenticateToken, (req, res, next) => s
 // ============================================
 // GET /api/tasks/public/attach/:storedName — 공개 (UUID stored_name 으로 접근 제어)
 // 이미지 인라인 삽입용. <img src> 에서 Authorization 헤더 못 보내는 제약 대응.
-// stored_name 은 uuidv4 (추측 불가), HTML 에 저장되는 URL 은 업무 body 안에만 존재.
+// 보안:
+//   - image/* MIME 타입만 허용 (HTML/JS 임베딩으로 인한 XSS 차단)
+//   - X-Content-Type-Options: nosniff (브라우저 MIME 추론 차단)
+//   - Content-Disposition: inline 로 렌더 컨텍스트 제한
+//   - 비이미지 파일은 인증된 /attachments/:id/download 엔드포인트 사용
 // ============================================
 router.get('/public/attach/:storedName', async (req, res, next) => {
   try {
     const att = await TaskAttachment.findOne({ where: { stored_name: req.params.storedName } });
     if (!att) return errorResponse(res, 'not_found', 404);
+    if (!att.mime_type || !att.mime_type.startsWith('image/')) {
+      return errorResponse(res, 'not_public_image', 403);
+    }
     const abs = path.join(__dirname, '..', att.file_path);
     if (!fs.existsSync(abs)) return errorResponse(res, 'missing', 410);
-    if (att.mime_type) res.setHeader('Content-Type', att.mime_type);
+    res.setHeader('Content-Type', att.mime_type);
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Content-Disposition', 'inline');
     res.setHeader('Cache-Control', 'private, max-age=3600');
     fs.createReadStream(abs).pipe(res);
   } catch (err) { next(err); }

@@ -13,6 +13,97 @@
     "company": "회사",
     "email": "이메일",
     "phone": "전화",
-    "invitedAt": "초대일"
+    "invitedAt": "초대일",
+    "status": "상태",
+    "projects": "프로젝트"
+  },
+  "filter": {
+    "active": "활성",
+    "all": "전체",
+    "archived": "비활성"
+  },
+  "status": {
+    "active": "활성",
+    "archived": "비활성",
+    "invited": "초대됨"
+  },
+  "switch": {
+    "tipDeactivate": "활성 — 클릭하여 비활성화",
+    "tipActivate": "비활성 — 클릭하여 활성화",
+    "labelActive": "활성",
+    "labelArchived": "비활성"
+  },
+  "drawer": {
+    "back": "목록",
+    "close": "닫기"
+  },
+  "drawerHead": {
+    "defaultName": "고객"
+  },
+  "section": {
+    "contact": "연락처",
+    "contactEmail": "이메일",
+    "contactPhone": "전화",
+    "contactHelper": "이메일·전화는 고객이 본인 프로필에서 수정합니다.",
+    "notes": "메모",
+    "notesPlaceholder": "이 고객에 관한 내부 메모 — 자동저장",
+    "linkedProjects": "연결 프로젝트",
+    "linkedProjectsEmpty": "연결된 프로젝트 없음",
+    "linkedConversations": "연결 대화",
+    "linkedConversationsEmpty": "참여중인 대화 없음",
+    "history": "히스토리",
+    "historyLoading": "로드 중…",
+    "historyEmpty": "기록 없음",
+    "historyToggleOpen": "열기",
+    "historyToggleClose": "닫기",
+    "danger": "위험 영역",
+    "dangerDelete": "고객 완전 삭제",
+    "dangerHelper": "이 워크스페이스에서 완전히 삭제합니다. 연결된 프로젝트에서도 해제됩니다."
+  },
+  "projectStatus": {
+    "active": "진행",
+    "paused": "일시중지",
+    "completed": "완료"
+  },
+  "channelType": {
+    "customer": "고객",
+    "internal": "내부"
+  },
+  "typeBadge": {
+    "ongoing": "구독"
+  },
+  "inviteModal": {
+    "title": "고객 초대",
+    "name": "이름",
+    "email": "이메일",
+    "company": "회사명",
+    "companyPlaceholder": "선택",
+    "namePlaceholder": "예: 김고객",
+    "helper": "이메일이 이미 사용자로 있으면 그 계정에 워크스페이스 고객으로 추가됩니다. 없으면 새 계정을 자동 생성하고 초대장을 보냅니다 (추후).",
+    "cancel": "취소",
+    "submitting": "초대 중…",
+    "submit": "초대",
+    "errRequired": "이름과 이메일은 필수입니다",
+    "errFailed": "초대 실패"
+  },
+  "deleteModal": {
+    "title": "고객 삭제 확인",
+    "body": "을(를) 이 워크스페이스에서 완전히 삭제합니다.",
+    "impactWarn": "연결된 <1>{{count}}개</1> 프로젝트에서도 연결이 해제됩니다:",
+    "noImpact": "다른 프로젝트 연결 없음 — 이 삭제 이후 워크스페이스에서 사라집니다.",
+    "caveat": "사용자 계정 자체(로그인)는 유지됩니다. 다시 초대하면 다시 추가할 수 있습니다.",
+    "cancel": "취소",
+    "deleting": "삭제 중…",
+    "delete": "삭제",
+    "failed": "삭제 실패"
+  },
+  "history": {
+    "invited": "초대됨",
+    "activated": "활성화",
+    "archived": "비활성화",
+    "updated": "정보 수정",
+    "deleted": "삭제",
+    "projectAdded": "프로젝트 연결",
+    "projectRemoved": "프로젝트 연결 해제"
   }
 }

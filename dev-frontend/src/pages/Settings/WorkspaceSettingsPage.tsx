@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, useMemo } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useParams, useNavigate } from 'react-router-dom';
-import { useAuth } from '../../contexts/AuthContext';
+import { useAuth, apiFetch } from '../../contexts/AuthContext';
 import AutoSaveField from '../../components/Common/AutoSaveField';
 import PlanQSelect from '../../components/Common/PlanQSelect';
 import { Tabs, Tab } from '../../components/Common/TabComponents';
@@ -18,6 +18,9 @@ import {
   updateLegal,
   updateSettings,
   listMembers,
+  inviteMember,
+  updateMemberRole,
+  removeMember,
   getCueInfo,
   updateCue,
   type Workspace,
@@ -44,6 +47,42 @@ const SectionTitle = styled.h2`
   font-weight: 700;
   color: #0f172a;
   margin: 0 0 4px;
+`;
+const SectionHeaderRow = styled.div`
+  display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 12px;
+`;
+const InvitePrimaryBtn = styled.button`
+  display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 14px;
+  background: #14B8A6; color: #FFFFFF; border: none; border-radius: 8px;
+  font-size: 13px; font-weight: 700; cursor: pointer; flex-shrink: 0;
+  &:hover { background: #0D9488; }
+`;
+const InviteBox = styled.div`
+  margin: 12px 0 16px; padding: 14px; background: #F8FAFC; border: 1px solid #E2E8F0;
+  border-radius: 10px; display: flex; flex-direction: column; gap: 10px;
+`;
+const InviteInputRow = styled.div`display: flex; gap: 8px;`;
+const InviteInput = styled.input`
+  flex: 2; padding: 8px 12px; border: 1px solid #CBD5E1; border-radius: 8px;
+  font-size: 13px; background: #FFFFFF; &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 2px rgba(20,184,166,0.15); }
+`;
+const InviteRoleInput = styled.input`
+  flex: 1; padding: 8px 12px; border: 1px solid #CBD5E1; border-radius: 8px;
+  font-size: 13px; background: #FFFFFF; min-width: 120px;
+  &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 2px rgba(20,184,166,0.15); }
+`;
+const InviteError = styled.div`font-size: 12px; color: #DC2626;`;
+const InviteActionRow = styled.div`display: flex; gap: 8px; justify-content: flex-end;`;
+const InviteCancel = styled.button`
+  padding: 7px 12px; background: #FFFFFF; color: #334155; border: 1px solid #CBD5E1;
+  border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer;
+  &:hover { background: #F8FAFC; border-color: #94A3B8; }
+`;
+const InviteSubmit = styled.button`
+  padding: 7px 14px; background: #0D9488; color: #FFFFFF; border: none;
+  border-radius: 8px; font-size: 12px; font-weight: 700; cursor: pointer;
+  &:hover:not(:disabled) { background: #0F766E; }
+  &:disabled { background: #CBD5E1; cursor: not-allowed; }
 `;
 
 const SectionDesc = styled.p`
@@ -242,7 +281,7 @@ const Switch = styled.button<{ $on?: boolean }>`
   }
 `;
 
-const MemberRow = styled.div<{ $ai?: boolean }>`
+const MemberRow = styled.div<{ $ai?: boolean; $clickable?: boolean }>`
   display: flex;
   align-items: center;
   gap: 12px;
@@ -251,6 +290,18 @@ const MemberRow = styled.div<{ $ai?: boolean }>`
   background: ${(p) => (p.$ai ? '#fff1f2' : '#ffffff')};
   border-radius: 10px;
   margin-bottom: 8px;
+  cursor: ${(p) => (p.$clickable ? 'pointer' : 'default')};
+  transition: background 0.12s, border-color 0.12s;
+  &:hover {
+    ${(p) => (p.$clickable ? 'background:#F8FAFC; border-color:#CBD5E1;' : '')}
+  }
+`;
+const MemberNameRow = styled.div`display:flex; align-items:center; gap:6px; flex-wrap:wrap;`;
+const MemberOrg = styled.span`font-size:12px; color:#94A3B8; font-weight:500;`;
+const DefaultRoleBadge = styled.span`
+  display:inline-flex; align-items:center; height:22px; padding:0 10px;
+  font-size:11px; font-weight:600; color:#0F766E; background:#F0FDFA; border:1px solid #99F6E4;
+  border-radius:10px; flex-shrink:0;
 `;
 
 const Avatar = styled.div<{ $ai?: boolean }>`
@@ -300,18 +351,85 @@ const RoleBadge = styled.span<{ $role?: string }>`
   flex-shrink: 0;
 `;
 
-const DefaultRoleInput = styled.input`
-  width: 80px;
-  padding: 3px 8px;
-  border: 1px solid #e2e8f0;
-  border-radius: 6px;
-  font-size: 11px;
-  color: #0f172a;
-  background: #f8fafc;
-  flex-shrink: 0;
-  &:focus { outline: none; border-color: #14b8a6; background: #fff; }
-  &::placeholder { color: #94a3b8; }
+
+// ─── 멤버 상세 드로어 ───
+const MemberDrawerBackdrop = styled.div`
+  position: fixed; inset: 0; background: rgba(15,23,42,0.2); z-index: 90;
 `;
+const MemberDrawer = styled.aside`
+  position: fixed; top: 0; right: 0; bottom: 0; width: 440px; max-width: 100vw;
+  background: #FFFFFF; border-left: 1px solid #E2E8F0; box-shadow: -4px 0 16px rgba(0,0,0,0.06);
+  z-index: 100; display: flex; flex-direction: column;
+  @media (max-width: 1024px) { width: min(560px, 90vw); }
+  @media (max-width: 640px) { width: 100vw; border-left: none; box-shadow: none; }
+`;
+const MemberDrawerHeader = styled.div`
+  display: flex; align-items: center; justify-content: space-between;
+  min-height: 60px; padding: 14px 20px; border-bottom: 1px solid #E2E8F0;
+`;
+const MemberDrawerBack = styled.button`
+  display: flex; align-items: center; gap: 4px; background: transparent; border: none;
+  color: #0F766E; font-size: 12px; font-weight: 600; cursor: pointer; padding: 0;
+  &:hover { color: #134E4A; }
+`;
+const MemberDrawerClose = styled.button`
+  width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;
+  background: transparent; border: none; border-radius: 6px; color: #64748B; cursor: pointer;
+  &:hover { background: #F1F5F9; color: #0F172A; }
+`;
+const MemberDrawerScroll = styled.div`flex: 1; overflow: auto; padding: 20px;`;
+const DrawerHeadRow = styled.div`display: flex; align-items: center; gap: 14px; padding-bottom: 20px; border-bottom: 1px solid #F1F5F9;`;
+const DrawerHeadText = styled.div`flex: 1; min-width: 0;`;
+const DrawerName = styled.div`font-size: 18px; font-weight: 700; color: #0F172A;`;
+const DrawerSub = styled.div`font-size: 13px; color: #64748B; margin-top: 4px;`;
+const DrawerPendingNote = styled.div`font-size: 12px; color: #92400E; background: #FEF3C7; padding: 6px 10px; border-radius: 6px; margin-top: 6px; display: inline-block;`;
+const DrawerSection = styled.section`padding: 20px 0; border-bottom: 1px solid #F1F5F9;`;
+const DrawerSectionTitle = styled.h3`font-size: 13px; font-weight: 700; color: #0F172A; margin: 0 0 4px; text-transform: uppercase; letter-spacing: 0.3px;`;
+const DrawerSectionHint = styled.p`font-size: 11px; color: #94A3B8; margin: 0 0 12px;`;
+const DrawerInfoGrid = styled.div`
+  display: grid; grid-template-columns: 90px 1fr; gap: 8px 14px; align-items: center;
+`;
+const DrawerInfoLabel = styled.div`font-size: 12px; color: #64748B; font-weight: 600;`;
+const DrawerInfoValue = styled.div`font-size: 13px; color: #0F172A;`;
+const DrawerBioBox = styled.div`
+  margin-top: 12px; padding: 10px 12px; background: #F8FAFC;
+  border-radius: 8px; font-size: 13px; color: #334155; line-height: 1.55; white-space: pre-wrap;
+`;
+const DrawerInlineInput = styled.input`
+  width: 100%; max-width: 200px; height: 28px; padding: 0 8px; border: 1px solid #CBD5E1;
+  border-radius: 6px; font-size: 13px; background: #FFFFFF;
+  &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 2px rgba(20,184,166,0.15); }
+`;
+const WorkHoursForm = styled.div`display: flex; gap: 16px; flex-wrap: wrap;`;
+const WorkHoursField = styled.label`display: flex; flex-direction: column; gap: 4px; min-width: 90px;`;
+const WorkHoursLabel = styled.span`font-size: 11px; color: #64748B; font-weight: 600;`;
+const WorkHoursNumber = styled.input`
+  width: 80px; height: 32px; padding: 0 8px; border: 1px solid #CBD5E1; border-radius: 6px;
+  font-size: 13px; background: #FFFFFF;
+  &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 2px rgba(20,184,166,0.15); }
+  &:disabled { background: #F8FAFC; color: #94A3B8; cursor: not-allowed; }
+`;
+const WorkHoursUnit = styled.span`font-size: 11px; color: #94A3B8; font-weight: 500; margin-top: -2px;`;
+
+const DangerRow = styled.div`
+  display: flex; align-items: center; justify-content: space-between; gap: 14px;
+  padding: 10px 0;
+`;
+const DangerRowLabel = styled.span`font-size: 13px; color: #334155; font-weight: 600;`;
+const RoleSelectWrap = styled.div`min-width: 140px;`;
+const DangerBtn = styled.button`
+  padding: 7px 14px; background: #FFFFFF; color: #DC2626;
+  border: 1px solid #FECACA; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer;
+  &:hover:not(:disabled) { background: #FEF2F2; border-color: #DC2626; }
+  &:disabled { color: #CBD5E1; border-color: #E2E8F0; cursor: not-allowed; }
+`;
+const DangerError = styled.div`font-size: 12px; color: #DC2626; margin: 4px 0;`;
+const ConfirmBox = styled.div`
+  margin-top: 8px; padding: 12px; background: #FEF2F2; border: 1px solid #FECACA;
+  border-radius: 8px; display: flex; flex-direction: column; gap: 10px;
+`;
+const ConfirmText = styled.div`font-size: 12px; color: #7F1D1D; line-height: 1.5;`;
+const ConfirmRow = styled.div`display: flex; gap: 6px; justify-content: flex-end;`;
 
 const ErrorBanner = styled.div`
   background: #fff1f2;
@@ -373,6 +491,83 @@ export default function WorkspaceSettingsPage() {
   }, [isMembersMode, location.pathname, navigate]);
   const [ws, setWs] = useState<Workspace | null>(null);
   const [members, setMembers] = useState<WorkspaceMember[]>([]);
+  const [inviteOpen, setInviteOpen] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteRole, setInviteRole] = useState('');
+  const [inviteBusy, setInviteBusy] = useState(false);
+  const [inviteError, setInviteError] = useState<string | null>(null);
+  const [selectedMemberId, setSelectedMemberId] = useState<number | null>(null);
+
+  const [memberBusy, setMemberBusy] = useState(false);
+  const [memberError, setMemberError] = useState<string | null>(null);
+  const [confirmRemoveId, setConfirmRemoveId] = useState<number | null>(null);
+
+  const handleRoleChange = async (memberId: number, nextRole: 'owner' | 'member') => {
+    if (!businessId) return;
+    setMemberBusy(true); setMemberError(null);
+    try {
+      await updateMemberRole(businessId, memberId, nextRole);
+      const fresh = await listMembers(businessId);
+      setMembers(fresh);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes('last_owner_protection')) setMemberError(t('members.drawer.errLastOwner', '마지막 관리자는 강등할 수 없습니다.') as string);
+      else setMemberError(msg);
+    } finally { setMemberBusy(false); }
+  };
+
+  const handleRemoveMember = async (memberId: number) => {
+    if (!businessId) return;
+    setMemberBusy(true); setMemberError(null);
+    try {
+      await removeMember(businessId, memberId);
+      const fresh = await listMembers(businessId);
+      setMembers(fresh);
+      setSelectedMemberId(null);
+      setConfirmRemoveId(null);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes('last_owner_protection')) setMemberError(t('members.drawer.errLastOwner', '마지막 관리자는 제거할 수 없습니다.') as string);
+      else if (msg.includes('forbidden')) setMemberError(t('members.drawer.errForbidden', '제거 권한이 없습니다.') as string);
+      else setMemberError(msg);
+    } finally { setMemberBusy(false); }
+  };
+
+  const saveWorkHours = async (memberId: number, payload: { daily_work_hours?: number; weekly_work_days?: number; participation_rate?: number }) => {
+    if (!businessId) return;
+    try {
+      const res = await apiFetch(`/api/businesses/${businessId}/members/${memberId}/work-hours`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) return;
+      const fresh = await listMembers(businessId);
+      setMembers(fresh);
+    } catch { /* silent */ }
+  };
+
+  const sendMemberInvite = async () => {
+    if (!businessId || !inviteEmail.trim()) return;
+    setInviteBusy(true);
+    setInviteError(null);
+    try {
+      await inviteMember(businessId, { email: inviteEmail.trim(), default_role: inviteRole.trim() || undefined });
+      const fresh = await listMembers(businessId);
+      setMembers(fresh);
+      setInviteOpen(false);
+      setInviteEmail('');
+      setInviteRole('');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes('already_member')) setInviteError(t('members.inviteErrAlreadyMember', '이미 멤버로 등록되어 있습니다.') as string);
+      else if (msg.includes('already_invited')) setInviteError(t('members.inviteErrAlreadyInvited', '이미 초대된 이메일입니다.') as string);
+      else if (msg.includes('forbidden')) setInviteError(t('members.inviteErrForbidden', '초대 권한이 없습니다.') as string);
+      else setInviteError(msg);
+    } finally {
+      setInviteBusy(false);
+    }
+  };
   const [cue, setCue] = useState<CueInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -833,76 +1028,306 @@ export default function WorkspaceSettingsPage() {
       {tab === 'members' && (
         <>
           <Card>
-            <SectionTitle>{t('members.cueCardTitle')}</SectionTitle>
-            <SectionDesc>{t('members.cueCardDesc')}</SectionDesc>
+            <SectionHeaderRow>
+              <div>
+                <SectionTitle>{t('members.sectionTitle')}</SectionTitle>
+                <SectionDesc>{t('members.sectionDesc')}</SectionDesc>
+              </div>
+              {isAdmin && !inviteOpen && (
+                <InvitePrimaryBtn type="button" onClick={() => { setInviteOpen(true); setInviteError(null); }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+                    <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+                  </svg>
+                  {t('members.inviteBtn', '멤버 초대')}
+                </InvitePrimaryBtn>
+              )}
+            </SectionHeaderRow>
 
-            {cue && (
-              <>
-                <UsageBar>
-                  <UsageFill $ratio={usageRatio} $over={cue.usage.action_count >= cue.usage.limit} />
-                </UsageBar>
-                <UsageStats>
-                  <UsageStat>
-                    <UsageStatLabel>{t('members.cueUsageThisMonth')}</UsageStatLabel>
-                    <UsageStatValue>
-                      {cue.usage.action_count.toLocaleString()} / {cue.usage.limit.toLocaleString()}
-                    </UsageStatValue>
-                  </UsageStat>
-                  <UsageStat>
-                    <UsageStatLabel>{t('members.cueUsageRemaining')}</UsageStatLabel>
-                    <UsageStatValue>{cue.usage.remaining.toLocaleString()}</UsageStatValue>
-                  </UsageStat>
-                  <UsageStat>
-                    <UsageStatLabel>{t('cue.usageCost')}</UsageStatLabel>
-                    <UsageStatValue>${cue.usage.cost_usd.toFixed(4)}</UsageStatValue>
-                  </UsageStat>
-                </UsageStats>
-              </>
+            {isAdmin && inviteOpen && (
+              <InviteBox>
+                <InviteInputRow>
+                  <InviteInput
+                    type="email"
+                    autoFocus
+                    placeholder={t('members.invitePlaceholder', '초대할 이메일') as string}
+                    value={inviteEmail}
+                    onChange={(e) => setInviteEmail(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter' && inviteEmail.trim()) sendMemberInvite(); }}
+                  />
+                  <InviteRoleInput
+                    type="text"
+                    placeholder={t('members.defaultRolePlaceholder', 'e.g. Design') as string}
+                    value={inviteRole}
+                    onChange={(e) => setInviteRole(e.target.value)}
+                  />
+                </InviteInputRow>
+                {inviteError && <InviteError>{inviteError}</InviteError>}
+                <InviteActionRow>
+                  <InviteCancel type="button" onClick={() => { setInviteOpen(false); setInviteEmail(''); setInviteRole(''); setInviteError(null); }}>
+                    {t('members.inviteCancel', '취소')}
+                  </InviteCancel>
+                  <InviteSubmit type="button" disabled={inviteBusy || !inviteEmail.trim()} onClick={sendMemberInvite}>
+                    {inviteBusy ? t('members.inviteSending', '전송 중...') : t('members.inviteSend', '초대 보내기')}
+                  </InviteSubmit>
+                </InviteActionRow>
+              </InviteBox>
             )}
-          </Card>
 
-          <Card>
-            <SectionTitle>{t('members.sectionTitle')}</SectionTitle>
-            <SectionDesc>{t('members.sectionDesc')}</SectionDesc>
             {members.length === 0 && <div style={{ color: '#94a3b8', fontSize: 13 }}>{t('members.emptyMembers')}</div>}
             {members.map((m) => {
               const isAi = m.role === 'ai' || !!m.user?.is_ai;
-              const firstLetter = (m.user?.name || '?').charAt(0).toUpperCase();
+              const isPending = !m.user_id && !!m.invite_email;
+              const displayName = isPending ? (m.invite_email || '') : (m.user?.name || '');
+              const firstLetter = (displayName || '?').charAt(0).toUpperCase();
               const roleLabel = m.role === 'owner'
                 ? t('members.roleAdmin')
                 : m.role === 'ai'
                   ? t('members.roleAi')
                   : t('members.roleMember');
+              const subLine = isAi
+                ? t('members.cueCardDesc')
+                : isPending
+                  ? t('members.pendingInvite', '초대 대기 중')
+                  : m.user?.job_title || m.user?.email || '';
               return (
-                <MemberRow key={m.id} $ai={isAi}>
+                <MemberRow key={m.id} $ai={isAi} $clickable={!isAi}
+                  onClick={() => { if (!isAi) setSelectedMemberId((cur) => cur === m.id ? null : m.id); }}>
                   <Avatar $ai={isAi}>{isAi ? 'C' : firstLetter}</Avatar>
                   <MemberInfo>
-                    <MemberName>{m.user?.name}</MemberName>
-                    <MemberEmail>{isAi ? t('members.cueCardDesc') : m.user?.email}</MemberEmail>
+                    <MemberNameRow>
+                      <MemberName>{displayName || t('members.pendingInvite', '초대 대기 중')}</MemberName>
+                      {!isAi && !isPending && m.user?.organization && <MemberOrg>· {m.user.organization}</MemberOrg>}
+                    </MemberNameRow>
+                    <MemberEmail>{subLine}</MemberEmail>
                   </MemberInfo>
-                  {!isAi && isAdmin && (
-                    <DefaultRoleInput
-                      type="text"
-                      placeholder={t('members.defaultRolePlaceholder', 'e.g. Design')}
-                      defaultValue={(m as unknown as Record<string, string>).default_role || ''}
-                      onBlur={async (e) => {
-                        const val = e.target.value.trim();
-                        try {
-                          await fetch(`/api/businesses/${businessId}/members/${m.id}/default-role`, {
-                            method: 'PATCH',
-                            headers: { 'Authorization': `Bearer ${localStorage.getItem('token') || ''}`, 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ default_role: val || null }),
-                          });
-                        } catch { /* silent */ }
-                      }}
-                      onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
-                    />
-                  )}
+                  {!isAi && m.default_role && <DefaultRoleBadge>{m.default_role}</DefaultRoleBadge>}
                   <RoleBadge $role={m.role}>{roleLabel}</RoleBadge>
                 </MemberRow>
               );
             })}
           </Card>
+
+          {/* 멤버 상세 드로어 */}
+          {selectedMemberId != null && (() => {
+            const target = members.find((m) => m.id === selectedMemberId);
+            if (!target) return null;
+            const isSelf = target.user_id != null && String(target.user_id) === String(user?.id);
+            const canEditHours = isSelf || isAdmin;
+            const isPending = !target.user_id && !!target.invite_email;
+            const u = target.user;
+            const fmtLastLogin = u?.last_login_at ? new Date(u.last_login_at).toLocaleString() : '—';
+            return (
+              <>
+                <MemberDrawerBackdrop onClick={() => setSelectedMemberId(null)} />
+                <MemberDrawer role="dialog" aria-modal="true" aria-label={u?.name || 'member'}>
+                  <MemberDrawerHeader>
+                    <MemberDrawerBack type="button" onClick={() => setSelectedMemberId(null)}>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="15 18 9 12 15 6"/></svg>
+                      {t('members.drawer.back', '목록')}
+                    </MemberDrawerBack>
+                    <MemberDrawerClose type="button" onClick={() => setSelectedMemberId(null)} aria-label={t('members.drawer.close', '닫기') as string}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                    </MemberDrawerClose>
+                  </MemberDrawerHeader>
+
+                  <MemberDrawerScroll>
+                    <DrawerHeadRow>
+                      <Avatar $ai={false} style={{ width: 56, height: 56, fontSize: 22 }}>
+                        {(isPending ? (target.invite_email || '?') : (u?.name || '?')).charAt(0).toUpperCase()}
+                      </Avatar>
+                      <DrawerHeadText>
+                        <DrawerName>{isPending ? (target.invite_email || '') : (u?.name || '')}</DrawerName>
+                        {!isPending && u?.job_title && <DrawerSub>{u.job_title}{u.organization ? ` · ${u.organization}` : ''}</DrawerSub>}
+                        {isPending && <DrawerPendingNote>{t('members.pendingNote', '초대 수락 후 프로필이 표시됩니다.')}</DrawerPendingNote>}
+                      </DrawerHeadText>
+                      <RoleBadge $role={target.role}>
+                        {target.role === 'owner' ? t('members.roleAdmin') : target.role === 'ai' ? t('members.roleAi') : t('members.roleMember')}
+                      </RoleBadge>
+                    </DrawerHeadRow>
+
+                    {!isPending && (
+                      <>
+                        <DrawerSection>
+                          <DrawerSectionTitle>{t('members.drawer.profile', '프로필')}</DrawerSectionTitle>
+                          <DrawerSectionHint>{t('members.drawer.profileHint', '본인만 수정 가능합니다.')}</DrawerSectionHint>
+                          <DrawerInfoGrid>
+                            <DrawerInfoLabel>{t('members.drawer.email', '이메일')}</DrawerInfoLabel>
+                            <DrawerInfoValue>{u?.email || '—'}</DrawerInfoValue>
+                            <DrawerInfoLabel>{t('members.drawer.phone', '전화')}</DrawerInfoLabel>
+                            <DrawerInfoValue>{u?.phone || '—'}</DrawerInfoValue>
+                            <DrawerInfoLabel>{t('members.drawer.jobTitle', '직책')}</DrawerInfoLabel>
+                            <DrawerInfoValue>{u?.job_title || '—'}</DrawerInfoValue>
+                            <DrawerInfoLabel>{t('members.drawer.organization', '소속')}</DrawerInfoLabel>
+                            <DrawerInfoValue>{u?.organization || '—'}</DrawerInfoValue>
+                            {u?.expertise && <>
+                              <DrawerInfoLabel>{t('members.drawer.expertise', '전문분야')}</DrawerInfoLabel>
+                              <DrawerInfoValue>{u.expertise}</DrawerInfoValue>
+                            </>}
+                            {u?.timezone && <>
+                              <DrawerInfoLabel>{t('members.drawer.timezone', '타임존')}</DrawerInfoLabel>
+                              <DrawerInfoValue>{u.timezone}</DrawerInfoValue>
+                            </>}
+                          </DrawerInfoGrid>
+                          {u?.bio && <DrawerBioBox>{u.bio}</DrawerBioBox>}
+                        </DrawerSection>
+
+                        <DrawerSection>
+                          <DrawerSectionTitle>{t('members.drawer.workspace', '워크스페이스 정보')}</DrawerSectionTitle>
+                          <DrawerInfoGrid>
+                            <DrawerInfoLabel>{t('members.drawer.defaultRole', '기본 역할')}</DrawerInfoLabel>
+                            <DrawerInfoValue>
+                              {isAdmin ? (
+                                <DrawerInlineInput
+                                  type="text"
+                                  placeholder={t('members.defaultRolePlaceholder', 'e.g. Design') as string}
+                                  defaultValue={target.default_role || ''}
+                                  onBlur={async (e) => {
+                                    const val = e.target.value.trim();
+                                    try {
+                                      await apiFetch(`/api/businesses/${businessId}/members/${target.id}/default-role`, {
+                                        method: 'PATCH',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({ default_role: val || null }),
+                                      });
+                                      const fresh = await listMembers(businessId);
+                                      setMembers(fresh);
+                                    } catch { /* silent */ }
+                                  }}
+                                />
+                              ) : (
+                                <span>{target.default_role || '—'}</span>
+                              )}
+                            </DrawerInfoValue>
+                            <DrawerInfoLabel>{t('members.drawer.joinedAt', '참여일')}</DrawerInfoLabel>
+                            <DrawerInfoValue>{target.joined_at ? new Date(target.joined_at).toLocaleDateString() : '—'}</DrawerInfoValue>
+                            <DrawerInfoLabel>{t('members.drawer.lastLogin', '마지막 활동')}</DrawerInfoLabel>
+                            <DrawerInfoValue>{fmtLastLogin}</DrawerInfoValue>
+                          </DrawerInfoGrid>
+                        </DrawerSection>
+
+                        <DrawerSection>
+                          <DrawerSectionTitle>{t('members.drawer.workHours', '가용시간')}</DrawerSectionTitle>
+                          <DrawerSectionHint>
+                            {canEditHours
+                              ? t('members.drawer.workHoursHint', '본인 또는 관리자가 조정할 수 있습니다. 업무 배정/예측 계산에 사용됩니다.')
+                              : t('members.drawer.workHoursReadOnly', '본인 또는 관리자만 수정할 수 있습니다.')}
+                          </DrawerSectionHint>
+                          <WorkHoursForm>
+                            <WorkHoursField>
+                              <WorkHoursLabel>{t('members.drawer.dailyHours', '하루 업무 시간')}</WorkHoursLabel>
+                              <WorkHoursNumber
+                                type="number" min="0" max="24" step="0.5"
+                                disabled={!canEditHours}
+                                defaultValue={Number(target.daily_work_hours ?? 8)}
+                                onBlur={(e) => saveWorkHours(target.id, { daily_work_hours: Number(e.target.value) })}
+                              />
+                              <WorkHoursUnit>h</WorkHoursUnit>
+                            </WorkHoursField>
+                            <WorkHoursField>
+                              <WorkHoursLabel>{t('members.drawer.weeklyDays', '주간 근무일')}</WorkHoursLabel>
+                              <WorkHoursNumber
+                                type="number" min="1" max="7" step="1"
+                                disabled={!canEditHours}
+                                defaultValue={Number(target.weekly_work_days ?? 5)}
+                                onBlur={(e) => saveWorkHours(target.id, { weekly_work_days: Number(e.target.value) })}
+                              />
+                              <WorkHoursUnit>{t('members.drawer.daysSuffix', '일')}</WorkHoursUnit>
+                            </WorkHoursField>
+                            <WorkHoursField>
+                              <WorkHoursLabel>{t('members.drawer.participation', '참여율')}</WorkHoursLabel>
+                              <WorkHoursNumber
+                                type="number" min="0" max="100" step="5"
+                                disabled={!canEditHours}
+                                defaultValue={Math.round(Number(target.participation_rate ?? 1) * 100)}
+                                onBlur={(e) => saveWorkHours(target.id, { participation_rate: Math.max(0, Math.min(1, Number(e.target.value) / 100)) })}
+                              />
+                              <WorkHoursUnit>%</WorkHoursUnit>
+                            </WorkHoursField>
+                          </WorkHoursForm>
+                        </DrawerSection>
+                      </>
+                    )}
+
+                    {/* Danger Zone */}
+                    {(isAdmin || isSelf) && target.role !== 'ai' && (
+                      <DrawerSection>
+                        <DrawerSectionTitle>{t('members.drawer.danger', 'Danger Zone')}</DrawerSectionTitle>
+
+                        {/* 역할 변경 — 오너만, 본인은 강등 시 경고 */}
+                        {isAdmin && !isPending && (() => {
+                          const roleOpts = [
+                            { value: 'member', label: t('members.roleMember') as string },
+                            { value: 'owner', label: t('members.roleAdmin') as string },
+                          ];
+                          return (
+                            <DangerRow>
+                              <DangerRowLabel>{t('members.drawer.role', '역할')}</DangerRowLabel>
+                              <RoleSelectWrap>
+                                <PlanQSelect
+                                  value={roleOpts.find((o) => o.value === target.role) || null}
+                                  onChange={(opt) => {
+                                    const v = (opt as { value: string } | null)?.value;
+                                    if (v === 'owner' || v === 'member') handleRoleChange(target.id, v);
+                                  }}
+                                  options={roleOpts}
+                                  isDisabled={memberBusy}
+                                  size="sm"
+                                />
+                              </RoleSelectWrap>
+                            </DangerRow>
+                          );
+                        })()}
+
+                        {memberError && <DangerError>{memberError}</DangerError>}
+
+                        {/* 제거 / 나가기 / 초대 취소 */}
+                        <DangerRow>
+                          <DangerRowLabel>
+                            {isPending
+                              ? t('members.drawer.cancelInviteLabel', '초대')
+                              : isSelf
+                                ? t('members.drawer.leaveLabel', '워크스페이스')
+                                : t('members.drawer.removeLabel', '멤버')}
+                          </DangerRowLabel>
+                          <DangerBtn type="button" disabled={memberBusy} onClick={() => setConfirmRemoveId(target.id)}>
+                            {isPending
+                              ? t('members.drawer.cancelInvite', '초대 취소')
+                              : isSelf
+                                ? t('members.drawer.leave', '워크스페이스 나가기')
+                                : t('members.drawer.remove', '멤버 제거')}
+                          </DangerBtn>
+                        </DangerRow>
+
+                        {confirmRemoveId === target.id && (
+                          <ConfirmBox>
+                            <ConfirmText>
+                              {isPending
+                                ? t('members.drawer.cancelInviteConfirm', '이 초대를 취소할까요? 초대 링크가 무효화됩니다.')
+                                : isSelf
+                                  ? t('members.drawer.leaveConfirm', '이 워크스페이스에서 나가시겠습니까? 과거 업무 이력은 보존됩니다.')
+                                  : t('members.drawer.removeConfirm', '이 멤버를 워크스페이스에서 제거합니다. 과거 업무 이력은 보존됩니다.')}
+                            </ConfirmText>
+                            <ConfirmRow>
+                              <InviteCancel type="button" onClick={() => setConfirmRemoveId(null)}>
+                                {t('members.inviteCancel', '취소')}
+                              </InviteCancel>
+                              <DangerBtn type="button" disabled={memberBusy} onClick={() => handleRemoveMember(target.id)}>
+                                {memberBusy ? t('members.drawer.removing', '처리 중...') : (
+                                  isPending ? t('members.drawer.cancelInvite', '초대 취소')
+                                    : isSelf ? t('members.drawer.leave', '나가기')
+                                      : t('members.drawer.remove', '제거')
+                                )}
+                              </DangerBtn>
+                            </ConfirmRow>
+                          </ConfirmBox>
+                        )}
+                      </DrawerSection>
+                    )}
+                  </MemberDrawerScroll>
+                </MemberDrawer>
+              </>
+            );
+          })()}
         </>
       )}
 

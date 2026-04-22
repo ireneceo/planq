@@ -60,6 +60,7 @@ const QProjectPage: React.FC = () => {
   const [projects, setProjects] = useState<ProjectRow[]>([]);
   const [tasksByProject, setTasksByProject] = useState<Record<number, TaskRow[]>>({});
   const [newProjectOpen, setNewProjectOpen] = useState(false);
+  const [showClosed, setShowClosed] = useState(false);
   const handleCreateProject = useCallback(async (data: ProjectFormData & { project_type?: 'fixed' | 'ongoing' }) => {
     if (!user?.business_id) return;
     const res = await apiFetch('/api/projects', {
@@ -134,6 +135,23 @@ const QProjectPage: React.FC = () => {
     });
   }, [projects, tasksByProject, todayStr]);
 
+  // closed 필터링
+  const visibleProjects = useMemo(
+    () => showClosed ? enriched : enriched.filter((p) => p.status !== 'closed'),
+    [enriched, showClosed]
+  );
+
+  const changeProjectStatus = useCallback(async (projectId: number, next: 'active' | 'paused' | 'closed') => {
+    const r = await apiFetch(`/api/projects/${projectId}`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: next }),
+    });
+    const j = await r.json();
+    if (j.success) {
+      setProjects((prev) => prev.map((p) => p.id === projectId ? { ...p, status: next } : p));
+    }
+  }, []);
+
   const setView = (v: ViewMode) => {
     navigate(v === 'list' ? '/projects' : `/projects/${v}`);
   };
@@ -158,6 +176,13 @@ const QProjectPage: React.FC = () => {
               {t('view.calendar')}
             </ViewTab>
           </ViewTabs>
+          <ClosedToggle type="button" $on={showClosed} onClick={() => setShowClosed((v) => !v)}
+            title={t('filter.toggleClosed', '종료된 프로젝트 표시') as string}>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              {showClosed ? <path d="M20 6L9 17l-5-5"/> : <><circle cx="12" cy="12" r="10"/><line x1="8" y1="12" x2="16" y2="12"/></>}
+            </svg>
+            {t('filter.closed', '종료 포함')}
+          </ClosedToggle>
           <NewProjectCta type="button" onClick={() => setNewProjectOpen(true)}>+ {t('newProject', '새 프로젝트')}</NewProjectCta>
         </>
       }
@@ -183,11 +208,11 @@ const QProjectPage: React.FC = () => {
           <EmptyCta type="button" onClick={() => navigate('/talk')}>{t('empty.cta')}</EmptyCta>
         </EmptyState>
       ) : view === 'list' ? (
-        <ListView projects={enriched} formatDate={formatDate} t={t} onOpen={(id) => navigate(`/projects/p/${id}`)} />
+        <ListView projects={visibleProjects} formatDate={formatDate} t={t} onOpen={(id) => navigate(`/projects/p/${id}`)} onStatusChange={changeProjectStatus} />
       ) : view === 'timeline' ? (
-        <TimelineView projects={enriched} todayStr={todayStr} t={t} onOpen={(id) => navigate(`/projects/p/${id}`)} />
+        <TimelineView projects={visibleProjects} todayStr={todayStr} t={t} onOpen={(id) => navigate(`/projects/p/${id}`)} />
       ) : (
-        <CalendarView projects={enriched} todayStr={todayStr} t={t} />
+        <CalendarView projects={visibleProjects} todayStr={todayStr} t={t} />
       )}
     </PageShell>
   );
@@ -201,7 +226,24 @@ const ListView: React.FC<{
   formatDate: (iso: string | Date) => string;
   t: (k: string, o?: Record<string, unknown>) => string;
   onOpen: (projectId: number) => void;
-}> = ({ projects, formatDate, t, onOpen }) => (
+  onStatusChange: (id: number, next: 'active' | 'paused' | 'closed') => Promise<void>;
+}> = ({ projects, formatDate, t, onOpen, onStatusChange }) => {
+  const { t: tl } = useTranslation('qproject');
+  const [menuOpen, setMenuOpen] = useState<number | null>(null);
+  const [confirmCloseId, setConfirmCloseId] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (menuOpen == null) return;
+    const close = (e: MouseEvent) => {
+      const tgt = e.target as HTMLElement | null;
+      if (tgt && tgt.closest('[data-project-menu]')) return;
+      setMenuOpen(null);
+    };
+    const id = window.setTimeout(() => window.addEventListener('click', close), 0);
+    return () => { window.clearTimeout(id); window.removeEventListener('click', close); };
+  }, [menuOpen]);
+
+  return (<>
   <CardGrid>
     {projects.map((p) => (
       <ProjectCard key={p.id} onClick={() => onOpen(p.id)} role="button" tabIndex={0}
@@ -209,9 +251,36 @@ const ListView: React.FC<{
         style={{ borderLeft: `4px solid ${colorForProject(p)}` }}>
         <CardHead>
           <CardTitle>{p.name}</CardTitle>
-          <StatusBadge $bg={STATUS_COLOR[p.status]?.bg} $fg={STATUS_COLOR[p.status]?.fg}>
-            {t(`status.${p.status}`)}
-          </StatusBadge>
+          <CardHeadRight>
+            <StatusBadge $bg={STATUS_COLOR[p.status]?.bg} $fg={STATUS_COLOR[p.status]?.fg}>
+              {t(`status.${p.status}`)}
+            </StatusBadge>
+            <MenuWrap data-project-menu>
+              <MenuBtn type="button" aria-label={tl('card.menu', '프로젝트 메뉴') as string}
+                onClick={(e) => { e.stopPropagation(); setMenuOpen((cur) => cur === p.id ? null : p.id); }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/></svg>
+              </MenuBtn>
+              {menuOpen === p.id && (
+                <MenuDropdown onClick={(e) => e.stopPropagation()}>
+                  {p.status !== 'active' && (
+                    <MenuItem type="button" onClick={async () => { setMenuOpen(null); await onStatusChange(p.id, 'active'); }}>
+                      {tl('card.resume', '진행 중으로 전환')}
+                    </MenuItem>
+                  )}
+                  {p.status !== 'paused' && p.status !== 'closed' && (
+                    <MenuItem type="button" onClick={async () => { setMenuOpen(null); await onStatusChange(p.id, 'paused'); }}>
+                      {tl('card.pause', '일시 중지')}
+                    </MenuItem>
+                  )}
+                  {p.status !== 'closed' && (
+                    <MenuItem type="button" $danger onClick={() => { setMenuOpen(null); setConfirmCloseId(p.id); }}>
+                      {tl('card.close', '프로젝트 종료')}
+                    </MenuItem>
+                  )}
+                </MenuDropdown>
+              )}
+            </MenuWrap>
+          </CardHeadRight>
         </CardHead>
         {p.client_company && <ClientLine>{p.client_company}</ClientLine>}
         {p.description && <Description>{p.description}</Description>}
@@ -242,7 +311,28 @@ const ListView: React.FC<{
       </ProjectCard>
     ))}
   </CardGrid>
-);
+  {confirmCloseId != null && (() => {
+    const target = projects.find((p) => p.id === confirmCloseId);
+    if (!target) return null;
+    return (
+      <ConfirmBackdrop onClick={() => setConfirmCloseId(null)}>
+        <ConfirmModal onClick={(e) => e.stopPropagation()}>
+          <ConfirmTitle>{tl('card.closeConfirmTitle', '프로젝트를 종료할까요?')}</ConfirmTitle>
+          <ConfirmBody>{tl('card.closeConfirmBody', { defaultValue: '"{{name}}" 프로젝트를 종료합니다. 데이터는 보존되며 필터로 다시 볼 수 있습니다.', name: target.name })}</ConfirmBody>
+          <ConfirmRow>
+            <ConfirmCancel type="button" onClick={() => setConfirmCloseId(null)}>{tl('common.cancel', '취소')}</ConfirmCancel>
+            <ConfirmDanger type="button" onClick={async () => {
+              const id = confirmCloseId;
+              setConfirmCloseId(null);
+              if (id != null) await onStatusChange(id, 'closed');
+            }}>{tl('card.closeAction', '종료')}</ConfirmDanger>
+          </ConfirmRow>
+        </ConfirmModal>
+      </ConfirmBackdrop>
+    );
+  })()}
+  </>);
+};
 
 // ─── Timeline View (Gantt-like) ───
 const TimelineView: React.FC<{
@@ -579,6 +669,58 @@ const StatValue = styled.span<{ $danger?: boolean }>`font-size: 13px; font-weigh
 const ProgressBar = styled.div`height: 6px; background: #F1F5F9; border-radius: 999px; overflow: hidden; margin-top: 12px;`;
 const ProgressFill = styled.div<{ $pct: number }>`height: 100%; width: ${p => p.$pct}%; background: linear-gradient(90deg, #14B8A6, #0D9488); border-radius: 999px; transition: width 0.3s;`;
 const ProgressLabel = styled.div`font-size: 11px; color: #64748B; margin-top: 4px; text-align: right;`;
+
+// ─── Card 액션 메뉴 ───
+const CardHeadRight = styled.div`display:flex; align-items:center; gap:6px; flex-shrink:0;`;
+const MenuWrap = styled.div`position:relative;`;
+const MenuBtn = styled.button`
+  width:24px; height:24px; display:flex; align-items:center; justify-content:center;
+  background:transparent; border:none; border-radius:6px; color:#94A3B8; cursor:pointer;
+  &:hover{ background:#F1F5F9; color:#0F172A; }
+  &:focus-visible{ outline:2px solid #14B8A6; outline-offset:-2px; }
+`;
+const MenuDropdown = styled.div`
+  position:absolute; top:calc(100% + 4px); right:0; z-index:20;
+  min-width:160px; background:#FFFFFF; border:1px solid #E2E8F0; border-radius:8px;
+  padding:4px; box-shadow:0 4px 12px rgba(0,0,0,0.08); display:flex; flex-direction:column;
+`;
+const MenuItem = styled.button<{ $danger?: boolean }>`
+  padding:8px 10px; text-align:left; background:transparent; border:none; border-radius:6px;
+  font-size:13px; font-weight:500; color:${p => p.$danger ? '#DC2626' : '#0F172A'}; cursor:pointer;
+  &:hover{ background:${p => p.$danger ? '#FEF2F2' : '#F8FAFC'}; }
+`;
+
+// 종료 확인 모달
+const ConfirmBackdrop = styled.div`
+  position:fixed; inset:0; background:rgba(15,23,42,0.4); z-index:200;
+  display:flex; align-items:center; justify-content:center; padding:24px;
+`;
+const ConfirmModal = styled.div`
+  background:#FFFFFF; border-radius:12px; padding:24px; max-width:400px; width:100%;
+  box-shadow:0 10px 40px rgba(0,0,0,0.15);
+`;
+const ConfirmTitle = styled.h3`margin:0 0 8px; font-size:16px; font-weight:700; color:#0F172A;`;
+const ConfirmBody = styled.p`margin:0 0 20px; font-size:13px; color:#475569; line-height:1.5;`;
+const ConfirmRow = styled.div`display:flex; gap:8px; justify-content:flex-end;`;
+const ConfirmCancel = styled.button`
+  padding:8px 14px; background:#FFFFFF; color:#334155; border:1px solid #CBD5E1; border-radius:8px;
+  font-size:13px; font-weight:600; cursor:pointer;
+  &:hover{ background:#F8FAFC; border-color:#94A3B8; }
+`;
+const ConfirmDanger = styled.button`
+  padding:8px 14px; background:#DC2626; color:#FFFFFF; border:none; border-radius:8px;
+  font-size:13px; font-weight:700; cursor:pointer;
+  &:hover{ background:#B91C1C; }
+`;
+
+// 상단 closed 토글
+const ClosedToggle = styled.button<{ $on?: boolean }>`
+  display:inline-flex; align-items:center; gap:6px; padding:6px 10px;
+  background:${p => p.$on ? '#F0FDFA' : '#FFFFFF'}; color:${p => p.$on ? '#0F766E' : '#64748B'};
+  border:1px solid ${p => p.$on ? '#99F6E4' : '#E2E8F0'}; border-radius:8px;
+  font-size:12px; font-weight:600; cursor:pointer;
+  &:hover{ border-color:#14B8A6; color:#0F766E; }
+`;
 
 // Timeline
 const TimelineWrap = styled.div`background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 12px; padding: 20px;`;

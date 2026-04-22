@@ -16,7 +16,7 @@ interface Props {
   activeConversationId: number | null;
   onSelectConversation: (conversationId: number) => void;
   onOpenExtract: () => void;
-  onSendMessage: (body: string) => void;
+  onSendMessage: (body: string, files?: File[]) => void;
   onCueDraftSend: (messageId: number, editedBody?: string) => void;
   onCueDraftReject: (messageId: number) => void;
   onToggleAutoExtract: (conversationId: number, enabled: boolean) => void;
@@ -80,13 +80,21 @@ const ChatPanel: React.FC<Props> = ({
     }
   };
 
+  const [stagedFiles, setStagedFiles] = useState<File[]>([]);
   const handleSend = () => {
-    if (!input.trim()) return;
-    onSendMessage(input);
+    if (!input.trim() && stagedFiles.length === 0) return;
+    onSendMessage(input, stagedFiles.length > 0 ? stagedFiles : undefined);
     setInput('');
-    // 내가 보낸 메시지는 스크롤 위치와 무관하게 항상 바닥으로
+    setStagedFiles([]);
     scrollToBottom();
   };
+  const pickFiles = () => {
+    const el = document.createElement('input');
+    el.type = 'file'; el.multiple = true;
+    el.onchange = () => { if (el.files) setStagedFiles(prev => [...prev, ...Array.from(el.files!)]); };
+    el.click();
+  };
+  const removeStaged = (idx: number) => setStagedFiles(prev => prev.filter((_, i) => i !== idx));
 
   // 메시지 리스트 스크롤 컨테이너 + 위치 영속
   const messageListRef = React.useRef<HTMLDivElement | null>(null);
@@ -258,7 +266,7 @@ const ChatPanel: React.FC<Props> = ({
         <HeaderBar>
           <HeaderLeft>
             {leftCollapsed && (
-              <IconBtn onClick={onToggleLeft} title="열기">
+              <IconBtn onClick={onToggleLeft} title={t('chat.expandLeft', '좌측 열기') as string}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <polyline points="9 18 15 12 9 6" />
                 </svg>
@@ -317,8 +325,8 @@ const ChatPanel: React.FC<Props> = ({
                 >
                   {activeConv.name}
                 </ChatName>
-                {activeConv.channel_type === 'internal' && <InternalTag>내부</InternalTag>}
-                {activeConv.channel_type === 'customer' && <CustomerTag>고객</CustomerTag>}
+                {activeConv.channel_type === 'internal' && <InternalTag>{t('channelBadge.internal', '내부')}</InternalTag>}
+                {activeConv.channel_type === 'customer' && <CustomerTag>{t('channelBadge.customer', '고객')}</CustomerTag>}
               </ChatNameRow>
             )}
             {project && (
@@ -388,12 +396,32 @@ const ChatPanel: React.FC<Props> = ({
                 <TimeStamp>{formatTime(m.created_at)}</TimeStamp>
                 {m.sender_role === 'cue' && <CueBadge>Cue</CueBadge>}
               </MessageHeader>
-              <MessageText $question={!!m.is_question}>{m.body}</MessageText>
+              {m.body && m.body.trim() && <MessageText $question={!!m.is_question}>{m.body}</MessageText>}
+
+              {m.attachments && m.attachments.length > 0 && (
+                <AttachRow>
+                  {m.attachments.map((a) => {
+                    const isImg = (a.mime_type || '').startsWith('image/');
+                    const dl = `/api/message-attachments/${a.id}/download`;
+                    return isImg ? (
+                      <AttachImageLink key={a.id} href={dl} target="_blank" rel="noreferrer">
+                        <AttachImage src={dl} alt={a.file_name} />
+                      </AttachImageLink>
+                    ) : (
+                      <AttachFileLink key={a.id} href={dl} target="_blank" rel="noreferrer" title={a.file_name}>
+                        <AttachIcon>{a.file_name.split('.').pop()?.slice(0, 3).toUpperCase() || 'FILE'}</AttachIcon>
+                        <AttachName>{a.file_name}</AttachName>
+                        <AttachSize>{(a.file_size / 1024).toFixed(0)}KB</AttachSize>
+                      </AttachFileLink>
+                    );
+                  })}
+                </AttachRow>
+              )}
 
               {/* 출처 인용 (Cue 메시지일 때) */}
               {m.ai_sources && m.ai_sources.length > 0 && (
                 <SourceBox>
-                  <SourceLabel>출처</SourceLabel>
+                  <SourceLabel>{t('chat.draft.sourceLabel', '출처')}</SourceLabel>
                   {m.ai_sources.map((s, i) => (
                     <SourceItem key={i}>{s.title} · {s.section}</SourceItem>
                   ))}
@@ -507,7 +535,23 @@ const ChatPanel: React.FC<Props> = ({
             )}
           </InputToolbar>
         )}
+        {stagedFiles.length > 0 && (
+          <StagedRow>
+            {stagedFiles.map((f, i) => (
+              <StagedChip key={i}>
+                <StagedName title={f.name}>{f.name}</StagedName>
+                <StagedSize>{(f.size / 1024).toFixed(0)}KB</StagedSize>
+                <StagedX type="button" onClick={() => removeStaged(i)} aria-label="remove">×</StagedX>
+              </StagedChip>
+            ))}
+          </StagedRow>
+        )}
         <InputWrap>
+          <AttachBtn type="button" onClick={pickFiles} title={t('chat.input.attach', '파일 첨부') as string}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
+            </svg>
+          </AttachBtn>
           <TextInput
             value={input}
             onChange={(e) => setInput(e.target.value)}
@@ -517,7 +561,7 @@ const ChatPanel: React.FC<Props> = ({
             placeholder={t('chat.input.placeholder', '메시지를 입력하세요 (Enter 전송 · Shift+Enter 줄바꿈)')}
             rows={1}
           />
-          <SendBtn disabled={!input.trim()} onClick={handleSend}>
+          <SendBtn disabled={!input.trim() && stagedFiles.length === 0} onClick={handleSend}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <line x1="22" y1="2" x2="11" y2="13" />
               <polygon points="22 2 15 22 11 13 2 9 22 2" />
@@ -1134,3 +1178,48 @@ const SendBtn = styled.button`
   &:hover:not(:disabled) { background: #0F766E; }
   &:disabled { background: #E2E8F0; color: #94A3B8; cursor: not-allowed; }
 `;
+
+// ─── 첨부 UI ───
+const AttachBtn = styled.button`
+  width: 32px; height: 32px; border-radius: 8px;
+  background: transparent; color: #64748B; border: none;
+  display: flex; align-items: center; justify-content: center; cursor: pointer;
+  &:hover { background: #F1F5F9; color: #0F172A; }
+`;
+const StagedRow = styled.div`
+  display: flex; flex-wrap: wrap; gap: 6px; padding: 6px 12px 0;
+`;
+const StagedChip = styled.div`
+  display: inline-flex; align-items: center; gap: 6px; padding: 4px 8px;
+  background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 6px;
+  font-size: 11px; color: #475569; max-width: 220px;
+`;
+const StagedName = styled.span`white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 140px;`;
+const StagedSize = styled.span`color: #94A3B8; font-size: 10px;`;
+const StagedX = styled.button`
+  background: transparent; border: none; color: #94A3B8; cursor: pointer;
+  font-size: 14px; line-height: 1; padding: 0 2px;
+  &:hover { color: #DC2626; }
+`;
+
+const AttachRow = styled.div`
+  display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px;
+`;
+const AttachImageLink = styled.a`display: block; max-width: 220px; border-radius: 8px; overflow: hidden;`;
+const AttachImage = styled.img`
+  display: block; max-width: 220px; max-height: 200px; border-radius: 8px;
+  border: 1px solid #E2E8F0; background: #F8FAFC;
+`;
+const AttachFileLink = styled.a`
+  display: inline-flex; align-items: center; gap: 8px; padding: 6px 10px;
+  background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px;
+  text-decoration: none; color: #0F172A; font-size: 12px; max-width: 260px;
+  &:hover { background: #F0FDFA; border-color: #14B8A6; }
+`;
+const AttachIcon = styled.span`
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px; background: #14B8A6; color: #FFFFFF;
+  border-radius: 6px; font-size: 9px; font-weight: 800; letter-spacing: 0.3px;
+`;
+const AttachName = styled.span`font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 160px;`;
+const AttachSize = styled.span`color: #94A3B8; font-size: 10px;`;

@@ -1,132 +1,98 @@
 ## 현재 작업 상태
 **마지막 업데이트:** 2026-04-22
-**작업 상태:** Dropbox 연동 전체 제거 완료 → 다음 개발 착수
+**작업 상태:** 완료
 
----
+### 진행 중인 작업
+- 없음
 
-## ⚡ 빠른 재개
+### 완료된 작업 (이번 세션)
+- **초대 플로우 3청크 완성** — 프로젝트 고객·워크스페이스 고객·멤버 초대 + 통합 `/api/invites/:token`
+- **업무 삭제 + 요청 칩 통일** — 우측 드로어 Danger Zone, "{요청자}에게 요청받음"
+- **Q Talk 메시지 첨부** — 이미지 썸네일 + 파일 chip + Socket.IO
+- **Q Note → Drive 자동 저장** — Python ingest 후 Node sync API 호출
+- **Drive changes.watch** — webhook 수신 + Socket.IO 브로드캐스트
+- **프로젝트 상태 토글·삭제** — 카드 컨텍스트 메뉴 · closed 필터 · owner-only
+- **멤버 관리 Phase 2** — removed_at soft delete · role 변경 · 마지막 오너 보호 · defaultScope
+- **QNote/QProject i18n 130 키** (Agent A)
+- **ProjectClient FK 전환** — email/name 문자열 매칭 폐기 (backfill 완료)
+- **운영서버 배포 스크립트** — `deploy-to-production.sh` + `rollback-production.sh`
+- **전체 코드 감사 (3 Agent 병렬)** — Critical 1 + High 10건 전수 수정
+  - users.js IDOR · platform_role 통일 · OAuth HMAC · refresh_token 해시 · CSP 강화
+  - 22개 라우트 checkBusinessAccess 보강
+  - invites/businesses 트랜잭션 + 마지막 오너 race 방어
+  - conversations participants 외부 user 차단
+  - /public/attach 이미지만 + nosniff
+- **리포트 + Q Bill 통합 기획** — 문서 2개 신규 (`docs/Q_BILL_SPEC.md`, `docs/FINANCIAL_REPORTS_SPEC.md`)
+- **좌측 메뉴 확장** — Q Bill 활성 · 통계·분석 섹션 6 개 · ComingSoon 페이지 · /billing→/bills 통합
+- **UI 수정** — /business/settings/plan max-width 제거 · 비용·재무 아이콘 파이차트 교체
 
-```
-session-state.md 읽고 이어서 개발해.
-```
+### 다음 할 일 (확정된 Phase 순서)
 
----
+**Phase 0 — DB 기반 스키마 확장 (1주) ← 여기서 시작**
+- businesses: 은행정보·포트원·팝빌 키 컬럼
+- clients: country·is_business·biz_* 필드
+- business_members: hourly_rate·monthly_salary
+- projects: contract_amount·billing_type·monthly_fee
+- 신규 테이블: quotes, quote_items, invoice_payments, bill_events, overhead_items, project_expenses, reports
 
-## 🔖 지금 중단 지점
+**Phase 1 — Q Bill 견적·청구·결제 (3주)**
+**Phase 2 — 세금계산서 자동화 (0.5주)**
+**Phase 3 — 프로젝트 Bill 탭 + 시간기반 자동청구 (1주)**
+**Phase 4 — 통계 대시보드 5개 + 자동해석 (2주)**
+**Phase 5 — 월간 보고서 PDF (1주)**
+**Phase 6 — PlanQ 자체 구독 빌링키 (0.5주)**
+**Phase 7 — 운영서버 세팅 + 실배포 (0.5주, Irene 외부 준비 선행)**
 
-**마지막 작업:** Dropbox 연동 전체 제거 — 자체 스토리지(planq) + Google Drive(gdrive) 2-way 구조로 정리. 27개 파일 수정 + dropbox npm 패키지 제거 + DB ENUM/필드 정리.
-
-**바로 다음 작업:** "다음 할 일 1번" — Platform Admin 플랜 수동 조정 UI.
-
-**맥락 유지할 것:**
-- 구독 플랜 엔진 완성 (config/plans.js + services/plan.js + 30년차 검증 8건 반영)
-- 설정 > 플랜 페이지 완성 (KRW/USD · 월/연 토글, 사용량 바 80/95% 색환, 이력)
-- /privacy · /terms 페이지 완성
-- Google Drive OAuth 연동 + 실연결 성공 (irene@irenewp.com 4TB)
-- 세션 관리 체계: `/임시저장` (30초) / `/저장` (2~3분) / `/개발완료` (5~10분)
-
----
-
-## 🗑 이번 세션 (2026-04-22 후반) — Dropbox 제거
-
-### 배경
-Irene 결정: Dropbox 는 빼고 Google Drive + PlanQ 자체 스토리지만 유지.
-
-### 수정한 파일 (27개)
-**Backend**
-- 삭제: `services/dropbox.js`
-- routes: `cloud.js` (connect/callback 블록 · providers 응답), `files.js` (useDropbox 분기 · 삭제 분기), `projects.js` (dropbox_folder_id rename), `task_attachments.js`
-- models: `File.js`, `MessageAttachment.js`, `TaskAttachment.js`, `BusinessStorageUsage.js` ENUM에서 dropbox 제거, `BusinessCloudToken.js` provider ENUM, `Project.js` dropbox_folder_id 삭제, `OpsCapacityLog.js` dropbox_share 삭제
-- config/scripts: `plans.js`, `services/plan.js`, `ops-capacity-check.js`
-- package.json: `dropbox` npm 의존성 제거 (`npm uninstall dropbox`)
-
-**Frontend**
-- `services/files.ts` StorageProvider type
-- `pages/Settings/StorageSettings.tsx` Dropbox 카드·상태·핸들러 전체 삭제
-- `public/locales/{ko,en}/{settings,legal}.json` Dropbox 관련 문자열 삭제
-
-**Docs**
-- `CLAUDE.md`, `DEVELOPMENT_PLAN.md`, `docs/FILE_SYSTEM_DESIGN.md` — Dropbox 언급 제거, 다이어그램·테이블·롤아웃 플랜 갱신
-
-### Irene 수작업 필요
-- `.env` 에서 `DROPBOX_CLIENT_ID`, `DROPBOX_CLIENT_SECRET`, `DROPBOX_REDIRECT_URI` 줄 삭제
-- Dropbox App Console (l8yeiu6nu4zwvcx) 는 사용 안 하므로 App 삭제 또는 방치
-
----
-
-## 🎯 다음 할 일 (우선순위 순)
-
-### 1. Platform Admin 플랜 수동 조정 UI (1일, Claude)
-- `/admin` 라우트 + `platform_admin` 권한 전용
-- 비즈니스 목록 + 플랜 수동 변경 (결제 연동 전 임시 조정)
-- 플랜 변경 이력 조회
-- 체험 기간 수동 연장
-- 사용량 overrides (enterprise 맞춤용)
-
-### 2. 결제 시스템 Phase (3~4일, Claude)
-- **Stripe 연동** (글로벌 카드) — 사업자 등록 정보 필요
-- **포트원 연동** (한국 결제 — 카카오페이, 네이버페이, 토스, 계좌이체)
-- `business_subscriptions` 테이블 (provider/currency/external_subscription_id/billing_cycle)
-- 결제 성공 webhook → `plan.changePlan` 자동 호출
-- 결제 실패 webhook → `subscription_status = past_due` + grace_ends_at 설정
-- 환불 로직 (7일 전액, 이후 일할)
-- 오버리지 청구 (Cue 건당 ₩50 / Note 분당 ₩20)
-- 사업자 등록 후 가능 (Irene 작업 선행)
-
-### 3. Q Note 회의자료 Drive 분기 (0.5일, Claude)
-- Python q-note 서비스 → Node backend 로 웹훅 (`POST /api/qnote/usage`)
-- 세션 종료 시 `QnoteUsage.minutes_used` 누적
-- 회의 자료 업로드 시 Drive 프로젝트 폴더에 자동 저장
-
-### 4. Webhook — Drive 외부 변경 감지 (0.5일, Claude)
-- Drive: `files.watch` Push Notifications
-- 외부 앱에서 파일 삭제·이름변경 시 PlanQ DB 동기화
-
-### 5. Google Cloud Console Publish (Irene 30분)
-- OAuth consent screen → **PUBLISH APP** (Testing → Production)
-- Privacy URL: `https://dev.planq.kr/privacy`
-- Terms URL: `https://dev.planq.kr/terms`
-- drive.file scope = verification 불필요 — Publish 즉시 모든 Google 계정 OAuth 가능
-
-### 6. 백로그
-- 프로젝트 상태 토글 UI (active/paused/closed)
-- 프로젝트 삭제 UI (cascade 확인 모달)
-- F5-2b `/invite/:token` 초대 랜딩 페이지
-- QProjectDetailPage 한글 하드코딩 62건 i18n 전환
-- Q Talk 메시지 첨부 기능 신규
-- Calendar 폴리시 (RRULE 단일 인스턴스 수정/삭제, UNTIL/COUNT UI, 알림)
-- 반응형 Phase 1~5 (기능 95% 이후)
-- Capacitor 하이브리드앱 래핑
+설계 문서: `docs/Q_BILL_SPEC.md` · `docs/FINANCIAL_REPORTS_SPEC.md`
 
 ---
 
 ## 🔑 환경변수 / 인증 현황
 
 ```
-GOOGLE_CLIENT_ID        = 765630237305-rm9g0emg...apps.googleusercontent.com
-GOOGLE_CLIENT_SECRET    = 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 (.env 저장)
+JWT_SECRET              = (.env 설정됨, 'planq' 폴백 제거)
+INTERNAL_API_KEY        = planq-internal-dev-f76e0bffee43e39959f3dd7eb1cbb222
+APP_URL                 = https://dev.planq.kr
+PLANQ_NODE_BASE_URL     = http://localhost:3003 (q-note .env)
+
+GOOGLE_CLIENT_ID        = 765630237305-rm9g0emg...
+GOOGLE_CLIENT_SECRET    = GOCSPX-...
 GOOGLE_REDIRECT_URI     = https://dev.planq.kr/api/cloud/callback/gdrive
-
-- Google OAuth 상태: Testing → Publish 필요 (Irene 작업)
-- drive.file scope = verification 불필요
-
-워프로랩 (biz=3) 현재 연동:
-- Google Drive: irene@irenewp.com · root folder "PlanQ - 워프로랩" 생성됨
-
-개발 DB 비즈니스 플랜:
-- Test Company / E2E Corp / 워프로랩 / QNote Test Biz / Health Check Biz / 브랜드 파트너스 → basic
-- PlanQ 테스트 워크스페이스 → pro
 ```
+
+**향후 필요 (Phase 1~):**
+- 포트원 V2 테스트 키 (Starter 플랜, 월 5천만 무료)
+- Stripe test mode secret
+- 팝빌 테스트 link_id + secret_key
+
+워프로랩 (biz=3):
+- Google Drive: irene@irenewp.com · root "PlanQ - 워프로랩"
+
+Irene 계정:
+- `irene@irenecompany.com` — platform_admin + owner biz=3
 
 ---
 
 ## 📂 주요 문서 위치
 
-- 플랜 정의: `dev-backend/config/plans.js`
-- 플랜 엔진: `dev-backend/services/plan.js`
-- 파일 시스템 설계: `docs/FILE_SYSTEM_DESIGN.md`
+- Q Bill 설계: `docs/Q_BILL_SPEC.md`
+- 리포트 설계: `docs/FINANCIAL_REPORTS_SPEC.md`
+- 파일 시스템: `docs/FILE_SYSTEM_DESIGN.md`
 - OPS 로드맵: `docs/OPS_ROADMAP.md`
 - 개발 로드맵: `DEVELOPMENT_PLAN.md`
-- 프로젝트 규칙: `CLAUDE.md` (세션 자동 주입됨)
-- Q Project 감사: `docs/QPROJECT_AUDIT.md`
-- 브랜드 컨셉: `docs/BRAND_CONCEPT.md`
+- 프로젝트 규칙: `CLAUDE.md`
+- UI 가이드: `dev-frontend/UI_DESIGN_GUIDE.md` (§2.4 관리 리스트 패턴 추가됨)
+- 배포 스크립트: `deploy-to-production.sh` · `rollback-production.sh`
+
+---
+
+## 🔄 복구 가이드
+
+```
+session-state.md 읽고 Phase 0 부터 이어서 개발해.
+```
+
+또는 Phase 확인만 필요하면:
+```
+DEVELOPMENT_PLAN.md 상단 읽어봐.
+```

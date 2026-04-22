@@ -12,6 +12,7 @@ import Placeholder from '@tiptap/extension-placeholder';
 import TaskList from '@tiptap/extension-task-list';
 import TaskItem from '@tiptap/extension-task-item';
 import { useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import styled from 'styled-components';
 import { apiFetch } from '../../contexts/AuthContext';
 import { SlashCommand } from './SlashCommand';
@@ -31,11 +32,13 @@ export default function RichEditor({
   value,
   onChange,
   onBlur,
-  placeholder = '내용을 입력하세요. / 입력 시 블록 추가',
+  placeholder,
   uploadUrl,
   readOnly = false,
   minHeight = 180,
 }: Props) {
+  const { t } = useTranslation('common');
+  const effectivePlaceholder = placeholder ?? t('editor.placeholder');
   const currentValueRef = useRef(value);
   const uploadUrlRef = useRef(uploadUrl);
   useEffect(() => { uploadUrlRef.current = uploadUrl; }, [uploadUrl]);
@@ -46,7 +49,7 @@ export default function RichEditor({
       Link.configure({ openOnClick: false, autolink: true, HTMLAttributes: { rel: 'noopener noreferrer' } }),
       Image.configure({ inline: false, allowBase64: false }),
       Placeholder.configure({
-        placeholder: ({ node }) => node.type.name === 'paragraph' ? placeholder : '',
+        placeholder: ({ node }) => node.type.name === 'paragraph' ? effectivePlaceholder : '',
         includeChildren: false,
       }),
       TaskList,
@@ -112,7 +115,7 @@ export default function RichEditor({
   const setLink = () => {
     if (!editor) return;
     const prev = editor.getAttributes('link').href;
-    const url = window.prompt('링크 URL을 입력하세요', prev || '');
+    const url = window.prompt(t('editor.linkPrompt'), prev || '');
     if (url === null) return;
     if (url === '') {
       editor.chain().focus().extendMarkRange('link').unsetLink().run();
@@ -139,7 +142,7 @@ export default function RichEditor({
       )}
       <EditorContent editor={editor} />
       {!readOnly && (
-        <Hint>팁: <kbd>/</kbd> 입력 → 블록 선택 · 텍스트 선택 → 서식 · 이미지는 붙여넣기/드래그</Hint>
+        <Hint>{t('editor.hintPrefix')} <kbd>/</kbd> {t('editor.hintSuffix')}</Hint>
       )}
     </EditorShell>
   );

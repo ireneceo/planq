@@ -1,6 +1,107 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-04-21 (파일 시스템 Phase 1·1+·2A 완주 — 자체 스토리지 + 쿼터 + dedup + 폴더 + 대량)
+> **최종 업데이트:** 2026-04-22 (전체 코드 감사·보안 강화 + 리포트·Q Bill 기획 + i18n 130키 + 네비 확장)
+
+---
+
+## ✅ 완료: 전체 코드 감사 · 보안 강화 · 리포트/Q Bill 기획 (2026-04-22)
+
+**설계 문서:** `docs/Q_BILL_SPEC.md` · `docs/FINANCIAL_REPORTS_SPEC.md`
+
+이번 세션은 **초대 플로우 완성 → Q Talk 첨부 → Q Note Drive 동기화 → Drive webhook → 멤버 관리 Phase 2 → 전체 감사 → 보안 수정 → 리포트·Q Bill 기획** 까지 대규모 스프린트. 감사 에이전트 3개 병렬로 Critical/High 문제 전수 발굴·수정.
+
+### 완료된 작업
+
+| 영역 | 작업 | 상태 |
+|------|------|:----:|
+| **초대 플로우 3청크** | 프로젝트 고객(만료·email 검증·email 발송)·워크스페이스 고객(user_id nullable + invite_token)·멤버 초대 + 통합 `/api/invites/:token` | ✅ |
+| **업무 삭제 기능** | 우측 드로어 Danger Zone · 권한(owner/admin/본인) · 로즈 칩으로 "{요청자}에게 요청받음" | ✅ |
+| **Q Talk 메시지 첨부** | `/api/message-attachments/*` · 이미지 썸네일 + 파일 chip · Socket.IO 이벤트 | ✅ |
+| **Q Note → Drive 자동 저장** | Python ingest 후 Node `/api/cloud/qnote/sync` · 내부 API 키 인증 · Q Note 세션 폴더 자동 생성 | ✅ |
+| **Drive changes.watch** | `/api/cloud/watch/start/:businessId` · webhook 수신 · Socket.IO 브로드캐스트 · BusinessCloudToken 확장 | ✅ |
+| **프로젝트 상태 토글 · 삭제** | 카드 컨텍스트 메뉴 + closed 필터 · owner-only 가드 | ✅ |
+| **멤버 관리 Phase 2** | removed_at soft delete · role 변경 API · 마지막 오너 보호 · defaultScope 전역 차단 | ✅ |
+| **QNote/QProject i18n 130키** | 하드코딩 제거 (Agent A) — ko/en 양쪽 완비 | ✅ |
+| **ProjectClient FK 전환** | email/name 문자열 매칭 → contact_user_id FK (과거 데이터 backfill) | ✅ |
+| **운영서버 배포 스크립트** | `deploy-to-production.sh` + `rollback-production.sh` (POS 패턴 기반) | ✅ |
+| **리포트 + Q Bill 기획** | 통계·분석 6탭 + Q Bill 5탭 + 자동 해석 + 월간 보고서 설계 완료 | ✅ |
+| **좌측메뉴 확장** | Q Bill 활성 · 통계·분석 섹션 6개 + ComingSoon 페이지 · /billing→/bills 통합 | ✅ |
+
+### 🔒 보안 강화 (전체 감사 후속)
+
+| # | 수정 | 심각도 | 파일 |
+|---|------|:----:|------|
+| 1 | IDOR — users.js refresh_token/reset_token 유출 차단 + 본인/admin 만 조회 | **Critical** | routes/users.js |
+| 2 | `req.user.role` → `platform_role` 통일 (tasks·businesses 2곳) | High | routes/tasks.js, businesses.js |
+| 3 | 프로젝트 종료/삭제 owner-only | High | routes/projects.js |
+| 4 | OAuth state HMAC 서명 + 10분 TTL | High | services/gdrive.js |
+| 5 | `JWT_SECRET \|\| 'planq'` 폴백 제거 | High | routes/cloud.js |
+| 6 | `/public/attach` 이미지 MIME 만 + nosniff + inline | Med | routes/task_attachments.js |
+| 7 | conversations participants business 소속 검증 | Med | routes/conversations.js |
+| 8 | plan/invoices owner-only 가드 | Med | routes/plan.js, invoices.js |
+| 9 | invites accept 트랜잭션 + FOR UPDATE lock | High | routes/invites.js |
+| 10 | businesses role/DELETE 트랜잭션 + 마지막 오너 race 방어 | High | routes/businesses.js |
+| 11 | raw fetch + localStorage token → apiFetch | Med | WorkspaceSettingsPage.tsx |
+| 12 | refresh_token SHA-256 해시 저장 (login/register/refresh) | Low | routes/auth.js |
+| 13 | CSP `script-src 'unsafe-inline'` 제거 (Vite 번들만 허용) | Low | middleware/security.js |
+| 14 | BusinessMember `defaultScope: { removed_at: null }` 전역 차단 | - | models/BusinessMember.js |
+| 15 | 22개 라우트 `checkBusinessAccess` 누락 지점 보강 (Agent) | High | tasks/calendar/file_folders/projects |
+
+**회귀 테스트**: 10/10 통과 (IDOR·권한·OAuth·테넌트 격리·세금계산서 경로 등).
+**헬스체크**: 27/27 유지.
+
+### 기획 결정 (Irene 확정)
+
+- **포트원 V2 Starter (무료, 월 5천만 미만)** — 국내 토스·해외 Stripe 채널 통합
+- **팝빌 세금계산서** — 워크스페이스 설정에서 키 등록 시 자동 발행
+- **고객 `country`·`is_business` 자동 분기** — 부가세·언어·세금계산서
+- **Q Bill** = 최상위 메뉴 (견적·청구·결제·세금계산서 통합) · 프로젝트 상세에도 Bill 탭
+- **통계·분석** 6 탭 = 개요·업무시간·수익성·팀생산성·비용재무·보고서 (최하위 메뉴)
+- **자동 해석** = 룰(즉시) + Cue LLM(자연어) 하이브리드
+- **운영서버** = 실결제 시작 시점 전에만 필요 (개발 중 dev 로 전부 검증)
+
+### 수정된 파일 (주요)
+
+**백엔드 (22개)**
+- `routes/auth.js`, `users.js`, `businesses.js`, `projects.js`, `tasks.js`, `calendar.js`,
+- `clients.js`, `conversations.js`, `plan.js`, `invoices.js`, `task_attachments.js`,
+- `file_folders.js`, `cloud.js`, `invites.js` (신규), `message_attachments.js` (신규)
+- `middleware/security.js`, `services/gdrive.js`, `services/emailService.js`
+- `models/BusinessMember.js`, `BusinessCloudToken.js`, `Client.js`
+- `server.js`
+
+**프론트엔드 (40+개)**
+- `pages/Settings/WorkspaceSettingsPage.tsx`, `PlanSettings.tsx`
+- `pages/Clients/ClientsPage.tsx`
+- `pages/QTalk/ChatPanel.tsx`, `QTalkPage.tsx`, `LeftPanel.tsx`, `RightPanel.tsx`, `NewProjectModal.tsx`
+- `pages/QNote/QNotePage.tsx`, `StartMeetingModal.tsx`
+- `pages/QProject/*.tsx` (TasksTab, ProjectTaskList, ProcessPartsTab, DocsTab)
+- `pages/QTask/QTaskPage.tsx`, `components/QTask/TaskDetailDrawer.tsx`
+- `pages/Admin/AdminBusinessesPage.tsx`
+- `pages/Login/LoginPage.tsx`, `Register/RegisterPage.tsx`, `Invite/InvitePage.tsx`
+- `pages/ComingSoon/ComingSoonPage.tsx` (신규)
+- `components/Layout/MainLayout.tsx`, `components/Common/*.tsx`
+- `components/ProtectedRoute.tsx`
+- `App.tsx` · 16개 i18n json (ko/en)
+
+**설계 문서 (2개 신규)**
+- `docs/Q_BILL_SPEC.md`
+- `docs/FINANCIAL_REPORTS_SPEC.md`
+
+**운영 스크립트 (2개 신규)**
+- `deploy-to-production.sh`
+- `rollback-production.sh`
+
+### Phase 순서 (확정, 9주)
+
+1. **Phase 0** — DB 기반 스키마 확장 (1주)
+2. **Phase 1** — Q Bill 견적·청구·결제 (3주)
+3. **Phase 2** — 세금계산서 자동화 (0.5주)
+4. **Phase 3** — 프로젝트 Bill 탭 + 시간기반 자동청구 (1주)
+5. **Phase 4** — 통계 대시보드 5개 + 자동해석 (2주)
+6. **Phase 5** — 월간 보고서 자동 생성 + PDF (1주)
+7. **Phase 6** — PlanQ 자체 구독 청구 (0.5주)
+8. **Phase 7** — 운영서버 세팅 + 실배포 (0.5주)
 
 ---
 

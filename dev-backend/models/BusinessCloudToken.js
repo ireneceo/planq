@@ -51,6 +51,28 @@ BusinessCloudToken.init({
   account_email: {
     type: DataTypes.STRING(255),
     allowNull: true
+  },
+  qnote_folder_id: {
+    type: DataTypes.STRING(255),
+    allowNull: true,
+    comment: 'Q Note 전용 루트 폴더 ID'
+  },
+  // Drive changes.watch 상태
+  watch_channel_id: {
+    type: DataTypes.STRING(64),
+    allowNull: true
+  },
+  watch_resource_id: {
+    type: DataTypes.STRING(255),
+    allowNull: true
+  },
+  watch_expires_at: {
+    type: DataTypes.DATE,
+    allowNull: true
+  },
+  watch_page_token: {
+    type: DataTypes.STRING(128),
+    allowNull: true
   }
 }, {
   sequelize,

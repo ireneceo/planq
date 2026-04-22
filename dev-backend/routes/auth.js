@@ -1,11 +1,16 @@
 const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const { User, Business, BusinessMember, Client } = require('../models');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const { authenticateToken } = require('../middleware/auth');
 const { sequelize } = require('../config/database');
+
+// refresh_token 은 평문 저장 금지 — DB 유출 시 세션 탈취 위험.
+// SHA-256 해시만 저장 + 클라이언트엔 raw 를 쿠키로 전달.
+const hashRefreshToken = (raw) => crypto.createHash('sha256').update(raw).digest('hex');
 
 // ============================================
 // Helper: slug 생성
@@ -245,8 +250,8 @@ router.post('/register', async (req, res, next) => {
     const accessToken = generateAccessToken(user);
     const refreshToken = generateRefreshToken(user);
 
-    // 6. Save refresh token
-    await user.update({ refresh_token: refreshToken }, { transaction });
+    // 6. Save refresh token (해시만 DB 저장, raw 는 클라이언트 쿠키)
+    await user.update({ refresh_token: hashRefreshToken(refreshToken) }, { transaction });
 
     await transaction.commit();
 
@@ -315,9 +320,9 @@ router.post('/login', async (req, res, next) => {
     const accessToken = generateAccessToken(user);
     const refreshToken = generateRefreshToken(user);
 
-    // Save refresh token + last_login_at
+    // Save refresh token (해시만 DB 저장) + last_login_at
     await user.update({
-      refresh_token: refreshToken,
+      refresh_token: hashRefreshToken(refreshToken),
       last_login_at: new Date()
     });
 
@@ -360,9 +365,9 @@ router.post('/refresh', async (req, res, next) => {
       return errorResponse(res, 'Invalid or expired refresh token', 401);
     }
 
-    // Find user with matching refresh token
+    // Find user with matching refresh token (해시 비교)
     const user = await User.findOne({
-      where: { id: decoded.userId, refresh_token: refreshToken }
+      where: { id: decoded.userId, refresh_token: hashRefreshToken(refreshToken) }
     });
 
     if (!user || user.status !== 'active' || user.is_ai) {
@@ -373,7 +378,7 @@ router.post('/refresh', async (req, res, next) => {
     const newAccessToken = generateAccessToken(user);
     const newRefreshToken = generateRefreshToken(user);
 
-    await user.update({ refresh_token: newRefreshToken });
+    await user.update({ refresh_token: hashRefreshToken(newRefreshToken) });
 
     res.cookie('refresh_token', newRefreshToken, {
       httpOnly: true,

@@ -16,8 +16,21 @@ Client.init({
   },
   user_id: {
     type: DataTypes.INTEGER,
-    allowNull: false,
+    allowNull: true, // 초대 pending 단계에서는 아직 user 매칭 전이라 null 허용
     references: { model: 'users', key: 'id' }
+  },
+  invite_token: {
+    type: DataTypes.STRING(100),
+    allowNull: true,
+    unique: true,
+  },
+  invite_email: {
+    type: DataTypes.STRING(200),
+    allowNull: true,
+  },
+  accepted_at: {
+    type: DataTypes.DATE,
+    allowNull: true,
   },
   display_name: {
     type: DataTypes.STRING(100),

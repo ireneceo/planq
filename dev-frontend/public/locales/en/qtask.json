@@ -40,8 +40,16 @@
   "tab": { "week": "My week", "all": "All my tasks", "requested": "Request" },
   "workspace": { "assignee": "Assignee", "allMembers": "All members" },
   "summary": { "unit": " tasks", "est": "Est", "act": "Act" },
-  "col": { "project": "Project", "assignee": "Assignee", "requester": "Requester", "task": "Task", "status": "Status", "est": "Est(h)", "act": "Act(h)", "progress": "Progress", "start": "Start", "due": "Due" },
-  "add": { "placeholder": "Task name (Ctrl+Enter to save)", "btn": "Add task", "reqBtn": "Add request", "assignee": "Assignee", "assigneeDefault": "Assignee: me", "assigneeRequiredHint": "Select assignee (required)", "project": "Project", "projectNone": "Select", "startDate": "Start", "dueDate": "Due", "estHours": "Est(h)", "descPlaceholder": "Description (optional)", "save": "Add", "saving": "Saving...", "cancel": "Cancel" },
+  "col": { "project": "Project", "assignee": "Assignee", "requester": "Requester", "task": "Task", "status": "Status", "est": "Est(h)", "act": "Act(h)", "progress": "Progress", "progressPercent": "Progress", "start": "Start", "due": "Due", "dates": "Start ~ Due", "desc": "Description" },
+  "listRow": {
+    "detailTitle": "Open detail",
+    "assigneePlaceholder": "Assignee",
+    "noMembers": "No members",
+    "noAssignee": "— None —",
+    "meSuffix": " (me)",
+    "emptyDash": "—"
+  },
+  "add": { "placeholder": "Task name (Ctrl+Enter to save)", "btn": "Add task", "reqBtn": "Add request", "assignee": "Assignee", "assigneeDefault": "Assignee: me", "assigneeRequiredHint": "Select assignee (required)", "project": "Project", "projectNone": "Select", "startDate": "Start", "dueDate": "Due", "datePlaceholder": "Select date", "estHours": "Est(h)", "descPlaceholder": "Description (optional)", "save": "Add", "saving": "Saving...", "cancel": "Cancel" },
   "backlog": { "title": "Unassigned", "toWeek": "This week" },
   "right": {
     "title": "Overview",
@@ -63,7 +71,7 @@
   "projects": { "title": "Project Progress" },
   "issues": { "title": "Issues" },
   "notes": { "title": "Notes" },
-  "list": { "empty": "No tasks found", "statusHint": "Click to change status" },
+  "list": { "empty": "No tasks found", "statusHint": "Click to change status", "titleClickEdit": "Click to edit task name" },
   "empty": { "title": "Start your first task", "line1": "Receive requests, assign, and deliver results —", "line2": "all connected in one screen." },
   "common": { "cancel": "Cancel" },
   "save": { "saving": "Saving", "saved": "Saved", "error": "Save failed" },
@@ -104,6 +112,25 @@
       "revertDisabled": "Revert used",
       "approvedOf": "{{n}} of {{total}} approved"
     },
+    "delete": {
+      "button": "Delete task",
+      "confirmTitle": "Delete this task?",
+      "confirmBody": "This cannot be undone. Comments, attachments, and history will all be removed.",
+      "confirm": "Delete",
+      "deleting": "Deleting..."
+    },
+    "chip": {
+      "fromLabel": "Requested by {{name}}",
+      "fromLabelAnon": "Received request",
+      "toLabel": "Requested to {{name}}",
+      "toLabelAnon": "Sent request",
+      "assigneePrefix": "Assignee",
+      "mine": "My task",
+      "fromRequester": "Requester",
+      "toAssignee": "Assignee",
+      "assignee": "Assignee"
+    },
+    "clickToEdit": "Click to edit",
     "reviewers": {
       "title": "Reviewers",
       "empty": "No reviewers yet",

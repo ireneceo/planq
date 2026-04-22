@@ -444,7 +444,7 @@ const SkCard = styled(SkBar)`height:140px;margin-bottom:16px;border-radius:12px;
 
 // ─── styled ───
 
-const Wrap = styled.div`display:flex;flex-direction:column;gap:20px;max-width:1100px;`;
+const Wrap = styled.div`display:flex;flex-direction:column;gap:20px;`;
 
 const CurrentCard = styled.div<{ $plan: PlanCode }>`
   background:#fff;border:1px solid #E2E8F0;border-radius:14px;padding:20px 24px;

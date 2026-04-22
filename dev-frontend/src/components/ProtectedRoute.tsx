@@ -1,5 +1,6 @@
 import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../contexts/AuthContext';
 import styled from 'styled-components';
 
@@ -74,6 +75,7 @@ const BackButton = styled.button`
 `;
 
 const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requiredRole }) => {
+  const { t } = useTranslation('common');
   const { isAuthenticated, isLoading, hasRole } = useAuth();
   const location = useLocation();
 
@@ -93,9 +95,9 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requiredRole 
     return (
       <AccessDeniedContainer>
         <AccessDeniedBox>
-          <Title>접근 권한 없음</Title>
-          <Message>이 페이지에 접근할 권한이 없습니다.</Message>
-          <BackButton onClick={() => window.history.back()}>뒤로 가기</BackButton>
+          <Title>{t('forbidden.title')}</Title>
+          <Message>{t('forbidden.desc')}</Message>
+          <BackButton onClick={() => window.history.back()}>{t('forbidden.back')}</BackButton>
         </AccessDeniedBox>
       </AccessDeniedContainer>
     );

@@ -5,7 +5,8 @@
 // 삭제는 드로어 맨 아래 Danger 블록 (확인 모달).
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import styled from 'styled-components';
-import { useTranslation } from 'react-i18next';
+import { useTranslation, Trans } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import { useNavigate } from 'react-router-dom';
 import { useAuth, apiFetch } from '../../contexts/AuthContext';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
@@ -46,10 +47,10 @@ interface HistoryEntry {
 
 type StatusFilter = 'all' | 'active' | 'archived';
 
-const STATUS_STYLE: Record<ClientStatus, { bg: string; fg: string; label: string }> = {
-  active: { bg: '#CCFBF1', fg: '#0F766E', label: '활성' },
-  archived: { bg: '#E2E8F0', fg: '#475569', label: '보관' },
-  invited: { bg: '#FEF3C7', fg: '#92400E', label: '초대됨' },
+const STATUS_STYLE: Record<ClientStatus, { bg: string; fg: string }> = {
+  active: { bg: '#CCFBF1', fg: '#0F766E' },
+  archived: { bg: '#E2E8F0', fg: '#475569' },
+  invited: { bg: '#FEF3C7', fg: '#92400E' },
 };
 
 export default function ClientsPage() {
@@ -152,7 +153,7 @@ export default function ClientsPage() {
     try {
       const res = await apiFetch(`/api/clients/${businessId}/${deleteTarget.id}`, { method: 'DELETE' });
       const j = await res.json();
-      if (!res.ok || !j.success) throw new Error(j.message || '삭제 실패');
+      if (!res.ok || !j.success) throw new Error(j.message || t('deleteModal.failed'));
       setClients((prev) => prev.filter((x) => x.id !== deleteTarget.id));
       if (activeId === deleteTarget.id) setActiveId(null);
       setDeleteTarget(null);
@@ -206,7 +207,7 @@ export default function ClientsPage() {
 
   const submitInvite = async () => {
     setInviteError(null);
-    if (!inviteName.trim() || !inviteEmail.trim()) { setInviteError('이름과 이메일은 필수입니다'); return; }
+    if (!inviteName.trim() || !inviteEmail.trim()) { setInviteError(t('inviteModal.errRequired')); return; }
     setInviteSubmitting(true);
     try {
       const res = await apiFetch(`/api/clients/${businessId}/invite`, {
@@ -214,7 +215,7 @@ export default function ClientsPage() {
         body: JSON.stringify({ name: inviteName.trim(), email: inviteEmail.trim(), company_name: inviteCompany.trim() || null }),
       });
       const j = await res.json();
-      if (!res.ok || !j.success) throw new Error(j.message || '초대 실패');
+      if (!res.ok || !j.success) throw new Error(j.message || t('inviteModal.errFailed'));
       setInviteOpen(false); setInviteName(''); setInviteEmail(''); setInviteCompany('');
       await load();
     } catch (e) {
@@ -242,14 +243,14 @@ export default function ClientsPage() {
           <FilterSeg>
             {(['active', 'all', 'archived'] as StatusFilter[]).map((s) => (
               <FilterSegBtn key={s} $active={statusFilter === s} onClick={() => setStatusFilter(s)}>
-                {s === 'active' ? '활성' : s === 'archived' ? '보관' : '전체'}
+                {t(`filter.${s}`)}
               </FilterSegBtn>
             ))}
           </FilterSeg>
           {isAdmin && (
             <InviteBtn type="button" onClick={() => setInviteOpen(true)}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
-              고객 초대
+              {t('invite')}
             </InviteBtn>
           )}
         </>
@@ -271,8 +272,8 @@ export default function ClientsPage() {
                 <Th>{t('col.company')}</Th>
                 <Th>{t('col.email')}</Th>
                 <Th>{t('col.phone')}</Th>
-                <Th style={{ width: 90 }}>상태</Th>
-                <Th style={{ width: 100, textAlign: 'center' }}>프로젝트</Th>
+                <Th style={{ width: 90 }}>{t('col.status')}</Th>
+                <Th style={{ width: 100, textAlign: 'center' }}>{t('col.projects')}</Th>
                 <Th style={{ width: 120 }}>{t('col.invitedAt')}</Th>
               </tr>
             </thead>
@@ -289,28 +290,40 @@ export default function ClientsPage() {
                     <Td>
                       <LetterAvatar name={name} src={c.user?.avatar_url || null} size={32} variant={isSelected ? 'active' : 'neutral'} />
                     </Td>
-                    <Td onDoubleClick={(e) => { if (!isAdmin) return; e.stopPropagation(); setEditDraft(c.display_name || c.user?.name || ''); setEditingCell({ id: c.id, field: 'display_name' }); }}>
+                    <Td>
                       {isEditingName ? (
                         <CellInput autoFocus value={editDraft}
                           onChange={(e) => setEditDraft(e.target.value)}
                           onBlur={commitEdit}
                           onClick={(e) => e.stopPropagation()}
+                          onMouseDown={(e) => e.stopPropagation()}
                           onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') setEditingCell(null); }} />
-                      ) : (<NameCell>{name}</NameCell>)}
+                      ) : (
+                        <NameCell role={isAdmin ? 'button' : undefined}
+                          onClick={(e) => { if (!isAdmin) return; e.stopPropagation(); setEditDraft(c.display_name || c.user?.name || ''); setEditingCell({ id: c.id, field: 'display_name' }); }}>
+                          {name}
+                        </NameCell>
+                      )}
                     </Td>
-                    <Td onDoubleClick={(e) => { if (!isAdmin) return; e.stopPropagation(); setEditDraft(c.company_name || ''); setEditingCell({ id: c.id, field: 'company_name' }); }}>
+                    <Td>
                       {isEditingCompany ? (
                         <CellInput autoFocus value={editDraft}
                           onChange={(e) => setEditDraft(e.target.value)}
                           onBlur={commitEdit}
                           onClick={(e) => e.stopPropagation()}
+                          onMouseDown={(e) => e.stopPropagation()}
                           onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') setEditingCell(null); }} />
-                      ) : (<span>{c.company_name || <Muted>—</Muted>}</span>)}
+                      ) : (
+                        <CompanyCell role={isAdmin ? 'button' : undefined}
+                          onClick={(e) => { if (!isAdmin) return; e.stopPropagation(); setEditDraft(c.company_name || ''); setEditingCell({ id: c.id, field: 'company_name' }); }}>
+                          {c.company_name || <Muted>—</Muted>}
+                        </CompanyCell>
+                      )}
                     </Td>
                     <Td>{c.user?.email || <Muted>—</Muted>}</Td>
                     <Td>{c.user?.phone || <Muted>—</Muted>}</Td>
                     <Td>
-                      <StatusPill style={{ background: sStyle.bg, color: sStyle.fg }}>{sStyle.label}</StatusPill>
+                      <StatusPill style={{ background: sStyle.bg, color: sStyle.fg }}>{t(`status.${st}`)}</StatusPill>
                     </Td>
                     <Td style={{ textAlign: 'center' }}>
                       {c.project_count && c.project_count > 0 ? <ProjCount>{c.project_count}</ProjCount> : <Muted>—</Muted>}
@@ -331,41 +344,41 @@ export default function ClientsPage() {
           <DrawerHeader>
             <DrawerBack onClick={() => setActiveId(null)}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="15 18 9 12 15 6" /></svg>
-              목록
+              {t('drawer.back', '목록')}
             </DrawerBack>
-            <DrawerClose onClick={() => setActiveId(null)} aria-label="닫기">
+            <DrawerClose onClick={() => setActiveId(null)} aria-label={t('drawer.close', '닫기') as string}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
             </DrawerClose>
           </DrawerHeader>
           <DrawerScroll>
             <HeadRow>
-              <LetterAvatar name={activeDetail.display_name || activeDetail.user?.name || '고객'} src={activeDetail.user?.avatar_url || null} size={56} variant="active" />
+              <LetterAvatar name={activeDetail.display_name || activeDetail.user?.name || t('drawerHead.defaultName')} src={activeDetail.user?.avatar_url || null} size={56} variant="active" />
               <HeadText>
-                <HeadName>{activeDetail.display_name || activeDetail.user?.name || '고객'}</HeadName>
+                <HeadName>{activeDetail.display_name || activeDetail.user?.name || t('drawerHead.defaultName')}</HeadName>
                 {activeDetail.company_name && <HeadCompany>{activeDetail.company_name}</HeadCompany>}
               </HeadText>
               <HeadSide>
-                <SwitchWrap title={activeDetail.status === 'archived' ? '보관됨 — 클릭하여 활성화' : '활성 — 클릭하여 보관'}>
+                <SwitchWrap title={activeDetail.status === 'archived' ? t('switch.tipActivate') as string : t('switch.tipDeactivate') as string}>
                   <SwitchInput type="checkbox" checked={activeDetail.status !== 'archived'} disabled={!isAdmin}
                     onChange={(e) => toggleStatus(activeDetail.id, e.target.checked ? 'active' : 'archived')} />
                   <SwitchTrack />
-                  <SwitchLabel>{activeDetail.status === 'archived' ? '보관' : '활성'}</SwitchLabel>
+                  <SwitchLabel>{activeDetail.status === 'archived' ? t('switch.labelArchived') : t('switch.labelActive')}</SwitchLabel>
                 </SwitchWrap>
               </HeadSide>
             </HeadRow>
 
             <Section>
-              <SectionTitle>연락처</SectionTitle>
-              <ContactRow><ContactLabel>이메일</ContactLabel><ContactValue>{activeDetail.user?.email || '—'}</ContactValue></ContactRow>
-              <ContactRow><ContactLabel>전화</ContactLabel><ContactValue>{activeDetail.user?.phone || '—'}</ContactValue></ContactRow>
-              <Helper>이메일·전화는 고객이 본인 프로필에서 수정합니다.</Helper>
+              <SectionTitle>{t('section.contact')}</SectionTitle>
+              <ContactRow><ContactLabel>{t('section.contactEmail')}</ContactLabel><ContactValue>{activeDetail.user?.email || '—'}</ContactValue></ContactRow>
+              <ContactRow><ContactLabel>{t('section.contactPhone')}</ContactLabel><ContactValue>{activeDetail.user?.phone || '—'}</ContactValue></ContactRow>
+              <Helper>{t('section.contactHelper')}</Helper>
             </Section>
 
             <Section>
-              <SectionTitle>메모</SectionTitle>
+              <SectionTitle>{t('section.notes')}</SectionTitle>
               <NoteArea
                 defaultValue={activeDetail.notes || ''}
-                placeholder="이 고객에 관한 내부 메모 — 자동저장"
+                placeholder={t('section.notesPlaceholder') as string}
                 onBlur={(e) => {
                   const v = e.target.value.trim();
                   if (v !== (activeDetail.notes || '').trim()) patchClient(activeDetail.id, { notes: v || null });
@@ -375,9 +388,9 @@ export default function ClientsPage() {
             </Section>
 
             <Section>
-              <SectionTitle>연결 프로젝트 <SmallCount>{activeDetail.linked_projects?.length || 0}</SmallCount></SectionTitle>
+              <SectionTitle>{t('section.linkedProjects')} <SmallCount>{activeDetail.linked_projects?.length || 0}</SmallCount></SectionTitle>
               {(!activeDetail.linked_projects || activeDetail.linked_projects.length === 0)
-                ? <Dim>연결된 프로젝트 없음</Dim>
+                ? <Dim>{t('section.linkedProjectsEmpty')}</Dim>
                 : <ItemList>
                     {activeDetail.linked_projects.map((p) => (
                       <ItemCard key={p.id} onClick={() => navigate(`/projects/p/${p.id}`)}>
@@ -385,8 +398,8 @@ export default function ClientsPage() {
                         <ItemMain>
                           <ItemTitle>{p.name}</ItemTitle>
                           <ItemMeta>
-                            <ProjectStatusPill $status={p.status}>{p.status === 'active' ? '진행' : p.status === 'paused' ? '일시중지' : '완료'}</ProjectStatusPill>
-                            {p.project_type === 'ongoing' && <TypeBadge>구독</TypeBadge>}
+                            <ProjectStatusPill $status={p.status}>{p.status === 'active' ? t('projectStatus.active') : p.status === 'paused' ? t('projectStatus.paused') : t('projectStatus.completed')}</ProjectStatusPill>
+                            {p.project_type === 'ongoing' && <TypeBadge>{t('typeBadge.ongoing')}</TypeBadge>}
                           </ItemMeta>
                         </ItemMain>
                         <GoArrow>›</GoArrow>
@@ -396,9 +409,9 @@ export default function ClientsPage() {
             </Section>
 
             <Section>
-              <SectionTitle>연결 대화 <SmallCount>{activeDetail.linked_conversations?.length || 0}</SmallCount></SectionTitle>
+              <SectionTitle>{t('section.linkedConversations')} <SmallCount>{activeDetail.linked_conversations?.length || 0}</SmallCount></SectionTitle>
               {(!activeDetail.linked_conversations || activeDetail.linked_conversations.length === 0)
-                ? <Dim>참여중인 대화 없음</Dim>
+                ? <Dim>{t('section.linkedConversationsEmpty')}</Dim>
                 : <ItemList>
                     {activeDetail.linked_conversations.map((c) => (
                       <ItemCard key={c.id} onClick={() => navigate(c.project_id ? `/talk?project=${c.project_id}&conv=${c.id}` : `/talk?conv=${c.id}`)}>
@@ -406,8 +419,8 @@ export default function ClientsPage() {
                         <ItemMain>
                           <ItemTitle>{c.title}</ItemTitle>
                           <ItemMeta>
-                            <ChannelBadge $type={c.channel_type}>{c.channel_type === 'customer' ? '고객' : c.channel_type === 'internal' ? '내부' : c.channel_type}</ChannelBadge>
-                            {c.status === 'archived' && <ArchivedPill>보관</ArchivedPill>}
+                            <ChannelBadge $type={c.channel_type}>{c.channel_type === 'customer' ? t('channelType.customer') : c.channel_type === 'internal' ? t('channelType.internal') : c.channel_type}</ChannelBadge>
+                            {c.status === 'archived' && <ArchivedPill>{t('status.archived')}</ArchivedPill>}
                             {c.last_message_at && <LastMsg>{formatDate(c.last_message_at)}</LastMsg>}
                           </ItemMeta>
                         </ItemMain>
@@ -419,15 +432,15 @@ export default function ClientsPage() {
 
             <Section>
               <SectionTitleRow>
-                <SectionTitle>히스토리</SectionTitle>
+                <SectionTitle>{t('section.history')}</SectionTitle>
                 <HistoryToggle type="button" onClick={() => { setHistoryOpen((v) => !v); loadHistory(); }}>
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>
-                  {historyOpen ? '닫기' : '열기'}
+                  {historyOpen ? t('section.historyToggleClose') : t('section.historyToggleOpen')}
                 </HistoryToggle>
               </SectionTitleRow>
               {historyOpen && (
-                !historyLoaded ? <Dim>로드 중…</Dim> :
-                history.length === 0 ? <Dim>기록 없음</Dim> :
+                !historyLoaded ? <Dim>{t('section.historyLoading')}</Dim> :
+                history.length === 0 ? <Dim>{t('section.historyEmpty')}</Dim> :
                 <Timeline>
                   {history.map((h) => (
                     <TimelineItem key={h.id}>
@@ -435,7 +448,7 @@ export default function ClientsPage() {
                       <TimelineBody>
                         <TimelineHead>
                           <strong>{h.User?.name || '—'}</strong>
-                          <TimelineEvent>{labelFor(h.action)}</TimelineEvent>
+                          <TimelineEvent>{labelFor(h.action, t)}</TimelineEvent>
                         </TimelineHead>
                         {renderHistoryDetail(h)}
                         <TimelineTime>{formatDate(h.created_at)}</TimelineTime>
@@ -448,9 +461,9 @@ export default function ClientsPage() {
 
             {isAdmin && (
               <DangerBlock>
-                <SectionTitle>위험 영역</SectionTitle>
-                <DangerBtn type="button" onClick={() => setDeleteTarget(activeDetail)}>고객 완전 삭제</DangerBtn>
-                <Helper>이 워크스페이스에서 완전히 삭제합니다. 연결된 프로젝트에서도 해제됩니다.</Helper>
+                <SectionTitle>{t('section.danger')}</SectionTitle>
+                <DangerBtn type="button" onClick={() => setDeleteTarget(activeDetail)}>{t('section.dangerDelete')}</DangerBtn>
+                <Helper>{t('section.dangerHelper')}</Helper>
               </DangerBlock>
             )}
           </DrawerScroll>
@@ -460,19 +473,19 @@ export default function ClientsPage() {
       {/* 고객 초대 모달 */}
       {inviteOpen && (
         <ConfirmBackdrop onMouseDown={(e) => { if (e.target === e.currentTarget) setInviteOpen(false); }}>
-          <ConfirmDialog>
-            <ConfirmTitle>고객 초대</ConfirmTitle>
+          <ConfirmDialog role="dialog" aria-modal="true" aria-label={t('inviteModal.title') as string}>
+            <ConfirmTitle>{t('inviteModal.title')}</ConfirmTitle>
             <ConfirmBody>
-              <Field><FieldLabel>이름 <Req>*</Req></FieldLabel><FieldInput autoFocus value={inviteName} onChange={(e) => setInviteName(e.target.value)} placeholder="예: 김고객" /></Field>
-              <Field><FieldLabel>이메일 <Req>*</Req></FieldLabel><FieldInput value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} placeholder="client@example.com" type="email" /></Field>
-              <Field><FieldLabel>회사명</FieldLabel><FieldInput value={inviteCompany} onChange={(e) => setInviteCompany(e.target.value)} placeholder="선택" /></Field>
-              <Helper>이메일이 이미 사용자로 있으면 그 계정에 워크스페이스 고객으로 추가됩니다. 없으면 새 계정을 자동 생성하고 초대장을 보냅니다 (추후).</Helper>
+              <Field><FieldLabel>{t('inviteModal.name')} <Req>*</Req></FieldLabel><FieldInput autoFocus value={inviteName} onChange={(e) => setInviteName(e.target.value)} placeholder={t('inviteModal.namePlaceholder') as string} /></Field>
+              <Field><FieldLabel>{t('inviteModal.email')} <Req>*</Req></FieldLabel><FieldInput value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} placeholder="client@example.com" type="email" /></Field>
+              <Field><FieldLabel>{t('inviteModal.company')}</FieldLabel><FieldInput value={inviteCompany} onChange={(e) => setInviteCompany(e.target.value)} placeholder={t('inviteModal.companyPlaceholder') as string} /></Field>
+              <Helper>{t('inviteModal.helper')}</Helper>
               {inviteError && <WarnBlock>{inviteError}</WarnBlock>}
             </ConfirmBody>
             <ConfirmFooter>
-              <CFCancel type="button" onClick={() => setInviteOpen(false)} disabled={inviteSubmitting}>취소</CFCancel>
+              <CFCancel type="button" onClick={() => setInviteOpen(false)} disabled={inviteSubmitting}>{t('inviteModal.cancel')}</CFCancel>
               <CFPrimary type="button" onClick={submitInvite} disabled={inviteSubmitting || !inviteName.trim() || !inviteEmail.trim()}>
-                {inviteSubmitting ? '초대 중…' : '초대'}
+                {inviteSubmitting ? t('inviteModal.submitting') : t('inviteModal.submit')}
               </CFPrimary>
             </ConfirmFooter>
           </ConfirmDialog>
@@ -482,26 +495,26 @@ export default function ClientsPage() {
       {/* 삭제 확인 모달 */}
       {deleteTarget && (
         <ConfirmBackdrop onMouseDown={(e) => { if (e.target === e.currentTarget) { setDeleteTarget(null); setDeleteImpact(null); } }}>
-          <ConfirmDialog>
-            <ConfirmTitle>고객 삭제 확인</ConfirmTitle>
+          <ConfirmDialog role="dialog" aria-modal="true" aria-label={t('deleteModal.title') as string}>
+            <ConfirmTitle>{t('deleteModal.title')}</ConfirmTitle>
             <ConfirmBody>
-              <strong>{deleteTarget.display_name || deleteTarget.user?.name || '고객'}</strong> ({deleteTarget.user?.email || '—'}) 을(를) 이 워크스페이스에서 완전히 삭제합니다.
+              <strong>{deleteTarget.display_name || deleteTarget.user?.name || t('drawerHead.defaultName')}</strong> ({deleteTarget.user?.email || '—'}) {t('deleteModal.body')}
               {deleteImpact && deleteImpact.other_projects.length > 0 ? (
                 <WarnBlock>
-                  연결된 <strong>{deleteImpact.other_projects.length}개</strong> 프로젝트에서도 연결이 해제됩니다:
+                  <Trans i18nKey="deleteModal.impactWarn" ns="clients" count={deleteImpact.other_projects.length} components={{ 1: <strong /> }} />
                   <ProjListUl>
                     {deleteImpact.other_projects.map((p) => (<li key={p.id}>{p.name}</li>))}
                   </ProjListUl>
                 </WarnBlock>
               ) : deleteImpact ? (
-                <WarnBlock>다른 프로젝트 연결 없음 — 이 삭제 이후 워크스페이스에서 사라집니다.</WarnBlock>
+                <WarnBlock>{t('deleteModal.noImpact')}</WarnBlock>
               ) : null}
-              <Caveat>사용자 계정 자체(로그인)는 유지됩니다. 다시 초대하면 다시 추가할 수 있습니다.</Caveat>
+              <Caveat>{t('deleteModal.caveat')}</Caveat>
             </ConfirmBody>
             <ConfirmFooter>
-              <CFCancel type="button" onClick={() => { setDeleteTarget(null); setDeleteImpact(null); }} disabled={deleting}>취소</CFCancel>
+              <CFCancel type="button" onClick={() => { setDeleteTarget(null); setDeleteImpact(null); }} disabled={deleting}>{t('deleteModal.cancel')}</CFCancel>
               <CFDanger type="button" onClick={confirmDelete} disabled={deleting}>
-                {deleting ? '삭제 중…' : '삭제'}
+                {deleting ? t('deleteModal.deleting') : t('deleteModal.delete')}
               </CFDanger>
             </ConfirmFooter>
           </ConfirmDialog>
@@ -511,15 +524,15 @@ export default function ClientsPage() {
   );
 }
 
-function labelFor(action: string): string {
+function labelFor(action: string, t: TFunction): string {
   switch (action) {
-    case 'client.invited': return '초대됨';
-    case 'client.activated': return '활성화';
-    case 'client.archived': return '보관';
-    case 'client.updated': return '정보 수정';
-    case 'client.deleted': return '삭제';
-    case 'project.client_added': return '프로젝트 연결';
-    case 'project.client_removed': return '프로젝트 연결 해제';
+    case 'client.invited': return t('history.invited');
+    case 'client.activated': return t('history.activated');
+    case 'client.archived': return t('history.archived');
+    case 'client.updated': return t('history.updated');
+    case 'client.deleted': return t('history.deleted');
+    case 'project.client_added': return t('history.projectAdded');
+    case 'project.client_removed': return t('history.projectRemoved');
     default: return action;
   }
 }
@@ -555,7 +568,19 @@ const Tr = styled.tr<{ $selected?: boolean }>`
   &:hover{background:${p=>p.$selected?'#CCFBF1':'#f8fafc'};}
 `;
 const Td = styled.td`padding:12px 16px;color:#0f172a;vertical-align:middle;strong{font-weight:600;}`;
-const NameCell = styled.strong`font-weight:600;`;
+const NameCell = styled.strong`
+  font-weight:600;
+  display:inline-block; padding:2px 6px; margin:-2px -6px; border-radius:4px;
+  cursor:pointer; transition:background 0.12s;
+  &:hover{ background:#F1F5F9; }
+  &:focus-visible{ outline:2px solid #14B8A6; outline-offset:-1px; }
+`;
+const CompanyCell = styled.span`
+  display:inline-block; padding:2px 6px; margin:-2px -6px; border-radius:4px;
+  cursor:pointer; transition:background 0.12s;
+  &:hover{ background:#F1F5F9; }
+  &:focus-visible{ outline:2px solid #14B8A6; outline-offset:-1px; }
+`;
 const Muted = styled.span`color:#CBD5E1;`;
 const CellInput = styled.input`width:100%;height:26px;padding:0 6px;border:1px solid #14B8A6;border-radius:6px;font-size:13px;font-family:inherit;background:#F0FDFA;&:focus{outline:none;box-shadow:0 0 0 2px rgba(20,184,166,0.15);}`;
 
@@ -594,7 +619,7 @@ const HeadSide = styled.div`flex-shrink:0;`;
 const SwitchWrap = styled.label`display:inline-flex;align-items:center;gap:8px;cursor:pointer;user-select:none;`;
 const SwitchInput = styled.input`appearance:none;-webkit-appearance:none;position:absolute;opacity:0;pointer-events:none;
   &:checked + span{background:#14B8A6;}
-  &:checked + span::after{transform:translateX(18px);}
+  &:checked + span::after{transform:translateX(16px);}
   &:disabled + span{opacity:0.5;cursor:not-allowed;}
 `;
 const SwitchTrack = styled.span`display:inline-block;width:38px;height:22px;background:#CBD5E1;border-radius:999px;position:relative;transition:background 0.15s;

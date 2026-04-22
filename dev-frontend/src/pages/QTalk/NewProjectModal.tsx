@@ -190,7 +190,7 @@ const NewProjectModal: React.FC<Props> = ({ businessId, open, onClose, onCreate 
 
   return (
     <Backdrop onClick={onClose}>
-      <Modal onClick={(e) => e.stopPropagation()}>
+      <Modal role="dialog" aria-modal="true" aria-label={t('modal.title', '새 프로젝트') as string} onClick={(e) => e.stopPropagation()}>
         <ModalHeader>
           <ModalTitle>{t('modal.title', '새 프로젝트')}</ModalTitle>
           <CloseBtn onClick={onClose}>
@@ -381,7 +381,7 @@ const NewProjectModal: React.FC<Props> = ({ businessId, open, onClose, onCreate 
                 <Input
                   value={newClientEmail}
                   onChange={(e) => setNewClientEmail(e.target.value)}
-                  placeholder="이메일"
+                  placeholder={t('modal.clientEmailPlaceholder', '이메일') as string}
                   type="email"
                   style={{ flex: 1 }}
                 />
@@ -398,8 +398,8 @@ const NewProjectModal: React.FC<Props> = ({ businessId, open, onClose, onCreate 
             <Label>{t('modal.channels', '채팅 채널')}</Label>
             <HelpText>{t('modal.channelsHelp', '프로젝트 생성 시 2개 채널이 자동 생성됩니다. 이름과 참여자를 조정하세요.')}</HelpText>
             {([
-              { type: 'customer' as const, defaultName: `${name || '프로젝트'} 고객`, ref: 'customer', title: '고객 채널' },
-              { type: 'internal' as const, defaultName: `${name || '프로젝트'} 내부`, ref: 'internal', title: '내부 채널' },
+              { type: 'customer' as const, defaultName: t('modal.customerChannelDefault', { project: name || t('modal.projectFallback', '프로젝트') }) as string, ref: 'customer', title: t('modal.customerChannel', '고객 채널') as string },
+              { type: 'internal' as const, defaultName: t('modal.internalChannelDefault', { project: name || t('modal.projectFallback', '프로젝트') }) as string, ref: 'internal', title: t('modal.internalChannel', '내부 채널') as string },
             ]).map(cfg => {
               const nameVal = cfg.type === 'customer' ? customerChatName : internalChatName;
               const setNameVal = cfg.type === 'customer' ? setCustomerChatName : setInternalChatName;
@@ -410,9 +410,9 @@ const NewProjectModal: React.FC<Props> = ({ businessId, open, onClose, onCreate 
                   <ChannelTitle>{cfg.title}</ChannelTitle>
                   <Input value={nameVal} onChange={e => setNameVal(e.target.value)} placeholder={cfg.defaultName} />
                   <ChannelMembers>
-                    <HelpText>참여 멤버 ({parts.size}/{members.length})</HelpText>
+                    <HelpText>{t('modal.channelMembers', '참여 멤버')} ({parts.size}/{members.length})</HelpText>
                     <ChannelMembersList>
-                      {members.length === 0 && <HelpText>멤버를 먼저 추가하세요</HelpText>}
+                      {members.length === 0 && <HelpText>{t('modal.noMembers', '멤버를 먼저 추가하세요')}</HelpText>}
                       {members.map(m => {
                         const checked = parts.has(m.user_id);
                         return (

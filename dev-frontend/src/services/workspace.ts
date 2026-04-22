@@ -35,17 +35,30 @@ export interface Workspace {
 export interface WorkspaceMember {
   id: number;
   business_id: number;
-  user_id: number;
+  user_id: number | null;
   role: 'owner' | 'member' | 'ai';
+  default_role?: string | null;
+  daily_work_hours?: number | string | null;
+  weekly_work_days?: number | null;
+  participation_rate?: number | string | null;
   joined_at?: string | null;
-  user: {
+  invited_at?: string | null;
+  invite_email?: string | null;
+  invite_token?: string | null;
+  user?: {
     id: number;
     name: string;
     email: string | null;
     avatar_url: string | null;
     is_ai: boolean | number;
     last_login_at?: string | null;
-  };
+    phone?: string | null;
+    job_title?: string | null;
+    organization?: string | null;
+    bio?: string | null;
+    expertise?: string | null;
+    timezone?: string | null;
+  } | null;
 }
 
 export interface CueInfo {
@@ -101,6 +114,26 @@ export async function updateSettings(id: number, payload: Partial<Workspace>): P
 
 export async function listMembers(id: number): Promise<WorkspaceMember[]> {
   return unwrap(await apiFetch(`/api/businesses/${id}/members`));
+}
+
+export async function inviteMember(id: number, payload: { email: string; default_role?: string }): Promise<WorkspaceMember> {
+  return unwrap(await apiFetch(`/api/businesses/${id}/members/invite`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  }));
+}
+
+export async function updateMemberRole(id: number, memberId: number, role: 'owner' | 'member'): Promise<WorkspaceMember> {
+  return unwrap(await apiFetch(`/api/businesses/${id}/members/${memberId}/role`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ role }),
+  }));
+}
+
+export async function removeMember(id: number, memberId: number): Promise<{ id: number; removed: boolean }> {
+  return unwrap(await apiFetch(`/api/businesses/${id}/members/${memberId}`, { method: 'DELETE' }));
 }
 
 export async function getCueInfo(id: number): Promise<CueInfo> {

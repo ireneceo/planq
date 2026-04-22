@@ -930,6 +930,7 @@ const FolderTree: React.FC<FolderTreeProps> = ({ folders, counts, total, project
 // ─── 프리뷰 ───
 
 const PreviewArea: React.FC<{ file: ProjectFile }> = ({ file }) => {
+  const { t } = useTranslation('qproject');
   const hasValidUrl = (u?: string) => !!u && u !== '#' && u.trim().length > 0;
   if (isImage(file.mime_type, file.file_name) && hasValidUrl(file.preview_url)) {
     return <PreviewImage src={file.preview_url!} alt={file.file_name} />;
@@ -940,7 +941,7 @@ const PreviewArea: React.FC<{ file: ProjectFile }> = ({ file }) => {
   return (
     <PreviewFallback>
       <PvExtCircle>{extOf(file.file_name).toUpperCase() || '—'}</PvExtCircle>
-      <PvFallbackHint>미리보기는 다운로드 후 확인 가능합니다</PvFallbackHint>
+      <PvFallbackHint>{t('docs.preview.fallbackHint', '미리보기는 다운로드 후 확인 가능합니다')}</PvFallbackHint>
     </PreviewFallback>
   );
 };

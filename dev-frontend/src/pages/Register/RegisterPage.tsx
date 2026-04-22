@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import styled from 'styled-components';
 import { useAuth } from '../../contexts/AuthContext';
@@ -246,6 +246,7 @@ const CheckIcon = () => (
 const RegisterPage: React.FC = () => {
   const { t } = useTranslation('auth');
   const navigate = useNavigate();
+  const location = useLocation();
   const { register, isAuthenticated, isLoading: authLoading } = useAuth();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -258,9 +259,15 @@ const RegisterPage: React.FC = () => {
 
   useEffect(() => {
     if (!authLoading && isAuthenticated) {
-      navigate('/dashboard', { replace: true });
+      const redirectQuery = new URLSearchParams(location.search).get('redirect');
+      const isValidPath = redirectQuery && redirectQuery.startsWith('/') && !redirectQuery.startsWith('//') && !redirectQuery.includes('javascript:');
+      if (isValidPath && redirectQuery !== '/login' && redirectQuery !== '/register') {
+        navigate(redirectQuery, { replace: true });
+      } else {
+        navigate('/dashboard', { replace: true });
+      }
     }
-  }, [authLoading, isAuthenticated, navigate]);
+  }, [authLoading, isAuthenticated, navigate, location]);
 
   const validate = (): boolean => {
     const errors: Record<string, string> = {};

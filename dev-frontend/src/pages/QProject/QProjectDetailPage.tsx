@@ -194,9 +194,9 @@ const QProjectDetailPage: React.FC = () => {
     });
   }, [tasks]);
 
-  if (!projectId) return <PageShell title="Error"><Empty>잘못된 주소</Empty></PageShell>;
+  if (!projectId) return <PageShell title="Error"><Empty>{t('error.invalidUrl', '잘못된 주소')}</Empty></PageShell>;
   if (loading) return <PageShell title={t('loading', '로드 중...')}><Empty>{t('loading', '로드 중...')}</Empty></PageShell>;
-  if (!project) return <PageShell title="Not found"><Empty>프로젝트를 찾을 수 없습니다</Empty></PageShell>;
+  if (!project) return <PageShell title="Not found"><Empty>{t('error.notFound', '프로젝트를 찾을 수 없습니다')}</Empty></PageShell>;
 
   return (
     <PageShell
@@ -206,15 +206,16 @@ const QProjectDetailPage: React.FC = () => {
       }
     >
       <TabBar>
-        {([['dashboard', '대시보드'], ['tasks', '업무'], ['process', project.process_tab_label || '테이블'], ['clients', '고객'], ['files', '파일'], ['docs', '문서'], ['info', '상세정보']] as [TabKey, string][]).map(([k, lbl]) => {
+        {([['dashboard', '대시보드'], ['tasks', '업무'], ['process', project.process_tab_label || t('tab.defaultProcess', '테이블')], ['clients', '고객'], ['files', '파일'], ['docs', '문서'], ['info', '상세정보']] as [TabKey, string][]).map(([k, lbl]) => {
+          const defaultProcess = t('tab.defaultProcess', '테이블');
           if (k === 'process' && editingTabLabel) {
             return (
               <TabLabelInput key={k} autoFocus value={tabLabelDraft}
                 onChange={e => setTabLabelDraft(e.target.value)}
                 onBlur={async () => {
-                  const v = tabLabelDraft.trim() || '테이블';
+                  const v = tabLabelDraft.trim() || defaultProcess;
                   setEditingTabLabel(false);
-                  if (v !== (project.process_tab_label || '테이블')) {
+                  if (v !== (project.process_tab_label || defaultProcess)) {
                     await apiFetch(`/api/projects/${projectId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ process_tab_label: v }) });
                     setProject(prev => prev ? { ...prev, process_tab_label: v } : prev);
                   }
@@ -228,12 +229,12 @@ const QProjectDetailPage: React.FC = () => {
           return (
             <Tab key={k} $active={tab === k}
               onClick={() => setTab(k)}
-              onDoubleClick={() => { if (k === 'process') { setTabLabelDraft(project.process_tab_label || '테이블'); setEditingTabLabel(true); } }}
+              onDoubleClick={() => { if (k === 'process') { setTabLabelDraft(project.process_tab_label || defaultProcess); setEditingTabLabel(true); } }}
               title={k === 'process' ? t('tab.processEditHint', '더블클릭하여 이름 변경') as string : ''}
             >
               {t(`tab.${k}`, lbl)}
               {k === 'process' && tab === k && (
-                <TabEditIcon onClick={e => { e.stopPropagation(); setTabLabelDraft(project.process_tab_label || '테이블'); setEditingTabLabel(true); }} title="이름 변경">✎</TabEditIcon>
+                <TabEditIcon onClick={e => { e.stopPropagation(); setTabLabelDraft(project.process_tab_label || defaultProcess); setEditingTabLabel(true); }} title={t('tab.renameHint', '이름 변경') as string}>✎</TabEditIcon>
               )}
             </Tab>
           );
@@ -246,12 +247,12 @@ const QProjectDetailPage: React.FC = () => {
           <Card style={{ order: 1 }}>
             <CardTitle>{t('section.info', '기본 정보')}</CardTitle>
             <InfoGrid>
-              <InfoCell><InfoLabel>{t('info.type', '타입')}</InfoLabel><TypeBadge>{project.project_type === 'ongoing' ? '지속 구독' : '일시 프로젝트'}</TypeBadge></InfoCell>
-              <InfoCell><InfoLabel>{t('info.client', '고객사')}</InfoLabel><InfoValue>{project.client_company || '—'}</InfoValue></InfoCell>
+              <InfoCell><InfoLabel>{t('info.type', '타입')}</InfoLabel><TypeBadge>{project.project_type === 'ongoing' ? t('info.typeOngoing', '지속 구독') : t('info.typeFixed', '일시 프로젝트')}</TypeBadge></InfoCell>
+              <InfoCell><InfoLabel>{t('info.client', '고객사')}</InfoLabel><InfoValue>{project.client_company || t('info.noValue', '—')}</InfoValue></InfoCell>
               <InfoCell><InfoLabel>{t('info.period', '기간')}</InfoLabel><InfoValue>
-                {project.start_date ? formatDate(project.start_date) : '—'} {project.project_type === 'fixed' && <>~ {project.end_date ? formatDate(project.end_date) : '—'}</>}
+                {project.start_date ? formatDate(project.start_date) : t('info.noValue', '—')} {project.project_type === 'fixed' && <>~ {project.end_date ? formatDate(project.end_date) : t('info.noValue', '—')}</>}
               </InfoValue></InfoCell>
-              <InfoCell><InfoLabel>{t('info.members', '멤버')}</InfoLabel><InfoValue>{(project.projectMembers || []).length}명</InfoValue></InfoCell>
+              <InfoCell><InfoLabel>{t('info.members', '멤버')}</InfoLabel><InfoValue>{t('info.memberCount', '{{n}}명', { n: (project.projectMembers || []).length })}</InfoValue></InfoCell>
             </InfoGrid>
             {project.description && <Description>{project.description}</Description>}
           </Card>
@@ -264,10 +265,10 @@ const QProjectDetailPage: React.FC = () => {
               <ProgressPct>{stats.progress}%</ProgressPct>
             </ProgressRow>
             <StatRow>
-              <Stat><StatNum>{stats.total}</StatNum><StatLabel>전체</StatLabel></Stat>
-              <Stat><StatNum style={{ color: '#14B8A6' }}>{stats.inProgress}</StatNum><StatLabel>진행</StatLabel></Stat>
-              <Stat><StatNum style={{ color: '#22C55E' }}>{stats.completed}</StatNum><StatLabel>완료</StatLabel></Stat>
-              <Stat><StatNum style={{ color: '#DC2626' }}>{stats.overdue}</StatNum><StatLabel>지연</StatLabel></Stat>
+              <Stat><StatNum>{stats.total}</StatNum><StatLabel>{t('stats.total', '전체')}</StatLabel></Stat>
+              <Stat><StatNum style={{ color: '#14B8A6' }}>{stats.inProgress}</StatNum><StatLabel>{t('stats.inProgress', '진행')}</StatLabel></Stat>
+              <Stat><StatNum style={{ color: '#22C55E' }}>{stats.completed}</StatNum><StatLabel>{t('stats.completed', '완료')}</StatLabel></Stat>
+              <Stat><StatNum style={{ color: '#DC2626' }}>{stats.overdue}</StatNum><StatLabel>{t('stats.overdue', '지연')}</StatLabel></Stat>
             </StatRow>
           </Card>
 
@@ -291,18 +292,18 @@ const QProjectDetailPage: React.FC = () => {
           {/* 주요 이슈 (순서 5) */}
           <Card style={{ order: 5 }}>
             <CardTitle>{t('section.issues', '주요 이슈')} <small>{issues.length}</small></CardTitle>
-            {issues.length === 0 ? <Dim>이슈가 없습니다</Dim> : (
+            {issues.length === 0 ? <Dim>{t('issues.empty', '이슈가 없습니다')}</Dim> : (
               <IssueList>
                 {issues.slice(0, 5).map(i => (
                   <IssueRow key={i.id}>
                     <IssueBody>{i.body}</IssueBody>
-                    <IssueMeta>{i.author?.name || '—'} · {i.created_at?.slice(5, 10).replace('-', '/')}</IssueMeta>
+                    <IssueMeta>{i.author?.name || t('info.noValue', '—')} · {i.created_at?.slice(5, 10).replace('-', '/')}</IssueMeta>
                   </IssueRow>
                 ))}
               </IssueList>
             )}
             <AddIssueRow>
-              <IssueInput placeholder="이슈 추가..." value={newIssue} onChange={e => setNewIssue(e.target.value)}
+              <IssueInput placeholder={t('issues.addPlaceholder', '이슈 추가...') as string} value={newIssue} onChange={e => setNewIssue(e.target.value)}
                 onKeyDown={async e => {
                   if (e.key !== 'Enter' || (e.nativeEvent as unknown as { isComposing?: boolean }).isComposing || !newIssue.trim()) return;
                   if (submittingRef.current) return;
@@ -323,16 +324,16 @@ const QProjectDetailPage: React.FC = () => {
           {/* 프로젝트 메모 (순서 6) */}
           <Card style={{ order: 6 }}>
             <CardTitle>{t('section.notes', '프로젝트 메모')} <small>{notes.length}</small></CardTitle>
-            {notes.length === 0 ? <Dim>메모가 없습니다</Dim> : (
+            {notes.length === 0 ? <Dim>{t('notes.empty', '메모가 없습니다')}</Dim> : (
               <IssueList>
                 {notes.slice(0, 5).map(n => (
                   <IssueRow key={n.id}>
                     <IssueBody>
-                      {n.visibility === 'personal' && <VisTag>개인</VisTag>}
-                      {n.visibility === 'internal' && <VisTag $internal>내부</VisTag>}
+                      {n.visibility === 'personal' && <VisTag>{t('notes.visPersonal', '개인')}</VisTag>}
+                      {n.visibility === 'internal' && <VisTag $internal>{t('notes.visInternal', '내부')}</VisTag>}
                       {n.body}
                     </IssueBody>
-                    <IssueMeta>{n.author?.name || '—'} · {n.created_at?.slice(5, 10).replace('-', '/')}</IssueMeta>
+                    <IssueMeta>{n.author?.name || t('info.noValue', '—')} · {n.created_at?.slice(5, 10).replace('-', '/')}</IssueMeta>
                   </IssueRow>
                 ))}
               </IssueList>
@@ -340,11 +341,11 @@ const QProjectDetailPage: React.FC = () => {
             <AddIssueRow>
               <div style={{ flex: '0 0 90px' }}>
                 <PlanQSelect size="sm" isSearchable={false}
-                  value={{ value: newNoteVis, label: newNoteVis === 'internal' ? '내부' : '개인' }}
+                  value={{ value: newNoteVis, label: newNoteVis === 'internal' ? t('notes.visInternal', '내부') : t('notes.visPersonal', '개인') }}
                   onChange={v => setNewNoteVis(((v as { value?: 'personal' | 'internal' } | null)?.value) || 'internal')}
-                  options={[{ value: 'internal', label: '내부' }, { value: 'personal', label: '개인' }]} />
+                  options={[{ value: 'internal', label: t('notes.visInternal', '내부') }, { value: 'personal', label: t('notes.visPersonal', '개인') }]} />
               </div>
-              <IssueInput placeholder="메모 추가..." value={newNote} onChange={e => setNewNote(e.target.value)}
+              <IssueInput placeholder={t('notes.addPlaceholder', '메모 추가...') as string} value={newNote} onChange={e => setNewNote(e.target.value)}
                 onKeyDown={async e => {
                   if (e.key !== 'Enter' || (e.nativeEvent as unknown as { isComposing?: boolean }).isComposing || !newNote.trim()) return;
                   if (submittingRef.current) return;
@@ -365,12 +366,12 @@ const QProjectDetailPage: React.FC = () => {
           {/* 고객 정보 요약 (순서 2) */}
           <Card style={{ order: 2 }}>
             <CardTitle>{t('section.clients', '고객 정보')} <small>{(project.projectClients || []).length}</small></CardTitle>
-            {(project.projectClients || []).length === 0 ? <Dim>연결된 고객이 없습니다</Dim> : (
+            {(project.projectClients || []).length === 0 ? <Dim>{t('clients.emptySummary', '연결된 고객이 없습니다')}</Dim> : (
               <IssueList>
                 {(project.projectClients || []).slice(0, 5).map(c => (
                   <IssueRow key={c.id} onClick={() => setTab('clients')} style={{ cursor: 'pointer' }}>
                     <IssueBody><strong>{c.contact_name}</strong></IssueBody>
-                    <IssueMeta>{c.contact_email || '이메일 없음'}</IssueMeta>
+                    <IssueMeta>{c.contact_email || t('clients.noEmail', '이메일 없음')}</IssueMeta>
                   </IssueRow>
                 ))}
               </IssueList>
@@ -386,7 +387,7 @@ const QProjectDetailPage: React.FC = () => {
               <ConvList>
                 {convs.map(c => (
                   <ConvRow key={c.id} onClick={() => navigate(`/talk?project=${projectId}&conv=${c.id}`)}>
-                    <ConvChannel $type={c.channel_type}>{c.channel_type === 'customer' ? '고객' : c.channel_type === 'internal' ? '내부' : '그룹'}</ConvChannel>
+                    <ConvChannel $type={c.channel_type}>{c.channel_type === 'customer' ? t('convs.channelCustomer', '고객') : c.channel_type === 'internal' ? t('convs.channelInternal', '내부') : t('convs.channelGroup', '그룹')}</ConvChannel>
                     <ConvTitle>{c.title || `#${c.id}`}</ConvTitle>
                     {(c.unread_count || 0) > 0 && <UnreadBadge>{c.unread_count}</UnreadBadge>}
                   </ConvRow>
@@ -412,7 +413,7 @@ const QProjectDetailPage: React.FC = () => {
             <CardTitle>{t('section.editInfo', '기본 정보')}</CardTitle>
             <EditGrid>
               <EditField>
-                <EditLabel>프로젝트명</EditLabel>
+                <EditLabel>{t('edit.projectName', '프로젝트명')}</EditLabel>
                 <EditInput defaultValue={project.name}
                   onBlur={async e => {
                     const v = e.target.value.trim();
@@ -423,7 +424,7 @@ const QProjectDetailPage: React.FC = () => {
                   }} />
               </EditField>
               <EditField>
-                <EditLabel>고객사</EditLabel>
+                <EditLabel>{t('edit.client', '고객사')}</EditLabel>
                 <EditInput defaultValue={project.client_company || ''}
                   onBlur={async e => {
                     const v = e.target.value.trim();
@@ -432,45 +433,45 @@ const QProjectDetailPage: React.FC = () => {
                   }} />
               </EditField>
               <EditField>
-                <EditLabel>타입</EditLabel>
+                <EditLabel>{t('edit.type', '타입')}</EditLabel>
                 <div style={{ display: 'flex', gap: 6 }}>
                   <TypeBtn2 $active={project.project_type === 'fixed'} onClick={async () => {
                     await apiFetch(`/api/projects/${projectId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ project_type: 'fixed' }) });
                     setProject(prev => prev ? { ...prev, project_type: 'fixed' } : prev);
-                  }}>일시 프로젝트</TypeBtn2>
+                  }}>{t('edit.typeFixed', '일시 프로젝트')}</TypeBtn2>
                   <TypeBtn2 $active={project.project_type === 'ongoing'} onClick={async () => {
                     await apiFetch(`/api/projects/${projectId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ project_type: 'ongoing' }) });
                     setProject(prev => prev ? { ...prev, project_type: 'ongoing' } : prev);
-                  }}>지속 구독</TypeBtn2>
+                  }}>{t('edit.typeOngoing', '지속 구독')}</TypeBtn2>
                 </div>
               </EditField>
               <EditField>
-                <EditLabel>상태</EditLabel>
+                <EditLabel>{t('edit.status', '상태')}</EditLabel>
                 <div style={{ display: 'flex', gap: 6 }}>
                   <TypeBtn2 $active={project.status === 'active'} onClick={async () => {
                     if (project.status === 'active') return;
                     await apiFetch(`/api/projects/${projectId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'active' }) });
                     setProject(prev => prev ? { ...prev, status: 'active' } : prev);
-                  }}>진행 중</TypeBtn2>
+                  }}>{t('edit.statusActive', '진행 중')}</TypeBtn2>
                   <TypeBtn2 $active={project.status === 'paused'} onClick={async () => {
                     if (project.status === 'paused') return;
                     await apiFetch(`/api/projects/${projectId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'paused' }) });
                     setProject(prev => prev ? { ...prev, status: 'paused' } : prev);
-                  }}>일시 중지</TypeBtn2>
+                  }}>{t('edit.statusPaused', '일시 중지')}</TypeBtn2>
                   <TypeBtn2 $active={project.status === 'closed'} onClick={() => {
                     if (project.status !== 'closed') setCloseModalOpen(true);
-                  }}>완료</TypeBtn2>
+                  }}>{t('edit.statusClosed', '완료')}</TypeBtn2>
                 </div>
               </EditField>
               <EditField>
-                <EditLabel>기간</EditLabel>
+                <EditLabel>{t('edit.period', '기간')}</EditLabel>
                 <EditDateRangeTrigger ref={periodAnchorRef} type="button"
                   onClick={() => setPeriodPickerOpen(v => !v)}>
                   {(project.start_date || project.end_date) ?
                     (project.project_type === 'fixed'
-                      ? `${project.start_date?.slice(0, 10) || '—'} ~ ${project.end_date?.slice(0, 10) || '—'}`
-                      : project.start_date?.slice(0, 10) || '—')
-                    : <DatePH>기간 선택</DatePH>}
+                      ? `${project.start_date?.slice(0, 10) || t('info.noValue', '—')} ~ ${project.end_date?.slice(0, 10) || t('info.noValue', '—')}`
+                      : project.start_date?.slice(0, 10) || t('info.noValue', '—'))
+                    : <DatePH>{t('edit.periodPlaceholder', '기간 선택')}</DatePH>}
                 </EditDateRangeTrigger>
                 {periodPickerOpen && (
                   <CalendarPicker
@@ -489,7 +490,7 @@ const QProjectDetailPage: React.FC = () => {
                 )}
               </EditField>
               <EditField style={{ gridColumn: '1 / -1' }}>
-                <EditLabel>색상</EditLabel>
+                <EditLabel>{t('edit.color', '색상')}</EditLabel>
                 <ColorRow>
                   {PROJECT_COLORS.map(c => (
                     <ColorSwatch key={c} type="button" $active={(project.color || '').toLowerCase() === c.toLowerCase()}
@@ -511,8 +512,8 @@ const QProjectDetailPage: React.FC = () => {
                       setProject(prev => prev ? { ...prev, color: v } : prev);
                       await apiFetch(`/api/projects/${projectId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ color: v }) });
                     }}
-                    title="색상 선택기"
-                    aria-label="색상 선택기"
+                    title={t('edit.colorPicker', '색상 선택기') as string}
+                    aria-label={t('edit.colorPicker', '색상 선택기') as string}
                   />
                   <HexInput
                     type="text"
@@ -534,7 +535,7 @@ const QProjectDetailPage: React.FC = () => {
                 </HexRow>
               </EditField>
               <EditField style={{ gridColumn: '1 / -1' }}>
-                <EditLabel>설명</EditLabel>
+                <EditLabel>{t('edit.description', '설명')}</EditLabel>
                 <EditTextarea defaultValue={project.description || ''} rows={3}
                   onBlur={async e => {
                     const v = e.target.value.trim();
@@ -552,7 +553,7 @@ const QProjectDetailPage: React.FC = () => {
                 {(project.projectMembers || []).map(m => (
                   <MemberRow key={m.user_id}>
                     <MemberName>{m.User?.name || `user ${m.user_id}`}{m.user_id === project.owner_user_id && <OwnerTag>{t('members.owner', '오너')}</OwnerTag>}</MemberName>
-                    <MemberRoleInput defaultValue={m.role || '팀원'} placeholder="역할"
+                    <MemberRoleInput defaultValue={m.role || t('edit.roleDefault', '팀원')} placeholder={t('edit.rolePlaceholder', '역할') as string}
                       disabled={m.user_id === project.owner_user_id}
                       onBlur={e => { const v = e.target.value.trim(); if (v && v !== m.role) updateMemberRole(m.user_id, v); }}
                       onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }} />
@@ -587,11 +588,11 @@ const QProjectDetailPage: React.FC = () => {
 
           <Card>
             <CardTitle>{t('section.chats', '연결된 채팅방')} <small>{convs.length}</small></CardTitle>
-            {convs.length === 0 ? <Dim>없음</Dim> : (
+            {convs.length === 0 ? <Dim>{t('convs.empty', '없음')}</Dim> : (
               <ConvList>
                 {convs.map(c => (
                   <ConvRow key={c.id} onClick={() => navigate(`/talk?project=${projectId}&conv=${c.id}`)}>
-                    <ConvChannel $type={c.channel_type}>{c.channel_type === 'customer' ? '고객' : c.channel_type === 'internal' ? '내부' : '그룹'}</ConvChannel>
+                    <ConvChannel $type={c.channel_type}>{c.channel_type === 'customer' ? t('convs.channelCustomer', '고객') : c.channel_type === 'internal' ? t('convs.channelInternal', '내부') : t('convs.channelGroup', '그룹')}</ConvChannel>
                     <ConvTitle>{c.title || `#${c.id}`}</ConvTitle>
                   </ConvRow>
                 ))}
@@ -601,18 +602,18 @@ const QProjectDetailPage: React.FC = () => {
 
           <Card>
             <CardTitle>{t('section.issues', '주요 이슈')} <small>{issues.length}</small></CardTitle>
-            {issues.length === 0 ? <Dim>이슈가 없습니다</Dim> : (
+            {issues.length === 0 ? <Dim>{t('issues.empty', '이슈가 없습니다')}</Dim> : (
               <IssueList>
                 {issues.map(i => (
                   <IssueRow key={i.id}>
                     <IssueBody>{i.body}</IssueBody>
-                    <IssueMeta>{i.author?.name || '—'} · {i.created_at?.slice(5, 10).replace('-', '/')}</IssueMeta>
+                    <IssueMeta>{i.author?.name || t('info.noValue', '—')} · {i.created_at?.slice(5, 10).replace('-', '/')}</IssueMeta>
                   </IssueRow>
                 ))}
               </IssueList>
             )}
             <AddIssueRow>
-              <IssueInput placeholder="이슈 추가..." value={newIssue} onChange={e => setNewIssue(e.target.value)}
+              <IssueInput placeholder={t('issues.addPlaceholder', '이슈 추가...') as string} value={newIssue} onChange={e => setNewIssue(e.target.value)}
                 onKeyDown={async e => {
                   if (e.key !== 'Enter' || (e.nativeEvent as unknown as { isComposing?: boolean }).isComposing || !newIssue.trim()) return;
                   if (submittingRef.current) return;
@@ -628,16 +629,16 @@ const QProjectDetailPage: React.FC = () => {
 
           <Card>
             <CardTitle>{t('section.notes', '프로젝트 메모')} <small>{notes.length}</small></CardTitle>
-            {notes.length === 0 ? <Dim>메모가 없습니다</Dim> : (
+            {notes.length === 0 ? <Dim>{t('notes.empty', '메모가 없습니다')}</Dim> : (
               <IssueList>
                 {notes.map(n => (
                   <IssueRow key={n.id}>
                     <IssueBody>
-                      {n.visibility === 'personal' && <VisTag>개인</VisTag>}
-                      {n.visibility === 'internal' && <VisTag $internal>내부</VisTag>}
+                      {n.visibility === 'personal' && <VisTag>{t('notes.visPersonal', '개인')}</VisTag>}
+                      {n.visibility === 'internal' && <VisTag $internal>{t('notes.visInternal', '내부')}</VisTag>}
                       {n.body}
                     </IssueBody>
-                    <IssueMeta>{n.author?.name || '—'} · {n.created_at?.slice(5, 10).replace('-', '/')}</IssueMeta>
+                    <IssueMeta>{n.author?.name || t('info.noValue', '—')} · {n.created_at?.slice(5, 10).replace('-', '/')}</IssueMeta>
                   </IssueRow>
                 ))}
               </IssueList>
@@ -645,11 +646,11 @@ const QProjectDetailPage: React.FC = () => {
             <AddIssueRow>
               <div style={{ flex: '0 0 90px' }}>
                 <PlanQSelect size="sm" isSearchable={false}
-                  value={{ value: newNoteVis, label: newNoteVis === 'internal' ? '내부' : '개인' }}
+                  value={{ value: newNoteVis, label: newNoteVis === 'internal' ? t('notes.visInternal', '내부') : t('notes.visPersonal', '개인') }}
                   onChange={v => setNewNoteVis(((v as { value?: 'personal' | 'internal' } | null)?.value) || 'internal')}
-                  options={[{ value: 'internal', label: '내부' }, { value: 'personal', label: '개인' }]} />
+                  options={[{ value: 'internal', label: t('notes.visInternal', '내부') }, { value: 'personal', label: t('notes.visPersonal', '개인') }]} />
               </div>
-              <IssueInput placeholder="메모 추가..." value={newNote} onChange={e => setNewNote(e.target.value)}
+              <IssueInput placeholder={t('notes.addPlaceholder', '메모 추가...') as string} value={newNote} onChange={e => setNewNote(e.target.value)}
                 onKeyDown={async e => {
                   if (e.key !== 'Enter' || (e.nativeEvent as unknown as { isComposing?: boolean }).isComposing || !newNote.trim()) return;
                   if (submittingRef.current) return;
@@ -674,16 +675,16 @@ const QProjectDetailPage: React.FC = () => {
         <ClientsBody>
           <Card>
             <CardTitle>{t('section.projClients', '참여 고객')} <small>{(project.projectClients || []).length}</small></CardTitle>
-            {(project.projectClients || []).length === 0 ? <Dim>고객이 없습니다</Dim> : (
+            {(project.projectClients || []).length === 0 ? <Dim>{t('clients.empty', '고객이 없습니다')}</Dim> : (
               <ClientList>
                 {(project.projectClients || []).map(c => {
                   const joined = !!c.contact_user_id;
                   return (
                     <ClientRow key={c.id}>
                       <strong>{c.contact_name}</strong>
-                      <span>{c.contact_email || '—'}</span>
-                      <ClientStatusPill $joined={joined} title={joined ? '워크스페이스 사용자로 참여 중' : '초대 발송 — 수락 대기 중'}>
-                        {joined ? '참여 중' : '초대 대기'}
+                      <span>{c.contact_email || t('info.noValue', '—')}</span>
+                      <ClientStatusPill $joined={joined} title={joined ? t('clients.joinedTitle', '워크스페이스 사용자로 참여 중') as string : t('clients.pendingTitle', '초대 발송 — 수락 대기 중') as string}>
+                        {joined ? t('clients.joined', '참여 중') : t('clients.pending', '초대 대기')}
                       </ClientStatusPill>
                       <ClientDelBtn type="button" onClick={async () => {
                         const r = await apiFetch(`/api/projects/${projectId}/clients/${c.id}`, { method: 'DELETE' });
@@ -706,11 +707,11 @@ const QProjectDetailPage: React.FC = () => {
               if (candidates.length === 0) return null;
               return (
                 <LinkClientBar>
-                  <LinkClientLabel>기존 고객 연결</LinkClientLabel>
+                  <LinkClientLabel>{t('clients.linkExisting', '기존 고객 연결')}</LinkClientLabel>
                   <div style={{ flex: 1, minWidth: 0 }}>
                   <PlanQSelect
                     size="sm" isClearable
-                    placeholder="워크스페이스 고객 선택"
+                    placeholder={t('clients.selectPlaceholder', '워크스페이스 고객 선택') as string}
                     value={null}
                     onChange={async (opt) => {
                       const v = (opt as { value?: string } | null)?.value;
@@ -753,9 +754,9 @@ const QProjectDetailPage: React.FC = () => {
                 setNewClientName(''); setNewClientEmail('');
               }
             }}>
-              <ClientInput placeholder="새 고객 이름" value={newClientName} onChange={e => setNewClientName(e.target.value)} />
-              <ClientInput placeholder="이메일 (선택, 초대 발송)" type="email" value={newClientEmail} onChange={e => setNewClientEmail(e.target.value)} />
-              <AddClientBtn type="submit" disabled={!newClientName.trim()}>+ 새로 초대</AddClientBtn>
+              <ClientInput placeholder={t('clients.newNamePlaceholder', '새 고객 이름') as string} value={newClientName} onChange={e => setNewClientName(e.target.value)} />
+              <ClientInput placeholder={t('clients.newEmailPlaceholder', '이메일 (선택, 초대 발송)') as string} type="email" value={newClientEmail} onChange={e => setNewClientEmail(e.target.value)} />
+              <AddClientBtn type="submit" disabled={!newClientName.trim()}>{t('clients.newInviteBtn', '+ 새로 초대')}</AddClientBtn>
             </AddClientForm>
           </Card>
         </ClientsBody>
@@ -765,17 +766,17 @@ const QProjectDetailPage: React.FC = () => {
       {closeModalOpen && (
         <CloseBackdrop onMouseDown={(e) => { if (e.target === e.currentTarget) setCloseModalOpen(false); }}>
           <CloseDialog>
-            <CloseHeader>프로젝트 완료 처리</CloseHeader>
+            <CloseHeader>{t('close.title', '프로젝트 완료 처리')}</CloseHeader>
             <CloseBody>
-              <p>이 프로젝트를 <strong>완료 상태</strong>로 전환합니다.</p>
+              <p>{t('close.intro1', '이 프로젝트를 완료 상태로 전환합니다.')}</p>
               <ul>
-                <li>연결된 대화는 자동으로 <strong>보관</strong>됩니다 (내용은 유지).</li>
-                <li>업무·메모·이슈 데이터는 모두 보존됩니다.</li>
+                <li>{t('close.intro2', '연결된 대화는 자동으로 보관됩니다 (내용은 유지).')}</li>
+                <li>{t('close.intro3', '업무·메모·이슈 데이터는 모두 보존됩니다.')}</li>
               </ul>
               {(project.projectClients || []).length > 0 && (
                 <>
-                  <ClientsChoiceTitle>고객 내보내기 (선택)</ClientsChoiceTitle>
-                  <ClientsChoiceHint>체크된 고객은 이 프로젝트에서 제외됩니다. 다른 프로젝트에 없으면 워크스페이스에서도 사라집니다. 고객 아이디 자체 삭제는 고객 관리 페이지에서 할 수 있습니다.</ClientsChoiceHint>
+                  <ClientsChoiceTitle>{t('close.exportTitle', '고객 내보내기 (선택)')}</ClientsChoiceTitle>
+                  <ClientsChoiceHint>{t('close.exportHint', '체크된 고객은 이 프로젝트에서 제외됩니다. 다른 프로젝트에 없으면 워크스페이스에서도 사라집니다. 고객 아이디 자체 삭제는 고객 관리 페이지에서 할 수 있습니다.')}</ClientsChoiceHint>
                   <ClientChoiceList>
                     {(project.projectClients || []).map((c) => (
                       <ClientChoiceRow key={c.id}>
@@ -787,7 +788,7 @@ const QProjectDetailPage: React.FC = () => {
                             setClientsToRemove(next);
                           }} />
                         <strong>{c.contact_name}</strong>
-                        <ClientChoiceEmail>{c.contact_email || '—'}</ClientChoiceEmail>
+                        <ClientChoiceEmail>{c.contact_email || t('info.noValue', '—')}</ClientChoiceEmail>
                       </ClientChoiceRow>
                     ))}
                   </ClientChoiceList>
@@ -795,9 +796,9 @@ const QProjectDetailPage: React.FC = () => {
               )}
             </CloseBody>
             <CloseFooter>
-              <CFCancelBtn type="button" onClick={() => setCloseModalOpen(false)} disabled={closing}>취소</CFCancelBtn>
+              <CFCancelBtn type="button" onClick={() => setCloseModalOpen(false)} disabled={closing}>{t('close.cancel', '취소')}</CFCancelBtn>
               <CFConfirmBtn type="button" onClick={performCloseProject} disabled={closing}>
-                {closing ? '처리 중…' : '완료로 전환'}
+                {closing ? t('close.processing', '처리 중…') : t('close.confirm', '완료로 전환')}
               </CFConfirmBtn>
             </CloseFooter>
           </CloseDialog>
@@ -816,10 +817,11 @@ const DashTimeline: React.FC<{
   onOpen: (id: number) => void;
   onMore: () => void;
 }> = ({ tasks, todayStr, onOpen, onMore }) => {
+  const { t } = useTranslation('qproject');
   const gantt = useGanttScrollSync();
-  const withDates = tasks.filter(t => t.start_date || t.due_date);
-  if (withDates.length === 0) return <Dim>기간이 설정된 업무가 없습니다</Dim>;
-  const dates = withDates.flatMap(t => [t.start_date, t.due_date].filter(Boolean) as string[]).map(d => d.slice(0, 10));
+  const withDates = tasks.filter(task => task.start_date || task.due_date);
+  if (withDates.length === 0) return <Dim>{t('timeline.empty', '기간이 설정된 업무가 없습니다')}</Dim>;
+  const dates = withDates.flatMap(task => [task.start_date, task.due_date].filter(Boolean) as string[]).map(d => d.slice(0, 10));
   const from = dates.reduce((a, b) => (a < b ? a : b));
   const to = dates.reduce((a, b) => (a > b ? a : b));
   const range: GanttRange = { from, to };
@@ -846,7 +848,7 @@ const DashTimeline: React.FC<{
           </DashTLRow>
         );
       })}
-      {rest > 0 && <DashTLMore onClick={onMore}>+ 더 보기 ({rest})</DashTLMore>}
+      {rest > 0 && <DashTLMore onClick={onMore}>{t('timeline.more', '+ 더 보기 ({{n}})', { n: rest })}</DashTLMore>}
     </DashTLWrap>
   );
 };

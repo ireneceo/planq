@@ -58,6 +58,10 @@ router.get('/:businessId/status', authenticateToken, checkBusinessAccess, async 
 // 조건: 현재 free + trial_ends_at 비어있음 (재체험 방지)
 router.post('/:businessId/start-trial', authenticateToken, checkBusinessAccess, async (req, res, next) => {
   try {
+    // 요금제 변경은 owner 또는 platform_admin 만
+    if (req.businessRole !== 'owner' && req.user.platform_role !== 'platform_admin') {
+      return errorResponse(res, 'owner_only', 403);
+    }
     const businessId = Number(req.params.businessId);
     const { plan_code } = req.body || {};
     if (!plan_code || !['starter', 'basic', 'pro'].includes(plan_code)) {
@@ -89,6 +93,9 @@ router.post('/:businessId/start-trial', authenticateToken, checkBusinessAccess, 
 // 결제 시스템 연동 전 임시. 실제 production 은 결제 콜백에서만 호출.
 router.post('/:businessId/change', authenticateToken, checkBusinessAccess, async (req, res, next) => {
   try {
+    if (req.businessRole !== 'owner' && req.user.platform_role !== 'platform_admin') {
+      return errorResponse(res, 'owner_only', 403);
+    }
     const businessId = Number(req.params.businessId);
     const { to_plan, billing_cycle = 'monthly' } = req.body || {};
     if (!to_plan || !PLANS[to_plan]) return errorResponse(res, 'invalid_plan', 400);
@@ -141,8 +148,11 @@ router.post('/:businessId/change', authenticateToken, checkBusinessAccess, async
   } catch (error) { next(error); }
 });
 
-// ─── 예약 다운그레이드 취소 ───
+// ─── 예약 다운그레이드 취소 (owner-only) ───
 router.post('/:businessId/cancel-schedule', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+  if (req.businessRole !== 'owner' && req.user.platform_role !== 'platform_admin') {
+    return errorResponse(res, 'owner_only', 403);
+  }
   try {
     const businessId = Number(req.params.businessId);
     const { biz } = await planEngine.getBusinessPlan(businessId);

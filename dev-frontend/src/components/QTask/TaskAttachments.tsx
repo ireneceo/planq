@@ -1,5 +1,6 @@
 // Task 첨부파일 UI — 드래그앤드롭 + 업로드 + 리스트 + 다운로드 + 삭제 + 기존 파일 선택
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import styled from 'styled-components';
 import { apiFetch, useAuth } from '../../contexts/AuthContext';
 import ConfirmDialog from '../Common/ConfirmDialog';
@@ -24,6 +25,7 @@ type Props = {
 };
 
 export default function TaskAttachments({ taskId, onChangeCount }: Props) {
+  const { t } = useTranslation('common');
   const { user } = useAuth();
   const businessId = user?.business_id || 0;
   const [rows, setRows] = useState<AttachRow[]>([]);
@@ -112,9 +114,9 @@ export default function TaskAttachments({ taskId, onChangeCount }: Props) {
   return (
     <Wrap>
       <Head>
-        <Title>첨부파일 {visibleRows.length > 0 && <Count>({visibleRows.length})</Count>}</Title>
+        <Title>{t('attachments.title')} {visibleRows.length > 0 && <Count>({visibleRows.length})</Count>}</Title>
         <AddBtn type="button" onClick={() => setPickerOpen(true)} disabled={uploading}>
-          + 파일 추가
+          + {t('attachments.add')}
         </AddBtn>
         <input ref={inputRef} type="file" multiple hidden
           onChange={e => e.target.files && upload(e.target.files)} />
@@ -125,8 +127,8 @@ export default function TaskAttachments({ taskId, onChangeCount }: Props) {
         onDragLeave={() => setDragOver(false)}
         onDrop={onDrop}
       >
-        {loading ? <Dim>로드 중...</Dim> :
-          visibleRows.length === 0 ? <Dim>여기로 파일을 드래그하거나 [+ 파일 추가] 클릭</Dim> : (
+        {loading ? <Dim>{t('attachments.loading')}</Dim> :
+          visibleRows.length === 0 ? <Dim>{t('attachments.dropHere')}</Dim> : (
             <List>
               {visibleRows.map(r => {
                 const isImg = r.mime_type?.startsWith('image/');
@@ -141,23 +143,23 @@ export default function TaskAttachments({ taskId, onChangeCount }: Props) {
                       <Name>{r.original_name}</Name>
                       <Sub>{fmtSize(r.file_size)} · {r.uploader?.name || '-'} · {new Date(r.created_at).toLocaleString('ko-KR', { dateStyle: 'short', timeStyle: 'short' })}</Sub>
                     </Meta>
-                    <DelBtn type="button" onClick={() => setPendingDelete(r)} title="삭제">×</DelBtn>
+                    <DelBtn type="button" onClick={() => setPendingDelete(r)} title={t('attachments.delete')}>×</DelBtn>
                   </Row>
                 );
               })}
             </List>
           )}
-        {uploading && <Uploading>업로드 중...</Uploading>}
+        {uploading && <Uploading>{t('attachments.uploading')}</Uploading>}
         {error && <Err>{error}</Err>}
       </Drop>
       <ConfirmDialog
         isOpen={!!pendingDelete}
         onClose={() => setPendingDelete(null)}
         onConfirm={confirmDelete}
-        title="파일 삭제"
-        message={`"${pendingDelete?.original_name}" 파일을 삭제할까요?`}
-        confirmText="삭제"
-        cancelText="취소"
+        title={t('attachments.deleteConfirmTitle')}
+        message={t('attachments.deleteConfirmMsg', { name: pendingDelete?.original_name || '' })}
+        confirmText={t('attachments.delete')}
+        cancelText={t('attachments.cancel')}
         variant="danger"
       />
       <FilePicker

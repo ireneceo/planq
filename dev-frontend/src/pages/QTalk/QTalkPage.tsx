@@ -92,6 +92,12 @@ function apiMessageToMock(m: qtalkApi.ApiMessage): MockMessage {
       source: m.ai_source ? { title: m.ai_source, section: '' } : undefined,
       processing_by: null,
     } : undefined,
+    attachments: (m.attachments || []).map(a => ({
+      id: a.id,
+      file_name: a.file_name,
+      file_size: a.file_size,
+      mime_type: a.mime_type,
+    })),
   };
 }
 
@@ -338,7 +344,7 @@ const QTalkPage: React.FC = () => {
         }
       } catch (err: unknown) {
         if (cancelled) return;
-        setLoadError(err instanceof Error ? err.message : '프로젝트 목록 로드 실패');
+        setLoadError(err instanceof Error ? err.message : (t('page.loadFailedShort', '프로젝트 목록 로드 실패') as string));
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -465,10 +471,10 @@ const QTalkPage: React.FC = () => {
       setActiveProjectId(mapped.id);
       setActiveConversationId(null);
       setModalOpen(false);
-      showNotice(`프로젝트 "${mapped.name}" 생성됨`);
+      showNotice(t('page.projectCreated', { name: mapped.name }));
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : '프로젝트 생성 실패';
-      showNotice(`생성 실패: ${msg}`);
+      const msg = err instanceof Error ? err.message : (t('page.projectCreateFailed', '프로젝트 생성 실패') as string);
+      showNotice(t('page.createFailed', { msg }));
     }
   };
 
@@ -487,27 +493,37 @@ const QTalkPage: React.FC = () => {
       if (conv.project_id) setActiveProjectId(conv.project_id);
       setActiveConversationId(conv.id);
       setChatModalOpen(false);
-      showNotice(`대화 "${conv.title}" 생성됨`);
+      showNotice(t('page.chatCreated', { title: conv.title }));
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : '대화 생성 실패';
-      showNotice(`생성 실패: ${msg}`);
+      const msg = err instanceof Error ? err.message : (t('page.chatCreateFailed', '대화 생성 실패') as string);
+      showNotice(t('page.createFailed', { msg }));
     }
   };
 
   const [extracting, setExtracting] = useState(false);
 
   // 청크 2: 메시지 전송
-  const handleSendMessage = async (body: string) => {
+  const handleSendMessage = async (body: string, files?: File[]) => {
     if (!activeConversationId) return;
     try {
-      const created = await qtalkApi.sendMessage(activeConversationId, body);
-      const mapped = apiMessageToMock(created);
+      // 첨부만 있고 텍스트 없는 경우: 본문은 공백 한 글자 (백엔드 content_required 회피)
+      const content = body.trim() || (files && files.length > 0 ? ' ' : '');
+      if (!content) return;
+      const created = await qtalkApi.sendMessage(activeConversationId, content);
+      const attachmentResults: qtalkApi.ApiMessageAttachment[] = [];
+      if (files && files.length > 0) {
+        const uploads = await Promise.allSettled(
+          files.map((f) => qtalkApi.uploadMessageAttachment(activeConversationId, created.id, f))
+        );
+        uploads.forEach((r) => { if (r.status === 'fulfilled') attachmentResults.push(r.value); });
+      }
+      const mapped = apiMessageToMock({ ...created, attachments: attachmentResults });
       setMessages((prev) => ({
         ...prev,
         [activeConversationId]: [...(prev[activeConversationId] || []), mapped],
       }));
     } catch (err: unknown) {
-      showNotice(`전송 실패: ${err instanceof Error ? err.message : ''}`);
+      showNotice(t('page.sendFailed', { msg: err instanceof Error ? err.message : '' }));
     }
   };
 
@@ -517,7 +533,7 @@ const QTalkPage: React.FC = () => {
       const updated = await qtalkApi.updateConversation(conversationId, { display_name: name });
       setConversations((prev) => prev.map((c) => (c.id === conversationId ? { ...c, name: updated.display_name || updated.title || c.name } : c)));
     } catch (err: unknown) {
-      showNotice(`채널 이름 변경 실패: ${err instanceof Error ? err.message : ''}`);
+      showNotice(t('page.renameFailed', { msg: err instanceof Error ? err.message : '' }));
     }
   };
 
@@ -527,7 +543,7 @@ const QTalkPage: React.FC = () => {
       const updated = await qtalkApi.updateConversation(conversationId, { auto_extract_enabled: enabled });
       setConversations((prev) => prev.map((c) => (c.id === conversationId ? { ...c, auto_extract_enabled: updated.auto_extract_enabled } : c)));
     } catch (err: unknown) {
-      showNotice(`자동 추출 토글 실패: ${err instanceof Error ? err.message : ''}`);
+      showNotice(t('page.autoExtractFailed', { msg: err instanceof Error ? err.message : '' }));
     }
   };
 
@@ -538,7 +554,7 @@ const QTalkPage: React.FC = () => {
       const created = await qtalkApi.addIssue(activeProjectId, body);
       setIssues((prev) => [apiIssueToMock(created), ...prev]);
     } catch (err: unknown) {
-      showNotice(`이슈 추가 실패: ${err instanceof Error ? err.message : ''}`);
+      showNotice(t('page.issueAddFailed', { msg: err instanceof Error ? err.message : '' }));
     }
   };
 
@@ -547,7 +563,7 @@ const QTalkPage: React.FC = () => {
       const updated = await qtalkApi.updateIssue(id, body);
       setIssues((prev) => prev.map((i) => (i.id === id ? apiIssueToMock(updated) : i)));
     } catch (err: unknown) {
-      showNotice(`이슈 수정 실패: ${err instanceof Error ? err.message : ''}`);
+      showNotice(t('page.issueEditFailed', { msg: err instanceof Error ? err.message : '' }));
     }
   };
 
@@ -556,7 +572,7 @@ const QTalkPage: React.FC = () => {
       await qtalkApi.deleteIssue(id);
       setIssues((prev) => prev.filter((i) => i.id !== id));
     } catch (err: unknown) {
-      showNotice(`이슈 삭제 실패: ${err instanceof Error ? err.message : ''}`);
+      showNotice(t('page.issueDeleteFailed', { msg: err instanceof Error ? err.message : '' }));
     }
   };
 
@@ -567,7 +583,7 @@ const QTalkPage: React.FC = () => {
       const created = await qtalkApi.addNote(activeProjectId, body, visibility);
       setNotes((prev) => [apiNoteToMock(created), ...prev]);
     } catch (err: unknown) {
-      showNotice(`메모 추가 실패: ${err instanceof Error ? err.message : ''}`);
+      showNotice(t('page.noteAddFailed', { msg: err instanceof Error ? err.message : '' }));
     }
   };
 
@@ -578,9 +594,9 @@ const QTalkPage: React.FC = () => {
     const nextStatus = task.status === 'completed' ? 'in_progress' : 'completed';
     try {
       const updated = await qtalkApi.updateTaskStatus(id, nextStatus);
-      setTasks((prev) => prev.map((t) => (t.id === id ? apiTaskToMock(updated) : t)));
+      setTasks((prev) => prev.map((tk) => (tk.id === id ? apiTaskToMock(updated) : tk)));
     } catch (err: unknown) {
-      showNotice(`업무 상태 변경 실패: ${err instanceof Error ? err.message : ''}`);
+      showNotice(t('page.taskStatusFailed', { msg: err instanceof Error ? err.message : '' }));
     }
   };
 
@@ -698,9 +714,9 @@ const QTalkPage: React.FC = () => {
   const activeProject = projects.find((p) => p.id === activeProjectId) || null;
   const projectCandidates = candidates.filter((c) => c.project_id === activeProjectId && c.status === 'pending');
 
-  if (!businessId) return <Empty>워크스페이스가 선택되지 않았습니다.</Empty>;
-  if (loading) return <Empty>프로젝트 로드 중...</Empty>;
-  if (loadError) return <Empty>로드 실패: {loadError}</Empty>;
+  if (!businessId) return <Empty>{t('page.noBusiness', '워크스페이스가 선택되지 않았습니다.')}</Empty>;
+  if (loading) return <Empty>{t('page.loading', '프로젝트 로드 중...')}</Empty>;
+  if (loadError) return <Empty>{t('page.loadFailed', { msg: loadError })}</Empty>;
 
   return (
     <Layout>
