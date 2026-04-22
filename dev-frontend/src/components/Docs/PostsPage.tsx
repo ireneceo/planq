@@ -49,7 +49,6 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
   const [categoryDraft, setCategoryDraft] = useState<string>('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [attachOpen, setAttachOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<PostDetail | null>(null);
   const [newCatOpen, setNewCatOpen] = useState(false);
   const [newCatDraft, setNewCatDraft] = useState('');
@@ -403,16 +402,11 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
             {error && <ErrorBar>{error}</ErrorBar>}
             <PostEditor value={contentDraft} onChange={setContentDraft} placeholder={t('contentPlaceholder', '본문을 작성하세요…') as string} />
 
-            {/* 편집/신규 공통 첨부 섹션 — 인라인 확장 */}
+            {/* 편집/신규 공통 첨부 섹션 — 상시 노출 (접기 없음) */}
             <AttachSection>
-              <AttachHead>
-                <AttachTitle>{t('attachments', '첨부 파일')}</AttachTitle>
-                <SecondaryBtn type="button" onClick={() => setAttachOpen(v => !v)}>
-                  {attachOpen ? t('attachFold', '접기') : `+ ${t('attachAdd', '첨부 추가')}`}
-                </SecondaryBtn>
-              </AttachHead>
+              <AttachTitle>{t('attachments', '첨부 파일')}</AttachTitle>
 
-              {/* 이미 선택/연결된 파일 리스트 */}
+              {/* 선택/연결된 파일 리스트 — 파일명 좌측정렬, 한 줄씩 세로 쌓임 */}
               {mode === 'edit' && detail && detail.attachments.length > 0 && (
                 <AttachList>
                   {detail.attachments.map(a => (
@@ -420,7 +414,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
                       <AttachName href={a.file?.download_url || '#'} target="_blank" rel="noreferrer">
                         {a.file?.file_name || '—'}
                       </AttachName>
-                      <RemoveBtn type="button" onClick={() => detachOne(a.id)} title="제거">×</RemoveBtn>
+                      <RemoveBtn type="button" onClick={() => detachOne(a.id)} title="제거" aria-label="제거">×</RemoveBtn>
                     </AttachRow>
                   ))}
                 </AttachList>
@@ -429,32 +423,25 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
                 <AttachList>
                   {pendingUploads.map((f, i) => (
                     <AttachRow key={`u-${i}`}>
-                      <AttachPendingBadge>{t('pendingUpload', '업로드 대기') as string}</AttachPendingBadge>
                       <AttachName as="span">{f.name}</AttachName>
-                      <RemoveBtn type="button" onClick={() => setPendingUploads(prev => prev.filter((_, idx) => idx !== i))} title="제거">×</RemoveBtn>
+                      <RemoveBtn type="button" onClick={() => setPendingUploads(prev => prev.filter((_, idx) => idx !== i))} title="제거" aria-label="제거">×</RemoveBtn>
                     </AttachRow>
                   ))}
                   {pendingExistingIds.map(fid => (
                     <AttachRow key={`e-${fid}`}>
-                      <AttachPendingBadge $existing>{t('pendingExisting', '기존 파일') as string}</AttachPendingBadge>
                       <AttachName as="span">{pendingExistingMeta[fid]?.name || `file #${fid}`}</AttachName>
                       <RemoveBtn type="button" onClick={() => {
                         setPendingExistingIds(prev => prev.filter(x => x !== fid));
                         setPendingExistingMeta(prev => { const c = { ...prev }; delete c[fid]; return c; });
-                      }} title="제거">×</RemoveBtn>
+                      }} title="제거" aria-label="제거">×</RemoveBtn>
                     </AttachRow>
                   ))}
                 </AttachList>
               )}
-              {mode === 'edit' && detail && detail.attachments.length === 0
-                && !attachOpen && <Dim>{t('attachmentsEmpty', '첨부 파일이 없습니다')}</Dim>}
-              {mode === 'new' && pendingUploads.length === 0 && pendingExistingIds.length === 0
-                && !attachOpen && <Dim>{t('attachmentsEmptyNew', '첨부를 미리 선택해두면 문서 저장 시 함께 등록됩니다')}</Dim>}
 
-              {/* 인라인 첨부 선택기 (펼침) */}
+              {/* 인라인 첨부 선택기 — 상시 노출 */}
               <InlineAttachPicker
                 businessId={scope.businessId}
-                hide={!attachOpen}
                 excludeIds={[
                   ...(detail?.attachments?.map(a => a.file_id).filter((x): x is number => !!x) || []),
                   ...pendingExistingIds,
@@ -499,29 +486,21 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
             <PostEditor value={detail.content_json} onChange={() => {}} editable={false} />
 
             <AttachSection>
-              <AttachHead>
-                <AttachTitle>{t('attachments', '첨부 파일')}</AttachTitle>
-                <SecondaryBtn type="button" onClick={() => setAttachOpen(v => !v)}>
-                  {attachOpen ? t('attachFold', '접기') : `+ ${t('attachAdd', '첨부 추가')}`}
-                </SecondaryBtn>
-              </AttachHead>
-              {detail.attachments.length === 0 && !attachOpen ? (
-                <Dim>{t('attachmentsEmpty', '첨부 파일이 없습니다')}</Dim>
-              ) : detail.attachments.length > 0 && (
+              <AttachTitle>{t('attachments', '첨부 파일')}</AttachTitle>
+              {detail.attachments.length > 0 && (
                 <AttachList>
                   {detail.attachments.map(a => (
                     <AttachRow key={a.id}>
                       <AttachName href={a.file?.download_url || '#'} target="_blank" rel="noreferrer">
                         {a.file?.file_name || '—'}
                       </AttachName>
-                      <RemoveBtn type="button" onClick={() => detachOne(a.id)} title="제거">×</RemoveBtn>
+                      <RemoveBtn type="button" onClick={() => detachOne(a.id)} title="제거" aria-label="제거">×</RemoveBtn>
                     </AttachRow>
                   ))}
                 </AttachList>
               )}
               <InlineAttachPicker
                 businessId={scope.businessId}
-                hide={!attachOpen}
                 excludeIds={detail.attachments?.map(a => a.file_id).filter((x): x is number => !!x) || []}
                 onPickFiles={handlePickFiles}
                 onPickExisting={handlePickExisting}
@@ -686,26 +665,26 @@ const ViewActions = styled.div`display: flex; gap: 8px;`;
 const ViewMeta = styled.div`display: flex; align-items: center; gap: 8px; font-size: 12px; color: #94A3B8; flex-wrap: wrap;`;
 
 const AttachSection = styled.section`
-  background: #fff; border: 1px solid #E2E8F0; border-radius: 12px; padding: 14px 16px;
+  background: #fff; border: 1px solid #E2E8F0; border-radius: 12px;
+  padding: 16px 20px;
+  display: flex; flex-direction: column; gap: 12px;
 `;
-const AttachHead = styled.div`display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;`;
 const AttachTitle = styled.div`font-size: 13px; font-weight: 700; color: #334155;`;
-const AttachList = styled.div`display: flex; flex-direction: column; gap: 6px;`;
+const AttachList = styled.div`
+  display: flex; flex-direction: column;
+  border: 1px solid #EEF2F6; border-radius: 8px; overflow: hidden;
+`;
 const AttachRow = styled.div`
-  display: flex; align-items: center; gap: 8px; padding: 8px 12px;
-  background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px;
+  display: flex; align-items: center; gap: 10px; padding: 10px 12px;
+  border-bottom: 1px solid #F1F5F9;
+  &:last-child { border-bottom: none; }
+  &:hover { background: #F8FAFC; }
 `;
 const AttachName = styled.a`
   flex: 1; min-width: 0; font-size: 13px; color: #0F172A; text-decoration: none;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  text-align: left;
   &:hover { color: #0F766E; text-decoration: underline; }
-`;
-const AttachPendingBadge = styled.span<{ $existing?: boolean }>`
-  display: inline-flex; flex-shrink: 0;
-  padding: 2px 8px; border-radius: 999px;
-  font-size: 10px; font-weight: 700; letter-spacing: 0.2px;
-  background: ${p => p.$existing ? '#EEF2FF' : '#FEF3C7'};
-  color: ${p => p.$existing ? '#4338CA' : '#92400E'};
 `;
 const RemoveBtn = styled.button`
   all: unset; cursor: pointer; width: 22px; height: 22px;
