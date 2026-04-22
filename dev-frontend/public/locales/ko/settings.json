@@ -13,6 +13,7 @@
     "language": "언어",
     "timezone": "타임존",
     "storage": "파일 저장소",
+    "plan": "구독 플랜",
     "members": "멤버",
     "cue": "Cue"
   },

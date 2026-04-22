@@ -7,6 +7,7 @@ import AutoSaveField from '../../components/Common/AutoSaveField';
 import PlanQSelect from '../../components/Common/PlanQSelect';
 import { Tabs, Tab } from '../../components/Common/TabComponents';
 import StorageSettings from './StorageSettings';
+import PlanSettings from './PlanSettings';
 import TimezoneSelector from '../../components/Common/TimezoneSelector';
 import PageShell from '../../components/Layout/PageShell';
 import { useTimezones } from '../../hooks/useTimezones';
@@ -24,7 +25,7 @@ import {
   type CueInfo,
 } from '../../services/workspace';
 
-type TabKey = 'brand' | 'legal' | 'language' | 'timezone' | 'storage' | 'members' | 'cue';
+type TabKey = 'brand' | 'legal' | 'language' | 'timezone' | 'storage' | 'plan' | 'members' | 'cue';
 
 // ─────────────────────────────────────────────
 // Styled
@@ -348,7 +349,7 @@ export default function WorkspaceSettingsPage() {
   // /business/members 모드: 멤버/Cue 탭만 노출. 그 외: 설정 탭 4개만 노출.
   const isMembersMode = location.pathname.includes('/business/members');
   const visibleTabs = useMemo<TabKey[]>(() => (
-    isMembersMode ? ['members', 'cue'] : ['brand', 'legal', 'language', 'timezone', 'storage']
+    isMembersMode ? ['members', 'cue'] : ['brand', 'legal', 'language', 'timezone', 'storage', 'plan']
   ), [isMembersMode]);
 
   const tabFromUrl = useMemo<TabKey>(() => {
@@ -512,6 +513,7 @@ export default function WorkspaceSettingsPage() {
         {visibleTabs.includes('language') && <Tab active={tab === 'language'} onClick={() => changeTab('language')}>{t('tabs.language')}</Tab>}
         {visibleTabs.includes('timezone') && <Tab active={tab === 'timezone'} onClick={() => changeTab('timezone')}>{t('tabs.timezone')}</Tab>}
         {visibleTabs.includes('storage') && <Tab active={tab === 'storage'} onClick={() => changeTab('storage')}>{t('tabs.storage', '파일 저장소')}</Tab>}
+        {visibleTabs.includes('plan') && <Tab active={tab === 'plan'} onClick={() => changeTab('plan')}>{t('tabs.plan', '구독 플랜')}</Tab>}
         {visibleTabs.includes('members') && <Tab active={tab === 'members'} onClick={() => changeTab('members')}>{t('tabs.members')}</Tab>}
         {visibleTabs.includes('cue') && <Tab active={tab === 'cue'} onClick={() => changeTab('cue')}>{t('tabs.cue')}</Tab>}
       </Tabs>
@@ -820,6 +822,11 @@ export default function WorkspaceSettingsPage() {
       {/* ─── STORAGE (외부 클라우드 연동) ─── */}
       {tab === 'storage' && businessId && (
         <StorageSettings businessId={businessId} />
+      )}
+
+      {/* ─── PLAN (구독 플랜) ─── */}
+      {tab === 'plan' && businessId && (
+        <PlanSettings businessId={businessId} />
       )}
 
       {/* ─── MEMBERS ─── */}

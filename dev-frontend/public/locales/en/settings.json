@@ -13,6 +13,7 @@
     "language": "Language",
     "timezone": "Timezone",
     "storage": "File Storage",
+    "plan": "Subscription",
     "members": "Members",
     "cue": "Cue"
   },

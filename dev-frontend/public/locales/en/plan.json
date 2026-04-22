@@ -1,0 +1,118 @@
+{
+  "page": {
+    "title": "Subscription Plan",
+    "desc": "Review your plan, usage, and upgrade options."
+  },
+  "current": {
+    "title": "Current Plan",
+    "active": "Active",
+    "trial": "Trialing",
+    "grace": "Grace Period",
+    "expires": "Until {{date}}",
+    "trialEnds": "{{days}} days left in trial",
+    "graceEnds": "Ends in {{days}} days",
+    "scheduledDown": "Switching to {{plan}} on {{date}}",
+    "cancelSchedule": "Cancel Schedule",
+    "upgrade": "Change Plan"
+  },
+  "usage": {
+    "title": "This Month's Usage",
+    "members": "Members",
+    "clients": "Clients",
+    "projects": "Projects",
+    "conversations": "Conversations",
+    "storage": "Storage",
+    "files": "Files",
+    "cue": "Cue AI",
+    "qnote": "Q Note",
+    "unlimited": "Unlimited",
+    "warningSoon": "Approaching limit",
+    "warningFull": "Near limit",
+    "cueUnit": "actions",
+    "qnoteUnit": "minutes"
+  },
+  "comparison": {
+    "title": "Compare Plans",
+    "currency": "Currency",
+    "cycle": "Billing",
+    "monthly": "Monthly",
+    "yearly": "Yearly",
+    "yearlyDiscount": "2 months free",
+    "current": "Current",
+    "scheduled": "Scheduled",
+    "contact": "Contact",
+    "month": "mo",
+    "year": "yr",
+    "free": "Free",
+    "vat": "VAT excluded",
+    "startTrial": "Start 14-day Free Trial",
+    "upgrade": "Upgrade",
+    "downgrade": "Downgrade",
+    "contactSales": "Contact Sales"
+  },
+  "features": {
+    "members": "Members",
+    "clients": "Clients",
+    "projects": "Projects",
+    "conversations": "Conversations",
+    "storage": "Self Storage",
+    "fileSize": "Per File Max",
+    "cue": "Cue AI / month",
+    "qnote": "Q Note / month",
+    "retention": "Trash Retention",
+    "audit": "Audit Log Retention",
+    "externalCloud": "External Cloud",
+    "dataExport": "Data Export",
+    "apiAccess": "API Access",
+    "sso": "SSO (SAML)",
+    "prioritySupport": "Priority Support",
+    "support": "Support",
+    "sla": "SLA",
+    "days": "days",
+    "years": "yrs",
+    "hour": "hr"
+  },
+  "support": {
+    "community": "Community",
+    "email_48h": "Email (48h)",
+    "email_24h": "Email (24h)",
+    "chat_4h": "Chat (4h)",
+    "dedicated_manager": "Dedicated Manager"
+  },
+  "payment": {
+    "title": "Payment Method",
+    "global": "Card (Global)",
+    "globalDesc": "Visa · Mastercard · Amex · JCB · UnionPay — 180+ currencies",
+    "korea": "Korean Payment",
+    "koreaDesc": "KakaoPay · Naver Pay · Toss · Bank Transfer",
+    "comingSoon": "Payment system coming soon",
+    "comingSoonDesc": "Operator manually adjusts plans for now. Send an upgrade request.",
+    "requestUpgrade": "Request Upgrade"
+  },
+  "history": {
+    "title": "Change History",
+    "empty": "No changes yet",
+    "system": "System",
+    "reason": {
+      "upgrade": "Upgrade",
+      "downgrade": "Downgrade",
+      "trial_start": "Trial started",
+      "trial_end": "Trial ended",
+      "expire": "Expired",
+      "admin_adjust": "Admin adjusted",
+      "payment_failed": "Payment failed",
+      "refund": "Refund"
+    }
+  },
+  "confirm": {
+    "upgradeTitle": "Upgrade to {{plan}}",
+    "upgradeDesc": "Select a payment method to proceed.",
+    "downgradeTitle": "Downgrade to {{plan}}",
+    "downgradeDesc": "Applied at the end of current billing cycle ({{date}}). Excess data will be read-only for 30 days afterward.",
+    "downgradeWarn": "Warning — items exceeding limit:",
+    "cancelScheduleTitle": "Cancel Scheduled Change",
+    "cancelScheduleDesc": "Cancel scheduled switch to {{plan}}?",
+    "confirm": "Confirm",
+    "cancel": "Cancel"
+  }
+}

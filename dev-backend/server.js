@@ -125,6 +125,7 @@ app.use('/api/calendar', require('./routes/calendar'));
 app.use('/api/files', require('./routes/files'));
 app.use('/api/folders', require('./routes/file_folders'));
 app.use('/api/cloud', require('./routes/cloud'));
+app.use('/api/plan', require('./routes/plan'));
 app.use('/api/invoices', require('./routes/invoices'));
 app.use('/api', require('./routes/kb'));
 
