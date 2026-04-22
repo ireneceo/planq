@@ -7,6 +7,8 @@ import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import DetailDrawer from './DetailDrawer';
 import SearchBox from './SearchBox';
+import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
+import { useEscapeStack } from '../../hooks/useEscapeStack';
 import { fetchWorkspaceFiles, formatBytes, type ProjectFile } from '../../services/files';
 
 export interface FilePickerResult {
@@ -23,12 +25,13 @@ interface Props {
   accept?: string;                 // <input accept="...">
   multiple?: boolean;              // default true
   mode?: 'both' | 'upload' | 'existing';  // default 'both'
+  variant?: 'drawer' | 'modal';    // default 'drawer' — 편집 폼 내부엔 'modal' 권장
 }
 
 type Tab = 'upload' | 'existing';
 
 const FilePicker: React.FC<Props> = ({
-  open, onClose, businessId, onPick, title, accept, multiple = true, mode = 'both',
+  open, onClose, businessId, onPick, title, accept, multiple = true, mode = 'both', variant = 'drawer',
 }) => {
   const { t } = useTranslation('common');
   const [tab, setTab] = useState<Tab>(mode === 'existing' ? 'existing' : 'upload');
@@ -96,61 +99,105 @@ const FilePicker: React.FC<Props> = ({
     } finally { setSubmitting(false); }
   };
 
+  const headerNode = <Title>{title || t('filepicker.title', '파일 선택')}</Title>;
+  const tabsNode = mode === 'both' && (
+    <TabBar>
+      <TabBtn type="button" $active={tab === 'upload'} onClick={() => setTab('upload')}>
+        {t('filepicker.tab.upload', '업로드')}
+      </TabBtn>
+      <TabBtn type="button" $active={tab === 'existing'} onClick={() => setTab('existing')}>
+        {t('filepicker.tab.existing', '기존 파일')}
+      </TabBtn>
+    </TabBar>
+  );
+  const bodyNode = tab === 'upload' ? (
+    <UploadPane
+      uploads={uploads}
+      dragOver={dragOver}
+      onDragOver={e => { e.preventDefault(); setDragOver(true); }}
+      onDragLeave={() => setDragOver(false)}
+      onDrop={e => {
+        e.preventDefault(); setDragOver(false);
+        if (e.dataTransfer?.files) addUploads(e.dataTransfer.files);
+      }}
+      onPickLocal={() => inputRef.current?.click()}
+      onRemove={removeUpload}
+      accept={accept}
+      multiple={multiple}
+      inputRef={inputRef}
+      onInputChange={e => e.target.files && addUploads(e.target.files)}
+    />
+  ) : (
+    <ExistingPane
+      files={filteredExisting}
+      loading={loading}
+      query={query}
+      onQueryChange={setQuery}
+      picked={picked}
+      onToggle={togglePick}
+      multiple={multiple}
+    />
+  );
+  const footerNode = (
+    <>
+      <Spacer />
+      <SecondaryBtn type="button" disabled={submitting} onClick={onClose}>{t('cancel', '취소') as string}</SecondaryBtn>
+      <PrimaryBtn type="button" disabled={!canSubmit || submitting} onClick={onSubmit}>
+        {submitting ? t('saving', '처리 중…') as string
+          : tab === 'upload' ? t('filepicker.upload', `업로드 ({{n}})`, { n: uploads.length }) as string
+          : t('filepicker.attach', `첨부 ({{n}})`, { n: picked.size }) as string}
+      </PrimaryBtn>
+    </>
+  );
+
+  if (variant === 'modal') {
+    return (
+      <ModalShell
+        open={open}
+        onClose={onClose}
+        title={title || (t('filepicker.title', '파일 선택') as string)}
+        headerExtra={tabsNode}
+        body={bodyNode}
+        footer={footerNode}
+      />
+    );
+  }
+
   return (
     <DetailDrawer open={open} onClose={onClose} width={520} ariaLabel={title || t('filepicker.title', '파일 선택') as string}>
       <DetailDrawer.Header onClose={onClose}>
-        <Title>{title || t('filepicker.title', '파일 선택')}</Title>
+        {headerNode}
       </DetailDrawer.Header>
-      {mode === 'both' && (
-        <TabBar>
-          <TabBtn type="button" $active={tab === 'upload'} onClick={() => setTab('upload')}>
-            {t('filepicker.tab.upload', '업로드')}
-          </TabBtn>
-          <TabBtn type="button" $active={tab === 'existing'} onClick={() => setTab('existing')}>
-            {t('filepicker.tab.existing', '기존 파일')}
-          </TabBtn>
-        </TabBar>
-      )}
-      <DetailDrawer.Body>
-        {tab === 'upload' ? (
-          <UploadPane
-            uploads={uploads}
-            dragOver={dragOver}
-            onDragOver={e => { e.preventDefault(); setDragOver(true); }}
-            onDragLeave={() => setDragOver(false)}
-            onDrop={e => {
-              e.preventDefault(); setDragOver(false);
-              if (e.dataTransfer?.files) addUploads(e.dataTransfer.files);
-            }}
-            onPickLocal={() => inputRef.current?.click()}
-            onRemove={removeUpload}
-            accept={accept}
-            multiple={multiple}
-            inputRef={inputRef}
-            onInputChange={e => e.target.files && addUploads(e.target.files)}
-          />
-        ) : (
-          <ExistingPane
-            files={filteredExisting}
-            loading={loading}
-            query={query}
-            onQueryChange={setQuery}
-            picked={picked}
-            onToggle={togglePick}
-            multiple={multiple}
-          />
-        )}
-      </DetailDrawer.Body>
-      <DetailDrawer.Footer>
-        <Spacer />
-        <SecondaryBtn type="button" disabled={submitting} onClick={onClose}>{t('cancel', '취소') as string}</SecondaryBtn>
-        <PrimaryBtn type="button" disabled={!canSubmit || submitting} onClick={onSubmit}>
-          {submitting ? t('saving', '처리 중…') as string
-            : tab === 'upload' ? t('filepicker.upload', `업로드 ({{n}})`, { n: uploads.length }) as string
-            : t('filepicker.attach', `첨부 ({{n}})`, { n: picked.size }) as string}
-        </PrimaryBtn>
-      </DetailDrawer.Footer>
+      {tabsNode}
+      <DetailDrawer.Body>{bodyNode}</DetailDrawer.Body>
+      <DetailDrawer.Footer>{footerNode}</DetailDrawer.Footer>
     </DetailDrawer>
+  );
+};
+
+// 센터 모달 껍데기 — 편집 폼 안에서 호출할 때 사용
+const ModalShell: React.FC<{
+  open: boolean; onClose: () => void;
+  title: string;
+  headerExtra?: React.ReactNode;
+  body: React.ReactNode;
+  footer: React.ReactNode;
+}> = ({ open, onClose, title, headerExtra, body, footer }) => {
+  useBodyScrollLock(open);
+  useEscapeStack(open, onClose);
+  if (!open) return null;
+  return (
+    <ModalBackdrop onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }}>
+      <ModalBox role="dialog" aria-modal="true" aria-label={title} onMouseDown={e => e.stopPropagation()}>
+        <ModalHeader>
+          <ModalTitle>{title}</ModalTitle>
+          <ModalClose type="button" onClick={onClose} aria-label="닫기">×</ModalClose>
+        </ModalHeader>
+        {headerExtra}
+        <ModalBody>{body}</ModalBody>
+        <ModalFooter>{footer}</ModalFooter>
+      </ModalBox>
+    </ModalBackdrop>
   );
 };
 
@@ -314,4 +361,39 @@ const SecondaryBtn = styled.button`
   border: 1px solid #CBD5E1; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer;
   &:hover:not(:disabled) { background: #F8FAFC; }
   &:disabled { opacity: 0.5; cursor: not-allowed; }
+`;
+
+// ─── Center Modal 전용 스타일 ───
+const ModalBackdrop = styled.div`
+  position: fixed; inset: 0; z-index: 100;
+  background: rgba(15, 23, 42, 0.35);
+  display: flex; align-items: center; justify-content: center; padding: 20px;
+  animation: fadeIn 0.15s ease-out;
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+`;
+const ModalBox = styled.div`
+  background: #fff; border-radius: 14px; width: 100%; max-width: 560px;
+  box-shadow: 0 20px 50px rgba(15, 23, 42, 0.22);
+  display: flex; flex-direction: column; overflow: hidden;
+  max-height: calc(100vh - 40px);
+  animation: popIn 0.15s ease-out;
+  @keyframes popIn { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+`;
+const ModalHeader = styled.div`
+  padding: 14px 20px; border-bottom: 1px solid #EEF2F6;
+  display: flex; align-items: center; gap: 12px;
+`;
+const ModalTitle = styled.div`flex: 1; font-size: 15px; font-weight: 700; color: #0F172A;`;
+const ModalClose = styled.button`
+  all: unset; cursor: pointer;
+  width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;
+  color: #94A3B8; border-radius: 6px; font-size: 20px;
+  &:hover { background: #F1F5F9; color: #0F172A; }
+`;
+const ModalBody = styled.div`
+  flex: 1; min-height: 0; overflow-y: auto;
+`;
+const ModalFooter = styled.div`
+  padding: 12px 20px; border-top: 1px solid #EEF2F6;
+  display: flex; gap: 8px; align-items: center;
 `;
