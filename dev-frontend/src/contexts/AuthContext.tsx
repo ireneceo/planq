@@ -166,13 +166,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     workspace_reference_timezones: (apiUser.workspace_reference_timezones as string[]) || null,
   });
 
-  // UserRole 매핑: platform_role + business_role → 사이드바용 role
-  const getUserRole = (u: User): UserRole => {
-    if (u.platform_role === 'platform_admin') return 'platform_admin';
-    if (u.business_role === 'owner') return 'business_owner';
-    if (u.business_role === 'member') return 'business_member';
-    return 'client';
-  };
+  // (이전 getUserRole 은 platform_admin 을 business_role 보다 우선시켜 멀티 롤 체크를 망가뜨렸음.
+  //  hasRole 이 두 role 을 독립 검사하는 방식으로 재작성됐으므로 제거.)
 
   // Access Token 자동 갱신 타이머 (만료 1분 전 갱신)
   const scheduleRefresh = useCallback(() => {
@@ -289,10 +284,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setUser({ ...user, ...userData });
   };
 
+  // 멀티 롤 체크: platform_role 과 business_role 은 독립 권한. 하나라도 일치하면 통과.
+  // 예: platform_admin + business_owner 겸임자는 둘 중 어느 쪽으로도 체크 가능.
   const hasRole = (...roles: string[]): boolean => {
     if (!user) return false;
-    const role = getUserRole(user);
-    return roles.includes(role);
+    if (user.platform_role === 'platform_admin' && roles.includes('platform_admin')) return true;
+    if (user.business_role === 'owner' && roles.includes('business_owner')) return true;
+    if (user.business_role === 'member' && roles.includes('business_member')) return true;
+    if (user.business_role === 'client' && roles.includes('client')) return true;
+    // business_role 이 전혀 없는 유저도 client 로 간주 (하위 호환)
+    if (!user.business_role && user.platform_role !== 'platform_admin' && roles.includes('client')) return true;
+    return false;
   };
 
   // 워크스페이스 전환 — 백엔드에 active_business_id 영구 저장 + user 상태 갱신
