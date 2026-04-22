@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { Op } = require('sequelize');
-const { FileFolder, File, Project } = require('../models');
+const { FileFolder, File, Project, BusinessMember } = require('../models');
 const { sequelize } = require('../config/database');
 const { authenticateToken, checkBusinessAccess } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
@@ -11,11 +11,20 @@ async function requireProjectInBusiness(projectId, businessId) {
   return !!project;
 }
 
+async function assertBusinessMember(userId, businessId, platformRole) {
+  if (platformRole === 'platform_admin') return true;
+  const bm = await BusinessMember.findOne({ where: { user_id: userId, business_id: businessId } });
+  return !!bm;
+}
+
 // List folders of a project
 router.get('/projects/:projectId', authenticateToken, async (req, res, next) => {
   try {
     const project = await Project.findByPk(req.params.projectId);
     if (!project) return errorResponse(res, 'Project not found', 404);
+    if (!(await assertBusinessMember(req.user.id, project.business_id, req.user.platform_role))) {
+      return errorResponse(res, 'forbidden', 403);
+    }
     req.params.businessId = project.business_id; // for checkBusinessAccess compatibility
     const folders = await FileFolder.findAll({
       where: { business_id: project.business_id, project_id: project.id },
@@ -32,6 +41,9 @@ router.post('/projects/:projectId', authenticateToken, async (req, res, next) =>
   try {
     const project = await Project.findByPk(req.params.projectId);
     if (!project) return errorResponse(res, 'Project not found', 404);
+    if (!(await assertBusinessMember(req.user.id, project.business_id, req.user.platform_role))) {
+      return errorResponse(res, 'forbidden', 403);
+    }
     const name = (req.body.name || '').trim();
     if (!name) return errorResponse(res, 'name required', 400);
     const parentId = req.body.parent_id ? Number(req.body.parent_id) : null;
@@ -62,6 +74,9 @@ router.put('/:id/reorder', authenticateToken, async (req, res, next) => {
   try {
     const folder = await FileFolder.findByPk(req.params.id);
     if (!folder) return errorResponse(res, 'Folder not found', 404);
+    if (!(await assertBusinessMember(req.user.id, folder.business_id, req.user.platform_role))) {
+      return errorResponse(res, 'forbidden', 403);
+    }
     const direction = req.body.direction;
     if (direction !== 'up' && direction !== 'down') {
       return errorResponse(res, 'direction must be "up" or "down"', 400);
@@ -107,6 +122,9 @@ router.put('/:id', authenticateToken, async (req, res, next) => {
   try {
     const folder = await FileFolder.findByPk(req.params.id);
     if (!folder) return errorResponse(res, 'Folder not found', 404);
+    if (!(await assertBusinessMember(req.user.id, folder.business_id, req.user.platform_role))) {
+      return errorResponse(res, 'forbidden', 403);
+    }
     if (!(await requireProjectInBusiness(folder.project_id, folder.business_id))) {
       return errorResponse(res, 'Access denied', 403);
     }
@@ -125,6 +143,9 @@ router.delete('/:id', authenticateToken, async (req, res, next) => {
   try {
     const folder = await FileFolder.findByPk(req.params.id);
     if (!folder) return errorResponse(res, 'Folder not found', 404);
+    if (!(await assertBusinessMember(req.user.id, folder.business_id, req.user.platform_role))) {
+      return errorResponse(res, 'forbidden', 403);
+    }
 
     const t = await sequelize.transaction();
     try {

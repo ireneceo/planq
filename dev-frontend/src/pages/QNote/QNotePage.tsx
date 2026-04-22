@@ -1192,7 +1192,7 @@ const QNotePage = () => {
         [virtualId]: {
           ...prev[virtualId],
           loading: false,
-          error: err instanceof Error ? err.message : '답변 생성 실패',
+          error: err instanceof Error ? err.message : t('page.question.manualGenerateError', '답변 생성 실패'),
         },
       }));
     } finally {
@@ -1602,7 +1602,7 @@ const QNotePage = () => {
           </QuestionLeadCol>
           <QuestionBodyCol>
             <QuestionTopRow>
-              {block.isManual && <ManualBadge>입력한 질문</ManualBadge>}
+              {block.isManual && <ManualBadge>{t('page.question.manualBadge', '입력한 질문')}</ManualBadge>}
               {isEditing ? (
                 <QuestionEditInput
                   defaultValue={ad?.editedQuestion ?? originalText}
@@ -1937,10 +1937,10 @@ const QNotePage = () => {
                   </ParticipantPill>
                 ))}
                 <SelfModeGroup>
-                  <SelfModeLabel>내 발화</SelfModeLabel>
-                  <SelfModeBtn $active={selfMode === 'skip'} onClick={() => setSelfMode('skip')} title="내 발화는 아예 처리 안 함 (가장 빠름)">처리 안 함</SelfModeBtn>
-                  <SelfModeBtn $active={selfMode === 'hide'} onClick={() => setSelfMode('hide')} title="내 발화는 녹음·저장하되 화면에서 숨김">숨김</SelfModeBtn>
-                  <SelfModeBtn $active={selfMode === 'show'} onClick={() => setSelfMode('show')} title="내 발화도 다 보여줌">보기</SelfModeBtn>
+                  <SelfModeLabel>{t('page.selfMode.label', '내 발화')}</SelfModeLabel>
+                  <SelfModeBtn $active={selfMode === 'skip'} onClick={() => setSelfMode('skip')} title={t('page.selfMode.skipTitle', '내 발화는 아예 처리 안 함 (가장 빠름)')}>{t('page.selfMode.skip', '처리 안 함')}</SelfModeBtn>
+                  <SelfModeBtn $active={selfMode === 'hide'} onClick={() => setSelfMode('hide')} title={t('page.selfMode.hideTitle', '내 발화는 녹음·저장하되 화면에서 숨김')}>{t('page.selfMode.hide', '숨김')}</SelfModeBtn>
+                  <SelfModeBtn $active={selfMode === 'show'} onClick={() => setSelfMode('show')} title={t('page.selfMode.showTitle', '내 발화도 다 보여줌')}>{t('page.selfMode.show', '보기')}</SelfModeBtn>
                 </SelfModeGroup>
               </ParticipantBar>
             )}
@@ -1956,50 +1956,55 @@ const QNotePage = () => {
               // 준비 중이면 항상 펼쳐서 진행 상황 표시.
               const collapsed = readiness.allReady && !readinessExpanded;
               const summary = readiness.allReady
-                ? `✓ 준비 완료 · 문서 ${readiness.docsIndexed}/${readiness.docsTotal || 0} · Q&A ${readiness.pqEmbedded}/${readiness.pqTotal} · 어휘 ${readiness.keywordsCount}`
-                : '⏳ 자료 준비 중...';
+                ? t('page.readiness.summaryReady', {
+                    docs: `${readiness.docsIndexed}/${readiness.docsTotal || 0}`,
+                    qa: `${readiness.pqEmbedded}/${readiness.pqTotal}`,
+                    voc: readiness.keywordsCount,
+                  })
+                : t('page.readiness.summaryPending', '⏳ 자료 준비 중...');
               return (
                 <ReadinessPanel
                   $ready={readiness.allReady}
                   $collapsed={collapsed}
                   onClick={() => readiness.allReady && setReadinessExpanded((v) => !v)}
-                  title={readiness.allReady ? '클릭하여 펼치기/접기' : ''}
+                  title={readiness.allReady ? t('page.readiness.toggleTitle', '클릭하여 펼치기/접기') : ''}
                 >
                   <ReadinessHeader $collapsed={collapsed}>
                     <ReadinessDot $ready={readiness.allReady} />
-                    {collapsed ? summary : (readiness.allReady ? '✓ 모든 자료 준비 완료 — 녹음 시작 가능' : '⏳ 자료 준비 중...')}
+                    {collapsed ? summary : (readiness.allReady ? t('page.readiness.allReady', '✓ 모든 자료 준비 완료 — 녹음 시작 가능') : t('page.readiness.pending', '⏳ 자료 준비 중...'))}
                     {readiness.allReady && (
-                      <ReadinessToggleHint>{collapsed ? '자세히 ▾' : '접기 ▴'}</ReadinessToggleHint>
+                      <ReadinessToggleHint>{collapsed ? t('page.readiness.expand', '자세히 ▾') : t('page.readiness.collapse', '접기 ▴')}</ReadinessToggleHint>
                     )}
                   </ReadinessHeader>
                   {!collapsed && (
                     <>
                       <ReadinessGrid>
                         <ReadinessItem>
-                          <ReadinessLabel>참고 문서</ReadinessLabel>
+                          <ReadinessLabel>{t('page.readiness.docsLabel', '참고 문서')}</ReadinessLabel>
                           <ReadinessValue $ok={readiness.docsTotal === 0 || readiness.docsIndexed === readiness.docsTotal}>
                             {readiness.docsTotal === 0
-                              ? '없음'
-                              : `${readiness.docsIndexed}/${readiness.docsTotal} 인덱싱 완료`}
-                            {readiness.docsFailed > 0 && <FailedBadge>실패 {readiness.docsFailed}</FailedBadge>}
+                              ? t('page.readiness.docsNone', '없음')
+                              : t('page.readiness.docsIndexed', { indexed: readiness.docsIndexed, total: readiness.docsTotal })}
+                            {readiness.docsFailed > 0 && <FailedBadge>{t('page.readiness.docsFailed', { count: readiness.docsFailed })}</FailedBadge>}
                           </ReadinessValue>
                         </ReadinessItem>
                         <ReadinessItem>
-                          <ReadinessLabel>최우선 Q&A</ReadinessLabel>
+                          <ReadinessLabel>{t('page.readiness.priorityLabel', '최우선 Q&A')}</ReadinessLabel>
                           <ReadinessValue $ok={readiness.pqTotal === readiness.pqEmbedded}>
-                            {readiness.pqTotal === 0 ? '없음' : `${readiness.pqEmbedded}/${readiness.pqTotal} 임베딩 완료`}
+                            {readiness.pqTotal === 0 ? t('page.readiness.priorityNone', '없음') : t('page.readiness.priorityEmbedded', { embedded: readiness.pqEmbedded, total: readiness.pqTotal })}
                           </ReadinessValue>
                         </ReadinessItem>
                         <ReadinessItem>
-                          <ReadinessLabel>어휘사전 (STT 교정)</ReadinessLabel>
+                          <ReadinessLabel>{t('page.readiness.vocabLabel', '어휘사전 (STT 교정)')}</ReadinessLabel>
                           <ReadinessValue $ok={readiness.keywordsCount > 0}>
-                            {readiness.keywordsCount > 0 ? `${readiness.keywordsCount}개 준비됨` : '미생성'}
+                            {readiness.keywordsCount > 0 ? t('page.readiness.vocabCount', { count: readiness.keywordsCount }) : t('page.readiness.vocabNone', '미생성')}
                           </ReadinessValue>
                         </ReadinessItem>
                       </ReadinessGrid>
                       <ReadinessHint>
-                        "설정" 버튼에서 자료·Q&A·어휘사전을 확인·편집할 수 있습니다.
-                        인덱싱은 파일 크기에 따라 10초~1분 걸릴 수 있어요.
+                        {t('page.readiness.hintLine1', '"설정" 버튼에서 자료·Q&A·어휘사전을 확인·편집할 수 있습니다.')}
+                        {' '}
+                        {t('page.readiness.hintLine2', '인덱싱은 파일 크기에 따라 10초~1분 걸릴 수 있어요.')}
                       </ReadinessHint>
                     </>
                   )}
@@ -2033,7 +2038,7 @@ const QNotePage = () => {
             {phase !== 'prepared' && (
               <ManualQuestionBar>
                 <ManualQuestionInput
-                  placeholder="직접 질문을 입력하세요 (어떤 언어든 OK — 회의언어로 자동 번역됩니다)"
+                  placeholder={t('page.manualQuestion.placeholder', '직접 질문을 입력하세요 (어떤 언어든 OK — 회의언어로 자동 번역됩니다)') as string}
                   value={manualInput}
                   onChange={(e) => setManualInput(e.target.value)}
                   onKeyDown={(e) => {
@@ -2049,7 +2054,7 @@ const QNotePage = () => {
                   onClick={submitManualQuestion}
                   disabled={!manualInput.trim() || manualSubmitting}
                 >
-                  {manualSubmitting ? '처리 중...' : '답변 생성'}
+                  {manualSubmitting ? t('page.manualQuestion.submitting', '처리 중...') : t('page.manualQuestion.submit', '답변 생성')}
                 </ManualSubmitBtn>
               </ManualQuestionBar>
             )}
@@ -2096,10 +2101,10 @@ const QNotePage = () => {
                 </ParticipantPill>
               ))}
               <SelfModeGroup>
-                <SelfModeLabel>내 발화</SelfModeLabel>
-                <SelfModeBtn $active={selfMode === 'skip'} onClick={() => setSelfMode('skip')} title="내 발화는 아예 처리 안 함 (가장 빠름)">처리 안 함</SelfModeBtn>
-                <SelfModeBtn $active={selfMode === 'hide'} onClick={() => setSelfMode('hide')} title="내 발화는 녹음·저장하되 화면에서 숨김">숨김</SelfModeBtn>
-                <SelfModeBtn $active={selfMode === 'show'} onClick={() => setSelfMode('show')} title="내 발화도 다 보여줌">보기</SelfModeBtn>
+                <SelfModeLabel>{t('page.selfMode.label', '내 발화')}</SelfModeLabel>
+                <SelfModeBtn $active={selfMode === 'skip'} onClick={() => setSelfMode('skip')} title={t('page.selfMode.skipTitle', '내 발화는 아예 처리 안 함 (가장 빠름)')}>{t('page.selfMode.skip', '처리 안 함')}</SelfModeBtn>
+                <SelfModeBtn $active={selfMode === 'hide'} onClick={() => setSelfMode('hide')} title={t('page.selfMode.hideTitle', '내 발화는 녹음·저장하되 화면에서 숨김')}>{t('page.selfMode.hide', '숨김')}</SelfModeBtn>
+                <SelfModeBtn $active={selfMode === 'show'} onClick={() => setSelfMode('show')} title={t('page.selfMode.showTitle', '내 발화도 다 보여줌')}>{t('page.selfMode.show', '보기')}</SelfModeBtn>
               </SelfModeGroup>
             </ParticipantBar>
 
@@ -2113,7 +2118,7 @@ const QNotePage = () => {
 
             <ManualQuestionBar>
               <ManualQuestionInput
-                placeholder="직접 질문을 입력하세요 (어떤 언어든 OK — 회의언어로 자동 번역됩니다)"
+                placeholder={t('page.manualQuestion.placeholder', '직접 질문을 입력하세요 (어떤 언어든 OK — 회의언어로 자동 번역됩니다)') as string}
                 value={manualInput}
                 onChange={(e) => setManualInput(e.target.value)}
                 onKeyDown={(e) => {
@@ -2128,7 +2133,7 @@ const QNotePage = () => {
                 onClick={submitManualQuestion}
                 disabled={!manualInput.trim() || manualSubmitting}
               >
-                {manualSubmitting ? '처리 중...' : '답변 생성'}
+                {manualSubmitting ? t('page.manualQuestion.submitting', '처리 중...') : t('page.manualQuestion.submit', '답변 생성')}
               </ManualSubmitBtn>
             </ManualQuestionBar>
           </>

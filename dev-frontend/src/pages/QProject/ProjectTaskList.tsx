@@ -113,17 +113,17 @@ const ProjectTaskList: React.FC<Props> = ({
   return (
     <>
       <ColRow>
-        <Col $flex onClick={() => handleSort('title')}>업무 {sortIcon('title')}</Col>
-        <Col $w={showTimeline ? '90px' : '150px'} $center $hideBelow={900}>담당자</Col>
-        <Col $w={showTimeline ? '60px' : '100px'} $center onClick={() => handleSort('status')}>상태 {sortIcon('status')}</Col>
-        <Col $w={showTimeline ? '110px' : '180px'} $hideBelow={1024} $center onClick={() => handleSort('progress_percent')}>진행률 {sortIcon('progress_percent')}</Col>
-        <Col $w={showTimeline ? '120px' : '170px'} $center $hideBelow={768} onClick={() => handleSort('due_date')}>시작 ~ 마감 {sortIcon('due_date')}</Col>
+        <Col $flex onClick={() => handleSort('title')}>{t('col.task', '업무')} {sortIcon('title')}</Col>
+        <Col $w={showTimeline ? '90px' : '150px'} $center $hideBelow={900}>{t('col.assignee', '담당자')}</Col>
+        <Col $w={showTimeline ? '60px' : '100px'} $center onClick={() => handleSort('status')}>{t('col.status', '상태')} {sortIcon('status')}</Col>
+        <Col $w={showTimeline ? '110px' : '180px'} $hideBelow={1024} $center onClick={() => handleSort('progress_percent')}>{t('col.progressPercent', '진행률')} {sortIcon('progress_percent')}</Col>
+        <Col $w={showTimeline ? '120px' : '170px'} $center $hideBelow={768} onClick={() => handleSort('due_date')}>{t('col.dates', '시작 ~ 마감')} {sortIcon('due_date')}</Col>
         {showTimeline && range && (
           <Col $flex2 $center style={{ position: 'relative', overflow: 'visible' }}>
             <GanttHeader registry={gantt} range={range} tickMode="auto" />
           </Col>
         )}
-        {!showTimeline && <Col $flex $hideBelow={768}>설명</Col>}
+        {!showTimeline && <Col $flex $hideBelow={768}>{t('col.desc', '설명')}</Col>}
       </ColRow>
 
       {sorted.map(task => {
@@ -152,10 +152,14 @@ const ProjectTaskList: React.FC<Props> = ({
               {isEditing ? (
                 <TitleInput autoFocus value={titleDraft}
                   onChange={e => setTitleDraft(e.target.value)}
+                  onClick={e => e.stopPropagation()}
+                  onMouseDown={e => e.stopPropagation()}
                   onBlur={() => { if (titleDraft.trim() && titleDraft !== task.title) saveField(task.id, 'title', titleDraft.trim()); setEditingTitle(null); }}
                   onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') setEditingTitle(null); }} />
               ) : (<>
-                <TaskTitle $done={task.status === 'completed'} onClick={() => { setEditingTitle(task.id); setTitleDraft(task.title); }}>
+                <TaskTitle role="button" $done={task.status === 'completed'}
+                  onClick={(e) => { e.stopPropagation(); setEditingTitle(task.id); setTitleDraft(task.title); }}
+                  title={t('list.titleClickEdit', '클릭하여 업무명 수정') as string}>
                   {task.title}
                 </TaskTitle>
                 {(() => {
@@ -167,24 +171,24 @@ const ProjectTaskList: React.FC<Props> = ({
                     return <NameChip $type="observer">{task.assignee.name}</NameChip>;
                   return null;
                 })()}
-                {isDelayed && <DelayBadge>지연</DelayBadge>}
-                <DetailBtn $active={selectedId === task.id} onClick={e => { e.stopPropagation(); onOpen(task.id); }} title="상세 보기">
+                {isDelayed && <DelayBadge>{t('status.delayed', '지연')}</DelayBadge>}
+                <DetailBtn $active={selectedId === task.id} onClick={e => { e.stopPropagation(); onOpen(task.id); }} title={t('listRow.detailTitle', '상세 보기') as string}>
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="9 18 15 12 9 6" /></svg>
                 </DetailBtn>
               </>)}
             </TCell>
             <TCell $w={showTimeline ? '90px' : '150px'} $center $hideBelow={900} style={{ position: 'relative', overflow: 'visible' }}>
               <AssigneeLabel onClick={e => { e.stopPropagation(); setAssigneeOpenId(assigneeOpenId === task.id ? null : task.id); }}>
-                {task.assignee?.name || <span style={{ color: '#CBD5E1' }}>담당자</span>}
+                {task.assignee?.name || <span style={{ color: '#CBD5E1' }}>{t('listRow.assigneePlaceholder', '담당자')}</span>}
               </AssigneeLabel>
               {assigneeOpenId === task.id && (
                 <AssigneeDropdown onClick={e => e.stopPropagation()}>
-                  {members.length === 0 && <AssigneeOpt>멤버 없음</AssigneeOpt>}
-                  <AssigneeOpt $active={!task.assignee_id} onClick={() => { saveField(task.id, 'assignee_id', null); onLocalUpdate(task.id, { assignee: null }); setAssigneeOpenId(null); }}>— 없음 —</AssigneeOpt>
+                  {members.length === 0 && <AssigneeOpt>{t('listRow.noMembers', '멤버 없음')}</AssigneeOpt>}
+                  <AssigneeOpt $active={!task.assignee_id} onClick={() => { saveField(task.id, 'assignee_id', null); onLocalUpdate(task.id, { assignee: null }); setAssigneeOpenId(null); }}>{t('listRow.noAssignee', '— 없음 —')}</AssigneeOpt>
                   {members.map(m => (
                     <AssigneeOpt key={m.user_id} $active={task.assignee_id === m.user_id}
                       onClick={() => { saveField(task.id, 'assignee_id', m.user_id); onLocalUpdate(task.id, { assignee: { id: m.user_id, name: m.name } }); setAssigneeOpenId(null); }}>
-                      {m.name}{m.user_id === myId ? ' (나)' : ''}
+                      {m.name}{m.user_id === myId ? t('listRow.meSuffix', ' (나)') : ''}
                     </AssigneeOpt>
                   ))}
                 </AssigneeDropdown>
@@ -228,7 +232,7 @@ const ProjectTaskList: React.FC<Props> = ({
                   const s = task.start_date?.slice(0, 10);
                   const d = task.due_date?.slice(0, 10);
                   const fmt = (v?: string) => v ? v.slice(5).replace('-', '/') : '';
-                  if (!s && !d) return '—';
+                  if (!s && !d) return t('listRow.emptyDash', '—');
                   if (s && d && s !== d) return `${fmt(s)} ~ ${fmt(d)}`;
                   return fmt(d || s);
                 })()}
@@ -242,7 +246,7 @@ const ProjectTaskList: React.FC<Props> = ({
             </TCell>
             {!showTimeline && (
               <TCell $flex $hideBelow={768} style={{ padding: '0 8px' }}>
-                <DescText>{task.description || <DescEmpty>—</DescEmpty>}</DescText>
+                <DescText>{task.description || <DescEmpty>{t('listRow.emptyDash', '—')}</DescEmpty>}</DescText>
               </TCell>
             )}
             {showTimeline && range && (
@@ -258,7 +262,7 @@ const ProjectTaskList: React.FC<Props> = ({
           </TRow>
         );
       })}
-      {sorted.length === 0 && <EmptyMsg>업무가 없습니다</EmptyMsg>}
+      {sorted.length === 0 && <EmptyMsg>{t('list.empty', '업무가 없습니다')}</EmptyMsg>}
     </>
   );
 };

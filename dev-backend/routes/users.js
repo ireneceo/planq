@@ -4,11 +4,17 @@ const { User } = require('../models');
 const { authenticateToken, requireRole } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 
+// 응답에서 절대 노출 금지인 민감 필드
+// password_hash · refresh_token · reset_token · reset_token_expires
+const USER_SENSITIVE_FIELDS = [
+  'password_hash', 'refresh_token', 'reset_token', 'reset_token_expires',
+];
+
 // List users (platform admin)
 router.get('/', authenticateToken, requireRole('platform_admin'), async (req, res, next) => {
   try {
     const users = await User.findAll({
-      attributes: { exclude: ['password_hash'] },
+      attributes: { exclude: USER_SENSITIVE_FIELDS },
       order: [['created_at', 'DESC']]
     });
     successResponse(res, users);
@@ -17,11 +23,16 @@ router.get('/', authenticateToken, requireRole('platform_admin'), async (req, re
   }
 });
 
-// Get user by ID
+// Get user by ID — 본인 또는 platform_admin 만. IDOR 차단.
 router.get('/:id', authenticateToken, async (req, res, next) => {
   try {
-    const user = await User.findByPk(req.params.id, {
-      attributes: { exclude: ['password_hash'] }
+    const targetId = parseInt(req.params.id, 10);
+    if (Number.isNaN(targetId)) return errorResponse(res, 'invalid_id', 400);
+    const isSelf = targetId === req.user.id;
+    const isPlatformAdmin = req.user.platform_role === 'platform_admin';
+    if (!isSelf && !isPlatformAdmin) return errorResponse(res, 'forbidden', 403);
+    const user = await User.findByPk(targetId, {
+      attributes: { exclude: USER_SENSITIVE_FIELDS }
     });
     if (!user) return errorResponse(res, 'User not found', 404);
     successResponse(res, user);
@@ -138,7 +149,7 @@ router.put('/:id', authenticateToken, async (req, res, next) => {
     await user.update(updates);
 
     const updated = await User.findByPk(req.params.id, {
-      attributes: { exclude: ['password_hash'] }
+      attributes: { exclude: USER_SENSITIVE_FIELDS }
     });
     successResponse(res, updated);
   } catch (error) {

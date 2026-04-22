@@ -198,6 +198,14 @@ const QTaskPage:React.FC=()=>{
   const[sortKey,setSortKey]=useState<SortKey>('due_date');
   const[sortDir,setSortDir]=useState<SortDir>('asc');
 
+  // 우선순위 정렬은 이번 주 탭에서만 의미 있음 → 다른 탭으로 전환 시 기본(마감일)으로 복귀
+  useEffect(()=>{
+    if(tab!=='week' && sortKey==='priority_order'){
+      setSortKey('due_date');
+      setSortDir('asc');
+    }
+  },[tab,sortKey]);
+
   // Inline edit
   const[editingTitle,setEditingTitle]=useState<number|null>(null);
   const[titleDraft,setTitleDraft]=useState('');
@@ -219,6 +227,10 @@ const QTaskPage:React.FC=()=>{
   const[candidates,setCandidates]=useState<CandidateRow[]>([]);
   const[periodPickerOpen,setPeriodPickerOpen]=useState(false);
   const periodAnchorRef=React.useRef<HTMLButtonElement>(null);
+  const[newStartPickerOpen,setNewStartPickerOpen]=useState(false);
+  const[newDuePickerOpen,setNewDuePickerOpen]=useState(false);
+  const newStartAnchorRef=React.useRef<HTMLButtonElement>(null);
+  const newDueAnchorRef=React.useRef<HTMLButtonElement>(null);
   const[dailyProgress,setDailyProgress]=useState<{date:string;est_used:number;act_used:number}[]>([]);
 
   const thisMonday=thisMondayStr;
@@ -475,7 +487,13 @@ const QTaskPage:React.FC=()=>{
   };
 
   // 우선순위: 클릭 순서대로 1,2,3... / 다시 클릭하면 해제 + 번호 재정렬
-  const togglePriority=(taskId:number)=>{
+  const togglePriority=(taskId:number, autoSort:boolean=true)=>{
+    // 우선순위 매기는 순간 사용자가 "이 순서대로 보고 싶다"는 의도 → 정렬 기준 자동 전환
+    // (완료 처리 등 시스템 호출에서는 autoSort=false 로 정렬 영향 없음)
+    if(autoSort){
+      setSortKey('priority_order');
+      setSortDir('asc');
+    }
     setAllTasks(prev=>{
       const task=prev.find(t=>t.id===taskId);
       if(!task)return prev;
@@ -572,7 +590,7 @@ const QTaskPage:React.FC=()=>{
       // 완료 시 우선순위 해제
       if(newStatus==='completed'){
         const task=allTasks.find(t=>t.id===taskId);
-        if(task?.priority_order)togglePriority(taskId);
+        if(task?.priority_order)togglePriority(taskId,false);
       }
     }catch{}
     setStatusDropdownId(null);
@@ -879,7 +897,7 @@ const QTaskPage:React.FC=()=>{
           {viewMode==='list'&&(
           <>
           <ColRow>
-            <Col $w="30px" $center onClick={()=>handleSort('priority_order')}>#{sortIcon('priority_order')}</Col>
+            {tab==='week' && <Col $w="30px" $center onClick={()=>handleSort('priority_order')}>#{sortIcon('priority_order')}</Col>}
             <Col $w="80px" $hideBelow={640} onClick={()=>handleSort('title')}>{t('col.project','Project')}</Col>
             <Col $flex onClick={()=>handleSort('title')}>{t('col.task','Task')} {sortIcon('title')}</Col>
             <Col $w="68px" $center onClick={()=>handleSort('status')}>{t('col.status','Status')} {sortIcon('status')}</Col>
@@ -911,12 +929,14 @@ const QTaskPage:React.FC=()=>{
                     }}
                     style={{cursor:'pointer'}}>
 
-                    <TCell $w="30px" $center>
-                      <PrioNum $active={!!task.priority_order} $disabled={task.status==='completed'||task.status==='canceled'}
-                        onClick={e=>{e.stopPropagation();if(task.status!=='completed'&&task.status!=='canceled')togglePriority(task.id);}}>
-                        {task.priority_order||<PrioEmpty />}
-                      </PrioNum>
-                    </TCell>
+                    {tab==='week' && (
+                      <TCell $w="30px" $center>
+                        <PrioNum $active={!!task.priority_order} $disabled={task.status==='completed'||task.status==='canceled'}
+                          onClick={e=>{e.stopPropagation();if(task.status!=='completed'&&task.status!=='canceled')togglePriority(task.id);}}>
+                          {task.priority_order||<PrioEmpty />}
+                        </PrioNum>
+                      </TCell>
+                    )}
                     <TCell $w="80px" $hideBelow={640}>
                       <ProjLabel>{task.Project?.name||'-'}</ProjLabel>
                     </TCell>
@@ -924,10 +944,16 @@ const QTaskPage:React.FC=()=>{
                       <TaskCheck type="checkbox" checked={task.status==='completed'} onChange={()=>toggleComplete(task)} />
                       {isEditing?(
                         <TitleInput autoFocus value={titleDraft} onChange={e=>setTitleDraft(e.target.value)}
+                          onClick={e=>e.stopPropagation()}
+                          onMouseDown={e=>e.stopPropagation()}
                           onBlur={()=>{if(titleDraft.trim())saveTitle(task.id,titleDraft.trim());setEditingTitle(null);}}
                           onKeyDown={e=>{if(e.key==='Enter')(e.target as HTMLInputElement).blur();if(e.key==='Escape')setEditingTitle(null);}} />
                       ):(<>
-                        <TaskTitle $done={task.status==='completed'} onClick={()=>{setEditingTitle(task.id);setTitleDraft(task.title);}}>{task.title}</TaskTitle>
+                        <TaskTitle role="button" $done={task.status==='completed'}
+                          onClick={(e)=>{e.stopPropagation();setEditingTitle(task.id);setTitleDraft(task.title);}}
+                          title={t('list.titleClickEdit','클릭하여 업무명 수정') as string}>
+                          {task.title}
+                        </TaskTitle>
                         {(() => {
                           // 내가 받은 요청 → 요청자 (로즈)
                           if(task.assignee_id===myId&&(task.source==='internal_request'||task.source==='qtalk_extract')&&task.requester?.name){
@@ -1441,11 +1467,35 @@ const QTaskPage:React.FC=()=>{
                 </AddOptField>
                 <AddOptField>
                   <AddOptLabel>{t('add.startDate','시작일')}</AddOptLabel>
-                  <AddDateInput type="date" value={newStartDate} onChange={e=>setNewStartDate(e.target.value)} />
+                  <AddDateTrigger ref={newStartAnchorRef} type="button" onClick={()=>setNewStartPickerOpen(v=>!v)}>
+                    {newStartDate||<AddDatePH>{t('add.datePlaceholder','날짜 선택')}</AddDatePH>}
+                  </AddDateTrigger>
+                  {newStartPickerOpen&&(
+                    <CalendarPicker
+                      isOpen anchorRef={newStartAnchorRef}
+                      singleMode
+                      startDate={newStartDate}
+                      endDate={newStartDate}
+                      onRangeSelect={(s)=>setNewStartDate(s||'')}
+                      onClose={()=>setNewStartPickerOpen(false)}
+                    />
+                  )}
                 </AddOptField>
                 <AddOptField>
                   <AddOptLabel>{t('add.dueDate','마감일')}</AddOptLabel>
-                  <AddDateInput type="date" value={newDueDate} onChange={e=>setNewDueDate(e.target.value)} />
+                  <AddDateTrigger ref={newDueAnchorRef} type="button" onClick={()=>setNewDuePickerOpen(v=>!v)}>
+                    {newDueDate||<AddDatePH>{t('add.datePlaceholder','날짜 선택')}</AddDatePH>}
+                  </AddDateTrigger>
+                  {newDuePickerOpen&&(
+                    <CalendarPicker
+                      isOpen anchorRef={newDueAnchorRef}
+                      singleMode
+                      startDate={newDueDate}
+                      endDate={newDueDate}
+                      onRangeSelect={(s)=>setNewDueDate(s||'')}
+                      onClose={()=>setNewDuePickerOpen(false)}
+                    />
+                  )}
                 </AddOptField>
                 <AddOptField style={{flex:'0 0 90px'}}>
                   <AddOptLabel>{t('add.estHours','예측(h)')}</AddOptLabel>
@@ -1572,6 +1622,8 @@ const AddOptRow=styled.div`display:flex;gap:8px;flex-wrap:wrap;`;
 const AddOptField=styled.div`flex:1 1 140px;min-width:120px;display:flex;flex-direction:column;gap:3px;`;
 const AddOptLabel=styled.label`font-size:11px;color:#64748B;font-weight:600;`;
 const AddDateInput=styled.input`height:30px;padding:0 8px;font-size:13px;color:#0F172A;border:1px solid #E2E8F0;border-radius:6px;background:#FFF;font-family:inherit;&:focus{outline:none;border-color:#14B8A6;}`;
+const AddDateTrigger=styled.button`height:30px;padding:0 10px;font-size:13px;color:#0F172A;border:1px solid #E2E8F0;border-radius:6px;background:#FFF;font-family:inherit;cursor:pointer;text-align:left;display:inline-flex;align-items:center;&:hover{border-color:#CBD5E1;}&:focus{outline:none;border-color:#14B8A6;box-shadow:0 0 0 2px rgba(20,184,166,0.15);}`;
+const AddDatePH=styled.span`color:#94A3B8;`;
 const AddTextArea=styled.textarea`width:100%;resize:vertical;padding:6px 10px;font-size:13px;color:#0F172A;border:1px solid #E2E8F0;border-radius:6px;background:#FFF;font-family:inherit;line-height:1.4;&:focus{outline:none;border-color:#14B8A6;}&::placeholder{color:#94A3B8;}`;
 const AddBtnRow=styled.div`display:flex;justify-content:flex-end;gap:6px;`;
 const AddSaveBtn=styled.button`flex:0 0 auto;padding:6px 14px;font-size:13px;font-weight:600;background:#14B8A6;color:#FFFFFF;border:none;border-radius:6px;cursor:pointer;&:hover:not(:disabled){background:#0D9488;}&:disabled{background:#CBD5E1;cursor:not-allowed;}`;

@@ -3,7 +3,7 @@ const { Op, fn, col, literal } = require('sequelize');
 const router = express.Router();
 const { Task, User, Project, BusinessMember, Business, TaskComment, TaskDailyProgress } = require('../models');
 const taskSnapshot = require('../services/task_snapshot');
-const { authenticateToken } = require('../middleware/auth');
+const { authenticateToken, checkBusinessAccess } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const { todayInTz, mondayOfDateStr, addDaysStr, mondayOfIsoWeek } = require('../utils/datetime');
 
@@ -28,6 +28,13 @@ async function getMemberCapacity(userId, businessId) {
   return { daily, days, rate, weekly: Math.round(daily * days * rate * 10) / 10 };
 }
 
+// ─── 헬퍼: business 접근 권한 확인 (platform_admin 자동 통과) ───
+async function assertBusinessAccess(userId, businessId, platformRole) {
+  if (platformRole === 'platform_admin') return true;
+  const bm = await BusinessMember.findOne({ where: { user_id: userId, business_id: businessId } });
+  return !!bm;
+}
+
 // ============================================
 // GET /api/tasks/my-week — 이번 주 내 업무 + 가용시간 + 번다운
 // ?week=2026-W16  (ISO week, 없으면 이번 주)
@@ -35,8 +42,11 @@ async function getMemberCapacity(userId, businessId) {
 router.get('/my-week', authenticateToken, async (req, res, next) => {
   try {
     const userId = req.user.id;
-    const businessId = req.user.active_business_id || req.query.business_id;
+    const businessId = Number(req.user.active_business_id || req.query.business_id);
     if (!businessId) return errorResponse(res, 'business_id required', 400);
+    if (!(await assertBusinessAccess(userId, businessId, req.user.platform_role))) {
+      return errorResponse(res, 'forbidden', 403);
+    }
 
     // 주 시작일 계산 — 워크스페이스 타임존 기준 "오늘"
     const tz = await getWorkspaceTz(businessId);
@@ -119,8 +129,11 @@ router.get('/my-week', authenticateToken, async (req, res, next) => {
 router.get('/my-month', authenticateToken, async (req, res, next) => {
   try {
     const userId = req.user.id;
-    const businessId = req.user.active_business_id || req.query.business_id;
+    const businessId = Number(req.user.active_business_id || req.query.business_id);
     if (!businessId) return errorResponse(res, 'business_id required', 400);
+    if (!(await assertBusinessAccess(userId, businessId, req.user.platform_role))) {
+      return errorResponse(res, 'forbidden', 403);
+    }
 
     const tz = await getWorkspaceTz(businessId);
     const month = req.query.month || todayInTz(tz).slice(0, 7);
@@ -181,8 +194,11 @@ router.get('/my-month', authenticateToken, async (req, res, next) => {
 router.get('/my-year', authenticateToken, async (req, res, next) => {
   try {
     const userId = req.user.id;
-    const businessId = req.user.active_business_id || req.query.business_id;
+    const businessId = Number(req.user.active_business_id || req.query.business_id);
     if (!businessId) return errorResponse(res, 'business_id required', 400);
+    if (!(await assertBusinessAccess(userId, businessId, req.user.platform_role))) {
+      return errorResponse(res, 'forbidden', 403);
+    }
 
     const tz = await getWorkspaceTz(businessId);
     const year = Number(req.query.year) || Number(todayInTz(tz).slice(0, 4));
@@ -223,10 +239,13 @@ router.get('/my-year', authenticateToken, async (req, res, next) => {
 // ============================================
 router.get('/backlog', authenticateToken, async (req, res, next) => {
   try {
-    const businessId = req.user.active_business_id || req.query.business_id;
+    const businessId = Number(req.user.active_business_id || req.query.business_id);
     if (!businessId) return errorResponse(res, 'business_id required', 400);
 
     const bm = await BusinessMember.findOne({ where: { user_id: req.user.id, business_id: businessId } });
+    if (!bm && req.user.platform_role !== 'platform_admin') {
+      return errorResponse(res, 'forbidden', 403);
+    }
     const where = {
       business_id: businessId,
       planned_week_start: null,
@@ -373,7 +392,11 @@ router.get('/by-business/:businessId', authenticateToken, async (req, res, next)
 // ============================================
 router.put('/by-business/:businessId/:id', authenticateToken, async (req, res, next) => {
   try {
-    const task = await Task.findOne({ where: { id: req.params.id, business_id: req.params.businessId } });
+    const businessId = Number(req.params.businessId);
+    if (!(await assertBusinessAccess(req.user.id, businessId, req.user.platform_role))) {
+      return errorResponse(res, 'forbidden', 403);
+    }
+    const task = await Task.findOne({ where: { id: req.params.id, business_id: businessId } });
     if (!task) return errorResponse(res, 'task_not_found', 404);
 
     const { title, description, body, assignee_id, status, priority, due_date, start_date, estimated_hours, actual_hours, progress_percent, category, planned_week_start, project_id } = req.body;
@@ -420,11 +443,29 @@ router.put('/by-business/:businessId/:id', authenticateToken, async (req, res, n
 
 // ============================================
 // DELETE /:businessId/:id — 업무 삭제
+// 권한: platform_admin, 워크스페이스 owner, 또는 본인(created_by/assignee_id/request_by_user_id) 중 하나
 // ============================================
 router.delete('/by-business/:businessId/:id', authenticateToken, async (req, res, next) => {
   try {
-    const task = await Task.findOne({ where: { id: req.params.id, business_id: req.params.businessId } });
+    const businessId = Number(req.params.businessId);
+    const userId = req.user.id;
+    const task = await Task.findOne({ where: { id: req.params.id, business_id: businessId } });
     if (!task) return errorResponse(res, 'task_not_found', 404);
+
+    const isPlatformAdmin = req.user.platform_role === 'platform_admin';
+    let isOwner = false;
+    if (!isPlatformAdmin) {
+      const bm = await BusinessMember.findOne({ where: { user_id: userId, business_id: businessId } });
+      if (!bm) return errorResponse(res, 'forbidden', 403);
+      isOwner = bm.role === 'owner';
+    }
+    const isMine = task.created_by === userId
+      || task.assignee_id === userId
+      || task.request_by_user_id === userId;
+    if (!isPlatformAdmin && !isOwner && !isMine) {
+      return errorResponse(res, 'forbidden_delete', 403);
+    }
+
     const meta = { id: Number(req.params.id), project_id: task.project_id, business_id: task.business_id };
     await task.destroy();
 
@@ -450,6 +491,7 @@ router.get('/:id/detail', authenticateToken, async (req, res, next) => {
         { model: Project, attributes: ['id', 'name'], required: false },
         { model: User, as: 'assignee', attributes: ['id', 'name'], required: false },
         { model: User, as: 'creator', attributes: ['id', 'name'], required: false },
+        { model: User, as: 'requester', attributes: ['id', 'name'], required: false },
         {
           model: TaskComment, as: 'comments', required: false,
           include: [
@@ -465,6 +507,9 @@ router.get('/:id/detail', authenticateToken, async (req, res, next) => {
       ],
     });
     if (!task) return errorResponse(res, 'task_not_found', 404);
+    if (!(await assertBusinessAccess(req.user.id, task.business_id, req.user.platform_role))) {
+      return errorResponse(res, 'forbidden', 403);
+    }
     return successResponse(res, task.toJSON());
   } catch (err) { next(err); }
 });
@@ -505,6 +550,9 @@ router.get('/requested', authenticateToken, async (req, res, next) => {
   try {
     const businessId = Number(req.query.business_id);
     if (!Number.isFinite(businessId)) return errorResponse(res, 'business_id required', 400);
+    if (!(await assertBusinessAccess(req.user.id, businessId, req.user.platform_role))) {
+      return errorResponse(res, 'forbidden', 403);
+    }
 
     const tasks = await Task.findAll({
       where: {
@@ -526,6 +574,9 @@ router.get('/requested-comments', authenticateToken, async (req, res, next) => {
   try {
     const businessId = Number(req.query.business_id);
     if (!Number.isFinite(businessId)) return errorResponse(res, 'business_id required', 400);
+    if (!(await assertBusinessAccess(req.user.id, businessId, req.user.platform_role))) {
+      return errorResponse(res, 'forbidden', 403);
+    }
     // 내가 만든 업무 (assignee != me)
     const myRequested = await Task.findAll({
       where: { business_id: businessId, created_by: req.user.id, assignee_id: { [Op.ne]: req.user.id } },
@@ -553,6 +604,9 @@ router.get('/extracted-candidates', authenticateToken, async (req, res, next) =>
   try {
     const businessId = Number(req.query.business_id);
     if (!Number.isFinite(businessId)) return errorResponse(res, 'business_id required', 400);
+    if (!(await assertBusinessAccess(req.user.id, businessId, req.user.platform_role))) {
+      return errorResponse(res, 'forbidden', 403);
+    }
     const { TaskCandidate, Project: ProjectModel } = require('../models');
     const projs = await ProjectModel.findAll({ where: { business_id: businessId }, attributes: ['id', 'name'] });
     const projIds = projs.map(p => p.id);
@@ -577,6 +631,9 @@ router.get('/daily-progress', authenticateToken, async (req, res, next) => {
     const businessId = Number(req.query.business_id);
     const from = req.query.from, to = req.query.to;
     if (!businessId || !from || !to) return errorResponse(res, 'business_id/from/to required', 400);
+    if (!(await assertBusinessAccess(req.user.id, businessId, req.user.platform_role))) {
+      return errorResponse(res, 'forbidden', 403);
+    }
 
     const myTasks = await Task.findAll({
       where: { business_id: businessId, assignee_id: req.user.id },

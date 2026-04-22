@@ -1,4 +1,23 @@
 {
+  "invite": {
+    "loading": "Loading invite...",
+    "invalid": "Invalid or expired invite link.",
+    "emailMismatch": "This invite was sent to a different email. Please sign in with the invited email.",
+    "alreadyAcceptedError": "This invite has already been accepted.",
+    "alreadyAccepted": "This invite has already been accepted.",
+    "goLogin": "Go to login",
+    "goToApp": "Open PlanQ",
+    "accepting": "Accepting...",
+    "accept": "Accept invite",
+    "loginRequired": "Please log in or sign up to accept this invite.",
+    "login": "Log in",
+    "register": "Sign up",
+    "subtitle": {
+      "project": "You are invited to this project",
+      "workspaceClient": "You are invited to this workspace as a client",
+      "workspaceMember": "You are invited to this workspace as a team member"
+    }
+  },
   "time": {
     "justNow": "just now",
     "minutesAgo": "{{n}}m ago",
@@ -85,6 +104,44 @@
   "cancel": "Cancel",
   "saving": "Saving…",
   "loading": "Loading…",
+  "comingSoon": {
+    "title": "Coming soon",
+    "defaultDesc": "This feature is under development. Will be released soon.",
+    "qbillDesc": "Quotes, invoices, payments, and tax invoices in one place. Under development.",
+    "statsDesc": "Analytics module — design complete, implementation in progress."
+  },
+  "forbidden": {
+    "title": "Access Denied",
+    "desc": "You do not have permission to access this page.",
+    "back": "Go back"
+  },
+  "attachments": {
+    "title": "Attachments",
+    "add": "Add file",
+    "loading": "Loading...",
+    "dropHere": "Drag files here or click [+ Add file]",
+    "uploading": "Uploading...",
+    "deleteConfirmTitle": "Delete file",
+    "deleteConfirmMsg": "Delete \"{{name}}\"?",
+    "delete": "Delete",
+    "cancel": "Cancel"
+  },
+  "calendar": {
+    "today": "Today",
+    "thisWeek": "This week",
+    "thisMonth": "This month",
+    "clear": "Clear"
+  },
+  "combobox": {
+    "createNew": "+ Create \"{{value}}\"",
+    "noCategory": "No matching category"
+  },
+  "editor": {
+    "placeholder": "Type / to add a block",
+    "linkPrompt": "Enter link URL",
+    "hintPrefix": "Tip:",
+    "hintSuffix": "to add a block · select text for formatting · paste/drag images"
+  },
   "filepicker": {
     "title": "Pick files",
     "tab": {

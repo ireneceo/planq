@@ -36,6 +36,7 @@ const TasksTab: React.FC<Props> = ({ projectId, businessId, tasks, onRefresh }) 
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAuth();
+  const { t: tp } = useTranslation('qproject');
   const myId = user ? Number(user.id) : -1;
   const wsTz = user?.workspace_timezone || detectBrowserTz();
   const todayStr = todayInTz(wsTz);
@@ -133,24 +134,24 @@ const TasksTab: React.FC<Props> = ({ projectId, businessId, tasks, onRefresh }) 
 
   const renderAddForm = () => (
     <AddForm>
-      <AddInput autoFocus placeholder="업무명 (Ctrl+Enter 저장)" value={newTitle}
+      <AddInput autoFocus placeholder={tp('addTask.titlePlaceholder', '업무명 (Ctrl+Enter 저장)') as string} value={newTitle}
         onChange={e => setNewTitle(e.target.value)}
         onKeyDown={e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); submit(); } if (e.key === 'Escape') { setAdding(null); resetNew(); } }} />
       <AddOptRow>
         <AddOptField>
-          <AddOptLabel>담당자</AddOptLabel>
+          <AddOptLabel>{tp('addTask.assigneeLabel', '담당자')}</AddOptLabel>
           <PlanQSelect size="sm" isClearable
-            placeholder="담당자: 나"
+            placeholder={tp('addTask.assigneePlaceholder', '담당자: 나') as string}
             value={newAssignee == null ? null : { value: String(newAssignee), label: members.find(m => m.user_id === newAssignee)?.name || String(newAssignee) }}
             onChange={v => setNewAssignee((v as { value?: string } | null)?.value ? Number((v as { value: string }).value) : null)}
-            options={members.map(m => ({ value: String(m.user_id), label: m.name + (m.user_id === myId ? ' (나)' : '') }))} />
+            options={members.map(m => ({ value: String(m.user_id), label: m.name + (m.user_id === myId ? tp('addTask.meSuffix', ' (나)') : '') }))} />
         </AddOptField>
         <AddOptField style={{ flex: '1 1 240px' }}>
-          <AddOptLabel>기간</AddOptLabel>
+          <AddOptLabel>{tp('addTask.periodLabel', '기간')}</AddOptLabel>
           <DateTrigger ref={dateAnchorRef} type="button" onClick={() => setDatePickerOpen(v => !v)}>
             {(newStart || newDue) ? (
-              <>{newStart?.replace(/-/g, '/') || '—'} ~ {newDue?.replace(/-/g, '/') || '—'}</>
-            ) : <DatePlaceholder>기간 선택</DatePlaceholder>}
+              <>{newStart?.replace(/-/g, '/') || tp('addTask.noValue', '—')} ~ {newDue?.replace(/-/g, '/') || tp('addTask.noValue', '—')}</>
+            ) : <DatePlaceholder>{tp('addTask.periodPlaceholder', '기간 선택')}</DatePlaceholder>}
           </DateTrigger>
           {datePickerOpen && (
             <CalendarPicker
@@ -164,14 +165,14 @@ const TasksTab: React.FC<Props> = ({ projectId, businessId, tasks, onRefresh }) 
           )}
         </AddOptField>
         <AddOptField style={{ flex: '0 0 80px' }}>
-          <AddOptLabel>예측(h)</AddOptLabel>
+          <AddOptLabel>{tp('addTask.estLabel', '예측(h)')}</AddOptLabel>
           <AddDateInput type="number" step="0.5" min="0" value={newEst} onChange={e => setNewEst(e.target.value)} />
         </AddOptField>
       </AddOptRow>
       <AddBtnRow>
-        <CancelBtn type="button" onClick={() => { setAdding(null); resetNew(); }}>취소</CancelBtn>
+        <CancelBtn type="button" onClick={() => { setAdding(null); resetNew(); }}>{tp('addTask.cancel', '취소')}</CancelBtn>
         <SaveBtn type="button" onClick={submit} disabled={submitting || !newTitle.trim()}>
-          {submitting ? '저장 중...' : '추가'}
+          {submitting ? tp('addTask.saving', '저장 중...') : tp('addTask.save', '추가')}
         </SaveBtn>
       </AddBtnRow>
     </AddForm>
@@ -181,12 +182,12 @@ const TasksTab: React.FC<Props> = ({ projectId, businessId, tasks, onRefresh }) 
     <Wrap>
       <Toolbar>
         <ViewTabs>
-          <ViewBtn $active={view === 'split'} onClick={() => setView('split')}>기본</ViewBtn>
-          <ViewBtn $active={view === 'list'} onClick={() => setView('list')}>리스트</ViewBtn>
-          <ViewBtn $active={view === 'timeline'} onClick={() => setView('timeline')}>타임라인</ViewBtn>
-          <ViewBtn $active={view === 'calendar'} onClick={() => setView('calendar')}>캘린더</ViewBtn>
+          <ViewBtn $active={view === 'split'} onClick={() => setView('split')}>{tp('view.split', '기본')}</ViewBtn>
+          <ViewBtn $active={view === 'list'} onClick={() => setView('list')}>{tp('view.list', '리스트')}</ViewBtn>
+          <ViewBtn $active={view === 'timeline'} onClick={() => setView('timeline')}>{tp('view.timeline', '타임라인')}</ViewBtn>
+          <ViewBtn $active={view === 'calendar'} onClick={() => setView('calendar')}>{tp('view.calendar', '캘린더')}</ViewBtn>
         </ViewTabs>
-        <AddTaskBtn type="button" onClick={() => setAdding(adding === 'top' ? null : 'top')}>{adding === 'top' ? '취소' : '+ 업무 추가'}</AddTaskBtn>
+        <AddTaskBtn type="button" onClick={() => setAdding(adding === 'top' ? null : 'top')}>{adding === 'top' ? tp('addTask.cancel', '취소') : tp('addTask.add', '+ 업무 추가')}</AddTaskBtn>
       </Toolbar>
 
       {view === 'split' && (
@@ -208,15 +209,15 @@ const TasksTab: React.FC<Props> = ({ projectId, businessId, tasks, onRefresh }) 
       {/* 하단 간이 추가 — 글자만 좌측정렬. 클릭 시 하단에 폼이 뜸 (표와 간격 유지) */}
       {adding === 'bottom'
         ? <BottomAddSlot>{renderAddForm()}</BottomAddSlot>
-        : <BottomAddLink type="button" onClick={() => setAdding('bottom')}>+ 업무 추가</BottomAddLink>}
+        : <BottomAddLink type="button" onClick={() => setAdding('bottom')}>{tp('addTask.add', '+ 업무 추가')}</BottomAddLink>}
 
       {/* 상단 버튼 → 우측 오버레이 드로어 (Q Task 패턴). Backdrop 클릭 시 닫힘. */}
       {adding === 'top' && (<>
         <AddBackdrop onClick={() => { setAdding(null); resetNew(); }} />
         <AddDrawer>
           <AddDrawerHeader>
-            <AddDrawerTitle>+ 업무 추가</AddDrawerTitle>
-            <AddDrawerClose onClick={() => { setAdding(null); resetNew(); }} aria-label="닫기">
+            <AddDrawerTitle>{tp('addTask.drawerTitle', '+ 업무 추가')}</AddDrawerTitle>
+            <AddDrawerClose onClick={() => { setAdding(null); resetNew(); }} aria-label={tp('addTask.close', '닫기')}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
             </AddDrawerClose>
           </AddDrawerHeader>
@@ -250,7 +251,8 @@ const TimelineView: React.FC<{ tasks: TaskRow[]; onOpen: (id: number) => void; t
   const tasksWithDates = tasks.filter(t => t.start_date || t.due_date);
   const gantt = useGanttScrollSync();
   const { t: tr } = useTranslation('qtask');
-  if (tasksWithDates.length === 0) return <EmptyBox>기간이 설정된 업무가 없습니다. 시작일/마감일을 지정하세요.</EmptyBox>;
+  const { t: tp } = useTranslation('qproject');
+  if (tasksWithDates.length === 0) return <EmptyBox>{tp('timeline.emptyWithHint', '기간이 설정된 업무가 없습니다. 시작일/마감일을 지정하세요.')}</EmptyBox>;
 
   const dates = tasksWithDates.flatMap(t => [t.start_date, t.due_date].filter(Boolean) as string[]).map(d => d.slice(0, 10));
   const from = dates.reduce((a, b) => (a < b ? a : b));
@@ -295,6 +297,7 @@ const TimelineView: React.FC<{ tasks: TaskRow[]; onOpen: (id: number) => void; t
 // ─── Calendar view ───
 const CalendarView: React.FC<{ tasks: TaskRow[]; onOpen: (id: number) => void; todayStr: string; myId: number; }> = ({ tasks, onOpen, todayStr, myId }) => {
   const { t: tr } = useTranslation('qtask');
+  const { t: tp } = useTranslation('qproject');
   const [anchorDate, setAnchorDate] = useState(new Date());
   const year = anchorDate.getFullYear();
   const month = anchorDate.getMonth();
@@ -326,12 +329,12 @@ const CalendarView: React.FC<{ tasks: TaskRow[]; onOpen: (id: number) => void; t
     <CalWrap>
       <CalHead>
         <CalNavBtn onClick={() => setAnchorDate(new Date(year, month - 1, 1))}>‹</CalNavBtn>
-        <CalTitle>{year}년 {month + 1}월</CalTitle>
+        <CalTitle>{tp('calHeader.monthYear', { year, month: month + 1 })}</CalTitle>
         <CalNavBtn onClick={() => setAnchorDate(new Date(year, month + 1, 1))}>›</CalNavBtn>
-        <CalNavBtn onClick={() => setAnchorDate(new Date())} style={{ marginLeft: 'auto', fontSize: 11 }}>오늘</CalNavBtn>
+        <CalNavBtn onClick={() => setAnchorDate(new Date())} style={{ marginLeft: 'auto', fontSize: 11 }}>{tp('cal.today', '오늘')}</CalNavBtn>
       </CalHead>
       <CalGrid>
-        {['일', '월', '화', '수', '목', '금', '토'].map(w => <CalDow key={w}>{w}</CalDow>)}
+        {[tp('cal.sun', '일'), tp('cal.mon', '월'), tp('cal.tue', '화'), tp('cal.wed', '수'), tp('cal.thu', '목'), tp('cal.fri', '금'), tp('cal.sat', '토')].map(w => <CalDow key={w}>{w}</CalDow>)}
         {cells.map((d, i) => (
           <CalCell key={i} $off={!d} $today={!!d && fmt(d) === today}>
             {d && <>

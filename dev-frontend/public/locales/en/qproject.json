@@ -3,11 +3,13 @@
     "title": "Q project"
   },
   "view": {
+    "split": "Default",
     "list": "List",
     "timeline": "Timeline",
     "calendar": "Calendar"
   },
   "loading": "Loading…",
+  "backToList": "List",
   "empty": {
     "title": "No projects yet",
     "desc": "Projects created in Q talk will show up here",
@@ -22,12 +24,95 @@
     "tasks": "Tasks",
     "overdue": "Overdue",
     "period": "Period",
-    "progress": "Progress {{pct}}%"
+    "progress": "Progress {{pct}}%",
+    "total": "Total",
+    "inProgress": "In progress",
+    "completed": "Completed"
+  },
+  "filter": {
+    "closed": "Show closed",
+    "toggleClosed": "Toggle closed projects"
+  },
+  "card": {
+    "menu": "Project menu",
+    "resume": "Resume project",
+    "pause": "Pause",
+    "close": "Close project",
+    "closeConfirmTitle": "Close this project?",
+    "closeConfirmBody": "\"{{name}}\" will be closed. Data is preserved and can be re-shown via the filter.",
+    "closeAction": "Close"
+  },
+  "common": {
+    "cancel": "Cancel"
+  },
+  "error": {
+    "invalidUrl": "Invalid URL",
+    "notFound": "Project not found"
   },
   "timeline": {
     "project": "Project",
     "expand": "Expand tasks",
-    "collapse": "Collapse tasks"
+    "collapse": "Collapse tasks",
+    "empty": "No tasks with dates set",
+    "emptyWithHint": "No tasks with dates yet. Set a start and/or due date.",
+    "more": "+ Show more ({{n}})"
+  },
+  "addTask": {
+    "add": "+ Add Task",
+    "cancel": "Cancel",
+    "save": "Add",
+    "saving": "Saving...",
+    "titlePlaceholder": "Task title (Ctrl+Enter to save)",
+    "assigneeLabel": "Assignee",
+    "assigneePlaceholder": "Assignee: me",
+    "meSuffix": " (me)",
+    "periodLabel": "Period",
+    "periodPlaceholder": "Pick dates",
+    "noValue": "—",
+    "estLabel": "Est. (h)",
+    "drawerTitle": "+ Add Task",
+    "close": "Close"
+  },
+  "calHeader": {
+    "monthYear": "{{year}}-{{month}}"
+  },
+  "process": {
+    "loading": "Loading...",
+    "newRowName": "New item",
+    "addRow": "+ Add Row",
+    "manageStatus": "⚙ Manage Status",
+    "manageColumns": "⊞ Manage Columns",
+    "col": {
+      "depth1": "Depth 1",
+      "depth2": "Depth 2",
+      "depth3": "Depth 3",
+      "description": "Description",
+      "status": "Status",
+      "url": "URL",
+      "notes": "Notes"
+    },
+    "emptyRows": "No rows yet. [+ Add Row]",
+    "dragTitle": "Drag to reorder",
+    "statusEditor": {
+      "title": "Manage Status",
+      "keyPlaceholder": "key (lowercase)",
+      "labelPlaceholder": "Label",
+      "add": "+ Add",
+      "done": "Done"
+    },
+    "columnEditor": {
+      "title": "Custom Columns",
+      "keyPlaceholder": "key",
+      "labelPlaceholder": "Label",
+      "add": "+ Add",
+      "done": "Done",
+      "type": {
+        "text": "Text",
+        "date": "Date",
+        "number": "Number",
+        "select": "Select"
+      }
+    }
   },
   "cal": {
     "today": "Today",
@@ -42,27 +127,92 @@
     "clients": "Clients",
     "files": "Files",
     "docs": "Docs",
-    "info": "Details"
-  },
-  "docs": {
-    "empty": {
-      "title": "Docs coming soon",
-      "desc": "Post-style docs will arrive in the next iteration. Use the \"Files\" tab for file management."
-    },
-    "folder": {
-      "all": "All",
-      "my": "My files"
-    },
-    "source": {
-      "chat": "Chat",
-      "task": "Task",
-      "meeting": "Meeting",
-      "post": "Docs",
-      "direct": "Direct"
-    }
+    "info": "Details",
+    "defaultProcess": "Table",
+    "processEditHint": "Double-click to rename",
+    "renameHint": "Rename"
   },
   "section": {
+    "info": "Overview",
+    "progress": "Progress",
+    "taskTimeline": "Task timeline",
+    "issues": "Key issues",
+    "notes": "Project notes",
+    "clients": "Client info",
+    "chats": "Linked chats",
+    "noChats": "No chats yet",
+    "projClients": "Participating clients",
+    "editInfo": "Overview",
     "members": "Project members"
+  },
+  "info": {
+    "type": "Type",
+    "client": "Client",
+    "period": "Period",
+    "members": "Members",
+    "typeOngoing": "Ongoing subscription",
+    "typeFixed": "Fixed project",
+    "noValue": "—",
+    "memberCount": "{{n}}"
+  },
+  "issues": {
+    "empty": "No issues yet",
+    "addPlaceholder": "Add an issue..."
+  },
+  "notes": {
+    "empty": "No notes yet",
+    "addPlaceholder": "Add a note...",
+    "visPersonal": "Personal",
+    "visInternal": "Internal"
+  },
+  "convs": {
+    "empty": "None",
+    "channelCustomer": "Customer",
+    "channelInternal": "Internal",
+    "channelGroup": "Group"
+  },
+  "clients": {
+    "empty": "No clients yet",
+    "noEmail": "No email",
+    "emptySummary": "No clients linked",
+    "linkExisting": "Link existing client",
+    "selectPlaceholder": "Select workspace client",
+    "newNamePlaceholder": "New client name",
+    "newEmailPlaceholder": "Email (optional, sends invite)",
+    "newInviteBtn": "+ Invite new",
+    "joined": "Joined",
+    "pending": "Invite pending",
+    "joinedTitle": "Joined as workspace user",
+    "pendingTitle": "Invite sent — awaiting acceptance"
+  },
+  "edit": {
+    "projectName": "Project name",
+    "client": "Client",
+    "type": "Type",
+    "typeFixed": "Fixed project",
+    "typeOngoing": "Ongoing subscription",
+    "status": "Status",
+    "statusActive": "Active",
+    "statusPaused": "Paused",
+    "statusClosed": "Completed",
+    "period": "Period",
+    "periodPlaceholder": "Pick dates",
+    "color": "Color",
+    "colorPicker": "Color picker",
+    "description": "Description",
+    "rolePlaceholder": "Role",
+    "roleDefault": "Member"
+  },
+  "close": {
+    "title": "Complete project",
+    "intro1": "This will mark the project as completed.",
+    "intro2": "Linked conversations will be auto-archived (content preserved).",
+    "intro3": "Tasks, notes, and issues are all preserved.",
+    "exportTitle": "Offboard clients (optional)",
+    "exportHint": "Checked clients are removed from this project. If they aren't in other projects, they also disappear from the workspace. Deleting the client identity itself is done from the Clients page.",
+    "cancel": "Cancel",
+    "processing": "Processing…",
+    "confirm": "Mark as completed"
   },
   "members": {
     "empty": "No members yet",
@@ -86,7 +236,8 @@
       "direct": "Direct",
       "chat": "Chat",
       "task": "Task",
-      "meeting": "Meeting"
+      "meeting": "Meeting",
+      "post": "Docs"
     },
     "view": {
       "grid": "Grid",
@@ -116,7 +267,14 @@
     },
     "preview": {
       "aria": "File preview",
-      "unsupported": "Preview not supported for this format. Download to view."
+      "unsupported": "Preview not supported for this format. Download to view.",
+      "fallbackHint": "Preview available after download"
+    },
+    "wsUpload": {
+      "title": "Which project should these go to?",
+      "desc": "Pick a project for {{n}} file(s)",
+      "noProject": "No projects yet",
+      "confirm": "Upload"
     },
     "confirmDelete": {
       "title": "Delete this file?",
@@ -141,6 +299,7 @@
     },
     "folder": {
       "all": "All",
+      "my": "My files",
       "directSection": "Direct uploads",
       "directRoot": "My uploads",
       "autoSection": "Auto-collected",

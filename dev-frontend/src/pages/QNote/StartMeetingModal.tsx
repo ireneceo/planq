@@ -428,12 +428,12 @@ const StartMeetingModal = ({ open, userLanguage, editMode, initialConfig, editin
       return;
     }
     if (f.size > 10 * 1024 * 1024) {
-      showFileError('파일이 너무 큽니다 (최대 10MB)');
+      showFileError(t('startModal.fileError.priorityTooLarge', '파일이 너무 큽니다 (최대 10MB)'));
       return;
     }
     const ext = (f.name.split('.').pop() || '').toLowerCase();
     if (!PQ_ALLOWED_EXT.includes(ext)) {
-      showFileError(`"${f.name}" — 지원하지 않는 포맷 (${PQ_ALLOWED_EXT.join(', ')})`);
+      showFileError(t('startModal.fileError.priorityUnsupported', { name: f.name, formats: PQ_ALLOWED_EXT.join(', ') }));
       return;
     }
     setPriorityCsv(f);
@@ -445,18 +445,19 @@ const StartMeetingModal = ({ open, userLanguage, editMode, initialConfig, editin
       try {
         const res = await uploadPriorityQAFile(editingSessionId, f);
         const parts = [];
-        if (res.created) parts.push(`새로 ${res.created}개`);
-        if (res.updated) parts.push(`업데이트 ${res.updated}개`);
-        let msg = parts.length ? parts.join(', ') + ' 등록' : '변경 없음';
-        if (res.errors && res.errors.length > 0) msg += ` (경고 ${res.errors.length}건)`;
+        if (res.created) parts.push(t('startModal.priority.uploadResultCreated', { count: res.created }));
+        if (res.updated) parts.push(t('startModal.priority.uploadResultUpdated', { count: res.updated }));
+        let msg = parts.length ? parts.join(', ') + t('startModal.priority.uploadResultRegister', ' 등록') : t('startModal.priority.uploadResultNoChange', '변경 없음');
+        if (res.errors && res.errors.length > 0) msg += t('startModal.priority.uploadResultWarnings', { count: res.errors.length });
         setPriorityCsvResult(msg);
         // 성공 시 드롭존 파일 상태 비움 (파일 박스는 "기존 파일 목록"으로 넘어감)
         if (res.created || res.updated) {
           setPriorityCsv(null);
         }
       } catch (err) {
-        setPriorityCsvResult('업로드 실패: ' + (err instanceof Error ? err.message : '알 수 없는 오류'));
-        showFileError('파일 업로드 실패: ' + (err instanceof Error ? err.message : ''));
+        const detail = err instanceof Error ? err.message : t('startModal.priority.uploadFailUnknown', '알 수 없는 오류');
+        setPriorityCsvResult(t('startModal.priority.uploadFail', { msg: detail }));
+        showFileError(t('startModal.priority.uploadFailShort', { msg: err instanceof Error ? err.message : '' }));
       } finally {
         setPriorityCsvUploading(false);
       }
@@ -476,7 +477,7 @@ const StartMeetingModal = ({ open, userLanguage, editMode, initialConfig, editin
       await deletePriorityQAByFile(editingSessionId, filename);
       setExistingPriorityQAs((prev) => prev.filter((q) => q.source_filename !== filename));
     } catch (err) {
-      showFileError(err instanceof Error ? err.message : '파일 삭제 실패');
+      showFileError(err instanceof Error ? err.message : t('startModal.priority.deleteFail', '파일 삭제 실패'));
     }
   };
 
@@ -486,7 +487,7 @@ const StartMeetingModal = ({ open, userLanguage, editMode, initialConfig, editin
       await deletePriorityQA(editingSessionId, qaId);
       setExistingPriorityQAs((prev) => prev.filter((q) => q.id !== qaId));
     } catch (err) {
-      showFileError(err instanceof Error ? err.message : 'Q&A 삭제 실패');
+      showFileError(err instanceof Error ? err.message : t('startModal.priority.deleteQAFail', 'Q&A 삭제 실패'));
     }
   };
 
@@ -497,7 +498,7 @@ const StartMeetingModal = ({ open, userLanguage, editMode, initialConfig, editin
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       setExistingDocuments((prev) => prev.filter((d) => d.id !== docId));
     } catch (err) {
-      showFileError(err instanceof Error ? err.message : '문서 삭제 실패');
+      showFileError(err instanceof Error ? err.message : t('startModal.priority.deleteDocFail', '문서 삭제 실패'));
     }
   };
 
@@ -513,7 +514,7 @@ const StartMeetingModal = ({ open, userLanguage, editMode, initialConfig, editin
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
     } catch (err) {
-      showFileError(err instanceof Error ? err.message : '어휘사전 저장 실패');
+      showFileError(err instanceof Error ? err.message : t('startModal.vocabulary.saveFail', '어휘사전 저장 실패'));
     }
   };
 
@@ -544,7 +545,7 @@ const StartMeetingModal = ({ open, userLanguage, editMode, initialConfig, editin
       const res = await refreshSessionVocabulary(editingSessionId);
       setSessionKeywords(res.keywords || []);
     } catch (err) {
-      showFileError(err instanceof Error ? err.message : '어휘 재추출 실패');
+      showFileError(err instanceof Error ? err.message : t('startModal.vocabulary.refreshFail', '어휘 재추출 실패'));
     } finally {
       setRefreshingVocab(false);
     }
@@ -595,15 +596,15 @@ const StartMeetingModal = ({ open, userLanguage, editMode, initialConfig, editin
 
   return (
     <Backdrop onClick={onClose}>
-      <ModalBox onClick={(e) => e.stopPropagation()}>
+      <ModalBox role="dialog" aria-modal="true" aria-label={editMode ? (t('startModal.editHeader', '회의 설정 편집') as string) : (t('startModal.header') as string)} onClick={(e) => e.stopPropagation()}>
         <Header>
-          <Title>{editMode ? '회의 설정 편집' : t('startModal.header')}</Title>
+          <Title>{editMode ? t('startModal.editHeaderTitle', '회의 설정 편집') : t('startModal.header')}</Title>
           <HeaderRight>
             {!editMode && draftRestored && (
               <>
-                <DraftBadge>초안 복원됨</DraftBadge>
-                <DraftResetBtn type="button" onClick={clearDraft} title="저장된 초안을 지우고 처음부터 새로 시작">
-                  초안 지우기
+                <DraftBadge>{t('startModal.draftRestored', '초안 복원됨')}</DraftBadge>
+                <DraftResetBtn type="button" onClick={clearDraft} title={t('startModal.draftClearTitle', '저장된 초안을 지우고 처음부터 새로 시작') as string}>
+                  {t('startModal.draftClear', '초안 지우기')}
                 </DraftResetBtn>
               </>
             )}
@@ -616,9 +617,8 @@ const StartMeetingModal = ({ open, userLanguage, editMode, initialConfig, editin
         <Body>
           {editMode && (
             <EditModeBanner>
-              <strong>편집 모드</strong> — 기존 자료는 DB 에 안전하게 저장되어 있습니다.
-              여기서 <strong>추가한 항목은 기존 자료에 합쳐</strong>지며, <strong>✗ 버튼으로 개별 삭제</strong>할 수 있습니다.
-              {loadingExisting && <span style={{ marginLeft: 8, color: '#0d9488' }}>(기존 자료 불러오는 중...)</span>}
+              <strong>{t('startModal.editBanner.prefix', '편집 모드')}</strong>{t('startModal.editBanner.body', ' — 기존 자료는 DB 에 안전하게 저장되어 있습니다. 여기서 ')}<strong>{t('startModal.editBanner.addHighlight', '추가한 항목은 기존 자료에 합쳐')}</strong>{t('startModal.editBanner.middle', '지며, ')}<strong>{t('startModal.editBanner.removeHighlight', '✗ 버튼으로 개별 삭제')}</strong>{t('startModal.editBanner.suffix', '할 수 있습니다.')}
+              {loadingExisting && <span style={{ marginLeft: 8, color: '#0d9488' }}>{t('startModal.editBanner.loading', '(기존 자료 불러오는 중...)')}</span>}
             </EditModeBanner>
           )}
           <Field>
@@ -737,15 +737,14 @@ const StartMeetingModal = ({ open, userLanguage, editMode, initialConfig, editin
 
           <Field>
             <PriorityLabel>
-              <PriorityBadge>최우선</PriorityBadge>
-              Q&amp;A 자료 (답변 1순위)
+              <PriorityBadge>{t('startModal.priority.badge', '최우선')}</PriorityBadge>
+              {t('startModal.priority.label', 'Q&A 자료 (답변 1순위)')}
               {editMode && existingPriorityQAs.length > 0 && (
-                <ExistingCount>총 {existingPriorityQAs.length}개</ExistingCount>
+                <ExistingCount>{t('startModal.priority.totalCount', { count: existingPriorityQAs.length })}</ExistingCount>
               )}
             </PriorityLabel>
             <Hint>
-              여기에 등록한 Q&amp;A는 <strong>다른 모든 자료보다 먼저</strong> 사용됩니다.
-              파일 업로드 또는 직접 입력 두 가지 방식 모두 지원합니다.
+              {t('startModal.priority.intro1', '여기에 등록한 Q&A는 ')}<strong>{t('startModal.priority.introStrong', '다른 모든 자료보다 먼저')}</strong>{t('startModal.priority.intro2', ' 사용됩니다. 파일 업로드 또는 직접 입력 두 가지 방식 모두 지원합니다.')}
             </Hint>
 
             {/* ── 1) 파일 업로드 영역 (먼저) ── */}
@@ -777,16 +776,16 @@ const StartMeetingModal = ({ open, userLanguage, editMode, initialConfig, editin
               </DropzoneIcon>
               <DropzoneText>
                 {priorityCsvUploading
-                  ? '업로드 중... (PDF/DOCX 는 LLM 추출로 20~30초 걸릴 수 있습니다)'
+                  ? t('startModal.priority.uploading', '업로드 중... (PDF/DOCX 는 LLM 추출로 20~30초 걸릴 수 있습니다)')
                   : priorityCsv
                     ? priorityCsv.name
-                    : '파일 끌어다 놓거나 클릭해서 선택'}
+                    : t('startModal.priority.dropHint', '파일 끌어다 놓거나 클릭해서 선택')}
                 <DropzoneSubText>
                   {priorityCsvResult
                     ? priorityCsvResult
                     : editMode
-                      ? 'CSV · Excel · JSON · TXT · MD · PDF · DOCX — 선택 즉시 업로드'
-                      : 'CSV · Excel · JSON · TXT · MD · PDF · DOCX — 회의 시작 시 업로드'}
+                      ? t('startModal.priority.uploadNowSub', 'CSV · Excel · JSON · TXT · MD · PDF · DOCX — 선택 즉시 업로드')
+                      : t('startModal.priority.uploadLaterSub', 'CSV · Excel · JSON · TXT · MD · PDF · DOCX — 회의 시작 시 업로드')}
                 </DropzoneSubText>
               </DropzoneText>
               {priorityCsv && !priorityCsvUploading && (
@@ -817,7 +816,7 @@ const StartMeetingModal = ({ open, userLanguage, editMode, initialConfig, editin
                         <FileTextIcon size={14} />
                       </FileIcon>
                       <PQQuestionText title={items.map((i) => i.question_text).join('\n')}>
-                        {fname} <span style={{ color: '#888', fontWeight: 400 }}>· {items.length}개</span>
+                        {fname} <span style={{ color: '#888', fontWeight: 400 }}>· {t('startModal.priority.itemCount', { count: items.length })}</span>
                       </PQQuestionText>
                       <RemoveBtn
                         onClick={() => handleDeleteExistingPriorityFile(fname)}
@@ -837,28 +836,28 @@ const StartMeetingModal = ({ open, userLanguage, editMode, initialConfig, editin
                 try {
                   await downloadPriorityQATemplate();
                 } catch (err) {
-                  showFileError(err instanceof Error ? err.message : '템플릿 다운로드 실패');
+                  showFileError(err instanceof Error ? err.message : t('startModal.priority.templateDownloadFail', '템플릿 다운로드 실패'));
                 }
               }}
             >
-              샘플 CSV 다운로드 (컬럼명은 question/질문 · answer/답변 · short_answer · keywords · category 중 어떤 이름이든 OK)
+              {t('startModal.priority.templateDownload', '샘플 CSV 다운로드 (컬럼명은 question/질문 · answer/답변 · short_answer · keywords · category 중 어떤 이름이든 OK)')}
             </TemplateLink>
 
             {/* ── 3) 직접 입력 영역 ── */}
             <Divider>
-              <DividerText>또는 직접 입력</DividerText>
+              <DividerText>{t('startModal.priority.divider', '또는 직접 입력')}</DividerText>
             </Divider>
 
             <PQRow>
               <ParticipantInput
-                placeholder="질문 예: 왜 이 주제를 선택했나요?"
+                placeholder={t('startModal.priority.questionPlaceholder', '질문 예: 왜 이 주제를 선택했나요?') as string}
                 value={pqQuestion}
                 onChange={(e) => setPqQuestion(e.target.value)}
               />
             </PQRow>
             <PQRow>
               <TextArea
-                placeholder="정확한 답변 (말할 그대로, 길어도 OK)"
+                placeholder={t('startModal.priority.answerPlaceholder', '정확한 답변 (말할 그대로, 길어도 OK)') as string}
                 value={pqAnswer}
                 onChange={(e) => setPqAnswer(e.target.value)}
                 rows={2}
@@ -866,7 +865,7 @@ const StartMeetingModal = ({ open, userLanguage, editMode, initialConfig, editin
             </PQRow>
             <PQRow>
               <ParticipantInput
-                placeholder="1문장 버전 (선택, 회의 답변 길이가 '짧게'일 때 우선 사용)"
+                placeholder={t('startModal.priority.shortAnswerPlaceholder', "1문장 버전 (선택, 회의 답변 길이가 '짧게'일 때 우선 사용)") as string}
                 value={pqShortAnswer}
                 onChange={(e) => setPqShortAnswer(e.target.value)}
                 maxLength={500}
@@ -874,7 +873,7 @@ const StartMeetingModal = ({ open, userLanguage, editMode, initialConfig, editin
             </PQRow>
             <PQRow>
               <ParticipantInput
-                placeholder="핵심 키워드 (선택, 쉼표 구분 — 검색 속도·정확도 ↑)"
+                placeholder={t('startModal.priority.keywordsPlaceholder', '핵심 키워드 (선택, 쉼표 구분 — 검색 속도·정확도 ↑)') as string}
                 value={pqKeywords}
                 onChange={(e) => setPqKeywords(e.target.value)}
                 maxLength={500}
@@ -922,24 +921,22 @@ const StartMeetingModal = ({ open, userLanguage, editMode, initialConfig, editin
           {editMode && (
             <Field>
               <Label>
-                어휘사전 (STT 교정용)
-                {sessionKeywords.length > 0 && <ExistingCount>{sessionKeywords.length}개</ExistingCount>}
+                {t('startModal.vocabulary.label', '어휘사전 (STT 교정용)')}
+                {sessionKeywords.length > 0 && <ExistingCount>{t('startModal.vocabulary.countSuffix', { count: sessionKeywords.length })}</ExistingCount>}
               </Label>
               <Hint>
-                여기 등록된 단어는 <strong>Deepgram 이 음성인식 시 우선 매칭</strong>하고,
-                AI 가 "remote work" 같은 구절을 잘못 듣는 문제를 고쳐줍니다.
+                {t('startModal.vocabulary.hintPart1', '여기 등록된 단어는 ')}<strong>{t('startModal.vocabulary.hintStrong1', 'Deepgram 이 음성인식 시 우선 매칭')}</strong>{t('startModal.vocabulary.hintPart2', '하고, AI 가 "remote work" 같은 구절을 잘못 듣는 문제를 고쳐줍니다.')}
                 <br />
-                <strong>업로드한 문서가 최우선 소스</strong>입니다. 문서 인덱싱이 끝나면 자동으로 재추출되며,
-                그 전이면 아래 "문서 기반 재추출" 버튼으로 즉시 뽑을 수 있습니다.
+                <strong>{t('startModal.vocabulary.hintStrong2', '업로드한 문서가 최우선 소스')}</strong>{t('startModal.vocabulary.hintPart3', '입니다. 문서 인덱싱이 끝나면 자동으로 재추출되며, 그 전이면 아래 "문서 기반 재추출" 버튼으로 즉시 뽑을 수 있습니다.')}
               </Hint>
               <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
                 <GenerateKeywordsBtn
                   type="button"
                   onClick={handleRefreshVocab}
                   disabled={refreshingVocab}
-                  title="현재 인덱싱된 문서에서 어휘를 다시 추출 (기존 수동 추가 키워드는 유지)"
+                  title={t('startModal.vocabulary.refreshTitle', '현재 인덱싱된 문서에서 어휘를 다시 추출 (기존 수동 추가 키워드는 유지)') as string}
                 >
-                  {refreshingVocab ? '재추출 중...' : '📄 문서 기반 재추출'}
+                  {refreshingVocab ? t('startModal.vocabulary.refreshing', '재추출 중...') : t('startModal.vocabulary.refresh', '📄 문서 기반 재추출')}
                 </GenerateKeywordsBtn>
               </div>
 
@@ -955,12 +952,12 @@ const StartMeetingModal = ({ open, userLanguage, editMode, initialConfig, editin
                   ))}
                 </KeywordChipList>
               ) : (
-                <EmptyHint>자동 추출된 어휘가 없습니다. 아래에서 직접 추가하세요.</EmptyHint>
+                <EmptyHint>{t('startModal.vocabulary.empty', '자동 추출된 어휘가 없습니다. 아래에서 직접 추가하세요.')}</EmptyHint>
               )}
 
               <KeywordAddRow>
                 <ParticipantInput
-                  placeholder="단어/구절 추가 (쉼표나 엔터로 여러 개 한번에)"
+                  placeholder={t('startModal.vocabulary.addPlaceholder', '단어/구절 추가 (쉼표나 엔터로 여러 개 한번에)') as string}
                   value={keywordInput}
                   onChange={(e) => setKeywordInput(e.target.value)}
                   onKeyDown={(e) => {
@@ -978,25 +975,23 @@ const StartMeetingModal = ({ open, userLanguage, editMode, initialConfig, editin
           )}
 
           <Field>
-            <Label>답변 스타일 · 길이</Label>
+            <Label>{t('startModal.answerStyle.label', '답변 스타일 · 길이')}</Label>
             <Hint>
-              답변이 너무 어렵거나 길면 여기서 조정하세요. 말하기 좋은 단어로, 언어 레벨에 맞게 생성됩니다.
+              {t('startModal.answerStyle.hint', '답변이 너무 어렵거나 길면 여기서 조정하세요. 말하기 좋은 단어로, 언어 레벨에 맞게 생성됩니다.')}
             </Hint>
             <LengthRow>
               <LengthBtn type="button" $active={meetingAnswerLength === 'short'} onClick={() => setMeetingAnswerLength('short')}>
-                짧게 (1-2문장)
+                {t('startModal.answerStyle.short', '짧게 (1-2문장)')}
               </LengthBtn>
               <LengthBtn type="button" $active={meetingAnswerLength === 'medium'} onClick={() => setMeetingAnswerLength('medium')}>
-                보통 (2-3문장)
+                {t('startModal.answerStyle.medium', '보통 (2-3문장)')}
               </LengthBtn>
               <LengthBtn type="button" $active={meetingAnswerLength === 'long'} onClick={() => setMeetingAnswerLength('long')}>
-                길게 (3-4문장)
+                {t('startModal.answerStyle.long', '길게 (3-4문장)')}
               </LengthBtn>
             </LengthRow>
             <TextArea
-              placeholder={
-                '예시: 짧고 자신감 있게. 전문용어 금지. 구체적 숫자 포함. 반드시 질문을 되묻지 말 것.'
-              }
+              placeholder={t('startModal.answerStyle.stylePlaceholder', '예시: 짧고 자신감 있게. 전문용어 금지. 구체적 숫자 포함. 반드시 질문을 되묻지 말 것.') as string}
               value={meetingAnswerStyle}
               onChange={(e) => setMeetingAnswerStyle(e.target.value)}
               rows={3}
@@ -1008,7 +1003,7 @@ const StartMeetingModal = ({ open, userLanguage, editMode, initialConfig, editin
             <Label>
               {t('startModal.materialsLabel')}
               {editMode && existingDocuments.length > 0 && (
-                <ExistingCount>기존 {existingDocuments.length}개</ExistingCount>
+                <ExistingCount>{t('startModal.materialsExisting', { count: existingDocuments.length })}</ExistingCount>
               )}
             </Label>
             <Hint>
@@ -1027,8 +1022,8 @@ const StartMeetingModal = ({ open, userLanguage, editMode, initialConfig, editin
                     <FileIcon>
                       <FileTextIcon size={14} />
                     </FileIcon>
-                    <FileName>{doc.original_filename || doc.title || `문서 #${doc.id}`}</FileName>
-                    <FileSize>{doc.status === 'indexed' ? `${doc.chunk_count || 0} chunks` : doc.status}</FileSize>
+                    <FileName>{doc.original_filename || doc.title || t('startModal.docName', { id: doc.id })}</FileName>
+                    <FileSize>{doc.status === 'indexed' ? t('startModal.chunkUnit', { count: doc.chunk_count || 0 }) : doc.status}</FileSize>
                     <RemoveBtn onClick={() => handleDeleteExistingDocument(doc.id)} aria-label={t('startModal.removeLabel')}>
                       <CloseIcon size={14} />
                     </RemoveBtn>
@@ -1180,7 +1175,7 @@ const StartMeetingModal = ({ open, userLanguage, editMode, initialConfig, editin
         <Footer>
           <SecondaryBtn onClick={onClose}>{t('startModal.cancel')}</SecondaryBtn>
           <PrimaryBtn onClick={handleStart} disabled={!canStart}>
-            {editMode ? '저장' : t('startModal.start')}
+            {editMode ? t('startModal.saveBtn', '저장') : t('startModal.start')}
           </PrimaryBtn>
         </Footer>
       </ModalBox>

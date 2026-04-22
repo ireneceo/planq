@@ -7,6 +7,110 @@
     "inProgress": "Extraction is already in progress. Please try again shortly",
     "failed": "Extraction failed: {{msg}}"
   },
+  "right": {
+    "title": "Project Workbench",
+    "collapse": "Collapse",
+    "candidates": {
+      "title": "Task Candidates",
+      "similar": "Similar task found",
+      "register": "Register",
+      "merge": "Merge",
+      "reject": "Reject",
+      "metaAssignee": "Assignee",
+      "metaDue": "Due"
+    },
+    "issues": {
+      "title": "Key Issues",
+      "add": "Add",
+      "showMore": "Show {{n}} more past issues",
+      "collapse": "Collapse",
+      "empty": "No issues yet",
+      "newPlaceholder": "New issue (Enter to save)",
+      "delete": "Delete"
+    },
+    "myTasks": {
+      "title": "My Tasks",
+      "empty": "No assigned tasks",
+      "viewAll": "View all in Q Task",
+      "recurTitle": "Recurring task"
+    },
+    "projectTasks": {
+      "title": "Project Tasks",
+      "empty": "No tasks"
+    },
+    "notes": {
+      "title": "Project Notes",
+      "internal": "Internal",
+      "personal": "Personal",
+      "empty": "No notes yet",
+      "placeholder": "Write a note... (Enter to save)"
+    },
+    "info": {
+      "title": "Project Info",
+      "client": "Client",
+      "period": "Period",
+      "status": "Status",
+      "members": "Members",
+      "default": "Default",
+      "detail": "View project details"
+    }
+  },
+  "channelBadge": {
+    "internal": "Internal",
+    "customer": "Customer"
+  },
+  "left": {
+    "title": "Q talk",
+    "expand": "Open list",
+    "newChat": "New chat",
+    "newProject": "New project",
+    "collapse": "Collapse",
+    "searchPlaceholder": "Search chats and projects",
+    "noResults": "No results",
+    "noChats": "No conversations yet",
+    "generalConversation": "General"
+  },
+  "modal": {
+    "title": "New Project",
+    "name": "Project name",
+    "namePlaceholder": "e.g. Brand renewal",
+    "type": "Project type",
+    "typeFixed": "Fixed-term",
+    "typeFixedDesc": "Contract with start/end date",
+    "typeOngoing": "Ongoing subscription",
+    "typeOngoingDesc": "Monthly or recurring engagement",
+    "clientCompany": "Client company",
+    "clientEmail": "Client email",
+    "period": "Period",
+    "startDate": "Start date",
+    "pickPeriod": "Pick period",
+    "pickStart": "Pick start date",
+    "description": "Description (optional)",
+    "descriptionPlaceholder": "Purpose, scope, notes",
+    "color": "Project color",
+    "members": "Members & roles",
+    "default": "Default",
+    "addMember": "Add member",
+    "defaultHelp": "\"Default\" = fallback assignee when auto-extraction can't map a name",
+    "clientContacts": "Client contacts (invite link)",
+    "clientNamePlaceholder": "Name",
+    "clientEmailPlaceholder": "Email",
+    "addClient": "Add",
+    "clientHelp": "On save, the invite link is copied to clipboard. (Email sending coming soon.)",
+    "channels": "Chat channels",
+    "channelsHelp": "Two channels are created on project creation. Adjust names and participants.",
+    "customerChannel": "Customer channel",
+    "internalChannel": "Internal channel",
+    "customerChannelDefault": "{{project}} Customer",
+    "internalChannelDefault": "{{project}} Internal",
+    "channelMembers": "Channel members",
+    "noMembers": "Add members first",
+    "memberStar": "★",
+    "projectFallback": "Project",
+    "cancel": "Cancel",
+    "creating": "Creating...",
+    "create": "Create project"
+  },
   "chat": {
     "noProject": "Start a conversation",
     "noProjectLine1": "Create a chat channel for real-time messaging,",
@@ -14,21 +118,58 @@
     "noProjectCta": "New conversation",
     "noChannel": "No conversation channel yet",
     "noChannelDesc": "Pick a channel on the left or create a new one.",
+    "noMessages": "Send the first message",
+    "expandLeft": "Expand left panel",
+    "expandRight": "Expand right panel",
+    "rename": "Click to rename",
+    "inProject": "Project",
     "banner": {
       "candidatesPending_one": "1 task candidate waiting for review — register or reject it",
       "candidatesPending_other": "{{count}} task candidates waiting for review — register or reject them",
       "review": "Review",
       "later": "Later"
     },
+    "draft": {
+      "title": "Cue draft pending",
+      "processing": "processing",
+      "sendEdited": "Send edited",
+      "cancel": "Cancel",
+      "send": "Send as is",
+      "edit": "Edit",
+      "reject": "Reject",
+      "sourceLabel": "Source"
+    },
     "input": {
       "cueWaiting_one": "1 Cue draft pending",
       "cueWaiting_other": "{{count}} Cue drafts pending",
-      "cueWaitingHint": "Click to jump to the message"
+      "cueWaitingHint": "Click to jump to the message",
+      "autoExtract": "Auto-extract tasks",
+      "extracting": "Extracting...",
+      "extractNow": "Extract tasks",
+      "attach": "Attach file",
+      "placeholder": "Type a message (Enter to send · Shift+Enter for newline)"
     }
   },
   "page": {
     "title": "Q talk",
     "subtitle": "Real-time customer conversations with Cue (AI teammate)",
+    "noBusiness": "No workspace selected.",
+    "loading": "Loading projects...",
+    "loadFailed": "Load failed: {{msg}}",
+    "projectCreated": "Project \"{{name}}\" created",
+    "createFailed": "Create failed: {{msg}}",
+    "loadFailedShort": "Failed to load project list",
+    "projectCreateFailed": "Failed to create project",
+    "chatCreated": "Chat \"{{title}}\" created",
+    "chatCreateFailed": "Failed to create chat",
+    "sendFailed": "Send failed: {{msg}}",
+    "renameFailed": "Channel rename failed: {{msg}}",
+    "autoExtractFailed": "Auto-extract toggle failed: {{msg}}",
+    "issueAddFailed": "Issue add failed: {{msg}}",
+    "issueEditFailed": "Issue edit failed: {{msg}}",
+    "issueDeleteFailed": "Issue delete failed: {{msg}}",
+    "noteAddFailed": "Note add failed: {{msg}}",
+    "taskStatusFailed": "Task status update failed: {{msg}}",
     "empty": {
       "title": "No conversations yet",
       "desc": "Invite customers and their conversations will appear here.",

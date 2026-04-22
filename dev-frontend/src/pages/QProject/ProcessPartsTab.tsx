@@ -1,6 +1,7 @@
 // 프로세스 파트 탭 — 계층 테이블 + 커스텀 상태/컬럼
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import styled from 'styled-components';
+import { useTranslation } from 'react-i18next';
 import { apiFetch } from '../../contexts/AuthContext';
 import PlanQSelect from '../../components/Common/PlanQSelect';
 
@@ -18,6 +19,7 @@ interface PartRow {
 type Props = { projectId: number };
 
 const ProcessPartsTab: React.FC<Props> = ({ projectId }) => {
+  const { t } = useTranslation('qproject');
   const [rows, setRows] = useState<PartRow[]>([]);
   const [statusOpts, setStatusOpts] = useState<StatusOpt[]>([]);
   const [customCols, setCustomCols] = useState<CustomCol[]>([]);
@@ -43,7 +45,7 @@ const ProcessPartsTab: React.FC<Props> = ({ projectId }) => {
 
   const addRow = async () => {
     const r = await apiFetch(`/api/projects/${projectId}/process-parts`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ depth1: '새 항목' }),
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ depth1: t('process.newRowName', '새 항목') }),
     });
     const j = await r.json();
     if (j.success) setRows(prev => [...prev, j.data]);
@@ -91,14 +93,14 @@ const ProcessPartsTab: React.FC<Props> = ({ projectId }) => {
     return m;
   }, [statusOpts]);
 
-  if (loading) return <Empty>로드 중...</Empty>;
+  if (loading) return <Empty>{t('process.loading', '로드 중...')}</Empty>;
 
   return (
     <Wrap>
       <Toolbar>
-        <ToolbarBtn type="button" onClick={addRow}>+ 행 추가</ToolbarBtn>
-        <ToolbarBtn type="button" onClick={() => setStatusEditOpen(true)}>⚙ 상태 관리</ToolbarBtn>
-        <ToolbarBtn type="button" onClick={() => setColEditOpen(true)}>⊞ 컬럼 관리</ToolbarBtn>
+        <ToolbarBtn type="button" onClick={addRow}>{t('process.addRow', '+ 행 추가')}</ToolbarBtn>
+        <ToolbarBtn type="button" onClick={() => setStatusEditOpen(true)}>{t('process.manageStatus', '⚙ 상태 관리')}</ToolbarBtn>
+        <ToolbarBtn type="button" onClick={() => setColEditOpen(true)}>{t('process.manageColumns', '⊞ 컬럼 관리')}</ToolbarBtn>
       </Toolbar>
 
       <TableWrap>
@@ -106,20 +108,20 @@ const ProcessPartsTab: React.FC<Props> = ({ projectId }) => {
           <thead>
             <tr>
               <Th $w={24}></Th>
-              <Th $w={140}>1depth</Th>
-              <Th $w={140}>2depth</Th>
-              <Th $w={140}>3depth</Th>
-              <Th>설명</Th>
-              <Th $w={110}>상태</Th>
-              <Th $w={160}>URL</Th>
-              <Th $w={140}>비고</Th>
+              <Th $w={140}>{t('process.col.depth1', '1depth')}</Th>
+              <Th $w={140}>{t('process.col.depth2', '2depth')}</Th>
+              <Th $w={140}>{t('process.col.depth3', '3depth')}</Th>
+              <Th>{t('process.col.description', '설명')}</Th>
+              <Th $w={110}>{t('process.col.status', '상태')}</Th>
+              <Th $w={160}>{t('process.col.url', 'URL')}</Th>
+              <Th $w={140}>{t('process.col.notes', '비고')}</Th>
               {customCols.map(c => <Th key={c.id} $w={120}>{c.label}</Th>)}
               <Th $w={40}></Th>
             </tr>
           </thead>
           <tbody>
             {rows.length === 0 && (
-              <tr><Td colSpan={8 + customCols.length + 1} style={{ textAlign: 'center', color: '#94A3B8', padding: 24 }}>행이 없습니다. [+ 행 추가]</Td></tr>
+              <tr><Td colSpan={8 + customCols.length + 1} style={{ textAlign: 'center', color: '#94A3B8', padding: 24 }}>{t('process.emptyRows', '행이 없습니다. [+ 행 추가]')}</Td></tr>
             )}
             {rows.map(row => (
               <tr key={row.id}
@@ -129,7 +131,7 @@ const ProcessPartsTab: React.FC<Props> = ({ projectId }) => {
                 onDrop={() => onDrop(row.id)}
                 style={{ cursor: 'grab' }}
               >
-                <Td><DragHandle title="드래그하여 순서 변경">⋮⋮</DragHandle></Td>
+                <Td><DragHandle title={t('process.dragTitle', '드래그하여 순서 변경') as string}>⋮⋮</DragHandle></Td>
                 <Td><CellInput defaultValue={row.depth1 || ''} onBlur={e => updateRow(row.id, { depth1: e.target.value || null })} /></Td>
                 <Td><CellInput defaultValue={row.depth2 || ''} onBlur={e => updateRow(row.id, { depth2: e.target.value || null })} /></Td>
                 <Td><CellInput defaultValue={row.depth3 || ''} onBlur={e => updateRow(row.id, { depth3: e.target.value || null })} /></Td>
@@ -193,6 +195,7 @@ const ProcessPartsTab: React.FC<Props> = ({ projectId }) => {
 const StatusEditor: React.FC<{
   projectId: number; opts: StatusOpt[]; onClose: () => void; onChange: (list: StatusOpt[]) => void;
 }> = ({ projectId, opts, onClose, onChange }) => {
+  const { t } = useTranslation('qproject');
   const [local, setLocal] = useState<StatusOpt[]>(opts);
   const [newKey, setNewKey] = useState('');
   const [newLabel, setNewLabel] = useState('');
@@ -225,7 +228,7 @@ const StatusEditor: React.FC<{
   return (
     <Backdrop onClick={onClose}>
       <Modal onClick={e => e.stopPropagation()}>
-        <ModalTitle>상태 관리</ModalTitle>
+        <ModalTitle>{t('process.statusEditor.title', '상태 관리')}</ModalTitle>
         <ModalList>
           {local.map(s => (
             <Row2 key={s.id}>
@@ -238,12 +241,12 @@ const StatusEditor: React.FC<{
         </ModalList>
         <AddRow>
           <ColorPicker type="color" value={newColor} onChange={e => setNewColor(e.target.value)} />
-          <RowInput value={newKey} onChange={e => setNewKey(e.target.value)} placeholder="key (영문 소문자)" />
-          <RowInput value={newLabel} onChange={e => setNewLabel(e.target.value)} placeholder="라벨" />
-          <AddBtn type="button" onClick={add}>+ 추가</AddBtn>
+          <RowInput value={newKey} onChange={e => setNewKey(e.target.value)} placeholder={t('process.statusEditor.keyPlaceholder', 'key (영문 소문자)') as string} />
+          <RowInput value={newLabel} onChange={e => setNewLabel(e.target.value)} placeholder={t('process.statusEditor.labelPlaceholder', '라벨') as string} />
+          <AddBtn type="button" onClick={add}>{t('process.statusEditor.add', '+ 추가')}</AddBtn>
         </AddRow>
         <ModalBtnRow>
-          <ModalPrimary type="button" onClick={onClose}>완료</ModalPrimary>
+          <ModalPrimary type="button" onClick={onClose}>{t('process.statusEditor.done', '완료')}</ModalPrimary>
         </ModalBtnRow>
       </Modal>
     </Backdrop>
@@ -256,6 +259,7 @@ const StatusEditor: React.FC<{
 const ColumnEditor: React.FC<{
   projectId: number; cols: CustomCol[]; onClose: () => void; onChange: (list: CustomCol[]) => void;
 }> = ({ projectId, cols, onClose, onChange }) => {
+  const { t } = useTranslation('qproject');
   const [local, setLocal] = useState<CustomCol[]>(cols);
   const [newKey, setNewKey] = useState('');
   const [newLabel, setNewLabel] = useState('');
@@ -282,7 +286,7 @@ const ColumnEditor: React.FC<{
   return (
     <Backdrop onClick={onClose}>
       <Modal onClick={e => e.stopPropagation()}>
-        <ModalTitle>사용자 정의 컬럼</ModalTitle>
+        <ModalTitle>{t('process.columnEditor.title', '사용자 정의 컬럼')}</ModalTitle>
         <ModalList>
           {local.map(c => (
             <Row2 key={c.id}>
@@ -292,23 +296,28 @@ const ColumnEditor: React.FC<{
           ))}
         </ModalList>
         <AddRow>
-          <RowInput value={newKey} onChange={e => setNewKey(e.target.value)} placeholder="key" />
-          <RowInput value={newLabel} onChange={e => setNewLabel(e.target.value)} placeholder="라벨" />
+          <RowInput value={newKey} onChange={e => setNewKey(e.target.value)} placeholder={t('process.columnEditor.keyPlaceholder', 'key') as string} />
+          <RowInput value={newLabel} onChange={e => setNewLabel(e.target.value)} placeholder={t('process.columnEditor.labelPlaceholder', '라벨') as string} />
           <div style={{ flex: '0 0 110px' }}>
             <PlanQSelect size="sm"
-              value={{ value: newType, label: { text: '텍스트', date: '날짜', number: '숫자', select: '선택' }[newType] }}
+              value={{ value: newType, label: {
+                text: t('process.columnEditor.type.text', '텍스트'),
+                date: t('process.columnEditor.type.date', '날짜'),
+                number: t('process.columnEditor.type.number', '숫자'),
+                select: t('process.columnEditor.type.select', '선택'),
+              }[newType] }}
               onChange={(v) => setNewType(((v as { value?: CustomCol['col_type'] } | null)?.value) || 'text')}
               options={[
-                { value: 'text', label: '텍스트' },
-                { value: 'date', label: '날짜' },
-                { value: 'number', label: '숫자' },
-                { value: 'select', label: '선택' },
+                { value: 'text', label: t('process.columnEditor.type.text', '텍스트') },
+                { value: 'date', label: t('process.columnEditor.type.date', '날짜') },
+                { value: 'number', label: t('process.columnEditor.type.number', '숫자') },
+                { value: 'select', label: t('process.columnEditor.type.select', '선택') },
               ]} />
           </div>
-          <AddBtn type="button" onClick={add}>+ 추가</AddBtn>
+          <AddBtn type="button" onClick={add}>{t('process.columnEditor.add', '+ 추가')}</AddBtn>
         </AddRow>
         <ModalBtnRow>
-          <ModalPrimary type="button" onClick={onClose}>완료</ModalPrimary>
+          <ModalPrimary type="button" onClick={onClose}>{t('process.columnEditor.done', '완료')}</ModalPrimary>
         </ModalBtnRow>
       </Modal>
     </Backdrop>

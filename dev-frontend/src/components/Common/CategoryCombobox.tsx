@@ -3,6 +3,7 @@
 // - 클릭/키보드로 선택
 // - 새 값 입력 후 blur/enter 시 그 값으로 저장 (자유 입력)
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import styled from 'styled-components';
 
 interface Props {
@@ -13,6 +14,7 @@ interface Props {
 }
 
 const CategoryCombobox: React.FC<Props> = ({ value, onChange, options, placeholder }) => {
+  const { t } = useTranslation('common');
   const [open, setOpen] = useState(false);
   const [highlightIdx, setHighlightIdx] = useState(-1);
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -98,10 +100,10 @@ const CategoryCombobox: React.FC<Props> = ({ value, onChange, options, placehold
           ))}
           {showCreateHint && (
             <CreateHint onMouseDown={e => { e.preventDefault(); pick(value.trim()); }}>
-              <ItemText>+ "{value.trim()}" 새로 만들기</ItemText>
+              <ItemText>{t('combobox.createNew', { value: value.trim() })}</ItemText>
             </CreateHint>
           )}
-          {showEmptyHint && <EmptyHint>해당하는 카테고리가 없습니다</EmptyHint>}
+          {showEmptyHint && <EmptyHint>{t('combobox.noCategory')}</EmptyHint>}
         </Menu>
       )}
     </Wrap>

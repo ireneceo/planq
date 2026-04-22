@@ -355,9 +355,11 @@ const LoginPage: React.FC = () => {
   useEffect(() => {
     if (!authLoading && isAuthenticated && user) {
       const from = (location.state as { from?: { pathname: string } })?.from?.pathname;
-      const isValidPath = from && from.startsWith('/') && !from.startsWith('//') && !from.includes('javascript:');
-      if (isValidPath && from !== '/login' && from !== '/register') {
-        navigate(from, { replace: true });
+      const redirectQuery = new URLSearchParams(location.search).get('redirect');
+      const target = redirectQuery || from;
+      const isValidPath = target && target.startsWith('/') && !target.startsWith('//') && !target.includes('javascript:');
+      if (isValidPath && target !== '/login' && target !== '/register') {
+        navigate(target, { replace: true });
       } else {
         navigate('/dashboard', { replace: true });
       }

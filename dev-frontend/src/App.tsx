@@ -19,6 +19,7 @@ import QFilePage from './pages/QFile/QFilePage';
 import AdminBusinessesPage from './pages/Admin/AdminBusinessesPage';
 import PrivacyPolicy from './pages/Legal/PrivacyPolicy';
 import TermsOfService from './pages/Legal/TermsOfService';
+import ComingSoonPage from './pages/ComingSoon/ComingSoonPage';
 import './App.css';
 
 // Placeholder pages - will be replaced per phase
@@ -161,9 +162,45 @@ function App() {
           </ProtectedRoute>
         } />
 
-        <Route path="/billing" element={
-          <ProtectedRoute requiredRole={['business_owner']}>
-            <MainLayout><PlaceholderPage title="Q bill" /></MainLayout>
+        {/* 기존 /billing URL 은 /bills 로 흡수 (북마크 호환) */}
+        <Route path="/billing" element={<Navigate to="/bills" replace />} />
+
+        {/* Q Bill (견적·청구·결제·세금계산서 통합) */}
+        <Route path="/bills" element={
+          <ProtectedRoute requiredRole={['business_owner', 'business_member']}>
+            <MainLayout><ComingSoonPage titleKey="nav.qbill" titleFallback="Q Bill" descKey="comingSoon.qbillDesc" descFallback="견적·청구·결제·세금계산서를 한 화면에서. 개발 중입니다." /></MainLayout>
+          </ProtectedRoute>
+        } />
+
+        {/* 📊 통계·분석 */}
+        <Route path="/stats/overview" element={
+          <ProtectedRoute requiredRole={['business_owner', 'business_member']}>
+            <MainLayout><ComingSoonPage titleKey="nav.statsOverview" titleFallback="개요" descKey="comingSoon.statsDesc" /></MainLayout>
+          </ProtectedRoute>
+        } />
+        <Route path="/stats/tasks" element={
+          <ProtectedRoute requiredRole={['business_owner', 'business_member']}>
+            <MainLayout><ComingSoonPage titleKey="nav.statsTaskTime" titleFallback="업무·시간" descKey="comingSoon.statsDesc" /></MainLayout>
+          </ProtectedRoute>
+        } />
+        <Route path="/stats/profit" element={
+          <ProtectedRoute requiredRole={['business_owner', 'business_member']}>
+            <MainLayout><ComingSoonPage titleKey="nav.statsProfit" titleFallback="프로젝트 수익성" descKey="comingSoon.statsDesc" /></MainLayout>
+          </ProtectedRoute>
+        } />
+        <Route path="/stats/team" element={
+          <ProtectedRoute requiredRole={['business_owner', 'business_member']}>
+            <MainLayout><ComingSoonPage titleKey="nav.statsTeam" titleFallback="팀 생산성" descKey="comingSoon.statsDesc" /></MainLayout>
+          </ProtectedRoute>
+        } />
+        <Route path="/stats/finance" element={
+          <ProtectedRoute requiredRole={['business_owner', 'business_member']}>
+            <MainLayout><ComingSoonPage titleKey="nav.statsFinance" titleFallback="비용·재무" descKey="comingSoon.statsDesc" /></MainLayout>
+          </ProtectedRoute>
+        } />
+        <Route path="/stats/reports" element={
+          <ProtectedRoute requiredRole={['business_owner', 'business_member']}>
+            <MainLayout><ComingSoonPage titleKey="nav.statsReports" titleFallback="보고서" descKey="comingSoon.statsDesc" /></MainLayout>
           </ProtectedRoute>
         } />
 

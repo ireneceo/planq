@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
+import { useTranslation } from 'react-i18next';
 import styled from 'styled-components';
 
 interface CalendarPickerProps {
@@ -38,6 +39,7 @@ const getMonthLabel = (y: number, m: number) => `${y}년 ${m + 1}월`;
 const CalendarPicker: React.FC<CalendarPickerProps> = ({
   startDate, endDate, onRangeSelect, onClose, isOpen, singleMode = false, anchorRef,
 }) => {
+  const { t } = useTranslation('common');
   const [pos, setPos] = useState<{top:number;left:number}>({top:-9999,left:-9999});
   useEffect(() => {
     if (!isOpen || !anchorRef?.current) return;
@@ -199,10 +201,10 @@ const CalendarPicker: React.FC<CalendarPickerProps> = ({
       <Layout>
         {!singleMode && (
           <Sidebar>
-            <SidebarBtn onClick={() => handlePreset('today')}>오늘</SidebarBtn>
-            <SidebarBtn onClick={() => handlePreset('this_week')}>이번 주</SidebarBtn>
-            <SidebarBtn onClick={() => handlePreset('this_month')}>이번 달</SidebarBtn>
-            <SidebarBtn onClick={handleClear} $danger>비우기</SidebarBtn>
+            <SidebarBtn onClick={() => handlePreset('today')}>{t('calendar.today')}</SidebarBtn>
+            <SidebarBtn onClick={() => handlePreset('this_week')}>{t('calendar.thisWeek')}</SidebarBtn>
+            <SidebarBtn onClick={() => handlePreset('this_month')}>{t('calendar.thisMonth')}</SidebarBtn>
+            <SidebarBtn onClick={handleClear} $danger>{t('calendar.clear')}</SidebarBtn>
           </Sidebar>
         )}
         <CalSection>
@@ -215,7 +217,7 @@ const CalendarPicker: React.FC<CalendarPickerProps> = ({
             {!singleMode && <SecondMonth>{renderMonth(nextYear, nextMonth)}</SecondMonth>}
           </CalBody>
           {singleMode && (
-            <SingleFooter><SidebarBtn onClick={handleClear} $danger>비우기</SidebarBtn></SingleFooter>
+            <SingleFooter><SidebarBtn onClick={handleClear} $danger>{t('calendar.clear')}</SidebarBtn></SingleFooter>
           )}
         </CalSection>
       </Layout>

@@ -164,14 +164,14 @@ const RightPanel: React.FC<Props> = ({
                 <CandidateMeta>
                   {c.guessed_assignee && (
                     <MetaItem>
-                      <MetaLabel>담당</MetaLabel>
+                      <MetaLabel>{t('right.candidates.metaAssignee', '담당')}</MetaLabel>
                       <MetaValue>{c.guessed_assignee.name}</MetaValue>
                       {c.guessed_role && <RoleTag>{c.guessed_role}</RoleTag>}
                     </MetaItem>
                   )}
                   {c.guessed_due_date && (
                     <MetaItem>
-                      <MetaLabel>마감</MetaLabel>
+                      <MetaLabel>{t('right.candidates.metaDue', '마감')}</MetaLabel>
                       <MetaValue>{c.guessed_due_date}</MetaValue>
                     </MetaItem>
                   )}
@@ -234,7 +234,7 @@ const RightPanel: React.FC<Props> = ({
                     if (e.key === 'Enter') { e.preventDefault(); submitAddIssue(); }
                     if (e.key === 'Escape') { setShowAddIssue(false); setNewIssueText(''); }
                   }}
-                  placeholder="새 이슈 내용 (Enter 저장)"
+                  placeholder={t('right.issues.newPlaceholder', '새 이슈 내용 (Enter 저장)') as string}
                 />
               )}
               {(showAllIssues ? projectIssues : projectIssues.slice(0, 3)).map((i) => (
@@ -263,7 +263,7 @@ const RightPanel: React.FC<Props> = ({
                     <span>·</span>
                     <span>{formatTimeAgo(i.updated_at)}</span>
                     {!isClient && editingIssueId !== i.id && (
-                      <IssueDeleteBtn onClick={() => onDeleteIssue(i.id)}>삭제</IssueDeleteBtn>
+                      <IssueDeleteBtn onClick={() => onDeleteIssue(i.id)}>{t('right.issues.delete', '삭제')}</IssueDeleteBtn>
                     )}
                   </IssueMeta>
                 </IssueItem>
@@ -311,7 +311,7 @@ const RightPanel: React.FC<Props> = ({
                         {TASK_STATUS_LABEL[task.status]}
                       </StatusPill>
                       {task.due_date && <TaskDue>{task.due_date}</TaskDue>}
-                      {task.recurrence && <RecurIcon title="반복 업무">↻</RecurIcon>}
+                      {task.recurrence && <RecurIcon title={t('right.myTasks.recurTitle', '반복 업무') as string}>↻</RecurIcon>}
                     </TaskMeta>
                   </TaskBody>
                 </TaskItem>
@@ -354,7 +354,7 @@ const RightPanel: React.FC<Props> = ({
                   </ProjectTaskRight>
                 </ProjectTaskRow>
               ))}
-              {projectTasks.length === 0 && <EmptyRow>업무가 없습니다</EmptyRow>}
+              {projectTasks.length === 0 && <EmptyRow>{t('right.projectTasks.empty', '업무가 없습니다')}</EmptyRow>}
             </SectionBody>
           )}
         </Section>
@@ -393,8 +393,8 @@ const RightPanel: React.FC<Props> = ({
                 />
                 {!isClient && (
                   <NoteVisToggle>
-                    <NoteVisOption $active={newNoteVis === 'personal'} onClick={() => setNewNoteVis('personal')}>개인</NoteVisOption>
-                    <NoteVisOption $active={newNoteVis === 'internal'} onClick={() => setNewNoteVis('internal')}>내부</NoteVisOption>
+                    <NoteVisOption $active={newNoteVis === 'personal'} onClick={() => setNewNoteVis('personal')}>{t('right.notes.personal', '개인')}</NoteVisOption>
+                    <NoteVisOption $active={newNoteVis === 'internal'} onClick={() => setNewNoteVis('internal')}>{t('right.notes.internal', '내부')}</NoteVisOption>
                   </NoteVisToggle>
                 )}
                 <NoteSendBtn onClick={submitNote} disabled={!newNoteText.trim()}>

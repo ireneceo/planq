@@ -13,6 +13,97 @@
     "company": "Company",
     "email": "Email",
     "phone": "Phone",
-    "invitedAt": "Invited"
+    "invitedAt": "Invited",
+    "status": "Status",
+    "projects": "Projects"
+  },
+  "filter": {
+    "active": "Active",
+    "all": "All",
+    "archived": "Inactive"
+  },
+  "status": {
+    "active": "Active",
+    "archived": "Inactive",
+    "invited": "Invited"
+  },
+  "switch": {
+    "tipDeactivate": "Active — click to deactivate",
+    "tipActivate": "Inactive — click to activate",
+    "labelActive": "Active",
+    "labelArchived": "Inactive"
+  },
+  "drawer": {
+    "back": "List",
+    "close": "Close"
+  },
+  "drawerHead": {
+    "defaultName": "Client"
+  },
+  "section": {
+    "contact": "Contact",
+    "contactEmail": "Email",
+    "contactPhone": "Phone",
+    "contactHelper": "Email and phone can be edited by the client from their profile.",
+    "notes": "Notes",
+    "notesPlaceholder": "Internal notes about this client — auto-saved",
+    "linkedProjects": "Linked Projects",
+    "linkedProjectsEmpty": "No linked projects",
+    "linkedConversations": "Linked Conversations",
+    "linkedConversationsEmpty": "Not in any conversations",
+    "history": "History",
+    "historyLoading": "Loading…",
+    "historyEmpty": "No records",
+    "historyToggleOpen": "Open",
+    "historyToggleClose": "Close",
+    "danger": "Danger Zone",
+    "dangerDelete": "Delete Client Permanently",
+    "dangerHelper": "Permanently removes from this workspace. Disconnects from all linked projects."
+  },
+  "projectStatus": {
+    "active": "Active",
+    "paused": "Paused",
+    "completed": "Completed"
+  },
+  "channelType": {
+    "customer": "Customer",
+    "internal": "Internal"
+  },
+  "typeBadge": {
+    "ongoing": "Subscription"
+  },
+  "inviteModal": {
+    "title": "Invite Client",
+    "name": "Name",
+    "email": "Email",
+    "company": "Company",
+    "companyPlaceholder": "Optional",
+    "namePlaceholder": "e.g. Jane Doe",
+    "helper": "If the email matches an existing user, they'll be added as a client to this workspace. Otherwise a new account will be auto-created and an invite sent (later).",
+    "cancel": "Cancel",
+    "submitting": "Inviting…",
+    "submit": "Invite",
+    "errRequired": "Name and email are required",
+    "errFailed": "Invite failed"
+  },
+  "deleteModal": {
+    "title": "Confirm client deletion",
+    "body": "will be removed from this workspace permanently.",
+    "impactWarn": "Disconnects from <1>{{count}} linked project(s)</1>:",
+    "noImpact": "No other project links — disappears from this workspace after deletion.",
+    "caveat": "The user account itself (login) is preserved. You can re-invite anytime.",
+    "cancel": "Cancel",
+    "deleting": "Deleting…",
+    "delete": "Delete",
+    "failed": "Deletion failed"
+  },
+  "history": {
+    "invited": "Invited",
+    "activated": "Activated",
+    "archived": "Archived",
+    "updated": "Updated",
+    "deleted": "Deleted",
+    "projectAdded": "Project linked",
+    "projectRemoved": "Project unlinked"
   }
 }

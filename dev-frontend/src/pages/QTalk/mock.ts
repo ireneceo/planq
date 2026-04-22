@@ -43,6 +43,7 @@ export interface MockMessage {
     processing_by?: { user_id: number; name: string } | null;
   };
   ai_sources?: { doc_id: number; title: string; section: string; snippet: string }[];
+  attachments?: { id: number; file_name: string; file_size: number; mime_type?: string | null }[];
 }
 
 export interface MockConversation {

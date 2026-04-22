@@ -19,11 +19,23 @@ function newOAuth2Client() {
 
 /**
  * OAuth 동의 URL 생성
- * state 에 { businessId, userId } 를 인코딩해서 callback 에서 복원
+ * state 에 { businessId, userId, timestamp } + HMAC 서명 → CSRF 방어
+ * 유효기간: 10분
  */
+const STATE_TTL_MS = 10 * 60 * 1000;
+
+function _hmacState(payloadB64) {
+  const crypto = require('crypto');
+  const secret = process.env.JWT_SECRET;
+  if (!secret) throw new Error('JWT_SECRET not configured');
+  return crypto.createHmac('sha256', secret).update(payloadB64).digest('base64url');
+}
+
 function buildAuthUrl(businessId, userId) {
   const client = newOAuth2Client();
-  const state = Buffer.from(JSON.stringify({ b: businessId, u: userId, t: Date.now() })).toString('base64url');
+  const payload = Buffer.from(JSON.stringify({ b: businessId, u: userId, t: Date.now() })).toString('base64url');
+  const sig = _hmacState(payload);
+  const state = `${payload}.${sig}`;
   return client.generateAuthUrl({
     access_type: 'offline',     // refresh_token 받기 위해 필수
     prompt: 'consent',          // refresh_token 매번 받도록 강제 (재연동 시)
@@ -35,7 +47,17 @@ function buildAuthUrl(businessId, userId) {
 
 function parseState(state) {
   try {
-    const decoded = JSON.parse(Buffer.from(state, 'base64url').toString('utf8'));
+    if (typeof state !== 'string' || !state.includes('.')) return null;
+    const [payload, sig] = state.split('.', 2);
+    // HMAC 검증
+    const crypto = require('crypto');
+    const expected = _hmacState(payload);
+    const a = Buffer.from(sig);
+    const b = Buffer.from(expected);
+    if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null;
+    const decoded = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
+    // 만료 체크
+    if (!decoded.t || Date.now() - Number(decoded.t) > STATE_TTL_MS) return null;
     return { businessId: decoded.b, userId: decoded.u, ts: decoded.t };
   } catch {
     return null;
@@ -181,6 +203,75 @@ async function ensureProjectFolder(drive, token, project) {
   return folder.id;
 }
 
+/**
+ * Q Note 루트 폴더 확보 — BusinessCloudToken.qnote_folder_id 에 캐시
+ * 없으면 root_folder 아래에 "Q Note" 폴더 생성
+ */
+async function ensureQnoteRootFolder(drive, token) {
+  if (token.qnote_folder_id) {
+    try {
+      const r = await drive.files.get({ fileId: token.qnote_folder_id, fields: 'id, trashed' });
+      if (r.data && !r.data.trashed) return token.qnote_folder_id;
+    } catch { /* 재생성 */ }
+  }
+  const folder = await createFolder(drive, 'Q Note', token.root_folder_id);
+  await token.update({ qnote_folder_id: folder.id });
+  return folder.id;
+}
+
+/**
+ * Q Note 세션별 하위 폴더 확보 (세션명 변경 추적은 별도 — 최초 이름 기준)
+ */
+async function ensureQnoteSessionFolder(drive, token, { sessionId, sessionTitle, sessionDate }) {
+  const qnoteRoot = await ensureQnoteRootFolder(drive, token);
+  // 간단 검색: 부모 아래에 같은 이름의 폴더가 있으면 재사용
+  const folderName = `${sessionDate ? sessionDate.slice(0, 10) + ' ' : ''}${sessionTitle || `세션 ${sessionId}`}`.slice(0, 150);
+  try {
+    const q = `'${qnoteRoot}' in parents and mimeType='application/vnd.google-apps.folder' and name='${folderName.replace(/'/g, "\\'")}' and trashed=false`;
+    const list = await drive.files.list({ q, fields: 'files(id, name)', pageSize: 1 });
+    if (list.data.files && list.data.files.length > 0) return list.data.files[0].id;
+  } catch { /* 권한/쿼리 실패 시 새로 만들기 */ }
+  const folder = await createFolder(drive, folderName, qnoteRoot);
+  return folder.id;
+}
+
+/**
+ * Drive watch 채널 시작 — Google Drive changes.watch
+ * 파일 변경 이벤트를 지정된 webhook URL 로 푸시
+ */
+async function startChangesWatch(drive, { channelId, webhookUrl, tokenHint, expirationMs }) {
+  // 먼저 현재 startPageToken 획득
+  const startRes = await drive.changes.getStartPageToken();
+  const startPageToken = startRes.data.startPageToken;
+  const expiration = expirationMs || (Date.now() + 7 * 24 * 60 * 60 * 1000); // 7일 기본
+  const watchRes = await drive.changes.watch({
+    pageToken: startPageToken,
+    requestBody: {
+      id: channelId,
+      type: 'web_hook',
+      address: webhookUrl,
+      token: tokenHint,
+      expiration: String(expiration),
+    },
+  });
+  return { channel: watchRes.data, startPageToken };
+}
+
+/**
+ * watch 채널 중지
+ */
+async function stopChannel(drive, { channelId, resourceId }) {
+  await drive.channels.stop({ requestBody: { id: channelId, resourceId } });
+}
+
+/**
+ * 변경 목록 조회 (webhook 수신 후 호출)
+ */
+async function listChanges(drive, pageToken) {
+  const res = await drive.changes.list({ pageToken, fields: 'nextPageToken, newStartPageToken, changes(fileId, removed, file(id, name, mimeType, modifiedTime, trashed))' });
+  return res.data;
+}
+
 module.exports = {
   isConfigured,
   SCOPES,
@@ -194,5 +285,10 @@ module.exports = {
   deleteFile,
   renameFile,
   getTokenForBusiness,
-  ensureProjectFolder
+  ensureProjectFolder,
+  ensureQnoteRootFolder,
+  ensureQnoteSessionFolder,
+  startChangesWatch,
+  stopChannel,
+  listChanges
 };

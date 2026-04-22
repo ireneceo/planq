@@ -289,15 +289,70 @@ router.put('/:businessId/settings', authenticateToken, checkBusinessAccess, asyn
   }
 });
 
+// ─── 멤버 초대 (이메일 기반) ───
+// owner 만 초대 가능. 초대 토큰 발급 + 이메일 발송. accept 시 user_id/joined_at 채움.
+router.post('/:businessId/members/invite', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+  try {
+    const businessId = Number(req.params.businessId);
+    const myMember = await BusinessMember.findOne({ where: { business_id: businessId, user_id: req.user.id } });
+    const isPlatformAdmin = req.user.platform_role === 'platform_admin';
+    if (!isPlatformAdmin && (!myMember || myMember.role !== 'owner')) {
+      return errorResponse(res, 'forbidden', 403);
+    }
+    const { email, default_role } = req.body || {};
+    if (!email?.trim()) return errorResponse(res, 'email is required', 400);
+
+    const crypto = require('crypto');
+    const existingUser = await User.findOne({ where: { email: email.trim() } });
+
+    // 이미 멤버인지 확인
+    if (existingUser) {
+      const dup = await BusinessMember.findOne({ where: { business_id: businessId, user_id: existingUser.id } });
+      if (dup) return errorResponse(res, 'already_member', 409);
+    }
+    const dupByEmail = await BusinessMember.findOne({ where: { business_id: businessId, invite_email: email.trim() } });
+    if (dupByEmail) return errorResponse(res, 'already_invited', 409);
+
+    const token = crypto.randomBytes(24).toString('hex');
+    const created = await BusinessMember.create({
+      business_id: businessId,
+      user_id: existingUser?.id || null,
+      role: 'member',
+      default_role: default_role ? String(default_role).trim().slice(0, 50) : null,
+      invited_by: req.user.id,
+      invited_at: new Date(),
+      invite_token: token,
+      invite_email: email.trim(),
+    });
+
+    // 초대 이메일 발송
+    try {
+      const { sendInviteEmail } = require('../services/emailService');
+      const biz = await Business.findByPk(businessId, { attributes: ['brand_name', 'name'] });
+      const inviter = await User.findByPk(req.user.id, { attributes: ['name'] });
+      await sendInviteEmail({
+        to: email.trim(),
+        workspaceName: biz?.brand_name || biz?.name || 'PlanQ',
+        inviterName: inviter?.name || '',
+        kind: 'workspace_member',
+        token,
+      });
+    } catch (e) { console.warn('member invite email failed:', e.message); }
+
+    successResponse(res, created, 'Member invited', 201);
+  } catch (error) { next(error); }
+});
+
 // ─── 멤버 목록 (Cue 포함) ───
 router.get('/:businessId/members', authenticateToken, checkBusinessAccess, async (req, res, next) => {
   try {
     const members = await BusinessMember.findAll({
-      where: { business_id: req.params.businessId },
+      where: { business_id: req.params.businessId, removed_at: null },
       include: [{
         model: User,
         as: 'user',
-        attributes: ['id', 'name', 'email', 'avatar_url', 'is_ai', 'last_login_at']
+        attributes: ['id', 'name', 'email', 'avatar_url', 'is_ai', 'last_login_at',
+          'phone', 'job_title', 'organization', 'bio', 'expertise', 'timezone']
       }],
       order: [
         ['role', 'ASC'], // 'ai' → 'member' → 'owner' (역순정렬은 수동 처리)
@@ -425,6 +480,86 @@ router.patch('/:id/members/:memberId/default-role', authenticateToken, async (re
     await member.update({ default_role: default_role ? String(default_role).trim().slice(0, 50) : null });
     return successResponse(res, member.toJSON());
   } catch (err) { next(err); }
+});
+
+// ─── PATCH /api/businesses/:id/members/:memberId/role — 역할 변경 (owner ↔ member) ───
+router.patch('/:id/members/:memberId/role', authenticateToken, async (req, res, next) => {
+  const { sequelize } = require('../config/database');
+  const t = await sequelize.transaction();
+  try {
+    const businessId = Number(req.params.id);
+    const isPlatformAdmin = req.user.platform_role === 'platform_admin';
+    const reqMember = await BusinessMember.findOne({
+      where: { business_id: businessId, user_id: req.user.id }, transaction: t,
+    });
+    if (!isPlatformAdmin && (!reqMember || reqMember.role !== 'owner')) {
+      await t.rollback();
+      return errorResponse(res, 'admin_only', 403);
+    }
+    const member = await BusinessMember.findOne({
+      where: { id: req.params.memberId, business_id: businessId },
+      transaction: t, lock: t.LOCK.UPDATE,
+    });
+    if (!member) { await t.rollback(); return errorResponse(res, 'member_not_found', 404); }
+    if (member.role === 'ai') { await t.rollback(); return errorResponse(res, 'ai_role_locked', 400); }
+
+    const nextRole = req.body?.role;
+    if (!['owner', 'member'].includes(nextRole)) { await t.rollback(); return errorResponse(res, 'invalid_role', 400); }
+    if (member.role === nextRole) { await t.rollback(); return successResponse(res, member.toJSON()); }
+
+    // 마지막 오너 강등 방지 (FOR UPDATE 잠금으로 race 방어)
+    if (member.role === 'owner' && nextRole === 'member') {
+      const otherOwners = await BusinessMember.count({
+        where: { business_id: businessId, role: 'owner', id: { [require('sequelize').Op.ne]: member.id } },
+        transaction: t, lock: t.LOCK.UPDATE,
+      });
+      if (otherOwners === 0) { await t.rollback(); return errorResponse(res, 'last_owner_protection', 409); }
+    }
+
+    await member.update({ role: nextRole }, { transaction: t });
+    await t.commit();
+    return successResponse(res, member.toJSON());
+  } catch (err) { await t.rollback().catch(() => {}); next(err); }
+});
+
+// ─── DELETE /api/businesses/:id/members/:memberId — 멤버 제거 (soft) ───
+// 오너 또는 본인 자신이 나갈 때 허용. 마지막 오너 제거 금지.
+router.delete('/:id/members/:memberId', authenticateToken, async (req, res, next) => {
+  const { sequelize } = require('../config/database');
+  const t = await sequelize.transaction();
+  try {
+    const businessId = Number(req.params.id);
+    const isPlatformAdmin = req.user.platform_role === 'platform_admin';
+    const member = await BusinessMember.findOne({
+      where: { id: req.params.memberId, business_id: businessId },
+      transaction: t, lock: t.LOCK.UPDATE,
+    });
+    if (!member) { await t.rollback(); return errorResponse(res, 'member_not_found', 404); }
+    if (member.role === 'ai') { await t.rollback(); return errorResponse(res, 'ai_role_locked', 400); }
+
+    const reqMember = await BusinessMember.findOne({
+      where: { business_id: businessId, user_id: req.user.id }, transaction: t,
+    });
+    const isOwner = reqMember && reqMember.role === 'owner';
+    const isSelf = member.user_id && member.user_id === req.user.id;
+    if (!isPlatformAdmin && !isOwner && !isSelf) {
+      await t.rollback();
+      return errorResponse(res, 'forbidden', 403);
+    }
+
+    // 마지막 오너 제거 금지 (FOR UPDATE 로 동시 강등/제거 race 방어)
+    if (member.role === 'owner') {
+      const otherOwners = await BusinessMember.count({
+        where: { business_id: businessId, role: 'owner', id: { [require('sequelize').Op.ne]: member.id } },
+        transaction: t, lock: t.LOCK.UPDATE,
+      });
+      if (otherOwners === 0) { await t.rollback(); return errorResponse(res, 'last_owner_protection', 409); }
+    }
+
+    await member.update({ removed_at: new Date(), removed_by: req.user.id }, { transaction: t });
+    await t.commit();
+    return successResponse(res, { id: member.id, removed: true });
+  } catch (err) { await t.rollback().catch(() => {}); next(err); }
 });
 
 module.exports = router;

@@ -2,7 +2,7 @@
 // 마스터-디테일 드로어 패턴 (ClientsPage 와 동일)
 // URL 싱크: ?workspace=:id
 // 재클릭 토글 / body scroll lock / focus trap / Esc 스택
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';
@@ -11,6 +11,7 @@ import { useEscapeStack } from '../../hooks/useEscapeStack';
 import PageShell from '../../components/Layout/PageShell';
 import SearchBox from '../../components/Common/SearchBox';
 import DetailDrawer from '../../components/Common/DetailDrawer';
+import CalendarPicker from '../../components/Common/CalendarPicker';
 import {
   fetchAdminBusinesses,
   fetchAdminBusinessDetail,
@@ -71,6 +72,12 @@ export default function AdminBusinessesPage() {
   const [trialModal, setTrialModal] = useState<{ open: boolean; date: string; submitting: boolean; error: string | null }>(
     { open: false, date: '', submitting: false, error: null }
   );
+
+  // 날짜 선택기 상태
+  const [planExpiresPickerOpen, setPlanExpiresPickerOpen] = useState(false);
+  const [trialDatePickerOpen, setTrialDatePickerOpen] = useState(false);
+  const planExpiresAnchorRef = useRef<HTMLButtonElement>(null);
+  const trialDateAnchorRef = useRef<HTMLButtonElement>(null);
 
   const loadList = useCallback(async () => {
     setLoading(true); setError(null);
@@ -387,7 +394,7 @@ export default function AdminBusinessesPage() {
       {/* 플랜 변경 모달 */}
       {planModal.open && detail && (
         <ModalOverlay onMouseDown={e => { if (e.target === e.currentTarget) setPlanModal(p => ({ ...p, open: false })); }}>
-          <Dialog>
+          <Dialog role="dialog" aria-modal="true" aria-label={t('modal.changePlan.title') as string}>
             <DTitle>{t('modal.changePlan.title')}</DTitle>
             <DBody>
               <DDesc>{t('modal.changePlan.desc')}</DDesc>
@@ -419,11 +426,19 @@ export default function AdminBusinessesPage() {
 
               <Field>
                 <FLabel>{t('modal.changePlan.expiresLabel')}</FLabel>
-                <DateInput
-                  type="date"
-                  value={planModal.expires}
-                  onChange={e => setPlanModal(p => ({ ...p, expires: e.target.value, error: null }))}
-                />
+                <DateTrigger ref={planExpiresAnchorRef} type="button" onClick={() => setPlanExpiresPickerOpen(v => !v)}>
+                  {planModal.expires || <DatePH>{t('modal.datePlaceholder', '날짜 선택') as string}</DatePH>}
+                </DateTrigger>
+                {planExpiresPickerOpen && (
+                  <CalendarPicker
+                    isOpen anchorRef={planExpiresAnchorRef}
+                    singleMode
+                    startDate={planModal.expires}
+                    endDate={planModal.expires}
+                    onRangeSelect={(s) => setPlanModal(p => ({ ...p, expires: s || '', error: null }))}
+                    onClose={() => setPlanExpiresPickerOpen(false)}
+                  />
+                )}
                 <FHelp>{t('modal.changePlan.expiresHelp')}</FHelp>
               </Field>
 
@@ -454,7 +469,7 @@ export default function AdminBusinessesPage() {
       {/* 체험 모달 */}
       {trialModal.open && detail && (
         <ModalOverlay onMouseDown={e => { if (e.target === e.currentTarget) setTrialModal(p => ({ ...p, open: false })); }}>
-          <Dialog>
+          <Dialog role="dialog" aria-modal="true" aria-label={t('modal.trial.title') as string}>
             <DTitle>{t('modal.trial.title')}</DTitle>
             <DBody>
               <DDesc>{t('modal.trial.desc')}</DDesc>
@@ -464,11 +479,19 @@ export default function AdminBusinessesPage() {
               </Field>
               <Field>
                 <FLabel>{t('modal.trial.newDate')}</FLabel>
-                <DateInput
-                  type="date"
-                  value={trialModal.date}
-                  onChange={e => setTrialModal(tt => ({ ...tt, date: e.target.value, error: null }))}
-                />
+                <DateTrigger ref={trialDateAnchorRef} type="button" onClick={() => setTrialDatePickerOpen(v => !v)}>
+                  {trialModal.date || <DatePH>{t('modal.datePlaceholder', '날짜 선택') as string}</DatePH>}
+                </DateTrigger>
+                {trialDatePickerOpen && (
+                  <CalendarPicker
+                    isOpen anchorRef={trialDateAnchorRef}
+                    singleMode
+                    startDate={trialModal.date}
+                    endDate={trialModal.date}
+                    onRangeSelect={(s) => setTrialModal(tt => ({ ...tt, date: s || '', error: null }))}
+                    onClose={() => setTrialDatePickerOpen(false)}
+                  />
+                )}
               </Field>
 
               {trialModal.error && <DError>{trialModal.error}</DError>}
@@ -657,11 +680,14 @@ const PlanOption = styled.button<{ $active: boolean }>`
   &:focus-visible { outline: 2px solid #0D9488; outline-offset: 2px; }
 `;
 
-const DateInput = styled.input`
+const DateTrigger = styled.button`
   height: 34px; padding: 0 10px; border: 1px solid #CBD5E1; border-radius: 8px;
-  font-size: 13px; color: #0F172A; font-family: inherit;
+  font-size: 13px; color: #0F172A; font-family: inherit; background: #fff;
+  text-align: left; cursor: pointer; display: inline-flex; align-items: center;
+  &:hover { border-color: #94A3B8; }
   &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 2px rgba(20,184,166,0.15); }
 `;
+const DatePH = styled.span`color: #94A3B8;`;
 const TextArea = styled.textarea`
   padding: 8px 10px; border: 1px solid #CBD5E1; border-radius: 8px;
   font-size: 13px; color: #0F172A; font-family: inherit; resize: vertical; min-height: 60px;

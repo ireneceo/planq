@@ -112,6 +112,10 @@ router.get('/:businessId/:id', authenticateToken, checkBusinessAccess, async (re
 // Update invoice status
 router.patch('/:businessId/:id/status', authenticateToken, checkBusinessAccess, async (req, res, next) => {
   try {
+    // 인보이스 상태 변경(특히 'paid')은 owner 또는 platform_admin 만
+    if (req.businessRole !== 'owner' && req.user.platform_role !== 'platform_admin') {
+      return errorResponse(res, 'owner_only', 403);
+    }
     const invoice = await Invoice.findOne({
       where: { id: req.params.id, business_id: req.params.businessId }
     });

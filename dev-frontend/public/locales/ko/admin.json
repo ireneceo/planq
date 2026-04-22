@@ -62,6 +62,7 @@
     "saved": "저장됨"
   },
   "modal": {
+    "datePlaceholder": "날짜 선택",
     "changePlan": {
       "title": "플랜 수동 변경",
       "desc": "결제 연동 전 임시 조정입니다. 변경 즉시 반영되며 이력이 기록됩니다.",

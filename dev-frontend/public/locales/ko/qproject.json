@@ -3,11 +3,13 @@
     "title": "Q project"
   },
   "view": {
+    "split": "기본",
     "list": "리스트",
     "timeline": "타임라인",
-    "calendar": "일정"
+    "calendar": "캘린더"
   },
   "loading": "불러오는 중…",
+  "backToList": "목록",
   "empty": {
     "title": "프로젝트가 아직 없어요",
     "desc": "Q talk 에서 프로젝트를 만들면 여기에 표시됩니다",
@@ -22,12 +24,95 @@
     "tasks": "업무",
     "overdue": "지연",
     "period": "기간",
-    "progress": "진행률 {{pct}}%"
+    "progress": "진행률 {{pct}}%",
+    "total": "전체",
+    "inProgress": "진행",
+    "completed": "완료"
+  },
+  "filter": {
+    "closed": "종료 포함",
+    "toggleClosed": "종료된 프로젝트 표시"
+  },
+  "card": {
+    "menu": "프로젝트 메뉴",
+    "resume": "진행 중으로 전환",
+    "pause": "일시 중지",
+    "close": "프로젝트 종료",
+    "closeConfirmTitle": "프로젝트를 종료할까요?",
+    "closeConfirmBody": "\"{{name}}\" 프로젝트를 종료합니다. 데이터는 보존되며 필터로 다시 볼 수 있습니다.",
+    "closeAction": "종료"
+  },
+  "common": {
+    "cancel": "취소"
+  },
+  "error": {
+    "invalidUrl": "잘못된 주소",
+    "notFound": "프로젝트를 찾을 수 없습니다"
   },
   "timeline": {
     "project": "프로젝트",
     "expand": "업무 펼치기",
-    "collapse": "업무 접기"
+    "collapse": "업무 접기",
+    "empty": "기간이 설정된 업무가 없습니다",
+    "emptyWithHint": "기간이 설정된 업무가 없습니다. 시작일/마감일을 지정하세요.",
+    "more": "+ 더 보기 ({{n}})"
+  },
+  "addTask": {
+    "add": "+ 업무 추가",
+    "cancel": "취소",
+    "save": "추가",
+    "saving": "저장 중...",
+    "titlePlaceholder": "업무명 (Ctrl+Enter 저장)",
+    "assigneeLabel": "담당자",
+    "assigneePlaceholder": "담당자: 나",
+    "meSuffix": " (나)",
+    "periodLabel": "기간",
+    "periodPlaceholder": "기간 선택",
+    "noValue": "—",
+    "estLabel": "예측(h)",
+    "drawerTitle": "+ 업무 추가",
+    "close": "닫기"
+  },
+  "calHeader": {
+    "monthYear": "{{year}}년 {{month}}월"
+  },
+  "process": {
+    "loading": "로드 중...",
+    "newRowName": "새 항목",
+    "addRow": "+ 행 추가",
+    "manageStatus": "⚙ 상태 관리",
+    "manageColumns": "⊞ 컬럼 관리",
+    "col": {
+      "depth1": "1depth",
+      "depth2": "2depth",
+      "depth3": "3depth",
+      "description": "설명",
+      "status": "상태",
+      "url": "URL",
+      "notes": "비고"
+    },
+    "emptyRows": "행이 없습니다. [+ 행 추가]",
+    "dragTitle": "드래그하여 순서 변경",
+    "statusEditor": {
+      "title": "상태 관리",
+      "keyPlaceholder": "key (영문 소문자)",
+      "labelPlaceholder": "라벨",
+      "add": "+ 추가",
+      "done": "완료"
+    },
+    "columnEditor": {
+      "title": "사용자 정의 컬럼",
+      "keyPlaceholder": "key",
+      "labelPlaceholder": "라벨",
+      "add": "+ 추가",
+      "done": "완료",
+      "type": {
+        "text": "텍스트",
+        "date": "날짜",
+        "number": "숫자",
+        "select": "선택"
+      }
+    }
   },
   "cal": {
     "today": "오늘",
@@ -42,27 +127,92 @@
     "clients": "고객",
     "files": "파일",
     "docs": "문서",
-    "info": "상세정보"
-  },
-  "docs": {
-    "empty": {
-      "title": "문서 준비 중",
-      "desc": "포스팅 형식의 문서 기능은 곧 제공됩니다. 파일은 \"파일\" 탭을 이용해 주세요."
-    },
-    "folder": {
-      "all": "전체",
-      "my": "내 파일"
-    },
-    "source": {
-      "chat": "채팅",
-      "task": "업무",
-      "meeting": "회의",
-      "post": "문서",
-      "direct": "직접"
-    }
+    "info": "상세정보",
+    "defaultProcess": "테이블",
+    "processEditHint": "더블클릭하여 이름 변경",
+    "renameHint": "이름 변경"
   },
   "section": {
+    "info": "기본 정보",
+    "progress": "진척",
+    "taskTimeline": "업무 타임라인",
+    "issues": "주요 이슈",
+    "notes": "프로젝트 메모",
+    "clients": "고객 정보",
+    "chats": "연결된 채팅방",
+    "noChats": "채팅방이 없습니다",
+    "projClients": "참여 고객",
+    "editInfo": "기본 정보",
     "members": "프로젝트 멤버"
+  },
+  "info": {
+    "type": "타입",
+    "client": "고객사",
+    "period": "기간",
+    "members": "멤버",
+    "typeOngoing": "지속 구독",
+    "typeFixed": "일시 프로젝트",
+    "noValue": "—",
+    "memberCount": "{{n}}명"
+  },
+  "issues": {
+    "empty": "이슈가 없습니다",
+    "addPlaceholder": "이슈 추가..."
+  },
+  "notes": {
+    "empty": "메모가 없습니다",
+    "addPlaceholder": "메모 추가...",
+    "visPersonal": "개인",
+    "visInternal": "내부"
+  },
+  "convs": {
+    "empty": "없음",
+    "channelCustomer": "고객",
+    "channelInternal": "내부",
+    "channelGroup": "그룹"
+  },
+  "clients": {
+    "empty": "고객이 없습니다",
+    "noEmail": "이메일 없음",
+    "emptySummary": "연결된 고객이 없습니다",
+    "linkExisting": "기존 고객 연결",
+    "selectPlaceholder": "워크스페이스 고객 선택",
+    "newNamePlaceholder": "새 고객 이름",
+    "newEmailPlaceholder": "이메일 (선택, 초대 발송)",
+    "newInviteBtn": "+ 새로 초대",
+    "joined": "참여 중",
+    "pending": "초대 대기",
+    "joinedTitle": "워크스페이스 사용자로 참여 중",
+    "pendingTitle": "초대 발송 — 수락 대기 중"
+  },
+  "edit": {
+    "projectName": "프로젝트명",
+    "client": "고객사",
+    "type": "타입",
+    "typeFixed": "일시 프로젝트",
+    "typeOngoing": "지속 구독",
+    "status": "상태",
+    "statusActive": "진행 중",
+    "statusPaused": "일시 중지",
+    "statusClosed": "완료",
+    "period": "기간",
+    "periodPlaceholder": "기간 선택",
+    "color": "색상",
+    "colorPicker": "색상 선택기",
+    "description": "설명",
+    "rolePlaceholder": "역할",
+    "roleDefault": "팀원"
+  },
+  "close": {
+    "title": "프로젝트 완료 처리",
+    "intro1": "이 프로젝트를 완료 상태로 전환합니다.",
+    "intro2": "연결된 대화는 자동으로 보관됩니다 (내용은 유지).",
+    "intro3": "업무·메모·이슈 데이터는 모두 보존됩니다.",
+    "exportTitle": "고객 내보내기 (선택)",
+    "exportHint": "체크된 고객은 이 프로젝트에서 제외됩니다. 다른 프로젝트에 없으면 워크스페이스에서도 사라집니다. 고객 아이디 자체 삭제는 고객 관리 페이지에서 할 수 있습니다.",
+    "cancel": "취소",
+    "processing": "처리 중…",
+    "confirm": "완료로 전환"
   },
   "members": {
     "empty": "멤버가 없습니다",
@@ -86,7 +236,8 @@
       "direct": "직접 업로드",
       "chat": "채팅",
       "task": "업무",
-      "meeting": "회의"
+      "meeting": "회의",
+      "post": "문서"
     },
     "view": {
       "grid": "그리드",
@@ -116,7 +267,14 @@
     },
     "preview": {
       "aria": "파일 미리보기",
-      "unsupported": "미리보기를 지원하지 않는 형식입니다. 다운로드하여 확인하세요."
+      "unsupported": "미리보기를 지원하지 않는 형식입니다. 다운로드하여 확인하세요.",
+      "fallbackHint": "미리보기는 다운로드 후 확인 가능합니다"
+    },
+    "wsUpload": {
+      "title": "어느 프로젝트에 업로드할까요?",
+      "desc": "{{n}}개 파일을 업로드할 프로젝트를 선택하세요",
+      "noProject": "프로젝트가 없습니다",
+      "confirm": "업로드"
     },
     "confirmDelete": {
       "title": "파일을 삭제할까요?",
@@ -141,6 +299,7 @@
     },
     "folder": {
       "all": "전체",
+      "my": "내 파일",
       "directSection": "직접 업로드",
       "directRoot": "내 업로드",
       "autoSection": "자동 수집",
@@ -153,8 +312,8 @@
       "moveDown": "아래로",
       "placeholder": "폴더 이름",
       "deleteTitle": "폴더를 삭제할까요?",
-      "deleteDesc": "폴더 안 파일은 “직접 업로드 루트”로 옮겨집니다",
-      "deleteWithFiles": "이 폴더 안 {{n}}개 파일은 “직접 업로드 루트”로 옮겨집니다",
+      "deleteDesc": "폴더 안 파일은 \u201c직접 업로드 루트\u201d로 옮겨집니다",
+      "deleteWithFiles": "이 폴더 안 {{n}}개 파일은 \u201c직접 업로드 루트\u201d로 옮겨집니다",
       "deleteEmpty": "이 폴더는 비어있습니다"
     }
   }

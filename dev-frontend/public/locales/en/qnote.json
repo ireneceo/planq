@@ -73,6 +73,8 @@
       "searching": "Searching answer...",
       "notFound": "No answer found in registered materials.",
       "findError": "Failed to find answer",
+      "manualBadge": "Manual question",
+      "manualGenerateError": "Failed to generate answer",
       "tier": {
         "priority": "Top Priority",
         "custom": "Custom Answer",
@@ -92,6 +94,41 @@
       "namePlaceholder": "Name",
       "save": "Save"
     },
+    "selfMode": {
+      "label": "My speech",
+      "skip": "Skip",
+      "hide": "Hide",
+      "show": "Show",
+      "skipTitle": "Skip processing my speech entirely (fastest)",
+      "hideTitle": "Record and save my speech but hide it on screen",
+      "showTitle": "Show my speech too"
+    },
+    "manualQuestion": {
+      "placeholder": "Type a question directly (any language OK — auto-translated to the meeting language)",
+      "submit": "Generate Answer",
+      "submitting": "Processing..."
+    },
+    "readiness": {
+      "summaryReady": "✓ Ready · Docs {{docs}} · Q&A {{qa}} · Vocab {{voc}}",
+      "summaryPending": "⏳ Preparing materials...",
+      "toggleTitle": "Click to expand/collapse",
+      "allReady": "✓ All materials ready — you can start recording",
+      "pending": "⏳ Preparing materials...",
+      "expand": "Details ▾",
+      "collapse": "Collapse ▴",
+      "docsLabel": "Reference docs",
+      "docsNone": "None",
+      "docsIndexed": "{{indexed}}/{{total}} indexed",
+      "docsFailed": "Failed {{count}}",
+      "priorityLabel": "Priority Q&A",
+      "priorityNone": "None",
+      "priorityEmbedded": "{{embedded}}/{{total}} embedded",
+      "vocabLabel": "Vocabulary (STT correction)",
+      "vocabCount": "{{count}} ready",
+      "vocabNone": "Not generated",
+      "hintLine1": "You can manage materials, Q&A, and vocabulary from the \"Settings\" button.",
+      "hintLine2": "Indexing may take 10 seconds to 1 minute depending on file size."
+    },
     "errors": {
       "noActiveSession": "No active session",
       "reshareTab": "Please re-share the tab audio. Make sure \"Share tab audio\" is checked in the share dialog.",
@@ -108,6 +145,7 @@
   },
   "startModal": {
     "header": "Start New Meeting",
+    "editHeader": "Edit Meeting Settings",
     "closeLabel": "Close",
     "titleLabel": "Meeting Title",
     "titlePlaceholder": "e.g. Monday Team Standup",
@@ -152,7 +190,81 @@
       "tooMany": "You can upload at most {{max}} files.",
       "duplicate": "\"{{name}}\" — already added.",
       "urlInvalid": "URL must start with http:// or https://.",
-      "urlDuplicate": "URL already added."
-    }
+      "urlDuplicate": "URL already added.",
+      "priorityTooLarge": "File too large (max 10MB)",
+      "priorityUnsupported": "\"{{name}}\" — unsupported format ({{formats}})"
+    },
+    "editHeaderTitle": "Edit Meeting Settings",
+    "draftRestored": "Draft restored",
+    "draftClear": "Clear draft",
+    "draftClearTitle": "Clear the saved draft and start fresh",
+    "editBanner": {
+      "prefix": "Edit mode",
+      "body": " — existing materials are safely stored in the DB. ",
+      "addHighlight": "Items you add here are merged with existing materials",
+      "middle": ", and ",
+      "removeHighlight": "can be deleted individually via the ✗ button",
+      "suffix": ".",
+      "loading": "(loading existing materials...)"
+    },
+    "priority": {
+      "badge": "Top",
+      "label": "Q&A Materials (Answer priority #1)",
+      "totalCount": "{{count}} total",
+      "intro1": "Q&As registered here are used ",
+      "introStrong": "before any other materials",
+      "intro2": ". Both file upload and manual input are supported.",
+      "uploading": "Uploading... (PDF/DOCX may take 20-30s via LLM extraction)",
+      "dropHint": "Drag & drop or click to select a file",
+      "uploadNowSub": "CSV · Excel · JSON · TXT · MD · PDF · DOCX — uploads immediately",
+      "uploadLaterSub": "CSV · Excel · JSON · TXT · MD · PDF · DOCX — uploads on meeting start",
+      "itemCount": "{{count}}",
+      "templateDownload": "Download sample CSV (columns can be named question/질문 · answer/답변 · short_answer · keywords · category — any variant OK)",
+      "divider": "or enter manually",
+      "questionPlaceholder": "Question (e.g. Why did you choose this topic?)",
+      "answerPlaceholder": "Exact answer (as you'd say it, length OK)",
+      "shortAnswerPlaceholder": "1-sentence version (optional, used when answer length is 'short')",
+      "keywordsPlaceholder": "Keywords (optional, comma-separated — improves search)",
+      "uploadResultCreated": "{{count}} created",
+      "uploadResultUpdated": "{{count}} updated",
+      "uploadResultRegister": " registered",
+      "uploadResultNoChange": "No changes",
+      "uploadResultWarnings": " ({{count}} warnings)",
+      "uploadFail": "Upload failed: {{msg}}",
+      "uploadFailUnknown": "Unknown error",
+      "uploadFailShort": "File upload failed: {{msg}}",
+      "deleteFail": "Failed to delete file",
+      "deleteQAFail": "Failed to delete Q&A",
+      "deleteDocFail": "Failed to delete document",
+      "templateDownloadFail": "Failed to download template"
+    },
+    "vocabulary": {
+      "label": "Vocabulary (STT correction)",
+      "countSuffix": "{{count}}",
+      "hintPart1": "Words registered here are ",
+      "hintStrong1": "matched first by Deepgram during speech recognition",
+      "hintPart2": ", fixing misheard phrases like \"remote work\".",
+      "hintStrong2": "Uploaded documents are the primary source",
+      "hintPart3": ". They are re-extracted automatically once indexing finishes, or use \"Re-extract from docs\" below to pull them immediately.",
+      "refreshTitle": "Re-extract vocabulary from currently indexed documents (manual keywords preserved)",
+      "refreshing": "Re-extracting...",
+      "refresh": "📄 Re-extract from docs",
+      "empty": "No auto-extracted vocabulary. Add manually below.",
+      "addPlaceholder": "Add word/phrase (comma or Enter to add multiple)",
+      "saveFail": "Failed to save vocabulary",
+      "refreshFail": "Failed to re-extract vocabulary"
+    },
+    "answerStyle": {
+      "label": "Answer style · length",
+      "hint": "Tune this if answers come out too long or too hard. The model adjusts to spoken-friendly words and language level.",
+      "short": "Short (1-2 sentences)",
+      "medium": "Medium (2-3 sentences)",
+      "long": "Long (3-4 sentences)",
+      "stylePlaceholder": "Example: Be concise and confident. No jargon. Include concrete numbers. Do not echo the question."
+    },
+    "materialsExisting": "{{count}} existing",
+    "docName": "Document #{{id}}",
+    "chunkUnit": "{{count}} chunks",
+    "saveBtn": "Save"
   }
 }

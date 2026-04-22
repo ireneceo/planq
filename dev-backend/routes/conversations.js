@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { Op } = require('sequelize');
-const { Conversation, ConversationParticipant, Message, User, Client, Business, Project, ProjectMember } = require('../models');
+const { Conversation, ConversationParticipant, Message, User, Client, Business, Project, ProjectMember, BusinessMember } = require('../models');
 const { authenticateToken, checkBusinessAccess } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const { createAuditLog } = require('../middleware/audit');
@@ -125,8 +125,19 @@ router.post('/:businessId', authenticateToken, checkBusinessAccess, async (req, 
 router.post('/:businessId/:id/participants', authenticateToken, checkBusinessAccess, async (req, res, next) => {
   try {
     const { user_id, role } = req.body;
-    const conv = await Conversation.findOne({ where: { id: req.params.id, business_id: req.params.businessId } });
+    if (!user_id) return errorResponse(res, 'user_id required', 400);
+    const businessId = Number(req.params.businessId);
+    const conv = await Conversation.findOne({ where: { id: req.params.id, business_id: businessId } });
     if (!conv) return errorResponse(res, 'Conversation not found', 404);
+    // 추가 대상 user 가 같은 워크스페이스 멤버 또는 프로젝트 고객이어야 함 (타 워크스페이스 유저 유입 차단)
+    const isWorkspaceMember = await BusinessMember.findOne({ where: { user_id, business_id: businessId } });
+    let allowed = !!isWorkspaceMember;
+    if (!allowed && conv.project_id) {
+      const { ProjectClient } = require('../models');
+      const pc = await ProjectClient.findOne({ where: { project_id: conv.project_id, contact_user_id: user_id } });
+      allowed = !!pc;
+    }
+    if (!allowed) return errorResponse(res, 'user_not_in_workspace', 403);
     const exists = await ConversationParticipant.findOne({ where: { conversation_id: conv.id, user_id } });
     if (exists) return successResponse(res, exists);
     const created = await ConversationParticipant.create({
@@ -166,7 +177,10 @@ router.get('/:businessId/:id', authenticateToken, checkBusinessAccess, async (re
           as: 'messages',
           where: messageWhere,
           required: false,
-          include: [{ model: User, as: 'sender', attributes: ['id', 'name', 'avatar_url', 'is_ai'] }],
+          include: [
+            { model: User, as: 'sender', attributes: ['id', 'name', 'avatar_url', 'is_ai'] },
+            { model: require('../models').MessageAttachment, as: 'attachments', required: false },
+          ],
           order: [['created_at', 'ASC']],
           limit: 200
         }

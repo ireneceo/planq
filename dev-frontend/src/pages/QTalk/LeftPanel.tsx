@@ -52,7 +52,7 @@ const LeftPanel: React.FC<Props> = ({
       result.push({
         conversation: c,
         project: {
-          id: -1, business_id: 0, name: '일반 대화', client_company: '',
+          id: -1, business_id: 0, name: t('left.generalConversation', '일반 대화'), client_company: '',
           has_cue_activity: false, unread_count: 0,
           // MockProject 의 나머지 필수 필드들은 방어 기본값
         } as unknown as ChatEntry['project'],
@@ -173,7 +173,7 @@ const LeftPanel: React.FC<Props> = ({
               <ChatBody>
                 <ChatTop>
                   <ChatName $active={isActive}>{c.name}</ChatName>
-                  {c.channel_type === 'internal' && <InternalTag>내부</InternalTag>}
+                  {c.channel_type === 'internal' && <InternalTag>{t('channelBadge.internal', '내부')}</InternalTag>}
                 </ChatTop>
                 <ProjectName>{p.name}</ProjectName>
               </ChatBody>
