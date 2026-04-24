@@ -587,13 +587,13 @@ Authorization: Bearer {accessToken}
 | 메서드 | 경로 | 설명 |
 |---|---|---|
 | GET | `/projects/:id/notes?visibility=all&before=:id&limit=50` | 페이지네이션 (권한에 따라 필터) |
-| POST | `/projects/:id/notes` | 작성 |
+| POST | `/projects/:id/notes` | 작성 — `conversation_id` 옵션(같은 프로젝트 소속 검증) 으로 어느 채팅에서 왔는지 추적 |
 | PUT | `/notes/:id` | 수정 (본인만) |
 | DELETE | `/notes/:id` | 삭제 (본인만) |
 
 **페이로드**
 ```json
-{ "visibility": "internal", "body": "폰트 라이선스 확인 필요" }
+{ "visibility": "internal", "body": "폰트 라이선스 확인 필요", "conversation_id": 73 }
 ```
 
 **권한 필터**: 고객 요청은 자동으로 `visibility='personal' AND author_user_id=me` 필터 적용.
@@ -603,11 +603,26 @@ Authorization: Bearer {accessToken}
 | 메서드 | 경로 | 설명 |
 |---|---|---|
 | GET | `/projects/:id/issues?limit=10` | 최신순 (기본 3개, 더보기 시 10개) |
-| POST | `/projects/:id/issues` | 추가 |
+| POST | `/projects/:id/issues` | 추가 — `conversation_id` 옵션 (스코프 검증) |
 | PUT | `/issues/:id` | 인라인 편집 |
 | DELETE | `/issues/:id` | 삭제 |
 
 **AI 자동 생성 없음** — 순수 CRUD.
+
+### 독립 대화 스코프 (Standalone conversation scope — 2026-04-24)
+
+프로젝트 연결 없는 채팅도 자체 메모/이슈/업무후보/업무를 가질 수 있도록 conversation_id 단위 라우트를 운영.
+권한은 워크스페이스 멤버(`loadStandaloneConvOrForbidden`).
+
+| 메서드 | 경로 | 설명 |
+|---|---|---|
+| GET | `/projects/conversations/:convId/notes` | 대화 메모 (internal + 본인 personal) |
+| POST | `/projects/conversations/:convId/notes` | 대화 메모 작성 |
+| GET | `/projects/conversations/:convId/issues` | 대화 이슈 |
+| POST | `/projects/conversations/:convId/issues` | 대화 이슈 추가 |
+| GET | `/projects/conversations/:convId/task-candidates` | 대화 업무 후보 |
+| GET | `/projects/conversations/:convId/tasks` | 대화 업무 (from_candidate 경로로 등록된 것) |
+| POST | `/projects/conversations/:convId/task-candidates/extract` | 독립 대화에서도 LLM 추출 허용 (project.id null 이면 담당자·유사업무 매칭 스킵) |
 
 ### Cue 답변 처리 + 잠금
 

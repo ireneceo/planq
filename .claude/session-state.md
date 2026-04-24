@@ -1,114 +1,56 @@
 ## 현재 작업 상태
-**마지막 업데이트:** 2026-04-24
-**작업 상태:** 사이드바 개편 + 지금할일 To do 완료, Phase 0 DB 스키마 대기
-
-### 이번 세션 완료 작업 (2026-04-24)
-- 사이드바 로고 헤더 56→60px 정합 (우측 패널 라인 정합)
-- Phase 8 반응형 스프린트 로드맵 신설 (DEVELOPMENT_PLAN.md + memory)
-- **사이드바 개편** — 고객/멤버 1뎁스 승격 · Secondary 닫기 버튼 · 설정 재구성 (워크스페이스/플랜/프로필)
-- **지금 할 일 페이지 신규** — `/todo` 라우트, 사이드바 Dashboard 바로 아래
-  - 4개 우선순위 (urgent/today/waiting/week) · 3개 소스 (task/event/invite)
-  - 백엔드 `GET /api/dashboard/todo` (routes/dashboard.js) — 실데이터 28건 집계 성공
-  - 업무: 내 담당 · 내 컨펌(pending) · 내가 요청자(done_feedback)
-  - 캘린더: 내가 참여자 + 이번 주 이벤트
-  - 초대: 내 email 로 온 멤버/고객 초대 (대기)
-  - 멘션은 messages.read_at 스키마 미존재로 Phase 8 로 유예
+**마지막 업데이트:** 2026-04-24 저녁
+**작업 상태:** 완료 — Q Talk 독립 대화 전체 스코프 전환
 
 ### 진행 중인 작업
 - 없음
 
-### 완료된 작업 (이번 세션)
-- **초대 플로우 3청크 완성** — 프로젝트 고객·워크스페이스 고객·멤버 초대 + 통합 `/api/invites/:token`
-- **업무 삭제 + 요청 칩 통일** — 우측 드로어 Danger Zone, "{요청자}에게 요청받음"
-- **Q Talk 메시지 첨부** — 이미지 썸네일 + 파일 chip + Socket.IO
-- **Q Note → Drive 자동 저장** — Python ingest 후 Node sync API 호출
-- **Drive changes.watch** — webhook 수신 + Socket.IO 브로드캐스트
-- **프로젝트 상태 토글·삭제** — 카드 컨텍스트 메뉴 · closed 필터 · owner-only
-- **멤버 관리 Phase 2** — removed_at soft delete · role 변경 · 마지막 오너 보호 · defaultScope
-- **QNote/QProject i18n 130 키** (Agent A)
-- **ProjectClient FK 전환** — email/name 문자열 매칭 폐기 (backfill 완료)
-- **운영서버 배포 스크립트** — `deploy-to-production.sh` + `rollback-production.sh`
-- **전체 코드 감사 (3 Agent 병렬)** — Critical 1 + High 10건 전수 수정
-  - users.js IDOR · platform_role 통일 · OAuth HMAC · refresh_token 해시 · CSP 강화
-  - 22개 라우트 checkBusinessAccess 보강
-  - invites/businesses 트랜잭션 + 마지막 오너 race 방어
-  - conversations participants 외부 user 차단
-  - /public/attach 이미지만 + nosniff
-- **리포트 + Q Bill 통합 기획** — 문서 2개 신규 (`docs/Q_BILL_SPEC.md`, `docs/FINANCIAL_REPORTS_SPEC.md`)
-- **좌측 메뉴 확장** — Q Bill 활성 · 통계·분석 섹션 6 개 · ComingSoon 페이지 · /billing→/bills 통합
-- **UI 수정** — /business/settings/plan max-width 제거 · 비용·재무 아이콘 파이차트 교체
+### 완료된 작업 (이번 세션 — 2026-04-24 저녁)
 
-### 다음 할 일 (확정된 Phase 순서)
+**Q Talk 런타임 에러 해소 + 독립 대화 1급 엔티티 전환**
 
-**Phase 0 — DB 기반 스키마 확장 (1주) ← 여기서 시작**
-- businesses: 은행정보·포트원·팝빌 키 컬럼
-- clients: country·is_business·biz_* 필드
-- business_members: hourly_rate·monthly_salary
-- projects: contract_amount·billing_type·monthly_fee
-- 신규 테이블: quotes, quote_items, invoice_payments, bill_events, overhead_items, project_expenses, reports
+1. `/talk` 신규 대화 CTA 수정 — EmptyState "+" → NewChatModal (heavy NewProjectModal 대체)
+2. NewProjectModal/NewChatModal `m.user.name` null crash 방어 (삭제/비활성 유저 대응)
+3. `/api/projects/-1/*` 404 누수 해소 — LeftPanel standalone 가짜 project.id=-1 이 activeProjectId 로 유출되던 문제
+4. `TASK_STATUS_COLOR[status].bg` undefined crash — mock.ts TaskStatus ENUM 백엔드 8종 동기 + fallback 헬퍼
+5. 독립 대화 메시지 지속성 — `listBusinessConversations` 초기 로드 + `activeConversationId` 변경 시 lazy fetch
+6. **우측 패널 독립 대화 전체 스코프** (Phase 핵심):
+   - DB: `project_notes/project_issues/task_candidates` → project_id nullable + conversation_id 추가
+   - 백엔드 4 신규 라우트: `/api/projects/conversations/:convId/{notes,issues,task-candidates,tasks}`
+   - task_extractor standalone 모드 (project 없으면 담당자 매칭·유사 업무 스킵)
+   - registerCandidate 가 business_id 를 conversation 에서 조회
+   - RightPanel `matchScope` helper (project OR conversation_id)
+7. 프로젝트 메모·이슈에 `conversation_id` 기록 → 프로젝트 패널에서 `#{채팅명}` SourceTag 로 출처 추적
+8. 프로젝트 업무 섹션 preview (최신 5개 + "전체 보기 (N개 더)" 링크 → 프로젝트 필터된 Q Task)
+9. 섹션 자동 펼침 — scope-aware + async data-aware (deps 에 issues/tasks/notes length 포함)
+10. 좌측 리스트 최신순 + 새 메시지 bump — Q Talk `last_message_at` DESC, Q Note `created_at` DESC
+11. 독립 대화 타이틀 프로젝트 접두어 제거 (`titleStandalone` i18n)
 
-**Phase 1 — Q Bill 견적·청구·결제 (3주)**
-**Phase 2 — 세금계산서 자동화 (0.5주)**
-**Phase 3 — 프로젝트 Bill 탭 + 시간기반 자동청구 (1주)**
-**Phase 4 — 통계 대시보드 5개 + 자동해석 (2주)**
-**Phase 5 — 월간 보고서 PDF (1주)**
-**Phase 6 — PlanQ 자체 구독 빌링키 (0.5주)**
-**Phase 7 — 운영서버 세팅 + 실배포 (0.5주, Irene 외부 준비 선행)**
-**Phase 8 — 반응형 스프린트 (1주) — 전 페이지 모바일/태블릿 일괄 적용**
-  - 햄버거 드로어 2뎁스 아코디언 · 마스터-디테일 드릴다운 · `<ListDetailLayout>` 공용화
-  - Q Docs 상단 탭 → 드릴다운 재작업 · `SecondaryPanel` 모바일 아코디언화
-  - 터치 타겟 44px 상향 · Safe-area · 실기기 QA
+**E2E 검증:** 21/21 pass (standalone CRUD + extract LLM 실호출 + register + 스코프 불일치 방지)
+**헬스체크:** 27/27 pass
+**프론트 빌드:** index-blLPTtQM.js (TS 에러 0)
 
-설계 문서: `docs/Q_BILL_SPEC.md` · `docs/FINANCIAL_REPORTS_SPEC.md`
+### 다음 할 일
+
+DEVELOPMENT_PLAN.md 기준 다음 미완료 스프린트:
+
+1. **Q Bill Phase 1.1 본 구현 시작** — 견적서·청구서 UI + 백엔드 (2~3주 예상)
+   - 설계문서: `docs/Q_BILL_SPEC.md`, `docs/INTEGRATED_ARCHITECTURE.md`
+   - 의존성: Phase 0 DB backfill 완료됨
+2. **React Query 도입** — Q Bill 신규 페이지부터 점진 적용 (옵션 C 합의)
+3. **반응형 Phase 8 준비** — 신규 코드 3원칙(고정 px 지양·아이콘 버튼 36+px·인라인 style 금지)
+
+즉시 이어가기 좋은 소규모 작업:
+- Q Docs/Q Board 좌측 리스트 최신순 확인 (이번 세션엔 Q Talk + Q Note 만)
+- 독립 대화 tasks 의 Q Task 페이지 노출 확인 (project_id null 리스트 포함 여부)
 
 ---
 
-## 🔑 환경변수 / 인증 현황
+## 복구 가이드
+
+새 Claude 세션 시작 시 아래 내용을 붙여넣으세요:
 
 ```
-JWT_SECRET              = (.env 설정됨, 'planq' 폴백 제거)
-INTERNAL_API_KEY        = planq-internal-dev-f76e0bffee43e39959f3dd7eb1cbb222
-APP_URL                 = https://dev.planq.kr
-PLANQ_NODE_BASE_URL     = http://localhost:3003 (q-note .env)
-
-GOOGLE_CLIENT_ID        = 765630237305-rm9g0emg...
-GOOGLE_CLIENT_SECRET    = GOCSPX-...
-GOOGLE_REDIRECT_URI     = https://dev.planq.kr/api/cloud/callback/gdrive
-```
-
-**향후 필요 (Phase 1~):**
-- 포트원 V2 테스트 키 (Starter 플랜, 월 5천만 무료)
-- Stripe test mode secret
-- 팝빌 테스트 link_id + secret_key
-
-워프로랩 (biz=3):
-- Google Drive: irene@irenewp.com · root "PlanQ - 워프로랩"
-
-Irene 계정:
-- `irene@irenecompany.com` — platform_admin + owner biz=3
-
----
-
-## 📂 주요 문서 위치
-
-- Q Bill 설계: `docs/Q_BILL_SPEC.md`
-- 리포트 설계: `docs/FINANCIAL_REPORTS_SPEC.md`
-- 파일 시스템: `docs/FILE_SYSTEM_DESIGN.md`
-- OPS 로드맵: `docs/OPS_ROADMAP.md`
-- 개발 로드맵: `DEVELOPMENT_PLAN.md`
-- 프로젝트 규칙: `CLAUDE.md`
-- UI 가이드: `dev-frontend/UI_DESIGN_GUIDE.md` (§2.4 관리 리스트 패턴 추가됨)
-- 배포 스크립트: `deploy-to-production.sh` · `rollback-production.sh`
-
----
-
-## 🔄 복구 가이드
-
-```
-session-state.md 읽고 Phase 0 부터 이어서 개발해.
-```
-
-또는 Phase 확인만 필요하면:
-```
-DEVELOPMENT_PLAN.md 상단 읽어봐.
+이전 세션 이어서 작업하고 싶어.
+/opt/planq/.claude/session-state.md 읽어줘.
 ```

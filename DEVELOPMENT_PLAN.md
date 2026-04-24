@@ -1,6 +1,52 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-04-24 (확인 필요 Inbox + 사이드바 재편 + Phase 8/9 로드맵 + UNIFIED_CONTEXT_DESIGN)
+> **최종 업데이트:** 2026-04-24 (독립 대화 우측 패널 전체 스코프 + 연결 추적 + 리스트 최신순)
+
+---
+
+## ✅ 완료: Q Talk 독립 대화 지원 + 우측 패널 스코프 확장 (2026-04-24 저녁 세션)
+
+사용자 보고한 `/talk` 런타임 에러 3종 → 독립 채팅 완전 지원으로 스코프 확장. 대화 = 1급 엔티티, 프로젝트는 선택적 컨테이너.
+
+### 완료된 작업
+
+| 영역 | 작업 | 상태 |
+|------|------|:----:|
+| **런타임 에러 해소** | `/api/projects/-1/*` 404 (activeProjectId=-1 누수) · `TASK_STATUS_COLOR[status].bg` undefined (ENUM 불일치) · extract 400 (standalone에서 버튼 노출) · `m.user.name` null (삭제 유저) — 모두 fix | ✅ |
+| **DB 스키마 확장** | `project_notes.project_id`·`project_issues.project_id`·`task_candidates.project_id` → NULL 허용, `conversation_id` 컬럼 추가 (notes/issues) · 수동 ALTER 적용 | ✅ |
+| **백엔드 독립 대화 라우트 4종** | `GET/POST /api/projects/conversations/:convId/notes` · `.../issues` · `.../task-candidates` · `.../tasks` + `loadStandaloneConvOrForbidden` 헬퍼 | ✅ |
+| **task_extractor standalone 지원** | `conversation.project_id` null 시 `resolveAssignees`/`findSimilarTasks` 스킵, `memberNames` 빈 문자열 · `registerCandidate` 가 business_id 를 conv 에서 조회 | ✅ |
+| **프론트엔드 scope 일반화** | RightPanel `matchScope()` (project OR conversation_id) · `if (!project) return null` 제거 · `titleStandalone` i18n · InputToolbar `project` 가드 제거 | ✅ |
+| **채팅-프로젝트 메모·이슈 연결** | 프로젝트 채팅에서 쓴 메모·이슈에 `conversation_id` 기록 → `SourceTag` 로 `#채팅명` 표시 · 스코프 불일치 conv_id 는 null 로 저장 (보안) | ✅ |
+| **독립 대화 메시지 지속성** | `listBusinessConversations` 초기 로드 추가 (프로젝트별 loop 가 standalone 누락) · `activeConversationId` 변경 시 lazy fetch | ✅ |
+| **프로젝트 업무 섹션 preview** | 최신 5개 + `→ Q Task 전체 보기 (N개 더)` 링크 · 프로젝트 필터링된 Q Task 로 이동 | ✅ |
+| **섹션 자동 펼침** | 내용 있으면 자동 펼침 — scope 인지 + async 데이터 반영 (deps: issues.length · tasks.length · notes.length) | ✅ |
+| **좌측 리스트 최신순 + bump** | Q Talk 대화 `last_message_at` DESC + socket `message:new` & send 시 bump · Q Note 세션 `created_at` DESC | ✅ |
+| **ENUM 백엔드 동기** | mock.ts `TaskStatus` 8종 (reviewing/revision_requested/done_feedback) + `taskStatusColor()`/`taskStatusLabel()` fallback 헬퍼 — 알 수 없는 status 에서도 crash 안 남 | ✅ |
+| **NewChatModal 통합** | LeftPanel `+` 아이콘 1개로 통합 (새 프로젝트 버튼 제거) · EmptyState CTA 도 NewChatModal 로 · `m.user?.name` null 방어 + `m.user` 필터 | ✅ |
+
+### 수정된 파일
+
+**Backend (5):**
+- `dev-backend/models/ProjectNote.js`, `ProjectIssue.js`, `TaskCandidate.js`
+- `dev-backend/routes/projects.js` (+4 라우트 + standalone 헬퍼)
+- `dev-backend/services/task_extractor.js`
+
+**Frontend (9):**
+- `dev-frontend/src/pages/QTalk/QTalkPage.tsx`, `RightPanel.tsx`, `ChatPanel.tsx`, `LeftPanel.tsx`
+- `dev-frontend/src/pages/QTalk/NewChatModal.tsx`, `NewProjectModal.tsx`, `QDataContext.tsx`, `mock.ts`
+- `dev-frontend/src/pages/QNote/QNotePage.tsx`
+- `dev-frontend/src/services/qtalk.ts`
+- `dev-frontend/public/locales/{ko,en}/qtalk.json`
+
+### E2E 검증 (owner@test.planq.kr)
+- standalone conv 생성 → 201 (project_id null)
+- conv 메모/이슈 CRUD → 200
+- extract (LLM 실호출) → 200 (1 candidate)
+- register → task (project_id=null, conversation_id 연결)
+- 프로젝트 메모 + conv_id → 저장 + GET 에서 유지
+- 스코프 불일치 conv_id 는 null 로 저장 (보안)
+- **21/21 pass** · health check 27/27 pass
 
 ---
 
