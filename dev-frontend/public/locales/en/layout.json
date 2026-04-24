@@ -40,6 +40,8 @@
     "expandSection": "Expand",
     "collapseSection": "Collapse",
     "closeSecondary": "Close",
+    "collapseSecondary": "Collapse menu",
+    "expandSecondary": "Expand menu",
     "workspaceSettings": "Workspace",
     "plan": "Subscription",
     "storage": "File storage",

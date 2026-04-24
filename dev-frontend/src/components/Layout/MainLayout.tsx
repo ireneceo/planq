@@ -30,6 +30,8 @@ const writeLS = (key: string, value: boolean) => {
 const SIDEBAR_W_OPEN = 220;
 const SIDEBAR_W_COLLAPSED = 64;
 const SECONDARY_W = 220;
+const SECONDARY_COLLAPSED_W = 56;   // 아이콘 strip 모드 폭
+const SECONDARY_COLLAPSED_KEY = 'planq.secondaryCollapsed';
 
 // ─────────────────────────────────────────────────────────────
 // Styled — Sidebar (1뎁스)
@@ -145,16 +147,16 @@ const NavLabel = styled.span<{ $isCollapsed?: boolean }>`
 // SecondaryPanel — 2뎁스 (통계·분석 / 워크스페이스 전용)
 // ─────────────────────────────────────────────────────────────
 
-const SecondaryPanel = styled.aside<{ $sidebarW: number }>`
+const SecondaryPanel = styled.aside<{ $sidebarW: number; $collapsed: boolean }>`
   position: fixed; top: 0;
   left: ${props => props.$sidebarW}px;
-  width: ${SECONDARY_W}px;
+  width: ${props => props.$collapsed ? SECONDARY_COLLAPSED_W : SECONDARY_W}px;
   height: 100vh;
   background: #FFFFFF;
   border-right: 1px solid #E2E8F0;
   z-index: 900;
   display: flex; flex-direction: column;
-  transition: left 0.25s ease;
+  transition: left 0.25s ease, width 0.25s ease;
   @media (max-width: 768px) { display: none; }
 `;
 
@@ -165,7 +167,7 @@ const SecondaryBody = styled.div`
   &::-webkit-scrollbar-thumb { background: rgba(15, 23, 42, 0.12); border-radius: 3px; }
 `;
 
-const SecondaryNavItem = styled(Link)<{ $active?: boolean }>`
+const SecondaryNavItem = styled(Link)<{ $active?: boolean; $collapsed?: boolean }>`
   display: flex; align-items: center; gap: 10px;
   padding: 9px 20px;
   color: #334155; text-decoration: none;
@@ -180,6 +182,17 @@ const SecondaryNavItem = styled(Link)<{ $active?: boolean }>`
     font-weight: 600;
     border-left-color: #0F766E;
     svg { color: #0F766E; }
+  `}
+  /* collapsed 모드: 아이콘만 가운데, 텍스트는 font-size:0 으로 숨김 */
+  ${props => props.$collapsed && css`
+    justify-content: center;
+    padding: 10px 0;
+    gap: 0;
+    font-size: 0;
+    svg { font-size: initial; width: 18px; height: 18px; }
+    border-left-width: 0;
+    border-right: 3px solid transparent;
+    ${props.$active && css`border-right-color: #0F766E;`}
   `}
 `;
 
@@ -360,7 +373,23 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
     null;
 
   const sidebarW = isCollapsed ? SIDEBAR_W_COLLAPSED : SIDEBAR_W_OPEN;
-  const mainMarginLeft = currentSecondary ? (sidebarW + SECONDARY_W) : sidebarW;
+
+  // Secondary 접힘 — 아이콘 strip 모드 (완전 숨김 아님). localStorage 유지.
+  const [secondaryCollapsed, setSecondaryCollapsed] = useState<boolean>(() => {
+    try { return localStorage.getItem(SECONDARY_COLLAPSED_KEY) === '1'; } catch { return false; }
+  });
+  const toggleSecondary = () => {
+    setSecondaryCollapsed(prev => {
+      const next = !prev;
+      try { localStorage.setItem(SECONDARY_COLLAPSED_KEY, next ? '1' : '0'); } catch { /* quota */ }
+      return next;
+    });
+  };
+
+  const secondaryW = currentSecondary
+    ? (secondaryCollapsed ? SECONDARY_COLLAPSED_W : SECONDARY_W)
+    : 0;
+  const mainMarginLeft = sidebarW + secondaryW;
 
   return (
     <LayoutContainer>
@@ -592,35 +621,35 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
 
       {/* Secondary 2뎁스 패널 — /stats/* 또는 /business/settings·/settings·/profile 경로에서만 */}
       {currentSecondary === 'reports' && (
-        <SecondaryPanel $sidebarW={sidebarW} aria-label={t('nav.sectionReports', '통계·분석')}>
+        <SecondaryPanel $sidebarW={sidebarW} $collapsed={secondaryCollapsed} aria-label={t('nav.sectionReports', '통계·분석')}>
           <PanelHeader>
-            <PanelTitle>{t('nav.sectionReports', '통계·분석')}</PanelTitle>
+            {!secondaryCollapsed && <PanelTitle>{t('nav.sectionReports', '통계·분석')}</PanelTitle>}
             <SecondaryCloseButton
               type="button"
-              onClick={() => navigate('/dashboard')}
-              aria-label={t('nav.closeSecondary', '닫기')}
-              title={t('nav.closeSecondary', '닫기')}
+              onClick={toggleSecondary}
+              aria-label={secondaryCollapsed ? t('nav.expandSecondary', '메뉴 펼치기') : t('nav.collapseSecondary', '메뉴 접기')}
+              title={secondaryCollapsed ? t('nav.expandSecondary', '메뉴 펼치기') : t('nav.collapseSecondary', '메뉴 접기')}
             >
-              <IconChevronLeft />
+              {secondaryCollapsed ? <IconChevronRight /> : <IconChevronLeft />}
             </SecondaryCloseButton>
           </PanelHeader>
           <SecondaryBody>
-            <SecondaryNavItem to="/stats/overview" $active={isActive('/stats/overview')}>
+            <SecondaryNavItem $collapsed={secondaryCollapsed} to="/stats/overview" $active={isActive('/stats/overview')}>
               <IconStatsOverview /> {t('nav.statsOverview', '개요')}
             </SecondaryNavItem>
-            <SecondaryNavItem to="/stats/tasks" $active={isActive('/stats/tasks')}>
+            <SecondaryNavItem $collapsed={secondaryCollapsed} to="/stats/tasks" $active={isActive('/stats/tasks')}>
               <IconStatsTime /> {t('nav.statsTaskTime', '업무·시간')}
             </SecondaryNavItem>
-            <SecondaryNavItem to="/stats/profit" $active={isActive('/stats/profit')}>
+            <SecondaryNavItem $collapsed={secondaryCollapsed} to="/stats/profit" $active={isActive('/stats/profit')}>
               <IconStatsProfit /> {t('nav.statsProfit', '프로젝트 수익성')}
             </SecondaryNavItem>
-            <SecondaryNavItem to="/stats/team" $active={isActive('/stats/team')}>
+            <SecondaryNavItem $collapsed={secondaryCollapsed} to="/stats/team" $active={isActive('/stats/team')}>
               <IconStatsTeam /> {t('nav.statsTeam', '팀 생산성')}
             </SecondaryNavItem>
-            <SecondaryNavItem to="/stats/finance" $active={isActive('/stats/finance')}>
+            <SecondaryNavItem $collapsed={secondaryCollapsed} to="/stats/finance" $active={isActive('/stats/finance')}>
               <IconStatsFinance /> {t('nav.statsFinance', '비용·재무')}
             </SecondaryNavItem>
-            <SecondaryNavItem to="/stats/reports" $active={isActive('/stats/reports')}>
+            <SecondaryNavItem $collapsed={secondaryCollapsed} to="/stats/reports" $active={isActive('/stats/reports')}>
               <IconStatsReports /> {t('nav.statsReports', '보고서')}
             </SecondaryNavItem>
           </SecondaryBody>
@@ -628,21 +657,21 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
       )}
 
       {currentSecondary === 'settings' && (
-        <SecondaryPanel $sidebarW={sidebarW} aria-label={t('nav.settings')}>
+        <SecondaryPanel $sidebarW={sidebarW} $collapsed={secondaryCollapsed} aria-label={t('nav.settings')}>
           <PanelHeader>
-            <PanelTitle>{t('nav.settings')}</PanelTitle>
+            {!secondaryCollapsed && <PanelTitle>{t('nav.settings')}</PanelTitle>}
             <SecondaryCloseButton
               type="button"
-              onClick={() => navigate('/dashboard')}
-              aria-label={t('nav.closeSecondary', '닫기')}
-              title={t('nav.closeSecondary', '닫기')}
+              onClick={toggleSecondary}
+              aria-label={secondaryCollapsed ? t('nav.expandSecondary', '메뉴 펼치기') : t('nav.collapseSecondary', '메뉴 접기')}
+              title={secondaryCollapsed ? t('nav.expandSecondary', '메뉴 펼치기') : t('nav.collapseSecondary', '메뉴 접기')}
             >
-              <IconChevronLeft />
+              {secondaryCollapsed ? <IconChevronRight /> : <IconChevronLeft />}
             </SecondaryCloseButton>
           </PanelHeader>
           <SecondaryBody>
             {hasBiz('owner', 'member') && (
-              <SecondaryNavItem
+              <SecondaryNavItem $collapsed={secondaryCollapsed}
                 to="/business/settings"
                 $active={
                   (location.pathname === '/business/settings' || location.pathname === '/settings')
@@ -652,7 +681,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
               </SecondaryNavItem>
             )}
             {hasBiz('owner', 'member') && (
-              <SecondaryNavItem
+              <SecondaryNavItem $collapsed={secondaryCollapsed}
                 to="/business/settings/language"
                 $active={location.pathname.includes('/language') || location.pathname.includes('/timezone')}
               >
@@ -660,7 +689,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
               </SecondaryNavItem>
             )}
             {hasBiz('owner') && (
-              <SecondaryNavItem
+              <SecondaryNavItem $collapsed={secondaryCollapsed}
                 to="/business/settings/storage"
                 $active={location.pathname.includes('/storage')}
               >
@@ -668,7 +697,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
               </SecondaryNavItem>
             )}
             {hasBiz('owner') && (
-              <SecondaryNavItem
+              <SecondaryNavItem $collapsed={secondaryCollapsed}
                 to="/business/settings/plan"
                 $active={location.pathname.includes('/plan')}
               >
@@ -677,7 +706,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
             )}
             {/* 권한 — 투명성 원칙상 member 도 조회 가능. 편집은 owner 만 (탭 내부에서 disabled 처리) */}
             {hasBiz('owner', 'member') && (
-              <SecondaryNavItem
+              <SecondaryNavItem $collapsed={secondaryCollapsed}
                 to="/business/settings/permissions"
                 $active={location.pathname.includes('/permissions')}
               >
@@ -685,7 +714,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
               </SecondaryNavItem>
             )}
             {hasBiz('owner') && (
-              <SecondaryNavItem
+              <SecondaryNavItem $collapsed={secondaryCollapsed}
                 to="/business/settings/cue"
                 $active={location.pathname.includes('/cue')}
               >
@@ -693,7 +722,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
               </SecondaryNavItem>
             )}
             {hasBiz('owner', 'member') && (
-              <SecondaryNavItem
+              <SecondaryNavItem $collapsed={secondaryCollapsed}
                 to="/business/clients"
                 $active={isActive('/business/clients')}
               >
@@ -701,14 +730,14 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
               </SecondaryNavItem>
             )}
             {hasBiz('owner') && (
-              <SecondaryNavItem
+              <SecondaryNavItem $collapsed={secondaryCollapsed}
                 to="/business/members"
                 $active={isActive('/business/members')}
               >
                 <IconMembers /> {t('nav.members')}
               </SecondaryNavItem>
             )}
-            <SecondaryNavItem to="/profile" $active={isActive('/profile')}>
+            <SecondaryNavItem $collapsed={secondaryCollapsed} to="/profile" $active={isActive('/profile')}>
               <IconUsers /> {t('user.profile')}
             </SecondaryNavItem>
           </SecondaryBody>
