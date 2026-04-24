@@ -147,7 +147,8 @@ const QTaskPage:React.FC=()=>{
   // Filters
   const[search,setSearch]=useState('');
   const[statusFilter,setStatusFilter]=useState('');
-  const[hideCompleted,setHideCompleted]=useState(false);
+  // 기본 true: 체크박스 = 완료 = 리스트에서 사라짐 (완료 업무 다시 보려면 헤더 체크 해제)
+  const[hideCompleted,setHideCompleted]=useState(true);
   const[rightWidth,setRightWidth]=useState<number>(()=>{
     try{const v=localStorage.getItem('qtask_right_width');return v?Math.max(320,Math.min(720,Number(v))):420;}catch{return 420;}
   });
