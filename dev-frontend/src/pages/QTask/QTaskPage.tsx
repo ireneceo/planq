@@ -195,16 +195,9 @@ const QTaskPage:React.FC=()=>{
     document.body.style.userSelect='none';
     document.body.style.cursor='col-resize';
   };
-  const[sortKey,setSortKey]=useState<SortKey>('due_date');
+  // 기본 정렬: 우선순위 asc (priority_order 없는 항목은 맨 아래, tie-break 아래 sort 로직에서 due_date→title)
+  const[sortKey,setSortKey]=useState<SortKey>('priority_order');
   const[sortDir,setSortDir]=useState<SortDir>('asc');
-
-  // 우선순위 정렬은 이번 주 탭에서만 의미 있음 → 다른 탭으로 전환 시 기본(마감일)으로 복귀
-  useEffect(()=>{
-    if(tab!=='week' && sortKey==='priority_order'){
-      setSortKey('due_date');
-      setSortDir('asc');
-    }
-  },[tab,sortKey]);
 
   // Inline edit
   const[editingTitle,setEditingTitle]=useState<number|null>(null);
@@ -635,15 +628,37 @@ const QTaskPage:React.FC=()=>{
     if(statusFilter)list=list.filter(t=>t.status===statusFilter);
     if(hideCompleted)list=list.filter(t=>t.status!=='completed'&&t.status!=='canceled');
 
-    // Sort — nulls-last 원칙 (비어있는 값은 방향 무관하게 맨 아래)
+    // Sort — 기본 복합 정렬: priority_order → due_date → title (nulls-last)
+    // 사용자가 특정 컬럼 클릭 시 그 키가 주 정렬, 동률은 priority→due→title 로 tie-break
     list=[...list].sort((a,b)=>{
+      // 1) 주 정렬 (사용자 선택)
       const va=a[sortKey];const vb=b[sortKey];
       const aNull=va==null||va===''; const bNull=vb==null||vb==='';
-      if(aNull&&bNull)return 0;
-      if(aNull)return 1;
-      if(bNull)return -1;
-      if(typeof va==='string'&&typeof vb==='string')return sortDir==='asc'?va.localeCompare(vb):vb.localeCompare(va);
-      return sortDir==='asc'?(Number(va)-Number(vb)):(Number(vb)-Number(va));
+      if(aNull&&!bNull)return 1;
+      if(!aNull&&bNull)return -1;
+      if(!aNull&&!bNull){
+        const cmp=typeof va==='string'&&typeof vb==='string'
+          ?(sortDir==='asc'?va.localeCompare(vb):vb.localeCompare(va))
+          :(sortDir==='asc'?(Number(va)-Number(vb)):(Number(vb)-Number(va)));
+        if(cmp!==0)return cmp;
+      }
+      // 2) tie-break: priority_order asc (null last)
+      if(sortKey!=='priority_order'){
+        const pa=a.priority_order, pb=b.priority_order;
+        if(pa!=null&&pb==null)return -1;
+        if(pa==null&&pb!=null)return 1;
+        if(pa!=null&&pb!=null&&pa!==pb)return pa-pb;
+      }
+      // 3) tie-break: due_date asc (null last)
+      if(sortKey!=='due_date'){
+        const da=a.due_date, db=b.due_date;
+        if(da&&!db)return -1;
+        if(!da&&db)return 1;
+        if(da&&db&&da!==db)return da.localeCompare(db);
+      }
+      // 4) tie-break: title
+      if(sortKey!=='title')return a.title.localeCompare(b.title);
+      return 0;
     });
     return list;
   },[allTasks,scope,tab,assigneeFilter,todayStr,myId,search,statusFilter,hideCompleted,sortKey,sortDir]);
@@ -904,7 +919,7 @@ const QTaskPage:React.FC=()=>{
             <Col $w="48px" $center $hideBelow={900} onClick={()=>handleSort('estimated_hours')}>{t('col.est','Est(h)')} {sortIcon('estimated_hours')}</Col>
             <Col $w="48px" $center $hideBelow={900} onClick={()=>handleSort('actual_hours')}>{t('col.act','Act(h)')} {sortIcon('actual_hours')}</Col>
             <Col $w="130px" $center $hideBelow={1024} onClick={()=>handleSort('progress_percent')}>{t('col.progress','Progress')} {sortIcon('progress_percent')}</Col>
-            <Col $w="140px" $center $hideBelow={768} onClick={()=>handleSort('due_date')}>{t('col.period','Start ~ Due')} {sortIcon('due_date')}</Col>
+            <Col $w="140px" $center $hideBelow={768} onClick={()=>handleSort('due_date')}>{t('col.dates','시작 ~ 마감')} {sortIcon('due_date')}</Col>
           </ColRow>
 
           {/* Flat task list (no grouping) */}
@@ -1563,7 +1578,7 @@ const Col=styled.span<{$w?:string;$flex?:boolean;$center?:boolean;$hideBelow?:nu
     : `flex:0 0 ${p.$w||'auto'};width:${p.$w||'auto'};`}
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
   font-size:11px;font-weight:700;color:#94A3B8;cursor:pointer;user-select:none;
-  ${p=>p.$center&&'text-align:center;'}
+  ${p=>p.$center&&'display:inline-flex;justify-content:center;align-items:center;gap:4px;text-align:center;'}
   &:hover{color:#475569;}
   ${p=>p.$hideBelow?`@media (max-width: ${p.$hideBelow}px){display:none;}`:''}
 `;
