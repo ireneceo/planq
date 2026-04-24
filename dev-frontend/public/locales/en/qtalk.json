@@ -42,12 +42,18 @@
       "title": "Project Notes",
       "internal": "Internal",
       "personal": "Personal",
+      "onlyMe": "Only me",
+      "withTeam": "Shared",
       "empty": "No notes yet",
       "placeholder": "Write a note... (Enter to save)"
     },
     "info": {
       "title": "Project Info",
+      "name": "Name",
       "client": "Client",
+      "start": "Start",
+      "end": "Due",
+      "desc": "Description",
       "period": "Period",
       "status": "Status",
       "members": "Members",
