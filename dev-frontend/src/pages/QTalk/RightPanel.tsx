@@ -106,11 +106,14 @@ const RightPanel: React.FC<Props> = ({
   if (!isNarrow && collapsed) {
     return (
       <CollapsedStrip>
-        <CollapsedBtn onClick={onToggleCollapsed}>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <polyline points="15 18 9 12 15 6" />
-          </svg>
-        </CollapsedBtn>
+        <RightEdgeHandle
+          type="button"
+          onClick={onToggleCollapsed}
+          aria-label={t('right.expand', '작업대 열기') as string}
+          title={t('right.expand', '작업대 열기') as string}
+        >
+          <EdgeChevron><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg></EdgeChevron>
+        </RightEdgeHandle>
       </CollapsedStrip>
     );
   }
@@ -138,10 +141,23 @@ const RightPanel: React.FC<Props> = ({
     <>
       <HeaderBar>
         <HeaderTitle>{t('right.title', '프로젝트 작업대')}</HeaderTitle>
-        <IconBtn onClick={headerCloseHandler} title={t('right.collapse', '접기')}>
-          {headerCloseIcon}
-        </IconBtn>
+        {/* narrow(overlay) 모드에서만 헤더 X 유지. 데스크탑은 좌측 엣지 바로 접기 (통일) */}
+        {isNarrow && (
+          <IconBtn onClick={headerCloseHandler} title={t('right.collapse', '접기')}>
+            {headerCloseIcon}
+          </IconBtn>
+        )}
       </HeaderBar>
+      {!isNarrow && (
+        <RightEdgeHandle
+          type="button"
+          onClick={onToggleCollapsed}
+          aria-label={t('right.collapse', '접기') as string}
+          title={t('right.collapse', '접기') as string}
+        >
+          <EdgeChevron><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg></EdgeChevron>
+        </RightEdgeHandle>
+      )}
 
       <Scroll>
         {/* 업무 후보 (있을 때만, 최상단) */}
@@ -470,6 +486,7 @@ const Container = styled.aside<{ $overlay?: boolean }>`
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  position: relative;
   ${({ $overlay }) => $overlay
     ? `
       position: fixed; top: 0; right: 0; bottom: 0;
@@ -485,6 +502,32 @@ const Container = styled.aside<{ $overlay?: boolean }>`
       width: 320px; flex-shrink: 0;
       @media (max-width: 1200px) { display: none; }
     `}
+`;
+
+/* 사이드 패널 접기/펼치기 엣지 핸들 — Secondary/Q Talk 공통 패턴 (2026-04-24 통일) */
+const RightEdgeHandle = styled.button`
+  position: absolute;
+  top: 50%;
+  left: 0;
+  transform: translate(-50%, -50%);
+  width: 8px; height: 60px;
+  padding: 0; border: none;
+  background: #CBD5E1;
+  border-radius: 4px;
+  cursor: pointer;
+  z-index: 10;
+  box-shadow: 0 1px 3px rgba(15,23,42,0.08);
+  transition: width 0.15s ease, background 0.15s ease, height 0.15s ease;
+  display: flex; align-items: center; justify-content: center;
+  &::before { content: ''; position: absolute; top: -10px; bottom: -10px; left: -8px; right: -8px; }
+  &:hover { width: 14px; height: 72px; background: #14B8A6; }
+  &:focus-visible { outline: 2px solid #14B8A6; outline-offset: 2px; }
+`;
+const EdgeChevron = styled.span`
+  display: flex; align-items: center; justify-content: center;
+  color: #64748B;
+  svg { width: 10px; height: 10px; }
+  ${RightEdgeHandle}:hover & { color: #FFFFFF; }
 `;
 
 const OverlayBackdrop = styled.div`
@@ -507,20 +550,6 @@ const CollapsedStrip = styled.aside`
   align-items: center;
   padding: 12px 0;
   @media (max-width: 1200px) { display: none; }
-`;
-
-const CollapsedBtn = styled.button`
-  width: 28px;
-  height: 28px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: transparent;
-  border: none;
-  border-radius: 6px;
-  color: #64748B;
-  cursor: pointer;
-  &:hover { background: #F1F5F9; color: #0F172A; }
 `;
 
 const HeaderBar = styled.div`
