@@ -130,6 +130,8 @@ router.post('/', authenticateToken, async (req, res, next) => {
         user_id: m.user_id,
         role: m.role?.trim() || '기타',
         role_order: 0,
+        // 생성자 = 프로젝트 owner = 자동 PM (PERMISSION_MATRIX §3)
+        is_pm: m.user_id === req.user.id,
       });
     }
     await ProjectMember.bulkCreate(pmRows, { transaction: t });
@@ -375,7 +377,14 @@ router.put('/:id/members', authenticateToken, async (req, res, next) => {
     const rows = [];
     for (const m of members) {
       if (!validUserIds.has(m.user_id)) continue;
-      rows.push({ project_id: project.id, user_id: m.user_id, role: m.role || '기타', role_order: 0 });
+      rows.push({
+        project_id: project.id,
+        user_id: m.user_id,
+        role: m.role || '기타',
+        role_order: 0,
+        // PM 플래그 — 클라이언트 입력 반영 + 프로젝트 owner 는 강제 PM (PERMISSION_MATRIX §3)
+        is_pm: m.user_id === project.owner_user_id ? true : !!m.is_pm,
+      });
     }
     await ProjectMember.bulkCreate(rows, { transaction: t });
     await t.commit();

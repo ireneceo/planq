@@ -28,7 +28,7 @@ import {
   type CueInfo,
 } from '../../services/workspace';
 
-type TabKey = 'brand' | 'legal' | 'language' | 'timezone' | 'storage' | 'plan' | 'permissions' | 'members' | 'cue';
+type TabKey = 'brand' | 'legal' | 'language' | 'storage' | 'plan' | 'permissions' | 'members' | 'cue';
 
 // ─────────────────────────────────────────────
 // Styled
@@ -469,11 +469,13 @@ export default function WorkspaceSettingsPage() {
   // /business/settings/{language|timezone|storage|plan|cue} → 해당 섹션
   const isMembersMode = location.pathname.includes('/business/members');
   const visibleTabs = useMemo<TabKey[]>(() => (
-    isMembersMode ? ['members'] : ['brand', 'legal', 'language', 'timezone', 'storage', 'plan', 'permissions', 'cue']
+    isMembersMode ? ['members'] : ['brand', 'legal', 'language', 'storage', 'plan', 'permissions', 'cue']
   ), [isMembersMode]);
 
   const tabFromUrl = useMemo<TabKey>(() => {
-    const fromParam = (params.tab || '').toLowerCase();
+    let fromParam = (params.tab || '').toLowerCase();
+    // 언어 · 타임존 통합 — 기존 /timezone URL 은 언어 탭으로 흡수 (backward compat)
+    if (fromParam === 'timezone') fromParam = 'language';
     if (visibleTabs.includes(fromParam as TabKey)) return fromParam as TabKey;
     return visibleTabs[0];
   }, [params.tab, visibleTabs]);
@@ -678,7 +680,6 @@ export default function WorkspaceSettingsPage() {
     if (isMembersMode) return t('membersPage.title') as string;
     switch (tab) {
       case 'language':    return t('tabs.language') as string;
-      case 'timezone':    return t('tabs.timezone') as string;
       case 'storage':     return t('tabs.storage') as string;
       case 'plan':        return t('tabs.plan') as string;
       case 'permissions': return t('tabs.permissions') as string;
@@ -1003,8 +1004,8 @@ export default function WorkspaceSettingsPage() {
         </Card>
       )}
 
-      {/* ─── TIMEZONE ─── */}
-      {tab === 'timezone' && (
+      {/* 타임존은 language 탭 내부에서 함께 렌더링 */}
+      {tab === 'language' && (
         <WorkspaceTimezoneSection
           businessId={businessId}
           isAdmin={isAdmin}

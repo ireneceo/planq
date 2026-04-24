@@ -10,8 +10,7 @@
   "tabs": {
     "brand": "브랜드",
     "legal": "법인 정보",
-    "language": "언어",
-    "timezone": "타임존",
+    "language": "언어·타임존",
     "storage": "파일 저장소",
     "plan": "구독 플랜",
     "permissions": "권한",
@@ -105,8 +104,8 @@
     "website": "웹사이트"
   },
   "language": {
-    "sectionTitle": "언어·시간",
-    "sectionDesc": "워크스페이스의 기본 언어·타임존·근무시간입니다. 고객 자동 응답 시간대에 영향을 줍니다.",
+    "sectionTitle": "기본 언어",
+    "sectionDesc": "워크스페이스의 기본 언어·근무시간 설정입니다. 고객 자동 응답 시간대에 영향을 줍니다.",
     "defaultLanguage": "기본 언어",
     "defaultLanguageHint": "가입 후에도 변경 가능합니다. 영어로 바꾸면 영문 라벨 필드는 숨겨집니다.",
     "languageKo": "한국어",

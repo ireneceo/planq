@@ -10,8 +10,7 @@
   "tabs": {
     "brand": "Brand",
     "legal": "Legal Info",
-    "language": "Language",
-    "timezone": "Timezone",
+    "language": "Language & Region",
     "storage": "File Storage",
     "plan": "Subscription",
     "permissions": "Permissions",
@@ -105,8 +104,8 @@
     "website": "Website"
   },
   "language": {
-    "sectionTitle": "Language & Time",
-    "sectionDesc": "The default language, timezone, and work hours for the workspace. Affects when Cue auto-responds.",
+    "sectionTitle": "Default Language",
+    "sectionDesc": "Default language and work hours for the workspace. Affects when Cue auto-responds.",
     "defaultLanguage": "Default Language",
     "defaultLanguageHint": "Can be changed later. If set to English, English label fields are hidden.",
     "languageKo": "Korean",

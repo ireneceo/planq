@@ -45,8 +45,7 @@
     "storage": "파일 저장소",
     "permissions": "권한",
     "cue": "Cue",
-    "language": "언어",
-    "timezone": "타임존"
+    "language": "언어·타임존"
   },
   "user": {
     "profile": "내 프로필",
