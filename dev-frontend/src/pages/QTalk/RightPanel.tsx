@@ -475,9 +475,17 @@ const RightPanel: React.FC<Props> = ({
                 <InfoRow><InfoLabel>{t('right.info.client', '고객')}</InfoLabel><InfoValue>{project.client_company}</InfoValue></InfoRow>
               )}
               {project.start_date && (
-                <InfoRow><InfoLabel>{t('right.info.period', '기간')}</InfoLabel><InfoValue>{project.start_date} ~ {project.end_date || '—'}</InfoValue></InfoRow>
+                <InfoRow>
+                  <InfoLabel>{t('right.info.period', '기간')}</InfoLabel>
+                  <InfoValue>
+                    {String(project.start_date).slice(0, 10)} ~ {project.end_date ? String(project.end_date).slice(0, 10) : '—'}
+                  </InfoValue>
+                </InfoRow>
               )}
-              <InfoRow><InfoLabel>{t('right.info.status', '상태')}</InfoLabel><InfoValue>{project.status}</InfoValue></InfoRow>
+              <InfoRow>
+                <InfoLabel>{t('right.info.status', '상태')}</InfoLabel>
+                <InfoValue>{t(`right.info.statusLabel.${project.status}`, project.status)}</InfoValue>
+              </InfoRow>
               <InfoRow><InfoLabel>{t('right.info.members', '멤버')}</InfoLabel></InfoRow>
               {project.members.map((m) => (
                 <MemberRow key={m.user_id}>
@@ -1110,21 +1118,28 @@ const NoteSendBtn = styled.button`
 
 const InfoRow = styled.div`
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 4px 0;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 5px 0;
   font-size: 12px;
+  line-height: 1.5;
 `;
 
 const InfoLabel = styled.div`
-  color: #94A3B8;
+  color: #64748B;
   font-weight: 600;
   font-size: 11px;
+  flex-shrink: 0;
+  width: 46px;
 `;
 
 const InfoValue = styled.div`
   color: #0F172A;
   font-weight: 500;
+  flex: 1;
+  min-width: 0;
+  text-align: right;
+  word-break: break-word;
 `;
 
 const MemberRow = styled.div`
