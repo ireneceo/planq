@@ -58,7 +58,12 @@
       "status": "상태",
       "members": "멤버",
       "default": "기본",
-      "detail": "프로젝트 상세 보기"
+      "detail": "프로젝트 상세 보기",
+      "statusLabel": {
+        "active": "진행 중",
+        "paused": "일시 중지",
+        "closed": "종료"
+      }
     }
   },
   "channelBadge": {
