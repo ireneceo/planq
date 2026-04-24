@@ -185,11 +185,10 @@ const Container = styled.aside`
   @media (max-width: 900px) { display: none; }
 `;
 
+/* 접힘 상태: 0 폭 컨테이너 + 내부 EdgeHandle 만 경계에 노출. Q Note 와 동일한 "완전 접힘" UX */
 const CollapsedStrip = styled.aside`
-  width: 16px;
+  width: 0;
   flex-shrink: 0;
-  background: #FFFFFF;
-  border-right: 1px solid #E2E8F0;
   position: relative;
   @media (max-width: 900px) { display: none; }
 `;
