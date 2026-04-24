@@ -3,7 +3,7 @@ import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import {
   type MockProject, type MockTask, type MockNote, type MockIssue, type MockTaskCandidate,
-  TASK_STATUS_LABEL, TASK_STATUS_COLOR,
+  taskStatusLabel, taskStatusColor,
 } from './mock';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
@@ -347,10 +347,10 @@ const RightPanel: React.FC<Props> = ({
                     <TaskTitle $completed={task.status === 'completed'}>{task.title}</TaskTitle>
                     <TaskMeta>
                       <StatusPill
-                        $bg={TASK_STATUS_COLOR[task.status].bg}
-                        $fg={TASK_STATUS_COLOR[task.status].fg}
+                        $bg={taskStatusColor(task.status).bg}
+                        $fg={taskStatusColor(task.status).fg}
                       >
-                        {TASK_STATUS_LABEL[task.status]}
+                        {taskStatusLabel(task.status)}
                       </StatusPill>
                       {task.due_date && <TaskDue>{task.due_date}</TaskDue>}
                       {task.recurrence && <RecurIcon title={t('right.myTasks.recurTitle', '반복 업무') as string}>↻</RecurIcon>}
@@ -395,10 +395,10 @@ const RightPanel: React.FC<Props> = ({
                     {task.due_date && <ProjectTaskDue>{task.due_date}</ProjectTaskDue>}
                     {task.recurrence && <RecurIcon>↻</RecurIcon>}
                     <StatusPill
-                      $bg={TASK_STATUS_COLOR[task.status].bg}
-                      $fg={TASK_STATUS_COLOR[task.status].fg}
+                      $bg={taskStatusColor(task.status).bg}
+                      $fg={taskStatusColor(task.status).fg}
                     >
-                      {TASK_STATUS_LABEL[task.status]}
+                      {taskStatusLabel(task.status)}
                     </StatusPill>
                   </ProjectTaskRight>
                 </ProjectTaskRow>

@@ -320,7 +320,7 @@ export const QDataProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       assignee_id: cand.guessed_assignee?.user_id || 15,
       assignee_name: cand.guessed_assignee?.name || '미지정',
       due_date: cand.guessed_due_date,
-      status: 'task_requested',
+      status: 'not_started',
     }]);
     setCandidates((prev) => prev.filter((c) => c.id !== candidateId));
   }, [candidates, tasks]);

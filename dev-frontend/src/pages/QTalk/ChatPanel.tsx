@@ -505,7 +505,7 @@ const ChatPanel: React.FC<Props> = ({
 
       {/* 입력창 */}
       <InputBar>
-        {!isClient && (
+        {!isClient && project && (
           <InputToolbar>
             <ToggleLabel>
               <ToggleInput
