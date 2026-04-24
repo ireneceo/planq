@@ -114,5 +114,37 @@
     "cancelScheduleDesc": "{{plan}} 로 예정된 전환을 취소하시겠습니까?",
     "confirm": "확인",
     "cancel": "취소"
+  },
+  "enterprise": {
+    "title": "Enterprise — 대규모 팀·맞춤 계약",
+    "desc": "100명 이상 팀, 맞춤 SLA, 전담 도입 매니저, 커스텀 통합·보안 요구가 있는 조직을 위한 플랜입니다. 요구사항에 맞춰 견적을 드립니다.",
+    "bullets": {
+      "sla": "SLA 99.9%+ 보장",
+      "support": "전담 도입 매니저 · 24/7 지원",
+      "security": "SSO · 데이터 지역 선택 · 감사 로그",
+      "custom": "커스텀 통합 · 데이터 이관"
+    },
+    "contactBtn": "문의하기"
+  },
+  "inquiry": {
+    "title": "Enterprise 플랜 문의",
+    "subtitle": "담당자가 1~2영업일 내 연락드립니다.",
+    "name": "이름",
+    "namePh": "홍길동",
+    "email": "이메일",
+    "emailPh": "name@company.com",
+    "company": "회사 / 워크스페이스 (선택)",
+    "companyPh": "회사명 또는 조직명",
+    "phone": "연락처 (선택)",
+    "phonePh": "010-0000-0000",
+    "message": "문의 내용",
+    "messagePh": "팀 규모·사용 목적·희망 시작 시점 등을 자유롭게 작성해주세요.",
+    "submit": "문의 보내기",
+    "submitting": "보내는 중…",
+    "cancel": "취소",
+    "successTitle": "문의가 접수되었습니다",
+    "successDesc": "담당자가 1~2영업일 내에 {{email}} 로 연락드립니다.",
+    "close": "닫기",
+    "error": "전송 실패 — 잠시 후 다시 시도해주세요"
   }
 }

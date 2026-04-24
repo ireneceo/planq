@@ -48,6 +48,8 @@ const BillEvent = require('./BillEvent');
 const OverheadItem = require('./OverheadItem');
 const ProjectExpense = require('./ProjectExpense');
 const Report = require('./Report');
+// ─── 플랫폼 문의 ───
+const ContactInquiry = require('./ContactInquiry');
 
 // ============================================
 // Associations
@@ -306,6 +308,8 @@ module.exports = {
   OverheadItem,
   ProjectExpense,
   Report,
+  // 플랫폼 문의
+  ContactInquiry,
 };
 
 // CalendarEvent
@@ -380,3 +384,8 @@ Project.hasMany(ProjectExpense, { as: 'expenses', foreignKey: 'project_id' });
 Report.belongsTo(Business, { foreignKey: 'business_id' });
 Report.belongsTo(User, { as: 'generator', foreignKey: 'generated_by' });
 Business.hasMany(Report, { as: 'reports', foreignKey: 'business_id' });
+
+// ContactInquiry — 플랫폼 문의
+ContactInquiry.belongsTo(User, { as: 'fromUser', foreignKey: 'from_user_id' });
+ContactInquiry.belongsTo(User, { as: 'repliedBy', foreignKey: 'replied_by_user_id' });
+ContactInquiry.belongsTo(Business, { foreignKey: 'business_id' });
