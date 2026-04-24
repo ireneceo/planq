@@ -153,6 +153,7 @@ export interface ApiConversation {
   auto_extract_enabled: boolean;
   cue_enabled: boolean;
   last_extracted_message_id: number | null;
+  last_message_at: string | null;
   created_at: string;
 }
 

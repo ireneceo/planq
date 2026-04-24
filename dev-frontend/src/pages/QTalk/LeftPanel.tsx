@@ -33,8 +33,8 @@ const LeftPanel: React.FC<Props> = ({
   const isClient = user?.business_role === 'client';
   const [query, setQuery] = useState('');
 
-  // 프로젝트 대화 + 프로젝트 없는 일반 대화를 순서대로 1차원 리스트화.
-  // 일반 대화는 project 자리에 null 을 둬서 렌더 시 "일반 대화" 라벨로 처리.
+  // 프로젝트 대화 + 프로젝트 없는 일반 대화를 1차원 리스트화한 뒤
+  // last_message_at DESC 로 정렬 (Slack/카카오톡 패턴 — 새 메시지 오면 위로).
   const chats = useMemo<ChatEntry[]>(() => {
     const result: ChatEntry[] = [];
     for (const p of projects) {
@@ -47,18 +47,21 @@ const LeftPanel: React.FC<Props> = ({
     const standalone = conversations
       .filter((c) => !c.project_id)
       .filter((c) => !isClient || c.channel_type !== 'internal');
+    const generalProject = {
+      id: -1, business_id: 0, name: t('left.generalConversation', '일반 대화'), client_company: '',
+      has_cue_activity: false, unread_count: 0,
+    } as unknown as ChatEntry['project'];
     for (const c of standalone) {
-      result.push({
-        conversation: c,
-        project: {
-          id: -1, business_id: 0, name: t('left.generalConversation', '일반 대화'), client_company: '',
-          has_cue_activity: false, unread_count: 0,
-          // MockProject 의 나머지 필수 필드들은 방어 기본값
-        } as unknown as ChatEntry['project'],
-      });
+      result.push({ conversation: c, project: generalProject });
     }
+    // 최근 활동 순 정렬 — last_message_at 없으면 0 (맨 아래)
+    result.sort((a, b) => {
+      const ta = a.conversation.last_message_at ? new Date(a.conversation.last_message_at).getTime() : 0;
+      const tb = b.conversation.last_message_at ? new Date(b.conversation.last_message_at).getTime() : 0;
+      return tb - ta;
+    });
     return result;
-  }, [projects, conversations, isClient]);
+  }, [projects, conversations, isClient, t]);
 
   const filteredChats = useMemo(() => {
     let list = chats;

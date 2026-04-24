@@ -67,6 +67,7 @@ function apiConversationToMock(c: qtalkApi.ApiConversation): MockConversation {
     auto_extract_enabled: c.auto_extract_enabled,
     unread_count: 0,
     last_extracted_message_id: c.last_extracted_message_id,
+    last_message_at: c.last_message_at || c.created_at || null,
   };
 }
 
@@ -235,6 +236,10 @@ const QTalkPage: React.FC = () => {
         if (arr.some((m) => m.id === mapped.id)) return prev;
         return { ...prev, [mapped.conversation_id]: [...arr, mapped] };
       });
+      // 대화 리스트 상단으로 끌어올림 — last_message_at 갱신
+      setConversations((prev) => prev.map((c) =>
+        c.id === mapped.conversation_id ? { ...c, last_message_at: mapped.created_at } : c
+      ));
     });
 
     // 후보 생성
@@ -577,6 +582,10 @@ const QTalkPage: React.FC = () => {
         ...prev,
         [activeConversationId]: [...(prev[activeConversationId] || []), mapped],
       }));
+      // 내가 보낸 메시지도 대화 리스트 상단으로 끌어올림
+      setConversations((prev) => prev.map((c) =>
+        c.id === activeConversationId ? { ...c, last_message_at: mapped.created_at } : c
+      ));
     } catch (err: unknown) {
       showNotice(t('page.sendFailed', { msg: err instanceof Error ? err.message : '' }));
     }

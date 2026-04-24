@@ -401,7 +401,13 @@ const QNotePage = () => {
       const data = await listSessions(businessId);
       // eslint-disable-next-line no-console
       console.log(`[QNOTE-TIMING] ${Math.round(performance.now() - _t0)}ms loadSessions done (${data.length} sessions)`);
-      setSessions(data);
+      // 최신 우선 정렬 (created_at DESC)
+      const sorted = [...data].sort((a, b) => {
+        const ta = a.created_at ? new Date(a.created_at).getTime() : 0;
+        const tb = b.created_at ? new Date(b.created_at).getTime() : 0;
+        return tb - ta;
+      });
+      setSessions(sorted);
     } catch (err) {
       console.error('Failed to load sessions:', err);
     }
