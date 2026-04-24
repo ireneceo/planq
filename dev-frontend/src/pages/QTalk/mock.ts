@@ -60,7 +60,7 @@ export interface MockConversation {
 
 export interface MockTaskCandidate {
   id: number;
-  project_id: number;
+  project_id: number | null;
   conversation_id?: number;
   title: string;
   description: string;
@@ -74,7 +74,8 @@ export interface MockTaskCandidate {
 
 export interface MockTask {
   id: number;
-  project_id: number;
+  project_id: number | null;
+  conversation_id?: number | null;
   title: string;
   assignee_id: number;
   assignee_name: string;
@@ -85,7 +86,8 @@ export interface MockTask {
 
 export interface MockNote {
   id: number;
-  project_id: number;
+  project_id: number | null;
+  conversation_id?: number | null;
   author_id: number;
   author_name: string;
   visibility: 'personal' | 'internal';
@@ -95,7 +97,8 @@ export interface MockNote {
 
 export interface MockIssue {
   id: number;
-  project_id: number;
+  project_id: number | null;
+  conversation_id?: number | null;
   body: string;
   author_name: string;
   created_at: string;

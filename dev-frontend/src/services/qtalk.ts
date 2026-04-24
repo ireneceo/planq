@@ -198,7 +198,8 @@ export interface ApiTask {
 
 export interface ApiNote {
   id: number;
-  project_id: number;
+  project_id: number | null;
+  conversation_id?: number | null;
   author_user_id: number;
   visibility: 'personal' | 'internal';
   body: string;
@@ -209,7 +210,8 @@ export interface ApiNote {
 
 export interface ApiIssue {
   id: number;
-  project_id: number;
+  project_id: number | null;
+  conversation_id?: number | null;
   body: string;
   author_user_id: number;
   createdAt: string;
@@ -219,7 +221,7 @@ export interface ApiIssue {
 
 export interface ApiTaskCandidate {
   id: number;
-  project_id: number;
+  project_id: number | null;
   conversation_id: number | null;
   title: string;
   description: string | null;
@@ -266,6 +268,38 @@ export async function listProjectIssues(projectId: number): Promise<ApiIssue[]> 
 export async function listProjectCandidates(projectId: number): Promise<ApiTaskCandidate[]> {
   const res = await apiFetch(`/api/projects/${projectId}/task-candidates`);
   return handle<ApiTaskCandidate[]>(res);
+}
+
+// 독립 대화(project_id null) scope — 우측 패널 데이터
+export async function listConvNotes(convId: number): Promise<ApiNote[]> {
+  const res = await apiFetch(`/api/projects/conversations/${convId}/notes`);
+  return handle<ApiNote[]>(res);
+}
+export async function listConvIssues(convId: number): Promise<ApiIssue[]> {
+  const res = await apiFetch(`/api/projects/conversations/${convId}/issues`);
+  return handle<ApiIssue[]>(res);
+}
+export async function listConvCandidates(convId: number): Promise<ApiTaskCandidate[]> {
+  const res = await apiFetch(`/api/projects/conversations/${convId}/task-candidates`);
+  return handle<ApiTaskCandidate[]>(res);
+}
+export async function listConvTasks(convId: number): Promise<ApiTask[]> {
+  const res = await apiFetch(`/api/projects/conversations/${convId}/tasks`);
+  return handle<ApiTask[]>(res);
+}
+export async function addConvNote(convId: number, body: string, visibility: 'personal' | 'internal'): Promise<ApiNote> {
+  const res = await apiFetch(`/api/projects/conversations/${convId}/notes`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ body, visibility }),
+  });
+  return handle<ApiNote>(res);
+}
+export async function addConvIssue(convId: number, body: string): Promise<ApiIssue> {
+  const res = await apiFetch(`/api/projects/conversations/${convId}/issues`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ body }),
+  });
+  return handle<ApiIssue>(res);
 }
 
 // ─────────────────────────────────────────────

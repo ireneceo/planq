@@ -40,6 +40,16 @@ async function loadProjectOrForbidden(projectId, userId) {
   return { error: { code: 403, message: 'not_project_member' } };
 }
 
+// 독립 대화(project_id null) scope 체크 — 워크스페이스 멤버여야 접근 가능.
+// 반환: { conversation, role } 또는 { error }. role 은 'owner'|'member'.
+async function loadStandaloneConvOrForbidden(convId, userId) {
+  const conv = await Conversation.findByPk(convId);
+  if (!conv) return { error: { code: 404, message: 'conversation_not_found' } };
+  const bm = await requireBusinessMember(userId, conv.business_id);
+  if (!bm) return { error: { code: 403, message: 'not_workspace_member' } };
+  return { conversation: conv, role: bm.role };
+}
+
 // 관리자 전용 액션(프로젝트 멤버 관리·삭제·종료·이관) 가드.
 // owner 또는 platform_admin 만 통과.
 async function requireProjectAdmin(projectId, user) {
@@ -631,6 +641,126 @@ router.get('/:id/tasks', authenticateToken, async (req, res, next) => {
 });
 
 // ============================================
+// 독립 대화(project 없음) 우측패널 스코프 — notes / issues / task-candidates / tasks
+// ============================================
+
+// GET /api/projects/conversations/:convId/notes — 독립 대화 메모
+router.get('/conversations/:convId/notes', authenticateToken, async (req, res, next) => {
+  try {
+    const convId = Number(req.params.convId);
+    const { conversation, error } = await loadStandaloneConvOrForbidden(convId, req.user.id);
+    if (error) return errorResponse(res, error.message, error.code);
+    const { Op } = require('sequelize');
+    const notes = await ProjectNote.findAll({
+      where: {
+        conversation_id: conversation.id,
+        [Op.or]: [
+          { visibility: 'internal' },
+          { visibility: 'personal', author_user_id: req.user.id },
+        ],
+      },
+      include: [{ model: User, as: 'author', attributes: ['id', 'name'] }],
+      order: [['created_at', 'DESC']],
+    });
+    return successResponse(res, notes.map((n) => n.toJSON()));
+  } catch (err) { next(err); }
+});
+
+// POST /api/projects/conversations/:convId/notes — 독립 대화 메모 작성
+router.post('/conversations/:convId/notes', authenticateToken, async (req, res, next) => {
+  try {
+    const convId = Number(req.params.convId);
+    const { conversation, error } = await loadStandaloneConvOrForbidden(convId, req.user.id);
+    if (error) return errorResponse(res, error.message, error.code);
+    const { body, visibility } = req.body || {};
+    if (!body || !String(body).trim()) return errorResponse(res, 'body is required', 400);
+    const vis = visibility === 'internal' ? 'internal' : 'personal';
+    const note = await ProjectNote.create({
+      project_id: null,
+      conversation_id: conversation.id,
+      author_user_id: req.user.id,
+      visibility: vis,
+      body: String(body).trim(),
+    });
+    const full = await ProjectNote.findByPk(note.id, {
+      include: [{ model: User, as: 'author', attributes: ['id', 'name'] }],
+    });
+    return successResponse(res, full.toJSON());
+  } catch (err) { next(err); }
+});
+
+// GET /api/projects/conversations/:convId/issues — 독립 대화 이슈
+router.get('/conversations/:convId/issues', authenticateToken, async (req, res, next) => {
+  try {
+    const convId = Number(req.params.convId);
+    const { conversation, error } = await loadStandaloneConvOrForbidden(convId, req.user.id);
+    if (error) return errorResponse(res, error.message, error.code);
+    const issues = await ProjectIssue.findAll({
+      where: { conversation_id: conversation.id },
+      include: [{ model: User, as: 'author', attributes: ['id', 'name'] }],
+      order: [['created_at', 'DESC']],
+    });
+    return successResponse(res, issues.map((i) => i.toJSON()));
+  } catch (err) { next(err); }
+});
+
+// POST /api/projects/conversations/:convId/issues — 독립 대화 이슈 추가
+router.post('/conversations/:convId/issues', authenticateToken, async (req, res, next) => {
+  try {
+    const convId = Number(req.params.convId);
+    const { conversation, error } = await loadStandaloneConvOrForbidden(convId, req.user.id);
+    if (error) return errorResponse(res, error.message, error.code);
+    const { body } = req.body || {};
+    if (!body || !String(body).trim()) return errorResponse(res, 'body is required', 400);
+    const issue = await ProjectIssue.create({
+      project_id: null,
+      conversation_id: conversation.id,
+      body: String(body).trim(),
+      author_user_id: req.user.id,
+    });
+    const full = await ProjectIssue.findByPk(issue.id, {
+      include: [{ model: User, as: 'author', attributes: ['id', 'name'] }],
+    });
+    return successResponse(res, full.toJSON());
+  } catch (err) { next(err); }
+});
+
+// GET /api/projects/conversations/:convId/task-candidates — 독립 대화 후보
+router.get('/conversations/:convId/task-candidates', authenticateToken, async (req, res, next) => {
+  try {
+    const convId = Number(req.params.convId);
+    const { conversation, error } = await loadStandaloneConvOrForbidden(convId, req.user.id);
+    if (error) return errorResponse(res, error.message, error.code);
+    const status = req.query.status || 'pending';
+    const where = { conversation_id: conversation.id };
+    if (status !== 'all') where.status = status;
+    const cands = await TaskCandidate.findAll({
+      where,
+      include: [{ model: User, as: 'guessedAssignee', attributes: ['id', 'name'], required: false }],
+      order: [['extracted_at', 'DESC']],
+    });
+    return successResponse(res, cands.map((c) => c.toJSON()));
+  } catch (err) { next(err); }
+});
+
+// GET /api/projects/conversations/:convId/tasks — 독립 대화 업무 (from_candidate 경로로 만들어진 것들)
+router.get('/conversations/:convId/tasks', authenticateToken, async (req, res, next) => {
+  try {
+    const convId = Number(req.params.convId);
+    const { conversation, error } = await loadStandaloneConvOrForbidden(convId, req.user.id);
+    if (error) return errorResponse(res, error.message, error.code);
+    const tasks = await Task.findAll({
+      where: { conversation_id: conversation.id, project_id: null },
+      include: [
+        { model: User, as: 'assignee', attributes: ['id', 'name'], required: false },
+      ],
+      order: [['created_at', 'DESC']],
+    });
+    return successResponse(res, tasks.map((t) => t.toJSON()));
+  } catch (err) { next(err); }
+});
+
+// ============================================
 // GET /api/projects/:id/notes — 프로젝트 메모
 // 권한 필터: 고객은 자기 personal 만, 멤버는 internal + 본인 personal
 // ============================================
@@ -709,10 +839,15 @@ router.post('/conversations/:convId/task-candidates/extract', authenticateToken,
     const conversationId = Number(req.params.convId);
     const conv = await Conversation.findByPk(conversationId);
     if (!conv) return errorResponse(res, 'conversation_not_found', 404);
-    if (!conv.project_id) return errorResponse(res, 'conversation_not_in_project', 400);
-    const { role, error } = await loadProjectOrForbidden(conv.project_id, req.user.id);
-    if (error) return errorResponse(res, error.message, error.code);
-    if (role === 'client') return errorResponse(res, 'forbidden', 403);
+    // 프로젝트 연결 시 프로젝트 권한, 없으면 워크스페이스 멤버 권한.
+    if (conv.project_id) {
+      const { role, error } = await loadProjectOrForbidden(conv.project_id, req.user.id);
+      if (error) return errorResponse(res, error.message, error.code);
+      if (role === 'client') return errorResponse(res, 'forbidden', 403);
+    } else {
+      const { error } = await loadStandaloneConvOrForbidden(conversationId, req.user.id);
+      if (error) return errorResponse(res, error.message, error.code);
+    }
 
     const result = await taskExtractor.extractTaskCandidates({
       conversationId,
@@ -720,15 +855,20 @@ router.post('/conversations/:convId/task-candidates/extract', authenticateToken,
       businessId: conv.business_id,
     });
 
-    // Socket.IO: 새 후보 알림
-    if (result.candidates?.length > 0 && conv.project_id) {
+    // Socket.IO: 새 후보 알림 (프로젝트 room 있으면 거기로, 아니면 conversation room 으로)
+    if (result.candidates?.length > 0) {
       const io = req.app.get('io');
       if (io) {
-        io.to(`project:${conv.project_id}`).emit('candidates:created', {
+        const payload = {
           project_id: conv.project_id,
           conversation_id: conversationId,
           candidates: result.candidates,
-        });
+        };
+        if (conv.project_id) {
+          io.to(`project:${conv.project_id}`).emit('candidates:created', payload);
+        } else {
+          io.to(`conversation:${conversationId}`).emit('candidates:created', payload);
+        }
       }
     }
 
@@ -748,9 +888,16 @@ router.post('/task-candidates/:id/register', authenticateToken, async (req, res,
   try {
     const candidate = await TaskCandidate.findByPk(req.params.id);
     if (!candidate) return errorResponse(res, 'candidate_not_found', 404);
-    const { role, error } = await loadProjectOrForbidden(candidate.project_id, req.user.id);
-    if (error) return errorResponse(res, error.message, error.code);
-    if (role === 'client') return errorResponse(res, 'forbidden', 403);
+    if (candidate.project_id) {
+      const { role, error } = await loadProjectOrForbidden(candidate.project_id, req.user.id);
+      if (error) return errorResponse(res, error.message, error.code);
+      if (role === 'client') return errorResponse(res, 'forbidden', 403);
+    } else if (candidate.conversation_id) {
+      const { error } = await loadStandaloneConvOrForbidden(candidate.conversation_id, req.user.id);
+      if (error) return errorResponse(res, error.message, error.code);
+    } else {
+      return errorResponse(res, 'candidate_unowned', 400);
+    }
 
     const result = await taskExtractor.registerCandidate(candidate.id, req.user.id);
 

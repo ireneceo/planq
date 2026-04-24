@@ -163,7 +163,7 @@ async function findSimilarTasks(candidates, projectId) {
 async function extractTaskCandidates({ conversationId, userId, businessId }) {
   const conversation = await Conversation.findByPk(conversationId);
   if (!conversation) throw new Error('conversation_not_found');
-  if (!conversation.project_id) throw new Error('conversation_not_in_project');
+  // conversation.project_id null 이면 standalone 모드 — 담당자·유사업무 탐색은 스킵.
 
   // 동시 추출 방지 (10분 타임아웃)
   if (conversation.extraction_in_progress_at) {
@@ -205,12 +205,15 @@ async function extractTaskCandidates({ conversationId, userId, businessId }) {
       return `[msg_id:${m.id}] ${name}: ${m.content}`;
     }).join('\n');
 
-    // 프로젝트 멤버 이름+역할 목록
-    const members = await ProjectMember.findAll({
-      where: { project_id: conversation.project_id },
-      include: [{ model: User, attributes: ['id', 'name'] }],
-    });
-    const memberNames = members.map((m) => `- ${m.User?.name || 'unknown'} (role: ${m.role})`).join('\n');
+    // 프로젝트 멤버 이름+역할 목록 (standalone 은 빈 문자열)
+    let memberNames = '';
+    if (conversation.project_id) {
+      const members = await ProjectMember.findAll({
+        where: { project_id: conversation.project_id },
+        include: [{ model: User, attributes: ['id', 'name'] }],
+      });
+      memberNames = members.map((m) => `- ${m.User?.name || 'unknown'} (role: ${m.role})`).join('\n');
+    }
 
     // 언어 감지 (간이: 한글 포함 여부)
     const hasKorean = /[가-힣]/.test(messagesText);
@@ -255,11 +258,12 @@ async function extractTaskCandidates({ conversationId, userId, businessId }) {
         : [],
     }));
 
-    // 역할 → 담당자 매칭
-    const withAssignees = await resolveAssignees(extracted, conversation.project_id);
-
-    // 유사 업무 탐색
-    const withSimilar = await findSimilarTasks(withAssignees, conversation.project_id);
+    // 역할 → 담당자 매칭 / 유사 업무 탐색 — standalone 이면 프로젝트 컨텍스트 없으므로 스킵
+    let withSimilar = extracted;
+    if (conversation.project_id) {
+      const withAssignees = await resolveAssignees(extracted, conversation.project_id);
+      withSimilar = await findSimilarTasks(withAssignees, conversation.project_id);
+    }
 
     // DB 저장 (트랜잭션)
     const t = await sequelize.transaction();
@@ -328,17 +332,26 @@ async function registerCandidate(candidateId, userId) {
 
   const t = await sequelize.transaction();
   try {
+    // business_id 는 프로젝트 우선, standalone 이면 대화에서 조회
+    let businessId = null;
+    if (candidate.project_id) {
+      businessId = (await Project.findByPk(candidate.project_id, { attributes: ['business_id'] })).business_id;
+    } else if (candidate.conversation_id) {
+      const conv = await Conversation.findByPk(candidate.conversation_id, { attributes: ['business_id'] });
+      businessId = conv?.business_id;
+    }
+    if (!businessId) throw new Error('candidate_business_unresolved');
+
     // tasks 테이블에 삽입
     const task = await Task.create({
-      business_id: (await Project.findByPk(candidate.project_id, { attributes: ['business_id'] })).business_id,
-      project_id: candidate.project_id,
+      business_id: businessId,
+      project_id: candidate.project_id, // null 허용
       conversation_id: candidate.conversation_id,
       source_message_id: candidate.source_message_ids?.[0] || null,
       title: candidate.title,
       description: candidate.description,
       assignee_id: candidate.guessed_assignee_user_id,
       status: 'not_started',
-      priority: 'medium',
       due_date: candidate.guessed_due_date,
       from_candidate_id: candidate.id,
       created_by: userId,

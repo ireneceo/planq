@@ -5,8 +5,9 @@ class TaskCandidate extends Model {}
 
 TaskCandidate.init({
   id: { type: DataTypes.BIGINT, primaryKey: true, autoIncrement: true },
-  project_id: { type: DataTypes.BIGINT, allowNull: false },
-  conversation_id: { type: DataTypes.INTEGER, allowNull: true },
+  // 독립 대화의 후보를 허용하기 위해 nullable. conversation_id 는 반드시 있어야 함.
+  project_id: { type: DataTypes.BIGINT, allowNull: true },
+  conversation_id: { type: DataTypes.INTEGER, allowNull: false },
   extracted_at: { type: DataTypes.DATE, defaultValue: DataTypes.NOW },
   extracted_by_user_id: { type: DataTypes.INTEGER, allowNull: true },
   source_message_ids: { type: DataTypes.JSON, allowNull: false },
