@@ -310,3 +310,125 @@ Settings:
 - **팝빌 테스트 계정** 세금계산서 시뮬레이션
 - Unit: 금액 계산·부가세·환율
 - E2E: 견적→청구→결제→세금계산서 전 경로 자동화 테스트
+
+---
+
+## 12. 템플릿 시스템 연동 (2026-04-24 추가)
+
+**상세**: `docs/TEMPLATE_SYSTEM_SPEC.md` — 이 섹션은 Q Bill 관점 요약.
+
+### 12.1 견적/청구서 템플릿
+
+- `kind='quote'` / `kind='invoice'` 템플릿 (TEMPLATE_SYSTEM §3.3)
+- 재사용 요소: 품목 프리셋 · 기본 결제조건 · notes · VAT rate · PDF 디자인 변수
+- 시스템 기본 3종 (고정가 · 시간 기반 · 월정액) · 워크스페이스 커스텀 · 개인 초안
+
+### 12.2 만들기 진입점 UX
+
+"새 견적서 / 새 청구서" 첫 화면 = **템플릿 갤러리**.
+- `[빈 것부터]` · `[시스템 템플릿]` · `[워크스페이스]` · `[내 템플릿]`
+- 선택 시 품목·문구·VAT·PDF 디자인 자동 채워짐. 이후 편집 자유.
+- 생성된 `quotes.template_id` / `invoices.template_id` 기록 (스냅샷, 역추적)
+
+### 12.3 PDF 렌더링 변수
+
+템플릿의 `content.pdf_design` 으로 브랜드 맞춤:
+- `logo_position` · `accent_color` · `footer_text`
+- 렌더링 엔진은 공통 — Puppeteer 기반 server-side PDF (Phase 1 구현)
+- A4 + 좌상 로고 + 우상 문서번호 + 고객 정보 블록 + 품목 테이블 + 합계 + 서명 (기존 §10)
+
+### 12.4 시스템 기본 템플릿 seed
+
+`scripts/seed-system-templates.js` (Phase 1 배포 시 prod 1회 실행):
+- 고정가 프로젝트 견적 (1회성 외주)
+- 시간 기반 청구 (컨설팅·유지보수)
+- 월정액 구독 (호스팅·지원)
+
+---
+
+## 13. 구독 고객 자동 청구 (2026-04-24 추가)
+
+**상세**: `docs/RECURRING_AUTOMATION_SPEC.md` — 이 섹션은 Q Bill 관점 요약.
+
+### 13.1 트리거
+- `projects.billing_type='subscription'` + `projects.monthly_fee` 설정된 프로젝트
+- 새 구독 생성 시 `subscription_cycles` 레코드 자동 예약 (매월 `billing_day` 기준)
+
+### 13.2 Cron
+- **매일 03:00 KST** — 오늘이 `billing_date` 인 cycle 에 대해 Q Bill invoice 자동 발행
+- **매일 04:00 KST** — 발행된 invoice 에 대해 포트원 자동 결제 시도 (워크스페이스가 빌링키 보유 시)
+
+### 13.3 invoice 자동 생성 로직
+```
+cycle.billing_date 도래
+  → 구독 invoice_template (kind='invoice' with source='subscription') 사용
+  → invoices.project_id = cycle.project_id
+  → invoices.title = "{{client_name}} {{year}}-{{month}} {{project_name}}"
+  → items: template.items + (옵션) 해당 월 초과 사용분 (overage_amount)
+  → send 상태로 공개 링크 발송 이메일
+  → cycle.status='invoiced', cycle.invoice_id=<새 invoice.id>
+```
+
+### 13.4 구독 해지
+- Q Bill invoice 자체는 삭제 안 함. `invoices.status='canceled'` 로 변경 후 공개 링크 비활성
+- 이미 결제된 invoice 는 환불 정책에 따라 개별 처리
+
+### 13.5 overdue 관리
+- `invoices.due_date < TODAY` + `status='sent'` → `status='overdue'` 자동 전환 (overdue-check cron)
+- 고객에게 독촉 이메일 (D+3, D+7, D+14)
+- 구독 프로젝트의 다음 cycle 은 **정상 진행** (Q Bill 은 외향이라 서비스 중단 개념 없음 — 플랫폼 구독과 구분)
+
+---
+
+## 14. 플랫폼 구독과의 관계 (중요 — 혼동 방지)
+
+**상세**: `docs/PLATFORM_BILLING_SPEC.md` · `docs/INTEGRATED_ARCHITECTURE.md §2`
+
+### 14.1 절대 섞이면 안 되는 것
+
+| 항목 | Q Bill (외향) | 플랫폼 구독 (내향) |
+|---|---|---|
+| 담당 엔진 | `routes/invoices.js`, `routes/quotes.js` (Phase 1) | `routes/platform-billing.js`, `routes/plan.js` (Phase 6) |
+| 테이블 | `invoices`, `invoice_payments`, `quotes` | `platform_billings`, `platform_billing_keys` |
+| 포트원 `store_id` | `businesses.portone_store_id` (워크스페이스 자체) | PlanQ 법인 계정 (env 변수) |
+| 팝빌 `link_id` | `businesses.popbill_link_id` | PlanQ 법인 계정 |
+| 세금계산서 발행인 | 워크스페이스 법인 | PlanQ 법인 |
+| 결제 실패 정책 | `overdue` 전환, 서비스 중단 X | 3회 실패 → grace → Free 강등 |
+| 관리자 | 워크스페이스 `owner` | `platform_admin` |
+| UI 위치 | Q Bill 메뉴 | 설정 > 구독 플랜 |
+
+### 14.2 공통점 (재사용)
+
+- 포트원 V2 SDK 로드 방식 (`@portone/browser-sdk`)
+- 결제 위젯 UX (SDK 가 동일하게 띄움)
+- 팝빌 API 호출 패턴 (세금계산서 발행 메소드)
+- webhook 서명 검증 로직 (shared middleware 로 추출 가능)
+- 공유 유틸: `formatPrice`, `calculateVat`, PDF 렌더링 엔진
+
+### 14.3 구현 시 공통 유틸 추출
+
+Phase 1 Q Bill 구현 시, **처음부터 플랫폼 구독에서도 재사용 가능하게 설계**:
+- `services/billing/portone.js` — 포트원 V2 클라이언트 (store_id 주입식, Q Bill/Platform 양쪽 사용)
+- `services/billing/popbill.js` — 팝빌 클라이언트 (link_id 주입식)
+- `services/billing/stripe.js` — Stripe 해외 (공통)
+- `services/billing/vat.js` — VAT 계산
+- `services/billing/pdf.js` — PDF 렌더 (템플릿 변수 기반)
+
+Phase 6 에서는 위 서비스를 **PlanQ 법인 store_id/link_id 로 주입** 해서 재사용.
+
+### 14.4 UX 에서 혼동 방지
+
+- Q Bill 메뉴에는 **"내 고객에게 청구"** 문구 상단 배너 (첫 진입 시)
+- 설정 > 구독 플랜에는 **"PlanQ 플랫폼 이용료"** 문구
+- 사용자가 "청구서" 라고 하면 컨텍스트에 따라 다를 수 있으므로 UI 에서 항상 방향 명시
+  - Q Bill: 발행인 = 내 워크스페이스 법인명, 수취인 = 내 고객
+  - 플랫폼: 발행인 = PlanQ 법인, 수취인 = 내 워크스페이스 법인
+
+---
+
+## 15. 변경 이력
+
+| 날짜 | 버전 | 요약 |
+|---|---|---|
+| 2026-04-22 | 1.0 | Q Bill 초판 — 견적·청구·결제·세금계산서 통합 |
+| 2026-04-24 | 1.1 | §12 템플릿 시스템 연동 · §13 구독 자동 청구 · §14 플랫폼 구독과의 관계 3 섹션 추가 · 공통 서비스 추출 권고 |
