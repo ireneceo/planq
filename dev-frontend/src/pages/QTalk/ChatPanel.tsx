@@ -50,13 +50,18 @@ const ChatPanel: React.FC<Props> = ({
   }, [candidatesCount]);
 
   const channels = useMemo(() => {
-    if (!project) return [];
-    return conversations
-      .filter((c) => c.project_id === project.id)
-      .filter((c) => !isClient || c.channel_type !== 'internal'); // 고객은 internal 숨김
+    // project 가 없으면 = 독립 채팅 모드. 프로젝트에 연결되지 않은 대화만 후보.
+    const base = project
+      ? conversations.filter((c) => c.project_id === project.id)
+      : conversations.filter((c) => !c.project_id);
+    return base.filter((c) => !isClient || c.channel_type !== 'internal'); // 고객은 internal 숨김
   }, [project, conversations, isClient]);
 
-  const activeConv = channels.find((c) => c.id === activeConversationId) || channels[0] || null;
+  // 독립 대화가 방금 생성됐을 수 있으므로 conversations 전체에서도 한번 더 찾는다 — project 상태 동기화 전에도 렌더 가능.
+  const activeConv = channels.find((c) => c.id === activeConversationId)
+    || (activeConversationId ? conversations.find((c) => c.id === activeConversationId) : null)
+    || channels[0]
+    || null;
   const convMessages: MockMessage[] = activeConv ? messages[activeConv.id] || [] : [];
   const [input, setInput] = useState('');
   const [editingDraftId, setEditingDraftId] = useState<number | null>(null);
@@ -232,7 +237,8 @@ const ChatPanel: React.FC<Props> = ({
     }
   };
 
-  if (!project) {
+  // 활성 대화가 없을 때만 EmptyState. 독립 대화(project null)도 activeConv 가 있으면 그대로 렌더.
+  if (!activeConv && !project) {
     return (
       <Container>
         <EmptyState
@@ -260,7 +266,7 @@ const ChatPanel: React.FC<Props> = ({
     );
   }
 
-  if (!activeConv) {
+  if (!activeConv && project) {
     return (
       <Container>
         <HeaderBar>
