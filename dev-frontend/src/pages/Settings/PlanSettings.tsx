@@ -1,5 +1,5 @@
-// 구독 플랜 페이지 — 현재 플랜 카드 + 사용량 바 + 비교표 + 이력
-import React, { useCallback, useEffect, useState } from 'react';
+// 구독 플랜 페이지 — 현재 플랜 카드 + 사용량 바 + 비교표 + Enterprise 문의 + 이력
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import {
@@ -7,6 +7,8 @@ import {
   formatPrice, formatLimit, formatBytes, formatMinutes, usageColor,
   type PlanDef, type PlanStatus, type PlanCode, type BillingCycle, type Currency,
 } from '../../services/plan';
+import { submitInquiry } from '../../services/inquiries';
+import { useAuth } from '../../contexts/AuthContext';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 
 interface Props { businessId: number; }
@@ -14,6 +16,7 @@ interface Props { businessId: number; }
 const PlanSettings: React.FC<Props> = ({ businessId }) => {
   const { t } = useTranslation('plan');
   const { formatDate } = useTimeFormat();
+  const { user } = useAuth();
 
   const [catalog, setCatalog] = useState<PlanDef[]>([]);
   const [status, setStatus] = useState<PlanStatus | null>(null);
@@ -24,6 +27,50 @@ const PlanSettings: React.FC<Props> = ({ businessId }) => {
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [cancelScheduleOpen, setCancelScheduleOpen] = useState(false);
   const [requestingUpgrade, setRequestingUpgrade] = useState(false);
+
+  // ─── Enterprise 문의 ───
+  const [inquiryOpen, setInquiryOpen] = useState(false);
+  const [inquirySubmitting, setInquirySubmitting] = useState(false);
+  const [inquirySuccess, setInquirySuccess] = useState<{ email: string } | null>(null);
+  const [inquiryErr, setInquiryErr] = useState(false);
+  const [inqName, setInqName] = useState('');
+  const [inqEmail, setInqEmail] = useState('');
+  const [inqCompany, setInqCompany] = useState('');
+  const [inqPhone, setInqPhone] = useState('');
+  const [inqMessage, setInqMessage] = useState('');
+
+  const openInquiry = useCallback(() => {
+    // 로그인 사용자 정보 prefill
+    setInqName(user?.name || '');
+    setInqEmail(user?.email || '');
+    setInqCompany(user?.business_name || '');
+    setInqPhone('');
+    setInqMessage('');
+    setInquiryErr(false);
+    setInquirySuccess(null);
+    setInquiryOpen(true);
+  }, [user]);
+
+  const submitInquiryForm = useCallback(async () => {
+    if (!inqName.trim() || !inqEmail.trim() || !inqMessage.trim()) return;
+    setInquirySubmitting(true);
+    setInquiryErr(false);
+    const r = await submitInquiry({
+      kind: 'enterprise',
+      source: 'plan_page',
+      from_name: inqName,
+      from_email: inqEmail,
+      from_company: inqCompany || undefined,
+      from_phone: inqPhone || undefined,
+      message: inqMessage,
+    });
+    setInquirySubmitting(false);
+    if (r) setInquirySuccess({ email: inqEmail });
+    else setInquiryErr(true);
+  }, [inqName, inqEmail, inqCompany, inqPhone, inqMessage]);
+
+  // 표에 표시할 플랜 — Enterprise 는 별도 섹션으로 이동 (Irene 요청)
+  const comparisonPlans = useMemo(() => catalog.filter(p => p.code !== 'enterprise'), [catalog]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -46,8 +93,9 @@ const PlanSettings: React.FC<Props> = ({ businessId }) => {
 
   const handleAction = async (target: PlanCode) => {
     if (target === 'enterprise') {
-      // 영업 문의
-      window.location.href = 'mailto:contact@planq.kr?subject=Enterprise%20%EB%AC%B8%EC%9D%98';
+      // Enterprise 는 표에서 제외되었으므로 이 분기는 실행되지 않지만,
+      // 혹시 남은 호출이 있어도 문의 모달로 안전하게 유도.
+      openInquiry();
       return;
     }
     if (isUpgrade(target)) {
@@ -206,7 +254,7 @@ const PlanSettings: React.FC<Props> = ({ businessId }) => {
         </SectionHeadRow>
 
         <PlanGrid>
-          {catalog.map(p => {
+          {comparisonPlans.map(p => {
             const isCurrent = p.code === currentPlan.code;
             const price = cycle === 'yearly' ? p.price_yearly[currency] : p.price_monthly[currency];
             const isScheduled = status.scheduled_plan === p.code;
@@ -276,6 +324,23 @@ const PlanSettings: React.FC<Props> = ({ businessId }) => {
           })}
         </PlanGrid>
       </Section>
+
+      {/* Enterprise — 별도 섹션 (표에서 분리) */}
+      <EnterpriseCard>
+        <EntContent>
+          <EntTitle>{t('enterprise.title')}</EntTitle>
+          <EntDesc>{t('enterprise.desc')}</EntDesc>
+          <EntBullets>
+            <li>{t('enterprise.bullets.sla')}</li>
+            <li>{t('enterprise.bullets.support')}</li>
+            <li>{t('enterprise.bullets.security')}</li>
+            <li>{t('enterprise.bullets.custom')}</li>
+          </EntBullets>
+        </EntContent>
+        <EntCta>
+          <BtnPrimary type="button" onClick={openInquiry}>{t('enterprise.contactBtn')}</BtnPrimary>
+        </EntCta>
+      </EnterpriseCard>
 
       {/* 변경 이력 */}
       <Section>
@@ -379,6 +444,63 @@ const PlanSettings: React.FC<Props> = ({ businessId }) => {
               <BtnGhost type="button" onClick={() => setCancelScheduleOpen(false)}>{t('confirm.cancel')}</BtnGhost>
               <BtnPrimary type="button" onClick={handleCancelSchedule}>{t('confirm.confirm')}</BtnPrimary>
             </DFooter>
+          </Dialog>
+        </Modal>
+      )}
+
+      {/* Enterprise 문의 모달 */}
+      {inquiryOpen && (
+        <Modal onMouseDown={e => { if (e.target === e.currentTarget && !inquirySubmitting) setInquiryOpen(false); }}>
+          <Dialog>
+            <DTitle>{t('inquiry.title')}</DTitle>
+            {inquirySuccess ? (
+              <>
+                <DBody>
+                  <SuccessBox>
+                    <SuccessTitle>{t('inquiry.successTitle')}</SuccessTitle>
+                    <SuccessDesc>{t('inquiry.successDesc', { email: inquirySuccess.email })}</SuccessDesc>
+                  </SuccessBox>
+                </DBody>
+                <DFooter>
+                  <BtnPrimary type="button" onClick={() => setInquiryOpen(false)}>{t('inquiry.close')}</BtnPrimary>
+                </DFooter>
+              </>
+            ) : (
+              <>
+                <DBody>
+                  <InqSub>{t('inquiry.subtitle')}</InqSub>
+                  <InqGrid>
+                    <InqField>
+                      <InqLabel>{t('inquiry.name')}<Req>*</Req></InqLabel>
+                      <InqInput value={inqName} onChange={e => setInqName(e.target.value)} placeholder={t('inquiry.namePh') as string} maxLength={100} />
+                    </InqField>
+                    <InqField>
+                      <InqLabel>{t('inquiry.email')}<Req>*</Req></InqLabel>
+                      <InqInput type="email" value={inqEmail} onChange={e => setInqEmail(e.target.value)} placeholder={t('inquiry.emailPh') as string} maxLength={200} />
+                    </InqField>
+                    <InqField>
+                      <InqLabel>{t('inquiry.company')}</InqLabel>
+                      <InqInput value={inqCompany} onChange={e => setInqCompany(e.target.value)} placeholder={t('inquiry.companyPh') as string} maxLength={200} />
+                    </InqField>
+                    <InqField>
+                      <InqLabel>{t('inquiry.phone')}</InqLabel>
+                      <InqInput value={inqPhone} onChange={e => setInqPhone(e.target.value)} placeholder={t('inquiry.phonePh') as string} maxLength={50} />
+                    </InqField>
+                    <InqField $span2>
+                      <InqLabel>{t('inquiry.message')}<Req>*</Req></InqLabel>
+                      <InqTextarea rows={5} value={inqMessage} onChange={e => setInqMessage(e.target.value)} placeholder={t('inquiry.messagePh') as string} maxLength={5000} />
+                    </InqField>
+                  </InqGrid>
+                  {inquiryErr && <InqError>{t('inquiry.error')}</InqError>}
+                </DBody>
+                <DFooter>
+                  <BtnGhost type="button" disabled={inquirySubmitting} onClick={() => setInquiryOpen(false)}>{t('inquiry.cancel')}</BtnGhost>
+                  <BtnPrimary type="button" disabled={inquirySubmitting || !inqName.trim() || !inqEmail.trim() || !inqMessage.trim()} onClick={submitInquiryForm}>
+                    {inquirySubmitting ? t('inquiry.submitting') : t('inquiry.submit')}
+                  </BtnPrimary>
+                </DFooter>
+              </>
+            )}
           </Dialog>
         </Modal>
       )}
@@ -512,9 +634,9 @@ const UsageWarn = styled.div<{ $color: 'ok' | 'warn' | 'crit' }>`
 
 /* 비교표 */
 const PlanGrid = styled.div`
-  display:grid;grid-template-columns:repeat(5, 1fr);gap:12px;
-  @media (max-width: 1024px){ grid-template-columns:repeat(3, 1fr); }
-  @media (max-width: 768px){ grid-template-columns:1fr; }
+  display:grid;grid-template-columns:repeat(4, 1fr);gap:14px;
+  @media (max-width: 1180px){ grid-template-columns:repeat(2, 1fr); }
+  @media (max-width: 640px){ grid-template-columns:1fr; }
 `;
 const PlanCol = styled.div<{ $current: boolean }>`
   position:relative;display:flex;flex-direction:column;
@@ -537,8 +659,10 @@ const VatText = styled.div`font-size:10px;color:#94A3B8;margin-top:2px;`;
 const PlanTarget = styled.div`font-size:12px;color:#64748B;margin-top:8px;line-height:1.4;`;
 const FeatureList = styled.div`display:flex;flex-direction:column;gap:6px;flex:1;`;
 const FeatItem = styled.div<{ $hl?: boolean }>`
-  display:flex;justify-content:space-between;gap:8px;font-size:12px;
-  ${p => p.$hl ? 'background:#F8FAFC;padding:4px 6px;border-radius:4px;' : ''}
+  display:flex;justify-content:space-between;gap:8px;font-size:12px;align-items:center;
+  ${p => p.$hl
+    ? 'background:#F8FAFC;padding:8px 10px;border-radius:6px;margin:2px 0;'
+    : 'padding:2px 10px;'}
 `;
 const FK = styled.span`color:#64748B;`;
 const FV = styled.span`color:#0F172A;font-weight:600;`;
@@ -604,6 +728,55 @@ const PayOptDesc = styled.div`font-size:11px;color:#64748B;margin-top:2px;`;
 const WarnBox = styled.div`margin-top:12px;padding:10px 12px;background:#FEF3C7;border:1px solid #F59E0B;border-radius:8px;`;
 const WarnTitle = styled.div`font-size:12px;font-weight:700;color:#92400E;margin-bottom:4px;`;
 const WarnList = styled.ul`margin:0;padding-left:18px;font-size:12px;color:#92400E;`;
+
+/* Enterprise 카드 (표 아래 별도 섹션) */
+const EnterpriseCard = styled.div`
+  display:grid;grid-template-columns:1fr auto;gap:24px;align-items:center;
+  background:linear-gradient(135deg,#0F172A 0%,#1E293B 100%);color:#fff;
+  border-radius:14px;padding:28px 28px;
+  @media (max-width: 768px){ grid-template-columns:1fr; gap:16px; padding:24px 20px; }
+`;
+const EntContent = styled.div`display:flex;flex-direction:column;gap:10px;`;
+const EntTitle = styled.h3`margin:0;font-size:18px;font-weight:700;letter-spacing:-0.2px;`;
+const EntDesc = styled.p`margin:0;font-size:13px;line-height:1.6;color:#CBD5E1;`;
+const EntBullets = styled.ul`
+  margin:4px 0 0;padding:0;list-style:none;
+  display:grid;grid-template-columns:1fr 1fr;gap:6px 20px;
+  li{font-size:12px;color:#E2E8F0;padding-left:16px;position:relative;}
+  li::before{content:'';position:absolute;left:0;top:8px;width:6px;height:6px;border-radius:50%;background:#14B8A6;}
+  @media (max-width: 560px){ grid-template-columns:1fr; }
+`;
+const EntCta = styled.div`display:flex;justify-content:flex-end;align-items:center;`;
+
+/* 문의 모달 폼 */
+const InqSub = styled.p`margin:0 0 16px;font-size:12px;color:#64748B;`;
+const InqGrid = styled.div`
+  display:grid;grid-template-columns:1fr 1fr;gap:12px;
+  @media (max-width: 560px){ grid-template-columns:1fr; }
+`;
+const InqField = styled.div<{ $span2?: boolean }>`
+  display:flex;flex-direction:column;gap:6px;
+  ${p => p.$span2 && 'grid-column: 1 / -1;'}
+`;
+const InqLabel = styled.label`font-size:12px;font-weight:600;color:#334155;display:flex;align-items:center;gap:2px;`;
+const Req = styled.span`color:#DC2626;font-weight:700;`;
+const InqInput = styled.input`
+  height:36px;padding:0 12px;font-size:13px;color:#0F172A;
+  background:#fff;border:1px solid #CBD5E1;border-radius:8px;font-family:inherit;
+  &:focus{outline:none;border-color:#14B8A6;box-shadow:0 0 0 3px rgba(20,184,166,0.12);}
+  &::placeholder{color:#94A3B8;}
+`;
+const InqTextarea = styled.textarea`
+  padding:10px 12px;font-size:13px;color:#0F172A;
+  background:#fff;border:1px solid #CBD5E1;border-radius:8px;font-family:inherit;
+  resize:vertical;min-height:100px;line-height:1.6;
+  &:focus{outline:none;border-color:#14B8A6;box-shadow:0 0 0 3px rgba(20,184,166,0.12);}
+  &::placeholder{color:#94A3B8;}
+`;
+const InqError = styled.div`margin-top:10px;padding:8px 12px;background:#FEF2F2;border:1px solid #FCA5A5;color:#B91C1C;border-radius:8px;font-size:12px;`;
+const SuccessBox = styled.div`padding:20px;background:#F0FDFA;border:1px solid #99F6E4;border-radius:10px;text-align:center;`;
+const SuccessTitle = styled.div`font-size:15px;font-weight:700;color:#0F766E;margin-bottom:6px;`;
+const SuccessDesc = styled.div`font-size:13px;color:#0F766E;line-height:1.6;`;
 
 // ─── Plan 배지 색상 ───
 function planBadge(code: PlanCode): string {

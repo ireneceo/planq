@@ -193,6 +193,7 @@ app.use('/api/plan', require('./routes/plan'));
 app.use('/api/admin', require('./routes/admin'));
 app.use('/api/posts', require('./routes/posts'));
 app.use('/api/invoices', require('./routes/invoices'));
+app.use('/api/inquiries', require('./routes/inquiries'));
 app.use('/api', require('./routes/kb'));
 
 // Error handler

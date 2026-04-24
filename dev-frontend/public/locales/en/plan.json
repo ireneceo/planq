@@ -114,5 +114,37 @@
     "cancelScheduleDesc": "Cancel scheduled switch to {{plan}}?",
     "confirm": "Confirm",
     "cancel": "Cancel"
+  },
+  "enterprise": {
+    "title": "Enterprise — custom contracts for larger teams",
+    "desc": "For organizations with 100+ teammates, custom SLAs, dedicated onboarding, and specific security or integration needs. We'll tailor the quote to your requirements.",
+    "bullets": {
+      "sla": "SLA 99.9%+ guarantee",
+      "support": "Dedicated onboarding manager · 24/7 support",
+      "security": "SSO · data region · audit logs",
+      "custom": "Custom integrations · data migration"
+    },
+    "contactBtn": "Contact us"
+  },
+  "inquiry": {
+    "title": "Enterprise Inquiry",
+    "subtitle": "We'll reach out within 1–2 business days.",
+    "name": "Name",
+    "namePh": "Jane Doe",
+    "email": "Email",
+    "emailPh": "name@company.com",
+    "company": "Company / Workspace (optional)",
+    "companyPh": "Company or team name",
+    "phone": "Phone (optional)",
+    "phonePh": "+1 555 000 0000",
+    "message": "Message",
+    "messagePh": "Team size, use case, desired start date, etc.",
+    "submit": "Send inquiry",
+    "submitting": "Sending…",
+    "cancel": "Cancel",
+    "successTitle": "Inquiry received",
+    "successDesc": "We'll contact you at {{email}} within 1–2 business days.",
+    "close": "Close",
+    "error": "Failed to send — please try again"
   }
 }
