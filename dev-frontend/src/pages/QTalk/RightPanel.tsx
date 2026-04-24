@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import {
@@ -43,11 +43,12 @@ const RightPanel: React.FC<Props> = ({
   const isClient = user?.business_role === 'client';
   const myUserId = user ? Number(user.id) : -1;
 
+  // 섹션 초기 펼침 상태는 내용 유무 기반으로 아래 useEffect 에서 결정 (모두 접힌 상태로 시작 → count 있는 것만 auto expand)
   const [expanded, setExpanded] = useState<Record<Section, boolean>>({
-    issues: true,
-    myTasks: true,
+    issues: false,
+    myTasks: false,
     projectTasks: false,
-    notes: true,
+    notes: false,
     info: false,
   });
   const [showAddIssue, setShowAddIssue] = useState(false);
@@ -56,9 +57,33 @@ const RightPanel: React.FC<Props> = ({
   const [editingIssueId, setEditingIssueId] = useState<number | null>(null);
   const [editIssueText, setEditIssueText] = useState('');
   const [newNoteText, setNewNoteText] = useState('');
-  const [newNoteVis, setNewNoteVis] = useState<'personal' | 'internal'>('personal');
+  // 메모 공유 범위 UI 간소화: "나만" vs "같이" (Irene 지적: 개인/내부는 이상함).
+  // DB ENUM 은 personal/internal 유지 (Phase 9 visibility 재설계에 위임).
+  const [newNoteShared, setNewNoteShared] = useState(false);
 
   const toggle = (s: Section) => setExpanded((prev) => ({ ...prev, [s]: !prev[s] }));
+
+  // 프로젝트 전환 시 섹션 자동 펼침 — count > 0 인 섹션만 펴고, 빈 섹션은 접힘 상태로 시작.
+  // Irene 지적: "(0) 이면 그냥 접어줘".
+  useEffect(() => {
+    const pid = project?.id;
+    if (!pid) return;
+    const pIssues = issues.filter((i) => i.project_id === pid).length;
+    const pTasks = tasks.filter((t) => t.project_id === pid).length;
+    const myT = tasks.filter((x) => x.assignee_id === myUserId || x.assignee_id === 15).length;
+    const pNotes = (isClient
+      ? notes.filter((n) => n.project_id === pid && n.visibility === 'personal' && n.author_id === myUserId)
+      : notes.filter((n) => n.project_id === pid)
+    ).length;
+    setExpanded({
+      info: true,                   // 프로젝트 정보는 기본 펼침
+      issues: pIssues > 0,
+      myTasks: myT > 0,
+      projectTasks: pTasks > 0,
+      notes: pNotes > 0,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [project?.id]);
 
   const submitAddIssue = () => {
     if (!newIssueText.trim()) return;
@@ -77,7 +102,8 @@ const RightPanel: React.FC<Props> = ({
 
   const submitNote = () => {
     if (!newNoteText.trim()) return;
-    onAddNote(newNoteText, newNoteVis);
+    // 간소화 UI 매핑: "나만" → personal · "같이" → internal (DB ENUM 유지)
+    onAddNote(newNoteText, newNoteShared ? 'internal' : 'personal');
     setNewNoteText('');
   };
 
@@ -160,6 +186,27 @@ const RightPanel: React.FC<Props> = ({
       )}
 
       <Scroll>
+        {/* 프로젝트 정보 — 프로젝트 있을 때만 */}
+        {project && (
+          <Section>
+            <SectionHeader onClick={() => toggle('info')}>
+              <SectionTitle>
+                <Chevron $open={expanded.info} />
+                {t('right.info.title', '프로젝트 정보')}
+              </SectionTitle>
+            </SectionHeader>
+            {expanded.info && (
+              <SectionBody>
+                <InfoRow><InfoK>{t('right.info.name', '이름')}</InfoK><InfoV>{project.name}</InfoV></InfoRow>
+                {project.client_company && <InfoRow><InfoK>{t('right.info.client', '고객')}</InfoK><InfoV>{project.client_company}</InfoV></InfoRow>}
+                {project.start_date && <InfoRow><InfoK>{t('right.info.start', '시작')}</InfoK><InfoV>{project.start_date}</InfoV></InfoRow>}
+                {project.end_date && <InfoRow><InfoK>{t('right.info.end', '마감')}</InfoK><InfoV>{project.end_date}</InfoV></InfoRow>}
+                {project.description && <InfoRow><InfoK>{t('right.info.desc', '설명')}</InfoK><InfoV>{project.description}</InfoV></InfoRow>}
+              </SectionBody>
+            )}
+          </Section>
+        )}
+
         {/* 업무 후보 (있을 때만, 최상단) */}
         {!isClient && candidates.length > 0 && (
           <CandidatesSection data-section="candidates">
@@ -356,7 +403,14 @@ const RightPanel: React.FC<Props> = ({
           {expanded.projectTasks && (
             <SectionBody>
               {projectTasks.map((task) => (
-                <ProjectTaskRow key={task.id}>
+                <ProjectTaskRow
+                  key={task.id}
+                  onClick={() => {
+                    try { localStorage.setItem('qtask_view_mode', 'list'); } catch { /* ignore */ }
+                    window.location.href = `/tasks?task=${task.id}`;
+                  }}
+                  style={{ cursor: 'pointer' }}
+                >
                   <ProjectTaskTitle>{task.title}</ProjectTaskTitle>
                   <ProjectTaskRight>
                     {task.due_date && <ProjectTaskDue>{task.due_date}</ProjectTaskDue>}
@@ -389,7 +443,7 @@ const RightPanel: React.FC<Props> = ({
               {visibleNotes.slice(0, 6).map((n) => (
                 <NoteItem key={n.id}>
                   <NoteVis $internal={n.visibility === 'internal'}>
-                    {n.visibility === 'internal' ? t('right.notes.internal', '내부') : t('right.notes.personal', '개인')}
+                    {n.visibility === 'personal' ? t('right.notes.onlyMe', '나만') : t('right.notes.withTeam', '같이')}
                   </NoteVis>
                   <NoteContent>
                     <NoteBody>{n.body}</NoteBody>
@@ -409,8 +463,8 @@ const RightPanel: React.FC<Props> = ({
                 />
                 {!isClient && (
                   <NoteVisToggle>
-                    <NoteVisOption $active={newNoteVis === 'personal'} onClick={() => setNewNoteVis('personal')}>{t('right.notes.personal', '개인')}</NoteVisOption>
-                    <NoteVisOption $active={newNoteVis === 'internal'} onClick={() => setNewNoteVis('internal')}>{t('right.notes.internal', '내부')}</NoteVisOption>
+                    <NoteVisOption $active={!newNoteShared} onClick={() => setNewNoteShared(false)}>{t('right.notes.onlyMe', '나만')}</NoteVisOption>
+                    <NoteVisOption $active={newNoteShared} onClick={() => setNewNoteShared(true)}>{t('right.notes.withTeam', '같이')}</NoteVisOption>
                   </NoteVisToggle>
                 )}
                 <NoteSendBtn onClick={submitNote} disabled={!newNoteText.trim()}>
@@ -1067,6 +1121,19 @@ const NoteSendBtn = styled.button`
   &:disabled { background: #CBD5E1; cursor: not-allowed; }
 `;
 
+const InfoK = styled.span`
+  font-size: 11px;
+  color: #64748B;
+  font-weight: 600;
+  min-width: 48px;
+  flex-shrink: 0;
+`;
+const InfoV = styled.span`
+  font-size: 12px;
+  color: #0F172A;
+  text-align: right;
+  word-break: break-word;
+`;
 const InfoRow = styled.div`
   display: flex;
   justify-content: space-between;
