@@ -1371,12 +1371,12 @@ const QTaskPage:React.FC=()=>{
                 {notesNode}
               </>;
               return <>
-            {/* 이번 주: 받은/보낸 업무요청 + 개인 인사이트 */}
+            {/* 이번 주: 받은/보낸 업무요청 + 개인 인사이트 — count 0 이면 섹션 자체 숨김 */}
             {scope==='mine'&&tab==='week'&&<>
-              <RSection>
-                <RSTitle>{t('right.received','받은 업무요청')} ({panelCounts.received})</RSTitle>
-                {panelCounts.receivedList.length===0?<EmptyChart>{t('right.noReceived','지금 처리할 받은 요청이 없습니다')}</EmptyChart>:
-                  panelCounts.receivedList.map(x=>(
+              {panelCounts.received>0&&(
+                <RSection>
+                  <RSTitle>{t('right.received','받은 업무요청')} ({panelCounts.received})</RSTitle>
+                  {panelCounts.receivedList.map(x=>(
                     <CandCard key={`rc-${x.id}`} onClick={()=>openDetail(x.id)} style={{cursor:'pointer'}}>
                       <CandTitle>{x.title}</CandTitle>
                       <IMeta>
@@ -1385,11 +1385,12 @@ const QTaskPage:React.FC=()=>{
                       </IMeta>
                     </CandCard>
                   ))}
-              </RSection>
-              <RSection>
-                <RSTitle>{t('right.sent','보낸 업무요청')} ({panelCounts.sent})</RSTitle>
-                {panelCounts.sentList.length===0?<EmptyChart>{t('right.noSent','지금 확인할 보낸 요청이 없습니다')}</EmptyChart>:
-                  panelCounts.sentList.map(x=>(
+                </RSection>
+              )}
+              {panelCounts.sent>0&&(
+                <RSection>
+                  <RSTitle>{t('right.sent','보낸 업무요청')} ({panelCounts.sent})</RSTitle>
+                  {panelCounts.sentList.map(x=>(
                     <CandCard key={`sc-${x.id}`} onClick={()=>openDetail(x.id)} style={{cursor:'pointer'}}>
                       <CandTitle>{x.title}</CandTitle>
                       <IMeta>
@@ -1398,16 +1399,17 @@ const QTaskPage:React.FC=()=>{
                       </IMeta>
                     </CandCard>
                   ))}
-              </RSection>
+                </RSection>
+              )}
               {personalInsights}
             </>}
 
-            {/* 요청하기: 보낸 업무요청 중 내가 컨펌해야 할 것 + 피드백 + 개인 인사이트 */}
+            {/* 요청하기: 보낸 업무요청 중 내가 컨펌해야 할 것 + 피드백 + 개인 인사이트 — count 0 이면 숨김 */}
             {scope==='mine'&&tab==='requested'&&<>
-              <RSection>
-                <RSTitle>{t('right.sent','보낸 업무요청')} ({panelCounts.sent})</RSTitle>
-                {panelCounts.sentList.length===0?<EmptyChart>{t('right.noSent','지금 확인할 보낸 요청이 없습니다')}</EmptyChart>:
-                  panelCounts.sentList.map(x=>(
+              {panelCounts.sent>0&&(
+                <RSection>
+                  <RSTitle>{t('right.sent','보낸 업무요청')} ({panelCounts.sent})</RSTitle>
+                  {panelCounts.sentList.map(x=>(
                     <CandCard key={`sr-${x.id}`} onClick={()=>openDetail(x.id)} style={{cursor:'pointer'}}>
                       <CandTitle>{x.title}</CandTitle>
                       <IMeta>
@@ -1416,7 +1418,8 @@ const QTaskPage:React.FC=()=>{
                       </IMeta>
                     </CandCard>
                   ))}
-              </RSection>
+                </RSection>
+              )}
               {requestedComments.length>0&&<RSection>
                 <RSTitle>{t('right.recentFeedback','Recent feedback')}</RSTitle>
                 {requestedComments.map(c=>(
