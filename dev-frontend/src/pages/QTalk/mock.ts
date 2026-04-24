@@ -53,6 +53,7 @@ export interface MockConversation {
   name: string;
   auto_extract_enabled: boolean;
   last_message?: string;
+  last_message_at?: string | null;
   unread_count: number;
   last_extracted_message_id?: number | null;
   last_extracted_at?: string | null;
