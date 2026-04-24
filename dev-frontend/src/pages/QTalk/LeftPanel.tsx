@@ -76,32 +76,9 @@ const LeftPanel: React.FC<Props> = ({
   }, [chats, query]);
 
   if (collapsed) {
-    // 접힘 상태: 고유 프로젝트만 dedupe 해서 아이콘으로 표시 · 펼치기는 우측 엣지 바
-    const uniqueProjects = Array.from(new Map(projects.map((p) => [p.id, p])).values());
+    // 접힘 상태: 프로젝트 일부만 보여주면 혼동(Irene 지적: "6개 중 3개만" 보임). 완전 접고 엣지 바만.
     return (
       <CollapsedStrip>
-        {uniqueProjects.slice(0, 8).map((p) => {
-          const activeChatInProject = chats.find(
-            (x) => x.project.id === p.id && x.conversation.id === activeConversationId
-          );
-          return (
-            <CollapsedDotWrap
-              key={p.id}
-              $hasActivity={p.has_cue_activity || p.unread_count > 0}
-              onClick={() => {
-                const first = chats.find((x) => x.project.id === p.id);
-                if (first) onSelectConversation(p.id, first.conversation.id);
-              }}
-            >
-              <LetterAvatar
-                name={p.name}
-                size={32}
-                variant={activeChatInProject ? 'active' : 'neutral'}
-                title={p.name}
-              />
-            </CollapsedDotWrap>
-          );
-        })}
         <EdgeHandle
           type="button"
           onClick={onToggleCollapsed}
@@ -209,15 +186,10 @@ const Container = styled.aside`
 `;
 
 const CollapsedStrip = styled.aside`
-  width: 48px;
+  width: 16px;
   flex-shrink: 0;
   background: #FFFFFF;
   border-right: 1px solid #E2E8F0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 12px 0;
-  gap: 8px;
   position: relative;
   @media (max-width: 900px) { display: none; }
 `;
@@ -249,24 +221,6 @@ const EdgeChevron = styled.span`
   color: #64748B;
   svg { width: 10px; height: 10px; }
   ${EdgeHandle}:hover & { color: #FFFFFF; }
-`;
-
-const CollapsedDotWrap = styled.div<{ $hasActivity: boolean }>`
-  position: relative;
-  cursor: pointer;
-  ${(p) => p.$hasActivity && `
-    &::after {
-      content: '';
-      position: absolute;
-      top: 2px;
-      right: 2px;
-      width: 7px;
-      height: 7px;
-      border-radius: 50%;
-      background: #F43F5E;
-      border: 1.5px solid #FFFFFF;
-    }
-  `}
 `;
 
 const Header = styled.div`

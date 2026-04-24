@@ -541,10 +541,11 @@ const OverlayBackdrop = styled.div`
 `;
 
 const CollapsedStrip = styled.aside`
-  width: 36px;
+  width: 16px;
   flex-shrink: 0;
   background: #FFFFFF;
   border-left: 1px solid #E2E8F0;
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
