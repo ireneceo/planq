@@ -321,16 +321,14 @@ const QTalkPage: React.FC = () => {
           if (qpid && mapped.some((p) => p.id === qpid)) {
             setActiveProjectId((prev) => prev ?? qpid);
           }
-          // 좌측 리스트 채우기 — 모든 프로젝트의 대화를 병렬로 로드 (상단 표시용)
+          // 좌측 리스트 채우기 — 워크스페이스 전체 대화 한번에 로드
+          // (프로젝트별 fetch 는 독립 대화/project_id null 을 놓쳤음).
           (async () => {
             try {
-              const convArrays = await Promise.all(
-                mapped.map(p => qtalkApi.listProjectConversations(p.id).catch(() => [] as qtalkApi.ApiConversation[]))
-              );
+              const apiConvs = await qtalkApi.listBusinessConversations(businessId);
               if (cancelled) return;
-              const all: MockConversation[] = convArrays.flat().map(apiConversationToMock);
+              const all: MockConversation[] = apiConvs.map(apiConversationToMock);
               setConversations(prev => {
-                // 기존 active project 대화 유지 + 새로 받은 것 병합 (id 기준)
                 const existingIds = new Set(prev.map(c => c.id));
                 const newOnes = all.filter(c => !existingIds.has(c.id));
                 return [...prev, ...newOnes];

@@ -237,6 +237,12 @@ export async function listProjectConversations(projectId: number): Promise<ApiCo
   return handle<ApiConversation[]>(res);
 }
 
+// 워크스페이스 전체 대화 — 독립 대화(project_id null) 포함
+export async function listBusinessConversations(businessId: number): Promise<ApiConversation[]> {
+  const res = await apiFetch(`/api/conversations/${businessId}`);
+  return handle<ApiConversation[]>(res);
+}
+
 export async function listConversationMessages(conversationId: number): Promise<ApiMessage[]> {
   const res = await apiFetch(`/api/projects/conversations/${conversationId}/messages`);
   return handle<ApiMessage[]>(res);
