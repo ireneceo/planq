@@ -34,8 +34,6 @@ import {
   PlusIcon,
   SettingsIcon,
   PowerIcon,
-  ChevronUpIcon,
-  ChevronDownIcon,
 } from '../../components/Common/Icons';
 import SharedEmptyState from '../../components/Common/EmptyState';
 import SearchBoxCommon from '../../components/Common/SearchBox';
@@ -1851,9 +1849,14 @@ const QNotePage = () => {
                     <MicIcon size={14} />
                   </IconBtn>
                 )}
-                <IconBtn onClick={toggleHeaderCollapsed} title={t('page.header.expand')} aria-label={t('page.header.expand')}>
-                  <ChevronDownIcon size={16} />
-                </IconBtn>
+                <HeaderEdgeHandle
+                  type="button"
+                  onClick={toggleHeaderCollapsed}
+                  aria-label={t('page.header.expand')}
+                  title={t('page.header.expand')}
+                >
+                  <HeaderEdgeChevron><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg></HeaderEdgeChevron>
+                </HeaderEdgeHandle>
               </CollapsedHeader>
             ) : (
               <MainHeader>
@@ -1919,10 +1922,15 @@ const QNotePage = () => {
                       </DangerBtn>
                     </>
                   )}
-                  <IconBtn onClick={toggleHeaderCollapsed} title={t('page.header.collapse')} aria-label={t('page.header.collapse')}>
-                    <ChevronUpIcon size={16} />
-                  </IconBtn>
                 </HeaderRight>
+                <HeaderEdgeHandle
+                  type="button"
+                  onClick={toggleHeaderCollapsed}
+                  aria-label={t('page.header.collapse')}
+                  title={t('page.header.collapse')}
+                >
+                  <HeaderEdgeChevron><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><polyline points="18 15 12 9 6 15"/></svg></HeaderEdgeChevron>
+                </HeaderEdgeHandle>
               </MainHeader>
             )}
 
@@ -2586,6 +2594,7 @@ const MainHeader = styled.div`
   justify-content: space-between;
   align-items: center;
   gap: 16px;
+  position: relative;
   @media (max-width: 768px) {
     padding: 10px 16px;
     min-height: 48px;
@@ -2593,10 +2602,37 @@ const MainHeader = styled.div`
   }
 `;
 
+/* 수평 엣지 바 — Q Note 헤더 높이 접기 (Q Talk 세로 엣지 바와 같은 디자인, 방향만 가로) */
+const HeaderEdgeHandle = styled.button`
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  transform: translate(-50%, 50%);
+  width: 60px; height: 8px;
+  padding: 0; border: none;
+  background: #CBD5E1;
+  border-radius: 4px;
+  cursor: pointer;
+  z-index: 10;
+  box-shadow: 0 1px 3px rgba(15,23,42,0.08);
+  transition: width 0.15s ease, height 0.15s ease, background 0.15s ease;
+  display: flex; align-items: center; justify-content: center;
+  &::before { content: ''; position: absolute; top: -8px; bottom: -8px; left: -10px; right: -10px; }
+  &:hover { width: 72px; height: 14px; background: #14B8A6; }
+  &:focus-visible { outline: 2px solid #14B8A6; outline-offset: 2px; }
+`;
+const HeaderEdgeChevron = styled.span`
+  display: flex; align-items: center; justify-content: center;
+  color: #64748B;
+  svg { width: 10px; height: 10px; }
+  ${HeaderEdgeHandle}:hover & { color: #FFFFFF; }
+`;
+
 const CollapsedHeader = styled.div`
   display: flex;
   align-items: center;
   gap: 8px;
+  position: relative;
   padding: 4px 16px;
   background: #ffffff;
   border-bottom: 1px solid #e2e8f0;
