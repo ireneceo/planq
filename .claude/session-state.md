@@ -1,6 +1,18 @@
 ## 현재 작업 상태
-**마지막 업데이트:** 2026-04-22
-**작업 상태:** 완료
+**마지막 업데이트:** 2026-04-24
+**작업 상태:** 사이드바 개편 + 지금할일 To do 완료, Phase 0 DB 스키마 대기
+
+### 이번 세션 완료 작업 (2026-04-24)
+- 사이드바 로고 헤더 56→60px 정합 (우측 패널 라인 정합)
+- Phase 8 반응형 스프린트 로드맵 신설 (DEVELOPMENT_PLAN.md + memory)
+- **사이드바 개편** — 고객/멤버 1뎁스 승격 · Secondary 닫기 버튼 · 설정 재구성 (워크스페이스/플랜/프로필)
+- **지금 할 일 페이지 신규** — `/todo` 라우트, 사이드바 Dashboard 바로 아래
+  - 4개 우선순위 (urgent/today/waiting/week) · 3개 소스 (task/event/invite)
+  - 백엔드 `GET /api/dashboard/todo` (routes/dashboard.js) — 실데이터 28건 집계 성공
+  - 업무: 내 담당 · 내 컨펌(pending) · 내가 요청자(done_feedback)
+  - 캘린더: 내가 참여자 + 이번 주 이벤트
+  - 초대: 내 email 로 온 멤버/고객 초대 (대기)
+  - 멘션은 messages.read_at 스키마 미존재로 Phase 8 로 유예
 
 ### 진행 중인 작업
 - 없음
@@ -42,6 +54,10 @@
 **Phase 5 — 월간 보고서 PDF (1주)**
 **Phase 6 — PlanQ 자체 구독 빌링키 (0.5주)**
 **Phase 7 — 운영서버 세팅 + 실배포 (0.5주, Irene 외부 준비 선행)**
+**Phase 8 — 반응형 스프린트 (1주) — 전 페이지 모바일/태블릿 일괄 적용**
+  - 햄버거 드로어 2뎁스 아코디언 · 마스터-디테일 드릴다운 · `<ListDetailLayout>` 공용화
+  - Q Docs 상단 탭 → 드릴다운 재작업 · `SecondaryPanel` 모바일 아코디언화
+  - 터치 타겟 44px 상향 · Safe-area · 실기기 QA
 
 설계 문서: `docs/Q_BILL_SPEC.md` · `docs/FINANCIAL_REPORTS_SPEC.md`
 

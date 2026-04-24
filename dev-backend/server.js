@@ -28,6 +28,11 @@ const { setupSecurity } = require('./middleware/security');
 const { errorHandler } = require('./middleware/errorHandler');
 
 const app = express();
+
+// nginx 뒤에 있으므로 X-Forwarded-For 1 hop 만 신뢰.
+// 설정 없으면 express-rate-limit 이 모든 요청을 nginx IP 로 식별하여 rate-limit 이 실질적으로 동작 안 함.
+app.set('trust proxy', 1);
+
 const server = http.createServer(app);
 
 // Socket.IO with authentication
@@ -51,37 +56,93 @@ io.use((socket, next) => {
   }
 });
 
+// 조회 의존성 lazy-load (models/ 에서 Associations 설정 후 접근 보장)
+const getModels = () => require('./models');
+
+async function canJoinConversation(userId, conversationId) {
+  const { Conversation, ConversationParticipant, BusinessMember } = getModels();
+  const conv = await Conversation.findByPk(conversationId, { attributes: ['id', 'business_id'] });
+  if (!conv) return false;
+  // 1) 해당 워크스페이스 멤버
+  const bm = await BusinessMember.findOne({
+    where: { business_id: conv.business_id, user_id: userId },
+    attributes: ['id'],
+  });
+  if (bm) return true;
+  // 2) 그 대화방 참여자 (client 참여 케이스)
+  const part = await ConversationParticipant.findOne({
+    where: { conversation_id: conversationId, user_id: userId },
+    attributes: ['id'],
+  });
+  return !!part;
+}
+
+async function canJoinProject(userId, projectId) {
+  const { Project, ProjectClient, BusinessMember } = getModels();
+  const proj = await Project.findByPk(projectId, { attributes: ['id', 'business_id'] });
+  if (!proj) return false;
+  const bm = await BusinessMember.findOne({
+    where: { business_id: proj.business_id, user_id: userId },
+    attributes: ['id'],
+  });
+  if (bm) return true;
+  const pc = await ProjectClient.findOne({
+    where: { project_id: projectId, contact_user_id: userId },
+    attributes: ['id'],
+  });
+  return !!pc;
+}
+
+async function canJoinBusiness(userId, businessId) {
+  const { BusinessMember } = getModels();
+  const bm = await BusinessMember.findOne({
+    where: { business_id: businessId, user_id: userId },
+    attributes: ['id'],
+  });
+  return !!bm;
+}
+
 io.on('connection', (socket) => {
-  // 대화방 room 참가
-  socket.on('join:conversation', (conversationId) => {
-    if (conversationId) {
-      socket.join(`conv:${conversationId}`);
+  // 대화방 room 참가 — 소유권 재검증 필수 (인증만으로는 부족)
+  socket.on('join:conversation', async (conversationId) => {
+    if (!conversationId) return;
+    try {
+      if (await canJoinConversation(socket.userId, conversationId)) {
+        socket.join(`conv:${conversationId}`);
+      }
+    } catch (e) {
+      console.warn('[socket] join:conversation check failed', e.message);
     }
   });
 
-  // 대화방 room 퇴장
   socket.on('leave:conversation', (conversationId) => {
-    if (conversationId) {
-      socket.leave(`conv:${conversationId}`);
-    }
+    if (conversationId) socket.leave(`conv:${conversationId}`);
   });
 
-  // 프로젝트 room 참가
-  socket.on('join:project', (projectId) => {
-    if (projectId) {
-      socket.join(`project:${projectId}`);
+  socket.on('join:project', async (projectId) => {
+    if (!projectId) return;
+    try {
+      if (await canJoinProject(socket.userId, projectId)) {
+        socket.join(`project:${projectId}`);
+      }
+    } catch (e) {
+      console.warn('[socket] join:project check failed', e.message);
     }
   });
 
   socket.on('leave:project', (projectId) => {
-    if (projectId) {
-      socket.leave(`project:${projectId}`);
-    }
+    if (projectId) socket.leave(`project:${projectId}`);
   });
 
-  // 워크스페이스 room 참가 — Q Task 같은 전역 뷰가 사용
-  socket.on('join:business', (businessId) => {
-    if (businessId) socket.join(`business:${businessId}`);
+  socket.on('join:business', async (businessId) => {
+    if (!businessId) return;
+    try {
+      if (await canJoinBusiness(socket.userId, businessId)) {
+        socket.join(`business:${businessId}`);
+      }
+    } catch (e) {
+      console.warn('[socket] join:business check failed', e.message);
+    }
   });
   socket.on('leave:business', (businessId) => {
     if (businessId) socket.leave(`business:${businessId}`);
@@ -124,6 +185,7 @@ app.use('/api/tasks', require('./routes/tasks'));
 app.use('/api/tasks', require('./routes/task_workflow'));
 app.use('/api/tasks', require('./routes/task_attachments'));
 app.use('/api/calendar', require('./routes/calendar'));
+app.use('/api/dashboard', require('./routes/dashboard'));
 app.use('/api/files', require('./routes/files'));
 app.use('/api/folders', require('./routes/file_folders'));
 app.use('/api/cloud', require('./routes/cloud'));

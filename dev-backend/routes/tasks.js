@@ -467,7 +467,17 @@ router.delete('/by-business/:businessId/:id', authenticateToken, async (req, res
     }
 
     const meta = { id: Number(req.params.id), project_id: task.project_id, business_id: task.business_id };
-    await task.destroy();
+
+    // TaskReviewer/TaskAttachment/TaskStatusHistory 는 FK onDelete: CASCADE 설정됨.
+    // TaskComment · TaskDailyProgress 는 cascade 없음 → 수동 삭제 + 원자화.
+    const { sequelize } = require('../config/database');
+    const t = await sequelize.transaction();
+    try {
+      await TaskComment.destroy({ where: { task_id: task.id }, transaction: t });
+      await TaskDailyProgress.destroy({ where: { task_id: task.id }, transaction: t });
+      await task.destroy({ transaction: t });
+      await t.commit();
+    } catch (e) { await t.rollback(); throw e; }
 
     // Socket.IO
     const io = req.app.get('io');

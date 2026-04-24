@@ -1,11 +1,10 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
-import { useLocation, useParams, useNavigate } from 'react-router-dom';
+import { useLocation, useParams } from 'react-router-dom';
 import { useAuth, apiFetch } from '../../contexts/AuthContext';
 import AutoSaveField from '../../components/Common/AutoSaveField';
 import PlanQSelect from '../../components/Common/PlanQSelect';
-import { Tabs, Tab } from '../../components/Common/TabComponents';
 import StorageSettings from './StorageSettings';
 import PlanSettings from './PlanSettings';
 import TimezoneSelector from '../../components/Common/TimezoneSelector';
@@ -462,12 +461,14 @@ export default function WorkspaceSettingsPage() {
 
   const location = useLocation();
   const params = useParams<{ tab?: string }>();
-  const navigate = useNavigate();
 
-  // /business/members 모드: 멤버/Cue 탭만 노출. 그 외: 설정 탭 4개만 노출.
+  // URL 기반 섹션 결정. 사이드바 Secondary 에서 직접 접근하므로 내부 탭 UI 없음.
+  // /business/members → members 섹션
+  // /business/settings, /settings → brand (= 브랜드+법인정보 통합)
+  // /business/settings/{language|timezone|storage|plan|cue} → 해당 섹션
   const isMembersMode = location.pathname.includes('/business/members');
   const visibleTabs = useMemo<TabKey[]>(() => (
-    isMembersMode ? ['members', 'cue'] : ['brand', 'legal', 'language', 'timezone', 'storage', 'plan']
+    isMembersMode ? ['members'] : ['brand', 'legal', 'language', 'timezone', 'storage', 'plan', 'cue']
   ), [isMembersMode]);
 
   const tabFromUrl = useMemo<TabKey>(() => {
@@ -479,16 +480,6 @@ export default function WorkspaceSettingsPage() {
   const [tab, setTab] = useState<TabKey>(tabFromUrl);
   useEffect(() => { setTab(tabFromUrl); }, [tabFromUrl]);
 
-  const changeTab = useCallback((next: TabKey) => {
-    setTab(next);
-    if (isMembersMode) {
-      navigate(next === 'members' ? '/business/members' : `/business/members/${next}`, { replace: true });
-    } else if (location.pathname.startsWith('/business/')) {
-      navigate(`/business/settings/${next}`, { replace: true });
-    } else {
-      navigate(`/settings/${next}`, { replace: true });
-    }
-  }, [isMembersMode, location.pathname, navigate]);
   const [ws, setWs] = useState<Workspace | null>(null);
   const [members, setMembers] = useState<WorkspaceMember[]>([]);
   const [inviteOpen, setInviteOpen] = useState(false);
@@ -681,9 +672,24 @@ export default function WorkspaceSettingsPage() {
     return cue.usage.limit > 0 ? cue.usage.action_count / cue.usage.limit : 0;
   }, [cue]);
 
+  // URL 기반 페이지 타이틀 — Secondary 메뉴 항목과 1:1 매칭
+  const pageTitle = useMemo<string>(() => {
+    if (isMembersMode) return t('membersPage.title') as string;
+    switch (tab) {
+      case 'language':  return t('tabs.language') as string;
+      case 'timezone':  return t('tabs.timezone') as string;
+      case 'storage':   return t('tabs.storage') as string;
+      case 'plan':      return t('tabs.plan') as string;
+      case 'cue':       return t('tabs.cue') as string;
+      case 'brand':
+      case 'legal':
+      default:          return t('page.title') as string;  // 브랜드+법인정보 통합 = "워크스페이스 설정"
+    }
+  }, [isMembersMode, tab, t]);
+
   if (loading) {
     return (
-      <PageShell title={t(isMembersMode ? 'membersPage.title' : 'page.title')}>
+      <PageShell title={pageTitle}>
         <Card>Loading...</Card>
       </PageShell>
     );
@@ -691,7 +697,7 @@ export default function WorkspaceSettingsPage() {
 
   if (!businessId || !ws) {
     return (
-      <PageShell title={t(isMembersMode ? 'membersPage.title' : 'page.title')}>
+      <PageShell title={pageTitle}>
         <Card>{error || 'No workspace'}</Card>
       </PageShell>
     );
@@ -702,19 +708,11 @@ export default function WorkspaceSettingsPage() {
       {error && <ErrorBanner>{error}</ErrorBanner>}
       {!isAdmin && <InfoBanner>{t('messages.adminRequired')}</InfoBanner>}
 
-      <Tabs>
-        {visibleTabs.includes('brand') && <Tab active={tab === 'brand'} onClick={() => changeTab('brand')}>{t('tabs.brand')}</Tab>}
-        {visibleTabs.includes('legal') && <Tab active={tab === 'legal'} onClick={() => changeTab('legal')}>{t('tabs.legal')}</Tab>}
-        {visibleTabs.includes('language') && <Tab active={tab === 'language'} onClick={() => changeTab('language')}>{t('tabs.language')}</Tab>}
-        {visibleTabs.includes('timezone') && <Tab active={tab === 'timezone'} onClick={() => changeTab('timezone')}>{t('tabs.timezone')}</Tab>}
-        {visibleTabs.includes('storage') && <Tab active={tab === 'storage'} onClick={() => changeTab('storage')}>{t('tabs.storage', '파일 저장소')}</Tab>}
-        {visibleTabs.includes('plan') && <Tab active={tab === 'plan'} onClick={() => changeTab('plan')}>{t('tabs.plan', '구독 플랜')}</Tab>}
-        {visibleTabs.includes('members') && <Tab active={tab === 'members'} onClick={() => changeTab('members')}>{t('tabs.members')}</Tab>}
-        {visibleTabs.includes('cue') && <Tab active={tab === 'cue'} onClick={() => changeTab('cue')}>{t('tabs.cue')}</Tab>}
-      </Tabs>
+      {/* 탭 UI 완전 제거 — 사이드바 설정 Secondary 에서 직접 섹션 접근.
+         브랜드+법인정보는 `tab === 'brand'` OR `tab === 'legal'` 일 때 통합 렌더. */}
 
-      {/* ─── BRAND ─── */}
-      {tab === 'brand' && (
+      {/* ─── BRAND + LEGAL (워크스페이스: 통합 렌더) ─── */}
+      {(tab === 'brand' || tab === 'legal') && (
         <Card>
           <SectionTitle>{t('brand.sectionTitle')}</SectionTitle>
           <SectionDesc>{t('brand.sectionDesc')}</SectionDesc>
@@ -832,7 +830,7 @@ export default function WorkspaceSettingsPage() {
       )}
 
       {/* ─── LEGAL ─── */}
-      {tab === 'legal' && (
+      {(tab === 'brand' || tab === 'legal') && (
         <Card>
           <SectionTitle>{t('legal.sectionTitle')}</SectionTitle>
           <SectionDesc>{t('legal.sectionDesc')}</SectionDesc>

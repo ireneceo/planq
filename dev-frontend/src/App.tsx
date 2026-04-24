@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
+import ErrorBoundary from './components/Common/ErrorBoundary';
 import MainLayout from './components/Layout/MainLayout';
 import LoginPage from './pages/Login/LoginPage';
 import RegisterPage from './pages/Register/RegisterPage';
@@ -20,6 +21,8 @@ import AdminBusinessesPage from './pages/Admin/AdminBusinessesPage';
 import PrivacyPolicy from './pages/Legal/PrivacyPolicy';
 import TermsOfService from './pages/Legal/TermsOfService';
 import ComingSoonPage from './pages/ComingSoon/ComingSoonPage';
+import DashboardPage from './pages/Dashboard/DashboardPage';
+import TodoPage from './pages/Todo/TodoPage';
 import './App.css';
 
 // Placeholder pages - will be replaced per phase
@@ -32,6 +35,7 @@ const PlaceholderPage = ({ title }: { title: string }) => (
 
 function App() {
   return (
+    <ErrorBoundary>
     <AuthProvider>
       <Routes>
         {/* Public routes */}
@@ -43,9 +47,16 @@ function App() {
         {/* Authenticated routes with MainLayout */}
         <Route path="/dashboard" element={
           <ProtectedRoute>
-            <MainLayout><PlaceholderPage title="Dashboard" /></MainLayout>
+            <MainLayout><DashboardPage /></MainLayout>
           </ProtectedRoute>
         } />
+        <Route path="/inbox" element={
+          <ProtectedRoute>
+            <MainLayout><TodoPage /></MainLayout>
+          </ProtectedRoute>
+        } />
+        {/* 하위 호환 redirect: 이전 북마크 */}
+        <Route path="/todo" element={<Navigate to="/inbox" replace />} />
 
         <Route path="/business/settings" element={
           <ProtectedRoute requiredRole={['business_owner', 'business_member']}>
@@ -166,6 +177,11 @@ function App() {
         <Route path="/billing" element={<Navigate to="/bills" replace />} />
 
         {/* Q Bill (견적·청구·결제·세금계산서 통합) */}
+        <Route path="/mail" element={
+          <ProtectedRoute requiredRole={['business_owner', 'business_member']}>
+            <MainLayout><ComingSoonPage titleKey="nav.qmail" titleFallback="Q Mail" /></MainLayout>
+          </ProtectedRoute>
+        } />
         <Route path="/bills" element={
           <ProtectedRoute requiredRole={['business_owner', 'business_member']}>
             <MainLayout><ComingSoonPage titleKey="nav.qbill" titleFallback="Q Bill" descKey="comingSoon.qbillDesc" descFallback="견적·청구·결제·세금계산서를 한 화면에서. 개발 중입니다." /></MainLayout>
@@ -229,6 +245,7 @@ function App() {
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     </AuthProvider>
+    </ErrorBoundary>
   );
 }
 
