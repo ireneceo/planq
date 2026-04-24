@@ -50,7 +50,7 @@ const NewChatModal: React.FC<Props> = ({ businessId, open, preselectedProjectId,
           listBusinessMembers(businessId),
           listProjects(businessId).catch(() => [] as ApiProject[]),
         ]);
-        setMembers(mem.filter((m) => m.role !== 'ai'));
+        setMembers(mem.filter((m) => m.role !== 'ai' && m.user));
         setProjects(projs);
       } catch { /* ignore */ }
     })();

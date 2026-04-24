@@ -82,14 +82,14 @@ const NewProjectModal: React.FC<Props> = ({ businessId, open, onClose, onCreate 
       try {
         const list = await listBusinessMembers(businessId);
         if (cancelled) return;
-        // ai 제외
-        const humans = list.filter((m) => m.role !== 'ai');
+        // ai 제외 + user join 이 null 인 row (삭제된 유저) 방어적으로 제외
+        const humans = list.filter((m) => m.role !== 'ai' && m.user);
         setAvailableMembers(humans);
         // 본인을 기본 담당자로 세팅 (아직 비어있을 때만)
         if (members.length === 0 && user) {
           const me = humans.find((m) => m.user_id === Number(user.id));
           if (me) {
-            setMembers([{ user_id: me.user_id, name: me.user.name, role: '기획', is_default: true }]);
+            setMembers([{ user_id: me.user_id, name: me.user?.name || user.name, role: '기획', is_default: true }]);
           }
         }
       } catch (err) {
@@ -135,7 +135,7 @@ const NewProjectModal: React.FC<Props> = ({ businessId, open, onClose, onCreate 
   const addMember = (userId: number) => {
     const m = availableMembers.find((x) => x.user_id === userId);
     if (!m || members.find((x) => x.user_id === userId)) return;
-    setMembers([...members, { user_id: m.user_id, name: m.user.name, role: '기타', is_default: false }]);
+    setMembers([...members, { user_id: m.user_id, name: m.user?.name || `user ${m.user_id}`, role: '기타', is_default: false }]);
   };
 
   const removeMember = (userId: number) => {
@@ -342,12 +342,15 @@ const NewProjectModal: React.FC<Props> = ({ businessId, open, onClose, onCreate 
               {availableToAdd.length > 0 && (
                 <AddMemberRow>
                   <AddMemberLabel>+ {t('modal.addMember', '멤버 추가')}</AddMemberLabel>
-                  {availableToAdd.map((m) => (
-                    <AddMemberChip key={m.user_id} onClick={() => addMember(m.user_id)}>
-                      <LetterAvatar name={m.user.name} size={18} />
-                      {m.user.name}
-                    </AddMemberChip>
-                  ))}
+                  {availableToAdd.map((m) => {
+                    const nm = m.user?.name || `user ${m.user_id}`;
+                    return (
+                      <AddMemberChip key={m.user_id} onClick={() => addMember(m.user_id)}>
+                        <LetterAvatar name={nm} size={18} />
+                        {nm}
+                      </AddMemberChip>
+                    );
+                  })}
                 </AddMemberRow>
               )}
             </MemberList>
