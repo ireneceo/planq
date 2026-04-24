@@ -59,6 +59,7 @@
       "members": "Members",
       "default": "Default",
       "detail": "View project details",
+      "internal": "Internal project",
       "statusLabel": {
         "active": "Active",
         "paused": "Paused",
