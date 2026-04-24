@@ -82,6 +82,23 @@
     "noChats": "아직 대화가 없습니다",
     "generalConversation": "일반 대화"
   },
+  "newChat": {
+    "title": "새 대화 시작",
+    "name": "대화창 이름",
+    "namePh": "예: 4월 정기 미팅 / Acme 온보딩",
+    "project": "프로젝트 연결",
+    "projectHint": "연결하면 프로젝트의 업무·이슈·메모가 함께 묶입니다. 건너뛰면 일반 대화로 만들어집니다.",
+    "noProject": "연결 안 함 (일반 대화)",
+    "members": "참여자",
+    "membersHint": "워크스페이스 팀원 중 이 대화에 참여할 사람을 추가하세요.",
+    "me": "나",
+    "addMemberPh": "+ 팀원 추가",
+    "creating": "생성 중...",
+    "create": "대화 만들기"
+  },
+  "common": {
+    "cancel": "취소"
+  },
   "modal": {
     "title": "새 프로젝트",
     "name": "프로젝트명",

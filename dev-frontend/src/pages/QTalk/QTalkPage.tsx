@@ -749,7 +749,7 @@ const QTalkPage: React.FC = () => {
         rightCollapsed={rightCollapsed}
         onToggleLeft={toggleLeft}
         onToggleRight={toggleRight}
-        onOpenNewProject={() => setModalOpen(true)}
+        onOpenNewChat={() => setChatModalOpen(true)}
         onFocusCandidates={() => {
           if (rightCollapsed) setRightCollapsed(false);
           // 다음 tick 에 우측 패널의 candidates 섹션으로 스크롤
