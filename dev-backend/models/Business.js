@@ -169,6 +169,31 @@ Business.init({
   storage_limit_bytes: {
     type: DataTypes.BIGINT,
     defaultValue: 1073741824 // 1GB
+  },
+  // ─── Q Bill (Phase 0) — 발행자 정보 · 은행 · PG · 세금계산서 ───
+  biz_registration_img: { type: DataTypes.STRING(500), allowNull: true },
+  bank_name: { type: DataTypes.STRING(100), allowNull: true },
+  bank_account_name: { type: DataTypes.STRING(100), allowNull: true },
+  bank_account_number: { type: DataTypes.STRING(50), allowNull: true },
+  tax_invoice_email: { type: DataTypes.STRING(200), allowNull: true },
+  // 포트원 V2 — 암호화는 Phase 6 에서
+  portone_store_id: { type: DataTypes.STRING(100), allowNull: true },
+  portone_api_secret: { type: DataTypes.STRING(500), allowNull: true },
+  portone_channel_domestic: { type: DataTypes.STRING(100), allowNull: true },
+  portone_channel_overseas: { type: DataTypes.STRING(100), allowNull: true },
+  portone_webhook_secret: { type: DataTypes.STRING(500), allowNull: true },
+  // 팝빌 (세금계산서)
+  popbill_link_id: { type: DataTypes.STRING(100), allowNull: true },
+  popbill_secret_key: { type: DataTypes.STRING(500), allowNull: true },
+  // 기본 부가세율 (국내 10%)
+  default_vat_rate: { type: DataTypes.DECIMAL(4, 3), defaultValue: 0.100 },
+  // ─── 권한 토글 (PERMISSION_MATRIX §4) ───
+  // financial / schedule / client_info — 기본값 모두 "all" (열린 문화).
+  // 값이 "pm" 이면 해당 카테고리 액션은 프로젝트 PM 또는 오너만.
+  permissions: {
+    type: DataTypes.JSON,
+    allowNull: true,
+    defaultValue: { financial: 'all', schedule: 'all', client_info: 'all' },
   }
 }, {
   sequelize,

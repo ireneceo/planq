@@ -80,7 +80,31 @@ Invoice.init({
     type: DataTypes.INTEGER,
     allowNull: false,
     references: { model: 'users', key: 'id' }
-  }
+  },
+  // ─── Q Bill (Phase 0) — 확장 ───
+  // 프로젝트 연결 (프로젝트 Bill 탭·수익성 계산)
+  project_id: { type: DataTypes.BIGINT, allowNull: true, references: { model: 'projects', key: 'id' } },
+  // 견적서에서 전환된 경우 원본 참조
+  quote_id: { type: DataTypes.BIGINT, allowNull: true },
+  // 통화 (KRW/USD/EUR 등)
+  currency: { type: DataTypes.STRING(3), defaultValue: 'KRW' },
+  // 세부 금액 (total_amount 는 legacy 유지, 신규 계산은 subtotal + vat)
+  subtotal: { type: DataTypes.DECIMAL(14, 2), allowNull: true },
+  vat_rate: { type: DataTypes.DECIMAL(4, 3), defaultValue: 0.100 },
+  // 누적 수금액 (부분결제 지원). paid_amount >= grand_total 이면 status='paid'.
+  paid_amount: { type: DataTypes.DECIMAL(14, 2), defaultValue: 0 },
+  payment_terms: { type: DataTypes.TEXT, allowNull: true },
+  // 공개 공유 링크 토큰 (고객이 로그인 없이 청구서 조회·결제)
+  share_token: { type: DataTypes.STRING(64), allowNull: true, unique: true },
+  viewed_at: { type: DataTypes.DATE, allowNull: true, comment: '첫 열람 시각' },
+  // 세금계산서 (팝빌)
+  tax_invoice_status: {
+    type: DataTypes.ENUM('none', 'pending', 'issued', 'failed', 'canceled'),
+    defaultValue: 'none',
+  },
+  tax_invoice_external_id: { type: DataTypes.STRING(100), allowNull: true },
+  tax_invoice_url: { type: DataTypes.STRING(500), allowNull: true },
+  tax_invoice_issued_at: { type: DataTypes.DATE, allowNull: true }
 }, {
   sequelize,
   tableName: 'invoices',

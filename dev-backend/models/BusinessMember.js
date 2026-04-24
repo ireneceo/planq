@@ -73,7 +73,11 @@ BusinessMember.init({
   joined_at: {
     type: DataTypes.DATE,
     allowNull: true
-  }
+  },
+  // ─── Q Bill (Phase 0) — 단가·급여 (민감정보, owner 만 조회/편집) ───
+  // 본인 단가 조회는 허용. 동료 단가는 owner 만.
+  hourly_rate: { type: DataTypes.DECIMAL(10, 2), allowNull: true, comment: '시간당 단가 (청구/수익성 계산용)' },
+  monthly_salary: { type: DataTypes.DECIMAL(12, 2), allowNull: true, comment: '월급 (내부 원가 계산용)' }
 }, {
   sequelize,
   tableName: 'business_members',

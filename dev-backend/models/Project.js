@@ -25,6 +25,14 @@ Project.init({
   process_tab_label: { type: DataTypes.STRING(80), allowNull: false, defaultValue: '테이블' },
   // 외부 클라우드 폴더 매핑 (Phase 2B+) — 연동 시 루트 폴더 아래 자동 생성
   gdrive_folder_id: { type: DataTypes.STRING(255), allowNull: true },
+  // ─── Q Bill (Phase 0) — 계약/청구 ───
+  contract_amount: { type: DataTypes.DECIMAL(14, 2), allowNull: true, comment: '총 계약금' },
+  billing_type: {
+    type: DataTypes.ENUM('fixed', 'hourly', 'subscription', 'milestone', 'internal'),
+    defaultValue: 'fixed',
+    comment: 'fixed=고정가, hourly=시간단가, subscription=월정액, milestone=마일스톤, internal=내부 프로젝트(비청구)',
+  },
+  monthly_fee: { type: DataTypes.DECIMAL(12, 2), allowNull: true, comment: 'subscription 전용' },
 }, {
   sequelize,
   tableName: 'projects',
