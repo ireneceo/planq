@@ -76,15 +76,10 @@ const LeftPanel: React.FC<Props> = ({
   }, [chats, query]);
 
   if (collapsed) {
-    // 접힘 상태: 고유 프로젝트만 dedupe 해서 아이콘으로 표시
+    // 접힘 상태: 고유 프로젝트만 dedupe 해서 아이콘으로 표시 · 펼치기는 우측 엣지 바
     const uniqueProjects = Array.from(new Map(projects.map((p) => [p.id, p])).values());
     return (
       <CollapsedStrip>
-        <CollapsedBtn onClick={onToggleCollapsed} title={t('left.expand', '리스트 열기')}>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <polyline points="9 18 15 12 9 6" />
-          </svg>
-        </CollapsedBtn>
         {uniqueProjects.slice(0, 8).map((p) => {
           const activeChatInProject = chats.find(
             (x) => x.project.id === p.id && x.conversation.id === activeConversationId
@@ -107,6 +102,14 @@ const LeftPanel: React.FC<Props> = ({
             </CollapsedDotWrap>
           );
         })}
+        <EdgeHandle
+          type="button"
+          onClick={onToggleCollapsed}
+          aria-label={t('left.expand', '리스트 열기') as string}
+          title={t('left.expand', '리스트 열기') as string}
+        >
+          <EdgeChevron><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg></EdgeChevron>
+        </EdgeHandle>
       </CollapsedStrip>
     );
   }
@@ -132,14 +135,18 @@ const LeftPanel: React.FC<Props> = ({
                 </svg>
               </IconBtn>
             )}
-            <IconBtn onClick={onToggleCollapsed} title={t('left.collapse', '접기')} aria-label="Collapse">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <polyline points="15 18 9 12 15 6" />
-              </svg>
-            </IconBtn>
           </HeaderActions>
         </HeaderTop>
       </Header>
+      {/* 패널 우측 엣지 접기 핸들 — 헤더 '<' IconBtn 은 제거하고 이 바로 통일 */}
+      <EdgeHandle
+        type="button"
+        onClick={onToggleCollapsed}
+        aria-label={t('left.collapse', '접기') as string}
+        title={t('left.collapse', '접기') as string}
+      >
+        <EdgeChevron><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg></EdgeChevron>
+      </EdgeHandle>
 
       <SearchSection>
         <SearchBoxCommon
@@ -197,6 +204,7 @@ const Container = styled.aside`
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  position: relative;
   @media (max-width: 900px) { display: none; }
 `;
 
@@ -210,21 +218,37 @@ const CollapsedStrip = styled.aside`
   align-items: center;
   padding: 12px 0;
   gap: 8px;
+  position: relative;
   @media (max-width: 900px) { display: none; }
 `;
 
-const CollapsedBtn = styled.button`
-  width: 32px;
-  height: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: transparent;
-  border: none;
-  border-radius: 8px;
-  color: #64748B;
+/* 사이드 패널 접기/펼치기 엣지 핸들 — Secondary/Q Talk 공통 패턴 (2026-04-24 통일) */
+const EdgeHandle = styled.button`
+  position: absolute;
+  top: 50%;
+  right: 0;
+  transform: translate(50%, -50%);
+  width: 8px; height: 60px;
+  padding: 0; border: none;
+  background: #CBD5E1;
+  border-radius: 4px;
   cursor: pointer;
-  &:hover { background: #F1F5F9; color: #0F172A; }
+  z-index: 10;
+  box-shadow: 0 1px 3px rgba(15,23,42,0.08);
+  transition: width 0.15s ease, background 0.15s ease, height 0.15s ease;
+  display: flex; align-items: center; justify-content: center;
+  &::before {
+    content: ''; position: absolute;
+    top: -10px; bottom: -10px; left: -8px; right: -8px;   /* 터치 타겟 확장 */
+  }
+  &:hover { width: 14px; height: 72px; background: #14B8A6; }
+  &:focus-visible { outline: 2px solid #14B8A6; outline-offset: 2px; }
+`;
+const EdgeChevron = styled.span`
+  display: flex; align-items: center; justify-content: center;
+  color: #64748B;
+  svg { width: 10px; height: 10px; }
+  ${EdgeHandle}:hover & { color: #FFFFFF; }
 `;
 
 const CollapsedDotWrap = styled.div<{ $hasActivity: boolean }>`
