@@ -355,7 +355,13 @@ router.put('/:id/members', authenticateToken, async (req, res, next) => {
   try {
     const { project, role, error } = await loadProjectOrForbidden(Number(req.params.id), req.user.id);
     if (error) { await t.rollback(); return errorResponse(res, error.message, error.code); }
-    if (role === 'client') { await t.rollback(); return errorResponse(res, 'forbidden', 403); }
+    // 권한: owner/platform_admin 만. 멤버 구성 변경은 인사/조직 관리 영역.
+    // PERMISSION_MATRIX.md §5.5 — "프로젝트 멤버 추가·제거".
+    const isPlatformAdmin = req.user.platform_role === 'platform_admin';
+    if (!isPlatformAdmin && role !== 'owner') {
+      await t.rollback();
+      return errorResponse(res, '프로젝트 멤버 관리는 워크스페이스 오너만 가능합니다', 403);
+    }
 
     const { members = [] } = req.body || {};
 

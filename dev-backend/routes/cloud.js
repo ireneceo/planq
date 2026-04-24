@@ -36,8 +36,17 @@ router.get('/status/:businessId', authenticateToken, checkBusinessAccess, async 
   } catch (error) { next(error); }
 });
 
+// 클라우드 연동/해제/감시 = 외부 계정 연결 (API 키 등록 수준 민감도). owner/platform_admin 만.
+// PERMISSION_MATRIX.md §5.5 — "포트원·팝빌 API 키 등록" 과 동일 카테고리.
+function requireOwnerForCloud(req, res, next) {
+  if (req.businessRole !== 'owner' && req.user.platform_role !== 'platform_admin') {
+    return errorResponse(res, '클라우드 연동은 워크스페이스 오너만 가능합니다', 403);
+  }
+  next();
+}
+
 // ─── Google Drive OAuth 시작 ───
-router.post('/connect/gdrive/:businessId', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+router.post('/connect/gdrive/:businessId', authenticateToken, checkBusinessAccess, requireOwnerForCloud, async (req, res, next) => {
   try {
     if (!gdrive.isConfigured()) return errorResponse(res, 'Google Drive not configured on server', 500);
     const url = gdrive.buildAuthUrl(Number(req.params.businessId), req.user.id);
@@ -115,7 +124,7 @@ router.get('/callback/gdrive', async (req, res) => {
 });
 
 // ─── 연동 해제 ───
-router.delete('/disconnect/:provider/:businessId', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+router.delete('/disconnect/:provider/:businessId', authenticateToken, checkBusinessAccess, requireOwnerForCloud, async (req, res, next) => {
   try {
     const { provider, businessId } = req.params;
     if (!['gdrive'].includes(provider)) return errorResponse(res, 'unknown provider', 400);
@@ -169,7 +178,7 @@ router.post('/qnote/sync', async (req, res, next) => {
 });
 
 // ─── Drive changes.watch 시작 (해당 워크스페이스의 Drive 변경 감시) ───
-router.post('/watch/start/:businessId', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+router.post('/watch/start/:businessId', authenticateToken, checkBusinessAccess, requireOwnerForCloud, async (req, res, next) => {
   try {
     const token = await gdrive.getTokenForBusiness(req.params.businessId);
     if (!token) return errorResponse(res, 'not_connected', 400);
@@ -259,7 +268,7 @@ router.post('/webhook/gdrive', async (req, res) => {
 });
 
 // ─── Watch 중지 ───
-router.post('/watch/stop/:businessId', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+router.post('/watch/stop/:businessId', authenticateToken, checkBusinessAccess, requireOwnerForCloud, async (req, res, next) => {
   try {
     const token = await gdrive.getTokenForBusiness(req.params.businessId);
     if (!token || !token.watch_channel_id) return successResponse(res, { stopped: false });
