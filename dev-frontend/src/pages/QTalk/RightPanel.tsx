@@ -540,11 +540,10 @@ const OverlayBackdrop = styled.div`
   @media (prefers-reduced-motion: reduce) { animation: none; }
 `;
 
+/* 접힘 상태: 0 폭 컨테이너 + 내부 RightEdgeHandle 만 경계에 노출 */
 const CollapsedStrip = styled.aside`
-  width: 16px;
+  width: 0;
   flex-shrink: 0;
-  background: #FFFFFF;
-  border-left: 1px solid #E2E8F0;
   position: relative;
   display: flex;
   flex-direction: column;
