@@ -158,6 +158,8 @@ function buildStyles(
       overflow: 'hidden',
       zIndex: 100,
     }),
+    // 포털 렌더 시 z-index — 모달 backdrop(50) 과 Dialog 위에 뜨도록 10000
+    menuPortal: (base) => ({ ...base, zIndex: 10000 }),
     menuList: (base) => ({
       ...base,
       padding: 4,
@@ -259,6 +261,10 @@ function PlanQSelect<IsMulti extends boolean = false>(
       }
       placeholder={rest.placeholder ?? '선택하기'}
       isSearchable={rest.isSearchable ?? true}
+      // 모달·드로어 내부에서 드롭다운이 푸터·컨테이너에 가려지는 문제 방지 —
+      // document.body 로 포털 렌더. z-index 는 buildStyles.menuPortal 에서 처리.
+      menuPortalTarget={rest.menuPortalTarget ?? (typeof document !== 'undefined' ? document.body : null)}
+      menuPosition={rest.menuPosition ?? 'fixed'}
     />
   );
 }

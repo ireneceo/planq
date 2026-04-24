@@ -186,27 +186,6 @@ const RightPanel: React.FC<Props> = ({
       )}
 
       <Scroll>
-        {/* 프로젝트 정보 — 프로젝트 있을 때만 */}
-        {project && (
-          <Section>
-            <SectionHeader onClick={() => toggle('info')}>
-              <SectionTitle>
-                <Chevron $open={expanded.info} />
-                {t('right.info.title', '프로젝트 정보')}
-              </SectionTitle>
-            </SectionHeader>
-            {expanded.info && (
-              <SectionBody>
-                <InfoRow><InfoK>{t('right.info.name', '이름')}</InfoK><InfoV>{project.name}</InfoV></InfoRow>
-                {project.client_company && <InfoRow><InfoK>{t('right.info.client', '고객')}</InfoK><InfoV>{project.client_company}</InfoV></InfoRow>}
-                {project.start_date && <InfoRow><InfoK>{t('right.info.start', '시작')}</InfoK><InfoV>{project.start_date}</InfoV></InfoRow>}
-                {project.end_date && <InfoRow><InfoK>{t('right.info.end', '마감')}</InfoK><InfoV>{project.end_date}</InfoV></InfoRow>}
-                {project.description && <InfoRow><InfoK>{t('right.info.desc', '설명')}</InfoK><InfoV>{project.description}</InfoV></InfoRow>}
-              </SectionBody>
-            )}
-          </Section>
-        )}
-
         {/* 업무 후보 (있을 때만, 최상단) */}
         {!isClient && candidates.length > 0 && (
           <CandidatesSection data-section="candidates">
@@ -488,7 +467,13 @@ const RightPanel: React.FC<Props> = ({
           </SectionHeader>
           {expanded.info && (
             <SectionBody>
-              <InfoRow><InfoLabel>{t('right.info.client', '고객사')}</InfoLabel><InfoValue>{project.client_company}</InfoValue></InfoRow>
+              <InfoRow><InfoLabel>{t('right.info.name', '이름')}</InfoLabel><InfoValue>{project.name}</InfoValue></InfoRow>
+              {project.description && (
+                <InfoRow><InfoLabel>{t('right.info.desc', '설명')}</InfoLabel><InfoValue>{project.description}</InfoValue></InfoRow>
+              )}
+              {project.client_company && (
+                <InfoRow><InfoLabel>{t('right.info.client', '고객')}</InfoLabel><InfoValue>{project.client_company}</InfoValue></InfoRow>
+              )}
               {project.start_date && (
                 <InfoRow><InfoLabel>{t('right.info.period', '기간')}</InfoLabel><InfoValue>{project.start_date} ~ {project.end_date || '—'}</InfoValue></InfoRow>
               )}
@@ -499,7 +484,9 @@ const RightPanel: React.FC<Props> = ({
                   <LetterAvatar name={m.name} size={22} />
                   <MemberName>{m.name}</MemberName>
                   <RoleTag>{m.role}</RoleTag>
-                  {m.is_default_assignee && <DefaultTag>{t('right.info.default', '기본')}</DefaultTag>}
+                  {/* PM 배지 — Phase 1.2 project_members.is_pm 대응. mock 에는 is_pm 없지만 default_assignee 를 임시 PM 표기 */}
+                  {(m as unknown as { is_pm?: boolean }).is_pm && <PmTag>PM</PmTag>}
+                  {m.is_default_assignee && !(m as unknown as { is_pm?: boolean }).is_pm && <PmTag>PM</PmTag>}
                 </MemberRow>
               ))}
               <DetailLink>→ {t('right.info.detail', '프로젝트 상세 보기')}</DetailLink>
@@ -1121,19 +1108,6 @@ const NoteSendBtn = styled.button`
   &:disabled { background: #CBD5E1; cursor: not-allowed; }
 `;
 
-const InfoK = styled.span`
-  font-size: 11px;
-  color: #64748B;
-  font-weight: 600;
-  min-width: 48px;
-  flex-shrink: 0;
-`;
-const InfoV = styled.span`
-  font-size: 12px;
-  color: #0F172A;
-  text-align: right;
-  word-break: break-word;
-`;
 const InfoRow = styled.div`
   display: flex;
   justify-content: space-between;
@@ -1167,13 +1141,15 @@ const MemberName = styled.div`
   font-weight: 500;
 `;
 
-const DefaultTag = styled.span`
+/* PM 배지 — 프로젝트 PM (Phase 1.2 is_pm 대응, Q Task PmTag 와 동일 디자인) */
+const PmTag = styled.span`
   padding: 1px 6px;
-  background: #FFF1F2;
-  color: #9F1239;
+  background: #EEF2FF;
+  color: #4338CA;
   font-size: 9px;
   font-weight: 700;
   border-radius: 8px;
+  letter-spacing: 0.2px;
 `;
 
 const DetailLink = styled.button`
