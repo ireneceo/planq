@@ -1114,10 +1114,17 @@ router.post('/:id/issues', authenticateToken, async (req, res, next) => {
     const { project, role, error } = await loadProjectOrForbidden(Number(req.params.id), req.user.id);
     if (error) return errorResponse(res, error.message, error.code);
     if (role === 'client') return errorResponse(res, 'forbidden', 403);
-    const { body } = req.body || {};
+    const { body, conversation_id } = req.body || {};
     if (!body || !String(body).trim()) return errorResponse(res, 'body is required', 400);
+    // conversation_id 옵션 — 같은 프로젝트 소속 대화인지 검증
+    let convIdToStore = null;
+    if (conversation_id) {
+      const conv = await Conversation.findByPk(conversation_id);
+      if (conv && conv.project_id === project.id) convIdToStore = conv.id;
+    }
     const issue = await ProjectIssue.create({
       project_id: project.id,
+      conversation_id: convIdToStore,
       body: String(body).trim(),
       author_user_id: req.user.id,
     });
@@ -1174,13 +1181,20 @@ router.post('/:id/notes', authenticateToken, async (req, res, next) => {
   try {
     const { project, role, error } = await loadProjectOrForbidden(Number(req.params.id), req.user.id);
     if (error) return errorResponse(res, error.message, error.code);
-    const { body, visibility } = req.body || {};
+    const { body, visibility, conversation_id } = req.body || {};
     if (!body || !String(body).trim()) return errorResponse(res, 'body is required', 400);
     // 고객은 personal 만 작성 가능
     let vis = visibility === 'internal' ? 'internal' : 'personal';
     if (role === 'client') vis = 'personal';
+    // conversation_id 옵션 — 같은 프로젝트 소속 대화인지 검증
+    let convIdToStore = null;
+    if (conversation_id) {
+      const conv = await Conversation.findByPk(conversation_id);
+      if (conv && conv.project_id === project.id) convIdToStore = conv.id;
+    }
     const note = await ProjectNote.create({
       project_id: project.id,
+      conversation_id: convIdToStore,
       author_user_id: req.user.id,
       visibility: vis,
       body: String(body).trim(),

@@ -357,11 +357,11 @@ export async function updateConversation(conversationId: number, patch: { displa
 // ─────────────────────────────────────────────
 // 청크 4 — 이슈 / 메모 / 업무 쓰기
 // ─────────────────────────────────────────────
-export async function addIssue(projectId: number, body: string): Promise<ApiIssue> {
+export async function addIssue(projectId: number, body: string, conversationId?: number | null): Promise<ApiIssue> {
   const res = await apiFetch(`/api/projects/${projectId}/issues`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ body }),
+    body: JSON.stringify({ body, conversation_id: conversationId || null }),
   });
   return handle<ApiIssue>(res);
 }
@@ -380,11 +380,11 @@ export async function deleteIssue(issueId: number): Promise<{ id: number; delete
   return handle(res);
 }
 
-export async function addNote(projectId: number, body: string, visibility: 'personal' | 'internal'): Promise<ApiNote> {
+export async function addNote(projectId: number, body: string, visibility: 'personal' | 'internal', conversationId?: number | null): Promise<ApiNote> {
   const res = await apiFetch(`/api/projects/${projectId}/notes`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ body, visibility }),
+    body: JSON.stringify({ body, visibility, conversation_id: conversationId || null }),
   });
   return handle<ApiNote>(res);
 }

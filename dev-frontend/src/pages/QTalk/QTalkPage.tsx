@@ -607,7 +607,8 @@ const QTalkPage: React.FC = () => {
     try {
       let created: qtalkApi.ApiIssue;
       if (activeProjectId) {
-        created = await qtalkApi.addIssue(activeProjectId, body);
+        // 프로젝트 대화에서 쓴 이슈도 conversation_id 기록 — 양쪽(채팅/프로젝트)에서 추적 가능.
+        created = await qtalkApi.addIssue(activeProjectId, body, activeConversationId || undefined);
       } else if (activeConversationId) {
         created = await qtalkApi.addConvIssue(activeConversationId, body);
       } else {
@@ -642,7 +643,8 @@ const QTalkPage: React.FC = () => {
     try {
       let created: qtalkApi.ApiNote;
       if (activeProjectId) {
-        created = await qtalkApi.addNote(activeProjectId, body, visibility);
+        // 프로젝트 대화에서 쓴 메모도 conversation_id 기록 — 양쪽에서 추적 + '어느 채팅에서 왔는지' 표시.
+        created = await qtalkApi.addNote(activeProjectId, body, visibility, activeConversationId || undefined);
       } else if (activeConversationId) {
         created = await qtalkApi.addConvNote(activeConversationId, body, visibility);
       } else {
@@ -838,6 +840,7 @@ const QTalkPage: React.FC = () => {
       <RightPanel
         project={activeProject}
         activeConversationId={activeConversationId}
+        conversations={conversations}
         tasks={tasks}
         notes={notes}
         issues={issues}
