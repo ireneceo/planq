@@ -40,6 +40,14 @@ const BusinessPlanHistory = require('./BusinessPlanHistory');
 const Post = require('./Post');
 const PostAttachment = require('./PostAttachment');
 const PostCategory = require('./PostCategory');
+// ─── Q Bill Phase 0 ───
+const Quote = require('./Quote');
+const QuoteItem = require('./QuoteItem');
+const InvoicePayment = require('./InvoicePayment');
+const BillEvent = require('./BillEvent');
+const OverheadItem = require('./OverheadItem');
+const ProjectExpense = require('./ProjectExpense');
+const Report = require('./Report');
 
 // ============================================
 // Associations
@@ -290,6 +298,14 @@ module.exports = {
   Post,
   PostAttachment,
   PostCategory,
+  // Q Bill Phase 0
+  Quote,
+  QuoteItem,
+  InvoicePayment,
+  BillEvent,
+  OverheadItem,
+  ProjectExpense,
+  Report,
 };
 
 // CalendarEvent
@@ -318,3 +334,49 @@ Task.hasMany(TaskDailyProgress, { as: 'daily_progress', foreignKey: 'task_id' })
 TaskComment.belongsTo(Task, { foreignKey: 'task_id' });
 TaskComment.belongsTo(User, { as: 'author', foreignKey: 'user_id' });
 Task.hasMany(TaskComment, { as: 'comments', foreignKey: 'task_id' });
+
+// ═══════════════════════════════════════════════════════════
+// Q Bill Phase 0 — Associations
+// ═══════════════════════════════════════════════════════════
+
+// Quote
+Quote.belongsTo(Business, { foreignKey: 'business_id' });
+Quote.belongsTo(Client, { foreignKey: 'client_id' });
+Quote.belongsTo(Project, { foreignKey: 'project_id' });
+Quote.belongsTo(User, { as: 'creator', foreignKey: 'created_by' });
+Quote.belongsTo(Invoice, { as: 'convertedInvoice', foreignKey: 'converted_invoice_id' });
+Business.hasMany(Quote, { as: 'quotes', foreignKey: 'business_id' });
+Client.hasMany(Quote, { as: 'quotes', foreignKey: 'client_id' });
+Project.hasMany(Quote, { as: 'quotes', foreignKey: 'project_id' });
+
+// QuoteItem — Quote 삭제 시 CASCADE
+QuoteItem.belongsTo(Quote, { foreignKey: 'quote_id', onDelete: 'CASCADE' });
+Quote.hasMany(QuoteItem, { as: 'items', foreignKey: 'quote_id', onDelete: 'CASCADE' });
+
+// Invoice ↔ Quote (견적서 → 청구서 전환 연결)
+Invoice.belongsTo(Quote, { foreignKey: 'quote_id' });
+// Invoice ↔ Project (프로젝트 Bill 탭·수익성 계산)
+Invoice.belongsTo(Project, { foreignKey: 'project_id' });
+Project.hasMany(Invoice, { as: 'invoices', foreignKey: 'project_id' });
+
+// InvoicePayment — Invoice 삭제 시 CASCADE (결제 기록도 같이)
+InvoicePayment.belongsTo(Invoice, { foreignKey: 'invoice_id', onDelete: 'CASCADE' });
+InvoicePayment.belongsTo(User, { as: 'recorder', foreignKey: 'recorded_by' });
+Invoice.hasMany(InvoicePayment, { as: 'payments', foreignKey: 'invoice_id', onDelete: 'CASCADE' });
+
+// BillEvent — polymorphic (entity_type + entity_id). actor 관계만 설정.
+BillEvent.belongsTo(User, { as: 'actor', foreignKey: 'actor_user_id' });
+
+// OverheadItem — 고정비 (리포트)
+OverheadItem.belongsTo(Business, { foreignKey: 'business_id' });
+Business.hasMany(OverheadItem, { as: 'overheadItems', foreignKey: 'business_id' });
+
+// ProjectExpense — 직접비 (프로젝트 수익성)
+ProjectExpense.belongsTo(Project, { foreignKey: 'project_id', onDelete: 'CASCADE' });
+ProjectExpense.belongsTo(User, { as: 'creator', foreignKey: 'created_by' });
+Project.hasMany(ProjectExpense, { as: 'expenses', foreignKey: 'project_id' });
+
+// Report — 시점 고정 경영 보고서
+Report.belongsTo(Business, { foreignKey: 'business_id' });
+Report.belongsTo(User, { as: 'generator', foreignKey: 'generated_by' });
+Business.hasMany(Report, { as: 'reports', foreignKey: 'business_id' });
