@@ -40,6 +40,8 @@
     "expandSection": "펼치기",
     "collapseSection": "접기",
     "closeSecondary": "닫기",
+    "collapseSecondary": "메뉴 접기",
+    "expandSecondary": "메뉴 펼치기",
     "workspaceSettings": "워크스페이스",
     "plan": "구독 플랜",
     "storage": "파일 저장소",
