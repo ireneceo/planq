@@ -36,7 +36,7 @@ interface ProjectDetail {
   color?: string | null;
   owner_user_id: number;
   Business?: { id: number; name: string; brand_name?: string };
-  projectMembers?: { user_id: number; role: string; User?: { id: number; name: string } }[];
+  projectMembers?: { user_id: number; role: string; is_pm?: boolean; User?: { id: number; name: string } }[];
   projectClients?: { id: number; contact_name: string; contact_email: string | null; contact_user_id?: number | null; invite_token?: string | null }[];
 }
 interface Conv {
@@ -133,13 +133,13 @@ const QProjectDetailPage: React.FC = () => {
   }, [tasks]);
 
   // ── 멤버 관리 (bulk PUT) ──
-  const saveMembers = async (next: { user_id: number; role: string; User?: { id: number; name: string } }[]) => {
+  const saveMembers = async (next: { user_id: number; role: string; is_pm?: boolean; User?: { id: number; name: string } }[]) => {
     if (!project) return;
     setProject(prev => prev ? { ...prev, projectMembers: next } : prev);
     try {
       const r = await apiFetch(`/api/projects/${projectId}/members`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ members: next.map(m => ({ user_id: m.user_id, role: m.role || '기타' })) }),
+        body: JSON.stringify({ members: next.map(m => ({ user_id: m.user_id, role: m.role || '기타', is_pm: !!m.is_pm })) }),
       });
       const j = await r.json();
       if (j.success) setProject(j.data);
@@ -150,7 +150,7 @@ const QProjectDetailPage: React.FC = () => {
     if (existing.some(m => m.user_id === userId)) return;
     const bm = bizMembers.find(b => b.user_id === userId);
     if (!bm?.user) return;
-    saveMembers([...existing, { user_id: userId, role: '팀원', User: { id: bm.user.id, name: bm.user.name } }]);
+    saveMembers([...existing, { user_id: userId, role: '팀원', is_pm: false, User: { id: bm.user.id, name: bm.user.name } }]);
     setAddMemberOpen(false);
   };
   const removeMember = (userId: number) => {
@@ -160,6 +160,13 @@ const QProjectDetailPage: React.FC = () => {
   const updateMemberRole = (userId: number, role: string) => {
     const existing = project?.projectMembers || [];
     saveMembers(existing.map(m => m.user_id === userId ? { ...m, role } : m));
+  };
+  const togglePm = (userId: number) => {
+    if (!project) return;
+    // 프로젝트 생성자는 항상 PM — 해제 불가 (서버에서도 강제)
+    if (userId === project.owner_user_id) return;
+    const existing = project.projectMembers || [];
+    saveMembers(existing.map(m => m.user_id === userId ? { ...m, is_pm: !m.is_pm } : m));
   };
 
   const todayStr = new Date().toISOString().slice(0, 10);
@@ -550,18 +557,41 @@ const QProjectDetailPage: React.FC = () => {
             <CardTitle>{t('section.members', '프로젝트 멤버')} <small>{(project.projectMembers || []).length}</small></CardTitle>
             {(project.projectMembers || []).length === 0 ? <Dim>{t('members.empty', '멤버가 없습니다')}</Dim> : (
               <MemberList>
-                {(project.projectMembers || []).map(m => (
-                  <MemberRow key={m.user_id}>
-                    <MemberName>{m.User?.name || `user ${m.user_id}`}{m.user_id === project.owner_user_id && <OwnerTag>{t('members.owner', '오너')}</OwnerTag>}</MemberName>
-                    <MemberRoleInput defaultValue={m.role || t('edit.roleDefault', '팀원')} placeholder={t('edit.rolePlaceholder', '역할') as string}
-                      disabled={m.user_id === project.owner_user_id}
-                      onBlur={e => { const v = e.target.value.trim(); if (v && v !== m.role) updateMemberRole(m.user_id, v); }}
-                      onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }} />
-                    {m.user_id !== project.owner_user_id && (
-                      <MemberRemoveBtn type="button" onClick={() => removeMember(m.user_id)} title={t('members.remove', '제거') as string}>×</MemberRemoveBtn>
-                    )}
-                  </MemberRow>
-                ))}
+                {(project.projectMembers || []).map(m => {
+                  const isOwner = m.user_id === project.owner_user_id;
+                  const isPm = isOwner || !!m.is_pm;
+                  return (
+                    <MemberRow key={m.user_id}>
+                      <MemberName>
+                        {m.User?.name || `user ${m.user_id}`}
+                        {isOwner && <OwnerTag>{t('members.owner', '오너')}</OwnerTag>}
+                        {isPm && !isOwner && <PmTag>PM</PmTag>}
+                      </MemberName>
+                      <MemberRoleInput defaultValue={m.role || t('edit.roleDefault', '팀원')} placeholder={t('edit.rolePlaceholder', '역할') as string}
+                        disabled={isOwner}
+                        onBlur={e => { const v = e.target.value.trim(); if (v && v !== m.role) updateMemberRole(m.user_id, v); }}
+                        onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }} />
+                      {/* PM 체크박스 — 오너는 강제 체크 + disabled */}
+                      <PmToggle
+                        type="button"
+                        $active={isPm}
+                        disabled={isOwner}
+                        onClick={() => togglePm(m.user_id)}
+                        title={isOwner
+                          ? (t('members.pmOwner', '프로젝트 생성자는 자동 PM') as string)
+                          : (isPm
+                              ? (t('members.pmOn', 'PM 해제') as string)
+                              : (t('members.pmOff', 'PM 지정') as string))}
+                        aria-pressed={isPm}
+                      >
+                        PM
+                      </PmToggle>
+                      {!isOwner && (
+                        <MemberRemoveBtn type="button" onClick={() => removeMember(m.user_id)} title={t('members.remove', '제거') as string}>×</MemberRemoveBtn>
+                      )}
+                    </MemberRow>
+                  );
+                })}
               </MemberList>
             )}
             {(() => {
@@ -952,7 +982,17 @@ const MemberList = styled.div`display:flex;flex-direction:column;gap:6px;margin-
 const MemberRow = styled.div`display:flex;align-items:center;gap:8px;padding:6px 8px;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px;`;
 const MemberName = styled.div`flex:1;min-width:0;font-size:13px;font-weight:600;color:#0F172A;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center;gap:6px;`;
 const OwnerTag = styled.span`padding:1px 6px;font-size:10px;font-weight:600;background:#F0FDFA;color:#0F766E;border-radius:6px;`;
+const PmTag = styled.span`padding:1px 6px;font-size:10px;font-weight:700;background:#EEF2FF;color:#4338CA;border-radius:6px;letter-spacing:0.2px;`;
 const MemberRoleInput = styled.input`flex:0 0 120px;min-width:80px;height:28px;padding:0 8px;font-size:12px;color:#0F172A;border:1px solid transparent;background:transparent;border-radius:6px;font-family:inherit;&:hover:not(:disabled){background:#FFF;border-color:#E2E8F0;}&:focus{outline:none;background:#FFF;border-color:#14B8A6;}&:disabled{color:#94A3B8;cursor:not-allowed;}`;
+const PmToggle = styled.button<{ $active: boolean }>`
+  flex-shrink:0;width:36px;height:24px;padding:0;font-size:10px;font-weight:700;letter-spacing:0.3px;
+  border-radius:6px;cursor:pointer;transition:background 0.12s, color 0.12s, border-color 0.12s;
+  ${p => p.$active
+    ? 'background:#4338CA;color:#fff;border:1px solid #4338CA;'
+    : 'background:#fff;color:#94A3B8;border:1px solid #CBD5E1;'}
+  &:hover:not(:disabled){ ${p => p.$active ? 'background:#3730A3;' : 'background:#F8FAFC;color:#4338CA;border-color:#4338CA;'} }
+  &:disabled{ background:#EEF2FF;color:#4338CA;border:1px solid #C7D2FE;cursor:not-allowed;opacity:0.85; }
+`;
 const MemberRemoveBtn = styled.button`width:24px;height:24px;display:flex;align-items:center;justify-content:center;background:transparent;border:none;color:#94A3B8;border-radius:4px;cursor:pointer;font-size:16px;line-height:1;&:hover{background:#FEE2E2;color:#DC2626;}`;
 const AddMemberBox = styled.div`display:flex;flex-direction:column;gap:6px;padding:8px;background:#FFF;border:1px solid #E2E8F0;border-radius:8px;margin-top:6px;`;
 const MemberCandidateList = styled.div`display:flex;flex-direction:column;gap:2px;max-height:200px;overflow-y:auto;`;

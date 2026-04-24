@@ -654,17 +654,9 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
             {hasBiz('owner', 'member') && (
               <SecondaryNavItem
                 to="/business/settings/language"
-                $active={location.pathname.includes('/language')}
+                $active={location.pathname.includes('/language') || location.pathname.includes('/timezone')}
               >
-                <IconDocs /> {t('nav.language', '언어')}
-              </SecondaryNavItem>
-            )}
-            {hasBiz('owner', 'member') && (
-              <SecondaryNavItem
-                to="/business/settings/timezone"
-                $active={location.pathname.includes('/timezone')}
-              >
-                <IconCalendar /> {t('nav.timezone', '타임존')}
+                <IconCalendar /> {t('nav.language', '언어·타임존')}
               </SecondaryNavItem>
             )}
             {hasBiz('owner') && (

@@ -45,8 +45,7 @@
     "storage": "File storage",
     "permissions": "Permissions",
     "cue": "Cue",
-    "language": "Language",
-    "timezone": "Timezone"
+    "language": "Language & Region"
   },
   "user": {
     "profile": "My Profile",
