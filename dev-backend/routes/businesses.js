@@ -562,4 +562,90 @@ router.delete('/:id/members/:memberId', authenticateToken, async (req, res, next
   } catch (err) { await t.rollback().catch(() => {}); next(err); }
 });
 
+// ─────────────────────────────────────────────
+// 권한 정책 (PERMISSION_MATRIX §4) — financial/schedule/client_info 3축.
+// 조회: member+ (투명성 원칙). 편집: owner/platform_admin.
+// ─────────────────────────────────────────────
+const VALID_TOGGLES = ['financial', 'schedule', 'client_info'];
+const VALID_VALUES = ['all', 'pm'];
+
+router.get('/:businessId/permissions', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+  try {
+    const businessId = Number(req.params.businessId);
+    const biz = await Business.findByPk(businessId, { attributes: ['permissions'] });
+    if (!biz) return errorResponse(res, 'business_not_found', 404);
+
+    // 현재 값 (NULL 이면 기본값)
+    const permissions = biz.permissions && typeof biz.permissions === 'object'
+      ? {
+          financial: biz.permissions.financial === 'pm' ? 'pm' : 'all',
+          schedule: biz.permissions.schedule === 'pm' ? 'pm' : 'all',
+          client_info: biz.permissions.client_info === 'pm' ? 'pm' : 'all',
+        }
+      : { financial: 'all', schedule: 'all', client_info: 'all' };
+
+    // 프리뷰용 카운트
+    // memberTotal = 활성 owner + member (ai 제외, removed_at 자동 필터)
+    const memberTotal = await BusinessMember.count({
+      where: { business_id: businessId, role: { [require('sequelize').Op.in]: ['owner', 'member'] } },
+    });
+
+    // pmTotal = 이 워크스페이스 프로젝트들에서 PM 으로 배정된 고유 user 수
+    const { ProjectMember, Project } = require('../models');
+    const projects = await Project.findAll({ where: { business_id: businessId }, attributes: ['id'] });
+    const projIds = projects.map(p => p.id);
+    let pmTotal = 0;
+    if (projIds.length > 0) {
+      const pms = await ProjectMember.findAll({
+        where: { project_id: { [require('sequelize').Op.in]: projIds }, is_pm: true },
+        attributes: ['user_id'],
+      });
+      pmTotal = new Set(pms.map(p => p.user_id)).size;
+    }
+
+    return successResponse(res, {
+      permissions,
+      stats: { memberTotal, pmTotal },
+    });
+  } catch (err) { next(err); }
+});
+
+router.put('/:businessId/permissions', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+  try {
+    if (!isAdmin(req)) return errorResponse(res, 'owner_only', 403);
+
+    const businessId = Number(req.params.businessId);
+    const biz = await Business.findByPk(businessId);
+    if (!biz) return errorResponse(res, 'business_not_found', 404);
+
+    const input = req.body?.permissions;
+    if (!input || typeof input !== 'object') return errorResponse(res, 'permissions_required', 400);
+
+    // sanitize — 알려진 키/값만 수용
+    const next = {
+      financial: biz.permissions?.financial || 'all',
+      schedule: biz.permissions?.schedule || 'all',
+      client_info: biz.permissions?.client_info || 'all',
+    };
+    for (const k of VALID_TOGGLES) {
+      if (input[k] !== undefined) {
+        if (!VALID_VALUES.includes(input[k])) return errorResponse(res, `invalid value for ${k}`, 400);
+        next[k] = input[k];
+      }
+    }
+
+    const before = { ...next, ...(biz.permissions || {}) };
+    await biz.update({ permissions: next });
+
+    await createAuditLog({
+      userId: req.user.id, businessId,
+      action: 'business.permissions_updated',
+      targetType: 'business', targetId: businessId,
+      oldValue: before, newValue: next,
+    }).catch(() => { /* 감사 실패는 swallow */ });
+
+    return successResponse(res, { permissions: next });
+  } catch (err) { next(err); }
+});
+
 module.exports = router;

@@ -7,6 +7,7 @@ import AutoSaveField from '../../components/Common/AutoSaveField';
 import PlanQSelect from '../../components/Common/PlanQSelect';
 import StorageSettings from './StorageSettings';
 import PlanSettings from './PlanSettings';
+import PermissionsSettings from './PermissionsSettings';
 import TimezoneSelector from '../../components/Common/TimezoneSelector';
 import PageShell from '../../components/Layout/PageShell';
 import { useTimezones } from '../../hooks/useTimezones';
@@ -27,7 +28,7 @@ import {
   type CueInfo,
 } from '../../services/workspace';
 
-type TabKey = 'brand' | 'legal' | 'language' | 'timezone' | 'storage' | 'plan' | 'members' | 'cue';
+type TabKey = 'brand' | 'legal' | 'language' | 'timezone' | 'storage' | 'plan' | 'permissions' | 'members' | 'cue';
 
 // ─────────────────────────────────────────────
 // Styled
@@ -468,7 +469,7 @@ export default function WorkspaceSettingsPage() {
   // /business/settings/{language|timezone|storage|plan|cue} → 해당 섹션
   const isMembersMode = location.pathname.includes('/business/members');
   const visibleTabs = useMemo<TabKey[]>(() => (
-    isMembersMode ? ['members'] : ['brand', 'legal', 'language', 'timezone', 'storage', 'plan', 'cue']
+    isMembersMode ? ['members'] : ['brand', 'legal', 'language', 'timezone', 'storage', 'plan', 'permissions', 'cue']
   ), [isMembersMode]);
 
   const tabFromUrl = useMemo<TabKey>(() => {
@@ -676,14 +677,15 @@ export default function WorkspaceSettingsPage() {
   const pageTitle = useMemo<string>(() => {
     if (isMembersMode) return t('membersPage.title') as string;
     switch (tab) {
-      case 'language':  return t('tabs.language') as string;
-      case 'timezone':  return t('tabs.timezone') as string;
-      case 'storage':   return t('tabs.storage') as string;
-      case 'plan':      return t('tabs.plan') as string;
-      case 'cue':       return t('tabs.cue') as string;
+      case 'language':    return t('tabs.language') as string;
+      case 'timezone':    return t('tabs.timezone') as string;
+      case 'storage':     return t('tabs.storage') as string;
+      case 'plan':        return t('tabs.plan') as string;
+      case 'permissions': return t('tabs.permissions') as string;
+      case 'cue':         return t('tabs.cue') as string;
       case 'brand':
       case 'legal':
-      default:          return t('page.title') as string;  // 브랜드+법인정보 통합 = "워크스페이스 설정"
+      default:          return t('page.title') as string;  // brand/legal = "워크스페이스"
     }
   }, [isMembersMode, tab, t]);
 
@@ -704,7 +706,7 @@ export default function WorkspaceSettingsPage() {
   }
 
   return (
-    <PageShell title={t(isMembersMode ? 'membersPage.title' : 'page.title')}>
+    <PageShell title={pageTitle}>
       {error && <ErrorBanner>{error}</ErrorBanner>}
       {!isAdmin && <InfoBanner>{t('messages.adminRequired')}</InfoBanner>}
 
@@ -1020,6 +1022,11 @@ export default function WorkspaceSettingsPage() {
       {/* ─── PLAN (구독 플랜) ─── */}
       {tab === 'plan' && businessId && (
         <PlanSettings businessId={businessId} />
+      )}
+
+      {/* ─── PERMISSIONS (워크스페이스 권한 토글 3축) ─── */}
+      {tab === 'permissions' && businessId && (
+        <PermissionsSettings businessId={businessId} isOwner={isAdmin} />
       )}
 
       {/* ─── MEMBERS ─── */}
