@@ -290,6 +290,23 @@ const QTalkPage: React.FC = () => {
     };
   }, [activeConversationId]);
 
+  // 대화 선택 시 메시지 lazy-load — 프로젝트 단위 초기 로드에 포함되지 않은 독립 대화도
+  // 활성화되는 순간 메시지를 불러온다. 이미 캐시된 대화는 skip.
+  useEffect(() => {
+    if (!activeConversationId) return;
+    if (messages[activeConversationId] !== undefined) return; // 이미 로드됨
+    let cancelled = false;
+    (async () => {
+      try {
+        const msgs = await qtalkApi.listConversationMessages(activeConversationId);
+        if (cancelled) return;
+        setMessages((prev) => ({ ...prev, [activeConversationId]: msgs.map(apiMessageToMock) }));
+      } catch { /* silent — 에러는 ChatPanel 빈 상태로 내려감 */ }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeConversationId]);
+
   // 프로젝트 변경 시 room join/leave — 독립 대화(-1/null)는 스킵
   useEffect(() => {
     const socket = socketRef.current;
