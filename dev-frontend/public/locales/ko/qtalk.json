@@ -39,7 +39,9 @@
     "projectTasks": {
       "title": "프로젝트 업무",
       "titleStandalone": "업무",
-      "empty": "업무가 없습니다"
+      "empty": "업무가 없습니다",
+      "viewAll": "Q Task 에서 전체 보기",
+      "viewAllWithCount": "Q Task 에서 전체 보기 ({{n}}개 더)"
     },
     "notes": {
       "title": "프로젝트 메모",

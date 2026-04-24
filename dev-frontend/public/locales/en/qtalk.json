@@ -39,7 +39,9 @@
     "projectTasks": {
       "title": "Project Tasks",
       "titleStandalone": "Tasks",
-      "empty": "No tasks"
+      "empty": "No tasks",
+      "viewAll": "View all in Q Task",
+      "viewAllWithCount": "View all in Q Task ({{n}} more)"
     },
     "notes": {
       "title": "Project Notes",

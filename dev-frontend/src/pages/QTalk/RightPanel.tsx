@@ -67,25 +67,32 @@ const RightPanel: React.FC<Props> = ({
 
   // 프로젝트 전환 시 섹션 자동 펼침 — count > 0 인 섹션만 펴고, 빈 섹션은 접힘 상태로 시작.
   // Irene 지적: "(0) 이면 그냥 접어줘".
+  // 섹션 자동 펼침 — 프로젝트 혹은 독립 대화 scope 에 해당하는 데이터가 있으면 펼친다.
+  // 데이터가 async 로 들어올 수 있으므로 arrays 가 바뀔 때마다 재평가.
   useEffect(() => {
-    const pid = project?.id;
-    if (!pid) return;
-    const pIssues = issues.filter((i) => i.project_id === pid).length;
-    const pTasks = tasks.filter((t) => t.project_id === pid).length;
-    const myT = tasks.filter((x) => x.assignee_id === myUserId || x.assignee_id === 15).length;
+    const inScope = <T extends { project_id: number | null; conversation_id?: number | null }>(item: T) => {
+      if (project) return item.project_id === project.id;
+      if (activeConversationId) return item.conversation_id === activeConversationId;
+      return false;
+    };
+    const pIssues = issues.filter(inScope).length;
+    const pTasksAll = tasks.filter(inScope);
+    const pTasks = pTasksAll.length;
+    const myT = pTasksAll.filter((x) => x.assignee_id === myUserId || x.assignee_id === 15).length;
+    const pNotesArr = notes.filter(inScope);
     const pNotes = (isClient
-      ? notes.filter((n) => n.project_id === pid && n.visibility === 'personal' && n.author_id === myUserId)
-      : notes.filter((n) => n.project_id === pid)
+      ? pNotesArr.filter((n) => n.visibility === 'personal' && n.author_id === myUserId)
+      : pNotesArr
     ).length;
     setExpanded({
-      info: true,                   // 프로젝트 정보는 기본 펼침
+      info: !!project,               // 프로젝트 정보 섹션은 project 있을 때 기본 펼침
       issues: pIssues > 0,
       myTasks: myT > 0,
       projectTasks: pTasks > 0,
       notes: pNotes > 0,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [project?.id]);
+  }, [project?.id, activeConversationId, issues.length, tasks.length, notes.length]);
 
   const submitAddIssue = () => {
     if (!newIssueText.trim()) return;
@@ -399,9 +406,15 @@ const RightPanel: React.FC<Props> = ({
               <Count>{tasks.length}</Count>
             </SectionTitle>
           </SectionHeader>
-          {expanded.projectTasks && (
+          {expanded.projectTasks && (() => {
+            // 최신순으로 정렬해서 상위 5개만 노출. 나머지는 Q Task 에서 전체 보기.
+            const sorted = [...projectTasks].sort((a, b) => b.id - a.id);
+            const TASK_PREVIEW = 5;
+            const preview = sorted.slice(0, TASK_PREVIEW);
+            const hiddenCount = sorted.length - preview.length;
+            return (
             <SectionBody>
-              {projectTasks.map((task) => (
+              {preview.map((task) => (
                 <ProjectTaskRow
                   key={task.id}
                   onClick={() => {
@@ -424,8 +437,22 @@ const RightPanel: React.FC<Props> = ({
                 </ProjectTaskRow>
               ))}
               {projectTasks.length === 0 && <EmptyRow>{t('right.projectTasks.empty', '업무가 없습니다')}</EmptyRow>}
+              {projectTasks.length > 0 && (
+                <QTaskLink
+                  onClick={() => {
+                    try { localStorage.setItem('qtask_view_mode', 'list'); } catch { /* ignore */ }
+                    const url = project ? `/tasks?project=${project.id}` : '/tasks';
+                    window.location.href = url;
+                  }}
+                >
+                  {hiddenCount > 0
+                    ? `→ ${t('right.projectTasks.viewAllWithCount', 'Q Task 에서 전체 보기 ({{n}}개 더)', { n: hiddenCount })}`
+                    : `→ ${t('right.projectTasks.viewAll', 'Q Task 에서 전체 보기')}`}
+                </QTaskLink>
+              )}
             </SectionBody>
-          )}
+            );
+          })()}
         </Section>
 
         {/* 섹션 4: 프로젝트 메모 */}
