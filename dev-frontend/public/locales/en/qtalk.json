@@ -82,6 +82,23 @@
     "noChats": "No conversations yet",
     "generalConversation": "General"
   },
+  "newChat": {
+    "title": "Start new chat",
+    "name": "Chat name",
+    "namePh": "e.g. April monthly sync / Acme onboarding",
+    "project": "Link to project",
+    "projectHint": "Linking bundles the project's tasks, issues, and notes. Skip for a standalone chat.",
+    "noProject": "No link (standalone chat)",
+    "members": "Participants",
+    "membersHint": "Add teammates from the workspace to this chat.",
+    "me": "me",
+    "addMemberPh": "+ Add teammate",
+    "creating": "Creating...",
+    "create": "Create chat"
+  },
+  "common": {
+    "cancel": "Cancel"
+  },
   "modal": {
     "title": "New Project",
     "name": "Project name",
