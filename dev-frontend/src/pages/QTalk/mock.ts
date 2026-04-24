@@ -4,11 +4,11 @@
 export type ProjectRole = 'owner' | 'member' | 'client';
 export type ChannelType = 'customer' | 'internal' | 'group';
 export type ProjectStatus = 'active' | 'paused' | 'closed';
+// 백엔드 Task ENUM 과 동기 — CLAUDE.md § Q Task 상태 ENUM
 export type TaskStatus =
-  | 'task_requested' | 'task_re_requested'
-  | 'waiting' | 'not_started' | 'in_progress'
-  | 'review_requested' | 're_review_requested'
-  | 'customer_confirm' | 'completed' | 'canceled';
+  | 'not_started' | 'waiting' | 'in_progress'
+  | 'reviewing' | 'revision_requested' | 'done_feedback'
+  | 'completed' | 'canceled';
 
 export interface MockMember {
   user_id: number;
@@ -250,8 +250,8 @@ export const MOCK_MESSAGES: Record<number, MockMessage[]> = {
 
 export const MOCK_TASKS: MockTask[] = [
   { id: 901, project_id: 1, title: '로고 시안 3종 1차 제안', assignee_id: 16, assignee_name: '이디자', due_date: '2026-04-18', status: 'in_progress' },
-  { id: 902, project_id: 1, title: '폰트 라이선스 검토', assignee_id: 16, assignee_name: '이디자', due_date: '2026-04-16', status: 'task_requested' },
-  { id: 903, project_id: 1, title: '컬러 팔레트 확정', assignee_id: 15, assignee_name: '김오너', due_date: '2026-04-22', status: 'review_requested' },
+  { id: 902, project_id: 1, title: '폰트 라이선스 검토', assignee_id: 16, assignee_name: '이디자', due_date: '2026-04-16', status: 'not_started' },
+  { id: 903, project_id: 1, title: '컬러 팔레트 확정', assignee_id: 15, assignee_name: '김오너', due_date: '2026-04-22', status: 'reviewing' },
   { id: 904, project_id: 1, title: '매주 월요일 스탠드업', assignee_id: 15, assignee_name: '김오너', status: 'in_progress', recurrence: 'weekly' },
   { id: 905, project_id: 1, title: '웹사이트 와이어프레임', assignee_id: 17, assignee_name: '박개발', due_date: '2026-05-02', status: 'waiting' },
 ];
@@ -293,31 +293,38 @@ export const MOCK_ISSUES: MockIssue[] = [
   { id: 9004, project_id: 1, body: '컬러 팔레트 A안 vs B안 이견 → 4/18 미팅에서 결정', author_name: '김오너', created_at: '2026-04-11T16:30:00Z', updated_at: '2026-04-12T08:00:00Z' },
 ];
 
-// 역할 → 한국어 라벨
+// 상태 → 한국어 라벨 (Q Talk 우측 패널 기본 뷰). 관점별 섬세 라벨은 utils/taskLabel.ts
 export const TASK_STATUS_LABEL: Record<TaskStatus, string> = {
-  task_requested: '업무요청',
-  task_re_requested: '업무재요청',
-  waiting: '진행대기',
   not_started: '미진행',
+  waiting: '진행대기',
   in_progress: '진행중',
-  review_requested: '확인요청',
-  re_review_requested: '재확인요청',
-  customer_confirm: '고객컨펌중',
+  reviewing: '검토중',
+  revision_requested: '수정요청',
+  done_feedback: '피드백',
   completed: '완료',
   canceled: '취소',
 };
 
 export const TASK_STATUS_COLOR: Record<TaskStatus, { bg: string; fg: string }> = {
-  task_requested: { bg: '#FEF3C7', fg: '#92400E' },
-  task_re_requested: { bg: '#FED7AA', fg: '#9A3412' },
-  waiting: { bg: '#E0E7FF', fg: '#3730A3' },
   not_started: { bg: '#F1F5F9', fg: '#475569' },
+  waiting: { bg: '#E0E7FF', fg: '#3730A3' },
   in_progress: { bg: '#CCFBF1', fg: '#0F766E' },
-  review_requested: { bg: '#FCE7F3', fg: '#9F1239' },
-  re_review_requested: { bg: '#FBCFE8', fg: '#831843' },
-  customer_confirm: { bg: '#DBEAFE', fg: '#1E40AF' },
+  reviewing: { bg: '#FCE7F3', fg: '#9F1239' },
+  revision_requested: { bg: '#FED7AA', fg: '#9A3412' },
+  done_feedback: { bg: '#DBEAFE', fg: '#1E40AF' },
   completed: { bg: '#D1FAE5', fg: '#065F46' },
   canceled: { bg: '#F1F5F9', fg: '#94A3B8' },
 };
+
+// 알 수 없는 상태(구버전·미래 ENUM)를 위한 fallback — RightPanel 에서 undefined 접근 방지
+const TASK_STATUS_FALLBACK = { bg: '#F1F5F9', fg: '#475569' } as const;
+export function taskStatusColor(status: string | null | undefined): { bg: string; fg: string } {
+  if (!status) return TASK_STATUS_FALLBACK;
+  return (TASK_STATUS_COLOR as Record<string, { bg: string; fg: string }>)[status] || TASK_STATUS_FALLBACK;
+}
+export function taskStatusLabel(status: string | null | undefined): string {
+  if (!status) return '';
+  return (TASK_STATUS_LABEL as Record<string, string>)[status] || status;
+}
 
 // 시각 포맷은 utils/dateFormat.ts + hooks/useTimeFormat 로 이동 (워크스페이스 tz 반영).

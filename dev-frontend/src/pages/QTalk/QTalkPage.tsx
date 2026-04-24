@@ -290,19 +290,15 @@ const QTalkPage: React.FC = () => {
     };
   }, [activeConversationId]);
 
-  // 프로젝트 변경 시 room join/leave
+  // 프로젝트 변경 시 room join/leave — 독립 대화(-1/null)는 스킵
   useEffect(() => {
     const socket = socketRef.current;
-    if (!socket) return;
+    if (!socket || !activeProjectId || activeProjectId <= 0) return;
 
-    if (activeProjectId) {
-      socket.emit('join:project', activeProjectId);
-    }
+    socket.emit('join:project', activeProjectId);
 
     return () => {
-      if (activeProjectId) {
-        socket.emit('leave:project', activeProjectId);
-      }
+      socket.emit('leave:project', activeProjectId);
     };
   }, [activeProjectId]);
 
@@ -354,7 +350,8 @@ const QTalkPage: React.FC = () => {
 
   // ── 프로젝트 선택 시 해당 프로젝트 데이터 전부 fetch ──
   useEffect(() => {
-    if (!activeProjectId) return;
+    // 독립 대화(activeProjectId<=0 / null)는 프로젝트 데이터 fetch 스킵 — /api/projects/-1/* 404 방지
+    if (!activeProjectId || activeProjectId <= 0) return;
     let cancelled = false;
     (async () => {
       try {
@@ -444,7 +441,8 @@ const QTalkPage: React.FC = () => {
       setActiveConversationId(null);
       return;
     }
-    setActiveProjectId(projectId);
+    // LeftPanel 의 standalone 그룹은 fake projectId=-1 을 넘김 → 독립 채팅은 activeProjectId null.
+    setActiveProjectId(projectId > 0 ? projectId : null);
     setActiveConversationId(conversationId);
   };
   const handleSelectChannel = (conversationId: number) => {
