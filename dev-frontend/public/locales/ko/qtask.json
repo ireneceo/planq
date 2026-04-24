@@ -69,7 +69,7 @@
     "noFeedback": "피드백이 없습니다"
   },
   "capacity": { "title": "주간 가용시간", "daily": "1일 업무시간", "days": "업무일수", "holidays": "이번 주 휴일", "available": "이번 주 가용" },
-  "chart": { "weekly": "주간 번다운", "est": "예측", "act": "실제" },
+  "chart": { "weekly": "주간 업무 진척", "est": "예측", "act": "실제", "ideal": "목표 진척" },
   "projects": { "title": "프로젝트 진척률" },
   "issues": { "title": "주요 이슈" },
   "notes": { "title": "최근 메모" },

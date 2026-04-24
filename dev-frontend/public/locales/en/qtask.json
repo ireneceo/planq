@@ -67,7 +67,7 @@
     "noFeedback": "No feedback yet"
   },
   "capacity": { "title": "Weekly Capacity", "daily": "Daily hours", "days": "Work days", "holidays": "Holidays this week", "available": "Available this week" },
-  "chart": { "weekly": "Weekly Burndown", "est": "Estimated", "act": "Actual" },
+  "chart": { "weekly": "Weekly Progress", "est": "Estimated", "act": "Actual", "ideal": "Target" },
   "projects": { "title": "Project Progress" },
   "issues": { "title": "Issues" },
   "notes": { "title": "Notes" },

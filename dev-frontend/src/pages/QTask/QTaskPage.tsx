@@ -1292,17 +1292,22 @@ const QTaskPage:React.FC=()=>{
                     <CapText>{totalMyEst}h / {effectiveCapacity}h</CapText></CapRow>
                 </RSection>
                 <RSection>
-                  <RSTitle>{t('chart.weekly','Burndown')}</RSTitle>
+                  <RSTitle>{t('chart.weekly','Weekly Progress')}</RSTitle>
                   {(()=>{
                     const W=290,H=160,PL=28,PR=8,PT=12,PB=24;
                     const cw=W-PL-PR, ch=H-PT-PB;
                     const n=computedBurndown.length;
                     const step=n>1?cw/(n-1):0;
-                    const yMax=Math.ceil(maxY/5)*5||5;
+                    // yMax 에 가용시간(effectiveCapacity)도 포함해야 이상선 끝점이 그래프 안에 표시됨
+                    const yMaxBase=Math.max(maxY, effectiveCapacity||0);
+                    const yMax=Math.ceil(yMaxBase/5)*5||5;
                     const yTicks=[0,yMax/2,yMax];
                     const xy=(i:number,v:number)=>({x:PL+i*step,y:PT+ch-(v/yMax)*ch});
                     const estPts=computedBurndown.map((p,i)=>xy(i,p.estimated_cumulative));
                     const actPts=computedBurndown.map((p,i)=>xy(i,p.actual_cumulative));
+                    // 이상선 — 월요일 0h 에서 마지막 날 가용시간(effectiveCapacity)까지 대각선
+                    const idealStart=xy(0, 0);
+                    const idealEnd=xy(n-1, effectiveCapacity||0);
                     return(
                       <ChartSVG viewBox={`0 0 ${W} ${H}`}>
                         {yTicks.map((v,i)=>(
@@ -1311,6 +1316,14 @@ const QTaskPage:React.FC=()=>{
                             <text x={PL-4} y={PT+ch-(v/yMax)*ch+3} fontSize="9" fill="#94A3B8" textAnchor="end">{v}h</text>
                           </React.Fragment>
                         ))}
+                        {/* 목표 진척선 — 이상적으로 이렇게 가야 하는 방향 */}
+                        {effectiveCapacity>0 && n>1 && (
+                          <line
+                            x1={idealStart.x} y1={idealStart.y}
+                            x2={idealEnd.x} y2={idealEnd.y}
+                            stroke="#94A3B8" strokeWidth="1.5" strokeDasharray="4,4"
+                          />
+                        )}
                         <polyline fill="none" stroke="#14B8A6" strokeWidth="2" points={estPts.map(p=>`${p.x},${p.y}`).join(' ')}/>
                         <polyline fill="none" stroke="#F43F5E" strokeWidth="2" strokeDasharray="4,3" points={actPts.map(p=>`${p.x},${p.y}`).join(' ')}/>
                         {computedBurndown.map((p,i)=>(
@@ -1325,7 +1338,11 @@ const QTaskPage:React.FC=()=>{
                       </ChartSVG>
                     );
                   })()}
-                  <Legend><LI><Dot $c="#14B8A6"/>{t('chart.est','Estimated')}</LI><LI><Dot $c="#F43F5E"/>{t('chart.act','Actual')}</LI></Legend>
+                  <Legend>
+                    <LI><Dot $c="#14B8A6"/>{t('chart.est','Estimated')}</LI>
+                    <LI><Dot $c="#F43F5E"/>{t('chart.act','Actual')}</LI>
+                    <LI><DashDot $c="#94A3B8"/>{t('chart.ideal','Target')}</LI>
+                  </Legend>
                   {computedBurndown.every(p=>p.estimated_cumulative===0&&p.actual_cumulative===0)&&<EmptyChart>{t('chart.noData','No data in this period')}</EmptyChart>}
                 </RSection>
                 {projectProgressNode}
@@ -1734,6 +1751,7 @@ const EmptyChart=styled.div`padding:16px;text-align:center;color:#CBD5E1;font-si
 const Legend=styled.div`display:flex;gap:12px;margin-top:6px;`;
 const LI=styled.div`display:flex;align-items:center;gap:3px;font-size:10px;color:#64748B;font-weight:600;`;
 const Dot=styled.span<{$c:string}>`width:7px;height:7px;border-radius:50%;background:${p=>p.$c};`;
+const DashDot=styled.span<{$c:string}>`width:14px;height:0;border-top:2px dashed ${p=>p.$c};flex-shrink:0;`;
 const PPRow=styled.div`display:flex;align-items:center;gap:8px;& + &{margin-top:6px;}`;
 const PPName=styled.span`font-size:11px;color:#0F172A;font-weight:500;min-width:60px;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`;
 const PPTrack=styled.div`flex:1;height:5px;background:#F1F5F9;border-radius:3px;overflow:hidden;`;
