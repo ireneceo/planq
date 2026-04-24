@@ -146,11 +146,19 @@ router.post('/:businessId/:id/participants', authenticateToken, checkBusinessAcc
     successResponse(res, created, 'Participant added', 201);
   } catch (error) { next(error); }
 });
+// 권한: 본인이 나가는 경우(셀프 제거) 또는 owner/platform_admin 만.
+// 다른 멤버가 타인을 임의 제거하는 것은 협업 파괴 → 차단.
 router.delete('/:businessId/:id/participants/:userId', authenticateToken, checkBusinessAccess, async (req, res, next) => {
   try {
     const conv = await Conversation.findOne({ where: { id: req.params.id, business_id: req.params.businessId } });
     if (!conv) return errorResponse(res, 'Conversation not found', 404);
-    await ConversationParticipant.destroy({ where: { conversation_id: conv.id, user_id: req.params.userId } });
+    const targetUserId = Number(req.params.userId);
+    const isSelfLeave = targetUserId === req.user.id;
+    const isOwner = req.businessRole === 'owner' || req.user.platform_role === 'platform_admin';
+    if (!isSelfLeave && !isOwner) {
+      return errorResponse(res, '본인 나가기 또는 오너만 대화방에서 멤버를 제거할 수 있습니다', 403);
+    }
+    await ConversationParticipant.destroy({ where: { conversation_id: conv.id, user_id: targetUserId } });
     successResponse(res, { removed: true });
   } catch (error) { next(error); }
 });
@@ -422,8 +430,12 @@ router.post('/messages/:msgId/reject', authenticateToken, async (req, res, next)
 // ─────────────────────────────────────────────────────────
 // Archive conversation
 // ─────────────────────────────────────────────────────────
+// 권한: owner/platform_admin 만 (대화방 보관은 전체에 영향). PERMISSION_MATRIX.md §5.5.
 router.patch('/:businessId/:id/archive', authenticateToken, checkBusinessAccess, async (req, res, next) => {
   try {
+    if (req.businessRole !== 'owner' && req.user.platform_role !== 'platform_admin') {
+      return errorResponse(res, 'owner_only', 403);
+    }
     const conversation = await Conversation.findOne({
       where: { id: req.params.id, business_id: req.params.businessId }
     });

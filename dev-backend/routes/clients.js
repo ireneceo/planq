@@ -258,8 +258,12 @@ router.post('/:businessId/invite', authenticateToken, checkBusinessAccess, async
 });
 
 // Archive / activate toggle — POST body { status: 'active' | 'archived' }. 미지정 시 토글.
+// 권한: owner/platform_admin 만 (고객 상태 변경은 조직 관리 영역 · PERMISSION_MATRIX.md §5.5)
 router.post('/:businessId/:id/archive', authenticateToken, checkBusinessAccess, async (req, res, next) => {
   try {
+    if (req.businessRole !== 'owner' && req.user.platform_role !== 'platform_admin') {
+      return errorResponse(res, 'owner_only', 403);
+    }
     const client = await Client.findOne({ where: { id: req.params.id, business_id: req.params.businessId } });
     if (!client) return errorResponse(res, 'Client not found', 404);
     const target = req.body?.status || (client.status === 'archived' ? 'active' : 'archived');
@@ -278,8 +282,12 @@ router.post('/:businessId/:id/archive', authenticateToken, checkBusinessAccess, 
 
 // Hard delete — 워크스페이스에서 고객 완전 삭제. 연결된 ProjectClient 도 같이 정리.
 // User 계정 자체는 유지 (다른 워크스페이스/플랫폼 계정일 수 있음).
+// 권한: owner/platform_admin 만 (PERMISSION_MATRIX.md §5.5 — 고객 삭제는 조직 인사 영역)
 router.delete('/:businessId/:id', authenticateToken, checkBusinessAccess, async (req, res, next) => {
   try {
+    if (req.businessRole !== 'owner' && req.user.platform_role !== 'platform_admin') {
+      return errorResponse(res, 'owner_only', 403);
+    }
     const { ProjectClient, Project, User } = require('../models');
     const client = await Client.findOne({
       where: { id: req.params.id, business_id: req.params.businessId },

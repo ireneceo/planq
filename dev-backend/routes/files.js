@@ -294,6 +294,26 @@ router.post('/:businessId', authenticateToken, checkBusinessAccess, upload.singl
   }
 });
 
+// ─── 파일 변경 권한 체크 ───
+// 본인 업로드 또는 owner/platform_admin 또는 해당 프로젝트 PM → true
+// PERMISSION_MATRIX.md §5.3 — "파일 삭제: 본인 업로드 + owner + PM만"
+async function canMutateFile(file, req) {
+  if (req.user.platform_role === 'platform_admin') return true;
+  if (req.businessRole === 'owner') return true;
+  if (file.uploader_id === req.user.id) return true;
+  if (file.project_id) {
+    try {
+      const { ProjectMember } = require('../models');
+      const pm = await ProjectMember.findOne({
+        where: { project_id: file.project_id, user_id: req.user.id, is_pm: true },
+        attributes: ['id'],
+      });
+      if (pm) return true;
+    } catch { /* is_pm 컬럼 없음 (Phase 0 이전) → PM 체크 skip */ }
+  }
+  return false;
+}
+
 // ─── Move (폴더 이동) ───
 
 router.post('/:businessId/:id/move', authenticateToken, checkBusinessAccess, async (req, res, next) => {
@@ -302,6 +322,9 @@ router.post('/:businessId/:id/move', authenticateToken, checkBusinessAccess, asy
       where: { id: req.params.id, business_id: req.params.businessId, deleted_at: null }
     });
     if (!file) return errorResponse(res, 'File not found', 404);
+    if (!(await canMutateFile(file, req))) {
+      return errorResponse(res, '본인 업로드 · 오너 · 프로젝트 PM 만 이동할 수 있습니다', 403);
+    }
 
     const folderId = req.body.folder_id ? Number(req.body.folder_id) : null;
     if (folderId && !(await verifyFolderOwnership(folderId, file.business_id, file.project_id))) {
@@ -323,6 +346,9 @@ router.delete('/:businessId/:id', authenticateToken, checkBusinessAccess, async 
       where: { id: req.params.id, business_id: req.params.businessId, deleted_at: null }
     });
     if (!file) return errorResponse(res, 'File not found', 404);
+    if (!(await canMutateFile(file, req))) {
+      return errorResponse(res, '본인 업로드 · 오너 · 프로젝트 PM 만 삭제할 수 있습니다', 403);
+    }
 
     const t = await sequelize.transaction();
     try {
@@ -345,6 +371,13 @@ router.post('/:businessId/bulk-delete', authenticateToken, checkBusinessAccess, 
     const files = await File.findAll({
       where: { id: { [Op.in]: ids }, business_id: req.params.businessId, deleted_at: null }
     });
+
+    // 각 파일별 권한 확인 — 권한 없는 것이 하나라도 있으면 부분 실패 대신 전체 거부 (원자성).
+    for (const f of files) {
+      if (!(await canMutateFile(f, req))) {
+        return errorResponse(res, `파일 #${f.id} 에 대한 삭제 권한이 없습니다 (본인 업로드 · 오너 · 프로젝트 PM 만 가능)`, 403);
+      }
+    }
 
     const t = await sequelize.transaction();
     try {

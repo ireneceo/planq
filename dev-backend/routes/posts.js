@@ -245,12 +245,23 @@ router.post('/', authenticateToken, async (req, res, next) => {
 });
 
 // ─── 수정 ───
+// 권한: 작성자(author) 또는 owner/platform_admin 만.
 router.put('/:id', authenticateToken, async (req, res, next) => {
   try {
     const post = await Post.findByPk(req.params.id);
     if (!post) return errorResponse(res, 'not_found', 404);
     if (!(await assertMember(req.user.id, post.business_id, req.user.platform_role === 'platform_admin'))) {
       return errorResponse(res, 'forbidden', 403);
+    }
+    const isPlatformAdmin = req.user.platform_role === 'platform_admin';
+    const isAuthor = post.author_id === req.user.id;
+    let isOwner = false;
+    if (!isAuthor && !isPlatformAdmin) {
+      const bm = await BusinessMember.findOne({ where: { business_id: post.business_id, user_id: req.user.id }, attributes: ['role'] });
+      isOwner = bm?.role === 'owner';
+    }
+    if (!isAuthor && !isOwner && !isPlatformAdmin) {
+      return errorResponse(res, '작성자 또는 오너만 문서를 수정할 수 있습니다', 403);
     }
     const patch = {};
     if (req.body.title !== undefined) patch.title = String(req.body.title).slice(0, 200);
@@ -276,12 +287,23 @@ router.put('/:id', authenticateToken, async (req, res, next) => {
 });
 
 // ─── 삭제 ───
+// 권한: 작성자(author) 또는 owner/platform_admin 만.
 router.delete('/:id', authenticateToken, async (req, res, next) => {
   try {
     const post = await Post.findByPk(req.params.id);
     if (!post) return errorResponse(res, 'not_found', 404);
     if (!(await assertMember(req.user.id, post.business_id, req.user.platform_role === 'platform_admin'))) {
       return errorResponse(res, 'forbidden', 403);
+    }
+    const isPlatformAdmin = req.user.platform_role === 'platform_admin';
+    const isAuthor = post.author_id === req.user.id;
+    let isOwner = false;
+    if (!isAuthor && !isPlatformAdmin) {
+      const bm = await BusinessMember.findOne({ where: { business_id: post.business_id, user_id: req.user.id }, attributes: ['role'] });
+      isOwner = bm?.role === 'owner';
+    }
+    if (!isAuthor && !isOwner && !isPlatformAdmin) {
+      return errorResponse(res, '작성자 또는 오너만 문서를 삭제할 수 있습니다', 403);
     }
     await PostAttachment.destroy({ where: { post_id: post.id } });
     await post.destroy();
