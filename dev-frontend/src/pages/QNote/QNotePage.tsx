@@ -1798,8 +1798,16 @@ const QNotePage = () => {
         <CollapseToggle
           onClick={() => setSidebarCollapsed((v) => !v)}
           aria-label={sidebarCollapsed ? t('page.sidebarOpen') : t('page.sidebarCollapse')}
+          title={sidebarCollapsed ? t('page.sidebarOpen') : t('page.sidebarCollapse')}
         >
-          {sidebarCollapsed ? '›' : '‹'}
+          <SidebarToggleChevron>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
+              {sidebarCollapsed
+                ? <polyline points="9 18 15 12 9 6" />
+                : <polyline points="15 18 9 12 15 6" />
+              }
+            </svg>
+          </SidebarToggleChevron>
         </CollapseToggle>
 
         {phase === 'empty' && (
@@ -2558,31 +2566,30 @@ const Main = styled.section`
   }
 `;
 
+/* Q Note 사이드바(세션 리스트) 접기 — Q Talk/Secondary 와 동일한 엣지 바 디자인 */
 const CollapseToggle = styled.button`
   position: absolute;
   top: 50%;
   left: 0;
   transform: translate(-50%, -50%);
-  z-index: 10;
-  width: 24px;
-  height: 48px;
-  border: 1px solid #e2e8f0;
-  background: #ffffff;
-  color: #64748b;
-  border-radius: 0 8px 8px 0;
+  width: 8px; height: 60px;
+  padding: 0; border: none;
+  background: #CBD5E1;
+  border-radius: 4px;
   cursor: pointer;
-  font-size: 16px;
-  font-weight: 600;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  padding-left: 8px;
-  box-shadow: 2px 0 6px rgba(15, 23, 42, 0.04);
-  &:hover {
-    color: #0d9488;
-    border-color: #14b8a6;
-  }
+  z-index: 10;
+  box-shadow: 0 1px 3px rgba(15,23,42,0.08);
+  transition: width 0.15s ease, height 0.15s ease, background 0.15s ease;
+  display: flex; align-items: center; justify-content: center;
+  &::before { content: ''; position: absolute; top: -10px; bottom: -10px; left: -8px; right: -8px; }
+  &:hover { width: 14px; height: 72px; background: #14B8A6; }
+  &:focus-visible { outline: 2px solid #14B8A6; outline-offset: 2px; }
+`;
+const SidebarToggleChevron = styled.span`
+  display: flex; align-items: center; justify-content: center;
+  color: #64748B;
+  svg { width: 10px; height: 10px; }
+  ${CollapseToggle}:hover & { color: #FFFFFF; }
 `;
 
 const MainHeader = styled.div`
