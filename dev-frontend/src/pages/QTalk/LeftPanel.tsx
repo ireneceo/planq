@@ -12,8 +12,7 @@ interface Props {
   activeProjectId: number | null;
   activeConversationId: number | null;
   onSelectConversation: (projectId: number, conversationId: number) => void;
-  onOpenNewProject: () => void;
-  onOpenNewChat?: () => void;
+  onOpenNewChat: () => void;
   collapsed: boolean;
   onToggleCollapsed: () => void;
 }
@@ -27,7 +26,7 @@ interface ChatEntry {
 
 const LeftPanel: React.FC<Props> = ({
   projects, conversations, activeConversationId,
-  onSelectConversation, onOpenNewProject, onOpenNewChat, collapsed, onToggleCollapsed,
+  onSelectConversation, onOpenNewChat, collapsed, onToggleCollapsed,
 }) => {
   const { t } = useTranslation('qtalk');
   const { user } = useAuth();
@@ -97,15 +96,8 @@ const LeftPanel: React.FC<Props> = ({
         <HeaderTop>
           <HeaderTitle>{t('left.title', 'Q talk')}</HeaderTitle>
           <HeaderActions>
-            {!isClient && onOpenNewChat && (
-              <IconBtn onClick={onOpenNewChat} title={t('left.newChat', '새 대화')} aria-label="New chat">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-                </svg>
-              </IconBtn>
-            )}
             {!isClient && (
-              <IconBtn onClick={onOpenNewProject} title={t('left.newProject', '새 프로젝트')} aria-label="New project">
+              <IconBtn onClick={onOpenNewChat} title={t('left.newChat', '새 대화')} aria-label="New chat">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <line x1="12" y1="5" x2="12" y2="19" />
                   <line x1="5" y1="12" x2="19" y2="12" />

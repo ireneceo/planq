@@ -490,7 +490,8 @@ const QTalkPage: React.FC = () => {
       });
       const mapped = apiConversationToMock(conv);
       setConversations((prev) => [mapped, ...prev.filter((c) => c.id !== mapped.id)]);
-      if (conv.project_id) setActiveProjectId(conv.project_id);
+      // 독립 대화(project_id null)는 activeProjectId 도 null 로 초기화해야 ChatPanel 이 standalone 브랜치로 렌더한다.
+      setActiveProjectId(conv.project_id || null);
       setActiveConversationId(conv.id);
       setChatModalOpen(false);
       showNotice(t('page.chatCreated', { title: conv.title }));
@@ -726,7 +727,6 @@ const QTalkPage: React.FC = () => {
         activeProjectId={activeProjectId}
         activeConversationId={activeConversationId}
         onSelectConversation={handleSelectConversation}
-        onOpenNewProject={() => setModalOpen(true)}
         onOpenNewChat={() => setChatModalOpen(true)}
         collapsed={leftCollapsed}
         onToggleCollapsed={toggleLeft}
