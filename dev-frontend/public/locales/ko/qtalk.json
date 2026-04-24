@@ -59,6 +59,7 @@
       "members": "멤버",
       "default": "기본",
       "detail": "프로젝트 상세 보기",
+      "internal": "내부 프로젝트",
       "statusLabel": {
         "active": "진행 중",
         "paused": "일시 중지",

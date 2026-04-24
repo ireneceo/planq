@@ -465,14 +465,24 @@ const RightPanel: React.FC<Props> = ({
               {t('right.info.title', '프로젝트 정보')}
             </SectionTitle>
           </SectionHeader>
-          {expanded.info && (
+          {expanded.info && (() => {
+            // 내부 프로젝트 감지 — client_company 없거나 "내부" 로 끝나는 placeholder 값
+            const cc = project.client_company?.trim() || '';
+            const isInternal = !cc || /내부$|internal$/i.test(cc) || cc === '—';
+            return (
             <SectionBody>
-              <InfoRow><InfoLabel>{t('right.info.name', '이름')}</InfoLabel><InfoValue>{project.name}</InfoValue></InfoRow>
+              <InfoRow>
+                <InfoLabel>{t('right.info.name', '이름')}</InfoLabel>
+                <InfoValue>
+                  {project.name}
+                  {isInternal && <InternalBadge>{t('right.info.internal', '내부 프로젝트')}</InternalBadge>}
+                </InfoValue>
+              </InfoRow>
               {project.description && (
                 <InfoRow><InfoLabel>{t('right.info.desc', '설명')}</InfoLabel><InfoValue>{project.description}</InfoValue></InfoRow>
               )}
-              {project.client_company && (
-                <InfoRow><InfoLabel>{t('right.info.client', '고객')}</InfoLabel><InfoValue>{project.client_company}</InfoValue></InfoRow>
+              {!isInternal && cc && (
+                <InfoRow><InfoLabel>{t('right.info.client', '고객')}</InfoLabel><InfoValue>{cc}</InfoValue></InfoRow>
               )}
               {project.start_date && (
                 <InfoRow>
@@ -499,7 +509,8 @@ const RightPanel: React.FC<Props> = ({
               ))}
               <DetailLink>→ {t('right.info.detail', '프로젝트 상세 보기')}</DetailLink>
             </SectionBody>
-          )}
+            );
+          })()}
         </Section>
       </Scroll>
     </>
@@ -1156,6 +1167,19 @@ const MemberName = styled.div`
   font-weight: 500;
 `;
 
+/* 내부 프로젝트 배지 — 고객 없는 자체 프로젝트 표시 */
+const InternalBadge = styled.span`
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 6px;
+  background: #F1F5F9;
+  color: #475569;
+  font-size: 10px;
+  font-weight: 700;
+  border-radius: 8px;
+  letter-spacing: 0.2px;
+  vertical-align: middle;
+`;
 /* PM 배지 — 프로젝트 PM (Phase 1.2 is_pm 대응, Q Task PmTag 와 동일 디자인) */
 const PmTag = styled.span`
   padding: 1px 6px;
