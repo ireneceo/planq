@@ -746,17 +746,23 @@ CREATE TABLE project_clients (
 #### 6.1.4 `project_notes` — 프로젝트 메모 (개인/내부)
 
 ```sql
+-- 2026-04-24: project_id nullable + conversation_id 추가 (독립 대화 메모 지원).
+-- 쓰기 규칙: 프로젝트 메모면 project_id 세팅 + conversation_id 옵션(어느 채팅에서
+-- 왔는지 추적), 독립 대화 메모면 project_id=NULL + conversation_id 필수.
 CREATE TABLE project_notes (
   id BIGINT PRIMARY KEY AUTO_INCREMENT,
-  project_id BIGINT NOT NULL,
+  project_id BIGINT NULL,              -- NULL = 독립 대화 스코프
+  conversation_id BIGINT NULL,         -- 메모가 작성된 대화 (프로젝트·독립 공통)
   author_user_id BIGINT NOT NULL,
   visibility ENUM('personal','internal') NOT NULL,
   body TEXT NOT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   INDEX idx_project_recent (project_id, created_at DESC),
+  INDEX idx_conv_recent (conversation_id, created_at DESC),
   INDEX idx_author (author_user_id, visibility),
   FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+  FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE SET NULL,
   FOREIGN KEY (author_user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 ```
@@ -779,15 +785,19 @@ ORDER BY created_at DESC;
 #### 6.1.5 `project_issues` — 주요 이슈 (완전 수동 CRUD)
 
 ```sql
+-- 2026-04-24: project_id nullable + conversation_id 추가 (독립 대화 이슈 지원).
 CREATE TABLE project_issues (
   id BIGINT PRIMARY KEY AUTO_INCREMENT,
-  project_id BIGINT NOT NULL,
+  project_id BIGINT NULL,              -- NULL = 독립 대화 스코프
+  conversation_id BIGINT NULL,         -- 이슈가 제기된 대화
   body TEXT NOT NULL,
   author_user_id BIGINT NOT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   INDEX idx_project_recent (project_id, created_at DESC),
+  INDEX idx_conv_recent (conversation_id, created_at DESC),
   FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+  FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE SET NULL,
   FOREIGN KEY (author_user_id) REFERENCES users(id)
 );
 ```
@@ -797,9 +807,11 @@ CREATE TABLE project_issues (
 #### 6.1.6 `task_candidates` — 업무 추출 후보 (영구 저장 히스토리)
 
 ```sql
+-- 2026-04-24: project_id nullable (독립 대화에서도 extract 가능).
+--            conversation_id 는 항상 필수 (어느 대화에서 왔는지가 근본 스코프).
 CREATE TABLE task_candidates (
   id BIGINT PRIMARY KEY AUTO_INCREMENT,
-  project_id BIGINT NOT NULL,
+  project_id BIGINT NULL,              -- NULL = 독립 대화 후보
   conversation_id BIGINT NOT NULL,
   extracted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   extracted_by_user_id BIGINT DEFAULT NULL,   -- 누가 트리거 (NULL = 자동)
