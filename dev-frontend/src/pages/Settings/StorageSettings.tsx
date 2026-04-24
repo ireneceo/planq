@@ -206,7 +206,7 @@ const shimmer = `@keyframes sk{0%{background-position:-200px 0}100%{background-p
 const SkBar = styled.div`background:linear-gradient(90deg,#F1F5F9 0px,#E2E8F0 40px,#F1F5F9 80px);background-size:200px 100%;animation:sk 1.2s linear infinite;border-radius:4px;${shimmer}`;
 const SkCard = styled(SkBar)`height:88px;margin-bottom:12px;border-radius:12px;`;
 
-const Wrap = styled.div`display:flex;flex-direction:column;gap:12px;max-width:720px;`;
+const Wrap = styled.div`display:flex;flex-direction:column;gap:12px;`;
 const SectionTitle = styled.h2`font-size:18px;font-weight:700;color:#0F172A;margin:0;`;
 const SectionDesc = styled.p`font-size:13px;color:#64748B;line-height:1.6;margin:0 0 12px;`;
 

@@ -43,6 +43,7 @@
     "workspaceSettings": "Workspace",
     "plan": "Subscription",
     "storage": "File storage",
+    "permissions": "Permissions",
     "cue": "Cue",
     "language": "Language",
     "timezone": "Timezone"

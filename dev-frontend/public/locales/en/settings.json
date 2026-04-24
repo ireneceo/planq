@@ -1,6 +1,6 @@
 {
   "page": {
-    "title": "Workspace Settings",
+    "title": "Workspace",
     "subtitle": "Manage brand, legal info, language, and timezone"
   },
   "membersPage": {
@@ -14,8 +14,34 @@
     "timezone": "Timezone",
     "storage": "File Storage",
     "plan": "Subscription",
+    "permissions": "Permissions",
     "members": "Members",
     "cue": "Cue"
+  },
+  "permissions": {
+    "title": "Permission Policy",
+    "subtitle": "Open by default — only actions that affect the whole team are selectively restricted. The default is 'Allow all members' and can be changed anytime.",
+    "owner_only_hint": "Only owners can change these settings. All members can view this page.",
+    "financial": {
+      "title": "Billing Actions",
+      "desc": "Creating/sending quotes and invoices, editing contract amount and monthly fee"
+    },
+    "schedule": {
+      "title": "Schedule Changes",
+      "desc": "Adjusting project start/end dates, editing due dates on tasks assigned to others"
+    },
+    "client_info": {
+      "title": "Client Billing Info",
+      "desc": "Editing a client's business number, bank account, address used for invoicing (viewing is always open)"
+    },
+    "option_all": "Allow all members",
+    "option_all_badge": "Recommended",
+    "option_pm": "PM or owner only",
+    "preview_all": "{{total}} members can do this",
+    "preview_pm": "{{pm}} PMs + owner can do this",
+    "loading": "Loading…",
+    "saving": "Saving…",
+    "saved": "Saved"
   },
   "storage": {
     "title": "File Storage",
