@@ -40,11 +40,15 @@ router.get('/:businessId', authenticateToken, checkBusinessAccess, async (req, r
   }
 });
 
-// Create invoice
+// Create invoice (Invoice + Items 를 단일 transaction 으로 원자화)
 router.post('/:businessId', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+  const t = await sequelize.transaction();
   try {
     const { title, client_id, due_date, recipient_email, recipient_business_name, recipient_business_number, notes, items } = req.body;
-    if (!title) return errorResponse(res, 'Title required', 400);
+    if (!title) {
+      await t.rollback();
+      return errorResponse(res, 'Title required', 400);
+    }
 
     const invoice_number = await generateInvoiceNumber();
 
@@ -59,15 +63,16 @@ router.post('/:businessId', authenticateToken, checkBusinessAccess, async (req, 
       recipient_business_number,
       notes,
       created_by: req.user.id
-    });
+    }, { transaction: t });
 
     if (items && items.length > 0) {
       let totalAmount = 0;
+      const itemRows = [];
       for (let i = 0; i < items.length; i++) {
         const item = items[i];
         const amount = (item.quantity || 1) * (item.unit_price || 0);
         totalAmount += amount;
-        await InvoiceItem.create({
+        itemRows.push({
           invoice_id: invoice.id,
           description: item.description,
           quantity: item.quantity || 1,
@@ -76,17 +81,21 @@ router.post('/:businessId', authenticateToken, checkBusinessAccess, async (req, 
           sort_order: i
         });
       }
+      await InvoiceItem.bulkCreate(itemRows, { transaction: t });
       await invoice.update({
         total_amount: totalAmount,
         grand_total: totalAmount + (invoice.tax_amount || 0)
-      });
+      }, { transaction: t });
     }
+
+    await t.commit();
 
     const result = await Invoice.findByPk(invoice.id, {
       include: [{ model: InvoiceItem, as: 'items' }]
     });
     successResponse(res, result, 'Invoice created', 201);
   } catch (error) {
+    await t.rollback();
     next(error);
   }
 });

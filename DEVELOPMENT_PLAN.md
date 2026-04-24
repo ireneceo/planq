@@ -1,6 +1,6 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-04-22 (전체 코드 감사·보안 강화 + 리포트·Q Bill 기획 + i18n 130키 + 네비 확장)
+> **최종 업데이트:** 2026-04-24 (확인 필요 Inbox + 사이드바 재편 + Phase 8/9 로드맵 + UNIFIED_CONTEXT_DESIGN)
 
 ---
 
@@ -92,7 +92,7 @@
 - `deploy-to-production.sh`
 - `rollback-production.sh`
 
-### Phase 순서 (확정, 9주)
+### Phase 순서 (확정, 10주)
 
 1. **Phase 0** — DB 기반 스키마 확장 (1주)
 2. **Phase 1** — Q Bill 견적·청구·결제 (3주)
@@ -102,6 +102,39 @@
 6. **Phase 5** — 월간 보고서 자동 생성 + PDF (1주)
 7. **Phase 6** — PlanQ 자체 구독 청구 (0.5주)
 8. **Phase 7** — 운영서버 세팅 + 실배포 (0.5주)
+9. **Phase 8** — 반응형 스프린트 (1주) — 전 페이지 모바일/태블릿 일괄 적용
+
+### Phase 8 — 반응형 스프린트 상세 (2026-04-24 신설)
+
+**원칙:** 기능 완성 후 일괄 적용. 기능별 찔끔찔끔 금지 (Q Docs 상단 탭 같은 파편화 방지).
+
+**핵심 패턴:**
+- **햄버거 드로어 2뎁스 아코디언** — 통계·분석/설정 1뎁스 탭 시 그 자리 인라인 확장 (Slack/Linear 방식)
+- **마스터-디테일 드릴다운** — Q Talk/Q Note/Q Task/Q Calendar/Q Docs 모바일에서 리스트→상세 풀 라우트 + 상단 `<` 뒤로 (iOS Mail 표준)
+- **공용 `<ListDetailLayout>` 훅** — 데스크탑 3컬럼 ↔ 모바일 드릴다운 자동 전환. `?task=:id` URL 싱크 규칙을 모바일에서 `/tasks/:id` 풀 라우트로 연결
+- **모달/드로어 풀스크린화** ≤640px — `DetailDrawer` 이미 지원 (width: 100vw)
+- **터치 타겟 44×44 일괄 상향** — 현재 36 기준을 Phase 8 때 전역 업그레이드
+- **Safe-area inset** — iOS 노치 대응
+
+**범위 (1주 / Day 1~7):**
+| Day | 작업 |
+|---|---|
+| 1 | 전역 기반 — breakpoint 토큰 확장, `useIsMobile` 훅, 햄버거 아코디언 구현, 사이드바 Secondary 모바일 해제 |
+| 2 | `<ListDetailLayout>` 공용 컴포넌트 — 리스트/상세 자동 라우팅, 뒤로가기 스택 |
+| 3 | Q Talk + Q Note 모바일 적용 |
+| 4 | Q Task + Q Calendar + Q Docs 모바일 (Docs 상단 탭 → 드릴다운 재작업) |
+| 5 | 대시보드 To do + 통계/설정 2차 패널 + 폼·모달·드로어 풀스크린화 |
+| 6 | 터치 타겟 44px 상향 · Safe-area · 가로스크롤 제거 · 키보드 대응 |
+| 7 | 실기기 QA (iPhone SE/13/14 Pro Max, 갤럭시 S22/S23, iPad) + 최종 보정 |
+
+**그전까지 신규 코드 규칙 (기존 3원칙 유지):**
+1. 고정 px 폭 금지 — `max-width`/`flex`/`minmax()`
+2. 인라인 `style={{ width }}` 금지 — styled-components 경유
+3. 아이콘 버튼 최소 36×36 — Phase 8 때 일괄 44로 상향
+
+**현재 파편화 이슈 (Phase 8 정리 대상):**
+- Q Docs 상단 가로 탭 (좌측 폴더 트리 축소) — 드릴다운으로 재작업
+- `SecondaryPanel` 모바일 `display: none` — 햄버거 아코디언으로 교체
 
 ---
 

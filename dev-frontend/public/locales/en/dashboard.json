@@ -1,0 +1,61 @@
+{
+  "title": "Dashboard",
+  "todo": {
+    "title": "Inbox",
+    "count": "{{count}} item(s)",
+    "emptyTitle": "Nothing to confirm",
+    "emptySub": "See all tasks in Q Task",
+    "priority": {
+      "urgent": "Urgent",
+      "today": "Today",
+      "waiting": "Waiting",
+      "week": "This week"
+    },
+    "priorityHint": {
+      "urgent": "Overdue or past deadline",
+      "today": "Must finish today",
+      "waiting": "Awaiting response",
+      "week": "Due this week"
+    },
+    "action": {
+      "open": "Open",
+      "go": "Go",
+      "accept": "Accept",
+      "decline": "Decline",
+      "confirm": "Approve",
+      "respond": "Respond",
+      "pay": "Pay",
+      "ack": "Got it",
+      "attend": "Attending",
+      "notAttend": "Not attending",
+      "complete": "Finalize",
+      "revise": "Revise",
+      "requestRevise": "Request revision"
+    },
+    "verb": {
+      "ack": "Acknowledge",
+      "confirm": "Awaiting approval",
+      "approve": "Awaiting finalization",
+      "review": "Review",
+      "pay": "Payment pending",
+      "revise": "Resubmit",
+      "attend": "Meeting today",
+      "respond": "Response needed",
+      "accept": "Invitation pending",
+      "read": "New mention"
+    },
+    "dueLabel": {
+      "overdue": "{{days}}d overdue",
+      "overdueHours": "{{hours}}h overdue",
+      "today": "Today by {{time}}",
+      "tomorrow": "Tomorrow by {{time}}",
+      "inDays": "{{days}}d left",
+      "noDue": "No due date"
+    },
+    "filter": {
+      "all": "All",
+      "mine": "Mine",
+      "waiting": "Waiting"
+    }
+  }
+}
