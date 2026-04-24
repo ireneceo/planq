@@ -118,6 +118,7 @@ function apiNoteToMock(n: qtalkApi.ApiNote): MockNote {
   return {
     id: n.id,
     project_id: n.project_id,
+    conversation_id: n.conversation_id ?? null,
     author_id: n.author_user_id,
     author_name: n.author?.name || `user ${n.author_user_id}`,
     visibility: n.visibility,
@@ -130,6 +131,7 @@ function apiIssueToMock(i: qtalkApi.ApiIssue): MockIssue {
   return {
     id: i.id,
     project_id: i.project_id,
+    conversation_id: i.conversation_id ?? null,
     body: i.body,
     author_name: i.author?.name || `user ${i.author_user_id}`,
     created_at: i.createdAt,
@@ -435,6 +437,45 @@ const QTalkPage: React.FC = () => {
     return () => { cancelled = true; };
   }, [activeProjectId]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ── 독립 대화 선택 시 conv 스코프 데이터 fetch (notes/issues/candidates/tasks) ──
+  useEffect(() => {
+    if (!activeConversationId) return;
+    // 활성 대화가 프로젝트 연결이면 프로젝트 useEffect 가 이미 처리함
+    const conv = conversations.find(c => c.id === activeConversationId);
+    if (!conv || conv.project_id) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const [notesList, issuesList, candList, tasksList] = await Promise.all([
+          qtalkApi.listConvNotes(activeConversationId).catch(() => [] as qtalkApi.ApiNote[]),
+          qtalkApi.listConvIssues(activeConversationId).catch(() => [] as qtalkApi.ApiIssue[]),
+          qtalkApi.listConvCandidates(activeConversationId).catch(() => [] as qtalkApi.ApiTaskCandidate[]),
+          qtalkApi.listConvTasks(activeConversationId).catch(() => [] as qtalkApi.ApiTask[]),
+        ]);
+        if (cancelled) return;
+        // 기존 이 conv 스코프 항목은 덮어쓰기, 다른 스코프는 유지
+        setNotes(prev => [
+          ...prev.filter(n => n.conversation_id !== activeConversationId),
+          ...notesList.map(apiNoteToMock).map(n => ({ ...n, conversation_id: activeConversationId })),
+        ]);
+        setIssues(prev => [
+          ...prev.filter(i => i.conversation_id !== activeConversationId),
+          ...issuesList.map(apiIssueToMock).map(i => ({ ...i, conversation_id: activeConversationId })),
+        ]);
+        setCandidates(prev => [
+          ...prev.filter(c => c.conversation_id !== activeConversationId),
+          ...candList.map(apiCandidateToMock),
+        ]);
+        setTasks(prev => [
+          ...prev.filter(t => t.conversation_id !== activeConversationId),
+          ...tasksList.map(apiTaskToMock).map(t => ({ ...t, conversation_id: activeConversationId })),
+        ]);
+      } catch { /* silent */ }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeConversationId]);
+
   const toggleLeft = () => {
     setLeftCollapsed((v) => {
       const next = !v;
@@ -563,9 +604,15 @@ const QTalkPage: React.FC = () => {
 
   // 청크 4: 이슈 CRUD
   const handleAddIssue = async (body: string) => {
-    if (!activeProjectId) return;
     try {
-      const created = await qtalkApi.addIssue(activeProjectId, body);
+      let created: qtalkApi.ApiIssue;
+      if (activeProjectId) {
+        created = await qtalkApi.addIssue(activeProjectId, body);
+      } else if (activeConversationId) {
+        created = await qtalkApi.addConvIssue(activeConversationId, body);
+      } else {
+        return;
+      }
       setIssues((prev) => [apiIssueToMock(created), ...prev]);
     } catch (err: unknown) {
       showNotice(t('page.issueAddFailed', { msg: err instanceof Error ? err.message : '' }));
@@ -592,9 +639,15 @@ const QTalkPage: React.FC = () => {
 
   // 청크 4: 메모 추가
   const handleAddNote = async (body: string, visibility: 'personal' | 'internal') => {
-    if (!activeProjectId) return;
     try {
-      const created = await qtalkApi.addNote(activeProjectId, body, visibility);
+      let created: qtalkApi.ApiNote;
+      if (activeProjectId) {
+        created = await qtalkApi.addNote(activeProjectId, body, visibility);
+      } else if (activeConversationId) {
+        created = await qtalkApi.addConvNote(activeConversationId, body, visibility);
+      } else {
+        return;
+      }
       setNotes((prev) => [apiNoteToMock(created), ...prev]);
     } catch (err: unknown) {
       showNotice(t('page.noteAddFailed', { msg: err instanceof Error ? err.message : '' }));
@@ -726,7 +779,12 @@ const QTalkPage: React.FC = () => {
   };
 
   const activeProject = projects.find((p) => p.id === activeProjectId) || null;
-  const projectCandidates = candidates.filter((c) => c.project_id === activeProjectId && c.status === 'pending');
+  // 후보 scope: 프로젝트 선택 시 project_id, 독립 대화면 conversation_id 로 필터
+  const projectCandidates = activeProject
+    ? candidates.filter((c) => c.project_id === activeProject.id && c.status === 'pending')
+    : activeConversationId
+      ? candidates.filter((c) => c.conversation_id === activeConversationId && c.status === 'pending')
+      : [];
 
   if (!businessId) return <Empty>{t('page.noBusiness', '워크스페이스가 선택되지 않았습니다.')}</Empty>;
   if (loading) return <Empty>{t('page.loading', '프로젝트 로드 중...')}</Empty>;
@@ -779,6 +837,7 @@ const QTalkPage: React.FC = () => {
       />
       <RightPanel
         project={activeProject}
+        activeConversationId={activeConversationId}
         tasks={tasks}
         notes={notes}
         issues={issues}

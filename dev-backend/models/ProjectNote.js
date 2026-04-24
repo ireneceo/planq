@@ -5,7 +5,9 @@ class ProjectNote extends Model {}
 
 ProjectNote.init({
   id: { type: DataTypes.BIGINT, primaryKey: true, autoIncrement: true },
-  project_id: { type: DataTypes.BIGINT, allowNull: false },
+  // 프로젝트 혹은 conversation 둘 중 하나 이상은 반드시 세팅. 독립 대화는 project_id null + conversation_id.
+  project_id: { type: DataTypes.BIGINT, allowNull: true },
+  conversation_id: { type: DataTypes.INTEGER, allowNull: true },
   author_user_id: { type: DataTypes.INTEGER, allowNull: false },
   visibility: {
     type: DataTypes.ENUM('personal', 'internal', 'shared'),

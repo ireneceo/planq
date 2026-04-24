@@ -14,6 +14,7 @@ import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 
 interface Props {
   project: MockProject | null;
+  activeConversationId?: number | null; // 독립 대화일 때 scope 로 사용
   tasks: MockTask[];
   notes: MockNote[];
   issues: MockIssue[];
@@ -33,7 +34,7 @@ interface Props {
 type Section = 'issues' | 'myTasks' | 'projectTasks' | 'notes' | 'info';
 
 const RightPanel: React.FC<Props> = ({
-  project, tasks, notes, issues, candidates, collapsed, onToggleCollapsed,
+  project, activeConversationId, tasks, notes, issues, candidates, collapsed, onToggleCollapsed,
   onRegisterCandidate, onMergeCandidate, onRejectCandidate,
   onAddIssue, onUpdateIssue, onDeleteIssue, onAddNote, onToggleTask,
 }) => {
@@ -126,8 +127,8 @@ const RightPanel: React.FC<Props> = ({
     return () => window.removeEventListener('keydown', onKey);
   }, [isNarrow, onToggleCollapsed]);
 
-  // 프로젝트 미선택 시 우측 패널 자체 렌더하지 않음 (Irene 요청: 필요 없음)
-  if (!project) return null;
+  // project 도 activeConversationId 도 없으면 패널 렌더 스킵
+  if (!project && !activeConversationId) return null;
 
   if (!isNarrow && collapsed) {
     return (
@@ -144,13 +145,19 @@ const RightPanel: React.FC<Props> = ({
     );
   }
 
-  const projectTasks: MockTask[] = tasks.filter((t) => t.project_id === project.id);
+  // scope 결정: 프로젝트가 있으면 project_id 기준, 없으면 conversation_id 기준 (독립 대화)
+  const matchScope = <T extends { project_id: number | null; conversation_id?: number | null }>(item: T): boolean => {
+    if (project) return item.project_id === project.id;
+    if (activeConversationId) return item.conversation_id === activeConversationId;
+    return false;
+  };
+  const projectTasks: MockTask[] = tasks.filter(matchScope);
   const myTasks = projectTasks.filter((x) => x.assignee_id === myUserId || x.assignee_id === 15 /* mock: owner 시점 */);
-  const projectNotes: MockNote[] = notes.filter((n) => n.project_id === project.id);
+  const projectNotes: MockNote[] = notes.filter(matchScope);
   const visibleNotes = isClient
     ? projectNotes.filter((n) => n.visibility === 'personal' && n.author_id === myUserId)
     : projectNotes;
-  const projectIssues: MockIssue[] = issues.filter((i) => i.project_id === project.id);
+  const projectIssues: MockIssue[] = issues.filter(matchScope);
 
   const headerCloseHandler = isNarrow ? () => setNarrowOpen(false) : onToggleCollapsed;
   const headerCloseIcon = isNarrow ? (
@@ -457,7 +464,8 @@ const RightPanel: React.FC<Props> = ({
           )}
         </Section>
 
-        {/* 섹션 5: 프로젝트 정보 */}
+        {/* 섹션 5: 프로젝트 정보 — 독립 대화는 간단히 '일반 대화' 라벨만 */}
+        {project && (
         <Section>
           <SectionHeader onClick={() => toggle('info')}>
             <SectionTitle>
@@ -512,6 +520,7 @@ const RightPanel: React.FC<Props> = ({
             );
           })()}
         </Section>
+        )}
       </Scroll>
     </>
   );
