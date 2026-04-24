@@ -9,6 +9,8 @@
   },
   "right": {
     "title": "Project Workbench",
+    "titleStandalone": "Workbench",
+    "sourceChat": "Source chat",
     "collapse": "Collapse",
     "candidates": {
       "title": "Task Candidates",
@@ -36,10 +38,12 @@
     },
     "projectTasks": {
       "title": "Project Tasks",
+      "titleStandalone": "Tasks",
       "empty": "No tasks"
     },
     "notes": {
       "title": "Project Notes",
+      "titleStandalone": "Notes",
       "internal": "Internal",
       "personal": "Personal",
       "onlyMe": "Only me",

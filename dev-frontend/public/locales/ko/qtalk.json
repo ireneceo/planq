@@ -9,6 +9,8 @@
   },
   "right": {
     "title": "프로젝트 작업대",
+    "titleStandalone": "작업대",
+    "sourceChat": "출처 대화",
     "collapse": "접기",
     "candidates": {
       "title": "업무 후보",
@@ -36,10 +38,12 @@
     },
     "projectTasks": {
       "title": "프로젝트 업무",
+      "titleStandalone": "업무",
       "empty": "업무가 없습니다"
     },
     "notes": {
       "title": "프로젝트 메모",
+      "titleStandalone": "메모",
       "internal": "내부",
       "personal": "개인",
       "onlyMe": "나만",

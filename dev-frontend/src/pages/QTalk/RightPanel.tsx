@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import {
-  type MockProject, type MockTask, type MockNote, type MockIssue, type MockTaskCandidate,
+  type MockProject, type MockConversation, type MockTask, type MockNote, type MockIssue, type MockTaskCandidate,
   taskStatusLabel, taskStatusColor,
 } from './mock';
 import { useAuth } from '../../contexts/AuthContext';
@@ -15,6 +15,7 @@ import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 interface Props {
   project: MockProject | null;
   activeConversationId?: number | null; // 독립 대화일 때 scope 로 사용
+  conversations?: MockConversation[]; // 메모/이슈 source 채팅 이름 매핑용
   tasks: MockTask[];
   notes: MockNote[];
   issues: MockIssue[];
@@ -34,7 +35,7 @@ interface Props {
 type Section = 'issues' | 'myTasks' | 'projectTasks' | 'notes' | 'info';
 
 const RightPanel: React.FC<Props> = ({
-  project, activeConversationId, tasks, notes, issues, candidates, collapsed, onToggleCollapsed,
+  project, activeConversationId, conversations, tasks, notes, issues, candidates, collapsed, onToggleCollapsed,
   onRegisterCandidate, onMergeCandidate, onRejectCandidate,
   onAddIssue, onUpdateIssue, onDeleteIssue, onAddNote, onToggleTask,
 }) => {
@@ -151,6 +152,12 @@ const RightPanel: React.FC<Props> = ({
     if (activeConversationId) return item.conversation_id === activeConversationId;
     return false;
   };
+  // source 채팅 이름 lookup — 메모·이슈가 어느 대화에서 왔는지 표기
+  const convName = (id?: number | null) => {
+    if (!id || !conversations) return null;
+    const c = conversations.find((x) => x.id === id);
+    return c ? c.name : null;
+  };
   const projectTasks: MockTask[] = tasks.filter(matchScope);
   const myTasks = projectTasks.filter((x) => x.assignee_id === myUserId || x.assignee_id === 15 /* mock: owner 시점 */);
   const projectNotes: MockNote[] = notes.filter(matchScope);
@@ -173,7 +180,7 @@ const RightPanel: React.FC<Props> = ({
   const panelBody = (
     <>
       <HeaderBar>
-        <HeaderTitle>{t('right.title', '프로젝트 작업대')}</HeaderTitle>
+        <HeaderTitle>{project ? t('right.title', '프로젝트 작업대') : t('right.titleStandalone', '작업대')}</HeaderTitle>
         {/* narrow(overlay) 모드에서만 헤더 X 유지. 데스크탑은 좌측 엣지 바로 접기 (통일) */}
         {isNarrow && (
           <IconBtn onClick={headerCloseHandler} title={t('right.collapse', '접기')}>
@@ -311,6 +318,12 @@ const RightPanel: React.FC<Props> = ({
                     <span>{i.author_name}</span>
                     <span>·</span>
                     <span>{formatTimeAgo(i.updated_at)}</span>
+                    {project && i.conversation_id && convName(i.conversation_id) && (
+                      <>
+                        <span>·</span>
+                        <SourceTag title={t('right.sourceChat', '출처 대화') as string}>#{convName(i.conversation_id)}</SourceTag>
+                      </>
+                    )}
                     {!isClient && editingIssueId !== i.id && (
                       <IssueDeleteBtn onClick={() => onDeleteIssue(i.id)}>{t('right.issues.delete', '삭제')}</IssueDeleteBtn>
                     )}
@@ -382,7 +395,7 @@ const RightPanel: React.FC<Props> = ({
           <SectionHeader onClick={() => toggle('projectTasks')}>
             <SectionTitle>
               <Chevron $open={expanded.projectTasks} />
-              {t('right.projectTasks.title', '프로젝트 업무')}
+              {project ? t('right.projectTasks.title', '프로젝트 업무') : t('right.projectTasks.titleStandalone', '업무')}
               <Count>{tasks.length}</Count>
             </SectionTitle>
           </SectionHeader>
@@ -420,7 +433,7 @@ const RightPanel: React.FC<Props> = ({
           <SectionHeader onClick={() => toggle('notes')}>
             <SectionTitle>
               <Chevron $open={expanded.notes} />
-              {t('right.notes.title', '프로젝트 메모')}
+              {project ? t('right.notes.title', '프로젝트 메모') : t('right.notes.titleStandalone', '메모')}
               <Count>{visibleNotes.length}</Count>
             </SectionTitle>
           </SectionHeader>
@@ -433,7 +446,12 @@ const RightPanel: React.FC<Props> = ({
                   </NoteVis>
                   <NoteContent>
                     <NoteBody>{n.body}</NoteBody>
-                    <NoteMeta>{n.author_name} · {formatTimeAgo(n.created_at)}</NoteMeta>
+                    <NoteMeta>
+                      {n.author_name} · {formatTimeAgo(n.created_at)}
+                      {project && n.conversation_id && convName(n.conversation_id) && (
+                        <> · <SourceTag title={t('right.sourceChat', '출처 대화') as string}>#{convName(n.conversation_id)}</SourceTag></>
+                      )}
+                    </NoteMeta>
                   </NoteContent>
                 </NoteItem>
               ))}
@@ -1077,6 +1095,21 @@ const NoteBody = styled.div`
 const NoteMeta = styled.div`
   font-size: 10px;
   color: #94A3B8;
+`;
+
+const SourceTag = styled.span`
+  font-size: 10px;
+  color: #0F766E;
+  background: #F0FDFA;
+  padding: 1px 6px;
+  border-radius: 10px;
+  font-weight: 600;
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: inline-block;
+  vertical-align: middle;
 `;
 
 const NoteInput = styled.div`
