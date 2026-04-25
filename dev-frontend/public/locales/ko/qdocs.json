@@ -51,15 +51,106 @@
     "ai": "AI 로 시작",
     "template": "템플릿에서",
     "blank": "빈 문서",
-    "aiComing": "AI 자동 작성 — 곧 제공됩니다",
-    "aiDesc": "Cue 가 고객·프로젝트·과거 데이터를 분석하여 한 번에 초안을 만들어 드립니다.",
+    "aiDesc": "Cue 가 고객·프로젝트 컨텍스트를 분석하여 초안을 만들어 드립니다.",
+    "aiKind": "문서 종류",
+    "aiTitle": "문서 제목",
+    "aiTitlePh": "예: 워프로랩 브랜드 리뉴얼 제안서",
+    "aiInput": "추가 요구사항 (선택)",
+    "aiInputPh": "핵심 요지·납기·예산·강조하고 싶은 점 등을 자유롭게 입력하면 반영됩니다.",
+    "aiGenerate": "+ AI 로 작성하기",
+    "aiGenerating": "생성 중...",
+    "aiUsage": "이번 달 남은 횟수: {{remaining}}/{{limit}}",
+    "aiLimitExceeded": "이번 달 AI 사용량 한도를 모두 사용했습니다. 플랜을 업그레이드하거나 다음 달까지 기다려 주세요.",
+    "aiFailed": "AI 생성에 실패했습니다. 잠시 후 다시 시도해 주세요.",
     "noTemplates": "템플릿이 없습니다"
+  },
+  "common": { "cancel": "취소" },
+  "templates": {
+    "btn": "템플릿",
+    "openHint": "견적·청구·NDA·제안서·회의록 5종 템플릿에서 시작",
+    "modalTitle": "템플릿에서 시작",
+    "modalSub": "본문이 자동으로 채워집니다. 자유롭게 편집한 후 저장하세요.",
+    "searchPh": "템플릿 검색 (이름·설명·종류)",
+    "noResult": "검색 결과 없음",
+    "system": "기본",
+    "loading": "로드 중..."
+  },
+  "actions": {
+    "print": "인쇄 / PDF",
+    "saveAsTemplate": "템플릿으로 저장"
+  },
+  "saveTpl": {
+    "title": "템플릿으로 저장",
+    "sub": "현재 본문을 워크스페이스 템플릿으로 저장합니다. 다음 새 글 작성 시 검색해서 사용할 수 있습니다.",
+    "name": "템플릿 이름",
+    "namePh": "예: 우리 회사 표준 NDA",
+    "desc": "설명 (선택)",
+    "descPh": "한 줄 요약",
+    "error": "저장 실패. 다시 시도해주세요."
+  },
+  "editor": {
+    "loading": "문서 로드 중...",
+    "notFound": "문서를 찾을 수 없습니다",
+    "back": "목록",
+    "saving": "저장 중...",
+    "saved": "저장됨",
+    "saveError": "저장 실패",
+    "title": "{{kind}} 편집",
+    "titlePlaceholder": "문서 제목",
+    "bodyPlaceholder": "본문을 작성하세요…",
+    "meta": "메타",
+    "kind": "유형",
+    "status": "상태",
+    "client": "고객",
+    "project": "프로젝트",
+    "upcoming": "예정 (D-4)",
+    "upcomingPdf": "PDF 생성 · 공개 링크 · 서명 — 추후 활성화",
+    "bold": "굵게",
+    "italic": "기울임",
+    "strike": "취소선",
+    "code": "인라인 코드",
+    "h1": "제목 1",
+    "h2": "제목 2",
+    "h3": "제목 3",
+    "bullet": "글머리 기호",
+    "ordered": "번호 매기기",
+    "quote": "인용",
+    "codeBlock": "코드 블록",
+    "link": "링크",
+    "linkPrompt": "URL (비우면 링크 제거):",
+    "image": "이미지 삽입",
+    "table": "표 삽입",
+    "undo": "실행 취소",
+    "redo": "다시 실행"
   },
   "common": {
     "loading": "불러오는 중..."
   },
   "tab": {
-    "title": "문서"
+    "title": "문서",
+    "docs": "문서",
+    "posts": "게시판"
+  },
+  "btn": {
+    "new": "새 문서"
+  },
+  "editor": {
+    "loading": "문서 로드 중...",
+    "notFound": "문서를 찾을 수 없습니다",
+    "back": "목록",
+    "saving": "저장 중...",
+    "saved": "저장됨",
+    "saveError": "저장 실패",
+    "title": "{{kind}} 편집",
+    "titlePlaceholder": "문서 제목",
+    "bodyPlaceholder": "본문을 작성하세요…",
+    "meta": "메타",
+    "kind": "유형",
+    "status": "상태",
+    "client": "고객",
+    "project": "프로젝트",
+    "upcoming": "예정 (D-4)",
+    "upcomingPdf": "PDF 생성 · 공개 링크 · 서명 — 추후 활성화"
   },
   "new": "새 문서",
   "edit": "편집",
@@ -102,7 +193,8 @@
   "list": {
     "empty": "아직 작성된 문서가 없습니다",
     "createFirst": "첫 문서 작성",
-    "noContent": "내용 없음"
+    "noContent": "내용 없음",
+    "loading": "로드 중..."
   },
   "filepicker": {
     "attachTitle": "첨부할 파일 선택"

@@ -16,6 +16,7 @@ const {
 } = require('../models');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const { authenticateToken } = require('../middleware/auth');
+const cue = require('../services/cue_orchestrator');
 
 async function assertBusinessAccess(userId, businessId, platformRole) {
   if (platformRole === 'platform_admin') return true;
@@ -29,6 +30,50 @@ function isOwnerOrAdmin(member) {
 
 const KIND_VALUES = ['quote', 'invoice', 'tax_invoice', 'contract', 'nda',
                      'proposal', 'sow', 'meeting_note', 'sop', 'custom'];
+
+// {{path.to.value}} 치환 — 단순 mustache-like.
+// values 객체에서 path 따라 lookup. 미발견 placeholder 는 빈 문자열로 치환 (사용자가 직접 채울 수 있도록).
+function renderTemplate(text, values) {
+  if (!text || typeof text !== 'string') return text;
+  return text.replace(/\{\{\s*([\w.]+)\s*\}\}/g, (_, path) => {
+    const parts = path.split('.');
+    let cur = values;
+    for (const p of parts) {
+      if (cur && typeof cur === 'object' && p in cur) cur = cur[p];
+      else return '';
+    }
+    return cur == null ? '' : String(cur);
+  });
+}
+
+// createDocument 시 사용할 컨텍스트 빌드 — business + client + 기본 날짜
+async function buildTemplateContext(businessId, clientId, title) {
+  const ctx = {
+    title: title || '',
+    issued_at: new Date().toISOString().slice(0, 10),
+    valid_until: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10),
+    effective_date: new Date().toISOString().slice(0, 10),
+    duration_months: 24,
+    business: {}, client: {}, party_a: {}, party_b: {}, session: {},
+  };
+  if (businessId) {
+    const biz = await Business.findByPk(businessId, { attributes: ['id', 'name', 'brand_name', 'address', 'phone'] });
+    if (biz) {
+      const j = biz.toJSON();
+      ctx.business = { ...j, name: j.brand_name || j.name || '' };
+      ctx.party_a = { name: ctx.business.name };
+    }
+  }
+  if (clientId) {
+    const cli = await Client.findByPk(clientId, { attributes: ['id', 'display_name', 'company_name', 'invite_email'] });
+    if (cli) {
+      const j = cli.toJSON();
+      ctx.client = { ...j, name: j.display_name || j.company_name || '', email: j.invite_email || '' };
+      ctx.party_b = { name: ctx.client.name };
+    }
+  }
+  return ctx;
+}
 
 // ============================================
 // Templates
@@ -69,10 +114,7 @@ router.post('/templates', authenticateToken, async (req, res, next) => {
     if (!(await assertBusinessAccess(req.user.id, business_id, req.user.platform_role))) {
       return errorResponse(res, 'forbidden', 403);
     }
-    const m = await BusinessMember.findOne({ where: { user_id: req.user.id, business_id } });
-    if (!isOwnerOrAdmin(m) && req.user.platform_role !== 'platform_admin') {
-      return errorResponse(res, 'forbidden_role', 403);
-    }
+    // 사용자 본인 템플릿 저장 — 워크스페이스 멤버 누구나 가능 (visibility 로 제어)
     const tpl = await DocumentTemplate.create({
       business_id, kind, name, description: description || null,
       mode: mode || 'form', schema_json: schema_json || null,
@@ -133,8 +175,10 @@ router.delete('/templates/:id', authenticateToken, async (req, res, next) => {
     if (!(await assertBusinessAccess(req.user.id, tpl.business_id, req.user.platform_role))) {
       return errorResponse(res, 'forbidden', 403);
     }
+    // 사용자 본인이 만든 템플릿이거나 owner/admin 만 삭제 가능
     const m = await BusinessMember.findOne({ where: { user_id: req.user.id, business_id: tpl.business_id } });
-    if (!isOwnerOrAdmin(m) && req.user.platform_role !== 'platform_admin') {
+    const isCreator = tpl.created_by === req.user.id;
+    if (!isCreator && !isOwnerOrAdmin(m) && req.user.platform_role !== 'platform_admin') {
       return errorResponse(res, 'forbidden_role', 403);
     }
     await tpl.update({ is_active: false });
@@ -189,17 +233,79 @@ router.post('/documents', authenticateToken, async (req, res, next) => {
     if (!(await assertBusinessAccess(req.user.id, business_id, req.user.platform_role))) {
       return errorResponse(res, 'forbidden', 403);
     }
+    // 템플릿 기반 생성 시 — body_template (HTML) 을 placeholder 치환 후 body_html 에 저장.
+    // 사용자가 명시적으로 body_json 을 넘기면 그 값 우선.
+    let initialBodyHtml = null;
+    if (template_id) {
+      const tpl = await DocumentTemplate.findByPk(template_id);
+      if (tpl?.body_template) {
+        const ctx = await buildTemplateContext(business_id, client_id, title);
+        initialBodyHtml = renderTemplate(tpl.body_template, ctx);
+      }
+    }
     const doc = await Document.create({
       business_id, template_id: template_id || null, kind, title,
       client_id: client_id || null, project_id: project_id || null,
-      form_data: form_data || null, body_json: body_json || null,
+      form_data: form_data || null,
+      body_json: body_json || null,
+      body_html: body_json ? null : initialBodyHtml,
       created_by: req.user.id,
     });
-    // template usage_count 증가
     if (template_id) {
       DocumentTemplate.increment('usage_count', { where: { id: template_id } }).catch(() => {});
     }
     return successResponse(res, doc.toJSON(), 201);
+  } catch (e) { next(e); }
+});
+
+// POST /api/docs/ai-generate
+// AI 자동 문서 초안 생성 — Cue gpt-4o-mini 사용.
+// body: { business_id, kind, title, user_input, client_id?, template_id? }
+// 응답: { body_html, usage } / 한도 초과 시 429
+router.post('/ai-generate', authenticateToken, async (req, res, next) => {
+  try {
+    const { business_id, kind, title, user_input, client_id, template_id } = req.body;
+    if (!business_id || !kind || !title) return errorResponse(res, 'invalid_payload', 400);
+    if (!KIND_VALUES.includes(kind)) return errorResponse(res, 'invalid_kind', 400);
+    if (!(await assertBusinessAccess(req.user.id, business_id, req.user.platform_role))) {
+      return errorResponse(res, 'forbidden', 403);
+    }
+
+    const ctx = await buildTemplateContext(business_id, client_id, title);
+    let aiPromptTpl = '';
+    if (template_id) {
+      const tpl = await DocumentTemplate.findByPk(template_id, { attributes: ['ai_prompt_template'] });
+      aiPromptTpl = tpl?.ai_prompt_template || '';
+    }
+
+    const systemPrompt = `당신은 한국어 비즈니스 문서 작성 전문가입니다. 다음 원칙을 지키세요.
+- 출력은 의미적인 HTML (h1/h2/p/ul/li/table) 만 사용. CSS 인라인 스타일 최소화.
+- 톤: 정중하고 명료. 핵심을 먼저 (TLDR 첫 줄).
+- 길이: 5~8개 섹션, 각 섹션 2~5문장.
+- 클라이언트 이름·워크스페이스 이름·날짜는 컨텍스트의 실제 값을 사용.
+- 사용자 추가 요구사항을 우선 반영하되, 비즈니스 일반 관행도 유지.`;
+
+    const ctxLines = [];
+    ctxLines.push(`문서 종류: ${kind}`);
+    ctxLines.push(`문서 제목: ${title}`);
+    if (ctx.business?.name) ctxLines.push(`작성 워크스페이스: ${ctx.business.name}`);
+    if (ctx.client?.name) ctxLines.push(`수신 고객: ${ctx.client.name}`);
+    ctxLines.push(`발행일: ${ctx.issued_at}`);
+    if (kind === 'quote' || kind === 'proposal') ctxLines.push(`유효일: ${ctx.valid_until}`);
+    const userPrompt = `${ctxLines.join('\n')}\n\n사용자 추가 요구사항:\n${user_input || '(없음 — 표준 양식으로 작성)'}` +
+      (aiPromptTpl ? `\n\n참고 가이드:\n${aiPromptTpl}` : '');
+
+    const r = await cue.generateDocumentDraft(business_id, { systemPrompt, userPrompt, maxTokens: 2500 });
+    if (r.error === 'usage_limit_exceeded') {
+      return res.status(429).json({ success: false, message: 'cue_limit_exceeded', usage: r.usage });
+    }
+    if (r.error === 'llm_unavailable') {
+      return errorResponse(res, 'llm_unavailable', 503);
+    }
+    return successResponse(res, {
+      body_html: r.content,
+      usage: r.usage,
+    });
   } catch (e) { next(e); }
 });
 
@@ -334,13 +440,61 @@ router.get('/public/:token', async (req, res, next) => {
       include: [{ model: DocumentTemplate, attributes: ['id', 'name', 'mode', 'schema_json'] }],
     });
     if (!doc) return errorResponse(res, 'not_found', 404);
-    // 첫 열람 시 viewed_at 기록
     if (!doc.viewed_at) await doc.update({ viewed_at: new Date(), status: 'viewed' });
-    // 민감 필드 제외
     const safe = doc.toJSON();
     delete safe.created_by;
     delete safe.updated_by;
     return successResponse(res, safe);
+  } catch (e) { next(e); }
+});
+
+// ============================================
+// Public sign — 고객이 동의·서명 (인증 없음, share_token 기반)
+// body: { signer_name, signer_email, accept: true|false, note?, signature_image_b64? }
+// 정책: 한 문서당 1회 서명 (재서명 차단). signed_at 이미 있으면 409.
+// ============================================
+router.post('/public/:token/sign', async (req, res, next) => {
+  try {
+    const { signer_name, signer_email, accept, note, signature_image_b64 } = req.body;
+    if (!signer_name || typeof accept !== 'boolean') {
+      return errorResponse(res, 'invalid_payload', 400);
+    }
+    const doc = await Document.findOne({
+      where: { share_token: req.params.token, archived_at: null },
+    });
+    if (!doc) return errorResponse(res, 'not_found', 404);
+    if (doc.signed_at) return errorResponse(res, 'already_signed', 409);
+
+    const sig = {
+      signer_name: String(signer_name).trim().slice(0, 100),
+      signer_email: signer_email ? String(signer_email).trim().slice(0, 200) : null,
+      accept: !!accept,
+      note: note ? String(note).trim().slice(0, 500) : null,
+      signature_image: signature_image_b64 ? String(signature_image_b64).slice(0, 200000) : null,
+      signed_ip: req.ip || req.headers['x-forwarded-for'] || null,
+      signed_at: new Date().toISOString(),
+    };
+    const newStatus = accept ? 'signed' : 'rejected';
+    await doc.update({
+      signed_at: new Date(),
+      signature_data: sig,
+      status: newStatus,
+    });
+
+    // Revision 기록 (감사 로그)
+    try {
+      await DocumentRevision.create({
+        document_id: doc.id,
+        revision_number: 1,
+        author_user_id: null,
+        change_summary: `[public sign] ${sig.signer_name} → ${newStatus}`,
+        body_html_snapshot: null,
+        form_data_snapshot: null,
+        body_json_snapshot: null,
+      });
+    } catch { /* revision 실패해도 서명 성공 */ }
+
+    return successResponse(res, { status: newStatus, signed_at: sig.signed_at });
   } catch (e) { next(e); }
 });
 

@@ -1,7 +1,7 @@
 const express = require('express');
 const { Op, fn, col, literal } = require('sequelize');
 const router = express.Router();
-const { Task, User, Project, BusinessMember, Business, TaskComment, TaskDailyProgress, TaskStatusHistory } = require('../models');
+const { Task, User, Project, BusinessMember, Business, TaskComment, TaskDailyProgress, TaskStatusHistory, TaskReviewer } = require('../models');
 const taskSnapshot = require('../services/task_snapshot');
 const { authenticateToken, checkBusinessAccess } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
@@ -284,6 +284,15 @@ router.patch('/:id/time', authenticateToken, async (req, res, next) => {
       return errorResponse(res, 'forbidden', 403);
     }
 
+    // 시간/진행율은 담당자만 수정 가능 (priority_order/planned_week_start 는 누구나)
+    const isAssignee = task.assignee_id === req.user.id;
+    const wantsHourFields = req.body.estimated_hours !== undefined
+      || req.body.actual_hours !== undefined
+      || req.body.progress_percent !== undefined;
+    if (wantsHourFields && !isAssignee && bm.role !== 'owner') {
+      return errorResponse(res, 'only_assignee_can_edit_hours', 403);
+    }
+
     const updates = {};
     if (req.body.estimated_hours !== undefined) updates.estimated_hours = Number(req.body.estimated_hours) || 0;
     if (req.body.actual_hours !== undefined) updates.actual_hours = Number(req.body.actual_hours) || 0;
@@ -432,6 +441,16 @@ router.put('/by-business/:businessId/:id', authenticateToken, async (req, res, n
       status: task.status, assignee_id: task.assignee_id, due_date: task.due_date,
       title: task.title, project_id: task.project_id,
     };
+
+    // 권한 — 시간/진행율은 담당자만 수정 가능
+    const myId = req.user.id;
+    const isAssignee = task.assignee_id === myId;
+    const isOwnerOrAdmin = req.user.platform_role === 'platform_admin'
+      || (await BusinessMember.findOne({ where: { user_id: myId, business_id: task.business_id, role: 'owner' } }));
+    if ((updates.estimated_hours !== undefined || updates.actual_hours !== undefined || updates.progress_percent !== undefined)
+        && !isAssignee && !isOwnerOrAdmin) {
+      return errorResponse(res, 'only_assignee_can_edit_hours', 403);
+    }
 
     await task.update(updates);
 

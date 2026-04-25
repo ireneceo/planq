@@ -1,54 +1,103 @@
 ## 현재 작업 상태
-**마지막 업데이트:** 2026-04-24 저녁
-**작업 상태:** 완료 — Q Talk 독립 대화 전체 스코프 전환
+**마지막 업데이트:** 2026-04-25 19:15
+**작업 상태:** 완료 (큰 마일스톤 정리)
 
-### 진행 중인 작업
-- 없음
+---
 
-### 완료된 작업 (이번 세션 — 2026-04-24 저녁)
+## ⚡ 빠른 재개 (새 세션)
 
-**Q Talk 런타임 에러 해소 + 독립 대화 1급 엔티티 전환**
+```
+session-state.md 읽고 이어서 개발해.
+```
 
-1. `/talk` 신규 대화 CTA 수정 — EmptyState "+" → NewChatModal (heavy NewProjectModal 대체)
-2. NewProjectModal/NewChatModal `m.user.name` null crash 방어 (삭제/비활성 유저 대응)
-3. `/api/projects/-1/*` 404 누수 해소 — LeftPanel standalone 가짜 project.id=-1 이 activeProjectId 로 유출되던 문제
-4. `TASK_STATUS_COLOR[status].bg` undefined crash — mock.ts TaskStatus ENUM 백엔드 8종 동기 + fallback 헬퍼
-5. 독립 대화 메시지 지속성 — `listBusinessConversations` 초기 로드 + `activeConversationId` 변경 시 lazy fetch
-6. **우측 패널 독립 대화 전체 스코프** (Phase 핵심):
-   - DB: `project_notes/project_issues/task_candidates` → project_id nullable + conversation_id 추가
-   - 백엔드 4 신규 라우트: `/api/projects/conversations/:convId/{notes,issues,task-candidates,tasks}`
-   - task_extractor standalone 모드 (project 없으면 담당자 매칭·유사 업무 스킵)
-   - registerCandidate 가 business_id 를 conversation 에서 조회
-   - RightPanel `matchScope` helper (project OR conversation_id)
-7. 프로젝트 메모·이슈에 `conversation_id` 기록 → 프로젝트 패널에서 `#{채팅명}` SourceTag 로 출처 추적
-8. 프로젝트 업무 섹션 preview (최신 5개 + "전체 보기 (N개 더)" 링크 → 프로젝트 필터된 Q Task)
-9. 섹션 자동 펼침 — scope-aware + async data-aware (deps 에 issues/tasks/notes length 포함)
-10. 좌측 리스트 최신순 + 새 메시지 bump — Q Talk `last_message_at` DESC, Q Note `created_at` DESC
-11. 독립 대화 타이틀 프로젝트 접두어 제거 (`titleStandalone` i18n)
+---
 
-**E2E 검증:** 21/21 pass (standalone CRUD + extract LLM 실호출 + register + 스코프 불일치 방지)
-**헬스체크:** 27/27 pass
-**프론트 빌드:** index-blLPTtQM.js (TS 에러 0)
+## 진행 중인 작업
+- **없음** (이번 세션 큰 마일스톤 완료)
+- ⚠️ 사용자 검수 대기: PostEditor 빨간 테두리 캐시 비운 후 정상 보임 확인
 
-### 다음 할 일
+---
 
-DEVELOPMENT_PLAN.md 기준 다음 미완료 스프린트:
+## 완료된 작업 (이번 세션, 2026-04-25)
 
-1. **Q Bill Phase 1.1 본 구현 시작** — 견적서·청구서 UI + 백엔드 (2~3주 예상)
-   - 설계문서: `docs/Q_BILL_SPEC.md`, `docs/INTEGRATED_ARCHITECTURE.md`
-   - 의존성: Phase 0 DB backfill 완료됨
-2. **React Query 도입** — Q Bill 신규 페이지부터 점진 적용 (옵션 C 합의)
-3. **반응형 Phase 8 준비** — 신규 코드 3원칙(고정 px 지양·아이콘 버튼 36+px·인라인 style 금지)
+### Q Task
+- 시간/진행율 = 담당자 전용 (백엔드 403 + 프론트 disabled + 회색 점선 시각)
+- 헤더 chip: `15개 · 내 업무 X.Xh/가용 Y.Yh · 실제 Z.Zh` (3 chip)
+- 0.5h 화살표 입력 (`type=number step=0.5`)
+- workspace 뷰 담당자 컬럼 + mine 뷰 NameChip 중복 제거
+- 요청 task 시간칸 숨김 (`newAssignee !== myId` 시)
+- `done_feedback` 단계 폐지 (컨펌 정책 충족 시 자동 completed, DB 6 row 마이그레이션)
 
-즉시 이어가기 좋은 소규모 작업:
-- Q Docs/Q Board 좌측 리스트 최신순 확인 (이번 세션엔 Q Talk + Q Note 만)
-- 독립 대화 tasks 의 Q Task 페이지 노출 확인 (project_id null 리스트 포함 여부)
+### Inbox
+- `fetchTodo(bizId)` 활성 워크스페이스 명시 (첫 가입 fallback 버그 fix)
+- task_candidate 카드 명확화: 추정 담당자 본인/타인/미지정 분기 + 클릭 → 원본 대화
+
+### Q docs
+- D-2 잔여: 시드 5종 본문 풍부화 (NDA 8조항·제안서 5섹션·회의록 4섹션) + placeholder 치환
+- D-3: AI 자동 생성 (Cue gpt-4o-mini, CueUsage 카운터, 플랜별 한도)
+- D-4 핵심: 공개 페이지 + 동의/서명/거절 (`/public/docs/:token`) + A4 print PDF
+- D-5 핵심: Q Talk RightPanel "+ 새 문서" 진입점
+- 게시판/문서 잘못 분리 → 복구 (PostsPage 단일 + 템플릿 흡수)
+  - 템플릿 모달 검색 + 5종 고정 해제 (시스템 + 사용자 자작 합산)
+  - 만든 거 "템플릿으로 저장" (DocumentTemplate 멤버 권한 완화)
+  - 인쇄/PDF 버튼 (`window.print()` + `[data-print-area]` 격리)
+  - 이모지 → 라인 SVG 통일 (KindIcon, PinDot)
+  - URL 싱크 (`?post=:id`)
+
+### PostEditor 안 보임 진단·해결
+- 콘솔 로그 추적 → 두 가지 원인 발견:
+  1. **TipTap v3 Link 중복** (StarterKit 가 Link 자체 포함 + 별도 Link → "Duplicate extension names" warn → editor 인스턴스 깨짐) → `link: false`
+  2. **중첩 flex column 안에서 Wrap height 0** → `flex-shrink: 0; min-height: 280px`
+- 메모리 3건 저장: try/finally 데이터 원복 / props useMemo 안정화 / flex min-height
+
+---
+
+## 다음 할 일 (우선순위 순)
+
+### 1. 화면 검수 (사용자 직접) — 다음 세션 시작 시
+- /docs 새 글 작성 → 본문 입력 영역 정상 보이는지
+- 표 추가 다시 (Link 충돌 fix 검증된 후 안전하게)
+- 검색란 풀 폭 / URL 싱크 / 사용자 템플릿 저장 / 인쇄
+
+### 2. Q docs 잔여 — Step 6 공유
+- **URL 미리보기 공유** — Post 에 share_token 추가 (또는 Document 시스템 재활용)
+- **이메일로 보내기** — Nodemailer + share URL
+- **고객 연동 (채팅창으로 보내기)** — Q Talk 메시지 첨부
+
+### 3. Q Note 자동 회의록 변환 (2~3일)
+- 세션 종료 hook + AI 호출 + meeting_note 자동 생성 + 사용자 편집
+
+### 4. 프로젝트 Documents 탭 (0.5일)
+- `/projects/:id` 에 PostsPage(scope='project') 통합
+
+### 5. Q Bill Phase 1.2 (1주)
+- 백엔드 + 포트원 V2 통합 + 채널 등록 + 웹훅 + 주문 동기화
+
+---
+
+## 환경 / 인증
+
+- 백엔드: pm2 planq-dev-backend (port 3003)
+- DB: planq_dev_db / planq_admin
+- 도메인: dev.planq.kr
+- 시스템 템플릿 5종 (DocumentTemplate is_system=true): proposal/quote/invoice/nda/meeting_note 모두 본문 풍부화 완료
+- 마지막 빌드: index-twbQUc7a.js (서빙 정상)
+
+---
+
+## 주요 문서 위치
+
+- `/opt/planq/DEVELOPMENT_PLAN.md` (히스토리 + 다음 계획)
+- `/opt/planq/CLAUDE.md` (Q Task 시간 권한 + done_feedback 폐지 반영)
+- `/opt/planq/docs/DOCS_TEMPLATE_SYSTEM_DESIGN.md`
+- `/opt/planq/docs/Q_BILL_SPEC.md`
+- 메모리: `/home/irene/.claude/projects/-opt-planq/memory/`
 
 ---
 
 ## 복구 가이드
 
-새 Claude 세션 시작 시 아래 내용을 붙여넣으세요:
+새 Claude 세션 시작 시:
 
 ```
 이전 세션 이어서 작업하고 싶어.

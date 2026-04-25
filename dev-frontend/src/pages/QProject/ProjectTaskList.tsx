@@ -24,8 +24,8 @@ export interface TaskRow {
 // 업무 종류별 드롭다운 옵션 (Q Task 와 동일)
 const statusOptionsFor = (task: { source?: string }): string[] => {
   const isReq = task.source === 'internal_request' || task.source === 'qtalk_extract';
-  if (isReq) return ['not_started', 'waiting', 'in_progress', 'reviewing', 'revision_requested', 'done_feedback', 'completed', 'canceled'];
-  return ['not_started', 'in_progress', 'reviewing', 'revision_requested', 'done_feedback', 'completed', 'canceled'];
+  if (isReq) return ['not_started', 'waiting', 'in_progress', 'reviewing', 'revision_requested', 'completed', 'canceled'];
+  return ['not_started', 'in_progress', 'reviewing', 'revision_requested', 'completed', 'canceled'];
 };
 
 type SortKey = 'priority_order' | 'title' | 'status' | 'progress_percent' | 'due_date';

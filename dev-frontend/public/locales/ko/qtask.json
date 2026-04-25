@@ -37,11 +37,11 @@
   },
   "scope": { "mine": "내 업무", "workspace": "전체 업무" },
   "view": { "list": "리스트 보기", "kanban": "카드 보기" },
-  "list": { "empty": "해당하는 업무가 없습니다", "statusHint": "클릭하면 단계 선택", "titleClickEdit": "클릭하여 업무명 수정" },
+  "list": { "empty": "해당하는 업무가 없습니다", "statusHint": "클릭하면 단계 선택", "titleClickEdit": "클릭하여 업무명 수정", "notMyHours": "담당자만 수정 가능 (참고용)", "notMyProgress": "담당자만 수정 가능 (참고용)" },
   "empty": { "title": "업무를 시작해 보세요", "line1": "요청을 받고, 배정하고, 결과까지", "line2": "한 화면에서 실행으로 연결됩니다." },
   "tab": { "week": "이번 주 내 업무", "all": "내 전체업무", "requested": "요청하기" },
   "workspace": { "assignee": "담당자", "allMembers": "전체 멤버" },
-  "summary": { "unit": "개", "est": "예측", "act": "실제" },
+  "summary": { "unit": "개", "est": "예측", "act": "실제", "predictCap": "내 업무 {{est}}h/가용 {{cap}}h", "predictCapHint": "내가 담당자인 task 의 예측시간 합 / 주간 가용시간", "workspacePredict": "예측 {{est}}h", "actual": "실제 {{act}}h" },
   "col": { "project": "프로젝트", "assignee": "담당자", "requester": "요청자", "task": "업무", "status": "상태", "est": "예측(h)", "act": "실제(h)", "progress": "진행율", "progressPercent": "진행률", "start": "시작일", "due": "마감일", "dates": "시작 ~ 마감", "desc": "설명" },
   "listRow": {
     "detailTitle": "상세 보기",
@@ -80,7 +80,7 @@
   "detail": {
     "back": "돌아가기",
     "close": "닫기",
-    "meta": { "period": "기간", "est": "예측", "act": "실제", "progress": "진행" },
+    "meta": { "period": "기간", "est": "예측", "act": "실제", "progress": "진행", "assigneeOnly": "담당자만 수정 가능 (참고용)" },
     "description": "업무 설명",
     "body": "결과물",
     "bodyPlaceholder": "업무 결과물을 작성하세요. 이미지 붙여넣기/드래그 가능",

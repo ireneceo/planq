@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
+import { useSearchParams } from 'react-router-dom';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 import SearchBox from '../Common/SearchBox';
 import PanelHeader, { PanelTitle, PanelSubTitle } from '../Layout/PanelHeader';
@@ -12,12 +13,23 @@ import EmptyState from '../Common/EmptyState';
 import { uploadMyFile, uploadProjectFile, fetchWorkspaceFiles } from '../../services/files';
 import ConfirmDialog from '../Common/ConfirmDialog';
 import PostEditor from './PostEditor';
+import { generateHTML } from '@tiptap/core';
+import StarterKit from '@tiptap/starter-kit';
+import Link from '@tiptap/extension-link';
+import Image from '@tiptap/extension-image';
+import { Table } from '@tiptap/extension-table';
+import { TableRow } from '@tiptap/extension-table-row';
+import { TableCell } from '@tiptap/extension-table-cell';
+import { TableHeader } from '@tiptap/extension-table-header';
 import {
   fetchPosts, fetchPost, createPost, updatePost, deletePost,
   attachToPost, detachFromPost, fetchPostsMeta,
   createCategory,
   type PostRow, type PostDetail, type PostsMeta,
 } from '../../services/posts';
+import { listTemplates, type DocTemplate, KIND_LABELS_KO } from '../../services/docs';
+import KindIcon from './KindIcon';
+import { useAuth } from '../../contexts/AuthContext';
 
 // 좌측 필터: 전체(기본) / 프로젝트 그룹 / 카테고리
 // '내 문서'·'기본' 섹션은 제거. 상단 통합검색이 프로젝트명·제목·본문·카테고리를 모두 커버.
@@ -43,7 +55,23 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<FilterSel>({ kind: 'all' });
-  const [activeId, setActiveId] = useState<number | null>(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [activeId, setActiveId] = useState<number | null>(() => {
+    const v = Number(searchParams.get('post'));
+    return Number.isFinite(v) && v > 0 ? v : null;
+  });
+  // URL 싱크는 별도 effect 로 분리 — setActiveId 호출 흐름에 부수효과 안 만들도록.
+  useEffect(() => {
+    setSearchParams(prev => {
+      const sp = new URLSearchParams(prev);
+      const cur = sp.get('post');
+      const next = activeId ? String(activeId) : null;
+      if (cur === next) return prev; // 변화 없으면 스킵 (re-render 방지)
+      if (next) sp.set('post', next); else sp.delete('post');
+      return sp;
+    }, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeId]);
   const [detail, setDetail] = useState<PostDetail | null>(null);
   const [mode, setMode] = useState<'view' | 'edit' | 'new'>('view');
   const [titleDraft, setTitleDraft] = useState('');
@@ -59,6 +87,38 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
   const [pendingExistingIds, setPendingExistingIds] = useState<number[]>([]);
   const [pendingExistingMeta, setPendingExistingMeta] = useState<Record<number, { name: string; size: number }>>({});
   const submittingRef = useRef(false);
+  // 템플릿 모달 — 새 글 작성 시 시드 5종 중 선택해서 본문 prefill
+  const [tplModalOpen, setTplModalOpen] = useState(false);
+  const [templates, setTemplates] = useState<DocTemplate[]>([]);
+  const [tplSearch, setTplSearch] = useState('');
+  const { user } = useAuth();
+  const businessId = scope.type === 'workspace' ? scope.businessId : (user?.business_id ? Number(user.business_id) : null);
+  // 템플릿 저장 모달 상태
+  const [saveTplOpen, setSaveTplOpen] = useState(false);
+  const [saveTplName, setSaveTplName] = useState('');
+  const [saveTplDesc, setSaveTplDesc] = useState('');
+  const [saveTplBusy, setSaveTplBusy] = useState(false);
+  const [saveTplError, setSaveTplError] = useState<string | null>(null);
+
+  // content_json → HTML 변환 (TipTap headless)
+  const renderContentToHtml = useCallback((contentJson: unknown): string => {
+    if (!contentJson) return '';
+    try {
+      return generateHTML(contentJson as Record<string, unknown>, [
+        StarterKit, Link, Image, Table, TableRow, TableHeader, TableCell,
+      ]);
+    } catch { return ''; }
+  }, []);
+
+  const filteredTemplates = useMemo(() => {
+    const q = tplSearch.trim().toLowerCase();
+    if (!q) return templates;
+    return templates.filter(t =>
+      (t.name || '').toLowerCase().includes(q) ||
+      (t.description || '').toLowerCase().includes(q) ||
+      (KIND_LABELS_KO[t.kind] || '').toLowerCase().includes(q)
+    );
+  }, [templates, tplSearch]);
 
   // 워크스페이스 모드: project_id 필터 없음(모든 문서), 프로젝트 모드: project_id=scope.projectId
   const scopeProjectId = scope.type === 'project' ? scope.projectId : undefined;
@@ -88,7 +148,12 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
   useEffect(() => { loadMeta(); }, [loadMeta]);
 
   useEffect(() => {
-    if (!activeId) { setDetail(null); setMode('view'); return; }
+    if (!activeId) {
+      setDetail(null);
+      // mode 는 강제 변경 안 함 — startNew()/cancelEdit() 가 명시적으로 책임짐.
+      // 강제 변경하면 startNew → mode='new' 직후 이 effect 가 'view' 로 덮어써 에디터가 사라짐.
+      return;
+    }
     let cancelled = false;
     (async () => {
       const d = await fetchPost(activeId);
@@ -117,6 +182,55 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
     setPendingExistingIds([]);
     setPendingExistingMeta({});
     setError(null);
+  };
+
+  // 템플릿 모달 오픈 — 시스템 5종 + 사용자 본인 템플릿 모두 fetch
+  const openTemplateModal = async () => {
+    if (!businessId) return;
+    setTplModalOpen(true);
+    setTplSearch('');
+    try {
+      const list = await listTemplates(businessId);
+      setTemplates(list);
+    } catch { /* ignore */ }
+  };
+
+  // 클라이언트 사이드 mustache — business/today 만 치환 (Post 단계라 client/project 없음)
+  const renderTemplateClient = (html: string): string => {
+    const today = new Date().toISOString().slice(0, 10);
+    const todayPlus30 = new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10);
+    const ctx: Record<string, string> = {
+      'business.name': user?.business_name || '',
+      'business.brand_name': user?.business_name || '',
+      'party_a.name': user?.business_name || '',
+      'issued_at': today,
+      'effective_date': today,
+      'valid_until': todayPlus30,
+      'duration_months': '24',
+      'title': '',
+      'session.title': '',
+      'session.created_at': today,
+      'session.participants': '',
+      'session.location': '',
+      'session.brief': '',
+    };
+    return html.replace(/\{\{\s*([\w.]+)\s*\}\}/g, (_, p) => ctx[p] ?? '');
+  };
+
+  const startFromTemplate = (tpl: DocTemplate) => {
+    setActiveId(null);
+    setDetail(null);
+    setMode('new');
+    setTitleDraft(tpl.name);
+    const html = tpl.body_template ? renderTemplateClient(tpl.body_template) : '';
+    // PostEditor 가 setContent(HTML) 도 받으므로 string 그대로 전달
+    setContentDraft(html as unknown);
+    setCategoryDraft(filter.kind === 'category' ? filter.name : KIND_LABELS_KO[tpl.kind] || '');
+    setPendingUploads([]);
+    setPendingExistingIds([]);
+    setPendingExistingMeta({});
+    setError(null);
+    setTplModalOpen(false);
   };
 
   const startEdit = () => {
@@ -271,15 +385,20 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
       <Sidebar>
         <PanelHeader>
           <PanelTitle>{scope.type === 'workspace' ? t('page.title', 'Q docs') : t('tab.title', '문서')}</PanelTitle>
-          <NewBtn type="button" onClick={startNew} title={t('new', '새 문서') as string} aria-label={t('new', '새 문서') as string}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-            </svg>
-          </NewBtn>
+          <HeaderBtnRow>
+            <TemplateBtn type="button" onClick={openTemplateModal} title={t('templates.openHint', '견적·청구·NDA·제안서·회의록 5종 템플릿에서 시작') as string}>
+              {t('templates.btn', '템플릿')}
+            </TemplateBtn>
+            <NewBtn type="button" onClick={startNew} title={t('new', '새 문서') as string} aria-label={t('new', '새 문서') as string}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+              </svg>
+            </NewBtn>
+          </HeaderBtnRow>
         </PanelHeader>
 
         <SearchWrap>
-          <SearchBox value={query} onChange={setQuery} placeholder={t('search.placeholder', '제목·내용·프로젝트 검색') as string} />
+          <SearchBox width="100%" value={query} onChange={setQuery} placeholder={t('search.placeholder', '제목·내용·프로젝트 검색') as string} />
         </SearchWrap>
 
         <FilterSection>
@@ -458,10 +577,16 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
           <>
             <PanelHeader>
               <PanelSubTitle>
-                {detail.is_pinned && <PinTag>📌 </PinTag>}
+                {detail.is_pinned && <PinDot title={t('list.pinned', '고정됨') as string} />}
                 {detail.title}
               </PanelSubTitle>
               <EditActions>
+                <IconBtn type="button" onClick={() => window.print()} title={t('actions.print', '인쇄 / PDF') as string} aria-label={t('actions.print', '인쇄 / PDF') as string}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+                </IconBtn>
+                <IconBtn type="button" onClick={() => { setSaveTplName(detail.title); setSaveTplDesc(''); setSaveTplError(null); setSaveTplOpen(true); }} title={t('actions.saveAsTemplate', '템플릿으로 저장') as string} aria-label={t('actions.saveAsTemplate', '템플릿으로 저장') as string}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+                </IconBtn>
                 <SecondaryBtn type="button" onClick={startEdit}>{t('edit', '편집')}</SecondaryBtn>
                 <DangerBtn type="button" onClick={() => setDeleteTarget(detail)}>{t('delete', '삭제')}</DangerBtn>
               </EditActions>
@@ -487,7 +612,10 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
                   </CategoryTag>
                 )}
               </ViewMeta>
-              <PostEditor value={detail.content_json} onChange={() => {}} editable={false} />
+              <div data-print-area>
+                <h1 style={{ fontSize: 24, fontWeight: 700, color: '#0F172A', margin: '0 0 16px 0' }}>{detail.title}</h1>
+                <PostEditor value={detail.content_json} onChange={() => {}} editable={false} />
+              </div>
 
               <AttachSection>
                 <AttachTitle>{t('attachments', '첨부 파일')}</AttachTitle>
@@ -553,6 +681,90 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
         cancelText={t('cancel', '취소') as string}
         variant="danger"
       />
+
+      {saveTplOpen && (
+        <ModalBackdrop onClick={() => !saveTplBusy && setSaveTplOpen(false)}>
+          <ModalDialog onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={t('saveTpl.title', '템플릿으로 저장') as string}>
+            <ModalHead>
+              <ModalTitle>{t('saveTpl.title', '템플릿으로 저장')}</ModalTitle>
+              <ModalClose type="button" onClick={() => !saveTplBusy && setSaveTplOpen(false)} aria-label="Close">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </ModalClose>
+            </ModalHead>
+            <ModalSub>{t('saveTpl.sub', '현재 본문을 워크스페이스 템플릿으로 저장합니다. 다음 새 글 작성 시 검색해서 사용할 수 있습니다.')}</ModalSub>
+            <SaveTplField>
+              <SaveTplLabel>{t('saveTpl.name', '템플릿 이름')} *</SaveTplLabel>
+              <TplSearchInput type="text" value={saveTplName} onChange={e => setSaveTplName(e.target.value)} placeholder={t('saveTpl.namePh', '예: 우리 회사 표준 NDA') as string} />
+            </SaveTplField>
+            <SaveTplField>
+              <SaveTplLabel>{t('saveTpl.desc', '설명 (선택)')}</SaveTplLabel>
+              <TplSearchInput type="text" value={saveTplDesc} onChange={e => setSaveTplDesc(e.target.value)} placeholder={t('saveTpl.descPh', '한 줄 요약') as string} />
+            </SaveTplField>
+            {saveTplError && <SaveTplError>{saveTplError}</SaveTplError>}
+            <ModalFooter>
+              <SecondaryBtn type="button" onClick={() => !saveTplBusy && setSaveTplOpen(false)}>{t('cancel', '취소')}</SecondaryBtn>
+              <PrimaryBtn type="button" disabled={saveTplBusy || !saveTplName.trim() || !detail} onClick={async () => {
+                if (!businessId || !detail) return;
+                setSaveTplBusy(true); setSaveTplError(null);
+                try {
+                  const html = renderContentToHtml(detail.content_json);
+                  const r = await (await fetch('/api/docs/templates', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('accessToken') || ''}` },
+                    body: JSON.stringify({
+                      business_id: businessId, name: saveTplName.trim(), description: saveTplDesc.trim() || null,
+                      kind: 'custom', mode: 'editor', body_template: html, locale: 'ko', visibility: 'workspace_only',
+                    }),
+                  })).json();
+                  if (!r.success) throw new Error(r.message || 'save_failed');
+                  setSaveTplOpen(false);
+                  setTemplates([]); // 다음 모달 오픈 시 다시 fetch
+                } catch (err) {
+                  setSaveTplError(t('saveTpl.error', '저장 실패. 다시 시도해주세요.') as string);
+                } finally { setSaveTplBusy(false); }
+              }}>{saveTplBusy ? t('saving', '저장 중…') : t('save', '저장')}</PrimaryBtn>
+            </ModalFooter>
+          </ModalDialog>
+        </ModalBackdrop>
+      )}
+
+      {tplModalOpen && (
+        <ModalBackdrop onClick={() => setTplModalOpen(false)}>
+          <ModalDialog onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={t('templates.modalTitle', '템플릿 선택') as string}>
+            <ModalHead>
+              <ModalTitle>{t('templates.modalTitle', '템플릿에서 시작')}</ModalTitle>
+              <ModalClose type="button" onClick={() => setTplModalOpen(false)} aria-label="Close">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </ModalClose>
+            </ModalHead>
+            <ModalSub>{t('templates.modalSub', '본문이 자동으로 채워집니다. 자유롭게 편집한 후 저장하세요.')}</ModalSub>
+            <TplSearchInput
+              autoFocus
+              type="text"
+              value={tplSearch}
+              onChange={e => setTplSearch(e.target.value)}
+              placeholder={t('templates.searchPh', '템플릿 검색 (이름·설명·종류)') as string}
+            />
+            <TplGrid>
+              {templates.length === 0 ? (
+                <Empty>{t('templates.loading', '로드 중...')}</Empty>
+              ) : filteredTemplates.length === 0 ? (
+                <Empty>{t('templates.noResult', '검색 결과 없음')}</Empty>
+              ) : (
+                filteredTemplates.map(tpl => (
+                  <TplCard key={tpl.id} type="button" onClick={() => startFromTemplate(tpl)}>
+                    <TplCardIcon><KindIcon kind={tpl.kind} size={20} /></TplCardIcon>
+                    <TplCardBody>
+                      <TplCardName>{tpl.name}</TplCardName>
+                      <TplCardDesc>{tpl.description}</TplCardDesc>
+                    </TplCardBody>
+                    {tpl.is_system && <TplBadgeSys>{t('templates.system', '기본')}</TplBadgeSys>}
+                  </TplCard>
+                ))
+              )}
+            </TplGrid>
+          </ModalDialog>
+        </ModalBackdrop>
+      )}
     </Layout>
   );
 };
@@ -576,6 +788,16 @@ const Sidebar = styled.aside`
   @media (max-width: 900px) { border-right: none; border-bottom: 1px solid #E2E8F0; }
 `;
 // 우측 컨텐츠 — background 를 Content 에 직접 부여
+const HeaderBtnRow = styled.div`display:flex;align-items:center;gap:6px;`;
+const TemplateBtn = styled.button`
+  height: 32px; padding: 0 12px;
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 12px; font-weight: 600; color: #0F766E;
+  background: #F0FDFA; border: 1px solid #14B8A6; border-radius: 8px; cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  &:hover { background: #14B8A6; color: #FFF; }
+  &:focus-visible { outline: 2px solid #0D9488; outline-offset: 2px; }
+`;
 const NewBtn = styled.button`
   width: 32px; height: 32px;
   display: inline-flex; align-items: center; justify-content: center;
@@ -584,6 +806,55 @@ const NewBtn = styled.button`
   &:hover { background: #0D9488; }
   &:focus-visible { outline: 2px solid #0D9488; outline-offset: 2px; }
 `;
+const ModalBackdrop = styled.div`
+  position: fixed; inset: 0; background: rgba(15,23,42,0.4);
+  display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 20px;
+`;
+const ModalDialog = styled.div`
+  background: #FFF; border-radius: 14px; max-width: 640px; width: 100%; padding: 22px 24px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+  max-height: 80vh; overflow-y: auto;
+`;
+const ModalHead = styled.div`display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;`;
+const ModalTitle = styled.h2`font-size:16px;font-weight:700;color:#0F172A;margin:0;`;
+const ModalClose = styled.button`
+  width:28px;height:28px;border:none;background:transparent;color:#64748B;cursor:pointer;border-radius:6px;
+  display:flex;align-items:center;justify-content:center;
+  &:hover{background:#F1F5F9;color:#0F172A;}
+`;
+const ModalSub = styled.p`font-size:12px;color:#64748B;margin:0 0 14px 0;line-height:1.5;`;
+const TplGrid = styled.div`display:grid;grid-template-columns:repeat(2,1fr);gap:8px;@media(max-width:520px){grid-template-columns:1fr;}`;
+const TplCard = styled.button`
+  display:flex;gap:10px;padding:12px;font-family:inherit;text-align:left;
+  background:#FFF;border:1px solid #E2E8F0;border-radius:10px;cursor:pointer;
+  transition:border-color 0.15s,background 0.15s;
+  &:hover{border-color:#14B8A6;background:#F0FDFA;}
+`;
+const TplCardIcon = styled.div`flex:0 0 auto;color:#0F766E;display:inline-flex;align-items:flex-start;`;
+const TplBadgeSys = styled.span`flex:0 0 auto;font-size:10px;font-weight:700;color:#0F766E;background:#F0FDFA;border:1px solid #14B8A6;border-radius:999px;padding:1px 8px;align-self:flex-start;`;
+const TplSearchInput = styled.input`
+  width:100%;padding:8px 12px;font-size:13px;color:#0F172A;
+  border:1px solid #E2E8F0;border-radius:8px;background:#FFF;margin-bottom:12px;
+  &:focus{outline:none;border-color:#14B8A6;}
+  &::placeholder{color:#94A3B8;}
+`;
+const IconBtn = styled.button`
+  width:32px;height:32px;display:inline-flex;align-items:center;justify-content:center;
+  background:#FFF;border:1px solid #E2E8F0;border-radius:8px;color:#475569;cursor:pointer;transition:border-color 0.15s,color 0.15s;
+  &:hover{border-color:#14B8A6;color:#0F766E;}
+  &:focus-visible{outline:2px solid #14B8A6;outline-offset:2px;}
+`;
+const PinDot = styled.span`
+  display:inline-block;width:6px;height:6px;border-radius:50%;background:#F43F5E;margin-right:6px;flex:0 0 auto;
+`;
+const SaveTplField = styled.div`display:flex;flex-direction:column;gap:6px;margin-bottom:10px;`;
+const SaveTplLabel = styled.label`font-size:12px;font-weight:600;color:#0F172A;`;
+const SaveTplError = styled.div`font-size:12px;color:#DC2626;background:#FEF2F2;padding:8px 10px;border-radius:6px;margin-bottom:8px;`;
+const ModalFooter = styled.div`display:flex;justify-content:flex-end;gap:8px;margin-top:8px;`;
+const TplCardBody = styled.div`flex:1;min-width:0;`;
+const TplCardName = styled.div`font-size:13px;font-weight:600;color:#0F172A;margin-bottom:2px;`;
+const TplCardDesc = styled.div`font-size:11px;color:#64748B;line-height:1.4;`;
+const Empty = styled.div`grid-column:1/-1;padding:32px;text-align:center;color:#94A3B8;font-size:13px;`;
 const SearchWrap = styled.div`
   padding: 12px 16px 8px; border-bottom: 1px solid #F1F5F9;
 `;

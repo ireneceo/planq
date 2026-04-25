@@ -19,6 +19,7 @@ export type TodoVerb =
   | 'attend'
   | 'respond'
   | 'accept'
+  | 'assign'
   | 'read';
 
 export interface TodoItem {

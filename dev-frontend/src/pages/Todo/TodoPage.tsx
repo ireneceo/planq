@@ -30,13 +30,14 @@ const TodoPage: React.FC = () => {
 
   // silent=true 이면 skeleton 으로 되돌리지 않고 백그라운드 교체만. 드로어 내부 수정 후
   // 리스트를 업데이트할 때 뒤 리스트가 "깜빡"이지 않도록.
+  // 활성 워크스페이스 명시 — bizId 가 없으면 백엔드가 첫 가입 워크스페이스로 fallback (사용자가 다른 워크스페이스 보고 있으면 데이터 0건처럼 보임)
   const load = useCallback((opts?: { silent?: boolean }) => {
     if (!opts?.silent) setLoading(true);
-    fetchTodo()
+    fetchTodo(bizId ?? undefined)
       .then(res => { setData(res); setErr(null); })
       .catch(e => { setErr(e.message || 'Failed'); })
       .finally(() => { if (!opts?.silent) setLoading(false); });
-  }, []);
+  }, [bizId]);
 
   const silentLoad = useCallback(() => load({ silent: true }), [load]);
 

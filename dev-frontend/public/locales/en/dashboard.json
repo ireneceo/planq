@@ -41,7 +41,8 @@
       "revise": "Resubmit",
       "attend": "Meeting today",
       "respond": "Response needed",
-      "accept": "Invitation pending",
+      "accept": "Task candidate — accept",
+      "assign": "Task candidate — needs assignee",
       "read": "New mention"
     },
     "dueLabel": {
