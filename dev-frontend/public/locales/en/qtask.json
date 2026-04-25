@@ -1,8 +1,8 @@
 {
   "page": { "title": "Q task", "noWorkspace": "No workspace selected", "loading": "Loading...", "noCategory": "Uncategorized" },
   "search": "Search tasks...",
-  "filter": { "allStatus": "All status", "hideCompleted": "Hide completed" },
-  "period": { "thisWeek": "This week" },
+  "filter": { "allStatus": "All status", "hideCompleted": "Hide completed", "showCompleted": "Show completed" },
+  "period": { "title": "Period", "thisWeek": "This week" },
   "status": {
     "delayed": "Delayed",
     "not_started":        { "assignee": "Not started",   "reviewer": "Not started",     "requester": "Not started",    "observer": "Not started" },
@@ -54,8 +54,10 @@
   "right": {
     "title": "Overview",
     "received": "Incoming requests",
+    "review": "Review requests",
     "sent": "Outgoing requests",
     "noReceived": "No incoming requests to act on",
+    "noReview": "No reviews pending",
     "noSent": "No outgoing requests to confirm",
     "titleWeek": "This week",
     "titleRequested": "Feedback",
@@ -93,16 +95,17 @@
     "actions": {
       "assigneeTitle": "As assignee",
       "reviewerTitle": "As reviewer",
-      "ack": "Acknowledge request",
-      "start": "Start working",
-      "submitReview": "Submit for review",
-      "resubmitReview": "Resubmit after revision",
-      "cancelReview": "Cancel review request",
-      "completeSimple": "Mark complete",
-      "complete": "Finalize",
+      "ack": "Acknowledge → Pending start",
+      "start": "Start → In progress",
+      "resume": "Resume → In progress",
+      "submitReview": "Submit → Reviewing",
+      "resubmitReview": "Resubmit → Reviewing",
+      "cancelReview": "Cancel review → In progress",
+      "completeSimple": "Mark complete → Completed",
+      "complete": "Finalize → Completed",
       "needReviewer": "Add a reviewer first",
-      "approve": "Approve",
-      "requestRevision": "Request revision",
+      "approve": "Approve → Pending wrap-up",
+      "requestRevision": "Request revision → Revision",
       "revisionPlaceholder": "What needs to change? (required)",
       "submitRevision": "Send revision",
       "youApproved": "You approved this round.",
@@ -147,6 +150,7 @@
     "history": {
       "title": "History",
       "showAll": "Show all",
+      "empty": "No change history yet",
       "event": {
         "ack": "acknowledged request",
         "review_submit": "submitted for review",
@@ -157,7 +161,12 @@
         "completed": "marked complete",
         "reviewer_add": "added reviewer",
         "reviewer_remove": "removed reviewer",
-        "policy_change": "changed approval rule"
+        "policy_change": "changed approval rule",
+        "status_change": "changed status",
+        "assignee_change": "changed assignee",
+        "due_change": "changed due date",
+        "title_change": "renamed task",
+        "project_change": "moved project"
       }
     }
   }

@@ -50,6 +50,11 @@ const ProjectExpense = require('./ProjectExpense');
 const Report = require('./Report');
 // ─── 플랫폼 문의 ───
 const ContactInquiry = require('./ContactInquiry');
+// ─── Q docs (문서·템플릿 통합 시스템) ───
+const DocumentTemplate = require('./DocumentTemplate');
+const Document = require('./Document');
+const DocumentRevision = require('./DocumentRevision');
+const DocumentShare = require('./DocumentShare');
 
 // ============================================
 // Associations
@@ -310,7 +315,37 @@ module.exports = {
   Report,
   // 플랫폼 문의
   ContactInquiry,
+  // Q docs
+  DocumentTemplate,
+  Document,
+  DocumentRevision,
+  DocumentShare,
 };
+
+// Q docs associations
+DocumentTemplate.belongsTo(Business, { foreignKey: 'business_id' });
+DocumentTemplate.belongsTo(User, { as: 'creator', foreignKey: 'created_by' });
+Business.hasMany(DocumentTemplate, { as: 'documentTemplates', foreignKey: 'business_id' });
+
+Document.belongsTo(Business, { foreignKey: 'business_id' });
+Document.belongsTo(DocumentTemplate, { foreignKey: 'template_id' });
+Document.belongsTo(Client, { foreignKey: 'client_id' });
+Document.belongsTo(Project, { foreignKey: 'project_id' });
+Document.belongsTo(Conversation, { foreignKey: 'conversation_id' });
+Document.belongsTo(Quote, { foreignKey: 'quote_id' });
+Document.belongsTo(Invoice, { foreignKey: 'invoice_id' });
+Document.belongsTo(User, { as: 'creator', foreignKey: 'created_by' });
+Document.belongsTo(User, { as: 'updater', foreignKey: 'updated_by' });
+Document.hasMany(DocumentRevision, { as: 'revisions', foreignKey: 'document_id', onDelete: 'CASCADE' });
+Document.hasMany(DocumentShare, { as: 'shares', foreignKey: 'document_id', onDelete: 'CASCADE' });
+Business.hasMany(Document, { as: 'documents', foreignKey: 'business_id' });
+Quote.hasOne(Document, { as: 'document', foreignKey: 'quote_id' });
+Invoice.hasOne(Document, { as: 'document', foreignKey: 'invoice_id' });
+
+DocumentRevision.belongsTo(Document, { foreignKey: 'document_id' });
+DocumentRevision.belongsTo(User, { as: 'changer', foreignKey: 'changed_by' });
+DocumentShare.belongsTo(Document, { foreignKey: 'document_id' });
+DocumentShare.belongsTo(User, { as: 'sharer', foreignKey: 'shared_by' });
 
 // CalendarEvent
 CalendarEvent.belongsTo(Business, { foreignKey: 'business_id' });

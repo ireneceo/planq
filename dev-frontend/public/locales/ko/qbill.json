@@ -1,0 +1,107 @@
+{
+  "page": {
+    "title": "Q bill",
+    "tabs": {
+      "overview": "개요",
+      "quotes": "견적서",
+      "invoices": "청구서",
+      "payments": "결제내역",
+      "taxInvoices": "세금계산서",
+      "settings": "설정"
+    }
+  },
+  "overview": {
+    "title": "이번 달 한눈에 보기",
+    "billed": "청구",
+    "collected": "수금",
+    "outstanding": "미수",
+    "overdue": "연체",
+    "trend": "월별 매출 추이 (12개월)",
+    "topUnpaid": "미수금 TOP 5",
+    "upcomingRecurring": "발행 예정 구독 청구",
+    "pendingTax": "세금계산서 미발행",
+    "empty": "데이터가 없습니다"
+  },
+  "quotes": {
+    "title": "견적서",
+    "newQuote": "+ 새 견적",
+    "searchPlaceholder": "견적번호·고객·제목 검색",
+    "filter": {
+      "all": "전체",
+      "draft": "작성중",
+      "sent": "발송됨",
+      "viewed": "열람됨",
+      "accepted": "수락",
+      "rejected": "거절",
+      "expired": "만료",
+      "converted": "청구서 전환됨"
+    },
+    "col": {
+      "number": "견적번호",
+      "client": "고객",
+      "title": "제목",
+      "amount": "금액",
+      "status": "상태",
+      "issued": "발행일",
+      "validUntil": "만료일"
+    },
+    "empty": "견적이 없습니다. 첫 견적을 만들어보세요.",
+    "status": {
+      "draft": "작성중",
+      "sent": "발송됨",
+      "viewed": "열람됨",
+      "accepted": "수락됨",
+      "rejected": "거절",
+      "expired": "만료",
+      "converted": "청구서 전환됨"
+    }
+  },
+  "editor": {
+    "newTitle": "새 견적서",
+    "editTitle": "견적서 편집",
+    "client": "고객",
+    "selectClient": "고객 선택",
+    "issuedAt": "발행일",
+    "validUntil": "만료일",
+    "currency": "통화",
+    "title": "제목",
+    "titlePlaceholder": "예: 2026년 4월 디자인 외주 견적",
+    "items": {
+      "title": "품목",
+      "addRow": "+ 품목 추가",
+      "description": "내역",
+      "descriptionPlaceholder": "예: 메인 페이지 리디자인",
+      "quantity": "수량",
+      "unitPrice": "단가",
+      "subtotal": "소계",
+      "remove": "삭제"
+    },
+    "totals": {
+      "subtotal": "공급가액",
+      "vat": "부가세",
+      "vatRate": "부가세율",
+      "total": "합계"
+    },
+    "paymentTerms": "지급 조건",
+    "paymentTermsPlaceholder": "예: 발행 후 14일 이내 송금",
+    "notes": "메모",
+    "notesPlaceholder": "고객에게 보일 메모 (선택)",
+    "actions": {
+      "save": "초안 저장",
+      "preview": "미리보기",
+      "send": "고객에게 발송",
+      "convertToInvoice": "청구서로 전환",
+      "delete": "삭제"
+    },
+    "validation": {
+      "clientRequired": "고객을 선택해주세요",
+      "itemsRequired": "최소 1개 품목이 필요합니다"
+    }
+  },
+  "tabsComing": {
+    "invoices": "청구서 — 견적서 완료 후 진행",
+    "payments": "결제내역 — 포트원 연결 후 자동 기록",
+    "taxInvoices": "세금계산서 — 팝빌 연결 후 자동 발행",
+    "settings": "발행자·결제 채널·세금계산서 설정"
+  }
+}

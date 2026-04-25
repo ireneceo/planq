@@ -14,6 +14,7 @@ import LetterAvatar from '../../components/Common/LetterAvatar';
 import SearchBox from '../../components/Common/SearchBox';
 import PageShell from '../../components/Layout/PageShell';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
+import { useListKeyboardNav } from '../../hooks/useListKeyboardNav';
 
 type ClientStatus = 'invited' | 'active' | 'archived';
 
@@ -205,6 +206,14 @@ export default function ClientsPage() {
     return name.includes(q) || company.includes(q) || email.includes(q);
   }), [clients, query, statusFilter]);
 
+  const clientItemIds = useMemo(() => filtered.map((c) => c.id), [filtered]);
+  useListKeyboardNav<number>({
+    itemIds: clientItemIds,
+    activeId,
+    onChange: (id) => setActiveId(id),
+    itemSelector: (id) => `[data-client-row="${id}"]`,
+  });
+
   const submitInvite = async () => {
     setInviteError(null);
     if (!inviteName.trim() || !inviteEmail.trim()) { setInviteError(t('inviteModal.errRequired')); return; }
@@ -286,7 +295,7 @@ export default function ClientsPage() {
                 const isEditingName = editingCell?.id === c.id && editingCell?.field === 'display_name';
                 const isEditingCompany = editingCell?.id === c.id && editingCell?.field === 'company_name';
                 return (
-                  <Tr key={c.id} $selected={isSelected} onClick={() => setActiveId((prev) => prev === c.id ? null : c.id)}>
+                  <Tr key={c.id} data-client-row={c.id} $selected={isSelected} onClick={() => setActiveId((prev) => prev === c.id ? null : c.id)}>
                     <Td>
                       <LetterAvatar name={name} src={c.user?.avatar_url || null} size={32} variant={isSelected ? 'active' : 'neutral'} />
                     </Td>

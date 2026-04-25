@@ -16,6 +16,8 @@ import SearchBox from '../../components/Common/SearchBox';
 import FloatingPanelToggle, { PANEL_WIDTH_CSS } from '../../components/Common/FloatingPanelToggle';
 import { useIsNarrow } from '../../hooks/useMediaQuery';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
+import { useListKeyboardNav } from '../../hooks/useListKeyboardNav';
+import { formatHours, utilizationPercent, utilizationStatus, UTIL_COLOR } from '../../utils/hours';
 
 // ─── Types ───
 type Scope = 'mine' | 'workspace';
@@ -30,6 +32,7 @@ interface TaskRow {
   priority_order: number | null; start_date: string | null; due_date: string | null;
   estimated_hours: number | null; actual_hours: number; progress_percent: number;
   planned_week_start: string | null; category: string | null;
+  completed_at?: string | null;
   assignee_id: number | null; project_id: number | null; created_by: number;
   // Phase 1 워크플로우 필드
   source?: 'manual' | 'internal_request' | 'qtalk_extract';
@@ -149,6 +152,8 @@ const QTaskPage:React.FC=()=>{
   const[statusFilter,setStatusFilter]=useState('');
   // 기본 true: 체크박스 = 완료 = 리스트에서 사라짐 (완료 업무 다시 보려면 헤더 체크 해제)
   const[hideCompleted,setHideCompleted]=useState(true);
+  // week 탭 — "완료 가리기" (다른 탭과 동일 라벨). 기본 체크 해제 = 완료 보임.
+  const[hideCompletedInWeek,setHideCompletedInWeek]=useState(false);
   const[rightWidth,setRightWidth]=useState<number>(()=>{
     try{const v=localStorage.getItem('qtask_right_width');return v?Math.max(320,Math.min(720,Number(v))):420;}catch{return 420;}
   });
@@ -204,6 +209,8 @@ const QTaskPage:React.FC=()=>{
   const[editingTitle,setEditingTitle]=useState<number|null>(null);
   const[titleDraft,setTitleDraft]=useState('');
   const[addingTask,setAddingTask]=useState(false);
+  // 인라인(=표 하단 행 추가) 모드 여부. true=표 아래에서 폼 / false=우측 패널 폼
+  const[addInline,setAddInline]=useState(false);
   const[newTitle,setNewTitle]=useState('');
   const[newAssignee,setNewAssignee]=useState<number|null>(null);
   const[newProjectId,setNewProjectId]=useState<number|null>(null);
@@ -609,16 +616,39 @@ const QTaskPage:React.FC=()=>{
       if(assigneeFilter!=null)list=list.filter(t=>t.assignee_id===assigneeFilter);
     }else{
       if(tab==='week'){
-        // 이번 주 내 업무 = "지금 내가 행동해야" 하는 것
+        // 사용자: 기간(periodFrom~periodTo) 기준으로 업무 리스트 + 가용시간 매칭
+        // 기간 안에 들어오는 task 중에서 내가 행동해야 하거나 기간 안에 완료한 것
         list=list.filter(t=>{
+          // 1) 기간 검사 — 미완료는 start/due 가 기간과 겹치면, 완료는 completed_at 이 기간 안
+          const startStr=(t.start_date||t.planned_week_start||'').slice(0,10);
+          const dueStr=(t.due_date||'').slice(0,10);
+          const completedStr=(t.completed_at||'').slice(0,10);
+          const isDone=t.status==='completed'||t.status==='canceled';
+          const inPeriod=(()=>{
+            if(isDone) return completedStr ? (completedStr>=periodFrom&&completedStr<=periodTo) : false;
+            if(!startStr&&!dueStr) return true; // 기간 미정 task 는 포함 (사용자가 인지하도록)
+            const s=startStr||dueStr;
+            const e=dueStr||startStr;
+            return !(e<periodFrom||s>periodTo);
+          })();
+          if(!inPeriod) return false;
+
+          // 2) 내가 행동해야 하는 것 + 완료 옵션
           const ds=displayStatus(t,todayStr);
-          // 담당자 행동 필요 (요청 받은 업무 + 일반 업무 공통)
           if(t.assignee_id===myId){
             if(['task_requested','waiting','in_progress','revision_requested','done_feedback'].includes(ds))return true;
           }
-          // 컨펌자 행동 필요 — 내가 리뷰어(pending) + 업무가 reviewing/revision_requested
           const myRev=t.reviewers?.find(rv=>rv.user_id===myId);
           if(myRev&&myRev.state==='pending'&&(t.status==='reviewing'||t.status==='revision_requested'))return true;
+          // 완료 가리기 OFF (디폴트) → 내가 관여한 이번 주 완료 표시
+          if(!hideCompletedInWeek && isDone){
+            const involved =
+              t.assignee_id===myId ||
+              t.request_by_user_id===myId ||
+              t.created_by===myId ||
+              !!myRev;
+            if(involved) return true;
+          }
           return false;
         });
       }
@@ -627,11 +657,19 @@ const QTaskPage:React.FC=()=>{
     }
     if(search){const q=search.toLowerCase();list=list.filter(t=>t.title.toLowerCase().includes(q)||(t.Project?.name||'').toLowerCase().includes(q));}
     if(statusFilter)list=list.filter(t=>t.status===statusFilter);
-    if(hideCompleted)list=list.filter(t=>t.status!=='completed'&&t.status!=='canceled');
+    // week 탭은 자체 hideCompletedInWeek 로직을 위 위에서 처리. 다른 탭만 일괄 hideCompleted 적용.
+    if(hideCompleted && !(scope==='mine'&&tab==='week'))list=list.filter(t=>t.status!=='completed'&&t.status!=='canceled');
 
     // Sort — 기본 복합 정렬: priority_order → due_date → title (nulls-last)
     // 사용자가 특정 컬럼 클릭 시 그 키가 주 정렬, 동률은 priority→due→title 로 tie-break
     list=[...list].sort((a,b)=>{
+      // [week 탭 only] 완료/취소는 항상 맨 아래 (사용자: 완료업무는 맨 아래)
+      if(scope==='mine'&&tab==='week'){
+        const aDone=a.status==='completed'||a.status==='canceled';
+        const bDone=b.status==='completed'||b.status==='canceled';
+        if(aDone&&!bDone)return 1;
+        if(!aDone&&bDone)return -1;
+      }
       // 1) 주 정렬 (사용자 선택)
       const va=a[sortKey];const vb=b[sortKey];
       const aNull=va==null||va===''; const bNull=vb==null||vb==='';
@@ -662,16 +700,40 @@ const QTaskPage:React.FC=()=>{
       return 0;
     });
     return list;
-  },[allTasks,scope,tab,assigneeFilter,todayStr,myId,search,statusFilter,hideCompleted,sortKey,sortDir]);
+  },[allTasks,scope,tab,assigneeFilter,todayStr,myId,search,statusFilter,hideCompleted,sortKey,sortDir,hideCompletedInWeek,periodFrom,periodTo]);
 
   // (grouped removed — flat list with project column)
 
-  // Summary (탭 기준 — 좌측 칩에 표시)
+  // 키보드 ↑/↓ — 리스트 뷰에서만 활성화
+  const taskItemIds=useMemo(()=>filtered.map(t=>t.id),[filtered]);
+  useListKeyboardNav<number>({
+    itemIds:taskItemIds,
+    activeId:detailTaskId,
+    onChange:(id)=>{ setDetailTaskId(id); const sp=new URLSearchParams(location.search); sp.set('task',String(id)); navigate(`${location.pathname}?${sp.toString()}`,{replace:true}); },
+    enabled:viewMode==='list',
+    itemSelector:(id)=>`[data-qtask-row="${id}"]`,
+  });
+
+  // Summary — 본인 처리 시간(myEst) 과 의뢰한 시간(reqEst) 분리.
+  // 사용자: "요청자의 시간과 담당자의 시간이 달라" — 본인 가용시간엔 myEst 만 잡힘.
   const summary=useMemo(()=>{
-    const est=filtered.reduce((s,t)=>s+(Number(t.estimated_hours)||0),0);
-    const act=filtered.reduce((s,t)=>s+(Number(t.actual_hours)||0),0);
-    return{count:filtered.length,est:Math.round(est*10)/10,act:Math.round(act*10)/10};
-  },[filtered]);
+    let myEst=0,reqEst=0,act=0;
+    for(const t of filtered){
+      if(t.status==='canceled') continue;
+      const e=Number(t.estimated_hours)||0;
+      const a=Number(t.actual_hours)||0;
+      act+=a;
+      if(t.assignee_id===myId) myEst+=e;
+      else if(t.request_by_user_id===myId||t.created_by===myId) reqEst+=e;
+    }
+    return {
+      count: filtered.length,
+      myEst: Math.round(myEst*10)/10,
+      reqEst: Math.round(reqEst*10)/10,
+      est: Math.round((myEst+reqEst)*10)/10,
+      act: Math.round(act*10)/10,
+    };
+  },[filtered,myId]);
 
   // 탭 뱃지 카운트 — "내 할 일" 기준
   // - 받은 업무요청에서 내 할 일: assignee=me && action-pending (task_requested 미ack 또는 revision_requested)
@@ -680,36 +742,36 @@ const QTaskPage:React.FC=()=>{
   // all = From Q Talk 후보 수 (candidates)
   // requested = 보낸
   const panelCounts=useMemo(()=>{
-    let received=0,sent=0;
-    const receivedList:TaskRow[]=[], sentList:TaskRow[]=[];
+    let received=0,sent=0,review=0;
+    const receivedList:TaskRow[]=[], sentList:TaskRow[]=[], reviewList:TaskRow[]=[];
     for(const t of allTasks){
       if(t.assignee_id===myId){
         const ds=displayStatus(t,todayStr);
         if(ds==='task_requested'||t.status==='revision_requested'){received++;receivedList.push(t);}
       }
+      // 내가 컨펌자(reviewer)이고 pending — 컨펌해야 할 일 (확인 요청 받음)
+      const myRev=t.reviewers?.find(rv=>rv.user_id===myId);
+      if(myRev&&myRev.state==='pending'&&(t.status==='reviewing'||t.status==='revision_requested')){
+        review++; reviewList.push(t);
+      }
+      // 내가 요청자(requester)이고 status=reviewing — 내가 의뢰한 것의 컨펌 진행
       const isRequester=(t.request_by_user_id===myId)||(t.created_by===myId&&t.assignee_id!=null&&t.assignee_id!==myId);
       if(isRequester&&t.status==='reviewing'){
-        const myRev=t.reviewers?.find(rv=>rv.user_id===myId);
         if(!myRev||myRev.state==='pending'){sent++;sentList.push(t);}
       }
     }
-    return{received,sent,receivedList,sentList};
+    return{received,sent,review,receivedList,sentList,reviewList};
   },[allTasks,myId,todayStr]);
   const badgeCounts=useMemo(()=>({
-    week: panelCounts.received+panelCounts.sent,
+    week: panelCounts.received+panelCounts.sent+panelCounts.review,
     all: candidates.length,
     requested: panelCounts.sent,
   }),[panelCounts,candidates.length]);
 
 
-  // 전체 내 업무 집계 (우측 가용시간 — 탭 무관, 항상 동일)
-  const totalMyEst=useMemo(()=>{
-    return Math.round(allTasks.filter(t=>t.assignee_id===myId).reduce((s,t)=>s+(Number(t.estimated_hours)||0),0)*10)/10;
-  },[allTasks,myId]);
-  const _totalMyAct=useMemo(()=>{
-    return Math.round(allTasks.filter(t=>t.assignee_id===myId).reduce((s,t)=>s+(Number(t.actual_hours)||0),0)*10)/10;
-  },[allTasks,myId]);
-  void _totalMyAct; // 향후 사용 예정
+  // 가용시간 사용 = 본인이 assignee 인 task 만 합산 (완료/미완료 포함, canceled 제외).
+  // 사용자: "요청한 task 는 다른 사람 가용시간이라 분리". summary.myEst 와 동일 값.
+  const totalMyEst=summary.myEst;
 
   // Project progress — mine=내가 담당한 업무만 집계, workspace=모든 업무 집계
   const projProg=useMemo(()=>{
@@ -873,14 +935,6 @@ const QTaskPage:React.FC=()=>{
           </TabBar>
         )}
 
-        {/* 탭별 액션 바 — 업무/요청 추가 버튼 */}
-        <TabActionBar>
-          <HeaderAddBtn type="button" onClick={()=>{
-            setAddingTask(true);
-            setNewAssignee(tab==='requested'?null:myId);
-          }}>+ {scope==='mine'&&tab==='requested'?t('add.reqBtn','요청 추가'):t('add.btn','업무 추가')}</HeaderAddBtn>
-        </TabActionBar>
-
         <ListScroll>
           {/* Filter bar (탭 아래) */}
           <FilterBar>
@@ -901,12 +955,19 @@ const QTaskPage:React.FC=()=>{
                   options={members.map(m=>({value:String(m.user_id),label:m.name}))} />
               </div>
             )}
-            {!(scope==='mine'&&tab==='week')&&<HideCheck><input type="checkbox" checked={hideCompleted} onChange={e=>setHideCompleted(e.target.checked)} />{t('filter.hideCompleted','Hide completed')}</HideCheck>}
+            {tab!=='week' && <HideCheck><input type="checkbox" checked={hideCompleted} onChange={e=>setHideCompleted(e.target.checked)} />{t('filter.hideCompleted','Hide completed')}</HideCheck>}
+            {tab==='week' && <HideCheck><input type="checkbox" checked={hideCompletedInWeek} onChange={e=>setHideCompletedInWeek(e.target.checked)} />{t('filter.hideCompleted','Hide completed')}</HideCheck>}
             <ChipRow>
               <Chip>{summary.count}{t('summary.unit','tasks')}</Chip>
-              <Chip $teal>Est {summary.est}h</Chip>
-              <Chip $coral>Act {summary.act}h</Chip>
+              <Chip $teal title={t('summary.myEstHint','내가 직접 처리할 시간 (가용시간에 합산)') as string}>내 가용 {formatHours(summary.myEst)}h</Chip>
+              {summary.reqEst>0 && <Chip title={t('summary.reqEstHint','내가 의뢰한 시간 — 담당자의 가용시간으로 분리됨') as string}>의뢰 {formatHours(summary.reqEst)}h</Chip>}
+              <Chip $coral>실제 {formatHours(summary.act)}h</Chip>
             </ChipRow>
+            <HeaderAddBtn type="button" onClick={()=>{
+              setAddInline(false);                 // 우측 상단 = panel 모드
+              setAddingTask(true);
+              setNewAssignee(tab==='requested'?null:myId);
+            }}>+ {scope==='mine'&&tab==='requested'?t('add.reqBtn','요청 추가'):t('add.btn','업무 추가')}</HeaderAddBtn>
           </FilterBar>
 
           {/* Column headers (sortable) */}
@@ -936,7 +997,7 @@ const QTaskPage:React.FC=()=>{
                 const isDelayed=task.due_date&&task.due_date.slice(0,10)<today&&task.status!=='completed'&&task.status!=='canceled';
 
                 return(
-                  <TRow key={task.id} data-task-row $done={task.status==='completed'} $delayed={!!isDelayed} $selected={detailTaskId===task.id}
+                  <TRow key={task.id} data-task-row data-qtask-row={task.id} $done={task.status==='completed'} $delayed={!!isDelayed} $selected={detailTaskId===task.id}
                     onClick={(e)=>{
                       // 빈 공간 클릭 → 상세 드로어 오픈. 인터랙티브 요소는 제외 (그 요소가 자체 핸들러 실행)
                       const tgt=e.target as HTMLElement;
@@ -1010,15 +1071,17 @@ const QTaskPage:React.FC=()=>{
                       )}
                     </TCell>
                     <TCell $w="48px" $center $hideBelow={900}>
-                      <NumInput key={`e${task.id}`} defaultValue={task.estimated_hours??''} placeholder="-"
+                      <NumInput key={`e${task.id}-${task.estimated_hours}`}
+                        defaultValue={task.estimated_hours!=null?formatHours(task.estimated_hours):''} placeholder="-"
                         onClick={e=>e.stopPropagation()}
-                        onBlur={e=>{const v=Number(e.target.value);if(!isNaN(v))saveField(task.id,'estimated_hours',v);}}
+                        onBlur={e=>{const v=Number(e.target.value);if(!isNaN(v)){saveField(task.id,'estimated_hours',v);(e.target as HTMLInputElement).value=formatHours(v);}}}
                         onKeyDown={e=>{if(e.key==='Enter')(e.target as HTMLInputElement).blur();}} />
                     </TCell>
                     <TCell $w="48px" $center $hideBelow={900}>
-                      <NumInput key={`a${task.id}`} defaultValue={task.actual_hours||''} placeholder="-"
+                      <NumInput key={`a${task.id}-${task.actual_hours}`}
+                        defaultValue={task.actual_hours?formatHours(task.actual_hours):''} placeholder="-"
                         onClick={e=>e.stopPropagation()}
-                        onBlur={e=>{const v=Number(e.target.value);if(!isNaN(v))saveField(task.id,'actual_hours',v);}}
+                        onBlur={e=>{const v=Number(e.target.value);if(!isNaN(v)){saveField(task.id,'actual_hours',v);(e.target as HTMLInputElement).value=formatHours(v);}}}
                         onKeyDown={e=>{if(e.key==='Enter')(e.target as HTMLInputElement).blur();}} />
                     </TCell>
                     <TCell $w="130px" $hideBelow={1024}>
@@ -1064,12 +1127,84 @@ const QTaskPage:React.FC=()=>{
                   <line x1="5" y1="12" x2="19" y2="12" />
                 </svg>
               }
-              onCta={()=>{setAddingTask(true);setNewAssignee(tab==='requested'?null:myId);}}
+              onCta={()=>{setAddInline(true);setAddingTask(true);setNewAssignee(tab==='requested'?null:myId);}}
             />
           )}
-          {filtered.length>0&&!addingTask&&<BottomAddLink type="button" onClick={()=>{setAddingTask(true);setNewAssignee(tab==='requested'?null:myId);}}>
+          {filtered.length>0&&!addingTask&&<BottomAddLink type="button" onClick={()=>{setAddInline(true);setAddingTask(true);setNewAssignee(tab==='requested'?null:myId);}}>
             + {scope==='mine'&&tab==='requested'?t('add.reqBtn','요청 추가'):t('add.btn','업무 추가')}
           </BottomAddLink>}
+          {/* 인라인 추가 폼 — 표 하단에서 새 행 형태 (사용자: 표 아래에서 추가) */}
+          {addingTask&&addInline&&(
+            <InlineAddBox>
+              <AddInput autoFocus value={newTitle} placeholder={t('add.placeholder','업무명 입력 후 Ctrl+Enter 로 저장')}
+                onChange={e=>setNewTitle(e.target.value)}
+                onKeyDown={e=>{
+                  if(e.key==='Enter'&&(e.ctrlKey||e.metaKey)){e.preventDefault();addTask();}
+                  if(e.key==='Escape'){setAddingTask(false);setAddInline(false);resetNewTask();}
+                }} />
+              <AddOptRow>
+                <AddOptField>
+                  <AddOptLabel>{t('add.project','프로젝트')}</AddOptLabel>
+                  <PlanQSelect size="sm" isClearable
+                    placeholder={t('add.projectNone','선택')}
+                    value={newProjectId==null?null:{value:String(newProjectId),label:projectOptions.find(p=>p.value===String(newProjectId))?.label||'-'}}
+                    onChange={(v)=>setNewProjectId((v as {value?:string})?.value?Number((v as {value:string}).value):null)}
+                    options={projectOptions} />
+                </AddOptField>
+                <AddOptField>
+                  <AddOptLabel>{t('add.assignee','담당자')}{tab==='requested'&&' *'}</AddOptLabel>
+                  <PlanQSelect size="sm" isClearable={tab!=='requested'}
+                    placeholder={tab==='requested'?t('add.assigneeRequiredHint','담당자 선택 (필수)'):t('add.assigneeDefault','담당자: 나')}
+                    value={newAssignee==null?null:{
+                      value:String(newAssignee),
+                      label:(members.find(m=>m.user_id===newAssignee)?.name||'-')+(newAssignee===myId?' (나)':''),
+                    }}
+                    onChange={(v)=>setNewAssignee((v as {value?:string})?.value?Number((v as {value:string}).value):null)}
+                    options={members.filter(m=>tab==='requested'?m.user_id!==myId:true)
+                      .map(m=>({value:String(m.user_id),label:m.name+(m.user_id===myId?' (나)':'')}))} />
+                </AddOptField>
+                <AddOptField>
+                  <AddOptLabel>{t('add.startDate','시작일')}</AddOptLabel>
+                  <AddDateTrigger ref={newStartAnchorRef} type="button" onClick={()=>setNewStartPickerOpen(v=>!v)}>
+                    {newStartDate||<AddDatePH>{t('add.datePlaceholder','날짜 선택')}</AddDatePH>}
+                  </AddDateTrigger>
+                  {newStartPickerOpen&&(
+                    <CalendarPicker isOpen anchorRef={newStartAnchorRef} singleMode
+                      startDate={newStartDate} endDate={newStartDate}
+                      onRangeSelect={(s)=>setNewStartDate(s||'')}
+                      onClose={()=>setNewStartPickerOpen(false)} />
+                  )}
+                </AddOptField>
+                <AddOptField>
+                  <AddOptLabel>{t('add.dueDate','마감일')}</AddOptLabel>
+                  <AddDateTrigger ref={newDueAnchorRef} type="button" onClick={()=>setNewDuePickerOpen(v=>!v)}>
+                    {newDueDate||<AddDatePH>{t('add.datePlaceholder','날짜 선택')}</AddDatePH>}
+                  </AddDateTrigger>
+                  {newDuePickerOpen&&(
+                    <CalendarPicker isOpen anchorRef={newDueAnchorRef} singleMode
+                      startDate={newDueDate} endDate={newDueDate}
+                      onRangeSelect={(s)=>setNewDueDate(s||'')}
+                      onClose={()=>setNewDuePickerOpen(false)} />
+                  )}
+                </AddOptField>
+                <AddOptField style={{flex:'0 0 90px'}}>
+                  <AddOptLabel>{t('add.estHours','예측(h)')}</AddOptLabel>
+                  <AddDateInput type="number" step="0.5" min="0" placeholder="-" value={newEstHours} onChange={e=>setNewEstHours(e.target.value)} />
+                </AddOptField>
+              </AddOptRow>
+              <AddTextArea rows={2} placeholder={t('add.descPlaceholder','설명 (선택)')}
+                value={newDescription} onChange={e=>setNewDescription(e.target.value)} />
+              <AddBtnRow>
+                <AddCancelBtn type="button" onClick={()=>{setAddingTask(false);setAddInline(false);resetNewTask();}}>
+                  {t('add.cancel','취소')}
+                </AddCancelBtn>
+                <AddSaveBtn type="button" onClick={addTask}
+                  disabled={addingSubmitting||!newTitle.trim()||(tab==='requested'&&!newAssignee)}>
+                  {addingSubmitting?t('add.saving','저장 중...'):t('add.save','추가')}
+                </AddSaveBtn>
+              </AddBtnRow>
+            </InlineAddBox>
+          )}
           </>
           )}
           {viewMode==='kanban'&&(
@@ -1146,7 +1281,7 @@ const QTaskPage:React.FC=()=>{
                         description={<>{t('empty.line1','요청을 받고, 배정하고, 결과까지')}<br />{t('empty.line2','한 화면에서 실행으로 연결됩니다.')}</>}
                         ctaLabel={scope==='mine'&&tab==='requested'?t('add.reqBtn','요청 추가'):t('add.btn','업무 추가')}
                         ctaIcon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>}
-                        onCta={()=>{setAddingTask(true);setNewAssignee(tab==='requested'?null:myId);}}
+                        onCta={()=>{setAddInline(false);setAddingTask(true);setNewAssignee(tab==='requested'?null:myId);}}
                       />
                     </KanbanEmptyBoard>
                   );
@@ -1283,29 +1418,52 @@ const QTaskPage:React.FC=()=>{
                     onClose={()=>setPeriodPickerOpen(false)} />}
                 </RSection>
                 <RSection>
-                  <RSTitle>{t('capacity.title','Weekly Capacity')}</RSTitle>
-                  <CapSettings>
-                    <CapField>
-                      <CapFieldLabel>{t('capacity.daily','Daily hours')}</CapFieldLabel>
+                  <RSTitle>{t('capacity.title','가용시간')}</RSTitle>
+                  {(() => {
+                    const pct = utilizationPercent(totalMyEst, effectiveCapacity);
+                    const status = utilizationStatus(pct);
+                    const color = UTIL_COLOR[status];
+                    const remaining = effectiveCapacity - totalMyEst;
+                    return (
+                      <CapDashboard>
+                        <CapHeadline>
+                          <CapBigNum>
+                            <CapUsed style={{color: color.text}}>{formatHours(totalMyEst)}</CapUsed>
+                            <CapSep>/</CapSep>
+                            <CapTotal>{formatHours(effectiveCapacity)}h</CapTotal>
+                          </CapBigNum>
+                          <CapPctChip style={{background: color.bg, color: color.text}}>{pct}%</CapPctChip>
+                        </CapHeadline>
+                        <CapBar><CapBarFill style={{background: color.bar, width: `${Math.min(100, pct)}%`}}/></CapBar>
+                        <CapRemainingRow>
+                          <CapRemainingLabel>{t('capacity.remaining', '남은 가용시간')}</CapRemainingLabel>
+                          <CapRemainingValue style={{color: color.text}}>
+                            {remaining < 0 ? '−' : ''}{formatHours(Math.abs(remaining))}h
+                            {status === 'over' && <CapOverHint>{t('capacity.overHint', '초과')}</CapOverHint>}
+                          </CapRemainingValue>
+                        </CapRemainingRow>
+                      </CapDashboard>
+                    );
+                  })()}
+                  <CapSettingsRow>
+                    <CapSettingsField>
+                      <CapFieldLabel>{t('capacity.daily','하루')}</CapFieldLabel>
                       <CapFieldInput type="number" step="0.5" min="1" max="24" defaultValue={capacity.daily||8}
                         onBlur={e=>saveCapacity('daily_work_hours',Number(e.target.value))}
                         onKeyDown={e=>{if(e.key==='Enter')(e.target as HTMLInputElement).blur();}} />
-                    </CapField>
-                    <CapField>
-                      <CapFieldLabel>{t('capacity.days','Work days')}</CapFieldLabel>
+                    </CapSettingsField>
+                    <CapSettingsField>
+                      <CapFieldLabel>{t('capacity.days','영업일')}</CapFieldLabel>
                       <CapFieldInput type="number" step="1" min="1" max="7" defaultValue={capacity.days||5}
                         onBlur={e=>saveCapacity('weekly_work_days',Number(e.target.value))}
                         onKeyDown={e=>{if(e.key==='Enter')(e.target as HTMLInputElement).blur();}} />
-                    </CapField>
-                    <CapField>
-                      <CapFieldLabel>{t('capacity.holidays','Holidays')}</CapFieldLabel>
+                    </CapSettingsField>
+                    <CapSettingsField>
+                      <CapFieldLabel>{t('capacity.holidays','휴일')}</CapFieldLabel>
                       <CapFieldInput type="number" step="1" min="0" max="5" defaultValue={0}
                         onChange={e=>setHolidayDays(Number(e.target.value)||0)} />
-                    </CapField>
-                  </CapSettings>
-                  <CapSummary>{t('capacity.available','Available')}: {effectiveCapacity}h</CapSummary>
-                  <CapRow><CapTrack><CapFill $w={Math.min(100,(totalMyEst/Math.max(effectiveCapacity,1))*100)}/></CapTrack>
-                    <CapText>{totalMyEst}h / {effectiveCapacity}h</CapText></CapRow>
+                    </CapSettingsField>
+                  </CapSettingsRow>
                 </RSection>
                 <RSection>
                   <RSTitle>{t('chart.weekly','Weekly Progress')}</RSTitle>
@@ -1387,6 +1545,20 @@ const QTaskPage:React.FC=()=>{
                   ))}
                 </RSection>
               )}
+              {panelCounts.review>0&&(
+                <RSection>
+                  <RSTitle>{t('right.review','확인 요청 받음')} ({panelCounts.review})</RSTitle>
+                  {panelCounts.reviewList.map(x=>(
+                    <CandCard key={`rv-${x.id}`} onClick={()=>openDetail(x.id)} style={{cursor:'pointer'}}>
+                      <CandTitle>{x.title}</CandTitle>
+                      <IMeta>
+                        {x.Project?.name&&<IProjTag>{x.Project.name}</IProjTag>}
+                        {x.assignee?.name&&<span>{x.assignee.name}</span>}
+                      </IMeta>
+                    </CandCard>
+                  ))}
+                </RSection>
+              )}
               {panelCounts.sent>0&&(
                 <RSection>
                   <RSTitle>{t('right.sent','보낸 업무요청')} ({panelCounts.sent})</RSTitle>
@@ -1459,21 +1631,22 @@ const QTaskPage:React.FC=()=>{
           </RightScroll>
         </RightPanel>
       )}
-      {/* ── 업무 추가 오버레이 드로어 ── */}
-      {addingTask&&<DrawerBackdrop onClick={()=>{setAddingTask(false);resetNewTask();}} />}
-      {addingTask&&(
+      {/* ── 업무 추가 우측 패널 (panel 모드만) ── */}
+      {addingTask&&!addInline&&<DrawerBackdrop onClick={()=>{setAddingTask(false);setAddInline(false);resetNewTask();}} />}
+      {addingTask&&!addInline&&(
         <DetailDrawer $w={drawerWidth}>
           <DrawerResizeHandle onMouseDown={startDrawerResize} />
           <RightHeader>
             <RightTitle>
               + {scope==='mine'&&tab==='requested'?t('add.reqBtn','요청 추가'):t('add.btn','업무 추가')}
             </RightTitle>
-            <CollapseBtn onClick={()=>{setAddingTask(false);resetNewTask();}}>
+            <CollapseBtn onClick={()=>{setAddingTask(false);setAddInline(false);resetNewTask();}}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
             </CollapseBtn>
           </RightHeader>
           <RightScroll>
-            <AddForm style={{margin:20,borderRadius:10}}>
+            {/* 박스 제거 — 우측 패널 자체 padding 안에 직접 배치 (사용자: 박스 안 박스 금지) */}
+            <PanelAddForm>
               <AddInput autoFocus value={newTitle} placeholder={t('add.placeholder','업무명 입력 후 Ctrl+Enter 로 저장')}
                 onChange={e=>setNewTitle(e.target.value)}
                 onKeyDown={e=>{
@@ -1541,7 +1714,7 @@ const QTaskPage:React.FC=()=>{
               <AddTextArea rows={3} placeholder={t('add.descPlaceholder','설명 (선택)')}
                 value={newDescription} onChange={e=>setNewDescription(e.target.value)} />
               <AddBtnRow>
-                <AddCancelBtn type="button" onClick={()=>{setAddingTask(false);resetNewTask();}}>
+                <AddCancelBtn type="button" onClick={()=>{setAddingTask(false);setAddInline(false);resetNewTask();}}>
                   {t('add.cancel','취소')}
                 </AddCancelBtn>
                 <AddSaveBtn type="button" onClick={addTask}
@@ -1549,7 +1722,7 @@ const QTaskPage:React.FC=()=>{
                   {addingSubmitting?t('add.saving','저장 중...'):t('add.save','추가')}
                 </AddSaveBtn>
               </AddBtnRow>
-            </AddForm>
+            </PanelAddForm>
           </RightScroll>
         </DetailDrawer>
       )}
@@ -1650,10 +1823,12 @@ const DateTrigger=styled.button<{$color?:string;$empty?:boolean}>`
 `;
 
 const EmptyFull=styled.div`display:flex;align-items:center;justify-content:center;height:100vh;color:#94A3B8;`;
-const TabActionBar=styled.div`display:flex;justify-content:flex-end;padding:8px 14px;border-bottom:1px solid #F1F5F9;background:#FFF;flex-shrink:0;`;
 const HeaderAddBtn=styled.button`padding:7px 14px;background:#14B8A6;color:#FFF;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;&:hover:not(:disabled){background:#0D9488;}&:disabled{background:#CBD5E1;cursor:not-allowed;}`;
 const AddInput=styled.input`flex:1 1 auto;min-width:0;font-size:14px;color:#0F172A;border:1px solid #14B8A6;background:#F0FDFA;padding:6px 10px;border-radius:6px;font-family:inherit;&:focus{outline:none;box-shadow:0 0 0 2px rgba(20,184,166,0.15);}&::placeholder{color:#94A3B8;}`;
-const AddForm=styled.div`display:flex;flex-direction:column;gap:8px;padding:12px;background:#F8FAFC;border:1px solid #14B8A6;border-radius:10px;`;
+/* 인라인 추가 (표 하단 새 행) — 표와 자연스럽게 연결되도록 좌우 margin 만 적용 */
+const InlineAddBox=styled.div`display:flex;flex-direction:column;gap:8px;margin:8px 14px 20px;padding:12px;background:#F8FAFC;border:1px solid #14B8A6;border-radius:10px;`;
+/* 우측 패널 추가 폼 — 박스 없이 패널 padding 안에 직접 배치 (박스 안 박스 금지) */
+const PanelAddForm=styled.div`display:flex;flex-direction:column;gap:10px;padding:20px;background:transparent;border:none;`;
 const AddOptRow=styled.div`display:flex;gap:8px;flex-wrap:wrap;`;
 const AddOptField=styled.div`flex:1 1 140px;min-width:120px;display:flex;flex-direction:column;gap:3px;`;
 const AddOptLabel=styled.label`font-size:11px;color:#64748B;font-weight:600;`;
@@ -1756,15 +1931,24 @@ const RightTitle=styled.h2`font-size:13px;font-weight:700;color:#0F172A;margin:0
 const RightScroll=styled.div`flex:1;overflow-y:auto;overflow-x:hidden;min-width:0;&>*{min-width:0;max-width:100%;}&::-webkit-scrollbar{width:6px;}&::-webkit-scrollbar-thumb{background:#E2E8F0;border-radius:3px;}`;
 const RSection=styled.div`border-bottom:1px solid #F1F5F9;padding:12px 14px;`;
 const RSTitle=styled.h4`font-size:12px;font-weight:700;color:#0F172A;margin:0 0 8px;`;
-const CapRow=styled.div`display:flex;align-items:center;gap:8px;`;
-const CapTrack=styled.div`flex:1;height:6px;background:#F1F5F9;border-radius:3px;overflow:hidden;`;
-const CapFill=styled.div<{$w:number}>`height:100%;width:${p=>p.$w}%;background:${p=>p.$w>100?'#E11D48':p.$w>85?'#F59E0B':'#14B8A6'};border-radius:3px;transition:width 0.3s;`;
-const CapText=styled.span`font-size:11px;color:#64748B;font-weight:600;white-space:nowrap;`;
-const CapSettings=styled.div`display:flex;gap:8px;margin-bottom:8px;`;
-const CapField=styled.div`flex:1;`;
 const CapFieldLabel=styled.div`font-size:10px;color:#94A3B8;font-weight:600;margin-bottom:3px;`;
 const CapFieldInput=styled.input`width:100%;padding:4px 6px;border:1px solid #E2E8F0;border-radius:6px;font-size:13px;font-weight:600;color:#0F172A;text-align:center;background:#FAFBFC;&:focus{outline:none;border-color:#14B8A6;background:#FFF;}`;
-const CapSummary=styled.div`font-size:12px;font-weight:600;color:#0F766E;margin-bottom:6px;`;
+/* 가용시간 대시보드 — 큰 숫자 + 진행바 + 남은 시간 강조 (사용자: 탁월한 UI/UX) */
+const CapDashboard=styled.div`display:flex;flex-direction:column;gap:10px;margin-bottom:12px;`;
+const CapHeadline=styled.div`display:flex;align-items:baseline;justify-content:space-between;gap:10px;`;
+const CapBigNum=styled.div`display:flex;align-items:baseline;gap:6px;`;
+const CapUsed=styled.span`font-size:24px;font-weight:800;letter-spacing:-0.4px;`;
+const CapSep=styled.span`font-size:18px;color:#CBD5E1;font-weight:600;`;
+const CapTotal=styled.span`font-size:15px;color:#64748B;font-weight:600;`;
+const CapPctChip=styled.span`padding:3px 10px;font-size:11px;font-weight:700;border-radius:999px;`;
+const CapBar=styled.div`height:8px;background:#F1F5F9;border-radius:4px;overflow:hidden;`;
+const CapBarFill=styled.div`height:100%;border-radius:4px;transition:width 0.25s ease,background 0.15s;`;
+const CapRemainingRow=styled.div`display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:#F8FAFC;border-radius:8px;`;
+const CapRemainingLabel=styled.span`font-size:11px;color:#64748B;font-weight:600;`;
+const CapRemainingValue=styled.span`font-size:15px;font-weight:700;letter-spacing:-0.2px;`;
+const CapOverHint=styled.span`margin-left:6px;padding:1px 6px;font-size:10px;font-weight:700;background:#FFE4E6;color:#9F1239;border-radius:6px;`;
+const CapSettingsRow=styled.div`display:flex;gap:6px;`;
+const CapSettingsField=styled.div`flex:1;`;
 const ChartSVG=styled.svg`width:100%;height:160px;display:block;`;
 const EmptyChart=styled.div`padding:16px;text-align:center;color:#CBD5E1;font-size:11px;`;
 const Legend=styled.div`display:flex;gap:12px;margin-top:6px;`;

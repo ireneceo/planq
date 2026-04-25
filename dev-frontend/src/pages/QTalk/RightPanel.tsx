@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import {
@@ -59,11 +59,22 @@ const RightPanel: React.FC<Props> = ({
   const [editingIssueId, setEditingIssueId] = useState<number | null>(null);
   const [editIssueText, setEditIssueText] = useState('');
   const [newNoteText, setNewNoteText] = useState('');
-  // 메모 공유 범위 UI 간소화: "나만" vs "같이" (Irene 지적: 개인/내부는 이상함).
+  const noteListRef = useRef<HTMLDivElement | null>(null);
+  // 메모 공유 범위 UI: "공개"(internal) 디폴트 · "나만"(personal) 선택.
   // DB ENUM 은 personal/internal 유지 (Phase 9 visibility 재설계에 위임).
-  const [newNoteShared, setNewNoteShared] = useState(false);
+  const [newNoteShared, setNewNoteShared] = useState(true);
 
   const toggle = (s: Section) => setExpanded((prev) => ({ ...prev, [s]: !prev[s] }));
+
+  // 메모 리스트 자동 하단 스크롤 — 채팅 패턴. 펼침/스코프/메모 개수 변경 시 최신 메모로.
+  const notesCount = notes.length;
+  const notesExpanded = expanded.notes;
+  useEffect(() => {
+    if (!notesExpanded) return;
+    const el = noteListRef.current;
+    if (!el) return;
+    requestAnimationFrame(() => { el.scrollTop = el.scrollHeight; });
+  }, [notesExpanded, notesCount, project?.id, activeConversationId]);
 
   // 프로젝트 전환 시 섹션 자동 펼침 — count > 0 인 섹션만 펴고, 빈 섹션은 접힘 상태로 시작.
   // Irene 지적: "(0) 이면 그냥 접어줘".
@@ -89,8 +100,9 @@ const RightPanel: React.FC<Props> = ({
       issues: pIssues > 0,
       myTasks: myT > 0,
       projectTasks: pTasks > 0,
-      notes: pNotes > 0,
+      notes: true,                   // 입력란이 있으므로 비어 있어도 항상 펼침
     });
+    void pNotes;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project?.id, activeConversationId, issues.length, tasks.length, notes.length]);
 
@@ -168,9 +180,11 @@ const RightPanel: React.FC<Props> = ({
   const projectTasks: MockTask[] = tasks.filter(matchScope);
   const myTasks = projectTasks.filter((x) => x.assignee_id === myUserId || x.assignee_id === 15 /* mock: owner 시점 */);
   const projectNotes: MockNote[] = notes.filter(matchScope);
-  const visibleNotes = isClient
+  // 채팅 패턴: ASC (오래된 위 → 최신 아래, 입력란 바로 위가 최신)
+  const visibleNotes = (isClient
     ? projectNotes.filter((n) => n.visibility === 'personal' && n.author_id === myUserId)
-    : projectNotes;
+    : projectNotes
+  ).slice().sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
   const projectIssues: MockIssue[] = issues.filter(matchScope);
 
   const headerCloseHandler = isNarrow ? () => setNarrowOpen(false) : onToggleCollapsed;
@@ -466,39 +480,45 @@ const RightPanel: React.FC<Props> = ({
           </SectionHeader>
           {expanded.notes && (
             <SectionBody>
-              {visibleNotes.slice(0, 6).map((n) => (
-                <NoteItem key={n.id}>
-                  <NoteVis $internal={n.visibility === 'internal'}>
-                    {n.visibility === 'personal' ? t('right.notes.onlyMe', '나만') : t('right.notes.withTeam', '같이')}
-                  </NoteVis>
-                  <NoteContent>
-                    <NoteBody>{n.body}</NoteBody>
-                    <NoteMeta>
-                      {n.author_name} · {formatTimeAgo(n.created_at)}
-                      {project && n.conversation_id && convName(n.conversation_id) && (
-                        <> · <SourceTag title={t('right.sourceChat', '출처 대화') as string}>#{convName(n.conversation_id)}</SourceTag></>
-                      )}
-                    </NoteMeta>
-                  </NoteContent>
-                </NoteItem>
-              ))}
-              {visibleNotes.length === 0 && <EmptyRow>{t('right.notes.empty', '아직 메모가 없습니다')}</EmptyRow>}
+              <NoteList ref={noteListRef}>
+                {visibleNotes.length === 0 && <EmptyRow>{t('right.notes.empty', '아직 메모가 없습니다')}</EmptyRow>}
+                {visibleNotes.map((n) => (
+                  <NoteItem key={n.id}>
+                    {n.visibility === 'personal' && (
+                      <NoteVis $internal={false}>{t('right.notes.onlyMe', '나만')}</NoteVis>
+                    )}
+                    <NoteContent>
+                      <NoteBody>{n.body}</NoteBody>
+                      <NoteMeta>
+                        {n.author_name} · {formatTimeAgo(n.created_at)}
+                        {project && n.conversation_id && convName(n.conversation_id) && (
+                          <> · <SourceTag title={t('right.sourceChat', '출처 대화') as string}>#{convName(n.conversation_id)}</SourceTag></>
+                        )}
+                      </NoteMeta>
+                    </NoteContent>
+                  </NoteItem>
+                ))}
+              </NoteList>
               <NoteInput>
                 <NoteTextInput
+                  rows={1}
                   value={newNoteText}
                   onChange={(e) => setNewNoteText(e.target.value)}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter') { e.preventDefault(); submitNote(); }
+                    // IME 조합 중은 무시 (한글 마지막 음절 중복 입력 방지)
+                    if (e.nativeEvent.isComposing || e.keyCode === 229) return;
+                    // ⌘/Ctrl+Enter 만 저장 — 일반 Enter 는 줄바꿈
+                    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); submitNote(); }
                   }}
-                  placeholder={t('right.notes.placeholder', '메모 작성... (Enter 저장)')}
+                  placeholder={t('right.notes.placeholder', '메모 작성... (⌘/Ctrl+Enter 저장)')}
                 />
                 {!isClient && (
                   <NoteVisToggle>
+                    <NoteVisOption $active={newNoteShared} onClick={() => setNewNoteShared(true)}>{t('right.notes.withTeam', '공개')}</NoteVisOption>
                     <NoteVisOption $active={!newNoteShared} onClick={() => setNewNoteShared(false)}>{t('right.notes.onlyMe', '나만')}</NoteVisOption>
-                    <NoteVisOption $active={newNoteShared} onClick={() => setNewNoteShared(true)}>{t('right.notes.withTeam', '같이')}</NoteVisOption>
                   </NoteVisToggle>
                 )}
-                <NoteSendBtn onClick={submitNote} disabled={!newNoteText.trim()}>
+                <NoteSendBtn onClick={submitNote} disabled={!newNoteText.trim()} title={t('right.notes.saveHint', '저장 (⌘/Ctrl+Enter)') as string}>
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                     <line x1="22" y1="2" x2="11" y2="13" />
                     <polygon points="22 2 15 22 11 13 2 9 22 2" />
@@ -1117,6 +1137,8 @@ const NoteBody = styled.div`
   color: #1E293B;
   line-height: 1.4;
   margin-bottom: 3px;
+  white-space: pre-wrap;
+  word-break: break-word;
 `;
 
 const NoteMeta = styled.div`
@@ -1139,9 +1161,22 @@ const SourceTag = styled.span`
   vertical-align: middle;
 `;
 
+/* 메모 리스트만 자체 스크롤 — 입력란이 우측 패널 스크롤 아래로 밀려 가려지지 않도록.
+   사용자: "메모가 길 때 입력란이 가려지면 안 됨, 입력은 할 수 있는 걸 알아야" */
+const NoteList = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 280px;
+  overflow-y: auto;
+  padding-right: 2px;
+  &::-webkit-scrollbar { width: 6px; }
+  &::-webkit-scrollbar-thumb { background: #E2E8F0; border-radius: 3px; }
+`;
+
 const NoteInput = styled.div`
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   gap: 6px;
   margin-top: 4px;
   padding: 6px 8px;
@@ -1151,12 +1186,18 @@ const NoteInput = styled.div`
   &:focus-within { border-color: #14B8A6; background: #FFFFFF; }
 `;
 
-const NoteTextInput = styled.input`
+const NoteTextInput = styled.textarea`
   flex: 1;
   border: none;
   background: transparent;
   font-size: 12px;
   color: #0F172A;
+  font-family: inherit;
+  line-height: 1.4;
+  resize: none;
+  min-height: 32px;
+  max-height: 120px;
+  padding: 4px 0;
   &:focus { outline: none; }
   &::placeholder { color: #94A3B8; }
 `;

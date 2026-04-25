@@ -736,32 +736,6 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
               </ColBody>}
             </Collapsible>
 
-            {history.length > 0 && <Collapsible>
-              <ColHeader onClick={() => setOpenHistory(v => !v)}>
-                <ColArrow $open={openHistory}>▸</ColArrow>
-                <span>{t('detail.history.title', 'History')} ({history.length})</span>
-              </ColHeader>
-              {openHistory && <ColBody>
-                <Timeline>
-                  {history.map(h => (
-                    <TimelineItem key={h.id}>
-                      <TimelineDot $event={h.event_type}/>
-                      <TimelineBody>
-                        <TimelineHead>
-                          <strong>{h.actor?.name || '—'}</strong>
-                          <TimelineEvent>{t(`detail.history.event.${h.event_type}`, h.event_type)}</TimelineEvent>
-                          {h.target?.name && <TimelineTarget>→ {h.target.name}</TimelineTarget>}
-                          {h.round != null && <TimelineRound>R{h.round}</TimelineRound>}
-                        </TimelineHead>
-                        {h.note && <TimelineNote>{h.note}</TimelineNote>}
-                        <TimelineTime>{h.createdAt?.slice(5, 16).replace('T', ' ')}</TimelineTime>
-                      </TimelineBody>
-                    </TimelineItem>
-                  ))}
-                </Timeline>
-              </ColBody>}
-            </Collapsible>}
-
             <Collapsible>
               <ColHeader onClick={() => setOpenDaily(v => !v)}>
                 <ColArrow $open={openDaily}>▸</ColArrow>
@@ -789,7 +763,39 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                         </DailyRow>
                       );
                     })}
+                    {/* 합계 행 — 하루 단위 외에 totals 도 추후 추가 가능 */}
                   </DailyGrid>
+                )}
+              </ColBody>}
+            </Collapsible>
+
+            {/* 히스토리 — 가장 아래. 비어있어도 노출 (사용자: 단계이동·변경 이력은 항상 추적되어야) */}
+            <Collapsible>
+              <ColHeader onClick={() => setOpenHistory(v => !v)}>
+                <ColArrow $open={openHistory}>▸</ColArrow>
+                <span>{t('detail.history.title', 'History')} ({history.length})</span>
+              </ColHeader>
+              {openHistory && <ColBody>
+                {history.length === 0 ? (
+                  <Empty>{t('detail.history.empty', '아직 변경 이력이 없습니다')}</Empty>
+                ) : (
+                  <Timeline>
+                    {history.map(h => (
+                      <TimelineItem key={h.id}>
+                        <TimelineDot $event={h.event_type}/>
+                        <TimelineBody>
+                          <TimelineHead>
+                            <strong>{h.actor?.name || '—'}</strong>
+                            <TimelineEvent>{t(`detail.history.event.${h.event_type}`, h.event_type)}</TimelineEvent>
+                            {h.target?.name && <TimelineTarget>→ {h.target.name}</TimelineTarget>}
+                            {h.round != null && <TimelineRound>R{h.round}</TimelineRound>}
+                          </TimelineHead>
+                          {h.note && <TimelineNote>{h.note}</TimelineNote>}
+                          <TimelineTime>{h.createdAt?.slice(5, 16).replace('T', ' ')}</TimelineTime>
+                        </TimelineBody>
+                      </TimelineItem>
+                    ))}
+                  </Timeline>
                 )}
               </ColBody>}
             </Collapsible>

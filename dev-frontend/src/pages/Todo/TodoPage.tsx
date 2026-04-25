@@ -1,5 +1,6 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { io, type Socket } from 'socket.io-client';
 import PageShell from '../../components/Layout/PageShell';
 import TodoList from '../../components/Dashboard/TodoList';
 import TaskDetailDrawer from '../../components/QTask/TaskDetailDrawer';
@@ -8,7 +9,7 @@ import { fetchTodo } from '../../services/dashboard';
 import type { TodoItem, TodoResponse } from '../../services/dashboard';
 import type { CalendarEvent } from '../../pages/QCalendar/types';
 import { updateEvent, deleteEvent, createMeetingRoom } from '../../services/calendar';
-import { useAuth, apiFetch } from '../../contexts/AuthContext';
+import { useAuth, apiFetch, getAccessToken } from '../../contexts/AuthContext';
 
 interface MemberOpt { user_id: number; name: string; }
 
@@ -40,6 +41,39 @@ const TodoPage: React.FC = () => {
   const silentLoad = useCallback(() => load({ silent: true }), [load]);
 
   useEffect(() => { load(); }, [load]);
+
+  // 실시간 sync — 워크스페이스 socket room 의 task/candidate/invoice 변경 받으면 silentLoad.
+  // 사용자: "확인필요도 반영되는 족족 실시간으로 변경되어야 해"
+  const socketRef = useRef<Socket | null>(null);
+  useEffect(() => {
+    if (!bizId) return;
+    const token = getAccessToken();
+    if (!token) return;
+    const s = io({ auth: { token }, transports: ['websocket'] });
+    socketRef.current = s;
+    let pending: number | null = null;
+    const debouncedReload = () => {
+      if (pending) return;
+      pending = window.setTimeout(() => { pending = null; silentLoad(); }, 250);
+    };
+    s.on('connect', () => { s.emit('join:business', bizId); });
+    s.on('task:new', debouncedReload);
+    s.on('task:updated', debouncedReload);
+    s.on('task:deleted', debouncedReload);
+    s.on('candidate:new', debouncedReload);
+    s.on('candidate:updated', debouncedReload);
+    s.on('invoice:new', debouncedReload);
+    s.on('invoice:updated', debouncedReload);
+    s.on('event:created', debouncedReload);
+    s.on('event:updated', debouncedReload);
+    s.on('event:deleted', debouncedReload);
+    return () => {
+      if (pending) window.clearTimeout(pending);
+      s.emit('leave:business', bizId);
+      s.disconnect();
+      socketRef.current = null;
+    };
+  }, [bizId, silentLoad]);
 
   // 드로어에 필요한 멤버 목록 로드
   useEffect(() => {

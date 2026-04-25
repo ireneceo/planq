@@ -1,0 +1,107 @@
+{
+  "page": {
+    "title": "Q bill",
+    "tabs": {
+      "overview": "Overview",
+      "quotes": "Quotes",
+      "invoices": "Invoices",
+      "payments": "Payments",
+      "taxInvoices": "Tax invoices",
+      "settings": "Settings"
+    }
+  },
+  "overview": {
+    "title": "This month at a glance",
+    "billed": "Billed",
+    "collected": "Collected",
+    "outstanding": "Outstanding",
+    "overdue": "Overdue",
+    "trend": "Monthly revenue (12 months)",
+    "topUnpaid": "Top 5 unpaid",
+    "upcomingRecurring": "Upcoming recurring",
+    "pendingTax": "Pending tax invoices",
+    "empty": "No data"
+  },
+  "quotes": {
+    "title": "Quotes",
+    "newQuote": "+ New quote",
+    "searchPlaceholder": "Search by number, client, title",
+    "filter": {
+      "all": "All",
+      "draft": "Draft",
+      "sent": "Sent",
+      "viewed": "Viewed",
+      "accepted": "Accepted",
+      "rejected": "Rejected",
+      "expired": "Expired",
+      "converted": "Converted"
+    },
+    "col": {
+      "number": "Number",
+      "client": "Client",
+      "title": "Title",
+      "amount": "Amount",
+      "status": "Status",
+      "issued": "Issued",
+      "validUntil": "Valid until"
+    },
+    "empty": "No quotes yet. Create your first one.",
+    "status": {
+      "draft": "Draft",
+      "sent": "Sent",
+      "viewed": "Viewed",
+      "accepted": "Accepted",
+      "rejected": "Rejected",
+      "expired": "Expired",
+      "converted": "Converted"
+    }
+  },
+  "editor": {
+    "newTitle": "New quote",
+    "editTitle": "Edit quote",
+    "client": "Client",
+    "selectClient": "Select client",
+    "issuedAt": "Issued",
+    "validUntil": "Valid until",
+    "currency": "Currency",
+    "title": "Title",
+    "titlePlaceholder": "e.g. April 2026 design retainer",
+    "items": {
+      "title": "Line items",
+      "addRow": "+ Add row",
+      "description": "Description",
+      "descriptionPlaceholder": "e.g. Homepage redesign",
+      "quantity": "Qty",
+      "unitPrice": "Unit price",
+      "subtotal": "Subtotal",
+      "remove": "Remove"
+    },
+    "totals": {
+      "subtotal": "Subtotal",
+      "vat": "VAT",
+      "vatRate": "VAT rate",
+      "total": "Total"
+    },
+    "paymentTerms": "Payment terms",
+    "paymentTermsPlaceholder": "e.g. Net 14",
+    "notes": "Notes",
+    "notesPlaceholder": "Notes shown to client (optional)",
+    "actions": {
+      "save": "Save draft",
+      "preview": "Preview",
+      "send": "Send to client",
+      "convertToInvoice": "Convert to invoice",
+      "delete": "Delete"
+    },
+    "validation": {
+      "clientRequired": "Select a client",
+      "itemsRequired": "At least one line item required"
+    }
+  },
+  "tabsComing": {
+    "invoices": "Invoices — after quotes are done",
+    "payments": "Payments — auto from PortOne webhook",
+    "taxInvoices": "Tax invoices — via Popbill (Korea)",
+    "settings": "Issuer · payment channel · tax invoice settings"
+  }
+}

@@ -49,9 +49,10 @@
       "internal": "Internal",
       "personal": "Personal",
       "onlyMe": "Only me",
-      "withTeam": "Shared",
+      "withTeam": "Public",
       "empty": "No notes yet",
-      "placeholder": "Write a note... (Enter to save)"
+      "placeholder": "Write a note...",
+      "saveHint": "Save (⌘/Ctrl+Enter)"
     },
     "info": {
       "title": "Project Info",

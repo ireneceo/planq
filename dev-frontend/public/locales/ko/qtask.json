@@ -1,8 +1,8 @@
 {
   "page": { "title": "Q task", "noWorkspace": "워크스페이스가 선택되지 않았습니다", "loading": "로드 중...", "noCategory": "미분류" },
   "search": "업무 검색...",
-  "filter": { "allStatus": "전체 상태", "hideCompleted": "완료 가리기" },
-  "period": { "thisWeek": "이번 주" },
+  "filter": { "allStatus": "전체 상태", "hideCompleted": "완료 가리기", "showCompleted": "완료 업무 보기" },
+  "period": { "title": "기간", "thisWeek": "이번 주" },
   "status": {
     "delayed": "지연",
     "not_started":        { "assignee": "미진행",         "reviewer": "미진행",         "requester": "미시작",       "observer": "미진행" },
@@ -56,8 +56,10 @@
   "right": {
     "title": "현황",
     "received": "받은 업무요청",
+    "review": "확인 요청 받음",
     "sent": "보낸 업무요청",
     "noReceived": "지금 처리할 받은 요청이 없습니다",
+    "noReview": "지금 컨펌할 요청이 없습니다",
     "noSent": "지금 확인할 보낸 요청이 없습니다",
     "titleWeek": "이번 주",
     "titleRequested": "피드백",
@@ -93,17 +95,17 @@
     "actions": {
       "assigneeTitle": "담당자로서",
       "reviewerTitle": "컨펌자로서",
-      "ack": "요청 확인",
-      "start": "진행 시작",
-      "resume": "다시 진행",
-      "submitReview": "확인 요청 보내기",
-      "resubmitReview": "수정 반영 후 재확인요청",
-      "cancelReview": "확인 요청 취소",
-      "completeSimple": "완료",
-      "complete": "최종 완료",
+      "ack": "요청 확인 → 진행 대기",
+      "start": "진행 시작 → 진행 중",
+      "resume": "다시 진행 → 진행 중",
+      "submitReview": "확인 요청 → 검토 중",
+      "resubmitReview": "수정 반영 후 재확인요청 → 검토 중",
+      "cancelReview": "확인 요청 취소 → 진행 중",
+      "completeSimple": "완료 처리 → 완료",
+      "complete": "최종 완료 → 완료",
       "needReviewer": "먼저 컨펌자를 추가하세요",
-      "approve": "승인",
-      "requestRevision": "수정 요청",
+      "approve": "승인 → 마무리 대기",
+      "requestRevision": "수정 요청 → 수정요청 단계",
       "revisionPlaceholder": "어떤 부분을 수정해야 하는지 적어주세요 (필수)",
       "submitRevision": "수정 요청 보내기",
       "youApproved": "이번 라운드에서 승인했습니다.",
@@ -148,6 +150,7 @@
     "history": {
       "title": "히스토리",
       "showAll": "모두 보기",
+      "empty": "아직 변경 이력이 없습니다",
       "event": {
         "ack": "업무요청 확인",
         "review_submit": "컨펌 요청 보냄",
@@ -158,7 +161,12 @@
         "completed": "최종 완료",
         "reviewer_add": "컨펌자 추가",
         "reviewer_remove": "컨펌자 제거",
-        "policy_change": "컨펌 정책 변경"
+        "policy_change": "컨펌 정책 변경",
+        "status_change": "단계 변경",
+        "assignee_change": "담당자 변경",
+        "due_change": "마감일 변경",
+        "title_change": "업무명 변경",
+        "project_change": "프로젝트 이관"
       }
     }
   }

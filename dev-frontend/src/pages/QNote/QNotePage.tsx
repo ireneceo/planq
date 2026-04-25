@@ -37,6 +37,7 @@ import {
 } from '../../components/Common/Icons';
 import SharedEmptyState from '../../components/Common/EmptyState';
 import SearchBoxCommon from '../../components/Common/SearchBox';
+import { useListKeyboardNav } from '../../hooks/useListKeyboardNav';
 
 /**
  * Q Note 페이지
@@ -541,6 +542,20 @@ const QNotePage = () => {
     }
     openReview(sessionId);
   };
+
+  const filteredSessions = useMemo(() => {
+    const q = sessionQuery.trim().toLowerCase();
+    if (!q) return sessions;
+    return sessions.filter((s) => (s.title || '').toLowerCase().includes(q));
+  }, [sessions, sessionQuery]);
+  const sessionItemIds = useMemo(() => filteredSessions.map((s) => s.id), [filteredSessions]);
+  useListKeyboardNav<number>({
+    itemIds: sessionItemIds,
+    activeId: activeSession?.id ?? null,
+    onChange: (id) => openReview(id),
+    enabled: !sidebarCollapsed,
+    itemSelector: (id) => `[data-qnote-session="${id}"]`,
+  });
 
   const openReview = async (sessionId: number) => {
     const _t0 = performance.now();
@@ -1749,7 +1764,7 @@ const QNotePage = () => {
 
         <SessionList>
           {sessions.length === 0 && <EmptySessionMsg>{t('page.emptySessionList')}</EmptySessionMsg>}
-          {(sessionQuery.trim() ? sessions.filter(s => (s.title || '').toLowerCase().includes(sessionQuery.toLowerCase())) : sessions).map((session) => {
+          {filteredSessions.map((session) => {
             const isActive = activeSession?.id === session.id;
             const statusLabel =
               session.status === 'recording' ? t('page.sessionStatus.recording') :
@@ -1768,6 +1783,7 @@ const QNotePage = () => {
             return (
               <SessionItem
                 key={session.id}
+                data-qnote-session={session.id}
                 $active={isActive}
                 onClick={() => handleSessionClick(session.id)}
               >
