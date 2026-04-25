@@ -85,8 +85,8 @@ export interface TaskDetailDrawerProps {
 
 const statusOptionsFor = (task: { source?: string }): string[] => {
   const isReq = task.source === 'internal_request' || task.source === 'qtalk_extract';
-  if (isReq) return ['not_started','waiting','in_progress','reviewing','revision_requested','done_feedback','completed','canceled'];
-  return ['not_started','in_progress','reviewing','revision_requested','done_feedback','completed','canceled'];
+  if (isReq) return ['not_started','waiting','in_progress','reviewing','revision_requested','completed','canceled'];
+  return ['not_started','in_progress','reviewing','revision_requested','completed','canceled'];
 };
 
 const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
@@ -445,7 +445,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
           const submitAvailable = iAmAssignee && reviewers.length > 0 && (detailTask.status === 'in_progress' || detailTask.status === 'revision_requested');
           const cancelReviewAvailable = iAmAssignee && detailTask.status === 'reviewing';
           const completeSimple = iAmAssignee && reviewers.length === 0 && detailTask.status === 'in_progress';
-          const completeFinal = iAmAssignee && detailTask.status === 'done_feedback';
+          const completeFinal = false; // done_feedback 단계 폐지 — 컨펌 충족 시 자동 completed
           const assigneeHasAction = ackAvailable || startAvailable || submitAvailable || cancelReviewAvailable || completeSimple || completeFinal || (detailTask.status === 'reviewing' && reviewers.length > 0 && reviewPolicy === 'all');
           const reviewerCanAct = iAmReviewer && (detailTask.status === 'reviewing' || detailTask.status === 'revision_requested');
           const approvedCount = reviewers.filter(rv => rv.state === 'approved').length;
@@ -489,7 +489,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                     {statusLabel} ▾
                   </StatusBadge>
                   {detailTask.review_round != null && detailTask.review_round > 0 &&
-                    (detailTask.status === 'reviewing' || detailTask.status === 'revision_requested' || detailTask.status === 'done_feedback') &&
+                    (detailTask.status === 'reviewing' || detailTask.status === 'revision_requested') &&
                     <RoundBadge title={t('detail.reviewers.roundTip', 'Review round') as string}>R{detailTask.review_round}</RoundBadge>}
                   {statusOpen && (
                     <StatusDropdown data-dropdown="status-detail">
@@ -551,32 +551,51 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                       saveField('due_date', d);
                     }} />
                 </MetaCell>
-                <MetaCell>
-                  <MetaLabel>{t('detail.meta.est', '예측')}</MetaLabel>
-                  <MetaHourRow>
-                    <MetaNumInput defaultValue={detailTask.estimated_hours ?? ''} placeholder="-"
-                      onBlur={e => { const v = e.target.value === '' ? null : Number(e.target.value); if (v === null || !isNaN(v)) saveField('estimated_hours', v); }} />
-                    <MetaUnit>h</MetaUnit>
-                  </MetaHourRow>
-                </MetaCell>
-                <MetaCell>
-                  <MetaLabel>{t('detail.meta.act', '실제')}</MetaLabel>
-                  <MetaHourRow>
-                    <MetaNumInput defaultValue={detailTask.actual_hours ?? ''} placeholder="-"
-                      onBlur={e => { const v = e.target.value === '' ? null : Number(e.target.value); if (v === null || !isNaN(v)) saveField('actual_hours', v); }} />
-                    <MetaUnit>h</MetaUnit>
-                  </MetaHourRow>
-                </MetaCell>
+                {(() => {
+                  // 시간/진행율은 담당자만 수정 가능. 다른 역할은 read-only (참고용).
+                  const isAssignee = detailTask.assignee_id === myId;
+                  return (<>
+                    <MetaCell>
+                      <MetaLabel>{t('detail.meta.est', '예측')}</MetaLabel>
+                      <MetaHourRow>
+                        <MetaNumInput type="number" step="0.5" min="0"
+                          defaultValue={detailTask.estimated_hours ?? ''} placeholder="-"
+                          disabled={!isAssignee}
+                          title={isAssignee ? undefined : t('detail.meta.assigneeOnly', '담당자만 수정 가능 (참고용)') as string}
+                          onBlur={e => { const v = e.target.value === '' ? null : Number(e.target.value); if ((v === null || !isNaN(v)) && isAssignee) saveField('estimated_hours', v); }} />
+                        <MetaUnit>h</MetaUnit>
+                      </MetaHourRow>
+                    </MetaCell>
+                    <MetaCell>
+                      <MetaLabel>{t('detail.meta.act', '실제')}</MetaLabel>
+                      <MetaHourRow>
+                        <MetaNumInput type="number" step="0.5" min="0"
+                          defaultValue={detailTask.actual_hours ?? ''} placeholder="-"
+                          disabled={!isAssignee}
+                          title={isAssignee ? undefined : t('detail.meta.assigneeOnly', '담당자만 수정 가능 (참고용)') as string}
+                          onBlur={e => { const v = e.target.value === '' ? null : Number(e.target.value); if ((v === null || !isNaN(v)) && isAssignee) saveField('actual_hours', v); }} />
+                        <MetaUnit>h</MetaUnit>
+                      </MetaHourRow>
+                    </MetaCell>
+                  </>);
+                })()}
                 <MetaCell>
                   <MetaLabel>{t('detail.meta.progress', '진행')}</MetaLabel>
-                  <MetaProgressRow>
-                    <MetaRangeInput type="range" min="0" max="100" step="5" value={detailTask.progress_percent || 0}
-                      style={{ '--pq-fill': `${detailTask.progress_percent || 0}%` } as React.CSSProperties}
-                      onChange={e => { const v = Number(e.target.value); setDetailTask(prev => prev ? { ...prev, progress_percent: v } : prev); }}
-                      onMouseUp={e => saveField('progress_percent', Number((e.target as HTMLInputElement).value))}
-                      onTouchEnd={e => saveField('progress_percent', Number((e.target as HTMLInputElement).value))} />
-                    <MetaProgressPct>{detailTask.progress_percent || 0}%</MetaProgressPct>
-                  </MetaProgressRow>
+                  {(() => {
+                    const isAssignee = detailTask.assignee_id === myId;
+                    return (
+                      <MetaProgressRow>
+                        <MetaRangeInput type="range" min="0" max="100" step="5" value={detailTask.progress_percent || 0}
+                          disabled={!isAssignee}
+                          title={isAssignee ? undefined : t('detail.meta.assigneeOnly', '담당자만 수정 가능 (참고용)') as string}
+                          style={{ '--pq-fill': `${detailTask.progress_percent || 0}%` } as React.CSSProperties}
+                          onChange={e => { if (!isAssignee) return; const v = Number(e.target.value); setDetailTask(prev => prev ? { ...prev, progress_percent: v } : prev); }}
+                          onMouseUp={e => { if (isAssignee) saveField('progress_percent', Number((e.target as HTMLInputElement).value)); }}
+                          onTouchEnd={e => { if (isAssignee) saveField('progress_percent', Number((e.target as HTMLInputElement).value)); }} />
+                        <MetaProgressPct>{detailTask.progress_percent || 0}%</MetaProgressPct>
+                      </MetaProgressRow>
+                    );
+                  })()}
                 </MetaCell>
               </MetaGrid>
             </Section>
@@ -926,7 +945,14 @@ const DrawerNameChip = styled.span<{ $type: 'from' | 'to' | 'observer' | 'mine' 
 const MetaGrid = styled.div`display:grid;grid-template-columns:1.6fr 1fr 1fr 2fr;gap:10px;margin-top:12px;padding-top:12px;border-top:1px solid #F1F5F9;`;
 const MetaCell = styled.div`display:flex;flex-direction:column;gap:3px;min-width:0;`;
 const MetaLabel = styled.span`font-size:10px;font-weight:700;color:#94A3B8;text-transform:uppercase;letter-spacing:0.3px;`;
-const MetaNumInput = styled.input.attrs({ type: 'number', step: '0.5', min: '0' })`width:48px;font-size:13px;color:#0F172A;border:1px solid #E2E8F0;border-radius:5px;padding:3px 5px;font-family:inherit;&:focus{outline:none;border-color:#14B8A6;}`;
+const MetaNumInput = styled.input.attrs({ type: 'number', step: '0.5', min: '0' })`
+  width:48px;font-size:13px;color:#0F172A;border:1px solid #E2E8F0;border-radius:5px;padding:3px 5px;font-family:inherit;
+  &:focus{outline:none;border-color:#14B8A6;}
+  &:disabled{
+    color:#94A3B8;background:#F1F5F9;border:1px dashed #E2E8F0;cursor:not-allowed;font-weight:500;
+  }
+  &:disabled::-webkit-outer-spin-button,&:disabled::-webkit-inner-spin-button{display:none;}
+`;
 const MetaUnit = styled.span`font-size:11px;color:#94A3B8;`;
 const MetaHourRow = styled.div`display:flex;align-items:center;gap:4px;`;
 const MetaProgressRow = styled.div`display:flex;align-items:center;gap:8px;`;
@@ -938,6 +964,12 @@ const MetaRangeInput = styled.input`
   &::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:14px;height:14px;border-radius:50%;background:#FFF;border:2px solid #14B8A6;cursor:pointer;box-shadow:0 1px 2px rgba(0,0,0,0.1);}
   &::-moz-range-thumb{width:14px;height:14px;border-radius:50%;background:#FFF;border:2px solid #14B8A6;cursor:pointer;box-shadow:0 1px 2px rgba(0,0,0,0.1);}
   &::-moz-range-track{background:transparent;}
+  &:disabled{
+    cursor:not-allowed;opacity:0.5;
+    background:linear-gradient(to right,#94A3B8 0%,#94A3B8 var(--pq-fill,0%),#E2E8F0 var(--pq-fill,0%),#E2E8F0 100%);
+  }
+  &:disabled::-webkit-slider-thumb{border-color:#94A3B8;cursor:not-allowed;}
+  &:disabled::-moz-range-thumb{border-color:#94A3B8;cursor:not-allowed;}
 `;
 const DateTrigger = styled.button<{ $empty?: boolean }>`
   width:100%;padding:4px 6px;font-size:12px;font-weight:600;background:transparent;border:1px solid transparent;border-radius:6px;cursor:pointer;

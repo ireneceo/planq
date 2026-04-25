@@ -336,9 +336,36 @@ Respond in ${business.default_language === 'en' ? 'English' : 'Korean'}.`
   return result.content;
 }
 
+// ─── 문서 초안 생성 (Q docs D-3) ───
+// 사용자 prompt + 고객·워크스페이스 컨텍스트 → AI 가 HTML 본문 생성.
+// gpt-4o-mini 사용. CueUsage 'docs_generate' 카운터 증가.
+async function generateDocumentDraft(businessId, { systemPrompt, userPrompt, maxTokens = 2500 }) {
+  const usage = await checkUsageLimit(businessId);
+  if (usage.over) {
+    return { error: 'usage_limit_exceeded', usage };
+  }
+  const messages = [
+    { role: 'system', content: systemPrompt },
+    { role: 'user', content: userPrompt },
+  ];
+  const result = await callLLM(MODEL_MINI, messages, { temperature: 0.4, maxTokens });
+  if (result.fallback) {
+    return { error: 'llm_unavailable', fallback: true };
+  }
+  await recordUsage(businessId, 'docs_generate', MODEL_MINI, result.input_tokens, result.output_tokens);
+  const newUsage = await checkUsageLimit(businessId);
+  return {
+    content: result.content,
+    input_tokens: result.input_tokens,
+    output_tokens: result.output_tokens,
+    usage: newUsage,
+  };
+}
+
 module.exports = {
   respondToMessage,
   generateClientSummary,
+  generateDocumentDraft,
   checkUsageLimit,
   recordUsage,
   isSensitive,

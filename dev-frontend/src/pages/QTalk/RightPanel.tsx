@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
 import {
   type MockProject, type MockConversation, type MockTask, type MockNote, type MockIssue, type MockTaskCandidate,
   taskStatusLabel, taskStatusColor,
@@ -40,10 +41,20 @@ const RightPanel: React.FC<Props> = ({
   onAddIssue, onUpdateIssue, onDeleteIssue, onAddNote, onToggleTask,
 }) => {
   const { t } = useTranslation('qtalk');
+  const navigate = useNavigate();
   const { user } = useAuth();
   const { formatTimeAgo } = useTimeFormat();
   const isClient = user?.business_role === 'client';
   const myUserId = user ? Number(user.id) : -1;
+
+  // Q docs 빠른 진입 — 현재 대화 컨텍스트(client/project) prefill
+  const goNewDoc = () => {
+    const sp = new URLSearchParams();
+    sp.set('new', '1');
+    if (project?.id) sp.set('project', String(project.id));
+    if (activeConversationId) sp.set('conv', String(activeConversationId));
+    navigate(`/docs?${sp.toString()}`);
+  };
 
   // 섹션 초기 펼침 상태는 내용 유무 기반으로 아래 useEffect 에서 결정 (모두 접힌 상태로 시작 → count 있는 것만 auto expand)
   const [expanded, setExpanded] = useState<Record<Section, boolean>>({
@@ -221,7 +232,16 @@ const RightPanel: React.FC<Props> = ({
       )}
 
       <Scroll>
-        {/* 업무 후보 (있을 때만, 최상단) */}
+        {/* Q docs 빠른 진입 — 클라이언트 제외, 본인이 멤버일 때 노출 */}
+        {!isClient && (project || activeConversationId) && (
+          <QuickActionsRow>
+            <QuickActionBtn type="button" onClick={goNewDoc} title={t('right.docs.newHint', '이 대화 컨텍스트로 견적·청구·NDA 등 문서 작성') as string}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+              {t('right.docs.new', '+ 새 문서')}
+            </QuickActionBtn>
+          </QuickActionsRow>
+        )}
+        {/* 업무 후보 (있을 때만) */}
         {!isClient && candidates.length > 0 && (
           <CandidatesSection data-section="candidates">
             <CandidatesHeader>
@@ -723,6 +743,17 @@ const Scroll = styled.div`
   overflow-y: auto;
   &::-webkit-scrollbar { width: 6px; }
   &::-webkit-scrollbar-thumb { background: #E2E8F0; border-radius: 3px; }
+`;
+
+const QuickActionsRow = styled.div`
+  display: flex; gap: 6px; padding: 10px 12px 4px 12px;
+`;
+const QuickActionBtn = styled.button`
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 6px 10px; font-size: 12px; font-weight: 600; color: #0F766E;
+  background: #F0FDFA; border: 1px solid #14B8A6; border-radius: 8px; cursor: pointer;
+  &:hover { background: #14B8A6; color: #FFF; }
+  & svg { stroke-width: 2.5; }
 `;
 
 const CandidatesSection = styled.div`

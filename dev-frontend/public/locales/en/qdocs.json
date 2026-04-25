@@ -51,15 +51,106 @@
     "ai": "Start with AI",
     "template": "From template",
     "blank": "Blank",
-    "aiComing": "AI generation — coming soon",
-    "aiDesc": "Cue will analyze your client, project, and past data to create a draft in one click.",
+    "aiDesc": "Cue analyzes your client and project context to draft for you.",
+    "aiKind": "Document type",
+    "aiTitle": "Document title",
+    "aiTitlePh": "e.g. Brand renewal proposal for ACME",
+    "aiInput": "Additional requirements (optional)",
+    "aiInputPh": "Key points, deadline, budget, emphasis — anything you want reflected.",
+    "aiGenerate": "+ Generate with AI",
+    "aiGenerating": "Generating...",
+    "aiUsage": "This month: {{remaining}}/{{limit}} left",
+    "aiLimitExceeded": "Monthly AI quota used up. Upgrade plan or wait until next month.",
+    "aiFailed": "AI generation failed. Please try again shortly.",
     "noTemplates": "No templates available"
   },
   "common": {
+    "loading": "Loading...",
+    "cancel": "Cancel"
+  },
+  "templates": {
+    "btn": "Templates",
+    "openHint": "Start from one of 5 templates (quote/invoice/NDA/proposal/meeting)",
+    "modalTitle": "Start from a template",
+    "modalSub": "Content will be pre-filled. Edit freely and save.",
+    "searchPh": "Search templates (name·description·type)",
+    "noResult": "No results",
+    "system": "Built-in",
     "loading": "Loading..."
   },
+  "actions": {
+    "print": "Print / PDF",
+    "saveAsTemplate": "Save as template"
+  },
+  "saveTpl": {
+    "title": "Save as template",
+    "sub": "Save current content as a workspace template. Searchable when creating a new doc.",
+    "name": "Template name",
+    "namePh": "e.g. Our standard NDA",
+    "desc": "Description (optional)",
+    "descPh": "One-line summary",
+    "error": "Save failed. Please try again."
+  },
+  "editor": {
+    "loading": "Loading...",
+    "notFound": "Document not found",
+    "back": "Back",
+    "saving": "Saving...",
+    "saved": "Saved",
+    "saveError": "Save failed",
+    "title": "Edit {{kind}}",
+    "titlePlaceholder": "Document title",
+    "bodyPlaceholder": "Write content…",
+    "meta": "Meta",
+    "kind": "Type",
+    "status": "Status",
+    "client": "Client",
+    "project": "Project",
+    "upcoming": "Upcoming",
+    "upcomingPdf": "PDF · public link · signing — coming soon",
+    "bold": "Bold",
+    "italic": "Italic",
+    "strike": "Strikethrough",
+    "code": "Inline code",
+    "h1": "Heading 1",
+    "h2": "Heading 2",
+    "h3": "Heading 3",
+    "bullet": "Bullet list",
+    "ordered": "Numbered list",
+    "quote": "Quote",
+    "codeBlock": "Code block",
+    "link": "Link",
+    "linkPrompt": "URL (empty to remove):",
+    "image": "Insert image",
+    "table": "Insert table",
+    "undo": "Undo",
+    "redo": "Redo"
+  },
   "tab": {
-    "title": "Docs"
+    "title": "Docs",
+    "docs": "Documents",
+    "posts": "Board"
+  },
+  "btn": {
+    "new": "New document"
+  },
+  "editor": {
+    "loading": "Loading document...",
+    "notFound": "Document not found",
+    "back": "Back",
+    "saving": "Saving...",
+    "saved": "Saved",
+    "saveError": "Save failed",
+    "title": "Edit {{kind}}",
+    "titlePlaceholder": "Document title",
+    "bodyPlaceholder": "Write content…",
+    "meta": "Meta",
+    "kind": "Type",
+    "status": "Status",
+    "client": "Client",
+    "project": "Project",
+    "upcoming": "Upcoming (D-4)",
+    "upcomingPdf": "PDF · Public link · Signing — coming soon"
   },
   "new": "New",
   "edit": "Edit",
@@ -102,7 +193,8 @@
   "list": {
     "empty": "No documents yet",
     "createFirst": "Create first document",
-    "noContent": "(empty)"
+    "noContent": "(empty)",
+    "loading": "Loading..."
   },
   "filepicker": {
     "attachTitle": "Pick file(s) to attach"

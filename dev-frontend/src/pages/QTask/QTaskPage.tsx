@@ -562,9 +562,9 @@ const QTaskPage:React.FC=()=>{
   // 업무 종류별 선택 가능한 단계 목록
   const statusOptionsFor=(task:{source?:string}):string[]=>{
     const isReq=task.source==='internal_request'||task.source==='qtalk_extract';
-    if(isReq)return ['not_started','waiting','in_progress','reviewing','revision_requested','done_feedback','completed','canceled'];
+    if(isReq)return ['not_started','waiting','in_progress','reviewing','revision_requested','completed','canceled'];
     // 일반 업무 — waiting 제외
-    return ['not_started','in_progress','reviewing','revision_requested','done_feedback','completed','canceled'];
+    return ['not_started','in_progress','reviewing','revision_requested','completed','canceled'];
   };
   // 드롭다운 옵션 라벨 — not_started 가 요청 업무면 task_requested 라벨 사용
   const optionLabel=(task:{source?:string;request_ack_at?:string|null},status:string,role:string):string=>{
@@ -636,7 +636,7 @@ const QTaskPage:React.FC=()=>{
           // 2) 내가 행동해야 하는 것 + 완료 옵션
           const ds=displayStatus(t,todayStr);
           if(t.assignee_id===myId){
-            if(['task_requested','waiting','in_progress','revision_requested','done_feedback'].includes(ds))return true;
+            if(['task_requested','waiting','in_progress','revision_requested'].includes(ds))return true;
           }
           const myRev=t.reviewers?.find(rv=>rv.user_id===myId);
           if(myRev&&myRev.state==='pending'&&(t.status==='reviewing'||t.status==='revision_requested'))return true;
@@ -714,26 +714,33 @@ const QTaskPage:React.FC=()=>{
     itemSelector:(id)=>`[data-qtask-row="${id}"]`,
   });
 
-  // Summary — 본인 처리 시간(myEst) 과 의뢰한 시간(reqEst) 분리.
-  // 사용자: "요청자의 시간과 담당자의 시간이 달라" — 본인 가용시간엔 myEst 만 잡힘.
+  // Summary — 시간/진행율은 담당자만 입력. 합산 정책:
+  //  mine 뷰: 본인이 assignee 인 task 만 합산 (= 본인이 직접 처리하는 시간)
+  //  workspace 뷰: 모든 task 의 담당자 시간 합산
+  // 다른 담당자의 시간은 화면 task 행에 참고용으로 표시 (read-only).
   const summary=useMemo(()=>{
-    let myEst=0,reqEst=0,act=0;
+    let est=0,act=0;
     for(const t of filtered){
       if(t.status==='canceled') continue;
-      const e=Number(t.estimated_hours)||0;
-      const a=Number(t.actual_hours)||0;
-      act+=a;
-      if(t.assignee_id===myId) myEst+=e;
-      else if(t.request_by_user_id===myId||t.created_by===myId) reqEst+=e;
+      if(scope==='workspace'){
+        est += Number(t.estimated_hours)||0;
+        act += Number(t.actual_hours)||0;
+      }else{
+        // mine: 내가 담당자인 것만
+        if(t.assignee_id===myId){
+          est += Number(t.estimated_hours)||0;
+          act += Number(t.actual_hours)||0;
+        }
+      }
     }
     return {
       count: filtered.length,
-      myEst: Math.round(myEst*10)/10,
-      reqEst: Math.round(reqEst*10)/10,
-      est: Math.round((myEst+reqEst)*10)/10,
+      myEst: Math.round(est*10)/10,
+      reqEst: 0,
+      est: Math.round(est*10)/10,
       act: Math.round(act*10)/10,
     };
-  },[filtered,myId]);
+  },[filtered,myId,scope]);
 
   // 탭 뱃지 카운트 — "내 할 일" 기준
   // - 받은 업무요청에서 내 할 일: assignee=me && action-pending (task_requested 미ack 또는 revision_requested)
@@ -958,10 +965,13 @@ const QTaskPage:React.FC=()=>{
             {tab!=='week' && <HideCheck><input type="checkbox" checked={hideCompleted} onChange={e=>setHideCompleted(e.target.checked)} />{t('filter.hideCompleted','Hide completed')}</HideCheck>}
             {tab==='week' && <HideCheck><input type="checkbox" checked={hideCompletedInWeek} onChange={e=>setHideCompletedInWeek(e.target.checked)} />{t('filter.hideCompleted','Hide completed')}</HideCheck>}
             <ChipRow>
-              <Chip>{summary.count}{t('summary.unit','tasks')}</Chip>
-              <Chip $teal title={t('summary.myEstHint','내가 직접 처리할 시간 (가용시간에 합산)') as string}>내 가용 {formatHours(summary.myEst)}h</Chip>
-              {summary.reqEst>0 && <Chip title={t('summary.reqEstHint','내가 의뢰한 시간 — 담당자의 가용시간으로 분리됨') as string}>의뢰 {formatHours(summary.reqEst)}h</Chip>}
-              <Chip $coral>실제 {formatHours(summary.act)}h</Chip>
+              <Chip>{summary.count}{t('summary.unit','개')}</Chip>
+              <Chip $teal title={t('summary.predictCapHint','내가 담당자인 task 의 예측시간 합 / 주간 가용시간') as string}>
+                {scope==='workspace'
+                  ? t('summary.workspacePredict', { est: formatHours(summary.myEst) })
+                  : t('summary.predictCap', { est: formatHours(summary.myEst), cap: formatHours(effectiveCapacity) })}
+              </Chip>
+              <Chip $coral>{t('summary.actual', { act: formatHours(summary.act) })}</Chip>
             </ChipRow>
             <HeaderAddBtn type="button" onClick={()=>{
               setAddInline(false);                 // 우측 상단 = panel 모드
@@ -977,9 +987,10 @@ const QTaskPage:React.FC=()=>{
             {tab==='week' && <Col $w="30px" $center onClick={()=>handleSort('priority_order')}>#{sortIcon('priority_order')}</Col>}
             <Col $w="80px" $hideBelow={640} onClick={()=>handleSort('title')}>{t('col.project','Project')}</Col>
             <Col $flex onClick={()=>handleSort('title')}>{t('col.task','Task')} {sortIcon('title')}</Col>
+            {scope==='workspace' && <Col $w="90px" $hideBelow={768}>{t('col.assignee','담당자')}</Col>}
             <Col $w="68px" $center onClick={()=>handleSort('status')}>{t('col.status','Status')} {sortIcon('status')}</Col>
-            <Col $w="48px" $center $hideBelow={900} onClick={()=>handleSort('estimated_hours')}>{t('col.est','Est(h)')} {sortIcon('estimated_hours')}</Col>
-            <Col $w="48px" $center $hideBelow={900} onClick={()=>handleSort('actual_hours')}>{t('col.act','Act(h)')} {sortIcon('actual_hours')}</Col>
+            <Col $w="62px" $center $hideBelow={900} onClick={()=>handleSort('estimated_hours')}>{t('col.est','Est(h)')} {sortIcon('estimated_hours')}</Col>
+            <Col $w="62px" $center $hideBelow={900} onClick={()=>handleSort('actual_hours')}>{t('col.act','Act(h)')} {sortIcon('actual_hours')}</Col>
             <Col $w="130px" $center $hideBelow={1024} onClick={()=>handleSort('progress_percent')}>{t('col.progress','Progress')} {sortIcon('progress_percent')}</Col>
             <Col $w="140px" $center $hideBelow={768} onClick={()=>handleSort('due_date')}>{t('col.dates','시작 ~ 마감')} {sortIcon('due_date')}</Col>
           </ColRow>
@@ -1032,6 +1043,9 @@ const QTaskPage:React.FC=()=>{
                           {task.title}
                         </TaskTitle>
                         {(() => {
+                          // workspace 뷰는 담당자 컬럼이 별도로 있어 chip 중복 → 표시 안 함.
+                          // mine 뷰만 본인 관계 표시 (요청자/내가 의뢰한 담당자 등)
+                          if(scope==='workspace') return null;
                           // 내가 받은 요청 → 요청자 (로즈)
                           if(task.assignee_id===myId&&(task.source==='internal_request'||task.source==='qtalk_extract')&&task.requester?.name){
                             return <NameChip $type="from" title={t('chip.fromRequester','Requester') as string}>{task.requester.name}</NameChip>;
@@ -1039,10 +1053,6 @@ const QTaskPage:React.FC=()=>{
                           // 내가 보낸 요청 → 담당자 (티일)
                           if((task.request_by_user_id===myId||task.created_by===myId)&&task.assignee?.name&&task.assignee_id!==myId){
                             return <NameChip $type="to" title={t('chip.toAssignee','My requestee') as string}>{task.assignee.name}</NameChip>;
-                          }
-                          // 타인 담당 업무 → 담당자 (그레이, 워크스페이스 뷰)
-                          if(task.assignee?.name&&task.assignee_id!==myId){
-                            return <NameChip $type="observer" title={t('chip.assignee','Assignee') as string}>{task.assignee.name}</NameChip>;
                           }
                           return null;
                         })()}
@@ -1055,6 +1065,11 @@ const QTaskPage:React.FC=()=>{
                         </DetailBtn>
                       </>)}
                     </TCell>
+                    {scope==='workspace' && (
+                      <TCell $w="90px" $hideBelow={768}>
+                        <AssigneeText title={task.assignee?.name || ''}>{task.assignee?.name || '-'}</AssigneeText>
+                      </TCell>
+                    )}
                     <TCell $w="68px" $center style={{position:'relative',overflow:'visible'}}>
                       <StatusPill $bg={sc.bg} $fg={sc.fg} $clickable
                         onClick={e=>{e.stopPropagation();setStatusDropdownId(statusDropdownId===task.id?null:task.id);}}
@@ -1070,30 +1085,52 @@ const QTaskPage:React.FC=()=>{
                         </StatusDropdown>
                       )}
                     </TCell>
-                    <TCell $w="48px" $center $hideBelow={900}>
-                      <NumInput key={`e${task.id}-${task.estimated_hours}`}
-                        defaultValue={task.estimated_hours!=null?formatHours(task.estimated_hours):''} placeholder="-"
-                        onClick={e=>e.stopPropagation()}
-                        onBlur={e=>{const v=Number(e.target.value);if(!isNaN(v)){saveField(task.id,'estimated_hours',v);(e.target as HTMLInputElement).value=formatHours(v);}}}
-                        onKeyDown={e=>{if(e.key==='Enter')(e.target as HTMLInputElement).blur();}} />
-                    </TCell>
-                    <TCell $w="48px" $center $hideBelow={900}>
-                      <NumInput key={`a${task.id}-${task.actual_hours}`}
-                        defaultValue={task.actual_hours?formatHours(task.actual_hours):''} placeholder="-"
-                        onClick={e=>e.stopPropagation()}
-                        onBlur={e=>{const v=Number(e.target.value);if(!isNaN(v)){saveField(task.id,'actual_hours',v);(e.target as HTMLInputElement).value=formatHours(v);}}}
-                        onKeyDown={e=>{if(e.key==='Enter')(e.target as HTMLInputElement).blur();}} />
-                    </TCell>
+                    {(() => {
+                      // 시간 컬럼 — task당 1쌍 (담당자 시간). 모든 사용자가 같은 값을 본다.
+                      // 편집은 담당자 본인만 가능. 다른 역할은 read-only (참고용).
+                      const e = Number(task.estimated_hours)||0;
+                      const a = Number(task.actual_hours)||0;
+                      const editable = task.assignee_id===myId;
+                      return (<>
+                        <TCell $w="62px" $center $hideBelow={900}>
+                          <NumInput key={`e${task.id}-${e}`}
+                            type="number" step="0.5" min="0"
+                            defaultValue={e?formatHours(e):''} placeholder="-"
+                            disabled={!editable}
+                            title={editable?undefined:t('list.notMyHours','담당자만 수정 가능 (참고용)') as string}
+                            onClick={ev=>ev.stopPropagation()}
+                            onBlur={ev=>{const v=Number(ev.target.value);if(!isNaN(v)&&editable){saveField(task.id,'estimated_hours',v);(ev.target as HTMLInputElement).value=formatHours(v);}}}
+                            onKeyDown={ev=>{if(ev.key==='Enter')(ev.target as HTMLInputElement).blur();}} />
+                        </TCell>
+                        <TCell $w="62px" $center $hideBelow={900}>
+                          <NumInput key={`a${task.id}-${a}`}
+                            type="number" step="0.5" min="0"
+                            defaultValue={a?formatHours(a):''} placeholder="-"
+                            disabled={!editable}
+                            title={editable?undefined:t('list.notMyHours','담당자만 수정 가능 (참고용)') as string}
+                            onClick={ev=>ev.stopPropagation()}
+                            onBlur={ev=>{const v=Number(ev.target.value);if(!isNaN(v)&&editable){saveField(task.id,'actual_hours',v);(ev.target as HTMLInputElement).value=formatHours(v);}}}
+                            onKeyDown={ev=>{if(ev.key==='Enter')(ev.target as HTMLInputElement).blur();}} />
+                        </TCell>
+                      </>);
+                    })()}
                     <TCell $w="130px" $hideBelow={1024}>
-                      <SliderWrap>
-                        <SliderTrack><SliderFill $w={prog} $color={sliderColor()} /></SliderTrack>
-                        <SliderRange type="range" min="0" max="100" step="5" value={prog}
-                          onClick={e=>e.stopPropagation()}
-                          onChange={e=>setAllTasks(prev=>prev.map(x=>x.id===task.id?{...x,progress_percent:Number(e.target.value)}:x))}
-                          onMouseUp={e=>saveField(task.id,'progress_percent',Number((e.target as HTMLInputElement).value))}
-                          onTouchEnd={e=>saveField(task.id,'progress_percent',Number((e.target as HTMLInputElement).value))} />
-                        <SliderPct>{prog}%</SliderPct>
-                      </SliderWrap>
+                      {(() => {
+                        const progEditable = task.assignee_id===myId;
+                        return (
+                          <SliderWrap $disabled={!progEditable}>
+                            <SliderTrack><SliderFill $w={prog} $color={sliderColor()} /></SliderTrack>
+                            <SliderRange type="range" min="0" max="100" step="5" value={prog}
+                              disabled={!progEditable}
+                              title={progEditable?undefined:t('list.notMyProgress','담당자만 수정 가능 (참고용)') as string}
+                              onClick={e=>e.stopPropagation()}
+                              onChange={e=>{ if(!progEditable) return; setAllTasks(prev=>prev.map(x=>x.id===task.id?{...x,progress_percent:Number(e.target.value)}:x)); }}
+                              onMouseUp={e=>{ if(progEditable) saveField(task.id,'progress_percent',Number((e.target as HTMLInputElement).value)); }}
+                              onTouchEnd={e=>{ if(progEditable) saveField(task.id,'progress_percent',Number((e.target as HTMLInputElement).value)); }} />
+                            <SliderPct>{prog}%</SliderPct>
+                          </SliderWrap>
+                        );
+                      })()}
                     </TCell>
                     <TCell $w="140px" $center $hideBelow={768}>
                       <DateRangeCell start={task.start_date} due={task.due_date}
@@ -1187,10 +1224,12 @@ const QTaskPage:React.FC=()=>{
                       onClose={()=>setNewDuePickerOpen(false)} />
                   )}
                 </AddOptField>
-                <AddOptField style={{flex:'0 0 90px'}}>
-                  <AddOptLabel>{t('add.estHours','예측(h)')}</AddOptLabel>
-                  <AddDateInput type="number" step="0.5" min="0" placeholder="-" value={newEstHours} onChange={e=>setNewEstHours(e.target.value)} />
-                </AddOptField>
+                {(newAssignee==null || newAssignee===myId) && (
+                  <AddOptField style={{flex:'0 0 90px'}}>
+                    <AddOptLabel>{t('add.estHours','예측(h)')}</AddOptLabel>
+                    <AddDateInput type="number" step="0.5" min="0" placeholder="-" value={newEstHours} onChange={e=>setNewEstHours(e.target.value)} />
+                  </AddOptField>
+                )}
               </AddOptRow>
               <AddTextArea rows={2} placeholder={t('add.descPlaceholder','설명 (선택)')}
                 value={newDescription} onChange={e=>setNewDescription(e.target.value)} />
@@ -1223,8 +1262,6 @@ const QTaskPage:React.FC=()=>{
                       match:(x)=>x.assignee_id===myId&&displayStatus(x,todayStr)==='in_progress' },
                     { key:'revision', title:t('columnGroup.revision_requested','수정필요'), color:STATUS_COLOR.revision_requested,
                       match:(x)=>x.assignee_id===myId&&displayStatus(x,todayStr)==='revision_requested' },
-                    { key:'wrapup', title:t('columnGroup.done_feedback','마무리 대기'), color:STATUS_COLOR.done_feedback,
-                      match:(x)=>x.assignee_id===myId&&displayStatus(x,todayStr)==='done_feedback' },
                   ];
                 } else if (scope === 'mine' && tab === 'requested') {
                   // 요청자 관점
@@ -1239,8 +1276,6 @@ const QTaskPage:React.FC=()=>{
                       match:(x)=>x.status==='reviewing' },
                     { key:'revision_self', title:t('columnGroup.revision_self','수정중'), color:STATUS_COLOR.revision_requested,
                       match:(x)=>x.status==='revision_requested' },
-                    { key:'wrapup', title:t('columnGroup.done_feedback','마무리 대기'), color:STATUS_COLOR.done_feedback,
-                      match:(x)=>x.status==='done_feedback' },
                     { key:'completed', title:t('columnGroup.completed','완료'), color:STATUS_COLOR.completed,
                       match:(x)=>x.status==='completed' },
                   ];
@@ -1259,8 +1294,6 @@ const QTaskPage:React.FC=()=>{
                       match:(x)=>x.status==='reviewing' },
                     { key:'revision_obs', title:t('columnGroup.revision_obs','수정요청'), color:STATUS_COLOR.revision_requested,
                       match:(x)=>x.status==='revision_requested' },
-                    { key:'wrapup', title:t('columnGroup.done_feedback','마무리 대기'), color:STATUS_COLOR.done_feedback,
-                      match:(x)=>x.status==='done_feedback' },
                     { key:'completed', title:t('columnGroup.completed','완료'), color:STATUS_COLOR.completed,
                       match:(x)=>x.status==='completed' },
                   ];
@@ -1706,10 +1739,12 @@ const QTaskPage:React.FC=()=>{
                     />
                   )}
                 </AddOptField>
-                <AddOptField style={{flex:'0 0 90px'}}>
-                  <AddOptLabel>{t('add.estHours','예측(h)')}</AddOptLabel>
-                  <AddDateInput type="number" step="0.5" min="0" placeholder="-" value={newEstHours} onChange={e=>setNewEstHours(e.target.value)} />
-                </AddOptField>
+                {(newAssignee==null || newAssignee===myId) && (
+                  <AddOptField style={{flex:'0 0 90px'}}>
+                    <AddOptLabel>{t('add.estHours','예측(h)')}</AddOptLabel>
+                    <AddDateInput type="number" step="0.5" min="0" placeholder="-" value={newEstHours} onChange={e=>setNewEstHours(e.target.value)} />
+                  </AddOptField>
+                )}
               </AddOptRow>
               <AddTextArea rows={3} placeholder={t('add.descPlaceholder','설명 (선택)')}
                 value={newDescription} onChange={e=>setNewDescription(e.target.value)} />
@@ -1805,12 +1840,37 @@ const PrioNum=styled.button<{$active?:boolean;$disabled?:boolean}>`
   `}
 `;
 const PrioEmpty=styled.span`display:block;width:6px;height:6px;border-radius:50%;background:#E2E8F0;`;
-const NumInput=styled.input`width:36px;text-align:center;font-size:13px;font-weight:600;color:#0F172A;border:1px solid transparent;background:transparent;padding:3px 2px;border-radius:5px;&:focus{outline:none;background:#F0FDFA;border-color:#14B8A6;}&::placeholder{color:#CBD5E1;}`;
+const AssigneeText=styled.span`
+  display:block;font-size:13px;color:#0F172A;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+`;
+const NumInput=styled.input`
+  width:54px;text-align:center;font-size:13px;font-weight:600;color:#0F172A;
+  border:1px solid transparent;background:transparent;padding:3px 2px;border-radius:5px;
+  -moz-appearance:textfield;
+  &:focus{outline:none;background:#F0FDFA;border-color:#14B8A6;}
+  &::placeholder{color:#CBD5E1;}
+  &::-webkit-outer-spin-button,&::-webkit-inner-spin-button{
+    -webkit-appearance:inner-spin-button;opacity:0.55;height:18px;cursor:pointer;
+  }
+  &:hover::-webkit-inner-spin-button,&:focus::-webkit-inner-spin-button{opacity:1;}
+  &:disabled{
+    color:#94A3B8;
+    background:#F1F5F9;
+    border:1px dashed #E2E8F0;
+    cursor:not-allowed;
+    font-weight:500;
+  }
+  &:disabled::-webkit-outer-spin-button,&:disabled::-webkit-inner-spin-button{display:none;}
+`;
 
-const SliderWrap=styled.div`display:flex;align-items:center;gap:6px;width:100%;position:relative;`;
+const SliderWrap=styled.div<{$disabled?:boolean}>`
+  display:flex;align-items:center;gap:6px;width:100%;position:relative;
+  ${p=>p.$disabled && `opacity:0.5;cursor:not-allowed;`}
+`;
 const SliderTrack=styled.div`flex:1;height:6px;background:#F1F5F9;border-radius:3px;overflow:hidden;`;
 const SliderFill=styled.div<{$w:number;$color:string}>`height:100%;width:${p=>p.$w}%;background:${p=>p.$color};border-radius:3px;`;
-const SliderRange=styled.input`position:absolute;left:0;top:-4px;width:calc(100% - 40px);height:18px;opacity:0;cursor:pointer;`;
+const SliderRange=styled.input`position:absolute;left:0;top:-4px;width:calc(100% - 40px);height:18px;opacity:0;cursor:pointer;&:disabled{cursor:not-allowed;}`;
 const SliderPct=styled.span`font-size:12px;font-weight:700;color:#475569;min-width:32px;text-align:right;`;
 
 const DateTrigger=styled.button<{$color?:string;$empty?:boolean}>`

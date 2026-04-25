@@ -1,6 +1,6 @@
-// Q docs — 워크스페이스 전역 문서 허브 (Q Note 와 동일 레이아웃 패턴)
-// PostsPage 가 자체 Layout(Sidebar + Content + PanelHeader) 관리. PageShell 사용 안 함.
-import React from 'react';
+// Q docs — 워크스페이스 전역 문서 허브 (PostsPage 사용)
+// 템플릿/AI 기능은 PostsPage 안의 "새 글" 진입에 흡수됨.
+import React, { useMemo } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import PostsPage from '../../components/Docs/PostsPage';
@@ -11,17 +11,20 @@ const QDocsPage: React.FC = () => {
   const { user } = useAuth();
   const businessId = user?.business_id;
 
-  if (!businessId) {
-    return (
-      <Fallback>
-        {t('page.noWorkspace', '워크스페이스를 먼저 선택하세요')}
-      </Fallback>
-    );
+  // scope 객체는 useMemo 로 안정화 — props 가 매 렌더 새 객체면 PostsPage 의
+  // useCallback(load, [scope]) 가 매번 재생성되어 fetchPosts 무한 호출 → 에디터 unmount/remount.
+  const scope = useMemo(
+    () => (businessId ? { type: 'workspace' as const, businessId: Number(businessId) } : null),
+    [businessId]
+  );
+
+  if (!scope) {
+    return <Fallback>{t('page.noWorkspace', '워크스페이스를 먼저 선택하세요')}</Fallback>;
   }
 
   return (
     <FullHeight>
-      <PostsPage scope={{ type: 'workspace', businessId }} />
+      <PostsPage scope={scope} />
     </FullHeight>
   );
 };

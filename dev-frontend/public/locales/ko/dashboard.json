@@ -41,7 +41,8 @@
       "revise": "수정 재제출",
       "attend": "오늘 미팅",
       "respond": "응답 대기",
-      "accept": "수락 대기",
+      "accept": "업무 후보 — 수락 대기",
+      "assign": "업무 후보 — 담당자 지정 필요",
       "read": "새 멘션"
     },
     "dueLabel": {

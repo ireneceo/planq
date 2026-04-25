@@ -6,7 +6,7 @@ import styled from 'styled-components';
 import { useEscapeStack } from '../../hooks/useEscapeStack';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import {
-  createDocument, KIND_LABELS_KO, KIND_ICON,
+  createDocument, aiGenerateDoc, KIND_LABELS_KO, KIND_ICON,
   type DocTemplate, type DocSummary, type DocKind,
 } from '../../services/docs';
 
@@ -21,12 +21,51 @@ interface Props {
 const NewDocumentModal: React.FC<Props> = ({ open, onClose, templates, businessId, onCreated }) => {
   const { t } = useTranslation('qdocs');
   const [busy, setBusy] = useState(false);
-  const [tab, setTab] = useState<'ai' | 'template' | 'blank'>('template');
+  const [tab, setTab] = useState<'ai' | 'template' | 'blank'>('ai');
+
+  // AI 모드 입력
+  const [aiKind, setAiKind] = useState<DocKind>('proposal');
+  const [aiTitle, setAiTitle] = useState('');
+  const [aiUserInput, setAiUserInput] = useState('');
+  const [aiError, setAiError] = useState<string | null>(null);
+  const [aiUsage, setAiUsage] = useState<{ remaining: number; limit: number } | null>(null);
 
   useEscapeStack(open, onClose);
   useBodyScrollLock(open);
 
   if (!open) return null;
+
+  const startAi = async () => {
+    if (busy || !aiTitle.trim()) return;
+    setBusy(true); setAiError(null);
+    try {
+      const tpl = templates.find(x => x.kind === aiKind && x.is_system) || null;
+      const ai = await aiGenerateDoc({
+        business_id: businessId, kind: aiKind, title: aiTitle.trim(),
+        user_input: aiUserInput.trim(), template_id: tpl?.id || null,
+      });
+      setAiUsage(ai.usage);
+      // AI 결과를 body_json 으로 변환 — 단순화: HTML 만 doc 생성 시 body_html 로 우회
+      const doc = await createDocument({
+        business_id: businessId, template_id: tpl?.id || null, kind: aiKind, title: aiTitle.trim(),
+        body_json: { type: 'doc', content: [] },  // 빈 JSON, body_html 은 백엔드에서 별도 set
+      });
+      // body_html 별도 PUT (createDocument 가 body_html 을 클라이언트에서 받지 않으므로)
+      const { updateDocument } = await import('../../services/docs');
+      await updateDocument(doc.id, { body_html: ai.body_html, ai_generated: true } as Parameters<typeof updateDocument>[1]);
+      onCreated({ ...doc, ai_generated: true } as DocSummary);
+    } catch (e: unknown) {
+      const err = e as Error & { usage?: { remaining: number; limit: number } };
+      if (err.message === 'cue_limit_exceeded') {
+        setAiUsage(err.usage || null);
+        setAiError(t('newModal.aiLimitExceeded', '월 한도를 사용했습니다. 플랜 업그레이드 또는 다음달까지 대기.') as string);
+      } else {
+        setAiError(t('newModal.aiFailed', 'AI 생성 실패. 잠시 후 다시 시도하세요.') as string);
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const start = async (tpl: DocTemplate | null, kind?: DocKind) => {
     if (busy) return;
@@ -69,12 +108,38 @@ const NewDocumentModal: React.FC<Props> = ({ open, onClose, templates, businessI
         </TabBar>
         <Body>
           {tab === 'ai' && (
-            <AIStub>
-              <AIIcon>✨</AIIcon>
-              <AITitle>{t('newModal.aiComing', 'AI 자동 작성 — 곧 제공됩니다')}</AITitle>
-              <AIDesc>{t('newModal.aiDesc', 'Cue 가 고객·프로젝트·과거 데이터를 분석하여 한 번에 초안을 만들어 드립니다.')}</AIDesc>
-              <AISmall>Phase D-3 (예정)</AISmall>
-            </AIStub>
+            <AIForm>
+              <AIDesc>{t('newModal.aiDesc', 'Cue 가 고객·프로젝트 컨텍스트를 분석하여 초안을 만들어 드립니다.')}</AIDesc>
+              <FieldRow>
+                <FieldLabel>{t('newModal.aiKind', '문서 종류')}</FieldLabel>
+                <KindGrid>
+                  {(['proposal','quote','invoice','nda','contract','meeting_note','sop','custom'] as DocKind[]).map(k => (
+                    <KindOpt key={k} type="button" $active={aiKind===k} onClick={() => setAiKind(k)}>
+                      <span>{KIND_ICON[k]}</span> {KIND_LABELS_KO[k]}
+                    </KindOpt>
+                  ))}
+                </KindGrid>
+              </FieldRow>
+              <FieldRow>
+                <FieldLabel>{t('newModal.aiTitle', '문서 제목')}</FieldLabel>
+                <FieldInput type="text" value={aiTitle} onChange={e => setAiTitle(e.target.value)}
+                  placeholder={t('newModal.aiTitlePh', '예: 워프로랩 브랜드 리뉴얼 제안서') as string} />
+              </FieldRow>
+              <FieldRow>
+                <FieldLabel>{t('newModal.aiInput', '추가 요구사항 (선택)')}</FieldLabel>
+                <FieldTextarea value={aiUserInput} onChange={e => setAiUserInput(e.target.value)}
+                  rows={4}
+                  placeholder={t('newModal.aiInputPh', '핵심 요지·납기·예산·강조하고 싶은 점 등을 자유롭게 입력하면 반영됩니다.') as string} />
+              </FieldRow>
+              {aiError && <ErrorMsg>{aiError}</ErrorMsg>}
+              {aiUsage && <UsageHint>{t('newModal.aiUsage', { remaining: aiUsage.remaining, limit: aiUsage.limit, defaultValue: '이번 달 남은 횟수: {{remaining}}/{{limit}}' })}</UsageHint>}
+              <FormActions>
+                <CancelBtn type="button" onClick={onClose}>{t('common.cancel', '취소')}</CancelBtn>
+                <GenerateBtn type="button" onClick={startAi} disabled={busy || !aiTitle.trim()}>
+                  {busy ? t('newModal.aiGenerating', '생성 중...') : t('newModal.aiGenerate', '+ AI 로 작성하기')}
+                </GenerateBtn>
+              </FormActions>
+            </AIForm>
           )}
           {tab === 'template' && (
             <TemplateGrid>
@@ -154,24 +219,44 @@ const TabBtn = styled.button<{ $active: boolean }>`
 const Body = styled.div`
   flex: 1; overflow-y: auto; padding: 20px;
 `;
-const AIStub = styled.div`
-  display: flex; flex-direction: column; align-items: center;
-  text-align: center; padding: 40px 20px;
+const AIForm = styled.div`display:flex;flex-direction:column;gap:14px;`;
+const AIDesc = styled.div`font-size:12px;color:#64748B;line-height:1.5;`;
+const FieldRow = styled.div`display:flex;flex-direction:column;gap:6px;`;
+const FieldLabel = styled.label`font-size:12px;font-weight:600;color:#0F172A;`;
+const FieldInput = styled.input`
+  width:100%;padding:8px 10px;font-size:13px;color:#0F172A;
+  border:1px solid #E2E8F0;border-radius:8px;background:#FFF;
+  &:focus{outline:none;border-color:#14B8A6;}
+  &::placeholder{color:#CBD5E1;}
 `;
-const AIIcon = styled.div`
-  font-size: 48px; margin-bottom: 16px;
+const FieldTextarea = styled.textarea`
+  width:100%;padding:8px 10px;font-size:13px;color:#0F172A;line-height:1.5;
+  border:1px solid #E2E8F0;border-radius:8px;background:#FFF;font-family:inherit;resize:vertical;
+  &:focus{outline:none;border-color:#14B8A6;}
+  &::placeholder{color:#CBD5E1;}
 `;
-const AITitle = styled.div`
-  font-size: 14px; font-weight: 700; color: #0F172A;
-  margin-bottom: 8px;
+const KindGrid = styled.div`display:grid;grid-template-columns:repeat(4,1fr);gap:6px;@media(max-width:520px){grid-template-columns:repeat(2,1fr);}`;
+const KindOpt = styled.button<{ $active: boolean }>`
+  display:flex;align-items:center;gap:5px;padding:7px 10px;font-size:12px;font-weight:600;
+  border:1px solid ${p=>p.$active ? '#14B8A6' : '#E2E8F0'};
+  background:${p=>p.$active ? '#F0FDFA' : '#FFF'};
+  color:${p=>p.$active ? '#0F766E' : '#334155'};
+  border-radius:8px;cursor:pointer;
+  &:hover{border-color:#14B8A6;}
 `;
-const AIDesc = styled.div`
-  font-size: 12px; color: #64748B; line-height: 1.5;
-  max-width: 360px; margin-bottom: 12px;
+const ErrorMsg = styled.div`font-size:12px;color:#DC2626;background:#FEF2F2;padding:8px 10px;border-radius:6px;`;
+const UsageHint = styled.div`font-size:11px;color:#94A3B8;text-align:right;`;
+const FormActions = styled.div`display:flex;justify-content:flex-end;gap:8px;margin-top:4px;`;
+const CancelBtn = styled.button`
+  padding:8px 14px;font-size:13px;font-weight:600;color:#334155;
+  background:#FFF;border:1px solid #E2E8F0;border-radius:8px;cursor:pointer;
+  &:hover{border-color:#CBD5E1;}
 `;
-const AISmall = styled.div`
-  font-size: 10px; font-weight: 700; color: #94A3B8;
-  text-transform: uppercase; letter-spacing: 0.5px;
+const GenerateBtn = styled.button`
+  padding:8px 16px;font-size:13px;font-weight:700;color:#FFF;
+  background:#14B8A6;border:none;border-radius:8px;cursor:pointer;
+  &:hover:not(:disabled){background:#0D9488;}
+  &:disabled{background:#CBD5E1;cursor:not-allowed;}
 `;
 const TemplateGrid = styled.div`
   display: grid; gap: 10px;

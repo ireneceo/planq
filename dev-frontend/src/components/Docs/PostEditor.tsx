@@ -33,6 +33,9 @@ const PostEditor: React.FC<Props> = ({ value, onChange, placeholder, editable = 
     extensions: [
       StarterKit.configure({
         heading: { levels: [1, 2, 3] },
+        // TipTap v3 StarterKit 가 Link 를 자체 포함 → 별도 Link 와 mark 중복.
+        // SK 의 Link 비활성 (콘솔: "Duplicate extension names found: ['link']")
+        link: false,
       }),
       Placeholder.configure({ placeholder: placeholder || '본문을 작성하세요…' }),
       Link.configure({ openOnClick: false, HTMLAttributes: { rel: 'noopener noreferrer', target: '_blank' } }),
@@ -164,6 +167,8 @@ export default PostEditor;
 const Wrap = styled.div`
   background: #fff; border: 1px solid #E2E8F0; border-radius: 12px; overflow: hidden;
   display: flex; flex-direction: column;
+  flex-shrink: 0;           /* 부모 flex column 에서 줄어들지 않도록 — height 0 으로 사라지는 문제 방지 */
+  min-height: 280px;        /* 본문 영역 최소 280px (Toolbar 40 + Body 240) */
 `;
 const Toolbar = styled.div`
   display: flex; align-items: center; gap: 2px; padding: 6px 8px;

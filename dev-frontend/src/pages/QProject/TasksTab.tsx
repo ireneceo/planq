@@ -164,10 +164,12 @@ const TasksTab: React.FC<Props> = ({ projectId, businessId, tasks, onRefresh }) 
             />
           )}
         </AddOptField>
-        <AddOptField style={{ flex: '0 0 80px' }}>
-          <AddOptLabel>{tp('addTask.estLabel', '예측(h)')}</AddOptLabel>
-          <AddDateInput type="number" step="0.5" min="0" value={newEst} onChange={e => setNewEst(e.target.value)} />
-        </AddOptField>
+        {(newAssignee == null || newAssignee === myId) && (
+          <AddOptField style={{ flex: '0 0 80px' }}>
+            <AddOptLabel>{tp('addTask.estLabel', '예측(h)')}</AddOptLabel>
+            <AddDateInput type="number" step="0.5" min="0" value={newEst} onChange={e => setNewEst(e.target.value)} />
+          </AddOptField>
+        )}
       </AddOptRow>
       <AddBtnRow>
         <CancelBtn type="button" onClick={() => { setAdding(null); resetNew(); }}>{tp('addTask.cancel', '취소')}</CancelBtn>

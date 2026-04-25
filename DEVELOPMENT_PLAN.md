@@ -1,6 +1,78 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-04-24 (독립 대화 우측 패널 전체 스코프 + 연결 추적 + 리스트 최신순)
+> **최종 업데이트:** 2026-04-25 (Q Task 시간모델 + done_feedback 폐지 + Q docs D-2~5 + PostEditor 진단)
+
+---
+
+## ✅ 완료: Q Task 시간모델 단순화 + done_feedback 폐지 + Q docs D-2~5 + PostEditor 진단 (2026-04-25)
+
+대규모 세션. Q Task 시간/진행율 권한 강화, done_feedback 단계 폐지, Q docs D-2~5 핵심 + PostEditor "에디터 안 보임" 근본 원인 추적·해결.
+
+### 완료된 작업
+
+| 영역 | 작업 | 상태 |
+|------|------|:----:|
+| **Q Task 시간/진행율 모델 단순화** | 담당자만 입력 (정규화 모델 폐기) · 백엔드 PATCH/PUT 권한 가드 (`only_assignee_can_edit_hours` 403) · 프론트 인라인 행/드로어 disabled 분기 | ✅ |
+| **비활성 시각 처리** | NumInput/MetaNumInput/SliderRange disabled 스타일 (회색·점선·spinner 숨김·opacity 0.5) | ✅ |
+| **헤더 chip 라벨 변경** | `15개 · 내 업무 X.Xh/가용 Y.Yh · 실제 Z.Zh` (3 chip 분리) | ✅ |
+| **0.5h 화살표 입력** | `type="number" step="0.5" min="0"` (행 + drawer 메타) | ✅ |
+| **workspace 뷰 담당자 컬럼** | Status 앞에 추가, mine 뷰 NameChip 중복 제거 | ✅ |
+| **요청 task 시간칸 숨김** | 새 task 생성 모달에서 `(newAssignee==null \|\| newAssignee===myId)` 조건 | ✅ |
+| **`done_feedback` 단계 폐지** | recalcStatusFromReviewers — 컨펌 정책 충족 시 자동 completed (DB 6 row 마이그레이션) · statusOptionsFor + kanban 컬럼 + drawer completeFinal 정리 | ✅ |
+| **inbox 활성 워크스페이스 명시** | TodoPage 가 `fetchTodo(bizId)` — 첫 가입 워크스페이스 fallback 버그 fix | ✅ |
+| **inbox candidate 카드 명확화** | 추정 담당자 본인 → `accept` / 다른 사람 → `review` / 미지정 → `assign` (verb i18n + 컨텍스트 라인 `담당: X` 또는 `담당자 지정 필요`) · 클릭 → 원본 대화 (`/talk?conv=X&candidate=Y`) | ✅ |
+| **Q docs D-2 잔여** | 시드 5종 본문 풍부화 (NDA 8조항·제안서 5섹션·회의록 4섹션·표 포함 HTML) + `{{path.to.value}}` placeholder 치환 + `body_template` → `body_html` 자동 채움 | ✅ |
+| **Q docs D-3 (AI 자동 생성)** | `POST /api/docs/ai-generate` (Cue gpt-4o-mini, CueUsage 카운터, 플랜별 한도) + NewDocumentModal AI 탭 활성화 (kind/title/user_input 입력 + 에러/한도 안내) | ✅ |
+| **Q docs D-4 핵심** | `/public/docs/:token` PublicDocPage (인증 없음 + 인쇄 + 동의/서명/거절 모달) · `POST /:token/sign` 라우트 (1회 정책, 거절 분기, IP/UA 기록) · A4 print CSS (`@page` + `[data-print-area]`) | ✅ |
+| **Q docs D-5 핵심** | Q Talk RightPanel "+ 새 문서" 진입 (대화 컨텍스트 prefill) · QDocsPage `?new=1` 자동 모달 → 후속 이터레이션에서 PostsPage 흡수로 전환 | ✅ |
+| **게시판/문서 잘못 분리 → 복구** | `/docs` 단일 PostsPage 유지 + 템플릿 흡수 (검색·시스템5종+사용자 자작 합산) · 사용자가 만든 글 "템플릿으로 저장" (DocumentTemplate 멤버 권한 완화) · 인쇄/PDF 액션 (워크플로우 안에서) | ✅ |
+| **PostEditor "에디터 안 보임" 근본 진단** | 콘솔 로그로 추적 → TipTap v3 Link 중복 (StarterKit + 별도 Link) + 중첩 flex column 안에서 Wrap height 0 → `link: false` + `flex-shrink: 0; min-height: 280px` | ✅ |
+| **이모지 → 라인 SVG 통일** | KindIcon.tsx 신설 (Lucide-style) · KIND_ICON 빈 string · PinTag 📌 → PinDot · 모달 close 등 라인 SVG | ✅ |
+
+### 핵심 진단·해결 요약
+
+| 증상 | 원인 | 해결 |
+|---|---|---|
+| 화면 합 54.5h vs 헤더 48.5h 불일치 | 컨펌자만 task 의 시간이 헤더 합산에서 누락 | 시간/진행율 = 담당자 전용으로 단순화. 헤더 chip 의미 명확화 (`내 업무 = assignee=me`) |
+| C1 컨펌 버튼 안 나옴 | 검증 스크립트가 task #274 status 변경 후 원복 누락 | DB 직접 복구 + 메모리 저장 (검증 후 try/finally 원복 필수) |
+| inbox 비어 있음 | `fetchTodo()` 가 첫 가입 워크스페이스 default → 활성 워크스페이스와 불일치 | `fetchTodo(bizId)` 명시 |
+| inbox 후보 카드 의미 모호 | 클릭 시 `/tasks` 로 이동, "수락 대기" 라벨만 | 추정 담당자 따라 verb 분기, 클릭 → 원본 대화 |
+| PostEditor 에디터 안 보임 | (1) TipTap v3 Link 중복 console warn → editor 인스턴스 깨짐 (2) 중첩 flex column 안 Wrap height 0 | `StarterKit.configure({ link: false })` + `Wrap` 에 `flex-shrink: 0` + `min-height: 280px` |
+
+### 수정된 파일 (주요)
+
+**Backend (8):**
+- `routes/tasks.js` (권한 가드 + 시간 row 동기화 hook)
+- `routes/task_workflow.js` (done_feedback 자동 completed 전환)
+- `routes/dashboard.js` (collectCandidates 담당자 정보 + 활성 워크스페이스)
+- `routes/docs.js` (placeholder 치환 + AI 생성 + 공개 sign 라우트)
+- `services/cue_orchestrator.js` (`generateDocumentDraft` 추가)
+- `models/TaskUserHours.js` (정규화 모델, 추후 폐기 결정)
+- `utils/taskUserHours.js` (헬퍼)
+- `scripts/seed-document-templates.js` (5종 본문 풍부화 + close 에러 fix)
+
+**Frontend (15):**
+- `pages/QTask/QTaskPage.tsx` (헤더 chip · 시간 컬럼 분기 · 0.5h step · 권한 disabled · workspace 담당자 컬럼)
+- `components/QTask/TaskDetailDrawer.tsx` (메타 그리드 권한 · disabled 시각)
+- `pages/QDocs/QDocsPage.tsx` (PostsPage 단일 + scope useMemo 안정화)
+- `pages/QDocs/NewDocumentModal.tsx` (AI 탭 활성화)
+- `pages/QDocs/PublicDocPage.tsx` (신규 — 공개 페이지 + 서명)
+- `components/Docs/PostsPage.tsx` (템플릿 모달 + 검색 + 사용자 템플릿 저장 + 인쇄 + URL 싱크)
+- `components/Docs/PostEditor.tsx` (link 중복 fix + Wrap height fix)
+- `components/Docs/KindIcon.tsx` (신규 — 라인 SVG)
+- `pages/Todo/TodoPage.tsx` (활성 워크스페이스 명시)
+- `pages/QTalk/RightPanel.tsx` (Q docs 진입점)
+- `pages/QProject/ProjectTaskList.tsx` (statusOptionsFor — done_feedback 제거)
+- `pages/QProject/TasksTab.tsx` (요청 task 시간칸 숨김)
+- `services/dashboard.ts`, `services/docs.ts` (타입 + AI 생성)
+- `index.css` (A4 print CSS)
+- `i18n.ts` + ko/en 6개 JSON (qdocs/qtask/dashboard 키 대규모 추가)
+
+### 메모리 추가 (`/home/irene/.claude/projects/-opt-planq/memory/`)
+
+- `feedback_test_data_restore.md` — 검증 스크립트 try/finally 원복 필수
+- `feedback_props_useMemo.md` — 자식 props 객체/배열 useMemo 안정화
+- `feedback_flex_min_height.md` — 중첩 flex column 자식 min-height + flex-shrink:0
 
 ---
 

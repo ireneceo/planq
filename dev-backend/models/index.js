@@ -24,6 +24,7 @@ const TaskCandidate = require('./TaskCandidate');
 const TaskComment = require('./TaskComment');
 const TaskDailyProgress = require('./TaskDailyProgress');
 const TaskReviewer = require('./TaskReviewer');
+const TaskUserHours = require('./TaskUserHours');
 const TaskStatusHistory = require('./TaskStatusHistory');
 const TaskAttachment = require('./TaskAttachment');
 const ProjectStatusOption = require('./ProjectStatusOption');
@@ -249,6 +250,11 @@ TaskReviewer.belongsTo(Task, { foreignKey: 'task_id', onDelete: 'CASCADE' });
 TaskReviewer.belongsTo(User, { as: 'user', foreignKey: 'user_id' });
 Task.hasMany(TaskReviewer, { as: 'reviewers', foreignKey: 'task_id' });
 
+// TaskUserHours (역할별 시간) — task당 (담당자/요청자/컨펌자 N) 각자의 예측·실제 시간
+TaskUserHours.belongsTo(Task, { foreignKey: 'task_id', onDelete: 'CASCADE' });
+TaskUserHours.belongsTo(User, { as: 'user', foreignKey: 'user_id' });
+Task.hasMany(TaskUserHours, { as: 'userHours', foreignKey: 'task_id' });
+
 // TaskStatusHistory
 TaskStatusHistory.belongsTo(Task, { foreignKey: 'task_id', onDelete: 'CASCADE' });
 TaskStatusHistory.belongsTo(User, { as: 'actor', foreignKey: 'actor_user_id' });
@@ -289,6 +295,7 @@ module.exports = {
   TaskComment,
   TaskDailyProgress,
   TaskReviewer,
+  TaskUserHours,
   TaskStatusHistory,
   TaskAttachment,
   ProjectStatusOption,

@@ -102,6 +102,8 @@ export async function createDocument(payload: {
   client_id?: number | null;
   project_id?: number | null;
   form_data?: Record<string, unknown> | null;
+  body_json?: Record<string, unknown> | null;
+  body_html?: string | null;
 }): Promise<DocDetail> {
   const r = await apiFetch('/api/docs/documents', {
     method: 'POST',
@@ -121,6 +123,7 @@ export async function updateDocument(id: number, payload: Partial<{
   body_html: string | null;
   client_id: number | null;
   project_id: number | null;
+  ai_generated: boolean;
 }>): Promise<DocDetail> {
   const r = await apiFetch(`/api/docs/documents/${id}`, {
     method: 'PUT',
@@ -128,6 +131,32 @@ export async function updateDocument(id: number, payload: Partial<{
     body: JSON.stringify(payload),
   });
   const j = await r.json();
+  if (!j.success) throw new Error(j.message || 'Failed');
+  return j.data;
+}
+
+export interface AiGenerateResult {
+  body_html: string;
+  usage: { total: number; limit: number; remaining: number; over: boolean };
+}
+export async function aiGenerateDoc(payload: {
+  business_id: number;
+  kind: DocKind;
+  title: string;
+  user_input: string;
+  client_id?: number | null;
+  template_id?: number | null;
+}): Promise<AiGenerateResult> {
+  const r = await apiFetch('/api/docs/ai-generate', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  const j = await r.json();
+  if (r.status === 429) {
+    const e = new Error('cue_limit_exceeded') as Error & { usage?: AiGenerateResult['usage'] };
+    e.usage = j.usage;
+    throw e;
+  }
   if (!j.success) throw new Error(j.message || 'Failed');
   return j.data;
 }
@@ -167,8 +196,13 @@ export const KIND_LABELS_KO: Record<DocKind, string> = {
   custom: '자유 문서',
 };
 
+// 라인 아이콘 (Lucide-style) — 이모지 사용 안 함.
+// 컴포넌트에서 KIND_ICON_PATH[kind] 를 svg children 으로 렌더.
+export const KIND_ICON_PATH: Record<DocKind, React.ReactElement> = {} as Record<DocKind, React.ReactElement>;
+// (실제 라인 아이콘은 컴포넌트에서 KIND_ICON_PATH 대신 직접 svg 인라인. 단순화 위해 빈 매핑.)
+// Legacy 호환 — 빈 string 으로 사용처 확인 후 일괄 제거.
 export const KIND_ICON: Record<DocKind, string> = {
-  quote: '💰', invoice: '🧾', tax_invoice: '📋',
-  contract: '📜', nda: '🔒', proposal: '📊',
-  sow: '📑', meeting_note: '📝', sop: '⚙️', custom: '📄',
+  quote: '', invoice: '', tax_invoice: '',
+  contract: '', nda: '', proposal: '',
+  sow: '', meeting_note: '', sop: '', custom: '',
 };

@@ -298,10 +298,9 @@ async function collectInvites(userEmail) {
    Q Talk/Q Note 추출 후보 — pending 상태만
    사용자: "확인 필요" inbox 에 실데이터 표시
    ──────────────────────────────────────────── */
-async function collectCandidates(businessId) {
+async function collectCandidates(businessId, currentUserId) {
   if (!businessId) return [];
   // task_candidates 는 business_id 컬럼이 없음 → conversation 또는 project 경유.
-  // 두 경로를 합집합으로 모은다.
   const cands = await TaskCandidate.findAll({
     where: { status: 'pending' },
     include: [
@@ -311,21 +310,42 @@ async function collectCandidates(businessId) {
         where: { business_id: businessId },
         required: true,
       },
+      // 추정 담당자 정보 — 담당자 미지정 시 "담당자 지정 필요" 표시용
+      {
+        model: User, as: 'guessedAssignee',
+        attributes: ['id', 'name'],
+        required: false,
+      },
     ],
     order: [['extracted_at', 'DESC']],
     limit: 20,
   });
-  return cands.map((c) => ({
-    id: `candidate-${c.id}`,
-    type: 'task_candidate',
-    priority: 'waiting',
-    verb: 'accept',
-    subject: c.title,
-    context: c.Conversation?.display_name || c.Conversation?.title || null,
-    dueAt: null,
-    actor: { name: 'Q Note' },
-    link: '/tasks',
-  }));
+  return cands.map((c) => {
+    const convId = c.Conversation?.id || c.conversation_id;
+    const link = convId ? `/talk?conv=${convId}&candidate=${c.id}` : '/talk';
+    const convName = c.Conversation?.display_name || c.Conversation?.title || '';
+    const assigneeName = c.guessedAssignee?.name || null;
+    const isMine = c.guessedAssignee?.id === currentUserId;
+    // 담당자 표시 규칙:
+    //   - 추정 담당자 있음: "담당: {이름}" (본인이면 "담당: 나")
+    //   - 추정 담당자 없음: "담당자 지정 필요"
+    let assigneeBadge;
+    if (assigneeName) assigneeBadge = isMine ? '담당: 나' : `담당: ${assigneeName}`;
+    else assigneeBadge = '담당자 지정 필요';
+    const context = convName ? `${convName} · ${assigneeBadge}` : assigneeBadge;
+    return {
+      id: `candidate-${c.id}`,
+      type: 'task_candidate',
+      // 담당자 미지정 → 'assign' (담당자 지정 필요), 본인 담당 → 'accept', 다른 사람 담당 → 'review'
+      verb: !assigneeName ? 'assign' : (isMine ? 'accept' : 'review'),
+      priority: 'waiting',
+      subject: c.title,
+      context,
+      dueAt: null,
+      actor: { name: 'Q Talk' },
+      link,
+    };
+  });
 }
 
 /* ─────────────────────────────────────────────
@@ -405,7 +425,7 @@ router.get('/todo', authenticateToken, async (req, res, next) => {
       businessId ? collectTasks(businessId, userId) : Promise.resolve([]),
       businessId ? collectEvents(businessId, userId) : Promise.resolve([]),
       collectInvites(req.user.email),
-      businessId ? collectCandidates(businessId) : Promise.resolve([]),
+      businessId ? collectCandidates(businessId, userId) : Promise.resolve([]),
       businessId ? collectInvoices(businessId) : Promise.resolve([]),
     ]);
 

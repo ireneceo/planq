@@ -75,30 +75,36 @@ function broadcast(req, task, event = 'task:updated', payload = null) {
 }
 
 // 컨펌자들의 state 조합 + 정책을 보고 메인 status 재계산
+// 정책 충족(전원/1명 승인) 시 자동으로 completed 전환 — done_feedback 단계 폐지
 // completed/canceled 이 아니고 (reviewers 가 있는) 상태에서는 전이 가능
 async function recalcStatusFromReviewers(task, transaction) {
   const reviewers = await TaskReviewer.findAll({ where: { task_id: task.id }, transaction });
   if (reviewers.length === 0) return task.status;
   if (['completed', 'canceled', 'not_started', 'waiting', 'in_progress'].includes(task.status)) return task.status;
 
-  // 이 시점: reviewing / revision_requested / done_feedback 중 하나
+  // 이 시점: reviewing / revision_requested 중 하나
   const hasRevision = reviewers.some((r) => r.state === 'revision');
   const approvedCount = reviewers.filter((r) => r.state === 'approved').length;
   const pendingCount = reviewers.filter((r) => r.state === 'pending').length;
 
   let target;
+  let isPolicySatisfied = false;
   if (hasRevision) {
     target = 'revision_requested';
   } else if (task.review_policy === 'all') {
-    target = approvedCount === reviewers.length ? 'done_feedback' : 'reviewing';
+    isPolicySatisfied = approvedCount === reviewers.length;
+    target = isPolicySatisfied ? 'completed' : 'reviewing';
   } else {
-    // any: 1명이라도 approved 면 done_feedback, 전원 pending 이면 reviewing
-    target = approvedCount >= 1 ? 'done_feedback' : 'reviewing';
-    // 전원 pending 이고 아직 승인자 없으면 reviewing (pending 만)
+    // any: 1명이라도 approved 면 정책 충족 → 자동 completed
+    isPolicySatisfied = approvedCount >= 1;
+    target = isPolicySatisfied ? 'completed' : 'reviewing';
     if (pendingCount === reviewers.length) target = 'reviewing';
   }
   if (target !== task.status) {
-    await task.update({ status: target }, { transaction });
+    const updates = { status: target };
+    if (target === 'completed' && !task.completed_at) updates.completed_at = new Date();
+    if (target === 'completed') updates.progress_percent = 100;
+    await task.update(updates, { transaction });
   }
   return target;
 }
