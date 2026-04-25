@@ -1,7 +1,62 @@
 {
   "page": {
     "title": "Q docs",
-    "noWorkspace": "Please select a workspace first"
+    "noWorkspace": "Please select a workspace first",
+    "selectWorkspace": "Please select a workspace first",
+    "newDoc": "New document",
+    "searchPlaceholder": "Search by title, client, project"
+  },
+  "section": {
+    "library": "Template library",
+    "documents": "My documents"
+  },
+  "docs": {
+    "kind": {
+      "all": "All",
+      "quote": "Quote",
+      "invoice": "Invoice",
+      "tax_invoice": "Tax invoice",
+      "contract": "Contract",
+      "nda": "NDA",
+      "proposal": "Proposal",
+      "sow": "SOW",
+      "meeting_note": "Meeting note",
+      "sop": "SOP",
+      "custom": "Custom"
+    }
+  },
+  "status": {
+    "draft": "Draft",
+    "sent": "Sent",
+    "viewed": "Viewed",
+    "accepted": "Accepted",
+    "rejected": "Rejected",
+    "signed": "Signed",
+    "archived": "Archived"
+  },
+  "mode": {
+    "form": "Form",
+    "editor": "Editor",
+    "hybrid": "Hybrid"
+  },
+  "badge": {
+    "system": "Default"
+  },
+  "empty": {
+    "title": "No documents yet",
+    "desc": "Start from a template or create a blank document"
+  },
+  "newModal": {
+    "title": "New document",
+    "ai": "Start with AI",
+    "template": "From template",
+    "blank": "Blank",
+    "aiComing": "AI generation — coming soon",
+    "aiDesc": "Cue will analyze your client, project, and past data to create a draft in one click.",
+    "noTemplates": "No templates available"
+  },
+  "common": {
+    "loading": "Loading..."
   },
   "tab": {
     "title": "Docs"

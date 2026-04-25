@@ -1,10 +1,11 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useCallback } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { type MockProject, type MockConversation } from './mock';
 import { useAuth } from '../../contexts/AuthContext';
 import LetterAvatar from '../../components/Common/LetterAvatar';
 import SearchBoxCommon from '../../components/Common/SearchBox';
+import { useListKeyboardNav } from '../../hooks/useListKeyboardNav';
 
 interface Props {
   projects: MockProject[];
@@ -77,6 +78,19 @@ const LeftPanel: React.FC<Props> = ({
     return list;
   }, [chats, query]);
 
+  const itemIds = useMemo(() => filteredChats.map((x) => x.conversation.id), [filteredChats]);
+  const handleKeyboardChange = useCallback((id: number) => {
+    const entry = filteredChats.find((x) => x.conversation.id === id);
+    if (entry) onSelectConversation(entry.project.id, entry.conversation.id);
+  }, [filteredChats, onSelectConversation]);
+  useListKeyboardNav<number>({
+    itemIds,
+    activeId: activeConversationId,
+    onChange: handleKeyboardChange,
+    enabled: !collapsed,
+    itemSelector: (id) => `[data-qtalk-chat="${id}"]`,
+  });
+
   if (collapsed) {
     // 접힘 상태: 프로젝트 일부만 보여주면 혼동(Irene 지적: "6개 중 3개만" 보임). 완전 접고 엣지 바만.
     return (
@@ -141,6 +155,7 @@ const LeftPanel: React.FC<Props> = ({
           return (
             <ChatRow
               key={c.id}
+              data-qtalk-chat={c.id}
               $active={isActive}
               onClick={() => onSelectConversation(p.id, c.id)}
             >

@@ -1,7 +1,62 @@
 {
   "page": {
     "title": "Q docs",
-    "noWorkspace": "워크스페이스를 먼저 선택하세요"
+    "noWorkspace": "워크스페이스를 먼저 선택하세요",
+    "selectWorkspace": "워크스페이스를 먼저 선택하세요",
+    "newDoc": "새 문서",
+    "searchPlaceholder": "제목·고객·프로젝트 검색"
+  },
+  "section": {
+    "library": "템플릿 라이브러리",
+    "documents": "내 문서"
+  },
+  "docs": {
+    "kind": {
+      "all": "전체",
+      "quote": "견적서",
+      "invoice": "청구서",
+      "tax_invoice": "세금계산서",
+      "contract": "계약서",
+      "nda": "NDA",
+      "proposal": "제안서",
+      "sow": "작업내역서",
+      "meeting_note": "회의록",
+      "sop": "운영문서",
+      "custom": "자유 문서"
+    }
+  },
+  "status": {
+    "draft": "초안",
+    "sent": "발송됨",
+    "viewed": "열람됨",
+    "accepted": "수락됨",
+    "rejected": "거절",
+    "signed": "서명됨",
+    "archived": "보관"
+  },
+  "mode": {
+    "form": "폼",
+    "editor": "에디터",
+    "hybrid": "하이브리드"
+  },
+  "badge": {
+    "system": "기본"
+  },
+  "empty": {
+    "title": "아직 문서가 없습니다",
+    "desc": "템플릿에서 시작하거나 빈 문서를 만들어보세요"
+  },
+  "newModal": {
+    "title": "새 문서 만들기",
+    "ai": "AI 로 시작",
+    "template": "템플릿에서",
+    "blank": "빈 문서",
+    "aiComing": "AI 자동 작성 — 곧 제공됩니다",
+    "aiDesc": "Cue 가 고객·프로젝트·과거 데이터를 분석하여 한 번에 초안을 만들어 드립니다.",
+    "noTemplates": "템플릿이 없습니다"
+  },
+  "common": {
+    "loading": "불러오는 중..."
   },
   "tab": {
     "title": "문서"

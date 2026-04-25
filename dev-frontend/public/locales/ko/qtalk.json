@@ -49,9 +49,10 @@
       "internal": "내부",
       "personal": "개인",
       "onlyMe": "나만",
-      "withTeam": "같이",
+      "withTeam": "공개",
       "empty": "아직 메모가 없습니다",
-      "placeholder": "메모 작성... (Enter 저장)"
+      "placeholder": "메모 작성...",
+      "saveHint": "저장 (⌘/Ctrl+Enter)"
     },
     "info": {
       "title": "프로젝트 정보",

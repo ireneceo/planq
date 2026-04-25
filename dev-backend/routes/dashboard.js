@@ -5,6 +5,8 @@ const {
   Task, TaskReviewer,
   CalendarEvent, CalendarEventAttendee, Project,
   Client, BusinessMember, Business, User,
+  TaskCandidate, Conversation,
+  Invoice,
 } = require('../models');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const { authenticateToken } = require('../middleware/auth');
@@ -293,6 +295,81 @@ async function collectInvites(userEmail) {
 }
 
 /* ─────────────────────────────────────────────
+   Q Talk/Q Note 추출 후보 — pending 상태만
+   사용자: "확인 필요" inbox 에 실데이터 표시
+   ──────────────────────────────────────────── */
+async function collectCandidates(businessId) {
+  if (!businessId) return [];
+  // task_candidates 는 business_id 컬럼이 없음 → conversation 또는 project 경유.
+  // 두 경로를 합집합으로 모은다.
+  const cands = await TaskCandidate.findAll({
+    where: { status: 'pending' },
+    include: [
+      {
+        model: Conversation,
+        attributes: ['id', 'title', 'display_name', 'business_id'],
+        where: { business_id: businessId },
+        required: true,
+      },
+    ],
+    order: [['extracted_at', 'DESC']],
+    limit: 20,
+  });
+  return cands.map((c) => ({
+    id: `candidate-${c.id}`,
+    type: 'task_candidate',
+    priority: 'waiting',
+    verb: 'accept',
+    subject: c.title,
+    context: c.Conversation?.display_name || c.Conversation?.title || null,
+    dueAt: null,
+    actor: { name: 'Q Note' },
+    link: '/tasks',
+  }));
+}
+
+/* ─────────────────────────────────────────────
+   미수금 / 연체 청구서 — owner/admin 만 보도록 collectInvoices 호출 시 가드
+   ──────────────────────────────────────────── */
+async function collectInvoices(businessId) {
+  if (!businessId) return [];
+  const today = new Date();
+  const todayStr = today.toISOString().slice(0, 10);
+  const invoices = await Invoice.findAll({
+    where: {
+      business_id: businessId,
+      status: { [Op.in]: ['sent', 'overdue'] },
+    },
+    attributes: ['id', 'invoice_number', 'recipient_business_name', 'grand_total', 'paid_amount', 'due_date', 'status', 'currency'],
+    order: [['due_date', 'ASC']],
+    limit: 20,
+  });
+  const items = [];
+  for (const inv of invoices) {
+    const paid = Number(inv.paid_amount || 0);
+    const total = Number(inv.grand_total || 0);
+    if (total <= paid) continue; // 이미 완납된 건은 제외
+    const dueStr = inv.due_date ? String(inv.due_date).slice(0, 10) : null;
+    const overdue = dueStr && dueStr < todayStr;
+    const dueAt = dueStr ? new Date(`${dueStr}T23:59:59+09:00`) : null;
+    items.push({
+      id: `invoice-${inv.id}`,
+      type: 'invoice',
+      priority: overdue ? 'urgent' : (dueStr === todayStr ? 'today' : 'week'),
+      verb: 'pay',
+      subject: `${inv.recipient_business_name || inv.invoice_number} — ${inv.currency === 'USD' ? '$' : '₩'}${Number(total - paid).toLocaleString('ko-KR')}`,
+      context: dueStr ? (overdue ? `결제 기한: ${dueStr} (지남)` : `결제 기한: ${dueStr}`) : null,
+      dueAt: safeToIso(dueAt),
+      amount: total - paid,
+      currency: inv.currency || 'KRW',
+      actor: inv.recipient_business_name ? { name: inv.recipient_business_name } : null,
+      link: '/bills',
+    });
+  }
+  return items;
+}
+
+/* ─────────────────────────────────────────────
    GET /api/dashboard/todo
    Query: ?business_id=... (생략 시 사용자 첫 biz)
    ──────────────────────────────────────────── */
@@ -323,61 +400,17 @@ router.get('/todo', authenticateToken, async (req, res, next) => {
       if (bm) businessId = bm.business_id;
     }
 
-    const [tasks, events, invites] = await Promise.all([
+    // 청구서는 owner/admin/member 모두 볼 수 있게 (워크스페이스 멤버십 검증은 위에서 완료)
+    const [tasks, events, invites, candidates, invoices] = await Promise.all([
       businessId ? collectTasks(businessId, userId) : Promise.resolve([]),
       businessId ? collectEvents(businessId, userId) : Promise.resolve([]),
       collectInvites(req.user.email),
+      businessId ? collectCandidates(businessId) : Promise.resolve([]),
+      businessId ? collectInvoices(businessId) : Promise.resolve([]),
     ]);
 
-    // Phase 9 demo mocks — 실제 구현 시 routes/qmail, routes/notifications 로 교체
-    const demoMocks = [
-      {
-        id: 'mention-demo-1',
-        type: 'mention',
-        priority: 'today',
-        verb: 'read',
-        subject: '워프로랩 디자인 채널 — "@아이린 이번 주 릴리즈 일정 공유해주세요"',
-        context: 'Alex Kim · 3시간 전',
-        dueAt: null,
-        actor: { name: 'Alex Kim' },
-        link: '/talk',
-      },
-      {
-        id: 'email-demo-1',
-        type: 'email',
-        priority: 'today',
-        verb: 'respond',
-        subject: 'Acme Corp. — 4월 로고 시안 최종 피드백 요청',
-        context: 'kim@acme.com · 1시간 전',
-        dueAt: null,
-        actor: { name: 'Kim Jiho' },
-        link: '/mail',
-      },
-      {
-        id: 'candidate-demo-1',
-        type: 'task_candidate',
-        priority: 'waiting',
-        verb: 'accept',
-        subject: 'Q Note 추출: "경쟁사 비교 분석표 작성"',
-        context: '4/22 워프로랩 주간 회의',
-        dueAt: null,
-        actor: { name: 'Q Note AI' },
-        link: '/notes',
-      },
-      {
-        id: 'invoice-demo-1',
-        type: 'invoice',
-        priority: 'urgent',
-        verb: 'pay',
-        subject: 'Acme Corp. 4월 호스팅 청구서 — ₩330,000',
-        context: '결제 기한: 2일 지남',
-        dueAt: null,
-        actor: { name: 'Acme Corp.' },
-        link: '/bills',
-      },
-    ];
-
-    const all = [...tasks, ...events, ...invites, ...demoMocks];
+    // Q Mail (mention/email) 은 시스템 미구현 — 실 데이터 collector 추가 시 합류
+    const all = [...tasks, ...events, ...invites, ...candidates, ...invoices];
 
     // Sort: priority order → dueAt asc
     const PRI = { urgent: 0, today: 1, waiting: 2, week: 3 };

@@ -23,6 +23,7 @@ import TermsOfService from './pages/Legal/TermsOfService';
 import ComingSoonPage from './pages/ComingSoon/ComingSoonPage';
 import DashboardPage from './pages/Dashboard/DashboardPage';
 import TodoPage from './pages/Todo/TodoPage';
+import QBillPage from './pages/QBill/QBillPage';
 import './App.css';
 
 // Placeholder pages - will be replaced per phase
@@ -184,7 +185,7 @@ function App() {
         } />
         <Route path="/bills" element={
           <ProtectedRoute requiredRole={['business_owner', 'business_member']}>
-            <MainLayout><ComingSoonPage titleKey="nav.qbill" titleFallback="Q Bill" descKey="comingSoon.qbillDesc" descFallback="견적·청구·결제·세금계산서를 한 화면에서. 개발 중입니다." /></MainLayout>
+            <MainLayout><QBillPage /></MainLayout>
           </ProtectedRoute>
         } />
 

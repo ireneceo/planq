@@ -26,6 +26,10 @@ export type StatusCode = typeof STATUS_CODES[number];
 // not_started + 기간 도래 → waiting
 // 그 외 → DB status 그대로
 export function displayStatus(task: TaskForDisplay, todayStr: string): StatusCode {
+  // 종료 상태는 즉시 반환 — task_requested 같은 가상 상태로 가지 않도록 (우측 패널/리스트 sync)
+  if (task.status === 'completed' || task.status === 'canceled') {
+    return task.status;
+  }
   if (!task.request_ack_at && (task.source === 'internal_request' || task.source === 'qtalk_extract')) {
     return 'task_requested';
   }

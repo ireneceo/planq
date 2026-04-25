@@ -1,7 +1,7 @@
 const express = require('express');
 const { Op, fn, col, literal } = require('sequelize');
 const router = express.Router();
-const { Task, User, Project, BusinessMember, Business, TaskComment, TaskDailyProgress } = require('../models');
+const { Task, User, Project, BusinessMember, Business, TaskComment, TaskDailyProgress, TaskStatusHistory } = require('../models');
 const taskSnapshot = require('../services/task_snapshot');
 const { authenticateToken, checkBusinessAccess } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
@@ -427,7 +427,43 @@ router.put('/by-business/:businessId/:id', authenticateToken, async (req, res, n
 
     if (status === 'completed' && task.status !== 'completed') updates.completed_at = new Date();
 
+    // 변경 사항 스냅샷 (history 기록용) — update 직전에 비교
+    const prev = {
+      status: task.status, assignee_id: task.assignee_id, due_date: task.due_date,
+      title: task.title, project_id: task.project_id,
+    };
+
     await task.update(updates);
+
+    // 단계이동·주요 필드 변경 history 기록 (워크플로우 외 직접 PUT 도 추적)
+    try {
+      const actorId = req.user.id;
+      const fmtDate = (d) => (d ? String(d).slice(0, 10) : '—');
+      const events = [];
+      if (updates.status !== undefined && updates.status !== prev.status) {
+        events.push({ event_type: 'status_change', from_status: prev.status, to_status: updates.status });
+      }
+      if (updates.assignee_id !== undefined && updates.assignee_id !== prev.assignee_id) {
+        events.push({ event_type: 'assignee_change', target_user_id: updates.assignee_id, note: `${prev.assignee_id || '—'} → ${updates.assignee_id || '—'}` });
+      }
+      if (updates.due_date !== undefined && String(updates.due_date) !== String(prev.due_date)) {
+        events.push({ event_type: 'due_change', note: `${fmtDate(prev.due_date)} → ${fmtDate(updates.due_date)}` });
+      }
+      if (updates.title !== undefined && updates.title !== prev.title) {
+        events.push({ event_type: 'title_change', note: `${prev.title} → ${updates.title}` });
+      }
+      if (updates.project_id !== undefined && updates.project_id !== prev.project_id) {
+        events.push({ event_type: 'project_change', note: `${prev.project_id || '—'} → ${updates.project_id || '—'}` });
+      }
+      if (events.length > 0) {
+        await Promise.all(events.map((e) => TaskStatusHistory.create({
+          task_id: task.id, actor_user_id: actorId, ...e,
+        })));
+      }
+    } catch (e) {
+      // history 기록 실패는 전체 PUT 을 깨뜨리지 않도록 silent (로그만)
+      console.warn('[task PUT] history record failed:', e.message);
+    }
 
     // Socket.IO: project + business room 양쪽 broadcast
     const io = req.app.get('io');
