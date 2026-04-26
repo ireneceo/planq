@@ -1,6 +1,106 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-04-25 (Q Task 시간모델 + done_feedback 폐지 + Q docs D-2~5 + PostEditor 진단)
+> **최종 업데이트:** 2026-04-26 (Q docs 공유·서명 + 표 에디터 + 7종 템플릿 + Phase A 서명 받기 완료 + B1 Q Bill 분할 청구 백엔드)
+
+---
+
+## ✅ 완료: Q docs 공유·서명·표 에디터 + Q Bill 분할 청구 백엔드 (2026-04-26)
+
+대규모 세션. Q docs UI/UX 정리 → 통합 설계 문서 → Phase A (서명 받기) 4단계 전체 완료 + Phase B1 (분할 청구) 백엔드 완료.
+
+### 1. Q docs 정리 (PostsPage)
+
+| 영역 | 작업 | 상태 |
+|------|------|:----:|
+| **상세 제목 중복** | h1 → PrintOnlyTitle (인쇄에서만 출력) | ✅ |
+| **공유 모달** (`PostShareModal`) | 토큰 발급/revoke + 이메일 + 채팅 카드 + 탭 UI + 발송 후 결과 화면 + URL 카드 + 토글 라벨 고정 ("공개 링크 활성화") | ✅ |
+| **공개 페이지** (`/public/posts/:token`) | 익명 본문 조회 · 인쇄 · 삭제된 문서 friendly 안내 | ✅ |
+| **AI 작성 모달** (`PostAiModal`) | kind 별 시스템 템플릿 body 를 참조 구조로 주입, 프롬프트 강화, maxTokens 4000 (proposal/contract/sow) | ✅ |
+| **표 에디터** | TipTap Table extensions 추가 (resizable·column-resize) + Notion-style 표 + border-collapse separate (라운드 외곽) + 셀 모서리 radius | ✅ |
+| **에디터 줄간격** | line-height 1.55 + `> * + *` 0.5em + `<li> > <p>` margin 0 (벙벙 해소) | ✅ |
+| **편집 폼 정리** | 카테고리·프로젝트 2열 grid, "프로젝트" 라벨 제거 + placeholder "프로젝트 연결 안 함" | ✅ |
+| **사이드바 접기** | EdgeHandle (Q Talk 패턴 통일) + localStorage 저장 | ✅ |
+| **상세 chip 순서** | 카테고리 → 프로젝트 → 공유중 (자주 쓰는 순) | ✅ |
+| **conversation_id 출처 필드 폐기** | 편집 폼 + 상세 chip 모두 제거 (공유 카드로 대체) | ✅ |
+
+### 2. 7종 시스템 템플릿 풍부화
+
+견적·청구·NDA·제안·회의록 + **계약서·SOW 신규 = 7종**. 모두 시스템(`is_system=true`) 으로 전 워크스페이스 노출. 8 column 품목표·결제 분할·세금계산서 안내·SLA·차별화·리스크 등 30년차 컨설팅 표준.
+
+### 3. 프로젝트 detail 의 docs 탭 (`ProjectPostsTab`)
+
+PostsPage 통째로 마운트(레이아웃 중첩) → 별도 `ProjectPostsTab` 신규. 1컬럼 인라인 마스터-디테일 + 카드 그리드 + DocsTab(파일) 패턴 통일. 페이지 이탈 0.
+
+### 4. 채팅 카드 메시지 (Message.meta JSON)
+
+| 영역 | 작업 |
+|------|------|
+| **DB** | Message.meta JSON 컬럼 추가 |
+| **share-to-chat** | `kind='card', meta.card_type='post'` — 카드 메시지로 전송, 공개 토큰 URL 임베드 |
+| **ChatPanel** | DocCard 렌더 + `PostCardPreviewModal` (인라인 미리보기 + "문서로 가서 보기") |
+
+### 5. 통합 설계 문서
+
+`docs/Q_BILL_SIGNATURE_DESIGN.md` (14 섹션, 1100+ 줄). Q Bill 분할 청구 + 서명 받기 + 채팅 결제 요청 통합. 시나리오·ERD·API 35종·UI 와이어프레임 6종·시퀀스·엣지 케이스 매트릭스·전자서명법 충족·구현 4주 분량.
+
+**핵심 결정 (사용자 합의)**:
+- B2B 송금 기반 (PG 통합 X)
+- 세금계산서: 액션 알림만 (사용자 외부 발행 후 마킹)
+- 서명: Phase 1 자체 구현 (이메일 OTP + 캔버스 + 동의 — "서명 받기" 가벼운 명칭)
+- 분할은 발행자 토글 (단일/분할)
+
+### 6. Phase A — 서명 받기 (자체 구현, 4 task 모두 완료)
+
+| Task | 내용 | E2E 통과 |
+|---|---|:--:|
+| **A1 백엔드** | `signature_requests` 테이블 (15 컬럼 · OTP hash · 만료 lock · audit) + 9 라우트 (멤버 4 + 공개 5) + 이메일 템플릿 2종 + rate limit (otpSend 1분3·otpVerify 5분10) | 16/16 |
+| **A2 모달·카드·진입** | `PostSignatureModal` (서명자 N명 + 키보드 Enter/Backspace 흐름 + 만료 chip + 채팅 토글 + 발송 결과) + 헤더 "서명 받기" 버튼 + ChatPanel `signature_request` 카드 분기 | 12/12 |
+| **A3 공개 서명 페이지** | `/sign/:token` 5단계 (검토→OTP→캔버스→동의→완료) + 모바일 반응형 + 6 input OTP autoFocus 이동/paste 분배 + DPR scale 캔버스 + 60초 쿨다운 | 17/17 |
+| **A4 진행 표 + 후속 액션** | `SignatureProgressSection` (진행 표 · Avatar · 상태 badge · 서명 thumbnail 라이트박스 · 액션 dropdown) + 양사 signed 시 후속 액션 카드 (계약→분할 청구, 견적→청구서) + 거절 알림 카드 | 10/10 |
+
+**누적 55/55 E2E 통과** + 헬스체크 27/27.
+
+### 7. Phase B1 — Q Bill 분할 청구 백엔드 (13/13)
+
+| 영역 | 작업 |
+|------|------|
+| **Invoice 모델 확장** | `installment_mode ENUM('single','split')` · `bank_snapshot JSON` · status enum 'partially_paid' 추가 |
+| **InvoiceInstallment 신규** | 15 컬럼 · 분할 일정 · status (pending/sent/paid/overdue/canceled) · 결제 마킹 · 세금계산서 마킹 · milestone_ref |
+| **라우트 5종** | POST /invoices (분할 처리 + 합계 100% 검증 + 마지막 row 잔여 흡수) · POST /:id/send (status sent + share_token 발급 + installments 동시 sent) · POST /:id/installments/:iid/mark-paid (paid_amount/status 자동 갱신) · unmark-paid · mark-tax-invoice (사용자 외부 발행 번호) · DELETE installment (paid 차단) |
+| **검증** | 단일/분할 발행 · 합계 80%/13건 차단 · 발송 → sent 동시 전환 · 부분 결제 → partially_paid · 모두 결제 → paid · 마킹 해제 · 세금계산서 번호 필수 · 익명 401 |
+
+### 발견·수정한 버그 4건 (senior-level 케이스)
+
+1. `routes/signatures.js:210` — `let row` 변수 스코프 (for 루프 종료 후 undefined) → ReferenceError → `created[0]?.note` 로 수정
+2. `routes/signatures.js maybeUpdateEntityStatus` — Post.status enum 에 'signed/rejected' 없는데 update 시도 → MySQL `Data truncated for column 'status'` → no-op 으로 변경 (차원 다른 status 는 별개 컬럼이 옳음)
+3. `routes/signatures.js:288` — Sequelize update 가 인스턴스도 갱신함을 잊고 `+ 1` 더블 증가 → reminder_count 응답 +1 더 큼 → `sr.reminder_count` (update 후) 만 반환
+4. `SignatureProgressSection.tsx:85` — `window.confirm` 헬스체크 룰 위반 → ConfirmDialog 컴포넌트로 교체
+
+### 신규 파일 (12)
+
+**Backend (3)**:
+- `models/SignatureRequest.js`, `models/InvoiceInstallment.js`, `routes/signatures.js`
+
+**Frontend (9)**:
+- `components/Docs/PostShareModal.tsx`, `components/Docs/PostAiModal.tsx`, `components/Docs/PostSignatureModal.tsx`, `components/Docs/SignatureProgressSection.tsx`
+- `pages/QDocs/PublicPostPage.tsx`, `pages/QDocs/PublicSignPage.tsx`
+- `pages/QProject/ProjectPostsTab.tsx`
+- `pages/QTalk/PostCardPreviewModal.tsx`
+
+**Docs**:
+- `docs/Q_BILL_SIGNATURE_DESIGN.md`
+
+### 다음 작업 (우선순위)
+
+| Task | 내용 | 추정 |
+|---|---|:--:|
+| **B2** | Q Bill 청구서 리스트 + 발행 모달 (분할 토글 UI) | 2일 |
+| **B3** | 청구서 상세 (분할 일정 표 + 액션) | 2일 |
+| **B4** | 공개 청구서 페이지 `/public/invoices/:token` | 1일 |
+| **C1** | 채팅 결제 요청 — 카드 메시지 + 공개 결제 페이지 | 2일 |
+| **C2** | 입금 완료 알림 → 사용자 마킹 → 카드 자동 갱신 | 1일 |
+| **D1** | 통합 트리거 — 서명/검수 → 후속 액션 카드 자동 표시 | 2일 |
+| **D2** | 알림 센터 — 서명/결제/세금계산서/검수 일관 표시 | 2일 |
 
 ---
 

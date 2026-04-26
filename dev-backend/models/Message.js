@@ -80,6 +80,12 @@ Message.init({
     type: DataTypes.DATE,
     allowNull: true
   },
+  // ─── 카드 메시지 메타 (kind='card' 일 때 사용) ───
+  // { card_type: 'post' | 'task' | 'invoice' | ..., 그 외 카드별 필드 }
+  meta: {
+    type: DataTypes.JSON,
+    allowNull: true
+  },
   // ─── 내부 메모 (고객에겐 안 보임) ───
   is_internal: {
     type: DataTypes.BOOLEAN,

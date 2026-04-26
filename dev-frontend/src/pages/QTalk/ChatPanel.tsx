@@ -2,12 +2,13 @@ import React, { useMemo, useState, useEffect } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import {
-  type MockMessage, type MockProject, type MockConversation,
+  type MockMessage, type MockProject, type MockConversation, type PostCardMeta,
 } from './mock';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 import LetterAvatar from '../../components/Common/LetterAvatar';
 import EmptyState from '../../components/Common/EmptyState';
+import PostCardPreviewModal from './PostCardPreviewModal';
 
 interface Props {
   project: MockProject | null;
@@ -43,6 +44,7 @@ const ChatPanel: React.FC<Props> = ({
   const { formatTime } = useTimeFormat();
   const isClient = user?.business_role === 'client';
   const [bannerDismissed, setBannerDismissed] = useState(false);
+  const [previewCard, setPreviewCard] = useState<PostCardMeta | null>(null);
 
   // candidatesCount 가 변할 때마다 dismiss 리셋 (새 후보가 들어왔으니)
   useEffect(() => {
@@ -402,7 +404,36 @@ const ChatPanel: React.FC<Props> = ({
                 <TimeStamp>{formatTime(m.created_at)}</TimeStamp>
                 {m.sender_role === 'cue' && <CueBadge>Cue</CueBadge>}
               </MessageHeader>
-              {m.body && m.body.trim() && <MessageText $question={!!m.is_question}>{m.body}</MessageText>}
+              {m.card?.card_type === 'signature_request' ? (
+                <SignCard onClick={() => window.open(m.card!.card_type === 'signature_request' ? (m.card as { sign_url: string }).sign_url : '', '_blank', 'noopener,noreferrer')}>
+                  <SignCardIcon>
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="M2 2l7.586 7.586"/><circle cx="11" cy="11" r="2"/></svg>
+                  </SignCardIcon>
+                  <DocCardBody>
+                    <DocCardTitle>{(m.card as { title: string }).title}</DocCardTitle>
+                    <DocCardLabel>{t('chat.card.signLabel', '서명 요청')} · {(m.card as { signers: { status: string }[] }).signers.length}{t('chat.card.signerSuffix', '명')}</DocCardLabel>
+                  </DocCardBody>
+                  <DocCardArrow>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                  </DocCardArrow>
+                </SignCard>
+              ) : m.card ? (
+                <DocCard type="button" onClick={() => setPreviewCard(m.card as import('./mock').PostCardMeta)}>
+                  <DocCardIcon>
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                  </DocCardIcon>
+                  <DocCardBody>
+                    <DocCardTitle>{m.card.title}</DocCardTitle>
+                    <DocCardLabel>{t('chat.card.docLabel', 'PlanQ 문서')}</DocCardLabel>
+                  </DocCardBody>
+                  <DocCardArrow>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                  </DocCardArrow>
+                </DocCard>
+              ) : (
+                m.body && m.body.trim() && <MessageText $question={!!m.is_question}>{m.body}</MessageText>
+              )}
+              {m.card?.note && <CardNote>{m.card.note}</CardNote>}
 
               {m.attachments && m.attachments.length > 0 && (
                 <AttachRow>
@@ -575,6 +606,9 @@ const ChatPanel: React.FC<Props> = ({
           </SendBtn>
         </InputWrap>
       </InputBar>
+      {previewCard && (
+        <PostCardPreviewModal card={previewCard} onClose={() => setPreviewCard(null)} />
+      )}
     </Container>
   );
 };
@@ -891,6 +925,46 @@ const MessageText = styled.div<{ $question: boolean }>`
     border-left: 3px solid #F43F5E;
     border-radius: 6px;
   `}
+`;
+
+// 문서 카드 (kind='card', card_type='post')
+const DocCard = styled.button`
+  all: unset; cursor: pointer; display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px; max-width: 380px;
+  background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 10px;
+  transition: background 0.15s, border-color 0.15s, transform 0.15s;
+  &:hover { background: #F0FDFA; border-color: #14B8A6; transform: translateY(-1px); }
+  &:focus-visible { outline: 2px solid #14B8A6; outline-offset: 2px; }
+`;
+const SignCard = styled.div`
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px; max-width: 380px;
+  background: linear-gradient(135deg, #F0FDFA 0%, #FFF7ED 100%);
+  border: 1px solid #14B8A6; border-radius: 10px; cursor: pointer;
+  transition: border-color 0.15s, transform 0.15s, box-shadow 0.15s;
+  &:hover { border-color: #0D9488; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(20,184,166,0.15); }
+`;
+const SignCardIcon = styled.span`
+  width: 36px; height: 36px; flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: #fff; color: #0F766E; border: 1px solid #14B8A6; border-radius: 8px;
+`;
+const DocCardIcon = styled.span`
+  width: 36px; height: 36px; flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: #fff; color: #0F766E; border: 1px solid #E2E8F0; border-radius: 8px;
+`;
+const DocCardBody = styled.div`flex:1;display:flex;flex-direction:column;gap:2px;min-width:0;`;
+const DocCardTitle = styled.span`
+  font-size: 13px; font-weight: 700; color: #0F172A;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+`;
+const DocCardLabel = styled.span`font-size:11px;color:#64748B;font-weight:500;`;
+const DocCardArrow = styled.span`color:#94A3B8;flex-shrink:0;`;
+const CardNote = styled.div`
+  margin-top: 6px; padding: 8px 10px;
+  font-size: 13px; color: #334155; line-height: 1.5;
+  background: #fff; border-left: 3px solid #14B8A6; border-radius: 0 6px 6px 0;
 `;
 
 const SourceBox = styled.div`

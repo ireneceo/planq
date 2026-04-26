@@ -226,7 +226,7 @@ res.status(400).json({ success: false, message: 'Error description' });
 
 ---
 
-## DB 테이블 (28개)
+## DB 테이블 (32개)
 
 **기본 (13):** users, businesses, business_members, clients, conversations, conversation_participants, messages, message_attachments, tasks, files, invoices, invoice_items, audit_logs
 
@@ -235,6 +235,12 @@ res.status(400).json({ success: false, message: 'Error description' });
 **Q Task 워크플로우 (4):** task_comments, task_daily_progress, **task_reviewers**, **task_status_history**
 
 **파일 시스템 (3):** **file_folders**, **business_storage_usage**, **ops_capacity_log**
+
+**Q docs (4):** document_templates, documents, document_revisions, document_shares, posts, post_attachments, post_categories
+
+**Q docs 서명 (1):** **signature_requests** (2026-04-26 신규 — Phase A 서명 받기, polymorphic entity_type='post'|'document', OTP hash, 만료, audit)
+
+**Q Bill 분할 (1):** **invoice_installments** (2026-04-26 신규 — Phase B 분할 청구, 회차별 status·결제마킹·세금계산서마킹·milestone_ref)
 
 **기타 (2):** kb_chunks, kb_documents, kb_pinned_faqs, cue_usage
 
@@ -278,6 +284,7 @@ res.status(400).json({ success: false, message: 'Error description' });
 | 기능 정의서 | `docs/FEATURE_SPECIFICATION.md` |
 | 보안 설계 | `docs/SECURITY_DESIGN.md` |
 | 개발 로드맵 + 프롬프트 | `docs/DEVELOPMENT_ROADMAP.md` |
+| **Q Bill·서명·결제 통합 설계 (2026-04-26)** | `docs/Q_BILL_SIGNATURE_DESIGN.md` |
 | UI 디자인 가이드 | `dev-frontend/UI_DESIGN_GUIDE.md` |
 | 색상 가이드 | `dev-frontend/COLOR_GUIDE.md` |
 

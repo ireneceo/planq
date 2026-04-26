@@ -194,6 +194,8 @@ app.use('/api/admin', require('./routes/admin'));
 app.use('/api/posts', require('./routes/posts'));
 app.use('/api/invoices', require('./routes/invoices'));
 app.use('/api/docs', require('./routes/docs'));
+// 서명 — /api/posts/:id/signatures, /api/signatures/:id, /api/sign/:token/* (공개)
+app.use('/api', require('./routes/signatures'));
 app.use('/api/inquiries', require('./routes/inquiries'));
 app.use('/api', require('./routes/kb'));
 

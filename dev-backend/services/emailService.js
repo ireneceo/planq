@@ -103,4 +103,139 @@ async function sendInviteEmail({ to, workspaceName, inviterName, targetName, kin
   return sendEmail({ to, subject, html: inviteEmailHtml({ workspaceName, inviterName, targetName, kind, contextName, inviteUrl }) });
 }
 
-module.exports = { sendEmail, sendInviteEmail };
+// ─── 문서 공유 이메일 ───
+function postShareEmailHtml({ docTitle, senderName, workspaceName, message, shareUrl }) {
+  return `
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="utf-8"><title>${escapeHtml(docTitle)}</title></head>
+<body style="margin:0;padding:0;background:#F8FAFC;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#0F172A;">
+  <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="padding:40px 20px;">
+    <tr><td align="center">
+      <table width="520" cellpadding="0" cellspacing="0" role="presentation" style="background:#FFFFFF;border-radius:16px;padding:32px;box-shadow:0 4px 24px rgba(0,0,0,0.05);max-width:520px;">
+        <tr><td align="center" style="padding-bottom:8px;">
+          <div style="font-size:22px;font-weight:800;color:#0D9488;letter-spacing:-0.5px;">PlanQ</div>
+        </td></tr>
+        <tr><td style="padding:24px 0 8px;">
+          <div style="font-size:14px;color:#64748B;">
+            <b>${escapeHtml(senderName || '')}</b>${workspaceName ? ` (${escapeHtml(workspaceName)})` : ''}님이 문서를 공유했습니다.
+          </div>
+        </td></tr>
+        <tr><td style="padding:8px 0 4px;">
+          <div style="font-size:18px;font-weight:700;color:#0F172A;line-height:1.4;">${escapeHtml(docTitle)}</div>
+        </td></tr>
+        ${message ? `
+        <tr><td style="padding:12px 0 4px;">
+          <div style="font-size:13px;color:#334155;line-height:1.6;background:#F8FAFC;border-left:3px solid #14B8A6;padding:12px 14px;border-radius:0 8px 8px 0;white-space:pre-wrap;">${escapeHtml(message)}</div>
+        </td></tr>` : ''}
+        <tr><td align="center" style="padding:24px 0 8px;">
+          <a href="${shareUrl}" style="display:inline-block;padding:14px 28px;background:#0D9488;color:#FFFFFF;text-decoration:none;border-radius:10px;font-size:14px;font-weight:700;">문서 보기</a>
+        </td></tr>
+        <tr><td style="padding-top:24px;border-top:1px solid #E2E8F0;">
+          <div style="font-size:12px;color:#94A3B8;line-height:1.5;">
+            버튼이 동작하지 않으면 아래 링크를 브라우저에 붙여 넣어주세요:<br>
+            <span style="color:#64748B;word-break:break-all;">${shareUrl}</span>
+          </div>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body></html>`;
+}
+
+async function sendPostShareEmail({ to, docTitle, senderName, workspaceName, message, shareUrl }) {
+  if (!to) return false;
+  const subject = `[PlanQ] ${senderName || ''}님이 "${docTitle}" 문서를 공유했습니다`;
+  return sendEmail({ to, subject, html: postShareEmailHtml({ docTitle, senderName, workspaceName, message, shareUrl }) });
+}
+
+// ─── 서명 요청 이메일 ───
+function signatureRequestEmailHtml({ docTitle, senderName, workspaceName, signerName, message, signUrl, expiresAt }) {
+  const expireStr = expiresAt ? new Date(expiresAt).toLocaleDateString('ko-KR') : '';
+  return `
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="utf-8"><title>서명 요청 — ${escapeHtml(docTitle)}</title></head>
+<body style="margin:0;padding:0;background:#F8FAFC;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#0F172A;">
+  <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="padding:40px 20px;">
+    <tr><td align="center">
+      <table width="520" cellpadding="0" cellspacing="0" role="presentation" style="background:#FFFFFF;border-radius:16px;padding:32px;box-shadow:0 4px 24px rgba(0,0,0,0.05);max-width:520px;">
+        <tr><td align="center" style="padding-bottom:8px;">
+          <div style="font-size:22px;font-weight:800;color:#0D9488;letter-spacing:-0.5px;">PlanQ</div>
+        </td></tr>
+        <tr><td style="padding:24px 0 8px;">
+          <div style="font-size:14px;color:#64748B;">
+            안녕하세요${signerName ? ` ${escapeHtml(signerName)}님` : ''}, <b>${escapeHtml(senderName || '')}</b>${workspaceName ? ` (${escapeHtml(workspaceName)})` : ''}님이 서명을 요청했습니다.
+          </div>
+        </td></tr>
+        <tr><td style="padding:8px 0 4px;">
+          <div style="font-size:18px;font-weight:700;color:#0F172A;line-height:1.4;">${escapeHtml(docTitle)}</div>
+        </td></tr>
+        ${message ? `
+        <tr><td style="padding:12px 0 4px;">
+          <div style="font-size:13px;color:#334155;line-height:1.6;background:#F8FAFC;border-left:3px solid #14B8A6;padding:12px 14px;border-radius:0 8px 8px 0;white-space:pre-wrap;">${escapeHtml(message)}</div>
+        </td></tr>` : ''}
+        <tr><td align="center" style="padding:24px 0 8px;">
+          <a href="${signUrl}" style="display:inline-block;padding:14px 28px;background:#0D9488;color:#FFFFFF;text-decoration:none;border-radius:10px;font-size:14px;font-weight:700;">문서 검토 및 서명하기</a>
+        </td></tr>
+        <tr><td style="padding-top:16px;">
+          <div style="font-size:12px;color:#64748B;line-height:1.6;">
+            서명 절차: ① 문서 검토 → ② 이메일 인증 코드 입력 → ③ 서명 → ④ 동의 확인<br>
+            ${expireStr ? `이 요청은 <b>${expireStr}</b>까지 유효합니다.` : ''}
+          </div>
+        </td></tr>
+        <tr><td style="padding-top:24px;border-top:1px solid #E2E8F0;">
+          <div style="font-size:11px;color:#94A3B8;line-height:1.5;">
+            버튼이 동작하지 않으면 아래 링크를 브라우저에 붙여 넣어주세요:<br>
+            <span style="color:#64748B;word-break:break-all;">${signUrl}</span>
+          </div>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body></html>`;
+}
+
+async function sendSignatureRequestEmail({ to, docTitle, senderName, workspaceName, signerName, message, signUrl, expiresAt }) {
+  if (!to) return false;
+  const subject = `[PlanQ] 서명 요청 — "${docTitle}"`;
+  return sendEmail({ to, subject, html: signatureRequestEmailHtml({ docTitle, senderName, workspaceName, signerName, message, signUrl, expiresAt }) });
+}
+
+// ─── OTP 이메일 ───
+function otpEmailHtml({ docTitle, code }) {
+  return `
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="utf-8"><title>PlanQ 서명 인증</title></head>
+<body style="margin:0;padding:0;background:#F8FAFC;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#0F172A;">
+  <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="padding:40px 20px;">
+    <tr><td align="center">
+      <table width="440" cellpadding="0" cellspacing="0" role="presentation" style="background:#FFFFFF;border-radius:16px;padding:32px;box-shadow:0 4px 24px rgba(0,0,0,0.05);max-width:440px;">
+        <tr><td align="center" style="padding-bottom:8px;">
+          <div style="font-size:22px;font-weight:800;color:#0D9488;letter-spacing:-0.5px;">PlanQ</div>
+        </td></tr>
+        <tr><td style="padding:20px 0 4px;">
+          <div style="font-size:14px;color:#334155;line-height:1.6;">
+            <b>${escapeHtml(docTitle)}</b> 서명 본인 확인 인증 코드입니다.
+          </div>
+        </td></tr>
+        <tr><td align="center" style="padding:20px 0;">
+          <div style="display:inline-block;padding:18px 36px;background:#F0FDFA;border:1px solid #14B8A6;border-radius:12px;font-size:32px;font-weight:800;letter-spacing:8px;color:#0F766E;">${escapeHtml(code)}</div>
+        </td></tr>
+        <tr><td style="padding-top:8px;">
+          <div style="font-size:12px;color:#64748B;line-height:1.6;">
+            인증 코드는 <b>5분간</b> 유효합니다.<br>
+            본인이 요청하지 않은 경우 이 메일을 무시해 주세요.
+          </div>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body></html>`;
+}
+
+async function sendSignatureOtpEmail({ to, docTitle, code }) {
+  if (!to) return false;
+  const subject = `[PlanQ] 서명 인증 코드 ${code}`;
+  return sendEmail({ to, subject, html: otpEmailHtml({ docTitle, code }) });
+}
+
+module.exports = { sendEmail, sendInviteEmail, sendPostShareEmail, sendSignatureRequestEmail, sendSignatureOtpEmail };

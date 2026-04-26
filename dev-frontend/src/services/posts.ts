@@ -5,6 +5,7 @@ export interface PostRow {
   id: number;
   business_id: number;
   project_id: number | null;
+  conversation_id: number | null;
   title: string;
   category: string | null;
   status: 'draft' | 'published';
@@ -14,6 +15,10 @@ export interface PostRow {
   author: { id: number; name: string } | null;
   editor: { id: number; name: string } | null;
   project: { id: number; name: string; color: string | null } | null;
+  conversation: { id: number; title: string | null } | null;
+  share_token: string | null;
+  share_url: string | null;
+  shared_at: string | null;
   content_preview: string;
   created_at: string;
   updated_at: string;
@@ -87,6 +92,7 @@ export async function fetchPost(id: number): Promise<PostDetail | null> {
 export async function createPost(payload: {
   business_id: number;
   project_id?: number | null;
+  conversation_id?: number | null;
   title: string;
   content_json?: TiptapDoc;
   category?: string | null;
@@ -104,6 +110,7 @@ export async function createPost(payload: {
 
 export async function updatePost(id: number, patch: Partial<{
   title: string; content_json: TiptapDoc; category: string | null; status: 'draft' | 'published'; is_pinned: boolean;
+  project_id: number | null; conversation_id: number | null;
 }>): Promise<PostDetail> {
   const r = await apiFetch(`/api/posts/${id}`, {
     method: 'PUT',
@@ -153,4 +160,103 @@ export async function deleteCategory(categoryId: number): Promise<boolean> {
   const r = await apiFetch(`/api/posts/categories/${categoryId}`, { method: 'DELETE' });
   const j = await r.json();
   return !!j.success;
+}
+
+// ─── 공유 ───
+export interface PostShareInfo { share_token: string; share_url: string; shared_at: string | null; }
+export async function sharePost(postId: number): Promise<PostShareInfo> {
+  const r = await apiFetch(`/api/posts/${postId}/share`, { method: 'POST' });
+  const j = await r.json();
+  if (!j.success) throw new Error(j.message || 'share failed');
+  return j.data as PostShareInfo;
+}
+export async function revokePostShare(postId: number): Promise<boolean> {
+  const r = await apiFetch(`/api/posts/${postId}/share`, { method: 'DELETE' });
+  const j = await r.json();
+  return !!j.success;
+}
+export async function emailPostShare(postId: number, payload: { to: string | string[]; message?: string }): Promise<{ share_url: string; results: Array<{ to: string; sent: boolean }> }> {
+  const r = await apiFetch(`/api/posts/${postId}/share/email`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  const j = await r.json();
+  if (!j.success) throw new Error(j.message || 'email failed');
+  return j.data;
+}
+export async function sharePostToChat(postId: number, payload: { conversation_id: number; message?: string }): Promise<{ message: { id: number }; share_url: string }> {
+  const r = await apiFetch(`/api/posts/${postId}/share-to-chat`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  const j = await r.json();
+  if (!j.success) throw new Error(j.message || 'share-to-chat failed');
+  return j.data;
+}
+
+// ─── 서명 받기 (Phase A) ───
+export type SignatureStatus = 'pending' | 'sent' | 'viewed' | 'signed' | 'rejected' | 'expired' | 'canceled';
+
+export interface SignatureRequest {
+  id: number;
+  entity_type: 'post' | 'document';
+  entity_id: number;
+  business_id: number;
+  requester_user_id: number;
+  signer_email: string;
+  signer_name: string | null;
+  token: string;
+  sign_url: string;
+  status: SignatureStatus;
+  viewed_at: string | null;
+  otp_verified: boolean;
+  signed_at: string | null;
+  signed_ip: string | null;
+  signature_image_b64: string | null;
+  rejected_at: string | null;
+  rejected_reason: string | null;
+  note: string | null;
+  expires_at: string;
+  reminder_count: number;
+  last_reminder_at: string | null;
+  created_at: string;
+}
+
+export async function requestSignatures(postId: number, payload: {
+  signers: Array<{ email: string; name?: string }>;
+  note?: string;
+  expires_in_days?: number;
+  send_chat?: boolean;
+  conversation_id?: number;
+}): Promise<{ signatures: SignatureRequest[]; chat_message_id: number | null }> {
+  const r = await apiFetch(`/api/posts/${postId}/signatures`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  const j = await r.json();
+  if (!j.success) throw new Error(j.message || 'signature request failed');
+  return j.data;
+}
+
+export async function listSignatures(postId: number): Promise<SignatureRequest[]> {
+  const r = await apiFetch(`/api/posts/${postId}/signatures`);
+  const j = await r.json();
+  if (!j.success) return [];
+  return j.data as SignatureRequest[];
+}
+
+export async function cancelSignature(id: number): Promise<boolean> {
+  const r = await apiFetch(`/api/signatures/${id}`, { method: 'DELETE' });
+  const j = await r.json();
+  return !!j.success;
+}
+
+export async function remindSignature(id: number): Promise<{ sent: boolean; reminder_count: number }> {
+  const r = await apiFetch(`/api/signatures/${id}/reminder`, { method: 'POST' });
+  const j = await r.json();
+  if (!j.success) throw new Error(j.message || 'reminder failed');
+  return j.data;
 }

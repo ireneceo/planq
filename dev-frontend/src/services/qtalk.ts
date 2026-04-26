@@ -175,7 +175,12 @@ export interface ApiMessage {
   updatedAt: string;
   sender?: { id: number; name: string; email: string };
   attachments?: ApiMessageAttachment[];
+  meta?: ApiMessageMeta | null;
 }
+
+export type ApiMessageMeta =
+  | { card_type: 'post'; post_id: number; share_token: string; share_url: string; title: string; note: string | null }
+  | { card_type: string; [k: string]: unknown };
 
 export interface ApiMessageAttachment {
   id: number;

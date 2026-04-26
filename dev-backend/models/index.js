@@ -45,6 +45,7 @@ const PostCategory = require('./PostCategory');
 const Quote = require('./Quote');
 const QuoteItem = require('./QuoteItem');
 const InvoicePayment = require('./InvoicePayment');
+const InvoiceInstallment = require('./InvoiceInstallment');
 const BillEvent = require('./BillEvent');
 const OverheadItem = require('./OverheadItem');
 const ProjectExpense = require('./ProjectExpense');
@@ -56,6 +57,7 @@ const DocumentTemplate = require('./DocumentTemplate');
 const Document = require('./Document');
 const DocumentRevision = require('./DocumentRevision');
 const DocumentShare = require('./DocumentShare');
+const SignatureRequest = require('./SignatureRequest');
 
 // ============================================
 // Associations
@@ -151,10 +153,12 @@ Business.hasMany(BusinessPlanHistory, { as: 'planHistory', foreignKey: 'business
 // Post + PostAttachment
 Post.belongsTo(Business, { foreignKey: 'business_id' });
 Post.belongsTo(Project, { foreignKey: 'project_id' });
+Post.belongsTo(Conversation, { foreignKey: 'conversation_id' });
 Post.belongsTo(User, { as: 'author', foreignKey: 'author_id' });
 Post.belongsTo(User, { as: 'editor', foreignKey: 'editor_id' });
 Business.hasMany(Post, { as: 'posts', foreignKey: 'business_id' });
 Project.hasMany(Post, { as: 'posts', foreignKey: 'project_id' });
+Conversation.hasMany(Post, { as: 'posts', foreignKey: 'conversation_id' });
 PostAttachment.belongsTo(Post, { foreignKey: 'post_id', onDelete: 'CASCADE' });
 PostAttachment.belongsTo(File, { as: 'file', foreignKey: 'file_id' });
 Post.hasMany(PostAttachment, { as: 'attachments', foreignKey: 'post_id' });
@@ -316,6 +320,7 @@ module.exports = {
   Quote,
   QuoteItem,
   InvoicePayment,
+  InvoiceInstallment,
   BillEvent,
   OverheadItem,
   ProjectExpense,
@@ -327,6 +332,7 @@ module.exports = {
   Document,
   DocumentRevision,
   DocumentShare,
+  SignatureRequest,
 };
 
 // Q docs associations
@@ -353,6 +359,11 @@ DocumentRevision.belongsTo(Document, { foreignKey: 'document_id' });
 DocumentRevision.belongsTo(User, { as: 'changer', foreignKey: 'changed_by' });
 DocumentShare.belongsTo(Document, { foreignKey: 'document_id' });
 DocumentShare.belongsTo(User, { as: 'sharer', foreignKey: 'shared_by' });
+
+// SignatureRequest — polymorphic (entity_type='post'|'document', entity_id)
+SignatureRequest.belongsTo(Business, { foreignKey: 'business_id' });
+SignatureRequest.belongsTo(User, { as: 'requester', foreignKey: 'requester_user_id' });
+Business.hasMany(SignatureRequest, { as: 'signatureRequests', foreignKey: 'business_id' });
 
 // CalendarEvent
 CalendarEvent.belongsTo(Business, { foreignKey: 'business_id' });
@@ -409,6 +420,12 @@ Project.hasMany(Invoice, { as: 'invoices', foreignKey: 'project_id' });
 InvoicePayment.belongsTo(Invoice, { foreignKey: 'invoice_id', onDelete: 'CASCADE' });
 InvoicePayment.belongsTo(User, { as: 'recorder', foreignKey: 'recorded_by' });
 Invoice.hasMany(InvoicePayment, { as: 'payments', foreignKey: 'invoice_id', onDelete: 'CASCADE' });
+
+// InvoiceInstallment — Invoice 삭제 시 CASCADE
+InvoiceInstallment.belongsTo(Invoice, { foreignKey: 'invoice_id', onDelete: 'CASCADE' });
+InvoiceInstallment.belongsTo(User, { as: 'paymentMarker', foreignKey: 'marked_by_user_id' });
+InvoiceInstallment.belongsTo(User, { as: 'taxMarker', foreignKey: 'tax_invoice_marked_by' });
+Invoice.hasMany(InvoiceInstallment, { as: 'installments', foreignKey: 'invoice_id', onDelete: 'CASCADE' });
 
 // BillEvent — polymorphic (entity_type + entity_id). actor 관계만 설정.
 BillEvent.belongsTo(User, { as: 'actor', foreignKey: 'actor_user_id' });

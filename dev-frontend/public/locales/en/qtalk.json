@@ -165,6 +165,16 @@
       "review": "Review",
       "later": "Later"
     },
+    "card": {
+      "docLabel": "PlanQ doc",
+      "signLabel": "Signature request",
+      "signerSuffix": " signer(s)",
+      "openFull": "Open full document",
+      "loading": "Loading document...",
+      "notFound": "Document not found",
+      "deleted": "This document has been deleted",
+      "deletedHint": "The document was removed or you don't have access."
+    },
     "draft": {
       "title": "Cue draft pending",
       "processing": "processing",

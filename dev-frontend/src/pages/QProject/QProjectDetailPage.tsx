@@ -9,7 +9,7 @@ import { useTimeFormat } from '../../hooks/useTimeFormat';
 import ProcessPartsTab from './ProcessPartsTab';
 import TasksTab from './TasksTab';
 import DocsTab from './DocsTab';
-import PostsPage from '../../components/Docs/PostsPage';
+import ProjectPostsTab from './ProjectPostsTab';
 import PlanQSelect from '../../components/Common/PlanQSelect';
 import CalendarPicker from '../../components/Common/CalendarPicker';
 import { PROJECT_COLOR_PALETTE } from '../../utils/projectColors';
@@ -696,11 +696,7 @@ const QProjectDetailPage: React.FC = () => {
         </InfoBody>
       )}
       {tab === 'files' && <DocsTab projectId={projectId} businessId={project.business_id} />}
-      {tab === 'docs' && (
-        <div style={{ height: 'calc(100vh - 240px)', minHeight: '500px' }}>
-          <PostsPage scope={{ type: 'project', businessId: project.business_id, projectId }} />
-        </div>
-      )}
+      {tab === 'docs' && <ProjectPostsTab businessId={project.business_id} projectId={projectId} />}
       {tab === 'clients' && (
         <ClientsBody>
           <Card>

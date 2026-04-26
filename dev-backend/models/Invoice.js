@@ -41,8 +41,20 @@ Invoice.init({
     defaultValue: 0
   },
   status: {
-    type: DataTypes.ENUM('draft', 'sent', 'paid', 'overdue', 'canceled'),
+    type: DataTypes.ENUM('draft', 'sent', 'partially_paid', 'paid', 'overdue', 'canceled'),
     defaultValue: 'draft'
+  },
+  // 분할 결제 모드 — split 시 invoice_installments 와 함께 사용
+  installment_mode: {
+    type: DataTypes.ENUM('single', 'split'),
+    defaultValue: 'single',
+    allowNull: false,
+  },
+  // 발행 시점 워크스페이스 계좌 정보 스냅샷 (사용자 계좌 변경되어도 발행 청구서는 보존)
+  bank_snapshot: {
+    type: DataTypes.JSON,
+    allowNull: true,
+    comment: '{bank_name, account_no, account_holder} — 발행 시점 보존',
   },
   issued_at: {
     type: DataTypes.DATE,

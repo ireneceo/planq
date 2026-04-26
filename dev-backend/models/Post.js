@@ -9,6 +9,7 @@ Post.init({
   id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
   business_id: { type: DataTypes.INTEGER, allowNull: false, references: { model: 'businesses', key: 'id' } },
   project_id: { type: DataTypes.BIGINT, allowNull: true, references: { model: 'projects', key: 'id' } },
+  conversation_id: { type: DataTypes.INTEGER, allowNull: true, references: { model: 'conversations', key: 'id' } },
   title: { type: DataTypes.STRING(200), allowNull: false },
   content_json: { type: DataTypes.TEXT('long'), allowNull: true },       // Tiptap JSON
   content_text: { type: DataTypes.TEXT('long'), allowNull: true },       // 검색/프리뷰용 plain text
@@ -19,11 +20,15 @@ Post.init({
   visibility: { type: DataTypes.ENUM('internal', 'public'), allowNull: false, defaultValue: 'internal' },
   is_pinned: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
   view_count: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
+  share_token: { type: DataTypes.STRING(64), allowNull: true, unique: true },
+  shared_at: { type: DataTypes.DATE, allowNull: true },
 }, {
   sequelize, tableName: 'posts', timestamps: true, underscored: true,
   indexes: [
     { fields: ['business_id', 'project_id', 'created_at'] },
     { fields: ['business_id', 'is_pinned'] },
+    { fields: ['business_id', 'conversation_id'] },
+    { fields: ['share_token'] },
   ]
 });
 
