@@ -17,6 +17,8 @@ import InvitePage from './pages/Invite/InvitePage';
 import QCalendarPage from './pages/QCalendar/QCalendarPage';
 import QDocsPage from './pages/QDocs/QDocsPage';
 import PublicDocPage from './pages/QDocs/PublicDocPage';
+import PublicPostPage from './pages/QDocs/PublicPostPage';
+import PublicSignPage from './pages/QDocs/PublicSignPage';
 import QFilePage from './pages/QFile/QFilePage';
 import AdminBusinessesPage from './pages/Admin/AdminBusinessesPage';
 import PrivacyPolicy from './pages/Legal/PrivacyPolicy';
@@ -242,6 +244,8 @@ function App() {
         {/* Invite (public — no auth required) */}
         <Route path="/invite/:token" element={<InvitePage />} />
         <Route path="/public/docs/:token" element={<PublicDocPage />} />
+        <Route path="/public/posts/:token" element={<PublicPostPage />} />
+        <Route path="/sign/:token" element={<PublicSignPage />} />
 
         {/* Default redirect */}
         <Route path="/" element={<Navigate to="/login" replace />} />

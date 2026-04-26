@@ -44,6 +44,27 @@ export interface MockMessage {
   };
   ai_sources?: { doc_id: number; title: string; section: string; snippet: string }[];
   attachments?: { id: number; file_name: string; file_size: number; mime_type?: string | null }[];
+  // 카드 메시지 (kind='card')
+  card?: PostCardMeta | SignatureCardMeta | null;
+}
+
+export interface PostCardMeta {
+  card_type: 'post';
+  post_id: number;
+  share_token: string;
+  share_url: string;
+  title: string;
+  note: string | null;
+}
+
+export interface SignatureCardMeta {
+  card_type: 'signature_request';
+  entity_type: 'post' | 'document';
+  entity_id: number;
+  title: string;
+  sign_url: string;
+  signers: Array<{ email: string; status: string }>;
+  note: string | null;
 }
 
 export interface MockConversation {

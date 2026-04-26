@@ -8,6 +8,10 @@ import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
 import Link from '@tiptap/extension-link';
 import Image from '@tiptap/extension-image';
+import { Table } from '@tiptap/extension-table';
+import { TableRow } from '@tiptap/extension-table-row';
+import { TableCell } from '@tiptap/extension-table-cell';
+import { TableHeader } from '@tiptap/extension-table-header';
 import { apiFetch } from '../../contexts/AuthContext';
 
 interface Props {
@@ -40,6 +44,10 @@ const PostEditor: React.FC<Props> = ({ value, onChange, placeholder, editable = 
       Placeholder.configure({ placeholder: placeholder || '본문을 작성하세요…' }),
       Link.configure({ openOnClick: false, HTMLAttributes: { rel: 'noopener noreferrer', target: '_blank' } }),
       Image.configure({ inline: false, allowBase64: false, HTMLAttributes: { class: 'editor-image' } }),
+      Table.configure({ resizable: true, HTMLAttributes: { class: 'editor-table' } }),
+      TableRow,
+      TableHeader,
+      TableCell,
     ],
     content: value as any,
     editable,
@@ -147,7 +155,35 @@ const PostEditor: React.FC<Props> = ({ value, onChange, placeholder, editable = 
               </svg>
             </ToolBtn>
             <input ref={fileRef} type="file" accept="image/*" multiple hidden onChange={onImageInput} />
+            <ToolBtn
+              type="button"
+              onClick={() => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()}
+              title="표 삽입 (3x3, 헤더 포함)"
+              aria-label="표 삽입"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="3" width="18" height="18" rx="2"/>
+                <line x1="3" y1="9" x2="21" y2="9"/>
+                <line x1="3" y1="15" x2="21" y2="15"/>
+                <line x1="9" y1="3" x2="9" y2="21"/>
+                <line x1="15" y1="3" x2="15" y2="21"/>
+              </svg>
+            </ToolBtn>
           </Group>
+          {isActive('table') && (
+            <>
+              <Sep />
+              <Group>
+                <ToolBtn type="button" onClick={() => editor.chain().focus().addColumnBefore().run()} title="왼쪽에 열 추가">⫷ +열</ToolBtn>
+                <ToolBtn type="button" onClick={() => editor.chain().focus().addColumnAfter().run()} title="오른쪽에 열 추가">+열 ⫸</ToolBtn>
+                <ToolBtn type="button" onClick={() => editor.chain().focus().deleteColumn().run()} title="열 삭제">−열</ToolBtn>
+                <ToolBtn type="button" onClick={() => editor.chain().focus().addRowBefore().run()} title="위에 행 추가">⫶ +행</ToolBtn>
+                <ToolBtn type="button" onClick={() => editor.chain().focus().addRowAfter().run()} title="아래에 행 추가">+행 ⫶</ToolBtn>
+                <ToolBtn type="button" onClick={() => editor.chain().focus().deleteRow().run()} title="행 삭제">−행</ToolBtn>
+                <ToolBtn type="button" onClick={() => editor.chain().focus().deleteTable().run()} title="표 삭제" style={{ color: '#DC2626' }}>표✕</ToolBtn>
+              </Group>
+            </>
+          )}
           <Sep />
           <Group>
             <ToolBtn type="button" onClick={() => editor.chain().focus().undo().run()} title="실행 취소">↶</ToolBtn>
@@ -187,14 +223,74 @@ const ToolBtn = styled.button<{ $active?: boolean }>`
 `;
 const Body = styled.div<{ $editable?: boolean }>`
   padding: 16px 20px; min-height: ${p => p.$editable ? '240px' : '80px'};
+
+  /* ─── 표 (Body 직속 자손 — 편집/보기 모드 무관 적용) ─── */
+  /* border-collapse: separate 로 border-radius 작동. 셀은 right/bottom 만, 마지막 행/열 제거. */
+  & .tableWrapper { margin: 16px 0; overflow-x: auto; }
+  & .tableWrapper table { margin: 0; }
+  & table {
+    border-collapse: separate; border-spacing: 0;
+    width: 100%; table-layout: fixed;
+    font-size: 13px; margin: 16px 0;
+    border: 1px solid #CBD5E1; border-radius: 10px;
+    overflow: hidden;
+    background: #fff;
+  }
+  & table td, & table th {
+    border-right: 1px solid #E2E8F0;
+    border-bottom: 1px solid #E2E8F0;
+    padding: 10px 14px;
+    vertical-align: top; min-width: 96px;
+    position: relative; box-sizing: border-box;
+  }
+  & table td:last-child, & table th:last-child { border-right: none; }
+  & table tr:last-child td, & table tr:last-child th { border-bottom: none; }
+  & table th {
+    background: #F8FAFC; color: #0F172A; font-weight: 700;
+    text-align: left; letter-spacing: -0.1px;
+    border-bottom: 1px solid #CBD5E1;
+  }
+  /* 첫 행 좌상단·우상단 라운드 (border-radius 가 table 에만 적용되면 셀이 가려서 안 보임) */
+  & table tr:first-child th:first-child, & table tr:first-child td:first-child {
+    border-top-left-radius: 10px;
+  }
+  & table tr:first-child th:last-child, & table tr:first-child td:last-child {
+    border-top-right-radius: 10px;
+  }
+  & table tr:last-child td:first-child, & table tr:last-child th:first-child {
+    border-bottom-left-radius: 10px;
+  }
+  & table tr:last-child td:last-child, & table tr:last-child th:last-child {
+    border-bottom-right-radius: 10px;
+  }
+  & table tbody tr:hover td { background: #FAFBFC; }
+  & table p { margin: 0 !important; }
+  /* 셀 선택 / 리사이즈 핸들 (편집 모드에서만 의미 있음) */
+  & table .selectedCell { background: #F0FDFA; }
+  & table .selectedCell::after {
+    content: ''; position: absolute; inset: 0;
+    background: rgba(20,184,166,0.12); pointer-events: none;
+    border: 2px solid #14B8A6;
+  }
+  & table .column-resize-handle {
+    position: absolute; right: -2px; top: 0; bottom: 0; width: 4px;
+    background: #14B8A6; cursor: col-resize; pointer-events: auto;
+    opacity: 0; transition: opacity 0.15s;
+  }
+  & table:hover .column-resize-handle { opacity: 0.4; }
+  & table .column-resize-handle:hover { opacity: 1; }
+
   .ProseMirror {
-    outline: none; font-size: 14px; line-height: 1.7; color: #0F172A;
-    > * + * { margin-top: 0.75em; }
-    h1 { font-size: 22px; font-weight: 700; color: #0F172A; margin-top: 1.4em; }
-    h2 { font-size: 18px; font-weight: 700; color: #0F172A; margin-top: 1.2em; }
-    h3 { font-size: 15px; font-weight: 700; color: #334155; margin-top: 1em; }
-    p { color: #334155; }
-    ul, ol { padding-left: 1.4em; }
+    outline: none; font-size: 14px; line-height: 1.55; color: #0F172A;
+    > * + * { margin-top: 0.5em; }
+    h1 { font-size: 22px; font-weight: 700; color: #0F172A; margin-top: 1.2em; line-height: 1.3; }
+    h2 { font-size: 18px; font-weight: 700; color: #0F172A; margin-top: 1em; line-height: 1.35; }
+    h3 { font-size: 15px; font-weight: 700; color: #334155; margin-top: 0.8em; line-height: 1.4; }
+    p { color: #334155; margin: 0; }
+    ul, ol { padding-left: 1.4em; margin: 0; }
+    li { margin: 0; }
+    li + li { margin-top: 0.2em; }
+    li > p { margin: 0; }
     ul li::marker { color: #94A3B8; }
     ol li::marker { color: #94A3B8; font-weight: 600; }
     blockquote { border-left: 3px solid #14B8A6; padding: 4px 12px; background: #F0FDFA; color: #334155; border-radius: 0 6px 6px 0; }

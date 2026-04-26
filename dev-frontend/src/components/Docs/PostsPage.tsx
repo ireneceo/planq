@@ -29,6 +29,12 @@ import {
 } from '../../services/posts';
 import { listTemplates, type DocTemplate, KIND_LABELS_KO } from '../../services/docs';
 import KindIcon from './KindIcon';
+import PostShareModal from './PostShareModal';
+import PostAiModal from './PostAiModal';
+import PostSignatureModal from './PostSignatureModal';
+import SignatureProgressSection from './SignatureProgressSection';
+import PlanQSelect, { type PlanQSelectOption } from '../Common/PlanQSelect';
+import { listProjects, type ApiProject } from '../../services/qtalk';
 import { useAuth } from '../../contexts/AuthContext';
 
 // 좌측 필터: 전체(기본) / 프로젝트 그룹 / 카테고리
@@ -46,6 +52,17 @@ interface Props {
   scope: PostsScope;
 }
 
+// 제목·카테고리에서 종류 추정 — 후속 액션 결정용
+function inferKindFromTitle(title: string, category: string | null): 'contract' | 'nda' | 'sow' | 'proposal' | 'quote' | 'other' {
+  const t = ((title || '') + ' ' + (category || '')).toLowerCase();
+  if (/계약|contract/.test(t)) return 'contract';
+  if (/nda|기밀|비밀유지/.test(t)) return 'nda';
+  if (/sow|작업|명세/.test(t)) return 'sow';
+  if (/제안|proposal/.test(t)) return 'proposal';
+  if (/견적|quote|quotation/.test(t)) return 'quote';
+  return 'other';
+}
+
 const PostsPage: React.FC<Props> = ({ scope }) => {
   const { t } = useTranslation('qdocs');
   const { formatDate } = useTimeFormat();
@@ -54,8 +71,15 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
   const [meta, setMeta] = useState<PostsMeta>({ total: 0, myCount: 0, categories: [], projects: [] });
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
-  const [filter, setFilter] = useState<FilterSel>({ kind: 'all' });
   const [searchParams, setSearchParams] = useSearchParams();
+  const [filter, setFilter] = useState<FilterSel>(() => {
+    // 워크스페이스 scope 진입 시 ?project=:id 쿼리 → 그 프로젝트 필터 자동 선택
+    if (scope.type === 'workspace') {
+      const pid = Number(searchParams.get('project'));
+      if (Number.isFinite(pid) && pid > 0) return { kind: 'project', projectId: pid };
+    }
+    return { kind: 'all' };
+  });
   const [activeId, setActiveId] = useState<number | null>(() => {
     const v = Number(searchParams.get('post'));
     return Number.isFinite(v) && v > 0 ? v : null;
@@ -87,6 +111,12 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
   const [pendingExistingIds, setPendingExistingIds] = useState<number[]>([]);
   const [pendingExistingMeta, setPendingExistingMeta] = useState<Record<number, { name: string; size: number }>>({});
   const submittingRef = useRef(false);
+  const [shareOpen, setShareOpen] = useState(false);
+  const [aiOpen, setAiOpen] = useState(false);
+  const [signOpen, setSignOpen] = useState(false);
+  const [signReloadKey, setSignReloadKey] = useState(0);
+  const [projectDraft, setProjectDraft] = useState<number | null>(null);
+  const [projects, setProjects] = useState<ApiProject[]>([]);
   // 템플릿 모달 — 새 글 작성 시 시드 5종 중 선택해서 본문 prefill
   const [tplModalOpen, setTplModalOpen] = useState(false);
   const [templates, setTemplates] = useState<DocTemplate[]>([]);
@@ -178,11 +208,27 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
     setContentDraft(null);
     // 현재 필터가 카테고리면 해당 카테고리로 프리필
     setCategoryDraft(filter.kind === 'category' ? filter.name : '');
+    // 프로젝트 scope 면 자동 연결, 워크스페이스 scope + 필터=프로젝트면 그 프로젝트로
+    setProjectDraft(scope.type === 'project' ? scope.projectId : (filter.kind === 'project' ? filter.projectId : null));
     setPendingUploads([]);
     setPendingExistingIds([]);
     setPendingExistingMeta({});
     setError(null);
   };
+
+  // 편집 폼 옵션용: 워크스페이스 프로젝트 목록 (편집/신규 진입 시점에만 fetch)
+  useEffect(() => {
+    const isEditing = mode === 'edit' || mode === 'new';
+    if (!isEditing) return;
+    let cancelled = false;
+    listProjects(scope.businessId, 'active').then(list => { if (!cancelled) setProjects(list); }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [mode, scope.businessId]);
+
+  const projectOptions: PlanQSelectOption[] = useMemo(
+    () => projects.map(p => ({ value: p.id, label: p.name })),
+    [projects]
+  );
 
   // 템플릿 모달 오픈 — 시스템 5종 + 사용자 본인 템플릿 모두 fetch
   const openTemplateModal = async () => {
@@ -217,6 +263,20 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
     return html.replace(/\{\{\s*([\w.]+)\s*\}\}/g, (_, p) => ctx[p] ?? '');
   };
 
+  const startFromAi = ({ title, bodyHtml }: { title: string; bodyHtml: string }) => {
+    setActiveId(null);
+    setDetail(null);
+    setMode('new');
+    setTitleDraft(title);
+    setContentDraft(bodyHtml as unknown);
+    setCategoryDraft(filter.kind === 'category' ? filter.name : '');
+    setPendingUploads([]);
+    setPendingExistingIds([]);
+    setPendingExistingMeta({});
+    setError(null);
+    setAiOpen(false);
+  };
+
   const startFromTemplate = (tpl: DocTemplate) => {
     setActiveId(null);
     setDetail(null);
@@ -239,6 +299,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
     setTitleDraft(detail.title);
     setContentDraft(detail.content_json);
     setCategoryDraft(detail.category || '');
+    setProjectDraft(detail.project_id);
     setError(null);
   };
 
@@ -248,6 +309,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
       setTitleDraft('');
       setContentDraft(null);
       setCategoryDraft('');
+      setProjectDraft(null);
       setPendingUploads([]);
       setPendingExistingIds([]);
       setPendingExistingMeta({});
@@ -256,6 +318,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
       setTitleDraft(detail.title);
       setContentDraft(detail.content_json);
       setCategoryDraft(detail.category || '');
+      setProjectDraft(detail.project_id);
     }
     setError(null);
   };
@@ -268,7 +331,8 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
     try {
       const categoryVal = categoryDraft.trim() || null;
       if (mode === 'new') {
-        const projectId = scope.type === 'project' ? scope.projectId : null;
+        // 프로젝트 scope 는 자동 강제, 워크스페이스 scope 면 사용자 선택값
+        const projectId = scope.type === 'project' ? scope.projectId : projectDraft;
         const created = await createPost({
           business_id: scope.businessId,
           project_id: projectId,
@@ -306,6 +370,8 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
           title: titleDraft.trim(),
           content_json: contentDraft as any,
           category: categoryVal,
+          // 프로젝트 scope 페이지에선 project_id 변경 막기 (강제 유지)
+          ...(scope.type === 'workspace' ? { project_id: projectDraft } : {}),
         });
         setDetail(patched);
         setMode('view');
@@ -380,12 +446,35 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
 
   const isEditing = mode === 'new' || (mode === 'edit' && !!detail);
 
+  const COLLAPSE_KEY = `qdocs-sidebar-collapsed-${scope.businessId}`;
+  const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
+    try { return localStorage.getItem(COLLAPSE_KEY) === '1'; } catch { return false; }
+  });
+  const toggleSidebar = useCallback(() => {
+    setSidebarCollapsed(prev => {
+      const next = !prev;
+      try { localStorage.setItem(COLLAPSE_KEY, next ? '1' : '0'); } catch { /* noop */ }
+      return next;
+    });
+  }, [COLLAPSE_KEY]);
+
   return (
-    <Layout>
+    <Layout $collapsed={sidebarCollapsed}>
+      {sidebarCollapsed ? (
+        <CollapsedStrip>
+          <EdgeHandle type="button" onClick={toggleSidebar} aria-label={t('sidebar.expand', '리스트 열기') as string} title={t('sidebar.expand', '리스트 열기') as string}>
+            <EdgeChevron><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg></EdgeChevron>
+          </EdgeHandle>
+        </CollapsedStrip>
+      ) : (
       <Sidebar>
         <PanelHeader>
           <PanelTitle>{scope.type === 'workspace' ? t('page.title', 'Q docs') : t('tab.title', '문서')}</PanelTitle>
           <HeaderBtnRow>
+            <AiBtn type="button" onClick={() => setAiOpen(true)} title={t('ai.openHint', 'AI 가 문서 본문을 자동 작성') as string}>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 16.8 5.8 21.3l2.4-7.4L2 9.4h7.6L12 2z"/></svg>
+              {t('ai.btn', 'AI')}
+            </AiBtn>
             <TemplateBtn type="button" onClick={openTemplateModal} title={t('templates.openHint', '견적·청구·NDA·제안서·회의록 5종 템플릿에서 시작') as string}>
               {t('templates.btn', '템플릿')}
             </TemplateBtn>
@@ -489,16 +578,20 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
                   <span>{r.author?.name || '—'}</span>
                   <span>·</span>
                   <span>{formatDate(r.updated_at)}</span>
+                  {r.category && <CategoryMini>#{r.category}</CategoryMini>}
                   {r.project && (
                     <ProjectTag $color={r.project.color || '#14B8A6'}>{r.project.name}</ProjectTag>
                   )}
-                  {r.category && <CategoryMini>#{r.category}</CategoryMini>}
                 </RowMeta>
               </RowItem>
             ))
           )}
         </RowList>
+        <EdgeHandle type="button" onClick={toggleSidebar} aria-label={t('sidebar.collapse', '리스트 접기') as string} title={t('sidebar.collapse', '리스트 접기') as string}>
+          <EdgeChevron><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg></EdgeChevron>
+        </EdgeHandle>
       </Sidebar>
+      )}
 
       <Content>
         {isEditing ? (
@@ -519,12 +612,25 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
               </EditActions>
             </PanelHeader>
             <Body>
-              <CategoryCombobox
-                value={categoryDraft}
-                onChange={setCategoryDraft}
-                options={meta.categories.map(c => c.name)}
-                placeholder={t('categoryPlaceholder', '카테고리 (예: 매뉴얼, 가이드, 회의록)') as string}
-              />
+              <MetaRow>
+                <CategoryCombobox
+                  value={categoryDraft}
+                  onChange={setCategoryDraft}
+                  options={meta.categories.map(c => c.name)}
+                  placeholder={t('categoryPlaceholder', '카테고리 (예: 매뉴얼, 가이드, 회의록)') as string}
+                />
+                {scope.type === 'workspace' && (
+                  <PlanQSelect
+                    size="sm"
+                    options={projectOptions}
+                    value={projectOptions.find(o => o.value === projectDraft) || null}
+                    onChange={(opt) => setProjectDraft(opt ? Number((opt as PlanQSelectOption).value) : null)}
+                    placeholder={t('share.linkage.noneProject', '프로젝트 연결 안 함') as string}
+                    isClearable
+                    isSearchable
+                  />
+                )}
+              </MetaRow>
               {error && <ErrorBar>{error}</ErrorBar>}
               <PostEditor value={contentDraft} onChange={setContentDraft} placeholder={t('contentPlaceholder', '본문을 작성하세요…') as string} />
 
@@ -581,7 +687,15 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
                 {detail.title}
               </PanelSubTitle>
               <EditActions>
-                <IconBtn type="button" onClick={() => window.print()} title={t('actions.print', '인쇄 / PDF') as string} aria-label={t('actions.print', '인쇄 / PDF') as string}>
+                <SignBtn type="button" onClick={() => setSignOpen(true)} title={t('sign.headerHint', '서명자에게 이메일로 서명 요청') as string}>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 4 }}><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="M2 2l7.586 7.586"/><circle cx="11" cy="11" r="2"/></svg>
+                  {t('sign.button', '서명 받기')}
+                </SignBtn>
+                <PrimaryBtn type="button" onClick={() => setShareOpen(true)}>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 4 }}><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+                  {t('share.button', '공유')}
+                </PrimaryBtn>
+                <IconBtn type="button" onClick={() => window.print()} title={t('actions.print', 'PDF / 인쇄 (저장하려면 ‘대상: PDF로 저장’ 선택)') as string} aria-label={t('actions.print', 'PDF / 인쇄') as string}>
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
                 </IconBtn>
                 <IconBtn type="button" onClick={() => { setSaveTplName(detail.title); setSaveTplDesc(''); setSaveTplError(null); setSaveTplOpen(true); }} title={t('actions.saveAsTemplate', '템플릿으로 저장') as string} aria-label={t('actions.saveAsTemplate', '템플릿으로 저장') as string}>
@@ -599,9 +713,6 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
                 {detail.editor && detail.editor.id !== detail.author?.id && (
                   <><span>·</span><span>{t('editedBy', '수정: {{name}}', { name: detail.editor.name })}</span></>
                 )}
-                {detail.project && (
-                  <ProjectTag $color={detail.project.color || '#14B8A6'}>{detail.project.name}</ProjectTag>
-                )}
                 {detail.category && (
                   <CategoryTag
                     type="button"
@@ -611,11 +722,31 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
                     #{detail.category}
                   </CategoryTag>
                 )}
+                {detail.project && (
+                  <ProjectTag $color={detail.project.color || '#14B8A6'}>
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 2 }}><path d="M3 7a2 2 0 0 1 2-2h4l2 3h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+                    {detail.project.name}
+                  </ProjectTag>
+                )}
+                {detail.share_token && (
+                  <ShareTag title={t('share.publicHint', '공개 링크가 활성화되어 있습니다') as string}>
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 2 }}><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.72"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.72-1.72"/></svg>
+                    {t('share.publicBadge', '공유 중')}
+                  </ShareTag>
+                )}
               </ViewMeta>
               <div data-print-area>
-                <h1 style={{ fontSize: 24, fontWeight: 700, color: '#0F172A', margin: '0 0 16px 0' }}>{detail.title}</h1>
+                <PrintOnlyTitle>{detail.title}</PrintOnlyTitle>
                 <PostEditor value={detail.content_json} onChange={() => {}} editable={false} />
               </div>
+
+              <SignatureProgressSection
+                postId={detail.id}
+                postTitle={detail.title}
+                inferredKind={inferKindFromTitle(detail.title, detail.category)}
+                reloadTrigger={signReloadKey}
+                onAddMore={() => setSignOpen(true)}
+              />
 
               <AttachSection>
                 <AttachTitle>{t('attachments', '첨부 파일')}</AttachTitle>
@@ -681,6 +812,33 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
         cancelText={t('cancel', '취소') as string}
         variant="danger"
       />
+
+      {detail && shareOpen && (
+        <PostShareModal
+          open={shareOpen}
+          onClose={() => setShareOpen(false)}
+          post={detail}
+          onChanged={updated => setDetail(updated)}
+        />
+      )}
+
+      {aiOpen && (
+        <PostAiModal
+          open={aiOpen}
+          onClose={() => setAiOpen(false)}
+          businessId={scope.businessId}
+          onGenerate={startFromAi}
+        />
+      )}
+
+      {detail && signOpen && (
+        <PostSignatureModal
+          open={signOpen}
+          onClose={() => setSignOpen(false)}
+          post={detail}
+          onSent={() => setSignReloadKey(k => k + 1)}
+        />
+      )}
 
       {saveTplOpen && (
         <ModalBackdrop onClick={() => !saveTplBusy && setSaveTplOpen(false)}>
@@ -772,23 +930,69 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
 export default PostsPage;
 
 // ─── styled ─── (Q Note 패턴 — Sidebar + Content 2컬럼 + PanelHeader)
-const Layout = styled.div`
-  display: grid; grid-template-columns: 320px 1fr;
+const PrintOnlyTitle = styled.h1`
+  display: none;
+  @media print {
+    display: block;
+    font-size: 24px; font-weight: 700; color: #0F172A; margin: 0 0 16px 0;
+  }
+`;
+const Layout = styled.div<{ $collapsed?: boolean }>`
+  display: grid;
+  grid-template-columns: ${p => p.$collapsed ? '0 1fr' : '320px 1fr'};
   height: 100%; min-height: 0;
   background: #F8FAFC;
   overflow: hidden;
+  transition: grid-template-columns 0.18s ease;
   @media (max-width: 900px) { grid-template-columns: 1fr; }
 `;
 
 // 좌측 사이드바 (리스트)
 const Sidebar = styled.aside`
-  display: flex; flex-direction: column;
+  display: flex; flex-direction: column; position: relative;
   background: #fff; border-right: 1px solid #E2E8F0;
   min-height: 0;
   @media (max-width: 900px) { border-right: none; border-bottom: 1px solid #E2E8F0; }
 `;
+// 접힘 상태: 0 폭 + EdgeHandle 만 노출 (Q Talk LeftPanel 패턴 통일)
+const CollapsedStrip = styled.aside`
+  width: 0; flex-shrink: 0; position: relative;
+  @media (max-width: 900px) { display: none; }
+`;
+const EdgeHandle = styled.button`
+  position: absolute; top: 50%; right: 0;
+  transform: translate(50%, -50%);
+  width: 8px; height: 60px;
+  padding: 0; border: none; background: #CBD5E1;
+  border-radius: 4px; cursor: pointer; z-index: 10;
+  box-shadow: 0 1px 3px rgba(15,23,42,0.08);
+  transition: width 0.15s ease, background 0.15s ease, height 0.15s ease;
+  display: flex; align-items: center; justify-content: center;
+  &::before {
+    content: ''; position: absolute;
+    top: -10px; bottom: -10px; left: -8px; right: -8px;
+  }
+  &:hover { width: 14px; height: 72px; background: #14B8A6; }
+  &:focus-visible { outline: 2px solid #14B8A6; outline-offset: 2px; }
+`;
+const EdgeChevron = styled.span`
+  display: flex; align-items: center; justify-content: center;
+  color: #64748B;
+  svg { width: 10px; height: 10px; }
+  ${EdgeHandle}:hover & { color: #FFFFFF; }
+`;
 // 우측 컨텐츠 — background 를 Content 에 직접 부여
 const HeaderBtnRow = styled.div`display:flex;align-items:center;gap:6px;`;
+const AiBtn = styled.button`
+  height: 32px; padding: 0 12px;
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 12px; font-weight: 700; color: #fff;
+  background: linear-gradient(135deg, #F43F5E 0%, #BE185D 100%);
+  border: none; border-radius: 8px; cursor: pointer;
+  transition: opacity 0.15s, transform 0.15s;
+  &:hover { transform: translateY(-1px); }
+  &:focus-visible { outline: 2px solid #F43F5E; outline-offset: 2px; }
+`;
 const TemplateBtn = styled.button`
   height: 32px; padding: 0 12px;
   display: inline-flex; align-items: center; gap: 4px;
@@ -975,6 +1179,15 @@ const CategoryTag = styled.button`
   border-radius: 999px; font-size: 11px; font-weight: 600;
   &:hover { background: #CCFBF1; }
 `;
+const MetaRow = styled.div`
+  display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;
+  @media (max-width: 640px) { grid-template-columns: 1fr; }
+`;
+const ShareTag = styled.span`
+  display: inline-flex; align-items: center; padding: 2px 8px;
+  background: #FFF7ED; color: #C2410C; border-radius: 999px; font-size: 10px; font-weight: 700;
+  border: 1px solid #FED7AA;
+`;
 const CategoryMini = styled.span`
   display: inline-flex; padding: 1px 6px; background: #F0FDFA; color: #0F766E;
   border-radius: 999px; font-size: 10px; font-weight: 600;
@@ -1016,8 +1229,18 @@ const ErrorBar = styled.div`font-size: 12px; color: #DC2626; background: #FEF2F2
 const PrimaryBtn = styled.button`
   height: 32px; padding: 0 14px; background: #14B8A6; color: #fff; border: none; border-radius: 8px;
   font-size: 13px; font-weight: 600; cursor: pointer;
+  display: inline-flex; align-items: center;
   &:hover:not(:disabled) { background: #0D9488; }
   &:disabled { opacity: 0.5; cursor: not-allowed; }
+`;
+const SignBtn = styled.button`
+  height: 32px; padding: 0 14px;
+  display: inline-flex; align-items: center;
+  font-size: 13px; font-weight: 700; color: #0F766E;
+  background: #F0FDFA; border: 1px solid #14B8A6; border-radius: 8px; cursor: pointer;
+  transition: background 0.15s, color 0.15s, transform 0.15s;
+  &:hover:not(:disabled) { background: #14B8A6; color: #fff; transform: translateY(-1px); }
+  &:focus-visible { outline: 2px solid #0D9488; outline-offset: 2px; }
 `;
 const SecondaryBtn = styled.button`
   height: 32px; padding: 0 14px; background: #fff; color: #0F172A;

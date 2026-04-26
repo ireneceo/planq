@@ -5,11 +5,15 @@ const router = express.Router();
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
 const { v4: uuidv4 } = require('uuid');
 const { Op } = require('sequelize');
-const { Post, PostAttachment, PostCategory, File, User, Project, BusinessMember, Business } = require('../models');
+const { Post, PostAttachment, PostCategory, File, User, Project, BusinessMember, Business, Conversation, Message } = require('../models');
 const { authenticateToken } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
+const { sendPostShareEmail } = require('../services/emailService');
+
+const APP_URL = process.env.APP_URL || 'https://dev.planq.kr';
 
 // 에디터 인라인 이미지 저장 경로
 const EDITOR_IMG_DIR = path.join(__dirname, '..', 'uploads', 'editor-images');
@@ -60,6 +64,7 @@ function serialize(p, withContent = false) {
     id: p.id,
     business_id: p.business_id,
     project_id: p.project_id,
+    conversation_id: p.conversation_id,
     title: p.title,
     category: p.category,
     status: p.status,
@@ -69,6 +74,10 @@ function serialize(p, withContent = false) {
     author: p.author ? { id: p.author.id, name: p.author.name } : null,
     editor: p.editor ? { id: p.editor.id, name: p.editor.name } : null,
     project: p.Project ? { id: p.Project.id, name: p.Project.name, color: p.Project.color } : null,
+    conversation: p.Conversation ? { id: p.Conversation.id, title: p.Conversation.display_name || p.Conversation.title || null } : null,
+    share_token: p.share_token || null,
+    share_url: p.share_token ? `${APP_URL}/public/posts/${p.share_token}` : null,
+    shared_at: p.shared_at || null,
     created_at: p.created_at,
     updated_at: p.updated_at,
     content_preview: (p.content_text || '').slice(0, 200),
@@ -111,6 +120,7 @@ router.get('/', authenticateToken, async (req, res, next) => {
     const include = [
       { model: User, as: 'author', attributes: ['id', 'name'] },
       { model: Project, attributes: ['id', 'name', 'color'], required: false },
+      { model: Conversation, attributes: ['id', 'title', 'display_name'], required: false },
     ];
     if (req.query.q) {
       const qStr = String(req.query.q);
@@ -197,6 +207,7 @@ router.get('/:id', authenticateToken, async (req, res, next) => {
         { model: User, as: 'author', attributes: ['id', 'name'] },
         { model: User, as: 'editor', attributes: ['id', 'name'], required: false },
         { model: Project, attributes: ['id', 'name', 'color'], required: false },
+        { model: Conversation, attributes: ['id', 'title', 'display_name'], required: false },
         { model: PostAttachment, as: 'attachments', include: [{ model: File, as: 'file' }] },
       ],
     });
@@ -212,7 +223,7 @@ router.get('/:id', authenticateToken, async (req, res, next) => {
 // ─── 생성 ───
 router.post('/', authenticateToken, async (req, res, next) => {
   try {
-    const { business_id, project_id = null, title, content_json = null, category = null, status = 'published', is_pinned = false } = req.body || {};
+    const { business_id, project_id = null, conversation_id = null, title, content_json = null, category = null, status = 'published', is_pinned = false } = req.body || {};
     if (!business_id || !title) return errorResponse(res, 'business_id/title required', 400);
     if (!(await assertMember(req.user.id, Number(business_id), req.user.platform_role === 'platform_admin'))) {
       return errorResponse(res, 'forbidden', 403);
@@ -222,9 +233,15 @@ router.post('/', authenticateToken, async (req, res, next) => {
       const p = await Project.findOne({ where: { id: project_id, business_id } });
       if (!p) return errorResponse(res, 'invalid project_id', 400);
     }
+    // conversation_id 가 있으면 business 일치 검증
+    if (conversation_id) {
+      const conv = await Conversation.findOne({ where: { id: conversation_id, business_id } });
+      if (!conv) return errorResponse(res, 'invalid conversation_id', 400);
+    }
     const post = await Post.create({
       business_id,
       project_id: project_id || null,
+      conversation_id: conversation_id || null,
       title: String(title).slice(0, 200),
       content_json: content_json ? JSON.stringify(content_json) : null,
       content_text: extractText(content_json),
@@ -237,6 +254,7 @@ router.post('/', authenticateToken, async (req, res, next) => {
       include: [
         { model: User, as: 'author', attributes: ['id', 'name'] },
         { model: Project, attributes: ['id', 'name', 'color'], required: false },
+        { model: Conversation, attributes: ['id', 'title', 'display_name'], required: false },
         { model: PostAttachment, as: 'attachments', include: [{ model: File, as: 'file' }] },
       ],
     });
@@ -272,6 +290,26 @@ router.put('/:id', authenticateToken, async (req, res, next) => {
     if (req.body.category !== undefined) patch.category = req.body.category;
     if (req.body.status !== undefined) patch.status = req.body.status;
     if (req.body.is_pinned !== undefined) patch.is_pinned = !!req.body.is_pinned;
+    if (req.body.project_id !== undefined) {
+      const pid = req.body.project_id;
+      if (pid === null || pid === '') {
+        patch.project_id = null;
+      } else {
+        const p = await Project.findOne({ where: { id: Number(pid), business_id: post.business_id } });
+        if (!p) return errorResponse(res, 'invalid project_id', 400);
+        patch.project_id = p.id;
+      }
+    }
+    if (req.body.conversation_id !== undefined) {
+      const cid = req.body.conversation_id;
+      if (cid === null || cid === '') {
+        patch.conversation_id = null;
+      } else {
+        const conv = await Conversation.findOne({ where: { id: Number(cid), business_id: post.business_id } });
+        if (!conv) return errorResponse(res, 'invalid conversation_id', 400);
+        patch.conversation_id = conv.id;
+      }
+    }
     patch.editor_id = req.user.id;
     await post.update(patch);
     const full = await Post.findByPk(post.id, {
@@ -279,6 +317,7 @@ router.put('/:id', authenticateToken, async (req, res, next) => {
         { model: User, as: 'author', attributes: ['id', 'name'] },
         { model: User, as: 'editor', attributes: ['id', 'name'], required: false },
         { model: Project, attributes: ['id', 'name', 'color'], required: false },
+        { model: Conversation, attributes: ['id', 'title', 'display_name'], required: false },
         { model: PostAttachment, as: 'attachments', include: [{ model: File, as: 'file' }] },
       ],
     });
@@ -403,6 +442,147 @@ router.delete('/categories/:id', authenticateToken, async (req, res, next) => {
     await row.destroy();
     // 기존 문서의 category 값은 건드리지 않음 (유연성 보존). 단, meta 계산에서는 사라짐.
     successResponse(res, null, 'deleted');
+  } catch (err) { next(err); }
+});
+
+// ─── 공유: token 발급/조회 ───
+// POST /api/posts/:id/share — share_token 없으면 발급, 있으면 그대로 반환
+router.post('/:id/share', authenticateToken, async (req, res, next) => {
+  try {
+    const post = await Post.findByPk(req.params.id);
+    if (!post) return errorResponse(res, 'not_found', 404);
+    if (!(await assertMember(req.user.id, post.business_id, req.user.platform_role === 'platform_admin'))) {
+      return errorResponse(res, 'forbidden', 403);
+    }
+    if (!post.share_token) {
+      const token = crypto.randomBytes(32).toString('hex');
+      await post.update({ share_token: token, shared_at: new Date() });
+    }
+    return successResponse(res, {
+      share_token: post.share_token,
+      share_url: `${APP_URL}/public/posts/${post.share_token}`,
+      shared_at: post.shared_at,
+    });
+  } catch (err) { next(err); }
+});
+
+// DELETE /api/posts/:id/share — share_token 무효화
+router.delete('/:id/share', authenticateToken, async (req, res, next) => {
+  try {
+    const post = await Post.findByPk(req.params.id);
+    if (!post) return errorResponse(res, 'not_found', 404);
+    if (!(await assertMember(req.user.id, post.business_id, req.user.platform_role === 'platform_admin'))) {
+      return errorResponse(res, 'forbidden', 403);
+    }
+    await post.update({ share_token: null, shared_at: null });
+    return successResponse(res, { revoked: true });
+  } catch (err) { next(err); }
+});
+
+// ─── 공유: 이메일 발송 ───
+// POST /api/posts/:id/share/email  body: { to, message? }
+router.post('/:id/share/email', authenticateToken, async (req, res, next) => {
+  try {
+    const { to, message } = req.body || {};
+    const recipients = Array.isArray(to) ? to : (typeof to === 'string' ? to.split(',').map(s => s.trim()).filter(Boolean) : []);
+    if (recipients.length === 0) return errorResponse(res, 'to required', 400);
+    const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    for (const e of recipients) {
+      if (!emailRe.test(e)) return errorResponse(res, `invalid email: ${e}`, 400);
+    }
+    const post = await Post.findByPk(req.params.id, {
+      include: [{ model: Business, attributes: ['id', 'name'] }],
+    });
+    if (!post) return errorResponse(res, 'not_found', 404);
+    if (!(await assertMember(req.user.id, post.business_id, req.user.platform_role === 'platform_admin'))) {
+      return errorResponse(res, 'forbidden', 403);
+    }
+    // share_token 자동 발급
+    if (!post.share_token) {
+      const token = crypto.randomBytes(32).toString('hex');
+      await post.update({ share_token: token, shared_at: new Date() });
+    }
+    const shareUrl = `${APP_URL}/public/posts/${post.share_token}`;
+    const sender = await User.findByPk(req.user.id, { attributes: ['name'] });
+
+    const results = [];
+    for (const email of recipients) {
+      const ok = await sendPostShareEmail({
+        to: email,
+        docTitle: post.title,
+        senderName: sender?.name || '',
+        workspaceName: post.Business?.name || '',
+        message: message ? String(message).slice(0, 1000) : null,
+        shareUrl,
+      });
+      results.push({ to: email, sent: ok });
+    }
+    return successResponse(res, { share_url: shareUrl, results });
+  } catch (err) { next(err); }
+});
+
+// ─── 공유: 채팅방으로 보내기 ───
+// POST /api/posts/:id/share-to-chat  body: { conversation_id, message? }
+router.post('/:id/share-to-chat', authenticateToken, async (req, res, next) => {
+  try {
+    const convId = Number(req.body?.conversation_id || 0);
+    if (!convId) return errorResponse(res, 'conversation_id required', 400);
+    const post = await Post.findByPk(req.params.id);
+    if (!post) return errorResponse(res, 'not_found', 404);
+    if (!(await assertMember(req.user.id, post.business_id, req.user.platform_role === 'platform_admin'))) {
+      return errorResponse(res, 'forbidden', 403);
+    }
+    const conv = await Conversation.findOne({ where: { id: convId, business_id: post.business_id } });
+    if (!conv) return errorResponse(res, 'invalid conversation_id', 400);
+    // share_token 자동 발급
+    if (!post.share_token) {
+      const token = crypto.randomBytes(32).toString('hex');
+      await post.update({ share_token: token, shared_at: new Date() });
+    }
+    const shareUrl = `${APP_URL}/public/posts/${post.share_token}`;
+    const userMessage = req.body?.message ? String(req.body.message).slice(0, 1000) : '';
+    // 폴백: kind='card' 미지원 클라이언트나 알림 미리보기에서 쓰일 짧은 텍스트
+    const fallbackContent = userMessage ? `[문서] ${post.title} — ${userMessage}` : `[문서] ${post.title}`;
+
+    const msg = await Message.create({
+      conversation_id: conv.id,
+      sender_id: req.user.id,
+      content: fallbackContent,
+      kind: 'card',
+      meta: {
+        card_type: 'post',
+        post_id: post.id,
+        share_token: post.share_token,
+        share_url: shareUrl,
+        title: post.title,
+        note: userMessage || null,
+      },
+      is_ai: false,
+      is_internal: false,
+    });
+    await conv.update({ last_message_at: new Date() });
+    return successResponse(res, { message: msg, share_url: shareUrl });
+  } catch (err) { next(err); }
+});
+
+// ─── Public — share_token 기반 (인증 없음) ───
+// GET /api/posts/public/:token
+router.get('/public/:token', async (req, res, next) => {
+  try {
+    const post = await Post.findOne({
+      where: { share_token: req.params.token, status: 'published' },
+      include: [
+        { model: User, as: 'author', attributes: ['id', 'name'] },
+        { model: Project, attributes: ['id', 'name', 'color'], required: false },
+        { model: PostAttachment, as: 'attachments', include: [{ model: File, as: 'file' }] },
+      ],
+    });
+    if (!post) return errorResponse(res, 'not_found', 404);
+    await post.increment('view_count');
+    const safe = serialize(post, true);
+    // 공개 응답에서 민감 정보 정리: business_id 는 노출 안 해도 무방하지만 frontend 에서 직접 사용은 X
+    delete safe.share_token; // 이미 URL 에 있어서 굳이 응답에 포함 안 함
+    return successResponse(res, safe);
   } catch (err) { next(err); }
 });
 

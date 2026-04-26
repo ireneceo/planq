@@ -99,6 +99,13 @@ function apiMessageToMock(m: qtalkApi.ApiMessage): MockMessage {
       file_size: a.file_size,
       mime_type: a.mime_type,
     })),
+    card: (() => {
+      if (m.kind !== 'card' || !m.meta) return null;
+      const ct = (m.meta as { card_type?: string }).card_type;
+      if (ct === 'post') return m.meta as unknown as import('./mock').PostCardMeta;
+      if (ct === 'signature_request') return m.meta as unknown as import('./mock').SignatureCardMeta;
+      return null;
+    })(),
   };
 }
 
