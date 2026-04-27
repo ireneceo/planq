@@ -54,6 +54,10 @@ InvoiceInstallment.init({
 
   // (옵션) 마일스톤 ref — Phase D 통합에서 SOW 검수 통과 시 자동 활성
   milestone_ref: { type: DataTypes.STRING(100), allowNull: true },
+
+  // Phase C — 공개 결제 페이지 송금 완료 알림 (분할 회차용)
+  notify_paid_at: { type: DataTypes.DATE, allowNull: true, comment: '고객이 송금 완료 알림 누른 시각' },
+  notify_payer_name: { type: DataTypes.STRING(80), allowNull: true, comment: '입금자명 (고객 자기보고)' },
 }, {
   sequelize, tableName: 'invoice_installments', timestamps: true, underscored: true,
   indexes: [

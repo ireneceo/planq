@@ -19,6 +19,7 @@ import QDocsPage from './pages/QDocs/QDocsPage';
 import PublicDocPage from './pages/QDocs/PublicDocPage';
 import PublicPostPage from './pages/QDocs/PublicPostPage';
 import PublicSignPage from './pages/QDocs/PublicSignPage';
+import PublicInvoicePage from './pages/QBill/PublicInvoicePage';
 import QFilePage from './pages/QFile/QFilePage';
 import AdminBusinessesPage from './pages/Admin/AdminBusinessesPage';
 import PrivacyPolicy from './pages/Legal/PrivacyPolicy';
@@ -245,6 +246,7 @@ function App() {
         <Route path="/invite/:token" element={<InvitePage />} />
         <Route path="/public/docs/:token" element={<PublicDocPage />} />
         <Route path="/public/posts/:token" element={<PublicPostPage />} />
+        <Route path="/public/invoices/:token" element={<PublicInvoicePage />} />
         <Route path="/sign/:token" element={<PublicSignPage />} />
 
         {/* Default redirect */}

@@ -7,7 +7,10 @@ import { apiFetch } from '../contexts/AuthContext';
 
 export type TodoPriority = 'urgent' | 'today' | 'waiting' | 'week';
 
-export type TodoType = 'task' | 'event' | 'invite' | 'mention' | 'email' | 'task_candidate' | 'invoice';
+export type TodoType =
+  | 'task' | 'event' | 'invite' | 'mention' | 'email'
+  | 'task_candidate' | 'invoice'
+  | 'signature' | 'payment_notify' | 'tax_invoice';
 
 export type TodoVerb =
   | 'ack'
@@ -20,7 +23,10 @@ export type TodoVerb =
   | 'respond'
   | 'accept'
   | 'assign'
-  | 'read';
+  | 'read'
+  | 'sign'
+  | 'mark_paid'
+  | 'issue_tax';
 
 export interface TodoItem {
   id: string;                    // 타입 접두어 포함: "task-42", "event-7", "invite-12", "mention-103"

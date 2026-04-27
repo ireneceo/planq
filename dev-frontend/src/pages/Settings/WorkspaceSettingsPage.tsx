@@ -8,6 +8,9 @@ import PlanQSelect from '../../components/Common/PlanQSelect';
 import StorageSettings from './StorageSettings';
 import PlanSettings from './PlanSettings';
 import PermissionsSettings from './PermissionsSettings';
+import BillingSettings from './BillingSettings';
+import EmailSettings from './EmailSettings';
+import NotificationSettings from './NotificationSettings';
 import TimezoneSelector from '../../components/Common/TimezoneSelector';
 import PageShell from '../../components/Layout/PageShell';
 import { useTimezones } from '../../hooks/useTimezones';
@@ -28,18 +31,20 @@ import {
   type CueInfo,
 } from '../../services/workspace';
 
-type TabKey = 'brand' | 'legal' | 'language' | 'storage' | 'plan' | 'permissions' | 'members' | 'cue';
+type TabKey = 'brand' | 'legal' | 'language' | 'storage' | 'plan' | 'permissions' | 'members' | 'cue' | 'billing' | 'email' | 'notifications';
 
 // ─────────────────────────────────────────────
 // Styled
 // ─────────────────────────────────────────────
 
-const Card = styled.section`
+const Card = styled.section<{ $highlight?: boolean }>`
   background: #ffffff;
-  border: 1px solid #e2e8f0;
+  border: 1px solid ${(p) => (p.$highlight ? '#14B8A6' : '#e2e8f0')};
   border-radius: 12px;
   padding: 24px;
   margin-bottom: 16px;
+  transition: border-color 0.4s, box-shadow 0.4s;
+  ${(p) => p.$highlight && `box-shadow: 0 0 0 4px rgba(20, 184, 166, 0.12);`}
 `;
 
 const SectionTitle = styled.h2`
@@ -469,7 +474,7 @@ export default function WorkspaceSettingsPage() {
   // /business/settings/{language|timezone|storage|plan|cue} → 해당 섹션
   const isMembersMode = location.pathname.includes('/business/members');
   const visibleTabs = useMemo<TabKey[]>(() => (
-    isMembersMode ? ['members'] : ['brand', 'legal', 'language', 'storage', 'plan', 'permissions', 'cue']
+    isMembersMode ? ['members'] : ['brand', 'legal', 'language', 'billing', 'email', 'notifications', 'storage', 'plan', 'permissions', 'cue']
   ), [isMembersMode]);
 
   const tabFromUrl = useMemo<TabKey>(() => {
@@ -482,6 +487,16 @@ export default function WorkspaceSettingsPage() {
 
   const [tab, setTab] = useState<TabKey>(tabFromUrl);
   useEffect(() => { setTab(tabFromUrl); }, [tabFromUrl]);
+
+  // /business/settings/legal 진입 시 법인 정보 섹션 자동 스크롤 + 강조
+  useEffect(() => {
+    if (tab !== 'legal') return;
+    const t1 = setTimeout(() => {
+      const el = document.getElementById('section-legal');
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 80);
+    return () => clearTimeout(t1);
+  }, [tab]);
 
   const [ws, setWs] = useState<Workspace | null>(null);
   const [members, setMembers] = useState<WorkspaceMember[]>([]);
@@ -684,6 +699,9 @@ export default function WorkspaceSettingsPage() {
       case 'plan':        return t('tabs.plan') as string;
       case 'permissions': return t('tabs.permissions') as string;
       case 'cue':         return t('tabs.cue') as string;
+      case 'billing':     return t('tabs.billing', '청구 설정') as string;
+      case 'email':       return t('tabs.email', '이메일') as string;
+      case 'notifications': return t('tabs.notifications', '알림') as string;
       case 'brand':
       case 'legal':
       default:          return t('page.title') as string;  // brand/legal = "워크스페이스"
@@ -834,7 +852,7 @@ export default function WorkspaceSettingsPage() {
 
       {/* ─── LEGAL ─── */}
       {(tab === 'brand' || tab === 'legal') && (
-        <Card>
+        <Card id="section-legal" $highlight={tab === 'legal'}>
           <SectionTitle>{t('legal.sectionTitle')}</SectionTitle>
           <SectionDesc>{t('legal.sectionDesc')}</SectionDesc>
 
@@ -1028,6 +1046,21 @@ export default function WorkspaceSettingsPage() {
       {/* ─── PERMISSIONS (워크스페이스 권한 토글 3축) ─── */}
       {tab === 'permissions' && businessId && (
         <PermissionsSettings businessId={businessId} isOwner={isAdmin} />
+      )}
+
+      {/* ─── BILLING (Q Bill 설정 — 발신자/입금계좌/청구서 기본값) ─── */}
+      {tab === 'billing' && businessId && (
+        <BillingSettings businessId={businessId} isOwner={isAdmin} />
+      )}
+
+      {/* ─── EMAIL (Phase E placeholder) ─── */}
+      {tab === 'email' && businessId && (
+        <EmailSettings businessId={businessId} isOwner={isAdmin} />
+      )}
+
+      {/* ─── NOTIFICATIONS (Phase E placeholder) ─── */}
+      {tab === 'notifications' && businessId && (
+        <NotificationSettings businessId={businessId} isOwner={isAdmin} />
       )}
 
       {/* ─── MEMBERS ─── */}

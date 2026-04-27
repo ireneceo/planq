@@ -208,6 +208,10 @@ router.post('/posts/:id/signatures', authenticateToken, async (req, res, next) =
       metadata: { signers: created.map(c => c.signer_email), expires_at: expiresAt },
     }).catch(() => null);
 
+    // 확인필요 갱신 — 발행 워크스페이스 (서명자 측은 다른 워크스페이스에 있을 수 있어 따로 관리)
+    const io = req.app.get('io');
+    if (io) io.to(`business:${post.business_id}`).emit('inbox:refresh', { reason: 'signature_created', entity_type: 'post', entity_id: post.id });
+
     // SMTP 미설정 시 dev 콘솔 로그 (운영에선 X)
     if (!process.env.SMTP_HOST) {
       created.forEach(row => {
@@ -425,6 +429,12 @@ router.post('/sign/:token/sign', async (req, res, next) => {
       metadata: { signer: sr.signer_email, ip },
     }).catch(() => null);
 
+    const io = req.app.get('io');
+    if (io) io.to(`business:${sr.business_id}`).emit('inbox:refresh', { reason: 'signature_signed', entity_type: sr.entity_type, entity_id: sr.entity_id });
+
+    // Phase D+1: project stage 자동 진행 (양사 서명 완료면 contract → completed)
+    require('../services/projectStageEngine').onSignatureChanged(sr.id).catch(() => null);
+
     return successResponse(res, { signed: true, signed_at: new Date() });
   } catch (err) {
     try { await t.rollback(); } catch { /* */ }
@@ -458,6 +468,11 @@ router.post('/sign/:token/reject', async (req, res, next) => {
       targetType: 'SignatureRequest', targetId: sr.id,
       metadata: { signer: sr.signer_email, reason, ip },
     }).catch(() => null);
+
+    const io = req.app.get('io');
+    if (io) io.to(`business:${sr.business_id}`).emit('inbox:refresh', { reason: 'signature_rejected', entity_type: sr.entity_type, entity_id: sr.entity_id });
+
+    require('../services/projectStageEngine').onSignatureChanged(sr.id).catch(() => null);
 
     return successResponse(res, { rejected: true });
   } catch (err) {

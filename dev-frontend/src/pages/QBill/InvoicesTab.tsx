@@ -37,6 +37,20 @@ export default function InvoicesTab() {
     return Number.isFinite(n) ? n : null;
   }, [location.search]);
 
+  // followup 카드 진입: ?new=1&split=1&from_post=:id → 발행 모달 자동 오픈
+  const sp = new URLSearchParams(location.search);
+  const autoNew = sp.get('new') === '1';
+  const prefillSplit = sp.get('split') === '1';
+  const prefillPostId = (() => {
+    const v = sp.get('from_post');
+    if (!v) return null;
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  })();
+  useEffect(() => {
+    if (autoNew) setShowNew(true);
+  }, [autoNew]);
+
   // 실 API
   useEffect(() => {
     if (!businessId) { setLoading(false); return; }
@@ -232,7 +246,19 @@ export default function InvoicesTab() {
       {/* 발행 모달 */}
       <NewInvoiceModal
         open={showNew}
-        onClose={() => { setShowNew(false); reload(); }}
+        onClose={() => {
+          setShowNew(false);
+          // followup 진입 query 정리
+          const sp2 = new URLSearchParams(location.search);
+          let dirty = false;
+          if (sp2.has('new')) { sp2.delete('new'); dirty = true; }
+          if (sp2.has('split')) { sp2.delete('split'); dirty = true; }
+          if (sp2.has('from_post')) { sp2.delete('from_post'); dirty = true; }
+          if (dirty) navigate(`${location.pathname}${sp2.toString() ? `?${sp2.toString()}` : ''}`, { replace: true });
+          reload();
+        }}
+        prefillSplit={prefillSplit}
+        prefillPostId={prefillPostId}
       />
     </Wrap>
   );

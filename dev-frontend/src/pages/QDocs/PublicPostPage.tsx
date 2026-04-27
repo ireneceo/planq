@@ -46,7 +46,7 @@ const PublicPostPage: React.FC = () => {
       <Toolbar className="no-print">
         <Brand>PlanQ</Brand>
         <ToolbarSpacer />
-        <PrintBtn type="button" onClick={() => window.print()}>{t('public.print', '인쇄 / PDF 저장')}</PrintBtn>
+        <PrintBtn type="button" onClick={() => window.open(`/api/posts/public/${token}/pdf`, '_blank')}>{t('public.downloadPdf', 'PDF 다운로드')}</PrintBtn>
       </Toolbar>
 
       <DocFrame data-print-area>

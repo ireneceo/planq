@@ -178,10 +178,17 @@ async function extractTaskCandidates({ conversationId, userId, businessId }) {
 
   try {
     // 커서 이후 메시지 조회
+    // CRITICAL: kind='card' 메시지는 시스템 이벤트 (서명 요청·문서 공유·청구서 발송) 라 액션 아이템이 아님.
+    //          LLM 에 넣으면 "[서명 요청] 견적서" 같은 카드 본문이 "견적서 작성" 업무로 오인됨 + 담당자도 카드 발행자로 잘못 추정.
     const where = {
       conversation_id: conversationId,
       is_deleted: false,
-      is_ai: false, // AI 메시지는 제외
+      is_ai: false, // AI 메시지 제외
+      // 카드 메시지 제외 (kind IS NULL OR kind != 'card')
+      [Op.or]: [
+        { kind: null },
+        { kind: { [Op.ne]: 'card' } },
+      ],
     };
     if (conversation.last_extracted_message_id) {
       where.id = { [Op.gt]: conversation.last_extracted_message_id };

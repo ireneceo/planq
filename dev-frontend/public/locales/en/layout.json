@@ -47,7 +47,10 @@
     "storage": "File storage",
     "permissions": "Permissions",
     "cue": "Cue",
-    "language": "Language & Region"
+    "language": "Language & Region",
+    "billing": "Billing",
+    "email": "Email",
+    "notifications": "Notifications"
   },
   "user": {
     "profile": "My Profile",

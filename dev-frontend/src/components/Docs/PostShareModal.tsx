@@ -2,6 +2,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
 import {
   sharePost, revokePostShare, emailPostShare, sharePostToChat,
   type PostDetail,
@@ -22,6 +23,7 @@ type Tab = 'email' | 'chat';
 
 const PostShareModal: React.FC<Props> = ({ open, onClose, post, onChanged }) => {
   const { t } = useTranslation('qdocs');
+  const navigate = useNavigate();
   const [shareToken, setShareToken] = useState<string | null>(post.share_token);
   const [shareUrl, setShareUrl] = useState<string | null>(post.share_url);
   const [busy, setBusy] = useState(false);
@@ -248,6 +250,9 @@ const PostShareModal: React.FC<Props> = ({ open, onClose, post, onChanged }) => 
                 <Actions>
                   <SecondaryBtn type="button" onClick={() => { setChatSentInfo(null); setChatTarget(null); }}>
                     {t('share.chat.again', '다른 채팅방에 보내기')}
+                  </SecondaryBtn>
+                  <SecondaryBtn type="button" onClick={() => { onClose(); navigate(`/talk/${chatSentInfo.convId}`); }}>
+                    {t('share.chat.goView', '채팅방 가서 보기')}
                   </SecondaryBtn>
                   <PrimaryBtn type="button" onClick={onClose}>{t('common.close', '닫기')}</PrimaryBtn>
                 </Actions>

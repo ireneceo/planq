@@ -241,7 +241,7 @@ res.status(400).json({ success: false, message: 'Error description' });
 
 ---
 
-## DB 테이블 (32개)
+## DB 테이블 (34개)
 
 **기본 (13):** users, businesses, business_members, clients, conversations, conversation_participants, messages, message_attachments, tasks, files, invoices, invoice_items, audit_logs
 
@@ -259,7 +259,15 @@ res.status(400).json({ success: false, message: 'Error description' });
 
 > **Q Bill 청구서 ↔ 출처 연결 (2026-04-27):** `invoices.source_post_id INT FK posts(id)` — 계약/견적/SOW/제안 post 참조 (1:N, 한 출처로 여러 회차 청구 가능). `Invoice.belongsTo(Post, as: 'sourcePost')` association.
 >
-> **Q Bill 워크스페이스 청구 설정 (2026-04-27):** `businesses.default_due_days INT default 14`, `businesses.default_currency VARCHAR(3) default 'KRW'` — 청구서 발행 모달에서 자동 prefill. PUT `/api/businesses/:id/billing` 으로 인라인 편집 (Q Bill 설정 탭).
+> **Q Bill 워크스페이스 청구 설정 (2026-04-27):** `businesses.default_due_days INT default 14`, `businesses.default_currency VARCHAR(3) default 'KRW'` — 청구서 발행 모달에서 자동 prefill. PUT `/api/businesses/:id/billing` 으로 인라인 편집 (`/business/settings/billing` 통합 설정).
+>
+> **Phase D+1 거래 시퀀스 (2026-04-27 신규):** `project_stages` 테이블 — project_id, order_index, kind ('quote'|'proposal'|'contract'|'invoice'|'tax_invoice'|'custom'), label, status ('pending'|'active'|'completed'|'skipped'), linked_entity_type/id, metadata, is_template_seeded. 자동 진행 엔진 (`services/projectStageEngine.js`) 이 entity 상태 기반 멱등 재계산. 4 템플릿 (fixed/subscription/consulting/custom) 자동 시드. GET `/api/projects/:id/transactions` 응답에 stages + next_action 포함.
+>
+> **Phase E 외화 결제 (2026-04-27 신규):** `businesses.swift_code VARCHAR(20)`, `bank_name_en VARCHAR(200)`, `bank_account_name_en VARCHAR(200)` — 외화 청구서 공개 결제 페이지에 자동 노출. 통화는 청구서별 (KRW/USD/EUR/JPY/CNY 5종), 입금 정보는 단일 (한국+SWIFT/영문 같이). 세금계산서 단계는 한국 사업자(`Client.is_business=true && country='KR'`)만 자동 활성.
+>
+> **Phase E 메일 (2026-04-27 신규):** `businesses.mail_from_name VARCHAR(100)`, `mail_reply_to VARCHAR(200)` — `"표시이름" <noreply@planq.kr>` 형식 자동. GET/PUT `/api/businesses/:id/mail` (`/business/settings/email`).
+>
+> **Phase E 알림 매트릭스 (2026-04-27 신규):** `notification_prefs` 테이블 — user × business × event_kind × channel × enabled. event_kind 7종 × channel 3종 = 21 토글. row 없으면 기본 ON (열린 문화), 명시적 OFF row 만 차단. `routes/notifications.isAllowed()` helper 발송 시점 검사.
 
 **기타 (2):** kb_chunks, kb_documents, kb_pinned_faqs, cue_usage
 

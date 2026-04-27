@@ -68,6 +68,8 @@ const TodoPage: React.FC = () => {
     s.on('event:created', debouncedReload);
     s.on('event:updated', debouncedReload);
     s.on('event:deleted', debouncedReload);
+    // Phase D — 서명/결제알림/세금계산서/PATCH 통합 신호
+    s.on('inbox:refresh', debouncedReload);
     return () => {
       if (pending) window.clearTimeout(pending);
       s.emit('leave:business', bizId);

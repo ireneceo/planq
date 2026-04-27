@@ -104,6 +104,7 @@ function apiMessageToMock(m: qtalkApi.ApiMessage): MockMessage {
       const ct = (m.meta as { card_type?: string }).card_type;
       if (ct === 'post') return m.meta as unknown as import('./mock').PostCardMeta;
       if (ct === 'signature_request') return m.meta as unknown as import('./mock').SignatureCardMeta;
+      if (ct === 'invoice') return m.meta as unknown as import('./mock').InvoiceCardMeta;
       return null;
     })(),
   };

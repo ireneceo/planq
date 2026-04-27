@@ -28,7 +28,7 @@ interface Props {
   rightCollapsed: boolean;
   onToggleLeft: () => void;
   onToggleRight: () => void;
-  onFocusCandidates?: () => void;
+  onFocusCandidates?: () => void; // (legacy — 배너에서 더 이상 사용 안 함, 호출자 호환 유지)
   onOpenNewChat?: () => void;
 }
 
@@ -37,7 +37,7 @@ const ChatPanel: React.FC<Props> = ({
   onOpenExtract, onSendMessage, onCueDraftSend, onCueDraftReject,
   onToggleAutoExtract, onRenameConversation,
   candidatesCount, extracting, leftCollapsed, rightCollapsed, onToggleLeft, onToggleRight,
-  onFocusCandidates, onOpenNewChat,
+  onOpenNewChat,
 }) => {
   const { t } = useTranslation('qtalk');
   const { user } = useAuth();
@@ -373,16 +373,15 @@ const ChatPanel: React.FC<Props> = ({
         </HeaderRight>
       </HeaderBar>
 
-      {/* 업무 후보 확인 배너 — pending 후보가 있을 때만, 담당자에게만, dismiss 가능 */}
+      {/* 업무 후보 알림 배너 — pending 후보가 있을 때만 (안내 전용 — 우측 패널이 이미 열려 있으니 X 로 닫기만) */}
       {!isClient && candidatesCount > 0 && !bannerDismissed && (
         <CandidatesBanner>
           <BannerText>
             {t('chat.banner.candidatesPending', { count: candidatesCount })}
           </BannerText>
-          <BannerActions>
-            <BannerBtn onClick={() => onFocusCandidates?.()}>{t('chat.banner.review', '확인하기')}</BannerBtn>
-            <BannerBtn $ghost onClick={() => setBannerDismissed(true)}>{t('chat.banner.later', '나중에')}</BannerBtn>
-          </BannerActions>
+          <BannerCloseBtn type="button" onClick={() => setBannerDismissed(true)} aria-label={t('chat.banner.dismiss', '닫기') as string}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+          </BannerCloseBtn>
         </CandidatesBanner>
       )}
 
@@ -417,6 +416,51 @@ const ChatPanel: React.FC<Props> = ({
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
                   </DocCardArrow>
                 </SignCard>
+              ) : m.card?.card_type === 'invoice' ? (
+                (() => {
+                  const ic = m.card as import('./mock').InvoiceCardMeta;
+                  const paid = ic.status === 'paid';
+                  const partial = ic.status === 'partially_paid';
+                  const canceled = ic.status === 'canceled';
+                  const notified = !!ic.last_notify_at && !paid;
+                  const fmt = (n: number) =>
+                    ic.currency === 'KRW' ? '₩' + Number(n).toLocaleString('ko-KR') :
+                    `${ic.currency} ${Number(n).toLocaleString()}`;
+                  return (
+                    <InvoiceCard
+                      type="button"
+                      $paid={paid}
+                      $notified={notified}
+                      $canceled={canceled}
+                      onClick={() => window.open(ic.share_url, '_blank', 'noopener,noreferrer')}
+                    >
+                      <InvCardIcon $paid={paid} $notified={notified}>
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <rect x="2" y="5" width="20" height="14" rx="2"/>
+                          <line x1="2" y1="10" x2="22" y2="10"/>
+                          <line x1="6" y1="15" x2="10" y2="15"/>
+                        </svg>
+                      </InvCardIcon>
+                      <DocCardBody>
+                        <DocCardTitle>{ic.title}</DocCardTitle>
+                        <InvCardSub>
+                          {ic.invoice_number} · {fmt(ic.total)}
+                          {ic.installment_mode === 'split' && <> · {t('chat.card.invoiceSplit', '분할')}</>}
+                        </InvCardSub>
+                        <InvCardStatus $paid={paid} $notified={notified} $canceled={canceled}>
+                          {paid && t('chat.card.invoicePaid', '결제 완료')}
+                          {!paid && partial && t('chat.card.invoicePartial', '부분 결제')}
+                          {!paid && !partial && canceled && t('chat.card.invoiceCanceled', '취소됨')}
+                          {!paid && !partial && !canceled && notified && t('chat.card.invoiceNotified', '송금 완료 알림 받음')}
+                          {!paid && !partial && !canceled && !notified && t('chat.card.invoiceLabel', '결제 요청')}
+                        </InvCardStatus>
+                      </DocCardBody>
+                      <DocCardArrow>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                      </DocCardArrow>
+                    </InvoiceCard>
+                  );
+                })()
               ) : m.card ? (
                 <DocCard type="button" onClick={() => setPreviewCard(m.card as import('./mock').PostCardMeta)}>
                   <DocCardIcon>
@@ -843,21 +887,14 @@ const BannerText = styled.div`
   font-weight: 500;
 `;
 
-const BannerActions = styled.div`
-  display: flex;
-  gap: 6px;
-`;
-
-const BannerBtn = styled.button<{ $ghost?: boolean }>`
-  padding: 5px 12px;
-  font-size: 12px;
-  font-weight: 600;
-  background: ${(p) => (p.$ghost ? 'transparent' : '#F59E0B')};
-  color: ${(p) => (p.$ghost ? '#92400E' : '#FFFFFF')};
-  border: ${(p) => (p.$ghost ? '1px solid #FDE68A' : 'none')};
-  border-radius: 6px;
-  cursor: pointer;
-  &:hover { ${(p) => !p.$ghost && 'background: #D97706;'} }
+const BannerCloseBtn = styled.button`
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 24px; height: 24px; flex-shrink: 0;
+  background: transparent; border: none; border-radius: 6px; cursor: pointer;
+  color: #92400E;
+  transition: background 0.12s;
+  &:hover { background: rgba(146, 64, 14, 0.1); }
+  &:focus-visible { outline: 2px solid #F59E0B; outline-offset: 2px; }
 `;
 
 const MessageList = styled.div`
@@ -943,6 +980,33 @@ const SignCard = styled.div`
   border: 1px solid #14B8A6; border-radius: 10px; cursor: pointer;
   transition: border-color 0.15s, transform 0.15s, box-shadow 0.15s;
   &:hover { border-color: #0D9488; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(20,184,166,0.15); }
+`;
+const InvoiceCard = styled.button<{ $paid: boolean; $notified: boolean; $canceled: boolean }>`
+  all: unset; cursor: pointer; display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px; max-width: 380px;
+  background: ${p => p.$paid ? '#F0FDF4' : p.$notified ? '#FFFBEB' : '#F8FAFC'};
+  border: 1px solid ${p => p.$paid ? '#86EFAC' : p.$notified ? '#FCD34D' : '#E2E8F0'};
+  border-radius: 10px;
+  opacity: ${p => p.$canceled ? 0.6 : 1};
+  transition: background 0.15s, border-color 0.15s, transform 0.15s;
+  &:hover { transform: translateY(-1px); border-color: ${p => p.$paid ? '#22C55E' : p.$notified ? '#F59E0B' : '#0D9488'}; }
+  &:focus-visible { outline: 2px solid #14B8A6; outline-offset: 2px; }
+`;
+const InvCardIcon = styled.span<{ $paid: boolean; $notified: boolean }>`
+  width: 36px; height: 36px; flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: #fff;
+  color: ${p => p.$paid ? '#15803D' : p.$notified ? '#B45309' : '#0F766E'};
+  border: 1px solid ${p => p.$paid ? '#86EFAC' : p.$notified ? '#FCD34D' : '#E2E8F0'};
+  border-radius: 8px;
+`;
+const InvCardSub = styled.span`
+  font-size: 11px; color: #64748B; font-weight: 500;
+  font-variant-numeric: tabular-nums;
+`;
+const InvCardStatus = styled.span<{ $paid: boolean; $notified: boolean; $canceled: boolean }>`
+  font-size: 11px; font-weight: 700;
+  color: ${p => p.$paid ? '#15803D' : p.$canceled ? '#94A3B8' : p.$notified ? '#B45309' : '#0F766E'};
 `;
 const SignCardIcon = styled.span`
   width: 36px; height: 36px; flex-shrink: 0;

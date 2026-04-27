@@ -25,19 +25,28 @@ const getTransporter = () => {
   return transporter;
 };
 
-const sendEmail = async ({ to, subject, html }) => {
+// sendEmail — 첨부 + 발신자 표시이름 + 회신주소 옵션
+//   { to, subject, html, attachments?, fromName?, replyTo? }
+//   attachments: [{ filename, content (Buffer), contentType }]
+const sendEmail = async ({ to, subject, html, attachments, fromName, replyTo }) => {
   const transport = getTransporter();
   if (!transport) {
     console.warn(`Email skipped (no SMTP): to=${to}, subject=${subject}`);
     return false;
   }
 
+  // 발신자: workspace 의 mail_from_name 있으면 "표시이름 <from-addr>" 형식
+  const fromAddr = process.env.SMTP_FROM || 'noreply@planq.kr';
+  const from = fromName ? `"${String(fromName).replace(/"/g, '')}" <${fromAddr}>` : fromAddr;
+
   try {
     await transport.sendMail({
-      from: process.env.SMTP_FROM || 'noreply@planq.kr',
+      from,
       to,
       subject,
-      html
+      html,
+      ...(attachments && attachments.length > 0 ? { attachments } : {}),
+      ...(replyTo ? { replyTo } : {}),
     });
     return true;
   } catch (error) {
@@ -289,10 +298,14 @@ function invoiceEmailHtml({ invoiceNumber, title, total, currency, dueDate, send
 </body></html>`;
 }
 
-async function sendInvoiceEmail({ to, invoiceNumber, title, total, currency, dueDate, senderName, workspaceName, message, shareUrl }) {
+async function sendInvoiceEmail({ to, invoiceNumber, title, total, currency, dueDate, senderName, workspaceName, message, shareUrl, attachments, fromName, replyTo }) {
   if (!to) return false;
   const subject = `[PlanQ] 청구서 — ${invoiceNumber} ${title}`;
-  return sendEmail({ to, subject, html: invoiceEmailHtml({ invoiceNumber, title, total, currency, dueDate, senderName, workspaceName, message, shareUrl }) });
+  return sendEmail({
+    to, subject,
+    html: invoiceEmailHtml({ invoiceNumber, title, total, currency, dueDate, senderName, workspaceName, message, shareUrl }),
+    attachments, fromName, replyTo,
+  });
 }
 
 module.exports = { sendEmail, sendInviteEmail, sendPostShareEmail, sendSignatureRequestEmail, sendSignatureOtpEmail, sendInvoiceEmail };

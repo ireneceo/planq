@@ -28,6 +28,7 @@ const TaskUserHours = require('./TaskUserHours');
 const TaskStatusHistory = require('./TaskStatusHistory');
 const TaskAttachment = require('./TaskAttachment');
 const ProjectStatusOption = require('./ProjectStatusOption');
+const ProjectStage = require('./ProjectStage');
 const ProjectProcessColumn = require('./ProjectProcessColumn');
 const ProjectProcessPart = require('./ProjectProcessPart');
 const CalendarEvent = require('./CalendarEvent');
@@ -52,6 +53,7 @@ const ProjectExpense = require('./ProjectExpense');
 const Report = require('./Report');
 // ─── 플랫폼 문의 ───
 const ContactInquiry = require('./ContactInquiry');
+const NotificationPref = require('./NotificationPref');
 // ─── Q docs (문서·템플릿 통합 시스템) ───
 const DocumentTemplate = require('./DocumentTemplate');
 const Document = require('./Document');
@@ -226,6 +228,10 @@ ProjectClient.belongsTo(Client, { foreignKey: 'client_id' });
 ProjectClient.belongsTo(User, { as: 'contactUser', foreignKey: 'contact_user_id' });
 Project.hasMany(ProjectClient, { as: 'projectClients', foreignKey: 'project_id' });
 
+// ProjectStage — 거래 시퀀스 (Phase D+1)
+ProjectStage.belongsTo(Project, { foreignKey: 'project_id', onDelete: 'CASCADE' });
+Project.hasMany(ProjectStage, { as: 'stages', foreignKey: 'project_id' });
+
 // ProjectNote / ProjectIssue / TaskCandidate
 ProjectNote.belongsTo(Project, { foreignKey: 'project_id', onDelete: 'CASCADE' });
 ProjectNote.belongsTo(User, { as: 'author', foreignKey: 'author_user_id' });
@@ -305,6 +311,7 @@ module.exports = {
   TaskStatusHistory,
   TaskAttachment,
   ProjectStatusOption,
+  ProjectStage,
   ProjectProcessColumn,
   ProjectProcessPart,
   CalendarEvent,
@@ -329,6 +336,7 @@ module.exports = {
   Report,
   // 플랫폼 문의
   ContactInquiry,
+  NotificationPref,
   // Q docs
   DocumentTemplate,
   Document,
@@ -450,3 +458,8 @@ Business.hasMany(Report, { as: 'reports', foreignKey: 'business_id' });
 ContactInquiry.belongsTo(User, { as: 'fromUser', foreignKey: 'from_user_id' });
 ContactInquiry.belongsTo(User, { as: 'repliedBy', foreignKey: 'replied_by_user_id' });
 ContactInquiry.belongsTo(Business, { foreignKey: 'business_id' });
+
+// NotificationPref — 사용자별 알림 채널 prefs (Phase E4)
+NotificationPref.belongsTo(User, { foreignKey: 'user_id', onDelete: 'CASCADE' });
+NotificationPref.belongsTo(Business, { foreignKey: 'business_id', onDelete: 'CASCADE' });
+User.hasMany(NotificationPref, { as: 'notificationPrefs', foreignKey: 'user_id' });

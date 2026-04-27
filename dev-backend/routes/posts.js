@@ -258,6 +258,10 @@ router.post('/', authenticateToken, async (req, res, next) => {
         { model: PostAttachment, as: 'attachments', include: [{ model: File, as: 'file' }] },
       ],
     });
+    // Phase D+1: 거래 stage 자동 진행
+    if (post.project_id) {
+      require('../services/projectStageEngine').onPostChanged(post.id).catch(() => null);
+    }
     successResponse(res, serialize(full, true), 'Post created', 201);
   } catch (err) { next(err); }
 });
@@ -321,6 +325,8 @@ router.put('/:id', authenticateToken, async (req, res, next) => {
         { model: PostAttachment, as: 'attachments', include: [{ model: File, as: 'file' }] },
       ],
     });
+    // Phase D+1: stage 자동 진행 (status/category 변경 가능성)
+    if (full?.project_id) require('../services/projectStageEngine').onPostChanged(full.id).catch(() => null);
     successResponse(res, serialize(full, true), 'Post updated');
   } catch (err) { next(err); }
 });
@@ -562,6 +568,55 @@ router.post('/:id/share-to-chat', authenticateToken, async (req, res, next) => {
     });
     await conv.update({ last_message_at: new Date() });
     return successResponse(res, { message: msg, share_url: shareUrl });
+  } catch (err) { next(err); }
+});
+
+// ─── PDF 다운로드 (멤버) ───
+async function buildPostPdf(post) {
+  const author = post.author ? { id: post.author.id, name: post.author.name } : null;
+  const business = await require('../models').Business.findByPk(post.business_id, {
+    attributes: ['name', 'brand_name', 'legal_name'],
+  });
+  const { postPdfHtml } = require('../services/pdfTemplates');
+  const { renderPdfFromHtml } = require('../services/pdfService');
+  const html = postPdfHtml(post, author, business?.toJSON() || {});
+  return renderPdfFromHtml(html);
+}
+
+router.get('/:id/pdf', authenticateToken, async (req, res, next) => {
+  try {
+    const post = await Post.findByPk(req.params.id, {
+      include: [{ model: User, as: 'author', attributes: ['id', 'name'] }],
+    });
+    if (!post) return errorResponse(res, 'not_found', 404);
+    if (!(await assertMember(req.user.id, post.business_id, req.user.platform_role === 'platform_admin'))) {
+      return errorResponse(res, 'forbidden', 403);
+    }
+    const pdf = await buildPostPdf(post);
+    res.setHeader('Content-Type', 'application/pdf');
+    // ASCII filename + RFC 5987 UTF-8 filename* (한글 등 비 ASCII 문자 지원)
+    const asciiName = (post.title || 'document').replace(/[^\w-]/g, '_').slice(0, 80) || 'document';
+    const utf8Name = encodeURIComponent(`${post.title || 'document'}.pdf`);
+    res.setHeader('Content-Disposition', `attachment; filename="${asciiName}.pdf"; filename*=UTF-8''${utf8Name}`);
+    res.send(pdf);
+  } catch (err) { next(err); }
+});
+
+// ─── PDF 다운로드 (익명 — share_token) ───
+router.get('/public/:token/pdf', async (req, res, next) => {
+  try {
+    const post = await Post.findOne({
+      where: { share_token: req.params.token, status: 'published' },
+      include: [{ model: User, as: 'author', attributes: ['id', 'name'] }],
+    });
+    if (!post) return errorResponse(res, 'not_found', 404);
+    const pdf = await buildPostPdf(post);
+    res.setHeader('Content-Type', 'application/pdf');
+    // ASCII filename + RFC 5987 UTF-8 filename* (한글 등 비 ASCII 문자 지원)
+    const asciiName = (post.title || 'document').replace(/[^\w-]/g, '_').slice(0, 80) || 'document';
+    const utf8Name = encodeURIComponent(`${post.title || 'document'}.pdf`);
+    res.setHeader('Content-Disposition', `attachment; filename="${asciiName}.pdf"; filename*=UTF-8''${utf8Name}`);
+    res.send(pdf);
   } catch (err) { next(err); }
 });
 

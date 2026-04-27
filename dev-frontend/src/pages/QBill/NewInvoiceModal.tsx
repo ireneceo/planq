@@ -7,6 +7,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { useEscapeStack } from '../../hooks/useEscapeStack';
 import { useAuth } from '../../contexts/AuthContext';
@@ -21,6 +22,10 @@ import PlanQSelect, { type PlanQSelectOption } from '../../components/Common/Pla
 interface Props {
   open: boolean;
   onClose: () => void;
+  /** 후속 액션 카드에서 진입 시 — 분할/단일 자동 분기 */
+  prefillSplit?: boolean;
+  /** 후속 액션 카드에서 진입 시 — 출처 문서 자동 연결 (post id) */
+  prefillPostId?: number | null;
 }
 
 const KIND_LABEL: Record<string, string> = {
@@ -38,15 +43,19 @@ const addDays = (s: string, d: number) => {
 const CURRENCY_OPTIONS: PlanQSelectOption[] = [
   { value: 'KRW', label: 'KRW (₩)' },
   { value: 'USD', label: 'USD ($)' },
+  { value: 'EUR', label: 'EUR (€)' },
+  { value: 'JPY', label: 'JPY (¥)' },
+  { value: 'CNY', label: 'CNY (¥)' },
 ];
 const VAT_OPTIONS: PlanQSelectOption[] = [
   { value: '0', label: '0%' },
   { value: '0.1', label: '10%' },
 ];
 
-export default function NewInvoiceModal({ open, onClose }: Props) {
+export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPostId }: Props) {
   const { t } = useTranslation('qbill');
   const { user } = useAuth();
+  const navigate = useNavigate();
   const businessId = user?.business_id ? Number(user.business_id) : null;
   useBodyScrollLock(open);
   useEscapeStack(open, onClose);
@@ -59,6 +68,14 @@ export default function NewInvoiceModal({ open, onClose }: Props) {
 
   // ─── 폼 state ───
   const [submitting, setSubmitting] = useState(false);
+
+  // 발송 결과 (sendInvoice 응답 기반) — 채팅방 가기 / 닫기
+  const [sentResult, setSentResult] = useState<{
+    invoiceId: number;
+    convId: number | null;
+    convName: string | null;
+    emailTo: string | null;
+  } | null>(null);
 
   const [clientId, setClientId] = useState<number | null>(null);
   const [sourcePostId, setSourcePostId] = useState<number | null>(null);
@@ -134,7 +151,6 @@ export default function NewInvoiceModal({ open, onClose }: Props) {
     ]).then(([info, list]) => {
       setBusinessInfo(info);
       setClients(list);
-      // 워크스페이스 기본값으로 폼 prefill (사용자가 아직 폼을 만지지 않았을 때만)
       if (info) {
         const days = info.default_due_days ?? 14;
         setDueDate(addDays(todayStr, days));
@@ -142,7 +158,46 @@ export default function NewInvoiceModal({ open, onClose }: Props) {
         if (info.default_currency) setCurrency(info.default_currency as Currency);
       }
     });
-  }, [open, businessId]);
+    // 후속 액션 카드에서 진입 시 분할 자동 활성
+    if (prefillSplit) setSplitOn(true);
+  }, [open, businessId, prefillSplit]);
+
+  // ─── 출처 문서 자동 연결 — followup 카드에서 prefillPostId 전달 시 ───
+  // 프로젝트 → client 자동 선택은 사용자가 직접 client 선택 후 sourceCandidates 가 로드되면
+  // sourcePostId 가 자동 매칭되도록 한다 (chicken-egg 회피).
+  useEffect(() => {
+    if (!open || !prefillPostId || !businessId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { fetchPost } = await import('../../services/posts');
+        const post = await fetchPost(prefillPostId);
+        if (cancelled || !post) return;
+        if (post.title) setTitle(post.title);
+        // 클라이언트가 있는 프로젝트라면 projectMembers/projectClients 에서 첫 client 자동 선택
+        if (post.project_id) {
+          try {
+            const { apiFetch } = await import('../../contexts/AuthContext');
+            const r = await apiFetch(`/api/projects/${post.project_id}`);
+            const j = await r.json();
+            const projClients = j?.data?.projectClients || [];
+            if (projClients.length > 0 && projClients[0].client_id) {
+              setClientId(projClients[0].client_id);
+            }
+          } catch { /* noop */ }
+        }
+      } catch { /* noop */ }
+    })();
+    return () => { cancelled = true; };
+  }, [open, prefillPostId, businessId]);
+
+  // sourceCandidates 로드 후 prefillPostId 자동 매칭
+  useEffect(() => {
+    if (!prefillPostId || !sourceCandidates.length) return;
+    if (sourceCandidates.find(p => p.id === prefillPostId)) {
+      setSourcePostId(prefillPostId);
+    }
+  }, [prefillPostId, sourceCandidates]);
 
   // ─── client 변경 시 source candidates + 채팅방 검색 ───
   useEffect(() => {
@@ -262,11 +317,27 @@ export default function NewInvoiceModal({ open, onClose }: Props) {
         items: items.filter(it => it.description.trim()).map(it => ({ description: it.description, quantity: it.quantity, unit_price: it.unit_price })),
       });
       if (!asDraft) {
-        await sendInvoice(businessId, created.id, {
+        const sent = await sendInvoice(businessId, created.id, {
           send_chat: sendChat && !!conversation,
           send_email: sendEmail,
           message: notes.trim() || undefined,
         });
+        // 발송 결과 — 채팅 conversation_id / email to 안전 추출
+        const chatRes = sent?.deliver?.chat;
+        const emailRes = sent?.deliver?.email;
+        const convId = (chatRes && 'conversation_id' in chatRes) ? chatRes.conversation_id : null;
+        const emailSent = (emailRes && 'sent' in emailRes) ? emailRes.sent : false;
+        const emailToAddr = (emailRes && 'to' in emailRes) ? emailRes.to : null;
+        if (convId || emailSent) {
+          setSentResult({
+            invoiceId: created.id,
+            convId,
+            convName: convId ? (conversation?.title || null) : null,
+            emailTo: emailSent ? emailToAddr : null,
+          });
+          setSubmitting(false);
+          return; // 결과 화면 유지
+        }
       }
       onClose();
     } catch (err) {
@@ -277,6 +348,40 @@ export default function NewInvoiceModal({ open, onClose }: Props) {
   };
 
   if (!open) return null;
+
+  // 발송 결과 화면 — 채팅방 가기 / 닫기
+  if (sentResult) {
+    return (
+      <Backdrop onClick={onClose}>
+        <Dialog onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={t('newInvoice.sent.title', '발송 완료') as string} style={{ maxWidth: 460 }}>
+          <Head>
+            <Title>{t('newInvoice.sent.title', '발송 완료')}</Title>
+            <CloseBtn type="button" onClick={onClose} aria-label={t('common.close', '닫기') as string}>×</CloseBtn>
+          </Head>
+          <SentBody>
+            <SentIcon>✓</SentIcon>
+            <SentTitle>{t('newInvoice.sent.title', '발송 완료')}</SentTitle>
+            <SentList>
+              {sentResult.convId && sentResult.convName && (
+                <li>{t('newInvoice.sent.chat', '"{{name}}" 채팅방에 카드 메시지를 보냈습니다', { name: sentResult.convName })}</li>
+              )}
+              {sentResult.emailTo && (
+                <li>{t('newInvoice.sent.email', '{{to}} 에게 이메일을 발송했습니다', { to: sentResult.emailTo })}</li>
+              )}
+            </SentList>
+            <SentActions>
+              {sentResult.convId && (
+                <SentSecondaryBtn type="button" onClick={() => { onClose(); navigate(`/talk/${sentResult.convId}`); }}>
+                  {t('newInvoice.sent.goChat', '채팅방 가서 보기')}
+                </SentSecondaryBtn>
+              )}
+              <SentPrimaryBtn type="button" onClick={onClose}>{t('common.close', '닫기')}</SentPrimaryBtn>
+            </SentActions>
+          </SentBody>
+        </Dialog>
+      </Backdrop>
+    );
+  }
 
   // 발송 요약 텍스트
   const recipientEmail = client?.tax_invoice_email || client?.billing_contact_email || client?.invite_email;
@@ -766,7 +871,36 @@ const Title = styled.h2`
 const CloseBtn = styled.button`
   width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center;
   background: transparent; border: none; border-radius: 6px; cursor: pointer; color: #64748B;
+  font-size: 22px; line-height: 1;
   &:hover { background: #F1F5F9; color: #0F172A; }
+`;
+// 발송 결과 화면
+const SentBody = styled.div`
+  padding: 28px 24px; display: flex; flex-direction: column; align-items: center; gap: 14px;
+`;
+const SentIcon = styled.div`
+  width: 56px; height: 56px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
+  background: #F0FDF4; color: #15803D; font-size: 28px; font-weight: 700;
+`;
+const SentTitle = styled.div`font-size: 16px; font-weight: 700; color: #0F172A;`;
+const SentList = styled.ul`
+  margin: 4px 0; padding: 0 0 0 0;
+  list-style: none; display: flex; flex-direction: column; gap: 6px;
+  font-size: 13px; color: #475569; text-align: center;
+  & li { padding: 6px 12px; background: #F8FAFC; border-radius: 8px; }
+`;
+const SentActions = styled.div`
+  display: flex; gap: 8px; justify-content: center; margin-top: 8px;
+`;
+const SentSecondaryBtn = styled.button`
+  padding: 9px 16px; font-size: 13px; font-weight: 600; color: #0F766E;
+  background: #fff; border: 1px solid #14B8A6; border-radius: 8px; cursor: pointer;
+  &:hover { background: #F0FDFA; }
+`;
+const SentPrimaryBtn = styled.button`
+  padding: 9px 16px; font-size: 13px; font-weight: 600; color: #fff;
+  background: #0D9488; border: none; border-radius: 8px; cursor: pointer;
+  &:hover { background: #0F766E; }
 `;
 const Body = styled.div`
   flex: 1; overflow-y: auto; padding: 20px 24px 24px; background: #FAFBFC;

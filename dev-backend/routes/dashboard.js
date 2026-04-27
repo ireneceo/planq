@@ -6,7 +6,7 @@ const {
   CalendarEvent, CalendarEventAttendee, Project,
   Client, BusinessMember, Business, User,
   TaskCandidate, Conversation,
-  Invoice,
+  Invoice, InvoiceInstallment, SignatureRequest, Post,
 } = require('../models');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const { authenticateToken } = require('../middleware/auth');
@@ -359,6 +359,8 @@ async function collectInvoices(businessId) {
     where: {
       business_id: businessId,
       status: { [Op.in]: ['sent', 'overdue'] },
+      // notify_paid_at 이 있는 건은 collectPaymentNotifies 가 처리 (중복 방지)
+      notify_paid_at: null,
     },
     attributes: ['id', 'invoice_number', 'recipient_business_name', 'grand_total', 'paid_amount', 'due_date', 'status', 'currency'],
     order: [['due_date', 'ASC']],
@@ -368,7 +370,7 @@ async function collectInvoices(businessId) {
   for (const inv of invoices) {
     const paid = Number(inv.paid_amount || 0);
     const total = Number(inv.grand_total || 0);
-    if (total <= paid) continue; // 이미 완납된 건은 제외
+    if (total <= paid) continue;
     const dueStr = inv.due_date ? String(inv.due_date).slice(0, 10) : null;
     const overdue = dueStr && dueStr < todayStr;
     const dueAt = dueStr ? new Date(`${dueStr}T23:59:59+09:00`) : null;
@@ -383,9 +385,250 @@ async function collectInvoices(businessId) {
       amount: total - paid,
       currency: inv.currency || 'KRW',
       actor: inv.recipient_business_name ? { name: inv.recipient_business_name } : null,
-      link: '/bills',
+      link: `/bills?tab=invoices&invoice=${inv.id}`,
     });
   }
+  return items;
+}
+
+/* ─────────────────────────────────────────────
+   서명 요청 (Phase A)
+   - 내가 서명자인 미서명 요청 (signer_email = userEmail, status sent/viewed)
+   - 워크스페이스 발행분 진행 중 (waiting other party — owner/admin 만)
+   - 거절 받음 (today, owner/admin 만)
+   ──────────────────────────────────────────── */
+async function collectSignatures(businessId, userEmail, userRole) {
+  const items = [];
+  const now = new Date();
+  const oneDayMs = 24 * 60 * 60 * 1000;
+
+  // 내가 서명자 — 모든 워크스페이스에서 받은 서명 요청 (이메일 기준)
+  if (userEmail) {
+    const myReqs = await SignatureRequest.findAll({
+      where: {
+        signer_email: userEmail,
+        status: { [Op.in]: ['sent', 'viewed'] },
+      },
+      attributes: ['id', 'token', 'signer_email', 'signer_name', 'status', 'expires_at', 'entity_type', 'entity_id', 'business_id', 'created_at'],
+      order: [['expires_at', 'ASC']],
+      limit: 30,
+    });
+    // entity 제목 한 번에 fetch
+    const postIds = [...new Set(myReqs.filter(r => r.entity_type === 'post').map(r => r.entity_id))];
+    const posts = postIds.length
+      ? await Post.findAll({ where: { id: { [Op.in]: postIds } }, attributes: ['id', 'title', 'category'] })
+      : [];
+    const postMap = Object.fromEntries(posts.map(p => [p.id, p]));
+
+    for (const sr of myReqs) {
+      const expiresAt = sr.expires_at ? new Date(sr.expires_at) : null;
+      const expired = expiresAt && expiresAt < now;
+      if (expired) continue; // 만료된 건 표시 안 함
+      const ms = expiresAt ? expiresAt.getTime() - now.getTime() : Infinity;
+      const priority = ms < oneDayMs ? 'urgent' : (ms < 3 * oneDayMs ? 'today' : 'week');
+      const post = sr.entity_type === 'post' ? postMap[sr.entity_id] : null;
+      const subject = post ? post.title : `${sr.entity_type}#${sr.entity_id}`;
+      items.push({
+        id: `sign-recv-${sr.id}`,
+        type: 'signature',
+        priority,
+        verb: 'sign',
+        subject,
+        context: expiresAt ? `만료: ${formatDateShort(expiresAt)}` : null,
+        dueAt: safeToIso(expiresAt),
+        actor: { name: sr.signer_name || sr.signer_email },
+        link: `/sign/${sr.token}`,
+      });
+    }
+  }
+
+  // 발행자 측 — owner/admin 만 (member 는 본인이 발행한 건 위주로 보고 싶을 수도 있으나 단순화)
+  if (businessId && (userRole === 'owner' || userRole === 'admin')) {
+    // 거절 받음 (최근 7일)
+    const sevenDaysAgo = new Date(now.getTime() - 7 * 86400 * 1000);
+    const rejected = await SignatureRequest.findAll({
+      where: {
+        business_id: businessId,
+        status: 'rejected',
+        rejected_at: { [Op.gte]: sevenDaysAgo },
+      },
+      attributes: ['id', 'token', 'signer_email', 'signer_name', 'status', 'rejected_at', 'rejected_reason', 'entity_type', 'entity_id'],
+      order: [['rejected_at', 'DESC']],
+      limit: 10,
+    });
+    const rejPostIds = [...new Set(rejected.filter(r => r.entity_type === 'post').map(r => r.entity_id))];
+    const rejPosts = rejPostIds.length
+      ? await Post.findAll({ where: { id: { [Op.in]: rejPostIds } }, attributes: ['id', 'title', 'project_id'] })
+      : [];
+    const rejPostMap = Object.fromEntries(rejPosts.map(p => [p.id, p]));
+    for (const sr of rejected) {
+      const post = sr.entity_type === 'post' ? rejPostMap[sr.entity_id] : null;
+      const subject = post ? post.title : `${sr.entity_type}#${sr.entity_id}`;
+      const link = post && sr.entity_type === 'post' ? `/qdocs?post=${sr.entity_id}` : null;
+      items.push({
+        id: `sign-rejected-${sr.id}`,
+        type: 'signature',
+        priority: 'today',
+        verb: 'review',
+        subject,
+        context: `${sr.signer_name || sr.signer_email} 거절${sr.rejected_reason ? ` — ${String(sr.rejected_reason).slice(0, 40)}` : ''}`,
+        dueAt: safeToIso(sr.rejected_at),
+        actor: { name: sr.signer_name || sr.signer_email },
+        link,
+      });
+    }
+  }
+
+  return items;
+}
+
+function formatDateShort(d) {
+  if (!d) return '';
+  const dt = d instanceof Date ? d : new Date(d);
+  return `${dt.getMonth() + 1}/${dt.getDate()}`;
+}
+
+/* ─────────────────────────────────────────────
+   결제 알림 — 고객이 송금 완료 알림 보낸 후 발행자 마킹 대기 (Phase C)
+   ──────────────────────────────────────────── */
+async function collectPaymentNotifies(businessId, userRole) {
+  if (!businessId) return [];
+  // owner/admin 만 (결제 마킹 권한)
+  if (userRole !== 'owner' && userRole !== 'admin') return [];
+
+  const items = [];
+
+  // 단일 invoice 알림
+  const invoices = await Invoice.findAll({
+    where: {
+      business_id: businessId,
+      notify_paid_at: { [Op.ne]: null },
+      status: { [Op.in]: ['sent', 'overdue', 'partially_paid'] },
+    },
+    attributes: ['id', 'invoice_number', 'title', 'grand_total', 'paid_amount', 'currency', 'notify_paid_at', 'notify_payer_name', 'installment_mode'],
+    include: [{ model: Client, attributes: ['display_name', 'biz_name', 'company_name'] }],
+    order: [['notify_paid_at', 'DESC']],
+    limit: 20,
+  });
+  for (const inv of invoices) {
+    if (inv.installment_mode === 'split') continue; // 분할은 회차 단위로
+    const total = Number(inv.grand_total || 0);
+    const paid = Number(inv.paid_amount || 0);
+    if (total <= paid) continue;
+    const clientName = inv.Client?.biz_name || inv.Client?.company_name || inv.Client?.display_name || '';
+    const cur = inv.currency === 'USD' ? '$' : '₩';
+    items.push({
+      id: `paynotify-inv-${inv.id}`,
+      type: 'payment_notify',
+      priority: 'urgent',
+      verb: 'mark_paid',
+      subject: `${inv.invoice_number} · ${cur}${(total - paid).toLocaleString('ko-KR')} ${clientName ? `· ${clientName}` : ''}`.trim(),
+      context: `송금 완료 알림 받음${inv.notify_payer_name ? ` · 입금자명: ${inv.notify_payer_name}` : ''}`,
+      dueAt: safeToIso(inv.notify_paid_at),
+      amount: total - paid,
+      currency: inv.currency || 'KRW',
+      actor: { name: inv.notify_payer_name || clientName || '고객' },
+      link: `/bills?tab=invoices&invoice=${inv.id}`,
+    });
+  }
+
+  // 회차별 알림
+  const insts = await InvoiceInstallment.findAll({
+    where: {
+      notify_paid_at: { [Op.ne]: null },
+      status: { [Op.in]: ['sent', 'overdue'] },
+    },
+    attributes: ['id', 'invoice_id', 'installment_no', 'label', 'amount', 'notify_paid_at', 'notify_payer_name'],
+    include: [{
+      model: Invoice,
+      where: { business_id: businessId },
+      attributes: ['id', 'invoice_number', 'currency'],
+      include: [{ model: Client, attributes: ['display_name', 'biz_name', 'company_name'] }],
+    }],
+    order: [['notify_paid_at', 'DESC']],
+    limit: 30,
+  });
+  for (const inst of insts) {
+    if (!inst.Invoice) continue;
+    const inv = inst.Invoice;
+    const clientName = inv.Client?.biz_name || inv.Client?.company_name || inv.Client?.display_name || '';
+    const cur = inv.currency === 'USD' ? '$' : '₩';
+    items.push({
+      id: `paynotify-inst-${inst.id}`,
+      type: 'payment_notify',
+      priority: 'urgent',
+      verb: 'mark_paid',
+      subject: `${inv.invoice_number} · ${inst.label} · ${cur}${Number(inst.amount).toLocaleString('ko-KR')} ${clientName ? `· ${clientName}` : ''}`.trim(),
+      context: `송금 완료 알림 받음${inst.notify_payer_name ? ` · 입금자명: ${inst.notify_payer_name}` : ''}`,
+      dueAt: safeToIso(inst.notify_paid_at),
+      amount: Number(inst.amount),
+      currency: inv.currency || 'KRW',
+      actor: { name: inst.notify_payer_name || clientName || '고객' },
+      link: `/bills?tab=invoices&invoice=${inv.id}`,
+    });
+  }
+
+  return items;
+}
+
+/* ─────────────────────────────────────────────
+   세금계산서 발행 마감 — 사업자 고객 paid 회차 중 미발행
+   (단일 invoice 도 사업자 고객이고 paid 면 포함 — 분할 회차 단위로 묶어서 처리)
+   ──────────────────────────────────────────── */
+async function collectTaxInvoices(businessId, userRole) {
+  if (!businessId) return [];
+  if (userRole !== 'owner' && userRole !== 'admin') return [];
+
+  const items = [];
+
+  // 분할 회차: paid + tax_invoice_no IS NULL + 한국 사업자 고객 (해외 영세율 거래는 제외)
+  const insts = await InvoiceInstallment.findAll({
+    where: {
+      status: 'paid',
+      tax_invoice_no: null,
+    },
+    attributes: ['id', 'invoice_id', 'installment_no', 'label', 'amount', 'paid_at'],
+    include: [{
+      model: Invoice,
+      where: { business_id: businessId },
+      attributes: ['id', 'invoice_number', 'currency'],
+      include: [{
+        model: Client,
+        where: { is_business: true, country: 'KR' },
+        attributes: ['biz_name', 'company_name', 'display_name'],
+        required: true,
+      }],
+      required: true,
+    }],
+    order: [['paid_at', 'ASC']],
+    limit: 30,
+  });
+  for (const inst of insts) {
+    if (!inst.Invoice) continue;
+    const inv = inst.Invoice;
+    const clientName = inv.Client?.biz_name || inv.Client?.company_name || inv.Client?.display_name || '';
+    const cur = inv.currency === 'USD' ? '$' : '₩';
+    // 마감 = paid_at + 30일 (한국 세금계산서 발행 마감 — 다음 달 10일 기준이지만 단순화)
+    const paidAt = inst.paid_at ? new Date(inst.paid_at) : null;
+    const dueAt = paidAt ? new Date(paidAt.getTime() + 30 * 86400 * 1000) : null;
+    const overdue = dueAt && dueAt < new Date();
+    const ms = dueAt ? dueAt.getTime() - Date.now() : Infinity;
+    const priority = overdue ? 'urgent' : (ms < 7 * 86400 * 1000 ? 'today' : 'week');
+    items.push({
+      id: `tax-inst-${inst.id}`,
+      type: 'tax_invoice',
+      priority,
+      verb: 'issue_tax',
+      subject: `${inv.invoice_number} · ${inst.label} · ${cur}${Number(inst.amount).toLocaleString('ko-KR')} · ${clientName}`,
+      context: paidAt ? `결제일: ${formatDateShort(paidAt)}${overdue ? ' · 마감 지남' : ''}` : null,
+      dueAt: safeToIso(dueAt),
+      amount: Number(inst.amount),
+      currency: inv.currency || 'KRW',
+      actor: { name: clientName || '사업자 고객' },
+      link: `/bills?tab=tax-invoices`,
+    });
+  }
+
   return items;
 }
 
@@ -420,17 +663,29 @@ router.get('/todo', authenticateToken, async (req, res, next) => {
       if (bm) businessId = bm.business_id;
     }
 
-    // 청구서는 owner/admin/member 모두 볼 수 있게 (워크스페이스 멤버십 검증은 위에서 완료)
-    const [tasks, events, invites, candidates, invoices] = await Promise.all([
+    // 사용자 role 결정 (signature 발행자 측 / payment_notify / tax_invoice 권한 게이팅용)
+    let userRole = null;
+    if (businessId) {
+      const bm = await BusinessMember.findOne({
+        where: { user_id: userId, business_id: businessId },
+        attributes: ['role'],
+      });
+      userRole = bm?.role || null;
+      if (isPlatformAdmin && !userRole) userRole = 'admin';
+    }
+
+    const [tasks, events, invites, candidates, invoices, signatures, paymentNotifies, taxInvoices] = await Promise.all([
       businessId ? collectTasks(businessId, userId) : Promise.resolve([]),
       businessId ? collectEvents(businessId, userId) : Promise.resolve([]),
       collectInvites(req.user.email),
       businessId ? collectCandidates(businessId, userId) : Promise.resolve([]),
       businessId ? collectInvoices(businessId) : Promise.resolve([]),
+      collectSignatures(businessId, req.user.email, userRole),
+      businessId ? collectPaymentNotifies(businessId, userRole) : Promise.resolve([]),
+      businessId ? collectTaxInvoices(businessId, userRole) : Promise.resolve([]),
     ]);
 
-    // Q Mail (mention/email) 은 시스템 미구현 — 실 데이터 collector 추가 시 합류
-    const all = [...tasks, ...events, ...invites, ...candidates, ...invoices];
+    const all = [...tasks, ...events, ...invites, ...candidates, ...invoices, ...signatures, ...paymentNotifies, ...taxInvoices];
 
     // Sort: priority order → dueAt asc
     const PRI = { urgent: 0, today: 1, waiting: 2, week: 3 };

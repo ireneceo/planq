@@ -1,6 +1,135 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-04-27 (Q Bill B2 정석 — 견적 폐기·5탭 재정의·청구서↔출처 연결·발송 채널 통합·실 API 풀 사이클·CLAUDE.md mock 절대 금지 강제)
+> **최종 업데이트:** 2026-04-27 (Phase D+1·D+2 거래 시퀀스 자동 진행 + 사용자 정의 + 외화 결제 인프라 + 설정 통합 + Phase E PDF·메일·알림 매트릭스)
+
+---
+
+## ✅ 완료: Phase D+1·D+2 + 외화 인프라 + 설정 통합 + Phase E (2026-04-27)
+
+대규모 세션. 거래 시퀀스 자동 진행 엔진 → 외화 결제 인프라 → 설정 통합 → PDF/메일/알림 매트릭스 한 묶음.
+
+### Phase D+1 — 거래 시퀀스 자동 진행 엔진
+
+| 영역 | 내용 | 상태 |
+|------|------|:----:|
+| **신규 모델** | `ProjectStage` (project_id, order_index, kind, label, status, linked_entity_*, metadata, is_template_seeded) | ✅ |
+| **4 템플릿** | fixed (견적→계약→청구→세금계산서) / subscription (계약→월별) / consulting (제안→SOW→회차) / custom (빈) | ✅ |
+| **자동 진행 엔진** | `services/projectStageEngine.js` — entity 상태 기반 멱등 재계산 | ✅ |
+| **Hooks** | post create/update · signature sign/reject · invoice send/mark-paid/unmark-paid/PATCH/mark-tax 모두 연결 | ✅ |
+| **next_action** | 현재 active stage 분석 → "지금 무엇 할지" + 액션 링크 (프로젝트 스코프) | ✅ |
+| **TransactionsTab** | 다음 할 일 카드 + 단계 보드 (4 dot + 연결선 + glow active) + 요약 + 문서·청구서·타임라인 | ✅ |
+| **레거시 lazy seed** | stage 0개 프로젝트는 GET /transactions 첫 호출 시 자동 시드 | ✅ |
+| **세금계산서 자동 skip** | 한국 사업자 (`is_business=true && country='KR'`) 만 활성. 해외/개인 자동 skipped | ✅ |
+
+### Phase D+2 — 거래 stage 사용자 정의 UI
+
+| 영역 | 내용 | 상태 |
+|------|------|:----:|
+| **신규 라우트** | `POST /api/projects/:id/stages/:stageId/move` (트랜잭션 swap) | ✅ |
+| **편집 모드** | StageBoard 헤더 ✏️ 토글 → row 형식 (label input + ↑↓ + 🗑) | ✅ |
+| **단계 추가** | "+ 단계 추가" 카드 → inline input → POST stages (kind='custom') | ✅ |
+| **삭제 차단** | template_seeded 자물쇠 아이콘 (custom 만 🗑) | ✅ |
+| **수동 토글** | read-only 모드의 custom stage dot 클릭 → status 토글 | ✅ |
+| **권한** | client 는 편집 토글 안 보임 (백엔드 role 가드와 일치) | ✅ |
+
+### 외화 결제 인프라
+
+| 영역 | 내용 | 상태 |
+|------|------|:----:|
+| **Business 컬럼** | swift_code · bank_name_en · bank_account_name_en | ✅ |
+| **통화 5종 활성** | KRW/USD/EUR/JPY/CNY (NewInvoiceModal + SettingsTab) | ✅ |
+| **입금 계좌 통합** | 한국 정보 + SWIFT/영문 정보 한 섹션 (분리 X) | ✅ |
+| **공개 결제 페이지** | `currency !== 'KRW'` 면 SWIFT/영문 자동 노출 | ✅ |
+| **PDF 영문 모드** | 외화 invoice PDF 자동 영문 (Bill To/Wire Transfer/Subtotal) | ✅ |
+
+### 설정 통합 (`/business/settings/*`)
+
+| 영역 | 내용 | 상태 |
+|------|------|:----:|
+| **Q Bill SettingsTab → 통합** | `/bills?tab=settings` 자동 redirect → `/business/settings/billing` | ✅ |
+| **신규 secondary nav** | 청구 설정 (영수증 아이콘) · 이메일 (편지) · 알림 (벨) | ✅ |
+| **워크스페이스 아이콘** | 톱니바퀴 → 회사 건물 (IconBuilding) | ✅ |
+| **청구·플랜 아이콘 차별화** | 청구=영수증, 구독=신용카드 | ✅ |
+
+### Phase E — PDF · 메일 · 알림 매트릭스
+
+| 영역 | 내용 | 상태 |
+|------|------|:----:|
+| **PDF 인프라** | Puppeteer 싱글톤 + invoice/post 템플릿 (외화면 영문) | ✅ |
+| **PDF 라우트 4종** | 멤버 invoice/post + 익명 invoice/post | ✅ |
+| **메일 첨부** | invoice send 시 PDF 자동 첨부 | ✅ |
+| **PDF 다운로드 버튼** | InvoiceDetailDrawer · PublicInvoicePage · PublicPostPage | ✅ |
+| **메일 발신자** | Business.mail_from_name + mail_reply_to + EmailSettings UI | ✅ |
+| **NotificationPref 모델** | user × business × event × channel × enabled (기본 ON) | ✅ |
+| **21 토글 매트릭스** | 7 이벤트 × 3 채널 NotificationSettings UI | ✅ |
+| **isAllowed helper** | 발송 시점 prefs 차단 검사 export | ✅ |
+
+### 사용자 지적 대응 (다수)
+
+1. 거래 탭 stage 라인 끊김 → grid + ::after pseudo-element 로 connector 재설계
+2. 거래 → 새 문서 자동 연결 → `/projects/p/X?tab=docs&new=1&category=...` 프로젝트 스코프
+3. 프로젝트>문서 탭에 AI/템플릿 버튼 추가
+4. 모달이 list 모드 return 블록 밖에 있어 안 보이는 버그 fix (PostAiModal + 템플릿 모달)
+5. 청구 설정 visibleTabs 누락 fix (`brand` 로 떨어지던 버그)
+6. 발신자 정보 redundancy 제거 (워크스페이스 법인 정보로 통합)
+7. 통화/은행/세금계산서 멘탈 모델 정리 — 통화는 표기, 입금은 단일, 세금계산서는 결제자 기준
+8. EmailSettings/NotificationSettings placeholder 자연 언어로 정정 ("Phase E 에서 제공 예정" → "준비 중")
+9. 워크스페이스/청구 설정/구독 플랜 아이콘 차별화
+
+### 채팅방 가기 버튼 4 지점
+
+PostShareModal · PostSignatureModal · NewInvoiceModal · InvoiceDetailDrawer 모두 발송 후 결과 화면 또는 액션바에 채팅방 이동 버튼.
+
+### 업무 추출 정확도 (Phase D1 보완)
+
+- 카드 메시지 (`kind='card'`) 추출 제외 → "표준 견적서 작성" 같은 오추출 방지
+- 채팅방 상단 배너 "확인하기/나중에" 제거 → X 닫기만 (이미 우측 패널 열려있어 redundant)
+
+### 검증 누적 (이번 세션)
+
+- 헬스체크 27/27 (모든 단계 통과)
+- D+1 자동 진행 E2E 14/14
+- D+2 stage 편집 E2E 18/18
+- Phase E (PDF/메일/알림) E2E 17/17
+- 최종 통합 회귀 22/22
+- 빌드 통과 (`index-D8MbLadb.js`)
+- mock 잔존 0건, 한국어 하드코딩 (신규 라인) 0건
+
+### 신규 파일 (12)
+
+**Backend (5)**:
+- `models/ProjectStage.js`, `models/NotificationPref.js`
+- `routes/notifications.js`
+- `services/projectStageEngine.js`, `services/pdfService.js`, `services/pdfTemplates.js`
+
+**Frontend (7)**:
+- `pages/QProject/TransactionsTab.tsx`
+- `pages/QBill/PublicInvoicePage.tsx`
+- `pages/Settings/BillingSettings.tsx`, `EmailSettings.tsx`, `NotificationSettings.tsx`
+
+### 수정된 파일 통계
+
+51 파일 변경 (+3,693 / -235 라인)
+
+### 신규 패키지
+
+- `puppeteer` (백엔드, PDF 생성)
+
+### 신규 메모리
+
+- `project_phase_e_complete.md` — PDF/메일/알림 인프라 노트
+- `project_project_stages.md` — ProjectStage 4 템플릿 + 자동 진행 엔진
+- `feedback_user_facing_copy.md` — 사용자 노출 문구 자연 언어 원칙
+- `feedback_currency_vs_bank.md` — 통화·은행·세금계산서 분리 멘탈 모델
+- `feedback_tab_layout_unify.md` — 탭 레이아웃 스코프 통일
+
+### 다음 작업 (우선순위)
+
+| 옵션 | 내용 | 추정 |
+|---|---|:--:|
+| **C** | Phase F — Q docs 슬롯 시스템 (영문 계약/견적 자동 채움) | ~5일 |
+| **B** | SMTP 운영 연결 (.env SMTP_HOST/USER 결정 + 도메인 인증) | ~1일 |
+| **D** | Phase 8 — 반응형 일괄 스프린트 | ~5일 |
 
 ---
 

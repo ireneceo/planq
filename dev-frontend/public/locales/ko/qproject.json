@@ -127,10 +127,101 @@
     "clients": "고객",
     "files": "파일",
     "docs": "문서",
+    "transactions": "거래",
     "info": "상세정보",
     "defaultProcess": "테이블",
     "processEditHint": "더블클릭하여 이름 변경",
     "renameHint": "이름 변경"
+  },
+  "tx": {
+    "summary": {
+      "contracts": "계약·문서",
+      "invoiced": "청구 총액",
+      "paid": "결제 완료",
+      "unpaid": "미수금",
+      "unitDocs": "건",
+      "noDoc": "문서 없음",
+      "invoicesCount": "{{n}}건",
+      "overdue": "연체 {{n}}건",
+      "taxPending": "세금계산서 대기 {{n}}건",
+      "normal": "정상"
+    },
+    "section": {
+      "docs": "계약·견적·SOW·제안",
+      "invoices": "청구서",
+      "timeline": "거래 타임라인"
+    },
+    "empty": {
+      "docs": "아직 발행된 문서가 없습니다",
+      "invoices": "청구서가 없습니다",
+      "timeline": "아직 이벤트가 없습니다"
+    },
+    "cat": {
+      "contract": "계약서",
+      "quote": "견적서",
+      "sow": "SOW",
+      "proposal": "제안서"
+    },
+    "postCreated": {
+      "contract": "계약서",
+      "quote": "견적서",
+      "sow": "SOW",
+      "proposal": "제안서"
+    },
+    "created": "작성",
+    "signed": "서명 완료",
+    "rejected": "서명 거절",
+    "invoiceSent": "청구서 발송",
+    "notifyPaid": "송금 완료 알림",
+    "invoicePaid": "결제 완료",
+    "installmentPaid": "회차 결제",
+    "taxIssued": "세금계산서 발행",
+    "taxPending": "세금계산서 대기",
+    "sigAll": "양사 서명 완료",
+    "sigRejected": "거절됨",
+    "sigPending": "서명 대기 {{n}}",
+    "status": {
+      "draft": "초안",
+      "sent": "발송됨",
+      "partially_paid": "부분결제",
+      "paid": "결제완료",
+      "overdue": "연체",
+      "canceled": "취소"
+    },
+    "instStatus": {
+      "pending": "대기",
+      "sent": "발송",
+      "paid": "결제완료",
+      "overdue": "연체",
+      "canceled": "취소"
+    },
+    "nextAction": {
+      "eyebrow": "다음 할 일",
+      "go": "바로 가기"
+    },
+    "stageBoard": {
+      "title": "거래 진행 단계",
+      "edit": "편집",
+      "done": "완료",
+      "addStage": "단계 추가",
+      "newStagePh": "예: 사후 점검, 포트폴리오 등록",
+      "kindTemplate": "기본",
+      "kindCustom": "사용자",
+      "moveUp": "위로",
+      "moveDown": "아래로",
+      "delete": "삭제",
+      "cannotDelete": "기본 단계는 삭제할 수 없습니다",
+      "deleteConfirmTitle": "단계 삭제",
+      "deleteConfirmMessage": "\"{{label}}\" 단계를 삭제할까요?",
+      "markCompleted": "완료로 변경",
+      "markPending": "대기로 변경"
+    },
+    "stageStatus": {
+      "completed": "완료",
+      "active": "진행 중",
+      "pending": "대기",
+      "skipped": "건너뜀"
+    }
   },
   "section": {
     "info": "기본 정보",
