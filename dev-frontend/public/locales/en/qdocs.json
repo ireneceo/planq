@@ -213,7 +213,8 @@
     "doneEmail": "Sent emails to {{n}} signer(s)",
     "doneChat": "Card sent to chat",
     "doneExpiry": "Track progress in the document detail",
-    "again": "Add more"
+    "again": "Add more",
+    "goChat": "Open chat"
   },
   "ai": {
     "btn": "AI",
@@ -270,7 +271,8 @@
       "messagePh": "Please take a look",
       "send": "Send to chat",
       "sentTo": "Sent to \"{{name}}\"",
-      "again": "Send to another chat"
+      "again": "Send to another chat",
+      "goView": "Open chat"
     },
     "chatRequired": "Please select a chat",
     "chatError": "Send failed",

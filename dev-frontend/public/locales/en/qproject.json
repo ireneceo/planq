@@ -127,10 +127,101 @@
     "clients": "Clients",
     "files": "Files",
     "docs": "Docs",
+    "transactions": "Transactions",
     "info": "Details",
     "defaultProcess": "Table",
     "processEditHint": "Double-click to rename",
     "renameHint": "Rename"
+  },
+  "tx": {
+    "summary": {
+      "contracts": "Contracts/Docs",
+      "invoiced": "Total invoiced",
+      "paid": "Paid",
+      "unpaid": "Outstanding",
+      "unitDocs": "doc(s)",
+      "noDoc": "No documents",
+      "invoicesCount": "{{n}} invoice(s)",
+      "overdue": "{{n}} overdue",
+      "taxPending": "{{n}} tax pending",
+      "normal": "OK"
+    },
+    "section": {
+      "docs": "Contracts · Quotes · SOW · Proposals",
+      "invoices": "Invoices",
+      "timeline": "Transaction timeline"
+    },
+    "empty": {
+      "docs": "No documents yet",
+      "invoices": "No invoices",
+      "timeline": "No events yet"
+    },
+    "cat": {
+      "contract": "Contract",
+      "quote": "Quote",
+      "sow": "SOW",
+      "proposal": "Proposal"
+    },
+    "postCreated": {
+      "contract": "Contract",
+      "quote": "Quote",
+      "sow": "SOW",
+      "proposal": "Proposal"
+    },
+    "created": "Created",
+    "signed": "Signed",
+    "rejected": "Rejected",
+    "invoiceSent": "Invoice sent",
+    "notifyPaid": "Payment notification",
+    "invoicePaid": "Paid in full",
+    "installmentPaid": "Installment paid",
+    "taxIssued": "Tax invoice issued",
+    "taxPending": "Tax pending",
+    "sigAll": "All signed",
+    "sigRejected": "Rejected",
+    "sigPending": "{{n}} pending",
+    "status": {
+      "draft": "Draft",
+      "sent": "Sent",
+      "partially_paid": "Partial",
+      "paid": "Paid",
+      "overdue": "Overdue",
+      "canceled": "Canceled"
+    },
+    "instStatus": {
+      "pending": "Pending",
+      "sent": "Sent",
+      "paid": "Paid",
+      "overdue": "Overdue",
+      "canceled": "Canceled"
+    },
+    "nextAction": {
+      "eyebrow": "Next action",
+      "go": "Go"
+    },
+    "stageBoard": {
+      "title": "Transaction stages",
+      "edit": "Edit",
+      "done": "Done",
+      "addStage": "Add stage",
+      "newStagePh": "e.g. Post-review, Portfolio entry",
+      "kindTemplate": "Template",
+      "kindCustom": "Custom",
+      "moveUp": "Move up",
+      "moveDown": "Move down",
+      "delete": "Delete",
+      "cannotDelete": "Template stages cannot be deleted",
+      "deleteConfirmTitle": "Delete stage",
+      "deleteConfirmMessage": "Delete \"{{label}}\" stage?",
+      "markCompleted": "Mark completed",
+      "markPending": "Mark pending"
+    },
+    "stageStatus": {
+      "completed": "Done",
+      "active": "Active",
+      "pending": "Pending",
+      "skipped": "Skipped"
+    }
   },
   "section": {
     "info": "Overview",

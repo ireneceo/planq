@@ -160,10 +160,9 @@
     "rename": "클릭해서 이름 수정",
     "inProject": "소속",
     "banner": {
-      "candidatesPending_one": "업무 후보 1개가 확인 대기 중이에요 — 등록하거나 거절해주세요",
-      "candidatesPending_other": "업무 후보 {{count}}개가 확인 대기 중이에요 — 등록하거나 거절해주세요",
-      "review": "확인하기",
-      "later": "나중에"
+      "candidatesPending_one": "업무 후보 1개가 확인 대기 중이에요 — 우측 패널에서 등록하거나 거절해주세요",
+      "candidatesPending_other": "업무 후보 {{count}}개가 확인 대기 중이에요 — 우측 패널에서 등록하거나 거절해주세요",
+      "dismiss": "닫기"
     },
     "card": {
       "docLabel": "PlanQ 문서",
@@ -173,7 +172,13 @@
       "loading": "문서 로드 중...",
       "notFound": "문서를 찾을 수 없습니다",
       "deleted": "이 문서는 삭제되어 더 이상 볼 수 없습니다",
-      "deletedHint": "문서가 삭제되거나 접근 권한이 없습니다."
+      "deletedHint": "문서가 삭제되거나 접근 권한이 없습니다.",
+      "invoiceLabel": "결제 요청",
+      "invoiceSplit": "분할",
+      "invoicePaid": "결제 완료",
+      "invoicePartial": "부분 결제",
+      "invoiceCanceled": "취소됨",
+      "invoiceNotified": "송금 완료 알림 받음"
     },
     "draft": {
       "title": "Cue 답변 대기",

@@ -7,6 +7,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
 import { requestSignatures, type PostDetail, type SignatureRequest } from '../../services/posts';
 import { listProjectConversations, listBusinessConversations, type ApiConversation } from '../../services/qtalk';
 import PlanQSelect, { type PlanQSelectOption } from '../Common/PlanQSelect';
@@ -26,6 +27,7 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 let nextRowId = 1;
 
 const PostSignatureModal: React.FC<Props> = ({ open, onClose, post, onSent }) => {
+  const navigate = useNavigate();
   const { t } = useTranslation('qdocs');
   const [signers, setSigners] = useState<SignerRow[]>([{ id: nextRowId++, email: '', name: '' }]);
   const [note, setNote] = useState('');
@@ -36,7 +38,7 @@ const PostSignatureModal: React.FC<Props> = ({ open, onClose, post, onSent }) =>
   const [convId, setConvId] = useState<number | null>(post.conversation_id);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [done, setDone] = useState<{ count: number; viaChat: boolean } | null>(null);
+  const [done, setDone] = useState<{ count: number; viaChat: boolean; convId: number | null } | null>(null);
   const firstEmailRef = useRef<HTMLInputElement | null>(null);
 
   useBodyScrollLock(open);
@@ -123,7 +125,7 @@ const PostSignatureModal: React.FC<Props> = ({ open, onClose, post, onSent }) =>
         send_chat: sendChat && !!convId,
         conversation_id: sendChat && convId ? convId : undefined,
       });
-      setDone({ count: r.signatures.length, viaChat: !!r.chat_message_id });
+      setDone({ count: r.signatures.length, viaChat: !!r.chat_message_id, convId: sendChat && convId ? convId : null });
       onSent(r.signatures);
     } catch (e) {
       setError(((e as Error).message) || (t('sign.failed', '서명 요청 실패') as string));
@@ -170,6 +172,11 @@ const PostSignatureModal: React.FC<Props> = ({ open, onClose, post, onSent }) =>
             </DoneList>
             <DoneActions>
               <SecondaryBtn type="button" onClick={() => { reset(); }}>{t('sign.again', '추가 요청')}</SecondaryBtn>
+              {done.viaChat && done.convId && (
+                <SecondaryBtn type="button" onClick={() => { closeAll(); navigate(`/talk/${done.convId}`); }}>
+                  {t('sign.goChat', '채팅방 가서 보기')}
+                </SecondaryBtn>
+              )}
               <PrimaryBtn type="button" onClick={closeAll}>{t('common.close', '닫기')}</PrimaryBtn>
             </DoneActions>
           </DoneBody>

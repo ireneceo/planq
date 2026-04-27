@@ -175,6 +175,14 @@ Business.init({
   bank_name: { type: DataTypes.STRING(100), allowNull: true },
   bank_account_name: { type: DataTypes.STRING(100), allowNull: true },
   bank_account_number: { type: DataTypes.STRING(50), allowNull: true },
+  // 해외 송금용 — 외화 청구서 공개 결제 페이지에 자동 노출
+  swift_code: { type: DataTypes.STRING(20), allowNull: true, comment: 'SWIFT/BIC 은행 식별 코드 (해외 송금)' },
+  bank_name_en: { type: DataTypes.STRING(200), allowNull: true, comment: '영문 은행명 (해외 송금)' },
+  bank_account_name_en: { type: DataTypes.STRING(200), allowNull: true, comment: '영문 예금주명 (해외 송금)' },
+
+  // 메일 발송 설정 (Phase E2/E3) — 사용자에게 보낼 이메일의 발신 표시이름과 회신 주소
+  mail_from_name: { type: DataTypes.STRING(100), allowNull: true, comment: '메일 발신 표시이름 (예: "워프로랩 청구팀")' },
+  mail_reply_to: { type: DataTypes.STRING(200), allowNull: true, comment: '회신 주소 (Reply-To 헤더, 비우면 발신 주소 사용)' },
   tax_invoice_email: { type: DataTypes.STRING(200), allowNull: true },
   // 포트원 V2 — 암호화는 Phase 6 에서
   portone_store_id: { type: DataTypes.STRING(100), allowNull: true },

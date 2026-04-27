@@ -45,7 +45,7 @@ export interface MockMessage {
   ai_sources?: { doc_id: number; title: string; section: string; snippet: string }[];
   attachments?: { id: number; file_name: string; file_size: number; mime_type?: string | null }[];
   // 카드 메시지 (kind='card')
-  card?: PostCardMeta | SignatureCardMeta | null;
+  card?: PostCardMeta | SignatureCardMeta | InvoiceCardMeta | null;
 }
 
 export interface PostCardMeta {
@@ -64,6 +64,25 @@ export interface SignatureCardMeta {
   title: string;
   sign_url: string;
   signers: Array<{ email: string; status: string }>;
+  note: string | null;
+}
+
+export interface InvoiceCardMeta {
+  card_type: 'invoice';
+  invoice_id: number;
+  invoice_number: string;
+  share_token: string;
+  share_url: string;
+  title: string;
+  total: number;
+  currency: string;
+  installment_mode?: 'single' | 'split';
+  status?: 'sent' | 'partially_paid' | 'paid' | 'overdue' | 'canceled';
+  paid_at?: string | null;
+  paid_amount?: number;
+  last_notify_at?: string | null;
+  last_notify_installment_id?: number | null;
+  last_notify_label?: string | null;
   note: string | null;
 }
 

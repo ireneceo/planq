@@ -11,11 +11,65 @@
     "brand": "Brand",
     "legal": "Legal Info",
     "language": "Language & Region",
+    "billing": "Billing",
+    "email": "Email",
+    "notifications": "Notifications",
     "storage": "File Storage",
     "plan": "Subscription",
     "permissions": "Permissions",
     "members": "Members",
     "cue": "Cue"
+  },
+  "email": {
+    "system": {
+      "title": "Mail delivery",
+      "desc": "PlanQ sends invoices, signature requests, and document shares through the system mail server",
+      "connected": "System mail server is connected — emails go out normally",
+      "disconnected": "System mail server is not connected — emails will not be sent until SMTP is configured"
+    },
+    "identity": {
+      "title": "Sender identity",
+      "desc": "The sender name and reply-to address shown on outgoing emails",
+      "fromName": "Sender display name",
+      "fromNameHint": "Workspace brand name is used if blank",
+      "preview": "Preview",
+      "replyTo": "Reply-To address (optional)",
+      "replyToHint": "Customer replies land here. If blank, replies are not possible."
+    },
+    "future": {
+      "title": "Send via your own mail",
+      "desc": "Send through your Gmail / company SMTP",
+      "preparingTitle": "Coming soon",
+      "preparingDesc": "Connecting your own Gmail or SMTP for direct delivery is on the way."
+    }
+  },
+  "notifications": {
+    "title": "Notifications",
+    "desc2": "Pick where each event reaches you. Default is all ON.",
+    "ch": {
+      "inbox": "Inbox",
+      "email": "Email",
+      "chat": "Chat"
+    },
+    "eventLabel": {
+      "signature": "Signatures",
+      "invoice": "Invoices & payments",
+      "tax_invoice": "Tax invoices",
+      "task": "Tasks",
+      "event": "Calendar",
+      "invite": "Invites",
+      "mention": "Mentions"
+    },
+    "eventDesc": {
+      "signature": "Requests received / signed / rejected",
+      "invoice": "Sent / payment notice / paid",
+      "tax_invoice": "Tax invoice issuance deadlines",
+      "task": "Assigned / under review / completed",
+      "event": "Added / changed / upcoming",
+      "invite": "Workspace and project invites",
+      "mention": "Mentioned in comments or chat"
+    },
+    "footerNote": "Inbox is the in-app notification area. Chat / Email go to external channels."
   },
   "permissions": {
     "title": "Permission Policy",

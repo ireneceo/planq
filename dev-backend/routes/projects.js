@@ -78,6 +78,7 @@ router.post('/', authenticateToken, async (req, res, next) => {
       end_date,
       color,
       project_type,
+      stage_template,    // Phase D+1: 거래 시퀀스 템플릿 (fixed/subscription/consulting/custom)
       members = [],
       clients = [],
       channels,
@@ -207,7 +208,17 @@ router.post('/', authenticateToken, async (req, res, next) => {
       }
     }
 
+    // Phase D+1: 거래 시퀀스 stage 시드 (트랜잭션 내부에서 — 멱등 보장)
+    const { seedStages, STAGE_TEMPLATE_KEYS, progressProject } = require('../services/projectStageEngine');
+    const tplKey = STAGE_TEMPLATE_KEYS.includes(stage_template)
+      ? stage_template
+      : (project_type === 'ongoing' ? 'subscription' : 'fixed'); // 기본값 매핑
+    await seedStages(project.id, tplKey, t);
+
     await t.commit();
+
+    // 시드 후 자동 진행 1회 (이미 첨부된 entity 가 있을 수 있어)
+    progressProject(project.id).catch(() => null);
 
     // 재조회 (연관 포함)
     const detail = await loadProjectDetail(project.id);
@@ -623,6 +634,299 @@ router.get('/conversations/:id/messages', authenticateToken, async (req, res, ne
 // ============================================
 // GET /api/projects/:id/tasks — 프로젝트 업무
 // ============================================
+// ============================================
+// GET /api/projects/:id/transactions — 거래 통합 뷰 (Phase D3 → D+1 확장)
+// 계약/견적/SOW posts + invoices + installments + signature 진행 상태 + stages + next_action
+// ============================================
+// ============================================
+// GET /api/projects/:id/stages — 거래 시퀀스 stage 목록 (Phase D+1)
+// POST/PUT/DELETE 는 사용자 정의 stage 관리용
+// ============================================
+router.get('/:id/stages', authenticateToken, async (req, res, next) => {
+  try {
+    const { project, error } = await loadProjectOrForbidden(Number(req.params.id), req.user.id);
+    if (error) return errorResponse(res, error.message, error.code);
+    const { ProjectStage } = require('../models');
+    const { progressProject } = require('../services/projectStageEngine');
+    await progressProject(project.id).catch(() => null);
+    const stages = await ProjectStage.findAll({
+      where: { project_id: project.id },
+      order: [['order_index', 'ASC']],
+    });
+    return successResponse(res, stages);
+  } catch (err) { next(err); }
+});
+
+router.post('/:id/stages/init', authenticateToken, async (req, res, next) => {
+  // template 재시드 (이미 stage 있으면 no-op)
+  try {
+    const { project, role, error } = await loadProjectOrForbidden(Number(req.params.id), req.user.id);
+    if (error) return errorResponse(res, error.message, error.code);
+    if (role === 'client') return errorResponse(res, 'forbidden', 403);
+    const { seedStages, STAGE_TEMPLATE_KEYS, progressProject } = require('../services/projectStageEngine');
+    const tplKey = STAGE_TEMPLATE_KEYS.includes(req.body?.template) ? req.body.template : 'fixed';
+    await seedStages(project.id, tplKey);
+    progressProject(project.id).catch(() => null);
+    const { ProjectStage } = require('../models');
+    const stages = await ProjectStage.findAll({ where: { project_id: project.id }, order: [['order_index', 'ASC']] });
+    return successResponse(res, stages);
+  } catch (err) { next(err); }
+});
+
+router.post('/:id/stages', authenticateToken, async (req, res, next) => {
+  // 사용자 정의 stage 추가
+  try {
+    const { project, role, error } = await loadProjectOrForbidden(Number(req.params.id), req.user.id);
+    if (error) return errorResponse(res, error.message, error.code);
+    if (role === 'client') return errorResponse(res, 'forbidden', 403);
+    const { ProjectStage } = require('../models');
+    const { kind = 'custom', label, order_index, metadata = null, expected_due_date = null } = req.body || {};
+    if (!label?.trim()) return errorResponse(res, 'label required', 400);
+    const max = await ProjectStage.max('order_index', { where: { project_id: project.id } });
+    const nextOrder = order_index || (Number(max || 0) + 1);
+    const stage = await ProjectStage.create({
+      project_id: project.id,
+      order_index: nextOrder,
+      kind: ['quote','proposal','contract','invoice','tax_invoice','custom'].includes(kind) ? kind : 'custom',
+      label: String(label).slice(0, 80),
+      status: 'pending',
+      metadata,
+      expected_due_date,
+      is_template_seeded: false,
+    });
+    return successResponse(res, stage, 'Stage added', 201);
+  } catch (err) { next(err); }
+});
+
+router.put('/:id/stages/:stageId', authenticateToken, async (req, res, next) => {
+  try {
+    const { project, role, error } = await loadProjectOrForbidden(Number(req.params.id), req.user.id);
+    if (error) return errorResponse(res, error.message, error.code);
+    if (role === 'client') return errorResponse(res, 'forbidden', 403);
+    const { ProjectStage } = require('../models');
+    const stage = await ProjectStage.findOne({ where: { id: req.params.stageId, project_id: project.id } });
+    if (!stage) return errorResponse(res, 'stage_not_found', 404);
+    const patch = {};
+    if (req.body?.label !== undefined) patch.label = String(req.body.label).slice(0, 80);
+    if (req.body?.order_index !== undefined) patch.order_index = Number(req.body.order_index);
+    if (req.body?.expected_due_date !== undefined) patch.expected_due_date = req.body.expected_due_date || null;
+    if (req.body?.status !== undefined && ['pending','active','completed','skipped'].includes(req.body.status)) {
+      patch.status = req.body.status;
+      if (req.body.status === 'completed') patch.completed_at = new Date();
+    }
+    await stage.update(patch);
+    return successResponse(res, stage);
+  } catch (err) { next(err); }
+});
+
+// 인접 stage 와 순서 swap (↑/↓ 버튼)
+// body: { direction: 'up' | 'down' }
+router.post('/:id/stages/:stageId/move', authenticateToken, async (req, res, next) => {
+  const t = await sequelize.transaction();
+  try {
+    const { project, role, error } = await loadProjectOrForbidden(Number(req.params.id), req.user.id);
+    if (error) { await t.rollback(); return errorResponse(res, error.message, error.code); }
+    if (role === 'client') { await t.rollback(); return errorResponse(res, 'forbidden', 403); }
+
+    const direction = req.body?.direction;
+    if (direction !== 'up' && direction !== 'down') {
+      await t.rollback(); return errorResponse(res, 'invalid_direction', 400);
+    }
+    const { ProjectStage } = require('../models');
+    const stage = await ProjectStage.findOne({
+      where: { id: req.params.stageId, project_id: project.id }, transaction: t,
+    });
+    if (!stage) { await t.rollback(); return errorResponse(res, 'stage_not_found', 404); }
+
+    const all = await ProjectStage.findAll({
+      where: { project_id: project.id },
+      order: [['order_index', 'ASC']], transaction: t,
+    });
+    const idx = all.findIndex(s => s.id === stage.id);
+    const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
+    if (swapIdx < 0 || swapIdx >= all.length) {
+      await t.rollback(); return errorResponse(res, 'cannot_move', 400);
+    }
+    const other = all[swapIdx];
+    const a = stage.order_index;
+    const b = other.order_index;
+    // 동일 order_index 인 경우 (방어적): a 앞쪽으로 강제 분리
+    if (a === b) {
+      await stage.update({ order_index: direction === 'up' ? a - 1 : a + 1 }, { transaction: t });
+    } else {
+      await stage.update({ order_index: b }, { transaction: t });
+      await other.update({ order_index: a }, { transaction: t });
+    }
+    await t.commit();
+    const refreshed = await ProjectStage.findAll({
+      where: { project_id: project.id },
+      order: [['order_index', 'ASC']],
+    });
+    return successResponse(res, refreshed);
+  } catch (err) { try { await t.rollback(); } catch {} next(err); }
+});
+
+router.delete('/:id/stages/:stageId', authenticateToken, async (req, res, next) => {
+  try {
+    const { project, role, error } = await loadProjectOrForbidden(Number(req.params.id), req.user.id);
+    if (error) return errorResponse(res, error.message, error.code);
+    if (role === 'client') return errorResponse(res, 'forbidden', 403);
+    const { ProjectStage } = require('../models');
+    const stage = await ProjectStage.findOne({ where: { id: req.params.stageId, project_id: project.id } });
+    if (!stage) return errorResponse(res, 'stage_not_found', 404);
+    if (stage.is_template_seeded) return errorResponse(res, 'cannot_delete_template_stage', 400);
+    await stage.destroy();
+    return successResponse(res, { deleted: true });
+  } catch (err) { next(err); }
+});
+
+router.get('/:id/transactions', authenticateToken, async (req, res, next) => {
+  try {
+    const { project, error } = await loadProjectOrForbidden(Number(req.params.id), req.user.id);
+    if (error) return errorResponse(res, error.message, error.code);
+
+    const { Post, Invoice, InvoiceInstallment, SignatureRequest, Client, ProjectStage } = require('../models');
+    const { progressProject, computeNextAction, seedStages } = require('../services/projectStageEngine');
+    const { Op } = require('sequelize');
+
+    // Phase D+1 — 레거시 프로젝트 (stage 없음) 에 대해 lazy 시드.
+    // project_type 기준 매핑: ongoing=subscription, fixed=fixed (기본).
+    const stageCount = await ProjectStage.count({ where: { project_id: project.id } });
+    if (stageCount === 0) {
+      const tplKey = project.project_type === 'ongoing' ? 'subscription' : 'fixed';
+      await seedStages(project.id, tplKey).catch(() => null);
+    }
+
+    // 자동 진행 — 응답 직전에 한 번 동기화 (멱등). best-effort.
+    await progressProject(project.id).catch(() => null);
+
+    // 계약/견적/SOW/제안 (status published)
+    const posts = await Post.findAll({
+      where: {
+        project_id: project.id,
+        category: { [Op.in]: ['contract', 'quote', 'sow', 'proposal'] },
+      },
+      attributes: ['id', 'title', 'category', 'status', 'created_at', 'shared_at', 'share_token'],
+      order: [['created_at', 'ASC']],
+    });
+    const postIds = posts.map(p => p.id);
+
+    // 각 post 의 서명 진행 상태
+    const sigs = postIds.length
+      ? await SignatureRequest.findAll({
+          where: { entity_type: 'post', entity_id: { [Op.in]: postIds } },
+          attributes: ['id', 'entity_id', 'signer_email', 'signer_name', 'status', 'signed_at', 'rejected_at'],
+          order: [['created_at', 'ASC']],
+        })
+      : [];
+    const sigsByPost = {};
+    for (const s of sigs) {
+      if (!sigsByPost[s.entity_id]) sigsByPost[s.entity_id] = [];
+      sigsByPost[s.entity_id].push({
+        id: s.id, signer_email: s.signer_email, signer_name: s.signer_name,
+        status: s.status, signed_at: s.signed_at, rejected_at: s.rejected_at,
+      });
+    }
+
+    // 청구서 (project_id 기준)
+    const invoices = await Invoice.findAll({
+      where: { project_id: project.id },
+      attributes: ['id', 'invoice_number', 'title', 'status', 'installment_mode',
+                   'grand_total', 'paid_amount', 'currency', 'issued_at', 'due_date', 'sent_at',
+                   'paid_at', 'notify_paid_at', 'source_post_id', 'created_at'],
+      include: [
+        { model: InvoiceInstallment, as: 'installments', separate: true, order: [['installment_no', 'ASC']] },
+        { model: Client, attributes: ['id', 'display_name', 'biz_name', 'company_name', 'is_business'] },
+      ],
+      order: [['created_at', 'ASC']],
+    });
+
+    // 요약
+    const totalContracted = posts
+      .filter(p => p.category === 'contract' || p.category === 'sow')
+      .length; // 계약 건수만 (금액은 invoices 기반)
+    const totalInvoiced = invoices.reduce((s, i) => s + Number(i.grand_total || 0), 0);
+    const totalPaid = invoices.reduce((s, i) => s + Number(i.paid_amount || 0), 0);
+    const totalUnpaid = totalInvoiced - totalPaid;
+    const overdueCount = invoices.filter(i => i.status === 'overdue').length;
+    const taxPending = invoices.reduce((s, inv) => {
+      const insts = inv.installments || [];
+      return s + insts.filter(it => it.status === 'paid' && !it.tax_invoice_no).length;
+    }, 0);
+
+    // currency 기본값 (대표값 — 첫 invoice 또는 KRW)
+    const currency = invoices[0]?.currency || 'KRW';
+
+    // 거래 stages + next_action
+    const stages = await ProjectStage.findAll({
+      where: { project_id: project.id },
+      order: [['order_index', 'ASC']],
+    });
+    const nextAction = await computeNextAction(project.id);
+
+    return successResponse(res, {
+      project: { id: project.id, name: project.name, status: project.status },
+      stages: stages.map(s => ({
+        id: s.id, order: s.order_index, kind: s.kind, label: s.label, status: s.status,
+        linked_entity_type: s.linked_entity_type, linked_entity_id: s.linked_entity_id,
+        started_at: s.started_at, completed_at: s.completed_at,
+        metadata: s.metadata, is_template_seeded: s.is_template_seeded,
+      })),
+      next_action: nextAction,
+      summary: {
+        contracts_count: totalContracted,
+        invoices_count: invoices.length,
+        total_invoiced: totalInvoiced,
+        total_paid: totalPaid,
+        total_unpaid: totalUnpaid,
+        overdue_count: overdueCount,
+        tax_pending: taxPending,
+        currency,
+      },
+      posts: posts.map(p => ({
+        id: p.id,
+        title: p.title,
+        category: p.category,
+        status: p.status,
+        created_at: p.created_at,
+        shared_at: p.shared_at,
+        share_token: p.share_token,
+        signatures: sigsByPost[p.id] || [],
+      })),
+      invoices: invoices.map(inv => ({
+        id: inv.id,
+        invoice_number: inv.invoice_number,
+        title: inv.title,
+        status: inv.status,
+        installment_mode: inv.installment_mode,
+        grand_total: Number(inv.grand_total || 0),
+        paid_amount: Number(inv.paid_amount || 0),
+        currency: inv.currency,
+        issued_at: inv.issued_at,
+        due_date: inv.due_date,
+        sent_at: inv.sent_at,
+        paid_at: inv.paid_at,
+        notify_paid_at: inv.notify_paid_at,
+        source_post_id: inv.source_post_id,
+        client: inv.Client ? {
+          id: inv.Client.id,
+          display_name: inv.Client.display_name,
+          biz_name: inv.Client.biz_name,
+          company_name: inv.Client.company_name,
+          is_business: inv.Client.is_business,
+        } : null,
+        installments: (inv.installments || []).map(i => ({
+          id: i.id, installment_no: i.installment_no, label: i.label,
+          percent: Number(i.percent), amount: Number(i.amount), due_date: i.due_date,
+          status: i.status, paid_at: i.paid_at,
+          tax_invoice_no: i.tax_invoice_no, tax_invoice_at: i.tax_invoice_at,
+          notify_paid_at: i.notify_paid_at,
+        })),
+      })),
+    });
+  } catch (err) { next(err); }
+});
+
 router.get('/:id/tasks', authenticateToken, async (req, res, next) => {
   try {
     const { project, error } = await loadProjectOrForbidden(Number(req.params.id), req.user.id);

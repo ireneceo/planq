@@ -7,11 +7,10 @@ import OverviewTab from './OverviewTab';
 import InvoicesTab from './InvoicesTab';
 import PaymentsTab from './PaymentsTab';
 import TaxInvoicesTab from './TaxInvoicesTab';
-import SettingsTab from './SettingsTab';
 
-type Tab = 'overview' | 'invoices' | 'payments' | 'tax-invoices' | 'settings';
+type Tab = 'overview' | 'invoices' | 'payments' | 'tax-invoices';
 
-const TABS: Tab[] = ['overview', 'invoices', 'payments', 'tax-invoices', 'settings'];
+const TABS: Tab[] = ['overview', 'invoices', 'payments', 'tax-invoices'];
 
 function readTab(search: string): Tab {
   const t = new URLSearchParams(search).get('tab') as Tab | null;
@@ -22,6 +21,15 @@ export default function QBillPage() {
   const { t } = useTranslation('qbill');
   const location = useLocation();
   const navigate = useNavigate();
+
+  // 레거시 ?tab=settings 진입 → 통합 설정으로 자동 redirect
+  useEffect(() => {
+    const sp = new URLSearchParams(location.search);
+    if (sp.get('tab') === 'settings') {
+      navigate('/business/settings/billing', { replace: true });
+    }
+  }, [location.search, navigate]);
+
   const [tab, setTab] = useState<Tab>(() => readTab(location.search));
 
   useEffect(() => { setTab(readTab(location.search)); }, [location.search]);
@@ -53,7 +61,6 @@ export default function QBillPage() {
         {tab === 'invoices' && <InvoicesTab />}
         {tab === 'payments' && <PaymentsTab />}
         {tab === 'tax-invoices' && <TaxInvoicesTab />}
-        {tab === 'settings' && <SettingsTab />}
       </Body>
     </PageShell>
   );

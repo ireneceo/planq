@@ -10,6 +10,7 @@ import ProcessPartsTab from './ProcessPartsTab';
 import TasksTab from './TasksTab';
 import DocsTab from './DocsTab';
 import ProjectPostsTab from './ProjectPostsTab';
+import TransactionsTab from './TransactionsTab';
 import PlanQSelect from '../../components/Common/PlanQSelect';
 import CalendarPicker from '../../components/Common/CalendarPicker';
 import { PROJECT_COLOR_PALETTE } from '../../utils/projectColors';
@@ -18,7 +19,7 @@ import { STATUS_COLOR, displayStatus, type StatusCode } from '../../utils/taskLa
 
 const PROJECT_COLORS = PROJECT_COLOR_PALETTE.map(p => p.value);
 
-type TabKey = 'dashboard' | 'tasks' | 'info' | 'process' | 'clients' | 'files' | 'docs';
+type TabKey = 'dashboard' | 'tasks' | 'info' | 'process' | 'clients' | 'files' | 'docs' | 'transactions';
 
 interface BizMember { id: number; user_id: number; user?: { id: number; name: string; email?: string; is_ai?: boolean } }
 
@@ -59,7 +60,7 @@ const QProjectDetailPage: React.FC = () => {
   const projectId = id ? Number(id) : 0;
   const [searchParams, setSearchParams] = useSearchParams();
 
-  const validTabs: TabKey[] = ['dashboard', 'tasks', 'info', 'process', 'clients', 'files', 'docs'];
+  const validTabs: TabKey[] = ['dashboard', 'tasks', 'info', 'process', 'clients', 'files', 'docs', 'transactions'];
   const initialTab = (searchParams.get('tab') as TabKey) || 'dashboard';
   const [tab, setTabState] = useState<TabKey>(validTabs.includes(initialTab) ? initialTab : 'dashboard');
   const setTab = (k: TabKey) => {
@@ -213,7 +214,7 @@ const QProjectDetailPage: React.FC = () => {
       }
     >
       <TabBar>
-        {([['dashboard', '대시보드'], ['tasks', '업무'], ['process', project.process_tab_label || t('tab.defaultProcess', '테이블')], ['clients', '고객'], ['files', '파일'], ['docs', '문서'], ['info', '상세정보']] as [TabKey, string][]).map(([k, lbl]) => {
+        {([['dashboard', '대시보드'], ['tasks', '업무'], ['process', project.process_tab_label || t('tab.defaultProcess', '테이블')], ['clients', '고객'], ['files', '파일'], ['docs', '문서'], ['transactions', '거래'], ['info', '상세정보']] as [TabKey, string][]).map(([k, lbl]) => {
           const defaultProcess = t('tab.defaultProcess', '테이블');
           if (k === 'process' && editingTabLabel) {
             return (
@@ -788,6 +789,7 @@ const QProjectDetailPage: React.FC = () => {
         </ClientsBody>
       )}
       {tab === 'process' && <ProcessPartsTab projectId={projectId} />}
+      {tab === 'transactions' && <TransactionsTab projectId={projectId} />}
 
       {closeModalOpen && (
         <CloseBackdrop onMouseDown={(e) => { if (e.target === e.currentTarget) setCloseModalOpen(false); }}>

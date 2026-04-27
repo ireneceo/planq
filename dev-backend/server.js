@@ -177,6 +177,7 @@ app.use('/api/projects', require('./routes/projects'));
 app.use('/api/projects', require('./routes/project_process'));
 app.use('/api/users', require('./routes/users'));
 app.use('/api/businesses', require('./routes/businesses'));
+app.use('/api/notifications', require('./routes/notifications'));
 app.use('/api/clients', require('./routes/clients'));
 app.use('/api/invites', require('./routes/invites'));
 app.use('/api/conversations', require('./routes/conversations'));

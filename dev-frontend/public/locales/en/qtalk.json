@@ -160,10 +160,9 @@
     "rename": "Click to rename",
     "inProject": "Project",
     "banner": {
-      "candidatesPending_one": "1 task candidate waiting for review — register or reject it",
-      "candidatesPending_other": "{{count}} task candidates waiting for review — register or reject them",
-      "review": "Review",
-      "later": "Later"
+      "candidatesPending_one": "1 task candidate waiting — register or reject it in the right panel",
+      "candidatesPending_other": "{{count}} task candidates waiting — register or reject them in the right panel",
+      "dismiss": "Dismiss"
     },
     "card": {
       "docLabel": "PlanQ doc",
@@ -173,7 +172,13 @@
       "loading": "Loading document...",
       "notFound": "Document not found",
       "deleted": "This document has been deleted",
-      "deletedHint": "The document was removed or you don't have access."
+      "deletedHint": "The document was removed or you don't have access.",
+      "invoiceLabel": "Payment request",
+      "invoiceSplit": "Split",
+      "invoicePaid": "Paid",
+      "invoicePartial": "Partially paid",
+      "invoiceCanceled": "Canceled",
+      "invoiceNotified": "Payment sent notice received"
     },
     "draft": {
       "title": "Cue draft pending",

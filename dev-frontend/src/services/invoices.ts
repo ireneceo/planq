@@ -282,6 +282,10 @@ export interface ApiBusinessInfo {
   bank_name: string | null;
   bank_account_number: string | null;
   bank_account_name: string | null;
+  // 해외 송금용 (외화 청구서 공개 결제 페이지 노출)
+  swift_code: string | null;
+  bank_name_en: string | null;
+  bank_account_name_en: string | null;
   default_due_days: number | null;
   default_vat_rate: string | number | null;
   default_currency: string | null;
@@ -298,6 +302,9 @@ export interface BillingPatch {
   bank_name?: string | null;
   bank_account_number?: string | null;
   bank_account_name?: string | null;
+  swift_code?: string | null;
+  bank_name_en?: string | null;
+  bank_account_name_en?: string | null;
   default_due_days?: number;
   default_vat_rate?: number;
   default_currency?: string;

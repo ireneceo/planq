@@ -192,17 +192,72 @@ router.put('/:businessId/brand', authenticateToken, checkBusinessAccess, async (
 });
 
 // ─── Q Bill 청구서 설정 (입금 계좌 + 기본값) ───
+// ─── 메일 설정 (Phase E2/E3) ───
+// GET 응답: 발신/회신 + 시스템 SMTP 연결 상태
+router.get('/:businessId/mail', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+  try {
+    const business = await Business.findByPk(req.params.businessId, {
+      attributes: ['id', 'name', 'brand_name', 'mail_from_name', 'mail_reply_to'],
+    });
+    if (!business) return errorResponse(res, 'Workspace not found', 404);
+    return successResponse(res, {
+      mail_from_name: business.mail_from_name,
+      mail_reply_to: business.mail_reply_to,
+      brand_name: business.brand_name,
+      name: business.name,
+      smtp_configured: !!(process.env.SMTP_HOST && process.env.SMTP_USER),
+    });
+  } catch (err) { next(err); }
+});
+
+// PUT — 발신 표시이름 / 회신 주소 업데이트 (owner 만)
+router.put('/:businessId/mail', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+  try {
+    if (req.businessRole !== 'owner' && req.user.platform_role !== 'platform_admin') {
+      return errorResponse(res, 'owner_only', 403);
+    }
+    const business = await Business.findByPk(req.params.businessId);
+    if (!business) return errorResponse(res, 'Workspace not found', 404);
+
+    const { mail_from_name, mail_reply_to } = req.body || {};
+    const updates = {};
+    if (mail_from_name !== undefined) {
+      updates.mail_from_name = mail_from_name ? String(mail_from_name).trim().slice(0, 100) : null;
+    }
+    if (mail_reply_to !== undefined) {
+      const v = mail_reply_to ? String(mail_reply_to).trim().slice(0, 200) : null;
+      if (v && !/^[\w.+-]+@[\w-]+(\.[\w-]+)+$/.test(v)) {
+        return errorResponse(res, '유효한 이메일 주소가 아닙니다', 400);
+      }
+      updates.mail_reply_to = v;
+    }
+    await business.update(updates);
+    return successResponse(res, {
+      mail_from_name: business.mail_from_name,
+      mail_reply_to: business.mail_reply_to,
+      brand_name: business.brand_name,
+      name: business.name,
+      smtp_configured: !!(process.env.SMTP_HOST && process.env.SMTP_USER),
+    });
+  } catch (err) { next(err); }
+});
+
 router.put('/:businessId/billing', authenticateToken, checkBusinessAccess, async (req, res, next) => {
   try {
     const business = await Business.findByPk(req.params.businessId);
     if (!business) return errorResponse(res, 'Workspace not found', 404);
 
     const { bank_name, bank_account_name, bank_account_number,
+            swift_code, bank_name_en, bank_account_name_en,
             default_due_days, default_vat_rate, default_currency } = req.body;
     const updates = {};
     if (bank_name !== undefined) updates.bank_name = bank_name ? String(bank_name).trim().slice(0, 100) : null;
     if (bank_account_name !== undefined) updates.bank_account_name = bank_account_name ? String(bank_account_name).trim().slice(0, 100) : null;
     if (bank_account_number !== undefined) updates.bank_account_number = bank_account_number ? String(bank_account_number).trim().slice(0, 50) : null;
+    // 해외 송금용
+    if (swift_code !== undefined) updates.swift_code = swift_code ? String(swift_code).trim().toUpperCase().slice(0, 20) : null;
+    if (bank_name_en !== undefined) updates.bank_name_en = bank_name_en ? String(bank_name_en).trim().slice(0, 200) : null;
+    if (bank_account_name_en !== undefined) updates.bank_account_name_en = bank_account_name_en ? String(bank_account_name_en).trim().slice(0, 200) : null;
     if (default_due_days !== undefined) {
       const d = Number(default_due_days);
       if (!Number.isFinite(d) || d < 0 || d > 365) return errorResponse(res, '결제 기한은 0~365일 범위', 400);

@@ -43,7 +43,10 @@
       "respond": "응답 대기",
       "accept": "업무 후보 — 수락 대기",
       "assign": "업무 후보 — 담당자 지정 필요",
-      "read": "새 멘션"
+      "read": "새 멘션",
+      "sign": "서명",
+      "mark_paid": "입금 확인",
+      "issue_tax": "세금계산서 발행"
     },
     "dueLabel": {
       "overdue": "{{days}}일 지연",

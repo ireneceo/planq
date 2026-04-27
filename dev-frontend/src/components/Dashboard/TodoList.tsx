@@ -26,6 +26,9 @@ const IconMention = () => (<svg width="14" height="14" viewBox="0 0 24 24" fill=
 const IconEmail = () => (<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>);
 const IconSpark = () => (<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2l2.6 7.4L22 12l-7.4 2.6L12 22l-2.6-7.4L2 12l7.4-2.6L12 2z"/></svg>);
 const IconBill = () => (<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>);
+const IconSign = () => (<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="M2 2l7.586 7.586"/><circle cx="11" cy="11" r="2"/></svg>);
+const IconCash = () => (<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/><line x1="6" y1="15" x2="10" y2="15"/></svg>);
+const IconReceipt = () => (<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16l3-2 3 2 3-2 3 2 3-2V8z"/><line x1="9" y1="10" x2="15" y2="10"/><line x1="9" y1="14" x2="15" y2="14"/></svg>);
 const IconChevron = () => (<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="9 18 15 12 9 6"/></svg>);
 
 function TypeIcon({ type }: { type: TodoItem['type'] }) {
@@ -35,6 +38,9 @@ function TypeIcon({ type }: { type: TodoItem['type'] }) {
   if (type === 'email') return <IconEmail />;
   if (type === 'task_candidate') return <IconSpark />;
   if (type === 'invoice') return <IconBill />;
+  if (type === 'signature') return <IconSign />;
+  if (type === 'payment_notify') return <IconCash />;
+  if (type === 'tax_invoice') return <IconReceipt />;
   return <IconMention />;
 }
 
@@ -112,7 +118,14 @@ const TodoList: React.FC<Props> = ({ items, loading, onOpenDrawer, onInviteActio
       onOpenDrawer(it);
       return;
     }
-    if (it.link) navigate(it.link);
+    if (it.link) {
+      // 서명 페이지는 새 탭 (인증 없이 별도 진입)
+      if (it.type === 'signature' && it.link.startsWith('/sign/')) {
+        window.open(it.link, '_blank', 'noopener,noreferrer');
+        return;
+      }
+      navigate(it.link);
+    }
   };
 
   return (

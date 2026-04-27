@@ -98,9 +98,9 @@ const SignatureProgressSection: React.FC<Props> = ({ postId, postTitle, inferred
   };
 
   const onFollowupClick = () => {
-    // B Phase 미구현 — 우선 청구서 라우트 placeholder
-    if (inferredKind === 'quote') navigate(`/bills?from=post:${postId}`);
-    else navigate(`/bills?from=post:${postId}&split=1`);
+    // 견적 → 단일 청구, 계약/SOW → 분할 청구 자동 분기
+    const split = inferredKind === 'quote' ? '0' : '1';
+    navigate(`/bills?tab=invoices&new=1&split=${split}&from_post=${postId}`);
   };
 
   // ─── 렌더 ───

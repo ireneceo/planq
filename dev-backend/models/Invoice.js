@@ -124,7 +124,10 @@ Invoice.init({
   },
   tax_invoice_external_id: { type: DataTypes.STRING(100), allowNull: true },
   tax_invoice_url: { type: DataTypes.STRING(500), allowNull: true },
-  tax_invoice_issued_at: { type: DataTypes.DATE, allowNull: true }
+  tax_invoice_issued_at: { type: DataTypes.DATE, allowNull: true },
+  // Phase C — 공개 결제 페이지 송금 완료 알림 (단일 발행용)
+  notify_paid_at: { type: DataTypes.DATE, allowNull: true, comment: '고객이 송금 완료 알림 누른 시각' },
+  notify_payer_name: { type: DataTypes.STRING(80), allowNull: true, comment: '입금자명 (고객 자기보고)' }
 }, {
   sequelize,
   tableName: 'invoices',

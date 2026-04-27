@@ -22,6 +22,7 @@
     "multer": "^2.0.2",
     "mysql2": "^3.14.1",
     "nodemailer": "^7.0.10",
+    "puppeteer": "^24.42.0",
     "rrule": "^2.8.1",
     "sequelize": "^6.37.7",
     "socket.io": "^4.8.1",

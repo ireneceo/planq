@@ -4,6 +4,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 import {
   fetchPosts, fetchPost, createPost, updatePost, deletePost,
@@ -13,11 +14,14 @@ import {
 import PostEditor from '../../components/Docs/PostEditor';
 import PostShareModal from '../../components/Docs/PostShareModal';
 import PostSignatureModal from '../../components/Docs/PostSignatureModal';
+import PostAiModal from '../../components/Docs/PostAiModal';
 import SignatureProgressSection from '../../components/Docs/SignatureProgressSection';
 import KindIcon from '../../components/Docs/KindIcon';
 import type { DocKind } from '../../services/docs';
 import InlineAttachPicker from '../../components/Docs/InlineAttachPicker';
 import { uploadProjectFile } from '../../services/files';
+import { listTemplates, type DocTemplate, KIND_LABELS_KO } from '../../services/docs';
+import { useAuth } from '../../contexts/AuthContext';
 import ConfirmDialog from '../../components/Common/ConfirmDialog';
 import EmptyState from '../../components/Common/EmptyState';
 
@@ -41,6 +45,15 @@ function inferKindFromTitle(title: string, category: string | null): 'contract' 
 const ProjectPostsTab: React.FC<Props> = ({ businessId, projectId }) => {
   const { t } = useTranslation('qdocs');
   const { formatDate } = useTimeFormat();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const { user } = useAuth();
+
+  // AI / 템플릿 모달
+  const [aiOpen, setAiOpen] = useState(false);
+  const [tplModalOpen, setTplModalOpen] = useState(false);
+  const [templates, setTemplates] = useState<DocTemplate[]>([]);
+  const [tplSearch, setTplSearch] = useState('');
 
   const [mode, setMode] = useState<Mode>('list');
   const [rows, setRows] = useState<PostRow[]>([]);
@@ -88,6 +101,87 @@ const ProjectPostsTab: React.FC<Props> = ({ businessId, projectId }) => {
 
   const pinnedRows = useMemo(() => filteredRows.filter(r => r.is_pinned), [filteredRows]);
   const otherRows = useMemo(() => filteredRows.filter(r => !r.is_pinned), [filteredRows]);
+
+  // 템플릿 모달 열기 (시스템 + 사용자 템플릿)
+  const openTemplateModal = async () => {
+    if (!businessId) return;
+    setTplModalOpen(true);
+    setTplSearch('');
+    try {
+      const list = await listTemplates(businessId);
+      setTemplates(list);
+    } catch { /* ignore */ }
+  };
+
+  // mustache 클라이언트 치환 (PostsPage 와 동일 — business/today 만)
+  const renderTemplateClient = (html: string): string => {
+    const today = new Date().toISOString().slice(0, 10);
+    const todayPlus30 = new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10);
+    const ctx: Record<string, string> = {
+      'business.name': user?.business_name || '',
+      'business.brand_name': user?.business_name || '',
+      'party_a.name': user?.business_name || '',
+      'issued_at': today,
+      'effective_date': today,
+      'valid_until': todayPlus30,
+      'duration_months': '24',
+      'title': '',
+    };
+    return html.replace(/\{\{\s*([\w.]+)\s*\}\}/g, (_, p) => ctx[p] ?? '');
+  };
+
+  const startFromAi = ({ title, bodyHtml }: { title: string; bodyHtml: string }) => {
+    setActiveId(null);
+    setDetail(null);
+    setMode('new');
+    setTitleDraft(title);
+    setContentDraft(bodyHtml as unknown);
+    // 카테고리는 현재 활성 필터가 있으면 따라가고, 없으면 빈 값
+    setCategoryDraft(categoryFilter || '');
+    setPendingUploads([]); setPendingExistingIds([]); setPendingExistingMeta({});
+    setError(null);
+    setAiOpen(false);
+  };
+
+  const startFromTemplate = (tpl: DocTemplate) => {
+    setActiveId(null);
+    setDetail(null);
+    setMode('new');
+    setTitleDraft(tpl.name);
+    const html = tpl.body_template ? renderTemplateClient(tpl.body_template) : '';
+    setContentDraft(html as unknown);
+    setCategoryDraft(categoryFilter || KIND_LABELS_KO[tpl.kind] || '');
+    setPendingUploads([]); setPendingExistingIds([]); setPendingExistingMeta({});
+    setError(null);
+    setTplModalOpen(false);
+  };
+
+  const filteredTemplates = useMemo(() => {
+    const q = tplSearch.trim().toLowerCase();
+    if (!q) return templates;
+    return templates.filter(t =>
+      (t.name || '').toLowerCase().includes(q) ||
+      (t.kind || '').toLowerCase().includes(q)
+    );
+  }, [templates, tplSearch]);
+
+  // URL ?new=1&category=quote 진입 시 자동 new 모드 + 카테고리 prefill (Phase D+1 거래 탭 followup)
+  useEffect(() => {
+    const sp = new URLSearchParams(location.search);
+    const isNew = sp.get('new') === '1';
+    if (!isNew) return;
+    const cat = sp.get('category') || '';
+    setMode('new');
+    setActiveId(null);
+    setDetail(null);
+    setTitleDraft('');
+    setContentDraft(null);
+    setCategoryDraft(cat);
+    setError(null);
+    // URL 정리 (재진입 방지)
+    sp.delete('new'); sp.delete('category');
+    navigate(`${location.pathname}${sp.toString() ? `?${sp.toString()}` : ''}`, { replace: true });
+  }, [location.search, location.pathname, navigate]);
 
   // 상세 로드
   useEffect(() => {
@@ -221,6 +315,13 @@ const ProjectPostsTab: React.FC<Props> = ({ businessId, projectId }) => {
               placeholder={t('project.docs.searchPh', '제목·내용 검색') as string}
             />
           </SearchBox>
+          <AiBtn type="button" onClick={() => setAiOpen(true)} title={t('ai.openHint', 'AI 가 문서 본문을 자동 작성') as string}>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 16.8 5.8 21.3l2.4-7.4L2 9.4h7.6L12 2z"/></svg>
+            {t('ai.btn', 'AI')}
+          </AiBtn>
+          <TemplateBtn type="button" onClick={openTemplateModal} title={t('templates.openHint', '템플릿에서 시작') as string}>
+            {t('templates.btn', '템플릿')}
+          </TemplateBtn>
           <NewBtn type="button" onClick={startNew}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             {t('project.docs.new', '새 문서')}
@@ -272,6 +373,53 @@ const ProjectPostsTab: React.FC<Props> = ({ businessId, projectId }) => {
               </Grid>
             </Section>
           </>
+        )}
+
+        {/* AI 작성 모달 — list 모드에서도 열려야 함 */}
+        {aiOpen && (
+          <PostAiModal
+            open={aiOpen}
+            onClose={() => setAiOpen(false)}
+            onGenerate={startFromAi}
+            businessId={businessId}
+          />
+        )}
+
+        {/* 템플릿 모달 — list 모드에서도 열려야 함 */}
+        {tplModalOpen && (
+          <TplBackdrop onClick={() => setTplModalOpen(false)}>
+            <TplDialog
+              role="dialog"
+              aria-modal="true"
+              aria-label={t('templates.modalTitle', '템플릿 선택') as string}
+              onClick={e => e.stopPropagation()}
+            >
+              <TplHead>
+                <TplTitle>{t('templates.modalTitle', '템플릿에서 시작')}</TplTitle>
+                <TplClose type="button" onClick={() => setTplModalOpen(false)} aria-label={t('close', '닫기') as string}>×</TplClose>
+              </TplHead>
+              <TplSub>{t('templates.modalSub', '본문이 자동으로 채워집니다. 자유롭게 편집한 후 저장하세요.')}</TplSub>
+              <TplSearchWrap>
+                <input
+                  type="text"
+                  value={tplSearch}
+                  onChange={e => setTplSearch(e.target.value)}
+                  placeholder={t('templates.searchPh', '템플릿 검색') as string}
+                />
+              </TplSearchWrap>
+              <TplGrid>
+                {filteredTemplates.length === 0 ? (
+                  <TplEmpty>{t('templates.empty', '템플릿이 없습니다')}</TplEmpty>
+                ) : filteredTemplates.map(tpl => (
+                  <TplCard key={tpl.id} type="button" onClick={() => startFromTemplate(tpl)}>
+                    <TplCardKind>{KIND_LABELS_KO[tpl.kind] || tpl.kind}</TplCardKind>
+                    <TplCardName>{tpl.name}</TplCardName>
+                    {tpl.description && <TplCardDesc>{tpl.description}</TplCardDesc>}
+                  </TplCard>
+                ))}
+              </TplGrid>
+            </TplDialog>
+          </TplBackdrop>
         )}
       </Wrap>
     );
@@ -458,6 +606,53 @@ const ProjectPostsTab: React.FC<Props> = ({ businessId, projectId }) => {
           onChanged={updated => setDetail(updated)}
         />
       )}
+
+      {/* AI 작성 모달 */}
+      {aiOpen && (
+        <PostAiModal
+          open={aiOpen}
+          onClose={() => setAiOpen(false)}
+          onGenerate={startFromAi}
+          businessId={businessId}
+        />
+      )}
+
+      {/* 템플릿 모달 */}
+      {tplModalOpen && (
+        <TplBackdrop onClick={() => setTplModalOpen(false)}>
+          <TplDialog
+            role="dialog"
+            aria-modal="true"
+            aria-label={t('templates.modalTitle', '템플릿 선택') as string}
+            onClick={e => e.stopPropagation()}
+          >
+            <TplHead>
+              <TplTitle>{t('templates.modalTitle', '템플릿에서 시작')}</TplTitle>
+              <TplClose type="button" onClick={() => setTplModalOpen(false)} aria-label={t('close', '닫기') as string}>×</TplClose>
+            </TplHead>
+            <TplSub>{t('templates.modalSub', '본문이 자동으로 채워집니다. 자유롭게 편집한 후 저장하세요.')}</TplSub>
+            <TplSearchWrap>
+              <input
+                type="text"
+                value={tplSearch}
+                onChange={e => setTplSearch(e.target.value)}
+                placeholder={t('templates.searchPh', '템플릿 검색') as string}
+              />
+            </TplSearchWrap>
+            <TplGrid>
+              {filteredTemplates.length === 0 ? (
+                <TplEmpty>{t('templates.empty', '템플릿이 없습니다')}</TplEmpty>
+              ) : filteredTemplates.map(tpl => (
+                <TplCard key={tpl.id} type="button" onClick={() => startFromTemplate(tpl)}>
+                  <TplCardKind>{KIND_LABELS_KO[tpl.kind] || tpl.kind}</TplCardKind>
+                  <TplCardName>{tpl.name}</TplCardName>
+                  {tpl.description && <TplCardDesc>{tpl.description}</TplCardDesc>}
+                </TplCard>
+              ))}
+            </TplGrid>
+          </TplDialog>
+        </TplBackdrop>
+      )}
     </Wrap>
   );
 };
@@ -530,6 +725,68 @@ const NewBtn = styled.button`
   &:hover { background: #0D9488; }
   &:focus-visible { outline: 2px solid #0D9488; outline-offset: 2px; }
 `;
+const AiBtn = styled.button`
+  display: inline-flex; align-items: center; gap: 4px;
+  height: 36px; padding: 0 12px;
+  font-size: 12px; font-weight: 700; color: #0F766E; background: #fff;
+  border: 1px solid #5EEAD4; border-radius: 10px; cursor: pointer; white-space: nowrap;
+  transition: all 0.15s;
+  & svg { color: #14B8A6; }
+  &:hover { background: #F0FDFA; border-color: #14B8A6; }
+  &:focus-visible { outline: 2px solid #14B8A6; outline-offset: 2px; }
+`;
+const TemplateBtn = styled.button`
+  display: inline-flex; align-items: center; gap: 4px;
+  height: 36px; padding: 0 12px;
+  font-size: 12px; font-weight: 700; color: #334155; background: #fff;
+  border: 1px solid #E2E8F0; border-radius: 10px; cursor: pointer; white-space: nowrap;
+  transition: all 0.15s;
+  &:hover { background: #F8FAFC; border-color: #CBD5E1; }
+  &:focus-visible { outline: 2px solid #14B8A6; outline-offset: 2px; }
+`;
+const TplBackdrop = styled.div`
+  position: fixed; inset: 0; background: rgba(15,23,42,0.5);
+  display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 100;
+`;
+const TplDialog = styled.div`
+  background: #fff; border-radius: 14px; width: 100%; max-width: 720px;
+  max-height: 88vh; display: flex; flex-direction: column;
+  box-shadow: 0 20px 60px rgba(15,23,42,0.25);
+`;
+const TplHead = styled.div`
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 18px 24px 8px;
+`;
+const TplTitle = styled.h3`font-size: 16px; font-weight: 700; color: #0F172A; margin: 0;`;
+const TplClose = styled.button`
+  background: none; border: none; font-size: 24px; line-height: 1; color: #94A3B8; cursor: pointer; padding: 0 6px;
+  &:hover { color: #475569; }
+`;
+const TplSub = styled.div`padding: 0 24px; font-size: 13px; color: #64748B;`;
+const TplSearchWrap = styled.div`
+  padding: 12px 24px;
+  & input {
+    width: 100%; padding: 9px 12px; font-size: 13px;
+    background: #fff; border: 1px solid #E2E8F0; border-radius: 8px;
+    &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20,184,166,0.15); }
+  }
+`;
+const TplGrid = styled.div`
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px;
+  padding: 0 24px 20px; overflow-y: auto;
+`;
+const TplCard = styled.button`
+  display: flex; flex-direction: column; gap: 4px; align-items: flex-start;
+  padding: 14px 16px; background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 10px;
+  cursor: pointer; text-align: left;
+  transition: background 0.12s, border-color 0.12s;
+  &:hover { background: #F0FDFA; border-color: #14B8A6; }
+  &:focus-visible { outline: 2px solid #14B8A6; outline-offset: 2px; }
+`;
+const TplCardKind = styled.span`font-size: 10px; font-weight: 700; color: #0F766E; text-transform: uppercase; letter-spacing: 0.4px;`;
+const TplCardName = styled.span`font-size: 13px; font-weight: 700; color: #0F172A;`;
+const TplCardDesc = styled.span`font-size: 11px; color: #64748B; line-height: 1.4;`;
+const TplEmpty = styled.div`grid-column: 1 / -1; text-align: center; padding: 24px; color: #94A3B8; font-size: 13px;`;
 const ChipRow = styled.div`
   display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
 `;

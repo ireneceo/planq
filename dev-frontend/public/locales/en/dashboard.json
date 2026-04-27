@@ -43,7 +43,10 @@
       "respond": "Response needed",
       "accept": "Task candidate — accept",
       "assign": "Task candidate — needs assignee",
-      "read": "New mention"
+      "read": "New mention",
+      "sign": "Sign",
+      "mark_paid": "Mark paid",
+      "issue_tax": "Issue tax invoice"
     },
     "dueLabel": {
       "overdue": "{{days}}d overdue",
