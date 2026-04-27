@@ -1,107 +1,496 @@
 {
   "page": {
     "title": "Q bill",
+    "subtitle": "Invoicing, payments, and tax invoices in one place",
     "tabs": {
       "overview": "Overview",
-      "quotes": "Quotes",
       "invoices": "Invoices",
       "payments": "Payments",
       "taxInvoices": "Tax invoices",
       "settings": "Settings"
     }
   },
+
   "overview": {
     "title": "This month at a glance",
-    "billed": "Billed",
-    "collected": "Collected",
-    "outstanding": "Outstanding",
-    "overdue": "Overdue",
-    "trend": "Monthly revenue (12 months)",
-    "topUnpaid": "Top 5 unpaid",
-    "upcomingRecurring": "Upcoming recurring",
-    "pendingTax": "Pending tax invoices",
-    "empty": "No data"
+    "period": {
+      "thisMonth": "This month",
+      "last30": "Last 30 days",
+      "ytd": "YTD"
+    },
+    "kpi": {
+      "revenue": "Revenue",
+      "revenueHelp": "Collected this period",
+      "outstanding": "Outstanding",
+      "outstandingHelp": "Sent, awaiting payment",
+      "pendingIssue": "Pending issue",
+      "pendingIssueHelp": "Drafts to send",
+      "pendingTax": "Tax pending",
+      "pendingTaxHelp": "Paid, awaiting tax invoice"
+    },
+    "trend": {
+      "title": "Monthly revenue (12 months)",
+      "empty": "Once data accumulates it will show here"
+    },
+    "topUnpaid": {
+      "title": "Top unpaid",
+      "empty": "No unpaid invoices",
+      "viewAll": "View all"
+    },
+    "recent": {
+      "title": "Recent activity",
+      "empty": "No activity yet",
+      "viewAll": "View all"
+    },
+    "quickActions": {
+      "title": "Quick actions",
+      "newInvoice": "New invoice",
+      "sendReminder": "Send reminder",
+      "issueTax": "Issue tax invoice"
+    }
   },
-  "quotes": {
-    "title": "Quotes",
-    "newQuote": "+ New quote",
-    "searchPlaceholder": "Search by number, client, title",
+
+  "invoices": {
+    "title": "Invoices",
+    "searchPh": "Search by number, client, title, project",
+    "newInvoice": "New invoice",
+    "empty": "No invoices yet",
+    "emptyCta": "Create your first invoice",
     "filter": {
       "all": "All",
       "draft": "Draft",
       "sent": "Sent",
-      "viewed": "Viewed",
-      "accepted": "Accepted",
-      "rejected": "Rejected",
-      "expired": "Expired",
-      "converted": "Converted"
+      "partially_paid": "Partially paid",
+      "paid": "Paid",
+      "overdue": "Overdue",
+      "canceled": "Canceled"
+    },
+    "status": {
+      "draft": "Draft",
+      "sent": "Sent",
+      "partially_paid": "Partially paid",
+      "paid": "Paid",
+      "overdue": "Overdue",
+      "canceled": "Canceled"
     },
     "col": {
       "number": "Number",
       "client": "Client",
       "title": "Title",
       "amount": "Amount",
-      "status": "Status",
       "issued": "Issued",
-      "validUntil": "Valid until"
+      "due": "Due",
+      "status": "Status",
+      "mode": "Mode"
     },
-    "empty": "No quotes yet. Create your first one.",
-    "status": {
-      "draft": "Draft",
-      "sent": "Sent",
-      "viewed": "Viewed",
-      "accepted": "Accepted",
-      "rejected": "Rejected",
-      "expired": "Expired",
-      "converted": "Converted"
+    "mode": {
+      "single": "Single",
+      "split": "Split ×{{count}}"
+    },
+    "list": {
+      "vatLabel": "+ VAT",
+      "vatIncluded": "incl. VAT",
+      "progress": "{{done}}/{{total}}",
+      "overdueDays": "{{days}}d overdue"
     }
   },
-  "editor": {
-    "newTitle": "New quote",
-    "editTitle": "Edit quote",
-    "client": "Client",
-    "selectClient": "Select client",
-    "issuedAt": "Issued",
-    "validUntil": "Valid until",
-    "currency": "Currency",
-    "title": "Title",
-    "titlePlaceholder": "e.g. April 2026 design retainer",
+
+  "detail": {
+    "header": {
+      "actions": {
+        "share": "Share",
+        "copyLink": "Copy link",
+        "linkCopied": "Copied",
+        "sendChat": "Send to chat",
+        "downloadPdf": "Download PDF",
+        "edit": "Edit",
+        "duplicate": "Duplicate",
+        "cancel": "Cancel",
+        "delete": "Delete"
+      }
+    },
+    "progress": {
+      "issued": "Issued",
+      "sent": "Sent",
+      "partiallyPaid": "Partially paid",
+      "paid": "Paid",
+      "overdue": "Overdue"
+    },
+    "summary": {
+      "subtotal": "Subtotal",
+      "vat": "VAT",
+      "total": "Total",
+      "paid": "Paid",
+      "outstanding": "Outstanding"
+    },
+    "parties": {
+      "from": "From",
+      "to": "To",
+      "taxId": "Tax ID",
+      "rep": "Representative",
+      "address": "Address",
+      "industry": "Industry",
+      "individual": "Individual",
+      "missingInfo": "Business info is missing",
+      "addInfo": "Add info",
+      "country": "Country"
+    },
     "items": {
       "title": "Line items",
-      "addRow": "+ Add row",
+      "no": "#",
       "description": "Description",
-      "descriptionPlaceholder": "e.g. Homepage redesign",
-      "quantity": "Qty",
+      "qty": "Qty",
+      "unitPrice": "Unit price",
+      "subtotal": "Subtotal"
+    },
+    "installments": {
+      "title": "Installment schedule",
+      "subtitle": "{{count}} installments",
+      "no": "#",
+      "label": "Round",
+      "milestone": "Milestone",
+      "due": "Due",
+      "amount": "Amount",
+      "status": "Status",
+      "actions": "Actions",
+      "menu": {
+        "markPaid": "Mark paid",
+        "unmarkPaid": "Unmark paid",
+        "markTax": "Mark tax invoice issued",
+        "sendChat": "Request payment via chat",
+        "sendReminder": "Send reminder",
+        "cancel": "Cancel round"
+      },
+      "status": {
+        "pending": "Pending",
+        "sent": "Sent",
+        "paid": "Paid",
+        "overdue": "Overdue",
+        "canceled": "Canceled"
+      },
+      "paidAt": "Paid {{date}}",
+      "taxIssued": "Tax invoice issued",
+      "taxNo": "No. {{no}}"
+    },
+    "tax": {
+      "title": "Tax invoice",
+      "required": "Required",
+      "notRequired": "Not applicable",
+      "issued": "Issued",
+      "issueAction": "Mark issued",
+      "issuePromptTitle": "Mark tax invoice issued",
+      "issuePromptDesc": "Issue externally first, then enter the issuance number. Marking is logged.",
+      "issueNo": "Issuance number",
+      "issueNoPh": "e.g. 20260427-12345"
+    },
+    "bank": {
+      "title": "Bank info",
+      "bank": "Bank",
+      "account": "Account",
+      "holder": "Holder",
+      "copy": "Copy",
+      "copied": "Copied",
+      "payerMemo": "Payer memo",
+      "payerMemoHelp": "Include this as the sender memo"
+    },
+    "events": {
+      "title": "Activity",
+      "types": {
+        "created": "Created",
+        "sent": "Sent",
+        "viewed": "Public link viewed",
+        "paid_partial": "Partial payment",
+        "paid_full": "Paid in full",
+        "tax_issued": "Tax invoice issued",
+        "overdue": "Overdue",
+        "canceled": "Canceled",
+        "reminded": "Reminder sent",
+        "commented": "Comment",
+        "payment_request_sent": "Payment request sent",
+        "payment_alert": "Payment alert"
+      },
+      "by": "by {{actor}}",
+      "empty": "No activity"
+    }
+  },
+
+  "newInvoice": {
+    "title": "New invoice",
+    "step": {
+      "compose": "Compose",
+      "review": "Review",
+      "deliver": "Deliver"
+    },
+    "from": {
+      "title": "From",
+      "auto": "Workspace info is auto-filled",
+      "missingTitle": "Some sender info is missing",
+      "missingDesc": "Please complete your business registration first",
+      "fix": "Open settings"
+    },
+    "to": {
+      "title": "To",
+      "selectClient": "Select recipient",
+      "selectPh": "Select client",
+      "addClient": "New client",
+      "noBusiness": "Individual clients are not subject to tax invoices",
+      "missingTitle": "This client is missing the following",
+      "missingDesc": "Tax invoice cannot be issued without these. Filling in now will save it on the client for next time.",
+      "fields": {
+        "biz_name": "Legal name",
+        "biz_tax_id": "Tax ID",
+        "biz_representative": "Representative",
+        "biz_address": "Address"
+      },
+      "saveOnClient": "Save on client",
+      "skip": "Skip for now"
+    },
+    "compose": {
+      "title": "Invoice details",
+      "titleField": "Title",
+      "titlePh": "e.g. Onboarding automation build",
+      "issuedAt": "Issue date",
+      "dueDate": "Due date",
+      "currency": "Currency",
+      "vatRate": "VAT rate",
+      "project": "Project (optional)",
+      "projectPh": "Not linked to a project",
+      "notes": "Notes (optional)",
+      "notesPh": "Notes shown to the client"
+    },
+    "items": {
+      "title": "Line items",
+      "addRow": "Add row",
+      "no": "#",
+      "description": "Description",
+      "descriptionPh": "e.g. Homepage redesign",
+      "qty": "Qty",
       "unitPrice": "Unit price",
       "subtotal": "Subtotal",
       "remove": "Remove"
     },
-    "totals": {
+    "summary": {
       "subtotal": "Subtotal",
       "vat": "VAT",
-      "vatRate": "VAT rate",
       "total": "Total"
     },
-    "paymentTerms": "Payment terms",
-    "paymentTermsPlaceholder": "e.g. Net 14",
-    "notes": "Notes",
-    "notesPlaceholder": "Notes shown to client (optional)",
+    "split": {
+      "toggle": "Split into installments",
+      "toggleDesc": "Manage round-by-round schedule and amount (e.g. deposit / midway / final)",
+      "addRound": "Add round",
+      "round": "Round",
+      "label": "Label",
+      "labelPh": "Deposit / Midway / Final",
+      "milestone": "Milestone",
+      "milestonePh": "e.g. After v1 review",
+      "rate": "Rate",
+      "amount": "Amount",
+      "due": "Due",
+      "remove": "Remove",
+      "sumOk": "Total 100% ✓",
+      "sumWarn": "Total is not 100% ({{percent}}%)",
+      "presets": {
+        "title": "Quick split",
+        "p3030": "30/40/30",
+        "p5050": "50/50",
+        "p3070": "30/70"
+      }
+    },
+    "tax": {
+      "title": "Tax invoice",
+      "toggle": "Issue a tax invoice for this invoice (mark after external issuance)",
+      "toggleDescOn": "Will be queued for issuance once paid",
+      "toggleDescOff": "Recipient has no tax ID — cannot issue",
+      "individual": "Individual clients are not eligible for tax invoices"
+    },
+    "bank": {
+      "title": "Bank info",
+      "auto": "Workspace default account is applied",
+      "edit": "Use a different account for this invoice",
+      "missingTitle": "No workspace bank account on file",
+      "missingDesc": "Please add one in Settings first",
+      "fix": "Open settings"
+    },
     "actions": {
-      "save": "Save draft",
-      "preview": "Preview",
-      "send": "Send to client",
-      "convertToInvoice": "Convert to invoice",
-      "delete": "Delete"
+      "saveDraft": "Save draft",
+      "cancel": "Cancel",
+      "issue": "Issue",
+      "issueAndSend": "Issue & send"
+    },
+    "deliver": {
+      "title": "How should the client receive this?",
+      "subtitle": "{{number}} issued. Choose how to deliver it.",
+      "chat": {
+        "title": "Send via chat",
+        "desc": "Send a payment-request card in the client chat",
+        "selectChat": "Select chat",
+        "send": "Send"
+      },
+      "email": {
+        "title": "Send by email",
+        "desc": "Email with public link",
+        "to": "To",
+        "message": "Message",
+        "messagePh": "Please review",
+        "send": "Send email"
+      },
+      "link": {
+        "title": "Public link",
+        "desc": "Copy URL and share manually",
+        "copy": "Copy URL",
+        "copied": "Copied"
+      },
+      "later": "Later",
+      "done": "Done"
     },
     "validation": {
-      "clientRequired": "Select a client",
-      "itemsRequired": "At least one line item required"
+      "clientRequired": "Select a recipient",
+      "titleRequired": "Enter a title",
+      "itemsRequired": "At least one line item is required",
+      "splitSumWrong": "Installment total must equal invoice total",
+      "businessIncomplete": "Sender business info is incomplete"
     }
   },
-  "tabsComing": {
-    "invoices": "Invoices — after quotes are done",
-    "payments": "Payments — auto from PortOne webhook",
-    "taxInvoices": "Tax invoices — via Popbill (Korea)",
-    "settings": "Issuer · payment channel · tax invoice settings"
+
+  "payments": {
+    "title": "Payments",
+    "tabs": {
+      "upcoming": "Upcoming",
+      "alerts": "Alerts",
+      "completed": "Completed",
+      "all": "All"
+    },
+    "filter": {
+      "thisWeek": "This week",
+      "thisMonth": "This month",
+      "overdue": "Overdue"
+    },
+    "col": {
+      "invoice": "Invoice",
+      "round": "Round",
+      "client": "Client",
+      "due": "Due",
+      "amount": "Amount",
+      "status": "Status",
+      "actions": "Actions"
+    },
+    "actions": {
+      "markPaid": "Mark paid",
+      "sendChat": "Request via chat",
+      "sendReminder": "Send reminder"
+    },
+    "alert": {
+      "title": "Payment alert received",
+      "subtitle": "Client says they have sent payment. Verify and mark paid.",
+      "alertedAt": "Alerted {{time}}",
+      "confirm": "Mark paid",
+      "dismiss": "Dismiss"
+    },
+    "empty": {
+      "upcoming": "No upcoming payments",
+      "alerts": "No alerts",
+      "completed": "No completed payments",
+      "all": "No payments yet"
+    }
+  },
+
+  "taxInvoices": {
+    "title": "Tax invoices",
+    "tabs": {
+      "pending": "Pending",
+      "issued": "Issued",
+      "all": "All"
+    },
+    "info": {
+      "title": "Tax invoices are issued externally — only marked here",
+      "desc": "Issue at Hometax/Popbill, then enter the issuance number. Marking is logged."
+    },
+    "col": {
+      "invoice": "Invoice",
+      "round": "Round",
+      "client": "Client",
+      "taxId": "Tax ID",
+      "amount": "Amount",
+      "paidAt": "Paid",
+      "issuedAt": "Issued",
+      "issueNo": "Issue No.",
+      "actions": "Actions"
+    },
+    "actions": {
+      "issue": "Mark issued",
+      "unissue": "Unmark",
+      "openExternal": "Open Hometax"
+    },
+    "issueModal": {
+      "title": "Mark tax invoice issued",
+      "desc": "Enter the issuance number from your external system",
+      "no": "Issuance no.",
+      "noPh": "e.g. 20260427-12345",
+      "date": "Issue date",
+      "submit": "Mark",
+      "cancel": "Cancel"
+    },
+    "empty": {
+      "pending": "No tax invoices pending",
+      "issued": "No tax invoices issued",
+      "all": "No tax invoices yet"
+    }
+  },
+
+  "settings": {
+    "title": "Q bill settings",
+    "issuer": {
+      "title": "Issuer info",
+      "desc": "Your company info shown on invoices and tax invoices",
+      "legalName": "Legal name",
+      "taxId": "Tax ID",
+      "representative": "Representative",
+      "address": "Address",
+      "industry": "Industry",
+      "businessType": "Business type",
+      "email": "Email",
+      "phone": "Phone",
+      "edit": "Edit",
+      "viewWorkspace": "Edit in Workspace settings"
+    },
+    "bank": {
+      "title": "Bank account",
+      "desc": "Default account shown on the public payment page",
+      "bank": "Bank",
+      "account": "Account",
+      "holder": "Holder",
+      "swift": "SWIFT (international)",
+      "swiftPh": "e.g. WORIKRSE",
+      "intlAccount": "IBAN",
+      "addAccount": "Add account",
+      "primary": "Primary",
+      "setPrimary": "Set primary"
+    },
+    "defaults": {
+      "title": "Invoice defaults",
+      "desc": "Auto-applied to new invoices",
+      "dueDays": "Default due days",
+      "vatRate": "VAT rate",
+      "currency": "Default currency",
+      "numberFormat": "Number format",
+      "numberFormatPh": "INV-{YYYY}-{####}",
+      "memoTemplate": "Default memo"
+    }
+  },
+
+  "common": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "close": "Close",
+    "confirm": "Confirm",
+    "loading": "Loading...",
+    "saving": "Saving...",
+    "issuing": "Issuing...",
+    "due": "Due",
+    "overdueDays": "{{days}}d overdue",
+    "willOverdueIn": "Due in {{days}}d",
+    "today": "Today",
+    "yesterday": "Yesterday",
+    "daysAgo": "{{days}}d ago"
   }
 }

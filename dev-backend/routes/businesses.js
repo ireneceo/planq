@@ -191,6 +191,39 @@ router.put('/:businessId/brand', authenticateToken, checkBusinessAccess, async (
   }
 });
 
+// ─── Q Bill 청구서 설정 (입금 계좌 + 기본값) ───
+router.put('/:businessId/billing', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+  try {
+    const business = await Business.findByPk(req.params.businessId);
+    if (!business) return errorResponse(res, 'Workspace not found', 404);
+
+    const { bank_name, bank_account_name, bank_account_number,
+            default_due_days, default_vat_rate, default_currency } = req.body;
+    const updates = {};
+    if (bank_name !== undefined) updates.bank_name = bank_name ? String(bank_name).trim().slice(0, 100) : null;
+    if (bank_account_name !== undefined) updates.bank_account_name = bank_account_name ? String(bank_account_name).trim().slice(0, 100) : null;
+    if (bank_account_number !== undefined) updates.bank_account_number = bank_account_number ? String(bank_account_number).trim().slice(0, 50) : null;
+    if (default_due_days !== undefined) {
+      const d = Number(default_due_days);
+      if (!Number.isFinite(d) || d < 0 || d > 365) return errorResponse(res, '결제 기한은 0~365일 범위', 400);
+      updates.default_due_days = d;
+    }
+    if (default_vat_rate !== undefined) {
+      const v = Number(default_vat_rate);
+      if (!Number.isFinite(v) || v < 0 || v > 1) return errorResponse(res, 'VAT 은 0~1 범위 (10% = 0.1)', 400);
+      updates.default_vat_rate = v;
+    }
+    if (default_currency !== undefined) {
+      const c = String(default_currency || '').toUpperCase();
+      if (!['KRW', 'USD', 'EUR', 'JPY', 'CNY'].includes(c)) return errorResponse(res, '지원되지 않는 통화', 400);
+      updates.default_currency = c;
+    }
+
+    await business.update(updates);
+    successResponse(res, business);
+  } catch (error) { next(error); }
+});
+
 // ─── Legal 정보 수정 ───
 router.put('/:businessId/legal', authenticateToken, checkBusinessAccess, async (req, res, next) => {
   try {

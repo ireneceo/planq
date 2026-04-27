@@ -187,6 +187,10 @@ Business.init({
   popbill_secret_key: { type: DataTypes.STRING(500), allowNull: true },
   // 기본 부가세율 (국내 10%)
   default_vat_rate: { type: DataTypes.DECIMAL(4, 3), defaultValue: 0.100 },
+  // 청구서 기본 결제 기한 (발행일 + N일)
+  default_due_days: { type: DataTypes.INTEGER, defaultValue: 14, comment: '청구서 기본 결제 기한 (일)' },
+  // 청구서 기본 통화
+  default_currency: { type: DataTypes.STRING(3), defaultValue: 'KRW', comment: '청구서 기본 통화' },
   // ─── 권한 토글 (PERMISSION_MATRIX §4) ───
   // financial / schedule / client_info — 기본값 모두 "all" (열린 문화).
   // 값이 "pm" 이면 해당 카테고리 액션은 프로젝트 PM 또는 오너만.

@@ -169,6 +169,8 @@ PostCategory.belongsTo(Project, { foreignKey: 'project_id' });
 Invoice.belongsTo(Business, { foreignKey: 'business_id' });
 Invoice.belongsTo(Client, { foreignKey: 'client_id' });
 Invoice.belongsTo(User, { as: 'creator', foreignKey: 'created_by' });
+Invoice.belongsTo(Post, { as: 'sourcePost', foreignKey: 'source_post_id' });
+Post.hasMany(Invoice, { as: 'invoicesFromSource', foreignKey: 'source_post_id' });
 Business.hasMany(Invoice, { as: 'invoices', foreignKey: 'business_id' });
 Client.hasMany(Invoice, { as: 'invoices', foreignKey: 'client_id' });
 
