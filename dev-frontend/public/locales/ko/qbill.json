@@ -1,107 +1,496 @@
 {
   "page": {
     "title": "Q bill",
+    "subtitle": "청구·결제·세금계산서를 한 곳에서",
     "tabs": {
       "overview": "개요",
-      "quotes": "견적서",
       "invoices": "청구서",
-      "payments": "결제내역",
+      "payments": "결제 추적",
       "taxInvoices": "세금계산서",
       "settings": "설정"
     }
   },
+
   "overview": {
     "title": "이번 달 한눈에 보기",
-    "billed": "청구",
-    "collected": "수금",
-    "outstanding": "미수",
-    "overdue": "연체",
-    "trend": "월별 매출 추이 (12개월)",
-    "topUnpaid": "미수금 TOP 5",
-    "upcomingRecurring": "발행 예정 구독 청구",
-    "pendingTax": "세금계산서 미발행",
-    "empty": "데이터가 없습니다"
+    "period": {
+      "thisMonth": "이번 달",
+      "last30": "최근 30일",
+      "ytd": "올해"
+    },
+    "kpi": {
+      "revenue": "매출",
+      "revenueHelp": "수금 완료 금액",
+      "outstanding": "미수금",
+      "outstandingHelp": "발행 후 미결제",
+      "pendingIssue": "발행 대기",
+      "pendingIssueHelp": "초안 + 미발송",
+      "pendingTax": "세금계산서 대기",
+      "pendingTaxHelp": "결제 완료, 발행 대기"
+    },
+    "trend": {
+      "title": "월별 매출 (12개월)",
+      "empty": "데이터가 쌓이면 여기에 표시됩니다"
+    },
+    "topUnpaid": {
+      "title": "미수금 상위",
+      "empty": "미수금이 없습니다",
+      "viewAll": "전체 보기"
+    },
+    "recent": {
+      "title": "최근 활동",
+      "empty": "아직 활동이 없습니다",
+      "viewAll": "전체 보기"
+    },
+    "quickActions": {
+      "title": "빠른 액션",
+      "newInvoice": "새 청구서 발행",
+      "sendReminder": "결제 독촉 발송",
+      "issueTax": "세금계산서 발행"
+    }
   },
-  "quotes": {
-    "title": "견적서",
-    "newQuote": "+ 새 견적",
-    "searchPlaceholder": "견적번호·고객·제목 검색",
+
+  "invoices": {
+    "title": "청구서",
+    "searchPh": "청구번호·고객·제목·프로젝트 검색",
+    "newInvoice": "새 청구서",
+    "empty": "청구서가 없습니다",
+    "emptyCta": "첫 청구서를 발행해보세요",
     "filter": {
       "all": "전체",
       "draft": "작성중",
       "sent": "발송됨",
-      "viewed": "열람됨",
-      "accepted": "수락",
-      "rejected": "거절",
-      "expired": "만료",
-      "converted": "청구서 전환됨"
+      "partially_paid": "일부 결제",
+      "paid": "결제완료",
+      "overdue": "연체",
+      "canceled": "취소"
     },
-    "col": {
-      "number": "견적번호",
-      "client": "고객",
-      "title": "제목",
-      "amount": "금액",
-      "status": "상태",
-      "issued": "발행일",
-      "validUntil": "만료일"
-    },
-    "empty": "견적이 없습니다. 첫 견적을 만들어보세요.",
     "status": {
       "draft": "작성중",
       "sent": "발송됨",
-      "viewed": "열람됨",
-      "accepted": "수락됨",
-      "rejected": "거절",
-      "expired": "만료",
-      "converted": "청구서 전환됨"
+      "partially_paid": "일부 결제",
+      "paid": "결제완료",
+      "overdue": "연체",
+      "canceled": "취소"
+    },
+    "col": {
+      "number": "청구번호",
+      "client": "고객",
+      "title": "제목",
+      "amount": "금액",
+      "issued": "발행일",
+      "due": "기한",
+      "status": "상태",
+      "mode": "방식"
+    },
+    "mode": {
+      "single": "단일",
+      "split": "분할 {{count}}회"
+    },
+    "list": {
+      "vatLabel": "VAT 별도",
+      "vatIncluded": "VAT 포함",
+      "progress": "{{done}}/{{total}}",
+      "overdueDays": "{{days}}일 경과"
     }
   },
-  "editor": {
-    "newTitle": "새 견적서",
-    "editTitle": "견적서 편집",
-    "client": "고객",
-    "selectClient": "고객 선택",
-    "issuedAt": "발행일",
-    "validUntil": "만료일",
-    "currency": "통화",
-    "title": "제목",
-    "titlePlaceholder": "예: 2026년 4월 디자인 외주 견적",
+
+  "detail": {
+    "header": {
+      "actions": {
+        "share": "공유",
+        "copyLink": "링크 복사",
+        "linkCopied": "복사됨",
+        "sendChat": "채팅 보내기",
+        "downloadPdf": "PDF 다운로드",
+        "edit": "수정",
+        "duplicate": "복제",
+        "cancel": "취소",
+        "delete": "삭제"
+      }
+    },
+    "progress": {
+      "issued": "발행",
+      "sent": "발송",
+      "partiallyPaid": "일부 결제",
+      "paid": "결제 완료",
+      "overdue": "연체"
+    },
+    "summary": {
+      "subtotal": "공급가액",
+      "vat": "부가세",
+      "total": "총액",
+      "paid": "수금",
+      "outstanding": "미수금"
+    },
+    "parties": {
+      "from": "발신",
+      "to": "수신",
+      "taxId": "사업자번호",
+      "rep": "대표자",
+      "address": "주소",
+      "industry": "업태/종목",
+      "individual": "개인",
+      "missingInfo": "사업자 정보가 없습니다",
+      "addInfo": "정보 추가",
+      "country": "국가"
+    },
     "items": {
-      "title": "품목",
-      "addRow": "+ 품목 추가",
+      "title": "내역",
+      "no": "#",
       "description": "내역",
-      "descriptionPlaceholder": "예: 메인 페이지 리디자인",
-      "quantity": "수량",
+      "qty": "수량",
+      "unitPrice": "단가",
+      "subtotal": "소계"
+    },
+    "installments": {
+      "title": "분할 일정",
+      "subtitle": "{{count}}회 분할",
+      "no": "#",
+      "label": "회차",
+      "milestone": "마일스톤",
+      "due": "기한",
+      "amount": "금액",
+      "status": "상태",
+      "actions": "액션",
+      "menu": {
+        "markPaid": "결제 완료 마킹",
+        "unmarkPaid": "결제 마킹 해제",
+        "markTax": "세금계산서 발행 마킹",
+        "sendChat": "채팅 결제 요청",
+        "sendReminder": "독촉 메일 발송",
+        "cancel": "회차 취소"
+      },
+      "status": {
+        "pending": "대기",
+        "sent": "발송됨",
+        "paid": "결제완료",
+        "overdue": "연체",
+        "canceled": "취소"
+      },
+      "paidAt": "{{date}} 입금",
+      "taxIssued": "세금계산서 발행됨",
+      "taxNo": "발행번호 {{no}}"
+    },
+    "tax": {
+      "title": "세금계산서",
+      "required": "발행 필요",
+      "notRequired": "발행 대상 아님",
+      "issued": "발행 완료",
+      "issueAction": "발행 마킹",
+      "issuePromptTitle": "세금계산서 발행 마킹",
+      "issuePromptDesc": "외부에서 발행한 후 발행번호를 입력하세요. 마킹 후에는 활동 기록에 남습니다.",
+      "issueNo": "발행번호",
+      "issueNoPh": "예: 20260427-12345"
+    },
+    "bank": {
+      "title": "입금 안내",
+      "bank": "은행",
+      "account": "계좌번호",
+      "holder": "예금주",
+      "copy": "복사",
+      "copied": "복사됨",
+      "payerMemo": "입금자명",
+      "payerMemoHelp": "입금자명에 다음을 기재해 주세요"
+    },
+    "events": {
+      "title": "활동",
+      "types": {
+        "created": "발행",
+        "sent": "발송",
+        "viewed": "공개 링크 열람",
+        "paid_partial": "일부 결제 완료",
+        "paid_full": "결제 완료",
+        "tax_issued": "세금계산서 발행",
+        "overdue": "결제 기한 경과",
+        "canceled": "취소",
+        "reminded": "독촉 메일 발송",
+        "commented": "코멘트",
+        "payment_request_sent": "채팅 결제 요청",
+        "payment_alert": "송금 완료 알림"
+      },
+      "by": "{{actor}}",
+      "empty": "활동이 없습니다"
+    }
+  },
+
+  "newInvoice": {
+    "title": "새 청구서",
+    "step": {
+      "compose": "작성",
+      "review": "검토",
+      "deliver": "전달"
+    },
+    "from": {
+      "title": "발신",
+      "auto": "워크스페이스 정보가 자동 적용됩니다",
+      "missingTitle": "발신 정보가 일부 없습니다",
+      "missingDesc": "사업자등록증 정보를 먼저 입력해주세요",
+      "fix": "설정에서 입력"
+    },
+    "to": {
+      "title": "수신",
+      "selectClient": "수신 고객 선택",
+      "selectPh": "고객 선택",
+      "addClient": "새 고객 추가",
+      "noBusiness": "이 고객은 개인이라 세금계산서 대상이 아닙니다",
+      "missingTitle": "이 고객은 다음 정보가 없습니다",
+      "missingDesc": "비워두면 세금계산서 발행이 불가합니다. 지금 입력하시면 다음부터는 자동으로 채워집니다.",
+      "fields": {
+        "biz_name": "상호 (사업자등록증)",
+        "biz_tax_id": "사업자등록번호",
+        "biz_representative": "대표자",
+        "biz_address": "주소"
+      },
+      "saveOnClient": "고객 정보에 저장",
+      "skip": "다음에 입력"
+    },
+    "compose": {
+      "title": "청구 내역",
+      "titleField": "제목",
+      "titlePh": "예: 클라이언트 온보딩 자동화 구축",
+      "issuedAt": "발행일",
+      "dueDate": "결제 기한",
+      "currency": "통화",
+      "vatRate": "부가세율",
+      "project": "프로젝트 (선택)",
+      "projectPh": "프로젝트 연결 안 함",
+      "notes": "메모 (선택)",
+      "notesPh": "고객에게 보일 메모"
+    },
+    "items": {
+      "title": "항목",
+      "addRow": "항목 추가",
+      "no": "#",
+      "description": "내역",
+      "descriptionPh": "예: 메인 페이지 리디자인",
+      "qty": "수량",
       "unitPrice": "단가",
       "subtotal": "소계",
       "remove": "삭제"
     },
-    "totals": {
+    "summary": {
       "subtotal": "공급가액",
       "vat": "부가세",
-      "vatRate": "부가세율",
-      "total": "합계"
+      "total": "총액"
     },
-    "paymentTerms": "지급 조건",
-    "paymentTermsPlaceholder": "예: 발행 후 14일 이내 송금",
-    "notes": "메모",
-    "notesPlaceholder": "고객에게 보일 메모 (선택)",
+    "split": {
+      "toggle": "결제를 나눠 받기",
+      "toggleDesc": "회차별 일정·금액을 따로 관리합니다 (예: 선금/중도금/잔금)",
+      "addRound": "회차 추가",
+      "round": "회차",
+      "label": "라벨",
+      "labelPh": "선금 / 중도금 / 잔금",
+      "milestone": "마일스톤",
+      "milestonePh": "예: 1차 검수 완료",
+      "rate": "비율",
+      "amount": "금액",
+      "due": "기한",
+      "remove": "회차 삭제",
+      "sumOk": "합계 100% ✓",
+      "sumWarn": "합계가 100%가 아닙니다 ({{percent}}%)",
+      "presets": {
+        "title": "빠른 분할",
+        "p3030": "30/40/30",
+        "p5050": "50/50",
+        "p3070": "30/70"
+      }
+    },
+    "tax": {
+      "title": "세금계산서",
+      "toggle": "이 청구서로 세금계산서 발행 (외부 발행 후 마킹)",
+      "toggleDescOn": "결제 완료 후 발행 대기 큐에 자동 추가됩니다",
+      "toggleDescOff": "수신 고객 사업자번호가 없어 발행할 수 없습니다",
+      "individual": "개인 고객은 세금계산서 발행 대상이 아닙니다"
+    },
+    "bank": {
+      "title": "입금 안내",
+      "auto": "워크스페이스 기본 계좌가 자동 적용됩니다",
+      "edit": "이 청구서만 다른 계좌 사용",
+      "missingTitle": "워크스페이스 입금 계좌가 등록되지 않았습니다",
+      "missingDesc": "설정에서 먼저 등록해주세요",
+      "fix": "설정 이동"
+    },
     "actions": {
-      "save": "초안 저장",
-      "preview": "미리보기",
-      "send": "고객에게 발송",
-      "convertToInvoice": "청구서로 전환",
-      "delete": "삭제"
+      "saveDraft": "임시 저장",
+      "cancel": "취소",
+      "issue": "발행",
+      "issueAndSend": "발행하고 보내기"
+    },
+    "deliver": {
+      "title": "어떻게 받게 할까요?",
+      "subtitle": "{{number}} 발행 완료. 고객에게 어떻게 전달할지 선택하세요.",
+      "chat": {
+        "title": "채팅으로 결제 요청",
+        "desc": "고객 채팅방에 결제 요청 카드 메시지로 전송",
+        "selectChat": "채팅방 선택",
+        "send": "채팅 보내기"
+      },
+      "email": {
+        "title": "이메일 발송",
+        "desc": "공개 링크가 포함된 메일을 발송",
+        "to": "받는 사람",
+        "message": "메모",
+        "messagePh": "확인 부탁드립니다",
+        "send": "이메일 발송"
+      },
+      "link": {
+        "title": "공개 링크",
+        "desc": "URL을 직접 복사해 전달",
+        "copy": "URL 복사",
+        "copied": "복사됨"
+      },
+      "later": "나중에",
+      "done": "완료"
     },
     "validation": {
-      "clientRequired": "고객을 선택해주세요",
-      "itemsRequired": "최소 1개 품목이 필요합니다"
+      "clientRequired": "수신 고객을 선택해주세요",
+      "titleRequired": "제목을 입력해주세요",
+      "itemsRequired": "최소 1개 항목이 필요합니다",
+      "splitSumWrong": "분할 합계가 총액과 일치하지 않습니다",
+      "businessIncomplete": "발신 사업자 정보가 부족합니다"
     }
   },
-  "tabsComing": {
-    "invoices": "청구서 — 견적서 완료 후 진행",
-    "payments": "결제내역 — 포트원 연결 후 자동 기록",
-    "taxInvoices": "세금계산서 — 팝빌 연결 후 자동 발행",
-    "settings": "발행자·결제 채널·세금계산서 설정"
+
+  "payments": {
+    "title": "결제 추적",
+    "tabs": {
+      "upcoming": "임박",
+      "alerts": "송금 알림",
+      "completed": "완료",
+      "all": "전체"
+    },
+    "filter": {
+      "thisWeek": "이번 주",
+      "thisMonth": "이번 달",
+      "overdue": "연체"
+    },
+    "col": {
+      "invoice": "청구서",
+      "round": "회차",
+      "client": "고객",
+      "due": "기한",
+      "amount": "금액",
+      "status": "상태",
+      "actions": "액션"
+    },
+    "actions": {
+      "markPaid": "결제 완료 마킹",
+      "sendChat": "채팅 결제 요청",
+      "sendReminder": "독촉 발송"
+    },
+    "alert": {
+      "title": "송금 완료 알림 받음",
+      "subtitle": "고객이 송금했다고 알렸습니다. 입금 확인 후 마킹하세요.",
+      "alertedAt": "{{time}} 알림 받음",
+      "confirm": "결제 완료 마킹",
+      "dismiss": "알림 삭제"
+    },
+    "empty": {
+      "upcoming": "임박한 결제가 없습니다",
+      "alerts": "송금 알림이 없습니다",
+      "completed": "결제 완료 내역이 없습니다",
+      "all": "결제 내역이 없습니다"
+    }
+  },
+
+  "taxInvoices": {
+    "title": "세금계산서",
+    "tabs": {
+      "pending": "발행 대기",
+      "issued": "발행 완료",
+      "all": "전체"
+    },
+    "info": {
+      "title": "세금계산서는 외부에서 발행하고 발행번호만 마킹합니다",
+      "desc": "홈택스/팝빌에서 직접 발행한 후 발행번호를 입력하면 활동 기록에 남습니다."
+    },
+    "col": {
+      "invoice": "청구서",
+      "round": "회차",
+      "client": "고객",
+      "taxId": "사업자번호",
+      "amount": "금액",
+      "paidAt": "결제일",
+      "issuedAt": "발행일",
+      "issueNo": "발행번호",
+      "actions": "액션"
+    },
+    "actions": {
+      "issue": "발행 마킹",
+      "unissue": "마킹 해제",
+      "openExternal": "홈택스 열기"
+    },
+    "issueModal": {
+      "title": "세금계산서 발행 마킹",
+      "desc": "외부에서 발행한 세금계산서 번호를 입력하세요",
+      "no": "발행번호",
+      "noPh": "예: 20260427-12345",
+      "date": "발행일",
+      "submit": "마킹",
+      "cancel": "취소"
+    },
+    "empty": {
+      "pending": "발행 대기 중인 세금계산서가 없습니다",
+      "issued": "발행된 세금계산서가 없습니다",
+      "all": "세금계산서 내역이 없습니다"
+    }
+  },
+
+  "settings": {
+    "title": "Q bill 설정",
+    "issuer": {
+      "title": "발신자 정보",
+      "desc": "청구서·세금계산서에 표시되는 우리 회사 정보입니다",
+      "legalName": "법인 상호",
+      "taxId": "사업자등록번호",
+      "representative": "대표자",
+      "address": "주소",
+      "industry": "업태",
+      "businessType": "종목",
+      "email": "이메일",
+      "phone": "전화",
+      "edit": "수정",
+      "viewWorkspace": "워크스페이스 설정에서 변경"
+    },
+    "bank": {
+      "title": "입금 계좌",
+      "desc": "공개 결제 페이지에 표시되는 기본 계좌입니다",
+      "bank": "은행",
+      "account": "계좌번호",
+      "holder": "예금주",
+      "swift": "SWIFT (해외)",
+      "swiftPh": "예: WORIKRSE",
+      "intlAccount": "국제 계좌번호 (IBAN)",
+      "addAccount": "계좌 추가",
+      "primary": "기본",
+      "setPrimary": "기본으로 설정"
+    },
+    "defaults": {
+      "title": "청구서 기본값",
+      "desc": "새 청구서 작성 시 자동 적용됩니다",
+      "dueDays": "결제 기한 (일)",
+      "vatRate": "부가세율",
+      "currency": "기본 통화",
+      "numberFormat": "청구번호 형식",
+      "numberFormatPh": "INV-{YYYY}-{####}",
+      "memoTemplate": "기본 메모"
+    }
+  },
+
+  "common": {
+    "save": "저장",
+    "cancel": "취소",
+    "close": "닫기",
+    "confirm": "확인",
+    "loading": "불러오는 중...",
+    "saving": "저장 중...",
+    "issuing": "발행 중...",
+    "due": "기한",
+    "overdueDays": "{{days}}일 연체",
+    "willOverdueIn": "{{days}}일 후 기한",
+    "today": "오늘",
+    "yesterday": "어제",
+    "daysAgo": "{{days}}일 전"
   }
 }

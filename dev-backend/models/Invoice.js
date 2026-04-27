@@ -96,8 +96,16 @@ Invoice.init({
   // ─── Q Bill (Phase 0) — 확장 ───
   // 프로젝트 연결 (프로젝트 Bill 탭·수익성 계산)
   project_id: { type: DataTypes.BIGINT, allowNull: true, references: { model: 'projects', key: 'id' } },
-  // 견적서에서 전환된 경우 원본 참조
+  // 견적서에서 전환된 경우 원본 참조 (legacy quotes 테이블)
   quote_id: { type: DataTypes.BIGINT, allowNull: true },
+  // 출처 문서 (Q docs post: kind in [contract, quote, sow, proposal]) — 청구서 ↔ 계약/견적 연결
+  // 한 출처 문서로 여러 회차 청구 가능 (1:N)
+  source_post_id: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    references: { model: 'posts', key: 'id' },
+    comment: '출처 문서 (계약/견적/SOW/제안)',
+  },
   // 통화 (KRW/USD/EUR 등)
   currency: { type: DataTypes.STRING(3), defaultValue: 'KRW' },
   // 세부 금액 (total_amount 는 legacy 유지, 신규 계산은 subtotal + vat)

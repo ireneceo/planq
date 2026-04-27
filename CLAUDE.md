@@ -19,20 +19,35 @@
 
 ## 작업 워크플로우 (최우선 규칙)
 
-### 흐름 (UI-First)
-**요구사항 정리 → 화면/UX 설계 → 기술 설계 → UI 구현(Mock) → Irene 화면 승인 → 백엔드 연결 → 검증**
+### 흐름 (UI-First → 즉시 실 API 연결)
+**요구사항 정리 → 화면/UX 설계 → 기술 설계 → UI 구현 → 백엔드 연결 → 검증**
+
+### 🚫 mock 데이터 절대 금지 (최상위 원칙)
+
+**production 소스 코드 어디에도 mock 데이터를 남기지 않는다. 모든 화면은 실 API 데이터로 작동해야 한다.**
+
+- `mockXxx`, `dummyData`, 하드코딩된 배열/객체로 화면 채우기 — 전부 금지
+- "다음 sprint에서 실 API 연결" 같은 미루기 금지 — 작업이 끝나기 전에 반드시 실 API 교체
+- 검증 단계에서 mock 잔존 1건이라도 있으면 = **검증 실패**. "완료" 보고 금지
+- mock.ts 같은 모의 데이터 파일을 만들지 않는다. 필요하면 `__tests__/fixtures/` 안에 테스트 전용으로만
+- 새 기능 개발 = 첫 커밋부터 실 API 호출. UI 검증과 백엔드 연결을 분리하지 않는다
+
+### UI-First 원칙 (mock 없이)
+
+화면/UX 합의는 **와이어프레임 텍스트 / Figma / 설계 문서** 단계에서 끝낸다. 코드에 들어가는 순간 실 API.
+
+1. **와이어 단계**: 텍스트 와이어로 레이아웃·정보 위계 합의 (코드 X)
+2. **승인 후 구현**: 처음부터 실 API 호출 + 로딩/에러/빈 상태 + i18n
+3. **빌드 후 시연**: `https://dev.planq.kr/[경로]` 안내 → 실 데이터로 작동
+4. **피드백 반영**: 디자인/인터랙션 조정 (실 API 그대로 유지)
 
 ### 규칙
 - 이전 단계 산출물을 반드시 참조한 후 다음 단계 진행
-- **UI-First 원칙 (필수): 새 페이지/기능은 UI를 mock 데이터로 먼저 만들어 빌드 → Irene이 화면 직접 확인 → 승인 후에만 백엔드 연결**
-  - mock 단계 완료 보고: 빌드 후 https://dev.planq.kr/[경로] 안내 + "확인 부탁드립니다"
-  - Irene 피드백 (디자인/레이아웃/인터랙션) 반영 후 재확인
-  - 승인 떨어진 후에만 API 호출 + 데이터 흐름 + 로딩/에러 처리 추가
-  - 예외: 단순 버그 수정/텍스트 변경 (소 규모 작업은 바로 진행)
 - 각 단계 완료 시 핵심 요약을 보여주고 승인 확인
 - Irene이 수정 지시하면 해당 단계에서 반영 후 재확인
 - **구현 중 설계에 없는 것을 임의로 추가하지 않는다**
 - **구현 완료 후 반드시 검증 단계를 실행한다 (절대 생략 금지)**
+- 예외: 단순 버그 수정/텍스트 변경 (소 규모 작업은 바로 진행)
 
 ### 검증 단계 (필수)
 
@@ -241,6 +256,10 @@ res.status(400).json({ success: false, message: 'Error description' });
 **Q docs 서명 (1):** **signature_requests** (2026-04-26 신규 — Phase A 서명 받기, polymorphic entity_type='post'|'document', OTP hash, 만료, audit)
 
 **Q Bill 분할 (1):** **invoice_installments** (2026-04-26 신규 — Phase B 분할 청구, 회차별 status·결제마킹·세금계산서마킹·milestone_ref)
+
+> **Q Bill 청구서 ↔ 출처 연결 (2026-04-27):** `invoices.source_post_id INT FK posts(id)` — 계약/견적/SOW/제안 post 참조 (1:N, 한 출처로 여러 회차 청구 가능). `Invoice.belongsTo(Post, as: 'sourcePost')` association.
+>
+> **Q Bill 워크스페이스 청구 설정 (2026-04-27):** `businesses.default_due_days INT default 14`, `businesses.default_currency VARCHAR(3) default 'KRW'` — 청구서 발행 모달에서 자동 prefill. PUT `/api/businesses/:id/billing` 으로 인라인 편집 (Q Bill 설정 탭).
 
 **기타 (2):** kb_chunks, kb_documents, kb_pinned_faqs, cue_usage
 
@@ -472,7 +491,8 @@ import DetailDrawer from 'components/Common/DetailDrawer';
 
 - 운영서버 직접 코드 수정/배포
 - POS 관련 파일/DB/PM2 건드리기
-- alert(), toast.success() 사용
-- 샘플/가짜 데이터 사용 → 모든 데이터는 DB에서 API로
+- alert(), toast.success(), window.confirm(), window.prompt() 사용
+- **mock 데이터 일체** — `mockXxx`, dummy 배열/객체, 하드코딩 시드 데이터 모두 금지. 모든 데이터는 DB에서 API로 (자세한 정책: 위 "🚫 mock 데이터 절대 금지" 섹션)
+- 샘플/가짜 데이터로 화면 채우기 — production 소스에 잔존 시 검증 실패
 - API 테스트 시 기존 계정 비밀번호 변경 금지
 - **프론트엔드 문자열 하드코딩 (한국어/영어 모두)** → 반드시 `t()` 사용

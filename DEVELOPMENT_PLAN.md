@@ -1,6 +1,91 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-04-26 (Q docs 공유·서명 + 표 에디터 + 7종 템플릿 + Phase A 서명 받기 완료 + B1 Q Bill 분할 청구 백엔드)
+> **최종 업데이트:** 2026-04-27 (Q Bill B2 정석 — 견적 폐기·5탭 재정의·청구서↔출처 연결·발송 채널 통합·실 API 풀 사이클·CLAUDE.md mock 절대 금지 강제)
+
+---
+
+## ✅ 완료: Q Bill B2 정석 개발 — 견적 폐기 + 5탭 재정의 + 청구서↔출처 연결 + 채팅방 자동 + 발송 통합 + 실 API + mock 절대 금지 명문화 (2026-04-27)
+
+대규모 세션. 사용자 합의 ("MVP가 아니다, 실데이터 정석") 에 따라 Q Bill 전 영역 mock 제거 + 백엔드 라우트 강화 + 4번의 사용자 지적 즉시 반영 + CLAUDE.md mock 금지 강제.
+
+### 사용자 지적 4건 — 모두 즉시 반영
+| 지적 | 반영 |
+|------|------|
+| "청구서와 계약서/문서 연결돼야 해" | `invoices.source_post_id` FK + 발행 모달에서 client별 출처 자동 표시 + 상세에 출처 카드 |
+| "발행하고 보내기 어디로 가는 거야?" | 모달 푸터에 "발행 후: 💬 [채팅방명] · ✉ [이메일]" 명시 |
+| "채팅 보내기 = 관련 채팅방 먼저 떠야지, 또 생성해서 보내?" | `findConversationForClient` 자동 검색 (project 우선 → client 단독), 없으면 안내 (새 방 생성 X) |
+| "발신자 정보가 워크스페이스에서 가져오는 거 아니야? 모든 데이터 실데이터야?" | mock.ts 통째로 삭제 + 5탭 모두 실 API + Business 모델 default_due_days/default_currency 컬럼 추가 + Q Bill 설정에서 인라인 편집 |
+
+### Q Bill 5탭 재정의 (견적서 폐기)
+| 탭 | 변경 |
+|------|------|
+| 견적서 | **폐기** (Q docs로 이동) — `QuotesTab.tsx`/`QuoteEditor.tsx`/`mock.ts`/`ComingSoonTab.tsx` 삭제 |
+| 개요 | 실 invoices 합산 KPI (매출/미수금/발행대기/세금계산서대기) + 12개월 매출 차트 + 미수금 TOP + 최근 활동 |
+| 청구서 | 검색 + 상태 chip 필터 + 분할 진행 dot + 우측 상세 드로어 |
+| 결제 추적 | 회차별 임박/완료/전체 그리드 (실 invoices) |
+| 세금계산서 | 사업자 고객만 필터, 결제완료 회차 큐 + 발행번호 마킹 모달 |
+| 설정 | 발신자 정보(read-only) + 입금 계좌(인라인 편집) + 청구서 기본값(인라인 편집) |
+
+### 백엔드 (정석)
+| 영역 | 작업 |
+|------|------|
+| **DB** | `invoices.source_post_id INT FK posts(id)` + index · `businesses.default_due_days INT default 14` · `businesses.default_currency VARCHAR(3) default 'KRW'` |
+| **Invoice 모델** | `source_post_id` + `belongsTo(Post, as: 'sourcePost')` 양방향 association |
+| **POST /api/invoices/:bid** | `source_post_id` 검증 (같은 business + published) · `project_id`/`currency` 받아 저장 · 응답에 `sourcePost` include · 분할 시 `milestone_ref` 저장 (이전 누락 수정) |
+| **GET /api/invoices/:bid 목록·상세** | `Client(biz_*)` + `installments` + `sourcePost(category)` 풀세트 include |
+| **POST /:id/send** | `send_chat`/`send_email`/`message` 옵션. Conversation 자동 검색 (project 우선) → 결제 요청 카드 메시지 (Message.kind='card', meta.card_type='invoice'). 이메일 발송 (recipient_email → tax_invoice_email → billing_contact_email → invite_email 우선순위) |
+| **GET /:bid/source-candidates** | published post 후보 (category 필터 가능) |
+| **GET /:bid/find-conversation** | client_id (+ project_id) 기존 conversation 검색, 없으면 `suggest_create: true` |
+| **PUT /:bid/billing** | bank_name/bank_account_number/bank_account_name + default_due_days/default_vat_rate/default_currency 인라인 편집 (범위 검증 포함) |
+| **emailService.sendInvoiceEmail** | HTML 템플릿 + 결제기한 표시 + 공개 링크 버튼 |
+
+### 프론트 (정석 — mock 0건)
+| 파일 | 상태 |
+|------|------|
+| `services/invoices.ts` (신규) | 17 함수 + 타입 (list/get/create/send/markPaid/unmarkPaid/markTax/cancel/cancelInst/updateStatus/listSource/findConv/listClients/getBusinessInfo/updateBusinessBilling + formatMoney/invoiceStatusColor/installmentStatusColor/countByStatus/missingClientBizFields) |
+| `InvoicesTab` | 실 API list + 검색/필터 + reload + URL 싱크 |
+| `InvoiceDetailDrawer` | 실 API get + **모든 액션 실연결** (markPaid·unmarkPaid·markTax·cancelInst·cancelInvoice·copyShareLink) + ConfirmDialog + 세금계산서 마킹 모달 (window.prompt 폐기) + 출처 문서 카드 |
+| `NewInvoiceModal` | 실 API + Business prefill (default_due_days/vat_rate/currency) + Client 목록 fetch + 출처 후보 자동 표시 + 채팅방 자동 검색 + 발송 옵션 통합 (3카드 폐기) + 누락 사업자정보 인라인 보완 |
+| `OverviewTab` | 실 invoices 합산 KPI + 12개월 매출 차트 + 미수금 TOP + 최근 활동 |
+| `PaymentsTab` | 실 invoices에서 회차/단일 union, 행 클릭 시 청구서 상세 |
+| `TaxInvoicesTab` | 사업자 고객만 필터 + 결제완료 회차 큐 + 발행번호 마킹 실연결 |
+| `SettingsTab` | 발신자 정보 read-only (1개 진입점만) + 입금 계좌 + 청구서 기본값 인라인 편집 (AutoSaveField + PUT /billing) |
+| `mock.ts` | **파일 삭제** — Q Bill 영역 mock 잔존 0건 |
+
+### CLAUDE.md mock 절대 금지 강제 (최상위 원칙)
+- "🚫 mock 데이터 절대 금지" 섹션 신설 (작업 워크플로우 최상위)
+- 절대 금지 사항에 추가
+- 메모리 `feedback_no_mvp.md` 강화
+- 메모리 `feedback_button_plus_no_duplicate.md` 신규 — "+" 아이콘 SVG로만, i18n에 + 금지
+
+### UI 보완
+- 버튼 "+" 중복 제거 (qbill i18n 5곳 + 코드 SVG 통일)
+- "+" 아이콘 정렬 (line-height: 1, svg display: block)
+- SettingsTab/InvoicesTab Primary 버튼 사이즈 통일
+- 페이지 styled 위반 수정 (Header → DrawerHeader)
+- Switch role/aria-checked 추가
+- ConfirmDialog로 window.confirm 교체 (2곳)
+
+### 검증
+- ✅ 헬스체크 27/27
+- ✅ 백엔드 E2E 21/21 (정상/경계/권한 시나리오)
+- ✅ 빌드 통과 (마지막 번들 `index-vsqFuaUx.js`)
+- ✅ Q Bill 영역 mock 잔존 0건
+- ✅ raw select / window.confirm / alert / page styled 위반 모두 0건
+
+### 발견·수정한 버그
+1. `routes/invoices.js` 분할 발행 시 `milestone_ref` 저장 누락 → 추가
+2. `Client.biz_representative` 필드명 오류 (실제 `biz_ceo`) → 모든 라우트 수정
+3. `Post`에 `kind` 컬럼 없음 (`category` 자유 분류 사용) → source 검증을 published만 단순화
+4. `routes/invoices.js` 라우트 순서 — `/:businessId/source-candidates`가 `/:businessId/:id` 뒤에 있어 `:id="source-candidates"`로 매칭됨 → 위로 이동
+5. `Client.email` 컬럼 없음 → `tax_invoice_email`/`billing_contact_email`/`invite_email` 우선순위로 변경
+6. `Invoice.source_post_id` 타입 불일치 (BIGINT vs posts.id INT) → INTEGER로 통일
+
+### 남은 작업 (다음 세션)
+- Phase C: 채팅 결제 요청 카드 + 공개 결제 페이지 (`/public/invoices/:token`)
+- Phase D: 통합 트리거 (서명/검수 → 후속 액션 카드) + 알림 센터 + **D4 프로젝트 거래 통합 뷰** (계약/청구/결제/세금계산서 타임라인)
+- Phase E: PDF 인프라 (Puppeteer 싱글톤) + 메일 매트릭스 (시스템 SMTP / 사용자 SMTP·OAuth) + 알림 설정
+- Phase F: Q docs 슬롯 시스템 (계약서 변수 슬롯 + 변경 비교)
 
 ---
 

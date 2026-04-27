@@ -238,4 +238,61 @@ async function sendSignatureOtpEmail({ to, docTitle, code }) {
   return sendEmail({ to, subject, html: otpEmailHtml({ docTitle, code }) });
 }
 
-module.exports = { sendEmail, sendInviteEmail, sendPostShareEmail, sendSignatureRequestEmail, sendSignatureOtpEmail };
+// ─── 청구서 발송 이메일 ───
+function invoiceEmailHtml({ invoiceNumber, title, total, currency, dueDate, senderName, workspaceName, message, shareUrl }) {
+  const totalStr = currency === 'KRW'
+    ? `₩${Number(total).toLocaleString('ko-KR')}`
+    : `${currency} ${Number(total).toLocaleString('en-US')}`;
+  const dueStr = dueDate ? new Date(dueDate).toISOString().split('T')[0] : '';
+  return `
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="utf-8"><title>청구서 — ${escapeHtml(title)}</title></head>
+<body style="margin:0;padding:0;background:#F8FAFC;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#0F172A;">
+  <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="padding:40px 20px;">
+    <tr><td align="center">
+      <table width="520" cellpadding="0" cellspacing="0" role="presentation" style="background:#FFFFFF;border-radius:16px;padding:32px;box-shadow:0 4px 24px rgba(0,0,0,0.05);max-width:520px;">
+        <tr><td align="center" style="padding-bottom:8px;">
+          <div style="font-size:22px;font-weight:800;color:#0D9488;letter-spacing:-0.5px;">PlanQ</div>
+        </td></tr>
+        <tr><td style="padding:24px 0 8px;">
+          <div style="font-size:14px;color:#64748B;">
+            <b>${escapeHtml(senderName || '')}</b>${workspaceName ? ` (${escapeHtml(workspaceName)})` : ''}님이 청구서를 보냈습니다.
+          </div>
+        </td></tr>
+        <tr><td style="padding:8px 0 4px;">
+          <div style="font-size:11px;font-weight:700;color:#64748B;letter-spacing:0.4px;">${escapeHtml(invoiceNumber)}</div>
+          <div style="font-size:18px;font-weight:700;color:#0F172A;line-height:1.4;margin-top:4px;">${escapeHtml(title)}</div>
+        </td></tr>
+        <tr><td style="padding:16px 0 4px;">
+          <div style="background:#F8FAFC;border-radius:10px;padding:14px 16px;">
+            <div style="font-size:11px;color:#64748B;margin-bottom:4px;">총액</div>
+            <div style="font-size:22px;font-weight:800;color:#0F172A;letter-spacing:-0.3px;">${totalStr}</div>
+            ${dueStr ? `<div style="font-size:12px;color:#92400E;margin-top:6px;">결제 기한 ${dueStr}</div>` : ''}
+          </div>
+        </td></tr>
+        ${message ? `
+        <tr><td style="padding:12px 0 4px;">
+          <div style="font-size:13px;color:#334155;line-height:1.6;background:#F8FAFC;border-left:3px solid #14B8A6;padding:12px 14px;border-radius:0 8px 8px 0;white-space:pre-wrap;">${escapeHtml(message)}</div>
+        </td></tr>` : ''}
+        <tr><td align="center" style="padding:24px 0 8px;">
+          <a href="${shareUrl}" style="display:inline-block;padding:14px 28px;background:#0D9488;color:#FFFFFF;text-decoration:none;border-radius:10px;font-size:14px;font-weight:700;">청구서 보기 · 입금 안내</a>
+        </td></tr>
+        <tr><td style="padding-top:24px;border-top:1px solid #E2E8F0;">
+          <div style="font-size:11px;color:#94A3B8;line-height:1.5;">
+            버튼이 동작하지 않으면 아래 링크를 브라우저에 붙여 넣어주세요:<br>
+            <span style="color:#64748B;word-break:break-all;">${shareUrl}</span>
+          </div>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body></html>`;
+}
+
+async function sendInvoiceEmail({ to, invoiceNumber, title, total, currency, dueDate, senderName, workspaceName, message, shareUrl }) {
+  if (!to) return false;
+  const subject = `[PlanQ] 청구서 — ${invoiceNumber} ${title}`;
+  return sendEmail({ to, subject, html: invoiceEmailHtml({ invoiceNumber, title, total, currency, dueDate, senderName, workspaceName, message, shareUrl }) });
+}
+
+module.exports = { sendEmail, sendInviteEmail, sendPostShareEmail, sendSignatureRequestEmail, sendSignatureOtpEmail, sendInvoiceEmail };

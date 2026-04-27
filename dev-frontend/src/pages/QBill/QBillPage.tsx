@@ -4,12 +4,14 @@ import { useTranslation } from 'react-i18next';
 import styled from 'styled-components';
 import PageShell from '../../components/Layout/PageShell';
 import OverviewTab from './OverviewTab';
-import QuotesTab from './QuotesTab';
-import ComingSoonTab from './ComingSoonTab';
+import InvoicesTab from './InvoicesTab';
+import PaymentsTab from './PaymentsTab';
+import TaxInvoicesTab from './TaxInvoicesTab';
+import SettingsTab from './SettingsTab';
 
-type Tab = 'overview' | 'quotes' | 'invoices' | 'payments' | 'tax-invoices' | 'settings';
+type Tab = 'overview' | 'invoices' | 'payments' | 'tax-invoices' | 'settings';
 
-const TABS: Tab[] = ['overview', 'quotes', 'invoices', 'payments', 'tax-invoices', 'settings'];
+const TABS: Tab[] = ['overview', 'invoices', 'payments', 'tax-invoices', 'settings'];
 
 function readTab(search: string): Tab {
   const t = new URLSearchParams(search).get('tab') as Tab | null;
@@ -27,7 +29,7 @@ export default function QBillPage() {
   const switchTab = (next: Tab) => {
     const sp = new URLSearchParams(location.search);
     if (next === 'overview') sp.delete('tab'); else sp.set('tab', next);
-    sp.delete('quote');
+    sp.delete('invoice');
     navigate(`${location.pathname}${sp.toString() ? `?${sp.toString()}` : ''}`, { replace: true });
   };
 
@@ -48,11 +50,10 @@ export default function QBillPage() {
       </TabBar>
       <Body>
         {tab === 'overview' && <OverviewTab />}
-        {tab === 'quotes' && <QuotesTab />}
-        {tab === 'invoices' && <ComingSoonTab descKey="tabsComing.invoices" />}
-        {tab === 'payments' && <ComingSoonTab descKey="tabsComing.payments" />}
-        {tab === 'tax-invoices' && <ComingSoonTab descKey="tabsComing.taxInvoices" />}
-        {tab === 'settings' && <ComingSoonTab descKey="tabsComing.settings" />}
+        {tab === 'invoices' && <InvoicesTab />}
+        {tab === 'payments' && <PaymentsTab />}
+        {tab === 'tax-invoices' && <TaxInvoicesTab />}
+        {tab === 'settings' && <SettingsTab />}
       </Body>
     </PageShell>
   );
