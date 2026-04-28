@@ -234,6 +234,19 @@ async function respondToMessage({ message, conversation, business, client }) {
     }))
   ];
 
+  // 번역 hook — Conversation.translation_enabled 면 Cue 응답도 양 언어로 캐시
+  // (사용자 메시지와 일관성 유지). draft 모드도 동일 처리.
+  let cueTranslationFields = {};
+  if (conversation.translation_enabled && Array.isArray(conversation.translation_languages)) {
+    try {
+      const { translateForBilingual } = require('./translation_service');
+      const tr = await translateForBilingual(llmResult.content, conversation.translation_languages);
+      if (!tr.fallback && tr.translations) {
+        cueTranslationFields = { translations: tr.translations, detected_language: tr.detected_language };
+      }
+    } catch (e) { /* silent — 번역 실패해도 응답은 정상 발송 */ }
+  }
+
   const cueMsg = await Message.create({
     conversation_id: conversation.id,
     sender_id: business.cue_user_id,
@@ -246,7 +259,8 @@ async function respondToMessage({ message, conversation, business, client }) {
     ai_model: llmModel,
     ai_mode_used: aiModeUsed,
     ai_draft_approved: aiModeUsed === 'draft' ? null : true,
-    is_internal: false
+    is_internal: false,
+    ...cueTranslationFields
   });
 
   await conversation.update({ last_message_at: new Date() });

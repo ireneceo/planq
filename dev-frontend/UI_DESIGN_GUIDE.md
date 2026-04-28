@@ -120,6 +120,49 @@ const initialId = new URLSearchParams(location.search).get('task');
 - 닫기 시 파라미터 제거
 - `replace: true` 로 뒤로가기 스택 오염 방지
 
+### 1.10 메시지·발화 번역 표시 (Q note 패턴 — 2026-04-28)
+
+대화/회의 등에서 양 언어 동시 표시가 필요할 때 — 원문 위, 번역 아래 옅은 회색 박스.
+
+```tsx
+<MessageText>{m.body}</MessageText>
+{translated && <TranslatedText>{translated}</TranslatedText>}
+```
+
+표준 styled (Q talk `ChatPanel`, Q note 의 transcript 동일 톤):
+
+```tsx
+const TranslatedText = styled.div`
+  margin-top: 4px;
+  padding: 6px 10px;
+  font-size: 13px;          /* 원문보다 1px 작게 */
+  color: #64748B;           /* Text Subtle */
+  background: #F8FAFC;      /* BG Secondary */
+  border-left: 2px solid #CBD5E1;  /* Border Strong */
+  border-radius: 6px;
+  line-height: 1.5;
+  white-space: pre-wrap;    /* 줄바꿈 보존 필수 */
+`;
+```
+
+규칙:
+- **`white-space: pre-wrap` + `word-break: break-word` 필수** — 번역에 줄바꿈/들여쓰기 보존
+- **원문 자체에도 `white-space: pre-wrap`** — 사용자 입력 줄바꿈 보존 (`Shift+Enter`)
+- 토글 OFF 면 번역 박스 자체 미렌더 (원문만)
+- 빈 번역 ("" 또는 원문과 동일) 은 표시 X — robust filter
+
+번역 데이터 정책:
+- 메시지 발송 시 백엔드 비동기 LLM 호출 → DB 저장 → Socket.IO `message:translated` 이벤트 push
+- 클라는 message:new 즉시 표시 (translations null) → message:translated 도착 시 갱신
+- 폴링 fallback: 메시지 발송 4초 후 GET /messages 1회 — Socket.IO 못 받았을 때 보장
+- 진입 시 GET 응답에 이미 translations 들어있으면 즉시 양 언어 표시
+
+스크롤 정책:
+- 채팅방 진입 → 무조건 마지막 메시지 (localStorage 위치 복원 X)
+- 본인 메시지 발송 → 무조건 sticky-to-bottom (거리 무시)
+- 타인 메시지 도착 → 거리 120px 이내면 따라감
+- 번역 도착 (메시지 카드 높이 증가) → 200px 이내면 따라감 (가려지지 않게)
+
 ---
 
 ## 2. 페이지 레이아웃 (필수 — 2026-04-17 표준화)

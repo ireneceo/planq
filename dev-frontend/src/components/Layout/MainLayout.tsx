@@ -8,6 +8,7 @@ import WorkspaceSwitcher from './WorkspaceSwitcher';
 import SidebarClock from './SidebarClock';
 import PanelHeader, { PanelTitle } from './PanelHeader';
 import { useTimezones } from '../../hooks/useTimezones';
+import { useInboxCount } from '../../hooks/useInboxCount';
 import i18n from '../../i18n';
 
 // ─────────────────────────────────────────────────────────────
@@ -108,6 +109,7 @@ const NavTitle = styled.div<{ $isCollapsed?: boolean }>`
 `;
 
 const NavItem = styled(Link)<{ $active?: boolean; $isCollapsed?: boolean }>`
+  position: relative;
   display: flex; align-items: center;
   padding: ${props => props.$isCollapsed ? '6px 0' : '4px 16px'};
   justify-content: ${props => props.$isCollapsed ? 'center' : 'flex-start'};
@@ -141,6 +143,22 @@ const NavLabel = styled.span<{ $isCollapsed?: boolean }>`
   ${props => props.$isCollapsed && css`
     @media (min-width: 769px) { display: none; }
   `}
+`;
+
+// 인박스 미처리 카운트 — pill 배지 (확장 상태) / 작은 dot (collapsed 상태)
+const InboxBadge = styled.span`
+  margin-left: auto;
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 20px; height: 18px; padding: 0 6px;
+  background: #F43F5E; color: #FFFFFF;
+  font-size: 10px; font-weight: 700; line-height: 1;
+  border-radius: 999px;
+`;
+const InboxDot = styled.span`
+  position: absolute; top: 8px; right: 8px;
+  width: 8px; height: 8px;
+  background: #F43F5E; border-radius: 50%;
+  border: 2px solid #FFFFFF;
 `;
 
 // ─────────────────────────────────────────────────────────────
@@ -357,6 +375,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
 
   const isActive = (path: string) => location.pathname === path || location.pathname.startsWith(path + '/');
   const isAdminMode = location.pathname.startsWith('/admin');
+  const inboxCount = useInboxCount(user?.business_id ? Number(user.business_id) : null);
 
   const hasBiz = (...roles: Array<'owner' | 'member' | 'client'>) =>
     !!user?.business_role && roles.includes(user.business_role as 'owner' | 'member' | 'client');
@@ -469,9 +488,14 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                   <NavLabel $isCollapsed={isCollapsed}>{t('nav.dashboard')}</NavLabel>
                 </NavItem>
                 <NavItem to="/inbox" $isCollapsed={isCollapsed} $active={isActive('/inbox') || isActive('/todo')}
-                  title={isCollapsed ? t('nav.inbox', '확인 필요') : undefined}>
+                  title={isCollapsed ? `${t('nav.inbox', '확인 필요')}${inboxCount > 0 ? ` (${inboxCount})` : ''}` : undefined}>
                   <NavIcon $isCollapsed={isCollapsed}><IconTodo /></NavIcon>
                   <NavLabel $isCollapsed={isCollapsed}>{t('nav.inbox', '확인 필요')}</NavLabel>
+                  {inboxCount > 0 && (
+                    isCollapsed
+                      ? <InboxDot aria-label={t('nav.inboxCount', { count: inboxCount, defaultValue: '미처리 {{count}}건' }) as string} />
+                      : <InboxBadge>{inboxCount > 99 ? '99+' : inboxCount}</InboxBadge>
+                  )}
                 </NavItem>
               </NavSection>
 

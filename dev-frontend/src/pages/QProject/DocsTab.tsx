@@ -13,6 +13,7 @@ import { Link } from 'react-router-dom';
 import {
   fetchProjectFiles, fetchWorkspaceFiles, uploadProjectFile, uploadMyFile, deleteProjectFile, bulkDeleteFiles,
   fetchFolders, createFolder, renameFolder, deleteFolder, reorderFolder, moveFile,
+  createShareLink, bulkDownloadZip,
   formatBytes, extOf, isImage,
   type ProjectFile, type FileSource, type FileFolder,
 } from '../../services/files';
@@ -225,6 +226,47 @@ const DocsTab: React.FC<Props> = (props) => {
     setBulkDeleteOpen(false);
   }, [selectedDeletable, businessId, selectedIds]);
 
+  // ─── 공유 링크 + ZIP 다운로드 ───
+  // 백엔드가 지원하는 source: direct / chat / task. meeting / post 는 후속.
+  // gdrive 등 외부 storage 도 백엔드에서 자동 제외.
+  const selectedDownloadable = selectedFiles.filter(f =>
+    f.source === 'direct' || f.source === 'chat' || f.source === 'task'
+  );
+  const [shareLinkInfo, setShareLinkInfo] = useState<{ url: string; expires: string } | null>(null);
+  const [shareError, setShareError] = useState<string | null>(null);
+  const [downloading, setDownloading] = useState(false);
+
+  const onCreateShareLink = useCallback(async () => {
+    if (selectedFiles.length !== 1) return;
+    const f = selectedFiles[0];
+    if (f.source !== 'direct') {
+      setShareError(t('docs.bulk.shareNotSupported', '직접 업로드 파일만 공유 링크를 만들 수 있습니다'));
+      return;
+    }
+    setShareError(null);
+    const r = await createShareLink(businessId, f.id, 30);
+    if (!r) {
+      setShareError(t('docs.bulk.shareFailed', '공유 링크 생성 실패'));
+      return;
+    }
+    try { await navigator.clipboard.writeText(r.share_url); } catch { /* ignore */ }
+    setShareLinkInfo({ url: r.share_url, expires: r.expires_at });
+  }, [selectedFiles, businessId, t]);
+
+  const onBulkDownload = useCallback(async () => {
+    if (selectedDownloadable.length === 0) return;
+    setDownloading(true);
+    setShareError(null);
+    try {
+      const r = await bulkDownloadZip(businessId, selectedDownloadable.map(f => f.id));
+      if (!r.ok) {
+        setShareError(t('docs.bulk.zipFailed', 'ZIP 다운로드 실패: {{msg}}', { msg: r.message || '' }));
+      }
+    } finally {
+      setDownloading(false);
+    }
+  }, [selectedDownloadable, businessId, t]);
+
   const onMoveTo = useCallback(async (targetFolderId: number | null) => {
     for (const f of selectedDeletable) {
       await moveFile(businessId, f.id, targetFolderId);
@@ -404,6 +446,22 @@ const DocsTab: React.FC<Props> = (props) => {
                 <BulkBtn type="button" onClick={selectAllVisible}>{t('docs.bulk.selectAll', '전체 선택')}</BulkBtn>
                 <BulkBtn type="button" onClick={clearSelection}>{t('docs.bulk.clear', '해제')}</BulkBtn>
                 <BulkBtnSep />
+                <BulkBtn type="button" $primary
+                  disabled={selectedDownloadable.length === 0 || downloading}
+                  onClick={onBulkDownload}>
+                  {downloading
+                    ? t('docs.bulk.zipDownloading', '준비 중...')
+                    : t('docs.bulk.zipDownload', 'ZIP 다운로드 ({{n}})', { n: selectedDownloadable.length })}
+                </BulkBtn>
+                <BulkBtn type="button"
+                  disabled={selectedFiles.length !== 1 || selectedFiles[0]?.source !== 'direct'}
+                  onClick={onCreateShareLink}
+                  title={selectedFiles.length !== 1
+                    ? t('docs.bulk.shareHintOne', '파일 1개만 선택해주세요') as string
+                    : ''}>
+                  {t('docs.bulk.shareLink', '공유 링크')}
+                </BulkBtn>
+                <BulkBtnSep />
                 <BulkBtn type="button" disabled={selectedDeletable.length === 0} onClick={() => setMoveTargetOpen(true)}>
                   {t('docs.bulk.move', '이동')}
                 </BulkBtn>
@@ -412,6 +470,15 @@ const DocsTab: React.FC<Props> = (props) => {
                 </BulkBtn>
               </BulkBarRight>
             </BulkBar>
+          )}
+          {shareError && <ErrorBar>{shareError}</ErrorBar>}
+          {shareLinkInfo && (
+            <ShareLinkBar>
+              <strong>{t('docs.bulk.shareCreated', '공유 링크 생성 — 클립보드에 복사됨')}</strong>
+              <ShareUrl>{shareLinkInfo.url}</ShareUrl>
+              <small>{t('docs.bulk.shareExpires', '만료: {{date}}', { date: new Date(shareLinkInfo.expires).toLocaleDateString() })}</small>
+              <BulkBtn type="button" onClick={() => setShareLinkInfo(null)}>{t('common.close', '닫기')}</BulkBtn>
+            </ShareLinkBar>
           )}
 
           {loading ? (
@@ -1222,25 +1289,49 @@ const SkIcon = styled.div`
 `;
 
 // Bulk bar
+// 액션 바 — UI_DESIGN_GUIDE 1.7 액션 버튼 3톤 규칙 준수.
+// 흰 배경 + 옅은 그림자, Primary teal CTA / Secondary gray outline / Danger red outline.
 const BulkBar = styled.div`
   position:sticky;top:0;z-index:5;
   display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;
-  padding:10px 14px;background:#0F172A;color:#fff;border-radius:10px;
-  box-shadow:0 4px 12px rgba(15,23,42,.12);
+  padding:10px 14px;background:#FFFFFF;color:#0F172A;border-radius:10px;
+  border:1px solid #E2E8F0;
+  box-shadow:0 1px 2px rgba(15,23,42,.05);
 `;
-const BulkBarLeft = styled.div`display:flex;gap:8px;align-items:baseline;font-size:13px;
+const BulkBarLeft = styled.div`display:flex;gap:8px;align-items:baseline;font-size:13px;color:#0F172A;
   strong{font-weight:700;}
-  span{color:#94A3B8;font-size:11px;}
+  span{color:#64748B;font-size:11px;}
 `;
 const BulkBarRight = styled.div`display:flex;gap:6px;align-items:center;flex-wrap:wrap;`;
-const BulkBtnSep = styled.div`width:1px;height:18px;background:rgba(255,255,255,0.15);margin:0 4px;`;
-const BulkBtn = styled.button<{ $danger?: boolean }>`
-  height:28px;padding:0 12px;background:${p => p.$danger ? '#DC2626' : 'rgba(255,255,255,0.08)'};
-  color:${p => p.$danger ? '#fff' : '#E2E8F0'};
-  border:1px solid ${p => p.$danger ? '#DC2626' : 'rgba(255,255,255,0.12)'};
+const BulkBtnSep = styled.div`width:1px;height:18px;background:#E2E8F0;margin:0 4px;`;
+const BulkBtn = styled.button<{ $danger?: boolean; $primary?: boolean }>`
+  height:28px;padding:0 12px;
+  background:${p => p.$primary ? '#14B8A6' : '#FFFFFF'};
+  color:${p => p.$primary ? '#FFFFFF' : (p.$danger ? '#DC2626' : '#334155')};
+  border:1px solid ${p => p.$primary ? '#14B8A6' : (p.$danger ? '#FECACA' : '#E2E8F0')};
   border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;
-  &:hover:not(:disabled){background:${p => p.$danger ? '#B91C1C' : 'rgba(255,255,255,0.14)'};}
+  transition:background .15s, border-color .15s;
+  &:hover:not(:disabled){
+    background:${p => p.$primary ? '#0D9488' : (p.$danger ? '#FEF2F2' : '#F8FAFC')};
+    border-color:${p => p.$primary ? '#0D9488' : (p.$danger ? '#FCA5A5' : '#CBD5E1')};
+  }
   &:disabled{opacity:.4;cursor:not-allowed;}
+`;
+const ErrorBar = styled.div`
+  margin-top:8px;padding:10px 14px;background:#FEF2F2;color:#DC2626;
+  border:1px solid #FECACA;border-radius:8px;font-size:12px;
+`;
+const ShareLinkBar = styled.div`
+  margin-top:8px;padding:10px 14px;background:#F0FDFA;border:1px solid #CCFBF1;
+  color:#0F766E;border-radius:8px;font-size:12px;
+  display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+  strong{font-weight:700;}
+  small{color:#0F766E;opacity:0.7;}
+`;
+const ShareUrl = styled.code`
+  flex:1;min-width:200px;padding:6px 10px;background:rgba(20,184,166,0.08);
+  border-radius:6px;font-family:'SF Mono','Monaco','Consolas',monospace;
+  font-size:11px;word-break:break-all;color:#0F766E;
 `;
 
 const Grid = styled.div`display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;`;

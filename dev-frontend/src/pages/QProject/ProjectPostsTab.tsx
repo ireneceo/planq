@@ -382,6 +382,7 @@ const ProjectPostsTab: React.FC<Props> = ({ businessId, projectId }) => {
             onClose={() => setAiOpen(false)}
             onGenerate={startFromAi}
             businessId={businessId}
+            projectId={projectId}
           />
         )}
 

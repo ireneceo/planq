@@ -1,217 +1,178 @@
 ## 현재 작업 상태
-**마지막 업데이트:** 2026-04-27
-**작업 상태:** 완료 — Phase D+1·D+2 (거래 시퀀스 자동 진행 + 사용자 정의) + 외화 인프라 + 설정 통합 + Phase E (PDF·메일·알림 매트릭스)
+**마지막 업데이트:** 2026-04-28
+**작업 상태:** 완료 — P-0 4건 + P-0+ Q talk 번역·채팅 설정 + P-1.1 인박스 카운트 + 영어 샘플 시드 + 번역 안정화 다라운드 + nginx HTML no-cache
+
+다음 진입: **P-1.5 Profile + ID 시스템** → P-2 자체 결제 → P-3 Q knowledge → P-4 Q brief → P-5 Phase F 슬롯 → P-6 SMTP → P-7 PortOne V2 → P-8 반응형
 
 ---
 
 ## ⚡ 빠른 재개 (다음 세션)
 
 ```
-session-state.md 읽고 "전체 테스트 가이드" 항목대로 직접 클릭/검증해줘.
-이상 없으면 다음 작업 (옵션 C: Phase F Q docs 슬롯 시스템) 시작.
+session-state.md 읽고 P-1.5 (Profile + ID 시스템) 부터 진입해줘.
 ```
 
 ---
 
-## 🧪 다음 세션 전체 테스트 가이드 (이번 세션 누적 작업 검증용)
+## 📋 다음 세션 시작점 — P-1.5 Profile + ID 시스템 (~3d)
 
-### 0. 헬스체크 (필수 첫 단계)
-```bash
-node /opt/planq/scripts/health-check.js
-```
-27/27 통과해야 진행.
+### 사용자 요청 (2026-04-28)
+> "이름을 바꿀 수 있어야 해. 왜 바꿀 수 없지? 그리고 아이디는 이메일이면 이메일을 못 바꾸잖아. 이메일 변경도 할 수 있어야지. 아이디를 만들자. 원래 아이디 있지 않아?"
 
-### 1. 거래 시퀀스 자동 진행 (Phase D+1)
-**URL**: `https://dev.planq.kr/projects/p/63?tab=transactions` (또는 새 프로젝트 만들고 거래 탭)
+### 설계 (30년차 권고)
 
-체크 항목:
-- [ ] "다음 할 일" 카드 노출 (현재 active stage 기반)
-- [ ] 단계 보드: 견적 → 계약 → 청구 → 세금계산서 (4 dot + 연결선)
-- [ ] 완료된 단계 녹색, 진행 중 teal glow, 대기 회색
-- [ ] "바로 가기" 버튼 클릭 → 프로젝트 문서 탭에서 새 문서 모달 열림 (`/projects/p/X?tab=docs&new=1&category=quote`)
-- [ ] 견적 발행 → 자동으로 단계 1 완료 + 다음 단계 active 전환
-- [ ] 계약 양사 서명 완료 → 단계 2 완료 + 청구 단계 active
+| 항목 | 현재 | 신규 |
+|------|------|------|
+| 이름 | profile 에서 변경 X | **즉시 변경 가능** (verification 불필요) |
+| 이메일 | 로그인 ID 겸용 → 변경 X | **변경 가능 + verification 코드 필수** (새 이메일에 6자리 발송) |
+| 로그인 ID | 없음 (이메일이 ID 역할) | 신규 `users.username VARCHAR(40) UNIQUE` 컬럼 — 영문 소문자/숫자/`_`/`-`, 3~30자 |
+| 로그인 흐름 | 이메일 + 비밀번호 | **username 또는 email 양쪽 허용** + 비밀번호 |
 
-### 2. 거래 stage 사용자 정의 (Phase D+2 — 이번 세션 마지막 작업)
-**URL**: 프로젝트 거래 탭 → 단계 보드 헤더 ✏️ "편집"
+### 작업 범위 (~3d)
 
-체크 항목:
-- [ ] ✏️ 편집 버튼 클릭 → 편집 모드 진입 (단계가 row 형식으로 변환)
-- [ ] 단계 이름 변경 (input 클릭 → 수정 → blur 또는 Enter → 저장)
-- [ ] ↑↓ 버튼으로 순서 변경 (첫 자리 ↑/마지막 ↓ 비활성화)
-- [ ] "+ 단계 추가" 클릭 → "사후 점검" 같은 사용자 정의 단계 추가
-- [ ] custom stage 의 🗑 삭제 버튼 → 확인 다이얼로그
-- [ ] template stage 는 자물쇠 아이콘 (삭제 불가)
-- [ ] read-only 모드에서 custom stage 의 dot 클릭 → 완료/대기 토글
+| 단계 | 내용 | 추정 |
+|------|------|:---:|
+| A | DB ALTER `users.username` + UNIQUE index + 기존 사용자 자동 마이그레이션 (이메일 prefix → username, 충돌 시 `_2` suffix) | 0.5d |
+| B | 백엔드: `POST /auth/login` username 양쪽 허용 / `PUT /users/:id` (name PATCH 즉시) / `POST /users/:id/email-change-request` + `verify` (6자리 OTP) / username 검증 (영문/숫자/`_`/`-`, 3~30자, unique) | 1d |
+| C | 프론트: ProfilePage — 인라인 편집 (AutoSaveField for name) + 이메일 변경 모달 (코드 입력 단계) + username 변경 입력 + 가용성 즉시 검증 | 1d |
+| D | 회원가입 흐름 (signup 에 username 필드 추가) + 검증 + 회귀 (기존 이메일 로그인 호환) | 0.5d |
 
-### 3. PDF 다운로드 (Phase E1)
-체크 항목:
-- [ ] 청구서 상세 드로어 → 액션바에 "PDF 다운로드" 버튼 → `.pdf` 다운로드
-- [ ] 공개 결제 페이지 (`/public/invoices/:token`) → 우측 상단 "PDF 다운로드" 버튼
-- [ ] 공개 문서 페이지 (`/public/posts/:token`) → "PDF 다운로드" 버튼
-- [ ] 외화 청구서 (currency = USD/EUR 등): PDF 가 영문 모드 (Bill To/Wire Transfer/Subtotal + SWIFT 노출)
-- [ ] PDF 메일 첨부: invoice 발송 모달에서 send_email=true → 받은 메일에 PDF 첨부 (SMTP 연결된 환경에서)
+### 의존
+- SMTP 연결 (P-6 의존) — verification 메일 발송용. 임시: 콘솔 로그 출력 (dev) → 운영 시 P-6 활성화 후 동작
 
-### 4. 메일 발신 설정 (Phase E2/E3)
-**URL**: `https://dev.planq.kr/business/settings/email`
-
-체크 항목:
-- [ ] SMTP 연결 상태 배너 (현재 dev 는 amber — 미연결)
-- [ ] 발신 표시이름 입력 → 미리보기에 즉시 반영 (`"이름" <noreply@planq.kr>`)
-- [ ] 회신 주소 입력 (이메일 형식 검증)
-- [ ] 청구서 발송 시 메일 헤더의 From 이 워크스페이스 이름으로 표시 (SMTP 연결 필요)
-
-### 5. 알림 매트릭스 (Phase E4)
-**URL**: `https://dev.planq.kr/business/settings/notifications`
-
-체크 항목:
-- [ ] 7 이벤트 × 3 채널 = 21 토글 매트릭스 노출
-- [ ] 토글 클릭 → 즉시 저장 (낙관적 업데이트, 실패 시 원복)
-- [ ] 새로고침 후 토글 상태 유지
-- [ ] 기본값 모두 ON
-
-### 6. 외화 결제 인프라
-**URL**: `/business/settings/billing`
-
-체크 항목:
-- [ ] 통화 옵션 5종 (KRW/USD/EUR/JPY/CNY) 노출
-- [ ] 입금 계좌 6 필드: 은행/계좌번호/예금주/SWIFT/영문 은행명/영문 예금주
-- [ ] 외화 청구서 발행 후 공개 결제 페이지에 SWIFT/영문 정보 자동 노출 (KRW 청구서는 한국 정보만)
-- [ ] 한국 사업자 고객만 세금계산서 단계 활성, 해외 고객은 거래 탭 단계 보드에서 자동 skipped
-
-### 7. 채팅방 가기 버튼
-체크 항목:
-- [ ] 문서 공유 모달 → 채팅방에 보내기 → 결과 화면 "채팅방 가서 보기"
-- [ ] 서명 요청 모달 + 채팅 토글 → 발송 후 결과 화면 "채팅방 가서 보기"
-- [ ] 청구서 발행 모달 + send_chat → 발송 결과 화면 "채팅방 가서 보기"
-- [ ] 발송된 청구서 드로어 → 액션바에 "채팅방 가기" (자동 conversation 검색)
-
-### 8. 확인필요 (Phase D1) + 채팅방 배너
-체크 항목:
-- [ ] `/inbox` 진입 → 서명/결제/세금계산서 collector 동작
-- [ ] 업무 추출 시 카드 메시지(서명/문서/청구) 무시 — 텍스트 메시지에서만 추출
-- [ ] 채팅방 상단 "업무 후보 N개" 배너에 "확인하기/나중에" 사라지고 X 닫기만
-
-### 9. 통합 설정 좌측 nav
-**URL**: `/business/settings`
-
-체크 항목:
-- [ ] 좌측 secondary nav 에 워크스페이스 / 청구 설정 / 이메일 / 알림 / 언어 / 파일 저장소 / 구독 플랜 / 권한 / Cue 모두 노출
-- [ ] 워크스페이스 아이콘 = 회사 건물 (톱니바퀴 X)
-- [ ] 청구 설정 아이콘 = 영수증, 구독 플랜 아이콘 = 신용카드 (구분됨)
-- [ ] `/business/settings/billing` 진입 시 청구 설정 폼 정상 (이전 visibleTabs 버그 fix)
-- [ ] 청구 설정의 법인 정보 누락 시 노란 경고 배너 + "법인 정보 입력하기" → 자동 스크롤
-
-### 10. API E2E (백엔드 검증)
-선택적으로 임시 스크립트로 종합 검증:
-```bash
-# /opt/planq/dev-backend 에서 임시 스크립트 작성 후 실행
-# 22/22 시나리오 (D+2 11 + Phase E 회귀 8 + 외화/거래/확인필요 회귀 3)
-```
+### 검증 시나리오
+- 이름 변경 → 즉시 반영
+- username 변경 → 가용성 검사 → 즉시 반영 → 다음 로그인 시 username 사용 가능
+- 이메일 변경 → 새 이메일에 코드 → 코드 입력 → 변경 → 새 이메일로 다음 알림 받음
+- 기존 사용자 (마이그레이션됨): 이메일 prefix 가 username — 둘 다 로그인 가능
+- 회원가입 신규: username + email + password 모두 받음, 가용성 즉시 표시
 
 ---
 
-## 완료된 작업 (이번 세션, 2026-04-27)
+## 📋 전체 할일 리스트 (P-1 ~ P-8)
 
-### Phase D+1 — 거래 시퀀스 자동 진행
-- 신규 모델 `ProjectStage` + 4 템플릿 (fixed/subscription/consulting/custom)
-- `services/projectStageEngine.js` — 자동 진행 + next_action 계산 엔진
-- post/signature/invoice 변경 hooks 모두 연결
-- 레거시 프로젝트 lazy seed (GET /transactions 첫 호출 시)
-- TransactionsTab: 다음 할 일 카드 + 단계 보드 추가
+### ✅ P-1.1 좌측 nav 인박스 카운트 — 완료
+### 🔜 P-1.5 Profile + ID 시스템 (3d) ← **다음 세션**
+### P-2 자체 결제 + 월/연 + 미결제 4단계 강등 (6~7d)
+- DB: `Subscription` (cycle, status, current_period_end, next_billing_at) + `Payment` (method, status, marked_by, receipt_url) + Business 결제 정보
+- 흐름: 플랜 변경 → Subscription/Payment(pending) → 입금 안내 → admin mark-paid → 활성화 → 영수증 PDF
+- cron: 매일 자정 — 임박 (D-7) / grace (D-day, +1~+7d) / 강등 (+8d~ Free) 4단계
+- 데이터 보존 X 삭제 (read-only 만)
 
-### Phase D+2 — 거래 stage 사용자 정의 UI
-- 신규 라우트 `POST /api/projects/:id/stages/:stageId/move` (트랜잭션 swap)
-- TransactionsTab 편집 모드: label/순서/추가/삭제/토글
-- template_seeded 삭제 차단 (자물쇠 아이콘)
-- 18/18 E2E 통과
+### P-3 Q knowledge — Cue 가 보는 회사 지식 DB (5~7d)
+- 좌측 메뉴 `Q 지식` (영문 `Q knowledge`)
+- KbDocument.category ENUM (policy/manual/incident/faq/about/pricing) + scope (workspace/project/client) + project_id/client_id
+- kb_service.hybridSearch 우선순위 (client → project → workspace, threshold 0.78)
+- Q talk Cue / Q docs aiGenerate / Q note 회의록 자동 채움 모두 통합
 
-### Phase E — PDF · 메일 · 알림
-- **PDF**: Puppeteer 싱글톤 + invoice/post HTML 템플릿 (외화면 자동 영문) + 메일 첨부 + 다운로드 버튼 4지점
-- **메일**: Business.mail_from_name + mail_reply_to + EmailSettings UI (SMTP 상태 배너 + 미리보기)
-- **알림**: NotificationPref 모델 + 21 토글 매트릭스 + isAllowed helper
-- 17/17 E2E 통과
+### P-4 Q brief — 자료정리/요약 신규 (5~6d)
+- 별도 좌측 메뉴
+- multi 입력 (텍스트 + 파일 N개) → LLM 요약 → 시점/파일 view 토글 → 후속 문서 (Q docs) 양방향 링크
 
-### 사용자 지적 대응 (다수)
-1. 거래 탭 stage 라인 끊김 fix
-2. 거래 → 새 문서 자동 연결 (`/projects/p/X?tab=docs&new=1&category=...`)
-3. 프로젝트>문서 탭에 AI/템플릿 버튼 추가
-4. 모달이 list 모드 return 블록 밖에 있어 안 보이는 버그 fix
-5. 청구 설정 visibleTabs 누락 fix
-6. 발신자 정보 redundancy 제거 (워크스페이스 법인 정보로 통합)
-7. 통화/은행/세금계산서 멘탈 모델 정리
-8. EmailSettings/NotificationSettings placeholder 자연 언어로 정정
-9. 워크스페이스/청구 설정/구독 플랜 아이콘 차별화
+### P-5 Phase F — Q docs 슬롯 시스템 (5d)
+- DocumentTemplate.schema_json 활용 (이미 있음)
+- F1 컨텍스트 빌더 + 슬롯 치환 (1d)
+- F2 슬롯 폼 자동 생성 (2d)
+- F3 영문 locale 슬롯 + 템플릿 (1d)
+- F4 슬롯 단위 revision 비교 (1d)
 
-### 채팅방 가기 버튼 4 지점
-- PostShareModal · PostSignatureModal · NewInvoiceModal · InvoiceDetailDrawer
+### P-6 SMTP 운영 연결 (1d)
+- `.env` SMTP_HOST/USER/PASSWORD/FROM
+- 도메인 SPF/DKIM/DMARC DNS
+- 실 발송 검증
 
-### 업무 추출 정확도 (Phase D1 보완)
-- 카드 메시지 (`kind='card'`) 추출 제외 → "표준 견적서 작성" 같은 오추출 방지
-- 채팅방 상단 배너 "확인하기/나중에" 제거 → X 닫기만
+### P-7 PortOne V2 + 팝빌 (5~6d)
+- **가맹점 가입은 이 단계 직전 시작** (Irene)
+- Business.billing_key + 카드 등록 모달 + 빌링키 결제 + 정기결제 cron + webhook 환불 + 팝빌 세금계산서
 
-### 설정 통합
-- Q Bill `/bills?tab=settings` → `/business/settings/billing` 자동 redirect
-- 좌측 secondary nav 에 청구 설정/이메일/알림 신규 항목
+### P-8 반응형 일괄 스프린트 (5d)
+- 햄버거 2뎁스 + 마스터-디테일
+
+**총 추정: 35~38 영업일 (~7~8주)**
+
+---
+
+## 🧪 다음 세션 진입 전 클릭 검증 (선택)
+
+### 1. 채팅 번역 + 설정
+- 채팅방 헤더 톱니 → 설정 모달 → 번역 ON, ko/en
+- 메시지 발송 → 즉시 표시 → 1~3초 후 회색 박스 번역 추가
+- 줄바꿈/번호/이모지 양 언어 보존
+- 토글 OFF → 신규 메시지 번역 X
+
+### 2. 새 채팅 흐름
+- "새 대화 시작" → 디폴트 프로젝트 미연결 (좌측에서 프로젝트 선택했어도)
+- 모달에 번역 + 자동추출 토글 + 언어 선택 입력
+
+### 3. 인박스 카운트
+- 좌측 nav `확인 필요` 옆 빨간 pill (개수)
+- 0건이면 숨김
+
+### 4. 영어 샘플 환경
+- https://dev.planq.kr/projects/p/70 (International Onboarding 2026 Q2)
+- tasks 탭 — 영어 업무 20건
+- transactions 탭 — 영어 stage (Issue Quote → Sign Contract → Invoice & Payment → Issue Tax Invoice)
+- 캘린더 8건 (영어)
+
+### 5. 회귀 — Q file 대량 다운로드 / Q docs AI 작성 / 채팅방 카드 (이전 라운드)
+
+---
+
+## 완료된 작업 (이번 세션, 2026-04-28)
+
+### P-0 운영 안정화 4건 (이전 라운드)
+- 채팅방 카드 렌더 (path-param 진입 fix)
+- 업무 추출 차단 (이미 등록된 task 의 source 재추출 방지)
+- AI 문서 client/project 컨텍스트 (롤백 후 선택)
+- 파일 공유 + multi-source ZIP
+
+### P-0+ Q talk 번역 + 채팅 설정 (이번 라운드)
+- DB: Conversation/Message 번역 컬럼
+- translation_service.js (gpt-4o-mini, 5종, retry, sanitize, max_tokens 적정화)
+- 비동기 번역 + Socket.IO push + 폴링 fallback
+- ChatPanel — TranslatedText 옅은 회색 박스, white-space pre-wrap, 스크롤 정책
+- ChatSettingsModal 신규 — 번역/자동추출/참여자 통합
+- NewChatModal — 디폴트 미연결 + 설정 입력 추가
+- 독립 채팅 그룹 분리 fix
+- Cue 응답 번역 hook
+- nginx HTML no-cache (캐시 함정 해결)
+
+### P-1.1 좌측 nav 카운트 배지
+- useInboxCount hook
+- MainLayout InboxBadge (pill / dot)
+
+### 영어 샘플 시드
+- 프로젝트 70 (International Onboarding 2026 Q2)
+- 캘린더 8 / 업무 20 / 노트 3 / stage 4 영어 라벨
+
+### 인프라 fix
+- nginx HTML cache-control: no-cache
+- standalone 대화 PATCH 허용
+- memberOptions null user 방어
+- PostsPage projectId 미전달
+
+---
+
+## 신규 메모 (이번 세션)
+
+- `feedback_translation_async.md` — 동기 LLM 호출 금지, 비동기 + Socket.IO + 폴링 fallback 패턴
+- `feedback_nginx_html_no_cache.md` — SPA HTML 은 no-cache 강제 (immutable assets 함정)
 
 ---
 
 ## 환경 / 인증
 
 - 백엔드: pm2 planq-dev-backend (port 3003)
-- DB: planq_dev_db / planq_admin / CE5tloemiYjWNUIs
-- 도메인: dev.planq.kr
-- 헬스체크: `node /opt/planq/scripts/health-check.js` — 27/27 통과
-- 마지막 빌드: `index-D8MbLadb.js`
-- 신규 패키지: puppeteer (백엔드)
-
----
-
-## 신규 메모리 (이번 세션)
-
-- `project_phase_e_complete.md` — PDF/메일/알림 인프라
-- `project_project_stages.md` — ProjectStage 4 템플릿 + 자동 진행
-- `feedback_user_facing_copy.md` — 사용자 노출 문구 자연 언어 원칙
-- `feedback_currency_vs_bank.md` — 통화·은행·세금계산서 분리 멘탈 모델
-- `feedback_tab_layout_unify.md` — 탭 레이아웃 스코프 통일
-
----
-
-## 다음 할 일 (우선순위)
-
-### 옵션 C — Phase F: Q docs 슬롯 시스템 (~5일)
-- 템플릿 변수 슬롯 (`{{client.biz_name}}`, `{{project.amount}}` 등)
-- 새 문서 작성 = 폼만 입력 → 본문 자동 채움
-- 슬롯 단위 변경 비교
-- 발신/수신 자동 채움 (Business + Client biz_*)
-- 영문 슬롯 자동 (외화 청구 영문 계약서/견적서)
-
-### 옵션 B — SMTP 운영 연결 (Irene 결정 필요, ~1일)
-- `.env` 의 SMTP_HOST/USER/PASSWORD/FROM 값 결정
-  - SendGrid / Mailgun / AWS SES / Google Workspace 중 선택
-- 도메인 인증 (SPF/DKIM/DMARC) DNS 작업
-- 실 발송 검증 (청구서/서명/문서 공유)
-
-### 옵션 D — Phase 8: 반응형 일괄 스프린트 (~5일)
-- 햄버거 2뎁스 아코디언 + 마스터-디테일 드릴다운
-- 모든 페이지 모바일 대응
+- DB: planq_dev_db / planq_admin
+- 도메인: dev.planq.kr (HTML no-cache 적용됨)
+- 마지막 빌드: `index-ikmafdzy.js`
+- 신규 패키지: 없음 (이전 라운드 archiver, puppeteer 유지)
 
 ---
 
 ## 복구 가이드 (새 Claude 세션)
 
 ```
-session-state.md 읽고 "다음 세션 전체 테스트 가이드" 항목대로 검증해줘.
-이상 없으면 옵션 C (Phase F Q docs 슬롯 시스템) 진행.
-```
-
-또는 직접:
-
-```
-Phase F Q docs 슬롯 시스템 구현해줘.
-- 템플릿에 변수 슬롯 정의
-- 새 문서 작성 = 폼 입력 → 본문 자동 채움
-- 슬롯 단위 변경 비교
-- 영문 슬롯도 자동
-실 API 정석 개발. mock 절대 금지.
+이전 세션 이어서 작업하고 싶어.
+/opt/planq/.claude/session-state.md 읽어줘. P-1.5 (Profile + ID 시스템) 부터 진입.
 ```

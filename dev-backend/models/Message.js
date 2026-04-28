@@ -121,6 +121,16 @@ Message.init({
   cue_draft_processing_at: {
     type: DataTypes.DATE,
     allowNull: true
+  },
+  // 번역 캐시 (Conversation.translation_enabled=true 일 때 발송 시점에 채움)
+  // { ko: "안녕", en: "Hello" } 형태. 두 언어 모두 저장.
+  translations: {
+    type: DataTypes.JSON,
+    allowNull: true
+  },
+  detected_language: {
+    type: DataTypes.STRING(10),
+    allowNull: true
   }
 }, {
   sequelize,

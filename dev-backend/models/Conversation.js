@@ -76,6 +76,18 @@ Conversation.init({
   extraction_in_progress_at: {
     type: DataTypes.DATE,
     allowNull: true
+  },
+  // 번역 표시 — 토글 ON 시 발송 시점부터 신규 메시지만 자동 번역 (Q note 패턴).
+  // 과거 메시지는 번역 안 함 (단순 정책).
+  translation_enabled: {
+    type: DataTypes.BOOLEAN,
+    allowNull: false,
+    defaultValue: false
+  },
+  // 정확히 2-원소 배열, 서로 다른 언어. 예: ["ko","en"]
+  translation_languages: {
+    type: DataTypes.JSON,
+    allowNull: true
   }
 }, {
   sequelize,

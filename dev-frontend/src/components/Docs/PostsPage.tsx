@@ -827,6 +827,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
           open={aiOpen}
           onClose={() => setAiOpen(false)}
           businessId={scope.businessId}
+          projectId={scope.type === 'project' ? scope.projectId : null}
           onGenerate={startFromAi}
         />
       )}

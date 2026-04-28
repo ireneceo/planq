@@ -40,6 +40,7 @@ router.post('/:businessId', authenticateToken, checkBusinessAccess, async (req, 
     const {
       title, client_id, participant_ids, participant_user_ids,
       project_id, channel_type,
+      auto_extract_enabled, translation_enabled, translation_languages,
     } = req.body;
 
     const business = await Business.findByPk(req.params.businessId);
@@ -72,6 +73,20 @@ router.post('/:businessId', authenticateToken, checkBusinessAccess, async (req, 
     const allowed = ['customer', 'internal', 'direct'];
     if (!allowed.includes(finalChannel)) finalChannel = 'internal';
 
+    // 채팅 설정 (NewChatModal 에서 결정 — 사용자 명시 우선, 안 주면 채널 종류로 디폴트)
+    let finalAutoExtract = typeof auto_extract_enabled === 'boolean'
+      ? auto_extract_enabled
+      : (finalChannel === 'customer');
+    let finalTranslationEnabled = false;
+    let finalTranslationLanguages = null;
+    if (translation_enabled === true && Array.isArray(translation_languages)) {
+      const { validateLanguages } = require('../services/translation_service');
+      const v = validateLanguages(translation_languages);
+      if (!v.ok) return errorResponse(res, `translation_languages_${v.reason}`, 400);
+      finalTranslationEnabled = true;
+      finalTranslationLanguages = v.normalized;
+    }
+
     const conversation = await Conversation.create({
       business_id: req.params.businessId,
       project_id: project_id || null,
@@ -79,7 +94,9 @@ router.post('/:businessId', authenticateToken, checkBusinessAccess, async (req, 
       client_id: client_id || null,
       channel_type: finalChannel === 'direct' ? 'internal' : finalChannel,
       cue_enabled: finalChannel === 'customer',
-      auto_extract_enabled: finalChannel === 'customer',
+      auto_extract_enabled: finalAutoExtract,
+      translation_enabled: finalTranslationEnabled,
+      translation_languages: finalTranslationLanguages,
     });
 
     await ConversationParticipant.create({

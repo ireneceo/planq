@@ -1,6 +1,7 @@
 // 새 문서 모달 — 3 진입 (AI / 템플릿 / 빈 문서)
-// D-3 에서 AI 진입 활성화. 지금은 disabled hint.
-import React, { useState } from 'react';
+// AI 모드는 client + project 컨텍스트 필수 (사용자가 진짜 회사명·담당자·금액을 채우지 않으면 빈 placeholder 만 남기 때문).
+// project 선택 시 그 프로젝트의 primary client 자동 매핑.
+import React, { useState, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import styled from 'styled-components';
 import { useEscapeStack } from '../../hooks/useEscapeStack';
@@ -9,6 +10,9 @@ import {
   createDocument, aiGenerateDoc, KIND_LABELS_KO, KIND_ICON,
   type DocTemplate, type DocSummary, type DocKind,
 } from '../../services/docs';
+import { listClientsForBilling, type ApiClientLite } from '../../services/invoices';
+import { listProjects, type ApiProject } from '../../services/qtalk';
+import PlanQSelect, { type PlanQSelectOption } from '../../components/Common/PlanQSelect';
 
 interface Props {
   open: boolean;
@@ -27,8 +31,48 @@ const NewDocumentModal: React.FC<Props> = ({ open, onClose, templates, businessI
   const [aiKind, setAiKind] = useState<DocKind>('proposal');
   const [aiTitle, setAiTitle] = useState('');
   const [aiUserInput, setAiUserInput] = useState('');
+  const [aiClientId, setAiClientId] = useState<number | null>(null);
+  const [aiProjectId, setAiProjectId] = useState<number | null>(null);
   const [aiError, setAiError] = useState<string | null>(null);
   const [aiUsage, setAiUsage] = useState<{ remaining: number; limit: number } | null>(null);
+
+  // 컨텍스트 후보 — modal open 시 한 번 fetch
+  const [clients, setClients] = useState<ApiClientLite[]>([]);
+  const [projects, setProjects] = useState<ApiProject[]>([]);
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const [cls, prjs] = await Promise.all([
+          listClientsForBilling(businessId).catch(() => [] as ApiClientLite[]),
+          listProjects(businessId).catch(() => [] as ApiProject[]),
+        ]);
+        if (cancelled) return;
+        setClients(cls);
+        setProjects(prjs);
+      } catch { /* silent */ }
+    })();
+    return () => { cancelled = true; };
+  }, [open, businessId]);
+
+  // project 선택 시 그 프로젝트의 primary client 자동 매핑 (사용자가 client 미선택 상태에 한해)
+  useEffect(() => {
+    if (!aiProjectId) return;
+    if (aiClientId) return; // 이미 client 선택된 상태는 건드리지 않음
+    const proj = projects.find(p => p.id === aiProjectId);
+    const pc = proj?.projectClients?.[0];
+    if (pc?.client_id) setAiClientId(pc.client_id);
+  }, [aiProjectId, projects, aiClientId]);
+
+  // 고객·프로젝트 연결은 선택 — 있으면 회사명·담당자·금액·주소 자동 채움.
+  // 비워두면 LLM 이 placeholder 그대로 두므로 사용자가 나중에 채울 수 있음.
+  const clientOptions: PlanQSelectOption[] = useMemo(() => clients.map(c => ({
+    value: c.id, label: c.display_name || c.company_name || `Client ${c.id}`,
+  })), [clients]);
+  const projectOptions: PlanQSelectOption[] = useMemo(() => projects.map(p => ({
+    value: p.id, label: p.name,
+  })), [projects]);
 
   useEscapeStack(open, onClose);
   useBodyScrollLock(open);
@@ -42,12 +86,17 @@ const NewDocumentModal: React.FC<Props> = ({ open, onClose, templates, businessI
       const tpl = templates.find(x => x.kind === aiKind && x.is_system) || null;
       const ai = await aiGenerateDoc({
         business_id: businessId, kind: aiKind, title: aiTitle.trim(),
-        user_input: aiUserInput.trim(), template_id: tpl?.id || null,
+        user_input: aiUserInput.trim(),
+        client_id: aiClientId,
+        project_id: aiProjectId,
+        template_id: tpl?.id || null,
       });
       setAiUsage(ai.usage);
       // AI 결과를 body_json 으로 변환 — 단순화: HTML 만 doc 생성 시 body_html 로 우회
       const doc = await createDocument({
         business_id: businessId, template_id: tpl?.id || null, kind: aiKind, title: aiTitle.trim(),
+        client_id: aiClientId,
+        project_id: aiProjectId,
         body_json: { type: 'doc', content: [] },  // 빈 JSON, body_html 은 백엔드에서 별도 set
       });
       // body_html 별도 PUT (createDocument 가 body_html 을 클라이언트에서 받지 않으므로)
@@ -121,6 +170,34 @@ const NewDocumentModal: React.FC<Props> = ({ open, onClose, templates, businessI
                 </KindGrid>
               </FieldRow>
               <FieldRow>
+                <FieldLabel>{t('newModal.aiClient', '고객 연결 (선택)')}</FieldLabel>
+                <PlanQSelect
+                  size="sm"
+                  options={clientOptions}
+                  value={clientOptions.find(o => o.value === aiClientId) || null}
+                  onChange={(opt) => setAiClientId(opt ? Number((opt as PlanQSelectOption).value) : null)}
+                  placeholder={
+                    clientOptions.length === 0
+                      ? (t('newModal.aiClientEmpty', '등록된 고객이 없습니다') as string)
+                      : (t('newModal.aiClientPh', '고객 선택 — 회사명·담당자 자동 채움 (선택)') as string)
+                  }
+                  isClearable
+                  isSearchable
+                />
+              </FieldRow>
+              <FieldRow>
+                <FieldLabel>{t('newModal.aiProject', '프로젝트 연결 (선택)')}</FieldLabel>
+                <PlanQSelect
+                  size="sm"
+                  options={projectOptions}
+                  value={projectOptions.find(o => o.value === aiProjectId) || null}
+                  onChange={(opt) => setAiProjectId(opt ? Number((opt as PlanQSelectOption).value) : null)}
+                  placeholder={t('newModal.aiProjectPh', '프로젝트 선택 — 고객 자동 매핑 (선택)') as string}
+                  isClearable
+                  isSearchable
+                />
+              </FieldRow>
+              <FieldRow>
                 <FieldLabel>{t('newModal.aiTitle', '문서 제목')}</FieldLabel>
                 <FieldInput type="text" value={aiTitle} onChange={e => setAiTitle(e.target.value)}
                   placeholder={t('newModal.aiTitlePh', '예: 워프로랩 브랜드 리뉴얼 제안서') as string} />
@@ -135,8 +212,9 @@ const NewDocumentModal: React.FC<Props> = ({ open, onClose, templates, businessI
               {aiUsage && <UsageHint>{t('newModal.aiUsage', { remaining: aiUsage.remaining, limit: aiUsage.limit, defaultValue: '이번 달 남은 횟수: {{remaining}}/{{limit}}' })}</UsageHint>}
               <FormActions>
                 <CancelBtn type="button" onClick={onClose}>{t('common.cancel', '취소')}</CancelBtn>
-                <GenerateBtn type="button" onClick={startAi} disabled={busy || !aiTitle.trim()}>
-                  {busy ? t('newModal.aiGenerating', '생성 중...') : t('newModal.aiGenerate', '+ AI 로 작성하기')}
+                <GenerateBtn type="button" onClick={startAi}
+                  disabled={busy || !aiTitle.trim()}>
+                  {busy ? t('newModal.aiGenerating', '생성 중...') : t('newModal.aiGenerate', 'AI 로 작성하기')}
                 </GenerateBtn>
               </FormActions>
             </AIForm>

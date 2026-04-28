@@ -1,6 +1,137 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-04-27 (Phase D+1·D+2 거래 시퀀스 자동 진행 + 사용자 정의 + 외화 결제 인프라 + 설정 통합 + Phase E PDF·메일·알림 매트릭스)
+> **최종 업데이트:** 2026-04-28 (P-0 4건 + P-0+ Q talk 번역·채팅 설정 + P-1.1 인박스 카운트 + 영어 샘플 시드 + 번역 안정화 다라운드 + nginx HTML no-cache)
+>
+> **다음 진입:** P-1.5 Profile + ID 시스템 → P-2 자체 결제 → P-3 Q knowledge → P-4 Q brief → P-5 Phase F 슬롯 → P-6 SMTP → P-7 PortOne V2 + 팝빌 → P-8 반응형
+>
+> **결제 정책:** 1순위 자체 결제 (계좌이체 mark-paid), 2순위 PortOne (P-7 마지막). 월결제 + 연결제. 미결제 시 7일 유예 후 Free 강등 + 데이터 보존
+
+---
+
+## ✅ 완료: P-0+ Q talk 번역 + 채팅 설정 + P-1.1 인박스 카운트 + 영어 샘플 시드 + 번역 안정화 (2026-04-28)
+
+대규모 마라톤 세션. 핵심 묶음:
+
+### 1. Q talk 메시지 번역 (Q note 패턴)
+
+| 영역 | 핵심 |
+|------|------|
+| DB | `Conversation.translation_enabled` + `translation_languages JSON` / `Message.translations JSON` + `detected_language` |
+| 신규 서비스 `translation_service.js` | gpt-4o-mini · 5종 (KO/EN/JA/ZH/ES) · 2-원소 + 서로 다른 언어 강제 검증 |
+| **비동기 번역** | 메시지 발송 60ms 즉시 응답 (이전 1~3초) → setImmediate 백그라운드 LLM → `message:translated` + `message:updated` Socket.IO push |
+| **JSON parse 안전** | raw newline / control char / 빈 응답 sanitize + 1회 자동 재시도 (`translateWithRetry`) |
+| **max_tokens 적정화** | min 400 / max 2000 / `length×4 + 200` — 짧은 메시지 응답 잘림 방지 |
+| ChatPanel | `TranslatedText` 옅은 회색 박스 + `white-space:pre-wrap` 줄바꿈 보존 + IIFE robust fallback (detected_language 없어도 다른 키 자동) |
+| 폴링 fallback | 메시지 발송 4초 후 자동 GET — Socket.IO 못 받아도 보장 |
+| Cue 응답 번역 | cue_orchestrator hook 동일 적용 (사용자/AI 일관성) |
+| 스크롤 정책 | 진입 시 무조건 마지막 + 본인 메시지 무조건 sticky + 번역 도착 200px 이내면 자동 따라감 |
+
+### 2. 채팅 설정 통합 + NewChatModal 정비
+
+- **신규 `ChatSettingsModal.tsx`** — 기본 (프로젝트 read-only) + 번역 + 자동추출 + 참여자 추가/제거 (실시간 fetch). standalone 대화도 PATCH 허용
+- NewChatModal 디폴트 → 항상 미연결 (preselectedProjectId 무시)
+- NewChatModal 에 번역/자동추출 토글 + 언어 선택 추가
+- 독립 채팅 그룹 분리 — channels filter standalone 묶임 fix
+
+### 3. P-1.1 좌측 nav 인박스 카운트 배지
+
+- `hooks/useInboxCount.ts` — fetchTodo + Socket.IO `inbox:refresh`
+- MainLayout NavItem `InboxBadge` (확장 pill / collapsed dot, Coral, 0 숨김, 99+)
+
+### 4. 영어 샘플 시드 (워크스페이스 3 / project 70 신규)
+
+- 프로젝트 **International Onboarding 2026 Q2** (Acme Global, fixed milestone, 8주)
+- 캘린더 8 / 업무 20 / 노트 3
+- 거래 stage 영어 라벨 (Issue Quote → Sign Contract → Invoice & Payment → Issue Tax Invoice)
+
+### 5. 인프라 fix
+
+- **nginx HTML `Cache-Control: no-cache`** 추가 → 사용자 브라우저 옛 번들 stale 캐시 근본 해결
+- memberOptions null user 방어 (탈퇴/삭제 멤버) → ChatSettingsModal TypeError 해소
+- standalone 대화 PATCH `not_a_project_channel` 차단 → `loadStandaloneConvOrForbidden` fallback 추가
+- PostsPage `projectId` 미전달 → 추가
+
+### 사용자 피드백 대응 (이번 세션, 13건+)
+
+1. mock 절대 금지 명문화 (이전 라운드 유지)
+2. AI 문서 client/project 강제 → 롤백 (선택)
+3. 채팅 path-param 진입 시 빈 화면 → useParams + 정규화
+4. 디폴트 프로젝트 연결 X
+5. 엔터값/줄바꿈 보존 (white-space pre-wrap)
+6. 채팅 클릭 시 마지막 메시지 기준
+7. 번역 빈 응답 (영→한 ko ""): retry + 프롬프트 강화
+8. 번역 도착 시 가려지지 않게 sticky-to-bottom
+9. 독립 채팅 묶임 분리
+10. 좌측 nav 인박스 카운트 표시
+11. 영어 시드 (프로젝트 + 캘린더 + 업무)
+12. 거래 stage 영어 라벨
+13. Profile/ID 시스템 신청 (다음 세션 P-1.5)
+
+### 신규 파일
+- Backend: `services/translation_service.js`
+- Frontend: `hooks/useInboxCount.ts`, `pages/QTalk/ChatSettingsModal.tsx`
+
+### 검증
+- 헬스체크 27/27 (라운드별 반복 PASS)
+- 번역 E2E: 한↔영 / 줄바꿈 / 번호 / 이모지 / 짧은 메시지 / max_tokens / 빈 응답 재시도 / 사용자 동일 케이스 모두 PASS
+- ChatSettingsModal E2E 12/12 + 후속 6/6
+- NewChatModal E2E 4/4
+- 영어 시드: 프로젝트 70 + 캘린더 8 + 업무 20 + 노트 3 + stage 4 라벨
+
+### 빌드 (이번 세션 누적)
+DVxZLkcy → DVPO91YA → D4hYsYSx → 9hEw4WII → Di7M1zvg → Dx49pBv4 → reYADfw- → ikmafdzy 등 — 모두 1.3~1.7s, 타입에러 0
+
+---
+
+
+>
+> **상세 할일 리스트:** `.claude/session-state.md` "할일 리스트 (P-1 ~ P-7)" 섹션 참조
+
+---
+
+## ✅ 완료: P-0 운영 안정화 4건 + 디자인 통일 (2026-04-28)
+
+세션 중반 사용자 발견·요청에 따른 운영 안정화 묶음. 각 항목 E2E 검증 + 9단계 종합 검증 완료.
+
+### 4 fix
+
+| # | 항목 | 핵심 |
+|---|------|------|
+| #1 | 채팅방 카드 렌더 빈 화면 | `QTalkPage` 가 `useParams` 미사용 → `/talk/:convId` 진입 시 activeConv null 로 EmptyState 노출 (사용자 "하얀 화면"). useParams 추가 + URL `/talk` 정규화 + conv→project 자동 매핑 |
+| #2 | AI 문서 client/project 연결 | 1차 강제 (`client_required` 400) → 사용자 피드백 ("필수 아니지, 템플릿마다 다른데") → **롤백**. PostAiModal 에 페이지 컨텍스트(`projectId`) prop + workspace 스코프엔 optional selector + "현재 페이지 컨텍스트로 연결됨" 배지 |
+| #3 | 업무 추출 히스토리 차단 | `task_extractor.js` 후처리에 차단 목록 추가 — `Task.source_message_id` + `TaskCandidate(status registered/merged/rejected).source_message_ids` 기반. LLM 결과에서 source 가 ⊆ blockedIds 면 폐기 |
+| #4 | 파일 공유 링크 + 대량 ZIP (multi-source) | `File.share_token` 컬럼 + archiver. 4 라우트: POST/DELETE share-link, GET public/:token/download (인증 X), POST bulk-download. **direct + chat MessageAttachment + task TaskAttachment** 묶기 (post/meeting 후속) |
+| 디자인 | BulkBar 통일 (UI_DESIGN_GUIDE 1.7 준수) | 검은 배경 (`#0F172A`) → 흰 배경 + 옅은 테두리, 삭제 빨간 배경 (`#DC2626`) → outline, ZIP 다운로드 → Primary teal |
+
+### 신규 컬럼·라우트 (요약)
+
+**Backend**
+- `files.share_token VARCHAR(64) UNIQUE`, `files.share_expires_at`, `files.share_created_at` (idx)
+- `routes/files.js`: `POST /:bizId/:id/share-link`, `DELETE /:bizId/:id/share-link`, `GET /public/:token/download`, `POST /:bizId/bulk-download` (composite ID)
+- `services/task_extractor.js`: 후처리 차단 목록 (resolved candidate + task source)
+- `routes/docs.js`: `buildTemplateContext` 시그니처 확장 (projectId 추가) + ProjectClient 자동 매핑
+
+**Frontend**
+- `services/files.ts`: `createShareLink`, `revokeShareLink`, `bulkDownloadZip` (composite ID 통과)
+- `pages/QTalk/QTalkPage.tsx`: `useParams` 추가 + URL 정규화 + conv→project 자동 effect
+- `components/Docs/PostAiModal.tsx`: projectId/clientId props + workspace optional selector + ContextBadge
+- `pages/QProject/DocsTab.tsx`: BulkBar 디자인 토큰 통일 + 공유링크/ZIP 버튼 + downloadable filter (direct/chat/task)
+
+### 검증
+- ✅ 헬스체크 27/27
+- ✅ E2E 통합 14/14
+- ✅ 9단계 검증 (빌드·API·렌더·유저흐름·요구사항·연관영향·UI/UX·크로스페이지)
+- ✅ Multi-source ZIP 검증 (direct + task 첨부 386KB)
+- ✅ 부적합 1건 발견·즉시 수정 (PostsPage projectId 미전달)
+- ✅ 빌드 `index-DVxZLkcy.js`
+- ✅ mock 잔존 0건, 한국어 하드코딩 0건 (수정 파일 기준)
+
+### 신규 패키지
+- `archiver` (백엔드, ZIP 스트리밍)
+
+---
+
+
 
 ---
 

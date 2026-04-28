@@ -7,16 +7,28 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
-import PlanQSelect from '../../components/Common/PlanQSelect';
+import PlanQSelect, { type PlanQSelectOption } from '../../components/Common/PlanQSelect';
 import LetterAvatar from '../../components/Common/LetterAvatar';
 import { useAuth } from '../../contexts/AuthContext';
-import { listBusinessMembers, listProjects, type WorkspaceMemberRow, type ApiProject } from '../../services/qtalk';
+import { listBusinessMembers, listProjects, type WorkspaceMemberRow, type ApiProject, type SupportedLang } from '../../services/qtalk';
 
 export interface NewChatFormData {
   title: string;
   project_id: number | null;
   participant_user_ids: number[];
+  // 채팅 설정 (생성 시점에 같이 결정 — 만든 후 톱니에서 변경 가능)
+  auto_extract_enabled: boolean;
+  translation_enabled: boolean;
+  translation_languages: SupportedLang[] | null;
 }
+
+const LANG_OPTIONS: { value: SupportedLang; label: string }[] = [
+  { value: 'ko', label: '한국어' },
+  { value: 'en', label: 'English' },
+  { value: 'ja', label: '日本語' },
+  { value: 'zh', label: '中文' },
+  { value: 'es', label: 'Español' },
+];
 
 interface Props {
   businessId: number;
@@ -32,18 +44,29 @@ const NewChatModal: React.FC<Props> = ({ businessId, open, preselectedProjectId,
   const myId = user ? Number(user.id) : -1;
 
   const [title, setTitle] = useState('');
-  const [projectId, setProjectId] = useState<number | null>(preselectedProjectId ?? null);
+  // 디폴트는 프로젝트 미연결 — 사용자가 명시적으로 선택해야 연결.
+  // preselectedProjectId 가 있어도 단순 hint 로만 사용 (자동 prefill X)
+  const [projectId, setProjectId] = useState<number | null>(null);
   const [participantIds, setParticipantIds] = useState<number[]>([]);
   const [members, setMembers] = useState<WorkspaceMemberRow[]>([]);
   const [projects, setProjects] = useState<ApiProject[]>([]);
   const [submitting, setSubmitting] = useState(false);
+  // 채팅 설정 — 생성 시점에 결정
+  const [autoExtract, setAutoExtract] = useState(false);
+  const [translationOn, setTranslationOn] = useState(false);
+  const [langA, setLangA] = useState<SupportedLang>('ko');
+  const [langB, setLangB] = useState<SupportedLang>('en');
 
   useEffect(() => {
     if (!open) return;
     setTitle('');
-    setProjectId(preselectedProjectId ?? null);
+    setProjectId(null); // 항상 미연결로 초기화 (preselectedProjectId 무시)
     setParticipantIds([]);
     setSubmitting(false);
+    setAutoExtract(false);
+    setTranslationOn(false);
+    setLangA('ko');
+    setLangB('en');
     (async () => {
       try {
         const [mem, projs] = await Promise.all([
@@ -54,7 +77,11 @@ const NewChatModal: React.FC<Props> = ({ businessId, open, preselectedProjectId,
         setProjects(projs);
       } catch { /* ignore */ }
     })();
-  }, [open, businessId, preselectedProjectId]);
+  }, [open, businessId]);
+
+  // preselectedProjectId 는 더 이상 디폴트 prefill 에 사용 안 함.
+  // 사용자가 좌측에서 프로젝트를 선택했더라도 새 채팅은 명시적 선택 필요.
+  void preselectedProjectId;
 
   const memberOptions = useMemo(
     () => members
@@ -78,12 +105,20 @@ const NewChatModal: React.FC<Props> = ({ businessId, open, preselectedProjectId,
     setParticipantIds((prev) => prev.filter((x) => x !== userId));
   };
 
-  const canSubmit = title.trim().length > 0 && !submitting;
+  const sameLang = langA === langB;
+  const canSubmit = title.trim().length > 0 && !submitting && (!translationOn || !sameLang);
   const handleSubmit = async () => {
     if (!canSubmit) return;
     setSubmitting(true);
     try {
-      await onCreate({ title: title.trim(), project_id: projectId, participant_user_ids: participantIds });
+      await onCreate({
+        title: title.trim(),
+        project_id: projectId,
+        participant_user_ids: participantIds,
+        auto_extract_enabled: autoExtract,
+        translation_enabled: translationOn,
+        translation_languages: translationOn ? [langA, langB] : null,
+      });
     } finally {
       setSubmitting(false);
     }
@@ -121,6 +156,50 @@ const NewChatModal: React.FC<Props> = ({ businessId, open, preselectedProjectId,
               }}
               options={projectOptions}
             />
+          </Field>
+
+          <Field>
+            <Label>{t('newChat.translation', '번역 표시')}</Label>
+            <Hint>{t('newChat.translationHint', '사용 시 메시지에 두 언어가 함께 표시됩니다 (Q note 패턴). 만든 후 톱니에서 변경 가능.')}</Hint>
+            <ToggleLine>
+              <ToggleSwitch>
+                <input type="checkbox" role="switch" aria-checked={translationOn}
+                  checked={translationOn} onChange={(e) => setTranslationOn(e.target.checked)} />
+                <span>{t('newChat.translationEnable', '번역 표시 사용')}</span>
+              </ToggleSwitch>
+            </ToggleLine>
+            {translationOn && (
+              <LangRow>
+                <LangCol>
+                  <SmallLabel>{t('newChat.langA', '언어 1')}</SmallLabel>
+                  <PlanQSelect size="sm" isSearchable={false}
+                    options={LANG_OPTIONS as unknown as PlanQSelectOption[]}
+                    value={LANG_OPTIONS.find((o) => o.value === langA) as unknown as PlanQSelectOption}
+                    onChange={(opt) => setLangA(((opt as PlanQSelectOption)?.value as SupportedLang) || 'ko')} />
+                </LangCol>
+                <LangSep>↔</LangSep>
+                <LangCol>
+                  <SmallLabel>{t('newChat.langB', '언어 2')}</SmallLabel>
+                  <PlanQSelect size="sm" isSearchable={false}
+                    options={LANG_OPTIONS as unknown as PlanQSelectOption[]}
+                    value={LANG_OPTIONS.find((o) => o.value === langB) as unknown as PlanQSelectOption}
+                    onChange={(opt) => setLangB(((opt as PlanQSelectOption)?.value as SupportedLang) || 'en')} />
+                </LangCol>
+              </LangRow>
+            )}
+            {translationOn && sameLang && <SmallError>{t('newChat.langSame', '두 언어를 다르게 선택하세요')}</SmallError>}
+          </Field>
+
+          <Field>
+            <Label>{t('newChat.autoExtract', '자동 업무 추출')}</Label>
+            <Hint>{t('newChat.autoExtractHint', '대화 내용을 분석해 업무 후보를 자동으로 모읍니다.')}</Hint>
+            <ToggleLine>
+              <ToggleSwitch>
+                <input type="checkbox" role="switch" aria-checked={autoExtract}
+                  checked={autoExtract} onChange={(e) => setAutoExtract(e.target.checked)} />
+                <span>{t('newChat.autoExtractEnable', '메시지에서 업무 후보 자동 추출')}</span>
+              </ToggleSwitch>
+            </ToggleLine>
           </Field>
 
           <Field>
@@ -199,6 +278,16 @@ const Field = styled.div`display:flex;flex-direction:column;gap:6px;`;
 const Label = styled.label`font-size:13px;font-weight:600;color:#0F172A;`;
 const Req = styled.span`color:#F43F5E;margin-left:2px;`;
 const Hint = styled.div`font-size:12px;color:#94A3B8;line-height:1.5;margin-bottom:2px;`;
+const ToggleLine = styled.div`margin-top:4px;`;
+const ToggleSwitch = styled.label`
+  display:inline-flex;align-items:center;gap:8px;font-size:13px;color:#0F172A;cursor:pointer;
+  input{width:32px;height:18px;}
+`;
+const LangRow = styled.div`display:flex;align-items:flex-end;gap:8px;margin-top:8px;`;
+const LangCol = styled.div`flex:1;display:flex;flex-direction:column;gap:4px;`;
+const LangSep = styled.div`font-size:14px;color:#94A3B8;padding-bottom:8px;`;
+const SmallLabel = styled.div`font-size:12px;font-weight:600;color:#334155;`;
+const SmallError = styled.div`font-size:12px;color:#DC2626;margin-top:4px;`;
 const Input = styled.input`
   height:40px;padding:0 12px;border:1px solid #E2E8F0;border-radius:8px;
   font-size:14px;color:#0F172A;font-family:inherit;background:#FFF;
