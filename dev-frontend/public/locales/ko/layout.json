@@ -7,6 +7,7 @@
     "dashboard": "대시보드",
     "todo": "지금 할 일",
     "inbox": "확인 필요",
+    "inboxCount": "미처리 {{count}}건",
     "settings": "설정",
     "members": "멤버",
     "clients": "고객",

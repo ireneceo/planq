@@ -379,7 +379,16 @@
       "selectAll": "전체 선택",
       "clear": "해제",
       "move": "이동",
-      "delete": "삭제"
+      "delete": "삭제",
+      "zipDownload": "ZIP 다운로드 ({{n}})",
+      "zipDownloading": "준비 중...",
+      "zipFailed": "ZIP 다운로드 실패: {{msg}}",
+      "shareLink": "공유 링크",
+      "shareNotSupported": "직접 업로드 파일만 공유 링크를 만들 수 있습니다",
+      "shareFailed": "공유 링크 생성 실패",
+      "shareCreated": "공유 링크 생성 — 클립보드에 복사됨",
+      "shareExpires": "만료: {{date}}",
+      "shareHintOne": "파일 1개만 선택해주세요"
     },
     "bulkDelete": {
       "title": "{{n}}개 파일을 삭제할까요?",

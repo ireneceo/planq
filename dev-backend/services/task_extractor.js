@@ -265,6 +265,32 @@ async function extractTaskCandidates({ conversationId, userId, businessId }) {
         : [],
     }));
 
+    // ─── 이미 처리된 메시지 차단 ───
+    // task 로 등록(registered) + 다른 task 로 병합(merged) + 사용자가 거절(rejected) 한 candidate 의 source 메시지는
+    // LLM 이 같은 작업을 반복 추출할 수 있으므로 자동 폐기.
+    // 컨텍스트 유지를 위해 LLM 입력에는 포함되되, 결과 후처리에서 source 가 ⊆ blocked 면 제거.
+    const tasksWithSource = await Task.findAll({
+      where: { conversation_id: conversationId, source_message_id: { [Op.ne]: null } },
+      attributes: ['source_message_id'],
+    });
+    const resolvedCandidates = await TaskCandidate.findAll({
+      where: {
+        conversation_id: conversationId,
+        status: { [Op.in]: ['registered', 'merged', 'rejected'] },
+      },
+      attributes: ['source_message_ids'],
+    });
+    const blockedIds = new Set();
+    for (const t of tasksWithSource) blockedIds.add(Number(t.source_message_id));
+    for (const c of resolvedCandidates) {
+      for (const id of (c.source_message_ids || [])) blockedIds.add(Number(id));
+    }
+    extracted = extracted.filter((t) => {
+      const ids = (t.source_message_ids || []).map(Number);
+      if (ids.length === 0) return true; // source 없으면 통과 (LLM 이 message_id 못 짚은 경우)
+      return !ids.every((id) => blockedIds.has(id)); // 모든 source 가 blocked 면 폐기
+    });
+
     // 역할 → 담당자 매칭 / 유사 업무 탐색 — standalone 이면 프로젝트 컨텍스트 없으므로 스킵
     let withSimilar = extracted;
     if (conversation.project_id) {

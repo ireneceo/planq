@@ -142,6 +142,8 @@ export async function updateProjectMembers(
 // ─────────────────────────────────────────────
 // 읽기 전용 엔드포인트 (청크 2~5 완료 전 UI 가 데이터 표시용으로 사용)
 // ─────────────────────────────────────────────
+export type SupportedLang = 'ko' | 'en' | 'ja' | 'zh' | 'es';
+
 export interface ApiConversation {
   id: number;
   business_id: number;
@@ -155,6 +157,14 @@ export interface ApiConversation {
   last_extracted_message_id: number | null;
   last_message_at: string | null;
   created_at: string;
+  translation_enabled: boolean;
+  translation_languages: SupportedLang[] | null;
+  participants?: Array<{
+    id: number;
+    user_id: number;
+    role: string;
+    User?: { id: number; name: string; email: string; avatar_url?: string | null };
+  }>;
 }
 
 export interface ApiMessage {
@@ -176,6 +186,8 @@ export interface ApiMessage {
   sender?: { id: number; name: string; email: string };
   attachments?: ApiMessageAttachment[];
   meta?: ApiMessageMeta | null;
+  translations?: Partial<Record<SupportedLang, string>> | null;
+  detected_language?: SupportedLang | null;
 }
 
 export type ApiMessageMeta =
@@ -341,6 +353,10 @@ export interface CreateConversationInput {
   channel_type?: 'customer' | 'internal' | 'direct';
   participant_user_ids?: number[];
   client_id?: number | null;
+  // 채팅 설정 — 생성 시점에 결정 (NewChatModal)
+  auto_extract_enabled?: boolean;
+  translation_enabled?: boolean;
+  translation_languages?: SupportedLang[] | null;
 }
 export async function createConversation(input: CreateConversationInput): Promise<ApiConversation> {
   const { business_id, ...body } = input;
@@ -351,7 +367,28 @@ export async function createConversation(input: CreateConversationInput): Promis
   return handle<ApiConversation>(res);
 }
 
-export async function updateConversation(conversationId: number, patch: { display_name?: string; auto_extract_enabled?: boolean }): Promise<ApiConversation> {
+export async function addConversationParticipant(businessId: number, conversationId: number, userId: number): Promise<void> {
+  const res = await apiFetch(`/api/conversations/${businessId}/${conversationId}/participants`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ user_id: userId }),
+  });
+  await handle<unknown>(res);
+}
+
+export async function removeConversationParticipant(businessId: number, conversationId: number, userId: number): Promise<void> {
+  const res = await apiFetch(`/api/conversations/${businessId}/${conversationId}/participants/${userId}`, {
+    method: 'DELETE',
+  });
+  await handle<unknown>(res);
+}
+
+export async function updateConversation(conversationId: number, patch: {
+  display_name?: string;
+  auto_extract_enabled?: boolean;
+  translation_enabled?: boolean;
+  translation_languages?: SupportedLang[] | null;
+}): Promise<ApiConversation> {
   const res = await apiFetch(`/api/projects/conversations/${conversationId}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },

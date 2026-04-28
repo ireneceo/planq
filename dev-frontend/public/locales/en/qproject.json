@@ -379,7 +379,16 @@
       "selectAll": "Select all",
       "clear": "Clear",
       "move": "Move",
-      "delete": "Delete"
+      "delete": "Delete",
+      "zipDownload": "Download ZIP ({{n}})",
+      "zipDownloading": "Preparing...",
+      "zipFailed": "ZIP download failed: {{msg}}",
+      "shareLink": "Share link",
+      "shareNotSupported": "Only direct uploads can be shared via link",
+      "shareFailed": "Failed to create share link",
+      "shareCreated": "Share link created — copied to clipboard",
+      "shareExpires": "Expires: {{date}}",
+      "shareHintOne": "Pick exactly one file"
     },
     "bulkDelete": {
       "title": "Delete {{n}} files?",

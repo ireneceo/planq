@@ -1,9 +1,14 @@
 // AI 로 문서 본문 자동 생성 모달
-// 사용자 입력 (kind/title/요구사항) → /api/docs/ai-generate → body_html 반환 → onGenerate 콜백
-import React, { useState } from 'react';
+// 사용자 입력 (kind/title/요구사항/고객/프로젝트) → /api/docs/ai-generate → body_html 반환 → onGenerate 콜백
+// 컨텍스트 우선순위:
+//   1. props.projectId (page-level 컨텍스트, 예: ProjectPostsTab) → 모달에서 selector 숨김, 백엔드가 primary client 자동 매핑
+//   2. workspace 스코프 (PostsPage) → 모달에서 client/project selector 표시 (필수 — KIND_NEEDS_CLIENT)
+import React, { useState, useEffect, useMemo } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { aiGenerateDoc, KIND_LABELS_KO, type DocKind } from '../../services/docs';
+import { listClientsForBilling, type ApiClientLite } from '../../services/invoices';
+import { listProjects, type ApiProject } from '../../services/qtalk';
 import PlanQSelect, { type PlanQSelectOption } from '../Common/PlanQSelect';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { useEscapeStack } from '../../hooks/useEscapeStack';
@@ -12,6 +17,9 @@ interface Props {
   open: boolean;
   onClose: () => void;
   businessId: number;
+  // 페이지에서 이미 알고 있는 컨텍스트. 주어지면 모달의 selector 숨기고 그대로 전송.
+  projectId?: number | null;
+  clientId?: number | null;
   onGenerate: (result: { title: string; bodyHtml: string }) => void;
 }
 
@@ -26,7 +34,7 @@ const KIND_OPTIONS: PlanQSelectOption[] = [
   { value: 'custom', label: KIND_LABELS_KO.custom },
 ];
 
-const PostAiModal: React.FC<Props> = ({ open, onClose, businessId, onGenerate }) => {
+const PostAiModal: React.FC<Props> = ({ open, onClose, businessId, projectId: pageProjectId, clientId: pageClientId, onGenerate }) => {
   const { t } = useTranslation('qdocs');
   const [kind, setKind] = useState<DocKind>('proposal');
   const [title, setTitle] = useState('');
@@ -35,17 +43,62 @@ const PostAiModal: React.FC<Props> = ({ open, onClose, businessId, onGenerate })
   const [error, setError] = useState<string | null>(null);
   const [usage, setUsage] = useState<{ total: number; limit: number } | null>(null);
 
+  // 페이지에서 컨텍스트가 주어지지 않은 워크스페이스 스코프에서만 selector 표시.
+  const showSelectors = !pageProjectId;
+  const [pickedClientId, setPickedClientId] = useState<number | null>(null);
+  const [pickedProjectId, setPickedProjectId] = useState<number | null>(null);
+  const [clients, setClients] = useState<ApiClientLite[]>([]);
+  const [projects, setProjects] = useState<ApiProject[]>([]);
+
+  useEffect(() => {
+    if (!open) return;
+    if (!showSelectors) return;
+    let cancelled = false;
+    (async () => {
+      const [cls, prjs] = await Promise.all([
+        listClientsForBilling(businessId).catch(() => [] as ApiClientLite[]),
+        listProjects(businessId).catch(() => [] as ApiProject[]),
+      ]);
+      if (cancelled) return;
+      setClients(cls); setProjects(prjs);
+    })();
+    return () => { cancelled = true; };
+  }, [open, businessId, showSelectors]);
+
+  // project 선택 → 그 프로젝트의 primary client 자동 매핑 (사용자가 client 미선택 상태에 한해)
+  useEffect(() => {
+    if (!pickedProjectId || pickedClientId) return;
+    const proj = projects.find(p => p.id === pickedProjectId);
+    const pc = proj?.projectClients?.[0];
+    if (pc?.client_id) setPickedClientId(pc.client_id);
+  }, [pickedProjectId, projects, pickedClientId]);
+
+  const clientOptions: PlanQSelectOption[] = useMemo(() => clients.map(c => ({
+    value: c.id, label: c.display_name || c.company_name || `Client ${c.id}`,
+  })), [clients]);
+  const projectOptions: PlanQSelectOption[] = useMemo(() => projects.map(p => ({
+    value: p.id, label: p.name,
+  })), [projects]);
+
   useBodyScrollLock(open);
   useEscapeStack(open && !busy, onClose);
 
   if (!open) return null;
+
+  // 백엔드로 보낼 client/project — 페이지 컨텍스트 우선, 없으면 사용자가 모달에서 고른 값.
+  const sendClientId = pageClientId ?? pickedClientId;
+  const sendProjectId = pageProjectId ?? pickedProjectId;
 
   const submit = async () => {
     setError(null);
     if (!title.trim()) { setError(t('ai.titleRequired', '제목을 입력하세요') as string); return; }
     setBusy(true);
     try {
-      const r = await aiGenerateDoc({ business_id: businessId, kind, title: title.trim(), user_input: userInput.trim() });
+      const r = await aiGenerateDoc({
+        business_id: businessId, kind, title: title.trim(), user_input: userInput.trim(),
+        client_id: sendClientId,
+        project_id: sendProjectId,
+      });
       if (r.usage) setUsage({ total: r.usage.total, limit: r.usage.limit });
       onGenerate({ title: title.trim(), bodyHtml: r.body_html });
     } catch (e) {
@@ -98,6 +151,45 @@ const PostAiModal: React.FC<Props> = ({ open, onClose, businessId, onGenerate })
               autoFocus
             />
           </Field>
+          {showSelectors && (
+            <>
+              <Field>
+                <Label>{t('ai.client', '고객 연결 (선택)')}</Label>
+                <PlanQSelect
+                  size="sm"
+                  options={clientOptions}
+                  value={clientOptions.find(o => o.value === pickedClientId) || null}
+                  onChange={(opt) => setPickedClientId(opt ? Number((opt as PlanQSelectOption).value) : null)}
+                  placeholder={
+                    clientOptions.length === 0
+                      ? (t('ai.clientEmpty', '등록된 고객 없음') as string)
+                      : (t('ai.clientPh', '고객 선택 — 회사명·담당자 자동 채움 (선택)') as string)
+                  }
+                  isClearable
+                  isSearchable
+                  isDisabled={busy}
+                />
+              </Field>
+              <Field>
+                <Label>{t('ai.project', '프로젝트 연결 (선택)')}</Label>
+                <PlanQSelect
+                  size="sm"
+                  options={projectOptions}
+                  value={projectOptions.find(o => o.value === pickedProjectId) || null}
+                  onChange={(opt) => setPickedProjectId(opt ? Number((opt as PlanQSelectOption).value) : null)}
+                  placeholder={t('ai.projectPh', '프로젝트 선택 — 고객 자동 매핑 (선택)') as string}
+                  isClearable
+                  isSearchable
+                  isDisabled={busy}
+                />
+              </Field>
+            </>
+          )}
+          {(pageProjectId || pageClientId) && (
+            <ContextBadge>
+              {t('ai.contextLinked', '현재 페이지 컨텍스트로 연결되어 회사명·담당자·금액이 자동 채워집니다.')}
+            </ContextBadge>
+          )}
           <Field>
             <Label>{t('ai.input', '요구사항 / 컨텍스트 (선택)')}</Label>
             <Textarea
@@ -181,6 +273,11 @@ const Textarea = styled.textarea`
   &:disabled { background: #F8FAFC; }
 `;
 const Hint = styled.p`font-size:11px;color:#94A3B8;margin:6px 0 0;line-height:1.5;`;
+const ContextBadge = styled.div`
+  font-size: 11px; color: #0F766E;
+  background: #F0FDFA; border: 1px solid #CCFBF1;
+  padding: 8px 10px; border-radius: 6px; margin: 8px 0;
+`;
 const UsageRow = styled.div`
   font-size: 12px; color: #64748B; margin-top: 8px;
   background: #F8FAFC; padding: 8px 10px; border-radius: 6px;

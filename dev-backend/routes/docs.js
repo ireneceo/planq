@@ -46,15 +46,16 @@ function renderTemplate(text, values) {
   });
 }
 
-// createDocument 시 사용할 컨텍스트 빌드 — business + client + 기본 날짜
-async function buildTemplateContext(businessId, clientId, title) {
+// createDocument 시 사용할 컨텍스트 빌드 — business + client + project + 기본 날짜
+// projectId 가 주어지면 ctx.project 추가, project 의 primary client 가 있고 clientId 가 비어있으면 자동 fallback.
+async function buildTemplateContext(businessId, clientId, title, projectId) {
   const ctx = {
     title: title || '',
     issued_at: new Date().toISOString().slice(0, 10),
     valid_until: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10),
     effective_date: new Date().toISOString().slice(0, 10),
     duration_months: 24,
-    business: {}, client: {}, party_a: {}, party_b: {}, session: {},
+    business: {}, client: {}, project: {}, party_a: {}, party_b: {}, session: {},
   };
   if (businessId) {
     const biz = await Business.findByPk(businessId, { attributes: ['id', 'name', 'brand_name', 'address', 'phone'] });
@@ -64,11 +65,35 @@ async function buildTemplateContext(businessId, clientId, title) {
       ctx.party_a = { name: ctx.business.name };
     }
   }
-  if (clientId) {
-    const cli = await Client.findByPk(clientId, { attributes: ['id', 'display_name', 'company_name', 'invite_email'] });
+  // 프로젝트 컨텍스트 — primary client 자동 매핑
+  let resolvedClientId = clientId;
+  if (projectId) {
+    const proj = await Project.findByPk(projectId, {
+      attributes: ['id', 'business_id', 'name', 'description', 'client_company', 'start_date', 'end_date', 'status'],
+    });
+    if (proj && proj.business_id === businessId) {
+      ctx.project = proj.toJSON();
+      // project 에서 primary client 추적 — ProjectClient association 통해
+      if (!resolvedClientId) {
+        const { ProjectClient } = require('../models');
+        const pc = await ProjectClient.findOne({
+          where: { project_id: projectId },
+          order: [['id', 'ASC']],
+        });
+        if (pc?.client_id) resolvedClientId = pc.client_id;
+      }
+    }
+    // 워크스페이스 불일치는 무시
+  }
+  if (resolvedClientId) {
+    const cli = await Client.findByPk(resolvedClientId, { attributes: ['id', 'display_name', 'company_name', 'invite_email', 'biz_name', 'biz_tax_id', 'biz_ceo', 'biz_address', 'tax_invoice_email', 'billing_contact_email'] });
     if (cli) {
       const j = cli.toJSON();
-      ctx.client = { ...j, name: j.display_name || j.company_name || '', email: j.invite_email || '' };
+      ctx.client = {
+        ...j,
+        name: j.display_name || j.company_name || '',
+        email: j.tax_invoice_email || j.billing_contact_email || j.invite_email || '',
+      };
       ctx.party_b = { name: ctx.client.name };
     }
   }
@@ -239,7 +264,7 @@ router.post('/documents', authenticateToken, async (req, res, next) => {
     if (template_id) {
       const tpl = await DocumentTemplate.findByPk(template_id);
       if (tpl?.body_template) {
-        const ctx = await buildTemplateContext(business_id, client_id, title);
+        const ctx = await buildTemplateContext(business_id, client_id, title, project_id);
         initialBodyHtml = renderTemplate(tpl.body_template, ctx);
       }
     }
@@ -261,18 +286,22 @@ router.post('/documents', authenticateToken, async (req, res, next) => {
 // POST /api/docs/ai-generate
 // AI 자동 문서 초안 생성 — Cue gpt-4o-mini.
 // 시스템 템플릿(is_system=true) 의 body_template 을 참고 구조로 주입해 표·섹션 포맷을 강제함.
-// body: { business_id, kind, title, user_input, client_id?, template_id? }
+// body: { business_id, kind, title, user_input, client_id?, project_id?, template_id? }
+// project_id 만 있으면 그 프로젝트의 primary client 자동 매핑.
+// 회의록(meeting_note) / SOP / custom 외에는 client 컨텍스트 필수 — 빈 채로 생성하면 "—" placeholder 만 남음.
 // 응답: { body_html, usage } / 한도 초과 시 429
 router.post('/ai-generate', authenticateToken, async (req, res, next) => {
   try {
-    const { business_id, kind, title, user_input, client_id, template_id } = req.body;
+    const { business_id, kind, title, user_input, client_id, project_id, template_id } = req.body;
     if (!business_id || !kind || !title) return errorResponse(res, 'invalid_payload', 400);
     if (!KIND_VALUES.includes(kind)) return errorResponse(res, 'invalid_kind', 400);
     if (!(await assertBusinessAccess(req.user.id, business_id, req.user.platform_role))) {
       return errorResponse(res, 'forbidden', 403);
     }
 
-    const ctx = await buildTemplateContext(business_id, client_id, title);
+    const ctx = await buildTemplateContext(business_id, client_id, title, project_id);
+    // client/project 연결은 선택 — 없으면 LLM 이 placeholder 그대로 두고 사용자가 나중에 채움.
+    // 템플릿별 필수 필드는 슬롯 시스템 (Phase F) 에서 처리.
 
     // 1) kind 별 시스템 템플릿 — 사용자가 template_id 주면 그것, 없으면 같은 kind 의 시스템 템플릿
     let referenceTpl = null;
@@ -417,8 +446,15 @@ ${guidance}`;
     if (ctx.business?.phone) ctxLines.push(`전화: ${ctx.business.phone}`);
     if (ctx.business?.email) ctxLines.push(`이메일: ${ctx.business.email}`);
     if (ctx.client?.name) ctxLines.push(`수신 고객사: ${ctx.client.name}`);
-    if (ctx.client?.contact_name) ctxLines.push(`고객 담당자: ${ctx.client.contact_name}`);
+    if (ctx.client?.biz_name) ctxLines.push(`고객사 법인명(사업자등록증): ${ctx.client.biz_name}`);
+    if (ctx.client?.biz_ceo) ctxLines.push(`고객사 대표자: ${ctx.client.biz_ceo}`);
+    if (ctx.client?.biz_tax_id) ctxLines.push(`고객사 사업자번호: ${ctx.client.biz_tax_id}`);
+    if (ctx.client?.biz_address) ctxLines.push(`고객사 주소: ${ctx.client.biz_address}`);
     if (ctx.client?.email) ctxLines.push(`고객 이메일: ${ctx.client.email}`);
+    if (ctx.project?.name) ctxLines.push(`연결 프로젝트: ${ctx.project.name}`);
+    if (ctx.project?.description) ctxLines.push(`프로젝트 설명: ${ctx.project.description}`);
+    if (ctx.project?.start_date) ctxLines.push(`프로젝트 시작: ${ctx.project.start_date}`);
+    if (ctx.project?.end_date) ctxLines.push(`프로젝트 종료: ${ctx.project.end_date}`);
     ctxLines.push(`발행일: ${ctx.issued_at}`);
     if (['quote', 'proposal', 'contract', 'sow'].includes(kind)) ctxLines.push(`유효일/완료 목표: ${ctx.valid_until}`);
 

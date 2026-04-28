@@ -22,6 +22,7 @@ interface Props {
   onCueDraftReject: (messageId: number) => void;
   onToggleAutoExtract: (conversationId: number, enabled: boolean) => void;
   onRenameConversation: (conversationId: number, name: string) => void;
+  onOpenSettings?: () => void;
   candidatesCount: number;
   extracting?: boolean;
   leftCollapsed: boolean;
@@ -35,7 +36,7 @@ interface Props {
 const ChatPanel: React.FC<Props> = ({
   project, conversations, messages, activeConversationId, onSelectConversation,
   onOpenExtract, onSendMessage, onCueDraftSend, onCueDraftReject,
-  onToggleAutoExtract, onRenameConversation,
+  onToggleAutoExtract, onRenameConversation, onOpenSettings,
   candidatesCount, extracting, leftCollapsed, rightCollapsed, onToggleLeft, onToggleRight,
   onOpenNewChat,
 }) => {
@@ -52,12 +53,13 @@ const ChatPanel: React.FC<Props> = ({
   }, [candidatesCount]);
 
   const channels = useMemo(() => {
-    // project 가 없으면 = 독립 채팅 모드. 프로젝트에 연결되지 않은 대화만 후보.
+    // project 가 있으면 = 같은 프로젝트의 모든 채널이 형제 (빠른 전환 후보).
+    // project 가 없으면 = 독립 채팅. 다른 독립 대화와 묶이지 않음 — 자기 자신만.
     const base = project
       ? conversations.filter((c) => c.project_id === project.id)
-      : conversations.filter((c) => !c.project_id);
+      : (activeConversationId ? conversations.filter((c) => c.id === activeConversationId) : []);
     return base.filter((c) => !isClient || c.channel_type !== 'internal'); // 고객은 internal 숨김
-  }, [project, conversations, isClient]);
+  }, [project, conversations, isClient, activeConversationId]);
 
   // 독립 대화가 방금 생성됐을 수 있으므로 conversations 전체에서도 한번 더 찾는다 — project 상태 동기화 전에도 렌더 가능.
   const activeConv = channels.find((c) => c.id === activeConversationId)
@@ -155,39 +157,37 @@ const ChatPanel: React.FC<Props> = ({
 
     if (!initialScrolledRef.current) {
       initialScrolledRef.current = true;
-      const key = scrollKey(activeConv?.id);
-      let restored = false;
-      if (key) {
-        const saved = localStorage.getItem(key);
-        if (saved !== null) {
-          const target = Number(saved);
-          if (Number.isFinite(target) && target >= 0) {
-            // DOM commit 후 적용
-            window.requestAnimationFrame(() => {
-              window.requestAnimationFrame(() => {
-                const el = messageListRef.current;
-                if (!el) return;
-                // target 이 현재 scrollHeight 범위 안이면 그대로, 밖이면 바닥
-                const max = el.scrollHeight - el.clientHeight;
-                el.scrollTop = Math.min(target, max);
-              });
-            });
-            restored = true;
-          }
-        }
-      }
-      if (!restored) scrollToBottom(false);
+      // 채팅방 진입 시 — 항상 마지막 메시지로 (옛 스크롤 위치 복원 X).
+      // 사용자가 채팅방을 새로 클릭하면 마지막 대화부터 보는 게 자연스러움.
+      scrollToBottom(false);
       return;
     }
 
     if (next > prev) {
-      // 새 메시지 도착 — sticky-to-bottom
+      // 새 메시지 도착 — 본인이 보낸 메시지면 무조건 바닥, 타인 메시지면 sticky-to-bottom (가까울 때만)
+      const last = convMessages[convMessages.length - 1];
+      const isMine = user && last && Number(last.sender_id) === Number(user.id);
       const list = messageListRef.current;
-      if (!list) { scrollToBottom(); return; }
+      if (isMine || !list) { scrollToBottom(); return; }
       const distance = list.scrollHeight - list.scrollTop - list.clientHeight;
       if (distance < 120) scrollToBottom();
     }
-  }, [convMessages, scrollToBottom, activeConv?.id]);
+  }, [convMessages, scrollToBottom, activeConv?.id, user]);
+
+  // 번역 도착 시 sticky-to-bottom — 마지막 메시지의 translations 가 추가/변경되면
+  // 메시지 카드 높이가 늘어 마지막 메시지가 가려질 수 있음. 가까이 있으면 다시 바닥.
+  const lastMsgTranslationKey = convMessages.length > 0
+    ? `${convMessages[convMessages.length - 1].id}:${convMessages[convMessages.length - 1].translations ? Object.keys(convMessages[convMessages.length - 1].translations || {}).join(',') : ''}`
+    : '';
+  React.useEffect(() => {
+    if (!lastMsgTranslationKey) return;
+    const list = messageListRef.current;
+    if (!list) return;
+    const distance = list.scrollHeight - list.scrollTop - list.clientHeight;
+    // 200px 이내면 바닥으로 (메시지 + 번역 박스 높이 고려)
+    if (distance < 200) scrollToBottom();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lastMsgTranslationKey]);
 
   // 한글 IME 조합 상태 추적 — composition 중 Enter 는 확정 trigger 라서 전송하면 안 됨
   const composingRef = React.useRef(false);
@@ -363,6 +363,14 @@ const ChatPanel: React.FC<Props> = ({
               ))}
             </ChannelQuickSwitch>
           )}
+          {!isClient && onOpenSettings && (
+            <IconBtn type="button" onClick={onOpenSettings} title={t('chat.openSettings', '채팅 설정') as string} aria-label={t('chat.openSettings', '채팅 설정') as string}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="3"/>
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+              </svg>
+            </IconBtn>
+          )}
           {rightCollapsed && (
             <IconBtn onClick={onToggleRight} title={t('chat.expandRight', '우측 열기')}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -475,7 +483,27 @@ const ChatPanel: React.FC<Props> = ({
                   </DocCardArrow>
                 </DocCard>
               ) : (
-                m.body && m.body.trim() && <MessageText $question={!!m.is_question}>{m.body}</MessageText>
+                m.body && m.body.trim() && (() => {
+                  // 번역 표시 — robust fallback:
+                  // 1) detected_language 가 있으면 그것 외 키
+                  // 2) 없으면 m.body 와 다른 첫 번째 번역
+                  // 3) 그래도 없으면 미표시
+                  const tr = m.translations;
+                  let translated: string | undefined;
+                  if (tr) {
+                    const validKeys = Object.keys(tr).filter(k => tr[k as keyof typeof tr]);
+                    const detected = m.detected_language;
+                    const otherKey = (detected && validKeys.find(k => k !== detected))
+                      || validKeys.find(k => tr[k as keyof typeof tr] !== m.body);
+                    if (otherKey) translated = tr[otherKey as keyof typeof tr];
+                  }
+                  return (
+                    <>
+                      <MessageText $question={!!m.is_question}>{m.body}</MessageText>
+                      {translated && <TranslatedText>{translated}</TranslatedText>}
+                    </>
+                  );
+                })()
               )}
               {m.card?.note && <CardNote>{m.card.note}</CardNote>}
 
@@ -956,12 +984,28 @@ const MessageText = styled.div<{ $question: boolean }>`
   font-size: 14px;
   color: #1E293B;
   line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
   ${(p) => p.$question && `
     padding: 10px 12px;
     background: #FFF1F2;
     border-left: 3px solid #F43F5E;
     border-radius: 6px;
   `}
+`;
+
+// 번역 표시 — Conversation.translation_enabled 일 때 발송 시점에 캐시된 번역.
+// 원문 아래에 옅은 톤으로 표시 (Q note 패턴).
+const TranslatedText = styled.div`
+  margin-top: 4px;
+  padding: 6px 10px;
+  font-size: 13px;
+  color: #64748B;
+  background: #F8FAFC;
+  border-left: 2px solid #CBD5E1;
+  border-radius: 6px;
+  line-height: 1.5;
+  white-space: pre-wrap;
 `;
 
 // 문서 카드 (kind='card', card_type='post')

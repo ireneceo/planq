@@ -6,7 +6,8 @@ const fs = require('fs');
 const crypto = require('crypto');
 const { Op } = require('sequelize');
 const { v4: uuidv4 } = require('uuid');
-const { File, FileFolder, User, Client, Project, Business, BusinessStorageUsage, BusinessCloudToken } = require('../models');
+const { File, FileFolder, User, Client, Project, Business, BusinessStorageUsage, BusinessCloudToken,
+  MessageAttachment, Message, Conversation, TaskAttachment, Task, PostAttachment, Post } = require('../models');
 const { sequelize } = require('../config/database');
 const gdrive = require('../services/gdrive');
 const planEngine = require('../services/plan');
@@ -18,6 +19,25 @@ if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
 
 // 플랜별 쿼터는 services/plan.js + config/plans.js 에서 관리.
 // 이 파일은 plan engine 경유로만 접근.
+
+// ─── 공개 다운로드 (인증 없음) ───
+// GET /api/files/public/:token/download
+// ⚠️ 라우트 순서 중요: /:businessId/:id/download 보다 앞에 와야 path 매치 우선됨.
+router.get('/public/:token/download', async (req, res, next) => {
+  try {
+    const file = await File.findOne({ where: { share_token: req.params.token, deleted_at: null } });
+    if (!file) return errorResponse(res, 'invalid_token', 404);
+    if (file.share_expires_at && new Date(file.share_expires_at) < new Date()) {
+      return errorResponse(res, 'link_expired', 410);
+    }
+    if (file.storage_provider !== 'planq') {
+      if (file.external_url) return res.redirect(file.external_url);
+      return errorResponse(res, 'external_file_no_url', 400);
+    }
+    if (!fs.existsSync(file.file_path)) return errorResponse(res, 'physical_file_missing', 410);
+    res.download(file.file_path, file.file_name);
+  } catch (err) { next(err); }
+});
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -445,6 +465,155 @@ router.get('/:businessId/:id/download', authenticateToken, checkBusinessAccess, 
   } catch (error) {
     next(error);
   }
+});
+
+// ─── 공유 링크 생성 ───
+// POST /api/files/:businessId/:id/share-link  body: { expires_days?: 7|14|30|90 }
+// 응답: { share_url, share_token, expires_at }
+// 기본 만료 30일. 같은 파일에 다시 요청하면 새 토큰 발급 (이전 링크는 무효화).
+router.post('/:businessId/:id/share-link', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+  try {
+    const file = await File.findOne({
+      where: { id: req.params.id, business_id: req.params.businessId, deleted_at: null }
+    });
+    if (!file) return errorResponse(res, 'File not found', 404);
+
+    const expiresDays = [7, 14, 30, 90].includes(Number(req.body?.expires_days))
+      ? Number(req.body.expires_days)
+      : 30;
+    const token = crypto.randomBytes(32).toString('hex');
+    const expiresAt = new Date(Date.now() + expiresDays * 86400000);
+    await file.update({
+      share_token: token,
+      share_expires_at: expiresAt,
+      share_created_at: new Date(),
+    });
+    const appUrl = process.env.APP_URL || 'https://dev.planq.kr';
+    return successResponse(res, {
+      share_token: token,
+      share_url: `${appUrl}/api/files/public/${token}/download`,
+      expires_at: expiresAt.toISOString(),
+      expires_days: expiresDays,
+    });
+  } catch (err) { next(err); }
+});
+
+// ─── 공유 링크 해제 ───
+// DELETE /api/files/:businessId/:id/share-link
+router.delete('/:businessId/:id/share-link', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+  try {
+    const file = await File.findOne({
+      where: { id: req.params.id, business_id: req.params.businessId, deleted_at: null }
+    });
+    if (!file) return errorResponse(res, 'File not found', 404);
+    await file.update({ share_token: null, share_expires_at: null, share_created_at: null });
+    return successResponse(res, { ok: true });
+  } catch (err) { next(err); }
+});
+
+// ─── 대량 다운로드 (ZIP 스트리밍) ───
+// POST /api/files/:businessId/bulk-download  body: { ids: ["direct-1", "chat-2", "task-3", ...] }
+// composite ID 를 source 별 테이블에서 검색 + 권한 검증 후 ZIP 으로 묶어 스트리밍.
+// 지원 source: direct (File), chat (MessageAttachment), task (TaskAttachment).
+// post/meeting source 는 후속.
+router.post('/:businessId/bulk-download', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+  try {
+    const businessId = Number(req.params.businessId);
+    const raw = Array.isArray(req.body?.ids) ? req.body.ids : [];
+    if (raw.length === 0) return errorResponse(res, 'ids_required', 400);
+    if (raw.length > 200) return errorResponse(res, 'too_many_files', 400);
+
+    // composite ID 파싱 — "direct-12", "chat-345", "task-67"
+    const parsed = raw.map(s => {
+      const m = String(s).match(/^(direct|chat|task)-(\d+)$/);
+      return m ? { source: m[1], id: Number(m[2]) } : null;
+    }).filter(Boolean);
+    if (parsed.length === 0) return errorResponse(res, 'invalid_ids', 400);
+
+    const directIds = parsed.filter(p => p.source === 'direct').map(p => p.id);
+    const chatIds = parsed.filter(p => p.source === 'chat').map(p => p.id);
+    const taskIds = parsed.filter(p => p.source === 'task').map(p => p.id);
+
+    const items = []; // { name, path }
+
+    // 1) direct = File 테이블, business_id 직접 검증
+    if (directIds.length > 0) {
+      const direct = await File.findAll({
+        where: {
+          id: { [Op.in]: directIds },
+          business_id: businessId, deleted_at: null, storage_provider: 'planq',
+        }
+      });
+      for (const f of direct) {
+        if (f.file_path && fs.existsSync(f.file_path)) {
+          items.push({ name: f.file_name, path: f.file_path });
+        }
+      }
+    }
+
+    // 2) chat = MessageAttachment, message → conversation → business 검증
+    if (chatIds.length > 0) {
+      const chats = await MessageAttachment.findAll({
+        where: { id: { [Op.in]: chatIds }, storage_provider: 'planq' },
+        include: [{
+          model: Message,
+          attributes: ['id', 'conversation_id'],
+          include: [{
+            model: Conversation,
+            attributes: ['id', 'business_id'],
+            where: { business_id: businessId },
+          }],
+        }],
+      });
+      for (const a of chats) {
+        if (a.file_path && fs.existsSync(a.file_path)) {
+          items.push({ name: a.file_name, path: a.file_path });
+        }
+      }
+    }
+
+    // 3) task = TaskAttachment, business_id 직접 검증
+    if (taskIds.length > 0) {
+      const tasks = await TaskAttachment.findAll({
+        where: {
+          id: { [Op.in]: taskIds },
+          business_id: businessId, storage_provider: 'planq',
+        }
+      });
+      for (const a of tasks) {
+        if (a.file_path && fs.existsSync(a.file_path)) {
+          items.push({ name: a.original_name, path: a.file_path });
+        }
+      }
+    }
+
+    if (items.length === 0) return errorResponse(res, 'no_files', 404);
+
+    const archiver = require('archiver');
+    const archive = archiver('zip', { zlib: { level: 6 } });
+    const today = new Date().toISOString().slice(0, 10);
+    const zipName = `planq-files-${today}.zip`;
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', `attachment; filename="${zipName}"; filename*=UTF-8''${encodeURIComponent(zipName)}`);
+    archive.on('warning', (err) => { if (err.code !== 'ENOENT') console.warn('[bulk-zip] warn', err.message); });
+    archive.on('error', (err) => { console.error('[bulk-zip] err', err); try { res.end(); } catch {} });
+    archive.pipe(res);
+
+    // 파일명 충돌 방지 — 동명이 있으면 (1), (2) 접미사
+    const usedNames = new Map();
+    for (const it of items) {
+      let name = it.name;
+      const seen = usedNames.get(it.name) || 0;
+      if (seen > 0) {
+        const ext = path.extname(name);
+        const base = name.slice(0, name.length - ext.length);
+        name = `${base} (${seen})${ext}`;
+      }
+      usedNames.set(it.name, seen + 1);
+      archive.file(it.path, { name });
+    }
+    await archive.finalize();
+  } catch (err) { next(err); }
 });
 
 module.exports = router;

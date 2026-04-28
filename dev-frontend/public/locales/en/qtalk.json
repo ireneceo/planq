@@ -96,6 +96,15 @@
     "project": "Link to project",
     "projectHint": "Linking bundles the project's tasks, issues, and notes. Skip for a standalone chat.",
     "noProject": "No link (standalone chat)",
+    "translation": "Translation",
+    "translationHint": "When ON, every message shows both languages (Q note pattern). Editable later via the chat settings.",
+    "translationEnable": "Show translations",
+    "langA": "Language A",
+    "langB": "Language B",
+    "langSame": "Pick two different languages",
+    "autoExtract": "Auto task extraction",
+    "autoExtractHint": "PlanQ analyzes the chat to collect task candidates automatically.",
+    "autoExtractEnable": "Auto-extract task candidates from messages",
     "members": "Participants",
     "membersHint": "Add teammates from the workspace to this chat.",
     "me": "me",
@@ -104,7 +113,38 @@
     "create": "Create chat"
   },
   "common": {
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "close": "Close",
+    "save": "Save",
+    "saving": "Saving..."
+  },
+  "settings": {
+    "title": "Chat settings",
+    "basic": "Basics",
+    "project": "Project",
+    "projectHint": "Project link cannot be changed. To move to another project, create a new chat.",
+    "errFailed": "Save failed",
+    "translation": {
+      "title": "Translation",
+      "enable": "Show translations",
+      "hint": "When ON, every message shows both languages (Q note pattern). When OFF, original only.",
+      "langA": "Language A",
+      "langB": "Language B",
+      "errSame": "Pick two different languages",
+      "errInvalid": "Invalid language setting"
+    },
+    "autoExtract": {
+      "title": "Auto task extraction",
+      "enable": "Auto-extract task candidates from messages",
+      "hint": "PlanQ analyzes the chat to collect task candidates. Review them in the right panel or in 'Inbox'."
+    },
+    "participants": {
+      "title": "Participants",
+      "remove": "Remove",
+      "empty": "No participants yet",
+      "invitePh": "Pick a workspace member",
+      "invite": "Invite"
+    }
   },
   "modal": {
     "title": "New Project",
@@ -158,6 +198,7 @@
     "expandLeft": "Expand left panel",
     "expandRight": "Expand right panel",
     "rename": "Click to rename",
+    "openSettings": "Chat settings",
     "inProject": "Project",
     "banner": {
       "candidatesPending_one": "1 task candidate waiting — register or reject it in the right panel",

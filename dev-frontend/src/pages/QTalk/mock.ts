@@ -46,6 +46,9 @@ export interface MockMessage {
   attachments?: { id: number; file_name: string; file_size: number; mime_type?: string | null }[];
   // 카드 메시지 (kind='card')
   card?: PostCardMeta | SignatureCardMeta | InvoiceCardMeta | null;
+  // 번역 (Conversation.translation_enabled 일 때 발송 시점 캐시)
+  translations?: Partial<Record<'ko'|'en'|'ja'|'zh'|'es', string>> | null;
+  detected_language?: 'ko'|'en'|'ja'|'zh'|'es' | null;
 }
 
 export interface PostCardMeta {

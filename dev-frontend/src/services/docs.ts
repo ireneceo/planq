@@ -145,6 +145,7 @@ export async function aiGenerateDoc(payload: {
   title: string;
   user_input: string;
   client_id?: number | null;
+  project_id?: number | null;
   template_id?: number | null;
 }): Promise<AiGenerateResult> {
   const r = await apiFetch('/api/docs/ai-generate', {

@@ -219,6 +219,70 @@ export async function bulkDeleteFiles(businessId: number, fileIds: string[]): Pr
   return j.success ? (j.data?.deleted ?? numericIds.length) : 0;
 }
 
+// ─── 공유 링크 + 대량 다운로드 ───
+
+export interface ShareLinkResult {
+  share_token: string;
+  share_url: string;
+  expires_at: string;
+  expires_days: number;
+}
+
+export async function createShareLink(
+  businessId: number,
+  fileId: string,
+  expiresDays: 7 | 14 | 30 | 90 = 30,
+): Promise<ShareLinkResult | null> {
+  const parsed = parseFileId(fileId);
+  if (!parsed || parsed.source !== 'direct') return null;
+  const r = await apiFetch(`/api/files/${businessId}/${parsed.id}/share-link`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ expires_days: expiresDays }),
+  });
+  const j = await r.json();
+  if (!j.success) return null;
+  return j.data as ShareLinkResult;
+}
+
+export async function revokeShareLink(businessId: number, fileId: string): Promise<boolean> {
+  const parsed = parseFileId(fileId);
+  if (!parsed || parsed.source !== 'direct') return false;
+  const r = await apiFetch(`/api/files/${businessId}/${parsed.id}/share-link`, { method: 'DELETE' });
+  const j = await r.json();
+  return !!j.success;
+}
+
+// 다중 파일 ZIP 다운로드 — 브라우저에서 직접 blob 처리.
+// composite ID (`direct-X`, `chat-X`, `task-X`) 를 그대로 백엔드로 전달 → 백엔드가 source 별 테이블에서 찾음.
+// gdrive 등 외부 파일·meeting/post 는 백엔드에서 제외.
+export async function bulkDownloadZip(businessId: number, fileIds: string[]): Promise<{ ok: boolean; skipped: number; message?: string }> {
+  // 지원 source 만 필터 (direct/chat/task) — meeting/post 는 후속
+  const supportedIds = fileIds.filter(id => /^(direct|chat|task)-\d+$/.test(id));
+  const skipped = fileIds.length - supportedIds.length;
+  if (supportedIds.length === 0) return { ok: false, skipped, message: 'no_supported_files' };
+
+  const r = await apiFetch(`/api/files/${businessId}/bulk-download`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ids: supportedIds }),
+  });
+  if (!r.ok) {
+    const j = await r.json().catch(() => ({}));
+    return { ok: false, skipped, message: j.message || `http_${r.status}` };
+  }
+  const blob = await r.blob();
+  const today = new Date().toISOString().slice(0, 10);
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `planq-files-${today}.zip`;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 100);
+  return { ok: true, skipped };
+}
+
 export async function fetchStorageStatus(businessId: number): Promise<StorageStatus> {
   const r = await apiFetch(`/api/files/${businessId}/storage`);
   const j = await r.json();

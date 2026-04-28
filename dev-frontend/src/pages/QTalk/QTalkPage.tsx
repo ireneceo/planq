@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { io, type Socket } from 'socket.io-client';
@@ -8,6 +8,7 @@ import ChatPanel from './ChatPanel';
 import RightPanel from './RightPanel';
 import NewProjectModal, { type ProjectFormData } from './NewProjectModal';
 import NewChatModal, { type NewChatFormData } from './NewChatModal';
+import ChatSettingsModal from './ChatSettingsModal';
 import {
   type MockTaskCandidate, type MockMessage, type MockProject,
   type MockConversation, type MockTask, type MockNote, type MockIssue,
@@ -107,6 +108,8 @@ function apiMessageToMock(m: qtalkApi.ApiMessage): MockMessage {
       if (ct === 'invoice') return m.meta as unknown as import('./mock').InvoiceCardMeta;
       return null;
     })(),
+    translations: m.translations ?? null,
+    detected_language: m.detected_language ?? null,
   };
 }
 
@@ -179,20 +182,22 @@ const QTalkPage: React.FC = () => {
 
   const location = useLocation();
   const navigate = useNavigate();
-  // URL ?project=:pid&conv=:cid — 채팅방 단위 공유/북마크 가능
+  const { conversationId: pathConvId } = useParams<{ conversationId?: string }>();
+  // URL: /talk/:conversationId 패스 파라미터 또는 ?project=:pid&conv=:cid 쿼리.
+  // 패스 파라미터가 우선 — 다른 화면에서 navigate('/talk/123') 으로 진입하는 케이스.
   const initialParams = new URLSearchParams(location.search);
   const initialProject = Number(initialParams.get('project')) || null;
-  const initialConv = Number(initialParams.get('conv')) || null;
+  const initialConv = Number(pathConvId) || Number(initialParams.get('conv')) || null;
   const [activeProjectId, setActiveProjectId] = useState<number | null>(initialProject);
   const [activeConversationId, setActiveConversationId] = useState<number | null>(initialConv);
 
-  // 선택 상태 → URL 싱크. state 변경을 단일 소스로 유지.
+  // 선택 상태 → URL 싱크. 항상 /talk 베이스로 정규화 (path-param 진입은 1회만 의미 있음).
   useEffect(() => {
-    const sp = new URLSearchParams(location.search);
-    if (activeProjectId) sp.set('project', String(activeProjectId)); else sp.delete('project');
-    if (activeConversationId) sp.set('conv', String(activeConversationId)); else sp.delete('conv');
+    const sp = new URLSearchParams();
+    if (activeProjectId) sp.set('project', String(activeProjectId));
+    if (activeConversationId) sp.set('conv', String(activeConversationId));
     const qs = sp.toString();
-    const next = qs ? `${location.pathname}?${qs}` : location.pathname;
+    const next = qs ? `/talk?${qs}` : '/talk';
     if (next !== `${location.pathname}${location.search}`) {
       navigate(next, { replace: true });
     }
@@ -211,6 +216,9 @@ const QTalkPage: React.FC = () => {
 
   const [modalOpen, setModalOpen] = useState(false);
   const [chatModalOpen, setChatModalOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  // raw API 응답 캐시 — translation_* 같은 필드는 mock 에 안 들어가서 모달 등에서 필요
+  const [convsRaw, setConvsRaw] = useState<Record<number, qtalkApi.ApiConversation>>({});
   const [notice, setNotice] = useState<string | null>(null);
 
   const showNotice = useCallback((msg: string) => {
@@ -274,6 +282,18 @@ const QTalkPage: React.FC = () => {
       });
     });
 
+    // 메시지 번역 완료 (비동기 LLM 결과 — 메시지 자체는 이미 발송됨)
+    socket.on('message:translated', (data: { id: number; conversation_id: number; translations: Record<string, string>; detected_language: string }) => {
+      setMessages((prev) => {
+        const arr = prev[data.conversation_id] || [];
+        return { ...prev, [data.conversation_id]: arr.map((m) =>
+          m.id === data.id
+            ? { ...m, translations: data.translations as MockMessage['translations'], detected_language: data.detected_language as MockMessage['detected_language'] }
+            : m
+        ) };
+      });
+    });
+
     // 메모 생성
     socket.on('note:new', (note: qtalkApi.ApiNote) => {
       const mapped = apiNoteToMock(note);
@@ -334,6 +354,18 @@ const QTalkPage: React.FC = () => {
     };
   }, [activeProjectId]);
 
+  // ── path-param 진입 시 conv 의 project_id 자동 매핑 ──
+  // /talk/:convId 로 진입하면 activeConversationId 만 세팅된 상태.
+  // listBusinessConversations 가 끝나 conversations 가 채워지면 그 conv 의 project_id 를 찾아 activeProjectId 도 세팅.
+  useEffect(() => {
+    if (!activeConversationId) return;
+    if (activeProjectId) return;
+    const conv = conversations.find(c => c.id === activeConversationId);
+    if (conv && conv.project_id) {
+      setActiveProjectId(conv.project_id);
+    }
+  }, [activeConversationId, activeProjectId, conversations]);
+
   // ── 초기 로드: 프로젝트 목록 ──
   useEffect(() => {
     if (!businessId) { setLoading(false); return; }
@@ -364,6 +396,11 @@ const QTalkPage: React.FC = () => {
                 const existingIds = new Set(prev.map(c => c.id));
                 const newOnes = all.filter(c => !existingIds.has(c.id));
                 return [...prev, ...newOnes];
+              });
+              setConvsRaw(prev => {
+                const next = { ...prev };
+                for (const c of apiConvs) next[c.id] = c;
+                return next;
               });
             } catch {/* silent */}
           })();
@@ -399,6 +436,12 @@ const QTalkPage: React.FC = () => {
           // 다른 프로젝트 대화는 유지
           const others = prev.filter((c) => c.project_id !== activeProjectId);
           return [...others, ...mappedConvs];
+        });
+        // raw 응답도 캐시 (ChatSettingsModal 의 translation_* prefill 용)
+        setConvsRaw((prev) => {
+          const next = { ...prev };
+          for (const c of convList) next[c.id] = c;
+          return next;
         });
 
         // 활성 대화 자동 선택 (customer 채널 우선)
@@ -554,9 +597,14 @@ const QTalkPage: React.FC = () => {
         title: data.title,
         project_id: data.project_id,
         participant_user_ids: data.participant_user_ids,
+        auto_extract_enabled: data.auto_extract_enabled,
+        translation_enabled: data.translation_enabled,
+        translation_languages: data.translation_languages,
       });
       const mapped = apiConversationToMock(conv);
       setConversations((prev) => [mapped, ...prev.filter((c) => c.id !== mapped.id)]);
+      // raw 응답도 캐시 (설정 모달 prefill 용)
+      setConvsRaw((prev) => ({ ...prev, [conv.id]: conv }));
       // 독립 대화(project_id null)는 activeProjectId 도 null 로 초기화해야 ChatPanel 이 standalone 브랜치로 렌더한다.
       setActiveProjectId(conv.project_id || null);
       setActiveConversationId(conv.id);
@@ -594,6 +642,28 @@ const QTalkPage: React.FC = () => {
       setConversations((prev) => prev.map((c) =>
         c.id === activeConversationId ? { ...c, last_message_at: mapped.created_at } : c
       ));
+      // 번역 폴링 fallback — Socket.IO `message:translated` 이벤트가 안 도착해도
+      // 4초 후 GET 으로 직접 갱신해 translations 보장. 옛 번들에서도 동작.
+      const conv = conversations.find(c => c.id === activeConversationId);
+      if (conv && (conv as MockConversation & { translation_enabled?: boolean }).id) {
+        const convId = activeConversationId;
+        setTimeout(async () => {
+          try {
+            const fresh = await qtalkApi.listConversationMessages(convId);
+            const target = fresh.find(m => m.id === created.id);
+            if (target?.translations) {
+              setMessages((prev) => {
+                const arr = prev[convId] || [];
+                return { ...prev, [convId]: arr.map(m =>
+                  m.id === created.id
+                    ? { ...m, translations: target.translations as MockMessage['translations'], detected_language: target.detected_language as MockMessage['detected_language'] }
+                    : m
+                ) };
+              });
+            }
+          } catch { /* silent */ }
+        }, 4000);
+      }
     } catch (err: unknown) {
       showNotice(t('page.sendFailed', { msg: err instanceof Error ? err.message : '' }));
     }
@@ -834,6 +904,7 @@ const QTalkPage: React.FC = () => {
         onCueDraftReject={handleCueDraftReject}
         onToggleAutoExtract={handleToggleAutoExtract}
         onRenameConversation={handleRenameConversation}
+        onOpenSettings={activeConversationId ? () => setSettingsOpen(true) : undefined}
         candidatesCount={projectCandidates.length}
         leftCollapsed={leftCollapsed}
         rightCollapsed={rightCollapsed}
@@ -884,10 +955,26 @@ const QTalkPage: React.FC = () => {
       <NewChatModal
         businessId={businessId || 0}
         open={chatModalOpen && !!businessId}
-        preselectedProjectId={activeProjectId}
         onClose={() => setChatModalOpen(false)}
         onCreate={handleCreateChat}
       />
+
+      {settingsOpen && activeConversationId && convsRaw[activeConversationId] && businessId && (
+        <ChatSettingsModal
+          open={settingsOpen}
+          onClose={() => setSettingsOpen(false)}
+          businessId={businessId}
+          conversation={convsRaw[activeConversationId]}
+          projectName={activeProject?.name || null}
+          onUpdated={(next) => {
+            setConvsRaw(prev => ({ ...prev, [next.id]: next }));
+            // mock 측 display_name + auto_extract 동기화
+            setConversations(prev => prev.map(c => c.id === next.id
+              ? { ...c, name: next.display_name || next.title || c.name, auto_extract_enabled: next.auto_extract_enabled }
+              : c));
+          }}
+        />
+      )}
 
       {notice && (
         <Toast>

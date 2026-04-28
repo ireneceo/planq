@@ -76,6 +76,20 @@ File.init({
     allowNull: false,
     defaultValue: 1
   },
+  // 공유 링크: 비로그인 사용자가 토큰으로 다운로드. share_expires_at 이후엔 410.
+  share_token: {
+    type: DataTypes.STRING(64),
+    allowNull: true,
+    unique: true
+  },
+  share_expires_at: {
+    type: DataTypes.DATE,
+    allowNull: true
+  },
+  share_created_at: {
+    type: DataTypes.DATE,
+    allowNull: true
+  },
   deleted_at: {
     type: DataTypes.DATE,
     allowNull: true
@@ -88,6 +102,7 @@ File.init({
   indexes: [
     { fields: ['business_id', 'project_id'] },
     { fields: ['business_id', 'content_hash'] },
+    { fields: ['share_token'] },
     { fields: ['deleted_at'] }
   ]
 });

@@ -435,24 +435,52 @@ router.get('/:id/conversations', authenticateToken, async (req, res, next) => {
 
 // ============================================
 // PATCH /api/projects/conversations/:id — 채널 설정 변경
-// 바디: { display_name?, auto_extract_enabled? }
+// 바디: { display_name?, auto_extract_enabled?, translation_enabled?, translation_languages? }
+// translation_enabled true 시 translation_languages (정확히 2-원소, 서로 다른 언어) 필수.
 // ============================================
 router.patch('/conversations/:id', authenticateToken, async (req, res, next) => {
   try {
     const conv = await Conversation.findByPk(req.params.id);
     if (!conv) return errorResponse(res, 'conversation_not_found', 404);
-    if (!conv.project_id) return errorResponse(res, 'not_a_project_channel', 400);
-    const { role, error } = await loadProjectOrForbidden(conv.project_id, req.user.id);
-    if (error) return errorResponse(res, error.message, error.code);
-    if (role === 'client') return errorResponse(res, 'forbidden', 403);
+    // 프로젝트 conv 면 프로젝트 권한, standalone 이면 워크스페이스 멤버 권한
+    if (conv.project_id) {
+      const { role, error } = await loadProjectOrForbidden(conv.project_id, req.user.id);
+      if (error) return errorResponse(res, error.message, error.code);
+      if (role === 'client') return errorResponse(res, 'forbidden', 403);
+    } else {
+      const { error } = await loadStandaloneConvOrForbidden(conv.id, req.user.id);
+      if (error) return errorResponse(res, error.message, error.code);
+    }
 
-    const { display_name, auto_extract_enabled } = req.body || {};
+    const { display_name, auto_extract_enabled, translation_enabled, translation_languages } = req.body || {};
     const patch = {};
     if (typeof display_name === 'string' && display_name.trim()) {
       patch.display_name = display_name.trim();
     }
     if (typeof auto_extract_enabled === 'boolean') {
       patch.auto_extract_enabled = auto_extract_enabled;
+    }
+    if (translation_enabled !== undefined || translation_languages !== undefined) {
+      const { validateLanguages } = require('../services/translation_service');
+      const nextEnabled = typeof translation_enabled === 'boolean' ? translation_enabled : conv.translation_enabled;
+      const nextLangs = translation_languages !== undefined ? translation_languages : conv.translation_languages;
+      if (nextEnabled) {
+        const v = validateLanguages(nextLangs);
+        if (!v.ok) return errorResponse(res, `translation_languages_${v.reason}`, 400);
+        patch.translation_enabled = true;
+        patch.translation_languages = v.normalized;
+      } else {
+        // OFF — languages 는 유지 또는 null (사용자 의도 존중, 마지막 선택 기억)
+        patch.translation_enabled = false;
+        if (translation_languages !== undefined) {
+          if (translation_languages === null) patch.translation_languages = null;
+          else {
+            const v = validateLanguages(translation_languages);
+            if (!v.ok) return errorResponse(res, `translation_languages_${v.reason}`, 400);
+            patch.translation_languages = v.normalized;
+          }
+        }
+      }
     }
     if (Object.keys(patch).length === 0) {
       return errorResponse(res, 'no_valid_fields', 400);
@@ -482,10 +510,14 @@ router.post('/conversations/:id/messages', authenticateToken, async (req, res, n
       return errorResponse(res, 'content is required', 400);
     }
 
+    // 줄바꿈/공백 보존 — trim 은 양 끝만, 내부 \n 유지.
+    // String.trim() 기본 동작이 양 끝만 처리하므로 그대로 사용.
+    const cleaned = String(content).trim();
+
     const msg = await Message.create({
       conversation_id: conv.id,
       sender_id: req.user.id,
-      content: String(content).trim(),
+      content: cleaned,
       kind: kind || 'text',
       is_ai: false,
       is_internal: false,
@@ -499,10 +531,39 @@ router.post('/conversations/:id/messages', authenticateToken, async (req, res, n
       include: [{ model: User, as: 'sender', attributes: ['id', 'name', 'email'] }],
     });
 
-    // Socket.IO broadcast
+    // Socket.IO broadcast — 메시지 즉시 발송 (번역 기다리지 않음)
     const io = req.app.get('io');
     if (io) {
       io.to(`conv:${conv.id}`).emit('message:new', full.toJSON());
+    }
+
+    // 비동기 번역 — 메시지 발송 응답 후 백그라운드에서 LLM 호출 + DB 업데이트 + Socket.IO push
+    if (conv.translation_enabled && Array.isArray(conv.translation_languages) && (kind || 'text') === 'text') {
+      setImmediate(async () => {
+        try {
+          const { translateWithRetry } = require('../services/translation_service');
+          const tr = await translateWithRetry(cleaned, conv.translation_languages);
+          console.log(`[translation] msg=${msg.id} fallback=${tr.fallback} reason=${tr.reason || '-'} hasTr=${!!tr.translations}`);
+          if (!tr.fallback && tr.translations) {
+            await msg.update({ translations: tr.translations, detected_language: tr.detected_language });
+            if (io) {
+              const payload = {
+                id: msg.id,
+                conversation_id: conv.id,
+                translations: tr.translations,
+                detected_language: tr.detected_language,
+              };
+              io.to(`conv:${conv.id}`).emit('message:translated', payload);
+              // fallback: 전체 메시지 객체로 message:updated 도 emit (기존 핸들러 활용)
+              const updated = await Message.findByPk(msg.id, {
+                include: [{ model: User, as: 'sender', attributes: ['id', 'name', 'email'] }],
+              });
+              if (updated) io.to(`conv:${conv.id}`).emit('message:updated', updated.toJSON());
+              console.log(`[translation] emitted message:translated + message:updated to conv:${conv.id}`);
+            }
+          }
+        } catch (e) { console.warn('[message translation]', e.message, e.stack); }
+      });
     }
 
     // Cue 자동 응답 트리거 (customer 채널 + 비 AI 메시지만, 비동기)
