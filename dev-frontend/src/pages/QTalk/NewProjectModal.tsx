@@ -299,6 +299,27 @@ const NewProjectModal: React.FC<Props> = ({ businessId, open, onClose, onCreate 
                 />
               ))}
             </SwatchRow>
+            <HexRow>
+              <HexPreview style={{ background: color }} />
+              <input
+                type="color"
+                value={/^#[0-9a-fA-F]{6}$/.test(color) ? color : '#14B8A6'}
+                onChange={e => setColor(e.target.value)}
+                style={{ width: 32, height: 32, padding: 0, border: '1px solid #E2E8F0', borderRadius: 6, background: 'transparent', cursor: 'pointer' }}
+                title={t('modal.colorPicker', '직접 색상 선택') as string}
+                aria-label={t('modal.colorPicker', '직접 색상 선택') as string}
+              />
+              <HexInput
+                type="text"
+                value={color}
+                onChange={e => {
+                  const v = e.target.value.trim();
+                  if (/^#?[0-9a-fA-F]{0,6}$/.test(v)) setColor(v.startsWith('#') ? v : `#${v}`);
+                }}
+                placeholder="#14B8A6"
+                maxLength={7}
+              />
+            </HexRow>
           </Field>
 
           {/* 멤버 + 역할 */}
@@ -750,6 +771,21 @@ const SwatchRow = styled.div`
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+  justify-content: flex-start;
+`;
+const HexRow = styled.div`
+  display: flex; align-items: center; gap: 8px; margin-top: 8px;
+`;
+const HexPreview = styled.div`
+  width: 32px; height: 32px; border-radius: 50%;
+  border: 2px solid #E2E8F0; flex-shrink: 0;
+`;
+const HexInput = styled.input`
+  width: 100px; height: 32px; padding: 0 10px;
+  border: 1px solid #E2E8F0; border-radius: 6px;
+  font-size: 12px; color: #0F172A;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20,184,166,0.15); }
 `;
 const Swatch = styled.button<{ $color: string; $active: boolean }>`
   width: 24px;

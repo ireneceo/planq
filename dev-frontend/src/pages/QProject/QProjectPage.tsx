@@ -12,6 +12,18 @@ import NewProjectModal, { type ProjectFormData } from '../QTalk/NewProjectModal'
 // ─── Types ───
 type ViewMode = 'list' | 'timeline' | 'calendar';
 
+interface ProjectMemberRow {
+  user_id: number;
+  role?: string | null;
+  is_pm?: boolean;
+  User?: { id: number; name: string; email?: string | null } | null;
+}
+interface ProjectClientRow {
+  id?: number;
+  contact_name?: string | null;
+  contact_email?: string | null;
+  contact_user_id?: number | null;
+}
 interface ProjectRow {
   id: number;
   name: string;
@@ -21,6 +33,12 @@ interface ProjectRow {
   start_date: string | null;
   end_date: string | null;
   color?: string | null;
+  default_assignee_user_id?: number | null;
+  owner_user_id?: number | null;
+  updatedAt?: string | null;
+  createdAt?: string | null;
+  projectMembers?: ProjectMemberRow[];
+  projectClients?: ProjectClientRow[];
 }
 
 interface TaskRow {
@@ -220,6 +238,20 @@ const QProjectPage: React.FC = () => {
 
 export default QProjectPage;
 
+// ─── 상대 시간 포맷 (n분 전 / n시간 전 / n일 전) ───
+function formatRelativeTime(iso: string | Date): string {
+  try {
+    const d = typeof iso === 'string' ? new Date(iso) : iso;
+    const diff = Date.now() - d.getTime();
+    if (isNaN(diff)) return '';
+    if (diff < 60_000) return '방금';
+    if (diff < 3600_000) return `${Math.floor(diff / 60_000)}분 전`;
+    if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}시간 전`;
+    if (diff < 7 * 86_400_000) return `${Math.floor(diff / 86_400_000)}일 전`;
+    return d.toLocaleDateString();
+  } catch { return ''; }
+}
+
 // ─── List View ───
 const ListView: React.FC<{
   projects: ProjectWithStats[];
@@ -282,32 +314,92 @@ const ListView: React.FC<{
             </MenuWrap>
           </CardHeadRight>
         </CardHead>
-        {p.client_company && <ClientLine>{p.client_company}</ClientLine>}
+        {p.client_company && <ClientLine>🏢 {p.client_company}</ClientLine>}
         {p.description && <Description>{p.description}</Description>}
-        <StatsRow>
-          <Stat>
-            <StatLabel>{t('stats.tasks')}</StatLabel>
-            <StatValue>{p.completedTasks} / {p.totalTasks}</StatValue>
-          </Stat>
-          {p.overdueTasks > 0 && (
-            <Stat>
-              <StatLabel>{t('stats.overdue')}</StatLabel>
-              <StatValue $danger>{p.overdueTasks}</StatValue>
-            </Stat>
-          )}
-          {(p.start_date || p.end_date) && (
-            <Stat>
-              <StatLabel>{t('stats.period')}</StatLabel>
-              <StatValue>
-                {p.start_date ? formatDate(p.start_date) : '—'} ~ {p.end_date ? formatDate(p.end_date) : '—'}
-              </StatValue>
-            </Stat>
-          )}
-        </StatsRow>
-        <ProgressBar>
-          <ProgressFill $pct={p.progressPercent} />
-        </ProgressBar>
-        <ProgressLabel>{t('stats.progress', { pct: p.progressPercent })}</ProgressLabel>
+
+        <BottomStack>
+        {/* 진행률 — 시각 우위 */}
+        <ProgressBlock>
+          <ProgressBar>
+            <ProgressFill $pct={p.progressPercent} />
+          </ProgressBar>
+          <ProgressMeta>
+            <ProgressPct>{p.progressPercent}%</ProgressPct>
+            <ProgressTaskCount>{p.completedTasks} / {p.totalTasks}{t('card.tasksUnit')}</ProgressTaskCount>
+            {p.overdueTasks > 0 && (
+              <OverdueChip title={t('stats.overdue') as string}>
+                ⚠ {p.overdueTasks}
+              </OverdueChip>
+            )}
+          </ProgressMeta>
+        </ProgressBlock>
+
+        {/* 기간 + 활동 시간 */}
+        {(p.start_date || p.end_date || p.updatedAt) && (
+          <MetaLine>
+            {(p.start_date || p.end_date) && (
+              <MetaItem title={t('stats.period') as string}>
+                <MetaIcon viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+                </MetaIcon>
+                <span>{p.start_date ? formatDate(p.start_date) : '—'} → {p.end_date ? formatDate(p.end_date) : '—'}</span>
+                {p.end_date && p.status === 'active' && (() => {
+                  const diff = Math.ceil((new Date(p.end_date).getTime() - new Date().getTime()) / 86400000);
+                  if (diff < 0) return <DDay $danger>D+{Math.abs(diff)}</DDay>;
+                  if (diff <= 7) return <DDay $warning>D-{diff}</DDay>;
+                  return <DDay>D-{diff}</DDay>;
+                })()}
+              </MetaItem>
+            )}
+            {p.updatedAt && (
+              <MetaItem title={t('card.lastActivity') as string}>
+                <MetaIcon viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+                </MetaIcon>
+                <span>{formatRelativeTime(p.updatedAt)}</span>
+              </MetaItem>
+            )}
+          </MetaLine>
+        )}
+
+        {/* 멤버 (PM 강조) + 고객 컨택 */}
+        {((p.projectMembers && p.projectMembers.length > 0) || (p.projectClients && p.projectClients.length > 0)) && (
+          <PeopleRow>
+            {p.projectMembers && p.projectMembers.length > 0 && (() => {
+              const pm = p.projectMembers.find(m => m.user_id === p.default_assignee_user_id) || p.projectMembers.find(m => m.is_pm);
+              const others = p.projectMembers.filter(m => m !== pm);
+              return (
+                <PeopleGroup>
+                  {pm && (
+                    <PMBlock title={t('card.pmLabel') as string}>
+                      <PMStar>★</PMStar>
+                      <PMName>{pm.User?.name || `#${pm.user_id}`}</PMName>
+                    </PMBlock>
+                  )}
+                  {others.length > 0 && (
+                    <AvatarStack>
+                      {others.slice(0, 4).map(m => (
+                        <Avatar key={m.user_id} title={m.User?.name || `#${m.user_id}`}>
+                          {(m.User?.name || '?').charAt(0).toUpperCase()}
+                        </Avatar>
+                      ))}
+                      {others.length > 4 && <AvatarMore>+{others.length - 4}</AvatarMore>}
+                    </AvatarStack>
+                  )}
+                </PeopleGroup>
+              );
+            })()}
+            {p.projectClients && p.projectClients.length > 0 && (
+              <ClientChip>
+                <MetaIcon viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+                </MetaIcon>
+                <span>{p.projectClients.length}{t('card.clientsCount')}</span>
+              </ClientChip>
+            )}
+          </PeopleRow>
+        )}
+        </BottomStack>
       </ProjectCard>
     ))}
   </CardGrid>
@@ -638,6 +730,10 @@ const ProjectCard = styled.div`
   padding: 16px 18px;
   cursor: pointer;
   transition: box-shadow 0.15s, border-color 0.15s, transform 0.15s;
+  /* 카드 내부 flex column — 하단 블록 (진행률·기간·사람) 을 항상 카드 바닥에 정렬 */
+  display: flex;
+  flex-direction: column;
+  min-height: 240px;
   &:hover {
     box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
     border-color: #CBD5E1;
@@ -648,6 +744,14 @@ const ProjectCard = styled.div`
     box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.3);
     border-color: #14B8A6;
   }
+`;
+// 하단 고정 블록 — 진행률 + 기간 + 사람 정보를 카드 바닥에 정렬
+const BottomStack = styled.div`
+  margin-top: auto;
+  padding-top: 14px;
+  border-top: 1px solid #F1F5F9;
+  display: flex; flex-direction: column;
+  gap: 10px;
 `;
 const CardHead = styled.div`display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; margin-bottom: 8px;`;
 const CardTitle = styled.div`font-size: 15px; font-weight: 700; color: #0F172A; line-height: 1.4;`;
@@ -660,15 +764,88 @@ const StatusBadge = styled.span<{ $bg?: string; $fg?: string }>`
   font-size: 11px;
   font-weight: 600;
 `;
-const ClientLine = styled.div`font-size: 12px; color: #64748B; margin-bottom: 8px;`;
+const ClientLine = styled.div`font-size: 12px; color: #64748B; margin-bottom: 8px; display: inline-flex; align-items: center; gap: 4px;`;
 const Description = styled.div`font-size: 13px; color: #475569; line-height: 1.5; margin-bottom: 12px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;`;
-const StatsRow = styled.div`display: flex; flex-wrap: wrap; gap: 12px 20px; margin: 12px 0 8px;`;
-const Stat = styled.div`display: flex; flex-direction: column; gap: 2px;`;
-const StatLabel = styled.span`font-size: 11px; color: #94A3B8; font-weight: 500;`;
-const StatValue = styled.span<{ $danger?: boolean }>`font-size: 13px; font-weight: 600; color: ${p => p.$danger ? '#DC2626' : '#0F172A'};`;
+
+// ─── Progress block ───
+const ProgressBlock = styled.div`display: flex; flex-direction: column; gap: 6px;`;
+const ProgressMeta = styled.div`
+  display: flex; align-items: center; gap: 10px;
+  font-size: 12px;
+`;
+const ProgressPct = styled.span`font-weight: 700; color: #0F766E;`;
+const ProgressTaskCount = styled.span`color: #64748B;`;
+const OverdueChip = styled.span`
+  display: inline-flex; align-items: center; gap: 2px;
+  padding: 2px 8px; border-radius: 999px;
+  background: #FEE2E2; color: #B91C1C;
+  font-size: 11px; font-weight: 700;
+  margin-left: auto;
+`;
+
+// ─── Meta line (기간 + 활동) ───
+const MetaLine = styled.div`
+  display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  font-size: 12px; color: #64748B;
+`;
+const MetaItem = styled.div`
+  display: inline-flex; align-items: center; gap: 6px;
+  span { white-space: nowrap; }
+`;
+const MetaIcon = styled.svg`width: 13px; height: 13px; flex-shrink: 0; color: #94A3B8;`;
+const DDay = styled.span<{ $danger?: boolean; $warning?: boolean }>`
+  display: inline-flex; align-items: center;
+  padding: 1px 6px; border-radius: 4px;
+  font-size: 10px; font-weight: 700;
+  ${p => p.$danger ? 'background: #FEE2E2; color: #B91C1C;' :
+        p.$warning ? 'background: #FEF3C7; color: #92400E;' :
+        'background: #F0FDFA; color: #0F766E;'}
+`;
+
+// ─── People (PM 강조 + 멤버 + 고객) ───
+const PeopleRow = styled.div`
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+`;
+const PeopleGroup = styled.div`
+  display: flex; align-items: center; gap: 8px;
+  flex: 1; min-width: 0;
+`;
+const PMBlock = styled.div`
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 3px 8px 3px 6px;
+  background: #FFF7ED; border: 1px solid #FDE68A; border-radius: 999px;
+`;
+const PMStar = styled.span`color: #F59E0B; font-size: 11px;`;
+const PMName = styled.span`font-size: 11px; font-weight: 700; color: #92400E;`;
+const AvatarStack = styled.div`
+  display: inline-flex; align-items: center;
+  & > * { margin-left: -6px; &:first-child { margin-left: 0; } }
+`;
+const Avatar = styled.span`
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 24px; height: 24px; border-radius: 50%;
+  background: #0F766E; color: #FFFFFF;
+  font-size: 11px; font-weight: 700;
+  border: 2px solid #FFFFFF;
+  flex-shrink: 0;
+`;
+const AvatarMore = styled.span`
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 24px; height: 24px; border-radius: 50%;
+  background: #F1F5F9; color: #475569;
+  font-size: 10px; font-weight: 700;
+  border: 2px solid #FFFFFF;
+  flex-shrink: 0;
+`;
+const ClientChip = styled.span`
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 3px 10px; border-radius: 999px;
+  background: #F1F5F9; color: #475569;
+  font-size: 11px; font-weight: 600;
+  flex-shrink: 0;
+`;
 const ProgressBar = styled.div`height: 6px; background: #F1F5F9; border-radius: 999px; overflow: hidden; margin-top: 12px;`;
 const ProgressFill = styled.div<{ $pct: number }>`height: 100%; width: ${p => p.$pct}%; background: linear-gradient(90deg, #14B8A6, #0D9488); border-radius: 999px; transition: width 0.3s;`;
-const ProgressLabel = styled.div`font-size: 11px; color: #64748B; margin-top: 4px; text-align: right;`;
 
 // ─── Card 액션 메뉴 ───
 const CardHeadRight = styled.div`display:flex; align-items:center; gap:6px; flex-shrink:0;`;

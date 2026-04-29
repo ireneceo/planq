@@ -337,7 +337,8 @@ router.patch('/:id/time', authenticateToken, async (req, res, next) => {
 router.post('/', authenticateToken, async (req, res, next) => {
   try {
     const { business_id, project_id, title, description, assignee_id, due_date, priority,
-      estimated_hours, category, source_message_id, conversation_id, planned_week_start, start_date } = req.body;
+      estimated_hours, category, source_message_id, conversation_id, planned_week_start, start_date,
+      cue_kind, cue_context_ref } = req.body;
     if (!business_id) return errorResponse(res, 'business_id required', 400);
     if (!title || !String(title).trim()) return errorResponse(res, 'title required', 400);
 
@@ -366,7 +367,23 @@ router.post('/', authenticateToken, async (req, res, next) => {
       created_by: req.user.id,
       source: isInternalRequest ? 'internal_request' : 'manual',
       request_by_user_id: isInternalRequest ? req.user.id : null,
+      // 사이클 P8 — Cue 팀원화
+      cue_kind: cue_kind || null,
+      cue_context_ref: cue_context_ref || null,
     });
+
+    // 사이클 P8 — assignee=Cue && cue_kind 면 비동기 자동 실행
+    try {
+      const biz = await Business.findByPk(business_id, { attributes: ['cue_user_id'] });
+      if (biz?.cue_user_id && finalAssignee === biz.cue_user_id && cue_kind) {
+        const { executeForTask } = require('../services/cue_task_executor');
+        executeForTask(task.id).then(r => {
+          console.log('[cue_task_executor]', task.id, r.ok ? 'ok' : `skip: ${r.reason}`);
+        }).catch(e => console.error('[cue_task_executor] crash', e.message));
+      }
+    } catch (e) {
+      console.warn('[task POST cue check]', e.message);
+    }
 
     const full = await Task.findByPk(task.id, {
       include: [

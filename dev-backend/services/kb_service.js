@@ -261,10 +261,79 @@ async function hybridSearch(businessId, query, opts = {}) {
   };
 }
 
+// ─── 사이클 P3 — LLM 자동 태그 추출 ───
+// 제목 + 본문 → 키워드 5~8개 (gpt-4o-mini, ≈ ₩0.0002/문서).
+// 백그라운드로 호출. KbDocument.tags 에 JSON 저장.
+async function extractTags(docId) {
+  const doc = await KbDocument.findByPk(docId);
+  if (!doc) return;
+  if (!OPENAI_API_KEY) {
+    // fallback: 본문 빈도 기반 간단 추출
+    const tags = simpleKeywordExtract(`${doc.title || ''}\n${doc.body || ''}`);
+    if (tags.length) await doc.update({ tags });
+    return;
+  }
+  try {
+    const text = `${doc.title || ''}\n${(doc.body || '').slice(0, 4000)}`;
+    const r = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        messages: [
+          { role: 'system', content: '당신은 한국어/영어 혼용 문서에서 핵심 키워드를 추출하는 도구입니다. JSON 만 출력하세요.' },
+          { role: 'user', content: `다음 문서에서 검색·필터에 쓸 핵심 키워드 5~8개를 추출해 JSON 배열로만 답하세요. 키워드는 명사 또는 짧은 명사구. 일반적이지 않고 문서 고유의 식별 가치가 있는 것 우선.\n\n문서:\n${text}\n\n출력 형식:\n["키워드1","키워드2",...]` },
+        ],
+        max_completion_tokens: 200,
+        response_format: { type: 'json_object' },
+      }),
+    });
+    if (!r.ok) { console.warn('[kb_service] tag extraction LLM failed', r.status); return; }
+    const data = await r.json();
+    const raw = data?.choices?.[0]?.message?.content || '';
+    let tags = [];
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) tags = parsed;
+      else if (Array.isArray(parsed.tags)) tags = parsed.tags;
+      else if (Array.isArray(parsed.keywords)) tags = parsed.keywords;
+      else {
+        // 첫 array 찾기
+        for (const v of Object.values(parsed)) {
+          if (Array.isArray(v)) { tags = v; break; }
+        }
+      }
+    } catch (e) { console.warn('[kb_service] tag parse failed', e.message); }
+    tags = tags.filter(t => typeof t === 'string').map(t => String(t).trim().slice(0, 40)).filter(Boolean).slice(0, 8);
+    if (tags.length) await doc.update({ tags });
+  } catch (err) {
+    console.warn('[kb_service] extractTags error', err.message);
+  }
+}
+
+// LLM 미설정 시 fallback — 한글/영문 단어 빈도 기반 (stopword 제거)
+const KO_STOP = new Set(['은','는','이','가','을','를','의','에','에서','으로','로','과','와','도','만','게','이다','있다','없다','한다','됩니다','입니다','그리고','또한','그러나','때문','그럼','이런','저런','어떤','모든','다음','관련','내용','경우','내용을','이를']);
+const EN_STOP = new Set(['the','a','an','and','or','but','if','of','to','in','on','at','for','with','by','from','as','is','are','was','were','be','been','have','has','had','do','does','did','this','that','these','those','it','its','their','they','them','we','us','our','you','your','he','she','his','her','will','would','should','could','may','might','can','about','into','through','during','before','after','above','below','between','out','off','over','under','again','further','then','once']);
+function simpleKeywordExtract(text) {
+  const tokens = String(text).toLowerCase().split(/[\s,.!?;:()\[\]{}<>"'`\\\/—–\-_=*&^%$#@~+|]+/u).filter(Boolean);
+  const counts = new Map();
+  for (const tok of tokens) {
+    if (tok.length < 2) continue;
+    if (KO_STOP.has(tok) || EN_STOP.has(tok)) continue;
+    if (/^\d+$/.test(tok)) continue;
+    counts.set(tok, (counts.get(tok) || 0) + 1);
+  }
+  return Array.from(counts.entries())
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 8)
+    .map(([w]) => w);
+}
+
 module.exports = {
   embedText,
   embedPinnedFaq,
   indexDocument,
+  extractTags,
   hybridSearch,
   splitIntoChunks,
   cosineSimilarity,

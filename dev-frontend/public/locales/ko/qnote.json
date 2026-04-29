@@ -2,7 +2,7 @@
   "page": {
     "sidebarTitle": "Q note",
     "help": {
-      "body": "회의 시작 시 참여자·자료·언어를 등록하면 STT 가 더 정확합니다. 마이크 모드는 본인만, 웹회의 모드는 채널 분리(나/상대). 질문 카드의 '답변 찾기'는 회의 자료 우선 RAG. 입력창에 직접 질문 입력도 가능 — 메인 언어로 표시 + 서브 언어로 번역.",
+      "body": "회의 시작 시 참여자·자료·언어를 등록하면 STT 가 더 정확합니다.\n\n• 마이크 모드: 본인 음성만 기록\n• 웹회의 모드: 채널 분리 (나 / 상대)\n• 질문 카드의 '답변 찾기' → 회의 자료 우선 RAG\n• 입력창 직접 질문도 가능 (메인 언어 표시 + 서브 언어 번역)",
       "cuePrefill": "Q note 의 회의 시작·녹음 모드·답변 찾기·화자 인식이 어떻게 작동하는지 알려줘"
     },
     "newMeeting": "새 회의",
@@ -163,6 +163,9 @@
     "participantNamePlaceholder": "이름 (예: Sarah, 우리 PM)",
     "participantRolePlaceholder": "역할/메모 (선택, 예: Acme사 CEO)",
     "removeLabel": "제거",
+    "fromWorkspace": "+ 워크스페이스 파일에서",
+    "fromWorkspaceHint": "재업로드 없이 기존 파일을 회의 자료로 연결",
+    "workspaceTag": "기존",
     "meetingLanguageLabel": "회의 언어",
     "meetingLanguagePlaceholder": "회의에서 사용하는 언어",
     "advancedShow": "고급 설정",

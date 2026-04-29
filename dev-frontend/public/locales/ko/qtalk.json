@@ -81,7 +81,7 @@
   "left": {
     "title": "Q talk",
     "help": {
-      "body": "프로젝트 연결·고객 연결·일반 대화를 만들 수 있습니다. 자동 업무 추출 ON 이면 메시지에서 후보가 우측 패널에 모입니다. 번역 표시 ON 이면 메시지마다 두 언어가 함께 보입니다.",
+      "body": "프로젝트·고객·일반 대화를 만들 수 있습니다.\n\n• 자동 업무 추출 ON: 메시지에서 후보가 우측 패널에 모임\n• 번역 표시 ON: 메시지마다 두 언어 동시 표시",
       "cuePrefill": "Q talk 의 채팅 종류, 자동 추출, 번역 표시가 어떻게 작동하는지 알려줘"
     },
     "expand": "리스트 열기",
@@ -140,6 +140,7 @@
     "description": "설명 (선택)",
     "descriptionPlaceholder": "프로젝트 목적·범위·주의사항",
     "color": "프로젝트 색상",
+    "colorPicker": "직접 색상 선택",
     "members": "멤버 & 역할",
     "default": "기본",
     "addMember": "멤버 추가",
@@ -216,6 +217,7 @@
       "extracting": "추출 중...",
       "extractNow": "업무 추출",
       "attach": "파일 첨부",
+      "attachExisting": "기존 파일 (재업로드 X)",
       "placeholder": "메시지를 입력하세요 (Enter 전송 · Shift+Enter 줄바꿈)"
     }
   },

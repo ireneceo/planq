@@ -22,7 +22,9 @@ import {
   refreshSessionVocabulary,
 } from '../../services/qnote';
 import type { QAPair, QNoteDocument } from '../../services/qnote';
-import { apiFetch } from '../../contexts/AuthContext';
+import { apiFetch, useAuth } from '../../contexts/AuthContext';
+import FilePicker, { type FilePickerResult } from '../../components/Common/FilePicker';
+import { fetchWorkspaceFiles } from '../../services/files';
 
 interface Props {
   open: boolean;
@@ -57,6 +59,8 @@ export interface StartConfig {
   answerLanguage: string;
   captureMode: CaptureMode;
   documents: File[];
+  // 사이클 O4 — 워크스페이스에서 link 한 기존 파일 IDs (재업로드 X)
+  workspaceFileIds: number[];
   pastedContext: string;
   urls: string[];
   priorityQAs: PriorityQAItem[];
@@ -112,6 +116,31 @@ const StartMeetingModal = ({ open, userLanguage, editMode, initialConfig, editin
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [captureMode, setCaptureMode] = useState<CaptureMode>('web_conference');
   const [documents, setDocuments] = useState<File[]>([]);
+  // 사이클 O4 — 워크스페이스 파일 link (재업로드 X)
+  const [workspaceFileIds, setWorkspaceFileIds] = useState<number[]>([]);
+  const [workspaceFileMeta, setWorkspaceFileMeta] = useState<Record<number, { name: string; size: number }>>({});
+  const [filePickerOpen, setFilePickerOpen] = useState(false);
+  const { user } = useAuth();
+  const businessId = user?.business_id ? Number(user.business_id) : null;
+  const handleWorkspaceFilePick = async (result: FilePickerResult) => {
+    if (!result.existingFileIds || result.existingFileIds.length === 0 || !businessId) return;
+    setWorkspaceFileIds(prev => [...new Set([...prev, ...result.existingFileIds!])]);
+    try {
+      const all = await fetchWorkspaceFiles(businessId);
+      setWorkspaceFileMeta(prev => {
+        const next = { ...prev };
+        for (const id of result.existingFileIds!) {
+          const f = all.find(x => x.id === `direct-${id}`);
+          if (f) next[id] = { name: f.file_name, size: f.file_size };
+        }
+        return next;
+      });
+    } catch { /* skip */ }
+  };
+  const removeWorkspaceFile = (id: number) => {
+    setWorkspaceFileIds(prev => prev.filter(x => x !== id));
+    setWorkspaceFileMeta(prev => { const next = { ...prev }; delete next[id]; return next; });
+  };
   const [pastedContext, setPastedContext] = useState('');
   const [urls, setUrls] = useState<string[]>([]);
   const [urlInput, setUrlInput] = useState('');
@@ -585,6 +614,7 @@ const StartMeetingModal = ({ open, userLanguage, editMode, initialConfig, editin
       answerLanguage: answerLang || meetingLang,
       captureMode,
       documents,
+      workspaceFileIds: workspaceFileIds,
       pastedContext: pastedContext.trim(),
       urls,
       priorityQAs: finalPriorityQAs,
@@ -1067,6 +1097,30 @@ const StartMeetingModal = ({ open, userLanguage, editMode, initialConfig, editin
               />
             </Dropzone>
 
+            <PickerRow>
+              <WorkspaceFileBtn type="button" onClick={() => setFilePickerOpen(true)}>
+                {t('startModal.fromWorkspace', '+ 워크스페이스 파일에서')}
+              </WorkspaceFileBtn>
+              <PickerHint>{t('startModal.fromWorkspaceHint', '재업로드 없이 기존 파일을 회의 자료로 연결')}</PickerHint>
+            </PickerRow>
+            {workspaceFileIds.length > 0 && (
+              <FileList>
+                {workspaceFileIds.map(id => {
+                  const meta = workspaceFileMeta[id];
+                  return (
+                    <FileRow key={`ws-${id}`}>
+                      <FileIcon><FileTextIcon size={14} /></FileIcon>
+                      <FileName>{meta?.name || `#${id}`}</FileName>
+                      {meta?.size != null && <FileSize>{formatFileSize(meta.size)}</FileSize>}
+                      <WorkspaceTag>{t('startModal.workspaceTag', '기존')}</WorkspaceTag>
+                      <RemoveBtn onClick={() => removeWorkspaceFile(id)} aria-label={t('startModal.removeLabel')}>
+                        <CloseIcon size={14} />
+                      </RemoveBtn>
+                    </FileRow>
+                  );
+                })}
+              </FileList>
+            )}
             {documents.length > 0 && (
               <FileList>
                 {documents.map((file, idx) => (
@@ -1179,6 +1233,18 @@ const StartMeetingModal = ({ open, userLanguage, editMode, initialConfig, editin
           </PrimaryBtn>
         </Footer>
       </ModalBox>
+      {businessId && (
+        <FilePicker
+          open={filePickerOpen}
+          onClose={() => setFilePickerOpen(false)}
+          businessId={businessId}
+          onPick={handleWorkspaceFilePick}
+          title={t('startModal.fromWorkspace', '+ 워크스페이스 파일에서') as string}
+          mode="existing"
+          variant="modal"
+          multiple
+        />
+      )}
     </Backdrop>
   );
 };
@@ -1639,6 +1705,26 @@ const DividerText = styled.span`
   font-weight: 500;
 `;
 
+const PickerRow = styled.div`
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 8px;
+`;
+const WorkspaceFileBtn = styled.button`
+  height: 32px; padding: 0 12px;
+  background: #FFFFFF; color: #0F766E;
+  border: 1px solid #14B8A6; border-radius: 6px;
+  font-size: 12px; font-weight: 600; cursor: pointer;
+  transition: all 0.15s;
+  &:hover { background: #F0FDFA; }
+`;
+const PickerHint = styled.div`
+  font-size: 11px; color: #94A3B8;
+`;
+const WorkspaceTag = styled.span`
+  flex-shrink: 0;
+  padding: 1px 6px; border-radius: 4px;
+  background: #F0FDFA; color: #0F766E;
+  font-size: 10px; font-weight: 600;
+`;
 const FileList = styled.div`
   display: flex;
   flex-direction: column;

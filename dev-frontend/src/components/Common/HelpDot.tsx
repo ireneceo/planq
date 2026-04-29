@@ -4,54 +4,90 @@
 //   - 컨텍스트 우선: 그 화면·그 섹션의 정보만
 //   - Cue 출구: 정적 안내로 안 풀리면 Cue 에게 자연어 질의로 연결 (askCue prop)
 //   - 모바일: tap 으로 popover 토글, outside 탭 닫힘
-import React, { useEffect, useRef, useState } from 'react';
+//   - Portal 렌더 — 부모의 overflow:hidden 에 잘리지 않음 (Q Note 사이드바 등)
+//   - Popover 본문 줄바꿈 (\n) 그대로 표시 (white-space: pre-line)
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 
 export interface HelpDotProps {
-  /** popover 본문. 1~3줄 권장 (string 또는 JSX) */
+  /** popover 본문. \n 으로 줄바꿈 가능 */
   children: React.ReactNode;
-  /** Cue 자연어 질의 prefill 텍스트 — 클릭 시 우측 패널 Cue 챗에 prefill 후 열림 */
+  /** Cue 자연어 질의 prefill 텍스트 */
   askCue?: string;
-  /** 작은 화면(좁은 헤더)에선 위 → 아래 자동 정렬. 고정하려면 'top'|'bottom' */
+  /** 작은 화면 자동 정렬 — 'top'|'bottom' 강제 시 하단 잘림 방지 */
   placement?: 'top' | 'bottom' | 'auto';
-  /** 호출 위치 식별 — 추후 분석 기반 자동 hint, FirstVisitTour 의 pageKey 와 연결 */
+  /** 호출 위치 식별 — 추후 분석/투어 연결 */
   topic?: string;
-  /** topic 과 일치하는 FirstVisitTour 가 있을 때 "투어 다시 보기" 링크 표시 (D4.3) */
+  /** topic 과 일치하는 FirstVisitTour 가 있을 때 "투어 다시 보기" 링크 */
   tourPageKey?: string;
   className?: string;
 }
 
+const POPOVER_WIDTH = 280;
+const POPOVER_GAP = 8;
+const VIEWPORT_PAD = 12;
+
 const HelpDot: React.FC<HelpDotProps> = ({ children, askCue, placement = 'auto', tourPageKey, className }) => {
   const { t } = useTranslation('common');
   const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLSpanElement>(null);
+  const [pos, setPos] = useState<{ top: number; left: number; placeAbove: boolean } | null>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
 
+  // Trigger 위치 기반으로 Popover 좌표 계산 — viewport 안에 자동 정렬
+  useLayoutEffect(() => {
+    if (!open || !triggerRef.current) return;
+    const r = triggerRef.current.getBoundingClientRect();
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    // 좌표: trigger 아래 8px, 좌측 정렬 (-8px offset)
+    let left = r.left - 8;
+    let placeAbove = false;
+    if (placement === 'top') placeAbove = true;
+    else if (placement === 'auto' && r.bottom + 200 > vh) placeAbove = true;
+    // 우측 viewport 넘으면 좌측 이동
+    if (left + POPOVER_WIDTH + VIEWPORT_PAD > vw) {
+      left = vw - POPOVER_WIDTH - VIEWPORT_PAD;
+    }
+    if (left < VIEWPORT_PAD) left = VIEWPORT_PAD;
+    const top = placeAbove ? r.top : r.bottom + POPOVER_GAP;
+    setPos({ top, left, placeAbove });
+  }, [open, placement]);
+
+  // 외부 클릭/Esc 닫기 + 스크롤·리사이즈 시 닫기
   useEffect(() => {
     if (!open) return;
     const onDoc = (e: MouseEvent) => {
-      if (!ref.current) return;
-      if (!ref.current.contains(e.target as Node)) setOpen(false);
+      if (triggerRef.current?.contains(e.target as Node)) return;
+      if (popoverRef.current?.contains(e.target as Node)) return;
+      setOpen(false);
     };
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
+    const onScroll = () => setOpen(false);
     document.addEventListener('mousedown', onDoc);
     document.addEventListener('keydown', onKey);
+    window.addEventListener('scroll', onScroll, true);
+    window.addEventListener('resize', onScroll);
     return () => {
       document.removeEventListener('mousedown', onDoc);
       document.removeEventListener('keydown', onKey);
+      window.removeEventListener('scroll', onScroll, true);
+      window.removeEventListener('resize', onScroll);
     };
   }, [open]);
 
   const handleAskCue = () => {
     if (!askCue) return;
-    // 글로벌 이벤트 — Cue 챗 패널이 listen. 컨텍스트 prefill 후 열림.
     window.dispatchEvent(new CustomEvent('cue:ask', { detail: { prefill: askCue } }));
     setOpen(false);
   };
 
   return (
-    <Anchor ref={ref} className={className}>
+    <Anchor className={className}>
       <Trigger
+        ref={triggerRef}
         type="button"
         onClick={() => setOpen(v => !v)}
         onMouseEnter={() => setOpen(true)}
@@ -64,16 +100,20 @@ const HelpDot: React.FC<HelpDotProps> = ({ children, askCue, placement = 'auto',
           <circle cx="12" cy="16.5" r="0.5" fill="currentColor" />
         </svg>
       </Trigger>
-      {open && (
+      {open && pos && createPortal(
         <Popover
-          $placement={placement}
+          ref={popoverRef}
           role="tooltip"
+          style={{
+            top: pos.placeAbove ? `calc(${pos.top}px - 100% - ${POPOVER_GAP}px)` : `${pos.top}px`,
+            left: `${pos.left}px`,
+          }}
           onMouseLeave={() => setOpen(false)}
         >
           <Body>{children}</Body>
           {askCue && (
             <AskCueLink type="button" onClick={handleAskCue}>
-              <span>{t('helpDot.askCue', 'Cue 에게 자세히 묻기')}</span>
+              <span>{t('helpDot.askQhelper', 'Q helper 에게 자세히 묻기')}</span>
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="9 18 15 12 9 6"/></svg>
             </AskCueLink>
           )}
@@ -85,7 +125,8 @@ const HelpDot: React.FC<HelpDotProps> = ({ children, askCue, placement = 'auto',
               {t('tour.replay', '투어 다시 보기')}
             </ReplayTourLink>
           )}
-        </Popover>
+        </Popover>,
+        document.body
       )}
     </Anchor>
   );
@@ -93,11 +134,15 @@ const HelpDot: React.FC<HelpDotProps> = ({ children, askCue, placement = 'auto',
 
 export default HelpDot;
 
+// 제목 글자 바로 옆에 붙도록 — 작은 간격 + 정확한 vertical 정렬
 const Anchor = styled.span`
   position: relative;
   display: inline-flex;
   align-items: center;
-  margin-left: 6px;
+  vertical-align: middle;
+  margin-left: 4px;
+  flex-shrink: 0;
+  line-height: 1;
 `;
 const Trigger = styled.button`
   width: 18px; height: 18px;
@@ -107,30 +152,31 @@ const Trigger = styled.button`
   color: #94A3B8;
   cursor: pointer;
   padding: 0;
+  line-height: 1;
   transition: color 0.15s, background 0.15s;
   &:hover { color: #14B8A6; background: #F0FDFA; }
   &:focus-visible { outline: 2px solid rgba(20,184,166,0.3); outline-offset: 2px; }
+  svg { display: block; width: 14px; height: 14px; }
 `;
-const Popover = styled.div<{ $placement: 'top' | 'bottom' | 'auto' }>`
-  position: absolute;
-  ${p => p.$placement === 'top' ? 'bottom: calc(100% + 8px);' : 'top: calc(100% + 8px);'}
-  left: -8px;
-  width: 240px;
+const Popover = styled.div`
+  position: fixed;
+  width: 280px;
   background: #FFFFFF;
   border: 1px solid #E2E8F0;
   border-radius: 10px;
-  padding: 12px 14px;
-  box-shadow: 0 4px 12px rgba(15,23,42,0.08);
-  z-index: 200;
-  font-size: 12px;
+  padding: 14px 16px;
+  box-shadow: 0 4px 16px rgba(15,23,42,0.10);
+  z-index: 9999;
+  font-size: 12.5px;
   color: #334155;
-  line-height: 1.55;
+  line-height: 1.65;
   text-align: left;
-  white-space: normal;
   cursor: default;
 `;
 const Body = styled.div`
   margin: 0;
+  white-space: pre-line;
+  word-break: keep-all;
 `;
 const AskCueLink = styled.button`
   display: inline-flex; align-items: center; gap: 4px;

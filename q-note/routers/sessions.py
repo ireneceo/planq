@@ -754,6 +754,98 @@ async def _sync_to_drive(*, business_id, session_id, session_title, session_date
     print(f'[qnote→drive sync] failed: {e}')
 
 
+# 사이클 O4 — 워크스페이스 파일을 Q Note 자료로 link (재업로드 X, 같은 서버 path 직접 read)
+class LinkWorkspaceFileBody(BaseModel):
+  workspace_file_id: int = Field(..., gt=0)
+
+
+@router.post('/{session_id}/documents/link-workspace-file')
+async def link_workspace_file_to_session(
+  session_id: int,
+  body: LinkWorkspaceFileBody,
+  user: dict = Depends(get_current_user)
+):
+  import httpx
+  node_url = os.environ.get('PLANQ_NODE_BASE_URL', 'http://localhost:3003')
+  api_key = os.environ.get('INTERNAL_API_KEY')
+  if not api_key:
+    raise HTTPException(status_code=500, detail='internal_api_key_not_configured')
+
+  async with db_connect() as db:
+    db.row_factory = aiosqlite.Row
+    session = await _load_session_or_403(db, session_id, user['user_id'])
+    business_id = session['business_id']
+
+  # Node 의 internal endpoint 로 file 메타 + path 가져오기
+  try:
+    async with httpx.AsyncClient(timeout=30.0) as client:
+      r = await client.get(
+        f'{node_url}/api/files/internal/{body.workspace_file_id}',
+        headers={'x-internal-api-key': api_key},
+        params={'business_id': business_id},
+      )
+      if r.status_code == 404:
+        raise HTTPException(status_code=404, detail='workspace_file_not_found')
+      if r.status_code >= 400:
+        raise HTTPException(status_code=502, detail=f'node_api_error_{r.status_code}')
+      file_meta = r.json().get('data') or {}
+  except httpx.RequestError as e:
+    raise HTTPException(status_code=502, detail=f'node_api_unreachable: {e}')
+
+  source_path = file_meta.get('absolute_path')
+  original_name = file_meta.get('file_name', f'workspace-file-{body.workspace_file_id}')
+  mime_type = file_meta.get('mime_type') or 'application/octet-stream'
+  if not source_path or not os.path.exists(source_path):
+    raise HTTPException(status_code=404, detail='workspace_file_path_unavailable')
+
+  ext = original_name.rsplit('.', 1)[-1].lower() if '.' in original_name else 'bin'
+  if ext not in ALLOWED_EXTENSIONS:
+    raise HTTPException(status_code=400, detail='disallowed_extension_for_qnote')
+
+  # 같은 서버이므로 hardlink 시도 (저장공간 절약), 실패 시 copy
+  session_dir = os.path.join(UPLOADS_ROOT, str(business_id), str(session_id))
+  os.makedirs(session_dir, exist_ok=True)
+  stored_filename = f'{uuid.uuid4().hex}.{ext}'
+  stored_path = os.path.join(session_dir, stored_filename)
+  try:
+    os.link(source_path, stored_path)
+  except OSError:
+    # cross-device 또는 권한 문제 → 복사
+    import shutil
+    shutil.copy2(source_path, stored_path)
+
+  file_size = os.path.getsize(stored_path)
+
+  async with db_connect() as db:
+    cursor = await db.execute(
+      '''INSERT INTO documents
+           (business_id, user_id, session_id, filename, original_filename,
+            file_size, mime_type, status, source_type, title)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', 'workspace_file', ?)''',
+      (
+        business_id, user['user_id'], session_id,
+        stored_filename, original_name,
+        file_size, mime_type,
+        original_name,
+      )
+    )
+    await db.commit()
+    doc_id = cursor.lastrowid
+
+    cursor = await db.execute(
+      '''SELECT id, filename, original_filename, file_size, mime_type, status,
+                source_type, source_url, title, error_message, chunk_count, indexed_at, created_at
+         FROM documents WHERE id = ?''',
+      (doc_id,)
+    )
+    doc_dict = dict(await cursor.fetchone())
+
+  task = asyncio.create_task(ingest_document(doc_id))
+  task.add_done_callback(log_task_exception)
+
+  return success(doc_dict)
+
+
 @router.delete('/{session_id}/documents/{document_id}')
 async def delete_document(
   session_id: int,

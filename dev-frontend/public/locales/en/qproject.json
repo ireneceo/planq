@@ -40,7 +40,13 @@
     "close": "Close project",
     "closeConfirmTitle": "Close this project?",
     "closeConfirmBody": "\"{{name}}\" will be closed. Data is preserved and can be re-shown via the filter.",
-    "closeAction": "Close"
+    "closeAction": "Close",
+    "members": "Members",
+    "clients": "Clients",
+    "clientsCount": "",
+    "tasksUnit": "",
+    "lastActivity": "Last activity",
+    "pmLabel": "Project manager"
   },
   "common": {
     "cancel": "Cancel"

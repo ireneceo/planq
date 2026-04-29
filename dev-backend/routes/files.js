@@ -625,4 +625,33 @@ router.post('/:businessId/bulk-download', authenticateToken, checkBusinessAccess
   } catch (err) { next(err); }
 });
 
+// ─── 내부 API (Python Q Note ↔ Node) — 사이클 O4 ───
+// Q Note 의 link-workspace-file 흐름에서 파일 메타·절대경로 조회.
+// 인증: INTERNAL_API_KEY 헤더만 (사용자 토큰 없음).
+router.get('/internal/:fileId', async (req, res, next) => {
+  try {
+    const key = req.header('x-internal-api-key');
+    if (!process.env.INTERNAL_API_KEY || key !== process.env.INTERNAL_API_KEY) {
+      return errorResponse(res, 'forbidden', 403);
+    }
+    const fileId = parseInt(req.params.fileId, 10);
+    const businessId = req.query.business_id ? parseInt(req.query.business_id, 10) : null;
+    if (!fileId || !businessId) return errorResponse(res, 'invalid_params', 400);
+
+    const file = await File.findOne({ where: { id: fileId, business_id: businessId } });
+    if (!file) return errorResponse(res, 'file_not_found', 404);
+
+    // file_path 가 상대 경로면 uploadDir 기준 절대 경로로 정규화
+    let absPath = file.file_path;
+    if (absPath && !path.isAbsolute(absPath)) {
+      absPath = path.join(__dirname, '..', absPath);
+    }
+    return successResponse(res, {
+      id: file.id, file_name: file.file_name, file_size: Number(file.file_size),
+      mime_type: file.mime_type, storage_provider: file.storage_provider,
+      absolute_path: absPath,
+    });
+  } catch (err) { next(err); }
+});
+
 module.exports = router;

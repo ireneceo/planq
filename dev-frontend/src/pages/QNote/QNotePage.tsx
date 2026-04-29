@@ -14,6 +14,7 @@ import {
   createSession,
   updateSession,
   uploadDocument,
+  linkWorkspaceFileToSession,
   addUrl,
   reassignUtteranceSpeaker,
   getCachedAnswer,
@@ -637,6 +638,7 @@ const QNotePage = () => {
           answerLanguage: detail.answer_language || '',
           pastedContext: detail.pasted_context || '',
           documents: [],
+          workspaceFileIds: [],
           urls: [],
           captureMode: detail.capture_mode || 'microphone',
           priorityQAs: [],
@@ -806,6 +808,7 @@ const QNotePage = () => {
         answerLanguage: activeSession.answer_language || '',
         pastedContext: activeSession.pasted_context || '',
         documents: [],
+        workspaceFileIds: [],
         urls: [],
         captureMode: activeSession.capture_mode || 'microphone',
         priorityQAs: [],
@@ -972,6 +975,11 @@ const QNotePage = () => {
         try { await uploadDocument(activeSession.id, file); }
         catch (err) { console.error(`Upload failed: ${file.name}`, err); }
       }
+      // 사이클 O4 — 워크스페이스 파일 link (재업로드 X)
+      for (const fileId of cfg.workspaceFileIds || []) {
+        try { await linkWorkspaceFileToSession(activeSession.id, fileId); }
+        catch (err) { console.error(`Link workspace file failed: #${fileId}`, err); }
+      }
       for (const url of cfg.urls) {
         try { await addUrl(activeSession.id, url); }
         catch (err) { console.error(`URL add failed: ${url}`, err); }
@@ -1047,6 +1055,11 @@ const QNotePage = () => {
       for (const file of cfg.documents) {
         try { await uploadDocument(created.id, file); }
         catch (err) { console.error(`Upload failed: ${file.name}`, err); }
+      }
+      // 사이클 O4 — 워크스페이스 파일 link
+      for (const fileId of cfg.workspaceFileIds || []) {
+        try { await linkWorkspaceFileToSession(created.id, fileId); }
+        catch (err) { console.error(`Link workspace file failed: #${fileId}`, err); }
       }
       for (const url of cfg.urls) {
         try { await addUrl(created.id, url); }
@@ -1791,16 +1804,18 @@ const QNotePage = () => {
     <Layout $collapsed={sidebarCollapsed}>
       <Sidebar $collapsed={sidebarCollapsed}>
         <SidebarHeader>
-          <SidebarTitle>Q note</SidebarTitle>
-          <HelpDot askCue={t('page.help.cuePrefill','Q note 의 회의 시작·녹음 모드·답변 찾기·화자 인식이 어떻게 작동하는지 알려줘') as string} topic="qnote">
-            {t('page.help.body','회의 시작 시 참여자·자료·언어를 등록하면 STT 가 더 정확합니다. 마이크 모드는 본인만, 웹회의 모드는 채널 분리(나/상대). 질문 카드에서 "답변 찾기" → 회의 자료 우선 RAG. 입력창에 직접 질문 입력도 가능.')}
-          </HelpDot>
+          <TitleGroup>
+            <SidebarTitle>Q note</SidebarTitle>
+            <HelpDot askCue={t('page.help.cuePrefill','Q note 의 회의 시작·녹음 모드·답변 찾기·화자 인식이 어떻게 작동하는지 알려줘') as string} topic="qnote">
+              {t('page.help.body')}
+            </HelpDot>
+          </TitleGroup>
           <NewSessionBtn
             onClick={() => setShowStartModal(true)}
             title={t('page.newMeeting')}
             aria-label={t('page.newMeeting')}
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
               <line x1="12" y1="5" x2="12" y2="19" />
               <line x1="5" y1="12" x2="19" y2="12" />
             </svg>
@@ -2526,6 +2541,13 @@ const SidebarHeader = styled.div`
   border-bottom: 1px solid #F1F5F9;
 `;
 
+const TitleGroup = styled.div`
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+`;
+
 const SidebarTitle = styled.h1`
   font-size: 18px;
   font-weight: 700;
@@ -2535,19 +2557,21 @@ const SidebarTitle = styled.h1`
 `;
 
 const NewSessionBtn = styled.button`
-  width: 28px;
-  height: 28px;
-  display: flex;
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: transparent;
+  background: #14B8A6;
   border: none;
-  border-radius: 6px;
-  color: #64748B;
+  border-radius: 8px;
+  color: #FFFFFF;
   cursor: pointer;
-  transition: all 0.1s;
+  transition: background 0.15s;
   padding: 0;
-  &:hover { background: #F1F5F9; color: #0F172A; }
+  &:hover { background: #0D9488; }
+  &:focus-visible { outline: 2px solid #0D9488; outline-offset: 2px; }
+  /* legacy 잔여 hover 정리 — 색상 우선 */
 `;
 
 const SearchWrap = styled.div`

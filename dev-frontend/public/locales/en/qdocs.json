@@ -7,7 +7,7 @@
     "searchPlaceholder": "Search by title, client, project"
   },
   "help": {
-    "body": "Start from 5 templates (Quote/Invoice/NDA/Proposal/Meeting notes) or use AI auto-write. After writing, send a signature request — clients sign with OTP verification. Link a post (quote/contract) to invoices for installment billing.",
+    "body": "Start from 5 templates (Quote/Invoice/NDA/Proposal/Meeting notes) or use AI auto-write.\n\n• Signing: send a signature request → clients sign with OTP\n• Installment billing: link a post (quote/contract) to invoices for milestone billing",
     "cuePrefill": "Tell me how Q docs templates, AI writing, signature requests, and installment billing work"
   },
   "tabs": {
@@ -138,7 +138,10 @@
   },
   "actions": {
     "print": "PDF / Print (choose 'Save as PDF' as destination to download)",
-    "saveAsTemplate": "Save as template"
+    "saveAsTemplate": "Save as template",
+    "sendToKnowledge": "Send to Q knowledge — Cue will reference it",
+    "sendToKnowledgeOk": "Added to Q knowledge — Cue will use it after indexing",
+    "sendToKnowledgeErr": "Add failed: {{msg}}"
   },
   "project": {
     "docs": {
@@ -485,5 +488,13 @@
     "filterBy": "Filter by this category",
     "addCategory": "Add category",
     "newCategoryPlaceholder": "Name (Enter)"
+  },
+  "revision": {
+    "title": "Change history",
+    "loading": "Loading history…",
+    "empty": "No change history yet. Edits to slots/body are auto-recorded.",
+    "fieldsCount": "{{n}} fields",
+    "noChanges": "No changes",
+    "bodyEdited": "Body edited"
   }
 }

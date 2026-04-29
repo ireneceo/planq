@@ -3,6 +3,9 @@ node_modules/
 *.log
 uploads/
 dev-frontend-build/
+prod-frontend-build/
+prod-backend/
+prod-qnote/
 q-note/venv/
 q-note/data/
 q-note/qnote.db

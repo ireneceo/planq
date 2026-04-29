@@ -81,7 +81,7 @@
   "left": {
     "title": "Q talk",
     "help": {
-      "body": "Create chats linked to projects, clients, or standalone. With Auto-extract ON, task candidates from messages collect in the right panel. With Translation ON, every message shows both languages.",
+      "body": "Create chats linked to projects, clients, or standalone.\n\n• Auto-extract ON: task candidates from messages collect in the right panel\n• Translation ON: every message shows both languages",
       "cuePrefill": "Tell me how chat types, auto-extract, and translation work in Q talk"
     },
     "expand": "Open list",
@@ -171,6 +171,7 @@
     "description": "Description (optional)",
     "descriptionPlaceholder": "Purpose, scope, notes",
     "color": "Project color",
+    "colorPicker": "Pick custom color",
     "members": "Members & roles",
     "default": "Default",
     "addMember": "Add member",
@@ -247,6 +248,7 @@
       "extracting": "Extracting...",
       "extractNow": "Extract tasks",
       "attach": "Attach file",
+      "attachExisting": "Existing file (no re-upload)",
       "placeholder": "Type a message (Enter to send · Shift+Enter for newline)"
     }
   },

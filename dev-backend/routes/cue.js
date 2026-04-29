@@ -8,19 +8,47 @@ const { successResponse, errorResponse } = require('../middleware/errorHandler')
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
 
-const SYSTEM_PROMPT_KO = `너는 Cue, PlanQ의 AI 팀원이야. PlanQ는 B2B SaaS — 고객 채팅(Q talk) + 업무 실행(Q task) + 회의 노트(Q note) + 문서·서명(Q docs) + 청구·세금계산서(Q bill) 통합 워크스페이스.
+// 사이클 P7 — Q helper / Cue 모드 분리 (데이터 격리).
+//   mode='qhelper' : PlanQ 매뉴얼 전담. 워크스페이스 컨텍스트 X.
+//   mode='workspace' : 현재 활성 워크스페이스 컨텍스트 주입 (Cue 페르소나).
+const SYSTEM_PROMPT_QHELPER = `너는 Q helper. PlanQ 제품 사용 안내 전담 도우미야.
+PlanQ 는 B2B SaaS — Q talk (대화) · Q task (할일) · Q note (음성·요약) · Q docs (문서·서명) · Q bill (청구) · Q knowledge (지식) 통합 워크스페이스.
+
+답변 형식 (반드시):
+- 짧은 문단 + 빈 줄 한 칸으로 분리 (\\n\\n)
+- 한 문단 최대 2문장
+- 단계·옵션 나열 시 "• " bullet
+- 전체 4문단 이내
 
 원칙:
-- 사용자가 보고 있는 페이지의 작동 원리·기능·옵션을 설명한다
-- 답변은 4문장 이내, 핵심부터
-- "Cue 가 답해드릴게요" 같은 군더더기 X
-- 사용자 질문이 영어면 영어로, 한국어면 한국어로
-- 모르는 것은 솔직히 "현재 모릅니다, 운영팀에 문의해주세요" 라고 답변
-- 코드 / API 엔드포인트는 노출 X — 사용자 관점의 설명만`;
+- 사용자가 보고 있는 페이지의 작동 원리·기능·옵션 설명
+- "도와드릴게요" 군더더기 X — 본론부터
+- 영어 질문은 영어로, 한국어는 한국어로
+- 모르면 솔직히 "현재 모릅니다 — 우측 상단 '피드백 보내기'로 알려주시면 검토합니다"
+- 코드/API 노출 X
+- 본인을 "Cue" 라 부르지 말 것. Cue 는 사용자의 워크스페이스 AI 팀원이고, 너 (Q helper) 와는 별개 페르소나.
+- 워크스페이스 데이터 (고객/업무/회의 등) 질문이 오면: "그 질문은 'Cue' 모드로 전환해서 물어보세요. 저는 PlanQ 사용법 전담입니다."`;
+
+const SYSTEM_PROMPT_WORKSPACE = `너는 Cue, 사용자의 워크스페이스 AI 팀원이야.
+이 워크스페이스의 고객·업무·일정·회의 등 사용자 비즈니스 데이터를 기반으로 답변해.
+다른 워크스페이스 데이터는 절대 모름 — 오직 [컨텍스트] 에 있는 현재 워크스페이스 정보만 사용.
+
+답변 형식 (반드시):
+- 짧은 문단 + 빈 줄 한 칸 (\\n\\n)
+- 한 문단 최대 2문장
+- 단계·옵션 나열 시 "• " bullet
+- 전체 4문단 이내
+
+원칙:
+- 컨텍스트에 있는 사실만 인용 (없는 정보 만들지 X)
+- "지금 ○○ 프로젝트 / □□ 고객" 처럼 구체적으로
+- 영어/한국어 질문 언어에 맞춰 답변
+- PlanQ 사용법 질문이 오면: "그 질문은 'Q helper' 모드로 전환해서 물어보세요. 저는 이 워크스페이스의 데이터를 다룹니다."
+- 모르면 솔직히 "이 워크스페이스 데이터에서는 찾지 못했습니다"`;
 
 router.post('/help', authenticateToken, async (req, res, next) => {
   try {
-    const { question, page_context } = req.body || {};
+    const { question, page_context, mode } = req.body || {};
     if (!question || typeof question !== 'string' || !question.trim()) {
       return errorResponse(res, 'question_required', 400);
     }
@@ -33,47 +61,51 @@ router.post('/help', authenticateToken, async (req, res, next) => {
       });
     }
 
-    // 페이지 컨텍스트 + 사용자 활성 워크스페이스 종합
+    // 사이클 P7 — 모드 분리 (qhelper / workspace)
+    const finalMode = mode === 'workspace' ? 'workspace' : 'qhelper';
+    const systemPrompt = finalMode === 'workspace' ? SYSTEM_PROMPT_WORKSPACE : SYSTEM_PROMPT_QHELPER;
+
+    // 페이지 컨텍스트는 두 모드 모두 공유 (현재 보고 있는 화면)
     let ctxBlock = '';
     if (page_context && typeof page_context === 'object') {
       ctxBlock += `현재 페이지: ${page_context.path || '?'}${page_context.section ? ` · 섹션: ${page_context.section}` : ''}`;
     }
 
-    // 사이클 G+: 사용자 활성 워크스페이스의 데이터 컨텍스트도 같이 주입
-    try {
-      // active_business_id 가 token 에 없으므로 BusinessMember 에서 첫 워크스페이스 fallback
-      let businessId = req.user.active_business_id;
-      if (!businessId) {
-        const { BusinessMember } = require('../models');
-        const bm = await BusinessMember.findOne({
-          where: { user_id: req.user.id, removed_at: null },
-          order: [['id', 'ASC']],
-          attributes: ['business_id'],
-        });
-        businessId = bm?.business_id || null;
+    // workspace 모드만 워크스페이스 데이터 컨텍스트 주입 (격리)
+    if (finalMode === 'workspace') {
+      try {
+        let businessId = req.user.active_business_id;
+        if (!businessId) {
+          const { BusinessMember } = require('../models');
+          const bm = await BusinessMember.findOne({
+            where: { user_id: req.user.id, removed_at: null },
+            order: [['id', 'ASC']],
+            attributes: ['business_id'],
+          });
+          businessId = bm?.business_id || null;
+        }
+        if (businessId) {
+          const { buildCueContext } = require('../services/cue_context');
+          const path = page_context?.path || '';
+          const projMatch = path.match(/\/projects\/p\/(\d+)/) || path.match(/\?project=(\d+)/);
+          const clientMatch = path.match(/\?client=(\d+)/);
+          const ctx = await buildCueContext({
+            businessId,
+            conversationId: null,
+            projectId: projMatch ? Number(projMatch[1]) : null,
+            clientId: clientMatch ? Number(clientMatch[1]) : null,
+            userId: req.user.id,
+            query: q,
+          });
+          if (ctx.markdown) ctxBlock += `\n\n# 워크스페이스 현황\n${ctx.markdown}`;
+        }
+      } catch (e) {
+        console.warn('[cue/help workspace] context build failed:', e.message);
       }
-      if (businessId) {
-        const { buildCueContext } = require('../services/cue_context');
-        // page_context.path 에서 project/client ID 추출 (/projects/p/X, /clients/Y 등)
-        const path = page_context?.path || '';
-        const projMatch = path.match(/\/projects\/p\/(\d+)/) || path.match(/\?project=(\d+)/);
-        const clientMatch = path.match(/\?client=(\d+)/);
-        const ctx = await buildCueContext({
-          businessId,
-          conversationId: null,  // 도움말 챗은 conversation 무관
-          projectId: projMatch ? Number(projMatch[1]) : null,
-          clientId: clientMatch ? Number(clientMatch[1]) : null,
-          userId: req.user.id,  // 본인 스냅샷 (이번 주 task / 일정 / 인박스)
-          query: q,
-        });
-        if (ctx.markdown) ctxBlock += `\n\n# 워크스페이스 현황\n${ctx.markdown}`;
-      }
-    } catch (e) {
-      console.warn('[cue/help] context build failed:', e.message);
     }
 
     const messages = [
-      { role: 'system', content: SYSTEM_PROMPT_KO + (ctxBlock ? `\n\n[컨텍스트]\n${ctxBlock}` : '') },
+      { role: 'system', content: systemPrompt + (ctxBlock ? `\n\n[컨텍스트]\n${ctxBlock}` : '') },
       { role: 'user', content: q },
     ];
 
@@ -97,7 +129,7 @@ router.post('/help', authenticateToken, async (req, res, next) => {
     }
     const j = await r.json();
     const answer = (j.choices?.[0]?.message?.content || '').trim();
-    return successResponse(res, { answer });
+    return successResponse(res, { answer, mode: finalMode });
   } catch (e) { next(e); }
 });
 

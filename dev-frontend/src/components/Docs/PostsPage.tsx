@@ -39,7 +39,7 @@ import PostSignatureModal from './PostSignatureModal';
 import SignatureProgressSection from './SignatureProgressSection';
 import PlanQSelect, { type PlanQSelectOption } from '../Common/PlanQSelect';
 import { listProjects, type ApiProject } from '../../services/qtalk';
-import { useAuth } from '../../contexts/AuthContext';
+import { useAuth, apiFetch } from '../../contexts/AuthContext';
 
 // 좌측 필터: 전체(기본) / 프로젝트 그룹 / 카테고리
 // '내 문서'·'기본' 섹션은 제거. 상단 통합검색이 프로젝트명·제목·본문·카테고리를 모두 커버.
@@ -118,6 +118,9 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
   const [shareOpen, setShareOpen] = useState(false);
   const [aiOpen, setAiOpen] = useState(false);
   const [signOpen, setSignOpen] = useState(false);
+  // 사이클 O3 — Q knowledge 로 보내기 (post → KbDocument import)
+  const [knowledgeBusy, setKnowledgeBusy] = useState(false);
+  const [knowledgeMsg, setKnowledgeMsg] = useState<string | null>(null);
   const [signReloadKey, setSignReloadKey] = useState(0);
   const [projectDraft, setProjectDraft] = useState<number | null>(null);
   const [projects, setProjects] = useState<ApiProject[]>([]);
@@ -329,6 +332,39 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
     setCategoryDraft(detail.category || '');
     setProjectDraft(detail.project_id);
     setError(null);
+  };
+
+  // 사이클 O3 — 포스트를 Q knowledge 로 보내기 (인덱싱 후 Cue 답변에 활용)
+  const sendToKnowledge = async (post: PostDetail) => {
+    if (!businessId || knowledgeBusy) return;
+    setKnowledgeBusy(true);
+    setKnowledgeMsg(null);
+    try {
+      // 프로젝트 연결된 포스트면 project scope, 아니면 workspace
+      const scope = post.project_id ? 'project' : 'workspace';
+      const r = await apiFetch(`/api/businesses/${businessId}/kb/documents/import-from-post`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          post_id: post.id,
+          category: 'manual',
+          scope,
+          project_id: post.project_id || undefined,
+        }),
+      });
+      const j = await r.json();
+      if (j.success) {
+        setKnowledgeMsg(t('actions.sendToKnowledgeOk', 'Q knowledge 에 추가됐습니다 — 인덱싱 후 Cue 답변에 활용됩니다') as string);
+      } else {
+        setKnowledgeMsg(t('actions.sendToKnowledgeErr', '추가 실패: {{msg}}', { msg: j.message || 'error' }) as string);
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'error';
+      setKnowledgeMsg(t('actions.sendToKnowledgeErr', '추가 실패: {{msg}}', { msg }) as string);
+    } finally {
+      setKnowledgeBusy(false);
+      setTimeout(() => setKnowledgeMsg(null), 4000);
+    }
   };
 
   const cancelEdit = () => {
@@ -729,6 +765,9 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
                 <IconBtn type="button" onClick={() => window.print()} title={t('actions.print', 'PDF / 인쇄 (저장하려면 ‘대상: PDF로 저장’ 선택)') as string} aria-label={t('actions.print', 'PDF / 인쇄') as string}>
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
                 </IconBtn>
+                <IconBtn type="button" onClick={() => sendToKnowledge(detail)} title={t('actions.sendToKnowledge', 'Q knowledge 로 보내기 — Cue 가 답변 시 참조') as string} aria-label={t('actions.sendToKnowledge', 'Q knowledge 로 보내기') as string} disabled={knowledgeBusy}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 6.253v13"/><path d="M12 6.253C10.832 5.477 9.246 5 7.5 5 5.754 5 4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253"/><path d="M12 6.253C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18s-3.332.477-4.5 1.253"/></svg>
+                </IconBtn>
                 <IconBtn type="button" onClick={() => { setSaveTplName(detail.title); setSaveTplDesc(''); setSaveTplError(null); setSaveTplOpen(true); }} title={t('actions.saveAsTemplate', '템플릿으로 저장') as string} aria-label={t('actions.saveAsTemplate', '템플릿으로 저장') as string}>
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
                 </IconBtn>
@@ -966,6 +1005,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
           onConfirm={handleSlotConfirm}
         />
       )}
+      {knowledgeMsg && <KnowledgeToast>{knowledgeMsg}</KnowledgeToast>}
     </Layout>
   );
 };
@@ -1295,4 +1335,14 @@ const DangerBtn = styled.button`
   height: 32px; padding: 0 14px; background: #fff; color: #DC2626;
   border: 1px solid #FCA5A5; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer;
   &:hover:not(:disabled) { background: #FEF2F2; border-color: #DC2626; }
+`;
+const KnowledgeToast = styled.div`
+  position: fixed; bottom: 24px; right: 24px;
+  padding: 10px 16px;
+  background: #0F172A; color: #FFFFFF;
+  border-radius: 8px; font-size: 13px; font-weight: 500;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  z-index: 60;
+  animation: fadeInUp 0.2s ease-out;
+  @keyframes fadeInUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 `;

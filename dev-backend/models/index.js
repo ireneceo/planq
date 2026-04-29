@@ -27,6 +27,7 @@ const TaskReviewer = require('./TaskReviewer');
 const TaskUserHours = require('./TaskUserHours');
 const TaskEstimation = require('./TaskEstimation');
 const PushSubscription = require('./PushSubscription');
+const FeedbackItem = require('./FeedbackItem');
 const TaskStatusHistory = require('./TaskStatusHistory');
 const TaskAttachment = require('./TaskAttachment');
 const ProjectStatusOption = require('./ProjectStatusOption');
@@ -296,6 +297,10 @@ TaskAttachment.belongsTo(User, { as: 'uploader', foreignKey: 'uploaded_by' });
 Task.hasMany(TaskAttachment, { as: 'attachments', foreignKey: 'task_id' });
 TaskComment.hasMany(TaskAttachment, { as: 'attachments', foreignKey: 'comment_id' });
 
+// FeedbackItem (P6 — 사용자 → 운영팀 피드백)
+FeedbackItem.belongsTo(User, { as: 'user', foreignKey: 'user_id' });
+FeedbackItem.belongsTo(User, { as: 'responder', foreignKey: 'responded_by' });
+
 module.exports = {
   User,
   Business,
@@ -363,6 +368,8 @@ module.exports = {
   DocumentRevision,
   DocumentShare,
   SignatureRequest,
+  // P6 — 사용자 피드백
+  FeedbackItem,
 };
 
 // Q docs associations

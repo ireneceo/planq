@@ -32,7 +32,13 @@ MessageAttachment.init({
   },
   storage_provider: { type: DataTypes.ENUM('planq', 'gdrive'), allowNull: false, defaultValue: 'planq' },
   external_id: { type: DataTypes.STRING(255), allowNull: true },
-  external_url: { type: DataTypes.STRING(500), allowNull: true }
+  external_url: { type: DataTypes.STRING(500), allowNull: true },
+  // 사이클 O4 — 워크스페이스 파일에서 link 한 경우의 원본 file_id (dedup, "기존 파일 첨부" 흐름)
+  file_id: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    references: { model: 'files', key: 'id' },
+  }
 }, {
   sequelize,
   tableName: 'message_attachments',

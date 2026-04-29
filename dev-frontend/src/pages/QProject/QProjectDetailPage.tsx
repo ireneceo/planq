@@ -111,7 +111,8 @@ const QProjectDetailPage: React.FC = () => {
             apiFetch(`/api/businesses/${pr.data.business_id}/members`).then(r => r.json()).catch(() => null),
             apiFetch(`/api/clients/${pr.data.business_id}`).then(r => r.json()).catch(() => null),
           ]);
-          if (mr?.success) setBizMembers((mr.data || []).filter((m: BizMember) => !m.user?.is_ai));
+          // 사이클 P8 — Cue (is_ai=true) 도 팀원으로 노출. 업무 자동 실행 가능.
+          if (mr?.success) setBizMembers(mr.data || []);
           if (cr?.success) setBizClients(cr.data || []);
         }
       }
@@ -902,7 +903,7 @@ const EditTextarea = styled.textarea`padding:8px 10px;border:1px solid #E2E8F0;b
 const TypeBtn2 = styled.button<{$active?:boolean}>`flex:1;padding:8px 12px;border:1px solid ${p=>p.$active?'#14B8A6':'#E2E8F0'};background:${p=>p.$active?'#F0FDFA':'#FFF'};color:${p=>p.$active?'#0F766E':'#334155'};border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;&:hover{border-color:#14B8A6;}`;
 const EditDateRangeTrigger = styled.button`width:100%;height:34px;padding:0 10px;border:1px solid #E2E8F0;border-radius:6px;font-size:13px;color:#0F172A;background:#FFF;font-family:inherit;text-align:left;cursor:pointer;&:hover{border-color:#14B8A6;}`;
 const DatePH = styled.span`color:#94A3B8;`;
-const ColorRow = styled.div`display:flex;flex-wrap:nowrap;gap:8px;align-items:center;justify-content:space-between;padding:2px 0;width:100%;`;
+const ColorRow = styled.div`display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:flex-start;padding:2px 0;width:100%;`;
 const ColorSwatch = styled.button<{$active?:boolean}>`width:28px;height:28px;border-radius:50%;border:2px solid ${p=>p.$active?'#0F172A':'#E2E8F0'};cursor:pointer;padding:0;transition:transform 0.15s;&:hover{transform:scale(1.1);}`;
 const HexRow = styled.div`display:flex;align-items:center;gap:8px;margin-top:8px;`;
 const HexPreview = styled.div`width:28px;height:28px;border-radius:8px;border:1px solid #E2E8F0;flex-shrink:0;`;

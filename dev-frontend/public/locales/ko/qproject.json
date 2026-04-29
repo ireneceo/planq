@@ -40,7 +40,13 @@
     "close": "프로젝트 종료",
     "closeConfirmTitle": "프로젝트를 종료할까요?",
     "closeConfirmBody": "\"{{name}}\" 프로젝트를 종료합니다. 데이터는 보존되며 필터로 다시 볼 수 있습니다.",
-    "closeAction": "종료"
+    "closeAction": "종료",
+    "members": "멤버",
+    "clients": "고객",
+    "clientsCount": "명",
+    "tasksUnit": "건",
+    "lastActivity": "최근 활동",
+    "pmLabel": "프로젝트 매니저"
   },
   "common": {
     "cancel": "취소"

@@ -23,6 +23,7 @@ import PublicSignPage from './pages/QDocs/PublicSignPage';
 import PublicInvoicePage from './pages/QBill/PublicInvoicePage';
 import QFilePage from './pages/QFile/QFilePage';
 import AdminBusinessesPage from './pages/Admin/AdminBusinessesPage';
+import AdminFeedbackPage from './pages/Admin/AdminFeedbackPage';
 import PrivacyPolicy from './pages/Legal/PrivacyPolicy';
 import TermsOfService from './pages/Legal/TermsOfService';
 import ComingSoonPage from './pages/ComingSoon/ComingSoonPage';
@@ -242,6 +243,11 @@ function App() {
         <Route path="/admin/businesses" element={
           <ProtectedRoute requiredRole={['platform_admin']}>
             <MainLayout><AdminBusinessesPage /></MainLayout>
+          </ProtectedRoute>
+        } />
+        <Route path="/admin/feedback" element={
+          <ProtectedRoute requiredRole={['platform_admin']}>
+            <MainLayout><AdminFeedbackPage /></MainLayout>
           </ProtectedRoute>
         } />
         <Route path="/admin/*" element={
