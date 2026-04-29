@@ -14,20 +14,32 @@ export interface EmptyStateProps {
   ctaLabel?: string;
   ctaIcon?: React.ReactNode;
   onCta?: () => void;
+  // 보조 CTA (예: "Cue 에게 묻기") — 30년차 디자인: 1차 액션 + 2차 도움말 분리
+  secondaryCtaLabel?: string;
+  onSecondaryCta?: () => void;
   className?: string;
 }
 
-const EmptyState: React.FC<EmptyStateProps> = ({ icon, title, description, ctaLabel, ctaIcon, onCta, className }) => {
+const EmptyState: React.FC<EmptyStateProps> = ({ icon, title, description, ctaLabel, ctaIcon, onCta, secondaryCtaLabel, onSecondaryCta, className }) => {
   return (
     <Wrap className={className}>
       <IconCircle>{icon}</IconCircle>
       <Title>{title}</Title>
       {description && <Desc>{description}</Desc>}
-      {ctaLabel && onCta && (
-        <Cta type="button" onClick={onCta}>
-          {ctaIcon}
-          <span>{ctaLabel}</span>
-        </Cta>
+      {(ctaLabel || secondaryCtaLabel) && (
+        <CtaRow>
+          {ctaLabel && onCta && (
+            <Cta type="button" onClick={onCta}>
+              {ctaIcon}
+              <span>{ctaLabel}</span>
+            </Cta>
+          )}
+          {secondaryCtaLabel && onSecondaryCta && (
+            <SecondaryCta type="button" onClick={onSecondaryCta}>
+              <span>{secondaryCtaLabel}</span>
+            </SecondaryCta>
+          )}
+        </CtaRow>
       )}
     </Wrap>
   );
@@ -67,6 +79,11 @@ const Desc = styled.p`
   margin: 0 0 24px;
   line-height: 1.6;
 `;
+const CtaRow = styled.div`
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+`;
 const Cta = styled.button`
   display: inline-flex;
   align-items: center;
@@ -82,4 +99,19 @@ const Cta = styled.button`
   cursor: pointer;
   transition: background 0.15s;
   &:hover { background: #0D9488; }
+`;
+const SecondaryCta = styled.button`
+  display: inline-flex;
+  align-items: center;
+  height: 44px;
+  padding: 0 20px;
+  background: transparent;
+  color: #0D9488;
+  border: 1px solid #99F6E4;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+  &:hover { background: #F0FDFA; border-color: #14B8A6; }
 `;

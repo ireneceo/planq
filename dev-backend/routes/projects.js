@@ -528,7 +528,7 @@ router.post('/conversations/:id/messages', authenticateToken, async (req, res, n
 
     // 응답에 sender 포함
     const full = await Message.findByPk(msg.id, {
-      include: [{ model: User, as: 'sender', attributes: ['id', 'name', 'email'] }],
+      include: [{ model: User, as: 'sender', attributes: ['id', 'name', 'email', 'name_localized'] }],
     });
 
     // Socket.IO broadcast — 메시지 즉시 발송 (번역 기다리지 않음)
@@ -556,7 +556,7 @@ router.post('/conversations/:id/messages', authenticateToken, async (req, res, n
               io.to(`conv:${conv.id}`).emit('message:translated', payload);
               // fallback: 전체 메시지 객체로 message:updated 도 emit (기존 핸들러 활용)
               const updated = await Message.findByPk(msg.id, {
-                include: [{ model: User, as: 'sender', attributes: ['id', 'name', 'email'] }],
+                include: [{ model: User, as: 'sender', attributes: ['id', 'name', 'email', 'name_localized'] }],
               });
               if (updated) io.to(`conv:${conv.id}`).emit('message:updated', updated.toJSON());
               console.log(`[translation] emitted message:translated + message:updated to conv:${conv.id}`);
@@ -581,7 +581,7 @@ router.post('/conversations/:id/messages', authenticateToken, async (req, res, n
           if (!cueResult.skipped && cueResult.message) {
             // Cue 응답 메시지에 sender 포함하여 브로드캐스트
             const cueMsg = await Message.findByPk(cueResult.message.id, {
-              include: [{ model: User, as: 'sender', attributes: ['id', 'name', 'email'] }],
+              include: [{ model: User, as: 'sender', attributes: ['id', 'name', 'email', 'name_localized'] }],
             });
             if (io && cueMsg) {
               const payload = cueMsg.toJSON();
@@ -627,7 +627,7 @@ router.post('/messages/:id/approve-draft', authenticateToken, async (req, res, n
     await msg.update(updates);
 
     const full = await Message.findByPk(msg.id, {
-      include: [{ model: User, as: 'sender', attributes: ['id', 'name', 'email'] }],
+      include: [{ model: User, as: 'sender', attributes: ['id', 'name', 'email', 'name_localized'] }],
     });
 
     const io = req.app.get('io');
@@ -684,7 +684,7 @@ router.get('/conversations/:id/messages', authenticateToken, async (req, res, ne
     }
     const msgs = await Message.findAll({
       where: { conversation_id: conv.id, is_deleted: false },
-      include: [{ model: User, as: 'sender', attributes: ['id', 'name', 'email'] }],
+      include: [{ model: User, as: 'sender', attributes: ['id', 'name', 'email', 'name_localized'] }],
       order: [['created_at', 'ASC']],
       limit: 200,
     });
@@ -995,8 +995,8 @@ router.get('/:id/tasks', authenticateToken, async (req, res, next) => {
     const tasks = await Task.findAll({
       where: { project_id: project.id },
       include: [
-        { model: User, as: 'assignee', attributes: ['id', 'name'], required: false },
-        { model: User, as: 'requester', attributes: ['id', 'name'], required: false },
+        { model: User, as: 'assignee', attributes: ['id', 'name', 'name_localized'], required: false },
+        { model: User, as: 'requester', attributes: ['id', 'name', 'name_localized'], required: false },
         { model: TaskReviewer, as: 'reviewers', attributes: ['id', 'user_id', 'state', 'is_client'], required: false },
       ],
       order: [['created_at', 'DESC']],
@@ -1101,7 +1101,7 @@ router.get('/conversations/:convId/task-candidates', authenticateToken, async (r
     if (status !== 'all') where.status = status;
     const cands = await TaskCandidate.findAll({
       where,
-      include: [{ model: User, as: 'guessedAssignee', attributes: ['id', 'name'], required: false }],
+      include: [{ model: User, as: 'guessedAssignee', attributes: ['id', 'name', 'name_localized'], required: false }],
       order: [['extracted_at', 'DESC']],
     });
     return successResponse(res, cands.map((c) => c.toJSON()));
@@ -1117,7 +1117,7 @@ router.get('/conversations/:convId/tasks', authenticateToken, async (req, res, n
     const tasks = await Task.findAll({
       where: { conversation_id: conversation.id, project_id: null },
       include: [
-        { model: User, as: 'assignee', attributes: ['id', 'name'], required: false },
+        { model: User, as: 'assignee', attributes: ['id', 'name', 'name_localized'], required: false },
       ],
       order: [['created_at', 'DESC']],
     });
@@ -1188,7 +1188,7 @@ router.get('/:id/task-candidates', authenticateToken, async (req, res, next) => 
     if (status !== 'all') where.status = status;
     const cands = await TaskCandidate.findAll({
       where,
-      include: [{ model: User, as: 'guessedAssignee', attributes: ['id', 'name'] }],
+      include: [{ model: User, as: 'guessedAssignee', attributes: ['id', 'name', 'name_localized'] }],
       order: [['extracted_at', 'DESC']],
     });
     return successResponse(res, cands.map((c) => c.toJSON()));
@@ -1365,8 +1365,8 @@ router.get('/workspace/:businessId/all-tasks', authenticateToken, async (req, re
       where,
       include: [
         { model: Project, attributes: ['id', 'name', 'client_company', 'status'] },
-        { model: User, as: 'assignee', attributes: ['id', 'name'], required: false },
-        { model: User, as: 'requester', attributes: ['id', 'name'], required: false },
+        { model: User, as: 'assignee', attributes: ['id', 'name', 'name_localized'], required: false },
+        { model: User, as: 'requester', attributes: ['id', 'name', 'name_localized'], required: false },
         { model: TaskReviewer, as: 'reviewers', attributes: ['id', 'user_id', 'state', 'is_client'], required: false },
       ],
       order: [['createdAt', 'DESC']],
@@ -1766,7 +1766,7 @@ router.get('/workspace/:bizId/all-files', authenticateToken, async (req, res, ne
           model: Message,
           where: { conversation_id: { [Op.in]: conversations.map(c => c.id) } },
           attributes: ['id', 'conversation_id', 'sender_id'],
-          include: [{ model: User, as: 'sender', attributes: ['id', 'name'] }]
+          include: [{ model: User, as: 'sender', attributes: ['id', 'name', 'name_localized'] }]
         }]
       });
       for (const a of chatFiles) {
@@ -1925,7 +1925,7 @@ router.get('/:id/files', authenticateToken, async (req, res, next) => {
           model: Message,
           where: { conversation_id: { [Op.in]: conversations.map(c => c.id) } },
           attributes: ['id', 'conversation_id', 'sender_id'],
-          include: [{ model: User, as: 'sender', attributes: ['id', 'name'] }]
+          include: [{ model: User, as: 'sender', attributes: ['id', 'name', 'name_localized'] }]
         }],
         order: [['created_at', 'DESC']]
       });

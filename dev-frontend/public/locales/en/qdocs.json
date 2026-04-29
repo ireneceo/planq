@@ -6,6 +6,10 @@
     "newDoc": "New document",
     "searchPlaceholder": "Search by title, client, project"
   },
+  "help": {
+    "body": "Start from 5 templates (Quote/Invoice/NDA/Proposal/Meeting notes) or use AI auto-write. After writing, send a signature request — clients sign with OTP verification. Link a post (quote/contract) to invoices for installment billing.",
+    "cuePrefill": "Tell me how Q docs templates, AI writing, signature requests, and installment billing work"
+  },
   "tabs": {
     "documents": "Documents",
     "received-signatures": "Received signatures"
@@ -191,6 +195,8 @@
   },
   "publicSign": {
     "loading": "Loading document...",
+    "projectLabel": "Project: {{name}}",
+    "projectTitle": "Linked project",
     "step1": "Review",
     "step2": "Verify",
     "step3": "Sign",

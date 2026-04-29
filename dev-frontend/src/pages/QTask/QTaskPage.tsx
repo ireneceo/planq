@@ -18,6 +18,10 @@ import { useIsNarrow } from '../../hooks/useMediaQuery';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { useListKeyboardNav } from '../../hooks/useListKeyboardNav';
 import { formatHours, utilizationPercent, utilizationStatus, UTIL_COLOR } from '../../utils/hours';
+import HelpDot from '../../components/Common/HelpDot';
+import FirstVisitTour from '../../components/Common/FirstVisitTour';
+import { displayName } from '../../utils/displayName';
+import i18nClient from '../../i18n';
 
 // ─── Types ───
 type Scope = 'mine' | 'workspace';
@@ -220,6 +224,11 @@ const QTaskPage:React.FC=()=>{
   const[newDescription,setNewDescription]=useState<string>('');
   const[addingSubmitting,setAddingSubmitting]=useState(false);
   const[statusDropdownId,setStatusDropdownId]=useState<number|null>(null);
+  // 지연 뱃지 quick chip popover (사용자 요청: 마감 지난 업무 즉시 갱신 안내)
+  const[delayChipsForId,setDelayChipsForId]=useState<number|null>(null);
+  // AI 예측시간 호출 상태 (per task)
+  const[aiEstLoading,setAiEstLoading]=useState<Record<number,boolean>>({});
+  const[aiEstFlash,setAiEstFlash]=useState<Record<number,boolean>>({});
   const[detailTaskId,setDetailTaskId]=useState<number|null>(()=>{
     const q=new URLSearchParams(location.search).get('task');
     return q?Number(q):null;
@@ -487,10 +496,10 @@ const QTaskPage:React.FC=()=>{
     finally{setAddingSubmitting(false);}
   };
 
-  // 우선순위: 클릭 순서대로 1,2,3... / 다시 클릭하면 해제 + 번호 재정렬
+  // 우선순위: 이번 주 탭의 filtered 안에서만 1,2,3... 매김.
+  // priority_order 컬럼은 글로벌이라 다른 워크스페이스/주의 task 들이 갭(예: 1,2,9,10,11)을 만들 수 있음.
+  // → 토글 시 filtered 안의 priority task 들을 항상 1,2,3...로 재배치 (잔존 갭 정리).
   const togglePriority=(taskId:number, autoSort:boolean=true)=>{
-    // 우선순위 매기는 순간 사용자가 "이 순서대로 보고 싶다"는 의도 → 정렬 기준 자동 전환
-    // (완료 처리 등 시스템 호출에서는 autoSort=false 로 정렬 영향 없음)
     if(autoSort){
       setSortKey('priority_order');
       setSortDir('asc');
@@ -498,25 +507,37 @@ const QTaskPage:React.FC=()=>{
     setAllTasks(prev=>{
       const task=prev.find(t=>t.id===taskId);
       if(!task)return prev;
+      const filteredIds=new Set((filteredRef.current||[]).map(t=>t.id));
 
       if(task.priority_order){
-        // 해제: 이 번호보다 큰 것들 1씩 당기기
-        const removed=task.priority_order;
-        const updated=prev.map(t=>{
-          if(t.id===taskId)return{...t,priority_order:null};
-          if(t.priority_order&&t.priority_order>removed)return{...t,priority_order:t.priority_order-1};
+        // 해제: 이 task null + filtered 안 priority task 들 1,2,3..로 reindex
+        const updated=prev.map(t=>t.id===taskId?{...t,priority_order:null}:t);
+        const inWeek=updated.filter(t=>filteredIds.has(t.id)&&t.priority_order!=null);
+        inWeek.sort((a,b)=>(a.priority_order||0)-(b.priority_order||0));
+        saveField(taskId,'priority_order',null);
+        return updated.map(t=>{
+          const idx=inWeek.findIndex(x=>x.id===t.id);
+          if(idx>=0&&t.priority_order!==idx+1){
+            saveField(t.id,'priority_order',idx+1);
+            return{...t,priority_order:idx+1};
+          }
           return t;
         });
-        saveField(taskId,'priority_order',null);
-        // 재정렬된 다른 것들도 저장
-        updated.filter(t=>t.priority_order&&t.id!==taskId).forEach(t=>saveField(t.id,'priority_order',t.priority_order));
-        return updated;
       } else {
-        // 부여: 현재 최대 번호 + 1
-        const maxP=prev.reduce((m,t)=>Math.max(m,t.priority_order||0),0);
-        const newP=maxP+1;
+        // 부여: filtered 안 priority task 갯수+1. 잔존 갭도 정리.
+        const inWeek=prev.filter(t=>filteredIds.has(t.id)&&t.priority_order!=null);
+        inWeek.sort((a,b)=>(a.priority_order||0)-(b.priority_order||0));
+        const newP=inWeek.length+1;
         saveField(taskId,'priority_order',newP);
-        return prev.map(t=>t.id===taskId?{...t,priority_order:newP}:t);
+        const updated=prev.map(t=>t.id===taskId?{...t,priority_order:newP}:t);
+        return updated.map(t=>{
+          const idx=inWeek.findIndex(x=>x.id===t.id);
+          if(idx>=0&&t.priority_order!==idx+1){
+            saveField(t.id,'priority_order',idx+1);
+            return{...t,priority_order:idx+1};
+          }
+          return t;
+        });
       }
     });
   };
@@ -708,6 +729,73 @@ const QTaskPage:React.FC=()=>{
 
   // 키보드 ↑/↓ — 리스트 뷰에서만 활성화
   const taskItemIds=useMemo(()=>filtered.map(t=>t.id),[filtered]);
+
+  // togglePriority 가 latest filtered 에 접근하기 위한 ref
+  const filteredRef=useRef<typeof filtered>([]);
+  useEffect(()=>{filteredRef.current=filtered;},[filtered]);
+
+  // 표시용 우선순위 인덱스 — filtered 안에서 priority_order 가 있는 task 들 sort 후 1,2,3..로 매핑.
+  // DB 컬럼은 글로벌이라 갭(예: 1,2,9,10) 가능. 표시는 항상 연속.
+  const displayPriorityMap=useMemo(()=>{
+    const m=new Map<number,number>();
+    if(!(scope==='mine'&&tab==='week'))return m;
+    const inWeek=filtered.filter(t=>t.priority_order!=null);
+    inWeek.sort((a,b)=>(a.priority_order||0)-(b.priority_order||0));
+    inWeek.forEach((t,i)=>m.set(t.id,i+1));
+    return m;
+  },[filtered,scope,tab]);
+
+  // 페이지 진입 시 갭 자동 정리 (silent) — 사용자가 토글 안 해도 DB가 1,2,3..로 일치
+  useEffect(()=>{
+    if(!(scope==='mine'&&tab==='week'))return;
+    const inWeek=filtered.filter(t=>t.priority_order!=null);
+    if(inWeek.length===0)return;
+    inWeek.sort((a,b)=>(a.priority_order||0)-(b.priority_order||0));
+    const needsReindex=inWeek.some((t,i)=>t.priority_order!==i+1);
+    if(!needsReindex)return;
+    inWeek.forEach((t,i)=>{
+      if(t.priority_order!==i+1)saveField(t.id,'priority_order',i+1);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[filtered,scope,tab]);
+
+  // 지연 뱃지 quick chip — outside click + ESC 닫기
+  useEffect(()=>{
+    if(delayChipsForId==null)return;
+    const close=()=>setDelayChipsForId(null);
+    const onKey=(e:KeyboardEvent)=>{if(e.key==='Escape')close();};
+    document.addEventListener('click',close);
+    document.addEventListener('keydown',onKey);
+    return()=>{
+      document.removeEventListener('click',close);
+      document.removeEventListener('keydown',onKey);
+    };
+  },[delayChipsForId]);
+
+  // 지연 마감 빠른 갱신 — addDays=0 이면 오늘로
+  const extendDue=useCallback((taskId:number,addDays:number)=>{
+    const target=addDays===0?todayStr:addDaysStr(todayStr,addDays);
+    saveTaskField(taskId,'due_date',target);
+    setDelayChipsForId(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[todayStr]);
+
+  // AI 예측시간 추천 — 호출 → input 자동 fill + 1초 flash + DB 저장
+  const requestAiEstimate=useCallback(async(taskId:number)=>{
+    setAiEstLoading(prev=>({...prev,[taskId]:true}));
+    try{
+      const r=await apiFetch(`/api/tasks/${taskId}/estimate/ai`,{method:'POST',headers:{'Content-Type':'application/json'}});
+      const j=await r.json();
+      if(!r.ok||!j.success)return;
+      const v=Number(j.data.value);
+      if(!Number.isFinite(v))return;
+      // 입력값 채우기 + DB 저장 (saveField → user 이력 자동 기록)
+      saveField(taskId,'estimated_hours',v);
+      setAiEstFlash(prev=>({...prev,[taskId]:true}));
+      window.setTimeout(()=>setAiEstFlash(prev=>{const n={...prev};delete n[taskId];return n;}),1200);
+    }catch{/* ignore */}
+    finally{setAiEstLoading(prev=>{const n={...prev};delete n[taskId];return n;});}
+  },[]);
   useListKeyboardNav<number>({
     itemIds:taskItemIds,
     activeId:detailTaskId,
@@ -825,67 +913,62 @@ const QTaskPage:React.FC=()=>{
       days.push({label:dayNames[dt.getUTCDay()],date:cursor,est:0,act:0});
       cursor=addDaysStr(cursor,1);
     }
-    const myTasks=allTasks.filter(t=>t.assignee_id===myId);
+    // chartTasks = filtered ⋂ 본인담당 ⋂ ¬canceled — 헤더(summary.myEst) 와 완전 동일 단일 출처.
+    // 갭 방지: 리스트에 보이는 본인 task = 그래프 task = 헤더 시간 합. 셋 다 항상 일치.
+    const chartTasks=filtered.filter(t=>t.assignee_id===myId&&t.status!=='canceled');
 
-    for(const task of myTasks){
-      const est=Number(task.estimated_hours)||0;
+    // estimated_cumulative = horizontal baseline (= summary.myEst)
+    const totalEstimated=chartTasks.reduce((s,t)=>s+(Number(t.estimated_hours)||0),0);
+
+    // actual: per-day 누적 (기존 로직 유지)
+    for(const task of chartTasks){
       const act=Number(task.actual_hours)||0;
       const prog=(task.progress_percent||0)/100;
-      if(est===0&&act===0)continue;
+      if(act===0)continue;
       const taskStart=(task.start_date||task.due_date||task.planned_week_start||periodFrom).slice(0,10);
       const taskEnd=(task.due_date||task.start_date||periodTo).slice(0,10);
-      // Period와 겹치지 않으면 skip
       if(taskEnd<periodFrom||taskStart>periodTo)continue;
-      // 진행된 부분 시간 계산 — 둘 다 진행율 비례
-      const estUsed=est*prog; // 예측시간 × 진행율
-      const actUsed=act*prog; // 실제시간 × 진행율
-      // 작업기간 총 일수
+      const actUsed=act*prog;
       const startDt=new Date(taskStart);
       const endDt=new Date(taskEnd);
       const durDays=Math.max(1,Math.round((endDt.getTime()-startDt.getTime())/86400000)+1);
-      // 오늘까지의 일수 (진행된 기간)
       for(let i=0;i<days.length;i++){
         const curr=days[i].date;
         if(curr<taskStart)continue;
         if(curr>taskEnd&&curr>todayStr)break;
-        // 오늘까지만 actual 누적
         const isPast=curr<=todayStr;
         const daysSoFar=Math.min(
           Math.round((new Date(curr).getTime()-startDt.getTime())/86400000)+1,
           durDays
         );
         const ratio=daysSoFar/durDays;
-        days[i].est+=estUsed*ratio; // 진행된 예측시간 누적
         if(isPast)days[i].act+=actUsed*ratio;
       }
     }
-    // 오늘 날짜는 라이브 데이터 (현재 업무 상태 실시간 반영)
-    const liveEstToday=myTasks.reduce((s,t)=>s+(Number(t.estimated_hours)||0)*((t.progress_percent||0)/100),0);
-    const liveActToday=myTasks.reduce((s,t)=>s+(Number(t.actual_hours)||0)*((t.progress_percent||0)/100),0);
+    const liveActToday=chartTasks.reduce((s,t)=>s+(Number(t.actual_hours)||0)*((t.progress_percent||0)/100),0);
 
-    // 과거: 스냅샷 우선, 오늘: 라이브, 미래: 예측 누적만 (선형 분배)
+    // 과거: 스냅샷 우선, 오늘: 라이브
     const snapMap=new Map(dailyProgress.map(d=>[d.date.slice(0,10),d]));
     const raw=days.map(d=>{
+      let actVal=0;
       if(d.date===todayStr){
-        return{label:d.label,estimated_cumulative:Math.round(liveEstToday*10)/10,actual_cumulative:Math.round(liveActToday*10)/10};
-      }
-      if(d.date<todayStr){
+        actVal=Math.round(liveActToday*10)/10;
+      } else if(d.date<todayStr){
         const s=snapMap.get(d.date);
-        if(s){
-          return{label:d.label,estimated_cumulative:Math.round(Number(s.est_used)*10)/10,actual_cumulative:Math.round(Number(s.act_used)*10)/10};
-        }
+        if(s)actVal=Math.round(Number(s.act_used)*10)/10;
+        else actVal=Math.round(d.act*10)/10;
+      } else {
+        actVal=0; // 미래는 0
       }
-      return{label:d.label,estimated_cumulative:Math.round(d.est*10)/10,actual_cumulative:d.date<=todayStr?Math.round(d.act*10)/10:0};
+      return{label:d.label,estimated_cumulative:Math.round(totalEstimated*10)/10,actual_cumulative:actVal};
     });
-    // 단조증가 강제 — 누적은 절대 감소하지 않음
-    let maxEst=0,maxAct=0;
+    // actual 단조증가 강제. estimated 는 horizontal 이라 그대로.
+    let maxAct=0;
     return raw.map(p=>{
-      maxEst=Math.max(maxEst,p.estimated_cumulative);
-      // 실제는 오늘 이후(미래)는 0 유지, 과거+오늘만 누적
       if(p.actual_cumulative>0)maxAct=Math.max(maxAct,p.actual_cumulative);
-      return{label:p.label,estimated_cumulative:maxEst,actual_cumulative:p.actual_cumulative>0?maxAct:0};
+      return{label:p.label,estimated_cumulative:p.estimated_cumulative,actual_cumulative:p.actual_cumulative>0?maxAct:0};
     });
-  },[allTasks,myId,periodFrom,periodTo,dailyProgress]);
+  },[filtered,myId,periodFrom,periodTo,dailyProgress,todayStr]);
 
   const maxY=Math.max(...computedBurndown.map(p=>Math.max(p.estimated_cumulative,p.actual_cumulative)),effectiveCapacity||1,1);
 
@@ -906,8 +989,11 @@ const QTaskPage:React.FC=()=>{
         else if(detailTaskId){closeDetail();}
       }}>
         {/* Header — 제목 + 스코프 세그먼트 토글 */}
-        <Header>
+        <Header data-tour="qtask-header">
           <PageTitle>Q task</PageTitle>
+          <HelpDot askCue={t('help.cuePrefill','Q task 페이지의 우선순위, 가용시간, 그래프가 어떻게 작동하는지 알려줘') as string} topic="qtask" tourPageKey="qtask">
+            {t('help.body','이번 주 본인이 행동할 업무, 우선순위 클릭 순서대로 매김(필터 안에서만 1,2,3..). 가용시간 = 일×영업일×효율, 그래프 baseline = 헤더의 내 업무 시간. 마감 지나면 지연 뱃지 클릭으로 마감 갱신.')}
+          </HelpDot>
           <ViewToggle>
             <ViewBtn $active={viewMode==='list'} onClick={()=>changeView('list')} type="button" title={t('view.list','리스트')}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
@@ -986,7 +1072,7 @@ const QTaskPage:React.FC=()=>{
           {viewMode==='list'&&(
           <>
           <ColRow>
-            {tab==='week' && <Col $w="30px" $center onClick={()=>handleSort('priority_order')}>#{sortIcon('priority_order')}</Col>}
+            {tab==='week' && <Col $w="30px" $center onClick={()=>handleSort('priority_order')} data-tour="qtask-priority">#{sortIcon('priority_order')}</Col>}
             <Col $w="80px" $hideBelow={640} onClick={()=>handleSort('title')}>{t('col.project','Project')}</Col>
             <Col $flex onClick={()=>handleSort('title')}>{t('col.task','Task')} {sortIcon('title')}</Col>
             {scope==='workspace' && <Col $w="90px" $hideBelow={768}>{t('col.assignee','담당자')}</Col>}
@@ -1023,7 +1109,7 @@ const QTaskPage:React.FC=()=>{
                       <TCell $w="30px" $center>
                         <PrioNum $active={!!task.priority_order} $disabled={task.status==='completed'||task.status==='canceled'}
                           onClick={e=>{e.stopPropagation();if(task.status!=='completed'&&task.status!=='canceled')togglePriority(task.id);}}>
-                          {task.priority_order||<PrioEmpty />}
+                          {displayPriorityMap.get(task.id)||<PrioEmpty />}
                         </PrioNum>
                       </TCell>
                     )}
@@ -1050,15 +1136,36 @@ const QTaskPage:React.FC=()=>{
                           if(scope==='workspace') return null;
                           // 내가 받은 요청 → 요청자 (로즈)
                           if(task.assignee_id===myId&&(task.source==='internal_request'||task.source==='qtalk_extract')&&task.requester?.name){
-                            return <NameChip $type="from" title={t('chip.fromRequester','Requester') as string}>{task.requester.name}</NameChip>;
+                            return <NameChip $type="from" title={t('chip.fromRequester','Requester') as string}>{displayName(task.requester, i18nClient.language)}</NameChip>;
                           }
                           // 내가 보낸 요청 → 담당자 (티일)
                           if((task.request_by_user_id===myId||task.created_by===myId)&&task.assignee?.name&&task.assignee_id!==myId){
-                            return <NameChip $type="to" title={t('chip.toAssignee','My requestee') as string}>{task.assignee.name}</NameChip>;
+                            return <NameChip $type="to" title={t('chip.toAssignee','My requestee') as string}>{displayName(task.assignee, i18nClient.language)}</NameChip>;
                           }
                           return null;
                         })()}
-                        {isDelayed&&<DelayBadge>{t('status.delayed','Delayed')}</DelayBadge>}
+                        {isDelayed&&(()=>{
+                          const dueStr=(task.due_date||'').slice(0,10);
+                          const days=dueStr?Math.floor((new Date(todayStr).getTime()-new Date(dueStr).getTime())/86400000):0;
+                          const severe=days>=7;
+                          const label=days>=1?t('status.delayedDays',{d:days}):t('status.delayed','Delayed');
+                          return(
+                            <DelayBadgeWrap>
+                              <DelayBadge $severe={severe}
+                                onClick={e=>{e.stopPropagation();setDelayChipsForId(prev=>prev===task.id?null:task.id);}}
+                                title={t('status.delayedHint','클릭하여 마감 변경') as string}>
+                                {label}
+                              </DelayBadge>
+                              {delayChipsForId===task.id&&(
+                                <DelayChipPopover onClick={e=>e.stopPropagation()}>
+                                  <DelayChip onClick={e=>{e.stopPropagation();extendDue(task.id,1);}}>{t('status.delayQuick.addDay','+1일')}</DelayChip>
+                                  <DelayChip onClick={e=>{e.stopPropagation();extendDue(task.id,7);}}>{t('status.delayQuick.addWeek','+1주')}</DelayChip>
+                                  <DelayChip onClick={e=>{e.stopPropagation();extendDue(task.id,0);}}>{t('status.delayQuick.today','오늘')}</DelayChip>
+                                </DelayChipPopover>
+                              )}
+                            </DelayBadgeWrap>
+                          );
+                        })()}
                         <DetailBtn
                           $active={detailTaskId===task.id}
                           onClick={e=>{e.stopPropagation();if(detailTaskId===task.id)closeDetail();else openDetail(task.id);}}
@@ -1069,7 +1176,7 @@ const QTaskPage:React.FC=()=>{
                     </TCell>
                     {scope==='workspace' && (
                       <TCell $w="90px" $hideBelow={768}>
-                        <AssigneeText title={task.assignee?.name || ''}>{task.assignee?.name || '-'}</AssigneeText>
+                        <AssigneeText title={task.assignee?.name || ''}>{displayName(task.assignee, i18nClient.language) || '-'}</AssigneeText>
                       </TCell>
                     )}
                     <TCell $w="68px" $center style={{position:'relative',overflow:'visible'}}>
@@ -1095,14 +1202,26 @@ const QTaskPage:React.FC=()=>{
                       const editable = task.assignee_id===myId;
                       return (<>
                         <TCell $w="62px" $center $hideBelow={900}>
-                          <NumInput key={`e${task.id}-${e}`}
-                            type="number" step="0.5" min="0"
-                            defaultValue={e?formatHours(e):''} placeholder="-"
-                            disabled={!editable}
-                            title={editable?undefined:t('list.notMyHours','담당자만 수정 가능 (참고용)') as string}
-                            onClick={ev=>ev.stopPropagation()}
-                            onBlur={ev=>{const v=Number(ev.target.value);if(!isNaN(v)&&editable){saveField(task.id,'estimated_hours',v);(ev.target as HTMLInputElement).value=formatHours(v);}}}
-                            onKeyDown={ev=>{if(ev.key==='Enter')(ev.target as HTMLInputElement).blur();}} />
+                          <EstWrap $flash={!!aiEstFlash[task.id]}>
+                            <NumInput key={`e${task.id}-${e}`}
+                              type="number" step="0.5" min="0"
+                              defaultValue={e?formatHours(e):''} placeholder="-"
+                              disabled={!editable}
+                              title={editable?undefined:t('list.notMyHours','담당자만 수정 가능 (참고용)') as string}
+                              onClick={ev=>ev.stopPropagation()}
+                              onBlur={ev=>{const v=Number(ev.target.value);if(!isNaN(v)&&editable){saveField(task.id,'estimated_hours',v);(ev.target as HTMLInputElement).value=formatHours(v);}}}
+                              onKeyDown={ev=>{if(ev.key==='Enter')(ev.target as HTMLInputElement).blur();}} />
+                            {editable && e===0 && (
+                              <AiSparkBtn type="button" disabled={!!aiEstLoading[task.id]}
+                                onClick={ev=>{ev.stopPropagation();requestAiEstimate(task.id);}}
+                                title={t('list.aiEstimate','AI 예측시간 추천') as string}
+                                aria-label={t('list.aiEstimate','AI 예측시간 추천') as string}>
+                                {aiEstLoading[task.id]
+                                  ? <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><circle cx="12" cy="12" r="9" strokeDasharray="40 16"><animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="0.8s" repeatCount="indefinite"/></circle></svg>
+                                  : <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 16.8 5.8 21.3l2.4-7.4L2 9.4h7.6L12 2z"/></svg>}
+                              </AiSparkBtn>
+                            )}
+                          </EstWrap>
                         </TCell>
                         <TCell $w="62px" $center $hideBelow={900}>
                           <NumInput key={`a${task.id}-${a}`}
@@ -1167,6 +1286,8 @@ const QTaskPage:React.FC=()=>{
                 </svg>
               }
               onCta={()=>{setAddInline(true);setAddingTask(true);setNewAssignee(tab==='requested'?null:myId);}}
+              secondaryCtaLabel={t('empty.askCue','Cue 에게 묻기')}
+              onSecondaryCta={()=>window.dispatchEvent(new CustomEvent('cue:ask',{detail:{prefill:t('help.cuePrefill') as string}}))}
             />
           )}
           {filtered.length>0&&!addingTask&&<BottomAddLink type="button" onClick={()=>{setAddInline(true);setAddingTask(true);setNewAssignee(tab==='requested'?null:myId);}}>
@@ -1342,13 +1463,13 @@ const QTaskPage:React.FC=()=>{
                                 {task.title}
                                 {(() => {
                                   if(task.assignee_id===myId&&(task.source==='internal_request'||task.source==='qtalk_extract')&&task.requester?.name){
-                                    return <NameChip $type="from">{task.requester.name}</NameChip>;
+                                    return <NameChip $type="from">{displayName(task.requester, i18nClient.language)}</NameChip>;
                                   }
                                   if((task.request_by_user_id===myId||task.created_by===myId)&&task.assignee?.name&&task.assignee_id!==myId){
-                                    return <NameChip $type="to">{task.assignee.name}</NameChip>;
+                                    return <NameChip $type="to">{displayName(task.assignee, i18nClient.language)}</NameChip>;
                                   }
                                   if(task.assignee?.name&&task.assignee_id!==myId){
-                                    return <NameChip $type="observer">{task.assignee.name}</NameChip>;
+                                    return <NameChip $type="observer">{displayName(task.assignee, i18nClient.language)}</NameChip>;
                                   }
                                   return null;
                                 })()}
@@ -1763,6 +1884,13 @@ const QTaskPage:React.FC=()=>{
           </RightScroll>
         </DetailDrawer>
       )}
+      <FirstVisitTour
+        pageKey="qtask"
+        steps={[
+          { targetSelector: '[data-tour="qtask-header"]', title: t('tour.step1.title','Q task 페이지') as string, body: t('tour.step1.body','이번 주 본인이 행동해야 할 업무가 모입니다. 헤더 옆 ⓘ 클릭하면 화면 작동 원리를 자세히 볼 수 있어요.') as string, placement: 'bottom' },
+          { targetSelector: '[data-tour="qtask-priority"]', title: t('tour.step2.title','우선순위 매기기') as string, body: t('tour.step2.body','# 셀을 클릭하면 클릭 순서대로 1, 2, 3...이 자동 매겨집니다. 갭이 생기면 자동으로 정리됩니다.') as string, placement: 'bottom' },
+        ]}
+      />
     </Layout>
   );
 };
@@ -1808,7 +1936,33 @@ const TCell=styled.div<{$w?:string;$flex?:boolean;$center?:boolean;$hideBelow?:n
   ${p=>p.$hideBelow?`@media (max-width: ${p.$hideBelow}px){display:none;}`:''}
 `;
 const ProjLabel=styled.span`font-size:11px;color:#94A3B8;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;`;
-const DelayBadge=styled.span`padding:1px 6px;font-size:9px;font-weight:700;color:#DC2626;background:#FEF2F2;border:1px solid #FECACA;border-radius:4px;flex-shrink:0;white-space:nowrap;`;
+const DelayBadge=styled.span<{$severe?:boolean}>`
+  padding:1px 6px;font-size:9px;font-weight:700;border-radius:4px;flex-shrink:0;white-space:nowrap;
+  cursor:pointer;user-select:none;transition:background 120ms ease,border-color 120ms ease,color 120ms ease;
+  color:${p=>p.$severe?'#fff':'#DC2626'};
+  background:${p=>p.$severe?'#DC2626':'#FEF2F2'};
+  border:1px solid ${p=>p.$severe?'#DC2626':'#FECACA'};
+  &:hover{
+    background:${p=>p.$severe?'#B91C1C':'#FEE2E2'};
+    border-color:${p=>p.$severe?'#B91C1C':'#FCA5A5'};
+  }
+  &:focus-visible{outline:2px solid #F43F5E;outline-offset:1px;}
+`;
+const DelayBadgeWrap=styled.span`position:relative;display:inline-flex;flex-shrink:0;`;
+const DelayChipPopover=styled.div`
+  position:absolute;top:calc(100% + 4px);left:0;
+  display:flex;gap:4px;
+  background:#fff;border:1px solid #E2E8F0;border-radius:6px;
+  padding:4px;box-shadow:0 4px 12px rgba(15,23,42,0.08);
+  z-index:200;white-space:nowrap;
+`;
+const DelayChip=styled.button`
+  padding:4px 10px;font-size:11px;font-weight:600;
+  color:#475569;background:#F1F5F9;
+  border:none;border-radius:4px;cursor:pointer;
+  transition:background 120ms ease,color 120ms ease;
+  &:hover{background:#E2E8F0;color:#0F172A;}
+`;
 const TaskCheck=styled.input`accent-color:#0D9488;cursor:pointer;width:15px;height:15px;flex-shrink:0;`;
 const TaskTitle=styled.span<{$done?:boolean}>`font-size:14px;font-weight:500;color:#0F172A;cursor:text;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;${p=>p.$done&&'text-decoration:line-through;color:#94A3B8;'}&:hover{color:#0F766E;}`;
 const TitleInput=styled.input`flex:1;font-size:14px;font-weight:500;color:#0F172A;border:1px solid #14B8A6;background:#F0FDFA;padding:2px 8px;border-radius:6px;font-family:inherit;height:24px;box-sizing:border-box;&:focus{outline:none;box-shadow:0 0 0 2px rgba(20,184,166,0.15);}`;
@@ -1845,6 +1999,22 @@ const PrioEmpty=styled.span`display:block;width:6px;height:6px;border-radius:50%
 const AssigneeText=styled.span`
   display:block;font-size:13px;color:#0F172A;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+`;
+const EstWrap=styled.span<{$flash?:boolean}>`
+  position:relative;display:inline-flex;align-items:center;
+  ${p=>p.$flash?'background:#D1FAE5;border-radius:5px;animation:estFlash 1.2s ease-out;':''}
+  @keyframes estFlash{0%{background:#A7F3D0;}100%{background:transparent;}}
+`;
+const AiSparkBtn=styled.button`
+  position:absolute;right:-2px;top:50%;transform:translateY(-50%);
+  width:14px;height:14px;
+  display:inline-flex;align-items:center;justify-content:center;
+  background:transparent;border:none;border-radius:50%;
+  color:#F43F5E;cursor:pointer;padding:0;
+  opacity:0.55;transition:opacity 0.15s,background 0.15s;
+  &:hover{opacity:1;background:#FFF1F2;}
+  &:disabled{cursor:wait;}
+  &:focus-visible{outline:1px solid rgba(244,63,94,0.5);outline-offset:1px;}
 `;
 const NumInput=styled.input`
   width:54px;text-align:center;font-size:13px;font-weight:600;color:#0F172A;

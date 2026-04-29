@@ -5,6 +5,17 @@
     "count": "총 {{count}}건",
     "emptyTitle": "확인할 항목이 없습니다",
     "emptySub": "전체 업무는 Q Task 에서 확인하세요",
+    "emptyAskCue": "Cue 에게 묻기",
+    "help": {
+      "body": "내가 직접 행동해야 할 일을 모아 보여줍니다. 받은 업무 요청, 컨펌 대기, 결제·서명 요청, 업무 후보(본인 담당·미지정)가 표시됩니다.",
+      "cuePrefill": "확인 필요 페이지의 항목들이 어떤 기준으로 모이는지 자세히 알려줘"
+    },
+    "tour": {
+      "step1": {
+        "title": "확인 필요 (인박스)",
+        "body": "내가 직접 행동해야 할 일이 모입니다 — 받은 업무·컨펌 대기·결제·서명·후보(본인 담당). 다른 사람 담당 항목은 그 사람 인박스에 가요."
+      }
+    },
     "priority": {
       "urgent": "긴급",
       "today": "오늘",
@@ -37,6 +48,8 @@
       "confirm": "승인 대기",
       "approve": "확정 대기",
       "review": "검토",
+      "candidate_other": "업무 후보 — 다른 사람 담당",
+      "sign_rejected": "서명 거절됨",
       "pay": "결제 대기",
       "revise": "수정 재제출",
       "attend": "오늘 미팅",
@@ -47,6 +60,12 @@
       "sign": "서명",
       "mark_paid": "입금 확인",
       "issue_tax": "세금계산서 발행"
+    },
+    "relTime": {
+      "now": "방금",
+      "minAgo": "{{m}}분 전",
+      "hourAgo": "{{h}}시간 전",
+      "dayAgo": "{{d}}일 전"
     },
     "dueLabel": {
       "overdue": "{{days}}일 지연",

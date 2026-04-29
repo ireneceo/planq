@@ -3,6 +3,7 @@ import { AuthProvider } from './contexts/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import ErrorBoundary from './components/Common/ErrorBoundary';
 import MainLayout from './components/Layout/MainLayout';
+import CueHelpDrawer from './components/Common/CueHelpDrawer';
 import LoginPage from './pages/Login/LoginPage';
 import RegisterPage from './pages/Register/RegisterPage';
 import QNotePage from './pages/QNote/QNotePage';
@@ -28,6 +29,7 @@ import ComingSoonPage from './pages/ComingSoon/ComingSoonPage';
 import DashboardPage from './pages/Dashboard/DashboardPage';
 import TodoPage from './pages/Todo/TodoPage';
 import QBillPage from './pages/QBill/QBillPage';
+import KnowledgePage from './pages/Knowledge/KnowledgePage';
 import './App.css';
 
 // Placeholder pages - will be replaced per phase
@@ -113,6 +115,12 @@ function App() {
         <Route path="/tasks/:scope" element={
           <ProtectedRoute>
             <MainLayout><QTaskPage /></MainLayout>
+          </ProtectedRoute>
+        } />
+
+        <Route path="/knowledge" element={
+          <ProtectedRoute>
+            <MainLayout><KnowledgePage /></MainLayout>
           </ProtectedRoute>
         } />
 
@@ -253,6 +261,8 @@ function App() {
         <Route path="/" element={<Navigate to="/login" replace />} />
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
+      {/* 글로벌 Cue 도움말 — ⌘? / Ctrl+/ + cue:ask 이벤트 receiver */}
+      <CueHelpDrawer />
     </AuthProvider>
     </ErrorBoundary>
   );

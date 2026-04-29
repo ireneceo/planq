@@ -65,8 +65,8 @@ async function collectTasks(businessId, userId) {
       request_ack_at: null,
       status: { [Op.notIn]: ['completed', 'canceled'] },
     },
-    attributes: ['id', 'title', 'due_date'],
-    include: [{ model: User, as: 'requester', attributes: ['id', 'name'], required: false }],
+    attributes: ['id', 'title', 'due_date', 'createdAt'],
+    include: [{ model: User, as: 'requester', attributes: ['id', 'name', 'name_localized'], required: false }],
     order: [['due_date', 'ASC']],
     limit: 30,
   });
@@ -80,6 +80,7 @@ async function collectTasks(businessId, userId) {
       subject: t.title,
       context: t.requester ? `요청: ${t.requester.name}` : null,
       dueAt: due ? due.toISOString() : null,
+      createdAt: safeToIso(t.createdAt),
       actor: t.requester ? { name: t.requester.name } : null,
       drawer: { kind: 'task', id: t.id },
     });
@@ -92,8 +93,8 @@ async function collectTasks(businessId, userId) {
       assignee_id: userId,
       status: 'revision_requested',
     },
-    attributes: ['id', 'title', 'due_date'],
-    include: [{ model: User, as: 'requester', attributes: ['id', 'name'], required: false }],
+    attributes: ['id', 'title', 'due_date', 'updatedAt'],
+    include: [{ model: User, as: 'requester', attributes: ['id', 'name', 'name_localized'], required: false }],
     limit: 30,
   });
   for (const t of revisionReq) {
@@ -106,6 +107,7 @@ async function collectTasks(businessId, userId) {
       subject: t.title,
       context: t.requester ? `요청: ${t.requester.name}` : null,
       dueAt: due ? due.toISOString() : null,
+      createdAt: safeToIso(t.updatedAt),
       actor: t.requester ? { name: t.requester.name } : null,
       drawer: { kind: 'task', id: t.id },
     });
@@ -114,12 +116,13 @@ async function collectTasks(businessId, userId) {
   // 3) 내가 컨펌자 (pending)
   const pendingReviews = await TaskReviewer.findAll({
     where: { user_id: userId, state: 'pending' },
+    attributes: ['id', 'createdAt'],
     include: [{
       model: Task,
       required: true,
       where: { business_id: businessId, status: { [Op.notIn]: ['completed', 'canceled'] } },
       attributes: ['id', 'title', 'due_date'],
-      include: [{ model: User, as: 'assignee', attributes: ['id', 'name'], required: false }],
+      include: [{ model: User, as: 'assignee', attributes: ['id', 'name', 'name_localized'], required: false }],
     }],
     limit: 30,
   });
@@ -135,6 +138,7 @@ async function collectTasks(businessId, userId) {
       subject: t.title,
       context: t.assignee ? `담당: ${t.assignee.name}` : null,
       dueAt: due ? due.toISOString() : null,
+      createdAt: safeToIso(r.createdAt),
       actor: t.assignee ? { name: t.assignee.name } : null,
       drawer: { kind: 'task', id: t.id },
     });
@@ -147,8 +151,8 @@ async function collectTasks(businessId, userId) {
       request_by_user_id: userId,
       status: 'done_feedback',
     },
-    attributes: ['id', 'title', 'due_date'],
-    include: [{ model: User, as: 'assignee', attributes: ['id', 'name'], required: false }],
+    attributes: ['id', 'title', 'due_date', 'updatedAt'],
+    include: [{ model: User, as: 'assignee', attributes: ['id', 'name', 'name_localized'], required: false }],
     limit: 20,
   });
   for (const t of toApprove) {
@@ -161,6 +165,7 @@ async function collectTasks(businessId, userId) {
       subject: t.title,
       context: t.assignee ? `담당: ${t.assignee.name}` : null,
       dueAt: due ? due.toISOString() : null,
+      createdAt: safeToIso(t.updatedAt),
       actor: t.assignee ? { name: t.assignee.name } : null,
       drawer: { kind: 'task', id: t.id },
     });
@@ -184,7 +189,7 @@ async function collectEvents(businessId, userId) {
       business_id: businessId,
       start_at: { [Op.between]: [now, weekEnd] },
     },
-    attributes: ['id', 'title', 'start_at', 'location'],
+    attributes: ['id', 'title', 'start_at', 'location', 'createdAt'],
     include: [
       {
         model: CalendarEventAttendee, as: 'attendees', required: true,
@@ -213,6 +218,7 @@ async function collectEvents(businessId, userId) {
         subject: ev.title,
         context: ev.Project ? ev.Project.name : (ev.location || null),
         dueAt: safeToIso(ev.start_at),
+        createdAt: safeToIso(ev.createdAt),
         drawer: { kind: 'event', id: ev.id },
       });
       continue;
@@ -228,6 +234,7 @@ async function collectEvents(businessId, userId) {
         subject: ev.title,
         context: ev.Project ? ev.Project.name : (ev.location || null),
         dueAt: safeToIso(ev.start_at),
+        createdAt: safeToIso(ev.createdAt),
         drawer: { kind: 'event', id: ev.id },
       });
     }
@@ -250,7 +257,7 @@ async function collectInvites(userEmail) {
       user_id: null,
       removed_at: null,
     },
-    attributes: ['id', 'invite_email', 'business_id'],
+    attributes: ['id', 'invite_email', 'business_id', 'createdAt'],
     include: [{ model: Business, attributes: ['id', 'name'], required: false }],
     limit: 10,
   });
@@ -262,6 +269,7 @@ async function collectInvites(userEmail) {
       verb: 'accept',
       subject: `${m.Business ? m.Business.name : '워크스페이스'} 멤버 초대`,
       context: '초대 수락 대기',
+      createdAt: safeToIso(m.createdAt),
       actor: m.Business ? { name: m.Business.name } : null,
       inline: 'invite',
     });
@@ -274,7 +282,7 @@ async function collectInvites(userEmail) {
       status: 'invited',
       user_id: null,
     },
-    attributes: ['id', 'invite_email', 'business_id', 'display_name'],
+    attributes: ['id', 'invite_email', 'business_id', 'display_name', 'createdAt'],
     include: [{ model: Business, attributes: ['id', 'name'], required: false }],
     limit: 10,
   });
@@ -286,6 +294,7 @@ async function collectInvites(userEmail) {
       verb: 'accept',
       subject: `${c.Business ? c.Business.name : '워크스페이스'} 고객 초대`,
       context: '초대 수락 대기',
+      createdAt: safeToIso(c.createdAt),
       actor: c.Business ? { name: c.Business.name } : null,
       inline: 'invite',
     });
@@ -313,38 +322,38 @@ async function collectCandidates(businessId, currentUserId) {
       // 추정 담당자 정보 — 담당자 미지정 시 "담당자 지정 필요" 표시용
       {
         model: User, as: 'guessedAssignee',
-        attributes: ['id', 'name'],
+        attributes: ['id', 'name', 'name_localized'],
         required: false,
       },
     ],
     order: [['extracted_at', 'DESC']],
     limit: 20,
   });
-  return cands.map((c) => {
+  return cands.flatMap((c) => {
+    const assigneeName = c.guessedAssignee?.name || null;
+    const isMine = c.guessedAssignee?.id === currentUserId;
+    // 인박스 = "내가 직접 행동해야 할 것" 만. 다른 사람 담당 candidate 는 그 사람 인박스에 가야 함.
+    // 본인 담당(accept) + 담당자 미지정(assign — owner/admin 이 지정 행동) 만 노출.
+    if (assigneeName && !isMine) return [];
+
     const convId = c.Conversation?.id || c.conversation_id;
     const link = convId ? `/talk?conv=${convId}&candidate=${c.id}` : '/talk';
     const convName = c.Conversation?.display_name || c.Conversation?.title || '';
-    const assigneeName = c.guessedAssignee?.name || null;
-    const isMine = c.guessedAssignee?.id === currentUserId;
-    // 담당자 표시 규칙:
-    //   - 추정 담당자 있음: "담당: {이름}" (본인이면 "담당: 나")
-    //   - 추정 담당자 없음: "담당자 지정 필요"
-    let assigneeBadge;
-    if (assigneeName) assigneeBadge = isMine ? '담당: 나' : `담당: ${assigneeName}`;
-    else assigneeBadge = '담당자 지정 필요';
+    const assigneeBadge = assigneeName ? '담당: 나' : '담당자 지정 필요';
     const context = convName ? `${convName} · ${assigneeBadge}` : assigneeBadge;
-    return {
+    return [{
       id: `candidate-${c.id}`,
       type: 'task_candidate',
-      // 담당자 미지정 → 'assign' (담당자 지정 필요), 본인 담당 → 'accept', 다른 사람 담당 → 'review'
-      verb: !assigneeName ? 'assign' : (isMine ? 'accept' : 'review'),
+      // 담당자 미지정 → 'assign' (담당자 지정 필요), 본인 담당 → 'accept'
+      verb: !assigneeName ? 'assign' : 'accept',
       priority: 'waiting',
       subject: c.title,
       context,
       dueAt: null,
+      createdAt: safeToIso(c.extracted_at || c.extractedAt),
       actor: { name: 'Q Talk' },
       link,
-    };
+    }];
   });
 }
 
@@ -362,7 +371,7 @@ async function collectInvoices(businessId) {
       // notify_paid_at 이 있는 건은 collectPaymentNotifies 가 처리 (중복 방지)
       notify_paid_at: null,
     },
-    attributes: ['id', 'invoice_number', 'recipient_business_name', 'grand_total', 'paid_amount', 'due_date', 'status', 'currency'],
+    attributes: ['id', 'invoice_number', 'recipient_business_name', 'grand_total', 'paid_amount', 'due_date', 'status', 'currency', 'sent_at', 'createdAt'],
     order: [['due_date', 'ASC']],
     limit: 20,
   });
@@ -382,6 +391,7 @@ async function collectInvoices(businessId) {
       subject: `${inv.recipient_business_name || inv.invoice_number} — ${inv.currency === 'USD' ? '$' : '₩'}${Number(total - paid).toLocaleString('ko-KR')}`,
       context: dueStr ? (overdue ? `결제 기한: ${dueStr} (지남)` : `결제 기한: ${dueStr}`) : null,
       dueAt: safeToIso(dueAt),
+      createdAt: safeToIso(inv.sent_at || inv.createdAt),
       amount: total - paid,
       currency: inv.currency || 'KRW',
       actor: inv.recipient_business_name ? { name: inv.recipient_business_name } : null,
@@ -409,7 +419,7 @@ async function collectSignatures(businessId, userEmail, userRole) {
         signer_email: userEmail,
         status: { [Op.in]: ['sent', 'viewed'] },
       },
-      attributes: ['id', 'token', 'signer_email', 'signer_name', 'status', 'expires_at', 'entity_type', 'entity_id', 'business_id', 'created_at'],
+      attributes: ['id', 'token', 'signer_email', 'signer_name', 'status', 'expires_at', 'entity_type', 'entity_id', 'business_id', 'createdAt'],
       order: [['expires_at', 'ASC']],
       limit: 30,
     });
@@ -436,6 +446,7 @@ async function collectSignatures(businessId, userEmail, userRole) {
         subject,
         context: expiresAt ? `만료: ${formatDateShort(expiresAt)}` : null,
         dueAt: safeToIso(expiresAt),
+        createdAt: safeToIso(sr.createdAt),
         actor: { name: sr.signer_name || sr.signer_email },
         link: `/sign/${sr.token}`,
       });
@@ -469,10 +480,11 @@ async function collectSignatures(businessId, userEmail, userRole) {
         id: `sign-rejected-${sr.id}`,
         type: 'signature',
         priority: 'today',
-        verb: 'review',
+        verb: 'sign_rejected',
         subject,
         context: `${sr.signer_name || sr.signer_email} 거절${sr.rejected_reason ? ` — ${String(sr.rejected_reason).slice(0, 40)}` : ''}`,
         dueAt: safeToIso(sr.rejected_at),
+        createdAt: safeToIso(sr.rejected_at),
         actor: { name: sr.signer_name || sr.signer_email },
         link,
       });
@@ -525,6 +537,7 @@ async function collectPaymentNotifies(businessId, userRole) {
       subject: `${inv.invoice_number} · ${cur}${(total - paid).toLocaleString('ko-KR')} ${clientName ? `· ${clientName}` : ''}`.trim(),
       context: `송금 완료 알림 받음${inv.notify_payer_name ? ` · 입금자명: ${inv.notify_payer_name}` : ''}`,
       dueAt: safeToIso(inv.notify_paid_at),
+      createdAt: safeToIso(inv.notify_paid_at),
       amount: total - paid,
       currency: inv.currency || 'KRW',
       actor: { name: inv.notify_payer_name || clientName || '고객' },
@@ -561,6 +574,7 @@ async function collectPaymentNotifies(businessId, userRole) {
       subject: `${inv.invoice_number} · ${inst.label} · ${cur}${Number(inst.amount).toLocaleString('ko-KR')} ${clientName ? `· ${clientName}` : ''}`.trim(),
       context: `송금 완료 알림 받음${inst.notify_payer_name ? ` · 입금자명: ${inst.notify_payer_name}` : ''}`,
       dueAt: safeToIso(inst.notify_paid_at),
+      createdAt: safeToIso(inst.notify_paid_at),
       amount: Number(inst.amount),
       currency: inv.currency || 'KRW',
       actor: { name: inst.notify_payer_name || clientName || '고객' },
@@ -622,6 +636,7 @@ async function collectTaxInvoices(businessId, userRole) {
       subject: `${inv.invoice_number} · ${inst.label} · ${cur}${Number(inst.amount).toLocaleString('ko-KR')} · ${clientName}`,
       context: paidAt ? `결제일: ${formatDateShort(paidAt)}${overdue ? ' · 마감 지남' : ''}` : null,
       dueAt: safeToIso(dueAt),
+      createdAt: safeToIso(paidAt),
       amount: Number(inst.amount),
       currency: inv.currency || 'KRW',
       actor: { name: clientName || '사업자 고객' },

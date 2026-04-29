@@ -3,6 +3,10 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
+import HelpDot from '../Common/HelpDot';
+import SlotFormModal from './SlotFormModal';
+import { displayName } from '../../utils/displayName';
+import i18n from '../../i18n';
 import { useSearchParams } from 'react-router-dom';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 import SearchBox from '../Common/SearchBox';
@@ -120,6 +124,8 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
   // 템플릿 모달 — 새 글 작성 시 시드 5종 중 선택해서 본문 prefill
   const [tplModalOpen, setTplModalOpen] = useState(false);
   const [templates, setTemplates] = useState<DocTemplate[]>([]);
+  // 사이클 I2 — Phase F 슬롯 폼
+  const [slotTplId, setSlotTplId] = useState<number | null>(null);
   const [tplSearch, setTplSearch] = useState('');
   const { user } = useAuth();
   const businessId = scope.type === 'workspace' ? scope.businessId : (user?.business_id ? Number(user.business_id) : null);
@@ -278,12 +284,19 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
   };
 
   const startFromTemplate = (tpl: DocTemplate) => {
+    // 사이클 I2 — schema_json 슬롯이 있으면 SlotFormModal 먼저, 없으면 기존 흐름
+    const sj = (tpl as unknown as { schema_json?: unknown }).schema_json;
+    const hasSlots = Array.isArray(sj) && sj.length > 0;
+    if (hasSlots && tpl.id) {
+      setTplModalOpen(false);
+      setSlotTplId(tpl.id);
+      return;
+    }
     setActiveId(null);
     setDetail(null);
     setMode('new');
     setTitleDraft(tpl.name);
     const html = tpl.body_template ? renderTemplateClient(tpl.body_template) : '';
-    // PostEditor 가 setContent(HTML) 도 받으므로 string 그대로 전달
     setContentDraft(html as unknown);
     setCategoryDraft(filter.kind === 'category' ? filter.name : KIND_LABELS_KO[tpl.kind] || '');
     setPendingUploads([]);
@@ -291,6 +304,21 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
     setPendingExistingMeta({});
     setError(null);
     setTplModalOpen(false);
+  };
+
+  // 슬롯 폼 완료 시 — 채워진 HTML 로 PostEditor 진입
+  const handleSlotConfirm = (rendered: { html: string; title: string }) => {
+    setActiveId(null);
+    setDetail(null);
+    setMode('new');
+    setTitleDraft(rendered.title);
+    setContentDraft(rendered.html as unknown);
+    setCategoryDraft(filter.kind === 'category' ? filter.name : '');
+    setPendingUploads([]);
+    setPendingExistingIds([]);
+    setPendingExistingMeta({});
+    setError(null);
+    setSlotTplId(null);
   };
 
   const startEdit = () => {
@@ -470,6 +498,9 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
       <Sidebar>
         <PanelHeader>
           <PanelTitle>{scope.type === 'workspace' ? t('page.title', 'Q docs') : t('tab.title', '문서')}</PanelTitle>
+          <HelpDot askCue={t('help.cuePrefill','Q docs 의 템플릿·AI 작성·서명 요청·분할 청구가 어떻게 작동하는지 알려줘') as string} topic="qdocs">
+            {t('help.body','5종 템플릿(견적·청구·NDA·제안·회의록)에서 시작하거나 AI 자동 작성. 작성 후 서명 요청을 보내면 고객이 OTP 인증으로 서명. 견적·계약 post 와 청구서를 연결하면 회차별 분할 청구도 가능.')}
+          </HelpDot>
           <HeaderBtnRow>
             <AiBtn type="button" onClick={() => setAiOpen(true)} title={t('ai.openHint', 'AI 가 문서 본문을 자동 작성') as string}>
               <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 16.8 5.8 21.3l2.4-7.4L2 9.4h7.6L12 2z"/></svg>
@@ -575,7 +606,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
                 </RowTitle>
                 {r.content_preview && <RowPreview>{r.content_preview}</RowPreview>}
                 <RowMeta>
-                  <span>{r.author?.name || '—'}</span>
+                  <span>{displayName(r.author, i18n.language) || '—'}</span>
                   <span>·</span>
                   <span>{formatDate(r.updated_at)}</span>
                   {r.category && <CategoryMini>#{r.category}</CategoryMini>}
@@ -707,7 +738,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
             </PanelHeader>
             <Body>
               <ViewMeta>
-                <span>{detail.author?.name || '—'}</span>
+                <span>{displayName(detail.author, i18n.language) || '—'}</span>
                 <span>·</span>
                 <span>{formatDate(detail.created_at)}</span>
                 {detail.editor && detail.editor.id !== detail.author?.id && (
@@ -923,6 +954,17 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
             </TplGrid>
           </ModalDialog>
         </ModalBackdrop>
+      )}
+      {slotTplId !== null && businessId && (
+        <SlotFormModal
+          templateId={slotTplId}
+          businessId={businessId}
+          projectId={scope.type === 'project' ? scope.projectId : null}
+          clientId={null}
+          open={true}
+          onClose={() => setSlotTplId(null)}
+          onConfirm={handleSlotConfirm}
+        />
       )}
     </Layout>
   );

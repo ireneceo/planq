@@ -1,6 +1,10 @@
 {
   "page": {
     "sidebarTitle": "Q note",
+    "help": {
+      "body": "Add participants, docs, and meeting language at start for better STT accuracy. Mic mode = self only; Web meeting mode separates channels (me/other). Question cards' 'Find answer' uses meeting docs first (RAG). You can also type questions directly — shown in primary language + translated to the secondary.",
+      "cuePrefill": "Tell me how Q note start, recording mode, find-answer, and speaker recognition work"
+    },
     "newMeeting": "New Meeting",
     "newMeetingStart": "Start New Meeting",
     "sessionSearchPlaceholder": "Search sessions",

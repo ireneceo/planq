@@ -74,9 +74,10 @@ export default function ProfilePage() {
   const [language, setLanguage] = useState<string>(user?.language || 'ko');
   const [langSaving, setLangSaving] = useState(false);
 
-  // 기본 정보 인라인 편집 (이름·아이디)
+  // 기본 정보 인라인 편집 (이름·아이디·다국어 이름)
   const [nameDraft, setNameDraft] = useState<string>(user?.name || '');
   const [usernameDraft, setUsernameDraft] = useState<string>((user as { username?: string } | null)?.username || '');
+  const [nameEnDraft, setNameEnDraft] = useState<string>(((user as { name_localized?: Record<string, string> } | null)?.name_localized || {}).en || '');
   const [usernameStatus, setUsernameStatus] = useState<{ available: boolean | null; reason?: string }>({ available: null });
   const usernameCheckTimer = useRef<number | null>(null);
   const [emailModalOpen, setEmailModalOpen] = useState(false);
@@ -85,7 +86,9 @@ export default function ProfilePage() {
     if (user?.name !== undefined) setNameDraft(user.name || '');
     const uname = (user as { username?: string } | null)?.username;
     if (uname !== undefined) setUsernameDraft(uname || '');
-  }, [user?.name, (user as { username?: string } | null)?.username]);
+    const nl = (user as { name_localized?: Record<string, string> } | null)?.name_localized;
+    if (nl !== undefined) setNameEnDraft((nl || {}).en || '');
+  }, [user?.name, (user as { username?: string } | null)?.username, (user as { name_localized?: Record<string, string> } | null)?.name_localized]);
 
   const saveName = useCallback(async () => {
     if (!user?.id) throw new Error('Not logged in');
@@ -101,6 +104,24 @@ export default function ProfilePage() {
     if (!res.ok || !data.success) throw new Error(data.message || t('messages.errorSave'));
     if (updateUser) updateUser({ name: next });
   }, [user?.id, user?.name, nameDraft, updateUser, t]);
+
+  // English name 저장 — name_localized.en 변경
+  const saveNameEn = useCallback(async () => {
+    if (!user?.id) throw new Error('Not logged in');
+    const next = nameEnDraft.trim();
+    const cur = ((user as { name_localized?: Record<string, string> } | null)?.name_localized || {}).en || '';
+    if (next === cur) return;
+    const merged = { ...((user as { name_localized?: Record<string, string> } | null)?.name_localized || {}) };
+    if (next) merged.en = next; else delete merged.en;
+    const res = await apiFetch(`/api/users/${user.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name_localized: Object.keys(merged).length ? merged : null }),
+    });
+    const data = await res.json();
+    if (!res.ok || !data.success) throw new Error(data.message || t('messages.errorSave'));
+    if (updateUser) updateUser({ name_localized: Object.keys(merged).length ? merged : null } as Partial<{ name_localized: Record<string, string> | null }>);
+  }, [user?.id, user, nameEnDraft, updateUser, t]);
 
   const saveUsername = useCallback(async () => {
     if (!user?.id) throw new Error('Not logged in');
@@ -456,6 +477,21 @@ export default function ProfilePage() {
                   maxLength={100}
                 />
               </AutoSaveField>
+            </FieldBody>
+          </FieldRow>
+
+          <FieldRow>
+            <Label>{t('basic.nameEn', 'English name')}</Label>
+            <FieldBody>
+              <AutoSaveField onSave={saveNameEn}>
+                <TextInput
+                  value={nameEnDraft}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNameEnDraft(e.target.value)}
+                  placeholder={t('basic.nameEnPlaceholder', 'e.g. Owen Kim')}
+                  maxLength={100}
+                />
+              </AutoSaveField>
+              <Hint>{t('basic.nameEnHint', '선택 — 영어 UI 사용자에게 이렇게 표시됩니다')}</Hint>
             </FieldBody>
           </FieldRow>
 

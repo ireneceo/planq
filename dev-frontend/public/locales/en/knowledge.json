@@ -1,0 +1,59 @@
+{
+  "page": {
+    "title": "Q knowledge",
+    "searchPh": "Search by title...",
+    "new": "+ New knowledge",
+    "loading": "Loading…"
+  },
+  "help": {
+    "body": "Company knowledge DB referenced by Cue, AI writing, and Q note answer-finding. Classify by category (6 types) and scope (workspace/project/client). Narrower scope = higher precision.",
+    "cuePrefill": "Tell me how categories and scopes in Q knowledge affect Cue's answers"
+  },
+  "cat": {
+    "all": "All",
+    "policy": "Policy",
+    "manual": "Manual",
+    "incident": "Incident",
+    "faq": "FAQ",
+    "about": "About",
+    "pricing": "Pricing"
+  },
+  "scope": {
+    "workspace": "Whole workspace",
+    "project": "Specific project",
+    "client": "Specific client"
+  },
+  "status": {
+    "pending": "Pending",
+    "indexing": "Indexing",
+    "ready": "Ready",
+    "failed": "Failed"
+  },
+  "row": {
+    "delete": "Delete"
+  },
+  "empty": {
+    "title": "No knowledge yet",
+    "desc": "Add company materials so Cue can find answers from them.",
+    "cta": "+ Add knowledge"
+  },
+  "modal": {
+    "title": "New knowledge",
+    "titleLabel": "Title",
+    "titlePh": "e.g. Refund policy v1",
+    "body": "Content",
+    "bodyPh": "Enter the body. After indexing it will be used by Cue.",
+    "category": "Category",
+    "scope": "Scope",
+    "projectPick": "Pick a project",
+    "projectPh": "Select a project",
+    "clientPick": "Pick a client",
+    "clientPh": "Select a client",
+    "errProjectRequired": "Project scope requires picking a project",
+    "errClientRequired": "Client scope requires picking a client",
+    "errSave": "Save failed: {{msg}}",
+    "save": "Save",
+    "saving": "Saving…",
+    "cancel": "Cancel"
+  }
+}

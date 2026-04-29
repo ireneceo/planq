@@ -80,6 +80,10 @@
   },
   "left": {
     "title": "Q talk",
+    "help": {
+      "body": "프로젝트 연결·고객 연결·일반 대화를 만들 수 있습니다. 자동 업무 추출 ON 이면 메시지에서 후보가 우측 패널에 모입니다. 번역 표시 ON 이면 메시지마다 두 언어가 함께 보입니다.",
+      "cuePrefill": "Q talk 의 채팅 종류, 자동 추출, 번역 표시가 어떻게 작동하는지 알려줘"
+    },
     "expand": "리스트 열기",
     "newChat": "새 대화",
     "newProject": "새 프로젝트",
@@ -96,6 +100,9 @@
     "project": "프로젝트 연결",
     "projectHint": "연결하면 프로젝트의 업무·이슈·메모가 함께 묶입니다. 건너뛰면 일반 대화로 만들어집니다.",
     "noProject": "연결 안 함 (일반 대화)",
+    "client": "고객 연결",
+    "clientHint": "특정 고객과의 대화면 연결하세요. 프로젝트와 독립적으로 가능합니다.",
+    "noClient": "고객 없음 (내부)",
     "translation": "번역 표시",
     "translationHint": "사용 시 메시지에 두 언어가 함께 표시됩니다 (Q note 패턴). 만든 후 톱니에서 변경 가능.",
     "translationEnable": "번역 표시 사용",
@@ -166,6 +173,7 @@
     "noMessages": "첫 메시지를 보내세요",
     "expandLeft": "좌측 열기",
     "expandRight": "우측 열기",
+    "back": "리스트로 돌아가기",
     "rename": "클릭해서 이름 수정",
     "openSettings": "채팅 설정",
     "inProject": "소속",
@@ -214,6 +222,12 @@
   "page": {
     "title": "Q talk",
     "subtitle": "고객과 실시간 대화 + Cue(AI 팀원) 공동 응대",
+    "tour": {
+      "step1": {
+        "title": "Q talk",
+        "body": "왼쪽 패널에서 프로젝트·고객·일반 대화를 만들 수 있어요. 헤더 옆 ⓘ 클릭하면 자동 추출, 번역 등 자세한 작동을 볼 수 있어요."
+      }
+    },
     "noBusiness": "워크스페이스가 선택되지 않았습니다.",
     "loading": "프로젝트 로드 중...",
     "loadFailed": "로드 실패: {{msg}}",

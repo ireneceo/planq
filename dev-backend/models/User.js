@@ -34,6 +34,14 @@ User.init({
     type: DataTypes.STRING(100),
     allowNull: false
   },
+  // 다국어 이름 — 사이클 F (글로벌 클라이언트 정합).
+  // 예: { ko: "김오너", en: "Owen Kim" }. 미입력 언어는 name (default) fallback.
+  // viewer 의 i18n 언어 기준으로 displayName(user, viewerLang) 헬퍼가 결정.
+  name_localized: {
+    type: DataTypes.JSON,
+    allowNull: true,
+    defaultValue: null,
+  },
   phone: {
     type: DataTypes.STRING(20),
     allowNull: true

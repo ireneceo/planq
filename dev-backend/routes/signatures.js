@@ -21,9 +21,10 @@ const express = require('express');
 const router = express.Router();
 const crypto = require('crypto');
 const rateLimit = require('express-rate-limit');
+const { ipKeyGenerator } = require('express-rate-limit');
 const { Op } = require('sequelize');
 const {
-  SignatureRequest, Post, Document, Business, BusinessMember, User, Conversation, Message,
+  SignatureRequest, Post, Document, Business, BusinessMember, User, Conversation, Message, Project,
 } = require('../models');
 const { sequelize } = require('../config/database');
 const { authenticateToken } = require('../middleware/auth');
@@ -53,7 +54,12 @@ async function assertMember(userId, businessId, isPlatformAdmin) {
 }
 
 async function loadEntity(entity_type, entity_id) {
-  if (entity_type === 'post') return await Post.findByPk(entity_id);
+  // 서명 페이지에 프로젝트 컨텍스트 노출 — post 의 연결된 프로젝트(있으면) 같이 fetch
+  if (entity_type === 'post') {
+    return await Post.findByPk(entity_id, {
+      include: [{ model: Project, attributes: ['id', 'name'], required: false }],
+    });
+  }
   if (entity_type === 'document') return await Document.findByPk(entity_id);
   return null;
 }
@@ -77,7 +83,7 @@ const otpSendLimiter = rateLimit({
   max: 3,
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: (req) => `${req.params.token || ''}:${req.ip}`,
+  keyGenerator: (req) => `${req.params.token || ''}:${ipKeyGenerator(req.ip)}`,
   message: { success: false, message: 'rate_limit_otp_send' },
 });
 const otpVerifyLimiter = rateLimit({
@@ -85,7 +91,7 @@ const otpVerifyLimiter = rateLimit({
   max: 10,
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: (req) => `${req.params.token || ''}:${req.ip}`,
+  keyGenerator: (req) => `${req.params.token || ''}:${ipKeyGenerator(req.ip)}`,
   message: { success: false, message: 'rate_limit_otp_verify' },
 });
 
@@ -406,6 +412,7 @@ router.get('/sign/:token', async (req, res, next) => {
         id: sr.entity_id,
         title: entity.title || '문서',
         content_json: sr.entity_type === 'post' ? (entity.content_json ? (typeof entity.content_json === 'string' ? JSON.parse(entity.content_json) : entity.content_json) : null) : null,
+        project: entity.Project ? { id: entity.Project.id, name: entity.Project.name } : null,
       },
     });
   } catch (err) { next(err); }

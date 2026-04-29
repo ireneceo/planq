@@ -3,9 +3,11 @@ import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { type MockProject, type MockConversation } from './mock';
 import { useAuth } from '../../contexts/AuthContext';
+import HelpDot from '../../components/Common/HelpDot';
 import LetterAvatar from '../../components/Common/LetterAvatar';
 import SearchBoxCommon from '../../components/Common/SearchBox';
 import { useListKeyboardNav } from '../../hooks/useListKeyboardNav';
+import { mediaTablet } from '../../theme/breakpoints';
 
 interface Props {
   projects: MockProject[];
@@ -16,6 +18,8 @@ interface Props {
   onOpenNewChat: () => void;
   collapsed: boolean;
   onToggleCollapsed: () => void;
+  /** 모바일(<=tablet)에서 대화가 선택된 경우 LeftPanel 을 숨김 */
+  mobileHidden?: boolean;
 }
 
 
@@ -28,6 +32,7 @@ interface ChatEntry {
 const LeftPanel: React.FC<Props> = ({
   projects, conversations, activeConversationId,
   onSelectConversation, onOpenNewChat, collapsed, onToggleCollapsed,
+  mobileHidden = false,
 }) => {
   const { t } = useTranslation('qtalk');
   const { user } = useAuth();
@@ -108,10 +113,13 @@ const LeftPanel: React.FC<Props> = ({
   }
 
   return (
-    <Container>
+    <Container $mobileHidden={mobileHidden}>
       <Header>
         <HeaderTop>
           <HeaderTitle>{t('left.title', 'Q talk')}</HeaderTitle>
+          <HelpDot askCue={t('left.help.cuePrefill','Q talk 의 채팅 종류, 자동 추출, 번역 표시가 어떻게 작동하는지 알려줘') as string} topic="qtalk">
+            {t('left.help.body','프로젝트 연결·고객 연결 채팅을 만들 수 있습니다. 자동 업무 추출 ON 이면 메시지에서 후보가 우측 패널에 모입니다. 번역 표시 ON 이면 메시지마다 두 언어가 함께 보입니다.')}
+          </HelpDot>
           <HeaderActions>
             {!isClient && (
               <IconBtn onClick={onOpenNewChat} title={t('left.newChat', '새 대화')} aria-label="New chat">
@@ -183,7 +191,7 @@ const LeftPanel: React.FC<Props> = ({
 export default LeftPanel;
 
 // ─────────────────────────────────────────────
-const Container = styled.aside`
+const Container = styled.aside<{ $mobileHidden?: boolean }>`
   width: 280px;
   flex-shrink: 0;
   background: #FFFFFF;
@@ -192,7 +200,11 @@ const Container = styled.aside`
   flex-direction: column;
   overflow: hidden;
   position: relative;
-  @media (max-width: 900px) { display: none; }
+  ${mediaTablet} {
+    display: ${(p) => (p.$mobileHidden ? 'none' : 'flex')};
+    width: 100%;
+    border-right: none;
+  }
 `;
 
 /* 접힘 상태: 0 폭 컨테이너 + 내부 EdgeHandle 만 경계에 노출. Q Note 와 동일한 "완전 접힘" UX */
@@ -200,7 +212,7 @@ const CollapsedStrip = styled.aside`
   width: 0;
   flex-shrink: 0;
   position: relative;
-  @media (max-width: 900px) { display: none; }
+  ${mediaTablet} { display: none; }
 `;
 
 /* 사이드 패널 접기/펼치기 엣지 핸들 — Secondary/Q Talk 공통 패턴 (2026-04-24 통일) */

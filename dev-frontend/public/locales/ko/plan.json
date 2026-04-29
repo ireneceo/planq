@@ -119,7 +119,7 @@
     "bank": {
       "title": "입금 계좌",
       "holder": "예금주",
-      "contactSupport": "계좌 정보는 support@planq.kr 으로 문의 부탁드립니다.",
+      "contactSupport": "PlanQ 결제 계좌 정보가 아직 등록되지 않았습니다. support@planq.kr 으로 문의 부탁드립니다.",
       "memoHint": "입금자명에 결제 ID #{{paymentId}} 또는 워크스페이스명을 함께 적어주세요."
     },
     "payerName": {

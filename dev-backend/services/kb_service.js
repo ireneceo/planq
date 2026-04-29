@@ -147,6 +147,12 @@ async function embedPinnedFaq(faq) {
 // 3) 코사인 정렬 후 tier 별로 반환
 async function hybridSearch(businessId, query, opts = {}) {
   const limit = opts.limit || 5;
+  // 사이클 G — 스코프 우선순위: client → project → workspace.
+  // 컨텍스트(opts) 에 project_id / client_id 있으면 그 스코프의 KbDocument 우선 가중.
+  // 더 좁은 스코프는 정밀도 ↑, 더 넓은 스코프는 재현율 ↑. threshold 0.78.
+  const ctxProjectId = opts.project_id || null;
+  const ctxClientId = opts.client_id || null;
+  const ctxCategory = opts.category || null;
   const queryEmbedding = await embedText(query);
 
   // ─── Pinned FAQ ───
@@ -185,11 +191,26 @@ async function hybridSearch(businessId, query, opts = {}) {
     // 임베딩 없으면 content LIKE 폴백
     chunkWhere.content = { [Op.like]: `%${String(query).slice(0, 80)}%` };
   }
+  // 스코프·카테고리 필터 — KbDocument 의 컬럼 기반 (sub-include where)
+  const docWhere = {};
+  if (ctxCategory) docWhere.category = ctxCategory;
+  // 스코프 정책: ctx 스코프가 명시된 경우 — 해당 스코프 + workspace 공통 모두 포함
+  // (좁은 스코프 = 정밀, workspace = fallback)
+  const scopeOr = [{ scope: 'workspace' }];
+  if (ctxProjectId) scopeOr.push({ scope: 'project', project_id: ctxProjectId });
+  if (ctxClientId) scopeOr.push({ scope: 'client', client_id: ctxClientId });
+  docWhere[Op.or] = scopeOr;
+
   const chunks = await KbChunk.findAll({
     where: chunkWhere,
-    limit: 80,
+    limit: 200,
     order: [['id', 'DESC']],
-    include: [{ model: KbDocument, attributes: ['title', 'id'] }]
+    include: [{
+      model: KbDocument,
+      attributes: ['title', 'id', 'category', 'scope', 'project_id', 'client_id'],
+      where: docWhere,
+      required: true,
+    }]
   });
 
   const scoredChunks = [];
@@ -204,12 +225,22 @@ async function hybridSearch(businessId, query, opts = {}) {
       score = 0.5;
     }
     if (score > 0) {
+      // 스코프 가중: client > project > workspace
+      const docScope = c.KbDocument?.scope;
+      let scopeBoost = 1.0;
+      if (docScope === 'client' && ctxClientId === c.KbDocument?.client_id) scopeBoost = 1.20;
+      else if (docScope === 'project' && ctxProjectId === c.KbDocument?.project_id) scopeBoost = 1.10;
+      // 카테고리 일치 추가 가중
+      if (ctxCategory && c.KbDocument?.category === ctxCategory) scopeBoost *= 1.05;
       scoredChunks.push({
         tier: 'kb_rag',
-        score,
+        score: score * scopeBoost,
+        raw_score: score,
+        scope: docScope,
         chunk_id: c.id,
         document_id: c.kb_document_id,
         document_title: c.KbDocument?.title || '',
+        category: c.KbDocument?.category,
         section_title: c.section_title,
         snippet: String(c.content).slice(0, 300)
       });

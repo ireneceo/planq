@@ -101,6 +101,27 @@
     "switcher": "Switch Workspace",
     "member": "Member"
   },
+  "helpDot": {
+    "ariaLabel": "Help",
+    "askCue": "Ask Cue for details"
+  },
+  "tour": {
+    "skip": "Skip",
+    "next": "Next",
+    "done": "Done",
+    "replay": "Replay tour"
+  },
+  "cue": {
+    "title": "Cue Help",
+    "emptyTitle": "What's on your mind?",
+    "emptyHint": "Ask anything about PlanQ in natural language. Cue reads the current screen context.",
+    "toggleHint": "to toggle anytime",
+    "you": "You",
+    "thinking": "Thinking…",
+    "inputPh": "Ask a question (Cmd/Ctrl + Enter to send)",
+    "send": "Send",
+    "sending": "Sending…"
+  },
   "cancel": "Cancel",
   "saving": "Saving…",
   "loading": "Loading…",

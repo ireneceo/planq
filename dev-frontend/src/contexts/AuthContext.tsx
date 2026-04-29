@@ -29,6 +29,8 @@ export interface User {
   email: string;
   username?: string | null;
   name: string;
+  // 다국어 이름 (사이클 F) — viewer 의 i18n 언어 기준으로 displayName 헬퍼가 표시 이름 결정
+  name_localized?: Record<string, string> | null;
   platform_role: string;
   business_id?: number | null;
   business_name?: string | null;
@@ -148,6 +150,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     email: apiUser.email as string,
     username: (apiUser.username as string) || null,
     name: (apiUser.name || (apiUser.email as string)?.split('@')[0]) as string,
+    name_localized: (apiUser.name_localized as Record<string, string>) || null,
     platform_role: apiUser.platform_role as string,
     business_id: (apiUser.business_id as number) || null,
     business_name: (apiUser.business_name as string) || null,

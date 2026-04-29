@@ -19,9 +19,21 @@ const isAdmin = (req) =>
 // List documents
 router.get('/businesses/:businessId/kb/documents', authenticateToken, checkBusinessAccess, async (req, res, next) => {
   try {
+    // 사이클 G — 카테고리/스코프 필터 (옵션)
+    const where = { business_id: req.params.businessId };
+    if (req.query.category && ['policy','manual','incident','faq','about','pricing'].includes(req.query.category)) {
+      where.category = req.query.category;
+    }
+    if (req.query.scope && ['workspace','project','client'].includes(req.query.scope)) {
+      where.scope = req.query.scope;
+    }
+    if (req.query.project_id) where.project_id = parseInt(req.query.project_id, 10) || null;
+    if (req.query.client_id) where.client_id = parseInt(req.query.client_id, 10) || null;
+    if (req.query.q) where.title = { [require('sequelize').Op.like]: `%${String(req.query.q).slice(0,80)}%` };
+
     const docs = await KbDocument.findAll({
-      where: { business_id: req.params.businessId },
-      attributes: ['id', 'title', 'source_type', 'file_name', 'file_size', 'version', 'status', 'chunk_count', 'uploaded_by', 'created_at', 'updated_at'],
+      where,
+      attributes: ['id', 'title', 'source_type', 'category', 'scope', 'project_id', 'client_id', 'file_name', 'file_size', 'version', 'status', 'chunk_count', 'uploaded_by', 'created_at', 'updated_at'],
       order: [['updated_at', 'DESC']]
     });
     successResponse(res, docs);
@@ -31,15 +43,35 @@ router.get('/businesses/:businessId/kb/documents', authenticateToken, checkBusin
 // Create document (text body) — 파일 업로드는 Phase 5.1 확장에서 multer 연결
 router.post('/businesses/:businessId/kb/documents', authenticateToken, checkBusinessAccess, async (req, res, next) => {
   try {
-    if (!isAdmin(req)) return errorResponse(res, 'Admin permission required', 403);
-    const { title, body, source_type } = req.body;
+    // KB 등록은 워크스페이스 멤버(owner/admin/member) 누구나 가능. client 만 차단.
+    if (req.businessRole === 'client') return errorResponse(res, 'forbidden', 403);
+    const { title, body, source_type, category, scope, project_id, client_id } = req.body;
     if (!title || !body) return errorResponse(res, 'title and body required', 400);
+
+    const allowedCategories = ['policy','manual','incident','faq','about','pricing'];
+    const allowedScopes = ['workspace','project','client'];
+    const finalCategory = allowedCategories.includes(category) ? category : 'manual';
+    let finalScope = allowedScopes.includes(scope) ? scope : 'workspace';
+    let finalProjectId = null;
+    let finalClientId = null;
+    if (finalScope === 'project') {
+      finalProjectId = parseInt(project_id, 10) || null;
+      if (!finalProjectId) return errorResponse(res, 'project_id_required_for_project_scope', 400);
+    }
+    if (finalScope === 'client') {
+      finalClientId = parseInt(client_id, 10) || null;
+      if (!finalClientId) return errorResponse(res, 'client_id_required_for_client_scope', 400);
+    }
 
     const doc = await KbDocument.create({
       business_id: req.params.businessId,
       title: String(title).slice(0, 300),
       body: String(body),
       source_type: ['manual', 'faq', 'policy', 'pricing', 'other'].includes(source_type) ? source_type : 'manual',
+      category: finalCategory,
+      scope: finalScope,
+      project_id: finalProjectId,
+      client_id: finalClientId,
       uploaded_by: req.user.id,
       status: 'pending'
     });

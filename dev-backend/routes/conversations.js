@@ -200,7 +200,7 @@ router.get('/:businessId/:id', authenticateToken, attachWorkspaceScope(), async 
           where: { is_deleted: false },
           required: false,
           include: [
-            { model: User, as: 'sender', attributes: ['id', 'name', 'avatar_url', 'is_ai'] },
+            { model: User, as: 'sender', attributes: ['id', 'name', 'name_localized', 'avatar_url', 'is_ai'] },
             { model: require('../models').MessageAttachment, as: 'attachments', required: false },
           ],
           order: [['created_at', 'ASC']],
@@ -370,7 +370,12 @@ router.get('/:businessId/:id/cue/suggestions', authenticateToken, checkBusinessA
     });
     if (!lastClientMsg) return successResponse(res, { suggestions: [] });
 
-    const searchResults = await kbService.hybridSearch(req.params.businessId, lastClientMsg.content, { limit: 3 });
+    // 사이클 G — conversation 의 project/client 컨텍스트 전달
+    const searchResults = await kbService.hybridSearch(req.params.businessId, lastClientMsg.content, {
+      limit: 3,
+      project_id: conversation.project_id || null,
+      client_id: conversation.client_id || null,
+    });
     successResponse(res, { suggestions: searchResults });
   } catch (err) { next(err); }
 });

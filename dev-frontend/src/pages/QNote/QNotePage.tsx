@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import HelpDot from '../../components/Common/HelpDot';
 import styled from 'styled-components';
 import StartMeetingModal from './StartMeetingModal';
 import type { StartConfig } from './StartMeetingModal';
@@ -1791,6 +1792,9 @@ const QNotePage = () => {
       <Sidebar $collapsed={sidebarCollapsed}>
         <SidebarHeader>
           <SidebarTitle>Q note</SidebarTitle>
+          <HelpDot askCue={t('page.help.cuePrefill','Q note 의 회의 시작·녹음 모드·답변 찾기·화자 인식이 어떻게 작동하는지 알려줘') as string} topic="qnote">
+            {t('page.help.body','회의 시작 시 참여자·자료·언어를 등록하면 STT 가 더 정확합니다. 마이크 모드는 본인만, 웹회의 모드는 채널 분리(나/상대). 질문 카드에서 "답변 찾기" → 회의 자료 우선 RAG. 입력창에 직접 질문 입력도 가능.')}
+          </HelpDot>
           <NewSessionBtn
             onClick={() => setShowStartModal(true)}
             title={t('page.newMeeting')}
@@ -2470,13 +2474,13 @@ const PopoverInputBtn = styled.button`
 const Layout = styled.div<{ $collapsed: boolean }>`
   display: grid;
   grid-template-columns: ${(p) => (p.$collapsed ? '0px 1fr' : '300px 1fr')};
-  /* 모바일은 상단 56px 헤더, 데스크탑은 헤더 없음 — 바닥 여백 제거 */
+  /* 모바일/태블릿은 상단 56px 헤더, 데스크탑은 헤더 없음 */
   height: 100vh;
-  @media (max-width: 768px) { height: calc(100vh - 56px); }
+  @media (max-width: 1024px) { height: calc(100vh - 56px); }
   background: #FFFFFF;
   transition: grid-template-columns 200ms ease;
   position: relative;
-  @media (max-width: 900px) {
+  @media (max-width: 1024px) {
     display: block;
   }
 `;
@@ -2490,7 +2494,7 @@ const Sidebar = styled.aside<{ $collapsed: boolean }>`
   transform: translateX(${(p) => (p.$collapsed ? '-100%' : '0')});
   transition: transform 200ms ease;
   visibility: ${(p) => (p.$collapsed ? 'hidden' : 'visible')};
-  @media (max-width: 900px) {
+  @media (max-width: 1024px) {
     position: absolute;
     top: 0;
     left: 0;
@@ -2504,7 +2508,7 @@ const Sidebar = styled.aside<{ $collapsed: boolean }>`
 
 const SidebarBackdrop = styled.div`
   display: none;
-  @media (max-width: 900px) {
+  @media (max-width: 1024px) {
     display: block;
     position: absolute;
     inset: 0;

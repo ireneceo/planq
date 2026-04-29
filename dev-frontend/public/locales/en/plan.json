@@ -119,7 +119,7 @@
     "bank": {
       "title": "Bank Account",
       "holder": "Holder",
-      "contactSupport": "Contact support@planq.kr for account details.",
+      "contactSupport": "PlanQ billing account is not yet configured. Please contact support@planq.kr.",
       "memoHint": "Include Payment ID #{{paymentId}} or workspace name with your transfer."
     },
     "payerName": {

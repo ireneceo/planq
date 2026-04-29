@@ -178,11 +178,20 @@ async function respondToMessage({ message, conversation, business, client }) {
     return { skipped: true, reason: 'usage_limit_exceeded', usage };
   }
 
-  // 4. KB 검색
-  const searchResults = await kbService.hybridSearch(business.id, message.content, { limit: 5 });
+  // 4. 전방위 컨텍스트 빌드 (사이클 G+) — KB 만이 아닌 프로젝트·대화 흐름·일정·고객 360°
+  const { buildCueContext } = require('./cue_context');
+  const ctx = await buildCueContext({
+    businessId: business.id,
+    conversationId: conversation.id,
+    projectId: conversation.project_id || null,
+    clientId: conversation.client_id || (client?.id || null),
+    query: message.content,
+    businessTimezone: business.timezone,
+  });
+  const searchResults = ctx.kb || { has_results: false };
 
-  // 5. LLM 호출
-  const systemPrompt = buildSystemPrompt(business, searchResults);
+  // 5. LLM 호출 — system prompt 에 전방위 컨텍스트 + KB 결과 포함
+  const systemPrompt = buildSystemPrompt(business, searchResults) + (ctx.markdown ? `\n\n# 워크스페이스 현황 (참고)\n${ctx.markdown}` : '');
   const llmModel = searchResults.has_results ? MODEL_MINI : MODEL_NANO;
   const llmResult = await callLLM(llmModel, [
     { role: 'system', content: systemPrompt },

@@ -10,11 +10,12 @@ import { useTranslation } from 'react-i18next';
 import PlanQSelect, { type PlanQSelectOption } from '../../components/Common/PlanQSelect';
 import LetterAvatar from '../../components/Common/LetterAvatar';
 import { useAuth } from '../../contexts/AuthContext';
-import { listBusinessMembers, listProjects, type WorkspaceMemberRow, type ApiProject, type SupportedLang } from '../../services/qtalk';
+import { listBusinessMembers, listProjects, listWorkspaceClients, type WorkspaceMemberRow, type WorkspaceClientRow, type ApiProject, type SupportedLang } from '../../services/qtalk';
 
 export interface NewChatFormData {
   title: string;
   project_id: number | null;
+  client_id: number | null; // 고객 1명 직접 연결 가능 — 프로젝트와 독립
   participant_user_ids: number[];
   // 채팅 설정 (생성 시점에 같이 결정 — 만든 후 톱니에서 변경 가능)
   auto_extract_enabled: boolean;
@@ -48,7 +49,9 @@ const NewChatModal: React.FC<Props> = ({ businessId, open, preselectedProjectId,
   // preselectedProjectId 가 있어도 단순 hint 로만 사용 (자동 prefill X)
   const [projectId, setProjectId] = useState<number | null>(null);
   const [participantIds, setParticipantIds] = useState<number[]>([]);
+  const [clientId, setClientId] = useState<number | null>(null);
   const [members, setMembers] = useState<WorkspaceMemberRow[]>([]);
+  const [clients, setClients] = useState<WorkspaceClientRow[]>([]);
   const [projects, setProjects] = useState<ApiProject[]>([]);
   const [submitting, setSubmitting] = useState(false);
   // 채팅 설정 — 생성 시점에 결정
@@ -62,6 +65,7 @@ const NewChatModal: React.FC<Props> = ({ businessId, open, preselectedProjectId,
     setTitle('');
     setProjectId(null); // 항상 미연결로 초기화 (preselectedProjectId 무시)
     setParticipantIds([]);
+    setClientId(null);
     setSubmitting(false);
     setAutoExtract(false);
     setTranslationOn(false);
@@ -69,12 +73,14 @@ const NewChatModal: React.FC<Props> = ({ businessId, open, preselectedProjectId,
     setLangB('en');
     (async () => {
       try {
-        const [mem, projs] = await Promise.all([
+        const [mem, projs, cls] = await Promise.all([
           listBusinessMembers(businessId),
           listProjects(businessId).catch(() => [] as ApiProject[]),
+          listWorkspaceClients(businessId).catch(() => [] as WorkspaceClientRow[]),
         ]);
         setMembers(mem.filter((m) => m.role !== 'ai' && m.user));
         setProjects(projs);
+        setClients(cls.filter((c) => c.status !== 'archived'));
       } catch { /* ignore */ }
     })();
   }, [open, businessId]);
@@ -96,6 +102,15 @@ const NewChatModal: React.FC<Props> = ({ businessId, open, preselectedProjectId,
     ],
     [projects, t],
   );
+  // 고객 옵션 — display_name → biz_name → company_name 순 fallback
+  const clientName = (c: WorkspaceClientRow) => c.display_name || c.biz_name || c.company_name || `고객 #${c.id}`;
+  const clientOptions = useMemo(
+    () => [
+      { value: '__none__', label: t('newChat.noClient', '고객 없음 (내부)') },
+      ...clients.map((c) => ({ value: String(c.id), label: clientName(c) })),
+    ],
+    [clients, t],
+  );
 
   const addParticipant = (userId: number) => {
     if (participantIds.includes(userId)) return;
@@ -114,6 +129,7 @@ const NewChatModal: React.FC<Props> = ({ businessId, open, preselectedProjectId,
       await onCreate({
         title: title.trim(),
         project_id: projectId,
+        client_id: clientId,
         participant_user_ids: participantIds,
         auto_extract_enabled: autoExtract,
         translation_enabled: translationOn,
@@ -155,6 +171,22 @@ const NewChatModal: React.FC<Props> = ({ businessId, open, preselectedProjectId,
                 setProjectId(!v || v === '__none__' ? null : Number(v));
               }}
               options={projectOptions}
+            />
+          </Field>
+
+          <Field>
+            <Label>{t('newChat.client', '고객 연결')}</Label>
+            <Hint>{t('newChat.clientHint', '특정 고객과의 대화면 연결하세요. 프로젝트와 독립적으로 가능합니다.')}</Hint>
+            <PlanQSelect
+              size="md"
+              value={clientId == null
+                ? { value: '__none__', label: t('newChat.noClient', '고객 없음 (내부)') }
+                : clientOptions.find((o) => o.value === String(clientId)) || null}
+              onChange={(opt) => {
+                const v = (opt as { value?: string } | null)?.value;
+                setClientId(!v || v === '__none__' ? null : Number(v));
+              }}
+              options={clientOptions}
             />
           </Field>
 

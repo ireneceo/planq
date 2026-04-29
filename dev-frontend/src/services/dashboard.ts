@@ -26,7 +26,9 @@ export type TodoVerb =
   | 'read'
   | 'sign'
   | 'mark_paid'
-  | 'issue_tax';
+  | 'issue_tax'
+  | 'candidate_other'
+  | 'sign_rejected';
 
 export interface TodoWorkspace {
   business_id: number;
@@ -42,6 +44,7 @@ export interface TodoItem {
   subject: string;               // 액션 대상: "워프로랩 3월 로고 시안 A안"
   context?: string;              // 추가 설명: "요청: Acme, 3시간 전"
   dueAt?: string | null;         // ISO string
+  createdAt?: string | null;     // ISO string — 알림 발생 시점 (사용자: 어느날 알림인지 표시)
   amount?: number;               // 청구서/견적용
   currency?: 'KRW' | 'USD' | 'EUR';
   actor?: { name: string; avatarUrl?: string };

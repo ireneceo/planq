@@ -128,7 +128,7 @@ router.get('/', authenticateToken, async (req, res, next) => {
 
     // 통합 검색: 제목·본문·카테고리·프로젝트명 모두 매칭
     const include = [
-      { model: User, as: 'author', attributes: ['id', 'name'] },
+      { model: User, as: 'author', attributes: ['id', 'name', 'name_localized'] },
       { model: Project, attributes: ['id', 'name', 'color'], required: false },
       { model: Conversation, attributes: ['id', 'title', 'display_name'], required: false },
     ];
@@ -216,7 +216,7 @@ router.get('/:id', authenticateToken, async (req, res, next) => {
   try {
     const post = await Post.findByPk(req.params.id, {
       include: [
-        { model: User, as: 'author', attributes: ['id', 'name'] },
+        { model: User, as: 'author', attributes: ['id', 'name', 'name_localized'] },
         { model: User, as: 'editor', attributes: ['id', 'name'], required: false },
         { model: Project, attributes: ['id', 'name', 'color'], required: false },
         { model: Conversation, attributes: ['id', 'title', 'display_name'], required: false },
@@ -265,7 +265,7 @@ router.post('/', authenticateToken, async (req, res, next) => {
     });
     const full = await Post.findByPk(post.id, {
       include: [
-        { model: User, as: 'author', attributes: ['id', 'name'] },
+        { model: User, as: 'author', attributes: ['id', 'name', 'name_localized'] },
         { model: Project, attributes: ['id', 'name', 'color'], required: false },
         { model: Conversation, attributes: ['id', 'title', 'display_name'], required: false },
         { model: PostAttachment, as: 'attachments', include: [{ model: File, as: 'file' }] },
@@ -331,7 +331,7 @@ router.put('/:id', authenticateToken, async (req, res, next) => {
     await post.update(patch);
     const full = await Post.findByPk(post.id, {
       include: [
-        { model: User, as: 'author', attributes: ['id', 'name'] },
+        { model: User, as: 'author', attributes: ['id', 'name', 'name_localized'] },
         { model: User, as: 'editor', attributes: ['id', 'name'], required: false },
         { model: Project, attributes: ['id', 'name', 'color'], required: false },
         { model: Conversation, attributes: ['id', 'title', 'display_name'], required: false },
@@ -599,7 +599,7 @@ async function buildPostPdf(post) {
 router.get('/:id/pdf', authenticateToken, async (req, res, next) => {
   try {
     const post = await Post.findByPk(req.params.id, {
-      include: [{ model: User, as: 'author', attributes: ['id', 'name'] }],
+      include: [{ model: User, as: 'author', attributes: ['id', 'name', 'name_localized'] }],
     });
     if (!post) return errorResponse(res, 'not_found', 404);
     if (!(await assertMember(req.user.id, post.business_id, req.user.platform_role === 'platform_admin'))) {
@@ -620,7 +620,7 @@ router.get('/public/:token/pdf', async (req, res, next) => {
   try {
     const post = await Post.findOne({
       where: { share_token: req.params.token, status: 'published' },
-      include: [{ model: User, as: 'author', attributes: ['id', 'name'] }],
+      include: [{ model: User, as: 'author', attributes: ['id', 'name', 'name_localized'] }],
     });
     if (!post) return errorResponse(res, 'not_found', 404);
     const pdf = await buildPostPdf(post);
@@ -640,7 +640,7 @@ router.get('/public/:token', async (req, res, next) => {
     const post = await Post.findOne({
       where: { share_token: req.params.token, status: 'published' },
       include: [
-        { model: User, as: 'author', attributes: ['id', 'name'] },
+        { model: User, as: 'author', attributes: ['id', 'name', 'name_localized'] },
         { model: Project, attributes: ['id', 'name', 'color'], required: false },
         { model: PostAttachment, as: 'attachments', include: [{ model: File, as: 'file' }] },
       ],

@@ -29,13 +29,13 @@ async function requireMember(userId, businessId) {
 
 // 공통 include
 const INCLUDE_DETAIL = [
-  { model: User, as: 'creator', attributes: ['id', 'name', 'email'] },
+  { model: User, as: 'creator', attributes: ['id', 'name', 'email', 'name_localized'] },
   { model: Project, attributes: ['id', 'name', 'color'], required: false },
   {
     model: CalendarEventAttendee,
     as: 'attendees',
     include: [
-      { model: User, as: 'user', attributes: ['id', 'name', 'email'] },
+      { model: User, as: 'user', attributes: ['id', 'name', 'email', 'name_localized'] },
       { model: Client, as: 'client', attributes: ['id', 'display_name', 'company_name'] },
     ],
   },

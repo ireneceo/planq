@@ -25,6 +25,8 @@ const TaskComment = require('./TaskComment');
 const TaskDailyProgress = require('./TaskDailyProgress');
 const TaskReviewer = require('./TaskReviewer');
 const TaskUserHours = require('./TaskUserHours');
+const TaskEstimation = require('./TaskEstimation');
+const PushSubscription = require('./PushSubscription');
 const TaskStatusHistory = require('./TaskStatusHistory');
 const TaskAttachment = require('./TaskAttachment');
 const ProjectStatusOption = require('./ProjectStatusOption');
@@ -199,6 +201,8 @@ Client.belongsTo(User, { as: 'assignedMember', foreignKey: 'assigned_member_id' 
 // KbDocument
 KbDocument.belongsTo(Business, { foreignKey: 'business_id' });
 KbDocument.belongsTo(User, { as: 'uploader', foreignKey: 'uploaded_by' });
+KbDocument.belongsTo(Project, { foreignKey: 'project_id' });
+KbDocument.belongsTo(Client, { foreignKey: 'client_id' });
 Business.hasMany(KbDocument, { as: 'kbDocuments', foreignKey: 'business_id' });
 
 // KbChunk
@@ -270,6 +274,15 @@ TaskUserHours.belongsTo(Task, { foreignKey: 'task_id', onDelete: 'CASCADE' });
 TaskUserHours.belongsTo(User, { as: 'user', foreignKey: 'user_id' });
 Task.hasMany(TaskUserHours, { as: 'userHours', foreignKey: 'task_id' });
 
+// TaskEstimation (예측시간 이력 — AI 추천 + 사용자 확정)
+TaskEstimation.belongsTo(Task, { foreignKey: 'task_id', onDelete: 'CASCADE' });
+TaskEstimation.belongsTo(User, { as: 'createdBy', foreignKey: 'created_by_user_id' });
+Task.hasMany(TaskEstimation, { as: 'estimations', foreignKey: 'task_id' });
+
+// PushSubscription (Web Push — 사이클 J)
+PushSubscription.belongsTo(User, { foreignKey: 'user_id' });
+PushSubscription.belongsTo(Business, { foreignKey: 'business_id' });
+
 // TaskStatusHistory
 TaskStatusHistory.belongsTo(Task, { foreignKey: 'task_id', onDelete: 'CASCADE' });
 TaskStatusHistory.belongsTo(User, { as: 'actor', foreignKey: 'actor_user_id' });
@@ -311,6 +324,8 @@ module.exports = {
   TaskDailyProgress,
   TaskReviewer,
   TaskUserHours,
+  TaskEstimation,
+  PushSubscription,
   TaskStatusHistory,
   TaskAttachment,
   ProjectStatusOption,
