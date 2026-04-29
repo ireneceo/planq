@@ -7,7 +7,7 @@
     "emptySub": "See all tasks in Q Task",
     "emptyAskCue": "Ask Cue",
     "help": {
-      "body": "Items you need to act on. Includes task requests, pending approvals, payment/signature requests, and task candidates (assigned to you or unassigned).",
+      "body": "Items you need to act on.\n\n• Incoming task requests\n• Pending approvals\n• Payment / signature requests\n• Task candidates (assigned to you or unassigned)",
       "cuePrefill": "Tell me how items appear in the Inbox page"
     },
     "tour": {

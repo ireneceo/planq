@@ -27,7 +27,7 @@ import i18nClient from '../../i18n';
 type Scope = 'mine' | 'workspace';
 type ListTab = 'week' | 'all' | 'requested';
 type ViewMode = 'list' | 'kanban';
-interface MemberOption { user_id: number; name: string; }
+interface MemberOption { user_id: number; name: string; is_ai?: boolean; }
 type SortKey = 'priority_order' | 'title' | 'status' | 'estimated_hours' | 'actual_hours' | 'progress_percent' | 'due_date';
 type SortDir = 'asc' | 'desc';
 
@@ -256,9 +256,13 @@ const QTaskPage:React.FC=()=>{
       try{
         const mr=await(await apiFetch(`/api/businesses/${bizId}/members`)).json();
         if(mr.success){
+          // 사이클 P8 — Cue (is_ai=true) 도 팀원으로 표시. 자동 실행 가능.
           const opts=(mr.data||[])
-            .filter((m:{user?:{is_ai?:boolean}})=>!m.user?.is_ai)
-            .map((m:{user_id:number;user?:{name:string}})=>({user_id:m.user_id,name:m.user?.name||`user ${m.user_id}`}));
+            .map((m:{user_id:number;user?:{name:string;is_ai?:boolean}})=>({
+              user_id:m.user_id,
+              name:m.user?.name||`user ${m.user_id}`,
+              is_ai:!!m.user?.is_ai,
+            }));
           setMembers(opts);
         }
       }catch{}

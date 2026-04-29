@@ -1,13 +1,23 @@
 {
   "page": {
-    "title": "Q 지식",
+    "title": "Q knowledge",
     "searchPh": "제목 검색...",
     "new": "+ 새 지식",
-    "loading": "로드 중…"
+    "fromFile": "+ 파일에서",
+    "fromFileNoExisting": "기존 파일을 1개 이상 선택해 주세요",
+    "fromFileResult": "{{ok}}건 추가, {{skip}}건 스킵",
+    "exportCsv": "CSV 다운로드",
+    "loading": "로드 중…",
+    "filters": "필터",
+    "allScopes": "전체 적용 범위",
+    "allProjects": "전체 프로젝트",
+    "allClients": "전체 고객",
+    "tagFilter": "태그",
+    "clearTag": "태그 필터 해제"
   },
   "help": {
-    "body": "Cue·AI 작성·Q note 답변 찾기가 참조하는 회사 지식 DB. 카테고리(6종)로 분류하고 스코프(워크스페이스/프로젝트/고객)로 적용 범위 한정. 좁은 스코프가 더 정확.",
-    "cuePrefill": "Q 지식의 카테고리와 스코프가 Cue 답변에 어떻게 영향을 주는지 알려줘"
+    "body": "Cue·AI 작성·Q note 답변 찾기가 참조하는 회사 지식 DB.\n\n• 카테고리: 정책 / 매뉴얼 / 사고·이슈 / FAQ / 소개 / 가격\n• 적용 범위: 워크스페이스 / 특정 프로젝트 / 특정 고객\n• 좁은 스코프일수록 답변 정확도 ↑",
+    "cuePrefill": "Q knowledge 의 카테고리와 스코프가 Cue 답변에 어떻게 영향을 주는지 알려줘"
   },
   "cat": {
     "all": "전체",
@@ -29,6 +39,25 @@
     "ready": "사용 가능",
     "failed": "실패"
   },
+  "drawer": {
+    "title": "지식 상세",
+    "body": "본문",
+    "chunks": "청크",
+    "metadata": "메타데이터",
+    "category": "카테고리",
+    "scope": "적용 범위",
+    "project": "프로젝트",
+    "client": "고객",
+    "status": "인덱싱 상태",
+    "chunkCount": "청크 수",
+    "createdAt": "생성",
+    "updatedAt": "최근 수정",
+    "uploadedBy": "등록자",
+    "delete": "삭제",
+    "deleteConfirm": "정말 삭제할까요? 인덱스도 함께 삭제됩니다.",
+    "reindex": "다시 인덱싱",
+    "close": "닫기"
+  },
   "row": {
     "delete": "삭제"
   },
@@ -39,7 +68,12 @@
   },
   "modal": {
     "title": "새 지식 등록",
+    "tabDirect": "직접 입력",
+    "tabUpload": "파일 업로드",
+    "tabExistingFile": "기존 파일",
+    "tabExistingPost": "기존 문서",
     "titleLabel": "제목",
+    "titleOptional": "제목 (선택, 비우면 파일명)",
     "titlePh": "예: 환불 정책 v1",
     "body": "내용",
     "bodyPh": "본문을 입력하세요. 인덱싱 후 Cue 답변에 활용됩니다.",
@@ -49,11 +83,27 @@
     "projectPh": "프로젝트를 선택하세요",
     "clientPick": "고객 선택",
     "clientPh": "고객을 선택하세요",
+    "uploadHint": "파일을 드래그하거나 클릭",
+    "uploadAccept": "txt · md · html · json · csv (최대 5MB)",
+    "searchFiles": "파일명 검색",
+    "searchPosts": "문서 제목·내용 검색",
+    "searchFilesHint": "검색어 입력해서 파일 찾기...",
+    "searchPostsHint": "검색어 입력해서 문서 찾기...",
+    "searchHint": "검색어를 입력하세요",
+    "noFiles": "워크스페이스에 파일이 없습니다",
+    "noPosts": "워크스페이스에 문서가 없습니다",
+    "errTitleRequired": "제목은 필수입니다",
+    "errContentRequired": "본문 또는 첨부 (파일/문서) 중 하나는 필요합니다",
     "errProjectRequired": "프로젝트 스코프는 프로젝트를 선택해야 합니다",
     "errClientRequired": "고객 스코프는 고객을 선택해야 합니다",
     "errSave": "저장 실패: {{msg}}",
+    "savedAll": "{{n}}건 등록 완료",
     "save": "등록",
     "saving": "저장 중…",
-    "cancel": "취소"
+    "cancel": "취소",
+    "optional": "(선택)",
+    "uploadFiles": "새 파일 업로드",
+    "attachExistingFiles": "기존 파일 연결",
+    "attachExistingPosts": "기존 문서 연결"
   }
 }

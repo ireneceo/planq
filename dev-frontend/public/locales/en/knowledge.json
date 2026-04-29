@@ -3,10 +3,20 @@
     "title": "Q knowledge",
     "searchPh": "Search by title...",
     "new": "+ New knowledge",
-    "loading": "Loading…"
+    "fromFile": "+ From file",
+    "fromFileNoExisting": "Please pick at least one existing file",
+    "fromFileResult": "{{ok}} added, {{skip}} skipped",
+    "exportCsv": "Download CSV",
+    "loading": "Loading…",
+    "filters": "Filters",
+    "allScopes": "All scopes",
+    "allProjects": "All projects",
+    "allClients": "All clients",
+    "tagFilter": "Tag",
+    "clearTag": "Clear tag filter"
   },
   "help": {
-    "body": "Company knowledge DB referenced by Cue, AI writing, and Q note answer-finding. Classify by category (6 types) and scope (workspace/project/client). Narrower scope = higher precision.",
+    "body": "Company knowledge DB referenced by Cue, AI writing, and Q note answer-finding.\n\n• Categories: Policy / Manual / Incident / FAQ / About / Pricing\n• Scope: Workspace / Project / Client\n• Narrower scope = higher answer precision",
     "cuePrefill": "Tell me how categories and scopes in Q knowledge affect Cue's answers"
   },
   "cat": {
@@ -29,6 +39,25 @@
     "ready": "Ready",
     "failed": "Failed"
   },
+  "drawer": {
+    "title": "Knowledge detail",
+    "body": "Body",
+    "chunks": "Chunks",
+    "metadata": "Metadata",
+    "category": "Category",
+    "scope": "Scope",
+    "project": "Project",
+    "client": "Client",
+    "status": "Indexing status",
+    "chunkCount": "Chunks",
+    "createdAt": "Created",
+    "updatedAt": "Last updated",
+    "uploadedBy": "Uploaded by",
+    "delete": "Delete",
+    "deleteConfirm": "Delete this entry? Index will also be removed.",
+    "reindex": "Reindex",
+    "close": "Close"
+  },
   "row": {
     "delete": "Delete"
   },
@@ -39,7 +68,12 @@
   },
   "modal": {
     "title": "New knowledge",
+    "tabDirect": "Direct input",
+    "tabUpload": "Upload file",
+    "tabExistingFile": "Existing files",
+    "tabExistingPost": "Existing docs",
     "titleLabel": "Title",
+    "titleOptional": "Title (optional — defaults to file name)",
     "titlePh": "e.g. Refund policy v1",
     "body": "Content",
     "bodyPh": "Enter the body. After indexing it will be used by Cue.",
@@ -49,11 +83,27 @@
     "projectPh": "Select a project",
     "clientPick": "Pick a client",
     "clientPh": "Select a client",
+    "uploadHint": "Drag a file or click",
+    "uploadAccept": "txt · md · html · json · csv (max 5MB)",
+    "searchFiles": "Search file name",
+    "searchPosts": "Search title · content",
+    "searchFilesHint": "Type to search files...",
+    "searchPostsHint": "Type to search docs...",
+    "searchHint": "Type to search",
+    "noFiles": "No files in workspace",
+    "noPosts": "No docs in workspace",
+    "errTitleRequired": "Title is required",
+    "errContentRequired": "Body or attachments (files/docs) is required",
     "errProjectRequired": "Project scope requires picking a project",
     "errClientRequired": "Client scope requires picking a client",
     "errSave": "Save failed: {{msg}}",
+    "savedAll": "{{n}} added",
     "save": "Save",
     "saving": "Saving…",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "optional": "(optional)",
+    "uploadFiles": "Upload new files",
+    "attachExistingFiles": "Link existing files",
+    "attachExistingPosts": "Link existing docs"
   }
 }

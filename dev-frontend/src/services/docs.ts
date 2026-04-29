@@ -168,6 +168,26 @@ export async function archiveDocument(id: number): Promise<void> {
   if (!j.success) throw new Error(j.message || 'Failed');
 }
 
+// ─── 사이클 I4 — 문서 revision diff (슬롯 변경 이력) ───
+export interface DocRevision {
+  id: number;
+  document_id: number;
+  revision_number: number;
+  body_snapshot: { form_data?: unknown; body_json?: unknown } | null;
+  changed_fields: Record<string, { from: unknown; to: unknown }> | null;
+  changed_by: number | null;
+  change_note: string | null;
+  created_at: string;
+  changer?: { id: number; name: string } | null;
+}
+
+export async function listDocumentRevisions(id: number): Promise<DocRevision[]> {
+  const r = await apiFetch(`/api/docs/documents/${id}/revisions`);
+  const j = await r.json();
+  if (!j.success) throw new Error(j.message || 'Failed');
+  return j.data as DocRevision[];
+}
+
 export async function shareDocument(id: number, payload: {
   method?: 'link' | 'email' | 'qtalk';
   recipient_email?: string;

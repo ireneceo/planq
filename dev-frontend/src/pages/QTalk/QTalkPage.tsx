@@ -640,12 +640,13 @@ const QTalkPage: React.FC = () => {
 
   const [extracting, setExtracting] = useState(false);
 
-  // 청크 2: 메시지 전송
-  const handleSendMessage = async (body: string, files?: File[]) => {
+  // 청크 2: 메시지 전송 (사이클 O4 — existingFileIds 추가)
+  const handleSendMessage = async (body: string, files?: File[], existingFileIds?: number[]) => {
     if (!activeConversationId) return;
     try {
       // 첨부만 있고 텍스트 없는 경우: 본문은 공백 한 글자 (백엔드 content_required 회피)
-      const content = body.trim() || (files && files.length > 0 ? ' ' : '');
+      const hasAttachments = (files && files.length > 0) || (existingFileIds && existingFileIds.length > 0);
+      const content = body.trim() || (hasAttachments ? ' ' : '');
       if (!content) return;
       const created = await qtalkApi.sendMessage(activeConversationId, content);
       const attachmentResults: qtalkApi.ApiMessageAttachment[] = [];
@@ -654,6 +655,12 @@ const QTalkPage: React.FC = () => {
           files.map((f) => qtalkApi.uploadMessageAttachment(activeConversationId, created.id, f))
         );
         uploads.forEach((r) => { if (r.status === 'fulfilled') attachmentResults.push(r.value); });
+      }
+      if (existingFileIds && existingFileIds.length > 0) {
+        const links = await Promise.allSettled(
+          existingFileIds.map((id) => qtalkApi.linkExistingFileToMessage(activeConversationId, created.id, id))
+        );
+        links.forEach((r) => { if (r.status === 'fulfilled') attachmentResults.push(r.value); });
       }
       const mapped = apiMessageToMock({ ...created, attachments: attachmentResults });
       setMessages((prev) => ({

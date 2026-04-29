@@ -20,9 +20,22 @@ KbDocument.init({
     type: DataTypes.STRING(300),
     allowNull: false
   },
+  // source_type — 'manual'/'faq'/'policy'/'pricing'/'other' (직접 입력)
+  // 'file' (워크스페이스 파일에서 import) / 'post' (Q docs 포스트에서 import)
   source_type: {
-    type: DataTypes.ENUM('manual', 'faq', 'policy', 'pricing', 'other'),
+    type: DataTypes.ENUM('manual', 'faq', 'policy', 'pricing', 'other', 'file', 'post'),
     defaultValue: 'manual'
+  },
+  // import 출처 추적 (선택) — 사이클 O2
+  source_file_id: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    references: { model: 'files', key: 'id' },
+  },
+  source_post_id: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    references: { model: 'posts', key: 'id' },
   },
   file_name: {
     type: DataTypes.STRING(255),
@@ -89,6 +102,24 @@ KbDocument.init({
     type: DataTypes.INTEGER,
     allowNull: true,
     references: { model: 'clients', key: 'id' },
+  },
+  // 사이클 P3 — LLM 자동 추출 키워드 (5~8개). 리스트 칩 + 클릭 필터.
+  tags: {
+    type: DataTypes.JSON,
+    allowNull: true,
+    defaultValue: null,
+  },
+  // 사이클 P3 — 단일 KbDocument 에 묶인 첨부 파일/문서 IDs (다중 가능).
+  // 인덱싱 시 본문 + 첨부 텍스트 통합. 매뉴얼/가이드 1 entry = 다중 첨부.
+  attached_file_ids: {
+    type: DataTypes.JSON,
+    allowNull: true,
+    defaultValue: null,
+  },
+  attached_post_ids: {
+    type: DataTypes.JSON,
+    allowNull: true,
+    defaultValue: null,
   },
 }, {
   sequelize,

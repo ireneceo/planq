@@ -1,10 +1,66 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-04-29 (Q Task "My week" overdue 버그 수정 + dashboard todo 보안 수정)
+> **최종 업데이트:** 2026-04-29 (N 사이클 운영 배포 스크립트 + P8 Cue 자동실행 엔진 + Q Project 카드 재설계 + 피드백 시스템 + I4 RevisionPanel)
 >
-> **다음 진입:** P-3 Q knowledge → P-4 Q brief → P-5 Phase F 슬롯 → P-6 SMTP → P-7 PortOne V2 + 팝빌 → P-8 반응형
+> **다음 진입:** N 운영 진입 마무리 (.env 입력·SMTP·도메인) → K PortOne V2 + 팝빌 → 운영 베타
 >
 > **결제 정책:** 1순위 자체 결제 (계좌이체 mark-paid), 2순위 PortOne (P-7 마지막). 월결제 + 연결제. 미결제 시 7일 유예 후 Free 강등 + 데이터 보존
+
+---
+
+## ✅ 완료: N 사이클 운영 배포 + P8 Cue 자동실행 + Q Project 카드 재설계 + 피드백/RevisionPanel (2026-04-29)
+
+### 1. N 사이클 — 운영 배포 스크립트 (운영 진입 직전 인프라)
+
+| 영역 | 산출물 |
+|------|--------|
+| 배포 스크립트 | `scripts/deploy-prod.sh` — dev → prod rsync + pm2 reload 자동화 |
+| 환경 템플릿 | `dev-backend/.env.production.example` — 운영 진입 시 Irene 채울 placeholder |
+| nginx 설정 | `scripts/nginx-planq.kr.conf` — planq.kr/dev.planq.kr 사이트 config (HTML no-cache 포함) |
+| PM2 ecosystem | `scripts/prod-ecosystem.config.js` — dev/prod 인스턴스 분리 |
+
+### 2. P8 — Cue Teammate-ification (Cue 가 진짜 팀원처럼 업무 받음)
+
+| 영역 | 핵심 |
+|------|------|
+| DB | `Task.cue_kind` ENUM (summarize/draft_reply/categorize/research) + `cue_context_ref` JSON |
+| 신규 서비스 `cue_task_executor.js` | 4종 자동 실행 엔진 — body 에 결과 저장 + status='reviewing' 전환 |
+| Hook | `routes/tasks.js` POST 시 `assignee_id === business.cue_user_id && cue_kind` → setImmediate executeForTask |
+| UI | `QTaskPage.tsx` 멤버 fetch 에서 `is_ai` 필터 제거 — Cue 가 담당자 셀렉트에 노출 |
+
+### 3. Q Project 페이지 카드 30년차 디자인급 재설계
+
+| 영역 | 핵심 |
+|------|------|
+| 카드 구조 | `<CardHead>` + `<ClientLine>` + `<Description>` + `<BottomStack>` (margin-top:auto) |
+| BottomStack 통합 | 단일 상단 구분선 + 일관 10px gap → 진행률·기간·사람 블록 카드 바닥 정렬 |
+| 시각 위계 | ProgressBlock (bar + % + 4/19 + Overdue ⚠) → MetaLine (📅 기간 + D-day color-coded + 🕐 활동) → PeopleRow (★ PM + Avatar stack + 고객 chip) |
+| D-day color | 초과 빨강 / 7일 이내 노랑 / 그 외 teal |
+| 컬러 정렬 | `QProjectDetailPage.tsx` 색상 동그라미 좌측 정렬 (justify-content: flex-start + flex-wrap) |
+| 컬러 피커 | `NewProjectModal.tsx` SwatchRow 아래 native HexRow + hex 텍스트 입력 (자유 색상) |
+| `is_ai` 필터 제거 | bizMembers 에서 Cue 도 Default/PM 후보로 노출 |
+
+### 4. 피드백 시스템 (사용자 피드백 수집)
+
+| 영역 | 산출물 |
+|------|--------|
+| DB | `models/FeedbackItem.js` — user × type × content × status |
+| API | `routes/feedback.js` — POST/GET/PATCH (admin) |
+| UI | `pages/Admin/AdminFeedbackPage.tsx` — 플랫폼 admin 전용 피드백 리스트/상태 변경 |
+
+### 5. I4 슬롯 revision diff (Q docs 사용성)
+
+| 영역 | 산출물 |
+|------|--------|
+| UI | `components/Docs/RevisionPanel.tsx` — DocumentRevision 기반 슬롯값 변경 이력 시각화 |
+
+### 수정된 파일 (이번 세션)
+- 신규: `dev-backend/services/cue_task_executor.js`, `dev-backend/models/FeedbackItem.js`, `dev-backend/routes/feedback.js`, `dev-frontend/src/components/Docs/RevisionPanel.tsx`, `dev-frontend/src/pages/Admin/AdminFeedbackPage.tsx`, `scripts/deploy-prod.sh`, `scripts/nginx-planq.kr.conf`, `scripts/prod-ecosystem.config.js`, `dev-backend/.env.production.example`
+- 수정: `dev-backend/models/Task.js` (cue_kind/cue_context_ref), `dev-backend/routes/tasks.js` (Cue executor hook), `dev-frontend/src/pages/QTask/QTaskPage.tsx` (is_ai filter 제거), `dev-frontend/src/pages/QProject/QProjectPage.tsx` (카드 재설계 + BottomStack), `dev-frontend/src/pages/QProject/QProjectDetailPage.tsx` (컬러 좌측정렬 + is_ai filter 제거), `dev-frontend/src/pages/QTalk/NewProjectModal.tsx` (HexRow), `dev-frontend/public/locales/{ko,en}/qproject.json`, `dev-frontend/public/locales/{ko,en}/qtalk.json`
+
+### 빌드 / 검증
+- 마지막 빌드: exit 0
+- 헬스체크: 27/27 통과
 
 ---
 

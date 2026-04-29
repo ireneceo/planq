@@ -360,6 +360,20 @@ export async function uploadMessageAttachment(
   return handle<ApiMessageAttachment>(res);
 }
 
+// 사이클 O4 — 워크스페이스에 이미 있는 파일을 메시지 첨부로 link (재업로드 없음)
+export async function linkExistingFileToMessage(
+  conversationId: number,
+  messageId: number,
+  fileId: number,
+): Promise<ApiMessageAttachment> {
+  const res = await apiFetch(`/api/message-attachments/${conversationId}/${messageId}/link-existing`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ file_id: fileId }),
+  });
+  return handle<ApiMessageAttachment>(res);
+}
+
 export interface CreateConversationInput {
   business_id: number;
   title: string;

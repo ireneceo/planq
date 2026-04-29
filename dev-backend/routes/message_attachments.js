@@ -12,7 +12,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const { v4: uuidv4 } = require('uuid');
-const { Conversation, Message, MessageAttachment, BusinessMember, ConversationParticipant } = require('../models');
+const { Conversation, Message, MessageAttachment, BusinessMember, ConversationParticipant, File: FileModel } = require('../models');
 const { authenticateToken } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 
@@ -130,6 +130,62 @@ router.post('/:conversationId/:messageId',
         file_size: created.file_size,
         mime_type: created.mime_type,
       }, 'Attachment uploaded', 201);
+    } catch (err) { next(err); }
+  }
+);
+
+// ─── POST link existing file (사이클 O4) ───
+// 워크스페이스에 이미 있는 File 을 메시지 첨부로 link. 물리적 재업로드 없음 (dedup).
+router.post('/:conversationId/:messageId/link-existing',
+  authenticateToken,
+  async (req, res, next) => {
+    try { if (!(await loadConversationAndGuard(req, res))) return; next(); }
+    catch (err) { next(err); }
+  },
+  async (req, res, next) => {
+    try {
+      const { file_id } = req.body || {};
+      if (!file_id) return errorResponse(res, 'file_id_required', 400);
+
+      const msg = await Message.findOne({
+        where: { id: req.params.messageId, conversation_id: req._conversation.id },
+      });
+      if (!msg) return errorResponse(res, 'message_not_found', 404);
+      if (msg.sender_id !== req.user.id) return errorResponse(res, 'forbidden', 403);
+
+      const file = await FileModel.findOne({
+        where: { id: file_id, business_id: req._conversation.business_id }
+      });
+      if (!file) return errorResponse(res, 'file_not_found', 404);
+
+      const created = await MessageAttachment.create({
+        message_id: msg.id,
+        file_name: file.file_name,
+        file_path: file.file_path,
+        file_size: file.file_size,
+        mime_type: file.mime_type,
+        storage_provider: file.storage_provider || 'planq',
+        external_id: file.external_id || null,
+        external_url: file.external_url || null,
+        file_id: file.id,
+      });
+
+      const io = req.app.get('io');
+      if (io) {
+        io.to(`conversation:${req._conversation.id}`).emit('message:attachment', {
+          message_id: msg.id,
+          attachment: {
+            id: created.id, file_name: created.file_name, file_size: created.file_size,
+            mime_type: created.mime_type, file_id: created.file_id,
+          },
+        });
+      }
+
+      successResponse(res, {
+        id: created.id, message_id: created.message_id,
+        file_name: created.file_name, file_size: created.file_size,
+        mime_type: created.mime_type, file_id: created.file_id,
+      }, 'Existing file linked', 201);
     } catch (err) { next(err); }
   }
 );

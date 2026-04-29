@@ -1,7 +1,7 @@
 {
   "page": { "title": "Q task", "noWorkspace": "No workspace selected", "loading": "Loading...", "noCategory": "Uncategorized" },
   "help": {
-    "body": "Tasks you need to act on this week. Priority numbers are auto-assigned in click order (1, 2, 3...) within current filter only. Capacity = hours × business days × rate. Chart baseline = the 'My tasks' hours from the header (single source). Click the red 'Delayed' badge → +1d / +1w / Today to update due date instantly.",
+    "body": "Tasks you need to act on this week.\n\n• Priority: click # in order — 1, 2, 3… (within current filter)\n• Capacity: hours × business days × rate\n• Chart baseline: the 'My tasks' hours from the header\n• Delayed: click the red badge → +1d / +1w / Today to update instantly",
     "cuePrefill": "Tell me how priority, capacity, and the chart work in Q task"
   },
   "tour": {

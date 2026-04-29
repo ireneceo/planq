@@ -1,74 +1,107 @@
 ## 현재 작업 상태
-**마지막 업데이트:** 2026-04-29
-**작업 상태:** 완료 — Q Task "My week" overdue 버그 수정 + dashboard todo 보안 수정
-
-### 이번 세션 완료 (2026-04-29)
-1. **Q Task "My week" overdue 버그 수정** — 마감일 지난 미완료 업무가 "이번 주" 탭에 표시되지 않던 문제 해결
-2. **Dashboard todo API 보안 수정** — 단일 business_id 호출 시 removed_at 체크 누락 문제 해결
-
-### 수정 상세
-| 파일 | 변경 |
-|------|------|
-| `QTaskPage.tsx:632` | `isOverdue = e && e < todayStr` 조건 추가 → overdue 업무 항상 표시 |
-| `dashboard.js:655-661` | `removed_at: null` 조건 + Client fallback 체크 추가 |
-
-### 빌드
-- `index-D6xj1G7z.js` (1.37s, 타입에러 0)
-- 헬스체크 25/27 통과 (PM2 상태 체크 2건 제외 — 서버는 정상 작동)
+**마지막 업데이트:** 2026-04-29 (개발완료)
+**작업 상태:** 완료
 
 ---
 
-## ⚡ 빠른 재개 (다음 세션)
+## ⚡ 빠른 재개 (새 세션에서 이것만 붙여넣기)
 
 ```
-session-state.md 읽고 P-3 (Q knowledge) 부터 진입해줘.
+session-state.md 읽고 이어서 개발해.
 ```
 
 ---
 
-## 📋 다음 세션 시작점 — P-3 Q knowledge (~5-7d)
+## 📦 이번 세션 작업 요약
 
-### 핵심
-좌측 메뉴 `Q 지식` (영문 `Q knowledge`) — Cue 가 보는 회사 지식 DB 통합 진입점.
+**N 사이클 — 운영 배포 스크립트 (운영 진입 직전 인프라)**
+- `scripts/deploy-prod.sh` (rsync + pm2 reload)
+- `scripts/nginx-planq.kr.conf` (planq.kr / dev.planq.kr, HTML no-cache)
+- `scripts/prod-ecosystem.config.js` (PM2 dev/prod 분리)
+- `dev-backend/.env.production.example` 템플릿
 
-### 기존 인프라
-- `KbDocument`, `KbChunk`, `KbPinnedFaq` 모델 이미 존재
-- `services/kb_service.js` hybridSearch 구현됨
-- 현재는 워크스페이스 단위 (KbDocument.business_id), 카테고리 없음
+**P8 — Cue Teammate-ification (Cue 가 진짜 팀원처럼 업무 받음)**
+- `Task.cue_kind` ENUM (summarize/draft_reply/categorize/research) + `cue_context_ref` JSON
+- 신규 `services/cue_task_executor.js` — 4종 자동 실행, body 결과 저장 + status='reviewing'
+- `routes/tasks.js` POST hook — assignee_id == cue_user_id && cue_kind 시 setImmediate executeForTask
+- `QTaskPage.tsx` `is_ai` 필터 제거 — Cue 가 담당자 셀렉트에 노출
 
-### 추가 요구사항 (memory: project_kb_engine_reuse)
-- `KbDocument.category` ENUM (policy/manual/incident/faq/about/pricing)
-- `KbDocument.scope` (workspace/project/client) + `project_id`/`client_id`
-- 우선순위: client → project → workspace (threshold 0.78)
-- Q talk Cue / Q docs aiGenerate / Q note 회의록 자동 채움 모두 통합 진입점
+**Q Project 카드 30년차 디자인급 재설계**
+- 카드 구조: CardHead + ClientLine + Description + BottomStack(margin-top:auto)
+- BottomStack 단일 상단 구분선 + 일관 10px gap → 진행률·기간·사람 카드 바닥 정렬
+- ProgressBlock (bar + % + n/m + Overdue ⚠) → MetaLine (📅 + D-day color + 🕐) → PeopleRow (★ PM + Avatar stack + 고객 chip)
+- D-day color: 초과 빨강 / 7일 이내 노랑 / 그 외 teal
+- `QProjectDetailPage.tsx` 색상 동그라미 좌측 정렬
+- `NewProjectModal.tsx` native HexRow + hex 텍스트 입력 (자유 색상)
 
-### 작업 범위
-- DB ALTER (category, scope, project_id, client_id 컬럼)
-- 라우트 신규: `/api/knowledge/*` + 카테고리 필터·스코프 검색
-- 프론트: 신규 페이지 `/knowledge` + 좌측 nav `Q 지식`
-- Cue / aiGenerate / Q note 의 hybridSearch 호출에 scope 우선순위 통합
+**피드백 시스템**
+- `models/FeedbackItem.js` + `routes/feedback.js` + `pages/Admin/AdminFeedbackPage.tsx`
 
----
-
-## 📋 전체 할일 리스트 (P-3 ~ P-8)
-
-### P-3 Q knowledge — Cue 가 보는 회사 지식 DB (5~7d)
-### P-4 Q brief — 자료정리/요약 신규 (5~6d)
-### P-5 Phase F — Q docs 슬롯 시스템 (5d)
-### P-6 SMTP 운영 연결 (1d) + P-6.5 Web Push 알림 (3d)
-### P-7 PortOne V2 + 팝빌 (5~6d)
-### P-8 반응형 일괄 스프린트 (5d)
-
-**총 추정: 약 35 영업일 (~7주)**
+**I4 슬롯 revision diff**
+- `components/Docs/RevisionPanel.tsx` (DocumentRevision 시각화)
 
 ---
 
-## 환경 / 인증
+## 🔖 지금 중단 지점
 
-- 백엔드: port 3003 (정상 작동, PM2 외 방식)
+**마지막 작업:** Q Project 카드 BottomStack 통합 마무리 (단일 구분선 + 일관 gap, 카드 바닥 정렬)
+
+**바로 다음 작업:** 운영 진입 마무리 — `.env` 입력 (SMTP/계좌/도메인) + 운영서버 nginx/PM2 세팅. 또는 다음 사이클 결정 (K PortOne V2, I4 후속 마감, P8 Cue 결과 표시 UI)
+
+**맥락 유지할 것:**
+- N 사이클 스크립트 4종 작성 완료 — 운영 진입 시 위 메모(project_prod_deploy_scripts) 참조
+- P8 Cue 자동실행 엔진은 backend 만 완료. 업무 상세 UI 에서 Cue 결과 뱃지·재실행·컨텍스트 출처 표시는 미완 (P8.1 후속)
+- 카드 BottomStack 패턴은 메모리 등록됨 — 다른 카드형 리스트 신규 추가 시 동일 패턴 적용
+
+---
+
+## 📂 다음 할 일 (우선순위 순)
+
+### N 운영 진입 마무리 (Irene 작업 + Claude 보조)
+운영서버 진입 직전 필요. dev → prod 동기화 스크립트는 작성됨.
+- `.env` 운영값 입력 (SMTP_HOST/USER/PASS, PLANQ_BILLING_BANK_*, DOMAIN_NAME)
+- 운영서버 nginx 설정 적용 + SSL 인증서
+- PM2 prod 인스턴스 기동 + DB 백업/마이그레이션
+- 첫 배포 후 헬스체크 + 핵심 플로우 E2E
+
+### P8.1 Cue 결과 표시 UI (1~2d)
+Cue 가 자동 생성한 결과를 업무 상세에서 잘 보여주기.
+- 결과 뱃지 (Cue가 만들었음 + 생성 시각)
+- 재실행 버튼
+- 컨텍스트 출처 표시 (어떤 메시지/문서 기반인지)
+
+### I4 슬롯 revision diff 후속 (1d)
+`RevisionPanel.tsx` 만들어졌으니 diff 시각화 마감 + 슬롯별 변경 하이라이트.
+
+### P-6 SMTP 연결 (Irene 작업)
+`.env` SMTP_HOST/USER/PASS 입력 → `pm2 restart`. 코드는 emailService.js 완료.
+
+### K — PortOne V2 + 팝빌 (마지막)
+운영서버 + 도메인 확정 후. ~5d.
+
+---
+
+## 🔑 환경변수 / 인증 현황
+
+- 백엔드: port 3003 (PM2 `planq-dev-backend`, 정상)
 - DB: planq_dev_db / planq_admin
-- 도메인: dev.planq.kr
-- 마지막 빌드: `index-D6xj1G7z.js`
+- 도메인: dev.planq.kr (개발) / planq.kr (운영 미세팅)
+- SMTP: **미설정** (운영 진입 전 필요)
+- VAPID: **미설정** (Web Push 비활성)
+- PLANQ_BILLING_BANK_*: **미설정** (운영 진입 전 Irene 입력 필요)
+- 마지막 빌드: exit 0
+- 헬스체크: 27/27 통과
+
+---
+
+## 📂 주요 문서 위치
+
+- 프로젝트 가이드: `/opt/planq/CLAUDE.md`
+- UI 가이드: `/opt/planq/dev-frontend/UI_DESIGN_GUIDE.md`
+- 색상 가이드: `/opt/planq/dev-frontend/COLOR_GUIDE.md`
+- ERD: `/opt/planq/docs/DATABASE_ERD.md`
+- Q Bill 설계: `/opt/planq/docs/Q_BILL_SIGNATURE_DESIGN.md`
+- 운영 배포 스크립트: `/opt/planq/scripts/deploy-prod.sh` 외 3개
 
 ---
 
@@ -76,5 +109,5 @@ session-state.md 읽고 P-3 (Q knowledge) 부터 진입해줘.
 
 ```
 이전 세션 이어서 작업하고 싶어.
-/opt/planq/.claude/session-state.md 읽어줘. P-3 (Q knowledge) 부터 진입.
+/opt/planq/.claude/session-state.md 읽어줘.
 ```

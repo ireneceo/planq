@@ -2,7 +2,7 @@
   "page": {
     "sidebarTitle": "Q note",
     "help": {
-      "body": "Add participants, docs, and meeting language at start for better STT accuracy. Mic mode = self only; Web meeting mode separates channels (me/other). Question cards' 'Find answer' uses meeting docs first (RAG). You can also type questions directly — shown in primary language + translated to the secondary.",
+      "body": "Add participants, docs, and meeting language at start for better STT.\n\n• Mic mode: records your voice only\n• Web meeting mode: separates channels (me / other)\n• Question cards' 'Find answer' → meeting docs first (RAG)\n• You can also type questions directly (shown in primary language + translated to the secondary)",
       "cuePrefill": "Tell me how Q note start, recording mode, find-answer, and speaker recognition work"
     },
     "newMeeting": "New Meeting",
@@ -163,6 +163,9 @@
     "participantNamePlaceholder": "Name (e.g. Sarah, our PM)",
     "participantRolePlaceholder": "Role/note (optional, e.g. Acme CEO)",
     "removeLabel": "Remove",
+    "fromWorkspace": "+ From workspace files",
+    "fromWorkspaceHint": "Link existing files without re-upload",
+    "workspaceTag": "Existing",
     "meetingLanguageLabel": "Meeting Language",
     "meetingLanguagePlaceholder": "Language spoken in the meeting",
     "advancedShow": "Advanced settings",

@@ -216,6 +216,16 @@ export async function uploadDocument(sessionId: number, file: File) {
   return handle<QNoteDocument>(res);
 }
 
+// 사이클 O4 — 워크스페이스 파일을 Q Note 세션 자료로 link (재업로드 X, hardlink/copy)
+export async function linkWorkspaceFileToSession(sessionId: number, workspaceFileId: number) {
+  const res = await apiFetch(`${BASE}/sessions/${sessionId}/documents/link-workspace-file`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ workspace_file_id: workspaceFileId }),
+  });
+  return handle<QNoteDocument>(res);
+}
+
 export async function deleteDocument(sessionId: number, documentId: number) {
   const res = await apiFetch(`${BASE}/sessions/${sessionId}/documents/${documentId}`, {
     method: 'DELETE',

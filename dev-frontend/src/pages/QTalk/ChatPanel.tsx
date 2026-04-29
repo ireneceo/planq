@@ -9,6 +9,8 @@ import { useTimeFormat } from '../../hooks/useTimeFormat';
 import LetterAvatar from '../../components/Common/LetterAvatar';
 import EmptyState from '../../components/Common/EmptyState';
 import PostCardPreviewModal from './PostCardPreviewModal';
+import FilePicker, { type FilePickerResult } from '../../components/Common/FilePicker';
+import { fetchWorkspaceFiles } from '../../services/files';
 import { mediaTablet } from '../../theme/breakpoints';
 
 interface Props {
@@ -18,7 +20,7 @@ interface Props {
   activeConversationId: number | null;
   onSelectConversation: (conversationId: number) => void;
   onOpenExtract: () => void;
-  onSendMessage: (body: string, files?: File[]) => void;
+  onSendMessage: (body: string, files?: File[], existingFileIds?: number[]) => void;
   onCueDraftSend: (messageId: number, editedBody?: string) => void;
   onCueDraftReject: (messageId: number) => void;
   onToggleAutoExtract: (conversationId: number, enabled: boolean) => void;
@@ -95,20 +97,50 @@ const ChatPanel: React.FC<Props> = ({
   };
 
   const [stagedFiles, setStagedFiles] = useState<File[]>([]);
+  const [stagedExistingIds, setStagedExistingIds] = useState<number[]>([]);
+  const [stagedExistingMeta, setStagedExistingMeta] = useState<Record<number, { name: string; size: number }>>({});
+  const [filePickerOpen, setFilePickerOpen] = useState(false);
+  // FilePicker 의 businessId — useAuth() 의 user.business_id 사용 (MockProject 에는 business_id 없음)
+  const businessId = user?.business_id ? Number(user.business_id) : null;
+
   const handleSend = () => {
-    if (!input.trim() && stagedFiles.length === 0) return;
-    onSendMessage(input, stagedFiles.length > 0 ? stagedFiles : undefined);
+    if (!input.trim() && stagedFiles.length === 0 && stagedExistingIds.length === 0) return;
+    onSendMessage(
+      input,
+      stagedFiles.length > 0 ? stagedFiles : undefined,
+      stagedExistingIds.length > 0 ? stagedExistingIds : undefined,
+    );
     setInput('');
     setStagedFiles([]);
+    setStagedExistingIds([]);
+    setStagedExistingMeta({});
     scrollToBottom();
   };
-  const pickFiles = () => {
-    const el = document.createElement('input');
-    el.type = 'file'; el.multiple = true;
-    el.onchange = () => { if (el.files) setStagedFiles(prev => [...prev, ...Array.from(el.files!)]); };
-    el.click();
+  const handleFilePicked = async (result: FilePickerResult) => {
+    if (result.uploaded && result.uploaded.length > 0) {
+      setStagedFiles(prev => [...prev, ...result.uploaded!]);
+    }
+    if (result.existingFileIds && result.existingFileIds.length > 0 && businessId) {
+      setStagedExistingIds(prev => [...new Set([...prev, ...result.existingFileIds!])]);
+      // 메타 fetch (이름·크기 표시)
+      try {
+        const all = await fetchWorkspaceFiles(Number(businessId));
+        setStagedExistingMeta(prev => {
+          const next = { ...prev };
+          for (const id of result.existingFileIds!) {
+            const f = all.find(x => x.id === `direct-${id}`);
+            if (f) next[id] = { name: f.file_name, size: f.file_size };
+          }
+          return next;
+        });
+      } catch { /* skip */ }
+    }
   };
   const removeStaged = (idx: number) => setStagedFiles(prev => prev.filter((_, i) => i !== idx));
+  const removeExisting = (id: number) => {
+    setStagedExistingIds(prev => prev.filter(x => x !== id));
+    setStagedExistingMeta(prev => { const next = { ...prev }; delete next[id]; return next; });
+  };
 
   // 메시지 리스트 스크롤 컨테이너 + 위치 영속
   const messageListRef = React.useRef<HTMLDivElement | null>(null);
@@ -659,19 +691,30 @@ const ChatPanel: React.FC<Props> = ({
             )}
           </InputToolbar>
         )}
-        {stagedFiles.length > 0 && (
+        {(stagedFiles.length > 0 || stagedExistingIds.length > 0) && (
           <StagedRow>
             {stagedFiles.map((f, i) => (
-              <StagedChip key={i}>
+              <StagedChip key={`new-${i}`}>
                 <StagedName title={f.name}>{f.name}</StagedName>
                 <StagedSize>{(f.size / 1024).toFixed(0)}KB</StagedSize>
                 <StagedX type="button" onClick={() => removeStaged(i)} aria-label="remove">×</StagedX>
               </StagedChip>
             ))}
+            {stagedExistingIds.map(id => {
+              const meta = stagedExistingMeta[id];
+              return (
+                <StagedChip key={`ex-${id}`} title={t('chat.input.attachExisting', '기존 파일 (재업로드 X)') as string}>
+                  <ExistingDot />
+                  <StagedName title={meta?.name}>{meta?.name || `#${id}`}</StagedName>
+                  {meta?.size != null && <StagedSize>{(meta.size / 1024).toFixed(0)}KB</StagedSize>}
+                  <StagedX type="button" onClick={() => removeExisting(id)} aria-label="remove">×</StagedX>
+                </StagedChip>
+              );
+            })}
           </StagedRow>
         )}
         <InputWrap>
-          <AttachBtn type="button" onClick={pickFiles} title={t('chat.input.attach', '파일 첨부') as string}>
+          <AttachBtn type="button" onClick={() => setFilePickerOpen(true)} title={t('chat.input.attach', '파일 첨부') as string}>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
             </svg>
@@ -695,6 +738,18 @@ const ChatPanel: React.FC<Props> = ({
       </InputBar>
       {previewCard && (
         <PostCardPreviewModal card={previewCard} onClose={() => setPreviewCard(null)} />
+      )}
+      {businessId && (
+        <FilePicker
+          open={filePickerOpen}
+          onClose={() => setFilePickerOpen(false)}
+          businessId={Number(businessId)}
+          onPick={handleFilePicked}
+          title={t('chat.input.attach', '파일 첨부') as string}
+          mode="both"
+          variant="modal"
+          multiple
+        />
       )}
     </Container>
   );
@@ -1415,6 +1470,10 @@ const StagedChip = styled.div`
 `;
 const StagedName = styled.span`white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 140px;`;
 const StagedSize = styled.span`color: #94A3B8; font-size: 10px;`;
+const ExistingDot = styled.span`
+  width: 6px; height: 6px; border-radius: 50%;
+  background: #14B8A6; flex-shrink: 0;
+`;
 const StagedX = styled.button`
   background: transparent; border: none; color: #94A3B8; cursor: pointer;
   font-size: 14px; line-height: 1; padding: 0 2px;

@@ -64,6 +64,22 @@ Task.init({
     ),
     defaultValue: 'not_started'
   },
+  // ─── 사이클 P8 — Cue 팀원화 ───
+  // assignee_id 가 워크스페이스의 Cue 사용자(is_ai=true) 면 자동 실행.
+  // cue_kind 가 정의된 종류 → cue_orchestrator 호출 → 결과물 task.body 에 저장 + status=reviewing
+  // null 이거나 unknown → status=blocked (사용자가 무엇을 시킬지 명세 보강 필요)
+  cue_kind: {
+    type: DataTypes.ENUM('summarize', 'draft_reply', 'categorize', 'research'),
+    allowNull: true,
+    defaultValue: null,
+  },
+  // Cue 가 결과물 만들면 어디서 가져올 컨텍스트인지 — task 가 직접 들고있는 자료 ID
+  cue_context_ref: {
+    type: DataTypes.JSON,
+    allowNull: true,
+    defaultValue: null,
+    comment: 'e.g. {meeting_id, conversation_id, kb_doc_ids, post_ids}',
+  },
   // ─── 컨펌 정책 + 라운드 ───
   review_policy: {
     type: DataTypes.ENUM('all', 'any'),

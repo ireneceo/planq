@@ -9,6 +9,7 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams } from 'react-router-dom';
 import PostEditor from '../../components/Docs/PostEditor';
 import PageShell from '../../components/Layout/PageShell';
+import RevisionPanel from '../../components/Docs/RevisionPanel';
 import {
   getDocument, updateDocument,
   KIND_LABELS_KO, type DocDetail,
@@ -24,6 +25,7 @@ const DocumentEditorPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [revisionReloadKey, setRevisionReloadKey] = useState(0);
   const saveTimer = useRef<number | null>(null);
 
   // 로드
@@ -45,6 +47,8 @@ const DocumentEditorPage: React.FC = () => {
       try {
         await updateDocument(docId, patch as Parameters<typeof updateDocument>[1]);
         setSaveStatus('saved');
+        // 사이클 I4 — 저장 성공 후 revision 패널 리로드 (새 revision 자동 생성됨)
+        setRevisionReloadKey(k => k + 1);
         window.setTimeout(() => setSaveStatus('idle'), 1500);
       } catch {
         setSaveStatus('error');
@@ -110,6 +114,17 @@ const DocumentEditorPage: React.FC = () => {
             {doc.client_id && <Row><Label>{t('editor.client', '고객')}</Label><Value>#{doc.client_id}</Value></Row>}
             {doc.project_id && <Row><Label>{t('editor.project', '프로젝트')}</Label><Value>#{doc.project_id}</Value></Row>}
           </SideCard>
+          {/* 사이클 I4 — 변경 이력 (revision diff) */}
+          {docId && (
+            <RevisionPanel
+              docId={docId}
+              slotLabels={(doc as DocDetail & { template?: { schema_json?: { key: string; label?: string; label_en?: string }[] } }).template?.schema_json?.reduce((acc: Record<string, string>, slot) => {
+                acc[slot.key] = slot.label || slot.label_en || slot.key;
+                return acc;
+              }, {})}
+              reloadKey={revisionReloadKey}
+            />
+          )}
           <SideCard>
             <SideTitle>{t('editor.upcoming', '예정 (D-4)')}</SideTitle>
             <Hint>{t('editor.upcomingPdf', 'PDF 생성 · 공개 링크 · 서명 — 추후 활성화')}</Hint>
