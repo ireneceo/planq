@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import styled from 'styled-components';
 import { useTranslation, Trans } from 'react-i18next';
 import { useAuth, apiFetch } from '../../contexts/AuthContext';
-import type { LanguageLevels, LanguageSkillLevel } from '../../contexts/AuthContext';
+import type { LanguageLevels, LanguageSkillLevel, User } from '../../contexts/AuthContext';
 import { WavRecorder } from '../../services/audio/recordToWav';
 import {
   getVoiceFingerprints,
@@ -22,6 +22,7 @@ import PageShell from '../../components/Layout/PageShell';
 import { MicIcon, CheckIcon, XIcon, TrashIcon } from '../../components/Common/Icons';
 import { useTimezones } from '../../hooks/useTimezones';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
+import EmailChangeModal from './EmailChangeModal';
 import {
   cityFromTz,
   offsetFromTz,
@@ -72,6 +73,80 @@ export default function ProfilePage() {
   // 언어 선택 (기본 언어)
   const [language, setLanguage] = useState<string>(user?.language || 'ko');
   const [langSaving, setLangSaving] = useState(false);
+
+  // 기본 정보 인라인 편집 (이름·아이디)
+  const [nameDraft, setNameDraft] = useState<string>(user?.name || '');
+  const [usernameDraft, setUsernameDraft] = useState<string>((user as { username?: string } | null)?.username || '');
+  const [usernameStatus, setUsernameStatus] = useState<{ available: boolean | null; reason?: string }>({ available: null });
+  const usernameCheckTimer = useRef<number | null>(null);
+  const [emailModalOpen, setEmailModalOpen] = useState(false);
+
+  useEffect(() => {
+    if (user?.name !== undefined) setNameDraft(user.name || '');
+    const uname = (user as { username?: string } | null)?.username;
+    if (uname !== undefined) setUsernameDraft(uname || '');
+  }, [user?.name, (user as { username?: string } | null)?.username]);
+
+  const saveName = useCallback(async () => {
+    if (!user?.id) throw new Error('Not logged in');
+    const next = nameDraft.trim();
+    if (!next) throw new Error(t('basic.namePlaceholder'));
+    if (next === user.name) return;
+    const res = await apiFetch(`/api/users/${user.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: next }),
+    });
+    const data = await res.json();
+    if (!res.ok || !data.success) throw new Error(data.message || t('messages.errorSave'));
+    if (updateUser) updateUser({ name: next });
+  }, [user?.id, user?.name, nameDraft, updateUser, t]);
+
+  const saveUsername = useCallback(async () => {
+    if (!user?.id) throw new Error('Not logged in');
+    const next = usernameDraft.trim().toLowerCase();
+    if (!next) throw new Error('username_required');
+    const cur = (user as { username?: string } | null)?.username;
+    if (next === cur) return;
+    if (!/^[a-z0-9_-]{3,30}$/.test(next)) throw new Error(t('basic.usernameInvalid'));
+    const res = await apiFetch(`/api/users/${user.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: next }),
+    });
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      if (data.message === 'username_taken') throw new Error(t('basic.usernameTaken'));
+      if (data.message === 'username_reserved') throw new Error(t('basic.usernameReserved'));
+      if (data.message === 'invalid_username_format') throw new Error(t('basic.usernameInvalid'));
+      throw new Error(data.message || t('messages.errorSave'));
+    }
+    if (updateUser) updateUser({ ...(user as object), username: next } as Partial<User>);
+  }, [user, usernameDraft, updateUser, t]);
+
+  // username 가용성 debounce 체크
+  useEffect(() => {
+    if (usernameCheckTimer.current) window.clearTimeout(usernameCheckTimer.current);
+    const cur = (user as { username?: string } | null)?.username || '';
+    const v = usernameDraft.trim().toLowerCase();
+    if (!v || v === cur) { setUsernameStatus({ available: null }); return; }
+    if (!/^[a-z0-9_-]{3,30}$/.test(v)) {
+      setUsernameStatus({ available: false, reason: 'invalid_format' });
+      return;
+    }
+    usernameCheckTimer.current = window.setTimeout(async () => {
+      try {
+        const res = await apiFetch(`/api/users/username-available?value=${encodeURIComponent(v)}`);
+        const data = await res.json();
+        setUsernameStatus({ available: !!data.data?.available, reason: data.data?.reason });
+      } catch { setUsernameStatus({ available: null }); }
+    }, 400);
+    return () => { if (usernameCheckTimer.current) window.clearTimeout(usernameCheckTimer.current); };
+  }, [usernameDraft, user]);
+
+  const onEmailChanged = (newEmail: string) => {
+    if (updateUser) updateUser({ email: newEmail });
+  };
 
   // Q Note 답변 생성용 프로필
   const [bio, setBio] = useState<string>(user?.bio || '');
@@ -367,17 +442,63 @@ export default function ProfilePage() {
         {error && <Banner $kind="error"><XIcon size={14} />{error}</Banner>}
         {success && <Banner $kind="success"><CheckIcon size={14} />{success}</Banner>}
 
-        {/* 기본 정보 */}
+        {/* 기본 정보 — 이름·아이디 인라인 편집, 이메일은 모달로 */}
         <Card>
           <SectionTitle>{t('basic.sectionTitle')}</SectionTitle>
           <FieldRow>
             <Label>{t('basic.name')}</Label>
-            <ReadOnly>{user?.name || '-'}</ReadOnly>
+            <FieldBody>
+              <AutoSaveField onSave={saveName}>
+                <TextInput
+                  value={nameDraft}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNameDraft(e.target.value)}
+                  placeholder={t('basic.namePlaceholder')}
+                  maxLength={100}
+                />
+              </AutoSaveField>
+            </FieldBody>
           </FieldRow>
+
+          <FieldRow>
+            <Label>{t('basic.username')}</Label>
+            <FieldBody>
+              <AutoSaveField onSave={saveUsername}>
+                <TextInput
+                  value={usernameDraft}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                    const v = e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, '');
+                    setUsernameDraft(v);
+                  }}
+                  placeholder={t('basic.usernamePlaceholder')}
+                  maxLength={30}
+                />
+              </AutoSaveField>
+              {usernameStatus.available === true && (
+                <UsernameOk>✓ {t('basic.usernameAvailable')}</UsernameOk>
+              )}
+              {usernameStatus.available === false && (
+                <UsernameNg>
+                  {usernameStatus.reason === 'taken' && t('basic.usernameTaken')}
+                  {usernameStatus.reason === 'reserved' && t('basic.usernameReserved')}
+                  {usernameStatus.reason === 'invalid_format' && t('basic.usernameInvalid')}
+                </UsernameNg>
+              )}
+              <Hint>{t('basic.usernameHelp')}</Hint>
+            </FieldBody>
+          </FieldRow>
+
           <FieldRow>
             <Label>{t('basic.email')}</Label>
-            <ReadOnly>{user?.email || '-'}</ReadOnly>
+            <FieldBody>
+              <EmailRow>
+                <ReadOnly style={{ flex: 1 }}>{user?.email || '-'}</ReadOnly>
+                <SecondaryBtn type="button" onClick={() => setEmailModalOpen(true)}>
+                  {t('basic.emailChange')}
+                </SecondaryBtn>
+              </EmailRow>
+            </FieldBody>
           </FieldRow>
+
           <FieldRow>
             <Label>{t('basic.defaultLanguage')}</Label>
             <FieldBody>
@@ -396,6 +517,14 @@ export default function ProfilePage() {
             </FieldBody>
           </FieldRow>
         </Card>
+
+        <EmailChangeModal
+          open={emailModalOpen}
+          userId={user?.id || ''}
+          currentEmail={user?.email || ''}
+          onClose={() => setEmailModalOpen(false)}
+          onChanged={onEmailChanged}
+        />
 
         {/* Q note 답변 생성 프로필 */}
         <Card>
@@ -805,9 +934,32 @@ const FieldBody = styled.div`
 
 const ReadOnly = styled.div`
   flex: 1;
-  padding: 8px 0;
+  padding: 8px 12px;
   font-size: 14px;
   color: #0f172a;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+`;
+
+const UsernameOk = styled.div`
+  font-size: 11px;
+  color: #15803d;
+  font-weight: 600;
+  margin-top: 2px;
+`;
+
+const UsernameNg = styled.div`
+  font-size: 11px;
+  color: #b91c1c;
+  font-weight: 600;
+  margin-top: 2px;
+`;
+
+const EmailRow = styled.div`
+  display: flex;
+  gap: 8px;
+  align-items: center;
 `;
 
 const Hint = styled.div`

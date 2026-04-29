@@ -4,6 +4,7 @@ const router = express.Router();
 const { Task, User, Project, BusinessMember, Business, TaskComment, TaskDailyProgress, TaskStatusHistory, TaskReviewer } = require('../models');
 const taskSnapshot = require('../services/task_snapshot');
 const { authenticateToken, checkBusinessAccess } = require('../middleware/auth');
+const { getUserScope, taskListWhere, canAccessTask, isMemberOrAbove } = require('../middleware/access_scope');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const { todayInTz, mondayOfDateStr, addDaysStr, mondayOfIsoWeek } = require('../utils/datetime');
 
@@ -28,11 +29,13 @@ async function getMemberCapacity(userId, businessId) {
   return { daily, days, rate, weekly: Math.round(daily * days * rate * 10) / 10 };
 }
 
-// ─── 헬퍼: business 접근 권한 확인 (platform_admin 자동 통과) ───
+// ─── 헬퍼: business 접근 권한 확인 (platform_admin/owner/member/client 통과) ───
+//  PERMISSION_MATRIX §5/§7 — client 도 자기 task 조회/댓글 가능해야 하므로 통과시킨다.
+//  쓰기는 라우트별로 추가 가드 (member only).
 async function assertBusinessAccess(userId, businessId, platformRole) {
   if (platformRole === 'platform_admin') return true;
-  const bm = await BusinessMember.findOne({ where: { user_id: userId, business_id: businessId } });
-  return !!bm;
+  const scope = await getUserScope(userId, businessId, platformRole);
+  return scope.isOwner || scope.isMember || scope.isClient;
 }
 
 // ============================================
@@ -242,6 +245,7 @@ router.get('/backlog', authenticateToken, async (req, res, next) => {
     const businessId = Number(req.user.active_business_id || req.query.business_id);
     if (!businessId) return errorResponse(res, 'business_id required', 400);
 
+    // backlog (미배정 업무) 는 member 이상만 — client 는 본인 task 만 봄
     const bm = await BusinessMember.findOne({ where: { user_id: req.user.id, business_id: businessId } });
     if (!bm && req.user.platform_role !== 'platform_admin') {
       return errorResponse(res, 'forbidden', 403);
@@ -376,10 +380,15 @@ router.post('/', authenticateToken, async (req, res, next) => {
 router.get('/by-business/:businessId', authenticateToken, async (req, res, next) => {
   try {
     const businessId = Number(req.params.businessId);
-    const bm = await BusinessMember.findOne({ where: { user_id: req.user.id, business_id: businessId } });
-    if (!bm) return errorResponse(res, 'forbidden', 403);
+    const scope = await getUserScope(req.user.id, businessId, req.user.platform_role);
+    if (!scope.isPlatformAdmin && !scope.isOwner && !scope.isMember && !scope.isClient) {
+      return errorResponse(res, 'forbidden', 403);
+    }
+    // client 면 자기 관련 task 만 화이트리스트
+    const baseWhere = await taskListWhere(req.user.id, businessId, scope);
+    if (!baseWhere) return errorResponse(res, 'forbidden', 403);
 
-    const where = { business_id: businessId };
+    const where = { ...baseWhere };
     if (req.query.status) where.status = req.query.status;
     if (req.query.assignee_id) where.assignee_id = Number(req.query.assignee_id);
 
@@ -572,10 +581,16 @@ router.get('/:id/detail', authenticateToken, async (req, res, next) => {
       ],
     });
     if (!task) return errorResponse(res, 'task_not_found', 404);
-    if (!(await assertBusinessAccess(req.user.id, task.business_id, req.user.platform_role))) {
+    const scope = await getUserScope(req.user.id, task.business_id, req.user.platform_role);
+    if (!(await canAccessTask(req.user.id, task, scope))) {
       return errorResponse(res, 'forbidden', 403);
     }
-    return successResponse(res, task.toJSON());
+    // Client 는 internal/personal 댓글 제외
+    const json = task.toJSON();
+    if (scope.isClient && Array.isArray(json.comments)) {
+      json.comments = json.comments.filter((c) => c.visibility === 'shared');
+    }
+    return successResponse(res, json);
   } catch (err) { next(err); }
 });
 
@@ -586,14 +601,21 @@ router.post('/:id/comments', authenticateToken, async (req, res, next) => {
   try {
     const task = await Task.findByPk(req.params.id);
     if (!task) return errorResponse(res, 'task_not_found', 404);
-    const bm = await BusinessMember.findOne({ where: { user_id: req.user.id, business_id: task.business_id } });
-    if (!bm) return errorResponse(res, 'forbidden', 403);
-    const { content } = req.body || {};
+    const scope = await getUserScope(req.user.id, task.business_id, req.user.platform_role);
+    if (!(await canAccessTask(req.user.id, task, scope))) {
+      return errorResponse(res, 'forbidden', 403);
+    }
+    const { content, visibility } = req.body || {};
     if (!content || !String(content).trim()) return errorResponse(res, 'content_required', 400);
+    // Client 는 shared 댓글만, internal/personal 작성 금지
+    const visAllowed = ['personal', 'internal', 'shared'];
+    let finalVis = visAllowed.includes(visibility) ? visibility : 'shared';
+    if (scope.isClient) finalVis = 'shared';
     const comment = await TaskComment.create({
       task_id: task.id,
       user_id: req.user.id,
       content: String(content).trim(),
+      visibility: finalVis,
     });
     const full = await TaskComment.findByPk(comment.id, {
       include: [{ model: User, as: 'author', attributes: ['id', 'name'] }],

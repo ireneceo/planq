@@ -28,6 +28,12 @@ export type TodoVerb =
   | 'mark_paid'
   | 'issue_tax';
 
+export interface TodoWorkspace {
+  business_id: number;
+  brand_name: string;
+  role: 'owner' | 'member' | 'client' | 'admin';
+}
+
 export interface TodoItem {
   id: string;                    // 타입 접두어 포함: "task-42", "event-7", "invite-12", "mention-103"
   type: TodoType;
@@ -42,12 +48,14 @@ export interface TodoItem {
   link?: string;                 // 페이지 이동용
   drawer?: { kind: 'task' | 'event'; id: number };  // 우측 드로어용
   inline?: 'invite';             // Accept/Decline 인라인 버튼 활성화
+  workspace?: TodoWorkspace;     // cross-workspace 모드 시 부착
 }
 
 export interface TodoResponse {
   items: TodoItem[];
   counts: Record<TodoPriority, number>;
   total: number;
+  workspaces?: TodoWorkspace[];
 }
 
 const PRIORITY_ORDER: TodoPriority[] = ['urgent', 'today', 'waiting', 'week'];

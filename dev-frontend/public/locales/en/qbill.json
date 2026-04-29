@@ -1,6 +1,7 @@
 {
   "page": {
     "title": "Q bill",
+    "titleClient": "My invoices",
     "subtitle": "Invoicing, payments, and tax invoices in one place",
     "tabs": {
       "overview": "Overview",

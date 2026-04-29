@@ -58,6 +58,41 @@ export interface PlanHistoryItem {
   effective_at: string;
 }
 
+// P-2 자체 결제 흐름
+export interface SubscriptionInfo {
+  id: number;
+  plan_code: PlanCode;
+  cycle: BillingCycle;
+  status: 'pending' | 'active' | 'past_due' | 'grace' | 'demoted' | 'canceled' | 'replaced';
+  current_period_end: string | null;
+  next_billing_at: string | null;
+  grace_ends_at: string | null;
+}
+
+export interface PendingPayment {
+  id: number;
+  subscription_id: number;
+  method: 'bank_transfer' | 'card' | 'portone' | 'manual_adjust';
+  amount: number | string;
+  currency: Currency;
+  cycle: BillingCycle;
+  created_at: string;
+}
+
+export interface PaymentRecord {
+  id: number;
+  subscription_id: number;
+  amount: number | string;
+  currency: Currency;
+  cycle: BillingCycle;
+  status: 'pending' | 'paid' | 'failed' | 'refunded' | 'canceled';
+  paid_at: string | null;
+  period_start: string | null;
+  period_end: string | null;
+  payer_name: string | null;
+  method: string;
+}
+
 export interface PlanStatus {
   plan: PlanDef;
   active: boolean;
@@ -68,6 +103,9 @@ export interface PlanStatus {
   plan_expires_at: string | null;
   scheduled_plan: PlanCode | null;
   subscription_status: string | null;
+  subscription: SubscriptionInfo | null;
+  pending_payment: PendingPayment | null;
+  recent_payments: PaymentRecord[];
   usage: PlanUsage;
   history: PlanHistoryItem[];
 }
@@ -112,6 +150,45 @@ export async function cancelScheduledChange(businessId: number): Promise<boolean
   const r = await apiFetch(`/api/plan/${businessId}/cancel-schedule`, { method: 'POST' });
   const j = await r.json();
   return !!j.success;
+}
+
+// ─── P-2 자체 결제 ───
+
+// 결제 요청 — 신규 Subscription + pending Payment 생성
+export async function checkout(
+  businessId: number,
+  planCode: Exclude<PlanCode, 'free' | 'enterprise'>,
+  cycle: BillingCycle,
+  currency: Currency = 'KRW'
+): Promise<{ subscription_id: number; payment_id: number; amount: number; currency: Currency } | null> {
+  const r = await apiFetch(`/api/plan/${businessId}/checkout`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ plan_code: planCode, cycle, currency }),
+  });
+  const j = await r.json();
+  return j.success ? j.data : null;
+}
+
+// 입금 완료 처리 (owner) — 자체 결제 트랙
+export async function markPaymentPaid(
+  businessId: number,
+  paymentId: number,
+  payerName?: string,
+  payerMemo?: string
+): Promise<boolean> {
+  const r = await apiFetch(`/api/plan/${businessId}/payments/${paymentId}/mark-paid`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ payer_name: payerName, payer_memo: payerMemo }),
+  });
+  const j = await r.json();
+  return !!j.success;
+}
+
+// 영수증 PDF URL
+export function receiptPdfUrl(businessId: number, paymentId: number): string {
+  return `/api/plan/${businessId}/payments/${paymentId}/receipt.pdf`;
 }
 
 // ─── Helpers ───

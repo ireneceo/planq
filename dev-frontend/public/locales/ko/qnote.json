@@ -58,7 +58,8 @@
     "speaker": {
       "self": "나",
       "other": "상대",
-      "numbered": "화자 {{n}}"
+      "numbered": "화자 {{n}}",
+      "manual": "직접 입력"
     },
     "question": {
       "editedMark": "(수정됨)",

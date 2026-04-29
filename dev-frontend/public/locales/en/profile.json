@@ -18,10 +18,43 @@
   "basic": {
     "sectionTitle": "Basic Info",
     "name": "Name",
+    "namePlaceholder": "Your name",
+    "username": "Username",
+    "usernamePlaceholder": "letters/digits/_/- · 3~30 chars",
+    "usernameAvailable": "Available",
+    "usernameTaken": "Already taken",
+    "usernameReserved": "Reserved name",
+    "usernameInvalid": "Invalid format",
+    "usernameHelp": "Use this to sign in instead of email. You can change it anytime.",
     "email": "Email",
+    "emailChange": "Change",
     "defaultLanguage": "Default Language",
     "languagePlaceholder": "Select language",
     "languageHint": "Used as the default for meeting translation"
+  },
+  "emailChange": {
+    "title": "Change Email",
+    "step1Title": "New Email",
+    "step1Desc": "Enter your new email address to receive a 6-digit verification code.",
+    "newEmailPlaceholder": "new@example.com",
+    "sendCodeBtn": "Send Code",
+    "sending": "Sending...",
+    "step2Title": "Verify Code",
+    "step2Desc": "Enter the 6-digit code sent to {{email}}. Valid for 10 minutes.",
+    "codePlaceholder": "6-digit code",
+    "verifyBtn": "Verify",
+    "verifying": "Verifying...",
+    "back": "Back",
+    "cancel": "Cancel",
+    "errors": {
+      "invalidEmail": "Invalid email format",
+      "sameAsCurrent": "Same as current email",
+      "emailTaken": "Email already in use",
+      "invalidCode": "Code does not match",
+      "expired": "Code expired. Please request a new one.",
+      "locked": "Locked after 5 failed attempts. Try again in 1 hour.",
+      "unknown": "Change failed"
+    }
   },
   "qnoteProfile": {
     "sectionTitle": "My Profile (for Q note answer generation)",

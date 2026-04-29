@@ -3,6 +3,7 @@ const router = express.Router();
 const { Op } = require('sequelize');
 const { Conversation, ConversationParticipant, Message, User, Client, Business, Project, ProjectMember, BusinessMember } = require('../models');
 const { authenticateToken, checkBusinessAccess } = require('../middleware/auth');
+const { attachWorkspaceScope, conversationListWhere, canAccessConversation } = require('../middleware/access_scope');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const { createAuditLog } = require('../middleware/audit');
 const cueOrchestrator = require('../services/cue_orchestrator');
@@ -12,12 +13,14 @@ const isAdmin = (req) =>
   req.user?.platform_role === 'platform_admin' || req.businessRole === 'owner';
 
 // ─────────────────────────────────────────────────────────
-// List conversations
+// List conversations — client 면 자기 참여 대화방만
 // ─────────────────────────────────────────────────────────
-router.get('/:businessId', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+router.get('/:businessId', authenticateToken, attachWorkspaceScope(), async (req, res, next) => {
   try {
+    const baseWhere = await conversationListWhere(req.user.id, Number(req.params.businessId), req.scope);
+    if (!baseWhere) return errorResponse(res, 'forbidden', 403);
     const conversations = await Conversation.findAll({
-      where: { business_id: req.params.businessId, status: 'active' },
+      where: { ...baseWhere, status: 'active' },
       include: [
         { model: Client, attributes: ['id', 'display_name', 'company_name'] },
         {
@@ -184,14 +187,8 @@ ProjectMember; // silence unused import (future: project member pre-selection)
 // ─────────────────────────────────────────────────────────
 // Get conversation detail + messages
 // ─────────────────────────────────────────────────────────
-router.get('/:businessId/:id', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+router.get('/:businessId/:id', authenticateToken, attachWorkspaceScope(), async (req, res, next) => {
   try {
-    const messageWhere = { is_deleted: false };
-    // Client 역할이면 내부 메모 + 미승인 Draft 제외
-    if (req.businessRole === 'member' || req.businessRole === 'client') {
-      // member 는 전체 볼 수 있게 두되, client 는 차단
-    }
-
     const conversation = await Conversation.findOne({
       where: { id: req.params.id, business_id: req.params.businessId },
       include: [
@@ -200,7 +197,7 @@ router.get('/:businessId/:id', authenticateToken, checkBusinessAccess, async (re
         {
           model: Message,
           as: 'messages',
-          where: messageWhere,
+          where: { is_deleted: false },
           required: false,
           include: [
             { model: User, as: 'sender', attributes: ['id', 'name', 'avatar_url', 'is_ai'] },
@@ -213,9 +210,14 @@ router.get('/:businessId/:id', authenticateToken, checkBusinessAccess, async (re
     });
     if (!conversation) return errorResponse(res, 'Conversation not found', 404);
 
-    // Client 역할은 is_internal + 미승인 Draft 필터링
+    // Client: 자기 참여 대화방만 통과
+    if (!(await canAccessConversation(req.user.id, conversation, req.scope))) {
+      return errorResponse(res, 'forbidden', 403);
+    }
+
+    // Client 역할은 is_internal + 미승인 Draft 필터링 (PERMISSION_MATRIX §7)
     let messages = conversation.messages || [];
-    if (req.businessRole === 'client') {
+    if (req.scope?.isClient) {
       messages = messages.filter(m =>
         !m.is_internal &&
         !(m.is_ai && m.ai_mode_used === 'draft' && m.ai_draft_approved !== true)
@@ -231,7 +233,7 @@ router.get('/:businessId/:id', authenticateToken, checkBusinessAccess, async (re
 // ─────────────────────────────────────────────────────────
 // Send message (사람이 작성)
 // ─────────────────────────────────────────────────────────
-router.post('/:businessId/:id/messages', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+router.post('/:businessId/:id/messages', authenticateToken, attachWorkspaceScope(), async (req, res, next) => {
   try {
     const { content, is_internal } = req.body;
     if (!content || !String(content).trim()) return errorResponse(res, 'content required', 400);
@@ -241,13 +243,20 @@ router.post('/:businessId/:id/messages', authenticateToken, checkBusinessAccess,
     });
     if (!conversation) return errorResponse(res, 'Conversation not found', 404);
 
+    // Client: 자기 참여 대화방만 작성 가능 (PERMISSION_MATRIX §5.3)
+    if (!(await canAccessConversation(req.user.id, conversation, req.scope))) {
+      return errorResponse(res, 'forbidden', 403);
+    }
+    // Client 는 internal 메모 작성 금지
+    const internalFlag = req.scope?.isClient ? false : !!is_internal;
+
     const msg = await Message.create({
       conversation_id: conversation.id,
       sender_id: req.user.id,
       content: String(content),
       kind: 'text',
       is_ai: false,
-      is_internal: !!is_internal
+      is_internal: internalFlag
     });
 
     await conversation.update({ last_message_at: new Date() });

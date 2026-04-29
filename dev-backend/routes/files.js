@@ -12,6 +12,7 @@ const { sequelize } = require('../config/database');
 const gdrive = require('../services/gdrive');
 const planEngine = require('../services/plan');
 const { authenticateToken, checkBusinessAccess } = require('../middleware/auth');
+const { attachWorkspaceScope, fileListWhere, isMemberOrAbove } = require('../middleware/access_scope');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 
 const uploadDir = path.join(__dirname, '..', 'uploads');
@@ -97,9 +98,11 @@ async function verifyFolderOwnership(folderId, businessId, projectId) {
 
 // ─── List ───
 
-router.get('/:businessId', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+router.get('/:businessId', authenticateToken, attachWorkspaceScope(), async (req, res, next) => {
   try {
-    const where = { business_id: req.params.businessId, deleted_at: null };
+    const baseWhere = await fileListWhere(req.user.id, Number(req.params.businessId), req.scope);
+    if (!baseWhere) return errorResponse(res, 'forbidden', 403);
+    const where = { ...baseWhere, deleted_at: null };
     if (req.query.client_id) where.client_id = req.query.client_id;
     if (req.query.project_id) where.project_id = req.query.project_id;
     if (req.query.folder_id) where.folder_id = req.query.folder_id;
@@ -450,12 +453,18 @@ async function softDeleteFile(file, transaction) {
 
 // ─── Download ───
 
-router.get('/:businessId/:id/download', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+router.get('/:businessId/:id/download', authenticateToken, attachWorkspaceScope(), async (req, res, next) => {
   try {
     const file = await File.findOne({
       where: { id: req.params.id, business_id: req.params.businessId, deleted_at: null }
     });
     if (!file) return errorResponse(res, 'File not found', 404);
+    // Client: 자기 참여 프로젝트 파일 또는 본인 업로드만 다운로드 가능
+    if (req.scope?.isClient) {
+      const inMyProject = file.project_id && req.scope.projectClientProjectIds.includes(file.project_id);
+      const mineUpload = file.uploader_id === req.user.id;
+      if (!inMyProject && !mineUpload) return errorResponse(res, 'forbidden', 403);
+    }
     if (file.storage_provider !== 'planq') {
       if (file.external_url) return res.redirect(file.external_url);
       return errorResponse(res, 'External file has no URL', 400);

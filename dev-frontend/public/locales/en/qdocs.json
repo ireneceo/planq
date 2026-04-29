@@ -6,6 +6,55 @@
     "newDoc": "New document",
     "searchPlaceholder": "Search by title, client, project"
   },
+  "tabs": {
+    "documents": "Documents",
+    "received-signatures": "Received signatures"
+  },
+  "received": {
+    "searchPh": "Search by document title",
+    "allWorkspaces": "All workspaces",
+    "loading": "Loading...",
+    "empty": "No signature requests received",
+    "expiresAt": "Expires {{date}}",
+    "signedAt": "Signed {{date}}",
+    "rejectedAt": "Rejected {{date}}",
+    "prev": "Prev",
+    "next": "Next",
+    "status": {
+      "all": "All",
+      "pending": "Pending",
+      "signed": "Signed",
+      "rejected": "Rejected",
+      "expired": "Expired"
+    },
+    "statusFull": {
+      "pending": "Pending",
+      "sent": "Pending",
+      "viewed": "Viewed",
+      "signed": "Signed",
+      "rejected": "Rejected",
+      "expired": "Expired",
+      "canceled": "Canceled"
+    },
+    "action": {
+      "sign": "Sign",
+      "signOpen": "Open signing page",
+      "pdf": "PDF",
+      "close": "Close"
+    },
+    "detail": {
+      "status": "Status",
+      "workspace": "Workspace",
+      "note": "Note",
+      "expiresAt": "Expires at",
+      "viewedAt": "Viewed at",
+      "signedAt": "Signed at",
+      "signedIp": "Signed IP",
+      "signatureImage": "Signature",
+      "rejectedAt": "Rejected at",
+      "rejectedReason": "Reason"
+    }
+  },
   "section": {
     "library": "Template library",
     "documents": "My documents"

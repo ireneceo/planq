@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import styled from 'styled-components';
 import PageShell from '../../components/Layout/PageShell';
+import { useAuth } from '../../contexts/AuthContext';
 import OverviewTab from './OverviewTab';
 import InvoicesTab from './InvoicesTab';
 import PaymentsTab from './PaymentsTab';
@@ -10,17 +11,22 @@ import TaxInvoicesTab from './TaxInvoicesTab';
 
 type Tab = 'overview' | 'invoices' | 'payments' | 'tax-invoices';
 
-const TABS: Tab[] = ['overview', 'invoices', 'payments', 'tax-invoices'];
+const ALL_TABS: Tab[] = ['overview', 'invoices', 'payments', 'tax-invoices'];
+// client 시점에는 owner 의 운영 메트릭 탭(overview)을 숨기고 받은 청구서 위주.
+const CLIENT_TABS: Tab[] = ['invoices', 'payments', 'tax-invoices'];
 
-function readTab(search: string): Tab {
+function readTab(search: string, allowed: Tab[]): Tab {
   const t = new URLSearchParams(search).get('tab') as Tab | null;
-  return t && (TABS as string[]).includes(t) ? t : 'overview';
+  return t && allowed.includes(t) ? t : allowed[0];
 }
 
 export default function QBillPage() {
   const { t } = useTranslation('qbill');
   const location = useLocation();
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const isClient = user?.business_role === 'client';
+  const TABS = useMemo<Tab[]>(() => (isClient ? CLIENT_TABS : ALL_TABS), [isClient]);
 
   // 레거시 ?tab=settings 진입 → 통합 설정으로 자동 redirect
   useEffect(() => {
@@ -30,19 +36,19 @@ export default function QBillPage() {
     }
   }, [location.search, navigate]);
 
-  const [tab, setTab] = useState<Tab>(() => readTab(location.search));
+  const [tab, setTab] = useState<Tab>(() => readTab(location.search, TABS));
 
-  useEffect(() => { setTab(readTab(location.search)); }, [location.search]);
+  useEffect(() => { setTab(readTab(location.search, TABS)); }, [location.search, TABS]);
 
   const switchTab = (next: Tab) => {
     const sp = new URLSearchParams(location.search);
-    if (next === 'overview') sp.delete('tab'); else sp.set('tab', next);
+    if (next === TABS[0]) sp.delete('tab'); else sp.set('tab', next);
     sp.delete('invoice');
     navigate(`${location.pathname}${sp.toString() ? `?${sp.toString()}` : ''}`, { replace: true });
   };
 
   return (
-    <PageShell title={t('page.title', 'Q bill')} bodyPadding="0">
+    <PageShell title={isClient ? t('page.titleClient', '받은 청구서') : t('page.title', 'Q bill')} bodyPadding="0">
       <TabBar role="tablist">
         {TABS.map((k) => (
           <TabBtn

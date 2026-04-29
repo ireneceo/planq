@@ -58,7 +58,8 @@
     "speaker": {
       "self": "Me",
       "other": "Other",
-      "numbered": "Speaker {{n}}"
+      "numbered": "Speaker {{n}}",
+      "manual": "Manual"
     },
     "question": {
       "editedMark": "(edited)",

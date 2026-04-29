@@ -171,6 +171,7 @@ const TodoList: React.FC<Props> = ({ items, loading, onOpenDrawer, onInviteActio
                     <CardLine2>
                       {it.dueAt && <DueBadge $priority={pri}>{formatDue(it, t, fmt)}</DueBadge>}
                       {it.context && <CtxText>{it.context}</CtxText>}
+                      {it.workspace && <WsChip $role={it.workspace.role}>{it.workspace.brand_name}</WsChip>}
                     </CardLine2>
                   </CardBody>
                   <CardRight>
@@ -414,6 +415,28 @@ const CtxText = styled.span`
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+`;
+
+// 워크스페이스 라벨 chip — cross-workspace 알림에서 어느 워크스페이스인지 표시
+const WsChip = styled.span<{ $role: 'owner' | 'member' | 'client' | 'admin' }>`
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 600;
+  background: ${p =>
+    p.$role === 'client' ? '#FEF3C7' :
+    p.$role === 'owner' ? '#FFE4E6' :
+    p.$role === 'admin' ? '#FFE4E6' :
+    '#CCFBF1'};
+  color: ${p =>
+    p.$role === 'client' ? '#92400E' :
+    p.$role === 'owner' ? '#9F1239' :
+    p.$role === 'admin' ? '#9F1239' :
+    '#0F766E'};
+  white-space: nowrap;
 `;
 
 const CardRight = styled.div`

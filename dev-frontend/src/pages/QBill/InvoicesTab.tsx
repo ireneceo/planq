@@ -20,6 +20,7 @@ export default function InvoicesTab() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const businessId = user?.business_id ? Number(user.business_id) : null;
+  const isClient = user?.business_role === 'client';
 
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<Filter>('all');
@@ -125,10 +126,12 @@ export default function InvoicesTab() {
             </ClearBtn>
           )}
         </SearchInputWrap>
-        <NewBtn onClick={() => setShowNew(true)}>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-          {t('invoices.newInvoice')}
-        </NewBtn>
+        {!isClient && (
+          <NewBtn onClick={() => setShowNew(true)}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            {t('invoices.newInvoice')}
+          </NewBtn>
+        )}
       </Toolbar>
 
       {/* 상태 chip */}
@@ -160,10 +163,12 @@ export default function InvoicesTab() {
         <Empty>
           <EmptyTitle>{t('invoices.empty')}</EmptyTitle>
           <EmptyDesc>{t('invoices.emptyCta')}</EmptyDesc>
-          <NewBtn onClick={() => setShowNew(true)}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            {t('invoices.newInvoice')}
-          </NewBtn>
+          {!isClient && (
+            <NewBtn onClick={() => setShowNew(true)}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              {t('invoices.newInvoice')}
+            </NewBtn>
+          )}
         </Empty>
       ) : (
         <List>

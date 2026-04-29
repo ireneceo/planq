@@ -47,6 +47,9 @@ const Quote = require('./Quote');
 const QuoteItem = require('./QuoteItem');
 const InvoicePayment = require('./InvoicePayment');
 const InvoiceInstallment = require('./InvoiceInstallment');
+// ─── 자체 결제 / 구독 (P-2) ───
+const Subscription = require('./Subscription');
+const Payment = require('./Payment');
 const BillEvent = require('./BillEvent');
 const OverheadItem = require('./OverheadItem');
 const ProjectExpense = require('./ProjectExpense');
@@ -330,6 +333,8 @@ module.exports = {
   QuoteItem,
   InvoicePayment,
   InvoiceInstallment,
+  Subscription,
+  Payment,
   BillEvent,
   OverheadItem,
   ProjectExpense,
@@ -436,6 +441,18 @@ InvoiceInstallment.belongsTo(Invoice, { foreignKey: 'invoice_id', onDelete: 'CAS
 InvoiceInstallment.belongsTo(User, { as: 'paymentMarker', foreignKey: 'marked_by_user_id' });
 InvoiceInstallment.belongsTo(User, { as: 'taxMarker', foreignKey: 'tax_invoice_marked_by' });
 Invoice.hasMany(InvoiceInstallment, { as: 'installments', foreignKey: 'invoice_id', onDelete: 'CASCADE' });
+
+// Subscription / Payment (P-2 자체 결제)
+Subscription.belongsTo(Business, { foreignKey: 'business_id' });
+Subscription.belongsTo(User, { as: 'creator', foreignKey: 'created_by' });
+Business.hasMany(Subscription, { foreignKey: 'business_id' });
+
+Payment.belongsTo(Business, { foreignKey: 'business_id' });
+Payment.belongsTo(Subscription, { foreignKey: 'subscription_id', onDelete: 'CASCADE' });
+Payment.belongsTo(User, { as: 'marker', foreignKey: 'marked_by' });
+Payment.belongsTo(User, { as: 'creator', foreignKey: 'created_by' });
+Subscription.hasMany(Payment, { as: 'payments', foreignKey: 'subscription_id', onDelete: 'CASCADE' });
+Business.hasMany(Payment, { foreignKey: 'business_id' });
 
 // BillEvent — polymorphic (entity_type + entity_id). actor 관계만 설정.
 BillEvent.belongsTo(User, { as: 'actor', foreignKey: 'actor_user_id' });

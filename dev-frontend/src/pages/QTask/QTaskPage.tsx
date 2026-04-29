@@ -629,7 +629,9 @@ const QTaskPage:React.FC=()=>{
             if(!startStr&&!dueStr) return true; // 기간 미정 task 는 포함 (사용자가 인지하도록)
             const s=startStr||dueStr;
             const e=dueStr||startStr;
-            return !(e<periodFrom||s>periodTo);
+            // 미완료 업무: 마감일이 이미 지남 (overdue) 이면 항상 표시 + 기간 겹침 검사
+            const isOverdue = e && e < todayStr;
+            return isOverdue || !(e<periodFrom||s>periodTo);
           })();
           if(!inPeriod) return false;
 

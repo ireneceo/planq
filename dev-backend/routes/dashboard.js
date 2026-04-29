@@ -641,51 +641,76 @@ router.get('/todo', authenticateToken, async (req, res, next) => {
     const userId = req.user.id;
     const isPlatformAdmin = req.user.platform_role === 'platform_admin';
     const qBusinessId = parseInt(req.query.business_id, 10);
-    let businessId = Number.isFinite(qBusinessId) ? qBusinessId : null;
+    const oneBusinessId = Number.isFinite(qBusinessId) ? qBusinessId : null;
+    const { getUserScope } = require('../middleware/access_scope');
 
-    // business_id 가 명시되면 **반드시** 멤버십 검증 (platform_admin 자동 통과).
-    // 검증 누락 시 타 워크스페이스 todo 조회 가능 → Critical.
-    if (businessId && !isPlatformAdmin) {
-      const bm = await BusinessMember.findOne({
-        where: { user_id: userId, business_id: businessId },
-        attributes: ['business_id'],
-      });
-      if (!bm) return errorResponse(res, 'forbidden', 403);
+    // business_id 가 명시되면 그 워크스페이스만 (권한 검증 후), 아니면 사용자가 속한 **모든** 워크스페이스 cross-workspace 집계
+    if (oneBusinessId && !isPlatformAdmin) {
+      const scope = await getUserScope(userId, oneBusinessId, req.user.platform_role);
+      if (!scope.isOwner && !scope.isMember && !scope.isClient) {
+        return errorResponse(res, 'forbidden', 403);
+      }
     }
 
-    // 기본값: 사용자의 첫 소속 워크스페이스 (platform_admin 은 쿼리 없으면 invites 만)
-    if (!businessId && !isPlatformAdmin) {
+    // 사용자가 속한 워크스페이스 목록 (member + client 양쪽)
+    let workspaces = [];
+    if (oneBusinessId) {
+      const biz = await Business.findByPk(oneBusinessId, { attributes: ['id', 'name', 'brand_name'] });
+      // removed_at 체크 추가 — cross-workspace 와 일관성 유지
       const bm = await BusinessMember.findOne({
-        where: { user_id: userId },
-        attributes: ['business_id'],
-        order: [['created_at', 'ASC']],
-      });
-      if (bm) businessId = bm.business_id;
-    }
-
-    // 사용자 role 결정 (signature 발행자 측 / payment_notify / tax_invoice 권한 게이팅용)
-    let userRole = null;
-    if (businessId) {
-      const bm = await BusinessMember.findOne({
-        where: { user_id: userId, business_id: businessId },
+        where: { user_id: userId, business_id: oneBusinessId, removed_at: null },
         attributes: ['role'],
       });
-      userRole = bm?.role || null;
-      if (isPlatformAdmin && !userRole) userRole = 'admin';
+      const cli = !bm ? await Client.findOne({
+        where: { user_id: userId, business_id: oneBusinessId, status: 'active' },
+        attributes: ['id'],
+      }) : null;
+      const role = bm?.role || (cli ? 'client' : (isPlatformAdmin ? 'admin' : null));
+      // 권한 없으면 빈 배열 (아래 collectors 가 빈 결과 반환)
+      if (biz && role) workspaces.push({ business_id: biz.id, brand_name: biz.brand_name || biz.name, role });
+    } else {
+      const memberships = await BusinessMember.findAll({
+        where: { user_id: userId, removed_at: null },
+        include: [{ model: Business, attributes: ['id', 'name', 'brand_name'] }],
+      });
+      const map = new Map();
+      for (const m of memberships) {
+        if (!m.Business || m.role === 'ai') continue;
+        map.set(m.business_id, { business_id: m.business_id, brand_name: m.Business.brand_name || m.Business.name, role: m.role });
+      }
+      const clientRows = await Client.findAll({
+        where: { user_id: userId, status: 'active' },
+        include: [{ model: Business, attributes: ['id', 'name', 'brand_name'] }],
+      });
+      for (const c of clientRows) {
+        if (!c.Business || map.has(c.business_id)) continue;
+        map.set(c.business_id, { business_id: c.business_id, brand_name: c.Business.brand_name || c.Business.name, role: 'client' });
+      }
+      workspaces = Array.from(map.values()).sort((a, b) => a.business_id - b.business_id);
     }
 
-    const [tasks, events, invites, candidates, invoices, signatures, paymentNotifies, taxInvoices] = await Promise.all([
-      businessId ? collectTasks(businessId, userId) : Promise.resolve([]),
-      businessId ? collectEvents(businessId, userId) : Promise.resolve([]),
-      collectInvites(req.user.email),
-      businessId ? collectCandidates(businessId, userId) : Promise.resolve([]),
-      businessId ? collectInvoices(businessId) : Promise.resolve([]),
-      collectSignatures(businessId, req.user.email, userRole),
-      businessId ? collectPaymentNotifies(businessId, userRole) : Promise.resolve([]),
-      businessId ? collectTaxInvoices(businessId, userRole) : Promise.resolve([]),
-    ]);
+    // 각 워크스페이스에서 collector 돌리고 항목마다 workspace 라벨 부착
+    const allBuckets = await Promise.all(workspaces.map(async (w) => {
+      const userRole = w.role === 'admin' ? 'admin' : w.role;
+      const [tasks, events, candidates, invoices, signatures, paymentNotifies, taxInvoices] = await Promise.all([
+        collectTasks(w.business_id, userId),
+        collectEvents(w.business_id, userId),
+        collectCandidates(w.business_id, userId),
+        collectInvoices(w.business_id),
+        collectSignatures(w.business_id, req.user.email, userRole),
+        collectPaymentNotifies(w.business_id, userRole),
+        collectTaxInvoices(w.business_id, userRole),
+      ]);
+      const items = [...tasks, ...events, ...candidates, ...invoices, ...signatures, ...paymentNotifies, ...taxInvoices];
+      // 워크스페이스 라벨 부착
+      for (const it of items) it.workspace = { business_id: w.business_id, brand_name: w.brand_name, role: w.role };
+      return items;
+    }));
 
-    const all = [...tasks, ...events, ...invites, ...candidates, ...invoices, ...signatures, ...paymentNotifies, ...taxInvoices];
+    // invites 는 이메일 기반 (워크스페이스 무관) — 1번만 호출
+    const invites = await collectInvites(req.user.email);
+
+    const all = [...allBuckets.flat(), ...invites];
 
     // Sort: priority order → dueAt asc
     const PRI = { urgent: 0, today: 1, waiting: 2, week: 3 };
@@ -700,7 +725,7 @@ router.get('/todo', authenticateToken, async (req, res, next) => {
     const counts = { urgent: 0, today: 0, waiting: 0, week: 0 };
     all.forEach(it => { counts[it.priority] += 1; });
 
-    return successResponse(res, { items: all, counts, total: all.length });
+    return successResponse(res, { items: all, counts, total: all.length, workspaces });
   } catch (err) {
     return next(err);
   }

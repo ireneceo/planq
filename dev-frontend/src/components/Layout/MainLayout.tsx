@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../contexts/AuthContext';
 import LanguageSelector from '../Common/LanguageSelector';
 import WorkspaceSwitcher from './WorkspaceSwitcher';
+import WorkspaceBillingBanner from './WorkspaceBillingBanner';
 import SidebarClock from './SidebarClock';
 import PanelHeader, { PanelTitle } from './PanelHeader';
 import { useTimezones } from '../../hooks/useTimezones';
@@ -547,14 +548,12 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                     <NavIcon $isCollapsed={isCollapsed}><IconDocs /></NavIcon>
                     <NavLabel $isCollapsed={isCollapsed}>{t('nav.docs')}</NavLabel>
                   </NavItem>
-                  {hasBiz('owner', 'member') && (
-                    <NavItem to="/bills" $isCollapsed={isCollapsed}
-                      $active={isActive('/bills') || isActive('/billing')}
-                      title={isCollapsed ? t('nav.qbill', 'Q Bill') : undefined}>
-                      <NavIcon $isCollapsed={isCollapsed}><IconBill /></NavIcon>
-                      <NavLabel $isCollapsed={isCollapsed}>{t('nav.qbill', 'Q Bill')}</NavLabel>
-                    </NavItem>
-                  )}
+                  <NavItem to="/bills" $isCollapsed={isCollapsed}
+                    $active={isActive('/bills') || isActive('/billing')}
+                    title={isCollapsed ? t('nav.qbill', 'Q Bill') : undefined}>
+                    <NavIcon $isCollapsed={isCollapsed}><IconBill /></NavIcon>
+                    <NavLabel $isCollapsed={isCollapsed}>{t('nav.qbill', 'Q Bill')}</NavLabel>
+                  </NavItem>
                 </NavSection>
               )}
 
@@ -803,6 +802,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
       )}
 
       <MainContent $marginLeft={mainMarginLeft}>
+        <WorkspaceBillingBanner />
         <MobileContentPadding>{children}</MobileContentPadding>
       </MainContent>
     </LayoutContainer>

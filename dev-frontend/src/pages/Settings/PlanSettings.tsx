@@ -4,12 +4,13 @@ import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import {
   fetchCatalog, fetchStatus, changePlan, cancelScheduledChange, startTrial,
-  formatPrice, formatLimit, formatBytes, formatMinutes, usageColor,
+  formatPrice, formatLimit, formatBytes, formatMinutes, usageColor, receiptPdfUrl,
   type PlanDef, type PlanStatus, type PlanCode, type BillingCycle, type Currency,
 } from '../../services/plan';
 import { submitInquiry } from '../../services/inquiries';
-import { useAuth } from '../../contexts/AuthContext';
+import { useAuth, apiFetch } from '../../contexts/AuthContext';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
+import CheckoutModal from './CheckoutModal';
 
 interface Props { businessId: number; }
 
@@ -26,7 +27,22 @@ const PlanSettings: React.FC<Props> = ({ businessId }) => {
   const [actionPlan, setActionPlan] = useState<PlanCode | null>(null);  // 업그레이드/다운그레이드 모달 대상
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [cancelScheduleOpen, setCancelScheduleOpen] = useState(false);
-  const [requestingUpgrade, setRequestingUpgrade] = useState(false);
+  // P-2: bank info (Business 의 워크스페이스 입금 계좌)
+  const [bankInfo, setBankInfo] = useState<{ name?: string; account?: string; holder?: string } | null>(null);
+  useEffect(() => {
+    apiFetch(`/api/businesses/${businessId}`)
+      .then(r => r.json())
+      .then(j => {
+        if (j.success && j.data) {
+          setBankInfo({
+            name: j.data.bank_name || undefined,
+            account: j.data.bank_account_number || undefined,
+            holder: j.data.bank_account_name || j.data.brand_name || j.data.name || undefined,
+          });
+        }
+      })
+      .catch(() => { /* noop */ });
+  }, [businessId]);
 
   // ─── Enterprise 문의 ───
   const [inquiryOpen, setInquiryOpen] = useState(false);
@@ -107,18 +123,12 @@ const PlanSettings: React.FC<Props> = ({ businessId }) => {
     }
   };
 
-  const handleRequestUpgrade = async () => {
-    if (!actionPlan) return;
-    setRequestingUpgrade(true);
-    try {
-      // 결제 연동 전: 운영자 수동 조정용 API 호출 (admin 권한자만 성공)
-      const r = await changePlan(businessId, actionPlan, cycle);
-      if (r) {
-        setPaymentOpen(false); setActionPlan(null);
-        await load();
-      }
-    } finally { setRequestingUpgrade(false); }
-  };
+  // P-2 자체 결제 흐름 — CheckoutModal 의 onPaid 가 직접 status 갱신
+  const handleCheckoutPaid = useCallback(async () => {
+    setPaymentOpen(false);
+    setActionPlan(null);
+    await load();
+  }, [load]);
 
   const handleDowngradeConfirm = async () => {
     if (!actionPlan) return;
@@ -342,6 +352,33 @@ const PlanSettings: React.FC<Props> = ({ businessId }) => {
         </EntCta>
       </EnterpriseCard>
 
+      {/* P-2 결제 이력 — 영수증 PDF */}
+      <Section>
+        <SectionTitle>{t('billing.history.title', '결제 이력')}</SectionTitle>
+        {(!status.recent_payments || status.recent_payments.length === 0) ? (
+          <Dim>{t('billing.history.empty', '결제 내역이 없습니다')}</Dim>
+        ) : (
+          <PaymentList>
+            {status.recent_payments.map(p => (
+              <PaymentRow key={p.id}>
+                <PaymentDate>{p.paid_at ? formatDate(p.paid_at) : '—'}</PaymentDate>
+                <PaymentAmount>{p.currency === 'KRW' ? `₩${Number(p.amount).toLocaleString()}` : `${p.currency} ${Number(p.amount).toLocaleString()}`}</PaymentAmount>
+                <PaymentMeta>
+                  {t(`billing.cycle.${p.cycle}`, p.cycle)}
+                  {p.period_start && p.period_end && ` · ${formatDate(p.period_start)} ~ ${formatDate(p.period_end)}`}
+                </PaymentMeta>
+                <PaymentStatus $status={p.status}>{t(`billing.payment.status.${p.status}`, p.status)}</PaymentStatus>
+                {p.status === 'paid' && (
+                  <ReceiptLink href={receiptPdfUrl(businessId, p.id)} target="_blank" rel="noopener">
+                    {t('billing.history.receipt', '영수증')}
+                  </ReceiptLink>
+                )}
+              </PaymentRow>
+            ))}
+          </PaymentList>
+        )}
+      </Section>
+
       {/* 변경 이력 */}
       <Section>
         <SectionTitle>{t('history.title')}</SectionTitle>
@@ -365,34 +402,24 @@ const PlanSettings: React.FC<Props> = ({ businessId }) => {
         )}
       </Section>
 
-      {/* 업그레이드 결제 수단 선택 모달 */}
-      {paymentOpen && actionPlan && (
-        <Modal onMouseDown={e => { if (e.target === e.currentTarget) setPaymentOpen(false); }}>
-          <Dialog>
-            <DTitle>{t('confirm.upgradeTitle', { plan: catalog.find(p => p.code === actionPlan)?.name_ko || actionPlan })}</DTitle>
-            <DBody>
-              <p>{t('payment.comingSoon')}</p>
-              <p style={{ fontSize: 12, color: '#64748B' }}>{t('payment.comingSoonDesc')}</p>
-              <PayOptList>
-                <PayOptCard $dim>
-                  <PayOptTitle>💳 {t('payment.global')}</PayOptTitle>
-                  <PayOptDesc>{t('payment.globalDesc')}</PayOptDesc>
-                </PayOptCard>
-                <PayOptCard $dim>
-                  <PayOptTitle>🇰🇷 {t('payment.korea')}</PayOptTitle>
-                  <PayOptDesc>{t('payment.koreaDesc')}</PayOptDesc>
-                </PayOptCard>
-              </PayOptList>
-            </DBody>
-            <DFooter>
-              <BtnGhost type="button" onClick={() => setPaymentOpen(false)}>{t('confirm.cancel')}</BtnGhost>
-              <BtnPrimary type="button" disabled={requestingUpgrade} onClick={handleRequestUpgrade}>
-                {requestingUpgrade ? '...' : t('payment.requestUpgrade')}
-              </BtnPrimary>
-            </DFooter>
-          </Dialog>
-        </Modal>
-      )}
+      {/* P-2 자체 결제 — CheckoutModal (입금 안내 + mark-paid) */}
+      {paymentOpen && actionPlan && actionPlan !== 'free' && actionPlan !== 'enterprise' && (() => {
+        const targetPlan = catalog.find(p => p.code === actionPlan);
+        if (!targetPlan) return null;
+        return (
+          <CheckoutModal
+            open={paymentOpen}
+            businessId={businessId}
+            plan={targetPlan}
+            cycle={cycle}
+            bankInfo={bankInfo}
+            existingPaymentId={status.pending_payment?.id || null}
+            existingAmount={status.pending_payment ? Number(status.pending_payment.amount) : null}
+            onClose={() => { setPaymentOpen(false); setActionPlan(null); }}
+            onPaid={handleCheckoutPaid}
+          />
+        );
+      })()}
 
       {/* 다운그레이드 확인 모달 */}
       {actionPlan && !paymentOpen && !isUpgrade(actionPlan) && actionPlan !== 'enterprise' && (
@@ -718,13 +745,6 @@ const Dialog = styled.div`background:#fff;border-radius:14px;width:100%;max-widt
 const DTitle = styled.div`padding:20px 22px 12px;font-size:16px;font-weight:700;color:#0F172A;`;
 const DBody = styled.div`padding:0 22px 16px;font-size:13px;color:#475569;line-height:1.6;p{margin:4px 0;}`;
 const DFooter = styled.div`padding:12px 22px;border-top:1px solid #EEF2F6;display:flex;gap:8px;justify-content:flex-end;`;
-const PayOptList = styled.div`display:flex;flex-direction:column;gap:8px;margin-top:12px;`;
-const PayOptCard = styled.div<{ $dim?: boolean }>`
-  padding:12px 14px;border:1px solid #E2E8F0;border-radius:10px;background:#F8FAFC;
-  opacity:${p => p.$dim ? 0.6 : 1};
-`;
-const PayOptTitle = styled.div`font-size:13px;font-weight:600;color:#0F172A;`;
-const PayOptDesc = styled.div`font-size:11px;color:#64748B;margin-top:2px;`;
 const WarnBox = styled.div`margin-top:12px;padding:10px 12px;background:#FEF3C7;border:1px solid #F59E0B;border-radius:8px;`;
 const WarnTitle = styled.div`font-size:12px;font-weight:700;color:#92400E;margin-bottom:4px;`;
 const WarnList = styled.ul`margin:0;padding-left:18px;font-size:12px;color:#92400E;`;
@@ -788,3 +808,42 @@ function planBadge(code: PlanCode): string {
     case 'enterprise': return 'background:#FEF3C7;color:#92400E;';
   }
 }
+
+// ─── P-2 결제 이력 styled ───
+const PaymentList = styled.div`display: flex; flex-direction: column;`;
+const PaymentRow = styled.div`
+  display: grid;
+  grid-template-columns: 100px 110px 1fr auto auto;
+  gap: 12px;
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px solid #F1F5F9;
+  &:last-child { border-bottom: none; }
+  font-size: 12px;
+  @media (max-width: 768px) {
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: auto auto;
+  }
+`;
+const PaymentDate = styled.div`color: #64748B; font-variant-numeric: tabular-nums;`;
+const PaymentAmount = styled.div`font-weight: 700; color: #0F172A;`;
+const PaymentMeta = styled.div`color: #64748B;`;
+const PaymentStatus = styled.span<{ $status: string }>`
+  padding: 2px 8px; border-radius: 999px; font-size: 10px; font-weight: 600;
+  background: ${p =>
+    p.$status === 'paid' ? '#DCFCE7' :
+    p.$status === 'refunded' ? '#FEF3C7' :
+    p.$status === 'failed' ? '#FEE2E2' :
+    '#F1F5F9'};
+  color: ${p =>
+    p.$status === 'paid' ? '#15803D' :
+    p.$status === 'refunded' ? '#92400E' :
+    p.$status === 'failed' ? '#B91C1C' :
+    '#64748B'};
+`;
+const ReceiptLink = styled.a`
+  font-size: 11px; color: #0D9488; font-weight: 600;
+  text-decoration: none; padding: 4px 10px;
+  border: 1px solid #5EEAD4; border-radius: 6px;
+  &:hover { background: #F0FDFA; }
+`;
