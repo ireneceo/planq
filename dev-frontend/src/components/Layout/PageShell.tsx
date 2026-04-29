@@ -17,6 +17,7 @@ import styled from 'styled-components';
 type Props = {
   title: string;
   count?: number | string;          // 제목 우측에 보여줄 카운트 배지 (선택)
+  helpDot?: ReactNode;              // 제목 옆 도움말 ⓘ (HelpDot 컴포넌트 권장)
   actions?: ReactNode;              // 헤더 우측 영역 (검색·버튼 등)
   children: ReactNode;
   bodyPadding?: string;             // 본문 padding 커스터마이즈가 필요할 때만
@@ -25,6 +26,7 @@ type Props = {
 export default function PageShell({
   title,
   count,
+  helpDot,
   actions,
   children,
   bodyPadding,
@@ -34,6 +36,7 @@ export default function PageShell({
       <Header>
         <HeaderLeft>
           <Title>{title}</Title>
+          {helpDot}
           {count !== undefined && count !== '' && <Count>{count}</Count>}
         </HeaderLeft>
         {actions && <HeaderRight>{actions}</HeaderRight>}

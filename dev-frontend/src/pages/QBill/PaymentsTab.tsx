@@ -165,15 +165,22 @@ const Empty = styled.div`
   text-align: center; padding: 60px 20px; color: #94A3B8; font-size: 13px;
   background: #fff; border: 1px dashed #E2E8F0; border-radius: 12px;
 `;
-const List = styled.div`background: #fff; border: 1px solid #E2E8F0; border-radius: 12px; overflow: hidden;`;
+const List = styled.div`
+  background: #fff; border: 1px solid #E2E8F0; border-radius: 12px;
+  overflow-x: auto;
+  &::-webkit-scrollbar { height: 6px; }
+  &::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 3px; }
+`;
 const ListHead = styled.div`
   display: flex; gap: 12px; padding: 10px 16px; background: #F8FAFC; border-bottom: 1px solid #E2E8F0;
   font-size: 11px; font-weight: 700; color: #64748B; text-transform: uppercase; letter-spacing: 0.4px;
+  min-width: 720px;
 `;
 const Row = styled.div`
   display: flex; gap: 12px; padding: 14px 16px; border-bottom: 1px solid #F1F5F9; align-items: center;
   &:last-child { border-bottom: none; }
   &:hover { background: #F8FAFC; }
+  min-width: 720px;
 `;
 const Cell = styled.div`flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px;`;
 const RowNum = styled.div`

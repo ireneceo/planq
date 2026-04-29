@@ -49,7 +49,8 @@
     "ch": {
       "inbox": "Inbox",
       "email": "Email",
-      "chat": "Chat"
+      "chat": "Chat",
+      "push": "Push"
     },
     "eventLabel": {
       "signature": "Signatures",

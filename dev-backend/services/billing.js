@@ -56,7 +56,7 @@ function bankInstructionHtml({ businessName, planName, amount, currency, cycle, 
         <table cellpadding="0" cellspacing="0" style="width:100%;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:10px;padding:16px;margin-bottom:16px;">
           <tr><td style="font-size:11px;color:#64748B;font-weight:700;letter-spacing:0.5px;text-transform:uppercase;padding-bottom:6px;">입금 계좌</td></tr>
           <tr><td style="font-size:14px;color:#0F172A;font-weight:600;line-height:1.7;">
-            ${accountInfo || '계좌 정보는 관리자에게 문의 부탁드립니다.'}
+            ${accountInfo || 'PlanQ 결제 계좌 정보 미설정 — support@planq.kr 문의'}
           </td></tr>
           <tr><td style="font-size:11px;color:#64748B;padding-top:12px;border-top:1px solid #E2E8F0;margin-top:12px;">
             입금자명에 결제 ID <strong>#${paymentId}</strong> 또는 워크스페이스명을 함께 적어주세요.
@@ -118,22 +118,26 @@ async function createPendingSubscription({ businessId, planCode, cycle, userId, 
     await t.commit();
 
     // 입금 안내 이메일 발송 (admin/owner 들에게)
+    // 계좌는 PlanQ SaaS 결제 계좌 (env). 워크스페이스 자체 계좌가 아님 — 사용자가 PlanQ 에 송금
     try {
       const biz = await Business.findByPk(businessId, {
-        attributes: ['name', 'brand_name', 'bank_name', 'bank_account_number', 'bank_account_name'],
+        attributes: ['name', 'brand_name'],
       });
       const owners = await BusinessMember.findAll({
         where: { business_id: businessId, role: 'owner', removed_at: null },
         include: [{ model: User, as: 'user', attributes: ['email', 'name'] }],
       });
-      const accountInfo = biz?.bank_name && biz?.bank_account_number
-        ? `${biz.bank_name} ${biz.bank_account_number} (예금주 ${biz.bank_account_name || biz.brand_name || biz.name})`
-        : null;
+      const planqBankName = process.env.PLANQ_BILLING_BANK_NAME;
+      const planqBankAccount = process.env.PLANQ_BILLING_BANK_ACCOUNT;
+      const planqBankHolder = process.env.PLANQ_BILLING_BANK_HOLDER || 'PlanQ';
+      const accountInfo = planqBankName && planqBankAccount
+        ? `${planqBankName} ${planqBankAccount} (예금주 ${planqBankHolder})`
+        : 'PlanQ 결제 계좌 정보가 미설정 — support@planq.kr 문의 부탁드립니다.';
       const html = bankInstructionHtml({
         businessName: biz?.brand_name || biz?.name || '',
         planName: plan.name_ko || plan.name,
         amount: price, currency, cycle,
-        accountInfo: process.env.PLANQ_BILLING_ACCOUNT || accountInfo || 'support@planq.kr 으로 문의',
+        accountInfo,
         paymentId: pay.id,
       });
       const subject = `[PlanQ] ${plan.name_ko || plan.name} ${cycle === 'monthly' ? '월간' : '연간'} 결제 안내 #${pay.id}`;
@@ -303,11 +307,12 @@ async function runDailyBillingCron() {
       grace_started_at: startedAt,
       grace_ends_at: endsAt,
     });
-    // Business.subscription_status 동기화
+    // Business.subscription_status 동기화 + plan 엔진 캐시 무효화
     await Business.update(
-      { subscription_status: 'past_due' },
+      { subscription_status: 'past_due', grace_ends_at: endsAt },
       { where: { id: s.business_id } }
     );
+    try { require('./plan').invalidateBusinessCache(s.business_id); } catch { /* noop */ }
     stats.past_due_to_grace += 1;
   }
 

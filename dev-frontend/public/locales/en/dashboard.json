@@ -5,6 +5,17 @@
     "count": "{{count}} item(s)",
     "emptyTitle": "Nothing to confirm",
     "emptySub": "See all tasks in Q Task",
+    "emptyAskCue": "Ask Cue",
+    "help": {
+      "body": "Items you need to act on. Includes task requests, pending approvals, payment/signature requests, and task candidates (assigned to you or unassigned).",
+      "cuePrefill": "Tell me how items appear in the Inbox page"
+    },
+    "tour": {
+      "step1": {
+        "title": "Inbox",
+        "body": "Items you need to act on — task requests, pending approvals, payment/signature requests, and candidates assigned to you. Items assigned to others go to their inbox."
+      }
+    },
     "priority": {
       "urgent": "Urgent",
       "today": "Today",
@@ -37,6 +48,8 @@
       "confirm": "Awaiting approval",
       "approve": "Awaiting finalization",
       "review": "Review",
+      "candidate_other": "Task candidate — assigned to others",
+      "sign_rejected": "Signature rejected",
       "pay": "Payment pending",
       "revise": "Resubmit",
       "attend": "Meeting today",
@@ -47,6 +60,12 @@
       "sign": "Sign",
       "mark_paid": "Mark paid",
       "issue_tax": "Issue tax invoice"
+    },
+    "relTime": {
+      "now": "Just now",
+      "minAgo": "{{m}}m ago",
+      "hourAgo": "{{h}}h ago",
+      "dayAgo": "{{d}}d ago"
     },
     "dueLabel": {
       "overdue": "{{days}}d overdue",

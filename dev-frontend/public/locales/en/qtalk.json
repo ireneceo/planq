@@ -80,6 +80,10 @@
   },
   "left": {
     "title": "Q talk",
+    "help": {
+      "body": "Create chats linked to projects, clients, or standalone. With Auto-extract ON, task candidates from messages collect in the right panel. With Translation ON, every message shows both languages.",
+      "cuePrefill": "Tell me how chat types, auto-extract, and translation work in Q talk"
+    },
     "expand": "Open list",
     "newChat": "New chat",
     "newProject": "New project",
@@ -96,6 +100,9 @@
     "project": "Link to project",
     "projectHint": "Linking bundles the project's tasks, issues, and notes. Skip for a standalone chat.",
     "noProject": "No link (standalone chat)",
+    "client": "Link to client",
+    "clientHint": "Link a client for client conversations. Works independently of projects.",
+    "noClient": "No client (internal)",
     "translation": "Translation",
     "translationHint": "When ON, every message shows both languages (Q note pattern). Editable later via the chat settings.",
     "translationEnable": "Show translations",
@@ -197,6 +204,7 @@
     "noMessages": "Send the first message",
     "expandLeft": "Expand left panel",
     "expandRight": "Expand right panel",
+    "back": "Back to list",
     "rename": "Click to rename",
     "openSettings": "Chat settings",
     "inProject": "Project",
@@ -245,6 +253,12 @@
   "page": {
     "title": "Q talk",
     "subtitle": "Real-time customer conversations with Cue (AI teammate)",
+    "tour": {
+      "step1": {
+        "title": "Q talk",
+        "body": "Create chats linked to projects, clients, or standalone in the left panel. Click the ⓘ next to the header for details on auto-extract, translation, and more."
+      }
+    },
     "noBusiness": "No workspace selected.",
     "loading": "Loading projects...",
     "loadFailed": "Load failed: {{msg}}",

@@ -2,6 +2,9 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { io, type Socket } from 'socket.io-client';
 import PageShell from '../../components/Layout/PageShell';
+import HelpDot from '../../components/Common/HelpDot';
+import FirstVisitTour from '../../components/Common/FirstVisitTour';
+import InsightCards from '../../components/Common/InsightCards';
 import TodoList from '../../components/Dashboard/TodoList';
 import TaskDetailDrawer from '../../components/QTask/TaskDetailDrawer';
 import EventDrawer from '../../pages/QCalendar/EventDrawer';
@@ -26,6 +29,8 @@ const TodoPage: React.FC = () => {
 
   const [members, setMembers] = useState<MemberOpt[]>([]);
   const [selectedTaskId, setSelectedTaskId] = useState<number | null>(null);
+  // cross-workspace inbox: task 의 정확한 워크스페이스 bizId 추적 (default bizId 와 다를 수 있음)
+  const [selectedTaskBizId, setSelectedTaskBizId] = useState<number | null>(null);
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
 
   // silent=true 이면 skeleton 으로 되돌리지 않고 백그라운드 교체만. 드로어 내부 수정 후
@@ -94,9 +99,12 @@ const TodoPage: React.FC = () => {
   const handleOpenDrawer = async (item: TodoItem) => {
     if (item.drawer?.kind === 'task') {
       setSelectedTaskId(item.drawer.id);
+      // cross-workspace: item.workspace.business_id 우선, 없으면 default bizId
+      setSelectedTaskBizId(item.workspace?.business_id ?? bizId);
     } else if (item.drawer?.kind === 'event' && bizId) {
+      const eventBizId = item.workspace?.business_id ?? bizId;
       try {
-        const r = await apiFetch(`/api/calendar/by-business/${bizId}/${item.drawer.id}`);
+        const r = await apiFetch(`/api/calendar/by-business/${eventBizId}/${item.drawer.id}`);
         const j = await r.json();
         if (j.success) setSelectedEvent(j.data as CalendarEvent);
       } catch { /* noop */ }
@@ -105,7 +113,7 @@ const TodoPage: React.FC = () => {
 
   // 드로어 닫기에서는 refetch 하지 않는다.
   // 실제로 데이터가 바뀐 경우에만 onRefresh 콜백으로 silentLoad 호출 (뒤 리스트 유지).
-  const closeTaskDrawer = () => { setSelectedTaskId(null); };
+  const closeTaskDrawer = () => { setSelectedTaskId(null); setSelectedTaskBizId(null); };
   const closeEventDrawer = () => { setSelectedEvent(null); };
 
   const handleInviteAction = (item: TodoItem, action: 'accept' | 'decline') => {
@@ -178,7 +186,16 @@ const TodoPage: React.FC = () => {
   };
 
   return (
-    <PageShell title={t('todo.title')} count={data?.total}>
+    <PageShell
+      title={t('todo.title')}
+      count={data?.total}
+      helpDot={
+        <HelpDot askCue={t('todo.help.cuePrefill') as string} topic="todo" tourPageKey="inbox">
+          {t('todo.help.body')}
+        </HelpDot>
+      }
+    >
+      <InsightCards />
       {err
         ? <div style={{ padding: 20, color: '#B91C1C' }}>{err}</div>
         : <TodoList
@@ -189,10 +206,10 @@ const TodoPage: React.FC = () => {
             onTaskAction={handleTaskAction}
           />}
 
-      {selectedTaskId !== null && bizId !== null && (
+      {selectedTaskId !== null && (selectedTaskBizId ?? bizId) !== null && (
         <TaskDetailDrawer
           taskId={selectedTaskId}
-          bizId={bizId}
+          bizId={(selectedTaskBizId ?? bizId) as number}
           myId={myId}
           todayStr={todayStr}
           members={members}
@@ -211,6 +228,12 @@ const TodoPage: React.FC = () => {
           dailyConfigured={false}
         />
       )}
+      <FirstVisitTour
+        pageKey="inbox"
+        steps={[
+          { targetSelector: 'header', title: t('todo.tour.step1.title','확인 필요 (인박스)') as string, body: t('todo.tour.step1.body','내가 직접 행동해야 할 일이 모입니다 — 받은 업무·컨펌 대기·결제·서명·후보(본인 담당). 다른 사람 담당 항목은 그 사람 인박스에 가요.') as string, placement: 'bottom' },
+        ]}
+      />
     </PageShell>
   );
 };

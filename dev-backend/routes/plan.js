@@ -15,6 +15,18 @@ router.get('/catalog', authenticateToken, async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
+// ─── PlanQ SaaS 결제 계좌 (자체결제 P-2 — 사용자가 PlanQ 구독료 송금) ───
+// 환경변수 PLANQ_BILLING_BANK_* 가 미설정이면 null 반환 (CheckoutModal 이 fallback 메시지 표시)
+router.get('/bank-info', authenticateToken, async (req, res, next) => {
+  try {
+    const name = process.env.PLANQ_BILLING_BANK_NAME || null;
+    const account = process.env.PLANQ_BILLING_BANK_ACCOUNT || null;
+    const holder = process.env.PLANQ_BILLING_BANK_HOLDER || null;
+    if (!name || !account) return successResponse(res, null);
+    return successResponse(res, { name, account, holder });
+  } catch (error) { next(error); }
+});
+
 // ─── 비즈니스 현재 플랜 + 사용량 + 이력 요약 ───
 router.get('/:businessId/status', authenticateToken, checkBusinessAccess, async (req, res, next) => {
   try {

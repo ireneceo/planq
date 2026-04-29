@@ -121,7 +121,82 @@ const NotificationSettings: React.FC<Props> = ({ businessId }) => {
 
         <FooterNote>{t('notifications.footerNote', '확인필요(Inbox)는 PlanQ 안에서 직접 보는 알림 영역입니다. 채팅/이메일은 외부로 나가는 알림.')}</FooterNote>
       </Section>
+
+      <PushSection businessId={businessId} />
     </Wrap>
+  );
+};
+
+// 사이클 J3 — Web Push 구독 관리 섹션
+const PushSection: React.FC<{ businessId: number | null }> = () => {
+  const { t } = useTranslation('settings');
+  const [permission, setPermission] = React.useState<'granted' | 'denied' | 'default' | 'unsupported' | 'loading'>('loading');
+  const [subscribed, setSubscribed] = React.useState(false);
+  const [busy, setBusy] = React.useState(false);
+  const [msg, setMsg] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    (async () => {
+      const { isPushSupported, isSubscribed } = await import('../../services/push');
+      const supported = await isPushSupported();
+      if (!supported) { setPermission('unsupported'); return; }
+      setPermission(Notification.permission);
+      setSubscribed(await isSubscribed());
+    })();
+  }, []);
+
+  const handleSubscribe = async () => {
+    setBusy(true); setMsg(null);
+    const { subscribe } = await import('../../services/push');
+    const r = await subscribe();
+    setMsg(r.ok ? t('push.subscribedMsg', '디바이스에 알림이 켜졌습니다') as string : t('push.errMsg', '알림 켜기 실패: {{r}}', { r: r.reason || '' }) as string);
+    setPermission(Notification.permission);
+    setSubscribed(r.ok);
+    setBusy(false);
+  };
+  const handleUnsubscribe = async () => {
+    setBusy(true); setMsg(null);
+    const { unsubscribe } = await import('../../services/push');
+    await unsubscribe();
+    setSubscribed(false);
+    setMsg(t('push.unsubscribedMsg', '디바이스 알림이 꺼졌습니다') as string);
+    setBusy(false);
+  };
+  const handleTest = async () => {
+    setBusy(true); setMsg(null);
+    const { sendTestPush } = await import('../../services/push');
+    const r = await sendTestPush();
+    setMsg(r.sent > 0
+      ? t('push.testSentMsg', '테스트 알림 발송 완료 ({{n}})', { n: r.sent }) as string
+      : t('push.testNoVapidMsg', 'VAPID 키 미설정 — 운영자 설정 필요') as string);
+    setBusy(false);
+  };
+
+  return (
+    <Section>
+      <SectionTitle>{t('push.title', '디바이스 알림 (Web Push)')}</SectionTitle>
+      <SectionDesc>{t('push.desc', '브라우저·모바일 홈화면 PWA 에서 푸시 알림을 받습니다. 사용자가 PlanQ 를 안 보고 있어도 도착.')}</SectionDesc>
+      {permission === 'unsupported' && <FooterNote>{t('push.unsupportedMsg', '이 브라우저는 푸시 알림을 지원하지 않습니다.')}</FooterNote>}
+      {permission === 'denied' && <FooterNote>{t('push.deniedMsg', '브라우저 설정에서 알림 권한이 차단되어 있습니다. 사이트 권한 → 알림 허용으로 변경해주세요.')}</FooterNote>}
+      {(permission === 'default' || permission === 'granted') && (
+        <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+          {!subscribed
+            ? <button type="button" onClick={handleSubscribe} disabled={busy} style={{ height: 32, padding: '0 14px', background: '#14B8A6', color: '#FFFFFF', border: 'none', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                {busy ? t('push.processing', '처리 중…') : t('push.subscribeBtn', '이 디바이스 알림 켜기')}
+              </button>
+            : <>
+                <button type="button" onClick={handleUnsubscribe} disabled={busy} style={{ height: 32, padding: '0 14px', background: 'transparent', color: '#475569', border: '1px solid #E2E8F0', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                  {t('push.unsubscribeBtn', '이 디바이스 알림 끄기')}
+                </button>
+                <button type="button" onClick={handleTest} disabled={busy} style={{ height: 32, padding: '0 14px', background: '#F0FDFA', color: '#0D9488', border: '1px solid #99F6E4', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                  {t('push.testBtn', '테스트 알림 받기')}
+                </button>
+              </>
+          }
+        </div>
+      )}
+      {msg && <FooterNote style={{ marginTop: 12, color: '#0D9488' }}>{msg}</FooterNote>}
+    </Section>
   );
 };
 

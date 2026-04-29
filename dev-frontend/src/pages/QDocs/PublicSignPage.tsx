@@ -31,6 +31,7 @@ interface PublicSignData {
     id: number;
     title: string;
     content_json: { type: 'doc'; content: unknown[] } | null;
+    project?: { id: number; name: string } | null;
   };
 }
 
@@ -345,6 +346,11 @@ const PublicSignPage: React.FC = () => {
             {/* Step 1: 문서 본문 */}
             <Section>
               <SectionTitle>{doc.entity.title}</SectionTitle>
+              {doc.entity.project && (
+                <ProjectChip title={t('publicSign.projectTitle', '연결된 프로젝트') as string}>
+                  {t('publicSign.projectLabel', '프로젝트: {{name}}', { name: doc.entity.project.name })}
+                </ProjectChip>
+              )}
               {doc.note && <NoteBox>{doc.note}</NoteBox>}
               <DocBody>
                 <PostEditor value={doc.entity.content_json} onChange={() => {}} editable={false} />
@@ -519,6 +525,13 @@ const NoteBox = styled.div`
   font-size: 13px; color: #334155; line-height: 1.55;
   background: #F8FAFC; border-left: 3px solid #14B8A6; border-radius: 0 8px 8px 0;
   white-space: pre-wrap;
+`;
+const ProjectChip = styled.div`
+  display: inline-flex; align-items: center; gap: 6px;
+  margin: 0 0 12px;
+  padding: 4px 10px;
+  font-size: 12px; font-weight: 600; color: #0F766E;
+  background: #F0FDFA; border: 1px solid #99F6E4; border-radius: 999px;
 `;
 const DocBody = styled.div`
   margin-top: 12px; padding-top: 16px;

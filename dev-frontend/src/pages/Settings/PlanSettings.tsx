@@ -27,22 +27,25 @@ const PlanSettings: React.FC<Props> = ({ businessId }) => {
   const [actionPlan, setActionPlan] = useState<PlanCode | null>(null);  // 업그레이드/다운그레이드 모달 대상
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [cancelScheduleOpen, setCancelScheduleOpen] = useState(false);
-  // P-2: bank info (Business 의 워크스페이스 입금 계좌)
+  // P-2: bank info — PlanQ SaaS 결제 계좌 (워크스페이스 계좌 아님!)
+  // 워크스페이스 owner 가 PlanQ 구독료를 송금할 PlanQ 자체 계좌 정보
   const [bankInfo, setBankInfo] = useState<{ name?: string; account?: string; holder?: string } | null>(null);
   useEffect(() => {
-    apiFetch(`/api/businesses/${businessId}`)
+    apiFetch(`/api/plan/bank-info`)
       .then(r => r.json())
       .then(j => {
         if (j.success && j.data) {
           setBankInfo({
-            name: j.data.bank_name || undefined,
-            account: j.data.bank_account_number || undefined,
-            holder: j.data.bank_account_name || j.data.brand_name || j.data.name || undefined,
+            name: j.data.name || undefined,
+            account: j.data.account || undefined,
+            holder: j.data.holder || undefined,
           });
+        } else {
+          setBankInfo(null);
         }
       })
-      .catch(() => { /* noop */ });
-  }, [businessId]);
+      .catch(() => { setBankInfo(null); });
+  }, []);
 
   // ─── Enterprise 문의 ───
   const [inquiryOpen, setInquiryOpen] = useState(false);

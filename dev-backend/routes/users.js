@@ -87,7 +87,7 @@ router.put('/:id', authenticateToken, async (req, res, next) => {
     if (!user) return errorResponse(res, 'User not found', 404);
 
     const {
-      name, username, phone, avatar_url, language,
+      name, name_localized, username, phone, avatar_url, language,
       bio, expertise, organization, job_title,
       language_levels, expertise_level,
       answer_style_default, answer_length_default,
@@ -100,6 +100,28 @@ router.put('/:id', authenticateToken, async (req, res, next) => {
       if (typeof name !== 'string' || !name.trim()) return errorResponse(res, 'name_required', 400);
       if (name.length > 100) return errorResponse(res, 'name_too_long', 400);
       updates.name = name.trim();
+    }
+
+    // 다국어 이름 — 사이클 F. 객체 형태 { ko, en, ja, zh, es }, 각 값은 string 또는 null.
+    if (name_localized !== undefined) {
+      if (name_localized !== null && (typeof name_localized !== 'object' || Array.isArray(name_localized))) {
+        return errorResponse(res, 'invalid_name_localized', 400);
+      }
+      if (name_localized) {
+        const allowed = ['ko', 'en', 'ja', 'zh', 'es'];
+        const cleaned = {};
+        for (const [k, v] of Object.entries(name_localized)) {
+          if (!allowed.includes(k)) continue;
+          if (v == null || v === '') continue;
+          if (typeof v !== 'string' || v.length > 100) {
+            return errorResponse(res, `name_localized_${k}_invalid`, 400);
+          }
+          cleaned[k] = v.trim();
+        }
+        updates.name_localized = Object.keys(cleaned).length ? cleaned : null;
+      } else {
+        updates.name_localized = null;
+      }
     }
 
     // username 변경 — 영문/숫자/_/-, 3~30자, unique, reserved 차단

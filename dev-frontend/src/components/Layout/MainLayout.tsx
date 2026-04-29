@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import styled, { css } from 'styled-components';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { displayName } from '../../utils/displayName';
 import { useAuth } from '../../contexts/AuthContext';
 import LanguageSelector from '../Common/LanguageSelector';
 import WorkspaceSwitcher from './WorkspaceSwitcher';
@@ -10,6 +11,8 @@ import SidebarClock from './SidebarClock';
 import PanelHeader, { PanelTitle } from './PanelHeader';
 import { useTimezones } from '../../hooks/useTimezones';
 import { useInboxCount } from '../../hooks/useInboxCount';
+import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
+import { mediaTablet } from '../../theme/breakpoints';
 import i18n from '../../i18n';
 
 // ─────────────────────────────────────────────────────────────
@@ -54,9 +57,9 @@ const Sidebar = styled.div<{ $isOpen?: boolean; $isCollapsed?: boolean }>`
   background: linear-gradient(180deg, #115E59 0%, #134E4A 100%);
   z-index: 1000; display: flex; flex-direction: column;
   transition: width 0.25s ease; overflow-x: hidden;
-  @media (max-width: 768px) {
+  ${mediaTablet} {
     transform: translateX(${props => props.$isOpen ? '0' : '-100%'});
-    width: 220px; transition: transform 0.3s, width 0.3s ease;
+    width: 240px; transition: transform 0.3s, width 0.3s ease;
   }
 `;
 
@@ -66,7 +69,7 @@ const SidebarHeader = styled.div<{ $isCollapsed?: boolean }>`
   display: flex; align-items: center;
   justify-content: ${props => props.$isCollapsed ? 'center' : 'space-between'};
   gap: 8px;
-  @media (max-width: 768px) { justify-content: space-between; }
+  ${mediaTablet} { justify-content: space-between; }
 `;
 
 const Logo = styled.div`
@@ -80,7 +83,18 @@ const SidebarToggleButton = styled.button`
   color: #CCFBF1; border-radius: 6px; transition: all 0.2s;
   &:hover { background: rgba(255, 255, 255, 0.08); color: #FFFFFF; }
   svg { width: 18px; height: 18px; }
-  @media (max-width: 768px) { display: none; }
+  ${mediaTablet} { display: none; }
+`;
+
+const MobileCloseButton = styled.button`
+  display: none;
+  background: none; border: none; cursor: pointer; padding: 6px;
+  align-items: center; justify-content: center;
+  color: #CCFBF1; border-radius: 6px; transition: all 0.2s;
+  min-width: 44px; min-height: 44px;
+  &:hover { background: rgba(255, 255, 255, 0.08); color: #FFFFFF; }
+  svg { width: 20px; height: 20px; }
+  ${mediaTablet} { display: flex; }
 `;
 
 const SidebarNav = styled.nav`
@@ -124,10 +138,11 @@ const NavItem = styled(Link)<{ $active?: boolean; $isCollapsed?: boolean }>`
     background: #0F766E;
     font-weight: 600;
   `}
-  @media (max-width: 768px) {
-    padding: 4px 16px;
+  ${mediaTablet} {
+    padding: 8px 16px;
     justify-content: flex-start;
-    min-height: 28px;
+    min-height: 44px;
+    font-size: 14px;
   }
 `;
 
@@ -137,13 +152,27 @@ const NavIcon = styled.span<{ $isCollapsed?: boolean }>`
   display: flex;
   align-items: center; justify-content: center; font-size: 15px;
   color: #5EEAD4;
-  @media (max-width: 768px) { margin-right: 10px; }
+  ${mediaTablet} { margin-right: 10px; }
 `;
 
 const NavLabel = styled.span<{ $isCollapsed?: boolean }>`
   ${props => props.$isCollapsed && css`
-    @media (min-width: 769px) { display: none; }
+    @media (min-width: 1025px) { display: none; }
   `}
+`;
+
+// What's new pulse — 새 메뉴 한 번도 안 본 사용자에게 빨간 점 + 펄스 애니메이션
+const NewPulse = styled.span`
+  margin-left: auto;
+  width: 8px; height: 8px;
+  background: #F43F5E;
+  border-radius: 50%;
+  flex-shrink: 0;
+  animation: pulse 1.6s ease-in-out infinite;
+  @keyframes pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(244, 63, 94, 0.5); }
+    50%      { box-shadow: 0 0 0 6px rgba(244, 63, 94, 0); }
+  }
 `;
 
 // 인박스 미처리 카운트 — pill 배지 (확장 상태) / 작은 dot (collapsed 상태)
@@ -176,7 +205,7 @@ const SecondaryPanel = styled.aside<{ $sidebarW: number; $collapsed: boolean }>`
   z-index: 900;
   display: flex; flex-direction: column;
   transition: left 0.25s ease, width 0.25s ease;
-  @media (max-width: 768px) { display: none; }
+  ${mediaTablet} { display: none; }
 `;
 
 const SecondaryBody = styled.div`
@@ -232,11 +261,11 @@ const SidebarFooter = styled.div<{ $isCollapsed?: boolean }>`
   padding: ${props => props.$isCollapsed ? '10px 6px' : '12px 16px'};
   flex-shrink: 0;
   ${props => props.$isCollapsed && css`
-    @media (min-width: 769px) {
+    @media (min-width: 1025px) {
       display: flex; flex-direction: column; align-items: center; gap: 8px;
     }
   `}
-  @media (max-width: 768px) {
+  ${mediaTablet} {
     padding: 12px 16px;
     display: block;
   }
@@ -293,20 +322,21 @@ const CollapsedLogoutIcon = styled.button`
 const MainContent = styled.div<{ $marginLeft: number }>`
   margin-left: ${props => props.$marginLeft}px;
   min-height: 100vh; transition: margin-left 0.25s ease;
-  @media (max-width: 768px) { margin-left: 0; }
+  ${mediaTablet} { margin-left: 0; }
 `;
 
 const MobileHeader = styled.div`
   display: none; position: fixed; top: 0; left: 0; right: 0;
   height: 56px; background: #115E59; border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   z-index: 999; padding: 0 16px; align-items: center; justify-content: space-between;
-  @media (max-width: 768px) { display: flex; }
+  ${mediaTablet} { display: flex; }
 `;
 
 const HamburgerButton = styled.button`
   background: none; border: none; padding: 8px; cursor: pointer;
   display: flex; align-items: center; justify-content: center;
   color: #CCFBF1; border-radius: 6px;
+  min-width: 44px; min-height: 44px;
   &:hover { background: rgba(255, 255, 255, 0.08); }
 `;
 
@@ -317,7 +347,34 @@ const Overlay = styled.div<{ $show?: boolean }>`
 `;
 
 const MobileContentPadding = styled.div`
-  @media (max-width: 768px) { padding-top: 56px; }
+  ${mediaTablet} { padding-top: 56px; }
+`;
+
+// 모바일 인라인 아코디언 — Stats / Settings 서브 메뉴
+// 데스크탑(>=1025px) 에서는 SecondaryPanel 이 표시되므로 숨김
+const AccordionWrap = styled.div`
+  display: none;
+  background: rgba(0, 0, 0, 0.18);
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  padding: 8px 0;
+  ${mediaTablet} { display: block; }
+`;
+
+const AccordionItem = styled(Link)<{ $active?: boolean }>`
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 16px 10px 48px;
+  color: #CCFBF1; text-decoration: none;
+  font-size: 13px; font-weight: 500;
+  min-height: 44px;
+  transition: all 0.15s;
+  &:hover { background: rgba(255, 255, 255, 0.08); color: #FFFFFF; }
+  ${props => props.$active && `
+    color: #FFFFFF;
+    background: rgba(15, 118, 110, 0.5);
+    font-weight: 600;
+  `}
+  svg { width: 16px; height: 16px; flex-shrink: 0; opacity: 0.8; }
 `;
 
 // ─────────────────────────────────────────────────────────────
@@ -357,6 +414,7 @@ const IconChevronLeft = () => (<svg viewBox="0 0 24 24" fill="none" stroke="curr
 const IconChevronRight = () => (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><polyline points="9 18 15 12 9 6"/></svg>);
 const IconLogout = () => (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>);
 const IconHamburger = () => (<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>);
+const IconClose = () => (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><line x1="6" y1="6" x2="18" y2="18"/><line x1="6" y1="18" x2="18" y2="6"/></svg>);
 
 interface MainLayoutProps { children: React.ReactNode; }
 
@@ -365,6 +423,7 @@ type SecondarySection = 'reports' | 'settings' | null;
 const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   const { t } = useTranslation('layout');
   const { user, logout, hasRole } = useAuth();
+  const userDisplayName = displayName(user, i18n.language);
   const location = useLocation();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -373,6 +432,9 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
 
   useEffect(() => { setSidebarOpen(false); }, [location.pathname]);
   useEffect(() => { writeLS(LS_COLLAPSED, isCollapsed); }, [isCollapsed]);
+
+  // 모바일 사이드바 열림 시 배경 스크롤 잠금
+  useBodyScrollLock(sidebarOpen);
 
   const isActive = (path: string) => location.pathname === path || location.pathname.startsWith(path + '/');
   const isAdminMode = location.pathname.startsWith('/admin');
@@ -451,6 +513,14 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
               </SidebarToggleButton>
             </>
           )}
+          <MobileCloseButton
+            type="button"
+            onClick={() => setSidebarOpen(false)}
+            aria-label={t('nav.closeSidebar', '메뉴 닫기')}
+            title={t('nav.closeSidebar', '메뉴 닫기')}
+          >
+            <IconClose />
+          </MobileCloseButton>
         </SidebarHeader>
 
         {!isCollapsed && <WorkspaceSwitcher />}
@@ -548,6 +618,15 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                     <NavIcon $isCollapsed={isCollapsed}><IconDocs /></NavIcon>
                     <NavLabel $isCollapsed={isCollapsed}>{t('nav.docs')}</NavLabel>
                   </NavItem>
+                  <NavItem to="/knowledge" $isCollapsed={isCollapsed} $active={isActive('/knowledge')}
+                    title={isCollapsed ? t('nav.qknowledge', 'Q 지식') : undefined}
+                    onClick={() => { try { localStorage.setItem('planq_whatsnew_qknowledge_v1', '1'); } catch { /* */ } }}>
+                    <NavIcon $isCollapsed={isCollapsed}>
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 6.253v13"/><path d="M12 6.253C10.832 5.477 9.246 5 7.5 5 5.754 5 4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253"/><path d="M12 6.253C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18s-3.332.477-4.5 1.253"/></svg>
+                    </NavIcon>
+                    <NavLabel $isCollapsed={isCollapsed}>{t('nav.qknowledge', 'Q 지식')}</NavLabel>
+                    {(() => { try { return localStorage.getItem('planq_whatsnew_qknowledge_v1') !== '1' ? <NewPulse aria-label="NEW" /> : null; } catch { return null; } })()}
+                  </NavItem>
                   <NavItem to="/bills" $isCollapsed={isCollapsed}
                     $active={isActive('/bills') || isActive('/billing')}
                     title={isCollapsed ? t('nav.qbill', 'Q Bill') : undefined}>
@@ -558,6 +637,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
               )}
 
               {/* 통계·분석 + 설정 — 단일 NavItem, 클릭 시 첫 하위로 이동 → SecondaryPanel 자동 표시 */}
+              {/* 모바일에서는 SecondaryPanel 이 숨겨지므로 NavItem 아래 인라인 아코디언으로 서브 메뉴 펼침 */}
               {hasBiz('owner', 'member') && (
                 <NavSection>
                   <NavTitle $isCollapsed={isCollapsed} />
@@ -570,6 +650,28 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                     <NavIcon $isCollapsed={isCollapsed}><IconInsights /></NavIcon>
                     <NavLabel $isCollapsed={isCollapsed}>{t('nav.sectionReports', '통계·분석')}</NavLabel>
                   </NavItem>
+                  {isActive('/stats') && (
+                    <AccordionWrap>
+                      <AccordionItem to="/stats/overview" $active={isActive('/stats/overview')}>
+                        <IconStatsOverview /> {t('nav.statsOverview', '개요')}
+                      </AccordionItem>
+                      <AccordionItem to="/stats/tasks" $active={isActive('/stats/tasks')}>
+                        <IconStatsTime /> {t('nav.statsTaskTime', '업무·시간')}
+                      </AccordionItem>
+                      <AccordionItem to="/stats/profit" $active={isActive('/stats/profit')}>
+                        <IconStatsProfit /> {t('nav.statsProfit', '프로젝트 수익성')}
+                      </AccordionItem>
+                      <AccordionItem to="/stats/team" $active={isActive('/stats/team')}>
+                        <IconStatsTeam /> {t('nav.statsTeam', '팀 생산성')}
+                      </AccordionItem>
+                      <AccordionItem to="/stats/finance" $active={isActive('/stats/finance')}>
+                        <IconStatsFinance /> {t('nav.statsFinance', '비용·재무')}
+                      </AccordionItem>
+                      <AccordionItem to="/stats/reports" $active={isActive('/stats/reports')}>
+                        <IconStatsReports /> {t('nav.statsReports', '보고서')}
+                      </AccordionItem>
+                    </AccordionWrap>
+                  )}
                   <NavItem
                     to="/business/settings"
                     $isCollapsed={isCollapsed}
@@ -583,6 +685,110 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                     <NavIcon $isCollapsed={isCollapsed}><IconGear /></NavIcon>
                     <NavLabel $isCollapsed={isCollapsed}>{t('nav.settings')}</NavLabel>
                   </NavItem>
+                  {(location.pathname.startsWith('/business/settings')
+                    || location.pathname.startsWith('/settings')
+                    || location.pathname.startsWith('/profile')
+                    || isActive('/business/clients')
+                    || isActive('/business/members')) && (
+                    <AccordionWrap>
+                      {hasBiz('owner', 'member') && (
+                        <AccordionItem
+                          to="/business/settings"
+                          $active={
+                            location.pathname === '/business/settings'
+                            || location.pathname === '/settings'
+                            || location.pathname === '/business/settings/brand'
+                            || location.pathname === '/business/settings/legal'
+                          }
+                        >
+                          <IconBuilding /> {t('nav.workspaceSettings', '워크스페이스')}
+                        </AccordionItem>
+                      )}
+                      {hasBiz('owner', 'member') && (
+                        <AccordionItem
+                          to="/business/settings/language"
+                          $active={location.pathname.includes('/language') || location.pathname.includes('/timezone')}
+                        >
+                          <IconCalendar /> {t('nav.language', '언어·타임존')}
+                        </AccordionItem>
+                      )}
+                      {hasBiz('owner') && (
+                        <AccordionItem
+                          to="/business/settings/billing"
+                          $active={location.pathname.includes('/billing')}
+                        >
+                          <IconReceipt /> {t('nav.billing', '청구 설정')}
+                        </AccordionItem>
+                      )}
+                      {hasBiz('owner') && (
+                        <AccordionItem
+                          to="/business/settings/email"
+                          $active={location.pathname.includes('/email')}
+                        >
+                          <IconMail /> {t('nav.email', '이메일')}
+                        </AccordionItem>
+                      )}
+                      {hasBiz('owner', 'member') && (
+                        <AccordionItem
+                          to="/business/settings/notifications"
+                          $active={location.pathname.includes('/notifications')}
+                        >
+                          <IconBell /> {t('nav.notifications', '알림')}
+                        </AccordionItem>
+                      )}
+                      {hasBiz('owner') && (
+                        <AccordionItem
+                          to="/business/settings/storage"
+                          $active={location.pathname.includes('/storage')}
+                        >
+                          <IconFile /> {t('nav.storage', '파일 저장소')}
+                        </AccordionItem>
+                      )}
+                      {hasBiz('owner') && (
+                        <AccordionItem
+                          to="/business/settings/plan"
+                          $active={location.pathname.includes('/plan')}
+                        >
+                          <IconCreditCard /> {t('nav.plan', '구독 플랜')}
+                        </AccordionItem>
+                      )}
+                      {hasBiz('owner', 'member') && (
+                        <AccordionItem
+                          to="/business/settings/permissions"
+                          $active={location.pathname.includes('/permissions')}
+                        >
+                          <IconShield /> {t('nav.permissions', '권한')}
+                        </AccordionItem>
+                      )}
+                      {hasBiz('owner') && (
+                        <AccordionItem
+                          to="/business/settings/cue"
+                          $active={location.pathname.includes('/cue')}
+                        >
+                          <IconInsights /> {t('nav.cue', 'Cue')}
+                        </AccordionItem>
+                      )}
+                      {hasBiz('owner', 'member') && (
+                        <AccordionItem
+                          to="/business/clients"
+                          $active={isActive('/business/clients')}
+                        >
+                          <IconClients /> {t('nav.clients')}
+                        </AccordionItem>
+                      )}
+                      {hasBiz('owner') && (
+                        <AccordionItem
+                          to="/business/members"
+                          $active={isActive('/business/members')}
+                        >
+                          <IconMembers /> {t('nav.members')}
+                        </AccordionItem>
+                      )}
+                      <AccordionItem to="/profile" $active={isActive('/profile')}>
+                        <IconUsers /> {t('user.profile')}
+                      </AccordionItem>
+                    </AccordionWrap>
+                  )}
                 </NavSection>
               )}
               {hasBiz('client') && (
@@ -618,9 +824,9 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                 <LanguageSelector variant="sidebar" />
               </div>
               <UserInfo to="/profile" title={t('user.profile')}>
-                <UserAvatar>{user?.name?.charAt(0)?.toUpperCase() || 'U'}</UserAvatar>
+                <UserAvatar>{userDisplayName?.charAt(0)?.toUpperCase() || 'U'}</UserAvatar>
                 <div style={{ overflow: 'hidden' }}>
-                  <UserName>{user?.name}</UserName>
+                  <UserName>{userDisplayName}</UserName>
                   <UserRoleText>{getRoleLabel(user)}</UserRoleText>
                 </div>
               </UserInfo>
@@ -631,10 +837,10 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
             <>
               <CollapsedAvatarButton
                 onClick={() => navigate('/profile')}
-                title={`${user?.name || ''} — ${t('user.profile')}`}
+                title={`${userDisplayName || ''} — ${t('user.profile')}`}
                 aria-label={t('user.profile')}
               >
-                {user?.name?.charAt(0)?.toUpperCase() || 'U'}
+                {userDisplayName?.charAt(0)?.toUpperCase() || 'U'}
               </CollapsedAvatarButton>
               <CollapsedLogoutIcon
                 onClick={logout}

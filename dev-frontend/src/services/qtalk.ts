@@ -127,6 +127,20 @@ export async function listBusinessMembers(businessId: number): Promise<Workspace
   return handle<WorkspaceMemberRow[]>(res);
 }
 
+// 워크스페이스 고객 목록 — NewChatModal 의 고객 선택용
+export interface WorkspaceClientRow {
+  id: number;
+  display_name: string | null;
+  biz_name: string | null;
+  company_name: string | null;
+  status: string;
+}
+
+export async function listWorkspaceClients(businessId: number): Promise<WorkspaceClientRow[]> {
+  const res = await apiFetch(`/api/clients/${businessId}`);
+  return handle<WorkspaceClientRow[]>(res);
+}
+
 export async function updateProjectMembers(
   id: number,
   members: Array<{ user_id: number; role: string }>

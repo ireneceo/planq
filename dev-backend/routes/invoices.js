@@ -459,7 +459,7 @@ router.get('/:businessId/:id', authenticateToken, attachWorkspaceScope(), async 
         { model: InvoiceItem, as: 'items', order: [['sort_order', 'ASC']] },
         { model: InvoiceInstallment, as: 'installments', separate: true, order: [['installment_no', 'ASC']] },
         { model: Client, attributes: ['id', 'display_name', 'company_name', 'biz_name', 'biz_tax_id', 'biz_ceo', 'biz_address', 'biz_address_en', 'biz_type', 'biz_item', 'is_business', 'country', 'tax_invoice_email', 'billing_contact_email', 'invite_email'] },
-        { model: User, as: 'creator', attributes: ['id', 'name'] },
+        { model: User, as: 'creator', attributes: ['id', 'name', 'name_localized'] },
         { model: Post, as: 'sourcePost', attributes: ['id', 'category', 'title', 'status', 'share_token', 'project_id', 'shared_at'], required: false },
       ]
     });

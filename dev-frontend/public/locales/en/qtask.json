@@ -1,10 +1,27 @@
 {
   "page": { "title": "Q task", "noWorkspace": "No workspace selected", "loading": "Loading...", "noCategory": "Uncategorized" },
+  "help": {
+    "body": "Tasks you need to act on this week. Priority numbers are auto-assigned in click order (1, 2, 3...) within current filter only. Capacity = hours × business days × rate. Chart baseline = the 'My tasks' hours from the header (single source). Click the red 'Delayed' badge → +1d / +1w / Today to update due date instantly.",
+    "cuePrefill": "Tell me how priority, capacity, and the chart work in Q task"
+  },
+  "tour": {
+    "step1": {
+      "title": "Q task page",
+      "body": "Tasks you need to act on this week. Click the ⓘ next to the title for details on how the page works."
+    },
+    "step2": {
+      "title": "Set priority",
+      "body": "Click the # cell to assign priority. Numbers are auto-assigned in click order (1, 2, 3...) — gaps are cleaned up automatically."
+    }
+  },
   "search": "Search tasks...",
   "filter": { "allStatus": "All status", "hideCompleted": "Hide completed", "showCompleted": "Show completed" },
   "period": { "title": "Period", "thisWeek": "This week" },
   "status": {
     "delayed": "Delayed",
+    "delayedDays": "{{d}}d overdue",
+    "delayedHint": "Click to change due date",
+    "delayQuick": { "addDay": "+1d", "addWeek": "+1w", "today": "Today" },
     "not_started":        { "assignee": "Not started",   "reviewer": "Not started",     "requester": "Not started",    "observer": "Not started" },
     "task_requested":     { "assignee": "Request received", "reviewer": "Pending",      "requester": "Request sent",   "observer": "Task request" },
     "waiting":            { "assignee": "Scheduled",     "reviewer": "Scheduled",       "requester": "Scheduled",      "observer": "Scheduled" },
@@ -73,8 +90,8 @@
   "projects": { "title": "Project Progress" },
   "issues": { "title": "Issues" },
   "notes": { "title": "Notes" },
-  "list": { "empty": "No tasks found", "statusHint": "Click to change status", "titleClickEdit": "Click to edit task name", "notMyHours": "Only the assignee can edit (read-only)", "notMyProgress": "Only the assignee can edit (read-only)" },
-  "empty": { "title": "Start your first task", "line1": "Receive requests, assign, and deliver results —", "line2": "all connected in one screen." },
+  "list": { "empty": "No tasks found", "statusHint": "Click to change status", "titleClickEdit": "Click to edit task name", "notMyHours": "Only the assignee can edit (read-only)", "notMyProgress": "Only the assignee can edit (read-only)", "aiEstimate": "AI estimate suggestion" },
+  "empty": { "title": "Start your first task", "line1": "Receive requests, assign, and deliver results —", "line2": "all connected in one screen.", "askCue": "Ask Cue" },
   "common": { "cancel": "Cancel" },
   "save": { "saving": "Saving", "saved": "Saved", "error": "Save failed" },
   "detail": {
@@ -95,17 +112,17 @@
     "actions": {
       "assigneeTitle": "As assignee",
       "reviewerTitle": "As reviewer",
-      "ack": "Acknowledge → Pending start",
+      "ack": "Acknowledge → Scheduled",
       "start": "Start → In progress",
       "resume": "Resume → In progress",
-      "submitReview": "Submit → Reviewing",
-      "resubmitReview": "Resubmit → Reviewing",
+      "submitReview": "Submit → Review sent",
+      "resubmitReview": "Resubmit → Review sent",
       "cancelReview": "Cancel review → In progress",
       "completeSimple": "Mark complete → Completed",
       "complete": "Finalize → Completed",
       "needReviewer": "Add a reviewer first",
-      "approve": "Approve → Pending wrap-up",
-      "requestRevision": "Request revision → Revision",
+      "approve": "Approve",
+      "requestRevision": "Request revision → Revise",
       "revisionPlaceholder": "What needs to change? (required)",
       "submitRevision": "Send revision",
       "youApproved": "You approved this round.",

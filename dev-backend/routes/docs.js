@@ -161,6 +161,30 @@ router.post('/templates', authenticateToken, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// GET /api/docs/templates/:id/context — 사이클 I (Phase F 슬롯)
+//   ?business_id=X&project_id=Y&client_id=Z 로 컨텍스트 자동 채움 후 반환
+//   응답: { schema, default_values, body_template, context }
+router.get('/templates/:id/context', authenticateToken, async (req, res, next) => {
+  try {
+    const { getTemplateContext, renderTemplate } = require('../services/template_filler');
+    const businessId = parseInt(req.query.business_id, 10) || null;
+    if (businessId && !(await assertBusinessAccess(req.user.id, businessId, req.user.platform_role))) {
+      return errorResponse(res, 'forbidden', 403);
+    }
+    const result = await getTemplateContext({
+      templateId: req.params.id,
+      businessId,
+      projectId: parseInt(req.query.project_id, 10) || null,
+      clientId: parseInt(req.query.client_id, 10) || null,
+      userId: req.user.id,
+    });
+    if (!result) return errorResponse(res, 'not_found', 404);
+    // body_template 미리보기 (default_values 로 치환된 형태) — 사용자 확인용
+    result.preview = renderTemplate(result.body_template, result.default_values);
+    return successResponse(res, result);
+  } catch (e) { next(e); }
+});
+
 // GET /api/docs/templates/:id
 router.get('/templates/:id', authenticateToken, async (req, res, next) => {
   try {
@@ -252,7 +276,7 @@ router.get('/documents', authenticateToken, async (req, res, next) => {
       include: [
         { model: Client, attributes: ['id', 'display_name', 'company_name'] },
         { model: Project, attributes: ['id', 'name'] },
-        { model: User, as: 'creator', attributes: ['id', 'name'] },
+        { model: User, as: 'creator', attributes: ['id', 'name', 'name_localized'] },
       ],
       order: [['updated_at', 'DESC']],
       limit, offset,
@@ -506,7 +530,7 @@ router.get('/documents/:id', authenticateToken, async (req, res, next) => {
       include: [
         { model: Client, attributes: ['id', 'display_name', 'company_name'] },
         { model: Project, attributes: ['id', 'name'] },
-        { model: User, as: 'creator', attributes: ['id', 'name'] },
+        { model: User, as: 'creator', attributes: ['id', 'name', 'name_localized'] },
         { model: DocumentTemplate, attributes: ['id', 'name', 'mode', 'schema_json', 'body_template'] },
       ],
     });

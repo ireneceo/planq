@@ -1,10 +1,27 @@
 {
   "page": { "title": "Q task", "noWorkspace": "워크스페이스가 선택되지 않았습니다", "loading": "로드 중...", "noCategory": "미분류" },
+  "help": {
+    "body": "이번 주 본인이 행동할 업무를 모아 보여줍니다. 우선순위는 클릭 순서대로 1,2,3... 자동 매김(현재 필터 안에서만). 가용시간 = 하루×영업일×효율. 그래프 baseline = 헤더의 내 업무 시간으로 통일. 마감 지난 업무는 빨간 '지연' 뱃지 클릭 → +1일/+1주/오늘 으로 즉시 갱신.",
+    "cuePrefill": "Q task 페이지의 우선순위, 가용시간, 그래프가 어떻게 작동하는지 알려줘"
+  },
+  "tour": {
+    "step1": {
+      "title": "Q task 페이지",
+      "body": "이번 주 본인이 행동해야 할 업무가 모입니다. 헤더 옆 ⓘ 클릭하면 화면 작동 원리를 자세히 볼 수 있어요."
+    },
+    "step2": {
+      "title": "우선순위 매기기",
+      "body": "# 셀을 클릭하면 클릭 순서대로 1, 2, 3...이 자동 매겨집니다. 갭이 생기면 자동으로 정리됩니다."
+    }
+  },
   "search": "업무 검색...",
   "filter": { "allStatus": "전체 상태", "hideCompleted": "완료 가리기", "showCompleted": "완료 업무 보기" },
   "period": { "title": "기간", "thisWeek": "이번 주" },
   "status": {
     "delayed": "지연",
+    "delayedDays": "{{d}}일 지연",
+    "delayedHint": "클릭하여 마감 변경",
+    "delayQuick": { "addDay": "+1일", "addWeek": "+1주", "today": "오늘" },
     "not_started":        { "assignee": "미진행",         "reviewer": "미진행",         "requester": "미시작",       "observer": "미진행" },
     "task_requested":     { "assignee": "업무요청 받음",  "reviewer": "대기중",         "requester": "요청 보냄",    "observer": "업무요청" },
     "waiting":            { "assignee": "진행대기",       "reviewer": "진행대기",       "requester": "진행대기",     "observer": "진행대기" },
@@ -37,8 +54,8 @@
   },
   "scope": { "mine": "내 업무", "workspace": "전체 업무" },
   "view": { "list": "리스트 보기", "kanban": "카드 보기" },
-  "list": { "empty": "해당하는 업무가 없습니다", "statusHint": "클릭하면 단계 선택", "titleClickEdit": "클릭하여 업무명 수정", "notMyHours": "담당자만 수정 가능 (참고용)", "notMyProgress": "담당자만 수정 가능 (참고용)" },
-  "empty": { "title": "업무를 시작해 보세요", "line1": "요청을 받고, 배정하고, 결과까지", "line2": "한 화면에서 실행으로 연결됩니다." },
+  "list": { "empty": "해당하는 업무가 없습니다", "statusHint": "클릭하면 단계 선택", "titleClickEdit": "클릭하여 업무명 수정", "notMyHours": "담당자만 수정 가능 (참고용)", "notMyProgress": "담당자만 수정 가능 (참고용)", "aiEstimate": "AI 예측시간 추천" },
+  "empty": { "title": "업무를 시작해 보세요", "line1": "요청을 받고, 배정하고, 결과까지", "line2": "한 화면에서 실행으로 연결됩니다.", "askCue": "Cue 에게 묻기" },
   "tab": { "week": "이번 주 내 업무", "all": "내 전체업무", "requested": "요청하기" },
   "workspace": { "assignee": "담당자", "allMembers": "전체 멤버" },
   "summary": { "unit": "개", "est": "예측", "act": "실제", "predictCap": "내 업무 {{est}}h/가용 {{cap}}h", "predictCapHint": "내가 담당자인 task 의 예측시간 합 / 주간 가용시간", "workspacePredict": "예측 {{est}}h", "actual": "실제 {{act}}h" },
@@ -95,17 +112,17 @@
     "actions": {
       "assigneeTitle": "담당자로서",
       "reviewerTitle": "컨펌자로서",
-      "ack": "요청 확인 → 진행 대기",
-      "start": "진행 시작 → 진행 중",
-      "resume": "다시 진행 → 진행 중",
-      "submitReview": "확인 요청 → 검토 중",
-      "resubmitReview": "수정 반영 후 재확인요청 → 검토 중",
-      "cancelReview": "확인 요청 취소 → 진행 중",
+      "ack": "요청 확인 → 진행대기",
+      "start": "진행 시작 → 진행중",
+      "resume": "다시 진행 → 진행중",
+      "submitReview": "확인 요청 → 확인요청중",
+      "resubmitReview": "수정 반영 후 재확인 → 확인요청중",
+      "cancelReview": "확인 요청 취소 → 진행중",
       "completeSimple": "완료 처리 → 완료",
       "complete": "최종 완료 → 완료",
       "needReviewer": "먼저 컨펌자를 추가하세요",
-      "approve": "승인 → 마무리 대기",
-      "requestRevision": "수정 요청 → 수정요청 단계",
+      "approve": "승인",
+      "requestRevision": "수정 요청 → 수정필요",
       "revisionPlaceholder": "어떤 부분을 수정해야 하는지 적어주세요 (필수)",
       "submitRevision": "수정 요청 보내기",
       "youApproved": "이번 라운드에서 승인했습니다.",

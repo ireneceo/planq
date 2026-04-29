@@ -9,6 +9,7 @@ import { useTimeFormat } from '../../hooks/useTimeFormat';
 import LetterAvatar from '../../components/Common/LetterAvatar';
 import EmptyState from '../../components/Common/EmptyState';
 import PostCardPreviewModal from './PostCardPreviewModal';
+import { mediaTablet } from '../../theme/breakpoints';
 
 interface Props {
   project: MockProject | null;
@@ -31,6 +32,10 @@ interface Props {
   onToggleRight: () => void;
   onFocusCandidates?: () => void; // (legacy — 배너에서 더 이상 사용 안 함, 호출자 호환 유지)
   onOpenNewChat?: () => void;
+  /** 모바일(<=tablet) 에서 리스트로 돌아가기 */
+  onMobileBack?: () => void;
+  /** 모바일에서 대화가 선택되지 않은 경우 ChatPanel 을 숨김 */
+  mobileHidden?: boolean;
 }
 
 const ChatPanel: React.FC<Props> = ({
@@ -38,7 +43,7 @@ const ChatPanel: React.FC<Props> = ({
   onOpenExtract, onSendMessage, onCueDraftSend, onCueDraftReject,
   onToggleAutoExtract, onRenameConversation, onOpenSettings,
   candidatesCount, extracting, leftCollapsed, rightCollapsed, onToggleLeft, onToggleRight,
-  onOpenNewChat,
+  onOpenNewChat, onMobileBack, mobileHidden = false,
 }) => {
   const { t } = useTranslation('qtalk');
   const { user } = useAuth();
@@ -242,7 +247,7 @@ const ChatPanel: React.FC<Props> = ({
   // 활성 대화가 없을 때만 EmptyState. 독립 대화(project null)도 activeConv 가 있으면 그대로 렌더.
   if (!activeConv && !project) {
     return (
-      <Container>
+      <Container $mobileHidden={mobileHidden}>
         <EmptyState
           icon={
             <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -270,9 +275,14 @@ const ChatPanel: React.FC<Props> = ({
 
   if (!activeConv && project) {
     return (
-      <Container>
+      <Container $mobileHidden={mobileHidden}>
         <HeaderBar>
           <HeaderLeft>
+            {onMobileBack && (
+              <MobileBackBtn type="button" onClick={onMobileBack} aria-label={t('chat.back', '리스트로 돌아가기') as string} title={t('chat.back', '리스트로 돌아가기') as string}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><polyline points="15 18 9 12 15 6"/></svg>
+              </MobileBackBtn>
+            )}
             {leftCollapsed && (
               <IconBtn onClick={onToggleLeft} title={t('chat.expandLeft', '좌측 열기') as string}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -301,10 +311,15 @@ const ChatPanel: React.FC<Props> = ({
   }
 
   return (
-    <Container>
+    <Container $mobileHidden={mobileHidden}>
       {/* 헤더: 채팅방 이름이 주인공, 프로젝트는 서브라벨 */}
       <HeaderBar>
         <HeaderLeft>
+          {onMobileBack && (
+            <MobileBackBtn type="button" onClick={onMobileBack} aria-label={t('chat.back', '리스트로 돌아가기') as string} title={t('chat.back', '리스트로 돌아가기') as string}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><polyline points="15 18 9 12 15 6"/></svg>
+            </MobileBackBtn>
+          )}
           {leftCollapsed && (
             <IconBtn onClick={onToggleLeft} title={t('chat.expandLeft', '좌측 열기')}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -688,13 +703,29 @@ const ChatPanel: React.FC<Props> = ({
 export default ChatPanel;
 
 // ─────────────────────────────────────────────
-const Container = styled.main`
+const Container = styled.main<{ $mobileHidden?: boolean }>`
   flex: 1;
   min-width: 0;
   background: #FFFFFF;
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  ${mediaTablet} {
+    display: ${(p) => (p.$mobileHidden ? 'none' : 'flex')};
+    width: 100%;
+  }
+`;
+
+const MobileBackBtn = styled.button`
+  display: none;
+  background: none; border: none; padding: 8px;
+  align-items: center; justify-content: center;
+  color: #334155; border-radius: 6px; cursor: pointer;
+  min-width: 44px; min-height: 44px;
+  margin-right: 4px;
+  &:hover { background: #F1F5F9; }
+  svg { width: 20px; height: 20px; }
+  ${mediaTablet} { display: inline-flex; }
 `;
 
 const HeaderBar = styled.div`

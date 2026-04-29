@@ -8,7 +8,9 @@ import ChatPanel from './ChatPanel';
 import RightPanel from './RightPanel';
 import NewProjectModal, { type ProjectFormData } from './NewProjectModal';
 import NewChatModal, { type NewChatFormData } from './NewChatModal';
+import FirstVisitTour from '../../components/Common/FirstVisitTour';
 import ChatSettingsModal from './ChatSettingsModal';
+import i18n from '../../i18n';
 import {
   type MockTaskCandidate, type MockMessage, type MockProject,
   type MockConversation, type MockTask, type MockNote, type MockIssue,
@@ -77,11 +79,17 @@ function apiMessageToMock(m: qtalkApi.ApiMessage): MockMessage {
   const isDraft = m.is_ai && m.ai_draft_approved === null;
   const isRejectedDraft = m.is_ai && m.ai_draft_approved === false;
 
+  // 다국어 이름 — viewer 의 i18n 언어 기준 (사이클 F)
+  const senderObj = m.sender as ({ name?: string; name_localized?: Record<string,string> | null } | undefined);
+  const senderDisplay = senderObj
+    ? (senderObj.name_localized?.[i18n.language] || senderObj.name || `user ${m.sender_id}`)
+    : `user ${m.sender_id}`;
+
   return {
     id: m.id,
     conversation_id: m.conversation_id,
     sender_id: m.sender_id,
-    sender_name: m.sender?.name || `user ${m.sender_id}`,
+    sender_name: senderDisplay,
     sender_role: m.is_ai ? 'cue' : 'member',
     sender_color: m.is_ai ? '#F43F5E' : '#64748B',
     body: isRejectedDraft ? '' : m.content,  // 거절된 draft는 빈 body
@@ -188,8 +196,17 @@ const QTalkPage: React.FC = () => {
   const initialParams = new URLSearchParams(location.search);
   const initialProject = Number(initialParams.get('project')) || null;
   const initialConv = Number(pathConvId) || Number(initialParams.get('conv')) || null;
+  // 인박스 candidate 클릭 진입 시 ?candidate=Y — 우측 candidate 섹션 강조용
+  const initialCandidateId = Number(initialParams.get('candidate')) || null;
   const [activeProjectId, setActiveProjectId] = useState<number | null>(initialProject);
   const [activeConversationId, setActiveConversationId] = useState<number | null>(initialConv);
+  const [highlightCandidateId, setHighlightCandidateId] = useState<number | null>(initialCandidateId);
+  // 진입 시 candidate 강조는 5초 후 자동 해제
+  useEffect(() => {
+    if (highlightCandidateId == null) return;
+    const tm = window.setTimeout(() => setHighlightCandidateId(null), 5000);
+    return () => window.clearTimeout(tm);
+  }, [highlightCandidateId]);
 
   // 선택 상태 → URL 싱크. 항상 /talk 베이스로 정규화 (path-param 진입은 1회만 의미 있음).
   useEffect(() => {
@@ -560,6 +577,10 @@ const QTalkPage: React.FC = () => {
   const handleSelectChannel = (conversationId: number) => {
     setActiveConversationId(prev => prev === conversationId ? null : conversationId);
   };
+  // 모바일 master-detail 드릴다운 — 대화 패널에서 리스트로 돌아가기
+  const handleMobileBack = () => {
+    setActiveConversationId(null);
+  };
 
   // ── 프로젝트 생성 ──
   const handleCreateProject = async (data: ProjectFormData) => {
@@ -596,6 +617,7 @@ const QTalkPage: React.FC = () => {
         business_id: businessId,
         title: data.title,
         project_id: data.project_id,
+        client_id: data.client_id,
         participant_user_ids: data.participant_user_ids,
         auto_extract_enabled: data.auto_extract_enabled,
         translation_enabled: data.translation_enabled,
@@ -890,6 +912,7 @@ const QTalkPage: React.FC = () => {
         onOpenNewChat={() => setChatModalOpen(true)}
         collapsed={leftCollapsed}
         onToggleCollapsed={toggleLeft}
+        mobileHidden={activeConversationId !== null}
       />
       <ChatPanel
         project={activeProject}
@@ -911,6 +934,8 @@ const QTalkPage: React.FC = () => {
         onToggleLeft={toggleLeft}
         onToggleRight={toggleRight}
         onOpenNewChat={() => setChatModalOpen(true)}
+        onMobileBack={handleMobileBack}
+        mobileHidden={activeConversationId === null}
         onFocusCandidates={() => {
           if (rightCollapsed) setRightCollapsed(false);
           // 다음 tick 에 우측 패널의 candidates 섹션으로 스크롤
@@ -982,6 +1007,12 @@ const QTalkPage: React.FC = () => {
           {notice}
         </Toast>
       )}
+      <FirstVisitTour
+        pageKey="qtalk"
+        steps={[
+          { targetSelector: 'aside', title: t('tour.step1.title','Q talk') as string, body: t('tour.step1.body','왼쪽 패널에서 프로젝트·고객·일반 대화를 만들 수 있어요. 헤더 옆 ⓘ 클릭하면 자동 추출, 번역 등 자세한 작동을 볼 수 있어요.') as string, placement: 'auto' },
+        ]}
+      />
     </Layout>
   );
 };
@@ -1034,7 +1065,7 @@ const Layout = styled.div`
   background: #F8FAFC;
   overflow: hidden;
 
-  @media (max-width: 768px) {
+  @media (max-width: 1024px) {
     height: calc(100vh - 56px);
   }
 `;

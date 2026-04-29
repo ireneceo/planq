@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import type { TodoItem, TodoPriority } from '../../services/dashboard';
 import { groupByPriority, PRIORITY_LIST } from '../../services/dashboard';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
+import EmptyState from '../Common/EmptyState';
 
 /* ─────────────────────────────────────────────
    우선순위 컬러 토큰
@@ -70,6 +71,24 @@ function formatDue(
   return t('todo.dueLabel.inDays', { days: diffD });
 }
 
+// 발생 시점 — 사용자: "이 알림이 어느 날인지" 즉시 인지
+function formatRelativeTime(iso: string | null | undefined, t: ReturnType<typeof useTranslation>['t']): string {
+  if (!iso) return '';
+  const dt = new Date(iso);
+  if (isNaN(dt.getTime())) return '';
+  const diffMs = Date.now() - dt.getTime();
+  const sec = Math.floor(diffMs / 1000);
+  if (sec < 60) return t('todo.relTime.now', '방금');
+  const min = Math.floor(sec / 60);
+  if (min < 60) return t('todo.relTime.minAgo', { m: min });
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return t('todo.relTime.hourAgo', { h: hr });
+  const day = Math.floor(hr / 24);
+  if (day < 7) return t('todo.relTime.dayAgo', { d: day });
+  // 7일 이상 — 절대 날짜 (M/D)
+  return `${dt.getMonth() + 1}/${dt.getDate()}`;
+}
+
 /* ─────────────────────────────────────────────
    Component
    ──────────────────────────────────────────── */
@@ -105,10 +124,13 @@ const TodoList: React.FC<Props> = ({ items, loading, onOpenDrawer, onInviteActio
         <Header>
           <Title>{t('todo.title')}</Title>
         </Header>
-        <Empty>
-          <EmptyTitle>{t('todo.emptyTitle')}</EmptyTitle>
-          <EmptySub>{t('todo.emptySub')}</EmptySub>
-        </Empty>
+        <EmptyState
+          icon={<svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>}
+          title={t('todo.emptyTitle')}
+          description={t('todo.emptySub')}
+          secondaryCtaLabel={t('todo.emptyAskCue', 'Cue 에게 묻기') as string}
+          onSecondaryCta={() => window.dispatchEvent(new CustomEvent('cue:ask', { detail: { prefill: t('todo.help.cuePrefill') as string } }))}
+        />
       </Shell>
     );
   }
@@ -170,6 +192,7 @@ const TodoList: React.FC<Props> = ({ items, loading, onOpenDrawer, onInviteActio
                     </CardLine1>
                     <CardLine2>
                       {it.dueAt && <DueBadge $priority={pri}>{formatDue(it, t, fmt)}</DueBadge>}
+                      {it.createdAt && <CreatedChip title={new Date(it.createdAt).toLocaleString()}>{formatRelativeTime(it.createdAt, t)}</CreatedChip>}
                       {it.context && <CtxText>{it.context}</CtxText>}
                       {it.workspace && <WsChip $role={it.workspace.role}>{it.workspace.brand_name}</WsChip>}
                     </CardLine2>
@@ -251,20 +274,6 @@ const Count = styled.span`
   font-weight: 500;
 `;
 
-const Empty = styled.div`
-  padding: 32px 8px;
-  text-align: center;
-`;
-const EmptyTitle = styled.div`
-  font-size: 14px;
-  font-weight: 600;
-  color: #334155;
-`;
-const EmptySub = styled.div`
-  font-size: 12px;
-  color: #94A3B8;
-  margin-top: 4px;
-`;
 
 const Skeleton = styled.div`
   height: 80px;
@@ -415,6 +424,15 @@ const CtxText = styled.span`
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+`;
+
+// 발생 시점 chip — "방금 / 5분 전 / 어제 14:30" 식. hover 시 절대 시각 표시.
+const CreatedChip = styled.span`
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 500;
+  color: #94A3B8;
+  white-space: nowrap;
 `;
 
 // 워크스페이스 라벨 chip — cross-workspace 알림에서 어느 워크스페이스인지 표시

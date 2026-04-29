@@ -10,7 +10,7 @@ const { authenticateToken } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 
 const EVENT_KINDS = ['signature', 'invoice', 'tax_invoice', 'task', 'event', 'invite', 'mention'];
-const CHANNELS = ['inbox', 'chat', 'email'];
+const CHANNELS = ['inbox', 'chat', 'email', 'push']; // 사이클 J4 — push 채널 추가
 
 // GET /api/notifications/prefs?business_id=X
 router.get('/prefs', authenticateToken, async (req, res, next) => {
@@ -73,5 +73,33 @@ async function isAllowed(userId, businessId, eventKind, channel) {
 }
 
 router.isAllowed = isAllowed;
+
+// 사이클 J4 — 통합 알림 헬퍼
+//   notify(userId, businessId, eventKind, payload)
+//     - inbox: TodoList 자동 fetch (별도 처리 X)
+//     - email: emailService 호출 (TODO — P-6 SMTP 연결 후)
+//     - push: isAllowed 검사 후 web push 전송
+async function notify(userId, businessId, eventKind, payload) {
+  const results = { inbox: true, email: 'todo', push: false };
+  // push 채널
+  if (await isAllowed(userId, businessId, eventKind, 'push')) {
+    try {
+      const { sendPushToUser } = require('../services/push_service');
+      const r = await sendPushToUser(userId, {
+        title: payload?.title || 'PlanQ',
+        body: payload?.body || '',
+        link: payload?.link || '/',
+        tag: `${eventKind}:${userId}`,
+      });
+      results.push = r;
+    } catch (e) {
+      console.error('[notify push]', e.message);
+      results.push = false;
+    }
+  }
+  return results;
+}
+
 module.exports = router;
 module.exports.isAllowed = isAllowed;
+module.exports.notify = notify;

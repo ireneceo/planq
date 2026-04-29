@@ -178,6 +178,10 @@ app.use('/api/projects', require('./routes/project_process'));
 app.use('/api/users', require('./routes/users'));
 app.use('/api/businesses', require('./routes/businesses'));
 app.use('/api/notifications', require('./routes/notifications'));
+app.use('/api/cue', require('./routes/cue'));
+app.use('/api/insights', require('./routes/insights'));
+app.use('/api/push', require('./routes/push'));
+app.use('/api/tasks', require('./routes/task_estimations'));
 app.use('/api/clients', require('./routes/clients'));
 app.use('/api/invites', require('./routes/invites'));
 app.use('/api/conversations', require('./routes/conversations'));
@@ -209,8 +213,9 @@ server.listen(PORT, () => {
   console.log(`PlanQ server running on port ${PORT} (${process.env.NODE_ENV})`);
 });
 
-// 매일 00시(서버 로컬) 업무 스냅샷
+// 매일 00시(서버 로컬) — 업무 스냅샷 + 자체결제 cron (active→past_due→grace→demoted)
 const taskSnapshot = require('./services/task_snapshot');
+const billing = require('./services/billing');
 function scheduleNextMidnight() {
   const now = new Date();
   const next = new Date(now); next.setDate(now.getDate() + 1); next.setHours(0, 0, 0, 0);
@@ -220,6 +225,10 @@ function scheduleNextMidnight() {
       const r = await taskSnapshot.snapshotAllTasks();
       console.log('[daily-snapshot]', r);
     } catch (e) { console.warn('[daily-snapshot] failed', e.message); }
+    try {
+      const r = await billing.runDailyBillingCron();
+      console.log('[billing-cron]', r);
+    } catch (e) { console.warn('[billing-cron] failed', e.message); }
     scheduleNextMidnight();
   }, delay);
 }

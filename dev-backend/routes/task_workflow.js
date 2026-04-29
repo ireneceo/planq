@@ -383,7 +383,7 @@ router.post('/:id/reviewers', authenticateToken, async (req, res, next) => {
         note: is_client ? 'client' : 'internal', transaction: t,
       });
       await t.commit();
-      const full = await TaskReviewer.findByPk(rev.id, { include: [{ model: User, as: 'user', attributes: ['id', 'name'] }] });
+      const full = await TaskReviewer.findByPk(rev.id, { include: [{ model: User, as: 'user', attributes: ['id', 'name', 'name_localized'] }] });
       broadcast(req, task);
       return successResponse(res, full.toJSON());
     } catch (e) { await t.rollback(); throw e; }

@@ -65,14 +65,41 @@ KbDocument.init({
     type: DataTypes.INTEGER,
     allowNull: false,
     references: { model: 'users', key: 'id' }
-  }
+  },
+  // 사이클 G — Q knowledge 카테고리·스코프
+  // category: 지식 분류 (정책/매뉴얼/사고/FAQ/소개/가격) — 검색 필터·UI 탭 그룹
+  category: {
+    type: DataTypes.ENUM('policy', 'manual', 'incident', 'faq', 'about', 'pricing'),
+    allowNull: false,
+    defaultValue: 'manual',
+  },
+  // scope: 적용 범위 — workspace 전체 / 특정 프로젝트 / 특정 고객 한정
+  // hybridSearch 우선순위: client → project → workspace (threshold 0.78)
+  scope: {
+    type: DataTypes.ENUM('workspace', 'project', 'client'),
+    allowNull: false,
+    defaultValue: 'workspace',
+  },
+  project_id: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    references: { model: 'projects', key: 'id' },
+  },
+  client_id: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    references: { model: 'clients', key: 'id' },
+  },
 }, {
   sequelize,
   tableName: 'kb_documents',
   timestamps: true,
   underscored: true,
   indexes: [
-    { fields: ['business_id', 'status'] }
+    { fields: ['business_id', 'status'] },
+    { fields: ['business_id', 'category'] },
+    { fields: ['business_id', 'scope', 'project_id'] },
+    { fields: ['business_id', 'scope', 'client_id'] },
   ]
 });
 

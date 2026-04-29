@@ -101,6 +101,27 @@
     "switcher": "워크스페이스 선택",
     "member": "멤버"
   },
+  "helpDot": {
+    "ariaLabel": "도움말",
+    "askCue": "Cue 에게 자세히 묻기"
+  },
+  "tour": {
+    "skip": "건너뛰기",
+    "next": "다음",
+    "done": "완료",
+    "replay": "투어 다시 보기"
+  },
+  "cue": {
+    "title": "Cue 도움말",
+    "emptyTitle": "무엇이 궁금한가요?",
+    "emptyHint": "PlanQ 의 어떤 기능이든 자연어로 물어보세요. 현재 화면 컨텍스트를 읽고 답변합니다.",
+    "toggleHint": "로 언제든 열고 닫기",
+    "you": "나",
+    "thinking": "생각 중…",
+    "inputPh": "질문을 입력하세요 (Cmd/Ctrl + Enter 로 보내기)",
+    "send": "보내기",
+    "sending": "전송 중…"
+  },
   "cancel": "취소",
   "saving": "처리 중…",
   "loading": "로딩 중…",

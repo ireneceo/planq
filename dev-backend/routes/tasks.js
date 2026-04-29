@@ -62,6 +62,7 @@ router.get('/my-week', authenticateToken, async (req, res, next) => {
     const friday = fridayOf(monday);
 
     // 이번 주 업무 (assignee = 나, planned_week_start = 이번 주 OR due_date가 이번 주)
+    // + overdue 미완료: 마감일이 이번 주 이전이지만 아직 안 끝난 업무 (사용자: 그래프에 포함되어야 함)
     const tasks = await Task.findAll({
       where: {
         business_id: businessId,
@@ -69,11 +70,15 @@ router.get('/my-week', authenticateToken, async (req, res, next) => {
         [Op.or]: [
           { planned_week_start: monday },
           { due_date: { [Op.between]: [monday, friday] } },
+          {
+            due_date: { [Op.lt]: monday },
+            status: { [Op.notIn]: ['completed', 'canceled'] },
+          },
         ],
       },
       include: [
         { model: Project, attributes: ['id', 'name'], required: false },
-        { model: User, as: 'assignee', attributes: ['id', 'name'], required: false },
+        { model: User, as: 'assignee', attributes: ['id', 'name', 'name_localized'], required: false },
       ],
       order: [['due_date', 'ASC'], ['priority_order', 'ASC'], ['created_at', 'ASC']],
     });
@@ -264,7 +269,7 @@ router.get('/backlog', authenticateToken, async (req, res, next) => {
       where,
       include: [
         { model: Project, attributes: ['id', 'name'], required: false },
-        { model: User, as: 'assignee', attributes: ['id', 'name'], required: false },
+        { model: User, as: 'assignee', attributes: ['id', 'name', 'name_localized'], required: false },
       ],
       order: [['priority_order', 'ASC'], ['created_at', 'DESC']],
     });
@@ -313,7 +318,15 @@ router.patch('/:id/time', authenticateToken, async (req, res, next) => {
       updates.completed_at = null;
     }
 
+    // 사용자 명시 입력 값 — update 전에 캡쳐 (이전값과 다를 때만 이력 기록)
+    const prevEst = Number(task.estimated_hours) || 0;
     await task.update(updates);
+    if (req.body.estimated_hours !== undefined && updates.estimated_hours !== prevEst) {
+      try {
+        const { recordUserEstimate } = require('./task_estimations');
+        await recordUserEstimate(task.id, updates.estimated_hours, req.user.id);
+      } catch { /* ignore */ }
+    }
     return successResponse(res, task.toJSON());
   } catch (err) { next(err); }
 });
@@ -358,8 +371,8 @@ router.post('/', authenticateToken, async (req, res, next) => {
     const full = await Task.findByPk(task.id, {
       include: [
         { model: Project, attributes: ['id', 'name'], required: false },
-        { model: User, as: 'assignee', attributes: ['id', 'name'], required: false },
-        { model: User, as: 'requester', attributes: ['id', 'name'], required: false },
+        { model: User, as: 'assignee', attributes: ['id', 'name', 'name_localized'], required: false },
+        { model: User, as: 'requester', attributes: ['id', 'name', 'name_localized'], required: false },
       ],
     });
 
@@ -395,8 +408,8 @@ router.get('/by-business/:businessId', authenticateToken, async (req, res, next)
     const tasks = await Task.findAll({
       where,
       include: [
-        { model: User, as: 'assignee', attributes: ['id', 'name', 'email'] },
-        { model: User, as: 'creator', attributes: ['id', 'name'] },
+        { model: User, as: 'assignee', attributes: ['id', 'name', 'email', 'name_localized'] },
+        { model: User, as: 'creator', attributes: ['id', 'name', 'name_localized'] },
         { model: Project, attributes: ['id', 'name'], required: false },
       ],
       order: [['created_at', 'DESC']],
@@ -563,9 +576,9 @@ router.get('/:id/detail', authenticateToken, async (req, res, next) => {
     const task = await Task.findByPk(req.params.id, {
       include: [
         { model: Project, attributes: ['id', 'name'], required: false },
-        { model: User, as: 'assignee', attributes: ['id', 'name'], required: false },
-        { model: User, as: 'creator', attributes: ['id', 'name'], required: false },
-        { model: User, as: 'requester', attributes: ['id', 'name'], required: false },
+        { model: User, as: 'assignee', attributes: ['id', 'name', 'name_localized'], required: false },
+        { model: User, as: 'creator', attributes: ['id', 'name', 'name_localized'], required: false },
+        { model: User, as: 'requester', attributes: ['id', 'name', 'name_localized'], required: false },
         {
           model: TaskComment, as: 'comments', required: false,
           include: [
@@ -649,7 +662,7 @@ router.get('/requested', authenticateToken, async (req, res, next) => {
       },
       include: [
         { model: Project, attributes: ['id', 'name'], required: false },
-        { model: User, as: 'assignee', attributes: ['id', 'name'], required: false },
+        { model: User, as: 'assignee', attributes: ['id', 'name', 'name_localized'], required: false },
       ],
       order: [['due_date', 'ASC'], ['priority_order', 'ASC'], ['created_at', 'DESC']],
     });
@@ -701,7 +714,7 @@ router.get('/extracted-candidates', authenticateToken, async (req, res, next) =>
     if (projIds.length === 0) return successResponse(res, []);
     const cands = await TaskCandidate.findAll({
       where: { project_id: projIds, status: 'pending' },
-      include: [{ model: User, as: 'guessedAssignee', attributes: ['id', 'name'], required: false }],
+      include: [{ model: User, as: 'guessedAssignee', attributes: ['id', 'name', 'name_localized'], required: false }],
       order: [['extracted_at', 'DESC']],
       limit: 20,
     });
