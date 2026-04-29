@@ -1,14 +1,30 @@
 const express = require('express');
 const router = express.Router();
+const crypto = require('crypto');
 const { User } = require('../models');
 const { authenticateToken, requireRole } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
+const { sendVerificationCodeEmail } = require('../services/emailService');
 
 // 응답에서 절대 노출 금지인 민감 필드
-// password_hash · refresh_token · reset_token · reset_token_expires
+// password_hash · refresh_token · reset_token · reset_token_expires · email_change_otp_hash
 const USER_SENSITIVE_FIELDS = [
   'password_hash', 'refresh_token', 'reset_token', 'reset_token_expires',
+  'email_change_otp_hash',
 ];
+
+const USERNAME_RE = /^[a-z0-9_-]{3,30}$/;
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const OTP_TTL_MIN = 10;
+const OTP_LOCK_MIN = 60;
+const OTP_MAX_ATTEMPTS = 5;
+const RESERVED_USERNAMES = new Set([
+  'admin', 'administrator', 'root', 'system', 'support', 'help', 'api',
+  'planq', 'cue', 'null', 'undefined', 'me', 'profile', 'settings',
+]);
+
+function sha256(text) { return crypto.createHash('sha256').update(String(text)).digest('hex'); }
+function genOtp() { return String(Math.floor(100000 + Math.random() * 900000)); }
 
 // List users (platform admin)
 router.get('/', authenticateToken, requireRole('platform_admin'), async (req, res, next) => {
@@ -21,6 +37,25 @@ router.get('/', authenticateToken, requireRole('platform_admin'), async (req, re
   } catch (error) {
     next(error);
   }
+});
+
+// ============================================
+// GET /api/users/username-available?value=xxx
+// 가용성 체크 — 본인 username 이거나 미사용이면 available=true
+// (반드시 /:id 라우트보다 위에 둘 것 — 'username-available' 이 :id 에 매칭되지 않게)
+// ============================================
+router.get('/username-available', authenticateToken, async (req, res, next) => {
+  try {
+    const raw = String(req.query.value || '').toLowerCase().trim();
+    if (!raw) return successResponse(res, { available: false, reason: 'empty' });
+    if (!USERNAME_RE.test(raw)) return successResponse(res, { available: false, reason: 'invalid_format' });
+    if (RESERVED_USERNAMES.has(raw)) return successResponse(res, { available: false, reason: 'reserved' });
+    const me = await User.findByPk(req.user.id, { attributes: ['username'] });
+    if (me?.username === raw) return successResponse(res, { available: true, reason: 'self' });
+    const exists = await User.findOne({ where: { username: raw }, attributes: ['id'] });
+    if (exists) return successResponse(res, { available: false, reason: 'taken' });
+    return successResponse(res, { available: true });
+  } catch (err) { next(err); }
 });
 
 // Get user by ID — 본인 또는 platform_admin 만. IDOR 차단.
@@ -52,13 +87,38 @@ router.put('/:id', authenticateToken, async (req, res, next) => {
     if (!user) return errorResponse(res, 'User not found', 404);
 
     const {
-      name, phone, avatar_url, language,
+      name, username, phone, avatar_url, language,
       bio, expertise, organization, job_title,
       language_levels, expertise_level,
       answer_style_default, answer_length_default,
       timezone, reference_timezones,
     } = req.body;
-    const updates = { name, phone, avatar_url };
+    const updates = {};
+
+    // 이름 변경 — 즉시 적용 (verification 불필요)
+    if (name !== undefined) {
+      if (typeof name !== 'string' || !name.trim()) return errorResponse(res, 'name_required', 400);
+      if (name.length > 100) return errorResponse(res, 'name_too_long', 400);
+      updates.name = name.trim();
+    }
+
+    // username 변경 — 영문/숫자/_/-, 3~30자, unique, reserved 차단
+    if (username !== undefined) {
+      if (username === null || username === '') {
+        return errorResponse(res, 'username_required', 400);
+      }
+      const u = String(username).toLowerCase().trim();
+      if (!USERNAME_RE.test(u)) return errorResponse(res, 'invalid_username_format', 400);
+      if (RESERVED_USERNAMES.has(u)) return errorResponse(res, 'username_reserved', 409);
+      if (u !== user.username) {
+        const existing = await User.findOne({ where: { username: u } });
+        if (existing && existing.id !== user.id) return errorResponse(res, 'username_taken', 409);
+        updates.username = u;
+      }
+    }
+
+    if (phone !== undefined) updates.phone = phone;
+    if (avatar_url !== undefined) updates.avatar_url = avatar_url;
     // 타임존 (IANA id — 자유형식 문자열로 저장, 포맷 검증만)
     if (timezone !== undefined) {
       if (timezone !== null && (typeof timezone !== 'string' || !/^[A-Za-z_+\-0-9]+(\/[A-Za-z_+\-0-9]+){0,2}$/.test(timezone))) {
@@ -155,6 +215,130 @@ router.put('/:id', authenticateToken, async (req, res, next) => {
   } catch (error) {
     next(error);
   }
+});
+
+// ============================================
+// POST /api/users/:id/email-change-request
+// 새 이메일 받음 → 6자리 OTP 생성·해시 저장 → 새 이메일에 발송
+// body: { new_email }
+// ============================================
+router.post('/:id/email-change-request', authenticateToken, async (req, res, next) => {
+  try {
+    if (req.user.id !== parseInt(req.params.id, 10)) {
+      return errorResponse(res, 'only_self', 403);
+    }
+    const user = await User.findByPk(req.user.id);
+    if (!user) return errorResponse(res, 'user_not_found', 404);
+
+    if (user.email_change_locked_until && user.email_change_locked_until > new Date()) {
+      return errorResponse(res, 'locked', 423);
+    }
+
+    const newEmail = String(req.body?.new_email || '').toLowerCase().trim();
+    if (!EMAIL_RE.test(newEmail)) return errorResponse(res, 'invalid_email_format', 400);
+    if (newEmail === user.email) return errorResponse(res, 'same_as_current', 400);
+    if (/^cue\+\d+@system\.planq\.kr$/.test(newEmail)) return errorResponse(res, 'reserved_email', 400);
+
+    const dup = await User.findOne({ where: { email: newEmail } });
+    if (dup) return errorResponse(res, 'email_already_used', 409);
+
+    const code = genOtp();
+    const expiresAt = new Date(Date.now() + OTP_TTL_MIN * 60_000);
+    await user.update({
+      pending_email: newEmail,
+      email_change_otp_hash: sha256(code),
+      email_change_otp_expires_at: expiresAt,
+      email_change_otp_attempts: 0,
+    });
+
+    const sent = await sendVerificationCodeEmail({
+      to: newEmail,
+      code,
+      ttlMinutes: OTP_TTL_MIN,
+      userName: user.name || '',
+    }).catch(() => false);
+
+    if (!process.env.SMTP_HOST) {
+      console.log(`[DEV-EMAIL-CHANGE] user_id=${user.id} new=${newEmail} code=${code}`);
+    }
+
+    return successResponse(res, {
+      sent: !!sent,
+      pending_email: newEmail,
+      expires_at: expiresAt,
+      ttl_minutes: OTP_TTL_MIN,
+    });
+  } catch (err) { next(err); }
+});
+
+// ============================================
+// POST /api/users/:id/email-change-verify
+// body: { code }
+// → 검증 성공 시 email = pending_email 로 교체
+// ============================================
+router.post('/:id/email-change-verify', authenticateToken, async (req, res, next) => {
+  try {
+    if (req.user.id !== parseInt(req.params.id, 10)) {
+      return errorResponse(res, 'only_self', 403);
+    }
+    const user = await User.findByPk(req.user.id);
+    if (!user) return errorResponse(res, 'user_not_found', 404);
+
+    if (user.email_change_locked_until && user.email_change_locked_until > new Date()) {
+      return errorResponse(res, 'locked', 423);
+    }
+    if (!user.pending_email || !user.email_change_otp_hash || !user.email_change_otp_expires_at) {
+      return errorResponse(res, 'no_pending_request', 400);
+    }
+    if (user.email_change_otp_expires_at < new Date()) {
+      await user.update({
+        pending_email: null, email_change_otp_hash: null,
+        email_change_otp_expires_at: null, email_change_otp_attempts: 0,
+      });
+      return errorResponse(res, 'otp_expired', 410);
+    }
+
+    const code = String(req.body?.code || '').trim();
+    if (!/^\d{6}$/.test(code)) return errorResponse(res, 'invalid_code_format', 400);
+
+    if (sha256(code) !== user.email_change_otp_hash) {
+      const attempts = user.email_change_otp_attempts + 1;
+      const update = { email_change_otp_attempts: attempts };
+      if (attempts >= OTP_MAX_ATTEMPTS) {
+        update.email_change_locked_until = new Date(Date.now() + OTP_LOCK_MIN * 60_000);
+        update.pending_email = null;
+        update.email_change_otp_hash = null;
+        update.email_change_otp_expires_at = null;
+        update.email_change_otp_attempts = 0;
+      }
+      await user.update(update);
+      return errorResponse(res,
+        attempts >= OTP_MAX_ATTEMPTS ? 'locked' : 'invalid_code',
+        attempts >= OTP_MAX_ATTEMPTS ? 423 : 400
+      );
+    }
+
+    // 마지막 충돌 검증 (race)
+    const dup = await User.findOne({ where: { email: user.pending_email } });
+    if (dup && dup.id !== user.id) {
+      await user.update({
+        pending_email: null, email_change_otp_hash: null,
+        email_change_otp_expires_at: null, email_change_otp_attempts: 0,
+      });
+      return errorResponse(res, 'email_already_used', 409);
+    }
+
+    const newEmail = user.pending_email;
+    await user.update({
+      email: newEmail,
+      pending_email: null,
+      email_change_otp_hash: null,
+      email_change_otp_expires_at: null,
+      email_change_otp_attempts: 0,
+    });
+
+    return successResponse(res, { email: newEmail, changed: true });
+  } catch (err) { next(err); }
 });
 
 // Suspend/Activate user (platform admin)

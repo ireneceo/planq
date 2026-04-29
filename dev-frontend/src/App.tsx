@@ -188,7 +188,7 @@ function App() {
           </ProtectedRoute>
         } />
         <Route path="/bills" element={
-          <ProtectedRoute requiredRole={['business_owner', 'business_member']}>
+          <ProtectedRoute>
             <MainLayout><QBillPage /></MainLayout>
           </ProtectedRoute>
         } />

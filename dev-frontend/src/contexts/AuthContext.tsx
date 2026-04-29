@@ -27,6 +27,7 @@ export interface WorkspaceMembership {
 export interface User {
   id: string;
   email: string;
+  username?: string | null;
   name: string;
   platform_role: string;
   business_id?: number | null;
@@ -145,6 +146,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const normalizeUser = (apiUser: Record<string, unknown>): User => ({
     id: String(apiUser.id),
     email: apiUser.email as string,
+    username: (apiUser.username as string) || null,
     name: (apiUser.name || (apiUser.email as string)?.split('@')[0]) as string,
     platform_role: apiUser.platform_role as string,
     business_id: (apiUser.business_id as number) || null,

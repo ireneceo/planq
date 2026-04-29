@@ -19,7 +19,12 @@ router.get('/catalog', authenticateToken, async (req, res, next) => {
 router.get('/:businessId/status', authenticateToken, checkBusinessAccess, async (req, res, next) => {
   try {
     const businessId = Number(req.params.businessId);
-    const [{ plan, biz, active, inTrial, inGrace, trialEndsAt, graceEndsAt }, usage, historyRows] = await Promise.all([
+    const { Op } = require('sequelize');
+    // P-2: 활성 Subscription + pending Payment 조회 (자체 결제 흐름)
+    const SubscriptionModel = require('../models').Subscription;
+    const PaymentModel = require('../models').Payment;
+
+    const [{ plan, biz, active, inTrial, inGrace, trialEndsAt, graceEndsAt }, usage, historyRows, subscription, pendingPayment, recentPayments] = await Promise.all([
       planEngine.getBusinessPlan(businessId),
       planEngine.getUsage(businessId),
       BusinessPlanHistory.findAll({
@@ -27,7 +32,20 @@ router.get('/:businessId/status', authenticateToken, checkBusinessAccess, async 
         include: [{ model: User, as: 'changer', attributes: ['id', 'name'] }],
         order: [['created_at', 'DESC']],
         limit: 10
-      })
+      }),
+      SubscriptionModel.findOne({
+        where: { business_id: businessId, status: { [Op.in]: ['pending', 'active', 'past_due', 'grace'] } },
+        order: [['created_at', 'DESC']],
+      }),
+      PaymentModel.findOne({
+        where: { business_id: businessId, status: 'pending' },
+        order: [['created_at', 'DESC']],
+      }),
+      PaymentModel.findAll({
+        where: { business_id: businessId, status: { [Op.in]: ['paid', 'refunded'] } },
+        order: [['paid_at', 'DESC']],
+        limit: 5,
+      }),
     ]);
 
     successResponse(res, {
@@ -40,6 +58,32 @@ router.get('/:businessId/status', authenticateToken, checkBusinessAccess, async 
       plan_expires_at: biz ? biz.plan_expires_at : null,
       scheduled_plan: biz ? biz.scheduled_plan : null,
       subscription_status: biz ? biz.subscription_status : null,
+      // P-2 자체 결제 정보
+      subscription: subscription ? {
+        id: subscription.id,
+        plan_code: subscription.plan_code,
+        cycle: subscription.cycle,
+        status: subscription.status,
+        current_period_end: subscription.current_period_end,
+        next_billing_at: subscription.next_billing_at,
+        grace_ends_at: subscription.grace_ends_at,
+      } : null,
+      pending_payment: pendingPayment ? {
+        id: pendingPayment.id,
+        subscription_id: pendingPayment.subscription_id,
+        method: pendingPayment.method,
+        amount: pendingPayment.amount,
+        currency: pendingPayment.currency,
+        cycle: pendingPayment.cycle,
+        created_at: pendingPayment.created_at,
+      } : null,
+      recent_payments: recentPayments.map(p => ({
+        id: p.id, subscription_id: p.subscription_id,
+        amount: p.amount, currency: p.currency, cycle: p.cycle,
+        status: p.status, paid_at: p.paid_at,
+        period_start: p.period_start, period_end: p.period_end,
+        payer_name: p.payer_name, method: p.method,
+      })),
       usage,
       history: historyRows.map(h => ({
         id: h.id,
@@ -173,6 +217,109 @@ router.post('/:businessId/cancel-schedule', authenticateToken, checkBusinessAcce
     planEngine.invalidateBusinessCache(businessId);
     successResponse(res, { canceled_scheduled_plan: scheduled });
   } catch (error) { next(error); }
+});
+
+// ════════════════════════════════════════════════════════════
+// P-2 자체 결제 — Subscription / Payment 흐름
+// ════════════════════════════════════════════════════════════
+
+const billing = require('../services/billing');
+const { Subscription, Payment } = require('../models');
+
+// ─── 결제 요청 — 신규 Subscription + pending Payment 생성 + 입금 안내 ───
+// body: { plan_code: 'starter'|'basic'|'pro', cycle: 'monthly'|'yearly' }
+router.post('/:businessId/checkout', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+  try {
+    if (req.businessRole !== 'owner' && req.user.platform_role !== 'platform_admin') {
+      return errorResponse(res, 'owner_only', 403);
+    }
+    const businessId = Number(req.params.businessId);
+    const { plan_code, cycle = 'monthly', currency = 'KRW' } = req.body || {};
+    if (!plan_code || !PLANS[plan_code]) return errorResponse(res, 'invalid_plan_code', 400);
+    if (!['monthly', 'yearly'].includes(cycle)) return errorResponse(res, 'invalid_cycle', 400);
+    if (plan_code === 'free') return errorResponse(res, 'use_downgrade_for_free', 400);
+
+    const result = await billing.createPendingSubscription({
+      businessId, planCode: plan_code, cycle, userId: req.user.id, currency,
+    });
+    return successResponse(res, {
+      subscription_id: result.subscription.id,
+      payment_id: result.payment.id,
+      amount: result.payment.amount,
+      currency: result.payment.currency,
+      status: result.payment.status,
+    });
+  } catch (err) { next(err); }
+});
+
+// ─── admin mark-paid (워크스페이스 owner 가 입금 확인) ───
+// body: { payer_name?, payer_memo? }
+router.post('/:businessId/payments/:paymentId/mark-paid', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+  try {
+    if (req.businessRole !== 'owner' && req.user.platform_role !== 'platform_admin') {
+      return errorResponse(res, 'owner_only', 403);
+    }
+    const businessId = Number(req.params.businessId);
+    const paymentId = Number(req.params.paymentId);
+    const pay = await Payment.findOne({ where: { id: paymentId, business_id: businessId } });
+    if (!pay) return errorResponse(res, 'payment_not_found', 404);
+
+    const result = await billing.markPaymentPaid({
+      paymentId, markedByUserId: req.user.id,
+      payerName: req.body?.payer_name, payerMemo: req.body?.payer_memo,
+    });
+    return successResponse(res, {
+      payment: result.payment.toJSON(),
+      subscription: result.subscription.toJSON(),
+    });
+  } catch (err) { next(err); }
+});
+
+// ─── 결제 이력 조회 ───
+router.get('/:businessId/payments', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+  try {
+    const businessId = Number(req.params.businessId);
+    const rows = await Payment.findAll({
+      where: { business_id: businessId },
+      include: [{ model: Subscription, attributes: ['plan_code', 'cycle', 'status'] }],
+      order: [['created_at', 'DESC']],
+      limit: 50,
+    });
+    return successResponse(res, rows.map(r => r.toJSON()));
+  } catch (err) { next(err); }
+});
+
+// ─── 영수증 PDF ───
+router.get('/:businessId/payments/:paymentId/receipt.pdf', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+  try {
+    const businessId = Number(req.params.businessId);
+    const paymentId = Number(req.params.paymentId);
+    const pay = await Payment.findOne({ where: { id: paymentId, business_id: businessId } });
+    if (!pay) return errorResponse(res, 'payment_not_found', 404);
+    if (pay.status !== 'paid') return errorResponse(res, 'not_paid_yet', 400);
+    const pdf = await billing.buildReceiptPdf(paymentId);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="receipt-${pay.id}.pdf"`);
+    res.send(pdf);
+  } catch (err) { next(err); }
+});
+
+// ─── 현재 활성 구독 조회 ───
+router.get('/:businessId/subscription', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+  try {
+    const businessId = Number(req.params.businessId);
+    const sub = await billing.getCurrentSubscription(businessId);
+    return successResponse(res, sub ? sub.toJSON() : null);
+  } catch (err) { next(err); }
+});
+
+// ─── cron 수동 트리거 (platform_admin only) ───
+router.post('/cron/run', authenticateToken, async (req, res, next) => {
+  try {
+    if (req.user.platform_role !== 'platform_admin') return errorResponse(res, 'admin_only', 403);
+    const stats = await billing.runDailyBillingCron();
+    return successResponse(res, stats);
+  } catch (err) { next(err); }
 });
 
 module.exports = router;

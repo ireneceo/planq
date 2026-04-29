@@ -1,10 +1,28 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-04-28 (P-0 4건 + P-0+ Q talk 번역·채팅 설정 + P-1.1 인박스 카운트 + 영어 샘플 시드 + 번역 안정화 다라운드 + nginx HTML no-cache)
+> **최종 업데이트:** 2026-04-29 (Q Task "My week" overdue 버그 수정 + dashboard todo 보안 수정)
 >
-> **다음 진입:** P-1.5 Profile + ID 시스템 → P-2 자체 결제 → P-3 Q knowledge → P-4 Q brief → P-5 Phase F 슬롯 → P-6 SMTP → P-7 PortOne V2 + 팝빌 → P-8 반응형
+> **다음 진입:** P-3 Q knowledge → P-4 Q brief → P-5 Phase F 슬롯 → P-6 SMTP → P-7 PortOne V2 + 팝빌 → P-8 반응형
 >
 > **결제 정책:** 1순위 자체 결제 (계좌이체 mark-paid), 2순위 PortOne (P-7 마지막). 월결제 + 연결제. 미결제 시 7일 유예 후 Free 강등 + 데이터 보존
+
+---
+
+## ✅ 완료: Q Task "My week" overdue 버그 수정 + dashboard todo 보안 수정 (2026-04-29)
+
+### 버그 수정 2건
+
+| 버그 | 원인 | 수정 |
+|------|------|------|
+| **Q Task "My week" 탭에 overdue 업무 미표시** | `inPeriod` 필터가 "기간과 겹치는" 업무만 포함 → 마감일 지난 미완료 업무 제외됨 | `isOverdue = e && e < todayStr` 조건 추가 → overdue 업무 항상 표시 |
+| **Dashboard todo API 보안 불일치** | 단일 business_id 호출 시 `removed_at` 체크 누락 → 제거된 멤버도 데이터 접근 가능 | `removed_at: null` 조건 추가 + Client 테이블 fallback 체크 |
+
+### 수정된 파일
+- `dev-frontend/src/pages/QTask/QTaskPage.tsx` (632번 줄 — overdue 포함 로직)
+- `dev-backend/routes/dashboard.js` (655-661번 줄 — removed_at + client 체크)
+
+### 빌드
+- `index-D6xj1G7z.js` (1.37s, 타입에러 0)
 
 ---
 

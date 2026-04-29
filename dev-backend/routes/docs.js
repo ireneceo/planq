@@ -16,12 +16,21 @@ const {
 } = require('../models');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const { authenticateToken } = require('../middleware/auth');
+const { getUserScope, isMemberOrAbove } = require('../middleware/access_scope');
 const cue = require('../services/cue_orchestrator');
 
+// member 이상 (쓰기 액션)
 async function assertBusinessAccess(userId, businessId, platformRole) {
   if (platformRole === 'platform_admin') return true;
   const m = await BusinessMember.findOne({ where: { user_id: userId, business_id: businessId } });
   return !!m;
+}
+
+// 조회용 — client 도 통과 (자기 client_id 의 document)
+async function assertReadAccess(userId, businessId, platformRole) {
+  const scope = await getUserScope(userId, businessId, platformRole);
+  if (scope.isPlatformAdmin || scope.isOwner || scope.isMember || scope.isClient) return { ok: true, scope };
+  return { ok: false, scope: null };
 }
 
 function isOwnerOrAdmin(member) {
@@ -220,10 +229,17 @@ router.get('/documents', authenticateToken, async (req, res, next) => {
   try {
     const businessId = parseInt(req.query.business_id, 10);
     if (!Number.isFinite(businessId)) return errorResponse(res, 'business_id_required', 400);
-    if (!(await assertBusinessAccess(req.user.id, businessId, req.user.platform_role))) {
-      return errorResponse(res, 'forbidden', 403);
-    }
+    const auth = await assertReadAccess(req.user.id, businessId, req.user.platform_role);
+    if (!auth.ok) return errorResponse(res, 'forbidden', 403);
     const where = { business_id: businessId, archived_at: null };
+    // Client 면 본인 client_id 또는 본인 참여 프로젝트의 document 만 (PERMISSION_MATRIX §6.5)
+    if (auth.scope?.isClient) {
+      const orConds = [];
+      if (auth.scope.clientIds.length > 0) orConds.push({ client_id: { [Op.in]: auth.scope.clientIds } });
+      if (auth.scope.projectClientProjectIds.length > 0) orConds.push({ project_id: { [Op.in]: auth.scope.projectClientProjectIds } });
+      if (orConds.length === 0) return successResponse(res, []);
+      where[Op.or] = orConds;
+    }
     if (req.query.kind && KIND_VALUES.includes(req.query.kind)) where.kind = req.query.kind;
     if (req.query.status) where.status = req.query.status;
     if (req.query.client_id) where.client_id = parseInt(req.query.client_id, 10);
@@ -495,8 +511,12 @@ router.get('/documents/:id', authenticateToken, async (req, res, next) => {
       ],
     });
     if (!doc) return errorResponse(res, 'not_found', 404);
-    if (!(await assertBusinessAccess(req.user.id, doc.business_id, req.user.platform_role))) {
-      return errorResponse(res, 'forbidden', 403);
+    const auth = await assertReadAccess(req.user.id, doc.business_id, req.user.platform_role);
+    if (!auth.ok) return errorResponse(res, 'forbidden', 403);
+    if (auth.scope?.isClient) {
+      const okClient = doc.client_id && auth.scope.clientIds.includes(doc.client_id);
+      const okProject = doc.project_id && auth.scope.projectClientProjectIds.includes(doc.project_id);
+      if (!okClient && !okProject) return errorResponse(res, 'forbidden', 403);
     }
     return successResponse(res, doc.toJSON());
   } catch (e) { next(e); }

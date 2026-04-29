@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { Invoice, InvoiceItem, InvoiceInstallment, Client, User, Business, Post, Conversation, Message } = require('../models');
 const { authenticateToken, checkBusinessAccess } = require('../middleware/auth');
+const { attachWorkspaceScope, invoiceListWhere, canAccessInvoice, isMemberOrAbove } = require('../middleware/access_scope');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const { sequelize } = require('../config/database');
 
@@ -220,10 +221,12 @@ router.get('/public/:token/pdf', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// List invoices
-router.get('/:businessId', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+// List invoices — client 면 자기 client_id 의 invoice 만
+router.get('/:businessId', authenticateToken, attachWorkspaceScope(), async (req, res, next) => {
   try {
-    const where = { business_id: req.params.businessId };
+    const baseWhere = await invoiceListWhere(req.user.id, Number(req.params.businessId), req.scope);
+    if (!baseWhere) return errorResponse(res, 'forbidden', 403);
+    const where = { ...baseWhere };
     if (req.query.status) where.status = req.query.status;
 
     const invoices = await Invoice.findAll({
@@ -434,10 +437,11 @@ router.get('/:businessId/find-conversation', authenticateToken, checkBusinessAcc
 });
 
 // ─── PDF 다운로드 (멤버) ───
-router.get('/:businessId/:id/pdf', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+router.get('/:businessId/:id/pdf', authenticateToken, attachWorkspaceScope(), async (req, res, next) => {
   try {
-    const inv = await Invoice.findOne({ where: { id: req.params.id, business_id: req.params.businessId }, attributes: ['id'] });
+    const inv = await Invoice.findOne({ where: { id: req.params.id, business_id: req.params.businessId } });
     if (!inv) return errorResponse(res, 'not_found', 404);
+    if (!(await canAccessInvoice(req.user.id, inv, req.scope))) return errorResponse(res, 'forbidden', 403);
     const { pdf, invoice } = await buildInvoicePdf(inv.id);
     res.setHeader('Content-Type', 'application/pdf');
     const asciiName = (invoice.invoice_number || 'invoice').replace(/[^\w-]/g, '_').slice(0, 80) || 'invoice';
@@ -446,8 +450,8 @@ router.get('/:businessId/:id/pdf', authenticateToken, checkBusinessAccess, async
   } catch (err) { next(err); }
 });
 
-// Get invoice detail
-router.get('/:businessId/:id', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+// Get invoice detail — client 도 자기 invoice 면 통과
+router.get('/:businessId/:id', authenticateToken, attachWorkspaceScope(), async (req, res, next) => {
   try {
     const invoice = await Invoice.findOne({
       where: { id: req.params.id, business_id: req.params.businessId },
@@ -460,6 +464,7 @@ router.get('/:businessId/:id', authenticateToken, checkBusinessAccess, async (re
       ]
     });
     if (!invoice) return errorResponse(res, 'Invoice not found', 404);
+    if (!(await canAccessInvoice(req.user.id, invoice, req.scope))) return errorResponse(res, 'forbidden', 403);
     successResponse(res, invoice);
   } catch (error) {
     next(error);

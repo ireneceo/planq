@@ -150,6 +150,7 @@ router.post('/register', async (req, res, next) => {
       email,
       password,
       name,
+      username,
       // 신규: 워크스페이스 이름(브랜드) — 레거시 호환 위해 business_name 도 허용
       workspace_name,
       business_name,
@@ -164,6 +165,30 @@ router.post('/register', async (req, res, next) => {
     if (!email || !password || !name || !brandName) {
       await transaction.rollback();
       return errorResponse(res, 'Email, password, name, and workspace name are required', 400);
+    }
+
+    // username 검증 (선택 — 안 주면 이메일 prefix 로 자동 생성, 충돌 시 _2, _3... )
+    const RESERVED_USERNAMES = new Set([
+      'admin', 'administrator', 'root', 'system', 'support', 'help', 'api',
+      'planq', 'cue', 'null', 'undefined', 'me', 'profile', 'settings',
+    ]);
+    let finalUsername = null;
+    if (username !== undefined && username !== null && username !== '') {
+      const u = String(username).toLowerCase().trim();
+      if (!/^[a-z0-9_-]{3,30}$/.test(u)) {
+        await transaction.rollback();
+        return errorResponse(res, 'invalid_username_format', 400);
+      }
+      if (RESERVED_USERNAMES.has(u)) {
+        await transaction.rollback();
+        return errorResponse(res, 'username_reserved', 409);
+      }
+      const dup = await User.findOne({ where: { username: u }, transaction });
+      if (dup) {
+        await transaction.rollback();
+        return errorResponse(res, 'username_taken', 409);
+      }
+      finalUsername = u;
     }
 
     if (password.length < 8) {
@@ -196,9 +221,25 @@ router.post('/register', async (req, res, next) => {
     }
 
     // 1. Create human User
+    // username 미입력 시 이메일 prefix 로 자동 생성 (충돌 시 _2, _3 ...)
+    if (!finalUsername) {
+      const base = String(email).split('@')[0]
+        .toLowerCase().replace(/[^a-z0-9_-]/g, '_')
+        .replace(/_+/g, '_').replace(/^_+|_+$/g, '').slice(0, 30) || `user_${Date.now()}`;
+      let candidate = base.length >= 3 ? base : (base + '___').slice(0, 3);
+      let n = 1;
+      while (n < 100) {
+        const exists = await User.findOne({ where: { username: candidate }, transaction });
+        if (!exists) { finalUsername = candidate; break; }
+        n += 1;
+        const suffix = `_${n}`;
+        candidate = base.slice(0, 30 - suffix.length) + suffix;
+      }
+    }
+
     const password_hash = await bcrypt.hash(password, 12);
     const user = await User.create({
-      email, password_hash, name, language: lang, is_ai: false
+      email, password_hash, name, username: finalUsername, language: lang, is_ai: false
     }, { transaction });
 
     // 2. Create Business (워크스페이스)

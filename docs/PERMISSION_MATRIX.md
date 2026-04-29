@@ -444,5 +444,6 @@ const { canFinancial, reason } = usePermissions(projectId);
 | 날짜 | 변경 | 주도 |
 |---|---|---|
 | 2026-04-24 | 초판 작성 — 5 역할, 3 토글, 전 매트릭스 | 기획 (Irene) + 30년차 관점 검증 |
+| 2026-04-28 | **§7 client 정책 백엔드 일괄 구현** — `middleware/access_scope.js` 신설. conversations/tasks/task_attachments/calendar/files/file_folders/posts/docs/invoices/dashboard 11개 라우트가 client 도 자기 자원 통과시키도록 통일. E2E 검증: client 격리 12/12 + owner 쓰기 5/5 통과 | Irene 요청 — "권한에 맞게 안 나옴" 진단 후 일괄 수정 |
 
 이후 변경 시 이 테이블에 한 줄 + 관련 매트릭스 업데이트.

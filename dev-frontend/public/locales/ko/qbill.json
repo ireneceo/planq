@@ -1,6 +1,7 @@
 {
   "page": {
     "title": "Q bill",
+    "titleClient": "받은 청구서",
     "subtitle": "청구·결제·세금계산서를 한 곳에서",
     "tabs": {
       "overview": "개요",

@@ -8,6 +8,7 @@ const {
 } = require('../models');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const { authenticateToken, checkBusinessAccess } = require('../middleware/auth');
+const { attachWorkspaceScope, isMemberOrAbove } = require('../middleware/access_scope');
 const { createAuditLog } = require('../middleware/audit');
 const { RRule, rrulestr } = require('rrule');
 const dailyService = require('../services/daily');
@@ -51,12 +52,9 @@ function parseDate(value) {
 // GET /by-business/:businessId — 범위 조회
 // query: start, end, project_id?, scope=all|mine (default all)
 // ============================================
-router.get('/by-business/:businessId', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+router.get('/by-business/:businessId', authenticateToken, attachWorkspaceScope(), async (req, res, next) => {
   try {
     const businessId = Number(req.params.businessId);
-    const bm = await requireMember(req.user.id, businessId);
-    if (!bm) return errorResponse(res, 'forbidden', 403);
-
     const start = parseDate(req.query.start);
     const end = parseDate(req.query.end);
     if (!start || !end) return errorResponse(res, 'start and end are required (ISO8601)', 400);
@@ -81,13 +79,27 @@ router.get('/by-business/:businessId', authenticateToken, checkBusinessAccess, a
     };
     if (req.query.project_id) baseWhere.project_id = Number(req.query.project_id);
 
-    // visibility: business 는 모든 멤버 / personal 은 본인만
-    baseWhere[Op.and] = [{
-      [Op.or]: [
-        { visibility: 'business' },
-        { visibility: 'personal', created_by: req.user.id },
-      ],
-    }];
+    // visibility:
+    //   member 이상 — business 전부 + 본인 personal
+    //   client      — 본인이 attendee 인 business event 만 (PERMISSION_MATRIX §7)
+    if (req.scope?.isClient) {
+      // client 면 자기가 참여한 event 만 — attendee_user_id = me
+      const myAttendees = await CalendarEventAttendee.findAll({
+        where: { user_id: req.user.id },
+        attributes: ['event_id'],
+      });
+      const ids = myAttendees.map((a) => a.event_id);
+      if (ids.length === 0) return successResponse(res, []);
+      baseWhere.id = { [Op.in]: ids };
+      baseWhere[Op.and] = [{ visibility: 'business' }];
+    } else {
+      baseWhere[Op.and] = [{
+        [Op.or]: [
+          { visibility: 'business' },
+          { visibility: 'personal', created_by: req.user.id },
+        ],
+      }];
+    }
 
     const rawEvents = await CalendarEvent.findAll({
       where: baseWhere,
@@ -271,11 +283,9 @@ router.post('/by-business/:businessId', authenticateToken, checkBusinessAccess, 
 // ============================================
 // GET /by-business/:businessId/:id — 상세
 // ============================================
-router.get('/by-business/:businessId/:id', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+router.get('/by-business/:businessId/:id', authenticateToken, attachWorkspaceScope(), async (req, res, next) => {
   try {
     const businessId = Number(req.params.businessId);
-    const bm = await requireMember(req.user.id, businessId);
-    if (!bm) return errorResponse(res, 'forbidden', 403);
 
     const event = await CalendarEvent.findOne({
       where: { id: req.params.id, business_id: businessId },
@@ -286,6 +296,15 @@ router.get('/by-business/:businessId/:id', authenticateToken, checkBusinessAcces
     // personal 은 본인만
     if (event.visibility === 'personal' && event.created_by !== req.user.id) {
       return errorResponse(res, 'forbidden', 403);
+    }
+
+    // Client: attendee 인 event 만
+    if (req.scope?.isClient) {
+      const att = await CalendarEventAttendee.findOne({
+        where: { event_id: event.id, user_id: req.user.id },
+        attributes: ['id'],
+      });
+      if (!att) return errorResponse(res, 'forbidden', 403);
     }
 
     return successResponse(res, event.toJSON());
@@ -456,11 +475,9 @@ router.delete('/by-business/:businessId/:id', authenticateToken, checkBusinessAc
 // PUT /by-business/:businessId/:id/attendees/:attendeeId — 참석 응답
 // body: { response: 'accepted'|'declined'|'tentative'|'pending' }
 // ============================================
-router.put('/by-business/:businessId/:id/attendees/:attendeeId', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+router.put('/by-business/:businessId/:id/attendees/:attendeeId', authenticateToken, attachWorkspaceScope(), async (req, res, next) => {
   try {
     const businessId = Number(req.params.businessId);
-    const bm = await requireMember(req.user.id, businessId);
-    if (!bm) return errorResponse(res, 'forbidden', 403);
 
     const event = await CalendarEvent.findOne({ where: { id: req.params.id, business_id: businessId } });
     if (!event) return errorResponse(res, 'event_not_found', 404);
@@ -470,7 +487,7 @@ router.put('/by-business/:businessId/:id/attendees/:attendeeId', authenticateTok
     });
     if (!attendee) return errorResponse(res, 'attendee_not_found', 404);
 
-    // 본인 응답만 변경 가능
+    // 본인 응답만 변경 가능 (client 도 자기 응답은 변경 가능)
     if (attendee.user_id !== req.user.id) return errorResponse(res, 'only_self_response', 403);
 
     const { response } = req.body || {};

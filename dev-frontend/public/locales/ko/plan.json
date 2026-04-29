@@ -89,6 +89,73 @@
     "comingSoonDesc": "현재는 운영자가 수동으로 플랜을 조정해 드립니다. 업그레이드 요청을 보내주세요.",
     "requestUpgrade": "업그레이드 요청"
   },
+  "banner": {
+    "pastDue": {
+      "title": "결제일이 지났습니다",
+      "desc": "{{date}} 부터 결제 대기 상태입니다. 곧 유예 기간이 시작됩니다."
+    },
+    "grace": {
+      "title": "유예 기간 — {{days}}일 남음",
+      "desc": "유예 기간이 끝나면 워크스페이스가 Free 로 강등됩니다. 데이터는 보존되지만 신규 작성·청구·서명 발송 등이 제한됩니다."
+    },
+    "demoted": {
+      "title": "Free 플랜으로 강등됨",
+      "desc": "결제가 누락되어 강등되었습니다. 결제하면 즉시 원래 플랜으로 복구됩니다 (데이터 보존)."
+    },
+    "cta": "결제하러 가기 →",
+    "dismiss": "닫기"
+  },
+  "checkout": {
+    "title": "결제 요청",
+    "summary": {
+      "plan": "플랜",
+      "amount": "결제 금액",
+      "paymentId": "결제 ID"
+    },
+    "cycle": {
+      "monthly": "월간",
+      "yearly": "연간"
+    },
+    "bank": {
+      "title": "입금 계좌",
+      "holder": "예금주",
+      "contactSupport": "계좌 정보는 support@planq.kr 으로 문의 부탁드립니다.",
+      "memoHint": "입금자명에 결제 ID #{{paymentId}} 또는 워크스페이스명을 함께 적어주세요."
+    },
+    "payerName": {
+      "label": "입금자명 (선택)",
+      "placeholder": "홍길동",
+      "hint": "입금하신 명의가 다를 때 입력하면 확인이 빨라집니다."
+    },
+    "notice": "입금 확인 후 \"입금 완료 처리\"를 눌러주세요. 즉시 활성화됩니다. 24시간 내 미입금 시 자동 취소됩니다.",
+    "markPaid": "입금 완료 처리",
+    "processing": "처리 중...",
+    "cancel": "취소",
+    "errors": {
+      "checkoutFailed": "결제 요청 실패. 잠시 후 다시 시도해 주세요.",
+      "markPaidFailed": "입금 완료 처리 실패. 결제 ID 와 금액을 확인 후 다시 시도해 주세요."
+    }
+  },
+  "billing": {
+    "history": {
+      "title": "결제 이력",
+      "empty": "결제 내역이 없습니다",
+      "receipt": "영수증"
+    },
+    "cycle": {
+      "monthly": "월간",
+      "yearly": "연간"
+    },
+    "payment": {
+      "status": {
+        "pending": "대기",
+        "paid": "완료",
+        "failed": "실패",
+        "refunded": "환불",
+        "canceled": "취소"
+      }
+    }
+  },
   "history": {
     "title": "플랜 변경 이력",
     "empty": "변경 이력이 없습니다",

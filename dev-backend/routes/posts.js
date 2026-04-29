@@ -10,6 +10,7 @@ const { v4: uuidv4 } = require('uuid');
 const { Op } = require('sequelize');
 const { Post, PostAttachment, PostCategory, File, User, Project, BusinessMember, Business, Conversation, Message } = require('../models');
 const { authenticateToken } = require('../middleware/auth');
+const { getUserScope, postListWhere, canAccessPost, isMemberOrAbove } = require('../middleware/access_scope');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const { sendPostShareEmail } = require('../services/emailService');
 
@@ -34,13 +35,20 @@ const editorImageUpload = multer({
   }
 });
 
-// 워크스페이스 멤버십 확인 헬퍼
+// 워크스페이스 멤버십 확인 헬퍼 (member 이상 — 쓰기 액션용)
 async function assertMember(userId, businessId, isPlatformAdmin) {
   if (isPlatformAdmin) return true;
   const bm = await BusinessMember.findOne({ where: { user_id: userId, business_id: businessId } });
   if (bm) return true;
   const biz = await Business.findOne({ where: { id: businessId, owner_id: userId } });
   return !!biz;
+}
+
+// 워크스페이스 + client 통합 (조회 액션용)
+async function assertWorkspaceOrClient(userId, businessId, platformRole) {
+  const scope = await getUserScope(userId, businessId, platformRole);
+  if (scope.isPlatformAdmin || scope.isOwner || scope.isMember || scope.isClient) return { ok: true, scope };
+  return { ok: false, scope: null };
 }
 
 // Plain text 추출 — Tiptap JSON → 검색/프리뷰용 plain string
@@ -107,10 +115,12 @@ router.get('/', authenticateToken, async (req, res, next) => {
   try {
     const businessId = Number(req.query.business_id || 0);
     if (!businessId) return errorResponse(res, 'business_id required', 400);
-    if (!(await assertMember(req.user.id, businessId, req.user.platform_role === 'platform_admin'))) {
-      return errorResponse(res, 'forbidden', 403);
-    }
-    const where = { business_id: businessId };
+    const auth = await assertWorkspaceOrClient(req.user.id, businessId, req.user.platform_role);
+    if (!auth.ok) return errorResponse(res, 'forbidden', 403);
+    // Client 면 자기 참여 프로젝트 post 만
+    const baseWhere = await postListWhere(req.user.id, businessId, auth.scope);
+    if (!baseWhere) return errorResponse(res, 'forbidden', 403);
+    const where = { ...baseWhere };
     if (req.query.project_id === 'null' || req.query.project_id === '') where.project_id = null;
     else if (req.query.project_id) where.project_id = Number(req.query.project_id);
     if (req.query.category) where.category = String(req.query.category);
@@ -156,10 +166,12 @@ router.get('/meta', authenticateToken, async (req, res, next) => {
   try {
     const businessId = Number(req.query.business_id || 0);
     if (!businessId) return errorResponse(res, 'business_id required', 400);
-    if (!(await assertMember(req.user.id, businessId, req.user.platform_role === 'platform_admin'))) {
-      return errorResponse(res, 'forbidden', 403);
-    }
-    const scopeWhere = { business_id: businessId };
+    const auth = await assertWorkspaceOrClient(req.user.id, businessId, req.user.platform_role);
+    if (!auth.ok) return errorResponse(res, 'forbidden', 403);
+    // Client 는 자기 참여 프로젝트 post 의 메타만
+    const baseScope = await postListWhere(req.user.id, businessId, auth.scope);
+    if (!baseScope) return errorResponse(res, 'forbidden', 403);
+    const scopeWhere = { ...baseScope };
     if (req.query.project_id === 'null' || req.query.project_id === '') scopeWhere.project_id = null;
     else if (req.query.project_id) scopeWhere.project_id = Number(req.query.project_id);
 
@@ -212,7 +224,8 @@ router.get('/:id', authenticateToken, async (req, res, next) => {
       ],
     });
     if (!post) return errorResponse(res, 'not_found', 404);
-    if (!(await assertMember(req.user.id, post.business_id, req.user.platform_role === 'platform_admin'))) {
+    const scope = await getUserScope(req.user.id, post.business_id, req.user.platform_role);
+    if (!(await canAccessPost(req.user.id, post, scope))) {
       return errorResponse(res, 'forbidden', 403);
     }
     await post.increment('view_count');

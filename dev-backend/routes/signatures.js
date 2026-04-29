@@ -294,6 +294,78 @@ router.post('/signatures/:id/reminder', authenticateToken, async (req, res, next
 });
 
 // ════════════════════════════════════════════════════════════
+// 받은 서명 archive — cross-workspace
+// GET /api/signatures/received?status=&workspace=&q=&limit=&offset=
+// signer_email = req.user.email 인 SignatureRequest 모두 (어느 워크스페이스든)
+// ════════════════════════════════════════════════════════════
+router.get('/signatures/received', authenticateToken, async (req, res, next) => {
+  try {
+    const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 50, 1), 200);
+    const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
+    const wsId = req.query.workspace ? Number(req.query.workspace) : null;
+    const where = { signer_email: req.user.email };
+    if (wsId) where.business_id = wsId;
+    if (req.query.status && req.query.status !== 'all') {
+      where.status = req.query.status;
+    }
+    const total = await SignatureRequest.count({ where });
+    const rows = await SignatureRequest.findAll({
+      where,
+      order: [['created_at', 'DESC']],
+      limit, offset,
+    });
+
+    // entity title 보강 (Post 위주)
+    const postIds = rows.filter(r => r.entity_type === 'post').map(r => r.entity_id);
+    const posts = postIds.length > 0
+      ? await Post.findAll({ where: { id: postIds }, attributes: ['id', 'title'] })
+      : [];
+    const titleMap = new Map(posts.map(p => [p.id, p.title]));
+
+    // workspace 라벨 보강 (cross-workspace 구분용)
+    const bizIds = Array.from(new Set(rows.map(r => r.business_id)));
+    const bizs = bizIds.length > 0
+      ? await Business.findAll({ where: { id: bizIds }, attributes: ['id', 'name', 'brand_name'] })
+      : [];
+    const bizMap = new Map(bizs.map(b => [b.id, b]));
+
+    // 검색 (q): entity title 매칭 (단순 client-side 필터)
+    let items = rows.map(s => ({
+      ...serialize(s),
+      entity_title: s.entity_type === 'post' ? (titleMap.get(s.entity_id) || '문서') : '문서',
+      workspace: bizMap.get(s.business_id) ? {
+        business_id: s.business_id,
+        brand_name: bizMap.get(s.business_id).brand_name || bizMap.get(s.business_id).name,
+        // 받는 입장이라 role 은 'client' 로 표시 (단 owner/member 가 자기에게 발송한 경우도 있을 수 있음 — 그 경우도 받는 시점은 동일)
+        role: 'client',
+      } : null,
+    }));
+    if (req.query.q) {
+      const q = String(req.query.q).toLowerCase();
+      items = items.filter(it => (it.entity_title || '').toLowerCase().includes(q));
+    }
+
+    // 워크스페이스 목록 (필터 UI 용 — 받은 적 있는 워크스페이스 모두)
+    const allRowsForWs = await SignatureRequest.findAll({
+      where: { signer_email: req.user.email },
+      attributes: ['business_id'],
+      group: ['business_id'],
+    });
+    const allBizIds = Array.from(new Set(allRowsForWs.map(r => r.business_id)));
+    const allBizs = allBizIds.length > 0
+      ? await Business.findAll({ where: { id: allBizIds }, attributes: ['id', 'name', 'brand_name'] })
+      : [];
+    const workspaces = allBizs.map(b => ({
+      business_id: b.id,
+      brand_name: b.brand_name || b.name,
+      role: 'client',
+    }));
+
+    return successResponse(res, { items, total, workspaces });
+  } catch (err) { next(err); }
+});
+
+// ════════════════════════════════════════════════════════════
 // 공개 라우트 (토큰 기반, 인증 없음)
 // ════════════════════════════════════════════════════════════
 

@@ -6,6 +6,55 @@
     "newDoc": "새 문서",
     "searchPlaceholder": "제목·고객·프로젝트 검색"
   },
+  "tabs": {
+    "documents": "문서",
+    "received-signatures": "받은 서명"
+  },
+  "received": {
+    "searchPh": "문서 제목 검색",
+    "allWorkspaces": "전체 워크스페이스",
+    "loading": "불러오는 중...",
+    "empty": "받은 서명 요청이 없습니다",
+    "expiresAt": "{{date}} 만료",
+    "signedAt": "{{date}} 서명",
+    "rejectedAt": "{{date}} 거절",
+    "prev": "이전",
+    "next": "다음",
+    "status": {
+      "all": "전체",
+      "pending": "대기",
+      "signed": "완료",
+      "rejected": "거절",
+      "expired": "만료"
+    },
+    "statusFull": {
+      "pending": "대기",
+      "sent": "대기",
+      "viewed": "열람됨",
+      "signed": "서명 완료",
+      "rejected": "거절",
+      "expired": "만료",
+      "canceled": "취소됨"
+    },
+    "action": {
+      "sign": "서명하기",
+      "signOpen": "서명 페이지 열기",
+      "pdf": "PDF 다운",
+      "close": "닫기"
+    },
+    "detail": {
+      "status": "상태",
+      "workspace": "워크스페이스",
+      "note": "메모",
+      "expiresAt": "만료 시각",
+      "viewedAt": "열람 시각",
+      "signedAt": "서명 시각",
+      "signedIp": "서명 IP",
+      "signatureImage": "서명 이미지",
+      "rejectedAt": "거절 시각",
+      "rejectedReason": "거절 사유"
+    }
+  },
   "section": {
     "library": "템플릿 라이브러리",
     "documents": "내 문서"

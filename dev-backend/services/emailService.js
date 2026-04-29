@@ -308,4 +308,38 @@ async function sendInvoiceEmail({ to, invoiceNumber, title, total, currency, due
   });
 }
 
-module.exports = { sendEmail, sendInviteEmail, sendPostShareEmail, sendSignatureRequestEmail, sendSignatureOtpEmail, sendInvoiceEmail };
+// ─── 이메일 변경 OTP (P-1.5) ───
+function verificationCodeEmailHtml({ code, ttlMinutes, userName }) {
+  return `<!doctype html><html><head><meta charset="utf-8"></head><body style="margin:0;background:#F1F5F9;font-family:-apple-system,Segoe UI,Roboto,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#F1F5F9;padding:40px 16px;">
+    <tr><td align="center">
+      <table width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;background:#FFFFFF;border:1px solid #E2E8F0;border-radius:12px;padding:32px;">
+        <tr><td>
+          <div style="font-size:13px;color:#64748B;letter-spacing:1px;text-transform:uppercase;font-weight:700;">PlanQ</div>
+          <h1 style="margin:8px 0 16px;font-size:20px;color:#0F172A;font-weight:700;">이메일 변경 확인 코드</h1>
+          <p style="margin:0 0 16px;font-size:14px;color:#475569;line-height:1.6;">
+            ${userName ? escapeHtml(userName) + '님, ' : ''}새 이메일 주소로 변경하기 위한 확인 코드입니다. 아래 코드를 입력해 주세요.
+          </p>
+          <div style="margin:24px 0;padding:20px;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:10px;text-align:center;">
+            <div style="font-size:32px;font-weight:700;letter-spacing:8px;color:#0F172A;font-family:monospace;">${escapeHtml(code)}</div>
+          </div>
+          <p style="margin:0;font-size:12px;color:#94A3B8;line-height:1.6;">
+            이 코드는 ${ttlMinutes}분 동안 유효합니다. 본인이 요청한 게 아니면 이 메일을 무시하세요.
+          </p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body></html>`;
+}
+
+async function sendVerificationCodeEmail({ to, code, ttlMinutes = 10, userName = '' }) {
+  if (!to || !code) return false;
+  return sendEmail({
+    to,
+    subject: `[PlanQ] 이메일 변경 코드 ${code}`,
+    html: verificationCodeEmailHtml({ code, ttlMinutes, userName }),
+  });
+}
+
+module.exports = { sendEmail, sendInviteEmail, sendPostShareEmail, sendSignatureRequestEmail, sendSignatureOtpEmail, sendInvoiceEmail, sendVerificationCodeEmail };

@@ -89,6 +89,73 @@
     "comingSoonDesc": "Operator manually adjusts plans for now. Send an upgrade request.",
     "requestUpgrade": "Request Upgrade"
   },
+  "banner": {
+    "pastDue": {
+      "title": "Payment past due",
+      "desc": "Payment due since {{date}}. Grace period starting soon."
+    },
+    "grace": {
+      "title": "Grace period — {{days}} day(s) left",
+      "desc": "After grace ends, this workspace will be downgraded to Free. Data is preserved but new actions are restricted."
+    },
+    "demoted": {
+      "title": "Downgraded to Free",
+      "desc": "Workspace was downgraded due to missed payment. Pay now to restore your plan (data preserved)."
+    },
+    "cta": "Pay now →",
+    "dismiss": "Dismiss"
+  },
+  "checkout": {
+    "title": "Checkout",
+    "summary": {
+      "plan": "Plan",
+      "amount": "Total",
+      "paymentId": "Payment ID"
+    },
+    "cycle": {
+      "monthly": "Monthly",
+      "yearly": "Yearly"
+    },
+    "bank": {
+      "title": "Bank Account",
+      "holder": "Holder",
+      "contactSupport": "Contact support@planq.kr for account details.",
+      "memoHint": "Include Payment ID #{{paymentId}} or workspace name with your transfer."
+    },
+    "payerName": {
+      "label": "Payer name (optional)",
+      "placeholder": "John Doe",
+      "hint": "Helps us match the deposit faster if it differs from your account."
+    },
+    "notice": "Click \"Mark as paid\" after transfer. Activates immediately. Auto-canceled if not paid within 24h.",
+    "markPaid": "Mark as paid",
+    "processing": "Processing...",
+    "cancel": "Cancel",
+    "errors": {
+      "checkoutFailed": "Checkout failed. Please try again.",
+      "markPaidFailed": "Failed to mark as paid. Please verify and retry."
+    }
+  },
+  "billing": {
+    "history": {
+      "title": "Payment History",
+      "empty": "No payment records",
+      "receipt": "Receipt"
+    },
+    "cycle": {
+      "monthly": "Monthly",
+      "yearly": "Yearly"
+    },
+    "payment": {
+      "status": {
+        "pending": "Pending",
+        "paid": "Paid",
+        "failed": "Failed",
+        "refunded": "Refunded",
+        "canceled": "Canceled"
+      }
+    }
+  },
   "history": {
     "title": "Change History",
     "empty": "No changes yet",

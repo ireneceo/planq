@@ -6,6 +6,7 @@ const fs = require('fs');
 const { v4: uuidv4 } = require('uuid');
 const { Task, TaskAttachment, TaskComment, User, BusinessMember, BusinessCloudToken, Project, File } = require('../models');
 const { authenticateToken } = require('../middleware/auth');
+const { getUserScope, canAccessTask, isMemberOrAbove } = require('../middleware/access_scope');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const gdrive = require('../services/gdrive');
 
@@ -44,9 +45,12 @@ const upload = multer({
 async function loadTaskAndGuard(req, res) {
   const task = await Task.findByPk(req.params.taskId);
   if (!task) { errorResponse(res, 'task_not_found', 404); return null; }
-  const bm = await BusinessMember.findOne({ where: { user_id: req.user.id, business_id: task.business_id } });
-  if (!bm) { errorResponse(res, 'forbidden', 403); return null; }
+  const scope = await getUserScope(req.user.id, task.business_id, req.user.platform_role);
+  if (!(await canAccessTask(req.user.id, task, scope))) {
+    errorResponse(res, 'forbidden', 403); return null;
+  }
   req._task = task;
+  req._scope = scope;
   return task;
 }
 
@@ -224,8 +228,12 @@ async function serveAttachment(req, res, next, asDownload) {
   try {
     const att = await TaskAttachment.findByPk(req.params.id);
     if (!att) return errorResponse(res, 'attachment_not_found', 404);
-    const bm = await BusinessMember.findOne({ where: { user_id: req.user.id, business_id: att.business_id } });
-    if (!bm) return errorResponse(res, 'forbidden', 403);
+    const task = await Task.findByPk(att.task_id);
+    if (!task) return errorResponse(res, 'task_not_found', 404);
+    const scope = await getUserScope(req.user.id, att.business_id, req.user.platform_role);
+    if (!(await canAccessTask(req.user.id, task, scope))) {
+      return errorResponse(res, 'forbidden', 403);
+    }
     const abs = path.join(__dirname, '..', att.file_path);
     if (!fs.existsSync(abs)) return errorResponse(res, 'file_missing', 410);
     if (asDownload) {
@@ -281,9 +289,16 @@ router.delete('/attachments/:id', authenticateToken, async (req, res, next) => {
   try {
     const att = await TaskAttachment.findByPk(req.params.id);
     if (!att) return errorResponse(res, 'attachment_not_found', 404);
-    const bm = await BusinessMember.findOne({ where: { user_id: req.user.id, business_id: att.business_id } });
-    if (!bm) return errorResponse(res, 'forbidden', 403);
-    if (att.uploaded_by !== req.user.id && bm.role !== 'owner') return errorResponse(res, 'forbidden', 403);
+    const task = await Task.findByPk(att.task_id);
+    if (!task) return errorResponse(res, 'task_not_found', 404);
+    const scope = await getUserScope(req.user.id, att.business_id, req.user.platform_role);
+    if (!(await canAccessTask(req.user.id, task, scope))) {
+      return errorResponse(res, 'forbidden', 403);
+    }
+    // 삭제는 업로더 본인 또는 owner — client 도 본인 업로드는 삭제 가능
+    if (att.uploaded_by !== req.user.id && !scope.isOwner && !scope.isPlatformAdmin) {
+      return errorResponse(res, 'forbidden', 403);
+    }
 
     if (att.storage_provider === 'gdrive' && att.external_id) {
       // Drive 파일 삭제 (실패해도 DB 는 제거)

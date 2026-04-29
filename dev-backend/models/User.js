@@ -14,6 +14,13 @@ User.init({
     allowNull: false,
     unique: true
   },
+  // 이메일 변경 OTP (P-1.5)
+  // 새 이메일에 6자리 코드 발송 → verify 시 email 로 교체. 미검증 동안 pending_email 에 보관.
+  pending_email: { type: DataTypes.STRING(100), allowNull: true },
+  email_change_otp_hash: { type: DataTypes.STRING(64), allowNull: true },
+  email_change_otp_expires_at: { type: DataTypes.DATE, allowNull: true },
+  email_change_otp_attempts: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
+  email_change_locked_until: { type: DataTypes.DATE, allowNull: true },
   username: {
     type: DataTypes.STRING(50),
     allowNull: true,

@@ -1141,24 +1141,71 @@ const QNotePage = () => {
     const sess = activeSessionRef.current;
     if (!sess) return;
     const sessId = sess.id;
-    const meetingLang = sess.meeting_languages?.[0];
+
+    // 회의 언어 두 슬롯 — 메인(굵게) + 서브(번역). 자동 감지 질문과 동일 형태.
+    const langs = sess.meeting_languages || [];
+    const mainLang = langs[0] || null;
+    const subLang = langs[1] || null;
+
+    // 입력 언어 휴리스틱 — 같은 언어로 LLM 호출하면 변덕 응답 (raw 그대로/살짝 변형/빈 응답) 발생.
+    // 입력 언어 슬롯은 raw 그대로 두고, 다른 슬롯만 LLM 번역.
+    const detectLang = (s: string): string | null => {
+      if (/[가-힣]/.test(s)) return 'ko';
+      if (/[ぁ-んァ-ン]/.test(s)) return 'ja';
+      if (/[一-龥]/.test(s)) return 'zh';
+      if (/[a-zA-Z]/.test(s)) return 'en';
+      return null;
+    };
+    const inputLang = detectLang(raw);
+
+    // 응답 언어 검증 — gpt-4.1-nano 가 가끔 영어→한국어 요청에 영어 paraphrase 반환.
+    // 휴리스틱으로 검증: target lang 의 글자체가 응답에 있으면 OK, 아니면 실패로 간주.
+    const verifyLang = (s: string, target: string): boolean => {
+      const v = (s || '').trim();
+      if (!v) return false;
+      if (target === 'ko') return /[가-힣]/.test(v);
+      if (target === 'ja') return /[ぁ-んァ-ン]/.test(v);
+      if (target === 'zh') return /[一-龥]/.test(v) && !/[ぁ-んァ-ン]/.test(v);
+      if (target === 'en') return !/[가-힣ぁ-んァ-ン一-龥]/.test(v) && /[a-zA-Z]/.test(v);
+      return true;
+    };
+    // verify + 1회 재시도. 둘 다 실패 시 빈 문자열 반환.
+    const translateVerified = async (target: string): Promise<string> => {
+      for (let i = 0; i < 2; i++) {
+        try {
+          const res = await translateAnswer(sessId, raw, target);
+          const out = (res.translation || '').trim();
+          if (out && verifyLang(out, target)) return out;
+        } catch { /* retry */ }
+      }
+      return '';
+    };
 
     setManualSubmitting(true);
     const virtualId = manualIdRef.current--;
 
-    // 1) 회의언어로 번역 (meetingLang 없으면 raw 그대로)
-    let displayText = raw;
-    if (meetingLang) {
-      try {
-        const res = await translateAnswer(sessId, raw, meetingLang);
-        if (res.translation && res.translation.trim()) {
-          displayText = res.translation.trim();
-        }
-      } catch { /* fallback to raw */ }
+    // 슬롯별 채우기 전략:
+    // - 입력 언어 == 슬롯 언어 → raw 그대로
+    // - 입력 언어 != 슬롯 언어 → LLM 번역 (응답 언어 검증, 실패 시 빈 문자열)
+    const needMain = !!mainLang && inputLang !== mainLang;
+    const needSub = !!subLang && subLang !== mainLang && inputLang !== subLang;
+    const [mainTransOk, subTransOk] = await Promise.all([
+      needMain ? translateVerified(mainLang!) : Promise.resolve(''),
+      needSub ? translateVerified(subLang!) : Promise.resolve(''),
+    ]);
+    // 메인은 비면 raw fallback (메인 슬롯은 항상 채워야 함)
+    const mainText = needMain ? (mainTransOk || raw) : raw;
+    // 서브는 비면 빈 문자열 → translation: null 처리
+    let subText = '';
+    if (subLang && subLang !== mainLang) {
+      subText = needSub ? subTransOk : raw;
     }
 
-    // 2) synthetic question block 을 blocks 끝에 push
-    //    isManual 플래그로 "입력한 질문" 뱃지 렌더링용 구분
+    // 메인/서브 텍스트가 동일하면 translation null (자동 감지 카드와 동일 정책)
+    const normalize = (s: string) => s.trim().toLowerCase().replace(/['']/g, "'").replace(/\s+/g, ' ');
+    const translation = (subText && normalize(subText) !== normalize(mainText)) ? subText : null;
+
+    // synthetic question block 을 blocks 끝에 push (isManual 로 좌측 라벨/뱃지 분기)
     const syntheticBlock: TranscriptBlock = {
       id: `manual-${virtualId}`,
       kind: 'question',
@@ -1167,8 +1214,8 @@ const QNotePage = () => {
       timestamp: '',
       segments: [{
         utteranceId: virtualId,
-        original: displayText,
-        translation: (raw && raw !== displayText) ? raw : null,
+        original: mainText,
+        translation,
         start: null,
         end: null,
       }],
@@ -1183,7 +1230,7 @@ const QNotePage = () => {
 
     // 3) 답변 생성 (utterance_id 없이 — detected_questions 에 저장 안 됨)
     try {
-      const result = await findAnswer(sessId, displayText);
+      const result = await findAnswer(sessId, mainText);
       setAnswerData((prev) => ({
         ...prev,
         [virtualId]: {
@@ -1356,7 +1403,10 @@ const QNotePage = () => {
 
     // 마이크 모드: 수동 지정된 이름(participant_name / is_self)만 표시. 자동 라벨 안 붙음.
     let liveLabel = '';
-    if (isMicMode) {
+    if (block.isManual) {
+      // 사용자가 직접 입력한 질문 — "직접 입력" 라벨로 자동 감지(상대) 발화와 구분
+      liveLabel = t('page.speaker.manual');
+    } else if (isMicMode) {
       if (block.speakerRowId != null) {
         const match = speakerCtx.speakers.find((s) => s.id === block.speakerRowId);
         if (match?.is_self) liveLabel = speakerLabels.self;

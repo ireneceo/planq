@@ -4,6 +4,7 @@ const { Op } = require('sequelize');
 const { FileFolder, File, Project, BusinessMember } = require('../models');
 const { sequelize } = require('../config/database');
 const { authenticateToken, checkBusinessAccess } = require('../middleware/auth');
+const { getUserScope, canAccessProject, isMemberOrAbove } = require('../middleware/access_scope');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 
 async function requireProjectInBusiness(projectId, businessId) {
@@ -11,21 +12,23 @@ async function requireProjectInBusiness(projectId, businessId) {
   return !!project;
 }
 
-async function assertBusinessMember(userId, businessId, platformRole) {
+// member 이상 (쓰기 액션용)
+async function assertMemberWrite(userId, businessId, platformRole) {
   if (platformRole === 'platform_admin') return true;
   const bm = await BusinessMember.findOne({ where: { user_id: userId, business_id: businessId } });
   return !!bm;
 }
 
-// List folders of a project
+// List folders of a project — client 도 자기 참여 프로젝트면 통과
 router.get('/projects/:projectId', authenticateToken, async (req, res, next) => {
   try {
     const project = await Project.findByPk(req.params.projectId);
     if (!project) return errorResponse(res, 'Project not found', 404);
-    if (!(await assertBusinessMember(req.user.id, project.business_id, req.user.platform_role))) {
+    const scope = await getUserScope(req.user.id, project.business_id, req.user.platform_role);
+    if (!(await canAccessProject(req.user.id, project, scope))) {
       return errorResponse(res, 'forbidden', 403);
     }
-    req.params.businessId = project.business_id; // for checkBusinessAccess compatibility
+    req.params.businessId = project.business_id;
     const folders = await FileFolder.findAll({
       where: { business_id: project.business_id, project_id: project.id },
       order: [['parent_id', 'ASC'], ['sort_order', 'ASC'], ['created_at', 'ASC']]
@@ -41,7 +44,7 @@ router.post('/projects/:projectId', authenticateToken, async (req, res, next) =>
   try {
     const project = await Project.findByPk(req.params.projectId);
     if (!project) return errorResponse(res, 'Project not found', 404);
-    if (!(await assertBusinessMember(req.user.id, project.business_id, req.user.platform_role))) {
+    if (!(await assertMemberWrite(req.user.id, project.business_id, req.user.platform_role))) {
       return errorResponse(res, 'forbidden', 403);
     }
     const name = (req.body.name || '').trim();
@@ -74,7 +77,7 @@ router.put('/:id/reorder', authenticateToken, async (req, res, next) => {
   try {
     const folder = await FileFolder.findByPk(req.params.id);
     if (!folder) return errorResponse(res, 'Folder not found', 404);
-    if (!(await assertBusinessMember(req.user.id, folder.business_id, req.user.platform_role))) {
+    if (!(await assertMemberWrite(req.user.id, folder.business_id, req.user.platform_role))) {
       return errorResponse(res, 'forbidden', 403);
     }
     const direction = req.body.direction;
@@ -122,7 +125,7 @@ router.put('/:id', authenticateToken, async (req, res, next) => {
   try {
     const folder = await FileFolder.findByPk(req.params.id);
     if (!folder) return errorResponse(res, 'Folder not found', 404);
-    if (!(await assertBusinessMember(req.user.id, folder.business_id, req.user.platform_role))) {
+    if (!(await assertMemberWrite(req.user.id, folder.business_id, req.user.platform_role))) {
       return errorResponse(res, 'forbidden', 403);
     }
     if (!(await requireProjectInBusiness(folder.project_id, folder.business_id))) {
@@ -143,7 +146,7 @@ router.delete('/:id', authenticateToken, async (req, res, next) => {
   try {
     const folder = await FileFolder.findByPk(req.params.id);
     if (!folder) return errorResponse(res, 'Folder not found', 404);
-    if (!(await assertBusinessMember(req.user.id, folder.business_id, req.user.platform_role))) {
+    if (!(await assertMemberWrite(req.user.id, folder.business_id, req.user.platform_role))) {
       return errorResponse(res, 'forbidden', 403);
     }
 
