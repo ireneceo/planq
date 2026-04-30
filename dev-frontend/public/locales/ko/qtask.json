@@ -139,6 +139,32 @@
       "confirm": "삭제",
       "deleting": "삭제 중..."
     },
+    "cue": {
+      "badge": "Cue가 자동 생성",
+      "kindLabel": {
+        "summarize": "요약",
+        "draft_reply": "답장 초안",
+        "categorize": "분류",
+        "research": "자료 조사"
+      },
+      "executedAt": "{{at}} 실행",
+      "sources": "참고 자료",
+      "sourceType": {
+        "conversation": "대화방",
+        "post": "포스트",
+        "kb_document": "지식 문서",
+        "meeting": "회의"
+      },
+      "rerun": "다시 실행",
+      "rerunning": "실행 중...",
+      "noEvent": "아직 실행되지 않았습니다",
+      "lastEvent": {
+        "executed": "실행 완료",
+        "failed": "실행 실패",
+        "skipped": "건너뜀"
+      },
+      "rerunError": "재실행 실패: {{reason}}"
+    },
     "chip": {
       "fromLabel": "{{name}}에게 요청받음",
       "fromLabelAnon": "요청받음",

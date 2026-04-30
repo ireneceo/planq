@@ -243,7 +243,7 @@ export default function SettingsTab({ inWorkspaceSettings = false }: SettingsTab
                 onChange={(opt) => opt && setCurrency((opt as PlanQSelectOption).value as string)}
               />
             </AutoSaveField>
-            <FieldHint>{t('settings.defaults.currencyHint', '외화는 Phase E 에서 추가됩니다')}</FieldHint>
+            <FieldHint>{t('settings.defaults.currencyHint', '새 청구서의 기본값입니다. 청구서별로 다른 통화를 선택할 수 있습니다.')}</FieldHint>
           </EditField>
           <EditField>
             <EditLabel>{t('settings.defaults.numberFormat')}</EditLabel>

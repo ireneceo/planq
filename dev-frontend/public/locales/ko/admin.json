@@ -106,5 +106,37 @@
   },
   "guard": {
     "noAccess": "플랫폼 관리자 전용 페이지입니다"
+  },
+  "emailLogs": {
+    "title": "메일 발송 모니터링",
+    "loading": "로드 중...",
+    "tab": {
+      "all": "전체",
+      "sent": "성공",
+      "failed": "실패",
+      "skipped": "건너뜀"
+    },
+    "status": {
+      "sent": "성공",
+      "failed": "실패",
+      "skipped": "건너뜀"
+    },
+    "col": {
+      "time": "시각",
+      "to": "수신",
+      "subject": "제목",
+      "template": "템플릿",
+      "status": "상태",
+      "retry": "재시도",
+      "action": "액션"
+    },
+    "action": {
+      "retry": "재발송",
+      "retrying": "..."
+    },
+    "empty": {
+      "title": "발송 기록이 없습니다",
+      "message": "시스템이 보낸 모든 이메일이 여기에 기록됩니다."
+    }
   }
 }

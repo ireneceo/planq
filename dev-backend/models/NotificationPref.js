@@ -1,8 +1,8 @@
-// NotificationPref — 사용자별 알림 채널 ON/OFF 매트릭스 (Phase E4)
+// NotificationPref — 사용자별 알림 채널 ON/OFF 매트릭스 (Phase E4 + 사이클 J4 push)
 //
 // 매트릭스: event × channel × enabled
 //   event:    'signature' | 'invoice' | 'tax_invoice' | 'task' | 'event' | 'invite' | 'mention'
-//   channel:  'inbox' | 'chat' | 'email'
+//   channel:  'inbox' | 'chat' | 'email' | 'push'
 //
 // 설계:
 //   - row 가 없으면 기본값 ON (열린 문화).
@@ -30,7 +30,7 @@ NotificationPref.init({
     allowNull: false,
   },
   channel: {
-    type: DataTypes.ENUM('inbox', 'chat', 'email'),
+    type: DataTypes.ENUM('inbox', 'chat', 'email', 'push'),
     allowNull: false,
   },
   enabled: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true },

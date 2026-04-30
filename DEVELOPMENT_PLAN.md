@@ -1,10 +1,130 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-04-29 (N 사이클 운영 배포 스크립트 + P8 Cue 자동실행 엔진 + Q Project 카드 재설계 + 피드백 시스템 + I4 RevisionPanel)
+> **최종 업데이트:** 2026-04-30 (Q-A~Q-G 대규모 사이클 — mock 정리·보안·Push·메일·Dashboard·로고·PWA·Insights 6탭)
 >
-> **다음 진입:** N 운영 진입 마무리 (.env 입력·SMTP·도메인) → K PortOne V2 + 팝빌 → 운영 베타
+> **다음 진입:** 운영 진입 (.env / SMTP / VAPID prod / nginx) → K PortOne V2 + 팝빌 → 운영 베타
 >
 > **결제 정책:** 1순위 자체 결제 (계좌이체 mark-paid), 2순위 PortOne (P-7 마지막). 월결제 + 연결제. 미결제 시 7일 유예 후 Free 강등 + 데이터 보존
+
+---
+
+## ✅ 완료: Q-A~Q-G 대규모 사이클 (2026-04-30)
+
+대규모 다중 사이클 — mock 정리부터 통계 6탭까지 한 세션에 진행.
+
+### Q-A 정리 사이클 — production 정합성
+
+| 영역 | 산출물 |
+|------|--------|
+| QTalk mock 제거 | `pages/QTalk/mock.ts` (377줄) + `QDataContext.tsx` (402줄) 삭제, `types.ts` 신규 — production 코드에서 mock 100% 제거 |
+| 사용자 노출 엔지니어링 용어 정리 | `SettingsTab.tsx:246` "Phase E", `DashboardPage.tsx:12` "Phase 1·Phase 4" → 사용자 친화 텍스트 |
+| ProfilePage i18n 마감 | 언어 레벨 섹션 (line 632-705) + LEVEL_OPTIONS 6 + ExpertiseBtn — 모두 ko/en t() |
+| RightPanel 표준 라벨 통일 | `taskStatusLabel/Color` → `utils/taskLabel.ts` `STATUS_COLOR` + `getStatusLabel('observer')` |
+| LeftPanel border 표준 색 | `#F1F5F9` → `#E2E8F0` |
+
+### Q-B 보안 사이클
+
+| 영역 | 산출물 |
+|------|--------|
+| `checkBusinessAccess` IDOR 강화 | URL path 만 신뢰 (body/query 폴백 제거), NaN 가드, `req.businessId` 노출 |
+| auth.js 회원가입 race | `SequelizeUniqueConstraintError` catch → 표준 409 응답 |
+| Refresh token cookie 정합성 | logout 시 `path=/api/auth` + `path=/` 둘 다 clearCookie |
+| Invoices SQL injection 청소 | `sequelize.literal` → `fn('JSON_EXTRACT', col('meta'), '$.invoice_id')` parameterized |
+| Platform admin businessRole 명시 | `req.businessRole='owner'` set — 라우트가 가정 시 undefined 가드 |
+
+### Q-C Push + 메일 사이클
+
+| 영역 | 산출물 |
+|------|--------|
+| Web Push VAPID 활성 | `.env` VAPID_PUBLIC_KEY/PRIVATE_KEY/SUBJECT — Irene 1회 입력 후 즉시 작동 |
+| EmailLog 모니터링 | `models/EmailLog.js` (status/error_message/template/retry_count) + `services/emailService.recordLog()` 자동 통합 |
+| 관리자 메일 모니터링 페이지 | `routes/admin.js` GET /email-logs + retry endpoint, `pages/Admin/AdminEmailLogsPage.tsx` |
+| 알림 매트릭스 UI | ProfilePage `NotificationPrefsCard` (7 event × 4 channel = 28 토글), `NotificationPref` ENUM 'push' 추가 |
+| 좌측 nav 메뉴 추가 | 메일 모니터링 항목 (admin) |
+
+### Dashboard + UserChip + 로고 사이클
+
+| 영역 | 산출물 |
+|------|--------|
+| Dashboard 위젯 페이지 | placeholder 32줄 → 위젯 그리드 (인박스 카드 + 4 액션 + 미리보기 5건 + 이번주 일정) |
+| UserChip 우측 상단 | `Layout/UserChip.tsx` 신규, PageShell 헤더 우측 모든 페이지 자동 노출, 클릭 → /profile |
+| 로고 4종 적용 | favicon.svg + apple-touch-icon.png + icon-192/512.png (puppeteer SVG→PNG) + planQ-slogan_white.svg (LoginPage·Sidebar) + planQ_white.svg (랜딩 백업) + planQ-slogan_color.svg (백업) |
+| manifest.json | PWA 아이콘 4종 + share_target |
+
+### PWA Install + Share Target 사이클
+
+| 영역 | 산출물 |
+|------|--------|
+| InstallPromptBanner | `components/Common/InstallPromptBanner.tsx` — Android `beforeinstallprompt` + iOS 단계 안내 + standalone 자동 감지 + 7일 dismiss |
+| 알림 권한 prompt | PWA 설치 후 `Notification.requestPermission` + `subscribePush` 1탭 활성 |
+| PWA Share Target | manifest `share_target` GET / `pages/ShareReceive/ShareReceivePage.tsx` (title·text·url 받음 → 채팅·업무·메모·문서 4 카드 분기) |
+| prefill 핸들러 | ChatPanel + QTaskPage `?prefill=` 자동 input 채움 |
+
+### Q-G Insights (통계·분석) 6탭 풀 구현
+
+설계 문서 `docs/INSIGHTS_DESIGN.md` 신규 작성 — 30년차 임원급 (서비스 기획자 + 글로벌 컨설턴트 + UI/UX) 통합.
+
+| 탭 | 백엔드 | 프론트 | 핵심 차트 |
+|----|--------|--------|---------|
+| Overview | `buildOverviewTab` | `OverviewTab.tsx` | 인사이트 + KPI 6 + 12개월 매출·이익 라인 |
+| Tasks & Time ★ | `buildTasksTab` | `TasksTab.tsx` | 인사이트 + KPI 6 + Scatter (예측vs실제) + AI MAPE Line |
+| Profit | `buildProfitTab` | `ProfitTab.tsx` | 프로젝트 손익 Bubble + 테이블 |
+| Team | `buildTeamTab` | `TeamTab.tsx` | 직원별 가동률 Bar + 순위 테이블 |
+| Finance | `buildFinanceTab` | `FinanceTab.tsx` | 카테고리별 지출 Bar |
+| Reports | `buildReportsTab` | `ReportsTab.tsx` | 자동 생성 안내 + PDF 카드 그리드 |
+
+추가:
+- **CSV (Excel) 다운로드** 5탭 모두 (UTF-8 BOM, 한글 깨짐 방지) — `csvUtils.ts`
+- **인사이트 박스 가로 inline 1줄** — Irene 피드백 (좌우 여백 최소화)
+- 라우트: `/stats/:tab` 단일 dynamic path (이전 6 명시 라우트 → ComingSoonPage 가렸던 버그 fix)
+- `useParams<{tab}>` 분기로 6 페이지 독립 컴포넌트 마운트
+- 신규 endpoint: `/api/stats/:businessId/{overview,tasks,profit,team,finance,reports}` (`/api/insights/*` Cue 인박스 카드와 분리)
+
+### I4 RevisionPanel inline diff 보강
+
+| 영역 | 산출물 |
+|------|--------|
+| `RevisionPanel.tsx` | `splitInlineDiff` (공통 prefix/suffix 검출) + `bodyTextLength` + DeltaPill (+N/-N) + `renderFormDataChange` (form_data 풀어서 sub-key 별 표시) + `countActualChanges` |
+
+### P8.1 Cue 결과 표시 UI
+
+| 영역 | 산출물 |
+|------|--------|
+| `routes/tasks.js` `buildCueMeta` | task.cue_kind 있을 때 sources resolve (conversation/post/kb_doc/meeting) + 최근 cue.task_executed/failed/skipped audit |
+| 신규 `POST /:id/cue/rerun` | 재실행 endpoint (member 권한, 이미 sent 면 400) |
+| `TaskDetailDrawer.tsx` | Cue 섹션 (★ 뱃지 + Kind 라벨 + 재실행 버튼 + 출처 chip + 마지막 이벤트 dot) |
+
+### 수정된 파일 (이번 세션)
+
+신규:
+- `docs/INSIGHTS_DESIGN.md`
+- `dev-backend/routes/stats.js`, `dev-backend/services/stats.js`
+- `dev-backend/models/EmailLog.js`
+- `dev-backend/scripts/svg-to-png.js`
+- `dev-frontend/src/pages/Insights/{InsightsPage.tsx, components.tsx, csvUtils.ts}` + `tabs/{OverviewTab, TasksTab, ProfitTab, TeamTab, FinanceTab, ReportsTab}.tsx`
+- `dev-frontend/src/pages/Admin/AdminEmailLogsPage.tsx`
+- `dev-frontend/src/pages/ShareReceive/ShareReceivePage.tsx`
+- `dev-frontend/src/components/Layout/UserChip.tsx`
+- `dev-frontend/src/components/Common/InstallPromptBanner.tsx`
+- `dev-frontend/src/services/insights.ts`, `dev-frontend/src/pages/QTalk/types.ts`
+- `dev-frontend/public/{favicon.svg, planQ-slogan_white.svg, planQ_white.svg, planQ-slogan_color.svg, icon-192.png, icon-512.png, apple-touch-icon.png}`
+- 메모리: `project_insights_design.md`, `project_pwa_share_target_pending.md` → 활성 / `project_web_push_pending.md` → 활성, `project_share_token_expiry_pending.md`
+
+삭제:
+- `dev-frontend/src/pages/QTalk/mock.ts`, `QDataContext.tsx`
+
+수정:
+- middleware/auth.js (IDOR 강화)
+- routes/auth.js (race), routes/invoices.js (literal→fn), routes/tasks.js (cue/rerun + buildCueMeta)
+- services/emailService.js (recordLog), services/cue_task_executor.js
+- 모델 다수 (NotificationPref ENUM, EmailLog 등록)
+- 프론트: ProfilePage, ClientsPage, QProjectDetailPage (AutoSaveField), QBill SettingsTab/NewInvoiceModal (canTax 통화 조건), Dashboard 4건 수정 + 리디자인, MainLayout (UserChip, 로고, 메일 모니터링 nav), App.tsx (라우트 정리), index.html, manifest.json
+- i18n 19 네임스페이스 ko/en 모두
+
+### 빌드 / 검증
+- 마지막 빌드: exit 0 (1.91s)
+- 헬스체크: 27/27 통과 (반복)
+- 신규 endpoint 6 (stats) + 1 (cue rerun) + 1 (admin/email-logs) + 1 (admin/email-logs/:id/retry) 모두 E2E 통과
 
 ---
 

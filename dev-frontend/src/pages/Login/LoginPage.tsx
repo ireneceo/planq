@@ -46,24 +46,13 @@ const LeftSection = styled.div`
   }
 `;
 
-const BrandLogo = styled.div`
-  font-size: 40px;
-  font-weight: 800;
-  color: #FFFFFF;
-  letter-spacing: -1px;
-  margin-bottom: 16px;
-
-  span {
-    color: #5EEAD4;
-  }
-`;
-
-const BrandTagline = styled.p`
-  color: #CCFBF1;
-  font-size: 16px;
-  line-height: 1.6;
-  margin: 0;
+const BrandLogo = styled.img`
+  width: 100%;
   max-width: 280px;
+  height: auto;
+  display: block;
+  margin: 0 auto 16px;
+  user-select: none;
 `;
 
 const BrandDescription = styled.p`
@@ -388,10 +377,7 @@ const LoginPage: React.FC = () => {
     <Container>
       <LoginBox>
         <LeftSection>
-          <BrandLogo>Plan<span>Q</span></BrandLogo>
-          <BrandTagline>
-            {t('brand.tagline')}
-          </BrandTagline>
+          <BrandLogo src="/planQ-slogan_white.svg" alt="PlanQ" />
           <BrandDescription>
             {t('brand.description')}
           </BrandDescription>

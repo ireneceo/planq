@@ -25,17 +25,39 @@ const getTransporter = () => {
   return transporter;
 };
 
-// sendEmail — 첨부 + 발신자 표시이름 + 회신주소 옵션
-//   { to, subject, html, attachments?, fromName?, replyTo? }
-//   attachments: [{ filename, content (Buffer), contentType }]
-const sendEmail = async ({ to, subject, html, attachments, fromName, replyTo }) => {
+// 모니터링 로그 — best-effort, 실패해도 sendEmail 자체는 영향 X.
+async function recordLog(payload) {
+  try {
+    const { EmailLog } = require('../models');
+    await EmailLog.create(payload);
+  } catch (e) {
+    console.error('[EmailLog]', e.message);
+  }
+}
+
+// sendEmail — 첨부 + 발신자 표시이름 + 회신주소 + 모니터링 로그.
+//   { to, subject, html, attachments?, fromName?, replyTo?,
+//     template?, businessId?, relatedEntityType?, relatedEntityId?, initiatedBy? }
+const sendEmail = async ({
+  to, subject, html, attachments, fromName, replyTo,
+  template, businessId, relatedEntityType, relatedEntityId, initiatedBy,
+}) => {
+  const baseLog = {
+    to_email: to, subject,
+    template: template || null,
+    business_id: businessId || null,
+    related_entity_type: relatedEntityType || null,
+    related_entity_id: relatedEntityId || null,
+    initiated_by: initiatedBy || null,
+  };
+
   const transport = getTransporter();
   if (!transport) {
     console.warn(`Email skipped (no SMTP): to=${to}, subject=${subject}`);
+    await recordLog({ ...baseLog, status: 'skipped', error_message: 'SMTP not configured' });
     return false;
   }
 
-  // 발신자: workspace 의 mail_from_name 있으면 "표시이름 <from-addr>" 형식
   const fromAddr = process.env.SMTP_FROM || 'noreply@planq.kr';
   const from = fromName ? `"${String(fromName).replace(/"/g, '')}" <${fromAddr}>` : fromAddr;
 
@@ -48,9 +70,11 @@ const sendEmail = async ({ to, subject, html, attachments, fromName, replyTo }) 
       ...(attachments && attachments.length > 0 ? { attachments } : {}),
       ...(replyTo ? { replyTo } : {}),
     });
+    await recordLog({ ...baseLog, status: 'sent' });
     return true;
   } catch (error) {
     console.error('Email send failed:', error.message);
+    await recordLog({ ...baseLog, status: 'failed', error_message: String(error.message || '').slice(0, 1000) });
     return false;
   }
 };

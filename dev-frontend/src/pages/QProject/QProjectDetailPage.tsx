@@ -5,6 +5,7 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { apiFetch } from '../../contexts/AuthContext';
 import PageShell from '../../components/Layout/PageShell';
+import AutoSaveField from '../../components/Common/AutoSaveField';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 import ProcessPartsTab from './ProcessPartsTab';
 import TasksTab from './TasksTab';
@@ -545,12 +546,14 @@ const QProjectDetailPage: React.FC = () => {
               </EditField>
               <EditField style={{ gridColumn: '1 / -1' }}>
                 <EditLabel>{t('edit.description', '설명')}</EditLabel>
-                <EditTextarea defaultValue={project.description || ''} rows={3}
-                  onBlur={async e => {
-                    const v = e.target.value.trim();
+                <ProjectDescriptionEditor
+                  projectId={projectId}
+                  initial={project.description || ''}
+                  onSave={async (v) => {
                     await apiFetch(`/api/projects/${projectId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ description: v || null }) });
                     setProject(prev => prev ? { ...prev, description: v || null } : prev);
-                  }} />
+                  }}
+                />
               </EditField>
             </EditGrid>
           </Card>
@@ -1012,3 +1015,18 @@ const AddIssueRow = styled.div`display:flex;gap:6px;align-items:center;`;
 const IssueInput = styled.input`flex:1;padding:6px 10px;border:1px solid #E2E8F0;border-radius:6px;font-size:12px;font-family:inherit;&:focus{outline:none;border-color:#14B8A6;}`;
 const VisTag = styled.span<{$internal?:boolean}>`padding:1px 6px;border-radius:4px;font-size:10px;font-weight:600;flex-shrink:0;background:${p=>p.$internal?'#F0FDFA':'#F1F5F9'};color:${p=>p.$internal?'#0F766E':'#64748B'};`;
 const Empty = styled.div`padding:60px;text-align:center;color:#94A3B8;`;
+
+// 프로젝트 설명 — AutoSaveField + draft state (controlled)
+const ProjectDescriptionEditor = ({ projectId, initial, onSave }: {
+  projectId: number;
+  initial: string;
+  onSave: (v: string) => Promise<void>;
+}) => {
+  const [draft, setDraft] = useState(initial);
+  useEffect(() => { setDraft(initial); }, [projectId, initial]);
+  return (
+    <AutoSaveField onSave={async () => { await onSave(draft.trim()); }}>
+      <EditTextarea rows={3} value={draft} onChange={(e) => setDraft(e.target.value)} />
+    </AutoSaveField>
+  );
+};

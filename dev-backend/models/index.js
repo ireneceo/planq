@@ -60,6 +60,7 @@ const Report = require('./Report');
 // ─── 플랫폼 문의 ───
 const ContactInquiry = require('./ContactInquiry');
 const NotificationPref = require('./NotificationPref');
+const EmailLog = require('./EmailLog');
 // ─── Q docs (문서·템플릿 통합 시스템) ───
 const DocumentTemplate = require('./DocumentTemplate');
 const Document = require('./Document');
@@ -362,6 +363,7 @@ module.exports = {
   // 플랫폼 문의
   ContactInquiry,
   NotificationPref,
+  EmailLog,
   // Q docs
   DocumentTemplate,
   Document,
@@ -502,3 +504,7 @@ ContactInquiry.belongsTo(Business, { foreignKey: 'business_id' });
 NotificationPref.belongsTo(User, { foreignKey: 'user_id', onDelete: 'CASCADE' });
 NotificationPref.belongsTo(Business, { foreignKey: 'business_id', onDelete: 'CASCADE' });
 User.hasMany(NotificationPref, { as: 'notificationPrefs', foreignKey: 'user_id' });
+
+// EmailLog — 메일 발송 모니터링
+EmailLog.belongsTo(User, { foreignKey: 'initiated_by', as: 'initiator' });
+EmailLog.belongsTo(Business, { foreignKey: 'business_id' });

@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useCallback } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
-import { type MockProject, type MockConversation } from './mock';
+import { type MockProject, type MockConversation } from './types';
 import { useAuth } from '../../contexts/AuthContext';
 import HelpDot from '../../components/Common/HelpDot';
 import LetterAvatar from '../../components/Common/LetterAvatar';
@@ -247,7 +247,7 @@ const EdgeChevron = styled.span`
 const Header = styled.div`
   padding: 14px 20px;
   min-height: 60px;
-  border-bottom: 1px solid #F1F5F9;
+  border-bottom: 1px solid #E2E8F0;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;

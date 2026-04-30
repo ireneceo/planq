@@ -181,6 +181,7 @@ app.use('/api/notifications', require('./routes/notifications'));
 app.use('/api/feedback', require('./routes/feedback'));
 app.use('/api/cue', require('./routes/cue'));
 app.use('/api/insights', require('./routes/insights'));
+app.use('/api/stats', require('./routes/stats'));
 app.use('/api/push', require('./routes/push'));
 app.use('/api/tasks', require('./routes/task_estimations'));
 app.use('/api/clients', require('./routes/clients'));

@@ -15,7 +15,7 @@ import {
   type MockTaskCandidate, type MockMessage, type MockProject,
   type MockConversation, type MockTask, type MockNote, type MockIssue,
   type TaskStatus,
-} from './mock';
+} from './types';
 import { useAuth } from '../../contexts/AuthContext';
 import * as qtalkApi from '../../services/qtalk';
 
@@ -111,9 +111,9 @@ function apiMessageToMock(m: qtalkApi.ApiMessage): MockMessage {
     card: (() => {
       if (m.kind !== 'card' || !m.meta) return null;
       const ct = (m.meta as { card_type?: string }).card_type;
-      if (ct === 'post') return m.meta as unknown as import('./mock').PostCardMeta;
-      if (ct === 'signature_request') return m.meta as unknown as import('./mock').SignatureCardMeta;
-      if (ct === 'invoice') return m.meta as unknown as import('./mock').InvoiceCardMeta;
+      if (ct === 'post') return m.meta as unknown as import('./types').PostCardMeta;
+      if (ct === 'signature_request') return m.meta as unknown as import('./types').SignatureCardMeta;
+      if (ct === 'invoice') return m.meta as unknown as import('./types').InvoiceCardMeta;
       return null;
     })(),
     translations: m.translations ?? null,

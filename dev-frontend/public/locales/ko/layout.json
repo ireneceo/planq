@@ -34,6 +34,7 @@
     "users": "사용자",
     "businesses": "워크스페이스",
     "feedback": "사용자 피드백",
+    "emailLogs": "메일 발송 모니터링",
     "platformAdminEntry": "플랫폼 관리자",
     "platformAdminEntryDesc": "전체 워크스페이스·사용자 관리",
     "platformAdminTitle": "플랫폼 관리자",

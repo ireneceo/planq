@@ -620,6 +620,96 @@ router.get('/:id/detail', authenticateToken, async (req, res, next) => {
     if (scope.isClient && Array.isArray(json.comments)) {
       json.comments = json.comments.filter((c) => c.visibility === 'shared');
     }
+
+    // ─── 사이클 P8.1 — Cue 결과 메타 (출처 resolve + 최근 실행 이벤트) ───
+    if (task.cue_kind) {
+      json.cue_meta = await buildCueMeta(task);
+    }
+
+    return successResponse(res, json);
+  } catch (err) { next(err); }
+});
+
+// ─── 헬퍼: Cue task 메타 빌드 (cue_kind 없으면 호출하지 않음) ───
+//  - sources: cue_context_ref 안의 ID 들을 라벨/링크로 resolve
+//  - last_event: AuditLog 최근 cue.task_* 이벤트
+async function buildCueMeta(task) {
+  const { Conversation, Post, KbDocument, AuditLog } = require('../models');
+  const ref = task.cue_context_ref || {};
+  const sources = [];
+
+  if (ref.conversation_id) {
+    const conv = await Conversation.findByPk(ref.conversation_id, {
+      attributes: ['id', 'title', 'business_id'],
+    }).catch(() => null);
+    if (conv && conv.business_id === task.business_id) {
+      sources.push({ type: 'conversation', id: conv.id, label: conv.title || `chat ${conv.id}` });
+    }
+  }
+  if (Array.isArray(ref.post_ids) && ref.post_ids.length) {
+    const posts = await Post.findAll({
+      where: { id: ref.post_ids, business_id: task.business_id },
+      attributes: ['id', 'title'],
+    }).catch(() => []);
+    posts.forEach(p => sources.push({ type: 'post', id: p.id, label: p.title || `post ${p.id}` }));
+  }
+  if (Array.isArray(ref.kb_doc_ids) && ref.kb_doc_ids.length) {
+    const docs = await KbDocument.findAll({
+      where: { id: ref.kb_doc_ids, business_id: task.business_id },
+      attributes: ['id', 'title'],
+    }).catch(() => []);
+    docs.forEach(d => sources.push({ type: 'kb_document', id: d.id, label: d.title || `doc ${d.id}` }));
+  }
+  if (ref.meeting_id) {
+    // Q Note 는 별도 Python 서비스 — id 만 노출
+    sources.push({ type: 'meeting', id: ref.meeting_id, label: `meeting ${ref.meeting_id}` });
+  }
+
+  const lastLog = await AuditLog.findOne({
+    where: {
+      target_type: 'Task',
+      target_id: task.id,
+      action: { [Op.in]: ['cue.task_executed', 'cue.task_failed', 'cue.task_skipped'] },
+    },
+    order: [['created_at', 'DESC']],
+    attributes: ['action', 'new_value', 'created_at'],
+  }).catch(() => null);
+
+  return {
+    kind: task.cue_kind,
+    context_ref: ref,
+    sources,
+    last_event: lastLog ? {
+      action: lastLog.action,
+      at: lastLog.created_at,
+      detail: lastLog.new_value || null,
+    } : null,
+  };
+}
+
+// ============================================
+// POST /api/tasks/:id/cue/rerun — Cue 자동실행 재실행
+// ============================================
+router.post('/:id/cue/rerun', authenticateToken, async (req, res, next) => {
+  try {
+    const task = await Task.findByPk(req.params.id);
+    if (!task) return errorResponse(res, 'task_not_found', 404);
+    if (!task.cue_kind) return errorResponse(res, 'not_a_cue_task', 400);
+
+    // 워크스페이스 멤버 이상만 재실행 가능 (Cue 결과는 내부 작업)
+    const scope = await getUserScope(req.user.id, task.business_id, req.user.platform_role);
+    if (!(scope.isPlatformAdmin || scope.isOwner || scope.isMember)) {
+      return errorResponse(res, 'forbidden', 403);
+    }
+
+    const { executeForTask } = require('../services/cue_task_executor');
+    const result = await executeForTask(task.id);
+    if (!result.ok) {
+      return errorResponse(res, result.reason || 'cue_execution_failed', 422);
+    }
+    const refreshed = await Task.findByPk(task.id);
+    const json = refreshed.toJSON();
+    json.cue_meta = await buildCueMeta(refreshed);
     return successResponse(res, json);
   } catch (err) { next(err); }
 });

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { io, type Socket } from 'socket.io-client';
@@ -224,6 +224,27 @@ const QTaskPage:React.FC=()=>{
   const[newDescription,setNewDescription]=useState<string>('');
   const[addingSubmitting,setAddingSubmitting]=useState(false);
   const[statusDropdownId,setStatusDropdownId]=useState<number|null>(null);
+
+  // PWA Share Target 등에서 ?prefill= 으로 본문 전달받음. 마운트 시 한 번만 적용.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const prefillAppliedRef = useRef(false);
+  useEffect(() => {
+    if (prefillAppliedRef.current) return;
+    const prefill = searchParams.get('prefill');
+    if (prefill) {
+      const decoded = decodeURIComponent(prefill);
+      // 첫 줄 = title, 나머지 = description
+      const lines = decoded.split('\n');
+      setNewTitle(lines[0]?.slice(0, 200) || '');
+      if (lines.length > 1) setNewDescription(lines.slice(1).join('\n'));
+      setAddingTask(true);
+      setAddInline(true);
+      const next = new URLSearchParams(searchParams);
+      next.delete('prefill');
+      setSearchParams(next, { replace: true });
+      prefillAppliedRef.current = true;
+    }
+  }, [searchParams, setSearchParams]);
   // 지연 뱃지 quick chip popover (사용자 요청: 마감 지난 업무 즉시 갱신 안내)
   const[delayChipsForId,setDelayChipsForId]=useState<number|null>(null);
   // AI 예측시간 호출 상태 (per task)

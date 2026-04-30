@@ -73,6 +73,58 @@
     "bioPlaceholder": "e.g. 8 years in LG Electronics product planning, smart-home strategy lead. Recently focused on AI-driven personalization.",
     "bioHint": "The AI uses this to reflect your background and voice in answers ({{length}}/{{max}})"
   },
+  "notifications": {
+    "sectionTitle": "Notifications",
+    "description": "Choose which events to receive on which channel. Frequently used notifications are recommended ON.",
+    "loading": "Loading...",
+    "on": "On",
+    "off": "Off",
+    "col": { "event": "Event" },
+    "channel": {
+      "inbox": "Inbox",
+      "chat": "Chat",
+      "email": "Email",
+      "push": "Push"
+    },
+    "event": {
+      "signature": "Signature requests",
+      "invoice": "Invoices",
+      "tax_invoice": "Tax invoices",
+      "task": "Tasks",
+      "event": "Events",
+      "invite": "Invites",
+      "mention": "Mentions"
+    }
+  },
+  "languageLevel": {
+    "scale": {
+      "unset": "—",
+      "1": "1 Beginner",
+      "2": "2 Elementary",
+      "3": "3 Intermediate",
+      "4": "4 Upper-Intermediate",
+      "5": "5 Advanced",
+      "6": "6 Native"
+    },
+    "sectionTitle": "My Language Level (for answer difficulty)",
+    "description": "Set your level for <1>reading · speaking · listening · writing</1> per language. When Q note generates answers, it adapts to your level — <2>avoiding overly difficult words and using easier-to-pronounce sentences</2>.<3></3>The <4>reading · speaking levels</4> matter most for languages you'll read aloud (e.g. English).",
+    "col": {
+      "lang": "Language",
+      "reading": "Reading",
+      "speaking": "Speaking",
+      "listening": "Listening",
+      "writing": "Writing"
+    },
+    "unsetHint": "\"—\" (unset) means no level adjustment for that language — answers use defaults.",
+    "expertise": {
+      "label": "Expertise level",
+      "unset": "Unset",
+      "layman": "Layman",
+      "practitioner": "Practitioner",
+      "expert": "Expert",
+      "hint": "This is <1>your level as the speaker</1>, not the listener's. Expert keeps precise terminology; layman uses plain language."
+    }
+  },
   "voice": {
     "sectionTitle": "Register My Voice",
     "description": "To <1>automatically recognize your own speech</1> during meetings, register your voice. If your meetings use multiple languages, <2>register once per language</2>. A voice registered in English will not reliably recognize Korean speech.",

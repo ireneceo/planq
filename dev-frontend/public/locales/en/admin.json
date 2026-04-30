@@ -106,5 +106,37 @@
   },
   "guard": {
     "noAccess": "Platform admin only"
+  },
+  "emailLogs": {
+    "title": "Email send monitoring",
+    "loading": "Loading...",
+    "tab": {
+      "all": "All",
+      "sent": "Sent",
+      "failed": "Failed",
+      "skipped": "Skipped"
+    },
+    "status": {
+      "sent": "Sent",
+      "failed": "Failed",
+      "skipped": "Skipped"
+    },
+    "col": {
+      "time": "Time",
+      "to": "To",
+      "subject": "Subject",
+      "template": "Template",
+      "status": "Status",
+      "retry": "Retries",
+      "action": "Action"
+    },
+    "action": {
+      "retry": "Resend",
+      "retrying": "..."
+    },
+    "empty": {
+      "title": "No email logs",
+      "message": "All emails sent by the system will appear here."
+    }
   }
 }

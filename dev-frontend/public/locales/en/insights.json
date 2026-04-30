@@ -1,0 +1,167 @@
+{
+  "title": "Insights",
+  "tabs": {
+    "tasks": "Tasks & Time",
+    "overview": "Overview",
+    "profit": "Project profitability",
+    "team": "Team productivity",
+    "finance": "Cost & finance",
+    "reports": "Reports",
+    "comingSoon": "Coming soon"
+  },
+  "comingSoon": {
+    "hint": "Coming soon. We'll update this section soon."
+  },
+  "kpi": {
+    "completed": "Completed",
+    "created": "Created",
+    "leadtime50": "Lead time (p50)",
+    "leadtime90": "Lead time (p90)",
+    "bias": "Estimation Bias",
+    "biasUnder": "Underestimating",
+    "biasOver": "Overestimating",
+    "biasStable": "Stable",
+    "aiAccuracy": "AI Accuracy",
+    "aiAccuracyHint": "AI estimate vs actual"
+  },
+  "unit": {
+    "days": "d",
+    "hours": "h"
+  },
+  "chart": {
+    "scatter": {
+      "title": "Estimate vs Actual (by assignee)",
+      "empty": "Will appear when completed tasks with estimate + actual hours are recorded"
+    },
+    "aiTrend": {
+      "title": "AI accuracy trend (monthly MAPE)",
+      "empty": "Will appear once monthly data accumulates",
+      "aiLabel": "AI MAPE",
+      "userLabel": "User MAPE"
+    },
+    "axis": {
+      "estimate": "Estimate (hours)",
+      "actual": "Actual (hours)"
+    },
+    "tooltip": {
+      "estimate": "Estimate",
+      "actual": "Actual",
+      "accuracy": "Accuracy"
+    }
+  },
+  "table": {
+    "title": "Task details",
+    "empty": "No completed tasks",
+    "col": {
+      "title": "Task",
+      "assignee": "Assignee",
+      "userEst": "Est (h)",
+      "aiEst": "AI (h)",
+      "actual": "Actual (h)",
+      "accuracy": "Accuracy",
+      "leadtime": "Lead time"
+    }
+  },
+  "error": {
+    "summary": "Failed to aggregate stats"
+  },
+  "noWorkspace": {
+    "title": "Select a workspace",
+    "hint": "Pick a workspace from the top-left switcher to see analytics."
+  },
+  "download": {
+    "csv": "Download CSV"
+  },
+  "overview": {
+    "kpi": {
+      "revenue": "Revenue (paid)",
+      "profit": "Operating profit",
+      "utilization": "Utilization",
+      "issued": "Issued amount",
+      "activeProjects": "Active projects",
+      "newClients": "New clients"
+    },
+    "chart": {
+      "trend": {
+        "title": "12-month revenue & profit trend",
+        "empty": "Will appear once monthly revenue data accumulates",
+        "revenue": "Revenue",
+        "profit": "Profit"
+      }
+    }
+  },
+  "profit": {
+    "kpi": {
+      "activeProjects": "Active projects",
+      "negativeMargin": "Negative margin",
+      "avgPph": "Profit per Hour",
+      "totalRevenue": "Total revenue",
+      "totalProfit": "Total profit",
+      "totalHours": "Total hours"
+    },
+    "chart": {
+      "bubble": {
+        "title": "Project profitability",
+        "empty": "Will appear once project hours and revenue accumulate"
+      },
+      "axis": { "hours": "Hours (h)", "revenue": "Revenue" }
+    },
+    "tooltip": { "hours": "Hours", "revenue": "Revenue", "profit": "Profit", "margin": "Margin" },
+    "table": { "title": "Project profitability detail", "empty": "No projects" },
+    "col": {
+      "name": "Project", "client": "Client", "revenue": "Revenue", "cost": "Cost",
+      "profit": "Profit", "margin": "Margin", "hours": "Hours", "pph": "Profit/Hr"
+    }
+  },
+  "team": {
+    "kpi": {
+      "members": "Members",
+      "avgUtil": "Avg utilization",
+      "topRevenue": "Top revenue",
+      "topAccuracy": "Top accuracy",
+      "overUtil": "Over-utilized",
+      "totalCompleted": "Total completed"
+    },
+    "chart": {
+      "utilization": {
+        "title": "Utilization by member",
+        "empty": "Will appear once member hours accumulate",
+        "bar": "Utilization"
+      }
+    },
+    "table": { "title": "Member ranking", "empty": "No active members" },
+    "col": {
+      "name": "Name", "role": "Role", "utilization": "Utilization", "accuracy": "Accuracy",
+      "bias": "Bias", "completed": "Completed", "leadtime": "Lead time",
+      "revenue": "Revenue share", "effectiveRate": "Effective rate"
+    }
+  },
+  "finance": {
+    "kpi": {
+      "revenue": "Revenue", "totalCost": "Total cost", "profit": "Profit",
+      "margin": "Margin", "receivable": "Receivable", "overhead": "Overhead"
+    },
+    "chart": {
+      "expenses": {
+        "title": "Expenses by category",
+        "empty": "Will appear once expenses & overhead are registered",
+        "bar": "Amount"
+      }
+    },
+    "table": { "title": "Category detail", "empty": "No data" },
+    "col": { "category": "Category", "amount": "Amount" }
+  },
+  "reports": {
+    "nextAuto": "Next auto-generated report",
+    "nextAutoHint": "Monthly reports are auto-generated on the 1st of each month.",
+    "recent": "Recent reports",
+    "empty": {
+      "title": "No reports yet",
+      "hint": "Will be auto-generated after one month of usage, or use the button below to generate immediately."
+    },
+    "gen": { "btn": "Generate report now", "disabled": "Coming soon" },
+    "download": "Download PDF →",
+    "kind": { "monthly": "Monthly", "quarterly": "Quarterly", "yearly": "Yearly" },
+    "status": { "pending": "Generating", "ready": "Ready", "failed": "Failed" }
+  }
+}
