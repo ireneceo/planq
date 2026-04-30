@@ -24,6 +24,9 @@ import PublicInvoicePage from './pages/QBill/PublicInvoicePage';
 import QFilePage from './pages/QFile/QFilePage';
 import AdminBusinessesPage from './pages/Admin/AdminBusinessesPage';
 import AdminFeedbackPage from './pages/Admin/AdminFeedbackPage';
+import AdminEmailLogsPage from './pages/Admin/AdminEmailLogsPage';
+import ShareReceivePage from './pages/ShareReceive/ShareReceivePage';
+import InsightsPage from './pages/Insights/InsightsPage';
 import PrivacyPolicy from './pages/Legal/PrivacyPolicy';
 import TermsOfService from './pages/Legal/TermsOfService';
 import ComingSoonPage from './pages/ComingSoon/ComingSoonPage';
@@ -65,6 +68,17 @@ function App() {
         } />
         {/* 하위 호환 redirect: 이전 북마크 */}
         <Route path="/todo" element={<Navigate to="/inbox" replace />} />
+
+        {/* PWA Share Target — 외부 공유 시트 → PlanQ 진입 */}
+        <Route path="/share-receive" element={
+          <ProtectedRoute>
+            <MainLayout><ShareReceivePage /></MainLayout>
+          </ProtectedRoute>
+        } />
+
+        {/* 통계·분석 redirect 만 (실제 라우트는 아래 /stats/:tab 단일 정의) */}
+        <Route path="/stats" element={<Navigate to="/stats/overview" replace />} />
+        <Route path="/insights" element={<Navigate to="/stats/overview" replace />} />
 
         <Route path="/business/settings" element={
           <ProtectedRoute requiredRole={['business_owner', 'business_member']}>
@@ -202,37 +216,8 @@ function App() {
           </ProtectedRoute>
         } />
 
-        {/* 📊 통계·분석 */}
-        <Route path="/stats/overview" element={
-          <ProtectedRoute requiredRole={['business_owner', 'business_member']}>
-            <MainLayout><ComingSoonPage titleKey="nav.statsOverview" titleFallback="개요" descKey="comingSoon.statsDesc" /></MainLayout>
-          </ProtectedRoute>
-        } />
-        <Route path="/stats/tasks" element={
-          <ProtectedRoute requiredRole={['business_owner', 'business_member']}>
-            <MainLayout><ComingSoonPage titleKey="nav.statsTaskTime" titleFallback="업무·시간" descKey="comingSoon.statsDesc" /></MainLayout>
-          </ProtectedRoute>
-        } />
-        <Route path="/stats/profit" element={
-          <ProtectedRoute requiredRole={['business_owner', 'business_member']}>
-            <MainLayout><ComingSoonPage titleKey="nav.statsProfit" titleFallback="프로젝트 수익성" descKey="comingSoon.statsDesc" /></MainLayout>
-          </ProtectedRoute>
-        } />
-        <Route path="/stats/team" element={
-          <ProtectedRoute requiredRole={['business_owner', 'business_member']}>
-            <MainLayout><ComingSoonPage titleKey="nav.statsTeam" titleFallback="팀 생산성" descKey="comingSoon.statsDesc" /></MainLayout>
-          </ProtectedRoute>
-        } />
-        <Route path="/stats/finance" element={
-          <ProtectedRoute requiredRole={['business_owner', 'business_member']}>
-            <MainLayout><ComingSoonPage titleKey="nav.statsFinance" titleFallback="비용·재무" descKey="comingSoon.statsDesc" /></MainLayout>
-          </ProtectedRoute>
-        } />
-        <Route path="/stats/reports" element={
-          <ProtectedRoute requiredRole={['business_owner', 'business_member']}>
-            <MainLayout><ComingSoonPage titleKey="nav.statsReports" titleFallback="보고서" descKey="comingSoon.statsDesc" /></MainLayout>
-          </ProtectedRoute>
-        } />
+        {/* 📊 통계·분석 — Q-G 사이클 InsightsPage. useParams<{tab}> 가 동작하려면 path 에 :tab 필요 */}
+        <Route path="/stats/:tab" element={<ProtectedRoute><MainLayout><InsightsPage /></MainLayout></ProtectedRoute>} />
 
         <Route path="/admin" element={<Navigate to="/admin/dashboard" replace />} />
         <Route path="/admin/dashboard" element={
@@ -248,6 +233,11 @@ function App() {
         <Route path="/admin/feedback" element={
           <ProtectedRoute requiredRole={['platform_admin']}>
             <MainLayout><AdminFeedbackPage /></MainLayout>
+          </ProtectedRoute>
+        } />
+        <Route path="/admin/email-logs" element={
+          <ProtectedRoute requiredRole={['platform_admin']}>
+            <MainLayout><AdminEmailLogsPage /></MainLayout>
           </ProtectedRoute>
         } />
         <Route path="/admin/*" element={

@@ -6,7 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import PostEditor from '../../components/Docs/PostEditor';
 import { fetchPost, type PostDetail } from '../../services/posts';
-import type { PostCardMeta } from './mock';
+import type { PostCardMeta } from './types';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { useEscapeStack } from '../../hooks/useEscapeStack';
 

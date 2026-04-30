@@ -1,9 +1,10 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
+import { useSearchParams } from 'react-router-dom';
 import {
   type MockMessage, type MockProject, type MockConversation, type PostCardMeta,
-} from './mock';
+} from './types';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 import LetterAvatar from '../../components/Common/LetterAvatar';
@@ -77,6 +78,21 @@ const ChatPanel: React.FC<Props> = ({
   const [input, setInput] = useState('');
   const [editingDraftId, setEditingDraftId] = useState<number | null>(null);
   const [draftBody, setDraftBody] = useState('');
+
+  // PWA Share Target 등에서 ?prefill= 으로 본문 전달받음. 마운트 시 한 번만 적용 + URL 정리.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const prefillAppliedRef = useRef(false);
+  useEffect(() => {
+    if (prefillAppliedRef.current) return;
+    const prefill = searchParams.get('prefill');
+    if (prefill) {
+      setInput((prev) => prev || decodeURIComponent(prefill));
+      const next = new URLSearchParams(searchParams);
+      next.delete('prefill');
+      setSearchParams(next, { replace: true });
+      prefillAppliedRef.current = true;
+    }
+  }, [searchParams, setSearchParams]);
 
   // 채팅방 이름 인라인 편집
   const [editingName, setEditingName] = useState(false);
@@ -473,7 +489,7 @@ const ChatPanel: React.FC<Props> = ({
                 </SignCard>
               ) : m.card?.card_type === 'invoice' ? (
                 (() => {
-                  const ic = m.card as import('./mock').InvoiceCardMeta;
+                  const ic = m.card as import('./types').InvoiceCardMeta;
                   const paid = ic.status === 'paid';
                   const partial = ic.status === 'partially_paid';
                   const canceled = ic.status === 'canceled';
@@ -517,7 +533,7 @@ const ChatPanel: React.FC<Props> = ({
                   );
                 })()
               ) : m.card ? (
-                <DocCard type="button" onClick={() => setPreviewCard(m.card as import('./mock').PostCardMeta)}>
+                <DocCard type="button" onClick={() => setPreviewCard(m.card as import('./types').PostCardMeta)}>
                   <DocCardIcon>
                     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
                   </DocCardIcon>

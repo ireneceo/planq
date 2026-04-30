@@ -13,6 +13,7 @@ import { useTimezones } from '../../hooks/useTimezones';
 import { useInboxCount } from '../../hooks/useInboxCount';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { mediaTablet } from '../../theme/breakpoints';
+import InstallPromptBanner from '../Common/InstallPromptBanner';
 import i18n from '../../i18n';
 
 // ─────────────────────────────────────────────────────────────
@@ -72,9 +73,9 @@ const SidebarHeader = styled.div<{ $isCollapsed?: boolean }>`
   ${mediaTablet} { justify-content: space-between; }
 `;
 
-const Logo = styled.div`
-  font-size: 20px; font-weight: 700; color: #FFFFFF; letter-spacing: -0.5px;
-  span { color: #5EEAD4; }
+const Logo = styled.img`
+  height: 32px; width: auto; max-width: 140px;
+  display: block; user-select: none; flex-shrink: 0;
 `;
 
 const SidebarToggleButton = styled.button`
@@ -485,7 +486,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
         <HamburgerButton onClick={() => setSidebarOpen(true)} aria-label={t('nav.expandSidebar')}>
           <IconHamburger />
         </HamburgerButton>
-        <Logo>Plan<span>Q</span></Logo>
+        <Logo src="/planQ-slogan_white.svg" alt="PlanQ" />
         <div style={{ width: 40 }} />
       </MobileHeader>
 
@@ -503,7 +504,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
             </SidebarToggleButton>
           ) : (
             <>
-              <Logo>Plan<span>Q</span></Logo>
+              <Logo src="/planQ-slogan_white.svg" alt="PlanQ" />
               <SidebarToggleButton
                 onClick={() => setIsCollapsed(true)}
                 aria-label={t('nav.collapseSidebar')}
@@ -554,6 +555,13 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
                   </NavIcon>
                   <NavLabel $isCollapsed={isCollapsed}>{t('nav.feedback', '사용자 피드백')}</NavLabel>
+                </NavItem>
+                <NavItem to="/admin/email-logs" $isCollapsed={isCollapsed} $active={isActive('/admin/email-logs')}
+                  title={isCollapsed ? t('nav.emailLogs', '메일 발송 모니터링') : undefined}>
+                  <NavIcon $isCollapsed={isCollapsed}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                  </NavIcon>
+                  <NavLabel $isCollapsed={isCollapsed}>{t('nav.emailLogs', '메일 발송 모니터링')}</NavLabel>
                 </NavItem>
               </NavSection>
             </>
@@ -1018,6 +1026,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
         <WorkspaceBillingBanner />
         <MobileContentPadding>{children}</MobileContentPadding>
       </MainContent>
+      <InstallPromptBanner />
     </LayoutContainer>
   );
 };

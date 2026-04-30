@@ -13,6 +13,7 @@ import { useTimeFormat } from '../../hooks/useTimeFormat';
 import LetterAvatar from '../../components/Common/LetterAvatar';
 import SearchBox from '../../components/Common/SearchBox';
 import PageShell from '../../components/Layout/PageShell';
+import AutoSaveField from '../../components/Common/AutoSaveField';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { useListKeyboardNav } from '../../hooks/useListKeyboardNav';
 
@@ -385,14 +386,12 @@ export default function ClientsPage() {
 
             <Section>
               <SectionTitle>{t('section.notes')}</SectionTitle>
-              <NoteArea
-                defaultValue={activeDetail.notes || ''}
-                placeholder={t('section.notesPlaceholder') as string}
-                onBlur={(e) => {
-                  const v = e.target.value.trim();
-                  if (v !== (activeDetail.notes || '').trim()) patchClient(activeDetail.id, { notes: v || null });
-                }}
+              <NotesEditor
+                clientId={activeDetail.id}
+                initial={activeDetail.notes || ''}
                 disabled={!isAdmin}
+                placeholder={t('section.notesPlaceholder') as string}
+                onSave={(v) => patchClient(activeDetail.id, { notes: v || null })}
               />
             </Section>
 
@@ -716,3 +715,26 @@ const Req = styled.span`color:#F43F5E;margin-left:2px;`;
 const CFCancel = styled.button`height:40px;padding:0 16px;background:#fff;color:#475569;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;&:hover:not(:disabled){background:#f8fafc;border-color:#cbd5e1;}&:disabled{opacity:0.5;cursor:not-allowed;}`;
 const CFPrimary = styled.button`height:40px;padding:0 20px;background:#14B8A6;color:#FFF;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;&:hover:not(:disabled){background:#0D9488;}&:disabled{background:#CBD5E1;cursor:not-allowed;}`;
 const CFDanger = styled.button`height:40px;padding:0 20px;background:#dc2626;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;&:hover:not(:disabled){background:#b91c1c;}&:disabled{background:#fca5a5;cursor:not-allowed;}`;
+
+// 인라인 메모 — AutoSaveField 적용 (debounce 2s + ✓ 뱃지)
+const NotesEditor = ({ clientId, initial, disabled, placeholder, onSave }: {
+  clientId: number;
+  initial: string;
+  disabled?: boolean;
+  placeholder?: string;
+  onSave: (v: string) => Promise<void> | void;
+}) => {
+  const [draft, setDraft] = useState(initial);
+  // activeDetail 변경 시 draft 동기화
+  useEffect(() => { setDraft(initial); }, [clientId, initial]);
+  return (
+    <AutoSaveField onSave={async () => { await onSave(draft.trim()); }}>
+      <NoteArea
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        placeholder={placeholder}
+        disabled={disabled}
+      />
+    </AutoSaveField>
+  );
+};

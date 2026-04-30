@@ -190,13 +190,13 @@ export default function ProfilePage() {
   }, [user?.bio, user?.expertise, user?.organization, user?.job_title, user?.language_levels, user?.expertise_level]);
 
   const LEVEL_OPTIONS = [
-    { value: 0, label: '—' },
-    { value: 1, label: '1 초급' },
-    { value: 2, label: '2 기초' },
-    { value: 3, label: '3 중급' },
-    { value: 4, label: '4 중상급' },
-    { value: 5, label: '5 고급' },
-    { value: 6, label: '6 원어민' },
+    { value: 0, label: t('languageLevel.scale.unset', '—') },
+    { value: 1, label: t('languageLevel.scale.1', '1 초급') },
+    { value: 2, label: t('languageLevel.scale.2', '2 기초') },
+    { value: 3, label: t('languageLevel.scale.3', '3 중급') },
+    { value: 4, label: t('languageLevel.scale.4', '4 중상급') },
+    { value: 5, label: t('languageLevel.scale.5', '5 고급') },
+    { value: 6, label: t('languageLevel.scale.6', '6 원어민') },
   ];
 
   const saveProfileField = useCallback(async (field: 'bio' | 'expertise' | 'organization' | 'job_title', value: string) => {
@@ -631,19 +631,17 @@ export default function ProfilePage() {
 
         {/* 언어 레벨 — 답변 난이도 조절 */}
         <Card>
-          <SectionTitle>내 언어 레벨 (답변 난이도 조절용)</SectionTitle>
+          <SectionTitle>{t('languageLevel.sectionTitle')}</SectionTitle>
           <Description>
-            언어별 <strong>읽기·말하기·듣기·쓰기</strong> 4개 영역의 수준을 설정하세요.
-            Q note 가 답변을 생성할 때 이 레벨에 맞춰 <strong>너무 어려운 단어를 피하고 발음하기 쉬운 문장</strong>으로 작성합니다.
-            <br />특히 답변을 따라 읽어야 하는 언어(영어 등)의 <strong>읽기·말하기 레벨</strong>이 중요합니다.
+            <Trans i18nKey="languageLevel.description" ns="profile" components={{ 1: <strong />, 2: <strong />, 3: <br />, 4: <strong /> }} />
           </Description>
 
           <LevelTableHead>
-            <LevelTableCell $head>언어</LevelTableCell>
-            <LevelTableCell $head>읽기</LevelTableCell>
-            <LevelTableCell $head>말하기</LevelTableCell>
-            <LevelTableCell $head>듣기</LevelTableCell>
-            <LevelTableCell $head>쓰기</LevelTableCell>
+            <LevelTableCell $head>{t('languageLevel.col.lang')}</LevelTableCell>
+            <LevelTableCell $head>{t('languageLevel.col.reading')}</LevelTableCell>
+            <LevelTableCell $head>{t('languageLevel.col.speaking')}</LevelTableCell>
+            <LevelTableCell $head>{t('languageLevel.col.listening')}</LevelTableCell>
+            <LevelTableCell $head>{t('languageLevel.col.writing')}</LevelTableCell>
           </LevelTableHead>
           {['ko', 'en', 'ja', 'zh', 'es', 'fr', 'de'].map((code) => {
             const meta = LANGUAGES.find((l) => l.code === code);
@@ -674,18 +672,18 @@ export default function ProfilePage() {
             );
           })}
           <Hint style={{ marginTop: 10 }}>
-            미설정("—")은 해당 언어를 별도 조정 안 함 — 기본값으로 답변 생성됩니다.
+            {t('languageLevel.unsetHint')}
           </Hint>
 
           <FieldRow style={{ marginTop: 16, borderTop: '1px solid #e2e8f0', paddingTop: 16 }}>
-            <Label>전문 지식 수준</Label>
+            <Label>{t('languageLevel.expertise.label')}</Label>
             <FieldBody>
               <ExpertiseRow>
                 {([
-                  { val: '', label: '미설정' },
-                  { val: 'layman', label: '일반인' },
-                  { val: 'practitioner', label: '실무자' },
-                  { val: 'expert', label: '전문가' },
+                  { val: '', labelKey: 'languageLevel.expertise.unset' },
+                  { val: 'layman', labelKey: 'languageLevel.expertise.layman' },
+                  { val: 'practitioner', labelKey: 'languageLevel.expertise.practitioner' },
+                  { val: 'expert', labelKey: 'languageLevel.expertise.expert' },
                 ] as const).map((opt) => (
                   <ExpertiseBtn
                     key={opt.val}
@@ -693,12 +691,12 @@ export default function ProfilePage() {
                     $active={expertiseLevel === opt.val}
                     onClick={() => saveExpertiseLevel(opt.val)}
                   >
-                    {opt.label}
+                    {t(opt.labelKey)}
                   </ExpertiseBtn>
                 ))}
               </ExpertiseRow>
               <Hint>
-                듣는 사람 기준이 아닌 <strong>대답하는 내 수준</strong>. 전문가면 정확한 용어 그대로, 일반인이면 쉬운 말로 답변합니다.
+                <Trans i18nKey="languageLevel.expertise.hint" ns="profile" components={{ 1: <strong /> }} />
               </Hint>
             </FieldBody>
           </FieldRow>
@@ -1050,15 +1048,17 @@ const ExpertiseBtn = styled.button<{ $active?: boolean }>`
   padding: 8px 14px;
   font-size: 12px;
   font-weight: 600;
-  color: ${(p) => (p.$active ? '#ffffff' : '#475569')};
-  background: ${(p) => (p.$active ? '#0d9488' : '#ffffff')};
-  border: 1px solid ${(p) => (p.$active ? '#0d9488' : '#e2e8f0')};
+  color: ${(p) => (p.$active ? '#FFFFFF' : '#334155')};
+  background: ${(p) => (p.$active ? '#14B8A6' : '#FFFFFF')};
+  border: 1px solid ${(p) => (p.$active ? '#14B8A6' : '#CBD5E1')};
   border-radius: 8px;
   cursor: pointer;
   transition: all 120ms;
-  &:hover {
-    border-color: ${(p) => (p.$active ? '#0f766e' : '#0d9488')};
+  &:hover:not(:disabled) {
+    background: ${(p) => (p.$active ? '#0D9488' : '#F8FAFC')};
+    border-color: ${(p) => (p.$active ? '#0D9488' : '#94A3B8')};
   }
+  &:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(20,184,166,0.3); }
 `;
 
 const TextInput = styled.input`
@@ -1653,6 +1653,126 @@ function UserTimezoneSection() {
           </UAddButton>
         </UAddRow>
       </Card>
+
+      <NotificationPrefsCard />
     </>
   );
 }
+
+// ─── 사이클 Q-C — 알림 매트릭스 (event × channel 토글) ───
+const NOTIF_EVENTS = ['signature', 'invoice', 'tax_invoice', 'task', 'event', 'invite', 'mention'] as const;
+const NOTIF_CHANNELS = ['inbox', 'chat', 'email', 'push'] as const;
+type NotifEvent = typeof NOTIF_EVENTS[number];
+type NotifChannel = typeof NOTIF_CHANNELS[number];
+type Matrix = Record<NotifEvent, Record<NotifChannel, boolean>>;
+
+function NotificationPrefsCard() {
+  const { t } = useTranslation('profile');
+  const [matrix, setMatrix] = useState<Matrix | null>(null);
+  const [saving, setSaving] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    try {
+      const r = await apiFetch('/api/notifications/prefs');
+      const j = await r.json();
+      if (j.success) setMatrix(j.data.matrix);
+    } catch { /* ignore */ }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const toggle = async (ev: NotifEvent, ch: NotifChannel) => {
+    if (!matrix) return;
+    const next = !matrix[ev][ch];
+    const key = `${ev}:${ch}`;
+    setSaving(key);
+    setMatrix({ ...matrix, [ev]: { ...matrix[ev], [ch]: next } });
+    try {
+      await apiFetch('/api/notifications/prefs', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ event_kind: ev, channel: ch, enabled: next }),
+      });
+    } catch {
+      // 실패 시 롤백
+      setMatrix((m) => m ? { ...m, [ev]: { ...m[ev], [ch]: !next } } : m);
+    } finally {
+      setSaving(null);
+    }
+  };
+
+  return (
+    <Card>
+      <SectionTitle>{t('notifications.sectionTitle', '알림 받기')}</SectionTitle>
+      <Description>
+        {t('notifications.description', '어떤 이벤트를 어떤 채널로 받을지 설정합니다. 채팅·메시지 등 자주 쓰이는 알림은 ON 권장.')}
+      </Description>
+      {!matrix ? (
+        <Hint>{t('notifications.loading', '로드 중...')}</Hint>
+      ) : (
+        <NotifTable>
+          <NotifThead>
+            <NotifCell $head>{t('notifications.col.event', '이벤트')}</NotifCell>
+            {NOTIF_CHANNELS.map((ch) => (
+              <NotifCell $head key={ch}>{t(`notifications.channel.${ch}`, ch)}</NotifCell>
+            ))}
+          </NotifThead>
+          {NOTIF_EVENTS.map((ev) => (
+            <NotifRow key={ev}>
+              <NotifEventCell>{t(`notifications.event.${ev}`, ev)}</NotifEventCell>
+              {NOTIF_CHANNELS.map((ch) => {
+                const on = matrix[ev][ch];
+                const isSaving = saving === `${ev}:${ch}`;
+                return (
+                  <NotifCell key={ch}>
+                    <NotifSwitch
+                      type="button"
+                      role="switch"
+                      aria-checked={on}
+                      $on={on}
+                      disabled={isSaving}
+                      onClick={() => toggle(ev, ch)}
+                      title={t(`notifications.${on ? 'on' : 'off'}`, on ? '켜짐' : '꺼짐') as string}
+                    >
+                      <NotifKnob $on={on} />
+                    </NotifSwitch>
+                  </NotifCell>
+                );
+              })}
+            </NotifRow>
+          ))}
+        </NotifTable>
+      )}
+    </Card>
+  );
+}
+
+const NotifTable = styled.div`display: grid; grid-template-columns: 1.4fr repeat(4, 1fr); gap: 1px; background: #E2E8F0; border: 1px solid #E2E8F0; border-radius: 8px; overflow: hidden; margin-top: 12px;`;
+const NotifThead = styled.div`display: contents;`;
+const NotifRow = styled.div`display: contents;`;
+const NotifCell = styled.div<{ $head?: boolean }>`
+  padding: 8px 10px; background: ${p => p.$head ? '#F8FAFC' : '#FFF'};
+  font-size: ${p => p.$head ? '11px' : '13px'};
+  font-weight: ${p => p.$head ? 700 : 500};
+  color: ${p => p.$head ? '#64748B' : '#0F172A'};
+  ${p => p.$head && 'text-transform: uppercase; letter-spacing: 0.3px;'}
+  display: flex; align-items: center; justify-content: ${p => p.$head ? 'flex-start' : 'center'};
+`;
+const NotifEventCell = styled.div`
+  padding: 8px 10px; background: #FFF;
+  font-size: 13px; font-weight: 600; color: #0F172A;
+  display: flex; align-items: center;
+`;
+const NotifSwitch = styled.button<{ $on: boolean }>`
+  width: 36px; height: 20px; border-radius: 999px;
+  background: ${p => p.$on ? '#14B8A6' : '#CBD5E1'};
+  border: none; cursor: pointer; padding: 0;
+  position: relative; transition: background 0.15s;
+  &:disabled { opacity: 0.5; cursor: not-allowed; }
+`;
+const NotifKnob = styled.span<{ $on: boolean }>`
+  position: absolute; top: 2px; left: ${p => p.$on ? '18px' : '2px'};
+  width: 16px; height: 16px; border-radius: 50%;
+  background: #FFF; transition: left 0.15s;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.15);
+`;

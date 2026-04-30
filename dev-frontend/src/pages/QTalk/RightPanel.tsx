@@ -3,8 +3,8 @@ import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import {
   type MockProject, type MockConversation, type MockTask, type MockNote, type MockIssue, type MockTaskCandidate,
-  taskStatusLabel, taskStatusColor,
-} from './mock';
+} from './types';
+import { STATUS_COLOR, getStatusLabel, type StatusCode } from '../../utils/taskLabel';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 import LetterAvatar from '../../components/Common/LetterAvatar';
@@ -44,6 +44,8 @@ const RightPanel: React.FC<Props> = ({
   const { formatTimeAgo } = useTimeFormat();
   const isClient = user?.business_role === 'client';
   const myUserId = user ? Number(user.id) : -1;
+  // 업무 status 라벨 (observer 관점) — overdue 판정에 오늘 날짜 (워크스페이스 tz 정확도는 부모에서 주입 가능, 우선 로컬 ISO)
+  const todayStr = new Date().toISOString().slice(0, 10);
 
   // 섹션 초기 펼침 상태는 내용 유무 기반으로 아래 useEffect 에서 결정 (모두 접힌 상태로 시작 → count 있는 것만 auto expand)
   const [expanded, setExpanded] = useState<Record<Section, boolean>>({
@@ -387,12 +389,15 @@ const RightPanel: React.FC<Props> = ({
                   <TaskBody>
                     <TaskTitle $completed={task.status === 'completed'}>{task.title}</TaskTitle>
                     <TaskMeta>
-                      <StatusPill
-                        $bg={taskStatusColor(task.status).bg}
-                        $fg={taskStatusColor(task.status).fg}
-                      >
-                        {taskStatusLabel(task.status)}
-                      </StatusPill>
+                      {(() => {
+                        const sc = STATUS_COLOR[task.status as StatusCode] || STATUS_COLOR.not_started;
+                        return (
+                          <StatusPill $bg={sc.bg} $fg={sc.fg}>
+                            {getStatusLabel({ status: task.status, due_date: task.due_date }, 'observer', todayStr,
+                              (k, f) => t(k, f || '') as string)}
+                          </StatusPill>
+                        );
+                      })()}
                       {task.due_date && <TaskDue>{task.due_date}</TaskDue>}
                       {task.recurrence && <RecurIcon title={t('right.myTasks.recurTitle', '반복 업무') as string}>↻</RecurIcon>}
                     </TaskMeta>
@@ -441,12 +446,15 @@ const RightPanel: React.FC<Props> = ({
                   <ProjectTaskRight>
                     {task.due_date && <ProjectTaskDue>{task.due_date}</ProjectTaskDue>}
                     {task.recurrence && <RecurIcon>↻</RecurIcon>}
-                    <StatusPill
-                      $bg={taskStatusColor(task.status).bg}
-                      $fg={taskStatusColor(task.status).fg}
-                    >
-                      {taskStatusLabel(task.status)}
-                    </StatusPill>
+                    {(() => {
+                      const sc = STATUS_COLOR[task.status as StatusCode] || STATUS_COLOR.not_started;
+                      return (
+                        <StatusPill $bg={sc.bg} $fg={sc.fg}>
+                          {getStatusLabel({ status: task.status, due_date: task.due_date }, 'observer', todayStr,
+                            (k, f) => t(k, f || '') as string)}
+                        </StatusPill>
+                      );
+                    })()}
                   </ProjectTaskRight>
                 </ProjectTaskRow>
               ))}
@@ -576,8 +584,8 @@ const RightPanel: React.FC<Props> = ({
                   <MemberName>{m.name}</MemberName>
                   <RoleTag>{m.role}</RoleTag>
                   {/* PM 배지 — Phase 1.2 project_members.is_pm 대응. mock 에는 is_pm 없지만 default_assignee 를 임시 PM 표기 */}
-                  {(m as unknown as { is_pm?: boolean }).is_pm && <PmTag>PM</PmTag>}
-                  {m.is_default_assignee && !(m as unknown as { is_pm?: boolean }).is_pm && <PmTag>PM</PmTag>}
+                  {(m as unknown as { is_pm?: boolean }).is_pm && <PmTag>{t('right.info.members.pm', 'PM')}</PmTag>}
+                  {m.is_default_assignee && !(m as unknown as { is_pm?: boolean }).is_pm && <PmTag>{t('right.info.members.pm', 'PM')}</PmTag>}
                 </MemberRow>
               ))}
               <DetailLink>→ {t('right.info.detail', '프로젝트 상세 보기')}</DetailLink>

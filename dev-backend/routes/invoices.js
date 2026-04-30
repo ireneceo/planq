@@ -5,6 +5,7 @@ const { authenticateToken, checkBusinessAccess } = require('../middleware/auth')
 const { attachWorkspaceScope, invoiceListWhere, canAccessInvoice, isMemberOrAbove } = require('../middleware/access_scope');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const { sequelize } = require('../config/database');
+const { Op } = require('sequelize');
 
 // PDF 다운로드 helper — 공통
 async function buildInvoicePdf(invoiceId) {
@@ -29,10 +30,19 @@ async function buildInvoicePdf(invoiceId) {
 // invoice 상태가 바뀔 때 채팅방의 카드도 함께 갱신해서 새로고침 / Socket.IO 동기.
 async function updateInvoiceChatCards(invoiceId, patches, transaction = null) {
   try {
-    const where = sequelize.literal(
-      `kind = 'card' AND JSON_EXTRACT(meta, '$.card_type') = 'invoice' AND JSON_EXTRACT(meta, '$.invoice_id') = ${parseInt(invoiceId, 10)}`
-    );
-    const messages = await Message.findAll({ where, transaction });
+    const id = parseInt(invoiceId, 10);
+    if (!Number.isInteger(id) || id <= 0) return 0;
+    // parameterized JSON_EXTRACT — sequelize.literal string interpolation 회피
+    const messages = await Message.findAll({
+      where: {
+        kind: 'card',
+        [Op.and]: [
+          sequelize.where(sequelize.fn('JSON_EXTRACT', sequelize.col('meta'), '$.card_type'), 'invoice'),
+          sequelize.where(sequelize.fn('JSON_EXTRACT', sequelize.col('meta'), '$.invoice_id'), id),
+        ],
+      },
+      transaction,
+    });
     for (const m of messages) {
       const meta = { ...(m.meta || {}), ...patches };
       await m.update({ meta }, { transaction });

@@ -1,0 +1,872 @@
+// 사이클 Q-G — Insights 통계 룰 엔진 + 집계 헬퍼.
+//
+// 출력은 routes/stats.js 가 그대로 successResponse 로 내려줌.
+// 차트 데이터 형식은 frontend 의 recharts 가 직접 소비할 수 있는 모양.
+
+const { Op, fn, col, literal } = require('sequelize');
+const { Task, TaskEstimation, sequelize } = require('../models');
+
+// MAPE = mean of |est - actual| / actual (0 < actual)
+// 단일값 0 div 가드, 그 외 task 평균
+function mape(rows) {
+  let sum = 0; let n = 0;
+  for (const r of rows) {
+    const actual = Number(r.actual);
+    const est = Number(r.est);
+    if (!actual || actual <= 0) continue;
+    if (est == null || isNaN(est)) continue;
+    sum += Math.abs(est - actual) / actual;
+    n += 1;
+  }
+  if (n === 0) return null;
+  return sum / n;
+}
+
+// Estimation Bias = (Σactual - Σuser_est) / Σactual × 100
+// 양수 = 사용자 과소추정 경향, 음수 = 과대추정
+function bias(rows) {
+  let sumActual = 0;
+  let sumEst = 0;
+  for (const r of rows) {
+    const actual = Number(r.actual);
+    const est = Number(r.est);
+    if (!actual || actual <= 0) continue;
+    if (est == null || isNaN(est)) continue;
+    sumActual += actual;
+    sumEst += est;
+  }
+  if (sumActual === 0) return null;
+  return ((sumActual - sumEst) / sumActual) * 100;
+}
+
+// 단일 task 정확도 (0 ~ 100, clamp). actual=0 또는 est=null 면 null.
+function accuracy(actual, est) {
+  if (!actual || actual <= 0) return null;
+  if (est == null || isNaN(est)) return null;
+  const ratio = Math.abs(est - actual) / actual;
+  return Math.max(0, Math.min(100, (1 - ratio) * 100));
+}
+
+// percentile (sorted array)
+function percentile(sorted, p) {
+  if (!sorted.length) return null;
+  const i = Math.max(0, Math.min(sorted.length - 1, Math.floor(sorted.length * p)));
+  return sorted[i];
+}
+
+// ──────────────────────────────────────────────
+// 비교 기간 카운트 (이전 기간) — 간단 집계만
+// ──────────────────────────────────────────────
+async function aggregateTaskCounts(businessId, period) {
+  const where = {
+    business_id: businessId,
+    created_at: { [Op.between]: [period.from + ' 00:00:00', period.to + ' 23:59:59'] },
+  };
+  const created = await Task.count({ where });
+  const completed = await Task.count({
+    where: {
+      business_id: businessId,
+      status: 'completed',
+      completed_at: { [Op.between]: [period.from + ' 00:00:00', period.to + ' 23:59:59'] },
+    },
+  });
+  return { created, completed };
+}
+
+// ──────────────────────────────────────────────
+// Tasks & Time 탭 — 메인 빌더
+// ──────────────────────────────────────────────
+function buildTasksTab({ tasks, aiByTask, period, prevAgg }) {
+  // 분류 — 완료된 task 만 시간 분석 의미 있음 (actual 기록 가능성)
+  const completed = tasks.filter((t) => t.status === 'completed' && t.completed_at);
+  const all = tasks;
+
+  // ── KPI ────────────────────────────────────
+  const completedCount = completed.length;
+  const createdCount = all.length;
+
+  // 리드타임 (완료된 task 만)
+  const leadtimes = completed
+    .map((t) => {
+      const c = new Date(t.created_at).getTime();
+      const d = new Date(t.completed_at).getTime();
+      return Math.max(0, (d - c) / 86400000);
+    })
+    .sort((a, b) => a - b);
+
+  const p50 = percentile(leadtimes, 0.5);
+  const p90 = percentile(leadtimes, 0.9);
+
+  // user_estimate vs actual 행 (완료된 것만)
+  const userRows = completed
+    .filter((t) => Number(t.estimated_hours) > 0 && Number(t.actual_hours) > 0)
+    .map((t) => ({ actual: Number(t.actual_hours), est: Number(t.estimated_hours) }));
+
+  const biasPct = bias(userRows);
+
+  // AI 정확도 — ai_estimate 가 있는 task 만
+  const aiRows = completed
+    .filter((t) => Number(t.actual_hours) > 0 && aiByTask[t.id] != null)
+    .map((t) => ({ actual: Number(t.actual_hours), est: aiByTask[t.id] }));
+
+  const aiMape = mape(aiRows);
+  const aiAccuracyPct = aiMape == null ? null : Math.max(0, (1 - aiMape) * 100);
+
+  // ── 비교 기간 vs 현재 기간 percent 변화 ──
+  const deltaPct = (cur, prev) => {
+    if (prev == null || prev === 0) return null;
+    return ((cur - prev) / prev) * 100;
+  };
+
+  const kpis = {
+    completed: {
+      value: completedCount,
+      prev: prevAgg?.completed ?? null,
+      delta_pct: prevAgg ? deltaPct(completedCount, prevAgg.completed) : null,
+    },
+    created: {
+      value: createdCount,
+      prev: prevAgg?.created ?? null,
+      delta_pct: prevAgg ? deltaPct(createdCount, prevAgg.created) : null,
+    },
+    leadtime_p50_days: { value: p50 == null ? null : Number(p50.toFixed(1)), prev: null, delta_pct: null },
+    leadtime_p90_days: { value: p90 == null ? null : Number(p90.toFixed(1)), prev: null, delta_pct: null },
+    bias_pct: { value: biasPct == null ? null : Number(biasPct.toFixed(1)), prev: null, delta_pct: null },
+    ai_accuracy_pct: { value: aiAccuracyPct == null ? null : Number(aiAccuracyPct.toFixed(1)), prev: null, delta_pct: null },
+  };
+
+  // ── Scatter (user_estimate vs actual) ───────
+  const scatter = completed
+    .filter((t) => Number(t.estimated_hours) > 0 && Number(t.actual_hours) > 0)
+    .map((t) => ({
+      task_id: t.id,
+      title: t.title,
+      assignee_id: t.assignee_id,
+      assignee_name: t.assignee?.name || null,
+      user_estimate: Number(t.estimated_hours),
+      actual: Number(t.actual_hours),
+      accuracy_pct: accuracy(Number(t.actual_hours), Number(t.estimated_hours)),
+    }))
+    .slice(0, 500);
+
+  // ── AI MAPE 월별 추이 (최근 6개월) ─────────
+  const monthBucket = new Map(); // 'YYYY-MM' → {ai: [], user: []}
+  for (const t of completed) {
+    if (!t.completed_at) continue;
+    const ym = String(t.completed_at).slice(0, 7);
+    if (!monthBucket.has(ym)) monthBucket.set(ym, { ai: [], user: [] });
+    const bucket = monthBucket.get(ym);
+    const actual = Number(t.actual_hours);
+    if (actual > 0) {
+      if (Number(t.estimated_hours) > 0) bucket.user.push({ actual, est: Number(t.estimated_hours) });
+      if (aiByTask[t.id] != null) bucket.ai.push({ actual, est: aiByTask[t.id] });
+    }
+  }
+  const aiTrend = [...monthBucket.entries()]
+    .sort()
+    .map(([m, b]) => ({
+      month: m,
+      ai_mape: mape(b.ai),
+      user_mape: mape(b.user),
+      n_ai: b.ai.length,
+      n_user: b.user.length,
+    }));
+
+  // ── 상태 깔때기 (현재 기간 생성 전체) ───────
+  const funnel = { not_started: 0, in_progress: 0, reviewing: 0, completed: 0, canceled: 0 };
+  for (const t of all) {
+    if (t.status === 'waiting') funnel.not_started += 1;
+    else if (t.status === 'revision_requested') funnel.in_progress += 1;
+    else if (funnel[t.status] != null) funnel[t.status] += 1;
+  }
+
+  // ── 출처별 분포 ────────────────────────────
+  const sources = { manual: 0, internal_request: 0, qtalk_extract: 0 };
+  for (const t of all) {
+    if (sources[t.source] != null) sources[t.source] += 1;
+  }
+
+  // ── 카테고리 파레토 (Top 10) ───────────────
+  const catCount = new Map();
+  for (const t of all) {
+    if (!t.category) continue;
+    catCount.set(t.category, (catCount.get(t.category) || 0) + 1);
+  }
+  const catTotal = [...catCount.values()].reduce((a, b) => a + b, 0);
+  const sortedCats = [...catCount.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10);
+  let cum = 0;
+  const categoriesPareto = sortedCats.map(([category, count]) => {
+    cum += count;
+    return {
+      category,
+      count,
+      pct: catTotal ? Number(((count / catTotal) * 100).toFixed(1)) : 0,
+      cumulative_pct: catTotal ? Number(((cum / catTotal) * 100).toFixed(1)) : 0,
+    };
+  });
+
+  // ── 상세 테이블 (정확도·리드타임 포함) ──────
+  const table = completed.map((t) => {
+    const ue = Number(t.estimated_hours) || null;
+    const ah = Number(t.actual_hours) || null;
+    const ai = aiByTask[t.id] != null ? aiByTask[t.id] : null;
+    const c = new Date(t.created_at).getTime();
+    const d = t.completed_at ? new Date(t.completed_at).getTime() : null;
+    const lead = d ? Number(((d - c) / 86400000).toFixed(1)) : null;
+    const acc = accuracy(ah, ue);
+    return {
+      task_id: t.id,
+      title: t.title,
+      assignee: t.assignee?.name || null,
+      category: t.category || null,
+      user_est: ue,
+      ai_est: ai,
+      actual: ah,
+      accuracy_pct: acc == null ? null : Number(acc.toFixed(1)),
+      bias: ue && ah ? Number(((ah - ue) / ah * 100).toFixed(1)) : null,
+      leadtime_days: lead,
+      status: t.status,
+    };
+  });
+
+  // ── 인사이트 박스 (3건, 룰 기반) ────────────
+  const insights = buildTaskInsights({ kpis, scatter, aiTrend, sources });
+
+  return {
+    period: { from: period.from, to: period.to, label: period.label },
+    kpis,
+    scatter,
+    ai_trend: aiTrend,
+    funnel,
+    sources,
+    categories_pareto: categoriesPareto,
+    table,
+    insights,
+  };
+}
+
+// 인사이트 박스 룰: 3건 우선순위로 선택
+function buildTaskInsights({ kpis, scatter, aiTrend, sources }) {
+  const out = [];
+
+  // (1) 전반 정확도 — 직원별 편차
+  const byAssignee = new Map();
+  for (const s of scatter) {
+    if (!s.assignee_name || s.accuracy_pct == null) continue;
+    if (!byAssignee.has(s.assignee_name)) byAssignee.set(s.assignee_name, []);
+    byAssignee.get(s.assignee_name).push(s.accuracy_pct);
+  }
+  const avgs = [...byAssignee.entries()]
+    .map(([n, arr]) => ({ name: n, avg: arr.reduce((a, b) => a + b, 0) / arr.length, n: arr.length }))
+    .filter((x) => x.n >= 3)
+    .sort((a, b) => b.avg - a.avg);
+  if (avgs.length >= 2) {
+    const top = avgs[0];
+    const bot = avgs[avgs.length - 1];
+    if (top.avg - bot.avg > 30) {
+      out.push({
+        severity: 'warning',
+        title: '공수 정확도 편차 큼',
+        value: `${top.name} ${top.avg.toFixed(0)}% · ${bot.name} ${bot.avg.toFixed(0)}%`,
+        hint: '카테고리별 강점·약점 분석으로 배정 최적화',
+        action_label: 'People 탭에서 보기',
+        action_link: '/insights?tab=people',
+      });
+    }
+  }
+
+  // (2) AI 정확도 추이 (월별 MAPE 개선되면 긍정 시그널)
+  if (aiTrend.length >= 2) {
+    const first = aiTrend[0];
+    const last = aiTrend[aiTrend.length - 1];
+    if (first.ai_mape != null && last.ai_mape != null && first.ai_mape > last.ai_mape) {
+      const fromPct = (first.ai_mape * 100).toFixed(0);
+      const toPct = (last.ai_mape * 100).toFixed(0);
+      out.push({
+        severity: 'info',
+        title: 'AI 추정 정확도 향상',
+        value: `MAPE ${fromPct}% → ${toPct}%`,
+        hint: '신규 업무 견적 시 AI 추정값 신뢰도 ↑',
+      });
+    }
+  }
+
+  // (3) qtalk_extract 출처 task 의 리드타임 — 추후 mapping 필요 (placeholder)
+  if (sources.qtalk_extract > 0) {
+    out.push({
+      severity: 'info',
+      title: '대화 추출 업무',
+      value: `${sources.qtalk_extract}건 자동 등록`,
+      hint: 'Q Talk 메시지에서 자동 추출된 업무',
+      action_label: '대화 보기',
+      action_link: '/talk',
+    });
+  }
+
+  // 인사이트 부족할 때 placeholder 보충
+  if (out.length === 0) {
+    out.push({
+      severity: 'info',
+      title: '데이터 누적 중',
+      value: '30일 이상 누적되면 인사이트가 더 정확해져요',
+      hint: '업무를 5건 이상 등록·완료하시면 분석이 시작됩니다',
+    });
+  }
+
+  return out.slice(0, 3);
+}
+
+// ──────────────────────────────────────────────
+// Overview 탭 — 사업 전체 맥박
+//   매출(수금) / 영업이익 추정 / 가동률 / 실현율 / 활성 프로젝트 / 신규 고객
+// ──────────────────────────────────────────────
+async function buildOverviewTab(businessId, period) {
+  const { Invoice, InvoicePayment, Project, Client, OverheadItem } = require('../models');
+
+  const fromDt = new Date(period.from + ' 00:00:00');
+  const toDt = new Date(period.to + ' 23:59:59');
+
+  // 매출 (수금) — InvoicePayment 합계
+  const payments = await InvoicePayment.findAll({
+    where: { paid_at: { [Op.between]: [fromDt, toDt] } },
+    include: [{ model: Invoice, where: { business_id: businessId }, attributes: ['id', 'project_id'] }],
+    attributes: ['amount'],
+  });
+  const revenue = payments.reduce((s, p) => s + Number(p.amount || 0), 0);
+
+  // 발행액 (issued)
+  const issuedInvoices = await Invoice.findAll({
+    where: { business_id: businessId, issued_at: { [Op.between]: [fromDt, toDt] } },
+    attributes: ['grand_total', 'paid_amount', 'status', 'currency'],
+  });
+  const issued = issuedInvoices.reduce((s, i) => s + Number(i.grand_total || 0), 0);
+  const overdue = issuedInvoices.filter((i) => i.status === 'overdue')
+    .reduce((s, i) => s + (Number(i.grand_total || 0) - Number(i.paid_amount || 0)), 0);
+
+  // 고정비 추정 — 월정 OverheadItem 합계 × (기간/30일)
+  const overheads = await OverheadItem.findAll({
+    where: { business_id: businessId, [Op.or]: [{ ends_at: null }, { ends_at: { [Op.gte]: period.from } }] },
+    attributes: ['amount', 'cycle'],
+  });
+  const monthly = overheads.reduce((s, o) => {
+    const a = Number(o.amount || 0);
+    if (o.cycle === 'yearly') return s + a / 12;
+    if (o.cycle === 'quarterly') return s + a / 3;
+    return s + a;
+  }, 0);
+  const days = Math.max(1, (toDt - fromDt) / 86400000);
+  const overheadAlloc = (monthly / 30) * days;
+
+  // 영업이익 = 매출 − 고정비 (단순 모델, 노동비는 hourly_rate 미입력 시 0)
+  const profit = revenue - overheadAlloc;
+
+  // 활성 프로젝트
+  const activeProjects = await Project.count({ where: { business_id: businessId, status: 'active' } });
+
+  // 신규 고객 (기간 내 created)
+  const newClients = await Client.count({
+    where: { business_id: businessId, created_at: { [Op.between]: [fromDt, toDt] } },
+  });
+
+  // 가동률 / 실현율 — Tasks 데이터 재사용 (단순화: 모든 task 의 actual_hours 합계 / 가용시간 합계)
+  // 정확한 가용시간은 BusinessMember.daily_work_hours 등 필요 — 간이 추정으로 8 × 5 × N members × 주차
+  const { BusinessMember, Task } = require('../models');
+  const members = await BusinessMember.findAll({
+    where: { business_id: businessId, removed_at: null },
+    attributes: ['user_id', 'daily_work_hours', 'weekly_work_days', 'participation_rate'],
+  });
+  const weeklyHours = members.reduce((s, m) => {
+    const dh = Number(m.daily_work_hours || 8);
+    const wd = Number(m.weekly_work_days || 5);
+    const pr = Number(m.participation_rate || 1);
+    return s + dh * wd * pr;
+  }, 0);
+  const weeks = days / 7;
+  const availableHours = weeklyHours * weeks;
+
+  const tasks = await Task.findAll({
+    where: {
+      business_id: businessId,
+      completed_at: { [Op.between]: [fromDt, toDt] },
+      status: 'completed',
+    },
+    attributes: ['actual_hours'],
+  });
+  const actualHours = tasks.reduce((s, t) => s + Number(t.actual_hours || 0), 0);
+  const utilization = availableHours > 0 ? (actualHours / availableHours) * 100 : null;
+
+  // 12개월 매출/이익 추이 — 월별
+  const trend = [];
+  const today = new Date();
+  for (let i = 11; i >= 0; i--) {
+    const m = new Date(today.getFullYear(), today.getMonth() - i, 1);
+    const mEnd = new Date(today.getFullYear(), today.getMonth() - i + 1, 0);
+    const mPays = await InvoicePayment.findAll({
+      where: { paid_at: { [Op.between]: [m, mEnd] } },
+      include: [{ model: Invoice, where: { business_id: businessId }, attributes: ['id', 'project_id'] }],
+      attributes: ['amount'],
+    });
+    const monthRev = mPays.reduce((s, p) => s + Number(p.amount || 0), 0);
+    trend.push({
+      month: m.toISOString().slice(0, 7),
+      revenue: monthRev,
+      profit: monthRev - (monthly / 30) * (mEnd.getDate()),
+    });
+  }
+
+  const insights = [];
+  if (overdue > 0) insights.push({
+    severity: 'urgent', title: '연체 청구', value: `₩${overdue.toLocaleString()}`,
+    hint: '미수금 회수 우선', action_label: '청구서 보기', action_link: '/qbill',
+  });
+  if (utilization != null && utilization > 100) insights.push({
+    severity: 'warning', title: '가동률 초과', value: `${utilization.toFixed(0)}%`,
+    hint: '초과 근무 누적 위험', action_label: '팀 보기', action_link: '/stats/team',
+  });
+  if (newClients > 0) insights.push({
+    severity: 'info', title: '신규 고객', value: `${newClients}건`,
+    hint: '관계 강화 시점', action_label: '고객 보기', action_link: '/business/clients',
+  });
+  if (insights.length === 0) insights.push({
+    severity: 'info', title: '데이터 누적 중', value: '30일 이상 누적 시 더 정확',
+    hint: '청구서/업무를 등록하시면 분석이 시작됩니다',
+  });
+
+  return {
+    period: { from: period.from, to: period.to, label: period.label },
+    kpis: {
+      revenue: { value: Math.round(revenue), prev: null, delta_pct: null },
+      profit: { value: Math.round(profit), prev: null, delta_pct: null },
+      utilization_pct: { value: utilization == null ? null : Number(utilization.toFixed(1)), prev: null, delta_pct: null },
+      issued: { value: Math.round(issued), prev: null, delta_pct: null },
+      active_projects: { value: activeProjects, prev: null, delta_pct: null },
+      new_clients: { value: newClients, prev: null, delta_pct: null },
+    },
+    trend,
+    insights: insights.slice(0, 3),
+  };
+}
+
+// ──────────────────────────────────────────────
+// Profit (Projects 수익성) 탭
+// ──────────────────────────────────────────────
+async function buildProfitTab(businessId, period) {
+  const { Project, Invoice, InvoicePayment, Task, ProjectExpense, OverheadItem } = require('../models');
+  const fromDt = new Date(period.from + ' 00:00:00');
+  const toDt = new Date(period.to + ' 23:59:59');
+
+  const projects = await Project.findAll({
+    where: { business_id: businessId },
+    attributes: ['id', 'name', 'status', 'client_company'],
+  });
+  if (projects.length === 0) return emptyProfitTab(period);
+
+  const projectIds = projects.map((p) => p.id);
+
+  // 프로젝트별 매출 (수금)
+  const payments = await InvoicePayment.findAll({
+    where: { paid_at: { [Op.between]: [fromDt, toDt] } },
+    include: [{
+      model: Invoice,
+      where: { business_id: businessId, project_id: { [Op.in]: projectIds } },
+      attributes: ['id', 'project_id'],
+    }],
+    attributes: ['amount'],
+  });
+  const revenueByProject = {};
+  for (const p of payments) {
+    const pid = p.Invoice?.project_id;
+    if (!pid) continue;
+    revenueByProject[pid] = (revenueByProject[pid] || 0) + Number(p.amount || 0);
+  }
+
+  // 프로젝트별 actual_hours
+  const tasks = await Task.findAll({
+    where: { business_id: businessId, project_id: { [Op.in]: projectIds }, status: 'completed' },
+    attributes: ['project_id', 'actual_hours', 'estimated_hours'],
+  });
+  const hoursByProject = {};
+  const estHoursByProject = {};
+  for (const t of tasks) {
+    if (!t.project_id) continue;
+    hoursByProject[t.project_id] = (hoursByProject[t.project_id] || 0) + Number(t.actual_hours || 0);
+    estHoursByProject[t.project_id] = (estHoursByProject[t.project_id] || 0) + Number(t.estimated_hours || 0);
+  }
+
+  // 직접비 (ProjectExpense)
+  const expenses = await ProjectExpense.findAll({
+    where: { project_id: { [Op.in]: projectIds }, incurred_at: { [Op.between]: [period.from, period.to] } },
+    attributes: ['project_id', 'amount'],
+  });
+  const directCostByProject = {};
+  for (const e of expenses) {
+    directCostByProject[e.project_id] = (directCostByProject[e.project_id] || 0) + Number(e.amount || 0);
+  }
+
+  // 행 빌드
+  const rows = projects.map((p) => {
+    const revenue = revenueByProject[p.id] || 0;
+    const hours = hoursByProject[p.id] || 0;
+    const estHours = estHoursByProject[p.id] || 0;
+    const laborCost = hours * 50000; // 가정: 시간당 5만원 (hourly_rate 컬럼 추후)
+    const directCost = directCostByProject[p.id] || 0;
+    const totalCost = laborCost + directCost;
+    const profit = revenue - totalCost;
+    const margin = revenue > 0 ? (profit / revenue) * 100 : null;
+    const profitPerHour = hours > 0 ? profit / hours : null;
+    return {
+      project_id: p.id,
+      name: p.name,
+      client: p.client_company || '—',
+      status: p.status,
+      revenue: Math.round(revenue),
+      labor_cost: Math.round(laborCost),
+      direct_cost: Math.round(directCost),
+      profit: Math.round(profit),
+      margin_pct: margin == null ? null : Number(margin.toFixed(1)),
+      hours: Number(hours.toFixed(1)),
+      est_hours: Number(estHours.toFixed(1)),
+      profit_per_hour: profitPerHour == null ? null : Math.round(profitPerHour),
+    };
+  });
+
+  const negativeMargin = rows.filter((r) => r.profit < 0).length;
+  const totalRevenue = rows.reduce((s, r) => s + r.revenue, 0);
+  const totalProfit = rows.reduce((s, r) => s + r.profit, 0);
+  const totalHours = rows.reduce((s, r) => s + r.hours, 0);
+  const avgProfitPerHour = totalHours > 0 ? totalProfit / totalHours : null;
+
+  const overrunRows = rows.filter((r) => r.est_hours > 0 && r.hours > r.est_hours * 1.5);
+
+  const insights = [];
+  if (negativeMargin > 0) insights.push({
+    severity: 'urgent', title: '마진 음수 프로젝트',
+    value: `${negativeMargin}건`, hint: '즉시 검토 필요',
+    action_label: '아래 표 확인', action_link: '/stats/profit',
+  });
+  if (overrunRows.length > 0) {
+    const top = overrunRows[0];
+    const ratio = ((top.hours / top.est_hours - 1) * 100).toFixed(0);
+    insights.push({
+      severity: 'warning', title: '견적 초과', value: `${top.name} +${ratio}%`,
+      hint: `${top.est_hours}h → ${top.hours}h`,
+    });
+  }
+  if (avgProfitPerHour != null) insights.push({
+    severity: 'info', title: 'Profit per Hour 평균',
+    value: `₩${Math.round(avgProfitPerHour).toLocaleString()}/h`,
+    hint: avgProfitPerHour > 90000 ? '목표 달성' : '단가 인상 검토',
+  });
+  if (insights.length === 0) insights.push({
+    severity: 'info', title: '데이터 누적 중',
+    value: '프로젝트 수금·비용 기록 후 표시', hint: '청구서·비용 입력하시면 분석 시작',
+  });
+
+  return {
+    period: { from: period.from, to: period.to, label: period.label },
+    kpis: {
+      active_projects: { value: projects.filter((p) => p.status === 'active').length, prev: null, delta_pct: null },
+      negative_margin: { value: negativeMargin, prev: null, delta_pct: null },
+      avg_profit_per_hour: { value: avgProfitPerHour == null ? null : Math.round(avgProfitPerHour), prev: null, delta_pct: null },
+      total_revenue: { value: Math.round(totalRevenue), prev: null, delta_pct: null },
+      total_profit: { value: Math.round(totalProfit), prev: null, delta_pct: null },
+      total_hours: { value: Number(totalHours.toFixed(1)), prev: null, delta_pct: null },
+    },
+    bubble: rows.filter((r) => r.hours > 0).map((r) => ({
+      project_id: r.project_id, name: r.name,
+      hours: r.hours, revenue: r.revenue, profit: r.profit, margin_pct: r.margin_pct,
+    })),
+    table: rows.sort((a, b) => b.revenue - a.revenue),
+    insights: insights.slice(0, 3),
+  };
+}
+function emptyProfitTab(period) {
+  return {
+    period, kpis: {
+      active_projects: { value: 0 }, negative_margin: { value: 0 },
+      avg_profit_per_hour: { value: null }, total_revenue: { value: 0 },
+      total_profit: { value: 0 }, total_hours: { value: 0 },
+    },
+    bubble: [], table: [],
+    insights: [{ severity: 'info', title: '프로젝트 없음', value: '신규 프로젝트 등록 후 분석 시작' }],
+  };
+}
+
+// ──────────────────────────────────────────────
+// Team (직원·생산성) 탭
+// ──────────────────────────────────────────────
+async function buildTeamTab(businessId, period) {
+  const { BusinessMember, User, Task, Invoice, InvoicePayment } = require('../models');
+  const fromDt = new Date(period.from + ' 00:00:00');
+  const toDt = new Date(period.to + ' 23:59:59');
+
+  const members = await BusinessMember.findAll({
+    where: { business_id: businessId, removed_at: null },
+    include: [{ model: User, as: 'user', attributes: ['id', 'name'] }],
+    attributes: ['user_id', 'role', 'daily_work_hours', 'weekly_work_days', 'participation_rate'],
+  });
+
+  const days = Math.max(1, (toDt - fromDt) / 86400000);
+
+  // 직원별 actual_hours / 정확도 / Bias / 완료 task 수
+  const tasks = await Task.findAll({
+    where: {
+      business_id: businessId,
+      completed_at: { [Op.between]: [fromDt, toDt] },
+      status: 'completed',
+    },
+    attributes: ['assignee_id', 'actual_hours', 'estimated_hours', 'completed_at', 'created_at', 'category'],
+  });
+
+  // 매출 (수금) — 청구서가 task 와 직접 연결 안 되어 있어, 가용시간 비중으로 분배
+  const payments = await InvoicePayment.findAll({
+    where: { paid_at: { [Op.between]: [fromDt, toDt] } },
+    include: [{ model: Invoice, where: { business_id: businessId }, attributes: ['id', 'project_id'] }],
+    attributes: ['amount'],
+  });
+  const totalRevenue = payments.reduce((s, p) => s + Number(p.amount || 0), 0);
+
+  const totalActualHours = tasks.reduce((s, t) => s + Number(t.actual_hours || 0), 0);
+
+  const rows = members.map((m) => {
+    const memberTasks = tasks.filter((t) => t.assignee_id === m.user_id);
+    const actualH = memberTasks.reduce((s, t) => s + Number(t.actual_hours || 0), 0);
+    const estH = memberTasks.reduce((s, t) => s + Number(t.estimated_hours || 0), 0);
+
+    const dh = Number(m.daily_work_hours || 8);
+    const wd = Number(m.weekly_work_days || 5);
+    const pr = Number(m.participation_rate || 1);
+    const availableH = (dh * wd * pr) * (days / 7);
+
+    const utilization = availableH > 0 ? (actualH / availableH) * 100 : null;
+
+    // 정확도 (task 별 평균)
+    const accuracies = memberTasks
+      .filter((t) => Number(t.estimated_hours) > 0 && Number(t.actual_hours) > 0)
+      .map((t) => accuracy(Number(t.actual_hours), Number(t.estimated_hours)))
+      .filter((a) => a != null);
+    const avgAccuracy = accuracies.length ? accuracies.reduce((a, b) => a + b, 0) / accuracies.length : null;
+
+    // Bias
+    const memberBias = bias(memberTasks
+      .filter((t) => Number(t.estimated_hours) > 0 && Number(t.actual_hours) > 0)
+      .map((t) => ({ actual: Number(t.actual_hours), est: Number(t.estimated_hours) })));
+
+    // 인당 매출 (시간 비중 가중)
+    const revenueShare = totalActualHours > 0 ? totalRevenue * (actualH / totalActualHours) : 0;
+
+    // Effective Rate (시간당 매출)
+    const effectiveRate = actualH > 0 ? revenueShare / actualH : null;
+
+    // 평균 리드타임
+    const leads = memberTasks
+      .filter((t) => t.completed_at && t.created_at)
+      .map((t) => (new Date(t.completed_at) - new Date(t.created_at)) / 86400000);
+    const avgLead = leads.length ? leads.reduce((a, b) => a + b, 0) / leads.length : null;
+
+    return {
+      user_id: m.user_id,
+      name: m.user?.name || `user ${m.user_id}`,
+      role: m.role,
+      utilization_pct: utilization == null ? null : Number(utilization.toFixed(1)),
+      accuracy_pct: avgAccuracy == null ? null : Number(avgAccuracy.toFixed(1)),
+      bias_pct: memberBias == null ? null : Number(memberBias.toFixed(1)),
+      completed_tasks: memberTasks.length,
+      avg_leadtime_days: avgLead == null ? null : Number(avgLead.toFixed(1)),
+      revenue_share: Math.round(revenueShare),
+      effective_rate: effectiveRate == null ? null : Math.round(effectiveRate),
+      actual_hours: Number(actualH.toFixed(1)),
+    };
+  });
+
+  // 인사이트
+  const sortedByRev = [...rows].filter((r) => r.revenue_share > 0).sort((a, b) => b.revenue_share - a.revenue_share);
+  const overUtil = rows.filter((r) => r.utilization_pct != null && r.utilization_pct > 100);
+  const sortedByAcc = [...rows].filter((r) => r.accuracy_pct != null && r.completed_tasks >= 3).sort((a, b) => (b.accuracy_pct || 0) - (a.accuracy_pct || 0));
+
+  const insights = [];
+  if (sortedByRev.length > 0) insights.push({
+    severity: 'info', title: '인당 매출 1위',
+    value: `${sortedByRev[0].name} ₩${sortedByRev[0].revenue_share.toLocaleString()}`,
+    hint: '시간 비중 가중 분배',
+  });
+  if (overUtil.length > 0) insights.push({
+    severity: 'urgent', title: '가동률 초과 직원',
+    value: `${overUtil.map((r) => r.name).join(', ')} (${overUtil[0].utilization_pct}%)`,
+    hint: '초과근무 위험 — 업무 재배정 검토',
+  });
+  if (sortedByAcc.length > 0) insights.push({
+    severity: 'info', title: '추정 정확도 1위',
+    value: `${sortedByAcc[0].name} ${sortedByAcc[0].accuracy_pct}%`,
+    hint: `Bias ${sortedByAcc[0].bias_pct}%`,
+  });
+  if (insights.length === 0) insights.push({
+    severity: 'info', title: '데이터 누적 중', value: '완료 업무가 쌓이면 직원 비교 분석',
+  });
+
+  // 가동률 분포 (히스토그램용 카테고리 카운트)
+  const utilBuckets = { under60: 0, normal: 0, over90: 0, over100: 0 };
+  for (const r of rows) {
+    if (r.utilization_pct == null) continue;
+    if (r.utilization_pct > 100) utilBuckets.over100 += 1;
+    else if (r.utilization_pct > 90) utilBuckets.over90 += 1;
+    else if (r.utilization_pct >= 60) utilBuckets.normal += 1;
+    else utilBuckets.under60 += 1;
+  }
+
+  return {
+    period: { from: period.from, to: period.to, label: period.label },
+    kpis: {
+      members: { value: rows.length, prev: null, delta_pct: null },
+      avg_utilization: { value: rows.length ? Number((rows.reduce((s, r) => s + (r.utilization_pct || 0), 0) / rows.length).toFixed(1)) : null, prev: null, delta_pct: null },
+      top_revenue: { value: sortedByRev[0]?.revenue_share || 0, prev: null, delta_pct: null },
+      top_accuracy: { value: sortedByAcc[0]?.accuracy_pct ?? null, prev: null, delta_pct: null },
+      over_util_count: { value: overUtil.length, prev: null, delta_pct: null },
+      total_completed: { value: rows.reduce((s, r) => s + r.completed_tasks, 0), prev: null, delta_pct: null },
+    },
+    util_buckets: utilBuckets,
+    table: rows.sort((a, b) => (b.utilization_pct || 0) - (a.utilization_pct || 0)),
+    insights: insights.slice(0, 3),
+  };
+}
+
+// ──────────────────────────────────────────────
+// Finance (비용·재무) 탭
+// ──────────────────────────────────────────────
+async function buildFinanceTab(businessId, period) {
+  const { Invoice, InvoicePayment, OverheadItem, ProjectExpense } = require('../models');
+  const fromDt = new Date(period.from + ' 00:00:00');
+  const toDt = new Date(period.to + ' 23:59:59');
+
+  const payments = await InvoicePayment.findAll({
+    where: { paid_at: { [Op.between]: [fromDt, toDt] } },
+    include: [{ model: Invoice, where: { business_id: businessId }, attributes: ['id', 'project_id'] }],
+    attributes: ['amount', 'paid_at'],
+  });
+  const revenue = payments.reduce((s, p) => s + Number(p.amount || 0), 0);
+
+  // 미수금 (current overdue)
+  const overdueInvoices = await Invoice.findAll({
+    where: { business_id: businessId, status: { [Op.in]: ['sent', 'partially_paid', 'overdue'] } },
+    attributes: ['grand_total', 'paid_amount', 'status', 'due_date'],
+  });
+  const receivable = overdueInvoices.reduce((s, i) => s + (Number(i.grand_total || 0) - Number(i.paid_amount || 0)), 0);
+
+  // 고정비 (월정 기준 기간 분배)
+  const overheads = await OverheadItem.findAll({
+    where: { business_id: businessId, [Op.or]: [{ ends_at: null }, { ends_at: { [Op.gte]: period.from } }] },
+    attributes: ['category', 'name', 'amount', 'cycle'],
+  });
+  const days = Math.max(1, (toDt - fromDt) / 86400000);
+  const overheadAlloc = overheads.reduce((s, o) => {
+    const a = Number(o.amount || 0);
+    const monthly = o.cycle === 'yearly' ? a / 12 : o.cycle === 'quarterly' ? a / 3 : a;
+    return s + (monthly / 30) * days;
+  }, 0);
+
+  // 직접비
+  const directs = await ProjectExpense.findAll({
+    include: [{ model: require('../models').Project, where: { business_id: businessId }, attributes: ['id'] }],
+    where: { incurred_at: { [Op.between]: [period.from, period.to] } },
+    attributes: ['category', 'amount', 'incurred_at'],
+  });
+  const directCost = directs.reduce((s, e) => s + Number(e.amount || 0), 0);
+
+  const totalCost = overheadAlloc + directCost;
+  const profit = revenue - totalCost;
+  const margin = revenue > 0 ? (profit / revenue) * 100 : null;
+
+  // 카테고리별 지출 (overhead category + project expense category 합계)
+  const categoryMap = {};
+  for (const o of overheads) {
+    const a = Number(o.amount || 0);
+    const monthly = o.cycle === 'yearly' ? a / 12 : o.cycle === 'quarterly' ? a / 3 : a;
+    const alloc = (monthly / 30) * days;
+    const k = o.category || 'other';
+    categoryMap[k] = (categoryMap[k] || 0) + alloc;
+  }
+  for (const e of directs) {
+    const k = `project_${e.category || 'other'}`;
+    categoryMap[k] = (categoryMap[k] || 0) + Number(e.amount || 0);
+  }
+  const expensesByCategory = Object.entries(categoryMap).map(([category, amount]) => ({
+    category, amount: Math.round(amount),
+  })).sort((a, b) => b.amount - a.amount);
+
+  const insights = [];
+  if (margin != null && margin < 0) insights.push({
+    severity: 'urgent', title: '마진 음수', value: `${margin.toFixed(1)}%`,
+    hint: '비용 > 매출 — 즉시 검토',
+  });
+  else if (margin != null && margin < 10) insights.push({
+    severity: 'warning', title: '낮은 마진', value: `${margin.toFixed(1)}%`,
+    hint: '비용 절감 또는 단가 인상 검토',
+  });
+  if (receivable > 0) insights.push({
+    severity: 'warning', title: '미수금', value: `₩${receivable.toLocaleString()}`,
+    hint: `${overdueInvoices.length}건 미결제`,
+    action_label: '청구서 보기', action_link: '/qbill',
+  });
+  if (expensesByCategory.length > 0) insights.push({
+    severity: 'info', title: '지출 1위',
+    value: `${expensesByCategory[0].category} ₩${expensesByCategory[0].amount.toLocaleString()}`,
+  });
+  if (insights.length === 0) insights.push({
+    severity: 'info', title: '데이터 누적 중', value: '청구서·비용 등록 후 분석 시작',
+  });
+
+  return {
+    period: { from: period.from, to: period.to, label: period.label },
+    kpis: {
+      revenue: { value: Math.round(revenue), prev: null, delta_pct: null },
+      total_cost: { value: Math.round(totalCost), prev: null, delta_pct: null },
+      profit: { value: Math.round(profit), prev: null, delta_pct: null },
+      margin_pct: { value: margin == null ? null : Number(margin.toFixed(1)), prev: null, delta_pct: null },
+      receivable: { value: Math.round(receivable), prev: null, delta_pct: null },
+      overhead: { value: Math.round(overheadAlloc), prev: null, delta_pct: null },
+    },
+    expenses_by_category: expensesByCategory,
+    insights: insights.slice(0, 3),
+  };
+}
+
+// ──────────────────────────────────────────────
+// Reports 탭 — 시점 고정 PDF 보고서 카드 (placeholder MVP)
+// ──────────────────────────────────────────────
+async function buildReportsTab(businessId) {
+  const { Report } = require('../models');
+  let reports = [];
+  try {
+    reports = await Report.findAll({
+      where: { business_id: businessId },
+      order: [['created_at', 'DESC']],
+      limit: 12,
+      attributes: ['id', 'kind', 'period_from', 'period_to', 'created_at', 'pdf_url', 'status'],
+    });
+  } catch { /* Report 모델 없거나 미사용 */ }
+
+  // 다음 자동 생성 일정 — 매월 1일 새벽
+  const nextAuto = new Date();
+  nextAuto.setMonth(nextAuto.getMonth() + 1);
+  nextAuto.setDate(1);
+
+  return {
+    reports: reports.map((r) => ({
+      id: r.id, kind: r.kind, period_from: r.period_from, period_to: r.period_to,
+      created_at: r.created_at, pdf_url: r.pdf_url, status: r.status,
+    })),
+    next_auto_at: nextAuto.toISOString().slice(0, 10),
+    auto_kinds: ['monthly', 'quarterly', 'yearly'],
+  };
+}
+
+module.exports = {
+  buildTasksTab,
+  buildOverviewTab,
+  buildProfitTab,
+  buildTeamTab,
+  buildFinanceTab,
+  buildReportsTab,
+  aggregateTaskCounts,
+  _internal: { mape, bias, accuracy, percentile },
+};

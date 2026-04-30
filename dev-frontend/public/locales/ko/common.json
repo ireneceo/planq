@@ -249,5 +249,41 @@
     "existingEmpty": "워크스페이스에 아직 업로드된 파일이 없습니다",
     "upload": "업로드 ({{n}})",
     "attach": "첨부 ({{n}})"
+  },
+  "installPrompt": {
+    "title": "PlanQ 를 앱처럼 사용하기",
+    "androidDesc": "홈 화면에 PlanQ 아이콘을 추가하면 빠르게 접속할 수 있습니다.",
+    "iosStep": "하단 공유 버튼 → \"홈 화면에 추가\" 를 누르면 앱 아이콘이 생깁니다.",
+    "menuStep": "브라우저 메뉴(︙) → \"홈 화면에 추가\" 를 누르면 앱 아이콘이 생깁니다.",
+    "installBtn": "설치",
+    "dismiss": "나중에"
+  },
+  "notifPrompt": {
+    "title": "알림 받기",
+    "desc": "새 메시지·컨펌 요청·결제 알림을 폰으로 바로 받습니다.",
+    "allowBtn": "알림 받기",
+    "subscribing": "...",
+    "dismiss": "나중에"
+  },
+  "userChip": {
+    "greeting": "안녕하세요, {{name}}님",
+    "title": "내 프로필"
+  },
+  "shareReceive": {
+    "title": "PlanQ 로 공유",
+    "received": "받은 내용",
+    "empty": "(빈 내용)",
+    "chooseDest": "어디로 보낼까요?",
+    "dest": {
+      "chat": "채팅",
+      "chatDesc": "대화방에 메시지로",
+      "task": "업무",
+      "taskDesc": "새 업무로 등록",
+      "note": "메모",
+      "noteDesc": "Q Note 에 저장",
+      "doc": "문서",
+      "docDesc": "새 문서 본문에"
+    },
+    "hint": "파일·이미지 공유는 다음 업데이트에서 지원됩니다. 지금은 PlanQ 안에서 직접 첨부해주세요."
   }
 }

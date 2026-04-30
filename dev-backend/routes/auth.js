@@ -319,6 +319,15 @@ router.post('/register', async (req, res, next) => {
     }, 'Registration successful', 201);
   } catch (error) {
     await transaction.rollback();
+    // Race: 두 요청이 동시에 같은 email/username 으로 가입 시도 시 UNIQUE constraint 발동.
+    // findOne 검증을 통과해도 DB 레벨에서 마지막 1건만 살고 나머지는 여기서 catch.
+    if (error?.name === 'SequelizeUniqueConstraintError') {
+      const fields = error.errors?.map((e) => e.path) || [];
+      if (fields.includes('email')) return errorResponse(res, 'Email already registered', 409);
+      if (fields.includes('username')) return errorResponse(res, 'username_taken', 409);
+      if (fields.includes('slug')) return errorResponse(res, 'workspace_slug_taken', 409);
+      return errorResponse(res, 'duplicate_constraint', 409);
+    }
     next(error);
   }
 });
@@ -458,8 +467,9 @@ router.post('/logout', async (req, res, next) => {
       }
     }
 
-    // Clear cookie
+    // Clear cookie — path 정합성 (과거 path='/' 또는 다른 path 로 발급된 쿠키 잔존 방지)
     res.clearCookie('refresh_token', { path: '/api/auth' });
+    res.clearCookie('refresh_token', { path: '/' });
 
     successResponse(res, null, 'Logged out');
   } catch (error) {

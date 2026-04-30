@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import styled from 'styled-components';
+import UserChip from './UserChip';
 
 /**
  * PageShell — 단일 컬럼 페이지의 표준 레이아웃.
@@ -39,7 +40,10 @@ export default function PageShell({
           {helpDot}
           {count !== undefined && count !== '' && <Count>{count}</Count>}
         </HeaderLeft>
-        {actions && <HeaderRight>{actions}</HeaderRight>}
+        <HeaderRight>
+          {actions}
+          <UserChip />
+        </HeaderRight>
       </Header>
       <Body style={bodyPadding ? { padding: bodyPadding } : undefined}>
         {children}

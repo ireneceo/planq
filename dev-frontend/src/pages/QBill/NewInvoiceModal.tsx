@@ -132,7 +132,9 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
   const sumPercent = rounds.reduce((s, r) => s + r.rate, 0);
   const sumOk = sumPercent === 100;
 
-  const canTax = (client?.is_business ?? false) && (
+  // 세금계산서: 통화 KRW + 한국 사업자(client.is_business + biz_tax_id) 조건 모두 충족 시만 활성.
+  // 외화(USD/EUR/JPY/CNY) 청구는 한국 세금계산서 발행 불가.
+  const canTax = currency === 'KRW' && (client?.is_business ?? false) && (
     !!client?.biz_tax_id || !!overrideBiz.biz_tax_id
   );
 

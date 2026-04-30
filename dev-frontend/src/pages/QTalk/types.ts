@@ -1,0 +1,164 @@
+// Q Talk 응답 타입 정의 (실 API 응답 모양과 일치).
+// Mock 단계의 prefix `Mock*` 는 호환성 위해 유지 — 후속 사이클에서 일괄 rename 예정.
+
+export type ProjectRole = 'owner' | 'member' | 'client';
+export type ChannelType = 'customer' | 'internal' | 'group';
+export type ProjectStatus = 'active' | 'paused' | 'closed';
+// 백엔드 Task ENUM 과 동기 — CLAUDE.md § Q Task 상태 ENUM
+export type TaskStatus =
+  | 'not_started' | 'waiting' | 'in_progress'
+  | 'reviewing' | 'revision_requested' | 'done_feedback'
+  | 'completed' | 'canceled';
+
+export interface MockMember {
+  user_id: number;
+  name: string;
+  role: string;
+  avatar_color: string;
+  is_default_assignee?: boolean;
+}
+
+export interface MockClient {
+  user_id: number;
+  name: string;
+  company: string;
+  avatar_color: string;
+}
+
+export interface PostCardMeta {
+  card_type: 'post';
+  post_id: number;
+  share_token: string;
+  share_url: string;
+  title: string;
+  note: string | null;
+}
+
+export interface SignatureCardMeta {
+  card_type: 'signature_request';
+  entity_type: 'post' | 'document';
+  entity_id: number;
+  title: string;
+  sign_url: string;
+  signers: Array<{ email: string; status: string }>;
+  note: string | null;
+}
+
+export interface InvoiceCardMeta {
+  card_type: 'invoice';
+  invoice_id: number;
+  invoice_number: string;
+  share_token: string;
+  share_url: string;
+  title: string;
+  total: number;
+  currency: string;
+  installment_mode?: 'single' | 'split';
+  status?: 'sent' | 'partially_paid' | 'paid' | 'overdue' | 'canceled';
+  paid_at?: string | null;
+  paid_amount?: number;
+  last_notify_at?: string | null;
+  last_notify_installment_id?: number | null;
+  last_notify_label?: string | null;
+  note: string | null;
+}
+
+export interface MockMessage {
+  id: number;
+  conversation_id: number;
+  sender_id: number;
+  sender_name: string;
+  sender_role: 'owner' | 'member' | 'client' | 'cue';
+  sender_color: string;
+  body: string;
+  created_at: string;
+  reply_to_message_id?: number | null;
+  is_question?: boolean;
+  cue_draft?: {
+    body: string;
+    confidence: number;
+    source?: { title: string; section: string };
+    processing_by?: { user_id: number; name: string } | null;
+  };
+  ai_sources?: { doc_id: number; title: string; section: string; snippet: string }[];
+  attachments?: { id: number; file_name: string; file_size: number; mime_type?: string | null }[];
+  card?: PostCardMeta | SignatureCardMeta | InvoiceCardMeta | null;
+  translations?: Partial<Record<'ko'|'en'|'ja'|'zh'|'es', string>> | null;
+  detected_language?: 'ko'|'en'|'ja'|'zh'|'es' | null;
+}
+
+export interface MockConversation {
+  id: number;
+  project_id: number;
+  channel_type: ChannelType;
+  name: string;
+  auto_extract_enabled: boolean;
+  last_message?: string;
+  last_message_at?: string | null;
+  unread_count: number;
+  last_extracted_message_id?: number | null;
+  last_extracted_at?: string | null;
+}
+
+export interface MockTaskCandidate {
+  id: number;
+  project_id: number | null;
+  conversation_id?: number;
+  title: string;
+  description: string;
+  source_message_ids: number[];
+  guessed_assignee?: { user_id: number; name: string };
+  guessed_role?: string;
+  guessed_due_date?: string;
+  similar_task_id?: number;
+  status: 'pending' | 'registered' | 'merged' | 'rejected';
+}
+
+export interface MockTask {
+  id: number;
+  project_id: number | null;
+  conversation_id?: number | null;
+  title: string;
+  assignee_id: number;
+  assignee_name: string;
+  due_date?: string;
+  status: TaskStatus;
+  recurrence?: string;
+}
+
+export interface MockNote {
+  id: number;
+  project_id: number | null;
+  conversation_id?: number | null;
+  author_id: number;
+  author_name: string;
+  visibility: 'personal' | 'internal';
+  body: string;
+  created_at: string;
+}
+
+export interface MockIssue {
+  id: number;
+  project_id: number | null;
+  conversation_id?: number | null;
+  body: string;
+  author_name: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MockProject {
+  id: number;
+  name: string;
+  description?: string;
+  client_company: string;
+  status: ProjectStatus;
+  start_date?: string;
+  end_date?: string;
+  default_assignee_id: number;
+  color?: string | null;
+  members: MockMember[];
+  clients: MockClient[];
+  unread_count: number;
+  has_cue_activity: boolean;
+}

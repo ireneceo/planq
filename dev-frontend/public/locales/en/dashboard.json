@@ -1,5 +1,34 @@
 {
   "title": "Dashboard",
+  "comingSoon": "Coming soon. Billing summary and analytics cards will appear here.",
+  "greeting": {
+    "hello": "Hello, {{name}}",
+    "helloAnon": "Welcome"
+  },
+  "inboxCard": {
+    "label": "Inbox",
+    "viewAll": "View all →",
+    "allDone": "All clear"
+  },
+  "quickActions": {
+    "label": "Quick actions",
+    "newChat": "Chat",
+    "newTask": "Task",
+    "newDoc": "Doc",
+    "newInvoice": "Invoice"
+  },
+  "preview": {
+    "viewAll": "View all →",
+    "todo": {
+      "title": "Inbox preview",
+      "empty": "No items to review",
+      "today": "Today"
+    },
+    "events": {
+      "title": "This week",
+      "empty": "No upcoming events"
+    }
+  },
   "todo": {
     "title": "Inbox",
     "count": "{{count}} item(s)",

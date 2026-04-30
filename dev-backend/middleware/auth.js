@@ -46,19 +46,25 @@ const requireRole = (...allowedRoles) => {
   };
 };
 
+// IDOR 방어: businessId 는 URL 경로 (:businessId) 에서만 신뢰. body/query 는 사용자 조작 가능하므로 폴백 금지.
+// 모든 사용 라우트가 :businessId 경로 패턴이므로 변경 영향 없음 (2026-04-30 검증).
 const checkBusinessAccess = async (req, res, next) => {
   try {
     if (!req.user) {
       return res.status(401).json({ success: false, message: 'Authentication required' });
     }
 
-    if (req.user.platform_role === 'platform_admin') {
-      return next();
+    const businessId = Number(req.params.businessId);
+    if (!businessId || Number.isNaN(businessId)) {
+      return res.status(400).json({ success: false, message: 'Business ID required in URL path' });
     }
 
-    const businessId = req.params.businessId || req.body.business_id || req.query.business_id;
-    if (!businessId) {
-      return res.status(400).json({ success: false, message: 'Business ID required' });
+    if (req.user.platform_role === 'platform_admin') {
+      // 라우트가 req.businessRole 을 직접 참조하는 경우 undefined 가드
+      req.businessId = businessId;
+      req.businessRole = 'owner';
+      req.businessMember = null;
+      return next();
     }
 
     const BusinessMember = require('../models/BusinessMember');
@@ -70,6 +76,7 @@ const checkBusinessAccess = async (req, res, next) => {
       return res.status(403).json({ success: false, message: 'No access to this business' });
     }
 
+    req.businessId = businessId;
     req.businessMember = membership;
     req.businessRole = membership.role;
     next();

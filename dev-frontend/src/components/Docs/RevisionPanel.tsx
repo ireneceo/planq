@@ -29,6 +29,53 @@ const fmtValue = (v: unknown): string => {
   } catch { return String(v); }
 };
 
+// 두 문자열의 공통 prefix/suffix 길이를 찾아 변경된 중간 부분만 강조.
+// 예: "워프로랩" → "워프로랩 주식회사" 시 prefix=4, suffix=0 → added=" 주식회사"
+const splitInlineDiff = (a: string, b: string) => {
+  const minLen = Math.min(a.length, b.length);
+  let pre = 0;
+  while (pre < minLen && a[pre] === b[pre]) pre++;
+  let suf = 0;
+  while (
+    suf < minLen - pre &&
+    a[a.length - 1 - suf] === b[b.length - 1 - suf]
+  ) suf++;
+  return {
+    prefix: a.slice(0, pre),
+    removed: a.slice(pre, a.length - suf),
+    added: b.slice(pre, b.length - suf),
+    suffix: suf > 0 ? a.slice(a.length - suf) : '',
+  };
+};
+
+// body_json (TipTap doc) → 텍스트 길이 추정 (문자 수 변화 표기용)
+const bodyTextLength = (v: unknown): number => {
+  if (v == null) return 0;
+  if (typeof v === 'string') return v.length;
+  if (typeof v === 'number' || typeof v === 'boolean') return String(v).length;
+  try {
+    return JSON.stringify(v).replace(/[{}[\]"',:]/g, '').length;
+  } catch { return 0; }
+};
+
+// 카운트 표기용 — form_data 안의 실제 변경 sub-key 수까지 풀어서 셈
+const countActualChanges = (fields: Record<string, { from: unknown; to: unknown }>): number => {
+  let n = 0;
+  for (const [k, c] of Object.entries(fields)) {
+    if (k === 'form_data') {
+      const fromObj = (c.from && typeof c.from === 'object' ? c.from : {}) as Record<string, unknown>;
+      const toObj = (c.to && typeof c.to === 'object' ? c.to : {}) as Record<string, unknown>;
+      const allKeys = new Set([...Object.keys(fromObj), ...Object.keys(toObj)]);
+      for (const sk of allKeys) {
+        if (JSON.stringify(fromObj[sk]) !== JSON.stringify(toObj[sk])) n++;
+      }
+    } else {
+      n++;
+    }
+  }
+  return n;
+};
+
 const fmtTime = (iso: string): string => {
   try {
     const d = new Date(iso);
@@ -63,17 +110,75 @@ const RevisionPanel: React.FC<Props> = ({ docId, slotLabels, reloadKey }) => {
     });
   };
 
-  const renderChange = (key: string, change: { from: unknown; to: unknown }) => {
+  // form_data 는 백엔드가 객체 전체를 단일 diff 로 기록 (changed_fields.form_data = {from: 전체, to: 전체})
+  // → 사용자에게는 슬롯별로 풀어서 보여줘야 의미 있음. 두 객체의 합집합 key 를 비교해 변경된 sub-key 만 노출.
+  const renderFormDataChange = (change: { from: unknown; to: unknown }): React.ReactNode[] => {
+    const fromObj = (change.from && typeof change.from === 'object' ? change.from : {}) as Record<string, unknown>;
+    const toObj = (change.to && typeof change.to === 'object' ? change.to : {}) as Record<string, unknown>;
+    const allKeys = Array.from(new Set([...Object.keys(fromObj), ...Object.keys(toObj)]));
+    const rows: React.ReactNode[] = [];
+    for (const k of allKeys) {
+      const a = fromObj[k];
+      const b = toObj[k];
+      if (JSON.stringify(a) === JSON.stringify(b)) continue;
+      rows.push(renderChange(k, { from: a, to: b }));
+    }
+    return rows;
+  };
+
+  const renderChange = (key: string, change: { from: unknown; to: unknown }): React.ReactNode => {
+    if (key === 'form_data') {
+      const rows = renderFormDataChange(change);
+      if (rows.length === 0) return null;
+      return <React.Fragment key={key}>{rows}</React.Fragment>;
+    }
     const label = slotLabels?.[key] || key;
     const isBody = BODY_KEYS.has(key);
     if (isBody) {
+      const fromLen = bodyTextLength(change.from);
+      const toLen = bodyTextLength(change.to);
+      const delta = toLen - fromLen;
       return (
         <ChangeRow key={key}>
           <FieldLabel>{label}</FieldLabel>
-          <BodyChange>{t('revision.bodyEdited', '본문 수정됨')}</BodyChange>
+          <BodyChangeRow>
+            <BodyChange>{t('revision.bodyEdited', '본문 수정됨')}</BodyChange>
+            {delta !== 0 && (
+              <DeltaPill $kind={delta > 0 ? 'added' : 'removed'}>
+                {delta > 0 ? '+' : ''}{delta}
+              </DeltaPill>
+            )}
+          </BodyChangeRow>
         </ChangeRow>
       );
     }
+
+    // string ↔ string 인 경우 — 공통 prefix/suffix 검출해 변경 부분만 인라인 강조
+    const fromStr = typeof change.from === 'string' ? change.from : null;
+    const toStr = typeof change.to === 'string' ? change.to : null;
+    if (fromStr !== null && toStr !== null && (fromStr || toStr)) {
+      const d = splitInlineDiff(fromStr, toStr);
+      const isPureAdd = d.removed === '' && d.added !== '';
+      const isPureRemove = d.added === '' && d.removed !== '';
+      const isReplace = d.removed !== '' && d.added !== '';
+      // 공통 부분이 충분할 때만 inline 표시 (그 외 통째 from→to)
+      const commonRatio = (d.prefix.length + d.suffix.length) /
+        Math.max(1, Math.max(fromStr.length, toStr.length));
+      if (commonRatio >= 0.3 && (isPureAdd || isPureRemove || isReplace)) {
+        return (
+          <ChangeRow key={key}>
+            <FieldLabel>{label}</FieldLabel>
+            <InlineDiffBox>
+              {d.prefix && <InlineCommon>{d.prefix}</InlineCommon>}
+              {d.removed && <InlineRemoved>{d.removed}</InlineRemoved>}
+              {d.added && <InlineAdded>{d.added}</InlineAdded>}
+              {d.suffix && <InlineCommon>{d.suffix}</InlineCommon>}
+            </InlineDiffBox>
+          </ChangeRow>
+        );
+      }
+    }
+
     return (
       <ChangeRow key={key}>
         <FieldLabel>{label}</FieldLabel>
@@ -115,7 +220,7 @@ const RevisionPanel: React.FC<Props> = ({ docId, slotLabels, reloadKey }) => {
                   <Changer>{r.changer?.name || `#${r.changed_by ?? '—'}`}</Changer>
                   <Time>{fmtTime(r.created_at)}</Time>
                 </RevMeta>
-                <FieldCount>{t('revision.fieldsCount', '{{n}}건', { n: fieldKeys.length })}</FieldCount>
+                <FieldCount>{t('revision.fieldsCount', '{{n}}건', { n: countActualChanges(fields) })}</FieldCount>
                 <Caret $open={open}>
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
                 </Caret>
@@ -229,4 +334,34 @@ const ToVal = styled.span`
 const Arrow = styled.span`color: #94A3B8; font-size: 12px;`;
 const BodyChange = styled.span`
   font-size: 12px; color: #475569; font-style: italic;
+`;
+const BodyChangeRow = styled.div`display: flex; align-items: center; gap: 8px; flex-wrap: wrap;`;
+const DeltaPill = styled.span<{ $kind: 'added' | 'removed' }>`
+  display: inline-flex; align-items: center;
+  padding: 2px 8px; border-radius: 999px;
+  font-size: 11px; font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  ${p => p.$kind === 'added'
+    ? 'background:#DCFCE7;color:#166534;border:1px solid #BBF7D0;'
+    : 'background:#FEF2F2;color:#B91C1C;border:1px solid #FECACA;'}
+`;
+const InlineDiffBox = styled.div`
+  display: inline-flex; flex-wrap: wrap; align-items: baseline;
+  font-size: 12px; line-height: 1.6;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  word-break: break-all;
+  padding: 4px 8px;
+  background: #F8FAFC;
+  border: 1px solid #E2E8F0;
+  border-radius: 6px;
+`;
+const InlineCommon = styled.span`color: #334155;`;
+const InlineRemoved = styled.span`
+  color: #B91C1C; background: #FEE2E2; text-decoration: line-through;
+  padding: 0 2px; border-radius: 3px;
+`;
+const InlineAdded = styled.span`
+  color: #166534; background: #DCFCE7;
+  padding: 0 2px; border-radius: 3px;
 `;

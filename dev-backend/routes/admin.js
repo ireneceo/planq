@@ -179,4 +179,44 @@ router.get('/plans/catalog', async (_req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// ─── Q-C 메일 모니터링 ───
+// GET /api/admin/email-logs?status=&template=&business_id=&page=&limit=
+router.get('/email-logs', async (req, res, next) => {
+  try {
+    const { EmailLog } = require('../models');
+    const where = {};
+    if (req.query.status) where.status = String(req.query.status);
+    if (req.query.template) where.template = String(req.query.template);
+    if (req.query.business_id) where.business_id = Number(req.query.business_id);
+    const limit = Math.min(Number(req.query.limit) || 50, 200);
+    const page = Math.max(Number(req.query.page) || 1, 1);
+    const { count, rows } = await EmailLog.findAndCountAll({
+      where,
+      include: [{ model: User, as: 'initiator', attributes: ['id', 'name'], required: false }],
+      order: [['created_at', 'DESC']],
+      limit,
+      offset: (page - 1) * limit,
+    });
+    return res.json({
+      success: true,
+      data: rows.map(r => r.toJSON()),
+      pagination: { page, limit, total: count },
+    });
+  } catch (err) { next(err); }
+});
+
+// POST /api/admin/email-logs/:id/retry — 재발송 트리거 (현재는 카운트만 증가, 추후 템플릿 핸들러 연결).
+//   PII 우려로 html 본문은 EmailLog 에 저장 안 함. 재발송은 template 식별자 + related_entity 로 다시 빌드.
+router.post('/email-logs/:id/retry', async (req, res, next) => {
+  try {
+    const { EmailLog } = require('../models');
+    const log = await EmailLog.findByPk(req.params.id);
+    if (!log) return errorResponse(res, 'not_found', 404);
+    if (log.status === 'sent') return errorResponse(res, 'already_sent', 400);
+    if (!log.template) return errorResponse(res, 'manual_retry_unsupported', 400);
+    await log.update({ retry_count: log.retry_count + 1 });
+    return successResponse(res, log.toJSON(), 'retry_queued');
+  } catch (err) { next(err); }
+});
+
 module.exports = router;

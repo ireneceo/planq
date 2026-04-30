@@ -249,5 +249,41 @@
     "existingEmpty": "No files uploaded to this workspace yet",
     "upload": "Upload ({{n}})",
     "attach": "Attach ({{n}})"
+  },
+  "installPrompt": {
+    "title": "Use PlanQ like an app",
+    "androidDesc": "Add PlanQ to your home screen for quick access.",
+    "iosStep": "Tap the share button → \"Add to Home Screen\" to install the app icon.",
+    "menuStep": "Open browser menu (︙) → \"Add to Home Screen\" to install the app icon.",
+    "installBtn": "Install",
+    "dismiss": "Later"
+  },
+  "notifPrompt": {
+    "title": "Enable notifications",
+    "desc": "Get new messages, review requests, and payment alerts on your phone.",
+    "allowBtn": "Allow",
+    "subscribing": "...",
+    "dismiss": "Later"
+  },
+  "userChip": {
+    "greeting": "Hello, {{name}}",
+    "title": "My profile"
+  },
+  "shareReceive": {
+    "title": "Share to PlanQ",
+    "received": "Received content",
+    "empty": "(empty)",
+    "chooseDest": "Where to send?",
+    "dest": {
+      "chat": "Chat",
+      "chatDesc": "Send as a message",
+      "task": "Task",
+      "taskDesc": "Create a new task",
+      "note": "Note",
+      "noteDesc": "Save to Q Note",
+      "doc": "Document",
+      "docDesc": "Insert into new document"
+    },
+    "hint": "File and image sharing will arrive in a future update. For now, please attach directly inside PlanQ."
   }
 }
