@@ -268,6 +268,13 @@ res.status(400).json({ success: false, message: 'Error description' });
 > **Phase E 메일 (2026-04-27 신규):** `businesses.mail_from_name VARCHAR(100)`, `mail_reply_to VARCHAR(200)` — `"표시이름" <noreply@planq.kr>` 형식 자동. GET/PUT `/api/businesses/:id/mail` (`/business/settings/email`).
 >
 > **Phase E 알림 매트릭스 (2026-04-27 신규):** `notification_prefs` 테이블 — user × business × event_kind × channel × enabled. event_kind 7종 × channel 3종 = 21 토글. row 없으면 기본 ON (열린 문화), 명시적 OFF row 만 차단. `routes/notifications.isAllowed()` helper 발송 시점 검사.
+>
+> **Q-H 사이클 — 계정 vs 워크스페이스 프로필 분리 (2026-05-01):**
+> - `users` 7 컬럼 추가 — `email_verified_at`, `secondary_email`, `secondary_email_verified_at`, `pending_secondary_email`, `secondary_email_otp_hash`, `secondary_email_otp_expires_at`, `secondary_email_otp_attempts`, `secondary_email_locked_until` (보조 이메일 OTP 인증 흐름)
+> - `business_members` 10 컬럼 추가 — `name`, `name_localized` (워크스페이스별 표시명) + Q Note 답변 생성용 8 필드 (`bio`, `expertise`, `organization`, `job_title`, `expertise_level`, `language_levels`, `answer_style_default`, `answer_length_default`). null 이면 User fallback.
+> - `clients.display_name_localized` JSON
+> - 신규 라우트 12: `GET/PUT /api/businesses/:id/me/profile`, `POST /api/users/:id/email-verify-request`+confirm, `POST /api/users/:id/secondary-email-{verify,change}-{request,verify,confirm}`, `DELETE /api/users/:id/secondary-email`
+> - `users.username` 한 번 정해지면 변경 차단 (안전핀, `routes/users.js:128-143`)
 
 **기타 (2):** kb_chunks, kb_documents, kb_pinned_faqs, cue_usage
 
