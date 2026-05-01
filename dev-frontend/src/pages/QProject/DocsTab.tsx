@@ -9,6 +9,7 @@ import DetailDrawer from '../../components/Common/DetailDrawer';
 import EmptyState from '../../components/Common/EmptyState';
 import PlanQSelect from '../../components/Common/PlanQSelect';
 import SearchBox from '../../components/Common/SearchBox';
+import CloudConnectNotice from '../../components/Common/CloudConnectNotice';
 import { Link } from 'react-router-dom';
 import {
   fetchProjectFiles, fetchWorkspaceFiles, uploadProjectFile, uploadMyFile, deleteProjectFile, bulkDeleteFiles,
@@ -295,6 +296,9 @@ const DocsTab: React.FC<Props> = (props) => {
       onDragOver={e => e.preventDefault()}
       onDrop={e => { e.preventDefault(); setDragOver(false); handleFiles(e.dataTransfer.files); }}
     >
+      {/* GDrive 연결 안내 / 연결 추천 (workspace · project 양쪽) */}
+      {businessId > 0 && <CloudConnectNotice businessId={businessId} />}
+
       {/* 드롭 오버레이 (전역 드래그 중 표시) */}
       {dragOver && <DragOverlay>
         <DragOverlayInner>

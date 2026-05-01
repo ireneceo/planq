@@ -124,15 +124,18 @@ router.put('/:id', authenticateToken, async (req, res, next) => {
       }
     }
 
-    // username 변경 — 영문/숫자/_/-, 3~30자, unique, reserved 차단
+    // username 은 안전핀 — 한 번 정해지면 변경 불가 (회원가입 시 또는 마이그레이션 시 정해짐)
+    // 기존 사용자가 username 이 비어있는 경우에만 1회 설정 허용.
     if (username !== undefined) {
-      if (username === null || username === '') {
-        return errorResponse(res, 'username_required', 400);
-      }
-      const u = String(username).toLowerCase().trim();
-      if (!USERNAME_RE.test(u)) return errorResponse(res, 'invalid_username_format', 400);
-      if (RESERVED_USERNAMES.has(u)) return errorResponse(res, 'username_reserved', 409);
-      if (u !== user.username) {
+      if (user.username) {
+        // 이미 설정됨 → 변경 차단. 무시 (요청 본문에 포함되어도 silently ignore).
+      } else {
+        if (username === null || username === '') {
+          return errorResponse(res, 'username_required', 400);
+        }
+        const u = String(username).toLowerCase().trim();
+        if (!USERNAME_RE.test(u)) return errorResponse(res, 'invalid_username_format', 400);
+        if (RESERVED_USERNAMES.has(u)) return errorResponse(res, 'username_reserved', 409);
         const existing = await User.findOne({ where: { username: u } });
         if (existing && existing.id !== user.id) return errorResponse(res, 'username_taken', 409);
         updates.username = u;
@@ -353,6 +356,7 @@ router.post('/:id/email-change-verify', authenticateToken, async (req, res, next
     const newEmail = user.pending_email;
     await user.update({
       email: newEmail,
+      email_verified_at: new Date(),
       pending_email: null,
       email_change_otp_hash: null,
       email_change_otp_expires_at: null,
@@ -360,6 +364,351 @@ router.post('/:id/email-change-verify', authenticateToken, async (req, res, next
     });
 
     return successResponse(res, { email: newEmail, changed: true });
+  } catch (err) { next(err); }
+});
+
+// ============================================
+// POST /api/users/:id/email-verify-request
+// 현재 primary 이메일이 미인증 상태일 때 — 그 이메일로 OTP 발송 (변경 없음, 인증만)
+// email_change_otp_* 필드 재활용. pending_email 은 user.email 로 둠.
+// ============================================
+router.post('/:id/email-verify-request', authenticateToken, async (req, res, next) => {
+  try {
+    if (req.user.id !== parseInt(req.params.id, 10)) {
+      return errorResponse(res, 'only_self', 403);
+    }
+    const user = await User.findByPk(req.user.id);
+    if (!user) return errorResponse(res, 'user_not_found', 404);
+    if (user.email_verified_at) return errorResponse(res, 'already_verified', 400);
+    if (user.email_change_locked_until && user.email_change_locked_until > new Date()) {
+      return errorResponse(res, 'locked', 423);
+    }
+
+    const code = genOtp();
+    const expiresAt = new Date(Date.now() + OTP_TTL_MIN * 60_000);
+    await user.update({
+      pending_email: user.email,                // 자기 자신 — verify-confirm 에서 동일 이메일 검증
+      email_change_otp_hash: sha256(code),
+      email_change_otp_expires_at: expiresAt,
+      email_change_otp_attempts: 0,
+    });
+
+    const sent = await sendVerificationCodeEmail({
+      to: user.email,
+      code,
+      ttlMinutes: OTP_TTL_MIN,
+      userName: user.name || '',
+    }).catch(() => false);
+
+    if (!process.env.SMTP_HOST) {
+      console.log(`[DEV-EMAIL-VERIFY] user_id=${user.id} email=${user.email} code=${code}`);
+    }
+
+    return successResponse(res, {
+      sent: !!sent,
+      email: user.email,
+      expires_at: expiresAt,
+      ttl_minutes: OTP_TTL_MIN,
+    });
+  } catch (err) { next(err); }
+});
+
+// ============================================
+// POST /api/users/:id/email-verify-confirm
+// body: { code }
+// → 검증 성공 시 email_verified_at = now. email 변경 없음.
+// ============================================
+router.post('/:id/email-verify-confirm', authenticateToken, async (req, res, next) => {
+  try {
+    if (req.user.id !== parseInt(req.params.id, 10)) {
+      return errorResponse(res, 'only_self', 403);
+    }
+    const user = await User.findByPk(req.user.id);
+    if (!user) return errorResponse(res, 'user_not_found', 404);
+
+    if (user.email_change_locked_until && user.email_change_locked_until > new Date()) {
+      return errorResponse(res, 'locked', 423);
+    }
+    if (!user.email_change_otp_hash || !user.email_change_otp_expires_at) {
+      return errorResponse(res, 'no_pending_request', 400);
+    }
+    if (user.email_change_otp_expires_at < new Date()) {
+      await user.update({
+        pending_email: null, email_change_otp_hash: null,
+        email_change_otp_expires_at: null, email_change_otp_attempts: 0,
+      });
+      return errorResponse(res, 'otp_expired', 410);
+    }
+
+    const code = String(req.body?.code || '').trim();
+    if (!/^\d{6}$/.test(code)) return errorResponse(res, 'invalid_code_format', 400);
+
+    if (sha256(code) !== user.email_change_otp_hash) {
+      const attempts = user.email_change_otp_attempts + 1;
+      const update = { email_change_otp_attempts: attempts };
+      if (attempts >= OTP_MAX_ATTEMPTS) {
+        update.email_change_locked_until = new Date(Date.now() + OTP_LOCK_MIN * 60_000);
+        update.pending_email = null;
+        update.email_change_otp_hash = null;
+        update.email_change_otp_expires_at = null;
+        update.email_change_otp_attempts = 0;
+      }
+      await user.update(update);
+      return errorResponse(res,
+        attempts >= OTP_MAX_ATTEMPTS ? 'locked' : 'invalid_code',
+        attempts >= OTP_MAX_ATTEMPTS ? 423 : 400
+      );
+    }
+
+    await user.update({
+      email_verified_at: new Date(),
+      pending_email: null,
+      email_change_otp_hash: null,
+      email_change_otp_expires_at: null,
+      email_change_otp_attempts: 0,
+    });
+    return successResponse(res, { email: user.email, verified: true });
+  } catch (err) { next(err); }
+});
+
+// ============================================
+// POST /api/users/:id/secondary-email-verify-request
+// 현재 secondary 이메일이 미인증 상태일 때 — 그 이메일로 OTP 발송
+// ============================================
+router.post('/:id/secondary-email-verify-request', authenticateToken, async (req, res, next) => {
+  try {
+    if (req.user.id !== parseInt(req.params.id, 10)) {
+      return errorResponse(res, 'only_self', 403);
+    }
+    const user = await User.findByPk(req.user.id);
+    if (!user) return errorResponse(res, 'user_not_found', 404);
+    if (!user.secondary_email) return errorResponse(res, 'no_secondary_email', 400);
+    if (user.secondary_email_verified_at) return errorResponse(res, 'already_verified', 400);
+    if (user.secondary_email_locked_until && user.secondary_email_locked_until > new Date()) {
+      return errorResponse(res, 'locked', 423);
+    }
+
+    const code = genOtp();
+    const expiresAt = new Date(Date.now() + OTP_TTL_MIN * 60_000);
+    await user.update({
+      pending_secondary_email: user.secondary_email,
+      secondary_email_otp_hash: sha256(code),
+      secondary_email_otp_expires_at: expiresAt,
+      secondary_email_otp_attempts: 0,
+    });
+
+    const sent = await sendVerificationCodeEmail({
+      to: user.secondary_email,
+      code,
+      ttlMinutes: OTP_TTL_MIN,
+      userName: user.name || '',
+    }).catch(() => false);
+
+    if (!process.env.SMTP_HOST) {
+      console.log(`[DEV-SEC-VERIFY] user_id=${user.id} email=${user.secondary_email} code=${code}`);
+    }
+
+    return successResponse(res, {
+      sent: !!sent,
+      email: user.secondary_email,
+      expires_at: expiresAt,
+      ttl_minutes: OTP_TTL_MIN,
+    });
+  } catch (err) { next(err); }
+});
+
+// ============================================
+// POST /api/users/:id/secondary-email-verify-confirm
+// ============================================
+router.post('/:id/secondary-email-verify-confirm', authenticateToken, async (req, res, next) => {
+  try {
+    if (req.user.id !== parseInt(req.params.id, 10)) {
+      return errorResponse(res, 'only_self', 403);
+    }
+    const user = await User.findByPk(req.user.id);
+    if (!user) return errorResponse(res, 'user_not_found', 404);
+
+    if (user.secondary_email_locked_until && user.secondary_email_locked_until > new Date()) {
+      return errorResponse(res, 'locked', 423);
+    }
+    if (!user.secondary_email_otp_hash || !user.secondary_email_otp_expires_at) {
+      return errorResponse(res, 'no_pending_request', 400);
+    }
+    if (user.secondary_email_otp_expires_at < new Date()) {
+      await user.update({
+        pending_secondary_email: null, secondary_email_otp_hash: null,
+        secondary_email_otp_expires_at: null, secondary_email_otp_attempts: 0,
+      });
+      return errorResponse(res, 'otp_expired', 410);
+    }
+
+    const code = String(req.body?.code || '').trim();
+    if (!/^\d{6}$/.test(code)) return errorResponse(res, 'invalid_code_format', 400);
+
+    if (sha256(code) !== user.secondary_email_otp_hash) {
+      const attempts = user.secondary_email_otp_attempts + 1;
+      const update = { secondary_email_otp_attempts: attempts };
+      if (attempts >= OTP_MAX_ATTEMPTS) {
+        update.secondary_email_locked_until = new Date(Date.now() + OTP_LOCK_MIN * 60_000);
+        update.pending_secondary_email = null;
+        update.secondary_email_otp_hash = null;
+        update.secondary_email_otp_expires_at = null;
+        update.secondary_email_otp_attempts = 0;
+      }
+      await user.update(update);
+      return errorResponse(res,
+        attempts >= OTP_MAX_ATTEMPTS ? 'locked' : 'invalid_code',
+        attempts >= OTP_MAX_ATTEMPTS ? 423 : 400
+      );
+    }
+
+    await user.update({
+      secondary_email_verified_at: new Date(),
+      pending_secondary_email: null,
+      secondary_email_otp_hash: null,
+      secondary_email_otp_expires_at: null,
+      secondary_email_otp_attempts: 0,
+    });
+    return successResponse(res, { email: user.secondary_email, verified: true });
+  } catch (err) { next(err); }
+});
+
+// ============================================
+// POST /api/users/:id/secondary-email-change-request
+// 보조 이메일 추가/변경. 새 이메일에 6자리 OTP 발송. verify 시 secondary_email 로 교체.
+// body: { new_email }
+// ============================================
+router.post('/:id/secondary-email-change-request', authenticateToken, async (req, res, next) => {
+  try {
+    if (req.user.id !== parseInt(req.params.id, 10)) {
+      return errorResponse(res, 'only_self', 403);
+    }
+    const user = await User.findByPk(req.user.id);
+    if (!user) return errorResponse(res, 'user_not_found', 404);
+
+    if (user.secondary_email_locked_until && user.secondary_email_locked_until > new Date()) {
+      return errorResponse(res, 'locked', 423);
+    }
+
+    const newEmail = String(req.body?.new_email || '').toLowerCase().trim();
+    if (!EMAIL_RE.test(newEmail)) return errorResponse(res, 'invalid_email_format', 400);
+    if (newEmail === user.email) return errorResponse(res, 'same_as_primary', 400);
+    if (newEmail === user.secondary_email) return errorResponse(res, 'same_as_current', 400);
+    if (/^cue\+\d+@system\.planq\.kr$/.test(newEmail)) return errorResponse(res, 'reserved_email', 400);
+
+    // primary email 로 다른 사용자에게 잡혀있으면 충돌
+    const dupPrimary = await User.findOne({ where: { email: newEmail } });
+    if (dupPrimary && dupPrimary.id !== user.id) return errorResponse(res, 'email_already_used', 409);
+
+    const code = genOtp();
+    const expiresAt = new Date(Date.now() + OTP_TTL_MIN * 60_000);
+    await user.update({
+      pending_secondary_email: newEmail,
+      secondary_email_otp_hash: sha256(code),
+      secondary_email_otp_expires_at: expiresAt,
+      secondary_email_otp_attempts: 0,
+    });
+
+    const sent = await sendVerificationCodeEmail({
+      to: newEmail,
+      code,
+      ttlMinutes: OTP_TTL_MIN,
+      userName: user.name || '',
+    }).catch(() => false);
+
+    if (!process.env.SMTP_HOST) {
+      console.log(`[DEV-SECONDARY-EMAIL] user_id=${user.id} new=${newEmail} code=${code}`);
+    }
+
+    return successResponse(res, {
+      sent: !!sent,
+      pending_email: newEmail,
+      expires_at: expiresAt,
+      ttl_minutes: OTP_TTL_MIN,
+    });
+  } catch (err) { next(err); }
+});
+
+// ============================================
+// POST /api/users/:id/secondary-email-change-verify
+// body: { code }
+// → 검증 성공 시 secondary_email = pending_secondary_email 로 교체 + verified_at 마킹
+// ============================================
+router.post('/:id/secondary-email-change-verify', authenticateToken, async (req, res, next) => {
+  try {
+    if (req.user.id !== parseInt(req.params.id, 10)) {
+      return errorResponse(res, 'only_self', 403);
+    }
+    const user = await User.findByPk(req.user.id);
+    if (!user) return errorResponse(res, 'user_not_found', 404);
+
+    if (user.secondary_email_locked_until && user.secondary_email_locked_until > new Date()) {
+      return errorResponse(res, 'locked', 423);
+    }
+    if (!user.pending_secondary_email || !user.secondary_email_otp_hash || !user.secondary_email_otp_expires_at) {
+      return errorResponse(res, 'no_pending_request', 400);
+    }
+    if (user.secondary_email_otp_expires_at < new Date()) {
+      await user.update({
+        pending_secondary_email: null, secondary_email_otp_hash: null,
+        secondary_email_otp_expires_at: null, secondary_email_otp_attempts: 0,
+      });
+      return errorResponse(res, 'otp_expired', 410);
+    }
+
+    const code = String(req.body?.code || '').trim();
+    if (!/^\d{6}$/.test(code)) return errorResponse(res, 'invalid_code_format', 400);
+
+    if (sha256(code) !== user.secondary_email_otp_hash) {
+      const attempts = user.secondary_email_otp_attempts + 1;
+      const update = { secondary_email_otp_attempts: attempts };
+      if (attempts >= OTP_MAX_ATTEMPTS) {
+        update.secondary_email_locked_until = new Date(Date.now() + OTP_LOCK_MIN * 60_000);
+        update.pending_secondary_email = null;
+        update.secondary_email_otp_hash = null;
+        update.secondary_email_otp_expires_at = null;
+        update.secondary_email_otp_attempts = 0;
+      }
+      await user.update(update);
+      return errorResponse(res,
+        attempts >= OTP_MAX_ATTEMPTS ? 'locked' : 'invalid_code',
+        attempts >= OTP_MAX_ATTEMPTS ? 423 : 400
+      );
+    }
+
+    const newEmail = user.pending_secondary_email;
+    await user.update({
+      secondary_email: newEmail,
+      secondary_email_verified_at: new Date(),
+      pending_secondary_email: null,
+      secondary_email_otp_hash: null,
+      secondary_email_otp_expires_at: null,
+      secondary_email_otp_attempts: 0,
+    });
+
+    return successResponse(res, { secondary_email: newEmail, changed: true });
+  } catch (err) { next(err); }
+});
+
+// ============================================
+// DELETE /api/users/:id/secondary-email — 보조 이메일 제거
+// ============================================
+router.delete('/:id/secondary-email', authenticateToken, async (req, res, next) => {
+  try {
+    if (req.user.id !== parseInt(req.params.id, 10)) {
+      return errorResponse(res, 'only_self', 403);
+    }
+    const user = await User.findByPk(req.user.id);
+    if (!user) return errorResponse(res, 'user_not_found', 404);
+    await user.update({
+      secondary_email: null,
+      secondary_email_verified_at: null,
+      pending_secondary_email: null,
+      secondary_email_otp_hash: null,
+      secondary_email_otp_expires_at: null,
+      secondary_email_otp_attempts: 0,
+    });
+    return successResponse(res, { removed: true });
   } catch (err) { next(err); }
 });
 

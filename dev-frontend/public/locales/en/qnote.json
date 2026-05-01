@@ -5,8 +5,8 @@
       "body": "Add participants, docs, and meeting language at start for better STT.\n\n• Mic mode: records your voice only\n• Web meeting mode: separates channels (me / other)\n• Question cards' 'Find answer' → meeting docs first (RAG)\n• You can also type questions directly (shown in primary language + translated to the secondary)",
       "cuePrefill": "Tell me how Q note start, recording mode, find-answer, and speaker recognition work"
     },
-    "newMeeting": "New Meeting",
-    "newMeetingStart": "Start New Meeting",
+    "newMeeting": "New Note",
+    "newMeetingStart": "Start New Note",
     "sessionSearchPlaceholder": "Search sessions",
     "emptySessionList": "No sessions yet.",
     "sessionUtteranceCount": "{{count}} utterances",
@@ -39,7 +39,7 @@
       "startRecording": "Start Recording",
       "recordingNow": "Recording",
       "pause": "Pause",
-      "endMeeting": "End Meeting",
+      "endMeeting": "End Recording",
       "resume": "Resume Recording",
       "settings": "Settings"
     },
@@ -48,7 +48,7 @@
       "self": "Me"
     },
     "prepared": {
-      "ready": "The meeting is ready.",
+      "ready": "Ready to record.",
       "hint": "Press \"Start Recording\" to begin real-time speech recognition."
     },
     "interim": {
@@ -94,7 +94,7 @@
       "title": "This person is",
       "self": "Me",
       "registered": "Registered participants",
-      "hintRegister": "Register participants when starting a meeting to select them here",
+      "hintRegister": "Register participants at the start to select them here",
       "custom": "Enter manually",
       "namePlaceholder": "Name",
       "save": "Save"
@@ -109,7 +109,7 @@
       "showTitle": "Show my speech too"
     },
     "manualQuestion": {
-      "placeholder": "Type a question directly (any language OK — auto-translated to the meeting language)",
+      "placeholder": "Type a question directly (any language OK — auto-translated to the recording language)",
       "submit": "Generate Answer",
       "submitting": "Processing..."
     },
@@ -143,31 +143,44 @@
       "startPrefix": "Failed to start recording: {{hint}}",
       "noBusiness": "No business information.",
       "sessionCreate": "Failed to create session",
-      "recorderLocked": "This meeting is already being recorded in another tab or device. Please pause or end it there first.",
+      "recorderLocked": "This note is already being recorded in another tab or device. Please pause or end it there first.",
       "recorderLost": "Another tab took over the recording, so this tab has stopped.",
-      "recorderLockedBanner": "This meeting is being recorded in another tab or device. Duplicate recording is not allowed."
+      "recorderLockedBanner": "This note is being recorded in another tab or device. Duplicate recording is not allowed."
     }
   },
   "startModal": {
-    "header": "Start New Meeting",
-    "editHeader": "Edit Meeting Settings",
+    "header": "Start New Note",
+    "editHeader": "Edit Note Settings",
     "closeLabel": "Close",
-    "titleLabel": "Meeting Title",
+    "titleLabel": "Title",
     "titlePlaceholder": "e.g. Monday Team Standup",
-    "defaultTitle": "Untitled Meeting",
-    "briefLabel": "Meeting Brief (optional)",
-    "briefHint": "Adding meeting purpose, caveats, and topics greatly improves translation, summary, and answer quality.",
+    "defaultTitle": "Untitled Note",
+    "purposeLabel": "Purpose",
+    "purposePlaceholder": "Choose (Meeting / Consultation / Lecture / Interview / Memo / Other)",
+    "purpose": {
+      "meeting": "Meeting",
+      "consultation": "Consultation",
+      "lecture": "Lecture",
+      "interview": "Interview",
+      "memo": "Memo",
+      "other": "Other"
+    },
+    "captureModeNote": "Mic mode does NOT separate you from others. Web call mode auto-separates you (mic) from others (tab audio — all shown as 'other' even if multiple speakers).",
+    "profileFillHint": "Filling in your profile (organization, expertise, language levels) significantly improves answer quality.",
+    "profileFillCta": "Complete profile →",
+    "briefLabel": "Brief (optional)",
+    "briefHint": "Adding purpose, caveats, and topics greatly improves translation, summary, and answer quality.",
     "briefPlaceholder": "Example:\n- Purpose: Investor pitch for a new SaaS product\n- Materials: Pitch deck v3 attached\n- Caveat: Revenue figures are under NDA",
     "participantsLabel": "Participants (optional)",
-    "participantsHint": "Enter individuals or groups. Used for speaker matching after the meeting.",
+    "participantsHint": "Enter individuals or groups. Used for speaker matching after recording.",
     "participantNamePlaceholder": "Name (e.g. Sarah, our PM)",
     "participantRolePlaceholder": "Role/note (optional, e.g. Acme CEO)",
     "removeLabel": "Remove",
     "fromWorkspace": "+ From workspace files",
     "fromWorkspaceHint": "Link existing files without re-upload",
     "workspaceTag": "Existing",
-    "meetingLanguageLabel": "Meeting Language",
-    "meetingLanguagePlaceholder": "Language spoken in the meeting",
+    "meetingLanguageLabel": "Recording Language",
+    "meetingLanguagePlaceholder": "Language used during recording",
     "advancedShow": "Advanced settings",
     "advancedHide": "Hide advanced settings",
     "translationLanguageLabel": "Translation Language",
@@ -190,7 +203,7 @@
     "captureLabel": "Capture Mode",
     "unavailable": " (not supported)",
     "cancel": "Cancel",
-    "start": "Start Meeting",
+    "start": "Start Recording",
     "fileError": {
       "unsupported": "\"{{name}}\" — unsupported format. Only PDF·DOCX·TXT·MD.",
       "empty": "\"{{name}}\" — empty file.",

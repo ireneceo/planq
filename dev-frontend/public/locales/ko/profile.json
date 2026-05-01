@@ -17,6 +17,8 @@
   },
   "basic": {
     "sectionTitle": "기본 정보",
+    "accountSection": "계정 정보",
+    "accountDesc": "아이디·이메일·기본 언어는 모든 워크스페이스에 공통으로 적용됩니다.",
     "name": "이름",
     "namePlaceholder": "이름",
     "nameEn": "English name",
@@ -28,12 +30,26 @@
     "usernameTaken": "이미 사용 중",
     "usernameReserved": "예약된 이름",
     "usernameInvalid": "형식이 올바르지 않습니다",
-    "usernameHelp": "이메일 대신 로그인할 수 있는 아이디입니다. 언제든 변경 가능.",
+    "usernameHelp": "이메일 대신 로그인할 수 있는 아이디입니다.",
+    "usernameLocked": "아이디는 한 번 정해지면 변경할 수 없는 안전핀 식별자입니다.",
+    "usernameSetHelp": "한 번 정하면 변경할 수 없습니다. 신중히 입력하세요.",
     "email": "이메일",
     "emailChange": "변경",
+    "verified": "인증됨",
+    "notVerified": "미인증",
+    "secondaryEmail": "보조 이메일",
+    "secondaryEmailEmpty": "등록되지 않음",
+    "secondaryEmailAdd": "추가",
+    "secondaryEmailRemove": "제거",
+    "secondaryEmailHint": "아이디·이메일을 잊었을 때 복구용. 인증된 이메일만 활성됩니다.",
     "defaultLanguage": "기본 언어",
     "languagePlaceholder": "언어 선택",
     "languageHint": "회의 시 번역 기본값으로 사용됩니다"
+  },
+  "workspaceProfile": {
+    "sectionTitle": "이 워크스페이스 프로필",
+    "sectionTitleNamed": "{{workspace}} 프로필",
+    "desc": "이름과 영어 이름은 현재 워크스페이스에서만 사용됩니다. 다른 워크스페이스에 가입되어 있다면 거기서는 따로 설정할 수 있어요."
   },
   "emailChange": {
     "title": "이메일 변경",
@@ -60,6 +76,8 @@
     }
   },
   "qnoteProfile": {
+    "sectionTitleNamed": "{{workspace}} — Q note 답변 생성용",
+    "workspaceScopeNote": "이 정보는 현재 워크스페이스에서만 적용됩니다. Q Note 가 답변을 생성할 때 본인 컨텍스트로 활용합니다.",
     "sectionTitle": "내 프로필 (Q note 답변 생성용)",
     "description": "Q note가 회의 중 답변을 만들 때 <1>\"나\"로서 답변</1>하기 위한 정보입니다. 직책/회사/전문분야/자기소개를 채우면 AI가 당신을 대변해 더 정확하고 자연스러운 답변을 생성합니다.<2></2>비어있으면 일반 AI 답변으로 대체됩니다.",
     "organization": "회사/조직",
@@ -122,7 +140,17 @@
       "layman": "일반인",
       "practitioner": "실무자",
       "expert": "전문가",
-      "hint": "듣는 사람 기준이 아닌 <1>대답하는 내 수준</1>. 전문가면 정확한 용어 그대로, 일반인이면 쉬운 말로 답변합니다."
+      "novice": "1 입문자",
+      "novice_sample": "쉬운 말로 풀어서. 전문 용어는 가능한 한 일상어로",
+      "beginner": "2 학습자",
+      "beginner_sample": "쉬운 말 위주. 핵심 용어는 짧게 풀이 추가",
+      "intermediate": "3 실무자",
+      "intermediate_sample": "용어 그대로 사용. 필요 시 짧은 맥락 보강",
+      "advanced": "4 숙련자",
+      "advanced_sample": "정확한 용어와 전체 흐름 위주",
+      "expert5": "5 전문가",
+      "expert5_sample": "정확한 전문 용어. 깊이·가정·제한까지 명시",
+      "hint": "듣는 사람 기준이 아닌 <1>대답하는 내 수준</1>. 전문가면 정확한 용어 그대로, 입문자면 쉬운 말로 답변합니다."
     }
   },
   "voice": {

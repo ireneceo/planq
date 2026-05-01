@@ -21,6 +21,16 @@ User.init({
   email_change_otp_expires_at: { type: DataTypes.DATE, allowNull: true },
   email_change_otp_attempts: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
   email_change_locked_until: { type: DataTypes.DATE, allowNull: true },
+  // primary 이메일 인증 시각 (회원가입 시 가입 인증 메일 클릭한 시점)
+  email_verified_at: { type: DataTypes.DATE, allowNull: true },
+  // 보조 이메일 (복구용) — primary 와 별도. 인증된 후에만 활성.
+  secondary_email: { type: DataTypes.STRING(100), allowNull: true },
+  secondary_email_verified_at: { type: DataTypes.DATE, allowNull: true },
+  pending_secondary_email: { type: DataTypes.STRING(100), allowNull: true },
+  secondary_email_otp_hash: { type: DataTypes.STRING(64), allowNull: true },
+  secondary_email_otp_expires_at: { type: DataTypes.DATE, allowNull: true },
+  secondary_email_otp_attempts: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
+  secondary_email_locked_until: { type: DataTypes.DATE, allowNull: true },
   username: {
     type: DataTypes.STRING(50),
     allowNull: true,

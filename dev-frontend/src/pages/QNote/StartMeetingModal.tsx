@@ -107,6 +107,7 @@ const StartMeetingModal = ({ open, userLanguage, editMode, initialConfig, editin
   const effectiveUserLanguage = userLanguage || getDefaultLanguageFromBrowser();
   const [title, setTitle] = useState('');
   const [brief, setBrief] = useState('');
+  const [purpose, setPurpose] = useState<string>('');
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [pName, setPName] = useState('');
   const [pRole, setPRole] = useState('');
@@ -645,6 +646,20 @@ const StartMeetingModal = ({ open, userLanguage, editMode, initialConfig, editin
         </Header>
 
         <Body>
+          {/* 프로필 미완성 안내 — Q Note 답변 품질 향상 위해 */}
+          {!editMode && (() => {
+            const u = user as { bio?: string | null; expertise?: string | null; organization?: string | null; job_title?: string | null } | null;
+            const incomplete = !u?.bio || !u?.expertise || !u?.organization || !u?.job_title;
+            if (!incomplete) return null;
+            return (
+              <ProfileBanner>
+                <ProfileBannerText>{t('startModal.profileFillHint', '내 프로필의 조직·전문분야·언어 레벨을 채우면 답변 품질이 크게 향상됩니다.')}</ProfileBannerText>
+                <ProfileBannerLink href="/profile" target="_blank" rel="noreferrer">
+                  {t('startModal.profileFillCta', '프로필 완성하기 →')}
+                </ProfileBannerLink>
+              </ProfileBanner>
+            );
+          })()}
           {editMode && (
             <EditModeBanner>
               <strong>{t('startModal.editBanner.prefix', '편집 모드')}</strong>{t('startModal.editBanner.body', ' — 기존 자료는 DB 에 안전하게 저장되어 있습니다. 여기서 ')}<strong>{t('startModal.editBanner.addHighlight', '추가한 항목은 기존 자료에 합쳐')}</strong>{t('startModal.editBanner.middle', '지며, ')}<strong>{t('startModal.editBanner.removeHighlight', 'X 버튼으로 개별 삭제')}</strong>{t('startModal.editBanner.suffix', '할 수 있습니다.')}
@@ -660,6 +675,22 @@ const StartMeetingModal = ({ open, userLanguage, editMode, initialConfig, editin
               onChange={(e) => setTitle(e.target.value)}
               maxLength={100}
             />
+          </Field>
+
+          <Field>
+            <Label>{t('startModal.purposeLabel', '목적')}</Label>
+            <PurposeRow>
+              {(['meeting','consultation','lecture','interview','memo','other'] as const).map(k => (
+                <PurposeChip
+                  key={k}
+                  type="button"
+                  $active={purpose === k}
+                  onClick={() => setPurpose(purpose === k ? '' : k)}
+                >
+                  {t(`startModal.purpose.${k}`)}
+                </PurposeChip>
+              ))}
+            </PurposeRow>
           </Field>
 
           <Field>
@@ -1197,6 +1228,7 @@ const StartMeetingModal = ({ open, userLanguage, editMode, initialConfig, editin
             <Label>
               {t('startModal.captureLabel')} <Required>*</Required>
             </Label>
+            <CaptureNote>{t('startModal.captureModeNote', '마이크 모드는 본인/상대 구분이 안 됩니다. 웹 화상회의 모드는 본인(마이크) / 상대(탭 오디오, 다수여도 모두 상대) 로 자동 구분됩니다.')}</CaptureNote>
             <CaptureCards>
               {ALL_CAPTURE_CAPABILITIES.map((cap) => {
                 const available = cap.isAvailable();
@@ -1321,6 +1353,63 @@ const Field = styled.div`
   display: flex;
   flex-direction: column;
   gap: 8px;
+`;
+
+const PurposeRow = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+`;
+const PurposeChip = styled.button<{ $active?: boolean }>`
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  color: ${(p) => (p.$active ? '#FFFFFF' : '#334155')};
+  background: ${(p) => (p.$active ? '#14B8A6' : '#FFFFFF')};
+  border: 1px solid ${(p) => (p.$active ? '#14B8A6' : '#CBD5E1')};
+  border-radius: 999px;
+  cursor: pointer;
+  transition: all 0.15s;
+  &:hover { background: ${(p) => (p.$active ? '#0D9488' : '#F8FAFC')}; }
+  &:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(20,184,166,0.3); }
+`;
+const CaptureNote = styled.div`
+  font-size: 12px;
+  color: #78350F;
+  background: #FEF3C7;
+  border: 1px solid #FDE68A;
+  border-radius: 8px;
+  padding: 8px 12px;
+  line-height: 1.5;
+`;
+const ProfileBanner = styled.div`
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 14px;
+  background: #F0FDFA;
+  border: 1px solid #99F6E4;
+  border-radius: 10px;
+  margin-bottom: 4px;
+`;
+const ProfileBannerText = styled.div`
+  flex: 1;
+  font-size: 12.5px;
+  color: #0F766E;
+  line-height: 1.5;
+`;
+const ProfileBannerLink = styled.a`
+  flex-shrink: 0;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #0F766E;
+  background: #fff;
+  border: 1px solid #99F6E4;
+  border-radius: 999px;
+  text-decoration: none;
+  white-space: nowrap;
+  &:hover { background: #F0FDFA; border-color: #14B8A6; }
 `;
 
 const AdvancedSection = styled.div`

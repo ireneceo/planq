@@ -107,8 +107,13 @@
     "title": "File Storage",
     "desc": "Choose where files are stored — PlanQ's own storage or an external cloud like Google Drive. Switch anytime; existing files stay put.",
     "active": "In use",
+    "inactive": "Inactive",
     "connected": "Connected",
     "soon": "Coming soon",
+    "scopeTitle": "What goes to Drive — and what stays local",
+    "scopeBackedUp": "Workspace shared: project / task / chat attachments auto-saved to Drive",
+    "scopeLocal": "Personal files (My files, personal notes): kept in PlanQ's own storage — never sent to Drive",
+    "scopeOneWay": "Files you create or delete directly in Drive will NOT sync to PlanQ. Manage files inside PlanQ only.",
     "connect": "Connect",
     "connecting": "Connecting…",
     "disconnect": "Disconnect",
@@ -118,7 +123,8 @@
     "openInDrive": "Open in Drive",
     "planq": {
       "title": "PlanQ Storage",
-      "desc": "Default storage · Plan-based quota"
+      "desc": "Default storage · Plan-based quota",
+      "inactiveDesc": "New uploads go to Google Drive. Existing files remain here"
     },
     "gdrive": {
       "title": "Google Drive",

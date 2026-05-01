@@ -267,7 +267,10 @@
   },
   "userChip": {
     "greeting": "Hello, {{name}}",
-    "title": "My profile"
+    "title": "My profile",
+    "planTitle": "Subscription plan",
+    "trialDays": "Trial {{days}}d",
+    "graceDays": "Grace {{days}}d"
   },
   "shareReceive": {
     "title": "Share to PlanQ",

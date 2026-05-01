@@ -16,11 +16,25 @@ interface Props {
   currentEmail: string;
   onClose: () => void;
   onChanged: (newEmail: string) => void;
+  // 'primary' = 본 이메일 변경
+  // 'secondary' = 보조 이메일 추가/변경
+  // 'verify-primary' = 현재 본 이메일 인증만 (변경 없음, 모달 열리면 자동 OTP 발송)
+  // 'verify-secondary' = 현재 보조 이메일 인증만
+  kind?: 'primary' | 'secondary' | 'verify-primary' | 'verify-secondary';
 }
 
 type Step = 'enter-email' | 'enter-code';
 
-export default function EmailChangeModal({ open, userId, currentEmail, onClose, onChanged }: Props) {
+export default function EmailChangeModal({ open, userId, currentEmail, onClose, onChanged, kind = 'primary' }: Props) {
+  const isVerifyOnly = kind === 'verify-primary' || kind === 'verify-secondary';
+  const epReq = kind === 'secondary' ? 'secondary-email-change-request'
+    : kind === 'verify-primary' ? 'email-verify-request'
+    : kind === 'verify-secondary' ? 'secondary-email-verify-request'
+    : 'email-change-request';
+  const epVerify = kind === 'secondary' ? 'secondary-email-change-verify'
+    : kind === 'verify-primary' ? 'email-verify-confirm'
+    : kind === 'verify-secondary' ? 'secondary-email-verify-confirm'
+    : 'email-change-verify';
   const { t } = useTranslation('profile');
   const [step, setStep] = useState<Step>('enter-email');
   const [newEmail, setNewEmail] = useState('');
@@ -35,12 +49,33 @@ export default function EmailChangeModal({ open, userId, currentEmail, onClose, 
 
   useEffect(() => {
     if (open) {
-      setStep('enter-email');
+      setStep(isVerifyOnly ? 'enter-code' : 'enter-email');
       setNewEmail('');
       setCode('');
       setError(null);
       setSubmitting(false);
+      // verify-only 모드 — 모달 열리자마자 OTP 발송
+      if (isVerifyOnly) {
+        (async () => {
+          setSubmitting(true);
+          try {
+            const res = await apiFetch(`/api/users/${userId}/${epReq}`, { method: 'POST' });
+            const data = await res.json();
+            if (!res.ok || !data.success) {
+              const msg = data.message || 'unknown';
+              if (msg === 'already_verified') setError(t('emailChange.errors.alreadyVerified', '이미 인증된 이메일입니다.') as string);
+              else if (msg === 'locked') setError(t('emailChange.errors.locked') as string);
+              else setError(t('emailChange.errors.unknown') as string);
+            }
+          } catch {
+            setError(t('emailChange.errors.unknown') as string);
+          } finally {
+            setSubmitting(false);
+          }
+        })();
+      }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   if (!open) return null;
@@ -54,7 +89,7 @@ export default function EmailChangeModal({ open, userId, currentEmail, onClose, 
     if (email === currentEmail.toLowerCase()) { setError(t('emailChange.errors.sameAsCurrent')); return; }
     setSubmitting(true);
     try {
-      const res = await apiFetch(`/api/users/${userId}/email-change-request`, {
+      const res = await apiFetch(`/api/users/${userId}/${epReq}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ new_email: email }),
@@ -84,7 +119,7 @@ export default function EmailChangeModal({ open, userId, currentEmail, onClose, 
     if (!/^\d{6}$/.test(code.trim())) { setError(t('emailChange.errors.invalidCode')); return; }
     setSubmitting(true);
     try {
-      const res = await apiFetch(`/api/users/${userId}/email-change-verify`, {
+      const res = await apiFetch(`/api/users/${userId}/${epVerify}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ code: code.trim() }),
@@ -100,7 +135,7 @@ export default function EmailChangeModal({ open, userId, currentEmail, onClose, 
         setSubmitting(false);
         return;
       }
-      onChanged(data.data.email);
+      onChanged(data.data.email || data.data.secondary_email);
       onClose();
     } catch {
       setError(t('emailChange.errors.unknown'));

@@ -80,6 +80,12 @@ function App() {
         <Route path="/stats" element={<Navigate to="/stats/overview" replace />} />
         <Route path="/insights" element={<Navigate to="/stats/overview" replace />} />
 
+        {/* 알림 설정은 client 도 접근 가능 — :tab 보다 먼저 매칭 */}
+        <Route path="/business/settings/notifications" element={
+          <ProtectedRoute requiredRole={['business_owner', 'business_member', 'client']}>
+            <MainLayout><WorkspaceSettingsPage /></MainLayout>
+          </ProtectedRoute>
+        } />
         <Route path="/business/settings" element={
           <ProtectedRoute requiredRole={['business_owner', 'business_member']}>
             <MainLayout><WorkspaceSettingsPage /></MainLayout>

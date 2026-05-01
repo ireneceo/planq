@@ -88,6 +88,7 @@ const DateRangeCell:React.FC<{
 const QTaskPage:React.FC=()=>{
   const{t}=useTranslation('qtask');
   const{user}=useAuth();
+  const isClient = user?.business_role === 'client';
   const bizId=user?.business_id||null;
   const myId=user?Number(user.id):-1;
 
@@ -1554,7 +1555,8 @@ const QTaskPage:React.FC=()=>{
           ariaLabel={t('right.toggle','인사이트 패널 토글') as string}
         />
       )}
-      {((!isNarrow && !rightCollapsed) || (isNarrow && rightOverlayOpen))&&(
+      {/* 고객(client)은 우측 대시보드 카드 미표시 — 업무 상세(detailTaskId)일 때만 패널 노출 */}
+      {(((!isNarrow && !rightCollapsed) || (isNarrow && rightOverlayOpen)) && (!isClient || !!detailTaskId))&&(
         <RightPanel $w={rightWidth} $overlay={isNarrow}>
           {!isNarrow && !detailTaskId&&<ResizeHandle onMouseDown={startResize} />}
           <RightHeader>

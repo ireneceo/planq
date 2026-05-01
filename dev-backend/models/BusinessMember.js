@@ -47,6 +47,17 @@ BusinessMember.init({
     type: DataTypes.ENUM('owner', 'member', 'ai'),
     defaultValue: 'member'
   },
+  // 워크스페이스별 이름 (null 이면 User.name 사용). 한 사용자가 여러 워크스페이스에서 다른 표시 이름을 가질 수 있음.
+  name: {
+    type: DataTypes.STRING(100),
+    allowNull: true,
+  },
+  // 워크스페이스별 다국어 이름 — 예: { ko: "김오너", en: "Owen Kim" }. null 이면 User.name_localized fallback.
+  name_localized: {
+    type: DataTypes.JSON,
+    allowNull: true,
+    defaultValue: null,
+  },
   // 프로젝트에서 사용하는 기본 역할 (예: '기획', '디자인', '개발')
   default_role: {
     type: DataTypes.STRING(50),
@@ -77,7 +88,18 @@ BusinessMember.init({
   // ─── Q Bill (Phase 0) — 단가·급여 (민감정보, owner 만 조회/편집) ───
   // 본인 단가 조회는 허용. 동료 단가는 owner 만.
   hourly_rate: { type: DataTypes.DECIMAL(10, 2), allowNull: true, comment: '시간당 단가 (청구/수익성 계산용)' },
-  monthly_salary: { type: DataTypes.DECIMAL(12, 2), allowNull: true, comment: '월급 (내부 원가 계산용)' }
+  monthly_salary: { type: DataTypes.DECIMAL(12, 2), allowNull: true, comment: '월급 (내부 원가 계산용)' },
+  // ─── Q Note 답변 생성용 프로필 (워크스페이스 단위) ───
+  // 워크스페이스마다 다른 역할/전문성을 가질 수 있어 BusinessMember 단위로 저장.
+  // null 이면 User 의 같은 필드 fallback.
+  bio: { type: DataTypes.TEXT, allowNull: true },
+  expertise: { type: DataTypes.STRING(500), allowNull: true },
+  organization: { type: DataTypes.STRING(200), allowNull: true },
+  job_title: { type: DataTypes.STRING(100), allowNull: true },
+  expertise_level: { type: DataTypes.STRING(20), allowNull: true, comment: 'novice/beginner/intermediate/advanced/expert (5단계)' },
+  language_levels: { type: DataTypes.JSON, allowNull: true },
+  answer_style_default: { type: DataTypes.STRING(2000), allowNull: true },
+  answer_length_default: { type: DataTypes.STRING(20), allowNull: true, defaultValue: 'medium' }
 }, {
   sequelize,
   tableName: 'business_members',

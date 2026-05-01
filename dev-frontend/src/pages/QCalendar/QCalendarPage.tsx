@@ -155,7 +155,11 @@ const QCalendarPage: React.FC = () => {
     if (scope === 'tasks') return merged.filter(isTaskEvent);
     if (scope === 'mine' && myUserId) {
       return merged.filter((e) => {
-        if (isTaskEvent(e)) return e.created_by === myUserId; // 업무 담당자
+        if (isTaskEvent(e)) {
+          // 업무: 담당자 OR 생성자 (= 본인이 직접 관련된 업무)
+          const t = e as { assignee_id?: number | null; created_by?: number | null };
+          return t.assignee_id === myUserId || t.created_by === myUserId;
+        }
         return e.created_by === myUserId || (e.attendees || []).some((a) => a.user_id === myUserId);
       });
     }
