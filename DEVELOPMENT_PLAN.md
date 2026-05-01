@@ -1,10 +1,64 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-04-30 (Q-A~Q-G 대규모 사이클 — mock 정리·보안·Push·메일·Dashboard·로고·PWA·Insights 6탭)
+> **최종 업데이트:** 2026-05-01 (N+ 운영 진입 사이클 — cron 4종·Reports 자동·요금제 Addon·결제 폴리싱·deploy-planq.sh + 운영서버 1~4단계 셋업)
 >
-> **다음 진입:** 운영 진입 (.env / SMTP / VAPID prod / nginx) → K PortOne V2 + 팝빌 → 운영 베타
+> **다음 진입:** 운영서버 nginx site + PM2 ecosystem → 첫 실배포 → platform_settings 사이클 (운영 정보 DB 이전) → K PortOne V2 + 팝빌 → 운영 베타
 >
 > **결제 정책:** 1순위 자체 결제 (계좌이체 mark-paid), 2순위 PortOne (P-7 마지막). 월결제 + 연결제. 미결제 시 7일 유예 후 Free 강등 + 데이터 보존
+
+---
+
+## ✅ 완료: N+ 운영 진입 사이클 (2026-05-01)
+
+dev/운영 양쪽 Claude 세션 협업으로 운영서버 (POS 운영서버 87.106.78.146 공존 설치) 셋업 1~4단계 완료. 첫 실배포 직전.
+
+### 1. 배포 모델 결정 — **모델 B (POS rsync 패턴) 확정**
+
+- 운영서버 = dev 서버 정확 복사. 별도 코드/정보 없음.
+- dev (87.106.11.184) → SSH rsync push → 운영서버 (87.106.78.146)
+- 운영서버에 git repo 없음 → GitHub key 노출 없음
+- POS deploy-production-v3.sh 시퀀스 + 플래그 동일 채용
+
+### 2. dev 측 작업
+
+| 영역 | 산출물 |
+|------|--------|
+| **commit `6c34535`** N+ 사이클 | services/{overdue_handler, recurring_invoice, report_generator, mention_parser}.js (cron 4종) + routes/reports.js + Reports 자동 생성 (services/stats.js + pdfTemplates.js) + 요금제 Addon (config/plans.js + AddonSection.tsx) + Q Bill 결제·서명·외화 폴리싱 + .env.production.example 보강 |
+| **commit `1f3b791`** | scripts/deploy-planq.sh (442줄) — preflight + show_changes + backup + sync_backend/frontend/qnote (rsync over SSH) + install_deps + sync_database + restart_server + reload_nginx + verify + update_record. 플래그 --auto / --dry-run / --skip-build / --skip-qnote |
+| 운영 자료 scp | scripts/{generate-prod-secrets, prod-diagnose, nginx-planq.kr.conf, prod-ecosystem.config.js} + .env.production.example → 운영서버 |
+| Secret SSH 직접 박음 | dev .env 의 OPENAI/Deepgram/SMTP 5개 → ssh sed 통해 운영 .env 에 직접 입력 (채팅 노출 없음) |
+| dry-run 통과 | 모든 단계 정상 출력 |
+
+### 3. 운영서버 (별도 Claude 세션) 작업
+
+| 영역 | 산출물 |
+|------|--------|
+| 디렉터리 구조 | /opt/planq/{backend, frontend-build, q-note, logs, uploads} mkdir + irene:irene |
+| SSH key 분리 분석 | id_ed25519 (POS, Apr 8) 보존 + 새 키 생성 시도 → 모델 B 확정으로 키 불필요 → 삭제. dev 공개키 ~/.ssh/authorized_keys 등록 확인 |
+| MySQL | planq_prod_db + planq_admin@localhost (Irene SSH 직접 sudo mysql 실행) |
+| DB 비밀번호 | openssl rand -base64 24 → /opt/planq/.db-password (mode 600) |
+| DNS | planq.kr / www.planq.kr → 87.106.78.146 (Irene 등록, propagation 대기) |
+| .env 자동 채움 | PORT=3004 (POS 3002 충돌 회피), DB_PASSWORD, JWT 2개, INTERNAL_API_KEY, VAPID 쌍 + dev 직접 박은 5개 = 13항목 입력 완료. chmod 600 |
+| 남은 placeholder | PLANQ_BILLING_BANK_* (skip — platform_settings 사이클로 이전), GOOGLE_CLIENT_* (선택), PORTONE_* (K 사이클) |
+
+### 4. 핵심 결정 (메모리 반영 필요)
+
+- **운영서버 = dev 정확 복사** — 운영 전용 별도 코드/정보 없음
+- **운영 정보는 모두 DB + 관리자 UI** — `.env` 는 시크릿만, 회사명/SMTP_FROM/은행계좌/플랫폼 정보는 platform_settings 테이블 + 플랫폼 관리자 페이지
+- 은행계좌 입력은 첫 배포 후 platform_settings 사이클 (반나절) 에서 처리
+
+### 5. 검증
+
+- 헬스체크 27/27 통과
+- 빌드 OK (commit 6c34535, exit 0, 2.06s)
+- dev → 운영 SSH 도달 OK
+- deploy-planq.sh dry-run 모든 단계 정상
+
+### 다음 세션 즉시 액션
+
+1. **운영서버 Claude:** nginx site 설치 (`/opt/planq/scripts/nginx-planq.kr.conf` root → frontend-build, port → 3004 수정 후 sites-available 배치 + reload) + PM2 ecosystem 수정 + DNS propagation 확인 후 certbot
+2. **dev Claude:** 운영서버 신호 받으면 `./scripts/deploy-planq.sh` 첫 실배포
+3. 검증 (https://planq.kr/api/health + 회원가입 E2E)
 
 ---
 

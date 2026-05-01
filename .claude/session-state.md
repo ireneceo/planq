@@ -1,106 +1,114 @@
 ## 현재 작업 상태
-**마지막 업데이트:** 2026-04-30 (개발완료)
-**작업 상태:** 완료
+**마지막 업데이트:** 2026-05-01 (개발완료)
+**작업 상태:** 완료 — 운영 진입 첫 배포 직전. 양쪽 Claude 세션 저장 후 다음 섹션에서 이어감
 
 ---
 
 ## ⚡ 빠른 재개 (새 세션에서 이것만 붙여넣기)
 
 ```
-session-state.md 읽고 이어서 개발해.
+session-state.md 읽고 운영 진입 이어서 진행해. 운영서버(87.106.78.146) Claude 도 같이 깨워야 함.
 ```
 
 ---
 
 ## 📦 이번 세션 작업 요약
 
-**대규모 다중 사이클 — Q-A 부터 Q-G 까지 한 세션에 진행. 통계·분석 6탭 풀 구현 포함.**
+**N+ 운영 진입 사이클 — dev/운영 양쪽 Claude 협업으로 운영서버 셋업 1~4단계 완료. 첫 실배포 직전.**
 
-### Q-A 정리 사이클 (production 정합성)
-- QTalk **mock.ts + QDataContext.tsx 삭제** (CLAUDE.md 절대 금지 규칙 준수), `types.ts` 신규
-- 사용자 노출 **엔지니어링 용어 정리** (Phase E·1·4 → 사용자 친화 텍스트)
-- ProfilePage 한국어 하드코딩 제거 (언어 레벨 섹션 + LEVEL_OPTIONS + ExpertiseBtn)
-- RightPanel taskStatusLabel/Color → 표준 `utils/taskLabel.ts` 통일
-- LeftPanel border 색 표준화
+### 1. 배포 모델 결정 — 모델 B (POS rsync 패턴) 확정
+- dev (87.106.11.184) → SSH rsync push → 운영 (87.106.78.146)
+- 운영서버에 git repo 없음 (받기만), GitHub key 노출 없음
+- POS deploy-production-v3.sh 시퀀스/플래그 그대로 채용
 
-### Q-B 보안 사이클
-- `checkBusinessAccess` IDOR 강화 (URL path 만 신뢰)
-- 회원가입 race condition (UniqueConstraintError catch)
-- Refresh token cookie path 정합성 (logout 시 `/api/auth` + `/`)
-- Invoices `sequelize.literal` → `fn(JSON_EXTRACT)` parameterized
-- Platform admin businessRole 명시
+### 2. dev 측 작업
+- `commit 6c34535` — N+ 사이클 (cron 4종 + Reports 자동 + 요금제 Addon + Q Bill 결제 폴리싱 + 운영 스크립트, +3239/-594)
+- `commit 1f3b791` — `scripts/deploy-planq.sh` (442줄, 모델 B)
+- 운영 자료 4개 + .env.production.example scp → 운영서버
+- dev .env 의 OPENAI/Deepgram/SMTP 5개를 SSH sed 통해 운영 .env 직접 입력 (채팅 노출 없음)
+- dry-run 통과 (모든 단계 정상)
 
-### Q-C Push + 메일 사이클
-- **VAPID 키 발급 + .env 입력 → Web Push 즉시 활성**
-- `EmailLog` 모델 + `emailService.recordLog()` 자동 통합
-- 관리자 메일 모니터링 페이지 (`/admin/email-logs`) — 상태 필터 + 재발송
-- 알림 매트릭스 UI — ProfilePage 28 토글 (7 event × 4 channel)
+### 3. 운영서버 (별도 Claude 세션) 작업
+- `whoami` = irene (uid 1000, sudo group)
+- /opt/planq/{backend,frontend-build,q-note,logs,uploads} mkdir
+- ~/.ssh/authorized_keys 에 dev 공개키 등록 확인
+- MySQL `planq_prod_db` + `planq_admin@localhost` (DB 비번 `/opt/planq/.db-password` mode 600)
+- DNS A 레코드 → 87.106.78.146 (Irene 등록, propagation 대기)
+- `.env` 13개 항목 자동/수동 입력 완료 (PORT 3004, DB_PASSWORD, JWT 2개, INTERNAL_API_KEY, VAPID 쌍, OpenAI, Deepgram, SMTP 3개)
 
-### Dashboard + UserChip + 로고
-- Dashboard placeholder → 위젯 페이지 (인박스 + 빠른 액션 + 미리보기 + 일정)
-- 인사말 우측 상단 `UserChip` (모든 페이지 PageShell 공통)
-- 로고 4종 적용 — favicon, PWA 192/512/180, 슬로건 흰색 (Login/Sidebar)
-- manifest.json + apple-touch-icon
+### 4. 핵심 결정
+- **운영 = dev 정확 복사** — 운영 전용 별도 코드/정보 없음
+- **운영 정보는 모두 DB + 관리자 UI** — `.env` 는 시크릿만, 회사명·SMTP_FROM·은행계좌는 platform_settings 테이블 + 플랫폼 관리자 settings 페이지
+- 은행계좌 (PLANQ_BILLING_BANK_*) 는 첫 배포 후 platform_settings 사이클 (반나절) 에서 처리
 
-### PWA Install + Share Target
-- `InstallPromptBanner` 모바일 하단 — Android beforeinstallprompt + iOS 단계 안내 + standalone 자동 감지 + 7일 dismiss
-- 알림 권한 prompt → push subscribe 1탭
-- `share_target` GET (title/text/url) → `/share-receive` → 채팅·업무·메모·문서 4 카드
-- prefill 핸들러 (ChatPanel + QTaskPage)
+### 5. 검증
+- 헬스체크 27/27 통과
+- 빌드 OK (exit 0, 2.06s)
+- dev → 운영 SSH 도달 OK
+- deploy-planq.sh dry-run 통과
 
-### Q-G Insights 6탭 (★ 핵심 작업)
-- 설계: `docs/INSIGHTS_DESIGN.md` (30년차 임원급 통합 설계)
-- 백엔드: `routes/stats.js` + `services/stats.js` — 6 endpoints
-- 프론트: `pages/Insights/InsightsPage.tsx` + 6 tabs + 공통 components.tsx + csvUtils.ts
-- 6 탭: Overview / **Tasks & Time** ★ / Profit / Team / Finance / Reports
-- 핵심 차트: Scatter (예측 vs 실제) + AI MAPE Line + 직원 가동률 Bar + 프로젝트 손익 Bubble
-- 인사이트 박스 3층 (관찰→진단→처방) — 가로 inline 1줄 (Irene 피드백 반영)
-- **CSV (Excel) 다운로드** 5탭 (UTF-8 BOM 한글 깨짐 방지)
-- 라우트: `/stats/:tab` 단일 dynamic (이전 6 명시 라우트가 ComingSoonPage 가리던 버그 fix)
+---
 
-### I4 + P8.1
-- RevisionPanel inline diff (splitInlineDiff + DeltaPill + form_data 풀기)
-- TaskDetailDrawer Cue 섹션 (재실행 endpoint + 출처 chip + 마지막 이벤트 dot)
+## 진행 중인 작업
+- 없음 (세션 저장 후 다음 섹션 인계)
 
-### 빌드 / 검증
-- 마지막 빌드: exit 0
-- 헬스체크: 27/27 통과 (반복)
-- 신규 8+ endpoint 모두 E2E 통과
+## 완료된 작업 (이번 세션)
+- 배포 모델 결정 (모델 B)
+- 미커밋 변경 1,924줄 검증 + commit `6c34535`
+- `scripts/deploy-planq.sh` 신규 작성 + commit `1f3b791`
+- 운영서버 셋업 1~4단계 (디렉터리, MySQL, .env 13항목, DNS) 완료
+- dry-run 검증 통과
+- DEVELOPMENT_PLAN.md 히스토리 추가
+- memory 업데이트 (project_prod_deploy_scripts, feedback_prod_equals_dev)
 
 ---
 
 ## 🔖 다음 할 일 (우선순위 순)
 
-### N 운영 진입 마무리 (Irene 작업 + Claude 보조)
-- `.env` 운영값 입력 (SMTP_HOST/USER/PASS, VAPID prod 별도 키 발급, PLANQ_BILLING_BANK_*, DOMAIN_NAME)
-- 운영서버 nginx 설정 적용 + SSL 인증서
-- PM2 prod 인스턴스 기동
-- 첫 배포 후 헬스체크 + 핵심 플로우 E2E
+### 즉시 — 양쪽 Claude 세션 재개 후 첫 실배포
 
-### Insights Phase 2 후속 (1d ~ 2d)
-- Reports 자동 생성 cron + PDF 템플릿 + 공유 링크
-- Insights 데이터 시드 (실 매출/업무 데이터 입력 → 차트 시각 확인)
-- xlsx 정식 파일 다운로드 (sheetjs) — CSV 외 옵션
-- 직원별 카테고리 강점·약점 drawer (People 탭)
+1. **운영서버 Claude:** 본인 세션 저장 파일 읽고 진행 마저 처리:
+   - `/opt/planq/scripts/nginx-planq.kr.conf` 수정 (root → `/opt/planq/frontend-build`, port 3002 → 3004) → `/etc/nginx/sites-available/planq.kr` 설치 + `nginx -t` + `sudo systemctl reload nginx`
+   - `/opt/planq/scripts/prod-ecosystem.config.js` 수정 (cwd `prod-backend` → `backend`, q-note 동일, PORT 3004)
+   - DNS propagation 확인 (`dig +short planq.kr` = 87.106.78.146) 후 `sudo certbot --nginx -d planq.kr -d www.planq.kr`
+2. **dev Claude:** 운영서버 신호 받으면 `cd /opt/planq && ./scripts/deploy-planq.sh` (--dry-run 없이) 첫 실배포 (~3-5분)
+3. **검증:** `https://planq.kr/api/health` 200 / 회원가입 → 워크스페이스 생성 → 청구서 발행 E2E
+
+### 첫 배포 후 — platform_settings 사이클 (반나절)
+운영 정보를 .env 에서 DB+관리자 UI 로 이전:
+- `models/PlatformSetting.js` (key/value JSON)
+- `routes/admin.js` GET/PUT `/platform-settings`
+- `pages/Admin/PlatformSettingsPage.tsx`
+- 마이그레이션: `.env` 의 PLANQ_BILLING_BANK_*, PLATFORM_*, EMAIL_LOGO_URL, SMTP_FROM 을 DB 로
 
 ### Q-F 반응형 일괄 (Phase 8, 5~7d)
-- 햄버거 2뎁스 아코디언 + 마스터-디테일 드릴다운 (메모리 등록)
+- 햄버거 2뎁스 아코디언 + 마스터-디테일 드릴다운
 
-### K — PortOne V2 + 팝빌 (~5d, 마지막)
-- 운영서버 + 도메인 확정 후
+### K — PortOne V2 + 팝빌 (마지막)
+- 운영 진입 안정화 후
 
 ---
 
 ## 🔑 환경변수 / 인증 현황
 
-- 백엔드: port 3003 (PM2 `planq-dev-backend`, 정상)
+### dev 서버 (87.106.11.184)
+- 백엔드: port 3003 (PM2 `planq-dev-backend` online)
 - DB: planq_dev_db / planq_admin
-- 도메인: dev.planq.kr (개발) / planq.kr (운영 미세팅)
-- SMTP: **미설정** (운영 진입 전 필요)
-- VAPID: ✅ **활성** (dev 키, 운영 진입 시 별도 키 발급)
-- PLANQ_BILLING_BANK_*: **미설정** (운영 진입 전 Irene 입력 필요)
-- 마지막 빌드: exit 0
-- 헬스체크: 27/27 통과
+- 도메인: dev.planq.kr
+- 헬스체크 27/27 통과
+
+### 운영서버 (87.106.78.146 POS 공존)
+- 백엔드 port: **3004** / Q Note port: **8001**
+- 도메인: planq.kr / www.planq.kr (DNS propagation 대기)
+- DB: planq_prod_db / planq_admin (생성 완료, 비번 `/opt/planq/.db-password` 운영서버에만)
+- `.env`: 13항목 입력 완료. 남은 placeholder = PLANQ_BILLING_BANK_*, GOOGLE_CLIENT_*, PORTONE_*
+- nginx site / PM2 ecosystem: 운영서버 Claude 진행 중 (다음 세션)
+- SSL: DNS propagation 후 certbot
+
+### Git 상태
+- 마지막 commit: `1f3b791` (deploy-planq.sh)
+- 그 전: `6c34535` (N+ 운영 진입 사이클)
+- working tree: clean (개발완료 시점)
 
 ---
 
@@ -108,19 +116,33 @@ session-state.md 읽고 이어서 개발해.
 
 - 프로젝트 가이드: `/opt/planq/CLAUDE.md`
 - UI 가이드: `/opt/planq/dev-frontend/UI_DESIGN_GUIDE.md`
-- 색상 가이드: `/opt/planq/dev-frontend/COLOR_GUIDE.md`
-- ERD: `/opt/planq/docs/DATABASE_ERD.md`
-- Q Bill 설계: `/opt/planq/docs/Q_BILL_SIGNATURE_DESIGN.md`
-- **Insights 설계**: `/opt/planq/docs/INSIGHTS_DESIGN.md` (이번 세션 신규)
-- 운영 배포 스크립트: `/opt/planq/scripts/deploy-prod.sh` 외 3개
+- 운영 인수인계: `/opt/planq/scripts/PROD_SETUP_BRIEF.md`
+- **첫 배포 스크립트**: `/opt/planq/scripts/deploy-planq.sh` (commit 1f3b791)
+- nginx site 템플릿: `/opt/planq/scripts/nginx-planq.kr.conf`
+- PM2 ecosystem 템플릿: `/opt/planq/scripts/prod-ecosystem.config.js`
+- env 템플릿: `/opt/planq/dev-backend/.env.production.example`
+
+---
+
+## 🤝 양쪽 Claude 협업 메모
+
+이번 사이클은 **dev Claude (여기) + 운영서버 Claude (87.106.78.146)** 두 세션이 Irene 을 메신저로 협업.
+
+- **운영서버 Claude 의 분석 정확** — 배포 모델 분류 (A/B), POS v3.sh 가 legacy 임을 발견, .env 자동 채움 sed 패턴
+- **dev 측 (여기) 가 한 일** — 코드 베이스 정보 답변, deploy-planq.sh 작성, dry-run 검증, secret 을 SSH 통해 dev → 운영 직접 박음 (채팅 노출 없음)
+- **다음 세션에서 양쪽 모두 깨워야 진행** — 운영서버 Claude 가 nginx + PM2 ecosystem 마저 끝내야 dev 가 첫 배포 가능
 
 ---
 
 ## 복구 가이드
 
-새 Claude 세션 시작 시 아래 내용을 붙여넣으세요:
+새 dev Claude 세션 시작 시 아래 내용을 붙여넣으세요:
 
 ```
-이전 세션 이어서 작업하고 싶어.
-/opt/planq/.claude/session-state.md 읽어줘.
+session-state.md 읽고 운영 진입 이어서 진행해. 운영서버(87.106.78.146) Claude 도 같이 깨워줘.
+```
+
+새 운영서버 Claude 세션 시작 시 (Irene 이 운영서버 본인 세션에 입력):
+```
+PlanQ 운영 진입 이어서. 본인이 저장한 진행 상태 파일 읽고 nginx + PM2 ecosystem 마저 진행해줘.
 ```
