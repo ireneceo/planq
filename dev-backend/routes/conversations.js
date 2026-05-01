@@ -269,6 +269,25 @@ router.post('/:businessId/:id/messages', authenticateToken, attachWorkspaceScope
       targetId: msg.id
     });
 
+    // 멘션 알림 — @username 파싱 후 워크스페이스 멤버에 mention notify
+    try {
+      const { resolveMentions } = require('../services/mention_parser');
+      const mentioned = await resolveMentions(content, req.params.businessId, req.user.id);
+      if (mentioned.length > 0) {
+        const { notifyMany } = require('./notifications');
+        const biz = await Business.findByPk(req.params.businessId, { attributes: ['name', 'brand_name'] });
+        const previewBody = String(content).length > 140 ? String(content).slice(0, 140) + '…' : String(content);
+        notifyMany({
+          userIds: mentioned, businessId: Number(req.params.businessId), eventKind: 'mention',
+          title: '대화에서 언급됨',
+          body: previewBody,
+          link: `${process.env.APP_URL || 'https://dev.planq.kr'}/q-talk?conversation=${conversation.id}`,
+          ctaLabel: '대화 보기',
+          workspaceName: biz?.brand_name || biz?.name || null,
+        }).catch((e) => console.warn('[notify mention msg]', e.message));
+      }
+    } catch (e) { console.warn('[mention msg outer]', e.message); }
+
     // Cue 자동 응답 트리거 (비동기 백그라운드)
     // 조건: 내부 메모가 아니고, 메시지를 보낸 사람이 관리자/멤버(사람)이면 Cue 는 스킵
     //       (Cue 는 오직 고객 메시지에만 자동 응답)

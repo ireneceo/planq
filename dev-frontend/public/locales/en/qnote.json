@@ -114,11 +114,11 @@
       "submitting": "Processing..."
     },
     "readiness": {
-      "summaryReady": "✓ Ready · Docs {{docs}} · Q&A {{qa}} · Vocab {{voc}}",
-      "summaryPending": "⏳ Preparing materials...",
+      "summaryReady": "Ready · Docs {{docs}} · Q&A {{qa}} · Vocab {{voc}}",
+      "summaryPending": "Preparing materials...",
       "toggleTitle": "Click to expand/collapse",
-      "allReady": "✓ All materials ready — you can start recording",
-      "pending": "⏳ Preparing materials...",
+      "allReady": "All materials ready — you can start recording",
+      "pending": "Preparing materials...",
       "expand": "Details ▾",
       "collapse": "Collapse ▴",
       "docsLabel": "Reference docs",
@@ -211,7 +211,7 @@
       "body": " — existing materials are safely stored in the DB. ",
       "addHighlight": "Items you add here are merged with existing materials",
       "middle": ", and ",
-      "removeHighlight": "can be deleted individually via the ✗ button",
+      "removeHighlight": "can be deleted individually via the X button",
       "suffix": ".",
       "loading": "(loading existing materials...)"
     },
@@ -256,7 +256,7 @@
       "hintPart3": ". They are re-extracted automatically once indexing finishes, or use \"Re-extract from docs\" below to pull them immediately.",
       "refreshTitle": "Re-extract vocabulary from currently indexed documents (manual keywords preserved)",
       "refreshing": "Re-extracting...",
-      "refresh": "📄 Re-extract from docs",
+      "refresh": "Re-extract from docs",
       "empty": "No auto-extracted vocabulary. Add manually below.",
       "addPlaceholder": "Add word/phrase (comma or Enter to add multiple)",
       "saveFail": "Failed to save vocabulary",

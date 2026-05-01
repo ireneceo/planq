@@ -80,7 +80,7 @@ const PublicDocPage: React.FC = () => {
   return (
     <Page>
       <Toolbar className="no-print">
-        <Brand>PlanQ</Brand>
+        <Brand src="/planQ-slogan_color.svg" alt="PlanQ" />
         <ToolbarSpacer />
         <PrintBtn type="button" onClick={() => window.print()}>{t('public.print', '인쇄 / PDF 저장')}</PrintBtn>
         {!alreadySigned && (
@@ -95,7 +95,7 @@ const PublicDocPage: React.FC = () => {
         {alreadySigned && (
           <SignBlock $accept={accepted}>
             <SignTitle>
-              {accepted ? t('public.signedAccept', '✓ 동의 완료') : t('public.signedReject', '✗ 거절됨')}
+              {accepted ? t('public.signedAccept', '동의 완료') : t('public.signedReject', '거절됨')}
             </SignTitle>
             <SignMeta>
               {t('public.signer', '서명자')}: <strong>{signerLabel}</strong> · {t('public.signedAt', '서명 시각')}: {new Date(doc.signed_at!).toLocaleString('ko-KR')}
@@ -106,7 +106,7 @@ const PublicDocPage: React.FC = () => {
         {signedDone && !alreadySigned && (
           <SignBlock $accept={signedDone.status === 'signed'}>
             <SignTitle>
-              {signedDone.status === 'signed' ? t('public.signedAccept', '✓ 동의 완료') : t('public.signedReject', '✗ 거절됨')}
+              {signedDone.status === 'signed' ? t('public.signedAccept', '동의 완료') : t('public.signedReject', '거절됨')}
             </SignTitle>
           </SignBlock>
         )}
@@ -154,7 +154,7 @@ const Toolbar = styled.div`
   position: sticky; top: 0; z-index: 10;
   @media print { display: none !important; }
 `;
-const Brand = styled.span`font-size:14px;font-weight:700;color:#0F766E;`;
+const Brand = styled.img`display:block;width:120px;height:auto;user-select:none;`;
 const ToolbarSpacer = styled.div`flex:1;`;
 const PrintBtn = styled.button`
   padding: 7px 14px; font-size: 13px; font-weight: 600; color: #334155;

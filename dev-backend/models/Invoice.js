@@ -127,7 +127,9 @@ Invoice.init({
   tax_invoice_issued_at: { type: DataTypes.DATE, allowNull: true },
   // Phase C — 공개 결제 페이지 송금 완료 알림 (단일 발행용)
   notify_paid_at: { type: DataTypes.DATE, allowNull: true, comment: '고객이 송금 완료 알림 누른 시각' },
-  notify_payer_name: { type: DataTypes.STRING(80), allowNull: true, comment: '입금자명 (고객 자기보고)' }
+  notify_payer_name: { type: DataTypes.STRING(80), allowNull: true, comment: '입금자명 (고객 자기보고)' },
+  // 연체 알림 단계 등 보조 정보
+  meta: { type: DataTypes.JSON, allowNull: true, comment: 'last_overdue_notify_stage / paused_due_to_invoice 등 보조 정보' },
 }, {
   sequelize,
   tableName: 'invoices',

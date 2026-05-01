@@ -13,6 +13,7 @@ import {
 import { listClientsForBilling, type ApiClientLite } from '../../services/invoices';
 import { listProjects, type ApiProject } from '../../services/qtalk';
 import PlanQSelect, { type PlanQSelectOption } from '../../components/Common/PlanQSelect';
+import { SparkleIcon, ClipboardIcon, FileIcon } from '../../components/Common/Icons';
 
 interface Props {
   open: boolean;
@@ -146,13 +147,13 @@ const NewDocumentModal: React.FC<Props> = ({ open, onClose, templates, businessI
         </Header>
         <TabBar>
           <TabBtn $active={tab === 'ai'} onClick={() => setTab('ai')}>
-            ✨ {t('newModal.ai', 'AI 로 시작')}
+            <SparkleIcon size={14} /> {t('newModal.ai', 'AI 로 시작')}
           </TabBtn>
           <TabBtn $active={tab === 'template'} onClick={() => setTab('template')}>
-            📋 {t('newModal.template', '템플릿에서')}
+            <ClipboardIcon size={14} /> {t('newModal.template', '템플릿에서')}
           </TabBtn>
           <TabBtn $active={tab === 'blank'} onClick={() => setTab('blank')}>
-            📄 {t('newModal.blank', '빈 문서')}
+            <FileIcon size={14} /> {t('newModal.blank', '빈 문서')}
           </TabBtn>
         </TabBar>
         <Body>
@@ -287,6 +288,7 @@ const TabBar = styled.div`
 `;
 const TabBtn = styled.button<{ $active: boolean }>`
   padding: 12px 16px;
+  display: inline-flex; align-items: center; gap: 6px;
   background: transparent; border: none;
   border-bottom: 2px solid ${p => p.$active ? '#0D9488' : 'transparent'};
   color: ${p => p.$active ? '#0F766E' : '#64748B'};

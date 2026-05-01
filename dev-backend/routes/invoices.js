@@ -675,6 +675,9 @@ router.post('/:businessId/:id/installments/:installId/mark-paid', authenticateTo
     const io = req.app.get('io');
     if (io) io.to(`business:${invoice.business_id}`).emit('inbox:refresh', { reason: 'installment_paid', invoice_id: invoice.id });
     if (refreshed?.project_id) require('../services/projectStageEngine').onInvoiceChanged(refreshed.id).catch(() => null);
+    if (newStatus === 'paid') {
+      require('../services/overdue_handler').unpauseProjectIfApplicable(refreshed).catch(() => null);
+    }
     successResponse(res, refreshed, 'Installment paid');
   } catch (error) { try { await t.rollback(); } catch {} next(error); }
 });
@@ -732,6 +735,29 @@ router.post('/:businessId/:id/installments/:installId/mark-tax-invoice', authent
     const io = req.app.get('io');
     if (io) io.to(`business:${invoice.business_id}`).emit('inbox:refresh', { reason: 'tax_invoice_issued', invoice_id: invoice.id });
     if (invoice?.project_id) require('../services/projectStageEngine').onInvoiceChanged(invoice.id).catch(() => null);
+
+    // 멤버 알림 — 세금계산서 발행 마킹
+    try {
+      const { Op } = require('sequelize');
+      const { BusinessMember, Business } = require('../models');
+      const { notifyMany } = require('./notifications');
+      const biz = await Business.findByPk(invoice.business_id, { attributes: ['name', 'brand_name'] });
+      const members = await BusinessMember.findAll({
+        where: { business_id: invoice.business_id, removed_at: null, role: { [Op.in]: ['owner', 'admin', 'member'] } },
+        attributes: ['user_id'],
+      });
+      notifyMany({
+        userIds: members.map((m) => m.user_id),
+        businessId: invoice.business_id, eventKind: 'tax_invoice',
+        title: '세금계산서 발행 완료',
+        body: `${invoice.invoice_number} ${inst.label || ''} 회차 발행번호 ${no}`,
+        link: `${process.env.APP_URL || 'https://dev.planq.kr'}/q-bill?invoice=${invoice.id}`,
+        ctaLabel: '청구서 보기',
+        workspaceName: biz?.brand_name || biz?.name || null,
+        excludeUserId: req.user.id,
+      }).catch((e) => console.warn('[notify tax_invoice]', e.message));
+    } catch (e) { console.warn('[tax_invoice notify outer]', e.message); }
+
     successResponse(res, inst, 'Tax invoice marked');
   } catch (error) { next(error); }
 });
@@ -790,6 +816,10 @@ router.patch('/:businessId/:id/status', authenticateToken, checkBusinessAccess, 
 
     const io = req.app.get('io');
     if (io) io.to(`business:${invoice.business_id}`).emit('inbox:refresh', { reason: 'invoice_status', invoice_id: invoice.id, status });
+
+    if (status === 'paid') {
+      require('../services/overdue_handler').unpauseProjectIfApplicable(invoice).catch(() => null);
+    }
 
     successResponse(res, invoice);
   } catch (error) {

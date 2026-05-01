@@ -2068,7 +2068,7 @@ const QNotePage = () => {
                     qa: `${readiness.pqEmbedded}/${readiness.pqTotal}`,
                     voc: readiness.keywordsCount,
                   })
-                : t('page.readiness.summaryPending', '⏳ 자료 준비 중...');
+                : t('page.readiness.summaryPending', '자료 준비 중...');
               return (
                 <ReadinessPanel
                   $ready={readiness.allReady}
@@ -2078,7 +2078,7 @@ const QNotePage = () => {
                 >
                   <ReadinessHeader $collapsed={collapsed}>
                     <ReadinessDot $ready={readiness.allReady} />
-                    {collapsed ? summary : (readiness.allReady ? t('page.readiness.allReady', '✓ 모든 자료 준비 완료 — 녹음 시작 가능') : t('page.readiness.pending', '⏳ 자료 준비 중...'))}
+                    {collapsed ? summary : (readiness.allReady ? t('page.readiness.allReady', '모든 자료 준비 완료 — 녹음 시작 가능') : t('page.readiness.pending', '자료 준비 중...'))}
                     {readiness.allReady && (
                       <ReadinessToggleHint>{collapsed ? t('page.readiness.expand', '자세히 ▾') : t('page.readiness.collapse', '접기 ▴')}</ReadinessToggleHint>
                     )}

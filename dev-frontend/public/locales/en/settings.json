@@ -70,7 +70,13 @@
       "invite": "Workspace and project invites",
       "mention": "Mentioned in comments or chat"
     },
-    "footerNote": "Inbox is the in-app notification area. Chat / Email go to external channels."
+    "footerNote": "Inbox is the in-app notification area. Chat / Email go to external channels.",
+    "policy": {
+      "title": "What this matrix controls",
+      "appliesTo": "Applies only to notifications sent to workspace members (task assignment / review, calendar invites, mentions, invoice & tax-invoice review, etc.).",
+      "systemAlways": "Security emails (signup verification, password reset, signature OTP) are always sent — they ignore this matrix.",
+      "clientAlways": "Emails to external clients (invoice, document share, signature request) also bypass this matrix — they are deliberate sends from the workspace."
+    }
   },
   "permissions": {
     "title": "Permission Policy",

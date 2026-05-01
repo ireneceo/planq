@@ -181,4 +181,56 @@ router.get('/:businessId/reports', authenticateToken, checkBusinessAccess, async
   } catch (err) { next(err); }
 });
 
+// POST /api/stats/:businessId/reports — 즉시 생성 (kind=monthly|quarterly|yearly|adhoc, 옵션: from/to)
+router.post('/:businessId/reports', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+  try {
+    const reportGenerator = require('../services/report_generator');
+    const kind = String(req.body.kind || 'monthly');
+    if (!['monthly', 'quarterly', 'yearly', 'adhoc'].includes(kind)) {
+      return errorResponse(res, 400, 'invalid_kind');
+    }
+    const customPeriod = (req.body.from && req.body.to)
+      ? { from: String(req.body.from), to: String(req.body.to) }
+      : null;
+    const report = await reportGenerator.generateReport({
+      businessId: req.businessId,
+      kind,
+      period: customPeriod,
+      generatedBy: req.user?.userId || req.user?.id || null,
+    });
+    return successResponse(res, {
+      id: report.id,
+      kind: report.kind,
+      title: report.title,
+      period_from: report.period_start,
+      period_to: report.period_end,
+      created_at: report.created_at,
+      status: report.status,
+      pdf_url: report.status === 'ready' ? `/api/stats/${req.businessId}/reports/${report.id}/pdf` : null,
+      share_url: report.share_token ? `/api/reports/share/${report.share_token}` : null,
+    });
+  } catch (err) { next(err); }
+});
+
+// GET /api/stats/:businessId/reports/:id/pdf — 인증 사용자 다운로드
+router.get('/:businessId/reports/:id/pdf', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+  try {
+    const { Report } = require('../models');
+    const report = await Report.findOne({
+      where: { id: Number(req.params.id), business_id: req.businessId },
+    });
+    if (!report) return errorResponse(res, 404, 'report_not_found');
+    if (report.status !== 'ready' || !report.pdf_url) {
+      return errorResponse(res, 409, `report_not_ready (${report.status})`);
+    }
+    const fs = require('fs');
+    if (!fs.existsSync(report.pdf_url)) {
+      return errorResponse(res, 410, 'pdf_file_missing');
+    }
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(report.title || `report-${report.id}`)}.pdf"`);
+    return fs.createReadStream(report.pdf_url).pipe(res);
+  } catch (err) { next(err); }
+});
+
 module.exports = router;

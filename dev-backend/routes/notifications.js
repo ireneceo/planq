@@ -75,31 +75,66 @@ async function isAllowed(userId, businessId, eventKind, channel) {
 router.isAllowed = isAllowed;
 
 // 사이클 J4 — 통합 알림 헬퍼
-//   notify(userId, businessId, eventKind, payload)
-//     - inbox: TodoList 자동 fetch (별도 처리 X)
-//     - email: emailService 호출 (TODO — P-6 SMTP 연결 후)
-//     - push: isAllowed 검사 후 web push 전송
-async function notify(userId, businessId, eventKind, payload) {
-  const results = { inbox: true, email: 'todo', push: false };
+//   notify({ userId, businessId, eventKind, title, body, link, ctaLabel, workspaceName })
+//     - inbox: TodoList 가 별도 fetch (별도 처리 X)
+//     - email: isAllowed('email') 통과 시 sendNotificationEmail
+//     - push:  isAllowed('push')  통과 시 web push
+//
+// 외부 client (NotificationPref 가 없는 사람) 메일 발송은 매트릭스와 무관 —
+//   전용 helper (sendInvoiceEmail / sendSignatureRequestEmail / sendPostShareEmail) 사용.
+//
+// 시스템 메일 (인증 OTP, 비밀번호 재설정) 도 매트릭스 무관 —
+//   전용 helper (sendVerificationCodeEmail / sendSignatureOtpEmail) 사용.
+async function notify({ userId, businessId, eventKind, title, body, link, ctaLabel, workspaceName }) {
+  if (!userId || !eventKind) return { inbox: false, email: false, push: false };
+  const results = { inbox: true, email: false, push: false };
+
+  // email 채널
+  if (await isAllowed(userId, businessId, eventKind, 'email')) {
+    try {
+      const { User } = require('../models');
+      const user = await User.findByPk(userId, { attributes: ['email'] });
+      if (user?.email) {
+        const { sendNotificationEmail } = require('../services/emailService');
+        results.email = await sendNotificationEmail({
+          to: user.email,
+          title, body, link, ctaLabel, workspaceName,
+          businessId, eventKind, recipientUserId: userId,
+        });
+      }
+    } catch (e) {
+      console.error('[notify email]', e.message);
+    }
+  }
+
   // push 채널
   if (await isAllowed(userId, businessId, eventKind, 'push')) {
     try {
       const { sendPushToUser } = require('../services/push_service');
       const r = await sendPushToUser(userId, {
-        title: payload?.title || 'PlanQ',
-        body: payload?.body || '',
-        link: payload?.link || '/',
+        title: title || 'PlanQ',
+        body: body || '',
+        link: link || '/',
         tag: `${eventKind}:${userId}`,
       });
       results.push = r;
     } catch (e) {
       console.error('[notify push]', e.message);
-      results.push = false;
     }
   }
+  return results;
+}
+
+// 멀티 수신자용 (워크스페이스 멤버 N 명에게 한 번에)
+async function notifyMany({ userIds, businessId, eventKind, title, body, link, ctaLabel, workspaceName, excludeUserId }) {
+  const filtered = (userIds || []).filter((id) => id && id !== excludeUserId);
+  const results = await Promise.all(
+    filtered.map((uid) => notify({ userId: uid, businessId, eventKind, title, body, link, ctaLabel, workspaceName }))
+  );
   return results;
 }
 
 module.exports = router;
 module.exports.isAllowed = isAllowed;
 module.exports.notify = notify;
+module.exports.notifyMany = notifyMany;

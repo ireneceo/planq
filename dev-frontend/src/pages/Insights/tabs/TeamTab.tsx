@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
+import styled from 'styled-components';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
 import { fetchTab, type RangePreset } from '../../../services/insights';
 import {
@@ -12,12 +13,22 @@ import {
   fmtKRW, fmtNum, fmtPct,
 } from '../components';
 import { downloadRowsAsCsv } from '../csvUtils';
+import DetailDrawer from '../../../components/Common/DetailDrawer';
 
+interface CategoryRow {
+  category: string;
+  count: number;
+  hours: number;
+  accuracy_pct: number | null;
+  bias_pct: number | null;
+  avg_leadtime_days: number | null;
+}
 interface Row {
   user_id: number; name: string; role: string;
   utilization_pct: number | null; accuracy_pct: number | null; bias_pct: number | null;
   completed_tasks: number; avg_leadtime_days: number | null;
   revenue_share: number; effective_rate: number | null; actual_hours: number;
+  categories?: CategoryRow[];
 }
 interface Data {
   period: { from: string; to: string; label: string };
@@ -33,6 +44,7 @@ const TeamTab: React.FC<{ businessId: number; range: RangePreset }> = ({ busines
   const [data, setData] = useState<Data | null>(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
+  const [selected, setSelected] = useState<Row | null>(null);
 
   useEffect(() => {
     setLoading(true);
@@ -45,11 +57,15 @@ const TeamTab: React.FC<{ businessId: number; range: RangePreset }> = ({ busines
   if (err) return <ErrorBanner>{t('error.summary')} — {err}</ErrorBanner>;
   if (loading || !data) return <SkeletonGrid>{[0,1,2,3,4,5].map((i) => <SkeletonCard key={i} />)}</SkeletonGrid>;
 
-  // 직원별 가동률 Bar 데이터
   const utilBars = data.table
     .filter((r) => r.utilization_pct != null)
     .sort((a, b) => (b.utilization_pct || 0) - (a.utilization_pct || 0))
     .slice(0, 12);
+
+  const handleRowClick = (row: Row) => {
+    if (selected && selected.user_id === row.user_id) { setSelected(null); return; }
+    setSelected(row);
+  };
 
   return (
     <>
@@ -133,7 +149,7 @@ const TeamTab: React.FC<{ businessId: number; range: RangePreset }> = ({ busines
             </thead>
             <tbody>
               {data.table.map((r) => (
-                <Tr key={r.user_id}>
+                <ClickableTr key={r.user_id} onClick={() => handleRowClick(r)} $active={selected?.user_id === r.user_id}>
                   <Td>{r.name}</Td>
                   <Td>{r.role}</Td>
                   <Td $num style={{ color: (r.utilization_pct || 0) > 100 ? '#B91C1C' : '#0F172A' }}>{fmtPct(r.utilization_pct)}</Td>
@@ -143,14 +159,122 @@ const TeamTab: React.FC<{ businessId: number; range: RangePreset }> = ({ busines
                   <Td $num>{r.avg_leadtime_days == null ? '—' : `${r.avg_leadtime_days}d`}</Td>
                   <Td $num>{fmtKRW(r.revenue_share)}</Td>
                   <Td $num>{r.effective_rate == null ? '—' : `${fmtKRW(r.effective_rate)}/h`}</Td>
-                </Tr>
+                </ClickableTr>
               ))}
             </tbody>
           </Table>
         </TableWrap>
       )}
+
+      <DetailDrawer
+        open={!!selected}
+        onClose={() => setSelected(null)}
+        width={460}
+        ariaLabel={t('team.drawer.title', '직원 카테고리 분석') as string}
+      >
+        <DetailDrawer.Header onClose={() => setSelected(null)}>
+          <DrawerTitle>{selected?.name}</DrawerTitle>
+          <DrawerSub>{selected?.role} · {fmtNum(selected?.completed_tasks)} {t('team.drawer.completedSuffix', '완료')}</DrawerSub>
+        </DetailDrawer.Header>
+        <DetailDrawer.Body>
+          <DrawerSectionLabel>{t('team.drawer.summary', '요약')}</DrawerSectionLabel>
+          <SummaryGrid>
+            <SummaryCell>
+              <SummaryLabel>{t('team.col.utilization', '가동률')}</SummaryLabel>
+              <SummaryValue>{fmtPct(selected?.utilization_pct ?? null)}</SummaryValue>
+            </SummaryCell>
+            <SummaryCell>
+              <SummaryLabel>{t('team.col.accuracy', '정확도')}</SummaryLabel>
+              <SummaryValue>{fmtPct(selected?.accuracy_pct ?? null)}</SummaryValue>
+            </SummaryCell>
+            <SummaryCell>
+              <SummaryLabel>{t('team.col.bias', 'Bias')}</SummaryLabel>
+              <SummaryValue>{selected?.bias_pct == null ? '—' : fmtPct(selected.bias_pct, { signed: true })}</SummaryValue>
+            </SummaryCell>
+            <SummaryCell>
+              <SummaryLabel>{t('team.col.leadtime', '리드타임')}</SummaryLabel>
+              <SummaryValue>{selected?.avg_leadtime_days == null ? '—' : `${selected.avg_leadtime_days}d`}</SummaryValue>
+            </SummaryCell>
+          </SummaryGrid>
+
+          <DrawerSectionLabel style={{ marginTop: 18 }}>
+            {t('team.drawer.categoryTitle', '카테고리별 강점·약점')}
+          </DrawerSectionLabel>
+          {(!selected?.categories || selected.categories.length === 0) ? (
+            <DrawerEmpty>{t('team.drawer.empty', '이 멤버의 분석할 업무가 누적되지 않았습니다.')}</DrawerEmpty>
+          ) : (
+            <CatTable>
+              <thead>
+                <tr>
+                  <th>{t('team.drawer.col.category', '카테고리')}</th>
+                  <th className="num">{t('team.drawer.col.count', '건수')}</th>
+                  <th className="num">{t('team.drawer.col.accuracy', '정확도')}</th>
+                  <th className="num">{t('team.drawer.col.hours', '시간(h)')}</th>
+                  <th>{t('team.drawer.col.tag', '태그')}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {selected.categories.map((c) => {
+                  const isStrong = c.accuracy_pct != null && c.accuracy_pct >= 80 && c.count >= 2;
+                  const isWeak = c.accuracy_pct != null && c.accuracy_pct < 50 && c.count >= 2;
+                  return (
+                    <tr key={c.category}>
+                      <td>{c.category}</td>
+                      <td className="num">{c.count}</td>
+                      <td className="num">{fmtPct(c.accuracy_pct)}</td>
+                      <td className="num">{c.hours}</td>
+                      <td>
+                        {isStrong && <Tag $kind="strength">{t('team.tag.strength', '강점')}</Tag>}
+                        {isWeak && <Tag $kind="weakness">{t('team.tag.weakness', '약점')}</Tag>}
+                        {!isStrong && !isWeak && <Tag $kind="neutral">{t('team.tag.neutral', '보통')}</Tag>}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </CatTable>
+          )}
+        </DetailDrawer.Body>
+      </DetailDrawer>
     </>
   );
 };
 
 export default TeamTab;
+
+const ClickableTr = styled(Tr)<{ $active?: boolean }>`
+  cursor: pointer;
+  background: ${(p) => p.$active ? '#F0FDFA' : 'transparent'};
+  transition: background 0.15s;
+  &:hover { background: ${(p) => p.$active ? '#CCFBF1' : '#F8FAFC'}; }
+`;
+const DrawerTitle = styled.div`font-size: 16px; font-weight: 700; color: #0F172A;`;
+const DrawerSub = styled.div`font-size: 12px; color: #64748B; margin-top: 2px;`;
+const DrawerSectionLabel = styled.div`
+  font-size: 11px; font-weight: 700; color: #475569;
+  text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 8px;
+`;
+const SummaryGrid = styled.div`
+  display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px;
+`;
+const SummaryCell = styled.div`
+  background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px;
+  padding: 10px 12px; display: flex; flex-direction: column; gap: 2px;
+`;
+const SummaryLabel = styled.div`font-size: 10px; font-weight: 700; color: #64748B; text-transform: uppercase; letter-spacing: 0.3px;`;
+const SummaryValue = styled.div`font-size: 14px; font-weight: 700; color: #0F172A; font-variant-numeric: tabular-nums;`;
+const DrawerEmpty = styled.div`
+  background: #F8FAFC; border: 1px dashed #CBD5E1; border-radius: 8px;
+  padding: 24px 16px; text-align: center; font-size: 12px; color: #94A3B8;
+`;
+const CatTable = styled.table`
+  width: 100%; border-collapse: collapse; font-size: 12px;
+  th, td { padding: 8px; border-bottom: 1px solid #F1F5F9; text-align: left; }
+  th { background: #F8FAFC; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: 0.3px; font-size: 10px; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+`;
+const Tag = styled.span<{ $kind: 'strength' | 'weakness' | 'neutral' }>`
+  display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 10px; font-weight: 700;
+  background: ${(p) => p.$kind === 'strength' ? '#DCFCE7' : p.$kind === 'weakness' ? '#FEE2E2' : '#F1F5F9'};
+  color: ${(p) => p.$kind === 'strength' ? '#15803D' : p.$kind === 'weakness' ? '#B91C1C' : '#64748B'};
+`;

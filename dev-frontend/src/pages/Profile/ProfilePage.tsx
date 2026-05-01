@@ -510,7 +510,7 @@ export default function ProfilePage() {
                 />
               </AutoSaveField>
               {usernameStatus.available === true && (
-                <UsernameOk>✓ {t('basic.usernameAvailable')}</UsernameOk>
+                <UsernameOk><CheckIcon size={12} /> {t('basic.usernameAvailable')}</UsernameOk>
               )}
               {usernameStatus.available === false && (
                 <UsernameNg>

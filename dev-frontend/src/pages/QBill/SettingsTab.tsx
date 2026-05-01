@@ -52,6 +52,10 @@ export default function SettingsTab({ inWorkspaceSettings = false }: SettingsTab
   const [dueDays, setDueDays] = useState<number>(14);
   const [vatRate, setVatRate] = useState<number>(0.1);
   const [currency, setCurrency] = useState('KRW');
+  // 정기청구 + 연체
+  const [autoMode, setAutoMode] = useState<'auto' | 'draft_review'>('draft_review');
+  const [billingDay, setBillingDay] = useState<number>(1);
+  const [graceDays, setGraceDays] = useState<number>(7);
 
   const hydrated = useRef(false);
 
@@ -72,6 +76,9 @@ export default function SettingsTab({ inWorkspaceSettings = false }: SettingsTab
         setDueDays(d.default_due_days ?? 14);
         setVatRate(Number(d.default_vat_rate ?? 0.1));
         setCurrency(d.default_currency || 'KRW');
+        setAutoMode((d.auto_invoice_default_mode as 'auto' | 'draft_review') || 'draft_review');
+        setBillingDay(d.auto_invoice_default_billing_day ?? 1);
+        setGraceDays(d.overdue_grace_days ?? 7);
         hydrated.current = true;
       })
       .catch(err => { if (!cancelled) setError(err.message || 'load failed'); })
@@ -249,6 +256,66 @@ export default function SettingsTab({ inWorkspaceSettings = false }: SettingsTab
             <EditLabel>{t('settings.defaults.numberFormat')}</EditLabel>
             <FieldVal style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', padding: '7px 0' }}>INV-{`{YYYY}-{####}`}</FieldVal>
             <FieldHint>시스템 고정 (변경 불가)</FieldHint>
+          </EditField>
+        </EditGrid>
+      </Section>
+
+      {/* 정기 청구 자동화 */}
+      <Section>
+        <SectionHead>
+          <div>
+            <SectionTitle>{t('settings.recurring.title', '정기 청구 자동화')}</SectionTitle>
+            <SectionDesc>{t('settings.recurring.desc', '월정액 프로젝트의 자동 청구 기본 동작입니다. 프로젝트별로 다르게 설정할 수도 있습니다.')}</SectionDesc>
+          </div>
+        </SectionHead>
+        <EditGrid>
+          <EditField>
+            <EditLabel>{t('settings.recurring.mode', '청구 발행 방식')}</EditLabel>
+            <AutoSaveField type="select" debounceMs={300} onSave={async () => save({ auto_invoice_default_mode: autoMode })}>
+              <PlanQSelect
+                size="sm"
+                options={[
+                  { value: 'draft_review', label: t('settings.recurring.modeDraft', '검토 후 발송 (초안 자동 생성)') as string },
+                  { value: 'auto', label: t('settings.recurring.modeAuto', '자동 발행 + 이메일 발송') as string },
+                ]}
+                value={{
+                  value: autoMode,
+                  label: (autoMode === 'auto' ? t('settings.recurring.modeAuto', '자동 발행 + 이메일 발송') : t('settings.recurring.modeDraft', '검토 후 발송 (초안 자동 생성)')) as string,
+                }}
+                onChange={(opt) => opt && setAutoMode((opt as PlanQSelectOption).value as 'auto' | 'draft_review')}
+              />
+            </AutoSaveField>
+            <FieldHint>{t('settings.recurring.modeHint', '"자동 발행" 은 사람 검토 없이 매월 청구서가 발송됩니다. 처음 운영 시에는 "검토 후 발송" 권장.')}</FieldHint>
+          </EditField>
+          <EditField>
+            <EditLabel>{t('settings.recurring.billingDay', '매월 청구일')}</EditLabel>
+            <AutoSaveField type="input" onSave={async () => save({ auto_invoice_default_billing_day: billingDay })}>
+              <EditInput type="number" min={1} max={31} value={billingDay}
+                onChange={e => setBillingDay(Math.max(1, Math.min(31, Number(e.target.value) || 1)))} />
+            </AutoSaveField>
+            <FieldHint>{t('settings.recurring.billingDayHint', '29~31 설정한 달이 그 일자까지 없는 경우 (예: 2월) 그 달 마지막 날에 발행됩니다.')}</FieldHint>
+          </EditField>
+        </EditGrid>
+      </Section>
+
+      {/* 연체 정책 */}
+      <Section>
+        <SectionHead>
+          <div>
+            <SectionTitle>{t('settings.overdue.title', '연체 정책')}</SectionTitle>
+            <SectionDesc>{t('settings.overdue.desc', '결제 기한 초과 시 알림 진행과 자동 정지 기준입니다.')}</SectionDesc>
+          </div>
+        </SectionHead>
+        <EditGrid>
+          <EditField>
+            <EditLabel>{t('settings.overdue.graceDays', '자동 정지까지 허용 일수')}</EditLabel>
+            <AutoSaveField type="input" onSave={async () => save({ overdue_grace_days: graceDays })}>
+              <EditInput type="number" min={1} max={60} value={graceDays}
+                onChange={e => setGraceDays(Math.max(1, Math.min(60, Number(e.target.value) || 1)))} />
+            </AutoSaveField>
+            <FieldHint>
+              {t('settings.overdue.graceDaysHint', '진행: 1일차 1차 알림 → 약 절반(또는 7일) 임박 알림 → 도달 시 프로젝트 자동 정지. 결제 마킹하면 즉시 재개됩니다.')}
+            </FieldHint>
           </EditField>
         </EditGrid>
       </Section>

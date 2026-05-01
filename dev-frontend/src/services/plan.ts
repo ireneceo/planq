@@ -226,3 +226,39 @@ export function usageColor(ratio: number): 'ok' | 'warn' | 'crit' {
   if (ratio >= 0.80) return 'warn';
   return 'ok';
 }
+
+// ─── Add-on (추가 슬롯) ───
+export type AddonField = 'addon_members' | 'addon_clients' | 'addon_qnote_minutes' | 'addon_cue_actions' | 'addon_storage_bytes';
+export interface AddonItem {
+  code: string;
+  name_ko: string;
+  name_en: string;
+  price_monthly: { KRW: number; USD: number };
+  unit: number;
+  field: AddonField;
+}
+export interface AddonStatus {
+  plan_code: PlanCode;
+  catalog: AddonItem[];
+  current: Record<AddonField, number>;
+  effective: Record<string, number | null>;
+}
+
+export async function fetchAddons(businessId: number): Promise<AddonStatus> {
+  const r = await apiFetch(`/api/plan/${businessId}/addons`);
+  const j = await r.json();
+  if (!j.success) throw new Error(j.message || 'fetch addons failed');
+  return j.data as AddonStatus;
+}
+
+export async function requestAddon(businessId: number, addonCode: string, quantity: number): Promise<{
+  received: boolean; addon_code: string; quantity: number; total_units: number; total_krw: number; next_step: string;
+}> {
+  const r = await apiFetch(`/api/plan/${businessId}/addons/request`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ addon_code: addonCode, quantity }),
+  });
+  const j = await r.json();
+  if (!j.success) throw new Error(j.message || 'request addon failed');
+  return j.data;
+}

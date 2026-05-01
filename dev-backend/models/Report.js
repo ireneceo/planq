@@ -14,6 +14,12 @@ Report.init({
   },
   period_start: { type: DataTypes.DATEONLY, allowNull: false },
   period_end: { type: DataTypes.DATEONLY, allowNull: false },
+  // pending=대기, generating=생성중, ready=완료, failed=실패
+  status: {
+    type: DataTypes.ENUM('pending', 'generating', 'ready', 'failed'),
+    allowNull: false,
+    defaultValue: 'pending',
+  },
   title: { type: DataTypes.STRING(200), allowNull: true },
   summary: { type: DataTypes.TEXT, allowNull: true },
   // 스냅샷 수치 (차트 생성용 raw 데이터)
@@ -26,6 +32,8 @@ Report.init({
   pdf_url: { type: DataTypes.STRING(500), allowNull: true },
   // 외부 공유용 (인증 불필요 링크)
   share_token: { type: DataTypes.STRING(64), allowNull: true, unique: true },
+  // 실패 시 마지막 에러 메시지
+  error_message: { type: DataTypes.TEXT, allowNull: true },
   // 오너가 내러티브로 달 수 있는 주석
   notes: { type: DataTypes.TEXT, allowNull: true },
 }, {

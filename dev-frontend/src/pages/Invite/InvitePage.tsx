@@ -77,7 +77,7 @@ const InvitePage: React.FC = () => {
   if (error) return (
     <Wrapper>
       <Card>
-        <Logo>PlanQ</Logo>
+        <Logo src="/planQ-slogan_color.svg" alt="PlanQ" />
         <ErrorText>{errorLabel(error)}</ErrorText>
         <ActionBtn onClick={() => navigate('/login')}>{t('invite.goLogin', '로그인 페이지로')}</ActionBtn>
       </Card>
@@ -89,7 +89,7 @@ const InvitePage: React.FC = () => {
     return (
       <Wrapper>
         <Card>
-          <Logo>PlanQ</Logo>
+          <Logo src="/planQ-slogan_color.svg" alt="PlanQ" />
           <Title>{info.workspace_name}</Title>
           {info.project_name && <Subtitle>{info.project_name}</Subtitle>}
           <Message>{t('invite.alreadyAccepted', '이미 수락된 초대입니다.')}</Message>
@@ -104,7 +104,7 @@ const InvitePage: React.FC = () => {
   return (
     <Wrapper>
       <Card>
-        <Logo>PlanQ</Logo>
+        <Logo src="/planQ-slogan_color.svg" alt="PlanQ" />
         <Title>{info.workspace_name}</Title>
         <Subtitle>{subtitleKey(info.type)}</Subtitle>
         {info.project_name && <ProjectName>{info.project_name}</ProjectName>}
@@ -153,12 +153,12 @@ const Card = styled.div`
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.06);
 `;
 
-const Logo = styled.div`
-  font-size: 20px;
-  font-weight: 800;
-  color: #0D9488;
-  margin-bottom: 24px;
-  letter-spacing: -0.5px;
+const Logo = styled.img`
+  display: block;
+  width: 110px;
+  height: auto;
+  margin: 0 auto 32px;
+  user-select: none;
 `;
 
 const Title = styled.h1`
@@ -206,8 +206,8 @@ const ErrorText = styled.p`
 `;
 
 const ActionBtn = styled.button`
-  width: 100%;
-  padding: 12px;
+  display: inline-block;
+  padding: 13px 28px;
   background: #0D9488;
   color: #FFFFFF;
   border: none;
@@ -215,14 +215,14 @@ const ActionBtn = styled.button`
   font-size: 14px;
   font-weight: 700;
   cursor: pointer;
-  margin-top: 8px;
+  margin-top: 20px;
   &:hover:not(:disabled) { background: #0F766E; }
   &:disabled { opacity: 0.6; cursor: not-allowed; }
 `;
 
 const SecondaryBtn = styled.button`
-  width: 100%;
-  padding: 12px;
+  display: inline-block;
+  padding: 13px 28px;
   background: transparent;
   color: #0D9488;
   border: 1px solid #99F6E4;
@@ -230,6 +230,6 @@ const SecondaryBtn = styled.button`
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
-  margin-top: 8px;
+  margin-top: 12px;
   &:hover { background: #F0FDFA; }
 `;

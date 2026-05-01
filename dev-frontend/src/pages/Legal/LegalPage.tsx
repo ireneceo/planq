@@ -58,7 +58,7 @@ const LegalPage: React.FC<Props> = ({ doc, effectiveDate }) => {
     <Wrap>
       <Container>
         <TopBar>
-          <Brand to="/">PlanQ</Brand>
+          <Brand to="/"><img src="/planQ-slogan_color.svg" alt="PlanQ" style={{ display: 'block', width: 130, height: 'auto' }} /></Brand>
           <Lang>
             <LangBtn $active={isKo} type="button" onClick={() => i18n.changeLanguage('ko')}>KO</LangBtn>
             <LangDiv>·</LangDiv>
@@ -137,8 +137,8 @@ const TopBar = styled.div`
   padding-bottom:20px;border-bottom:1px solid #F1F5F9;margin-bottom:24px;
 `;
 const Brand = styled(Link)`
-  font-size:20px;font-weight:800;color:#0F766E;text-decoration:none;letter-spacing:-0.3px;
-  &:hover{color:#0D9488;}
+  display:inline-block;text-decoration:none;
+  &:hover{opacity:0.85;}
 `;
 const Lang = styled.div`display:inline-flex;align-items:center;gap:4px;`;
 const LangBtn = styled.button<{ $active: boolean }>`

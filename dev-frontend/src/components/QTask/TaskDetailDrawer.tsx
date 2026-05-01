@@ -11,6 +11,7 @@ import TaskAttachments from './TaskAttachments';
 import { STATUS_COLOR, displayStatus, getStatusLabel, type StatusCode } from '../../utils/taskLabel';
 import { getRoles, primaryPerspective } from '../../utils/taskRoles';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
+import { CheckIcon } from '../Common/Icons';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
 import { useEscapeStack } from '../../hooks/useEscapeStack';
 
@@ -456,7 +457,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
         </BackBtn>
         <SaveStatusPill $status={saveStatus}>
           {saveStatus === 'saving' && <><PillSpinner/>{t('save.saving', '저장 중')}</>}
-          {saveStatus === 'saved' && <>✓ {t('save.saved', '저장됨')}</>}
+          {saveStatus === 'saved' && <><CheckIcon size={11} style={{ verticalAlign: '-1px' }} /> {t('save.saved', '저장됨')}</>}
           {saveStatus === 'error' && <>! {t('save.error', '저장 실패')}</>}
         </SaveStatusPill>
         <CloseBtn onClick={onClose} title={t('detail.close', '닫기') as string}>

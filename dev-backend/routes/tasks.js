@@ -400,6 +400,24 @@ router.post('/', authenticateToken, async (req, res, next) => {
       if (business_id) io.to(`business:${business_id}`).emit('task:new', full.toJSON());
     }
 
+    // 알림: 담당자 ≠ 생성자 일 때만 — 본인이 본인에게 만든 업무는 noise
+    if (isInternalRequest && finalAssignee) {
+      try {
+        const { notify } = require('./notifications');
+        const biz = await Business.findByPk(business_id, { attributes: ['name', 'brand_name'] });
+        notify({
+          userId: finalAssignee,
+          businessId: business_id,
+          eventKind: 'task',
+          title: '새 업무가 배정되었습니다',
+          body: `"${full.title}"${full.due_date ? ` · 마감 ${String(full.due_date).slice(0, 10)}` : ''}`,
+          link: `${process.env.APP_URL || 'https://dev.planq.kr'}/q-task?task=${task.id}`,
+          ctaLabel: '업무 보기',
+          workspaceName: biz?.brand_name || biz?.name || null,
+        }).catch((e) => console.warn('[notify task assigned]', e.message));
+      } catch (e) { console.warn('[notify task assigned outer]', e.message); }
+    }
+
     return successResponse(res, full.toJSON());
   } catch (err) { next(err); }
 });
@@ -530,6 +548,60 @@ router.put('/by-business/:businessId/:id', authenticateToken, async (req, res, n
       if (task.project_id) io.to(`project:${task.project_id}`).emit('task:updated', payload);
       io.to(`business:${task.business_id}`).emit('task:updated', payload);
     }
+
+    // 알림: status 변경 / 담당자 변경에 따라 요청자/담당자/리뷰어에게 알림
+    try {
+      const { notify, notifyMany } = require('./notifications');
+      const Business = require('../models').Business;
+      const TaskReviewer = require('../models').TaskReviewer;
+      const biz = await Business.findByPk(task.business_id, { attributes: ['name', 'brand_name'] });
+      const wsName = biz?.brand_name || biz?.name || null;
+      const taskLink = `${process.env.APP_URL || 'https://dev.planq.kr'}/q-task?task=${task.id}`;
+
+      // 담당자 변경 → 새 담당자에게 알림
+      if (updates.assignee_id !== undefined && updates.assignee_id !== prev.assignee_id && updates.assignee_id) {
+        notify({
+          userId: updates.assignee_id, businessId: task.business_id, eventKind: 'task',
+          title: '새 업무가 배정되었습니다', body: `"${task.title}"`,
+          link: taskLink, ctaLabel: '업무 보기', workspaceName: wsName,
+        }).catch((e) => console.warn('[notify reassign]', e.message));
+      }
+      // 상태 변경
+      if (updates.status !== undefined && updates.status !== prev.status) {
+        const newStatus = updates.status;
+        // completed → 요청자/생성자에게
+        if (newStatus === 'completed') {
+          const requesterId = task.request_by_user_id || task.created_by;
+          if (requesterId && requesterId !== req.user.id) {
+            notify({
+              userId: requesterId, businessId: task.business_id, eventKind: 'task',
+              title: '요청한 업무가 완료되었습니다', body: `"${task.title}"`,
+              link: taskLink, ctaLabel: '결과 확인', workspaceName: wsName,
+            }).catch((e) => console.warn('[notify completed]', e.message));
+          }
+        }
+        // reviewing → 리뷰어 전체에게
+        if (newStatus === 'reviewing') {
+          const reviewers = await TaskReviewer.findAll({
+            where: { task_id: task.id }, attributes: ['user_id'],
+          });
+          notifyMany({
+            userIds: reviewers.map((r) => r.user_id), businessId: task.business_id, eventKind: 'task',
+            title: '업무 검토 요청', body: `"${task.title}" 검토를 요청받았습니다.`,
+            link: taskLink, ctaLabel: '검토하기', workspaceName: wsName,
+            excludeUserId: req.user.id,
+          }).catch((e) => console.warn('[notify reviewing]', e.message));
+        }
+        // revision_requested → 담당자에게
+        if (newStatus === 'revision_requested' && task.assignee_id && task.assignee_id !== req.user.id) {
+          notify({
+            userId: task.assignee_id, businessId: task.business_id, eventKind: 'task',
+            title: '업무 수정 요청', body: `"${task.title}"` ,
+            link: taskLink, ctaLabel: '수정 시작', workspaceName: wsName,
+          }).catch((e) => console.warn('[notify revision]', e.message));
+        }
+      }
+    } catch (e) { console.warn('[task PUT notify outer]', e.message); }
 
     return successResponse(res, task.toJSON());
   } catch (err) { next(err); }
@@ -743,6 +815,29 @@ router.post('/:id/comments', authenticateToken, async (req, res, next) => {
     // Socket.IO
     const io = req.app.get('io');
     if (io) io.to(`task:${task.id}`).emit('comment:new', full.toJSON());
+
+    // 멘션 알림 (shared / internal 가시성만 — personal 은 본인만 보이므로 알림 무의미)
+    if (finalVis !== 'personal') {
+      try {
+        const { resolveMentions } = require('../services/mention_parser');
+        const mentioned = await resolveMentions(comment.content, task.business_id, req.user.id);
+        if (mentioned.length > 0) {
+          const { notifyMany } = require('./notifications');
+          const Business = require('../models').Business;
+          const biz = await Business.findByPk(task.business_id, { attributes: ['name', 'brand_name'] });
+          const previewBody = comment.content.length > 140 ? comment.content.slice(0, 140) + '…' : comment.content;
+          notifyMany({
+            userIds: mentioned, businessId: task.business_id, eventKind: 'mention',
+            title: `업무 댓글에서 언급됨 — ${task.title}`,
+            body: previewBody,
+            link: `${process.env.APP_URL || 'https://dev.planq.kr'}/q-task?task=${task.id}`,
+            ctaLabel: '댓글 보기',
+            workspaceName: biz?.brand_name || biz?.name || null,
+          }).catch((e) => console.warn('[notify mention task]', e.message));
+        }
+      } catch (e) { console.warn('[mention task outer]', e.message); }
+    }
+
     return successResponse(res, full.toJSON());
   } catch (err) { next(err); }
 });

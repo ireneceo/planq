@@ -13,6 +13,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import PageShell from '../../components/Layout/PageShell';
+import { ChatIcon, CheckIcon, EditIcon, FileIcon } from '../../components/Common/Icons';
 
 const ShareReceivePage: React.FC = () => {
   const { t } = useTranslation('common');
@@ -52,22 +53,22 @@ const ShareReceivePage: React.FC = () => {
         <ChooseLabel>{t('shareReceive.chooseDest', '어디로 보낼까요?')}</ChooseLabel>
         <DestGrid>
           <DestBtn type="button" onClick={() => sendTo('chat')}>
-            <DestIcon>💬</DestIcon>
+            <DestIcon><ChatIcon size={22} /></DestIcon>
             <DestTitle>{t('shareReceive.dest.chat', '채팅')}</DestTitle>
             <DestDesc>{t('shareReceive.dest.chatDesc', '대화방에 메시지로')}</DestDesc>
           </DestBtn>
           <DestBtn type="button" onClick={() => sendTo('task')}>
-            <DestIcon>✓</DestIcon>
+            <DestIcon><CheckIcon size={22} /></DestIcon>
             <DestTitle>{t('shareReceive.dest.task', '업무')}</DestTitle>
             <DestDesc>{t('shareReceive.dest.taskDesc', '새 업무로 등록')}</DestDesc>
           </DestBtn>
           <DestBtn type="button" onClick={() => sendTo('note')}>
-            <DestIcon>📝</DestIcon>
+            <DestIcon><EditIcon size={22} /></DestIcon>
             <DestTitle>{t('shareReceive.dest.note', '메모')}</DestTitle>
             <DestDesc>{t('shareReceive.dest.noteDesc', 'Q Note 에 저장')}</DestDesc>
           </DestBtn>
           <DestBtn type="button" onClick={() => sendTo('doc')}>
-            <DestIcon>📄</DestIcon>
+            <DestIcon><FileIcon size={22} /></DestIcon>
             <DestTitle>{t('shareReceive.dest.doc', '문서')}</DestTitle>
             <DestDesc>{t('shareReceive.dest.docDesc', '새 문서 본문에')}</DestDesc>
           </DestBtn>
@@ -100,7 +101,10 @@ const DestBtn = styled.button`
   &:hover { background: #F0FDFA; border-color: #14B8A6; }
   &:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(20,184,166,0.3); }
 `;
-const DestIcon = styled.span`font-size: 24px; line-height: 1;`;
+const DestIcon = styled.span`
+  display: inline-flex; align-items: center; justify-content: center;
+  color: #0F766E; height: 22px;
+`;
 const DestTitle = styled.div`font-size: 14px; font-weight: 700; color: #0F172A;`;
 const DestDesc = styled.div`font-size: 11px; color: #64748B;`;
 const Hint = styled.div`font-size: 11px; color: #94A3B8; padding: 8px 0; line-height: 1.5;`;

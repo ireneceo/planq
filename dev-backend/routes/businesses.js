@@ -249,7 +249,8 @@ router.put('/:businessId/billing', authenticateToken, checkBusinessAccess, async
 
     const { bank_name, bank_account_name, bank_account_number,
             swift_code, bank_name_en, bank_account_name_en,
-            default_due_days, default_vat_rate, default_currency } = req.body;
+            default_due_days, default_vat_rate, default_currency,
+            auto_invoice_default_mode, auto_invoice_default_billing_day, overdue_grace_days } = req.body;
     const updates = {};
     if (bank_name !== undefined) updates.bank_name = bank_name ? String(bank_name).trim().slice(0, 100) : null;
     if (bank_account_name !== undefined) updates.bank_account_name = bank_account_name ? String(bank_account_name).trim().slice(0, 100) : null;
@@ -272,6 +273,21 @@ router.put('/:businessId/billing', authenticateToken, checkBusinessAccess, async
       const c = String(default_currency || '').toUpperCase();
       if (!['KRW', 'USD', 'EUR', 'JPY', 'CNY'].includes(c)) return errorResponse(res, '지원되지 않는 통화', 400);
       updates.default_currency = c;
+    }
+    if (auto_invoice_default_mode !== undefined) {
+      const m = String(auto_invoice_default_mode || '');
+      if (!['auto', 'draft_review'].includes(m)) return errorResponse(res, '정기청구 모드 값 오류', 400);
+      updates.auto_invoice_default_mode = m;
+    }
+    if (auto_invoice_default_billing_day !== undefined) {
+      const d = Number(auto_invoice_default_billing_day);
+      if (!Number.isFinite(d) || d < 1 || d > 31) return errorResponse(res, '청구일은 1~31', 400);
+      updates.auto_invoice_default_billing_day = d;
+    }
+    if (overdue_grace_days !== undefined) {
+      const g = Number(overdue_grace_days);
+      if (!Number.isFinite(g) || g < 1 || g > 60) return errorResponse(res, '연체 정지 기간은 1~60일', 400);
+      updates.overdue_grace_days = g;
     }
 
     await business.update(updates);

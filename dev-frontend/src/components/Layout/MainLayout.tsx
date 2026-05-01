@@ -486,7 +486,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
         <HamburgerButton onClick={() => setSidebarOpen(true)} aria-label={t('nav.expandSidebar')}>
           <IconHamburger />
         </HamburgerButton>
-        <Logo src="/planQ-slogan_white.svg" alt="PlanQ" />
+        <Logo src="/planQ_white_new.svg" alt="PlanQ" />
         <div style={{ width: 40 }} />
       </MobileHeader>
 
@@ -504,7 +504,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
             </SidebarToggleButton>
           ) : (
             <>
-              <Logo src="/planQ-slogan_white.svg" alt="PlanQ" />
+              <Logo src="/planQ_white_new.svg" alt="PlanQ" />
               <SidebarToggleButton
                 onClick={() => setIsCollapsed(true)}
                 aria-label={t('nav.collapseSidebar')}
