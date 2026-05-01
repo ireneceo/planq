@@ -1,10 +1,83 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-05-01 (N+ 운영 진입 사이클 — cron 4종·Reports 자동·요금제 Addon·결제 폴리싱·deploy-planq.sh + 운영서버 1~4단계 셋업)
+> **최종 업데이트:** 2026-05-01 (Q-H 사이클 — 권한 매트릭스·프로필 분리·GDrive 정책·Q Note 용어 통일 + 첫 운영 배포 + 두 번째 배포 라이브)
 >
-> **다음 진입:** 운영서버 nginx site + PM2 ecosystem → 첫 실배포 → platform_settings 사이클 (운영 정보 DB 이전) → K PortOne V2 + 팝빌 → 운영 베타
+> **다음 진입:** 백업 시스템 양방향 크로스 (PlanQ 5단계 + POS 보강) → Q Note 실시간 번역 완성도 → AI 사용량 페이지 → platform_settings 사이클
 >
 > **결제 정책:** 1순위 자체 결제 (계좌이체 mark-paid), 2순위 PortOne (P-7 마지막). 월결제 + 연결제. 미결제 시 7일 유예 후 Free 강등 + 데이터 보존
+
+---
+
+## ✅ 완료: Q-H 사이클 + 첫 운영 배포 (2026-05-01 저녁)
+
+dev/운영 양쪽 Claude 세션 협업으로 운영 라이브 (https://planq.kr) 진입 + 거대 권한·프로필·GDrive 정책·Q Note 사이클 마무리 + 두 번째 배포 (commit `024d368`).
+
+### 1. 첫 운영 실배포 (commit `661b893`)
+- 운영서버 (87.106.78.146 / planq.kr / port 3004) PM2 + nginx + SSL 모두 정상
+- DB sync 시 `kb_documents.project_id` INT vs `projects.id` BIGINT FK 불일치 fix (broken FK 드롭 + INT→BIGINT)
+- POS production-backend (3002) 와 공존, 영향 없음
+
+### 2. Client 권한 매트릭스 정리
+| 영역 | 동작 | 위치 |
+|------|------|------|
+| 사이드바 노출 | 인박스 / Q Talk / Q Task / Q Project / Q Calendar / Q Bill / 프로필 | MainLayout |
+| 사이드바 숨김 | Q Note / Q Knowledge / Q Docs / Q File / Q Mail / 통계 / 설정 / 멤버 | hasBiz 분기 |
+| 라우트 가드 | files (POST/move/DELETE/bulk-delete) / calendar (POST/PUT/DELETE) / tasks (자기 자신 X) / kb (GET 4 + 쓰기 5) | client 403 |
+| Q Task 우측 패널 | detail 있을 때만 노출 | QTaskPage isClient |
+| client 사이드바 2뎁스 | 설정 → 내 프로필 / 알림 (AccordionWrap) | MainLayout |
+| `/business/settings/notifications` | client 도 접근 OK | App.tsx 별도 라우트 |
+- 메모리: `project_client_permission_matrix.md`
+
+### 3. Calendar 권한 명확화
+- Member/Owner default = 워크스페이스 전체 일정
+- "나" 탭 = 자기 관련만 (frontend 후처리 필터)
+- "나" 탭 task 필터 버그 fix (created_by 만 → assignee_id+created_by)
+
+### 4. GDrive 정책 (옵션 B + 옵션 1)
+- 워크스페이스 공용 파일 (project_id 있음) = Drive
+- 개인 파일 (project_id 없음 = "내 파일") = PlanQ 자체
+- StorageSettings + CloudConnectNotice 안내 강화. CloudConnectNotice client hidden
+- 메모리: `project_gdrive_policy.md`
+
+### 5. 계정 vs 워크스페이스 프로필 분리
+- DB:
+  - `users` 7 컬럼 (email_verified_at, secondary_email + 5 OTP)
+  - `business_members` 10 컬럼 (name, name_localized + Q Note 8 필드)
+  - `clients.display_name_localized`
+- 신규 라우트 12개 (me/profile GET-PUT, email-verify-*, secondary-email-*)
+- ProfilePage 재설계: 계정 / "{워크스페이스} 프로필" / "{워크스페이스} — Q note 답변 생성용" 3 Card
+- expertise_level 5단계 + 결과 예시 카드
+- EmailChangeModal `kind` 4종 (primary, secondary, verify-primary, verify-secondary)
+- 알림 매트릭스 ProfilePage 에서 분리 → `/business/settings/notifications` 별도 메뉴
+- 메모리: `project_account_workspace_profile_split.md`
+
+### 6. Q Note 용어 + UX
+- i18n ko/en: 회의 → 음성메모, 회의 언어 → 사용 언어, 회의 진행 → 녹음 시작
+- StartMeetingModal: 목적 칩 (회의/상담/강의/인터뷰/메모/기타) + 캡처 방식 안내 + 프로필 미완성 배너
+
+### 7. Push UX
+- NotificationSettings PushSection: "본인 계정 + 이 브라우저 1개만" 명시 안내
+
+### 8. 두 번째 운영 배포 (commit `024d368`)
+- 32 파일, +1667/-467, 96초 완료
+- planq-prod-backend reload 1회, 헬스체크 외부/내부 모두 OK
+
+### 9. 검증 (/검증 9단계)
+- 0단계 헬스체크 27/27
+- 1단계 TS 0건, 3단계 신규 라우트 가드 OK, 6단계 25 항목 매트릭스 통과
+
+### 수정된 파일 (이번 세션, 총 32개)
+**Backend (9):** models/User.js, BusinessMember.js, Client.js / routes/businesses.js, calendar.js, files.js, kb.js, tasks.js, users.js
+**Frontend (15):** App.tsx, MainLayout.tsx, UserChip.tsx, EmailChangeModal.tsx, ProfilePage.tsx, QCalendarPage.tsx, StartMeetingModal.tsx, DocsTab.tsx, QTaskPage.tsx, NotificationSettings.tsx, StorageSettings.tsx + 신규: CloudConnectNotice.tsx
+**i18n (10):** ko/en × common, profile, qnote, qproject, settings 5 ns
+**Skill:** .claude/commands/배포.md 정비
+
+### 메모리 (5 신규)
+- project_client_permission_matrix.md
+- project_gdrive_policy.md
+- project_account_workspace_profile_split.md
+- project_backup_strategy_pending.md (다음 세션 즉시 작업)
+- feedback_dev_first_always.md / feedback_korean_demonstrative_scope.md
 
 ---
 
