@@ -5,7 +5,7 @@ const { BusinessPlanHistory, User } = require('../models');
 const { authenticateToken, checkBusinessAccess } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const planEngine = require('../services/plan');
-const { PLANS, PLAN_ORDER, toPublicJson, planAtLeast } = require('../config/plans');
+const { PLANS, PLAN_ORDER, ADDONS, toPublicJson, planAtLeast, getAddon, listAddonsForPlan } = require('../config/plans');
 
 // ─── 카탈로그 (공개) ───
 router.get('/catalog', authenticateToken, async (req, res, next) => {
@@ -322,6 +322,123 @@ router.get('/:businessId/subscription', authenticateToken, checkBusinessAccess, 
     const businessId = Number(req.params.businessId);
     const sub = await billing.getCurrentSubscription(businessId);
     return successResponse(res, sub ? sub.toJSON() : null);
+  } catch (err) { next(err); }
+});
+
+// ════════════════════════════════════════════════════════════
+// Add-on (추가 슬롯) — 카탈로그 + 현재 보유 + 신청
+// ════════════════════════════════════════════════════════════
+
+// GET /:businessId/addons — 카탈로그 + 현재 보유 슬롯
+router.get('/:businessId/addons', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+  try {
+    const businessId = Number(req.params.businessId);
+    const { biz, plan } = await planEngine.getBusinessPlan(businessId);
+    if (!biz) return errorResponse(res, 'business_not_found', 404);
+    const catalog = listAddonsForPlan(plan.code).map((a) => ({
+      code: a.code,
+      name_ko: a.name_ko,
+      name_en: a.name_en,
+      price_monthly: a.price_monthly,
+      unit: a.unit,
+      field: a.field,
+    }));
+    const currentBy = {
+      addon_members: Number(biz.addon_members || 0),
+      addon_clients: Number(biz.addon_clients || 0),
+      addon_qnote_minutes: Number(biz.addon_qnote_minutes || 0),
+      addon_cue_actions: Number(biz.addon_cue_actions || 0),
+      addon_storage_bytes: Number(biz.addon_storage_bytes || 0),
+    };
+    return successResponse(res, {
+      plan_code: plan.code,
+      catalog,
+      current: currentBy,
+      effective: await planEngine.getEffectiveLimits(businessId),
+    });
+  } catch (err) { next(err); }
+});
+
+// POST /:businessId/addons/request — 추가 슬롯 신청 (자체결제 흐름)
+//   body: { addon_code, quantity }
+//   현재 단계: 신청 기록만 (BillEvent) + 운영자 검토 후 수동 적용 + 안내 메시지
+//   다음 단계: 자동 invoice 생성 → mark-paid 시 컬럼 자동 증가 (P-7 구현 시)
+router.post('/:businessId/addons/request', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+  try {
+    if (req.businessRole !== 'owner' && req.user.platform_role !== 'platform_admin') {
+      return errorResponse(res, 'owner_only', 403);
+    }
+    const businessId = Number(req.params.businessId);
+    const { addon_code, quantity = 1 } = req.body || {};
+    const addon = getAddon(addon_code);
+    if (!addon) return errorResponse(res, 'invalid_addon_code', 400);
+    const qty = Math.max(1, Math.min(100, Number(quantity) || 1));
+    const totalKRW = (addon.price_monthly?.KRW || 0) * qty;
+
+    const { plan } = await planEngine.getBusinessPlan(businessId);
+    if (!addon.available_in.includes(plan.code)) {
+      return errorResponse(res, 'addon_not_available_for_plan', 400);
+    }
+
+    // BillEvent 로 신청 로그 기록 (운영자 admin 페이지에서 수동 처리)
+    const { BillEvent } = require('../models');
+    await BillEvent.create({
+      entity_type: 'addon_request',
+      entity_id: businessId,
+      actor_user_id: req.user.id,
+      kind: 'addon_request_created',
+      payload_json: {
+        addon_code: addon.code,
+        addon_field: addon.field,
+        quantity: qty,
+        unit: addon.unit,
+        total_units: addon.unit * qty,
+        price_monthly_krw: addon.price_monthly?.KRW || null,
+        total_krw: totalKRW,
+        plan_code: plan.code,
+      },
+    }).catch((e) => console.warn('[addon request log]', e.message));
+
+    return successResponse(res, {
+      received: true,
+      addon_code: addon.code,
+      quantity: qty,
+      total_units: addon.unit * qty,
+      total_krw: totalKRW,
+      next_step: '운영자 확인 후 입금 안내가 메일로 발송됩니다. 입금 확인 시 즉시 적용됩니다.',
+    });
+  } catch (err) { next(err); }
+});
+
+// POST /:businessId/addons/apply — platform_admin 만. 결제 확인 후 수동 적용
+//   body: { field, delta }   (field: addon_members | addon_clients | addon_qnote_minutes | addon_cue_actions | addon_storage_bytes)
+router.post('/:businessId/addons/apply', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+  try {
+    if (req.user.platform_role !== 'platform_admin') return errorResponse(res, 'admin_only', 403);
+    const businessId = Number(req.params.businessId);
+    const { field, delta } = req.body || {};
+    const allowed = ['addon_members', 'addon_clients', 'addon_qnote_minutes', 'addon_cue_actions', 'addon_storage_bytes'];
+    if (!allowed.includes(field)) return errorResponse(res, 'invalid_field', 400);
+    const d = Number(delta);
+    if (!Number.isFinite(d)) return errorResponse(res, 'invalid_delta', 400);
+
+    const { Business } = require('../models');
+    const biz = await Business.findByPk(businessId);
+    if (!biz) return errorResponse(res, 'business_not_found', 404);
+    const next = Math.max(0, Number(biz[field] || 0) + d);
+    await biz.update({ [field]: next });
+    planEngine.invalidateBusinessCache(businessId);
+
+    const { BillEvent } = require('../models');
+    await BillEvent.create({
+      entity_type: 'addon_apply',
+      entity_id: businessId,
+      actor_user_id: req.user.id,
+      kind: 'addon_applied',
+      payload_json: { field, delta: d, new_value: next },
+    }).catch(() => null);
+
+    return successResponse(res, { field, new_value: next });
   } catch (err) { next(err); }
 });
 

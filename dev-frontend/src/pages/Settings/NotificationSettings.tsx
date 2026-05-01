@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { apiFetch } from '../../contexts/AuthContext';
+import { InboxIcon, ChatIcon, MailIcon } from '../../components/Common/Icons';
 
 interface Props {
   businessId: number;
@@ -72,6 +73,8 @@ const NotificationSettings: React.FC<Props> = ({ businessId }) => {
 
   return (
     <Wrap>
+      <PushSection businessId={businessId} />
+
       <Section>
         <SectionTitle>{t('notifications.title', '알림 받기')}</SectionTitle>
         <SectionDesc>{t('notifications.desc2', '어떤 일이 생기면 어디로 받을지 정합니다. 기본값은 모든 알림 ON.')}</SectionDesc>
@@ -82,9 +85,9 @@ const NotificationSettings: React.FC<Props> = ({ businessId }) => {
             {CHANNELS.map(ch => (
               <HeadCell key={ch}>
                 <ChannelIcon>
-                  {ch === 'inbox' && '📋'}
-                  {ch === 'chat' && '💬'}
-                  {ch === 'email' && '✉'}
+                  {ch === 'inbox' && <InboxIcon size={18} />}
+                  {ch === 'chat' && <ChatIcon size={18} />}
+                  {ch === 'email' && <MailIcon size={18} />}
                 </ChannelIcon>
                 <ChannelName>{t(`notifications.ch.${ch}`)}</ChannelName>
               </HeadCell>
@@ -120,9 +123,22 @@ const NotificationSettings: React.FC<Props> = ({ businessId }) => {
         </Matrix>
 
         <FooterNote>{t('notifications.footerNote', '확인필요(Inbox)는 PlanQ 안에서 직접 보는 알림 영역입니다. 채팅/이메일은 외부로 나가는 알림.')}</FooterNote>
+        <PolicyBox>
+          <PolicyTitle>{t('notifications.policy.title', '이 매트릭스의 적용 범위')}</PolicyTitle>
+          <PolicyItem>
+            <PolicyDot />
+            <span>{t('notifications.policy.appliesTo', '워크스페이스 멤버에게 가는 알림 (업무 배정·완료·검토, 일정 초대, 멘션, 청구·세금계산서 검토 등) 에만 적용됩니다.')}</span>
+          </PolicyItem>
+          <PolicyItem>
+            <PolicyDot $kind="info" />
+            <span>{t('notifications.policy.systemAlways', '가입 인증·비밀번호·서명 OTP 같은 보안 메일은 매트릭스와 무관하게 항상 발송됩니다.')}</span>
+          </PolicyItem>
+          <PolicyItem>
+            <PolicyDot $kind="info" />
+            <span>{t('notifications.policy.clientAlways', '고객(외부)에게 가는 청구서·문서 공유·서명 요청 메일도 매트릭스와 무관 — 워크스페이스가 직접 결정한 발송입니다.')}</span>
+          </PolicyItem>
+        </PolicyBox>
       </Section>
-
-      <PushSection businessId={businessId} />
     </Wrap>
   );
 };
@@ -214,17 +230,19 @@ const SectionTitle = styled.h3`font-size: 15px; font-weight: 700; color: #0F172A
 const SectionDesc = styled.div`font-size: 12px; color: #64748B;`;
 const Matrix = styled.div`
   display: flex; flex-direction: column; gap: 0;
-  border: 1px solid #E2E8F0; border-radius: 10px; overflow: hidden;
 `;
 const MatrixHead = styled.div`
   display: grid; grid-template-columns: minmax(180px, 1.5fr) repeat(3, 90px);
-  background: #F8FAFC; border-bottom: 1px solid #E2E8F0;
+  border-bottom: 1px solid #E2E8F0;
 `;
 const HeadCell = styled.div`
   padding: 12px 14px; text-align: center;
   display: flex; flex-direction: column; align-items: center; gap: 4px;
 `;
-const ChannelIcon = styled.div`font-size: 16px;`;
+const ChannelIcon = styled.div`
+  display: inline-flex; align-items: center; justify-content: center;
+  color: #475569; height: 18px;
+`;
 const ChannelName = styled.div`font-size: 11px; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: 0.4px;`;
 const MatrixRow = styled.div`
   display: grid; grid-template-columns: minmax(180px, 1.5fr) repeat(3, 90px);
@@ -252,5 +270,20 @@ const SwitchKnob = styled.span<{ $on: boolean }>`
 `;
 const FooterNote = styled.div`
   font-size: 11px; color: #94A3B8; line-height: 1.5;
-  padding: 10px 12px; background: #F8FAFC; border-radius: 8px;
+  padding-top: 4px;
+`;
+const PolicyBox = styled.div`
+  margin-top: 4px; display: flex; flex-direction: column; gap: 6px;
+`;
+const PolicyTitle = styled.div`
+  font-size: 11px; font-weight: 700; color: #475569;
+  text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 2px;
+`;
+const PolicyItem = styled.div`
+  display: flex; gap: 8px; align-items: flex-start;
+  font-size: 12px; color: #64748B; line-height: 1.5;
+`;
+const PolicyDot = styled.span<{ $kind?: 'info' }>`
+  flex-shrink: 0; margin-top: 6px; width: 5px; height: 5px;
+  border-radius: 50%; background: ${(p) => p.$kind === 'info' ? '#CBD5E1' : '#14B8A6'};
 `;

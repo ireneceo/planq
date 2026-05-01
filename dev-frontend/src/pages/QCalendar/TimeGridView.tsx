@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
+import { CheckIcon } from '../../components/Common/Icons';
 import type { CalendarEvent, CalendarItem } from './types';
 import { clipEventToDay, eventOverlapsDay, formatTime, isSameDay, startOfDay } from './dateUtils';
 import { getEventColors } from './categoryColors';
@@ -97,7 +98,7 @@ const TimeGridView: React.FC<Props> = ({ today, days, events, onSelectEvent, onS
                     $border={c.border}
                     onClick={() => onSelectEvent(e.id)}
                   >
-                    {isTask && '✓ '}{e.title}
+                    {isTask && <CheckIcon size={11} style={{ marginRight: 3, verticalAlign: '-2px' }} />}{e.title}
                   </AllDayChip>
                 );
               })}

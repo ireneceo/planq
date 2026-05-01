@@ -296,7 +296,7 @@
       "amount": "Amount",
       "due": "Due",
       "remove": "Remove",
-      "sumOk": "Total 100% ✓",
+      "sumOk": "Total 100%",
       "sumWarn": "Total is not 100% ({{percent}}%)",
       "presets": {
         "title": "Quick split",
@@ -493,6 +493,22 @@
       "numberFormat": "Number format",
       "numberFormatPh": "INV-{YYYY}-{####}",
       "memoTemplate": "Default memo"
+    },
+    "recurring": {
+      "title": "Recurring billing automation",
+      "desc": "Default behavior for monthly subscription projects. Each project can override these settings.",
+      "mode": "Issue mode",
+      "modeAuto": "Auto-issue + email",
+      "modeDraft": "Draft + review",
+      "modeHint": "\"Auto-issue\" sends invoices monthly without human review. Start with \"Draft + review\" until you trust the flow.",
+      "billingDay": "Billing day of month",
+      "billingDayHint": "If a month has fewer days than the chosen day (e.g. Feb), the invoice is issued on the last day of that month."
+    },
+    "overdue": {
+      "title": "Overdue policy",
+      "desc": "How overdue invoices are escalated and when projects auto-pause.",
+      "graceDays": "Days until auto-pause",
+      "graceDaysHint": "Flow: 1st-day notice → halfway (or 7-day) reminder → on grace day, project auto-pauses. Marking the invoice paid resumes it instantly."
     }
   },
 

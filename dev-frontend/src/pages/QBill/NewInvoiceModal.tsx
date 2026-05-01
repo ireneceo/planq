@@ -388,8 +388,8 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
   // 발송 요약 텍스트
   const recipientEmail = client?.tax_invoice_email || client?.billing_contact_email || client?.invite_email;
   const deliverSummary: string[] = [];
-  if (sendChat && conversation) deliverSummary.push(`💬 ${conversation.title || '채팅방'}`);
-  if (sendEmail && recipientEmail) deliverSummary.push(`✉ ${recipientEmail}`);
+  if (sendChat && conversation) deliverSummary.push(`채팅: ${conversation.title || '채팅방'}`);
+  if (sendEmail && recipientEmail) deliverSummary.push(`이메일: ${recipientEmail}`);
   if (deliverSummary.length === 0 && client) deliverSummary.push('공개 링크만 생성 (수동 전달)');
 
   return (

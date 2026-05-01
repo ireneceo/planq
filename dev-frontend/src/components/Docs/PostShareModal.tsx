@@ -11,6 +11,7 @@ import { listBusinessConversations, listProjectConversations, type ApiConversati
 import PlanQSelect, { type PlanQSelectOption } from '../Common/PlanQSelect';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { useEscapeStack } from '../../hooks/useEscapeStack';
+import { CheckIcon } from '../Common/Icons';
 
 interface Props {
   open: boolean;
@@ -208,7 +209,7 @@ const PostShareModal: React.FC<Props> = ({ open, onClose, post, onChanged }) => 
             {emailSentInfo ? (
               <Done>
                 <DoneIcon $tone={emailSentInfo.smtpDown ? 'warn' : 'ok'}>
-                  {emailSentInfo.smtpDown ? '!' : '✓'}
+                  {emailSentInfo.smtpDown ? '!' : <CheckIcon size={14} />}
                 </DoneIcon>
                 <DoneTitle>
                   {emailSentInfo.smtpDown

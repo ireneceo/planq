@@ -162,3 +162,57 @@ export const MergeIcon = ({ size = 16, ...rest }: IconProps) => (
     <path d="M6 21V9a9 9 0 0 0 9 9" />
   </svg>
 );
+
+export const InboxIcon = ({ size = 16, ...rest }: IconProps) => (
+  <svg {...base(size)} {...rest}>
+    <polyline points="22 12 16 12 14 15 10 15 8 12 2 12" />
+    <path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" />
+  </svg>
+);
+
+export const ChatIcon = ({ size = 16, ...rest }: IconProps) => (
+  <svg {...base(size)} {...rest}>
+    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+  </svg>
+);
+
+export const MailIcon = ({ size = 16, ...rest }: IconProps) => (
+  <svg {...base(size)} {...rest}>
+    <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+    <polyline points="22,6 12,13 2,6" />
+  </svg>
+);
+
+export const BellIcon = ({ size = 16, ...rest }: IconProps) => (
+  <svg {...base(size)} {...rest}>
+    <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+    <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+  </svg>
+);
+
+export const SparkleIcon = ({ size = 16, ...rest }: IconProps) => (
+  <svg {...base(size)} {...rest}>
+    <path d="M12 3l2 5 5 2-5 2-2 5-2-5-5-2 5-2z" />
+  </svg>
+);
+
+export const ClipboardIcon = ({ size = 16, ...rest }: IconProps) => (
+  <svg {...base(size)} {...rest}>
+    <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" />
+    <rect x="8" y="2" width="8" height="4" rx="1" ry="1" />
+  </svg>
+);
+
+export const FileIcon = ({ size = 16, ...rest }: IconProps) => (
+  <svg {...base(size)} {...rest}>
+    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+    <polyline points="14 2 14 8 20 8" />
+  </svg>
+);
+
+export const EditIcon = ({ size = 16, ...rest }: IconProps) => (
+  <svg {...base(size)} {...rest}>
+    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+  </svg>
+);

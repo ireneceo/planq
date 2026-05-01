@@ -182,6 +182,7 @@ app.use('/api/feedback', require('./routes/feedback'));
 app.use('/api/cue', require('./routes/cue'));
 app.use('/api/insights', require('./routes/insights'));
 app.use('/api/stats', require('./routes/stats'));
+app.use('/api/reports', require('./routes/reports'));
 app.use('/api/push', require('./routes/push'));
 app.use('/api/tasks', require('./routes/task_estimations'));
 app.use('/api/clients', require('./routes/clients'));
@@ -215,9 +216,41 @@ server.listen(PORT, () => {
   console.log(`PlanQ server running on port ${PORT} (${process.env.NODE_ENV})`);
 });
 
-// 매일 00시(서버 로컬) — 업무 스냅샷 + 자체결제 cron (active→past_due→grace→demoted)
+// 매일 00시(서버 로컬) — 업무 스냅샷 + 자체결제 cron (active→past_due→grace→demoted) + 매월 1일 보고서 + 정기청구 + 연체 정지
 const taskSnapshot = require('./services/task_snapshot');
 const billing = require('./services/billing');
+const reportGenerator = require('./services/report_generator');
+const recurringInvoice = require('./services/recurring_invoice');
+const overdueHandler = require('./services/overdue_handler');
+
+async function runMonthlyReportsIfDay1() {
+  const today = new Date();
+  if (today.getDate() !== 1) return { skipped: true, reason: 'not_day_1' };
+  const { Business, Report } = require('./models');
+  const businesses = await Business.findAll({
+    where: { status: 'active' },
+    attributes: ['id'],
+  });
+  const period = reportGenerator.computePeriod('monthly', today);
+  let ok = 0, dup = 0, fail = 0;
+  for (const biz of businesses) {
+    // 동일 기간 monthly 이미 있으면 skip (재시작 안전)
+    const exists = await Report.findOne({
+      where: { business_id: biz.id, kind: 'monthly', period_start: period.from, period_end: period.to },
+      attributes: ['id'],
+    });
+    if (exists) { dup += 1; continue; }
+    try {
+      await reportGenerator.generateReport({ businessId: biz.id, kind: 'monthly', period });
+      ok += 1;
+    } catch (e) {
+      console.warn('[monthly-report] business', biz.id, 'failed', e.message);
+      fail += 1;
+    }
+  }
+  return { ok, dup, fail, period };
+}
+
 function scheduleNextMidnight() {
   const now = new Date();
   const next = new Date(now); next.setDate(now.getDate() + 1); next.setHours(0, 0, 0, 0);
@@ -231,6 +264,18 @@ function scheduleNextMidnight() {
       const r = await billing.runDailyBillingCron();
       console.log('[billing-cron]', r);
     } catch (e) { console.warn('[billing-cron] failed', e.message); }
+    try {
+      const r = await runMonthlyReportsIfDay1();
+      if (!r.skipped) console.log('[monthly-report]', r);
+    } catch (e) { console.warn('[monthly-report] failed', e.message); }
+    try {
+      const r = await recurringInvoice.runDailyRecurringBilling();
+      console.log('[recurring-invoice]', { ok: r.ok, skip: r.skip, fail: r.fail });
+    } catch (e) { console.warn('[recurring-invoice] failed', e.message); }
+    try {
+      const r = await overdueHandler.runDailyOverdueCron();
+      console.log('[overdue]', r);
+    } catch (e) { console.warn('[overdue] failed', e.message); }
     scheduleNextMidnight();
   }, delay);
 }

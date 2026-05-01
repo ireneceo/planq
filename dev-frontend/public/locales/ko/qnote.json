@@ -114,11 +114,11 @@
       "submitting": "처리 중..."
     },
     "readiness": {
-      "summaryReady": "✓ 준비 완료 · 문서 {{docs}} · Q&A {{qa}} · 어휘 {{voc}}",
-      "summaryPending": "⏳ 자료 준비 중...",
+      "summaryReady": "준비 완료 · 문서 {{docs}} · Q&A {{qa}} · 어휘 {{voc}}",
+      "summaryPending": "자료 준비 중...",
       "toggleTitle": "클릭하여 펼치기/접기",
-      "allReady": "✓ 모든 자료 준비 완료 — 녹음 시작 가능",
-      "pending": "⏳ 자료 준비 중...",
+      "allReady": "모든 자료 준비 완료 — 녹음 시작 가능",
+      "pending": "자료 준비 중...",
       "expand": "자세히 ▾",
       "collapse": "접기 ▴",
       "docsLabel": "참고 문서",
@@ -211,7 +211,7 @@
       "body": " — 기존 자료는 DB 에 안전하게 저장되어 있습니다. 여기서 ",
       "addHighlight": "추가한 항목은 기존 자료에 합쳐",
       "middle": "지며, ",
-      "removeHighlight": "✗ 버튼으로 개별 삭제",
+      "removeHighlight": "X 버튼으로 개별 삭제",
       "suffix": "할 수 있습니다.",
       "loading": "(기존 자료 불러오는 중...)"
     },
@@ -256,7 +256,7 @@
       "hintPart3": "입니다. 문서 인덱싱이 끝나면 자동으로 재추출되며, 그 전이면 아래 \"문서 기반 재추출\" 버튼으로 즉시 뽑을 수 있습니다.",
       "refreshTitle": "현재 인덱싱된 문서에서 어휘를 다시 추출 (기존 수동 추가 키워드는 유지)",
       "refreshing": "재추출 중...",
-      "refresh": "📄 문서 기반 재추출",
+      "refresh": "문서 기반 재추출",
       "empty": "자동 추출된 어휘가 없습니다. 아래에서 직접 추가하세요.",
       "addPlaceholder": "단어/구절 추가 (쉼표나 엔터로 여러 개 한번에)",
       "saveFail": "어휘사전 저장 실패",

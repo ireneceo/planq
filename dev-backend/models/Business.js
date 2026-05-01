@@ -199,6 +199,27 @@ Business.init({
   default_due_days: { type: DataTypes.INTEGER, defaultValue: 14, comment: '청구서 기본 결제 기한 (일)' },
   // 청구서 기본 통화
   default_currency: { type: DataTypes.STRING(3), defaultValue: 'KRW', comment: '청구서 기본 통화' },
+  // ─── 정기 청구 기본값 (워크스페이스 단위 — 프로젝트가 override 가능) ───
+  auto_invoice_default_mode: {
+    type: DataTypes.ENUM('auto', 'draft_review'),
+    allowNull: false, defaultValue: 'draft_review',
+    comment: '신규 정기 프로젝트 기본 모드',
+  },
+  auto_invoice_default_billing_day: {
+    type: DataTypes.TINYINT, allowNull: false, defaultValue: 1,
+    comment: '신규 정기 프로젝트 기본 청구일',
+  },
+  // ─── 연체 정책 ───
+  overdue_grace_days: {
+    type: DataTypes.INTEGER, allowNull: false, defaultValue: 7,
+    comment: '연체 첫 알림 후 자동 정지까지 일수 (1~30 권장)',
+  },
+  // ─── Add-on 슬롯 (plan.limits 위에 추가 구매 — 결제 마킹 시 증가) ───
+  addon_members: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
+  addon_clients: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
+  addon_qnote_minutes: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
+  addon_cue_actions: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
+  addon_storage_bytes: { type: DataTypes.BIGINT, allowNull: false, defaultValue: 0 },
   // ─── 권한 토글 (PERMISSION_MATRIX §4) ───
   // financial / schedule / client_info — 기본값 모두 "all" (열린 문화).
   // 값이 "pm" 이면 해당 카테고리 액션은 프로젝트 PM 또는 오너만.

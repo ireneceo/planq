@@ -302,7 +302,7 @@ const PublicSignPage: React.FC = () => {
   return (
     <Page>
       <Topbar>
-        <Brand>PlanQ</Brand>
+        <Brand src="/planQ-slogan_color.svg" alt="PlanQ" />
         <TopMeta>{doc.signer_email}</TopMeta>
       </Topbar>
 
@@ -480,7 +480,7 @@ const Topbar = styled.header`
   background: #fff; border-bottom: 1px solid #E2E8F0;
   position: sticky; top: 0; z-index: 10;
 `;
-const Brand = styled.span`font-size:15px;font-weight:800;color:#0D9488;letter-spacing:-0.3px;`;
+const Brand = styled.img`display:block;width:120px;height:auto;user-select:none;`;
 const TopMeta = styled.span`font-size:12px;color:#64748B;`;
 
 const ProgressBar = styled.nav`

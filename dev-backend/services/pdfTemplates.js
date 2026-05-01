@@ -245,4 +245,185 @@ function postPdfHtml(post, author, business) {
 </html>`;
 }
 
-module.exports = { invoicePdfHtml, postPdfHtml };
+// ─── 경영 보고서 PDF (월간/분기/연간/임의) ───
+//
+// 입력: { period:{from,to,kind,label}, business:{name,legal_name}, generatedAt, tabs:{overview,tasks,profit,team,finance} }
+// 단일 페이지 임원 요약 + 필요 시 자동 분기.
+function reportPdfHtml({ period, business, generatedAt, tabs }) {
+  const kindLabel = {
+    monthly: '월간',
+    quarterly: '분기',
+    yearly: '연간',
+    adhoc: '맞춤',
+  }[period.kind] || period.kind;
+
+  const bizName = business?.legal_name || business?.brand_name || business?.name || '—';
+  const ov = tabs.overview || {};
+  const tk = tabs.tasks || {};
+  const pf = tabs.profit || {};
+  const tm = tabs.team || {};
+  const fn = tabs.finance || {};
+
+  const fmtKRW = (v) => v == null ? '—' : '₩' + Math.round(v).toLocaleString('ko-KR');
+  const fmtPct = (v) => v == null ? '—' : `${Number(v).toFixed(1)}%`;
+  const fmtNum = (v) => v == null ? '—' : Number(v).toLocaleString('ko-KR');
+
+  const insightsRow = (list) => (list || []).slice(0, 3).map((ins) => {
+    const sev = ins.severity || 'info';
+    const stripe = sev === 'urgent' ? '#EF4444' : sev === 'warning' ? '#F59E0B' : '#0F766E';
+    return `
+      <div class="insight" style="border-left:3px solid ${stripe};">
+        <div class="ins-title">${escapeHtml(ins.title || '')}</div>
+        <div class="ins-value">${escapeHtml(ins.value || '')}</div>
+        ${ins.hint ? `<div class="ins-hint">${escapeHtml(ins.hint)}</div>` : ''}
+      </div>`;
+  }).join('');
+
+  const kpi = (label, value) => `
+    <div class="kpi">
+      <div class="kpi-label">${escapeHtml(label)}</div>
+      <div class="kpi-value">${escapeHtml(String(value))}</div>
+    </div>`;
+
+  // Profit Top 5 행 + Team Top 5 행
+  const profitRows = (pf.table || []).slice(0, 5).map((r) => `
+    <tr>
+      <td>${escapeHtml(r.name || '')}</td>
+      <td>${escapeHtml(r.client || '—')}</td>
+      <td class="num">${fmtKRW(r.revenue)}</td>
+      <td class="num" style="${r.profit < 0 ? 'color:#B91C1C;font-weight:700;' : ''}">${fmtKRW(r.profit)}</td>
+      <td class="num">${fmtPct(r.margin_pct)}</td>
+    </tr>
+  `).join('');
+
+  const teamRows = (tm.table || []).slice(0, 5).map((r) => `
+    <tr>
+      <td>${escapeHtml(r.name || '')}</td>
+      <td>${escapeHtml(r.role || '—')}</td>
+      <td class="num" style="${(r.utilization_pct || 0) > 100 ? 'color:#B91C1C;' : ''}">${fmtPct(r.utilization_pct)}</td>
+      <td class="num">${fmtPct(r.accuracy_pct)}</td>
+      <td class="num">${fmtNum(r.completed_tasks)}</td>
+      <td class="num">${fmtKRW(r.revenue_share)}</td>
+    </tr>
+  `).join('');
+
+  const expenseRows = (fn.expenses_by_category || []).slice(0, 8).map((r) => `
+    <tr>
+      <td>${escapeHtml(r.category)}</td>
+      <td class="num">${fmtKRW(r.amount)}</td>
+    </tr>
+  `).join('');
+
+  return `<!DOCTYPE html>
+<html lang="ko">
+<head><meta charset="utf-8"><title>${escapeHtml(bizName)} ${kindLabel} 보고서</title>
+<style>
+  ${BASE_CSS}
+  .report-header { padding-bottom: 16px; border-bottom: 2px solid #0F766E; margin-bottom: 20px; }
+  .report-period { font-size: 12px; color: #64748B; font-weight: 500; margin-top: 4px; }
+  .insights-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 22px; }
+  .insight { padding: 10px 12px; background: #F8FAFC; border-radius: 8px; }
+  .ins-title { font-size: 10px; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: 0.4px; }
+  .ins-value { font-size: 13px; font-weight: 700; color: #0F172A; margin-top: 3px; }
+  .ins-hint { font-size: 10px; color: #64748B; margin-top: 3px; line-height: 1.4; }
+  .kpi-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 22px; }
+  .kpi { padding: 12px; background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 8px; }
+  .kpi-label { font-size: 10px; font-weight: 700; color: #64748B; text-transform: uppercase; letter-spacing: 0.3px; }
+  .kpi-value { font-size: 16px; font-weight: 800; color: #0F172A; margin-top: 4px; font-variant-numeric: tabular-nums; }
+  .section { margin-top: 18px; }
+  .section h2 { margin-bottom: 8px; }
+  .section table { font-size: 10px; }
+  .section table th, .section table td { padding: 6px 8px; border-bottom: 1px solid #F1F5F9; }
+  .section table th { background: #F8FAFC; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: 0.3px; font-size: 9px; }
+  .section table td.num, .section table th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .grid-2 { display: grid; grid-template-columns: 1.4fr 1fr; gap: 16px; }
+  .signature { margin-top: 28px; padding-top: 14px; border-top: 1px solid #E2E8F0; font-size: 9px; color: #94A3B8; line-height: 1.6; }
+</style></head>
+<body>
+  <div class="report-header">
+    <div class="brand">${escapeHtml(kindLabel)} 경영 보고서 · MANAGEMENT REPORT</div>
+    <h1>${escapeHtml(bizName)}</h1>
+    <div class="report-period">${escapeHtml(period.from)} ~ ${escapeHtml(period.to)}</div>
+  </div>
+
+  <h2>핵심 인사이트</h2>
+  <div class="insights-row">
+    ${insightsRow(ov.insights)}
+  </div>
+
+  <h2>경영 지표</h2>
+  <div class="kpi-grid">
+    ${kpi('매출 (수금)', fmtKRW(ov.kpis?.revenue?.value))}
+    ${kpi('영업이익', fmtKRW(ov.kpis?.profit?.value))}
+    ${kpi('가동률', fmtPct(ov.kpis?.utilization_pct?.value))}
+    ${kpi('발행 청구', fmtKRW(ov.kpis?.issued?.value))}
+    ${kpi('활성 프로젝트', fmtNum(ov.kpis?.active_projects?.value))}
+    ${kpi('신규 고객', fmtNum(ov.kpis?.new_clients?.value))}
+  </div>
+
+  <div class="grid-2">
+    <div>
+      <h2>업무·시간</h2>
+      <div class="kpi-grid" style="grid-template-columns: 1fr 1fr;">
+        ${kpi('완료 업무', fmtNum(tk.kpis?.completed?.value))}
+        ${kpi('생성 업무', fmtNum(tk.kpis?.created?.value))}
+        ${kpi('리드타임 P50', tk.kpis?.leadtime_p50_days?.value == null ? '—' : `${tk.kpis.leadtime_p50_days.value}일`)}
+        ${kpi('AI 정확도', fmtPct(tk.kpis?.ai_accuracy_pct?.value))}
+      </div>
+    </div>
+    <div>
+      <h2>재무 요약</h2>
+      <div class="kpi-grid" style="grid-template-columns: 1fr 1fr;">
+        ${kpi('총 비용', fmtKRW(fn.kpis?.total_cost?.value))}
+        ${kpi('마진율', fmtPct(fn.kpis?.margin_pct?.value))}
+        ${kpi('미수금', fmtKRW(fn.kpis?.receivable?.value))}
+        ${kpi('고정비', fmtKRW(fn.kpis?.overhead?.value))}
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>프로젝트 수익성 Top 5</h2>
+    ${profitRows ? `
+      <table style="width:100%;">
+        <thead><tr>
+          <th>프로젝트</th><th>고객</th>
+          <th class="num">매출</th><th class="num">이익</th><th class="num">마진</th>
+        </tr></thead>
+        <tbody>${profitRows}</tbody>
+      </table>
+    ` : '<div style="font-size:11px;color:#94A3B8;padding:12px 0;">완료된 프로젝트 데이터가 누적되면 표시됩니다.</div>'}
+  </div>
+
+  <div class="section">
+    <h2>팀 성과 Top 5</h2>
+    ${teamRows ? `
+      <table style="width:100%;">
+        <thead><tr>
+          <th>이름</th><th>역할</th>
+          <th class="num">가동률</th><th class="num">정확도</th>
+          <th class="num">완료</th><th class="num">매출 비중</th>
+        </tr></thead>
+        <tbody>${teamRows}</tbody>
+      </table>
+    ` : '<div style="font-size:11px;color:#94A3B8;padding:12px 0;">팀 데이터가 누적되면 표시됩니다.</div>'}
+  </div>
+
+  ${expenseRows ? `
+    <div class="section">
+      <h2>지출 카테고리 Top 8</h2>
+      <table style="width:100%;">
+        <thead><tr><th>카테고리</th><th class="num">금액</th></tr></thead>
+        <tbody>${expenseRows}</tbody>
+      </table>
+    </div>
+  ` : ''}
+
+  <div class="signature">
+    Generated by PlanQ · ${fmtDate(generatedAt)} · 본 보고서는 ${escapeHtml(period.from)} ~ ${escapeHtml(period.to)} 기간 데이터로 자동 산출되었습니다.
+  </div>
+</body>
+</html>`;
+}
+
+module.exports = { invoicePdfHtml, postPdfHtml, reportPdfHtml };

@@ -109,6 +109,7 @@ router.post('/:token/accept', authenticateToken, async (req, res, next) => {
       }
       await pc.update({ contact_user_id: req.user.id, accepted_at: new Date() }, { transaction: t });
       await t.commit();
+      notifyInviterOnAccept(pc.invited_by, pc.project_id, 'project_client', req.user.id, null).catch((e) => console.warn('[notify invite project_client]', e.message));
       return successResponse(res, { type: 'project_client', project_id: pc.project_id, redirect: '/talk' });
     }
 
@@ -130,6 +131,7 @@ router.post('/:token/accept', authenticateToken, async (req, res, next) => {
       }
       await cl.update({ user_id: req.user.id, accepted_at: new Date(), status: 'active' }, { transaction: t });
       await t.commit();
+      notifyInviterOnAccept(cl.invited_by, null, 'workspace_client', req.user.id, cl.business_id).catch((e) => console.warn('[notify invite workspace_client]', e.message));
       return successResponse(res, { type: 'workspace_client', business_id: cl.business_id, redirect: '/talk' });
     }
 
@@ -150,6 +152,7 @@ router.post('/:token/accept', authenticateToken, async (req, res, next) => {
       }
       await bm.update({ user_id: req.user.id, joined_at: new Date() }, { transaction: t });
       await t.commit();
+      notifyInviterOnAccept(bm.invited_by, null, 'workspace_member', req.user.id, bm.business_id).catch((e) => console.warn('[notify invite workspace_member]', e.message));
       return successResponse(res, { type: 'workspace_member', business_id: bm.business_id, redirect: '/dashboard' });
     }
 
@@ -157,5 +160,41 @@ router.post('/:token/accept', authenticateToken, async (req, res, next) => {
     return errorResponse(res, 'unsupported_invite_type', 400);
   } catch (err) { await t.rollback().catch(() => {}); next(err); }
 });
+
+// 초대한 사람에게 알림
+async function notifyInviterOnAccept(inviterUserId, projectId, kind, accepterUserId, businessIdHint) {
+  if (!inviterUserId) return;
+  if (inviterUserId === accepterUserId) return; // 본인 → 본인 케이스 방어
+  const { User, Project, Business } = require('../models');
+  const { notify } = require('./notifications');
+  const accepter = await User.findByPk(accepterUserId, { attributes: ['name', 'email'] });
+  let businessId = businessIdHint;
+  let projectName = null;
+  if (projectId && !businessId) {
+    const proj = await Project.findByPk(projectId, { attributes: ['business_id', 'name'] });
+    businessId = proj?.business_id;
+    projectName = proj?.name;
+  }
+  let wsName = null;
+  if (businessId) {
+    const biz = await Business.findByPk(businessId, { attributes: ['name', 'brand_name'] });
+    wsName = biz?.brand_name || biz?.name || null;
+  }
+  const accepterLabel = accepter?.name || accepter?.email || '초대받은 사용자';
+  const titleMap = {
+    workspace_member: '초대한 멤버가 가입했습니다',
+    workspace_client: '초대한 고객이 가입했습니다',
+    project_client: '프로젝트 고객이 초대를 수락했습니다',
+  };
+  const link = projectId
+    ? `${process.env.APP_URL || 'https://dev.planq.kr'}/q-project/${projectId}`
+    : `${process.env.APP_URL || 'https://dev.planq.kr'}/business/clients`;
+  await notify({
+    userId: inviterUserId, businessId, eventKind: 'invite',
+    title: titleMap[kind] || '초대 수락',
+    body: `${accepterLabel}${projectName ? ` · ${projectName}` : ''}`,
+    link, ctaLabel: '확인하기', workspaceName: wsName,
+  });
+}
 
 module.exports = router;

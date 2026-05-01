@@ -647,7 +647,7 @@ const StartMeetingModal = ({ open, userLanguage, editMode, initialConfig, editin
         <Body>
           {editMode && (
             <EditModeBanner>
-              <strong>{t('startModal.editBanner.prefix', '편집 모드')}</strong>{t('startModal.editBanner.body', ' — 기존 자료는 DB 에 안전하게 저장되어 있습니다. 여기서 ')}<strong>{t('startModal.editBanner.addHighlight', '추가한 항목은 기존 자료에 합쳐')}</strong>{t('startModal.editBanner.middle', '지며, ')}<strong>{t('startModal.editBanner.removeHighlight', '✗ 버튼으로 개별 삭제')}</strong>{t('startModal.editBanner.suffix', '할 수 있습니다.')}
+              <strong>{t('startModal.editBanner.prefix', '편집 모드')}</strong>{t('startModal.editBanner.body', ' — 기존 자료는 DB 에 안전하게 저장되어 있습니다. 여기서 ')}<strong>{t('startModal.editBanner.addHighlight', '추가한 항목은 기존 자료에 합쳐')}</strong>{t('startModal.editBanner.middle', '지며, ')}<strong>{t('startModal.editBanner.removeHighlight', 'X 버튼으로 개별 삭제')}</strong>{t('startModal.editBanner.suffix', '할 수 있습니다.')}
               {loadingExisting && <span style={{ marginLeft: 8, color: '#0d9488' }}>{t('startModal.editBanner.loading', '(기존 자료 불러오는 중...)')}</span>}
             </EditModeBanner>
           )}
@@ -966,7 +966,7 @@ const StartMeetingModal = ({ open, userLanguage, editMode, initialConfig, editin
                   disabled={refreshingVocab}
                   title={t('startModal.vocabulary.refreshTitle', '현재 인덱싱된 문서에서 어휘를 다시 추출 (기존 수동 추가 키워드는 유지)') as string}
                 >
-                  {refreshingVocab ? t('startModal.vocabulary.refreshing', '재추출 중...') : t('startModal.vocabulary.refresh', '📄 문서 기반 재추출')}
+                  {refreshingVocab ? t('startModal.vocabulary.refreshing', '재추출 중...') : t('startModal.vocabulary.refresh', '문서 기반 재추출')}
                 </GenerateKeywordsBtn>
               </div>
 

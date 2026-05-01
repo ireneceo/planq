@@ -36,7 +36,11 @@ async function getBusinessPlan(businessId) {
   if (cached) return cached;
 
   const biz = await Business.findByPk(key, {
-    attributes: ['id', 'plan', 'subscription_status', 'plan_expires_at', 'trial_ends_at', 'grace_ends_at']
+    attributes: [
+      'id', 'plan', 'subscription_status', 'plan_expires_at', 'trial_ends_at', 'grace_ends_at',
+      // Add-on 슬롯 — plan.limits 위에 더해짐
+      'addon_members', 'addon_clients', 'addon_qnote_minutes', 'addon_cue_actions', 'addon_storage_bytes',
+    ],
   });
   if (!biz) {
     const result = { plan: getPlan('free'), biz: null, active: false };
@@ -67,8 +71,30 @@ async function getBusinessPlan(businessId) {
  * 특정 한도 값 (숫자) — 비교용. Infinity 유지 (비교 시 필요)
  */
 async function getLimit(businessId, key) {
-  const { plan } = await getBusinessPlan(businessId);
-  return plan.limits[key];
+  const limits = await getEffectiveLimits(businessId);
+  return limits[key];
+}
+
+/**
+ * Add-on 슬롯이 합산된 effective limits.
+ * plan.limits 의 키 중 add-on 으로 보강 가능한 항목만 더함.
+ * Infinity (Pro·Enterprise 의 ∞ 값) 은 더해도 Infinity 유지.
+ */
+async function getEffectiveLimits(businessId) {
+  const { plan, biz } = await getBusinessPlan(businessId);
+  const base = { ...plan.limits };
+  if (!biz) return base;
+  const addOrSkip = (key, addonKey) => {
+    if (base[key] === Infinity) return;
+    const add = Number(biz[addonKey] || 0);
+    if (add > 0) base[key] = base[key] + add;
+  };
+  addOrSkip('members_max', 'addon_members');
+  addOrSkip('clients_max', 'addon_clients');
+  addOrSkip('qnote_minutes_monthly', 'addon_qnote_minutes');
+  addOrSkip('cue_actions_monthly', 'addon_cue_actions');
+  addOrSkip('storage_bytes', 'addon_storage_bytes');
+  return base;
 }
 
 /**
@@ -152,7 +178,8 @@ async function can(businessId, action, ctx = {}) {
   if (!biz) return { ok: false, reason: 'business_not_found' };
   if (!active) return { ok: false, reason: 'subscription_inactive' };
 
-  const limits = plan.limits;
+  // Add-on 합산된 effective limits — quota 검사는 모두 이걸로
+  const limits = await getEffectiveLimits(businessId);
   const features = plan.features;
 
   switch (action) {
@@ -304,6 +331,7 @@ function buildQuotaError(checkResult, businessId) {
 module.exports = {
   getBusinessPlan,
   getLimit,
+  getEffectiveLimits,
   getUsage,
   can,
   requireFeature,

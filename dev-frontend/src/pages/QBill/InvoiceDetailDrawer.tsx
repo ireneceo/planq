@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import DetailDrawer from '../../components/Common/DetailDrawer';
 import ConfirmDialog from '../../components/Common/ConfirmDialog';
+import { CheckIcon } from '../../components/Common/Icons';
 import {
   formatMoney, invoiceStatusColor, installmentStatusColor,
   getInvoice, markInstallmentPaid, unmarkInstallmentPaid,
@@ -382,7 +383,7 @@ export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, 
             <SectionTitle>{t('detail.tax.title')}</SectionTitle>
             <TaxBox $status={invoice.tax_invoice_status}>
               <TaxIcon $status={invoice.tax_invoice_status}>
-                {invoice.tax_invoice_status === 'issued' ? '✓' : invoice.tax_invoice_status === 'pending' ? '!' : '·'}
+                {invoice.tax_invoice_status === 'issued' ? <CheckIcon size={14} /> : invoice.tax_invoice_status === 'pending' ? '!' : ''}
               </TaxIcon>
               <TaxBody>
                 <TaxLabel>
@@ -466,7 +467,7 @@ function InstallmentRow({ ins, currency, busy, onMarkPaid, onUnmarkPaid, onMarkT
         {ins.milestone_ref && <InstMilestone>{ins.milestone_ref}</InstMilestone>}
         {ins.status === 'paid' && ins.paid_at && (
           <InstSubMeta>
-            ✓ {t('detail.installments.paidAt', { date: ins.paid_at.split('T')[0] })}
+            <CheckIcon size={11} style={{ verticalAlign: '-1px' }} /> {t('detail.installments.paidAt', { date: ins.paid_at.split('T')[0] })}
             {ins.tax_invoice_no && ` · ${t('detail.installments.taxNo', { no: ins.tax_invoice_no })}`}
           </InstSubMeta>
         )}

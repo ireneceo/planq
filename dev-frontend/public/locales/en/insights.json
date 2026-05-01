@@ -133,7 +133,27 @@
     "col": {
       "name": "Name", "role": "Role", "utilization": "Utilization", "accuracy": "Accuracy",
       "bias": "Bias", "completed": "Completed", "leadtime": "Lead time",
-      "revenue": "Revenue share", "effectiveRate": "Effective rate"
+      "revenue": "Revenue share", "effectiveRate": "Effective rate",
+      "actualHours": "Actual hours (h)"
+    },
+    "drawer": {
+      "title": "Member category breakdown",
+      "summary": "Summary",
+      "categoryTitle": "Strengths & weaknesses by category",
+      "completedSuffix": "completed",
+      "empty": "Not enough completed tasks to analyze.",
+      "col": {
+        "category": "Category",
+        "count": "Count",
+        "accuracy": "Accuracy",
+        "hours": "Hours (h)",
+        "tag": "Tag"
+      }
+    },
+    "tag": {
+      "strength": "Strength",
+      "weakness": "Weakness",
+      "neutral": "Neutral"
     }
   },
   "finance": {
@@ -157,11 +177,29 @@
     "recent": "Recent reports",
     "empty": {
       "title": "No reports yet",
-      "hint": "Will be auto-generated after one month of usage, or use the button below to generate immediately."
+      "hint": "Use the buttons below to generate one immediately, or wait for the monthly auto-generation."
     },
-    "gen": { "btn": "Generate report now", "disabled": "Coming soon" },
-    "download": "Download PDF →",
-    "kind": { "monthly": "Monthly", "quarterly": "Quarterly", "yearly": "Yearly" },
-    "status": { "pending": "Generating", "ready": "Ready", "failed": "Failed" }
+    "gen": {
+      "btnMonthly": "Generate last month",
+      "btnQuarterly": "Last quarter",
+      "btnYearly": "Last year",
+      "loading": "Generating...",
+      "error": "Report generation failed"
+    },
+    "download": "Open PDF →",
+    "share": "Copy share link",
+    "shareCopied": "Copied",
+    "kind": {
+      "monthly": "Monthly report",
+      "quarterly": "Quarterly report",
+      "yearly": "Yearly report",
+      "adhoc": "Custom report"
+    },
+    "status": {
+      "pending": "Pending",
+      "generating": "Generating...",
+      "ready": "Ready",
+      "failed": "Failed"
+    }
   }
 }

@@ -89,3 +89,25 @@ export async function fetchTab<T = unknown>(businessId: number, tab: 'overview'|
   if (!j.success) throw new Error(j.message || 'fetch failed');
   return j.data as T;
 }
+
+// 보고서 즉시 생성 — kind: monthly/quarterly/yearly/adhoc
+export async function generateReport(
+  businessId: number,
+  kind: 'monthly' | 'quarterly' | 'yearly' | 'adhoc',
+  customPeriod?: { from: string; to: string },
+): Promise<{
+  id: number; kind: string; title: string;
+  period_from: string; period_to: string; created_at: string; status: string;
+  pdf_url: string | null; share_url: string | null;
+}> {
+  const body: Record<string, string> = { kind };
+  if (customPeriod) { body.from = customPeriod.from; body.to = customPeriod.to; }
+  const r = await apiFetch(`/api/stats/${businessId}/reports`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const j = await r.json();
+  if (!j.success) throw new Error(j.message || 'generate failed');
+  return j.data;
+}

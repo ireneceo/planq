@@ -45,8 +45,8 @@ const PLANS = {
     target: '1인 프리랜서',
     target_ko: '1인 프리랜서',
     limits: {
-      members_max: 3,
-      clients_max: 20,
+      members_max: 2,
+      clients_max: 10,
       projects_max: 10,
       conversations_max: 30,
       storage_bytes: 1 * GB,
@@ -73,17 +73,17 @@ const PLANS = {
     name_ko: '베이직',
     price_monthly: { KRW: 29_000,  USD: 29 },
     price_yearly:  { KRW: 290_000, USD: 290 },
-    target: '소상공인·팀 (1~10명)',
-    target_ko: '소상공인·팀 (1~10명)',
+    target: '소상공인·팀 (1~5명)',
+    target_ko: '소상공인·팀 (1~5명)',
     limits: {
-      members_max: 10,
-      clients_max: 100,
+      members_max: 5,
+      clients_max: 20,
       projects_max: Infinity,
       conversations_max: Infinity,
       storage_bytes: 5 * GB,
       file_size_max_bytes: 50 * MB,
       cue_actions_monthly: 1_500,
-      qnote_minutes_monthly: 25 * 60,
+      qnote_minutes_monthly: 15 * 60,
       trash_retention_days: 30,
       audit_log_retention_days: 365,
     },
@@ -104,17 +104,17 @@ const PLANS = {
     name_ko: '프로',
     price_monthly: { KRW: 79_000,  USD: 79 },
     price_yearly:  { KRW: 790_000, USD: 790 },
-    target: '에이전시·스튜디오 (10~30명)',
-    target_ko: '에이전시·스튜디오 (10~30명)',
+    target: '에이전시·스튜디오 (5~15명)',
+    target_ko: '에이전시·스튜디오 (5~15명)',
     limits: {
-      members_max: 30,
-      clients_max: 500,
+      members_max: 15,
+      clients_max: 100,
       projects_max: Infinity,
       conversations_max: Infinity,
       storage_bytes: 20 * GB,
       file_size_max_bytes: 100 * MB,
       cue_actions_monthly: 7_500,
-      qnote_minutes_monthly: 150 * 60,    // 150h Soft Cap (Fair Use)
+      qnote_minutes_monthly: 60 * 60,     // 60h Soft Cap (Fair Use)
       trash_retention_days: 90,
       audit_log_retention_days: 3 * 365,
     },
@@ -163,6 +163,71 @@ const PLANS = {
 
 const PLAN_ORDER = ['free', 'starter', 'basic', 'pro', 'enterprise'];
 
+// ─── Add-on 카탈로그 ───
+// 워크스페이스가 plan.limits 위에 추가 슬롯·시간을 구매하는 단위. quota 검사 시 plan.limits + addon 합산.
+// 가격은 월 단위 (1개월분). 자동 갱신/차감은 별도 cron (현재는 수동 적용 + 추후 자동화).
+//
+// 단가 책정 원칙:
+//   - 멤버 1인 추가: ₩4,900/월 (Slack ₩9,500 / Notion ₩12,000 의 절반 가격)
+//   - 고객 슬롯 10명: ₩2,900/월 (인당 ₩290)
+//   - Q Note 10시간: ₩9,900/월 (Deepgram STT ₩3,600 + LLM 후처리 ₩1,000 + 마진)
+//   - Cue 액션 1,000회: ₩4,900/월 (직접비 약 ₩2,500)
+//   - 스토리지 5GB: ₩4,900/월
+const ADDONS = {
+  member: {
+    code: 'member',
+    name_ko: '멤버 추가 (1명)',
+    name_en: 'Extra member (1 seat)',
+    price_monthly: { KRW: 4_900, USD: 5 },
+    unit: 1,                          // 1 회 구매 = 1명 추가
+    field: 'addon_members',           // Business 컬럼명
+    available_in: ['starter', 'basic', 'pro'],
+  },
+  clients_10: {
+    code: 'clients_10',
+    name_ko: '고객 슬롯 추가 (10명)',
+    name_en: 'Extra client slots (10)',
+    price_monthly: { KRW: 2_900, USD: 3 },
+    unit: 10,
+    field: 'addon_clients',
+    available_in: ['starter', 'basic', 'pro'],
+  },
+  qnote_10h: {
+    code: 'qnote_10h',
+    name_ko: 'Q Note 시간 추가 (10시간)',
+    name_en: 'Extra Q Note hours (10h)',
+    price_monthly: { KRW: 9_900, USD: 10 },
+    unit: 10 * 60,                    // 분 단위 — 600분
+    field: 'addon_qnote_minutes',
+    available_in: ['starter', 'basic', 'pro'],
+  },
+  cue_1000: {
+    code: 'cue_1000',
+    name_ko: 'Cue AI 액션 추가 (1,000회)',
+    name_en: 'Extra Cue actions (1,000)',
+    price_monthly: { KRW: 4_900, USD: 5 },
+    unit: 1000,
+    field: 'addon_cue_actions',
+    available_in: ['starter', 'basic', 'pro'],
+  },
+  storage_5gb: {
+    code: 'storage_5gb',
+    name_ko: '스토리지 추가 (5GB)',
+    name_en: 'Extra storage (5GB)',
+    price_monthly: { KRW: 4_900, USD: 5 },
+    unit: 5 * GB,
+    field: 'addon_storage_bytes',
+    available_in: ['starter', 'basic', 'pro'],
+  },
+};
+
+function getAddon(code) {
+  return ADDONS[code] || null;
+}
+function listAddonsForPlan(planCode) {
+  return Object.values(ADDONS).filter((a) => a.available_in.includes(planCode));
+}
+
 /**
  * 플랜 코드 → 플랜 객체
  */
@@ -201,7 +266,10 @@ function toPublicJson(code) {
 module.exports = {
   PLANS,
   PLAN_ORDER,
+  ADDONS,
   getPlan,
+  getAddon,
+  listAddonsForPlan,
   planAtLeast,
   toPublicJson,
 };

@@ -159,7 +159,27 @@
       "completed": "완료",
       "leadtime": "리드타임",
       "revenue": "매출 비중",
-      "effectiveRate": "시간당 매출"
+      "effectiveRate": "시간당 매출",
+      "actualHours": "실제 시간(h)"
+    },
+    "drawer": {
+      "title": "직원 카테고리 분석",
+      "summary": "요약",
+      "categoryTitle": "카테고리별 강점·약점",
+      "completedSuffix": "완료",
+      "empty": "이 멤버의 분석할 업무가 누적되지 않았습니다.",
+      "col": {
+        "category": "카테고리",
+        "count": "건수",
+        "accuracy": "정확도",
+        "hours": "시간(h)",
+        "tag": "태그"
+      }
+    },
+    "tag": {
+      "strength": "강점",
+      "weakness": "약점",
+      "neutral": "보통"
     }
   },
   "finance": {
@@ -193,22 +213,29 @@
     "recent": "최근 생성된 보고서",
     "empty": {
       "title": "아직 생성된 보고서가 없습니다",
-      "hint": "한 달 이상 운영된 후 자동 생성되거나, 아래 버튼으로 즉시 생성할 수 있습니다."
+      "hint": "아래 버튼으로 즉시 생성하거나, 매월 1일 자동 생성을 기다리세요."
     },
     "gen": {
-      "btn": "지금 보고서 생성",
-      "disabled": "준비 중"
+      "btnMonthly": "지난 달 보고서 생성",
+      "btnQuarterly": "지난 분기 보고서",
+      "btnYearly": "지난 연도 보고서",
+      "loading": "생성 중...",
+      "error": "보고서 생성 실패"
     },
-    "download": "PDF 다운로드 →",
+    "download": "PDF 열기 →",
+    "share": "공유 링크 복사",
+    "shareCopied": "복사됨",
     "kind": {
       "monthly": "월간 보고서",
       "quarterly": "분기 보고서",
-      "yearly": "연간 보고서"
+      "yearly": "연간 보고서",
+      "adhoc": "맞춤 보고서"
     },
     "status": {
-      "pending": "생성 중",
+      "pending": "대기",
+      "generating": "생성 중...",
       "ready": "준비 완료",
-      "failed": "실패"
+      "failed": "생성 실패"
     }
   }
 }

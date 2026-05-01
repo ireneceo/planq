@@ -289,6 +289,10 @@ export interface ApiBusinessInfo {
   default_due_days: number | null;
   default_vat_rate: string | number | null;
   default_currency: string | null;
+  // 정기 청구 기본값 + 연체 정책
+  auto_invoice_default_mode?: 'auto' | 'draft_review' | null;
+  auto_invoice_default_billing_day?: number | null;
+  overdue_grace_days?: number | null;
 }
 
 export async function getBusinessInfo(businessId: number): Promise<ApiBusinessInfo> {
@@ -308,6 +312,9 @@ export interface BillingPatch {
   default_due_days?: number;
   default_vat_rate?: number;
   default_currency?: string;
+  auto_invoice_default_mode?: 'auto' | 'draft_review';
+  auto_invoice_default_billing_day?: number;
+  overdue_grace_days?: number;
 }
 
 export async function updateBusinessBilling(businessId: number, patch: BillingPatch): Promise<ApiBusinessInfo> {

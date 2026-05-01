@@ -631,7 +631,6 @@ async function buildTeamTab(businessId, period) {
   const rows = members.map((m) => {
     const memberTasks = tasks.filter((t) => t.assignee_id === m.user_id);
     const actualH = memberTasks.reduce((s, t) => s + Number(t.actual_hours || 0), 0);
-    const estH = memberTasks.reduce((s, t) => s + Number(t.estimated_hours || 0), 0);
 
     const dh = Number(m.daily_work_hours || 8);
     const wd = Number(m.weekly_work_days || 5);
@@ -664,6 +663,41 @@ async function buildTeamTab(businessId, period) {
       .map((t) => (new Date(t.completed_at) - new Date(t.created_at)) / 86400000);
     const avgLead = leads.length ? leads.reduce((a, b) => a + b, 0) / leads.length : null;
 
+    // 카테고리별 강점/약점 — drawer 에 표시
+    const catMap = new Map();
+    for (const t of memberTasks) {
+      const cat = t.category || '(미분류)';
+      if (!catMap.has(cat)) catMap.set(cat, { count: 0, hours: 0, accs: [], biasRows: [], leads: [] });
+      const b = catMap.get(cat);
+      b.count += 1;
+      b.hours += Number(t.actual_hours || 0);
+      const ah = Number(t.actual_hours || 0);
+      const eh = Number(t.estimated_hours || 0);
+      if (ah > 0 && eh > 0) {
+        const acc = accuracy(ah, eh);
+        if (acc != null) b.accs.push(acc);
+        b.biasRows.push({ actual: ah, est: eh });
+      }
+      if (t.completed_at && t.created_at) {
+        b.leads.push((new Date(t.completed_at) - new Date(t.created_at)) / 86400000);
+      }
+    }
+    const categories = [...catMap.entries()]
+      .map(([name, b]) => {
+        const accAvg = b.accs.length ? b.accs.reduce((a, c) => a + c, 0) / b.accs.length : null;
+        const catBias = bias(b.biasRows);
+        const leadAvg = b.leads.length ? b.leads.reduce((a, c) => a + c, 0) / b.leads.length : null;
+        return {
+          category: name,
+          count: b.count,
+          hours: Number(b.hours.toFixed(1)),
+          accuracy_pct: accAvg == null ? null : Number(accAvg.toFixed(1)),
+          bias_pct: catBias == null ? null : Number(catBias.toFixed(1)),
+          avg_leadtime_days: leadAvg == null ? null : Number(leadAvg.toFixed(1)),
+        };
+      })
+      .sort((a, b) => b.count - a.count);
+
     return {
       user_id: m.user_id,
       name: m.user?.name || `user ${m.user_id}`,
@@ -676,6 +710,7 @@ async function buildTeamTab(businessId, period) {
       revenue_share: Math.round(revenueShare),
       effective_rate: effectiveRate == null ? null : Math.round(effectiveRate),
       actual_hours: Number(actualH.toFixed(1)),
+      categories,
     };
   });
 
@@ -831,19 +866,16 @@ async function buildFinanceTab(businessId, period) {
 }
 
 // ──────────────────────────────────────────────
-// Reports 탭 — 시점 고정 PDF 보고서 카드 (placeholder MVP)
+// Reports 탭 — 시점 고정 PDF 보고서 카드 목록
 // ──────────────────────────────────────────────
 async function buildReportsTab(businessId) {
   const { Report } = require('../models');
-  let reports = [];
-  try {
-    reports = await Report.findAll({
-      where: { business_id: businessId },
-      order: [['created_at', 'DESC']],
-      limit: 12,
-      attributes: ['id', 'kind', 'period_from', 'period_to', 'created_at', 'pdf_url', 'status'],
-    });
-  } catch { /* Report 모델 없거나 미사용 */ }
+  const reports = await Report.findAll({
+    where: { business_id: businessId },
+    order: [['created_at', 'DESC']],
+    limit: 24,
+    attributes: ['id', 'kind', 'period_start', 'period_end', 'created_at', 'pdf_url', 'status', 'share_token', 'title'],
+  });
 
   // 다음 자동 생성 일정 — 매월 1일 새벽
   const nextAuto = new Date();
@@ -852,8 +884,17 @@ async function buildReportsTab(businessId) {
 
   return {
     reports: reports.map((r) => ({
-      id: r.id, kind: r.kind, period_from: r.period_from, period_to: r.period_to,
-      created_at: r.created_at, pdf_url: r.pdf_url, status: r.status,
+      id: r.id,
+      kind: r.kind,
+      title: r.title,
+      period_from: r.period_start,
+      period_to: r.period_end,
+      created_at: r.created_at,
+      // 인증 사용자 다운로드 endpoint (frontend 가 토큰 헤더 + blob 처리)
+      pdf_url: r.status === 'ready' ? `/api/stats/${businessId}/reports/${r.id}/pdf` : null,
+      // 공유 링크 (인증 불필요) — 프론트가 절대 URL 로 변환
+      share_url: r.share_token ? `/api/reports/share/${r.share_token}` : null,
+      status: r.status,
     })),
     next_auto_at: nextAuto.toISOString().slice(0, 10),
     auto_kinds: ['monthly', 'quarterly', 'yearly'],

@@ -514,12 +514,45 @@ router.post('/sign/:token/sign', async (req, res, next) => {
     // Phase D+1: project stage 자동 진행 (양사 서명 완료면 contract → completed)
     require('../services/projectStageEngine').onSignatureChanged(sr.id).catch(() => null);
 
+    // 멤버 알림 — 서명 완료
+    notifyWorkspaceMembersOnSignature(sr, 'signed', signerName).catch((e) => console.warn('[notify signature signed]', e.message));
+
     return successResponse(res, { signed: true, signed_at: new Date() });
   } catch (err) {
     try { await t.rollback(); } catch { /* */ }
     next(err);
   }
 });
+
+// 워크스페이스 멤버에 서명 진행 알림 (signed/rejected)
+async function notifyWorkspaceMembersOnSignature(sr, kind, signerName) {
+  const { Business, BusinessMember, Post } = require('../models');
+  const { notifyMany } = require('./notifications');
+  const biz = await Business.findByPk(sr.business_id, { attributes: ['name', 'brand_name'] });
+  const wsName = biz?.brand_name || biz?.name || null;
+  let entityTitle = '';
+  if (sr.entity_type === 'post') {
+    const p = await Post.findByPk(sr.entity_id, { attributes: ['title'] });
+    entityTitle = p?.title || '';
+  }
+  const members = await BusinessMember.findAll({
+    where: { business_id: sr.business_id, removed_at: null, role: { [require('sequelize').Op.in]: ['owner', 'admin', 'member'] } },
+    attributes: ['user_id'],
+  });
+  const userIds = members.map((m) => m.user_id);
+  // 요청자 본인은 제외 (이미 자신의 액션)
+  const excludeUserId = sr.requester_user_id;
+  const title = kind === 'signed' ? '서명 완료' : '서명 거절됨';
+  const body = `${signerName || sr.signer_email}${kind === 'signed' ? ' 님이 서명을 완료했습니다.' : ' 님이 서명을 거절했습니다.'}${entityTitle ? `\n문서: ${entityTitle}` : ''}`;
+  const link = sr.entity_type === 'post'
+    ? `${process.env.APP_URL || 'https://dev.planq.kr'}/posts/${sr.entity_id}`
+    : `${process.env.APP_URL || 'https://dev.planq.kr'}/q-docs/${sr.entity_id}`;
+  await notifyMany({
+    userIds, businessId: sr.business_id, eventKind: 'signature',
+    title, body, link, ctaLabel: '확인하기',
+    workspaceName: wsName, excludeUserId,
+  });
+}
 
 // POST /api/sign/:token/reject — 거절
 // body: { reason?, consent: true }
@@ -552,6 +585,8 @@ router.post('/sign/:token/reject', async (req, res, next) => {
     if (io) io.to(`business:${sr.business_id}`).emit('inbox:refresh', { reason: 'signature_rejected', entity_type: sr.entity_type, entity_id: sr.entity_id });
 
     require('../services/projectStageEngine').onSignatureChanged(sr.id).catch(() => null);
+
+    notifyWorkspaceMembersOnSignature(sr, 'rejected', sr.signer_name).catch((e) => console.warn('[notify signature rejected]', e.message));
 
     return successResponse(res, { rejected: true });
   } catch (err) {

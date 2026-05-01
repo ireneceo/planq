@@ -48,7 +48,7 @@ const LeftSection = styled.div`
 
 const BrandLogo = styled.img`
   width: 100%;
-  max-width: 280px;
+  max-width: 200px;
   height: auto;
   display: block;
   margin: 0 auto 16px;
@@ -377,7 +377,7 @@ const LoginPage: React.FC = () => {
     <Container>
       <LoginBox>
         <LeftSection>
-          <BrandLogo src="/planQ-slogan_white.svg" alt="PlanQ" />
+          <BrandLogo src="/planQ_white_new.svg" alt="PlanQ" />
           <BrandDescription>
             {t('brand.description')}
           </BrandDescription>

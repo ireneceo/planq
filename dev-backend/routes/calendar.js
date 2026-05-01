@@ -273,6 +273,27 @@ router.post('/by-business/:businessId', authenticateToken, checkBusinessAccess, 
     });
 
     const full = await CalendarEvent.findByPk(event.id, { include: INCLUDE_DETAIL });
+
+    // 알림: 멤버 attendee 에게 (본인 제외, client 는 별도 채널 필요 — 추후)
+    try {
+      const memberAttendeeIds = (full.attendees || [])
+        .filter((a) => a.user_id && a.user_id !== req.user.id)
+        .map((a) => a.user_id);
+      if (memberAttendeeIds.length > 0) {
+        const { notifyMany } = require('./notifications');
+        const Business = require('../models').Business;
+        const biz = await Business.findByPk(businessId, { attributes: ['name', 'brand_name'] });
+        const wsName = biz?.brand_name || biz?.name || null;
+        const startStr = event.start_at ? new Date(event.start_at).toLocaleString('ko-KR', { dateStyle: 'short', timeStyle: 'short' }) : '';
+        notifyMany({
+          userIds: memberAttendeeIds, businessId, eventKind: 'event',
+          title: '일정 초대', body: `"${event.title}"${startStr ? ` · ${startStr}` : ''}`,
+          link: `${process.env.APP_URL || 'https://dev.planq.kr'}/calendar?event=${event.id}`,
+          ctaLabel: '일정 보기', workspaceName: wsName,
+        }).catch((e) => console.warn('[notify event invite]', e.message));
+      }
+    } catch (e) { console.warn('[notify event invite outer]', e.message); }
+
     return successResponse(res, full.toJSON(), 'created', 201);
   } catch (err) {
     if (!t.finished) await t.rollback();

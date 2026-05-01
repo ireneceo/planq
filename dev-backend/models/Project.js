@@ -33,6 +33,19 @@ Project.init({
     comment: 'fixed=고정가, hourly=시간단가, subscription=월정액, milestone=마일스톤, internal=내부 프로젝트(비청구)',
   },
   monthly_fee: { type: DataTypes.DECIMAL(12, 2), allowNull: true, comment: 'subscription 전용' },
+  // ─── Q Bill 정기 청구 자동화 ───
+  auto_invoice_enabled: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false, comment: '정기 청구 자동 발행 ON/OFF' },
+  auto_invoice_mode: {
+    type: DataTypes.ENUM('auto', 'draft_review'),
+    allowNull: false, defaultValue: 'draft_review',
+    comment: 'auto=즉시 발행+이메일, draft_review=초안 생성+검토 알림',
+  },
+  invoice_billing_day: {
+    type: DataTypes.TINYINT, allowNull: false, defaultValue: 1,
+    comment: '매월 청구일 (1-28). 29-31 은 매월 말일로 처리',
+  },
+  last_auto_invoice_at: { type: DataTypes.DATE, allowNull: true, comment: '마지막 자동 청구 시각 (멱등성)' },
+  paused_at: { type: DataTypes.DATE, allowNull: true, comment: '연체로 자동 정지된 시각' },
 }, {
   sequelize,
   tableName: 'projects',

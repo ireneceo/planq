@@ -11,6 +11,8 @@ import { submitInquiry } from '../../services/inquiries';
 import { useAuth, apiFetch } from '../../contexts/AuthContext';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 import CheckoutModal from './CheckoutModal';
+import AddonSection from './AddonSection';
+import { CheckIcon } from '../../components/Common/Icons';
 
 interface Props { businessId: number; }
 
@@ -303,10 +305,10 @@ const PlanSettings: React.FC<Props> = ({ businessId }) => {
                   <FeatItem><FK>{t('features.fileSize')}</FK><FV>{formatBytes(p.limits.file_size_max_bytes)}</FV></FeatItem>
                   <FeatItem $hl><FK>{t('features.cue')}</FK><FV>{formatLimit(p.limits.cue_actions_monthly)}</FV></FeatItem>
                   <FeatItem $hl><FK>{t('features.qnote')}</FK><FV>{formatMinutes(p.limits.qnote_minutes_monthly)}</FV></FeatItem>
-                  <FeatItem><FK>{t('features.externalCloud')}</FK><FV>{p.features.external_cloud ? '✓' : '—'}</FV></FeatItem>
-                  <FeatItem><FK>{t('features.dataExport')}</FK><FV>{p.features.data_export ? '✓' : '—'}</FV></FeatItem>
-                  <FeatItem><FK>{t('features.apiAccess')}</FK><FV>{p.features.api_access ? '✓' : '—'}</FV></FeatItem>
-                  <FeatItem><FK>{t('features.sso')}</FK><FV>{p.features.sso ? '✓' : '—'}</FV></FeatItem>
+                  <FeatItem><FK>{t('features.externalCloud')}</FK><FV>{p.features.external_cloud ? <CheckIcon size={14} /> : '—'}</FV></FeatItem>
+                  <FeatItem><FK>{t('features.dataExport')}</FK><FV>{p.features.data_export ? <CheckIcon size={14} /> : '—'}</FV></FeatItem>
+                  <FeatItem><FK>{t('features.apiAccess')}</FK><FV>{p.features.api_access ? <CheckIcon size={14} /> : '—'}</FV></FeatItem>
+                  <FeatItem><FK>{t('features.sso')}</FK><FV>{p.features.sso ? <CheckIcon size={14} /> : '—'}</FV></FeatItem>
                   <FeatItem><FK>{t('features.retention')}</FK><FV>{p.limits.trash_retention_days} {t('features.days')}</FV></FeatItem>
                   <FeatItem><FK>{t('features.support')}</FK><FV>{t(`support.${p.support}`)}</FV></FeatItem>
                   <FeatItem><FK>{t('features.sla')}</FK><FV>{p.sla ? `${p.sla}%` : '—'}</FV></FeatItem>
@@ -354,6 +356,13 @@ const PlanSettings: React.FC<Props> = ({ businessId }) => {
           <BtnPrimary type="button" onClick={openInquiry}>{t('enterprise.contactBtn')}</BtnPrimary>
         </EntCta>
       </EnterpriseCard>
+
+      {/* 추가 슬롯 (Add-on) — 멤버·고객·Q Note·Cue·스토리지 */}
+      {currentPlan.code !== 'free' && currentPlan.code !== 'enterprise' && businessId && (
+        <Section>
+          <AddonSection businessId={businessId} isOwner={user?.business_role === 'owner' || user?.platform_role === 'platform_admin'} />
+        </Section>
+      )}
 
       {/* P-2 결제 이력 — 영수증 PDF */}
       <Section>
