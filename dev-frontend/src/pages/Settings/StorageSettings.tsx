@@ -102,8 +102,20 @@ const StorageSettings: React.FC<Props> = ({ businessId }) => {
       <SectionTitle>{tr('storage.title', '파일 저장소')}</SectionTitle>
       <SectionDesc>{tr('storage.desc', '파일을 PlanQ 자체 스토리지에 보관할지, Google Drive 같은 외부 클라우드에 보관할지 선택하세요. 언제든 전환 가능하며, 기존 파일은 그대로 유지됩니다.')}</SectionDesc>
 
+      <Notice>
+        <NoticeIcon aria-hidden>!</NoticeIcon>
+        <NoticeText>
+          <strong>{tr('storage.scopeTitle', 'Drive 에 보관되는 파일과 보관되지 않는 파일')}</strong>
+          <ul>
+            <li>{tr('storage.scopeBackedUp', '워크스페이스 공용: 프로젝트·업무·채팅 첨부 파일은 Drive 에 자동 저장')}</li>
+            <li>{tr('storage.scopeLocal', '개인 파일 (내 파일·개인 메모): PlanQ 자체 스토리지에 보관 — Drive 에 가지 않음')}</li>
+            <li>{tr('storage.scopeOneWay', 'Drive 에서 직접 만들거나 삭제한 파일은 PlanQ 와 동기화되지 않습니다. 파일 관리는 PlanQ 안에서만 해주세요.')}</li>
+          </ul>
+        </NoticeText>
+      </Notice>
+
       {/* PlanQ 자체 */}
-      <ProviderCard $active={!gdriveConnected}>
+      <ProviderCard $active={!gdriveConnected} $disabled={gdriveConnected}>
         <CardHead>
           <CardIcon $bg="#F0FDFA" $fg="#0D9488">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -112,9 +124,15 @@ const StorageSettings: React.FC<Props> = ({ businessId }) => {
           </CardIcon>
           <CardTitleWrap>
             <CardTitle>{tr('storage.planq.title', 'PlanQ 자체 스토리지')}</CardTitle>
-            <CardSub>{tr('storage.planq.desc', '기본 저장소 · 플랜별 용량 한도 적용')}</CardSub>
+            <CardSub>
+              {gdriveConnected
+                ? tr('storage.planq.inactiveDesc', '신규 업로드는 Google Drive 로 보내집니다. 기존 파일은 그대로 유지')
+                : tr('storage.planq.desc', '기본 저장소 · 플랜별 용량 한도 적용')}
+            </CardSub>
           </CardTitleWrap>
-          {!gdriveConnected && <StatusBadge $kind="active">{tr('storage.active', '사용 중')}</StatusBadge>}
+          {gdriveConnected
+            ? <StatusBadge $kind="inactive">{tr('storage.inactive', '사용 안 함')}</StatusBadge>
+            : <StatusBadge $kind="active">{tr('storage.active', '사용 중')}</StatusBadge>}
         </CardHead>
         {planqStatus && (
           <CardBody>
@@ -226,9 +244,30 @@ const CardIcon = styled.div<{ $bg: string; $fg: string }>`
 const CardTitleWrap = styled.div`flex:1;min-width:0;`;
 const CardTitle = styled.div`font-size:14px;font-weight:700;color:#0F172A;margin-bottom:2px;`;
 const CardSub = styled.div`font-size:12px;color:#64748B;line-height:1.5;word-break:break-all;`;
-const StatusBadge = styled.span<{ $kind: 'active' | 'soon' }>`
+const StatusBadge = styled.span<{ $kind: 'active' | 'soon' | 'inactive' }>`
   flex-shrink:0;padding:3px 10px;border-radius:999px;font-size:11px;font-weight:600;
-  ${p => p.$kind === 'active' ? 'background:#F0FDFA;color:#0F766E;' : 'background:#F1F5F9;color:#94A3B8;'}
+  ${p => p.$kind === 'active'
+    ? 'background:#F0FDFA;color:#0F766E;'
+    : p.$kind === 'inactive'
+      ? 'background:#F1F5F9;color:#64748B;border:1px solid #E2E8F0;'
+      : 'background:#F1F5F9;color:#94A3B8;'}
+`;
+const Notice = styled.div`
+  display:flex;align-items:flex-start;gap:10px;
+  background:#FEF3C7;border:1px solid #FDE68A;border-radius:10px;
+  padding:10px 14px;margin-bottom:4px;
+`;
+const NoticeIcon = styled.span`
+  flex-shrink:0;width:20px;height:20px;
+  background:#F59E0B;color:#fff;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  font-size:12px;font-weight:700;line-height:1;
+`;
+const NoticeText = styled.div`
+  font-size:12.5px;color:#78350F;line-height:1.55;
+  strong { display:block; color:#78350F; font-weight:700; margin-bottom:4px; }
+  ul { margin:0; padding-left:18px; }
+  li { margin-bottom:2px; }
 `;
 const CardBody = styled.div`padding-top:4px;`;
 const CardActions = styled.div`display:flex;gap:8px;justify-content:flex-end;`;

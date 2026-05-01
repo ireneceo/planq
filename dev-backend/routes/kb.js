@@ -48,6 +48,7 @@ const isAdmin = (req) =>
 
 // List documents
 router.get('/businesses/:businessId/kb/documents', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+  if (req.businessRole === 'client') return errorResponse(res, 'forbidden', 403);
   try {
     // 사이클 G — 카테고리/스코프 필터 (옵션)
     const where = { business_id: req.params.businessId };
@@ -407,6 +408,7 @@ router.post('/businesses/:businessId/kb/documents/import-from-post', authenticat
 
 // Get document detail + chunks + 첨부 파일/문서 메타 (사이클 P3)
 router.get('/businesses/:businessId/kb/documents/:docId', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+  if (req.businessRole === 'client') return errorResponse(res, 'forbidden', 403);
   try {
     const doc = await KbDocument.findOne({
       where: { id: req.params.docId, business_id: req.params.businessId },
@@ -492,6 +494,7 @@ router.post('/businesses/:businessId/kb/documents/:docId/reindex', authenticateT
 
 // List pinned FAQs
 router.get('/businesses/:businessId/kb/pinned', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+  if (req.businessRole === 'client') return errorResponse(res, 'forbidden', 403);
   try {
     const faqs = await KbPinnedFaq.findAll({
       where: { business_id: req.params.businessId },
@@ -598,6 +601,7 @@ router.delete('/businesses/:businessId/kb/pinned/:faqId', authenticateToken, che
 
 // CSV template download
 router.get('/businesses/:businessId/kb/pinned/template.csv', authenticateToken, checkBusinessAccess, async (req, res) => {
+  if (req.businessRole === 'client') return errorResponse(res, 'forbidden', 403);
   const csv = '\uFEFFquestion,answer,short_answer,keywords,category\n' +
               '"환불 정책이 어떻게 되나요?","구매 후 7일 이내에 환불을 요청하시면 전액 환불됩니다.","7일 이내 전액 환불","환불;반품;취소","정책"\n';
   res.setHeader('Content-Type', 'text/csv; charset=utf-8');

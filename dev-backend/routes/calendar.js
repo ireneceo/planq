@@ -80,10 +80,10 @@ router.get('/by-business/:businessId', authenticateToken, attachWorkspaceScope()
     if (req.query.project_id) baseWhere.project_id = Number(req.query.project_id);
 
     // visibility:
-    //   member 이상 — business 전부 + 본인 personal
-    //   client      — 본인이 attendee 인 business event 만 (PERMISSION_MATRIX §7)
+    //   owner / member — business 전부 + 본인 personal (default '전체' 탭)
+    //   client         — 본인이 attendee 인 business event 만 (PERMISSION_MATRIX §7)
+    // 멤버가 '나' 만 보고 싶을 때는 query.scope=mine 로 후처리 필터 (line 145).
     if (req.scope?.isClient) {
-      // client 면 자기가 참여한 event 만 — attendee_user_id = me
       const myAttendees = await CalendarEventAttendee.findAll({
         where: { user_id: req.user.id },
         attributes: ['event_id'],
@@ -161,6 +161,7 @@ router.get('/by-business/:businessId', authenticateToken, attachWorkspaceScope()
 //         attendees?: [{ user_id? | client_id? }] }
 // ============================================
 router.post('/by-business/:businessId', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+  if (req.businessRole === 'client') return errorResponse(res, 'Clients cannot create events. Members may invite you as an attendee.', 403);
   const t = await sequelize.transaction();
   try {
     const businessId = Number(req.params.businessId);
@@ -337,6 +338,7 @@ router.get('/by-business/:businessId/:id', authenticateToken, attachWorkspaceSco
 // attendees 배열이 오면 전체 교체
 // ============================================
 router.put('/by-business/:businessId/:id', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+  if (req.businessRole === 'client') return errorResponse(res, 'forbidden', 403);
   const t = await sequelize.transaction();
   try {
     const businessId = Number(req.params.businessId);
@@ -464,6 +466,7 @@ router.put('/by-business/:businessId/:id', authenticateToken, checkBusinessAcces
 // DELETE /by-business/:businessId/:id
 // ============================================
 router.delete('/by-business/:businessId/:id', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+  if (req.businessRole === 'client') return errorResponse(res, 'forbidden', 403);
   try {
     const businessId = Number(req.params.businessId);
     const bm = await requireMember(req.user.id, businessId);

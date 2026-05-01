@@ -328,6 +328,14 @@
       "compactHint": "여기나 리스트 영역에 파일을 끌어다 놓아도 됩니다",
       "release": "여기에 놓아 업로드"
     },
+    "cloud": {
+      "connectedTitle": "워크스페이스 공용 파일을 Google Drive 에 보관 중입니다.",
+      "connectedBody": "프로젝트·업무·채팅 첨부 파일이 자동으로 Drive 의 PlanQ 폴더에 저장됩니다. \"내 파일\" 등 개인 파일은 PlanQ 자체 스토리지에 보관됩니다. Drive 에서 직접 만들거나 삭제한 파일은 PlanQ 와 동기화되지 않으니 PlanQ 안에서만 관리해 주세요.",
+      "openDrive": "Drive 폴더 열기",
+      "recommendTitle": "Google Drive 연결을 권장합니다.",
+      "recommendDesc": "프로젝트·업무·채팅 첨부 파일이 자동으로 Drive 에 보관되어 자체 스토리지 용량을 절약할 수 있어요. 개인 파일은 PlanQ 자체 스토리지에 그대로 유지됩니다.",
+      "connectCta": "연결 설정"
+    },
     "source": {
       "all": "전체",
       "direct": "직접 업로드",

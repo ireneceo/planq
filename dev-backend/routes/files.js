@@ -147,6 +147,10 @@ router.post('/:businessId', authenticateToken, checkBusinessAccess, upload.singl
   let tempPath = req.file && req.file.path;
   try {
     if (!req.file) return errorResponse(res, 'No file uploaded', 400);
+    if (req.businessRole === 'client') {
+      if (tempPath) try { fs.unlinkSync(tempPath); } catch { /* */ }
+      return errorResponse(res, 'Clients cannot upload files to the workspace library. Use chat attachments instead.', 403);
+    }
 
     const businessId = Number(req.params.businessId);
     const projectId = req.body.project_id ? Number(req.body.project_id) : null;
@@ -340,6 +344,7 @@ async function canMutateFile(file, req) {
 // ─── Move (폴더 이동) ───
 
 router.post('/:businessId/:id/move', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+  if (req.businessRole === 'client') return errorResponse(res, 'forbidden', 403);
   try {
     const file = await File.findOne({
       where: { id: req.params.id, business_id: req.params.businessId, deleted_at: null }
@@ -364,6 +369,7 @@ router.post('/:businessId/:id/move', authenticateToken, checkBusinessAccess, asy
 // ─── Delete (soft) ───
 
 router.delete('/:businessId/:id', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+  if (req.businessRole === 'client') return errorResponse(res, 'forbidden', 403);
   try {
     const file = await File.findOne({
       where: { id: req.params.id, business_id: req.params.businessId, deleted_at: null }
@@ -387,6 +393,7 @@ router.delete('/:businessId/:id', authenticateToken, checkBusinessAccess, async 
 // ─── Bulk delete ───
 
 router.post('/:businessId/bulk-delete', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+  if (req.businessRole === 'client') return errorResponse(res, 'forbidden', 403);
   try {
     const ids = Array.isArray(req.body.file_ids) ? req.body.file_ids.map(Number).filter(Boolean) : [];
     if (ids.length === 0) return errorResponse(res, 'file_ids required', 400);

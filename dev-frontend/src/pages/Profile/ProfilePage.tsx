@@ -75,53 +75,84 @@ export default function ProfilePage() {
   const [langSaving, setLangSaving] = useState(false);
 
   // 기본 정보 인라인 편집 (이름·아이디·다국어 이름)
-  const [nameDraft, setNameDraft] = useState<string>(user?.name || '');
+  // 이름/영어이름은 워크스페이스별 (BusinessMember.name 또는 Client.display_name) 로 저장.
+  // User.name 은 가입 시 default 로만 쓰이고 ProfilePage 에서 직접 변경하지 않음.
+  const businessId = user?.business_id || 0;
+  const [wsName, setWsName] = useState<string>('');
+  const [wsNameEn, setWsNameEn] = useState<string>('');
+  const [wsNameLoaded, setWsNameLoaded] = useState(false);
   const [usernameDraft, setUsernameDraft] = useState<string>((user as { username?: string } | null)?.username || '');
-  const [nameEnDraft, setNameEnDraft] = useState<string>(((user as { name_localized?: Record<string, string> } | null)?.name_localized || {}).en || '');
   const [usernameStatus, setUsernameStatus] = useState<{ available: boolean | null; reason?: string }>({ available: null });
   const usernameCheckTimer = useRef<number | null>(null);
   const [emailModalOpen, setEmailModalOpen] = useState(false);
+  const [emailVerifyOpen, setEmailVerifyOpen] = useState(false);
 
   useEffect(() => {
-    if (user?.name !== undefined) setNameDraft(user.name || '');
     const uname = (user as { username?: string } | null)?.username;
     if (uname !== undefined) setUsernameDraft(uname || '');
-    const nl = (user as { name_localized?: Record<string, string> } | null)?.name_localized;
-    if (nl !== undefined) setNameEnDraft((nl || {}).en || '');
-  }, [user?.name, (user as { username?: string } | null)?.username, (user as { name_localized?: Record<string, string> } | null)?.name_localized]);
+  }, [(user as { username?: string } | null)?.username]);
 
-  const saveName = useCallback(async () => {
-    if (!user?.id) throw new Error('Not logged in');
-    const next = nameDraft.trim();
+  // 워크스페이스 프로필 조회 — 표시명 + Q Note 답변 생성 필드 (BusinessMember 단위)
+  useEffect(() => {
+    if (!businessId) return;
+    let cancelled = false;
+    apiFetch(`/api/businesses/${businessId}/me/profile`)
+      .then(r => r.json())
+      .then(j => {
+        if (cancelled) return;
+        const d = j?.data;
+        const fallbackName = user?.name || '';
+        const fallbackEn = ((user as { name_localized?: Record<string, string> } | null)?.name_localized || {}).en || '';
+        setWsName((d?.name) || fallbackName);
+        setWsNameEn(((d?.name_localized) || {}).en || fallbackEn);
+        // Q Note 답변 생성 프로필 — 워크스페이스값 우선, 없으면 User fallback
+        if (d?.bio !== undefined) setBio(d.bio || user?.bio || '');
+        if (d?.expertise !== undefined) setExpertise(d.expertise || user?.expertise || '');
+        if (d?.organization !== undefined) setOrganization(d.organization || user?.organization || '');
+        if (d?.job_title !== undefined) setJobTitle(d.job_title || user?.job_title || '');
+        if (d?.expertise_level !== undefined) {
+          setExpertiseLevel((d.expertise_level || user?.expertise_level || '') as 'layman' | 'practitioner' | 'expert' | '');
+        }
+        if (d?.language_levels !== undefined) {
+          setLanguageLevels(d.language_levels || user?.language_levels || {});
+        }
+        setWsNameLoaded(true);
+      })
+      .catch(() => {
+        setWsName(user?.name || '');
+        setWsNameEn(((user as { name_localized?: Record<string, string> } | null)?.name_localized || {}).en || '');
+        setWsNameLoaded(true);
+      });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [businessId]);
+
+  const saveWsName = useCallback(async () => {
+    if (!businessId) throw new Error('No workspace');
+    const next = wsName.trim();
     if (!next) throw new Error(t('basic.namePlaceholder'));
-    if (next === user.name) return;
-    const res = await apiFetch(`/api/users/${user.id}`, {
+    const res = await apiFetch(`/api/businesses/${businessId}/me/profile`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: next }),
     });
     const data = await res.json();
     if (!res.ok || !data.success) throw new Error(data.message || t('messages.errorSave'));
-    if (updateUser) updateUser({ name: next });
-  }, [user?.id, user?.name, nameDraft, updateUser, t]);
+  }, [businessId, wsName, t]);
 
-  // English name 저장 — name_localized.en 변경
-  const saveNameEn = useCallback(async () => {
-    if (!user?.id) throw new Error('Not logged in');
-    const next = nameEnDraft.trim();
-    const cur = ((user as { name_localized?: Record<string, string> } | null)?.name_localized || {}).en || '';
-    if (next === cur) return;
-    const merged = { ...((user as { name_localized?: Record<string, string> } | null)?.name_localized || {}) };
-    if (next) merged.en = next; else delete merged.en;
-    const res = await apiFetch(`/api/users/${user.id}`, {
+  const saveWsNameEn = useCallback(async () => {
+    if (!businessId) throw new Error('No workspace');
+    const next = wsNameEn.trim();
+    const merged: Record<string, string> = {};
+    if (next) merged.en = next;
+    const res = await apiFetch(`/api/businesses/${businessId}/me/profile`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name_localized: Object.keys(merged).length ? merged : null }),
     });
     const data = await res.json();
     if (!res.ok || !data.success) throw new Error(data.message || t('messages.errorSave'));
-    if (updateUser) updateUser({ name_localized: Object.keys(merged).length ? merged : null } as Partial<{ name_localized: Record<string, string> | null }>);
-  }, [user?.id, user, nameEnDraft, updateUser, t]);
+  }, [businessId, wsNameEn, t]);
 
   const saveUsername = useCallback(async () => {
     if (!user?.id) throw new Error('Not logged in');
@@ -199,20 +230,20 @@ export default function ProfilePage() {
     { value: 6, label: t('languageLevel.scale.6', '6 원어민') },
   ];
 
+  // Q Note 답변 생성 프로필 — 워크스페이스 단위로 저장 (BusinessMember/Client)
   const saveProfileField = useCallback(async (field: 'bio' | 'expertise' | 'organization' | 'job_title', value: string) => {
-    if (!user?.id) throw new Error('Not logged in');
-    const res = await apiFetch(`/api/users/${user.id}`, {
+    if (!businessId) throw new Error('No workspace');
+    const res = await apiFetch(`/api/businesses/${businessId}/me/profile`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ [field]: value || null }),
     });
     const data = await res.json();
     if (!res.ok || !data.success) throw new Error(data.message || t('messages.errorSave'));
-    if (updateUser) updateUser({ [field]: value || null });
-  }, [user?.id, updateUser, t]);
+  }, [businessId, t]);
 
   const saveLanguageLevel = useCallback(async (lang: string, skill: Skill, level: number) => {
-    if (!user?.id) throw new Error('Not logged in');
+    if (!businessId) throw new Error('No workspace');
     const next: LanguageLevels = { ...languageLevels };
     if (level === 0) {
       if (next[lang]) {
@@ -225,7 +256,7 @@ export default function ProfilePage() {
       next[lang] = { ...(next[lang] || {}), [skill]: level as LanguageSkillLevel };
     }
     const payload = Object.keys(next).length ? next : null;
-    const res = await apiFetch(`/api/users/${user.id}`, {
+    const res = await apiFetch(`/api/businesses/${businessId}/me/profile`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ language_levels: payload }),
@@ -233,13 +264,12 @@ export default function ProfilePage() {
     const data = await res.json();
     if (!res.ok || !data.success) throw new Error(data.message || t('messages.errorSave'));
     setLanguageLevels(next);
-    if (updateUser) updateUser({ language_levels: payload });
-  }, [user?.id, languageLevels, updateUser, t]);
+  }, [businessId, languageLevels, t]);
 
   const saveExpertiseLevel = useCallback(async (level: string) => {
-    if (!user?.id) throw new Error('Not logged in');
+    if (!businessId) throw new Error('No workspace');
     const val = level || null;
-    const res = await apiFetch(`/api/users/${user.id}`, {
+    const res = await apiFetch(`/api/businesses/${businessId}/me/profile`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ expertise_level: val }),
@@ -247,8 +277,7 @@ export default function ProfilePage() {
     const data = await res.json();
     if (!res.ok || !data.success) throw new Error(data.message || t('messages.errorSave'));
     setExpertiseLevel((val as 'layman' | 'practitioner' | 'expert' | null) || '');
-    if (updateUser) updateUser({ expertise_level: val as 'layman' | 'practitioner' | 'expert' | null });
-  }, [user?.id, updateUser, t]);
+  }, [businessId, t]);
 
   // 언어 추가 — 드롭다운 선택 시 즉시 startRecording 호출 (별도 state 불필요)
   const errorBannerRef = useRef<HTMLDivElement>(null);
@@ -463,63 +492,45 @@ export default function ProfilePage() {
         {error && <Banner $kind="error"><XIcon size={14} />{error}</Banner>}
         {success && <Banner $kind="success"><CheckIcon size={14} />{success}</Banner>}
 
-        {/* 기본 정보 — 이름·아이디 인라인 편집, 이메일은 모달로 */}
+        {/* 계정 정보 — 모든 워크스페이스 공유 (아이디·이메일·기본 언어) */}
         <Card>
-          <SectionTitle>{t('basic.sectionTitle')}</SectionTitle>
-          <FieldRow>
-            <Label>{t('basic.name')}</Label>
-            <FieldBody>
-              <AutoSaveField onSave={saveName}>
-                <TextInput
-                  value={nameDraft}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNameDraft(e.target.value)}
-                  placeholder={t('basic.namePlaceholder')}
-                  maxLength={100}
-                />
-              </AutoSaveField>
-            </FieldBody>
-          </FieldRow>
-
-          <FieldRow>
-            <Label>{t('basic.nameEn', 'English name')}</Label>
-            <FieldBody>
-              <AutoSaveField onSave={saveNameEn}>
-                <TextInput
-                  value={nameEnDraft}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNameEnDraft(e.target.value)}
-                  placeholder={t('basic.nameEnPlaceholder', 'e.g. Owen Kim')}
-                  maxLength={100}
-                />
-              </AutoSaveField>
-              <Hint>{t('basic.nameEnHint', '선택 — 영어 UI 사용자에게 이렇게 표시됩니다')}</Hint>
-            </FieldBody>
-          </FieldRow>
+          <SectionTitle>{t('basic.accountSection', '계정 정보')}</SectionTitle>
+          <Description>{t('basic.accountDesc', '아이디·이메일·기본 언어는 모든 워크스페이스에 공통으로 적용됩니다.')}</Description>
 
           <FieldRow>
             <Label>{t('basic.username')}</Label>
             <FieldBody>
-              <AutoSaveField onSave={saveUsername}>
-                <TextInput
-                  value={usernameDraft}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
-                    const v = e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, '');
-                    setUsernameDraft(v);
-                  }}
-                  placeholder={t('basic.usernamePlaceholder')}
-                  maxLength={30}
-                />
-              </AutoSaveField>
-              {usernameStatus.available === true && (
-                <UsernameOk><CheckIcon size={12} /> {t('basic.usernameAvailable')}</UsernameOk>
+              {((user as { username?: string } | null)?.username) ? (
+                <>
+                  <ReadOnly>{(user as { username?: string }).username}</ReadOnly>
+                  <Hint>{t('basic.usernameLocked', '아이디는 한 번 정해지면 변경할 수 없는 안전핀 식별자입니다.')}</Hint>
+                </>
+              ) : (
+                <>
+                  <AutoSaveField onSave={saveUsername}>
+                    <TextInput
+                      value={usernameDraft}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                        const v = e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, '');
+                        setUsernameDraft(v);
+                      }}
+                      placeholder={t('basic.usernamePlaceholder')}
+                      maxLength={30}
+                    />
+                  </AutoSaveField>
+                  {usernameStatus.available === true && (
+                    <UsernameOk><CheckIcon size={12} /> {t('basic.usernameAvailable')}</UsernameOk>
+                  )}
+                  {usernameStatus.available === false && (
+                    <UsernameNg>
+                      {usernameStatus.reason === 'taken' && t('basic.usernameTaken')}
+                      {usernameStatus.reason === 'reserved' && t('basic.usernameReserved')}
+                      {usernameStatus.reason === 'invalid_format' && t('basic.usernameInvalid')}
+                    </UsernameNg>
+                  )}
+                  <Hint>{t('basic.usernameSetHelp', '한 번 정하면 변경할 수 없습니다. 신중히 입력하세요.')}</Hint>
+                </>
               )}
-              {usernameStatus.available === false && (
-                <UsernameNg>
-                  {usernameStatus.reason === 'taken' && t('basic.usernameTaken')}
-                  {usernameStatus.reason === 'reserved' && t('basic.usernameReserved')}
-                  {usernameStatus.reason === 'invalid_format' && t('basic.usernameInvalid')}
-                </UsernameNg>
-              )}
-              <Hint>{t('basic.usernameHelp')}</Hint>
             </FieldBody>
           </FieldRow>
 
@@ -528,10 +539,29 @@ export default function ProfilePage() {
             <FieldBody>
               <EmailRow>
                 <ReadOnly style={{ flex: 1 }}>{user?.email || '-'}</ReadOnly>
+                {(user as { email_verified_at?: string | null } | null)?.email_verified_at
+                  ? <VerifyBadge $ok>{t('basic.verified', '인증됨')}</VerifyBadge>
+                  : <VerifyBadge>{t('basic.notVerified', '미인증')}</VerifyBadge>}
+                {!(user as { email_verified_at?: string | null } | null)?.email_verified_at && (
+                  <SecondaryBtn type="button" onClick={() => setEmailVerifyOpen(true)}>
+                    {t('basic.emailVerify', '인증')}
+                  </SecondaryBtn>
+                )}
                 <SecondaryBtn type="button" onClick={() => setEmailModalOpen(true)}>
                   {t('basic.emailChange')}
                 </SecondaryBtn>
               </EmailRow>
+            </FieldBody>
+          </FieldRow>
+
+          <FieldRow>
+            <Label>{t('basic.secondaryEmail', '보조 이메일')}</Label>
+            <FieldBody>
+              <SecondaryEmailManager
+                user={user as { id?: number; secondary_email?: string | null; secondary_email_verified_at?: string | null } | null}
+                updateUser={updateUser}
+              />
+              <Hint>{t('basic.secondaryEmailHint', '아이디·이메일을 잊었을 때 복구용. 인증된 이메일만 활성됩니다.')}</Hint>
             </FieldBody>
           </FieldRow>
 
@@ -554,6 +584,49 @@ export default function ProfilePage() {
           </FieldRow>
         </Card>
 
+        {/* 워크스페이스 프로필 — 현재 워크스페이스에서만 적용 (제목에 실제 워크스페이스 이름) */}
+        {businessId > 0 && wsNameLoaded && (
+          <Card>
+            <SectionTitle>
+              {user?.business_name
+                ? t('workspaceProfile.sectionTitleNamed', { workspace: user.business_name, defaultValue: '{{workspace}} 프로필' })
+                : t('workspaceProfile.sectionTitle', '이 워크스페이스 프로필')}
+            </SectionTitle>
+            <Description>
+              {t('workspaceProfile.desc', '이름과 영어 이름은 현재 워크스페이스에서만 사용됩니다. 다른 워크스페이스에 가입되어 있다면 거기서는 따로 설정할 수 있어요.')}
+            </Description>
+
+            <FieldRow>
+              <Label>{t('basic.name')}</Label>
+              <FieldBody>
+                <AutoSaveField onSave={saveWsName}>
+                  <TextInput
+                    value={wsName}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setWsName(e.target.value)}
+                    placeholder={t('basic.namePlaceholder')}
+                    maxLength={100}
+                  />
+                </AutoSaveField>
+              </FieldBody>
+            </FieldRow>
+
+            <FieldRow>
+              <Label>{t('basic.nameEn', 'English name')}</Label>
+              <FieldBody>
+                <AutoSaveField onSave={saveWsNameEn}>
+                  <TextInput
+                    value={wsNameEn}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setWsNameEn(e.target.value)}
+                    placeholder={t('basic.nameEnPlaceholder', 'e.g. Owen Kim')}
+                    maxLength={100}
+                  />
+                </AutoSaveField>
+                <Hint>{t('basic.nameEnHint', '선택 — 영어 UI 사용자에게 이렇게 표시됩니다')}</Hint>
+              </FieldBody>
+            </FieldRow>
+          </Card>
+        )}
+
         <EmailChangeModal
           open={emailModalOpen}
           userId={user?.id || ''}
@@ -561,11 +634,27 @@ export default function ProfilePage() {
           onClose={() => setEmailModalOpen(false)}
           onChanged={onEmailChanged}
         />
+        <EmailChangeModal
+          open={emailVerifyOpen}
+          userId={user?.id || ''}
+          currentEmail={user?.email || ''}
+          kind="verify-primary"
+          onClose={() => setEmailVerifyOpen(false)}
+          onChanged={() => {
+            if (updateUser) updateUser({ email_verified_at: new Date().toISOString() } as Partial<User>);
+          }}
+        />
 
-        {/* Q note 답변 생성 프로필 */}
+        {/* Q note 답변 생성 프로필 — 워크스페이스 단위 (BusinessMember.bio 등) */}
         <Card>
-          <SectionTitle>{t('qnoteProfile.sectionTitle')}</SectionTitle>
+          <SectionTitle>
+            {user?.business_name
+              ? t('qnoteProfile.sectionTitleNamed', { workspace: user.business_name, defaultValue: '{{workspace}} — Q note 답변 생성용' })
+              : t('qnoteProfile.sectionTitle')}
+          </SectionTitle>
           <Description>
+            {t('qnoteProfile.workspaceScopeNote', '이 정보는 현재 워크스페이스에서만 적용됩니다. Q Note 가 답변을 생성할 때 본인 컨텍스트로 활용합니다.')}
+            <br />
             <Trans i18nKey="qnoteProfile.description" ns="profile" components={{ 1: <strong />, 2: <br /> }} />
           </Description>
 
@@ -678,23 +767,31 @@ export default function ProfilePage() {
           <FieldRow style={{ marginTop: 16, borderTop: '1px solid #e2e8f0', paddingTop: 16 }}>
             <Label>{t('languageLevel.expertise.label')}</Label>
             <FieldBody>
-              <ExpertiseRow>
+              <ExpertiseGrid>
                 {([
-                  { val: '', labelKey: 'languageLevel.expertise.unset' },
-                  { val: 'layman', labelKey: 'languageLevel.expertise.layman' },
-                  { val: 'practitioner', labelKey: 'languageLevel.expertise.practitioner' },
-                  { val: 'expert', labelKey: 'languageLevel.expertise.expert' },
-                ] as const).map((opt) => (
-                  <ExpertiseBtn
-                    key={opt.val}
-                    type="button"
-                    $active={expertiseLevel === opt.val}
-                    onClick={() => saveExpertiseLevel(opt.val)}
-                  >
-                    {t(opt.labelKey)}
-                  </ExpertiseBtn>
-                ))}
-              </ExpertiseRow>
+                  { val: 'novice',       labelKey: 'languageLevel.expertise.novice',       sampleKey: 'languageLevel.expertise.novice_sample' },
+                  { val: 'beginner',     labelKey: 'languageLevel.expertise.beginner',     sampleKey: 'languageLevel.expertise.beginner_sample' },
+                  { val: 'intermediate', labelKey: 'languageLevel.expertise.intermediate', sampleKey: 'languageLevel.expertise.intermediate_sample' },
+                  { val: 'advanced',     labelKey: 'languageLevel.expertise.advanced',     sampleKey: 'languageLevel.expertise.advanced_sample' },
+                  { val: 'expert',       labelKey: 'languageLevel.expertise.expert5',      sampleKey: 'languageLevel.expertise.expert5_sample' },
+                ] as const).map((opt) => {
+                  // 호환: 기존 layman → novice, practitioner → intermediate 자동 매핑
+                  const isActive = expertiseLevel === opt.val
+                    || (opt.val === 'novice' && expertiseLevel === 'layman')
+                    || (opt.val === 'intermediate' && expertiseLevel === 'practitioner');
+                  return (
+                    <ExpertiseCard
+                      key={opt.val}
+                      type="button"
+                      $active={isActive}
+                      onClick={() => saveExpertiseLevel(opt.val)}
+                    >
+                      <ExpertiseTitle>{t(opt.labelKey)}</ExpertiseTitle>
+                      <ExpertiseSample>{t(opt.sampleKey)}</ExpertiseSample>
+                    </ExpertiseCard>
+                  );
+                })}
+              </ExpertiseGrid>
               <Hint>
                 <Trans i18nKey="languageLevel.expertise.hint" ns="profile" components={{ 1: <strong /> }} />
               </Hint>
@@ -1001,6 +1098,17 @@ const Hint = styled.div`
   color: #94a3b8;
 `;
 
+const VerifyBadge = styled.span<{ $ok?: boolean }>`
+  flex-shrink: 0;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  ${p => p.$ok
+    ? 'background: #F0FDFA; color: #0F766E; border: 1px solid #99F6E4;'
+    : 'background: #FFFBEB; color: #B45309; border: 1px solid #FDE68A;'}
+`;
+
 const LevelTableHead = styled.div`
   display: grid;
   grid-template-columns: 1.2fr 1fr 1fr 1fr 1fr;
@@ -1038,28 +1146,45 @@ const LevelCell = styled.div`
 `;
 
 
-const ExpertiseRow = styled.div`
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
+const ExpertiseGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 8px;
+  @media (max-width: 640px) {
+    grid-template-columns: 1fr;
+  }
 `;
 
-const ExpertiseBtn = styled.button<{ $active?: boolean }>`
-  padding: 8px 14px;
-  font-size: 12px;
-  font-weight: 600;
-  color: ${(p) => (p.$active ? '#FFFFFF' : '#334155')};
-  background: ${(p) => (p.$active ? '#14B8A6' : '#FFFFFF')};
-  border: 1px solid ${(p) => (p.$active ? '#14B8A6' : '#CBD5E1')};
-  border-radius: 8px;
+const ExpertiseCard = styled.button<{ $active?: boolean }>`
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  text-align: left;
+  gap: 4px;
+  padding: 10px 12px;
+  background: ${(p) => (p.$active ? '#F0FDFA' : '#FFFFFF')};
+  border: 1px solid ${(p) => (p.$active ? '#14B8A6' : '#E2E8F0')};
+  border-radius: 10px;
   cursor: pointer;
-  transition: all 120ms;
-  &:hover:not(:disabled) {
-    background: ${(p) => (p.$active ? '#0D9488' : '#F8FAFC')};
+  transition: all 0.15s;
+  &:hover {
     border-color: ${(p) => (p.$active ? '#0D9488' : '#94A3B8')};
+    background: ${(p) => (p.$active ? '#F0FDFA' : '#F8FAFC')};
   }
   &:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(20,184,166,0.3); }
 `;
+const ExpertiseTitle = styled.span`
+  font-size: 13px;
+  font-weight: 700;
+  color: #0F172A;
+`;
+const ExpertiseSample = styled.span`
+  font-size: 11px;
+  font-weight: 500;
+  color: #64748B;
+  line-height: 1.45;
+`;
+
 
 const TextInput = styled.input`
   width: 100%;
@@ -1654,125 +1779,85 @@ function UserTimezoneSection() {
         </UAddRow>
       </Card>
 
-      <NotificationPrefsCard />
     </>
   );
 }
 
-// ─── 사이클 Q-C — 알림 매트릭스 (event × channel 토글) ───
-const NOTIF_EVENTS = ['signature', 'invoice', 'tax_invoice', 'task', 'event', 'invite', 'mention'] as const;
-const NOTIF_CHANNELS = ['inbox', 'chat', 'email', 'push'] as const;
-type NotifEvent = typeof NOTIF_EVENTS[number];
-type NotifChannel = typeof NOTIF_CHANNELS[number];
-type Matrix = Record<NotifEvent, Record<NotifChannel, boolean>>;
-
-function NotificationPrefsCard() {
+// 보조 이메일 관리자 — 추가/변경/제거 + 인증 상태
+function SecondaryEmailManager({
+  user,
+  updateUser,
+}: {
+  user: { id?: number; secondary_email?: string | null; secondary_email_verified_at?: string | null } | null;
+  updateUser?: (patch: Partial<User>) => void;
+}) {
   const { t } = useTranslation('profile');
-  const [matrix, setMatrix] = useState<Matrix | null>(null);
-  const [saving, setSaving] = useState<string | null>(null);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [verifyOpen, setVerifyOpen] = useState(false);
+  const [removing, setRemoving] = useState(false);
 
-  const load = useCallback(async () => {
+  const has = !!user?.secondary_email;
+  const verified = !!user?.secondary_email_verified_at;
+
+  const handleRemove = async () => {
+    if (!user?.id || removing) return;
+    setRemoving(true);
     try {
-      const r = await apiFetch('/api/notifications/prefs');
-      const j = await r.json();
-      if (j.success) setMatrix(j.data.matrix);
-    } catch { /* ignore */ }
-  }, []);
-
-  useEffect(() => { load(); }, [load]);
-
-  const toggle = async (ev: NotifEvent, ch: NotifChannel) => {
-    if (!matrix) return;
-    const next = !matrix[ev][ch];
-    const key = `${ev}:${ch}`;
-    setSaving(key);
-    setMatrix({ ...matrix, [ev]: { ...matrix[ev], [ch]: next } });
-    try {
-      await apiFetch('/api/notifications/prefs', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ event_kind: ev, channel: ch, enabled: next }),
-      });
-    } catch {
-      // 실패 시 롤백
-      setMatrix((m) => m ? { ...m, [ev]: { ...m[ev], [ch]: !next } } : m);
+      const res = await apiFetch(`/api/users/${user.id}/secondary-email`, { method: 'DELETE' });
+      const data = await res.json();
+      if (res.ok && data.success && updateUser) {
+        updateUser({ secondary_email: null, secondary_email_verified_at: null } as Partial<User>);
+      }
     } finally {
-      setSaving(null);
+      setRemoving(false);
+    }
+  };
+
+  const handleChanged = (newEmail: string) => {
+    if (updateUser) {
+      updateUser({ secondary_email: newEmail, secondary_email_verified_at: new Date().toISOString() } as Partial<User>);
     }
   };
 
   return (
-    <Card>
-      <SectionTitle>{t('notifications.sectionTitle', '알림 받기')}</SectionTitle>
-      <Description>
-        {t('notifications.description', '어떤 이벤트를 어떤 채널로 받을지 설정합니다. 채팅·메시지 등 자주 쓰이는 알림은 ON 권장.')}
-      </Description>
-      {!matrix ? (
-        <Hint>{t('notifications.loading', '로드 중...')}</Hint>
-      ) : (
-        <NotifTable>
-          <NotifThead>
-            <NotifCell $head>{t('notifications.col.event', '이벤트')}</NotifCell>
-            {NOTIF_CHANNELS.map((ch) => (
-              <NotifCell $head key={ch}>{t(`notifications.channel.${ch}`, ch)}</NotifCell>
-            ))}
-          </NotifThead>
-          {NOTIF_EVENTS.map((ev) => (
-            <NotifRow key={ev}>
-              <NotifEventCell>{t(`notifications.event.${ev}`, ev)}</NotifEventCell>
-              {NOTIF_CHANNELS.map((ch) => {
-                const on = matrix[ev][ch];
-                const isSaving = saving === `${ev}:${ch}`;
-                return (
-                  <NotifCell key={ch}>
-                    <NotifSwitch
-                      type="button"
-                      role="switch"
-                      aria-checked={on}
-                      $on={on}
-                      disabled={isSaving}
-                      onClick={() => toggle(ev, ch)}
-                      title={t(`notifications.${on ? 'on' : 'off'}`, on ? '켜짐' : '꺼짐') as string}
-                    >
-                      <NotifKnob $on={on} />
-                    </NotifSwitch>
-                  </NotifCell>
-                );
-              })}
-            </NotifRow>
-          ))}
-        </NotifTable>
-      )}
-    </Card>
+    <>
+      <EmailRow>
+        <ReadOnly style={{ flex: 1 }}>{has ? user.secondary_email : t('basic.secondaryEmailEmpty', '등록되지 않음')}</ReadOnly>
+        {has && (verified
+          ? <VerifyBadge $ok>{t('basic.verified', '인증됨')}</VerifyBadge>
+          : <VerifyBadge>{t('basic.notVerified', '미인증')}</VerifyBadge>)}
+        {has && !verified && (
+          <SecondaryBtn type="button" onClick={() => setVerifyOpen(true)}>
+            {t('basic.emailVerify', '인증')}
+          </SecondaryBtn>
+        )}
+        <SecondaryBtn type="button" onClick={() => setModalOpen(true)}>
+          {has ? t('basic.emailChange', '변경') : t('basic.secondaryEmailAdd', '추가')}
+        </SecondaryBtn>
+        {has && (
+          <SecondaryBtn type="button" onClick={handleRemove} disabled={removing}>
+            {t('basic.secondaryEmailRemove', '제거')}
+          </SecondaryBtn>
+        )}
+      </EmailRow>
+      <EmailChangeModal
+        open={modalOpen}
+        userId={user?.id || ''}
+        currentEmail={user?.secondary_email || ''}
+        kind="secondary"
+        onClose={() => setModalOpen(false)}
+        onChanged={handleChanged}
+      />
+      <EmailChangeModal
+        open={verifyOpen}
+        userId={user?.id || ''}
+        currentEmail={user?.secondary_email || ''}
+        kind="verify-secondary"
+        onClose={() => setVerifyOpen(false)}
+        onChanged={() => {
+          if (updateUser) updateUser({ secondary_email_verified_at: new Date().toISOString() } as Partial<User>);
+        }}
+      />
+    </>
   );
 }
-
-const NotifTable = styled.div`display: grid; grid-template-columns: 1.4fr repeat(4, 1fr); gap: 1px; background: #E2E8F0; border: 1px solid #E2E8F0; border-radius: 8px; overflow: hidden; margin-top: 12px;`;
-const NotifThead = styled.div`display: contents;`;
-const NotifRow = styled.div`display: contents;`;
-const NotifCell = styled.div<{ $head?: boolean }>`
-  padding: 8px 10px; background: ${p => p.$head ? '#F8FAFC' : '#FFF'};
-  font-size: ${p => p.$head ? '11px' : '13px'};
-  font-weight: ${p => p.$head ? 700 : 500};
-  color: ${p => p.$head ? '#64748B' : '#0F172A'};
-  ${p => p.$head && 'text-transform: uppercase; letter-spacing: 0.3px;'}
-  display: flex; align-items: center; justify-content: ${p => p.$head ? 'flex-start' : 'center'};
-`;
-const NotifEventCell = styled.div`
-  padding: 8px 10px; background: #FFF;
-  font-size: 13px; font-weight: 600; color: #0F172A;
-  display: flex; align-items: center;
-`;
-const NotifSwitch = styled.button<{ $on: boolean }>`
-  width: 36px; height: 20px; border-radius: 999px;
-  background: ${p => p.$on ? '#14B8A6' : '#CBD5E1'};
-  border: none; cursor: pointer; padding: 0;
-  position: relative; transition: background 0.15s;
-  &:disabled { opacity: 0.5; cursor: not-allowed; }
-`;
-const NotifKnob = styled.span<{ $on: boolean }>`
-  position: absolute; top: 2px; left: ${p => p.$on ? '18px' : '2px'};
-  width: 16px; height: 16px; border-radius: 50%;
-  background: #FFF; transition: left 0.15s;
-  box-shadow: 0 1px 2px rgba(0,0,0,0.15);
-`;

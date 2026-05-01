@@ -328,6 +328,14 @@
       "compactHint": "Or drag files anywhere into this tab",
       "release": "Release to upload"
     },
+    "cloud": {
+      "connectedTitle": "Workspace shared files are stored in Google Drive.",
+      "connectedBody": "Project, task, and chat attachments are automatically saved to the Drive PlanQ folder. Personal files (\"My files\") remain in PlanQ's own storage. Files you create or delete directly in the Drive UI will NOT sync — manage everything inside PlanQ.",
+      "openDrive": "Open in Drive",
+      "recommendTitle": "We recommend connecting Google Drive.",
+      "recommendDesc": "Project, task, and chat attachments will be automatically backed up to Drive, saving your own storage quota. Personal files stay in PlanQ.",
+      "connectCta": "Connect"
+    },
     "source": {
       "all": "All",
       "direct": "Direct",

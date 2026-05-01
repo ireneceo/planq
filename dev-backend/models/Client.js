@@ -36,6 +36,12 @@ Client.init({
     type: DataTypes.STRING(100),
     allowNull: true
   },
+  // 워크스페이스별 다국어 표시명 — 예: { ko: "김고객", en: "Kim" }. null 이면 User.name_localized fallback.
+  display_name_localized: {
+    type: DataTypes.JSON,
+    allowNull: true,
+    defaultValue: null,
+  },
   company_name: {
     type: DataTypes.STRING(200),
     allowNull: true

@@ -267,7 +267,10 @@
   },
   "userChip": {
     "greeting": "안녕하세요, {{name}}님",
-    "title": "내 프로필"
+    "title": "내 프로필",
+    "planTitle": "구독 플랜",
+    "trialDays": "체험 {{days}}일",
+    "graceDays": "유예 {{days}}일"
   },
   "shareReceive": {
     "title": "PlanQ 로 공유",

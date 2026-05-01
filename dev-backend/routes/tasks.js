@@ -1,7 +1,7 @@
 const express = require('express');
 const { Op, fn, col, literal } = require('sequelize');
 const router = express.Router();
-const { Task, User, Project, BusinessMember, Business, TaskComment, TaskDailyProgress, TaskStatusHistory, TaskReviewer } = require('../models');
+const { Task, User, Project, BusinessMember, Business, TaskComment, TaskDailyProgress, TaskStatusHistory, TaskReviewer, Client } = require('../models');
 const taskSnapshot = require('../services/task_snapshot');
 const { authenticateToken, checkBusinessAccess } = require('../middleware/auth');
 const { getUserScope, taskListWhere, canAccessTask, isMemberOrAbove } = require('../middleware/access_scope');
@@ -342,14 +342,25 @@ router.post('/', authenticateToken, async (req, res, next) => {
     if (!business_id) return errorResponse(res, 'business_id required', 400);
     if (!title || !String(title).trim()) return errorResponse(res, 'title required', 400);
 
+    // 워크스페이스 접근권 확인 — 멤버(owner/member) OR 클라이언트
     const bm = await BusinessMember.findOne({ where: { user_id: req.user.id, business_id } });
-    if (!bm) return errorResponse(res, 'forbidden', 403);
+    let isClient = false;
+    if (!bm) {
+      const cl = await Client.findOne({ where: { user_id: req.user.id, business_id } });
+      if (!cl) return errorResponse(res, 'forbidden', 403);
+      isClient = true;
+    }
 
     // source / request_by 자동 판정:
     //   담당자 ≠ 생성자 → 내부 요청 (생성자가 요청자)
     //   담당자 = 생성자 → 본인 수동 업무
     const finalAssignee = assignee_id || req.user.id;
     const isInternalRequest = finalAssignee !== req.user.id;
+
+    // 클라이언트(고객): 자기 자신에게 업무 생성 금지 — '요청 추가' (멤버에게 요청) 만 허용
+    if (isClient && !isInternalRequest) {
+      return errorResponse(res, 'Clients can only request tasks to members, not assign to themselves.', 403);
+    }
 
     const task = await Task.create({
       business_id,

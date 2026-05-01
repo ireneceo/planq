@@ -74,7 +74,7 @@ const SidebarHeader = styled.div<{ $isCollapsed?: boolean }>`
 `;
 
 const Logo = styled.img`
-  height: 32px; width: auto; max-width: 140px;
+  width: 80px; height: auto;
   display: block; user-select: none; flex-shrink: 0;
 `;
 
@@ -606,42 +606,48 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                     <NavIcon $isCollapsed={isCollapsed}><IconTask /></NavIcon>
                     <NavLabel $isCollapsed={isCollapsed}>{t('nav.task')}</NavLabel>
                   </NavItem>
-                  {hasBiz('owner', 'member') && (
-                    <NavItem to="/projects" $isCollapsed={isCollapsed} $active={isActive('/projects')}
-                      title={isCollapsed ? t('nav.project') : undefined}>
-                      <NavIcon $isCollapsed={isCollapsed}><IconProject /></NavIcon>
-                      <NavLabel $isCollapsed={isCollapsed}>{t('nav.project')}</NavLabel>
-                    </NavItem>
-                  )}
+                  <NavItem to="/projects" $isCollapsed={isCollapsed} $active={isActive('/projects')}
+                    title={isCollapsed ? t('nav.project') : undefined}>
+                    <NavIcon $isCollapsed={isCollapsed}><IconProject /></NavIcon>
+                    <NavLabel $isCollapsed={isCollapsed}>{t('nav.project')}</NavLabel>
+                  </NavItem>
                   <NavItem to="/calendar" $isCollapsed={isCollapsed} $active={isActive('/calendar')}
                     title={isCollapsed ? t('nav.calendar') : undefined}>
                     <NavIcon $isCollapsed={isCollapsed}><IconCalendar /></NavIcon>
                     <NavLabel $isCollapsed={isCollapsed}>{t('nav.calendar')}</NavLabel>
                   </NavItem>
-                  <NavItem to="/notes" $isCollapsed={isCollapsed} $active={isActive('/notes')}
-                    title={isCollapsed ? t('nav.note') : undefined}>
-                    <NavIcon $isCollapsed={isCollapsed}><IconNote /></NavIcon>
-                    <NavLabel $isCollapsed={isCollapsed}>{t('nav.note')}</NavLabel>
-                  </NavItem>
-                  <NavItem to="/docs" $isCollapsed={isCollapsed} $active={isActive('/docs')}
-                    title={isCollapsed ? t('nav.docs') : undefined}>
-                    <NavIcon $isCollapsed={isCollapsed}><IconDocs /></NavIcon>
-                    <NavLabel $isCollapsed={isCollapsed}>{t('nav.docs')}</NavLabel>
-                  </NavItem>
-                  <NavItem to="/knowledge" $isCollapsed={isCollapsed} $active={isActive('/knowledge')}
-                    title={isCollapsed ? t('nav.qknowledge', 'Q knowledge') : undefined}
-                    onClick={() => { try { localStorage.setItem('planq_whatsnew_qknowledge_v1', '1'); } catch { /* */ } }}>
-                    <NavIcon $isCollapsed={isCollapsed}>
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 6.253v13"/><path d="M12 6.253C10.832 5.477 9.246 5 7.5 5 5.754 5 4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253"/><path d="M12 6.253C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18s-3.332.477-4.5 1.253"/></svg>
-                    </NavIcon>
-                    <NavLabel $isCollapsed={isCollapsed}>{t('nav.qknowledge', 'Q knowledge')}</NavLabel>
-                    {(() => { try { return localStorage.getItem('planq_whatsnew_qknowledge_v1') !== '1' ? <NewPulse aria-label="NEW" /> : null; } catch { return null; } })()}
-                  </NavItem>
-                  <NavItem to="/files" $isCollapsed={isCollapsed} $active={isActive('/files')}
-                    title={isCollapsed ? t('nav.file') : undefined}>
-                    <NavIcon $isCollapsed={isCollapsed}><IconFile /></NavIcon>
-                    <NavLabel $isCollapsed={isCollapsed}>{t('nav.file')}</NavLabel>
-                  </NavItem>
+                  {hasBiz('owner', 'member') && (
+                    <NavItem to="/notes" $isCollapsed={isCollapsed} $active={isActive('/notes')}
+                      title={isCollapsed ? t('nav.note') : undefined}>
+                      <NavIcon $isCollapsed={isCollapsed}><IconNote /></NavIcon>
+                      <NavLabel $isCollapsed={isCollapsed}>{t('nav.note')}</NavLabel>
+                    </NavItem>
+                  )}
+                  {hasBiz('owner', 'member') && (
+                    <NavItem to="/docs" $isCollapsed={isCollapsed} $active={isActive('/docs')}
+                      title={isCollapsed ? t('nav.docs') : undefined}>
+                      <NavIcon $isCollapsed={isCollapsed}><IconDocs /></NavIcon>
+                      <NavLabel $isCollapsed={isCollapsed}>{t('nav.docs')}</NavLabel>
+                    </NavItem>
+                  )}
+                  {hasBiz('owner', 'member') && (
+                    <NavItem to="/knowledge" $isCollapsed={isCollapsed} $active={isActive('/knowledge')}
+                      title={isCollapsed ? t('nav.qknowledge', 'Q knowledge') : undefined}
+                      onClick={() => { try { localStorage.setItem('planq_whatsnew_qknowledge_v1', '1'); } catch { /* */ } }}>
+                      <NavIcon $isCollapsed={isCollapsed}>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 6.253v13"/><path d="M12 6.253C10.832 5.477 9.246 5 7.5 5 5.754 5 4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253"/><path d="M12 6.253C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18s-3.332.477-4.5 1.253"/></svg>
+                      </NavIcon>
+                      <NavLabel $isCollapsed={isCollapsed}>{t('nav.qknowledge', 'Q knowledge')}</NavLabel>
+                      {(() => { try { return localStorage.getItem('planq_whatsnew_qknowledge_v1') !== '1' ? <NewPulse aria-label="NEW" /> : null; } catch { return null; } })()}
+                    </NavItem>
+                  )}
+                  {hasBiz('owner', 'member') && (
+                    <NavItem to="/files" $isCollapsed={isCollapsed} $active={isActive('/files')}
+                      title={isCollapsed ? t('nav.file') : undefined}>
+                      <NavIcon $isCollapsed={isCollapsed}><IconFile /></NavIcon>
+                      <NavLabel $isCollapsed={isCollapsed}>{t('nav.file')}</NavLabel>
+                    </NavItem>
+                  )}
                   <NavItem to="/bills" $isCollapsed={isCollapsed}
                     $active={isActive('/bills') || isActive('/billing')}
                     title={isCollapsed ? t('nav.qbill', 'Q Bill') : undefined}>
@@ -812,12 +818,29 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                   <NavItem
                     to="/profile"
                     $isCollapsed={isCollapsed}
-                    $active={isActive('/profile')}
-                    title={isCollapsed ? t('user.profile') : undefined}
+                    $active={
+                      location.pathname.startsWith('/profile') ||
+                      location.pathname.startsWith('/business/settings/notifications')
+                    }
+                    title={isCollapsed ? t('nav.settings') : undefined}
                   >
                     <NavIcon $isCollapsed={isCollapsed}><IconGear /></NavIcon>
-                    <NavLabel $isCollapsed={isCollapsed}>{t('user.profile')}</NavLabel>
+                    <NavLabel $isCollapsed={isCollapsed}>{t('nav.settings')}</NavLabel>
                   </NavItem>
+                  {(location.pathname.startsWith('/profile')
+                    || location.pathname.startsWith('/business/settings/notifications')) && (
+                    <AccordionWrap>
+                      <AccordionItem to="/profile" $active={isActive('/profile')}>
+                        <IconUsers /> {t('user.profile')}
+                      </AccordionItem>
+                      <AccordionItem
+                        to="/business/settings/notifications"
+                        $active={location.pathname.includes('/notifications')}
+                      >
+                        <IconBell /> {t('nav.notifications', '알림')}
+                      </AccordionItem>
+                    </AccordionWrap>
+                  )}
                 </NavSection>
               )}
             </>

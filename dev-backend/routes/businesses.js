@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { Business, BusinessMember, User, CueUsage } = require('../models');
+const { Business, BusinessMember, User, CueUsage, Client } = require('../models');
 const { authenticateToken, checkBusinessAccess } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const { createAuditLog } = require('../middleware/audit');
@@ -749,6 +749,166 @@ router.put('/:businessId/permissions', authenticateToken, checkBusinessAccess, a
     }).catch(() => { /* 감사 실패는 swallow */ });
 
     return successResponse(res, { permissions: next });
+  } catch (err) { next(err); }
+});
+
+// ============================================
+// GET /api/businesses/:businessId/me/profile
+// 현재 워크스페이스의 자기 BusinessMember (또는 Client) 표시명 조회
+// ============================================
+router.get('/:businessId/me/profile', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+  try {
+    const businessId = Number(req.params.businessId);
+    if (req.businessRole === 'client') {
+      const cl = await Client.findOne({ where: { user_id: req.user.id, business_id: businessId } });
+      if (!cl) return errorResponse(res, 'forbidden', 403);
+      return successResponse(res, {
+        scope: 'client',
+        name: cl.display_name,
+        name_localized: cl.display_name_localized,
+      });
+    }
+    const bm = await BusinessMember.findOne({ where: { user_id: req.user.id, business_id: businessId } });
+    if (!bm) return errorResponse(res, 'forbidden', 403);
+    return successResponse(res, {
+      scope: 'member',
+      name: bm.name,
+      name_localized: bm.name_localized,
+      role: bm.role,
+      // Q Note 답변 생성용 (워크스페이스 단위)
+      bio: bm.bio,
+      expertise: bm.expertise,
+      organization: bm.organization,
+      job_title: bm.job_title,
+      expertise_level: bm.expertise_level,
+      language_levels: bm.language_levels,
+      answer_style_default: bm.answer_style_default,
+      answer_length_default: bm.answer_length_default,
+    });
+  } catch (err) { next(err); }
+});
+
+// ============================================
+// PUT /api/businesses/:businessId/me/profile
+// 워크스페이스별 멤버 표시명 (BusinessMember 또는 Client) 수정
+// body: { name?, name_localized? } — name_localized 는 { ko, en, ja, zh, es } 객체 또는 null
+// ============================================
+router.put('/:businessId/me/profile', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+  try {
+    const businessId = Number(req.params.businessId);
+    const {
+      name, name_localized,
+      bio, expertise, organization, job_title,
+      expertise_level, language_levels,
+      answer_style_default, answer_length_default,
+    } = req.body || {};
+
+    let cleanName;
+    if (name !== undefined) {
+      if (name === null || name === '') {
+        cleanName = null;
+      } else if (typeof name !== 'string' || name.length > 100) {
+        return errorResponse(res, 'invalid_name', 400);
+      } else {
+        cleanName = name.trim();
+      }
+    }
+
+    let cleanLoc;
+    if (name_localized !== undefined) {
+      if (name_localized === null) {
+        cleanLoc = null;
+      } else if (typeof name_localized !== 'object' || Array.isArray(name_localized)) {
+        return errorResponse(res, 'invalid_name_localized', 400);
+      } else {
+        const allowed = ['ko', 'en', 'ja', 'zh', 'es'];
+        const cleaned = {};
+        for (const [k, v] of Object.entries(name_localized)) {
+          if (!allowed.includes(k)) continue;
+          if (v == null || v === '') continue;
+          if (typeof v !== 'string' || v.length > 100) {
+            return errorResponse(res, `name_localized_${k}_invalid`, 400);
+          }
+          cleaned[k] = v.trim();
+        }
+        cleanLoc = Object.keys(cleaned).length ? cleaned : null;
+      }
+    }
+
+    const updates = {};
+    if (cleanName !== undefined) updates.name = cleanName;
+    if (cleanLoc !== undefined) updates.name_localized = cleanLoc;
+
+    // Q Note 프로필 (멤버만)
+    if (bio !== undefined) {
+      if (bio !== null && typeof bio !== 'string') return errorResponse(res, 'invalid_bio', 400);
+      if (bio && bio.length > 2000) return errorResponse(res, 'bio_too_long', 400);
+      updates.bio = bio || null;
+    }
+    if (expertise !== undefined) {
+      if (expertise !== null && typeof expertise !== 'string') return errorResponse(res, 'invalid_expertise', 400);
+      if (expertise && expertise.length > 500) return errorResponse(res, 'expertise_too_long', 400);
+      updates.expertise = expertise || null;
+    }
+    if (organization !== undefined) {
+      if (organization !== null && typeof organization !== 'string') return errorResponse(res, 'invalid_organization', 400);
+      if (organization && organization.length > 200) return errorResponse(res, 'organization_too_long', 400);
+      updates.organization = organization || null;
+    }
+    if (job_title !== undefined) {
+      if (job_title !== null && typeof job_title !== 'string') return errorResponse(res, 'invalid_job_title', 400);
+      if (job_title && job_title.length > 100) return errorResponse(res, 'job_title_too_long', 400);
+      updates.job_title = job_title || null;
+    }
+    if (expertise_level !== undefined) {
+      const allowed = ['novice', 'beginner', 'intermediate', 'advanced', 'expert',
+                       // 호환: 기존 3단계 값도 허용
+                       'layman', 'practitioner'];
+      if (expertise_level !== null && !allowed.includes(expertise_level)) {
+        return errorResponse(res, 'invalid_expertise_level', 400);
+      }
+      updates.expertise_level = expertise_level || null;
+    }
+    if (language_levels !== undefined) {
+      if (language_levels !== null && (typeof language_levels !== 'object' || Array.isArray(language_levels))) {
+        return errorResponse(res, 'invalid_language_levels', 400);
+      }
+      updates.language_levels = language_levels;
+    }
+    if (answer_style_default !== undefined) {
+      if (answer_style_default !== null && typeof answer_style_default !== 'string') return errorResponse(res, 'invalid_answer_style', 400);
+      if (answer_style_default && answer_style_default.length > 2000) return errorResponse(res, 'answer_style_too_long', 400);
+      updates.answer_style_default = answer_style_default || null;
+    }
+    if (answer_length_default !== undefined) {
+      if (answer_length_default !== null && !['short', 'medium', 'long'].includes(answer_length_default)) {
+        return errorResponse(res, 'invalid_answer_length', 400);
+      }
+      updates.answer_length_default = answer_length_default || 'medium';
+    }
+
+    if (req.businessRole === 'client') {
+      const cl = await Client.findOne({ where: { user_id: req.user.id, business_id: businessId } });
+      if (!cl) return errorResponse(res, 'forbidden', 403);
+      const clUpdates = {};
+      if ('name' in updates) clUpdates.display_name = updates.name;
+      if ('name_localized' in updates) clUpdates.display_name_localized = updates.name_localized;
+      await cl.update(clUpdates);
+      return successResponse(res, {
+        scope: 'client',
+        name: cl.display_name,
+        name_localized: cl.display_name_localized,
+      });
+    }
+
+    const bm = await BusinessMember.findOne({ where: { user_id: req.user.id, business_id: businessId } });
+    if (!bm) return errorResponse(res, 'forbidden', 403);
+    await bm.update(updates);
+    return successResponse(res, {
+      scope: 'member',
+      name: bm.name,
+      name_localized: bm.name_localized,
+    });
   } catch (err) { next(err); }
 });
 

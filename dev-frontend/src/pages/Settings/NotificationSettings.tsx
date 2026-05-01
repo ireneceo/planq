@@ -192,6 +192,7 @@ const PushSection: React.FC<{ businessId: number | null }> = () => {
     <Section>
       <SectionTitle>{t('push.title', '디바이스 알림 (Web Push)')}</SectionTitle>
       <SectionDesc>{t('push.desc', '브라우저·모바일 홈화면 PWA 에서 푸시 알림을 받습니다. 사용자가 PlanQ 를 안 보고 있어도 도착.')}</SectionDesc>
+      <FooterNote>{t('push.scopeHint', '이 설정은 지금 로그인한 본인 계정 + 이 브라우저(또는 PWA) 1개에만 적용됩니다. 다른 멤버나 다른 디바이스에는 영향 없으며, 디바이스마다 따로 켜야 합니다.')}</FooterNote>
       {permission === 'unsupported' && <FooterNote>{t('push.unsupportedMsg', '이 브라우저는 푸시 알림을 지원하지 않습니다.')}</FooterNote>}
       {permission === 'denied' && <FooterNote>{t('push.deniedMsg', '브라우저 설정에서 알림 권한이 차단되어 있습니다. 사이트 권한 → 알림 허용으로 변경해주세요.')}</FooterNote>}
       {(permission === 'default' || permission === 'granted') && (
