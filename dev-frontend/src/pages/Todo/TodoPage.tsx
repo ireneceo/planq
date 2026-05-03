@@ -220,7 +220,6 @@ const TodoPage: React.FC = () => {
         </HelpDot>
       }
     >
-      <InsightCards />
       {/* 카테고리 탭 — 전체 default + 업무·서명·청구 카운트 분리 */}
       {(() => {
         const items = data?.items || [];
@@ -245,6 +244,8 @@ const TodoPage: React.FC = () => {
                 </TabBtn>
               ))}
             </TabBar>
+            {/* "업무" 탭 — 지연 업무 / 다가오는 일정 인사이트 카드 */}
+            {activeTab === 'work' && <InsightCards />}
             {/* "서명" 탭 활성 시 — pending 만 보이는 인박스라 전체 history archive 진입점 노출 */}
             {activeTab === 'signature' && (
               <ArchiveHint>
