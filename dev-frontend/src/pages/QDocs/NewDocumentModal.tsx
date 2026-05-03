@@ -10,6 +10,8 @@ import {
   createDocument, aiGenerateDoc, KIND_LABELS_KO, KIND_ICON,
   type DocTemplate, type DocSummary, type DocKind,
 } from '../../services/docs';
+import { createBrief } from '../../services/posts';
+import { useNavigate } from 'react-router-dom';
 import { listClientsForBilling, type ApiClientLite } from '../../services/invoices';
 import { listProjects, type ApiProject } from '../../services/qtalk';
 import PlanQSelect, { type PlanQSelectOption } from '../../components/Common/PlanQSelect';
@@ -25,8 +27,12 @@ interface Props {
 
 const NewDocumentModal: React.FC<Props> = ({ open, onClose, templates, businessId, onCreated }) => {
   const { t } = useTranslation('qdocs');
+  const navigate = useNavigate();
   const [busy, setBusy] = useState(false);
   const [tab, setTab] = useState<'ai' | 'template' | 'blank'>('ai');
+  // AI 탭의 두 모드: blank (빈 화면 prompt) / brief (자료 업로드 → 정리)
+  // 메모 project_qdocs_restructure_brief_plan: 별도 탭 신설 X. AI 탭 안의 모드 토글로 통합.
+  const [aiMode, setAiMode] = useState<'blank' | 'brief'>('blank');
 
   // AI 모드 입력
   const [aiKind, setAiKind] = useState<DocKind>('proposal');
@@ -36,6 +42,11 @@ const NewDocumentModal: React.FC<Props> = ({ open, onClose, templates, businessI
   const [aiProjectId, setAiProjectId] = useState<number | null>(null);
   const [aiError, setAiError] = useState<string | null>(null);
   const [aiUsage, setAiUsage] = useState<{ remaining: number; limit: number } | null>(null);
+
+  // Brief 모드 입력 (자료정리)
+  const [briefTitle, setBriefTitle] = useState('');
+  const [briefText, setBriefText] = useState('');  // multi-line — 한 textarea 안에 여러 자료 paste 또는 줄로 구분
+  const [briefError, setBriefError] = useState<string | null>(null);
 
   // 컨텍스트 후보 — modal open 시 한 번 fetch
   const [clients, setClients] = useState<ApiClientLite[]>([]);
@@ -117,6 +128,39 @@ const NewDocumentModal: React.FC<Props> = ({ open, onClose, templates, businessI
     }
   };
 
+  const startBrief = async () => {
+    if (busy) return;
+    const title = briefTitle.trim() || `자료정리 — ${new Date().toLocaleDateString('ko-KR')}`;
+    const blocks = briefText.split(/\n{3,}/).map(b => b.trim()).filter(Boolean);
+    if (blocks.length === 0) {
+      setBriefError(t('newModal.briefEmpty', '자료를 입력하세요. 여러 자료는 빈 줄 2개로 구분합니다.') as string);
+      return;
+    }
+    setBusy(true); setBriefError(null);
+    try {
+      const result = await createBrief({
+        business_id: businessId,
+        project_id: aiProjectId,
+        title,
+        text_blocks: blocks,
+        attached_file_ids: [],
+      });
+      // 자료정리 결과 → Q docs 의 post 상세로 이동 (기존 post detail 라우트)
+      onClose();
+      navigate(`/docs?post=${result.post_id}&from=brief&next=${encodeURIComponent(result.recommended_next_kind)}`);
+    } catch (e: unknown) {
+      const err = e as Error & { usage?: { remaining: number; limit: number } };
+      if (err.message === 'cue_limit_exceeded') {
+        setAiUsage(err.usage || null);
+        setBriefError(t('newModal.aiLimitExceeded', '월 한도를 사용했습니다. 플랜 업그레이드 또는 다음달까지 대기.') as string);
+      } else {
+        setBriefError(t('newModal.briefFailed', '자료정리 실패. 잠시 후 다시 시도하세요.') as string);
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const start = async (tpl: DocTemplate | null, kind?: DocKind) => {
     if (busy) return;
     setBusy(true);
@@ -159,7 +203,22 @@ const NewDocumentModal: React.FC<Props> = ({ open, onClose, templates, businessI
         <Body>
           {tab === 'ai' && (
             <AIForm>
-              <AIDesc>{t('newModal.aiDesc', 'Cue 가 고객·프로젝트 컨텍스트를 분석하여 초안을 만들어 드립니다.')}</AIDesc>
+              {/* 모드 토글 — 빈 화면에서 시작 vs 자료 정리해서 시작 */}
+              <ModeToggle role="radiogroup" aria-label={t('newModal.aiMode', 'AI 모드') as string}>
+                <ModeBtn type="button" role="radio" aria-checked={aiMode === 'blank'}
+                  $active={aiMode === 'blank'} onClick={() => { setAiMode('blank'); setAiError(null); setBriefError(null); }}>
+                  <ModeTitle>{t('newModal.aiModeBlank', '빈 화면에서 시작')}</ModeTitle>
+                  <ModeDesc>{t('newModal.aiModeBlankDesc', '간단한 요청만 입력 → AI 가 처음부터 작성')}</ModeDesc>
+                </ModeBtn>
+                <ModeBtn type="button" role="radio" aria-checked={aiMode === 'brief'}
+                  $active={aiMode === 'brief'} onClick={() => { setAiMode('brief'); setAiError(null); setBriefError(null); }}>
+                  <ModeTitle>{t('newModal.aiModeBrief', '자료 정리해서 시작')}</ModeTitle>
+                  <ModeDesc>{t('newModal.aiModeBriefDesc', '여러 자료(텍스트·메일·회의록) → 시점·자료별 정리 + 추천 후속 문서')}</ModeDesc>
+                </ModeBtn>
+              </ModeToggle>
+              {aiMode === 'blank' && <AIDesc>{t('newModal.aiDesc', 'Cue 가 고객·프로젝트 컨텍스트를 분석하여 초안을 만들어 드립니다.')}</AIDesc>}
+              {aiMode === 'brief' && <AIDesc>{t('newModal.briefDesc', '여러 자료를 빈 줄 2개로 구분해 붙여넣으면 시점/자료 기준 정리 + 다음에 작성할 문서 종류를 추천합니다.')}</AIDesc>}
+              {aiMode === 'blank' && (
               <FieldRow>
                 <FieldLabel>{t('newModal.aiKind', '문서 종류')}</FieldLabel>
                 <KindGrid>
@@ -170,6 +229,7 @@ const NewDocumentModal: React.FC<Props> = ({ open, onClose, templates, businessI
                   ))}
                 </KindGrid>
               </FieldRow>
+              )}
               <FieldRow>
                 <FieldLabel>{t('newModal.aiClient', '고객 연결 (선택)')}</FieldLabel>
                 <PlanQSelect
@@ -198,25 +258,51 @@ const NewDocumentModal: React.FC<Props> = ({ open, onClose, templates, businessI
                   isSearchable
                 />
               </FieldRow>
+              {aiMode === 'blank' && (
               <FieldRow>
                 <FieldLabel>{t('newModal.aiTitle', '문서 제목')}</FieldLabel>
                 <FieldInput type="text" value={aiTitle} onChange={e => setAiTitle(e.target.value)}
                   placeholder={t('newModal.aiTitlePh', '예: 워프로랩 브랜드 리뉴얼 제안서') as string} />
               </FieldRow>
+              )}
+              {aiMode === 'blank' && (
               <FieldRow>
                 <FieldLabel>{t('newModal.aiInput', '추가 요구사항 (선택)')}</FieldLabel>
                 <FieldTextarea value={aiUserInput} onChange={e => setAiUserInput(e.target.value)}
                   rows={4}
                   placeholder={t('newModal.aiInputPh', '핵심 요지·납기·예산·강조하고 싶은 점 등을 자유롭게 입력하면 반영됩니다.') as string} />
               </FieldRow>
+              )}
+              {aiMode === 'brief' && (
+              <FieldRow>
+                <FieldLabel>{t('newModal.briefTitle', '자료정리 제목 (선택)')}</FieldLabel>
+                <FieldInput type="text" value={briefTitle} onChange={e => setBriefTitle(e.target.value)}
+                  placeholder={t('newModal.briefTitlePh', '비우면 오늘 날짜로 자동 생성') as string} />
+              </FieldRow>
+              )}
+              {aiMode === 'brief' && (
+              <FieldRow>
+                <FieldLabel>{t('newModal.briefSources', '자료 (텍스트·이메일·회의록 — 빈 줄 2개로 구분)')}</FieldLabel>
+                <FieldTextarea value={briefText} onChange={e => setBriefText(e.target.value)}
+                  rows={10}
+                  placeholder={t('newModal.briefSourcesPh', '예시:\n\n2026-04-15 회의록\n주제: 1분기 매출 리뷰\n결정: 마케팅 예산 20% 증액\n\n\n2026-04-22 후속 미팅 요약\n주제: ROI 분석\n결정: 페이스북 축소·네이버 확대') as string} />
+              </FieldRow>
+              )}
               {aiError && <ErrorMsg>{aiError}</ErrorMsg>}
+              {briefError && <ErrorMsg>{briefError}</ErrorMsg>}
               {aiUsage && <UsageHint>{t('newModal.aiUsage', { remaining: aiUsage.remaining, limit: aiUsage.limit, defaultValue: '이번 달 남은 횟수: {{remaining}}/{{limit}}' })}</UsageHint>}
               <FormActions>
                 <CancelBtn type="button" onClick={onClose}>{t('common.cancel', '취소')}</CancelBtn>
-                <GenerateBtn type="button" onClick={startAi}
-                  disabled={busy || !aiTitle.trim()}>
-                  {busy ? t('newModal.aiGenerating', '생성 중...') : t('newModal.aiGenerate', 'AI 로 작성하기')}
-                </GenerateBtn>
+                {aiMode === 'blank' && (
+                  <GenerateBtn type="button" onClick={startAi} disabled={busy || !aiTitle.trim()}>
+                    {busy ? t('newModal.aiGenerating', '생성 중...') : t('newModal.aiGenerate', 'AI 로 작성하기')}
+                  </GenerateBtn>
+                )}
+                {aiMode === 'brief' && (
+                  <GenerateBtn type="button" onClick={startBrief} disabled={busy || !briefText.trim()}>
+                    {busy ? t('newModal.briefGenerating', '정리 중...') : t('newModal.briefGenerate', '자료 정리하기')}
+                  </GenerateBtn>
+                )}
               </FormActions>
             </AIForm>
           )}
@@ -301,6 +387,25 @@ const Body = styled.div`
 `;
 const AIForm = styled.div`display:flex;flex-direction:column;gap:14px;`;
 const AIDesc = styled.div`font-size:12px;color:#64748B;line-height:1.5;`;
+const ModeToggle = styled.div`
+  display: grid; gap: 8px; grid-template-columns: 1fr 1fr;
+  @media (max-width: 520px) { grid-template-columns: 1fr; }
+`;
+const ModeBtn = styled.button<{ $active: boolean }>`
+  text-align: left; padding: 12px 14px; border-radius: 10px; cursor: pointer;
+  background: ${p => p.$active ? '#F0FDFA' : '#FFFFFF'};
+  border: 1.5px solid ${p => p.$active ? '#14B8A6' : '#E2E8F0'};
+  display: flex; flex-direction: column; gap: 4px;
+  font-family: inherit;
+  &:hover { border-color: #14B8A6; }
+  &:focus-visible { outline: 2px solid rgba(20,184,166,0.3); outline-offset: 2px; }
+`;
+const ModeTitle = styled.div`
+  font-size: 13px; font-weight: 700; color: #0F172A;
+`;
+const ModeDesc = styled.div`
+  font-size: 11px; color: #64748B; line-height: 1.5;
+`;
 const FieldRow = styled.div`display:flex;flex-direction:column;gap:6px;`;
 const FieldLabel = styled.label`font-size:12px;font-weight:600;color:#0F172A;`;
 const FieldInput = styled.input`

@@ -162,6 +162,50 @@ export async function deleteCategory(categoryId: number): Promise<boolean> {
   return !!j.success;
 }
 
+// ─── Brief (자료정리) ───
+export interface BriefMeta {
+  view_kind: 'time' | 'file';
+  sources: Array<{ source: string; file_id: number | null }>;
+  timeline_count: number;
+  by_file_count: number;
+  recommended_next_kind: string;
+  recommended_next_reason: string;
+  summary: string;
+  timeline: Array<{ when: string; title: string; content: string; source: string }>;
+  by_file: Array<{ source: string; summary: string; key_points: string[] }>;
+  generated_at: string;
+}
+export interface BriefResult {
+  post_id: number;
+  title: string;
+  brief_meta: BriefMeta;
+  recommended_next_kind: string;
+  recommended_next_reason: string;
+}
+// 텍스트 블록 + 파일 ID 들로 자료정리 post 생성. 한도 초과 시 throw 'cue_limit_exceeded'.
+export async function createBrief(payload: {
+  business_id: number;
+  project_id?: number | null;
+  conversation_id?: number | null;
+  title: string;
+  text_blocks?: string[];
+  attached_file_ids?: number[];
+}): Promise<BriefResult> {
+  const r = await apiFetch('/api/posts/brief', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  const j = await r.json();
+  if (r.status === 429) {
+    const e = new Error('cue_limit_exceeded') as Error & { usage?: { remaining: number; limit: number } };
+    e.usage = j.usage;
+    throw e;
+  }
+  if (!j.success) throw new Error(j.message || 'brief failed');
+  return j.data as BriefResult;
+}
+
 // ─── 공유 ───
 export interface PostShareInfo { share_token: string; share_url: string; shared_at: string | null; }
 export async function sharePost(postId: number): Promise<PostShareInfo> {
