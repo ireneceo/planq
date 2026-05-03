@@ -35,6 +35,7 @@ const AdminBusinessesPage = lazy(() => import('./pages/Admin/AdminBusinessesPage
 const AdminFeedbackPage = lazy(() => import('./pages/Admin/AdminFeedbackPage'));
 const AdminEmailLogsPage = lazy(() => import('./pages/Admin/AdminEmailLogsPage'));
 const AdminPlatformSettingsPage = lazy(() => import('./pages/Admin/AdminPlatformSettingsPage'));
+const AdminSubscriptionsPage = lazy(() => import('./pages/Admin/AdminSubscriptionsPage'));
 const ShareReceivePage = lazy(() => import('./pages/ShareReceive/ShareReceivePage'));
 const InsightsPage = lazy(() => import('./pages/Insights/InsightsPage'));
 const PrivacyPolicy = lazy(() => import('./pages/Legal/PrivacyPolicy'));
@@ -282,6 +283,11 @@ function App() {
         <Route path="/admin/platform-settings" element={
           <ProtectedRoute requiredRole={['platform_admin']}>
             <MainLayout><AdminPlatformSettingsPage /></MainLayout>
+          </ProtectedRoute>
+        } />
+        <Route path="/admin/subscriptions" element={
+          <ProtectedRoute requiredRole={['platform_admin']}>
+            <MainLayout><AdminSubscriptionsPage /></MainLayout>
           </ProtectedRoute>
         } />
         <Route path="/admin/*" element={

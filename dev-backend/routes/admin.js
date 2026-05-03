@@ -3,7 +3,7 @@
 const express = require('express');
 const router = express.Router();
 const { Op } = require('sequelize');
-const { Business, BusinessMember, User, BusinessPlanHistory, PlatformSetting } = require('../models');
+const { Business, BusinessMember, User, BusinessPlanHistory, PlatformSetting, Subscription, Payment } = require('../models');
 const { authenticateToken, requireRole } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const planEngine = require('../services/plan');
@@ -261,6 +261,163 @@ router.put('/platform-settings', async (req, res, next) => {
       newValue: updates,
     });
     return successResponse(res, row.toJSON(), 'updated');
+  } catch (err) { next(err); }
+});
+
+// ============================================
+// Subscriptions (플랫폼 → 워크스페이스 PlanQ 구독)
+// ============================================
+
+// GET /api/admin/subscriptions — 구독 목록 (status 필터 + 검색)
+//   query: ?status=active|past_due|grace|demoted|pending|canceled|all (default 'all')
+//          ?q= 워크스페이스명 검색
+//          ?limit=50 ?offset=0
+router.get('/subscriptions', async (req, res, next) => {
+  try {
+    const status = req.query.status || 'all';
+    const q = String(req.query.q || '').trim();
+    const limit = Math.min(200, Math.max(1, parseInt(req.query.limit, 10) || 50));
+    const offset = Math.max(0, parseInt(req.query.offset, 10) || 0);
+
+    const where = {};
+    if (status !== 'all') where.status = status;
+    // 'replaced' 는 default 에서 숨김 (plan 변경 이력)
+    if (status === 'all') where.status = { [Op.ne]: 'replaced' };
+
+    const include = [{
+      model: Business,
+      attributes: ['id', 'name', 'brand_name', 'slug', 'plan', 'subscription_status'],
+      ...(q ? { where: { [Op.or]: [
+        { name: { [Op.like]: `%${q}%` } },
+        { brand_name: { [Op.like]: `%${q}%` } },
+        { slug: { [Op.like]: `%${q}%` } },
+      ] } } : {}),
+      required: !!q,
+    }];
+
+    const { rows, count } = await Subscription.findAndCountAll({
+      where, include, order: [['created_at', 'DESC']],
+      limit, offset, distinct: true,
+    });
+
+    // 각 subscription 의 latest pending Payment (mark-paid 액션 대상)
+    const subIds = rows.map((s) => s.id);
+    const pendingPayments = subIds.length > 0
+      ? await Payment.findAll({
+          where: { subscription_id: { [Op.in]: subIds }, status: 'pending' },
+          attributes: ['id', 'subscription_id', 'amount', 'currency', 'method', 'period_start', 'period_end', 'created_at'],
+          order: [['created_at', 'DESC']],
+        })
+      : [];
+    const pendingMap = new Map();
+    for (const p of pendingPayments) {
+      if (!pendingMap.has(p.subscription_id)) pendingMap.set(p.subscription_id, p);
+    }
+
+    res.set('X-Total-Count', String(count));
+    return successResponse(res, rows.map((s) => ({
+      id: s.id,
+      business: s.Business ? {
+        id: s.Business.id,
+        name: s.Business.brand_name || s.Business.name,
+        slug: s.Business.slug,
+        plan: s.Business.plan,
+        subscription_status: s.Business.subscription_status,
+      } : null,
+      plan_code: s.plan_code,
+      cycle: s.cycle,
+      status: s.status,
+      price: Number(s.price),
+      currency: s.currency,
+      started_at: s.started_at,
+      current_period_start: s.current_period_start,
+      current_period_end: s.current_period_end,
+      next_billing_at: s.next_billing_at,
+      past_due_at: s.past_due_at,
+      grace_ends_at: s.grace_ends_at,
+      demoted_at: s.demoted_at,
+      canceled_at: s.canceled_at,
+      cancel_reason: s.cancel_reason,
+      created_at: s.created_at,
+      pending_payment: pendingMap.has(s.id) ? {
+        id: pendingMap.get(s.id).id,
+        amount: Number(pendingMap.get(s.id).amount),
+        method: pendingMap.get(s.id).method,
+        period_start: pendingMap.get(s.id).period_start,
+        period_end: pendingMap.get(s.id).period_end,
+        created_at: pendingMap.get(s.id).created_at,
+      } : null,
+    })));
+  } catch (err) { next(err); }
+});
+
+// GET /api/admin/subscriptions/summary — 카운트 요약 (탭 배지용)
+router.get('/subscriptions/summary', async (req, res, next) => {
+  try {
+    const counts = await Subscription.findAll({
+      attributes: ['status', [Subscription.sequelize.fn('COUNT', Subscription.sequelize.col('id')), 'count']],
+      where: { status: { [Op.ne]: 'replaced' } },
+      group: ['status'],
+      raw: true,
+    });
+    const out = { active: 0, pending: 0, past_due: 0, grace: 0, demoted: 0, canceled: 0, total: 0 };
+    for (const c of counts) {
+      out[c.status] = Number(c.count);
+      out.total += Number(c.count);
+    }
+    return successResponse(res, out);
+  } catch (err) { next(err); }
+});
+
+// POST /api/admin/subscriptions/:id/mark-paid — pending Payment 활성화 (계좌이체 확인 후)
+router.post('/subscriptions/:id/mark-paid', async (req, res, next) => {
+  try {
+    const sub = await Subscription.findByPk(req.params.id);
+    if (!sub) return errorResponse(res, 'subscription_not_found', 404);
+
+    const pending = await Payment.findOne({
+      where: { subscription_id: sub.id, status: 'pending' },
+      order: [['created_at', 'ASC']],
+    });
+    if (!pending) return errorResponse(res, 'no_pending_payment', 400);
+
+    const billing = require('../services/billing');
+    const result = await billing.markPaymentPaid({
+      paymentId: pending.id,
+      markedByUserId: req.user.id,
+      payerName: req.body?.payer_name || null,
+      payerMemo: req.body?.payer_memo || null,
+    });
+
+    require('../services/auditService').logAudit(req, {
+      action: 'admin.subscription.mark_paid',
+      targetType: 'subscription',
+      targetId: sub.id,
+      newValue: { payment_id: pending.id, plan: sub.plan_code, cycle: sub.cycle, amount: Number(pending.amount) },
+    });
+
+    return successResponse(res, result, 'marked_paid');
+  } catch (err) { next(err); }
+});
+
+// POST /api/admin/subscriptions/:id/demote — 강제 강등 (Free 로)
+router.post('/subscriptions/:id/demote', async (req, res, next) => {
+  try {
+    const sub = await Subscription.findByPk(req.params.id);
+    if (!sub) return errorResponse(res, 'subscription_not_found', 404);
+    const reason = req.body?.reason ? String(req.body.reason).slice(0, 255) : 'admin manual demote';
+
+    const billing = require('../services/billing');
+    await billing.downgradeToFree(sub.business_id, reason);
+
+    require('../services/auditService').logAudit(req, {
+      action: 'admin.subscription.demote',
+      targetType: 'subscription',
+      targetId: sub.id,
+      newValue: { reason, prev_plan: sub.plan_code },
+    });
+
+    return successResponse(res, { demoted: true }, 'demoted');
   } catch (err) { next(err); }
 });
 

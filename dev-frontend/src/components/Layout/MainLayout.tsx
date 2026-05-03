@@ -574,6 +574,13 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                   </NavIcon>
                   <NavLabel $isCollapsed={isCollapsed}>{t('nav.platformSettings', '플랫폼 설정')}</NavLabel>
                 </NavItem>
+                <NavItem to="/admin/subscriptions" $isCollapsed={isCollapsed} $active={isActive('/admin/subscriptions')}
+                  title={isCollapsed ? t('nav.subscriptions', '구독 관리') : undefined}>
+                  <NavIcon $isCollapsed={isCollapsed}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+                  </NavIcon>
+                  <NavLabel $isCollapsed={isCollapsed}>{t('nav.subscriptions', '구독 관리')}</NavLabel>
+                </NavItem>
               </NavSection>
             </>
           ) : (

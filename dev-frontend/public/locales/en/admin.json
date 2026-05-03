@@ -1,4 +1,41 @@
 {
+  "subs": {
+    "title": "Subscriptions",
+    "searchPh": "Search workspace",
+    "loadFailed": "Failed to load",
+    "empty": "No subscriptions for this filter",
+    "emptyDesc": "Try a different filter or search.",
+    "monthly": "Monthly",
+    "yearly": "Yearly",
+    "periodEnd": "Period end",
+    "graceEnd": "Grace end",
+    "demotedAt": "Demoted",
+    "markPaid": "Mark paid",
+    "markPaidFailed": "Mark-paid failed",
+    "demote": "Demote",
+    "demoteFailed": "Demote failed",
+    "confirmPayTitle": "Mark payment paid",
+    "confirmPayMsg": "Mark the pending payment for {{biz}} as paid. This will activate the subscription.",
+    "confirmDemoteTitle": "Demote",
+    "confirmDemoteMsg": "Demote {{biz}} to Free plan. Data is preserved.",
+    "tab": {
+      "all": "All",
+      "active": "Active",
+      "pending": "Pending",
+      "past_due": "Past due",
+      "grace": "Grace",
+      "demoted": "Demoted"
+    },
+    "status": {
+      "pending": "Pending",
+      "active": "Active",
+      "past_due": "Past due",
+      "grace": "Grace",
+      "demoted": "Demoted",
+      "canceled": "Canceled",
+      "replaced": "Replaced"
+    }
+  },
   "platform": {
     "title": "Platform settings",
     "hint": "PlanQ operator information. Used in email footer, legal notices, and support contact. Changes auto-save; emails reflect updates after a 5-minute cache.",
