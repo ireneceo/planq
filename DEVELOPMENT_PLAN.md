@@ -1,8 +1,8 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-05-01 (Q-H 사이클 — 권한 매트릭스·프로필 분리·GDrive 정책·Q Note 용어 통일 + 첫 운영 배포 + 두 번째 배포 라이브)
+> **최종 업데이트:** 2026-05-03 (Q-N 사이클 — Q Note 번역 + Q Task 정기업무 + SaaS readiness 10 commit + 운영 배포 v1.1.0)
 >
-> **다음 진입:** 백업 시스템 양방향 크로스 (PlanQ 5단계 + POS 보강) → Q Note 실시간 번역 완성도 → AI 사용량 페이지 → platform_settings 사이클
+> **다음 진입:** 운영 q-note 가동 (Irene 직접 sudo) → 사용량 지표 페이지 → Q Note UX 폴리싱 → TaskDetailDrawer 정기업무 편집
 >
 > **결제 정책:** 1순위 자체 결제 (계좌이체 mark-paid), 2순위 PortOne (P-7 마지막). 월결제 + 연결제. 미결제 시 7일 유예 후 Free 강등 + 데이터 보존
 
