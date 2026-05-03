@@ -14,6 +14,10 @@
     "documents": "문서",
     "received-signatures": "받은 서명"
   },
+  "parentLink": {
+    "label": "자료정리에서 파생",
+    "title": "원본 자료정리로 이동"
+  },
   "receivedSignatures": {
     "pageTitle": "받은 서명",
     "backToInbox": "인박스로"

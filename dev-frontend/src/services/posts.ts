@@ -20,6 +20,10 @@ export interface PostRow {
   share_url: string | null;
   shared_at: string | null;
   content_preview: string;
+  // 양방향 링크: 자료정리(brief) post 가 만든 후속 문서면 parent_post_id 가짐
+  parent_post_id: number | null;
+  // brief_meta 는 category='brief' 인 post 만. 일반 post 는 null
+  brief_meta: unknown;
   created_at: string;
   updated_at: string;
 }
