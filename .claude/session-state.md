@@ -1,82 +1,82 @@
 ## 현재 작업 상태
-**마지막 업데이트:** 2026-05-03 (저녁 — Q-N 사이클 운영 배포 완료. v1.1.0 + 운영 q-note 가동)
-**작업 상태:** 운영 라이브 (commit `d3ba189`, v1.1.0). 10 commit 묶음 모두 운영 적용 + 운영 q-note 정상 가동.
-
-**외부 의존성: 0** (이번 사이클 모두 처리)
-- 운영 q-note: ✅ 가동 완료. `python3.12-venv` apt 설치 + venv 재생성 + torch CPU + requirements + PM2 등록 + .env scp 한 번에 처리.
-- 502 에러 (https://planq.kr/profile 의 voice-fingerprint) → 401 회복 (인증 후 200 정상)
+**마지막 업데이트:** 2026-05-03 11:00
+**작업 상태:** 중단 (이어서 재개 예정 — Q docs 재구조 + 자료정리(Brief) 시작)
 
 ---
 
-## ⚡ 빠른 재개 (다음 세션)
+## ⚡ 빠른 재개 (새 세션에서 이것만 붙여넣기)
 
 ```
-session-state.md 읽고 메모 project_saas_readiness_2026_05_03.md 와
-DEVELOPMENT_PLAN.md 의 v1.1.0 섹션부터 컨텍스트 복원.
-운영 q-note 가동 안 됐으면 위 ssh 절차 안내. 그 외엔 다음 사이클 자유 진행.
+session-state.md 읽고 이어서 개발해. memory/project_qdocs_restructure_brief_plan.md 의 3 commit 단위로 진행.
 ```
 
 ---
 
-## 📦 v1.1.0 사이클 — 10 commit 요약 (2026-05-03)
+## 🔖 지금 중단 지점
 
-### 1차 묶음 (Q Note · Q Task · 백업)
-- `9754b3a` Q Note interim 점진 표시 + chunking + 어절 분할 fallback / Q Task 정기업무 5 프리셋 + cron / 백업 양방향 크로스
+**마지막 작업 (이번 세션, 14 commits 운영 라이브):**
+- v1.1.0 운영 배포 (Q Note + Q Task 정기업무 + 백업 양방향 크로스)
+- SaaS readiness 8 commit (외부 API timeout / fan-out 비동기 / pagination / AuditLog / pino+request_id / uploads cleanup / 권한 통일 / cue_usage 통합 추적)
+- 운영 q-note 가동 (apt + venv + torch + requirements + PM2 + .env scp)
+- JWT_SECRET / INTERNAL_API_KEY / PLANQ_NODE_BASE_URL 운영 ↔ q-note 일치
+- platform_settings DB 이전 (모델·라우트·UI·운영 시드)
+- DROPBOX 정리
+- 사이드바 좌측 하단 표시 fix (워크스페이스 컨텍스트 우선)
 
-### 2차 묶음 (운영 안정성 — SaaS 점검 후 진행)
-- `c762165` 외부 API timeout (OpenAI 30s, SMTP 30s) + cron fan-out 비동기 + tasks pagination
-- `5dff95f` AuditLog 헬퍼 + invoices/posts CUD 적용
-- `3f0daf1` pino logger + request_id 미들웨어 + errorHandler 강화 + /api/health 확장 (db_pool/env)
-- `fb7afd9` uploads cleanup cron (30일+ orphan File row + 물리 파일 sibling 검사)
-- `21f3fc8` 권한 헬퍼 통일 (posts/docs assertMember → access_scope.assertMemberOrAbove)
-- `2a0de3a` KB tag extraction 의 cue_usage 한도 enforce + 토큰 누적
-- `2fa9841` audit helper 단일 모듈 (services/auditService.js)
-- `dd84ee7` cue_task_executor + task_extractor 한도 enforce + message_attachments 권한 통일
-- `c2f9b4f` translation_service 한도 enforce + 토큰 누적
+**바로 다음 작업 (Q docs 재구조 + 자료정리):**
+- 합의안: `memory/project_qdocs_restructure_brief_plan.md` (3 commit 순차)
+- Commit 1 — 받은 서명 인박스 이전 (Q docs 페이지 = 문서만 깔끔, 받은 서명 = 인박스로)
+- Commit 2 — 자료정리 (Brief) AI 모드 확장 (NewDocumentModal AI 탭에 모드 토글 + BriefComposer)
+- Commit 3 — Brief 백엔드 + LLM (services/brief_service.js, posts.brief_meta JSON, cue_usage 'brief')
 
-**백엔드 모든 LLM 호출처 cue_usage 통합 추적**: answer / summary / task_execute / task_extraction / kb_embed / translation. 우회 0.
-
-### 운영 배포 결과 (2026-05-03 09:18 KST 환산)
-- planq-prod-backend reload 성공 (uptime 44s 시점 검증 OK)
-- 외부 HTTPS health 200, db_pool/env 시그널 정상
-- planq-prod-qnote 실패 (venv 의존성 미설치, sudo 필요 — 위 절차 참고)
-- POS production-backend 영향 없음 (37h uptime 유지)
+**맥락 유지할 것:**
+- 이름: 한글 "자료정리", 영문 "Brief". Q 접두 안 붙임 (Q docs 안의 기능)
+- 별도 메뉴 X. NewDocumentModal AI 탭의 "자료 업로드 → 정리" 모드
+- 받은 서명을 인박스로 이전하면 Q docs 페이지 깔끔해짐 (탭 제거, 바로 PostsPage)
+- URL 호환: `/q-docs?tab=received-signatures` → `/inbox?type=signatures` redirect
 
 ---
 
-## 🔖 다음 할 일
+## 📦 이번 세션 작업 요약 (commit 14건)
 
-### A. 운영 q-note 가동 (Irene 직접, 외부 의존성)
-위 ssh 절차 1회 실행 → 502 자동 해결 → 다음 `/배포` 부터 자동 reload.
+- v1.1.0 운영 라이브 + 운영 q-note 정상 가동
+- 백엔드 모든 LLM 호출처 cue_usage 통합 (answer / summary / task_execute / task_extraction / kb_embed / translation / brief 예정)
+- 운영 ↔ q-note 환경변수 mismatch 모두 fix
+- platform_settings DB 이전 (관리자 UI 에서 즉시 변경 가능)
+- 사이드바 워크스페이스 컨텍스트 표시 (계정 vs 워크스페이스 분리 메모 정책 반영)
 
-### B. 다음 사이클 후보 (Claude Code 진행 가능)
-- 운영 사용량 지표 페이지 (cue_usage / qnote_usage 시각화) — `/insights` 확장
-- Q Note 화면 UX 검증 후 미세 폴리싱 (interim 점진 표시 / chunking 동작)
-- TaskDetailDrawer 의 정기업무 표시·편집 (parent rule 변경, 인스턴스 단독 수정)
-- "이번 1회만 수정" vs "앞으로 모두 수정" UX
-- conversations.js 의 `await createAuditLog` 6 곳 → fire-and-forget 자동 (audit 통합 후 동작 동일하지만 의미상 await 떼는 게 명확)
+**커밋:** `f2ddb1f` 사이드바 좌측 하단 표시 fix — 워크스페이스 컨텍스트 우선
 
-### C. Phase 4 트리거 (외부 의존성, 시점 결정)
-- DAU 100+ 또는 메일 폭증 → BullMQ + Redis worker
-- 인스턴스 2+ 필요 → Socket.IO Redis adapter
+---
+
+## 📂 다음 할 일 (우선순위)
+
+### A. Q docs 재구조 + 자료정리 (다음 세션 첫 작업)
+메모 `project_qdocs_restructure_brief_plan.md` 의 3 commit 단위 그대로.
+
+### B. Phase 4 (트래픽 증가 시점)
+- DAU 100+ → BullMQ + Redis worker
+- 인스턴스 2+ 필요 → Socket.IO Redis adapter / multer → S3
 - /insights 응답 1초 초과 → read-replica
-- 다중 인스턴스 또는 디스크 압박 → multer disk → S3/MinIO + signed URL
 
----
-
-## 📂 주요 위치
-- v1.1.0 운영 라이브 commit: `c2f9b4f`
-- 첫 운영 진입 commit: `661b893` / Q-H 사이클: `024d368`
-- 운영 백업: `/opt/planq/backups/{TIMESTAMP}/` (deploy 시점 코드 + DB)
-- 일일 DB 백업 양방향 크로스: 메모 `project_backup_strategy.md`
-- SaaS readiness 점검 + 10 commit: 메모 `project_saas_readiness_2026_05_03.md`
-- 운영 배포: `scripts/deploy-planq.sh` (sync_qnote 가 PM2 미등록 시 자동 start 시도하지만 venv 의존성 부재 시 실패)
+### C. 운영 .env 보호 (다음 사이클 후보)
+deploy-planq.sh 가 .env sync 제외라 신규 환경변수 추가 시 누락 가능. .env.example 동기화 또는 누락 시 경고 추가 검토.
 
 ---
 
 ## 🔑 환경
 - dev backend port 3003 (planq-dev-backend), POS port 3001
-- 운영 backend port 3004 (planq-prod-backend), POS port 3002 공존
-- 운영 q-note port 8001 (planq-prod-qnote, 미가동) — nginx 가 /qnote/* → 8001 proxy
-- DB: dev planq_dev_db, 운영 planq_prod_db
-- 운영 DB 비번: 운영서버 `/opt/planq/.db-password` (mode 600)
+- 운영 backend port 3004 (planq-prod-backend, **v1.1.0**), POS port 3002 공존
+- 운영 q-note port 8001 (**planq-prod-qnote** ✅ 가동 완료)
+- DB: dev planq_dev_db, 운영 planq_prod_db (양쪽 65 tables / 1039 cols 일치)
+- 운영 q-note .env: OPENAI/DEEPGRAM key 채워짐, JWT_SECRET / INTERNAL_API_KEY / PLANQ_NODE_BASE_URL 운영 backend 와 일치
+- 운영 platform_settings 테이블 시드됨 (id=1, brand=PlanQ, support_email=help@planq.kr, legal_entity=워프로랩)
+
+---
+
+## 📂 주요 위치
+- v1.1.0 운영 라이브: `f2ddb1f`
+- 합의안 메모: `memory/project_qdocs_restructure_brief_plan.md`
+- SaaS readiness 메모: `memory/project_saas_readiness_2026_05_03.md`
+- 백업 양방향: 메모 `project_backup_strategy.md`
+- 운영 배포: `scripts/deploy-planq.sh`
