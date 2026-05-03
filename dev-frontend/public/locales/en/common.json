@@ -250,6 +250,13 @@
     "upload": "Upload ({{n}})",
     "attach": "Attach ({{n}})"
   },
+  "attach": {
+    "uploadHint": "Drag files here or click to browse",
+    "uploadAccept": "Multiple files supported · saved to workspace",
+    "searchPlaceholder": "Search existing files...",
+    "searchHint": "Type to search",
+    "noFiles": "No results"
+  },
   "installPrompt": {
     "title": "Use PlanQ like an app",
     "androidDesc": "Add PlanQ to your home screen for quick access.",

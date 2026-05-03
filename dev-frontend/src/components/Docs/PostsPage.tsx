@@ -909,6 +909,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
         />
       )}
 
+
       {detail && signOpen && (
         <PostSignatureModal
           open={signOpen}

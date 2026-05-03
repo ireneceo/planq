@@ -222,12 +222,14 @@ const Backdrop = styled.div`
 `;
 const Dialog = styled.div`
   background: #FFFFFF; border-radius: 14px; width: min(440px, 100%);
-  max-height: 90vh; overflow: auto;
+  max-height: 90vh;
+  display: flex; flex-direction: column;
   box-shadow: 0 20px 60px rgba(0,0,0,0.25);
 `;
 const ModalHeader = styled.div`
   display: flex; justify-content: space-between; align-items: center;
   padding: 16px 20px; border-bottom: 1px solid #E2E8F0;
+  flex-shrink: 0;
 `;
 const Title = styled.h2`
   margin: 0; font-size: 16px; font-weight: 700; color: #0F172A;
@@ -237,7 +239,7 @@ const CloseBtn = styled.button`
   padding: 4px; border-radius: 6px;
   &:hover { background: #F1F5F9; color: #0F172A; }
 `;
-const Body = styled.div`padding: 20px;`;
+const Body = styled.div`padding: 20px; flex: 1; overflow-y: auto; min-height: 0;`;
 const StepLabel = styled.div`
   font-size: 11px; font-weight: 700; color: #64748B; letter-spacing: 0.5px;
   text-transform: uppercase; margin-bottom: 6px;

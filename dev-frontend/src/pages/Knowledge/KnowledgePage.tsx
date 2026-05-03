@@ -40,6 +40,13 @@ interface KbDetail extends KbDocumentRow {
   attached_posts?: { id: number; title: string; project_id: number | null; category: string | null }[];
 }
 
+const formatDateSafe = (input: string | number | Date | null | undefined, kind: 'date' | 'datetime' = 'datetime'): string => {
+  if (!input) return '—';
+  const d = new Date(input);
+  if (isNaN(d.getTime())) return '—';
+  return kind === 'date' ? d.toLocaleDateString() : d.toLocaleString();
+};
+
 const KnowledgePage = () => {
   const { t } = useTranslation('knowledge');
   const { user } = useAuth();
@@ -292,8 +299,7 @@ const KnowledgePage = () => {
     if (fileCount > 0 || postCount > 0) {
       parts.push(t('row.attached', '첨부 {{n}}', { n: fileCount + postCount }) as string);
     }
-    parts.push(`${d.chunk_count} chunks`);
-    parts.push(new Date(d.updated_at).toLocaleDateString());
+    parts.push(formatDateSafe(d.updated_at ?? (d as { updatedAt?: string }).updatedAt, 'date'));
     return parts.join(' · ');
   };
 
@@ -468,12 +474,10 @@ const KnowledgePage = () => {
                   )}
                   <MetaLabel>{t('drawer.status')}</MetaLabel>
                   <MetaValue>{t(`status.${detail.status}`)}</MetaValue>
-                  <MetaLabel>{t('drawer.chunkCount')}</MetaLabel>
-                  <MetaValue>{detail.chunk_count}</MetaValue>
                   <MetaLabel>{t('drawer.createdAt')}</MetaLabel>
-                  <MetaValue>{new Date(detail.created_at).toLocaleString()}</MetaValue>
+                  <MetaValue>{formatDateSafe(detail.created_at ?? (detail as { createdAt?: string }).createdAt)}</MetaValue>
                   <MetaLabel>{t('drawer.updatedAt')}</MetaLabel>
-                  <MetaValue>{new Date(detail.updated_at).toLocaleString()}</MetaValue>
+                  <MetaValue>{formatDateSafe(detail.updated_at ?? (detail as { updatedAt?: string }).updatedAt)}</MetaValue>
                 </MetaGrid>
               </DrawerSection>
               <DrawerSection>
@@ -537,20 +541,6 @@ const KnowledgePage = () => {
                       </AttachRow>
                     ))}
                   </AttachList>
-                </DrawerSection>
-              )}
-              {detail.chunks && detail.chunks.length > 0 && (
-                <DrawerSection>
-                  <SectionLabel>{t('drawer.chunks')} <small>({detail.chunks.length})</small></SectionLabel>
-                  <ChunkList>
-                    {detail.chunks.map(ch => (
-                      <ChunkRow key={ch.id}>
-                        <ChunkIdx>#{ch.chunk_index}</ChunkIdx>
-                        <ChunkTitle>{ch.section_title || '—'}</ChunkTitle>
-                        <ChunkTokens>{ch.token_count}t</ChunkTokens>
-                      </ChunkRow>
-                    ))}
-                  </ChunkList>
                 </DrawerSection>
               )}
             </DrawerSections>
@@ -884,15 +874,6 @@ const BodyBox = styled.pre`
   white-space: pre-wrap; word-break: break-word;
   max-height: 360px; overflow-y: auto;
 `;
-const ChunkList = styled.div`display: flex; flex-direction: column; gap: 4px;`;
-const ChunkRow = styled.div`
-  display: grid; grid-template-columns: auto 1fr auto;
-  gap: 12px; align-items: center;
-  padding: 8px 12px;
-  background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 6px;
-  font-size: 12px;
-`;
-const ChunkIdx = styled.div`color: #64748B; font-weight: 600;`;
 const AttachList = styled.div`display: flex; flex-direction: column; gap: 6px;`;
 const AttachRow = styled.div`
   display: grid; grid-template-columns: auto 1fr auto auto; gap: 10px;
@@ -911,8 +892,6 @@ const AttachAction = styled.a`
   transition: all 0.15s;
   &:hover { background: #F0FDFA; color: #0F766E; }
 `;
-const ChunkTitle = styled.div`color: #0F172A; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;`;
-const ChunkTokens = styled.div`color: #94A3B8; font-size: 11px;`;
 const Spacer = styled.div`flex: 1;`;
 const DangerBtn = styled.button`
   height: 34px; padding: 0 14px;

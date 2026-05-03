@@ -931,9 +931,11 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
               return (
                 <DangerSection>
                   {!deleteConfirmOpen ? (
-                    <ActionDanger onClick={() => setDeleteConfirmOpen(true)} disabled={deleting}>
-                      {t('detail.delete.button', '업무 삭제')}
-                    </ActionDanger>
+                    <DangerActionRow>
+                      <ActionDanger onClick={() => setDeleteConfirmOpen(true)} disabled={deleting}>
+                        {t('detail.delete.button', '업무 삭제')}
+                      </ActionDanger>
+                    </DangerActionRow>
                   ) : (
                     <DangerConfirm>
                       <DangerTitle>{t('detail.delete.confirmTitle', '정말 삭제하시겠습니까?')}</DangerTitle>
@@ -1146,6 +1148,7 @@ const DangerConfirm = styled.div`padding:12px;background:#FEF2F2;border:1px soli
 const DangerTitle = styled.div`font-size:13px;font-weight:700;color:#991B1B;`;
 const DangerBody = styled.div`font-size:12px;color:#7F1D1D;line-height:1.5;`;
 const DangerRow = styled.div`display:flex;gap:6px;justify-content:flex-end;`;
+const DangerActionRow = styled.div`display:flex;justify-content:flex-end;`;
 
 // History
 const Timeline = styled.div`display:flex;flex-direction:column;gap:8px;padding-left:6px;border-left:2px solid #E2E8F0;margin-top:6px;`;

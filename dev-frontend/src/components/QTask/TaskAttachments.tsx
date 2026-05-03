@@ -205,11 +205,15 @@ const Head = styled.div`display:flex;align-items:center;gap:8px;margin-bottom:8p
 const Title = styled.div`font-size:12px;font-weight:700;color:#64748B;flex:1;`;
 const Count = styled.span`color:#0F766E;font-weight:600;`;
 const AddBtn = styled.button`padding:4px 10px;font-size:11px;font-weight:600;color:#0F766E;background:#F0FDFA;border:1px solid #99F6E4;border-radius:6px;cursor:pointer;&:hover:not(:disabled){background:#CCFBF1;}&:disabled{opacity:0.5;cursor:not-allowed;}`;
+// KnowledgePage 새 지식 등록 폼과 동일 스타일 (UI 일관성)
 const Drop = styled.div<{$over:boolean}>`
-  border:1px dashed ${p => p.$over ? '#14B8A6' : '#E2E8F0'};
-  background:${p => p.$over ? '#F0FDFA' : '#FAFBFC'};
-  border-radius:8px;padding:10px;min-height:64px;
-  transition:background 0.15s, border-color 0.15s;
+  border: 2px dashed ${p => p.$over ? '#14B8A6' : '#CBD5E1'};
+  background: ${p => p.$over ? '#F0FDFA' : '#F8FAFC'};
+  border-radius: 12px;
+  padding: 16px;
+  min-height: 64px;
+  transition: background 0.15s, border-color 0.15s;
+  &:hover { border-color: #14B8A6; }
 `;
 const Dim = styled.div`font-size:12px;color:#94A3B8;text-align:center;padding:14px 0;`;
 const List = styled.div`display:flex;flex-direction:column;gap:6px;`;
