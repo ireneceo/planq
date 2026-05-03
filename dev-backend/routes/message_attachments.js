@@ -12,9 +12,10 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const { v4: uuidv4 } = require('uuid');
-const { Conversation, Message, MessageAttachment, BusinessMember, ConversationParticipant, File: FileModel } = require('../models');
+const { Conversation, Message, MessageAttachment, File: FileModel } = require('../models');
 const { authenticateToken } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
+const { canAccessConversation } = require('../middleware/access_scope');
 
 const UPLOAD_ROOT = path.join(__dirname, '..', 'uploads');
 if (!fs.existsSync(UPLOAD_ROOT)) fs.mkdirSync(UPLOAD_ROOT, { recursive: true });
@@ -51,15 +52,8 @@ const upload = multer({
 async function loadConversationAndGuard(req, res) {
   const conv = await Conversation.findByPk(req.params.conversationId);
   if (!conv) { errorResponse(res, 'conversation_not_found', 404); return null; }
-  const businessId = conv.business_id;
-  const isMember = await BusinessMember.findOne({ where: { user_id: req.user.id, business_id: businessId } });
-  let allowed = !!isMember;
-  if (!allowed) {
-    const participant = await ConversationParticipant.findOne({
-      where: { conversation_id: conv.id, user_id: req.user.id },
-    });
-    allowed = !!participant;
-  }
+  // member/owner/admin/platform_admin OR conversation participant OR matching client_id 통과
+  const allowed = await canAccessConversation(req.user.id, conv);
   if (!allowed) { errorResponse(res, 'forbidden', 403); return null; }
   req._conversation = conv;
   return conv;
@@ -200,15 +194,8 @@ router.get('/:id/download', authenticateToken, async (req, res, next) => {
     const conv = await Conversation.findByPk(msg.conversation_id);
     if (!conv) return errorResponse(res, 'not_found', 404);
 
-    // 권한 검증
-    const isMember = await BusinessMember.findOne({ where: { user_id: req.user.id, business_id: conv.business_id } });
-    let allowed = !!isMember;
-    if (!allowed) {
-      const participant = await ConversationParticipant.findOne({
-        where: { conversation_id: conv.id, user_id: req.user.id },
-      });
-      allowed = !!participant;
-    }
+    // 권한 검증 — access_scope 위임 (member OR participant OR matching client_id)
+    const allowed = await canAccessConversation(req.user.id, conv);
     if (!allowed) return errorResponse(res, 'forbidden', 403);
 
     const abs = path.join(__dirname, '..', att.file_path);

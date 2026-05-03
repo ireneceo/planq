@@ -14,7 +14,7 @@ const { Task, Business, Message, Conversation, KbDocument, AuditLog } = require(
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
 
-// LLM 호출 (gpt-4o-mini)
+// LLM 호출 (gpt-4o-mini) — 반환값에 token usage 포함 (cue_usage recordUsage 용)
 async function llm(system, user, maxTokens = 800) {
   if (!OPENAI_API_KEY) throw new Error('OPENAI_API_KEY missing');
   const r = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -35,7 +35,11 @@ async function llm(system, user, maxTokens = 800) {
     throw new Error(`LLM ${r.status}: ${t.slice(0, 200)}`);
   }
   const j = await r.json();
-  return (j.choices?.[0]?.message?.content || '').trim();
+  return {
+    content: (j.choices?.[0]?.message?.content || '').trim(),
+    input_tokens: j.usage?.prompt_tokens || 0,
+    output_tokens: j.usage?.completion_tokens || 0,
+  };
 }
 
 // HTML 으로 wrap (TipTap 호환)
@@ -58,12 +62,12 @@ async function execSummarize(task) {
   if (seed.trim().length < 30) {
     return { ok: false, reason: 'no_content_to_summarize' };
   }
-  const out = await llm(
+  const r = await llm(
     '너는 회의 요약 전문가. 핵심 결정·액션 아이템·리스크를 3개 bullet 으로 요약. 한국어.',
     `다음 내용을 요약하세요.\n\n${seed}`,
     600,
   );
-  return { ok: true, body: htmlWrap(`# 자동 요약\n\n${out}`) };
+  return { ok: true, body: htmlWrap(`# 자동 요약\n\n${r.content}`), input_tokens: r.input_tokens, output_tokens: r.output_tokens };
 }
 
 async function execDraftReply(task) {
@@ -82,23 +86,23 @@ async function execDraftReply(task) {
   if (messages.length === 0) return { ok: false, reason: 'no_messages' };
   const conversation = messages.reverse().map(m => `${m.is_ai ? 'Cue' : '고객'}: ${m.content}`).join('\n');
 
-  const out = await llm(
+  const r = await llm(
     '너는 친절한 고객 응대 담당자. 정확하고 전문적이며 짧고 명확한 답장 초안. 한국어. 3~5문장.',
     `다음 대화에 대한 답장 초안을 작성하세요. 업무 지시: "${task.title}"\n\n${conversation}`,
     500,
   );
-  return { ok: true, body: htmlWrap(`# 답장 초안\n\n${out}`) };
+  return { ok: true, body: htmlWrap(`# 답장 초안\n\n${r.content}`), input_tokens: r.input_tokens, output_tokens: r.output_tokens };
 }
 
 async function execCategorize(task) {
   // task.title + body → 카테고리 + 태그 추천
   const text = `${task.title}\n\n${(task.body || '').replace(/<[^>]+>/g, ' ').slice(0, 2000)}`;
-  const out = await llm(
+  const r = await llm(
     '너는 분류 전문가. JSON 만 출력. 형식: {"category":"...","tags":["...","..."]}',
     `다음 업무를 분류하고 태그를 추천하세요.\n\n${text}`,
     200,
   );
-  return { ok: true, body: htmlWrap(`# 자동 분류\n\n${out}`) };
+  return { ok: true, body: htmlWrap(`# 자동 분류\n\n${r.content}`), input_tokens: r.input_tokens, output_tokens: r.output_tokens };
 }
 
 async function execResearch(task) {
@@ -109,12 +113,12 @@ async function execResearch(task) {
   if (results?.kb_chunks?.length) {
     context = results.kb_chunks.map(c => `- ${c.content?.slice(0, 200)}`).join('\n');
   }
-  const out = await llm(
+  const r = await llm(
     '너는 자료 조사 전문가. KB 자료를 인용하며 답변. 출처 없으면 솔직히 "자료 부족" 명시.',
     `질문: ${task.title}\n\n참조 자료:\n${context || '(없음)'}\n\n답변을 정리하세요.`,
     600,
   );
-  return { ok: true, body: htmlWrap(`# 자료 조사\n\n${out}`) };
+  return { ok: true, body: htmlWrap(`# 자료 조사\n\n${r.content}`), input_tokens: r.input_tokens, output_tokens: r.output_tokens };
 }
 
 // ─── 메인 entrypoint ──────────────────────────────────────
@@ -129,6 +133,20 @@ async function executeForTask(taskId) {
   if (!biz?.cue_user_id || biz.cue_user_id !== task.assignee_id) {
     return { ok: false, reason: 'assignee_not_cue' };
   }
+
+  // 워크스페이스 월 Cue 한도 검사 — 초과 시 실행 skip (인박스 누적 방지)
+  const cueOrch = require('./cue_orchestrator');
+  try {
+    const usage = await cueOrch.checkUsageLimit(biz.id);
+    if (usage.over) {
+      await AuditLog.create({
+        user_id: biz.cue_user_id, business_id: biz.id,
+        action: 'cue.task_skipped_limit', target_type: 'Task', target_id: task.id,
+        new_value: { reason: 'usage_limit_exceeded', total: usage.total, limit: usage.limit },
+      }).catch(() => null);
+      return { ok: false, reason: 'usage_limit_exceeded', usage };
+    }
+  } catch { /* checkUsageLimit 실패 시 통과 (best-effort) */ }
 
   let result;
   try {
@@ -172,13 +190,20 @@ async function executeForTask(taskId) {
     progress_percent: 100,
   });
 
+  // cue_usage 기록 — task_execute 카테고리 (메모 project_cue_teammate.md: task 실행 = 3 액션)
+  // recordUsage 가 action_count 1 증가시키므로, task_execute 정책상 더 가중치가 필요하면
+  // 별도 multiplier 는 1.x 에서 도입. 첫 출시는 1 액션 = 1 호출 단순 규칙.
+  try {
+    await cueOrch.recordUsage(biz.id, 'task_execute', 'gpt-4o-mini', result.input_tokens || 0, result.output_tokens || 0);
+  } catch (e) { console.warn('[cue_task_executor] recordUsage failed', e.message); }
+
   await AuditLog.create({
     user_id: biz.cue_user_id,
     business_id: task.business_id,
     action: 'cue.task_executed',
     target_type: 'Task',
     target_id: task.id,
-    new_value: { kind: task.cue_kind, body_len: result.body.length },
+    new_value: { kind: task.cue_kind, body_len: result.body.length, input_tokens: result.input_tokens, output_tokens: result.output_tokens },
   }).catch(() => null);
 
   return { ok: true, task_id: task.id, status: 'reviewing' };
