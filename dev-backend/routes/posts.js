@@ -275,6 +275,12 @@ router.post('/', authenticateToken, async (req, res, next) => {
     if (post.project_id) {
       require('../services/projectStageEngine').onPostChanged(post.id).catch(() => null);
     }
+    require('../services/auditService').logAudit(req, {
+      action: 'post.create',
+      targetType: 'post',
+      targetId: post.id,
+      newValue: { title: post.title, category: post.category, status: post.status, project_id: post.project_id },
+    });
     successResponse(res, serialize(full, true), 'Post created', 201);
   } catch (err) { next(err); }
 });
@@ -328,7 +334,15 @@ router.put('/:id', authenticateToken, async (req, res, next) => {
       }
     }
     patch.editor_id = req.user.id;
+    const oldSnapshot = { title: post.title, category: post.category, status: post.status, project_id: post.project_id, is_pinned: post.is_pinned };
     await post.update(patch);
+    require('../services/auditService').logAudit(req, {
+      action: 'post.update',
+      targetType: 'post',
+      targetId: post.id,
+      oldValue: oldSnapshot,
+      newValue: { ...oldSnapshot, ...patch, content_json: undefined, content_text: undefined },  // 본문은 audit 에 안 담음 (revision 별도)
+    });
     const full = await Post.findByPk(post.id, {
       include: [
         { model: User, as: 'author', attributes: ['id', 'name', 'name_localized'] },
@@ -363,8 +377,16 @@ router.delete('/:id', authenticateToken, async (req, res, next) => {
     if (!isAuthor && !isOwner && !isPlatformAdmin) {
       return errorResponse(res, '작성자 또는 오너만 문서를 삭제할 수 있습니다', 403);
     }
+    const snapshot = { title: post.title, category: post.category, status: post.status, project_id: post.project_id };
     await PostAttachment.destroy({ where: { post_id: post.id } });
     await post.destroy();
+    require('../services/auditService').logAudit(req, {
+      action: 'post.delete',
+      targetType: 'post',
+      targetId: post.id,
+      businessId: post.business_id,
+      oldValue: snapshot,
+    });
     successResponse(res, null, 'Post deleted');
   } catch (err) { next(err); }
 });

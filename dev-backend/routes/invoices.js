@@ -678,6 +678,12 @@ router.post('/:businessId/:id/installments/:installId/mark-paid', authenticateTo
     if (newStatus === 'paid') {
       require('../services/overdue_handler').unpauseProjectIfApplicable(refreshed).catch(() => null);
     }
+    require('../services/auditService').logAudit(req, {
+      action: 'invoice.installment.mark_paid',
+      targetType: 'invoice_installment',
+      targetId: inst.id,
+      newValue: { invoice_id: invoice.id, installment_no: inst.installment_no, paid_at: paidAt, payer_memo: memo, invoice_status: newStatus },
+    });
     successResponse(res, refreshed, 'Installment paid');
   } catch (error) { try { await t.rollback(); } catch {} next(error); }
 });
@@ -713,6 +719,12 @@ router.post('/:businessId/:id/installments/:installId/unmark-paid', authenticate
     const io = req.app.get('io');
     if (io) io.to(`business:${invoice.business_id}`).emit('inbox:refresh', { reason: 'installment_unpaid', invoice_id: invoice.id });
     if (refreshed?.project_id) require('../services/projectStageEngine').onInvoiceChanged(refreshed.id).catch(() => null);
+    require('../services/auditService').logAudit(req, {
+      action: 'invoice.installment.unmark_paid',
+      targetType: 'invoice_installment',
+      targetId: inst.id,
+      newValue: { invoice_id: invoice.id, installment_no: inst.installment_no, invoice_status: newStatus },
+    });
     successResponse(res, refreshed, 'Installment payment unmarked');
   } catch (error) { try { await t.rollback(); } catch {} next(error); }
 });
@@ -797,6 +809,7 @@ router.patch('/:businessId/:id/status', authenticateToken, checkBusinessAccess, 
       return errorResponse(res, 'Invalid status', 400);
     }
 
+    const prevStatus = invoice.status;
     const updates = { status };
     if (status === 'sent' && !invoice.sent_at) {
       updates.sent_at = new Date();
@@ -806,6 +819,14 @@ router.patch('/:businessId/:id/status', authenticateToken, checkBusinessAccess, 
     if (status === 'canceled') updates.paid_at = null;
 
     await invoice.update(updates);
+
+    require('../services/auditService').logAudit(req, {
+      action: 'invoice.status.change',
+      targetType: 'invoice',
+      targetId: invoice.id,
+      oldValue: { status: prevStatus },
+      newValue: { status },
+    });
 
     // 채팅 카드 동기 (단일 발행 청구서의 PATCH status 도 카드 갱신)
     await updateInvoiceChatCards(invoice.id, {
