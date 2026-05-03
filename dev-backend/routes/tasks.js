@@ -473,7 +473,13 @@ router.get('/by-business/:businessId', authenticateToken, async (req, res, next)
     if (req.query.status) where.status = req.query.status;
     if (req.query.assignee_id) where.assignee_id = Number(req.query.assignee_id);
 
-    const tasks = await Task.findAll({
+    // Pagination — 누적 task 1000+ 시 전체 응답 폭발 방지.
+    // 클라이언트 호환: limit 미지정이면 기본 500 (현재 프론트는 전체 받아 클라이언트 필터링 — 단계적 전환 위해 큰 default).
+    // 1.x 에서 cursor 기반(due_date+id) 으로 전환 예정. 이번 패치는 hard cap.
+    const limit = Math.min(1000, Math.max(1, parseInt(req.query.limit, 10) || 500));
+    const offset = Math.max(0, parseInt(req.query.offset, 10) || 0);
+
+    const { rows, count } = await Task.findAndCountAll({
       where,
       include: [
         { model: User, as: 'assignee', attributes: ['id', 'name', 'email', 'name_localized'] },
@@ -481,8 +487,14 @@ router.get('/by-business/:businessId', authenticateToken, async (req, res, next)
         { model: Project, attributes: ['id', 'name'], required: false },
       ],
       order: [['created_at', 'DESC']],
+      limit,
+      offset,
+      distinct: true,
     });
-    return successResponse(res, tasks.map(t => t.toJSON()));
+    res.set('X-Total-Count', String(count));
+    res.set('X-Limit', String(limit));
+    res.set('X-Offset', String(offset));
+    return successResponse(res, rows.map(t => t.toJSON()));
   } catch (err) { next(err); }
 });
 

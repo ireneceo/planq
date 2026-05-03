@@ -119,15 +119,20 @@ async function billOneProject(project, today = new Date()) {
     sort_order: 0,
   });
 
-  // 자동 발행: client 에게 이메일 + PDF
-  let emailResult = null;
+  // 자동 발행/검토 알림 — 메인 cron 흐름 차단 방지 위해 fan-out 은 setImmediate.
+  // 결과 추적은 EmailLog (best-effort recordLog) 와 console.warn 으로. cron 응답 시간이
+  // SMTP/알림 처리 시간과 무관해야 다음 프로젝트 청구가 안 막힘.
+  const emailResult = isAuto ? 'queued' : 'draft_notified';
   if (isAuto) {
-    try {
-      const { sendInvoiceEmail } = require('./emailService');
-      const recipient = client.tax_invoice_email || client.billing_contact_email || client.invite_email;
-      if (recipient) {
+    setImmediate(async () => {
+      try {
+        const { sendInvoiceEmail } = require('./emailService');
+        const recipient = client.tax_invoice_email || client.billing_contact_email || client.invite_email;
+        if (!recipient) {
+          console.warn('[recurring_invoice email] proj', project.id, 'no recipient');
+          return;
+        }
         const shareUrl = `${process.env.APP_URL || 'https://dev.planq.kr'}/invoice/${shareToken}`;
-        // PDF 첨부 (best-effort)
         let attachments = null;
         try {
           const { buildInvoicePdf } = require('./pdfBuilder');
@@ -136,8 +141,7 @@ async function billOneProject(project, today = new Date()) {
             attachments = [{ filename: `${invoiceNumber}.pdf`, content: pdf, contentType: 'application/pdf' }];
           }
         } catch { /* pdf 미지원 — 이메일만 */ }
-
-        emailResult = await sendInvoiceEmail({
+        await sendInvoiceEmail({
           to: recipient,
           invoiceNumber,
           title: invoice.title,
@@ -152,35 +156,33 @@ async function billOneProject(project, today = new Date()) {
           fromName: business.mail_from_name || business.brand_name || business.name || null,
           replyTo: business.mail_reply_to || null,
         });
-      } else {
-        emailResult = false; // recipient 없음
+      } catch (e) {
+        console.warn('[recurring_invoice email async] proj', project.id, e.message);
       }
-    } catch (e) {
-      console.warn('[recurring_invoice email] proj', project.id, e.message);
-      emailResult = false;
-    }
+    });
   } else {
-    // draft_review: 워크스페이스 owner + 멤버 (financial 권한) 에 검토 알림
-    try {
-      const members = await BusinessMember.findAll({
-        where: { business_id: project.business_id, removed_at: null, role: { [Op.in]: ['owner', 'admin', 'member'] } },
-        attributes: ['user_id'],
-      });
-      const userIds = members.map((m) => m.user_id);
-      const { notifyMany } = require('../routes/notifications');
-      await notifyMany({
-        userIds,
-        businessId: project.business_id,
-        eventKind: 'invoice',
-        title: '정기 청구서 검토 요청',
-        body: `${project.name} ${ym} 월 사용료 초안이 생성되었습니다. 검토 후 발송해주세요.`,
-        link: `${process.env.APP_URL || 'https://dev.planq.kr'}/q-bill?invoice=${invoice.id}`,
-        ctaLabel: '검토하기',
-        workspaceName: business.brand_name || business.name || null,
-      });
-    } catch (e) {
-      console.warn('[recurring_invoice notify draft] proj', project.id, e.message);
-    }
+    setImmediate(async () => {
+      try {
+        const members = await BusinessMember.findAll({
+          where: { business_id: project.business_id, removed_at: null, role: { [Op.in]: ['owner', 'admin', 'member'] } },
+          attributes: ['user_id'],
+        });
+        const userIds = members.map((m) => m.user_id);
+        const { notifyMany } = require('../routes/notifications');
+        await notifyMany({
+          userIds,
+          businessId: project.business_id,
+          eventKind: 'invoice',
+          title: '정기 청구서 검토 요청',
+          body: `${project.name} ${ym} 월 사용료 초안이 생성되었습니다. 검토 후 발송해주세요.`,
+          link: `${process.env.APP_URL || 'https://dev.planq.kr'}/q-bill?invoice=${invoice.id}`,
+          ctaLabel: '검토하기',
+          workspaceName: business.brand_name || business.name || null,
+        });
+      } catch (e) {
+        console.warn('[recurring_invoice notify async] proj', project.id, e.message);
+      }
+    });
   }
 
   await project.update({ last_auto_invoice_at: new Date() });
