@@ -267,8 +267,15 @@ async function hybridSearch(businessId, query, opts = {}) {
 async function extractTags(docId) {
   const doc = await KbDocument.findByPk(docId);
   if (!doc) return;
-  if (!OPENAI_API_KEY) {
-    // fallback: 본문 빈도 기반 간단 추출
+  // 워크스페이스 Cue 한도 검사 — abuse 방지 (대량 KB 등록 시 무제한 LLM 호출 차단).
+  // 한도 초과 또는 OPENAI 미설정 시 본문 빈도 기반 fallback.
+  let overLimit = false;
+  try {
+    const cueOrch = require('./cue_orchestrator');
+    const usage = await cueOrch.checkUsageLimit(doc.business_id);
+    overLimit = usage.over;
+  } catch { /* checkUsageLimit 실패 시 통과 (best-effort) */ }
+  if (!OPENAI_API_KEY || overLimit) {
     const tags = simpleKeywordExtract(`${doc.title || ''}\n${doc.body || ''}`);
     if (tags.length) await doc.update({ tags });
     return;
@@ -306,6 +313,13 @@ async function extractTags(docId) {
     } catch (e) { console.warn('[kb_service] tag parse failed', e.message); }
     tags = tags.filter(t => typeof t === 'string').map(t => String(t).trim().slice(0, 40)).filter(Boolean).slice(0, 8);
     if (tags.length) await doc.update({ tags });
+    // 사용량 기록 — Cue 월 한도와 같은 카운터 (kb_embed 카테고리)
+    try {
+      const cueOrch = require('./cue_orchestrator');
+      const inputTokens = data.usage?.prompt_tokens || 0;
+      const outputTokens = data.usage?.completion_tokens || 0;
+      await cueOrch.recordUsage(doc.business_id, 'kb_embed', 'gpt-4o-mini', inputTokens, outputTokens);
+    } catch (e) { console.warn('[kb_service] recordUsage failed', e.message); }
   } catch (err) {
     console.warn('[kb_service] extractTags error', err.message);
   }
