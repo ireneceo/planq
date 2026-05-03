@@ -169,10 +169,6 @@
     "aiFailed": "AI generation failed. Please try again shortly.",
     "noTemplates": "No templates available"
   },
-  "common": {
-    "loading": "Loading...",
-    "cancel": "Cancel"
-  },
   "templates": {
     "btn": "Templates",
     "openHint": "Start from one of 5 templates (quote/invoice/NDA/proposal/meeting)",
@@ -403,7 +399,9 @@
     "linkError": "Link update failed"
   },
   "common": {
-    "close": "Close"
+    "cancel": "Cancel",
+    "close": "Close",
+    "loading": "Loading..."
   },
   "saveTpl": {
     "title": "Save as template",

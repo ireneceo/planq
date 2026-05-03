@@ -710,7 +710,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
                         <AttachName href={a.file?.download_url || '#'} target="_blank" rel="noreferrer">
                           {a.file?.file_name || '—'}
                         </AttachName>
-                        <RemoveBtn type="button" onClick={() => detachOne(a.id)} title="제거" aria-label="제거">×</RemoveBtn>
+                        <RemoveBtn type="button" onClick={() => detachOne(a.id)} title={t('actions.remove', '제거') as string} aria-label={t('actions.remove', '제거') as string}>×</RemoveBtn>
                       </AttachRow>
                     ))}
                   </AttachList>
@@ -834,7 +834,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
                         <AttachName href={a.file?.download_url || '#'} target="_blank" rel="noreferrer">
                           {a.file?.file_name || '—'}
                         </AttachName>
-                        <RemoveBtn type="button" onClick={() => detachOne(a.id)} title="제거" aria-label="제거">×</RemoveBtn>
+                        <RemoveBtn type="button" onClick={() => detachOne(a.id)} title={t('actions.remove', '제거') as string} aria-label={t('actions.remove', '제거') as string}>×</RemoveBtn>
                       </AttachRow>
                     ))}
                   </AttachList>
