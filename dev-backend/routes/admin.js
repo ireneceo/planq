@@ -3,7 +3,7 @@
 const express = require('express');
 const router = express.Router();
 const { Op } = require('sequelize');
-const { Business, BusinessMember, User, BusinessPlanHistory } = require('../models');
+const { Business, BusinessMember, User, BusinessPlanHistory, PlatformSetting } = require('../models');
 const { authenticateToken, requireRole } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const planEngine = require('../services/plan');
@@ -216,6 +216,51 @@ router.post('/email-logs/:id/retry', async (req, res, next) => {
     if (!log.template) return errorResponse(res, 'manual_retry_unsupported', 400);
     await log.update({ retry_count: log.retry_count + 1 });
     return successResponse(res, log.toJSON(), 'retry_queued');
+  } catch (err) { next(err); }
+});
+
+// ─── 플랫폼 설정 (브랜드·법인·지원 메일·로고 등) — DB 단일 row ───
+// .env 의 PLATFORM_*, EMAIL_LOGO_URL 대체. emailService 가 5분 캐시로 조회.
+
+// GET /api/admin/platform-settings — 현재 row 조회 (없으면 빈 객체 반환, 클라가 PUT 으로 생성)
+router.get('/platform-settings', async (req, res, next) => {
+  try {
+    const row = await PlatformSetting.findOne({ order: [['id', 'ASC']] });
+    return successResponse(res, row ? row.toJSON() : null);
+  } catch (err) { next(err); }
+});
+
+// PUT /api/admin/platform-settings — 단일 row upsert. body: { brand, tagline, website, support_email, legal_entity, email_logo_url }
+router.put('/platform-settings', async (req, res, next) => {
+  try {
+    const { brand, tagline, website, support_email, legal_entity, email_logo_url } = req.body || {};
+    if (brand !== undefined && (!String(brand).trim() || String(brand).length > 100)) {
+      return errorResponse(res, 'brand_invalid', 400);
+    }
+    const updates = {
+      ...(brand !== undefined ? { brand: String(brand).trim() } : {}),
+      ...(tagline !== undefined ? { tagline: tagline ? String(tagline).slice(0, 300) : null } : {}),
+      ...(website !== undefined ? { website: website ? String(website).slice(0, 300) : null } : {}),
+      ...(support_email !== undefined ? { support_email: support_email ? String(support_email).slice(0, 200) : null } : {}),
+      ...(legal_entity !== undefined ? { legal_entity: legal_entity ? String(legal_entity).slice(0, 100) : null } : {}),
+      ...(email_logo_url !== undefined ? { email_logo_url: email_logo_url ? String(email_logo_url).slice(0, 500) : null } : {}),
+      updated_by_user_id: req.user.id,
+    };
+    let row = await PlatformSetting.findOne({ order: [['id', 'ASC']] });
+    if (row) {
+      await row.update(updates);
+    } else {
+      row = await PlatformSetting.create({ brand: updates.brand || 'PlanQ', ...updates });
+    }
+    // emailService 캐시 무효화
+    try { require('../services/emailService').invalidatePlatformCache?.(); } catch { /* */ }
+    require('../services/auditService').logAudit(req, {
+      action: 'platform_settings.update',
+      targetType: 'platform_setting',
+      targetId: row.id,
+      newValue: updates,
+    });
+    return successResponse(res, row.toJSON(), 'updated');
   } catch (err) { next(err); }
 });
 

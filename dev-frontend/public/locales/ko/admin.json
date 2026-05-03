@@ -1,4 +1,15 @@
 {
+  "platform": {
+    "title": "플랫폼 설정",
+    "hint": "PlanQ 운영자(워프로랩) 정보입니다. 메일 푸터·법적 표기·지원 메일 등에 사용됩니다. 변경 시 자동 저장되며, 메일 발송에는 5분 캐시 후 반영됩니다.",
+    "brand": "브랜드명",
+    "tagline": "슬로건",
+    "website": "웹사이트",
+    "support_email": "지원 메일",
+    "legal_entity": "법인명",
+    "email_logo_url": "메일 로고 URL",
+    "email_logo_hint": "비우면 기본 로고 사용 (cid 인라인 첨부)"
+  },
   "page": {
     "title": "워크스페이스 관리",
     "desc": "플랫폼 관리자 전용 — 플랜 수동 조정, 체험 기간 연장, 변경 이력 조회",

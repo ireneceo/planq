@@ -25,6 +25,7 @@ import QFilePage from './pages/QFile/QFilePage';
 import AdminBusinessesPage from './pages/Admin/AdminBusinessesPage';
 import AdminFeedbackPage from './pages/Admin/AdminFeedbackPage';
 import AdminEmailLogsPage from './pages/Admin/AdminEmailLogsPage';
+import AdminPlatformSettingsPage from './pages/Admin/AdminPlatformSettingsPage';
 import ShareReceivePage from './pages/ShareReceive/ShareReceivePage';
 import InsightsPage from './pages/Insights/InsightsPage';
 import PrivacyPolicy from './pages/Legal/PrivacyPolicy';
@@ -244,6 +245,11 @@ function App() {
         <Route path="/admin/email-logs" element={
           <ProtectedRoute requiredRole={['platform_admin']}>
             <MainLayout><AdminEmailLogsPage /></MainLayout>
+          </ProtectedRoute>
+        } />
+        <Route path="/admin/platform-settings" element={
+          <ProtectedRoute requiredRole={['platform_admin']}>
+            <MainLayout><AdminPlatformSettingsPage /></MainLayout>
           </ProtectedRoute>
         } />
         <Route path="/admin/*" element={
