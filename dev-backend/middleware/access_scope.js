@@ -93,6 +93,23 @@ function isMemberOrAbove(scope) {
   return !!(scope?.isPlatformAdmin || scope?.isOwner || scope?.isMember);
 }
 
+// member 이상 boolean 가드 — 라우트의 인라인 BusinessMember.findOne 패턴 통일용.
+// posts.js / docs.js 의 자체 assertMember/assertBusinessAccess 와 동일 로직 + Business.owner_id fallback.
+// 사용: if (!(await assertMemberOrAbove(req.user.id, businessId, req.user.platform_role))) return 403;
+async function assertMemberOrAbove(userId, businessId, platformRole) {
+  if (platformRole === 'platform_admin') return true;
+  if (!userId || !businessId) return false;
+  const bm = await BusinessMember.findOne({
+    where: { user_id: userId, business_id: businessId },
+    attributes: ['role'],
+  });
+  if (bm && (bm.role === 'owner' || bm.role === 'member' || bm.role === 'admin' || bm.role === 'ai')) return true;
+  // Fallback: Business.owner_id 직접 매칭 (BusinessMember 자동 생성 누락 케이스 대비)
+  const { Business } = require('../models');
+  const biz = await Business.findOne({ where: { id: businessId, owner_id: userId }, attributes: ['id'] });
+  return !!biz;
+}
+
 // ─────────────────────────────────────────────
 // Conversation
 // ─────────────────────────────────────────────
@@ -301,6 +318,7 @@ function attachWorkspaceScope(opts = {}) {
 module.exports = {
   getUserScope,
   assertWorkspaceAccess,
+  assertMemberOrAbove,
   isMemberOrAbove,
   attachWorkspaceScope,
   canAccessConversation,
