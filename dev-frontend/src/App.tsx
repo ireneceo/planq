@@ -17,6 +17,7 @@ import ClientsPage from './pages/Clients/ClientsPage';
 import InvitePage from './pages/Invite/InvitePage';
 import QCalendarPage from './pages/QCalendar/QCalendarPage';
 import QDocsPage from './pages/QDocs/QDocsPage';
+import BriefViewerPage from './pages/QDocs/BriefViewerPage';
 import ReceivedSignaturesPage from './pages/Signatures/ReceivedSignaturesPage';
 import PublicDocPage from './pages/QDocs/PublicDocPage';
 import PublicPostPage from './pages/QDocs/PublicPostPage';
@@ -189,6 +190,13 @@ function App() {
         <Route path="/docs" element={
           <ProtectedRoute>
             <MainLayout><QDocsPage /></MainLayout>
+          </ProtectedRoute>
+        } />
+
+        {/* 자료정리 (Brief) 결과 뷰어 — 시점/자료별 토글 + 추천 후속 문서 CTA */}
+        <Route path="/docs/brief/:id" element={
+          <ProtectedRoute>
+            <MainLayout><BriefViewerPage /></MainLayout>
           </ProtectedRoute>
         } />
 

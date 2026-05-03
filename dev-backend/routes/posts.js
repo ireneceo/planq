@@ -84,6 +84,9 @@ function serialize(p, withContent = false) {
     share_token: p.share_token || null,
     share_url: p.share_token ? `${APP_URL}/public/posts/${p.share_token}` : null,
     shared_at: p.shared_at || null,
+    // 자료정리 메타 (category='brief' 인 post 만 채워짐). BriefViewer 가 사용
+    brief_meta: p.brief_meta || null,
+    parent_post_id: p.parent_post_id || null,
     created_at: p.created_at,
     updated_at: p.updated_at,
     content_preview: (p.content_text || '').slice(0, 200),
