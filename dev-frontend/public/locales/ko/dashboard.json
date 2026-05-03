@@ -33,6 +33,7 @@
     "title": "확인 필요",
     "count": "총 {{count}}건",
     "signaturesArchive": "받은 서명 archive",
+    "signaturesHint": "여기에는 액션 필요한 서명만 보여요. 전체 history 는",
     "tab": {
       "all": "전체",
       "work": "업무",
