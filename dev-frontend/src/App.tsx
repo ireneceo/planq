@@ -17,6 +17,7 @@ import ClientsPage from './pages/Clients/ClientsPage';
 import InvitePage from './pages/Invite/InvitePage';
 import QCalendarPage from './pages/QCalendar/QCalendarPage';
 import QDocsPage from './pages/QDocs/QDocsPage';
+import ReceivedSignaturesPage from './pages/Signatures/ReceivedSignaturesPage';
 import PublicDocPage from './pages/QDocs/PublicDocPage';
 import PublicPostPage from './pages/QDocs/PublicPostPage';
 import PublicSignPage from './pages/QDocs/PublicSignPage';
@@ -188,6 +189,13 @@ function App() {
         <Route path="/docs" element={
           <ProtectedRoute>
             <MainLayout><QDocsPage /></MainLayout>
+          </ProtectedRoute>
+        } />
+
+        {/* 받은 서명 archive — 이전 /docs?tab=received-signatures 에서 분리 (2026-05-03) */}
+        <Route path="/signatures/received" element={
+          <ProtectedRoute>
+            <MainLayout><ReceivedSignaturesPage /></MainLayout>
           </ProtectedRoute>
         } />
 
