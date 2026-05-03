@@ -38,17 +38,24 @@ async function handleOverdueInvoice(invoice, today = new Date()) {
   const wsName = business.brand_name || business.name || null;
   const invLink = `${process.env.APP_URL || 'https://dev.planq.kr'}/q-bill?invoice=${invoice.id}`;
 
-  // 워크스페이스 멤버 알림 보내기 helper
-  const notifyMembers = async (eventKind, title, body, link, ctaLabel) => {
-    const members = await BusinessMember.findAll({
-      where: { business_id: invoice.business_id, removed_at: null, role: { [Op.in]: ['owner', 'admin', 'member'] } },
-      attributes: ['user_id'],
-    });
-    const userIds = members.map((m) => m.user_id);
-    const { notifyMany } = require('../routes/notifications');
-    await notifyMany({
-      userIds, businessId: invoice.business_id, eventKind,
-      title, body, link, ctaLabel, workspaceName: wsName,
+  // 워크스페이스 멤버 알림 — fan-out 은 setImmediate fire-and-forget.
+  // overdue cron 메인 흐름이 한 invoice 의 알림 처리 시간만큼 막히지 않게.
+  const notifyMembers = (eventKind, title, body, link, ctaLabel) => {
+    setImmediate(async () => {
+      try {
+        const members = await BusinessMember.findAll({
+          where: { business_id: invoice.business_id, removed_at: null, role: { [Op.in]: ['owner', 'admin', 'member'] } },
+          attributes: ['user_id'],
+        });
+        const userIds = members.map((m) => m.user_id);
+        const { notifyMany } = require('../routes/notifications');
+        await notifyMany({
+          userIds, businessId: invoice.business_id, eventKind,
+          title, body, link, ctaLabel, workspaceName: wsName,
+        });
+      } catch (e) {
+        console.warn('[overdue notifyMembers async] invoice', invoice.id, e.message);
+      }
     });
   };
 
@@ -96,7 +103,7 @@ async function handleOverdueInvoice(invoice, today = new Date()) {
     meta.last_overdue_notify_stage = 'paused';
     meta.paused_due_to_invoice = invoice.id;
     await invoice.update({ meta, status: 'overdue' });
-    await notifyMembers(
+    notifyMembers(
       'invoice',
       '프로젝트 자동 정지',
       `"${project.name}" 프로젝트가 ${daysOverdue}일 연체로 자동 정지되었습니다. 결제 마킹 시 즉시 재개됩니다.`,
@@ -114,7 +121,7 @@ async function handleOverdueInvoice(invoice, today = new Date()) {
     meta.last_overdue_notify_stage = 'stage2';
     await invoice.update({ meta, status: 'overdue' });
     const remaining = Math.max(0, graceDays - daysOverdue);
-    await notifyMembers(
+    notifyMembers(
       'invoice',
       `청구서 연체 ${daysOverdue}일 — 정지까지 ${remaining}일`,
       `${invoice.invoice_number} 결제가 ${daysOverdue}일 늦어지고 있습니다. ${remaining}일 후 자동 정지됩니다.`,
@@ -131,7 +138,7 @@ async function handleOverdueInvoice(invoice, today = new Date()) {
     actionTaken = 'stage1';
     meta.last_overdue_notify_stage = 'stage1';
     await invoice.update({ meta, status: 'overdue' });
-    await notifyMembers(
+    notifyMembers(
       'invoice',
       '청구서 연체 시작',
       `${invoice.invoice_number} 결제 기한 ${String(invoice.due_date).slice(0,10)} 이 지났습니다.`,

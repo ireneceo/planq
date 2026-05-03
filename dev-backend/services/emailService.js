@@ -41,6 +41,13 @@ const getTransporter = () => {
       user: process.env.SMTP_USER,
       pass: process.env.SMTP_PASSWORD,
     },
+    // 외부 SMTP 가 hang 시 cron/요청 무한 대기 방지
+    connectionTimeout: 10_000,
+    greetingTimeout: 10_000,
+    socketTimeout: 30_000,
+    pool: true,
+    maxConnections: 5,
+    maxMessages: 100,
   });
   return transporter;
 };

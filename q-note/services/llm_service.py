@@ -33,7 +33,8 @@ def get_client() -> AsyncOpenAI:
   if _client is None:
     if not OPENAI_API_KEY:
       raise RuntimeError('OPENAI_API_KEY not configured')
-    _client = AsyncOpenAI(api_key=OPENAI_API_KEY)
+    # OpenAI 응답 hang 시 q-note 요청 무한 대기 방지 — 30초 hard timeout, 1회 자동 retry
+    _client = AsyncOpenAI(api_key=OPENAI_API_KEY, timeout=30.0, max_retries=1)
   return _client
 
 
