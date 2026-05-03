@@ -1,24 +1,14 @@
-const AuditLog = require('../models/AuditLog');
+// 단일 audit helper 모듈 — services/auditService.js 로 통합 (2026-05-03).
+//
+// 기존 호출처 (cue_orchestrator, conversations, signatures) 의 import 경로 호환을 위해
+// 얇은 re-export 만 유지. 신규 코드는 services/auditService 의 logAudit (req 자동 추출)
+// 또는 createAuditLog 직접 사용.
+//
+// 차이 (이전 → 이후):
+//   - await createAuditLog(...) — 동작 동일. 내부에서 setImmediate fire-and-forget 으로 변경 → 메인 흐름 차단 X
+//   - sensitive 키 (password/token/otp/api_key) 자동 마스킹 추가
+//   - metadata 옵션 → new_value 에 합쳐 저장
 
-// camelCase / snake_case / entity_* 호환 — 기존 코드 모두 수용
-const createAuditLog = async (opts = {}) => {
-  try {
-    const user_id = opts.userId ?? opts.user_id ?? null;
-    const business_id = opts.businessId ?? opts.business_id ?? null;
-    const target_type = opts.targetType ?? opts.target_type ?? opts.entity_type ?? null;
-    const target_id = opts.targetId ?? opts.target_id ?? opts.entity_id ?? null;
-    const action = opts.action;
-    const old_value = opts.oldValue ?? opts.old_value ?? null;
-    const new_value = opts.newValue ?? opts.new_value ?? null;
-    const ip_address = opts.ipAddress ?? opts.ip_address ?? null;
-    if (!action || !target_type) {
-      console.error('Audit log missing action/target_type', { action, target_type });
-      return;
-    }
-    await AuditLog.create({ user_id, business_id, action, target_type, target_id, old_value, new_value, ip_address });
-  } catch (error) {
-    console.error('Audit log creation failed:', error.message);
-  }
-};
+const { createAuditLog } = require('../services/auditService');
 
 module.exports = { createAuditLog };
