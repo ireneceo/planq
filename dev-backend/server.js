@@ -25,7 +25,7 @@ const jwt = require('jsonwebtoken');
 const cookieParser = require('cookie-parser');
 const { Server } = require('socket.io');
 const { setupSecurity } = require('./middleware/security');
-const { errorHandler } = require('./middleware/errorHandler');
+const { errorHandler, requestIdMiddleware } = require('./middleware/errorHandler');
 
 const app = express();
 
@@ -160,12 +160,37 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(cookieParser());
 
+// 모든 요청에 request_id 부여 — 사용자 신고 → 로그 매칭. response 에 X-Request-Id 헤더.
+app.use(requestIdMiddleware);
+
 // Security
 setupSecurity(app);
 
-// Health check
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', service: 'planq', timestamp: new Date().toISOString() });
+// Health check — DB pool / q-note / Deepgram 키 만료 잔여일 같이 노출 (운영 모니터링 endpoint)
+app.get('/api/health', async (req, res) => {
+  const out = { status: 'ok', service: 'planq', timestamp: new Date().toISOString() };
+  // DB pool 사용률 (best-effort)
+  try {
+    const { sequelize } = require('./config/database');
+    const pool = sequelize.connectionManager?.pool;
+    if (pool) {
+      out.db_pool = {
+        size: pool.size,
+        used: pool.using ?? pool._using ?? null,
+        available: pool.available,
+        pending: pool.pending,
+      };
+    }
+  } catch { /* best-effort */ }
+  // 환경 시그널 (운영 진단 시 빠른 확인)
+  out.env = {
+    node_env: process.env.NODE_ENV || 'development',
+    deepgram_configured: !!process.env.DEEPGRAM_API_KEY,
+    openai_configured: !!process.env.OPENAI_API_KEY,
+    smtp_configured: !!process.env.SMTP_HOST,
+    vapid_configured: !!process.env.VAPID_PUBLIC_KEY,
+  };
+  res.json(out);
 });
 
 // Load models (initializes associations)
