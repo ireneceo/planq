@@ -1,4 +1,43 @@
 {
+  "payments": {
+    "title": "Payment history",
+    "searchPh": "Workspace name",
+    "loadFailed": "Failed to load",
+    "empty": "No payment history",
+    "emptyDesc": "Try a different filter.",
+    "monthRevenue": "This month revenue (confirmed)",
+    "totalPaid": "Total paid",
+    "totalPending": "Pending",
+    "created": "Created",
+    "paid": "Paid",
+    "refunded": "Refunded",
+    "payer": "Payer",
+    "refund": "Refund",
+    "refundFailed": "Refund failed",
+    "confirmRefundTitle": "Refund payment",
+    "confirmRefundMsg": "Refund {{amount}} payment for {{biz}}.",
+    "tab": {
+      "all": "All",
+      "paid": "Paid",
+      "pending": "Pending",
+      "failed": "Failed",
+      "refunded": "Refunded",
+      "canceled": "Canceled"
+    },
+    "status": {
+      "pending": "Pending",
+      "paid": "Paid",
+      "failed": "Failed",
+      "refunded": "Refunded",
+      "canceled": "Canceled"
+    },
+    "method": {
+      "bank_transfer": "Bank transfer",
+      "card": "Card",
+      "portone": "PortOne",
+      "manual_adjust": "Manual"
+    }
+  },
   "subs": {
     "title": "Subscriptions",
     "searchPh": "Search workspace",

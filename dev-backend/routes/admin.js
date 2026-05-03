@@ -421,4 +421,120 @@ router.post('/subscriptions/:id/demote', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// ============================================
+// Payments (결제 이력 + 환불·조정)
+// ============================================
+
+// GET /api/admin/payments — 결제 이력 목록
+//   query: ?status=pending|paid|failed|refunded|canceled|all (default 'all')
+//          ?method=bank_transfer|card|portone|manual_adjust
+//          ?q= 워크스페이스명
+//          ?limit=50 ?offset=0
+router.get('/payments', async (req, res, next) => {
+  try {
+    const status = req.query.status || 'all';
+    const method = req.query.method || 'all';
+    const q = String(req.query.q || '').trim();
+    const limit = Math.min(200, Math.max(1, parseInt(req.query.limit, 10) || 50));
+    const offset = Math.max(0, parseInt(req.query.offset, 10) || 0);
+
+    const where = {};
+    if (status !== 'all') where.status = status;
+    if (method !== 'all') where.method = method;
+
+    const include = [
+      {
+        model: Business,
+        attributes: ['id', 'name', 'brand_name', 'slug'],
+        ...(q ? { where: { [Op.or]: [
+          { name: { [Op.like]: `%${q}%` } },
+          { brand_name: { [Op.like]: `%${q}%` } },
+        ] } } : {}),
+        required: !!q,
+      },
+      { model: Subscription, attributes: ['id', 'plan_code', 'cycle', 'status'] },
+    ];
+
+    const { rows, count } = await Payment.findAndCountAll({
+      where, include, order: [['created_at', 'DESC']],
+      limit, offset, distinct: true,
+    });
+
+    res.set('X-Total-Count', String(count));
+    return successResponse(res, rows.map((p) => ({
+      id: p.id,
+      business: p.Business ? {
+        id: p.Business.id,
+        name: p.Business.brand_name || p.Business.name,
+        slug: p.Business.slug,
+      } : null,
+      subscription: p.Subscription ? {
+        id: p.Subscription.id,
+        plan_code: p.Subscription.plan_code,
+        cycle: p.Subscription.cycle,
+        status: p.Subscription.status,
+      } : null,
+      method: p.method,
+      status: p.status,
+      amount: Number(p.amount),
+      currency: p.currency,
+      cycle: p.cycle,
+      period_start: p.period_start,
+      period_end: p.period_end,
+      payer_name: p.payer_name,
+      payer_memo: p.payer_memo,
+      paid_at: p.paid_at,
+      refunded_at: p.refunded_at,
+      refund_reason: p.refund_reason,
+      created_at: p.created_at,
+    })));
+  } catch (err) { next(err); }
+});
+
+// GET /api/admin/payments/summary — 카운트 + 합계
+router.get('/payments/summary', async (req, res, next) => {
+  try {
+    const counts = await Payment.findAll({
+      attributes: ['status', [Payment.sequelize.fn('COUNT', Payment.sequelize.col('id')), 'count']],
+      group: ['status'],
+      raw: true,
+    });
+    const out = { pending: 0, paid: 0, failed: 0, refunded: 0, canceled: 0, total: 0 };
+    for (const c of counts) {
+      out[c.status] = Number(c.count);
+      out.total += Number(c.count);
+    }
+    // 이번 달 수익 (paid 만)
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const monthRev = await Payment.sum('amount', {
+      where: { status: 'paid', paid_at: { [Op.gte]: monthStart } },
+    });
+    out.month_revenue = Number(monthRev || 0);
+    return successResponse(res, out);
+  } catch (err) { next(err); }
+});
+
+// POST /api/admin/payments/:id/refund — 환불 처리
+router.post('/payments/:id/refund', async (req, res, next) => {
+  try {
+    const p = await Payment.findByPk(req.params.id);
+    if (!p) return errorResponse(res, 'payment_not_found', 404);
+    if (p.status !== 'paid') return errorResponse(res, 'only_paid_can_refund', 400);
+    const reason = req.body?.reason ? String(req.body.reason).slice(0, 255) : '관리자 환불';
+    await p.update({
+      status: 'refunded',
+      refunded_at: new Date(),
+      refund_reason: reason,
+    });
+    require('../services/auditService').logAudit(req, {
+      action: 'admin.payment.refund',
+      targetType: 'payment',
+      targetId: p.id,
+      newValue: { reason, amount: Number(p.amount), business_id: p.business_id },
+    });
+    return successResponse(res, { refunded: true, refunded_at: p.refunded_at }, 'refunded');
+  } catch (err) { next(err); }
+});
+
 module.exports = router;

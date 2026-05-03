@@ -1,4 +1,43 @@
 {
+  "payments": {
+    "title": "결제 이력",
+    "searchPh": "워크스페이스명",
+    "loadFailed": "목록을 불러오지 못했습니다",
+    "empty": "결제 이력이 없습니다",
+    "emptyDesc": "필터를 바꿔서 확인해 보세요.",
+    "monthRevenue": "이번 달 수익 (확정)",
+    "totalPaid": "누적 완료",
+    "totalPending": "대기",
+    "created": "발행",
+    "paid": "결제 완료",
+    "refunded": "환불",
+    "payer": "입금자",
+    "refund": "환불",
+    "refundFailed": "환불 처리 실패",
+    "confirmRefundTitle": "환불 처리",
+    "confirmRefundMsg": "{{biz}} 의 {{amount}} 결제를 환불 처리합니다.",
+    "tab": {
+      "all": "전체",
+      "paid": "완료",
+      "pending": "대기",
+      "failed": "실패",
+      "refunded": "환불",
+      "canceled": "취소"
+    },
+    "status": {
+      "pending": "대기",
+      "paid": "완료",
+      "failed": "실패",
+      "refunded": "환불",
+      "canceled": "취소"
+    },
+    "method": {
+      "bank_transfer": "계좌이체",
+      "card": "카드",
+      "portone": "PortOne",
+      "manual_adjust": "수기 조정"
+    }
+  },
   "subs": {
     "title": "구독 관리",
     "searchPh": "워크스페이스명 검색",
