@@ -18,6 +18,26 @@
     "pageTitle": "Received signatures",
     "backToInbox": "Back to inbox"
   },
+  "brief": {
+    "loading": "Loading...",
+    "notFound": "Brief not found",
+    "backToDocs": "Back to documents",
+    "summary": "Summary",
+    "timelineCount": "{{count}} timeline entries",
+    "sourceCount": "{{count}} source(s)",
+    "viewTime": "Timeline",
+    "viewFileSingle": "Source",
+    "viewFileMulti": "By source",
+    "timelineTitle": "Timeline",
+    "fileTitleSingle": "Source",
+    "fileTitleMulti": "By source",
+    "nextLabel": "Suggested next document",
+    "nextDefaultReason": "You can build a follow-up document from this brief.",
+    "nextDirect": "Write manually",
+    "nextAi": "Write with AI",
+    "todoBuild": "Follow-up document UX coming next cycle.",
+    "sourcesLabel": "Inputs"
+  },
   "received": {
     "searchPh": "Search by document title",
     "allWorkspaces": "All workspaces",

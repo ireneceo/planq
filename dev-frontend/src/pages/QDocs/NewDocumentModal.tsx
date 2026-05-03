@@ -145,9 +145,9 @@ const NewDocumentModal: React.FC<Props> = ({ open, onClose, templates, businessI
         text_blocks: blocks,
         attached_file_ids: [],
       });
-      // 자료정리 결과 → Q docs 의 post 상세로 이동 (기존 post detail 라우트)
+      // 자료정리 결과 → Brief 전용 뷰어 (시점/자료별 토글 + 추천 후속 문서 CTA)
       onClose();
-      navigate(`/docs?post=${result.post_id}&from=brief&next=${encodeURIComponent(result.recommended_next_kind)}`);
+      navigate(`/docs/brief/${result.post_id}`);
     } catch (e: unknown) {
       const err = e as Error & { usage?: { remaining: number; limit: number } };
       if (err.message === 'cue_limit_exceeded') {
