@@ -283,6 +283,72 @@ router.post('/', authenticateToken, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// ─── 자료정리 (Brief) — 텍스트·파일 여러 개 → AI 통합 정리 → Post 생성 ───
+// POST /api/posts/brief
+//   body: { business_id, project_id?, conversation_id?, title, text_blocks: string[], attached_file_ids: number[] }
+//   응답: { post, brief_meta, recommended_next_kind, recommended_next_reason }
+//   한도 초과 시 429 + { usage }
+router.post('/brief', authenticateToken, async (req, res, next) => {
+  try {
+    const {
+      business_id, project_id = null, conversation_id = null,
+      title, text_blocks = [], attached_file_ids = [],
+    } = req.body || {};
+    if (!business_id) return errorResponse(res, 'business_id required', 400);
+    if (!title || !String(title).trim()) return errorResponse(res, 'title required', 400);
+    if (!(await assertMember(req.user.id, Number(business_id), req.user.platform_role === 'platform_admin'))) {
+      return errorResponse(res, 'forbidden', 403);
+    }
+    if (project_id) {
+      const p = await Project.findOne({ where: { id: project_id, business_id } });
+      if (!p) return errorResponse(res, 'invalid project_id', 400);
+    }
+    const blocks = Array.isArray(text_blocks) ? text_blocks.filter(t => typeof t === 'string') : [];
+    const fileIds = Array.isArray(attached_file_ids)
+      ? attached_file_ids.map(Number).filter(Number.isFinite)
+      : [];
+    if (blocks.length === 0 && fileIds.length === 0) {
+      return errorResponse(res, 'at least one text block or file required', 400);
+    }
+    const briefSvc = require('../services/brief_service');
+    let result;
+    try {
+      result = await briefSvc.buildAndCreatePost({
+        business_id: Number(business_id),
+        project_id: project_id || null,
+        conversation_id: conversation_id || null,
+        title,
+        text_blocks: blocks,
+        attached_file_ids: fileIds,
+        created_by: req.user.id,
+      });
+    } catch (e) {
+      if (e.message === 'cue_limit_exceeded') {
+        return res.status(429).json({ success: false, message: 'cue_limit_exceeded', usage: e.usage });
+      }
+      throw e;
+    }
+    require('../services/auditService').logAudit(req, {
+      action: 'post.brief.create',
+      targetType: 'post',
+      targetId: result.post.id,
+      newValue: {
+        title: result.post.title,
+        view_kind: result.brief_meta?.view_kind,
+        timeline_count: result.brief_meta?.timeline_count,
+        recommended_next_kind: result.recommended_next_kind,
+      },
+    });
+    return successResponse(res, {
+      post_id: result.post.id,
+      title: result.post.title,
+      brief_meta: result.brief_meta,
+      recommended_next_kind: result.recommended_next_kind,
+      recommended_next_reason: result.recommended_next_reason,
+    }, 'Brief created', 201);
+  } catch (err) { next(err); }
+});
+
 // ─── 수정 ───
 // 권한: 작성자(author) 또는 owner/platform_admin 만.
 router.put('/:id', authenticateToken, async (req, res, next) => {
