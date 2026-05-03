@@ -249,7 +249,7 @@ async function respondToMessage({ message, conversation, business, client }) {
   if (conversation.translation_enabled && Array.isArray(conversation.translation_languages)) {
     try {
       const { translateForBilingual } = require('./translation_service');
-      const tr = await translateForBilingual(llmResult.content, conversation.translation_languages);
+      const tr = await translateForBilingual(llmResult.content, conversation.translation_languages, conversation.business_id);
       if (!tr.fallback && tr.translations) {
         cueTranslationFields = { translations: tr.translations, detected_language: tr.detected_language };
       }

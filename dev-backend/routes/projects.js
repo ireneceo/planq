@@ -542,7 +542,7 @@ router.post('/conversations/:id/messages', authenticateToken, async (req, res, n
       setImmediate(async () => {
         try {
           const { translateWithRetry } = require('../services/translation_service');
-          const tr = await translateWithRetry(cleaned, conv.translation_languages);
+          const tr = await translateWithRetry(cleaned, conv.translation_languages, conv.business_id);
           console.log(`[translation] msg=${msg.id} fallback=${tr.fallback} reason=${tr.reason || '-'} hasTr=${!!tr.translations}`);
           if (!tr.fallback && tr.translations) {
             await msg.update({ translations: tr.translations, detected_language: tr.detected_language });
