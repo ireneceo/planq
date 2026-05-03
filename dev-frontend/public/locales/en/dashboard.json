@@ -33,6 +33,12 @@
     "title": "Inbox",
     "count": "{{count}} item(s)",
     "signaturesArchive": "Signature archive",
+    "tab": {
+      "all": "All",
+      "work": "Work",
+      "signature": "Signatures",
+      "billing": "Billing"
+    },
     "emptyTitle": "Nothing to confirm",
     "emptySub": "See all tasks in Q Task",
     "emptyAskCue": "Ask Cue",
