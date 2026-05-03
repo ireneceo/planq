@@ -51,4 +51,37 @@ function logAudit(req, { action, targetType, targetId = null, oldValue = null, n
   });
 }
 
-module.exports = { logAudit };
+// 기존 호출처 시그니처 호환 — middleware/audit.js 의 createAuditLog 와 동일 입력.
+// 차이: setImmediate fire-and-forget + sensitive 마스킹 추가. 호출처 await 영향 없음 (Promise.resolve).
+// camelCase / snake_case / entity_* 모두 수용 (기존 createAuditLog 와 동일).
+function createAuditLog(opts = {}) {
+  const action = opts.action;
+  const targetType = opts.targetType ?? opts.target_type ?? opts.entity_type;
+  if (!action || !targetType) {
+    console.error('[auditService] createAuditLog missing action/target_type', { action, targetType });
+    return;
+  }
+  setImmediate(async () => {
+    try {
+      const { AuditLog } = require('../models');
+      const old_value = opts.oldValue ?? opts.old_value ?? null;
+      const new_value = opts.newValue ?? opts.new_value ?? null;
+      // signatures 등 일부 호출은 metadata 키로 추가 정보 전달 — new_value 에 합침
+      const metadata = opts.metadata ?? null;
+      await AuditLog.create({
+        user_id: opts.userId ?? opts.user_id ?? null,
+        business_id: opts.businessId ?? opts.business_id ?? null,
+        action,
+        target_type: targetType,
+        target_id: opts.targetId ?? opts.target_id ?? opts.entity_id ?? null,
+        old_value: old_value ? maskSensitive(old_value) : null,
+        new_value: maskSensitive(metadata ? { ...(new_value || {}), ...metadata } : new_value) ?? null,
+        ip_address: opts.ipAddress ?? opts.ip_address ?? null,
+      });
+    } catch (e) {
+      console.warn('[auditService] createAuditLog failed', e.message);
+    }
+  });
+}
+
+module.exports = { logAudit, createAuditLog };
