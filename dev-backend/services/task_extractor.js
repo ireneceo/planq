@@ -13,7 +13,7 @@ const ProjectMember = require('../models/ProjectMember');
 const Task = require('../models/Task');
 const User = require('../models/User');
 const Project = require('../models/Project');
-const { recordUsage, PRICING } = require('./cue_orchestrator');
+const { recordUsage, checkUsageLimit, PRICING } = require('./cue_orchestrator');
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
 const MODEL = 'gpt-4o-mini';
@@ -225,6 +225,15 @@ async function extractTaskCandidates({ conversationId, userId, businessId }) {
     // 언어 감지 (간이: 한글 포함 여부)
     const hasKorean = /[가-힣]/.test(messagesText);
     const language = hasKorean ? 'ko' : 'en';
+
+    // 워크스페이스 월 Cue 한도 검사 — 초과 시 추출 skip (다음 cron 사이클에 다시 시도)
+    try {
+      const usage = await checkUsageLimit(businessId);
+      if (usage.over) {
+        console.warn('[task_extractor] usage limit exceeded — skip', { businessId, total: usage.total, limit: usage.limit });
+        return { extracted: 0, skipped: 'usage_limit_exceeded' };
+      }
+    } catch { /* checkUsageLimit 실패 시 통과 (best-effort) */ }
 
     // LLM 호출
     const prompt = buildExtractionPrompt(messagesText, memberNames, language);
