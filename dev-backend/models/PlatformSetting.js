@@ -38,6 +38,19 @@ PlatformSetting.init({
     type: DataTypes.STRING(500),
     allowNull: true,
   },
+  // ─── 결제 설정 (이전: .env → DB+관리자 UI) ───
+  // 자체 결제 (계좌이체) — 청구서·결제 안내 메일에 자동 노출
+  bank_name: { type: DataTypes.STRING(100), allowNull: true },
+  bank_account_number: { type: DataTypes.STRING(50), allowNull: true },
+  bank_account_holder: { type: DataTypes.STRING(100), allowNull: true },
+  // PortOne (2순위) — 채널키·스토어ID·웹훅시크릿. PortOne 비활성 시 빈 값 유지
+  portone_store_id: { type: DataTypes.STRING(100), allowNull: true },
+  portone_channel_key: { type: DataTypes.STRING(200), allowNull: true },
+  portone_channel_key_billing: { type: DataTypes.STRING(200), allowNull: true },
+  portone_webhook_secret: { type: DataTypes.STRING(200), allowNull: true },
+  // 결제 정책
+  default_vat_rate: { type: DataTypes.DECIMAL(4, 3), allowNull: false, defaultValue: 0.100 }, // 10%
+  default_due_days: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 7 },
   updated_by_user_id: {
     type: DataTypes.INTEGER,
     allowNull: true,

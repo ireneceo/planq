@@ -1,4 +1,24 @@
 {
+  "billing": {
+    "title": "Billing settings",
+    "bankSection": "Self-billing (bank transfer)",
+    "bankHint": "Auto-shown on subscription invoices and payment notification emails. Admin marks paid after receiving transfer to activate.",
+    "bankName": "Bank",
+    "bankAccount": "Account number",
+    "bankHolder": "Account holder",
+    "portoneSection": "PortOne (card payment gateway)",
+    "portoneHint": "Leave blank to disable PortOne (self-billing only). Keys are masked; click \"Show\" to reveal.",
+    "storeId": "Store ID",
+    "channelKey": "Channel Key (one-time)",
+    "channelKeyBilling": "Channel Key (recurring)",
+    "webhookSecret": "Webhook Secret",
+    "show": "Show",
+    "hide": "Hide",
+    "policySection": "Billing policy",
+    "policyHint": "Defaults for invoice issuance. Per-workspace overrides allowed.",
+    "vatRate": "VAT rate",
+    "dueDays": "Default due days"
+  },
   "payments": {
     "title": "Payment history",
     "searchPh": "Workspace name",

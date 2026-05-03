@@ -38,6 +38,7 @@
     "platformSettings": "플랫폼 설정",
     "subscriptions": "구독 관리",
     "payments": "결제 이력",
+    "billingSettings": "결제 설정",
     "platformAdminEntry": "플랫폼 관리자",
     "platformAdminEntryDesc": "전체 워크스페이스·사용자 관리",
     "platformAdminTitle": "플랫폼 관리자",
