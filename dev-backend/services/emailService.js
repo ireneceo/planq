@@ -62,20 +62,73 @@ async function recordLog(payload) {
   }
 }
 
-// ─── 플랫폼 정보 (.env 로 override 가능) ───
-//   여기 값은 PlanQ 플랫폼 운영자(워프로랩) 정보입니다.
-//   사용자/워크스페이스 정보가 아닙니다. 푸터의 © 표기와 운영 문의처용.
-//   운영 진입 시 .env 에 PLATFORM_SUPPORT_EMAIL=help@planq.kr 설정 필요.
+// ─── 플랫폼 정보 (DB platform_settings 단일 row + 5분 캐시 + .env fallback) ───
+//   PlanQ 플랫폼 운영자(워프로랩) 정보. 사용자/워크스페이스 정보 아님.
+//   메모 feedback_prod_equals_dev.md 정책: 운영 정보는 DB+관리자 UI 로, .env 는 시크릿만.
+//   첫 배포 후엔 /admin/platform-settings UI 에서 변경, .env 는 fallback 으로만 의미.
 const APP_URL = process.env.APP_URL || 'https://dev.planq.kr';
-const PLATFORM = {
-  brand: process.env.PLATFORM_BRAND || 'PlanQ',
-  tagline: process.env.PLATFORM_TAGLINE || '일이 일이 되지 않게 플랜큐가 도와드립니다.',
-  website: process.env.PLATFORM_WEBSITE || APP_URL,
-  supportEmail: process.env.PLATFORM_SUPPORT_EMAIL || 'help@planq.kr',
-  legalEntity: process.env.PLATFORM_LEGAL_ENTITY || '워프로랩',
-  copyrightYear: new Date().getFullYear(),
+const PLATFORM_DEFAULTS = {
+  brand: 'PlanQ',
+  tagline: '일이 일이 되지 않게 플랜큐가 도와드립니다.',
+  website: APP_URL,
+  supportEmail: 'help@planq.kr',
+  legalEntity: '워프로랩',
 };
-const LOGO_URL = process.env.EMAIL_LOGO_URL || `${APP_URL}/email-logo.png`;
+
+let _platformCache = null;
+let _platformCacheExpiry = 0;
+const PLATFORM_CACHE_TTL_MS = 5 * 60 * 1000;
+
+function invalidatePlatformCache() {
+  _platformCache = null;
+  _platformCacheExpiry = 0;
+}
+
+async function getPlatform() {
+  if (_platformCache && _platformCacheExpiry > Date.now()) return _platformCache;
+  let row = null;
+  try {
+    const { PlatformSetting } = require('../models');
+    row = await PlatformSetting.findOne({ order: [['id', 'ASC']] });
+  } catch (e) {
+    // DB 조회 실패 시 .env fallback 으로 graceful (sequelize 미초기화 등)
+    console.warn('[emailService] getPlatform DB read failed:', e.message);
+  }
+  const info = {
+    brand: row?.brand || process.env.PLATFORM_BRAND || PLATFORM_DEFAULTS.brand,
+    tagline: row?.tagline || process.env.PLATFORM_TAGLINE || PLATFORM_DEFAULTS.tagline,
+    website: row?.website || process.env.PLATFORM_WEBSITE || PLATFORM_DEFAULTS.website,
+    supportEmail: row?.support_email || process.env.PLATFORM_SUPPORT_EMAIL || PLATFORM_DEFAULTS.supportEmail,
+    legalEntity: row?.legal_entity || process.env.PLATFORM_LEGAL_ENTITY || PLATFORM_DEFAULTS.legalEntity,
+    copyrightYear: new Date().getFullYear(),
+    logoUrl: row?.email_logo_url || process.env.EMAIL_LOGO_URL || `${APP_URL}/email-logo.png`,
+  };
+  _platformCache = info;
+  _platformCacheExpiry = Date.now() + PLATFORM_CACHE_TTL_MS;
+  return info;
+}
+
+// 동기 호출 호환 — 캐시된 값이 있으면 반환, 없으면 .env fallback.
+// 비동기 호출 못하는 위치 (모듈 초기화 시점 등) 에서 fallback 값 보장.
+function getPlatformSync() {
+  return _platformCache || {
+    brand: process.env.PLATFORM_BRAND || PLATFORM_DEFAULTS.brand,
+    tagline: process.env.PLATFORM_TAGLINE || PLATFORM_DEFAULTS.tagline,
+    website: process.env.PLATFORM_WEBSITE || PLATFORM_DEFAULTS.website,
+    supportEmail: process.env.PLATFORM_SUPPORT_EMAIL || PLATFORM_DEFAULTS.supportEmail,
+    legalEntity: process.env.PLATFORM_LEGAL_ENTITY || PLATFORM_DEFAULTS.legalEntity,
+    copyrightYear: new Date().getFullYear(),
+    logoUrl: process.env.EMAIL_LOGO_URL || `${APP_URL}/email-logo.png`,
+  };
+}
+
+// 호환 — 기존 PLATFORM 변수 이름 그대로 쓰던 코드를 위해 getter 객체로
+const PLATFORM = new Proxy({}, {
+  get(_t, prop) { return getPlatformSync()[prop]; },
+});
+
+// 모듈 초기화 시 캐시 워밍 (DB 가 떠 있으면 첫 메일 발송부터 DB 값 사용)
+setTimeout(() => { getPlatform().catch(() => null); }, 1000);
 
 // HTML 이스케이프
 function escapeHtml(s) {
@@ -450,4 +503,5 @@ module.exports = {
   sendInviteEmail, sendPostShareEmail, sendSignatureRequestEmail, sendSignatureOtpEmail,
   sendInvoiceEmail, sendVerificationCodeEmail,
   sendNotificationEmail,
+  invalidatePlatformCache,  // admin 라우트가 PUT 후 호출
 };

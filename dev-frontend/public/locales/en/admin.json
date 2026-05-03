@@ -1,4 +1,15 @@
 {
+  "platform": {
+    "title": "Platform settings",
+    "hint": "PlanQ operator information. Used in email footer, legal notices, and support contact. Changes auto-save; emails reflect updates after a 5-minute cache.",
+    "brand": "Brand name",
+    "tagline": "Tagline",
+    "website": "Website",
+    "support_email": "Support email",
+    "legal_entity": "Legal entity",
+    "email_logo_url": "Email logo URL",
+    "email_logo_hint": "Leave blank for default logo (inline cid attachment)"
+  },
   "page": {
     "title": "Workspace Admin",
     "desc": "Platform-admin only — manual plan adjustment, trial extension, and change history.",

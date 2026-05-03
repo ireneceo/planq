@@ -61,6 +61,7 @@ const Report = require('./Report');
 const ContactInquiry = require('./ContactInquiry');
 const NotificationPref = require('./NotificationPref');
 const EmailLog = require('./EmailLog');
+const PlatformSetting = require('./PlatformSetting');
 // ─── Q docs (문서·템플릿 통합 시스템) ───
 const DocumentTemplate = require('./DocumentTemplate');
 const Document = require('./Document');
@@ -364,6 +365,7 @@ module.exports = {
   ContactInquiry,
   NotificationPref,
   EmailLog,
+  PlatformSetting,
   // Q docs
   DocumentTemplate,
   Document,
