@@ -22,6 +22,10 @@ import HelpDot from '../../components/Common/HelpDot';
 import FirstVisitTour from '../../components/Common/FirstVisitTour';
 import { displayName } from '../../utils/displayName';
 import i18nClient from '../../i18n';
+import {
+  buildPresetRRule, buildCustomRRule, formatRRuleLabel,
+  type RecurEndType, type RecurPreset, type RecurCustomUnit,
+} from '../../utils/recurrence';
 
 // ─── Types ───
 type Scope = 'mine' | 'workspace';
@@ -48,6 +52,10 @@ interface TaskRow {
   Project?: { id: number; name: string } | null;
   assignee?: { id: number; name: string } | null;
   requester?: { id: number; name: string } | null;
+  // 정기업무 — parent: rule != null && parent_id == null. instance: rule == null && parent_id != null.
+  recurrence_rule?: string | null;
+  recurrence_parent_id?: number | null;
+  next_occurrence_at?: string | null;
   createdAt: string;
 }
 interface BurndownPoint { label: string; estimated_cumulative: number; actual_cumulative: number; }
@@ -223,6 +231,15 @@ const QTaskPage:React.FC=()=>{
   const[newStartDate,setNewStartDate]=useState<string>('');
   const[newEstHours,setNewEstHours]=useState<string>('');
   const[newDescription,setNewDescription]=useState<string>('');
+  // 정기업무 (recurring) — 5 프리셋 + Custom + 종료 조건
+  const[newRecurEnabled,setNewRecurEnabled]=useState(false);
+  const[newRecurPreset,setNewRecurPreset]=useState<RecurPreset>('weekly');
+  const[newRecurEndType,setNewRecurEndType]=useState<RecurEndType>('never');
+  const[newRecurEndCount,setNewRecurEndCount]=useState<string>('10');
+  const[newRecurEndUntil,setNewRecurEndUntil]=useState<string>('');
+  const[newRecurCustomEvery,setNewRecurCustomEvery]=useState<string>('1');
+  const[newRecurCustomUnit,setNewRecurCustomUnit]=useState<RecurCustomUnit>('week');
+  const[showCustomRecurModal,setShowCustomRecurModal]=useState(false);
   const[addingSubmitting,setAddingSubmitting]=useState(false);
   const[statusDropdownId,setStatusDropdownId]=useState<number|null>(null);
 
@@ -478,6 +495,23 @@ const QTaskPage:React.FC=()=>{
   const resetNewTask=()=>{
     setNewTitle('');setNewAssignee(null);setNewProjectId(null);
     setNewDueDate('');setNewStartDate('');setNewEstHours('');setNewDescription('');
+    setNewRecurEnabled(false);setNewRecurPreset('weekly');
+    setNewRecurEndType('never');setNewRecurEndCount('10');setNewRecurEndUntil('');
+    setNewRecurCustomEvery('1');setNewRecurCustomUnit('week');
+  };
+
+  // 현재 폼 상태 → RRULE 문자열 (없으면 null).
+  const buildCurrentRRule = (dueDate: string): string | null => {
+    if (!newRecurEnabled || !dueDate) return null;
+    const end = {
+      type: newRecurEndType,
+      count: newRecurEndType === 'count' ? Number(newRecurEndCount) || 1 : undefined,
+      until: newRecurEndType === 'until' ? newRecurEndUntil : undefined,
+    };
+    if (newRecurPreset === 'custom') {
+      return buildCustomRRule(Number(newRecurCustomEvery) || 1, newRecurCustomUnit, end);
+    }
+    return buildPresetRRule(newRecurPreset, dueDate, end);
   };
   const addTask=async()=>{
     if(addingSubmitting)return; // 중복 방지
@@ -497,6 +531,10 @@ const QTaskPage:React.FC=()=>{
     }
     // 이번 주 탭에서는 마감일 기본값 = 오늘 (이번주 범위 안에 들어오도록)
     const defaultDue=(scope==='mine'&&tab==='week')?todayStr:null;
+    const finalDueDate = newDueDate || defaultDue;
+    // 정기업무는 due_date 필수 (백엔드도 검증)
+    if (newRecurEnabled && !finalDueDate) return;
+    const recurrenceRule = newRecurEnabled && finalDueDate ? buildCurrentRRule(finalDueDate) : null;
     setAddingSubmitting(true);
     try{
       const r=await(await apiFetch('/api/tasks',{method:'POST',headers:{'Content-Type':'application/json'},
@@ -508,8 +546,9 @@ const QTaskPage:React.FC=()=>{
           project_id:newProjectId,
           planned_week_start:(scope==='mine'&&tab==='week')?thisMonday:null,
           start_date:newStartDate||null,
-          due_date:newDueDate||defaultDue,
+          due_date:finalDueDate,
           estimated_hours:newEstHours?Number(newEstHours):null,
+          recurrence_rule:recurrenceRule,
         })
       })).json();
       if(r.success){
@@ -1156,6 +1195,11 @@ const QTaskPage:React.FC=()=>{
                           title={t('list.titleClickEdit','클릭하여 업무명 수정') as string}>
                           {task.title}
                         </TaskTitle>
+                        {task.recurrence_rule && (
+                          <RecurChip title={formatRRuleLabel(task.recurrence_rule, task.due_date, t)}>
+                            {t('recur.indicator','반복')} · {formatRRuleLabel(task.recurrence_rule, task.due_date, t)}
+                          </RecurChip>
+                        )}
                         {(() => {
                           // workspace 뷰는 담당자 컬럼이 별도로 있어 chip 중복 → 표시 안 함.
                           // mine 뷰만 본인 관계 표시 (요청자/내가 의뢰한 담당자 등)
@@ -1380,6 +1424,75 @@ const QTaskPage:React.FC=()=>{
                   </AddOptField>
                 )}
               </AddOptRow>
+              {/* 정기업무 (반복) — 마감일 있을 때만 활성 */}
+              <RecurRow>
+                <RecurToggleLabel>
+                  <input type="checkbox" checked={newRecurEnabled} disabled={!newDueDate}
+                    onChange={(e)=>setNewRecurEnabled(e.target.checked)} />
+                  <span>{t('recur.toggle','반복하기')}</span>
+                  {!newDueDate && <RecurHint>{t('recur.needDueDate','반복하려면 마감일이 필요해요')}</RecurHint>}
+                </RecurToggleLabel>
+                {newRecurEnabled && newDueDate && (
+                  <RecurOptions>
+                    <PlanQSelect size="sm"
+                      value={(()=>{
+                        const d = new Date(newDueDate + 'T00:00:00Z');
+                        const dayLabel = t(`recur.weekday.${['SU','MO','TU','WE','TH','FR','SA'][d.getUTCDay()]}`,'');
+                        const labels: Record<RecurPreset,string> = {
+                          daily: t('recur.presetDaily','매일'),
+                          weekly: t('recur.presetWeekly',{day:dayLabel,defaultValue:`매주 ${dayLabel}`}),
+                          monthly: t('recur.presetMonthly',{day:String(d.getUTCDate()),defaultValue:`매월 ${d.getUTCDate()}일`}),
+                          yearly: t('recur.presetYearly',{month:String(d.getUTCMonth()+1),day:String(d.getUTCDate()),defaultValue:`매년 ${d.getUTCMonth()+1}월 ${d.getUTCDate()}일`}),
+                          custom: t('recur.presetCustom','사용자 지정...'),
+                        };
+                        return { value: newRecurPreset, label: labels[newRecurPreset] };
+                      })()}
+                      onChange={(v)=>{
+                        const p=(v as {value?:string})?.value as RecurPreset|undefined;
+                        if(!p) return;
+                        if(p==='custom'){setShowCustomRecurModal(true);}
+                        else{setNewRecurPreset(p);}
+                      }}
+                      options={(()=>{
+                        const d = new Date(newDueDate + 'T00:00:00Z');
+                        const dayLabel = t(`recur.weekday.${['SU','MO','TU','WE','TH','FR','SA'][d.getUTCDay()]}`,'');
+                        return [
+                          { value:'daily', label:t('recur.presetDaily','매일') },
+                          { value:'weekly', label:t('recur.presetWeekly',{day:dayLabel,defaultValue:`매주 ${dayLabel}`}) },
+                          { value:'monthly', label:t('recur.presetMonthly',{day:String(d.getUTCDate()),defaultValue:`매월 ${d.getUTCDate()}일`}) },
+                          { value:'yearly', label:t('recur.presetYearly',{month:String(d.getUTCMonth()+1),day:String(d.getUTCDate()),defaultValue:`매년 ${d.getUTCMonth()+1}월 ${d.getUTCDate()}일`}) },
+                          { value:'custom', label:t('recur.presetCustom','사용자 지정...') },
+                        ];
+                      })()} />
+                    <RecurEndBox>
+                      <PlanQSelect size="sm"
+                        value={{
+                          value: newRecurEndType,
+                          label: newRecurEndType==='never'?t('recur.endTypeNever','계속 반복')
+                            : newRecurEndType==='count'?t('recur.endTypeCount','횟수 후 종료')
+                            : t('recur.endTypeUntil','특정 날짜까지'),
+                        }}
+                        onChange={(v)=>{
+                          const e=(v as {value?:string})?.value as RecurEndType|undefined;
+                          if(e) setNewRecurEndType(e);
+                        }}
+                        options={[
+                          { value:'never', label:t('recur.endTypeNever','계속 반복') },
+                          { value:'count', label:t('recur.endTypeCount','횟수 후 종료') },
+                          { value:'until', label:t('recur.endTypeUntil','특정 날짜까지') },
+                        ]} />
+                      {newRecurEndType==='count' && (
+                        <AddDateInput type="number" min="1" max="999" style={{width:64}}
+                          value={newRecurEndCount} onChange={(e)=>setNewRecurEndCount(e.target.value)} />
+                      )}
+                      {newRecurEndType==='until' && (
+                        <AddDateInput type="date" value={newRecurEndUntil}
+                          onChange={(e)=>setNewRecurEndUntil(e.target.value)} />
+                      )}
+                    </RecurEndBox>
+                  </RecurOptions>
+                )}
+              </RecurRow>
               <AddTextArea rows={2} placeholder={t('add.descPlaceholder','설명 (선택)')}
                 value={newDescription} onChange={e=>setNewDescription(e.target.value)} />
               <AddBtnRow>
@@ -1387,11 +1500,54 @@ const QTaskPage:React.FC=()=>{
                   {t('add.cancel','취소')}
                 </AddCancelBtn>
                 <AddSaveBtn type="button" onClick={addTask}
-                  disabled={addingSubmitting||!newTitle.trim()||(tab==='requested'&&!newAssignee)}>
+                  disabled={addingSubmitting||!newTitle.trim()||(tab==='requested'&&!newAssignee)||(newRecurEnabled&&!newDueDate)||(newRecurEnabled&&newRecurEndType==='count'&&(!newRecurEndCount||Number(newRecurEndCount)<1))||(newRecurEnabled&&newRecurEndType==='until'&&!newRecurEndUntil)}>
                   {addingSubmitting?t('add.saving','저장 중...'):t('add.save','추가')}
                 </AddSaveBtn>
               </AddBtnRow>
             </InlineAddBox>
+          )}
+          {showCustomRecurModal && (
+            <CustomRecurOverlay onClick={()=>setShowCustomRecurModal(false)}>
+              <CustomRecurDialog onClick={(e)=>e.stopPropagation()}>
+                <CustomRecurTitle>{t('recur.customTitle','사용자 지정 반복')}</CustomRecurTitle>
+                <CustomRecurField>
+                  <CustomRecurFieldLabel>{t('recur.customEvery','반복 간격')}</CustomRecurFieldLabel>
+                  <CustomRecurInline>
+                    <AddDateInput type="number" min="1" max="99" style={{width:80}}
+                      value={newRecurCustomEvery} onChange={(e)=>setNewRecurCustomEvery(e.target.value)} />
+                    <PlanQSelect size="sm"
+                      value={{
+                        value: newRecurCustomUnit,
+                        label: newRecurCustomUnit==='day'?t('recur.customUnitDay','일')
+                          : newRecurCustomUnit==='week'?t('recur.customUnitWeek','주')
+                          : newRecurCustomUnit==='month'?t('recur.customUnitMonth','개월')
+                          : t('recur.customUnitYear','년'),
+                      }}
+                      onChange={(v)=>{
+                        const u=(v as {value?:string})?.value as RecurCustomUnit|undefined;
+                        if(u) setNewRecurCustomUnit(u);
+                      }}
+                      options={[
+                        { value:'day', label:t('recur.customUnitDay','일') },
+                        { value:'week', label:t('recur.customUnitWeek','주') },
+                        { value:'month', label:t('recur.customUnitMonth','개월') },
+                        { value:'year', label:t('recur.customUnitYear','년') },
+                      ]} />
+                  </CustomRecurInline>
+                </CustomRecurField>
+                <AddBtnRow>
+                  <AddCancelBtn type="button" onClick={()=>setShowCustomRecurModal(false)}>
+                    {t('recur.customCancel','취소')}
+                  </AddCancelBtn>
+                  <AddSaveBtn type="button" onClick={()=>{
+                    setNewRecurPreset('custom');
+                    setShowCustomRecurModal(false);
+                  }}>
+                    {t('recur.customSave','적용')}
+                  </AddSaveBtn>
+                </AddBtnRow>
+              </CustomRecurDialog>
+            </CustomRecurOverlay>
           )}
           </>
           )}
@@ -2098,6 +2254,19 @@ const AddTextArea=styled.textarea`width:100%;resize:vertical;padding:6px 10px;fo
 const AddBtnRow=styled.div`display:flex;justify-content:flex-end;gap:6px;`;
 const AddSaveBtn=styled.button`flex:0 0 auto;padding:6px 14px;font-size:13px;font-weight:600;background:#14B8A6;color:#FFFFFF;border:none;border-radius:6px;cursor:pointer;&:hover:not(:disabled){background:#0D9488;}&:disabled{background:#CBD5E1;cursor:not-allowed;}`;
 const AddCancelBtn=styled.button`flex:0 0 auto;padding:6px 10px;font-size:13px;color:#64748B;background:transparent;border:1px solid #E2E8F0;border-radius:6px;cursor:pointer;&:hover{background:#F8FAFC;color:#0F172A;}`;
+const RecurRow=styled.div`display:flex;flex-direction:column;gap:6px;padding:8px 10px;background:#FFFFFF;border:1px solid #E2E8F0;border-radius:6px;`;
+const RecurToggleLabel=styled.label`display:inline-flex;align-items:center;gap:8px;font-size:13px;color:#0F172A;cursor:pointer;input{cursor:pointer;}input:disabled{cursor:not-allowed;}`;
+const RecurHint=styled.span`font-size:12px;color:#94A3B8;margin-left:6px;`;
+const RecurOptions=styled.div`display:flex;gap:8px;flex-wrap:wrap;align-items:center;`;
+const RecurEndBox=styled.div`display:inline-flex;gap:6px;align-items:center;`;
+const RecurChip=styled.span`display:inline-flex;align-items:center;padding:2px 8px;font-size:11px;font-weight:600;color:#0F766E;background:#CCFBF1;border-radius:10px;line-height:1.5;`;
+// Custom recurrence modal
+const CustomRecurOverlay=styled.div`position:fixed;inset:0;background:rgba(15,23,42,0.45);z-index:1000;display:flex;align-items:center;justify-content:center;padding:20px;`;
+const CustomRecurDialog=styled.div`background:#FFFFFF;border-radius:12px;padding:20px 22px;width:min(420px,90vw);box-shadow:0 20px 60px rgba(0,0,0,0.18);display:flex;flex-direction:column;gap:14px;`;
+const CustomRecurTitle=styled.h3`margin:0;font-size:16px;font-weight:700;color:#0F172A;`;
+const CustomRecurField=styled.div`display:flex;flex-direction:column;gap:6px;`;
+const CustomRecurFieldLabel=styled.label`font-size:12px;color:#64748B;font-weight:600;`;
+const CustomRecurInline=styled.div`display:flex;gap:8px;align-items:center;`;
 const ViewToggle=styled.div`display:inline-flex;gap:2px;padding:2px;background:#F1F5F9;border-radius:8px;margin-left:auto;`;
 const ViewBtn=styled.button<{$active:boolean}>`padding:6px 10px;background:${p=>p.$active?'#FFFFFF':'transparent'};color:${p=>p.$active?'#0F766E':'#94A3B8'};border:none;border-radius:6px;cursor:pointer;display:inline-flex;align-items:center;box-shadow:${p=>p.$active?'0 1px 2px rgba(0,0,0,0.06)':'none'};transition:background 0.15s;&:hover{background:${p=>p.$active?'#FFFFFF':'#E2E8F0'};color:#0F766E;}`;
 const ScopeToggle=styled.div`display:inline-flex;gap:4px;padding:3px;background:#F1F5F9;border-radius:8px;`;

@@ -338,9 +338,27 @@ router.post('/', authenticateToken, async (req, res, next) => {
   try {
     const { business_id, project_id, title, description, assignee_id, due_date, priority,
       estimated_hours, category, source_message_id, conversation_id, planned_week_start, start_date,
-      cue_kind, cue_context_ref } = req.body;
+      cue_kind, cue_context_ref, recurrence_rule } = req.body;
     if (!business_id) return errorResponse(res, 'business_id required', 400);
     if (!title || !String(title).trim()) return errorResponse(res, 'title required', 400);
+
+    // 정기업무 — recurrence_rule 들어오면 due_date 필수, RRULE 검증, next_occurrence_at 계산
+    let nextOccurrenceAt = null;
+    if (recurrence_rule) {
+      if (!due_date) {
+        return errorResponse(res, 'due_date is required for recurring tasks (it serves as the first occurrence)', 400);
+      }
+      const { RRule } = require('rrule');
+      const { computeNextOccurrence } = require('../services/recurringTaskGenerator');
+      try {
+        RRule.parseString(recurrence_rule);
+      } catch (e) {
+        return errorResponse(res, `Invalid recurrence_rule: ${e.message}`, 400);
+      }
+      // parent 자체가 첫 occurrence (count=1) → 다음 occurrence 계산
+      const next = computeNextOccurrence(recurrence_rule, due_date, 1);
+      nextOccurrenceAt = next ? next.toISOString().slice(0, 10) : null;
+    }
 
     // 워크스페이스 접근권 확인 — 멤버(owner/member) OR 클라이언트
     const bm = await BusinessMember.findOne({ where: { user_id: req.user.id, business_id } });
@@ -381,6 +399,10 @@ router.post('/', authenticateToken, async (req, res, next) => {
       // 사이클 P8 — Cue 팀원화
       cue_kind: cue_kind || null,
       cue_context_ref: cue_context_ref || null,
+      // 정기업무 — parent 시리즈 (instance 는 cron 이 자동 생성)
+      recurrence_rule: recurrence_rule || null,
+      recurrence_parent_id: null,
+      next_occurrence_at: nextOccurrenceAt,
     });
 
     // 사이클 P8 — assignee=Cue && cue_kind 면 비동기 자동 실행
