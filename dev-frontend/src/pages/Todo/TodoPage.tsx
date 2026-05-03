@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { io, type Socket } from 'socket.io-client';
 import styled from 'styled-components';
@@ -18,12 +18,35 @@ import { useAuth, apiFetch, getAccessToken } from '../../contexts/AuthContext';
 
 interface MemberOpt { user_id: number; name: string; }
 
+// 인박스 탭 분류 — Q knowledge 패턴 (전체 / 업무 / 서명 / 청구).
+// "전체" 가 default 로 priority 그룹 통합 뷰 유지. 카테고리 탭은 좁히기 용도.
+type InboxTab = 'all' | 'work' | 'signature' | 'billing';
+const TYPE_TO_TAB: Record<string, Exclude<InboxTab, 'all'>> = {
+  task: 'work', event: 'work', invite: 'work', mention: 'work', email: 'work', task_candidate: 'work',
+  signature: 'signature',
+  invoice: 'billing', payment_notify: 'billing', tax_invoice: 'billing',
+};
+const TAB_LIST: InboxTab[] = ['all', 'work', 'signature', 'billing'];
+
 const TodoPage: React.FC = () => {
   const { t } = useTranslation('dashboard');
   const { user } = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
   const bizId = user?.business_id ? Number(user.business_id) : null;
   const myId = user ? Number(user.id) : -1;
   const todayStr = new Date().toISOString().slice(0, 10);
+
+  // URL 싱크 — ?tab=work|signature|billing (없으면 'all')
+  const activeTab: InboxTab = useMemo(() => {
+    const q = new URLSearchParams(location.search).get('tab') as InboxTab | null;
+    return q && TAB_LIST.includes(q) ? q : 'all';
+  }, [location.search]);
+  const setActiveTab = (tab: InboxTab) => {
+    const sp = new URLSearchParams(location.search);
+    if (tab === 'all') sp.delete('tab'); else sp.set('tab', tab);
+    navigate(`${location.pathname}${sp.toString() ? `?${sp.toString()}` : ''}`, { replace: true });
+  };
 
   const [data, setData] = useState<TodoResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -203,15 +226,42 @@ const TodoPage: React.FC = () => {
       }
     >
       <InsightCards />
-      {err
-        ? <div style={{ padding: 20, color: '#B91C1C' }}>{err}</div>
-        : <TodoList
-            items={data?.items || []}
-            loading={loading}
-            onOpenDrawer={handleOpenDrawer}
-            onInviteAction={handleInviteAction}
-            onTaskAction={handleTaskAction}
-          />}
+      {/* 카테고리 탭 — 전체 default + 업무·서명·청구 카운트 분리 */}
+      {(() => {
+        const items = data?.items || [];
+        const counts: Record<InboxTab, number> = { all: items.length, work: 0, signature: 0, billing: 0 };
+        items.forEach((it) => {
+          const grp = TYPE_TO_TAB[it.type];
+          if (grp) counts[grp] += 1;
+        });
+        const filtered = activeTab === 'all'
+          ? items
+          : items.filter((it) => TYPE_TO_TAB[it.type] === activeTab);
+        return (
+          <>
+            <TabBar role="tablist">
+              {TAB_LIST.map((tab) => (
+                <TabBtn key={tab} role="tab" type="button" aria-selected={activeTab === tab}
+                  $active={activeTab === tab} onClick={() => setActiveTab(tab)}>
+                  <span>{t(`todo.tab.${tab}`, {
+                    all: '전체', work: '업무', signature: '서명', billing: '청구',
+                  }[tab])}</span>
+                  {counts[tab] > 0 && <Count $active={activeTab === tab}>{counts[tab]}</Count>}
+                </TabBtn>
+              ))}
+            </TabBar>
+            {err
+              ? <div style={{ padding: 20, color: '#B91C1C' }}>{err}</div>
+              : <TodoList
+                  items={filtered}
+                  loading={loading}
+                  onOpenDrawer={handleOpenDrawer}
+                  onInviteAction={handleInviteAction}
+                  onTaskAction={handleTaskAction}
+                />}
+          </>
+        );
+      })()}
 
       {selectedTaskId !== null && (selectedTaskBizId ?? bizId) !== null && (
         <TaskDetailDrawer
@@ -247,6 +297,34 @@ const TodoPage: React.FC = () => {
 
 export default TodoPage;
 
+const TabBar = styled.div`
+  display: flex; gap: 4px;
+  padding: 0 4px;
+  border-bottom: 1px solid #E2E8F0;
+  margin-bottom: 16px;
+  overflow-x: auto;
+  &::-webkit-scrollbar { display: none; }
+`;
+const TabBtn = styled.button<{ $active: boolean }>`
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 10px 14px;
+  background: transparent; border: none;
+  border-bottom: 2px solid ${p => p.$active ? '#14B8A6' : 'transparent'};
+  color: ${p => p.$active ? '#0F172A' : '#64748B'};
+  font-size: 13px; font-weight: ${p => p.$active ? 700 : 500};
+  cursor: pointer; white-space: nowrap;
+  transition: color 0.15s;
+  &:hover { color: #0F172A; }
+  &:focus-visible { outline: 2px solid rgba(20,184,166,0.3); outline-offset: -2px; }
+`;
+const Count = styled.span<{ $active: boolean }>`
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 20px; padding: 1px 7px;
+  font-size: 11px; font-weight: 700;
+  background: ${p => p.$active ? '#14B8A6' : '#E2E8F0'};
+  color: ${p => p.$active ? '#FFFFFF' : '#64748B'};
+  border-radius: 999px;
+`;
 const ArchiveLink = styled(Link)`
   display: inline-flex;
   align-items: center;
