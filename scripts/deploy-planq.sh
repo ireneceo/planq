@@ -170,6 +170,16 @@ create_backup() {
     if [ -d $PROD_FE_BUILD ] && [ \"\$(ls -A $PROD_FE_BUILD 2>/dev/null)\" ]; then
       tar -czf $BACKUP_DIR/frontend-build.tar.gz -C /opt/planq frontend-build 2>/dev/null || true
     fi
+    # DB mysqldump (운영 변경 직전 스냅샷, 롤백용 — 일별 백업과 별개)
+    if [ -f /opt/planq/.db-password ]; then
+      mysqldump --single-transaction --quick --lock-tables=false --routines --triggers --no-tablespaces \\
+        -u planq_admin -p\$(cat /opt/planq/.db-password) planq_prod_db 2>/dev/null \\
+        | gzip > $BACKUP_DIR/db.sql.gz || echo 'WARN: db dump failed (continue)'
+    else
+      echo 'WARN: /opt/planq/.db-password 없음 — DB 백업 스킵'
+    fi
+    # Rotation: 최신 14개만 보관 (deploy 백업)
+    ls -1t $PROD_BACKUPS 2>/dev/null | tail -n +15 | xargs -I {} rm -rf $PROD_BACKUPS/{} 2>/dev/null || true
     echo \"Backup at: $BACKUP_DIR\"
   "
   success "Backup 완료"

@@ -11,7 +11,9 @@ All public functions accept an optional `meeting_context` dict with:
 Any present field is prepended to the system prompt as context prefix.
 """
 import os
+import re
 import json
+import asyncio
 import logging
 from typing import Optional, Any
 from openai import AsyncOpenAI
@@ -475,6 +477,61 @@ def _build_stt_correction_prefix(
   return '\n\n'.join(parts) + '\n\n---\n\n'
 
 
+def _split_into_chunks(text: str, max_chars: int = 500) -> list[str]:
+  """문장 경계로 나눈 뒤 max_chars 이하로 묶어 chunks 반환.
+  발화 자체를 자르는 게 아니라 LLM 호출 input 만 분할 (메모리 [feedback_qnote_transcript_design] 시간/길이 캡 금지 회피).
+
+  한국어 STT 함정 대비: Deepgram 한국어 출력은 마침표가 거의 없어 단일 sentence 가 max_chars 초과 가능.
+  → 그 경우 어절(공백) 단위로 다시 분할. 어절 자체가 max_chars 초과면 char 강제 분할 (URL 등 드문 케이스).
+  """
+  sentences = re.split(r'(?<=[.!?。!?])\s+', text.strip())
+  sentences = [s for s in sentences if s.strip()]
+  if not sentences:
+    return [text]
+
+  # 단일 sentence 가 max_chars 초과면 어절 단위로 재분할
+  expanded: list[str] = []
+  for sent in sentences:
+    if len(sent) <= max_chars:
+      expanded.append(sent)
+      continue
+    words = sent.split(' ')
+    cur = ''
+    for w in words:
+      # 어절 자체가 max_chars 초과 (드문 URL/긴토큰) → 강제 char 분할
+      if len(w) > max_chars:
+        if cur:
+          expanded.append(cur)
+          cur = ''
+        for i in range(0, len(w), max_chars):
+          expanded.append(w[i:i + max_chars])
+        continue
+      if not cur:
+        cur = w
+      elif len(cur) + len(w) + 1 <= max_chars:
+        cur = f'{cur} {w}'
+      else:
+        expanded.append(cur)
+        cur = w
+    if cur:
+      expanded.append(cur)
+  sentences = expanded
+
+  chunks: list[str] = []
+  current = ''
+  for sent in sentences:
+    if not current:
+      current = sent
+    elif len(current) + len(sent) + 1 <= max_chars:
+      current = f'{current} {sent}'
+    else:
+      chunks.append(current)
+      current = sent
+  if current:
+    chunks.append(current)
+  return chunks
+
+
 async def translate_and_detect_question(
   text: str,
   meeting_context: Optional[dict] = None,
@@ -491,39 +548,98 @@ async def translate_and_detect_question(
   if not text or not text.strip():
     return {'formatted_original': text, 'translation': '', 'is_question': False, 'detected_language': 'unknown'}
 
-  try:
-    client = get_client()
-    system_content = (
-      _build_context_prefix(meeting_context)
-      + _build_stt_correction_prefix(vocabulary, recent_utterances)
-      + _build_translate_system(language)
-    )
-    response = await client.chat.completions.create(
-      model=LLM_MODEL,
-      messages=[
-        {'role': 'system', 'content': system_content},
-        {'role': 'user', 'content': text},
-      ],
-      response_format={'type': 'json_object'},
-      max_completion_tokens=300,
-    )
-    content = response.choices[0].message.content
-    data = json.loads(content)
-    return {
-      'formatted_original': data.get('formatted_original', text),
-      'translation': data.get('translation', ''),
-      'is_question': bool(data.get('is_question', False)),
-      'detected_language': data.get('detected_language', 'unknown'),
-    }
-  except Exception as e:
-    logger.error(f'translate_and_detect_question failed: {e}')
-    return {
-      'formatted_original': text,
-      'translation': '',
-      'is_question': False,
-      'detected_language': 'error',
-      'error': str(e),
-    }
+  # Chunking 분기 — 600자+ 입력은 gpt-4.1-nano 가 빈 응답 주는 케이스 (검증 2026-05-03 발견).
+  # 문장 경계로 분할해 병렬 호출 후 합침. 발화 자체는 안 자름 (메모리 함정 회피).
+  if len(text) > 600:
+    chunks = _split_into_chunks(text, max_chars=500)
+    if len(chunks) > 1:
+      logger.info(f'translate chunking: {len(chunks)} chunks (input={len(text)} chars)')
+      results = await asyncio.gather(*[
+        _translate_single(chunk, meeting_context, language, vocabulary, recent_utterances)
+        for chunk in chunks
+      ])
+      return {
+        'formatted_original': ' '.join((r.get('formatted_original') or '') for r in results).strip(),
+        'translation': ' '.join((r.get('translation') or '') for r in results if r.get('translation')).strip(),
+        # 한 utterance 안에 어느 chunk 라도 질문이면 질문으로 판정
+        'is_question': any(bool(r.get('is_question')) for r in results),
+        # 첫 chunk 의 detected_language 가 utterance 전체 대표
+        'detected_language': results[0].get('detected_language', 'unknown') if results else 'unknown',
+      }
+
+  return await _translate_single(text, meeting_context, language, vocabulary, recent_utterances)
+
+
+async def _translate_single(
+  text: str,
+  meeting_context: Optional[dict] = None,
+  language: Optional[str] = None,
+  vocabulary: Optional[list[str]] = None,
+  recent_utterances: Optional[list[str]] = None,
+) -> dict:
+  """단일 LLM 호출 — 600자 이하 입력 가정. translate_and_detect_question 내부 helper."""
+  if not text or not text.strip():
+    return {'formatted_original': text, 'translation': '', 'is_question': False, 'detected_language': 'unknown'}
+
+  client = get_client()
+  system_content = (
+    _build_context_prefix(meeting_context)
+    + _build_stt_correction_prefix(vocabulary, recent_utterances)
+    + _build_translate_system(language)
+  )
+  # 동적 max_tokens: 입력 길이 기반. 한국어/CJK 는 char 당 2~3 token, 보수적으로 *4 + json wrapping 200.
+  # 긴 발화 (200자+) 일 때도 응답 잘림 방지. 메모리 [feedback_translation_async] 패턴 동일.
+  input_chars = len(text)
+  dynamic_max = min(2000, max(400, input_chars * 4 + 200))
+
+  # 1회 retry — 빈 응답 / parse 실패 시. 메모리 [feedback_translation_async] 패턴.
+  for attempt in range(2):
+    try:
+      response = await client.chat.completions.create(
+        model=LLM_MODEL,
+        messages=[
+          {'role': 'system', 'content': system_content},
+          {'role': 'user', 'content': text},
+        ],
+        response_format={'type': 'json_object'},
+        max_completion_tokens=dynamic_max,
+      )
+      content = response.choices[0].message.content
+      if not content or not content.strip():
+        if attempt == 0:
+          logger.warning(f'translate empty response, retrying (chars={input_chars})')
+          continue
+        raise ValueError('empty response after retry')
+      data = json.loads(content)
+      return {
+        'formatted_original': data.get('formatted_original', text),
+        'translation': data.get('translation', ''),
+        'is_question': bool(data.get('is_question', False)),
+        'detected_language': data.get('detected_language', 'unknown'),
+      }
+    except json.JSONDecodeError as e:
+      if attempt == 0:
+        logger.warning(f'translate JSON parse fail, retrying (chars={input_chars}): {e}')
+        continue
+      logger.error(f'translate JSON parse fail after retry (chars={input_chars}): {e}')
+      break
+    except Exception as e:
+      logger.error(f'translate_and_detect_question failed (chars={input_chars}): {e}')
+      return {
+        'formatted_original': text,
+        'translation': '',
+        'is_question': False,
+        'detected_language': 'error',
+        'error': str(e),
+      }
+
+  return {
+    'formatted_original': text,
+    'translation': '',
+    'is_question': False,
+    'detected_language': 'error',
+    'error': 'empty or unparseable response',
+  }
 
 
 # ─────────────────────────────────────────────────────────

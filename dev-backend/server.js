@@ -221,6 +221,7 @@ const taskSnapshot = require('./services/task_snapshot');
 const billing = require('./services/billing');
 const reportGenerator = require('./services/report_generator');
 const recurringInvoice = require('./services/recurring_invoice');
+const recurringTask = require('./services/recurringTaskGenerator');
 const overdueHandler = require('./services/overdue_handler');
 
 async function runMonthlyReportsIfDay1() {
@@ -272,6 +273,10 @@ function scheduleNextMidnight() {
       const r = await recurringInvoice.runDailyRecurringBilling();
       console.log('[recurring-invoice]', { ok: r.ok, skip: r.skip, fail: r.fail });
     } catch (e) { console.warn('[recurring-invoice] failed', e.message); }
+    try {
+      const r = await recurringTask.runDailyRecurringTaskGen();
+      console.log('[recurring-task]', { ok: r.ok, skip: r.skip, fail: r.fail });
+    } catch (e) { console.warn('[recurring-task] failed', e.message); }
     try {
       const r = await overdueHandler.runDailyOverdueCron();
       console.log('[overdue]', r);

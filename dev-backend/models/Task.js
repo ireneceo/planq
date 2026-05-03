@@ -169,7 +169,27 @@ Task.init({
     type: DataTypes.BIGINT,
     allowNull: true,
     references: { model: 'task_candidates', key: 'id' }
-  }
+  },
+  // ─── 정기업무 (recurring task) ───
+  // RRULE 표준 문자열 (예: 'FREQ=WEEKLY;BYDAY=MO;COUNT=10').
+  // 시리즈의 "원본"(parent)에만 채워짐. 자동 생성된 인스턴스는 null.
+  recurrence_rule: {
+    type: DataTypes.STRING(500),
+    allowNull: true,
+  },
+  // 시리즈 parent task id. 본인이 parent 면 자기 id, 자동 생성된 인스턴스면 parent id.
+  // 시리즈 추적 + "이 시리즈의 모든 향후 인스턴스 수정/삭제" 동작 지원.
+  recurrence_parent_id: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    references: { model: 'tasks', key: 'id' },
+  },
+  // cron generator 가 다음 인스턴스를 생성할 마감일. parent 의 다음 occurrence date.
+  // 종료 조건 (COUNT/UNTIL) 도달 시 null.
+  next_occurrence_at: {
+    type: DataTypes.DATEONLY,
+    allowNull: true,
+  },
 }, {
   sequelize,
   tableName: 'tasks',

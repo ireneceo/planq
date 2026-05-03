@@ -332,7 +332,16 @@ const QNotePage = () => {
   const [manualInput, setManualInput] = useState('');
   const [manualSubmitting, setManualSubmitting] = useState(false);
   const manualIdRef = useRef(-1);
+  // 라이브 점진 표시:
+  // - interimConfirmed: Deepgram 의 is_final=true && !speech_final 청크 누적 (확정된 mid-final)
+  // - interimText: is_final=false 의 volatile partial (덮어쓰기)
+  // 표시 = confirmed + ' ' + volatile. finalized/일시정지 시 둘 다 clearInterim() 으로 비움.
   const [interimText, setInterimText] = useState<string>('');
+  const [interimConfirmed, setInterimConfirmed] = useState<string>('');
+  const clearInterim = useCallback(() => {
+    setInterimText('');
+    setInterimConfirmed('');
+  }, []);
   const [liveError, setLiveError] = useState<string | null>(null);
   const [liveNotice, setLiveNotice] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState(false);
@@ -623,7 +632,7 @@ const QNotePage = () => {
       } else {
         setBlocks([]);
       }
-      setInterimText('');
+      clearInterim();
       setLiveError(null);
       // paused 진입 시, 재개를 위해 기본 pendingConfig 구성 (참여자/언어/캡처모드 원본 유지).
       // capture_mode 는 DB 에 영속화 되어 있음 — web_conference 면 재개 시 탭 공유 다이얼로그가
@@ -661,13 +670,22 @@ const QNotePage = () => {
   // ── WebSocket 이벤트 핸들러 ───────────────────────────
   const handleLiveEvent = useCallback((ev: LiveEvent) => {
     if (ev.type === 'transcript') {
-      if (!ev.is_final) setInterimText(ev.transcript);
+      const text = (ev.transcript || '').trim();
+      if (!text) return;
+      if (ev.is_final) {
+        // 확정된 mid-final 청크 — 누적. volatile 은 비움 (다음 partial 부터 새로).
+        setInterimConfirmed((prev) => (prev ? `${prev} ${text}` : text));
+        setInterimText('');
+      } else {
+        // volatile partial — 덮어쓰기.
+        setInterimText(text);
+      }
       return;
     }
 
     if (ev.type === 'finalized') {
       // speech_final 기반 — 한 utterance = 한 문장. 즉시 블록으로 승격.
-      setInterimText('');
+      clearInterim();
       pendingRef.current = null;
       setPending(null);
 
@@ -864,7 +882,7 @@ const QNotePage = () => {
             recorderTokenRef.current = null;
             liveRef.current?.stop();
             liveRef.current = null;
-            setInterimText('');
+            clearInterim();
             flushPending();
             setPhase('paused');
             setLockedByOther(true);
@@ -909,7 +927,7 @@ const QNotePage = () => {
   const pauseRecording = async () => {
     liveRef.current?.stop();
     liveRef.current = null;
-    setInterimText('');
+    clearInterim();
     flushPending();
     setPhase('paused');
     await releaseLockIfHeld();
@@ -919,7 +937,7 @@ const QNotePage = () => {
   const endMeeting = async () => {
     liveRef.current?.stop();
     liveRef.current = null;
-    setInterimText('');
+    clearInterim();
     flushPending();
     await releaseLockIfHeld();
     if (activeSession) {
@@ -1002,7 +1020,7 @@ const QNotePage = () => {
     setShowStartModal(false);
     setLiveError(null);
     setBlocks([]);
-    setInterimText('');
+    clearInterim();
     pendingRef.current = null;
     setPending(null);
     try {
@@ -1394,7 +1412,7 @@ const QNotePage = () => {
     if (!el) return;
     if (!stickToBottomRef.current) return;
     el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
-  }, [blocks, pending, interimText, phase]);
+  }, [blocks, pending, interimText, interimConfirmed, phase]);
 
   // phase 전환 시 sticky 초기화
   useEffect(() => {
@@ -2137,7 +2155,7 @@ const QNotePage = () => {
               {phase === 'recording' && (
                 <InterimLine>
                   <InterimDot />
-                  {interimText || t('page.interim.listening')}
+                  {([interimConfirmed, interimText].filter(Boolean).join(' ').trim()) || t('page.interim.listening')}
                 </InterimLine>
               )}
             </Transcript>
