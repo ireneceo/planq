@@ -38,6 +38,7 @@
     "platformSettings": "Platform settings",
     "subscriptions": "Subscriptions",
     "payments": "Payments",
+    "billingSettings": "Billing settings",
     "platformAdminEntry": "Platform Admin",
     "platformAdminEntryDesc": "Manage all workspaces & users",
     "platformAdminTitle": "Platform Admin",

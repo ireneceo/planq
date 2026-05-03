@@ -230,22 +230,42 @@ router.get('/platform-settings', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// PUT /api/admin/platform-settings — 단일 row upsert. body: { brand, tagline, website, support_email, legal_entity, email_logo_url }
+// PUT /api/admin/platform-settings — 단일 row upsert.
+//   body 의 알려진 필드만 업데이트. 다른 필드는 보존. 결제 설정 (bank/portone/vat/due) 같이 처리.
 router.put('/platform-settings', async (req, res, next) => {
   try {
-    const { brand, tagline, website, support_email, legal_entity, email_logo_url } = req.body || {};
-    if (brand !== undefined && (!String(brand).trim() || String(brand).length > 100)) {
+    const b = req.body || {};
+    if (b.brand !== undefined && (!String(b.brand).trim() || String(b.brand).length > 100)) {
       return errorResponse(res, 'brand_invalid', 400);
     }
+    const setStr = (k, max) => (b[k] !== undefined ? { [k]: b[k] ? String(b[k]).slice(0, max) : null } : {});
+    const setNum = (k, fb) => (b[k] !== undefined && Number.isFinite(Number(b[k])) ? { [k]: Number(b[k]) } : (fb !== undefined ? {} : {}));
     const updates = {
-      ...(brand !== undefined ? { brand: String(brand).trim() } : {}),
-      ...(tagline !== undefined ? { tagline: tagline ? String(tagline).slice(0, 300) : null } : {}),
-      ...(website !== undefined ? { website: website ? String(website).slice(0, 300) : null } : {}),
-      ...(support_email !== undefined ? { support_email: support_email ? String(support_email).slice(0, 200) : null } : {}),
-      ...(legal_entity !== undefined ? { legal_entity: legal_entity ? String(legal_entity).slice(0, 100) : null } : {}),
-      ...(email_logo_url !== undefined ? { email_logo_url: email_logo_url ? String(email_logo_url).slice(0, 500) : null } : {}),
+      ...(b.brand !== undefined ? { brand: String(b.brand).trim() } : {}),
+      ...setStr('tagline', 300),
+      ...setStr('website', 300),
+      ...setStr('support_email', 200),
+      ...setStr('legal_entity', 100),
+      ...setStr('email_logo_url', 500),
+      // 결제 설정
+      ...setStr('bank_name', 100),
+      ...setStr('bank_account_number', 50),
+      ...setStr('bank_account_holder', 100),
+      ...setStr('portone_store_id', 100),
+      ...setStr('portone_channel_key', 200),
+      ...setStr('portone_channel_key_billing', 200),
+      ...setStr('portone_webhook_secret', 200),
+      ...setNum('default_vat_rate'),
+      ...setNum('default_due_days'),
       updated_by_user_id: req.user.id,
     };
+    // VAT rate 0~1 검증
+    if (updates.default_vat_rate !== undefined && (updates.default_vat_rate < 0 || updates.default_vat_rate > 1)) {
+      return errorResponse(res, 'vat_rate_out_of_range (0~1)', 400);
+    }
+    if (updates.default_due_days !== undefined && (updates.default_due_days < 0 || updates.default_due_days > 365)) {
+      return errorResponse(res, 'due_days_out_of_range (0~365)', 400);
+    }
     let row = await PlatformSetting.findOne({ order: [['id', 'ASC']] });
     if (row) {
       await row.update(updates);
