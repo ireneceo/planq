@@ -648,6 +648,60 @@ async function collectTaxInvoices(businessId, userRole) {
 }
 
 /* ─────────────────────────────────────────────
+   PlanQ 구독 청구 (플랫폼 → 워크스페이스) — 워크스페이스 owner 의 인박스에 표시.
+   상태별:
+     pending  : "PlanQ Pro 월 5만원 결제 대기" (waiting priority — 결제 요청 받은 상태)
+     past_due : "PlanQ Pro 결제 기한 지남" (urgent — 즉시 액션)
+     grace    : "PlanQ Pro 유예 기간 X일 남음" (urgent — 곧 강등)
+   ──────────────────────────────────────────── */
+async function collectPlanqSubscription(businessId, userRole) {
+  if (userRole !== 'owner') return [];  // owner 만 결제 영역 알림
+  const { Subscription } = require('../models');
+  const subs = await Subscription.findAll({
+    where: {
+      business_id: businessId,
+      status: { [Op.in]: ['pending', 'past_due', 'grace'] },
+    },
+    order: [['created_at', 'DESC']],
+  });
+  const items = [];
+  for (const s of subs) {
+    const planLabel = (s.plan_code || '').toUpperCase();
+    const cycleLabel = s.cycle === 'monthly' ? '월' : '연';
+    const priceText = `${s.currency} ${Math.round(Number(s.price)).toLocaleString('ko-KR')}`;
+    let priority = 'waiting'; let verb = 'pay'; let subject = ''; let context = '';
+    if (s.status === 'pending') {
+      priority = 'waiting';
+      subject = `PlanQ ${planLabel} ${cycleLabel} ${priceText} 결제 대기`;
+      context = '계좌이체 후 입금자명을 알려주세요';
+    } else if (s.status === 'past_due') {
+      priority = 'urgent';
+      subject = `PlanQ ${planLabel} 결제 기한 지남`;
+      context = '즉시 결제하지 않으면 유예 기간 후 Free 로 강등됩니다';
+    } else if (s.status === 'grace') {
+      const daysLeft = s.grace_ends_at ? Math.max(0, Math.ceil((new Date(s.grace_ends_at) - new Date()) / 86400000)) : 0;
+      priority = 'urgent';
+      subject = `PlanQ ${planLabel} 유예 기간 ${daysLeft}일 남음`;
+      context = '결제하지 않으면 곧 Free 로 강등됩니다';
+    }
+    items.push({
+      id: `planq_subscription-${s.id}`,
+      type: 'planq_subscription',
+      priority,
+      verb,
+      subject,
+      context,
+      dueAt: s.grace_ends_at || s.current_period_end || null,
+      createdAt: s.created_at,
+      drawer: null,
+      link: '/business/settings/plan',  // 워크스페이스 owner 결제 페이지
+      meta: { subscription_id: s.id, status: s.status, plan_code: s.plan_code, amount: Number(s.price) },
+    });
+  }
+  return items;
+}
+
+/* ─────────────────────────────────────────────
    GET /api/dashboard/todo
    Query: ?business_id=... (생략 시 사용자 첫 biz)
    ──────────────────────────────────────────── */
@@ -707,7 +761,7 @@ router.get('/todo', authenticateToken, async (req, res, next) => {
     // 각 워크스페이스에서 collector 돌리고 항목마다 workspace 라벨 부착
     const allBuckets = await Promise.all(workspaces.map(async (w) => {
       const userRole = w.role === 'admin' ? 'admin' : w.role;
-      const [tasks, events, candidates, invoices, signatures, paymentNotifies, taxInvoices] = await Promise.all([
+      const [tasks, events, candidates, invoices, signatures, paymentNotifies, taxInvoices, planqSubs] = await Promise.all([
         collectTasks(w.business_id, userId),
         collectEvents(w.business_id, userId),
         collectCandidates(w.business_id, userId),
@@ -715,8 +769,9 @@ router.get('/todo', authenticateToken, async (req, res, next) => {
         collectSignatures(w.business_id, req.user.email, userRole),
         collectPaymentNotifies(w.business_id, userRole),
         collectTaxInvoices(w.business_id, userRole),
+        collectPlanqSubscription(w.business_id, userRole),
       ]);
-      const items = [...tasks, ...events, ...candidates, ...invoices, ...signatures, ...paymentNotifies, ...taxInvoices];
+      const items = [...tasks, ...events, ...candidates, ...invoices, ...signatures, ...paymentNotifies, ...taxInvoices, ...planqSubs];
       // 워크스페이스 라벨 부착
       for (const it of items) it.workspace = { business_id: w.business_id, brand_name: w.brand_name, role: w.role };
       return items;

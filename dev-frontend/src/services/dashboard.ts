@@ -10,7 +10,8 @@ export type TodoPriority = 'urgent' | 'today' | 'waiting' | 'week';
 export type TodoType =
   | 'task' | 'event' | 'invite' | 'mention' | 'email'
   | 'task_candidate' | 'invoice'
-  | 'signature' | 'payment_notify' | 'tax_invoice';
+  | 'signature' | 'payment_notify' | 'tax_invoice'
+  | 'planq_subscription';  // PlanQ 플랫폼 → 워크스페이스 구독 청구 (owner 만)
 
 export type TodoVerb =
   | 'ack'

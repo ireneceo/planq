@@ -25,6 +25,7 @@ const TYPE_TO_TAB: Record<string, Exclude<InboxTab, 'all'>> = {
   task: 'work', event: 'work', invite: 'work', mention: 'work', email: 'work', task_candidate: 'work',
   signature: 'signature',
   invoice: 'billing', payment_notify: 'billing', tax_invoice: 'billing',
+  planq_subscription: 'billing',  // PlanQ 구독 청구 (owner 가 받는 플랫폼 청구)
 };
 const TAB_LIST: InboxTab[] = ['all', 'work', 'signature', 'billing'];
 
