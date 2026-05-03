@@ -32,6 +32,7 @@
   "todo": {
     "title": "Inbox",
     "count": "{{count}} item(s)",
+    "signaturesArchive": "Signature archive",
     "emptyTitle": "Nothing to confirm",
     "emptySub": "See all tasks in Q Task",
     "emptyAskCue": "Ask Cue",

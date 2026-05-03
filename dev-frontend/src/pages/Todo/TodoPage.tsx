@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { io, type Socket } from 'socket.io-client';
+import styled from 'styled-components';
 import PageShell from '../../components/Layout/PageShell';
 import HelpDot from '../../components/Common/HelpDot';
 import FirstVisitTour from '../../components/Common/FirstVisitTour';
@@ -189,6 +191,11 @@ const TodoPage: React.FC = () => {
     <PageShell
       title={t('todo.title')}
       count={data?.total}
+      actions={
+        <ArchiveLink to="/signatures/received" title={t('todo.signaturesArchive', '받은 서명 archive') as string}>
+          {t('todo.signaturesArchive', '받은 서명 archive')} →
+        </ArchiveLink>
+      }
       helpDot={
         <HelpDot askCue={t('todo.help.cuePrefill') as string} topic="todo" tourPageKey="inbox">
           {t('todo.help.body')}
@@ -239,3 +246,17 @@ const TodoPage: React.FC = () => {
 };
 
 export default TodoPage;
+
+const ArchiveLink = styled(Link)`
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #64748B;
+  text-decoration: none;
+  padding: 6px 10px;
+  border-radius: 6px;
+  transition: background 0.15s, color 0.15s;
+  &:hover { color: #0F766E; background: #F0FDFA; }
+`;
