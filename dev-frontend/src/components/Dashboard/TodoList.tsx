@@ -42,6 +42,7 @@ function TypeIcon({ type }: { type: TodoItem['type'] }) {
   if (type === 'signature') return <IconSign />;
   if (type === 'payment_notify') return <IconCash />;
   if (type === 'tax_invoice') return <IconReceipt />;
+  if (type === 'planq_subscription') return <IconCash />;  // PlanQ 구독 청구 (받는 청구)
   return <IconMention />;
 }
 
