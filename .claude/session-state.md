@@ -1,21 +1,10 @@
 ## 현재 작업 상태
-**마지막 업데이트:** 2026-05-03 (저녁 — Q-N 사이클 운영 배포 완료. v1.1.0)
-**작업 상태:** 운영 라이브 (commit `c2f9b4f`, v1.1.0). 10 commit 묶음 모두 운영 적용.
+**마지막 업데이트:** 2026-05-03 (저녁 — Q-N 사이클 운영 배포 완료. v1.1.0 + 운영 q-note 가동)
+**작업 상태:** 운영 라이브 (commit `d3ba189`, v1.1.0). 10 commit 묶음 모두 운영 적용 + 운영 q-note 정상 가동.
 
-**남은 외부 의존성 1건:**
-- 운영 q-note PM2 가동 — 운영서버 sudo 필요 (Irene 직접 ssh):
-  ```bash
-  ssh irene@87.106.78.146
-  sudo apt install python3.12-venv python3-pip -y
-  cd /opt/planq/q-note && rm -rf venv && python3 -m venv venv
-  venv/bin/pip install --upgrade pip
-  venv/bin/pip install torch==2.5.1 --index-url https://download.pytorch.org/whl/cpu
-  venv/bin/pip install -r requirements.txt
-  pm2 start /opt/planq/q-note/venv/bin/uvicorn --name planq-prod-qnote \
-    --interpreter /opt/planq/q-note/venv/bin/python -- \
-    main:app --host 0.0.0.0 --port 8001 --app-dir /opt/planq/q-note
-  pm2 save
-  ```
+**외부 의존성: 0** (이번 사이클 모두 처리)
+- 운영 q-note: ✅ 가동 완료. `python3.12-venv` apt 설치 + venv 재생성 + torch CPU + requirements + PM2 등록 + .env scp 한 번에 처리.
+- 502 에러 (https://planq.kr/profile 의 voice-fingerprint) → 401 회복 (인증 후 200 정상)
 
 ---
 
