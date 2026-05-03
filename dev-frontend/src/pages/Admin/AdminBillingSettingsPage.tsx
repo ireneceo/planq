@@ -93,7 +93,7 @@ const AdminBillingSettingsPage = () => {
             <Label>{t('billing.bankName', '은행명')}</Label>
             <AutoSaveField type="input" onSave={async () => save({ bank_name: data.bank_name })}>
               <Input value={data.bank_name || ''} onChange={e => set('bank_name', e.target.value)}
-                placeholder="예: 국민은행" maxLength={100} />
+                placeholder={t('billing.bankNamePh', '예: 국민은행') as string} maxLength={100} />
             </AutoSaveField>
           </Field>
 
@@ -109,7 +109,7 @@ const AdminBillingSettingsPage = () => {
             <Label>{t('billing.bankHolder', '예금주')}</Label>
             <AutoSaveField type="input" onSave={async () => save({ bank_account_holder: data.bank_account_holder })}>
               <Input value={data.bank_account_holder || ''} onChange={e => set('bank_account_holder', e.target.value)}
-                placeholder="워프로랩" maxLength={100} />
+                placeholder={t('billing.bankHolderPh', '워프로랩') as string} maxLength={100} />
             </AutoSaveField>
           </Field>
         </Card>
