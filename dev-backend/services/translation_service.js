@@ -18,7 +18,7 @@ const MODEL = 'gpt-4o-mini';
 // 입력 언어 자동 감지 + 두 언어로 번역
 // languages: ["ko","en"] 같은 2-원소 배열
 // 반환: { detected_language, translations: { ko: "...", en: "..." } }
-async function translateForBilingual(text, languages) {
+async function translateForBilingual(text, languages, businessId = null) {
   if (!OPENAI_API_KEY) {
     return { detected_language: null, translations: null, fallback: true };
   }
@@ -31,6 +31,16 @@ async function translateForBilingual(text, languages) {
   }
   if (!text || !text.trim()) {
     return { detected_language: null, translations: null, fallback: true, reason: 'empty_text' };
+  }
+  // 워크스페이스 월 Cue 한도 검사 — 초과 시 번역 skip (메시지는 원문만, 번역 자동 시도 안 함)
+  if (businessId) {
+    try {
+      const { checkUsageLimit } = require('./cue_orchestrator');
+      const usage = await checkUsageLimit(businessId);
+      if (usage.over) {
+        return { detected_language: null, translations: null, fallback: true, reason: 'usage_limit_exceeded' };
+      }
+    } catch { /* best-effort */ }
   }
 
   const systemPrompt = `You are a precise bilingual translator. Detect the source language of the user message, then return BOTH ${LANG_NAMES[a]} (key="${a}") and ${LANG_NAMES[b]} (key="${b}") versions in JSON.
@@ -105,6 +115,15 @@ JSON RULES:
     if (!translations[a].trim() || !translations[b].trim()) {
       return { detected_language: detected, translations: null, fallback: true, reason: 'empty_translation' };
     }
+    // 사용량 기록 — translation 카테고리 (cue_usage 통합 추적)
+    if (businessId) {
+      try {
+        const { recordUsage } = require('./cue_orchestrator');
+        await recordUsage(businessId, 'translation', MODEL,
+          data.usage?.prompt_tokens || 0,
+          data.usage?.completion_tokens || 0);
+      } catch (e) { console.warn('[translation] recordUsage failed', e.message); }
+    }
     return {
       detected_language: detected,
       translations,
@@ -130,11 +149,11 @@ function validateLanguages(arr) {
 }
 
 // 재시도 wrapper — 빈 번역 / parse 실패 등에 1회 재시도 (총 최대 2회 호출)
-async function translateWithRetry(text, languages) {
-  let r = await translateForBilingual(text, languages);
+async function translateWithRetry(text, languages, businessId = null) {
+  let r = await translateForBilingual(text, languages, businessId);
   if (r.fallback && (r.reason === 'empty_translation' || r.reason === 'malformed_response' || r.reason === 'json_parse_failed')) {
     console.log(`[translation] retry — first reason=${r.reason}`);
-    r = await translateForBilingual(text, languages);
+    r = await translateForBilingual(text, languages, businessId);
   }
   return r;
 }
