@@ -11,16 +11,30 @@
 export interface NameLocalizable {
   name?: string | null;
   name_localized?: Record<string, string> | null;
+  // 워크스페이스 컨텍스트 표시명 (BusinessMember.name 또는 Client.name)
+  // 메모 project_account_workspace_profile_split — 계정 vs 워크스페이스 분리.
+  display_name?: string | null;
+  display_name_localized?: Record<string, string> | null;
 }
 
+// 우선순위: display_name_localized[lang] > display_name > name_localized[lang] > name
 export function displayName(user: NameLocalizable | null | undefined, viewerLang?: string | null): string {
   if (!user) return '';
-  const fallback = user.name || '';
-  if (!viewerLang || !user.name_localized) return fallback;
-  // i18n 언어 코드는 'ko' 또는 'ko-KR' 같은 형태 — primary subtag 만 추출
-  const primary = String(viewerLang).split('-')[0].toLowerCase();
-  const localized = user.name_localized[primary];
-  return (typeof localized === 'string' && localized.trim()) ? localized : fallback;
+  const primary = viewerLang ? String(viewerLang).split('-')[0].toLowerCase() : null;
+  // 1) 워크스페이스 표시명 (i18n)
+  if (primary && user.display_name_localized) {
+    const v = user.display_name_localized[primary];
+    if (typeof v === 'string' && v.trim()) return v;
+  }
+  // 2) 워크스페이스 표시명 (default)
+  if (user.display_name && user.display_name.trim()) return user.display_name;
+  // 3) 계정 이름 (i18n)
+  if (primary && user.name_localized) {
+    const v = user.name_localized[primary];
+    if (typeof v === 'string' && v.trim()) return v;
+  }
+  // 4) 계정 이름 fallback
+  return user.name || '';
 }
 
 // 검색·정렬용 — 모든 언어 이름을 합친 문자열 반환 (검색 매칭 강화)

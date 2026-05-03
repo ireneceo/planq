@@ -69,15 +69,17 @@ const getUserWithBusiness = async (userId) => {
   });
   if (!user) return null;
 
-  // 1) 멤버십 (owner / member)
+  // 1) 멤버십 (owner / member) — name/name_localized 도 가져와서 워크스페이스별 표시명 fallback 으로
   const memberships = await BusinessMember.findAll({
     where: { user_id: userId },
+    attributes: ['business_id', 'role', 'name', 'name_localized', 'removed_at'],
     include: [{ model: Business, attributes: ['id', 'name', 'slug', 'plan', 'brand_name', 'timezone', 'reference_timezones'] }]
   });
 
-  // 2) 고객 (client) — 활성 상태만
+  // 2) 고객 (client) — 활성 상태만. display_name 도 가져와 표시명 fallback
   const clientRows = await Client.findAll({
     where: { user_id: userId, status: 'active' },
+    attributes: ['id', 'business_id', 'display_name', 'display_name_localized'],
     include: [{ model: Business, attributes: ['id', 'name', 'slug', 'plan', 'brand_name', 'timezone', 'reference_timezones'] }]
   });
 
@@ -93,6 +95,9 @@ const getUserWithBusiness = async (userId) => {
       role: m.role,  // 'owner' | 'member' | 'ai'
       timezone: m.Business.timezone || 'Asia/Seoul',
       reference_timezones: Array.isArray(m.Business.reference_timezones) ? m.Business.reference_timezones : [],
+      // 워크스페이스별 표시명 (메모 project_account_workspace_profile_split)
+      member_name: m.name || null,
+      member_name_localized: m.name_localized || null,
     });
   }
   for (const c of clientRows) {
@@ -106,6 +111,9 @@ const getUserWithBusiness = async (userId) => {
         role: 'client',
         timezone: c.Business.timezone || 'Asia/Seoul',
         reference_timezones: Array.isArray(c.Business.reference_timezones) ? c.Business.reference_timezones : [],
+        // Client 의 워크스페이스 표시명
+        member_name: c.display_name || null,
+        member_name_localized: c.display_name_localized || null,
       });
     }
   }
@@ -130,10 +138,16 @@ const getUserWithBusiness = async (userId) => {
     userData.business_role = activeWs.role;
     userData.workspace_timezone = activeWs.timezone;
     userData.workspace_reference_timezones = activeWs.reference_timezones || [];
+    // 워크스페이스 컨텍스트의 표시명 — 사이드바 등 UI 가 active workspace 의 이름을 보여주도록.
+    // 메모 project_account_workspace_profile_split: 계정 (User.name) vs 워크스페이스 (BusinessMember.name) 분리.
+    userData.display_name = activeWs.member_name || user.name;
+    userData.display_name_localized = activeWs.member_name_localized || user.name_localized || null;
   } else {
     userData.business_id = null;
     userData.business_name = null;
     userData.business_role = null;
+    userData.display_name = user.name;
+    userData.display_name_localized = user.name_localized || null;
     userData.workspace_timezone = null;
     userData.workspace_reference_timezones = [];
   }

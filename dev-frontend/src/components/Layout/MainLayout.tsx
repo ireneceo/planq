@@ -446,9 +446,13 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
 
   const getRoleLabel = (u: typeof user) => {
     if (!u) return '';
-    if (u.platform_role === 'platform_admin') return t('role.platform_admin');
+    // /admin/* 페이지에서만 platform_admin 우선 표시. 일반 페이지는 워크스페이스 역할 우선.
+    // (메모: profile 에서 워크스페이스 프로필 변경 후 사이드바도 워크스페이스 컨텍스트로 보여야)
+    if (isAdminMode && u.platform_role === 'platform_admin') return t('role.platform_admin');
     if (u.business_role === 'owner') return t('role.business_owner');
     if (u.business_role === 'member') return t('role.business_member');
+    if (u.business_role === 'client') return t('role.client', '고객');
+    if (u.platform_role === 'platform_admin') return t('role.platform_admin');
     return t('role.user');
   };
 
