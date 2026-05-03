@@ -33,6 +33,7 @@
     "title": "Inbox",
     "count": "{{count}} item(s)",
     "signaturesArchive": "Signature archive",
+    "signaturesHint": "Only pending signatures here. Full history at",
     "tab": {
       "all": "All",
       "work": "Work",

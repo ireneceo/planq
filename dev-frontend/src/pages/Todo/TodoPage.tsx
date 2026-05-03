@@ -214,11 +214,6 @@ const TodoPage: React.FC = () => {
     <PageShell
       title={t('todo.title')}
       count={data?.total}
-      actions={
-        <ArchiveLink to="/signatures/received" title={t('todo.signaturesArchive', '받은 서명 archive') as string}>
-          {t('todo.signaturesArchive', '받은 서명 archive')} →
-        </ArchiveLink>
-      }
       helpDot={
         <HelpDot askCue={t('todo.help.cuePrefill') as string} topic="todo" tourPageKey="inbox">
           {t('todo.help.body')}
@@ -250,6 +245,15 @@ const TodoPage: React.FC = () => {
                 </TabBtn>
               ))}
             </TabBar>
+            {/* "서명" 탭 활성 시 — pending 만 보이는 인박스라 전체 history archive 진입점 노출 */}
+            {activeTab === 'signature' && (
+              <ArchiveHint>
+                <ArchiveHintText>{t('todo.signaturesHint', '여기에는 액션 필요한 서명만 보여요. 전체 history 는')}</ArchiveHintText>
+                <ArchiveLink to="/signatures/received">
+                  {t('todo.signaturesArchive', '받은 서명 archive')} →
+                </ArchiveLink>
+              </ArchiveHint>
+            )}
             {err
               ? <div style={{ padding: 20, color: '#B91C1C' }}>{err}</div>
               : <TodoList
@@ -325,16 +329,28 @@ const Count = styled.span<{ $active: boolean }>`
   color: ${p => p.$active ? '#FFFFFF' : '#64748B'};
   border-radius: 999px;
 `;
+const ArchiveHint = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: #F0FDFA;
+  border: 1px solid #CCFBF1;
+  border-radius: 8px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+`;
+const ArchiveHintText = styled.span`
+  font-size: 12px;
+  color: #334155;
+`;
 const ArchiveLink = styled(Link)`
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  font-size: 13px;
-  font-weight: 500;
-  color: #64748B;
+  font-size: 12px;
+  font-weight: 700;
+  color: #0F766E;
   text-decoration: none;
-  padding: 6px 10px;
-  border-radius: 6px;
-  transition: background 0.15s, color 0.15s;
-  &:hover { color: #0F766E; background: #F0FDFA; }
+  &:hover { text-decoration: underline; }
 `;

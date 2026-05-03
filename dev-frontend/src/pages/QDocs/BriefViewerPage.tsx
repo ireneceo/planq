@@ -477,12 +477,6 @@ const NextPrimary = styled.button`
   &:hover:not(:disabled) { background: #0D9488; }
   &:disabled { opacity: 0.5; cursor: not-allowed; }
 `;
-const NextHint = styled.div`
-  font-size: 11px;
-  color: #64748B;
-  font-style: italic;
-  text-align: right;
-`;
 const FollowUpError = styled.div`
   font-size: 12px;
   color: #DC2626;
