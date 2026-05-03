@@ -1,4 +1,41 @@
 {
+  "subs": {
+    "title": "구독 관리",
+    "searchPh": "워크스페이스명 검색",
+    "loadFailed": "목록을 불러오지 못했습니다",
+    "empty": "해당 상태의 구독이 없습니다",
+    "emptyDesc": "필터를 바꿔서 확인하거나 검색해 보세요.",
+    "monthly": "월간",
+    "yearly": "연간",
+    "periodEnd": "기간 종료",
+    "graceEnd": "유예 종료",
+    "demotedAt": "강등",
+    "markPaid": "입금 확인",
+    "markPaidFailed": "입금 확인 실패",
+    "demote": "강등",
+    "demoteFailed": "강등 실패",
+    "confirmPayTitle": "입금 확인",
+    "confirmPayMsg": "{{biz}} 의 결제 대기 건을 입금 확인 처리합니다. 구독이 활성화됩니다.",
+    "confirmDemoteTitle": "강등 처리",
+    "confirmDemoteMsg": "{{biz}} 를 Free 플랜으로 강등합니다. 데이터는 보존됩니다.",
+    "tab": {
+      "all": "전체",
+      "active": "활성",
+      "pending": "결제대기",
+      "past_due": "연체",
+      "grace": "유예",
+      "demoted": "강등"
+    },
+    "status": {
+      "pending": "결제대기",
+      "active": "활성",
+      "past_due": "연체",
+      "grace": "유예중",
+      "demoted": "강등됨",
+      "canceled": "취소",
+      "replaced": "교체됨"
+    }
+  },
   "platform": {
     "title": "플랫폼 설정",
     "hint": "PlanQ 운영자(워프로랩) 정보입니다. 메일 푸터·법적 표기·지원 메일 등에 사용됩니다. 변경 시 자동 저장되며, 메일 발송에는 5분 캐시 후 반영됩니다.",
