@@ -206,6 +206,41 @@ export async function createBrief(payload: {
   return j.data as BriefResult;
 }
 
+// 자료정리에서 파생된 후속 문서 생성 (manual / ai)
+export async function createFollowUp(parentId: number, payload: {
+  mode: 'manual' | 'ai';
+  kind: string;
+  title?: string;
+}): Promise<PostDetail> {
+  const r = await apiFetch(`/api/posts/${parentId}/follow-up`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  const j = await r.json();
+  if (r.status === 429) {
+    const e = new Error('cue_limit_exceeded') as Error & { usage?: { remaining: number; limit: number } };
+    e.usage = j.usage;
+    throw e;
+  }
+  if (!j.success) throw new Error(j.message || 'follow-up failed');
+  return j.data as PostDetail;
+}
+
+// 자료정리에서 파생된 후속 문서 list
+export interface FollowUpChild {
+  id: number;
+  title: string;
+  category: string | null;
+  created_at: string;
+  author: { id: number; name: string } | null;
+}
+export async function fetchPostChildren(parentId: number): Promise<FollowUpChild[]> {
+  const r = await apiFetch(`/api/posts/${parentId}/children`);
+  const j = await r.json();
+  if (!j.success) throw new Error(j.message || 'fetch children failed');
+  return j.data as FollowUpChild[];
+}
+
 // ─── 공유 ───
 export interface PostShareInfo { share_token: string; share_url: string; shared_at: string | null; }
 export async function sharePost(postId: number): Promise<PostShareInfo> {
