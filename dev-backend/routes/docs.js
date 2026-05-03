@@ -16,14 +16,12 @@ const {
 } = require('../models');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const { authenticateToken } = require('../middleware/auth');
-const { getUserScope, isMemberOrAbove } = require('../middleware/access_scope');
+const { getUserScope, isMemberOrAbove, assertMemberOrAbove } = require('../middleware/access_scope');
 const cue = require('../services/cue_orchestrator');
 
-// member 이상 (쓰기 액션)
+// member 이상 (쓰기 액션) — 단일 모듈 (access_scope.assertMemberOrAbove) 위임.
 async function assertBusinessAccess(userId, businessId, platformRole) {
-  if (platformRole === 'platform_admin') return true;
-  const m = await BusinessMember.findOne({ where: { user_id: userId, business_id: businessId } });
-  return !!m;
+  return assertMemberOrAbove(userId, businessId, platformRole);
 }
 
 // 조회용 — client 도 통과 (자기 client_id 의 document)

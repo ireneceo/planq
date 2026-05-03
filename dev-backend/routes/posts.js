@@ -35,13 +35,11 @@ const editorImageUpload = multer({
   }
 });
 
-// 워크스페이스 멤버십 확인 헬퍼 (member 이상 — 쓰기 액션용)
+// 워크스페이스 멤버십 확인 — middleware/access_scope.assertMemberOrAbove 위임 (단일 모듈 정책).
+// 시그니처 호환 wrapper: posts.js 가 isPlatformAdmin boolean 으로 부르고 있어 그대로 둠.
 async function assertMember(userId, businessId, isPlatformAdmin) {
-  if (isPlatformAdmin) return true;
-  const bm = await BusinessMember.findOne({ where: { user_id: userId, business_id: businessId } });
-  if (bm) return true;
-  const biz = await Business.findOne({ where: { id: businessId, owner_id: userId } });
-  return !!biz;
+  const { assertMemberOrAbove } = require('../middleware/access_scope');
+  return assertMemberOrAbove(userId, businessId, isPlatformAdmin ? 'platform_admin' : null);
 }
 
 // 워크스페이스 + client 통합 (조회 액션용)
