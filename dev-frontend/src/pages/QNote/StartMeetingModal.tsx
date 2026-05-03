@@ -1109,7 +1109,11 @@ const StartMeetingModal = ({ open, userLanguage, editMode, initialConfig, editin
               }}
             >
               <DropzoneIcon>
-                <PlusIcon size={20} />
+                <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                  <polyline points="17 8 12 3 7 8"/>
+                  <line x1="12" y1="3" x2="12" y2="15"/>
+                </svg>
               </DropzoneIcon>
               <DropzoneText>
                 {t('startModal.dropzoneText')}
@@ -1502,46 +1506,45 @@ const CharCount = styled.div`
   margin-top: -2px;
 `;
 
+// KnowledgePage 새 지식 등록 폼과 동일 스타일 (UI 일관성)
 const Dropzone = styled.div<{ $dragging: boolean }>`
-  border: 2px dashed ${(p) => (p.$dragging ? '#14b8a6' : '#cbd5e1')};
-  background: ${(p) => (p.$dragging ? '#f0fdfa' : '#f8fafc')};
-  border-radius: 10px;
-  padding: 20px 16px;
+  border: 2px dashed ${(p) => (p.$dragging ? '#14B8A6' : '#CBD5E1')};
+  background: ${(p) => (p.$dragging ? '#F0FDFA' : '#F8FAFC')};
+  border-radius: 12px;
+  padding: 28px 16px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 8px;
   cursor: pointer;
-  transition: all 120ms;
+  transition: all 0.15s;
+  text-align: center;
   &:hover {
-    border-color: #14b8a6;
-    background: #f0fdfa;
+    border-color: #14B8A6;
+    background: #F0FDFA;
   }
 `;
 
 const DropzoneIcon = styled.div`
   width: 36px;
   height: 36px;
-  border-radius: 50%;
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #0d9488;
+  color: #94A3B8;
 `;
 
 const DropzoneText = styled.div`
   font-size: 13px;
-  color: #64748b;
-  font-weight: 500;
+  color: #334155;
+  font-weight: 600;
   text-align: center;
 `;
 
 const DropzoneSubText = styled.div`
   font-size: 11px;
-  color: #94a3b8;
+  color: #94A3B8;
   font-weight: 400;
   margin-top: 2px;
 `;

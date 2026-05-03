@@ -8,7 +8,8 @@ import React from 'react';
 import styled from 'styled-components';
 
 export interface EmptyStateProps {
-  icon: React.ReactNode;               // 36×36 SVG 권장
+  // 36×36 SVG 권장 (lg/md). sm 에선 비활성/optional
+  icon?: React.ReactNode;
   title: React.ReactNode;
   description?: React.ReactNode;       // 한 줄 또는 <>line1<br/>line2</>
   ctaLabel?: string;
@@ -17,15 +18,16 @@ export interface EmptyStateProps {
   // 보조 CTA (예: "Cue 에게 묻기") — 30년차 디자인: 1차 액션 + 2차 도움말 분리
   secondaryCtaLabel?: string;
   onSecondaryCta?: () => void;
+  size?: 'sm' | 'md';                  // sm: 리스트 row 작은 빈 상태, md: 페이지 전체 빈 상태
   className?: string;
 }
 
-const EmptyState: React.FC<EmptyStateProps> = ({ icon, title, description, ctaLabel, ctaIcon, onCta, secondaryCtaLabel, onSecondaryCta, className }) => {
+const EmptyState: React.FC<EmptyStateProps> = ({ icon, title, description, ctaLabel, ctaIcon, onCta, secondaryCtaLabel, onSecondaryCta, size = 'md', className }) => {
   return (
-    <Wrap className={className}>
-      <IconCircle>{icon}</IconCircle>
-      <Title>{title}</Title>
-      {description && <Desc>{description}</Desc>}
+    <Wrap className={className} $size={size}>
+      {icon && size === 'md' && <IconCircle>{icon}</IconCircle>}
+      <Title $size={size}>{title}</Title>
+      {description && <Desc $size={size}>{description}</Desc>}
       {(ctaLabel || secondaryCtaLabel) && (
         <CtaRow>
           {ctaLabel && onCta && (
@@ -47,14 +49,13 @@ const EmptyState: React.FC<EmptyStateProps> = ({ icon, title, description, ctaLa
 
 export default EmptyState;
 
-const Wrap = styled.div`
-  flex: 1;
+const Wrap = styled.div<{ $size: 'sm' | 'md' }>`
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   text-align: center;
-  padding: 40px;
+  ${p => p.$size === 'md' ? `flex: 1; padding: 40px;` : `padding: 20px 16px;`}
 `;
 const IconCircle = styled.div`
   width: 72px;
@@ -67,16 +68,16 @@ const IconCircle = styled.div`
   justify-content: center;
   margin-bottom: 20px;
 `;
-const Title = styled.h2`
-  font-size: 22px;
-  font-weight: 700;
-  color: #0F172A;
-  margin: 0 0 8px;
+const Title = styled.h2<{ $size: 'sm' | 'md' }>`
+  font-size: ${p => p.$size === 'md' ? '22px' : '13px'};
+  font-weight: ${p => p.$size === 'md' ? '700' : '600'};
+  color: ${p => p.$size === 'md' ? '#0F172A' : '#64748B'};
+  margin: 0 0 ${p => p.$size === 'md' ? '8px' : '4px'};
 `;
-const Desc = styled.p`
-  font-size: 14px;
-  color: #64748B;
-  margin: 0 0 24px;
+const Desc = styled.p<{ $size: 'sm' | 'md' }>`
+  font-size: ${p => p.$size === 'md' ? '14px' : '12px'};
+  color: #94A3B8;
+  margin: 0 0 ${p => p.$size === 'md' ? '24px' : '8px'};
   line-height: 1.6;
 `;
 const CtaRow = styled.div`

@@ -21,7 +21,7 @@ interface Props {
   activeConversationId: number | null;
   onSelectConversation: (conversationId: number) => void;
   onOpenExtract: () => void;
-  onSendMessage: (body: string, files?: File[], existingFileIds?: number[]) => void;
+  onSendMessage: (body: string, files?: File[], existingFileIds?: number[], existingPostIds?: number[]) => void;
   onCueDraftSend: (messageId: number, editedBody?: string) => void;
   onCueDraftReject: (messageId: number) => void;
   onToggleAutoExtract: (conversationId: number, enabled: boolean) => void;
@@ -115,21 +115,28 @@ const ChatPanel: React.FC<Props> = ({
   const [stagedFiles, setStagedFiles] = useState<File[]>([]);
   const [stagedExistingIds, setStagedExistingIds] = useState<number[]>([]);
   const [stagedExistingMeta, setStagedExistingMeta] = useState<Record<number, { name: string; size: number }>>({});
+  const [stagedPostIds, setStagedPostIds] = useState<number[]>([]);
+  const [stagedPostMeta, setStagedPostMeta] = useState<Record<number, { title: string }>>({});
   const [filePickerOpen, setFilePickerOpen] = useState(false);
   // FilePicker 의 businessId — useAuth() 의 user.business_id 사용 (MockProject 에는 business_id 없음)
   const businessId = user?.business_id ? Number(user.business_id) : null;
 
   const handleSend = () => {
-    if (!input.trim() && stagedFiles.length === 0 && stagedExistingIds.length === 0) return;
+    const hasFiles = stagedFiles.length > 0 || stagedExistingIds.length > 0;
+    const hasPosts = stagedPostIds.length > 0;
+    if (!input.trim() && !hasFiles && !hasPosts) return;
     onSendMessage(
       input,
       stagedFiles.length > 0 ? stagedFiles : undefined,
       stagedExistingIds.length > 0 ? stagedExistingIds : undefined,
+      stagedPostIds.length > 0 ? stagedPostIds : undefined,
     );
     setInput('');
     setStagedFiles([]);
     setStagedExistingIds([]);
     setStagedExistingMeta({});
+    setStagedPostIds([]);
+    setStagedPostMeta({});
     scrollToBottom();
   };
   const handleFilePicked = async (result: FilePickerResult) => {
@@ -151,11 +158,31 @@ const ChatPanel: React.FC<Props> = ({
         });
       } catch { /* skip */ }
     }
+    if (result.existingPostIds && result.existingPostIds.length > 0 && businessId) {
+      setStagedPostIds(prev => [...new Set([...prev, ...result.existingPostIds!])]);
+      // 메타 fetch (post title)
+      try {
+        const { fetchPosts } = await import('../../services/posts');
+        const ps = await fetchPosts(Number(businessId), {});
+        setStagedPostMeta(prev => {
+          const next = { ...prev };
+          for (const id of result.existingPostIds!) {
+            const p = ps.find(x => x.id === id);
+            if (p) next[id] = { title: p.title };
+          }
+          return next;
+        });
+      } catch { /* skip */ }
+    }
   };
   const removeStaged = (idx: number) => setStagedFiles(prev => prev.filter((_, i) => i !== idx));
   const removeExisting = (id: number) => {
     setStagedExistingIds(prev => prev.filter(x => x !== id));
     setStagedExistingMeta(prev => { const next = { ...prev }; delete next[id]; return next; });
+  };
+  const removePost = (id: number) => {
+    setStagedPostIds(prev => prev.filter(x => x !== id));
+    setStagedPostMeta(prev => { const next = { ...prev }; delete next[id]; return next; });
   };
 
   // 메시지 리스트 스크롤 컨테이너 + 위치 영속
@@ -707,7 +734,7 @@ const ChatPanel: React.FC<Props> = ({
             )}
           </InputToolbar>
         )}
-        {(stagedFiles.length > 0 || stagedExistingIds.length > 0) && (
+        {(stagedFiles.length > 0 || stagedExistingIds.length > 0 || stagedPostIds.length > 0) && (
           <StagedRow>
             {stagedFiles.map((f, i) => (
               <StagedChip key={`new-${i}`}>
@@ -724,6 +751,16 @@ const ChatPanel: React.FC<Props> = ({
                   <StagedName title={meta?.name}>{meta?.name || `#${id}`}</StagedName>
                   {meta?.size != null && <StagedSize>{(meta.size / 1024).toFixed(0)}KB</StagedSize>}
                   <StagedX type="button" onClick={() => removeExisting(id)} aria-label="remove">×</StagedX>
+                </StagedChip>
+              );
+            })}
+            {stagedPostIds.map(id => {
+              const meta = stagedPostMeta[id];
+              return (
+                <StagedChip key={`post-${id}`} title={t('chat.input.attachPost', '문서 카드') as string}>
+                  <PostDot />
+                  <StagedName title={meta?.title}>{meta?.title || `#${id}`}</StagedName>
+                  <StagedX type="button" onClick={() => removePost(id)} aria-label="remove">×</StagedX>
                 </StagedChip>
               );
             })}
@@ -761,10 +798,11 @@ const ChatPanel: React.FC<Props> = ({
           onClose={() => setFilePickerOpen(false)}
           businessId={Number(businessId)}
           onPick={handleFilePicked}
-          title={t('chat.input.attach', '파일 첨부') as string}
+          title={t('chat.input.attach', '파일·문서 첨부') as string}
           mode="both"
           variant="modal"
           multiple
+          includePosts
         />
       )}
     </Container>
@@ -1489,6 +1527,10 @@ const StagedSize = styled.span`color: #94A3B8; font-size: 10px;`;
 const ExistingDot = styled.span`
   width: 6px; height: 6px; border-radius: 50%;
   background: #14B8A6; flex-shrink: 0;
+`;
+const PostDot = styled.span`
+  width: 6px; height: 6px; border-radius: 50%;
+  background: #F43F5E; flex-shrink: 0;
 `;
 const StagedX = styled.button`
   background: transparent; border: none; color: #94A3B8; cursor: pointer;

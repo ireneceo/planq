@@ -172,12 +172,13 @@ const Backdrop = styled.div`
 `;
 const Dialog = styled.div`
   background: #FFFFFF; border-radius: 14px; width: min(480px, 100%);
-  max-height: 90vh; overflow: auto; display: flex; flex-direction: column;
+  max-height: 90vh; display: flex; flex-direction: column;
   box-shadow: 0 20px 60px rgba(0,0,0,0.25);
 `;
 const ModalHeader = styled.div`
   display: flex; justify-content: space-between; align-items: center;
   padding: 16px 20px; border-bottom: 1px solid #E2E8F0;
+  flex-shrink: 0;
 `;
 const Title = styled.h2`margin: 0; font-size: 16px; font-weight: 700; color: #0F172A;`;
 const CloseBtn = styled.button`
@@ -185,7 +186,7 @@ const CloseBtn = styled.button`
   font-size: 20px; padding: 4px 8px; border-radius: 6px;
   &:hover { background: #F1F5F9; color: #0F172A; }
 `;
-const Body = styled.div`padding: 20px; display: flex; flex-direction: column; gap: 16px;`;
+const Body = styled.div`padding: 20px; display: flex; flex-direction: column; gap: 16px; flex: 1; overflow-y: auto; min-height: 0;`;
 
 const Summary = styled.div`
   background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 10px;
@@ -229,6 +230,7 @@ const Notice = styled.div`
 const Footer = styled.div`
   display: flex; justify-content: flex-end; gap: 8px;
   padding: 14px 20px; border-top: 1px solid #F1F5F9;
+  flex-shrink: 0; background: #fff;
 `;
 const PrimaryBtn = styled.button`
   padding: 10px 20px; background: #0D9488; color: #FFFFFF;

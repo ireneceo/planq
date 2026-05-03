@@ -1144,17 +1144,19 @@ const FileExtBox = styled.div`
 
 const Wrap = styled.div`display:flex;flex-direction:column;gap:12px;`;
 
+// KnowledgePage 새 지식 등록 폼과 동일 스타일 (UI 일관성 — AttachmentField 와 동일)
 const Dropzone = styled.div<{ $drag: boolean }>`
   display:flex;flex-direction:column;align-items:center;justify-content:center;
-  gap:4px;padding:32px 20px;background:${p => p.$drag ? '#F0FDFA' : '#F8FAFC'};
-  border:1.5px dashed ${p => p.$drag ? '#14B8A6' : '#CBD5E1'};border-radius:12px;
-  cursor:pointer;transition:background .15s, border-color .15s;
+  gap:8px;padding:28px 16px;
+  background:${p => p.$drag ? '#F0FDFA' : '#F8FAFC'};
+  border:2px dashed ${p => p.$drag ? '#14B8A6' : '#CBD5E1'};border-radius:12px;
+  cursor:pointer;transition:all .15s;text-align:center;
   &:hover{background:#F0FDFA;border-color:#14B8A6;}
-  &:focus-visible{outline:2px solid #14B8A6;outline-offset:2px;}
+  &:focus-visible{outline:2px solid rgba(20,184,166,0.3);outline-offset:2px;}
 `;
-const DzIcon = styled.div<{ $large?: boolean }>`color:#14B8A6;margin-bottom:${p => p.$large ? 12 : 2}px;`;
-const DzTitle = styled.div`font-size:13px;font-weight:600;color:#0F172A;`;
-const DzHint = styled.div`font-size:11px;color:#64748B;`;
+const DzIcon = styled.div<{ $large?: boolean }>`color:#94A3B8;margin-bottom:${p => p.$large ? 4 : 0}px;`;
+const DzTitle = styled.div`font-size:13px;font-weight:600;color:#334155;`;
+const DzHint = styled.div`font-size:11px;color:#94A3B8;`;
 const DzBadge = styled.div`margin-top:4px;padding:3px 10px;background:#0F766E;color:#fff;border-radius:999px;font-size:11px;font-weight:600;`;
 
 const CompactBar = styled.div`

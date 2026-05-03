@@ -641,14 +641,18 @@ const QTalkPage: React.FC = () => {
   const [extracting, setExtracting] = useState(false);
 
   // 청크 2: 메시지 전송 (사이클 O4 — existingFileIds 추가)
-  const handleSendMessage = async (body: string, files?: File[], existingFileIds?: number[]) => {
+  const handleSendMessage = async (body: string, files?: File[], existingFileIds?: number[], existingPostIds?: number[]) => {
     if (!activeConversationId) return;
     try {
       // 첨부만 있고 텍스트 없는 경우: 본문은 공백 한 글자 (백엔드 content_required 회피)
       const hasAttachments = (files && files.length > 0) || (existingFileIds && existingFileIds.length > 0);
+      const hasPosts = existingPostIds && existingPostIds.length > 0;
       const content = body.trim() || (hasAttachments ? ' ' : '');
-      if (!content) return;
-      const created = await qtalkApi.sendMessage(activeConversationId, content);
+      if (!content && !hasPosts) return;
+      // 텍스트/파일 없이 post 만 있으면 일반 메시지 생성 생략 (카드 메시지만 추가)
+      const created = content
+        ? await qtalkApi.sendMessage(activeConversationId, content)
+        : { id: 0 } as Awaited<ReturnType<typeof qtalkApi.sendMessage>>;
       const attachmentResults: qtalkApi.ApiMessageAttachment[] = [];
       if (files && files.length > 0) {
         const uploads = await Promise.allSettled(
@@ -662,15 +666,32 @@ const QTalkPage: React.FC = () => {
         );
         links.forEach((r) => { if (r.status === 'fulfilled') attachmentResults.push(r.value); });
       }
-      const mapped = apiMessageToMock({ ...created, attachments: attachmentResults });
-      setMessages((prev) => ({
-        ...prev,
-        [activeConversationId]: [...(prev[activeConversationId] || []), mapped],
-      }));
-      // 내가 보낸 메시지도 대화 리스트 상단으로 끌어올림
-      setConversations((prev) => prev.map((c) =>
-        c.id === activeConversationId ? { ...c, last_message_at: mapped.created_at } : c
-      ));
+      // post(문서) 첨부 — share-to-chat 으로 카드 메시지 별도 생성
+      if (hasPosts) {
+        const { sharePostToChat } = await import('../../services/posts');
+        await Promise.allSettled(
+          existingPostIds!.map((pid) => sharePostToChat(pid, { conversation_id: activeConversationId }))
+        );
+      }
+      // 일반 메시지가 있을 때만 mapped 추가 (post 만 있을 땐 fresh fetch 로 처리)
+      if (created.id) {
+        const mapped = apiMessageToMock({ ...created, attachments: attachmentResults });
+        setMessages((prev) => ({
+          ...prev,
+          [activeConversationId]: [...(prev[activeConversationId] || []), mapped],
+        }));
+        // 내가 보낸 메시지도 대화 리스트 상단으로 끌어올림
+        setConversations((prev) => prev.map((c) =>
+          c.id === activeConversationId ? { ...c, last_message_at: mapped.created_at } : c
+        ));
+      }
+      // post 만 첨부했거나, post 도 같이 첨부했으면 fresh 로 카드 메시지 끌어옴
+      if (hasPosts) {
+        try {
+          const fresh = await qtalkApi.listConversationMessages(activeConversationId);
+          setMessages((prev) => ({ ...prev, [activeConversationId]: fresh.map(apiMessageToMock) }));
+        } catch { /* skip */ }
+      }
       // 번역 폴링 fallback — Socket.IO `message:translated` 이벤트가 안 도착해도
       // 4초 후 GET 으로 직접 갱신해 translations 보장. 옛 번들에서도 동작.
       const conv = conversations.find(c => c.id === activeConversationId);
