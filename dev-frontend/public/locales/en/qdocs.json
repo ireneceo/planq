@@ -36,6 +36,11 @@
     "nextDirect": "Write manually",
     "nextAi": "Write with AI",
     "todoBuild": "Follow-up document UX coming next cycle.",
+    "creatingManual": "Creating...",
+    "creatingAi": "AI writing...",
+    "followUpLimit": "Monthly limit reached. Try manual or wait until next month.",
+    "followUpFailed": "Follow-up creation failed. Please try again.",
+    "childrenTitle": "Documents created from this brief ({{count}})",
     "sourcesLabel": "Inputs"
   },
   "received": {

@@ -237,7 +237,7 @@ router.get('/:id', authenticateToken, async (req, res, next) => {
 // ─── 생성 ───
 router.post('/', authenticateToken, async (req, res, next) => {
   try {
-    const { business_id, project_id = null, conversation_id = null, title, content_json = null, category = null, status = 'published', is_pinned = false } = req.body || {};
+    const { business_id, project_id = null, conversation_id = null, title, content_json = null, category = null, status = 'published', is_pinned = false, parent_post_id = null } = req.body || {};
     if (!business_id || !title) return errorResponse(res, 'business_id/title required', 400);
     if (!(await assertMember(req.user.id, Number(business_id), req.user.platform_role === 'platform_admin'))) {
       return errorResponse(res, 'forbidden', 403);
@@ -252,6 +252,11 @@ router.post('/', authenticateToken, async (req, res, next) => {
       const conv = await Conversation.findOne({ where: { id: conversation_id, business_id } });
       if (!conv) return errorResponse(res, 'invalid conversation_id', 400);
     }
+    // parent_post_id 가 있으면 같은 워크스페이스 post 검증 (자료정리 → 후속 문서 양방향 링크)
+    if (parent_post_id) {
+      const parent = await Post.findOne({ where: { id: parent_post_id, business_id } });
+      if (!parent) return errorResponse(res, 'invalid parent_post_id', 400);
+    }
     const post = await Post.create({
       business_id,
       project_id: project_id || null,
@@ -263,6 +268,7 @@ router.post('/', authenticateToken, async (req, res, next) => {
       author_id: req.user.id,
       status,
       is_pinned: !!is_pinned,
+      parent_post_id: parent_post_id || null,
     });
     const full = await Post.findByPk(post.id, {
       include: [
@@ -283,6 +289,148 @@ router.post('/', authenticateToken, async (req, res, next) => {
       newValue: { title: post.title, category: post.category, status: post.status, project_id: post.project_id },
     });
     successResponse(res, serialize(full, true), 'Post created', 201);
+  } catch (err) { next(err); }
+});
+
+// ─── 자료정리 후속 문서 생성 (Manual / AI) ───
+// POST /api/posts/:id/follow-up
+//   parent post (category='brief') 의 brief_meta 기반으로 새 post 생성
+//   body: { mode: 'manual' | 'ai', kind: 'meeting_note'|'proposal'|'quote'|'contract'|'nda'|'sop'|'custom', title? }
+//   응답: { post: serialize() }
+router.post('/:id/follow-up', authenticateToken, async (req, res, next) => {
+  try {
+    const parent = await Post.findByPk(req.params.id);
+    if (!parent) return errorResponse(res, 'parent_not_found', 404);
+    if (parent.category !== 'brief') return errorResponse(res, 'parent_not_brief', 400);
+    if (!(await assertMember(req.user.id, parent.business_id, req.user.platform_role === 'platform_admin'))) {
+      return errorResponse(res, 'forbidden', 403);
+    }
+    const { mode = 'manual', kind: rawKind, title: rawTitle } = req.body || {};
+    const VALID_KINDS = ['meeting_note', 'proposal', 'quote', 'contract', 'nda', 'sop', 'custom'];
+    const kind = VALID_KINDS.includes(rawKind) ? rawKind : 'custom';
+    if (!['manual', 'ai'].includes(mode)) return errorResponse(res, 'invalid_mode', 400);
+
+    const title = String(rawTitle || `${KIND_LABEL_KO[kind] || kind} — ${parent.title}`).slice(0, 200);
+
+    let contentJson = null;
+    let contentText = null;
+
+    if (mode === 'ai') {
+      // brief 본문(요약 + timeline + by_file) 을 user_input 으로 → AI 가 후속 문서 작성
+      const meta = parent.brief_meta || {};
+      const briefSummary = String(meta.summary || '').slice(0, 1500);
+      const timelineText = (Array.isArray(meta.timeline) ? meta.timeline : []).slice(0, 30)
+        .map((t) => `- ${t.when || ''}: ${t.title || ''} — ${(t.content || '').slice(0, 200)}`).join('\n');
+      const byFileText = (Array.isArray(meta.by_file) ? meta.by_file : []).slice(0, 20)
+        .map((f) => `[${f.source}]\n요약: ${f.summary || ''}\n${(f.key_points || []).map(p => `• ${p}`).join('\n')}`).join('\n\n');
+      const userPrompt = `## 원본 자료정리 요약\n${briefSummary}\n\n${timelineText ? `## 시점별\n${timelineText}\n\n` : ''}${byFileText ? `## 자료별\n${byFileText}\n\n` : ''}## 작성할 문서\n종류: ${KIND_LABEL_KO[kind] || kind}\n제목: ${title}\n위 자료를 바탕으로 ${KIND_LABEL_KO[kind] || kind}를 작성하세요.`;
+      const systemPrompt = `당신은 ${KIND_LABEL_KO[kind] || kind} 작성 전문가입니다. 주어진 자료를 바탕으로 ${KIND_LABEL_KO[kind] || kind} 형식의 문서를 한국어로 작성하세요. 문체는 비즈니스 격식체. 결론·핵심·실행 항목이 명확하게 구조화되도록 헤더(##)와 불릿(-) 적절히 사용. 마크다운 형식으로 작성.`;
+      const cueOrch = require('../services/cue_orchestrator');
+      const result = await cueOrch.generateDocumentDraft(parent.business_id, { systemPrompt, userPrompt, maxTokens: 2500 });
+      if (result.error === 'usage_limit_exceeded') {
+        return res.status(429).json({ success: false, message: 'cue_limit_exceeded', usage: result.usage });
+      }
+      if (result.error) return errorResponse(res, result.error, 500);
+      // 마크다운 → 단순 TipTap doc 으로 (헤더·문단·리스트 처리)
+      contentJson = JSON.stringify(markdownToTipTap(result.content || ''));
+      contentText = (result.content || '').slice(0, 10_000);
+    }
+
+    const post = await Post.create({
+      business_id: parent.business_id,
+      project_id: parent.project_id,
+      conversation_id: parent.conversation_id,
+      title,
+      content_json: contentJson,
+      content_text: contentText,
+      category: kind,
+      author_id: req.user.id,
+      parent_post_id: parent.id,
+    });
+
+    require('../services/auditService').logAudit(req, {
+      action: 'post.follow_up.create',
+      targetType: 'post',
+      targetId: post.id,
+      newValue: { kind, mode, parent_post_id: parent.id, title },
+    });
+
+    const full = await Post.findByPk(post.id, {
+      include: [
+        { model: User, as: 'author', attributes: ['id', 'name', 'name_localized'] },
+        { model: Project, attributes: ['id', 'name', 'color'], required: false },
+      ],
+    });
+    return successResponse(res, serialize(full, true), 'Follow-up created', 201);
+  } catch (err) { next(err); }
+});
+
+const KIND_LABEL_KO = {
+  meeting_note: '회의록', proposal: '제안서', quote: '견적서',
+  contract: '계약서', nda: 'NDA', sop: '운영 가이드', custom: '문서',
+};
+
+// 마크다운 → TipTap JSON (단순 변환 — heading/paragraph/bulletList 만)
+function markdownToTipTap(md) {
+  const lines = String(md || '').split('\n');
+  const content = [];
+  let bullets = null;
+  const flushBullets = () => {
+    if (bullets && bullets.length) {
+      content.push({
+        type: 'bulletList',
+        content: bullets.map(b => ({
+          type: 'listItem',
+          content: [{ type: 'paragraph', content: [{ type: 'text', text: b }] }],
+        })),
+      });
+    }
+    bullets = null;
+  };
+  for (const raw of lines) {
+    const line = raw.trim();
+    if (!line) { flushBullets(); continue; }
+    const h2 = /^##\s+(.*)$/.exec(line);
+    const h3 = /^###\s+(.*)$/.exec(line);
+    const h1 = /^#\s+(.*)$/.exec(line);
+    const bullet = /^[-*]\s+(.*)$/.exec(line);
+    if (h1 || h2 || h3) {
+      flushBullets();
+      const txt = (h1 || h2 || h3)[1];
+      const lvl = h1 ? 1 : h2 ? 2 : 3;
+      content.push({ type: 'heading', attrs: { level: lvl }, content: [{ type: 'text', text: txt }] });
+    } else if (bullet) {
+      if (!bullets) bullets = [];
+      bullets.push(bullet[1]);
+    } else {
+      flushBullets();
+      content.push({ type: 'paragraph', content: [{ type: 'text', text: line }] });
+    }
+  }
+  flushBullets();
+  return { type: 'doc', content };
+}
+
+// ─── 자료정리에서 파생된 후속 문서 목록 ───
+// GET /api/posts/:id/children
+//   parent post 가 brief 일 때 children (parent_post_id = :id) 반환. 양방향 링크 표시용.
+router.get('/:id/children', authenticateToken, async (req, res, next) => {
+  try {
+    const parent = await Post.findByPk(req.params.id);
+    if (!parent) return errorResponse(res, 'not_found', 404);
+    if (!(await assertMember(req.user.id, parent.business_id, req.user.platform_role === 'platform_admin'))) {
+      return errorResponse(res, 'forbidden', 403);
+    }
+    const children = await Post.findAll({
+      where: { parent_post_id: parent.id },
+      attributes: ['id', 'title', 'category', 'author_id', 'created_at'],
+      include: [{ model: User, as: 'author', attributes: ['id', 'name', 'name_localized'] }],
+      order: [['created_at', 'DESC']],
+    });
+    return successResponse(res, children.map(c => ({
+      id: c.id, title: c.title, category: c.category, created_at: c.created_at,
+      author: c.author ? { id: c.author.id, name: c.author.name } : null,
+    })));
   } catch (err) { next(err); }
 });
 

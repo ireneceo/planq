@@ -36,6 +36,11 @@
     "nextDirect": "직접 작성",
     "nextAi": "AI 로 작성",
     "todoBuild": "후속 문서 작성 UX 는 다음 사이클에 추가됩니다.",
+    "creatingManual": "생성 중...",
+    "creatingAi": "AI 작성 중...",
+    "followUpLimit": "월 한도를 사용했습니다. 직접 작성을 사용하거나 다음달 시도하세요.",
+    "followUpFailed": "후속 문서 생성 실패. 잠시 후 다시 시도하세요.",
+    "childrenTitle": "이 자료정리에서 파생된 문서 ({{count}}건)",
     "sourcesLabel": "입력 자료"
   },
   "received": {

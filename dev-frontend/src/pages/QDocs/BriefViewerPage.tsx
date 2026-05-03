@@ -9,7 +9,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import styled from 'styled-components';
 import PageShell from '../../components/Layout/PageShell';
-import { fetchPost, type PostDetail } from '../../services/posts';
+import { fetchPost, fetchPostChildren, createFollowUp, type PostDetail, type FollowUpChild } from '../../services/posts';
 
 interface BriefMeta {
   view_kind: 'time' | 'file';
@@ -36,6 +36,9 @@ const BriefViewerPage = () => {
   const [post, setPost] = useState<PostDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<'time' | 'file'>('time');
+  const [children, setChildren] = useState<FollowUpChild[]>([]);
+  const [followUpBusy, setFollowUpBusy] = useState<'manual' | 'ai' | null>(null);
+  const [followUpError, setFollowUpError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -46,7 +49,27 @@ const BriefViewerPage = () => {
         if (meta?.view_kind) setView(meta.view_kind);
       })
       .finally(() => setLoading(false));
+    fetchPostChildren(Number(id)).then(setChildren).catch(() => null);
   }, [id]);
+
+  const handleFollowUp = async (mode: 'manual' | 'ai') => {
+    if (!post || !meta || followUpBusy) return;
+    setFollowUpBusy(mode); setFollowUpError(null);
+    try {
+      const child = await createFollowUp(post.id, { mode, kind: meta.recommended_next_kind });
+      // 후속 문서 → DocumentEditor 또는 PostsPage. 신규 post 는 PostsPage 의 detail (현재 별도 페이지 없음 — /docs?post=:id 로 진입)
+      navigate(`/docs?post=${child.id}`);
+    } catch (e: unknown) {
+      const err = e as Error & { usage?: { remaining: number; limit: number } };
+      if (err.message === 'cue_limit_exceeded') {
+        setFollowUpError(t('brief.followUpLimit', '월 한도를 사용했습니다. 직접 작성을 사용하거나 다음달 시도하세요.') as string);
+      } else {
+        setFollowUpError(t('brief.followUpFailed', '후속 문서 생성 실패. 잠시 후 다시 시도하세요.') as string);
+      }
+    } finally {
+      setFollowUpBusy(null);
+    }
+  };
 
   const meta: BriefMeta | null = useMemo(() => {
     if (!post) return null;
@@ -163,17 +186,39 @@ const BriefViewerPage = () => {
               <NextReason>{meta.recommended_next_reason || t('brief.nextDefaultReason', '이 자료를 바탕으로 후속 문서를 작성할 수 있어요.')}</NextReason>
             </NextBody>
             <NextActions>
-              <NextSecondary type="button" disabled
-                title={t('brief.todoBuild', '후속 문서 작성 UX 는 다음 사이클에 추가됩니다.') as string}>
-                {t('brief.nextDirect', '직접 작성')}
+              <NextSecondary type="button" onClick={() => handleFollowUp('manual')}
+                disabled={!!followUpBusy}>
+                {followUpBusy === 'manual'
+                  ? t('brief.creatingManual', '생성 중...')
+                  : t('brief.nextDirect', '직접 작성')}
               </NextSecondary>
-              <NextPrimary type="button" disabled
-                title={t('brief.todoBuild', '후속 문서 작성 UX 는 다음 사이클에 추가됩니다.') as string}>
-                {t('brief.nextAi', 'AI 로 작성')}
+              <NextPrimary type="button" onClick={() => handleFollowUp('ai')}
+                disabled={!!followUpBusy}>
+                {followUpBusy === 'ai'
+                  ? t('brief.creatingAi', 'AI 작성 중...')
+                  : t('brief.nextAi', 'AI 로 작성')}
               </NextPrimary>
             </NextActions>
-            <NextHint>{t('brief.todoBuild', '후속 문서 작성 UX 는 다음 사이클에 추가됩니다.')}</NextHint>
+            {followUpError && <FollowUpError>{followUpError}</FollowUpError>}
           </NextCta>
+        )}
+
+        {/* 이 자료정리에서 파생된 후속 문서들 (양방향 링크) */}
+        {children.length > 0 && (
+          <ChildrenSection>
+            <SectionTitle>{t('brief.childrenTitle', { count: children.length, defaultValue: '이 자료정리에서 파생된 문서 ({{count}}건)' })}</SectionTitle>
+            <ChildrenList>
+              {children.map((c) => (
+                <ChildCard key={c.id} to={`/docs?post=${c.id}`}>
+                  <ChildKind>{KIND_LABEL_KO[c.category || 'custom'] || c.category}</ChildKind>
+                  <ChildTitle>{c.title}</ChildTitle>
+                  <ChildMeta>
+                    {c.author?.name || ''} · {new Date(c.created_at).toLocaleDateString('ko-KR')}
+                  </ChildMeta>
+                </ChildCard>
+              ))}
+            </ChildrenList>
+          </ChildrenSection>
         )}
 
         {/* 출처 (sources) — 작은 영역 */}
@@ -437,6 +482,49 @@ const NextHint = styled.div`
   color: #64748B;
   font-style: italic;
   text-align: right;
+`;
+const FollowUpError = styled.div`
+  font-size: 12px;
+  color: #DC2626;
+  background: #FEF2F2;
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1px solid #FECACA;
+`;
+const ChildrenSection = styled.section``;
+const ChildrenList = styled.div`
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+`;
+const ChildCard = styled(Link)`
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 14px;
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: 10px;
+  text-decoration: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  &:hover { border-color: #14B8A6; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+`;
+const ChildKind = styled.div`
+  font-size: 11px;
+  font-weight: 700;
+  color: #0F766E;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+`;
+const ChildTitle = styled.div`
+  font-size: 13px;
+  font-weight: 600;
+  color: #0F172A;
+  line-height: 1.4;
+`;
+const ChildMeta = styled.div`
+  font-size: 11px;
+  color: #94A3B8;
 `;
 const SourcesFoot = styled.section`
   display: flex;
