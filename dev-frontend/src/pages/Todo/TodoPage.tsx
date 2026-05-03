@@ -244,8 +244,8 @@ const TodoPage: React.FC = () => {
                 </TabBtn>
               ))}
             </TabBar>
-            {/* "업무" 탭 — 지연 업무 / 다가오는 일정 인사이트 카드 */}
-            {activeTab === 'work' && <InsightCards />}
+            {/* "전체"·"업무" 탭 — 지연 업무 / 다가오는 일정 인사이트. signature/billing 탭은 무관해서 가림 */}
+            {(activeTab === 'all' || activeTab === 'work') && <InsightCards />}
             {/* "서명" 탭 활성 시 — pending 만 보이는 인박스라 전체 history archive 진입점 노출 */}
             {activeTab === 'signature' && (
               <ArchiveHint>

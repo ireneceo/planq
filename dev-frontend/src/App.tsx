@@ -1,43 +1,58 @@
+import { lazy, Suspense } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import ErrorBoundary from './components/Common/ErrorBoundary';
 import MainLayout from './components/Layout/MainLayout';
 import CueHelpDrawer from './components/Common/CueHelpDrawer';
+
+// Eager — 자주 진입하거나 첫 화면 (Login). 분리해도 의미 작음
 import LoginPage from './pages/Login/LoginPage';
-import RegisterPage from './pages/Register/RegisterPage';
-import QNotePage from './pages/QNote/QNotePage';
-import ProfilePage from './pages/Profile/ProfilePage';
-import WorkspaceSettingsPage from './pages/Settings/WorkspaceSettingsPage';
-import QTalkPage from './pages/QTalk/QTalkPage';
-import QTaskPage from './pages/QTask/QTaskPage';
-import QProjectPage from './pages/QProject/QProjectPage';
-import QProjectDetailPage from './pages/QProject/QProjectDetailPage';
-import ClientsPage from './pages/Clients/ClientsPage';
-import InvitePage from './pages/Invite/InvitePage';
-import QCalendarPage from './pages/QCalendar/QCalendarPage';
-import QDocsPage from './pages/QDocs/QDocsPage';
-import BriefViewerPage from './pages/QDocs/BriefViewerPage';
-import ReceivedSignaturesPage from './pages/Signatures/ReceivedSignaturesPage';
-import PublicDocPage from './pages/QDocs/PublicDocPage';
-import PublicPostPage from './pages/QDocs/PublicPostPage';
-import PublicSignPage from './pages/QDocs/PublicSignPage';
-import PublicInvoicePage from './pages/QBill/PublicInvoicePage';
-import QFilePage from './pages/QFile/QFilePage';
-import AdminBusinessesPage from './pages/Admin/AdminBusinessesPage';
-import AdminFeedbackPage from './pages/Admin/AdminFeedbackPage';
-import AdminEmailLogsPage from './pages/Admin/AdminEmailLogsPage';
-import AdminPlatformSettingsPage from './pages/Admin/AdminPlatformSettingsPage';
-import ShareReceivePage from './pages/ShareReceive/ShareReceivePage';
-import InsightsPage from './pages/Insights/InsightsPage';
-import PrivacyPolicy from './pages/Legal/PrivacyPolicy';
-import TermsOfService from './pages/Legal/TermsOfService';
-import ComingSoonPage from './pages/ComingSoon/ComingSoonPage';
-import DashboardPage from './pages/Dashboard/DashboardPage';
-import TodoPage from './pages/Todo/TodoPage';
-import QBillPage from './pages/QBill/QBillPage';
-import KnowledgePage from './pages/Knowledge/KnowledgePage';
+
+// Route-based code splitting — 페이지별 별도 chunk 로 첫 로드 번들 축소.
+// 이전: 모든 페이지 eager import → main bundle 2.75MB. 새로고침 시 모두 파싱·실행.
+// 변경: 페이지 진입 시점에 해당 chunk 만 로드. 첫 로드 ~800KB, 후속 진입 ~30KB 페이지별.
+const RegisterPage = lazy(() => import('./pages/Register/RegisterPage'));
+const QNotePage = lazy(() => import('./pages/QNote/QNotePage'));
+const ProfilePage = lazy(() => import('./pages/Profile/ProfilePage'));
+const WorkspaceSettingsPage = lazy(() => import('./pages/Settings/WorkspaceSettingsPage'));
+const QTalkPage = lazy(() => import('./pages/QTalk/QTalkPage'));
+const QTaskPage = lazy(() => import('./pages/QTask/QTaskPage'));
+const QProjectPage = lazy(() => import('./pages/QProject/QProjectPage'));
+const QProjectDetailPage = lazy(() => import('./pages/QProject/QProjectDetailPage'));
+const ClientsPage = lazy(() => import('./pages/Clients/ClientsPage'));
+const InvitePage = lazy(() => import('./pages/Invite/InvitePage'));
+const QCalendarPage = lazy(() => import('./pages/QCalendar/QCalendarPage'));
+const QDocsPage = lazy(() => import('./pages/QDocs/QDocsPage'));
+const BriefViewerPage = lazy(() => import('./pages/QDocs/BriefViewerPage'));
+const ReceivedSignaturesPage = lazy(() => import('./pages/Signatures/ReceivedSignaturesPage'));
+const PublicDocPage = lazy(() => import('./pages/QDocs/PublicDocPage'));
+const PublicPostPage = lazy(() => import('./pages/QDocs/PublicPostPage'));
+const PublicSignPage = lazy(() => import('./pages/QDocs/PublicSignPage'));
+const PublicInvoicePage = lazy(() => import('./pages/QBill/PublicInvoicePage'));
+const QFilePage = lazy(() => import('./pages/QFile/QFilePage'));
+const AdminBusinessesPage = lazy(() => import('./pages/Admin/AdminBusinessesPage'));
+const AdminFeedbackPage = lazy(() => import('./pages/Admin/AdminFeedbackPage'));
+const AdminEmailLogsPage = lazy(() => import('./pages/Admin/AdminEmailLogsPage'));
+const AdminPlatformSettingsPage = lazy(() => import('./pages/Admin/AdminPlatformSettingsPage'));
+const ShareReceivePage = lazy(() => import('./pages/ShareReceive/ShareReceivePage'));
+const InsightsPage = lazy(() => import('./pages/Insights/InsightsPage'));
+const PrivacyPolicy = lazy(() => import('./pages/Legal/PrivacyPolicy'));
+const TermsOfService = lazy(() => import('./pages/Legal/TermsOfService'));
+const ComingSoonPage = lazy(() => import('./pages/ComingSoon/ComingSoonPage'));
+const DashboardPage = lazy(() => import('./pages/Dashboard/DashboardPage'));
+const TodoPage = lazy(() => import('./pages/Todo/TodoPage'));
+const QBillPage = lazy(() => import('./pages/QBill/QBillPage'));
+const KnowledgePage = lazy(() => import('./pages/Knowledge/KnowledgePage'));
 import './App.css';
+
+// 페이지 chunk 로딩 중 표시 — 빠르고 가벼운 fallback (CLS 방지 위해 viewport 채움)
+const PageLoadingFallback = () => (
+  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 'calc(100vh - 64px)', background: '#F8FAFC' }}>
+    <div style={{ width: 32, height: 32, border: '3px solid #E2E8F0', borderTopColor: '#14B8A6', borderRadius: '50%', animation: 'planq-spin 0.8s linear infinite' }} />
+    <style>{'@keyframes planq-spin { to { transform: rotate(360deg); } }'}</style>
+  </div>
+);
 
 // Placeholder pages - will be replaced per phase
 const PlaceholderPage = ({ title }: { title: string }) => (
@@ -51,6 +66,7 @@ function App() {
   return (
     <ErrorBoundary>
     <AuthProvider>
+      <Suspense fallback={<PageLoadingFallback />}>
       <Routes>
         {/* Public routes */}
         <Route path="/login" element={<LoginPage />} />
@@ -285,6 +301,7 @@ function App() {
         <Route path="/" element={<Navigate to="/login" replace />} />
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
+      </Suspense>
       {/* 글로벌 Cue 도움말 — ⌘? / Ctrl+/ + cue:ask 이벤트 receiver */}
       <CueHelpDrawer />
     </AuthProvider>
