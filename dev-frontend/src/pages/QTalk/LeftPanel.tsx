@@ -116,18 +116,20 @@ const LeftPanel: React.FC<Props> = ({
     <Container $mobileHidden={mobileHidden}>
       <Header>
         <HeaderTop>
-          <HeaderTitle>{t('left.title', 'Q talk')}</HeaderTitle>
-          <HelpDot askCue={t('left.help.cuePrefill','Q talk 의 채팅 종류, 자동 추출, 번역 표시가 어떻게 작동하는지 알려줘') as string} topic="qtalk">
-            {t('left.help.body','프로젝트 연결·고객 연결 채팅을 만들 수 있습니다. 자동 업무 추출 ON 이면 메시지에서 후보가 우측 패널에 모입니다. 번역 표시 ON 이면 메시지마다 두 언어가 함께 보입니다.')}
-          </HelpDot>
+          <TitleGroup>
+            <HeaderTitle>{t('left.title', 'Q talk')}</HeaderTitle>
+            <HelpDot askCue={t('left.help.cuePrefill','Q talk 의 채팅 종류, 자동 추출, 번역 표시가 어떻게 작동하는지 알려줘') as string} topic="qtalk">
+              {t('left.help.body','프로젝트 연결·고객 연결 채팅을 만들 수 있습니다. 자동 업무 추출 ON 이면 메시지에서 후보가 우측 패널에 모입니다. 번역 표시 ON 이면 메시지마다 두 언어가 함께 보입니다.')}
+            </HelpDot>
+          </TitleGroup>
           <HeaderActions>
             {!isClient && (
-              <IconBtn onClick={onOpenNewChat} title={t('left.newChat', '새 대화')} aria-label="New chat">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <NewChatBtn onClick={onOpenNewChat} title={t('left.newChat', '새 대화')} aria-label="New chat">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                   <line x1="12" y1="5" x2="12" y2="19" />
                   <line x1="5" y1="12" x2="19" y2="12" />
                 </svg>
-              </IconBtn>
+              </NewChatBtn>
             )}
           </HeaderActions>
         </HeaderTop>
@@ -258,6 +260,33 @@ const HeaderTop = styled.div`
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 8px;
+`;
+
+// 제목 + helpDot 묶음 — 제목 끝나면 helpDot 바로 (Q Note 와 동일 패턴, PageShell 표준)
+const TitleGroup = styled.div`
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+`;
+
+// 새 대화 + 버튼 — Primary teal 활성화 (Q Note NewSessionBtn 패턴 일관)
+const NewChatBtn = styled.button`
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #14B8A6;
+  border: none;
+  border-radius: 8px;
+  color: #FFFFFF;
+  cursor: pointer;
+  transition: background 0.15s;
+  flex-shrink: 0;
+  &:hover { background: #0D9488; }
+  &:focus-visible { outline: 2px solid rgba(20, 184, 166, 0.3); outline-offset: 2px; }
 `;
 
 const SearchSection = styled.div`
@@ -277,21 +306,6 @@ const HeaderTitle = styled.h1`
 const HeaderActions = styled.div`
   display: flex;
   gap: 4px;
-`;
-
-const IconBtn = styled.button`
-  width: 28px;
-  height: 28px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: transparent;
-  border: none;
-  border-radius: 6px;
-  color: #64748B;
-  cursor: pointer;
-  transition: all 0.1s;
-  &:hover { background: #F1F5F9; color: #0F172A; }
 `;
 
 const ChatList = styled.div`
