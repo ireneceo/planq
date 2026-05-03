@@ -752,6 +752,13 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
               <PanelSubTitle>
                 {detail.is_pinned && <PinDot title={t('list.pinned', '고정됨') as string} />}
                 {detail.title}
+                {/* 양방향 링크: 자료정리에서 파생된 후속 문서면 parent 로 가는 링크 */}
+                {detail.parent_post_id && (
+                  <ParentLink href={`/docs/brief/${detail.parent_post_id}`}
+                    title={t('parentLink.title', '원본 자료정리로 이동') as string}>
+                    ← {t('parentLink.label', '자료정리에서 파생')}
+                  </ParentLink>
+                )}
               </PanelSubTitle>
               <EditActions>
                 <SignBtn type="button" onClick={() => setSignOpen(true)} title={t('sign.headerHint', '서명자에게 이메일로 서명 요청') as string}>
@@ -1133,6 +1140,19 @@ const IconBtn = styled.button`
 `;
 const PinDot = styled.span`
   display:inline-block;width:6px;height:6px;border-radius:50%;background:#F43F5E;margin-right:6px;flex:0 0 auto;
+`;
+const ParentLink = styled.a`
+  display: inline-flex; align-items: center;
+  margin-left: 12px;
+  padding: 2px 10px;
+  font-size: 11px; font-weight: 600;
+  color: #0F766E;
+  background: #F0FDFA;
+  border: 1px solid #CCFBF1;
+  border-radius: 999px;
+  text-decoration: none;
+  transition: background 0.15s;
+  &:hover { background: #CCFBF1; }
 `;
 const SaveTplField = styled.div`display:flex;flex-direction:column;gap:6px;margin-bottom:10px;`;
 const SaveTplLabel = styled.label`font-size:12px;font-weight:600;color:#0F172A;`;
