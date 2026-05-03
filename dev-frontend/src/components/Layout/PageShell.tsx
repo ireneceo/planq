@@ -36,8 +36,10 @@ export default function PageShell({
     <Page>
       <Header>
         <HeaderLeft>
-          <Title>{title}</Title>
-          {helpDot}
+          <TitleGroup>
+            <Title>{title}</Title>
+            {helpDot}
+          </TitleGroup>
           {count !== undefined && count !== '' && <Count>{count}</Count>}
         </HeaderLeft>
         <HeaderRight>
@@ -76,6 +78,14 @@ const HeaderLeft = styled.div`
   display: flex;
   align-items: center;
   gap: 10px;
+  min-width: 0;
+`;
+
+// 제목과 helpDot 은 한 묶음 — 제목 끝나면 바로 helpDot 붙음 (사용자 요청)
+const TitleGroup = styled.div`
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   min-width: 0;
 `;
 

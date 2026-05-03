@@ -1,8 +1,8 @@
-// FirstVisitTour — 페이지 첫 방문 시 핵심 요소 spotlight 가이드.
+// FirstVisitTour — 페이지 spotlight 가이드. ? 버튼 클릭 시에만 표시.
 // 30년차 UX 원칙:
 //   - 핵심 1~3개만 (인지 부하 회피)
-//   - localStorage 1회 후 자동 dismiss
-//   - 우상단 ? 버튼으로 다시 보기 가능 (외부에서 forceShow prop 으로 트리거)
+//   - 자동 표시 안 함 (Irene 피드백 — localStorage 디바이스 종속, 한참 쓰는 사용자에게도 자꾸 뜨는 게 짜증)
+//   - 우상단 ? 버튼 클릭 시 forceShow=true 로 명시적 트리거
 //   - 모든 단계에 "건너뛰기" 출구
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import styled from 'styled-components';
@@ -31,16 +31,11 @@ const FirstVisitTour: React.FC<FirstVisitTourProps> = ({ pageKey, steps, forceSh
   const [rect, setRect] = useState<DOMRect | null>(null);
   const targetRef = useRef<HTMLElement | null>(null);
 
-  // 진입 결정 — localStorage 체크 또는 forceShow
+  // 진입 결정 — forceShow 만 (사용자가 ? 버튼 명시 클릭 시)
+  // 자동 표시 제거: 한참 쓰는 사용자에게 디바이스/브라우저 바뀔 때마다 자꾸 떠서 짜증 (Irene 피드백)
   useEffect(() => {
-    if (forceShow) { setActive(true); setStepIdx(0); return; }
-    try {
-      if (localStorage.getItem(STORAGE_PREFIX + pageKey)) return;
-    } catch { /* ignore */ }
-    // 첫 마운트 후 페이지 안정화 대기 (200ms — DOM 생성 여유)
-    const tm = window.setTimeout(() => setActive(true), 200);
-    return () => window.clearTimeout(tm);
-  }, [pageKey, forceShow]);
+    if (forceShow) { setActive(true); setStepIdx(0); }
+  }, [forceShow]);
 
   // 현재 step 의 target rect 측정
   useEffect(() => {
