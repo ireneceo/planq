@@ -31,6 +31,10 @@ export interface User {
   name: string;
   // 다국어 이름 (사이클 F) — viewer 의 i18n 언어 기준으로 displayName 헬퍼가 표시 이름 결정
   name_localized?: Record<string, string> | null;
+  // 워크스페이스 컨텍스트 표시명 (현재 active business 의 BusinessMember.name 또는 Client.name)
+  // 계정 (name) vs 워크스페이스 (display_name) 분리. 사이드바·헤더·UserChip 모두 워크스페이스 표시명 우선.
+  display_name?: string | null;
+  display_name_localized?: Record<string, string> | null;
   platform_role: string;
   business_id?: number | null;
   business_name?: string | null;
@@ -151,6 +155,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     username: (apiUser.username as string) || null,
     name: (apiUser.name || (apiUser.email as string)?.split('@')[0]) as string,
     name_localized: (apiUser.name_localized as Record<string, string>) || null,
+    display_name: (apiUser.display_name as string) || null,
+    display_name_localized: (apiUser.display_name_localized as Record<string, string>) || null,
     platform_role: apiUser.platform_role as string,
     business_id: (apiUser.business_id as number) || null,
     business_name: (apiUser.business_name as string) || null,
