@@ -1,15 +1,18 @@
 // 루트 라우트 (`/`) 분기:
-//   - 로그인된 사용자 → /inbox 리다이렉트 (정석 SaaS 패턴)
+//   - 로그인된 사용자 → /inbox 리다이렉트 (정석 SaaS 패턴 — Linear / Notion / Slack 동일)
 //   - 비로그인 → 랜딩 홈 페이지
 //   - 인증 상태 로딩 중 → 빈 화면 (깜빡임 방지)
-import { Navigate } from 'react-router-dom';
+//   - `?preview=1` (또는 `?preview=landing`) → 로그인 상태여도 랜딩 강제 표시 (마케팅 미리보기용)
+import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import HomePage from './HomePage';
 
 const RootRoute: React.FC = () => {
   const { user, isLoading } = useAuth();
-  if (isLoading) return null; // 첫 토큰 검증 중 — 짧은 깜빡임 방지
-  if (user) return <Navigate to="/inbox" replace />;
+  const location = useLocation();
+  const previewLanding = new URLSearchParams(location.search).has('preview');
+  if (isLoading) return null;
+  if (user && !previewLanding) return <Navigate to="/inbox" replace />;
   return <HomePage />;
 };
 
