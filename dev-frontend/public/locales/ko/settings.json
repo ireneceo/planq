@@ -296,5 +296,23 @@
   "messages": {
     "adminRequired": "관리자만 수정할 수 있습니다",
     "errorSave": "저장에 실패했습니다"
+  },
+  "pwa": {
+    "sectionTitle": "PlanQ 앱으로 설치",
+    "sectionDesc": "홈 화면에 추가하면 빠른 진입과 알림 수신이 가능합니다.",
+    "installedBadge": "설치됨",
+    "installedNote": "지금 PlanQ 앱으로 실행 중입니다. 다른 디바이스에서 설치하려면 그 기기의 브라우저에서 PlanQ 를 다시 열어주세요.",
+    "iosStep1": "Safari 하단의 공유 버튼을 누릅니다",
+    "iosStep2": "\"홈 화면에 추가\" 를 선택합니다",
+    "iosStep3": "\"추가\" 를 눌러 완료합니다",
+    "iosNote": "iOS 는 보안 정책상 브라우저에서 자동으로 설치 다이얼로그를 띄울 수 없어 직접 메뉴 조작이 필요합니다.",
+    "promptNote": "아래 버튼을 누르면 브라우저가 설치 다이얼로그를 띄웁니다. 수락하면 홈 화면(또는 앱 서랍·시작 메뉴) 에 PlanQ 아이콘이 추가됩니다.",
+    "installNow": "지금 설치",
+    "installing": "설치 중…",
+    "manualHint": "브라우저 주소창 우측의 점 3개 메뉴 → \"앱 설치\" / \"PlanQ 설치\" 를 선택하세요.",
+    "unsupportedHint": "이 브라우저는 PWA 설치를 지원하지 않습니다. Chrome / Edge / Samsung Internet 또는 iOS Safari 에서 다시 시도하세요.",
+    "installedMsg": "설치되었습니다. 홈 화면에서 PlanQ 를 실행하세요.",
+    "dismissedMsg": "설치를 취소했습니다.",
+    "unavailableMsg": "지금은 설치 프롬프트를 띄울 수 없습니다."
   }
 }

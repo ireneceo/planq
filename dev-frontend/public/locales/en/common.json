@@ -306,5 +306,12 @@
       "docDesc": "Insert into new document"
     },
     "hint": "File and image sharing will arrive in a future update. For now, please attach directly inside PlanQ."
+  },
+  "pwa": {
+    "installAria": "Install app",
+    "installTitle": "Install PlanQ app",
+    "installCta": "Install",
+    "androidHint": "Add to home screen for notifications and faster access",
+    "iosHint": "Tap the Share button → \"Add to Home Screen\""
   }
 }
