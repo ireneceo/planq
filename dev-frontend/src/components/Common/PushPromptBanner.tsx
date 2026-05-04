@@ -4,6 +4,7 @@
 //   - dismiss 는 sessionStorage (탭 닫으면 다시 표시 — 적극 유도)
 //   - 차단(denied) 케이스는 켤 수 없으므로 브라우저 설정 안내만
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { usePushStatus } from '../../hooks/usePushStatus';
@@ -67,6 +68,9 @@ export default function PushPromptBanner() {
           {busy ? t('pushPrompt.enabling', '켜는 중…') : t('pushPrompt.enable', '지금 켜기')}
         </CtaBtn>
       )}
+      <SettingsLink to="/business/settings/notifications" onClick={dismiss}>
+        {t('pushPrompt.settings', '알림 설정')}
+      </SettingsLink>
       <CloseBtn type="button" onClick={dismiss} aria-label={t('common.close', '닫기') as string}>×</CloseBtn>
     </Banner>
   );
@@ -74,8 +78,8 @@ export default function PushPromptBanner() {
 
 const Banner = styled.div`
   display: grid;
-  grid-template-columns: 36px 1fr auto auto;
-  gap: 12px;
+  grid-template-columns: 36px 1fr auto auto auto;
+  gap: 8px;
   align-items: center;
   padding: 12px 14px;
   background: #FFF7ED;
@@ -101,6 +105,15 @@ const CtaBtn = styled.button`
   transition: background 0.15s;
   &:hover:not(:disabled) { background: #0D9488; }
   &:disabled { opacity: 0.6; cursor: not-allowed; }
+`;
+const SettingsLink = styled(Link)`
+  height: 32px; padding: 0 12px;
+  display: inline-flex; align-items: center;
+  background: transparent; color: #9A3412;
+  border: 1px solid #FED7AA; border-radius: 8px;
+  font-size: 12px; font-weight: 600; text-decoration: none;
+  transition: background 0.15s;
+  &:hover { background: #FFEDD5; }
 `;
 const CloseBtn = styled.button`
   width: 28px; height: 28px;
