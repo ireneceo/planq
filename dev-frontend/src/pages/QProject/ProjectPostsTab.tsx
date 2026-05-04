@@ -287,11 +287,6 @@ const ProjectPostsTab: React.FC<Props> = ({ businessId, projectId }) => {
     await load();
   };
 
-  const handlePickFiles = (files: File[]) => { setPendingUploads(prev => [...prev, ...files]); };
-  const handlePickExisting = (ids: number[], metaMap?: Record<number, { name: string; size: number }>) => {
-    setPendingExistingIds(prev => Array.from(new Set([...prev, ...ids])));
-    if (metaMap) setPendingExistingMeta(prev => ({ ...prev, ...metaMap }));
-  };
   const detachOne = async (attId: number) => {
     if (!detail) return;
     await detachFromPost(detail.id, attId);

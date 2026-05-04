@@ -90,8 +90,83 @@ const setAccessToken = (token: string | null) => {
   accessToken = token;
 };
 
-// API 호출 헬퍼 — 자동으로 토큰 주입 + 401 시 refresh 시도
+// JWT exp 디코딩 — payload 의 exp (sec) 를 ms 로 변환. 실패 시 null.
+//   서명 검증은 서버가 함. 여기서는 만료시각 추출만 (능동 refresh 트리거용).
+const decodeJWTExpMs = (token: string): number | null => {
+  try {
+    const part = token.split('.')[1];
+    if (!part) return null;
+    // base64url → base64
+    const b64 = part.replace(/-/g, '+').replace(/_/g, '/');
+    const padded = b64 + '='.repeat((4 - (b64.length % 4)) % 4);
+    const payload = JSON.parse(atob(padded));
+    return typeof payload.exp === 'number' ? payload.exp * 1000 : null;
+  } catch {
+    return null;
+  }
+};
+
+// 만료까지 남은 시간 (ms). 토큰 없거나 디코딩 실패 시 0.
+const tokenRemainingMs = (): number => {
+  if (!accessToken) return 0;
+  const exp = decodeJWTExpMs(accessToken);
+  if (!exp) return 0;
+  return exp - Date.now();
+};
+
+// 단일 in-flight refresh promise — parallel 요청이 동시에 401 받아도 refresh 호출은 1회만.
+let refreshInflight: Promise<boolean> | null = null;
+
+// Refresh 시도. 동시 호출은 동일 promise 공유.
+const tryRefresh = (): Promise<boolean> => {
+  if (refreshInflight) return refreshInflight;
+  refreshInflight = (async () => {
+    try {
+      const res = await fetch('/api/auth/refresh', {
+        method: 'POST',
+        credentials: 'include',
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && data.data?.token) {
+          setAccessToken(data.data.token);
+          return true;
+        }
+      }
+    } catch { /* network blip — refreshInflight 가 reject 되지 않게 흡수 */ }
+    setAccessToken(null);
+    return false;
+  })();
+  // 끝나면 슬롯 비우기 (다음 만료 사이클에서 새로 시도 가능)
+  refreshInflight.finally(() => {
+    refreshInflight = null;
+  });
+  return refreshInflight;
+};
+
+// API 호출 헬퍼.
+//   1) 능동적 만료 검사: 토큰 만료 30초 이내면 호출 전 refresh
+//      (슬립/탭드리프트로 setTimeout 타이머 놓친 케이스 흡수)
+//   2) 정상 fetch
+//   3) 401 응답 시 (서버가 token_expired/invalid_token 등) refresh 후 재시도
+//   4) 단일 in-flight refresh 로 thundering herd 방지
+const PROACTIVE_REFRESH_MS = 30 * 1000;
+
 const apiFetch = async (url: string, options: RequestInit = {}): Promise<Response> => {
+  const isAuthEndpoint =
+    url.includes('/api/auth/refresh') ||
+    url.includes('/api/auth/login') ||
+    url.includes('/api/auth/register') ||
+    url.includes('/api/auth/logout');
+
+  // 능동 refresh — auth 엔드포인트 자신은 스킵
+  if (!isAuthEndpoint && accessToken) {
+    const remaining = tokenRemainingMs();
+    if (remaining > 0 && remaining < PROACTIVE_REFRESH_MS) {
+      await tryRefresh();
+    }
+  }
+
   const headers = new Headers(options.headers || {});
   if (accessToken && !headers.has('Authorization')) {
     headers.set('Authorization', `Bearer ${accessToken}`);
@@ -103,11 +178,10 @@ const apiFetch = async (url: string, options: RequestInit = {}): Promise<Respons
     credentials: 'include', // HttpOnly cookie 전송
   });
 
-  // 401이면 refresh 시도
-  if (response.status === 401 && !url.includes('/api/auth/refresh') && !url.includes('/api/auth/login')) {
+  // 401 reactive refresh — 서버가 token_expired/invalid_token 등으로 401 보낸 경우
+  if (response.status === 401 && !isAuthEndpoint) {
     const refreshed = await tryRefresh();
     if (refreshed) {
-      // 새 토큰으로 재시도
       const retryHeaders = new Headers(options.headers || {});
       retryHeaders.set('Authorization', `Bearer ${accessToken}`);
       return fetch(url, { ...options, headers: retryHeaders, credentials: 'include' });
@@ -115,25 +189,6 @@ const apiFetch = async (url: string, options: RequestInit = {}): Promise<Respons
   }
 
   return response;
-};
-
-// Refresh 시도
-const tryRefresh = async (): Promise<boolean> => {
-  try {
-    const res = await fetch('/api/auth/refresh', {
-      method: 'POST',
-      credentials: 'include',
-    });
-    if (res.ok) {
-      const data = await res.json();
-      if (data.success && data.data?.token) {
-        setAccessToken(data.data.token);
-        return true;
-      }
-    }
-  } catch { /* ignore */ }
-  setAccessToken(null);
-  return false;
 };
 
 // apiFetch를 전역에 노출 (다른 컴포넌트에서 import해서 사용)
@@ -226,8 +281,31 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     checkSession();
 
+    // 슬립/탭전환 복귀 시 토큰 검사 — setTimeout 드리프트 흡수.
+    // visibilitychange 가 fired 됐는데 토큰이 만료되었거나 곧 만료면 즉시 refresh 후 타이머 재예약.
+    const onVisibilityChange = async () => {
+      if (document.visibilityState !== 'visible') return;
+      if (!accessToken) return;
+      const remaining = tokenRemainingMs();
+      // 60초 이하 남았으면 즉시 refresh (만료 직후 포함). 0 이면 이미 만료.
+      if (remaining < 60 * 1000) {
+        const ok = await tryRefresh();
+        if (ok) {
+          scheduleRefresh();
+        } else {
+          // refresh token 도 만료됐다면 강제 로그인
+          setUser(null);
+          setAccessToken(null);
+          if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+          navigate('/login');
+        }
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+
     return () => {
       if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 

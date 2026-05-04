@@ -1331,31 +1331,31 @@ router.post('/task-candidates/:id/reject', authenticateToken, async (req, res, n
 // ============================================
 // GET /api/projects/workspace/:businessId/all-tasks — 워크스페이스 전체 업무
 // 쿼리: status, assignee_id, project_id, mine=1
-// 권한: 멤버면 참여 프로젝트, 고객이면 자기 참여 채널의 프로젝트 업무 (읽기만)
+// 권한:
+//   멤버 — 워크스페이스 안 모든 업무 (project 무·유 무관). business_id 로 직접 필터.
+//   고객 — 자기 참여 프로젝트의 업무 + 자기에게 배정된 업무 (project null 포함).
 // ============================================
 router.get('/workspace/:businessId/all-tasks', authenticateToken, async (req, res, next) => {
   try {
     const businessId = Number(req.params.businessId);
     const bm = await requireBusinessMember(req.user.id, businessId);
 
-    // 접근 가능한 프로젝트 id 수집
-    let projectIds;
+    let where;
     if (bm && bm.role !== 'ai') {
-      // 워크스페이스 멤버 — 해당 워크스페이스 전체 프로젝트 열람 가능
-      const projs = await Project.findAll({ where: { business_id: businessId }, attributes: ['id'] });
-      projectIds = projs.map((p) => p.id);
+      // 멤버: 워크스페이스 전체 업무 (프로젝트 미지정 task 도 포함)
+      where = { business_id: businessId };
     } else {
-      // 고객 — 자기가 project_clients 에 등록된 프로젝트만
+      // 고객: 자기가 project_clients 에 등록된 프로젝트의 업무 OR 본인에게 배정된 업무
       const pcs = await ProjectClient.findAll({
         where: { contact_user_id: req.user.id },
         include: [{ model: Project, where: { business_id: businessId }, attributes: ['id'] }],
       });
-      projectIds = pcs.map((pc) => pc.project_id).filter(Boolean);
+      const projectIds = pcs.map((pc) => pc.project_id).filter(Boolean);
+      const orConds = [{ assignee_id: req.user.id }, { request_by_user_id: req.user.id }];
+      if (projectIds.length > 0) orConds.push({ project_id: projectIds });
+      where = { business_id: businessId, [Op.or]: orConds };
     }
 
-    if (projectIds.length === 0) return successResponse(res, []);
-
-    const where = { project_id: projectIds };
     if (req.query.status) where.status = req.query.status;
     if (req.query.project_id) where.project_id = Number(req.query.project_id);
     if (req.query.mine === '1') where.assignee_id = req.user.id;
