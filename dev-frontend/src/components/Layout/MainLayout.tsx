@@ -57,7 +57,7 @@ const Sidebar = styled.div<{ $isOpen?: boolean; $isCollapsed?: boolean }>`
   width: ${props => props.$isCollapsed ? `${SIDEBAR_W_COLLAPSED}px` : `${SIDEBAR_W_OPEN}px`};
   height: 100vh;
   background: linear-gradient(180deg, #115E59 0%, #134E4A 100%);
-  z-index: 1000; display: flex; flex-direction: column;
+  z-index: 100; display: flex; flex-direction: column;
   transition: width 0.25s ease; overflow-x: hidden;
   ${mediaTablet} {
     transform: translateX(${props => props.$isOpen ? '0' : '-100%'});
@@ -242,7 +242,7 @@ const SecondaryPanel = styled.aside<{ $sidebarW: number; $collapsed: boolean }>`
   height: 100vh;
   background: #FFFFFF;
   border-right: 1px solid #E2E8F0;
-  z-index: 900;
+  z-index: 90;
   display: flex; flex-direction: column;
   transition: left 0.25s ease, width 0.25s ease;
   ${mediaTablet} { display: none; }
@@ -368,7 +368,7 @@ const MainContent = styled.div<{ $marginLeft: number }>`
 const MobileHeader = styled.div`
   display: none; position: fixed; top: 0; left: 0; right: 0;
   height: 56px; background: #115E59; border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  z-index: 999; padding: 0 16px; align-items: center; justify-content: space-between;
+  z-index: 99; padding: 0 16px; align-items: center; justify-content: space-between;
   ${mediaTablet} { display: flex; }
 `;
 
@@ -383,7 +383,7 @@ const HamburgerButton = styled.button`
 const Overlay = styled.div<{ $show?: boolean }>`
   display: ${props => props.$show ? 'block' : 'none'};
   position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-  background: rgba(0,0,0,0.4); z-index: 999;
+  background: rgba(0,0,0,0.4); z-index: 95;
 `;
 
 const MobileContentPadding = styled.div`
