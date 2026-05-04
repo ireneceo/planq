@@ -10,7 +10,7 @@ import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { aiGenerateDoc, KIND_LABELS_KO, type DocKind } from '../../services/docs';
-import { createBrief, fetchPosts, type PostRow } from '../../services/posts';
+import { createBrief } from '../../services/posts';
 import { listClientsForBilling, type ApiClientLite } from '../../services/invoices';
 import { listProjects, type ApiProject } from '../../services/qtalk';
 import { uploadMyFile } from '../../services/files';
@@ -73,14 +73,6 @@ const PostAiModal: React.FC<Props> = ({ open, onClose, businessId, projectId: pa
   const [pickedProjectId, setPickedProjectId] = useState<number | null>(null);
   const [clients, setClients] = useState<ApiClientLite[]>([]);
   const [projects, setProjects] = useState<ApiProject[]>([]);
-
-  // brief 모드에서 사용 — 워크스페이스 전체 posts 로드 (검색 + 선택)
-  useEffect(() => {
-    if (!open || mode !== 'brief') return;
-    let cancelled = false;
-    fetchPosts(businessId, {}).then(rows => { if (!cancelled) setBriefPosts(rows); }).catch(() => {});
-    return () => { cancelled = true; };
-  }, [open, mode, businessId]);
 
   useEffect(() => {
     if (!open) return;
@@ -543,31 +535,6 @@ const Textarea = styled.textarea`
   &:disabled { background: #F8FAFC; }
 `;
 const Hint = styled.p`font-size:11px;color:#94A3B8;margin:6px 0 0;line-height:1.5;`;
-const PostPickerWrap = styled.div`display:flex;flex-direction:column;gap:6px;`;
-const PostSearchInput = styled.input`
-  width: 100%; height: 36px; padding: 0 12px;
-  border: 1px solid #E2E8F0; border-radius: 8px; background: #fff;
-  font-size: 13px; color: #0F172A;
-  &:focus { outline: none; border-color: #14B8A6; }
-`;
-const PostList = styled.div`
-  max-height: 200px; overflow-y: auto;
-  border: 1px solid #E2E8F0; border-radius: 8px;
-  background: #fff;
-`;
-const PostListItem = styled.div<{ $checked: boolean }>`
-  display: grid; grid-template-columns: 20px 1fr auto; gap: 8px; align-items: center;
-  padding: 8px 12px; cursor: pointer;
-  background: ${p => p.$checked ? '#F0FDFA' : 'transparent'};
-  border-bottom: 1px solid #F1F5F9;
-  &:last-child { border-bottom: none; }
-  &:hover { background: ${p => p.$checked ? '#F0FDFA' : '#F8FAFC'}; }
-`;
-const PostListChk = styled.input`accent-color:#14B8A6;cursor:pointer;`;
-const PostListTitle = styled.div`font-size:12px;color:#0F172A;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;`;
-const PostListKind = styled.span`font-size:10px;color:#64748B;background:#F1F5F9;padding:2px 8px;border-radius:999px;`;
-const PostListEmpty = styled.div`padding:14px;text-align:center;font-size:12px;color:#94A3B8;`;
-const PostSelectedCount = styled.div`font-size:11px;color:#0F766E;font-weight:600;`;
 const ContextBadge = styled.div`
   font-size: 11px; color: #0F766E;
   background: #F0FDFA; border: 1px solid #CCFBF1;

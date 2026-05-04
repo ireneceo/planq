@@ -14,7 +14,7 @@ import PanelHeader, { PanelTitle, PanelSubTitle } from '../Layout/PanelHeader';
 import AttachmentField from '../Common/AttachmentField';
 import CategoryCombobox from '../Common/CategoryCombobox';
 import EmptyState from '../Common/EmptyState';
-import { uploadMyFile, uploadProjectFile, fetchWorkspaceFiles } from '../../services/files';
+import { uploadMyFile, uploadProjectFile } from '../../services/files';
 import ConfirmDialog from '../Common/ConfirmDialog';
 import PostEditor from './PostEditor';
 import PostTableGrid from './PostTableGrid';
@@ -114,7 +114,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
   // 신규 모드(Post.id 미존재) 에서 첨부 예약용 — 저장 직후 attach 일괄 처리
   const [pendingUploads, setPendingUploads] = useState<File[]>([]);
   const [pendingExistingIds, setPendingExistingIds] = useState<number[]>([]);
-  const [pendingExistingMeta, setPendingExistingMeta] = useState<Record<number, { name: string; size: number }>>({});
+  const [, setPendingExistingMeta] = useState<Record<number, { name: string; size: number }>>({});
   const submittingRef = useRef(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [aiOpen, setAiOpen] = useState(false);
@@ -455,50 +455,6 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
     setActiveId(null);
     setDetail(null);
     await load(); await loadMeta();
-  };
-
-  // 로컬 파일 업로드 요청 — 신규면 예약, 편집이면 즉시 upload+attach
-  const handlePickFiles = async (files: File[]) => {
-    if (mode === 'new') {
-      setPendingUploads(prev => [...prev, ...files]);
-      return;
-    }
-    if (!detail) return;
-    const fileIds: number[] = [];
-    for (const f of files) {
-      const result = scope.type === 'project'
-        ? await uploadProjectFile(scope.businessId, scope.projectId, f)
-        : await uploadMyFile(scope.businessId, f);
-      if (result.success && result.file) {
-        const fid = Number(result.file.id.replace(/^direct-/, ''));
-        if (fid) fileIds.push(fid);
-      }
-    }
-    if (fileIds.length > 0) {
-      await attachToPost(detail.id, fileIds);
-      const reloaded = await fetchPost(detail.id);
-      setDetail(reloaded);
-    }
-  };
-
-  // 기존 파일 선택 — 신규면 예약, 편집이면 즉시 attach
-  const handlePickExisting = async (fileIds: number[]) => {
-    if (fileIds.length === 0) return;
-    if (mode === 'new') {
-      const all = await fetchWorkspaceFiles(scope.businessId);
-      const meta = { ...pendingExistingMeta };
-      for (const fid of fileIds) {
-        const hit = all.find(f => f.id === `direct-${fid}`);
-        if (hit) meta[fid] = { name: hit.file_name, size: hit.file_size };
-      }
-      setPendingExistingMeta(meta);
-      setPendingExistingIds(prev => [...prev, ...fileIds.filter(id => !prev.includes(id))]);
-      return;
-    }
-    if (!detail) return;
-    await attachToPost(detail.id, fileIds);
-    const reloaded = await fetchPost(detail.id);
-    setDetail(reloaded);
   };
 
   const detachOne = async (attId: number) => {
