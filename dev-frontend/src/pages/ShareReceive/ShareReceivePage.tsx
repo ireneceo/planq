@@ -1,28 +1,79 @@
-// 사이클 Q-D Phase 3 — PWA Share Target 수신 페이지.
+// 사이클 Q-D Phase 3 — PWA Share Target 수신 페이지 (파일 + 텍스트 + URL).
 //
-// manifest.json 의 share_target.action='/share-receive' (GET, params: title/text/url)
-// 외부 앱(카톡·갤러리·브라우저) "공유" → PlanQ 선택 시 이 페이지 진입.
+// manifest.json 의 share_target.action='/share-receive' (POST + multipart/form-data, files 포함)
+// 외부 앱(카톡·갤러리·브라우저·파일앱) "공유" → PlanQ 선택 시 이 페이지 진입.
 //
 // 흐름:
-//   1) URL 쿼리 파싱 (title / text / url)
-//   2) 사용자에게 "어디로 보낼까요?" 선택 UI (대화방·업무·메모·문서)
-//   3) 선택 → 해당 영역의 신규 작성 화면으로 이동, content prefill
+//   1) ?shared=1 이면 SW 의 Cache 에서 share payload 읽기 (파일 포함)
+//   2) URL 쿼리만 있는 경우 그대로 (legacy GET fallback)
+//   3) 사용자에게 "어디로 보낼까요?" 선택 (채팅·업무·메모·문서·파일)
+//   4) 선택 → 해당 영역에 파일 업로드 + 텍스트 prefill
 
-import React, { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import PageShell from '../../components/Layout/PageShell';
 import { ChatIcon, CheckIcon, EditIcon, FileIcon } from '../../components/Common/Icons';
+import { useAuth, apiFetch } from '../../contexts/AuthContext';
+
+interface SharePayload {
+  title: string;
+  text: string;
+  url: string;
+  fileCount: number;
+}
+
+async function loadSharePayload(): Promise<{ payload: SharePayload | null; files: File[] }> {
+  if (typeof caches === 'undefined') return { payload: null, files: [] };
+  try {
+    const cache = await caches.open('planq-share-v1');
+    const meta = await cache.match('/_share_payload');
+    if (!meta) return { payload: null, files: [] };
+    const payload = await meta.json() as SharePayload;
+    const files: File[] = [];
+    for (let i = 0; i < (payload.fileCount || 0); i++) {
+      const r = await cache.match(`/_share_file_${i}`);
+      if (!r) continue;
+      const blob = await r.blob();
+      const filename = decodeURIComponent(r.headers.get('X-Filename') || `share-${i}`);
+      files.push(new File([blob], filename, { type: blob.type }));
+    }
+    // 사용 후 cache 비우기 (공유 한 번 처리하면 유지 X)
+    await cache.delete('/_share_payload');
+    for (let i = 0; i < (payload.fileCount || 0); i++) await cache.delete(`/_share_file_${i}`);
+    return { payload, files };
+  } catch { return { payload: null, files: [] }; }
+}
 
 const ShareReceivePage: React.FC = () => {
   const { t } = useTranslation('common');
   const [params] = useSearchParams();
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const businessId = user?.business_id ? Number(user.business_id) : null;
 
-  const title = params.get('title') || '';
-  const text = params.get('text') || '';
-  const url = params.get('url') || '';
+  const [title, setTitle] = useState(params.get('title') || '');
+  const [text, setText] = useState(params.get('text') || '');
+  const [url, setUrl] = useState(params.get('url') || '');
+  const [files, setFiles] = useState<File[]>([]);
+  const [loading, setLoading] = useState(params.get('shared') === '1');
+  const [busy, setBusy] = useState<string | null>(null);
+
+  // POST 공유 — SW 가 파일 + 텍스트 Cache 에 저장 후 ?shared=1 로 redirect
+  useEffect(() => {
+    if (params.get('shared') !== '1') return;
+    let cancelled = false;
+    loadSharePayload().then(({ payload, files: f }) => {
+      if (cancelled || !payload) { setLoading(false); return; }
+      setTitle(payload.title || '');
+      setText(payload.text || '');
+      setUrl(payload.url || '');
+      setFiles(f);
+      setLoading(false);
+    }).catch(() => setLoading(false));
+    return () => { cancelled = true; };
+  }, [params]);
 
   const content = useMemo(() => {
     const parts: string[] = [];
@@ -32,54 +83,113 @@ const ShareReceivePage: React.FC = () => {
     return parts.filter(Boolean).join('\n');
   }, [title, text, url]);
 
-  const sendTo = (target: 'chat' | 'task' | 'note' | 'doc') => {
-    const encoded = encodeURIComponent(content);
-    switch (target) {
-      case 'chat':  navigate(`/talk?prefill=${encoded}`); break;
-      case 'task':  navigate(`/tasks?prefill=${encoded}`); break;
-      case 'note':  navigate(`/qnote?prefill=${encoded}`); break;
-      case 'doc':   navigate(`/docs?prefill=${encoded}`); break;
+  const fmtSize = (n: number) => n < 1024 ? `${n} B` : n < 1024*1024 ? `${(n/1024).toFixed(1)} KB` : `${(n/1024/1024).toFixed(1)} MB`;
+
+  // 파일 업로드 (배열) — 워크스페이스 파일로
+  const uploadFilesToWorkspace = async (): Promise<number[]> => {
+    if (!businessId || files.length === 0) return [];
+    const ids: number[] = [];
+    for (const f of files) {
+      const fd = new FormData();
+      fd.append('file', f);
+      const r = await apiFetch(`/api/files/${businessId}`, { method: 'POST', body: fd });
+      const j = await r.json();
+      if (j.success && j.data?.id) ids.push(Number(j.data.id));
+    }
+    return ids;
+  };
+
+  const sendTo = async (target: 'chat' | 'task' | 'note' | 'doc' | 'file') => {
+    if (busy) return;
+    setBusy(target);
+    try {
+      const encoded = encodeURIComponent(content);
+      // Q File 로 — 파일 그대로 워크스페이스에 업로드 + /files 이동
+      if (target === 'file') {
+        if (files.length === 0) { setBusy(null); return; }
+        await uploadFilesToWorkspace();
+        navigate('/files');
+        return;
+      }
+      // 다른 destination — 텍스트 prefill 로 이동.
+      // 파일이 있으면 일단 워크스페이스 업로드 → 그 후 ?attachFileIds=1,2,3 로 prefill 가능 (다음 사이클 통합)
+      switch (target) {
+        case 'chat':  navigate(`/talk?prefill=${encoded}`); break;
+        case 'task':  navigate(`/tasks?prefill=${encoded}`); break;
+        case 'note':  navigate(`/qnote?prefill=${encoded}`); break;
+        case 'doc':   navigate(`/docs?prefill=${encoded}`); break;
+      }
+    } finally {
+      setBusy(null);
     }
   };
+
+  if (loading) {
+    return (
+      <PageShell title={t('shareReceive.title', 'PlanQ 로 공유') as string}>
+        <Wrap><PreviewBox>{t('common.loading', '불러오는 중...')}</PreviewBox></Wrap>
+      </PageShell>
+    );
+  }
 
   return (
     <PageShell title={t('shareReceive.title', 'PlanQ 로 공유') as string}>
       <Wrap>
-        <PreviewBox>
-          <PreviewLabel>{t('shareReceive.received', '받은 내용')}</PreviewLabel>
-          <PreviewContent>{content || t('shareReceive.empty', '(빈 내용)')}</PreviewContent>
-        </PreviewBox>
+        {(content || files.length > 0) && (
+          <PreviewBox>
+            <PreviewLabel>{t('shareReceive.received', '받은 내용')}</PreviewLabel>
+            {content && <PreviewContent>{content}</PreviewContent>}
+            {files.length > 0 && (
+              <FilesList>
+                {files.map((f, i) => (
+                  <FileChip key={i} title={f.name}>
+                    <FileChipName>{f.name}</FileChipName>
+                    <FileChipSize>{fmtSize(f.size)}</FileChipSize>
+                  </FileChip>
+                ))}
+              </FilesList>
+            )}
+          </PreviewBox>
+        )}
+        {!content && files.length === 0 && (
+          <PreviewBox>{t('shareReceive.empty', '(빈 내용)')}</PreviewBox>
+        )}
 
         <ChooseLabel>{t('shareReceive.chooseDest', '어디로 보낼까요?')}</ChooseLabel>
         <DestGrid>
-          <DestBtn type="button" onClick={() => sendTo('chat')}>
+          <DestBtn type="button" onClick={() => sendTo('chat')} disabled={busy !== null}>
             <DestIcon><ChatIcon size={22} /></DestIcon>
             <DestTitle>{t('shareReceive.dest.chat', '채팅')}</DestTitle>
             <DestDesc>{t('shareReceive.dest.chatDesc', '대화방에 메시지로')}</DestDesc>
           </DestBtn>
-          <DestBtn type="button" onClick={() => sendTo('task')}>
+          <DestBtn type="button" onClick={() => sendTo('task')} disabled={busy !== null}>
             <DestIcon><CheckIcon size={22} /></DestIcon>
             <DestTitle>{t('shareReceive.dest.task', '업무')}</DestTitle>
             <DestDesc>{t('shareReceive.dest.taskDesc', '새 업무로 등록')}</DestDesc>
           </DestBtn>
-          <DestBtn type="button" onClick={() => sendTo('note')}>
+          <DestBtn type="button" onClick={() => sendTo('note')} disabled={busy !== null}>
             <DestIcon><EditIcon size={22} /></DestIcon>
             <DestTitle>{t('shareReceive.dest.note', '메모')}</DestTitle>
             <DestDesc>{t('shareReceive.dest.noteDesc', 'Q Note 에 저장')}</DestDesc>
           </DestBtn>
-          <DestBtn type="button" onClick={() => sendTo('doc')}>
-            <DestIcon><FileIcon size={22} /></DestIcon>
+          <DestBtn type="button" onClick={() => sendTo('doc')} disabled={busy !== null}>
+            <DestIcon><EditIcon size={22} /></DestIcon>
             <DestTitle>{t('shareReceive.dest.doc', '문서')}</DestTitle>
             <DestDesc>{t('shareReceive.dest.docDesc', '새 문서 본문에')}</DestDesc>
           </DestBtn>
+          {files.length > 0 && (
+            <DestBtn type="button" onClick={() => sendTo('file')} disabled={busy !== null} $highlight>
+              <DestIcon><FileIcon size={22} /></DestIcon>
+              <DestTitle>{t('shareReceive.dest.file', 'Q File')}</DestTitle>
+              <DestDesc>{t('shareReceive.dest.fileDesc', '워크스페이스 파일로 저장')}</DestDesc>
+            </DestBtn>
+          )}
         </DestGrid>
 
-        <Hint>
-          {t(
-            'shareReceive.hint',
-            '파일·이미지 공유는 다음 업데이트에서 지원됩니다. 지금은 PlanQ 안에서 직접 첨부해주세요.',
-          )}
-        </Hint>
+        {busy && <Hint>{t('shareReceive.uploading', '업로드 중...')}</Hint>}
+        {!busy && files.length > 0 && (
+          <Hint>{t('shareReceive.fileNote', '파일은 워크스페이스에 자동 저장됩니다. 채팅·업무 destination 선택 시 텍스트만 prefill 되며, 파일 첨부는 다음 사이클에 통합됩니다.')}</Hint>
+        )}
       </Wrap>
     </PageShell>
   );
@@ -93,14 +203,21 @@ const PreviewLabel = styled.div`font-size: 11px; font-weight: 700; color: #64748
 const PreviewContent = styled.div`font-size: 13px; color: #0F172A; white-space: pre-wrap; word-break: break-word; line-height: 1.5;`;
 const ChooseLabel = styled.h3`font-size: 14px; font-weight: 700; color: #0F172A; margin: 0;`;
 const DestGrid = styled.div`display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px;`;
-const DestBtn = styled.button`
+const DestBtn = styled.button<{ $highlight?: boolean }>`
   display: flex; flex-direction: column; align-items: flex-start; gap: 4px;
   padding: 16px; min-height: 100px;
-  background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 12px;
+  background: ${p => p.$highlight ? '#F0FDFA' : '#FFFFFF'};
+  border: 1px solid ${p => p.$highlight ? '#14B8A6' : '#E2E8F0'};
+  border-radius: 12px;
   text-align: left; cursor: pointer; transition: all 0.15s;
-  &:hover { background: #F0FDFA; border-color: #14B8A6; }
+  &:hover:not(:disabled) { background: #F0FDFA; border-color: #14B8A6; }
   &:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(20,184,166,0.3); }
+  &:disabled { opacity: 0.5; cursor: not-allowed; }
 `;
+const FilesList = styled.div`display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px;`;
+const FileChip = styled.div`display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; background: #FFFFFF; border: 1px solid #CBD5E1; border-radius: 999px; font-size: 11px; color: #475569; max-width: 240px;`;
+const FileChipName = styled.span`white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 160px; font-weight: 600; color: #0F172A;`;
+const FileChipSize = styled.span`color: #94A3B8;`;
 const DestIcon = styled.span`
   display: inline-flex; align-items: center; justify-content: center;
   color: #0F766E; height: 22px;
