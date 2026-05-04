@@ -1,0 +1,159 @@
+{
+  "nav": {
+    "features": "Features",
+    "pricing": "Pricing",
+    "about": "Company",
+    "contact": "Contact",
+    "login": "Sign in",
+    "signup": "Start free",
+    "toApp": "My workspace",
+    "menu": "Menu"
+  },
+  "hero": {
+    "badge": "Work OS for businesses in Korea",
+    "title": "Requests as a Queue,<br /><1>execution by Cue.</1>",
+    "subtitle": "Customer chat, tasks, and billing in one place — Q Talk, Q Task, and Q Bill organize what's scattered and recover revenue you almost lost.",
+    "ctaPrimary": "Start free",
+    "ctaSecondary": "See pricing",
+    "note": "14 days free, no credit card. Cancel anytime.",
+    "mockupHint": "Inbox · Tasks · Billing in one screen"
+  },
+  "problem": {
+    "eyebrow": "Sound familiar?",
+    "title": "Customer messages, tasks, and bills scattered everywhere?",
+    "items": [
+      { "title": "Chat here, tasks there", "desc": "Hours spent searching across KakaoTalk, email, and SMS for that one request." },
+      { "title": "Who's covering this week's deadline?", "desc": "Promised work spread across notes, calendars, and memory — things keep slipping through." },
+      { "title": "I'll send the invoice next week", "desc": "Postponed billing and tax invoices delay payment too." }
+    ]
+  },
+  "solution": {
+    "eyebrow": "The fix",
+    "title": "PlanQ unifies it",
+    "desc": "Conversations, tasks, documents, files, and invoices in one workspace. Each customer's scattered context bundled together, with AI suggesting the next move."
+  },
+  "features": {
+    "eyebrow": "Core features",
+    "title": "Q series organizes your work",
+    "q": {
+      "talk": { "name": "Customer chat", "desc": "1:1 chat per customer with shared files. Extract tasks straight from messages." },
+      "task": { "name": "Task execution", "desc": "Assign, review, complete in one flow. AI organizes by deliverables." },
+      "note": { "name": "Voice memo", "desc": "Record meetings, calls, interviews → auto summary + suggested replies." },
+      "file": { "name": "Files", "desc": "Organized by project and customer. Google Drive sync, automatic dedup." },
+      "bill": { "name": "Billing", "desc": "Quotes, contracts, invoices, tax invoices in one sequence. Auto-progressing." }
+    }
+  },
+  "usecases": {
+    "eyebrow": "Who uses it",
+    "title": "Any team that talks to customers directly",
+    "items": {
+      "solo": { "title": "Solopreneurs · Freelancers", "desc": "Stop dropping things when handling everything alone. Per-customer chat, tasks, and billing in one screen." },
+      "studio": { "title": "Design · Content studios", "desc": "Track materials, feedback, and timelines per project. AI suggests the next step." },
+      "consulting": { "title": "Consulting · Professional services", "desc": "Auto-organize meetings, notes, and tasks. Never miss invoicing or tax invoices again." }
+    }
+  },
+  "pricing": {
+    "eyebrow": "Pricing",
+    "title": "Start free, scale as needed",
+    "recommended": "Recommended",
+    "viewAll": "See pricing details",
+    "plans": {
+      "free": {
+        "name": "Free",
+        "price": "Free",
+        "sub": "For solo starters",
+        "features": [
+          "1 workspace",
+          "Up to 5 customers",
+          "Q Talk · Q Task basics",
+          "1GB storage"
+        ],
+        "cta": "Start free"
+      },
+      "basic": {
+        "name": "Basic",
+        "price": "₩19,000/mo",
+        "sub": "Growing solo or small team",
+        "features": [
+          "Unlimited customers",
+          "Q Note · Q File · Q Bill full",
+          "50GB storage",
+          "Cue (AI teammate) — 100 actions/mo"
+        ],
+        "cta": "Start Basic"
+      },
+      "pro": {
+        "name": "Pro",
+        "price": "₩49,000/mo",
+        "sub": "Teams · professional services",
+        "features": [
+          "Unlimited members",
+          "500GB storage",
+          "Cue — 500 actions/mo",
+          "Advanced analytics & insights"
+        ],
+        "cta": "Start Pro"
+      }
+    }
+  },
+  "faq": {
+    "eyebrow": "Frequently asked",
+    "title": "Before you start",
+    "items": {
+      "data": {
+        "q": "Can I import my existing KakaoTalk or email data?",
+        "a": "Customer info and contacts can be imported via CSV. Chat history starts fresh inside PlanQ — upload prior materials to Q File to keep them searchable and linked."
+      },
+      "cancel": {
+        "q": "Can I cancel anytime?",
+        "a": "Yes. After cancellation your data is preserved for 30 days so you can resume. Try 14 days free with no credit card before deciding."
+      },
+      "team": {
+        "q": "How many teammates can I invite?",
+        "a": "Free is for 1 person, Basic up to 5, Pro unlimited. You can add more seats as Addons if needed."
+      },
+      "ios": {
+        "q": "Does it work on mobile?",
+        "a": "Yes. Add to home screen as a PWA for fast access and push notifications. Works on iOS Safari and Android Chrome."
+      },
+      "security": {
+        "q": "Is my data safe?",
+        "a": "Hosted in Korea, HTTPS everywhere, with strict multi-tenant isolation. Every change is in the audit log, and each business's data is fully separated."
+      }
+    }
+  },
+  "finalCta": {
+    "title": "An organized workspace, starting today",
+    "sub": "14 days free. No credit card needed.",
+    "cta": "Start free"
+  },
+  "footer": {
+    "tagline": "Requests as a Queue, execution by Cue.",
+    "product": "Product",
+    "company": "Company",
+    "legal": "Legal",
+    "privacy": "Privacy",
+    "terms": "Terms",
+    "allRights": "All rights reserved."
+  },
+  "coming": {
+    "eyebrow": "Coming soon",
+    "backToHome": "Back to home"
+  },
+  "featuresPage": {
+    "title": "Features page is coming soon",
+    "desc": "Detailed walkthroughs for each Q series module (Q Talk · Q Task · Q Note · Q File · Q Bill) are on the way. Until then, try it free to explore."
+  },
+  "pricingPage": {
+    "title": "Pricing page is coming soon",
+    "desc": "Detailed comparisons of Free / Basic / Pro and Addons are on the way. See the pricing section on the home page in the meantime."
+  },
+  "aboutPage": {
+    "title": "About page is coming soon",
+    "desc": "We'll soon share the team and story behind PlanQ."
+  },
+  "contactPage": {
+    "title": "Contact page is coming soon",
+    "desc": "For now, sign up and use \"Send feedback\" inside your workspace, or email hello@planq.kr."
+  }
+}
