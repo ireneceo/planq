@@ -27,6 +27,14 @@ Post.init({
   brief_meta: { type: DataTypes.JSON, allowNull: true },
   // 자료정리에서 파생된 후속 문서 → parent post id (양방향 링크). 자료정리 post 자체는 null
   parent_post_id: { type: DataTypes.INTEGER, allowNull: true, references: { model: 'posts', key: 'id' } },
+  // Q docs 통합 — 문서 종류:
+  //   doc      = Tiptap 본문 (기존)
+  //   table    = 표 (q_record_id 연결, QRecord 그리드를 본문으로 표시)
+  //   brief    = AI 자료정리 (brief_meta 사용)
+  //   template = 템플릿 (워크스페이스 공유용)
+  kind: { type: DataTypes.ENUM('doc', 'table', 'brief', 'template'), allowNull: false, defaultValue: 'doc' },
+  // kind='table' 일 때 연결된 QRecord. 그 외 null.
+  q_record_id: { type: DataTypes.INTEGER, allowNull: true, references: { model: 'q_records', key: 'id' } },
 }, {
   sequelize, tableName: 'posts', timestamps: true, underscored: true,
   indexes: [
@@ -34,6 +42,8 @@ Post.init({
     { fields: ['business_id', 'is_pinned'] },
     { fields: ['business_id', 'conversation_id'] },
     { fields: ['share_token'] },
+    { fields: ['business_id', 'kind'] },
+    { fields: ['q_record_id'] },
   ]
 });
 

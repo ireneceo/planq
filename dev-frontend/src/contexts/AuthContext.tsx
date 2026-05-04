@@ -18,6 +18,7 @@ export type AnswerLength = 'short' | 'medium' | 'long';
 export interface WorkspaceMembership {
   business_id: number;
   brand_name: string;
+  brand_logo_url?: string | null;
   slug: string;
   plan: string;
   role: 'owner' | 'member' | 'client' | 'ai';

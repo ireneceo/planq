@@ -87,6 +87,8 @@ function serialize(p, withContent = false) {
     // 자료정리 메타 (category='brief' 인 post 만 채워짐). BriefViewer 가 사용
     brief_meta: p.brief_meta || null,
     parent_post_id: p.parent_post_id || null,
+    kind: p.kind || 'doc',
+    q_record_id: p.q_record_id || null,
     created_at: p.created_at,
     updated_at: p.updated_at,
     content_preview: (p.content_text || '').slice(0, 200),
@@ -230,14 +232,32 @@ router.get('/:id', authenticateToken, async (req, res, next) => {
       return errorResponse(res, 'forbidden', 403);
     }
     await post.increment('view_count');
-    successResponse(res, serialize(post, true));
+    const result = serialize(post, true);
+    // kind='table' 이면 연결된 QRecord 정보도 같이 (그리드 임베드용)
+    if (post.kind === 'table' && post.q_record_id) {
+      const { QRecord } = require('../models');
+      const qrec = await QRecord.findByPk(post.q_record_id);
+      if (qrec) {
+        result.qrecord = { id: qrec.id, columns: qrec.columns };
+      }
+    }
+    successResponse(res, result);
   } catch (err) { next(err); }
 });
 
 // ─── 생성 ───
+// /records/:id (구 Q record) → post 로 redirect 용
+router.get('/by-record/:recordId', authenticateToken, async (req, res, next) => {
+  try {
+    const post = await Post.findOne({ where: { q_record_id: Number(req.params.recordId) } });
+    if (!post) return errorResponse(res, 'not_found', 404);
+    successResponse(res, { post_id: post.id });
+  } catch (err) { next(err); }
+});
+
 router.post('/', authenticateToken, async (req, res, next) => {
   try {
-    const { business_id, project_id = null, conversation_id = null, title, content_json = null, category = null, status = 'published', is_pinned = false, parent_post_id = null } = req.body || {};
+    const { business_id, project_id = null, conversation_id = null, title, content_json = null, category = null, status = 'published', is_pinned = false, parent_post_id = null, kind = 'doc' } = req.body || {};
     if (!business_id || !title) return errorResponse(res, 'business_id/title required', 400);
     if (!(await assertMember(req.user.id, Number(business_id), req.user.platform_role === 'platform_admin'))) {
       return errorResponse(res, 'forbidden', 403);
@@ -257,6 +277,23 @@ router.post('/', authenticateToken, async (req, res, next) => {
       const parent = await Post.findOne({ where: { id: parent_post_id, business_id } });
       if (!parent) return errorResponse(res, 'invalid parent_post_id', 400);
     }
+    // kind='table' 이면 빈 q_record 1개 자동 생성 (1 컬럼 + 0 행)
+    let qRecordId = null;
+    if (kind === 'table') {
+      const { QRecord } = require('../models');
+      const crypto = require('crypto');
+      const newColId = () => 'c' + crypto.randomBytes(4).toString('hex');
+      const qrec = await QRecord.create({
+        business_id,
+        project_id: project_id || null,
+        name: String(title).slice(0, 200),
+        category,
+        columns: [{ id: newColId(), name: '제목', type: 'text', order: 0 }],
+        read_policy: 'all',
+        created_by: req.user.id,
+      });
+      qRecordId = qrec.id;
+    }
     const post = await Post.create({
       business_id,
       project_id: project_id || null,
@@ -269,6 +306,8 @@ router.post('/', authenticateToken, async (req, res, next) => {
       status,
       is_pinned: !!is_pinned,
       parent_post_id: parent_post_id || null,
+      kind: ['doc', 'table', 'brief', 'template'].includes(kind) ? kind : 'doc',
+      q_record_id: qRecordId,
     });
     const full = await Post.findByPk(post.id, {
       include: [
@@ -443,7 +482,7 @@ router.post('/brief', authenticateToken, async (req, res, next) => {
   try {
     const {
       business_id, project_id = null, conversation_id = null,
-      title, text_blocks = [], attached_file_ids = [],
+      title, text_blocks = [], attached_file_ids = [], attached_post_ids = [],
     } = req.body || {};
     if (!business_id) return errorResponse(res, 'business_id required', 400);
     if (!title || !String(title).trim()) return errorResponse(res, 'title required', 400);
@@ -458,8 +497,11 @@ router.post('/brief', authenticateToken, async (req, res, next) => {
     const fileIds = Array.isArray(attached_file_ids)
       ? attached_file_ids.map(Number).filter(Number.isFinite)
       : [];
-    if (blocks.length === 0 && fileIds.length === 0) {
-      return errorResponse(res, 'at least one text block or file required', 400);
+    const postIds = Array.isArray(attached_post_ids)
+      ? attached_post_ids.map(Number).filter(Number.isFinite)
+      : [];
+    if (blocks.length === 0 && fileIds.length === 0 && postIds.length === 0) {
+      return errorResponse(res, 'at least one text block, file, or post required', 400);
     }
     const briefSvc = require('../services/brief_service');
     let result;
@@ -471,6 +513,7 @@ router.post('/brief', authenticateToken, async (req, res, next) => {
         title,
         text_blocks: blocks,
         attached_file_ids: fileIds,
+        attached_post_ids: postIds,
         created_by: req.user.id,
       });
     } catch (e) {

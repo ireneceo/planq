@@ -250,12 +250,23 @@
     "upload": "Upload ({{n}})",
     "attach": "Attach ({{n}})"
   },
+  "search": {
+    "title": "Global search",
+    "placeholder": "Search tasks · docs · records · files · clients",
+    "hint": "Type to search. Open with ⌘K or Ctrl+\\.",
+    "searching": "Searching...",
+    "noResults": "No results"
+  },
   "attach": {
     "uploadHint": "Drag files here or click to browse",
     "uploadAccept": "Multiple files supported · saved to workspace",
     "searchPlaceholder": "Search existing files...",
+    "searchUnifiedPlaceholder": "Search existing files & docs...",
     "searchHint": "Type to search",
-    "noFiles": "No results"
+    "noFiles": "No results",
+    "noResults": "No results",
+    "typeFile": "File",
+    "typePost": "Doc"
   },
   "installPrompt": {
     "title": "Use PlanQ like an app",

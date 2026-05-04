@@ -37,7 +37,7 @@ interface DetailDrawerProps {
 }
 
 const DetailDrawerRoot: React.FC<DetailDrawerProps> = ({
-  open, onClose, width = 440, ariaLabel,
+  open, onClose, width = 480, ariaLabel,
   closeOnBackdrop = true, closeOnEsc = true,
   children,
 }) => {

@@ -143,8 +143,11 @@
     "tagline": "Tagline (optional)",
     "taglinePlaceholder": "e.g. AI Language Research",
     "taglineEn": "English Tagline (optional)",
-    "logoUrl": "Logo Image URL",
-    "logoUrlPlaceholder": "https://...",
+    "logoUrl": "Symbol",
+    "logoUrlPlaceholder": "https://... (or upload above)",
+    "logoUpload": "Upload symbol",
+    "logoChange": "Change symbol",
+    "logoRemove": "Remove",
     "color": "Accent Color",
     "colorHint": "Used for conversation headers and buttons"
   },

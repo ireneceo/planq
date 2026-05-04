@@ -24,6 +24,10 @@ export interface PostRow {
   parent_post_id: number | null;
   // brief_meta 는 category='brief' 인 post 만. 일반 post 는 null
   brief_meta: unknown;
+  // 문서 종류 — doc(기본) | table(표) | brief(자료정리) | template
+  kind?: 'doc' | 'table' | 'brief' | 'template';
+  // kind='table' 일 때 연결된 q_record id
+  q_record_id?: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -49,6 +53,11 @@ export interface PostAttachment {
 export interface PostDetail extends PostRow {
   content_json: TiptapDoc;
   attachments: PostAttachment[];
+  // kind='table' 일 때 백엔드가 같이 보내주는 QRecord 메타
+  qrecord?: {
+    id: number;
+    columns: Array<{ id: string; name: string; type: string; options?: string[]; order: number }>;
+  };
 }
 
 export interface PostListFilter {
@@ -194,6 +203,7 @@ export async function createBrief(payload: {
   title: string;
   text_blocks?: string[];
   attached_file_ids?: number[];
+  attached_post_ids?: number[];
 }): Promise<BriefResult> {
   const r = await apiFetch('/api/posts/brief', {
     method: 'POST',

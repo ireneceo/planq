@@ -10,7 +10,7 @@ import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { aiGenerateDoc, KIND_LABELS_KO, type DocKind } from '../../services/docs';
-import { createBrief } from '../../services/posts';
+import { createBrief, fetchPosts, type PostRow } from '../../services/posts';
 import { listClientsForBilling, type ApiClientLite } from '../../services/invoices';
 import { listProjects, type ApiProject } from '../../services/qtalk';
 import { uploadMyFile } from '../../services/files';
@@ -27,6 +27,10 @@ interface Props {
   projectId?: number | null;
   clientId?: number | null;
   onGenerate: (result: { title: string; bodyHtml: string }) => void;
+  // 빈 에디터 진입 — 부모가 startNew 호출
+  onBlank?: () => void;
+  // 진입 의도 — 'manual'(빈 문서/표) 또는 'ai'(AI 작성/자료정리). default 'manual'
+  intent?: 'manual' | 'ai';
 }
 
 const KIND_OPTIONS: PlanQSelectOption[] = [
@@ -40,12 +44,17 @@ const KIND_OPTIONS: PlanQSelectOption[] = [
   { value: 'custom', label: KIND_LABELS_KO.custom },
 ];
 
-type Mode = 'new' | 'brief';
+type Mode = 'blank' | 'new' | 'brief' | 'table';
 
-const PostAiModal: React.FC<Props> = ({ open, onClose, businessId, projectId: pageProjectId, clientId: pageClientId, onGenerate }) => {
+const PostAiModal: React.FC<Props> = ({ open, onClose, businessId, projectId: pageProjectId, clientId: pageClientId, onGenerate, onBlank, intent = 'manual' }) => {
   const { t } = useTranslation('qdocs');
   const navigate = useNavigate();
-  const [mode, setMode] = useState<Mode>('new');
+  // intent 별 사용 가능 탭 — manual: 빈문서+표 / ai: AI 작성+자료정리
+  const visibleModes: Mode[] = intent === 'ai' ? ['new', 'brief'] : ['blank', 'table'];
+  const defaultMode: Mode = intent === 'ai' ? 'new' : 'blank';
+  const [mode, setMode] = useState<Mode>(defaultMode);
+  // intent 가 바뀔 때마다 default 모드로 초기화
+  useEffect(() => { if (open) setMode(defaultMode); }, [intent, open]);  // eslint-disable-line react-hooks/exhaustive-deps
   const [kind, setKind] = useState<DocKind>('proposal');
   const [title, setTitle] = useState('');
   const [userInput, setUserInput] = useState('');
@@ -53,6 +62,7 @@ const PostAiModal: React.FC<Props> = ({ open, onClose, businessId, projectId: pa
   const [briefText, setBriefText] = useState('');
   const [briefStagedUploads, setBriefStagedUploads] = useState<File[]>([]);
   const [briefExistingIds, setBriefExistingIds] = useState<number[]>([]);
+  const [briefPostIds, setBriefPostIds] = useState<number[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [usage, setUsage] = useState<{ total: number; limit: number } | null>(null);
@@ -63,6 +73,14 @@ const PostAiModal: React.FC<Props> = ({ open, onClose, businessId, projectId: pa
   const [pickedProjectId, setPickedProjectId] = useState<number | null>(null);
   const [clients, setClients] = useState<ApiClientLite[]>([]);
   const [projects, setProjects] = useState<ApiProject[]>([]);
+
+  // brief 모드에서 사용 — 워크스페이스 전체 posts 로드 (검색 + 선택)
+  useEffect(() => {
+    if (!open || mode !== 'brief') return;
+    let cancelled = false;
+    fetchPosts(businessId, {}).then(rows => { if (!cancelled) setBriefPosts(rows); }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [open, mode, businessId]);
 
   useEffect(() => {
     if (!open) return;
@@ -134,8 +152,9 @@ const PostAiModal: React.FC<Props> = ({ open, onClose, businessId, projectId: pa
     setError(null);
     const blocks = briefText.split(/\n{3,}/).map(b => b.trim()).filter(Boolean);
     const hasFiles = briefStagedUploads.length > 0 || briefExistingIds.length > 0;
-    if (blocks.length === 0 && !hasFiles) {
-      setError(t('brief.emptyError', '자료를 입력하거나 파일을 첨부하세요.') as string);
+    const hasPosts = briefPostIds.length > 0;
+    if (blocks.length === 0 && !hasFiles && !hasPosts) {
+      setError(t('brief.emptyError', '자료를 입력하거나 파일·기존 문서를 첨부하세요.') as string);
       return;
     }
     const finalTitle = briefTitle.trim() || `${t('brief.defaultTitlePrefix', '자료정리')} — ${new Date().toLocaleDateString('ko-KR')}`;
@@ -158,6 +177,7 @@ const PostAiModal: React.FC<Props> = ({ open, onClose, businessId, projectId: pa
         title: finalTitle,
         text_blocks: blocks,
         attached_file_ids: allFileIds,
+        attached_post_ids: briefPostIds,
       });
       onClose();
       navigate(`/docs/brief/${result.post_id}`);
@@ -173,41 +193,131 @@ const PostAiModal: React.FC<Props> = ({ open, onClose, businessId, projectId: pa
     }
   };
 
-  const submit = () => mode === 'brief' ? submitBrief() : submitNewDoc();
-  const canSubmit = mode === 'brief'
-    ? (!!briefText.trim() || briefStagedUploads.length > 0 || briefExistingIds.length > 0)
+  // 표(table) — 자동 제목으로 빈 q_record + post 생성 → /docs?post=:id 진입.
+  // 제목은 편집 화면에서 인라인으로 변경.
+  const submitTable = async () => {
+    if (busy) return;
+    setBusy(true); setError(null);
+    try {
+      const autoTitle = title.trim() || `${t('ai.tableDefaultPrefix', '표')} — ${new Date().toLocaleDateString('ko-KR')}`;
+      const { apiFetch } = await import('../../contexts/AuthContext');
+      const r = await apiFetch('/api/posts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          business_id: businessId,
+          project_id: pageProjectId ?? pickedProjectId ?? null,
+          client_id: pageClientId ?? pickedClientId ?? null,
+          title: autoTitle,
+          kind: 'table',
+        }),
+      });
+      const j = await r.json();
+      if (!j.success) throw new Error(j.message || 'failed');
+      onClose();
+      navigate(`/docs?post=${j.data.id}`);
+    } catch (e: unknown) {
+      setError((e as Error).message || (t('ai.failed', '생성 실패') as string));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // 빈 에디터 진입 — 부모 startNew 호출
+  const submitBlank = () => { if (onBlank) { onBlank(); onClose(); } };
+
+  const submit = () => mode === 'blank' ? submitBlank()
+    : mode === 'brief' ? submitBrief()
+    : mode === 'table' ? submitTable()
+    : submitNewDoc();
+  const canSubmit = mode === 'blank' ? true
+    : mode === 'table' ? true   // 자동 제목으로 즉시 생성, 셀렉터만 채우면 됨
+    : mode === 'brief' ? (!!briefText.trim() || briefStagedUploads.length > 0 || briefExistingIds.length > 0 || briefPostIds.length > 0)
     : !!title.trim();
 
   return (
     <Backdrop onClick={() => !busy && onClose()}>
-      <Dialog onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={t('ai.title', 'AI 로 작성') as string}>
+      <Dialog onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={(intent === 'ai' ? t('ai.title', 'AI 로 작성') : t('new.title', '새 문서')) as string}>
         <Header>
           <Title>
-            <Sparkle>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 16.8 5.8 21.3l2.4-7.4L2 9.4h7.6L12 2z"/></svg>
-            </Sparkle>
-            {t('ai.title', 'AI 로 작성')}
+            {intent === 'ai' && (
+              <Sparkle>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 16.8 5.8 21.3l2.4-7.4L2 9.4h7.6L12 2z"/></svg>
+              </Sparkle>
+            )}
+            {intent === 'ai' ? t('ai.title', 'AI 로 작성') : t('new.title', '새 문서')}
           </Title>
           <CloseBtn type="button" onClick={onClose} disabled={busy} aria-label={t('common.close', '닫기') as string}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
           </CloseBtn>
         </Header>
 
-        <Tabs role="tablist" aria-label={t('ai.modeAria', '작성 방식 선택') as string}>
-          <Tab type="button" role="tab" aria-selected={mode === 'new'} $active={mode === 'new'}
-            onClick={() => { if (!busy) { setMode('new'); setError(null); } }} disabled={busy}>
-            <TabTitle>{t('ai.modeNew', '새 문서 작성')}</TabTitle>
-            <TabHint>{t('ai.modeNewHint', '제안서·견적·계약 등 양식 기반')}</TabHint>
-          </Tab>
-          <Tab type="button" role="tab" aria-selected={mode === 'brief'} $active={mode === 'brief'}
-            onClick={() => { if (!busy) { setMode('brief'); setError(null); } }} disabled={busy}>
-            <TabTitle>{t('ai.modeBrief', '기존 자료정리')}</TabTitle>
-            <TabHint>{t('ai.modeBriefHint', '메일·회의록을 시점/자료별로 정리')}</TabHint>
-          </Tab>
+        <Tabs role="tablist" aria-label={t('ai.modeAria', '작성 방식 선택') as string} style={{ display: 'grid', gridTemplateColumns: `repeat(${visibleModes.length}, 1fr)` }}>
+          {visibleModes.includes('blank') && (
+            <Tab type="button" role="tab" aria-selected={mode === 'blank'} $active={mode === 'blank'}
+              onClick={() => { if (!busy) { setMode('blank'); setError(null); } }} disabled={busy}>
+              <TabTitle>{t('ai.modeBlank', '빈 문서')}</TabTitle>
+              <TabHint>{t('ai.modeBlankHint', '직접 작성')}</TabHint>
+            </Tab>
+          )}
+          {visibleModes.includes('table') && (
+            <Tab type="button" role="tab" aria-selected={mode === 'table'} $active={mode === 'table'}
+              onClick={() => { if (!busy) { setMode('table'); setError(null); } }} disabled={busy}>
+              <TabTitle>{t('ai.modeTable', '표')}</TabTitle>
+              <TabHint>{t('ai.modeTableHint', '계정·자산 등 행/열 데이터')}</TabHint>
+            </Tab>
+          )}
+          {visibleModes.includes('new') && (
+            <Tab type="button" role="tab" aria-selected={mode === 'new'} $active={mode === 'new'}
+              onClick={() => { if (!busy) { setMode('new'); setError(null); } }} disabled={busy}>
+              <TabTitle>{t('ai.modeNew', 'AI 신규작성')}</TabTitle>
+              <TabHint>{t('ai.modeNewHint', '제안서·견적·계약 등 양식 기반')}</TabHint>
+            </Tab>
+          )}
+          {visibleModes.includes('brief') && (
+            <Tab type="button" role="tab" aria-selected={mode === 'brief'} $active={mode === 'brief'}
+              onClick={() => { if (!busy) { setMode('brief'); setError(null); } }} disabled={busy}>
+              <TabTitle>{t('ai.modeBrief', '자료 기반 작성')}</TabTitle>
+              <TabHint>{t('ai.modeBriefHint', '자료 분석 후 재정리하여 작성')}</TabHint>
+            </Tab>
+          )}
         </Tabs>
 
         <Body>
-          {mode === 'new' ? (
+          {(pageProjectId || pageClientId) && (
+            <ContextBadge>
+              {t('ai.contextLinked', '현재 페이지 컨텍스트로 연결되어 회사명·담당자·금액이 자동 채워집니다.')}
+            </ContextBadge>
+          )}
+          {/* 4 모드 공통 — 첨부 (파일·기존 문서). brief 모드는 LLM 입력으로 사용, 그 외는 PostAttachment 로 연결 */}
+          {mode !== 'brief' && (
+            <Field>
+              <Label>{t('common.attach', '파일·문서 첨부')} <OptionalMark>{t('brief.optional', '(선택)')}</OptionalMark></Label>
+              <AttachmentField
+                businessId={businessId}
+                uploads={briefStagedUploads}
+                onUploadsChange={setBriefStagedUploads}
+                existingFileIds={briefExistingIds}
+                onExistingFileIdsChange={setBriefExistingIds}
+                includePosts
+                existingPostIds={briefPostIds}
+                onExistingPostIdsChange={setBriefPostIds}
+                disabled={busy}
+              />
+            </Field>
+          )}
+          {mode === 'blank' ? (
+            <BriefIntro>
+              {t('ai.blankDesc', '빈 본문으로 시작합니다. 제목을 입력하고 본문을 직접 작성하세요. AI 사용량 안 씁니다.')}
+            </BriefIntro>
+          ) : mode === 'table' ? (
+            <>
+              <BriefIntro>
+                {t('ai.tableDesc2', '빈 표가 생성됩니다. 제목·컬럼·행은 표 화면에서 직접 편집할 수 있어요.')}
+              </BriefIntro>
+              {error && <ErrorBox>{error}</ErrorBox>}
+            </>
+          ) : mode === 'new' ? (
             <>
               <Field>
                 <Label>{t('ai.kind', '문서 종류')}</Label>
@@ -229,45 +339,6 @@ const PostAiModal: React.FC<Props> = ({ open, onClose, businessId, projectId: pa
                   autoFocus
                 />
               </Field>
-              {showSelectors && (
-                <>
-                  <Field>
-                    <Label>{t('ai.client', '고객 연결 (선택)')}</Label>
-                    <PlanQSelect
-                      size="sm"
-                      options={clientOptions}
-                      value={clientOptions.find(o => o.value === pickedClientId) || null}
-                      onChange={(opt) => setPickedClientId(opt ? Number((opt as PlanQSelectOption).value) : null)}
-                      placeholder={
-                        clientOptions.length === 0
-                          ? (t('ai.clientEmpty', '등록된 고객 없음') as string)
-                          : (t('ai.clientPh', '고객 선택 — 회사명·담당자 자동 채움 (선택)') as string)
-                      }
-                      isClearable
-                      isSearchable
-                      isDisabled={busy}
-                    />
-                  </Field>
-                  <Field>
-                    <Label>{t('ai.project', '프로젝트 연결 (선택)')}</Label>
-                    <PlanQSelect
-                      size="sm"
-                      options={projectOptions}
-                      value={projectOptions.find(o => o.value === pickedProjectId) || null}
-                      onChange={(opt) => setPickedProjectId(opt ? Number((opt as PlanQSelectOption).value) : null)}
-                      placeholder={t('ai.projectPh', '프로젝트 선택 — 고객 자동 매핑 (선택)') as string}
-                      isClearable
-                      isSearchable
-                      isDisabled={busy}
-                    />
-                  </Field>
-                </>
-              )}
-              {(pageProjectId || pageClientId) && (
-                <ContextBadge>
-                  {t('ai.contextLinked', '현재 페이지 컨텍스트로 연결되어 회사명·담당자·금액이 자동 채워집니다.')}
-                </ContextBadge>
-              )}
               <Field>
                 <Label>{t('ai.input', '요구사항 / 컨텍스트 (선택)')}</Label>
                 <Textarea
@@ -304,14 +375,48 @@ const PostAiModal: React.FC<Props> = ({ open, onClose, businessId, projectId: pa
               </Field>
 
               <Field>
-                <Label>{t('brief.attachLabel', '파일 첨부')} <OptionalMark>{t('brief.optional', '(선택)')}</OptionalMark></Label>
+                <Label>{t('brief.attachLabel', '파일·문서 첨부')} <OptionalMark>{t('brief.optional', '(선택)')}</OptionalMark></Label>
                 <AttachmentField
                   businessId={businessId}
                   uploads={briefStagedUploads}
                   onUploadsChange={setBriefStagedUploads}
                   existingFileIds={briefExistingIds}
                   onExistingFileIdsChange={setBriefExistingIds}
+                  includePosts
+                  existingPostIds={briefPostIds}
+                  onExistingPostIdsChange={setBriefPostIds}
                   disabled={busy}
+                />
+              </Field>
+            </>
+          )}
+          {/* 4 모드 공통 — 컨텍스트 셀렉터 (Body 맨 끝에 배치) */}
+          {showSelectors && (
+            <>
+              <Field>
+                <Label>{t('ai.client', '고객 연결 (선택)')}</Label>
+                <PlanQSelect
+                  size="sm"
+                  options={clientOptions}
+                  value={clientOptions.find(o => o.value === pickedClientId) || null}
+                  onChange={(opt) => setPickedClientId(opt ? Number((opt as PlanQSelectOption).value) : null)}
+                  placeholder={
+                    clientOptions.length === 0
+                      ? (t('ai.clientEmpty', '등록된 고객 없음') as string)
+                      : (t('ai.clientPh', '고객 선택 — 회사명·담당자 자동 채움 (선택)') as string)
+                  }
+                  isClearable isSearchable isDisabled={busy}
+                />
+              </Field>
+              <Field>
+                <Label>{t('ai.project', '프로젝트 연결 (선택)')}</Label>
+                <PlanQSelect
+                  size="sm"
+                  options={projectOptions}
+                  value={projectOptions.find(o => o.value === pickedProjectId) || null}
+                  onChange={(opt) => setPickedProjectId(opt ? Number((opt as PlanQSelectOption).value) : null)}
+                  placeholder={t('ai.projectPh', '프로젝트 선택 — 고객 자동 매핑 (선택)') as string}
+                  isClearable isSearchable isDisabled={busy}
                 />
               </Field>
             </>
@@ -326,17 +431,25 @@ const PostAiModal: React.FC<Props> = ({ open, onClose, businessId, projectId: pa
 
         <Footer>
           <SecondaryBtn type="button" onClick={onClose} disabled={busy}>{t('cancel', '취소')}</SecondaryBtn>
-          <PrimaryBtn type="button" onClick={submit} disabled={busy || !canSubmit}>
+          <PrimaryBtn type="button" $accent={intent === 'ai'} onClick={submit} disabled={busy || !canSubmit}>
             {busy ? (
               <><Spinner />{mode === 'brief'
-                ? t('brief.generating', '정리 중...')
-                : t('ai.generating', '생성 중…')}</>
+                ? t('brief.generating', '작성 중...')
+                : mode === 'table'
+                  ? t('ai.tableCreating', '작성 중...')
+                  : t('ai.generating', '작성 중…')}</>
             ) : (
               <>
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" style={{ marginRight: 4 }}><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 16.8 5.8 21.3l2.4-7.4L2 9.4h7.6L12 2z"/></svg>
-                {mode === 'brief'
-                  ? t('brief.generate', '자료 정리하기')
-                  : t('ai.generate', 'AI 로 작성')}
+                {intent === 'ai' && (
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" style={{ marginRight: 4 }}><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 16.8 5.8 21.3l2.4-7.4L2 9.4h7.6L12 2z"/></svg>
+                )}
+                {mode === 'blank'
+                  ? t('ai.blankStart', '빈 문서 작성')
+                  : mode === 'brief'
+                  ? t('brief.generate', '자료 기반 작성')
+                  : mode === 'table'
+                    ? t('ai.tableCreate', '표 작성')
+                    : t('ai.generate', 'AI 신규작성')}
               </>
             )}
           </PrimaryBtn>
@@ -430,6 +543,31 @@ const Textarea = styled.textarea`
   &:disabled { background: #F8FAFC; }
 `;
 const Hint = styled.p`font-size:11px;color:#94A3B8;margin:6px 0 0;line-height:1.5;`;
+const PostPickerWrap = styled.div`display:flex;flex-direction:column;gap:6px;`;
+const PostSearchInput = styled.input`
+  width: 100%; height: 36px; padding: 0 12px;
+  border: 1px solid #E2E8F0; border-radius: 8px; background: #fff;
+  font-size: 13px; color: #0F172A;
+  &:focus { outline: none; border-color: #14B8A6; }
+`;
+const PostList = styled.div`
+  max-height: 200px; overflow-y: auto;
+  border: 1px solid #E2E8F0; border-radius: 8px;
+  background: #fff;
+`;
+const PostListItem = styled.div<{ $checked: boolean }>`
+  display: grid; grid-template-columns: 20px 1fr auto; gap: 8px; align-items: center;
+  padding: 8px 12px; cursor: pointer;
+  background: ${p => p.$checked ? '#F0FDFA' : 'transparent'};
+  border-bottom: 1px solid #F1F5F9;
+  &:last-child { border-bottom: none; }
+  &:hover { background: ${p => p.$checked ? '#F0FDFA' : '#F8FAFC'}; }
+`;
+const PostListChk = styled.input`accent-color:#14B8A6;cursor:pointer;`;
+const PostListTitle = styled.div`font-size:12px;color:#0F172A;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;`;
+const PostListKind = styled.span`font-size:10px;color:#64748B;background:#F1F5F9;padding:2px 8px;border-radius:999px;`;
+const PostListEmpty = styled.div`padding:14px;text-align:center;font-size:12px;color:#94A3B8;`;
+const PostSelectedCount = styled.div`font-size:11px;color:#0F766E;font-weight:600;`;
 const ContextBadge = styled.div`
   font-size: 11px; color: #0F766E;
   background: #F0FDFA; border: 1px solid #CCFBF1;
@@ -449,13 +587,13 @@ const Footer = styled.div`
   flex-shrink: 0;
   border-top: 1px solid #F1F5F9; background: #fff;
 `;
-const PrimaryBtn = styled.button`
+const PrimaryBtn = styled.button<{ $accent?: boolean }>`
   display: inline-flex; align-items: center;
   padding: 9px 18px; font-size: 13px; font-weight: 700; color: #fff;
-  background: linear-gradient(135deg, #F43F5E 0%, #BE185D 100%);
+  background: ${p => p.$accent ? 'linear-gradient(135deg, #F43F5E 0%, #BE185D 100%)' : '#14B8A6'};
   border: none; border-radius: 8px; cursor: pointer;
-  transition: opacity 0.15s, transform 0.15s;
-  &:hover:not(:disabled) { transform: translateY(-1px); }
+  transition: background 0.15s, transform 0.15s;
+  &:hover:not(:disabled) { ${p => p.$accent ? 'transform: translateY(-1px);' : 'background: #0D9488;'} }
   &:disabled { background: #CBD5E1; cursor: not-allowed; }
 `;
 const SecondaryBtn = styled.button`

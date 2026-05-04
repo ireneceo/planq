@@ -9,6 +9,7 @@ export interface KbDocumentRow {
   title: string;
   source_type: string;
   category: KbCategory;
+  categories?: KbCategory[] | null;  // 멀티 카테고리 (2026-05-04~). 없으면 [category] 로 fallback.
   scope: KbScope;
   project_id: number | null;
   client_id: number | null;
@@ -18,12 +19,22 @@ export interface KbDocumentRow {
   tags: string[] | null;
   attached_file_ids: number[] | null;
   attached_post_ids: number[] | null;
+  // Q info — 사용자 정의 항목 + 권한
+  custom_columns?: Array<{ id: string; name: string; type: string; show_in_list?: boolean; options?: string[] }> | null;
+  custom_values?: Record<string, unknown> | null;
+  read_policy?: 'all' | 'owner';
+  client_ids?: number[] | null;
+  // 상세 GET 응답에만 포함되는 필드들
+  body?: string | null;
+  attached_files?: Array<{ id: number; file_name: string; file_size: number; mime_type: string | null; storage_provider: string; external_url: string | null }>;
+  attached_posts?: Array<{ id: number; title: string; project_id: number | null; category: string | null }>;
   updated_at: string;
   created_at: string;
 }
 
 export interface KbListFilter {
-  category?: KbCategory;
+  category?: KbCategory;          // legacy 단일 (호환)
+  categories?: KbCategory[];      // 멀티 — 한 자료가 매칭하는 카테고리 중 하나라도 포함되면 매칭
   scope?: KbScope;
   project_id?: number;
   client_id?: number;
@@ -40,6 +51,7 @@ async function handle<T>(res: Response): Promise<T> {
 export async function listKnowledge(businessId: number, filter: KbListFilter = {}): Promise<KbDocumentRow[]> {
   const sp = new URLSearchParams();
   if (filter.category) sp.set('category', filter.category);
+  if (filter.categories && filter.categories.length > 0) sp.set('categories', filter.categories.join(','));
   if (filter.scope) sp.set('scope', filter.scope);
   if (filter.project_id) sp.set('project_id', String(filter.project_id));
   if (filter.client_id) sp.set('client_id', String(filter.client_id));
@@ -53,13 +65,19 @@ export async function listKnowledge(businessId: number, filter: KbListFilter = {
 export interface KbCreateInput {
   title: string;
   body?: string;
-  category: KbCategory;
+  category?: KbCategory;          // legacy 단일 (호환)
+  categories?: KbCategory[];      // 멀티 — 우선
   scope: KbScope;
   project_id?: number | null;
   client_id?: number | null;
   // 사이클 P3 — 단일 폼 첨부 통합
   attached_file_ids?: number[];
   attached_post_ids?: number[];
+  // Q info — 사용자 정의 항목 + 권한
+  custom_columns?: Array<{ id: string; name: string; type: string; show_in_list?: boolean; options?: string[] }>;
+  custom_values?: Record<string, unknown>;
+  read_policy?: 'all' | 'owner';
+  client_ids?: number[];
 }
 
 export async function createKnowledge(businessId: number, input: KbCreateInput): Promise<KbDocumentRow> {
@@ -69,6 +87,26 @@ export async function createKnowledge(businessId: number, input: KbCreateInput):
     body: JSON.stringify(input),
   });
   return handle<KbDocumentRow>(res);
+}
+
+// 인라인 편집 — 부분 수정 (custom_values 등)
+export async function updateKnowledge(businessId: number, docId: number, patch: Partial<{
+  title: string; body: string; category: KbCategory; categories: KbCategory[]; scope: KbScope;
+  project_id: number | null; client_id: number | null;
+  custom_columns: Array<{ id: string; name: string; type: string; show_in_list?: boolean; options?: string[] }>;
+  custom_values: Record<string, unknown>;
+  read_policy: 'all' | 'owner';
+  client_ids: number[];
+  tags: string[];
+}>): Promise<KbDocumentRow> {
+  const r = await apiFetch(`/api/businesses/${businessId}/kb/documents/${docId}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(patch),
+  });
+  const j = await r.json();
+  if (!j.success) throw new Error(j.message || 'update failed');
+  return j.data as KbDocumentRow;
 }
 
 export async function deleteKnowledge(businessId: number, docId: number): Promise<void> {

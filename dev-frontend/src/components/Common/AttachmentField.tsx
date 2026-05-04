@@ -35,6 +35,7 @@ interface Props {
   uploadHint?: string;
   uploadAcceptHint?: string;
   searchPlaceholder?: string;
+  /** @deprecated 통합 검색 — searchPlaceholder 만 사용 */
   searchPostsPlaceholder?: string;
   disabled?: boolean;
   // 호출부에서 파일 메타가 필요하면 받음 (선택). 안 주면 내부에서 fetch 한 결과로 표시.
@@ -45,9 +46,10 @@ const AttachmentField: React.FC<Props> = ({
   businessId, uploads, onUploadsChange,
   existingFileIds, onExistingFileIdsChange,
   includePosts = false, existingPostIds = [], onExistingPostIdsChange,
-  accept, uploadHint, uploadAcceptHint, searchPlaceholder, searchPostsPlaceholder, disabled,
+  accept, uploadHint, uploadAcceptHint, searchPlaceholder, disabled,
   workspaceFiles: providedFiles,
 }) => {
+  // searchPostsPlaceholder is deprecated — 통합 검색에서는 searchPlaceholder 만 사용
   const { t } = useTranslation('common');
   const [internalFiles, setInternalFiles] = useState<ProjectFile[]>([]);
   const [posts, setPosts] = useState<PostRow[]>([]);
@@ -153,72 +155,54 @@ const AttachmentField: React.FC<Props> = ({
 
       <FieldGap />
 
+      {/* 통합 검색 — 파일 + (옵션) 문서 한 셀렉트 안에서 같이 검색·선택. 옵션에 [파일]/[문서] 타입 chip 표시. */}
       <PlanQSelect
         size="sm" isSearchable isMulti
-        placeholder={searchPlaceholder || (t('attach.searchPlaceholder', '기존 파일 검색해서 추가...') as string)}
-        value={valueOptions}
+        placeholder={searchPlaceholder || (
+          includePosts
+            ? (t('attach.searchUnifiedPlaceholder', '기존 파일·문서 검색해서 추가...') as string)
+            : (t('attach.searchPlaceholder', '기존 파일 검색해서 추가...') as string)
+        )}
+        value={[
+          ...valueOptions.map(o => ({ value: `f:${o.value}`, label: o.label })),
+          ...(includePosts ? existingPostIds.map(id => {
+            const p = posts.find(x => x.id === id);
+            return { value: `p:${id}`, label: p?.title || `#${id}` };
+          }) : []),
+        ]}
         onChange={(opts) => {
-          const ids: number[] = [];
+          const fileIds: number[] = [];
+          const postIds: number[] = [];
           if (Array.isArray(opts)) {
             for (const o of opts) {
-              const n = Number((o as PlanQSelectOption).value);
-              if (n) ids.push(n);
+              const v = String((o as PlanQSelectOption).value);
+              if (v.startsWith('f:')) {
+                const n = Number(v.slice(2));
+                if (n) fileIds.push(n);
+              } else if (v.startsWith('p:')) {
+                const n = Number(v.slice(2));
+                if (n) postIds.push(n);
+              }
             }
           }
-          onExistingFileIdsChange(ids);
+          onExistingFileIdsChange(fileIds);
+          if (includePosts && onExistingPostIdsChange) onExistingPostIdsChange(postIds);
         }}
-        options={fileOptions}
+        options={[
+          ...fileOptions.map(o => ({ value: `f:${o.value}`, label: `[${t('attach.typeFile', '파일')}] ${o.label}` })),
+          ...(includePosts ? posts.map(p => ({
+            value: `p:${p.id}`,
+            label: `[${t('attach.typePost', '문서')}] ${p.title}`,
+          })) : []),
+        ]}
         isDisabled={disabled}
         filterOption={(option, raw) => {
           const q = (raw || '').trim().toLowerCase();
-          if (!q) return false;
+          if (!q) return true;   // 빈 검색이면 전체 옵션 표시 (사용자가 무엇이 있는지 볼 수 있도록)
           return String(option.label).toLowerCase().includes(q);
         }}
-        noOptionsMessage={({ inputValue }) =>
-          !String(inputValue || '').trim()
-            ? (t('attach.searchHint', '검색어를 입력하세요') as string)
-            : (t('attach.noFiles', '결과 없음') as string)
-        }
+        noOptionsMessage={() => (t('attach.noResults', '결과 없음') as string)}
       />
-
-      {includePosts && (
-        <>
-          <FieldGap />
-          <PlanQSelect
-            size="sm" isSearchable isMulti
-            placeholder={searchPostsPlaceholder || (t('attach.searchPostsPlaceholder', '기존 문서 검색해서 추가...') as string)}
-            value={existingPostIds.map(id => {
-              const p = posts.find(x => x.id === id);
-              return { value: String(id), label: p?.title || `#${id}` };
-            })}
-            onChange={(opts) => {
-              const ids: number[] = [];
-              if (Array.isArray(opts)) {
-                for (const o of opts) {
-                  const n = Number((o as PlanQSelectOption).value);
-                  if (n) ids.push(n);
-                }
-              }
-              onExistingPostIdsChange?.(ids);
-            }}
-            options={posts.map(p => ({
-              value: String(p.id),
-              label: p.title,
-            }))}
-            isDisabled={disabled}
-            filterOption={(option, raw) => {
-              const q = (raw || '').trim().toLowerCase();
-              if (!q) return false;
-              return String(option.label).toLowerCase().includes(q);
-            }}
-            noOptionsMessage={({ inputValue }) =>
-              !String(inputValue || '').trim()
-                ? (t('attach.searchHint', '검색어를 입력하세요') as string)
-                : (t('attach.noPosts', '결과 없음') as string)
-            }
-          />
-        </>
-      )}
     </Wrap>
   );
 };

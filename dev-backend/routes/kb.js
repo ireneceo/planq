@@ -52,7 +52,9 @@ router.get('/businesses/:businessId/kb/documents', authenticateToken, checkBusin
   try {
     // 사이클 G — 카테고리/스코프 필터 (옵션)
     const where = { business_id: req.params.businessId };
-    if (req.query.category && ['policy','manual','incident','faq','about','pricing'].includes(req.query.category)) {
+    const allowedCats = ['policy','manual','incident','faq','about','pricing'];
+    // 단일 category (legacy 호환) — 하위 호환
+    if (req.query.category && allowedCats.includes(req.query.category)) {
       where.category = req.query.category;
     }
     if (req.query.scope && ['workspace','project','client'].includes(req.query.scope)) {
@@ -64,9 +66,19 @@ router.get('/businesses/:businessId/kb/documents', authenticateToken, checkBusin
 
     let docs = await KbDocument.findAll({
       where,
-      attributes: ['id', 'title', 'source_type', 'category', 'scope', 'project_id', 'client_id', 'file_name', 'file_size', 'version', 'status', 'chunk_count', 'uploaded_by', 'tags', 'attached_file_ids', 'attached_post_ids', 'created_at', 'updated_at'],
+      attributes: ['id', 'title', 'source_type', 'category', 'categories', 'scope', 'project_id', 'client_id', 'file_name', 'file_size', 'version', 'status', 'chunk_count', 'uploaded_by', 'tags', 'attached_file_ids', 'attached_post_ids', 'custom_columns', 'custom_values', 'read_policy', 'client_ids', 'created_at', 'updated_at'],
       order: [['updated_at', 'DESC']]
     });
+    // 멀티 카테고리 필터 (?categories=policy,manual) — categories JSON 또는 legacy category 매칭
+    if (req.query.categories) {
+      const wanted = String(req.query.categories).split(',').map(s => s.trim()).filter(s => allowedCats.includes(s));
+      if (wanted.length > 0) {
+        docs = docs.filter(d => {
+          const cats = Array.isArray(d.categories) && d.categories.length > 0 ? d.categories : [d.category];
+          return cats.some(c => wanted.includes(c));
+        });
+      }
+    }
     // 사이클 P3 — 태그 필터 (DB JSON 검색 대신 in-memory — KB 데이터량 작아 OK)
     if (req.query.tag) {
       const wanted = String(req.query.tag).toLowerCase();
@@ -83,8 +95,10 @@ router.post('/businesses/:businessId/kb/documents', authenticateToken, checkBusi
     if (req.businessRole === 'client') return errorResponse(res, 'forbidden', 403);
     const businessId = parseInt(req.params.businessId, 10);
     const {
-      title, body, source_type, category, scope, project_id, client_id,
+      title, body, source_type, category, categories, scope, project_id, client_id,
       attached_file_ids, attached_post_ids,
+      // Q info — 사용자 정의 항목 + 권한
+      custom_columns, custom_values, read_policy, client_ids,
     } = req.body;
     if (!title) return errorResponse(res, 'title required', 400);
 
@@ -97,7 +111,10 @@ router.post('/businesses/:businessId/kb/documents', authenticateToken, checkBusi
 
     const allowedCategories = ['policy','manual','incident','faq','about','pricing'];
     const allowedScopes = ['workspace','project','client'];
-    const finalCategory = allowedCategories.includes(category) ? category : 'manual';
+    const finalCategories = Array.isArray(categories)
+      ? categories.filter(c => allowedCategories.includes(c))
+      : (allowedCategories.includes(category) ? [category] : ['manual']);
+    const finalCategory = finalCategories[0] || 'manual';
     let finalScope = allowedScopes.includes(scope) ? scope : 'workspace';
     let finalProjectId = null;
     let finalClientId = null;
@@ -148,11 +165,16 @@ router.post('/businesses/:businessId/kb/documents', authenticateToken, checkBusi
       body: mergedBody,
       source_type: ['manual', 'faq', 'policy', 'pricing', 'other', 'file', 'post'].includes(source_type) ? source_type : 'manual',
       category: finalCategory,
+      categories: finalCategories,
       scope: finalScope,
       project_id: finalProjectId,
       client_id: finalClientId,
       attached_file_ids: fileIds.length > 0 ? fileIds : null,
       attached_post_ids: postIds.length > 0 ? postIds : null,
+      custom_columns: Array.isArray(custom_columns) ? custom_columns : null,
+      custom_values: (custom_values && typeof custom_values === 'object') ? custom_values : null,
+      read_policy: ['all', 'owner'].includes(read_policy) ? read_policy : 'all',
+      client_ids: Array.isArray(client_ids) ? client_ids.map(Number).filter(Boolean) : null,
       uploaded_by: req.user.id,
       status: 'pending',
     });
@@ -211,7 +233,10 @@ router.post('/businesses/:businessId/kb/documents/upload',
 
       const allowedCategories = ['policy','manual','incident','faq','about','pricing'];
       const allowedScopes = ['workspace','project','client'];
-      const finalCategory = allowedCategories.includes(req.body.category) ? req.body.category : 'manual';
+      const finalCategories = Array.isArray(req.body.categories)
+        ? req.body.categories.filter(c => allowedCategories.includes(c))
+        : (allowedCategories.includes(req.body.category) ? [req.body.category] : ['manual']);
+      const finalCategory = finalCategories[0] || 'manual';
       let finalScope = allowedScopes.includes(req.body.scope) ? req.body.scope : 'workspace';
       let finalProjectId = null;
       let finalClientId = null;
@@ -234,6 +259,7 @@ router.post('/businesses/:businessId/kb/documents/upload',
         file_size: req.file.size,
         mime_type: req.file.mimetype || null,
         category: finalCategory,
+        categories: finalCategories,
         scope: finalScope,
         project_id: finalProjectId,
         client_id: finalClientId,
@@ -264,7 +290,7 @@ router.post('/businesses/:businessId/kb/documents/import-from-file', authenticat
   try {
     if (req.businessRole === 'client') return errorResponse(res, 'forbidden', 403);
     const businessId = parseInt(req.params.businessId, 10);
-    const { file_id, category, scope, project_id, client_id, title } = req.body;
+    const { file_id, category, categories, scope, project_id, client_id, title } = req.body;
     if (!file_id) return errorResponse(res, 'file_id_required', 400);
 
     const file = await FileModel.findOne({ where: { id: file_id, business_id: businessId } });
@@ -299,7 +325,10 @@ router.post('/businesses/:businessId/kb/documents/import-from-file', authenticat
 
     const allowedCategories = ['policy','manual','incident','faq','about','pricing'];
     const allowedScopes = ['workspace','project','client'];
-    const finalCategory = allowedCategories.includes(category) ? category : 'manual';
+    const finalCategories = Array.isArray(categories)
+      ? categories.filter(c => allowedCategories.includes(c))
+      : (allowedCategories.includes(category) ? [category] : ['manual']);
+    const finalCategory = finalCategories[0] || 'manual';
     let finalScope = allowedScopes.includes(scope) ? scope : 'workspace';
     let finalProjectId = null;
     let finalClientId = null;
@@ -321,6 +350,7 @@ router.post('/businesses/:businessId/kb/documents/import-from-file', authenticat
       file_name: file.file_name,
       file_size: file.file_size,
       category: finalCategory,
+      categories: finalCategories,
       scope: finalScope,
       project_id: finalProjectId,
       client_id: finalClientId,
@@ -349,7 +379,7 @@ router.post('/businesses/:businessId/kb/documents/import-from-post', authenticat
   try {
     if (req.businessRole === 'client') return errorResponse(res, 'forbidden', 403);
     const businessId = parseInt(req.params.businessId, 10);
-    const { post_id, category, scope, project_id, client_id } = req.body;
+    const { post_id, category, categories, scope, project_id, client_id } = req.body;
     if (!post_id) return errorResponse(res, 'post_id_required', 400);
 
     const post = await Post.findOne({ where: { id: post_id, business_id: businessId } });
@@ -364,7 +394,10 @@ router.post('/businesses/:businessId/kb/documents/import-from-post', authenticat
 
     const allowedCategories = ['policy','manual','incident','faq','about','pricing'];
     const allowedScopes = ['workspace','project','client'];
-    const finalCategory = allowedCategories.includes(category) ? category : 'manual';
+    const finalCategories = Array.isArray(categories)
+      ? categories.filter(c => allowedCategories.includes(c))
+      : (allowedCategories.includes(category) ? [category] : ['manual']);
+    const finalCategory = finalCategories[0] || 'manual';
     let finalScope = allowedScopes.includes(scope) ? scope : 'workspace';
     let finalProjectId = null;
     let finalClientId = null;
@@ -384,6 +417,7 @@ router.post('/businesses/:businessId/kb/documents/import-from-post', authenticat
       source_type: 'post',
       source_post_id: post.id,
       category: finalCategory,
+      categories: finalCategories,
       scope: finalScope,
       project_id: finalProjectId,
       client_id: finalClientId,
@@ -448,6 +482,71 @@ router.get('/businesses/:businessId/kb/documents/:docId', authenticateToken, che
 });
 
 // Delete document
+// 인라인 편집 — 부분 수정 (제목·본문·custom_values·custom_columns·read_policy·client_ids·category·scope)
+router.put('/businesses/:businessId/kb/documents/:docId', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+  try {
+    if (req.businessRole === 'client') return errorResponse(res, 'forbidden', 403);
+    const doc = await KbDocument.findOne({
+      where: { id: req.params.docId, business_id: req.params.businessId }
+    });
+    if (!doc) return errorResponse(res, 'Document not found', 404);
+
+    const patch = {};
+    if (req.body.title !== undefined) patch.title = String(req.body.title).slice(0, 300);
+    if (req.body.body !== undefined) patch.body = String(req.body.body || '');
+    if (req.body.category !== undefined) {
+      const allowedCategories = ['policy','manual','incident','faq','about','pricing'];
+      if (allowedCategories.includes(req.body.category)) patch.category = req.body.category;
+    }
+    // 멀티 카테고리 — patch.categories 배열 + legacy patch.category 도 첫 원소로 동기화
+    if (req.body.categories !== undefined) {
+      const allowedCategories = ['policy','manual','incident','faq','about','pricing'];
+      if (Array.isArray(req.body.categories)) {
+        const filtered = req.body.categories.filter(c => allowedCategories.includes(c));
+        patch.categories = filtered.length > 0 ? filtered : null;
+        if (filtered.length > 0) patch.category = filtered[0];
+      } else if (req.body.categories === null) {
+        patch.categories = null;
+      }
+    }
+    if (req.body.scope !== undefined) {
+      const allowedScopes = ['workspace','project','client'];
+      if (allowedScopes.includes(req.body.scope)) patch.scope = req.body.scope;
+    }
+    if (req.body.project_id !== undefined) patch.project_id = req.body.project_id ? Number(req.body.project_id) : null;
+    if (req.body.client_id !== undefined) patch.client_id = req.body.client_id ? Number(req.body.client_id) : null;
+    if (req.body.custom_columns !== undefined) {
+      patch.custom_columns = Array.isArray(req.body.custom_columns) ? req.body.custom_columns : null;
+    }
+    if (req.body.custom_values !== undefined) {
+      // 부분 머지 — 단일 column 인라인 편집 시 나머지 값 보존
+      if (req.body.custom_values === null) {
+        patch.custom_values = null;
+      } else if (typeof req.body.custom_values === 'object') {
+        const existing = (doc.custom_values && typeof doc.custom_values === 'object') ? doc.custom_values : {};
+        patch.custom_values = { ...existing, ...req.body.custom_values };
+      }
+    }
+    if (req.body.read_policy !== undefined && ['all', 'owner'].includes(req.body.read_policy)) {
+      patch.read_policy = req.body.read_policy;
+    }
+    if (req.body.client_ids !== undefined) {
+      patch.client_ids = Array.isArray(req.body.client_ids) ? req.body.client_ids.map(Number).filter(Boolean) : null;
+    }
+    if (req.body.tags !== undefined) {
+      patch.tags = Array.isArray(req.body.tags) ? req.body.tags.map(String) : null;
+    }
+    await doc.update(patch);
+    await createAuditLog({
+      userId: req.user.id, businessId: req.params.businessId,
+      action: 'kb.document_update',
+      targetType: 'KbDocument', targetId: doc.id,
+      newValue: { fields: Object.keys(patch) }
+    });
+    successResponse(res, doc);
+  } catch (err) { next(err); }
+});
+
 router.delete('/businesses/:businessId/kb/documents/:docId', authenticateToken, checkBusinessAccess, async (req, res, next) => {
   try {
     if (!isAdmin(req)) return errorResponse(res, 'Admin permission required', 403);

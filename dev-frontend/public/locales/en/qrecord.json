@@ -1,0 +1,52 @@
+{
+  "page": { "title": "Q record" },
+  "search": { "ph": "Search by name" },
+  "actions": {
+    "new": "New table",
+    "addRow": "Add row",
+    "list": "Back",
+    "create": "Create",
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete"
+  },
+  "cat": { "all": "All" },
+  "stat": { "columns": "columns", "rows": "rows" },
+  "view": { "aria": "View mode", "grid": "Grid", "list": "List" },
+  "list": {
+    "name": "Name", "category": "Category", "scope": "Scope",
+    "cols": "Cols", "rows": "Rows", "updated": "Updated",
+    "workspace": "Workspace"
+  },
+  "empty": {
+    "title": "No tables yet",
+    "body": "Store structured data (accounts · assets · contacts …) per workspace."
+  },
+  "create": {
+    "title": "New table",
+    "nameLabel": "Table name",
+    "namePh": "e.g. Accounts / Assets / Contacts",
+    "catLabel": "Category (optional)",
+    "catPh": "e.g. Security / HR / Ops",
+    "failed": "Failed to create table"
+  },
+  "detail": {
+    "loading": "Loading...",
+    "notFound": "Table not found"
+  },
+  "column": {
+    "editTitle": "Edit column",
+    "addTitle": "Add column",
+    "nameLabel": "Column name",
+    "typeLabel": "Type",
+    "optionsLabel": "Options (one per line)",
+    "editHint": "Click to edit",
+    "addHint": "Add column"
+  },
+  "row": { "deleteHint": "Delete row" },
+  "cell": {
+    "reveal": "Show",
+    "secretPh": "Enter value (masked on save)",
+    "secretEnterPh": "Enter secret"
+  }
+}

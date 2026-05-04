@@ -8,7 +8,7 @@ export interface SearchBoxProps {
   onChange: (value: string) => void;
   placeholder?: string;
   shortcutHint?: string;            // 예: "Ctrl+K" (우측 pill)
-  size?: 'sm' | 'md';               // sm=32, md=36
+  size?: 'sm' | 'md';               // sm=36 (toolbar 표준 — Q task 동일) / md=40 (모달 입력)
   width?: number | string;          // 고정 폭 또는 "100%"
   autoFocus?: boolean;
   disabled?: boolean;
@@ -56,7 +56,7 @@ export default SearchBox;
 // ─── styled ───
 const Wrap = styled.label<{ $size: 'sm' | 'md'; $w?: number | string; $disabled: boolean }>`
   display:inline-flex;align-items:center;gap:6px;
-  height:${p => p.$size === 'md' ? 36 : 32}px;
+  height:36px;
   padding:0 6px 0 10px;
   ${p => p.$w !== undefined ? `width:${typeof p.$w === 'number' ? `${p.$w}px` : p.$w};` : ''}
   background:#F1F5F9;border:1px solid #E2E8F0;border-radius:8px;

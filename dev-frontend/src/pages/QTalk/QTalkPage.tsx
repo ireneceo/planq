@@ -221,6 +221,16 @@ const QTalkPage: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeProjectId, activeConversationId]);
 
+  // URL 의 conv/project 가 외부 변경 시 (글로벌 검색·인박스 등에서 navigate) 동기화
+  useEffect(() => {
+    const sp = new URLSearchParams(location.search);
+    const c = Number(sp.get('conv')) || null;
+    const p = Number(sp.get('project')) || null;
+    if (c !== activeConversationId) setActiveConversationId(c);
+    if (p !== activeProjectId) setActiveProjectId(p);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.search]);
+
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 

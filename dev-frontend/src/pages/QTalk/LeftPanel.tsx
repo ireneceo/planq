@@ -194,7 +194,8 @@ export default LeftPanel;
 
 // ─────────────────────────────────────────────
 const Container = styled.aside<{ $mobileHidden?: boolean }>`
-  width: 280px;
+  /* 좌측 리스트 폭 — Q note/Q docs 와 동일 (300px). 좌측 리스트 패턴 통일 */
+  width: 300px;
   flex-shrink: 0;
   background: #FFFFFF;
   border-right: 1px solid #E2E8F0;

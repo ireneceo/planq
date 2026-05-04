@@ -18,7 +18,7 @@ import PostAiModal from '../../components/Docs/PostAiModal';
 import SignatureProgressSection from '../../components/Docs/SignatureProgressSection';
 import KindIcon from '../../components/Docs/KindIcon';
 import type { DocKind } from '../../services/docs';
-import InlineAttachPicker from '../../components/Docs/InlineAttachPicker';
+import AttachmentField from '../../components/Common/AttachmentField';
 import { uploadProjectFile } from '../../services/files';
 import { listTemplates, type DocTemplate, KIND_LABELS_KO } from '../../services/docs';
 import { useAuth } from '../../contexts/AuthContext';
@@ -506,11 +506,12 @@ const ProjectPostsTab: React.FC<Props> = ({ businessId, projectId }) => {
                 ))}
               </AttachList>
             )}
-            <InlineAttachPicker
+            <AttachmentField
               businessId={businessId}
-              excludeIds={detail.attachments?.map(a => a.file_id).filter((x): x is number => !!x) || []}
-              onPickFiles={handlePickFiles}
-              onPickExisting={handlePickExisting}
+              uploads={pendingUploads}
+              onUploadsChange={setPendingUploads}
+              existingFileIds={pendingExistingIds}
+              onExistingFileIdsChange={setPendingExistingIds}
             />
           </AttachSection>
         </DetailBody>
@@ -566,14 +567,12 @@ const ProjectPostsTab: React.FC<Props> = ({ businessId, projectId }) => {
                 ))}
               </AttachList>
             )}
-            <InlineAttachPicker
+            <AttachmentField
               businessId={businessId}
-              excludeIds={[
-                ...(detail?.attachments?.map(a => a.file_id).filter((x): x is number => !!x) || []),
-                ...pendingExistingIds,
-              ]}
-              onPickFiles={handlePickFiles}
-              onPickExisting={handlePickExisting}
+              uploads={pendingUploads}
+              onUploadsChange={setPendingUploads}
+              existingFileIds={pendingExistingIds}
+              onExistingFileIdsChange={setPendingExistingIds}
             />
           </AttachSection>
         </DetailBody>

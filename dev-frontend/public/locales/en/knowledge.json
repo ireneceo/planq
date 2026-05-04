@@ -1,8 +1,8 @@
 {
   "page": {
-    "title": "Q knowledge",
+    "title": "Q info",
     "searchPh": "Search by title...",
-    "new": "+ New knowledge",
+    "new": "+ New info",
     "fromFile": "+ From file",
     "fromFileNoExisting": "Please pick at least one existing file",
     "fromFileResult": "{{ok}} added, {{skip}} skipped",
@@ -33,9 +33,33 @@
     "project": "Specific project",
     "client": "Specific client"
   },
+  "sort": {
+    "recent": "Most recent",
+    "title": "By name",
+    "oldest": "Oldest first"
+  },
+  "policy": {
+    "all": "Any access",
+    "allMembers": "All members",
+    "ownerOnly": "Owners only",
+    "ownerShort": "Owners"
+  },
+  "select": {
+    "toggle": "Select",
+    "cancel": "Cancel selection",
+    "delete": "Delete selected",
+    "deleteTitle": "Delete selected items",
+    "deleteConfirm": "{{n}} item(s) will be deleted. This cannot be undone."
+  },
+  "drawer.customColumns": "Custom fields",
+  "inline": {
+    "editHint": "Click to edit"
+  },
   "status": {
     "pending": "Pending",
     "indexing": "Indexing",
+    "indexingShort": "Processing",
+    "failedShort": "Failed",
     "ready": "Ready",
     "failed": "Failed"
   },
@@ -67,7 +91,21 @@
     "cta": "+ Add knowledge"
   },
   "modal": {
-    "title": "New knowledge",
+    "title": "New info",
+    "readPolicy": "Share scope",
+    "policyAll": "Whole workspace",
+    "policyAllHint": "Owner & members can read",
+    "policyProject": "Specific project",
+    "policyProjectHint": "Project members only",
+    "policyClient": "Specific clients (multi)",
+    "policyClientHint": "Selected clients + our team",
+    "policyOwner": "Owners only",
+    "policyOwnerHint": "Owner + admin only (price lists, internal accounts)",
+    "customColumns": "Custom fields",
+    "addColumn": "Add field",
+    "colNamePh": "Field name (e.g. API key)",
+    "colValuePh": "Value",
+    "showInListHint": "Always show in list",
     "tabDirect": "Direct input",
     "tabUpload": "Upload file",
     "tabExistingFile": "Existing files",
