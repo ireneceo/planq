@@ -309,10 +309,52 @@
     "promptNote": "아래 버튼을 누르면 브라우저가 설치 다이얼로그를 띄웁니다. 수락하면 홈 화면(또는 앱 서랍·시작 메뉴) 에 PlanQ 아이콘이 추가됩니다.",
     "installNow": "지금 설치",
     "installing": "설치 중…",
-    "manualHint": "브라우저 주소창 우측의 점 3개 메뉴 → \"앱 설치\" / \"PlanQ 설치\" 를 선택하세요.",
-    "unsupportedHint": "이 브라우저는 PWA 설치를 지원하지 않습니다. Chrome / Edge / Samsung Internet 또는 iOS Safari 에서 다시 시도하세요.",
     "installedMsg": "설치되었습니다. 홈 화면에서 PlanQ 를 실행하세요.",
     "dismissedMsg": "설치를 취소했습니다.",
-    "unavailableMsg": "지금은 설치 프롬프트를 띄울 수 없습니다."
+    "unavailableMsg": "지금은 설치 프롬프트를 띄울 수 없습니다.",
+    "relatedInstalledNote": "이 디바이스에 PlanQ 앱이 이미 설치되어 있습니다. 지금은 브라우저 탭에서 보고 있어요.",
+    "openInAppHint": "주소창 우측의 \"Open in app\" / \"앱으로 열기\" 를 누르거나, 홈 화면 / 앱 서랍 / 시작 메뉴의 PlanQ 아이콘으로 진입하세요.",
+    "troubleTitle": "메뉴가 안 보이나요?",
+    "troubleAlready": "이미 설치하셨을 수 있습니다 — 홈 화면 / 앱 서랍 / 시작 메뉴에서 PlanQ 를 찾아보세요.",
+    "troubleCooldown": "한 번 설치 안내를 닫으면 며칠간 메뉴가 표시되지 않을 수 있습니다 (브라우저 정책).",
+    "troubleIncognito": "시크릿 / 게스트 모드에서는 PWA 설치가 동작하지 않습니다.",
+    "browser": {
+      "android-chrome": "Chrome (Android)",
+      "android-samsung": "Samsung Internet",
+      "android-firefox": "Firefox (Android)",
+      "desktop-chrome": "Chrome (데스크탑)",
+      "desktop-edge": "Microsoft Edge",
+      "desktop-firefox": "Firefox (데스크탑)",
+      "desktop-safari": "Safari (데스크탑)",
+      "other": "현재 브라우저"
+    },
+    "steps": {
+      "androidChrome": {
+        "1": "주소창 우측의 ⋮ (세로 점 3개) 메뉴를 엽니다",
+        "2": "\"홈 화면에 추가\" 또는 \"앱 설치\" 를 선택합니다",
+        "3": "\"추가\" / \"설치\" 를 눌러 완료합니다"
+      },
+      "androidSamsung": {
+        "1": "하단 ☰ 메뉴를 엽니다",
+        "2": "\"현재 페이지 추가\" → \"홈 화면\" 을 선택합니다"
+      },
+      "desktopChromium": {
+        "1": "주소창 우측의 설치 아이콘 (⊕ 또는 모니터 + ↓) 을 클릭하거나",
+        "2": "주소창 우측의 ⋮ 메뉴 → \"PlanQ 설치\" / \"앱 설치\" 를 선택합니다",
+        "3": "설치 다이얼로그에서 \"설치\" 를 누르면 시작 메뉴·독에 추가됩니다"
+      },
+      "firefox": {
+        "1": "Firefox 는 PWA 설치를 제한적으로만 지원합니다",
+        "2": "권장: Chrome / Edge / Samsung Internet 으로 다시 열어주세요"
+      },
+      "desktopSafari": {
+        "1": "데스크탑 Safari 는 PWA 설치를 지원하지 않습니다",
+        "2": "북마크 / Dock 에 추가해 빠른 진입만 가능합니다"
+      },
+      "other": {
+        "1": "이 브라우저는 PWA 설치를 지원하지 않거나 식별할 수 없습니다",
+        "2": "Chrome / Edge / Samsung Internet 또는 iOS Safari 에서 다시 시도하세요"
+      }
+    }
   }
 }
