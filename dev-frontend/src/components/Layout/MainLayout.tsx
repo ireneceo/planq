@@ -6,6 +6,7 @@ import { displayName } from '../../utils/displayName';
 import { useAuth } from '../../contexts/AuthContext';
 import LanguageSelector from '../Common/LanguageSelector';
 import WorkspaceSwitcher from './WorkspaceSwitcher';
+import GlobalSearchModal from '../Common/GlobalSearchModal';
 import WorkspaceBillingBanner from './WorkspaceBillingBanner';
 import SidebarClock from './SidebarClock';
 import PanelHeader, { PanelTitle } from './PanelHeader';
@@ -103,6 +104,44 @@ const SidebarNav = styled.nav`
   &::-webkit-scrollbar { width: 6px; }
   &::-webkit-scrollbar-track { background: transparent; }
   &::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.2); border-radius: 3px; }
+`;
+
+// 통합 검색 — NavItem 과 동일한 메뉴 항목 스타일 (input 형태 X, 클릭만 하는 메뉴)
+const GlobalSearchTrigger = styled.button`
+  display: flex; align-items: center;
+  width: 100%;
+  /* 워크스페이스 카드와 시각적 분리 — 위쪽 여백 8px */
+  margin-top: 8px;
+  padding: 4px 16px;
+  min-height: 28px;
+  background: transparent;
+  border: none;
+  color: #CCFBF1; cursor: pointer;
+  font-size: 13px; font-weight: 500;
+  transition: all 0.15s;
+  text-align: left;
+  white-space: nowrap;
+  &:hover { background: rgba(255,255,255,0.08); color: #FFFFFF; }
+  &:focus-visible { outline: 2px solid rgba(94,234,212,0.4); outline-offset: -2px; }
+  ${mediaTablet} { padding: 8px 16px; min-height: 44px; font-size: 14px; }
+`;
+const SearchIconSvg = styled.svg`
+  width: 20px; flex-shrink: 0;
+  margin-right: 10px;
+  color: #5EEAD4;
+`;
+const SearchPlaceholder = styled.span`
+  flex: 1;
+`;
+const SearchKbd = styled.kbd`
+  font-size: 10px; font-family: inherit; font-weight: 600;
+  padding: 1px 5px;
+  background: rgba(94,234,212,0.10);
+  border: 1px solid rgba(94,234,212,0.18);
+  border-radius: 4px;
+  color: rgba(94,234,212,0.8);
+  flex-shrink: 0;
+  margin-left: 8px;
 `;
 
 const NavSection = styled.div`margin-bottom: 0;`;
@@ -429,10 +468,23 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(() => readLS(LS_COLLAPSED, false));
+  const [searchOpen, setSearchOpen] = useState(false);
   const { workspaceTz, workspaceRefs, userTz, userRefs } = useTimezones();
 
   useEffect(() => { setSidebarOpen(false); }, [location.pathname]);
   useEffect(() => { writeLS(LS_COLLAPSED, isCollapsed); }, [isCollapsed]);
+
+  // ⌘K / Ctrl+\ 글로벌 검색 단축키
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && (e.key === 'k' || e.key === '\\')) {
+        e.preventDefault();
+        setSearchOpen(true);
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, []);
 
   // 모바일 사이드바 열림 시 배경 스크롤 잠금
   useBodyScrollLock(sidebarOpen);
@@ -529,6 +581,20 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
         </SidebarHeader>
 
         {!isCollapsed && <WorkspaceSwitcher />}
+        {!isCollapsed && hasBiz('owner', 'member', 'client') && (
+          <GlobalSearchTrigger
+            type="button"
+            onClick={() => setSearchOpen(true)}
+            title={t('nav.globalSearch', '통합 검색') as string}
+          >
+            <SearchIconSvg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="11" cy="11" r="8"/>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </SearchIconSvg>
+            <SearchPlaceholder>{t('nav.globalSearch', '검색')}</SearchPlaceholder>
+            <SearchKbd>⌘K</SearchKbd>
+          </GlobalSearchTrigger>
+        )}
 
         <SidebarNav>
           {isAdminMode ? (
@@ -663,13 +729,13 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                     </NavItem>
                   )}
                   {hasBiz('owner', 'member') && (
-                    <NavItem to="/knowledge" $isCollapsed={isCollapsed} $active={isActive('/knowledge')}
-                      title={isCollapsed ? t('nav.qknowledge', 'Q knowledge') : undefined}
+                    <NavItem to="/info" $isCollapsed={isCollapsed} $active={isActive('/info') || isActive('/knowledge')}
+                      title={isCollapsed ? t('nav.qinfo', 'Q info') : undefined}
                       onClick={() => { try { localStorage.setItem('planq_whatsnew_qknowledge_v1', '1'); } catch { /* */ } }}>
                       <NavIcon $isCollapsed={isCollapsed}>
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 6.253v13"/><path d="M12 6.253C10.832 5.477 9.246 5 7.5 5 5.754 5 4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253"/><path d="M12 6.253C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18s-3.332.477-4.5 1.253"/></svg>
                       </NavIcon>
-                      <NavLabel $isCollapsed={isCollapsed}>{t('nav.qknowledge', 'Q knowledge')}</NavLabel>
+                      <NavLabel $isCollapsed={isCollapsed}>{t('nav.qinfo', 'Q info')}</NavLabel>
                       {(() => { try { return localStorage.getItem('planq_whatsnew_qknowledge_v1') !== '1' ? <NewPulse aria-label="NEW" /> : null; } catch { return null; } })()}
                     </NavItem>
                   )}
@@ -1082,6 +1148,13 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
         <MobileContentPadding>{children}</MobileContentPadding>
       </MainContent>
       <InstallPromptBanner />
+      {user?.business_id && (
+        <GlobalSearchModal
+          open={searchOpen}
+          onClose={() => setSearchOpen(false)}
+          businessId={Number(user.business_id)}
+        />
+      )}
     </LayoutContainer>
   );
 };

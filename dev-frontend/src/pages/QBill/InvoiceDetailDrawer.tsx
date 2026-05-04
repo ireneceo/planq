@@ -158,7 +158,7 @@ export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, 
     <DetailDrawer
       open={!!invoice}
       onClose={onClose}
-      width={620}
+      width={480}
       ariaLabel={`청구서 ${invoice.invoice_number}`}
     >
       {/* ─── 헤더 ─── */}

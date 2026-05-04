@@ -1,8 +1,8 @@
 {
   "page": {
-    "title": "Q knowledge",
+    "title": "Q info",
     "searchPh": "제목 검색...",
-    "new": "+ 새 지식",
+    "new": "+ 정보 등록",
     "fromFile": "+ 파일에서",
     "fromFileNoExisting": "기존 파일을 1개 이상 선택해 주세요",
     "fromFileResult": "{{ok}}건 추가, {{skip}}건 스킵",
@@ -33,9 +33,33 @@
     "project": "특정 프로젝트",
     "client": "특정 고객"
   },
+  "sort": {
+    "recent": "최근 순",
+    "title": "이름 순",
+    "oldest": "오래된 순"
+  },
+  "policy": {
+    "all": "권한 전체",
+    "allMembers": "멤버 전체",
+    "ownerOnly": "운영진만",
+    "ownerShort": "운영진"
+  },
+  "select": {
+    "toggle": "선택",
+    "cancel": "선택 해제",
+    "delete": "선택 삭제",
+    "deleteTitle": "선택 항목 삭제",
+    "deleteConfirm": "{{n}}건을 삭제합니다. 되돌릴 수 없습니다."
+  },
+  "drawer.customColumns": "항목",
+  "inline": {
+    "editHint": "클릭해서 편집"
+  },
   "status": {
     "pending": "대기",
     "indexing": "인덱싱 중",
+    "indexingShort": "처리중",
+    "failedShort": "실패",
     "ready": "사용 가능",
     "failed": "실패"
   },
@@ -64,10 +88,24 @@
   "empty": {
     "title": "아직 지식 자료가 없습니다",
     "desc": "Cue 가 답변을 찾을 회사 자료를 등록해 보세요.",
-    "cta": "+ 새 지식 등록"
+    "cta": "+ 정보 등록"
   },
   "modal": {
-    "title": "새 지식 등록",
+    "title": "정보 등록",
+    "readPolicy": "공유 범위",
+    "policyAll": "전체 워크스페이스",
+    "policyAllHint": "오너·멤버 모두 볼 수 있어요",
+    "policyProject": "특정 프로젝트",
+    "policyProjectHint": "그 프로젝트 멤버만 볼 수 있어요",
+    "policyClient": "특정 고객 (다중 가능)",
+    "policyClientHint": "선택한 고객(들)과 우리 팀이 볼 수 있어요",
+    "policyOwner": "운영진만",
+    "policyOwnerHint": "오너·관리자만 볼 수 있어요 (단가표·내부 계정 등)",
+    "customColumns": "항목 추가",
+    "addColumn": "항목 추가",
+    "colNamePh": "항목명 (예: API 키)",
+    "colValuePh": "값",
+    "showInListHint": "리스트에 항상 표시",
     "tabDirect": "직접 입력",
     "tabUpload": "파일 업로드",
     "tabExistingFile": "기존 파일",

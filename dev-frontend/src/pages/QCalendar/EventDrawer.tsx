@@ -57,7 +57,7 @@ const EventDrawer: React.FC<Props> = ({ event, onClose, onUpdate, onDelete, onCr
   };
 
   return (
-    <DetailDrawer open={!!event} onClose={onClose} width={440} ariaLabel={event.title}>
+    <DetailDrawer open={!!event} onClose={onClose} width={480} ariaLabel={event.title}>
       <DetailDrawer.Header onClose={onClose}>
         <HeaderInner>
           <ColorBar $color={c.fg} />

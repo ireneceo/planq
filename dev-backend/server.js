@@ -225,6 +225,8 @@ app.use('/api/cloud', require('./routes/cloud'));
 app.use('/api/plan', require('./routes/plan'));
 app.use('/api/admin', require('./routes/admin'));
 app.use('/api/posts', require('./routes/posts'));
+app.use('/api/records', require('./routes/records'));
+app.use('/api/search', require('./routes/search'));
 app.use('/api/invoices', require('./routes/invoices'));
 app.use('/api/docs', require('./routes/docs'));
 // 서명 — /api/posts/:id/signatures, /api/signatures/:id, /api/sign/:token/* (공개)

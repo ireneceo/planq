@@ -1,9 +1,33 @@
 const express = require('express');
 const router = express.Router();
+const path = require('path');
+const fs = require('fs');
+const { v4: uuidv4 } = require('uuid');
+const multer = require('multer');
 const { Business, BusinessMember, User, CueUsage, Client } = require('../models');
 const { authenticateToken, checkBusinessAccess } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const { createAuditLog } = require('../middleware/audit');
+
+// 워크스페이스 심볼 (brand symbol) 업로드 디렉토리 — 공개 서빙용
+const SYMBOL_DIR = path.join(__dirname, '..', 'uploads', 'business-symbols');
+if (!fs.existsSync(SYMBOL_DIR)) fs.mkdirSync(SYMBOL_DIR, { recursive: true });
+const SYMBOL_EXT = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg']);
+const symbolUpload = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, SYMBOL_DIR),
+    filename: (_req, file, cb) => {
+      const ext = path.extname(file.originalname).toLowerCase();
+      cb(null, `${uuidv4()}${ext}`);
+    },
+  }),
+  fileFilter: (_req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (!SYMBOL_EXT.has(ext)) return cb(new Error('disallowed_extension'));
+    cb(null, true);
+  },
+  limits: { fileSize: 2 * 1024 * 1024 },  // 2 MB
+});
 
 // ─── 공통: 현재 월(YYYY-MM) ───
 const currentYearMonth = () => {
@@ -128,6 +152,59 @@ router.put('/:businessId', authenticateToken, checkBusinessAccess, async (req, r
   } catch (error) {
     next(error);
   }
+});
+
+// ─── 워크스페이스 심볼 업로드 (공개 서빙) ───
+// POST /api/businesses/:businessId/symbol  (multipart 'file')
+//   업로드 후 brand_logo_url 자동 갱신, 공개 URL 반환.
+//   <img> 태그 직접 로드 가능 (인증 없이) — UUID 파일명으로 추측 불가.
+router.post('/:businessId/symbol',
+  authenticateToken, checkBusinessAccess,
+  (req, res, next) => {
+    symbolUpload.single('file')(req, res, (err) => {
+      if (!err) return next();
+      if (err.message === 'disallowed_extension') return errorResponse(res, 'unsupported_file_type', 400);
+      if (err.code === 'LIMIT_FILE_SIZE') return errorResponse(res, 'file_too_large (max 2MB)', 400);
+      return errorResponse(res, err.message || 'upload_failed', 400);
+    });
+  },
+  async (req, res, next) => {
+    try {
+      if (!isAdmin(req)) return errorResponse(res, 'Admin permission required', 403);
+      if (!req.file) return errorResponse(res, 'no_file', 400);
+      const business = await Business.findByPk(req.params.businessId);
+      if (!business) return errorResponse(res, 'Workspace not found', 404);
+      const url = `/api/businesses/symbol/${req.file.filename}`;
+      // 이전 심볼 파일 정리 (기존 brand_logo_url 이 우리 심볼 디렉토리면 삭제)
+      const prev = business.brand_logo_url;
+      if (prev && prev.startsWith('/api/businesses/symbol/')) {
+        const prevName = prev.split('/').pop();
+        if (prevName && /^[0-9a-f-]+\.(png|jpe?g|gif|webp|svg)$/i.test(prevName)) {
+          const prevPath = path.join(SYMBOL_DIR, prevName);
+          fs.promises.unlink(prevPath).catch(() => null);
+        }
+      }
+      await business.update({ brand_logo_url: url });
+      await createAuditLog({
+        userId: req.user.id, businessId: business.id,
+        action: 'business.symbol_upload',
+        targetType: 'Business', targetId: business.id,
+        newValue: { brand_logo_url: url, file_size: req.file.size },
+      });
+      successResponse(res, { brand_logo_url: url, url });
+    } catch (err) { next(err); }
+  }
+);
+
+// 심볼 공개 서빙 — 인증 없이 (UUID 추측 불가)
+router.get('/symbol/:filename', (req, res) => {
+  const filename = String(req.params.filename || '');
+  if (!/^[0-9a-f-]+\.(png|jpe?g|gif|webp|svg)$/i.test(filename)) {
+    return errorResponse(res, 'invalid_filename', 400);
+  }
+  const fp = path.join(SYMBOL_DIR, filename);
+  if (!fs.existsSync(fp)) return errorResponse(res, 'not_found', 404);
+  res.sendFile(fp);
 });
 
 // ─── Brand 정보 수정 ───

@@ -250,12 +250,23 @@
     "upload": "업로드 ({{n}})",
     "attach": "첨부 ({{n}})"
   },
+  "search": {
+    "title": "통합 검색",
+    "placeholder": "업무·문서·레코드·파일·고객 모두 검색",
+    "hint": "검색어를 입력하세요. ⌘K 또는 Ctrl+\\ 로도 열 수 있습니다.",
+    "searching": "검색 중...",
+    "noResults": "결과 없음"
+  },
   "attach": {
     "uploadHint": "파일을 드래그하거나 클릭",
     "uploadAccept": "여러 파일 한번에 가능 · 워크스페이스에 자동 저장",
     "searchPlaceholder": "기존 파일 검색해서 추가...",
+    "searchUnifiedPlaceholder": "기존 파일·문서 검색해서 추가...",
     "searchHint": "검색어를 입력하세요",
-    "noFiles": "결과 없음"
+    "noFiles": "결과 없음",
+    "noResults": "결과 없음",
+    "typeFile": "파일",
+    "typePost": "문서"
   },
   "installPrompt": {
     "title": "PlanQ 를 앱처럼 사용하기",

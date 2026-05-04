@@ -73,14 +73,14 @@ const getUserWithBusiness = async (userId) => {
   const memberships = await BusinessMember.findAll({
     where: { user_id: userId },
     attributes: ['business_id', 'role', 'name', 'name_localized', 'removed_at'],
-    include: [{ model: Business, attributes: ['id', 'name', 'slug', 'plan', 'brand_name', 'timezone', 'reference_timezones'] }]
+    include: [{ model: Business, attributes: ['id', 'name', 'slug', 'plan', 'brand_name', 'brand_logo_url', 'timezone', 'reference_timezones'] }]
   });
 
   // 2) 고객 (client) — 활성 상태만. display_name 도 가져와 표시명 fallback
   const clientRows = await Client.findAll({
     where: { user_id: userId, status: 'active' },
     attributes: ['id', 'business_id', 'display_name', 'display_name_localized'],
-    include: [{ model: Business, attributes: ['id', 'name', 'slug', 'plan', 'brand_name', 'timezone', 'reference_timezones'] }]
+    include: [{ model: Business, attributes: ['id', 'name', 'slug', 'plan', 'brand_name', 'brand_logo_url', 'timezone', 'reference_timezones'] }]
   });
 
   // 3) workspaces 배열 빌드 — 같은 business 에 둘 다 있으면 멤버십 우선
@@ -90,6 +90,7 @@ const getUserWithBusiness = async (userId) => {
     map.set(m.business_id, {
       business_id: m.business_id,
       brand_name: m.Business.brand_name || m.Business.name,
+      brand_logo_url: m.Business.brand_logo_url || null,
       slug: m.Business.slug,
       plan: m.Business.plan,
       role: m.role,  // 'owner' | 'member' | 'ai'
@@ -106,6 +107,7 @@ const getUserWithBusiness = async (userId) => {
       map.set(c.business_id, {
         business_id: c.business_id,
         brand_name: c.Business.brand_name || c.Business.name,
+        brand_logo_url: c.Business.brand_logo_url || null,
         slug: c.Business.slug,
         plan: c.Business.plan,
         role: 'client',

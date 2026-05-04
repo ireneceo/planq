@@ -86,6 +86,12 @@ KbDocument.init({
     allowNull: false,
     defaultValue: 'manual',
   },
+  // categories: 멀티 카테고리 (2026-05-04~) — read 시 categories 우선, 없으면 [category] fallback
+  categories: {
+    type: DataTypes.JSON,
+    allowNull: true,
+    defaultValue: null,
+  },
   // scope: 적용 범위 — workspace 전체 / 특정 프로젝트 / 특정 고객 한정
   // hybridSearch 우선순위: client → project → workspace (threshold 0.78)
   scope: {
@@ -117,6 +123,33 @@ KbDocument.init({
     defaultValue: null,
   },
   attached_post_ids: {
+    type: DataTypes.JSON,
+    allowNull: true,
+    defaultValue: null,
+  },
+  // Q info — 사용자 정의 항목 스키마. 자료별 자유 정의.
+  // [{ id: 'c1', name: '항목명', type: 'text|...', show_in_list: bool, options?: [] }]
+  custom_columns: {
+    type: DataTypes.JSON,
+    allowNull: true,
+    defaultValue: null,
+  },
+  // 각 항목의 값. { col_id: value }
+  custom_values: {
+    type: DataTypes.JSON,
+    allowNull: true,
+    defaultValue: null,
+  },
+  // read 정책 — 'all' (스코프 안 멤버 모두) | 'owner' (owner+admin only)
+  // 단가표·내부 계정 등 운영진만 보는 자료에 사용.
+  read_policy: {
+    type: DataTypes.ENUM('all', 'owner'),
+    allowNull: false,
+    defaultValue: 'all',
+  },
+  // scope='client' 일 때 다중 고객 지원. 단수 client_id 와 같이 존재 가능.
+  // [client_id1, client_id2, ...]
+  client_ids: {
     type: DataTypes.JSON,
     allowNull: true,
     defaultValue: null,

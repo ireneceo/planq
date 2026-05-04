@@ -1,0 +1,54 @@
+{
+  "page": {
+    "title": "Q record"
+  },
+  "search": { "ph": "테이블 이름 검색" },
+  "actions": {
+    "new": "새 테이블",
+    "addRow": "행 추가",
+    "list": "목록",
+    "create": "만들기",
+    "save": "저장",
+    "cancel": "취소",
+    "delete": "삭제"
+  },
+  "cat": { "all": "전체" },
+  "stat": { "columns": "컬럼", "rows": "행" },
+  "view": { "aria": "보기 모드", "grid": "그리드", "list": "리스트" },
+  "list": {
+    "name": "이름", "category": "카테고리", "scope": "스코프",
+    "cols": "컬럼", "rows": "행", "updated": "수정일",
+    "workspace": "워크스페이스"
+  },
+  "empty": {
+    "title": "아직 등록된 테이블이 없습니다",
+    "body": "계정 정보·자산·연락처 등 표 형태 데이터를 워크스페이스 단위로 보관하세요."
+  },
+  "create": {
+    "title": "새 테이블",
+    "nameLabel": "테이블 이름",
+    "namePh": "예: 계정 정보 / 자산 목록 / 연락처",
+    "catLabel": "카테고리 (선택)",
+    "catPh": "예: 보안 / 인사 / 운영",
+    "failed": "테이블 생성 실패"
+  },
+  "detail": {
+    "loading": "불러오는 중...",
+    "notFound": "테이블을 찾을 수 없습니다"
+  },
+  "column": {
+    "editTitle": "컬럼 편집",
+    "addTitle": "컬럼 추가",
+    "nameLabel": "컬럼 이름",
+    "typeLabel": "타입",
+    "optionsLabel": "선택지 (한 줄에 하나)",
+    "editHint": "클릭해서 편집",
+    "addHint": "컬럼 추가"
+  },
+  "row": { "deleteHint": "행 삭제" },
+  "cell": {
+    "reveal": "보기",
+    "secretPh": "값 입력 (저장 시 마스킹)",
+    "secretEnterPh": "시크릿 입력"
+  }
+}

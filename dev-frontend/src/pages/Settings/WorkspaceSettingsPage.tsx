@@ -123,6 +123,27 @@ const LabelHint = styled.span`
   margin-left: 6px;
 `;
 
+const LogoUploadRow = styled.div`
+  display: flex; align-items: center; gap: 10px;
+  margin-bottom: 8px;
+`;
+const LogoPreview = styled.img`
+  width: 48px; height: 48px;
+  object-fit: cover;
+  border-radius: 10px;
+  border: 1px solid #E2E8F0;
+  background: #F8FAFC;
+`;
+const UploadLogoBtn = styled.button`
+  height: 36px; padding: 0 14px;
+  background: #FFFFFF; color: #0F766E;
+  border: 1px solid #99F6E4; border-radius: 8px;
+  font-size: 13px; font-weight: 600; cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+  &:hover:not(:disabled) { background: #F0FDFA; border-color: #14B8A6; }
+  &:disabled { opacity: 0.5; cursor: not-allowed; }
+`;
+
 const TextInput = styled.input`
   width: 100%;
   height: 40px;
@@ -807,6 +828,48 @@ export default function WorkspaceSettingsPage() {
 
             <Field $full>
               <Label>{t('brand.logoUrl')}</Label>
+              <LogoUploadRow>
+                {brandLogoUrl && <LogoPreview src={brandLogoUrl} alt="logo" />}
+                <UploadLogoBtn
+                  type="button"
+                  disabled={!isAdmin}
+                  onClick={() => document.getElementById('ws-logo-input')?.click()}
+                >
+                  {brandLogoUrl ? t('brand.logoChange', '로고 변경') : t('brand.logoUpload', '로고 업로드')}
+                </UploadLogoBtn>
+                {brandLogoUrl && (
+                  <UploadLogoBtn
+                    type="button"
+                    disabled={!isAdmin}
+                    onClick={async () => { setBrandLogoUrl(''); await saveBrand({ brand_logo_url: null }); }}
+                  >
+                    {t('brand.logoRemove', '제거')}
+                  </UploadLogoBtn>
+                )}
+                <input
+                  id="ws-logo-input"
+                  type="file"
+                  accept="image/*"
+                  hidden
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (!file || !user?.business_id) return;
+                    try {
+                      // 워크스페이스 심볼 업로드 — 공개 서빙 endpoint (인증 없이 <img> 태그 로드 가능)
+                      const fd = new FormData();
+                      fd.append('file', file);
+                      const r = await apiFetch(`/api/businesses/${user.business_id}/symbol`, { method: 'POST', body: fd });
+                      const j = await r.json();
+                      if (j.success && j.data?.brand_logo_url) {
+                        setBrandLogoUrl(j.data.brand_logo_url);
+                        // saveBrand 호출 불필요 — 백엔드가 이미 brand_logo_url 갱신
+                      }
+                    } finally {
+                      e.target.value = '';
+                    }
+                  }}
+                />
+              </LogoUploadRow>
               <AutoSaveField
                 type="input"
                 onSave={async () => { await saveBrand({ brand_logo_url: brandLogoUrl || null }); }}

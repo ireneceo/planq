@@ -124,17 +124,21 @@ const WorkspaceSwitcher: React.FC<Props> = ({ collapsed }) => {
         title={multiple ? t('switcher.tooltip', '워크스페이스 전환') : currentName}
       >
         {isAdminMode ? (
-          <AdminIcon viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M2 4l3 12h14l3-12-6 4-4-8-4 8-6-4z"/>
-          </AdminIcon>
+          <AdminBadge>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M2 4l3 12h14l3-12-6 4-4-8-4 8-6-4z"/>
+            </svg>
+          </AdminBadge>
+        ) : activeWs?.brand_logo_url ? (
+          <LogoImg src={activeWs.brand_logo_url} alt={currentName} />
         ) : (
-          <Dot $color={currentDot} />
+          <InitialBadge $color={currentDot}>{(currentName || '·').charAt(0).toUpperCase()}</InitialBadge>
         )}
         {!collapsed && (
           <>
             <Info>
               <Name $admin={isAdminMode}>{currentName}</Name>
-              <SubRole $admin={isAdminMode}>{currentSub}</SubRole>
+              <RolePill $admin={isAdminMode}>{currentSub}</RolePill>
             </Info>
             {multiple && (
               <Chevron viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" $open={open}>
@@ -161,7 +165,11 @@ const WorkspaceSwitcher: React.FC<Props> = ({ collapsed }) => {
                     disabled={isBusy}
                     onClick={() => handleSwitchWs(w)}
                   >
-                    <Dot $color={ROLE_DOT[w.role]} />
+                    {w.brand_logo_url ? (
+                      <MenuLogoImg src={w.brand_logo_url} alt={w.brand_name} />
+                    ) : (
+                      <MenuInitial $color={ROLE_DOT[w.role]}>{(w.brand_name || '·').charAt(0).toUpperCase()}</MenuInitial>
+                    )}
                     <ItemBody>
                       <ItemName>{w.brand_name}</ItemName>
                       <ItemSub>{roleLabel(w)}</ItemSub>
@@ -217,30 +225,86 @@ const Container = styled.div`
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 `;
 
+// 워크스페이스 카드 — 사이드바에서 살짝 분리된 카드 (border + bg)
+// 다크 사이드바(#115E59) 위에 떠있는 형태. 통합검색과 함께 시각적 분리.
 const Trigger = styled.button<{ $multiple: boolean; $collapsed: boolean; $admin: boolean }>`
   display: flex;
   align-items: center;
-  gap: 12px;
-  width: 100%;
-  padding: 14px 16px;
-  background: ${(p) => p.$admin ? 'linear-gradient(135deg, rgba(244,63,94,0.14) 0%, rgba(251,113,133,0.06) 100%)' : 'transparent'};
-  border: none;
+  gap: 10px;
+  width: calc(100% - 16px);
+  margin: 8px;
+  padding: 10px 12px;
+  background: ${(p) => p.$admin
+    ? 'linear-gradient(135deg, rgba(244,63,94,0.18) 0%, rgba(251,113,133,0.08) 100%)'
+    : 'rgba(255,255,255,0.06)'};
+  border: 1px solid ${(p) => p.$admin ? 'rgba(244,63,94,0.3)' : 'rgba(94,234,212,0.18)'};
+  border-radius: 10px;
   cursor: ${(p) => (p.$multiple ? 'pointer' : 'default')};
-  transition: background 0.15s;
+  transition: background 0.15s, border-color 0.15s;
   text-align: left;
-  color: ${(p) => p.$admin ? '#FECACA' : '#CCFBF1'};
-  ${(p) => p.$collapsed && 'justify-content: center; padding: 12px 8px;'}
+  color: ${(p) => p.$admin ? '#FECACA' : '#FFFFFF'};
+  ${(p) => p.$collapsed && 'justify-content: center; padding: 8px;'}
   &:hover {
-    ${(p) => p.$multiple && !p.$admin && 'background: rgba(255, 255, 255, 0.08); color: #FFFFFF;'}
-    ${(p) => p.$multiple && p.$admin && 'background: linear-gradient(135deg, rgba(244,63,94,0.22) 0%, rgba(251,113,133,0.10) 100%);'}
+    ${(p) => p.$multiple && !p.$admin && 'background: rgba(255,255,255,0.10); border-color: rgba(94,234,212,0.32);'}
+    ${(p) => p.$multiple && p.$admin && 'background: linear-gradient(135deg, rgba(244,63,94,0.26) 0%, rgba(251,113,133,0.12) 100%); border-color: rgba(244,63,94,0.45);'}
   }
 `;
 
-const AdminIcon = styled.svg`
-  width: 16px; height: 16px; color: #FB7185; flex-shrink: 0;
+// 워크스페이스 로고 (있으면 우선) — 28×28 라운드 8px
+const LogoImg = styled.img`
+  width: 28px; height: 28px;
+  flex-shrink: 0;
+  object-fit: cover;
+  border-radius: 8px;
+  background: #FFFFFF;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.15);
 `;
 
-// 역할을 상징하는 작은 dot — 카드 배경 대신
+// 워크스페이스 이니셜 박스 — 점(Dot) 대체. 역할 색을 반영하면서도 informative
+const InitialBadge = styled.span<{ $color: string }>`
+  width: 28px; height: 28px;
+  flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: ${(p) => p.$color};
+  color: #0B3B36;
+  border-radius: 8px;
+  font-size: 13px; font-weight: 700;
+  letter-spacing: -0.2px;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.15);
+`;
+
+const AdminBadge = styled.span`
+  width: 28px; height: 28px;
+  flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: linear-gradient(135deg, #F43F5E 0%, #BE185D 100%);
+  color: #FFFFFF;
+  border-radius: 8px;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.15);
+`;
+
+// 드롭다운 메뉴 안에서 사용하는 작은 점 (각 워크스페이스 식별)
+// 드롭다운 메뉴 안의 심볼 (각 워크스페이스 식별)
+const MenuLogoImg = styled.img`
+  width: 24px; height: 24px;
+  flex-shrink: 0;
+  object-fit: cover;
+  border-radius: 6px;
+  background: #FFFFFF;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.15);
+`;
+const MenuInitial = styled.span<{ $color: string }>`
+  width: 24px; height: 24px;
+  flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: ${(p) => p.$color};
+  color: #0B3B36;
+  border-radius: 6px;
+  font-size: 12px; font-weight: 700;
+  letter-spacing: -0.2px;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.15);
+`;
+
 const Dot = styled.span<{ $color: string }>`
   width: 8px;
   height: 8px;
@@ -268,11 +332,19 @@ const Name = styled.div<{ $admin?: boolean }>`
   letter-spacing: -0.1px;
 `;
 
-const SubRole = styled.div<{ $admin?: boolean }>`
-  font-size: 11px;
-  font-weight: 500;
-  color: ${(p) => p.$admin ? 'rgba(252,165,165,0.75)' : '#5EEAD4'};
+// 역할 pill — 이름 아래 작은 chip 형태로 분리
+const RolePill = styled.span<{ $admin?: boolean }>`
+  display: inline-flex; align-items: center;
+  margin-top: 2px;
+  padding: 1px 7px;
+  font-size: 10px; font-weight: 600;
+  color: ${(p) => p.$admin ? '#FECACA' : '#5EEAD4'};
+  background: ${(p) => p.$admin ? 'rgba(244,63,94,0.18)' : 'rgba(94,234,212,0.14)'};
+  border: 1px solid ${(p) => p.$admin ? 'rgba(244,63,94,0.30)' : 'rgba(94,234,212,0.22)'};
+  border-radius: 999px;
   letter-spacing: 0.2px;
+  white-space: nowrap;
+  align-self: flex-start;
 `;
 
 const Chevron = styled.svg<{ $open: boolean }>`

@@ -81,12 +81,12 @@ const SYSTEM_PROMPT = `당신은 자료 정리 전문가입니다. 사용자가 
 async function buildAndCreatePost(opts) {
   const {
     business_id, project_id = null, conversation_id = null,
-    title, text_blocks = [], attached_file_ids = [], created_by,
+    title, text_blocks = [], attached_file_ids = [], attached_post_ids = [], created_by,
   } = opts;
   if (!business_id || !created_by) throw new Error('business_id and created_by required');
   if (!title || !String(title).trim()) throw new Error('title required');
-  if (text_blocks.length === 0 && attached_file_ids.length === 0) {
-    throw new Error('at least one text block or file required');
+  if (text_blocks.length === 0 && attached_file_ids.length === 0 && attached_post_ids.length === 0) {
+    throw new Error('at least one text block, file, or post required');
   }
 
   // 1) 한도 검사
@@ -114,6 +114,36 @@ async function buildAndCreatePost(opts) {
         text: text || `(파일 본문 추출 실패: ${f.mime_type || 'unknown mime'})`,
         file_id: f.id,
       });
+    }
+  }
+  if (attached_post_ids.length > 0) {
+    const posts = await Post.findAll({
+      where: { id: { [Op.in]: attached_post_ids }, business_id },
+      attributes: ['id', 'title', 'content_text', 'content_json', 'kind'],
+    });
+    for (const p of posts) {
+      let text = String(p.content_text || '').trim();
+      if (!text && p.content_json) {
+        // content_json 이 TipTap 객체 — text 노드만 평면화
+        try {
+          const json = typeof p.content_json === 'string' ? JSON.parse(p.content_json) : p.content_json;
+          const collect = (n) => {
+            if (!n) return '';
+            if (typeof n === 'string') return n;
+            if (n.text) return n.text;
+            if (Array.isArray(n.content)) return n.content.map(collect).join(' ');
+            return '';
+          };
+          text = collect(json).replace(/\s+/g, ' ').trim();
+        } catch { /* skip */ }
+      }
+      if (text) {
+        sources.push({
+          source: `post:${p.title || `post-${p.id}`}`,
+          text: text.slice(0, 50_000),
+          post_id: p.id,
+        });
+      }
     }
   }
   if (sources.length === 0) throw new Error('no content extracted');

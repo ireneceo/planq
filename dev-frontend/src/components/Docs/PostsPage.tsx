@@ -11,12 +11,13 @@ import { useSearchParams } from 'react-router-dom';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 import SearchBox from '../Common/SearchBox';
 import PanelHeader, { PanelTitle, PanelSubTitle } from '../Layout/PanelHeader';
-import InlineAttachPicker from './InlineAttachPicker';
+import AttachmentField from '../Common/AttachmentField';
 import CategoryCombobox from '../Common/CategoryCombobox';
 import EmptyState from '../Common/EmptyState';
 import { uploadMyFile, uploadProjectFile, fetchWorkspaceFiles } from '../../services/files';
 import ConfirmDialog from '../Common/ConfirmDialog';
 import PostEditor from './PostEditor';
+import PostTableGrid from './PostTableGrid';
 import { generateHTML } from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
 import Link from '@tiptap/extension-link';
@@ -117,6 +118,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
   const submittingRef = useRef(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [aiOpen, setAiOpen] = useState(false);
+  const [aiIntent, setAiIntent] = useState<'manual' | 'ai'>('manual');
   const [signOpen, setSignOpen] = useState(false);
   // 사이클 O3 — Q knowledge 로 보내기 (post → KbDocument import)
   const [knowledgeBusy, setKnowledgeBusy] = useState(false);
@@ -533,19 +535,21 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
       ) : (
       <Sidebar>
         <PanelHeader>
-          <PanelTitle>{scope.type === 'workspace' ? t('page.title', 'Q docs') : t('tab.title', '문서')}</PanelTitle>
-          <HelpDot askCue={t('help.cuePrefill','Q docs 의 템플릿·AI 작성·서명 요청·분할 청구가 어떻게 작동하는지 알려줘') as string} topic="qdocs">
-            {t('help.body','5종 템플릿(견적·청구·NDA·제안·회의록)에서 시작하거나 AI 자동 작성. 작성 후 서명 요청을 보내면 고객이 OTP 인증으로 서명. 견적·계약 post 와 청구서를 연결하면 회차별 분할 청구도 가능.')}
-          </HelpDot>
+          <TitleGroup>
+            <PanelTitle>{scope.type === 'workspace' ? t('page.title', 'Q docs') : t('tab.title', '문서')}</PanelTitle>
+            <HelpDot askCue={t('help.cuePrefill','Q docs 의 템플릿·AI 작성·서명 요청·분할 청구가 어떻게 작동하는지 알려줘') as string} topic="qdocs">
+              {t('help.body','5종 템플릿(견적·청구·NDA·제안·회의록)에서 시작하거나 AI 자동 작성. 작성 후 서명 요청을 보내면 고객이 OTP 인증으로 서명. 견적·계약 post 와 청구서를 연결하면 회차별 분할 청구도 가능.')}
+            </HelpDot>
+          </TitleGroup>
           <HeaderBtnRow>
-            <AiBtn type="button" onClick={() => setAiOpen(true)} title={t('ai.openHint', 'AI 가 문서 본문을 자동 작성') as string}>
+            <AiBtn type="button" onClick={() => { setAiIntent('ai'); setAiOpen(true); }} title={t('ai.openHint', 'AI 가 문서 본문을 자동 작성') as string}>
               <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 16.8 5.8 21.3l2.4-7.4L2 9.4h7.6L12 2z"/></svg>
               {t('ai.btn', 'AI')}
             </AiBtn>
             <TemplateBtn type="button" onClick={openTemplateModal} title={t('templates.openHint', '견적·청구·NDA·제안서·회의록 5종 템플릿에서 시작') as string}>
               {t('templates.btn', '템플릿')}
             </TemplateBtn>
-            <NewBtn type="button" onClick={startNew} title={t('new', '새 문서') as string} aria-label={t('new', '새 문서') as string}>
+            <NewBtn type="button" onClick={() => { setAiIntent('manual'); setAiOpen(true); }} title={t('new', '새 문서 — 빈 문서 또는 표') as string} aria-label={t('new', '새 문서') as string}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
               </svg>
@@ -569,7 +573,11 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
               key={c.name}
               type="button"
               $active={filter.kind === 'category' && filter.name === c.name}
-              onClick={() => setFilter({ kind: 'category', name: c.name })}
+              onClick={() => {
+                // 재클릭 시 토글 해제 (PlanQ UI 표준 — 리스트 재클릭 토글)
+                if (filter.kind === 'category' && filter.name === c.name) setFilter({ kind: 'all' });
+                else setFilter({ kind: 'category', name: c.name });
+              }}
             >
               #{c.name}
               <Count>{c.count}</Count>
@@ -613,7 +621,11 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
                   key={p.id}
                   type="button"
                   $active={filter.kind === 'project' && filter.projectId === p.id}
-                  onClick={() => setFilter({ kind: 'project', projectId: p.id })}
+                  onClick={() => {
+                    // 재클릭 시 토글 해제
+                    if (filter.kind === 'project' && filter.projectId === p.id) setFilter({ kind: 'all' });
+                    else setFilter({ kind: 'project', projectId: p.id });
+                  }}
                 >
                   <ColorDot $color={p.color || '#14B8A6'} />
                   {p.name}
@@ -715,33 +727,12 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
                     ))}
                   </AttachList>
                 )}
-                {mode === 'new' && (pendingUploads.length > 0 || pendingExistingIds.length > 0) && (
-                  <AttachList>
-                    {pendingUploads.map((f, i) => (
-                      <AttachRow key={`u-${i}`}>
-                        <AttachName as="span">{f.name}</AttachName>
-                        <RemoveBtn type="button" onClick={() => setPendingUploads(prev => prev.filter((_, idx) => idx !== i))} title="제거" aria-label="제거">×</RemoveBtn>
-                      </AttachRow>
-                    ))}
-                    {pendingExistingIds.map(fid => (
-                      <AttachRow key={`e-${fid}`}>
-                        <AttachName as="span">{pendingExistingMeta[fid]?.name || `file #${fid}`}</AttachName>
-                        <RemoveBtn type="button" onClick={() => {
-                          setPendingExistingIds(prev => prev.filter(x => x !== fid));
-                          setPendingExistingMeta(prev => { const c = { ...prev }; delete c[fid]; return c; });
-                        }} title="제거" aria-label="제거">×</RemoveBtn>
-                      </AttachRow>
-                    ))}
-                  </AttachList>
-                )}
-                <InlineAttachPicker
+                <AttachmentField
                   businessId={scope.businessId}
-                  excludeIds={[
-                    ...(detail?.attachments?.map(a => a.file_id).filter((x): x is number => !!x) || []),
-                    ...pendingExistingIds,
-                  ]}
-                  onPickFiles={handlePickFiles}
-                  onPickExisting={handlePickExisting}
+                  uploads={pendingUploads}
+                  onUploadsChange={setPendingUploads}
+                  existingFileIds={pendingExistingIds}
+                  onExistingFileIdsChange={setPendingExistingIds}
                 />
               </AttachSection>
             </Body>
@@ -814,7 +805,12 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
               </ViewMeta>
               <div data-print-area>
                 <PrintOnlyTitle>{detail.title}</PrintOnlyTitle>
-                <PostEditor value={detail.content_json} onChange={() => {}} editable={false} />
+                {detail.kind === 'table' && detail.q_record_id ? (
+                  // 표 kind — Q record 그리드 임베드
+                  <PostTableGrid recordId={detail.q_record_id} />
+                ) : (
+                  <PostEditor value={detail.content_json} onChange={() => {}} editable={false} />
+                )}
               </div>
 
               <SignatureProgressSection
@@ -839,11 +835,12 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
                     ))}
                   </AttachList>
                 )}
-                <InlineAttachPicker
+                <AttachmentField
                   businessId={scope.businessId}
-                  excludeIds={detail.attachments?.map(a => a.file_id).filter((x): x is number => !!x) || []}
-                  onPickFiles={handlePickFiles}
-                  onPickExisting={handlePickExisting}
+                  uploads={pendingUploads}
+                  onUploadsChange={setPendingUploads}
+                  existingFileIds={pendingExistingIds}
+                  onExistingFileIdsChange={setPendingExistingIds}
                 />
               </AttachSection>
             </Body>
@@ -906,6 +903,8 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
           businessId={scope.businessId}
           projectId={scope.type === 'project' ? scope.projectId : null}
           onGenerate={startFromAi}
+          onBlank={startNew}
+          intent={aiIntent}
         />
       )}
 
@@ -1030,7 +1029,8 @@ const PrintOnlyTitle = styled.h1`
 `;
 const Layout = styled.div<{ $collapsed?: boolean }>`
   display: grid;
-  grid-template-columns: ${p => p.$collapsed ? '0 1fr' : '320px 1fr'};
+  /* 좌측 리스트 폭 — Q note 와 동일 (300px). 좌측 리스트 패턴 통일 */
+  grid-template-columns: ${p => p.$collapsed ? '0 1fr' : '300px 1fr'};
   height: 100%; min-height: 0;
   background: #F8FAFC;
   overflow: hidden;
@@ -1073,6 +1073,10 @@ const EdgeChevron = styled.span`
   ${EdgeHandle}:hover & { color: #FFFFFF; }
 `;
 // 우측 컨텐츠 — background 를 Content 에 직접 부여
+// 제목 + 헬프 아이콘 묶음 — Q note 와 동일 (제목 끝나면 바로 helpDot 붙임)
+const TitleGroup = styled.div`
+  display: inline-flex; align-items: center; gap: 4px; min-width: 0;
+`;
 const HeaderBtnRow = styled.div`display:flex;align-items:center;gap:6px;`;
 const AiBtn = styled.button`
   height: 32px; padding: 0 12px;

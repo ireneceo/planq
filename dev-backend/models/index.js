@@ -68,6 +68,10 @@ const Document = require('./Document');
 const DocumentRevision = require('./DocumentRevision');
 const DocumentShare = require('./DocumentShare');
 const SignatureRequest = require('./SignatureRequest');
+// ─── Q record (동적 테이블 — Notion DB 패턴) ───
+const QRecord = require('./QRecord');
+const QRecordRow = require('./QRecordRow');
+const QRecordAudit = require('./QRecordAudit');
 
 // ============================================
 // Associations
@@ -372,9 +376,28 @@ module.exports = {
   DocumentRevision,
   DocumentShare,
   SignatureRequest,
+  // Q record
+  QRecord,
+  QRecordRow,
+  QRecordAudit,
   // P6 — 사용자 피드백
   FeedbackItem,
 };
+
+// Q record associations
+QRecord.belongsTo(Business, { foreignKey: 'business_id' });
+QRecord.belongsTo(Project, { foreignKey: 'project_id' });
+QRecord.belongsTo(User, { as: 'creator', foreignKey: 'created_by' });
+QRecord.hasMany(QRecordRow, { as: 'rows', foreignKey: 'q_record_id', onDelete: 'CASCADE' });
+// Post (kind='table') ↔ QRecord 1:1
+Post.belongsTo(QRecord, { as: 'qrecord', foreignKey: 'q_record_id' });
+QRecord.hasOne(Post, { as: 'post', foreignKey: 'q_record_id' });
+QRecordRow.belongsTo(QRecord, { foreignKey: 'q_record_id' });
+QRecordRow.belongsTo(User, { as: 'creator', foreignKey: 'created_by' });
+QRecordRow.belongsTo(User, { as: 'editor', foreignKey: 'updated_by' });
+QRecordAudit.belongsTo(QRecord, { foreignKey: 'q_record_id' });
+QRecordAudit.belongsTo(QRecordRow, { foreignKey: 'q_record_row_id' });
+QRecordAudit.belongsTo(User, { foreignKey: 'user_id' });
 
 // Q docs associations
 DocumentTemplate.belongsTo(Business, { foreignKey: 'business_id' });

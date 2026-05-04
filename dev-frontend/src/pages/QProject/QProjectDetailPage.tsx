@@ -7,7 +7,6 @@ import { apiFetch } from '../../contexts/AuthContext';
 import PageShell from '../../components/Layout/PageShell';
 import AutoSaveField from '../../components/Common/AutoSaveField';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
-import ProcessPartsTab from './ProcessPartsTab';
 import TasksTab from './TasksTab';
 import DocsTab from './DocsTab';
 import ProjectPostsTab from './ProjectPostsTab';
@@ -20,7 +19,8 @@ import { STATUS_COLOR, displayStatus, type StatusCode } from '../../utils/taskLa
 
 const PROJECT_COLORS = PROJECT_COLOR_PALETTE.map(p => p.value);
 
-type TabKey = 'dashboard' | 'tasks' | 'info' | 'process' | 'clients' | 'files' | 'docs' | 'transactions';
+// process 탭 폐지 — Q docs 의 표(table) kind 로 흡수. 이전 url ?tab=process 는 docs 로 fallback.
+type TabKey = 'dashboard' | 'tasks' | 'info' | 'clients' | 'files' | 'docs' | 'transactions';
 
 interface BizMember { id: number; user_id: number; user?: { id: number; name: string; email?: string; is_ai?: boolean } }
 
@@ -61,8 +61,10 @@ const QProjectDetailPage: React.FC = () => {
   const projectId = id ? Number(id) : 0;
   const [searchParams, setSearchParams] = useSearchParams();
 
-  const validTabs: TabKey[] = ['dashboard', 'tasks', 'info', 'process', 'clients', 'files', 'docs', 'transactions'];
-  const initialTab = (searchParams.get('tab') as TabKey) || 'dashboard';
+  const validTabs: TabKey[] = ['dashboard', 'tasks', 'info', 'clients', 'files', 'docs', 'transactions'];
+  const rawTab = searchParams.get('tab');
+  // 이전 ?tab=process 진입 호환 — docs 로 fallback
+  const initialTab = (rawTab === 'process' ? 'docs' : (rawTab as TabKey)) || 'dashboard';
   const [tab, setTabState] = useState<TabKey>(validTabs.includes(initialTab) ? initialTab : 'dashboard');
   const setTab = (k: TabKey) => {
     setTabState(k);
@@ -70,8 +72,6 @@ const QProjectDetailPage: React.FC = () => {
     if (k === 'dashboard') sp.delete('tab'); else sp.set('tab', k);
     setSearchParams(sp, { replace: true });
   };
-  const [editingTabLabel, setEditingTabLabel] = useState(false);
-  const [tabLabelDraft, setTabLabelDraft] = useState('');
   const [newClientName, setNewClientName] = useState('');
   const [newClientEmail, setNewClientEmail] = useState('');
   const [issues, setIssues] = useState<{ id: number; body: string; author?: { name: string }; created_at: string }[]>([]);
@@ -216,39 +216,11 @@ const QProjectDetailPage: React.FC = () => {
       }
     >
       <TabBar>
-        {([['dashboard', '대시보드'], ['tasks', '업무'], ['process', project.process_tab_label || t('tab.defaultProcess', '테이블')], ['clients', '고객'], ['files', '파일'], ['docs', '문서'], ['transactions', '거래'], ['info', '상세정보']] as [TabKey, string][]).map(([k, lbl]) => {
-          const defaultProcess = t('tab.defaultProcess', '테이블');
-          if (k === 'process' && editingTabLabel) {
-            return (
-              <TabLabelInput key={k} autoFocus value={tabLabelDraft}
-                onChange={e => setTabLabelDraft(e.target.value)}
-                onBlur={async () => {
-                  const v = tabLabelDraft.trim() || defaultProcess;
-                  setEditingTabLabel(false);
-                  if (v !== (project.process_tab_label || defaultProcess)) {
-                    await apiFetch(`/api/projects/${projectId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ process_tab_label: v }) });
-                    setProject(prev => prev ? { ...prev, process_tab_label: v } : prev);
-                  }
-                }}
-                onKeyDown={e => {
-                  if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
-                  if (e.key === 'Escape') { setTabLabelDraft(''); setEditingTabLabel(false); }
-                }} />
-            );
-          }
-          return (
-            <Tab key={k} $active={tab === k}
-              onClick={() => setTab(k)}
-              onDoubleClick={() => { if (k === 'process') { setTabLabelDraft(project.process_tab_label || defaultProcess); setEditingTabLabel(true); } }}
-              title={k === 'process' ? t('tab.processEditHint', '더블클릭하여 이름 변경') as string : ''}
-            >
-              {t(`tab.${k}`, lbl)}
-              {k === 'process' && tab === k && (
-                <TabEditIcon onClick={e => { e.stopPropagation(); setTabLabelDraft(project.process_tab_label || defaultProcess); setEditingTabLabel(true); }} title={t('tab.renameHint', '이름 변경') as string}>✎</TabEditIcon>
-              )}
-            </Tab>
-          );
-        })}
+        {([['dashboard', '대시보드'], ['tasks', '업무'], ['clients', '고객'], ['files', '파일'], ['docs', '문서'], ['transactions', '거래'], ['info', '상세정보']] as [TabKey, string][]).map(([k, lbl]) => (
+          <Tab key={k} $active={tab === k} onClick={() => setTab(k)}>
+            {t(`tab.${k}`, lbl)}
+          </Tab>
+        ))}
       </TabBar>
 
       {tab === 'dashboard' && (
@@ -792,7 +764,6 @@ const QProjectDetailPage: React.FC = () => {
           </Card>
         </ClientsBody>
       )}
-      {tab === 'process' && <ProcessPartsTab projectId={projectId} />}
       {tab === 'transactions' && <TransactionsTab projectId={projectId} />}
 
       {closeModalOpen && (
@@ -894,8 +865,6 @@ const Tab = styled.button<{$active:boolean}>`
   display:inline-flex;align-items:center;gap:6px;
   &:hover{color:#0F766E;}
 `;
-const TabEditIcon = styled.span`font-size:11px;opacity:0.6;cursor:pointer;&:hover{opacity:1;color:#14B8A6;}`;
-const TabLabelInput = styled.input`padding:10px 14px;font-size:13px;font-weight:600;color:#0F766E;background:#F0FDFA;border:1px solid #14B8A6;border-bottom:2px solid #14B8A6;border-radius:6px;font-family:inherit;min-width:100px;&:focus{outline:none;}`;
 const DashboardBody = styled.div`display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px;`;
 const InfoBody = styled.div`display:grid;grid-template-columns:repeat(2, minmax(0, 1fr));gap:16px;@media (max-width:900px){grid-template-columns:1fr;}`;
 const EditGrid = styled.div`display:grid;grid-template-columns:1fr 1fr;gap:12px;`;

@@ -143,8 +143,11 @@
     "tagline": "한 줄 소개 (선택)",
     "taglinePlaceholder": "예) AI 언어 연구소",
     "taglineEn": "영문 한 줄 소개 (선택)",
-    "logoUrl": "로고 이미지 URL",
-    "logoUrlPlaceholder": "https://...",
+    "logoUrl": "심볼",
+    "logoUrlPlaceholder": "https://... (또는 위에서 업로드)",
+    "logoUpload": "심볼 업로드",
+    "logoChange": "심볼 변경",
+    "logoRemove": "제거",
     "color": "포인트 색상",
     "colorHint": "대화 헤더·버튼에 사용되는 색상"
   },

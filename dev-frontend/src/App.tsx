@@ -47,6 +47,9 @@ const DashboardPage = lazy(() => import('./pages/Dashboard/DashboardPage'));
 const TodoPage = lazy(() => import('./pages/Todo/TodoPage'));
 const QBillPage = lazy(() => import('./pages/QBill/QBillPage'));
 const KnowledgePage = lazy(() => import('./pages/Knowledge/KnowledgePage'));
+// Q record 메뉴는 폐지 — Q docs 의 표 kind 로 흡수. /records → /docs redirect.
+// 이전 record id 직접 진입 (/records/:id) 시 연결된 post 로 리다이렉트 (RecordToDocRedirect)
+const RecordToDocRedirect = lazy(() => import('./pages/Records/RecordToDocRedirect'));
 import './App.css';
 
 // 페이지 chunk 로딩 중 표시 — 빠르고 가벼운 fallback (CLS 방지 위해 viewport 채움)
@@ -161,11 +164,17 @@ function App() {
           </ProtectedRoute>
         } />
 
-        <Route path="/knowledge" element={
+        <Route path="/info" element={
           <ProtectedRoute>
             <MainLayout><KnowledgePage /></MainLayout>
           </ProtectedRoute>
         } />
+        {/* 호환: 이전 URL /knowledge → /info */}
+        <Route path="/knowledge" element={<Navigate to="/info" replace />} />
+
+        {/* Q record 메뉴 폐지 — Q docs 안의 표 kind 로 흡수 */}
+        <Route path="/records" element={<Navigate to="/docs" replace />} />
+        <Route path="/records/:id" element={<RecordToDocRedirect />} />
 
         <Route path="/projects" element={
           <ProtectedRoute>

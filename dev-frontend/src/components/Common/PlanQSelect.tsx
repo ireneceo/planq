@@ -67,6 +67,7 @@ interface PlanQSelectProps<IsMulti extends boolean = false>
 // ─────────────────────────────────────────────────────────
 // 사이즈별 패딩
 // ─────────────────────────────────────────────────────────
+// Toolbar 표준 높이 — Q task 기준 36px (sm), 모달 입력 44px (md)
 const SIZE_HEIGHT = {
   sm: 36,
   md: 44,

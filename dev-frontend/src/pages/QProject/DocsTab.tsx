@@ -605,7 +605,7 @@ const DocsTab: React.FC<Props> = (props) => {
       </Split>
 
       {/* 미리보기 드로어 */}
-      <DetailDrawer open={!!preview} onClose={() => setPreview(null)} width={520} ariaLabel={tr('docs.preview.aria', '파일 미리보기')}>
+      <DetailDrawer open={!!preview} onClose={() => setPreview(null)} width={480} ariaLabel={tr('docs.preview.aria', '파일 미리보기')}>
         {preview && (
           <>
             <DetailDrawer.Header onClose={() => setPreview(null)}>
@@ -1182,9 +1182,10 @@ const DragOverlayInner = styled.div`
   font-size:15px;font-weight:700;color:#0F766E;
 `;
 
+// 박스 제거 — 페이지 배경 위 inline 배치 (박스 안에 박스 X)
 const Toolbar = styled.div`
   display:flex;align-items:center;gap:8px;flex-wrap:wrap;
-  padding:8px 12px;background:#fff;border:1px solid #E2E8F0;border-radius:10px;
+  padding:0;
 `;
 const SortWrap = styled.div`width:130px;`;
 const ViewToggle = styled.div`display:inline-flex;background:#F1F5F9;border:1px solid #E2E8F0;border-radius:8px;padding:2px;gap:2px;`;
