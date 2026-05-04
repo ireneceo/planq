@@ -41,7 +41,6 @@ const CueHelpDrawer: React.FC = () => {
   // 피드백 모드 폼 상태
   const [fbCategory, setFbCategory] = useState<FeedbackCategory>('improve');
   const [fbPriority, setFbPriority] = useState<'normal' | 'high'>('normal');
-  const [fbTitle, setFbTitle] = useState('');
   const [fbBody, setFbBody] = useState('');
   const [fbResultMsg, setFbResultMsg] = useState<string | null>(null);
 
@@ -123,7 +122,7 @@ const CueHelpDrawer: React.FC = () => {
 
   // 피드백 제출 (자동 메타: page_url, user_agent)
   const submitFeedback = useCallback(async () => {
-    if (!fbTitle.trim() || !fbBody.trim() || submitting) return;
+    if (!fbBody.trim() || submitting) return;
     setSubmitting(true);
     setFbResultMsg(null);
     try {
@@ -133,7 +132,9 @@ const CueHelpDrawer: React.FC = () => {
         body: JSON.stringify({
           category: fbCategory,
           priority: fbPriority,
-          title: fbTitle.trim(),
+          // title 은 더 이상 사용자에게 묻지 않음 — body 단일 입력.
+          // 백엔드 호환 위해 body 의 첫 줄(또는 처음 60자) 을 임시 title 로 보냄.
+          title: (fbBody.trim().split('\n')[0] || '').slice(0, 60) || '(제목 없음)',
           body: fbBody.trim(),
           page_url: location.pathname + (location.search || ''),
         }),
@@ -141,7 +142,6 @@ const CueHelpDrawer: React.FC = () => {
       const j = await res.json();
       if (!res.ok || !j.success) throw new Error(j.message || 'feedback error');
       setFbResultMsg(t('qhelper.fbThanks', '접수됐습니다 #{{id}} — 빠르게 검토할게요', { id: j.data?.id }) as string);
-      setFbTitle('');
       setFbBody('');
       setFbCategory('improve');
       setFbPriority('normal');
@@ -151,7 +151,7 @@ const CueHelpDrawer: React.FC = () => {
     } finally {
       setSubmitting(false);
     }
-  }, [fbCategory, fbPriority, fbTitle, fbBody, submitting, location, t]);
+  }, [fbCategory, fbPriority, fbBody, submitting, location, t]);
 
   return (
     <>
@@ -299,21 +299,12 @@ const CueHelpDrawer: React.FC = () => {
                 </FbCatRow>
               </FbField>
               <FbField>
-                <FbLabel>{t('qhelper.fbTitle', '제목')}</FbLabel>
-                <FbInput
-                  value={fbTitle}
-                  onChange={e => setFbTitle(e.target.value)}
-                  placeholder={t('qhelper.fbTitlePh', '한 줄 요약') as string}
-                  maxLength={200}
-                />
-              </FbField>
-              <FbField>
                 <FbLabel>{t('qhelper.fbBody', '내용')}</FbLabel>
                 <FbTextArea
                   value={fbBody}
                   onChange={e => setFbBody(e.target.value)}
                   placeholder={t('qhelper.fbBodyPh', '구체적으로 적어주시면 빠르게 반영할 수 있습니다.\n예) 어디서 / 무엇이 / 어떻게 되었으면') as string}
-                  rows={5}
+                  rows={6}
                 />
               </FbField>
               <FbCheck>
@@ -356,7 +347,7 @@ const CueHelpDrawer: React.FC = () => {
               </SendBtn>
             </>
           ) : (
-            <FbSendBtn type="button" onClick={submitFeedback} disabled={submitting || !fbTitle.trim() || !fbBody.trim()}>
+            <FbSendBtn type="button" onClick={submitFeedback} disabled={submitting || !fbBody.trim()}>
               {submitting ? t('qhelper.fbSending', '제출 중…') : t('qhelper.fbSend', '제출')}
             </FbSendBtn>
           )}
@@ -606,12 +597,6 @@ const FbCatBtn = styled.button<{ $active: boolean }>`
   color: ${p => p.$active ? '#FFFFFF' : '#475569'};
   transition: all 0.15s;
   &:hover { background: ${p => p.$active ? '#E11D48' : '#E2E8F0'}; }
-`;
-const FbInput = styled.input`
-  height: 36px; padding: 0 10px;
-  border: 1px solid #E2E8F0; border-radius: 8px;
-  font-size: 13px; color: #0F172A;
-  &:focus { outline: none; border-color: #F43F5E; box-shadow: 0 0 0 3px rgba(244,63,94,0.15); }
 `;
 const FbTextArea = styled.textarea`
   padding: 10px 12px;

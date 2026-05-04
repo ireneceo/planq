@@ -265,7 +265,7 @@ router.get('/', authenticateToken, async (req, res, next) => {
         {
           model: ProjectMember,
           as: 'projectMembers',
-          include: [{ model: User, attributes: ['id', 'name', 'email'] }],
+          include: [{ model: User, attributes: ['id', 'name', 'name_localized', 'email'] }],
         },
         {
           model: ProjectClient,
@@ -275,7 +275,32 @@ router.get('/', authenticateToken, async (req, res, next) => {
       ],
     });
 
-    return successResponse(res, projects.map(p => p.toJSON()));
+    // 워크스페이스 표시명 enrichment — BusinessMember.name 이 있으면 그걸 우선.
+    // 메모 project_account_workspace_profile_split: 사이드바·UserChip·리스트 모두 워크스페이스 표시명 우선.
+    // 응답의 User 객체에 display_name 과 display_name_localized 채워서 displayName() 헬퍼가 자동 적용.
+    const bms = await BusinessMember.findAll({
+      where: { business_id: businessId },
+      attributes: ['user_id', 'name', 'name_localized', 'role'],
+    });
+    const bmMap = new Map(bms.map(b => [b.user_id, { name: b.name, name_localized: b.name_localized, role: b.role }]));
+
+    const result = projects.map(p => {
+      const json = p.toJSON();
+      if (Array.isArray(json.projectMembers)) {
+        json.projectMembers = json.projectMembers.map(m => {
+          const bm = bmMap.get(m.user_id);
+          if (m.User && bm) {
+            m.User.display_name = bm.name || null;
+            m.User.display_name_localized = bm.name_localized || null;
+            m.User.workspace_role = bm.role;
+          }
+          return m;
+        });
+      }
+      return json;
+    });
+
+    return successResponse(res, result);
   } catch (err) { next(err); }
 });
 
@@ -506,13 +531,9 @@ router.post('/conversations/:id/messages', authenticateToken, async (req, res, n
       }
     }
     const { content, reply_to_message_id, kind } = req.body || {};
-    if (!content || !String(content).trim()) {
-      return errorResponse(res, 'content is required', 400);
-    }
-
-    // 줄바꿈/공백 보존 — trim 은 양 끝만, 내부 \n 유지.
-    // String.trim() 기본 동작이 양 끝만 처리하므로 그대로 사용.
-    const cleaned = String(content).trim();
+    // content 빈 값 허용 — 이미지/파일만 첨부한 메시지 (post-link 형태) 가능.
+    // 단, content 와 첨부가 모두 비어 있으면 useless 이지만 그건 클라이언트 책임.
+    const cleaned = content ? String(content).trim() : '';
 
     const msg = await Message.create({
       conversation_id: conv.id,
@@ -682,9 +703,15 @@ router.get('/conversations/:id/messages', authenticateToken, async (req, res, ne
         return errorResponse(res, 'forbidden_channel', 403);
       }
     }
+    const { MessageAttachment } = require('../models');
     const msgs = await Message.findAll({
       where: { conversation_id: conv.id, is_deleted: false },
-      include: [{ model: User, as: 'sender', attributes: ['id', 'name', 'email', 'name_localized'] }],
+      include: [
+        { model: User, as: 'sender', attributes: ['id', 'name', 'email', 'name_localized'] },
+        // 첨부 — 페이지 새로고침/재진입 시 채팅 이미지·파일이 사라지지 않도록 필수.
+        // association alias 'attachments' (models/index.js:119)
+        { model: MessageAttachment, as: 'attachments', attributes: ['id', 'file_name', 'file_size', 'mime_type', 'file_id'], required: false },
+      ],
       order: [['created_at', 'ASC']],
       limit: 200,
     });
@@ -1622,17 +1649,35 @@ async function loadProjectDetail(projectId) {
       {
         model: ProjectMember,
         as: 'projectMembers',
-        include: [{ model: User, attributes: ['id', 'name', 'email'] }],
+        include: [{ model: User, attributes: ['id', 'name', 'name_localized', 'email'] }],
       },
       {
         model: ProjectClient,
         as: 'projectClients',
-        attributes: { exclude: ['invite_token'] }, // 토큰은 생성/조회 시만 별도 반환
+        attributes: { exclude: ['invite_token'] },
       },
     ],
   });
   if (!project) return null;
-  return project.toJSON();
+  const json = project.toJSON();
+  // 워크스페이스 표시명 enrichment — BusinessMember.name 우선
+  const bms = await BusinessMember.findAll({
+    where: { business_id: project.business_id },
+    attributes: ['user_id', 'name', 'name_localized', 'role'],
+  });
+  const bmMap = new Map(bms.map(b => [b.user_id, { name: b.name, name_localized: b.name_localized, role: b.role }]));
+  if (Array.isArray(json.projectMembers)) {
+    json.projectMembers = json.projectMembers.map(m => {
+      const bm = bmMap.get(m.user_id);
+      if (m.User && bm) {
+        m.User.display_name = bm.name || null;
+        m.User.display_name_localized = bm.name_localized || null;
+        m.User.workspace_role = bm.role;
+      }
+      return m;
+    });
+  }
+  return json;
 }
 
 // ============================================
@@ -1733,6 +1778,13 @@ router.get('/workspace/:bizId/all-files', authenticateToken, async (req, res, ne
     });
     for (const f of directFiles) {
       const proj = projMap.get(f.project_id);
+      // 이미지면 public-image 엔드포인트로 썸네일 노출 (<img src> 호환).
+      // 비이미지나 외부저장(gdrive)은 preview_url 생략.
+      const isImage = f.mime_type && f.mime_type.startsWith('image/');
+      const isPlanQ = f.storage_provider === 'planq' || !f.storage_provider;
+      const previewUrl = (isImage && isPlanQ && f.file_path)
+        ? `/api/files/public-image/${require('path').basename(f.file_path)}`
+        : undefined;
       results.push({
         id: `direct-${f.id}`,
         source: 'direct',
@@ -1745,6 +1797,7 @@ router.get('/workspace/:bizId/all-files', authenticateToken, async (req, res, ne
         download_url: f.storage_provider === 'gdrive' && f.external_url
           ? f.external_url
           : `/api/files/${bizId}/${f.id}/download`,
+        preview_url: previewUrl,
         external_id: f.external_id,
         external_url: f.external_url,
         folder_id: f.folder_id,
@@ -1772,6 +1825,10 @@ router.get('/workspace/:bizId/all-files', authenticateToken, async (req, res, ne
       for (const a of chatFiles) {
         const conv = convMap.get(a.Message.conversation_id);
         const proj = conv ? projMap.get(conv.project_id) : null;
+        const isImage = a.mime_type && a.mime_type.startsWith('image/');
+        const previewUrl = (isImage && a.file_path)
+          ? `/api/message-attachments/public/${path.basename(a.file_path)}`
+          : undefined;
         results.push({
           id: `chat-${a.id}`,
           source: 'chat',
@@ -1782,6 +1839,7 @@ router.get('/workspace/:bizId/all-files', authenticateToken, async (req, res, ne
           uploader_name: a.Message.sender ? a.Message.sender.name : null,
           uploaded_at: (a.createdAt || a.created_at || new Date()).toISOString ? (a.createdAt || a.created_at).toISOString() : new Date().toISOString(),
           download_url: a.file_path ? `/uploads/${path.relative(path.join(__dirname, '..', 'uploads'), a.file_path)}` : null,
+          preview_url: previewUrl,
           context: conv ? { kind: 'conversation', id: conv.id, label: conv.title || '대화방' } : undefined,
           project_context: proj ? { id: proj.id, name: proj.name, color: proj.color } : null,
           folder_id: null,

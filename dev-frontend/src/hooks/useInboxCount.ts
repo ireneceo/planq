@@ -25,13 +25,21 @@ export function useInboxCount(businessId: number | null | undefined): number {
     refresh();
 
     // Socket.IO 'inbox:refresh' 구독 — Todo/Inbox 페이지에서 발행
-    const token = getAccessToken();
-    if (token) {
+    if (getAccessToken()) {
       const socket = io(window.location.origin, {
-        auth: { token },
+        auth: (cb) => cb({ token: getAccessToken() }),
         transports: ['websocket', 'polling'],
         reconnection: true,
-        reconnectionDelay: 2000,
+        reconnectionDelay: 1500,
+        reconnectionDelayMax: 8000,
+        reconnectionAttempts: Infinity,
+      });
+      socket.on('connect_error', async (err) => {
+        const msg = String((err as Error)?.message || '');
+        if (/auth|token|jwt|unauthorized/i.test(msg)) {
+          const { apiFetch } = await import('../contexts/AuthContext');
+          await apiFetch('/api/auth/me').catch(() => null);
+        }
       });
       socketRef.current = socket;
 

@@ -91,7 +91,7 @@
     "cta": "+ Add knowledge"
   },
   "modal": {
-    "title": "New info",
+    "title": "New info — register",
     "readPolicy": "Share scope",
     "policyAll": "Whole workspace",
     "policyAllHint": "Owner & members can read",

@@ -54,6 +54,21 @@ async function callAiEstimate(title, description) {
   }
 }
 
+// POST /api/tasks/estimate-preview — 작성 중인 task (id 없음) 의 AI 추정.
+//   바디: { title, description? } — 캐시 없음, 단순 LLM 호출.
+//   업무 추가 폼에서 "AI 추천" 버튼용.
+router.post('/estimate-preview', authenticateToken, async (req, res, next) => {
+  try {
+    const { title, description } = req.body || {};
+    if (!title || !String(title).trim()) {
+      return errorResponse(res, 'title_required', 400);
+    }
+    const ai = await callAiEstimate(String(title).trim(), String(description || ''));
+    if (!ai) return errorResponse(res, 'ai_unavailable', 503);
+    return successResponse(res, { value: ai.hours, reason: ai.reason, model: AI_MODEL });
+  } catch (e) { next(e); }
+});
+
 // POST /api/tasks/:taskId/estimate/ai
 router.post('/:taskId/estimate/ai', authenticateToken, async (req, res, next) => {
   try {

@@ -31,8 +31,63 @@ router.get('/:businessId', authenticateToken, attachWorkspaceScope(), async (req
       ],
       order: [['last_message_at', 'DESC']]
     });
-    successResponse(res, conversations);
+    // 사용자 본인의 pinned_at 을 conversation 응답에 부착 (응답 sort 용 + UI 별 표시).
+    // ConversationParticipant 의 pinned_at 은 사용자별 — 즉, 같은 conv 라도 사람마다 핀 상태가 다름.
+    const myParts = await ConversationParticipant.findAll({
+      where: { user_id: req.user.id, conversation_id: conversations.map(c => c.id) },
+      attributes: ['conversation_id', 'pinned_at'],
+    });
+    const pinMap = new Map(myParts.map(p => [p.conversation_id, p.pinned_at]));
+    const enriched = conversations.map(c => {
+      const obj = c.toJSON();
+      obj.my_pinned_at = pinMap.get(c.id) || null;
+      return obj;
+    });
+    // 정렬: 핀 우선 (pinned_at NOT NULL DESC), 그 안에서 last_message_at DESC
+    enriched.sort((a, b) => {
+      const ap = a.my_pinned_at ? 1 : 0;
+      const bp = b.my_pinned_at ? 1 : 0;
+      if (ap !== bp) return bp - ap; // 핀이 위로
+      const al = a.last_message_at ? new Date(a.last_message_at).getTime() : 0;
+      const bl = b.last_message_at ? new Date(b.last_message_at).getTime() : 0;
+      return bl - al;
+    });
+    successResponse(res, enriched);
   } catch (error) { next(error); }
+});
+
+// ─────────────────────────────────────────────────────────
+// Pin / Unpin (사용자별 즐겨찾기)
+// ─────────────────────────────────────────────────────────
+//   POST   /api/conversations/:businessId/:id/pin    — 핀
+//   DELETE /api/conversations/:businessId/:id/pin    — 핀 해제
+//   참여자가 아니어도 멤버 이상이면 핀 가능 (해당 사용자의 ConversationParticipant 자동 생성).
+router.post('/:businessId/:id/pin', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+  try {
+    const businessId = Number(req.params.businessId);
+    const convId = Number(req.params.id);
+    const conv = await Conversation.findOne({ where: { id: convId, business_id: businessId } });
+    if (!conv) return errorResponse(res, 'conversation_not_found', 404);
+    const [part] = await ConversationParticipant.findOrCreate({
+      where: { conversation_id: convId, user_id: req.user.id },
+      defaults: { conversation_id: convId, user_id: req.user.id, role: 'member' },
+    });
+    await part.update({ pinned_at: new Date() });
+    return successResponse(res, { pinned_at: part.pinned_at });
+  } catch (err) { next(err); }
+});
+router.delete('/:businessId/:id/pin', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+  try {
+    const businessId = Number(req.params.businessId);
+    const convId = Number(req.params.id);
+    const part = await ConversationParticipant.findOne({
+      where: { conversation_id: convId, user_id: req.user.id },
+    });
+    if (part && part.pinned_at) {
+      await part.update({ pinned_at: null });
+    }
+    return successResponse(res, { pinned_at: null });
+  } catch (err) { next(err); }
 });
 
 // ─────────────────────────────────────────────────────────
@@ -236,7 +291,8 @@ router.get('/:businessId/:id', authenticateToken, attachWorkspaceScope(), async 
 router.post('/:businessId/:id/messages', authenticateToken, attachWorkspaceScope(), async (req, res, next) => {
   try {
     const { content, is_internal } = req.body;
-    if (!content || !String(content).trim()) return errorResponse(res, 'content required', 400);
+    // 첨부만 있는 메시지 허용 (빈 content OK — 첨부는 이후 link 단계에서 추가됨)
+    const cleanedContent = content ? String(content) : '';
 
     const conversation = await Conversation.findOne({
       where: { id: req.params.id, business_id: req.params.businessId }
@@ -253,7 +309,7 @@ router.post('/:businessId/:id/messages', authenticateToken, attachWorkspaceScope
     const msg = await Message.create({
       conversation_id: conversation.id,
       sender_id: req.user.id,
-      content: String(content),
+      content: cleanedContent,
       kind: 'text',
       is_ai: false,
       is_internal: internalFlag

@@ -79,9 +79,22 @@ const TodoPage: React.FC = () => {
   const socketRef = useRef<Socket | null>(null);
   useEffect(() => {
     if (!bizId || !user) return;
-    const token = getAccessToken();
-    if (!token) return;
-    const s = io({ auth: { token }, transports: ['websocket', 'polling'], reconnection: true });
+    if (!getAccessToken()) return;
+    const s = io({
+      auth: (cb) => cb({ token: getAccessToken() }),
+      transports: ['websocket', 'polling'],
+      reconnection: true,
+      reconnectionDelay: 1500,
+      reconnectionDelayMax: 8000,
+      reconnectionAttempts: Infinity,
+    });
+    s.on('connect_error', async (err) => {
+      const msg = String((err as Error)?.message || '');
+      if (/auth|token|jwt|unauthorized/i.test(msg)) {
+        const { apiFetch } = await import('../../contexts/AuthContext');
+        await apiFetch('/api/auth/me').catch(() => null);
+      }
+    });
     socketRef.current = s;
     let pending: number | null = null;
     const debouncedReload = () => {

@@ -147,7 +147,7 @@ const AdminFeedbackPage = () => {
             <Row key={it.id} $active={detailId === it.id} onClick={() => setDetailId(prev => prev === it.id ? null : it.id)}>
               <CatChip $cat={it.category}>{t(`qhelper.fbCat.${it.category}`)}</CatChip>
               {it.priority === 'high' && <UrgentChip>{t('adminFeedback.urgent', '긴급')}</UrgentChip>}
-              <RowTitle>{it.title}</RowTitle>
+              <RowTitle>{(it.body || '').replace(/\s+/g, ' ').trim().slice(0, 80) || `#${it.id}`}</RowTitle>
               <RowMeta>
                 {it.user?.name || `#${it.user_id}`} · {new Date(it.created_at).toLocaleDateString()}
               </RowMeta>
@@ -163,7 +163,7 @@ const AdminFeedbackPage = () => {
         ariaLabel={t('adminFeedback.detailTitle', '피드백 상세') as string}
       >
         <DetailDrawer.Header onClose={() => setDetailId(null)}>
-          <DrawerTitle>#{detail?.id} {detail?.title}</DrawerTitle>
+          <DrawerTitle>#{detail?.id}</DrawerTitle>
         </DetailDrawer.Header>
         <DetailDrawer.Body>
           {detail && (
@@ -183,7 +183,7 @@ const AdminFeedbackPage = () => {
                 </Meta>
               </Section>
               <Section>
-                <SectionLabel>{t('adminFeedback.body', '본문')}</SectionLabel>
+                <SectionLabel>{t('adminFeedback.body', '내용')}</SectionLabel>
                 <BodyBox>{detail.body}</BodyBox>
               </Section>
               <Section>

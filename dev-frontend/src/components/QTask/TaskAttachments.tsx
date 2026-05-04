@@ -1,10 +1,10 @@
-// Task 첨부파일 UI — 드래그앤드롭 + 업로드 + 리스트 + 다운로드 + 삭제 + 기존 파일 선택
+// Task 첨부파일 UI — 드래그앤드롭 + 업로드 + 리스트 + 다운로드 + 삭제 + 기존 파일/문서 선택 (모두 인라인)
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import styled from 'styled-components';
 import { apiFetch, useAuth } from '../../contexts/AuthContext';
 import ConfirmDialog from '../Common/ConfirmDialog';
-import FilePicker, { type FilePickerResult } from '../Common/FilePicker';
+import AttachmentField from '../Common/AttachmentField';
 
 type AttachRow = {
   id: number;
@@ -35,6 +35,10 @@ export default function TaskAttachments({ taskId, onChangeCount }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<AttachRow | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
+  // 인라인 picker 의 임시 staging — 픽 후 즉시 link 또는 upload, 닫음.
+  const [stageUploads, setStageUploads] = useState<File[]>([]);
+  const [stageExistingFileIds, setStageExistingFileIds] = useState<number[]>([]);
+  const [stageExistingPostIds, setStageExistingPostIds] = useState<number[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
@@ -115,20 +119,25 @@ export default function TaskAttachments({ taskId, onChangeCount }: Props) {
     <Wrap>
       <Head>
         <Title>{t('attachments.title')} {visibleRows.length > 0 && <Count>({visibleRows.length})</Count>}</Title>
-        <AddBtn type="button" onClick={() => setPickerOpen(true)} disabled={uploading}>
-          + {t('attachments.add')}
+        {/* "+ 파일 추가" 토글 — 인라인 폼의 "+ 파일·문서 첨부" 와 동일 패턴 (열고 닫기). */}
+        <AddBtn type="button" onClick={() => setPickerOpen(v => !v)} disabled={uploading} $active={pickerOpen}>
+          {pickerOpen ? '× ' : '+ '}{t('attachments.add')}
         </AddBtn>
         <input ref={inputRef} type="file" multiple hidden
           onChange={e => e.target.files && upload(e.target.files)} />
       </Head>
-      <Drop
-        $over={dragOver}
-        onDragOver={e => { e.preventDefault(); setDragOver(true); }}
-        onDragLeave={() => setDragOver(false)}
-        onDrop={onDrop}
-      >
-        {loading ? <Dim>{t('attachments.loading')}</Dim> :
-          visibleRows.length === 0 ? <Dim>{t('attachments.dropHere')}</Dim> : (
+      {/* 파일 리스트 — 표시할 게 있을 때만 렌더 (빈 영역 공백 제거).
+          loading / 파일 있음 / "첨부된 파일 없음" (picker 닫힌 상태만) / 업로드중 / 에러 */}
+      {(loading || visibleRows.length > 0 || (visibleRows.length === 0 && !pickerOpen) || uploading || error) && (
+        <ListArea
+          onDragOver={e => { e.preventDefault(); setDragOver(true); }}
+          onDragLeave={() => setDragOver(false)}
+          onDrop={onDrop}
+          $over={dragOver}
+        >
+          {loading && <Dim>{t('attachments.loading')}</Dim>}
+          {!loading && visibleRows.length === 0 && !pickerOpen && <Dim>{t('attachments.empty', '첨부된 파일 없음')}</Dim>}
+          {!loading && visibleRows.length > 0 && (
             <List>
               {visibleRows.map(r => {
                 const isImg = r.mime_type?.startsWith('image/');
@@ -141,7 +150,7 @@ export default function TaskAttachments({ taskId, onChangeCount }: Props) {
                     )}
                     <Meta onClick={() => download(r)}>
                       <Name>{r.original_name}</Name>
-                      <Sub>{fmtSize(r.file_size)} · {r.uploader?.name || '-'} · {new Date(r.created_at).toLocaleString('ko-KR', { dateStyle: 'short', timeStyle: 'short' })}</Sub>
+                      <Sub>{fmtSize(r.file_size)} · {r.uploader?.name || '-'}{!pickerOpen ? ` · ${new Date(r.created_at).toLocaleString('ko-KR', { dateStyle: 'short', timeStyle: 'short' })}` : ''}</Sub>
                     </Meta>
                     <DelBtn type="button" onClick={() => setPendingDelete(r)} title={t('attachments.delete')}>×</DelBtn>
                   </Row>
@@ -149,9 +158,10 @@ export default function TaskAttachments({ taskId, onChangeCount }: Props) {
               })}
             </List>
           )}
-        {uploading && <Uploading>{t('attachments.uploading')}</Uploading>}
-        {error && <Err>{error}</Err>}
-      </Drop>
+          {uploading && <Uploading>{t('attachments.uploading')}</Uploading>}
+          {error && <Err>{error}</Err>}
+        </ListArea>
+      )}
       <ConfirmDialog
         isOpen={!!pendingDelete}
         onClose={() => setPendingDelete(null)}
@@ -162,29 +172,48 @@ export default function TaskAttachments({ taskId, onChangeCount }: Props) {
         cancelText={t('attachments.cancel')}
         variant="danger"
       />
-      <FilePicker
-        open={pickerOpen}
-        onClose={() => setPickerOpen(false)}
-        businessId={businessId}
-        onPick={async (r: FilePickerResult) => {
-          if (r.uploaded && r.uploaded.length > 0) {
-            await upload(r.uploaded);
-          }
-          if (r.existingFileIds && r.existingFileIds.length > 0) {
-            setUploading(true);
-            try {
-              const res = await apiFetch(`/api/tasks/${taskId}/attachments/link`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ file_ids: r.existingFileIds, context: 'task' })
-              });
-              const j = await res.json();
-              if (!j.success) setError(j?.message || 'link_failed');
-              load();
-            } finally { setUploading(false); }
-          }
-        }}
-      />
+      {pickerOpen && (
+        <PickerInline>
+          {/* 인라인 추가 폼과 동일 — 별도 submit/cancel 버튼 없음.
+              파일 픽 / 기존 파일·문서 선택 즉시 자동 처리 (업로드 또는 link). */}
+          <AttachmentField
+            businessId={businessId}
+            uploads={stageUploads}
+            onUploadsChange={(files) => {
+              // 새 파일 추가 시 즉시 업로드 + 스테이지 비우기
+              setStageUploads(files);
+              if (files.length > 0) {
+                upload(files);
+                setStageUploads([]);
+              }
+            }}
+            existingFileIds={stageExistingFileIds}
+            onExistingFileIdsChange={async (ids) => {
+              const newIds = ids.filter((id) => !stageExistingFileIds.includes(id));
+              setStageExistingFileIds(ids);
+              if (newIds.length > 0) {
+                setUploading(true);
+                try {
+                  const res = await apiFetch(`/api/tasks/${taskId}/attachments/link`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ file_ids: newIds, context: 'task' })
+                  });
+                  const j = await res.json();
+                  if (!j.success) setError(j?.message || 'link_failed');
+                  await load();
+                } finally {
+                  setUploading(false);
+                  setStageExistingFileIds([]);
+                }
+              }
+            }}
+            includePosts
+            existingPostIds={stageExistingPostIds}
+            onExistingPostIdsChange={setStageExistingPostIds}
+          />
+        </PickerInline>
+      )}
     </Wrap>
   );
 }
@@ -201,20 +230,13 @@ function extIcon(name: string): string {
 }
 
 const Wrap = styled.div`padding:14px 20px;border-bottom:1px solid #F1F5F9;`;
-const Head = styled.div`display:flex;align-items:center;gap:8px;margin-bottom:8px;`;
+const Head = styled.div`display:flex;align-items:center;gap:8px;`;
 const Title = styled.div`font-size:12px;font-weight:700;color:#64748B;flex:1;`;
 const Count = styled.span`color:#0F766E;font-weight:600;`;
-const AddBtn = styled.button`padding:4px 10px;font-size:11px;font-weight:600;color:#0F766E;background:#F0FDFA;border:1px solid #99F6E4;border-radius:6px;cursor:pointer;&:hover:not(:disabled){background:#CCFBF1;}&:disabled{opacity:0.5;cursor:not-allowed;}`;
-// KnowledgePage 새 지식 등록 폼과 동일 스타일 (UI 일관성)
-const Drop = styled.div<{$over:boolean}>`
-  border: 2px dashed ${p => p.$over ? '#14B8A6' : '#CBD5E1'};
-  background: ${p => p.$over ? '#F0FDFA' : '#F8FAFC'};
-  border-radius: 12px;
-  padding: 16px;
-  min-height: 64px;
-  transition: background 0.15s, border-color 0.15s;
-  &:hover { border-color: #14B8A6; }
-`;
+const AddBtn = styled.button<{ $active?: boolean }>`padding:4px 10px;font-size:11px;font-weight:600;color:${p=>p.$active?'#FFF':'#0F766E'};background:${p=>p.$active?'#14B8A6':'#F0FDFA'};border:1px solid ${p=>p.$active?'#0D9488':'#99F6E4'};border-radius:6px;cursor:pointer;&:hover:not(:disabled){background:${p=>p.$active?'#0D9488':'#CCFBF1'};}&:disabled{opacity:0.5;cursor:not-allowed;}`;
+const ListArea = styled.div<{$over:boolean}>`border:1px ${p=>p.$over?'solid':'dashed'} ${p=>p.$over?'#14B8A6':'transparent'};border-radius:8px;background:${p=>p.$over?'#F0FDFA':'transparent'};transition:all 0.15s;`;
+// 인라인 picker — 모달 대신 같은 영역에 펼쳐짐 (Irene: popup-on-popup 금지).
+const PickerInline = styled.div`margin-top:8px;background:#FAFBFC;border:1px solid #E2E8F0;border-radius:10px;padding:12px;`;
 const Dim = styled.div`font-size:12px;color:#94A3B8;text-align:center;padding:14px 0;`;
 const List = styled.div`display:flex;flex-direction:column;gap:6px;`;
 const Row = styled.div`display:flex;align-items:center;gap:10px;padding:6px 8px;background:#FFF;border:1px solid #E2E8F0;border-radius:6px;`;

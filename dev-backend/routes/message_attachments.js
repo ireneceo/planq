@@ -152,10 +152,18 @@ router.post('/:conversationId/:messageId/link-existing',
       });
       if (!file) return errorResponse(res, 'file_not_found', 404);
 
+      // file_path 를 항상 backend 루트 기준 상대경로로 정규화.
+      // routes/files.js 는 절대경로(req.file.path)로 저장. /raw·/public 의 path.join(__dirname, '..', X)
+      // 이 절대경로면 잘못된 결과 → 이미지 깨짐. 여기서 한 번 정규화해서 일관성 유지.
+      const backendRoot = path.join(__dirname, '..');
+      const relPath = path.isAbsolute(file.file_path)
+        ? path.relative(backendRoot, file.file_path)
+        : file.file_path;
+
       const created = await MessageAttachment.create({
         message_id: msg.id,
         file_name: file.file_name,
-        file_path: file.file_path,
+        file_path: relPath,
         file_size: file.file_size,
         mime_type: file.mime_type,
         storage_provider: file.storage_provider || 'planq',
@@ -184,7 +192,7 @@ router.post('/:conversationId/:messageId/link-existing',
   }
 );
 
-// ─── GET download / preview ───
+// ─── GET download — 인증 필수, 모든 MIME ───
 router.get('/:id/download', authenticateToken, async (req, res, next) => {
   try {
     const att = await MessageAttachment.findByPk(req.params.id);
@@ -198,11 +206,49 @@ router.get('/:id/download', authenticateToken, async (req, res, next) => {
     const allowed = await canAccessConversation(req.user.id, conv);
     if (!allowed) return errorResponse(res, 'forbidden', 403);
 
-    const abs = path.join(__dirname, '..', att.file_path);
+    const abs = path.isAbsolute(att.file_path) ? att.file_path : path.join(__dirname, '..', att.file_path);
     if (!fs.existsSync(abs)) return errorResponse(res, 'file_missing', 404);
 
     res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(att.file_name)}`);
     if (att.mime_type) res.setHeader('Content-Type', att.mime_type);
+    fs.createReadStream(abs).pipe(res);
+  } catch (err) { next(err); }
+});
+
+// ─── GET raw — <img src> 호환 (인증 헤더 못 실음). UUID stored_name 으로 redirect. ───
+//   인증 X — id 노출 자체는 task_attachments 와 동일한 패턴.
+//   /public/:storedName 이 image MIME only 게이트.
+router.get('/:id/raw', async (req, res, next) => {
+  try {
+    const att = await MessageAttachment.findByPk(req.params.id);
+    if (!att) return errorResponse(res, 'not_found', 404);
+    const stored = path.basename(att.file_path);
+    return res.redirect(302, `/api/message-attachments/public/${stored}`);
+  } catch (err) { next(err); }
+});
+
+// ─── GET public — UUID 기반 공개 (image MIME only). ───
+//   <img src> 가 가져갈 수 있는 최종 경로.
+//   보안: image/* MIME 만 허용 (HTML/JS 임베딩으로 인한 XSS 차단), nosniff, inline.
+router.get('/public/:storedName', async (req, res, next) => {
+  try {
+    const stored = String(req.params.storedName || '');
+    if (!/^[a-z0-9-]+\.[a-z0-9]+$/i.test(stored)) {
+      return errorResponse(res, 'invalid_filename', 400);
+    }
+    const att = await MessageAttachment.findOne({
+      where: { file_path: { [require('sequelize').Op.like]: `%${stored}` } },
+    });
+    if (!att) return errorResponse(res, 'not_found', 404);
+    if (!att.mime_type || !att.mime_type.startsWith('image/')) {
+      return errorResponse(res, 'not_public_image', 403);
+    }
+    const abs = path.isAbsolute(att.file_path) ? att.file_path : path.join(__dirname, '..', att.file_path);
+    if (!fs.existsSync(abs)) return errorResponse(res, 'file_missing', 410);
+    res.setHeader('Content-Type', att.mime_type);
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Content-Disposition', 'inline');
+    res.setHeader('Cache-Control', 'private, max-age=3600');
     fs.createReadStream(abs).pipe(res);
   } catch (err) { next(err); }
 });

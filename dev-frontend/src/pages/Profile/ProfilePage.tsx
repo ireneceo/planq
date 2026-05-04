@@ -82,6 +82,9 @@ export default function ProfilePage() {
   const [wsNameEn, setWsNameEn] = useState<string>('');
   const [wsNameLoaded, setWsNameLoaded] = useState(false);
   const [usernameDraft, setUsernameDraft] = useState<string>((user as { username?: string } | null)?.username || '');
+  // 계정 이름 (users.name) — 회원가입 시 받은 본 이름. 모든 워크스페이스 공통.
+  const [accountName, setAccountName] = useState<string>(user?.name || '');
+  useEffect(() => { setAccountName(user?.name || ''); }, [user?.name]);
   const [usernameStatus, setUsernameStatus] = useState<{ available: boolean | null; reason?: string }>({ available: null });
   const usernameCheckTimer = useRef<number | null>(null);
   const [emailModalOpen, setEmailModalOpen] = useState(false);
@@ -126,6 +129,20 @@ export default function ProfilePage() {
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [businessId]);
+
+  const saveAccountName = useCallback(async () => {
+    if (!user?.id) throw new Error('Not logged in');
+    const next = accountName.trim();
+    if (!next) throw new Error(t('basic.namePlaceholder'));
+    const res = await apiFetch(`/api/users/${user.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: next }),
+    });
+    const data = await res.json();
+    if (!res.ok || !data.success) throw new Error(data.message || t('messages.errorSave'));
+    updateUser({ name: next });
+  }, [user?.id, accountName, t, updateUser]);
 
   const saveWsName = useCallback(async () => {
     if (!businessId) throw new Error('No workspace');
@@ -492,10 +509,26 @@ export default function ProfilePage() {
         {error && <Banner $kind="error"><XIcon size={14} />{error}</Banner>}
         {success && <Banner $kind="success"><CheckIcon size={14} />{success}</Banner>}
 
-        {/* 계정 정보 — 모든 워크스페이스 공유 (아이디·이메일·기본 언어) */}
+        {/* 계정 정보 — 모든 워크스페이스 공유 (이름·아이디·이메일·기본 언어) */}
         <Card>
           <SectionTitle>{t('basic.accountSection', '계정 정보')}</SectionTitle>
-          <Description>{t('basic.accountDesc', '아이디·이메일·기본 언어는 모든 워크스페이스에 공통으로 적용됩니다.')}</Description>
+          <Description>{t('basic.accountDesc', '이름·아이디·이메일·기본 언어는 모든 워크스페이스에 공통으로 적용됩니다.')}</Description>
+
+          {/* 계정 이름 — users.name. 회원가입 때 받은 본 이름. 워크스페이스마다 별도 닉네임은 워크스페이스 프로필 섹션에서. */}
+          <FieldRow>
+            <Label>{t('basic.accountName', '이름')}</Label>
+            <FieldBody>
+              <AutoSaveField onSave={saveAccountName}>
+                <TextInput
+                  value={accountName}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAccountName(e.target.value)}
+                  placeholder={t('basic.namePlaceholder')}
+                  maxLength={100}
+                />
+              </AutoSaveField>
+              <Hint>{t('basic.accountNameHint', '회원가입 시 입력한 이름입니다. 영수증·세금계산서 등 공식 발급에 사용됩니다.')}</Hint>
+            </FieldBody>
+          </FieldRow>
 
           <FieldRow>
             <Label>{t('basic.username')}</Label>
@@ -593,35 +626,36 @@ export default function ProfilePage() {
                 : t('workspaceProfile.sectionTitle', '이 워크스페이스 프로필')}
             </SectionTitle>
             <Description>
-              {t('workspaceProfile.desc', '이름과 영어 이름은 현재 워크스페이스에서만 사용됩니다. 다른 워크스페이스에 가입되어 있다면 거기서는 따로 설정할 수 있어요.')}
+              {t('workspaceProfile.desc', '이 워크스페이스에서만 사용되는 닉네임입니다. 다른 워크스페이스에 가입되어 있다면 거기서는 따로 설정할 수 있어요.')}
             </Description>
 
             <FieldRow>
-              <Label>{t('basic.name')}</Label>
+              <Label>{t('workspaceProfile.nickname', '닉네임')}</Label>
               <FieldBody>
                 <AutoSaveField onSave={saveWsName}>
                   <TextInput
                     value={wsName}
                     onChange={(e: React.ChangeEvent<HTMLInputElement>) => setWsName(e.target.value)}
-                    placeholder={t('basic.namePlaceholder')}
+                    placeholder={t('workspaceProfile.nicknamePlaceholder', '이 워크스페이스 멤버에게 보이는 이름') as string}
                     maxLength={100}
                   />
                 </AutoSaveField>
+                <Hint>{t('workspaceProfile.nicknameHint', '리스트·채팅·업무 담당자 등에서 이 이름으로 표시됩니다.')}</Hint>
               </FieldBody>
             </FieldRow>
 
             <FieldRow>
-              <Label>{t('basic.nameEn', 'English name')}</Label>
+              <Label>{t('workspaceProfile.nicknameEn', '영문 닉네임')}</Label>
               <FieldBody>
                 <AutoSaveField onSave={saveWsNameEn}>
                   <TextInput
                     value={wsNameEn}
                     onChange={(e: React.ChangeEvent<HTMLInputElement>) => setWsNameEn(e.target.value)}
-                    placeholder={t('basic.nameEnPlaceholder', 'e.g. Owen Kim')}
+                    placeholder={t('workspaceProfile.nicknameEnPlaceholder', '예: Owen Kim') as string}
                     maxLength={100}
                   />
                 </AutoSaveField>
-                <Hint>{t('basic.nameEnHint', '선택 — 영어 UI 사용자에게 이렇게 표시됩니다')}</Hint>
+                <Hint>{t('workspaceProfile.nicknameEnHint', '선택 — 영어 UI 사용자에게 이렇게 표시됩니다')}</Hint>
               </FieldBody>
             </FieldRow>
           </Card>
@@ -1109,10 +1143,11 @@ const VerifyBadge = styled.span<{ $ok?: boolean }>`
     : 'background: #FFFBEB; color: #B45309; border: 1px solid #FDE68A;'}
 `;
 
+// 언어 레벨 테이블 — 5 column 균등 (lang + 4 skills). 셀 폭 충분하게 minmax 사용 (라벨 wrap 방지).
 const LevelTableHead = styled.div`
   display: grid;
-  grid-template-columns: 1.2fr 1fr 1fr 1fr 1fr;
-  gap: 6px;
+  grid-template-columns: minmax(96px, 0.9fr) repeat(4, minmax(130px, 1fr));
+  gap: 8px;
   padding: 6px 0;
   border-bottom: 1px solid #e2e8f0;
 `;
@@ -1127,8 +1162,8 @@ const LevelTableCell = styled.div<{ $head?: boolean }>`
 
 const LevelRow = styled.div`
   display: grid;
-  grid-template-columns: 1.2fr 1fr 1fr 1fr 1fr;
-  gap: 6px;
+  grid-template-columns: minmax(96px, 0.9fr) repeat(4, minmax(130px, 1fr));
+  gap: 8px;
   padding: 8px 0;
   align-items: center;
   border-bottom: 1px solid #f1f5f9;
@@ -1140,9 +1175,19 @@ const LevelLangCell = styled.div`
   color: #0f172a;
 `;
 
+// PlanQSelect 가 들어가는 cell — 셀렉트 선택값이 한 줄로 표시되도록 강제 (wrap 방지)
 const LevelCell = styled.div`
   display: flex;
   align-items: center;
+  min-width: 0;
+  & > div { width: 100%; }
+  /* react-select 의 single value / placeholder — 한 줄 nowrap + ellipsis */
+  [class$="-singleValue"], [class*="-singleValue"],
+  [class$="-placeholder"], [class*="-placeholder"] {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
 `;
 
 

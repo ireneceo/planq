@@ -16,7 +16,7 @@ import {
   type MockConversation, type MockTask, type MockNote, type MockIssue,
   type TaskStatus,
 } from './types';
-import { useAuth, getAccessToken } from '../../contexts/AuthContext';
+import { useAuth, getAccessToken, apiFetch } from '../../contexts/AuthContext';
 import * as qtalkApi from '../../services/qtalk';
 
 /**
@@ -71,6 +71,7 @@ function apiConversationToMock(c: qtalkApi.ApiConversation): MockConversation {
     unread_count: 0,
     last_extracted_message_id: c.last_extracted_message_id,
     last_message_at: c.last_message_at || c.created_at || null,
+    my_pinned_at: c.my_pinned_at || null,
   };
 }
 
@@ -258,15 +259,27 @@ const QTalkPage: React.FC = () => {
 
   useEffect(() => {
     if (!user) return; // 로그인 후에만 연결
-    const token = getAccessToken();
-    if (!token) return;
+    if (!getAccessToken()) return;
 
+    // auth 를 함수로 — 매 재연결마다 최신 토큰 사용 (refresh 후 자동 적용).
     const socket = io(window.location.origin, {
-      auth: { token },
+      auth: (cb) => cb({ token: getAccessToken() }),
       transports: ['websocket', 'polling'],
       reconnection: true,
-      reconnectionDelay: 2000,
-      reconnectionAttempts: 10,
+      reconnectionDelay: 1500,
+      reconnectionDelayMax: 8000,
+      reconnectionAttempts: Infinity,
+    });
+
+    // 토큰 만료로 인한 connect_error 면 access token 갱신 후 자동 재시도.
+    //   apiFetch('/api/auth/me') 가 401 받으면 AuthContext 가 refresh + getAccessToken 갱신.
+    //   이후 socket reconnect attempt 가 새 토큰으로 handshake.
+    socket.on('connect_error', async (err) => {
+      const msg = String((err as Error)?.message || '');
+      if (/auth|token|jwt|unauthorized/i.test(msg)) {
+        const { apiFetch } = await import('../../contexts/AuthContext');
+        await apiFetch('/api/auth/me').catch(() => null);
+      }
     });
 
     socketRef.current = socket;
@@ -307,6 +320,36 @@ const QTalkPage: React.FC = () => {
       setMessages((prev) => {
         const arr = prev[mapped.conversation_id] || [];
         return { ...prev, [mapped.conversation_id]: arr.map((m) => (m.id === mapped.id ? mapped : m)) };
+      });
+    });
+
+    // 메시지 첨부 추가 (메시지 생성 직후 link-existing / 업로드 직후 emit)
+    //   message:new 가 첨부 비어있는 상태로 먼저 도착하므로, 이 이벤트로 attachments 배열에 append.
+    socket.on('message:attachment', (data: { message_id: number; attachment: { id: number; file_name: string; file_size: number; mime_type?: string | null; file_id?: number } }) => {
+      setMessages((prev) => {
+        const next: typeof prev = {};
+        let touched = false;
+        for (const [convId, list] of Object.entries(prev)) {
+          const idx = list.findIndex((m) => m.id === data.message_id);
+          if (idx < 0) { next[Number(convId)] = list; continue; }
+          touched = true;
+          const target = list[idx];
+          const existing = target.attachments || [];
+          // 중복 방지 (같은 attachment id)
+          if (existing.some((a) => a.id === data.attachment.id)) {
+            next[Number(convId)] = list;
+            continue;
+          }
+          const newAtt = {
+            id: data.attachment.id,
+            file_name: data.attachment.file_name,
+            file_size: data.attachment.file_size,
+            mime_type: data.attachment.mime_type ?? null,
+          };
+          const updatedMsg = { ...target, attachments: [...existing, newAtt] };
+          next[Number(convId)] = list.map((m, i) => (i === idx ? updatedMsg : m));
+        }
+        return touched ? next : prev;
       });
     });
 
@@ -624,10 +667,41 @@ const QTalkPage: React.FC = () => {
   const handleCreateChat = async (data: NewChatFormData) => {
     if (!businessId) return;
     try {
+      // "+ 새 프로젝트 만들기" 모드면 프로젝트 먼저 생성 후 그 id 로 채팅 생성.
+      // 실패 시 채팅 생성 안 함 (파편 데이터 방지). 프로젝트는 best-effort 로 그대로 둠.
+      let finalProjectId = data.project_id;
+      if (data.new_project_name && data.new_project_name.trim()) {
+        const r = await apiFetch('/api/projects', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            business_id: businessId,
+            name: data.new_project_name.trim(),
+            project_type: 'ongoing',
+            members: [],
+            clients: [],
+          }),
+        });
+        const j = await r.json();
+        if (!j.success || !j.data?.id) {
+          throw new Error(j.message || (t('page.projectCreateFailed', '프로젝트 생성 실패') as string));
+        }
+        finalProjectId = j.data.id;
+        // 새로 만든 프로젝트를 좌측 리스트에 즉시 반영 (필드 부족분은 기본값 채움)
+        setProjects((prev) => prev.some((p) => p.id === j.data.id) ? prev : [
+          {
+            id: j.data.id, name: j.data.name, business_id: businessId,
+            client_company: '', status: 'active',
+            default_assignee_id: null, members: [], clients: [],
+            has_cue_activity: false, unread_count: 0,
+          } as unknown as MockProject,
+          ...prev,
+        ]);
+      }
       const conv = await qtalkApi.createConversation({
         business_id: businessId,
         title: data.title,
-        project_id: data.project_id,
+        project_id: finalProjectId,
         client_id: data.client_id,
         participant_user_ids: data.participant_user_ids,
         auto_extract_enabled: data.auto_extract_enabled,
@@ -655,13 +729,13 @@ const QTalkPage: React.FC = () => {
   const handleSendMessage = async (body: string, files?: File[], existingFileIds?: number[], existingPostIds?: number[]) => {
     if (!activeConversationId) return;
     try {
-      // 첨부만 있고 텍스트 없는 경우: 본문은 공백 한 글자 (백엔드 content_required 회피)
       const hasAttachments = (files && files.length > 0) || (existingFileIds && existingFileIds.length > 0);
       const hasPosts = existingPostIds && existingPostIds.length > 0;
-      const content = body.trim() || (hasAttachments ? ' ' : '');
-      if (!content && !hasPosts) return;
-      // 텍스트/파일 없이 post 만 있으면 일반 메시지 생성 생략 (카드 메시지만 추가)
-      const created = content
+      const content = body.trim();
+      // 빈 본문 + 첨부도 post 도 없으면 무의미 — early return
+      if (!content && !hasAttachments && !hasPosts) return;
+      // post 만 있고 본문·일반첨부 없으면 sendMessage 스킵 (카드 메시지만 share-to-chat 으로 별도 생성)
+      const created = (content || hasAttachments)
         ? await qtalkApi.sendMessage(activeConversationId, content)
         : { id: 0 } as Awaited<ReturnType<typeof qtalkApi.sendMessage>>;
       const attachmentResults: qtalkApi.ApiMessageAttachment[] = [];
@@ -685,12 +759,14 @@ const QTalkPage: React.FC = () => {
         );
       }
       // 일반 메시지가 있을 때만 mapped 추가 (post 만 있을 땐 fresh fetch 로 처리)
+      // 주의: socket message:new 가 POST 응답보다 먼저 도착할 수 있음 → dedup 필수.
       if (created.id) {
         const mapped = apiMessageToMock({ ...created, attachments: attachmentResults });
-        setMessages((prev) => ({
-          ...prev,
-          [activeConversationId]: [...(prev[activeConversationId] || []), mapped],
-        }));
+        setMessages((prev) => {
+          const arr = prev[activeConversationId] || [];
+          if (arr.some((m) => m.id === mapped.id)) return prev; // 중복 방지
+          return { ...prev, [activeConversationId]: [...arr, mapped] };
+        });
         // 내가 보낸 메시지도 대화 리스트 상단으로 끌어올림
         setConversations((prev) => prev.map((c) =>
           c.id === activeConversationId ? { ...c, last_message_at: mapped.created_at } : c
@@ -951,6 +1027,28 @@ const QTalkPage: React.FC = () => {
         onOpenNewChat={() => setChatModalOpen(true)}
         collapsed={leftCollapsed}
         onToggleCollapsed={toggleLeft}
+        onTogglePin={async (convId, pinned) => {
+          // 옵티미스틱 — UI 즉시 반영
+          const nowIso = pinned ? new Date().toISOString() : null;
+          setConversations((prev) => prev.map((c) =>
+            c.id === convId ? { ...c, my_pinned_at: nowIso } : c
+          ));
+          try {
+            const biz = user?.business_id ? Number(user.business_id) : null;
+            if (!biz) return;
+            const ok = pinned
+              ? await qtalkApi.pinConversation(biz, convId)
+              : await qtalkApi.unpinConversation(biz, convId);
+            if (!ok) {
+              // 롤백
+              setConversations((prev) => prev.map((c) =>
+                c.id === convId ? { ...c, my_pinned_at: pinned ? null : nowIso } : c
+              ));
+            }
+          } catch (e) {
+            console.warn('[togglePin]', e);
+          }
+        }}
         mobileHidden={activeConversationId !== null}
       />
       <ChatPanel
