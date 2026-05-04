@@ -1,10 +1,88 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-05-04 (Q-O + Q-P 사이클 — 운영 광범위 fix + UI/UX 통합 + 알림 매트릭스·인앱 토스터·PWA 풀 5 commit 운영 라이브)
+> **최종 업데이트:** 2026-05-04 (Q-Q 사이클 — 랜딩 풀세트 + Q Task 상세 폼 통일 + PWA 게이트 운영 라이브 `f7256ac`)
 >
-> **다음 진입:** 알림 그룹화 (5분 묶음) / DND 시간대 / /activity 통합 히스토리 / Phase 4 트래픽 트리거 시 BullMQ + Redis worker / Socket.IO Redis adapter / multer → S3 / read-replica
+> **다음 진입 ★:** **주간 보고 (Weekly Review)** 기능 — `docs/WEEKLY_REVIEW_DESIGN.md` 합의 완료, Phase 1 즉시 시작 가능. Q Task 4번째 탭 + 자동·수동 박제 + JSON 통계 활용. 기존 0 변경.
+>
+> **차순위:** 알림 그룹화 (5분 묶음) / DND 시간대 / /activity 통합 히스토리 / Phase 4 트래픽 트리거 시 BullMQ + Redis worker / Socket.IO Redis adapter / multer → S3 / read-replica
 >
 > **결제 정책:** 1순위 자체 결제 (계좌이체 mark-paid), 2순위 PortOne (P-7 마지막). 월결제 + 연결제. 미결제 시 7일 유예 후 Free 강등 + 데이터 보존
+
+---
+
+## ✅ 완료: Q-Q 사이클 — 랜딩 풀세트 + Q Task 상세 폼 통일 + 주간 보고 설계 (2026-05-04)
+
+운영 진입 후 Irene 의 광범위 피드백 사이클. 8 commit 운영 라이브 (`abe697f → f7256ac`) + 다음 사이클 설계 문서 1건.
+
+### 1. 알림 시스템 디테일
+- 알림 매트릭스 grid 4 컬럼 fix (이전 3 컬럼 — email 채널 잘림)
+- 디바이스 알림 OFF 적극 안내 — 인박스 띠 배너 + 설정 강조 카드
+- 인박스 띠 배너 "알림 설정" 진입 버튼 추가
+
+### 2. 운영 fix
+- 업무 후보 추출 중복 dedup (extractTaskCandidates POST 응답 + socket broadcast 둘 다 setCandidates 에 push 되던 결함)
+- ErrorBoundary chunk fail 자동 reload (60초 가드) — 새 빌드 배포 후 이전 페이지 머문 사용자 자동 복구
+
+### 3. 랜딩 페이지 풀세트 (비로그인 외부 트래픽)
+- HomePage 풀 — Hero/Problem/Value/Q시리즈/Engine/Compare/Trust/Target/CTA 9 섹션
+  · 다크 + teal 그라디언트 (Hero/Q Series/Engine/Final CTA), 라이트 (Problem/Value/Compare/Trust/Target)
+  · useReveal hook + Hero blob keyframes 살살 떠다님
+- FeaturesPage 풀 — 16 모듈 4 그룹 (Q시리즈 5 + 워크스페이스 4 + AI·분석 3 + 기반 4)
+- PricingPage 풀 — Free/Basic/Pro 3 plan + Addon 3 + FAQ 5
+- AboutPage 풀 — Our Story + Mission + Values 3 + Timeline 4
+- ContactPage 풀 — 연락처 카드 + 문의 폼 (백엔드 /api/inquiries)
+- BlogPage 신규 ("인사이트") — 카테고리 5 (영상·글·사례) + 발행 예정 placeholder
+- LandingLayout — sticky GNB transparent → scrolled 전환, 다크 Footer
+  · 로고: 텍스트 → planQ_white_new.svg / planQ_color.svg (실제 워드마크)
+  · GNB 5 메뉴: 기능·요금제·인사이트·회사·문의
+- App.tsx — / RootRoute (POS 패턴, 로그인 무관 항상 랜딩) + 5 신규 라우트
+- index.html — Outfit + Noto Sans KR 폰트 추가
+- i18n landing namespace 풀 (ko/en, 200+ 키)
+
+### 4. PWA 정책
+- PwaInstallBanner — 비로그인 시 미노출 (마케팅 페이지 어색)
+- 로그인 후 앱 영역에서만 노출
+
+### 5. Q Task 상세 드로어 — 등록 폼과 통일
+- 셀 순서: 프로젝트 → 담당자 → 기간 → 예측+AI → 실제 → 진행 (등록 폼 동일)
+- styled: AddOptRow/AddOptField/AddOptLabel 패턴 카피 (flex-wrap, 자연 폭)
+- 담당자/프로젝트 PlanQSelect — saveField 즉시 저장, 로컬 객체도 갱신
+- 예측 input 옆 ✨ AI 추천 버튼 — 담당자 한정 항상 노출 (값 있어도 재추천)
+- 반복하기 토글 + preset 4 + 종료 3 (등록 폼 동일 i18n recur.* 재사용)
+- 백엔드 routes/tasks.js PUT 에 recurrence_rule 추가 (RRULE 검증 + next_occurrence_at 재계산)
+- 업무 추출 등록 시 default 담당자 = 등록 누른 사용자 (guessed_assignee 없으면)
+
+### 6. 다음 사이클 설계 — 주간 보고 (Weekly Review)
+- `docs/WEEKLY_REVIEW_DESIGN.md` 신규 (16KB, 풀 기획·DB·API·cron·검증)
+- Q Task 안 4번째 탭 "주간 보고" + 헤더 "이번 주 마무리" 버튼 + "한 주 메모" 모달
+- 자동 박제 (매주 일요일 23:59 ws_tz cron) + 수동 박제
+- JSON 데이터 저장 → Insights "주간 추세" 탭으로 통계 활용 (Phase 3)
+- 신규 테이블 2 (`weekly_reviews`, `weekly_review_settings`) — 기존 0 변경
+- 라벨 합의: 주간 보고 / 이번 주 마무리 / 한 주 메모
+
+### 검증
+- 헬스체크 27/27
+- 빌드 (tsc 0건 + vite ~1.5s)
+- 운영 라우트 7/7 200 (/, /features, /pricing, /blog, /about, /contact, /tasks)
+
+### 운영 라이브
+- `f7256ac` (timestamp `20260504_182803`) 운영 라이브
+- 백업: `/opt/planq/backups/20260504_182803`
+
+### 수정·신규 파일 (총 24개)
+
+**백엔드 (1):** routes/tasks.js (PUT recurrence_rule 처리)
+
+**프론트 (12 수정 + 8 신규):**
+- 수정: App.tsx / components/Common/PwaInstallBanner.tsx / components/Common/ErrorBoundary.tsx / components/Landing/LandingLayout.tsx (대규모) / components/QTask/TaskDetailDrawer.tsx / pages/Landing/HomePage.tsx (풀 재작성) / pages/Landing/RootRoute.tsx / pages/QTalk/QTalkPage.tsx (candidates dedup) / pages/QTask/QTaskPage.tsx / pages/Settings/NotificationSettings.tsx / index.html / i18n.ts
+- 신규: hooks/useReveal.ts / pages/Landing/FeaturesPage.tsx / PricingPage.tsx / AboutPage.tsx / ContactPage.tsx / BlogPage.tsx
+
+**i18n (4):** locales/{ko,en}/landing.json (신규 풀 200+키), locales/{ko,en}/qtask.json (detail.meta + recur 키 추가)
+
+**문서 (1 신규):** docs/WEEKLY_REVIEW_DESIGN.md
+
+### 메모리 (1 신규)
+- project_weekly_review_design.md (다음 사이클 즉시 시작 정보)
 
 ---
 
