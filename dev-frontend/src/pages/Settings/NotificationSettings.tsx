@@ -196,31 +196,59 @@ const PushSection: React.FC<{ businessId: number | null }> = () => {
     setBusy(false);
   };
 
+  // 미구독 (default-off / granted-off) + 차단 (denied) 일 때 강조 attention 표시.
+  // 'unsupported' / 'loading' / subscribed 는 일반 표시.
+  const isOff = !subscribed && (permission === 'default' || permission === 'granted');
+  const isDenied = permission === 'denied';
+
   return (
     <Section>
       <SectionTitle>{t('push.title', '디바이스 알림 (Web Push)')}</SectionTitle>
       <SectionDesc>{t('push.desc', '브라우저·모바일 홈화면 PWA 에서 푸시 알림을 받습니다. 사용자가 PlanQ 를 안 보고 있어도 도착.')}</SectionDesc>
+
+      {(isOff || isDenied) && (
+        <Attention>
+          <AttentionIcon>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+              <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+            </svg>
+          </AttentionIcon>
+          <AttentionBody>
+            <AttentionTitle>
+              {isDenied
+                ? t('pushPrompt.deniedTitle', '디바이스 알림이 차단되어 있습니다')
+                : t('pushPrompt.title', '디바이스 알림이 꺼져 있어요')}
+            </AttentionTitle>
+            <AttentionDesc>
+              {isDenied
+                ? t('pushPrompt.deniedDesc', '브라우저 사이트 설정에서 알림을 "허용" 으로 변경하면 받을 수 있습니다.')
+                : t('pushPrompt.desc', 'PlanQ 를 안 보고 있을 때도 새 메시지·업무 알림을 받으려면 켜주세요.')}
+            </AttentionDesc>
+          </AttentionBody>
+          {!isDenied && (
+            <AttentionCta type="button" onClick={handleSubscribe} disabled={busy}>
+              {busy ? t('pushPrompt.enabling', '켜는 중…') : t('pushPrompt.enable', '지금 켜기')}
+            </AttentionCta>
+          )}
+        </Attention>
+      )}
+
       <FooterNote>{t('push.scopeHint', '이 설정은 지금 로그인한 본인 계정 + 이 브라우저(또는 PWA) 1개에만 적용됩니다. 다른 멤버나 다른 디바이스에는 영향 없으며, 디바이스마다 따로 켜야 합니다.')}</FooterNote>
       {permission === 'unsupported' && <FooterNote>{t('push.unsupportedMsg', '이 브라우저는 푸시 알림을 지원하지 않습니다.')}</FooterNote>}
-      {permission === 'denied' && <FooterNote>{t('push.deniedMsg', '브라우저 설정에서 알림 권한이 차단되어 있습니다. 사이트 권한 → 알림 허용으로 변경해주세요.')}</FooterNote>}
-      {(permission === 'default' || permission === 'granted') && (
-        <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-          {!subscribed
-            ? <button type="button" onClick={handleSubscribe} disabled={busy} style={{ height: 32, padding: '0 14px', background: '#14B8A6', color: '#FFFFFF', border: 'none', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-                {busy ? t('push.processing', '처리 중…') : t('push.subscribeBtn', '이 디바이스 알림 켜기')}
-              </button>
-            : <>
-                <button type="button" onClick={handleUnsubscribe} disabled={busy} style={{ height: 32, padding: '0 14px', background: 'transparent', color: '#475569', border: '1px solid #E2E8F0', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-                  {t('push.unsubscribeBtn', '이 디바이스 알림 끄기')}
-                </button>
-                <button type="button" onClick={handleTest} disabled={busy} style={{ height: 32, padding: '0 14px', background: '#F0FDFA', color: '#0D9488', border: '1px solid #99F6E4', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-                  {t('push.testBtn', '테스트 알림 받기')}
-                </button>
-              </>
-          }
-        </div>
+
+      {subscribed && (
+        <ActionsRow>
+          <SecondaryBtn type="button" onClick={handleUnsubscribe} disabled={busy}>
+            {t('push.unsubscribeBtn', '이 디바이스 알림 끄기')}
+          </SecondaryBtn>
+          <TertiaryBtn type="button" onClick={handleTest} disabled={busy}>
+            {t('push.testBtn', '테스트 알림 받기')}
+          </TertiaryBtn>
+        </ActionsRow>
       )}
-      {msg && <FooterNote style={{ marginTop: 12, color: '#0D9488' }}>{msg}</FooterNote>}
+
+      {msg && <ResultNote>{msg}</ResultNote>}
     </Section>
   );
 };
@@ -295,4 +323,57 @@ const PolicyItem = styled.div`
 const PolicyDot = styled.span<{ $kind?: 'info' }>`
   flex-shrink: 0; margin-top: 6px; width: 5px; height: 5px;
   border-radius: 50%; background: ${(p) => p.$kind === 'info' ? '#CBD5E1' : '#14B8A6'};
+`;
+
+// PushSection 강조 영역
+const Attention = styled.div`
+  display: grid;
+  grid-template-columns: 40px 1fr auto;
+  gap: 12px;
+  align-items: center;
+  padding: 14px 16px;
+  background: #FFF7ED;
+  border: 1px solid #FED7AA;
+  border-radius: 10px;
+  margin-top: 4px;
+`;
+const AttentionIcon = styled.div`
+  width: 40px; height: 40px;
+  display: flex; align-items: center; justify-content: center;
+  background: #FFEDD5;
+  color: #C2410C;
+  border-radius: 8px;
+`;
+const AttentionBody = styled.div`min-width: 0; display: flex; flex-direction: column; gap: 2px;`;
+const AttentionTitle = styled.div`font-size: 13px; font-weight: 700; color: #9A3412; line-height: 1.3;`;
+const AttentionDesc = styled.div`font-size: 12px; color: #7C2D12; line-height: 1.4;`;
+const AttentionCta = styled.button`
+  height: 36px; padding: 0 16px;
+  background: #14B8A6; color: #FFFFFF; border: none; border-radius: 8px;
+  font-size: 13px; font-weight: 600; cursor: pointer;
+  transition: background 0.15s;
+  &:hover:not(:disabled) { background: #0D9488; }
+  &:disabled { opacity: 0.6; cursor: not-allowed; }
+`;
+const ActionsRow = styled.div`
+  display: flex; gap: 8px; margin-top: 12px;
+`;
+const SecondaryBtn = styled.button`
+  height: 32px; padding: 0 14px;
+  background: transparent; color: #475569;
+  border: 1px solid #E2E8F0; border-radius: 6px;
+  font-size: 13px; font-weight: 600; cursor: pointer;
+  &:hover:not(:disabled) { background: #F8FAFC; }
+  &:disabled { opacity: 0.6; cursor: not-allowed; }
+`;
+const TertiaryBtn = styled.button`
+  height: 32px; padding: 0 14px;
+  background: #F0FDFA; color: #0D9488;
+  border: 1px solid #99F6E4; border-radius: 6px;
+  font-size: 13px; font-weight: 600; cursor: pointer;
+  &:hover:not(:disabled) { background: #CCFBF1; }
+  &:disabled { opacity: 0.6; cursor: not-allowed; }
+`;
+const ResultNote = styled.div`
+  font-size: 11px; color: #0D9488; margin-top: 12px; line-height: 1.5;
 `;

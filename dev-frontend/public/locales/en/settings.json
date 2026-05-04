@@ -297,6 +297,15 @@
     "adminRequired": "Only admins can edit",
     "errorSave": "Failed to save"
   },
+  "pushPrompt": {
+    "title": "Device notifications are off",
+    "desc": "Turn them on to get new messages and task alerts even when you're not looking at PlanQ.",
+    "deniedTitle": "Device notifications are blocked",
+    "deniedDesc": "Open your browser's site permissions and allow notifications to receive them.",
+    "enable": "Turn on now",
+    "enabling": "Enabling…",
+    "errMsg": "Couldn't enable notifications: {{r}}"
+  },
   "pwa": {
     "sectionTitle": "Install PlanQ app",
     "sectionDesc": "Add to your home screen for faster access and notifications.",
