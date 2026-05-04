@@ -1,82 +1,25 @@
 // PWA 홈화면 추가 안내 배너 — 모바일 우선.
-//   - Chrome/Edge: beforeinstallprompt 이벤트 잡아서 직접 prompt
+//   - Chrome/Edge: beforeinstallprompt 잡혀 있으면 직접 prompt
 //   - iOS Safari: prompt API 미지원 → 사용 안내 (공유 → 홈 화면에 추가)
-//   - 한 번 dismiss 하면 7일 동안 안 보여줌 (localStorage)
-import { useEffect, useState } from 'react';
+//   - dismiss 는 sessionStorage 만 — 새 탭/세션에서는 다시 노출 (적극 유도)
+//   - 이미 설치(standalone) 된 경우는 노출 X
+//   - 상태는 PwaInstallContext 가 관리 → 설정 페이지의 InstallSection 과 deferred 공유
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
-
-interface BeforeInstallPromptEvent extends Event {
-  readonly platforms: string[];
-  readonly userChoice: Promise<{ outcome: 'accepted' | 'dismissed'; platform: string }>;
-  prompt(): Promise<void>;
-}
-
-const DISMISS_KEY = 'pq_pwa_install_dismiss_until';
-const DISMISS_DAYS = 7;
+import { usePwaInstall } from '../../contexts/PwaInstallContext';
 
 export default function PwaInstallBanner() {
   const { t } = useTranslation('common');
-  const [deferred, setDeferred] = useState<BeforeInstallPromptEvent | null>(null);
-  const [showIos, setShowIos] = useState(false);
-  const [dismissed, setDismissed] = useState(true); // 기본 false 로 보이게 — 아래 effect 가 결정
+  const { isStandalone, canPrompt, isIos, dismissedThisSession, install, dismissForSession } = usePwaInstall();
 
-  useEffect(() => {
-    // dismiss 만료 검사
-    try {
-      const until = Number(localStorage.getItem(DISMISS_KEY) || '0');
-      if (until && until > Date.now()) { setDismissed(true); return; }
-    } catch { /* ignore */ }
+  if (isStandalone) return null;
+  if (dismissedThisSession) return null;
+  if (!canPrompt && !isIos) return null;
 
-    // 이미 standalone 모드(설치됨) 면 표시 X
-    const isStandalone = window.matchMedia('(display-mode: standalone)').matches
-      || (window.navigator as Navigator & { standalone?: boolean }).standalone === true;
-    if (isStandalone) { setDismissed(true); return; }
-
-    // iOS Safari 감지 — beforeinstallprompt 이벤트 미지원
-    const ua = navigator.userAgent.toLowerCase();
-    const isIosSafari = /iphone|ipad|ipod/.test(ua) && /safari/.test(ua) && !/crios|fxios/.test(ua);
-    if (isIosSafari) {
-      setShowIos(true);
-      setDismissed(false);
-      return;
-    }
-
-    // Android Chrome / Edge — beforeinstallprompt
-    const handler = (e: Event) => {
-      e.preventDefault();
-      setDeferred(e as BeforeInstallPromptEvent);
-      setDismissed(false);
-    };
-    window.addEventListener('beforeinstallprompt', handler);
-    return () => window.removeEventListener('beforeinstallprompt', handler);
-  }, []);
-
-  const dismiss = () => {
-    try {
-      const until = Date.now() + DISMISS_DAYS * 24 * 3600 * 1000;
-      localStorage.setItem(DISMISS_KEY, String(until));
-    } catch { /* ignore */ }
-    setDismissed(true);
-    setDeferred(null);
-    setShowIos(false);
+  const handleInstall = async () => {
+    const result = await install();
+    if (result === 'dismissed') dismissForSession();
   };
-
-  const install = async () => {
-    if (!deferred) return;
-    await deferred.prompt();
-    const choice = await deferred.userChoice;
-    if (choice.outcome === 'accepted') {
-      // 설치됨 — 더 이상 표시 X (영구)
-      try { localStorage.setItem(DISMISS_KEY, String(Date.now() + 365 * 24 * 3600 * 1000)); } catch { /* */ }
-    } else {
-      dismiss();
-    }
-    setDeferred(null);
-  };
-
-  if (dismissed) return null;
-  if (!deferred && !showIos) return null;
 
   return (
     <BannerRoot role="dialog" aria-label={t('pwa.installAria', '앱으로 설치') as string}>
@@ -89,22 +32,21 @@ export default function PwaInstallBanner() {
       <Body>
         <Title>{t('pwa.installTitle', 'PlanQ 앱으로 설치')}</Title>
         <Desc>
-          {showIos
+          {isIos
             ? t('pwa.iosHint', '하단 공유 버튼 → "홈 화면에 추가"')
             : t('pwa.androidHint', '홈 화면에 추가하면 알림·빠른 진입이 가능합니다')}
         </Desc>
       </Body>
-      {!showIos && deferred && (
-        <CtaBtn type="button" onClick={install}>
+      {!isIos && canPrompt && (
+        <CtaBtn type="button" onClick={handleInstall}>
           {t('pwa.installCta', '설치')}
         </CtaBtn>
       )}
-      <CloseBtn type="button" onClick={dismiss} aria-label={t('common.close', '닫기') as string}>×</CloseBtn>
+      <CloseBtn type="button" onClick={dismissForSession} aria-label={t('common.close', '닫기') as string}>×</CloseBtn>
     </BannerRoot>
   );
 }
 
-// 우측 하단 floating banner (모바일에서도 부담 없이)
 const BannerRoot = styled.div`
   position: fixed;
   bottom: 16px;
@@ -138,7 +80,7 @@ const Title = styled.div`font-size: 13px; font-weight: 700; color: #0F172A; line
 const Desc = styled.div`font-size: 11px; color: #64748B; line-height: 1.3;`;
 const CtaBtn = styled.button`
   height: 32px; padding: 0 14px;
-  background: #14B8A6; color: #FFF; border: none; border-radius: 8px;
+  background: #14B8A6; color: #FFFFFF; border: none; border-radius: 8px;
   font-size: 12px; font-weight: 600; cursor: pointer;
   &:hover { background: #0D9488; }
 `;

@@ -306,5 +306,12 @@
       "docDesc": "새 문서 본문에"
     },
     "hint": "파일·이미지 공유는 다음 업데이트에서 지원됩니다. 지금은 PlanQ 안에서 직접 첨부해주세요."
+  },
+  "pwa": {
+    "installAria": "앱으로 설치",
+    "installTitle": "PlanQ 앱으로 설치",
+    "installCta": "설치",
+    "androidHint": "홈 화면에 추가하면 알림·빠른 진입이 가능합니다",
+    "iosHint": "하단 공유 버튼 → \"홈 화면에 추가\""
   }
 }

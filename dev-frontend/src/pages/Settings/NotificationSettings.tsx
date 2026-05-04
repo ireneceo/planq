@@ -5,6 +5,7 @@ import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { apiFetch } from '../../contexts/AuthContext';
 import { InboxIcon, ChatIcon, MailIcon } from '../../components/Common/Icons';
+import PwaInstallSection from './PwaInstallSection';
 
 interface Props {
   businessId: number;
@@ -74,6 +75,7 @@ const NotificationSettings: React.FC<Props> = ({ businessId }) => {
 
   return (
     <Wrap>
+      <PwaInstallSection />
       <PushSection businessId={businessId} />
 
       <Section>

@@ -296,5 +296,23 @@
   "messages": {
     "adminRequired": "Only admins can edit",
     "errorSave": "Failed to save"
+  },
+  "pwa": {
+    "sectionTitle": "Install PlanQ app",
+    "sectionDesc": "Add to your home screen for faster access and notifications.",
+    "installedBadge": "Installed",
+    "installedNote": "You're currently running the PlanQ app. To install on another device, open PlanQ in its browser.",
+    "iosStep1": "Tap the Share button at the bottom of Safari",
+    "iosStep2": "Choose \"Add to Home Screen\"",
+    "iosStep3": "Tap \"Add\" to finish",
+    "iosNote": "iOS doesn't allow browsers to trigger an install dialog automatically — you need to use the menu manually.",
+    "promptNote": "Tap the button below to open the browser's install dialog. Accept it and the PlanQ icon will be added to your home screen (or app drawer / start menu).",
+    "installNow": "Install now",
+    "installing": "Installing…",
+    "manualHint": "Open the browser menu (three dots in the address bar) and choose \"Install app\" / \"Install PlanQ\".",
+    "unsupportedHint": "This browser doesn't support PWA installation. Try again in Chrome, Edge, Samsung Internet, or iOS Safari.",
+    "installedMsg": "Installed. Open PlanQ from your home screen.",
+    "dismissedMsg": "Install canceled.",
+    "unavailableMsg": "Install prompt isn't available right now."
   }
 }

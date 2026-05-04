@@ -1,6 +1,7 @@
 import { lazy, Suspense } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
+import { PwaInstallProvider } from './contexts/PwaInstallContext';
 import NotificationToaster from './components/Common/NotificationToaster';
 import PwaInstallBanner from './components/Common/PwaInstallBanner';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -74,6 +75,7 @@ function App() {
   return (
     <ErrorBoundary>
     <AuthProvider>
+    <PwaInstallProvider>
       <Suspense fallback={<PageLoadingFallback />}>
       <Routes>
         {/* Public routes */}
@@ -337,6 +339,7 @@ function App() {
       <NotificationToaster />
       {/* 모바일 PWA 설치 안내 — beforeinstallprompt + iOS Safari 안내 */}
       <PwaInstallBanner />
+    </PwaInstallProvider>
     </AuthProvider>
     </ErrorBoundary>
   );
