@@ -299,10 +299,14 @@ const QTalkPage: React.FC = () => {
       ));
     });
 
-    // 후보 생성
+    // 후보 생성 — POST 응답과 socket broadcast 가 둘 다 들어오므로 id 기준 dedup 필수
     socket.on('candidates:created', (data: { project_id: number; candidates: qtalkApi.ApiTaskCandidate[] }) => {
       const mapped = data.candidates.map(apiCandidateToMock);
-      setCandidates((prev) => [...mapped, ...prev]);
+      setCandidates((prev) => {
+        const existing = new Set(prev.map((c) => c.id));
+        const fresh = mapped.filter((c) => !existing.has(c.id));
+        return fresh.length === 0 ? prev : [...fresh, ...prev];
+      });
     });
 
     // 이슈 생성
@@ -901,7 +905,12 @@ const QTalkPage: React.FC = () => {
       const result = await qtalkApi.extractTaskCandidates(activeConversationId);
       if (result.candidates.length > 0) {
         const mapped = result.candidates.map(apiCandidateToMock);
-        setCandidates((prev) => [...mapped, ...prev]);
+        // socket 의 candidates:created 가 같은 항목을 또 보내므로 id dedup
+        setCandidates((prev) => {
+          const existing = new Set(prev.map((c) => c.id));
+          const fresh = mapped.filter((c) => !existing.has(c.id));
+          return fresh.length === 0 ? prev : [...fresh, ...prev];
+        });
         showNotice(t('extract.found', { count: result.candidates.length }));
       } else if (result.skipped && result.reason === 'no_new_messages') {
         showNotice(t('extract.noNewMessages'));

@@ -1,19 +1,8 @@
-// 루트 라우트 (`/`) 분기:
-//   - 로그인된 사용자 → /inbox 리다이렉트 (정석 SaaS 패턴 — Linear / Notion / Slack 동일)
-//   - 비로그인 → 랜딩 홈 페이지
-//   - 인증 상태 로딩 중 → 빈 화면 (깜빡임 방지)
-//   - `?preview=1` (또는 `?preview=landing`) → 로그인 상태여도 랜딩 강제 표시 (마케팅 미리보기용)
-import { Navigate, useLocation } from 'react-router-dom';
-import { useAuth } from '../../contexts/AuthContext';
+// 루트 라우트 (`/`) — POS 패턴.
+// 로그인 여부와 무관하게 항상 랜딩 홈 표시. planq.kr 은 브랜딩/마케팅 페이지.
+// 로그인된 사용자는 GNB 의 "내 워크스페이스" 버튼으로 /inbox 진입 (LandingLayout 이 처리).
 import HomePage from './HomePage';
 
-const RootRoute: React.FC = () => {
-  const { user, isLoading } = useAuth();
-  const location = useLocation();
-  const previewLanding = new URLSearchParams(location.search).has('preview');
-  if (isLoading) return null;
-  if (user && !previewLanding) return <Navigate to="/inbox" replace />;
-  return <HomePage />;
-};
+const RootRoute: React.FC = () => <HomePage />;
 
 export default RootRoute;

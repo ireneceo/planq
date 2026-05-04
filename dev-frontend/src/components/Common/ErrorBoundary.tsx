@@ -19,7 +19,24 @@ class ErrorBoundary extends React.Component<Props, State> {
   }
 
   componentDidCatch(error: Error, info: React.ErrorInfo) {
-    // 운영 중 페이지 단위 크래시가 발생하면 콘솔로 남긴다 (Sentry 등은 Phase 7 이후).
+    // 새 배포 직후 이전 빌드의 chunk 파일이 사라져 lazy import 가 실패하는 케이스.
+    //   ─ "Failed to fetch dynamically imported module" / ChunkLoadError / "Loading chunk"
+    // 사용자에겐 1회 자동 새로고침으로 복구. 60초 가드로 무한 reload 방지.
+    const msg = String(error?.message || '');
+    const isChunkFail = error?.name === 'ChunkLoadError'
+      || /Failed to fetch dynamically imported module|Loading chunk \d+ failed|Importing a module script failed/i.test(msg);
+    if (isChunkFail) {
+      const KEY = 'pq_chunk_reload_at';
+      try {
+        const last = Number(sessionStorage.getItem(KEY) || '0');
+        if (Date.now() - last > 60_000) {
+          sessionStorage.setItem(KEY, String(Date.now()));
+          // 다음 tick 에 reload — fallback UI 깜빡임 최소화
+          setTimeout(() => { window.location.reload(); }, 0);
+          return;
+        }
+      } catch { /* sessionStorage 차단 환경 — fallback UI 표시 */ }
+    }
     console.error('[ErrorBoundary]', error, info.componentStack);
   }
 
