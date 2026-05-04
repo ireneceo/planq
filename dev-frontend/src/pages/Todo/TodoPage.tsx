@@ -78,10 +78,10 @@ const TodoPage: React.FC = () => {
   // 사용자: "확인필요도 반영되는 족족 실시간으로 변경되어야 해"
   const socketRef = useRef<Socket | null>(null);
   useEffect(() => {
-    if (!bizId) return;
+    if (!bizId || !user) return;
     const token = getAccessToken();
     if (!token) return;
-    const s = io({ auth: { token }, transports: ['websocket'] });
+    const s = io({ auth: { token }, transports: ['websocket', 'polling'], reconnection: true });
     socketRef.current = s;
     let pending: number | null = null;
     const debouncedReload = () => {
@@ -107,7 +107,7 @@ const TodoPage: React.FC = () => {
       s.disconnect();
       socketRef.current = null;
     };
-  }, [bizId, silentLoad]);
+  }, [bizId, silentLoad, user?.id]);
 
   // 드로어에 필요한 멤버 목록 로드
   useEffect(() => {

@@ -16,7 +16,7 @@ import {
   type MockConversation, type MockTask, type MockNote, type MockIssue,
   type TaskStatus,
 } from './types';
-import { useAuth } from '../../contexts/AuthContext';
+import { useAuth, getAccessToken } from '../../contexts/AuthContext';
 import * as qtalkApi from '../../services/qtalk';
 
 /**
@@ -257,7 +257,8 @@ const QTalkPage: React.FC = () => {
   const socketRef = useRef<Socket | null>(null);
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
+    if (!user) return; // 로그인 후에만 연결
+    const token = getAccessToken();
     if (!token) return;
 
     const socket = io(window.location.origin, {
@@ -334,7 +335,7 @@ const QTalkPage: React.FC = () => {
       socket.disconnect();
       socketRef.current = null;
     };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 대화방 변경 시 room join/leave
   useEffect(() => {

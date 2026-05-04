@@ -106,7 +106,7 @@ router.post('/:conversationId/:messageId',
       // Socket.IO broadcast: 같은 대화방에 첨부 알림
       const io = req.app.get('io');
       if (io) {
-        io.to(`conversation:${req._conversation.id}`).emit('message:attachment', {
+        io.to(`conv:${req._conversation.id}`).emit('message:attachment', {
           message_id: msg.id,
           attachment: {
             id: created.id,
@@ -166,7 +166,7 @@ router.post('/:conversationId/:messageId/link-existing',
 
       const io = req.app.get('io');
       if (io) {
-        io.to(`conversation:${req._conversation.id}`).emit('message:attachment', {
+        io.to(`conv:${req._conversation.id}`).emit('message:attachment', {
           message_id: msg.id,
           attachment: {
             id: created.id, file_name: created.file_name, file_size: created.file_size,
