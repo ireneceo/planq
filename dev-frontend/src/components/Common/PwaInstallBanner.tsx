@@ -6,12 +6,17 @@
 //   - 상태는 PwaInstallContext 가 관리 → 설정 페이지의 InstallSection 과 deferred 공유
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
+import { useAuth } from '../../contexts/AuthContext';
 import { usePwaInstall } from '../../contexts/PwaInstallContext';
 
 export default function PwaInstallBanner() {
   const { t } = useTranslation('common');
+  const { user } = useAuth();
   const { isStandalone, isRelatedInstalled, canPrompt, isIos, dismissedThisSession, install, dismissForSession } = usePwaInstall();
 
+  // 비로그인 사용자에게는 미노출 — 마케팅 랜딩(/, /features 등) 에서 PWA 안내 어색.
+  // 로그인 후 앱 진입했을 때 "앱으로 설치" 유도가 의미 있음.
+  if (!user) return null;
   if (isStandalone || isRelatedInstalled) return null;
   if (dismissedThisSession) return null;
   if (!canPrompt && !isIos) return null;

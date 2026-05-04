@@ -1859,6 +1859,7 @@ const QTaskPage:React.FC=()=>{
           myId={myId}
           todayStr={todayStr}
           members={members}
+          projects={projects}
           width={drawerWidth}
           onWidthChange={(w)=>{setDrawerWidth(w);try{localStorage.setItem('qtask_drawer_width',String(w));}catch{}}}
           onClose={closeDetail}

@@ -47,7 +47,11 @@ const PrivacyPolicy = lazy(() => import('./pages/Legal/PrivacyPolicy'));
 const TermsOfService = lazy(() => import('./pages/Legal/TermsOfService'));
 const ComingSoonPage = lazy(() => import('./pages/ComingSoon/ComingSoonPage'));
 // Landing — 비로그인 외부 트래픽이 보는 영역 (HomePage 는 RootRoute 에서 직접 import)
-const LandingComingSoon = lazy(() => import('./pages/Landing/ComingSoonPage'));
+const LandingFeatures = lazy(() => import('./pages/Landing/FeaturesPage'));
+const LandingPricing = lazy(() => import('./pages/Landing/PricingPage'));
+const LandingAbout = lazy(() => import('./pages/Landing/AboutPage'));
+const LandingContact = lazy(() => import('./pages/Landing/ContactPage'));
+const LandingBlog = lazy(() => import('./pages/Landing/BlogPage'));
 const RootRoute = lazy(() => import('./pages/Landing/RootRoute'));
 const DashboardPage = lazy(() => import('./pages/Dashboard/DashboardPage'));
 const TodoPage = lazy(() => import('./pages/Todo/TodoPage'));
@@ -333,10 +337,11 @@ function App() {
 
         {/* Landing 라우트 — 비로그인 외부 트래픽 (PWA 사용자는 start_url=/inbox 라 안 봄) */}
         <Route path="/" element={<RootRoute />} />
-        <Route path="/features" element={<LandingComingSoon titleKey="featuresPage.title" descKey="featuresPage.desc" />} />
-        <Route path="/pricing" element={<LandingComingSoon titleKey="pricingPage.title" descKey="pricingPage.desc" />} />
-        <Route path="/about" element={<LandingComingSoon titleKey="aboutPage.title" descKey="aboutPage.desc" />} />
-        <Route path="/contact" element={<LandingComingSoon titleKey="contactPage.title" descKey="contactPage.desc" />} />
+        <Route path="/features" element={<LandingFeatures />} />
+        <Route path="/pricing" element={<LandingPricing />} />
+        <Route path="/blog" element={<LandingBlog />} />
+        <Route path="/about" element={<LandingAbout />} />
+        <Route path="/contact" element={<LandingContact />} />
 
         {/* Default fallback — 알 수 없는 경로는 랜딩 홈으로 */}
         <Route path="*" element={<Navigate to="/" replace />} />

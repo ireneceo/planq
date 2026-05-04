@@ -123,7 +123,7 @@
   "detail": {
     "back": "돌아가기",
     "close": "닫기",
-    "meta": { "period": "기간", "est": "예측", "act": "실제", "progress": "진행", "assignee": "담당자", "assigneePh": "담당자 선택", "assigneeOnly": "담당자만 수정 가능 (참고용)" },
+    "meta": { "period": "기간", "est": "예측", "act": "실제", "progress": "진행", "assignee": "담당자", "assigneePh": "담당자 선택", "project": "프로젝트", "projectPh": "프로젝트 선택 (없으면 비워둠)", "assigneeOnly": "담당자만 수정 가능 (참고용)", "aiEstimate": "AI 예측시간 추천", "aiEstShort": "AI 추천" },
     "description": "업무 설명",
     "body": "결과물",
     "bodyPlaceholder": "업무 결과물을 작성하세요. 이미지 붙여넣기/드래그 가능",

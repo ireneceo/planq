@@ -123,7 +123,7 @@
   "detail": {
     "back": "Back",
     "close": "Close",
-    "meta": { "period": "Period", "est": "Est", "act": "Act", "progress": "Progress", "assignee": "Assignee", "assigneePh": "Select assignee", "assigneeOnly": "Only the assignee can edit (read-only)" },
+    "meta": { "period": "Period", "est": "Est", "act": "Act", "progress": "Progress", "assignee": "Assignee", "assigneePh": "Select assignee", "project": "Project", "projectPh": "Select project (or leave empty)", "assigneeOnly": "Only the assignee can edit (read-only)", "aiEstimate": "AI estimate suggestion", "aiEstShort": "AI" },
     "description": "Description",
     "descPlaceholder": "Brief description (1-2 lines)",
     "body": "Deliverable",

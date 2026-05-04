@@ -8,6 +8,10 @@ import { apiFetch, useAuth } from '../../contexts/AuthContext';
 import CalendarPicker from '../Common/CalendarPicker';
 import PlanQSelect from '../Common/PlanQSelect';
 import RichEditor from '../Common/RichEditor';
+import {
+  buildPresetRRule, buildCustomRRule,
+  type RecurPreset, type RecurEndType, type RecurCustomUnit,
+} from '../../utils/recurrence';
 import AttachmentField from '../Common/AttachmentField';
 import TaskAttachments from './TaskAttachments';
 import { STATUS_COLOR, displayStatus, getStatusLabel, type StatusCode } from '../../utils/taskLabel';
@@ -86,7 +90,10 @@ interface TaskDetail {
   creator?: { id: number; name: string } | null;
   comments?: CommentRow[];
   daily_progress?: { snapshot_date: string; progress_percent: number; actual_hours: number; estimated_hours: number | null }[];
+  recurrence_rule?: string | null;
 }
+
+export interface DrawerProjectOption { id: number; name: string; }
 
 export interface TaskDetailDrawerProps {
   taskId: number;
@@ -94,6 +101,8 @@ export interface TaskDetailDrawerProps {
   myId: number;
   todayStr: string;
   members: DrawerMemberOption[];
+  // 프로젝트 변경 옵션 — 호출 측에서 가지고 있으면 전달, 없으면 drawer 가 자체 fetch.
+  projects?: DrawerProjectOption[];
   width?: number;
   onWidthChange?: (w: number) => void;
   onClose: () => void;
@@ -108,10 +117,27 @@ const statusOptionsFor = (task: { source?: string }): string[] => {
 };
 
 const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
-  taskId, bizId, myId, todayStr, members,
+  taskId, bizId, myId, todayStr, members, projects: projectsProp,
   width, onWidthChange, onClose, onPatch, onRefresh,
 }) => {
   const { t } = useTranslation('qtask');
+  // 프로젝트 옵션 — props 우선, 없으면 자체 fetch (TodoPage / QCalendarPage 같은 호출 측 호환)
+  const [projectsFetched, setProjectsFetched] = useState<DrawerProjectOption[]>([]);
+  React.useEffect(() => {
+    if (projectsProp || !bizId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await apiFetch(`/api/projects?business_id=${bizId}&status=active`);
+        const j = await r.json();
+        if (!cancelled && j.success && Array.isArray(j.data)) {
+          setProjectsFetched(j.data.map((p: { id: number; name: string }) => ({ id: p.id, name: p.name })));
+        }
+      } catch { /* ignore — 프로젝트 변경 셀이 비어 있을 뿐 */ }
+    })();
+    return () => { cancelled = true; };
+  }, [projectsProp, bizId]);
+  const projects = projectsProp ?? projectsFetched;
   const { hasRole } = useAuth();
   const drawerRef = useRef<HTMLElement>(null);
   useBodyScrollLock(!!taskId);
@@ -125,6 +151,32 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
 
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState('');
+  const [aiEstLoading, setAiEstLoading] = useState(false);
+  // Recurrence (정기업무) — 추가 폼과 동일 옵션
+  const [recurEnabled, setRecurEnabled] = useState(false);
+  const [recurPreset, setRecurPreset] = useState<RecurPreset>('weekly');
+  const [recurEndType, setRecurEndType] = useState<RecurEndType>('never');
+  const [recurEndCount, setRecurEndCount] = useState<string>('10');
+  const [recurEndUntil, setRecurEndUntil] = useState<string>('');
+  // custom 옵션은 추가 폼의 별도 모달에서 처리 — 상세에선 preset 만 (추후 보강 가능)
+  const [recurCustomEvery] = useState<string>('1');
+  const [recurCustomUnit] = useState<RecurCustomUnit>('week');
+  // detailTask 로드되면 기존 recurrence_rule 존재만 감지 (parser 없음 — 사용자가 변경 시 새로 빌드)
+  React.useEffect(() => {
+    setRecurEnabled(!!detailTask?.recurrence_rule);
+  }, [detailTask?.id, detailTask?.recurrence_rule]);
+
+  // 현재 폼 상태 → RRULE 문자열 (없으면 null) — 추가 폼의 buildCurrentRRule 와 동일 로직
+  const buildRecurRule = (dueDate: string | null): string | null => {
+    if (!recurEnabled || !dueDate) return null;
+    const end = {
+      type: recurEndType,
+      count: recurEndType === 'count' ? Number(recurEndCount) || 1 : undefined,
+      until: recurEndType === 'until' ? recurEndUntil : undefined,
+    };
+    if (recurPreset === 'custom') return buildCustomRRule(Number(recurCustomEvery) || 1, recurCustomUnit, end);
+    return buildPresetRRule(recurPreset, dueDate, end);
+  };
   const [statusOpen, setStatusOpen] = useState(false);
   const [openReviewers, setOpenReviewers] = useState(false);
   const [openHistory, setOpenHistory] = useState(false);
@@ -605,6 +657,31 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
               </Meta>
               <MetaGrid>
                 <MetaCell>
+                  <MetaLabel>{t('detail.meta.project', '프로젝트')}</MetaLabel>
+                  <PlanQSelect size="sm" isClearable
+                    placeholder={t('detail.meta.projectPh', '프로젝트 선택') as string}
+                    value={detailTask.project_id == null ? null : {
+                      value: String(detailTask.project_id),
+                      label: projects.find(p => p.id === detailTask.project_id)?.name
+                        || detailTask.Project?.name
+                        || '-',
+                    }}
+                    onChange={(v) => {
+                      const pid = (v as { value?: string })?.value ? Number((v as { value: string }).value) : null;
+                      setDetailTask(prev => {
+                        if (!prev) return prev;
+                        const p = projects.find(pp => pp.id === pid);
+                        return {
+                          ...prev,
+                          project_id: pid,
+                          Project: pid != null ? { id: pid, name: p?.name || prev.Project?.name || '-' } : null,
+                        } as TaskDetail;
+                      });
+                      saveField('project_id', pid);
+                    }}
+                    options={projects.map(p => ({ value: String(p.id), label: p.name }))} />
+                </MetaCell>
+                <MetaCell>
                   <MetaLabel>{t('detail.meta.assignee', '담당자')}</MetaLabel>
                   <PlanQSelect size="sm" isClearable
                     placeholder={t('detail.meta.assigneePh', '담당자 선택') as string}
@@ -637,39 +714,60 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                     }} />
                 </MetaCell>
                 {(() => {
-                  // 시간/진행율은 담당자만 수정 가능. 다른 역할은 read-only (참고용).
                   const isAssignee = detailTask.assignee_id === myId;
+                  const eHours = Number(detailTask.estimated_hours) || 0;
                   return (<>
                     <MetaCell>
                       <MetaLabel>{t('detail.meta.est', '예측')}</MetaLabel>
-                      <MetaHourRow>
-                        <MetaNumInput type="number" step="0.5" min="0"
+                      <MetaValueRow>
+                        <MetaNumInput key={`e-${detailTask.id}-${eHours}`}
+                          type="number" step="0.5" min="0"
                           defaultValue={detailTask.estimated_hours ?? ''} placeholder="-"
                           disabled={!isAssignee}
                           title={isAssignee ? undefined : t('detail.meta.assigneeOnly', '담당자만 수정 가능 (참고용)') as string}
                           onBlur={e => { const v = e.target.value === '' ? null : Number(e.target.value); if ((v === null || !isNaN(v)) && isAssignee) saveField('estimated_hours', v); }} />
                         <MetaUnit>h</MetaUnit>
-                      </MetaHourRow>
+                        {isAssignee && (
+                          <AiBtn type="button" disabled={aiEstLoading}
+                            onClick={async () => {
+                              if (!detailTask) return;
+                              setAiEstLoading(true);
+                              try {
+                                const r = await apiFetch(`/api/tasks/${detailTask.id}/estimate/ai`, { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+                                const j = await r.json();
+                                if (!r.ok || !j.success) return;
+                                const v = Number(j.data.value);
+                                if (!Number.isFinite(v)) return;
+                                setDetailTask(prev => prev ? { ...prev, estimated_hours: v } as TaskDetail : prev);
+                                onPatch?.({ id: detailTask.id, estimated_hours: v });
+                                saveField('estimated_hours', v);
+                              } catch { /* ignore */ }
+                              finally { setAiEstLoading(false); }
+                            }}
+                            title={t('detail.meta.aiEstimate', 'AI 예측시간 추천') as string}
+                            aria-label={t('detail.meta.aiEstimate', 'AI 예측시간 추천') as string}>
+                            {aiEstLoading
+                              ? <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><circle cx="12" cy="12" r="9" strokeDasharray="40 16"><animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="0.8s" repeatCount="indefinite"/></circle></svg>
+                              : <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 16.8 5.8 21.3l2.4-7.4L2 9.4h7.6L12 2z"/></svg>}
+                            <span>{t('detail.meta.aiEstShort', 'AI 추천')}</span>
+                          </AiBtn>
+                        )}
+                      </MetaValueRow>
                     </MetaCell>
                     <MetaCell>
                       <MetaLabel>{t('detail.meta.act', '실제')}</MetaLabel>
-                      <MetaHourRow>
+                      <MetaValueRow>
                         <MetaNumInput type="number" step="0.5" min="0"
                           defaultValue={detailTask.actual_hours ?? ''} placeholder="-"
                           disabled={!isAssignee}
                           title={isAssignee ? undefined : t('detail.meta.assigneeOnly', '담당자만 수정 가능 (참고용)') as string}
                           onBlur={e => { const v = e.target.value === '' ? null : Number(e.target.value); if ((v === null || !isNaN(v)) && isAssignee) saveField('actual_hours', v); }} />
                         <MetaUnit>h</MetaUnit>
-                      </MetaHourRow>
+                      </MetaValueRow>
                     </MetaCell>
-                  </>);
-                })()}
-                <MetaCell>
-                  <MetaLabel>{t('detail.meta.progress', '진행')}</MetaLabel>
-                  {(() => {
-                    const isAssignee = detailTask.assignee_id === myId;
-                    return (
-                      <MetaProgressRow>
+                    <MetaCell>
+                      <MetaLabel>{t('detail.meta.progress', '진행')}</MetaLabel>
+                      <MetaValueRow>
                         <MetaRangeInput type="range" min="0" max="100" step="5" value={detailTask.progress_percent || 0}
                           disabled={!isAssignee}
                           title={isAssignee ? undefined : t('detail.meta.assigneeOnly', '담당자만 수정 가능 (참고용)') as string}
@@ -678,11 +776,103 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                           onMouseUp={e => { if (isAssignee) saveField('progress_percent', Number((e.target as HTMLInputElement).value)); }}
                           onTouchEnd={e => { if (isAssignee) saveField('progress_percent', Number((e.target as HTMLInputElement).value)); }} />
                         <MetaProgressPct>{detailTask.progress_percent || 0}%</MetaProgressPct>
-                      </MetaProgressRow>
-                    );
-                  })()}
-                </MetaCell>
+                      </MetaValueRow>
+                    </MetaCell>
+                  </>);
+                })()}
               </MetaGrid>
+
+              {/* 반복하기 — 정기업무 (추가 폼과 동일 옵션) */}
+              <MetaRecurRow>
+                <MetaRecurToggle>
+                  <input type="checkbox" checked={recurEnabled} disabled={!detailTask.due_date}
+                    onChange={(e) => {
+                      const enabled = e.target.checked;
+                      setRecurEnabled(enabled);
+                      if (!enabled) {
+                        // 끄면 즉시 백엔드에 null 저장
+                        saveField('recurrence_rule', null);
+                        setDetailTask(prev => prev ? { ...prev, recurrence_rule: null } : prev);
+                      } else {
+                        // 켤 때는 즉시 빌드해서 저장
+                        const rule = buildRecurRule(detailTask.due_date);
+                        if (rule) {
+                          saveField('recurrence_rule', rule);
+                          setDetailTask(prev => prev ? { ...prev, recurrence_rule: rule } : prev);
+                        }
+                      }
+                    }} />
+                  <span>{t('recur.toggle', '반복하기')}</span>
+                  {!detailTask.due_date && <MetaRecurHint>{t('recur.needDueDate', '반복하려면 마감일이 필요해요')}</MetaRecurHint>}
+                </MetaRecurToggle>
+                {recurEnabled && detailTask.due_date && (() => {
+                  const saveRule = () => {
+                    const rule = buildRecurRule(detailTask.due_date);
+                    if (rule) {
+                      saveField('recurrence_rule', rule);
+                      setDetailTask(prev => prev ? { ...prev, recurrence_rule: rule } : prev);
+                    }
+                  };
+                  const due = new Date(detailTask.due_date + 'T00:00:00Z');
+                  const dayLabel = t(`recur.weekday.${['SU','MO','TU','WE','TH','FR','SA'][due.getUTCDay()]}`, '');
+                  const presetLabels: Record<RecurPreset, string> = {
+                    daily: t('recur.presetDaily', '매일') as string,
+                    weekly: t('recur.presetWeekly', { day: dayLabel, defaultValue: `매주 ${dayLabel}` }) as string,
+                    monthly: t('recur.presetMonthly', { day: String(due.getUTCDate()), defaultValue: `매월 ${due.getUTCDate()}일` }) as string,
+                    yearly: t('recur.presetYearly', { month: String(due.getUTCMonth()+1), day: String(due.getUTCDate()), defaultValue: `매년 ${due.getUTCMonth()+1}월 ${due.getUTCDate()}일` }) as string,
+                    custom: t('recur.presetCustom', '사용자 지정...') as string,
+                  };
+                  return (
+                    <MetaRecurOptions>
+                      <PlanQSelect size="sm"
+                        value={{ value: recurPreset, label: presetLabels[recurPreset] }}
+                        onChange={(v) => {
+                          const p = (v as { value?: string })?.value as RecurPreset | undefined;
+                          if (!p || p === 'custom') return; // custom 은 별도 모달 (추가 폼 흐름) — 상세에선 일단 preset 만
+                          setRecurPreset(p);
+                          // setState 비동기라 직접 빌드
+                          setTimeout(saveRule, 0);
+                        }}
+                        options={[
+                          { value: 'daily', label: presetLabels.daily },
+                          { value: 'weekly', label: presetLabels.weekly },
+                          { value: 'monthly', label: presetLabels.monthly },
+                          { value: 'yearly', label: presetLabels.yearly },
+                        ]} />
+                      <PlanQSelect size="sm"
+                        value={{
+                          value: recurEndType,
+                          label: recurEndType === 'never' ? t('recur.endTypeNever', '계속 반복') as string
+                            : recurEndType === 'count' ? t('recur.endTypeCount', '횟수 후 종료') as string
+                            : t('recur.endTypeUntil', '특정 날짜까지') as string,
+                        }}
+                        onChange={(v) => {
+                          const next = (v as { value?: string })?.value as RecurEndType | undefined;
+                          if (!next) return;
+                          setRecurEndType(next);
+                          setTimeout(saveRule, 0);
+                        }}
+                        options={[
+                          { value: 'never', label: t('recur.endTypeNever', '계속 반복') as string },
+                          { value: 'count', label: t('recur.endTypeCount', '횟수 후 종료') as string },
+                          { value: 'until', label: t('recur.endTypeUntil', '특정 날짜까지') as string },
+                        ]} />
+                      {recurEndType === 'count' && (
+                        <MetaNumInput type="number" min="1" max="999"
+                          value={recurEndCount} onChange={e => setRecurEndCount(e.target.value)}
+                          onBlur={saveRule}
+                          style={{ width: 70 }} />
+                      )}
+                      {recurEndType === 'until' && (
+                        <MetaNumInput type="date"
+                          value={recurEndUntil} onChange={e => setRecurEndUntil(e.target.value)}
+                          onBlur={saveRule}
+                          style={{ width: 140 }} />
+                      )}
+                    </MetaRecurOptions>
+                  );
+                })()}
+              </MetaRecurRow>
             </Section>
 
             {/* 액션 섹션 — 항상 마운트 유지 (상태 전환 시 섹션 자체가 사라지며 생기는 깜빡임 방지) */}
@@ -1116,20 +1306,65 @@ const DrawerNameChip = styled.span<{ $type: 'from' | 'to' | 'observer' | 'mine' 
     : p.$type === 'mine' ? 'color:#0F766E;background:#F0FDFA;'
     : 'color:#64748B;background:#F1F5F9;'}
 `;
-const MetaGrid = styled.div`display:grid;grid-template-columns:1.6fr 1fr 1fr 2fr;gap:10px;margin-top:12px;padding-top:12px;border-top:1px solid #F1F5F9;`;
-const MetaCell = styled.div`display:flex;flex-direction:column;gap:3px;min-width:0;`;
-const MetaLabel = styled.span`font-size:10px;font-weight:700;color:#94A3B8;text-transform:uppercase;letter-spacing:0.3px;`;
-const MetaNumInput = styled.input.attrs({ type: 'number', step: '0.5', min: '0' })`
-  width:48px;font-size:13px;color:#0F172A;border:1px solid #E2E8F0;border-radius:5px;padding:3px 5px;font-family:inherit;
-  &:focus{outline:none;border-color:#14B8A6;}
-  &:disabled{
-    color:#94A3B8;background:#F1F5F9;border:1px dashed #E2E8F0;cursor:not-allowed;font-weight:500;
-  }
-  &:disabled::-webkit-outer-spin-button,&:disabled::-webkit-inner-spin-button{display:none;}
+// 추가 폼 (QTaskPage 의 AddOptRow / AddOptField / AddOptLabel) 과 동일한 패턴.
+// flex + wrap + 자연 폭. 라벨 위 + 값 아래 (vertical cell).
+const MetaGrid = styled.div`
+  display: flex; flex-wrap: wrap; align-items: flex-start;
+  gap: 8px;
+  margin-top: 12px; padding-top: 12px;
+  border-top: 1px solid #F1F5F9;
 `;
-const MetaUnit = styled.span`font-size:11px;color:#94A3B8;`;
-const MetaHourRow = styled.div`display:flex;align-items:center;gap:4px;`;
-const MetaProgressRow = styled.div`display:flex;align-items:center;gap:8px;`;
+const MetaCell = styled.div`
+  flex: 1 1 140px; min-width: 120px;
+  display: flex; flex-direction: column; gap: 3px;
+`;
+const MetaLabel = styled.label`font-size: 11px; color: #64748B; font-weight: 600;`;
+const MetaValueRow = styled.div`display: flex; align-items: center; gap: 6px;`;
+const MetaRecurRow = styled.div`
+  display: flex; flex-direction: column; gap: 6px;
+  padding: 8px 10px;
+  background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 6px;
+  margin-top: 10px;
+`;
+const MetaRecurToggle = styled.label`
+  display: inline-flex; align-items: center; gap: 8px;
+  font-size: 13px; color: #0F172A; cursor: pointer;
+  input { cursor: pointer; }
+  input:disabled { cursor: not-allowed; }
+`;
+const MetaRecurHint = styled.span`font-size: 12px; color: #94A3B8; margin-left: 6px;`;
+const MetaRecurOptions = styled.div`
+  display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
+  padding-top: 4px; border-top: 1px dashed #E2E8F0;
+`;
+const MetaNumInput = styled.input.attrs({ type: 'number', step: '0.5', min: '0' })`
+  width: 64px; min-width: 0;
+  height: 28px; padding: 3px 8px;
+  font-size: 13px; color: #0F172A;
+  border: 1px solid #E2E8F0; border-radius: 6px;
+  font-family: inherit;
+  &:focus { outline: none; border-color: #14B8A6; }
+  &:disabled {
+    color: #94A3B8; background: #F1F5F9;
+    border: 1px dashed #E2E8F0; cursor: not-allowed; font-weight: 500;
+  }
+  &:disabled::-webkit-outer-spin-button, &:disabled::-webkit-inner-spin-button { display: none; }
+`;
+const MetaUnit = styled.span`font-size: 11px; color: #94A3B8; flex-shrink: 0;`;
+const AiBtn = styled.button`
+  height: 28px; padding: 0 10px;
+  display: inline-flex; align-items: center; justify-content: center; gap: 5px;
+  background: linear-gradient(135deg, #14B8A6 0%, #2DD4BF 100%);
+  color: #FFFFFF;
+  border: none; border-radius: 6px;
+  cursor: pointer;
+  flex-shrink: 0;
+  font-size: 11px; font-weight: 600;
+  transition: transform 0.15s, box-shadow 0.15s, opacity 0.15s;
+  box-shadow: 0 2px 6px rgba(20,184,166,0.28);
+  &:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 4px 10px rgba(20,184,166,0.4); }
+  &:disabled { opacity: 0.6; cursor: not-allowed; }
+`;
 const MetaProgressPct = styled.span`font-size:11px;color:#475569;font-weight:600;min-width:32px;text-align:right;`;
 const MetaRangeInput = styled.input`
   flex:1;appearance:none;-webkit-appearance:none;height:8px;border-radius:4px;
