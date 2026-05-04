@@ -392,7 +392,9 @@ async function registerCandidate(candidateId, userId) {
       source_message_id: candidate.source_message_ids?.[0] || null,
       title: candidate.title,
       description: candidate.description,
-      assignee_id: candidate.guessed_assignee_user_id,
+      // LLM 이 추측한 담당자가 있으면 우선, 없으면 등록 누른 사용자가 default 담당자
+      // (사용자가 자기 업무로 보이게 만들고, 필요하면 상세에서 다른 멤버로 변경)
+      assignee_id: candidate.guessed_assignee_user_id || userId,
       status: 'not_started',
       due_date: candidate.guessed_due_date,
       from_candidate_id: candidate.id,
