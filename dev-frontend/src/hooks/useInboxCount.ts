@@ -4,13 +4,15 @@
 import { useEffect, useState, useRef } from 'react';
 import { io, type Socket } from 'socket.io-client';
 import { fetchTodo } from '../services/dashboard';
+import { useAuth, getAccessToken } from '../contexts/AuthContext';
 
 export function useInboxCount(businessId: number | null | undefined): number {
   const [count, setCount] = useState(0);
   const socketRef = useRef<Socket | null>(null);
+  const { user } = useAuth();
 
   useEffect(() => {
-    if (!businessId) { setCount(0); return; }
+    if (!businessId || !user) { setCount(0); return; }
     let cancelled = false;
 
     const refresh = async () => {
@@ -23,7 +25,7 @@ export function useInboxCount(businessId: number | null | undefined): number {
     refresh();
 
     // Socket.IO 'inbox:refresh' 구독 — Todo/Inbox 페이지에서 발행
-    const token = localStorage.getItem('token');
+    const token = getAccessToken();
     if (token) {
       const socket = io(window.location.origin, {
         auth: { token },
@@ -48,7 +50,7 @@ export function useInboxCount(businessId: number | null | undefined): number {
         socketRef.current = null;
       }
     };
-  }, [businessId]);
+  }, [businessId, user?.id]);
 
   return count;
 }

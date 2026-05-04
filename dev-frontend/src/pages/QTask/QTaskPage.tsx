@@ -373,10 +373,10 @@ const QTaskPage:React.FC=()=>{
   // Socket.IO — 워크스페이스 room 에서 task:new 수신 (Q Talk 에서 후보 등록 시 즉시 반영)
   const socketRef = useRef<Socket | null>(null);
   useEffect(() => {
-    if (!bizId) return;
+    if (!bizId || !user) return;
     const token = getAccessToken();
     if (!token) return;
-    const s = io({ auth: { token }, transports: ['websocket'] });
+    const s = io({ auth: { token }, transports: ['websocket', 'polling'], reconnection: true });
     socketRef.current = s;
     s.on('connect', () => { s.emit('join:business', bizId); });
     s.on('task:new', (task: TaskRow) => {
@@ -396,7 +396,7 @@ const QTaskPage:React.FC=()=>{
       s.disconnect();
       socketRef.current = null;
     };
-  }, [bizId]);
+  }, [bizId, user?.id]);
 
   // Esc 키로 드로어 닫기 (상세 + 업무 추가)
   useEffect(() => {
@@ -1355,7 +1355,7 @@ const QTaskPage:React.FC=()=>{
                   <line x1="5" y1="12" x2="19" y2="12" />
                 </svg>
               }
-              onCta={()=>{setAddInline(true);setAddingTask(true);setNewAssignee(tab==='requested'?null:myId);}}
+              onCta={()=>{setAddInline(false);setAddingTask(true);setNewAssignee(tab==='requested'?null:myId);}}
               secondaryCtaLabel={t('empty.askCue','Cue 에게 묻기')}
               onSecondaryCta={()=>window.dispatchEvent(new CustomEvent('cue:ask',{detail:{prefill:t('help.cuePrefill') as string}}))}
             />

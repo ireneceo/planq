@@ -1232,7 +1232,7 @@ router.post('/conversations/:convId/task-candidates/extract', authenticateToken,
         if (conv.project_id) {
           io.to(`project:${conv.project_id}`).emit('candidates:created', payload);
         } else {
-          io.to(`conversation:${conversationId}`).emit('candidates:created', payload);
+          io.to(`conv:${conversationId}`).emit('candidates:created', payload);
         }
       }
     }

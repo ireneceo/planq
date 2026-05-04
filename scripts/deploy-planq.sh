@@ -237,7 +237,7 @@ build_frontend() {
 
   cd "$DEV_FE"
   rm -rf node_modules/.cache 2>/dev/null || true
-  NODE_OPTIONS='--max-old-space-size=2048' npm run build 2>&1 | tail -5
+  NODE_OPTIONS='--max-old-space-size=4096' npm run build 2>&1 | tail -5
 
   if [ ! -f "$DEV_FE_BUILD/index.html" ]; then
     error "Frontend build 실패 — $DEV_FE_BUILD/index.html 없음"
