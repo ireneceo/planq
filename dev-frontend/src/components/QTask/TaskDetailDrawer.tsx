@@ -6,6 +6,7 @@ import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { apiFetch, useAuth } from '../../contexts/AuthContext';
 import CalendarPicker from '../Common/CalendarPicker';
+import PlanQSelect from '../Common/PlanQSelect';
 import RichEditor from '../Common/RichEditor';
 import AttachmentField from '../Common/AttachmentField';
 import TaskAttachments from './TaskAttachments';
@@ -603,6 +604,30 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                 })()}
               </Meta>
               <MetaGrid>
+                <MetaCell>
+                  <MetaLabel>{t('detail.meta.assignee', '담당자')}</MetaLabel>
+                  <PlanQSelect size="sm" isClearable
+                    placeholder={t('detail.meta.assigneePh', '담당자 선택') as string}
+                    value={detailTask.assignee_id == null ? null : {
+                      value: String(detailTask.assignee_id),
+                      label: (members.find(m => m.user_id === detailTask.assignee_id)?.name || detailTask.assignee?.name || '-')
+                        + (detailTask.assignee_id === myId ? ' (나)' : ''),
+                    }}
+                    onChange={(v) => {
+                      const uid = (v as { value?: string })?.value ? Number((v as { value: string }).value) : null;
+                      setDetailTask(prev => {
+                        if (!prev) return prev;
+                        const m = members.find(mm => mm.user_id === uid);
+                        return {
+                          ...prev,
+                          assignee_id: uid,
+                          assignee: uid != null ? { id: uid, name: m?.name || prev.assignee?.name || '-' } : null,
+                        } as TaskDetail;
+                      });
+                      saveField('assignee_id', uid);
+                    }}
+                    options={members.map(m => ({ value: String(m.user_id), label: m.name + (m.user_id === myId ? ' (나)' : '') }))} />
+                </MetaCell>
                 <MetaCell>
                   <MetaLabel>{t('detail.meta.period', '기간')}</MetaLabel>
                   <DateRangeCell start={detailTask.start_date} due={detailTask.due_date}

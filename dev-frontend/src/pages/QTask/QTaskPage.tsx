@@ -1355,8 +1355,27 @@ const QTaskPage:React.FC=()=>{
                       </>)}
                     </TCell>
                     {scope==='workspace' && (
-                      <TCell $w="90px" $hideBelow={768}>
-                        <AssigneeText title={task.assignee?.name || ''}>{displayName(task.assignee, i18nClient.language) || '-'}</AssigneeText>
+                      <TCell $w="140px" $hideBelow={768} style={{overflow:'visible'}}>
+                        <div onClick={e=>e.stopPropagation()}>
+                          <PlanQSelect size="sm" isClearable
+                            placeholder={t('list.assigneePh','담당자') as string}
+                            value={task.assignee_id==null ? null : {
+                              value: String(task.assignee_id),
+                              label: displayName(task.assignee, i18nClient.language) || (members.find(m=>m.user_id===task.assignee_id)?.name || '-'),
+                            }}
+                            onChange={(v)=>{
+                              const uid = (v as {value?:string})?.value ? Number((v as {value:string}).value) : null;
+                              const m = members.find(mm=>mm.user_id===uid);
+                              setAllTasks(prev => prev.map(tt => tt.id===task.id
+                                ? { ...tt, assignee_id: uid, assignee: uid != null ? { id: uid, name: m?.name || tt.assignee?.name || '-' } : null }
+                                : tt));
+                              apiFetch(`/api/tasks/by-business/${bizId}/${task.id}`, {
+                                method: 'PUT', headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ assignee_id: uid }),
+                              }).catch(()=>{ /* TODO: 실패 시 원복 */ });
+                            }}
+                            options={members.map(m=>({value:String(m.user_id),label:m.name+(m.user_id===myId?' (나)':'')}))} />
+                        </div>
                       </TCell>
                     )}
                     <TCell $w="68px" $center style={{position:'relative',overflow:'visible'}}>
@@ -1862,7 +1881,11 @@ const QTaskPage:React.FC=()=>{
           {!isNarrow && !detailTaskId&&<ResizeHandle onMouseDown={startResize} />}
           <RightHeader>
             <RightTitle>
-              {tab==='week'?t('right.titleWeek','This week'):tab==='requested'?t('right.titleRequested','Feedback'):t('right.titleAll','From Q Talk')}
+              {scope==='workspace'
+                ? t('scope.workspace','전체 업무')
+                : tab==='week' ? t('tab.week','이번 주 내 업무')
+                : tab==='requested' ? t('tab.requested','요청하기')
+                : t('tab.all','내 전체업무')}
             </RightTitle>
             <CollapseBtn onClick={()=>setRightCollapsed(true)}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="9 18 15 12 9 6"/></svg>
@@ -2060,8 +2083,36 @@ const QTaskPage:React.FC=()=>{
               {personalInsights}
             </>}
 
-            {/* 요청하기: 보낸 업무요청 중 내가 컨펌해야 할 것 + 피드백 + 개인 인사이트 — count 0 이면 숨김 */}
+            {/* 요청하기: 받은/확인/보낸 (이번 주 패턴 그대로) + 피드백 + 개인 인사이트 — 모두 count 0 이면 섹션 자체 숨김 */}
             {scope==='mine'&&tab==='requested'&&<>
+              {panelCounts.received>0&&(
+                <RSection>
+                  <RSTitle>{t('right.received','받은 업무요청')} ({panelCounts.received})</RSTitle>
+                  {panelCounts.receivedList.map(x=>(
+                    <CandCard key={`req-rc-${x.id}`} onClick={()=>openDetail(x.id)} style={{cursor:'pointer'}}>
+                      <CandTitle>{x.title}</CandTitle>
+                      <IMeta>
+                        {x.Project?.name&&<IProjTag>{x.Project.name}</IProjTag>}
+                        {x.requester?.name&&<span>{x.requester.name}</span>}
+                      </IMeta>
+                    </CandCard>
+                  ))}
+                </RSection>
+              )}
+              {panelCounts.review>0&&(
+                <RSection>
+                  <RSTitle>{t('right.review','확인 요청 받음')} ({panelCounts.review})</RSTitle>
+                  {panelCounts.reviewList.map(x=>(
+                    <CandCard key={`req-rv-${x.id}`} onClick={()=>openDetail(x.id)} style={{cursor:'pointer'}}>
+                      <CandTitle>{x.title}</CandTitle>
+                      <IMeta>
+                        {x.Project?.name&&<IProjTag>{x.Project.name}</IProjTag>}
+                        {x.assignee?.name&&<span>{x.assignee.name}</span>}
+                      </IMeta>
+                    </CandCard>
+                  ))}
+                </RSection>
+              )}
               {panelCounts.sent>0&&(
                 <RSection>
                   <RSTitle>{t('right.sent','보낸 업무요청')} ({panelCounts.sent})</RSTitle>
@@ -2089,12 +2140,12 @@ const QTaskPage:React.FC=()=>{
               {personalInsights}
             </>}
 
-            {/* 전체업무: Q Talk 추출 후보 + 개인 인사이트 */}
+            {/* 전체업무: 추출된 업무 (있으면만) + 개인 인사이트 */}
             {scope==='mine'&&tab==='all'&&<>
-              <RSection>
-                <RSTitle>{t('right.candidates','From Q Talk')} ({candidates.length})</RSTitle>
-                {candidates.length===0?<EmptyChart>{t('right.noCandidates','No candidates yet')}</EmptyChart>:
-                  candidates.map(c=>(
+              {candidates.length>0&&(
+                <RSection>
+                  <RSTitle>{t('right.candidatesExtracted','추출된 업무')} ({candidates.length})</RSTitle>
+                  {candidates.map(c=>(
                     <CandCard key={c.id}>
                       <CandTitle>{c.title}</CandTitle>
                       <IMeta>
@@ -2104,7 +2155,8 @@ const QTaskPage:React.FC=()=>{
                       <CandAddBtn onClick={()=>registerCandidate(c.id)}>+ {t('right.addAsTask','Add as task')}</CandAddBtn>
                     </CandCard>
                   ))}
-              </RSection>
+                </RSection>
+              )}
               {personalInsights}
             </>}
 
@@ -2418,10 +2470,6 @@ const PrioNum=styled.button<{$active?:boolean;$disabled?:boolean}>`
   `}
 `;
 const PrioEmpty=styled.span`display:block;width:6px;height:6px;border-radius:50%;background:#E2E8F0;`;
-const AssigneeText=styled.span`
-  display:block;font-size:13px;color:#0F172A;
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
-`;
 const EstWrap=styled.span<{$flash?:boolean}>`
   position:relative;display:inline-flex;align-items:center;
   ${p=>p.$flash?'background:#D1FAE5;border-radius:5px;animation:estFlash 1.2s ease-out;':''}
