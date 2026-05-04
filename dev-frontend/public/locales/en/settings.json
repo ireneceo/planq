@@ -304,7 +304,8 @@
     "deniedDesc": "Open your browser's site permissions and allow notifications to receive them.",
     "enable": "Turn on now",
     "enabling": "Enabling…",
-    "errMsg": "Couldn't enable notifications: {{r}}"
+    "errMsg": "Couldn't enable notifications: {{r}}",
+    "settings": "Notification settings"
   },
   "pwa": {
     "sectionTitle": "Install PlanQ app",
