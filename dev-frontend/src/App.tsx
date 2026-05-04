@@ -1,6 +1,8 @@
 import { lazy, Suspense } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
+import NotificationToaster from './components/Common/NotificationToaster';
+import PwaInstallBanner from './components/Common/PwaInstallBanner';
 import ProtectedRoute from './components/ProtectedRoute';
 import ErrorBoundary from './components/Common/ErrorBoundary';
 import MainLayout from './components/Layout/MainLayout';
@@ -331,6 +333,10 @@ function App() {
       </Suspense>
       {/* 글로벌 Cue 도움말 — ⌘? / Ctrl+/ + cue:ask 이벤트 receiver */}
       <CueHelpDrawer />
+      {/* 우측 상단 인앱 알림 toaster — Phase 2: focus-steal 없이 실시간 알림 */}
+      <NotificationToaster />
+      {/* 모바일 PWA 설치 안내 — beforeinstallprompt + iOS Safari 안내 */}
+      <PwaInstallBanner />
     </AuthProvider>
     </ErrorBoundary>
   );

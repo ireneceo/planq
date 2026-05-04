@@ -499,12 +499,18 @@ export default function WorkspaceSettingsPage() {
   ), [isMembersMode]);
 
   const tabFromUrl = useMemo<TabKey>(() => {
+    // params.tab 이 없을 수 있음 — App.tsx 의 specific route (/business/settings/notifications) 는 :tab 추출 X.
+    // fallback 으로 pathname 마지막 segment 도 참조.
     let fromParam = (params.tab || '').toLowerCase();
+    if (!fromParam) {
+      const segs = location.pathname.split('/').filter(Boolean);
+      fromParam = (segs[segs.length - 1] || '').toLowerCase();
+    }
     // 언어 · 타임존 통합 — 기존 /timezone URL 은 언어 탭으로 흡수 (backward compat)
     if (fromParam === 'timezone') fromParam = 'language';
     if (visibleTabs.includes(fromParam as TabKey)) return fromParam as TabKey;
     return visibleTabs[0];
-  }, [params.tab, visibleTabs]);
+  }, [params.tab, location.pathname, visibleTabs]);
 
   const [tab, setTab] = useState<TabKey>(tabFromUrl);
   useEffect(() => { setTab(tabFromUrl); }, [tabFromUrl]);
@@ -722,7 +728,7 @@ export default function WorkspaceSettingsPage() {
       case 'cue':         return t('tabs.cue') as string;
       case 'billing':     return t('tabs.billing', '청구 설정') as string;
       case 'email':       return t('tabs.email', '이메일') as string;
-      case 'notifications': return t('tabs.notifications', '알림') as string;
+      case 'notifications': return t('tabs.notificationSettings', '알림 설정') as string;
       case 'brand':
       case 'legal':
       default:          return t('page.title') as string;  // brand/legal = "워크스페이스"

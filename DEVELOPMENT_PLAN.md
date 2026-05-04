@@ -1,10 +1,48 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-05-03 (Q-N 사이클 — Q Note 번역 + Q Task 정기업무 + SaaS readiness 10 commit + 운영 배포 v1.1.0)
+> **최종 업데이트:** 2026-05-04 (Q-O 사이클 — 운영 광범위 fix + UI/UX 통합 사이클 4 commit 운영 라이브)
 >
-> **다음 진입:** 운영 q-note 가동 (Irene 직접 sudo) → 사용량 지표 페이지 → Q Note UX 폴리싱 → TaskDetailDrawer 정기업무 편집
+> **다음 진입:** Phase 4 트래픽 트리거 도래 시 BullMQ + Redis worker / Socket.IO Redis adapter / multer → S3 / read-replica
 >
 > **결제 정책:** 1순위 자체 결제 (계좌이체 mark-paid), 2순위 PortOne (P-7 마지막). 월결제 + 연결제. 미결제 시 7일 유예 후 Free 강등 + 데이터 보존
+
+---
+
+## ✅ 완료: Q-O 사이클 — 운영 fix + UI/UX 통합 (2026-05-04)
+
+운영 진입 후 Irene 사용 피드백 기반 광범위 fix + UI/UX 통일 사이클. 3 commit 운영 라이브 (`e88fbac → b96a258 → 0690328`).
+
+### 1. 인증 401/403 정석 분리 (`e88fbac`)
+- `auth.js`: JWT decode 실패 시 403 → **401** + `code` 필드 (no_token / token_expired / invalid_token / user_not_found / account_suspended)
+- `AuthContext.tsx`: JWT exp 능동 검사 + 단일 in-flight refresh + Page Visibility 복귀 시 즉시 refresh
+- 워크스페이스 task 누락 — workspace/all-tasks 가 `business_id` 직접 필터 (project null task 도 포함)
+- 12 검증 시나리오 PASS
+
+### 2. Socket.IO 미연결 + 양방향 통합 (`b96a258`)
+- 채팅·업무·할일 실시간 안 되던 근본 원인 — `localStorage('token')` (메모리 only 정책)
+- `getAccessToken()` + `useAuth().user` 의존성 일괄 교체
+- Room 이름 통일 (`conversation:` → `conv:`)
+- WebSocket 시간 지나면 끊김 fix (auth 함수형 + connect_error refresh + reconnection Infinity)
+- 채팅 핀 (사용자별 BusinessParticipant.pinned_at) 신규 + 정렬 우선
+- 이미지 업로드/표시 (link-existing path.relative 정규화 + /raw/public 엔드포인트 + GET messages include attachments)
+- 채팅 두번 찍힘 dedup
+- 즉시 업로드 (드래그/paste) — 인라인 통합 (popup-on-popup 제거)
+
+### 3. UI/UX 통합 사이클 (`0690328`, 32 파일 +1345/-385)
+- **업무 폼 재구성**: inline 4 필드 한 줄 + 패널 2 행 분리, DateRangeCell 통일, AI 추천 버튼, 우선순위 색 Primary teal, 반복 칩 ⟳ 매주 토
+- **업무 상세**: description RichEditor + 첨부 popup-on-popup 제거 + 댓글 첨부 (새 + 기존 파일·문서)
+- **프로젝트 ↔ Q Talk 양방향**: NewChatModal "+ 새 프로젝트" + NewProjectModal Q Talk 채널 토글 스위치 + 명칭 통일
+- **워크스페이스 표시명 enrichment**: BusinessMember.name 우선 (`User.display_name` 백엔드 enrich, 프론트 6 군데)
+- **피드백 단순화**: title 제거, "내용" 단일 에디터
+- **프로필**: 계정 이름 필드 추가 (영수증·세금계산서) + 워크스페이스 "닉네임/영문 닉네임" 라벨
+- **기타**: Q info 빨간점 제거, knowledge "+ 새 정보", manifest enctype, language level select wrap fix
+
+### 검증
+- 헬스체크 27/27
+- Auth E2E 12/12, Task 추가/수정/첨부 17/17, 양방향 채널 0/1/2, 핀, 역할별 권한 8/8
+
+### 운영 배포
+- `0690328` (timestamp `20260504_083441`) 운영 라이브
 
 ---
 
