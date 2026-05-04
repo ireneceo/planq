@@ -241,7 +241,7 @@ const Matrix = styled.div`
   display: flex; flex-direction: column; gap: 0;
 `;
 const MatrixHead = styled.div`
-  display: grid; grid-template-columns: minmax(180px, 1.5fr) repeat(3, 90px);
+  display: grid; grid-template-columns: minmax(160px, 1fr) repeat(4, 84px);
   border-bottom: 1px solid #E2E8F0;
 `;
 const HeadCell = styled.div`
@@ -254,7 +254,7 @@ const ChannelIcon = styled.div`
 `;
 const ChannelName = styled.div`font-size: 11px; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: 0.4px;`;
 const MatrixRow = styled.div`
-  display: grid; grid-template-columns: minmax(180px, 1.5fr) repeat(3, 90px);
+  display: grid; grid-template-columns: minmax(160px, 1fr) repeat(4, 84px);
   border-top: 1px solid #F1F5F9;
   &:first-child { border-top: none; }
   &:hover { background: #FAFBFC; }
