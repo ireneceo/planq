@@ -7,6 +7,7 @@ import PageShell from '../../components/Layout/PageShell';
 import HelpDot from '../../components/Common/HelpDot';
 import FirstVisitTour from '../../components/Common/FirstVisitTour';
 import InsightCards from '../../components/Common/InsightCards';
+import PushPromptBanner from '../../components/Common/PushPromptBanner';
 import TodoList from '../../components/Dashboard/TodoList';
 import TaskDetailDrawer from '../../components/QTask/TaskDetailDrawer';
 import EventDrawer from '../../pages/QCalendar/EventDrawer';
@@ -247,6 +248,7 @@ const TodoPage: React.FC = () => {
           : items.filter((it) => TYPE_TO_TAB[it.type] === activeTab);
         return (
           <>
+            <PushPromptBanner />
             <TabBar role="tablist">
               {TAB_LIST.map((tab) => (
                 <TabBtn key={tab} role="tab" type="button" aria-selected={activeTab === tab}
