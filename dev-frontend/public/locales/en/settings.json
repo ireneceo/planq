@@ -309,10 +309,52 @@
     "promptNote": "Tap the button below to open the browser's install dialog. Accept it and the PlanQ icon will be added to your home screen (or app drawer / start menu).",
     "installNow": "Install now",
     "installing": "Installing…",
-    "manualHint": "Open the browser menu (three dots in the address bar) and choose \"Install app\" / \"Install PlanQ\".",
-    "unsupportedHint": "This browser doesn't support PWA installation. Try again in Chrome, Edge, Samsung Internet, or iOS Safari.",
     "installedMsg": "Installed. Open PlanQ from your home screen.",
     "dismissedMsg": "Install canceled.",
-    "unavailableMsg": "Install prompt isn't available right now."
+    "unavailableMsg": "Install prompt isn't available right now.",
+    "relatedInstalledNote": "PlanQ is already installed on this device. You're viewing it in a browser tab right now.",
+    "openInAppHint": "Tap \"Open in app\" on the right of the address bar, or open PlanQ from your home screen / app drawer / Start menu.",
+    "troubleTitle": "Don't see the option?",
+    "troubleAlready": "PlanQ may already be installed — check your home screen, app drawer, or Start menu.",
+    "troubleCooldown": "Browsers may hide the install option for a few days after you've dismissed it once.",
+    "troubleIncognito": "PWA installation doesn't work in private / guest browsing mode.",
+    "browser": {
+      "android-chrome": "Chrome (Android)",
+      "android-samsung": "Samsung Internet",
+      "android-firefox": "Firefox (Android)",
+      "desktop-chrome": "Chrome (Desktop)",
+      "desktop-edge": "Microsoft Edge",
+      "desktop-firefox": "Firefox (Desktop)",
+      "desktop-safari": "Safari (Desktop)",
+      "other": "Current browser"
+    },
+    "steps": {
+      "androidChrome": {
+        "1": "Open the ⋮ (three vertical dots) menu next to the address bar",
+        "2": "Choose \"Add to Home screen\" or \"Install app\"",
+        "3": "Tap \"Add\" / \"Install\" to confirm"
+      },
+      "androidSamsung": {
+        "1": "Open the ☰ menu at the bottom",
+        "2": "Choose \"Add page to\" → \"Home screen\""
+      },
+      "desktopChromium": {
+        "1": "Click the install icon (⊕ or monitor with ↓) on the right of the address bar, or",
+        "2": "Open the ⋮ menu next to the address bar → \"Install PlanQ\" / \"Install app\"",
+        "3": "Confirm in the install dialog — PlanQ is added to your Start menu / Dock"
+      },
+      "firefox": {
+        "1": "Firefox has limited PWA install support",
+        "2": "Recommended: reopen in Chrome / Edge / Samsung Internet"
+      },
+      "desktopSafari": {
+        "1": "Desktop Safari doesn't support PWA installation",
+        "2": "You can only bookmark or add to Dock for quick access"
+      },
+      "other": {
+        "1": "This browser doesn't support PWA installation, or it can't be identified",
+        "2": "Try again in Chrome / Edge / Samsung Internet, or iOS Safari"
+      }
+    }
   }
 }

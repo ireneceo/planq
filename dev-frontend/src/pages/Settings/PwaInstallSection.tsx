@@ -7,13 +7,72 @@
 import React, { useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import { usePwaInstall } from '../../contexts/PwaInstallContext';
+
+// 브라우저별 메뉴 위치는 OS·버전마다 달라 일반화된 안내 사용.
+// 메뉴 명칭은 브라우저 한국어 UI 기준 (영어 환경에서는 i18n 분기로 영어 명칭 사용).
+function getBrowserFallback(platform: string): string {
+  switch (platform) {
+    case 'android-chrome': return 'Chrome (Android)';
+    case 'android-samsung': return 'Samsung Internet';
+    case 'android-firefox': return 'Firefox (Android)';
+    case 'desktop-chrome': return 'Chrome (데스크탑)';
+    case 'desktop-edge': return 'Microsoft Edge';
+    case 'desktop-firefox': return 'Firefox (데스크탑)';
+    case 'desktop-safari': return 'Safari (데스크탑)';
+    default: return '현재 브라우저';
+  }
+}
+
+function getManualSteps(platform: string, t: TFunction): string[] {
+  switch (platform) {
+    case 'android-chrome':
+      return [
+        t('pwa.steps.androidChrome.1', '주소창 우측의 ⋮ (세로 점 3개) 메뉴를 엽니다') as string,
+        t('pwa.steps.androidChrome.2', '"홈 화면에 추가" 또는 "앱 설치" 를 선택합니다') as string,
+        t('pwa.steps.androidChrome.3', '"추가" / "설치" 를 눌러 완료합니다') as string,
+      ];
+    case 'android-samsung':
+      return [
+        t('pwa.steps.androidSamsung.1', '하단 ☰ 메뉴를 엽니다') as string,
+        t('pwa.steps.androidSamsung.2', '"현재 페이지 추가" → "홈 화면" 을 선택합니다') as string,
+      ];
+    case 'desktop-chrome':
+    case 'desktop-edge':
+      return [
+        t('pwa.steps.desktopChromium.1', '주소창 우측의 설치 아이콘 (⊕ 또는 모니터 + ↓) 을 클릭하거나') as string,
+        t('pwa.steps.desktopChromium.2', '주소창 우측의 ⋮ 메뉴 → "PlanQ 설치" / "앱 설치" 를 선택합니다') as string,
+        t('pwa.steps.desktopChromium.3', '설치 다이얼로그에서 "설치" 를 누르면 시작 메뉴·독에 추가됩니다') as string,
+      ];
+    case 'android-firefox':
+    case 'desktop-firefox':
+      return [
+        t('pwa.steps.firefox.1', 'Firefox 는 PWA 설치를 제한적으로만 지원합니다') as string,
+        t('pwa.steps.firefox.2', '권장: Chrome / Edge / Samsung Internet 으로 다시 열어주세요') as string,
+      ];
+    case 'desktop-safari':
+      return [
+        t('pwa.steps.desktopSafari.1', '데스크탑 Safari 는 PWA 설치를 지원하지 않습니다') as string,
+        t('pwa.steps.desktopSafari.2', '북마크 / Dock 에 추가해 빠른 진입만 가능합니다') as string,
+      ];
+    default:
+      return [
+        t('pwa.steps.other.1', '이 브라우저는 PWA 설치를 지원하지 않거나 식별할 수 없습니다') as string,
+        t('pwa.steps.other.2', 'Chrome / Edge / Samsung Internet 또는 iOS Safari 에서 다시 시도하세요') as string,
+      ];
+  }
+}
 
 const PwaInstallSection: React.FC = () => {
   const { t } = useTranslation('settings');
-  const { isStandalone, canPrompt, isIos, platform, install } = usePwaInstall();
+  const { isStandalone, isRelatedInstalled, canPrompt, isIos, platform, install } = usePwaInstall();
   const [busy, setBusy] = useState(false);
   const [resultMsg, setResultMsg] = useState<string | null>(null);
+
+  // 이미 설치된 상태 — display-mode: standalone (PWA 로 실행 중) 또는
+  // getInstalledRelatedApps 가 같은 origin PWA 를 보고함 (브라우저 탭에서 보고 있어도 true)
+  const installed = isStandalone || isRelatedInstalled;
 
   const handleInstall = async () => {
     setBusy(true); setResultMsg(null);
@@ -37,7 +96,7 @@ const PwaInstallSection: React.FC = () => {
           <Title>{t('pwa.sectionTitle', 'PlanQ 앱으로 설치')}</Title>
           <Desc>{t('pwa.sectionDesc', '홈 화면에 추가하면 빠른 진입과 알림 수신이 가능합니다.')}</Desc>
         </HeaderText>
-        {isStandalone && <InstalledBadge>{t('pwa.installedBadge', '설치됨')}</InstalledBadge>}
+        {installed && <InstalledBadge>{t('pwa.installedBadge', '설치됨')}</InstalledBadge>}
       </SectionHeader>
 
       {isStandalone && (
@@ -46,7 +105,14 @@ const PwaInstallSection: React.FC = () => {
         </Body>
       )}
 
-      {!isStandalone && isIos && (
+      {!isStandalone && isRelatedInstalled && (
+        <Body>
+          <Note>{t('pwa.relatedInstalledNote', '이 디바이스에 PlanQ 앱이 이미 설치되어 있습니다. 지금은 브라우저 탭에서 보고 있어요.')}</Note>
+          <Note>{t('pwa.openInAppHint', '주소창 우측의 "Open in app" / "앱으로 열기" 를 누르거나, 홈 화면 / 앱 서랍 / 시작 메뉴의 PlanQ 아이콘으로 진입하세요.')}</Note>
+        </Body>
+      )}
+
+      {!installed && isIos && (
         <Body>
           <Steps>
             <Step><StepNum>1</StepNum>{t('pwa.iosStep1', 'Safari 하단의 공유 버튼을 누릅니다')}</Step>
@@ -57,7 +123,7 @@ const PwaInstallSection: React.FC = () => {
         </Body>
       )}
 
-      {!isStandalone && !isIos && canPrompt && (
+      {!installed && !isIos && canPrompt && (
         <Body>
           <Note>{t('pwa.promptNote', '아래 버튼을 누르면 브라우저가 설치 다이얼로그를 띄웁니다. 수락하면 홈 화면(또는 앱 서랍·시작 메뉴) 에 PlanQ 아이콘이 추가됩니다.')}</Note>
           <Actions>
@@ -68,13 +134,20 @@ const PwaInstallSection: React.FC = () => {
         </Body>
       )}
 
-      {!isStandalone && !isIos && !canPrompt && (
+      {!installed && !isIos && !canPrompt && (
         <Body>
-          <Note>
-            {platform === 'android-chrome' || platform === 'desktop-chrome'
-              ? t('pwa.manualHint', '브라우저 주소창 우측의 점 3개 메뉴 → "앱 설치" / "PlanQ 설치" 를 선택하세요.')
-              : t('pwa.unsupportedHint', '이 브라우저는 PWA 설치를 지원하지 않습니다. Chrome / Edge / Samsung Internet 또는 iOS Safari 에서 다시 시도하세요.')}
-          </Note>
+          <BrowserName>{t(`pwa.browser.${platform}`, getBrowserFallback(platform)) as string}</BrowserName>
+          <Steps>
+            {getManualSteps(platform, t).map((step, i) => (
+              <Step key={i}><StepNum>{i + 1}</StepNum>{step}</Step>
+            ))}
+          </Steps>
+          <Troubleshoot>
+            <TroubleTitle>{t('pwa.troubleTitle', '메뉴가 안 보이나요?')}</TroubleTitle>
+            <TroubleItem>· {t('pwa.troubleAlready', '이미 설치하셨을 수 있습니다 — 홈 화면 / 앱 서랍 / 시작 메뉴에서 PlanQ 를 찾아보세요.')}</TroubleItem>
+            <TroubleItem>· {t('pwa.troubleCooldown', '한 번 설치 안내를 닫으면 며칠간 메뉴가 표시되지 않을 수 있습니다 (브라우저 정책).')}</TroubleItem>
+            <TroubleItem>· {t('pwa.troubleIncognito', '시크릿 / 게스트 모드에서는 PWA 설치가 동작하지 않습니다.')}</TroubleItem>
+          </Troubleshoot>
         </Body>
       )}
 
@@ -145,4 +218,19 @@ const PrimaryBtn = styled.button`
 const ResultLine = styled.div`
   font-size: 12px; color: #0D9488;
   padding-top: 4px; border-top: 1px dashed #E2E8F0;
+`;
+const BrowserName = styled.div`
+  font-size: 11px; font-weight: 700; color: #0D9488;
+  text-transform: uppercase; letter-spacing: 0.4px;
+`;
+const Troubleshoot = styled.div`
+  display: flex; flex-direction: column; gap: 4px;
+  margin-top: 4px; padding: 12px 14px;
+  background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px;
+`;
+const TroubleTitle = styled.div`
+  font-size: 12px; font-weight: 700; color: #0F172A; margin-bottom: 2px;
+`;
+const TroubleItem = styled.div`
+  font-size: 12px; color: #475569; line-height: 1.6;
 `;

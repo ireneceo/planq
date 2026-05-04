@@ -10,9 +10,9 @@ import { usePwaInstall } from '../../contexts/PwaInstallContext';
 
 export default function PwaInstallBanner() {
   const { t } = useTranslation('common');
-  const { isStandalone, canPrompt, isIos, dismissedThisSession, install, dismissForSession } = usePwaInstall();
+  const { isStandalone, isRelatedInstalled, canPrompt, isIos, dismissedThisSession, install, dismissForSession } = usePwaInstall();
 
-  if (isStandalone) return null;
+  if (isStandalone || isRelatedInstalled) return null;
   if (dismissedThisSession) return null;
   if (!canPrompt && !isIos) return null;
 

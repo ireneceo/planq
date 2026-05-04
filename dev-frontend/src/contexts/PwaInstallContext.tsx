@@ -10,10 +10,11 @@ interface BeforeInstallPromptEvent extends Event {
   prompt(): Promise<void>;
 }
 
-type Platform = 'ios' | 'android-chrome' | 'desktop-chrome' | 'other';
+type Platform = 'ios' | 'android-chrome' | 'android-samsung' | 'android-firefox' | 'desktop-chrome' | 'desktop-edge' | 'desktop-firefox' | 'desktop-safari' | 'other';
 
 interface PwaInstallState {
-  isStandalone: boolean;          // 이미 설치되어 PWA 모드로 실행 중
+  isStandalone: boolean;          // 이미 설치되어 PWA 모드로 실행 중 (display-mode: standalone)
+  isRelatedInstalled: boolean;    // 같은 origin PWA 가 OS 에 이미 설치됨 (브라우저 탭에서 보더라도 true)
   canPrompt: boolean;             // beforeinstallprompt 받아둔 상태 — install() 호출 가능
   isIos: boolean;                 // iOS Safari (prompt API 미지원, 수동 안내만)
   platform: Platform;
@@ -34,17 +35,36 @@ function detectPlatform(): { platform: Platform; isIos: boolean; isStandalone: b
   const isAndroid = /android/.test(ua);
   let platform: Platform = 'other';
   if (isIos) platform = 'ios';
+  else if (isAndroid && /samsungbrowser/.test(ua)) platform = 'android-samsung';
+  else if (isAndroid && /firefox|fxios/.test(ua)) platform = 'android-firefox';
   else if (isAndroid && /chrome|edg/.test(ua)) platform = 'android-chrome';
-  else if (/chrome|edg/.test(ua)) platform = 'desktop-chrome';
+  else if (/edg/.test(ua)) platform = 'desktop-edge';
+  else if (/firefox/.test(ua)) platform = 'desktop-firefox';
+  else if (/safari/.test(ua) && !/chrome/.test(ua)) platform = 'desktop-safari';
+  else if (/chrome/.test(ua)) platform = 'desktop-chrome';
   return { platform, isIos, isStandalone };
 }
 
 export function PwaInstallProvider({ children }: { children: ReactNode }) {
   const [deferred, setDeferred] = useState<BeforeInstallPromptEvent | null>(null);
   const [{ platform, isIos, isStandalone }, setEnv] = useState(detectPlatform);
+  const [isRelatedInstalled, setIsRelatedInstalled] = useState(false);
   const [dismissedThisSession, setDismissedThisSession] = useState<boolean>(() => {
     try { return sessionStorage.getItem(SESSION_DISMISS_KEY) === '1'; } catch { return false; }
   });
+
+  // navigator.getInstalledRelatedApps() — 같은 origin PWA 가 이미 설치되어 있는지 감지.
+  // Chrome 81+ 만 지원. manifest 에 related_applications + prefer_related_applications=false 필요.
+  // 사용자가 PWA 를 설치한 뒤 일반 브라우저 탭으로 다시 들어와도 true 가 됨 (display-mode: standalone 은 false 인 케이스).
+  useEffect(() => {
+    if (isStandalone) return;
+    type Nav = Navigator & { getInstalledRelatedApps?: () => Promise<{ platform?: string; url?: string }[]> };
+    const nav = navigator as Nav;
+    if (typeof nav.getInstalledRelatedApps !== 'function') return;
+    nav.getInstalledRelatedApps()
+      .then(apps => { if (apps && apps.length > 0) setIsRelatedInstalled(true); })
+      .catch(() => { /* 미지원/거절 — 무시 */ });
+  }, [isStandalone]);
 
   useEffect(() => {
     if (isStandalone) return; // 이미 설치됨 → 이벤트 캐치 불필요
@@ -91,6 +111,7 @@ export function PwaInstallProvider({ children }: { children: ReactNode }) {
 
   const value: PwaInstallState = {
     isStandalone,
+    isRelatedInstalled,
     canPrompt: !!deferred,
     isIos,
     platform,
