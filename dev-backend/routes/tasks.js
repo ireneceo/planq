@@ -510,7 +510,7 @@ router.put('/by-business/:businessId/:id', authenticateToken, async (req, res, n
     const task = await Task.findOne({ where: { id: req.params.id, business_id: businessId } });
     if (!task) return errorResponse(res, 'task_not_found', 404);
 
-    const { title, description, body, assignee_id, status, priority, due_date, start_date, estimated_hours, actual_hours, progress_percent, category, planned_week_start, project_id } = req.body;
+    const { title, description, body, assignee_id, status, priority, due_date, start_date, estimated_hours, actual_hours, progress_percent, category, planned_week_start, project_id, recurrence_rule } = req.body;
     const updates = {};
     if (title !== undefined) updates.title = title;
     if (description !== undefined) updates.description = description;
@@ -524,6 +524,25 @@ router.put('/by-business/:businessId/:id', authenticateToken, async (req, res, n
     if (progress_percent !== undefined) updates.progress_percent = progress_percent;
     if (category !== undefined) updates.category = category;
     if (planned_week_start !== undefined) updates.planned_week_start = planned_week_start;
+    // 정기업무 — recurrence_rule 갱신: null 로 보내면 해제, RRULE 문자열이면 검증 후 next_occurrence_at 재계산
+    if (recurrence_rule !== undefined) {
+      if (recurrence_rule === null || recurrence_rule === '') {
+        updates.recurrence_rule = null;
+        updates.next_occurrence_at = null;
+      } else {
+        const finalDue = (due_date !== undefined ? due_date : task.due_date);
+        if (!finalDue) return errorResponse(res, 'due_date is required for recurring tasks', 400);
+        try {
+          const { RRule } = require('rrule');
+          RRule.parseString(recurrence_rule);
+        } catch (e) {
+          return errorResponse(res, `Invalid recurrence_rule: ${e.message}`, 400);
+        }
+        const { computeNextOccurrence } = require('../services/recurringTaskGenerator');
+        updates.recurrence_rule = recurrence_rule;
+        updates.next_occurrence_at = computeNextOccurrence(recurrence_rule, finalDue, 1);
+      }
+    }
     // 프로젝트 이관 허용 — 같은 business 내 프로젝트여야 함
     if (project_id !== undefined) {
       if (project_id === null) {
