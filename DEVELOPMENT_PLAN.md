@@ -1,10 +1,60 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-05-04 (Q-O 사이클 — 운영 광범위 fix + UI/UX 통합 사이클 4 commit 운영 라이브)
+> **최종 업데이트:** 2026-05-04 (Q-O + Q-P 사이클 — 운영 광범위 fix + UI/UX 통합 + 알림 매트릭스·인앱 토스터·PWA 풀 5 commit 운영 라이브)
 >
-> **다음 진입:** Phase 4 트래픽 트리거 도래 시 BullMQ + Redis worker / Socket.IO Redis adapter / multer → S3 / read-replica
+> **다음 진입:** 알림 그룹화 (5분 묶음) / DND 시간대 / /activity 통합 히스토리 / Phase 4 트래픽 트리거 시 BullMQ + Redis worker / Socket.IO Redis adapter / multer → S3 / read-replica
 >
 > **결제 정책:** 1순위 자체 결제 (계좌이체 mark-paid), 2순위 PortOne (P-7 마지막). 월결제 + 연결제. 미결제 시 7일 유예 후 Free 강등 + 데이터 보존
+
+---
+
+## ✅ 완료: Q-P 사이클 — 알림 매트릭스 + 인앱 토스터 + 모바일 PWA 풀 (2026-05-04)
+
+운영 진입 후 Irene 이 "채팅 알림 우측 상단 / 디바이스 알림 / 외부 공유 — 채팅에만? 다 가능?" 4 가지 질문 → 30년차 시각으로 phase 1~3 통합 사이클. 1 commit 운영 라이브 (`3ca0c35`).
+
+### 1. Phase 1 — 알림 페이지 명확화
+- `/business/settings/notifications` 헤더 결함 fix — `WorkspaceSettingsPage.tsx` `tabFromUrl` 이 `params.tab` 없을 때 `location.pathname` 마지막 segment 도 참조 (App.tsx 의 specific route 가 :tab param 미전달하던 결함)
+- 헤더 라벨: `tabs.notifications` "알림" → `tabs.notificationSettings` "알림 설정" (페이지 컨텍스트 명확)
+- 4 채널 매트릭스 — 인박스 / 인앱 / 디바이스 / 이메일 (이전 3 종 → push 채널 추가, 백엔드 ENUM 이미 push 지원)
+- 각 채널 hint 카피로 의미 명확화 ("일하는 중 우측 상단 알림창" / "자리 비웠을 때 OS 알림")
+
+### 2. Phase 2 — 인앱 Toaster (NotificationToaster.tsx 신규)
+- 우측 상단 fixed, focus-steal 금지 (`pointer-events: none` 컨테이너, 자식만 catch)
+- Context-aware — 활성 conv·페이지 토스트 X (`activeConvIdRef` + `location.search?conv` 추적)
+- 단일 socket per session — 페이지별 socket 과 별개, App.tsx 레벨에서 user 로그인 시 상시
+- `business:{id}` + 사용자 모든 conv 룸 join (fetch list once)
+- 구독 이벤트:
+  - `message:new` — 본인 발신 제외, 활성 conv 제외 (`💬 한수정의 메시지`)
+  - `task:new` — 나에게 배정된 업무만 (`✓ 새 업무 배정됐습니다`)
+  - `task:updated` — completed (요청자) / reviewing (리뷰어)
+  - `inbox:refresh` — signature_created / signature_signed / invoice_status / installment_paid
+- 5s 자동 페이드, hover 시 timer 정지 + 강조 (transform translateX), 클릭 → navigate
+- 최대 3 stack, 사운드 OFF (작업 방해 X)
+- 토큰 만료 시 connect_error → apiFetch 자동 refresh
+- Notification fatigue 방지 — 본인 발신·활성 컨텍스트 자동 skip
+
+### 3. Phase 3 — 모바일 PWA 풀
+- **Service Worker 자동 register** (`main.tsx`) — 앱 로드 시 silent register, push 알림 + share-target POST + PWA install 모두 SW 필요
+- **share-target POST handler** (`sw.js`) — multipart/form-data 받아서 Cache 에 텍스트+파일 임시 저장 → `/share-receive?shared=1` redirect (Web Share Target Level 2 표준)
+- **`manifest.json` 업그레이드** — share_target POST + multipart + files 필드 (이미지·PDF·docx·xlsx·zip 등 8 종 MIME accept)
+- **PwaInstallBanner.tsx 신규** — beforeinstallprompt catch 후 우측 하단 배너 + "설치" 버튼 / iOS Safari 안내 ("하단 공유 → 홈 화면 추가")
+  - 한 번 dismiss 시 7일 정지, 설치 완료 시 1년 정지
+  - standalone 감지 시 자동 미표시
+- **ShareReceivePage 강화** — Cache 에서 파일 읽어 미리보기 + Q File destination 추가 (워크스페이스 자동 업로드 + `/files` 이동)
+- 5 destination: 채팅 / 업무 / 메모 / 문서 / **Q File** (파일 있을 때만 노출, 강조 색)
+
+### 검증
+- 헬스체크 27/27
+- E2E 15/15 (알림 매트릭스 4 채널 / push PUT / sw.js handlers / manifest 표준 / 페이지 응답)
+- 역할별 prefs 접근 3/3 (owner/member/client)
+- 페이지 응답 11/11 (manifest·sw.js 외부 200)
+
+### 운영 라이브
+- `3ca0c35` (timestamp `20260504_091626`) 운영 라이브 https://planq.kr
+
+### 수정·신규 파일
+- 신규: `dev-frontend/src/components/Common/NotificationToaster.tsx`, `dev-frontend/src/components/Common/PwaInstallBanner.tsx`
+- 수정: `dev-frontend/src/{App,main}.tsx`, `dev-frontend/public/{manifest.json,sw.js}`, `dev-frontend/src/pages/Settings/{WorkspaceSettingsPage,NotificationSettings}.tsx`, `dev-frontend/src/pages/ShareReceive/ShareReceivePage.tsx`, `dev-frontend/public/locales/{ko,en}/settings.json`
 
 ---
 
