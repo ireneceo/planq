@@ -98,8 +98,9 @@ const TasksTab: React.FC<Props> = ({ projectId, businessId, tasks, onRefresh }) 
   useEffect(() => {
     apiFetch(`/api/projects/${projectId}`).then(r => r.json()).then(j => {
       if (j.success) {
-        const ms = (j.data.projectMembers || []).map((m: { user_id: number; User?: { name: string } }) =>
-          ({ user_id: m.user_id, name: m.User?.name || `#${m.user_id}` }));
+        // ProjectMember.User 에 백엔드가 display_name (워크스페이스 표시명) enrich 함
+        const ms = (j.data.projectMembers || []).map((m: { user_id: number; User?: { name: string; display_name?: string | null } }) =>
+          ({ user_id: m.user_id, name: m.User?.display_name || m.User?.name || `#${m.user_id}` }));
         setMembers(ms);
       }
     });

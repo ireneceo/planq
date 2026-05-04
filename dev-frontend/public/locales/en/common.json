@@ -114,7 +114,7 @@
   },
   "adminFeedback": {
     "title": "User feedback",
-    "searchPh": "Search title · body",
+    "searchPh": "Search content",
     "allCategories": "All categories",
     "urgent": "Urgent",
     "empty": "No feedback in this status",
@@ -124,7 +124,7 @@
     "page": "Page",
     "ua": "Browser",
     "createdAt": "Submitted",
-    "body": "Body",
+    "body": "Content",
     "response": "Admin response",
     "responsePh": "Write a reply to the user",
     "statusLabel": "Status",

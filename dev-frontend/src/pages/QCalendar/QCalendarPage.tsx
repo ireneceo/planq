@@ -69,8 +69,8 @@ const QCalendarPage: React.FC = () => {
     if (!bizId) return;
     apiFetch(`/api/businesses/${bizId}/members`).then((r) => r.json()).then((j) => {
       if (j.success) {
-        setMembers((j.data || []).map((m: { user_id: number; User?: { name: string } }) => ({
-          user_id: m.user_id, name: m.User?.name || `#${m.user_id}`,
+        setMembers((j.data || []).map((m: { user_id: number; name?: string | null; User?: { name: string } }) => ({
+          user_id: m.user_id, name: m.name || m.User?.name || `#${m.user_id}`,
         })));
       }
     }).catch(() => {});

@@ -26,6 +26,12 @@ ConversationParticipant.init({
   joined_at: {
     type: DataTypes.DATE,
     defaultValue: DataTypes.NOW
+  },
+  // 사용자별 핀 (즐겨찾기) — null = 핀 안 됨, timestamp = 핀 시각
+  // 같은 채팅을 A 는 핀, B 는 안 핀 — 사용자별 독립 상태
+  pinned_at: {
+    type: DataTypes.DATE,
+    allowNull: true
   }
 }, {
   sequelize,

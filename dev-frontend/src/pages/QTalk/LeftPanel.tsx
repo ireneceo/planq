@@ -18,6 +18,8 @@ interface Props {
   onOpenNewChat: () => void;
   collapsed: boolean;
   onToggleCollapsed: () => void;
+  /** 핀(즐겨찾기) 토글 — 부모가 API 호출 + 옵티미스틱 업데이트 */
+  onTogglePin?: (conversationId: number, pinned: boolean) => void;
   /** 모바일(<=tablet)에서 대화가 선택된 경우 LeftPanel 을 숨김 */
   mobileHidden?: boolean;
 }
@@ -32,7 +34,7 @@ interface ChatEntry {
 const LeftPanel: React.FC<Props> = ({
   projects, conversations, activeConversationId,
   onSelectConversation, onOpenNewChat, collapsed, onToggleCollapsed,
-  mobileHidden = false,
+  onTogglePin, mobileHidden = false,
 }) => {
   const { t } = useTranslation('qtalk');
   const { user } = useAuth();
@@ -60,8 +62,12 @@ const LeftPanel: React.FC<Props> = ({
     for (const c of standalone) {
       result.push({ conversation: c, project: generalProject });
     }
-    // 최근 활동 순 정렬 — last_message_at 없으면 0 (맨 아래)
+    // 정렬: 핀(my_pinned_at NOT NULL) 우선 → 그 안에서 최근 활동순 (last_message_at DESC).
+    // last_message_at 없으면 0 (맨 아래).
     result.sort((a, b) => {
+      const ap = a.conversation.my_pinned_at ? 1 : 0;
+      const bp = b.conversation.my_pinned_at ? 1 : 0;
+      if (ap !== bp) return bp - ap;
       const ta = a.conversation.last_message_at ? new Date(a.conversation.last_message_at).getTime() : 0;
       const tb = b.conversation.last_message_at ? new Date(b.conversation.last_message_at).getTime() : 0;
       return tb - ta;
@@ -162,6 +168,7 @@ const LeftPanel: React.FC<Props> = ({
         )}
         {filteredChats.map(({ conversation: c, project: p }) => {
           const isActive = c.id === activeConversationId;
+          const isPinned = !!c.my_pinned_at;
           return (
             <ChatRow
               key={c.id}
@@ -182,6 +189,20 @@ const LeftPanel: React.FC<Props> = ({
                 <ProjectName>{p.name}</ProjectName>
               </ChatBody>
               {c.unread_count > 0 && <Unread>{c.unread_count}</Unread>}
+              {onTogglePin && (
+                <PinBtn
+                  type="button"
+                  $pinned={isPinned}
+                  onClick={(e) => { e.stopPropagation(); onTogglePin(c.id, !isPinned); }}
+                  aria-label={isPinned ? (t('left.unpin', '핀 해제') as string) : (t('left.pin', '핀 고정') as string)}
+                  title={isPinned ? (t('left.unpin', '핀 해제') as string) : (t('left.pin', '핀 고정') as string)}
+                >
+                  {/* 별 아이콘 — pinned 면 채워짐, 아니면 윤곽 */}
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill={isPinned ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                  </svg>
+                </PinBtn>
+              )}
             </ChatRow>
           );
         })}
@@ -399,4 +420,27 @@ const Unread = styled.div`
   justify-content: center;
   flex-shrink: 0;
   margin-top: 2px;
+`;
+
+// 핀(즐겨찾기) 토글 — 30년차 패턴: 비활성 시 hover 에서만 등장 (시각적 노이즈 최소화).
+// 활성(핀됨) 시 항상 노출 + 강조 색상.
+const PinBtn = styled.button<{ $pinned: boolean }>`
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  margin: 0 0 0 4px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  color: ${(p) => (p.$pinned ? '#F59E0B' : '#94A3B8')};
+  opacity: ${(p) => (p.$pinned ? 1 : 0)};
+  transition: opacity 0.15s, background 0.15s;
+  &:hover { background: ${(p) => (p.$pinned ? '#FEF3C7' : '#F1F5F9')}; }
+  /* 행 hover 시 unpinned 도 등장 */
+  ${ChatRow}:hover & { opacity: 1; }
 `;

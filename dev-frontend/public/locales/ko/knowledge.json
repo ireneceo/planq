@@ -2,7 +2,7 @@
   "page": {
     "title": "Q info",
     "searchPh": "제목 검색...",
-    "new": "+ 정보 등록",
+    "new": "+ 새 정보",
     "fromFile": "+ 파일에서",
     "fromFileNoExisting": "기존 파일을 1개 이상 선택해 주세요",
     "fromFileResult": "{{ok}}건 추가, {{skip}}건 스킵",

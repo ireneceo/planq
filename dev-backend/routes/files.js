@@ -22,6 +22,36 @@ if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
 // 이 파일은 plan engine 경유로만 접근.
 
 // ─── 공개 다운로드 (인증 없음) ───
+// ─── Public image (이미지 썸네일/미리보기 — <img src> 호환) ───
+//   인증 헤더 못 실리는 <img> 태그용. UUID stored_name + image MIME 게이트로만 노출.
+//   파일이 비-이미지면 403. 워크스페이스 파일이라도 이미지 콘텐츠는 image MIME 으로 한정.
+router.get('/public-image/:storedName', async (req, res, next) => {
+  try {
+    const stored = String(req.params.storedName || '');
+    if (!/^[a-z0-9-]+\.[a-z0-9]+$/i.test(stored)) {
+      return errorResponse(res, 'invalid_filename', 400);
+    }
+    const file = await File.findOne({
+      where: {
+        file_path: { [Op.like]: `%${stored}` },
+        deleted_at: null,
+        storage_provider: 'planq',
+      },
+    });
+    if (!file) return errorResponse(res, 'not_found', 404);
+    if (!file.mime_type || !file.mime_type.startsWith('image/')) {
+      return errorResponse(res, 'not_public_image', 403);
+    }
+    const abs = path.isAbsolute(file.file_path) ? file.file_path : path.join(__dirname, '..', file.file_path);
+    if (!fs.existsSync(abs)) return errorResponse(res, 'file_missing', 410);
+    res.setHeader('Content-Type', file.mime_type);
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Content-Disposition', 'inline');
+    res.setHeader('Cache-Control', 'private, max-age=3600');
+    fs.createReadStream(abs).pipe(res);
+  } catch (err) { next(err); }
+});
+
 // GET /api/files/public/:token/download
 // ⚠️ 라우트 순서 중요: /:businessId/:id/download 보다 앞에 와야 path 매치 우선됨.
 router.get('/public/:token/download', async (req, res, next) => {
@@ -310,7 +340,12 @@ router.post('/:businessId', authenticateToken, checkBusinessAccess, upload.singl
       await t.commit();
       planEngine.invalidateBusinessCache(businessId);
       tempPath = null;
-      successResponse(res, file, 'File uploaded', 201);
+      // 응답: 이미지면 RichEditor 호환 preview_url 같이 노출 (TipTap 이미지 인라인 삽입용).
+      const isImage = file.mime_type && file.mime_type.startsWith('image/');
+      const previewUrl = (isImage && file.file_path)
+        ? `/api/files/public-image/${path.basename(file.file_path)}`
+        : null;
+      successResponse(res, { ...file.toJSON(), preview_url: previewUrl }, 'File uploaded', 201);
     } catch (e) {
       await t.rollback();
       throw e;

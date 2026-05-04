@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next';
 import { apiFetch, useAuth } from '../../contexts/AuthContext';
 import CalendarPicker from '../Common/CalendarPicker';
 import RichEditor from '../Common/RichEditor';
+import AttachmentField from '../Common/AttachmentField';
 import TaskAttachments from './TaskAttachments';
 import { STATUS_COLOR, displayStatus, getStatusLabel, type StatusCode } from '../../utils/taskLabel';
 import { getRoles, primaryPerspective } from '../../utils/taskRoles';
@@ -130,6 +131,9 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
 
   const [newComment, setNewComment] = useState('');
   const [commentFiles, setCommentFiles] = useState<File[]>([]);
+  const [commentPickerOpen, setCommentPickerOpen] = useState(false);
+  const [commentExistingFileIds, setCommentExistingFileIds] = useState<number[]>([]);
+  const [commentExistingPostIds, setCommentExistingPostIds] = useState<number[]>([]);
   const [commentSending, setCommentSending] = useState(false);
 
   const [revisionOpen, setRevisionOpen] = useState(false);
@@ -209,6 +213,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
     setEditingTitle(false); setStatusOpen(false);
     setOpenReviewers(false); setOpenHistory(false); setOpenDaily(false);
     setNewComment(''); setCommentFiles([]);
+    setCommentExistingFileIds([]); setCommentExistingPostIds([]); setCommentPickerOpen(false);
     setRevisionOpen(false); setRevisionNote('');
     setAddReviewerOpen(false); setPendingReviewerAdd(null);
     setDeleteConfirmOpen(false); setDeleting(false);
@@ -414,7 +419,10 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
 
   const addComment = async () => {
     if (!detailTask || commentSending) return;
-    if (!newComment.trim() && commentFiles.length === 0) return;
+    const hasContent = newComment.trim().length > 0;
+    const hasNew = commentFiles.length > 0;
+    const hasExisting = commentExistingFileIds.length > 0;
+    if (!hasContent && !hasNew && !hasExisting) return;
     setCommentSending(true);
     try {
       const content = newComment.trim() || '(첨부파일)';
@@ -425,6 +433,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
       if (!r.success) return;
       const comment = r.data;
       const attached: CommentAttach[] = [];
+      // 1) 새 파일 업로드
       for (const f of commentFiles) {
         const fd = new FormData();
         fd.append('file', f, f.name);
@@ -432,8 +441,20 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
         const uj = await ur.json();
         if (uj.success) attached.push({ id: uj.data.id, original_name: uj.data.original_name, file_size: uj.data.file_size, mime_type: uj.data.mime_type });
       }
+      // 2) 기존 워크스페이스 파일 link
+      if (hasExisting) {
+        const lr = await apiFetch(`/api/tasks/${detailTask.id}/attachments/link`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ file_ids: commentExistingFileIds, context: 'comment', comment_id: comment.id }),
+        });
+        const lj = await lr.json();
+        if (lj.success && Array.isArray(lj.data)) {
+          for (const a of lj.data) attached.push({ id: a.id, original_name: a.original_name, file_size: a.file_size, mime_type: a.mime_type });
+        }
+      }
       setDetailTask(prev => prev ? { ...prev, comments: [...(prev.comments || []), { ...comment, attachments: attached }] } : prev);
       setNewComment(''); setCommentFiles([]);
+      setCommentExistingFileIds([]); setCommentExistingPostIds([]); setCommentPickerOpen(false);
     } finally { setCommentSending(false); }
   };
 
@@ -681,10 +702,16 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
 
             <Section>
               <SectionTitle>{t('detail.description', '업무 설명')}</SectionTitle>
-              <DescTextarea defaultValue={detailTask.description || ''}
-                placeholder={t('detail.descPlaceholder', '이 업무에 대한 간단한 설명 (한두 줄)')}
-                onChange={e => debouncedSave('description', e.target.value, 2000)}
-                onBlur={e => flushDebounced('description', e.target.value)} />
+              <DescEditorWrap>
+                <RichEditor
+                  value={detailTask.description || ''}
+                  onChange={(html) => debouncedSave('description', html, 2000)}
+                  onBlur={(html) => flushDebounced('description', html)}
+                  placeholder={t('detail.descPlaceholder', '업무 설명 — 이미지 붙여넣기·드래그 지원') as string}
+                  uploadUrl={`/api/files/${bizId}`}
+                  minHeight={120}
+                />
+              </DescEditorWrap>
             </Section>
 
             <Section>
@@ -716,7 +743,22 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                 <CommentInput value={newComment} placeholder={t('detail.writeComment', 'Write a comment...')}
                   onChange={e => setNewComment(e.target.value)}
                   onKeyDown={e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); addComment(); } }} />
-                {commentFiles.length > 0 && <CmtStagedRow>
+                {/* 인라인 첨부 picker — popup-on-popup 금지. 같은 영역에서 펼침. */}
+                {commentPickerOpen && (
+                  <CmtPickerInline>
+                    <AttachmentField
+                      businessId={bizId}
+                      uploads={commentFiles}
+                      onUploadsChange={setCommentFiles}
+                      existingFileIds={commentExistingFileIds}
+                      onExistingFileIdsChange={setCommentExistingFileIds}
+                      includePosts
+                      existingPostIds={commentExistingPostIds}
+                      onExistingPostIdsChange={setCommentExistingPostIds}
+                    />
+                  </CmtPickerInline>
+                )}
+                {!commentPickerOpen && commentFiles.length > 0 && <CmtStagedRow>
                   {commentFiles.map((f, i) => (
                     <CmtStaged key={i}>
                       {f.name}
@@ -725,11 +767,13 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                   ))}
                 </CmtStagedRow>}
                 <CmtComposerRow>
-                  <CmtAttachBtn type="button" title={t('detail.attachFile', '파일 첨부') as string}
-                    onClick={() => { const i = document.createElement('input'); i.type = 'file'; i.multiple = true; i.onchange = () => { if (i.files) setCommentFiles(prev => [...prev, ...Array.from(i.files!)]); }; i.click(); }}>
-                    📎
+                  <CmtAttachBtn type="button" title={t('detail.attachFile', '파일·문서 첨부') as string}
+                    $active={commentPickerOpen}
+                    onClick={() => setCommentPickerOpen(v => !v)}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
                   </CmtAttachBtn>
-                  <CommentSend onClick={addComment} disabled={commentSending || (!newComment.trim() && commentFiles.length === 0)}>
+                  <CommentSend onClick={addComment}
+                    disabled={commentSending || (!newComment.trim() && commentFiles.length === 0 && commentExistingFileIds.length === 0)}>
                     {commentSending ? t('detail.sending', '전송 중...') : t('detail.send', 'Send')}
                   </CommentSend>
                 </CmtComposerRow>
@@ -1082,7 +1126,7 @@ const DateTrigger = styled.button<{ $empty?: boolean }>`
   color:${p => p.$empty ? '#CBD5E1' : '#64748B'};
   &:hover{border-color:#14B8A6;color:#0F766E;}
 `;
-const DescTextarea = styled.textarea`width:100%;min-height:46px;max-height:120px;padding:8px 10px;border:1px solid #E2E8F0;border-radius:8px;font-size:13px;color:#0F172A;background:#FAFBFC;font-family:inherit;resize:vertical;line-height:1.5;&:focus{outline:none;border-color:#14B8A6;background:#FFF;}&::placeholder{color:#94A3B8;}`;
+const DescEditorWrap = styled.div`background:#FFF;border:1px solid #E2E8F0;border-radius:8px;overflow:hidden;&:focus-within{border-color:#14B8A6;}`;
 
 // Actions
 const ActionCard = styled.div`background:#F8FAFC;border:1px solid #E2E8F0;border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:8px;& + &{margin-top:8px;}
@@ -1112,7 +1156,8 @@ const CommentComposer = styled.div`display:flex;flex-direction:column;gap:6px;ma
 const CmtComposerRow = styled.div`display:flex;justify-content:flex-end;gap:6px;align-items:center;`;
 const CommentInput = styled.textarea`width:100%;padding:6px 10px;border:1px solid #E2E8F0;border-radius:8px;font-size:12px;color:#0F172A;font-family:inherit;resize:vertical;min-height:40px;max-height:120px;&:focus{outline:none;border-color:#14B8A6;}&::placeholder{color:#94A3B8;}`;
 const CommentSend = styled.button`padding:6px 14px;background:#14B8A6;color:#FFF;border:none;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;&:disabled{background:#CBD5E1;cursor:not-allowed;}&:hover:not(:disabled){background:#0D9488;}`;
-const CmtAttachBtn = styled.button`width:32px;height:28px;display:flex;align-items:center;justify-content:center;background:transparent;border:1px solid #E2E8F0;border-radius:6px;cursor:pointer;font-size:14px;&:hover{border-color:#14B8A6;background:#F0FDFA;}`;
+const CmtAttachBtn = styled.button<{ $active?: boolean }>`width:32px;height:28px;display:flex;align-items:center;justify-content:center;background:${p=>p.$active?'#F0FDFA':'transparent'};border:1px solid ${p=>p.$active?'#14B8A6':'#E2E8F0'};color:${p=>p.$active?'#0D9488':'#64748B'};border-radius:6px;cursor:pointer;&:hover{border-color:#14B8A6;background:#F0FDFA;color:#0D9488;}`;
+const CmtPickerInline = styled.div`background:#FAFBFC;border:1px solid #E2E8F0;border-radius:8px;padding:10px;margin-top:6px;`;
 const CmtStagedRow = styled.div`display:flex;flex-wrap:wrap;gap:4px;`;
 const CmtStaged = styled.span`display:inline-flex;align-items:center;gap:4px;padding:2px 6px 2px 8px;background:#F0FDFA;color:#0F766E;border:1px solid #99F6E4;border-radius:12px;font-size:11px;`;
 const CmtStagedX = styled.button`width:16px;height:16px;display:flex;align-items:center;justify-content:center;background:transparent;border:none;color:#0F766E;cursor:pointer;font-size:14px;line-height:1;&:hover{color:#DC2626;}`;

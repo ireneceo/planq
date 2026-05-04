@@ -38,7 +38,7 @@ interface ProjectDetail {
   color?: string | null;
   owner_user_id: number;
   Business?: { id: number; name: string; brand_name?: string };
-  projectMembers?: { user_id: number; role: string; is_pm?: boolean; User?: { id: number; name: string } }[];
+  projectMembers?: { user_id: number; role: string; is_pm?: boolean; User?: { id: number; name: string; display_name?: string | null }}[];
   projectClients?: { id: number; contact_name: string; contact_email: string | null; contact_user_id?: number | null; invite_token?: string | null }[];
 }
 interface Conv {
@@ -136,7 +136,7 @@ const QProjectDetailPage: React.FC = () => {
   }, [tasks]);
 
   // ── 멤버 관리 (bulk PUT) ──
-  const saveMembers = async (next: { user_id: number; role: string; is_pm?: boolean; User?: { id: number; name: string } }[]) => {
+  const saveMembers = async (next: { user_id: number; role: string; is_pm?: boolean; User?: { id: number; name: string; display_name?: string | null }}[]) => {
     if (!project) return;
     setProject(prev => prev ? { ...prev, projectMembers: next } : prev);
     try {
@@ -540,7 +540,7 @@ const QProjectDetailPage: React.FC = () => {
                   return (
                     <MemberRow key={m.user_id}>
                       <MemberName>
-                        {m.User?.name || `user ${m.user_id}`}
+                        {m.User?.display_name || m.User?.name || `user ${m.user_id}`}
                         {isOwner && <OwnerTag>{t('members.owner', '오너')}</OwnerTag>}
                         {isPm && !isOwner && <PmTag>PM</PmTag>}
                       </MemberName>

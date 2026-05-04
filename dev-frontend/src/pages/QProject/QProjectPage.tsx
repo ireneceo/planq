@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import styled from 'styled-components';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { displayName } from '../../utils/displayName';
 import { apiFetch, useAuth } from '../../contexts/AuthContext';
 import PageShell from '../../components/Layout/PageShell';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
@@ -16,7 +17,14 @@ interface ProjectMemberRow {
   user_id: number;
   role?: string | null;
   is_pm?: boolean;
-  User?: { id: number; name: string; email?: string | null } | null;
+  User?: {
+    id: number; name: string; email?: string | null;
+    name_localized?: Record<string, string> | null;
+    // 워크스페이스 표시명 (BusinessMember.name) — 사이드바·리스트 우선 노출
+    display_name?: string | null;
+    display_name_localized?: Record<string, string> | null;
+    workspace_role?: string | null;
+  } | null;
 }
 interface ProjectClientRow {
   id?: number;
@@ -260,7 +268,8 @@ const ListView: React.FC<{
   onOpen: (projectId: number) => void;
   onStatusChange: (id: number, next: 'active' | 'paused' | 'closed') => Promise<void>;
 }> = ({ projects, formatDate, t, onOpen, onStatusChange }) => {
-  const { t: tl } = useTranslation('qproject');
+  const { t: tl, i18n } = useTranslation('qproject');
+  const lang = i18n.language;
   const [menuOpen, setMenuOpen] = useState<number | null>(null);
   const [confirmCloseId, setConfirmCloseId] = useState<number | null>(null);
 
@@ -373,16 +382,20 @@ const ListView: React.FC<{
                   {pm && (
                     <PMBlock title={t('card.pmLabel') as string}>
                       <PMStar>★</PMStar>
-                      <PMName>{pm.User?.name || `#${pm.user_id}`}</PMName>
+                      {/* 워크스페이스 표시명 우선 — display_name (BusinessMember.name) → name fallback */}
+                      <PMName>{displayName(pm.User, lang) || `#${pm.user_id}`}</PMName>
                     </PMBlock>
                   )}
                   {others.length > 0 && (
                     <AvatarStack>
-                      {others.slice(0, 4).map(m => (
-                        <Avatar key={m.user_id} title={m.User?.name || `#${m.user_id}`}>
-                          {(m.User?.name || '?').charAt(0).toUpperCase()}
-                        </Avatar>
-                      ))}
+                      {others.slice(0, 4).map(m => {
+                        const dn = displayName(m.User, lang);
+                        return (
+                          <Avatar key={m.user_id} title={dn || `#${m.user_id}`}>
+                            {(dn || '?').charAt(0).toUpperCase()}
+                          </Avatar>
+                        );
+                      })}
                       {others.length > 4 && <AvatarMore>+{others.length - 4}</AvatarMore>}
                     </AvatarStack>
                   )}
@@ -690,12 +703,15 @@ const ViewTab = styled.button<{ $active: boolean }>`
 `;
 
 const EmptyState = styled.div`
-  padding: 60px 20px;
+  flex: 1;
+  min-height: 60vh;
+  padding: 40px 20px;
   text-align: center;
   color: #94A3B8;
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: 8px;
 `;
 const EmptyIcon = styled.div`color: #CBD5E1; margin-bottom: 4px;`;

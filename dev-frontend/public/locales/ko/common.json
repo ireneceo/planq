@@ -114,7 +114,7 @@
   },
   "adminFeedback": {
     "title": "사용자 피드백",
-    "searchPh": "제목·내용 검색",
+    "searchPh": "내용 검색",
     "allCategories": "전체 분류",
     "urgent": "긴급",
     "empty": "해당 상태의 피드백이 없습니다",
@@ -124,7 +124,7 @@
     "page": "발생 페이지",
     "ua": "브라우저",
     "createdAt": "제출",
-    "body": "본문",
+    "body": "내용",
     "response": "운영팀 답변",
     "responsePh": "사용자에게 보낼 답변을 작성하세요",
     "statusLabel": "상태",

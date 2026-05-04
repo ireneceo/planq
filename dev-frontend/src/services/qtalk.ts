@@ -119,6 +119,9 @@ export interface WorkspaceMemberRow {
   business_id: number;
   user_id: number;
   role: 'owner' | 'member' | 'ai';
+  // 워크스페이스 표시명 (BusinessMember.name) — 계정명(user.name) 보다 우선 사용.
+  name?: string | null;
+  name_localized?: Record<string, string> | null;
   user: { id: number; name: string; email: string };
 }
 
@@ -173,12 +176,26 @@ export interface ApiConversation {
   created_at: string;
   translation_enabled: boolean;
   translation_languages: SupportedLang[] | null;
+  // 사용자 본인의 핀(즐겨찾기) 시각. null = 핀 안 됨. 백엔드가 사용자별로 채워서 응답.
+  my_pinned_at?: string | null;
   participants?: Array<{
     id: number;
     user_id: number;
     role: string;
     User?: { id: number; name: string; email: string; avatar_url?: string | null };
   }>;
+}
+
+export async function pinConversation(businessId: number, conversationId: number): Promise<boolean> {
+  const r = await apiFetch(`/api/conversations/${businessId}/${conversationId}/pin`, { method: 'POST' });
+  const j = await r.json().catch(() => null);
+  return !!j?.success;
+}
+
+export async function unpinConversation(businessId: number, conversationId: number): Promise<boolean> {
+  const r = await apiFetch(`/api/conversations/${businessId}/${conversationId}/pin`, { method: 'DELETE' });
+  const j = await r.json().catch(() => null);
+  return !!j?.success;
 }
 
 export interface ApiMessage {

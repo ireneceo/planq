@@ -5,13 +5,13 @@ import { useSearchParams } from 'react-router-dom';
 import {
   type MockMessage, type MockProject, type MockConversation, type PostCardMeta,
 } from './types';
-import { useAuth } from '../../contexts/AuthContext';
+import { useAuth, apiFetch } from '../../contexts/AuthContext';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 import LetterAvatar from '../../components/Common/LetterAvatar';
 import EmptyState from '../../components/Common/EmptyState';
 import PostCardPreviewModal from './PostCardPreviewModal';
 import FilePicker, { type FilePickerResult } from '../../components/Common/FilePicker';
-import { fetchWorkspaceFiles } from '../../services/files';
+import { fetchWorkspaceFiles, uploadMyFile } from '../../services/files';
 import { mediaTablet } from '../../theme/breakpoints';
 
 interface Props {
@@ -112,36 +112,68 @@ const ChatPanel: React.FC<Props> = ({
     }
   };
 
-  const [stagedFiles, setStagedFiles] = useState<File[]>([]);
+  // 업로드 진행 중 상태 — 픽 즉시 업로드 → 완료 시 stagedExistingIds 로 이동
+  const [uploadingFiles, setUploadingFiles] = useState<Array<{ tempId: string; name: string; size: number; error?: string }>>([]);
   const [stagedExistingIds, setStagedExistingIds] = useState<number[]>([]);
   const [stagedExistingMeta, setStagedExistingMeta] = useState<Record<number, { name: string; size: number }>>({});
   const [stagedPostIds, setStagedPostIds] = useState<number[]>([]);
   const [stagedPostMeta, setStagedPostMeta] = useState<Record<number, { title: string }>>({});
   const [filePickerOpen, setFilePickerOpen] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
   // FilePicker 의 businessId — useAuth() 의 user.business_id 사용 (MockProject 에는 business_id 없음)
   const businessId = user?.business_id ? Number(user.business_id) : null;
 
+  // 한 개 파일을 즉시 워크스페이스에 업로드 → fileId 받아서 stagedExistingIds 에 추가.
+  // 진행 중엔 uploadingFiles 에 임시 chip 으로 노출 (이름 + 크기 + 스피너).
+  const uploadOne = async (file: File) => {
+    if (!businessId) return;
+    const tempId = `up-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    setUploadingFiles(prev => [...prev, { tempId, name: file.name, size: file.size }]);
+    try {
+      const r = await uploadMyFile(businessId, file);
+      if (!r.success || !r.file) {
+        setUploadingFiles(prev => prev.map(x => x.tempId === tempId ? { ...x, error: r.message || '업로드 실패' } : x));
+        return;
+      }
+      const fid = Number(String(r.file.id).replace(/^direct-/, ''));
+      if (fid) {
+        setStagedExistingIds(prev => prev.includes(fid) ? prev : [...prev, fid]);
+        setStagedExistingMeta(prev => ({ ...prev, [fid]: { name: file.name, size: file.size } }));
+      }
+      setUploadingFiles(prev => prev.filter(x => x.tempId !== tempId));
+    } catch (e) {
+      setUploadingFiles(prev => prev.map(x => x.tempId === tempId ? { ...x, error: e instanceof Error ? e.message : '업로드 실패' } : x));
+    }
+  };
+
+  // 여러 파일 동시 업로드 (Promise.allSettled — 일부 실패해도 나머지 진행)
+  const uploadMany = async (files: File[]) => {
+    await Promise.allSettled(files.map(uploadOne));
+  };
+
   const handleSend = () => {
-    const hasFiles = stagedFiles.length > 0 || stagedExistingIds.length > 0;
+    const hasFiles = stagedExistingIds.length > 0;
     const hasPosts = stagedPostIds.length > 0;
+    const hasUploading = uploadingFiles.some(x => !x.error);
+    if (hasUploading) return; // 업로드 진행 중엔 전송 X (UI 도 disabled)
     if (!input.trim() && !hasFiles && !hasPosts) return;
     onSendMessage(
       input,
-      stagedFiles.length > 0 ? stagedFiles : undefined,
+      undefined, // raw File 배열은 더 이상 사용하지 않음 (업로드 즉시 → existingIds 경로 통일)
       stagedExistingIds.length > 0 ? stagedExistingIds : undefined,
       stagedPostIds.length > 0 ? stagedPostIds : undefined,
     );
     setInput('');
-    setStagedFiles([]);
     setStagedExistingIds([]);
     setStagedExistingMeta({});
     setStagedPostIds([]);
     setStagedPostMeta({});
+    setUploadingFiles([]);
     scrollToBottom();
   };
   const handleFilePicked = async (result: FilePickerResult) => {
     if (result.uploaded && result.uploaded.length > 0) {
-      setStagedFiles(prev => [...prev, ...result.uploaded!]);
+      uploadMany(result.uploaded);
     }
     if (result.existingFileIds && result.existingFileIds.length > 0 && businessId) {
       setStagedExistingIds(prev => [...new Set([...prev, ...result.existingFileIds!])]);
@@ -175,7 +207,7 @@ const ChatPanel: React.FC<Props> = ({
       } catch { /* skip */ }
     }
   };
-  const removeStaged = (idx: number) => setStagedFiles(prev => prev.filter((_, i) => i !== idx));
+  const removeUploading = (tempId: string) => setUploadingFiles(prev => prev.filter(x => x.tempId !== tempId));
   const removeExisting = (id: number) => {
     setStagedExistingIds(prev => prev.filter(x => x !== id));
     setStagedExistingMeta(prev => { const next = { ...prev }; delete next[id]; return next; });
@@ -183,6 +215,24 @@ const ChatPanel: React.FC<Props> = ({
   const removePost = (id: number) => {
     setStagedPostIds(prev => prev.filter(x => x !== id));
     setStagedPostMeta(prev => { const next = { ...prev }; delete next[id]; return next; });
+  };
+
+  // 비이미지 첨부 다운로드 — Authorization 헤더 동반 fetch + blob 트리거
+  // (img 와 달리 클릭 다운로드는 직접 JS 로 받아야 401 안 남)
+  const downloadAttachment = async (attId: number, filename: string) => {
+    try {
+      const res = await apiFetch(`/api/message-attachments/${attId}/download`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = filename;
+      document.body.appendChild(a); a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      console.error('[downloadAttachment]', e);
+    }
   };
 
   // 메시지 리스트 스크롤 컨테이너 + 위치 영속
@@ -386,7 +436,38 @@ const ChatPanel: React.FC<Props> = ({
   }
 
   return (
-    <Container $mobileHidden={mobileHidden}>
+    <Container
+      $mobileHidden={mobileHidden}
+      onDragEnter={(e) => {
+        if (!activeConversationId) return;
+        // 파일 드래그만 반응 (텍스트/링크는 무시)
+        const types = e.dataTransfer?.types;
+        if (types && Array.from(types).includes('Files')) {
+          e.preventDefault();
+          setDragOver(true);
+        }
+      }}
+      onDragOver={(e) => {
+        if (!activeConversationId) return;
+        const types = e.dataTransfer?.types;
+        if (types && Array.from(types).includes('Files')) {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = 'copy';
+        }
+      }}
+      onDragLeave={(e) => {
+        // 자식으로 진입 시에도 leave 가 fire 되므로 currentTarget 검사
+        if (e.currentTarget === e.target) setDragOver(false);
+      }}
+      onDrop={(e) => {
+        e.preventDefault();
+        setDragOver(false);
+        if (!activeConversationId) return;
+        const files = Array.from(e.dataTransfer?.files || []);
+        if (files.length > 0) uploadMany(files);
+      }}
+    >
+      {dragOver && <DropOverlay>{t('chat.dropHere', '여기에 놓아 업로드') as string}</DropOverlay>}
       {/* 헤더: 채팅방 이름이 주인공, 프로젝트는 서브라벨 */}
       <HeaderBar>
         <HeaderLeft>
@@ -601,13 +682,27 @@ const ChatPanel: React.FC<Props> = ({
                 <AttachRow>
                   {m.attachments.map((a) => {
                     const isImg = (a.mime_type || '').startsWith('image/');
-                    const dl = `/api/message-attachments/${a.id}/download`;
+                    const imgSrc = `/api/message-attachments/${a.id}/raw`;
                     return isImg ? (
-                      <AttachImageLink key={a.id} href={dl} target="_blank" rel="noreferrer">
-                        <AttachImage src={dl} alt={a.file_name} />
+                      // <img> / <a target=_blank> 모두 인증헤더 못 실음 → /raw (image only, public)
+                      <AttachImageLink key={a.id} href={imgSrc} target="_blank" rel="noreferrer">
+                        <AttachImage
+                          src={imgSrc}
+                          alt={a.file_name}
+                          onLoad={() => {
+                            // 이미지 로드되면 컨텐츠 높이가 늘어남 → 마지막 메시지가 viewport 밖으로 밀림
+                            // 사용자가 거의 끝에 있을 때만 다시 스크롤 (위로 올려둔 상태면 방해 안 함)
+                            const list = messageListRef.current;
+                            if (!list) return;
+                            const distance = list.scrollHeight - list.scrollTop - list.clientHeight;
+                            if (distance < 240) scrollToBottom(false);
+                          }}
+                        />
                       </AttachImageLink>
                     ) : (
-                      <AttachFileLink key={a.id} href={dl} target="_blank" rel="noreferrer" title={a.file_name}>
+                      // 비이미지: 클릭 시 JS fetch (auth header + refresh) → blob → 다운로드 트리거
+                      <AttachFileLink key={a.id} as="button" type="button" title={a.file_name}
+                        onClick={() => downloadAttachment(a.id, a.file_name)}>
                         <AttachIcon>{a.file_name.split('.').pop()?.slice(0, 3).toUpperCase() || 'FILE'}</AttachIcon>
                         <AttachName>{a.file_name}</AttachName>
                         <AttachSize>{(a.file_size / 1024).toFixed(0)}KB</AttachSize>
@@ -734,13 +829,14 @@ const ChatPanel: React.FC<Props> = ({
             )}
           </InputToolbar>
         )}
-        {(stagedFiles.length > 0 || stagedExistingIds.length > 0 || stagedPostIds.length > 0) && (
+        {(uploadingFiles.length > 0 || stagedExistingIds.length > 0 || stagedPostIds.length > 0) && (
           <StagedRow>
-            {stagedFiles.map((f, i) => (
-              <StagedChip key={`new-${i}`}>
-                <StagedName title={f.name}>{f.name}</StagedName>
-                <StagedSize>{(f.size / 1024).toFixed(0)}KB</StagedSize>
-                <StagedX type="button" onClick={() => removeStaged(i)} aria-label="remove">×</StagedX>
+            {uploadingFiles.map((u) => (
+              <StagedChip key={u.tempId} title={u.error || (t('chat.input.uploading', '업로드 중...') as string)}>
+                {u.error ? <ErrorDot /> : <UploadSpinner />}
+                <StagedName title={u.name}>{u.name}</StagedName>
+                <StagedSize>{(u.size / 1024).toFixed(0)}KB</StagedSize>
+                <StagedX type="button" onClick={() => removeUploading(u.tempId)} aria-label="remove">×</StagedX>
               </StagedChip>
             ))}
             {stagedExistingIds.map(id => {
@@ -778,10 +874,32 @@ const ChatPanel: React.FC<Props> = ({
             onKeyDown={handleKeyDown}
             onCompositionStart={handleCompositionStart}
             onCompositionEnd={handleCompositionEnd}
+            onPaste={(e) => {
+              // 클립보드의 이미지(스크린샷 등) 즉시 업로드
+              const items = e.clipboardData?.items;
+              if (!items) return;
+              const files: File[] = [];
+              for (const it of items) {
+                if (it.kind === 'file') {
+                  const f = it.getAsFile();
+                  if (f) files.push(f);
+                }
+              }
+              if (files.length > 0) {
+                e.preventDefault();
+                uploadMany(files);
+              }
+            }}
             placeholder={t('chat.input.placeholder', '메시지를 입력하세요 (Enter 전송 · Shift+Enter 줄바꿈)')}
             rows={1}
           />
-          <SendBtn disabled={!input.trim() && stagedFiles.length === 0} onClick={handleSend}>
+          <SendBtn
+            disabled={
+              uploadingFiles.some(x => !x.error) ||
+              (!input.trim() && stagedExistingIds.length === 0 && stagedPostIds.length === 0)
+            }
+            onClick={handleSend}
+          >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <line x1="22" y1="2" x2="11" y2="13" />
               <polygon points="22 2 15 22 11 13 2 9 22 2" />
@@ -813,6 +931,7 @@ export default ChatPanel;
 
 // ─────────────────────────────────────────────
 const Container = styled.main<{ $mobileHidden?: boolean }>`
+  position: relative;
   flex: 1;
   min-width: 0;
   background: #FFFFFF;
@@ -1515,14 +1634,21 @@ const AttachBtn = styled.button`
   &:hover { background: #F1F5F9; color: #0F172A; }
 `;
 const StagedRow = styled.div`
-  display: flex; flex-wrap: wrap; gap: 6px; padding: 6px 12px 0;
+  display: flex; flex-wrap: wrap; gap: 6px;
+  justify-content: flex-start;
+  /* InputWrap 의 콘텐츠 시작 x 와 정확히 맞춤: InputBar(좌16px) + InputWrap border(1px) + InputWrap padding-left(10px) = 27px.
+     StagedRow 자체는 InputBar 자식이므로 좌16px 은 이미 적용됨 → 추가로 11px(border+padding) 만큼만 들여쓰기. */
+  padding: 8px 11px 10px;
+  border-bottom: 1px solid #F1F5F9;
 `;
 const StagedChip = styled.div`
-  display: inline-flex; align-items: center; gap: 6px; padding: 4px 8px;
+  /* chip 자체의 좌측 padding 을 0 으로 — 아이콘이 InputWrap 콘텐츠 좌측과 시각적으로 정렬되도록 */
+  display: inline-flex; align-items: center; gap: 6px; padding: 4px 8px 4px 6px;
   background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 6px;
   font-size: 11px; color: #475569; max-width: 220px;
+  min-width: 0;
 `;
-const StagedName = styled.span`white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 140px;`;
+const StagedName = styled.span`white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 140px; text-align: left;`;
 const StagedSize = styled.span`color: #94A3B8; font-size: 10px;`;
 const ExistingDot = styled.span`
   width: 6px; height: 6px; border-radius: 50%;
@@ -1531,6 +1657,24 @@ const ExistingDot = styled.span`
 const PostDot = styled.span`
   width: 6px; height: 6px; border-radius: 50%;
   background: #F43F5E; flex-shrink: 0;
+`;
+const ErrorDot = styled.span`
+  width: 6px; height: 6px; border-radius: 50%;
+  background: #EF4444; flex-shrink: 0;
+`;
+const UploadSpinner = styled.span`
+  width: 10px; height: 10px; border-radius: 50%;
+  border: 2px solid #CBD5E1; border-top-color: #14B8A6;
+  animation: spin 0.8s linear infinite; flex-shrink: 0;
+  @keyframes spin { to { transform: rotate(360deg); } }
+`;
+const DropOverlay = styled.div`
+  position: absolute; inset: 0; z-index: 20;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(20, 184, 166, 0.06);
+  border: 2px dashed #14B8A6; border-radius: 8px;
+  pointer-events: none;
+  font-size: 14px; font-weight: 600; color: #0F766E;
 `;
 const StagedX = styled.button`
   background: transparent; border: none; color: #94A3B8; cursor: pointer;

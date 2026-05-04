@@ -71,6 +71,9 @@ const NewProjectModal: React.FC<Props> = ({ businessId, open, onClose, onCreate 
   const dateAnchorRef = useRef<HTMLButtonElement>(null);
   const [customerChatName, setCustomerChatName] = useState('');
   const [internalChatName, setInternalChatName] = useState('');
+  // 채널 생성 여부 토글 — 기본 ON (UX: 프로젝트 만들 때 보통 채팅 같이 만듦)
+  const [createCustomerChannel, setCreateCustomerChannel] = useState(true);
+  const [createInternalChannel, setCreateInternalChannel] = useState(true);
   const [customerParticipants, setCustomerParticipants] = useState<Set<number>>(new Set());
   const [internalParticipants, setInternalParticipants] = useState<Set<number>>(new Set());
 
@@ -177,8 +180,8 @@ const NewProjectModal: React.FC<Props> = ({ businessId, open, onClose, onCreate 
         members,
         clients,
         channels: [
-          { channel_type: 'customer', name: customerChatName.trim() || `${name.trim()} 고객`, participant_user_ids: Array.from(customerParticipants) },
-          { channel_type: 'internal', name: internalChatName.trim() || `${name.trim()} 내부`, participant_user_ids: Array.from(internalParticipants) },
+          ...(createCustomerChannel ? [{ channel_type: 'customer' as const, name: customerChatName.trim() || `${name.trim()} 고객`, participant_user_ids: Array.from(customerParticipants) }] : []),
+          ...(createInternalChannel ? [{ channel_type: 'internal' as const, name: internalChatName.trim() || `${name.trim()} 내부`, participant_user_ids: Array.from(internalParticipants) }] : []),
         ],
       });
     } finally {
@@ -417,42 +420,54 @@ const NewProjectModal: React.FC<Props> = ({ businessId, open, onClose, onCreate 
             <HelpText>{t('modal.clientHelp', '저장 시 초대 링크가 클립보드에 복사됩니다. (이메일 발송은 추후 지원)')}</HelpText>
           </Field>
 
-          {/* 채팅 채널 설정 */}
+          {/* Q Talk 채널 설정 — 채널 종류별 토글 + 이름·참여자 */}
           <Field>
-            <Label>{t('modal.channels', '채팅 채널')}</Label>
-            <HelpText>{t('modal.channelsHelp', '프로젝트 생성 시 2개 채널이 자동 생성됩니다. 이름과 참여자를 조정하세요.')}</HelpText>
+            <Label>{t('modal.channels', 'Q Talk 채널')}</Label>
+            <HelpText>{t('modal.channelsHelp', '체크한 채널만 생성됩니다. 둘 다 해제하면 채팅 채널 없이 프로젝트만 만들어집니다.')}</HelpText>
             {([
-              { type: 'customer' as const, defaultName: t('modal.customerChannelDefault', { project: name || t('modal.projectFallback', '프로젝트') }) as string, ref: 'customer', title: t('modal.customerChannel', '고객 채널') as string },
-              { type: 'internal' as const, defaultName: t('modal.internalChannelDefault', { project: name || t('modal.projectFallback', '프로젝트') }) as string, ref: 'internal', title: t('modal.internalChannel', '내부 채널') as string },
+              { type: 'customer' as const, defaultName: t('modal.customerChannelDefault', { project: name || t('modal.projectFallback', '프로젝트') }) as string, title: t('modal.customerChannel', '고객 Q Talk 채널') as string, enabled: createCustomerChannel, setEnabled: setCreateCustomerChannel },
+              { type: 'internal' as const, defaultName: t('modal.internalChannelDefault', { project: name || t('modal.projectFallback', '프로젝트') }) as string, title: t('modal.internalChannel', '내부 Q Talk 채널') as string, enabled: createInternalChannel, setEnabled: setCreateInternalChannel },
             ]).map(cfg => {
               const nameVal = cfg.type === 'customer' ? customerChatName : internalChatName;
               const setNameVal = cfg.type === 'customer' ? setCustomerChatName : setInternalChatName;
               const parts = cfg.type === 'customer' ? customerParticipants : internalParticipants;
               const setParts = cfg.type === 'customer' ? setCustomerParticipants : setInternalParticipants;
               return (
-                <ChannelCard key={cfg.type}>
-                  <ChannelTitle>{cfg.title}</ChannelTitle>
-                  <Input value={nameVal} onChange={e => setNameVal(e.target.value)} placeholder={cfg.defaultName} />
-                  <ChannelMembers>
-                    <HelpText>{t('modal.channelMembers', '참여 멤버')} ({parts.size}/{members.length})</HelpText>
-                    <ChannelMembersList>
-                      {members.length === 0 && <HelpText>{t('modal.noMembers', '멤버를 먼저 추가하세요')}</HelpText>}
-                      {members.map(m => {
-                        const checked = parts.has(m.user_id);
-                        return (
-                          <ChannelMemberChk key={m.user_id}>
-                            <input type="checkbox" checked={checked}
-                              onChange={() => {
-                                const next = new Set(parts);
-                                if (checked) next.delete(m.user_id); else next.add(m.user_id);
-                                setParts(next);
-                              }} />
-                            <span>{m.name} · {m.role}{m.is_default ? ' ★' : ''}</span>
-                          </ChannelMemberChk>
-                        );
-                      })}
-                    </ChannelMembersList>
-                  </ChannelMembers>
+                <ChannelCard key={cfg.type} $disabled={!cfg.enabled}>
+                  <ChannelHeaderRow>
+                    <ChannelTitle>{cfg.title}</ChannelTitle>
+                    {/* 우측 상단 토글 스위치 — 체크박스 대신 (Irene UX 요청) */}
+                    <SwitchLabel role="switch" aria-checked={cfg.enabled} title={cfg.enabled ? (t('modal.disableChannel','채널 끄기') as string) : (t('modal.enableChannel','채널 켜기') as string)}>
+                      <SwitchInput type="checkbox" checked={cfg.enabled}
+                        onChange={(e) => cfg.setEnabled(e.target.checked)} />
+                      <SwitchSlider />
+                    </SwitchLabel>
+                  </ChannelHeaderRow>
+                  {cfg.enabled && (
+                    <>
+                      <Input value={nameVal} onChange={e => setNameVal(e.target.value)} placeholder={cfg.defaultName} />
+                      <ChannelMembers>
+                        <HelpText>{t('modal.channelMembers', '참여 멤버')} ({parts.size}/{members.length})</HelpText>
+                        <ChannelMembersList>
+                          {members.length === 0 && <HelpText>{t('modal.noMembers', '멤버를 먼저 추가하세요')}</HelpText>}
+                          {members.map(m => {
+                            const checked = parts.has(m.user_id);
+                            return (
+                              <ChannelMemberChk key={m.user_id}>
+                                <input type="checkbox" checked={checked}
+                                  onChange={() => {
+                                    const next = new Set(parts);
+                                    if (checked) next.delete(m.user_id); else next.add(m.user_id);
+                                    setParts(next);
+                                  }} />
+                                <span>{m.name} · {m.role}{m.is_default ? ' ★' : ''}</span>
+                              </ChannelMemberChk>
+                            );
+                          })}
+                        </ChannelMembersList>
+                      </ChannelMembers>
+                    </>
+                  )}
                 </ChannelCard>
               );
             })}
@@ -738,8 +753,16 @@ const NewClientRow = styled.div`
   align-items: center;
 `;
 
-const ChannelCard = styled.div`padding:12px;border:1px solid #E2E8F0;border-radius:8px;margin-top:8px;display:flex;flex-direction:column;gap:8px;`;
-const ChannelTitle = styled.div`font-size:12px;font-weight:700;color:#0F766E;`;
+const ChannelCard = styled.div<{ $disabled?: boolean }>`padding:12px;border:1px solid ${p=>p.$disabled?'#E2E8F0':'#99F6E4'};border-radius:8px;margin-top:8px;display:flex;flex-direction:column;gap:8px;background:${p=>p.$disabled?'#FAFBFC':'#F0FDFA'};transition:background 0.15s,border-color 0.15s;`;
+const ChannelHeaderRow = styled.div`display:flex;align-items:center;justify-content:space-between;`;
+const ChannelTitle = styled.div`font-size:13px;font-weight:700;color:#0F766E;`;
+// 우측 상단 토글 스위치 — Primary teal, 36×20.
+const SwitchLabel = styled.label`position:relative;display:inline-block;width:36px;height:20px;cursor:pointer;flex-shrink:0;`;
+const SwitchInput = styled.input`opacity:0;width:0;height:0;`;
+const SwitchSlider = styled.span`position:absolute;inset:0;background:#CBD5E1;border-radius:999px;transition:background 0.15s;
+  &::before{content:'';position:absolute;left:2px;top:2px;width:16px;height:16px;background:#FFF;border-radius:50%;transition:transform 0.15s;box-shadow:0 1px 2px rgba(0,0,0,0.1);}
+  ${SwitchInput}:checked + &{background:#14B8A6;}
+  ${SwitchInput}:checked + &::before{transform:translateX(16px);}`;
 const ChannelMembers = styled.div`display:flex;flex-direction:column;gap:4px;`;
 const ChannelMembersList = styled.div`display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:4px;max-height:140px;overflow-y:auto;padding:4px;background:#F8FAFC;border-radius:6px;`;
 const ChannelMemberChk = styled.label`display:flex;align-items:center;gap:6px;font-size:11px;color:#0F172A;cursor:pointer;padding:2px 4px;border-radius:4px;&:hover{background:#F0FDFA;}input{accent-color:#14B8A6;cursor:pointer;}`;

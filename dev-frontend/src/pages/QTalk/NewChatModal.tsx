@@ -15,6 +15,9 @@ import { listBusinessMembers, listProjects, listWorkspaceClients, type Workspace
 export interface NewChatFormData {
   title: string;
   project_id: number | null;
+  // 새 프로젝트 인라인 생성 — 부모가 프로젝트 만들고 그 id 로 채팅 만든다.
+  // null/undefined: 기존 또는 미연결. string: 새로 만들 프로젝트 이름.
+  new_project_name?: string | null;
   client_id: number | null; // 고객 1명 직접 연결 가능 — 프로젝트와 독립
   participant_user_ids: number[];
   // 채팅 설정 (생성 시점에 같이 결정 — 만든 후 톱니에서 변경 가능)
@@ -47,7 +50,9 @@ const NewChatModal: React.FC<Props> = ({ businessId, open, preselectedProjectId,
   const [title, setTitle] = useState('');
   // 디폴트는 프로젝트 미연결 — 사용자가 명시적으로 선택해야 연결.
   // preselectedProjectId 가 있어도 단순 hint 로만 사용 (자동 prefill X)
+  // projectId === -1 → "새 프로젝트 만들기" 모드 (newProjectName 사용)
   const [projectId, setProjectId] = useState<number | null>(null);
+  const [newProjectName, setNewProjectName] = useState('');
   const [participantIds, setParticipantIds] = useState<number[]>([]);
   const [clientId, setClientId] = useState<number | null>(null);
   const [members, setMembers] = useState<WorkspaceMemberRow[]>([]);
@@ -64,6 +69,7 @@ const NewChatModal: React.FC<Props> = ({ businessId, open, preselectedProjectId,
     if (!open) return;
     setTitle('');
     setProjectId(null); // 항상 미연결로 초기화 (preselectedProjectId 무시)
+    setNewProjectName('');
     setParticipantIds([]);
     setClientId(null);
     setSubmitting(false);
@@ -92,12 +98,14 @@ const NewChatModal: React.FC<Props> = ({ businessId, open, preselectedProjectId,
   const memberOptions = useMemo(
     () => members
       .filter((m) => m.user_id !== myId && !participantIds.includes(m.user_id))
-      .map((m) => ({ value: String(m.user_id), label: m.user?.name || `user ${m.user_id}` })),
+      // 워크스페이스 표시명 (BusinessMember.name) 우선 — 계정명 fallback
+      .map((m) => ({ value: String(m.user_id), label: m.name || m.user?.name || `user ${m.user_id}` })),
     [members, participantIds, myId],
   );
   const projectOptions = useMemo(
     () => [
       { value: '__none__', label: t('newChat.noProject', '연결 안 함 (일반 대화)') },
+      { value: '__new__', label: t('newChat.newProject', '+ 새 프로젝트 만들기') },
       ...projects.map((p) => ({ value: String(p.id), label: p.name })),
     ],
     [projects, t],
@@ -121,14 +129,18 @@ const NewChatModal: React.FC<Props> = ({ businessId, open, preselectedProjectId,
   };
 
   const sameLang = langA === langB;
-  const canSubmit = title.trim().length > 0 && !submitting && (!translationOn || !sameLang);
+  // 새 프로젝트 모드는 이름 필수
+  const newProjectValid = projectId !== -1 || newProjectName.trim().length > 0;
+  const canSubmit = title.trim().length > 0 && !submitting && (!translationOn || !sameLang) && newProjectValid;
   const handleSubmit = async () => {
     if (!canSubmit) return;
     setSubmitting(true);
     try {
       await onCreate({
         title: title.trim(),
-        project_id: projectId,
+        // -1 (새 프로젝트) 모드면 부모가 new_project_name 으로 처리. 그 외는 그대로.
+        project_id: projectId === -1 ? null : projectId,
+        new_project_name: projectId === -1 ? newProjectName.trim() : null,
         client_id: clientId,
         participant_user_ids: participantIds,
         auto_extract_enabled: autoExtract,
@@ -165,13 +177,27 @@ const NewChatModal: React.FC<Props> = ({ businessId, open, preselectedProjectId,
               size="md"
               value={projectId == null
                 ? { value: '__none__', label: t('newChat.noProject', '연결 안 함 (일반 대화)') }
-                : projectOptions.find((o) => o.value === String(projectId)) || null}
+                : projectId === -1
+                  ? { value: '__new__', label: t('newChat.newProject', '+ 새 프로젝트 만들기') }
+                  : projectOptions.find((o) => o.value === String(projectId)) || null}
               onChange={(opt) => {
                 const v = (opt as { value?: string } | null)?.value;
-                setProjectId(!v || v === '__none__' ? null : Number(v));
+                if (!v || v === '__none__') { setProjectId(null); setNewProjectName(''); return; }
+                if (v === '__new__') { setProjectId(-1); return; }
+                setProjectId(Number(v));
+                setNewProjectName('');
               }}
               options={projectOptions}
             />
+            {projectId === -1 && (
+              <Input
+                autoFocus
+                value={newProjectName}
+                placeholder={t('newChat.newProjectPh', '새 프로젝트 이름') as string}
+                onChange={(e) => setNewProjectName(e.target.value)}
+                style={{ marginTop: 8 }}
+              />
+            )}
           </Field>
 
           <Field>
@@ -246,8 +272,8 @@ const NewChatModal: React.FC<Props> = ({ businessId, open, preselectedProjectId,
                 const m = members.find((x) => x.user_id === uid);
                 return (
                   <Chip key={uid}>
-                    <LetterAvatar name={m?.user?.name || String(uid)} size={20} />
-                    <span>{m?.user?.name || `#${uid}`}</span>
+                    <LetterAvatar name={m?.name || m?.user?.name || String(uid)} size={20} />
+                    <span>{m?.name || m?.user?.name || `#${uid}`}</span>
                     <ChipX type="button" onClick={() => removeParticipant(uid)} aria-label="remove">×</ChipX>
                   </Chip>
                 );
