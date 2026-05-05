@@ -257,6 +257,15 @@ router.put('/platform-settings', async (req, res, next) => {
       ...setStr('portone_webhook_secret', 200),
       ...setNum('default_vat_rate'),
       ...setNum('default_due_days'),
+      // 약관 버전 + 점검·공지 (2026-05-05)
+      ...setStr('terms_version', 20),
+      ...setStr('privacy_version', 20),
+      ...(b.maintenance_mode !== undefined ? { maintenance_mode: !!b.maintenance_mode } : {}),
+      ...setStr('maintenance_message', 500),
+      ...setStr('announcement_text', 500),
+      ...(b.announcement_dismissible !== undefined ? { announcement_dismissible: !!b.announcement_dismissible } : {}),
+      ...(b.announcement_severity && ['info', 'warn', 'critical'].includes(b.announcement_severity)
+        ? { announcement_severity: b.announcement_severity } : {}),
       updated_by_user_id: req.user.id,
     };
     // VAT rate 0~1 검증
@@ -272,8 +281,9 @@ router.put('/platform-settings', async (req, res, next) => {
     } else {
       row = await PlatformSetting.create({ brand: updates.brand || 'PlanQ', ...updates });
     }
-    // emailService 캐시 무효화
+    // emailService + maintenance 캐시 무효화
     try { require('../services/emailService').invalidatePlatformCache?.(); } catch { /* */ }
+    try { require('../middleware/maintenance').invalidateMaintenanceCache?.(); } catch { /* */ }
     require('../services/auditService').logAudit(req, {
       action: 'platform_settings.update',
       targetType: 'platform_setting',
@@ -663,6 +673,93 @@ router.get('/payments/pending-tax-invoices', async (req, res, next) => {
       tax_invoice_data: p.tax_invoice_data,
       tax_invoice_status: p.tax_invoice_status,
     })));
+  } catch (err) { next(err); }
+});
+
+// ═══════════════════════════════════════════════════════════════
+// 운영자 도구 (2026-05-05) — 사칭 / AuditLog 조회 / GDPR export
+// ═══════════════════════════════════════════════════════════════
+
+// POST /api/admin/users/:id/impersonate — 30분 만료 토큰 발급. AuditLog 강제 기록.
+//   고객 지원 시 "이 사용자가 보는 화면" 디버깅 용. 본인 액션은 user impersonator 로 추적.
+router.post('/users/:id/impersonate', async (req, res, next) => {
+  try {
+    const { User, AuditLog } = require('../models');
+    const target = await User.findByPk(req.params.id, { attributes: ['id','email','name','status'] });
+    if (!target) return errorResponse(res, 'user_not_found', 404);
+    if (target.status !== 'active') return errorResponse(res, 'user_not_active', 400);
+    const jwt = require('jsonwebtoken');
+    const token = jwt.sign(
+      { userId: target.id, id: target.id, email: target.email, impersonator: req.user.id },
+      process.env.JWT_SECRET,
+      { expiresIn: '30m' }
+    );
+    await AuditLog.create({
+      user_id: req.user.id, business_id: null,
+      action: 'user.impersonate',
+      target_type: 'User', target_id: target.id,
+      new_value: { target_email: target.email, expires_in: '30m', impersonator_id: req.user.id },
+    });
+    return successResponse(res, { access_token: token, target: { id: target.id, email: target.email, name: target.name } }, 'impersonation_token_issued');
+  } catch (err) { next(err); }
+});
+
+// GET /api/admin/audit-logs — 운영자 액션 추적. 필터: user_id, action, target_type, 기간
+router.get('/audit-logs', async (req, res, next) => {
+  try {
+    const { AuditLog, User } = require('../models');
+    const { Op } = require('sequelize');
+    const where = {};
+    if (req.query.user_id) where.user_id = Number(req.query.user_id);
+    if (req.query.action) where.action = String(req.query.action).slice(0, 100);
+    if (req.query.target_type) where.target_type = String(req.query.target_type).slice(0, 50);
+    if (req.query.from) where.created_at = { ...(where.created_at || {}), [Op.gte]: new Date(String(req.query.from)) };
+    if (req.query.to) where.created_at = { ...(where.created_at || {}), [Op.lte]: new Date(String(req.query.to)) };
+    const limit = Math.min(Number(req.query.limit) || 100, 500);
+    const rows = await AuditLog.findAll({
+      where, limit,
+      include: [{ model: User, attributes: ['id', 'name', 'email'], required: false }],
+      order: [['created_at', 'DESC']],
+    });
+    return successResponse(res, rows.map(r => r.toJSON()));
+  } catch (err) { next(err); }
+});
+
+// GET /api/admin/users/:id/data-export — GDPR data export
+//   해당 사용자의 모든 개인 데이터 (User row + AuditLog + 본인 메시지 일부) 를 JSON 으로
+router.get('/users/:id/data-export', async (req, res, next) => {
+  try {
+    const { User, AuditLog, Business, BusinessMember, ContactInquiry, FeedbackItem } = require('../models');
+    const target = await User.findByPk(req.params.id, {
+      attributes: { exclude: ['password_hash', 'password_reset_token', 'email_verify_token', 'secondary_email_otp_hash'] },
+    });
+    if (!target) return errorResponse(res, 'user_not_found', 404);
+
+    const [memberships, owned, audits, inquiries, feedbacks] = await Promise.all([
+      BusinessMember.findAll({ where: { user_id: target.id } }),
+      Business.findAll({ where: { owner_id: target.id }, attributes: ['id','name','brand_name','plan','created_at'] }),
+      AuditLog.findAll({ where: { user_id: target.id }, limit: 1000, order: [['id','DESC']] }),
+      ContactInquiry.findAll({ where: { from_user_id: target.id } }),
+      FeedbackItem.findAll({ where: { user_id: target.id } }),
+    ]);
+
+    await AuditLog.create({
+      user_id: req.user.id, business_id: null,
+      action: 'user.data_export',
+      target_type: 'User', target_id: target.id,
+      new_value: { target_email: target.email, exported_at: new Date().toISOString() },
+    });
+
+    return successResponse(res, {
+      exported_at: new Date().toISOString(),
+      requested_by: { id: req.user.id, email: req.user.email },
+      user: target.toJSON(),
+      memberships: memberships.map(m => m.toJSON()),
+      owned_businesses: owned.map(b => b.toJSON()),
+      audit_logs: audits.map(a => a.toJSON()),
+      contact_inquiries: inquiries.map(i => i.toJSON()),
+      feedback_items: feedbacks.map(f => f.toJSON()),
+    });
   } catch (err) { next(err); }
 });
 
