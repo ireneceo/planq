@@ -89,8 +89,8 @@ function serialize(p, withContent = false) {
     parent_post_id: p.parent_post_id || null,
     kind: p.kind || 'doc',
     q_record_id: p.q_record_id || null,
-    created_at: p.created_at,
-    updated_at: p.updated_at,
+    created_at: p.createdAt,
+    updated_at: p.updatedAt,
     content_preview: (p.content_text || '').slice(0, 200),
     ...(withContent ? {
       content_json: p.content_json ? (typeof p.content_json === 'string' ? JSON.parse(p.content_json) : p.content_json) : null,
