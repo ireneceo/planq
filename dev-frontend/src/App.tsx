@@ -6,6 +6,9 @@ import NotificationToaster from './components/Common/NotificationToaster';
 import PwaInstallBanner from './components/Common/PwaInstallBanner';
 import BuildVersionGuard from './components/Common/BuildVersionGuard';
 import LimitReachedDialog from './components/Common/LimitReachedDialog';
+import AnnouncementBanner from './components/Common/AnnouncementBanner';
+import TermsReacceptModal from './components/Common/TermsReacceptModal';
+import ImpersonateBanner from './components/Common/ImpersonateBanner';
 import ProtectedRoute from './components/ProtectedRoute';
 import ErrorBoundary from './components/Common/ErrorBoundary';
 import MainLayout from './components/Layout/MainLayout';
@@ -48,6 +51,8 @@ const AdminPaymentsPage = lazy(() => import('./pages/Admin/AdminPaymentsPage'));
 const AdminBillingSettingsPage = lazy(() => import('./pages/Admin/AdminBillingSettingsPage'));
 const AdminInquiriesPage = lazy(() => import('./pages/Admin/AdminInquiriesPage'));
 const AdminNotificationsPage = lazy(() => import('./pages/Admin/AdminNotificationsPage'));
+const AdminAuditLogsPage = lazy(() => import('./pages/Admin/AdminAuditLogsPage'));
+const AdminUsersPage = lazy(() => import('./pages/Admin/AdminUsersPage'));
 const ShareReceivePage = lazy(() => import('./pages/ShareReceive/ShareReceivePage'));
 const InsightsPage = lazy(() => import('./pages/Insights/InsightsPage'));
 const PrivacyPolicy = lazy(() => import('./pages/Legal/PrivacyPolicy'));
@@ -342,6 +347,16 @@ function App() {
             <MainLayout><AdminNotificationsPage /></MainLayout>
           </ProtectedRoute>
         } />
+        <Route path="/admin/audit-logs" element={
+          <ProtectedRoute requiredRole={['platform_admin']}>
+            <MainLayout><AdminAuditLogsPage /></MainLayout>
+          </ProtectedRoute>
+        } />
+        <Route path="/admin/users" element={
+          <ProtectedRoute requiredRole={['platform_admin']}>
+            <MainLayout><AdminUsersPage /></MainLayout>
+          </ProtectedRoute>
+        } />
         <Route path="/admin/*" element={
           <ProtectedRoute requiredRole={['platform_admin']}>
             <MainLayout><PlaceholderPage title="Admin" /></MainLayout>
@@ -377,6 +392,12 @@ function App() {
       <BuildVersionGuard />
       {/* 한도 도달 모달 — apiFetch 인터셉터가 'planq:limit-reached' dispatch */}
       <LimitReachedDialog />
+      {/* 운영 공지 배너 — /me 의 platform.announcement_text 사용. 점검 모드는 미들웨어가 별도 503 처리 */}
+      <AnnouncementBanner />
+      {/* 약관 변경 시 재동의 — current_terms_version != user.terms_version 시 자동 노출 */}
+      <TermsReacceptModal />
+      {/* 사칭 진행 중 배너 — JWT impersonator 클레임이 있을 때만 표시 */}
+      <ImpersonateBanner />
     </PwaInstallProvider>
     </AuthProvider>
     </ErrorBoundary>
