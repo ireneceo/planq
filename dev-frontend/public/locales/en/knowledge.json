@@ -91,7 +91,11 @@
     "cta": "+ Add knowledge"
   },
   "modal": {
-    "title": "New info — register",
+    "title": "Register new info",
+    "attachExisting": "Attach existing file / document",
+    "searchAttachHint": "Search files or documents...",
+    "fileTagInline": "File",
+    "postTagInline": "Doc",
     "readPolicy": "Share scope",
     "policyAll": "Whole workspace",
     "policyAllHint": "Owner & members can read",
