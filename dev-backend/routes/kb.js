@@ -709,6 +709,241 @@ router.get('/businesses/:businessId/kb/pinned/template.csv', authenticateToken, 
 });
 
 // Hybrid search (test endpoint)
+// ═══════════════════════════════════════════════════════════════
+// KB AI / CSV Ingest (사이클 KB-Ingest Phase 1 — 2026-05-05)
+//   설계: docs/KB_AI_INGEST_DESIGN.md
+//   - POST /kb/ai-ingest      : 자유 텍스트/파일 → GPT-4o-mini 분석 → 후보 N 반환 (저장 X)
+//   - POST /kb/csv-ingest     : CSV 파일 → 파싱 → 후보 N 반환 (저장 X)
+//   - POST /kb/documents/batch: 검수된 후보 N 일괄 저장 (번역·임베딩 백그라운드)
+// ═══════════════════════════════════════════════════════════════
+
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
+
+const SYSTEM_PROMPT_INGEST = `너는 PlanQ Knowledge Base 자료 정리 도우미.
+사용자가 자유 텍스트(회의록·매뉴얼·이메일 등)를 던지면 KB 항목 후보를 추출해.
+
+핵심 원칙 (반드시 지킬 것):
+1. 원문 정보만 사용. 새로운 정보·예시·해설을 절대 추가하지 마.
+2. 문장은 거의 그대로. 오타·띄어쓰기·줄바꿈만 정리. 문장 구조 재작성 금지.
+3. 토픽이 명확히 다르면 여러 항목으로 분리 (다른 미팅·다른 주제·다른 시점).
+   애매하면 1개로 합쳐.
+4. 카테고리 자동 분류: policy(정책)/manual(매뉴얼)/incident(사고)/faq(자주묻는질문)/about(회사소개)/pricing(가격) 중 가장 적합한 1개.
+5. 태그 3~6개 추출 (원문 키워드만).
+6. title 은 원문에서 핵심 명사구로 50자 이내.
+7. 답변 형식: JSON 배열만 출력. 다른 설명 X.
+   [{ "title": "...", "body": "...", "category": "manual", "tags": ["키워드1","키워드2"] }]
+8. body 는 원문 그대로 (오타/공백만 정리). 줄바꿈 \\n 그대로 유지.
+9. 모르는 건 만들지 마. 카테고리 애매하면 'manual', 태그 부족하면 적게.`;
+
+router.post('/businesses/:businessId/kb/ai-ingest', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+  try {
+    if (req.businessRole === 'client') return errorResponse(res, 'forbidden', 403);
+    const businessId = parseInt(req.params.businessId, 10);
+    const { text, source_language } = req.body || {};
+    if (!text || typeof text !== 'string' || !text.trim()) {
+      return errorResponse(res, 'text_required', 400);
+    }
+    const cleanText = String(text).trim().slice(0, 50000);
+
+    // 플랜 한도 검사 — kb_analyze 사용량
+    const planEngine = require('../services/plan');
+    const planCan = await planEngine.can(businessId, 'use_cue', { actions: 1 });
+    if (!planCan.ok) {
+      return res.status(422).json(planEngine.buildQuotaError(planCan, businessId));
+    }
+
+    if (!OPENAI_API_KEY) {
+      return errorResponse(res, 'openai_key_missing', 503);
+    }
+
+    const messages = [
+      { role: 'system', content: SYSTEM_PROMPT_INGEST },
+      { role: 'user', content: `[입력 언어 힌트: ${source_language || 'auto'}]\n\n${cleanText}` },
+    ];
+
+    const r = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        messages,
+        temperature: 0.1,    // 원문 보존이 핵심 — 거의 deterministic
+        max_tokens: 4000,
+        response_format: { type: 'json_object' },
+      }),
+    });
+    if (!r.ok) {
+      const errText = await r.text().catch(() => '');
+      console.error('[kb/ai-ingest] LLM error', r.status, errText.slice(0, 200));
+      return errorResponse(res, 'llm_error', 502);
+    }
+    const j = await r.json();
+    const content = (j.choices?.[0]?.message?.content || '').trim();
+
+    // JSON 파싱 — { items: [...] } 또는 [...] 둘 다 허용
+    let candidates = [];
+    try {
+      const parsed = JSON.parse(content);
+      candidates = Array.isArray(parsed) ? parsed
+        : Array.isArray(parsed.items) ? parsed.items
+        : Array.isArray(parsed.candidates) ? parsed.candidates
+        : [];
+    } catch {
+      console.error('[kb/ai-ingest] JSON parse failed:', content.slice(0, 200));
+      return errorResponse(res, 'llm_invalid_response', 502);
+    }
+
+    // 후보 정규화 — title/body/category/tags 만 통과
+    const ALLOWED_CAT = ['policy', 'manual', 'incident', 'faq', 'about', 'pricing'];
+    const normalized = candidates
+      .filter(c => c && typeof c === 'object' && c.title && c.body)
+      .map(c => ({
+        title: String(c.title).slice(0, 300),
+        body: String(c.body).slice(0, 50000),
+        category: ALLOWED_CAT.includes(c.category) ? c.category : 'manual',
+        tags: Array.isArray(c.tags) ? c.tags.slice(0, 8).map(String) : [],
+      }))
+      .slice(0, 20);  // 한 번에 최대 20 후보
+
+    // cue_usage 차감
+    try { await planEngine.consume(businessId, 'cue', 1); } catch { /* noop */ }
+
+    return successResponse(res, { candidates: normalized, llm_usage: j.usage || null });
+  } catch (err) { next(err); }
+});
+
+// ─── CSV Ingest — 파싱 후 후보 반환 (저장 X) ───
+router.post('/businesses/:businessId/kb/csv-ingest', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+  try {
+    if (req.businessRole === 'client') return errorResponse(res, 'forbidden', 403);
+    const { csv } = req.body || {};
+    if (!csv || typeof csv !== 'string') return errorResponse(res, 'csv_required', 400);
+
+    // 단순 CSV 파서 — 따옴표·쉼표·개행 처리
+    const rows = parseCsv(String(csv).trim());
+    if (rows.length < 2) return errorResponse(res, 'csv_empty_or_no_header', 400);
+
+    const header = rows[0].map(h => String(h).trim().toLowerCase());
+    const ALLOWED_CAT = ['policy', 'manual', 'incident', 'faq', 'about', 'pricing'];
+    const titleIdx = header.indexOf('title');
+    const bodyIdx = header.indexOf('body');
+    const catIdx = header.indexOf('category');
+    const tagsIdx = header.indexOf('tags');
+    const langIdx = header.indexOf('source_language');
+    const transIdx = header.indexOf('auto_translate');
+    if (titleIdx < 0 || bodyIdx < 0) return errorResponse(res, 'csv_missing_required_columns', 400);
+
+    const candidates = rows.slice(1)
+      .filter(r => r[titleIdx] && r[bodyIdx])
+      .map(r => ({
+        title: String(r[titleIdx] || '').slice(0, 300),
+        body: String(r[bodyIdx] || '').slice(0, 50000),
+        category: ALLOWED_CAT.includes(r[catIdx]) ? r[catIdx] : 'manual',
+        tags: r[tagsIdx] ? String(r[tagsIdx]).split(',').map(s => s.trim()).filter(Boolean).slice(0, 8) : [],
+        source_language: r[langIdx] === 'en' ? 'en' : 'ko',
+        auto_translate: r[transIdx] !== 'false',
+      }))
+      .slice(0, 500);  // CSV 최대 500 행
+
+    return successResponse(res, { candidates });
+  } catch (err) { next(err); }
+});
+
+// 단순 CSV 파서 — RFC 4180 따라 따옴표·쉼표·개행 처리
+function parseCsv(text) {
+  const rows = [];
+  let cur = [];
+  let field = '';
+  let inQuotes = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQuotes) {
+      if (c === '"') {
+        if (text[i + 1] === '"') { field += '"'; i++; } else inQuotes = false;
+      } else field += c;
+    } else {
+      if (c === '"') inQuotes = true;
+      else if (c === ',') { cur.push(field); field = ''; }
+      else if (c === '\n' || c === '\r') {
+        if (field || cur.length) { cur.push(field); rows.push(cur); cur = []; field = ''; }
+        if (c === '\r' && text[i + 1] === '\n') i++;
+      } else field += c;
+    }
+  }
+  if (field || cur.length) { cur.push(field); rows.push(cur); }
+  return rows;
+}
+
+// ─── 일괄 저장 — N 후보를 KbDocument 로 batch insert + 번역 + 임베딩 ───
+router.post('/businesses/:businessId/kb/documents/batch', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+  try {
+    if (req.businessRole === 'client') return errorResponse(res, 'forbidden', 403);
+    const businessId = parseInt(req.params.businessId, 10);
+    const { items, scope, project_id, client_id, auto_translate, translation_visibility, source_language } = req.body || {};
+    if (!Array.isArray(items) || items.length === 0) return errorResponse(res, 'items_required', 400);
+    if (items.length > 500) return errorResponse(res, 'too_many_items', 400);
+
+    const ALLOWED_CAT = ['policy','manual','incident','faq','about','pricing'];
+    const ALLOWED_SCOPE = ['workspace','project','client'];
+    const ALLOWED_VIS = ['translate','show_original','hide_other'];
+    const finalScope = ALLOWED_SCOPE.includes(scope) ? scope : 'workspace';
+    const finalAutoTranslate = auto_translate !== false;
+    const finalVisibility = ALLOWED_VIS.includes(translation_visibility) ? translation_visibility : 'translate';
+
+    const created = [];
+    const errors = [];
+
+    // 다중 포스트 분리 식별 — items.length > 1 이면 첫 ID 가 parent_doc_id (자기참조 + 나머지)
+    let parentDocId = null;
+
+    for (let idx = 0; idx < items.length; idx++) {
+      const it = items[idx];
+      try {
+        const cat = ALLOWED_CAT.includes(it.category) ? it.category : 'manual';
+        const itemSrcLang = (it.source_language === 'en' || it.source_language === 'ko')
+          ? it.source_language
+          : (source_language === 'en' ? 'en' : 'ko');
+        const itemAutoTrans = it.auto_translate !== undefined ? it.auto_translate !== false : finalAutoTranslate;
+
+        const doc = await KbDocument.create({
+          business_id: businessId,
+          title: String(it.title).slice(0, 300),
+          body: String(it.body).slice(0, 50000),
+          source_type: 'manual',
+          category: cat,
+          categories: [cat],
+          tags: Array.isArray(it.tags) ? it.tags.slice(0, 8).map(String) : null,
+          scope: finalScope,
+          project_id: finalScope === 'project' ? (parseInt(project_id, 10) || null) : null,
+          client_id: finalScope === 'client' ? (parseInt(client_id, 10) || null) : null,
+          status: 'pending',
+          uploaded_by: req.user.id,
+          source_language: itemSrcLang,
+          auto_translate: itemAutoTrans,
+          translation_visibility: finalVisibility,
+          parent_doc_id: parentDocId,
+        });
+
+        // 첫 번째 = parent. 두 번째부터 parent_doc_id 로 연결
+        if (idx === 0 && items.length > 1) parentDocId = doc.id;
+
+        // 임베딩·번역 비동기 트리거 (kbService 가 처리하면 자동)
+        try {
+          if (kbService.indexDocument) {
+            kbService.indexDocument(doc.id).catch((e) => console.warn('[kb-batch] indexDocument failed', doc.id, e.message));
+          }
+        } catch { /* noop */ }
+
+        created.push({ id: doc.id, title: doc.title, source_language: doc.source_language });
+      } catch (e) {
+        errors.push({ index: idx, error: e.message });
+      }
+    }
+
+    return successResponse(res, { created, errors, count: created.length });
+  } catch (err) { next(err); }
+});
+
 router.post('/businesses/:businessId/kb/search', authenticateToken, checkBusinessAccess, async (req, res, next) => {
   try {
     const { query, limit } = req.body;
