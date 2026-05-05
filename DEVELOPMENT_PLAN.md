@@ -1,18 +1,63 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-05-05 (Q-R 사이클 — Free 폐지 + Starter 14일 trial + Addon 자체결제 + 세금계산서 + 운영 안정화 — **코드 작성 완료, 검증·배포 대기**)
+> **최종 업데이트:** 2026-05-05 (운영 라이브 풀세트 — Q-R + 결제메일 + 게스트Cue + 문의시스템 + 플랫폼알림 + KB AI Ingest + 사용자 라이프사이클 + 점검모드 + 운영자 도구 + Phase 2 admin UI + Q Note 용어 통일 — **운영 배포 완료** `a0b550f`)
 >
-> **다음 진입 ★ (즉시):** **Q-R 검증 + 배포** — 다음 세션 시작 시 ① `node sync-database.js` (Payment 신규 컬럼 반영) → ② `npm run build` (프론트 신규 컴포넌트 4종) → ③ `node scripts/migrate-free-to-starter.js` (기존 Free 워크스페이스 일괄 starter+trialing 14일) → ④ /검증 (헬스체크 27 + 결제·trial·addon 시나리오) → ⑤ /배포.
+> **다음 진입 ★:** **주간 보고 (Weekly Review) Phase 1** — `docs/WEEKLY_REVIEW_DESIGN.md` 합의 완료. Q Task 4번째 탭 + 자동·수동 박제 + JSON 통계 활용.
 >
-> **그 다음:** **주간 보고 (Weekly Review)** 기능 — `docs/WEEKLY_REVIEW_DESIGN.md` 합의 완료, Phase 1. Q Task 4번째 탭 + 자동·수동 박제 + JSON 통계 활용.
+> **차순위:** KB Phase 2 (PDF/docx 업로드 + 다중 분리 정밀) / Q Task 정기업무 (RRULE) / Q docs 재구조화 + Brief 통합 / 알림 그룹화·DND·Activity / Phase 4 트래픽 트리거 시 BullMQ+Redis / S3 / read-replica
 >
-> **차순위:** 알림 그룹화 (5분 묶음) / DND 시간대 / /activity 통합 히스토리 / Phase 4 트래픽 트리거 시 BullMQ + Redis worker / Socket.IO Redis adapter / multer → S3 / read-replica
->
-> **결제 정책:** 1순위 자체 결제 (계좌이체 mark-paid), 2순위 PortOne (P-7 마지막). 월결제 + 연결제. **2026-05-05: Free 플랜 폐지 — 신규 가입은 starter+trialing 14일.** 미결제 시 7일 유예 후 starter 강등 + 데이터 보존.
+> **결제 정책:** 1순위 자체 결제 (계좌이체 mark-paid), 2순위 PortOne (P-7 마지막). 월결제 + 연결제. Free 플랜 폐지 — 신규 가입은 starter+trialing 14일. 미결제 시 7일 유예 후 starter 강등 + 데이터 보존.
 
 ---
 
-## 🟡 진행: Q-R 사이클 — Free 폐지 + Starter 14일 trial + Addon 자체결제 + 세금계산서 + 운영 안정화 (2026-05-05, 검증 대기)
+## ✅ 완료: 운영 라이브 풀세트 (2026-05-05)
+
+운영 진입 직전 30년차 시각 점검 — 빠진 핵심 기능 + UI 다듬기 + 운영자 도구 일괄. 21 commit 운영 라이브 (`a0b550f`).
+
+### 완료된 작업
+
+| 작업 | 설명 | 상태 |
+|------|------|:----:|
+| Q-R 검증 + 배포 | Free 폐지 / Starter 14일 trial / Addon 자체결제 / 세금계산서 / migrate-free-to-starter | ✅ 완료 |
+| 결제 메일 표준 layout + placeholder 가드 | billing/addonBilling 자체 HTML 우회 → emailWrap 통일. `<예: 토스뱅크>` 가드 | ✅ 완료 |
+| PublicPostPage 헤더+배너+Invalid Date | 로고 88px / 마케팅 배너 / Sequelize toJSON override 근본 fix | ✅ 완료 |
+| 게스트 Cue 채팅 모드 | 비로그인용 PlanQ 안내 + "문의 남기기" 탭 + IP rate limit + 24h 캐시 | ✅ 완료 |
+| 워크스페이스 스위처 빨간 레이어 제거 | platform_admin 모드도 일반 워크스페이스와 동일 teal | ✅ 완료 |
+| 문의 시스템 일괄 | AdminInquiriesPage + 자동 회신 + platform_admin 알림 + timezone 동시 표시 | ✅ 완료 |
+| 플랫폼 알림 6 종 + 발송 연동 | inquiry/signup/payment/subscription/trial/feedback (5 위치 platformNotify 헬퍼) | ✅ 완료 |
+| KB AI/CSV Ingest Phase 1 | 자유 텍스트 → 토픽별 분리 + 카테고리·태그 자동 + 검수/일괄 저장 + 다국어/번역 정책 | ✅ 완료 |
+| KB 등록·상세 폼 통일 | 7 필드 인라인 편집 (scope/project/client/tags/read_policy/attached_files/posts) | ✅ 완료 |
+| /info 모달 풀 재구성 | "새 정보 등록" + 필드 순서 재배치 + 통합 첨부 검색 + menuPlacement bottom | ✅ 완료 |
+| **사용자 라이프사이클** | 비밀번호 재설정 (forgot/reset 4 라우트 + 3 페이지) + 약관 동의 + 이메일 인증 (signup verify) | ✅ 완료 |
+| **점검 모드 + 공지 배너** | maintenanceMiddleware (admin 통과) + announcement 3 severity + 사이드바 노출 | ✅ 완료 |
+| **운영자 도구** | 사칭 (30분 + AuditLog 강제) / AuditLog read / share_token cron / GDPR data export | ✅ 완료 |
+| **Phase 2 admin UI** | AdminUsersPage / AdminAuditLogsPage / AnnouncementBanner / TermsReacceptModal / ImpersonateBanner | ✅ 완료 |
+| Q Note 용어 통일 | 음성메모/기록/회의록 → 음성 노트/녹음 (명사/동작 분리) | ✅ 완료 |
+
+### 운영 push 결과
+- 운영 라이브: `https://planq.kr` `a0b550f` (timestamp `20260505_211956`)
+- 운영 백업: `/opt/planq/backups/20260505_211956`
+- 헬스체크 27/27 PASS, 운영 4 신규 페이지 200, API 보안 401 + 200
+
+### Irene 운영 셋업 (내일)
+- 운영 `/admin/billing-settings` 에 PlanQ 결제 계좌 입력 (placeholder 가드 박제됨, 안전)
+- `/legal/terms` `/legal/privacy` 약관 텍스트 변호사 검토 권장
+- 첫 가입자 verify 메일 도달 (Gmail SPF/DKIM) 모니터링
+
+### DB 스키마 변경 (운영 자동 sync)
+- User: password_reset_token/expires, email_verify_token/expires, terms_accepted_at, terms_version, privacy_accepted_at, privacy_version (6 컬럼)
+- PlatformSetting: terms_version, privacy_version, maintenance_mode, maintenance_message, announcement_text, announcement_dismissible, announcement_severity (7 컬럼)
+- KbDocument: source_language, auto_translate, translation_visibility, translations, parent_doc_id (5 컬럼)
+- ContactInquiry: from_user_timezone (1 컬럼)
+- NotificationPref ENUM: signup/payment/subscription/trial/feedback/inquiry 6 종 추가 (총 13)
+- Payment: kind, addon_code, addon_quantity, tax_invoice_requested, tax_invoice_status, tax_invoice_data, tax_invoice_issued_at (7 컬럼)
+
+### 21 commit 박제
+4e10cc3, cfef873, 67dbd42, 7ecebb8, 778cbee, a8ad1c7, 91d52cc, 2942068, 5259b91, 1b8ddcb, 8853b23, 368a039, 7d9bece, 02c5336, 255f3ea, 9a1e2a1, e676528, dda1e3e, 2d339b8, 9fbefb7, a0b550f
+
+---
+
+## ✅ (이전) Q-R 사이클 — Free 폐지 + Starter 14일 trial + Addon 자체결제 + 세금계산서 + 운영 안정화 (2026-05-05, 검증 + 배포 완료)
 
 > **상태:** 코드 작성 완료 (25 modified + 8 new = +1700 line). **빌드·DB sync·검증·배포는 다음 세션이 이어받음.**
 >
