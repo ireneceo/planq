@@ -83,8 +83,7 @@ router.post('/', async (req, res, next) => {
 //   2) platform_admin 사용자들에게 새 문의 알림 (notification_prefs 매트릭스 적용)
 async function sendInquiryNotifications(inquiry) {
   const emailService = require('../services/emailService');
-  const notifications = require('./notifications');
-  const APP_URL = process.env.APP_URL || 'https://planq.kr';
+  const { notifyPlatformAdmins, APP_URL } = require('../services/platformNotify');
 
   // 1) 문의자 자동 회신
   await emailService.sendInquiryReceivedEmail({
@@ -94,27 +93,15 @@ async function sendInquiryNotifications(inquiry) {
     inquiryId: inquiry.id,
   }).catch(() => null);
 
-  // 2) platform_admin 알림 — notification_prefs (business_id NULL + event_kind='inquiry') 체크
-  const admins = await User.findAll({
-    where: { platform_role: 'platform_admin', status: 'active' },
-    attributes: ['id', 'name', 'email'],
+  // 2) platform_admin 알림 — 표준 헬퍼 경유 (relatedEntityId 추적·EmailLog 일관성)
+  await notifyPlatformAdmins({
+    eventKind: 'inquiry',
+    title: `새 문의 #${inquiry.id} — ${inquiry.from_name}`,
+    body: `${inquiry.from_company ? `[${inquiry.from_company}] ` : ''}${inquiry.from_email}\n\n${(inquiry.message || '').slice(0, 400)}${(inquiry.message || '').length > 400 ? '…' : ''}`,
+    link: `${APP_URL}/admin/inquiries?inquiry=${inquiry.id}`,
+    ctaLabel: '문의 보기',
+    relatedEntityId: inquiry.id,
   });
-  const title = `새 문의 #${inquiry.id} — ${inquiry.from_name}`;
-  const body = `${inquiry.from_company ? `[${inquiry.from_company}] ` : ''}${inquiry.from_email}\n\n${(inquiry.message || '').slice(0, 400)}${(inquiry.message || '').length > 400 ? '…' : ''}`;
-  const link = `${APP_URL}/admin/inquiries?inquiry=${inquiry.id}`;
-
-  for (const adm of admins) {
-    if (!adm.email) continue;
-    const allow = await notifications.isAllowed(adm.id, null, 'inquiry', 'email');
-    if (!allow) continue;
-    await emailService.sendNotificationEmail({
-      to: adm.email,
-      title, body, link, ctaLabel: '문의 보기',
-      businessId: null,
-      eventKind: 'inquiry',
-      recipientUserId: adm.id,
-    }).catch(() => null);
-  }
 }
 
 // ─── GET /api/inquiries/admin — 관리자 대시보드용 (platform_admin 전용) ───
