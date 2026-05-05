@@ -68,7 +68,8 @@ const { Op } = require('sequelize');
         business_id: biz.id,
         from_plan: 'free',
         to_plan: 'starter',
-        reason: 'free_deprecated_2026_05_05',
+        reason: 'trial_start',  // 기존 free 폐지 + starter 14일 trial 시작 = 의미상 trial_start
+        note: 'Free 플랜 폐지 (2026-05-05) — 기존 워크스페이스 일괄 starter+trialing 14일 적용',
         changed_by: null,
         effective_at: now,
       }, { transaction: t });

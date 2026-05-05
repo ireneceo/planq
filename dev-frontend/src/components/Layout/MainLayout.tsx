@@ -757,7 +757,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
               {/* 모바일에서는 SecondaryPanel 이 숨겨지므로 NavItem 아래 인라인 아코디언으로 서브 메뉴 펼침 */}
               {hasBiz('owner', 'member') && (
                 <NavSection>
-                  <NavTitle $isCollapsed={isCollapsed} />
+                  <NavTitle $isCollapsed={isCollapsed}>{t('nav.sectionManage', '관리')}</NavTitle>
                   <NavItem
                     to="/stats/overview"
                     $isCollapsed={isCollapsed}
