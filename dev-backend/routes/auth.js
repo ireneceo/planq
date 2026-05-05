@@ -171,7 +171,10 @@ router.post('/register', async (req, res, next) => {
       workspace_name,
       business_name,
       brand_name_en,
-      default_language
+      default_language,
+      // 약관 동의 (필수, 2026-05-05)
+      terms_accepted,
+      privacy_accepted,
     } = req.body;
 
     const brandName = workspace_name || business_name;
@@ -181,6 +184,11 @@ router.post('/register', async (req, res, next) => {
     if (!email || !password || !name || !brandName) {
       await transaction.rollback();
       return errorResponse(res, 'Email, password, name, and workspace name are required', 400);
+    }
+    // 약관 동의 필수 — 한국 개인정보보호법 + GDPR 명시 동의
+    if (!terms_accepted || !privacy_accepted) {
+      await transaction.rollback();
+      return errorResponse(res, 'terms_and_privacy_required', 400);
     }
 
     // username 검증 (선택 — 안 주면 이메일 prefix 로 자동 생성, 충돌 시 _2, _3... )
@@ -254,8 +262,30 @@ router.post('/register', async (req, res, next) => {
     }
 
     const password_hash = await bcrypt.hash(password, 12);
+    // 약관 버전 — platform_settings 의 현재 버전 기록
+    let termsVersion = '1.0';
+    let privacyVersion = '1.0';
+    try {
+      const { PlatformSetting } = require('../models');
+      const ps = await PlatformSetting.findOne({ order: [['id', 'ASC']], transaction });
+      if (ps) {
+        termsVersion = ps.terms_version || '1.0';
+        privacyVersion = ps.privacy_version || '1.0';
+      }
+    } catch { /* fallback default */ }
+    // 회원가입 이메일 인증 토큰 (raw 는 메일에만, DB 는 sha256 hash)
+    const crypto = require('crypto');
+    const verifyTokenRaw = crypto.randomBytes(32).toString('hex');
+    const verifyTokenHash = crypto.createHash('sha256').update(verifyTokenRaw).digest('hex');
+    const verifyExpires = new Date(Date.now() + 72 * 60 * 60 * 1000); // 72h
     const user = await User.create({
-      email, password_hash, name, username: finalUsername, language: lang, is_ai: false
+      email, password_hash, name, username: finalUsername, language: lang, is_ai: false,
+      terms_accepted_at: new Date(),
+      terms_version: termsVersion,
+      privacy_accepted_at: new Date(),
+      privacy_version: privacyVersion,
+      email_verify_token: verifyTokenHash,
+      email_verify_expires: verifyExpires,
     }, { transaction });
 
     // 2. Create Business (워크스페이스)
@@ -340,7 +370,7 @@ router.post('/register', async (req, res, next) => {
       }
     }, 'Registration successful', 201);
 
-    // 플랫폼 관리자 알림 — fan-out 비동기 (응답 지연 X)
+    // 플랫폼 관리자 알림 + 회원가입 이메일 인증 메일 — fan-out 비동기 (응답 지연 X)
     setImmediate(() => {
       const { notifyPlatformAdmins, APP_URL } = require('../services/platformNotify');
       notifyPlatformAdmins({
@@ -350,6 +380,14 @@ router.post('/register', async (req, res, next) => {
         link: `${APP_URL}/admin/businesses?id=${business.id}`,
         ctaLabel: '워크스페이스 보기',
         relatedEntityId: business.id,
+      }).catch(() => null);
+      // 신규 가입자에게 이메일 인증 메일 자동 발송
+      const emailService = require('../services/emailService');
+      emailService.sendSignupVerifyEmail({
+        to: user.email,
+        name: user.name,
+        verifyToken: verifyTokenRaw,
+        ttlHours: 72,
       }).catch(() => null);
     });
   } catch (error) {
@@ -521,6 +559,20 @@ router.get('/me', authenticateToken, async (req, res, next) => {
     if (!userData) {
       return errorResponse(res, 'User not found', 404);
     }
+    // 공지 배너 + 약관 버전 같이 (사이드바 / 약관 재동의 모달용)
+    try {
+      const { PlatformSetting } = require('../models');
+      const ps = await PlatformSetting.findOne({ order: [['id', 'ASC']] });
+      if (ps) {
+        userData.platform = {
+          announcement_text: ps.announcement_text || null,
+          announcement_dismissible: !!ps.announcement_dismissible,
+          announcement_severity: ps.announcement_severity || 'info',
+          current_terms_version: ps.terms_version || '1.0',
+          current_privacy_version: ps.privacy_version || '1.0',
+        };
+      }
+    } catch { /* skip */ }
     successResponse(res, userData);
   } catch (error) {
     next(error);
@@ -557,6 +609,108 @@ router.post('/switch-workspace', authenticateToken, async (req, res, next) => {
   } catch (error) {
     next(error);
   }
+});
+
+// ============================================
+// POST /api/auth/forgot-password
+// ============================================
+// 이메일 받아서 reset_token 발급 + 메일. 보안: 이메일 존재 여부 누설 X (항상 200).
+router.post('/forgot-password', async (req, res, next) => {
+  try {
+    const { email } = req.body || {};
+    if (!email || typeof email !== 'string') return errorResponse(res, 'email_required', 400);
+    const cleanEmail = email.trim().toLowerCase();
+    const user = await User.findOne({ where: { email: cleanEmail } });
+    // 이메일 존재 여부 누설 방지 — 무조건 200 + 동일 메시지
+    if (user && user.status === 'active') {
+      const crypto = require('crypto');
+      const tokenRaw = crypto.randomBytes(32).toString('hex');
+      const tokenHash = crypto.createHash('sha256').update(tokenRaw).digest('hex');
+      const expires = new Date(Date.now() + 60 * 60 * 1000); // 1시간
+      await user.update({
+        password_reset_token: tokenHash,
+        password_reset_expires: expires,
+      });
+      const emailService = require('../services/emailService');
+      emailService.sendPasswordResetEmail({
+        to: user.email, name: user.name, resetToken: tokenRaw, ttlMinutes: 60,
+      }).catch(() => null);
+    }
+    return successResponse(res, { sent: true }, '이메일을 발송했습니다. 받은편지함을 확인해주세요. (메일이 안 오면 입력한 이메일이 가입돼있지 않을 수 있습니다.)');
+  } catch (err) { next(err); }
+});
+
+// ============================================
+// POST /api/auth/reset-password
+// ============================================
+router.post('/reset-password', async (req, res, next) => {
+  try {
+    const { token, password } = req.body || {};
+    if (!token || !password) return errorResponse(res, 'token_and_password_required', 400);
+    if (String(password).length < 8) return errorResponse(res, 'password_too_short', 400);
+    const crypto = require('crypto');
+    const tokenHash = crypto.createHash('sha256').update(String(token)).digest('hex');
+    const user = await User.findOne({
+      where: {
+        password_reset_token: tokenHash,
+        password_reset_expires: { [require('sequelize').Op.gt]: new Date() },
+      },
+    });
+    if (!user) return errorResponse(res, 'invalid_or_expired_token', 400);
+    const password_hash = await bcrypt.hash(password, 12);
+    await user.update({
+      password_hash,
+      password_reset_token: null,
+      password_reset_expires: null,
+    });
+    return successResponse(res, { reset: true }, 'password_reset_success');
+  } catch (err) { next(err); }
+});
+
+// ============================================
+// POST /api/auth/verify-email-confirm
+// ============================================
+router.post('/verify-email-confirm', async (req, res, next) => {
+  try {
+    const { token } = req.body || {};
+    if (!token) return errorResponse(res, 'token_required', 400);
+    const crypto = require('crypto');
+    const tokenHash = crypto.createHash('sha256').update(String(token)).digest('hex');
+    const user = await User.findOne({
+      where: {
+        email_verify_token: tokenHash,
+        email_verify_expires: { [require('sequelize').Op.gt]: new Date() },
+      },
+    });
+    if (!user) return errorResponse(res, 'invalid_or_expired_token', 400);
+    await user.update({
+      email_verified_at: new Date(),
+      email_verify_token: null,
+      email_verify_expires: null,
+    });
+    return successResponse(res, { verified: true, email: user.email }, 'email_verified');
+  } catch (err) { next(err); }
+});
+
+// ============================================
+// POST /api/auth/resend-verify-email
+// ============================================
+router.post('/resend-verify-email', authenticateToken, async (req, res, next) => {
+  try {
+    const user = await User.findByPk(req.user.id);
+    if (!user) return errorResponse(res, 'user_not_found', 404);
+    if (user.email_verified_at) return successResponse(res, { already_verified: true });
+    const crypto = require('crypto');
+    const tokenRaw = crypto.randomBytes(32).toString('hex');
+    const tokenHash = crypto.createHash('sha256').update(tokenRaw).digest('hex');
+    const expires = new Date(Date.now() + 72 * 60 * 60 * 1000);
+    await user.update({ email_verify_token: tokenHash, email_verify_expires: expires });
+    const emailService = require('../services/emailService');
+    emailService.sendSignupVerifyEmail({
+      to: user.email, name: user.name, verifyToken: tokenRaw, ttlHours: 72,
+    }).catch(() => null);
+    return successResponse(res, { sent: true });
+  } catch (err) { next(err); }
 });
 
 module.exports = router;

@@ -65,7 +65,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<boolean>;
-  register: (name: string, email: string, password: string, businessName: string) => Promise<boolean>;
+  register: (name: string, email: string, password: string, businessName: string, opts?: { terms_accepted?: boolean; privacy_accepted?: boolean }) => Promise<boolean>;
   logout: () => void;
   updateUser: (userData: Partial<User>) => void;
   hasRole: (...roles: string[]) => boolean;
@@ -345,12 +345,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     return false;
   };
 
-  const register = async (name: string, email: string, password: string, businessName: string): Promise<boolean> => {
+  const register = async (name: string, email: string, password: string, businessName: string, opts?: { terms_accepted?: boolean; privacy_accepted?: boolean }): Promise<boolean> => {
     const res = await fetch('/api/auth/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
-      body: JSON.stringify({ email, password, name, business_name: businessName }),
+      body: JSON.stringify({
+        email, password, name, business_name: businessName,
+        terms_accepted: opts?.terms_accepted ?? false,
+        privacy_accepted: opts?.privacy_accepted ?? false,
+      }),
     });
 
     if (res.ok) {

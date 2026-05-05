@@ -636,6 +636,64 @@ async function sendNotificationEmail({ to, title, body, link, ctaLabel, workspac
   });
 }
 
+// ═══════════════════════════════════════════════════════════════
+// 9. 비밀번호 재설정 (forgot/reset)
+// ═══════════════════════════════════════════════════════════════
+function passwordResetEmailHtml({ name, resetUrl, ttlMinutes = 60 }) {
+  const body = `
+    <div style="font-size:18px;font-weight:700;color:#0F172A;line-height:1.4;">${escapeHtml(name || '안녕하세요')}님, 비밀번호 재설정 안내</div>
+    <div style="margin-top:12px;font-size:14px;color:#475569;line-height:1.7;">
+      아래 버튼을 눌러 새 비밀번호를 설정해주세요. 본인이 요청하지 않은 경우 이 메일을 무시하세요.
+    </div>
+    <div style="margin-top:20px;text-align:center;">
+      ${ctaButton(resetUrl, '비밀번호 재설정')}
+    </div>
+    <div style="margin-top:18px;font-size:12px;color:#94A3B8;line-height:1.6;">
+      이 링크는 <b>${ttlMinutes}분</b> 동안 유효합니다.
+    </div>
+    ${fallbackLink(resetUrl)}`;
+  return emailWrap({ title: '비밀번호 재설정', body });
+}
+
+async function sendPasswordResetEmail({ to, name, resetToken, ttlMinutes = 60 }) {
+  if (!to || !resetToken) return false;
+  const resetUrl = `${APP_URL}/reset-password/${resetToken}`;
+  return sendEmail({
+    to, subject: `[${PLATFORM.brand}] 비밀번호 재설정 안내`,
+    html: passwordResetEmailHtml({ name, resetUrl, ttlMinutes }),
+    template: 'password_reset',
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 10. 회원가입 이메일 인증 (signup verify)
+// ═══════════════════════════════════════════════════════════════
+function signupVerifyEmailHtml({ name, verifyUrl, ttlHours = 72 }) {
+  const body = `
+    <div style="font-size:18px;font-weight:700;color:#0F172A;line-height:1.4;">${escapeHtml(name || '안녕하세요')}님, PlanQ 가입을 환영합니다</div>
+    <div style="margin-top:12px;font-size:14px;color:#475569;line-height:1.7;">
+      아래 버튼을 눌러 이메일 인증을 완료해주세요. 인증해야 모든 기능을 사용할 수 있습니다.
+    </div>
+    <div style="margin-top:20px;text-align:center;">
+      ${ctaButton(verifyUrl, '이메일 인증하기')}
+    </div>
+    <div style="margin-top:18px;font-size:12px;color:#94A3B8;line-height:1.6;">
+      이 링크는 <b>${ttlHours}시간</b> 동안 유효합니다.
+    </div>
+    ${fallbackLink(verifyUrl)}`;
+  return emailWrap({ title: '이메일 인증 안내', body });
+}
+
+async function sendSignupVerifyEmail({ to, name, verifyToken, ttlHours = 72 }) {
+  if (!to || !verifyToken) return false;
+  const verifyUrl = `${APP_URL}/verify-email/${verifyToken}`;
+  return sendEmail({
+    to, subject: `[${PLATFORM.brand}] 이메일 인증 안내`,
+    html: signupVerifyEmailHtml({ name, verifyUrl, ttlHours }),
+    template: 'signup_verify',
+  });
+}
+
 module.exports = {
   sendEmail,
   sendInviteEmail, sendPostShareEmail, sendSignatureRequestEmail, sendSignatureOtpEmail,
@@ -643,6 +701,8 @@ module.exports = {
   sendBillingInstructionEmail,
   sendInquiryReceivedEmail,
   sendNotificationEmail,
+  sendPasswordResetEmail,
+  sendSignupVerifyEmail,
   getPlanqBankInfo,
   invalidatePlatformCache,  // admin 라우트가 PUT 후 호출
 };

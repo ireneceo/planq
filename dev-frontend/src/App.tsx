@@ -18,6 +18,9 @@ import LoginPage from './pages/Login/LoginPage';
 // 이전: 모든 페이지 eager import → main bundle 2.75MB. 새로고침 시 모두 파싱·실행.
 // 변경: 페이지 진입 시점에 해당 chunk 만 로드. 첫 로드 ~800KB, 후속 진입 ~30KB 페이지별.
 const RegisterPage = lazy(() => import('./pages/Register/RegisterPage'));
+const ForgotPasswordPage = lazy(() => import('./pages/Login/ForgotPasswordPage'));
+const ResetPasswordPage = lazy(() => import('./pages/Login/ResetPasswordPage'));
+const VerifyEmailPage = lazy(() => import('./pages/Login/VerifyEmailPage'));
 const QNotePage = lazy(() => import('./pages/QNote/QNotePage'));
 const ProfilePage = lazy(() => import('./pages/Profile/ProfilePage'));
 const WorkspaceSettingsPage = lazy(() => import('./pages/Settings/WorkspaceSettingsPage'));
@@ -92,6 +95,9 @@ function App() {
         {/* Public routes */}
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/reset-password/:token" element={<ResetPasswordPage />} />
+        <Route path="/verify-email/:token" element={<VerifyEmailPage />} />
         <Route path="/privacy" element={<PrivacyPolicy />} />
         <Route path="/terms" element={<TermsOfService />} />
 
