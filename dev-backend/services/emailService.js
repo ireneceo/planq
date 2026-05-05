@@ -623,14 +623,16 @@ function notificationEmailHtml({ title, body, link, ctaLabel, workspaceName }) {
   return emailWrap({ title, body: inner, footerOptions: { notificationSettings: true, workspaceName } });
 }
 
-async function sendNotificationEmail({ to, title, body, link, ctaLabel, workspaceName, businessId, eventKind, recipientUserId }) {
+async function sendNotificationEmail({ to, title, body, link, ctaLabel, workspaceName, businessId, eventKind, recipientUserId, relatedEntityId }) {
   if (!to) return false;
   return sendEmail({
     to,
     subject: workspaceName ? `[${escapeHtml(workspaceName)}] ${title}` : `[${PLATFORM.brand}] ${title}`,
     html: notificationEmailHtml({ title, body, link, ctaLabel, workspaceName }),
     businessId, template: `notify:${eventKind || 'generic'}`,
-    relatedEntityType: eventKind || null, initiatedBy: recipientUserId || null,
+    relatedEntityType: eventKind || null,
+    relatedEntityId: relatedEntityId || null,
+    initiatedBy: recipientUserId || null,
   });
 }
 
