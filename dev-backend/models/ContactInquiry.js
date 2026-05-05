@@ -22,6 +22,9 @@ ContactInquiry.init({
   from_company: { type: DataTypes.STRING(200), allowNull: true },
   from_phone: { type: DataTypes.STRING(50), allowNull: true },
   message: { type: DataTypes.TEXT, allowNull: false },
+  // 문의자 워크스페이스 timezone — admin 페이지에서 양쪽 시간 동시 표시.
+  // 게스트는 null, 로그인 사용자는 활성 워크스페이스의 Business.timezone 저장.
+  from_user_timezone: { type: DataTypes.STRING(64), allowNull: true },
   status: {
     type: DataTypes.ENUM('new', 'in_progress', 'resolved', 'spam'),
     defaultValue: 'new',

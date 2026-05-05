@@ -61,6 +61,14 @@ const CueHelpDrawer: React.FC = () => {
     }
   }, [isGuest, mode]);
 
+  // 로그인 사용자가 inquiry 모드 진입 시 이름·이메일 자동 prefill (한 번만)
+  useEffect(() => {
+    if (mode === 'inquiry' && !isGuest && user) {
+      if (!inqName && user.name) setInqName(user.name);
+      if (!inqEmail && user.email) setInqEmail(user.email);
+    }
+  }, [mode, isGuest, user, inqName, inqEmail]);
+
   useBodyScrollLock(open);
 
   // 단축키 ⌘? / Ctrl+/
@@ -156,12 +164,14 @@ const CueHelpDrawer: React.FC = () => {
     setSubmitting(true);
     setInqResultMsg(null);
     try {
-      const res = await fetch('/api/inquiries', {
+      // 로그인 사용자는 apiFetch (토큰 자동) 로 호출 → 백엔드가 user 식별 + timezone 저장
+      const fetcher = isGuest ? fetch : apiFetch;
+      const res = await fetcher('/api/inquiries', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           kind: 'general',
-          source: 'guest_cue_widget',
+          source: isGuest ? 'guest_cue_widget' : 'user_cue_widget',
           from_name: inqName.trim(),
           from_email: inqEmail.trim(),
           message: inqMessage.trim(),
@@ -272,6 +282,11 @@ const CueHelpDrawer: React.FC = () => {
               onClick={() => { setMode('workspace'); setTurns([]); }} role="tab" aria-selected={mode === 'workspace'}>
               <ModeDot $variant="workspace" />
               {t('qhelper.modeWorkspace', 'Cue · 내 워크스페이스')}
+            </ModeBtn>
+            <ModeBtn type="button" $active={mode === 'inquiry'} $variant="qhelper"
+              onClick={() => setMode('inquiry')} role="tab" aria-selected={mode === 'inquiry'}>
+              <ModeDot $variant="qhelper" />
+              {t('qhelper.modeInquiry', '문의 남기기')}
             </ModeBtn>
           </ModeSwitch>
         )}

@@ -74,6 +74,28 @@ const QRecordRow = require('./QRecordRow');
 const QRecordAudit = require('./QRecordAudit');
 
 // ============================================
+// 글로벌 toJSON override — createdAt/updatedAt → created_at/updated_at
+// 모든 모델이 underscored:true + timestamps:true 라 instance attribute 는 camelCase
+// 이지만 DB 컬럼·API 응답·프론트는 snake_case 일관 사용. 이 override 가 없으면
+// `model.toJSON()` 결과에 `created_at: undefined` 가 박혀 프론트의 new Date()
+// 가 Invalid Date 를 표시함. 단일 라인으로 모든 admin 라우트 일괄 해결.
+// ============================================
+const { Sequelize } = require('sequelize');
+const _origToJSON = Sequelize.Model.prototype.toJSON;
+Sequelize.Model.prototype.toJSON = function () {
+  const obj = _origToJSON.call(this);
+  if (obj.createdAt !== undefined && obj.created_at === undefined) {
+    obj.created_at = obj.createdAt;
+    delete obj.createdAt;
+  }
+  if (obj.updatedAt !== undefined && obj.updated_at === undefined) {
+    obj.updated_at = obj.updatedAt;
+    delete obj.updatedAt;
+  }
+  return obj;
+};
+
+// ============================================
 // Associations
 // ============================================
 

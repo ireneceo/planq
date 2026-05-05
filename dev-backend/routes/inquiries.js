@@ -32,15 +32,24 @@ router.post('/', async (req, res, next) => {
     // 선택적 인증 (토큰 있으면 연결, 없거나 유효하지 않아도 통과)
     let fromUserId = null;
     let businessId = null;
+    let fromUserTimezone = null;
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1];
     if (token) {
       try {
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        const user = await User.findByPk(decoded.userId || decoded.id, { attributes: ['id', 'active_business_id'] });
+        const user = await User.findByPk(decoded.userId || decoded.id, { attributes: ['id', 'active_business_id', 'timezone'] });
         if (user) {
           fromUserId = user.id;
           businessId = user.active_business_id || null;
+          // 문의자 timezone — 활성 워크스페이스 우선, 없으면 사용자 본인 timezone, 최종 fallback null.
+          // admin 페이지에서 "관리자 시간 / 문의자 시간" 양쪽 표시에 사용.
+          if (businessId) {
+            const biz = await Business.findByPk(businessId, { attributes: ['timezone'] });
+            fromUserTimezone = biz?.timezone || user.timezone || null;
+          } else {
+            fromUserTimezone = user.timezone || null;
+          }
         }
       } catch { /* 토큰 무효는 무시하고 익명 접수 */ }
     }
@@ -55,6 +64,7 @@ router.post('/', async (req, res, next) => {
       from_company: from_company ? String(from_company).trim().slice(0, 200) : null,
       from_phone: from_phone ? String(from_phone).trim().slice(0, 50) : null,
       message: String(message).trim(),
+      from_user_timezone: fromUserTimezone,
       status: 'new',
     });
 
