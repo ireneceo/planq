@@ -605,6 +605,13 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                   <NavIcon $isCollapsed={isCollapsed}><IconBusinesses /></NavIcon>
                   <NavLabel $isCollapsed={isCollapsed}>{t('nav.businesses')}</NavLabel>
                 </NavItem>
+                <NavItem to="/admin/inquiries" $isCollapsed={isCollapsed} $active={isActive('/admin/inquiries')}
+                  title={isCollapsed ? t('nav.inquiries', '문의 인박스') : undefined}>
+                  <NavIcon $isCollapsed={isCollapsed}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>
+                  </NavIcon>
+                  <NavLabel $isCollapsed={isCollapsed}>{t('nav.inquiries', '문의 인박스')}</NavLabel>
+                </NavItem>
                 <NavItem to="/admin/feedback" $isCollapsed={isCollapsed} $active={isActive('/admin/feedback')}
                   title={isCollapsed ? t('nav.feedback', '사용자 피드백') : undefined}>
                   <NavIcon $isCollapsed={isCollapsed}>
@@ -646,6 +653,13 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
                   </NavIcon>
                   <NavLabel $isCollapsed={isCollapsed}>{t('nav.billingSettings', '결제 설정')}</NavLabel>
+                </NavItem>
+                <NavItem to="/admin/notifications" $isCollapsed={isCollapsed} $active={isActive('/admin/notifications')}
+                  title={isCollapsed ? t('nav.adminNotifications', '내 알림 설정') : undefined}>
+                  <NavIcon $isCollapsed={isCollapsed}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+                  </NavIcon>
+                  <NavLabel $isCollapsed={isCollapsed}>{t('nav.adminNotifications', '내 알림 설정')}</NavLabel>
                 </NavItem>
               </NavSection>
             </>

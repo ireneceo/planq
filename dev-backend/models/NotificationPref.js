@@ -1,13 +1,14 @@
 // NotificationPref — 사용자별 알림 채널 ON/OFF 매트릭스 (Phase E4 + 사이클 J4 push)
 //
 // 매트릭스: event × channel × enabled
-//   event:    'signature' | 'invoice' | 'tax_invoice' | 'task' | 'event' | 'invite' | 'mention'
+//   event:    'signature' | 'invoice' | 'tax_invoice' | 'task' | 'event' | 'invite' | 'mention' | 'inquiry'
 //   channel:  'inbox' | 'chat' | 'email' | 'push'
 //
 // 설계:
 //   - row 가 없으면 기본값 ON (열린 문화).
 //   - row 가 있고 enabled=false 면 차단.
 //   - 사용자가 명시적으로 끈 항목만 row 생성 (storage 절약).
+//   - business_id NULL = 사용자 전역 (platform_admin 의 'inquiry' 등 워크스페이스 무관 이벤트).
 
 const { DataTypes, Model } = require('sequelize');
 const { sequelize } = require('../config/database');
@@ -26,7 +27,7 @@ NotificationPref.init({
     comment: 'null 이면 사용자 전역 기본, 값 있으면 워크스페이스별 override',
   },
   event_kind: {
-    type: DataTypes.ENUM('signature', 'invoice', 'tax_invoice', 'task', 'event', 'invite', 'mention'),
+    type: DataTypes.ENUM('signature', 'invoice', 'tax_invoice', 'task', 'event', 'invite', 'mention', 'inquiry'),
     allowNull: false,
   },
   channel: {
