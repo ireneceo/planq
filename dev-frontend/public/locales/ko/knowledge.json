@@ -91,7 +91,11 @@
     "cta": "+ 정보 등록"
   },
   "modal": {
-    "title": "정보 등록",
+    "title": "새 정보 등록",
+    "attachExisting": "기존 파일/문서 연결",
+    "searchAttachHint": "검색어 입력해서 파일·문서 찾기...",
+    "fileTagInline": "파일",
+    "postTagInline": "문서",
     "readPolicy": "공유 범위",
     "policyAll": "전체 워크스페이스",
     "policyAllHint": "오너·멤버 모두 볼 수 있어요",

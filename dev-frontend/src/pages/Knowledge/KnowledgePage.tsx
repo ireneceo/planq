@@ -356,10 +356,6 @@ const KnowledgePage = () => {
       }
       actions={
         <>
-          <AiBtn type="button" onClick={() => setAiIngestOpen(true)} title={t('page.aiIngest', 'AI 로 자동 추가') as string}>
-            <SparkleIcon size={14} />
-            {t('page.aiIngest', 'AI 로 추가')}
-          </AiBtn>
           <CsvUploadBtn type="button" onClick={() => setCsvIngestOpen(true)} title={t('page.csvUpload', 'CSV 일괄 업로드') as string}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
@@ -376,6 +372,10 @@ const KnowledgePage = () => {
             </svg>
             {t('page.exportCsv')}
           </CsvBtn>
+          <AiBtn type="button" onClick={() => setAiIngestOpen(true)} title={t('page.aiIngest', 'AI 로 자동 추가') as string}>
+            <SparkleIcon size={14} />
+            {t('page.aiIngest', 'AI 로 추가')}
+          </AiBtn>
           <NewBtn type="button" onClick={() => setModalOpen(true)}>{t('page.new')}</NewBtn>
         </>
       }
@@ -1012,21 +1012,27 @@ const KnowledgePage = () => {
           <Modal onClick={e => e.stopPropagation()} role="dialog" aria-modal="true">
             <ModalHeader>{t('modal.title')}</ModalHeader>
             <ModalBody>
-              {/* ─── 제목 (필수) ─── */}
+              {/* 1) 제목 (필수) */}
               <Field>
                 <Label>{t('modal.titleLabel')} <RequiredMark>*</RequiredMark></Label>
                 <TextInput value={draft.title} onChange={e => setDraft(d => ({ ...d, title: e.target.value }))}
                   placeholder={t('modal.titlePh') as string} maxLength={300} />
               </Field>
 
-              {/* ─── 본문 (옵션) ─── */}
+              {/* 2) 카테고리 */}
               <Field>
-                <Label>{t('modal.body')} <OptionalMark>{t('modal.optional', '(선택)')}</OptionalMark></Label>
-                <TextArea value={draft.body} onChange={e => setDraft(d => ({ ...d, body: e.target.value }))}
-                  placeholder={t('modal.bodyPh') as string} rows={5} />
+                <Label>{t('modal.category')}</Label>
+                <PlanQSelect size="sm" isMulti isSearchable={false}
+                  value={(draft.categories.length > 0 ? draft.categories : [draft.category]).map(c => ({ value: c, label: t(`cat.${c}`) as string }))}
+                  onChange={(opts) => {
+                    const arr = Array.isArray(opts) ? opts : [];
+                    const next = arr.map(o => (o as PlanQSelectOption).value as KbCategory);
+                    setDraft(d => ({ ...d, categories: next.length > 0 ? next : ['manual'], category: next[0] || 'manual' }));
+                  }}
+                  options={CATEGORIES.map(c => ({ value: c, label: t(`cat.${c}`) as string }))} />
               </Field>
 
-              {/* ─── 사용자 정의 항목 — 제목 영역 직후 (필드별 입력) ─── */}
+              {/* 3) 사용자 정의 항목 추가 */}
               <Field>
                 <Label>{t('modal.customColumns', '항목 추가')} <OptionalMark>{t('modal.optional', '(선택)')}</OptionalMark></Label>
                 <CustomColList>
@@ -1084,7 +1090,85 @@ const KnowledgePage = () => {
                 </CustomColList>
               </Field>
 
-              {/* ─── 파일 업로드 (옵션, 다중) ─── */}
+              {/* 4) 내용 */}
+              <Field>
+                <Label>{t('modal.body')} <OptionalMark>{t('modal.optional', '(선택)')}</OptionalMark></Label>
+                <TextArea value={draft.body} onChange={e => setDraft(d => ({ ...d, body: e.target.value }))}
+                  placeholder={t('modal.bodyPh') as string} rows={5} />
+              </Field>
+
+              {/* 5) 공유 범위 (라디오 4 옵션) — project/client 선택은 라디오 아래 추가 노출 */}
+              <Field>
+                <Label>{t('modal.readPolicy', '공유 범위')}</Label>
+                <PolicyRadioGroup>
+                  <PolicyRadio
+                    type="button"
+                    $active={draft.scope === 'workspace' && draft.read_policy === 'all'}
+                    onClick={() => setDraft(d => ({ ...d, scope: 'workspace', read_policy: 'all' }))}>
+                    <PolicyTitle>{t('modal.policyAll', '전체 워크스페이스')}</PolicyTitle>
+                    <PolicyHint>{t('modal.policyAllHint', '오너·멤버 모두 볼 수 있어요')}</PolicyHint>
+                  </PolicyRadio>
+                  <PolicyRadio
+                    type="button"
+                    $active={draft.scope === 'project'}
+                    onClick={() => setDraft(d => ({ ...d, scope: 'project', read_policy: 'all' }))}>
+                    <PolicyTitle>{t('modal.policyProject', '특정 프로젝트')}</PolicyTitle>
+                    <PolicyHint>{t('modal.policyProjectHint', '그 프로젝트 멤버만 볼 수 있어요')}</PolicyHint>
+                  </PolicyRadio>
+                  <PolicyRadio
+                    type="button"
+                    $active={draft.scope === 'client'}
+                    onClick={() => setDraft(d => ({ ...d, scope: 'client', read_policy: 'all' }))}>
+                    <PolicyTitle>{t('modal.policyClient', '특정 고객 (다중 가능)')}</PolicyTitle>
+                    <PolicyHint>{t('modal.policyClientHint', '선택한 고객(들)과 우리 팀이 볼 수 있어요')}</PolicyHint>
+                  </PolicyRadio>
+                  <PolicyRadio
+                    type="button"
+                    $active={draft.scope === 'workspace' && draft.read_policy === 'owner'}
+                    onClick={() => setDraft(d => ({ ...d, scope: 'workspace', read_policy: 'owner' }))}>
+                    <PolicyTitle>{t('modal.policyOwner', '운영진만')}</PolicyTitle>
+                    <PolicyHint>{t('modal.policyOwnerHint', '오너·관리자만 볼 수 있어요 (단가표·내부 계정 등)')}</PolicyHint>
+                  </PolicyRadio>
+                </PolicyRadioGroup>
+                {draft.scope === 'project' && (
+                  <ScopeSubField>
+                    <SubLabel>{t('modal.projectPick')}</SubLabel>
+                    <PlanQSelect size="sm" isSearchable
+                      menuPlacement="bottom"
+                      placeholder={t('modal.projectPh') as string}
+                      value={draft.project_id
+                        ? { value: String(draft.project_id), label: projects.find(p => p.id === draft.project_id)?.name || `Project #${draft.project_id}` }
+                        : null}
+                      onChange={(opt) => setDraft(d => ({ ...d, project_id: (opt as PlanQSelectOption | null)?.value ? Number((opt as PlanQSelectOption).value) : null }))}
+                      options={projects.map(p => ({ value: String(p.id), label: p.name }))} />
+                  </ScopeSubField>
+                )}
+                {draft.scope === 'client' && (
+                  <ScopeSubField>
+                    <SubLabel>{t('modal.clientPick')}</SubLabel>
+                    <PlanQSelect size="sm" isSearchable isMulti
+                      menuPlacement="bottom"
+                      placeholder={t('modal.clientPh') as string}
+                      value={draft.client_ids.map(id => {
+                        const c = clients.find(x => x.id === id);
+                        return { value: String(id), label: c?.display_name || c?.biz_name || c?.company_name || `Client #${id}` };
+                      })}
+                      onChange={(opts) => {
+                        const ids: number[] = [];
+                        if (Array.isArray(opts)) {
+                          for (const o of opts) {
+                            const n = Number((o as PlanQSelectOption).value);
+                            if (n) ids.push(n);
+                          }
+                        }
+                        setDraft(d => ({ ...d, client_ids: ids, client_id: ids[0] || null }));
+                      }}
+                      options={clients.map(c => ({ value: String(c.id), label: c.display_name || c.biz_name || c.company_name || `Client #${c.id}` }))} />
+                  </ScopeSubField>
+                )}
+              </Field>
+
+              {/* 6) 새 파일 업로드 */}
               <Field>
                 <Label>{t('modal.uploadFiles', '새 파일 업로드')} <OptionalMark>{t('modal.optional')}</OptionalMark></Label>
                 <UploadDrop
@@ -1120,30 +1204,46 @@ const KnowledgePage = () => {
                 )}
               </Field>
 
-              {/* ─── 기존 파일 연결 (옵션, 다중 — PlanQSelect multi) ─── */}
+              {/* 7) 기존 파일/문서 연결 (통합 단일 검색) */}
               <Field>
-                <Label>{t('modal.attachExistingFiles', '기존 파일 연결')} <OptionalMark>{t('modal.optional')}</OptionalMark></Label>
+                <Label>{t('modal.attachExisting', '기존 파일/문서 연결')} <OptionalMark>{t('modal.optional')}</OptionalMark></Label>
                 <PlanQSelect
                   size="sm" isSearchable isMulti
-                  placeholder={t('modal.searchFilesHint', '검색어 입력해서 파일 찾기...') as string}
-                  value={Array.from(pickedFileIds).map(id => {
-                    const f = wsFiles.find(x => Number(x.id.replace(/^direct-/, '')) === id);
-                    return { value: String(id), label: f?.file_name || `#${id}` };
-                  })}
+                  menuPlacement="bottom"
+                  placeholder={t('modal.searchAttachHint', '검색어 입력해서 파일·문서 찾기...') as string}
+                  value={[
+                    ...Array.from(pickedFileIds).map(id => {
+                      const f = wsFiles.find(x => Number(x.id.replace(/^direct-/, '')) === id);
+                      return { value: `f:${id}`, label: `[${t('modal.fileTagInline', '파일')}] ${f?.file_name || `#${id}`}` };
+                    }),
+                    ...Array.from(pickedPostIds).map(id => {
+                      const p = wsPosts.find(x => x.id === id);
+                      return { value: `p:${id}`, label: `[${t('modal.postTagInline', '문서')}] ${p?.title || `#${id}`}` };
+                    }),
+                  ]}
                   onChange={(opts) => {
-                    const set = new Set<number>();
+                    const fileSet = new Set<number>();
+                    const postSet = new Set<number>();
                     if (Array.isArray(opts)) {
                       for (const o of opts) {
-                        const n = Number((o as PlanQSelectOption).value);
-                        if (n) set.add(n);
+                        const v = (o as PlanQSelectOption).value as string;
+                        if (v.startsWith('f:')) fileSet.add(Number(v.slice(2)));
+                        else if (v.startsWith('p:')) postSet.add(Number(v.slice(2)));
                       }
                     }
-                    setPickedFileIds(set);
+                    setPickedFileIds(fileSet);
+                    setPickedPostIds(postSet);
                   }}
-                  options={wsFiles.map(f => ({
-                    value: f.id.replace(/^direct-/, ''),
-                    label: `${f.file_name} (${formatBytes(f.file_size)})`,
-                  }))}
+                  options={[
+                    ...wsFiles.map(f => ({
+                      value: `f:${f.id.replace(/^direct-/, '')}`,
+                      label: `[${t('modal.fileTagInline', '파일')}] ${f.file_name} (${formatBytes(f.file_size)})`,
+                    })),
+                    ...wsPosts.map(p => ({
+                      value: `p:${p.id}`,
+                      label: `[${t('modal.postTagInline', '문서')}] ${p.project ? `${p.title} · ${p.project.name}` : p.title}`,
+                    })),
+                  ]}
                   filterOption={(option, raw) => {
                     const q = (raw || '').trim().toLowerCase();
                     if (!q) return false;
@@ -1152,136 +1252,11 @@ const KnowledgePage = () => {
                   noOptionsMessage={({ inputValue }) =>
                     !String(inputValue || '').trim()
                       ? (t('modal.searchHint', '검색어를 입력하세요') as string)
-                      : !wsFilesLoaded ? (t('page.loading') as string)
+                      : (!wsFilesLoaded || !wsPostsLoaded) ? (t('page.loading') as string)
                       : (t('modal.noFiles') as string)
                   }
                 />
               </Field>
-
-              {/* ─── 기존 문서 연결 (옵션, 다중 — PlanQSelect multi) ─── */}
-              <Field>
-                <Label>{t('modal.attachExistingPosts', '기존 문서 연결')} <OptionalMark>{t('modal.optional')}</OptionalMark></Label>
-                <PlanQSelect
-                  size="sm" isSearchable isMulti
-                  placeholder={t('modal.searchPostsHint', '검색어 입력해서 문서 찾기...') as string}
-                  value={Array.from(pickedPostIds).map(id => {
-                    const p = wsPosts.find(x => x.id === id);
-                    return { value: String(id), label: p?.title || `#${id}` };
-                  })}
-                  onChange={(opts) => {
-                    const set = new Set<number>();
-                    if (Array.isArray(opts)) {
-                      for (const o of opts) {
-                        const n = Number((o as PlanQSelectOption).value);
-                        if (n) set.add(n);
-                      }
-                    }
-                    setPickedPostIds(set);
-                  }}
-                  options={wsPosts.map(p => ({
-                    value: String(p.id),
-                    label: p.project ? `${p.title} · ${p.project.name}` : p.title,
-                  }))}
-                  filterOption={(option, raw) => {
-                    const q = (raw || '').trim().toLowerCase();
-                    if (!q) return false;
-                    return String(option.label).toLowerCase().includes(q);
-                  }}
-                  noOptionsMessage={({ inputValue }) =>
-                    !String(inputValue || '').trim()
-                      ? (t('modal.searchHint', '검색어를 입력하세요') as string)
-                      : !wsPostsLoaded ? (t('page.loading') as string)
-                      : (t('modal.noPosts') as string)
-                  }
-                />
-              </Field>
-
-              <Divider />
-
-              {/* ─── 분류 (카테고리만 — scope 는 권한 라디오로 통합) ─── */}
-              <Field>
-                <Label>{t('modal.category')}</Label>
-                <PlanQSelect size="sm" isMulti isSearchable={false}
-                  value={(draft.categories.length > 0 ? draft.categories : [draft.category]).map(c => ({ value: c, label: t(`cat.${c}`) as string }))}
-                  onChange={(opts) => {
-                    const arr = Array.isArray(opts) ? opts : [];
-                    const next = arr.map(o => (o as PlanQSelectOption).value as KbCategory);
-                    setDraft(d => ({ ...d, categories: next.length > 0 ? next : ['manual'], category: next[0] || 'manual' }));
-                  }}
-                  options={CATEGORIES.map(c => ({ value: c, label: t(`cat.${c}`) as string }))} />
-              </Field>
-              {draft.scope === 'project' && (
-                <Field>
-                  <Label>{t('modal.projectPick')}</Label>
-                  <PlanQSelect size="sm" isSearchable
-                    placeholder={t('modal.projectPh') as string}
-                    value={draft.project_id
-                      ? { value: String(draft.project_id), label: projects.find(p => p.id === draft.project_id)?.name || `Project #${draft.project_id}` }
-                      : null}
-                    onChange={(opt) => setDraft(d => ({ ...d, project_id: (opt as PlanQSelectOption | null)?.value ? Number((opt as PlanQSelectOption).value) : null }))}
-                    options={projects.map(p => ({ value: String(p.id), label: p.name }))} />
-                </Field>
-              )}
-              {draft.scope === 'client' && (
-                <Field>
-                  <Label>{t('modal.clientPick')}</Label>
-                  <PlanQSelect size="sm" isSearchable isMulti
-                    placeholder={t('modal.clientPh') as string}
-                    value={draft.client_ids.map(id => {
-                      const c = clients.find(x => x.id === id);
-                      return { value: String(id), label: c?.display_name || c?.biz_name || c?.company_name || `Client #${id}` };
-                    })}
-                    onChange={(opts) => {
-                      const ids: number[] = [];
-                      if (Array.isArray(opts)) {
-                        for (const o of opts) {
-                          const n = Number((o as PlanQSelectOption).value);
-                          if (n) ids.push(n);
-                        }
-                      }
-                      setDraft(d => ({ ...d, client_ids: ids, client_id: ids[0] || null }));
-                    }}
-                    options={clients.map(c => ({ value: String(c.id), label: c.display_name || c.biz_name || c.company_name || `Client #${c.id}` }))} />
-                </Field>
-              )}
-
-              <Divider />
-
-              {/* ─── 공유 권한 (4 옵션) — 운영진 한정 옵션 명시 ─── */}
-              <Field>
-                <Label>{t('modal.readPolicy', '공유 범위')}</Label>
-                <PolicyRadioGroup>
-                  <PolicyRadio
-                    type="button"
-                    $active={draft.scope === 'workspace' && draft.read_policy === 'all'}
-                    onClick={() => setDraft(d => ({ ...d, scope: 'workspace', read_policy: 'all' }))}>
-                    <PolicyTitle>{t('modal.policyAll', '전체 워크스페이스')}</PolicyTitle>
-                    <PolicyHint>{t('modal.policyAllHint', '오너·멤버 모두 볼 수 있어요')}</PolicyHint>
-                  </PolicyRadio>
-                  <PolicyRadio
-                    type="button"
-                    $active={draft.scope === 'project'}
-                    onClick={() => setDraft(d => ({ ...d, scope: 'project', read_policy: 'all' }))}>
-                    <PolicyTitle>{t('modal.policyProject', '특정 프로젝트')}</PolicyTitle>
-                    <PolicyHint>{t('modal.policyProjectHint', '그 프로젝트 멤버만 볼 수 있어요')}</PolicyHint>
-                  </PolicyRadio>
-                  <PolicyRadio
-                    type="button"
-                    $active={draft.scope === 'client'}
-                    onClick={() => setDraft(d => ({ ...d, scope: 'client', read_policy: 'all' }))}>
-                    <PolicyTitle>{t('modal.policyClient', '특정 고객 (다중 가능)')}</PolicyTitle>
-                    <PolicyHint>{t('modal.policyClientHint', '선택한 고객(들)과 우리 팀이 볼 수 있어요')}</PolicyHint>
-                  </PolicyRadio>
-                  <PolicyRadio
-                    type="button"
-                    $active={draft.scope === 'workspace' && draft.read_policy === 'owner'}
-                    onClick={() => setDraft(d => ({ ...d, scope: 'workspace', read_policy: 'owner' }))}>
-                    <PolicyTitle>{t('modal.policyOwner', '운영진만')}</PolicyTitle>
-                    <PolicyHint>{t('modal.policyOwnerHint', '오너·관리자만 볼 수 있어요 (단가표·내부 계정 등)')}</PolicyHint>
-                  </PolicyRadio>
-                </PolicyRadioGroup>
-              </Field>
-
 
               {submitError && <ErrorBox>{submitError}</ErrorBox>}
               {resultMsg && <SuccessBox>{resultMsg}</SuccessBox>}
@@ -1631,6 +1606,19 @@ const CsvUploadBtn = styled.button`
 `;
 
 const Loading = styled.div`padding: 40px; text-align: center; color: #94A3B8;`;
+// 공유 범위 라디오 아래 부속 입력 (project / client 선택)
+const ScopeSubField = styled.div`
+  margin-top: 12px;
+  padding: 12px;
+  background: #F8FAFC;
+  border: 1px solid #E2E8F0;
+  border-radius: 8px;
+  display: flex; flex-direction: column; gap: 6px;
+`;
+const SubLabel = styled.div`
+  font-size: 11px; font-weight: 700; color: #64748B;
+  text-transform: uppercase; letter-spacing: 0.4px;
+`;
 
 // 권한 라디오 (4 옵션 — 큰 카드 형태)
 const PolicyRadioGroup = styled.div`
@@ -1953,9 +1941,6 @@ const ChipX = styled.button`
   width: 18px; height: 18px; display: inline-flex; align-items: center; justify-content: center;
   color: #94A3B8; border-radius: 4px; font-size: 14px;
   &:hover { background: #FEE2E2; color: #DC2626; }
-`;
-const Divider = styled.div`
-  height: 1px; background: #E2E8F0; margin: 4px -22px;
 `;
 const Backdrop = styled.div`position: fixed; inset: 0; background: rgba(15,23,42,0.40); z-index: 50; display: flex; align-items: center; justify-content: center; padding: 20px;`;
 const Modal = styled.div`width: 100%; max-width: 600px; background: #FFFFFF; border-radius: 14px; box-shadow: 0 24px 48px rgba(15,23,42,0.18); display: flex; flex-direction: column; max-height: 90vh; overflow: hidden;`;
