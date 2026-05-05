@@ -554,14 +554,16 @@ const ChatPanel: React.FC<Props> = ({
 
       {/* 업무 후보 알림 배너 — pending 후보가 있을 때만 (안내 전용 — 우측 패널이 이미 열려 있으니 X 로 닫기만) */}
       {!isClient && candidatesCount > 0 && !bannerDismissed && (
-        <CandidatesBanner>
-          <BannerText>
-            {t('chat.banner.candidatesPending', { count: candidatesCount })}
-          </BannerText>
-          <BannerCloseBtn type="button" onClick={() => setBannerDismissed(true)} aria-label={t('chat.banner.dismiss', '닫기') as string}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
-          </BannerCloseBtn>
-        </CandidatesBanner>
+        <CandidatesBannerWrap>
+          <CandidatesBanner>
+            <BannerText>
+              {t('chat.banner.candidatesPending', { count: candidatesCount })}
+            </BannerText>
+            <BannerCloseBtn type="button" onClick={() => setBannerDismissed(true)} aria-label={t('chat.banner.dismiss', '닫기') as string}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+            </BannerCloseBtn>
+          </CandidatesBanner>
+        </CandidatesBannerWrap>
       )}
 
       {/* 메시지 흐름 */}
@@ -1156,8 +1158,12 @@ const IconBtn = styled.button`
 `;
 
 
+// 배너 외부 wrapper — MessageList 와 동일한 연회색 배경으로 채팅 내용과 색상 일관성 유지
+const CandidatesBannerWrap = styled.div`
+  padding: 10px 16px 0;
+  background: #F8FAFC;
+`;
 const CandidatesBanner = styled.div`
-  margin: 10px 16px 0;
   padding: 10px 14px;
   background: #FFFBEB;
   border: 1px solid #FDE68A;
