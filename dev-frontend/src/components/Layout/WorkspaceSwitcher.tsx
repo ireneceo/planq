@@ -196,7 +196,7 @@ const WorkspaceSwitcher: React.FC<Props> = ({ collapsed }) => {
                 $admin
                 onClick={handleSwitchAdmin}
               >
-                <Dot $color="#FB7185" />
+                <Dot $color="#5EEAD4" />
                 <ItemBody>
                   <ItemName>{t('switcher.platformAdmin', '플랫폼 관리자')}</ItemName>
                   <ItemSub>{t('switcher.platformAdminSub', '전체 워크스페이스·사용자')}</ItemSub>
@@ -227,6 +227,7 @@ const Container = styled.div`
 
 // 워크스페이스 카드 — 사이드바에서 살짝 분리된 카드 (border + bg)
 // 다크 사이드바(#115E59) 위에 떠있는 형태. 통합검색과 함께 시각적 분리.
+// Trigger — 워크스페이스 / 플랫폼 관리자 모드 모두 동일한 teal 톤 (사이드바 일관성)
 const Trigger = styled.button<{ $multiple: boolean; $collapsed: boolean; $admin: boolean }>`
   display: flex;
   align-items: center;
@@ -234,19 +235,16 @@ const Trigger = styled.button<{ $multiple: boolean; $collapsed: boolean; $admin:
   width: calc(100% - 16px);
   margin: 8px;
   padding: 10px 12px;
-  background: ${(p) => p.$admin
-    ? 'linear-gradient(135deg, rgba(244,63,94,0.18) 0%, rgba(251,113,133,0.08) 100%)'
-    : 'rgba(255,255,255,0.06)'};
-  border: 1px solid ${(p) => p.$admin ? 'rgba(244,63,94,0.3)' : 'rgba(94,234,212,0.18)'};
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(94,234,212,0.18);
   border-radius: 10px;
   cursor: ${(p) => (p.$multiple ? 'pointer' : 'default')};
   transition: background 0.15s, border-color 0.15s;
   text-align: left;
-  color: ${(p) => p.$admin ? '#FECACA' : '#FFFFFF'};
+  color: #FFFFFF;
   ${(p) => p.$collapsed && 'justify-content: center; padding: 8px;'}
   &:hover {
-    ${(p) => p.$multiple && !p.$admin && 'background: rgba(255,255,255,0.10); border-color: rgba(94,234,212,0.32);'}
-    ${(p) => p.$multiple && p.$admin && 'background: linear-gradient(135deg, rgba(244,63,94,0.26) 0%, rgba(251,113,133,0.12) 100%); border-color: rgba(244,63,94,0.45);'}
+    ${(p) => p.$multiple && 'background: rgba(255,255,255,0.10); border-color: rgba(94,234,212,0.32);'}
   }
 `;
 
@@ -273,11 +271,12 @@ const InitialBadge = styled.span<{ $color: string }>`
   box-shadow: 0 1px 2px rgba(0,0,0,0.15);
 `;
 
+// AdminBadge — 일반 InitialBadge 와 동일 teal 톤 (사용자 요청: 다른 워크스페이스와 같이)
 const AdminBadge = styled.span`
   width: 28px; height: 28px;
   flex-shrink: 0;
   display: inline-flex; align-items: center; justify-content: center;
-  background: linear-gradient(135deg, #F43F5E 0%, #BE185D 100%);
+  background: linear-gradient(135deg, #0D9488 0%, #0F766E 100%);
   color: #FFFFFF;
   border-radius: 8px;
   box-shadow: 0 1px 2px rgba(0,0,0,0.15);
@@ -325,22 +324,22 @@ const Info = styled.div`
 const Name = styled.div<{ $admin?: boolean }>`
   font-size: 14px;
   font-weight: 600;
-  color: ${(p) => p.$admin ? '#FECACA' : '#FFFFFF'};
+  color: #FFFFFF;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   letter-spacing: -0.1px;
 `;
 
-// 역할 pill — 이름 아래 작은 chip 형태로 분리
+// 역할 pill — 이름 아래 작은 chip 형태로 분리. admin 도 일반 워크스페이스와 동일 teal.
 const RolePill = styled.span<{ $admin?: boolean }>`
   display: inline-flex; align-items: center;
   margin-top: 2px;
   padding: 1px 7px;
   font-size: 10px; font-weight: 600;
-  color: ${(p) => p.$admin ? '#FECACA' : '#5EEAD4'};
-  background: ${(p) => p.$admin ? 'rgba(244,63,94,0.18)' : 'rgba(94,234,212,0.14)'};
-  border: 1px solid ${(p) => p.$admin ? 'rgba(244,63,94,0.30)' : 'rgba(94,234,212,0.22)'};
+  color: #5EEAD4;
+  background: rgba(94,234,212,0.14);
+  border: 1px solid rgba(94,234,212,0.22);
   border-radius: 999px;
   letter-spacing: 0.2px;
   white-space: nowrap;
@@ -390,17 +389,14 @@ const MenuLabel = styled.div`
   font-weight: 600;
 `;
 
+// MenuItem — admin 항목도 일반 워크스페이스와 동일 teal 톤
 const MenuItem = styled.button<{ $current: boolean; $admin?: boolean }>`
   display: flex;
   align-items: center;
   gap: 12px;
   width: 100%;
   padding: 10px 12px;
-  background: ${(p) => {
-    if (p.$admin && p.$current) return 'rgba(251, 113, 133, 0.22)';
-    if (p.$current) return 'rgba(94, 234, 212, 0.16)';
-    return 'transparent';
-  }};
+  background: ${(p) => p.$current ? 'rgba(94, 234, 212, 0.16)' : 'transparent'};
   border: none;
   border-radius: 8px;
   cursor: pointer;
@@ -408,10 +404,7 @@ const MenuItem = styled.button<{ $current: boolean; $admin?: boolean }>`
   color: ${(p) => (p.$current ? '#FFFFFF' : '#CCFBF1')};
   transition: background 0.1s, color 0.1s;
   &:hover {
-    background: ${(p) => {
-      if (p.$admin) return p.$current ? 'rgba(251, 113, 133, 0.3)' : 'rgba(251, 113, 133, 0.14)';
-      return p.$current ? 'rgba(94, 234, 212, 0.22)' : 'rgba(255, 255, 255, 0.10)';
-    }};
+    background: ${(p) => p.$current ? 'rgba(94, 234, 212, 0.22)' : 'rgba(255, 255, 255, 0.10)'};
     color: #FFFFFF;
   }
   &:disabled { opacity: 0.6; cursor: wait; }
