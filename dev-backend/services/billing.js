@@ -72,7 +72,7 @@ function bankInstructionHtml({ businessName, planName, amount, currency, cycle, 
 }
 
 // ─── 1. 플랜 변경 (사용자 요청) — 신규 Subscription + pending Payment 생성 ───
-async function createPendingSubscription({ businessId, planCode, cycle, userId, currency = 'KRW' }) {
+async function createPendingSubscription({ businessId, planCode, cycle, userId, currency = 'KRW', taxInvoice = null }) {
   const plan = PLANS.PLANS?.[planCode] || PLANS[planCode];
   if (!plan) throw new Error('invalid_plan_code');
   if (planCode === 'free') {
@@ -113,6 +113,16 @@ async function createPendingSubscription({ businessId, planCode, cycle, userId, 
       status: 'pending',
       amount: price, currency, cycle,
       created_by: userId,
+      // 세금계산서 (한국 사업자 옵션) — mark-paid 시 발행 시도
+      tax_invoice_requested: !!(taxInvoice && taxInvoice.biz_no),
+      tax_invoice_data: (taxInvoice && taxInvoice.biz_no) ? {
+        biz_no: String(taxInvoice.biz_no || '').slice(0, 20),
+        biz_name: String(taxInvoice.biz_name || '').slice(0, 200),
+        ceo_name: String(taxInvoice.ceo_name || '').slice(0, 80),
+        address: String(taxInvoice.address || '').slice(0, 500),
+        email: String(taxInvoice.email || '').slice(0, 200),
+      } : null,
+      tax_invoice_status: (taxInvoice && taxInvoice.biz_no) ? 'requested' : 'none',
     }, { transaction: t });
 
     await t.commit();
@@ -161,7 +171,7 @@ async function createPendingSubscription({ businessId, planCode, cycle, userId, 
 }
 
 // ─── 2. mark-paid (admin 액션) — Subscription 활성화 ───
-async function markPaymentPaid({ paymentId, markedByUserId, payerName, payerMemo }) {
+async function markPaymentPaid({ paymentId, markedByUserId, payerName, payerMemo, taxInvoice }) {
   const t = await sequelize.transaction();
   try {
     const pay = await Payment.findByPk(paymentId, { transaction: t, lock: t.LOCK.UPDATE });
@@ -178,6 +188,19 @@ async function markPaymentPaid({ paymentId, markedByUserId, payerName, payerMemo
       : now;                   // 신규 활성화
     const periodEnd = addCycle(periodStart, sub.cycle);
 
+    // 세금계산서 신청 입력 (옵션) — checkout 시 안 받았어도 mark-paid 시점에 추가 가능
+    const taxFields = (taxInvoice && taxInvoice.biz_no) ? {
+      tax_invoice_requested: true,
+      tax_invoice_data: {
+        biz_no: String(taxInvoice.biz_no || '').slice(0, 20),
+        biz_name: String(taxInvoice.biz_name || '').slice(0, 200),
+        ceo_name: String(taxInvoice.ceo_name || '').slice(0, 80),
+        address: String(taxInvoice.address || '').slice(0, 500),
+        email: String(taxInvoice.email || '').slice(0, 200),
+      },
+      tax_invoice_status: 'requested',
+    } : {};
+
     await pay.update({
       status: 'paid',
       paid_at: now,
@@ -187,6 +210,7 @@ async function markPaymentPaid({ paymentId, markedByUserId, payerName, payerMemo
       payer_memo: payerMemo ? String(payerMemo).slice(0, 255) : pay.payer_memo,
       period_start: periodStart,
       period_end: periodEnd,
+      ...taxFields,
     }, { transaction: t });
 
     const wasFirst = sub.status === 'pending';

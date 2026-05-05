@@ -9,7 +9,7 @@
 import { useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
-import { checkout, markPaymentPaid, type PlanCode, type BillingCycle, type PlanDef } from '../../services/plan';
+import { checkout, markPaymentPaid, type PlanCode, type BillingCycle, type PlanDef, type TaxInvoiceInput } from '../../services/plan';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { useEscapeStack } from '../../hooks/useEscapeStack';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
@@ -47,6 +47,10 @@ export default function CheckoutModal({
   const [payerName, setPayerName] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // 세금계산서 옵션 (한국 사업자) — 입력 시 mark-paid 와 함께 발행 신청
+  const [taxOpen, setTaxOpen] = useState(false);
+  const [tax, setTax] = useState<TaxInvoiceInput>({ biz_no: '', biz_name: '', ceo_name: '', address: '', email: '' });
+  const taxValid = taxOpen ? !!(tax.biz_no.trim() && tax.biz_name.trim() && tax.ceo_name.trim() && tax.email.trim()) : true;
 
   // 모달 진입 시: pending payment 가 없으면 checkout 호출하여 신규 생성
   useEffect(() => {
@@ -78,10 +82,19 @@ export default function CheckoutModal({
 
   const handleMarkPaid = async () => {
     if (!paymentId || submitting) return;
+    if (taxOpen && !taxValid) {
+      setError(t('checkout.tax.requiredFields', '사업자번호·상호·대표자·이메일은 필수입니다.'));
+      return;
+    }
     setSubmitting(true);
     setError(null);
     setStep('completing');
-    const ok = await markPaymentPaid(businessId, paymentId, payerName.trim() || undefined);
+    const taxPayload: TaxInvoiceInput | null = taxOpen ? {
+      biz_no: tax.biz_no.trim(), biz_name: tax.biz_name.trim(),
+      ceo_name: tax.ceo_name.trim(), address: tax.address?.trim() || '',
+      email: tax.email.trim(),
+    } : null;
+    const ok = await markPaymentPaid(businessId, paymentId, payerName.trim() || undefined, undefined, taxPayload);
     setSubmitting(false);
     if (!ok) {
       setError(t('checkout.errors.markPaidFailed'));
@@ -147,6 +160,38 @@ export default function CheckoutModal({
             <FieldHint>{t('checkout.payerName.hint')}</FieldHint>
           </Field>
 
+          {/* 세금계산서 — 한국 사업자 옵션 (체크 시 펼침) */}
+          <TaxToggle>
+            <input type="checkbox" id="tax-toggle" checked={taxOpen} onChange={e => setTaxOpen(e.target.checked)} />
+            <label htmlFor="tax-toggle">{t('checkout.tax.toggle', '사업자 — 세금계산서 발행 받기')}</label>
+          </TaxToggle>
+          {taxOpen && (
+            <TaxFields>
+              <Field>
+                <FieldLabel>{t('checkout.tax.bizNo', '사업자등록번호')} *</FieldLabel>
+                <Input value={tax.biz_no} onChange={e => setTax({ ...tax, biz_no: e.target.value })}
+                  placeholder="123-45-67890" maxLength={20} />
+              </Field>
+              <Field>
+                <FieldLabel>{t('checkout.tax.bizName', '상호')} *</FieldLabel>
+                <Input value={tax.biz_name} onChange={e => setTax({ ...tax, biz_name: e.target.value })} maxLength={200} />
+              </Field>
+              <Field>
+                <FieldLabel>{t('checkout.tax.ceoName', '대표자')} *</FieldLabel>
+                <Input value={tax.ceo_name} onChange={e => setTax({ ...tax, ceo_name: e.target.value })} maxLength={80} />
+              </Field>
+              <Field>
+                <FieldLabel>{t('checkout.tax.address', '주소')}</FieldLabel>
+                <Input value={tax.address} onChange={e => setTax({ ...tax, address: e.target.value })} maxLength={500} />
+              </Field>
+              <Field>
+                <FieldLabel>{t('checkout.tax.email', '세금계산서 받을 이메일')} *</FieldLabel>
+                <Input type="email" value={tax.email} onChange={e => setTax({ ...tax, email: e.target.value })} maxLength={200} />
+                <FieldHint>{t('checkout.tax.emailHint', '세금계산서 PDF 가 발행 후 이 주소로 발송됩니다.')}</FieldHint>
+              </Field>
+            </TaxFields>
+          )}
+
           {error && <ErrorBox>{error}</ErrorBox>}
 
           <Notice>{t('checkout.notice')}</Notice>
@@ -165,6 +210,19 @@ export default function CheckoutModal({
   );
 }
 
+const TaxToggle = styled.div`
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 12px;
+  background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px;
+  font-size: 13px; color: #334155;
+  input { width: 16px; height: 16px; }
+  label { cursor: pointer; user-select: none; }
+`;
+const TaxFields = styled.div`
+  display: flex; flex-direction: column; gap: 12px;
+  padding: 12px;
+  background: #F0FDFA; border: 1px solid #99F6E4; border-radius: 8px;
+`;
 const Backdrop = styled.div`
   position: fixed; inset: 0; background: rgba(15,23,42,0.5);
   display: flex; align-items: center; justify-content: center;

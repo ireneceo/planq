@@ -494,6 +494,13 @@ router.post('/:businessId/members/invite', authenticateToken, checkBusinessAcces
     const dupByEmail = await BusinessMember.findOne({ where: { business_id: businessId, invite_email: email.trim() } });
     if (dupByEmail) return errorResponse(res, 'already_invited', 409);
 
+    // 플랜 쿼터 — 멤버 수 한도 (초대 발행 시점에 검사)
+    const planEngine = require('../services/plan');
+    const planCan = await planEngine.can(businessId, 'add_member');
+    if (!planCan.ok) {
+      return res.status(422).json(planEngine.buildQuotaError(planCan, businessId));
+    }
+
     const token = crypto.randomBytes(24).toString('hex');
     const created = await BusinessMember.create({
       business_id: businessId,

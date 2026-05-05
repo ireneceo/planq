@@ -1,12 +1,88 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-05-04 (Q-Q 사이클 — 랜딩 풀세트 + Q Task 상세 폼 통일 + PWA 게이트 운영 라이브 `f7256ac`)
+> **최종 업데이트:** 2026-05-05 (Q-R 사이클 — Free 폐지 + Starter 14일 trial + Addon 자체결제 + 세금계산서 + 운영 안정화 — **코드 작성 완료, 검증·배포 대기**)
 >
-> **다음 진입 ★:** **주간 보고 (Weekly Review)** 기능 — `docs/WEEKLY_REVIEW_DESIGN.md` 합의 완료, Phase 1 즉시 시작 가능. Q Task 4번째 탭 + 자동·수동 박제 + JSON 통계 활용. 기존 0 변경.
+> **다음 진입 ★ (즉시):** **Q-R 검증 + 배포** — 다음 세션 시작 시 ① `node sync-database.js` (Payment 신규 컬럼 반영) → ② `npm run build` (프론트 신규 컴포넌트 4종) → ③ `node scripts/migrate-free-to-starter.js` (기존 Free 워크스페이스 일괄 starter+trialing 14일) → ④ /검증 (헬스체크 27 + 결제·trial·addon 시나리오) → ⑤ /배포.
+>
+> **그 다음:** **주간 보고 (Weekly Review)** 기능 — `docs/WEEKLY_REVIEW_DESIGN.md` 합의 완료, Phase 1. Q Task 4번째 탭 + 자동·수동 박제 + JSON 통계 활용.
 >
 > **차순위:** 알림 그룹화 (5분 묶음) / DND 시간대 / /activity 통합 히스토리 / Phase 4 트래픽 트리거 시 BullMQ + Redis worker / Socket.IO Redis adapter / multer → S3 / read-replica
 >
-> **결제 정책:** 1순위 자체 결제 (계좌이체 mark-paid), 2순위 PortOne (P-7 마지막). 월결제 + 연결제. 미결제 시 7일 유예 후 Free 강등 + 데이터 보존
+> **결제 정책:** 1순위 자체 결제 (계좌이체 mark-paid), 2순위 PortOne (P-7 마지막). 월결제 + 연결제. **2026-05-05: Free 플랜 폐지 — 신규 가입은 starter+trialing 14일.** 미결제 시 7일 유예 후 starter 강등 + 데이터 보존.
+
+---
+
+## 🟡 진행: Q-R 사이클 — Free 폐지 + Starter 14일 trial + Addon 자체결제 + 세금계산서 + 운영 안정화 (2026-05-05, 검증 대기)
+
+> **상태:** 코드 작성 완료 (25 modified + 8 new = +1700 line). **빌드·DB sync·검증·배포는 다음 세션이 이어받음.**
+>
+> **이전 세션이 이 사이클 도중 멈췄음 — uncommitted 채로 발견 → 다음 세션이 검증·배포 이어받기 위해 본 commit 으로 박제.**
+
+### 1. Free 플랜 폐지 + Starter 신규가입 14일 trial
+- `config/plans.js` — Free `deprecated: true` + PLAN_ORDER 에서 제외 (ENUM 호환 위해 PLANS 객체 자체는 유지). `getPlan` fallback 도 `starter` 로 변경
+- Starter 한도 재설계: members 2→1, clients 10→5, projects 10→5, conversations 30→10, storage 1→2GB, cue_actions 300→50, qnote 5h→1h
+- `services/trial.js` (신규 153줄) — 신규 가입 시 starter+trialing 14일 자동 부여 + 만료 시 강등
+- `scripts/migrate-free-to-starter.js` (신규 87줄) — 기존 Free 워크스페이스 일괄 starter+trialing 14일 부여 (다음 세션 1회 실행)
+
+### 2. Addon 자체결제 풀 흐름
+- `services/addonBilling.js` (신규 246줄) — 일할 청구서 자동 발행 + 한도 즉시 적용 + 입금 안내 메일 + mark-paid 시 컬럼 자동 증가
+- `routes/plan.js` `/addons/request` — 신청 기록만 → 풀 흐름으로 확장
+- `routes/admin.js` `/payments/:id/mark-paid` — `kind` 자동 분기 (plan vs addon)
+
+### 3. 세금계산서 옵션 (한국 사업자)
+- `models/Payment.js` — `kind`, `addon_code`, `addon_quantity`, `tax_invoice_requested`, `tax_invoice_status`, `tax_invoice_data`, `tax_invoice_issued_at` 컬럼 추가
+- `routes/plan.js` checkout / mark-paid — `tax_invoice` payload 전달
+- `routes/admin.js` (Day 10) — admin 세금계산서 발행 라우트
+- `CheckoutModal.tsx` — 세금계산서 입력 펼침 (체크박스 → biz_no/biz_name/ceo_name/address/email)
+- `AdminPaymentsPage.tsx` (Day 8) — 결제 목록에 addon / 세금계산서 컬럼 노출
+
+### 4. PlanQ 결제 계좌 admin 관리 (env → platform_settings)
+- `routes/plan.js` `/bank-info` — `platform_settings` 우선, env 는 legacy fallback. 운영 진입 후 admin UI 에서 관리
+
+### 5. 운영 안정화 UI (프론트 신규 4종)
+- `BuildVersionGuard.tsx` (48줄) — 새 빌드 배포 시 사용자 자동 reload (chunk fail 보강)
+- `LimitReachedDialog.tsx` (135줄) — 한도 초과 시 안내 + 업그레이드 / 추가 슬롯 / 추가 시간 분기
+- `TrialStatusBanner.tsx` (133줄) — 14일 trial 잔여일 안내 + 결제 유도
+- `UsageWarningCard.tsx` (151줄) — 한도 임박 (80%/90%) 경고 카드
+
+### 6. 보조 변경
+- `routes/auth.js` — 신규 가입 시 trial 부여 호출
+- `routes/businesses.js`, `clients.js`, `cue.js`, `invites.js`, `projects.js` — limit 검사에 trial 컨텍스트 반영
+- `services/billing.js` — `createPendingSubscription({ taxInvoice })` + addon 연동
+- `services/emailService.js` — 입금 안내 / trial 만료 안내 템플릿
+- `App.tsx`, `AuthContext.tsx`, `DashboardPage.tsx`, `PricingPage.tsx`, `services/plan.ts` — Free 노출 제거 + Trial 컨텍스트
+- i18n 4종 (ko/en common+landing) — common +87줄 양쪽
+
+### 수정·신규 파일 (총 33개)
+**백엔드 수정 (14):** `config/plans.js`, `models/Payment.js`, `routes/admin.js`, `routes/auth.js`, `routes/businesses.js`, `routes/clients.js`, `routes/cue.js`, `routes/invites.js`, `routes/plan.js`, `routes/projects.js`, `server.js`, `services/billing.js`, `services/emailService.js`, `services/plan.js`
+
+**백엔드 신규 (3):** `scripts/migrate-free-to-starter.js`, `services/addonBilling.js`, `services/trial.js`
+
+**프론트 수정 (11):** `App.tsx`, `contexts/AuthContext.tsx`, `pages/Admin/AdminPaymentsPage.tsx`, `pages/Dashboard/DashboardPage.tsx`, `pages/Landing/PricingPage.tsx`, `pages/Settings/CheckoutModal.tsx`, `services/plan.ts`, i18n 4종 (ko/en common+landing)
+
+**프론트 신규 (4):** `BuildVersionGuard.tsx`, `LimitReachedDialog.tsx`, `TrialStatusBanner.tsx`, `UsageWarningCard.tsx`
+
+### ⚠️ 검증·배포 체크리스트 (다음 세션 이어받기)
+
+| # | 단계 | 명령 | 비고 |
+|:-:|------|------|------|
+| 1 | DB 스키마 sync | `cd dev-backend && node sync-database.js` | Payment 7 컬럼 추가 |
+| 2 | PM2 restart (dev) | `pm2 restart planq-dev-backend` | 신규 라우트·서비스 로드 |
+| 3 | 프론트 빌드 (dev) | `cd dev-frontend && npm run build` | 신규 컴포넌트 4종 |
+| 4 | Free → Starter 마이그레이션 (dev) | `node scripts/migrate-free-to-starter.js` | 기존 Free 워크스페이스 일괄 |
+| 5 | 헬스체크 | `node scripts/health-check.js` | 27 테스트 |
+| 6 | 결제 시나리오 검증 | login → checkout → mark-paid → tax_invoice 발행 | 실 API |
+| 7 | trial 시나리오 검증 | 신규 가입 → starter+trialing 14일 → banner 노출 | 실 API |
+| 8 | addon 시나리오 검증 | /addons/request → 일할 청구서 → mark-paid → 한도 증가 | 실 API |
+| 9 | UI 검증 | LimitReached / Usage / Trial / BuildVersionGuard 4 컴포넌트 | 브라우저 |
+| 10 | /배포 | dev → 운영 (Payment 컬럼 sync + migrate-free 운영 적용 포함) | Irene 명령 시 |
+
+**❗ 배포 전 운영 DB 백업 필수 (`scripts/backup-prod.sh`).**
+
+### 메모리 (검토 — 다음 세션에 추가 예정)
+- Free 플랜 폐지 정책 (Starter+trial 14일 신규 가입 표준)
+- Addon 자체결제 풀 흐름 (일할 청구·자동 한도 적용)
+- BuildVersionGuard 패턴 (chunk fail + version polling 이중 보강)
 
 ---
 

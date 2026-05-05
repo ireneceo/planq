@@ -259,6 +259,9 @@ router.post('/register', async (req, res, next) => {
     }, { transaction });
 
     // 2. Create Business (워크스페이스)
+    // 신규 가입 = Starter 14일 trial 자동 부여 (2026-05-05). Free 플랜 폐지.
+    const TRIAL_DAYS = 14;
+    const trialEndsAt = new Date(Date.now() + TRIAL_DAYS * 24 * 60 * 60 * 1000);
     const slug = generateSlug(brandName);
     const business = await Business.create({
       name: brandName,                // legacy 호환
@@ -268,7 +271,10 @@ router.post('/register', async (req, res, next) => {
       owner_id: user.id,
       default_language: lang,
       cue_mode: 'smart',
-      cue_paused: false
+      cue_paused: false,
+      plan: 'starter',
+      subscription_status: 'trialing',
+      trial_ends_at: trialEndsAt,
     }, { transaction });
 
     // 3. Create BusinessMember (관리자)

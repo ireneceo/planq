@@ -8,6 +8,8 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import PageShell from '../../components/Layout/PageShell';
+import TrialStatusBanner from '../../components/Common/TrialStatusBanner';
+import UsageWarningCard from '../../components/Common/UsageWarningCard';
 import { useAuth, apiFetch } from '../../contexts/AuthContext';
 import { fetchTodo, type TodoResponse, type TodoItem } from '../../services/dashboard';
 
@@ -70,6 +72,8 @@ const DashboardPage: React.FC = () => {
 
   return (
     <PageShell title={t('title')}>
+      <TrialStatusBanner businessId={bizId} />
+      <UsageWarningCard businessId={bizId} />
       {/* 1. 인박스 카드 + 4 액션 (한 행) */}
       <TopRow>
         <InboxCard onClick={navTo('/inbox')} role="button" tabIndex={0}>

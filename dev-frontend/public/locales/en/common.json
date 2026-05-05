@@ -313,5 +313,92 @@
     "installCta": "Install",
     "androidHint": "Add to home screen for notifications and faster access",
     "iosHint": "Tap the Share button → \"Add to Home Screen\""
+  },
+  "usageWarn": {
+    "title": "Approaching plan limits",
+    "cta": "Plans & Add-ons",
+    "members": "Members",
+    "clients": "Clients",
+    "projects": "Active projects",
+    "storage": "Storage",
+    "cue": "Cue monthly actions",
+    "qnote": "Q Note monthly minutes"
+  },
+  "limit": {
+    "current": "Current",
+    "maximum": "Limit",
+    "close": "Close",
+    "cta": "Plans & Add-ons",
+    "members": {
+      "title": "Member limit reached",
+      "desc": "You've hit your plan's member cap. Add seats one at a time with the member add-on, or upgrade to a higher plan.",
+      "addon": "Member add-on: ₩4,900/seat/mo — instant"
+    },
+    "clients": {
+      "title": "Client limit reached",
+      "desc": "You've hit your plan's client cap. Add slots or upgrade.",
+      "addon": "Client slots add-on: ₩2,900/mo for 10"
+    },
+    "projects": {
+      "title": "Project limit reached",
+      "desc": "Active projects are at the limit. Completed projects don't count — close them out, or upgrade your plan."
+    },
+    "conv": {
+      "title": "Conversation limit reached",
+      "desc": "Higher plans have unlimited conversations."
+    },
+    "storage": {
+      "title": "Storage quota exceeded",
+      "desc": "Storage is full. Use the add-on or connect Google Drive for unlimited.",
+      "addon": "Storage add-on: ₩4,900/mo for 5GB · or connect Google Drive"
+    },
+    "fileSize": {
+      "title": "File too large",
+      "desc": "This file exceeds the single-file size limit on your plan."
+    },
+    "cue": {
+      "title": "Cue AI monthly limit reached",
+      "desc": "You've used all Cue actions this month. Add capacity or it resets on the 1st.",
+      "addon": "Cue add-on: ₩4,900/mo for 1,000 actions"
+    },
+    "qnote": {
+      "title": "Q Note monthly hours reached",
+      "desc": "You've used all Q Note minutes this month.",
+      "addon": "Q Note add-on: ₩9,900/mo for 10 hours"
+    },
+    "feature": {
+      "title": "Not in your plan",
+      "desc": "This feature is available on higher plans."
+    },
+    "inactive": {
+      "title": "Subscription inactive",
+      "desc": "Pay your invoice to restore access. Check the billing page."
+    },
+    "generic": {
+      "title": "Limit reached",
+      "desc": "You've reached a plan limit."
+    }
+  },
+  "trialBanner": {
+    "trial": {
+      "title": "{{days}} days left in your Starter trial",
+      "desc": "You can use every Starter feature during the trial."
+    },
+    "trialEnding": {
+      "title": "{{days}} days left — pay to keep going",
+      "desc": "Settle the bill before the trial ends to avoid auto-lock."
+    },
+    "pastDue": {
+      "title": "Trial ended — {{days}} days left to pay",
+      "desc": "The workspace will be locked if payment is not received."
+    },
+    "canceled": {
+      "title": "Workspace locked — pay to restore",
+      "desc": "Access resumes immediately after payment is confirmed."
+    },
+    "cta": {
+      "openPlan": "Plan & billing",
+      "payNow": "Pay now"
+    }
   }
 }

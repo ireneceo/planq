@@ -188,6 +188,16 @@ const apiFetch = async (url: string, options: RequestInit = {}): Promise<Respons
     }
   }
 
+  // 422 plan quota — 글로벌 이벤트로 LimitReachedDialog 띄움. 호출자는 그대로 응답 받음.
+  if (response.status === 422) {
+    try {
+      const j = await response.clone().json();
+      if (j?.code && /quota_exceeded|feature_not_in_plan|subscription_inactive/.test(String(j.code))) {
+        window.dispatchEvent(new CustomEvent('planq:limit-reached', { detail: j }));
+      }
+    } catch { /* noop */ }
+  }
+
   return response;
 };
 

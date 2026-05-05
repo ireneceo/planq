@@ -362,45 +362,45 @@
     "sub": "14 days free, no credit card. Cancel anytime.",
     "recommended": "Recommended",
     "plans": {
-      "free": {
-        "name": "Free",
-        "price": "₩0",
-        "sub": "For solo starters",
+      "starter": {
+        "name": "Starter",
+        "price": "₩9,900/mo",
+        "sub": "Solo freelancers · 14-day free trial",
         "features": [
-          "1 workspace",
-          "Up to 5 customers",
-          "Q Talk · Q Task basics",
-          "1GB storage",
-          "Email & in-app notifications",
-          "Korean and English (i18n)"
+          "1 member (add-on for more)",
+          "5 customers / 5 projects",
+          "2GB storage",
+          "Cue (AI teammate) — 50 actions/mo",
+          "Q Note — 60 minutes/mo",
+          "Q Talk · Q Task · Q File · Q Bill basics"
         ],
-        "cta": "Start free"
+        "cta": "Start 14-day trial"
       },
       "basic": {
         "name": "Basic",
-        "price": "₩19,000/mo",
-        "sub": "Growing solo or small team",
+        "price": "₩29,000/mo",
+        "sub": "Small business · teams of 1–5",
         "features": [
-          "Unlimited customers",
-          "Q Note · Q File · Q Bill full",
-          "50GB storage",
-          "Cue (AI teammate) — 100 actions/mo",
-          "Google Drive integration",
-          "PWA push notifications"
+          "5 members / 20 customers",
+          "Unlimited projects",
+          "5GB storage",
+          "Cue — 1,500 actions/mo",
+          "Q Note — 15 hours/mo",
+          "Google Drive integration"
         ],
         "cta": "Start Basic"
       },
       "pro": {
         "name": "Pro",
-        "price": "₩49,000/mo",
-        "sub": "Teams · professional services",
+        "price": "₩79,000/mo",
+        "sub": "Agencies · studios (5–10 members)",
         "features": [
-          "Unlimited members",
-          "500GB storage",
-          "Cue — 500 actions/mo",
-          "Advanced analytics & insights",
-          "Installment + multi-currency billing",
-          "Priority support"
+          "10 members / 100 customers",
+          "Unlimited projects",
+          "20GB storage",
+          "Cue — 7,500 actions/mo",
+          "Q Note — 60 hours/mo",
+          "API access · priority support"
         ],
         "cta": "Start Pro"
       }

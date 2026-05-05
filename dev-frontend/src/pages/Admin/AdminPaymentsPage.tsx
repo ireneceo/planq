@@ -29,6 +29,14 @@ interface PaymentRow {
   refunded_at: string | null;
   refund_reason: string | null;
   created_at: string;
+  // Day 8/10 — addon / 세금계산서
+  kind: 'plan' | 'addon';
+  addon_code: string | null;
+  addon_quantity: number | null;
+  tax_invoice_requested: boolean;
+  tax_invoice_status: 'none' | 'requested' | 'issued' | 'failed';
+  tax_invoice_data: { biz_no?: string; biz_name?: string; ceo_name?: string; address?: string; email?: string } | null;
+  tax_invoice_issued_at: string | null;
 }
 
 interface Summary {
@@ -112,6 +120,36 @@ const AdminPaymentsPage = () => {
     } finally { setBusyId(null); }
   };
 
+  const handleMarkPaid = async (p: PaymentRow) => {
+    setBusyId(p.id); setError(null);
+    try {
+      const r = await apiFetch(`/api/admin/payments/${p.id}/mark-paid`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+      const j = await r.json();
+      if (!j.success) throw new Error(j.message || 'failed');
+      await load();
+    } catch (e: unknown) {
+      setError((e as Error).message || (t('payments.markPaidFailed', '입금 처리 실패') as string));
+    } finally { setBusyId(null); }
+  };
+
+  const handleIssueTaxInvoice = async (p: PaymentRow) => {
+    setBusyId(p.id); setError(null);
+    try {
+      const r = await apiFetch(`/api/admin/payments/${p.id}/issue-tax-invoice`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ issued_by: 'manual' }),
+      });
+      const j = await r.json();
+      if (!j.success) throw new Error(j.message || 'failed');
+      await load();
+    } catch (e: unknown) {
+      setError((e as Error).message || (t('payments.taxIssueFailed', '세금계산서 발행 처리 실패') as string));
+    } finally { setBusyId(null); }
+  };
+
   return (
     <PageShell
       title={t('payments.title', '결제 이력')}
@@ -188,6 +226,23 @@ const AdminPaymentsPage = () => {
                     {p.refund_reason && <Reason>{p.refund_reason}</Reason>}
                   </RowLeft>
                   <RowRight>
+                    {p.status === 'pending' && (
+                      <PrimaryBtn type="button" disabled={busyId === p.id}
+                        onClick={() => handleMarkPaid(p)}>
+                        {busyId === p.id ? '...' : t('payments.markPaid', '입금 완료 처리')}
+                      </PrimaryBtn>
+                    )}
+                    {p.status === 'paid' && p.tax_invoice_status === 'requested' && (
+                      <PrimaryBtn type="button" disabled={busyId === p.id}
+                        onClick={() => handleIssueTaxInvoice(p)}
+                        title={p.tax_invoice_data?.biz_name || ''}>
+                        {busyId === p.id ? '...' : t('payments.issueTaxInvoice', '세금계산서 발행')}
+                      </PrimaryBtn>
+                    )}
+                    {p.status === 'paid' && p.tax_invoice_status === 'issued' && (
+                      <Tag>{t('payments.taxIssued', '세금계산서 발행됨')}</Tag>
+                    )}
+                    {p.kind === 'addon' && <Tag>Add-on</Tag>}
                     {p.status === 'paid' && (
                       <DangerBtn type="button" disabled={busyId === p.id}
                         onClick={() => setConfirm(p)}>
@@ -291,6 +346,13 @@ const DangerBtn = styled.button`
   background: #FFFFFF; color: #DC2626;
   border: 1px solid #FECACA; border-radius: 8px; cursor: pointer;
   &:hover:not(:disabled) { background: #FEF2F2; }
+  &:disabled { opacity: 0.5; cursor: not-allowed; }
+`;
+const PrimaryBtn = styled.button`
+  padding: 8px 14px; font-size: 13px; font-weight: 600;
+  background: #14B8A6; color: #FFFFFF;
+  border: 0; border-radius: 8px; cursor: pointer;
+  &:hover:not(:disabled) { background: #0D9488; }
   &:disabled { opacity: 0.5; cursor: not-allowed; }
 `;
 const Skeleton = styled.div`

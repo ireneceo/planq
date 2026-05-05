@@ -96,11 +96,12 @@ router.post('/', authenticateToken, async (req, res, next) => {
       return errorResponse(res, 'You do not belong to this workspace', 403);
     }
 
-    // 플랜 쿼터 체크 — 프로젝트 수 한도
-    const planCan = await require('../services/plan').can(business_id, 'create_project');
+    // 플랜 쿼터 체크 — 진행중(active/draft) 프로젝트만 카운트
+    const planEngine = require('../services/plan');
+    const planCan = await planEngine.can(business_id, 'create_project');
     if (!planCan.ok) {
       await t.rollback();
-      return errorResponse(res, `프로젝트 수 한도 초과 (최대 ${planCan.limit}개) — 플랜 업그레이드 필요`, 403);
+      return res.status(422).json(planEngine.buildQuotaError(planCan, business_id));
     }
 
     const defaultAssignee = members.find((m) => m.is_default)?.user_id || req.user.id;
