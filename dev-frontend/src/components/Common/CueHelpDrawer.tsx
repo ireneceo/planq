@@ -669,13 +669,14 @@ const ModeSwitch = styled.div`
   border-bottom: 1px solid #E2E8F0;
 `;
 const ModeBtn = styled.button<{ $active: boolean; $variant: 'qhelper' | 'workspace' }>`
-  all: unset; cursor: pointer;
+  all: unset; cursor: pointer; box-sizing: border-box;
   display: inline-flex; align-items: center; gap: 6px;
   padding: 6px 12px; border-radius: 999px;
   font-size: 12px; font-weight: 600;
-  transition: all 0.15s;
-  ${p => p.$active && p.$variant === 'qhelper' && 'background: #FFFFFF; color: #0F766E; border: 1px solid #14B8A6;'}
-  ${p => p.$active && p.$variant === 'workspace' && 'background: #FFFFFF; color: #9F1239; border: 1px solid #F43F5E;'}
+  border: 1px solid transparent;  /* active/inactive 동일 box-size 유지 — 탭 전환 시 높이 흔들림 방지 */
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  ${p => p.$active && p.$variant === 'qhelper' && 'background: #FFFFFF; color: #0F766E; border-color: #14B8A6;'}
+  ${p => p.$active && p.$variant === 'workspace' && 'background: #FFFFFF; color: #9F1239; border-color: #F43F5E;'}
   ${p => !p.$active && 'background: transparent; color: #64748B;'}
   &:hover { background: ${p => p.$active ? '#FFFFFF' : '#FFFFFF99'}; }
 `;
