@@ -283,6 +283,22 @@ res.status(400).json({ success: false, message: 'Error description' });
 > **Q Task 시간/진행율 권한 (2026-04-25):** `estimated_hours / actual_hours / progress_percent` 는 **담당자만 입력 가능**. 비담당자가 PATCH/PUT 시 `only_assignee_can_edit_hours` 403. 프론트는 `assignee_id !== myId` 시 input disabled (회색·점선·spinner 숨김). 다른 역할은 read-only 참고.
 
 > **댓글·메모 visibility 통일:** `personal`/`internal`/`shared` — `task_comments` 와 `project_notes` 공통 ENUM.
+>
+> **운영 라이브 풀세트 (2026-05-05):**
+> - `users` 6 컬럼 추가 — `password_reset_token`, `password_reset_expires`, `email_verify_token`, `email_verify_expires`, `terms_accepted_at`, `terms_version`, `privacy_accepted_at`, `privacy_version` (비밀번호 재설정 / signup 이메일 인증 / 약관 동의 시점·버전)
+> - `platform_settings` 7 컬럼 추가 — `terms_version`, `privacy_version` (현재 약관 버전 — 사용자가 다른 버전이면 재동의 모달), `maintenance_mode` BOOLEAN, `maintenance_message`, `announcement_text`, `announcement_dismissible`, `announcement_severity` ENUM('info','warn','critical')
+> - `kb_documents` 5 컬럼 추가 — `source_language` ENUM('ko','en'), `auto_translate` BOOLEAN, `translation_visibility` ENUM('translate','show_original','hide_other'), `translations` JSON, `parent_doc_id` (다중 포스트 분리)
+> - `contact_inquiries.from_user_timezone` (admin 페이지 양쪽 시간 동시 표시)
+> - `notification_prefs.event_kind` ENUM 6종 추가 — `signup`, `payment`, `subscription`, `trial`, `feedback`, `inquiry` (총 13종, business_id NULL = platform-wide)
+> - `payments` 7 컬럼 추가 (Q-R) — `kind` ENUM('plan','addon'), `addon_code`, `addon_quantity`, `tax_invoice_requested`, `tax_invoice_status`, `tax_invoice_data` JSON, `tax_invoice_issued_at`
+> - `services/platformNotify.js` 헬퍼 — platform_admin role 사용자 fan-out 발송 (notification_prefs business_id NULL 검사)
+> - `middleware/maintenance.js` — 점검 모드 미들웨어 (platform_admin 통과 + ALLOW_PATHS)
+> - `services/shareTokenCleanup.js` — Post/Document/Invoice share_token 30일 비사용 NULL cron
+> - 운영자 도구 라우트: `POST /admin/users/:id/impersonate` (30분 토큰 + AuditLog 강제), `GET /admin/audit-logs` (필터), `GET /admin/users/:id/data-export` (GDPR JSON)
+> - 인증 라우트: `POST /auth/forgot-password`, `POST /auth/reset-password`, `POST /auth/verify-email-confirm`, `POST /auth/resend-verify-email`
+> - emailService 신규 표준 함수 — `sendPasswordResetEmail`, `sendSignupVerifyEmail`, `sendInquiryReceivedEmail`, `sendBillingInstructionEmail` (모두 emailWrap layout 통일)
+> - placeholder 가드 — `<예: 토스뱅크>` 같은 .env example 복사 사고 차단 (`getPlanqBankInfo()` 헬퍼)
+> - `Sequelize.Model.prototype.toJSON` 글로벌 override — `createdAt → created_at` 자동 매핑 (Invalid Date 근본 fix)
 
 ---
 
