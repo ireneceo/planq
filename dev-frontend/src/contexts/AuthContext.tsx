@@ -58,6 +58,21 @@ export interface User {
   // active workspace 의 타임존 (표시 전용 — 워크스페이스 수정 API 로만 변경)
   workspace_timezone?: string | null;
   workspace_reference_timezones?: string[] | null;
+  // 약관 동의 시점·버전 (재동의 모달 트리거용)
+  terms_accepted_at?: string | null;
+  terms_version?: string | null;
+  privacy_accepted_at?: string | null;
+  privacy_version?: string | null;
+  // 이메일 인증 시각
+  email_verified_at?: string | null;
+  // 플랫폼 정보 (announcement + 현재 약관 버전) — /me 응답이 같이 줌
+  platform?: {
+    announcement_text: string | null;
+    announcement_dismissible: boolean;
+    announcement_severity: 'info' | 'warn' | 'critical';
+    current_terms_version: string;
+    current_privacy_version: string;
+  } | null;
 }
 
 interface AuthContextType {
@@ -86,6 +101,10 @@ export const useAuth = () => {
 let accessToken: string | null = null;
 
 export const getAccessToken = () => accessToken;
+// 사칭(impersonate) 모드에서 token swap 할 때만 export. 일반 흐름은 register/login/refresh 가 내부에서 호출.
+export const _impersonateSetAccessToken = (token: string | null) => {
+  accessToken = token;
+};
 
 const setAccessToken = (token: string | null) => {
   accessToken = token;
@@ -241,6 +260,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     timezone: (apiUser.timezone as string) || null,
     reference_timezones: (apiUser.reference_timezones as string[]) || null,
     workspace_timezone: (apiUser.workspace_timezone as string) || null,
+    terms_accepted_at: (apiUser.terms_accepted_at as string) || null,
+    terms_version: (apiUser.terms_version as string) || null,
+    privacy_accepted_at: (apiUser.privacy_accepted_at as string) || null,
+    privacy_version: (apiUser.privacy_version as string) || null,
+    email_verified_at: (apiUser.email_verified_at as string) || null,
+    platform: (apiUser.platform as User['platform']) || null,
     workspace_reference_timezones: (apiUser.workspace_reference_timezones as string[]) || null,
   });
 

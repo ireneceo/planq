@@ -680,6 +680,32 @@ router.get('/payments/pending-tax-invoices', async (req, res, next) => {
 // 운영자 도구 (2026-05-05) — 사칭 / AuditLog 조회 / GDPR export
 // ═══════════════════════════════════════════════════════════════
 
+// GET /api/admin/users — 전체 사용자 검색·필터 (이메일·이름)
+router.get('/users', async (req, res, next) => {
+  try {
+    const { User } = require('../models');
+    const { Op } = require('sequelize');
+    const where = {};
+    if (req.query.q) {
+      const q = String(req.query.q).trim();
+      if (q) where[Op.or] = [
+        { email: { [Op.like]: `%${q}%` } },
+        { name: { [Op.like]: `%${q}%` } },
+        { username: { [Op.like]: `%${q}%` } },
+      ];
+    }
+    if (req.query.role) where.platform_role = String(req.query.role);
+    if (req.query.status) where.status = String(req.query.status);
+    const limit = Math.min(Number(req.query.limit) || 100, 500);
+    const rows = await User.findAll({
+      where, limit,
+      attributes: ['id', 'email', 'name', 'username', 'platform_role', 'status', 'email_verified_at', 'created_at', 'last_login_at'],
+      order: [['created_at', 'DESC']],
+    });
+    return successResponse(res, rows.map(r => r.toJSON()));
+  } catch (err) { next(err); }
+});
+
 // POST /api/admin/users/:id/impersonate — 30분 만료 토큰 발급. AuditLog 강제 기록.
 //   고객 지원 시 "이 사용자가 보는 화면" 디버깅 용. 본인 액션은 user impersonator 로 추적.
 router.post('/users/:id/impersonate', async (req, res, next) => {
