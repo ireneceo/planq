@@ -23,6 +23,20 @@ User.init({
   email_change_locked_until: { type: DataTypes.DATE, allowNull: true },
   // primary 이메일 인증 시각 (회원가입 시 가입 인증 메일 클릭한 시점)
   email_verified_at: { type: DataTypes.DATE, allowNull: true },
+  // ─── 비밀번호 재설정 (forgot/reset, 2026-05-05) ───
+  // 토큰 — 메일로 발송된 1회용 reset 링크. SHA-256 해시 저장 (raw token 은 메일에만).
+  password_reset_token: { type: DataTypes.STRING(64), allowNull: true },
+  password_reset_expires: { type: DataTypes.DATE, allowNull: true },
+  // ─── 회원가입 이메일 인증 (signup verify, 2026-05-05) ───
+  // 가입 직후 발송된 verify 링크 토큰 (해시). email_verified_at 가 null 일 때만 의미.
+  email_verify_token: { type: DataTypes.STRING(64), allowNull: true },
+  email_verify_expires: { type: DataTypes.DATE, allowNull: true },
+  // ─── 약관 동의 (legal, 2026-05-05) ───
+  // 가입 시 또는 약관 변경 후 재동의 시점·버전 기록. 한국 개인정보보호법 + GDPR 명시 동의.
+  terms_accepted_at: { type: DataTypes.DATE, allowNull: true },
+  terms_version: { type: DataTypes.STRING(20), allowNull: true },
+  privacy_accepted_at: { type: DataTypes.DATE, allowNull: true },
+  privacy_version: { type: DataTypes.STRING(20), allowNull: true },
   // 보조 이메일 (복구용) — primary 와 별도. 인증된 후에만 활성.
   secondary_email: { type: DataTypes.STRING(100), allowNull: true },
   secondary_email_verified_at: { type: DataTypes.DATE, allowNull: true },

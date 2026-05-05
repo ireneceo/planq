@@ -176,6 +176,21 @@ const FieldError = styled.div`
   color: #DC2626;
   margin-top: 2px;
 `;
+const ConsentRow = styled.div`
+  display: flex; flex-direction: column; gap: 8px;
+  padding: 12px 14px;
+  background: #F8FAFC;
+  border: 1px solid #E2E8F0;
+  border-radius: 8px;
+`;
+const ConsentItem = styled.div`
+  display: flex; align-items: center; gap: 8px;
+  font-size: 13px; color: #334155;
+  input { width: 16px; height: 16px; accent-color: #14B8A6; cursor: pointer; }
+  label { cursor: pointer; }
+  a { color: #0D9488; font-weight: 600; text-decoration: underline; }
+  a:hover { color: #0F766E; }
+`;
 
 const Button = styled.button`
   padding: 14px 24px;
@@ -254,6 +269,9 @@ const RegisterPage: React.FC = () => {
   const [businessName, setBusinessName] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
+  // 약관 동의 (필수, 2026-05-05)
+  const [termsAgreed, setTermsAgreed] = useState(false);
+  const [privacyAgreed, setPrivacyAgreed] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(false);
 
@@ -299,7 +317,13 @@ const RegisterPage: React.FC = () => {
 
     setIsLoading(true);
     try {
-      const success = await register(name.trim(), email.trim(), password, businessName.trim());
+      if (!termsAgreed || !privacyAgreed) {
+        setError(t('register.termsRequired', '이용약관과 개인정보 처리방침에 동의해주세요'));
+        setIsLoading(false);
+        return;
+      }
+      const success = await register(name.trim(), email.trim(), password, businessName.trim(),
+        { terms_accepted: termsAgreed, privacy_accepted: privacyAgreed });
       if (!success) {
         setError(t('register.errorGeneric'));
       }
@@ -396,9 +420,27 @@ const RegisterPage: React.FC = () => {
               {fieldErrors.businessName && <FieldError>{fieldErrors.businessName}</FieldError>}
             </InputGroup>
 
+            {/* 약관 동의 (필수) — 한국 개인정보보호법 + GDPR */}
+            <ConsentRow>
+              <ConsentItem>
+                <input type="checkbox" id="terms-agree" checked={termsAgreed} onChange={e => setTermsAgreed(e.target.checked)} />
+                <label htmlFor="terms-agree">
+                  <Link to="/legal/terms" target="_blank" rel="noopener">{t('register.termsLink', '이용약관')}</Link>
+                  {t('register.termsAgree', '에 동의합니다 (필수)')}
+                </label>
+              </ConsentItem>
+              <ConsentItem>
+                <input type="checkbox" id="privacy-agree" checked={privacyAgreed} onChange={e => setPrivacyAgreed(e.target.checked)} />
+                <label htmlFor="privacy-agree">
+                  <Link to="/legal/privacy" target="_blank" rel="noopener">{t('register.privacyLink', '개인정보 처리방침')}</Link>
+                  {t('register.privacyAgree', '에 동의합니다 (필수)')}
+                </label>
+              </ConsentItem>
+            </ConsentRow>
+
             {error && <ErrorMessage>{error}</ErrorMessage>}
 
-            <Button type="submit" disabled={isLoading}>
+            <Button type="submit" disabled={isLoading || !termsAgreed || !privacyAgreed}>
               {isLoading ? t('register.submitting') : t('register.submit')}
             </Button>
           </Form>

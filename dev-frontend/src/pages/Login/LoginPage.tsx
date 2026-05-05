@@ -456,6 +456,7 @@ const LoginPage: React.FC = () => {
 
           <BottomLinks>
             <span>{t('login.noAccount')} <Link to="/register">{t('login.signUp')}</Link></span>
+            <span><Link to="/forgot-password">{t('login.forgotPassword', '비밀번호를 잊으셨나요?')}</Link></span>
           </BottomLinks>
         </RightSection>
       </LoginBox>
