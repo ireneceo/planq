@@ -37,6 +37,22 @@ router.post('/', authenticateToken, async (req, res, next) => {
       user_agent: ua,
       status: 'pending',
     });
+
+    // 플랫폼 관리자 알림 — fan-out 비동기
+    setImmediate(() => {
+      const { notifyPlatformAdmins, APP_URL } = require('../services/platformNotify');
+      const catLabel = { bug: '버그', improve: '개선', feature: '기능 요청', other: '기타' }[finalCategory] || finalCategory;
+      const prioMark = finalPriority === 'high' ? '⚠ 긴급 ' : '';
+      notifyPlatformAdmins({
+        eventKind: 'feedback',
+        title: `${prioMark}새 피드백 — [${catLabel}] ${item.title}`,
+        body: `${req.user.email || ''} 가 피드백을 제출했습니다.\n\n${String(body).slice(0, 400)}${String(body).length > 400 ? '…' : ''}`,
+        link: `${APP_URL}/admin/feedback?id=${item.id}`,
+        ctaLabel: '피드백 보기',
+        relatedEntityId: item.id,
+      }).catch(() => null);
+    });
+
     return successResponse(res, item, 'Submitted', 201);
   } catch (err) { next(err); }
 });

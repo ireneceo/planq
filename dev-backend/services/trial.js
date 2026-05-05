@@ -104,6 +104,18 @@ async function runDailyTrialCron() {
       try { require('./plan').invalidateBusinessCache(biz.id); } catch { /* noop */ }
       stats.expired += 1;
       await safeNotify(biz, 'expired');
+      // 플랫폼 관리자에게 — 누가 체험 만료됐는지 운영 모니터링용
+      try {
+        const { notifyPlatformAdmins, APP_URL } = require('./platformNotify');
+        await notifyPlatformAdmins({
+          eventKind: 'trial',
+          title: `체험 만료 — ${biz.brand_name || biz.name}`,
+          body: `워크스페이스 ID ${biz.id} 의 14일 체험이 종료됐습니다. grace 7일 후 미입금 시 잠금됩니다.`,
+          link: `${APP_URL}/admin/businesses?id=${biz.id}`,
+          ctaLabel: '워크스페이스 보기',
+          relatedEntityId: biz.id,
+        }).catch(() => null);
+      } catch { /* noop */ }
     } catch (e) {
       console.warn('[trial] expire failed', biz.id, e.message);
       stats.errors += 1;

@@ -170,6 +170,21 @@ async function markAddonPaid({ paymentId, markedByUserId, payerName, payerMemo, 
     }, { transaction: t });
 
     await t.commit();
+
+    // 플랫폼 관리자 알림 — addon 결제 입금 확인
+    setImmediate(() => {
+      const { notifyPlatformAdmins, APP_URL } = require('./platformNotify');
+      const addon = getAddon(pay.addon_code);
+      const addonName = addon?.name_ko || pay.addon_code;
+      notifyPlatformAdmins({
+        eventKind: 'payment',
+        title: `Add-on 결제 입금 확인 — ${addonName}${pay.addon_quantity > 1 ? ` × ${pay.addon_quantity}` : ''} (${Number(pay.amount).toLocaleString()}원)`,
+        body: `결제 #${pay.id} (Add-on) mark-paid. 워크스페이스 ID ${pay.business_id}.`,
+        link: `${APP_URL}/admin/payments?id=${pay.id}`,
+        ctaLabel: '결제 보기',
+        relatedEntityId: pay.id,
+      }).catch(() => null);
+    });
     return { payment: pay };
   } catch (err) {
     if (!t.finished) await t.rollback();

@@ -9,7 +9,12 @@ const { NotificationPref } = require('../models');
 const { authenticateToken } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 
-const EVENT_KINDS = ['signature', 'invoice', 'tax_invoice', 'task', 'event', 'invite', 'mention', 'inquiry'];
+const EVENT_KINDS = [
+  // 워크스페이스 멤버 알림
+  'signature', 'invoice', 'tax_invoice', 'task', 'event', 'invite', 'mention',
+  // 플랫폼 관리자 알림 (business_id NULL row 로 저장)
+  'inquiry', 'signup', 'payment', 'subscription', 'trial', 'feedback',
+];
 const CHANNELS = ['inbox', 'chat', 'email', 'push']; // 사이클 J4 — push 채널 추가
 
 // GET /api/notifications/prefs?business_id=X
