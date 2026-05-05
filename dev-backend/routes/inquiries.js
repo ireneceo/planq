@@ -58,10 +58,54 @@ router.post('/', async (req, res, next) => {
       status: 'new',
     });
 
+    // 자동 발송 — fan-out 비동기 (응답 지연 X). best-effort.
+    setImmediate(() => sendInquiryNotifications(inquiry).catch(e => {
+      console.warn('[inquiries] notify failed', inquiry.id, e.message);
+    }));
+
     // 응답 최소화 — 내부 필드 노출 금지
     return successResponse(res, { id: inquiry.id, submitted_at: inquiry.created_at }, 'submitted', 201);
   } catch (err) { next(err); }
 });
+
+// 문의 접수 후 fan-out:
+//   1) 문의자에게 자동 회신 (영업일 24h 내 회신 안내)
+//   2) platform_admin 사용자들에게 새 문의 알림 (notification_prefs 매트릭스 적용)
+async function sendInquiryNotifications(inquiry) {
+  const emailService = require('../services/emailService');
+  const notifications = require('./notifications');
+  const APP_URL = process.env.APP_URL || 'https://planq.kr';
+
+  // 1) 문의자 자동 회신
+  await emailService.sendInquiryReceivedEmail({
+    to: inquiry.from_email,
+    name: inquiry.from_name,
+    message: inquiry.message,
+    inquiryId: inquiry.id,
+  }).catch(() => null);
+
+  // 2) platform_admin 알림 — notification_prefs (business_id NULL + event_kind='inquiry') 체크
+  const admins = await User.findAll({
+    where: { platform_role: 'platform_admin', status: 'active' },
+    attributes: ['id', 'name', 'email'],
+  });
+  const title = `새 문의 #${inquiry.id} — ${inquiry.from_name}`;
+  const body = `${inquiry.from_company ? `[${inquiry.from_company}] ` : ''}${inquiry.from_email}\n\n${(inquiry.message || '').slice(0, 400)}${(inquiry.message || '').length > 400 ? '…' : ''}`;
+  const link = `${APP_URL}/admin/inquiries?inquiry=${inquiry.id}`;
+
+  for (const adm of admins) {
+    if (!adm.email) continue;
+    const allow = await notifications.isAllowed(adm.id, null, 'inquiry', 'email');
+    if (!allow) continue;
+    await emailService.sendNotificationEmail({
+      to: adm.email,
+      title, body, link, ctaLabel: '문의 보기',
+      businessId: null,
+      eventKind: 'inquiry',
+      recipientUserId: adm.id,
+    }).catch(() => null);
+  }
+}
 
 // ─── GET /api/inquiries/admin — 관리자 대시보드용 (platform_admin 전용) ───
 router.get('/admin', authenticateToken, requireRole('platform_admin'), async (req, res, next) => {

@@ -9,15 +9,15 @@ const { NotificationPref } = require('../models');
 const { authenticateToken } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 
-const EVENT_KINDS = ['signature', 'invoice', 'tax_invoice', 'task', 'event', 'invite', 'mention'];
+const EVENT_KINDS = ['signature', 'invoice', 'tax_invoice', 'task', 'event', 'invite', 'mention', 'inquiry'];
 const CHANNELS = ['inbox', 'chat', 'email', 'push']; // 사이클 J4 — push 채널 추가
 
 // GET /api/notifications/prefs?business_id=X
 router.get('/prefs', authenticateToken, async (req, res, next) => {
   try {
     const businessId = req.query.business_id ? Number(req.query.business_id) : null;
-    const where = { user_id: req.user.id };
-    if (businessId) where.business_id = businessId;
+    // business_id 미지정 = 전역(platform-wide, NULL row 만) — 사용자 cross-workspace 매트릭스 mix 방지
+    const where = { user_id: req.user.id, business_id: businessId };
     const rows = await NotificationPref.findAll({ where });
     // 매트릭스 형태로 변환 — 기본 ON, 명시적 row 만 반영
     const matrix = {};

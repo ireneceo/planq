@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import type { ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
+import i18n from '../i18n';
 
 export type UserRole = 'platform_admin' | 'business_owner' | 'business_member' | 'client';
 
@@ -383,6 +384,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     if (!user) return;
     setUser({ ...user, ...userData });
   };
+
+  // user.language 가 DB 에 설정돼있으면 화면 언어 자동 적용 (서버 = source of truth).
+  // 새 디바이스 로그인 / 다른 브라우저 로그인 시 자동 적용. 사용자가 프로필에서 변경하면
+  // PUT /api/users/:id 가 user.language 를 갱신 → 이 effect 가 새 언어로 다시 changeLanguage.
+  useEffect(() => {
+    if (!user?.language) return;
+    const lng = String(user.language).toLowerCase();
+    if (lng !== 'ko' && lng !== 'en') return;
+    if (i18n.language === lng) return;
+    i18n.changeLanguage(lng);  // i18next-browser-languagedetector 가 localStorage 도 자동 갱신
+  }, [user?.language]);
 
   // 멀티 롤 체크: platform_role 과 business_role 은 독립 권한. 하나라도 일치하면 통과.
   // 예: platform_admin + business_owner 겸임자는 둘 중 어느 쪽으로도 체크 가능.
