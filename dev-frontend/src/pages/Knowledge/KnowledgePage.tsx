@@ -18,6 +18,9 @@ import SearchBox from '../../components/Common/SearchBox';
 import DetailDrawer from '../../components/Common/DetailDrawer';
 // 가로 Tabs 폐지 — 좌측 카테고리 트리로 변경 (Q file/Q record 패턴 통일)
 import ConfirmDialog from '../../components/Common/ConfirmDialog';
+import KbAiIngestModal from './KbAiIngestModal';
+import KbCsvIngestModal from './KbCsvIngestModal';
+import { SparkleIcon } from '../../components/Common/Icons';
 import {
   listKnowledge, createKnowledge, deleteKnowledge, updateKnowledge,
   uploadKnowledgeFile,
@@ -83,6 +86,9 @@ const KnowledgePage = () => {
 
   // ─── 새 지식 등록 모달 (사이클 P3 — 단일 폼) ───
   const [modalOpen, setModalOpen] = useState(false);
+  // ─── KB-Ingest 사이클 (2026-05-05) — AI 자동 추가 + CSV 일괄 업로드 ───
+  const [aiIngestOpen, setAiIngestOpen] = useState(false);
+  const [csvIngestOpen, setCsvIngestOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [resultMsg, setResultMsg] = useState<string | null>(null);
@@ -350,6 +356,18 @@ const KnowledgePage = () => {
       }
       actions={
         <>
+          <AiBtn type="button" onClick={() => setAiIngestOpen(true)} title={t('page.aiIngest', 'AI 로 자동 추가') as string}>
+            <SparkleIcon size={14} />
+            {t('page.aiIngest', 'AI 로 추가')}
+          </AiBtn>
+          <CsvUploadBtn type="button" onClick={() => setCsvIngestOpen(true)} title={t('page.csvUpload', 'CSV 일괄 업로드') as string}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="17 8 12 3 7 8"/>
+              <line x1="12" y1="3" x2="12" y2="15"/>
+            </svg>
+            {t('page.csvUpload', 'CSV 업로드')}
+          </CsvUploadBtn>
           <CsvBtn type="button" onClick={handleExportCsv} disabled={!filtered.length} title={t('page.exportCsv') as string}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
@@ -1120,6 +1138,13 @@ const KnowledgePage = () => {
           </Modal>
         </Backdrop>
       )}
+
+      {aiIngestOpen && businessId && (
+        <KbAiIngestModal businessId={businessId} onClose={() => setAiIngestOpen(false)} onSaved={() => { setAiIngestOpen(false); load(); }} />
+      )}
+      {csvIngestOpen && businessId && (
+        <KbCsvIngestModal businessId={businessId} onClose={() => setCsvIngestOpen(false)} onSaved={() => { setCsvIngestOpen(false); load(); }} />
+      )}
     </PageShell>
   );
 };
@@ -1365,6 +1390,26 @@ const CsvBtn = styled.button`
   transition: all 0.15s;
   &:hover:not(:disabled) { background: #F1F5F9; border-color: #94A3B8; color: #0F172A; }
   &:disabled { opacity: 0.5; cursor: not-allowed; }
+`;
+// AI 자동 추가 버튼 — 별 아이콘 + teal accent. Q docs NewDocumentModal "AI 로 시작" 패턴 카피.
+const AiBtn = styled.button`
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 32px; padding: 0 12px;
+  background: #F0FDFA; color: #0F766E;
+  border: 1px solid #99F6E4; border-radius: 6px;
+  font-size: 13px; font-weight: 600; cursor: pointer;
+  transition: all 0.15s;
+  svg { color: #14B8A6; }
+  &:hover { background: #CCFBF1; border-color: #14B8A6; }
+`;
+const CsvUploadBtn = styled.button`
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 32px; padding: 0 12px;
+  background: #FFFFFF; color: #475569;
+  border: 1px solid #CBD5E1; border-radius: 6px;
+  font-size: 13px; font-weight: 600; cursor: pointer;
+  transition: all 0.15s;
+  &:hover { background: #F1F5F9; border-color: #94A3B8; color: #0F172A; }
 `;
 
 const Loading = styled.div`padding: 40px; text-align: center; color: #94A3B8;`;

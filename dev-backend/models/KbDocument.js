@@ -154,6 +154,41 @@ KbDocument.init({
     allowNull: true,
     defaultValue: null,
   },
+  // ─── KB AI/CSV Ingest 사이클 (2026-05-05) — 다국어·자동 번역·visibility ───
+  // 입력 원문 언어. 기존 row 는 'ko' fallback.
+  source_language: {
+    type: DataTypes.ENUM('ko', 'en'),
+    allowNull: false,
+    defaultValue: 'ko',
+  },
+  // 다른 언어로 자동 번역할지 (업로드 시 즉시 양쪽 언어 생성). 기본 true.
+  auto_translate: {
+    type: DataTypes.BOOLEAN,
+    allowNull: false,
+    defaultValue: true,
+  },
+  // 번역 안 할 때 (auto_translate=false) 다른 언어 사용자에게 어떻게 보여줄지
+  //   translate     : 번역해서 노출 (auto_translate=true 와 동일 효과)
+  //   show_original : 원문 그대로 노출 + "원문(언어)" 뱃지 + 검색에도 포함
+  //   hide_other    : 다른 언어에서 안 보임 (검색 결과 제외)
+  translation_visibility: {
+    type: DataTypes.ENUM('translate', 'show_original', 'hide_other'),
+    allowNull: false,
+    defaultValue: 'translate',
+  },
+  // 번역본 캐시. { ko: { title, body }, en: { title, body } }
+  // auto_translate=true 또는 visibility='translate' 일 때 채워짐.
+  translations: {
+    type: DataTypes.JSON,
+    allowNull: true,
+    defaultValue: null,
+  },
+  // 다중 포스트 분리 시 원본 그룹 식별. 같은 ingest 에서 분리된 N 포스트는 동일 parent_doc_id.
+  parent_doc_id: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    references: { model: 'kb_documents', key: 'id' },
+  },
 }, {
   sequelize,
   tableName: 'kb_documents',
