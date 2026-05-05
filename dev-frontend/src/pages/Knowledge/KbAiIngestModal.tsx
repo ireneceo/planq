@@ -6,6 +6,7 @@ import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { apiFetch } from '../../contexts/AuthContext';
 import { SparkleIcon } from '../../components/Common/Icons';
+import PlanQSelect, { type PlanQSelectOption } from '../../components/Common/PlanQSelect';
 
 type Lang = 'ko' | 'en';
 type Category = 'policy' | 'manual' | 'incident' | 'faq' | 'about' | 'pricing';
@@ -137,10 +138,17 @@ const KbAiIngestModal: React.FC<Props> = ({ businessId, onClose, onSaved }) => {
               <Row>
                 <Field>
                   <Label>{t('aiIngest.lang', '원문 언어')}</Label>
-                  <SmallSelect value={sourceLanguage} onChange={e => setSourceLanguage(e.target.value as Lang)}>
-                    <option value="ko">{t('aiIngest.langKo', '한국어')}</option>
-                    <option value="en">{t('aiIngest.langEn', '영어')}</option>
-                  </SmallSelect>
+                  <PlanQSelect size="sm" isSearchable={false}
+                    value={{ value: sourceLanguage, label: sourceLanguage === 'ko' ? (t('aiIngest.langKo', '한국어') as string) : (t('aiIngest.langEn', '영어') as string) }}
+                    options={[
+                      { value: 'ko', label: t('aiIngest.langKo', '한국어') as string },
+                      { value: 'en', label: t('aiIngest.langEn', '영어') as string },
+                    ]}
+                    onChange={(opt) => {
+                      const v = (opt as PlanQSelectOption | null)?.value as Lang | undefined;
+                      if (v) setSourceLanguage(v);
+                    }}
+                  />
                 </Field>
                 <Field>
                   <Label>{t('aiIngest.translate', '자동 번역')}</Label>
@@ -157,11 +165,25 @@ const KbAiIngestModal: React.FC<Props> = ({ businessId, onClose, onSaved }) => {
               {!autoTranslate && (
                 <Field>
                   <Label>{t('aiIngest.visibility', '다른 언어 사용자에게')}</Label>
-                  <SmallSelect value={visibility} onChange={e => setVisibility(e.target.value as Visibility)}>
-                    <option value="translate">{t('aiIngest.visTranslate', '번역해서 보여주기 (자동 번역 켜짐과 동일)')}</option>
-                    <option value="show_original">{t('aiIngest.visShow', '원문 그대로 보여주기 (언어 뱃지 표시)')}</option>
-                    <option value="hide_other">{t('aiIngest.visHide', '안 보이기 (해당 언어 사용자만)')}</option>
-                  </SmallSelect>
+                  <PlanQSelect size="sm" isSearchable={false}
+                    value={(() => {
+                      const map: Record<Visibility, string> = {
+                        translate: t('aiIngest.visTranslate', '번역해서 보여주기 (자동 번역 켜짐과 동일)') as string,
+                        show_original: t('aiIngest.visShow', '원문 그대로 보여주기 (언어 뱃지 표시)') as string,
+                        hide_other: t('aiIngest.visHide', '안 보이기 (해당 언어 사용자만)') as string,
+                      };
+                      return { value: visibility, label: map[visibility] };
+                    })()}
+                    options={[
+                      { value: 'translate', label: t('aiIngest.visTranslate', '번역해서 보여주기 (자동 번역 켜짐과 동일)') as string },
+                      { value: 'show_original', label: t('aiIngest.visShow', '원문 그대로 보여주기 (언어 뱃지 표시)') as string },
+                      { value: 'hide_other', label: t('aiIngest.visHide', '안 보이기 (해당 언어 사용자만)') as string },
+                    ]}
+                    onChange={(opt) => {
+                      const v = (opt as PlanQSelectOption | null)?.value as Visibility | undefined;
+                      if (v) setVisibility(v);
+                    }}
+                  />
                 </Field>
               )}
 
@@ -188,9 +210,16 @@ const KbAiIngestModal: React.FC<Props> = ({ businessId, onClose, onSaved }) => {
                   <ReviewCard key={idx} $excluded={!!c.excluded}>
                     <CardTopRow>
                       <CardNum>#{idx + 1}</CardNum>
-                      <CardCategorySelect value={c.category} onChange={e => updateCandidate(idx, { category: e.target.value as Category })}>
-                        {CATEGORIES.map(cat => <option key={cat} value={cat}>{t(`category.${cat}`, cat)}</option>)}
-                      </CardCategorySelect>
+                      <CardCategoryWrap>
+                        <PlanQSelect size="sm" isSearchable={false}
+                          value={{ value: c.category, label: t(`category.${c.category}`, c.category) as string }}
+                          options={CATEGORIES.map(cat => ({ value: cat, label: t(`category.${cat}`, cat) as string }))}
+                          onChange={(opt) => {
+                            const v = (opt as PlanQSelectOption | null)?.value as Category | undefined;
+                            if (v) updateCandidate(idx, { category: v });
+                          }}
+                        />
+                      </CardCategoryWrap>
                       <CardSpacer />
                       <CardExcludeBtn type="button" onClick={() => updateCandidate(idx, { excluded: !c.excluded })}>
                         {c.excluded ? t('aiIngest.include', '복원') : t('aiIngest.exclude', '제외')}
@@ -303,12 +332,7 @@ const CharCount = styled.div`
 const Row = styled.div`
   display: grid; grid-template-columns: 1fr 1fr; gap: 14px;
 `;
-const SmallSelect = styled.select`
-  padding: 8px 12px;
-  border: 1px solid #E2E8F0; border-radius: 8px;
-  font-size: 13px; color: #0F172A; background: #FFFFFF;
-  &:focus { outline: none; border-color: #14B8A6; }
-`;
+// (raw HTML select 요소 폐지 — PlanQSelect 로 통일)
 const SwitchRow = styled.div`
   display: flex; align-items: center; gap: 10px; padding: 6px 0;
 `;
@@ -352,9 +376,9 @@ const CardNum = styled.span`
   font-size: 11px; font-weight: 700; color: #94A3B8;
   font-family: ui-monospace, monospace;
 `;
-const CardCategorySelect = styled.select`
-  padding: 4px 8px; border: 1px solid #E2E8F0; border-radius: 6px;
-  font-size: 12px; color: #0F172A; background: #FFFFFF;
+// CardCategorySelect 폐지 — PlanQSelect 사용
+const CardCategoryWrap = styled.div`
+  min-width: 120px;
 `;
 const CardSpacer = styled.div`flex: 1;`;
 const CardExcludeBtn = styled.button`
