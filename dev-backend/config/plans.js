@@ -5,14 +5,17 @@ const MB = 1024 * 1024;
 const GB = 1024 * MB;
 
 const PLANS = {
+  // (deprecated 2026-05-05) Free 플랜 폐지 — 신규 가입은 starter+trialing 14일.
+  // 기존 Free row 호환을 위해 ENUM 값과 PLANS 객체는 유지하되, PLAN_ORDER 와 toPublicJson 카탈로그에선 제외.
+  // 마이그레이션: scripts/migrate-free-to-starter.js 가 일괄 starter+trialing 부여.
   free: {
     code: 'free',
     name: 'Free',
     name_ko: '프리',
     price_monthly: { KRW: 0, USD: 0 },
     price_yearly:  { KRW: 0, USD: 0 },
-    target: '체험·1인 초보',
-    target_ko: '체험·1인 초보',
+    target: '(deprecated)',
+    target_ko: '(deprecated)',
     limits: {
       members_max: 1,
       clients_max: 3,
@@ -26,7 +29,7 @@ const PLANS = {
       audit_log_retention_days: 30,
     },
     features: {
-      external_cloud: true,        // Google Drive 연동 가능 (권장)
+      external_cloud: true,
       data_export: false,
       api_access: false,
       sso: false,
@@ -34,6 +37,7 @@ const PLANS = {
     },
     support: 'community',
     sla: null,
+    deprecated: true,
   },
 
   starter: {
@@ -42,17 +46,17 @@ const PLANS = {
     name_ko: '스타터',
     price_monthly: { KRW: 9_900,  USD: 9 },
     price_yearly:  { KRW: 99_000, USD: 90 },  // 2달 무료
-    target: '1인 프리랜서',
-    target_ko: '1인 프리랜서',
+    target: '1인 프리랜서·신규 14일 체험',
+    target_ko: '1인 프리랜서·신규 14일 체험',
     limits: {
-      members_max: 2,
-      clients_max: 10,
-      projects_max: 10,
-      conversations_max: 30,
-      storage_bytes: 1 * GB,
+      members_max: 1,
+      clients_max: 5,
+      projects_max: 5,
+      conversations_max: 10,
+      storage_bytes: 2 * GB,
       file_size_max_bytes: 20 * MB,
-      cue_actions_monthly: 300,
-      qnote_minutes_monthly: 5 * 60,
+      cue_actions_monthly: 50,
+      qnote_minutes_monthly: 60,
       trash_retention_days: 14,
       audit_log_retention_days: 90,
     },
@@ -104,10 +108,10 @@ const PLANS = {
     name_ko: '프로',
     price_monthly: { KRW: 79_000,  USD: 79 },
     price_yearly:  { KRW: 790_000, USD: 790 },
-    target: '에이전시·스튜디오 (5~15명)',
-    target_ko: '에이전시·스튜디오 (5~15명)',
+    target: '에이전시·스튜디오 (5~10명)',
+    target_ko: '에이전시·스튜디오 (5~10명)',
     limits: {
-      members_max: 15,
+      members_max: 10,
       clients_max: 100,
       projects_max: Infinity,
       conversations_max: Infinity,
@@ -161,7 +165,8 @@ const PLANS = {
   },
 };
 
-const PLAN_ORDER = ['free', 'starter', 'basic', 'pro', 'enterprise'];
+// 'free' 폐지 (2026-05-05) — 카탈로그·노출에서 제외. ENUM 호환을 위해 PLANS.free 객체 자체는 유지.
+const PLAN_ORDER = ['starter', 'basic', 'pro', 'enterprise'];
 
 // ─── Add-on 카탈로그 ───
 // 워크스페이스가 plan.limits 위에 추가 슬롯·시간을 구매하는 단위. quota 검사 시 plan.limits + addon 합산.
@@ -232,7 +237,7 @@ function listAddonsForPlan(planCode) {
  * 플랜 코드 → 플랜 객체
  */
 function getPlan(code) {
-  return PLANS[code] || PLANS.free;
+  return PLANS[code] || PLANS.starter;
 }
 
 /**

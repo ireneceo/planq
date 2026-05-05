@@ -150,6 +150,13 @@ router.post('/:token/accept', authenticateToken, async (req, res, next) => {
         await t.commit();
         return successResponse(res, { type: 'workspace_member', business_id: dup.business_id, redirect: '/dashboard' });
       }
+      // 플랜 쿼터 재확인 (race: 초대 발행 후 다른 멤버 추가로 한도 도달했을 수 있음)
+      const planEngine = require('../services/plan');
+      const planCan = await planEngine.can(bm.business_id, 'add_member');
+      if (!planCan.ok) {
+        await t.rollback();
+        return res.status(422).json(planEngine.buildQuotaError(planCan, bm.business_id));
+      }
       await bm.update({ user_id: req.user.id, joined_at: new Date() }, { transaction: t });
       await t.commit();
       notifyInviterOnAccept(bm.invited_by, null, 'workspace_member', req.user.id, bm.business_id).catch((e) => console.warn('[notify invite workspace_member]', e.message));

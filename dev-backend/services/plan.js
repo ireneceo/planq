@@ -115,7 +115,7 @@ async function getUsage(businessId) {
   const [memberCount, clientCount, projectCount, conversationCount, storageRow, cueThisMonth, qnoteThisMonth] = await Promise.all([
     BusinessMember.count({ where: { business_id: key } }),
     Client.count({ where: { business_id: key } }),
-    Project.count({ where: { business_id: key } }),
+    Project.count({ where: { business_id: key, status: { [Op.in]: ['active', 'paused'] } } }),
     Conversation.count({ where: { business_id: key } }),
     BusinessStorageUsage.findOne({ where: { business_id: key } }),
     getCueActionsThisMonth(key),
@@ -211,7 +211,10 @@ async function can(businessId, action, ctx = {}) {
       return { ok: true };
     }
     case 'create_project': {
-      const cur = await Project.count({ where: { business_id: businessId } });
+      // 진행중(active/paused) 만 카운트 — closed 는 한도에서 제외 (2026-05-05).
+      const cur = await Project.count({
+        where: { business_id: businessId, status: { [Op.in]: ['active', 'paused'] } },
+      });
       if (cur + 1 > limits.projects_max) {
         return { ok: false, reason: 'projects_quota_exceeded', limit: limits.projects_max, current: cur };
       }

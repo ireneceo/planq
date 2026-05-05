@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
 import LandingLayout from '../../components/Landing/LandingLayout';
 import { useReveal } from '../../hooks/useReveal';
 
-const PLANS = ['free', 'basic', 'pro'] as const;
+const PLANS = ['starter', 'basic', 'pro'] as const;
 const FAQ_KEYS = ['cancel', 'team', 'data', 'addon', 'enterprise'] as const;
 
 const Reveal: React.FC<{ children: React.ReactNode; as?: React.ElementType }> = ({ children, as = 'div' }) => {

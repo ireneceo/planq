@@ -166,6 +166,25 @@ app.use(requestIdMiddleware);
 // Security
 setupSecurity(app);
 
+// 빌드 버전 — 프론트가 5분 polling 으로 새 빌드 감지 시 silent reload (캐시 자동 갱신)
+// 운영 (/opt/planq/frontend-build/index.html) 또는 dev (/opt/planq/dev-frontend-build/index.html) mtime epoch
+app.get('/api/build-version', (req, res) => {
+  const fs = require('fs');
+  const path = require('path');
+  const candidates = [
+    process.env.FRONTEND_INDEX_HTML,
+    path.resolve(__dirname, '..', 'frontend-build', 'index.html'),
+    path.resolve(__dirname, '..', 'dev-frontend-build', 'index.html'),
+  ].filter(Boolean);
+  for (const p of candidates) {
+    try {
+      const st = fs.statSync(p);
+      return res.json({ success: true, data: { version: String(Math.floor(st.mtimeMs)) } });
+    } catch { /* try next */ }
+  }
+  return res.json({ success: true, data: { version: '0' } });
+});
+
 // Health check — DB pool / q-note / Deepgram 키 만료 잔여일 같이 노출 (운영 모니터링 endpoint)
 app.get('/api/health', async (req, res) => {
   const out = { status: 'ok', service: 'planq', timestamp: new Date().toISOString() };
@@ -246,6 +265,7 @@ server.listen(PORT, () => {
 // 매일 00시(서버 로컬) — 업무 스냅샷 + 자체결제 cron (active→past_due→grace→demoted) + 매월 1일 보고서 + 정기청구 + 연체 정지
 const taskSnapshot = require('./services/task_snapshot');
 const billing = require('./services/billing');
+const trial = require('./services/trial');
 const reportGenerator = require('./services/report_generator');
 const recurringInvoice = require('./services/recurring_invoice');
 const recurringTask = require('./services/recurringTaskGenerator');
@@ -293,6 +313,10 @@ function scheduleNextMidnight() {
       const r = await billing.runDailyBillingCron();
       console.log('[billing-cron]', r);
     } catch (e) { console.warn('[billing-cron] failed', e.message); }
+    try {
+      const r = await trial.runDailyTrialCron();
+      console.log('[trial-cron]', r);
+    } catch (e) { console.warn('[trial-cron] failed', e.message); }
     try {
       const r = await runMonthlyReportsIfDay1();
       if (!r.skipped) console.log('[monthly-report]', r);

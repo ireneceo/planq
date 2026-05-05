@@ -15,13 +15,15 @@ router.get('/catalog', authenticateToken, async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
-// ─── PlanQ SaaS 결제 계좌 (자체결제 P-2 — 사용자가 PlanQ 구독료 송금) ───
-// 환경변수 PLANQ_BILLING_BANK_* 가 미설정이면 null 반환 (CheckoutModal 이 fallback 메시지 표시)
+// ─── PlanQ SaaS 결제 계좌 (자체결제 P-2) ───
+// 우선순위: platform_settings (admin UI 관리) > env (legacy fallback). 둘 다 없으면 null.
 router.get('/bank-info', authenticateToken, async (req, res, next) => {
   try {
-    const name = process.env.PLANQ_BILLING_BANK_NAME || null;
-    const account = process.env.PLANQ_BILLING_BANK_ACCOUNT || null;
-    const holder = process.env.PLANQ_BILLING_BANK_HOLDER || null;
+    const { PlatformSetting } = require('../models');
+    const ps = await PlatformSetting.findOne({ order: [['id', 'ASC']] });
+    const name = ps?.bank_name || process.env.PLANQ_BILLING_BANK_NAME || null;
+    const account = ps?.bank_account_number || process.env.PLANQ_BILLING_BANK_ACCOUNT || null;
+    const holder = ps?.bank_account_holder || process.env.PLANQ_BILLING_BANK_HOLDER || null;
     if (!name || !account) return successResponse(res, null);
     return successResponse(res, { name, account, holder });
   } catch (error) { next(error); }
@@ -246,13 +248,14 @@ router.post('/:businessId/checkout', authenticateToken, checkBusinessAccess, asy
       return errorResponse(res, 'owner_only', 403);
     }
     const businessId = Number(req.params.businessId);
-    const { plan_code, cycle = 'monthly', currency = 'KRW' } = req.body || {};
+    const { plan_code, cycle = 'monthly', currency = 'KRW', tax_invoice } = req.body || {};
     if (!plan_code || !PLANS[plan_code]) return errorResponse(res, 'invalid_plan_code', 400);
     if (!['monthly', 'yearly'].includes(cycle)) return errorResponse(res, 'invalid_cycle', 400);
     if (plan_code === 'free') return errorResponse(res, 'use_downgrade_for_free', 400);
 
     const result = await billing.createPendingSubscription({
       businessId, planCode: plan_code, cycle, userId: req.user.id, currency,
+      taxInvoice: tax_invoice && tax_invoice.biz_no ? tax_invoice : null,
     });
     return successResponse(res, {
       subscription_id: result.subscription.id,
@@ -279,6 +282,7 @@ router.post('/:businessId/payments/:paymentId/mark-paid', authenticateToken, che
     const result = await billing.markPaymentPaid({
       paymentId, markedByUserId: req.user.id,
       payerName: req.body?.payer_name, payerMemo: req.body?.payer_memo,
+      taxInvoice: req.body?.tax_invoice && req.body.tax_invoice.biz_no ? req.body.tax_invoice : null,
     });
     return successResponse(res, {
       payment: result.payment.toJSON(),
@@ -361,52 +365,87 @@ router.get('/:businessId/addons', authenticateToken, checkBusinessAccess, async 
 
 // POST /:businessId/addons/request — 추가 슬롯 신청 (자체결제 흐름)
 //   body: { addon_code, quantity }
-//   현재 단계: 신청 기록만 (BillEvent) + 운영자 검토 후 수동 적용 + 안내 메시지
-//   다음 단계: 자동 invoice 생성 → mark-paid 시 컬럼 자동 증가 (P-7 구현 시)
+//   2026-05-05 풀 흐름: 일할 청구서 자동 발행 + 한도 즉시 적용 + 입금 안내 메일.
+//   입금 후 owner 가 /addons/orders/:paymentId/mark-paid 로 결제 확정.
 router.post('/:businessId/addons/request', authenticateToken, checkBusinessAccess, async (req, res, next) => {
   try {
     if (req.businessRole !== 'owner' && req.user.platform_role !== 'platform_admin') {
       return errorResponse(res, 'owner_only', 403);
     }
     const businessId = Number(req.params.businessId);
-    const { addon_code, quantity = 1 } = req.body || {};
-    const addon = getAddon(addon_code);
-    if (!addon) return errorResponse(res, 'invalid_addon_code', 400);
-    const qty = Math.max(1, Math.min(100, Number(quantity) || 1));
-    const totalKRW = (addon.price_monthly?.KRW || 0) * qty;
-
-    const { plan } = await planEngine.getBusinessPlan(businessId);
-    if (!addon.available_in.includes(plan.code)) {
-      return errorResponse(res, 'addon_not_available_for_plan', 400);
+    const { addon_code, quantity = 1, tax_invoice } = req.body || {};
+    const addonBilling = require('../services/addonBilling');
+    try {
+      const r = await addonBilling.requestAddon({
+        businessId, addonCode: addon_code, quantity, userId: req.user.id,
+        taxInvoice: tax_invoice && tax_invoice.biz_no ? tax_invoice : null,
+      });
+      return successResponse(res, {
+        received: true,
+        addon_code,
+        quantity: r.payment.addon_quantity,
+        prorated_amount_krw: r.prorated_amount,
+        full_amount_krw: r.full_amount,
+        days_remaining: r.days_remaining,
+        next_billing_at: r.next_billing_at,
+        payment_id: r.payment.id,
+        next_step: '입금 안내 메일이 발송됐습니다. 한도는 신청 즉시 적용됐습니다.',
+      });
+    } catch (e) {
+      if (e.message === 'invalid_addon_code') return errorResponse(res, 'invalid_addon_code', 400);
+      if (e.message === 'addon_not_available_for_plan') return errorResponse(res, 'addon_not_available_for_plan', 400);
+      if (e.message === 'business_not_found') return errorResponse(res, 'business_not_found', 404);
+      throw e;
     }
+  } catch (err) { next(err); }
+});
 
-    // BillEvent 로 신청 로그 기록 (운영자 admin 페이지에서 수동 처리)
-    const { BillEvent } = require('../models');
-    await BillEvent.create({
-      entity_type: 'addon_request',
-      entity_id: businessId,
-      actor_user_id: req.user.id,
-      kind: 'addon_request_created',
-      payload_json: {
-        addon_code: addon.code,
-        addon_field: addon.field,
-        quantity: qty,
-        unit: addon.unit,
-        total_units: addon.unit * qty,
-        price_monthly_krw: addon.price_monthly?.KRW || null,
-        total_krw: totalKRW,
-        plan_code: plan.code,
-      },
-    }).catch((e) => console.warn('[addon request log]', e.message));
+// POST /:businessId/addons/orders/:paymentId/mark-paid — owner 가 입금 후 호출
+//   body: { payer_name?, payer_memo? }
+router.post('/:businessId/addons/orders/:paymentId/mark-paid', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+  try {
+    if (req.businessRole !== 'owner' && req.user.platform_role !== 'platform_admin') {
+      return errorResponse(res, 'owner_only', 403);
+    }
+    const businessId = Number(req.params.businessId);
+    const paymentId = Number(req.params.paymentId);
+    const { Payment } = require('../models');
+    const pay = await Payment.findByPk(paymentId);
+    if (!pay) return errorResponse(res, 'payment_not_found', 404);
+    if (pay.business_id !== businessId) return errorResponse(res, 'forbidden', 403);
+    if (pay.kind !== 'addon') return errorResponse(res, 'not_addon_payment', 400);
 
-    return successResponse(res, {
-      received: true,
-      addon_code: addon.code,
-      quantity: qty,
-      total_units: addon.unit * qty,
-      total_krw: totalKRW,
-      next_step: '운영자 확인 후 입금 안내가 메일로 발송됩니다. 입금 확인 시 즉시 적용됩니다.',
+    const addonBilling = require('../services/addonBilling');
+    const r = await addonBilling.markAddonPaid({
+      paymentId,
+      markedByUserId: req.user.id,
+      payerName: req.body?.payer_name,
+      payerMemo: req.body?.payer_memo,
+      taxInvoice: req.body?.tax_invoice && req.body.tax_invoice.biz_no ? req.body.tax_invoice : null,
     });
+    return successResponse(res, { paid: true, payment_id: r.payment.id, already_paid: !!r.alreadyPaid });
+  } catch (err) { next(err); }
+});
+
+// DELETE /:businessId/addons/:addonCode — 사용자가 add-on 해지 (한도 즉시 차감, 환불 X)
+//   body: { quantity? } (기본 1 unit 의 1 회분 해지)
+router.delete('/:businessId/addons/:addonCode', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+  try {
+    if (req.businessRole !== 'owner' && req.user.platform_role !== 'platform_admin') {
+      return errorResponse(res, 'owner_only', 403);
+    }
+    const businessId = Number(req.params.businessId);
+    const addonCode = String(req.params.addonCode);
+    const quantity = Math.max(1, Number(req.body?.quantity) || 1);
+    const addonBilling = require('../services/addonBilling');
+    try {
+      const r = await addonBilling.cancelAddon({ businessId, addonCode, quantity, userId: req.user.id });
+      return successResponse(res, { canceled: true, ...r });
+    } catch (e) {
+      if (e.message === 'invalid_addon_code') return errorResponse(res, 'invalid_addon_code', 400);
+      if (e.message === 'business_not_found') return errorResponse(res, 'business_not_found', 404);
+      throw e;
+    }
   } catch (err) { next(err); }
 });
 

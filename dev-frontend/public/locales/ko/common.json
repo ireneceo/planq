@@ -313,5 +313,92 @@
     "installCta": "설치",
     "androidHint": "홈 화면에 추가하면 알림·빠른 진입이 가능합니다",
     "iosHint": "하단 공유 버튼 → \"홈 화면에 추가\""
+  },
+  "usageWarn": {
+    "title": "한도가 거의 찼습니다",
+    "cta": "플랜·Add-on",
+    "members": "멤버",
+    "clients": "고객",
+    "projects": "진행중 프로젝트",
+    "storage": "스토리지",
+    "cue": "Cue 월간 액션",
+    "qnote": "Q Note 월간 시간"
+  },
+  "limit": {
+    "current": "현재",
+    "maximum": "한도",
+    "close": "닫기",
+    "cta": "플랜·Add-on 보기",
+    "members": {
+      "title": "멤버 수 한도 도달",
+      "desc": "현재 플랜의 멤버 한도를 초과했습니다. 멤버 add-on 으로 1명씩 추가하거나 상위 플랜으로 업그레이드하세요.",
+      "addon": "멤버 add-on: ₩4,900/월/명 — 즉시 추가 가능"
+    },
+    "clients": {
+      "title": "고객 수 한도 도달",
+      "desc": "현재 플랜의 고객 한도를 초과했습니다. add-on 또는 상위 플랜으로 늘리세요.",
+      "addon": "고객 슬롯 add-on: ₩2,900/월/10명"
+    },
+    "projects": {
+      "title": "프로젝트 수 한도 도달",
+      "desc": "진행중인 프로젝트가 한도에 도달했습니다. 완료된 프로젝트는 카운트되지 않으니 마감 처리 후 다시 시도하거나, 상위 플랜으로 업그레이드하세요."
+    },
+    "conv": {
+      "title": "대화방 수 한도 도달",
+      "desc": "대화방 한도를 초과했습니다. 상위 플랜에서는 무제한입니다."
+    },
+    "storage": {
+      "title": "저장소 용량 초과",
+      "desc": "저장소 한도를 초과했습니다. add-on 또는 Google Drive 연동 시 무제한 사용 가능합니다.",
+      "addon": "스토리지 add-on: ₩4,900/월/5GB · 또는 Google Drive 연동"
+    },
+    "fileSize": {
+      "title": "파일 크기 초과",
+      "desc": "현재 플랜의 단일 파일 크기 한도를 초과했습니다."
+    },
+    "cue": {
+      "title": "Cue AI 월 사용 한도 도달",
+      "desc": "이번 달 Cue 액션 한도가 초과됐습니다. add-on 으로 늘리거나 다음 달 1일에 자동 갱신됩니다.",
+      "addon": "Cue add-on: ₩4,900/월/1,000회"
+    },
+    "qnote": {
+      "title": "Q Note 월 사용 시간 도달",
+      "desc": "이번 달 Q Note 녹음 시간 한도가 초과됐습니다.",
+      "addon": "Q Note add-on: ₩9,900/월/10시간"
+    },
+    "feature": {
+      "title": "현재 플랜에서 지원 안 됨",
+      "desc": "이 기능은 상위 플랜에서 사용할 수 있습니다."
+    },
+    "inactive": {
+      "title": "구독이 비활성 상태입니다",
+      "desc": "결제 후 정상 복구됩니다. 결제 페이지에서 입금 상태를 확인하세요."
+    },
+    "generic": {
+      "title": "한도 도달",
+      "desc": "플랜 한도에 도달했습니다."
+    }
+  },
+  "trialBanner": {
+    "trial": {
+      "title": "Starter 체험 {{days}}일 남음",
+      "desc": "체험 기간 동안 모든 Starter 기능을 사용할 수 있습니다."
+    },
+    "trialEnding": {
+      "title": "체험 {{days}}일 남음 — 결제 안내",
+      "desc": "체험 종료 후 자동 잠금되지 않도록 미리 결제하세요."
+    },
+    "pastDue": {
+      "title": "체험 종료 — 결제 마감 {{days}}일 남음",
+      "desc": "결제하지 않으면 워크스페이스가 잠금됩니다."
+    },
+    "canceled": {
+      "title": "워크스페이스 잠금 — 결제 후 복구됩니다",
+      "desc": "결제 확인 시 즉시 정상 사용 가능합니다."
+    },
+    "cta": {
+      "openPlan": "결제 페이지",
+      "payNow": "결제하기"
+    }
   }
 }

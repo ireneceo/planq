@@ -61,6 +61,19 @@ router.post('/help', authenticateToken, async (req, res, next) => {
       });
     }
 
+    // 플랜 쿼터 — Cue 월간 액션 (workspace 모드에서만 차감, qhelper 는 free)
+    const finalModeForGate = mode === 'workspace' ? 'workspace' : 'qhelper';
+    if (finalModeForGate === 'workspace') {
+      const bizId = req.user.active_business_id;
+      if (bizId) {
+        const planEngine = require('../services/plan');
+        const planCan = await planEngine.can(bizId, 'use_cue', { actions: 1 });
+        if (!planCan.ok) {
+          return res.status(422).json(planEngine.buildQuotaError(planCan, bizId));
+        }
+      }
+    }
+
     // 사이클 P7 — 모드 분리 (qhelper / workspace)
     const finalMode = mode === 'workspace' ? 'workspace' : 'qhelper';
     const systemPrompt = finalMode === 'workspace' ? SYSTEM_PROMPT_WORKSPACE : SYSTEM_PROMPT_QHELPER;

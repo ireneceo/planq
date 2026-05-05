@@ -507,6 +507,14 @@ router.get('/payments', async (req, res, next) => {
       refunded_at: p.refunded_at,
       refund_reason: p.refund_reason,
       created_at: p.created_at,
+      // Day 8 — addon / 세금계산서 신규 필드
+      kind: p.kind,
+      addon_code: p.addon_code,
+      addon_quantity: p.addon_quantity,
+      tax_invoice_requested: p.tax_invoice_requested,
+      tax_invoice_status: p.tax_invoice_status,
+      tax_invoice_data: p.tax_invoice_data,
+      tax_invoice_issued_at: p.tax_invoice_issued_at,
     })));
   } catch (err) { next(err); }
 });
@@ -554,6 +562,107 @@ router.post('/payments/:id/refund', async (req, res, next) => {
       newValue: { reason, amount: Number(p.amount), business_id: p.business_id },
     });
     return successResponse(res, { refunded: true, refunded_at: p.refunded_at }, 'refunded');
+  } catch (err) { next(err); }
+});
+
+// ═════════════════════════════════════════════════════════════
+// Day 10 — addon Payment mark-paid + 세금계산서 발행 (admin)
+// ═════════════════════════════════════════════════════════════
+
+// POST /admin/payments/:id/mark-paid — kind 자동 판별 (plan 또는 addon)
+//   body: { payer_name?, payer_memo?, tax_invoice? }
+router.post('/payments/:id/mark-paid', async (req, res, next) => {
+  try {
+    const p = await Payment.findByPk(req.params.id);
+    if (!p) return errorResponse(res, 'payment_not_found', 404);
+    if (p.status === 'paid') return successResponse(res, { already_paid: true, payment: p.toJSON() });
+    if (p.status !== 'pending') return errorResponse(res, 'invalid_state', 400);
+
+    const taxInvoice = req.body?.tax_invoice && req.body.tax_invoice.biz_no ? req.body.tax_invoice : null;
+    let result;
+    if (p.kind === 'addon') {
+      result = await require('../services/addonBilling').markAddonPaid({
+        paymentId: p.id, markedByUserId: req.user.id,
+        payerName: req.body?.payer_name, payerMemo: req.body?.payer_memo,
+        taxInvoice,
+      });
+    } else {
+      result = await require('../services/billing').markPaymentPaid({
+        paymentId: p.id, markedByUserId: req.user.id,
+        payerName: req.body?.payer_name, payerMemo: req.body?.payer_memo,
+        taxInvoice,
+      });
+    }
+    require('../services/auditService').logAudit(req, {
+      action: 'admin.payment.mark_paid',
+      targetType: 'payment',
+      targetId: p.id,
+      newValue: { kind: p.kind, business_id: p.business_id, amount: Number(p.amount), tax_invoice: !!taxInvoice },
+    });
+    return successResponse(res, result, 'marked_paid');
+  } catch (err) { next(err); }
+});
+
+// POST /admin/payments/:id/issue-tax-invoice — 세금계산서 발행 마킹
+//   현재: Payment.tax_invoice_status='issued' 수동 마킹 + AuditLog. 팝빌 자동 발행은 다음 사이클.
+//   body: { issued_by? — 발행 시스템 ('manual'|'popbill'), reference? }
+router.post('/payments/:id/issue-tax-invoice', async (req, res, next) => {
+  try {
+    const p = await Payment.findByPk(req.params.id);
+    if (!p) return errorResponse(res, 'payment_not_found', 404);
+    if (p.status !== 'paid') return errorResponse(res, 'only_paid_can_issue', 400);
+    if (!p.tax_invoice_data || !p.tax_invoice_data.biz_no) return errorResponse(res, 'no_tax_invoice_data', 400);
+    if (p.tax_invoice_status === 'issued') return successResponse(res, { already_issued: true });
+
+    const now = new Date();
+    await p.update({
+      tax_invoice_status: 'issued',
+      tax_invoice_issued_at: now,
+      tax_invoice_error: null,
+    });
+    require('../services/auditService').logAudit(req, {
+      action: 'admin.payment.tax_invoice_issued',
+      targetType: 'payment',
+      targetId: p.id,
+      newValue: { biz_no: p.tax_invoice_data.biz_no, issued_by: req.body?.issued_by || 'manual', reference: req.body?.reference || null },
+    });
+    return successResponse(res, { issued: true, issued_at: now });
+  } catch (err) { next(err); }
+});
+
+// POST /admin/payments/:id/tax-invoice-failed — 발행 실패 마킹 (수동 또는 자동)
+router.post('/payments/:id/tax-invoice-failed', async (req, res, next) => {
+  try {
+    const p = await Payment.findByPk(req.params.id);
+    if (!p) return errorResponse(res, 'payment_not_found', 404);
+    const error = String(req.body?.error || '발행 실패').slice(0, 500);
+    await p.update({ tax_invoice_status: 'failed', tax_invoice_error: error });
+    require('../services/auditService').logAudit(req, {
+      action: 'admin.payment.tax_invoice_failed',
+      targetType: 'payment', targetId: p.id, newValue: { error },
+    });
+    return successResponse(res, { failed: true });
+  } catch (err) { next(err); }
+});
+
+// GET /admin/payments/pending-tax-invoices — 발행 대기 결제 목록
+router.get('/payments/pending-tax-invoices', async (req, res, next) => {
+  try {
+    const rows = await Payment.findAll({
+      where: { status: 'paid', tax_invoice_status: 'requested' },
+      order: [['paid_at', 'DESC']],
+      limit: 200,
+    });
+    return successResponse(res, rows.map(p => ({
+      id: p.id,
+      business_id: p.business_id,
+      kind: p.kind,
+      amount: Number(p.amount),
+      currency: p.currency,
+      paid_at: p.paid_at,
+      tax_invoice_data: p.tax_invoice_data,
+      tax_invoice_status: p.tax_invoice_status,
+    })));
   } catch (err) { next(err); }
 });
 

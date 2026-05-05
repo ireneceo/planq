@@ -10,14 +10,17 @@ const fs = require('fs');
 let transporter = null;
 
 // 로고 PNG 경로 — 인라인 cid 첨부용. 메일 클라이언트 차단·외부 fetch 실패 방지.
-const LOGO_PNG_PATH = path.resolve(__dirname, '..', '..', 'dev-frontend-build', 'email-logo.png');
-const LOGO_FALLBACK_PATH = path.resolve(__dirname, '..', '..', 'dev-frontend', 'public', 'email-logo.png');
+// dev: /opt/planq/dev-frontend-build, 운영: /opt/planq/frontend-build (디렉토리명이 달라 후보 모두 시도).
 const LOGO_CID = 'planq-logo@platform';
+const LOGO_CANDIDATES = [
+  process.env.EMAIL_LOGO_PATH,
+  path.resolve(__dirname, '..', '..', 'dev-frontend-build', 'email-logo.png'),
+  path.resolve(__dirname, '..', '..', 'frontend-build', 'email-logo.png'),
+  path.resolve(__dirname, '..', '..', 'dev-frontend', 'public', 'email-logo.png'),
+].filter(Boolean);
 
 function getLogoAttachment() {
-  // dev-frontend-build (배포된 것) 우선, 없으면 public/ fallback
-  const file = fs.existsSync(LOGO_PNG_PATH) ? LOGO_PNG_PATH
-    : fs.existsSync(LOGO_FALLBACK_PATH) ? LOGO_FALLBACK_PATH : null;
+  const file = LOGO_CANDIDATES.find((p) => { try { return fs.existsSync(p); } catch { return false; } });
   if (!file) return null;
   return {
     filename: 'planq-logo.png',

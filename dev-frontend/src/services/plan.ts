@@ -170,17 +170,25 @@ export async function checkout(
   return j.success ? j.data : null;
 }
 
-// 입금 완료 처리 (owner) — 자체 결제 트랙
+// 입금 완료 처리 (owner) — 자체 결제 트랙. 사업자 정보 입력 시 세금계산서 발행 신청.
+export interface TaxInvoiceInput {
+  biz_no: string;       // 사업자등록번호 (예: 123-45-67890)
+  biz_name: string;     // 상호
+  ceo_name: string;     // 대표자
+  address?: string;     // 주소
+  email: string;        // 세금계산서 수신 이메일
+}
 export async function markPaymentPaid(
   businessId: number,
   paymentId: number,
   payerName?: string,
-  payerMemo?: string
+  payerMemo?: string,
+  taxInvoice?: TaxInvoiceInput | null
 ): Promise<boolean> {
   const r = await apiFetch(`/api/plan/${businessId}/payments/${paymentId}/mark-paid`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ payer_name: payerName, payer_memo: payerMemo }),
+    body: JSON.stringify({ payer_name: payerName, payer_memo: payerMemo, tax_invoice: taxInvoice || undefined }),
   });
   const j = await r.json();
   return !!j.success;

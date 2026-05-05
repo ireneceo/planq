@@ -4,6 +4,8 @@ import { AuthProvider } from './contexts/AuthContext';
 import { PwaInstallProvider } from './contexts/PwaInstallContext';
 import NotificationToaster from './components/Common/NotificationToaster';
 import PwaInstallBanner from './components/Common/PwaInstallBanner';
+import BuildVersionGuard from './components/Common/BuildVersionGuard';
+import LimitReachedDialog from './components/Common/LimitReachedDialog';
 import ProtectedRoute from './components/ProtectedRoute';
 import ErrorBoundary from './components/Common/ErrorBoundary';
 import MainLayout from './components/Layout/MainLayout';
@@ -353,6 +355,10 @@ function App() {
       <NotificationToaster />
       {/* 모바일 PWA 설치 안내 — beforeinstallprompt + iOS Safari 안내 */}
       <PwaInstallBanner />
+      {/* 캐시 자동 갱신 — 새 빌드 감지 시 다음 navigation 에 hard reload */}
+      <BuildVersionGuard />
+      {/* 한도 도달 모달 — apiFetch 인터셉터가 'planq:limit-reached' dispatch */}
+      <LimitReachedDialog />
     </PwaInstallProvider>
     </AuthProvider>
     </ErrorBoundary>

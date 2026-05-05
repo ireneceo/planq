@@ -67,6 +67,13 @@ router.post('/:businessId', authenticateToken, checkBusinessAccess, async (req, 
     });
     if (existing) return errorResponse(res, 'Client already exists', 409);
 
+    // 플랜 쿼터 — 고객 수 한도
+    const planEngine = require('../services/plan');
+    const planCan = await planEngine.can(req.params.businessId, 'add_client');
+    if (!planCan.ok) {
+      return res.status(422).json(planEngine.buildQuotaError(planCan, req.params.businessId));
+    }
+
     const client = await Client.create({
       business_id: req.params.businessId,
       user_id,
@@ -196,9 +203,10 @@ router.post('/:businessId/invite', authenticateToken, checkBusinessAccess, async
     const { name, email, company_name, notes } = req.body || {};
     if (!name?.trim() || !email?.trim()) return errorResponse(res, 'name and email are required', 400);
     // 플랜 쿼터 — 고객 수 한도
-    const planCan = await require('../services/plan').can(req.params.businessId, 'add_client');
+    const planEngine = require('../services/plan');
+    const planCan = await planEngine.can(req.params.businessId, 'add_client');
     if (!planCan.ok) {
-      return errorResponse(res, `고객 수 한도 초과 (최대 ${planCan.limit}명) — 플랜 업그레이드 필요`, 403);
+      return res.status(422).json(planEngine.buildQuotaError(planCan, req.params.businessId));
     }
     const crypto = require('crypto');
     const existingUser = await User.findOne({ where: { email: email.trim() } });
