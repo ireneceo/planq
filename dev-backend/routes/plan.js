@@ -16,16 +16,14 @@ router.get('/catalog', authenticateToken, async (req, res, next) => {
 });
 
 // ─── PlanQ SaaS 결제 계좌 (자체결제 P-2) ───
-// 우선순위: platform_settings (admin UI 관리) > env (legacy fallback). 둘 다 없으면 null.
+// emailService.getPlanqBankInfo() 단일 헬퍼 경유. platform_settings 우선 + .env fallback
+// + placeholder 가드 ('<예: ...>' 같은 example 복사 사고 차단).
 router.get('/bank-info', authenticateToken, async (req, res, next) => {
   try {
-    const { PlatformSetting } = require('../models');
-    const ps = await PlatformSetting.findOne({ order: [['id', 'ASC']] });
-    const name = ps?.bank_name || process.env.PLANQ_BILLING_BANK_NAME || null;
-    const account = ps?.bank_account_number || process.env.PLANQ_BILLING_BANK_ACCOUNT || null;
-    const holder = ps?.bank_account_holder || process.env.PLANQ_BILLING_BANK_HOLDER || null;
-    if (!name || !account) return successResponse(res, null);
-    return successResponse(res, { name, account, holder });
+    const { getPlanqBankInfo } = require('../services/emailService');
+    const bank = await getPlanqBankInfo();
+    if (!bank.configured) return successResponse(res, null);
+    return successResponse(res, { name: bank.name, account: bank.account, holder: bank.holder });
   } catch (error) { next(error); }
 });
 

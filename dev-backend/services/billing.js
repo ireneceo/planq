@@ -20,7 +20,7 @@
 const { Op } = require('sequelize');
 const { Subscription, Payment, Business, BusinessPlanHistory, User, BusinessMember } = require('../models');
 const { sequelize } = require('../config/database');
-const { sendEmail } = require('./emailService');
+const { sendBillingInstructionEmail } = require('./emailService');
 const PLANS = require('../config/plans');
 
 const GRACE_DAYS = 7;
@@ -38,37 +38,6 @@ function getPlanPrice(planCode, cycle, currency = 'KRW') {
   if (!plan) return null;
   const priceMap = cycle === 'monthly' ? plan.price_monthly : plan.price_yearly;
   return priceMap?.[currency] ?? 0;
-}
-
-// 입금 안내 이메일
-function bankInstructionHtml({ businessName, planName, amount, currency, cycle, accountInfo, paymentId }) {
-  const amountStr = currency === 'KRW' ? `${Number(amount).toLocaleString()}원` : `${currency} ${Number(amount).toLocaleString()}`;
-  const cycleLabel = cycle === 'monthly' ? '월간' : '연간';
-  return `<!doctype html><html><body style="margin:0;background:#F1F5F9;font-family:-apple-system,Segoe UI,Roboto,sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background:#F1F5F9;padding:40px 16px;"><tr><td align="center">
-    <table width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background:#FFFFFF;border:1px solid #E2E8F0;border-radius:12px;padding:32px;">
-      <tr><td>
-        <div style="font-size:13px;color:#64748B;letter-spacing:1px;text-transform:uppercase;font-weight:700;">PlanQ</div>
-        <h1 style="margin:8px 0 16px;font-size:20px;color:#0F172A;font-weight:700;">${businessName} · ${planName} ${cycleLabel} 결제 안내</h1>
-        <p style="margin:0 0 20px;font-size:14px;color:#475569;line-height:1.7;">
-          아래 계좌로 <strong>${amountStr}</strong> 입금 후, PlanQ 워크스페이스 관리자가 결제 확인을 처리하면 즉시 활성화됩니다.
-        </p>
-        <table cellpadding="0" cellspacing="0" style="width:100%;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:10px;padding:16px;margin-bottom:16px;">
-          <tr><td style="font-size:11px;color:#64748B;font-weight:700;letter-spacing:0.5px;text-transform:uppercase;padding-bottom:6px;">입금 계좌</td></tr>
-          <tr><td style="font-size:14px;color:#0F172A;font-weight:600;line-height:1.7;">
-            ${accountInfo || 'PlanQ 결제 계좌 정보 미설정 — support@planq.kr 문의'}
-          </td></tr>
-          <tr><td style="font-size:11px;color:#64748B;padding-top:12px;border-top:1px solid #E2E8F0;margin-top:12px;">
-            입금자명에 결제 ID <strong>#${paymentId}</strong> 또는 워크스페이스명을 함께 적어주세요.
-          </td></tr>
-        </table>
-        <p style="margin:0;font-size:12px;color:#94A3B8;line-height:1.6;">
-          이 결제는 24시간 내 미입금 시 자동 취소됩니다. 문의: support@planq.kr
-        </p>
-      </td></tr>
-    </table>
-  </td></tr></table>
-</body></html>`;
 }
 
 // ─── 1. 플랜 변경 (사용자 요청) — 신규 Subscription + pending Payment 생성 ───
@@ -128,7 +97,7 @@ async function createPendingSubscription({ businessId, planCode, cycle, userId, 
     await t.commit();
 
     // 입금 안내 이메일 발송 (admin/owner 들에게)
-    // 계좌는 PlanQ SaaS 결제 계좌 (env). 워크스페이스 자체 계좌가 아님 — 사용자가 PlanQ 에 송금
+    // 계좌는 PlanQ SaaS 결제 계좌 (platform_settings 우선 + .env fallback). 워크스페이스 자체 계좌가 아님.
     try {
       const biz = await Business.findByPk(businessId, {
         attributes: ['name', 'brand_name'],
@@ -137,23 +106,20 @@ async function createPendingSubscription({ businessId, planCode, cycle, userId, 
         where: { business_id: businessId, role: 'owner', removed_at: null },
         include: [{ model: User, as: 'user', attributes: ['email', 'name'] }],
       });
-      const planqBankName = process.env.PLANQ_BILLING_BANK_NAME;
-      const planqBankAccount = process.env.PLANQ_BILLING_BANK_ACCOUNT;
-      const planqBankHolder = process.env.PLANQ_BILLING_BANK_HOLDER || 'PlanQ';
-      const accountInfo = planqBankName && planqBankAccount
-        ? `${planqBankName} ${planqBankAccount} (예금주 ${planqBankHolder})`
-        : 'PlanQ 결제 계좌 정보가 미설정 — support@planq.kr 문의 부탁드립니다.';
-      const html = bankInstructionHtml({
-        businessName: biz?.brand_name || biz?.name || '',
-        planName: plan.name_ko || plan.name,
-        amount: price, currency, cycle,
-        accountInfo,
-        paymentId: pay.id,
-      });
-      const subject = `[PlanQ] ${plan.name_ko || plan.name} ${cycle === 'monthly' ? '월간' : '연간'} 결제 안내 #${pay.id}`;
+      const wsName = biz?.brand_name || biz?.name || '';
       for (const m of owners) {
         if (m.user?.email) {
-          await sendEmail({ to: m.user.email, subject, html }).catch(() => null);
+          await sendBillingInstructionEmail({
+            to: m.user.email,
+            kind: 'plan',
+            workspaceName: wsName,
+            itemName: plan.name_ko || plan.name,
+            cycle,
+            amount: price,
+            currency,
+            paymentId: pay.id,
+            businessId,
+          }).catch(() => null);
         }
       }
       if (!process.env.SMTP_HOST) {
