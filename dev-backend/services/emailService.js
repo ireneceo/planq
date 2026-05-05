@@ -479,7 +479,111 @@ async function sendVerificationCodeEmail({ to, code, ttlMinutes = 10, userName =
 }
 
 // ═══════════════════════════════════════════════════════════════
-// 7. 멤버 알림 (generic — 매트릭스 적용 대상)
+// 7. PlanQ 결제 안내 (플랜 결제 + Add-on 결제 공용 표준 메일)
+//    — 자체 HTML 우회 금지. billing.js / addonBilling.js 모두 이 함수 경유.
+// ═══════════════════════════════════════════════════════════════
+
+// PlanQ 결제 계좌 헬퍼 — platform_settings 우선 + .env fallback + placeholder 가드.
+//   .env.production.example 의 `<예: 토스뱅크>` 같은 placeholder 가 그대로 복사된 경우
+//   미설정으로 간주해서 사용자에게 절대 노출하지 않는다.
+function isPlaceholder(v) {
+  if (!v) return true;
+  const s = String(v).trim();
+  if (!s) return true;
+  return s.startsWith('<') || s.startsWith('예:') || /^<예/.test(s);
+}
+
+async function getPlanqBankInfo() {
+  let row = null;
+  try {
+    const { PlatformSetting } = require('../models');
+    row = await PlatformSetting.findOne({ order: [['id', 'ASC']] });
+  } catch (e) {
+    console.warn('[emailService] getPlanqBankInfo DB read failed:', e.message);
+  }
+  const name = row?.bank_name || process.env.PLANQ_BILLING_BANK_NAME || null;
+  const account = row?.bank_account_number || process.env.PLANQ_BILLING_BANK_ACCOUNT || null;
+  const holder = row?.bank_account_holder || process.env.PLANQ_BILLING_BANK_HOLDER || 'PlanQ';
+  if (isPlaceholder(name) || isPlaceholder(account)) {
+    return { configured: false, name: null, account: null, holder: null };
+  }
+  return { configured: true, name, account, holder: isPlaceholder(holder) ? 'PlanQ' : holder };
+}
+
+function billingInstructionEmailHtml({ kind, workspaceName, itemName, cycle, quantity, daysRemain, amount, currency, paymentId, accountInfo, configured }) {
+  const amountStr = currency === 'KRW'
+    ? `${Number(amount).toLocaleString('ko-KR')}원`
+    : `${currency} ${Number(amount).toLocaleString('en-US')}`;
+  const cycleLabel = cycle === 'monthly' ? '월간' : cycle === 'yearly' ? '연간' : '';
+  const titleLine = kind === 'addon'
+    ? `${escapeHtml(itemName)}${quantity && quantity > 1 ? ` × ${quantity}` : ''} 추가 결제 안내`
+    : `${escapeHtml(itemName)}${cycleLabel ? ` ${cycleLabel}` : ''} 결제 안내`;
+  const introLine = kind === 'addon'
+    ? `<b>${escapeHtml(itemName)}</b>${quantity && quantity > 1 ? ` × ${quantity}` : ''} 추가 신청이 접수됐습니다. 한도는 신청 즉시 적용됐습니다.`
+    : `${escapeHtml(workspaceName || '')} 워크스페이스의 ${escapeHtml(itemName)}${cycleLabel ? ` ${cycleLabel}` : ''} 결제 안내입니다.`;
+  const noticeLine = kind === 'addon'
+    ? '입금이 7일 안에 확인되지 않으면 추가된 한도가 회수됩니다.'
+    : '입금 후, PlanQ 워크스페이스 관리자가 결제 확인을 처리하면 즉시 활성화됩니다. 24시간 내 미입금 시 자동 취소됩니다.';
+  const accountBlock = configured ? `
+    <table cellpadding="0" cellspacing="0" role="presentation" style="width:100%;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:10px;margin-top:14px;">
+      <tr><td style="padding:14px 16px;">
+        <div style="font-size:11px;color:#64748B;font-weight:700;letter-spacing:0.5px;text-transform:uppercase;">입금 계좌</div>
+        <div style="margin-top:6px;font-size:15px;color:#0F172A;font-weight:700;line-height:1.6;">${escapeHtml(accountInfo)}</div>
+      </td></tr>
+      <tr><td style="padding:0 16px 14px;border-top:1px solid #E2E8F0;">
+        <div style="margin-top:10px;font-size:12px;color:#64748B;line-height:1.6;">
+          입금자명에 결제번호 <b style="color:#0F172A;">#${paymentId}</b>${workspaceName ? ` 또는 워크스페이스명(<b>${escapeHtml(workspaceName)}</b>)` : ''} 을 함께 적어주세요.
+        </div>
+      </td></tr>
+    </table>` : `
+    <div style="margin-top:14px;padding:14px 16px;background:#FEF2F2;border:1px solid #FECACA;border-radius:10px;font-size:13px;color:#B91C1C;line-height:1.7;">
+      현재 PlanQ 결제 계좌가 설정돼 있지 않습니다. 잠시 후 PlanQ 운영팀에서 입금 계좌를 별도로 안내드릴 예정입니다. 문의: <a href="mailto:${PLATFORM.supportEmail}" style="color:#B91C1C;font-weight:600;">${PLATFORM.supportEmail}</a>
+    </div>`;
+  const body = `
+    <div style="font-size:18px;font-weight:700;color:#0F172A;line-height:1.4;">${titleLine}</div>
+    <div style="margin-top:10px;font-size:14px;color:#475569;line-height:1.7;">${introLine}</div>
+    <table cellpadding="0" cellspacing="0" role="presentation" style="width:100%;background:#F0FDFA;border:1px solid #99F6E4;border-radius:10px;margin-top:16px;">
+      <tr><td style="padding:14px 16px;">
+        <div style="font-size:11px;color:#0F766E;font-weight:700;letter-spacing:0.4px;text-transform:uppercase;">결제 금액${kind === 'addon' && daysRemain ? ` (남은 ${daysRemain}일 일할 적용)` : ''}</div>
+        <div style="margin-top:4px;font-size:24px;font-weight:800;color:#0F172A;letter-spacing:-0.3px;">${amountStr}</div>
+        <div style="margin-top:4px;font-size:12px;color:#475569;font-family:ui-monospace,monospace;">결제번호 #${paymentId}</div>
+      </td></tr>
+    </table>
+    ${accountBlock}
+    <div style="margin-top:16px;font-size:12px;color:#94A3B8;line-height:1.6;">${noticeLine}</div>`;
+  return emailWrap({
+    title: `결제 안내 — ${itemName}`,
+    body,
+    footerOptions: { workspaceName },
+  });
+}
+
+async function sendBillingInstructionEmail({ to, kind, workspaceName, itemName, cycle, quantity, daysRemain, amount, currency = 'KRW', paymentId, businessId }) {
+  if (!to) return false;
+  if (kind !== 'plan' && kind !== 'addon') throw new Error('invalid_billing_kind');
+  const bank = await getPlanqBankInfo();
+  const accountInfo = bank.configured
+    ? `${bank.name} ${bank.account} (예금주 ${bank.holder})`
+    : null;
+  const subject = kind === 'addon'
+    ? `[${PLATFORM.brand}] ${workspaceName || ''} — ${itemName}${quantity && quantity > 1 ? ` × ${quantity}` : ''} 추가 결제 안내 #${paymentId}`
+    : `[${PLATFORM.brand}] ${itemName}${cycle === 'monthly' ? ' 월간' : cycle === 'yearly' ? ' 연간' : ''} 결제 안내 #${paymentId}`;
+  return sendEmail({
+    to, subject,
+    html: billingInstructionEmailHtml({
+      kind, workspaceName, itemName, cycle, quantity, daysRemain,
+      amount, currency, paymentId,
+      accountInfo, configured: bank.configured,
+    }),
+    template: kind === 'addon' ? 'addon_request' : 'plan_request',
+    relatedEntityType: 'payment',
+    relatedEntityId: paymentId || null,
+    businessId: businessId || null,
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 8. 멤버 알림 (generic — 매트릭스 적용 대상)
 // ═══════════════════════════════════════════════════════════════
 function notificationEmailHtml({ title, body, link, ctaLabel, workspaceName }) {
   const inner = `
@@ -505,6 +609,8 @@ module.exports = {
   sendEmail,
   sendInviteEmail, sendPostShareEmail, sendSignatureRequestEmail, sendSignatureOtpEmail,
   sendInvoiceEmail, sendVerificationCodeEmail,
+  sendBillingInstructionEmail,
   sendNotificationEmail,
+  getPlanqBankInfo,
   invalidatePlatformCache,  // admin 라우트가 PUT 후 호출
 };

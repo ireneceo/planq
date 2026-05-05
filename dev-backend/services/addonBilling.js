@@ -209,27 +209,20 @@ async function safeSendInstructionEmail({ biz, payment, addon, quantity, daysRem
       include: [{ model: User, as: 'user', attributes: ['email', 'name'] }],
     });
     const wsName = biz.brand_name || biz.name;
-    const planqBankName = process.env.PLANQ_BILLING_BANK_NAME;
-    const planqBankAccount = process.env.PLANQ_BILLING_BANK_ACCOUNT;
-    const planqBankHolder = process.env.PLANQ_BILLING_BANK_HOLDER || 'PlanQ';
-    const accountInfo = planqBankName && planqBankAccount
-      ? `${planqBankName} ${planqBankAccount} (예금주 ${planqBankHolder})`
-      : 'PlanQ 결제 계좌 정보가 미설정입니다 — support@planq.kr 문의 부탁드립니다.';
-    const subject = `[PlanQ] ${wsName} — ${addon.name_ko} 추가 결제 안내 #${payment.id}`;
-    const escapedAccount = String(accountInfo).replace(/[<>&]/g, c => ({ '<':'&lt;', '>':'&gt;', '&':'&amp;' }[c]));
-    const html = `
-      <p><b>${addon.name_ko}</b> ${quantity > 1 ? `× ${quantity}` : ''} 추가 신청이 접수됐습니다.</p>
-      <p>아래 계좌로 입금 후 결제 페이지에서 "입금 완료" 를 눌러주세요.</p>
-      <table border="0" cellpadding="6" style="font-size:14px;border:1px solid #E2E8F0;border-radius:8px;background:#F8FAFC;">
-        <tr><td style="color:#64748B;">결제 금액</td><td><b>${Number(payment.amount).toLocaleString()}원</b> (남은 ${daysRemain}일 일할 적용)</td></tr>
-        <tr><td style="color:#64748B;">입금 계좌</td><td>${escapedAccount}</td></tr>
-        <tr><td style="color:#64748B;">결제번호</td><td>#${payment.id}</td></tr>
-      </table>
-      <p style="font-size:12px;color:#94A3B8;">한도는 신청 즉시 적용됐습니다. 입금이 7일 안에 확인되지 않으면 한도가 회수됩니다.</p>
-    `;
     for (const m of owners) {
       if (m.user?.email) {
-        await emailService.sendEmail({ to: m.user.email, subject, html, template: 'addon_request', relatedEntityType: 'payment' }).catch(() => null);
+        await emailService.sendBillingInstructionEmail({
+          to: m.user.email,
+          kind: 'addon',
+          workspaceName: wsName,
+          itemName: addon.name_ko || addon.name,
+          quantity,
+          daysRemain,
+          amount: Number(payment.amount),
+          currency: 'KRW',
+          paymentId: payment.id,
+          businessId: biz.id,
+        }).catch(() => null);
       }
     }
   } catch (e) {
