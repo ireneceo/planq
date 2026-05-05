@@ -51,6 +51,17 @@ PlatformSetting.init({
   // 결제 정책
   default_vat_rate: { type: DataTypes.DECIMAL(4, 3), allowNull: false, defaultValue: 0.100 }, // 10%
   default_due_days: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 7 },
+  // ─── 약관 현재 버전 (2026-05-05) — User 가 다른 버전 동의 시 재동의 모달 트리거 ───
+  terms_version: { type: DataTypes.STRING(20), allowNull: false, defaultValue: '1.0' },
+  privacy_version: { type: DataTypes.STRING(20), allowNull: false, defaultValue: '1.0' },
+  // ─── 점검 모드 + 운영 공지 배너 (2026-05-05) ───
+  // maintenance_mode=true 면 platform_admin 외 모든 요청 503. message 가 사용자에게 표시.
+  maintenance_mode: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
+  maintenance_message: { type: DataTypes.STRING(500), allowNull: true },
+  // 사이드바 상단 공지 배너 — 운영자 일괄 안내 (점검 일정·신규 기능·약관 변경 등)
+  announcement_text: { type: DataTypes.STRING(500), allowNull: true },
+  announcement_dismissible: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true },
+  announcement_severity: { type: DataTypes.ENUM('info', 'warn', 'critical'), allowNull: false, defaultValue: 'info' },
   updated_by_user_id: {
     type: DataTypes.INTEGER,
     allowNull: true,

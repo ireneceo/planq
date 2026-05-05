@@ -163,6 +163,10 @@ app.use(cookieParser());
 // 모든 요청에 request_id 부여 — 사용자 신고 → 로그 매칭. response 에 X-Request-Id 헤더.
 app.use(requestIdMiddleware);
 
+// 점검 모드 (2026-05-05) — platform_settings.maintenance_mode=true 면 platform_admin 외 503
+const { maintenanceMiddleware } = require('./middleware/maintenance');
+app.use(maintenanceMiddleware);
+
 // Security
 setupSecurity(app);
 
@@ -337,6 +341,11 @@ function scheduleNextMidnight() {
       const r = await overdueHandler.runDailyOverdueCron();
       console.log('[overdue]', r);
     } catch (e) { console.warn('[overdue] failed', e.message); }
+    try {
+      const shareCleanup = require('./services/shareTokenCleanup');
+      const r = await shareCleanup.runShareTokenCleanup();
+      console.log('[share-token-cleanup]', r);
+    } catch (e) { console.warn('[share-token-cleanup] failed', e.message); }
     scheduleNextMidnight();
   }, delay);
 }
