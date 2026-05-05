@@ -1,6 +1,7 @@
 // Cue Help — 컨텍스트 인식 도움말 LLM 챗.
 // PlanQ 전체 화면에서 ⌘? / Ctrl+/ 단축키 또는 ⓘ "Cue 에게 묻기" 클릭으로 호출.
 // 입력: { question, page_context }, 출력: { answer }
+const crypto = require('crypto');
 const express = require('express');
 const router = express.Router();
 const { authenticateToken } = require('../middleware/auth');
@@ -45,6 +46,132 @@ const SYSTEM_PROMPT_WORKSPACE = `너는 Cue, 사용자의 워크스페이스 AI 
 - 영어/한국어 질문 언어에 맞춰 답변
 - PlanQ 사용법 질문이 오면: "그 질문은 'Q helper' 모드로 전환해서 물어보세요. 저는 이 워크스페이스의 데이터를 다룹니다."
 - 모르면 솔직히 "이 워크스페이스 데이터에서는 찾지 못했습니다"`;
+
+// ─── 게스트 (비로그인) 도움말 ───
+//   랜딩 / 공개 문서 / 가입 전 방문자 대상. PlanQ 마케팅 정보만.
+//   비용은 마케팅비용으로 감안 (cue_usage 미기록). 어뷰즈 가드: IP rate limit + 24h 캐시 + max_tokens.
+const SYSTEM_PROMPT_GUEST = `너는 PlanQ 안내 도우미. 가입 전 방문자에게 PlanQ 가 어떤 서비스인지 설명해.
+
+PlanQ — B2B SaaS 통합 워크스페이스. 핵심 모듈:
+• Q talk (대화) — 고객·팀과 채팅, 대화 자료 자동 정리
+• Q task (할일) — 업무 추출·배정·진행률·정기 업무
+• Q note (음성) — 회의 녹음·실시간 받아쓰기·요약
+• Q docs (문서) — 견적·계약·제안서·서명 (외부 OTP)
+• Q bill (청구) — 청구서·계좌이체/카드·세금계산서
+• Cue — 워크스페이스 AI 팀원 (가입 후 사용)
+
+플랜:
+• Starter — 멤버 1, 고객 5, 프로젝트 5, Cue 50회/월, 저장공간 2GB
+• Basic — 멤버 5, 고객 30, 프로젝트 30, Cue 300회/월, 50GB
+• Pro — 멤버 15, 고객 무제한, 프로젝트 무제한, Cue 1,000회/월, 500GB
+• 신규 가입 시 Starter 14일 체험 자동 적용
+
+답변 형식 (반드시):
+- 짧은 문단, 빈 줄 한 칸으로 분리
+- 한 문단 최대 2문장
+- 전체 3문단 이내 (게스트는 짧게 — 깊은 안내는 가입 후)
+- 답변 마지막에 자연스러운 다음 행동 1줄 (예: "지금 14일 무료로 시작해보세요" / "더 자세한 내용은 문의 남기기 탭으로 알려주세요")
+
+원칙:
+- PlanQ 의 가격·기능·도입 효과 등 마케팅 정보만
+- 워크스페이스 사용법 깊은 단계 (예: 특정 버튼 위치, 단축키) 가 오면: "가입 후 더 자세히 안내드립니다 → 14일 무료 체험"
+- 다른 회사 제품 비교에 답변 X — "PlanQ 가 어떻게 도와줄지 말씀드릴게요" 로 전환
+- 모르거나 답변 못 하는 건: "이건 사람에게 직접 묻는 게 빠릅니다 → 문의 남기기 탭"
+- 영어 질문은 영어로, 한국어는 한국어로
+- 코드/API 노출 X
+- 본인을 "Cue" 라 부르지 말 것 — Cue 는 가입자의 워크스페이스 AI 팀원`;
+
+// ─── 메모리 가드 (단일 프로세스) ───
+//   Stage 0 트래픽 기준 — 분당 10/IP, 일 50/IP. 충분 + Redis 도입 시점은 트래픽 트리거.
+const guestRate = new Map();    // ip -> { minute: [ts...], day: count, dayKey }
+const guestCache = new Map();   // hash(question) -> { answer, expiresAt }
+const GUEST_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+
+function getClientIp(req) {
+  const xf = (req.headers['x-forwarded-for'] || '').split(',')[0].trim();
+  return xf || req.ip || req.connection?.remoteAddress || 'unknown';
+}
+
+function checkGuestRate(ip) {
+  const now = Date.now();
+  const minuteWindow = now - 60_000;
+  const dayKey = new Date(now).toISOString().slice(0, 10);
+  const cur = guestRate.get(ip) || { minute: [], day: 0, dayKey };
+  if (cur.dayKey !== dayKey) { cur.day = 0; cur.dayKey = dayKey; }
+  cur.minute = cur.minute.filter(t => t > minuteWindow);
+  if (cur.minute.length >= 10) return { ok: false, reason: 'minute' };
+  if (cur.day >= 50) return { ok: false, reason: 'day' };
+  cur.minute.push(now);
+  cur.day += 1;
+  guestRate.set(ip, cur);
+  return { ok: true };
+}
+
+function guestQuestionHash(q) {
+  return crypto.createHash('sha256').update(String(q).trim().toLowerCase()).digest('hex').slice(0, 32);
+}
+
+router.post('/help-public', async (req, res, next) => {
+  try {
+    const { question } = req.body || {};
+    if (!question || typeof question !== 'string' || !question.trim()) {
+      return errorResponse(res, 'question_required', 400);
+    }
+    const q = question.trim().slice(0, 500);
+
+    const ip = getClientIp(req);
+    const rate = checkGuestRate(ip);
+    if (!rate.ok) {
+      return errorResponse(
+        res,
+        rate.reason === 'minute' ? 'rate_limit_minute' : 'rate_limit_day',
+        429,
+      );
+    }
+
+    // 캐시 hit — LLM 호출 없이 바로 응답 (마케팅 비용 절감)
+    const hash = guestQuestionHash(q);
+    const cached = guestCache.get(hash);
+    if (cached && cached.expiresAt > Date.now()) {
+      return successResponse(res, { answer: cached.answer, cached: true });
+    }
+
+    if (!OPENAI_API_KEY) {
+      return successResponse(res, {
+        answer: 'PlanQ 안내 챗봇 점검 중입니다. 문의 남기기 탭으로 알려주시면 바로 답변드립니다.',
+        fallback: true,
+      });
+    }
+
+    const r = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${OPENAI_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        messages: [
+          { role: 'system', content: SYSTEM_PROMPT_GUEST },
+          { role: 'user', content: q },
+        ],
+        temperature: 0.3,
+        max_tokens: 400,
+      }),
+    });
+    if (!r.ok) {
+      const t = await r.text().catch(() => '');
+      console.error('[cue/help-public] LLM error', r.status, t.slice(0, 200));
+      return errorResponse(res, 'llm_error', 502);
+    }
+    const j = await r.json();
+    const answer = (j.choices?.[0]?.message?.content || '').trim();
+    if (answer) {
+      guestCache.set(hash, { answer, expiresAt: Date.now() + GUEST_CACHE_TTL_MS });
+    }
+    return successResponse(res, { answer, cached: false });
+  } catch (e) { next(e); }
+});
 
 router.post('/help', authenticateToken, async (req, res, next) => {
   try {
