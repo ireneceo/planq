@@ -11,6 +11,8 @@ import PlanQSelect, { type PlanQSelectOption } from '../../components/Common/Pla
 import DetailDrawer from '../../components/Common/DetailDrawer';
 import EmptyState from '../../components/Common/EmptyState';
 import { apiFetch } from '../../contexts/AuthContext';
+import { useTimeFormat } from '../../hooks/useTimeFormat';
+import { formatDateTime } from '../../utils/dateFormat';
 
 type Status = 'new' | 'in_progress' | 'resolved' | 'spam';
 type Kind = 'enterprise' | 'general' | 'landing';
@@ -26,6 +28,7 @@ interface InquiryItem {
   from_company: string | null;
   from_phone: string | null;
   message: string;
+  from_user_timezone: string | null;
   status: Status;
   reply_note: string | null;
   replied_at: string | null;
@@ -39,7 +42,9 @@ interface InquiryItem {
 const STATUSES: Status[] = ['new', 'in_progress', 'resolved', 'spam'];
 
 const AdminInquiriesPage = () => {
-  const { t } = useTranslation('common');
+  const { t, i18n } = useTranslation('common');
+  const tf = useTimeFormat();  // 관리자 본인 워크스페이스 tz
+  const adminLocale = i18n.language?.startsWith('en') ? 'en-US' : 'ko-KR';
   const [params, setParams] = useSearchParams();
   const [items, setItems] = useState<InquiryItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -146,7 +151,7 @@ const AdminInquiriesPage = () => {
                 <FromName>{it.from_name}</FromName>
                 <KindTag>{kindLabel(it.kind, t)}</KindTag>
                 <Spacer />
-                <CreatedAt>{new Date(it.created_at).toLocaleString('ko-KR')}</CreatedAt>
+                <CreatedAt>{tf.formatDateTime(it.created_at)}</CreatedAt>
               </RowHeader>
               <FromInfo>
                 {it.from_email}
@@ -184,7 +189,16 @@ const AdminInquiriesPage = () => {
                 {detail.fromUser ? ` · ${t('adminInq.dLoggedIn', '로그인 사용자')}: ${detail.fromUser.name}` : ` · ${t('adminInq.dGuest', '게스트')}`}
               </DValue>
               <DValue>
-                <DLabelInline>{t('adminInq.dCreated', '접수')}</DLabelInline> {new Date(detail.created_at).toLocaleString('ko-KR')}
+                <DLabelInline>{t('adminInq.dCreated', '접수')}</DLabelInline>{' '}
+                {tf.formatDateTime(detail.created_at)}{' '}
+                <TzTag title={t('adminInq.dTzAdmin', '관리자 워크스페이스 시간') as string}>{tf.tz}</TzTag>
+                {detail.from_user_timezone && detail.from_user_timezone !== tf.tz && (
+                  <>
+                    {' · '}
+                    {formatDateTime(detail.created_at, detail.from_user_timezone, adminLocale)}{' '}
+                    <TzTag title={t('adminInq.dTzUser', '문의자 워크스페이스 시간') as string}>{detail.from_user_timezone}</TzTag>
+                  </>
+                )}
               </DValue>
             </DSection>
 
@@ -216,7 +230,7 @@ const AdminInquiriesPage = () => {
               />
               {detail.repliedBy && detail.replied_at && (
                 <DMeta>
-                  {t('adminInq.dRepliedBy', '마지막 처리')}: {detail.repliedBy.name} · {new Date(detail.replied_at).toLocaleString('ko-KR')}
+                  {t('adminInq.dRepliedBy', '마지막 처리')}: {detail.repliedBy.name} · {tf.formatDateTime(detail.replied_at)}
                 </DMeta>
               )}
             </DSection>
@@ -292,6 +306,12 @@ const ReplyTextarea = styled.textarea`
   &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20,184,166,0.15); }
 `;
 const DMeta = styled.div`font-size: 11px; color: #94A3B8; margin-top: 6px;`;
+const TzTag = styled.span`
+  display: inline-block; padding: 1px 6px; margin-left: 2px;
+  font-size: 10px; font-weight: 600; color: #475569;
+  background: #F1F5F9; border-radius: 4px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+`;
 const FooterRow = styled.div`display: flex; gap: 8px; justify-content: flex-end; width: 100%;`;
 const PrimaryBtn = styled.button`
   padding: 8px 16px; background: #14B8A6; color: #FFFFFF;
