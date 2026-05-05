@@ -214,6 +214,32 @@ async function markPaymentPaid({ paymentId, markedByUserId, payerName, payerMemo
     await t.commit();
     // plan engine 캐시 무효화 (Business.plan 변경 후 status 조회가 stale 안 되게)
     try { require('./plan').invalidateBusinessCache(sub.business_id); } catch { /* noop */ }
+
+    // 플랫폼 관리자 알림 — payment 입금 확인 + subscription 활성화 (둘 다 발송)
+    setImmediate(() => {
+      const { notifyPlatformAdmins, APP_URL } = require('./platformNotify');
+      const planLabel = PLANS.PLANS?.[sub.plan_code]?.name_ko || sub.plan_code;
+      const cycleLabel = sub.cycle === 'monthly' ? '월간' : sub.cycle === 'yearly' ? '연간' : sub.cycle;
+      const amountStr = pay.currency === 'KRW' ? `${Number(pay.amount).toLocaleString()}원` : `${pay.currency} ${Number(pay.amount).toLocaleString()}`;
+      notifyPlatformAdmins({
+        eventKind: 'payment',
+        title: `결제 입금 확인 — ${planLabel} ${cycleLabel} (${amountStr})`,
+        body: `결제 #${pay.id} mark-paid. 워크스페이스 ID ${sub.business_id}, ${pay.payer_name ? `입금자명 ${pay.payer_name}, ` : ''}${pay.payer_memo ? `메모: ${pay.payer_memo}` : ''}`,
+        link: `${APP_URL}/admin/payments?id=${pay.id}`,
+        ctaLabel: '결제 보기',
+        relatedEntityId: pay.id,
+      }).catch(() => null);
+      if (wasFirst || fromPlan !== sub.plan_code) {
+        notifyPlatformAdmins({
+          eventKind: 'subscription',
+          title: `구독 변경 — ${fromPlan} → ${sub.plan_code}`,
+          body: `워크스페이스 ID ${sub.business_id} 가 ${planLabel} ${cycleLabel} 으로 ${wasFirst ? '신규 활성화' : '변경'} 됐습니다.`,
+          link: `${APP_URL}/admin/subscriptions`,
+          ctaLabel: '구독 보기',
+          relatedEntityId: sub.id,
+        }).catch(() => null);
+      }
+    });
     return { payment: pay, subscription: sub };
   } catch (err) {
     if (!t.finished) await t.rollback();
@@ -258,6 +284,20 @@ async function downgradeToFree({ businessId, userId, reason = 'expire' }) {
     }
     await t.commit();
     try { require('./plan').invalidateBusinessCache(businessId); } catch { /* noop */ }
+
+    if (fromPlan !== 'free') {
+      setImmediate(() => {
+        const { notifyPlatformAdmins, APP_URL } = require('./platformNotify');
+        notifyPlatformAdmins({
+          eventKind: 'subscription',
+          title: `구독 강등 — ${fromPlan} → free`,
+          body: `워크스페이스 ID ${businessId} 가 free 로 강등됐습니다. 사유: ${reason}.`,
+          link: `${APP_URL}/admin/subscriptions`,
+          ctaLabel: '구독 보기',
+          relatedEntityId: businessId,
+        }).catch(() => null);
+      });
+    }
     return { businessId, fromPlan, toPlan: 'free' };
   } catch (err) {
     if (!t.finished) await t.rollback();

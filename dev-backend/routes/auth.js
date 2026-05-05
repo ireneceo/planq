@@ -339,6 +339,19 @@ router.post('/register', async (req, res, next) => {
         business_role: 'owner'
       }
     }, 'Registration successful', 201);
+
+    // 플랫폼 관리자 알림 — fan-out 비동기 (응답 지연 X)
+    setImmediate(() => {
+      const { notifyPlatformAdmins, APP_URL } = require('../services/platformNotify');
+      notifyPlatformAdmins({
+        eventKind: 'signup',
+        title: `신규 가입 — ${business.brand_name || business.name}`,
+        body: `${user.name} (${user.email}) 가 워크스페이스 "${business.brand_name || business.name}" 으로 가입했습니다.`,
+        link: `${APP_URL}/admin/businesses?id=${business.id}`,
+        ctaLabel: '워크스페이스 보기',
+        relatedEntityId: business.id,
+      }).catch(() => null);
+    });
   } catch (error) {
     await transaction.rollback();
     // Race: 두 요청이 동시에 같은 email/username 으로 가입 시도 시 UNIQUE constraint 발동.

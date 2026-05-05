@@ -11,12 +11,21 @@ import PageShell from '../../components/Layout/PageShell';
 import { apiFetch } from '../../contexts/AuthContext';
 import { InboxIcon, MailIcon } from '../../components/Common/Icons';
 
-type EventKind = 'inquiry';
+type EventKind = 'inquiry' | 'signup' | 'payment' | 'subscription' | 'trial' | 'feedback';
 type Channel = 'inbox' | 'email' | 'push';
 type Matrix = Record<EventKind, Record<Channel, boolean>>;
 
-const EVENTS: EventKind[] = ['inquiry'];
+const EVENTS: EventKind[] = ['inquiry', 'signup', 'payment', 'subscription', 'trial', 'feedback'];
 const CHANNELS: Channel[] = ['inbox', 'email', 'push'];
+
+const EVENT_FALLBACKS: Record<EventKind, { label: string; desc: string }> = {
+  inquiry: { label: '새 문의 접수', desc: '랜딩 폼·게스트 챗·로그인 사용자가 문의를 남겼을 때' },
+  signup: { label: '신규 가입', desc: '새 사용자 또는 워크스페이스 등록 완료' },
+  payment: { label: '결제 발생', desc: '입금 확인(mark-paid), 결제 실패 등' },
+  subscription: { label: '구독 변경', desc: '플랜 변경 / 해지 / 강등' },
+  trial: { label: '체험 종료', desc: '14일 체험 만료 또는 D-7 임박 알림' },
+  feedback: { label: '사용자 피드백', desc: '사용 중 사용자가 제출한 버그·개선·기능 요청' },
+};
 
 const AdminNotificationsPage: React.FC = () => {
   const { t } = useTranslation('common');
@@ -34,13 +43,16 @@ const AdminNotificationsPage: React.FC = () => {
       .then(j => {
         if (cancelled) return;
         if (!j.success) throw new Error(j.message || 'load_failed');
-        // matrix 에서 'inquiry' 만 추출 — 다른 이벤트는 platform 페이지에선 의미 없음
+        // matrix 에서 platform_admin 6 종만 추출 (워크스페이스 이벤트는 별도 페이지)
         const all = j.data.matrix as Record<string, Record<string, boolean>>;
-        const out: Matrix = { inquiry: { inbox: true, email: true, push: true } };
-        if (all.inquiry) {
-          out.inquiry.inbox = !!all.inquiry.inbox;
-          out.inquiry.email = !!all.inquiry.email;
-          out.inquiry.push = !!all.inquiry.push;
+        const out = {} as Matrix;
+        for (const ev of EVENTS) {
+          const row = all[ev] || {};
+          out[ev] = {
+            inbox: row.inbox === undefined ? true : !!row.inbox,
+            email: row.email === undefined ? true : !!row.email,
+            push: row.push === undefined ? true : !!row.push,
+          };
         }
         setMatrix(out);
         setError(null);
@@ -108,8 +120,8 @@ const AdminNotificationsPage: React.FC = () => {
           {EVENTS.map(ev => (
             <MatrixRow key={ev}>
               <EventCell>
-                <EventLabel>{t('adminNotif.eventLabel.inquiry', '새 문의 접수')}</EventLabel>
-                <EventDesc>{t('adminNotif.eventDesc.inquiry', '랜딩 폼·게스트 챗에서 새 문의가 들어왔을 때')}</EventDesc>
+                <EventLabel>{t(`adminNotif.eventLabel.${ev}`, EVENT_FALLBACKS[ev].label)}</EventLabel>
+                <EventDesc>{t(`adminNotif.eventDesc.${ev}`, EVENT_FALLBACKS[ev].desc)}</EventDesc>
               </EventCell>
               {CHANNELS.map(ch => {
                 const enabled = matrix[ev][ch];
