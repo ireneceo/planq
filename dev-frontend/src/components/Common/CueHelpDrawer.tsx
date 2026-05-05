@@ -11,12 +11,14 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useLocation } from 'react-router-dom';
-import { apiFetch } from '../../contexts/AuthContext';
+import { apiFetch, useAuth } from '../../contexts/AuthContext';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 
 // 사이클 P7d — 채팅 모드 분리: qhelper(PlanQ 매뉴얼) / workspace(Cue, 워크스페이스 데이터)
-// 'feedback' 은 별도 view (채팅 아닌 폼)
-type Mode = 'qhelper' | 'workspace' | 'feedback';
+// 'feedback' / 'inquiry' 는 별도 view (채팅 아닌 폼)
+//   비로그인: qhelper(게스트 prompt) + inquiry(랜딩 문의 와 동일 백엔드)
+//   로그인:  qhelper + workspace + feedback
+type Mode = 'qhelper' | 'workspace' | 'feedback' | 'inquiry';
 type FeedbackCategory = 'bug' | 'improve' | 'feature' | 'other';
 
 interface Turn {
@@ -29,6 +31,8 @@ interface Turn {
 const CueHelpDrawer: React.FC = () => {
   const { t } = useTranslation('common');
   const location = useLocation();
+  const { user } = useAuth();
+  const isGuest = !user;
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<Mode>('qhelper');
   const [input, setInput] = useState('');
@@ -38,11 +42,24 @@ const CueHelpDrawer: React.FC = () => {
   const drawerRef = useRef<HTMLDivElement>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
 
-  // 피드백 모드 폼 상태
+  // 피드백 모드 폼 상태 (로그인 사용자 전용)
   const [fbCategory, setFbCategory] = useState<FeedbackCategory>('improve');
   const [fbPriority, setFbPriority] = useState<'normal' | 'high'>('normal');
   const [fbBody, setFbBody] = useState('');
   const [fbResultMsg, setFbResultMsg] = useState<string | null>(null);
+
+  // 문의 모드 폼 상태 (게스트 전용 — 랜딩 /contact 와 동일 백엔드)
+  const [inqName, setInqName] = useState('');
+  const [inqEmail, setInqEmail] = useState('');
+  const [inqMessage, setInqMessage] = useState('');
+  const [inqResultMsg, setInqResultMsg] = useState<string | null>(null);
+
+  // 게스트가 잘못된 모드로 떨어지지 않게 보정
+  useEffect(() => {
+    if (isGuest && (mode === 'workspace' || mode === 'feedback')) {
+      setMode('qhelper');
+    }
+  }, [isGuest, mode]);
 
   useBodyScrollLock(open);
 
@@ -96,20 +113,29 @@ const CueHelpDrawer: React.FC = () => {
     setTurns(prev => [...prev.slice(-4), turn]); // 최근 5턴 유지
     setInput('');
     try {
-      const res = await apiFetch('/api/cue/help', {
+      // 게스트는 auth 없는 public 라우트 (마케팅 비용 — 워크스페이스 사용량 미차감)
+      // 로그인 사용자는 apiFetch (토큰 자동 추가 + 401 시 refresh)
+      const url = isGuest ? '/api/cue/help-public' : '/api/cue/help';
+      const body = isGuest
+        ? { question: q }
+        : {
+            question: q,
+            mode,
+            page_context: { path: location.pathname, search: location.search || undefined },
+          };
+      const fetcher = isGuest ? fetch : apiFetch;
+      const res = await fetcher(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          question: q,
-          mode,  // 'qhelper' | 'workspace' — 백엔드가 system prompt + 컨텍스트 격리
-          page_context: {
-            path: location.pathname,
-            search: location.search || undefined,
-          },
-        }),
+        body: JSON.stringify(body),
       });
       const j = await res.json();
-      if (!res.ok || !j.success) throw new Error(j.message || 'Q helper error');
+      if (!res.ok || !j.success) {
+        const msg = j.message === 'rate_limit_minute' ? t('qhelper.rateLimitMinute', '잠깐만요 — 너무 빠르게 묻고 있어요. 1분 후 다시 시도해주세요.')
+          : j.message === 'rate_limit_day' ? t('qhelper.rateLimitDay', '오늘 안내 횟수를 초과했습니다. 자세한 내용은 문의 남기기 탭으로 알려주세요.')
+          : (j.message || 'Q helper error');
+        throw new Error(msg as string);
+      }
       setTurns(prev => prev.map((tn, i) => i === prev.length - 1 ? { ...tn, a: j.data.answer || '', loading: false } : tn));
     } catch (e) {
       setTurns(prev => prev.map((tn, i) => i === prev.length - 1
@@ -118,7 +144,40 @@ const CueHelpDrawer: React.FC = () => {
     } finally {
       setSubmitting(false);
     }
-  }, [input, submitting, location]);
+  }, [input, submitting, location, isGuest, mode, t]);
+
+  // 게스트 문의 제출 — 랜딩 /contact 와 동일 백엔드 (POST /api/inquiries)
+  const submitInquiry = useCallback(async () => {
+    if (submitting) return;
+    if (!inqName.trim() || !inqEmail.trim() || !inqMessage.trim()) {
+      setInqResultMsg(t('qhelper.inqRequired', '이름·이메일·내용을 모두 입력해주세요.') as string);
+      return;
+    }
+    setSubmitting(true);
+    setInqResultMsg(null);
+    try {
+      const res = await fetch('/api/inquiries', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          kind: 'general',
+          source: 'guest_cue_widget',
+          from_name: inqName.trim(),
+          from_email: inqEmail.trim(),
+          message: inqMessage.trim(),
+        }),
+      });
+      const j = await res.json();
+      if (!res.ok || !j.success) throw new Error(j.message || 'inquiry error');
+      setInqResultMsg(t('qhelper.inqThanks', '문의가 접수됐습니다. 영업일 기준 24시간 내 회신드릴게요.') as string);
+      setInqName(''); setInqEmail(''); setInqMessage('');
+      window.setTimeout(() => setInqResultMsg(null), 8000);
+    } catch (e) {
+      setInqResultMsg(t('qhelper.inqErr', '제출 실패: {{msg}}', { msg: e instanceof Error ? e.message : 'error' }) as string);
+    } finally {
+      setSubmitting(false);
+    }
+  }, [inqName, inqEmail, inqMessage, submitting, t]);
 
   // 피드백 제출 (자동 메타: page_url, user_agent)
   const submitFeedback = useCallback(async () => {
@@ -177,17 +236,21 @@ const CueHelpDrawer: React.FC = () => {
             </Sparkle>
             <span>
               {mode === 'feedback' ? t('qhelper.fbHeaderTitle', '피드백 보내기') :
+               mode === 'inquiry' ? t('qhelper.inqHeaderTitle', '문의 남기기') :
                mode === 'workspace' ? t('qhelper.cueTitle', 'Cue · 내 워크스페이스') :
+               isGuest ? t('qhelper.guestTitle', 'PlanQ 안내') :
                t('qhelper.title', 'Q helper')}
             </span>
           </HeaderTitle>
           <HeaderActions>
-            {mode !== 'feedback' ? (
+            {/* 피드백 진입은 로그인 사용자 전용 — 게스트는 안 보임 */}
+            {!isGuest && mode !== 'feedback' && (
               <FeedbackEnter type="button" onClick={() => setMode('feedback')}>
                 {t('qhelper.openFeedbackBtn', '피드백 보내기')}
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
               </FeedbackEnter>
-            ) : (
+            )}
+            {!isGuest && mode === 'feedback' && (
               <BackToGuide type="button" onClick={() => setMode('qhelper')}>
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
                 {t('qhelper.backToGuide', '안내로 돌아가기')}
@@ -198,7 +261,7 @@ const CueHelpDrawer: React.FC = () => {
             </CloseBtn>
           </HeaderActions>
         </Header>
-        {mode !== 'feedback' && (
+        {mode !== 'feedback' && !isGuest && (
           <ModeSwitch role="tablist">
             <ModeBtn type="button" $active={mode === 'qhelper'} $variant="qhelper"
               onClick={() => { setMode('qhelper'); setTurns([]); }} role="tab" aria-selected={mode === 'qhelper'}>
@@ -212,14 +275,33 @@ const CueHelpDrawer: React.FC = () => {
             </ModeBtn>
           </ModeSwitch>
         )}
+        {isGuest && (
+          <ModeSwitch role="tablist">
+            <ModeBtn type="button" $active={mode === 'qhelper'} $variant="qhelper"
+              onClick={() => { setMode('qhelper'); setTurns([]); }} role="tab" aria-selected={mode === 'qhelper'}>
+              <ModeDot $variant="qhelper" />
+              {t('qhelper.modeGuestQhelper', 'PlanQ 안내')}
+            </ModeBtn>
+            <ModeBtn type="button" $active={mode === 'inquiry'} $variant="qhelper"
+              onClick={() => setMode('inquiry')} role="tab" aria-selected={mode === 'inquiry'}>
+              <ModeDot $variant="qhelper" />
+              {t('qhelper.modeInquiry', '문의 남기기')}
+            </ModeBtn>
+          </ModeSwitch>
+        )}
         {mode === 'qhelper' && turns.length === 0 && (
           <QuickChips>
-            {[
+            {(isGuest ? [
+              { v: 'g_what', label: t('qhelper.gQuickWhat', '뭐 하는 서비스?') },
+              { v: 'g_pricing', label: t('qhelper.gQuickPricing', '가격') },
+              { v: 'g_features', label: t('qhelper.gQuickFeatures', '기능') },
+              { v: 'g_trial', label: t('qhelper.gQuickTrial', '체험·시작') },
+            ] : [
               { v: 'usage', label: t('qhelper.quickUsage', '사용법') },
               { v: 'bug', label: t('qhelper.quickBug', '오류·버그') },
               { v: 'plan', label: t('qhelper.quickPlan', '결제·플랜') },
               { v: 'security', label: t('qhelper.quickSecurity', '보안·권한') },
-            ].map(c => (
+            ]).map(c => (
               <QuickChip key={c.v} type="button" onClick={() => setInput(`[${c.label}] `)}>
                 {c.label}
               </QuickChip>
@@ -250,16 +332,22 @@ const CueHelpDrawer: React.FC = () => {
             turns.length === 0 ? (
               <Empty>
                 <EmptyTitle>
-                  {mode === 'workspace' ? t('qhelper.cueEmptyTitle', '내 워크스페이스에 대해 무엇이든') : t('qhelper.emptyTitle', '무엇이 궁금한가요?')}
+                  {mode === 'workspace' ? t('qhelper.cueEmptyTitle', '내 워크스페이스에 대해 무엇이든')
+                    : isGuest ? t('qhelper.guestEmptyTitle', 'PlanQ, 무엇이든 물어보세요')
+                    : t('qhelper.emptyTitle', '무엇이 궁금한가요?')}
                 </EmptyTitle>
                 <EmptyHint>
                   {mode === 'workspace'
                     ? t('qhelper.cueEmptyHint', '현재 워크스페이스의 고객·업무·일정·회의를 기반으로 답변합니다. 다른 워크스페이스 데이터는 보지 않습니다.')
-                    : t('qhelper.emptyHint', 'PlanQ 의 사용법·기능을 자연어로 물어보세요. 현재 화면 컨텍스트를 읽고 답변합니다.')}
+                    : isGuest
+                      ? t('qhelper.guestEmptyHint', 'PlanQ 의 기능·가격·도입 효과를 편하게 물어보세요. 사람에게 직접 묻고 싶으면 "문의 남기기" 탭으로 이동하세요.')
+                      : t('qhelper.emptyHint', 'PlanQ 의 사용법·기능을 자연어로 물어보세요. 현재 화면 컨텍스트를 읽고 답변합니다.')}
                 </EmptyHint>
-                <EmptyShortcut>
-                  <kbd>⌘</kbd> <kbd>?</kbd> {t('qhelper.toggleHint', '로 언제든 열고 닫기')}
-                </EmptyShortcut>
+                {!isGuest && (
+                  <EmptyShortcut>
+                    <kbd>⌘</kbd> <kbd>?</kbd> {t('qhelper.toggleHint', '로 언제든 열고 닫기')}
+                  </EmptyShortcut>
+                )}
               </Empty>
             ) : (
               turns.map((tn, i) => (
@@ -323,16 +411,51 @@ const CueHelpDrawer: React.FC = () => {
               {fbResultMsg && <FbResult>{fbResultMsg}</FbResult>}
             </FbForm>
           )}
+          {mode === 'inquiry' && (
+            <FbForm>
+              <FbField>
+                <FbLabel>{t('qhelper.inqName', '이름')}</FbLabel>
+                <FbInput
+                  type="text" value={inqName}
+                  onChange={e => setInqName(e.target.value)}
+                  placeholder={t('qhelper.inqNamePh', '예: 홍길동') as string}
+                  maxLength={100}
+                />
+              </FbField>
+              <FbField>
+                <FbLabel>{t('qhelper.inqEmail', '이메일')}</FbLabel>
+                <FbInput
+                  type="email" value={inqEmail}
+                  onChange={e => setInqEmail(e.target.value)}
+                  placeholder="name@company.com"
+                  maxLength={200}
+                />
+              </FbField>
+              <FbField>
+                <FbLabel>{t('qhelper.inqMessage', '문의 내용')}</FbLabel>
+                <FbTextArea
+                  value={inqMessage}
+                  onChange={e => setInqMessage(e.target.value)}
+                  placeholder={t('qhelper.inqMessagePh', '궁금한 점 또는 도입 검토 중인 내용을 알려주세요. 영업일 기준 24시간 내 회신드립니다.') as string}
+                  rows={6}
+                  maxLength={5000}
+                />
+              </FbField>
+              {inqResultMsg && <FbResult>{inqResultMsg}</FbResult>}
+            </FbForm>
+          )}
         </Body>
         <Footer>
-          {mode !== 'feedback' ? (
+          {(mode === 'qhelper' || mode === 'workspace') && (
             <>
               <InputArea
                 ref={inputRef}
                 value={input}
                 placeholder={mode === 'workspace'
                   ? t('qhelper.cueInputPh', '내 워크스페이스에 대해 묻기 (Cmd/Ctrl + Enter)') as string
-                  : t('qhelper.inputPh', '질문을 입력하세요 (Cmd/Ctrl + Enter 로 보내기)') as string}
+                  : isGuest
+                    ? t('qhelper.guestInputPh', 'PlanQ 에 대해 무엇이든 물어보세요 (Cmd/Ctrl + Enter)') as string
+                    : t('qhelper.inputPh', '질문을 입력하세요 (Cmd/Ctrl + Enter 로 보내기)') as string}
                 onChange={e => setInput(e.target.value)}
                 onKeyDown={e => {
                   if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
@@ -346,9 +469,17 @@ const CueHelpDrawer: React.FC = () => {
                 {submitting ? t('qhelper.sending', '전송 중…') : t('qhelper.send', '보내기')}
               </SendBtn>
             </>
-          ) : (
+          )}
+          {mode === 'feedback' && (
             <FbSendBtn type="button" onClick={submitFeedback} disabled={submitting || !fbBody.trim()}>
               {submitting ? t('qhelper.fbSending', '제출 중…') : t('qhelper.fbSend', '제출')}
+            </FbSendBtn>
+          )}
+          {mode === 'inquiry' && (
+            <FbSendBtn type="button" onClick={submitInquiry}
+              disabled={submitting || !inqName.trim() || !inqEmail.trim() || !inqMessage.trim()}
+              style={{ background: '#0D9488' }}>
+              {submitting ? t('qhelper.inqSending', '제출 중…') : t('qhelper.inqSend', '문의 보내기')}
             </FbSendBtn>
           )}
         </Footer>
@@ -604,6 +735,13 @@ const FbTextArea = styled.textarea`
   font-size: 13px; color: #0F172A;
   font-family: inherit; resize: vertical;
   &:focus { outline: none; border-color: #F43F5E; box-shadow: 0 0 0 3px rgba(244,63,94,0.15); }
+`;
+const FbInput = styled.input`
+  padding: 10px 12px;
+  border: 1px solid #E2E8F0; border-radius: 8px;
+  font-size: 13px; color: #0F172A;
+  font-family: inherit;
+  &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20,184,166,0.15); }
 `;
 const FbCheck = styled.div`
   display: flex; align-items: center; gap: 8px;
