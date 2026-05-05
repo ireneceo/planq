@@ -98,6 +98,8 @@ export async function updateKnowledge(businessId: number, docId: number, patch: 
   read_policy: 'all' | 'owner';
   client_ids: number[];
   tags: string[];
+  attached_file_ids: number[];
+  attached_post_ids: number[];
 }>): Promise<KbDocumentRow> {
   const r = await apiFetch(`/api/businesses/${businessId}/kb/documents/${docId}`, {
     method: 'PUT',

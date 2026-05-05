@@ -536,6 +536,15 @@ router.put('/businesses/:businessId/kb/documents/:docId', authenticateToken, che
     if (req.body.tags !== undefined) {
       patch.tags = Array.isArray(req.body.tags) ? req.body.tags.map(String) : null;
     }
+    // 첨부 파일/문서 add·remove — 전체 배열 PUT 으로 갱신 (단순)
+    if (req.body.attached_file_ids !== undefined) {
+      patch.attached_file_ids = Array.isArray(req.body.attached_file_ids)
+        ? req.body.attached_file_ids.map(Number).filter(Boolean) : null;
+    }
+    if (req.body.attached_post_ids !== undefined) {
+      patch.attached_post_ids = Array.isArray(req.body.attached_post_ids)
+        ? req.body.attached_post_ids.map(Number).filter(Boolean) : null;
+    }
     await doc.update(patch);
     await createAuditLog({
       userId: req.user.id, businessId: req.params.businessId,

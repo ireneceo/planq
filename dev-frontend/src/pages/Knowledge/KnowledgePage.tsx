@@ -684,21 +684,98 @@ const KnowledgePage = () => {
                       options={CATEGORIES.map(c => ({ value: c, label: t(`cat.${c}`) as string }))} />
                   </MetaEditWrap>
                   <MetaLabel>{t('drawer.scope')}</MetaLabel>
-                  <MetaValue>{t(`scope.${detail.scope}`)}</MetaValue>
-                  {detail.scope === 'project' && detail.project_id && (
+                  <MetaEditWrap>
+                    <PlanQSelect size="sm" isSearchable={false}
+                      value={{ value: detail.scope, label: t(`scope.${detail.scope}`) as string }}
+                      options={SCOPES.map(s => ({ value: s, label: t(`scope.${s}`) as string }))}
+                      onChange={async (opt) => {
+                        const next = (opt as PlanQSelectOption | null)?.value as KbScope | undefined;
+                        if (!next || next === detail.scope) return;
+                        try {
+                          const patch: Partial<{ scope: KbScope; project_id: number | null; client_id: number | null }> = { scope: next };
+                          if (next === 'workspace') { patch.project_id = null; patch.client_id = null; }
+                          if (next === 'project') patch.client_id = null;
+                          if (next === 'client') patch.project_id = null;
+                          await updateKnowledge(businessId, detail.id, patch);
+                          setDocs(prev => prev.map(x => x.id === detail.id ? { ...x, ...patch, scope: next } : x));
+                          setDetail(prev => prev ? { ...prev, ...patch, scope: next } : prev);
+                        } catch { /* skip */ }
+                      }}
+                    />
+                  </MetaEditWrap>
+                  {detail.scope === 'project' && (
                     <>
                       <MetaLabel>{t('drawer.project')}</MetaLabel>
-                      <MetaValue>{projects.find(p => p.id === detail.project_id)?.name || `#${detail.project_id}`}</MetaValue>
+                      <MetaEditWrap>
+                        <PlanQSelect size="sm"
+                          value={detail.project_id ? { value: String(detail.project_id), label: projects.find(p => p.id === detail.project_id)?.name || `#${detail.project_id}` } : undefined}
+                          options={projects.map(p => ({ value: String(p.id), label: p.name }))}
+                          onChange={async (opt) => {
+                            const v = (opt as PlanQSelectOption | null)?.value;
+                            const next = v ? Number(v) : null;
+                            if (next === detail.project_id) return;
+                            try {
+                              await updateKnowledge(businessId, detail.id, { project_id: next });
+                              setDocs(prev => prev.map(x => x.id === detail.id ? { ...x, project_id: next } : x));
+                              setDetail(prev => prev ? { ...prev, project_id: next } : prev);
+                            } catch { /* skip */ }
+                          }}
+                        />
+                      </MetaEditWrap>
                     </>
                   )}
-                  {detail.scope === 'client' && detail.client_id && (
+                  {detail.scope === 'client' && (
                     <>
                       <MetaLabel>{t('drawer.client')}</MetaLabel>
-                      <MetaValue>
-                        {(() => { const c = clients.find(x => x.id === detail.client_id); return c?.display_name || c?.biz_name || c?.company_name || `#${detail.client_id}`; })()}
-                      </MetaValue>
+                      <MetaEditWrap>
+                        <PlanQSelect size="sm"
+                          value={detail.client_id ? { value: String(detail.client_id), label: (() => { const c = clients.find(x => x.id === detail.client_id); return c?.display_name || c?.biz_name || c?.company_name || `#${detail.client_id}`; })() } : undefined}
+                          options={clients.map(c => ({ value: String(c.id), label: c.display_name || c.biz_name || c.company_name || `#${c.id}` }))}
+                          onChange={async (opt) => {
+                            const v = (opt as PlanQSelectOption | null)?.value;
+                            const next = v ? Number(v) : null;
+                            if (next === detail.client_id) return;
+                            try {
+                              await updateKnowledge(businessId, detail.id, { client_id: next });
+                              setDocs(prev => prev.map(x => x.id === detail.id ? { ...x, client_id: next } : x));
+                              setDetail(prev => prev ? { ...prev, client_id: next } : prev);
+                            } catch { /* skip */ }
+                          }}
+                        />
+                      </MetaEditWrap>
                     </>
                   )}
+                  <MetaLabel>{t('drawer.tags', '태그')}</MetaLabel>
+                  <MetaEditWrap>
+                    <TagsEdit
+                      docId={detail.id}
+                      businessId={businessId}
+                      initialValue={Array.isArray(detail.tags) ? detail.tags : []}
+                      onSaved={(tags) => {
+                        setDocs(prev => prev.map(x => x.id === detail.id ? { ...x, tags } : x));
+                        setDetail(prev => prev ? { ...prev, tags } : prev);
+                      }}
+                    />
+                  </MetaEditWrap>
+                  <MetaLabel>{t('drawer.readPolicy', '권한')}</MetaLabel>
+                  <MetaEditWrap>
+                    <PlanQSelect size="sm" isSearchable={false}
+                      value={{ value: detail.read_policy || 'all', label: t(`readPolicy.${detail.read_policy || 'all'}`, (detail.read_policy === 'owner' ? '운영진만' : '모두')) as string }}
+                      options={[
+                        { value: 'all', label: t('readPolicy.all', '모두') as string },
+                        { value: 'owner', label: t('readPolicy.owner', '운영진만') as string },
+                      ]}
+                      onChange={async (opt) => {
+                        const next = (opt as PlanQSelectOption | null)?.value as 'all' | 'owner' | undefined;
+                        if (!next || next === detail.read_policy) return;
+                        try {
+                          await updateKnowledge(businessId, detail.id, { read_policy: next });
+                          setDocs(prev => prev.map(x => x.id === detail.id ? { ...x, read_policy: next } : x));
+                          setDetail(prev => prev ? { ...prev, read_policy: next } : prev);
+                        } catch { /* skip */ }
+                      }}
+                    />
+                  </MetaEditWrap>
                   <MetaLabel>{t('drawer.status')}</MetaLabel>
                   <MetaValue>{t(`status.${detail.status}`)}</MetaValue>
                   <MetaLabel>{t('drawer.createdAt')}</MetaLabel>
@@ -746,9 +823,10 @@ const KnowledgePage = () => {
                   </DrawerCustomList>
                 </DrawerSection>
               )}
-              {detail.attached_files && detail.attached_files.length > 0 && (
-                <DrawerSection>
-                  <SectionLabel>{t('drawer.attachedFiles', '첨부 파일')} <small>({detail.attached_files.length})</small></SectionLabel>
+              {/* 첨부 파일 — 등록과 동일하게 add/remove 가능 */}
+              <DrawerSection>
+                <SectionLabel>{t('drawer.attachedFiles', '첨부 파일')} {detail.attached_files && detail.attached_files.length > 0 && <small>({detail.attached_files.length})</small>}</SectionLabel>
+                {detail.attached_files && detail.attached_files.length > 0 && (
                   <AttachList>
                     {detail.attached_files.map(f => (
                       <AttachRow key={`f-${f.id}`}>
@@ -771,14 +849,57 @@ const KnowledgePage = () => {
                             <line x1="12" y1="15" x2="12" y2="3"/>
                           </svg>
                         </AttachAction>
+                        <AttachRemoveBtn type="button" title={t('drawer.removeAttach', '제거') as string}
+                          onClick={async () => {
+                            const cur = Array.isArray(detail.attached_file_ids) ? detail.attached_file_ids : [];
+                            const next = cur.filter(id => id !== f.id);
+                            try {
+                              await updateKnowledge(businessId, detail.id, { attached_file_ids: next });
+                              setDetail(prev => prev ? { ...prev, attached_file_ids: next, attached_files: (prev.attached_files || []).filter(x => x.id !== f.id) } : prev);
+                              setDocs(prev => prev.map(x => x.id === detail.id ? { ...x, attached_file_ids: next } : x));
+                            } catch { /* skip */ }
+                          }}>×</AttachRemoveBtn>
                       </AttachRow>
                     ))}
                   </AttachList>
-                </DrawerSection>
-              )}
-              {detail.attached_posts && detail.attached_posts.length > 0 && (
-                <DrawerSection>
-                  <SectionLabel>{t('drawer.attachedPosts', '첨부 문서')} <small>({detail.attached_posts.length})</small></SectionLabel>
+                )}
+                <AttachAddRow>
+                  <PlanQSelect size="sm"
+                    placeholder={t('drawer.addFilePh', '파일 검색해서 추가...') as string}
+                    value={null}
+                    options={(wsFiles || [])
+                      .filter(f => typeof f.id === 'number' && !(detail.attached_file_ids || []).includes(f.id as number))
+                      .map(f => ({ value: String(f.id), label: f.file_name }))}
+                    onChange={async (opt) => {
+                      const v = (opt as PlanQSelectOption | null)?.value;
+                      const next = v ? [...(detail.attached_file_ids || []), Number(v)] : null;
+                      if (!next) return;
+                      try {
+                        await updateKnowledge(businessId, detail.id, { attached_file_ids: next });
+                        const f = (wsFiles || []).find(x => Number(x.id) === Number(v));
+                        if (f && typeof f.id === 'number') {
+                          const fileId: number = f.id;
+                          setDetail(prev => prev ? {
+                            ...prev,
+                            attached_file_ids: next,
+                            attached_files: [...(prev.attached_files || []), {
+                              id: fileId, file_name: f.file_name, file_size: f.file_size,
+                              mime_type: f.mime_type, storage_provider: f.storage_provider,
+                              external_url: f.external_url || null,
+                            }],
+                          } : prev);
+                          setDocs(prev => prev.map(x => x.id === detail.id ? { ...x, attached_file_ids: next } : x));
+                        }
+                      } catch { /* skip */ }
+                    }}
+                  />
+                </AttachAddRow>
+              </DrawerSection>
+
+              {/* 첨부 문서 — 등록과 동일하게 add/remove 가능 */}
+              <DrawerSection>
+                <SectionLabel>{t('drawer.attachedPosts', '첨부 문서')} {detail.attached_posts && detail.attached_posts.length > 0 && <small>({detail.attached_posts.length})</small>}</SectionLabel>
+                {detail.attached_posts && detail.attached_posts.length > 0 && (
                   <AttachList>
                     {detail.attached_posts.map(p => (
                       <AttachRow key={`p-${p.id}`}>
@@ -800,11 +921,49 @@ const KnowledgePage = () => {
                             <line x1="10" y1="14" x2="21" y2="3"/>
                           </svg>
                         </AttachAction>
+                        <AttachRemoveBtn type="button" title={t('drawer.removeAttach', '제거') as string}
+                          onClick={async () => {
+                            const cur = Array.isArray(detail.attached_post_ids) ? detail.attached_post_ids : [];
+                            const next = cur.filter(id => id !== p.id);
+                            try {
+                              await updateKnowledge(businessId, detail.id, { attached_post_ids: next });
+                              setDetail(prev => prev ? { ...prev, attached_post_ids: next, attached_posts: (prev.attached_posts || []).filter(x => x.id !== p.id) } : prev);
+                              setDocs(prev => prev.map(x => x.id === detail.id ? { ...x, attached_post_ids: next } : x));
+                            } catch { /* skip */ }
+                          }}>×</AttachRemoveBtn>
                       </AttachRow>
                     ))}
                   </AttachList>
-                </DrawerSection>
-              )}
+                )}
+                <AttachAddRow>
+                  <PlanQSelect size="sm"
+                    placeholder={t('drawer.addPostPh', '문서 검색해서 추가...') as string}
+                    value={null}
+                    options={(wsPosts || [])
+                      .filter(p => !(detail.attached_post_ids || []).includes(p.id))
+                      .map(p => ({ value: String(p.id), label: p.title }))}
+                    onChange={async (opt) => {
+                      const v = (opt as PlanQSelectOption | null)?.value;
+                      const next = v ? [...(detail.attached_post_ids || []), Number(v)] : null;
+                      if (!next) return;
+                      try {
+                        await updateKnowledge(businessId, detail.id, { attached_post_ids: next });
+                        const p = (wsPosts || []).find(x => x.id === Number(v));
+                        if (p) {
+                          setDetail(prev => prev ? {
+                            ...prev,
+                            attached_post_ids: next,
+                            attached_posts: [...(prev.attached_posts || []), {
+                              id: p.id, title: p.title, project_id: p.project_id ?? null, category: p.category ?? null,
+                            }],
+                          } : prev);
+                          setDocs(prev => prev.map(x => x.id === detail.id ? { ...x, attached_post_ids: next } : x));
+                        }
+                      } catch { /* skip */ }
+                    }}
+                  />
+                </AttachAddRow>
+              </DrawerSection>
             </DrawerSections>
           )}
         </DetailDrawer.Body>
@@ -1271,6 +1430,65 @@ const BodyClickable = styled.div`
   cursor: text;
   &:hover { background: #F0FDFA; }
 `;
+
+// 태그 인라인 편집 — 쉼표 구분 input. blur 시 저장.
+const TagsEdit: React.FC<{
+  docId: number;
+  businessId: number;
+  initialValue: string[];
+  onSaved: (tags: string[]) => void;
+}> = ({ docId, businessId, initialValue, onSaved }) => {
+  const [editing, setEditing] = React.useState(false);
+  const [draft, setDraft] = React.useState((initialValue || []).join(', '));
+  React.useEffect(() => { if (!editing) setDraft((initialValue || []).join(', ')); }, [initialValue, editing]);
+  const commit = async () => {
+    setEditing(false);
+    const next = draft.split(',').map(s => s.trim()).filter(Boolean).slice(0, 12);
+    const cur = initialValue || [];
+    if (next.length === cur.length && next.every((v, i) => v === cur[i])) return;
+    try { await updateKnowledge(businessId, docId, { tags: next }); onSaved(next); } catch { /* skip */ }
+  };
+  if (!editing) {
+    if (!initialValue || initialValue.length === 0) {
+      return <TagsClickable onClick={() => setEditing(true)}>—</TagsClickable>;
+    }
+    return (
+      <TagsClickable onClick={() => setEditing(true)}>
+        {initialValue.map((tag, i) => <TagChip key={i}>{tag}</TagChip>)}
+      </TagsClickable>
+    );
+  }
+  return (
+    <TagsInput
+      autoFocus
+      value={draft}
+      onChange={e => setDraft(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === 'Escape') { setDraft((initialValue || []).join(', ')); setEditing(false); }
+        if (e.key === 'Enter') { (e.target as HTMLInputElement).blur(); }
+      }}
+      placeholder="태그1, 태그2, 태그3"
+    />
+  );
+};
+const TagsClickable = styled.div`
+  display: flex; flex-wrap: wrap; gap: 4px; min-height: 24px;
+  padding: 4px 6px; cursor: text;
+  border-radius: 6px;
+  &:hover { background: #F0FDFA; }
+`;
+const TagChip = styled.span`
+  display: inline-flex; align-items: center;
+  padding: 2px 8px; font-size: 11px; font-weight: 600; color: #0F766E;
+  background: #F0FDFA; border: 1px solid #99F6E4; border-radius: 999px;
+`;
+const TagsInput = styled.input`
+  width: 100%; padding: 6px 10px;
+  border: 1px solid #14B8A6; border-radius: 6px;
+  font-size: 12px; color: #0F172A; font-family: inherit;
+  &:focus { outline: none; box-shadow: 0 0 0 2px rgba(20,184,166,0.2); }
+`;
 const BodyTextarea = styled.textarea`
   width: 100%; padding: 10px 12px;
   border: 1px solid #14B8A6; border-radius: 6px;
@@ -1679,7 +1897,7 @@ const MetaValue = styled.div`color: #0F172A; font-weight: 500;`;
 const MetaEditWrap = styled.div`min-width: 0;`;
 const AttachList = styled.div`display: flex; flex-direction: column; gap: 6px;`;
 const AttachRow = styled.div`
-  display: grid; grid-template-columns: auto 1fr auto auto; gap: 10px;
+  display: grid; grid-template-columns: auto 1fr auto auto auto; gap: 10px;
   align-items: center;
   padding: 10px 12px;
   background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px;
@@ -1694,6 +1912,18 @@ const AttachAction = styled.a`
   color: #475569; border-radius: 6px; text-decoration: none;
   transition: all 0.15s;
   &:hover { background: #F0FDFA; color: #0F766E; }
+`;
+const AttachRemoveBtn = styled.button`
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 24px; height: 24px;
+  background: transparent; color: #94A3B8;
+  border: 1px solid transparent; border-radius: 6px;
+  font-size: 16px; line-height: 1; cursor: pointer;
+  transition: all 0.15s;
+  &:hover { background: #FEF2F2; color: #B91C1C; border-color: #FECACA; }
+`;
+const AttachAddRow = styled.div`
+  margin-top: 8px;
 `;
 const Spacer = styled.div`flex: 1;`;
 const DangerBtn = styled.button`
