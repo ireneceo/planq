@@ -183,6 +183,7 @@ router.post('/:taskId/attachments/link', authenticateToken, async (req, res, nex
         id: att.id,
         context: att.context,
         original_name: att.original_name,
+        stored_name: att.stored_name,
         file_size: att.file_size,
         mime_type: att.mime_type,
         download_url: `/api/tasks/attachments/${att.id}/download`,
