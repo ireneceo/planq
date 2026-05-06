@@ -2,7 +2,8 @@
 //   1. Focus steal 금지 (modal X, focus 안 빼앗음)
 //   2. Context-aware (활성 페이지/대화방 알림은 표시 X)
 //   3. Notification fatigue 방지 (최대 3 개 stack, 5s 자동 페이드, hover 시 정지)
-//   4. 사운드 기본 OFF (작업 방해)
+//   4. 사운드 ON — 짧은 ping (Web Audio API, 외부 mp3 의존성 X). 활성 conv skip 정책 그대로 유지.
+//      OS 시스템 사운드 OFF / 데스크탑 PWA banner 만 보일 때 보조 신호.
 //
 // Architecture:
 //   - 단일 socket (per user session) 으로 사용자 워크스페이스 room + 대화방 room 모두 구독
@@ -27,6 +28,30 @@ interface Toast {
 
 const MAX_VISIBLE = 3;
 const FADE_MS = 5000;
+
+// 짧은 ping 사운드 — Web Audio API. 외부 mp3 파일 의존성 X.
+// 사용자 first-gesture 후에만 작동 (브라우저 autoplay 정책). socket 알림 시점은 보통 이미 상호작용 후라 OK.
+function playPing() {
+  try {
+    type WindowWithWebkit = Window & { webkitAudioContext?: typeof AudioContext };
+    const Ctx = window.AudioContext || (window as WindowWithWebkit).webkitAudioContext;
+    if (!Ctx) return;
+    const ctx = new Ctx();
+    if (ctx.state === 'suspended') ctx.resume().catch(() => null);
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(880, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(660, ctx.currentTime + 0.18);
+    gain.gain.setValueAtTime(0, ctx.currentTime);
+    gain.gain.linearRampToValueAtTime(0.12, ctx.currentTime + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.28);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.3);
+    osc.onended = () => ctx.close().catch(() => null);
+  } catch { /* AudioContext 미지원 / 권한 차단 — silent */ }
+}
 
 export default function NotificationToaster() {
   const { user } = useAuth();
@@ -71,6 +96,8 @@ export default function NotificationToaster() {
     setToasts(prev => [...prev, next].slice(-MAX_VISIBLE));
     const timer = setTimeout(() => dismiss(id), FADE_MS);
     timersRef.current.set(id, timer);
+    // Ping 사운드 — context-aware skip 통과한 알림만. focus-steal 금지 정책은 visual 만이라 OK.
+    playPing();
   }, [dismiss]);
 
   // hover 시 자동 닫힘 정지 / 떠나면 재시작

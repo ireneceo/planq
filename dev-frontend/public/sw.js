@@ -73,6 +73,10 @@ self.addEventListener('push', (event) => {
     // 같은 tag 의 최신 알림으로 교체 — 기본은 false (true 면 누적 알림)
     // Slack 패턴: 같은 대화방은 최신만. user 가 못 보고 누적되는 사고 방지.
     renotify: !!payload.tag,
+    // 사운드 + 진동 명시 — OS 시스템 알림 사운드/진동 활성. silent:false 가 default 지만
+    // 일부 브라우저는 silent 미명시 시 무음으로 처리되는 경우 있어 명시.
+    silent: false,
+    vibrate: [200, 100, 200],  // 모바일 — 짧은 진동 패턴
     data: { link: payload.link || '/' },
     requireInteraction: false,
   };
