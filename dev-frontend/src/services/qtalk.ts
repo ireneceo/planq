@@ -541,7 +541,8 @@ export interface RegisterCandidateOverrides {
   title?: string;
   description?: string;
   assignee_id?: number | null;
-  due_date?: string | null; // YYYY-MM-DD or null
+  start_date?: string | null; // YYYY-MM-DD or null
+  due_date?: string | null;   // YYYY-MM-DD or null
 }
 export async function registerCandidate(candidateId: number, overrides?: RegisterCandidateOverrides): Promise<RegisterResult> {
   const res = await apiFetch(`/api/projects/task-candidates/${candidateId}/register`, {

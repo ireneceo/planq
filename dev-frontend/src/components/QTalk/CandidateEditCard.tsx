@@ -6,10 +6,11 @@
 //   - 담당자 변경 즉시 button 라벨 갱신.
 //   - 마감일 비워두기 허용 (LLM 자동 추측 금지 정책과 일관).
 //   - 제목에 "[   ]" placeholder 가 있으면 사용자가 채울 수 있게 input 으로 노출.
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import PlanQSelect from '../Common/PlanQSelect';
+import CalendarPicker from '../Common/CalendarPicker';
 import type { MockTaskCandidate, MockMember } from '../../pages/QTalk/types';
 import type { RegisterCandidateOverrides } from '../../services/qtalk';
 
@@ -33,7 +34,11 @@ const CandidateEditCard: React.FC<Props> = ({
   const [assigneeId, setAssigneeId] = useState<number | null>(
     candidate.guessed_assignee?.user_id ?? null
   );
+  // 기간(시작·마감) — start_date 와 due_date 둘 다 사용자 명시 가능. 비워두기 OK.
+  const [startDate, setStartDate] = useState<string>('');
   const [dueDate, setDueDate] = useState<string>(candidate.guessed_due_date || '');
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const dateAnchorRef = useRef<HTMLButtonElement | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   // 담당자 옵션 — sentinel value 0 = "담당 미정" (PlanQSelectOption 이 null 미허용)
@@ -67,6 +72,7 @@ const CandidateEditCard: React.FC<Props> = ({
       onRegister(candidate.id, {
         title: title.trim(),
         assignee_id: assigneeId,
+        start_date: startDate || null,
         due_date: dueDate || null,
       });
     } finally {
@@ -74,6 +80,14 @@ const CandidateEditCard: React.FC<Props> = ({
       setSubmitting(false);
     }
   };
+
+  // 기간 표시 라벨 — "MM/DD ~ MM/DD" / 둘 중 하나만이면 단일 / 둘 다 없음 → 빈 placeholder
+  const periodLabel = (() => {
+    const fmt = (s: string) => s.length >= 10 ? `${s.slice(5, 7)}/${s.slice(8, 10)}` : '';
+    if (!startDate && !dueDate) return '';
+    if (startDate && dueDate && startDate !== dueDate) return `${fmt(startDate)} ~ ${fmt(dueDate)}`;
+    return fmt(dueDate || startDate);
+  })();
 
   return (
     <Card>
@@ -100,12 +114,28 @@ const CandidateEditCard: React.FC<Props> = ({
           />
         </MetaCol>
         <MetaCol>
-          <MetaLabel>{t('right.candidates.metaDue', '마감')}</MetaLabel>
-          <DateInput
-            type="date"
-            value={dueDate}
-            onChange={(e) => setDueDate(e.target.value)}
-          />
+          <MetaLabel>{t('right.candidates.metaPeriod', '기간')}</MetaLabel>
+          <DateTrigger
+            ref={dateAnchorRef}
+            type="button"
+            onClick={() => setPickerOpen(true)}
+            $empty={!periodLabel}
+          >
+            {periodLabel || (t('right.candidates.periodPlaceholder', '날짜 선택') as string)}
+          </DateTrigger>
+          {pickerOpen && (
+            <CalendarPicker
+              isOpen
+              anchorRef={dateAnchorRef}
+              startDate={startDate || dueDate}
+              endDate={dueDate || startDate}
+              onRangeSelect={(s, e) => {
+                setStartDate(s || '');
+                setDueDate(e || '');
+              }}
+              onClose={() => setPickerOpen(false)}
+            />
+          )}
         </MetaCol>
       </MetaRow>
 
@@ -185,13 +215,23 @@ const MetaLabel = styled.label`
   font-weight: 600;
   color: #94A3B8;
 `;
-const DateInput = styled.input`
-  padding: 6px 8px;
+// PlanQSelect size="sm" 과 동일 height (32px) + 동일 visual — 두 필드 정렬 일치.
+// 클릭하면 CalendarPicker 가 anchorRef 기준 portal 로 펼침.
+const DateTrigger = styled.button<{ $empty?: boolean }>`
+  height: 32px;
+  padding: 0 10px;
   border: 1px solid #E2E8F0;
   border-radius: 6px;
-  font-size: 12px;
-  color: #0F172A;
+  font-size: 13px;
+  font-family: inherit;
+  font-weight: 500;
+  color: ${(p) => (p.$empty ? '#94A3B8' : '#0F172A')};
   background: #FFF;
+  cursor: pointer;
+  text-align: left;
+  display: flex; align-items: center;
+  transition: border-color 0.15s;
+  &:hover { border-color: #CBD5E1; }
   &:focus { outline: none; border-color: #14B8A6; }
 `;
 const SimilarWarning = styled.div`
