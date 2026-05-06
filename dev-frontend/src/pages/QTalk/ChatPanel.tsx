@@ -52,6 +52,39 @@ const ChatPanel: React.FC<Props> = ({
   const { user } = useAuth();
   const { formatTime } = useTimeFormat();
   const isClient = user?.business_role === 'client';
+
+  // Hangouts/Slack 패턴 — 그룹 헤더에서 풍부한 시각 표시
+  //   오늘 → 14:18 / 어제 → 어제 14:18 / 7일내 → 월 14:18 / 그 외 → 5/3 14:18
+  const formatGroupTime = (iso: string) => {
+    if (!iso) return '';
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return '';
+    const now = new Date();
+    const time = formatTime(iso);
+    const sameDay = (a: Date, b: Date) =>
+      a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+    if (sameDay(d, now)) return time;
+    const yesterday = new Date(now); yesterday.setDate(yesterday.getDate() - 1);
+    if (sameDay(d, yesterday)) return `${t('chat.yesterday', '어제')} ${time}`;
+    const diffDays = Math.floor((now.getTime() - d.getTime()) / 86400000);
+    if (diffDays >= 0 && diffDays < 7) {
+      const wkKey = ['sun','mon','tue','wed','thu','fri','sat'][d.getDay()];
+      const wkLabel = t(`chat.weekday.${wkKey}`, ['일','월','화','수','목','금','토'][d.getDay()]);
+      return `${wkLabel} ${time}`;
+    }
+    return `${d.getMonth() + 1}/${d.getDate()} ${time}`;
+  };
+
+  // 두 메시지를 한 그룹으로 묶을지 — 같은 발신자 + 5분 이내
+  const GROUP_GAP_MS = 5 * 60 * 1000;
+  const isContinuation = (cur: { sender_id: number; created_at: string }, prev: { sender_id: number; created_at: string } | undefined) => {
+    if (!prev) return false;
+    if (prev.sender_id !== cur.sender_id) return false;
+    const cur_t = new Date(cur.created_at).getTime();
+    const prev_t = new Date(prev.created_at).getTime();
+    if (Number.isNaN(cur_t) || Number.isNaN(prev_t)) return false;
+    return (cur_t - prev_t) <= GROUP_GAP_MS;
+  };
   const [bannerDismissed, setBannerDismissed] = useState(false);
   const [previewCard, setPreviewCard] = useState<PostCardMeta | null>(null);
 
@@ -504,7 +537,7 @@ const ChatPanel: React.FC<Props> = ({
                 >
                   {activeConv.name}
                 </ChatName>
-                {activeConv.channel_type === 'internal' && <InternalTag>{t('channelBadge.internal', '내부')}</InternalTag>}
+                {/* '내부' 는 default 라 라벨 X — '고객' 만 강조 (B2B 시각 패턴) */}
                 {activeConv.channel_type === 'customer' && <CustomerTag>{t('channelBadge.customer', '고객')}</CustomerTag>}
               </ChatNameRow>
             )}
@@ -571,19 +604,28 @@ const ChatPanel: React.FC<Props> = ({
         {convMessages.length === 0 && (
           <NoMsgBox>{t('chat.noMessages', '첫 메시지를 보내세요')}</NoMsgBox>
         )}
-        {convMessages.map((m) => (
-          <MessageItem key={m.id} data-msg-id={m.id}>
-            <LetterAvatar
-              name={m.sender_name}
-              size={36}
-              variant={m.sender_role === 'cue' ? 'cue' : 'neutral'}
-            />
+        {convMessages.map((m, idx) => {
+          const prev = idx > 0 ? convMessages[idx - 1] : undefined;
+          const continuation = isContinuation(m, prev);
+          return (
+          <MessageItem key={m.id} data-msg-id={m.id} $continuation={continuation}>
+            {continuation ? (
+              <AvatarSpacer aria-hidden="true" />
+            ) : (
+              <LetterAvatar
+                name={m.sender_name}
+                size={36}
+                variant={m.sender_role === 'cue' ? 'cue' : 'neutral'}
+              />
+            )}
             <MessageBody>
-              <MessageHeader>
-                <SenderName>{m.sender_name}</SenderName>
-                <TimeStamp>{formatTime(m.created_at)}</TimeStamp>
-                {m.sender_role === 'cue' && <CueBadge>Cue</CueBadge>}
-              </MessageHeader>
+              {!continuation && (
+                <MessageHeader>
+                  <SenderName>{m.sender_name}</SenderName>
+                  <TimeStamp>{formatGroupTime(m.created_at)}</TimeStamp>
+                  {m.sender_role === 'cue' && <CueBadge>Cue</CueBadge>}
+                </MessageHeader>
+              )}
               {m.card?.card_type === 'signature_request' ? (
                 <SignCard onClick={() => window.open(m.card!.card_type === 'signature_request' ? (m.card as { sign_url: string }).sign_url : '', '_blank', 'noopener,noreferrer')}>
                   <SignCardIcon>
@@ -790,7 +832,8 @@ const ChatPanel: React.FC<Props> = ({
               )}
             </MessageBody>
           </MessageItem>
-        ))}
+          );
+        })}
       </MessageList>
 
       {/* 입력창 */}
@@ -1022,21 +1065,11 @@ const ChatNameInput = styled.input`
   font-family: inherit;
 `;
 
-const InternalTag = styled.span`
-  padding: 1px 7px;
-  background: #F1F5F9;
-  color: #64748B;
-  font-size: 10px;
-  font-weight: 700;
-  border-radius: 10px;
-  letter-spacing: 0.2px;
-  flex-shrink: 0;
-`;
-
+// '내부' 는 default 라 라벨 제거. '고객' 만 PlanQ 포인트 컬러 (coral) 로 강조.
 const CustomerTag = styled.span`
   padding: 1px 7px;
-  background: #FEF3C7;
-  color: #92400E;
+  background: rgba(244, 63, 94, 0.10);
+  color: #BE123C;
   font-size: 10px;
   font-weight: 700;
   border-radius: 10px;
@@ -1206,10 +1239,20 @@ const NoMsgBox = styled.div`
   padding: 40px 20px; text-align: center; color: #94A3B8; font-size: 13px;
 `;
 
-const MessageItem = styled.div`
+// Hangouts/Slack 패턴 — 그룹 첫 메시지는 윗 마진 (그룹 간격), 연속(같은 발신자 + 5분 이내) 은 가까이.
+const MessageItem = styled.div<{ $continuation?: boolean }>`
   display: flex;
   gap: 12px;
   align-items: flex-start;
+  margin-top: ${(p) => (p.$continuation ? '2px' : '14px')};
+  &:first-child { margin-top: 0; }
+`;
+
+// 그룹 연속 메시지에서 Avatar 자리 차지 (들여쓰기 정렬용 빈 박스)
+const AvatarSpacer = styled.div`
+  width: 36px;
+  height: 1px;
+  flex-shrink: 0;
 `;
 
 const MessageBody = styled.div`

@@ -184,11 +184,11 @@ const LeftPanel: React.FC<Props> = ({
               <ChatBody>
                 <ChatTop>
                   <ChatName $active={isActive}>{c.name}</ChatName>
-                  {c.channel_type === 'internal' && <InternalTag>{t('channelBadge.internal', '내부')}</InternalTag>}
+                  {c.unread_count > 0 && <Unread>{c.unread_count}</Unread>}
+                  {c.channel_type === 'customer' && <CustomerTag>{t('channelBadge.customer', '고객')}</CustomerTag>}
                 </ChatTop>
                 <ProjectName>{p.name}</ProjectName>
               </ChatBody>
-              {c.unread_count > 0 && <Unread>{c.unread_count}</Unread>}
               {onTogglePin && (
                 <PinBtn
                   type="button"
@@ -386,10 +386,12 @@ const ChatName = styled.div<{ $active: boolean }>`
   min-width: 0;
 `;
 
-const InternalTag = styled.span`
+// [고객] 라벨 — channel_type='customer' 인 대화방에만 노출.
+// '내부' 는 default 상태라 라벨 X (시각 노이즈 최소화 — Slack 의 #channel 패턴).
+const CustomerTag = styled.span`
   padding: 1px 5px;
-  background: #F1F5F9;
-  color: #64748B;
+  background: rgba(244, 63, 94, 0.10);
+  color: #BE123C;
   font-size: 9px;
   font-weight: 700;
   border-radius: 8px;
@@ -406,6 +408,7 @@ const ProjectName = styled.div`
   text-overflow: ellipsis;
 `;
 
+// 읽지 않은 메시지 수 — ChatTop 안 (Name 옆) 인라인 배치 → 라벨/이름과 같은 라인 정렬
 const Unread = styled.div`
   min-width: 18px;
   height: 18px;
@@ -419,7 +422,6 @@ const Unread = styled.div`
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  margin-top: 2px;
 `;
 
 // 핀(즐겨찾기) 토글 — 30년차 패턴: 비활성 시 hover 에서만 등장 (시각적 노이즈 최소화).
