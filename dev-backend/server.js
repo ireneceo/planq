@@ -256,6 +256,7 @@ app.use('/api/docs', require('./routes/docs'));
 app.use('/api', require('./routes/signatures'));
 app.use('/api/inquiries', require('./routes/inquiries'));
 app.use('/api', require('./routes/kb'));
+app.use('/api/weekly-reviews', require('./routes/weekly_reviews'));
 
 // Error handler
 app.use(errorHandler);
@@ -350,6 +351,10 @@ function scheduleNextMidnight() {
   }, delay);
 }
 scheduleNextMidnight();
+
+// 주간 보고 자동 박제 cron (매시간 0분)
+const { initWeeklyReviewCron } = require('./services/weeklyReviewCron');
+initWeeklyReviewCron();
 
 // Graceful shutdown
 process.on('SIGTERM', () => {

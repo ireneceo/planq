@@ -238,5 +238,62 @@
         "project_change": "moved project"
       }
     }
+  },
+  "tab": {
+    "week": "This Week",
+    "all": "All Tasks",
+    "requested": "Requested",
+    "weeklyReview": "Weekly Review"
+  },
+  "weeklyReview": {
+    "finalize": "Wrap Up Week",
+    "modal": {
+      "title": "Wrap Up This Week",
+      "period": "{{start}} ~ {{end}}",
+      "summary": "Completed {{c}} / Incomplete {{i}}",
+      "hours": "Actual {{a}}h / Estimated {{e}}h ({{p}}%)",
+      "noteLabel": "Weekly Note",
+      "notePlaceholder": "How was this week? (optional)",
+      "save": "Save",
+      "cancel": "Cancel",
+      "alreadyExists": "A review already exists for this week. Overwrite with current snapshot?",
+      "overwrite": "Overwrite"
+    },
+    "tab": {
+      "empty": "No saved reviews yet",
+      "emptyHint": "Use \"Wrap Up Week\" button or enable auto-save to build your history.",
+      "autoBadge": "Auto",
+      "manualBadge": "Manual",
+      "weekLabel": "Week {{w}} of {{n}}"
+    },
+    "view": {
+      "back": "Back to list",
+      "tasksTitle": "Tasks That Week",
+      "summaryTitle": "Summary",
+      "burndownTitle": "Weekly Progress",
+      "noteTitle": "Weekly Note",
+      "addNote": "Add note"
+    },
+    "auto": {
+      "title": "Auto Weekly Review",
+      "desc": "Automatically save a weekly snapshot every Sunday at 23:59. Useful for tracking trends and meetings.",
+      "enabled": "On",
+      "disabled": "Off"
+    },
+    "lastWeekBanner": {
+      "title": "Last week's review is ready",
+      "desc": "Use it for meetings or retrospectives.",
+      "viewBtn": "View"
+    }
+  },
+  "common": {
+    "total": "Total",
+    "completed": "Completed",
+    "incomplete": "Incomplete",
+    "utilization": "Utilization",
+    "edit": "Edit",
+    "save": "Save",
+    "cancel": "Cancel",
+    "loadMore": "Load more"
   }
 }
