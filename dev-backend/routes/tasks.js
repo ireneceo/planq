@@ -427,10 +427,12 @@ router.post('/', authenticateToken, async (req, res, next) => {
     });
 
     // Socket.IO: project room + business room 양쪽 emit (Q Task 페이지가 business 룸 구독)
+    // actor_user_id — 토스터가 본인 액션 알림 자기에게 표시 차단용.
     const io = req.app.get('io');
     if (io) {
-      if (project_id) io.to(`project:${project_id}`).emit('task:new', full.toJSON());
-      if (business_id) io.to(`business:${business_id}`).emit('task:new', full.toJSON());
+      const newTaskPayload = { ...full.toJSON(), actor_user_id: req.user.id };
+      if (project_id) io.to(`project:${project_id}`).emit('task:new', newTaskPayload);
+      if (business_id) io.to(`business:${business_id}`).emit('task:new', newTaskPayload);
     }
 
     // 알림: 담당자 ≠ 생성자 일 때만 — 본인이 본인에게 만든 업무는 noise
@@ -608,9 +610,11 @@ router.put('/by-business/:businessId/:id', authenticateToken, async (req, res, n
     // Socket.IO: project + business room 양쪽 broadcast
     // 토스터가 본인 관련자인지 정확히 판단하도록 reviewer_ids 도 payload 에 포함.
     // (Task.toJSON 은 raw 컬럼만이라 TaskReviewer 별도 조회)
+    // actor_user_id — 액션을 수행한 사용자 ID. 토스터가 "본인 액션 알림 자기에게 표시" 차단용.
     const io = req.app.get('io');
     if (io) {
       const payload = task.toJSON();
+      payload.actor_user_id = req.user.id;
       try {
         const TaskReviewer = require('../models').TaskReviewer;
         const reviewers = await TaskReviewer.findAll({
@@ -631,8 +635,9 @@ router.put('/by-business/:businessId/:id', authenticateToken, async (req, res, n
       const wsName = biz?.brand_name || biz?.name || null;
       const taskLink = `${process.env.APP_URL || 'https://dev.planq.kr'}/tasks?task=${task.id}`;
 
-      // 담당자 변경 → 새 담당자에게 알림
-      if (updates.assignee_id !== undefined && updates.assignee_id !== prev.assignee_id && updates.assignee_id) {
+      // 담당자 변경 → 새 담당자에게 알림 (본인이 본인을 담당자로 지정 시 skip)
+      if (updates.assignee_id !== undefined && updates.assignee_id !== prev.assignee_id
+          && updates.assignee_id && updates.assignee_id !== req.user.id) {
         notify({
           userId: updates.assignee_id, businessId: task.business_id, eventKind: 'task',
           title: '새 업무가 배정되었습니다', body: `"${task.title}"`,

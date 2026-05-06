@@ -409,5 +409,12 @@
       "openPlan": "Plan & billing",
       "payNow": "Pay now"
     }
+  },
+  "toaster": {
+    "taskAssigned": "New task assigned",
+    "taskCompletedRequester": "Your requested task is done",
+    "taskCompletedReviewer": "Reviewed task is now complete",
+    "taskReviewing": "Review requested — please confirm",
+    "taskRevisionRequested": "Revision requested"
   }
 }
