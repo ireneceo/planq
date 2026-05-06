@@ -83,6 +83,7 @@ interface AuthContextType {
   register: (name: string, email: string, password: string, businessName: string, opts?: { terms_accepted?: boolean; privacy_accepted?: boolean }) => Promise<boolean>;
   logout: () => void;
   updateUser: (userData: Partial<User>) => void;
+  refreshUser: () => Promise<void>;
   hasRole: (...roles: string[]) => boolean;
   switchWorkspace: (businessId: number) => Promise<boolean>;
 }
@@ -414,6 +415,21 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setUser({ ...user, ...userData });
   };
 
+  // 서버에서 최신 유저 정보 다시 가져오기 (약관 재동의 등에서 사용)
+  const refreshUser = async (): Promise<void> => {
+    try {
+      const res = await apiFetch('/api/auth/me');
+      if (res.ok) {
+        const result = await res.json();
+        if (result.success && result.data) {
+          setUser(normalizeUser(result.data));
+        }
+      }
+    } catch (e) {
+      console.error('[refreshUser] failed', e);
+    }
+  };
+
   // user.language 가 DB 에 설정돼있으면 화면 언어 자동 적용 (서버 = source of truth).
   // 새 디바이스 로그인 / 다른 브라우저 로그인 시 자동 적용. 사용자가 프로필에서 변경하면
   // PUT /api/users/:id 가 user.language 를 갱신 → 이 effect 가 새 언어로 다시 changeLanguage.
@@ -463,7 +479,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const isAuthenticated = !!user;
 
   return (
-    <AuthContext.Provider value={{ user, isAuthenticated, isLoading, login, register, logout, updateUser, hasRole, switchWorkspace }}>
+    <AuthContext.Provider value={{ user, isAuthenticated, isLoading, login, register, logout, updateUser, refreshUser, hasRole, switchWorkspace }}>
       {children}
     </AuthContext.Provider>
   );

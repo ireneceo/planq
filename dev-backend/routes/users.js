@@ -231,6 +231,18 @@ router.put('/:id', authenticateToken, async (req, res, next) => {
       }
       updates.answer_length_default = answer_length_default || null;
     }
+
+    // 약관 재동의 — TermsReacceptModal 에서 호출
+    const { terms_accepted_at, terms_version, privacy_accepted_at, privacy_version } = req.body;
+    if (terms_accepted_at !== undefined && terms_version !== undefined) {
+      updates.terms_accepted_at = new Date(terms_accepted_at);
+      updates.terms_version = terms_version;
+    }
+    if (privacy_accepted_at !== undefined && privacy_version !== undefined) {
+      updates.privacy_accepted_at = new Date(privacy_accepted_at);
+      updates.privacy_version = privacy_version;
+    }
+
     await user.update(updates);
 
     const updated = await User.findByPk(req.params.id, {

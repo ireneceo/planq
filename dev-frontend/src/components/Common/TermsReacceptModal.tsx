@@ -1,17 +1,26 @@
 // 약관 변경 시 재동의 모달 — current_terms_version != user.terms_version 일 때 자동 노출
 // 동의 시 PUT /api/users/:id 의 terms_accepted_at + terms_version 갱신
+// 랜딩 페이지(/, /features, /pricing 등)에서는 표시 안 함 — 앱 영역에서만 노출
 import React, { useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { apiFetch, useAuth } from '../../contexts/AuthContext';
+
+// 랜딩 페이지 경로 — 이 경로들에서는 약관 모달 표시 안 함
+const LANDING_PATHS = ['/', '/features', '/pricing', '/about', '/contact', '/blog', '/legal'];
 
 const TermsReacceptModal: React.FC = () => {
   const { t } = useTranslation('auth');
-  const { user, refreshUser } = useAuth() as ReturnType<typeof useAuth> & { refreshUser?: () => Promise<void> };
+  const { user, refreshUser } = useAuth();
+  const location = useLocation();
   const [termsAgree, setTermsAgree] = useState(false);
   const [privacyAgree, setPrivacyAgree] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+
+  // 랜딩 페이지에서는 표시 안 함
+  const isLandingPage = LANDING_PATHS.some(p => location.pathname === p || location.pathname.startsWith('/legal'));
+  if (isLandingPage) return null;
 
   if (!user || !user.platform) return null;
 
@@ -34,16 +43,16 @@ const TermsReacceptModal: React.FC = () => {
         patch.privacy_accepted_at = new Date().toISOString();
         patch.privacy_version = user.platform!.current_privacy_version;
       }
-      await apiFetch(`/api/users/${user.id}`, {
+      const res = await apiFetch(`/api/users/${user.id}`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(patch),
       });
-      // user 재로드 — refreshUser 가 없으면 페이지 리로드
-      if (typeof refreshUser === 'function') {
-        await refreshUser();
-      } else {
-        window.location.reload();
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || 'Failed to save');
       }
+      // 서버에서 최신 유저 정보 다시 가져오기
+      await refreshUser();
     } finally {
       setSubmitting(false);
     }
