@@ -97,19 +97,50 @@ self.addEventListener('push', (event) => {
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const link = event.notification.data?.link || '/';
+  const rawLink = event.notification.data?.link || '/';
+  // same-origin URL 은 path 로 추출 (일부 브라우저의 c.navigate 가 절대 URL silent-fail).
+  // cross-origin 은 그대로 openWindow 에 넘김 (브라우저가 새 탭으로 처리).
+  let targetUrl = rawLink;
+  let isSameOrigin = false;
+  try {
+    const u = new URL(rawLink, self.location.origin);
+    if (u.origin === self.location.origin) {
+      targetUrl = u.pathname + u.search + u.hash;
+      isSameOrigin = true;
+    } else {
+      targetUrl = u.href;
+    }
+  } catch { /* invalid URL — rawLink 그대로 사용 */ }
+
   event.waitUntil((async () => {
-    // 클릭 시 badge clear (앱 진입하므로 — 정확한 카운트는 앱 내부에서 다시 setAppBadge)
+    // 클릭 시 badge clear
     try {
       if ('clearAppBadge' in self.navigator) await self.navigator.clearAppBadge();
     } catch { /* silent */ }
+
     const clientList = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
-    for (const c of clientList) {
-      if (c.url && 'focus' in c) {
-        c.navigate(link);
-        return c.focus();
+    // 1) 같은 origin 에 열린 창이 있으면 navigate + focus 시도. navigate 실패하면 다음 fallback.
+    if (isSameOrigin) {
+      for (const c of clientList) {
+        if (!c.url) continue;
+        try {
+          await c.navigate(targetUrl);
+          if ('focus' in c) await c.focus();
+          return;
+        } catch { /* fallback to openWindow 시도 */ }
+      }
+    } else {
+      // cross-origin — focus 시도만, navigate 안 됨
+      for (const c of clientList) {
+        if (c.url && c.url.startsWith(targetUrl) && 'focus' in c) {
+          return c.focus();
+        }
       }
     }
-    if (self.clients.openWindow) return self.clients.openWindow(link);
+    // 2) 열린 창이 없거나 navigate 실패 → 새 창
+    if (self.clients.openWindow) {
+      const fullUrl = isSameOrigin ? `${self.location.origin}${targetUrl}` : targetUrl;
+      return self.clients.openWindow(fullUrl);
+    }
   })());
 });
