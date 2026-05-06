@@ -1009,6 +1009,12 @@ const Container = styled.main<{ $mobileHidden?: boolean }>`
     display: ${(p) => (p.$mobileHidden ? 'none' : 'flex')};
     width: 100%;
   }
+  /* 모바일 키보드 대응 — 100vh 는 iOS Safari 에서 주소창 포함 잘못 계산.
+     100dvh (dynamic viewport) 가 키보드 올라올 때 줄어드는 정확한 viewport. */
+  @media (max-width: 640px) {
+    height: 100dvh;
+    height: -webkit-fill-available;
+  }
 `;
 
 const MobileBackBtn = styled.button`
@@ -1032,6 +1038,11 @@ const HeaderBar = styled.div`
   justify-content: space-between;
   gap: 12px;
   flex-shrink: 0;
+  @media (max-width: 640px) {
+    padding: 8px 12px;
+    gap: 8px;
+    min-height: 56px;
+  }
 `;
 
 const HeaderTitleBlock = styled.div`
@@ -1041,6 +1052,12 @@ const HeaderTitleBlock = styled.div`
   flex: 1;
   gap: 10px;
   flex-wrap: nowrap;
+  /* 모바일에서는 정보 많을 때 줄바꿈 — 채팅 이름 / 고객·소속·메타 분리. */
+  @media (max-width: 640px) {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+  }
 `;
 
 const ChatNameRow = styled.div`
@@ -1049,6 +1066,10 @@ const ChatNameRow = styled.div`
   gap: 8px;
   min-width: 0;
   flex-shrink: 1;
+  flex-wrap: wrap;
+  @media (max-width: 640px) {
+    gap: 4px;
+  }
 `;
 
 const ChatName = styled.h2<{ $editable: boolean }>`
@@ -1572,6 +1593,12 @@ const InputBar = styled.div`
   padding: 10px 16px 14px;
   background: #FFFFFF;
   flex-shrink: 0;
+  /* iOS 노치/홈 인디케이터 영역 보호 + 키보드 위에 안전하게 떠 있게 */
+  padding-bottom: max(14px, env(safe-area-inset-bottom, 14px));
+  @media (max-width: 640px) {
+    padding: 8px 12px;
+    padding-bottom: max(8px, env(safe-area-inset-bottom, 8px));
+  }
 `;
 
 const InputToolbar = styled.div`
