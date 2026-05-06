@@ -79,7 +79,7 @@ interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (email: string, password: string) => Promise<boolean>;
+  login: (email: string, password: string, remember?: boolean) => Promise<boolean>;
   register: (name: string, email: string, password: string, businessName: string, opts?: { terms_accepted?: boolean; privacy_accepted?: boolean }) => Promise<boolean>;
   logout: () => void;
   updateUser: (userData: Partial<User>) => void;
@@ -346,12 +346,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const login = async (email: string, password: string): Promise<boolean> => {
+  // remember 기본값 true (기존 동작 호환). false 면 백엔드가 session cookie 설정 → 브라우저
+  // 닫으면 refresh_token 사라져 자동 로그아웃. 공용 PC 사용자가 명시적 OFF 시 안전.
+  const login = async (email: string, password: string, remember: boolean = true): Promise<boolean> => {
     const res = await fetch('/api/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ email, password, remember }),
     });
 
     if (res.ok) {

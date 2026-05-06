@@ -349,13 +349,17 @@ router.post('/register', async (req, res, next) => {
     await transaction.commit();
 
     // 6. Set refresh token as HttpOnly cookie
-    res.cookie('refresh_token', refreshToken, {
+    // remember=true (default, 기존 동작): 7일 persistent cookie — 브라우저 닫아도 유지
+    // remember=false (사용자 명시 OFF): session cookie — 브라우저 닫으면 자동 로그아웃 (공용 PC 안전)
+    const remember = req.body?.remember !== false;
+    const cookieOpts = {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'strict',
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-      path: '/api/auth'
-    });
+      path: '/api/auth',
+    };
+    if (remember) cookieOpts.maxAge = 7 * 24 * 60 * 60 * 1000;
+    res.cookie('refresh_token', refreshToken, cookieOpts);
 
     successResponse(res, {
       token: accessToken,
