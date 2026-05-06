@@ -492,7 +492,10 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
         fd.append('file', f, f.name);
         const ur = await apiFetch(`/api/tasks/${detailTask.id}/attachments?context=comment&commentId=${comment.id}`, { method: 'POST', body: fd });
         const uj = await ur.json();
-        if (uj.success) attached.push({ id: uj.data.id, original_name: uj.data.original_name, file_size: uj.data.file_size, mime_type: uj.data.mime_type });
+        if (uj.success) attached.push({
+          id: uj.data.id, stored_name: uj.data.stored_name,
+          original_name: uj.data.original_name, file_size: uj.data.file_size, mime_type: uj.data.mime_type,
+        });
       }
       // 2) 기존 워크스페이스 파일 link
       if (hasExisting) {
@@ -502,7 +505,10 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
         });
         const lj = await lr.json();
         if (lj.success && Array.isArray(lj.data)) {
-          for (const a of lj.data) attached.push({ id: a.id, original_name: a.original_name, file_size: a.file_size, mime_type: a.mime_type });
+          for (const a of lj.data) attached.push({
+            id: a.id, stored_name: a.stored_name,
+            original_name: a.original_name, file_size: a.file_size, mime_type: a.mime_type,
+          });
         }
       }
       setDetailTask(prev => prev ? { ...prev, comments: [...(prev.comments || []), { ...comment, attachments: attached }] } : prev);
