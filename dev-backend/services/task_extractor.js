@@ -57,61 +57,110 @@ async function callLLMJson(messages, opts = {}) {
   }
 }
 
-// ─── 프롬프트 ───
-function buildExtractionPrompt(messagesText, memberNames, language) {
+// ─── 프롬프트 (30년차 시각, 정밀화) ───
+// 핵심 원칙:
+//  1. 결정·요청·약속된 업무만 추출. 질문·보고·잡담은 절대 추출하지 않음.
+//  2. 객체가 모호하면 "[   ]" placeholder 로 비워두고 사용자가 채우도록 유도.
+//  3. 마감일은 EXPLICIT 한 날짜(YYYY-MM-DD / "10/6" / "내일")만 추출. "이번주/곧/조만간" → null.
+//  4. 담당자 추론은 보수적: 발신자 자기 보고면 자기 / 1:1에서 부탁이면 상대 / 모호하면 null.
+//  5. description 에 원문의 링크·핵심 컨텍스트를 verbatim 포함 (사용자가 등록 시 활용).
+function buildExtractionPrompt(messagesText, memberNames, language, conversationParticipantNames) {
   const lang = language === 'en' ? 'English' : 'Korean';
-  return `You are a task extraction assistant. Analyze the chat messages below and identify actionable tasks.
+  return `You are a senior task-extraction AI for a B2B work-chat tool. Apply STRICT precision — false positives are far worse than missing items. When unsure, RETURN EMPTY.
 
-CRITICAL NAMING RULE:
-- Every task title MUST describe a concrete deliverable + an action verb in its BASE form.
-- BAD (vague, no deliverable): "시장조사", "디자인 작업", "검토", "준비"
-- BAD (completion suffix — looks already done): "~ 제작 완료", "~ 작성 완료", "~ 완성", "~ 마무리"
-- GOOD (deliverable + base verb): "경쟁사 비교분석표 작성", "로고 시안 3종 PDF 제작", "견적서 작성·전달", "Lighthouse 성능 감사 보고서 작성"
-- The title should answer: "What artifact/document/file is produced?" — NOT "it was done".
-- NEVER append "완료", "완성", "마무리", "done", "finished" to titles. Completion is tracked in the status field, not the title.
+═══ CORE PRINCIPLES (zero-tolerance) ═══
 
-RULES:
-1. Only extract clear, actionable tasks (NOT questions, NOT greetings, NOT general discussion)
-2. Each task must have a concrete deliverable — a document, file, report, or measurable outcome
-3. If someone says "can you do X" or "please handle Y" or "we need Z done", that's a task
-4. If a deadline is mentioned or implied, include it as guessed_due_date (YYYY-MM-DD format)
-5. guessed_role should match one of the team member roles if identifiable from context
-6. Write title and description in ${lang}
+1. EXTRACT ONLY CONFIRMED DECISIONS. Extract only when someone has explicitly committed to do X, OR has been clearly asked/assigned to do X with a yes-implied. The work must be actionable, future-tense, and undecided-state.
 
-TEAM MEMBERS:
+2. NEVER extract from QUESTIONS. Examples that are NOT tasks:
+   - "확인 부탁드려요" / "확인해 주실 수 있나요?" — request for review/confirmation, NOT a deliverable to produce
+   - "잘 됐나요??" / "괜찮을까요?" — status question
+   - "이거 어떻게 하면 될까요?" — discussion question
+   - "시간 되실 때 봐주세요" — soft ask, treat as confirmation request
+   Note: The exception is when someone explicitly RESPONDS "네, 할게요" or commits to produce something new. The question alone is never a task.
+
+3. NEVER extract from REPORTS of completed/in-progress work. Examples:
+   - "수정 완료했습니다" / "올렸어요" / "끝냈어요" — past report
+   - "지금 작업 중이에요" — already in progress
+   These are STATUS UPDATES, not new tasks.
+
+4. NEVER GUESS DEADLINES.
+   - guessed_due_date = ONLY when an explicit date is given: "10월 6일", "2026-10-06", "내일", "다음주 월요일"
+   - "이번주", "곧", "조만간", "최대한 빨리" → guessed_due_date = null
+   - "시간 될 때" → guessed_due_date = null
+
+5. PLACEHOLDER FOR MISSING OBJECTS.
+   When the action verb is clear but the OBJECT (what?) is not, insert "[   ]" (3 spaces in brackets) where the missing detail would go.
+   - "이번주에 업로드 하려구요" → if we don't know what to upload: title="[   ] 업로드"
+   - "작성해 주세요" with no clear document → title="[   ] 작성"
+   The user will fill in the bracket later when registering. Better empty than wrong.
+
+═══ ASSIGNEE INFERENCE (conservative) ═══
+
+guessed_role / guessed_assignee_name 은 다음 케이스에만 채움:
+- (a) 발신자가 "내가 X 할게요/할 예정입니다" 명시 → 발신자 본인이 담당자
+- (b) 1:1 대화에서 발신자가 "X 해주세요/부탁드려요" 명시 → 상대방이 담당자 (대화 참여자 2명 중 발신자 아닌 사람)
+- (c) "@username" 명시 멘션 → 그 사람이 담당자
+- (d) "{이름}님이 X 해주세요" 명시 → 그 이름이 담당자
+모호하거나 그룹 채팅에서 수신자 미특정 → null (사용자가 직접 지정)
+
+═══ TITLE NAMING (deliverable + base verb) ═══
+
+GOOD: "경쟁사 비교분석표 작성" / "로고 시안 3종 PDF 제작" / "[   ] 업로드"
+BAD: "시장조사" / "디자인 작업" / "검토" — vague, no deliverable
+BAD: "~ 제작 완료" / "~ 마무리" — completion suffix (status field 가 따로 처리)
+NEVER append "완료/완성/마무리/done/finished".
+
+═══ DESCRIPTION ═══
+
+description 에 원문에서 언급된 핵심 컨텍스트를 verbatim 포함:
+- URL 이 있으면 그 URL 그대로 (사용자가 클릭으로 이동)
+- 파일명/문서명이 언급됐으면 그대로
+- 핵심 요구사항 한 줄 요약
+
+═══ CONVERSATION PARTICIPANTS ═══
+${conversationParticipantNames}
+
+═══ TEAM MEMBERS (for role matching) ═══
 ${memberNames}
 
-Respond in JSON format:
-{"tasks": [{"title": "...", "description": "...", "guessed_role": "...", "guessed_due_date": "YYYY-MM-DD or null", "source_message_ids": [msg_id, ...]}]}
+═══ OUTPUT FORMAT ═══
 
-Return empty array if no actionable tasks found: {"tasks": []}
+{"tasks": [{"title": "...", "description": "...", "guessed_role": "...|null", "guessed_assignee_name": "...|null", "guessed_due_date": "YYYY-MM-DD|null", "source_message_ids": [msg_id, ...]}]}
 
-MESSAGES:
+If no actionable tasks (only questions, reports, or chitchat), return: {"tasks": []}
+Write title and description in ${lang}. Be conservative — empty result is better than wrong extraction.
+
+═══ MESSAGES ═══
 ${messagesText}`;
 }
 
-// ─── 역할 → 멤버 매칭 ───
+// ─── 이름/역할 → 멤버 매칭 (LLM 출력의 guessed_assignee_name / guessed_role 우선순위) ───
+// 30년차 시각: LLM 이 빈 후보를 채우려고 default_assignee 강제 부여하면 사용자에게 잘못된 추측을 강요.
+// 보수적: 이름·역할 매칭 실패하면 null 반환 (사용자가 우측 패널에서 직접 지정).
 async function resolveAssignees(candidates, projectId) {
   const members = await ProjectMember.findAll({
     where: { project_id: projectId },
     include: [{ model: User, attributes: ['id', 'name'] }],
   });
 
-  // 프로젝트 default_assignee 조회
-  const project = await Project.findByPk(projectId, { attributes: ['default_assignee_user_id'] });
-  const defaultAssignee = project?.default_assignee_user_id || null;
-
   return candidates.map((c) => {
     let assigneeId = null;
 
-    if (c.guessed_role) {
+    // 1차: 이름 직접 매칭 (LLM 이 "한수정" 같은 이름 명시)
+    if (c.guessed_assignee_name) {
+      const nameNorm = String(c.guessed_assignee_name).trim();
+      const byName = members.find((m) => m.User?.name && String(m.User.name).trim() === nameNorm);
+      if (byName) assigneeId = byName.user_id;
+    }
+
+    // 2차: role 매칭
+    if (!assigneeId && c.guessed_role) {
       const roleLower = String(c.guessed_role).toLowerCase().trim();
-      // 1차: role 정확 매칭
       const exact = members.find((m) => String(m.role).toLowerCase().trim() === roleLower);
       if (exact) {
         assigneeId = exact.user_id;
       } else {
-        // 2차: role 부분 매칭 (포함 관계)
         const partial = members.find((m) => {
           const mr = String(m.role).toLowerCase().trim();
           return mr.includes(roleLower) || roleLower.includes(mr);
@@ -120,11 +169,7 @@ async function resolveAssignees(candidates, projectId) {
       }
     }
 
-    // 3차: 매칭 실패 시 default_assignee fallback
-    if (!assigneeId && defaultAssignee) {
-      assigneeId = defaultAssignee;
-    }
-
+    // default_assignee fallback 제거 — 모호하면 null 유지 (사용자 결정 강요 안 함)
     return { ...c, guessed_assignee_user_id: assigneeId };
   });
 }
@@ -222,6 +267,19 @@ async function extractTaskCandidates({ conversationId, userId, businessId }) {
       memberNames = members.map((m) => `- ${m.User?.name || 'unknown'} (role: ${m.role})`).join('\n');
     }
 
+    // 대화 참여자 목록 (담당자 추론 룰: 1:1 채팅에서 상대 자동 지정용)
+    let conversationParticipantNames = '';
+    try {
+      const ConversationParticipant = require('../models/ConversationParticipant');
+      const parts = await ConversationParticipant.findAll({
+        where: { conversation_id: conversationId },
+        include: [{ model: User, attributes: ['id', 'name'] }],
+      });
+      const participantsList = parts.filter(p => p.User).map(p => `- ${p.User.name} (user_id: ${p.User.id})`).join('\n');
+      const totalCount = parts.length;
+      conversationParticipantNames = `Total participants: ${totalCount}\n${participantsList}\nNote: ${totalCount === 2 ? 'This is a 1-on-1 chat — when sender asks the other person to do X, that person is the assignee.' : 'Group chat — only assign when explicitly named.'}`;
+    } catch { /* fallback empty */ }
+
     // 언어 감지 (간이: 한글 포함 여부)
     const hasKorean = /[가-힣]/.test(messagesText);
     const language = hasKorean ? 'ko' : 'en';
@@ -236,7 +294,7 @@ async function extractTaskCandidates({ conversationId, userId, businessId }) {
     } catch { /* checkUsageLimit 실패 시 통과 (best-effort) */ }
 
     // LLM 호출
-    const prompt = buildExtractionPrompt(messagesText, memberNames, language);
+    const prompt = buildExtractionPrompt(messagesText, memberNames, language, conversationParticipantNames);
     const llmResult = await callLLMJson([
       { role: 'system', content: prompt },
     ], { temperature: 0.1, maxTokens: 1500 });
@@ -367,7 +425,9 @@ async function extractTaskCandidates({ conversationId, userId, businessId }) {
 }
 
 // ─── 후보 → 정식 업무 등록 ───
-async function registerCandidate(candidateId, userId) {
+// overrides: 우측 패널에서 사용자가 인라인 편집한 값 (title/assignee_id/due_date) 우선 적용.
+// 30년차 시각: LLM 추측은 hint 일 뿐, 등록 시점에 사용자 결정이 source of truth.
+async function registerCandidate(candidateId, userId, overrides = {}) {
   const candidate = await TaskCandidate.findByPk(candidateId);
   if (!candidate) throw new Error('candidate_not_found');
   if (candidate.status !== 'pending') throw new Error('candidate_already_resolved');
@@ -384,19 +444,33 @@ async function registerCandidate(candidateId, userId) {
     }
     if (!businessId) throw new Error('candidate_business_unresolved');
 
+    // 사용자 편집값 우선. 미입력 시 LLM 추측, 그래도 없으면 fallback.
+    const finalTitle = (overrides.title || candidate.title || '').trim();
+    const finalDesc = overrides.description !== undefined ? overrides.description : candidate.description;
+    // 담당자: 명시 override → 그 값 / null override → null (모호한 채로 등록 허용 X 는 라우트에서) /
+    //         미전달 → guessed → 등록자
+    let finalAssignee;
+    if (Object.prototype.hasOwnProperty.call(overrides, 'assignee_id')) {
+      finalAssignee = overrides.assignee_id; // 명시 (null 가능)
+    } else {
+      finalAssignee = candidate.guessed_assignee_user_id || userId;
+    }
+    // due_date: 명시 override → 그 값 (null 허용) / 미전달 → guessed
+    const finalDue = Object.prototype.hasOwnProperty.call(overrides, 'due_date')
+      ? (overrides.due_date || null)
+      : (candidate.guessed_due_date || null);
+
     // tasks 테이블에 삽입
     const task = await Task.create({
       business_id: businessId,
       project_id: candidate.project_id, // null 허용
       conversation_id: candidate.conversation_id,
       source_message_id: candidate.source_message_ids?.[0] || null,
-      title: candidate.title,
-      description: candidate.description,
-      // LLM 이 추측한 담당자가 있으면 우선, 없으면 등록 누른 사용자가 default 담당자
-      // (사용자가 자기 업무로 보이게 만들고, 필요하면 상세에서 다른 멤버로 변경)
-      assignee_id: candidate.guessed_assignee_user_id || userId,
+      title: finalTitle,
+      description: finalDesc,
+      assignee_id: finalAssignee,
       status: 'not_started',
-      due_date: candidate.guessed_due_date,
+      due_date: finalDue,
       from_candidate_id: candidate.id,
       created_by: userId,
     }, { transaction: t });

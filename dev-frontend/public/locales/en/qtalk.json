@@ -19,7 +19,10 @@
       "merge": "Merge",
       "reject": "Reject",
       "metaAssignee": "Assignee",
-      "metaDue": "Due"
+      "metaDue": "Due",
+      "noAssignee": "No assignee",
+      "titlePlaceholder": "Task title (e.g., Upload [   ] — leave brackets to fill in later)",
+      "request": "Request"
     },
     "issues": {
       "title": "Key Issues",

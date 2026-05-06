@@ -11,6 +11,8 @@ import LetterAvatar from '../../components/Common/LetterAvatar';
 import FloatingPanelToggle, { PANEL_WIDTH_CSS } from '../../components/Common/FloatingPanelToggle';
 import { useIsNarrow } from '../../hooks/useMediaQuery';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
+import CandidateEditCard from '../../components/QTalk/CandidateEditCard';
+import type { RegisterCandidateOverrides } from '../../services/qtalk';
 
 interface Props {
   project: MockProject | null;
@@ -22,7 +24,7 @@ interface Props {
   candidates: MockTaskCandidate[];
   collapsed: boolean;
   onToggleCollapsed: () => void;
-  onRegisterCandidate: (id: number) => void;
+  onRegisterCandidate: (id: number, overrides?: RegisterCandidateOverrides) => void;
   onMergeCandidate: (id: number) => void;
   onRejectCandidate: (id: number) => void;
   onAddIssue: (body: string) => void;
@@ -237,48 +239,15 @@ const RightPanel: React.FC<Props> = ({
               </CandidatesTitle>
             </CandidatesHeader>
             {candidates.map((c) => (
-              <CandidateCard key={c.id}>
-                <CandidateTitle>{c.title}</CandidateTitle>
-                <CandidateDesc>{c.description}</CandidateDesc>
-                <CandidateMeta>
-                  {c.guessed_assignee && (
-                    <MetaItem>
-                      <MetaLabel>{t('right.candidates.metaAssignee', '담당')}</MetaLabel>
-                      <MetaValue>{c.guessed_assignee.name}</MetaValue>
-                      {c.guessed_role && <RoleTag>{c.guessed_role}</RoleTag>}
-                    </MetaItem>
-                  )}
-                  {c.guessed_due_date && (
-                    <MetaItem>
-                      <MetaLabel>{t('right.candidates.metaDue', '마감')}</MetaLabel>
-                      <MetaValue>{c.guessed_due_date}</MetaValue>
-                    </MetaItem>
-                  )}
-                </CandidateMeta>
-                {c.similar_task_id && (
-                  <SimilarWarning>
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                      <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-                      <line x1="12" y1="9" x2="12" y2="13" />
-                      <line x1="12" y1="17" x2="12.01" y2="17" />
-                    </svg>
-                    {t('right.candidates.similar', '유사 업무 발견')}
-                  </SimilarWarning>
-                )}
-                <CandidateActions>
-                  <CandActBtn $primary onClick={() => onRegisterCandidate(c.id)}>
-                    {t('right.candidates.register', '등록')}
-                  </CandActBtn>
-                  {c.similar_task_id && (
-                    <CandActBtn onClick={() => onMergeCandidate(c.id)}>
-                      {t('right.candidates.merge', '내용 추가')}
-                    </CandActBtn>
-                  )}
-                  <CandActBtn $ghost onClick={() => onRejectCandidate(c.id)}>
-                    {t('right.candidates.reject', '거절')}
-                  </CandActBtn>
-                </CandidateActions>
-              </CandidateCard>
+              <CandidateEditCard
+                key={c.id}
+                candidate={c}
+                members={project?.members || []}
+                myUserId={myUserId}
+                onRegister={onRegisterCandidate}
+                onMerge={onMergeCandidate}
+                onReject={onRejectCandidate}
+              />
             ))}
           </CandidatesSection>
         )}
@@ -773,54 +742,8 @@ const Count = styled.span`
   justify-content: center;
 `;
 
-const CandidateCard = styled.div`
-  padding: 10px;
-  background: #FFFFFF;
-  border: 1px solid #FECDD3;
-  border-radius: 8px;
-  & + & { margin-top: 8px; }
-`;
-
-const CandidateTitle = styled.div`
-  font-size: 13px;
-  font-weight: 600;
-  color: #0F172A;
-  margin-bottom: 4px;
-`;
-
-const CandidateDesc = styled.div`
-  font-size: 11px;
-  color: #64748B;
-  line-height: 1.4;
-  margin-bottom: 8px;
-`;
-
-const CandidateMeta = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin-bottom: 8px;
-`;
-
-const MetaItem = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 6px;
-`;
-
-const MetaLabel = styled.span`
-  font-size: 10px;
-  color: #94A3B8;
-  font-weight: 600;
-  min-width: 28px;
-`;
-
-const MetaValue = styled.span`
-  font-size: 11px;
-  color: #0F172A;
-  font-weight: 500;
-`;
-
+// 후보 카드 styled — CandidateEditCard 컴포넌트로 이전. 미사용 styled 제거.
+// RoleTag 만 남김 — 멤버 리스트(섹션 5 정보) 에서 별도로 사용 중.
 const RoleTag = styled.span`
   padding: 1px 6px;
   background: #F1F5F9;
@@ -828,49 +751,6 @@ const RoleTag = styled.span`
   font-size: 9px;
   font-weight: 600;
   border-radius: 8px;
-`;
-
-const SimilarWarning = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 4px 8px;
-  background: #FEF3C7;
-  color: #92400E;
-  border-radius: 6px;
-  font-size: 10px;
-  font-weight: 600;
-  margin-bottom: 8px;
-`;
-
-const CandidateActions = styled.div`
-  display: flex;
-  gap: 4px;
-`;
-
-const CandActBtn = styled.button<{ $primary?: boolean; $ghost?: boolean }>`
-  flex: ${(p) => (p.$ghost ? 'none' : 1)};
-  padding: 5px 8px;
-  font-size: 11px;
-  font-weight: 600;
-  border-radius: 6px;
-  cursor: pointer;
-  ${(p) => p.$primary ? `
-    background: #F43F5E;
-    color: #FFFFFF;
-    border: none;
-    &:hover { background: #E11D48; }
-  ` : p.$ghost ? `
-    background: transparent;
-    color: #94A3B8;
-    border: none;
-    &:hover { color: #475569; }
-  ` : `
-    background: #FFFFFF;
-    color: #9F1239;
-    border: 1px solid #FECDD3;
-    &:hover { background: #FFE4E6; }
-  `}
 `;
 
 const Section = styled.div`
