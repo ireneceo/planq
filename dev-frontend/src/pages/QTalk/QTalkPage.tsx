@@ -68,7 +68,7 @@ function apiConversationToMock(c: qtalkApi.ApiConversation): MockConversation {
     channel_type: c.channel_type,
     name: c.display_name || c.title || '(이름 없음)',
     auto_extract_enabled: c.auto_extract_enabled,
-    unread_count: 0,
+    unread_count: c.unread_count || 0,
     last_extracted_message_id: c.last_extracted_message_id,
     last_message_at: c.last_message_at || c.created_at || null,
     my_pinned_at: c.my_pinned_at || null,
@@ -256,6 +256,9 @@ const QTalkPage: React.FC = () => {
 
   // ── Socket.IO 실시간 ──
   const socketRef = useRef<Socket | null>(null);
+  // socket handler closure 안에서 stale 안 되도록 ref mirror
+  const activeConversationIdRef = useRef<number | null>(null);
+  useEffect(() => { activeConversationIdRef.current = activeConversationId; }, [activeConversationId]);
 
   useEffect(() => {
     if (!user) return; // 로그인 후에만 연결
@@ -293,10 +296,24 @@ const QTalkPage: React.FC = () => {
         if (arr.some((m) => m.id === mapped.id)) return prev;
         return { ...prev, [mapped.conversation_id]: [...arr, mapped] };
       });
-      // 대화 리스트 상단으로 끌어올림 — last_message_at 갱신
-      setConversations((prev) => prev.map((c) =>
-        c.id === mapped.conversation_id ? { ...c, last_message_at: mapped.created_at } : c
-      ));
+      // 대화 리스트 갱신 — last_message_at 끌어올리고 unread_count 증가 (조건부)
+      // - 자기가 보낸 메시지는 unread 증가 X
+      // - 현재 보고 있는 활성 대화방이면 unread 증가 X (이미 보고 있는 것)
+      const isMine = String(mapped.sender_id) === String(user?.id);
+      const isActive = activeConversationIdRef.current === mapped.conversation_id;
+      setConversations((prev) => prev.map((c) => {
+        if (c.id !== mapped.conversation_id) return c;
+        const incrementUnread = !isMine && !isActive;
+        return {
+          ...c,
+          last_message_at: mapped.created_at,
+          unread_count: incrementUnread ? (c.unread_count || 0) + 1 : c.unread_count,
+        };
+      }));
+      // 사이드바 토탈 unread 갱신 트리거
+      if (!isMine && !isActive) {
+        window.dispatchEvent(new Event('planq:unread-changed'));
+      }
     });
 
     // 후보 생성 — POST 응답과 socket broadcast 가 둘 다 들어오므로 id 기준 dedup 필수
@@ -384,7 +401,7 @@ const QTalkPage: React.FC = () => {
     };
   }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // 대화방 변경 시 room join/leave
+  // 대화방 변경 시 room join/leave + 읽음 처리
   useEffect(() => {
     const socket = socketRef.current;
     if (!socket) return;
@@ -399,6 +416,19 @@ const QTalkPage: React.FC = () => {
       }
     };
   }, [activeConversationId]);
+
+  // 대화방 진입 시 읽음 처리 — 백엔드 last_read_at = NOW() + 로컬 unread_count 0
+  // active 인 동안 새 메시지가 와도 socket handler 가 unread 증가를 막아주므로 진입 시 1 회면 충분.
+  useEffect(() => {
+    if (!activeConversationId || !user?.id || !businessId) return;
+    qtalkApi.markConversationRead(businessId, activeConversationId).catch(() => null);
+    setConversations(prev => prev.map(c =>
+      c.id === activeConversationId ? { ...c, unread_count: 0 } : c
+    ));
+    // 사이드바 토탈 unread 갱신
+    window.dispatchEvent(new Event('planq:unread-changed'));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeConversationId, businessId]);
 
   // 대화 선택 시 메시지 lazy-load — 프로젝트 단위 초기 로드에 포함되지 않은 독립 대화도
   // 활성화되는 순간 메시지를 불러온다. 이미 캐시된 대화는 skip.

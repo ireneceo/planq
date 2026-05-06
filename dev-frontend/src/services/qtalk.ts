@@ -178,6 +178,9 @@ export interface ApiConversation {
   translation_languages: SupportedLang[] | null;
   // 사용자 본인의 핀(즐겨찾기) 시각. null = 핀 안 됨. 백엔드가 사용자별로 채워서 응답.
   my_pinned_at?: string | null;
+  // 읽지 않은 메시지 수 (사용자 본인 기준).
+  // 본인이 보낸 메시지 제외, last_read_at 이후 메시지만 카운트, 삭제 메시지 제외.
+  unread_count?: number;
   participants?: Array<{
     id: number;
     user_id: number;
@@ -292,6 +295,18 @@ export async function listProjectConversations(projectId: number): Promise<ApiCo
 export async function listBusinessConversations(businessId: number): Promise<ApiConversation[]> {
   const res = await apiFetch(`/api/conversations/${businessId}`);
   return handle<ApiConversation[]>(res);
+}
+
+// 대화방 진입 시 읽음 처리 — last_read_at = NOW(). unread_count 0 으로 리셋.
+export async function markConversationRead(businessId: number, conversationId: number): Promise<{ last_read_at: string }> {
+  const res = await apiFetch(`/api/conversations/${businessId}/${conversationId}/read`, { method: 'PUT' });
+  return handle<{ last_read_at: string }>(res);
+}
+
+// 사이드바 토탈 unread — 워크스페이스 전체 합계.
+export async function getUnreadTotal(businessId: number): Promise<{ total: number; by_conversation: Record<number, number> }> {
+  const res = await apiFetch(`/api/conversations/${businessId}/unread-total`);
+  return handle<{ total: number; by_conversation: Record<number, number> }>(res);
 }
 
 export async function listConversationMessages(conversationId: number): Promise<ApiMessage[]> {

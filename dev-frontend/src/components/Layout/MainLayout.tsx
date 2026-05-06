@@ -12,6 +12,7 @@ import SidebarClock from './SidebarClock';
 import PanelHeader, { PanelTitle } from './PanelHeader';
 import { useTimezones } from '../../hooks/useTimezones';
 import { useInboxCount } from '../../hooks/useInboxCount';
+import { useUnreadTotal } from '../../hooks/useUnreadTotal';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { mediaTablet } from '../../theme/breakpoints';
 import InstallPromptBanner from '../Common/InstallPromptBanner';
@@ -478,6 +479,15 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   const isActive = (path: string) => location.pathname === path || location.pathname.startsWith(path + '/');
   const isAdminMode = location.pathname.startsWith('/admin');
   const inboxCount = useInboxCount(user?.business_id ? Number(user.business_id) : null);
+  const talkUnreadCount = useUnreadTotal(user?.business_id ? Number(user.business_id) : null);
+
+  // 로그인 직후 자동 push 구독 시도 (Slack 패턴 — granted 면 조용히, default 면 7일 1회 prompt)
+  useEffect(() => {
+    if (!user?.id) return;
+    import('../../services/push').then(m => {
+      m.autoSubscribeIfPossible().catch(() => null);
+    }).catch(() => null);
+  }, [user?.id]);
 
   const hasBiz = (...roles: Array<'owner' | 'member' | 'client'>) =>
     !!user?.business_role && roles.includes(user.business_role as 'owner' | 'member' | 'client');
@@ -694,9 +704,14 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                 <NavSection>
                   <NavTitle $isCollapsed={isCollapsed}>{t('nav.sectionFeatures')}</NavTitle>
                   <NavItem to="/talk" $isCollapsed={isCollapsed} $active={isActive('/talk')}
-                    title={isCollapsed ? t('nav.talk') : undefined}>
+                    title={isCollapsed ? `${t('nav.talk')}${talkUnreadCount > 0 ? ` (${talkUnreadCount})` : ''}` : undefined}>
                     <NavIcon $isCollapsed={isCollapsed}><IconTalk /></NavIcon>
                     <NavLabel $isCollapsed={isCollapsed}>{t('nav.talk')}</NavLabel>
+                    {talkUnreadCount > 0 && (
+                      isCollapsed
+                        ? <InboxDot aria-label={`${t('nav.talk')} ${talkUnreadCount}`} />
+                        : <InboxBadge>{talkUnreadCount > 99 ? '99+' : talkUnreadCount}</InboxBadge>
+                    )}
                   </NavItem>
                   {hasBiz('owner', 'member') && (
                     <NavItem to="/mail" $isCollapsed={isCollapsed}

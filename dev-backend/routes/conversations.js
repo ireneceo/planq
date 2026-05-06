@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { Op } = require('sequelize');
 const { Conversation, ConversationParticipant, Message, User, Client, Business, Project, ProjectMember, BusinessMember } = require('../models');
+const { sequelize } = require('../config/database');
 const { authenticateToken, checkBusinessAccess } = require('../middleware/auth');
 const { attachWorkspaceScope, conversationListWhere, canAccessConversation } = require('../middleware/access_scope');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
@@ -31,16 +32,38 @@ router.get('/:businessId', authenticateToken, attachWorkspaceScope(), async (req
       ],
       order: [['last_message_at', 'DESC']]
     });
-    // 사용자 본인의 pinned_at 을 conversation 응답에 부착 (응답 sort 용 + UI 별 표시).
-    // ConversationParticipant 의 pinned_at 은 사용자별 — 즉, 같은 conv 라도 사람마다 핀 상태가 다름.
+    // 사용자 본인의 pinned_at + last_read_at 부착 (응답 sort 용 + unread 계산).
+    // ConversationParticipant 의 두 필드는 사용자별 — 같은 conv 라도 사람마다 핀/읽음 상태가 다름.
     const myParts = await ConversationParticipant.findAll({
       where: { user_id: req.user.id, conversation_id: conversations.map(c => c.id) },
-      attributes: ['conversation_id', 'pinned_at'],
+      attributes: ['conversation_id', 'pinned_at', 'last_read_at'],
     });
     const pinMap = new Map(myParts.map(p => [p.conversation_id, p.pinned_at]));
+
+    // unread_count — 단일 SQL 로 일괄 집계 (N+1 방지).
+    // 본인이 보낸 메시지는 제외, last_read_at 이후 메시지만, 삭제 메시지 제외.
+    let unreadMap = new Map();
+    const convIds = conversations.map(c => c.id);
+    if (convIds.length > 0) {
+      const [rows] = await sequelize.query(
+        `SELECT m.conversation_id AS cid, COUNT(m.id) AS cnt
+           FROM messages m
+           LEFT JOIN conversation_participants cp
+             ON cp.conversation_id = m.conversation_id AND cp.user_id = :uid
+          WHERE m.conversation_id IN (:cids)
+            AND m.sender_id != :uid
+            AND (m.is_deleted IS NULL OR m.is_deleted = 0)
+            AND (cp.last_read_at IS NULL OR m.created_at > cp.last_read_at)
+          GROUP BY m.conversation_id`,
+        { replacements: { uid: req.user.id, cids: convIds } }
+      );
+      unreadMap = new Map(rows.map(r => [r.cid, Number(r.cnt)]));
+    }
+
     const enriched = conversations.map(c => {
       const obj = c.toJSON();
       obj.my_pinned_at = pinMap.get(c.id) || null;
+      obj.unread_count = unreadMap.get(c.id) || 0;
       return obj;
     });
     // 정렬: 핀 우선 (pinned_at NOT NULL DESC), 그 안에서 last_message_at DESC
@@ -87,6 +110,64 @@ router.delete('/:businessId/:id/pin', authenticateToken, checkBusinessAccess, as
       await part.update({ pinned_at: null });
     }
     return successResponse(res, { pinned_at: null });
+  } catch (err) { next(err); }
+});
+
+// ─────────────────────────────────────────────────────────
+// Read 처리 — 대화방 진입 시 last_read_at = NOW()
+//   PUT /api/conversations/:businessId/:id/read
+//   참여자가 아니어도 워크스페이스 멤버 이상이면 자동으로 ConversationParticipant 생성
+//   (핀과 동일 — 핀 안 한 채팅도 읽으면 unread 카운터 0 으로 정확하게 유지)
+// ─────────────────────────────────────────────────────────
+router.put('/:businessId/:id/read', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+  try {
+    const businessId = Number(req.params.businessId);
+    const convId = Number(req.params.id);
+    const conv = await Conversation.findOne({ where: { id: convId, business_id: businessId } });
+    if (!conv) return errorResponse(res, 'conversation_not_found', 404);
+    if (!(await canAccessConversation(req.user.id, conv, req.scope))) {
+      return errorResponse(res, 'forbidden', 403);
+    }
+    const [part] = await ConversationParticipant.findOrCreate({
+      where: { conversation_id: convId, user_id: req.user.id },
+      defaults: { conversation_id: convId, user_id: req.user.id, role: 'member' },
+    });
+    await part.update({ last_read_at: new Date() });
+    return successResponse(res, { last_read_at: part.last_read_at });
+  } catch (err) { next(err); }
+});
+
+// ─────────────────────────────────────────────────────────
+// 사이드바용 — 워크스페이스 전체 대화방의 토탈 unread 카운트.
+//   GET /api/conversations/:businessId/unread-total
+//   응답: { total: 12, by_conversation: { 1: 3, 5: 9 } }
+// ─────────────────────────────────────────────────────────
+router.get('/:businessId/unread-total', authenticateToken, attachWorkspaceScope(), async (req, res, next) => {
+  try {
+    const baseWhere = await conversationListWhere(req.user.id, Number(req.params.businessId), req.scope);
+    if (!baseWhere) return errorResponse(res, 'forbidden', 403);
+    const conversations = await Conversation.findAll({
+      where: { ...baseWhere, status: 'active' },
+      attributes: ['id'],
+    });
+    const convIds = conversations.map(c => c.id);
+    if (convIds.length === 0) return successResponse(res, { total: 0, by_conversation: {} });
+    const [rows] = await sequelize.query(
+      `SELECT m.conversation_id AS cid, COUNT(m.id) AS cnt
+         FROM messages m
+         LEFT JOIN conversation_participants cp
+           ON cp.conversation_id = m.conversation_id AND cp.user_id = :uid
+        WHERE m.conversation_id IN (:cids)
+          AND m.sender_id != :uid
+          AND (m.is_deleted IS NULL OR m.is_deleted = 0)
+          AND (cp.last_read_at IS NULL OR m.created_at > cp.last_read_at)
+        GROUP BY m.conversation_id`,
+      { replacements: { uid: req.user.id, cids: convIds } }
+    );
+    const byConv = {};
+    let total = 0;
+    rows.forEach(r => { byConv[r.cid] = Number(r.cnt); total += Number(r.cnt); });
+    return successResponse(res, { total, by_conversation: byConv });
   } catch (err) { next(err); }
 });
 
@@ -325,24 +406,54 @@ router.post('/:businessId/:id/messages', authenticateToken, attachWorkspaceScope
       targetId: msg.id
     });
 
-    // 멘션 알림 — @username 파싱 후 워크스페이스 멤버에 mention notify
+    // 멘션 + 새 메시지 알림 fan-out
+    // - 멘션된 사용자 → eventKind='mention' (강조 + 매트릭스 별도 토글)
+    // - 그 외 참여자 (sender 제외) → eventKind='message' (일반 새 메시지)
+    // - is_internal=true 메시지는 client 제외
     try {
       const { resolveMentions } = require('../services/mention_parser');
+      const { notifyMany } = require('./notifications');
+      const biz = await Business.findByPk(req.params.businessId, { attributes: ['name', 'brand_name'] });
+      const wsName = biz?.brand_name || biz?.name || null;
+      const previewBody = String(content).length > 140 ? String(content).slice(0, 140) + '…' : String(content);
+      const link = `${process.env.APP_URL || 'https://dev.planq.kr'}/q-talk?conversation=${conversation.id}`;
+      const sender = await User.findByPk(req.user.id, { attributes: ['name'] });
+      const senderName = sender?.name || 'PlanQ';
+      const convTitle = conversation.title || '대화';
+
       const mentioned = await resolveMentions(content, req.params.businessId, req.user.id);
+
+      // 참여자 수집 — sender 제외, internal 이면 client 제외
+      const participants = await ConversationParticipant.findAll({
+        where: { conversation_id: conversation.id, user_id: { [Op.ne]: req.user.id } },
+        attributes: ['user_id', 'role'],
+      });
+      let plainRecipients = participants.map(p => p.user_id);
+      if (internalFlag) {
+        const clientParts = participants.filter(p => p.role === 'client').map(p => p.user_id);
+        plainRecipients = plainRecipients.filter(id => !clientParts.includes(id));
+      }
+      // 멘션된 사용자는 'mention' 으로 가니까 'message' 에서 빼서 중복 알림 방지
+      const mentionedSet = new Set(mentioned);
+      const messageRecipients = plainRecipients.filter(id => !mentionedSet.has(id));
+
       if (mentioned.length > 0) {
-        const { notifyMany } = require('./notifications');
-        const biz = await Business.findByPk(req.params.businessId, { attributes: ['name', 'brand_name'] });
-        const previewBody = String(content).length > 140 ? String(content).slice(0, 140) + '…' : String(content);
         notifyMany({
           userIds: mentioned, businessId: Number(req.params.businessId), eventKind: 'mention',
-          title: '대화에서 언급됨',
-          body: previewBody,
-          link: `${process.env.APP_URL || 'https://dev.planq.kr'}/q-talk?conversation=${conversation.id}`,
-          ctaLabel: '대화 보기',
-          workspaceName: biz?.brand_name || biz?.name || null,
+          title: `${senderName} 님이 ${convTitle} 에서 언급`,
+          body: previewBody, link, ctaLabel: '대화 보기', workspaceName: wsName,
+          tag: `conv:${conversation.id}`,
         }).catch((e) => console.warn('[notify mention msg]', e.message));
       }
-    } catch (e) { console.warn('[mention msg outer]', e.message); }
+      if (messageRecipients.length > 0) {
+        notifyMany({
+          userIds: messageRecipients, businessId: Number(req.params.businessId), eventKind: 'message',
+          title: `${senderName} · ${convTitle}`,
+          body: previewBody, link, ctaLabel: '대화 보기', workspaceName: wsName,
+          tag: `conv:${conversation.id}`,
+        }).catch((e) => console.warn('[notify message msg]', e.message));
+      }
+    } catch (e) { console.warn('[notify msg outer]', e.message); }
 
     // Cue 자동 응답 트리거 (비동기 백그라운드)
     // 조건: 내부 메모가 아니고, 메시지를 보낸 사람이 관리자/멤버(사람)이면 Cue 는 스킵
