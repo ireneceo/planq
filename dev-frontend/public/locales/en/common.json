@@ -278,10 +278,10 @@
     "shortDesc": "Add to home screen to use PlanQ like a native app.",
     "showSteps": "Show steps",
     "hideSteps": "Hide",
-    "iosStep1": "Tap the share button (□↑) at the bottom",
+    "iosStep1": "Tap the share button (□↑) in your browser",
     "iosStep2": "Select \"Add to Home Screen\"",
     "iosStep3": "Tap the new PlanQ icon — it opens like an app",
-    "menuStep1": "Tap the browser menu (︙ or ⋯)",
+    "menuStep1": "Tap the browser menu (︙ / ⋯ / ⓘ)",
     "menuStep2": "Choose \"Add to Home Screen\" / \"Install app\"",
     "menuStep3": "Tap the new PlanQ icon — it opens like an app"
   },
