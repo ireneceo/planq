@@ -3,7 +3,7 @@ const router = express.Router();
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
-const { User, Business, BusinessMember, Client } = require('../models');
+const { User, Business, BusinessMember, Client, RefreshToken } = require('../models');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const { authenticateToken } = require('../middleware/auth');
 const { sequelize } = require('../config/database');
@@ -11,6 +11,23 @@ const { sequelize } = require('../config/database');
 // refresh_token 은 평문 저장 금지 — DB 유출 시 세션 탈취 위험.
 // SHA-256 해시만 저장 + 클라이언트엔 raw 를 쿠키로 전달.
 const hashRefreshToken = (raw) => crypto.createHash('sha256').update(raw).digest('hex');
+
+// 다중 디바이스 세션 helper — refresh_tokens row 생성.
+// 30년차 시각: user.refresh_token 단일 컬럼은 다중 디바이스에서 충돌 (한 디바이스가 refresh
+// 하면 다른 디바이스 cookie 가 invalid). refresh_tokens 테이블은 device 별 row 라
+// 모든 디바이스가 독립적으로 refresh.
+async function createRefreshTokenRow(user, rawToken, req, transaction = null) {
+  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+  const ua = (req?.headers?.['user-agent'] || '').slice(0, 500);
+  const ip = (req?.ip || req?.connection?.remoteAddress || '').slice(0, 64);
+  return RefreshToken.create({
+    user_id: user.id,
+    token_hash: hashRefreshToken(rawToken),
+    user_agent: ua, ip_address: ip,
+    expires_at: expiresAt,
+    last_used_at: new Date(),
+  }, transaction ? { transaction } : {});
+}
 
 // ============================================
 // Helper: slug 생성
@@ -343,8 +360,8 @@ router.post('/register', async (req, res, next) => {
     const accessToken = generateAccessToken(user);
     const refreshToken = generateRefreshToken(user);
 
-    // 6. Save refresh token (해시만 DB 저장, raw 는 클라이언트 쿠키)
-    await user.update({ refresh_token: hashRefreshToken(refreshToken) }, { transaction });
+    // 6. Save refresh token row (다중 디바이스 세션 — 신규 row, 기존 row 영향 X)
+    await createRefreshTokenRow(user, refreshToken, req, transaction);
 
     await transaction.commit();
 
@@ -447,11 +464,9 @@ router.post('/login', async (req, res, next) => {
     const accessToken = generateAccessToken(user);
     const refreshToken = generateRefreshToken(user);
 
-    // Save refresh token (해시만 DB 저장) + last_login_at
-    await user.update({
-      refresh_token: hashRefreshToken(refreshToken),
-      last_login_at: new Date()
-    });
+    // 다중 디바이스 — 신규 row 추가 (기존 디바이스 row 들 영향 X)
+    await createRefreshTokenRow(user, refreshToken, req);
+    await user.update({ last_login_at: new Date() });
 
     // Set refresh token as HttpOnly cookie
     // remember=true (default, 기존 동작): 7일 persistent cookie
@@ -488,7 +503,7 @@ router.post('/refresh', async (req, res, next) => {
       return errorResponse(res, 'Refresh token required', 401);
     }
 
-    // Verify refresh token
+    // 1. JWT 시그니처 / 만료 검증
     let decoded;
     try {
       decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
@@ -496,35 +511,60 @@ router.post('/refresh', async (req, res, next) => {
       return errorResponse(res, 'Invalid or expired refresh token', 401);
     }
 
-    // Find user with matching refresh token (해시 비교)
-    const user = await User.findOne({
-      where: { id: decoded.userId, refresh_token: hashRefreshToken(refreshToken) }
-    });
+    // 2. refresh_tokens row 조회 — token_hash 매칭
+    const tokenHash = hashRefreshToken(refreshToken);
+    const tokenRow = await RefreshToken.findOne({ where: { token_hash: tokenHash } });
 
-    if (!user || user.status !== 'active' || user.is_ai) {
+    // 3. row 없음 또는 user_id 불일치 — 위조/탈취 의심
+    if (!tokenRow || tokenRow.user_id !== decoded.userId) {
       return errorResponse(res, 'Invalid refresh token', 401);
     }
 
-    // Rotate: generate new tokens
+    // 4. 이미 revoked — 재사용 시도 (RFC 6749: refresh token reuse detection)
+    //    같은 user 의 모든 active row 일괄 revoke (디바이스 전체 logout). 도난 방어.
+    if (tokenRow.revoked_at) {
+      await RefreshToken.update(
+        { revoked_at: new Date(), revoked_reason: 'reuse_detected' },
+        { where: { user_id: tokenRow.user_id, revoked_at: null } }
+      );
+      console.warn('[auth] reuse detected — all sessions revoked for user', tokenRow.user_id);
+      return errorResponse(res, 'Refresh token reuse detected — all sessions revoked', 401);
+    }
+
+    // 5. 만료
+    if (tokenRow.expires_at && new Date(tokenRow.expires_at) < new Date()) {
+      await tokenRow.update({ revoked_at: new Date(), revoked_reason: 'expired' });
+      return errorResponse(res, 'Expired refresh token', 401);
+    }
+
+    // 6. user 검증
+    const user = await User.findByPk(tokenRow.user_id);
+    if (!user || user.status !== 'active' || user.is_ai) {
+      return errorResponse(res, 'Invalid user', 401);
+    }
+
+    // 7. Rotate — 옛 row revoke (rotated) + 새 row 생성 + 새 cookie
     const newAccessToken = generateAccessToken(user);
     const newRefreshToken = generateRefreshToken(user);
 
-    await user.update({ refresh_token: hashRefreshToken(newRefreshToken) });
+    await tokenRow.update({ revoked_at: new Date(), revoked_reason: 'rotated' });
+    await createRefreshTokenRow(user, newRefreshToken, req);
 
+    // 새 cookie — 기존 cookie 의 maxAge 가 있다면 (remember=true 였음) 유지
+    // request 시점엔 remember 옵션 없으니 기존 row 의 expires_at 까지 남은 시간으로 설정
+    const remainingMs = tokenRow.expires_at
+      ? Math.max(0, new Date(tokenRow.expires_at).getTime() - Date.now())
+      : 7 * 24 * 60 * 60 * 1000;
     res.cookie('refresh_token', newRefreshToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'strict',
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-      path: '/api/auth'
+      maxAge: remainingMs,
+      path: '/api/auth',
     });
 
     const userData = await getUserWithBusiness(user.id);
-
-    successResponse(res, {
-      token: newAccessToken,
-      user: userData
-    });
+    successResponse(res, { token: newAccessToken, user: userData });
   } catch (error) {
     next(error);
   }
@@ -538,14 +578,12 @@ router.post('/logout', async (req, res, next) => {
     const refreshToken = req.cookies?.refresh_token;
 
     if (refreshToken) {
-      // Invalidate refresh token in DB
-      const decoded = jwt.decode(refreshToken);
-      if (decoded?.userId) {
-        await User.update(
-          { refresh_token: null },
-          { where: { id: decoded.userId } }
-        );
-      }
+      // 이 디바이스의 row 만 revoke — 다른 디바이스 세션은 유지 (다중 디바이스 핵심 정책)
+      const tokenHash = hashRefreshToken(refreshToken);
+      await RefreshToken.update(
+        { revoked_at: new Date(), revoked_reason: 'logout' },
+        { where: { token_hash: tokenHash, revoked_at: null } }
+      );
     }
 
     // Clear cookie — path 정합성 (과거 path='/' 또는 다른 path 로 발급된 쿠키 잔존 방지)
