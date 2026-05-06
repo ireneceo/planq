@@ -61,6 +61,8 @@ const InstallPromptBanner: React.FC = () => {
   const [mode, setMode] = useState<Mode>('hidden');
   const [installEvent, setInstallEvent] = useState<BeforeInstallPromptEvent | null>(null);
   const [busy, setBusy] = useState(false);
+  // iOS / installEvent 없는 환경에서 [방법 보기] 클릭 시 단계별 안내 펼침
+  const [expanded, setExpanded] = useState(false);
 
   // 결정 로직: install vs notify vs hidden
   const decideMode = useCallback(async () => {
@@ -136,31 +138,56 @@ const InstallPromptBanner: React.FC = () => {
 
   if (mode === 'install') {
     const ios = isIOS();
+    // 환경별 PrimaryBtn 동작:
+    //  - installEvent 존재 (Android Chrome 등): 즉시 prompt() 호출
+    //  - 그 외 (iOS Safari / Mac Safari / Firefox 등): [방법 보기] 토글 → 단계 안내 펼침
+    const handlePrimary = () => {
+      if (installEvent) onInstall();
+      else setExpanded((v) => !v);
+    };
+    const primaryLabel = installEvent
+      ? t('installPrompt.installBtn', '설치')
+      : expanded
+        ? t('installPrompt.hideSteps', '접기')
+        : t('installPrompt.showSteps', '방법 보기');
+
     return (
       <Banner role="dialog" aria-label={t('installPrompt.title', 'PlanQ 를 앱처럼 사용하기') as string}>
-        <BannerIcon><img src="/favicon.svg" alt="PlanQ" width={36} height={36} /></BannerIcon>
-        <BannerBody>
-          <BannerTitle>{t('installPrompt.title', 'PlanQ 를 앱처럼 사용하기')}</BannerTitle>
-          {ios ? (
+        <BannerRow>
+          <BannerIcon><img src="/favicon.svg" alt="PlanQ" width={36} height={36} /></BannerIcon>
+          <BannerBody>
+            <BannerTitle>{t('installPrompt.title', 'PlanQ 를 앱처럼 사용하기')}</BannerTitle>
             <BannerDesc>
-              {t('installPrompt.iosStep', '하단 공유 버튼 → "홈 화면에 추가" 를 누르면 앱 아이콘이 생깁니다.')}
+              {t('installPrompt.shortDesc', '홈 화면에 추가하면 앱처럼 빠르게 접속할 수 있어요.')}
             </BannerDesc>
-          ) : installEvent ? (
-            <BannerDesc>{t('installPrompt.androidDesc', '홈 화면에 PlanQ 아이콘을 추가하면 빠르게 접속할 수 있습니다.')}</BannerDesc>
-          ) : (
-            <BannerDesc>{t('installPrompt.menuStep', '브라우저 메뉴(︙) → "홈 화면에 추가" 를 누르면 앱 아이콘이 생깁니다.')}</BannerDesc>
-          )}
-        </BannerBody>
-        <BannerActions>
-          {!ios && installEvent && (
-            <PrimaryBtn type="button" onClick={onInstall} disabled={busy}>
-              {t('installPrompt.installBtn', '설치')}
+          </BannerBody>
+          <BannerActions>
+            <PrimaryBtn type="button" onClick={handlePrimary} disabled={busy}>
+              {primaryLabel}
             </PrimaryBtn>
-          )}
-          <DismissBtn type="button" onClick={() => dismiss(DISMISS_KEY)} aria-label={t('installPrompt.dismiss', '나중에') as string}>
-            ×
-          </DismissBtn>
-        </BannerActions>
+            <DismissBtn type="button" onClick={(e) => { e.stopPropagation(); dismiss(DISMISS_KEY); }} aria-label={t('installPrompt.dismiss', '나중에') as string}>
+              ×
+            </DismissBtn>
+          </BannerActions>
+        </BannerRow>
+        {/* 단계 안내 — installEvent 없을 때 [방법 보기] 클릭 시 펼침 */}
+        {!installEvent && expanded && (
+          <Steps>
+            {ios ? (
+              <>
+                <Step>1. {t('installPrompt.iosStep1', '하단 공유 버튼 (□↑) 을 누릅니다')}</Step>
+                <Step>2. {t('installPrompt.iosStep2', '"홈 화면에 추가" 를 선택합니다')}</Step>
+                <Step>3. {t('installPrompt.iosStep3', '추가된 PlanQ 아이콘을 누르면 앱처럼 열립니다')}</Step>
+              </>
+            ) : (
+              <>
+                <Step>1. {t('installPrompt.menuStep1', '브라우저 메뉴 (︙ 또는 ⋯) 를 누릅니다')}</Step>
+                <Step>2. {t('installPrompt.menuStep2', '"홈 화면에 추가" / "앱 설치" 를 선택합니다')}</Step>
+                <Step>3. {t('installPrompt.menuStep3', '추가된 PlanQ 아이콘을 누르면 앱처럼 열립니다')}</Step>
+              </>
+            )}
+          </Steps>
+        )}
       </Banner>
     );
   }
@@ -168,24 +195,26 @@ const InstallPromptBanner: React.FC = () => {
   // mode === 'notify'
   return (
     <Banner role="dialog" aria-label={t('notifPrompt.title', '알림 받기') as string}>
-      <BannerIcon $bell>
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/>
-          <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
-        </svg>
-      </BannerIcon>
-      <BannerBody>
-        <BannerTitle>{t('notifPrompt.title', '알림 받기')}</BannerTitle>
-        <BannerDesc>{t('notifPrompt.desc', '새 메시지·컨펌 요청·결제 알림을 폰으로 바로 받습니다.')}</BannerDesc>
-      </BannerBody>
-      <BannerActions>
-        <PrimaryBtn type="button" onClick={onSubscribeNotif} disabled={busy}>
-          {busy ? t('notifPrompt.subscribing', '...') : t('notifPrompt.allowBtn', '알림 받기')}
-        </PrimaryBtn>
-        <DismissBtn type="button" onClick={() => dismiss(NOTIF_DISMISS_KEY)} aria-label={t('notifPrompt.dismiss', '나중에') as string}>
-          ×
-        </DismissBtn>
-      </BannerActions>
+      <BannerRow>
+        <BannerIcon $bell>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/>
+            <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+          </svg>
+        </BannerIcon>
+        <BannerBody>
+          <BannerTitle>{t('notifPrompt.title', '알림 받기')}</BannerTitle>
+          <BannerDesc>{t('notifPrompt.desc', '새 메시지·컨펌 요청·결제 알림을 폰으로 바로 받습니다.')}</BannerDesc>
+        </BannerBody>
+        <BannerActions>
+          <PrimaryBtn type="button" onClick={onSubscribeNotif} disabled={busy}>
+            {busy ? t('notifPrompt.subscribing', '...') : t('notifPrompt.allowBtn', '알림 받기')}
+          </PrimaryBtn>
+          <DismissBtn type="button" onClick={(e) => { e.stopPropagation(); dismiss(NOTIF_DISMISS_KEY); }} aria-label={t('notifPrompt.dismiss', '나중에') as string}>
+            ×
+          </DismissBtn>
+        </BannerActions>
+      </BannerRow>
     </Banner>
   );
 };
@@ -193,12 +222,14 @@ const InstallPromptBanner: React.FC = () => {
 export default InstallPromptBanner;
 
 // ─── styled ───
+// 위치: 모바일 우하단 FAB(채팅·Cue 도움말 버튼, bottom 16px + height 48px = 64px) 위로 띄움.
+//   bottom 80px = FAB top(64) + gap(16). safe-area 추가해 노치/홈인디케이터 보호.
 const Banner = styled.div`
   position: fixed;
   left: 12px; right: 12px;
-  bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  bottom: calc(80px + env(safe-area-inset-bottom, 0px));
   z-index: 80;
-  display: flex; align-items: center; gap: 12px;
+  display: flex; flex-direction: column; gap: 8px;
   padding: 12px 14px;
   background: #FFFFFF;
   border: 1px solid #E2E8F0;
@@ -207,6 +238,20 @@ const Banner = styled.div`
   animation: bannerSlide 0.32s cubic-bezier(0.22,1,0.36,1);
   @keyframes bannerSlide { from { transform: translateY(100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
   @media (min-width: 769px) { display: none; }
+`;
+const BannerRow = styled.div`
+  display: flex; align-items: center; gap: 12px;
+`;
+const Steps = styled.div`
+  display: flex; flex-direction: column; gap: 4px;
+  padding: 10px 12px;
+  background: #F8FAFC;
+  border: 1px solid #E2E8F0;
+  border-radius: 10px;
+  margin-top: 4px;
+`;
+const Step = styled.div`
+  font-size: 12px; color: #334155; line-height: 1.5;
 `;
 const BannerIcon = styled.div<{ $bell?: boolean }>`
   width: 40px; height: 40px; border-radius: 10px;

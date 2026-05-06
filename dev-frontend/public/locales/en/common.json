@@ -274,7 +274,16 @@
     "iosStep": "Tap the share button → \"Add to Home Screen\" to install the app icon.",
     "menuStep": "Open browser menu (︙) → \"Add to Home Screen\" to install the app icon.",
     "installBtn": "Install",
-    "dismiss": "Later"
+    "dismiss": "Later",
+    "shortDesc": "Add to home screen to use PlanQ like a native app.",
+    "showSteps": "Show steps",
+    "hideSteps": "Hide",
+    "iosStep1": "Tap the share button (□↑) at the bottom",
+    "iosStep2": "Select \"Add to Home Screen\"",
+    "iosStep3": "Tap the new PlanQ icon — it opens like an app",
+    "menuStep1": "Tap the browser menu (︙ or ⋯)",
+    "menuStep2": "Choose \"Add to Home Screen\" / \"Install app\"",
+    "menuStep3": "Tap the new PlanQ icon — it opens like an app"
   },
   "notifPrompt": {
     "title": "Enable notifications",
