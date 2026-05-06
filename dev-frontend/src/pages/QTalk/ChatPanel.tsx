@@ -88,6 +88,28 @@ const ChatPanel: React.FC<Props> = ({
   const [bannerDismissed, setBannerDismissed] = useState(false);
   const [previewCard, setPreviewCard] = useState<PostCardMeta | null>(null);
 
+  // 메시지 본문 안 URL 자동 링크 — 보안: target=_blank rel="noopener noreferrer"
+  // 정규식: http(s):// + 공백 아닌 문자 (자주 보이는 끝 문자 . , ) ] 등은 trailing 으로 제외하고 링크에 포함 안 함)
+  const LINK_RE = /(https?:\/\/[^\s<>"]+[^\s<>".,;:!?)\]'"])/g;
+  const renderTextWithLinks = (text: string): React.ReactNode[] => {
+    if (!text) return [text];
+    const parts: React.ReactNode[] = [];
+    let lastIdx = 0;
+    let m: RegExpExecArray | null;
+    LINK_RE.lastIndex = 0;
+    while ((m = LINK_RE.exec(text)) !== null) {
+      if (m.index > lastIdx) parts.push(text.slice(lastIdx, m.index));
+      parts.push(
+        <MsgLink key={`l-${m.index}`} href={m[0]} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}>
+          {m[0]}
+        </MsgLink>
+      );
+      lastIdx = m.index + m[0].length;
+    }
+    if (lastIdx < text.length) parts.push(text.slice(lastIdx));
+    return parts.length > 0 ? parts : [text];
+  };
+
   // candidatesCount 가 변할 때마다 dismiss 리셋 (새 후보가 들어왔으니)
   useEffect(() => {
     setBannerDismissed(false);
@@ -714,8 +736,8 @@ const ChatPanel: React.FC<Props> = ({
                   }
                   return (
                     <>
-                      <MessageText $question={!!m.is_question}>{m.body}</MessageText>
-                      {translated && <TranslatedText>{translated}</TranslatedText>}
+                      <MessageText $question={!!m.is_question}>{renderTextWithLinks(m.body)}</MessageText>
+                      {translated && <TranslatedText>{renderTextWithLinks(translated)}</TranslatedText>}
                     </>
                   );
                 })()
@@ -1286,6 +1308,16 @@ const CueBadge = styled.span`
   color: #FFFFFF;
   border-radius: 10px;
   letter-spacing: 0.3px;
+`;
+
+// 메시지 본문 안 URL 자동링크 — Primary teal, hover 시 진하게. word-break 강제 (긴 URL 줄바꿈)
+const MsgLink = styled.a`
+  color: #0D9488;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  word-break: break-all;
+  &:hover { color: #0F766E; text-decoration-thickness: 2px; }
+  &:visited { color: #0F766E; }
 `;
 
 const MessageText = styled.div<{ $question: boolean }>`

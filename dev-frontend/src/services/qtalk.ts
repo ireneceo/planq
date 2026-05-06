@@ -536,10 +536,18 @@ export async function extractTaskCandidates(conversationId: number): Promise<Ext
   return handle<ExtractResult>(res);
 }
 
-export async function registerCandidate(candidateId: number): Promise<RegisterResult> {
+// 우측 패널에서 인라인 편집한 값을 overrides 로 전달. 미입력 필드는 candidate 의 LLM 추측값 사용.
+export interface RegisterCandidateOverrides {
+  title?: string;
+  description?: string;
+  assignee_id?: number | null;
+  due_date?: string | null; // YYYY-MM-DD or null
+}
+export async function registerCandidate(candidateId: number, overrides?: RegisterCandidateOverrides): Promise<RegisterResult> {
   const res = await apiFetch(`/api/projects/task-candidates/${candidateId}/register`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
+    body: overrides ? JSON.stringify(overrides) : undefined,
   });
   return handle<RegisterResult>(res);
 }

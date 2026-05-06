@@ -971,10 +971,10 @@ const QTalkPage: React.FC = () => {
     }
   };
 
-  // 청크 3: 후보 등록
-  const handleRegisterCandidate = async (id: number) => {
+  // 청크 3: 후보 등록 — 우측 패널 인라인 편집한 값 (title/assignee_id/due_date) 전달.
+  const handleRegisterCandidate = async (id: number, overrides?: qtalkApi.RegisterCandidateOverrides) => {
     try {
-      const result = await qtalkApi.registerCandidate(id);
+      const result = await qtalkApi.registerCandidate(id, overrides);
       // 후보 목록에서 제거 (또는 상태 변경)
       setCandidates((prev) => prev.filter((c) => c.id !== id));
       // 새 업무를 tasks에 추가
