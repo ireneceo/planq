@@ -94,7 +94,7 @@ function apiMessageToMock(m: qtalkApi.ApiMessage): MockMessage {
     sender_role: m.is_ai ? 'cue' : 'member',
     sender_color: m.is_ai ? '#F43F5E' : '#64748B',
     body: isRejectedDraft ? '' : m.content,  // 거절된 draft는 빈 body
-    created_at: m.createdAt,
+    created_at: m.created_at,
     reply_to_message_id: m.reply_to_message_id,
     is_question: !m.is_ai && m.content.trim().endsWith('?'),
     cue_draft: isDraft ? {
@@ -144,7 +144,7 @@ function apiNoteToMock(n: qtalkApi.ApiNote): MockNote {
     author_name: n.author?.name || `user ${n.author_user_id}`,
     visibility: n.visibility,
     body: n.body,
-    created_at: n.createdAt,
+    created_at: n.created_at,
   };
 }
 
@@ -155,8 +155,8 @@ function apiIssueToMock(i: qtalkApi.ApiIssue): MockIssue {
     conversation_id: i.conversation_id ?? null,
     body: i.body,
     author_name: i.author?.name || `user ${i.author_user_id}`,
-    created_at: i.createdAt,
-    updated_at: i.updatedAt,
+    created_at: i.created_at,
+    updated_at: i.updated_at,
   };
 }
 

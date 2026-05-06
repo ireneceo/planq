@@ -215,8 +215,9 @@ export interface ApiMessage {
   ai_confidence?: number;
   ai_source?: string;
   is_edited?: boolean;
-  createdAt: string;
-  updatedAt: string;
+  // 백엔드 toJSON override 가 createdAt → created_at (snake_case) 으로 통일.
+  created_at: string;
+  updated_at: string;
   sender?: { id: number; name: string; email: string };
   attachments?: ApiMessageAttachment[];
   meta?: ApiMessageMeta | null;
@@ -245,7 +246,7 @@ export interface ApiTask {
   status: string;
   due_date: string | null;
   recurrence: string | null;
-  createdAt: string;
+  created_at: string;
 }
 
 export interface ApiNote {
@@ -255,8 +256,8 @@ export interface ApiNote {
   author_user_id: number;
   visibility: 'personal' | 'internal';
   body: string;
-  createdAt: string;
-  updatedAt: string;
+  created_at: string;
+  updated_at: string;
   author?: { id: number; name: string };
 }
 
@@ -266,8 +267,8 @@ export interface ApiIssue {
   conversation_id?: number | null;
   body: string;
   author_user_id: number;
-  createdAt: string;
-  updatedAt: string;
+  created_at: string;
+  updated_at: string;
   author?: { id: number; name: string };
 }
 

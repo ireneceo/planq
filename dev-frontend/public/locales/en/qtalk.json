@@ -250,6 +250,16 @@
       "attach": "Attach file",
       "attachExisting": "Existing file (no re-upload)",
       "placeholder": "Type a message (Enter to send · Shift+Enter for newline)"
+    },
+    "yesterday": "Yesterday",
+    "weekday": {
+      "sun": "Sun",
+      "mon": "Mon",
+      "tue": "Tue",
+      "wed": "Wed",
+      "thu": "Thu",
+      "fri": "Fri",
+      "sat": "Sat"
     }
   },
   "page": {

@@ -120,7 +120,10 @@
     "create": "대화 만들기"
   },
   "common": {
-    "cancel": "취소"
+    "close": "닫기",
+    "cancel": "취소",
+    "save": "저장",
+    "saving": "저장 중..."
   },
   "modal": {
     "title": "새 프로젝트",
@@ -219,6 +222,16 @@
       "attach": "파일 첨부",
       "attachExisting": "기존 파일 (재업로드 X)",
       "placeholder": "메시지를 입력하세요 (Enter 전송 · Shift+Enter 줄바꿈)"
+    },
+    "yesterday": "어제",
+    "weekday": {
+      "sun": "일",
+      "mon": "월",
+      "tue": "화",
+      "wed": "수",
+      "thu": "목",
+      "fri": "금",
+      "sat": "토"
     }
   },
   "page": {
@@ -336,11 +349,5 @@
       "invitePh": "워크스페이스 멤버 선택",
       "invite": "초대"
     }
-  },
-  "common": {
-    "close": "닫기",
-    "cancel": "취소",
-    "save": "저장",
-    "saving": "저장 중..."
   }
 }
