@@ -447,15 +447,17 @@ async function registerCandidate(candidateId, userId, overrides = {}) {
     // 사용자 편집값 우선. 미입력 시 LLM 추측, 그래도 없으면 fallback.
     const finalTitle = (overrides.title || candidate.title || '').trim();
     const finalDesc = overrides.description !== undefined ? overrides.description : candidate.description;
-    // 담당자: 명시 override → 그 값 / null override → null (모호한 채로 등록 허용 X 는 라우트에서) /
-    //         미전달 → guessed → 등록자
+    // 담당자
     let finalAssignee;
     if (Object.prototype.hasOwnProperty.call(overrides, 'assignee_id')) {
-      finalAssignee = overrides.assignee_id; // 명시 (null 가능)
+      finalAssignee = overrides.assignee_id;
     } else {
       finalAssignee = candidate.guessed_assignee_user_id || userId;
     }
-    // due_date: 명시 override → 그 값 (null 허용) / 미전달 → guessed
+    // 기간 (start_date / due_date) — 명시 override → 그 값 (null 허용) / 미전달 → guessed
+    const finalStart = Object.prototype.hasOwnProperty.call(overrides, 'start_date')
+      ? (overrides.start_date || null)
+      : null;
     const finalDue = Object.prototype.hasOwnProperty.call(overrides, 'due_date')
       ? (overrides.due_date || null)
       : (candidate.guessed_due_date || null);
@@ -470,6 +472,7 @@ async function registerCandidate(candidateId, userId, overrides = {}) {
       description: finalDesc,
       assignee_id: finalAssignee,
       status: 'not_started',
+      start_date: finalStart,
       due_date: finalDue,
       from_candidate_id: candidate.id,
       created_by: userId,

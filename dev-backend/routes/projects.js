@@ -1292,12 +1292,13 @@ router.post('/task-candidates/:id/register', authenticateToken, async (req, res,
       return errorResponse(res, 'candidate_unowned', 400);
     }
 
-    // 우측 패널에서 사용자가 인라인 편집한 값 (title / assignee_id / due_date / description) 받아 적용.
+    // 우측 패널에서 사용자가 인라인 편집한 값 (title / assignee_id / start_date / due_date / description) 받아 적용.
     // 미전달 필드는 candidate 의 LLM 추측값 사용.
     const overrides = {};
     if (req.body && typeof req.body === 'object') {
       if (typeof req.body.title === 'string') overrides.title = req.body.title;
       if ('assignee_id' in req.body) overrides.assignee_id = req.body.assignee_id;
+      if ('start_date' in req.body) overrides.start_date = req.body.start_date;
       if ('due_date' in req.body) overrides.due_date = req.body.due_date;
       if (typeof req.body.description === 'string') overrides.description = req.body.description;
     }

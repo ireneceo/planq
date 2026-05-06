@@ -22,7 +22,9 @@
       "metaDue": "마감",
       "noAssignee": "담당 미정",
       "titlePlaceholder": "업무 제목 (예: [   ] 업로드 — 모호한 부분은 비워두세요)",
-      "request": "요청"
+      "request": "요청",
+      "metaPeriod": "기간",
+      "periodPlaceholder": "날짜 선택"
     },
     "issues": {
       "title": "주요 이슈",
