@@ -223,7 +223,11 @@
     "everySuffix": "",
     "endCountLabel": "Repeat count",
     "endUntilLabel": "End date",
-    "preview": "Preview"
+    "preview": "Preview",
+    "presetWeeklyShort": "Weekly",
+    "presetBiweeklyShort": "Every other week",
+    "presetMonthlyShort": "Monthly",
+    "presetYearlyShort": "Yearly"
   },
   "backlog": {
     "title": "Unassigned",

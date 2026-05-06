@@ -77,7 +77,7 @@ const EventDrawer: React.FC<Props> = ({ event, onClose, onUpdate, onDelete, onCr
                     <polyline points="23 4 23 10 17 10" />
                     <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
                   </svg>
-                  {formatRRuleLabel(event.rrule, event.start_at?.slice(0, 10), tQtask as unknown as Parameters<typeof formatRRuleLabel>[2])}
+                  {formatRRuleLabel(event.rrule, event.start_at?.slice(0, 10), tQtask as unknown as Parameters<typeof formatRRuleLabel>[2], { short: true })}
                 </RecurrenceBadge>
               )}
             </MetaRow>
