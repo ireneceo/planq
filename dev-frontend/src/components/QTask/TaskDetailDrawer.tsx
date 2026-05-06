@@ -948,12 +948,28 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                       const isImg = a.mime_type?.startsWith('image/');
                       const preview = (isImg && a.stored_name) ? `/api/tasks/public/attach/${a.stored_name}` : null;
                       const dl = `/api/tasks/attachments/${a.id}/download`;
+                      // 이미지는 public preview URL 로 새 탭 (인증 불필요).
+                      // 비이미지는 fetch 로 blob 받아 다운로드 (auth header 포함). window.open 은
+                      // 새 탭에 access token 못 실어 401 발생.
                       return isImg && preview ? (
-                        <a key={a.id} href={dl} onClick={e => { e.preventDefault(); window.open(dl, '_blank'); }}>
+                        <a key={a.id} href={preview} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}>
                           <CmtAttImg src={preview} alt={a.original_name}/>
                         </a>
                       ) : (
-                        <CmtAttFile key={a.id} href={dl} onClick={e => { e.preventDefault(); window.open(dl, '_blank'); }}>
+                        <CmtAttFile key={a.id} as="button" type="button" onClick={async (e) => {
+                          e.preventDefault();
+                          try {
+                            const r = await apiFetch(dl);
+                            if (!r.ok) return;
+                            const blob = await r.blob();
+                            const url = URL.createObjectURL(blob);
+                            const link = document.createElement('a');
+                            link.href = url; link.download = a.original_name;
+                            document.body.appendChild(link); link.click();
+                            document.body.removeChild(link);
+                            setTimeout(() => URL.revokeObjectURL(url), 1000);
+                          } catch { /* silent */ }
+                        }}>
                           <CmtAttIcon>{a.original_name.split('.').pop()?.slice(0, 3).toUpperCase() || 'FILE'}</CmtAttIcon>
                           <CmtAttName>{a.original_name}</CmtAttName>
                         </CmtAttFile>
