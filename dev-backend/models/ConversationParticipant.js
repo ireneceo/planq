@@ -32,6 +32,13 @@ ConversationParticipant.init({
   pinned_at: {
     type: DataTypes.DATE,
     allowNull: true
+  },
+  // 마지막으로 읽은 시각 — unread_count 계산 기준점.
+  // null = 한 번도 읽지 않음 (모든 메시지가 unread).
+  // 대화방 진입 시 PUT /:bid/:id/read 로 NOW() 갱신.
+  last_read_at: {
+    type: DataTypes.DATE,
+    allowNull: true
   }
 }, {
   sequelize,

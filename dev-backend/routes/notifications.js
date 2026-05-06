@@ -90,7 +90,7 @@ router.isAllowed = isAllowed;
 //
 // 시스템 메일 (인증 OTP, 비밀번호 재설정) 도 매트릭스 무관 —
 //   전용 helper (sendVerificationCodeEmail / sendSignatureOtpEmail) 사용.
-async function notify({ userId, businessId, eventKind, title, body, link, ctaLabel, workspaceName }) {
+async function notify({ userId, businessId, eventKind, title, body, link, ctaLabel, workspaceName, tag }) {
   if (!userId || !eventKind) return { inbox: false, email: false, push: false };
   const results = { inbox: true, email: false, push: false };
 
@@ -112,7 +112,7 @@ async function notify({ userId, businessId, eventKind, title, body, link, ctaLab
     }
   }
 
-  // push 채널
+  // push 채널 — tag 로 OS 알림 그룹핑 (같은 대화방 연속 메시지는 마지막 것으로 대체)
   if (await isAllowed(userId, businessId, eventKind, 'push')) {
     try {
       const { sendPushToUser } = require('../services/push_service');
@@ -120,7 +120,7 @@ async function notify({ userId, businessId, eventKind, title, body, link, ctaLab
         title: title || 'PlanQ',
         body: body || '',
         link: link || '/',
-        tag: `${eventKind}:${userId}`,
+        tag: tag || `${eventKind}:${userId}`,
       });
       results.push = r;
     } catch (e) {
@@ -131,10 +131,10 @@ async function notify({ userId, businessId, eventKind, title, body, link, ctaLab
 }
 
 // 멀티 수신자용 (워크스페이스 멤버 N 명에게 한 번에)
-async function notifyMany({ userIds, businessId, eventKind, title, body, link, ctaLabel, workspaceName, excludeUserId }) {
+async function notifyMany({ userIds, businessId, eventKind, title, body, link, ctaLabel, workspaceName, excludeUserId, tag }) {
   const filtered = (userIds || []).filter((id) => id && id !== excludeUserId);
   const results = await Promise.all(
-    filtered.map((uid) => notify({ userId: uid, businessId, eventKind, title, body, link, ctaLabel, workspaceName }))
+    filtered.map((uid) => notify({ userId: uid, businessId, eventKind, title, body, link, ctaLabel, workspaceName, tag }))
   );
   return results;
 }

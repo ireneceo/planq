@@ -70,25 +70,41 @@ self.addEventListener('push', (event) => {
     icon: payload.icon || '/icon-192.png',
     badge: '/icon-72.png',
     tag: payload.tag || undefined,
+    // 같은 tag 의 최신 알림으로 교체 — 기본은 false (true 면 누적 알림)
+    // Slack 패턴: 같은 대화방은 최신만. user 가 못 보고 누적되는 사고 방지.
+    renotify: !!payload.tag,
     data: { link: payload.link || '/' },
     requireInteraction: false,
   };
-  event.waitUntil(self.registration.showNotification(title, options));
+  event.waitUntil((async () => {
+    await self.registration.showNotification(title, options);
+    // App Badging API — 데스크탑 PWA 아이콘 / 모바일 홈스크린 숫자
+    // Chrome/Edge desktop · Android Chrome · iOS Safari 16.4+ 지원
+    try {
+      if ('setAppBadge' in self.navigator) {
+        // 정확한 토탈은 클라이언트가 알지만 SW 가 fetch 하면 비용↑ — 알림 1개 도착 = 최소 1
+        // 클라이언트 활성 시 setAppBadge(actualTotal) 로 덮어씀.
+        await self.navigator.setAppBadge();
+      }
+    } catch { /* unsupported / blocked — silent */ }
+  })());
 });
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   const link = event.notification.data?.link || '/';
-  event.waitUntil(
-    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
-      // 이미 열린 창 있으면 포커스 + 이동
-      for (const c of clientList) {
-        if (c.url && 'focus' in c) {
-          c.navigate(link);
-          return c.focus();
-        }
+  event.waitUntil((async () => {
+    // 클릭 시 badge clear (앱 진입하므로 — 정확한 카운트는 앱 내부에서 다시 setAppBadge)
+    try {
+      if ('clearAppBadge' in self.navigator) await self.navigator.clearAppBadge();
+    } catch { /* silent */ }
+    const clientList = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    for (const c of clientList) {
+      if (c.url && 'focus' in c) {
+        c.navigate(link);
+        return c.focus();
       }
-      if (self.clients.openWindow) return self.clients.openWindow(link);
-    })
-  );
+    }
+    if (self.clients.openWindow) return self.clients.openWindow(link);
+  })());
 });

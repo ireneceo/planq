@@ -113,3 +113,33 @@ export async function sendTestPush(): Promise<{ sent: number; skipped?: string }
   const j = await r.json();
   return j.data || { sent: 0 };
 }
+
+// 자동 구독 시도 — 로그인 직후 한 번 호출.
+//   granted  → 조용히 subscribe (이미 허락한 사용자)
+//   default  → 7일에 1회 prompt (Slack 패턴, invasive 방지)
+//   denied   → skip (NotificationSettings 에서 OS 권한 변경 안내)
+const AUTO_PROMPT_KEY = 'planq:push:lastPrompt';
+const PROMPT_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000; // 7일
+
+export async function autoSubscribeIfPossible(): Promise<{ ok: boolean; reason?: string }> {
+  if (!(await isPushSupported())) return { ok: false, reason: 'unsupported' };
+
+  const perm = Notification.permission;
+  if (perm === 'denied') return { ok: false, reason: 'permission_denied' };
+
+  if (perm === 'granted') {
+    if (await isSubscribed()) return { ok: true, reason: 'already_subscribed' };
+    return await subscribe();
+  }
+
+  // default — 7일 1회 prompt
+  try {
+    const last = Number(localStorage.getItem(AUTO_PROMPT_KEY) || '0');
+    if (Date.now() - last < PROMPT_INTERVAL_MS) {
+      return { ok: false, reason: 'recently_prompted' };
+    }
+    localStorage.setItem(AUTO_PROMPT_KEY, String(Date.now()));
+  } catch { /* localStorage 비활성 환경 무시 */ }
+
+  return await subscribe();
+}

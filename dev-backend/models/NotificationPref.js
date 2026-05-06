@@ -1,7 +1,7 @@
 // NotificationPref — 사용자별 알림 채널 ON/OFF 매트릭스 (Phase E4 + 사이클 J4 push)
 //
 // 매트릭스: event × channel × enabled
-//   event (워크스페이스):    'signature' | 'invoice' | 'tax_invoice' | 'task' | 'event' | 'invite' | 'mention'
+//   event (워크스페이스):    'signature' | 'invoice' | 'tax_invoice' | 'task' | 'event' | 'invite' | 'mention' | 'message'
 //   event (플랫폼 관리자):    'inquiry' | 'signup' | 'payment' | 'subscription' | 'trial' | 'feedback'
 //   channel:  'inbox' | 'chat' | 'email' | 'push'
 //
@@ -31,6 +31,7 @@ NotificationPref.init({
     type: DataTypes.ENUM(
       'signature', 'invoice', 'tax_invoice', 'task', 'event', 'invite', 'mention',
       'inquiry', 'signup', 'payment', 'subscription', 'trial', 'feedback',
+      'message',
     ),
     allowNull: false,
   },
