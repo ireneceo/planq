@@ -6,6 +6,7 @@ import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import PageShell from '../../components/Layout/PageShell';
 import PlanQSelect, { type PlanQSelectOption } from '../../components/Common/PlanQSelect';
+import SingleDateField from '../../components/Common/SingleDateField';
 import DetailDrawer from '../../components/Common/DetailDrawer';
 import EmptyState from '../../components/Common/EmptyState';
 import { apiFetch } from '../../contexts/AuthContext';
@@ -86,8 +87,8 @@ const AdminAuditLogsPage = () => {
           />
           <SmallInput type="number" placeholder={t('adminAudit.userIdPh', 'user ID') as string}
             value={filterUserId} onChange={e => setFilterUserId(e.target.value)} />
-          <SmallInput type="date" value={filterFrom} onChange={e => setFilterFrom(e.target.value)} />
-          <SmallInput type="date" value={filterTo} onChange={e => setFilterTo(e.target.value)} />
+          <SingleDateField value={filterFrom} onChange={setFilterFrom} placeholder="시작" size="sm" width={130} />
+          <SingleDateField value={filterTo} onChange={setFilterTo} placeholder="끝" size="sm" width={130} minDate={filterFrom || undefined} />
         </FilterRow>
       }
     >

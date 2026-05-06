@@ -7,6 +7,7 @@ import {
   listInvoices, formatMoney, markInstallmentTaxInvoice,
   type ApiInvoice, type ApiInstallment,
 } from '../../services/invoices';
+import SingleDateField from '../../components/Common/SingleDateField';
 
 type Tab = 'pending' | 'issued' | 'all';
 
@@ -203,7 +204,7 @@ function IssueModal({ row, onClose, onIssued }: { row: TaxRow; onClose: () => vo
           </ModalField>
           <ModalField>
             <ModalLabel>{t('taxInvoices.issueModal.date')}</ModalLabel>
-            <ModalInput type="date" value={date} onChange={e => setDate(e.target.value)} />
+            <SingleDateField value={date} onChange={setDate} size="md" />
           </ModalField>
           <Hint>
             {row.invoice.invoice_number}{row.installment ? ` · ${row.installment.installment_no}차 · ${row.installment.label}` : ''} · {formatMoney(row.amount, row.invoice.currency)}

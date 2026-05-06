@@ -9,6 +9,7 @@ import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { requestSignatures, type PostDetail, type SignatureRequest } from '../../services/posts';
+import SingleDateField from '../Common/SingleDateField';
 import { listProjectConversations, listBusinessConversations, type ApiConversation } from '../../services/qtalk';
 import PlanQSelect, { type PlanQSelectOption } from '../Common/PlanQSelect';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
@@ -245,7 +246,9 @@ const PostSignatureModal: React.FC<Props> = ({ open, onClose, post, onSent }) =>
                   </ExpiryChip>
                 </ExpiryRow>
                 {expiryPick === 'custom' && (
-                  <Input type="date" value={customExpiry} onChange={e => setCustomExpiry(e.target.value)} min={new Date(Date.now() + 86400000).toISOString().slice(0,10)} />
+                  <SingleDateField value={customExpiry} onChange={setCustomExpiry}
+                    minDate={new Date(Date.now() + 86400000).toISOString().slice(0,10)}
+                    size="md" />
                 )}
                 <SectionHint>{t('sign.expiresOn', '{{date}} 까지 유효', { date: new Date(Date.now() + expiresInDays * 86400000).toLocaleDateString('ko-KR') })}</SectionHint>
               </SectionHalf>
@@ -401,13 +404,6 @@ const ExpiryChip = styled.button<{ $active: boolean }>`
   border-radius: 999px; cursor: pointer;
   transition: background 0.15s, color 0.15s, border-color 0.15s;
   &:hover { border-color: ${p => p.$active ? '#0D9488' : '#CBD5E1'}; }
-`;
-const Input = styled.input`
-  width: 100%; padding: 8px 10px;
-  font-size: 13px; color: #0F172A;
-  border: 1px solid #E2E8F0; border-radius: 8px; background: #fff;
-  margin-top: 4px;
-  &:focus { outline: none; border-color: #14B8A6; }
 `;
 
 // 채팅 토글

@@ -24,6 +24,7 @@ import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import PlanQSelect from './PlanQSelect';
+import SingleDateField from './SingleDateField';
 import {
   buildPresetRRule, buildCustomRRule, parseRRule, formatRRuleLabel, emptyRecurState,
   type RecurPreset, type RecurEndType, type RecurCustomUnit, type RecurState,
@@ -220,12 +221,11 @@ const RecurrencePicker: React.FC<Props> = ({ value, onChange, anchorDate, disabl
           {state.endType === 'until' && (
             <Field>
               <FieldLabel>{t('recur.endUntilLabel', '종료 날짜')}</FieldLabel>
-              <DateInput
-                type="date"
-                disabled={disabled}
+              <SingleDateField
                 value={state.endUntil}
-                min={anchorDate || undefined}
-                onChange={(e) => update({ endUntil: e.target.value })}
+                minDate={anchorDate || undefined}
+                disabled={disabled}
+                onChange={(d) => update({ endUntil: d })}
               />
             </Field>
           )}
@@ -275,13 +275,6 @@ const NumInput = styled.input`
   width: 60px; padding: 6px 8px;
   border: 1px solid #E2E8F0; border-radius: 6px;
   font-size: 13px; font-weight: 600; color: #0F172A; background: #FFF;
-  &:focus { outline: none; border-color: #14B8A6; }
-  &:disabled { background: #F1F5F9; color: #94A3B8; cursor: not-allowed; }
-`;
-const DateInput = styled.input`
-  padding: 6px 8px;
-  border: 1px solid #E2E8F0; border-radius: 6px;
-  font-size: 13px; color: #0F172A; background: #FFF;
   &:focus { outline: none; border-color: #14B8A6; }
   &:disabled { background: #F1F5F9; color: #94A3B8; cursor: not-allowed; }
 `;

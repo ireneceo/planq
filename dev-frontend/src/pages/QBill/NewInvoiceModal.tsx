@@ -8,6 +8,7 @@ import { useEffect, useMemo, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
+import SingleDateField from '../../components/Common/SingleDateField';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { useEscapeStack } from '../../hooks/useEscapeStack';
 import { useAuth } from '../../contexts/AuthContext';
@@ -541,11 +542,11 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
               </Field>
               <Field>
                 <FieldLabel>{t('newInvoice.compose.issuedAt')}</FieldLabel>
-                <Input type="date" value={issuedAt} onChange={e => setIssuedAt(e.target.value)} />
+                <SingleDateField value={issuedAt} onChange={setIssuedAt} size="md" />
               </Field>
               <Field>
                 <FieldLabel>{t('newInvoice.compose.dueDate')}</FieldLabel>
-                <Input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} />
+                <SingleDateField value={dueDate} onChange={setDueDate} size="md" />
               </Field>
               <Field>
                 <FieldLabel>{t('newInvoice.compose.currency')}</FieldLabel>
@@ -687,7 +688,7 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
                         {formatMoney(Math.round(total * r.rate / 100), currency)}
                       </RoundCell>
                       <RoundCell style={{ width: 130 }}>
-                        <Input type="date" value={r.due_date} onChange={e => updateRound(r.id, { due_date: e.target.value })} />
+                        <SingleDateField value={r.due_date} onChange={(d) => updateRound(r.id, { due_date: d })} size="sm" width={140} />
                       </RoundCell>
                       <RoundCell style={{ width: 28 }}>
                         <RemoveBtn type="button" onClick={() => removeRound(r.id)} aria-label="remove">
