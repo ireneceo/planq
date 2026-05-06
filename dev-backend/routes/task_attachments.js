@@ -196,13 +196,23 @@ router.post('/:taskId/attachments/link', authenticateToken, async (req, res, nex
 });
 
 // ============================================
-// GET /api/tasks/:taskId/attachments — 리스트 (task + comment 모두)
+// GET /api/tasks/:taskId/attachments — 리스트
+// Query: ?context=task → task/description 만 (default, 업무 결과물 영역용)
+//        ?context=all  → 댓글 포함 전체
+// 30년차 정책: 댓글 첨부는 댓글 안에서만 표시. 업무 결과물 영역은 task/description 만.
+//   Irene 명시: "아래 첨부파일은 업무관련 결과물 — 댓글 첨부 중복 표시 X"
 // ============================================
 router.get('/:taskId/attachments', authenticateToken, async (req, res, next) => {
   try {
     if (!(await loadTaskAndGuard(req, res))) return;
+    const ctxParam = String(req.query.context || 'task');
+    const where = { task_id: req._task.id };
+    if (ctxParam !== 'all') {
+      // default: task/description 만 (comment 제외)
+      where.context = { [require('sequelize').Op.in]: ['task', 'description'] };
+    }
     const rows = await TaskAttachment.findAll({
-      where: { task_id: req._task.id },
+      where,
       include: [{ model: User, as: 'uploader', attributes: ['id', 'name'] }],
       order: [['created_at', 'DESC']],
     });
