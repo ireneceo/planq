@@ -818,6 +818,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                   const presetLabels: Record<RecurPreset, string> = {
                     daily: t('recur.presetDaily', '매일') as string,
                     weekly: t('recur.presetWeekly', { day: dayLabel, defaultValue: `매주 ${dayLabel}` }) as string,
+                    biweekly: t('recur.presetBiweekly', { day: dayLabel, defaultValue: `격주 ${dayLabel}` }) as string,
                     monthly: t('recur.presetMonthly', { day: String(due.getUTCDate()), defaultValue: `매월 ${due.getUTCDate()}일` }) as string,
                     yearly: t('recur.presetYearly', { month: String(due.getUTCMonth()+1), day: String(due.getUTCDate()), defaultValue: `매년 ${due.getUTCMonth()+1}월 ${due.getUTCDate()}일` }) as string,
                     custom: t('recur.presetCustom', '사용자 지정...') as string,
@@ -836,6 +837,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                         options={[
                           { value: 'daily', label: presetLabels.daily },
                           { value: 'weekly', label: presetLabels.weekly },
+                          { value: 'biweekly', label: presetLabels.biweekly },
                           { value: 'monthly', label: presetLabels.monthly },
                           { value: 'yearly', label: presetLabels.yearly },
                         ]} />

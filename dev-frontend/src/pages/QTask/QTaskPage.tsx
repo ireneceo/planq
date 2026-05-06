@@ -1595,6 +1595,7 @@ const QTaskPage:React.FC=()=>{
                       const labels: Record<RecurPreset,string> = {
                         daily: t('recur.presetDaily','매일'),
                         weekly: t('recur.presetWeekly',{day:dayLabel,defaultValue:`매주 ${dayLabel}`}),
+                        biweekly: t('recur.presetBiweekly',{day:dayLabel,defaultValue:`격주 ${dayLabel}`}),
                         monthly: t('recur.presetMonthly',{day:String(d.getUTCDate()),defaultValue:`매월 ${d.getUTCDate()}일`}),
                         yearly: t('recur.presetYearly',{month:String(d.getUTCMonth()+1),day:String(d.getUTCDate()),defaultValue:`매년 ${d.getUTCMonth()+1}월 ${d.getUTCDate()}일`}),
                         custom: t('recur.presetCustom','사용자 지정...'),
@@ -1613,6 +1614,7 @@ const QTaskPage:React.FC=()=>{
                       return [
                         { value:'daily', label:t('recur.presetDaily','매일') },
                         { value:'weekly', label:t('recur.presetWeekly',{day:dayLabel,defaultValue:`매주 ${dayLabel}`}) },
+                        { value:'biweekly', label:t('recur.presetBiweekly',{day:dayLabel,defaultValue:`격주 ${dayLabel}`}) },
                         { value:'monthly', label:t('recur.presetMonthly',{day:String(d.getUTCDate()),defaultValue:`매월 ${d.getUTCDate()}일`}) },
                         { value:'yearly', label:t('recur.presetYearly',{month:String(d.getUTCMonth()+1),day:String(d.getUTCDate()),defaultValue:`매년 ${d.getUTCMonth()+1}월 ${d.getUTCDate()}일`}) },
                         { value:'custom', label:t('recur.presetCustom','사용자 지정...') },
@@ -2280,6 +2282,7 @@ const QTaskPage:React.FC=()=>{
                         const labels: Record<RecurPreset,string> = {
                           daily: t('recur.presetDaily','매일'),
                           weekly: t('recur.presetWeekly',{day:dayLabel,defaultValue:`매주 ${dayLabel}`}),
+                          biweekly: t('recur.presetBiweekly',{day:dayLabel,defaultValue:`격주 ${dayLabel}`}),
                           monthly: t('recur.presetMonthly',{day:String(d.getUTCDate()),defaultValue:`매월 ${d.getUTCDate()}일`}),
                           yearly: t('recur.presetYearly',{month:String(d.getUTCMonth()+1),day:String(d.getUTCDate()),defaultValue:`매년 ${d.getUTCMonth()+1}월 ${d.getUTCDate()}일`}),
                           custom: t('recur.presetCustom','사용자 지정...'),
@@ -2298,6 +2301,7 @@ const QTaskPage:React.FC=()=>{
                         return [
                           { value:'daily', label:t('recur.presetDaily','매일') },
                           { value:'weekly', label:t('recur.presetWeekly',{day:dayLabel,defaultValue:`매주 ${dayLabel}`}) },
+                          { value:'biweekly', label:t('recur.presetBiweekly',{day:dayLabel,defaultValue:`격주 ${dayLabel}`}) },
                           { value:'monthly', label:t('recur.presetMonthly',{day:String(d.getUTCDate()),defaultValue:`매월 ${d.getUTCDate()}일`}) },
                           { value:'yearly', label:t('recur.presetYearly',{month:String(d.getUTCMonth()+1),day:String(d.getUTCDate()),defaultValue:`매년 ${d.getUTCMonth()+1}월 ${d.getUTCDate()}일`}) },
                           { value:'custom', label:t('recur.presetCustom','사용자 지정...') },

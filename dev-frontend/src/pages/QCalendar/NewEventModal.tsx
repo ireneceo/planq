@@ -6,17 +6,8 @@ import { CATEGORY_OPTIONS } from './categoryColors';
 import { toDateKey } from './dateUtils';
 import PlanQSelect from '../../components/Common/PlanQSelect';
 import CalendarPicker from '../../components/Common/CalendarPicker';
+import RecurrencePicker from '../../components/Common/RecurrencePicker';
 import { getVideoStatus } from '../../services/calendar';
-
-type RecurrencePreset = 'none' | 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'yearly';
-const PRESET_TO_RRULE: Record<RecurrencePreset, string | null> = {
-  none: null,
-  daily: 'FREQ=DAILY',
-  weekly: 'FREQ=WEEKLY',
-  biweekly: 'FREQ=WEEKLY;INTERVAL=2',
-  monthly: 'FREQ=MONTHLY',
-  yearly: 'FREQ=YEARLY',
-};
 
 interface Props {
   initialStart: Date;
@@ -65,7 +56,7 @@ const NewEventModal: React.FC<Props> = ({ initialStart, projects, onClose, onCre
   const [meetingUrl, setMeetingUrl] = useState('');
   const [autoCreateMeeting, setAutoCreateMeeting] = useState(false);
   const [dailyConfigured, setDailyConfigured] = useState(false);
-  const [recurrence, setRecurrence] = useState<RecurrencePreset>('none');
+  const [rrule, setRrule] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -125,7 +116,7 @@ const NewEventModal: React.FC<Props> = ({ initialStart, projects, onClose, onCre
       meeting_url: meetingUrl.trim() || null,
       meeting_provider: meetingUrl.trim() ? (meetingUrl.includes('daily.co') ? 'daily' : 'manual') : null,
       auto_create_meeting: autoCreateMeeting && dailyConfigured,
-      rrule: PRESET_TO_RRULE[recurrence],
+      rrule,
     } as unknown as Partial<CalendarEvent>);
   };
 
@@ -225,13 +216,10 @@ const NewEventModal: React.FC<Props> = ({ initialStart, projects, onClose, onCre
 
           <Field>
             <Label>{t('recurrence.label')}</Label>
-            <PlanQSelect
-              size="sm"
-              options={(['none','daily','weekly','biweekly','monthly','yearly'] as RecurrencePreset[]).map((v) => ({
-                value: v, label: t(`recurrence.${v}`),
-              }))}
-              value={{ value: recurrence, label: t(`recurrence.${recurrence}`) }}
-              onChange={(opt) => opt && setRecurrence((opt as { value: string }).value as RecurrencePreset)}
+            <RecurrencePicker
+              value={rrule}
+              onChange={setRrule}
+              anchorDate={startDate}
             />
           </Field>
 

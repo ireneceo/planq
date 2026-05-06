@@ -1,5 +1,10 @@
 {
-  "page": { "title": "Q task", "noWorkspace": "워크스페이스가 선택되지 않았습니다", "loading": "로드 중...", "noCategory": "미분류" },
+  "page": {
+    "title": "Q task",
+    "noWorkspace": "워크스페이스가 선택되지 않았습니다",
+    "loading": "로드 중...",
+    "noCategory": "미분류"
+  },
   "help": {
     "body": "이번 주 본인이 행동할 업무를 모아 보여줍니다. 우선순위는 클릭 순서대로 1,2,3... 자동 매김(현재 필터 안에서만). 가용시간 = 하루×영업일×효율. 그래프 baseline = 헤더의 내 업무 시간으로 통일. 마감 지난 업무는 빨간 '지연' 뱃지 클릭 → +1일/+1주/오늘 으로 즉시 갱신.",
     "cuePrefill": "Q task 페이지의 우선순위, 가용시간, 그래프가 어떻게 작동하는지 알려줘"
@@ -15,24 +20,85 @@
     }
   },
   "search": "업무 검색...",
-  "filter": { "allStatus": "전체 상태", "hideCompleted": "완료 가리기", "showCompleted": "완료 업무 보기" },
-  "period": { "title": "기간", "thisWeek": "이번 주" },
+  "filter": {
+    "allStatus": "전체 상태",
+    "hideCompleted": "완료 가리기",
+    "showCompleted": "완료 업무 보기"
+  },
+  "period": {
+    "title": "기간",
+    "thisWeek": "이번 주"
+  },
   "status": {
     "delayed": "지연",
     "delayedDays": "{{d}}일 지연",
     "delayedHint": "클릭하여 마감 변경",
-    "delayQuick": { "addDay": "+1일", "addWeek": "+1주", "today": "오늘" },
-    "not_started":        { "assignee": "미진행",         "reviewer": "미진행",         "requester": "미시작",       "observer": "미진행" },
-    "task_requested":     { "assignee": "업무요청 받음",  "reviewer": "대기중",         "requester": "요청 보냄",    "observer": "업무요청" },
-    "waiting":            { "assignee": "진행대기",       "reviewer": "진행대기",       "requester": "진행대기",     "observer": "진행대기" },
-    "in_progress":        { "assignee": "진행중",         "reviewer": "진행중",         "requester": "진행중",       "observer": "진행중" },
-    "reviewing":          { "assignee": "확인요청중",     "reviewer": "확인요청 받음", "requester": "확인진행중",   "observer": "확인진행중" },
-    "revision_requested": { "assignee": "수정필요",       "reviewer": "수정요청함",     "requester": "수정중",       "observer": "수정요청" },
-    "done_feedback":      { "assignee": "마무리 대기",    "reviewer": "승인완료",       "requester": "마무리 대기", "observer": "마무리 대기" },
-    "completed":          { "assignee": "완료",           "reviewer": "완료",           "requester": "완료",         "observer": "완료" },
-    "canceled":           { "assignee": "취소",           "reviewer": "취소",           "requester": "취소",         "observer": "취소" }
+    "delayQuick": {
+      "addDay": "+1일",
+      "addWeek": "+1주",
+      "today": "오늘"
+    },
+    "not_started": {
+      "assignee": "미진행",
+      "reviewer": "미진행",
+      "requester": "미시작",
+      "observer": "미진행"
+    },
+    "task_requested": {
+      "assignee": "업무요청 받음",
+      "reviewer": "대기중",
+      "requester": "요청 보냄",
+      "observer": "업무요청"
+    },
+    "waiting": {
+      "assignee": "진행대기",
+      "reviewer": "진행대기",
+      "requester": "진행대기",
+      "observer": "진행대기"
+    },
+    "in_progress": {
+      "assignee": "진행중",
+      "reviewer": "진행중",
+      "requester": "진행중",
+      "observer": "진행중"
+    },
+    "reviewing": {
+      "assignee": "확인요청중",
+      "reviewer": "확인요청 받음",
+      "requester": "확인진행중",
+      "observer": "확인진행중"
+    },
+    "revision_requested": {
+      "assignee": "수정필요",
+      "reviewer": "수정요청함",
+      "requester": "수정중",
+      "observer": "수정요청"
+    },
+    "done_feedback": {
+      "assignee": "마무리 대기",
+      "reviewer": "승인완료",
+      "requester": "마무리 대기",
+      "observer": "마무리 대기"
+    },
+    "completed": {
+      "assignee": "완료",
+      "reviewer": "완료",
+      "requester": "완료",
+      "observer": "완료"
+    },
+    "canceled": {
+      "assignee": "취소",
+      "reviewer": "취소",
+      "requester": "취소",
+      "observer": "취소"
+    }
   },
-  "roleBadge": { "assignee": "담당자", "reviewer": "컨펌자", "requester": "요청자", "observer": "참조" },
+  "roleBadge": {
+    "assignee": "담당자",
+    "reviewer": "컨펌자",
+    "requester": "요청자",
+    "observer": "참조"
+  },
   "columnGroup": {
     "requestReceived": "업무요청 받음",
     "reviewReceived": "확인요청 받음",
@@ -52,14 +118,63 @@
     "rev_revision": "내가 수정요청",
     "rev_approved": "내가 승인"
   },
-  "scope": { "mine": "내 업무", "workspace": "전체 업무" },
-  "view": { "list": "리스트 보기", "kanban": "카드 보기" },
-  "list": { "empty": "해당하는 업무가 없습니다", "statusHint": "클릭하면 단계 선택", "titleClickEdit": "클릭하여 업무명 수정", "notMyHours": "담당자만 수정 가능 (참고용)", "notMyProgress": "담당자만 수정 가능 (참고용)", "aiEstimate": "AI 예측시간 추천", "assigneePh": "담당자" },
-  "empty": { "title": "업무를 시작해 보세요", "line1": "요청을 받고, 배정하고, 결과까지", "line2": "한 화면에서 실행으로 연결됩니다.", "askCue": "Cue 에게 묻기" },
-  "tab": { "week": "이번 주 내 업무", "all": "내 전체업무", "requested": "요청하기" },
-  "workspace": { "assignee": "담당자", "allMembers": "전체 멤버" },
-  "summary": { "unit": "개", "est": "예측", "act": "실제", "predictCap": "내 업무 {{est}}h/가용 {{cap}}h", "predictCapHint": "내가 담당자인 task 의 예측시간 합 / 주간 가용시간", "workspacePredict": "예측 {{est}}h", "actual": "실제 {{act}}h" },
-  "col": { "project": "프로젝트", "assignee": "담당자", "requester": "요청자", "task": "업무", "status": "상태", "est": "예측(h)", "act": "실제(h)", "progress": "진행율", "progressPercent": "진행률", "start": "시작일", "due": "마감일", "dates": "시작 ~ 마감", "desc": "설명" },
+  "scope": {
+    "mine": "내 업무",
+    "workspace": "전체 업무"
+  },
+  "view": {
+    "list": "리스트 보기",
+    "kanban": "카드 보기"
+  },
+  "list": {
+    "empty": "해당하는 업무가 없습니다",
+    "statusHint": "클릭하면 단계 선택",
+    "titleClickEdit": "클릭하여 업무명 수정",
+    "notMyHours": "담당자만 수정 가능 (참고용)",
+    "notMyProgress": "담당자만 수정 가능 (참고용)",
+    "aiEstimate": "AI 예측시간 추천",
+    "assigneePh": "담당자"
+  },
+  "empty": {
+    "title": "업무를 시작해 보세요",
+    "line1": "요청을 받고, 배정하고, 결과까지",
+    "line2": "한 화면에서 실행으로 연결됩니다.",
+    "askCue": "Cue 에게 묻기"
+  },
+  "tab": {
+    "week": "이번 주 내 업무",
+    "all": "내 전체업무",
+    "requested": "요청하기",
+    "weeklyReview": "주간 보고"
+  },
+  "workspace": {
+    "assignee": "담당자",
+    "allMembers": "전체 멤버"
+  },
+  "summary": {
+    "unit": "개",
+    "est": "예측",
+    "act": "실제",
+    "predictCap": "내 업무 {{est}}h/가용 {{cap}}h",
+    "predictCapHint": "내가 담당자인 task 의 예측시간 합 / 주간 가용시간",
+    "workspacePredict": "예측 {{est}}h",
+    "actual": "실제 {{act}}h"
+  },
+  "col": {
+    "project": "프로젝트",
+    "assignee": "담당자",
+    "requester": "요청자",
+    "task": "업무",
+    "status": "상태",
+    "est": "예측(h)",
+    "act": "실제(h)",
+    "progress": "진행율",
+    "progressPercent": "진행률",
+    "start": "시작일",
+    "due": "마감일",
+    "dates": "시작 ~ 마감",
+    "desc": "설명"
+  },
   "listRow": {
     "detailTitle": "상세 보기",
     "assigneePlaceholder": "담당자",
@@ -68,7 +183,24 @@
     "meSuffix": " (나)",
     "emptyDash": "—"
   },
-  "add": { "placeholder": "업무명 입력 후 Ctrl+Enter 저장", "btn": "업무 추가", "reqBtn": "요청 추가", "assignee": "담당자", "assigneeDefault": "담당자: 나", "assigneeRequiredHint": "담당자 선택 (필수)", "project": "프로젝트", "projectNone": "선택", "startDate": "시작일", "dueDate": "마감일", "datePlaceholder": "날짜 선택", "estHours": "예측(h)", "descPlaceholder": "설명 (선택)", "save": "추가", "saving": "저장 중...", "cancel": "취소" },
+  "add": {
+    "placeholder": "업무명 입력 후 Ctrl+Enter 저장",
+    "btn": "업무 추가",
+    "reqBtn": "요청 추가",
+    "assignee": "담당자",
+    "assigneeDefault": "담당자: 나",
+    "assigneeRequiredHint": "담당자 선택 (필수)",
+    "project": "프로젝트",
+    "projectNone": "선택",
+    "startDate": "시작일",
+    "dueDate": "마감일",
+    "datePlaceholder": "날짜 선택",
+    "estHours": "예측(h)",
+    "descPlaceholder": "설명 (선택)",
+    "save": "추가",
+    "saving": "저장 중...",
+    "cancel": "취소"
+  },
   "recur": {
     "toggle": "반복하기",
     "presetLabel": "반복 주기",
@@ -92,9 +224,26 @@
     "customUnitYear": "년",
     "customSave": "적용",
     "customCancel": "취소",
-    "weekday": { "SU": "일", "MO": "월", "TU": "화", "WE": "수", "TH": "목", "FR": "금", "SA": "토" }
+    "weekday": {
+      "SU": "일",
+      "MO": "월",
+      "TU": "화",
+      "WE": "수",
+      "TH": "목",
+      "FR": "금",
+      "SA": "토"
+    },
+    "presetBiweekly": "격주 {{day}}",
+    "needAnchor": "반복하려면 시작 날짜가 필요해요",
+    "everySuffix": "마다",
+    "endCountLabel": "반복 횟수",
+    "endUntilLabel": "종료 날짜",
+    "preview": "미리보기"
   },
-  "backlog": { "title": "미배정 업무", "toWeek": "이번 주로" },
+  "backlog": {
+    "title": "미배정 업무",
+    "toWeek": "이번 주로"
+  },
   "right": {
     "title": "현황",
     "received": "받은 업무요청",
@@ -113,24 +262,69 @@
     "recentFeedback": "최근 피드백",
     "noFeedback": "피드백이 없습니다"
   },
-  "capacity": { "title": "주간 가용시간", "daily": "1일 업무시간", "days": "업무일수", "holidays": "이번 주 휴일", "available": "이번 주 가용" },
-  "chart": { "weekly": "주간 업무 진척", "est": "예측", "act": "실제", "ideal": "목표 진척" },
-  "projects": { "title": "프로젝트 진척률" },
-  "issues": { "title": "주요 이슈" },
-  "notes": { "title": "최근 메모" },
-  "common": { "cancel": "취소" },
-  "save": { "saving": "저장 중", "saved": "저장됨", "error": "저장 실패" },
+  "capacity": {
+    "title": "주간 가용시간",
+    "daily": "1일 업무시간",
+    "days": "업무일수",
+    "holidays": "이번 주 휴일",
+    "available": "이번 주 가용"
+  },
+  "chart": {
+    "weekly": "주간 업무 진척",
+    "est": "예측",
+    "act": "실제",
+    "ideal": "목표 진척"
+  },
+  "projects": {
+    "title": "프로젝트 진척률"
+  },
+  "issues": {
+    "title": "주요 이슈"
+  },
+  "notes": {
+    "title": "최근 메모"
+  },
+  "common": {
+    "total": "총 업무",
+    "completed": "완료",
+    "incomplete": "미완료",
+    "utilization": "활용률",
+    "edit": "수정",
+    "save": "저장",
+    "cancel": "취소",
+    "loadMore": "더 보기"
+  },
+  "save": {
+    "saving": "저장 중",
+    "saved": "저장됨",
+    "error": "저장 실패"
+  },
   "detail": {
     "back": "돌아가기",
     "close": "닫기",
-    "meta": { "period": "기간", "est": "예측", "act": "실제", "progress": "진행", "assignee": "담당자", "assigneePh": "담당자 선택", "project": "프로젝트", "projectPh": "프로젝트 선택 (없으면 비워둠)", "assigneeOnly": "담당자만 수정 가능 (참고용)", "aiEstimate": "AI 예측시간 추천", "aiEstShort": "AI 추천" },
+    "meta": {
+      "period": "기간",
+      "est": "예측",
+      "act": "실제",
+      "progress": "진행",
+      "assignee": "담당자",
+      "assigneePh": "담당자 선택",
+      "project": "프로젝트",
+      "projectPh": "프로젝트 선택 (없으면 비워둠)",
+      "assigneeOnly": "담당자만 수정 가능 (참고용)",
+      "aiEstimate": "AI 예측시간 추천",
+      "aiEstShort": "AI 추천"
+    },
     "description": "업무 설명",
     "body": "결과물",
     "bodyPlaceholder": "업무 결과물을 작성하세요. 이미지 붙여넣기/드래그 가능",
     "descPlaceholder": "설명을 입력하세요...",
     "dailyLog": "일일 기록",
     "noLog": "기록이 없습니다",
-    "date": "날짜", "prog": "%", "estUsed": "예측 사용", "actUsed": "실제 사용",
+    "date": "날짜",
+    "prog": "%",
+    "estUsed": "예측 사용",
+    "actUsed": "실제 사용",
     "comments": "댓글",
     "writeComment": "댓글 작성...",
     "send": "전송",
@@ -211,7 +405,11 @@
       "noCandidates": "추가할 멤버가 없습니다",
       "policyAll": "전원 승인 필요",
       "policyAny": "한 명만 승인해도 OK",
-      "state": { "pending": "대기중", "approved": "승인", "revision": "수정요청" },
+      "state": {
+        "pending": "대기중",
+        "approved": "승인",
+        "revision": "수정요청"
+      },
       "warnTitle": "진행 중인 라운드를 리셋할까요?",
       "warnBody": "컨펌자를 추가하면 모든 컨펌자가 대기 상태로 리셋됩니다. 이미 승인한 분들도 다시 검토가 필요합니다.",
       "warnConfirm": "추가하고 리셋"
@@ -238,12 +436,6 @@
         "project_change": "프로젝트 이관"
       }
     }
-  },
-  "tab": {
-    "week": "이번 주 내 업무",
-    "all": "내 전체업무",
-    "requested": "요청하기",
-    "weeklyReview": "주간 보고"
   },
   "weeklyReview": {
     "finalize": "이번 주 마무리",
@@ -285,15 +477,5 @@
       "desc": "회의 또는 회고에 활용하세요.",
       "viewBtn": "보러 가기"
     }
-  },
-  "common": {
-    "total": "총 업무",
-    "completed": "완료",
-    "incomplete": "미완료",
-    "utilization": "활용률",
-    "edit": "수정",
-    "save": "저장",
-    "cancel": "취소",
-    "loadMore": "더 보기"
   }
 }

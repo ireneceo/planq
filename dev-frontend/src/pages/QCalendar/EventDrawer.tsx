@@ -5,17 +5,7 @@ import type { CalendarEvent, EventCategory } from './types';
 import { CATEGORY_OPTIONS, getEventColors } from './categoryColors';
 import { formatTime, isoToLocalInput } from './dateUtils';
 import DetailDrawer from '../../components/Common/DetailDrawer';
-
-// RRULE 문자열을 i18n 라벨로 변환 (Phase C 프리셋 기준)
-const recurrenceLabel = (rrule: string, t: (k: string) => string): string => {
-  const r = rrule.replace('RRULE:', '');
-  if (r === 'FREQ=DAILY') return t('recurrence.daily');
-  if (r === 'FREQ=WEEKLY') return t('recurrence.weekly');
-  if (r === 'FREQ=WEEKLY;INTERVAL=2') return t('recurrence.biweekly');
-  if (r === 'FREQ=MONTHLY') return t('recurrence.monthly');
-  if (r === 'FREQ=YEARLY') return t('recurrence.yearly');
-  return t('recurrence.label');
-};
+import { formatRRuleLabel } from '../../utils/recurrence';
 
 interface Props {
   event: CalendarEvent | null;
@@ -28,6 +18,9 @@ interface Props {
 
 const EventDrawer: React.FC<Props> = ({ event, onClose, onUpdate, onDelete, onCreateMeetingRoom, dailyConfigured }) => {
   const { t } = useTranslation('qcalendar');
+  // formatRRuleLabel 은 qtask 네임스페이스의 recur.* 키 (이미 풀세트 자산) 를 사용.
+  // utils 가 i18n 네임스페이스 비종속이도록 t 를 외부에서 주입받는 패턴.
+  const { t: tQtask } = useTranslation('qtask');
   const [copied, setCopied] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [embedOpen, setEmbedOpen] = useState(false);
@@ -84,7 +77,7 @@ const EventDrawer: React.FC<Props> = ({ event, onClose, onUpdate, onDelete, onCr
                     <polyline points="23 4 23 10 17 10" />
                     <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
                   </svg>
-                  {recurrenceLabel(event.rrule, t)}
+                  {formatRRuleLabel(event.rrule, event.start_at?.slice(0, 10), tQtask as unknown as Parameters<typeof formatRRuleLabel>[2])}
                 </RecurrenceBadge>
               )}
             </MetaRow>

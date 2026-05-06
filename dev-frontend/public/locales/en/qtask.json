@@ -1,5 +1,10 @@
 {
-  "page": { "title": "Q task", "noWorkspace": "No workspace selected", "loading": "Loading...", "noCategory": "Uncategorized" },
+  "page": {
+    "title": "Q task",
+    "noWorkspace": "No workspace selected",
+    "loading": "Loading...",
+    "noCategory": "Uncategorized"
+  },
   "help": {
     "body": "Tasks you need to act on this week.\n\n• Priority: click # in order — 1, 2, 3… (within current filter)\n• Capacity: hours × business days × rate\n• Chart baseline: the 'My tasks' hours from the header\n• Delayed: click the red badge → +1d / +1w / Today to update instantly",
     "cuePrefill": "Tell me how priority, capacity, and the chart work in Q task"
@@ -15,24 +20,85 @@
     }
   },
   "search": "Search tasks...",
-  "filter": { "allStatus": "All status", "hideCompleted": "Hide completed", "showCompleted": "Show completed" },
-  "period": { "title": "Period", "thisWeek": "This week" },
+  "filter": {
+    "allStatus": "All status",
+    "hideCompleted": "Hide completed",
+    "showCompleted": "Show completed"
+  },
+  "period": {
+    "title": "Period",
+    "thisWeek": "This week"
+  },
   "status": {
     "delayed": "Delayed",
     "delayedDays": "{{d}}d overdue",
     "delayedHint": "Click to change due date",
-    "delayQuick": { "addDay": "+1d", "addWeek": "+1w", "today": "Today" },
-    "not_started":        { "assignee": "Not started",   "reviewer": "Not started",     "requester": "Not started",    "observer": "Not started" },
-    "task_requested":     { "assignee": "Request received", "reviewer": "Pending",      "requester": "Request sent",   "observer": "Task request" },
-    "waiting":            { "assignee": "Scheduled",     "reviewer": "Scheduled",       "requester": "Scheduled",      "observer": "Scheduled" },
-    "in_progress":        { "assignee": "In progress",   "reviewer": "In progress",     "requester": "In progress",    "observer": "In progress" },
-    "reviewing":          { "assignee": "Review sent",   "reviewer": "Review needed",   "requester": "In review",      "observer": "In review" },
-    "revision_requested": { "assignee": "Revise",         "reviewer": "Revision asked",  "requester": "Revising",       "observer": "Revision needed" },
-    "done_feedback":      { "assignee": "Pending wrap-up", "reviewer": "Approved",      "requester": "Pending wrap-up","observer": "Pending wrap-up" },
-    "completed":          { "assignee": "Completed",     "reviewer": "Completed",       "requester": "Completed",      "observer": "Completed" },
-    "canceled":           { "assignee": "Canceled",      "reviewer": "Canceled",        "requester": "Canceled",       "observer": "Canceled" }
+    "delayQuick": {
+      "addDay": "+1d",
+      "addWeek": "+1w",
+      "today": "Today"
+    },
+    "not_started": {
+      "assignee": "Not started",
+      "reviewer": "Not started",
+      "requester": "Not started",
+      "observer": "Not started"
+    },
+    "task_requested": {
+      "assignee": "Request received",
+      "reviewer": "Pending",
+      "requester": "Request sent",
+      "observer": "Task request"
+    },
+    "waiting": {
+      "assignee": "Scheduled",
+      "reviewer": "Scheduled",
+      "requester": "Scheduled",
+      "observer": "Scheduled"
+    },
+    "in_progress": {
+      "assignee": "In progress",
+      "reviewer": "In progress",
+      "requester": "In progress",
+      "observer": "In progress"
+    },
+    "reviewing": {
+      "assignee": "Review sent",
+      "reviewer": "Review needed",
+      "requester": "In review",
+      "observer": "In review"
+    },
+    "revision_requested": {
+      "assignee": "Revise",
+      "reviewer": "Revision asked",
+      "requester": "Revising",
+      "observer": "Revision needed"
+    },
+    "done_feedback": {
+      "assignee": "Pending wrap-up",
+      "reviewer": "Approved",
+      "requester": "Pending wrap-up",
+      "observer": "Pending wrap-up"
+    },
+    "completed": {
+      "assignee": "Completed",
+      "reviewer": "Completed",
+      "requester": "Completed",
+      "observer": "Completed"
+    },
+    "canceled": {
+      "assignee": "Canceled",
+      "reviewer": "Canceled",
+      "requester": "Canceled",
+      "observer": "Canceled"
+    }
   },
-  "roleBadge": { "assignee": "Assignee", "reviewer": "Reviewer", "requester": "Requester", "observer": "Watcher" },
+  "roleBadge": {
+    "assignee": "Assignee",
+    "reviewer": "Reviewer",
+    "requester": "Requester",
+    "observer": "Watcher"
+  },
   "columnGroup": {
     "requestReceived": "Request received",
     "reviewReceived": "Review needed",
@@ -52,12 +118,48 @@
     "rev_revision": "I requested revision",
     "rev_approved": "I approved"
   },
-  "scope": { "mine": "My tasks", "workspace": "All workspace" },
-  "view": { "list": "List view", "kanban": "Kanban view" },
-  "tab": { "week": "My week", "all": "All my tasks", "requested": "Request" },
-  "workspace": { "assignee": "Assignee", "allMembers": "All members" },
-  "summary": { "unit": " tasks", "est": "Est", "act": "Act", "predictCap": "My {{est}}h/Cap {{cap}}h", "predictCapHint": "Sum of est-hours of tasks I'm assigned to / weekly capacity", "workspacePredict": "Est {{est}}h", "actual": "Act {{act}}h" },
-  "col": { "project": "Project", "assignee": "Assignee", "requester": "Requester", "task": "Task", "status": "Status", "est": "Est(h)", "act": "Act(h)", "progress": "Progress", "progressPercent": "Progress", "start": "Start", "due": "Due", "dates": "Start ~ Due", "desc": "Description" },
+  "scope": {
+    "mine": "My tasks",
+    "workspace": "All workspace"
+  },
+  "view": {
+    "list": "List view",
+    "kanban": "Kanban view"
+  },
+  "tab": {
+    "week": "This Week",
+    "all": "All Tasks",
+    "requested": "Requested",
+    "weeklyReview": "Weekly Review"
+  },
+  "workspace": {
+    "assignee": "Assignee",
+    "allMembers": "All members"
+  },
+  "summary": {
+    "unit": " tasks",
+    "est": "Est",
+    "act": "Act",
+    "predictCap": "My {{est}}h/Cap {{cap}}h",
+    "predictCapHint": "Sum of est-hours of tasks I'm assigned to / weekly capacity",
+    "workspacePredict": "Est {{est}}h",
+    "actual": "Act {{act}}h"
+  },
+  "col": {
+    "project": "Project",
+    "assignee": "Assignee",
+    "requester": "Requester",
+    "task": "Task",
+    "status": "Status",
+    "est": "Est(h)",
+    "act": "Act(h)",
+    "progress": "Progress",
+    "progressPercent": "Progress",
+    "start": "Start",
+    "due": "Due",
+    "dates": "Start ~ Due",
+    "desc": "Description"
+  },
   "listRow": {
     "detailTitle": "Open detail",
     "assigneePlaceholder": "Assignee",
@@ -66,7 +168,24 @@
     "meSuffix": " (me)",
     "emptyDash": "—"
   },
-  "add": { "placeholder": "Task name (Ctrl+Enter to save)", "btn": "Add task", "reqBtn": "Add request", "assignee": "Assignee", "assigneeDefault": "Assignee: me", "assigneeRequiredHint": "Select assignee (required)", "project": "Project", "projectNone": "Select", "startDate": "Start", "dueDate": "Due", "datePlaceholder": "Select date", "estHours": "Est(h)", "descPlaceholder": "Description (optional)", "save": "Add", "saving": "Saving...", "cancel": "Cancel" },
+  "add": {
+    "placeholder": "Task name (Ctrl+Enter to save)",
+    "btn": "Add task",
+    "reqBtn": "Add request",
+    "assignee": "Assignee",
+    "assigneeDefault": "Assignee: me",
+    "assigneeRequiredHint": "Select assignee (required)",
+    "project": "Project",
+    "projectNone": "Select",
+    "startDate": "Start",
+    "dueDate": "Due",
+    "datePlaceholder": "Select date",
+    "estHours": "Est(h)",
+    "descPlaceholder": "Description (optional)",
+    "save": "Add",
+    "saving": "Saving...",
+    "cancel": "Cancel"
+  },
   "recur": {
     "toggle": "Repeat",
     "presetLabel": "Repeats",
@@ -90,9 +209,26 @@
     "customUnitYear": "year",
     "customSave": "Apply",
     "customCancel": "Cancel",
-    "weekday": { "SU": "Sun", "MO": "Mon", "TU": "Tue", "WE": "Wed", "TH": "Thu", "FR": "Fri", "SA": "Sat" }
+    "weekday": {
+      "SU": "Sun",
+      "MO": "Mon",
+      "TU": "Tue",
+      "WE": "Wed",
+      "TH": "Thu",
+      "FR": "Fri",
+      "SA": "Sat"
+    },
+    "presetBiweekly": "Every other week on {{day}}",
+    "needAnchor": "Set a start date first to enable repeat",
+    "everySuffix": "",
+    "endCountLabel": "Repeat count",
+    "endUntilLabel": "End date",
+    "preview": "Preview"
   },
-  "backlog": { "title": "Unassigned", "toWeek": "This week" },
+  "backlog": {
+    "title": "Unassigned",
+    "toWeek": "This week"
+  },
   "right": {
     "title": "Overview",
     "received": "Incoming requests",
@@ -111,26 +247,84 @@
     "recentFeedback": "Recent feedback",
     "noFeedback": "No feedback yet"
   },
-  "capacity": { "title": "Weekly Capacity", "daily": "Daily hours", "days": "Work days", "holidays": "Holidays this week", "available": "Available this week" },
-  "chart": { "weekly": "Weekly Progress", "est": "Estimated", "act": "Actual", "ideal": "Target" },
-  "projects": { "title": "Project Progress" },
-  "issues": { "title": "Issues" },
-  "notes": { "title": "Notes" },
-  "list": { "empty": "No tasks found", "statusHint": "Click to change status", "titleClickEdit": "Click to edit task name", "notMyHours": "Only the assignee can edit (read-only)", "notMyProgress": "Only the assignee can edit (read-only)", "aiEstimate": "AI estimate suggestion", "assigneePh": "Assignee" },
-  "empty": { "title": "Start your first task", "line1": "Receive requests, assign, and deliver results —", "line2": "all connected in one screen.", "askCue": "Ask Cue" },
-  "common": { "cancel": "Cancel" },
-  "save": { "saving": "Saving", "saved": "Saved", "error": "Save failed" },
+  "capacity": {
+    "title": "Weekly Capacity",
+    "daily": "Daily hours",
+    "days": "Work days",
+    "holidays": "Holidays this week",
+    "available": "Available this week"
+  },
+  "chart": {
+    "weekly": "Weekly Progress",
+    "est": "Estimated",
+    "act": "Actual",
+    "ideal": "Target"
+  },
+  "projects": {
+    "title": "Project Progress"
+  },
+  "issues": {
+    "title": "Issues"
+  },
+  "notes": {
+    "title": "Notes"
+  },
+  "list": {
+    "empty": "No tasks found",
+    "statusHint": "Click to change status",
+    "titleClickEdit": "Click to edit task name",
+    "notMyHours": "Only the assignee can edit (read-only)",
+    "notMyProgress": "Only the assignee can edit (read-only)",
+    "aiEstimate": "AI estimate suggestion",
+    "assigneePh": "Assignee"
+  },
+  "empty": {
+    "title": "Start your first task",
+    "line1": "Receive requests, assign, and deliver results —",
+    "line2": "all connected in one screen.",
+    "askCue": "Ask Cue"
+  },
+  "common": {
+    "total": "Total",
+    "completed": "Completed",
+    "incomplete": "Incomplete",
+    "utilization": "Utilization",
+    "edit": "Edit",
+    "save": "Save",
+    "cancel": "Cancel",
+    "loadMore": "Load more"
+  },
+  "save": {
+    "saving": "Saving",
+    "saved": "Saved",
+    "error": "Save failed"
+  },
   "detail": {
     "back": "Back",
     "close": "Close",
-    "meta": { "period": "Period", "est": "Est", "act": "Act", "progress": "Progress", "assignee": "Assignee", "assigneePh": "Select assignee", "project": "Project", "projectPh": "Select project (or leave empty)", "assigneeOnly": "Only the assignee can edit (read-only)", "aiEstimate": "AI estimate suggestion", "aiEstShort": "AI" },
+    "meta": {
+      "period": "Period",
+      "est": "Est",
+      "act": "Act",
+      "progress": "Progress",
+      "assignee": "Assignee",
+      "assigneePh": "Select assignee",
+      "project": "Project",
+      "projectPh": "Select project (or leave empty)",
+      "assigneeOnly": "Only the assignee can edit (read-only)",
+      "aiEstimate": "AI estimate suggestion",
+      "aiEstShort": "AI"
+    },
     "description": "Description",
     "descPlaceholder": "Brief description (1-2 lines)",
     "body": "Deliverable",
     "bodyPlaceholder": "Write the deliverable. Paste/drag images.",
     "dailyLog": "Daily Log",
     "noLog": "No records yet",
-    "date": "Date", "prog": "%", "estUsed": "Est used", "actUsed": "Act used",
+    "date": "Date",
+    "prog": "%",
+    "estUsed": "Est used",
+    "actUsed": "Act used",
     "comments": "Comments",
     "writeComment": "Write a comment...",
     "send": "Send",
@@ -211,7 +405,11 @@
       "noCandidates": "No members to add",
       "policyAll": "All must approve",
       "policyAny": "Any one is enough",
-      "state": { "pending": "Pending", "approved": "Approved", "revision": "Revision" },
+      "state": {
+        "pending": "Pending",
+        "approved": "Approved",
+        "revision": "Revision"
+      },
       "warnTitle": "Reset current review round?",
       "warnBody": "Adding a reviewer during an active round resets all reviewers to pending. Previous approvals will need to be re-confirmed.",
       "warnConfirm": "Add and reset"
@@ -238,12 +436,6 @@
         "project_change": "moved project"
       }
     }
-  },
-  "tab": {
-    "week": "This Week",
-    "all": "All Tasks",
-    "requested": "Requested",
-    "weeklyReview": "Weekly Review"
   },
   "weeklyReview": {
     "finalize": "Wrap Up Week",
@@ -285,15 +477,5 @@
       "desc": "Use it for meetings or retrospectives.",
       "viewBtn": "View"
     }
-  },
-  "common": {
-    "total": "Total",
-    "completed": "Completed",
-    "incomplete": "Incomplete",
-    "utilization": "Utilization",
-    "edit": "Edit",
-    "save": "Save",
-    "cancel": "Cancel",
-    "loadMore": "Load more"
   }
 }
