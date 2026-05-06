@@ -162,14 +162,16 @@ export default function NotificationToaster() {
       });
     });
 
-    // 새 업무 — 본인이 만든 건 skip
-    s.on('task:new', (task: { id: number; title: string; assignee_id?: number; created_by?: number; project_id?: number | null }) => {
-      if (task.created_by === Number(user.id)) return;
+    // 새 업무 — 본인이 만든/액션한 건 skip
+    s.on('task:new', (task: { id: number; title: string; assignee_id?: number; created_by?: number; project_id?: number | null; actor_user_id?: number }) => {
+      const me = Number(user.id);
+      // 본인 액션 (방금 자기가 만든 건) skip — actor 또는 created_by
+      if (task.actor_user_id === me || task.created_by === me) return;
       // 나에게 배정된 업무
-      if (task.assignee_id === Number(user.id)) {
+      if (task.assignee_id === me) {
         add({
           type: 'task',
-          title: t('toaster.taskAssigned', '새 업무가 배정됐습니다') as string,
+          title: t('toaster.taskAssigned', '새 업무가 배정됐어요') as string,
           body: task.title,
           link: `/tasks?task=${task.id}`,
           contextKey: `task:${task.id}`,
@@ -177,40 +179,60 @@ export default function NotificationToaster() {
       }
     });
 
-    // 업무 상태 변경 — 본인 관련자 (요청자 / 검토자 / 담당자) 만 토스트 표시.
-    // task:updated 는 business room 에 broadcast 되어 모든 멤버가 받지만, 토스터는 본인과
-    // 무관한 task 알림 안 띄움 (이전: assignee_id !== me 조건 → 본인 외 모든 task 알림 노이즈).
+    // 업무 상태 변경 — 본인 액션 알림 자기에게 표시 차단 + 받는 사람 역할별 메시지 분기.
+    // task:updated 는 business room 에 broadcast 되어 모든 멤버가 받음.
+    // 핵심 룰:
+    //   1. actor === me → skip (본인이 누른 액션을 본인 토스터에 띄우지 않음)
+    //   2. 받는 사람이 어떤 역할인지에 따라 메시지 차별화 (요청자 vs 검토자 vs 담당자)
     s.on('task:updated', (task: {
       id: number; title: string; status?: string;
       assignee_id?: number; created_by?: number;
-      reviewer_user_ids?: number[];
+      reviewer_user_ids?: number[]; actor_user_id?: number;
     }) => {
       const me = Number(user.id);
+      // 본인 액션 알림 차단 — Irene 의 가장 큰 불편
+      if (task.actor_user_id === me) return;
+
       const isAssignee = task.assignee_id === me;
       const isRequester = task.created_by === me;
       const isReviewer = Array.isArray(task.reviewer_user_ids) && task.reviewer_user_ids.includes(me);
 
+      const link = `/tasks?task=${task.id}`;
+      const ctx = `task:${task.id}`;
+
       if (task.status === 'completed') {
-        // 요청자 또는 검토자만 알림 (담당자 본인이 완료한 거니 본인은 skip)
-        if (!isAssignee && (isRequester || isReviewer)) {
+        // 받는 사람 역할에 따라 메시지 분기
+        if (isRequester && !isAssignee) {
           add({
             type: 'task',
-            title: t('toaster.taskCompleted', '업무가 완료됐습니다') as string,
-            body: task.title,
-            link: `/tasks?task=${task.id}`,
-            contextKey: `task:${task.id}`,
+            title: t('toaster.taskCompletedRequester', '요청한 업무가 완료됐어요') as string,
+            body: task.title, link, contextKey: ctx,
+          });
+        } else if (isReviewer && !isAssignee && !isRequester) {
+          add({
+            type: 'task',
+            title: t('toaster.taskCompletedReviewer', '검토한 업무가 완료 처리됐어요') as string,
+            body: task.title, link, contextKey: ctx,
           });
         }
+        // 담당자 본인이거나 무관자는 skip
       }
       if (task.status === 'reviewing') {
-        // 검토 요청 — 검토자 본인만
         if (isReviewer) {
           add({
             type: 'task',
-            title: t('toaster.taskReviewing', '검토 요청') as string,
-            body: task.title,
-            link: `/tasks?task=${task.id}`,
-            contextKey: `task:${task.id}`,
+            title: t('toaster.taskReviewing', '검토 요청 — 컨펌해 주세요') as string,
+            body: task.title, link, contextKey: ctx,
+          });
+        }
+      }
+      if (task.status === 'revision_requested') {
+        // 담당자에게 — 검토자가 수정 요청한 케이스
+        if (isAssignee) {
+          add({
+            type: 'task',
+            title: t('toaster.taskRevisionRequested', '수정 요청이 들어왔어요') as string,
+            body: task.title, link, contextKey: ctx,
           });
         }
       }

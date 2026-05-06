@@ -409,5 +409,12 @@
       "openPlan": "결제 페이지",
       "payNow": "결제하기"
     }
+  },
+  "toaster": {
+    "taskAssigned": "새 업무가 배정됐어요",
+    "taskCompletedRequester": "요청한 업무가 완료됐어요",
+    "taskCompletedReviewer": "검토한 업무가 완료 처리됐어요",
+    "taskReviewing": "검토 요청 — 컨펌해 주세요",
+    "taskRevisionRequested": "수정 요청이 들어왔어요"
   }
 }
