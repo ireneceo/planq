@@ -75,6 +75,8 @@ const QRecordAudit = require('./QRecordAudit');
 // ─── 주간 보고 (Weekly Review) ───
 const WeeklyReview = require('./WeeklyReview');
 const WeeklyReviewSetting = require('./WeeklyReviewSetting');
+// ─── Refresh Token (다중 디바이스 세션) ───
+const RefreshToken = require('./RefreshToken');
 
 // ============================================
 // 글로벌 toJSON override — createdAt/updatedAt → created_at/updated_at
@@ -410,6 +412,7 @@ module.exports = {
   // 주간 보고
   WeeklyReview,
   WeeklyReviewSetting,
+  RefreshToken,
 };
 
 // Q record associations
@@ -489,6 +492,10 @@ WeeklyReview.belongsTo(Business, { foreignKey: 'business_id' });
 WeeklyReview.belongsTo(User, { as: 'user', foreignKey: 'user_id' });
 Business.hasMany(WeeklyReview, { as: 'weeklyReviews', foreignKey: 'business_id' });
 User.hasMany(WeeklyReview, { as: 'weeklyReviews', foreignKey: 'user_id' });
+
+// RefreshToken — 다중 디바이스 세션
+RefreshToken.belongsTo(User, { foreignKey: 'user_id', onDelete: 'CASCADE' });
+User.hasMany(RefreshToken, { as: 'refreshTokens', foreignKey: 'user_id' });
 
 WeeklyReviewSetting.belongsTo(Business, { foreignKey: 'business_id' });
 WeeklyReviewSetting.belongsTo(User, { foreignKey: 'user_id' });
