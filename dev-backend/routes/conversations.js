@@ -416,7 +416,7 @@ router.post('/:businessId/:id/messages', authenticateToken, attachWorkspaceScope
       const biz = await Business.findByPk(req.params.businessId, { attributes: ['name', 'brand_name'] });
       const wsName = biz?.brand_name || biz?.name || null;
       const previewBody = String(content).length > 140 ? String(content).slice(0, 140) + '…' : String(content);
-      const link = `${process.env.APP_URL || 'https://dev.planq.kr'}/q-talk?conversation=${conversation.id}`;
+      const link = `${process.env.APP_URL || 'https://dev.planq.kr'}/talk?conv=${conversation.id}`;
       const sender = await User.findByPk(req.user.id, { attributes: ['name'] });
       const senderName = sender?.name || 'PlanQ';
       const convTitle = conversation.title || '대화';

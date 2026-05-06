@@ -177,25 +177,42 @@ export default function NotificationToaster() {
       }
     });
 
-    // 업무 상태 변경
-    s.on('task:updated', (task: { id: number; title: string; status?: string; assignee_id?: number }) => {
-      if (task.status === 'completed' && task.assignee_id !== Number(user.id)) {
-        add({
-          type: 'task',
-          title: t('toaster.taskCompleted', '업무가 완료됐습니다') as string,
-          body: task.title,
-          link: `/tasks?task=${task.id}`,
-          contextKey: `task:${task.id}`,
-        });
+    // 업무 상태 변경 — 본인 관련자 (요청자 / 검토자 / 담당자) 만 토스트 표시.
+    // task:updated 는 business room 에 broadcast 되어 모든 멤버가 받지만, 토스터는 본인과
+    // 무관한 task 알림 안 띄움 (이전: assignee_id !== me 조건 → 본인 외 모든 task 알림 노이즈).
+    s.on('task:updated', (task: {
+      id: number; title: string; status?: string;
+      assignee_id?: number; created_by?: number;
+      reviewer_user_ids?: number[];
+    }) => {
+      const me = Number(user.id);
+      const isAssignee = task.assignee_id === me;
+      const isRequester = task.created_by === me;
+      const isReviewer = Array.isArray(task.reviewer_user_ids) && task.reviewer_user_ids.includes(me);
+
+      if (task.status === 'completed') {
+        // 요청자 또는 검토자만 알림 (담당자 본인이 완료한 거니 본인은 skip)
+        if (!isAssignee && (isRequester || isReviewer)) {
+          add({
+            type: 'task',
+            title: t('toaster.taskCompleted', '업무가 완료됐습니다') as string,
+            body: task.title,
+            link: `/tasks?task=${task.id}`,
+            contextKey: `task:${task.id}`,
+          });
+        }
       }
       if (task.status === 'reviewing') {
-        add({
-          type: 'task',
-          title: t('toaster.taskReviewing', '검토 요청') as string,
-          body: task.title,
-          link: `/tasks?task=${task.id}`,
-          contextKey: `task:${task.id}`,
-        });
+        // 검토 요청 — 검토자 본인만
+        if (isReviewer) {
+          add({
+            type: 'task',
+            title: t('toaster.taskReviewing', '검토 요청') as string,
+            body: task.title,
+            link: `/tasks?task=${task.id}`,
+            contextKey: `task:${task.id}`,
+          });
+        }
       }
     });
 
