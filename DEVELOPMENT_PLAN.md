@@ -1,14 +1,55 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-05-06 v1.1.1 (운영 라이브 — 알림 풀세트 + 업무 추출 정밀화 + 로그인 상태 유지 + Q Calendar 반복 풀세트 + 채팅 UX 다듬기 — **운영 배포 완료** `9206095`)
+> **최종 업데이트:** 2026-05-06 v1.1.1+ (운영 라이브 풀세트 — 다중 디바이스 세션 + SingleDateField 통일 + 모바일 채팅 반응형 + SW notificationclick fallback + iOS 자동 줌 차단 — **운영 배포 완료** `fa292a1`)
 >
-> **이전 라이브:** 2026-05-05 (Q-R 사이클 + 운영 인프라 풀세트 — `a0b550f`)
+> **이전 라이브:** 2026-05-06 v1.1.1 (`9206095` — 알림 풀세트 + 업무 추출 정밀화)
 >
 > **다음 진입 ★:** **주간 보고 (Weekly Review) Phase 1** — `docs/WEEKLY_REVIEW_DESIGN.md` 합의 완료. Q Task 4번째 탭 + 자동·수동 박제 + JSON 통계 활용.
 >
 > **차순위:** KB Phase 2 (PDF/docx 업로드 + 다중 분리 정밀) / Q Task 정기업무 (RRULE) / Q docs 재구조화 + Brief 통합 / 알림 그룹화·DND·Activity / Phase 4 트래픽 트리거 시 BullMQ+Redis / S3 / read-replica
 >
 > **결제 정책:** 1순위 자체 결제 (계좌이체 mark-paid), 2순위 PortOne (P-7 마지막). 월결제 + 연결제. Free 플랜 폐지 — 신규 가입은 starter+trialing 14일. 미결제 시 7일 유예 후 starter 강등 + 데이터 보존.
+
+---
+
+## ✅ 완료: 풀 사이클 운영 라이브 (2026-05-06) v1.1.1+
+
+직전 운영 (`a0b550f`, 2026-05-05) 이후 **31 commit** 박제·검증·배포 풀 사이클. Irene 의 풀 보고 (알림·업무 추출·반복·로그인·다중 디바이스·채팅 UX·모바일 반응형·UI 일관화) 일괄 처리.
+
+### 핵심 영역별 작업
+
+| 영역 | 주요 commit | 상태 |
+|------|------|:----:|
+| **알림 풀세트 (Slack 수준)** | `62b2eb8` 풀세트 + `375b540` 사운드/진동 + `a0c8572` unread 실시간 + `101f1a5` 노이즈/path + `e3578d3` 본인 액션 차단 + `72ee853` SW fallback | ✅ |
+| **업무 추출 정밀화** | `f196029` 풀 재설계 (ZERO-TOLERANCE prompt + 인라인 편집 + 등록/요청 분기 + URL autolink) + `4d32890` candidate 카드 기간 + `fa292a1` 정렬·간격 | ✅ |
+| **Q Calendar 반복 풀세트** | `63c4c0a` 3주/N주마다 + 종료 조건 + 공통 RecurrencePicker + biweekly | ✅ |
+| **로그인·인증** | `c29aeef` 로그인 상태 유지 체크박스 + `963cced` cookie 보강 + `4adcbc8` 약관 hotfix + `ffab8c5` 로고/슬로건 갱신 | ✅ |
+| **다중 디바이스 세션** ★ | `1b05435` refresh_tokens 테이블 신규 — RFC 6749 표준. login/refresh/logout 재작성. 도난 reuse_detected 방어 | ✅ |
+| **Q Talk 채팅 UX** | `d54da34` 시간 미표시 fix + Hangouts 그룹핑 + [고객] 라벨 + `9206095` 줄간격 좁힘 + `33731d3` 모바일 100dvh + `a67c4c3` 자동 포커스 + auto-resize | ✅ |
+| **Q Task 댓글 첨부** | `ec2b9eb` stored_name 누락 fix + `da6e8e3` 클릭 인증 + 댓글/업무 영역 분리 | ✅ |
+| **모바일 / PWA** | `e7708e4` 설치 배너 위치 + 클릭 + `41d7ee1` iOS 자동 줌 차단 + `05c68f4` 안내 위치 일반화 | ✅ |
+| **반복 라벨 정밀화** | `581728b` "매년 NaN월" 차단 + 리스트 칩 short ("매월/매년") + Invalid Date 방어 | ✅ |
+| **UI 일관화 (CalendarPicker 통일)** | `4650404` 모든 단일 날짜 SingleDateField (12곳 native input 제거) | ✅ |
+| **주간 보고 Phase 1** | `58487e9` Q Task 4번째 탭 + 자동/수동 박제 + JSON 통계 + `f0b7e38` cron 컬럼명 fix | ✅ |
+| **협업 규칙** | `66f55da` Irene + lua 동시 개발 룰 + 권한 분리 권장 | ✅ |
+
+### 신규 테이블 (DB 변경)
+- **`refresh_tokens`** (`1b05435`) — id / user_id / token_hash / user_agent / ip_address / expires_at / revoked_at / revoked_reason / last_used_at
+- **`weekly_reviews`** + **`weekly_review_settings`** (`58487e9`)
+
+### 신규 컴포넌트
+- `components/Common/SingleDateField.tsx` — CalendarPicker singleMode wrapper
+- `components/Common/RecurrencePicker.tsx` — 공통 반복 설정 (Q Calendar / 향후 Q Task 통합)
+- `components/QTalk/CandidateEditCard.tsx` — 업무 후보 인라인 편집 카드
+- `components/QTask/WeeklyReview*.tsx` — 주간 보고 4 컴포넌트
+
+### 운영 배포 결과
+- 직전 `a0b550f` (2026-05-05) → `fa292a1` (2026-05-06 18:22)
+- 4회 운영 push 누적 (66f55da · 9206095 · da6e8e3 · fa292a1)
+- 헬스체크 27/27 PASS / 외부 health 200 / PM2 prod 안정
+
+### 다중 디바이스 마이그레이션 1회 비용
+`1b05435` 배포 직후 기존 사용자 1회 재로그인 필요 (옛 cookie hash 와 새 token_hash 매칭 X). 그 후부터 Mac + iPhone + Mac Safari 등 동시 사용 시 자동 logout 영구 해소.
 
 ---
 
