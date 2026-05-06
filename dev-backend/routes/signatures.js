@@ -546,7 +546,7 @@ async function notifyWorkspaceMembersOnSignature(sr, kind, signerName) {
   const body = `${signerName || sr.signer_email}${kind === 'signed' ? ' 님이 서명을 완료했습니다.' : ' 님이 서명을 거절했습니다.'}${entityTitle ? `\n문서: ${entityTitle}` : ''}`;
   const link = sr.entity_type === 'post'
     ? `${process.env.APP_URL || 'https://dev.planq.kr'}/posts/${sr.entity_id}`
-    : `${process.env.APP_URL || 'https://dev.planq.kr'}/q-docs/${sr.entity_id}`;
+    : `${process.env.APP_URL || 'https://dev.planq.kr'}/docs/${sr.entity_id}`;
   await notifyMany({
     userIds, businessId: sr.business_id, eventKind: 'signature',
     title, body, link, ctaLabel: '확인하기',

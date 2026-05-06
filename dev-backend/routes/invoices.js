@@ -763,7 +763,7 @@ router.post('/:businessId/:id/installments/:installId/mark-tax-invoice', authent
         businessId: invoice.business_id, eventKind: 'tax_invoice',
         title: '세금계산서 발행 완료',
         body: `${invoice.invoice_number} ${inst.label || ''} 회차 발행번호 ${no}`,
-        link: `${process.env.APP_URL || 'https://dev.planq.kr'}/q-bill?invoice=${invoice.id}`,
+        link: `${process.env.APP_URL || 'https://dev.planq.kr'}/bills?invoice=${invoice.id}`,
         ctaLabel: '청구서 보기',
         workspaceName: biz?.brand_name || biz?.name || null,
         excludeUserId: req.user.id,

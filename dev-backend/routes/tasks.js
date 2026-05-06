@@ -444,7 +444,7 @@ router.post('/', authenticateToken, async (req, res, next) => {
           eventKind: 'task',
           title: '새 업무가 배정되었습니다',
           body: `"${full.title}"${full.due_date ? ` · 마감 ${String(full.due_date).slice(0, 10)}` : ''}`,
-          link: `${process.env.APP_URL || 'https://dev.planq.kr'}/q-task?task=${task.id}`,
+          link: `${process.env.APP_URL || 'https://dev.planq.kr'}/tasks?task=${task.id}`,
           ctaLabel: '업무 보기',
           workspaceName: biz?.brand_name || biz?.name || null,
         }).catch((e) => console.warn('[notify task assigned]', e.message));
@@ -606,9 +606,18 @@ router.put('/by-business/:businessId/:id', authenticateToken, async (req, res, n
     }
 
     // Socket.IO: project + business room 양쪽 broadcast
+    // 토스터가 본인 관련자인지 정확히 판단하도록 reviewer_ids 도 payload 에 포함.
+    // (Task.toJSON 은 raw 컬럼만이라 TaskReviewer 별도 조회)
     const io = req.app.get('io');
     if (io) {
       const payload = task.toJSON();
+      try {
+        const TaskReviewer = require('../models').TaskReviewer;
+        const reviewers = await TaskReviewer.findAll({
+          where: { task_id: task.id }, attributes: ['user_id'],
+        });
+        payload.reviewer_user_ids = reviewers.map(r => r.user_id);
+      } catch { /* 실패해도 broadcast 자체는 진행 */ }
       if (task.project_id) io.to(`project:${task.project_id}`).emit('task:updated', payload);
       io.to(`business:${task.business_id}`).emit('task:updated', payload);
     }
@@ -620,7 +629,7 @@ router.put('/by-business/:businessId/:id', authenticateToken, async (req, res, n
       const TaskReviewer = require('../models').TaskReviewer;
       const biz = await Business.findByPk(task.business_id, { attributes: ['name', 'brand_name'] });
       const wsName = biz?.brand_name || biz?.name || null;
-      const taskLink = `${process.env.APP_URL || 'https://dev.planq.kr'}/q-task?task=${task.id}`;
+      const taskLink = `${process.env.APP_URL || 'https://dev.planq.kr'}/tasks?task=${task.id}`;
 
       // 담당자 변경 → 새 담당자에게 알림
       if (updates.assignee_id !== undefined && updates.assignee_id !== prev.assignee_id && updates.assignee_id) {
@@ -894,7 +903,7 @@ router.post('/:id/comments', authenticateToken, async (req, res, next) => {
             userIds: mentioned, businessId: task.business_id, eventKind: 'mention',
             title: `업무 댓글에서 언급됨 — ${task.title}`,
             body: previewBody,
-            link: `${process.env.APP_URL || 'https://dev.planq.kr'}/q-task?task=${task.id}`,
+            link: `${process.env.APP_URL || 'https://dev.planq.kr'}/tasks?task=${task.id}`,
             ctaLabel: '댓글 보기',
             workspaceName: biz?.brand_name || biz?.name || null,
           }).catch((e) => console.warn('[notify mention task]', e.message));
