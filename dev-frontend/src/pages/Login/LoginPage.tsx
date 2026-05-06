@@ -195,6 +195,33 @@ const ErrorMessage = styled.div`
   border: 1px solid #FEE2E2;
 `;
 
+const RememberRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: -8px;
+`;
+const RememberCheckbox = styled.input`
+  width: 16px;
+  height: 16px;
+  accent-color: #14B8A6;
+  cursor: pointer;
+  margin: 0;
+`;
+const RememberLabel = styled.label`
+  font-size: 13px;
+  font-weight: 500;
+  color: #334155;
+  cursor: pointer;
+  user-select: none;
+`;
+const RememberHint = styled.p`
+  margin: -16px 0 0 24px;
+  font-size: 11px;
+  color: #94A3B8;
+  line-height: 1.4;
+`;
+
 const DevPanel = styled.div`
   margin-top: 20px;
   padding: 16px;
@@ -291,6 +318,9 @@ const LoginPage: React.FC = () => {
   const { login, logout, user, isAuthenticated, isLoading: authLoading } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  // 로그인 상태 유지 — default ON (Slack/Google/GitHub 표준).
+  // OFF 시 백엔드가 session cookie 발급 → 브라우저 닫으면 자동 로그아웃 (공용 PC 안전).
+  const [remember, setRemember] = useState(true);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -361,7 +391,7 @@ const LoginPage: React.FC = () => {
     setIsLoading(true);
 
     try {
-      const success = await login(email, password);
+      const success = await login(email, password, remember);
       if (!success) {
         setError(t('login.errorInvalid'));
       }
@@ -424,6 +454,21 @@ const LoginPage: React.FC = () => {
                 </PasswordToggle>
               </PasswordWrapper>
             </InputGroup>
+
+            <RememberRow>
+              <RememberCheckbox
+                type="checkbox"
+                id="login-remember"
+                checked={remember}
+                onChange={(e) => setRemember(e.target.checked)}
+              />
+              <RememberLabel htmlFor="login-remember">
+                {t('login.rememberMe', '로그인 상태 유지 (7일)')}
+              </RememberLabel>
+            </RememberRow>
+            <RememberHint>
+              {t('login.rememberHint', '공용 컴퓨터에서는 해제하세요. 해제 시 브라우저 닫으면 자동 로그아웃.')}
+            </RememberHint>
 
             {error && <ErrorMessage>{error}</ErrorMessage>}
 
