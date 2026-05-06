@@ -89,14 +89,19 @@ export function buildCustomRRule(
   return base + endSuffix(end);
 }
 
-// 표시용 라벨 — task 카드/상세에서 "매주 월요일" 같은 짧은 텍스트.
-// anchorDate 는 entity 의 기준일 (Q Task=due_date / Q Calendar=start_at) — 요일/일자 정보 추출용.
+// 표시용 라벨.
+// options.short = true → 일자/요일 빼고 "매월", "매년", "매주" 만 — 리스트/카드 칩용
+// options.short 미지정 → "매월 5일", "매년 5월 4일" 등 풀 라벨 — 등록폼/상세 안내용
+// 30년차 안전:
+//   - anchorDate 가 invalid (빈 문자열, NaN Date) 면 자동 short 폴백 → "매년 NaN월 NaN일" 같은 깨짐 차단
 export function formatRRuleLabel(
   rule: string | null | undefined,
   anchorDate: string | null | undefined,
   t: TFunction,
+  options?: { short?: boolean },
 ): string {
   if (!rule) return '';
+  const isShort = options?.short === true;
   const parts = rule.replace(/^RRULE:/, '').split(';').reduce<Record<string, string>>((acc, seg) => {
     const [k, v] = seg.split('=');
     if (k && v != null) acc[k.trim().toUpperCase()] = v.trim();
@@ -104,38 +109,53 @@ export function formatRRuleLabel(
   }, {});
   const freq = parts.FREQ;
   const interval = parts.INTERVAL ? parseInt(parts.INTERVAL, 10) : 1;
-  const anchor = anchorDate ? dateOnlyToUTC(anchorDate) : null;
+  // Invalid Date 방어 — getTime NaN 이면 anchor null 처리 (NaN 출력 차단)
+  const anchorRaw = anchorDate ? dateOnlyToUTC(anchorDate) : null;
+  const anchor = anchorRaw && !Number.isNaN(anchorRaw.getTime()) ? anchorRaw : null;
 
   if (freq === 'DAILY') {
     if (interval > 1) {
-      return `${t('recur.customEvery', '매')} ${interval} ${t('recur.customUnitDay', '일')}`;
+      return `${interval} ${t('recur.customUnitDay', '일')}${t('recur.everySuffix', '마다')}`;
     }
     return t('recur.presetDaily', '매일');
   }
   if (freq === 'WEEKLY') {
-    const dayCode = parts.BYDAY || (anchor ? WEEKDAY_CODES[anchor.getUTCDay()] : '');
-    const dayLabel = dayCode ? t(`recur.weekday.${dayCode.split(',')[0]}`, dayCode) : '';
     if (interval === 2) {
+      if (isShort || !anchor) {
+        return t('recur.presetBiweeklyShort', '격주');
+      }
+      const dayCode = parts.BYDAY || (anchor ? WEEKDAY_CODES[anchor.getUTCDay()] : '');
+      const dayLabel = dayCode ? t(`recur.weekday.${dayCode.split(',')[0]}`, dayCode) : '';
       return t('recur.presetBiweekly', { day: dayLabel, defaultValue: `격주 ${dayLabel}` });
     }
     if (interval > 2) {
       return `${interval} ${t('recur.customUnitWeek', '주')}${t('recur.everySuffix', '마다')}`;
     }
+    if (isShort || !anchor) {
+      return t('recur.presetWeeklyShort', '매주');
+    }
+    const dayCode = parts.BYDAY || WEEKDAY_CODES[anchor.getUTCDay()];
+    const dayLabel = dayCode ? t(`recur.weekday.${dayCode.split(',')[0]}`, dayCode) : '';
     return t('recur.presetWeekly', { day: dayLabel, defaultValue: `매주 ${dayLabel}` });
   }
   if (freq === 'MONTHLY') {
-    const day = parts.BYMONTHDAY || (anchor ? String(anchor.getUTCDate()) : '');
     if (interval > 1) {
       return `${interval} ${t('recur.customUnitMonth', '개월')}${t('recur.everySuffix', '마다')}`;
     }
+    if (isShort) return t('recur.presetMonthlyShort', '매월');
+    // anchor invalid + BYMONTHDAY 도 없으면 short 자동 폴백 (NaN 차단)
+    const day = parts.BYMONTHDAY || (anchor ? String(anchor.getUTCDate()) : '');
+    if (!day) return t('recur.presetMonthlyShort', '매월');
     return t('recur.presetMonthly', { day, defaultValue: `매월 ${day}일` });
   }
   if (freq === 'YEARLY') {
-    const month = parts.BYMONTH || (anchor ? String(anchor.getUTCMonth() + 1) : '');
-    const day = parts.BYMONTHDAY || (anchor ? String(anchor.getUTCDate()) : '');
     if (interval > 1) {
       return `${interval} ${t('recur.customUnitYear', '년')}${t('recur.everySuffix', '마다')}`;
     }
+    if (isShort) return t('recur.presetYearlyShort', '매년');
+    const month = parts.BYMONTH || (anchor ? String(anchor.getUTCMonth() + 1) : '');
+    const day = parts.BYMONTHDAY || (anchor ? String(anchor.getUTCDate()) : '');
+    if (!month || !day) return t('recur.presetYearlyShort', '매년');
     return t('recur.presetYearly', { month, day, defaultValue: `매년 ${month}월 ${day}일` });
   }
   return rule;

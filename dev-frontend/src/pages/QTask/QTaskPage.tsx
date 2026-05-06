@@ -1318,14 +1318,14 @@ const QTaskPage:React.FC=()=>{
                           {task.title}
                         </TaskTitle>
                         {task.recurrence_rule && (
-                          <RecurChip title={formatRRuleLabel(task.recurrence_rule, task.due_date, t)}>
+                          <RecurChip title={formatRRuleLabel(task.recurrence_rule, task.due_date, t, { short: true })}>
                             {/* "반복 ·" 접두 제거 — "매주 토" 자체로 반복 의미 충분 (Slack/Notion 패턴) */}
                             <RecurIcon viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                               <polyline points="23 4 23 10 17 10"/>
                               <polyline points="1 20 1 14 7 14"/>
                               <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
                             </RecurIcon>
-                            {formatRRuleLabel(task.recurrence_rule, task.due_date, t)}
+                            {formatRRuleLabel(task.recurrence_rule, task.due_date, t, { short: true })}
                           </RecurChip>
                         )}
                         {(() => {

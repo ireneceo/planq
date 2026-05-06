@@ -238,7 +238,11 @@
     "everySuffix": "마다",
     "endCountLabel": "반복 횟수",
     "endUntilLabel": "종료 날짜",
-    "preview": "미리보기"
+    "preview": "미리보기",
+    "presetWeeklyShort": "매주",
+    "presetBiweeklyShort": "격주",
+    "presetMonthlyShort": "매월",
+    "presetYearlyShort": "매년"
   },
   "backlog": {
     "title": "미배정 업무",
