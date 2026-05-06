@@ -60,8 +60,8 @@ router.post('/', authenticateToken, async (req, res, next) => {
     if (!member) return errorResponse(res, 'forbidden', 403);
 
     // 워크스페이스 timezone
-    const biz = await Business.findByPk(business_id, { attributes: ['workspace_timezone'] });
-    const wsTz = biz?.workspace_timezone || 'Asia/Seoul';
+    const biz = await Business.findByPk(business_id, { attributes: ['timezone'] });
+    const wsTz = biz?.timezone || 'Asia/Seoul';
 
     // week_start — 미지정 시 현재 주
     const today = todayInTz(wsTz);

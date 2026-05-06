@@ -59,14 +59,14 @@ function initWeeklyReviewCron() {
       // 1. 활성 멤버 순회 (active=true)
       const members = await BusinessMember.findAll({
         where: { active: true },
-        include: [{ model: Business, attributes: ['id', 'workspace_timezone'] }],
+        include: [{ model: Business, attributes: ['id', 'timezone'] }],
       });
 
       let processed = 0;
       let created = 0;
 
       for (const m of members) {
-        const wsTz = m.Business?.workspace_timezone || 'Asia/Seoul';
+        const wsTz = m.Business?.timezone || 'Asia/Seoul';
         const nowInTz = getNowInTz(wsTz);
 
         if (!nowInTz) continue;
