@@ -6,6 +6,7 @@ import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { apiFetch, useAuth } from '../../contexts/AuthContext';
 import CalendarPicker from '../Common/CalendarPicker';
+import SingleDateField from '../Common/SingleDateField';
 import PlanQSelect from '../Common/PlanQSelect';
 import RichEditor from '../Common/RichEditor';
 import {
@@ -872,10 +873,11 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                           style={{ width: 70 }} />
                       )}
                       {recurEndType === 'until' && (
-                        <MetaNumInput type="date"
-                          value={recurEndUntil} onChange={e => setRecurEndUntil(e.target.value)}
-                          onBlur={saveRule}
-                          style={{ width: 140 }} />
+                        <SingleDateField
+                          value={recurEndUntil}
+                          onChange={(d) => { setRecurEndUntil(d); setTimeout(saveRule, 0); }}
+                          width={140}
+                        />
                       )}
                     </MetaRecurOptions>
                   );

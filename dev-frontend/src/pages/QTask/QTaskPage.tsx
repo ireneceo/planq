@@ -6,6 +6,7 @@ import { io, type Socket } from 'socket.io-client';
 import { useAuth, getAccessToken } from '../../contexts/AuthContext';
 import { apiFetch } from '../../contexts/AuthContext';
 import CalendarPicker from '../../components/Common/CalendarPicker';
+import SingleDateField from '../../components/Common/SingleDateField';
 import PlanQSelect from '../../components/Common/PlanQSelect';
 import { todayInTz, mondayOfDateStr, addDaysStr, detectBrowserTz } from '../../utils/timezones';
 import { STATUS_CODES, STATUS_COLOR, displayStatus, getStatusLabel, type StatusCode } from '../../utils/taskLabel';
@@ -1641,8 +1642,8 @@ const QTaskPage:React.FC=()=>{
                       value={newRecurEndCount} onChange={(e)=>setNewRecurEndCount(e.target.value)} />
                   )}
                   {newRecurEndType==='until' && (
-                    <AddDateInput type="date" value={newRecurEndUntil}
-                      onChange={(e)=>setNewRecurEndUntil(e.target.value)} />
+                    <SingleDateField value={newRecurEndUntil}
+                      onChange={(d)=>setNewRecurEndUntil(d)} width={140} />
                   )}
                 </InlineRecurRow>
               )}
@@ -2329,8 +2330,8 @@ const QTaskPage:React.FC=()=>{
                           value={newRecurEndCount} onChange={(e)=>setNewRecurEndCount(e.target.value)} />
                       )}
                       {newRecurEndType==='until' && (
-                        <AddDateInput type="date" value={newRecurEndUntil}
-                          onChange={(e)=>setNewRecurEndUntil(e.target.value)} />
+                        <SingleDateField value={newRecurEndUntil}
+                          onChange={(d)=>setNewRecurEndUntil(d)} width={140} />
                       )}
                     </RecurEndBox>
                   </RecurOptions>

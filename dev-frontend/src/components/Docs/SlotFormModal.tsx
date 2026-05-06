@@ -6,6 +6,7 @@ import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { apiFetch } from '../../contexts/AuthContext';
 import i18n from '../../i18n';
+import SingleDateField from '../Common/SingleDateField';
 
 export type SlotType = 'text' | 'textarea' | 'number' | 'date' | 'email';
 
@@ -138,9 +139,10 @@ const SlotFormModal: React.FC<Props> = ({ templateId, businessId, projectId, cli
                           rows={3}
                         />
                       ) : slot.type === 'date' ? (
-                        <Input type="date"
+                        <SingleDateField
                           value={String(values[slot.key] ?? '').slice(0, 10)}
-                          onChange={e => setValues(v => ({ ...v, [slot.key]: e.target.value }))}
+                          onChange={(d) => setValues(v => ({ ...v, [slot.key]: d }))}
+                          size="md"
                         />
                       ) : slot.type === 'number' ? (
                         <Input type="number"
