@@ -1261,12 +1261,13 @@ const NoMsgBox = styled.div`
   padding: 40px 20px; text-align: center; color: #94A3B8; font-size: 13px;
 `;
 
-// Hangouts/Slack 패턴 — 그룹 첫 메시지는 윗 마진 (그룹 간격), 연속(같은 발신자 + 5분 이내) 은 가까이.
+// Hangouts/Slack 패턴 — 그룹 첫 메시지는 윗 마진 (그룹 간격), 연속(같은 발신자 + 5분 이내) 은
+// 거의 붙어서 나오게 (Irene 명시: 줄간격 좁게). 그룹 시작 12px / 연속 0px.
 const MessageItem = styled.div<{ $continuation?: boolean }>`
   display: flex;
   gap: 12px;
   align-items: flex-start;
-  margin-top: ${(p) => (p.$continuation ? '2px' : '14px')};
+  margin-top: ${(p) => (p.$continuation ? '0' : '12px')};
   &:first-child { margin-top: 0; }
 `;
 
