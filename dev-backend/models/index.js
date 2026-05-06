@@ -72,6 +72,9 @@ const SignatureRequest = require('./SignatureRequest');
 const QRecord = require('./QRecord');
 const QRecordRow = require('./QRecordRow');
 const QRecordAudit = require('./QRecordAudit');
+// ─── 주간 보고 (Weekly Review) ───
+const WeeklyReview = require('./WeeklyReview');
+const WeeklyReviewSetting = require('./WeeklyReviewSetting');
 
 // ============================================
 // 글로벌 toJSON override — createdAt/updatedAt → created_at/updated_at
@@ -404,6 +407,9 @@ module.exports = {
   QRecordAudit,
   // P6 — 사용자 피드백
   FeedbackItem,
+  // 주간 보고
+  WeeklyReview,
+  WeeklyReviewSetting,
 };
 
 // Q record associations
@@ -477,6 +483,15 @@ Task.hasMany(TaskDailyProgress, { as: 'daily_progress', foreignKey: 'task_id' })
 TaskComment.belongsTo(Task, { foreignKey: 'task_id' });
 TaskComment.belongsTo(User, { as: 'author', foreignKey: 'user_id' });
 Task.hasMany(TaskComment, { as: 'comments', foreignKey: 'task_id' });
+
+// WeeklyReview associations
+WeeklyReview.belongsTo(Business, { foreignKey: 'business_id' });
+WeeklyReview.belongsTo(User, { as: 'user', foreignKey: 'user_id' });
+Business.hasMany(WeeklyReview, { as: 'weeklyReviews', foreignKey: 'business_id' });
+User.hasMany(WeeklyReview, { as: 'weeklyReviews', foreignKey: 'user_id' });
+
+WeeklyReviewSetting.belongsTo(Business, { foreignKey: 'business_id' });
+WeeklyReviewSetting.belongsTo(User, { foreignKey: 'user_id' });
 
 // ═══════════════════════════════════════════════════════════
 // Q Bill Phase 0 — Associations

@@ -28,10 +28,12 @@ import {
   buildPresetRRule, buildCustomRRule, formatRRuleLabel,
   type RecurEndType, type RecurPreset, type RecurCustomUnit,
 } from '../../utils/recurrence';
+import WeeklyReviewModal from '../../components/QTask/WeeklyReviewModal';
+import WeeklyReviewTab from '../../components/QTask/WeeklyReviewTab';
 
 // ─── Types ───
 type Scope = 'mine' | 'workspace';
-type ListTab = 'week' | 'all' | 'requested';
+type ListTab = 'week' | 'all' | 'requested' | 'weekly-review';
 type ViewMode = 'list' | 'kanban';
 interface MemberOption { user_id: number; name: string; is_ai?: boolean; }
 type SortKey = 'priority_order' | 'title' | 'status' | 'estimated_hours' | 'actual_hours' | 'progress_percent' | 'due_date';
@@ -108,6 +110,7 @@ const QTaskPage:React.FC=()=>{
   const scope:Scope=location.pathname.endsWith('/tasks/workspace')?'workspace':'mine';
   const setScope=(s:Scope)=>navigate(s==='workspace'?'/tasks/workspace':'/tasks');
   const[tab,setTab]=useState<ListTab>('week');
+  const[weeklyReviewModalOpen,setWeeklyReviewModalOpen]=useState(false);
   // 우선순위: URL (?view=) > localStorage > 기본값 'list'
   const[viewMode,setViewMode]=useState<ViewMode>(()=>{
     const urlView=new URLSearchParams(location.search).get('view');
@@ -1179,6 +1182,11 @@ const QTaskPage:React.FC=()=>{
               {t('scope.workspace','전체 업무')}
             </ScopeBtn>
           </ScopeToggle>
+          {scope==='mine'&&tab==='week'&&(
+            <FinalizeBtn type="button" onClick={()=>setWeeklyReviewModalOpen(true)}>
+              {t('weeklyReview.finalize','이번 주 마무리')}
+            </FinalizeBtn>
+          )}
         </Header>
 
         {/* Tabs — 내 업무 모드에서만 (요구 순서: 이번 주 내 / 나의 전체 / 내가 요청한) */}
@@ -1196,9 +1204,19 @@ const QTaskPage:React.FC=()=>{
               {t('tab.requested','요청하기')}
               {badgeCounts.requested>0&&<TabBadge $active={tab==='requested'}>{badgeCounts.requested}</TabBadge>}
             </TabBtn>
+            <TabBtn $active={tab==='weekly-review'} onClick={()=>{setTab('weekly-review');closeDetail();}}>
+              {t('tab.weeklyReview','주간 보고')}
+            </TabBtn>
           </TabBar>
         )}
 
+        {/* 주간 보고 탭 — 별도 컴포넌트 */}
+        {tab==='weekly-review' && bizId && (
+          <WeeklyReviewTab businessId={bizId} userId={myId} />
+        )}
+
+        {/* 일반 탭 — 기존 리스트 */}
+        {tab!=='weekly-review' && (
         <ListScroll>
           {/* Filter bar (탭 아래) */}
           <FilterBar>
@@ -1845,6 +1863,7 @@ const QTaskPage:React.FC=()=>{
           )}
 
         </ListScroll>
+        )}
       </LeftPanel>
 
       {/* ════ RIGHT ════ */}
@@ -2357,6 +2376,18 @@ const QTaskPage:React.FC=()=>{
           </RightScroll>
         </DetailDrawer>
       )}
+      {/* 주간 보고 마무리 모달 */}
+      {weeklyReviewModalOpen && bizId && (
+        <WeeklyReviewModal
+          businessId={bizId}
+          wsTz={wsTz}
+          onClose={() => setWeeklyReviewModalOpen(false)}
+          onSaved={() => {
+            setWeeklyReviewModalOpen(false);
+            setTab('weekly-review');
+          }}
+        />
+      )}
       <FirstVisitTour
         pageKey="qtask"
         steps={[
@@ -2380,6 +2411,7 @@ const Chip=styled.span<{$teal?:boolean;$coral?:boolean}>`padding:2px 8px;font-si
 
 const TabBar=styled.div`display:flex;border-bottom:1px solid #E2E8F0;flex-shrink:0;`;
 const TabBtn=styled.button<{$active?:boolean}>`flex:1;padding:10px;font-size:13px;font-weight:600;border:none;cursor:pointer;background:transparent;color:${p=>p.$active?'#0F766E':'#94A3B8'};border-bottom:2px solid ${p=>p.$active?'#14B8A6':'transparent'};display:inline-flex;align-items:center;justify-content:center;gap:6px;`;
+const FinalizeBtn=styled.button`margin-left:auto;padding:6px 14px;border:none;background:#14B8A6;border-radius:6px;font-size:13px;font-weight:600;color:#FFF;cursor:pointer;&:hover{background:#0D9488;}`;
 const TabBadge=styled.span<{$active?:boolean}>`display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 6px;border-radius:9px;background:${p=>p.$active?'#F43F5E':'#CBD5E1'};color:#FFF;font-size:11px;font-weight:700;line-height:1;`;
 const ListScroll=styled.div`flex:1;overflow-y:auto;&::-webkit-scrollbar{width:6px;}&::-webkit-scrollbar-thumb{background:#E2E8F0;border-radius:3px;}`;
 const BottomAddLink=styled.button`margin:10px 14px 20px;padding:6px 0;background:transparent;color:#94A3B8;border:none;font-size:13px;font-weight:500;cursor:pointer;text-align:left;display:block;font-family:inherit;&:hover{color:#0F766E;}`;

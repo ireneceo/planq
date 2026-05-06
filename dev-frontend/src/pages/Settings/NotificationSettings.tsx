@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { apiFetch } from '../../contexts/AuthContext';
 import { InboxIcon, ChatIcon, MailIcon } from '../../components/Common/Icons';
 import PwaInstallSection from './PwaInstallSection';
+import WeeklyReviewAutoSection from '../../components/QTask/WeeklyReviewAutoSection';
 
 interface Props {
   businessId: number;
@@ -77,6 +78,7 @@ const NotificationSettings: React.FC<Props> = ({ businessId }) => {
     <Wrap>
       <PwaInstallSection />
       <PushSection businessId={businessId} />
+      <WeeklyReviewAutoSection businessId={businessId} />
 
       <Section>
         <SectionTitle>{t('notifications.title', '알림 받기')}</SectionTitle>

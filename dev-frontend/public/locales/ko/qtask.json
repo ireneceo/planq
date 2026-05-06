@@ -238,5 +238,62 @@
         "project_change": "프로젝트 이관"
       }
     }
+  },
+  "tab": {
+    "week": "이번 주 내 업무",
+    "all": "내 전체업무",
+    "requested": "요청하기",
+    "weeklyReview": "주간 보고"
+  },
+  "weeklyReview": {
+    "finalize": "이번 주 마무리",
+    "modal": {
+      "title": "이번 주 마무리",
+      "period": "{{start}} ~ {{end}}",
+      "summary": "완료 {{c}}건 / 미완료 {{i}}건",
+      "hours": "사용 {{a}}h / 예측 {{e}}h ({{p}}%)",
+      "noteLabel": "한 주 메모",
+      "notePlaceholder": "이번 주 어땠나요? (선택)",
+      "save": "저장",
+      "cancel": "취소",
+      "alreadyExists": "이번 주 결산이 이미 있어요. 지금 시점으로 덮어쓸까요?",
+      "overwrite": "덮어쓰기"
+    },
+    "tab": {
+      "empty": "아직 저장된 결산이 없습니다",
+      "emptyHint": "금요일·일요일에 \"이번 주 마무리\" 또는 자동 박제로 누적해보세요.",
+      "autoBadge": "자동",
+      "manualBadge": "수동",
+      "weekLabel": "{{n}}월 {{w}}주차"
+    },
+    "view": {
+      "back": "결산 목록",
+      "tasksTitle": "그 주 업무",
+      "summaryTitle": "요약",
+      "burndownTitle": "주간 진척",
+      "noteTitle": "한 주 메모",
+      "addNote": "메모 추가"
+    },
+    "auto": {
+      "title": "주간 보고 자동 박제",
+      "desc": "매주 일요일 23:59 자동으로 그 주 결산을 저장합니다. 통계 누적과 회의 자료로 사용됩니다.",
+      "enabled": "켜짐",
+      "disabled": "꺼짐"
+    },
+    "lastWeekBanner": {
+      "title": "지난 주 결산이 있어요",
+      "desc": "회의 또는 회고에 활용하세요.",
+      "viewBtn": "보러 가기"
+    }
+  },
+  "common": {
+    "total": "총 업무",
+    "completed": "완료",
+    "incomplete": "미완료",
+    "utilization": "활용률",
+    "edit": "수정",
+    "save": "저장",
+    "cancel": "취소",
+    "loadMore": "더 보기"
   }
 }
