@@ -116,11 +116,34 @@ async function notify({ userId, businessId, eventKind, title, body, link, ctaLab
   if (await isAllowed(userId, businessId, eventKind, 'push')) {
     try {
       const { sendPushToUser } = require('../services/push_service');
+      // badge — 사용자의 현재 Q Talk unread total. SW 가 정확한 dock 아이콘 숫자 표시용.
+      // 발송 직전 +1 (이번 알림이 unread 으로 추가될 거라 가정 — message/mention 류).
+      // 실패해도 push 는 발송 (badge 는 활성 클라이언트가 정확하게 덮어씀).
+      let badge;
+      try {
+        if (businessId) {
+          const { sequelize } = require('../config/database');
+          const [rows] = await sequelize.query(
+            `SELECT COUNT(m.id) AS cnt
+               FROM messages m
+               LEFT JOIN conversation_participants cp
+                 ON cp.conversation_id = m.conversation_id AND cp.user_id = :uid
+              INNER JOIN conversations c ON c.id = m.conversation_id AND c.business_id = :bid
+              WHERE m.sender_id != :uid
+                AND (m.is_deleted IS NULL OR m.is_deleted = 0)
+                AND (cp.last_read_at IS NULL OR m.created_at > cp.last_read_at)`,
+            { replacements: { uid: userId, bid: businessId } }
+          );
+          // 이번 알림은 message 류면 이미 DB 에 INSERT 된 상태라 cnt 에 포함됨
+          badge = Number(rows[0]?.cnt || 0);
+        }
+      } catch { /* badge 계산 실패해도 push 자체는 보냄 */ }
       const r = await sendPushToUser(userId, {
         title: title || 'PlanQ',
         body: body || '',
         link: link || '/',
         tag: tag || `${eventKind}:${userId}`,
+        ...(badge !== undefined ? { badge } : {}),
       });
       results.push = r;
     } catch (e) {

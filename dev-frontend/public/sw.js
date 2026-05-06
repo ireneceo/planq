@@ -82,13 +82,14 @@ self.addEventListener('push', (event) => {
   };
   event.waitUntil((async () => {
     await self.registration.showNotification(title, options);
-    // App Badging API — 데스크탑 PWA 아이콘 / 모바일 홈스크린 숫자
-    // Chrome/Edge desktop · Android Chrome · iOS Safari 16.4+ 지원
+    // App Badging API — 데스크탑 PWA 아이콘 / 모바일 홈스크린 숫자.
+    // 백엔드가 push payload 에 'badge' (사용자의 현재 unread total) 포함 → SW 가 정확한 숫자 적용.
+    // payload.badge 없으면 setAppBadge() 인자 없이 호출 (점만, 일부 브라우저는 '1') 으로 fallback.
+    // 이 후 사용자가 앱 활성화하면 useUnreadTotal hook 이 정확한 값으로 다시 덮어씀.
     try {
       if ('setAppBadge' in self.navigator) {
-        // 정확한 토탈은 클라이언트가 알지만 SW 가 fetch 하면 비용↑ — 알림 1개 도착 = 최소 1
-        // 클라이언트 활성 시 setAppBadge(actualTotal) 로 덮어씀.
-        await self.navigator.setAppBadge();
+        const n = typeof payload.badge === 'number' ? payload.badge : undefined;
+        await self.navigator.setAppBadge(n);
       }
     } catch { /* unsupported / blocked — silent */ }
   })());
