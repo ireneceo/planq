@@ -172,6 +172,8 @@ const CandidateEditCard: React.FC<Props> = ({
 export default CandidateEditCard;
 
 // ─── styled ───
+// Card padding 12/14 좌우 + 카드 간 8px 간격 (다음 카드와 시각 분리).
+// 자식 (TitleInput / Desc / MetaRow) 모두 padding 0 — 좌우 시작점 일치.
 const Card = styled.div`
   background: #FFFFFF;
   border: 1px solid #E2E8F0;
@@ -180,25 +182,32 @@ const Card = styled.div`
   display: flex;
   flex-direction: column;
   gap: 10px;
+  & + & { margin-top: 10px; }
 `;
+// 제목 — Card padding 안에서 좌우 0 (PlanQSelect/DateTrigger 와 시작점 일치).
+// hover/focus 시 인라인 input 표시 (배경/border 만 변화, indent 변화 X).
 const TitleInput = styled.input`
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
   color: #0F172A;
   border: 1px solid transparent;
   border-radius: 6px;
-  padding: 6px 8px;
+  padding: 6px 0;
+  margin: 0;
   background: transparent;
-  &:hover { background: #F8FAFC; }
-  &:focus { outline: none; border-color: #14B8A6; background: #FFF; }
+  width: 100%;
+  &:hover { background: #F8FAFC; padding: 6px 8px; margin: 0 -8px; }
+  &:focus { outline: none; border-color: #14B8A6; background: #FFF; padding: 6px 8px; margin: 0 -8px; }
 `;
+// 설명 — 좌우 0 (TitleInput 과 시작점 일치). 한 줄 메타 정보.
 const Desc = styled.div`
   font-size: 12px;
-  color: #475569;
+  color: #64748B;
   line-height: 1.5;
   white-space: pre-wrap;
   word-break: break-word;
-  padding: 0 8px;
+  padding: 0;
+  margin: -4px 0 0;
 `;
 const MetaRow = styled.div`
   display: grid;
@@ -215,11 +224,11 @@ const MetaLabel = styled.label`
   font-weight: 600;
   color: #94A3B8;
 `;
-// PlanQSelect size="sm" 과 동일 height (32px) + 동일 visual — 두 필드 정렬 일치.
+// PlanQSelect SIZE_HEIGHT.sm (36px) 와 동일 — 같은 MetaRow 에서 height 정렬 일치.
 // 클릭하면 CalendarPicker 가 anchorRef 기준 portal 로 펼침.
 const DateTrigger = styled.button<{ $empty?: boolean }>`
-  height: 32px;
-  padding: 0 10px;
+  height: 36px;
+  padding: 0 12px;
   border: 1px solid #E2E8F0;
   border-radius: 6px;
   font-size: 13px;

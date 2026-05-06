@@ -78,8 +78,9 @@ const SingleDateField: React.FC<Props> = ({
 
 export default SingleDateField;
 
+// PlanQSelect SIZE_HEIGHT 와 정확 동일 (sm 36 / md 44) — 같은 행에 놓일 때 정렬 일치
 const Trigger = styled.button<{ $empty?: boolean; $size: 'sm' | 'md'; $width?: number | string }>`
-  height: ${(p) => (p.$size === 'md' ? '38px' : '32px')};
+  height: ${(p) => (p.$size === 'md' ? '44px' : '36px')};
   padding: 0 10px;
   ${(p) => p.$width !== undefined && `width: ${typeof p.$width === 'number' ? `${p.$width}px` : p.$width};`}
   border: 1px solid #E2E8F0;
