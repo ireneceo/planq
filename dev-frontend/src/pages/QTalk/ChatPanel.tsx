@@ -131,6 +131,23 @@ const ChatPanel: React.FC<Props> = ({
     || null;
   const convMessages: MockMessage[] = activeConv ? messages[activeConv.id] || [] : [];
   const [input, setInput] = useState('');
+  // textarea ref — 채팅방 진입 시 자동 포커스 + 입력 시 auto-resize (2줄 가려짐 방지)
+  const textInputRef = React.useRef<HTMLTextAreaElement | null>(null);
+  // input 변경 시 textarea 높이를 scrollHeight 로 동기화 (max-height 120px 도달 시 내부 스크롤)
+  React.useEffect(() => {
+    const el = textInputRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    const next = Math.min(el.scrollHeight, 120);
+    el.style.height = `${next}px`;
+  }, [input]);
+  // 활성 대화방 변경 시 자동 포커스 (모바일에서는 키보드 자동 펼치지 않도록 skip)
+  React.useEffect(() => {
+    if (!activeConversationId) return;
+    if (typeof window !== 'undefined' && window.matchMedia('(max-width: 640px)').matches) return;
+    const tm = window.setTimeout(() => textInputRef.current?.focus(), 80);
+    return () => window.clearTimeout(tm);
+  }, [activeConversationId]);
   const [editingDraftId, setEditingDraftId] = useState<number | null>(null);
   const [draftBody, setDraftBody] = useState('');
 
@@ -936,6 +953,7 @@ const ChatPanel: React.FC<Props> = ({
             </svg>
           </AttachBtn>
           <TextInput
+            ref={textInputRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
