@@ -407,7 +407,7 @@ const LoginPage: React.FC = () => {
     <Container>
       <LoginBox>
         <LeftSection>
-          <BrandLogo src="/planQ_white_new.svg" alt="PlanQ" />
+          <BrandLogo src="/planQ-slogan_white.svg" alt="PlanQ" />
           <BrandDescription>
             {t('brand.description')}
           </BrandDescription>
