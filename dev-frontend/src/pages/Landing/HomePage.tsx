@@ -29,16 +29,9 @@ const HomePage: React.FC = () => {
         <HeroBlobB />
         <HeroInner>
           <HeroLogoImg src="/planQ_white_new.svg" alt="PlanQ" />
-          <HeroSlogan>{t('hero.slogan', '일을 일답게 하다')}</HeroSlogan>
-          <HeroHeadline>
-            {t('hero.headlinePart1', '사람은')} <Em>{t('hero.headlineEm', '일')}</Em>{t('hero.headlinePart2', '에 집중해야 합니다.')}<br />
-            {t('hero.headlinePart3', '도구를 관리하는 데')}<br />
-            {t('hero.headlinePart4', '시간을 쓰면 안 됩니다.')}
-          </HeroHeadline>
-          <HeroSub>
-            {t('hero.sub1', '대화, 할일, 자료, 회의, 청구까지 —')}<br />
-            {t('hero.sub2', '업무의 모든 흐름이 한 곳에서 실행됩니다.')}
-          </HeroSub>
+          <HeroSlogan>{t('hero.slogan', '일이 일이 되지 않게')}</HeroSlogan>
+          <HeroPreHeadline>{t('hero.preHeadline', '업무, 프로젝트, 사람, 시간, 고객, 청구를')}</HeroPreHeadline>
+          <HeroHeadline>하나로 연결해<br /><HeroHighlight>시간을 돈으로 바꾸는</HeroHighlight><br />수익성 엔진</HeroHeadline>
           <HeroCta to="/register">{t('hero.cta', '무료로 시작하기')}</HeroCta>
         </HeroInner>
       </Hero>
@@ -287,7 +280,9 @@ const HeroBlobB = styled.div`
 `;
 const HeroInner = styled.div`
   position: relative; z-index: 1; max-width: 800px;
+  margin-top: -80px;
   animation: ${fadeInUp} 0.9s ease-out both;
+  @media (max-width: 768px) { margin-top: -40px; }
 `;
 const HeroLogoImg = styled.img`
   height: 72px; width: auto; display: block;
@@ -298,21 +293,22 @@ const HeroLogoImg = styled.img`
 `;
 const HeroSlogan = styled.div`
   font-size: 20px; font-weight: 300; color: #94A3B8;
-  letter-spacing: 6px; margin-bottom: 56px;
-  @media (max-width: 768px) { font-size: 14px; letter-spacing: 4px; margin-bottom: 40px; }
+  letter-spacing: 6px; margin-bottom: 50px;
+  @media (max-width: 768px) { font-size: 14px; letter-spacing: 4px; margin-bottom: 32px; }
+`;
+const HeroPreHeadline = styled.div`
+  font-size: 20px; font-weight: 400; color: #FFFFFF;
+  margin-bottom: 20px;
+  @media (max-width: 768px) { font-size: 16px; }
 `;
 const HeroHeadline = styled.h1`
-  font-size: 44px; font-weight: 700; color: #FFFFFF;
-  line-height: 1.35; margin-bottom: 24px;
+  font-size: 48px; font-weight: 700; color: #FFFFFF;
+  line-height: 1.31; margin: 0 0 48px 0;
   word-break: keep-all;
-  @media (max-width: 768px) { font-size: 28px; }
+  @media (max-width: 768px) { font-size: 30px; }
 `;
-const Em = styled.em`font-style: normal; color: #2DD4BF;`;
-const HeroSub = styled.p`
-  font-size: 18px; font-weight: 300; color: #94A3B8;
-  line-height: 1.7; margin-bottom: 48px;
-  word-break: keep-all;
-  @media (max-width: 768px) { font-size: 15px; }
+const HeroHighlight = styled.span`
+  color: #14B8A6;
 `;
 const HeroCta = styled(Link)`
   display: inline-block; padding: 16px 48px;

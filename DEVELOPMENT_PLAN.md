@@ -1,14 +1,36 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-05-06 v1.1.1+ (운영 라이브 풀세트 — 다중 디바이스 세션 + SingleDateField 통일 + 모바일 채팅 반응형 + SW notificationclick fallback + iOS 자동 줌 차단 — **운영 배포 완료** `fa292a1`)
+> **최종 업데이트:** 2026-05-07 (랜딩 페이지 Hero 섹션 카피 전면 리뉴얼)
 >
-> **이전 라이브:** 2026-05-06 v1.1.1 (`9206095` — 알림 풀세트 + 업무 추출 정밀화)
+> **이전 라이브:** 2026-05-06 v1.1.1+ (`fa292a1` — 다중 디바이스 세션 + UI 일관화)
 >
-> **다음 진입 ★:** **주간 보고 (Weekly Review) Phase 1** — `docs/WEEKLY_REVIEW_DESIGN.md` 합의 완료. Q Task 4번째 탭 + 자동·수동 박제 + JSON 통계 활용.
+> **다음 진입 ★:** KB Phase 2 (PDF/docx 업로드 + 다중 분리 정밀) / Q Task 정기업무 (RRULE) / Q docs 재구조화 + Brief 통합
 >
 > **차순위:** KB Phase 2 (PDF/docx 업로드 + 다중 분리 정밀) / Q Task 정기업무 (RRULE) / Q docs 재구조화 + Brief 통합 / 알림 그룹화·DND·Activity / Phase 4 트래픽 트리거 시 BullMQ+Redis / S3 / read-replica
 >
 > **결제 정책:** 1순위 자체 결제 (계좌이체 mark-paid), 2순위 PortOne (P-7 마지막). 월결제 + 연결제. Free 플랜 폐지 — 신규 가입은 starter+trialing 14일. 미결제 시 7일 유예 후 starter 강등 + 데이터 보존.
+
+---
+
+## ✅ 완료: 랜딩 페이지 Hero 카피 리뉴얼 (2026-05-07)
+
+Irene 요청으로 랜딩 페이지 Hero 섹션 카피 전면 변경.
+
+### 완료된 작업
+
+| 작업 | 설명 | 상태 |
+|------|------|:----:|
+| 슬로건 변경 | "일을 일답게 하다" → "일이 일이 되지 않게" | ✅ 완료 |
+| 프리헤드라인 신규 | "업무, 프로젝트, 사람, 시간, 고객, 청구를" (20px, #fff) | ✅ 완료 |
+| 헤드라인 변경 | "하나로 연결해 / 시간을 돈으로 바꾸는 / 수익성 엔진" (48px, 줄바꿈) | ✅ 완료 |
+| 하이라이트 색상 | "시간을 돈으로 바꾸는" 부분 #14B8A6 강조 | ✅ 완료 |
+| 서브카피 삭제 | "대화, 할일, 자료, 회의, 청구까지 —" 제거 | ✅ 완료 |
+| 레이아웃 조정 | 마진/간격 최적화, Hero 영역 상단 80px 올림 | ✅ 완료 |
+
+### 수정된 파일
+- `dev-frontend/src/pages/Landing/HomePage.tsx` (Hero 섹션 구조 + 스타일)
+- `dev-frontend/public/locales/ko/landing.json` (hero.slogan, preHeadline, headline)
+- `dev-frontend/public/locales/en/landing.json` (영문 번역 동기화)
 
 ---
 
