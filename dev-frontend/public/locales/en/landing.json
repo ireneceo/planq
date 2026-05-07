@@ -12,11 +12,8 @@
   },
   "hero": {
     "slogan": "WORK, JUST WORK",
-    "headlinePart1": "People should focus on the",
-    "headlineEm": "work",
-    "headlinePart2": ".",
-    "headlinePart3": "Not on managing",
-    "headlinePart4": "the tools.",
+    "preHeadline": "Tasks, projects, people, time, clients, billing —",
+    "headline": "Connected into one profitability engine that turns time into money",
     "sub1": "Conversations, tasks, files, meetings, billing —",
     "sub2": "every workflow runs in one place.",
     "cta": "Start free"

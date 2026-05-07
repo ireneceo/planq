@@ -11,12 +11,9 @@
     "menu": "메뉴"
   },
   "hero": {
-    "slogan": "일을 일답게 하다",
-    "headlinePart1": "사람은",
-    "headlineEm": "일",
-    "headlinePart2": "에 집중해야 합니다.",
-    "headlinePart3": "도구를 관리하는 데",
-    "headlinePart4": "시간을 쓰면 안 됩니다.",
+    "slogan": "일이 일이 되지 않게",
+    "preHeadline": "업무, 프로젝트, 사람, 시간, 고객, 청구를",
+    "headline": "하나로 연결해 시간을 돈으로 바꾸는 수익성 엔진",
     "sub1": "대화, 할일, 자료, 회의, 청구까지 —",
     "sub2": "업무의 모든 흐름이 한 곳에서 실행됩니다.",
     "cta": "무료로 시작하기"
