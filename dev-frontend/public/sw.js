@@ -83,15 +83,20 @@ self.addEventListener('push', (event) => {
   event.waitUntil((async () => {
     await self.registration.showNotification(title, options);
     // App Badging API — 데스크탑 PWA 아이콘 / 모바일 홈스크린 숫자.
-    // 백엔드가 push payload 에 'badge' (사용자의 현재 unread total) 포함 → SW 가 정확한 숫자 적용.
-    // payload.badge 없으면 setAppBadge() 인자 없이 호출 (점만, 일부 브라우저는 '1') 으로 fallback.
-    // 이 후 사용자가 앱 활성화하면 useUnreadTotal hook 이 정확한 값으로 다시 덮어씀.
     try {
       if ('setAppBadge' in self.navigator) {
         const n = typeof payload.badge === 'number' ? payload.badge : undefined;
         await self.navigator.setAppBadge(n);
       }
     } catch { /* unsupported / blocked — silent */ }
+    // 진단용 — push 도달 확인. 클라이언트가 listening 중이면 받음.
+    // 자동 진단 모달이 5초 timeout 으로 OS 차단 케이스 detect.
+    try {
+      const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+      for (const c of clients) {
+        c.postMessage({ type: 'planq:push-received', payload });
+      }
+    } catch { /* silent */ }
   })());
 });
 
