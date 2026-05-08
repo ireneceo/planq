@@ -398,6 +398,14 @@ router.post('/:businessId/:id/messages', authenticateToken, attachWorkspaceScope
 
     await conversation.update({ last_message_at: new Date() });
 
+    // Socket.IO broadcast — 채팅 페이지 실시간 반영 + 우측 상단 in-app 토스터 트리거.
+    // (projects.js 의 메시지 라우트와 동일 패턴. NotificationToaster 의 'message:new' 핸들러가 받음.)
+    const fullMsg = await Message.findByPk(msg.id, {
+      include: [{ model: User, as: 'sender', attributes: ['id', 'name', 'email', 'name_localized'] }],
+    });
+    const io = req.app.get('io');
+    if (io && fullMsg) io.to(`conv:${conversation.id}`).emit('message:new', fullMsg.toJSON());
+
     await createAuditLog({
       userId: req.user.id,
       businessId: req.params.businessId,
