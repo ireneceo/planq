@@ -67,6 +67,12 @@
     "btnShort": "AI",
     "btnHint": "Describe in one line — AI breaks it into tasks"
   },
+  "tpl": {
+    "btn": "Template",
+    "btnHint": "Start from a system preset or workspace template",
+    "saveBtn": "Save as template",
+    "saveHint": "Save current project schedule as a reusable template"
+  },
   "addTask": {
     "add": "+ Add Task",
     "cancel": "Cancel",

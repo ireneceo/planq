@@ -67,6 +67,12 @@
     "btnShort": "AI",
     "btnHint": "자연어 한 줄로 여러 업무 자동 생성"
   },
+  "tpl": {
+    "btn": "템플릿",
+    "btnHint": "시스템 preset 또는 워크스페이스 템플릿에서 시작",
+    "saveBtn": "템플릿으로 저장",
+    "saveHint": "현재 프로젝트의 일정을 템플릿으로 저장"
+  },
   "addTask": {
     "add": "+ 업무 추가",
     "cancel": "취소",

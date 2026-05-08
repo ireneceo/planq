@@ -7,7 +7,10 @@ import PlanQSelect from '../../components/Common/PlanQSelect';
 import CalendarPicker from '../../components/Common/CalendarPicker';
 import ProjectTaskList from './ProjectTaskList';
 import TaskDetailDrawer from '../../components/QTask/TaskDetailDrawer';
+import { responsiveDrawerWidth } from '../../utils/responsiveDrawer';
 import AiTaskCreateModal from '../../components/QTask/AiTaskCreateModal';
+import TemplateSelectModal from '../../components/QTask/TemplateSelectModal';
+import TemplateSaveModal from '../../components/QTask/TemplateSaveModal';
 import AiActionButton from '../../components/Common/AiActionButton';
 import { todayInTz, detectBrowserTz } from '../../utils/timezones';
 import { GanttHeader, GanttRowTrack, GanttBar, useGanttScrollSync } from '../../components/Common/GanttTrack';
@@ -29,12 +32,13 @@ interface Member { user_id: number; name: string; }
 type Props = {
   projectId: number;
   businessId: number;
+  projectName?: string;
   tasks: TaskRow[];
   onRefresh: () => void;
 };
 
 
-const TasksTab: React.FC<Props> = ({ projectId, businessId, tasks, onRefresh }) => {
+const TasksTab: React.FC<Props> = ({ projectId, businessId, projectName, tasks, onRefresh }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAuth();
@@ -48,9 +52,7 @@ const TasksTab: React.FC<Props> = ({ projectId, businessId, tasks, onRefresh }) 
     const q = new URLSearchParams(location.search).get('task');
     return q ? Number(q) : null;
   });
-  const [drawerWidth, setDrawerWidth] = useState<number>(() => {
-    try { const v = localStorage.getItem('qtask_drawer_width'); return v ? Math.max(420, Math.min(1000, Number(v))) : 560; } catch { return 560; }
-  });
+  const [drawerWidth, setDrawerWidth] = useState<number>(() => responsiveDrawerWidth('qtask_drawer_width'));
   const openDetail = (id: number) => {
     // 같은 업무 재클릭 → 드로어 닫기 (토글). 통일된 UX 원칙.
     if (detailTaskId === id) { closeDetail(); return; }
@@ -82,6 +84,8 @@ const TasksTab: React.FC<Props> = ({ projectId, businessId, tasks, onRefresh }) 
   };
   const [adding, setAdding] = useState<null | 'top' | 'bottom'>(null);
   const [aiOpen, setAiOpen] = useState(false);
+  const [tplOpen, setTplOpen] = useState(false);
+  const [tplSaveOpen, setTplSaveOpen] = useState(false);
   const [newTitle, setNewTitle] = useState('');
   const [newAssignee, setNewAssignee] = useState<number | null>(null);
   const [newStart, setNewStart] = useState('');
@@ -199,6 +203,12 @@ const TasksTab: React.FC<Props> = ({ projectId, businessId, tasks, onRefresh }) 
             label={tp('ai.btnShort', 'AI')}
             title={tp('ai.btnHint', '자연어 한 줄로 여러 업무 자동 생성') as string}
           />
+          <TemplateBtn type="button" onClick={() => setTplOpen(true)} title={tp('tpl.btnHint', '시스템 preset 또는 워크스페이스 템플릿에서 시작') as string}>
+            {tp('tpl.btn', '템플릿')}
+          </TemplateBtn>
+          <TemplateBtn type="button" onClick={() => setTplSaveOpen(true)} title={tp('tpl.saveHint', '현재 프로젝트의 일정을 템플릿으로 저장') as string}>
+            {tp('tpl.saveBtn', '템플릿으로 저장')}
+          </TemplateBtn>
           <AddTaskBtn type="button" onClick={() => setAdding(adding === 'top' ? null : 'top')}>{adding === 'top' ? tp('addTask.cancel', '취소') : tp('addTask.add', '+ 업무 추가')}</AddTaskBtn>
         </ToolbarRight>
       </Toolbar>
@@ -206,14 +216,14 @@ const TasksTab: React.FC<Props> = ({ projectId, businessId, tasks, onRefresh }) 
       {view === 'split' && (
         <TableWrap>
           <ProjectTaskList tasks={sorted} members={members} businessId={businessId} myId={myId}
-            onOpen={openDetail} onLocalUpdate={onLocalUpdate}
+            onOpen={openDetail} onLocalUpdate={onLocalUpdate} onRefresh={onRefresh}
             showTimeline />
         </TableWrap>
       )}
       {view === 'list' && (
         <TableWrap>
           <ProjectTaskList tasks={sorted} members={members} businessId={businessId} myId={myId}
-            onOpen={openDetail} onLocalUpdate={onLocalUpdate} />
+            onOpen={openDetail} onLocalUpdate={onLocalUpdate} onRefresh={onRefresh} />
         </TableWrap>
       )}
       {view === 'timeline' && <TimelineView tasks={sorted} onOpen={openDetail} todayStr={todayStr} myId={myId} />}
@@ -262,6 +272,22 @@ const TasksTab: React.FC<Props> = ({ projectId, businessId, tasks, onRefresh }) 
         projectFixed
         members={members}
         onCreated={() => { onRefresh(); }}
+      />
+      <TemplateSelectModal
+        open={tplOpen}
+        onClose={() => setTplOpen(false)}
+        businessId={businessId}
+        projectId={projectId}
+        members={members}
+        onApplied={() => { onRefresh(); }}
+      />
+      <TemplateSaveModal
+        open={tplSaveOpen}
+        onClose={() => setTplSaveOpen(false)}
+        businessId={businessId}
+        projectId={projectId}
+        projectName={projectName || ''}
+        onSaved={() => { /* 저장만 — 페이지 reload 불필요 */ }}
       />
     </Wrap>
   );
@@ -391,6 +417,15 @@ const Toolbar = styled.div`display:flex;align-items:center;gap:8px;margin-bottom
 const ViewTabs = styled.div`display:inline-flex;background:#F1F5F9;padding:3px;border-radius:8px;gap:2px;`;
 const ViewBtn = styled.button<{$active?:boolean}>`padding:6px 14px;border:none;background:${p=>p.$active?'#FFF':'transparent'};color:${p=>p.$active?'#0F766E':'#64748B'};border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;box-shadow:${p=>p.$active?'0 1px 2px rgba(0,0,0,0.06)':'none'};&:hover{color:#0F766E;}`;
 const ToolbarRight = styled.div`margin-left:auto;display:inline-flex;align-items:center;gap:6px;`;
+const TemplateBtn = styled.button`
+  display:inline-flex;align-items:center;gap:6px;
+  height:32px;padding:0 12px;
+  background:#F0FDFA;color:#0F766E;
+  border:1px solid #14B8A6;border-radius:8px;
+  font-size:12px;font-weight:600;cursor:pointer;
+  transition:background 0.15s,color 0.15s;
+  &:hover{background:#14B8A6;color:#FFF;}
+`;
 const AddTaskBtn = styled.button`display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 14px;background:#14B8A6;color:#FFF;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;&:hover{background:#0D9488;}`;
 
 const AddForm = styled.div`display:flex;flex-wrap:wrap;align-items:flex-end;gap:8px;padding:10px;background:#F8FAFC;border:1px solid #14B8A6;border-radius:10px;margin-bottom:12px;`;

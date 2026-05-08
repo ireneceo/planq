@@ -453,6 +453,43 @@ router.post('/', authenticateToken, async (req, res, next) => {
       } catch (e) { console.warn('[notify task assigned outer]', e.message); }
     }
 
+    // 자동 AI 예측 — title 있고 estimated_hours 미입력 시 백그라운드 LLM 호출
+    // → tasks.estimated_hours 자동 채움 + task_estimations source='ai' row + socket task:updated emit
+    // 사용자가 직접 입력한 값은 source='user' 로 덮을 때만 우선
+    if (full.title && (!full.estimated_hours || Number(full.estimated_hours) === 0) && !cue_kind) {
+      setImmediate(async () => {
+        try {
+          const { callAiEstimate, AI_MODEL } = require('./task_estimations');
+          const { TaskEstimation } = require('../models');
+          const ai = await callAiEstimate(full.title, full.description || '');
+          if (!ai || !ai.hours) return;
+          // tasks.estimated_hours 동기 (UI 표시용)
+          await Task.update({ estimated_hours: ai.hours }, { where: { id: task.id } });
+          await TaskEstimation.create({
+            task_id: task.id,
+            value: ai.hours,
+            source: 'ai',
+            model: AI_MODEL,
+          });
+          // socket emit — 프론트 자동 갱신
+          if (io) {
+            const updated = await Task.findByPk(task.id, {
+              include: [
+                { model: Project, attributes: ['id', 'name'], required: false },
+                { model: User, as: 'assignee', attributes: ['id', 'name', 'name_localized'], required: false },
+                { model: User, as: 'requester', attributes: ['id', 'name', 'name_localized'], required: false },
+              ],
+            });
+            if (updated) {
+              const payload = { ...updated.toJSON(), actor_user_id: req.user.id, ai_estimate: true };
+              if (project_id) io.to(`project:${project_id}`).emit('task:updated', payload);
+              io.to(`business:${business_id}`).emit('task:updated', payload);
+            }
+          }
+        } catch (e) { console.warn('[auto-ai-estimate]', e.message); }
+      });
+    }
+
     return successResponse(res, full.toJSON());
   } catch (err) { next(err); }
 });
@@ -522,7 +559,7 @@ router.post('/ai-create', authenticateToken, async (req, res, next) => {
 // ============================================
 router.post('/ai-create/confirm', authenticateToken, async (req, res, next) => {
   try {
-    const { business_id, project_id, candidates } = req.body;
+    const { business_id, project_id, candidates, base_date } = req.body;
     if (!business_id) return errorResponse(res, 'business_id required', 400);
     if (!Array.isArray(candidates) || candidates.length === 0) {
       return errorResponse(res, 'candidates array required', 400);
@@ -534,7 +571,9 @@ router.post('/ai-create/confirm', authenticateToken, async (req, res, next) => {
     }
 
     const tz = await getWorkspaceTz(business_id);
-    const todayLocal = todayInTz(tz);
+    const todayLocal = base_date && /^\d{4}-\d{2}-\d{2}$/.test(base_date)
+      ? base_date
+      : todayInTz(tz);
     const { TaskEstimation } = require('../models');
     const io = req.app.get('io');
     const created = [];
@@ -871,6 +910,64 @@ router.delete('/by-business/:businessId/:id', authenticateToken, async (req, res
     }
 
     return successResponse(res, { id: meta.id, deleted: true });
+  } catch (err) { next(err); }
+});
+
+// ============================================
+// ============================================
+// POST /api/tasks/:id/copy — 업무 복제 (메타 deep clone, history/comments 제외)
+// body: { } 또는 { project_id?, after_priority_order? }
+// ============================================
+router.post('/:id/copy', authenticateToken, async (req, res, next) => {
+  try {
+    const src = await Task.findByPk(req.params.id);
+    if (!src) return errorResponse(res, 'not_found', 404);
+
+    if (!(await assertBusinessAccess(req.user.id, src.business_id, req.user.platform_role))) {
+      return errorResponse(res, 'forbidden', 403);
+    }
+
+    // 복제 제목 — "원제목 (복사)"
+    const copyTitle = src.title + ' (복사)';
+
+    const copy = await Task.create({
+      business_id: src.business_id,
+      project_id: src.project_id,
+      title: copyTitle.slice(0, 200),
+      description: src.description,
+      assignee_id: src.assignee_id,
+      due_date: src.due_date,
+      start_date: src.start_date,
+      estimated_hours: src.estimated_hours,
+      category: src.category,
+      conversation_id: src.conversation_id,
+      planned_week_start: src.planned_week_start,
+      created_by: req.user.id,
+      source: 'manual',
+      // 새 task — 진행/완료 상태는 처음부터
+      status: 'not_started',
+      progress_percent: 0,
+      actual_hours: null,
+      completed_at: null,
+    });
+
+    const full = await Task.findByPk(copy.id, {
+      include: [
+        { model: Project, attributes: ['id', 'name'], required: false },
+        { model: User, as: 'assignee', attributes: ['id', 'name', 'name_localized'], required: false },
+        { model: User, as: 'requester', attributes: ['id', 'name', 'name_localized'], required: false },
+      ],
+    });
+
+    // socket emit
+    const io = req.app.get('io');
+    if (io) {
+      const payload = { ...full.toJSON(), actor_user_id: req.user.id };
+      if (src.project_id) io.to(`project:${src.project_id}`).emit('task:new', payload);
+      io.to(`business:${src.business_id}`).emit('task:new', payload);
+    }
+
+    return successResponse(res, full.toJSON(), 'copied', 201);
   } catch (err) { next(err); }
 });
 

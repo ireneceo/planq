@@ -134,3 +134,5 @@ async function recordUserEstimate(taskId, value, userId) {
 
 module.exports = router;
 module.exports.recordUserEstimate = recordUserEstimate;
+module.exports.callAiEstimate = callAiEstimate;
+module.exports.AI_MODEL = AI_MODEL;

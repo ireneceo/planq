@@ -26,6 +26,8 @@ const TaskDailyProgress = require('./TaskDailyProgress');
 const TaskReviewer = require('./TaskReviewer');
 const TaskUserHours = require('./TaskUserHours');
 const TaskEstimation = require('./TaskEstimation');
+const TaskTemplate = require('./TaskTemplate');
+const TaskTemplateItem = require('./TaskTemplateItem');
 const PushSubscription = require('./PushSubscription');
 const FeedbackItem = require('./FeedbackItem');
 const TaskStatusHistory = require('./TaskStatusHistory');
@@ -313,6 +315,12 @@ TaskEstimation.belongsTo(Task, { foreignKey: 'task_id', onDelete: 'CASCADE' });
 TaskEstimation.belongsTo(User, { as: 'createdBy', foreignKey: 'created_by_user_id' });
 Task.hasMany(TaskEstimation, { as: 'estimations', foreignKey: 'task_id' });
 
+// TaskTemplate / TaskTemplateItem (사이클 N+1 — 업무 템플릿)
+TaskTemplate.belongsTo(Business, { foreignKey: 'business_id' });
+TaskTemplate.belongsTo(User, { as: 'creator', foreignKey: 'created_by' });
+TaskTemplate.hasMany(TaskTemplateItem, { as: 'items', foreignKey: 'template_id', onDelete: 'CASCADE' });
+TaskTemplateItem.belongsTo(TaskTemplate, { as: 'template', foreignKey: 'template_id' });
+
 // PushSubscription (Web Push — 사이클 J)
 PushSubscription.belongsTo(User, { foreignKey: 'user_id' });
 PushSubscription.belongsTo(Business, { foreignKey: 'business_id' });
@@ -363,6 +371,8 @@ module.exports = {
   TaskReviewer,
   TaskUserHours,
   TaskEstimation,
+  TaskTemplate,
+  TaskTemplateItem,
   PushSubscription,
   TaskStatusHistory,
   TaskAttachment,
