@@ -7,6 +7,8 @@ import PlanQSelect from '../../components/Common/PlanQSelect';
 import CalendarPicker from '../../components/Common/CalendarPicker';
 import ProjectTaskList from './ProjectTaskList';
 import TaskDetailDrawer from '../../components/QTask/TaskDetailDrawer';
+import AiTaskCreateModal from '../../components/QTask/AiTaskCreateModal';
+import AiActionButton from '../../components/Common/AiActionButton';
 import { todayInTz, detectBrowserTz } from '../../utils/timezones';
 import { GanttHeader, GanttRowTrack, GanttBar, useGanttScrollSync } from '../../components/Common/GanttTrack';
 import { STATUS_COLOR, displayStatus, getStatusLabel, type StatusCode } from '../../utils/taskLabel';
@@ -79,6 +81,7 @@ const TasksTab: React.FC<Props> = ({ projectId, businessId, tasks, onRefresh }) 
     navigate(qs ? `${location.pathname}?${qs}` : location.pathname, { replace: true });
   };
   const [adding, setAdding] = useState<null | 'top' | 'bottom'>(null);
+  const [aiOpen, setAiOpen] = useState(false);
   const [newTitle, setNewTitle] = useState('');
   const [newAssignee, setNewAssignee] = useState<number | null>(null);
   const [newStart, setNewStart] = useState('');
@@ -190,7 +193,14 @@ const TasksTab: React.FC<Props> = ({ projectId, businessId, tasks, onRefresh }) 
           <ViewBtn $active={view === 'timeline'} onClick={() => setView('timeline')}>{tp('view.timeline', '타임라인')}</ViewBtn>
           <ViewBtn $active={view === 'calendar'} onClick={() => setView('calendar')}>{tp('view.calendar', '캘린더')}</ViewBtn>
         </ViewTabs>
-        <AddTaskBtn type="button" onClick={() => setAdding(adding === 'top' ? null : 'top')}>{adding === 'top' ? tp('addTask.cancel', '취소') : tp('addTask.add', '+ 업무 추가')}</AddTaskBtn>
+        <ToolbarRight>
+          <AiActionButton
+            onClick={() => setAiOpen(true)}
+            label={tp('ai.btnShort', 'AI')}
+            title={tp('ai.btnHint', '자연어 한 줄로 여러 업무 자동 생성') as string}
+          />
+          <AddTaskBtn type="button" onClick={() => setAdding(adding === 'top' ? null : 'top')}>{adding === 'top' ? tp('addTask.cancel', '취소') : tp('addTask.add', '+ 업무 추가')}</AddTaskBtn>
+        </ToolbarRight>
       </Toolbar>
 
       {view === 'split' && (
@@ -244,6 +254,15 @@ const TasksTab: React.FC<Props> = ({ projectId, businessId, tasks, onRefresh }) 
           onRefresh={onRefresh}
         />
       )}
+      <AiTaskCreateModal
+        open={aiOpen}
+        onClose={() => setAiOpen(false)}
+        businessId={businessId}
+        projectId={projectId}
+        projectFixed
+        members={members}
+        onCreated={() => { onRefresh(); }}
+      />
     </Wrap>
   );
 };
@@ -371,7 +390,8 @@ const Wrap = styled.div``;
 const Toolbar = styled.div`display:flex;align-items:center;gap:8px;margin-bottom:12px;`;
 const ViewTabs = styled.div`display:inline-flex;background:#F1F5F9;padding:3px;border-radius:8px;gap:2px;`;
 const ViewBtn = styled.button<{$active?:boolean}>`padding:6px 14px;border:none;background:${p=>p.$active?'#FFF':'transparent'};color:${p=>p.$active?'#0F766E':'#64748B'};border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;box-shadow:${p=>p.$active?'0 1px 2px rgba(0,0,0,0.06)':'none'};&:hover{color:#0F766E;}`;
-const AddTaskBtn = styled.button`margin-left:auto;padding:7px 14px;background:#14B8A6;color:#FFF;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;&:hover{background:#0D9488;}`;
+const ToolbarRight = styled.div`margin-left:auto;display:inline-flex;align-items:center;gap:6px;`;
+const AddTaskBtn = styled.button`display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 14px;background:#14B8A6;color:#FFF;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;&:hover{background:#0D9488;}`;
 
 const AddForm = styled.div`display:flex;flex-wrap:wrap;align-items:flex-end;gap:8px;padding:10px;background:#F8FAFC;border:1px solid #14B8A6;border-radius:10px;margin-bottom:12px;`;
 const AddInput = styled.input`flex:2 1 220px;min-width:180px;height:32px;padding:0 10px;border:1px solid #14B8A6;border-radius:6px;font-size:13px;font-family:inherit;&:focus{outline:none;box-shadow:0 0 0 2px rgba(20,184,166,0.15);}`;

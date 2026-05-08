@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import HelpDot from '../Common/HelpDot';
+import AiActionButton from '../Common/AiActionButton';
 import SlotFormModal from './SlotFormModal';
 import { displayName } from '../../utils/displayName';
 import i18n from '../../i18n';
@@ -498,10 +499,11 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
             </HelpDot>
           </TitleGroup>
           <HeaderBtnRow>
-            <AiBtn type="button" onClick={() => { setAiIntent('ai'); setAiOpen(true); }} title={t('ai.openHint', 'AI 가 문서 본문을 자동 작성') as string}>
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 16.8 5.8 21.3l2.4-7.4L2 9.4h7.6L12 2z"/></svg>
-              {t('ai.btn', 'AI')}
-            </AiBtn>
+            <AiActionButton
+              onClick={() => { setAiIntent('ai'); setAiOpen(true); }}
+              label={t('ai.btn', 'AI')}
+              title={t('ai.openHint', 'AI 가 문서 본문을 자동 작성') as string}
+            />
             <TemplateBtn type="button" onClick={openTemplateModal} title={t('templates.openHint', '견적·청구·NDA·제안서·회의록 5종 템플릿에서 시작') as string}>
               {t('templates.btn', '템플릿')}
             </TemplateBtn>
@@ -1034,16 +1036,6 @@ const TitleGroup = styled.div`
   display: inline-flex; align-items: center; gap: 4px; min-width: 0;
 `;
 const HeaderBtnRow = styled.div`display:flex;align-items:center;gap:6px;`;
-const AiBtn = styled.button`
-  height: 32px; padding: 0 12px;
-  display: inline-flex; align-items: center; gap: 4px;
-  font-size: 12px; font-weight: 700; color: #fff;
-  background: linear-gradient(135deg, #F43F5E 0%, #BE185D 100%);
-  border: none; border-radius: 8px; cursor: pointer;
-  transition: opacity 0.15s, transform 0.15s;
-  &:hover { transform: translateY(-1px); }
-  &:focus-visible { outline: 2px solid #F43F5E; outline-offset: 2px; }
-`;
 const TemplateBtn = styled.button`
   height: 32px; padding: 0 12px;
   display: inline-flex; align-items: center; gap: 4px;

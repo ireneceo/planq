@@ -458,6 +458,146 @@ router.post('/', authenticateToken, async (req, res, next) => {
 });
 
 // ============================================
+// POST /api/tasks/ai-create — 자연어 한 줄 → AI 가 다중 업무 분해 (미리보기, DB 저장 X)
+// body: { business_id, project_id?, prompt, target_date?, language? }
+// response: { candidates: [...], reasoning, today, fallback }
+// ============================================
+router.post('/ai-create', authenticateToken, async (req, res, next) => {
+  try {
+    const { business_id, project_id, prompt, target_date, language } = req.body;
+    if (!business_id) return errorResponse(res, 'business_id required', 400);
+    if (!prompt || !String(prompt).trim()) return errorResponse(res, 'prompt required', 400);
+
+    const bm = await BusinessMember.findOne({ where: { user_id: req.user.id, business_id } });
+    if (!bm && req.user.platform_role !== 'platform_admin') {
+      return errorResponse(res, 'forbidden — members only', 403);
+    }
+
+    const memberRows = await BusinessMember.findAll({
+      where: { business_id },
+      attributes: ['user_id', 'role', 'job_title', 'expertise', 'name'],
+      include: [{ model: User, as: 'user', attributes: ['id', 'name'] }],
+    });
+    const members = memberRows.map(m => ({
+      user_id: m.user_id,
+      name: m.name || m.user?.name || '',
+      job_title: m.job_title || '',
+      expertise: m.expertise || '',
+      role: m.role || '',
+    }));
+
+    let projectContext = '';
+    if (project_id) {
+      const p = await Project.findByPk(project_id, { attributes: ['name', 'description'] });
+      if (p) projectContext = `${p.name}${p.description ? ' — ' + String(p.description).slice(0, 200) : ''}`;
+    }
+
+    const tz = await getWorkspaceTz(business_id);
+    const todayLocal = todayInTz(tz);
+
+    const { planTasksFromPrompt } = require('../services/aiTaskPlanner');
+    const result = await planTasksFromPrompt({
+      prompt,
+      businessId: business_id,
+      projectContext,
+      members,
+      targetDate: target_date || null,
+      todayLocal,
+      language: language || (req.user.language === 'en' ? 'en' : 'ko'),
+    });
+
+    return successResponse(res, {
+      candidates: result.candidates,
+      reasoning: result.reasoning,
+      fallback: result.fallback,
+      today: todayLocal,
+    });
+  } catch (err) { next(err); }
+});
+
+// ============================================
+// POST /api/tasks/ai-create/confirm — candidates → Task 일괄 생성
+// body: { business_id, project_id?, candidates: [...] }
+// response: { created: [Task...], count }
+// ============================================
+router.post('/ai-create/confirm', authenticateToken, async (req, res, next) => {
+  try {
+    const { business_id, project_id, candidates } = req.body;
+    if (!business_id) return errorResponse(res, 'business_id required', 400);
+    if (!Array.isArray(candidates) || candidates.length === 0) {
+      return errorResponse(res, 'candidates array required', 400);
+    }
+
+    const bm = await BusinessMember.findOne({ where: { user_id: req.user.id, business_id } });
+    if (!bm && req.user.platform_role !== 'platform_admin') {
+      return errorResponse(res, 'forbidden — members only', 403);
+    }
+
+    const tz = await getWorkspaceTz(business_id);
+    const todayLocal = todayInTz(tz);
+    const { TaskEstimation } = require('../models');
+    const io = req.app.get('io');
+    const created = [];
+
+    for (const c of candidates) {
+      const title = String(c.title || '').trim().slice(0, 200);
+      if (!title) continue;
+      const startOff = Number.isInteger(c.start_offset_days) ? c.start_offset_days : null;
+      const dueOff = Number.isInteger(c.due_offset_days) ? c.due_offset_days : null;
+      const startDate = startOff !== null ? addDaysStr(todayLocal, startOff) : null;
+      const dueDate = dueOff !== null ? addDaysStr(todayLocal, dueOff) : null;
+      const finalAssignee = c.assignee_user_id || req.user.id;
+      const isInternalRequest = finalAssignee !== req.user.id;
+      const estimatedHours = Number.isFinite(Number(c.estimated_hours)) && Number(c.estimated_hours) > 0
+        ? Number(c.estimated_hours) : null;
+
+      const task = await Task.create({
+        business_id,
+        project_id: project_id || null,
+        title,
+        description: c.description ? String(c.description).slice(0, 2000) : null,
+        assignee_id: finalAssignee,
+        start_date: startDate,
+        due_date: dueDate,
+        estimated_hours: estimatedHours,
+        created_by: req.user.id,
+        source: isInternalRequest ? 'internal_request' : 'manual',
+        request_by_user_id: isInternalRequest ? req.user.id : null,
+      });
+
+      // task_estimations source='ai' — AI 추천값 박제 (사용자 인라인 수정 시 source='user' row 추가됨)
+      if (estimatedHours) {
+        try {
+          await TaskEstimation.create({
+            task_id: task.id,
+            value: estimatedHours,
+            source: 'ai',
+            model: 'gpt-4o-mini',
+          });
+        } catch (e) { console.warn('[ai-create/confirm] TaskEstimation', e.message); }
+      }
+
+      const full = await Task.findByPk(task.id, {
+        include: [
+          { model: Project, attributes: ['id', 'name'], required: false },
+          { model: User, as: 'assignee', attributes: ['id', 'name', 'name_localized'], required: false },
+          { model: User, as: 'requester', attributes: ['id', 'name', 'name_localized'], required: false },
+        ],
+      });
+      created.push(full.toJSON());
+
+      if (io) {
+        const payload = { ...full.toJSON(), actor_user_id: req.user.id };
+        if (project_id) io.to(`project:${project_id}`).emit('task:new', payload);
+        io.to(`business:${business_id}`).emit('task:new', payload);
+      }
+    }
+
+    return successResponse(res, { created, count: created.length });
+  } catch (err) { next(err); }
+});
+
+// ============================================
 // 기존 호환: GET /by-business/:businessId — 업무 목록
 // ============================================
 router.get('/by-business/:businessId', authenticateToken, async (req, res, next) => {

@@ -55,7 +55,7 @@ const PostAiModal: React.FC<Props> = ({ open, onClose, businessId, projectId: pa
   const [mode, setMode] = useState<Mode>(defaultMode);
   // intent 가 바뀔 때마다 default 모드로 초기화
   useEffect(() => { if (open) setMode(defaultMode); }, [intent, open]);  // eslint-disable-line react-hooks/exhaustive-deps
-  const [kind, setKind] = useState<DocKind>('proposal');
+  const [kind, setKind] = useState<DocKind | null>(null);
   const [title, setTitle] = useState('');
   const [userInput, setUserInput] = useState('');
   const [briefTitle, setBriefTitle] = useState('');
@@ -115,6 +115,7 @@ const PostAiModal: React.FC<Props> = ({ open, onClose, businessId, projectId: pa
 
   const submitNewDoc = async () => {
     setError(null);
+    if (!kind) { setError(t('ai.kindRequired', '문서 종류를 선택하세요') as string); return; }
     if (!title.trim()) { setError(t('ai.titleRequired', '제목을 입력하세요') as string); return; }
     setBusy(true);
     try {
@@ -244,6 +245,7 @@ const PostAiModal: React.FC<Props> = ({ open, onClose, businessId, projectId: pa
           </CloseBtn>
         </Header>
 
+        <Body>
         <Tabs role="tablist" aria-label={t('ai.modeAria', '작성 방식 선택') as string} style={{ display: 'grid', gridTemplateColumns: `repeat(${visibleModes.length}, 1fr)` }}>
           {visibleModes.includes('blank') && (
             <Tab type="button" role="tab" aria-selected={mode === 'blank'} $active={mode === 'blank'}
@@ -275,14 +277,13 @@ const PostAiModal: React.FC<Props> = ({ open, onClose, businessId, projectId: pa
           )}
         </Tabs>
 
-        <Body>
           {(pageProjectId || pageClientId) && (
             <ContextBadge>
               {t('ai.contextLinked', '현재 페이지 컨텍스트로 연결되어 회사명·담당자·금액이 자동 채워집니다.')}
             </ContextBadge>
           )}
-          {/* 4 모드 공통 — 첨부 (파일·기존 문서). brief 모드는 LLM 입력으로 사용, 그 외는 PostAttachment 로 연결 */}
-          {mode !== 'brief' && (
+          {/* blank/table 모드만 외부 첨부 표시. new 는 본문 안에 (제목·요구사항 다음에) 배치. */}
+          {(mode === 'blank' || mode === 'table') && (
             <Field>
               <Label>{t('common.attach', '파일·문서 첨부')} <OptionalMark>{t('brief.optional', '(선택)')}</OptionalMark></Label>
               <AttachmentField
@@ -312,12 +313,13 @@ const PostAiModal: React.FC<Props> = ({ open, onClose, businessId, projectId: pa
           ) : mode === 'new' ? (
             <>
               <Field>
-                <Label>{t('ai.kind', '문서 종류')}</Label>
+                <Label>{t('ai.kind', '문서 종류')} *</Label>
                 <PlanQSelect
                   size="sm"
                   options={KIND_OPTIONS}
                   value={KIND_OPTIONS.find(o => o.value === kind) || null}
-                  onChange={(opt) => setKind(((opt as PlanQSelectOption)?.value as DocKind) || 'proposal')}
+                  onChange={(opt) => setKind(((opt as PlanQSelectOption)?.value as DocKind) || null)}
+                  placeholder={t('ai.kindPh', '문서 종류 선택') as string}
                   isSearchable={false}
                   isDisabled={busy}
                 />
@@ -328,7 +330,6 @@ const PostAiModal: React.FC<Props> = ({ open, onClose, businessId, projectId: pa
                   type="text" value={title} onChange={e => setTitle(e.target.value)}
                   placeholder={t('ai.titlePh', '예: 클라이언트 온보딩 자동화 제안서') as string}
                   disabled={busy}
-                  autoFocus
                 />
               </Field>
               <Field>
@@ -336,6 +337,20 @@ const PostAiModal: React.FC<Props> = ({ open, onClose, businessId, projectId: pa
                 <Textarea
                   rows={5} value={userInput} onChange={e => setUserInput(e.target.value)}
                   placeholder={t('ai.inputPh', '특별히 강조하고 싶은 점, 고객 상황, 포함해야 할 항목 등을 자유롭게 작성하세요. (비워도 표준 양식으로 작성됩니다)') as string}
+                  disabled={busy}
+                />
+              </Field>
+              <Field>
+                <Label>{t('common.attach', '파일·문서 첨부')} <OptionalMark>{t('brief.optional', '(선택)')}</OptionalMark></Label>
+                <AttachmentField
+                  businessId={businessId}
+                  uploads={briefStagedUploads}
+                  onUploadsChange={setBriefStagedUploads}
+                  existingFileIds={briefExistingIds}
+                  onExistingFileIdsChange={setBriefExistingIds}
+                  includePosts
+                  existingPostIds={briefPostIds}
+                  onExistingPostIdsChange={setBriefPostIds}
                   disabled={busy}
                 />
               </Field>
@@ -361,7 +376,6 @@ const PostAiModal: React.FC<Props> = ({ open, onClose, businessId, projectId: pa
                   rows={5} value={briefText} onChange={e => setBriefText(e.target.value)}
                   placeholder={t('brief.sourcesPh', '예시:\n\n2026-04-15 회의록\n주제: 1분기 매출 리뷰\n결정: 마케팅 예산 20% 증액\n\n\n2026-04-22 후속 미팅\n주제: ROI 분석\n결정: 페이스북 축소·네이버 확대') as string}
                   disabled={busy}
-                  autoFocus
                 />
                 <Hint>{t('brief.separatorHint', '여러 자료는 빈 줄 2개로 구분하세요.')}</Hint>
               </Field>
@@ -487,8 +501,7 @@ const CloseBtn = styled.button`
 `;
 const Tabs = styled.div`
   display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
-  padding: 14px 22px 0;
-  flex-shrink: 0;
+  margin-bottom: 12px;
 `;
 const Tab = styled.button<{ $active: boolean }>`
   display: flex; flex-direction: column; align-items: flex-start; gap: 2px;

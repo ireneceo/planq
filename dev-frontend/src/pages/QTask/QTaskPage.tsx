@@ -12,6 +12,8 @@ import { todayInTz, mondayOfDateStr, addDaysStr, detectBrowserTz } from '../../u
 import { STATUS_CODES, STATUS_COLOR, displayStatus, getStatusLabel, type StatusCode } from '../../utils/taskLabel';
 import { getRoles, primaryPerspective } from '../../utils/taskRoles';
 import TaskDetailDrawer from '../../components/QTask/TaskDetailDrawer';
+import AiTaskCreateModal from '../../components/QTask/AiTaskCreateModal';
+import AiActionButton from '../../components/Common/AiActionButton';
 import EmptyState from '../../components/Common/EmptyState';
 import RichEditor from '../../components/Common/RichEditor';
 import AttachmentField from '../../components/Common/AttachmentField';
@@ -129,6 +131,7 @@ const QTaskPage:React.FC=()=>{
   };
   const[allTasks,setAllTasks]=useState<TaskRow[]>([]);
   const[members,setMembers]=useState<MemberOption[]>([]);
+  const[aiOpen,setAiOpen]=useState(false);
   const[assigneeFilter,setAssigneeFilter]=useState<number|null>(null); // workspace mode 담당자 필터
   const[capacity,setCapacity]=useState<{daily:number;days:number;rate:number;weekly:number}>({daily:8,days:5,rate:1,weekly:40});
   const[burndown,_setBurndown]=useState<BurndownPoint[]>([]);
@@ -1249,6 +1252,11 @@ const QTaskPage:React.FC=()=>{
               </Chip>
               <Chip $coral>{t('summary.actual', { act: formatHours(summary.act) })}</Chip>
             </ChipRow>
+            <AiActionButton
+              onClick={()=>setAiOpen(true)}
+              label={t('ai.btnShort','AI')}
+              title={t('ai.btnHint','자연어 한 줄로 여러 업무 자동 생성') as string}
+            />
             <HeaderAddBtn type="button" onClick={()=>{
               setAddInline(false);                 // 우측 상단 = panel 모드
               setAddingTask(true);
@@ -2400,6 +2408,17 @@ const QTaskPage:React.FC=()=>{
           { targetSelector: '[data-tour="qtask-priority"]', title: t('tour.step2.title','우선순위 매기기') as string, body: t('tour.step2.body','# 셀을 클릭하면 클릭 순서대로 1, 2, 3...이 자동 매겨집니다. 갭이 생기면 자동으로 정리됩니다.') as string, placement: 'bottom' },
         ]}
       />
+      {bizId && (
+        <AiTaskCreateModal
+          open={aiOpen}
+          onClose={()=>setAiOpen(false)}
+          businessId={bizId}
+          projectId={null}
+          projects={projects}
+          members={members.map(m=>({user_id:m.user_id,name:m.name}))}
+          onCreated={()=>{ /* socket task:new 가 자동 반영 */ }}
+        />
+      )}
     </Layout>
   );
 };
@@ -2563,7 +2582,7 @@ const DateTrigger=styled.button<{$color?:string;$empty?:boolean}>`
 `;
 
 const EmptyFull=styled.div`display:flex;align-items:center;justify-content:center;height:100vh;color:#94A3B8;`;
-const HeaderAddBtn=styled.button`padding:7px 14px;background:#14B8A6;color:#FFF;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;&:hover:not(:disabled){background:#0D9488;}&:disabled{background:#CBD5E1;cursor:not-allowed;}`;
+const HeaderAddBtn=styled.button`display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 14px;background:#14B8A6;color:#FFF;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;&:hover:not(:disabled){background:#0D9488;}&:disabled{background:#CBD5E1;cursor:not-allowed;}`;
 const AddInput=styled.input`flex:1 1 auto;min-width:0;font-size:14px;color:#0F172A;border:1px solid #14B8A6;background:#F0FDFA;padding:6px 10px;border-radius:6px;font-family:inherit;&:focus{outline:none;box-shadow:0 0 0 2px rgba(20,184,166,0.15);}&::placeholder{color:#94A3B8;}`;
 /* 인라인 추가 (표 하단 새 행) — 표와 자연스럽게 연결되도록 좌우 margin 만 적용 */
 const InlineAddBox=styled.div`display:flex;flex-direction:column;gap:8px;margin:8px 14px 20px;padding:12px;background:#F8FAFC;border:1px solid #14B8A6;border-radius:10px;`;
