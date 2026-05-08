@@ -130,23 +130,26 @@ export default function NotificationToaster() {
   }, []);
 
   const add = useCallback((toast: Omit<Toast, 'id' | 'ts'>) => {
-    // Context-aware skip: 활성 conv 이거나 같은 페이지면 표시 X
+    // ★ Irene 정책 (2026-05-08): 사운드는 항상 울려야 함 — 새 메시지 인지.
+    //   토스트는 활성 conv / 같은 페이지면 skip (이미 보고 있어서 시각 노이즈).
+    //   즉 분리: 사운드 = 항상 / 토스트 = context-aware skip
+    let skipToast = false;
     if (toast.contextKey?.startsWith('conv:')) {
       const cid = Number(toast.contextKey.slice(5));
-      if (cid && cid === activeConvIdRef.current) return;
+      if (cid && cid === activeConvIdRef.current) skipToast = true;
     }
     if (toast.link && activePathRef.current === toast.link.split('?')[0]) {
-      // 같은 페이지면 토스트 X (이미 보고 있음)
-      // 단, conv 가 다른 경우는 제외 (위에서 처리)
-      if (!toast.link.includes('?')) return;
+      if (!toast.link.includes('?')) skipToast = true;
     }
+    // Ping 사운드 — 항상. 활성 conv 든 다른 페이지든. (Irene 명시: 사운드 와야 함)
+    playPing();
+    if (skipToast) return;
+
     const id = `t-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
     const next: Toast = { ...toast, id, ts: Date.now() };
     setToasts(prev => [...prev, next].slice(-MAX_VISIBLE));
     const timer = setTimeout(() => dismiss(id), FADE_MS);
     timersRef.current.set(id, timer);
-    // Ping 사운드 — context-aware skip 통과한 알림만. focus-steal 금지 정책은 visual 만이라 OK.
-    playPing();
   }, [dismiss]);
 
   // hover 시 자동 닫힘 정지 / 떠나면 재시작
