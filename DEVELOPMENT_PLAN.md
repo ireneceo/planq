@@ -1,16 +1,58 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-05-08 (Q-S 사이클 — 알림 사운드/뱃지/inbox/영상/통합 + 사이클 N+1 박제)
+> **최종 업데이트:** 2026-05-08 v1.2.0 (사이클 N+1 — AI 업무 추가 + 템플릿 시스템 + Row 액션 + 자동 예측)
 >
-> **이전 라이브:** 2026-05-08 `9a18ea3` (사운드 항상 + 토스트 분리, 4회 운영 push)
+> **이전 라이브:** 2026-05-08 `3aa91d0` (정식 deploy-planq.sh, 외부 health 200, 101s)
 >
-> **다음 진입 ★ (사이클 N+1):** AI 업무 추가 + 업무 템플릿 + 통합 공유 + Smart Routing
+> **다음 진입 ★ (사이클 N+2):** 통합 공유 시스템 (Q task/file/info/calendar share_token + ShareModal) / Smart Routing (App-First Deep Linking) / list API 에 latest_estimation_source 추가 (회색 시각 분기) / 모달 통일 스프린트 (~20 outlier 모달 → StandardModal/ModalActionButton)
 >
-> **차순위:** 주간 보고 (Weekly Review) / 권한 옵션 A + 개인 보관함 / Q note 텍스트 type + Quick Capture / Custom SMTP (Pro+)
+> **차순위:** 주간 보고 (Weekly Review) Phase 2 / 권한 옵션 A + 개인 보관함 / Q note 텍스트 type + Quick Capture / Custom SMTP (Pro+)
 >
-> **미해결:** 데스크탑 (Mac Chrome) push 알림 + 사운드 안 옴 — Irene 환경 의존 (PWA 재설치 권장). 백엔드 + 모바일 정상.
->
-> **결제 정책:** 1순위 자체 결제 (계좌이체 mark-paid), 2순위 PortOne (P-7 마지막). 월결제 + 연결제. Free 플랜 폐지 — 신규 가입은 starter+trialing 14일. 미결제 시 7일 유예 후 starter 강등 + 데이터 보존.
+> **결제 정책:** 1순위 자체 결제 (계좌이체 mark-paid), 2순위 PortOne (P-7 마지막). 월결제 + 연결제. Free 플랜 폐지 — 신규 가입은 starter+trialing 14일.
+
+---
+
+## ✅ 완료: 사이클 N+1 — v1.2.0 운영 라이브 (2026-05-08)
+
+7 commit 1회 정식 deploy (`f497693 → 4f8658d → 3aa91d0 → eab297d`). 외부 https://planq.kr health 200, 101s 소요.
+
+### 주요 작업
+
+| 영역 | 작업 |
+|---|---|
+| **AI 업무 추가** | 자연어 → AI 다중 업무 분해 미리보기 + 일괄 확정 (`services/aiTaskPlanner.js` + `routes/tasks.js POST /ai-create + /confirm`). 30년차 컨설턴트 LLM 페르소나, 도메인별 표준 phases, 결과물 기반 명명 강제, 의존성 추론. AiTaskCreateModal — /docs PostAiModal 패턴 1:1 (Dialog 560 / Header padding 18 22 14 + Sparkle 빨강 별 / Body 16 22 12 / Footer 12 22 18). 카드 압축 (제목+담당자 한 줄 + 메타 한 줄, CalendarIcon/ClockIcon 라인). 시작일 picker (양 stage). progress bar 12s |
+| **AI 자동 예측** | POST /api/tasks 시 estimated_hours 미입력 → 백그라운드 LLM (`callAiEstimate`) → tasks 자동 채움 + task_estimations source='ai' + socket task:updated emit. 모든 추가 경로 동일. 사용자 명시 입력 시 호출 X (비용 절약) |
+| **업무 템플릿 시스템** | DB 2 테이블 (`task_templates`, `task_template_items`). 9 시스템 preset (WordPress 12 / Next.js 18 / 마케팅 캠페인 10 / 콘텐츠 시리즈 8 / 신규 고객사 온보딩 9 / 견적·계약·제작·납품 7 / 채용 6 / 분기 회고 4 / 쇼핑몰 20). routes/task_templates.js (CRUD + apply + items 일괄 교체 + save-as-template). services/templateApply.js (시작일 + role_hint fuzzy 매핑). TemplateSelectModal (검색·카테고리 그룹·자유 입력 datalist·items 인라인 편집). TemplateSaveModal (현재 프로젝트 → 워크스페이스 템플릿 저장). 진입점: 프로젝트>업무 [템플릿] / [템플릿으로 저장] (Q Task 에서는 제거 — 일정 단위) |
+| **Row 액션 메뉴 (노션 패턴)** | TaskRowActionMenu — row 좌측 ⋮⋮ 6dots handle (항상 표시) → portal 드롭다운. 메뉴: 아래에 업무 추가 (인라인 폼 — Enter 저장 / Esc 취소) / 복제 / 삭제 (Danger). POST `/api/tasks/:id/copy` (메타 deep clone, 진행/상태 초기화). ProjectTaskList + QTaskPage 동일 패턴 (Fragment + addingBelowId). 모바일 < 640px 핸들 36px |
+| **컬럼·Drawer 통일** | 기간 컬럼 fixed 100px + 가운데 정렬 (이전 row 마다 다른 폭). 라벨 '기간' (ko) / 'Period' (en). default sort = start_date asc. utils/responsiveDrawer.ts — viewport × 0.35 [380, 560] clamp. TasksTab + QTaskPage + QCalendarPage 단일 헬퍼. ProjectTaskList onRefresh prop |
+| **알림 토스터 회귀 fix** | conversations.js POST /messages 에 socket emit 누락 회귀 fix → io.to(conv:id).emit('message:new') 추가. 사운드 풍부화 (G5+D6 chord, 볼륨 4배 up). 자동 페이드 제거 (X 닫기까지 유지). "모두 닫기 (n)" 컨트롤. mp3 음원 우선 + 합성 fallback 구조 |
+
+### 신규 컴포넌트
+
+- **components/Common/**: `AiActionButton` (단일 소스 — 빨강 그라디언트 + 별), `ModalActionButton` (variant ai/primary/secondary)
+- **components/QTask/**: `AiTaskCreateModal` / `TemplateSelectModal` / `TemplateSaveModal` / `TaskRowActionMenu`
+- **utils/**: `responsiveDrawer.ts`
+- **dev-backend/services/**: `aiTaskPlanner.js` / `templateApply.js`
+- **Icons**: `CalendarIcon` / `ClockIcon` / `AlertTriangleIcon`
+
+### 신규 테이블 (DB sync 자동)
+
+- **`task_templates`** (id, business_id NULL=시스템 / 워크스페이스, name, description, category, is_default, is_system, total_duration_days, task_count, usage_count, created_by)
+- **`task_template_items`** (id, template_id FK, order_index, title, description, start_offset_days, duration_days, estimated_hours, priority, role_hint, depends_on_indexes JSON)
+
+### 운영 배포
+
+- 정식 deploy-planq.sh `3aa91d0` → 운영 reload (planq-prod-backend + planq-prod-qnote) + nginx reload
+- 백업: `/opt/planq/backups/20260508_203554`
+- 외부 health 200, db_pool ok, openai_configured=true
+- 버전: v1.1.1 → **v1.2.0** (minor)
+
+### 사이클 N+2 박제 권장
+
+- list API 에 `latest_estimation_source` 필드 추가 → AI 자동 예측 task 의 회색 + ✨ 시각 분기
+- 모달 통일 스프린트 — ~20 outlier 모달 → StandardModal + ModalActionButton 마이그레이션
+- 통합 공유 시스템 (share_token + ShareModal) — 박제 설계 docs/SHARE_SYSTEM_UNIFIED.md
+- Smart Routing (App-First Deep Linking) — 박제 설계 docs/SMART_ROUTING_DESIGN.md
 
 ---
 
