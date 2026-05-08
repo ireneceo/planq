@@ -4,9 +4,11 @@
 //   원인: 기존엔 useUnreadTotal (채팅) 만 setAppBadge 호출. 인박스 N건 있어도 채팅 unread=0
 //         이면 clearAppBadge 발동 → 데스크탑 dock 의 뱃지 즉시 사라짐.
 //   해결: 인박스 + 채팅 합산값으로 단일 setAppBadge. 둘 중 하나라도 0 보다 크면 표시.
-//         감소는 사용자가 실제로 채팅방 진입 (markRead) 또는 인박스 액션 (ack/approve/complete)
-//         을 했을 때만.
-import { useEffect } from 'react';
+//
+// **★ 회귀 fix (2026-05-08 Q-S):** useEffect 첫 마운트 시 두 hook 이 0 으로 시작 (fetch 전).
+//   그대로 applyBadge(0) 호출하면 clearAppBadge 발동 → SW push 가 설정한 옛 뱃지 즉시 삭제.
+//   해결: 첫 마운트 + 합계 0 → skip. fetch 끝난 후 실값 받으면 그때 적용. 이전값 변화 없으면 skip.
+import { useEffect, useRef } from 'react';
 
 interface NavigatorBadge {
   setAppBadge?: (n?: number) => Promise<void>;
@@ -25,8 +27,17 @@ function applyBadge(count: number) {
 }
 
 export function useGlobalBadge(inboxCount: number, chatUnread: number) {
+  const prevTotalRef = useRef<number | null>(null);
   useEffect(() => {
     const total = (inboxCount || 0) + (chatUnread || 0);
+    // 첫 마운트 시 합계 0 — 데이터 fetch 전일 가능성 큼. SW 가 설정한 옛 뱃지 그대로 두고 skip.
+    if (prevTotalRef.current === null && total === 0) {
+      prevTotalRef.current = 0;
+      return;
+    }
+    // 변경 없으면 skip (재호출 노이즈 방지)
+    if (prevTotalRef.current === total) return;
+    prevTotalRef.current = total;
     applyBadge(total);
   }, [inboxCount, chatUnread]);
 }
