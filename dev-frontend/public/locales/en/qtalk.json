@@ -213,6 +213,10 @@
     "back": "Back to list",
     "rename": "Click to rename",
     "openSettings": "Chat settings",
+    "help": "Help / Feedback",
+    "upload": {
+      "failed": "Upload failed"
+    },
     "inProject": "Project",
     "banner": {
       "candidatesPending_one": "1 task candidate waiting — register or reject it in the right panel",

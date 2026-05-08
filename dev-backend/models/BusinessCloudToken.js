@@ -57,6 +57,11 @@ BusinessCloudToken.init({
     allowNull: true,
     comment: 'Q Note 전용 루트 폴더 ID'
   },
+  conversations_folder_id: {
+    type: DataTypes.STRING(255),
+    allowNull: true,
+    comment: '채팅 첨부 공용 폴더 ID (root/Conversations)'
+  },
   // Drive changes.watch 상태
   watch_channel_id: {
     type: DataTypes.STRING(64),

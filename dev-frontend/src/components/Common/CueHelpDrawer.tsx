@@ -222,9 +222,15 @@ const CueHelpDrawer: React.FC = () => {
     }
   }, [fbCategory, fbPriority, fbBody, submitting, location, t]);
 
+  // 컨텍스트 기반 자동 숨김 — Q Talk 같이 우하단 입력 영역(전송버튼/IME 도구)을 점유하는 화면에서는
+  // FAB 가 충돌하므로 숨긴다. 도움말은 헤더의 ⓘ 아이콘 또는 단축키 (⌘? / Ctrl+/) 로 접근.
+  // 새 페이지 추가 시 이 목록만 갱신.
+  const FAB_HIDDEN_PATHS = ['/talk'];
+  const fabHidden = FAB_HIDDEN_PATHS.some(p => location.pathname === p || location.pathname.startsWith(`${p}/`));
+
   return (
     <>
-      {!open && (
+      {!open && !fabHidden && (
         <FloatingTrigger
           type="button"
           onClick={() => { setMode('qhelper'); setOpen(true); }}

@@ -77,9 +77,12 @@ const TodoPage: React.FC = () => {
 
   // 실시간 sync — 워크스페이스 socket room 의 task/candidate/invoice 변경 받으면 silentLoad.
   // 사용자: "확인필요도 반영되는 족족 실시간으로 변경되어야 해"
+  // **cross-workspace** — 인박스는 사용자가 속한 모든 워크스페이스의 알림을 통합. 따라서
+  // socket join 도 default bizId 한 곳이 아니라 data.workspaces 의 모든 business room 에 join.
   const socketRef = useRef<Socket | null>(null);
+  const joinedRoomsRef = useRef<Set<number>>(new Set());
   useEffect(() => {
-    if (!bizId || !user) return;
+    if (!user) return;
     if (!getAccessToken()) return;
     const s = io({
       auth: (cb) => cb({ token: getAccessToken() }),
@@ -102,7 +105,10 @@ const TodoPage: React.FC = () => {
       if (pending) return;
       pending = window.setTimeout(() => { pending = null; silentLoad(); }, 250);
     };
-    s.on('connect', () => { s.emit('join:business', bizId); });
+    // 재연결 시 그동안 joinedRoomsRef 에 쌓인 모든 room 재조인
+    s.on('connect', () => {
+      for (const id of joinedRoomsRef.current) s.emit('join:business', id);
+    });
     s.on('task:new', debouncedReload);
     s.on('task:updated', debouncedReload);
     s.on('task:deleted', debouncedReload);
@@ -117,11 +123,27 @@ const TodoPage: React.FC = () => {
     s.on('inbox:refresh', debouncedReload);
     return () => {
       if (pending) window.clearTimeout(pending);
-      s.emit('leave:business', bizId);
+      // 모든 joined room leave
+      for (const id of joinedRoomsRef.current) s.emit('leave:business', id);
+      joinedRoomsRef.current.clear();
       s.disconnect();
       socketRef.current = null;
     };
-  }, [bizId, silentLoad, user?.id]);
+  }, [silentLoad, user?.id]);
+
+  // workspaces 변경 시 join/leave 동기화 — diff 만 emit.
+  useEffect(() => {
+    const s = socketRef.current;
+    if (!s) return;
+    const wanted = new Set<number>((data?.workspaces || []).map(w => w.business_id));
+    // default bizId 도 항상 포함 (workspaces 가 비어 있어도)
+    if (bizId) wanted.add(bizId);
+    const joined = joinedRoomsRef.current;
+    // 새로 join 할 room
+    for (const id of wanted) if (!joined.has(id)) { s.emit('join:business', id); joined.add(id); }
+    // 더 이상 없는 room 은 leave
+    for (const id of Array.from(joined)) if (!wanted.has(id)) { s.emit('leave:business', id); joined.delete(id); }
+  }, [data?.workspaces, bizId]);
 
   // 드로어에 필요한 멤버 목록 로드
   useEffect(() => {

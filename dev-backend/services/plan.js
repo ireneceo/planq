@@ -185,11 +185,18 @@ async function can(businessId, action, ctx = {}) {
   switch (action) {
     case 'upload_file': {
       const size = Number(ctx.size || 0);
+      // 외부 클라우드(Drive)로 라우팅되는 경우 — 자체 플랜 사이즈 한도/쿼터 모두 skip.
+      // 영상 같은 큰 파일도 5GB 단일 상한까지 허용 (Google Drive 단일 업로드 한도 고려).
+      if (ctx.external) {
+        const externalCap = 5 * 1024 * 1024 * 1024;
+        if (size > externalCap) {
+          return { ok: false, reason: 'file_size_exceeded', limit: externalCap, current: size };
+        }
+        return { ok: true };
+      }
       if (size > limits.file_size_max_bytes) {
         return { ok: false, reason: 'file_size_exceeded', limit: limits.file_size_max_bytes, current: size };
       }
-      // 외부 클라우드 사용 시 자체 스토리지 쿼터 skip
-      if (ctx.external) return { ok: true };
       const usage = await getUsage(businessId);
       if (usage.storage_bytes + size > limits.storage_bytes) {
         return { ok: false, reason: 'storage_quota_exceeded', limit: limits.storage_bytes, current: usage.storage_bytes };
@@ -301,13 +308,14 @@ async function changePlan(businessId, { toPlan, reason, changedBy = null, note =
 function buildQuotaError(checkResult, businessId) {
   const MESSAGE_MAP = {
     file_size_exceeded: {
-      message: '파일 크기 한도 초과',
-      message_en: 'File size limit exceeded',
+      message: '파일이 너무 큽니다. Google Drive 를 연결하면 영상 같은 큰 파일도 업로드할 수 있어요.',
+      message_en: 'File too large. Connect Google Drive to upload videos and large files.',
+      alternatives: ['Google Drive 연결 → 5GB 까지 업로드 가능'],
     },
     storage_quota_exceeded: {
-      message: '저장소 용량 한도 초과',
-      message_en: 'Storage quota exceeded',
-      alternatives: ['외부 클라우드 연동 (Google Drive) 시 용량 제약 없음'],
+      message: '워크스페이스 저장소가 가득 찼어요. Google Drive 를 연결하면 자체 용량과 무관하게 보관됩니다.',
+      message_en: 'Workspace storage is full. Connect Google Drive to bypass the local quota.',
+      alternatives: ['Google Drive 연결 시 자체 스토리지 쿼터 영향 없음'],
     },
     members_quota_exceeded: { message: '멤버 수 한도 초과', message_en: 'Member limit exceeded' },
     clients_quota_exceeded: { message: '고객 수 한도 초과', message_en: 'Client limit exceeded' },

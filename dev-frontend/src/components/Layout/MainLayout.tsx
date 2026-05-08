@@ -13,6 +13,7 @@ import PanelHeader, { PanelTitle } from './PanelHeader';
 import { useTimezones } from '../../hooks/useTimezones';
 import { useInboxCount } from '../../hooks/useInboxCount';
 import { useUnreadTotal } from '../../hooks/useUnreadTotal';
+import { useGlobalBadge } from '../../hooks/useGlobalBadge';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { mediaTablet } from '../../theme/breakpoints';
 import InstallPromptBanner from '../Common/InstallPromptBanner';
@@ -480,6 +481,9 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   const isAdminMode = location.pathname.startsWith('/admin');
   const inboxCount = useInboxCount(user?.business_id ? Number(user.business_id) : null);
   const talkUnreadCount = useUnreadTotal(user?.business_id ? Number(user.business_id) : null);
+  // OS app badge (데스크탑 dock / 모바일 홈스크린 아이콘) — 인박스 + 채팅 합산 단일 적용.
+  // 둘 중 하나라도 > 0 이면 표시. 사용자가 실제로 봐서 둘 다 0 될 때까지 안 사라짐.
+  useGlobalBadge(inboxCount, talkUnreadCount);
 
   // 로그인 직후 자동 push 구독 시도 (Slack 패턴 — granted 면 조용히, default 면 7일 1회 prompt)
   useEffect(() => {

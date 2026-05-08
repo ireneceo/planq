@@ -185,6 +185,10 @@
     "back": "리스트로 돌아가기",
     "rename": "클릭해서 이름 수정",
     "openSettings": "채팅 설정",
+    "help": "도움말 / 피드백",
+    "upload": {
+      "failed": "업로드 실패"
+    },
     "inProject": "소속",
     "banner": {
       "candidatesPending_one": "업무 후보 1개가 확인 대기 중이에요 — 우측 패널에서 등록하거나 거절해주세요",
