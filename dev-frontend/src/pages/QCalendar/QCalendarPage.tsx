@@ -6,6 +6,7 @@ import PageShell from '../../components/Layout/PageShell';
 import MonthView from './MonthView';
 import TimeGridView from './TimeGridView';
 import EventDrawer from './EventDrawer';
+import { responsiveDrawerWidth } from '../../utils/responsiveDrawer';
 import NewEventModal from './NewEventModal';
 import type { CalendarEvent, CalendarViewMode, CalendarScope, CalendarItem } from './types';
 import {
@@ -365,7 +366,7 @@ const QCalendarPage: React.FC = () => {
           myId={myUserId}
           todayStr={todayStr}
           members={members}
-          width={560}
+          width={responsiveDrawerWidth()}
           onWidthChange={() => {}}
           onClose={() => setSelectedTaskId(null)}
           onPatch={() => { refreshTasks(); }}

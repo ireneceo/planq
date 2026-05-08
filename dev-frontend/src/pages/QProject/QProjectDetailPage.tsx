@@ -384,6 +384,7 @@ const QProjectDetailPage: React.FC = () => {
         <TasksTab
           projectId={projectId}
           businessId={project.business_id}
+          projectName={project.name}
           tasks={sortedTasks as unknown as import('./TasksTab').TaskRow[]}
           onRefresh={load}
         />

@@ -1,10 +1,11 @@
 // 프로젝트 업무 탭용 리스트 — Q Task 테이블 디자인 그대로
 // (프로젝트 컬럼·예측·실제 컬럼 제외)
-import React, { useMemo, useRef, useState } from 'react';
+import React, { Fragment, useMemo, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import CalendarPicker from '../../components/Common/CalendarPicker';
 import { apiFetch } from '../../contexts/AuthContext';
+import TaskRowActionMenu from '../../components/QTask/TaskRowActionMenu';
 import { GanttHeader, GanttRowTrack, GanttBar, useGanttScrollSync, type GanttRange } from '../../components/Common/GanttTrack';
 import { STATUS_COLOR, displayStatus, getStatusLabel, type StatusCode } from '../../utils/taskLabel';
 import { getRoles, primaryPerspective } from '../../utils/taskRoles';
@@ -28,7 +29,7 @@ const statusOptionsFor = (task: { source?: string }): string[] => {
   return ['not_started', 'in_progress', 'reviewing', 'revision_requested', 'completed', 'canceled'];
 };
 
-type SortKey = 'priority_order' | 'title' | 'status' | 'progress_percent' | 'due_date';
+type SortKey = 'priority_order' | 'title' | 'status' | 'progress_percent' | 'due_date' | 'start_date';
 type SortDir = 'asc' | 'desc';
 
 type Props = {
@@ -39,19 +40,43 @@ type Props = {
   selectedId?: number | null;
   onOpen: (id: number) => void;
   onLocalUpdate: (taskId: number, patch: Partial<TaskRow>) => void;
+  onRefresh?: () => void;
   showTimeline?: boolean; // split view
   projectStart?: string | null;
   projectEnd?: string | null;
 };
 
 const ProjectTaskList: React.FC<Props> = ({
-  tasks, members, businessId, myId, selectedId, onOpen, onLocalUpdate,
+  tasks, members, businessId, myId, selectedId, onOpen, onLocalUpdate, onRefresh,
   showTimeline, projectStart, projectEnd,
 }) => {
-  const [sortKey, setSortKey] = useState<SortKey>('priority_order');
+  const [sortKey, setSortKey] = useState<SortKey>('start_date');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
   const [editingTitle, setEditingTitle] = useState<number | null>(null);
   const [titleDraft, setTitleDraft] = useState('');
+  const [addingBelowId, setAddingBelowId] = useState<number | null>(null);
+  const [newBelowTitle, setNewBelowTitle] = useState('');
+  const [submittingBelow, setSubmittingBelow] = useState(false);
+  const submitBelow = async (after: TaskRow) => {
+    if (!newBelowTitle.trim() || submittingBelow) return;
+    setSubmittingBelow(true);
+    try {
+      await apiFetch('/api/tasks', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          business_id: businessId,
+          project_id: after.project_id,
+          title: newBelowTitle.trim(),
+          assignee_id: myId,
+          start_date: after.start_date || null,
+          due_date: after.due_date || null,
+        }),
+      });
+      setAddingBelowId(null);
+      setNewBelowTitle('');
+      onRefresh?.();
+    } finally { setSubmittingBelow(false); }
+  };
   const [statusOpenId, setStatusOpenId] = useState<number | null>(null);
   const [dateOpenId, setDateOpenId] = useState<number | null>(null);
   const [assigneeOpenId, setAssigneeOpenId] = useState<number | null>(null);
@@ -114,10 +139,10 @@ const ProjectTaskList: React.FC<Props> = ({
     <>
       <ColRow>
         <Col $flex onClick={() => handleSort('title')}>{t('col.task', '업무')} {sortIcon('title')}</Col>
-        <Col $w={showTimeline ? '90px' : '150px'} $center $hideBelow={900}>{t('col.assignee', '담당자')}</Col>
-        <Col $w={showTimeline ? '60px' : '100px'} $center onClick={() => handleSort('status')}>{t('col.status', '상태')} {sortIcon('status')}</Col>
-        <Col $w={showTimeline ? '110px' : '180px'} $hideBelow={1024} $center onClick={() => handleSort('progress_percent')}>{t('col.progressPercent', '진행률')} {sortIcon('progress_percent')}</Col>
-        <Col $w={showTimeline ? '120px' : '170px'} $center $hideBelow={768} onClick={() => handleSort('due_date')}>{t('col.dates', '시작 ~ 마감')} {sortIcon('due_date')}</Col>
+        <Col $w="64px" $center>{t('col.assignee', '담당자')}</Col>
+        <Col $w="52px" $center onClick={() => handleSort('status')}>{t('col.status', '상태')} {sortIcon('status')}</Col>
+        <Col $w="72px" $center onClick={() => handleSort('progress_percent')}>{t('col.progressPercent', '진행률')} {sortIcon('progress_percent')}</Col>
+        <Col $w="100px" $center onClick={() => handleSort('start_date')}>{t('col.dates', '기간')} {sortIcon('start_date')}</Col>
         {showTimeline && range && (
           <Col $flex2 $center style={{ position: 'relative', overflow: 'visible' }}>
             <GanttHeader registry={gantt} range={range} tickMode="auto" />
@@ -138,7 +163,8 @@ const ProjectTaskList: React.FC<Props> = ({
 
 
         return (
-          <TRow key={task.id} $done={task.status === 'completed'} $delayed={isDelayed} $selected={selectedId === task.id}
+          <Fragment key={task.id}>
+          <TRow data-task-row $done={task.status === 'completed'} $delayed={isDelayed} $selected={selectedId === task.id}
             onClick={(e) => {
               const tgt = e.target as HTMLElement;
               if (tgt.closest('button,a,input,select,textarea,[role="button"],[data-dropdown]')) return;
@@ -147,6 +173,17 @@ const ProjectTaskList: React.FC<Props> = ({
             style={{ cursor: 'pointer' }}>
 
             <TCell $flex>
+              <TaskRowActionMenu
+                onAddBelow={() => { setNewBelowTitle(''); setAddingBelowId(task.id); }}
+                onCopy={async () => {
+                  await apiFetch(`/api/tasks/${task.id}/copy`, { method: 'POST' });
+                  onRefresh?.();
+                }}
+                onDelete={async () => {
+                  await apiFetch(`/api/tasks/by-business/${businessId}/${task.id}`, { method: 'DELETE' });
+                  onRefresh?.();
+                }}
+              />
               <TaskCheck type="checkbox" checked={task.status === 'completed'}
                 onChange={() => saveField(task.id, 'status', task.status === 'completed' ? 'in_progress' : 'completed')} />
               {isEditing ? (
@@ -223,7 +260,7 @@ const ProjectTaskList: React.FC<Props> = ({
                 <SliderPct>{prog}%</SliderPct>
               </SliderWrap>
             </TCell>
-            <TCell $w={showTimeline ? '120px' : '170px'} $center $hideBelow={768}>
+            <TCell $w="100px" $center>
               <DateTrigger ref={el => { dateRefs.current[task.id] = el; }}
                 $color={isDelayed ? 'overdue' : (task.due_date?.slice(0, 10) === today ? 'today' : 'default')}
                 $empty={!(task.start_date || task.due_date)}
@@ -260,6 +297,22 @@ const ProjectTaskList: React.FC<Props> = ({
               </TCell>
             )}
           </TRow>
+          {addingBelowId === task.id && (
+            <InlineAddRow>
+              <InlineSpacer />
+              <InlineInput
+                autoFocus value={newBelowTitle}
+                placeholder={t('list.inlineAddPh', '업무명 입력 (Enter 저장 / Esc 취소)') as string}
+                onChange={e => setNewBelowTitle(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter' && newBelowTitle.trim()) submitBelow(task);
+                  if (e.key === 'Escape') { setAddingBelowId(null); setNewBelowTitle(''); }
+                }}
+                onBlur={() => { if (!newBelowTitle.trim()) setAddingBelowId(null); }}
+              />
+            </InlineAddRow>
+          )}
+          </Fragment>
         );
       })}
       {sorted.length === 0 && <EmptyMsg>{t('list.empty', '업무가 없습니다')}</EmptyMsg>}
@@ -272,8 +325,10 @@ export default ProjectTaskList;
 // ═══ Styled (Q Task 와 완전 동일) ═══
 const ColRow = styled.div`display:flex;align-items:center;gap:6px;padding:6px 14px;border-bottom:1px solid #E2E8F0;background:#F8FAFC;position:sticky;top:0;z-index:1;`;
 const Col = styled.span<{$w?:string;$flex?:boolean;$flex2?:boolean;$center?:boolean;$hideBelow?:number}>`
-  box-sizing:border-box;
-  ${p=>p.$flex2 ? 'flex:2 1 0;min-width:240px;' : p.$flex ? 'flex:1 1 0;min-width:120px;' : `flex:0 0 ${p.$w||'auto'};width:${p.$w||'auto'};`}
+  box-sizing:border-box;min-width:0;
+  ${p=>p.$flex2 ? 'flex:2.5 1 0;'
+                : p.$flex ? 'flex:3 1 0;'
+                : `flex:1 1 ${p.$w||'72px'};max-width:${p.$w||'auto'};`}
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
   font-size:11px;font-weight:700;color:#94A3B8;cursor:pointer;user-select:none;
   ${p=>p.$center&&'text-align:center;'}
@@ -281,18 +336,34 @@ const Col = styled.span<{$w?:string;$flex?:boolean;$flex2?:boolean;$center?:bool
   ${p=>p.$hideBelow?`@media (max-width: ${p.$hideBelow}px){display:none;}`:''}
 `;
 const TRow = styled.div<{$done?:boolean;$delayed?:boolean;$selected?:boolean}>`
-  display:flex;align-items:center;gap:6px;padding:7px 14px;border-bottom:1px solid #F8FAFC;
+  display:flex;align-items:center;gap:6px;padding:6px 12px;border-bottom:1px solid #F8FAFC;
   opacity:${p=>p.$done?0.45:1};
   ${p=>p.$selected?'background:#FFF1F2;box-shadow:inset 3px 0 0 #F43F5E;':p.$delayed&&!p.$done?'box-shadow:inset 3px 0 0 #DC2626;':''}
   &:hover{background:${p=>p.$selected?'#FFE4E6':p.$delayed&&!p.$done?'#FEF2F2':'#FAFBFC'};}
 `;
 const TCell = styled.div<{$w?:string;$flex?:boolean;$flex2?:boolean;$center?:boolean;$hideBelow?:number}>`
   box-sizing:border-box;
-  ${p=>p.$flex2 ? 'flex:2 1 0;min-width:240px;display:flex;align-items:center;gap:6px;overflow:hidden;' : p.$flex ? 'flex:1 1 0;min-width:120px;display:flex;align-items:center;gap:6px;overflow:hidden;' : `flex:0 0 ${p.$w||'auto'};width:${p.$w||'auto'};overflow:hidden;`}
+  ${p=>p.$flex2 ? 'flex:2 1 0;min-width:160px;display:flex;align-items:center;gap:6px;overflow:hidden;' : p.$flex ? 'flex:1 1 0;min-width:100px;display:flex;align-items:center;gap:6px;overflow:hidden;' : `flex:0 0 ${p.$w||'auto'};width:${p.$w||'auto'};overflow:hidden;`}
   ${p=>p.$center&&'display:flex;justify-content:center;align-items:center;'}
   ${p=>p.$hideBelow?`@media (max-width: ${p.$hideBelow}px){display:none;}`:''}
 `;
 const TaskCheck = styled.input`accent-color:#0D9488;cursor:pointer;width:15px;height:15px;flex-shrink:0;`;
+const InlineAddRow = styled.div`
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 12px;
+  background: #F0FDFA;
+  border-bottom: 1px solid #F8FAFC;
+`;
+const InlineSpacer = styled.div`width: 24px; flex-shrink: 0;`;
+const InlineInput = styled.input`
+  flex: 1; min-width: 0;
+  padding: 4px 8px; height: 26px;
+  font-size: 13px; color: #0F172A;
+  background: #FFFFFF; border: 1px solid #14B8A6; border-radius: 6px;
+  font-family: inherit;
+  &:focus { outline: none; box-shadow: 0 0 0 2px rgba(20,184,166,0.15); }
+  &::placeholder { color: #94A3B8; }
+`;
 const TaskTitle = styled.span<{$done?:boolean}>`font-size:14px;font-weight:500;color:#0F172A;cursor:text;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;${p=>p.$done&&'text-decoration:line-through;color:#94A3B8;'}&:hover{color:#0F766E;}`;
 const TitleInput = styled.input`flex:1;font-size:14px;font-weight:500;color:#0F172A;border:1px solid #14B8A6;background:#F0FDFA;padding:2px 8px;border-radius:6px;font-family:inherit;height:24px;box-sizing:border-box;&:focus{outline:none;box-shadow:0 0 0 2px rgba(20,184,166,0.15);}`;
 const DelayBadge = styled.span`padding:1px 6px;font-size:9px;font-weight:700;color:#DC2626;background:#FEF2F2;border:1px solid #FECACA;border-radius:4px;flex-shrink:0;white-space:nowrap;`;

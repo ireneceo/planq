@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import React, { Fragment, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
@@ -12,6 +12,8 @@ import { todayInTz, mondayOfDateStr, addDaysStr, detectBrowserTz } from '../../u
 import { STATUS_CODES, STATUS_COLOR, displayStatus, getStatusLabel, type StatusCode } from '../../utils/taskLabel';
 import { getRoles, primaryPerspective } from '../../utils/taskRoles';
 import TaskDetailDrawer from '../../components/QTask/TaskDetailDrawer';
+import TaskRowActionMenu from '../../components/QTask/TaskRowActionMenu';
+import { responsiveDrawerWidth } from '../../utils/responsiveDrawer';
 import AiTaskCreateModal from '../../components/QTask/AiTaskCreateModal';
 import AiActionButton from '../../components/Common/AiActionButton';
 import EmptyState from '../../components/Common/EmptyState';
@@ -132,6 +134,10 @@ const QTaskPage:React.FC=()=>{
   const[allTasks,setAllTasks]=useState<TaskRow[]>([]);
   const[members,setMembers]=useState<MemberOption[]>([]);
   const[aiOpen,setAiOpen]=useState(false);
+  // 인라인 "아래에 업무 추가" — ProjectTaskList 와 동일 패턴
+  const[addingBelowId,setAddingBelowId]=useState<number|null>(null);
+  const[newBelowTitle,setNewBelowTitle]=useState('');
+  const[submittingBelow,setSubmittingBelow]=useState(false);
   const[assigneeFilter,setAssigneeFilter]=useState<number|null>(null); // workspace mode 담당자 필터
   const[capacity,setCapacity]=useState<{daily:number;days:number;rate:number;weekly:number}>({daily:8,days:5,rate:1,weekly:40});
   const[burndown,_setBurndown]=useState<BurndownPoint[]>([]);
@@ -180,9 +186,7 @@ const QTaskPage:React.FC=()=>{
     try{const v=localStorage.getItem('qtask_right_width');return v?Math.max(320,Math.min(720,Number(v))):420;}catch{return 420;}
   });
   const rightResizingRef=useRef(false);
-  const[drawerWidth,setDrawerWidth]=useState<number>(()=>{
-    try{const v=localStorage.getItem('qtask_drawer_width');return v?Math.max(420,Math.min(1000,Number(v))):560;}catch{return 560;}
-  });
+  const[drawerWidth,setDrawerWidth]=useState<number>(()=>responsiveDrawerWidth('qtask_drawer_width'));
   const drawerResizingRef=useRef(false);
   const startDrawerResize=(e:React.MouseEvent)=>{
     e.preventDefault();
@@ -1276,7 +1280,7 @@ const QTaskPage:React.FC=()=>{
             <Col $w="62px" $center $hideBelow={900} onClick={()=>handleSort('estimated_hours')}>{t('col.est','Est(h)')} {sortIcon('estimated_hours')}</Col>
             <Col $w="62px" $center $hideBelow={900} onClick={()=>handleSort('actual_hours')}>{t('col.act','Act(h)')} {sortIcon('actual_hours')}</Col>
             <Col $w="130px" $center $hideBelow={1024} onClick={()=>handleSort('progress_percent')}>{t('col.progress','Progress')} {sortIcon('progress_percent')}</Col>
-            <Col $w="140px" $center $hideBelow={768} onClick={()=>handleSort('due_date')}>{t('col.dates','시작 ~ 마감')} {sortIcon('due_date')}</Col>
+            <Col $w="100px" $center onClick={()=>handleSort('due_date')}>{t('col.dates','기간')} {sortIcon('due_date')}</Col>
           </ColRow>
 
           {/* Flat task list (no grouping) */}
@@ -1292,7 +1296,8 @@ const QTaskPage:React.FC=()=>{
                 const isDelayed=task.due_date&&task.due_date.slice(0,10)<today&&task.status!=='completed'&&task.status!=='canceled';
 
                 return(
-                  <TRow key={task.id} data-task-row data-qtask-row={task.id} $done={task.status==='completed'} $delayed={!!isDelayed} $selected={detailTaskId===task.id}
+                  <Fragment key={task.id}>
+                  <TRow data-task-row data-qtask-row={task.id} $done={task.status==='completed'} $delayed={!!isDelayed} $selected={detailTaskId===task.id}
                     onClick={(e)=>{
                       // 빈 공간 클릭 → 상세 드로어 오픈. 인터랙티브 요소는 제외 (그 요소가 자체 핸들러 실행)
                       const tgt=e.target as HTMLElement;
@@ -1313,6 +1318,17 @@ const QTaskPage:React.FC=()=>{
                       <ProjLabel>{task.Project?.name||'-'}</ProjLabel>
                     </TCell>
                     <TCell $flex>
+                      <TaskRowActionMenu
+                        onAddBelow={() => { setNewBelowTitle(''); setAddingBelowId(task.id); }}
+                        onCopy={async () => {
+                          await apiFetch(`/api/tasks/${task.id}/copy`, { method: 'POST' });
+                          // socket task:new 자동 반영
+                        }}
+                        onDelete={async () => {
+                          await apiFetch(`/api/tasks/by-business/${bizId}/${task.id}`, { method: 'DELETE' });
+                          // socket task:deleted 자동 반영
+                        }}
+                      />
                       <TaskCheck type="checkbox" checked={task.status==='completed'} onChange={()=>toggleComplete(task)} />
                       {isEditing?(
                         <TitleInput autoFocus value={titleDraft} onChange={e=>setTitleDraft(e.target.value)}
@@ -1479,7 +1495,7 @@ const QTaskPage:React.FC=()=>{
                         );
                       })()}
                     </TCell>
-                    <TCell $w="140px" $center $hideBelow={768}>
+                    <TCell $w="100px" $center>
                       <DateRangeCell start={task.start_date} due={task.due_date}
                         dueColor={dColor}
                         onSave={(s,d)=>{
@@ -1488,6 +1504,38 @@ const QTaskPage:React.FC=()=>{
                         }} />
                     </TCell>
                   </TRow>
+                  {addingBelowId === task.id && (
+                    <QTaskInlineAddRow>
+                      <QTaskInlineSpacer />
+                      <QTaskInlineInput
+                        autoFocus value={newBelowTitle}
+                        placeholder={t('list.inlineAddPh', '업무명 입력 (Enter 저장 / Esc 취소)') as string}
+                        onChange={e => setNewBelowTitle(e.target.value)}
+                        onKeyDown={async e => {
+                          if (e.key === 'Enter' && newBelowTitle.trim() && !submittingBelow) {
+                            setSubmittingBelow(true);
+                            try {
+                              await apiFetch('/api/tasks', {
+                                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                  business_id: bizId,
+                                  project_id: task.project_id,
+                                  title: newBelowTitle.trim(),
+                                  assignee_id: myId,
+                                  start_date: task.start_date || null,
+                                  due_date: task.due_date || null,
+                                }),
+                              });
+                              setAddingBelowId(null); setNewBelowTitle('');
+                            } finally { setSubmittingBelow(false); }
+                          }
+                          if (e.key === 'Escape') { setAddingBelowId(null); setNewBelowTitle(''); }
+                        }}
+                        onBlur={() => { if (!newBelowTitle.trim()) setAddingBelowId(null); }}
+                      />
+                    </QTaskInlineAddRow>
+                  )}
+                  </Fragment>
                 );
           })}
           {filtered.length===0&&(
@@ -2493,6 +2541,9 @@ const DelayChip=styled.button`
   &:hover{background:#E2E8F0;color:#0F172A;}
 `;
 const TaskCheck=styled.input`accent-color:#0D9488;cursor:pointer;width:15px;height:15px;flex-shrink:0;`;
+const QTaskInlineAddRow=styled.div`display:flex;align-items:center;gap:8px;padding:6px 12px;background:#F0FDFA;border-bottom:1px solid #F8FAFC;`;
+const QTaskInlineSpacer=styled.div`width:24px;flex-shrink:0;`;
+const QTaskInlineInput=styled.input`flex:1;min-width:0;padding:4px 8px;height:26px;font-size:13px;color:#0F172A;background:#FFFFFF;border:1px solid #14B8A6;border-radius:6px;font-family:inherit;&:focus{outline:none;box-shadow:0 0 0 2px rgba(20,184,166,0.15);}&::placeholder{color:#94A3B8;}`;
 const TaskTitle=styled.span<{$done?:boolean}>`font-size:14px;font-weight:500;color:#0F172A;cursor:text;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;${p=>p.$done&&'text-decoration:line-through;color:#94A3B8;'}&:hover{color:#0F766E;}`;
 const TitleInput=styled.input`flex:1;font-size:14px;font-weight:500;color:#0F172A;border:1px solid #14B8A6;background:#F0FDFA;padding:2px 8px;border-radius:6px;font-family:inherit;height:24px;box-sizing:border-box;&:focus{outline:none;box-shadow:0 0 0 2px rgba(20,184,166,0.15);}`;
 const StatusPill=styled.span<{$bg:string;$fg:string;$clickable?:boolean}>`

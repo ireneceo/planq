@@ -6,6 +6,8 @@ import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import ModalActionButton from '../Common/ModalActionButton';
 import PlanQSelect from '../Common/PlanQSelect';
+import SingleDateField from '../Common/SingleDateField';
+import { CalendarIcon, ClockIcon } from '../Common/Icons';
 import { apiFetch } from '../../contexts/AuthContext';
 
 interface Member { user_id: number; name: string; }
@@ -40,6 +42,17 @@ interface Props {
 
 type Stage = 'input' | 'loading' | 'preview';
 
+// 날짜 헬퍼 (UTC 기준 — 표시용)
+function addDaysISO(baseISO: string, days: number): string {
+  const d = new Date(baseISO + 'T00:00:00Z');
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+function fmtMd(iso: string): string {
+  const m = /^\d{4}-(\d{2})-(\d{2})$/.exec(iso);
+  return m ? `${Number(m[1])}/${Number(m[2])}` : iso;
+}
+
 export default function AiTaskCreateModal({ open, onClose, businessId, projectId, projectFixed, projects = [], members, onCreated }: Props) {
   const { t } = useTranslation('qtask');
   const [stage, setStage] = useState<Stage>('input');
@@ -49,6 +62,7 @@ export default function AiTaskCreateModal({ open, onClose, businessId, projectId
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [selectedProjectId, setSelectedProjectId] = useState<number | null>(projectId || null);
+  const [baseDate, setBaseDate] = useState<string>(new Date().toISOString().slice(0, 10));
 
   useEffect(() => {
     if (open) {
@@ -59,6 +73,7 @@ export default function AiTaskCreateModal({ open, onClose, businessId, projectId
       setError(null);
       setSubmitting(false);
       setSelectedProjectId(projectId || null);
+      setBaseDate(new Date().toISOString().slice(0, 10));
       // autoFocus 제거 — 모달이 길면 textarea 위치로 스크롤 점프해서 헤더/탭이 안 보임
     }
   }, [open, projectId]);
@@ -116,6 +131,7 @@ export default function AiTaskCreateModal({ open, onClose, businessId, projectId
           business_id: businessId,
           project_id: selectedProjectId,
           candidates: selected,
+          base_date: baseDate,
         }),
       });
       const j = await r.json();
@@ -159,6 +175,11 @@ export default function AiTaskCreateModal({ open, onClose, businessId, projectId
               <AIDesc>
                 {t('ai.todayLabel', '오늘')}: {new Date().toISOString().slice(0, 10)} · {t('ai.membersLabel', '멤버')} {members.length}
               </AIDesc>
+              <FieldRow>
+                <FieldLabel>{t('ai.startDate', '시작일')}</FieldLabel>
+                <SingleDateField value={baseDate} onChange={(d) => setBaseDate(d || new Date().toISOString().slice(0, 10))} size="sm" />
+                <Hint>{t('ai.startHint', '이 날짜 기준으로 모든 업무의 일정이 자동 계산됩니다.') as string}</Hint>
+              </FieldRow>
               {!projectFixed && (
                 <FieldRow>
                   <FieldLabel>{t('ai.projectLabel', '프로젝트 연결 (선택)')}</FieldLabel>
@@ -196,54 +217,43 @@ export default function AiTaskCreateModal({ open, onClose, businessId, projectId
               <Spinner />
               <LoadingText>{t('ai.loadingTitle', 'AI 가 업무를 분해하고 있어요')}</LoadingText>
               <LoadingSub>{t('ai.loadingSub', '결과물 중심으로 단계를 나누는 중...')}</LoadingSub>
+              <ProgressTrack><ProgressFill /></ProgressTrack>
+              <LoadingHint>{t('ai.loadingHint', '보통 5~10초 정도 걸려요. 잠시만 기다려 주세요.')}</LoadingHint>
             </LoadingBox>
           )}
 
           {stage === 'preview' && (
             <AIForm>
               {reasoning && <ReasoningBox>{reasoning}</ReasoningBox>}
+              <PreviewBaseRow>
+                <FieldLabel>{t('ai.startDate', '시작일')}</FieldLabel>
+                <SingleDateField value={baseDate} onChange={(d) => setBaseDate(d || new Date().toISOString().slice(0, 10))} size="sm" />
+                <BaseHint>{t('ai.baseHint', '시작일을 바꾸면 모든 일정이 자동 재계산돼요.')}</BaseHint>
+              </PreviewBaseRow>
               <CardList>
-                {candidates.map(c => (
-                  <Card key={c.idx} $disabled={!c.selected}>
-                    <CardHeader>
-                      <Checkbox
-                        type="checkbox"
-                        checked={c.selected}
-                        onChange={e => updateCand(c.idx, { selected: e.target.checked })}
-                      />
-                      <TitleInput
-                        value={c.title}
-                        onChange={e => updateCand(c.idx, { title: e.target.value })}
-                        $vague={c.vague}
-                      />
-                      {c.vague && <VagueBadge title={t('ai.vagueHint', '결과물 명사가 빠진 것 같아요. 예: "디자인" → "메인 시안 작성"') as string}>⚠</VagueBadge>}
-                    </CardHeader>
-                    <CardRow>
-                      <Field>
-                        <FieldMeta>{t('ai.estLabel', '예상시간')}</FieldMeta>
-                        <NumInput type="number" min={1} max={80} value={c.estimated_hours}
-                          onChange={e => updateCand(c.idx, { estimated_hours: Number(e.target.value) || 1 })} />
-                        <Unit>h</Unit>
-                      </Field>
-                      <Field>
-                        <FieldMeta>{t('ai.startLabel', '시작')}</FieldMeta>
-                        <OffsetInput type="number" min={0} value={c.start_offset_days}
-                          onChange={e => updateCand(c.idx, { start_offset_days: Number(e.target.value) || 0 })} />
-                        <Unit>{t('ai.daysFromToday', 'D+')}</Unit>
-                      </Field>
-                      <Field>
-                        <FieldMeta>{t('ai.dueLabel', '마감')}</FieldMeta>
-                        <OffsetInput type="number" min={c.start_offset_days} value={c.due_offset_days}
-                          onChange={e => updateCand(c.idx, { due_offset_days: Number(e.target.value) || 0 })} />
-                        <Unit>{t('ai.daysFromToday', 'D+')}</Unit>
-                      </Field>
-                      <Field>
-                        <FieldMeta>{t('ai.assigneeLabel', '담당자')}</FieldMeta>
-                        <AssigneeWrap>
+                {candidates.map(c => {
+                  const dur = Math.max(1, c.due_offset_days - c.start_offset_days);
+                  const startDateStr = addDaysISO(baseDate, c.start_offset_days);
+                  const dueDateStr = addDaysISO(baseDate, c.due_offset_days);
+                  return (
+                    <Card key={c.idx} $disabled={!c.selected}>
+                      <CardHeader>
+                        <Checkbox
+                          type="checkbox"
+                          checked={c.selected}
+                          onChange={e => updateCand(c.idx, { selected: e.target.checked })}
+                        />
+                        <TitleInput
+                          value={c.title}
+                          onChange={e => updateCand(c.idx, { title: e.target.value })}
+                          $vague={c.vague}
+                        />
+                        {c.vague && <VagueBadge title={t('ai.vagueHint', '결과물 명사가 빠진 것 같아요. 예: "디자인" → "메인 시안 작성"') as string}>⚠</VagueBadge>}
+                        <AssigneeInline>
                           <PlanQSelect
                             size="sm"
                             isClearable
-                            placeholder={t('ai.assigneeMe', '나') as string}
+                            placeholder={t('ai.assigneeUnassigned', '미배정') as string}
                             value={c.assignee_user_id
                               ? { value: String(c.assignee_user_id), label: members.find(m => m.user_id === c.assignee_user_id)?.name || `#${c.assignee_user_id}` }
                               : null}
@@ -253,12 +263,31 @@ export default function AiTaskCreateModal({ open, onClose, businessId, projectId
                             }}
                             options={members.map(m => ({ value: String(m.user_id), label: m.name || `#${m.user_id}` }))}
                           />
-                        </AssigneeWrap>
-                      </Field>
-                    </CardRow>
-                    {c.description && <Description>{c.description}</Description>}
-                  </Card>
-                ))}
+                        </AssigneeInline>
+                      </CardHeader>
+                      <CardMetaRow>
+                        <MetaItem>
+                          <MetaIcon><CalendarIcon size={13} /></MetaIcon>
+                          <DateRange>{fmtMd(startDateStr)} → {fmtMd(dueDateStr)}</DateRange>
+                          <DurEdit>(
+                            <DurInput type="number" min={1} max={90} value={dur}
+                              onChange={e => {
+                                const newDur = Math.max(1, Number(e.target.value) || 1);
+                                updateCand(c.idx, { due_offset_days: c.start_offset_days + newDur });
+                              }} />
+                            {t('ai.itemDays', '일')})
+                          </DurEdit>
+                        </MetaItem>
+                        <MetaItem>
+                          <MetaIcon><ClockIcon size={13} /></MetaIcon>
+                          <DurInput type="number" min={1} max={80} value={c.estimated_hours}
+                            onChange={e => updateCand(c.idx, { estimated_hours: Number(e.target.value) || 1 })} />
+                          <Unit>h</Unit>
+                        </MetaItem>
+                      </CardMetaRow>
+                    </Card>
+                  );
+                })}
               </CardList>
               {error && <ErrorMsg>{error}</ErrorMsg>}
             </AIForm>
@@ -285,7 +314,7 @@ export default function AiTaskCreateModal({ open, onClose, businessId, projectId
                   ? t('ai.confirming', '추가 중...')
                   : selectedCount === 1
                     ? t('ai.confirmOne', '추가')
-                    : t('ai.confirm', '모두 추가 ({{n}})', { n: selectedCount, defaultValue: `모두 추가 (${selectedCount})` })}
+                    : t('ai.confirm', '{{n}}개 추가', { n: selectedCount, defaultValue: `${selectedCount}개 추가` })}
               </ModalActionButton>
             </>
           )}
@@ -363,6 +392,24 @@ const Spinner = styled.div`
 `;
 const LoadingText = styled.div`font-size: 14px; font-weight: 600; color: #0F172A;`;
 const LoadingSub = styled.div`font-size: 12px; color: #64748B;`;
+const LoadingHint = styled.div`font-size: 11px; color: #94A3B8; margin-top: 4px;`;
+const ProgressTrack = styled.div`
+  width: 240px; height: 6px; max-width: 100%;
+  background: #E2E8F0; border-radius: 999px; overflow: hidden;
+`;
+const ProgressFill = styled.div`
+  height: 100%;
+  background: linear-gradient(90deg, #14B8A6 0%, #0D9488 100%);
+  border-radius: 999px;
+  width: 0%;
+  animation: planq-ai-progress 12s cubic-bezier(0.16, 0.84, 0.44, 1) forwards;
+  @keyframes planq-ai-progress {
+    0% { width: 0%; }
+    50% { width: 60%; }
+    80% { width: 88%; }
+    100% { width: 95%; }
+  }
+`;
 
 const ReasoningBox = styled.div`
   padding: 10px 12px; background: #F0FDFA; color: #0F766E;
@@ -390,18 +437,37 @@ const TitleInput = styled.input<{ $vague: boolean }>`
   &:focus { outline: none; border-color: #14B8A6; background: #FFFFFF; }
 `;
 const VagueBadge = styled.span`flex-shrink: 0; font-size: 14px; color: #B45309; cursor: help;`;
-const CardRow = styled.div`
-  display: flex; flex-wrap: wrap; gap: 12px; align-items: center;
-  padding-left: 24px;
+const AssigneeInline = styled.div`
+  flex-shrink: 0; min-width: 110px; max-width: 150px;
+  margin-left: auto;
 `;
-const Field = styled.label`display: flex; align-items: center; gap: 4px; font-size: 12px; color: #475569;`;
-const FieldMeta = styled.span`color: #64748B; font-size: 11px;`;
-const NumInput = styled.input`
-  width: 48px; padding: 2px 4px; border: 1px solid #E2E8F0; border-radius: 4px;
-  font-size: 12px; text-align: right;
+const CardMetaRow = styled.div`
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  padding-left: 24px;
+  font-size: 12px; color: #475569;
+`;
+const MetaItem = styled.div`
+  display: inline-flex; align-items: center; gap: 4px;
+`;
+const MetaIcon = styled.span`
+  display: inline-flex; align-items: center; color: #94A3B8; flex-shrink: 0;
+`;
+const DateRange = styled.span`color: #0F172A; font-weight: 600;`;
+const DurEdit = styled.span`
+  display: inline-flex; align-items: center; gap: 2px;
+  color: #94A3B8; font-size: 11px;
+`;
+const DurInput = styled.input`
+  width: 38px; padding: 1px 3px;
+  border: 1px solid #E2E8F0; border-radius: 4px;
+  font-size: 11px; text-align: right;
   &:focus { outline: none; border-color: #14B8A6; }
 `;
-const OffsetInput = styled(NumInput)`width: 44px;`;
 const Unit = styled.span`color: #94A3B8; font-size: 11px;`;
-const AssigneeWrap = styled.div`min-width: 140px; max-width: 180px;`;
-const Description = styled.div`padding-left: 24px; font-size: 12px; color: #64748B; line-height: 1.4;`;
+const PreviewBaseRow = styled.div`
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  padding: 8px 10px;
+  background: #F8FAFC; border-radius: 6px;
+`;
+const BaseHint = styled.div`font-size: 11px; color: #94A3B8;`;
+const Hint = styled.div`font-size: 11px; color: #94A3B8;`;
