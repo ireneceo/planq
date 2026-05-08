@@ -27,7 +27,9 @@ interface Toast {
 }
 
 const MAX_VISIBLE = 3;
-const FADE_MS = 5000;
+// 자동 페이드 제거 (2026-05-08 Irene 정책): X 버튼 / 클릭 이동 시만 닫힘. 사용자 인지 시간 보장.
+// mp3 음원 우선, 실패 시 Web Audio 합성 fallback. 음원은 public/sounds/notification.mp3 (없으면 합성 사용).
+const PING_MP3 = '/sounds/notification.mp3';
 
 // 짧은 ping 사운드 — Web Audio API. 외부 mp3 파일 의존성 X.
 //
@@ -67,34 +69,77 @@ function ensureUnlock() {
   window.addEventListener('touchstart', handler, { once: true });
 }
 
+// mp3 캐시 — null = 미시도, HTMLAudioElement = 사용 가능, mp3Failed=true 면 합성으로 영구 전환
+let mp3El: HTMLAudioElement | null = null;
+let mp3Failed = false;
+
 function playPing() {
+  if (!mp3Failed) {
+    if (!mp3El) {
+      try {
+        const a = new Audio(PING_MP3);
+        a.volume = 0.7;
+        a.preload = 'auto';
+        mp3El = a;
+      } catch { mp3Failed = true; }
+    }
+    const el = mp3El;
+    if (el && !mp3Failed) {
+      try {
+        el.currentTime = 0;
+        const p = el.play();
+        if (p && typeof p.then === 'function') {
+          p.then(() => { /* OK */ }).catch(() => {
+            // 404 / 자동재생 차단 / 디코딩 실패 — 합성으로 영구 전환
+            mp3Failed = true;
+            playSynth();
+          });
+        }
+        return;
+      } catch { mp3Failed = true; }
+    }
+  }
+  playSynth();
+}
+
+// Web Audio 합성 — G5 (783.99Hz) + D6 (1174.66Hz, perfect fifth) chord. 볼륨 0.45, decay 0.7s.
+function playSynth() {
   try {
     if (!unlockedCtx || unlockedCtx.state === 'closed') {
-      // unlock 아직 안 됨 — Chrome 정책상 여기서 ctx 새로 만들어도 suspended 로 끝나 무음.
-      // ensureUnlock 가 다음 user gesture 에서 풀어줄 때까지 silent.
       const Ctx = window.AudioContext || (window as WindowWithWebkit).webkitAudioContext;
       if (!Ctx) return;
       unlockedCtx = new Ctx();
     }
     const ctx = unlockedCtx;
     if (ctx.state === 'suspended') {
-      // 이 시점이 user gesture 가 아니어서 resume 거부될 수 있음. 다음 gesture 에서 풀림.
       ctx.resume().catch(() => null);
       return;
     }
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.connect(gain); gain.connect(ctx.destination);
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(880, ctx.currentTime);
-    osc.frequency.exponentialRampToValueAtTime(660, ctx.currentTime + 0.18);
-    gain.gain.setValueAtTime(0, ctx.currentTime);
-    gain.gain.linearRampToValueAtTime(0.12, ctx.currentTime + 0.02);
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.28);
-    osc.start();
-    osc.stop(ctx.currentTime + 0.3);
-    // ctx 는 닫지 않는다 — 다음 ping 재사용
-  } catch { /* AudioContext 미지원 / 권한 차단 — silent */ }
+    const now = ctx.currentTime;
+    const master = ctx.createGain();
+    master.connect(ctx.destination);
+    master.gain.setValueAtTime(0, now);
+    master.gain.linearRampToValueAtTime(0.45, now + 0.015);
+    master.gain.exponentialRampToValueAtTime(0.001, now + 0.7);
+
+    // Fundamental — G5
+    const osc1 = ctx.createOscillator();
+    osc1.type = 'sine';
+    osc1.frequency.setValueAtTime(783.99, now);
+    osc1.connect(master);
+    osc1.start(now);
+    osc1.stop(now + 0.75);
+
+    // Harmonic — D6 (perfect fifth above), 60ms 늦게 시작 → chime 느낌
+    const osc2 = ctx.createOscillator();
+    osc2.type = 'sine';
+    osc2.frequency.setValueAtTime(1174.66, now + 0.06);
+    const g2 = ctx.createGain();
+    g2.gain.setValueAtTime(0.55, now);
+    osc2.connect(g2); g2.connect(master);
+    osc2.start(now + 0.06);
+    osc2.stop(now + 0.75);
+  } catch { /* silent */ }
 }
 
 export default function NotificationToaster() {
@@ -104,7 +149,6 @@ export default function NotificationToaster() {
   const location = useLocation();
   const [toasts, setToasts] = useState<Toast[]>([]);
   const socketRef = useRef<Socket | null>(null);
-  const timersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const activeConvIdRef = useRef<number | null>(null);
   const activePathRef = useRef<string>(location.pathname);
 
@@ -124,9 +168,6 @@ export default function NotificationToaster() {
 
   const dismiss = useCallback((id: string) => {
     setToasts(prev => prev.filter(x => x.id !== id));
-    const t = timersRef.current.get(id);
-    if (t) clearTimeout(t);
-    timersRef.current.delete(id);
   }, []);
 
   const add = useCallback((toast: Omit<Toast, 'id' | 'ts'>) => {
@@ -147,21 +188,9 @@ export default function NotificationToaster() {
 
     const id = `t-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
     const next: Toast = { ...toast, id, ts: Date.now() };
+    // 자동 페이드 제거: X 닫기 / 클릭 이동 시만 닫힘. MAX_VISIBLE 만 유지.
     setToasts(prev => [...prev, next].slice(-MAX_VISIBLE));
-    const timer = setTimeout(() => dismiss(id), FADE_MS);
-    timersRef.current.set(id, timer);
-  }, [dismiss]);
-
-  // hover 시 자동 닫힘 정지 / 떠나면 재시작
-  const pauseTimer = (id: string) => {
-    const t = timersRef.current.get(id);
-    if (t) { clearTimeout(t); timersRef.current.delete(id); }
-  };
-  const resumeTimer = (id: string) => {
-    if (timersRef.current.has(id)) return;
-    const timer = setTimeout(() => dismiss(id), FADE_MS / 2);
-    timersRef.current.set(id, timer);
-  };
+  }, []);
 
   // Global socket — user 가 로그인되어 있을 때만 연결
   useEffect(() => {
@@ -312,8 +341,6 @@ export default function NotificationToaster() {
     return () => {
       s.disconnect();
       socketRef.current = null;
-      timersRef.current.forEach(t => clearTimeout(t));
-      timersRef.current.clear();
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, user?.business_id, i18n.language]);
@@ -322,11 +349,17 @@ export default function NotificationToaster() {
 
   return (
     <ToasterRoot aria-live="polite" aria-atomic="false">
+      {toasts.length >= 2 && (
+        <ClearAllBar>
+          <ClearAllBtn
+            type="button"
+            onClick={() => setToasts([])}
+          >{t('toaster.clearAll', '모두 닫기 ({{n}})', { n: toasts.length, defaultValue: `모두 닫기 (${toasts.length})` })}</ClearAllBtn>
+        </ClearAllBar>
+      )}
       {toasts.map(toast => (
         <ToastCard key={toast.id}
           $type={toast.type}
-          onMouseEnter={() => pauseTimer(toast.id)}
-          onMouseLeave={() => resumeTimer(toast.id)}
           onClick={() => {
             if (toast.link) navigate(toast.link);
             dismiss(toast.id);
@@ -458,4 +491,26 @@ const ToastClose = styled.button`
   color: #94A3B8;
   cursor: pointer;
   &:hover { background: #F1F5F9; color: #0F172A; }
+`;
+
+const ClearAllBar = styled.div`
+  pointer-events: auto;
+  display: flex;
+  justify-content: flex-end;
+  padding: 0 4px 4px 0;
+`;
+
+const ClearAllBtn = styled.button`
+  background: rgba(15, 23, 42, 0.78);
+  color: #FFFFFF;
+  border: none;
+  border-radius: 14px;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: -0.1px;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.18);
+  transition: background 0.15s;
+  &:hover { background: rgba(15, 23, 42, 0.92); }
 `;
