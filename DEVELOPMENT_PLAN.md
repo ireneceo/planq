@@ -1,14 +1,59 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-05-07 (랜딩 페이지 Hero 섹션 카피 전면 리뉴얼)
+> **최종 업데이트:** 2026-05-08 (Q-S 사이클 — 알림 사운드/뱃지/inbox/영상/통합 + 사이클 N+1 박제)
 >
-> **이전 라이브:** 2026-05-06 v1.1.1+ (`fa292a1` — 다중 디바이스 세션 + UI 일관화)
+> **이전 라이브:** 2026-05-08 `9a18ea3` (사운드 항상 + 토스트 분리, 4회 운영 push)
 >
-> **다음 진입 ★:** KB Phase 2 (PDF/docx 업로드 + 다중 분리 정밀) / Q Task 정기업무 (RRULE) / Q docs 재구조화 + Brief 통합
+> **다음 진입 ★ (사이클 N+1):** AI 업무 추가 + 업무 템플릿 + 통합 공유 + Smart Routing
 >
-> **차순위:** KB Phase 2 (PDF/docx 업로드 + 다중 분리 정밀) / Q Task 정기업무 (RRULE) / Q docs 재구조화 + Brief 통합 / 알림 그룹화·DND·Activity / Phase 4 트래픽 트리거 시 BullMQ+Redis / S3 / read-replica
+> **차순위:** 주간 보고 (Weekly Review) / 권한 옵션 A + 개인 보관함 / Q note 텍스트 type + Quick Capture / Custom SMTP (Pro+)
+>
+> **미해결:** 데스크탑 (Mac Chrome) push 알림 + 사운드 안 옴 — Irene 환경 의존 (PWA 재설치 권장). 백엔드 + 모바일 정상.
 >
 > **결제 정책:** 1순위 자체 결제 (계좌이체 mark-paid), 2순위 PortOne (P-7 마지막). 월결제 + 연결제. Free 플랜 폐지 — 신규 가입은 starter+trialing 14일. 미결제 시 7일 유예 후 starter 강등 + 데이터 보존.
+
+---
+
+## ✅ 완료: Q-S 사이클 — 알림 통합 + 사이클 N+1 박제 (2026-05-08)
+
+5 commit 4회 운영 push (`64bcfc1 → 83e2c03 → f6bbe69 → 4fad341 → 9a18ea3`).
+
+### 주요 작업
+
+| 영역 | 작업 |
+|---|---|
+| 알림 사운드 | NotificationToaster — persistent AudioContext + first-gesture unlock. 활성 conv 라도 사운드 항상 (토스트만 skip) |
+| OS app badge | 인박스 + 채팅 합산 단일 source (useGlobalBadge), backend payload.badge 동일 정의, race fix (prevTotalRef), SW number-only |
+| Cross-workspace inbox | TodoPage 모든 워크스페이스 socket room 자동 join/leave |
+| 영상/음성 업로드 | message_attachments + files multer 5GB, ALLOWED_EXT 12 종 추가, Drive 라우팅 (Conversations 폴더), 친절 에러 |
+| Q Talk 모바일 | 100dvh + interactive-widget=resizes-content + visualViewport scrollIntoView |
+| Q Talk FAB | /talk 라우트 자동 숨김 + 헤더 ⓘ 도움말 인라인 |
+| Q Talk 스크롤 | sentinel + ResizeObserver/MutationObserver 안정화. 메시지 로드 1.5s 재시도 |
+| StorageSettings | setInterval `window.open('', name)` 빈 브라우저 폴링 제거 |
+| Q Task 우측 패널 | 1회 peek 애니메이션 (FloatingPanelToggle) |
+| 알림 진단 | NotificationSettings 5초 timeout 자동 진단 모달 (OS 별 안내) |
+| 사이드바 뱃지 | InboxDot 점 → InboxBadge 숫자 통일 (collapsed absolute) |
+
+### 박제 — 사이클 N+1 합의 (8 설계 문서 + 12 메모리)
+
+**docs/:** VISIBILITY_VOCABULARY · PERSONAL_VAULT_DESIGN · QNOTE_CAPTURE_DESIGN · AI_TASK_DESIGN · TASK_TEMPLATE_SYSTEM · SHARE_SYSTEM_UNIFIED · SMART_ROUTING_DESIGN · EMAIL_DELIVERY_POLICY
+
+**memory/:** project_visibility_vocabulary · project_personal_vault · project_invoice_signature_owner · feedback_visibility_signal_required · project_qnote_capture_design · project_ai_task_creation · project_task_templates · project_share_system_unified · project_smart_routing_appfirst · project_email_smtp_policy · feedback_ai_recommendation_threshold · feedback_qnote_personal_tool (갱신)
+
+### 운영 push 결과
+
+- 4회 누적 push: `64bcfc1` → `83e2c03` → `f6bbe69` → `4fad341` → `9a18ea3`
+- 마지막 backup: `/opt/planq/backups/20260508_093744`
+- 외부 https://planq.kr/api/health 200
+
+### 미해결 이슈
+
+데스크탑 (Mac Chrome) PWA push 알림 + 사운드 한 번도 안 옴:
+- 백엔드 statusCode 201 (FCM 통과)
+- 모바일 (iPhone) 정상 작동
+- POS 는 같은 Mac Chrome 에서 정상 작동
+- 추정 원인: planq.kr origin 의 Chrome 권한 차단 / SW 캐시 / PWA 환경
+- 권장: PWA 재설치 (fresh state). 안 되면 옛 commit rollback 검토
 
 ---
 
