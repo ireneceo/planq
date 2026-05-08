@@ -83,10 +83,15 @@ self.addEventListener('push', (event) => {
   event.waitUntil((async () => {
     await self.registration.showNotification(title, options);
     // App Badging API — 데스크탑 PWA 아이콘 / 모바일 홈스크린 숫자.
+    // App Badge — payload.badge 가 number 일 때만 호출. 인자 없이 setAppBadge() 하면
+    // 일부 브라우저가 "•"(점) 또는 "1" 로 표시하는 부작용 → Irene 명시: 숫자 없으면 표시 자체 X.
     try {
-      if ('setAppBadge' in self.navigator) {
-        const n = typeof payload.badge === 'number' ? payload.badge : undefined;
-        await self.navigator.setAppBadge(n);
+      if ('setAppBadge' in self.navigator && typeof payload.badge === 'number') {
+        if (payload.badge > 0) {
+          await self.navigator.setAppBadge(payload.badge);
+        } else if ('clearAppBadge' in self.navigator) {
+          await self.navigator.clearAppBadge();
+        }
       }
     } catch { /* unsupported / blocked — silent */ }
     // 진단용 — push 도달 확인. 클라이언트가 listening 중이면 받음.
