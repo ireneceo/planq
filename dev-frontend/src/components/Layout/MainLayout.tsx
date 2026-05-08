@@ -204,19 +204,26 @@ const NavLabel = styled.span<{ $isCollapsed?: boolean }>`
 `;
 
 // 인박스 미처리 카운트 — pill 배지 (확장 상태) / 작은 dot (collapsed 상태)
-const InboxBadge = styled.span`
+// 통일 정책: 모든 알림 카운트는 숫자만 표시. 점 표시 X (Irene 명시).
+// 사이드바 expanded — 메뉴 라벨 우측 inline. collapsed — 아이콘 우상단 absolute (NavItem 안).
+const InboxBadge = styled.span<{ $collapsed?: boolean }>`
   margin-left: auto;
   display: inline-flex; align-items: center; justify-content: center;
   min-width: 20px; height: 18px; padding: 0 6px;
   background: #F43F5E; color: #FFFFFF;
   font-size: 10px; font-weight: 700; line-height: 1;
   border-radius: 999px;
-`;
-const InboxDot = styled.span`
-  position: absolute; top: 8px; right: 8px;
-  width: 8px; height: 8px;
-  background: #F43F5E; border-radius: 50%;
-  border: 2px solid #FFFFFF;
+  ${p => p.$collapsed && `
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    margin-left: 0;
+    min-width: 16px;
+    height: 14px;
+    padding: 0 4px;
+    font-size: 9px;
+    pointer-events: none;
+  `}
 `;
 
 // ─────────────────────────────────────────────────────────────
@@ -697,9 +704,9 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                   <NavIcon $isCollapsed={isCollapsed}><IconTodo /></NavIcon>
                   <NavLabel $isCollapsed={isCollapsed}>{t('nav.inbox', '확인 필요')}</NavLabel>
                   {inboxCount > 0 && (
-                    isCollapsed
-                      ? <InboxDot aria-label={t('nav.inboxCount', { count: inboxCount, defaultValue: '미처리 {{count}}건' }) as string} />
-                      : <InboxBadge>{inboxCount > 99 ? '99+' : inboxCount}</InboxBadge>
+                    <InboxBadge $collapsed={isCollapsed} aria-label={t('nav.inboxCount', { count: inboxCount, defaultValue: '미처리 {{count}}건' }) as string}>
+                      {inboxCount > 99 ? '99+' : inboxCount}
+                    </InboxBadge>
                   )}
                 </NavItem>
               </NavSection>
@@ -712,9 +719,9 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                     <NavIcon $isCollapsed={isCollapsed}><IconTalk /></NavIcon>
                     <NavLabel $isCollapsed={isCollapsed}>{t('nav.talk')}</NavLabel>
                     {talkUnreadCount > 0 && (
-                      isCollapsed
-                        ? <InboxDot aria-label={`${t('nav.talk')} ${talkUnreadCount}`} />
-                        : <InboxBadge>{talkUnreadCount > 99 ? '99+' : talkUnreadCount}</InboxBadge>
+                      <InboxBadge $collapsed={isCollapsed} aria-label={`${t('nav.talk')} ${talkUnreadCount}`}>
+                        {talkUnreadCount > 99 ? '99+' : talkUnreadCount}
+                      </InboxBadge>
                     )}
                   </NavItem>
                   {hasBiz('owner', 'member') && (

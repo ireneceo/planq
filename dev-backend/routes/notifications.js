@@ -116,14 +116,15 @@ async function notify({ userId, businessId, eventKind, title, body, link, ctaLab
   if (await isAllowed(userId, businessId, eventKind, 'push')) {
     try {
       const { sendPushToUser } = require('../services/push_service');
-      // badge — 사용자의 현재 Q Talk unread total. SW 가 정확한 dock 아이콘 숫자 표시용.
-      // 발송 직전 +1 (이번 알림이 unread 으로 추가될 거라 가정 — message/mention 류).
+      // badge — 인박스(확인 필요) + 채팅 unread 합산. frontend useGlobalBadge 와 동일 정의.
+      // 모든 알림 위치(dock 뱃지·사이드바·인박스 페이지) 가 이 합산값으로 통일.
       // 실패해도 push 는 발송 (badge 는 활성 클라이언트가 정확하게 덮어씀).
       let badge;
       try {
         if (businessId) {
           const { sequelize } = require('../config/database');
-          const [rows] = await sequelize.query(
+          // 1. 채팅 unread total (모든 conversation)
+          const [chatRows] = await sequelize.query(
             `SELECT COUNT(m.id) AS cnt
                FROM messages m
                LEFT JOIN conversation_participants cp
@@ -134,8 +135,22 @@ async function notify({ userId, businessId, eventKind, title, body, link, ctaLab
                 AND (cp.last_read_at IS NULL OR m.created_at > cp.last_read_at)`,
             { replacements: { uid: userId, bid: businessId } }
           );
-          // 이번 알림은 message 류면 이미 DB 에 INSERT 된 상태라 cnt 에 포함됨
-          badge = Number(rows[0]?.cnt || 0);
+          const chatUnread = Number(chatRows[0]?.cnt || 0);
+          // 2. 인박스 total — /api/dashboard/todo 와 같은 정의 (cross-workspace 합산)
+          //    여기선 single biz 컨텍스트라 그 biz 의 인박스 항목만 fetch.
+          let inboxTotal = 0;
+          try {
+            const dashRoute = require('./dashboard');
+            // dashboard 의 todo 응답 헬퍼 직접 호출은 어려워 — 핵심 항목별 카운트 합산
+            // (간이 추정: task ack/revise + reviewer pending + invoice 등)
+            // 정확한 합산은 todo endpoint 호출하는 게 확실 — 같은 backend 라 localhost loopback.
+            const fetchRes = await fetch(`http://localhost:${process.env.PORT || 3003}/api/dashboard/todo?business_id=${businessId}`, {
+              headers: { Authorization: `Bearer ${require('jsonwebtoken').sign({id:userId,email:'sys@planq',platform_role:'business_member'}, process.env.JWT_SECRET, {expiresIn:'10s'})}` }
+            });
+            const j = await fetchRes.json();
+            if (j.success) inboxTotal = Number(j.data?.total || 0);
+          } catch (e) { /* fallback: chatUnread 만 사용 */ }
+          badge = chatUnread + inboxTotal;
         }
       } catch { /* badge 계산 실패해도 push 자체는 보냄 */ }
       const r = await sendPushToUser(userId, {
