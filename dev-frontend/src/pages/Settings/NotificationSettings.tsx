@@ -153,13 +153,39 @@ const NotificationSettings: React.FC<Props> = ({ businessId }) => {
   );
 };
 
-// 사이클 J3 — Web Push 구독 관리 섹션
+// OS 감지 — 진단 모달의 시스템 별 안내용
+function detectOS(): 'mac' | 'windows' | 'ios' | 'android' | 'other' {
+  if (typeof navigator === 'undefined') return 'other';
+  const ua = navigator.userAgent;
+  if (/iPhone|iPad|iPod/.test(ua)) return 'ios';
+  if (/Android/.test(ua)) return 'android';
+  if (/Mac OS X/.test(ua)) return 'mac';
+  if (/Windows/.test(ua)) return 'windows';
+  return 'other';
+}
+
+// 사이클 J3 — Web Push 구독 관리 섹션 + 자동 진단 (사이클 N+0 추가)
 const PushSection: React.FC<{ businessId: number | null }> = () => {
   const { t } = useTranslation('settings');
   const [permission, setPermission] = React.useState<'granted' | 'denied' | 'default' | 'unsupported' | 'loading'>('loading');
   const [subscribed, setSubscribed] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
   const [msg, setMsg] = React.useState<string | null>(null);
+  // 자동 진단 — 테스트 발송 후 5초 안에 SW 가 push 받았는지 추적
+  const [diagnoseOpen, setDiagnoseOpen] = React.useState(false);
+  const pushReceivedRef = React.useRef(false);
+
+  // SW message listener — push 도착 신호 받음
+  React.useEffect(() => {
+    if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return;
+    const handler = (event: MessageEvent) => {
+      if (event.data?.type === 'planq:push-received') {
+        pushReceivedRef.current = true;
+      }
+    };
+    navigator.serviceWorker.addEventListener('message', handler);
+    return () => navigator.serviceWorker.removeEventListener('message', handler);
+  }, []);
 
   React.useEffect(() => {
     (async () => {
@@ -190,12 +216,22 @@ const PushSection: React.FC<{ businessId: number | null }> = () => {
   };
   const handleTest = async () => {
     setBusy(true); setMsg(null);
+    pushReceivedRef.current = false;  // reset
     const { sendTestPush } = await import('../../services/push');
     const r = await sendTestPush();
-    setMsg(r.sent > 0
-      ? t('push.testSentMsg', '테스트 알림 발송 완료 ({{n}})', { n: r.sent }) as string
-      : t('push.testNoVapidMsg', 'VAPID 키 미설정 — 운영자 설정 필요') as string);
-    setBusy(false);
+    if (r.sent === 0) {
+      setMsg(t('push.testNoVapidMsg', 'VAPID 키 미설정 — 운영자 설정 필요') as string);
+      setBusy(false);
+      return;
+    }
+    setMsg(t('push.testSentMsg', '테스트 알림 발송 완료 ({{n}})', { n: r.sent }) as string);
+    // 5초 timeout — SW 가 push 받았는지 확인. 안 받으면 OS 단 차단 가능성 → 진단 모달
+    window.setTimeout(() => {
+      if (!pushReceivedRef.current) {
+        setDiagnoseOpen(true);
+      }
+      setBusy(false);
+    }, 5000);
   };
 
   // 미구독 (default-off / granted-off) + 차단 (denied) 일 때 강조 attention 표시.
@@ -251,9 +287,90 @@ const PushSection: React.FC<{ businessId: number | null }> = () => {
       )}
 
       {msg && <ResultNote>{msg}</ResultNote>}
+      {diagnoseOpen && (
+        <PushDiagnoseModal os={detectOS()} onClose={() => setDiagnoseOpen(false)} onRetry={() => { setDiagnoseOpen(false); handleTest(); }} />
+      )}
     </Section>
   );
 };
+
+// 자동 진단 모달 — 발송 후 5초 안에 알림 안 도착 → OS 별 안내
+const PushDiagnoseModal: React.FC<{ os: ReturnType<typeof detectOS>; onClose: () => void; onRetry: () => void }> = ({ os, onClose, onRetry }) => {
+  return (
+    <DiagBackdrop onClick={onClose}>
+      <DiagCard onClick={(e) => e.stopPropagation()} role="dialog" aria-label="알림 진단">
+        <DiagHead>
+          <DiagTitle>알림이 도착하지 않았어요</DiagTitle>
+          <DiagClose onClick={onClose} aria-label="닫기">×</DiagClose>
+        </DiagHead>
+        <DiagBody>
+          <DiagDesc>서버는 정상 발송했지만 시스템 단에서 차단된 것 같습니다. 아래 단계로 점검하면 해결됩니다.</DiagDesc>
+          {os === 'mac' && (
+            <DiagSteps>
+              <li><strong>macOS 시스템 환경설정</strong> → <strong>알림</strong> → <strong>Google Chrome</strong> → "알림 허용" + "사운드 재생" ON</li>
+              <li>화면 우상단 <strong>제어 센터</strong> → 집중 모드(방해 금지) <strong>OFF</strong></li>
+              <li>Chrome 주소창에 <code>chrome://settings/content/notifications</code> → planq.kr 이 <strong>"허용"</strong> 목록에 있는지 확인</li>
+              <li>Chrome → 설정 → 시스템 → <strong>"Chrome 종료 후에도 백그라운드 앱 실행" ON</strong></li>
+            </DiagSteps>
+          )}
+          {os === 'windows' && (
+            <DiagSteps>
+              <li><strong>Windows 설정</strong> → 시스템 → 알림 → "알림 받기" + Chrome 알림 허용 ON</li>
+              <li>집중 지원(Focus Assist) <strong>OFF</strong></li>
+              <li>Chrome 주소창 <code>chrome://settings/content/notifications</code> → planq.kr <strong>"허용"</strong></li>
+            </DiagSteps>
+          )}
+          {os === 'ios' && (
+            <DiagSteps>
+              <li>홈 화면에 PlanQ 추가했는지 확인 (Safari 공유 → "홈 화면에 추가")</li>
+              <li>iOS 설정 → 알림 → PlanQ → "알림 허용" + "사운드"·"배지" ON</li>
+              <li>방해 금지 모드 / 집중 모드 OFF</li>
+            </DiagSteps>
+          )}
+          {os === 'android' && (
+            <DiagSteps>
+              <li>Android 설정 → 앱 → Chrome 또는 PlanQ → 알림 ON</li>
+              <li>방해 금지 모드 OFF</li>
+              <li>배터리 최적화에서 Chrome 제외</li>
+            </DiagSteps>
+          )}
+          {os === 'other' && (
+            <DiagSteps>
+              <li>브라우저 알림 권한이 "허용" 인지 확인</li>
+              <li>OS 시스템 알림 설정에서 브라우저 알림 ON</li>
+              <li>방해 금지 모드 OFF</li>
+            </DiagSteps>
+          )}
+          {os === 'mac' && (
+            <DiagShortcut href="x-apple.systempreferences:com.apple.preference.notifications" target="_blank" rel="noreferrer">
+              macOS 알림 설정 직접 열기 →
+            </DiagShortcut>
+          )}
+        </DiagBody>
+        <DiagFooter>
+          <DiagPrimary type="button" onClick={onRetry}>다시 테스트</DiagPrimary>
+          <DiagSecondary type="button" onClick={onClose}>닫기</DiagSecondary>
+        </DiagFooter>
+      </DiagCard>
+    </DiagBackdrop>
+  );
+};
+
+const DiagBackdrop = styled.div`position: fixed; inset: 0; background: rgba(15,23,42,0.5); z-index: 3000; display: flex; align-items: center; justify-content: center; padding: 20px;`;
+const DiagCard = styled.div`background: #FFFFFF; border-radius: 14px; max-width: 520px; width: 100%; box-shadow: 0 12px 32px rgba(15,23,42,0.18); display: flex; flex-direction: column; max-height: 90vh; overflow: hidden;`;
+const DiagHead = styled.div`display: flex; align-items: center; justify-content: space-between; padding: 18px 20px 12px; border-bottom: 1px solid #E2E8F0;`;
+const DiagTitle = styled.h3`margin: 0; font-size: 16px; font-weight: 700; color: #0F172A;`;
+const DiagClose = styled.button`background: none; border: none; font-size: 22px; line-height: 1; color: #64748B; cursor: pointer; padding: 4px 8px; &:hover { color: #0F172A; }`;
+const DiagBody = styled.div`padding: 16px 20px; overflow-y: auto;`;
+const DiagDesc = styled.p`margin: 0 0 14px; font-size: 13px; color: #334155; line-height: 1.55;`;
+const DiagSteps = styled.ol`margin: 0 0 14px; padding-left: 22px; font-size: 13px; color: #334155; line-height: 1.7;
+  li { margin-bottom: 6px; }
+  code { background: #F1F5F9; padding: 1px 6px; border-radius: 4px; font-size: 12px; color: #0F766E; }
+`;
+const DiagShortcut = styled.a`display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: #0F766E; text-decoration: none; padding: 8px 12px; background: #F0FDFA; border: 1px solid #CCFBF1; border-radius: 8px; margin-top: 4px; &:hover { background: #CCFBF1; }`;
+const DiagFooter = styled.div`display: flex; gap: 8px; justify-content: flex-end; padding: 12px 20px 16px; border-top: 1px solid #E2E8F0;`;
+const DiagPrimary = styled.button`height: 36px; padding: 0 16px; background: #14B8A6; color: #FFFFFF; border: none; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer; &:hover { background: #0D9488; }`;
+const DiagSecondary = styled.button`height: 36px; padding: 0 16px; background: #FFFFFF; color: #334155; border: 1px solid #CBD5E1; border-radius: 8px; font-size: 13px; font-weight: 500; cursor: pointer; &:hover { background: #F8FAFC; }`;
 
 export default NotificationSettings;
 

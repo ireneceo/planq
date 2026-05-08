@@ -148,6 +148,25 @@ const ChatPanel: React.FC<Props> = ({
     const tm = window.setTimeout(() => textInputRef.current?.focus(), 80);
     return () => window.clearTimeout(tm);
   }, [activeConversationId]);
+
+  // 모바일 키보드 가림 fix — textarea focus 시 키보드 올라오면서 입력란이 viewport 밖으로 밀리는 케이스.
+  // visualViewport API 로 키보드 resize 감지해서 강제 scrollIntoView. iOS Safari / Android Chrome 양쪽 검증.
+  const handleInputFocus = React.useCallback(() => {
+    const el = textInputRef.current;
+    if (!el) return;
+    const ensureVisible = () => {
+      el.scrollIntoView({ block: 'end', inline: 'nearest', behavior: 'smooth' });
+    };
+    // visualViewport 가 있으면 키보드 올라온 직후 정확히 한 번 fire
+    if (window.visualViewport) {
+      const onResize = () => { ensureVisible(); };
+      window.visualViewport.addEventListener('resize', onResize, { once: true });
+      // 안전장치: 1s 후 listener 정리 (이미 once 라 자동 해제되지만 명시적)
+      window.setTimeout(() => window.visualViewport?.removeEventListener('resize', onResize), 1000);
+    }
+    // fallback — 모든 환경에서 350ms 후 한 번 더 (키보드 애니메이션 기간 보정)
+    window.setTimeout(ensureVisible, 350);
+  }, []);
   const [editingDraftId, setEditingDraftId] = useState<number | null>(null);
   const [draftBody, setDraftBody] = useState('');
 
@@ -1034,6 +1053,7 @@ const ChatPanel: React.FC<Props> = ({
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
+            onFocus={handleInputFocus}
             onCompositionStart={handleCompositionStart}
             onCompositionEnd={handleCompositionEnd}
             onPaste={(e) => {
