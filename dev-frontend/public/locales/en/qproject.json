@@ -63,6 +63,10 @@
     "emptyWithHint": "No tasks with dates yet. Set a start and/or due date.",
     "more": "+ Show more ({{n}})"
   },
+  "ai": {
+    "btnShort": "AI",
+    "btnHint": "Describe in one line — AI breaks it into tasks"
+  },
   "addTask": {
     "add": "+ Add Task",
     "cancel": "Cancel",

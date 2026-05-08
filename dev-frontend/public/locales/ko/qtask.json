@@ -481,5 +481,38 @@
       "desc": "회의 또는 회고에 활용하세요.",
       "viewBtn": "보러 가기"
     }
+  },
+  "ai": {
+    "btn": "AI 로 만들기",
+    "btnShort": "AI",
+    "btnHint": "자연어 한 줄로 여러 업무 자동 생성",
+    "projectLabel": "프로젝트",
+    "projectNone": "선택 안 함 (워크스페이스 업무)",
+    "confirmOne": "1 개 추가",
+    "title": "AI 로 업무추가",
+    "contextProject": "프로젝트 컨텍스트가 자동 주입돼요.",
+    "contextWorkspace": "워크스페이스 멤버 정보가 자동 주입돼요.",
+    "todayLabel": "오늘",
+    "membersLabel": "멤버",
+    "placeholder": "예: WordPress 블로그 사이트 한 달 안에 런칭. 디자인부터 컨텐츠 마이그레이션, SEO 까지.",
+    "submitHint": "AI 로 만들기",
+    "loadingTitle": "AI 가 업무를 분해하고 있어요",
+    "loadingSub": "결과물 중심으로 단계를 나누는 중...",
+    "noCandidates": "업무를 추출하지 못했어요. 더 구체적으로 입력해 주세요.",
+    "titlePlaceholder": "결과물 명사로 끝나도록 (예: ... 작성/발행/제작)",
+    "vagueHint": "결과물 명사가 빠진 것 같아요. 예: \"디자인\" → \"메인 시안 작성\"",
+    "estLabel": "예상시간",
+    "startLabel": "시작",
+    "dueLabel": "마감",
+    "assigneeLabel": "담당자",
+    "daysFromToday": "D+",
+    "assigneeMe": "나",
+    "assigneeHintLabel": "AI 추천",
+    "cancel": "취소",
+    "generate": "AI 업무 추가",
+    "generating": "생성 중...",
+    "regenerate": "다시 생성",
+    "confirm": "모두 추가 ({{n}})",
+    "confirming": "추가 중..."
   }
 }

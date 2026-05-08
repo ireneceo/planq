@@ -481,5 +481,38 @@
       "desc": "Use it for meetings or retrospectives.",
       "viewBtn": "View"
     }
+  },
+  "ai": {
+    "btn": "Create with AI",
+    "btnShort": "AI",
+    "btnHint": "Describe in one line — AI breaks it into tasks",
+    "projectLabel": "Project",
+    "projectNone": "None (workspace task)",
+    "confirmOne": "Add 1",
+    "title": "Add tasks with AI",
+    "contextProject": "Project context is auto-injected.",
+    "contextWorkspace": "Workspace members are auto-injected.",
+    "todayLabel": "Today",
+    "membersLabel": "Members",
+    "placeholder": "e.g. Launch a WordPress blog site in a month — design, content migration, SEO.",
+    "submitHint": "Create with AI",
+    "loadingTitle": "AI is decomposing tasks",
+    "loadingSub": "Breaking into outcome-named steps...",
+    "noCandidates": "Could not extract tasks. Please be more specific.",
+    "titlePlaceholder": "End with a deliverable (e.g. ... draft / report / launch)",
+    "vagueHint": "Looks like a deliverable noun is missing. e.g. \"Design\" → \"Main page mockup draft\"",
+    "estLabel": "Est",
+    "startLabel": "Start",
+    "dueLabel": "Due",
+    "assigneeLabel": "Assignee",
+    "daysFromToday": "D+",
+    "assigneeMe": "Me",
+    "assigneeHintLabel": "AI suggests",
+    "cancel": "Cancel",
+    "generate": "Add tasks",
+    "generating": "Generating...",
+    "regenerate": "Regenerate",
+    "confirm": "Add all ({{n}})",
+    "confirming": "Adding..."
   }
 }
