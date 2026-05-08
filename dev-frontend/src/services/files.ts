@@ -169,9 +169,17 @@ export async function uploadProjectFile(
 }
 
 // "내 파일" — 프로젝트에 배정하지 않은 개인 업로드 (project_id 없음)
-export async function uploadMyFile(businessId: number, file: File): Promise<UploadResult> {
+// opts.conversationId / opts.projectId — 채팅/프로젝트 컨텍스트가 있으면 전달.
+//   • Drive 연동 시 conversation_id 만 있어도 Drive 의 "Conversations" 폴더로 라우팅 → 자체 스토리지 쿼터/사이즈 한도 모두 우회.
+export async function uploadMyFile(
+  businessId: number,
+  file: File,
+  opts?: { conversationId?: number | null; projectId?: number | null }
+): Promise<UploadResult> {
   const fd = new FormData();
   fd.append('file', file);
+  if (opts?.conversationId) fd.append('conversation_id', String(opts.conversationId));
+  if (opts?.projectId) fd.append('project_id', String(opts.projectId));
   const r = await apiFetch(`/api/files/${businessId}`, { method: 'POST', body: fd });
   const j = await r.json();
   if (!j.success || !j.data) return { success: false, message: j.message };

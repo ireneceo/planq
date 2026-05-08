@@ -24,6 +24,10 @@ const ALLOWED_EXT = new Set([
   '.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg',
   '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx',
   '.zip', '.txt', '.md', '.csv',
+  // 영상 — Drive 연동 시 5GB 까지, 자체 스토리지 시 플랜 한도까지
+  '.mp4', '.mov', '.webm', '.avi', '.mkv', '.m4v',
+  // 음성
+  '.mp3', '.wav', '.m4a', '.aac', '.ogg', '.flac',
 ]);
 
 const storage = multer.diskStorage({
@@ -39,9 +43,10 @@ const storage = multer.diskStorage({
     cb(null, `${uuidv4()}${ext}`);
   },
 });
+// multer 자체 한도는 5GB (Drive 연동 시 영상). 자체 스토리지/플랜 한도는 라우트 핸들러에서 별도 검증.
 const upload = multer({
   storage,
-  limits: { fileSize: 100 * 1024 * 1024 }, // 100MB (플랜별 상위 검증)
+  limits: { fileSize: 5 * 1024 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
     const ext = path.extname(file.originalname).toLowerCase();
     if (!ALLOWED_EXT.has(ext)) return cb(new Error('disallowed_extension'));
@@ -69,9 +74,16 @@ router.post('/:conversationId/:messageId',
   (req, res, next) => {
     upload.single('file')(req, res, (err) => {
       if (!err) return next();
-      if (err.message === 'disallowed_extension') return errorResponse(res, 'disallowed_extension', 400);
-      if (err.code === 'LIMIT_FILE_SIZE') return errorResponse(res, 'file_too_large', 400);
-      return errorResponse(res, err.message || 'upload_failed', 400);
+      if (err.message === 'disallowed_extension') {
+        return errorResponse(res,
+          '지원하지 않는 파일 형식입니다. 이미지·문서·영상·음성 파일만 업로드 가능해요.',
+          400
+        );
+      }
+      if (err.code === 'LIMIT_FILE_SIZE') {
+        return errorResponse(res, '파일이 너무 큽니다 (최대 5GB).', 413);
+      }
+      return errorResponse(res, err.message || '업로드 실패', 400);
     });
   },
   async (req, res, next) => {
@@ -84,13 +96,25 @@ router.post('/:conversationId/:messageId',
       if (!msg) return errorResponse(res, 'message_not_found', 404);
       if (msg.sender_id !== req.user.id) return errorResponse(res, 'forbidden', 403);
 
-      // 플랜별 업로드 크기 한도 (간단 체크)
+      // 플랜별 업로드 크기 한도 — 단, Google Drive 연동되어 있으면 5GB 까지 허용 (자체 스토리지 안 사용)
       try {
         const plan = require('../services/plan');
-        const limit = await plan.fileSizeLimit(req._conversation.business_id);
-        if (limit && req.file.size > limit) {
-          fs.unlink(req.file.path, () => {});
-          return errorResponse(res, `file_too_large_plan (limit=${Math.round(limit / 1024 / 1024)}MB)`, 413);
+        const { BusinessCloudToken } = require('../models');
+        const cloudToken = await BusinessCloudToken.findOne({
+          where: { business_id: req._conversation.business_id, provider: 'gdrive' }
+        });
+        const driveConnected = !!cloudToken && !!cloudToken.root_folder_id;
+        if (!driveConnected) {
+          const limit = await plan.fileSizeLimit(req._conversation.business_id);
+          if (limit && req.file.size > limit) {
+            fs.unlink(req.file.path, () => {});
+            const limitMB = Math.round(limit / 1024 / 1024);
+            return errorResponse(
+              res,
+              `파일이 너무 큽니다. 현재 플랜에서 ${limitMB}MB 까지 가능 — 영상 같은 큰 파일은 Google Drive 를 연결해 주세요.`,
+              413
+            );
+          }
         }
       } catch { /* plan 조회 실패 시 관대 통과 */ }
 

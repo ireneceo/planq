@@ -30,14 +30,58 @@ const MAX_VISIBLE = 3;
 const FADE_MS = 5000;
 
 // 짧은 ping 사운드 — Web Audio API. 외부 mp3 파일 의존성 X.
-// 사용자 first-gesture 후에만 작동 (브라우저 autoplay 정책). socket 알림 시점은 보통 이미 상호작용 후라 OK.
+//
+// Chrome autoplay 정책: AudioContext 는 사용자 gesture 안에서 만들어야 작동. socket 이벤트는
+// gesture 가 아님 → 이벤트 시점에 ctx 새로 만들면 suspended 채로 영구히 무음.
+//
+// 해결:
+//   1) 페이지 첫 user-gesture (click/keydown/touchstart) 시점에 단일 AudioContext 생성 + resume.
+//   2) 이후 ping 은 그 ctx 를 재사용 — Chrome 한도(동시 6개) 초과 위험 제거 + suspended race 제거.
+//   3) Safari/iOS 도 같은 정책. webkit prefix 폴백 유지.
+type WindowWithWebkit = Window & { webkitAudioContext?: typeof AudioContext };
+let unlockedCtx: AudioContext | null = null;
+let unlockTried = false;
+function ensureUnlock() {
+  if (unlockTried) return;
+  unlockTried = true;
+  const tryUnlock = () => {
+    try {
+      const Ctx = window.AudioContext || (window as WindowWithWebkit).webkitAudioContext;
+      if (!Ctx) return;
+      if (!unlockedCtx) unlockedCtx = new Ctx();
+      // 이 ensureUnlock 자체가 user gesture handler 안에서 호출됨 → resume 가 정상 처리됨
+      if (unlockedCtx.state === 'suspended') {
+        unlockedCtx.resume().catch(() => null);
+      }
+    } catch { /* silent */ }
+  };
+  // gesture 종류 어떤 거든 한 번이면 됨 — 핸들러 자체에서 unlock 시도
+  const handler = () => {
+    tryUnlock();
+    window.removeEventListener('click', handler);
+    window.removeEventListener('keydown', handler);
+    window.removeEventListener('touchstart', handler);
+  };
+  window.addEventListener('click', handler, { once: true });
+  window.addEventListener('keydown', handler, { once: true });
+  window.addEventListener('touchstart', handler, { once: true });
+}
+
 function playPing() {
   try {
-    type WindowWithWebkit = Window & { webkitAudioContext?: typeof AudioContext };
-    const Ctx = window.AudioContext || (window as WindowWithWebkit).webkitAudioContext;
-    if (!Ctx) return;
-    const ctx = new Ctx();
-    if (ctx.state === 'suspended') ctx.resume().catch(() => null);
+    if (!unlockedCtx || unlockedCtx.state === 'closed') {
+      // unlock 아직 안 됨 — Chrome 정책상 여기서 ctx 새로 만들어도 suspended 로 끝나 무음.
+      // ensureUnlock 가 다음 user gesture 에서 풀어줄 때까지 silent.
+      const Ctx = window.AudioContext || (window as WindowWithWebkit).webkitAudioContext;
+      if (!Ctx) return;
+      unlockedCtx = new Ctx();
+    }
+    const ctx = unlockedCtx;
+    if (ctx.state === 'suspended') {
+      // 이 시점이 user gesture 가 아니어서 resume 거부될 수 있음. 다음 gesture 에서 풀림.
+      ctx.resume().catch(() => null);
+      return;
+    }
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.connect(gain); gain.connect(ctx.destination);
@@ -49,7 +93,7 @@ function playPing() {
     gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.28);
     osc.start();
     osc.stop(ctx.currentTime + 0.3);
-    osc.onended = () => ctx.close().catch(() => null);
+    // ctx 는 닫지 않는다 — 다음 ping 재사용
   } catch { /* AudioContext 미지원 / 권한 차단 — silent */ }
 }
 
@@ -63,6 +107,11 @@ export default function NotificationToaster() {
   const timersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const activeConvIdRef = useRef<number | null>(null);
   const activePathRef = useRef<string>(location.pathname);
+
+  // 사운드 unlock — 마운트 직후 첫 user gesture 리스너 등록.
+  // socket 알림은 user gesture 가 아니라서 그 시점에 AudioContext 만들어도 Chrome 이 차단함.
+  // 페이지에서 사용자가 한 번이라도 클릭/키 입력/터치하면 자동으로 unlock.
+  useEffect(() => { ensureUnlock(); }, []);
 
   // 활성 컨텍스트 추적 — toast 가 같은 page/conv 에 떠 있으면 표시 X
   useEffect(() => {

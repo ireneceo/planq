@@ -64,23 +64,29 @@ const StorageSettings: React.FC<Props> = ({ businessId }) => {
     try {
       const r = await apiFetch(`/api/cloud/connect/${provider}/${businessId}`, { method: 'POST' });
       const j = await r.json();
-      if (j.success && j.data?.auth_url) {
-        const w = 540, h = 640;
-        const left = (window.screen.width - w) / 2;
-        const top = (window.screen.height - h) / 2;
-        window.open(j.data.auth_url, 'planq-oauth', `width=${w},height=${h},left=${left},top=${top}`);
-        // 팝업 닫힘 감지 (postMessage 없이 닫은 경우 재로드)
-        const timer = setInterval(async () => {
-          const pop = window.open('', 'planq-oauth');
-          if (pop && pop.closed) {
-            clearInterval(timer);
-            setConnecting(null);
-            await load();
-          }
-        }, 1500);
-      } else {
+      if (!j.success || !j.data?.auth_url) {
         setConnecting(null);
+        return;
       }
+      const w = 540, h = 640;
+      const left = (window.screen.width - w) / 2;
+      const top = (window.screen.height - h) / 2;
+      // 직접 popup 참조 보관 — 이름으로 다시 찾는 window.open('', 'name') 패턴은
+      // 명명창이 사라진 후 빈 새 창을 만들어내므로 절대 사용하지 않는다.
+      const popup = window.open(j.data.auth_url, 'planq-oauth', `width=${w},height=${h},left=${left},top=${top}`);
+      if (!popup) {
+        // 팝업 차단됨
+        setConnecting(null);
+        return;
+      }
+      // postMessage 가 도착하지 않은 채로 사용자가 popup 을 닫는 케이스 — 참조의 closed 만 폴링.
+      const timer = window.setInterval(() => {
+        if (popup.closed) {
+          window.clearInterval(timer);
+          // 약간의 grace — postMessage 가 unload 직전에 도달하는 경우가 있어 200ms 대기 후 상태 정리
+          window.setTimeout(() => { setConnecting(null); load(); }, 200);
+        }
+      }, 800);
     } catch {
       setConnecting(null);
     }

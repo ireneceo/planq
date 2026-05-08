@@ -204,6 +204,33 @@ async function ensureProjectFolder(drive, token, project) {
 }
 
 /**
+ * 대화(채팅) 첨부 공용 폴더 확보 — root 아래의 "Conversations" 단일 폴더.
+ * 채팅은 conversation 단위 폴더 분리 안 함 (개수 폭발 방지). 파일명에 conv id/제목 prefix 가
+ * 필요하면 호출부에서 처리. 폴더 ID 캐시는 token.conversations_folder_id (없으면 컬럼 추가 전까지 매번 lookup).
+ */
+async function ensureConversationsFolder(drive, token) {
+  if (token.conversations_folder_id) {
+    try {
+      const r = await drive.files.get({ fileId: token.conversations_folder_id, fields: 'id, trashed' });
+      if (r.data && !r.data.trashed) return token.conversations_folder_id;
+    } catch { /* 재생성 */ }
+  }
+  // 같은 이름 폴더 검색 후 재사용 (컬럼 캐시 없을 때 폴백)
+  try {
+    const q = `'${token.root_folder_id}' in parents and mimeType='application/vnd.google-apps.folder' and name='Conversations' and trashed=false`;
+    const list = await drive.files.list({ q, fields: 'files(id, name)', pageSize: 1 });
+    if (list.data.files && list.data.files.length > 0) {
+      const id = list.data.files[0].id;
+      try { await token.update({ conversations_folder_id: id }); } catch { /* 컬럼 없으면 silent */ }
+      return id;
+    }
+  } catch { /* skip — 새로 만들기 */ }
+  const folder = await createFolder(drive, 'Conversations', token.root_folder_id);
+  try { await token.update({ conversations_folder_id: folder.id }); } catch { /* 컬럼 없으면 silent */ }
+  return folder.id;
+}
+
+/**
  * Q Note 루트 폴더 확보 — BusinessCloudToken.qnote_folder_id 에 캐시
  * 없으면 root_folder 아래에 "Q Note" 폴더 생성
  */
@@ -286,6 +313,7 @@ module.exports = {
   renameFile,
   getTokenForBusiness,
   ensureProjectFolder,
+  ensureConversationsFolder,
   ensureQnoteRootFolder,
   ensureQnoteSessionFolder,
   startChangesWatch,

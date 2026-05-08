@@ -1,4 +1,4 @@
-// Q Talk 토탈 unread 카운트 — 사이드바 Q Talk 메뉴 뱃지 + 데스크탑 PWA dock 아이콘 숫자.
+// Q Talk 토탈 unread 카운트 — 사이드바 Q Talk 메뉴 뱃지용.
 //
 // 갱신 트리거 (단일 source of truth):
 //   - 마운트 시 1회 fetch
@@ -10,27 +10,14 @@
 // 핵심: useUnreadTotal 자체가 단일 socket 을 들고 있어 다른 페이지에 있을 때도 실시간 갱신.
 //       이전 구조는 QTalkPage 가 unmount 되면 'planq:unread-changed' dispatch 가 멈춰 좌측
 //       메뉴 뱃지가 stale 됐음.
+//
+// **OS App Badge 는 여기서 안 만진다** — 인박스 + 채팅 합산이 정확. MainLayout 의 합산 hook
+//   (useGlobalBadge) 가 단일 source 로 setAppBadge/clearAppBadge 책임. 이전 구조는 채팅
+//   unread 만 보고 badge 클리어해서 인박스 N 건 있어도 사라지는 버그가 있었음.
 import { useEffect, useState, useRef } from 'react';
 import { io, type Socket } from 'socket.io-client';
 import { useAuth, getAccessToken } from '../contexts/AuthContext';
 import * as qtalkApi from '../services/qtalk';
-
-// Badging API 타입 (TypeScript lib 미포함)
-interface NavigatorBadge {
-  setAppBadge?: (n?: number) => Promise<void>;
-  clearAppBadge?: () => Promise<void>;
-}
-
-function applyBadge(count: number) {
-  try {
-    const nav = navigator as Navigator & NavigatorBadge;
-    if (count > 0 && typeof nav.setAppBadge === 'function') {
-      nav.setAppBadge(count).catch(() => null);
-    } else if (count === 0 && typeof nav.clearAppBadge === 'function') {
-      nav.clearAppBadge().catch(() => null);
-    }
-  } catch { /* unsupported — silent */ }
-}
 
 export function useUnreadTotal(businessId: number | null | undefined): number {
   const [count, setCount] = useState(0);
@@ -38,17 +25,13 @@ export function useUnreadTotal(businessId: number | null | undefined): number {
   const socketRef = useRef<Socket | null>(null);
 
   useEffect(() => {
-    if (!businessId || !user) { setCount(0); applyBadge(0); return; }
+    if (!businessId || !user) { setCount(0); return; }
     let cancelled = false;
 
     const refresh = async () => {
       try {
         const r = await qtalkApi.getUnreadTotal(businessId);
-        if (!cancelled) {
-          const n = r.total || 0;
-          setCount(n);
-          applyBadge(n);
-        }
+        if (!cancelled) setCount(r.total || 0);
       } catch { /* silent */ }
     };
 

@@ -12,6 +12,11 @@
  * 패널 폭은 CSS 상수 PANEL_WIDTH 공유:
  *   min(420px, calc(100vw - 56px))
  * → 항상 왼쪽 56px 여백이 남아 햄버거 메뉴처럼 바깥 탭 가능.
+ *
+ * 디스커버리 보강 (2026-05-08):
+ *   - 첫 방문 1회 attention pulse (배경 컬러 펄스, 1.4s × 2회)
+ *   - 추가: 첫 방문 시 페이지 진입 직후 핸들 자체가 살짝 좌측으로 슬라이드 (peek) 했다가
+ *     원위치로 복귀 — 0.6s peek + 0.6s 복귀. "여기 뭔가 있다" 시각적 시그널을 한층 강화.
  */
 import React, { useEffect, useState } from 'react';
 import styled, { css, keyframes } from 'styled-components';
@@ -70,6 +75,14 @@ const attention = keyframes`
   50%  { background: #14B8A6; box-shadow: -2px 0 6px rgba(15, 23, 42, 0.06), 0 0 0 10px rgba(20, 184, 166, 0); }
   100% { background: #94A3B8; box-shadow: -2px 0 6px rgba(15, 23, 42, 0.06), 0 0 0 0 rgba(20, 184, 166, 0); }
 `;
+// peek — 핸들이 살짝 왼쪽으로 튀어나왔다가 (24px 폭으로 확장 + 좌측으로 약간 이동) 원위치로 복귀.
+// 첫 방문 한 번만 재생. attention 펄스와 동시에 발생하여 시각적 시그널 강화.
+const peek = keyframes`
+  0%   { width: 8px; transform: translate(0, -50%); }
+  35%  { width: 24px; transform: translate(-6px, -50%); }
+  70%  { width: 24px; transform: translate(-6px, -50%); }
+  100% { width: 8px; transform: translate(0, -50%); }
+`;
 
 const Handle = styled.button<{ $open: boolean; $pulse: boolean }>`
   position: fixed;
@@ -94,9 +107,9 @@ const Handle = styled.button<{ $open: boolean; $pulse: boolean }>`
   display: none;
   @media (max-width: 1200px) {
     display: block;
-    /* 최초 방문 1회 주목 펄스 (닫힌 상태 + shouldPulse 일 때만, localStorage 기억) */
+    /* 최초 방문 1회 주목 펄스 + peek 슬라이드 (닫힌 상태 + shouldPulse 일 때만, localStorage 기억) */
     ${({ $open, $pulse }) => !$open && $pulse && css`
-      animation: ${attention} 1.4s ease-out 2;
+      animation: ${attention} 1.4s ease-out 2, ${peek} 1.6s ease-out 1;
     `}
   }
 

@@ -197,14 +197,19 @@ const ChatPanel: React.FC<Props> = ({
 
   // 한 개 파일을 즉시 워크스페이스에 업로드 → fileId 받아서 stagedExistingIds 에 추가.
   // 진행 중엔 uploadingFiles 에 임시 chip 으로 노출 (이름 + 크기 + 스피너).
+  // **Drive 라우팅:** 활성 대화/프로젝트 컨텍스트를 함께 보내 워크스페이스가 Drive 연동되어 있으면
+  // 자동으로 Drive 의 Conversations/프로젝트 폴더로 업로드 (자체 스토리지 쿼터·사이즈 한도 우회).
   const uploadOne = async (file: File) => {
     if (!businessId) return;
     const tempId = `up-${Date.now()}-${Math.random().toString(36).slice(2)}`;
     setUploadingFiles(prev => [...prev, { tempId, name: file.name, size: file.size }]);
     try {
-      const r = await uploadMyFile(businessId, file);
+      const r = await uploadMyFile(businessId, file, {
+        conversationId: activeConv?.id ?? null,
+        projectId: project?.id ?? null,
+      });
       if (!r.success || !r.file) {
-        setUploadingFiles(prev => prev.map(x => x.tempId === tempId ? { ...x, error: r.message || '업로드 실패' } : x));
+        setUploadingFiles(prev => prev.map(x => x.tempId === tempId ? { ...x, error: r.message || t('chat.upload.failed', '업로드 실패') as string } : x));
         return;
       }
       const fid = Number(String(r.file.id).replace(/^direct-/, ''));
@@ -309,11 +314,23 @@ const ChatPanel: React.FC<Props> = ({
 
   // 메시지 리스트 스크롤 컨테이너 + 위치 영속
   const messageListRef = React.useRef<HTMLDivElement | null>(null);
+  // 메시지 리스트 끝의 sentinel — scrollHeight 계산 없이 "마지막 메시지 다음 위치"로 정확히 스크롤.
+  // 이미지 / 번역 / 카드 같은 비동기 콘텐츠가 나중에 추가되어 scrollHeight 가 변동해도 sentinel
+  // 자체가 끝에 있어 항상 바닥을 가리킴.
+  const messagesEndRef = React.useRef<HTMLDivElement | null>(null);
   const scrollKey = (convId: number | null | undefined) => convId ? `qtalk_scroll_${convId}` : null;
 
   const scrollToBottom = React.useCallback((smooth = true) => {
     const doIt = () => {
+      const sentinel = messagesEndRef.current;
       const el = messageListRef.current;
+      if (sentinel) {
+        // scrollIntoView block:'end' 가 가장 신뢰성 높음 — 이미지 미로드 상태에서도 sentinel 위치는 정확.
+        try {
+          sentinel.scrollIntoView({ block: 'end', inline: 'nearest', behavior: smooth ? 'smooth' : 'auto' });
+          return;
+        } catch { /* 구형 브라우저 fallback */ }
+      }
       if (!el) return;
       const target = el.scrollHeight - el.clientHeight;
       if (smooth && typeof el.scrollTo === 'function') {
@@ -324,6 +341,40 @@ const ChatPanel: React.FC<Props> = ({
     };
     window.requestAnimationFrame(() => { window.requestAnimationFrame(doIt); });
   }, []);
+
+  // 콘텐츠 크기 변화 감지 — 이미지 / 번역 박스 / 카드 같은 비동기 로드로 리스트 높이가 늘어날 때
+  // 사용자가 바닥 근처에 있다면 자동으로 다시 바닥. (멀리 위에 있다면 그대로 둠)
+  React.useEffect(() => {
+    const list = messageListRef.current;
+    if (!list || typeof ResizeObserver === 'undefined') return;
+    let lastSize = 0;
+    const ro = new ResizeObserver(() => {
+      const cur = list.scrollHeight;
+      if (cur === lastSize) return;
+      const grew = cur > lastSize;
+      lastSize = cur;
+      if (!grew) return;
+      const distance = list.scrollHeight - list.scrollTop - list.clientHeight;
+      // 240px 이내(이미지 한 장 정도) 면 바닥으로 따라가기. 초기 진입 직후엔 distance 가 0~큰값 모두
+      // 가능하므로 initialScrolledRef 와 무관하게 적용.
+      if (distance < 240) scrollToBottom(false);
+    });
+    ro.observe(list);
+    // 자식 변화도 감지 (메시지 카드 추가/제거)
+    const mo = new MutationObserver(() => {
+      const cur = list.scrollHeight;
+      if (cur !== lastSize) {
+        const grew = cur > lastSize;
+        lastSize = cur;
+        if (grew) {
+          const distance = list.scrollHeight - list.scrollTop - list.clientHeight;
+          if (distance < 240) scrollToBottom(false);
+        }
+      }
+    });
+    mo.observe(list, { childList: true, subtree: true });
+    return () => { ro.disconnect(); mo.disconnect(); };
+  }, [scrollToBottom]);
 
   // 스크롤 위치 localStorage 저장 (throttled via rAF)
   const saveScrollRaf = React.useRef(0);
@@ -606,6 +657,19 @@ const ChatPanel: React.FC<Props> = ({
               ))}
             </ChannelQuickSwitch>
           )}
+          {/* 도움말 — 우하단 FAB 가 채팅 입력란을 가려서 자동 숨김. 헤더에 인라인으로 노출. */}
+          <IconBtn
+            type="button"
+            onClick={() => window.dispatchEvent(new CustomEvent('cue:ask', { detail: {} }))}
+            title={t('chat.help', '도움말 / 피드백') as string}
+            aria-label={t('chat.help', '도움말 / 피드백') as string}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10"/>
+              <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
+              <line x1="12" y1="17" x2="12.01" y2="17"/>
+            </svg>
+          </IconBtn>
           {!isClient && onOpenSettings && (
             <IconBtn type="button" onClick={onOpenSettings} title={t('chat.openSettings', '채팅 설정') as string} aria-label={t('chat.openSettings', '채팅 설정') as string}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -873,6 +937,8 @@ const ChatPanel: React.FC<Props> = ({
           </MessageItem>
           );
         })}
+        {/* 스크롤 sentinel — scrollHeight 계산 없이 안정적으로 마지막 위치로 점프 가능 */}
+        <div ref={messagesEndRef} aria-hidden="true" style={{ height: 1 }} />
       </MessageList>
 
       {/* 입력창 */}
@@ -916,12 +982,23 @@ const ChatPanel: React.FC<Props> = ({
         {(uploadingFiles.length > 0 || stagedExistingIds.length > 0 || stagedPostIds.length > 0) && (
           <StagedRow>
             {uploadingFiles.map((u) => (
-              <StagedChip key={u.tempId} title={u.error || (t('chat.input.uploading', '업로드 중...') as string)}>
-                {u.error ? <ErrorDot /> : <UploadSpinner />}
-                <StagedName title={u.name}>{u.name}</StagedName>
-                <StagedSize>{(u.size / 1024).toFixed(0)}KB</StagedSize>
-                <StagedX type="button" onClick={() => removeUploading(u.tempId)} aria-label="remove">×</StagedX>
-              </StagedChip>
+              u.error ? (
+                <UploadErrorChip key={u.tempId} role="alert">
+                  <ErrorDot />
+                  <UploadErrorBody>
+                    <UploadErrorName title={u.name}>{u.name}</UploadErrorName>
+                    <UploadErrorMsg title={u.error}>{u.error}</UploadErrorMsg>
+                  </UploadErrorBody>
+                  <StagedX type="button" onClick={() => removeUploading(u.tempId)} aria-label="dismiss">×</StagedX>
+                </UploadErrorChip>
+              ) : (
+                <StagedChip key={u.tempId} title={t('chat.input.uploading', '업로드 중...') as string}>
+                  <UploadSpinner />
+                  <StagedName title={u.name}>{u.name}</StagedName>
+                  <StagedSize>{(u.size / 1024).toFixed(0)}KB</StagedSize>
+                  <StagedX type="button" onClick={() => removeUploading(u.tempId)} aria-label="remove">×</StagedX>
+                </StagedChip>
+              )
             ))}
             {stagedExistingIds.map(id => {
               const meta = stagedExistingMeta[id];
@@ -1019,6 +1096,7 @@ const Container = styled.main<{ $mobileHidden?: boolean }>`
   position: relative;
   flex: 1;
   min-width: 0;
+  min-height: 0;            /* flex column 자식 (메시지 리스트) 가 줄어들 수 있게 */
   background: #FFFFFF;
   display: flex;
   flex-direction: column;
@@ -1028,7 +1106,8 @@ const Container = styled.main<{ $mobileHidden?: boolean }>`
     width: 100%;
   }
   /* 모바일 키보드 대응 — 100vh 는 iOS Safari 에서 주소창 포함 잘못 계산.
-     100dvh (dynamic viewport) 가 키보드 올라올 때 줄어드는 정확한 viewport. */
+     100dvh (dynamic viewport) 가 키보드 올라올 때 줄어드는 정확한 viewport.
+     부모 Layout 도 100dvh 로 통일 (QTalkPage 의 Layout). */
   @media (max-width: 640px) {
     height: 100dvh;
     height: -webkit-fill-available;
@@ -1788,6 +1867,27 @@ const PostDot = styled.span`
 const ErrorDot = styled.span`
   width: 6px; height: 6px; border-radius: 50%;
   background: #EF4444; flex-shrink: 0;
+`;
+// 업로드 실패 — 에러 메시지를 chip 안에 명시적으로 노출 (모바일에선 hover 가 없어 title 만으론 부족)
+const UploadErrorChip = styled.div`
+  display: inline-flex; align-items: flex-start; gap: 8px;
+  padding: 6px 8px 6px 10px;
+  background: #FEF2F2; border: 1px solid #FECACA; border-radius: 6px;
+  color: #B91C1C; font-size: 11px;
+  min-width: 0; max-width: 320px;
+`;
+const UploadErrorBody = styled.div`
+  display: flex; flex-direction: column; gap: 2px;
+  min-width: 0; flex: 1;
+`;
+const UploadErrorName = styled.span`
+  font-weight: 600; color: #991B1B;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  max-width: 240px;
+`;
+const UploadErrorMsg = styled.span`
+  color: #B91C1C; line-height: 1.4;
+  white-space: normal; word-break: keep-all;
 `;
 const UploadSpinner = styled.span`
   width: 10px; height: 10px; border-radius: 50%;

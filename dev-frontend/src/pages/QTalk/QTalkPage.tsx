@@ -432,18 +432,33 @@ const QTalkPage: React.FC = () => {
 
   // 대화 선택 시 메시지 lazy-load — 프로젝트 단위 초기 로드에 포함되지 않은 독립 대화도
   // 활성화되는 순간 메시지를 불러온다. 이미 캐시된 대화는 skip.
+  // 일시적 네트워크 에러로 "히스토리가 다 날아가 보이는" 케이스 방지를 위해 1회 자동 재시도 (1.5s 후).
+  // 그래도 실패면 messages[id] 를 undefined 로 두어 사용자가 conv 재클릭 시 재시도되게 함.
   useEffect(() => {
     if (!activeConversationId) return;
     if (messages[activeConversationId] !== undefined) return; // 이미 로드됨
     let cancelled = false;
-    (async () => {
+    let retryTimer: number | null = null;
+    const load = async (attempt: number) => {
       try {
         const msgs = await qtalkApi.listConversationMessages(activeConversationId);
         if (cancelled) return;
         setMessages((prev) => ({ ...prev, [activeConversationId]: msgs.map(apiMessageToMock) }));
-      } catch { /* silent — 에러는 ChatPanel 빈 상태로 내려감 */ }
-    })();
-    return () => { cancelled = true; };
+      } catch (err) {
+        if (cancelled) return;
+        if (attempt === 0) {
+          retryTimer = window.setTimeout(() => { if (!cancelled) load(1); }, 1500);
+        } else {
+          // 두 번째도 실패 — 에러 로깅만, messages[id] 는 undefined 유지 → 사용자가 재클릭 시 재시도.
+          console.error('[qtalk] 메시지 로드 2회 실패:', err);
+        }
+      }
+    };
+    load(0);
+    return () => {
+      cancelled = true;
+      if (retryTimer) window.clearTimeout(retryTimer);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeConversationId]);
 
@@ -1237,11 +1252,16 @@ const ToastDot = styled.span`
 
 const Layout = styled.div`
   display: flex;
-  height: calc(100vh - 0px);
+  height: 100vh;
+  /* iOS Safari 주소창이 보일 때 100vh 가 viewport 보다 커지는 문제 — 입력란이 화면 아래로
+     밀려 가려진다. dvh(dynamic viewport height) 가 정확. fallback 으로 100vh 유지. */
+  height: 100dvh;
   background: #F8FAFC;
   overflow: hidden;
+  min-height: 0;
 
   @media (max-width: 1024px) {
     height: calc(100vh - 56px);
+    height: calc(100dvh - 56px);
   }
 `;

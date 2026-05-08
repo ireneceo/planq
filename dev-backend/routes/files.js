@@ -82,9 +82,10 @@ const storage = multer.diskStorage({
   }
 });
 
+// Drive 연동 시 영상 업로드 위해 5GB. 자체 스토리지/플랜 한도 검증은 라우트 핸들러에서.
 const upload = multer({
   storage,
-  limits: { fileSize: 50 * 1024 * 1024 }
+  limits: { fileSize: 5 * 1024 * 1024 * 1024 }
 });
 
 // ─── 헬퍼 ───
@@ -185,6 +186,8 @@ router.post('/:businessId', authenticateToken, checkBusinessAccess, upload.singl
     const businessId = Number(req.params.businessId);
     const projectId = req.body.project_id ? Number(req.body.project_id) : null;
     const folderId = req.body.folder_id ? Number(req.body.folder_id) : null;
+    // 채팅/대화에서 올라온 첨부 — project_id 없어도 Drive 의 "Conversations" 폴더로 라우팅 가능
+    const conversationId = req.body.conversation_id ? Number(req.body.conversation_id) : null;
 
     // 소유권 검증
     if (projectId && !(await verifyProjectOwnership(projectId, businessId))) {
@@ -196,11 +199,12 @@ router.post('/:businessId', authenticateToken, checkBusinessAccess, upload.singl
       return errorResponse(res, 'Invalid folder_id', 400);
     }
 
-    // 외부 클라우드 연동 확인 → 있으면 Google Drive 로 업로드 (쿼터 skip)
+    // 외부 클라우드 연동 확인 → 있으면 Google Drive 로 업로드 (자체 쿼터/사이즈 한도 모두 skip)
+    // 채팅 첨부 (conversationId) 도 Drive 로 라우팅 — 영상 같은 큰 파일이 자체 스토리지 쿼터를 잠식하지 않도록.
     const cloudToken = await BusinessCloudToken.findOne({
       where: { business_id: businessId, provider: 'gdrive' }
     });
-    const useGdrive = !!cloudToken && !!cloudToken.root_folder_id && projectId;
+    const useGdrive = !!cloudToken && !!cloudToken.root_folder_id && (projectId || conversationId);
 
     // plan engine 통합 체크 — 파일 크기 + 스토리지 쿼터 (외부 사용 시 쿼터 skip)
     // race condition 방지: 실제 usage 증가 트랜잭션은 아래에서 SELECT FOR UPDATE 로 원자화.
@@ -218,16 +222,21 @@ router.post('/:businessId', authenticateToken, checkBusinessAccess, upload.singl
     // === Drive 경로 ===
     if (useGdrive) {
       try {
-        const project = await Project.findByPk(projectId);
         const drive = await gdrive.getDriveClient(cloudToken);
-        // 프로젝트 폴더 확보
-        const projectFolderId = await gdrive.ensureProjectFolder(drive, cloudToken, project);
+        // 부모 폴더 결정 — 프로젝트면 프로젝트 폴더, 채팅이면 "Conversations" 공통 폴더
+        let parentFolderId;
+        if (projectId) {
+          const project = await Project.findByPk(projectId);
+          parentFolderId = await gdrive.ensureProjectFolder(drive, cloudToken, project);
+        } else {
+          parentFolderId = await gdrive.ensureConversationsFolder(drive, cloudToken);
+        }
         // 파일 업로드 (stream)
         const driveFile = await gdrive.uploadFile(drive, {
           name: req.file.originalname,
           mimeType: req.file.mimetype,
           body: fs.createReadStream(tempPath),
-          parentId: projectFolderId
+          parentId: parentFolderId
         });
         // DB 에 메타 저장
         const file = await File.create({
