@@ -44,6 +44,54 @@ export interface SignatureCardMeta {
   note: string | null;
 }
 
+// 통합 공유 6차 — 4 entity 카드 (task/file/kb_document/calendar_event)
+export interface TaskCardMeta {
+  card_type: 'task';
+  task_id: number;
+  share_token: string;
+  share_url: string;
+  title: string;
+  note: string | null;
+  status?: string;
+  due_date?: string | null;
+  has_password?: boolean;
+}
+
+export interface FileCardMeta {
+  card_type: 'file';
+  file_id: number;
+  share_token: string;
+  share_url: string;
+  title: string;
+  note: string | null;
+  mime_type?: string | null;
+  file_size?: number;
+  has_password?: boolean;
+}
+
+export interface KbDocCardMeta {
+  card_type: 'kb_document';
+  kb_id: number;
+  share_token: string;
+  share_url: string;
+  title: string;
+  note: string | null;
+  source_type?: string | null;
+  has_password?: boolean;
+}
+
+export interface CalendarEventCardMeta {
+  card_type: 'calendar_event';
+  event_id: number;
+  share_token: string;
+  share_url: string;
+  title: string;
+  note: string | null;
+  start_at?: string;
+  end_at?: string;
+  has_password?: boolean;
+}
+
 export interface InvoiceCardMeta {
   card_type: 'invoice';
   invoice_id: number;
@@ -82,7 +130,7 @@ export interface MockMessage {
   };
   ai_sources?: { doc_id: number; title: string; section: string; snippet: string }[];
   attachments?: { id: number; file_name: string; file_size: number; mime_type?: string | null }[];
-  card?: PostCardMeta | SignatureCardMeta | InvoiceCardMeta | null;
+  card?: PostCardMeta | SignatureCardMeta | InvoiceCardMeta | TaskCardMeta | FileCardMeta | KbDocCardMeta | CalendarEventCardMeta | null;
   translations?: Partial<Record<'ko'|'en'|'ja'|'zh'|'es', string>> | null;
   detected_language?: 'ko'|'en'|'ja'|'zh'|'es' | null;
 }

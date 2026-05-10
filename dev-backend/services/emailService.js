@@ -352,6 +352,41 @@ async function sendPostShareEmail({ to, docTitle, senderName, workspaceName, mes
   });
 }
 
+// 통합 공유 5차 — entity 무관 일반 공유 메일 (task/file/kb_document/calendar_event)
+const ENTITY_LABEL = {
+  task:           { ko: '업무',     cta: '업무 보기',     password_hint_ko: '업무를 보려면 비밀번호를 입력하세요.' },
+  file:           { ko: '파일',     cta: '파일 열기',     password_hint_ko: '파일을 보려면 비밀번호를 입력하세요.' },
+  kb_document:    { ko: '대화 자료', cta: '자료 보기',    password_hint_ko: '자료를 보려면 비밀번호를 입력하세요.' },
+  calendar_event: { ko: '일정',     cta: '일정 보기',     password_hint_ko: '일정을 보려면 비밀번호를 입력하세요.' },
+};
+
+function entityShareEmailHtml({ entityType, entityTitle, senderName, workspaceName, message, shareUrl, hasPassword }) {
+  const label = ENTITY_LABEL[entityType] || { ko: '항목', cta: '열기' };
+  const body = `
+    <div style="font-size:14px;color:#64748B;margin-bottom:6px;">
+      <b>${escapeHtml(senderName || '')}</b>${workspaceName ? ` · ${escapeHtml(workspaceName)}` : ''} 님이 ${label.ko}을 공유했습니다.
+    </div>
+    <div style="font-size:18px;font-weight:700;color:#0F172A;line-height:1.4;">${escapeHtml(entityTitle)}</div>
+    ${quoteBlock(message)}
+    <div style="margin-top:20px;text-align:center;">
+      ${ctaButton(shareUrl, label.cta)}
+    </div>
+    ${hasPassword ? `<div style="margin-top:14px;padding:10px 14px;background:#F0FDFA;border-left:3px solid #14B8A6;font-size:12px;color:#0F766E;border-radius:4px;">${escapeHtml(label.password_hint_ko)}</div>` : ''}
+    ${fallbackLink(shareUrl)}`;
+  return emailWrap({ title: entityTitle, body, footerOptions: { workspaceName } });
+}
+
+async function sendEntityShareEmail({ to, entityType, entityTitle, senderName, workspaceName, message, shareUrl, hasPassword }) {
+  if (!to) return false;
+  const label = ENTITY_LABEL[entityType] || { ko: '항목' };
+  const subject = `[${PLATFORM.brand}] ${senderName || ''}님이 "${entityTitle}" ${label.ko}을 공유했습니다`;
+  return sendEmail({
+    to, subject,
+    html: entityShareEmailHtml({ entityType, entityTitle, senderName, workspaceName, message, shareUrl, hasPassword }),
+    template: 'entity_share', relatedEntityType: entityType,
+  });
+}
+
 // ═══════════════════════════════════════════════════════════════
 // 3. 서명 요청 (외부 서명자)
 // ═══════════════════════════════════════════════════════════════
@@ -696,7 +731,7 @@ async function sendSignupVerifyEmail({ to, name, verifyToken, ttlHours = 72 }) {
 
 module.exports = {
   sendEmail,
-  sendInviteEmail, sendPostShareEmail, sendSignatureRequestEmail, sendSignatureOtpEmail,
+  sendInviteEmail, sendPostShareEmail, sendEntityShareEmail, sendSignatureRequestEmail, sendSignatureOtpEmail,
   sendInvoiceEmail, sendVerificationCodeEmail,
   sendBillingInstructionEmail,
   sendInquiryReceivedEmail,

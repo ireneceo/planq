@@ -54,6 +54,8 @@ export interface WeeklyReview {
 
 export interface WeeklyReviewListItem {
   id: number;
+  user_id?: number;
+  user_name?: string | null;
   week_start: string;
   week_end: string;
   finalized_at: string;
@@ -91,16 +93,16 @@ export async function createWeeklyReview(params: {
   return json.data;
 }
 
-// 누적 결산 목록
+// 누적 결산 목록 — user_id='all' 이면 워크스페이스 전체 (owner 만)
 export async function listWeeklyReviews(params: {
   business_id: number;
-  user_id?: number;
+  user_id?: number | 'all';
   limit?: number;
   before?: string;
 }): Promise<WeeklyReviewListItem[]> {
   const sp = new URLSearchParams();
   sp.set('business_id', String(params.business_id));
-  if (params.user_id) sp.set('user_id', String(params.user_id));
+  if (params.user_id !== undefined && params.user_id !== null) sp.set('user_id', String(params.user_id));
   if (params.limit) sp.set('limit', String(params.limit));
   if (params.before) sp.set('before', params.before);
 

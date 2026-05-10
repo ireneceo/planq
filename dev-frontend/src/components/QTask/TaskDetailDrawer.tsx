@@ -9,6 +9,7 @@ import CalendarPicker from '../Common/CalendarPicker';
 import SingleDateField from '../Common/SingleDateField';
 import PlanQSelect from '../Common/PlanQSelect';
 import RichEditor from '../Common/RichEditor';
+import ShareModal from '../Common/ShareModal';
 import {
   buildPresetRRule, buildCustomRRule,
   type RecurPreset, type RecurEndType, type RecurCustomUnit,
@@ -189,6 +190,8 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
   const [commentExistingFileIds, setCommentExistingFileIds] = useState<number[]>([]);
   const [commentExistingPostIds, setCommentExistingPostIds] = useState<number[]>([]);
   const [commentSending, setCommentSending] = useState(false);
+  // 공유 모달 — 통합 ShareModal
+  const [shareOpen, setShareOpen] = useState(false);
   // 댓글 편집/삭제 — 본인 댓글만 (메시지 정책과 동일)
   const [editingCommentId, setEditingCommentId] = useState<number | null>(null);
   const [editingCommentDraft, setEditingCommentDraft] = useState('');
@@ -576,6 +579,13 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
           {saveStatus === 'saved' && <><CheckIcon size={11} style={{ verticalAlign: '-1px' }} /> {t('save.saved', '저장됨')}</>}
           {saveStatus === 'error' && <>! {t('save.error', '저장 실패')}</>}
         </SaveStatusPill>
+        {detailTask && (
+          <ShareIconBtn type="button" onClick={() => setShareOpen(true)}
+            title={t('detail.share', { defaultValue: '공유' }) as string}
+            aria-label={t('detail.share', { defaultValue: '공유' }) as string}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+          </ShareIconBtn>
+        )}
         <CloseBtn onClick={onClose} title={t('detail.close', '닫기') as string}>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
         </CloseBtn>
@@ -1320,6 +1330,15 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
         })()}
       </Scroll>
     </Drawer>
+    {detailTask && (
+      <ShareModal
+        open={shareOpen}
+        entityType="task"
+        entityId={detailTask.id}
+        entityTitle={detailTask.title}
+        onClose={() => setShareOpen(false)}
+      />
+    )}
   </>);
 };
 
@@ -1371,6 +1390,7 @@ const ResizeHandle = styled.div`
 const DrawerHeader = styled.div`height:60px;padding:14px 20px;border-bottom:1px solid #E2E8F0;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;`;
 const BackBtn = styled.button`display:flex;align-items:center;gap:4px;background:transparent;border:none;color:#0F766E;font-size:12px;font-weight:600;cursor:pointer;padding:0;outline:none;&:hover{color:#134E4A;}&:focus{outline:none;}&:focus-visible{outline:2px solid #14B8A6;outline-offset:2px;border-radius:4px;}`;
 const CloseBtn = styled.button`width:28px;height:28px;display:flex;align-items:center;justify-content:center;background:transparent;border:none;border-radius:6px;color:#64748B;cursor:pointer;outline:none;&:hover{background:#F1F5F9;color:#0F172A;}&:focus{outline:none;}&:focus-visible{outline:2px solid #14B8A6;outline-offset:-2px;}`;
+const ShareIconBtn = styled.button`width:28px;height:28px;display:flex;align-items:center;justify-content:center;background:transparent;border:none;border-radius:6px;color:#0F766E;cursor:pointer;outline:none;transition:background 0.15s;&:hover{background:#F0FDFA;color:#134E4A;}&:focus-visible{outline:2px solid #14B8A6;outline-offset:-2px;}`;
 const SaveStatusPill = styled.span<{ $status: 'idle'|'saving'|'saved'|'error' }>`
   display:inline-flex;align-items:center;gap:4px;margin-left:auto;padding:3px 10px;border-radius:999px;font-size:11px;font-weight:600;
   opacity:${p => p.$status === 'idle' ? 0 : 1};transition:opacity 0.2s;

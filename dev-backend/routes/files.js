@@ -12,7 +12,7 @@ const { sequelize } = require('../config/database');
 const gdrive = require('../services/gdrive');
 const planEngine = require('../services/plan');
 const { authenticateToken, checkBusinessAccess } = require('../middleware/auth');
-const { attachWorkspaceScope, fileListWhere, isMemberOrAbove } = require('../middleware/access_scope');
+const { attachWorkspaceScope, fileListWhere, isMemberOrAbove, getUserScope } = require('../middleware/access_scope');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 
 const uploadDir = path.join(__dirname, '..', 'uploads');
@@ -20,6 +20,137 @@ if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
 
 // 플랜별 쿼터는 services/plan.js + config/plans.js 에서 관리.
 // 이 파일은 plan engine 경유로만 접근.
+
+// ============================================
+// 공유 링크 (사이클 N+4 — 통합 공유 시스템 Phase 2)
+// 라우트 순서 우선이므로 기존 :businessId/:id 패턴 라우트보다 위에 정의.
+// :id 가 숫자가 아니면 next() 로 다음 라우트에 양보 (e.g. /by-token/...).
+// ============================================
+router.post('/:id/share', authenticateToken, async (req, res, next) => {
+  // :id 가 숫자가 아니면 다음 라우트로 넘김 (e.g. /api/files/by-token/...)
+  if (!/^\d+$/.test(String(req.params.id))) return next();
+  try {
+    const file = await File.findByPk(req.params.id);
+    if (!file || file.deleted_at) return errorResponse(res, 'file_not_found', 404);
+    const scope = await getUserScope(req.user.id, file.business_id, req.user.platform_role);
+    if (!isMemberOrAbove(scope)) return errorResponse(res, 'forbidden', 403);
+
+    const { applyShareUpdate } = require('../services/share_helper');
+    const r = await applyShareUpdate(file, req.body || {});
+    const url = `${process.env.APP_URL || 'https://dev.planq.kr'}/public/files/${r.token}`;
+    return successResponse(res, {
+      share_token: r.token,
+      share_url: url,
+      shared_at: r.shared_at,
+      share_expires_at: r.share_expires_at,
+      password_set: r.password_set,
+    });
+  } catch (err) { next(err); }
+});
+
+router.delete('/:id/share', authenticateToken, async (req, res, next) => {
+  if (!/^\d+$/.test(String(req.params.id))) return next();
+  try {
+    const file = await File.findByPk(req.params.id);
+    if (!file || file.deleted_at) return errorResponse(res, 'file_not_found', 404);
+    const scope = await getUserScope(req.user.id, file.business_id, req.user.platform_role);
+    if (!isMemberOrAbove(scope)) return errorResponse(res, 'forbidden', 403);
+    await file.update({
+      share_token: null,
+      shared_at: null,
+      share_password_hash: null,
+      share_expires_at: null,
+    });
+    return successResponse(res, { revoked: true });
+  } catch (err) { next(err); }
+});
+
+router.get('/public/by-token/:token', async (req, res, next) => {
+  try {
+    const file = await File.findOne({
+      where: {
+        share_token: req.params.token,
+        deleted_at: null,
+        [Op.or]: [
+          { share_expires_at: null },
+          { share_expires_at: { [Op.gt]: new Date() } },
+        ],
+      },
+      include: [
+        { model: User, as: 'uploader', attributes: ['id', 'name'], required: false },
+        { model: Business, attributes: ['id', 'name', 'brand_name'], required: false },
+      ],
+      attributes: ['id', 'file_name', 'mime_type', 'file_size', 'storage_provider',
+        'shared_at', 'share_expires_at', 'share_password_hash', 'business_id', 'created_at'],
+    });
+    if (!file) return errorResponse(res, 'not_found_or_expired', 404);
+    const { verifySharePassword } = require('../services/share_helper');
+    const v = await verifySharePassword(file, req);
+    if (!v.ok) return res.status(v.status).json({ success: false, message: v.error, requires_password: v.requires_password });
+    return successResponse(res, {
+      id: file.id,
+      file_name: file.file_name,
+      mime_type: file.mime_type,
+      file_size: Number(file.file_size),
+      storage_provider: file.storage_provider,
+      uploader: file.uploader ? { id: file.uploader.id, name: file.uploader.name } : null,
+      workspace: file.Business ? { id: file.Business.id, name: file.Business.brand_name || file.Business.name } : null,
+      shared_at: file.shared_at,
+      created_at: file.created_at,
+    });
+  } catch (err) { next(err); }
+});
+
+router.get('/public/by-token/:token/auth-check', authenticateToken, async (req, res, next) => {
+  try {
+    const file = await File.findOne({
+      where: {
+        share_token: req.params.token,
+        deleted_at: null,
+        [Op.or]: [
+          { share_expires_at: null },
+          { share_expires_at: { [Op.gt]: new Date() } },
+        ],
+      },
+    });
+    if (!file) return errorResponse(res, 'not_found_or_expired', 404);
+    const scope = await getUserScope(req.user.id, file.business_id, req.user.platform_role);
+    const canAccess = isMemberOrAbove(scope);
+    return successResponse(res, {
+      canAccess,
+      appUrl: canAccess ? `/file?file=${file.id}` : null,
+    });
+  } catch (err) { next(err); }
+});
+
+router.get('/public/by-token/:token/download', async (req, res, next) => {
+  try {
+    const file = await File.findOne({
+      where: {
+        share_token: req.params.token,
+        deleted_at: null,
+        [Op.or]: [
+          { share_expires_at: null },
+          { share_expires_at: { [Op.gt]: new Date() } },
+        ],
+      },
+    });
+    if (!file) return errorResponse(res, 'not_found_or_expired', 404);
+    const { verifySharePassword } = require('../services/share_helper');
+    const v = await verifySharePassword(file, req);
+    if (!v.ok) return res.status(v.status).json({ success: false, message: v.error, requires_password: v.requires_password });
+    if (file.storage_provider !== 'planq') {
+      if (file.external_url) return res.redirect(file.external_url);
+      return errorResponse(res, 'external_file_no_url', 400);
+    }
+    if (!fs.existsSync(file.file_path)) return errorResponse(res, 'file_missing_on_disk', 410);
+    const inline = String(req.query.inline || '') === '1';
+    res.setHeader('Content-Type', file.mime_type || 'application/octet-stream');
+    res.setHeader('Content-Disposition',
+      `${inline ? 'inline' : 'attachment'}; filename*=UTF-8''${encodeURIComponent(file.file_name)}`);
+    fs.createReadStream(file.file_path).pipe(res);
+  } catch (err) { next(err); }
+});
 
 // ─── 공개 다운로드 (인증 없음) ───
 // ─── Public image (이미지 썸네일/미리보기 — <img src> 호환) ───

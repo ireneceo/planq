@@ -115,6 +115,10 @@ function apiMessageToMock(m: qtalkApi.ApiMessage): MockMessage {
       if (ct === 'post') return m.meta as unknown as import('./types').PostCardMeta;
       if (ct === 'signature_request') return m.meta as unknown as import('./types').SignatureCardMeta;
       if (ct === 'invoice') return m.meta as unknown as import('./types').InvoiceCardMeta;
+      if (ct === 'task') return m.meta as unknown as import('./types').TaskCardMeta;
+      if (ct === 'file') return m.meta as unknown as import('./types').FileCardMeta;
+      if (ct === 'kb_document') return m.meta as unknown as import('./types').KbDocCardMeta;
+      if (ct === 'calendar_event') return m.meta as unknown as import('./types').CalendarEventCardMeta;
       return null;
     })(),
     translations: m.translations ?? null,

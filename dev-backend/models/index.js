@@ -326,6 +326,9 @@ TaskTemplateItem.belongsTo(TaskTemplate, { as: 'template', foreignKey: 'template
 PushSubscription.belongsTo(User, { foreignKey: 'user_id' });
 PushSubscription.belongsTo(Business, { foreignKey: 'business_id' });
 
+// PushLog — admin 모니터링용 (사이클 N+3)
+PushLog.belongsTo(User, { foreignKey: 'user_id', as: 'user' });
+
 // TaskStatusHistory
 TaskStatusHistory.belongsTo(Task, { foreignKey: 'task_id', onDelete: 'CASCADE' });
 TaskStatusHistory.belongsTo(User, { as: 'actor', foreignKey: 'actor_user_id' });

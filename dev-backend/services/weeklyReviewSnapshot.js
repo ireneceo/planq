@@ -54,13 +54,12 @@ async function buildSnapshot(userId, businessId, weekStart, weekEnd) {
   try {
     const member = await BusinessMember.findOne({
       where: { user_id: userId, business_id: businessId },
-      attributes: ['daily_work_hours', 'business_days', 'efficiency_rate'],
+      attributes: ['daily_work_hours', 'weekly_work_days'],
     });
     if (member) {
       const daily = Number(member.daily_work_hours) || 8;
-      const days = Number(member.business_days) || 5;
-      const rate = Number(member.efficiency_rate) || 1;
-      capacity_hours = Math.round(daily * days * rate);
+      const days = Number(member.weekly_work_days) || 5;
+      capacity_hours = Math.round(daily * days);
     }
   } catch (e) {
     console.error('[weeklyReviewSnapshot] capacity fetch error:', e.message);
@@ -145,13 +144,12 @@ async function getUserCapacity(userId, businessId) {
   try {
     const member = await BusinessMember.findOne({
       where: { user_id: userId, business_id: businessId },
-      attributes: ['daily_work_hours', 'business_days', 'efficiency_rate'],
+      attributes: ['daily_work_hours', 'weekly_work_days'],
     });
     if (member) {
       const daily = Number(member.daily_work_hours) || 8;
-      const days = Number(member.business_days) || 5;
-      const rate = Number(member.efficiency_rate) || 1;
-      return Math.round(daily * days * rate);
+      const days = Number(member.weekly_work_days) || 5;
+      return Math.round(daily * days);
     }
   } catch (e) {
     console.error('[weeklyReviewSnapshot] getUserCapacity error:', e.message);

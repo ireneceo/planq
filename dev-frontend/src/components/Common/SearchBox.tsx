@@ -56,7 +56,7 @@ export default SearchBox;
 // ─── styled ───
 const Wrap = styled.label<{ $size: 'sm' | 'md'; $w?: number | string; $disabled: boolean }>`
   display:inline-flex;align-items:center;gap:6px;
-  height:36px;
+  box-sizing:border-box; height:36px;
   padding:0 6px 0 10px;
   ${p => p.$w !== undefined ? `width:${typeof p.$w === 'number' ? `${p.$w}px` : p.$w};` : ''}
   background:#F1F5F9;border:1px solid #E2E8F0;border-radius:8px;

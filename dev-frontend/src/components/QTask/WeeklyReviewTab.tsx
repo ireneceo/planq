@@ -12,27 +12,34 @@ import {
   type WeeklyReviewListItem,
 } from '../../services/weeklyReview';
 import WeeklyReviewView from './WeeklyReviewView';
+import PlanQSelect, { type PlanQSelectOption } from '../Common/PlanQSelect';
+import SearchBox from '../Common/SearchBox';
 
 interface Props {
   businessId: number;
   userId: number;
+  // 'workspace' 면 워크스페이스 전체 (owner 만), 카드에 user_name 표시
+  reviewScope?: 'mine' | 'workspace';
 }
 
-const WeeklyReviewTab: React.FC<Props> = ({ businessId, userId }) => {
+const WeeklyReviewTab: React.FC<Props> = ({ businessId, userId, reviewScope = 'mine' }) => {
   const { t } = useTranslation('qtask');
   const [reviews, setReviews] = useState<WeeklyReviewListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [autoEnabled, setAutoEnabled] = useState(true);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [hasMore, setHasMore] = useState(false);
+  // workspace 모드 — 멤버 필터 + 검색
+  const [memberFilter, setMemberFilter] = useState<number | 'all'>('all');
+  const [search, setSearch] = useState('');
 
   const load = useCallback(async (append = false) => {
     try {
       const before = append && reviews.length > 0 ? reviews[reviews.length - 1].week_start : undefined;
       const list = await listWeeklyReviews({
         business_id: businessId,
-        user_id: userId,
-        limit: 12,
+        user_id: reviewScope === 'workspace' ? 'all' : userId,
+        limit: reviewScope === 'workspace' ? 50 : 12,
         before,
       });
       if (append) {
@@ -46,7 +53,7 @@ const WeeklyReviewTab: React.FC<Props> = ({ businessId, userId }) => {
     } finally {
       setLoading(false);
     }
-  }, [businessId, userId, reviews]);
+  }, [businessId, userId, reviewScope, reviews]);
 
   useEffect(() => {
     load();
@@ -60,7 +67,7 @@ const WeeklyReviewTab: React.FC<Props> = ({ businessId, userId }) => {
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [businessId, userId]);
+  }, [businessId, userId, reviewScope]);
 
   const toggleAuto = async () => {
     const newVal = !autoEnabled;
@@ -94,7 +101,36 @@ const WeeklyReviewTab: React.FC<Props> = ({ businessId, userId }) => {
     <Container>
       <Header>
         <HeaderLeft>
-          <Title>{t('tab.weeklyReview', '주간 보고')}</Title>
+          {reviewScope === 'workspace' && (() => {
+            const memberOpts: PlanQSelectOption[] = [
+              { value: 'all', label: t('weeklyReview.filter.allMembers', { defaultValue: '전체 멤버' }) as string },
+              ...[...new Map(reviews.filter(r => r.user_id && r.user_name).map(r => [r.user_id, r.user_name])).entries()].map(([uid, name]) => ({
+                value: String(uid), label: String(name || ''),
+              })),
+            ];
+            return (
+              <div style={{ minWidth: 160 }}>
+                <PlanQSelect
+                  size="sm"
+                  isClearable={false}
+                  isSearchable={false}
+                  value={memberOpts.find(o => o.value === String(memberFilter)) || memberOpts[0]}
+                  options={memberOpts}
+                  onChange={(opt) => {
+                    const v = (opt as PlanQSelectOption)?.value;
+                    setMemberFilter(v === 'all' ? 'all' : Number(v));
+                  }}
+                />
+              </div>
+            );
+          })()}
+          <SearchBox
+            placeholder={t('weeklyReview.filter.search', { defaultValue: '주차·메모 검색' }) as string}
+            value={search}
+            onChange={setSearch}
+            width={200}
+            size="md"
+          />
           <Count>{reviews.length}</Count>
         </HeaderLeft>
         <AutoToggle>
@@ -118,17 +154,30 @@ const WeeklyReviewTab: React.FC<Props> = ({ businessId, userId }) => {
       ) : (
         <>
           <CardList>
-            {reviews.map(r => (
+            {reviews
+              .filter(r => reviewScope !== 'workspace' || memberFilter === 'all' || r.user_id === memberFilter)
+              .filter(r => {
+                if (!search.trim()) return true;
+                const q = search.toLowerCase();
+                return String(r.week_start).includes(q)
+                  || String(r.week_end).includes(q)
+                  || (r.retro_note || '').toLowerCase().includes(q)
+                  || (r.user_name || '').toLowerCase().includes(q);
+              })
+              .map(r => (
               <Card key={r.id} onClick={() => setSelectedId(r.id)}>
                 <CardHeader>
-                  <WeekLabel>{weekLabel(r.week_start)}</WeekLabel>
+                  <WeekLabel>
+                    {weekLabel(r.week_start)}
+                    {reviewScope === 'workspace' && r.user_name && <UserChip>{r.user_name}</UserChip>}
+                  </WeekLabel>
                   <Badge $auto={r.finalized_by === 'auto'}>
                     {r.finalized_by === 'auto'
                       ? t('weeklyReview.tab.autoBadge', '자동')
                       : t('weeklyReview.tab.manualBadge', '수동')}
                   </Badge>
                 </CardHeader>
-                <CardPeriod>{r.week_start} ~ {r.week_end}</CardPeriod>
+                <CardPeriod>{String(r.week_start).slice(0, 10)} ~ {String(r.week_end).slice(0, 10)}</CardPeriod>
                 {r.summary && (
                   <CardSummary>
                     <SummaryItem>
@@ -174,14 +223,9 @@ const HeaderLeft = styled.div`
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-wrap: wrap;
 `;
 
-const Title = styled.h2`
-  margin: 0;
-  font-size: 18px;
-  font-weight: 700;
-  color: #1e293b;
-`;
 
 const Count = styled.span`
   background: #f1f5f9;
@@ -283,6 +327,11 @@ const WeekLabel = styled.span`
   font-size: 15px;
   font-weight: 600;
   color: #1e293b;
+  display: inline-flex; align-items: center; gap: 8px;
+`;
+const UserChip = styled.span`
+  font-size: 11px; font-weight: 600; color: #0F766E;
+  background: #F0FDFA; padding: 2px 8px; border-radius: 999px;
 `;
 
 const Badge = styled.span<{ $auto: boolean }>`

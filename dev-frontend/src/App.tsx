@@ -39,12 +39,17 @@ const BriefViewerPage = lazy(() => import('./pages/QDocs/BriefViewerPage'));
 const ReceivedSignaturesPage = lazy(() => import('./pages/Signatures/ReceivedSignaturesPage'));
 const PublicDocPage = lazy(() => import('./pages/QDocs/PublicDocPage'));
 const PublicPostPage = lazy(() => import('./pages/QDocs/PublicPostPage'));
+const PublicTaskPage = lazy(() => import('./pages/Public/PublicTaskPage'));
+const PublicFilePage = lazy(() => import('./pages/Public/PublicFilePage'));
+const PublicKbDocumentPage = lazy(() => import('./pages/Public/PublicKbDocumentPage'));
+const PublicCalendarEventPage = lazy(() => import('./pages/Public/PublicCalendarEventPage'));
 const PublicSignPage = lazy(() => import('./pages/QDocs/PublicSignPage'));
 const PublicInvoicePage = lazy(() => import('./pages/QBill/PublicInvoicePage'));
 const QFilePage = lazy(() => import('./pages/QFile/QFilePage'));
 const AdminBusinessesPage = lazy(() => import('./pages/Admin/AdminBusinessesPage'));
 const AdminFeedbackPage = lazy(() => import('./pages/Admin/AdminFeedbackPage'));
 const AdminEmailLogsPage = lazy(() => import('./pages/Admin/AdminEmailLogsPage'));
+const AdminPushLogsPage = lazy(() => import('./pages/Admin/AdminPushLogsPage'));
 const AdminPlatformSettingsPage = lazy(() => import('./pages/Admin/AdminPlatformSettingsPage'));
 const AdminSubscriptionsPage = lazy(() => import('./pages/Admin/AdminSubscriptionsPage'));
 const AdminPaymentsPage = lazy(() => import('./pages/Admin/AdminPaymentsPage'));
@@ -317,6 +322,11 @@ function App() {
             <MainLayout><AdminEmailLogsPage /></MainLayout>
           </ProtectedRoute>
         } />
+        <Route path="/admin/push-logs" element={
+          <ProtectedRoute requiredRole={['platform_admin']}>
+            <MainLayout><AdminPushLogsPage /></MainLayout>
+          </ProtectedRoute>
+        } />
         <Route path="/admin/platform-settings" element={
           <ProtectedRoute requiredRole={['platform_admin']}>
             <MainLayout><AdminPlatformSettingsPage /></MainLayout>
@@ -367,6 +377,10 @@ function App() {
         <Route path="/invite/:token" element={<InvitePage />} />
         <Route path="/public/docs/:token" element={<PublicDocPage />} />
         <Route path="/public/posts/:token" element={<PublicPostPage />} />
+        <Route path="/public/tasks/:token" element={<PublicTaskPage />} />
+        <Route path="/public/files/:token" element={<PublicFilePage />} />
+        <Route path="/public/kb/:token" element={<PublicKbDocumentPage />} />
+        <Route path="/public/calendar/:token" element={<PublicCalendarEventPage />} />
         <Route path="/public/invoices/:token" element={<PublicInvoicePage />} />
         <Route path="/sign/:token" element={<PublicSignPage />} />
 

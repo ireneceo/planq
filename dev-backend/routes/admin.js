@@ -179,6 +179,95 @@ router.get('/plans/catalog', async (_req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// ─── 사이클 N+4 — Web Push 발송 모니터링 ───
+// GET /api/admin/push-logs?status=&user_id=&page=&limit=
+//   각 발송 시도 1 row. 운영 가시성·실패율·abuse 추적.
+router.get('/push-logs', async (req, res, next) => {
+  try {
+    const { PushLog } = require('../models');
+    const where = {};
+    if (req.query.status) where.status = String(req.query.status);
+    if (req.query.user_id) where.user_id = Number(req.query.user_id);
+    if (req.query.category) where.category = String(req.query.category);
+    const limit = Math.min(Number(req.query.limit) || 50, 200);
+    const page = Math.max(Number(req.query.page) || 1, 1);
+    const { count, rows } = await PushLog.findAndCountAll({
+      where,
+      include: [{ model: User, as: 'user', attributes: ['id', 'name', 'email'], required: false }],
+      order: [['created_at', 'DESC']],
+      limit,
+      offset: (page - 1) * limit,
+    });
+    return res.json({
+      success: true,
+      data: rows.map(r => r.toJSON()),
+      pagination: { page, limit, total: count },
+    });
+  } catch (err) { next(err); }
+});
+
+// GET /api/admin/push-logs/stats — 7일 통계 + status 분포 + endpoint host top + 실패율
+router.get('/push-logs/stats', async (req, res, next) => {
+  try {
+    const { PushLog } = require('../models');
+    const { Op, fn, col, literal } = require('sequelize');
+    const days = Math.min(Math.max(Number(req.query.days) || 7, 1), 30);
+    const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+
+    // 1. status 별 카운트
+    const byStatus = await PushLog.findAll({
+      where: { created_at: { [Op.gte]: since } },
+      attributes: ['status', [fn('COUNT', col('id')), 'count']],
+      group: ['status'],
+      raw: true,
+    });
+
+    // 2. endpoint host 별 top (실제 발송 처)
+    const byHost = await PushLog.findAll({
+      where: { created_at: { [Op.gte]: since }, endpoint_host: { [Op.ne]: null } },
+      attributes: ['endpoint_host', [fn('COUNT', col('id')), 'count']],
+      group: ['endpoint_host'],
+      order: [[fn('COUNT', col('id')), 'DESC']],
+      limit: 10,
+      raw: true,
+    });
+
+    // 3. 일별 추이 (최근 N일)
+    const daily = await PushLog.findAll({
+      where: { created_at: { [Op.gte]: since } },
+      attributes: [
+        [fn('DATE', col('created_at')), 'day'],
+        [fn('COUNT', col('id')), 'total'],
+        [fn('SUM', literal("CASE WHEN status = 'sent' THEN 1 ELSE 0 END")), 'sent'],
+        [fn('SUM', literal("CASE WHEN status IN ('failed','expired') THEN 1 ELSE 0 END")), 'failed'],
+      ],
+      group: [fn('DATE', col('created_at'))],
+      order: [[fn('DATE', col('created_at')), 'ASC']],
+      raw: true,
+    });
+
+    const totalRows = byStatus.reduce((s, r) => s + Number(r.count), 0);
+    const sentRows = Number(byStatus.find(r => r.status === 'sent')?.count || 0);
+    const failedRows = Number(byStatus.find(r => r.status === 'failed')?.count || 0)
+      + Number(byStatus.find(r => r.status === 'expired')?.count || 0);
+    const failureRate = totalRows > 0 ? (failedRows / totalRows) : 0;
+
+    return res.json({
+      success: true,
+      data: {
+        days,
+        total: totalRows,
+        sent: sentRows,
+        failed: failedRows,
+        failure_rate: failureRate,
+        by_status: byStatus,
+        by_host: byHost,
+        daily,
+      },
+    });
+  } catch (err) { next(err); }
+});
+
 // ─── Q-C 메일 모니터링 ───
 // GET /api/admin/email-logs?status=&template=&business_id=&page=&limit=
 router.get('/email-logs', async (req, res, next) => {

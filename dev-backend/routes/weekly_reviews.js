@@ -139,29 +139,49 @@ router.get('/', authenticateToken, async (req, res, next) => {
     });
     if (!member) return errorResponse(res, 'forbidden', 403);
 
-    // 조회 대상: 본인 또는 owner가 멤버 조회
-    const targetUserId = user_id ? Number(user_id) : myId;
-    if (targetUserId !== myId && member.role !== 'owner') {
-      return errorResponse(res, 'forbidden', 403, { message: 'Only owner can view other member reviews' });
+    // user_id='all' (워크스페이스 전체) — owner 만. 그 외는 본인 또는 user_id 지정.
+    let where;
+    if (user_id === 'all') {
+      if (member.role !== 'owner') {
+        return errorResponse(res, 'forbidden', 403, { message: 'Only owner can view all member reviews' });
+      }
+      where = { business_id };
+    } else {
+      const targetUserId = user_id ? Number(user_id) : myId;
+      if (targetUserId !== myId && member.role !== 'owner') {
+        return errorResponse(res, 'forbidden', 403, { message: 'Only owner can view other member reviews' });
+      }
+      where = { user_id: targetUserId, business_id };
     }
-
-    const where = { user_id: targetUserId, business_id };
     if (before) {
       where.week_start = { [Op.lt]: before };
     }
 
     const reviews = await WeeklyReview.findAll({
       where,
-      order: [['week_start', 'DESC']],
-      limit: Math.min(50, Number(limit) || 12),
-      attributes: ['id', 'week_start', 'week_end', 'finalized_at', 'finalized_by', 'retro_note', 'created_at'],
+      order: [['week_start', 'DESC'], ['user_id', 'ASC']],
+      limit: Math.min(100, Number(limit) || 12),
+      attributes: ['id', 'user_id', 'week_start', 'week_end', 'finalized_at', 'finalized_by', 'retro_note', 'snapshot_data', 'created_at'],
     });
+
+    // workspace 전체 모드 — user 이름 포함
+    let userMap = {};
+    if (user_id === 'all') {
+      const userIds = [...new Set(reviews.map(r => r.user_id))];
+      if (userIds.length > 0) {
+        const { User } = require('../models');
+        const users = await User.findAll({ where: { id: userIds }, attributes: ['id', 'name'] });
+        userMap = Object.fromEntries(users.map(u => [u.id, u.name]));
+      }
+    }
 
     // summary 만 포함 (tasks 제외)
     const list = reviews.map(r => {
       const snap = r.snapshot_data || {};
       return {
         id: r.id,
+        user_id: r.user_id,
+        user_name: userMap[r.user_id] || null,
         week_start: r.week_start,
         week_end: r.week_end,
         finalized_at: r.finalized_at,

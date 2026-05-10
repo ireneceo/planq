@@ -278,6 +278,8 @@ app.use('/api/tasks', require('./routes/tasks'));
 app.use('/api/tasks', require('./routes/task_workflow'));
 app.use('/api/tasks', require('./routes/task_attachments'));
 app.use('/api/calendar', require('./routes/calendar'));
+// 통합 공유 시스템 alias — ShareModal 의 /api/calendar-events/:id/share 매칭
+app.use('/api/calendar-events', require('./routes/calendar'));
 app.use('/api/dashboard', require('./routes/dashboard'));
 app.use('/api/files', require('./routes/files'));
 app.use('/api/folders', require('./routes/file_folders'));
@@ -294,6 +296,8 @@ app.use('/api', require('./routes/signatures'));
 app.use('/api/inquiries', require('./routes/inquiries'));
 app.use('/api', require('./routes/kb'));
 app.use('/api/weekly-reviews', require('./routes/weekly_reviews'));
+// 통합 공유 — entity 무관 발송 (사이클 N+4 5차)
+app.use('/api/share', require('./routes/share'));
 
 // Error handler
 app.use(errorHandler);
