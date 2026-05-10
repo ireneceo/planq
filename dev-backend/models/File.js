@@ -76,16 +76,25 @@ File.init({
     allowNull: false,
     defaultValue: 1
   },
-  // 공유 링크: 비로그인 사용자가 토큰으로 다운로드. share_expires_at 이후엔 410.
+  // 공유 링크 — 통합 공유 시스템 (Task/KbDocument/CalendarEvent 와 일관)
   share_token: {
     type: DataTypes.STRING(64),
     allowNull: true,
     unique: true
   },
+  shared_at: {
+    type: DataTypes.DATE,
+    allowNull: true
+  },
+  share_password_hash: {
+    type: DataTypes.STRING(255),
+    allowNull: true
+  },
   share_expires_at: {
     type: DataTypes.DATE,
     allowNull: true
   },
+  // legacy column — 기존 share-link 라우트 (line 534) 호환용 보관
   share_created_at: {
     type: DataTypes.DATE,
     allowNull: true

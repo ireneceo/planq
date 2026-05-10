@@ -15,9 +15,10 @@ import ProfitTab from './tabs/ProfitTab';
 import TeamTab from './tabs/TeamTab';
 import FinanceTab from './tabs/FinanceTab';
 import ReportsTab from './tabs/ReportsTab';
+import WeeklyTrendTab from './tabs/WeeklyTrendTab';
 
-type TabKey = 'overview' | 'tasks' | 'profit' | 'team' | 'finance' | 'reports';
-const ALL_TABS: TabKey[] = ['overview', 'tasks', 'profit', 'team', 'finance', 'reports'];
+type TabKey = 'overview' | 'tasks' | 'weekly' | 'profit' | 'team' | 'finance' | 'reports';
+const ALL_TABS: TabKey[] = ['overview', 'tasks', 'weekly', 'profit', 'team', 'finance', 'reports'];
 
 const RANGE_OPTIONS: PlanQSelectOption[] = [
   { value: '7d',         label: 'Last 7 days' },
@@ -92,6 +93,7 @@ const InsightsPage: React.FC = () => {
     <PageShell title={pageTitle} actions={headerActions}>
       {tab === 'overview' && <OverviewTab businessId={bizId} range={range} />}
       {tab === 'tasks' && <TasksTab businessId={bizId} range={range} />}
+      {tab === 'weekly' && <WeeklyTrendTab businessId={bizId} />}
       {tab === 'profit' && <ProfitTab businessId={bizId} range={range} />}
       {tab === 'team' && <TeamTab businessId={bizId} range={range} />}
       {tab === 'finance' && <FinanceTab businessId={bizId} range={range} />}

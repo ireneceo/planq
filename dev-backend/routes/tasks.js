@@ -1378,4 +1378,126 @@ router.post('/snapshot', authenticateToken, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// ============================================
+// 공유 링크 (사이클 N+4 — 통합 공유 시스템)
+// POST   /api/tasks/:id/share          → token 발급/조회
+// DELETE /api/tasks/:id/share          → 무효화
+// ============================================
+router.post('/:id/share', authenticateToken, async (req, res, next) => {
+  try {
+    const task = await Task.findByPk(req.params.id);
+    if (!task) return errorResponse(res, 'task_not_found', 404);
+    const scope = await getUserScope(req.user.id, task.business_id, req.user.platform_role);
+    if (!(await canAccessTask(req.user.id, task, scope))) {
+      return errorResponse(res, 'forbidden', 403);
+    }
+    // 권한 — 작성자 / 담당자 / owner / platform_admin (멤버 아닌 외부 client 차단)
+    if (scope.isClient && task.created_by !== req.user.id && task.assignee_id !== req.user.id) {
+      return errorResponse(res, 'forbidden', 403);
+    }
+
+    const { applyShareUpdate } = require('../services/share_helper');
+    const r = await applyShareUpdate(task, req.body || {});
+    const url = `${process.env.APP_URL || 'https://dev.planq.kr'}/public/tasks/${r.token}`;
+    return successResponse(res, {
+      share_token: r.token,
+      share_url: url,
+      shared_at: r.shared_at,
+      share_expires_at: r.share_expires_at,
+      password_set: r.password_set,
+    });
+  } catch (err) { next(err); }
+});
+
+router.delete('/:id/share', authenticateToken, async (req, res, next) => {
+  try {
+    const task = await Task.findByPk(req.params.id);
+    if (!task) return errorResponse(res, 'task_not_found', 404);
+    const scope = await getUserScope(req.user.id, task.business_id, req.user.platform_role);
+    if (!(await canAccessTask(req.user.id, task, scope))) {
+      return errorResponse(res, 'forbidden', 403);
+    }
+    await task.update({
+      share_token: null,
+      shared_at: null,
+      share_password_hash: null,
+      share_expires_at: null,
+    });
+    return successResponse(res, { revoked: true });
+  } catch (err) { next(err); }
+});
+
+// ============================================
+// 공개 미리보기 (인증 X) — /api/public/tasks/:token
+// 응답 — read-only 메타. 댓글·첨부·내부 진행기록 X (개인정보 보호)
+// ============================================
+router.get('/public/by-token/:token', async (req, res, next) => {
+  try {
+    const { Op } = require('sequelize');
+    const task = await Task.findOne({
+      where: {
+        share_token: req.params.token,
+        [Op.or]: [
+          { share_expires_at: null },
+          { share_expires_at: { [Op.gt]: new Date() } },
+        ],
+      },
+      include: [
+        { model: User, as: 'assignee', attributes: ['id', 'name'], required: false },
+        { model: User, as: 'creator', attributes: ['id', 'name'], required: false },
+        { model: Project, attributes: ['id', 'name'], required: false },
+        { model: Business, attributes: ['id', 'name', 'brand_name'], required: false },
+      ],
+      attributes: ['id', 'title', 'description', 'status', 'priority_order', 'progress_percent',
+        'start_date', 'due_date', 'category', 'shared_at', 'share_expires_at', 'share_password_hash',
+        'business_id', 'project_id', 'created_by', 'assignee_id'],
+    });
+    if (!task) return errorResponse(res, 'not_found_or_expired', 404);
+    const { verifySharePassword } = require('../services/share_helper');
+    const v = await verifySharePassword(task, req);
+    if (!v.ok) return res.status(v.status).json({ success: false, message: v.error, requires_password: v.requires_password });
+    return successResponse(res, {
+      id: task.id,
+      title: task.title,
+      description: task.description,
+      status: task.status,
+      progress_percent: task.progress_percent,
+      start_date: task.start_date,
+      due_date: task.due_date,
+      category: task.category,
+      assignee: task.assignee ? { id: task.assignee.id, name: task.assignee.name } : null,
+      creator: task.creator ? { id: task.creator.id, name: task.creator.name } : null,
+      project: task.Project ? { id: task.Project.id, name: task.Project.name } : null,
+      workspace: task.Business ? { id: task.Business.id, name: task.Business.brand_name || task.Business.name } : null,
+      shared_at: task.shared_at,
+    });
+  } catch (err) { next(err); }
+});
+
+// ============================================
+// Smart Routing — auth-check (이 사용자가 PlanQ 안에서 직접 볼 수 있나?)
+// 응답: { canAccess: boolean, appUrl: string }
+// ============================================
+router.get('/public/by-token/:token/auth-check', authenticateToken, async (req, res, next) => {
+  try {
+    const { Op } = require('sequelize');
+    const task = await Task.findOne({
+      where: {
+        share_token: req.params.token,
+        [Op.or]: [
+          { share_expires_at: null },
+          { share_expires_at: { [Op.gt]: new Date() } },
+        ],
+      },
+    });
+    if (!task) return errorResponse(res, 'not_found_or_expired', 404);
+    const scope = await getUserScope(req.user.id, task.business_id, req.user.platform_role);
+    const canAccess = await canAccessTask(req.user.id, task, scope);
+    return successResponse(res, {
+      canAccess: !!canAccess,
+      appUrl: canAccess ? `/task?task=${task.id}` : null,
+    });
+  } catch (err) { next(err); }
+});
+
 module.exports = router;

@@ -38,7 +38,7 @@ import WeeklyReviewTab from '../../components/QTask/WeeklyReviewTab';
 
 // ─── Types ───
 type Scope = 'mine' | 'workspace';
-type ListTab = 'week' | 'all' | 'requested' | 'weekly-review';
+type ListTab = 'week' | 'all' | 'requested' | 'weekly-review' | 'workspace-tasks' | 'workspace-weekly';
 type ViewMode = 'list' | 'kanban';
 interface MemberOption { user_id: number; name: string; is_ai?: boolean; }
 type SortKey = 'priority_order' | 'title' | 'status' | 'estimated_hours' | 'actual_hours' | 'progress_percent' | 'due_date';
@@ -115,8 +115,36 @@ const QTaskPage:React.FC=()=>{
   const navigate=useNavigate();
   // pathname 기반 판정 (새로고침 시에도 안정적). useParams 는 라우트 매칭 변형에 취약해서 회피
   const scope:Scope=location.pathname.endsWith('/tasks/workspace')?'workspace':'mine';
-  const setScope=(s:Scope)=>navigate(s==='workspace'?'/tasks/workspace':'/tasks');
-  const[tab,setTab]=useState<ListTab>('week');
+
+  // 탭은 URL ?tab= 로 동기화 (리프레시 후 같은 탭 유지)
+  // useState lazy init — 첫 마운트 시 window.location.search 직접 읽어 SSR/hydration 영향 회피
+  const[tab,_setTab]=useState<ListTab>(() => {
+    const search = typeof window !== 'undefined' ? window.location.search : location.search;
+    const v = new URLSearchParams(search).get('tab');
+    const mineTabs: ListTab[] = ['week', 'all', 'requested', 'weekly-review'];
+    const wsTabs: ListTab[] = ['workspace-tasks', 'workspace-weekly'];
+    const isWorkspace = (typeof window !== 'undefined' ? window.location.pathname : location.pathname).endsWith('/tasks/workspace');
+    if (!isWorkspace && mineTabs.includes(v as ListTab)) return v as ListTab;
+    if (isWorkspace && wsTabs.includes(v as ListTab)) return v as ListTab;
+    return isWorkspace ? 'workspace-tasks' : 'week';
+  });
+  const setTab=(t:ListTab)=>{
+    _setTab(t);
+    const sp = new URLSearchParams(window.location.search);
+    sp.set('tab', t);
+    sp.delete('task'); // 탭 변경 시 detail 패널도 같이 정리 (closeDetail race 회피)
+    navigate({ pathname: window.location.pathname, search: '?' + sp.toString() }, { replace: true });
+  };
+  const setScope=(s:Scope)=>{
+    // scope 변경 시 적절한 default tab 으로 reset
+    let nextTab = tab;
+    if(s==='workspace'&&!['workspace-tasks','workspace-weekly'].includes(tab))nextTab='workspace-tasks';
+    if(s==='mine'&&['workspace-tasks','workspace-weekly'].includes(tab))nextTab='week';
+    _setTab(nextTab);
+    const sp = new URLSearchParams(location.search);
+    sp.set('tab', nextTab);
+    navigate({ pathname: s==='workspace'?'/tasks/workspace':'/tasks', search: '?' + sp.toString() });
+  };
   const[weeklyReviewModalOpen,setWeeklyReviewModalOpen]=useState(false);
   // 우선순위: URL (?view=) > localStorage > 기본값 'list'
   const[viewMode,setViewMode]=useState<ViewMode>(()=>{
@@ -351,6 +379,7 @@ const QTaskPage:React.FC=()=>{
         if(mr.success){
           // 사이클 P8 — Cue (is_ai=true) 도 팀원으로 표시. 자동 실행 가능.
           const opts=(mr.data||[])
+            .filter((m:{user_id:number|null})=>m.user_id!=null) // user_id null row (탈퇴/끊김) 제외
             .map((m:{user_id:number;name?:string|null;user?:{name:string;is_ai?:boolean}})=>({
               user_id:m.user_id,
               // 워크스페이스 표시명 (BusinessMember.name) 우선 — 계정명 fallback
@@ -1176,6 +1205,11 @@ const QTaskPage:React.FC=()=>{
           <HelpDot askCue={t('help.cuePrefill','Q task 페이지의 우선순위, 가용시간, 그래프가 어떻게 작동하는지 알려줘') as string} topic="qtask" tourPageKey="qtask">
             {t('help.body','이번 주 본인이 행동할 업무, 우선순위 클릭 순서대로 매김(필터 안에서만 1,2,3..). 가용시간 = 일×영업일×효율, 그래프 baseline = 헤더의 내 업무 시간. 마감 지나면 지연 뱃지 클릭으로 마감 갱신.')}
           </HelpDot>
+          {scope==='mine'&&tab==='week'&&(
+            <FinalizeBtn type="button" onClick={()=>setWeeklyReviewModalOpen(true)}>
+              {t('weeklyReview.finalize','이번 주 마무리')}
+            </FinalizeBtn>
+          )}
           <ViewToggle>
             <ViewBtn $active={viewMode==='list'} onClick={()=>changeView('list')} type="button" title={t('view.list','리스트')}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
@@ -1192,41 +1226,53 @@ const QTaskPage:React.FC=()=>{
               {t('scope.workspace','전체 업무')}
             </ScopeBtn>
           </ScopeToggle>
-          {scope==='mine'&&tab==='week'&&(
-            <FinalizeBtn type="button" onClick={()=>setWeeklyReviewModalOpen(true)}>
-              {t('weeklyReview.finalize','이번 주 마무리')}
-            </FinalizeBtn>
-          )}
         </Header>
 
-        {/* Tabs — 내 업무 모드에서만 (요구 순서: 이번 주 내 / 나의 전체 / 내가 요청한) */}
+        {/* Tabs — 내 업무 모드 (이번 주 내 / 내 전체 / 요청하기 / 지난주 내 업무보고) */}
         {scope==='mine'&&(
           <TabBar>
-            <TabBtn $active={tab==='week'} onClick={()=>{setTab('week');closeDetail();}}>
+            <TabBtn type="button" $active={tab==='week'} onClick={()=>setTab('week')}>
               {t('tab.week','이번 주 내 업무')}
               {badgeCounts.week>0&&<TabBadge $active={tab==='week'}>{badgeCounts.week}</TabBadge>}
             </TabBtn>
-            <TabBtn $active={tab==='all'} onClick={()=>{setTab('all');closeDetail();}}>
+            <TabBtn type="button" $active={tab==='all'} onClick={()=>setTab('all')}>
               {t('tab.all','내 전체업무')}
               {badgeCounts.all>0&&<TabBadge $active={tab==='all'}>{badgeCounts.all}</TabBadge>}
             </TabBtn>
-            <TabBtn $active={tab==='requested'} onClick={()=>{setTab('requested');closeDetail();}}>
+            <TabBtn type="button" $active={tab==='requested'} onClick={()=>setTab('requested')}>
               {t('tab.requested','요청하기')}
               {badgeCounts.requested>0&&<TabBadge $active={tab==='requested'}>{badgeCounts.requested}</TabBadge>}
             </TabBtn>
-            <TabBtn $active={tab==='weekly-review'} onClick={()=>{setTab('weekly-review');closeDetail();}}>
-              {t('tab.weeklyReview','주간 보고')}
+            <TabBtn type="button" $active={tab==='weekly-review'} onClick={()=>setTab('weekly-review')}>
+              {t('tab.weeklyReviewMine', { defaultValue: '지난주 내 업무보고' }) as string}
             </TabBtn>
           </TabBar>
         )}
 
-        {/* 주간 보고 탭 — 별도 컴포넌트 */}
-        {tab==='weekly-review' && bizId && (
-          <WeeklyReviewTab businessId={bizId} userId={myId} />
+        {/* Tabs — 전체 업무 모드 (전체 업무 / 전체 주간보고) */}
+        {scope==='workspace'&&(
+          <TabBar>
+            <TabBtn type="button" $active={tab!=='workspace-weekly'} onClick={()=>setTab('workspace-tasks')}>
+              {t('tab.workspaceTasks', { defaultValue: '전체 업무' }) as string}
+            </TabBtn>
+            <TabBtn type="button" $active={tab==='workspace-weekly'} onClick={()=>setTab('workspace-weekly')}>
+              {t('tab.workspaceWeekly', { defaultValue: '전체 주간보고' }) as string}
+            </TabBtn>
+          </TabBar>
         )}
 
-        {/* 일반 탭 — 기존 리스트 */}
-        {tab!=='weekly-review' && (
+        {/* 주간 보고 탭 — 본인 (mine 4번째) */}
+        {tab==='weekly-review' && bizId && (
+          <WeeklyReviewTab businessId={bizId} userId={myId} reviewScope="mine" />
+        )}
+
+        {/* 전체 주간 보고 탭 — workspace 두번째 */}
+        {tab==='workspace-weekly' && bizId && (
+          <WeeklyReviewTab businessId={bizId} userId={myId} reviewScope="workspace" />
+        )}
+
+        {/* 일반 탭 — 기존 리스트 (week/all/requested/workspace-tasks/scope=workspace 기본) */}
+        {tab!=='weekly-review' && tab!=='workspace-weekly' && (
         <ListScroll>
           {/* Filter bar (탭 아래) */}
           <FilterBar>
@@ -1240,11 +1286,11 @@ const QTaskPage:React.FC=()=>{
             </div>
             {scope==='workspace'&&(
               <div style={{minWidth:160}}>
-                <PlanQSelect size="sm" isClearable
+                <PlanQSelect size="sm" isClearable maxMenuHeight={280}
                   placeholder={t('workspace.allMembers','전체 멤버')}
-                  value={assigneeFilter==null?null:{value:String(assigneeFilter),label:members.find(m=>m.user_id===assigneeFilter)?.name||'-'}}
+                  value={assigneeFilter==null?null:{value:String(assigneeFilter),label:(members.find(m=>m.user_id===assigneeFilter)?.name||'-')+(assigneeFilter===myId?` ${t('common.meSuffix',{defaultValue:'(나)'}) as string}`:'')}}
                   onChange={(v)=>setAssigneeFilter((v as {value?:string})?.value?Number((v as {value:string}).value):null)}
-                  options={members.map(m=>({value:String(m.user_id),label:m.name}))} />
+                  options={members.map(m=>({value:String(m.user_id),label:m.name+(m.user_id===myId?` ${t('common.meSuffix',{defaultValue:'(나)'}) as string}`:'')}))} />
               </div>
             )}
             {tab!=='week' && <HideCheck><input type="checkbox" checked={hideCompleted} onChange={e=>setHideCompleted(e.target.checked)} />{t('filter.hideCompleted','Hide completed')}</HideCheck>}
@@ -2495,7 +2541,7 @@ const Chip=styled.span<{$teal?:boolean;$coral?:boolean}>`padding:2px 8px;font-si
 
 const TabBar=styled.div`display:flex;border-bottom:1px solid #E2E8F0;flex-shrink:0;`;
 const TabBtn=styled.button<{$active?:boolean}>`flex:1;padding:10px;font-size:13px;font-weight:600;border:none;cursor:pointer;background:transparent;color:${p=>p.$active?'#0F766E':'#94A3B8'};border-bottom:2px solid ${p=>p.$active?'#14B8A6':'transparent'};display:inline-flex;align-items:center;justify-content:center;gap:6px;`;
-const FinalizeBtn=styled.button`margin-left:auto;padding:6px 14px;border:none;background:#14B8A6;border-radius:6px;font-size:13px;font-weight:600;color:#FFF;cursor:pointer;&:hover{background:#0D9488;}`;
+const FinalizeBtn=styled.button`padding:6px 14px;background:#FFFFFF;border:1px solid #E2E8F0;border-radius:6px;font-size:13px;font-weight:600;color:#475569;cursor:pointer;transition:background 0.15s, border-color 0.15s;&:hover{background:#F8FAFC;border-color:#CBD5E1;color:#0F172A;}`;
 const TabBadge=styled.span<{$active?:boolean}>`display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 6px;border-radius:9px;background:${p=>p.$active?'#F43F5E':'#CBD5E1'};color:#FFF;font-size:11px;font-weight:700;line-height:1;`;
 const ListScroll=styled.div`flex:1;overflow-y:auto;&::-webkit-scrollbar{width:6px;}&::-webkit-scrollbar-thumb{background:#E2E8F0;border-radius:3px;}`;
 const BottomAddLink=styled.button`margin:10px 14px 20px;padding:6px 0;background:transparent;color:#94A3B8;border:none;font-size:13px;font-weight:500;cursor:pointer;text-align:left;display:block;font-family:inherit;&:hover{color:#0F766E;}`;
@@ -2754,7 +2800,7 @@ const KanbanEmptyBoard=styled.div`
   border:1px dashed #E2E8F0;
   border-radius:12px;
 `;
-const ScopeBtn=styled.button<{$active:boolean}>`padding:6px 14px;font-size:13px;font-weight:600;background:${p=>p.$active?'#FFFFFF':'transparent'};color:${p=>p.$active?'#0F766E':'#64748B'};border:none;border-radius:6px;cursor:pointer;box-shadow:${p=>p.$active?'0 1px 2px rgba(0,0,0,0.06)':'none'};transition:background 0.15s;&:hover{background:${p=>p.$active?'#FFFFFF':'#E2E8F0'};}`;
+const ScopeBtn=styled.button<{$active:boolean}>`padding:6px 14px;font-size:13px;font-weight:600;background:${p=>p.$active?'#FFFFFF':'transparent'};color:${p=>p.$active?'#0F172A':'#64748B'};border:none;border-radius:6px;cursor:pointer;box-shadow:${p=>p.$active?'0 1px 2px rgba(0,0,0,0.06)':'none'};transition:background 0.15s, color 0.15s;&:hover{background:${p=>p.$active?'#FFFFFF':'#E2E8F0'};color:${p=>p.$active?'#0F172A':'#0F172A'};}`;
 const NameChip=styled.span<{$type:'from'|'to'|'observer'}>`
   display:inline-block;margin-left:6px;padding:1px 7px;font-size:11px;font-weight:600;
   border-radius:10px;white-space:nowrap;max-width:120px;overflow:hidden;text-overflow:ellipsis;vertical-align:middle;

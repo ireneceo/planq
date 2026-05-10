@@ -16,6 +16,7 @@ import EmptyState from '../../components/Common/EmptyState';
 import PlanQSelect, { type PlanQSelectOption } from '../../components/Common/PlanQSelect';
 import SearchBox from '../../components/Common/SearchBox';
 import DetailDrawer from '../../components/Common/DetailDrawer';
+import ShareModal from '../../components/Common/ShareModal';
 // 가로 Tabs 폐지 — 좌측 카테고리 트리로 변경 (Q file/Q record 패턴 통일)
 import ConfirmDialog from '../../components/Common/ConfirmDialog';
 import KbAiIngestModal from './KbAiIngestModal';
@@ -81,6 +82,7 @@ const KnowledgePage = () => {
   // ─── DetailDrawer ───
   const [detailId, setDetailId] = useState<number | null>(null);
   const [detail, setDetail] = useState<KbDetail | null>(null);
+  const [shareOpen, setShareOpen] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
 
@@ -968,10 +970,29 @@ const KnowledgePage = () => {
           )}
         </DetailDrawer.Body>
         <DetailDrawer.Footer>
+          <ShareFooterBtn type="button" onClick={() => setShareOpen(true)} title={t('drawer.share', { defaultValue: '공유' }) as string}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" />
+              <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
+              <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+            </svg>
+            {t('drawer.share', { defaultValue: '공유' }) as string}
+          </ShareFooterBtn>
           <Spacer />
           <DangerBtn type="button" onClick={() => detailId && setConfirmDelete(detailId)}>{t('drawer.delete')}</DangerBtn>
         </DetailDrawer.Footer>
       </DetailDrawer>
+
+      {/* 공유 모달 */}
+      {shareOpen && detail && (
+        <ShareModal
+          open={shareOpen}
+          entityType="kb_document"
+          entityId={detail.id}
+          entityTitle={detail.title}
+          onClose={() => setShareOpen(false)}
+        />
+      )}
 
       {/* ─── 삭제 확인 ─── */}
       <ConfirmDialog
@@ -1914,6 +1935,14 @@ const AttachAddRow = styled.div`
   margin-top: 8px;
 `;
 const Spacer = styled.div`flex: 1;`;
+const ShareFooterBtn = styled.button`
+  height: 34px; padding: 0 12px;
+  background: transparent; color: #475569;
+  border: 1px solid #CBD5E1; border-radius: 8px;
+  font-size: 13px; font-weight: 600; cursor: pointer;
+  display: inline-flex; align-items: center; gap: 6px;
+  &:hover { background: #F0FDFA; color: #0F766E; border-color: #99F6E4; }
+`;
 const DangerBtn = styled.button`
   height: 34px; padding: 0 14px;
   background: #FFFFFF; color: #B91C1C;

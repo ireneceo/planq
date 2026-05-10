@@ -158,13 +158,16 @@ function buildStyles(
       boxShadow: '0 8px 24px rgba(15, 23, 42, 0.08)',
       overflow: 'hidden',
       zIndex: 100,
+      // viewport 경계 강제 — portal 안에서도 화면 안에 들어오게
+      maxHeight: 'min(320px, calc(100vh - 80px))',
     }),
     // 포털 렌더 시 z-index — 모달 backdrop(50) 과 Dialog 위에 뜨도록 10000
     menuPortal: (base) => ({ ...base, zIndex: 10000 }),
     menuList: (base) => ({
       ...base,
       padding: 4,
-      maxHeight: 320,
+      // menu 보다 약간 작게 (보더/패딩 공간 확보)
+      maxHeight: 'min(300px, calc(100vh - 100px))',
     }),
     option: (base, state) => ({
       ...base,
@@ -266,6 +269,9 @@ function PlanQSelect<IsMulti extends boolean = false>(
       // document.body 로 포털 렌더. z-index 는 buildStyles.menuPortal 에서 처리.
       menuPortalTarget={rest.menuPortalTarget ?? (typeof document !== 'undefined' ? document.body : null)}
       menuPosition={rest.menuPosition ?? 'fixed'}
+      menuPlacement={rest.menuPlacement ?? 'auto'}
+      // react-select 가 placement 계산에 사용 — viewport 작은 모바일에서도 작동하도록 보수적 값
+      maxMenuHeight={rest.maxMenuHeight ?? 280}
     />
   );
 }

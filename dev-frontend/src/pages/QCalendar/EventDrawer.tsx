@@ -5,6 +5,7 @@ import type { CalendarEvent, EventCategory } from './types';
 import { CATEGORY_OPTIONS, getEventColors } from './categoryColors';
 import { formatTime, isoToLocalInput } from './dateUtils';
 import DetailDrawer from '../../components/Common/DetailDrawer';
+import ShareModal from '../../components/Common/ShareModal';
 import { formatRRuleLabel } from '../../utils/recurrence';
 
 interface Props {
@@ -25,6 +26,7 @@ const EventDrawer: React.FC<Props> = ({ event, onClose, onUpdate, onDelete, onCr
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [embedOpen, setEmbedOpen] = useState(false);
   const [creatingRoom, setCreatingRoom] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
 
   const handleCreateRoom = async () => {
     if (!onCreateMeetingRoom) return;
@@ -249,11 +251,32 @@ const EventDrawer: React.FC<Props> = ({ event, onClose, onUpdate, onDelete, onCr
             </DangerBtn>
           </ConfirmGroup>
         ) : (
-          <DangerBtn onClick={() => setConfirmDelete(true)}>
-            {t('button.delete')}
-          </DangerBtn>
+          <FooterRow>
+            <ShareBtn type="button" onClick={() => setShareOpen(true)} title={t('button.share', { defaultValue: '공유' }) as string}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="18" cy="5" r="3" />
+                <circle cx="6" cy="12" r="3" />
+                <circle cx="18" cy="19" r="3" />
+                <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
+                <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+              </svg>
+              {t('button.share', { defaultValue: '공유' }) as string}
+            </ShareBtn>
+            <DangerBtn onClick={() => setConfirmDelete(true)}>
+              {t('button.delete')}
+            </DangerBtn>
+          </FooterRow>
         )}
       </DetailDrawer.Footer>
+      {shareOpen && (
+        <ShareModal
+          open={shareOpen}
+          entityType="calendar_event"
+          entityId={Number(event.id)}
+          entityTitle={event.title}
+          onClose={() => setShareOpen(false)}
+        />
+      )}
     </DetailDrawer>
   );
 };
@@ -378,6 +401,15 @@ const SecondaryBtn = styled.button`
 const ConfirmGroup = styled.div` display: flex; align-items: center; gap: 8px; `;
 const ConfirmText = styled.div`
   font-size: 12px; color: #64748B; margin-right: 4px;
+`;
+const FooterRow = styled.div`
+  display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%;
+`;
+const ShareBtn = styled.button`
+  padding: 7px 12px; border-radius: 6px; font-size: 12px; font-weight: 500;
+  background: transparent; color: #475569; border: 1px solid #CBD5E1; cursor: pointer;
+  display: inline-flex; align-items: center; gap: 6px;
+  &:hover { background: #F0FDFA; color: #0F766E; border-color: #99F6E4; }
 `;
 
 // NOTE: isoToLocalInput is exported from dateUtils — currently unused in this view

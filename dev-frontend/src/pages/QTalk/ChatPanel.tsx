@@ -806,6 +806,106 @@ const ChatPanel: React.FC<Props> = ({
                     </InvoiceCard>
                   );
                 })()
+              ) : m.card?.card_type === 'task' ? (
+                (() => {
+                  const tc = m.card as import('./types').TaskCardMeta;
+                  return (
+                    <SharedCard type="button" onClick={() => window.open(tc.share_url, '_blank', 'noopener,noreferrer')}>
+                      <SharedCardIcon $tone="task">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+                      </SharedCardIcon>
+                      <DocCardBody>
+                        <DocCardTitle>{tc.title}</DocCardTitle>
+                        <DocCardLabel>
+                          {t('chat.card.taskLabel', { defaultValue: '업무' }) as string}
+                          {tc.due_date && <> · {String(tc.due_date).slice(0, 10)}</>}
+                          {tc.has_password && <> · {t('chat.card.locked', { defaultValue: '🔒 비번 보호' }) as string}</>}
+                        </DocCardLabel>
+                      </DocCardBody>
+                      <DocCardArrow>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                      </DocCardArrow>
+                    </SharedCard>
+                  );
+                })()
+              ) : m.card?.card_type === 'file' ? (
+                (() => {
+                  const fc = m.card as import('./types').FileCardMeta;
+                  const fmt = (b: number) => {
+                    if (b < 1024) return `${b} B`;
+                    if (b < 1024 * 1024) return `${(b/1024).toFixed(1)} KB`;
+                    return `${(b/1024/1024).toFixed(1)} MB`;
+                  };
+                  return (
+                    <SharedCard type="button" onClick={() => window.open(fc.share_url, '_blank', 'noopener,noreferrer')}>
+                      <SharedCardIcon $tone="file">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>
+                      </SharedCardIcon>
+                      <DocCardBody>
+                        <DocCardTitle>{fc.title}</DocCardTitle>
+                        <DocCardLabel>
+                          {t('chat.card.fileLabel', { defaultValue: '파일' }) as string}
+                          {typeof fc.file_size === 'number' && fc.file_size > 0 && <> · {fmt(fc.file_size)}</>}
+                          {fc.has_password && <> · {t('chat.card.locked', { defaultValue: '🔒 비번 보호' }) as string}</>}
+                        </DocCardLabel>
+                      </DocCardBody>
+                      <DocCardArrow>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                      </DocCardArrow>
+                    </SharedCard>
+                  );
+                })()
+              ) : m.card?.card_type === 'kb_document' ? (
+                (() => {
+                  const kc = m.card as import('./types').KbDocCardMeta;
+                  return (
+                    <SharedCard type="button" onClick={() => window.open(kc.share_url, '_blank', 'noopener,noreferrer')}>
+                      <SharedCardIcon $tone="kb">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+                      </SharedCardIcon>
+                      <DocCardBody>
+                        <DocCardTitle>{kc.title}</DocCardTitle>
+                        <DocCardLabel>
+                          {t('chat.card.kbLabel', { defaultValue: '대화 자료' }) as string}
+                          {kc.source_type && <> · {kc.source_type}</>}
+                          {kc.has_password && <> · {t('chat.card.locked', { defaultValue: '🔒 비번 보호' }) as string}</>}
+                        </DocCardLabel>
+                      </DocCardBody>
+                      <DocCardArrow>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                      </DocCardArrow>
+                    </SharedCard>
+                  );
+                })()
+              ) : m.card?.card_type === 'calendar_event' ? (
+                (() => {
+                  const ec = m.card as import('./types').CalendarEventCardMeta;
+                  const fmt = (iso?: string) => {
+                    if (!iso) return '';
+                    try {
+                      const d = new Date(iso);
+                      return d.toLocaleString(undefined, { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Seoul' });
+                    } catch { return ''; }
+                  };
+                  return (
+                    <SharedCard type="button" onClick={() => window.open(ec.share_url, '_blank', 'noopener,noreferrer')}>
+                      <SharedCardIcon $tone="calendar">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                      </SharedCardIcon>
+                      <DocCardBody>
+                        <DocCardTitle>{ec.title}</DocCardTitle>
+                        <DocCardLabel>
+                          {t('chat.card.calendarLabel', { defaultValue: '일정' }) as string}
+                          {ec.start_at && <> · {fmt(ec.start_at)}</>}
+                          {ec.has_password && <> · {t('chat.card.locked', { defaultValue: '🔒 비번 보호' }) as string}</>}
+                        </DocCardLabel>
+                      </DocCardBody>
+                      <DocCardArrow>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                      </DocCardArrow>
+                    </SharedCard>
+                  );
+                })()
               ) : m.card ? (
                 <DocCard type="button" onClick={() => setPreviewCard(m.card as import('./types').PostCardMeta)}>
                   <DocCardIcon>
@@ -1485,6 +1585,30 @@ const TranslatedText = styled.div`
   border-radius: 6px;
   line-height: 1.5;
   white-space: pre-wrap;
+`;
+
+// 통합 공유 카드 (사이클 N+4 6차) — task/file/kb_document/calendar_event
+const SharedCard = styled.button`
+  all: unset; cursor: pointer; display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px; max-width: 380px;
+  background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 10px;
+  transition: background 0.15s, border-color 0.15s, transform 0.15s;
+  &:hover { background: #F0FDFA; border-color: #14B8A6; transform: translateY(-1px); }
+  &:focus-visible { outline: 2px solid #14B8A6; outline-offset: 2px; }
+`;
+const SHARED_TONE: Record<string, { bg: string; fg: string; border: string }> = {
+  task:     { bg: '#DBEAFE', fg: '#1E40AF', border: '#93C5FD' },
+  file:     { bg: '#FEF3C7', fg: '#92400E', border: '#FCD34D' },
+  kb:       { bg: '#F0FDFA', fg: '#0F766E', border: '#99F6E4' },
+  calendar: { bg: '#F3E8FF', fg: '#6B21A8', border: '#D8B4FE' },
+};
+const SharedCardIcon = styled.span<{ $tone: keyof typeof SHARED_TONE }>`
+  width: 36px; height: 36px; flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: ${p => SHARED_TONE[p.$tone].bg};
+  color: ${p => SHARED_TONE[p.$tone].fg};
+  border: 1px solid ${p => SHARED_TONE[p.$tone].border};
+  border-radius: 8px;
 `;
 
 // 문서 카드 (kind='card', card_type='post')

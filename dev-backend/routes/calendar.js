@@ -8,10 +8,12 @@ const {
 } = require('../models');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const { authenticateToken, checkBusinessAccess } = require('../middleware/auth');
-const { attachWorkspaceScope, isMemberOrAbove } = require('../middleware/access_scope');
+const { attachWorkspaceScope, isMemberOrAbove, getUserScope } = require('../middleware/access_scope');
 const { createAuditLog } = require('../middleware/audit');
 const { RRule, rrulestr } = require('rrule');
 const dailyService = require('../services/daily');
+const crypto = require('crypto');
+const { Business } = require('../models');
 
 const HEX_RE = /^#[0-9A-Fa-f]{6}$/;
 const CATEGORY_SET = new Set(['personal', 'work', 'meeting', 'deadline', 'other']);
@@ -576,6 +578,114 @@ router.post('/by-business/:businessId/:id/meeting', authenticateToken, checkBusi
 
     const full = await CalendarEvent.findByPk(event.id, { include: INCLUDE_DETAIL });
     return successResponse(res, full.toJSON());
+  } catch (err) { next(err); }
+});
+
+// ============================================
+// 공유 링크 (사이클 N+4 — 통합 공유 시스템 Phase 2)
+// 마운트 alias: server.js 의 app.use('/api/calendar-events', router) 가
+// 추가되면 ShareModal 의 /api/calendar-events/:id/share 가 매칭됨.
+// 기존 /api/calendar/by-business/... 라우트와 충돌 X (segment 비교 우선).
+// ============================================
+router.post('/:id/share', authenticateToken, async (req, res, next) => {
+  try {
+    const ev = await CalendarEvent.findByPk(req.params.id);
+    if (!ev) return errorResponse(res, 'event_not_found', 404);
+    const scope = await getUserScope(req.user.id, ev.business_id, req.user.platform_role);
+    if (!isMemberOrAbove(scope) && ev.created_by !== req.user.id) {
+      return errorResponse(res, 'forbidden', 403);
+    }
+
+    const { applyShareUpdate } = require('../services/share_helper');
+    const r = await applyShareUpdate(ev, req.body || {});
+    const url = `${process.env.APP_URL || 'https://dev.planq.kr'}/public/calendar/${r.token}`;
+    return successResponse(res, {
+      share_token: r.token,
+      share_url: url,
+      shared_at: r.shared_at,
+      share_expires_at: r.share_expires_at,
+      password_set: r.password_set,
+    });
+  } catch (err) { next(err); }
+});
+
+router.delete('/:id/share', authenticateToken, async (req, res, next) => {
+  try {
+    const ev = await CalendarEvent.findByPk(req.params.id);
+    if (!ev) return errorResponse(res, 'event_not_found', 404);
+    const scope = await getUserScope(req.user.id, ev.business_id, req.user.platform_role);
+    if (!isMemberOrAbove(scope) && ev.created_by !== req.user.id) {
+      return errorResponse(res, 'forbidden', 403);
+    }
+    await ev.update({
+      share_token: null,
+      shared_at: null,
+      share_password_hash: null,
+      share_expires_at: null,
+    });
+    return successResponse(res, { revoked: true });
+  } catch (err) { next(err); }
+});
+
+router.get('/public/by-token/:token', async (req, res, next) => {
+  try {
+    const ev = await CalendarEvent.findOne({
+      where: {
+        share_token: req.params.token,
+        [Op.or]: [
+          { share_expires_at: null },
+          { share_expires_at: { [Op.gt]: new Date() } },
+        ],
+      },
+      include: [
+        { model: User, as: 'creator', attributes: ['id', 'name'], required: false },
+        { model: Project, attributes: ['id', 'name'], required: false },
+        { model: Business, attributes: ['id', 'name', 'brand_name'], required: false },
+      ],
+      attributes: ['id', 'title', 'description', 'location', 'start_at', 'end_at',
+        'all_day', 'category', 'meeting_url', 'shared_at', 'share_expires_at',
+        'share_password_hash', 'business_id', 'project_id'],
+    });
+    if (!ev) return errorResponse(res, 'not_found_or_expired', 404);
+    const { verifySharePassword } = require('../services/share_helper');
+    const v = await verifySharePassword(ev, req);
+    if (!v.ok) return res.status(v.status).json({ success: false, message: v.error, requires_password: v.requires_password });
+    return successResponse(res, {
+      id: ev.id,
+      title: ev.title,
+      description: ev.description,
+      location: ev.location,
+      start_at: ev.start_at,
+      end_at: ev.end_at,
+      all_day: ev.all_day,
+      category: ev.category,
+      meeting_url: ev.meeting_url,
+      creator: ev.creator ? { id: ev.creator.id, name: ev.creator.name } : null,
+      project: ev.Project ? { id: ev.Project.id, name: ev.Project.name } : null,
+      workspace: ev.Business ? { id: ev.Business.id, name: ev.Business.brand_name || ev.Business.name } : null,
+      shared_at: ev.shared_at,
+    });
+  } catch (err) { next(err); }
+});
+
+router.get('/public/by-token/:token/auth-check', authenticateToken, async (req, res, next) => {
+  try {
+    const ev = await CalendarEvent.findOne({
+      where: {
+        share_token: req.params.token,
+        [Op.or]: [
+          { share_expires_at: null },
+          { share_expires_at: { [Op.gt]: new Date() } },
+        ],
+      },
+    });
+    if (!ev) return errorResponse(res, 'not_found_or_expired', 404);
+    const scope = await getUserScope(req.user.id, ev.business_id, req.user.platform_role);
+    const canAccess = isMemberOrAbove(scope) || ev.created_by === req.user.id;
+    return successResponse(res, {
+      canAccess: !!canAccess,
+      appUrl: canAccess ? `/calendar?event=${ev.id}` : null,
+    });
   } catch (err) { next(err); }
 });
 

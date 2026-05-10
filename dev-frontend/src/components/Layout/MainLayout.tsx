@@ -647,6 +647,13 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                   </NavIcon>
                   <NavLabel $isCollapsed={isCollapsed}>{t('nav.emailLogs', '메일 발송 모니터링')}</NavLabel>
                 </NavItem>
+                <NavItem to="/admin/push-logs" $isCollapsed={isCollapsed} $active={isActive('/admin/push-logs')}
+                  title={isCollapsed ? (t('nav.pushLogs', { defaultValue: 'Push 발송 모니터링' }) as string) : undefined}>
+                  <NavIcon $isCollapsed={isCollapsed}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+                  </NavIcon>
+                  <NavLabel $isCollapsed={isCollapsed}>{t('nav.pushLogs', { defaultValue: 'Push 발송 모니터링' }) as string}</NavLabel>
+                </NavItem>
                 <NavItem to="/admin/platform-settings" $isCollapsed={isCollapsed} $active={isActive('/admin/platform-settings')}
                   title={isCollapsed ? t('nav.platformSettings', '플랫폼 설정') : undefined}>
                   <NavIcon $isCollapsed={isCollapsed}>
@@ -807,6 +814,9 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                       </AccordionItem>
                       <AccordionItem to="/stats/tasks" $active={isActive('/stats/tasks')}>
                         <IconStatsTime /> {t('nav.statsTaskTime', '업무·시간')}
+                      </AccordionItem>
+                      <AccordionItem to="/stats/weekly" $active={isActive('/stats/weekly')}>
+                        <IconStatsTime /> {t('nav.statsWeekly', { defaultValue: '주간 추세' }) as string}
                       </AccordionItem>
                       <AccordionItem to="/stats/profit" $active={isActive('/stats/profit')}>
                         <IconStatsProfit /> {t('nav.statsProfit', '프로젝트 수익성')}
@@ -1041,6 +1051,9 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
             </SecondaryNavItem>
             <SecondaryNavItem $collapsed={secondaryCollapsed} to="/stats/tasks" $active={isActive('/stats/tasks')}>
               <IconStatsTime /> {t('nav.statsTaskTime', '업무·시간')}
+            </SecondaryNavItem>
+            <SecondaryNavItem $collapsed={secondaryCollapsed} to="/stats/weekly" $active={isActive('/stats/weekly')}>
+              <IconStatsTime /> {t('nav.statsWeekly', { defaultValue: '주간 추세' }) as string}
             </SecondaryNavItem>
             <SecondaryNavItem $collapsed={secondaryCollapsed} to="/stats/profit" $active={isActive('/stats/profit')}>
               <IconStatsProfit /> {t('nav.statsProfit', '프로젝트 수익성')}

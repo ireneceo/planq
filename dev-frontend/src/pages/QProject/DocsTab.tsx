@@ -6,6 +6,7 @@ import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 import DetailDrawer from '../../components/Common/DetailDrawer';
+import ShareModal from '../../components/Common/ShareModal';
 import EmptyState from '../../components/Common/EmptyState';
 import PlanQSelect from '../../components/Common/PlanQSelect';
 import SearchBox from '../../components/Common/SearchBox';
@@ -57,6 +58,7 @@ const DocsTab: React.FC<Props> = (props) => {
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState<SortKey>('recent');
   const [preview, setPreview] = useState<ProjectFile | null>(null);
+  const [shareTarget, setShareTarget] = useState<ProjectFile | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const [uploadingCount, setUploadingCount] = useState(0);
   const [deleteConfirm, setDeleteConfirm] = useState<ProjectFile | null>(null);
@@ -618,6 +620,16 @@ const DocsTab: React.FC<Props> = (props) => {
                   </PvSubRow>
                 </PvHeaderText>
                 <PvActions>
+                  <HeaderIconBtn type="button" onClick={() => setShareTarget(preview)}
+                    title={tr('docs.share', '공유')} aria-label={tr('docs.share', '공유')}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="18" cy="5" r="3" />
+                      <circle cx="6" cy="12" r="3" />
+                      <circle cx="18" cy="19" r="3" />
+                      <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
+                      <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+                    </svg>
+                  </HeaderIconBtn>
                   <HeaderIconBtn as="a" href={preview.download_url} download
                     title={tr('docs.download', '다운로드')} aria-label={tr('docs.download', '다운로드')}>
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -653,6 +665,17 @@ const DocsTab: React.FC<Props> = (props) => {
           </>
         )}
       </DetailDrawer>
+
+      {/* 공유 모달 */}
+      {shareTarget && (
+        <ShareModal
+          open={!!shareTarget}
+          entityType="file"
+          entityId={Number(shareTarget.id)}
+          entityTitle={shareTarget.file_name}
+          onClose={() => setShareTarget(null)}
+        />
+      )}
 
       {/* 단일 삭제 확인 */}
       {deleteConfirm && (

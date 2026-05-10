@@ -5,13 +5,17 @@ const express = require('express');
 const router = express.Router();
 const { KbDocument, KbChunk, KbPinnedFaq, File: FileModel, Post } = require('../models');
 const { authenticateToken, checkBusinessAccess } = require('../middleware/auth');
+const { isMemberOrAbove, getUserScope } = require('../middleware/access_scope');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const { createAuditLog } = require('../middleware/audit');
 const kbService = require('../services/kb_service');
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const multer = require('multer');
 const { v4: uuidv4 } = require('uuid');
+const { Op } = require('sequelize');
+const { User, Business } = require('../models');
 
 // KB 직접 업로드용 multer (텍스트 추출 후 KbDocument 만들고 물리 파일도 보존)
 const KB_UPLOAD_ROOT = path.join(__dirname, '..', 'uploads');
@@ -959,6 +963,106 @@ router.post('/businesses/:businessId/kb/search', authenticateToken, checkBusines
     if (!query) return errorResponse(res, 'query required', 400);
     const result = await kbService.hybridSearch(req.params.businessId, query, { limit: limit || 5 });
     successResponse(res, result);
+  } catch (err) { next(err); }
+});
+
+// ============================================
+// 공유 링크 (사이클 N+4 — 통합 공유 시스템 Phase 2)
+// POST   /api/kb-documents/:id/share         → token 발급/조회
+// DELETE /api/kb-documents/:id/share         → 무효화
+// GET    /api/kb-documents/public/by-token/:token        → 공개 메타
+// GET    /api/kb-documents/public/by-token/:token/auth-check → Smart Routing
+// ============================================
+router.post('/kb-documents/:id/share', authenticateToken, async (req, res, next) => {
+  try {
+    const doc = await KbDocument.findByPk(req.params.id);
+    if (!doc) return errorResponse(res, 'kb_document_not_found', 404);
+    const scope = await getUserScope(req.user.id, doc.business_id, req.user.platform_role);
+    if (!isMemberOrAbove(scope)) return errorResponse(res, 'forbidden', 403);
+
+    const { applyShareUpdate } = require('../services/share_helper');
+    const r = await applyShareUpdate(doc, req.body || {});
+    const url = `${process.env.APP_URL || 'https://dev.planq.kr'}/public/kb/${r.token}`;
+    return successResponse(res, {
+      share_token: r.token,
+      share_url: url,
+      shared_at: r.shared_at,
+      share_expires_at: r.share_expires_at,
+      password_set: r.password_set,
+    });
+  } catch (err) { next(err); }
+});
+
+router.delete('/kb-documents/:id/share', authenticateToken, async (req, res, next) => {
+  try {
+    const doc = await KbDocument.findByPk(req.params.id);
+    if (!doc) return errorResponse(res, 'kb_document_not_found', 404);
+    const scope = await getUserScope(req.user.id, doc.business_id, req.user.platform_role);
+    if (!isMemberOrAbove(scope)) return errorResponse(res, 'forbidden', 403);
+    await doc.update({
+      share_token: null,
+      shared_at: null,
+      share_password_hash: null,
+      share_expires_at: null,
+    });
+    return successResponse(res, { revoked: true });
+  } catch (err) { next(err); }
+});
+
+router.get('/kb-documents/public/by-token/:token', async (req, res, next) => {
+  try {
+    const doc = await KbDocument.findOne({
+      where: {
+        share_token: req.params.token,
+        [Op.or]: [
+          { share_expires_at: null },
+          { share_expires_at: { [Op.gt]: new Date() } },
+        ],
+      },
+      include: [
+        { model: User, as: 'uploader', attributes: ['id', 'name'], required: false },
+        { model: Business, attributes: ['id', 'name', 'brand_name'], required: false },
+      ],
+      attributes: ['id', 'title', 'body', 'source_type', 'shared_at', 'share_expires_at',
+        'share_password_hash', 'business_id', 'created_at', 'file_name', 'mime_type'],
+    });
+    if (!doc) return errorResponse(res, 'not_found_or_expired', 404);
+    const { verifySharePassword } = require('../services/share_helper');
+    const v = await verifySharePassword(doc, req);
+    if (!v.ok) return res.status(v.status).json({ success: false, message: v.error, requires_password: v.requires_password });
+    return successResponse(res, {
+      id: doc.id,
+      title: doc.title,
+      body: doc.body,
+      source_type: doc.source_type,
+      file_name: doc.file_name,
+      mime_type: doc.mime_type,
+      uploader: doc.uploader ? { id: doc.uploader.id, name: doc.uploader.name } : null,
+      workspace: doc.Business ? { id: doc.Business.id, name: doc.Business.brand_name || doc.Business.name } : null,
+      shared_at: doc.shared_at,
+      created_at: doc.created_at,
+    });
+  } catch (err) { next(err); }
+});
+
+router.get('/kb-documents/public/by-token/:token/auth-check', authenticateToken, async (req, res, next) => {
+  try {
+    const doc = await KbDocument.findOne({
+      where: {
+        share_token: req.params.token,
+        [Op.or]: [
+          { share_expires_at: null },
+          { share_expires_at: { [Op.gt]: new Date() } },
+        ],
+      },
+    });
+    if (!doc) return errorResponse(res, 'not_found_or_expired', 404);
+    const scope = await getUserScope(req.user.id, doc.business_id, req.user.platform_role);
+    const canAccess = isMemberOrAbove(scope);
+    return successResponse(res, {
+      canAccess,
+      appUrl: canAccess ? `/talk?kb=${doc.id}` : null,
+    });
   } catch (err) { next(err); }
 });
 
