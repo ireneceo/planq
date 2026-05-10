@@ -1,14 +1,58 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-05-08 v1.2.0 (사이클 N+1 — AI 업무 추가 + 템플릿 시스템 + Row 액션 + 자동 예측)
+> **최종 업데이트:** 2026-05-10 v1.3.0 (사이클 N+2 — 표 고도화 + PWA 자동 무효화 + race fix + push 7원칙)
 >
-> **이전 라이브:** 2026-05-08 `3aa91d0` (정식 deploy-planq.sh, 외부 health 200, 101s)
+> **이전 라이브:** 2026-05-10 `650fb6f` (deploy-planq.sh, 외부 health 200, 107s)
 >
-> **다음 진입 ★ (사이클 N+2):** 통합 공유 시스템 (Q task/file/info/calendar share_token + ShareModal) / Smart Routing (App-First Deep Linking) / list API 에 latest_estimation_source 추가 (회색 시각 분기) / 모달 통일 스프린트 (~20 outlier 모달 → StandardModal/ModalActionButton)
+> **다음 진입 ★ (사이클 N+3):** weeklyReviewCron BusinessMember.active 회귀 fix / latest_estimation_source 시각 분기 / 모달 통일 스프린트 / 통합 공유 시스템 (share_token + ShareModal) / Smart Routing (App-First Deep Linking)
 >
 > **차순위:** 주간 보고 (Weekly Review) Phase 2 / 권한 옵션 A + 개인 보관함 / Q note 텍스트 type + Quick Capture / Custom SMTP (Pro+)
 >
 > **결제 정책:** 1순위 자체 결제 (계좌이체 mark-paid), 2순위 PortOne (P-7 마지막). 월결제 + 연결제. Free 플랜 폐지 — 신규 가입은 starter+trialing 14일.
+
+---
+
+## ✅ 완료: 사이클 N+2 — v1.3.0 운영 라이브 (2026-05-10)
+
+1 commit 1회 정식 deploy (`650fb6f`). 외부 https://planq.kr health 200, 107s.
+
+### 주요 작업
+
+| 영역 | 작업 |
+|---|---|
+| **로그아웃 race fix** | `refresh_tokens.replaced_by_id` + 30초 grace + JWT `jti` UUID + tryRefresh 1.5s 재시도. 다중 탭 동시 refresh 200/200 PASS |
+| **PWA 자동 무효화** | `vite.config emitVersionJson` plugin → `/version.json` + main.tsx 5분 폴링 + Socket.IO `server:build` 1차 신호 + form-dirty 가드 + UpdateBanner 토스트 |
+| **표 (Q record) 고도화** | 시드 컬럼 제거 (빈 표 시작) + ColumnSettings popover (이름/타입/options/aggregate/Delete) + 중간 컬럼 삭제 + select 옵션 사용자 정의 + `attach` 셀 (파일/문서/AI 새 작성→연결) + 행 자동 계산 4 type (row_sum/avg/min/max) + footer 8 aggregate 친근화 ("값 있는 행 수" / "비어있는 비율") + 보기 모드 readOnly + 표 설명 collapsible 에디터 박스 |
+| **본문↔문서 연결** | `posts.linked_post_ids` JSON + `AttachmentField includePosts` + 보기 모드 chip (📄/📊) + 자기 자신 차단 + 다른 워크스페이스 invalid 무시 |
+| **서명 받기 picker** | PostSignatureModal 에 멤버/고객 통합 자동완성. 선택 시 빈 첫 행 채움 또는 새 행 추가, 중복 차단 |
+| **외부 점검 7원칙 (사이클 N+3 박제)** | rate-limit `/push/test` 분당 5회 + endpoint 화이트리스트 (https + 5 도메인) + 재등록 cleanup (옛 row expired 마크) + **PushLog 테이블** (모든 발송 기록) + ping 200ms debounce + 권한 좀비 동기화 (`syncPermissionOnFocus`) + form-dirty reload 가드 + UpdateBanner |
+| **UX** | PwaInstallBanner "7일 안 보기" (localStorage) + 모바일 로그인 로고 140px + Q docs 새 문서 모달 dead UI 정리 + 셀 흰 배경 + 라벨 친근화 |
+| **규칙 박제** | CLAUDE.md "운영 안정성 규칙" 7개 섹션 + `memory/feedback_ops_stability_7.md` |
+
+### 신규/수정
+
+- **신규 모델**: `models/PushLog.js` (user/sub/host/category/status/code/error/title)
+- **신규 컬럼**: `posts.linked_post_ids` JSON / `refresh_tokens.replaced_by_id` INT / `q_records.columns[].aggregate` (JSON 내부)
+- **신규 컴포넌트**: `components/Common/UpdateBanner.tsx` / `services/push.ts:syncPermissionOnFocus + bindPermissionSync`
+- **신규 라우트**: `socket server:build` event broadcast (deploy 후 자동 알림)
+
+### 검증 결과 (운영 라이브 직전)
+
+- 헬스체크 27/27 PASS
+- API 8/8 PASS — race + 화이트리스트 (FCM 201 / evil 400 / http 400) + rate-limit (200×5, 429) + PushLog 5건 + 재등록 옛 row expired
+- 매트릭스 E2E PASS — 행 합계 + 평균 + 열 합계 + grand total 1,870 정확
+- /docs HTTP 200, 빌드 산출물에 핵심 변경 모두 포함
+
+### 운영 배포
+
+- 정식 deploy-planq.sh `650fb6f` → 운영 reload (planq-prod-backend 1.3.0 + planq-prod-qnote)
+- 백업: `/opt/planq/backups/20260510_110953`
+- 외부 health 200, db_pool ok, openai/smtp/vapid configured
+- 버전: v1.2.0 → **v1.3.0** (minor)
+
+### 알려진 회귀 (다음 사이클)
+
+- `weeklyReviewCron` 매시 에러: `Unknown column 'BusinessMember.active'` (pre-existing, 이번 사이클 무관). 다음 사이클 별도 fix 권장.
 
 ---
 
