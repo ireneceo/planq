@@ -1,14 +1,59 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-05-10 v1.5.1 (사이클 N+4 — 통합 공유 1~6차 / 주간보고 Phase 2 / Q Talk 카드 / 프로젝트 문서 메뉴 / CRUD 보완)
+> **최종 업데이트:** 2026-05-10 v1.5.2 (사이클 N+5 — 권한 매트릭스 책임선 분리)
 >
-> **이전 라이브:** 2026-05-10 `5cd518e` (v1.5.1 follow-up, 외부 health 200, 113s) / `e1ee6e4` (v1.5.0 사이클 N+4, 105s)
+> **이전 라이브:** 2026-05-10 `8dc5251` (v1.5.2 사이클 N+5 권한, 109s) / `5cd518e` (v1.5.1 follow-up, 113s) / `e1ee6e4` (v1.5.0 사이클 N+4, 105s)
 >
 > **다음 진입 ★:** (Irene 선택)
 >
 > **차순위:** 권한 옵션 A + 개인 보관함 / Q note 텍스트 type + Quick Capture / Custom SMTP (Pro+) / ShareModal 채팅방 발송 후 PostShareModal 흡수 (chat·email 통일 마무리)
 >
 > **결제 정책:** 1순위 자체 결제 (계좌이체 mark-paid), 2순위 PortOne (P-7 마지막). 월결제 + 연결제. Free 플랜 폐지 — 신규 가입은 starter+trialing 14일.
+
+---
+
+## ✅ 완료: 사이클 N+5 — v1.5.2 권한 매트릭스 책임선 분리 (2026-05-10)
+
+`8dc5251 + 06e327f` 운영 라이브 (109s). 외부 https://planq.kr health 200. 30년차 솔루션 기획 관점의 권한 매트릭스 정식 박제 + 6 변경 + 매트릭스 4 영역 신설.
+
+### 핵심 변경
+
+| 영역 | 변경 내용 | 동기 |
+|---|---|---|
+| **Task 본문 책임선 분리 ★★** | `description` 담당자 빠짐 (의뢰자 영역: 작성자/owner/admin), `body` owner 빠짐 (수행자 영역: 담당자/admin). 워크플로우 (revision_requested) 로만 owner 가 결과물 영향 줄 수 있게 | 사용자 보고: "관리자(owner)가 담당자 결과물 수정되는 게 말 안 됨" → 책임선 무너짐 30년차 진단 |
+| **RichEditor 본문 링크** | `openOnClick: true` + `target=_blank` — editable/readOnly 무관 모든 사용처에서 본문 링크 클릭 시 새 탭 | "권한 있는 사용자도 링크 클릭 안 돼서 너무 불편" |
+| **Task DELETE 안전핀** | 작성자는 댓글·이력·리뷰어 0건 신생 task 만 삭제 가능 (실수 정정용). 활동 있으면 owner/admin 만. 담당자·요청자는 X | 30년차 — 자산 손실 방지 |
+| **Invoice 재무 mutation owner only** | `assertInvoiceMutationOwner` 헬퍼 신설. send / mark-paid / unmark-paid / mark-tax-invoice / delete(invoice·installment) 5 라우트에 적용. member 호출 시 403 `owner_only` | 재무 사고 예방. member 는 draft 만 |
+| **Q Note 진짜 사적 공간 명문화** | q-note `_load_session_or_403` 이미 owner/admin 백도어 없음 — 매트릭스 §5.8 도 admin 차단으로 코드 현실에 일치 | 음성/회의 = 매우 개인적 |
+
+### 프론트엔드 분기
+- `TaskDetailDrawer.tsx` — `canEditMeta` 단일 → `canEditTitle / canEditDescription / canEditBody` 3분기
+- 권한 없으면 RichEditor `readOnly` + 섹션 타이틀 옆 회색 "읽기 전용" 뱃지 (`#94A3B8 / #F1F5F9`)
+- Title 클릭 편집 핸들러 / 편집 아이콘 권한 분기
+
+### 박제 문서
+- `docs/PERMISSION_MATRIX.md` — §5.7 Task 필드별 / §5.8 Q Note / §5.9 Message 모더레이션 / §5.10 Invoice 재무 신설. §12 이력 추가
+- `CLAUDE.md` — 사이클 N+5 정책 4 인라인 노트 (Task 본문 분리 / Invoice owner only / Q Note 사적 / 책임선 8원칙)
+- 신규 라우트 PR 체크리스트 6개 명시 (PERMISSION_MATRIX §4-E)
+
+### 검증
+- 헬스체크 27/27 PASS
+- API 권한 테스트 18/18 PASS (owner 9 + member 9)
+  - member(담당자) → description PUT → **403 forbidden_fields:description** ✓
+  - owner(비담당자) → body PUT → **403 forbidden_fields:body** ✓
+  - member → invoice send / delete → **403 owner_only** ✓
+
+### i18n
+- `detail.readOnly` / `detail.readOnlyHint` ko/en 추가
+
+### 수정된 파일
+- `dev-backend/routes/tasks.js` (FIELD_RULES 분리 + DELETE 활동 체크)
+- `dev-backend/routes/invoices.js` (assertInvoiceMutationOwner 헬퍼 + 5 라우트 가드)
+- `dev-frontend/src/components/QTask/TaskDetailDrawer.tsx` (3 분기 + ReadOnlyHint)
+- `dev-frontend/src/components/Common/RichEditor.tsx` (Link openOnClick + target)
+- `dev-frontend/public/locales/{ko,en}/qtask.json` (readOnly 키)
+- `docs/PERMISSION_MATRIX.md` (§5.7~§5.10 + 이력)
+- `CLAUDE.md` (4 인라인 노트)
 
 ---
 

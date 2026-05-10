@@ -55,6 +55,25 @@ setFormError(null);
 // ✅ ConfirmDialog 컴포넌트 사용 (window.confirm 금지)
 ```
 
+### 1.4-B 권한 부재 — "읽기 전용" 뱃지 (2026-05-10 사이클 N+5)
+
+권한 분기로 편집 막힌 필드는 **회색 pill 뱃지로 시각화** + RichEditor/Input `readOnly`. disabled 처럼 보이는 것보다 명확.
+
+```tsx
+{!canEditBody && <ReadOnlyHint>{t('detail.readOnly', '읽기 전용')}</ReadOnlyHint>}
+<RichEditor value={...} readOnly={!canEditBody} ... />
+
+const ReadOnlyHint = styled.span`
+  font-size:11px; font-weight:500;
+  color:#94A3B8;            /* Text Tertiary */
+  background:#F1F5F9;       /* Slate 100 */
+  border-radius:10px;
+  padding:2px 8px;
+`;
+```
+
+본문 안 링크는 `RichEditor` 의 `Link.openOnClick: true + target='_blank'` 정책으로 **편집 권한 무관 항상 새 탭**. 권한 매트릭스는 `docs/PERMISSION_MATRIX.md` 참조.
+
 ### 1.5 이모지/아이콘 금지
 
 - 페이지 내 안내 메시지에 이모지 사용 금지
