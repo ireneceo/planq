@@ -9,7 +9,27 @@ self.addEventListener('install', (event) => {
 });
 
 self.addEventListener('activate', (event) => {
-  event.waitUntil(self.clients.claim());
+  event.waitUntil((async () => {
+    await self.clients.claim();
+    // 새 SW activate = 새 빌드 = 옛 페이지 코드 잠금 풀기.
+    // 클라이언트 URL 에 누적된 _v= query 정리 + 강제 navigate (한 번만).
+    // 옛 main.tsx 의 무한 reload 루프에 갇힌 사용자를 자동 탈출시킴.
+    try {
+      const allClients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+      for (const c of allClients) {
+        try {
+          const u = new URL(c.url);
+          // _v=숫자 query 모두 제거
+          u.searchParams.forEach((_, key, sp) => { if (key === '_v') sp.delete(key); });
+          let cleaned = u.searchParams.toString();
+          // _v 가 여러 번 누적된 raw search 도 정리
+          cleaned = (cleaned ? '?' + cleaned : '');
+          const target = u.origin + u.pathname + cleaned + u.hash;
+          if (target !== c.url) await c.navigate(target);
+        } catch { /* per-client navigate 실패 무시 */ }
+      }
+    } catch { /* matchAll 실패 무시 */ }
+  })());
 });
 
 // Share Target POST — manifest.json 의 share_target.action='/share-receive' (POST)

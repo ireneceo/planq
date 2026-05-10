@@ -281,6 +281,7 @@
     "notMyHours": "Only the assignee can edit (read-only)",
     "notMyProgress": "Only the assignee can edit (read-only)",
     "aiEstimate": "AI estimate suggestion",
+    "aiEstimateHint": "Auto-estimated by AI — enter a value to confirm",
     "assigneePh": "Assignee"
   },
   "empty": {

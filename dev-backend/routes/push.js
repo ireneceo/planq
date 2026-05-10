@@ -14,6 +14,7 @@
 const express = require('express');
 const router = express.Router();
 const rateLimit = require('express-rate-limit');
+const { ipKeyGenerator } = require('express-rate-limit');
 const { authenticateToken } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const { PushSubscription } = require('../models');
@@ -46,7 +47,7 @@ function isAllowedEndpoint(rawUrl) {
 const testPushLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: 5,
-  keyGenerator: (req) => `push-test-${req.user?.id || req.ip}`,
+  keyGenerator: (req) => req.user?.id ? `push-test-u${req.user.id}` : `push-test-ip${ipKeyGenerator(req)}`,
   standardHeaders: true,
   legacyHeaders: false,
   message: { success: false, message: 'push test 너무 자주 호출했습니다. 1분 후 다시 시도하세요.' },

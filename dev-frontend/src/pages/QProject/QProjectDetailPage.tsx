@@ -16,6 +16,7 @@ import CalendarPicker from '../../components/Common/CalendarPicker';
 import { PROJECT_COLOR_PALETTE } from '../../utils/projectColors';
 import { GanttHeader, GanttRowTrack, GanttBar, useGanttScrollSync, type GanttRange } from '../../components/Common/GanttTrack';
 import { STATUS_COLOR, displayStatus, type StatusCode } from '../../utils/taskLabel';
+import ConfirmDialog from '../../components/Common/ConfirmDialog';
 
 const PROJECT_COLORS = PROJECT_COLOR_PALETTE.map(p => p.value);
 
@@ -92,6 +93,43 @@ const QProjectDetailPage: React.FC = () => {
   const [clientsToRemove, setClientsToRemove] = useState<Set<number>>(new Set());
   const [closing, setClosing] = useState(false);
   const [loading, setLoading] = useState(true);
+  // 채팅방 ⋮ 메뉴 — 연결 끊기 / 삭제 (둘 다 ConfirmDialog 후 실행)
+  const [convMenuFor, setConvMenuFor] = useState<number | null>(null);
+  const [unlinkConv, setUnlinkConv] = useState<Conv | null>(null);
+  const [archiveConv, setArchiveConv] = useState<Conv | null>(null);
+  const [busyConvAction, setBusyConvAction] = useState(false);
+
+  const handleUnlinkConv = useCallback(async () => {
+    if (!unlinkConv || busyConvAction) return;
+    setBusyConvAction(true);
+    try {
+      const r = await apiFetch(`/api/projects/conversations/${unlinkConv.id}/unlink`, { method: 'POST' });
+      if (r.ok) {
+        setConvs(prev => prev.filter(c => c.id !== unlinkConv.id));
+        setUnlinkConv(null);
+      }
+    } finally { setBusyConvAction(false); }
+  }, [unlinkConv, busyConvAction]);
+
+  const handleArchiveConv = useCallback(async () => {
+    if (!archiveConv || busyConvAction || !project) return;
+    setBusyConvAction(true);
+    try {
+      const r = await apiFetch(`/api/conversations/${project.business_id}/${archiveConv.id}/archive`, { method: 'POST' });
+      if (r.ok) {
+        setConvs(prev => prev.filter(c => c.id !== archiveConv.id));
+        setArchiveConv(null);
+      }
+    } finally { setBusyConvAction(false); }
+  }, [archiveConv, busyConvAction, project]);
+
+  // 외부 클릭 시 ⋮ 메뉴 닫기
+  useEffect(() => {
+    if (convMenuFor === null) return;
+    const onClick = () => setConvMenuFor(null);
+    document.addEventListener('click', onClick);
+    return () => document.removeEventListener('click', onClick);
+  }, [convMenuFor]);
 
   const load = useCallback(async () => {
     if (!projectId) return;
@@ -372,6 +410,22 @@ const QProjectDetailPage: React.FC = () => {
                     <ConvChannel $type={c.channel_type}>{c.channel_type === 'customer' ? t('convs.channelCustomer', '고객') : c.channel_type === 'internal' ? t('convs.channelInternal', '내부') : t('convs.channelGroup', '그룹')}</ConvChannel>
                     <ConvTitle>{c.title || `#${c.id}`}</ConvTitle>
                     {(c.unread_count || 0) > 0 && <UnreadBadge>{c.unread_count}</UnreadBadge>}
+                    <ConvMoreBtn type="button"
+                      title={t('convs.moreHint', { defaultValue: '연결 끊기 / 삭제' }) as string}
+                      aria-label={t('convs.moreHint', { defaultValue: '연결 끊기 / 삭제' }) as string}
+                      onClick={(e) => { e.stopPropagation(); setConvMenuFor(convMenuFor === c.id ? null : c.id); }}>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><circle cx="12" cy="6" r="0.5"/><circle cx="12" cy="12" r="0.5"/><circle cx="12" cy="18" r="0.5"/></svg>
+                    </ConvMoreBtn>
+                    {convMenuFor === c.id && (
+                      <ConvMenu onClick={(e) => e.stopPropagation()}>
+                        <ConvMenuBtn type="button" onClick={() => { setUnlinkConv(c); setConvMenuFor(null); }}>
+                          {t('convs.unlink', { defaultValue: '프로젝트 연결 끊기' }) as string}
+                        </ConvMenuBtn>
+                        <ConvMenuBtn type="button" $danger onClick={() => { setArchiveConv(c); setConvMenuFor(null); }}>
+                          {t('convs.archive', { defaultValue: '채팅방 삭제' }) as string}
+                        </ConvMenuBtn>
+                      </ConvMenu>
+                    )}
                   </ConvRow>
                 ))}
               </ConvList>
@@ -602,6 +656,22 @@ const QProjectDetailPage: React.FC = () => {
                   <ConvRow key={c.id} onClick={() => navigate(`/talk?project=${projectId}&conv=${c.id}`)}>
                     <ConvChannel $type={c.channel_type}>{c.channel_type === 'customer' ? t('convs.channelCustomer', '고객') : c.channel_type === 'internal' ? t('convs.channelInternal', '내부') : t('convs.channelGroup', '그룹')}</ConvChannel>
                     <ConvTitle>{c.title || `#${c.id}`}</ConvTitle>
+                    <ConvMoreBtn type="button"
+                      title={t('convs.moreHint', { defaultValue: '연결 끊기 / 삭제' }) as string}
+                      aria-label={t('convs.moreHint', { defaultValue: '연결 끊기 / 삭제' }) as string}
+                      onClick={(e) => { e.stopPropagation(); setConvMenuFor(convMenuFor === c.id ? null : c.id); }}>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><circle cx="12" cy="6" r="0.5"/><circle cx="12" cy="12" r="0.5"/><circle cx="12" cy="18" r="0.5"/></svg>
+                    </ConvMoreBtn>
+                    {convMenuFor === c.id && (
+                      <ConvMenu onClick={(e) => e.stopPropagation()}>
+                        <ConvMenuBtn type="button" onClick={() => { setUnlinkConv(c); setConvMenuFor(null); }}>
+                          {t('convs.unlink', { defaultValue: '프로젝트 연결 끊기' }) as string}
+                        </ConvMenuBtn>
+                        <ConvMenuBtn type="button" $danger onClick={() => { setArchiveConv(c); setConvMenuFor(null); }}>
+                          {t('convs.archive', { defaultValue: '채팅방 삭제' }) as string}
+                        </ConvMenuBtn>
+                      </ConvMenu>
+                    )}
                   </ConvRow>
                 ))}
               </ConvList>
@@ -808,6 +878,28 @@ const QProjectDetailPage: React.FC = () => {
           </CloseDialog>
         </CloseBackdrop>
       )}
+
+      {/* 채팅방 ⋮ 메뉴 — 연결 끊기 / 삭제 confirm */}
+      <ConfirmDialog
+        isOpen={!!unlinkConv}
+        onClose={() => setUnlinkConv(null)}
+        onConfirm={handleUnlinkConv}
+        title={t('convs.unlinkTitle', { defaultValue: '프로젝트 연결 끊기' }) as string}
+        message={t('convs.unlinkMessage', { defaultValue: '"{{name}}" 채팅방을 이 프로젝트에서 분리합니다. 채팅방과 메시지는 보존되며 워크스페이스의 일반 채팅으로 전환됩니다.', name: unlinkConv?.title || `#${unlinkConv?.id || ''}` }) as string}
+        confirmText={t('convs.unlinkConfirm', { defaultValue: '연결 끊기' }) as string}
+        cancelText={t('common.cancel', '취소') as string}
+        variant="info"
+      />
+      <ConfirmDialog
+        isOpen={!!archiveConv}
+        onClose={() => setArchiveConv(null)}
+        onConfirm={handleArchiveConv}
+        title={t('convs.archiveTitle', { defaultValue: '채팅방 삭제' }) as string}
+        message={t('convs.archiveMessage', { defaultValue: '"{{name}}" 채팅방을 삭제합니다. 모든 멤버에게 더 이상 보이지 않으며 메시지·참가자 데이터는 감사 목적으로 30일 보존됩니다.', name: archiveConv?.title || `#${archiveConv?.id || ''}` }) as string}
+        confirmText={t('convs.archiveConfirm', { defaultValue: '삭제' }) as string}
+        cancelText={t('common.cancel', '취소') as string}
+        variant="danger"
+      />
     </PageShell>
   );
 };
@@ -910,7 +1002,32 @@ const StatNum = styled.div`font-size:18px;font-weight:700;color:#0F172A;`;
 const StatLabel = styled.div`font-size:10px;color:#64748B;`;
 
 const ConvList = styled.div`display:flex;flex-direction:column;gap:6px;`;
-const ConvRow = styled.div`display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid #E2E8F0;border-radius:6px;cursor:pointer;&:hover{border-color:#14B8A6;background:#F0FDFA;}`;
+const ConvRow = styled.div`
+  position:relative;display:flex;align-items:center;gap:10px;padding:8px 10px;
+  border:1px solid #E2E8F0;border-radius:6px;cursor:pointer;
+  &:hover{border-color:#14B8A6;background:#F0FDFA;}
+  &:hover .conv-more-btn{opacity:1;}
+`;
+const ConvMoreBtn = styled.button.attrs({ className: 'conv-more-btn' })`
+  width:24px;height:24px;background:transparent;border:none;border-radius:4px;
+  display:inline-flex;align-items:center;justify-content:center;color:#64748B;cursor:pointer;
+  opacity:0;transition:opacity 0.15s,background 0.15s;
+  &:hover{background:#FFFFFF;color:#0F172A;}
+  &:focus-visible{opacity:1;outline:1px solid #14B8A6;}
+`;
+const ConvMenu = styled.div`
+  position:absolute;right:6px;top:calc(100% - 4px);z-index:20;
+  min-width:160px;padding:4px;background:#FFFFFF;
+  border:1px solid #E2E8F0;border-radius:8px;
+  box-shadow:0 4px 12px rgba(0,0,0,0.06);
+`;
+const ConvMenuBtn = styled.button<{$danger?:boolean}>`
+  width:100%;padding:8px 10px;text-align:left;font-size:12px;font-weight:500;
+  color:${p=>p.$danger?'#DC2626':'#334155'};
+  background:transparent;border:none;border-radius:6px;cursor:pointer;
+  transition:background 0.15s;
+  &:hover{background:${p=>p.$danger?'#FEF2F2':'#F8FAFC'};}
+`;
 const ConvChannel = styled.span<{$type:string}>`
   padding:2px 6px;border-radius:4px;font-size:10px;font-weight:700;flex-shrink:0;
   background:${p=>p.$type==='customer'?'#FFF1F2':p.$type==='internal'?'#F0FDFA':'#F1F5F9'};

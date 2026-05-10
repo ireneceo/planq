@@ -72,12 +72,24 @@ function buildExtractionPrompt(messagesText, memberNames, language, conversation
 
 1. EXTRACT ONLY CONFIRMED DECISIONS. Extract only when someone has explicitly committed to do X, OR has been clearly asked/assigned to do X with a yes-implied. The work must be actionable, future-tense, and undecided-state.
 
-2. NEVER extract from QUESTIONS. Examples that are NOT tasks:
-   - "확인 부탁드려요" / "확인해 주실 수 있나요?" — request for review/confirmation, NOT a deliverable to produce
-   - "잘 됐나요??" / "괜찮을까요?" — status question
-   - "이거 어떻게 하면 될까요?" — discussion question
-   - "시간 되실 때 봐주세요" — soft ask, treat as confirmation request
-   Note: The exception is when someone explicitly RESPONDS "네, 할게요" or commits to produce something new. The question alone is never a task.
+2. CRITICAL DISTINCTION — REVIEW REQUEST vs DELIVERABLE REQUEST:
+   ▸ NOT a task (review/confirmation requests):
+     - "확인 부탁드려요" / "확인해 주실 수 있나요?" — review existing work
+     - "검토 부탁드려요" / "봐주세요" / "보내드린 거 한번 보세요" — review request
+     - "잘 됐나요?" / "괜찮을까요?" — status question
+     - "이거 어떻게 하면 될까요?" — discussion question
+     - "시간 되실 때 봐주세요" — soft review ask
+   ▸ IS a task (NEW deliverable requests — ALWAYS extract):
+     - "X 만들어 주세요" / "X 제작 부탁드려요" — new creation
+     - "X 디자인 좀 해줘요" / "X 디자인 부탁해요" — new design deliverable
+     - "X 작성 부탁드려요" / "X 작성해 주세요" — new document
+     - "X 개발 부탁드려요" / "X 코딩 좀" — new code
+     - "X 좀 해줘요" / "X 해주세요" with NEW output context (file/design/doc) — new deliverable
+
+   Rule of thumb: If the request produces NEW output (design/document/code/file/asset),
+   it IS a task — extract it even if other parts of the message are reviews or chitchat.
+   ONE MESSAGE CAN CONTAIN MULTIPLE DELIVERABLES — extract each one separately.
+   The exception: when someone RESPONDS "네, 할게요" committing to produce, that is also a task.
 
 3. NEVER extract from REPORTS of completed/in-progress work. Examples:
    - "수정 완료했습니다" / "올렸어요" / "끝냈어요" — past report
@@ -124,11 +136,12 @@ ${conversationParticipantNames}
 ═══ TEAM MEMBERS (for role matching) ═══
 ${memberNames}
 
-═══ OUTPUT FORMAT ═══
+═══ OUTPUT FORMAT (return JSON object) ═══
 
+Return a JSON object with this exact shape:
 {"tasks": [{"title": "...", "description": "...", "guessed_role": "...|null", "guessed_assignee_name": "...|null", "guessed_due_date": "YYYY-MM-DD|null", "source_message_ids": [msg_id, ...]}]}
 
-If no actionable tasks (only questions, reports, or chitchat), return: {"tasks": []}
+If no actionable tasks (only questions, reports, or chitchat), return JSON: {"tasks": []}
 Write title and description in ${lang}. Be conservative — empty result is better than wrong extraction.
 
 ═══ MESSAGES ═══
@@ -552,4 +565,5 @@ module.exports = {
   registerCandidate,
   mergeCandidate,
   rejectCandidate,
+  buildExtractionPrompt,  // 디버그·테스트용 노출
 };

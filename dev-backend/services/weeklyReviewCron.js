@@ -56,9 +56,9 @@ function initWeeklyReviewCron() {
     console.log('[weeklyReviewCron] triggered at', new Date().toISOString());
 
     try {
-      // 1. 활성 멤버 순회 (active=true)
+      // 1. 활성 멤버 순회 — BusinessMember 는 active 컬럼 없음. removed_at NULL 이 활성.
       const members = await BusinessMember.findAll({
-        where: { active: true },
+        where: { removed_at: null },
         include: [{ model: Business, attributes: ['id', 'timezone'] }],
       });
 

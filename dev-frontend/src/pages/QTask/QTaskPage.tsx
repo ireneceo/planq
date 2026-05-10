@@ -48,6 +48,8 @@ interface TaskRow {
   id: number; title: string; description: string | null; status: string;
   priority_order: number | null; start_date: string | null; due_date: string | null;
   estimated_hours: number | null; actual_hours: number; progress_percent: number;
+  // 최신 estimation 출처 — 'ai' 면 시각 분기 (회색 + ✨), 'user' / null 은 일반
+  latest_estimation_source?: 'ai' | 'user' | null;
   planned_week_start: string | null; category: string | null;
   completed_at?: string | null;
   assignee_id: number | null; project_id: number | null; created_by: number;
@@ -1447,12 +1449,22 @@ const QTaskPage:React.FC=()=>{
                           <EstWrap $flash={!!aiEstFlash[task.id]}>
                             <NumInput key={`e${task.id}-${e}`}
                               type="number" step="0.5" min="0"
+                              $ai={task.latest_estimation_source==='ai' && e>0}
                               defaultValue={e?formatHours(e):''} placeholder="-"
                               disabled={!editable}
-                              title={editable?undefined:t('list.notMyHours','담당자만 수정 가능 (참고용)') as string}
+                              title={
+                                task.latest_estimation_source==='ai' && e>0
+                                  ? (t('list.aiEstimateHint', { defaultValue: 'AI 자동 예측 — 직접 입력하면 확정됩니다' }) as string)
+                                  : (editable ? undefined : (t('list.notMyHours','담당자만 수정 가능 (참고용)') as string))
+                              }
                               onClick={ev=>ev.stopPropagation()}
                               onBlur={ev=>{const v=Number(ev.target.value);if(!isNaN(v)&&editable){saveField(task.id,'estimated_hours',v);(ev.target as HTMLInputElement).value=formatHours(v);}}}
                               onKeyDown={ev=>{if(ev.key==='Enter')(ev.target as HTMLInputElement).blur();}} />
+                            {task.latest_estimation_source==='ai' && e>0 && (
+                              <AiInlineBadge title={t('list.aiEstimateHint', { defaultValue: 'AI 자동 예측' }) as string} aria-hidden="true">
+                                <svg width="9" height="9" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 16.8 5.8 21.3l2.4-7.4L2 9.4h7.6L12 2z"/></svg>
+                              </AiInlineBadge>
+                            )}
                             {editable && e===0 && (
                               <AiSparkBtn type="button" disabled={!!aiEstLoading[task.id]}
                                 onClick={ev=>{ev.stopPropagation();requestAiEstimate(task.id);}}
@@ -2594,11 +2606,20 @@ const AiSparkBtn=styled.button`
   &:disabled{cursor:wait;}
   &:focus-visible{outline:1px solid rgba(244,63,94,0.5);outline-offset:1px;}
 `;
-const NumInput=styled.input`
-  width:54px;text-align:center;font-size:13px;font-weight:600;color:#0F172A;
+// AI 자동 예측 값 옆 inline ✨ 배지 — 사용자 미확정 표시 (회색 italic NumInput 와 짝)
+const AiInlineBadge=styled.span`
+  position:absolute;right:-2px;top:50%;transform:translateY(-50%);
+  width:12px;height:12px;
+  display:inline-flex;align-items:center;justify-content:center;
+  color:#F43F5E;opacity:0.65;pointer-events:none;
+`;
+const NumInput=styled.input<{$ai?:boolean}>`
+  width:54px;text-align:center;font-size:13px;font-weight:600;
+  color:${p=>p.$ai?'#94A3B8':'#0F172A'};
+  font-style:${p=>p.$ai?'italic':'normal'};
   border:1px solid transparent;background:transparent;padding:3px 2px;border-radius:5px;
   -moz-appearance:textfield;
-  &:focus{outline:none;background:#F0FDFA;border-color:#14B8A6;}
+  &:focus{outline:none;background:#F0FDFA;border-color:#14B8A6;color:#0F172A;font-style:normal;}
   &::placeholder{color:#CBD5E1;}
   &::-webkit-outer-spin-button,&::-webkit-inner-spin-button{
     -webkit-appearance:inner-spin-button;opacity:0.55;height:18px;cursor:pointer;

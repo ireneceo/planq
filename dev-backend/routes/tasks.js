@@ -662,6 +662,12 @@ router.get('/by-business/:businessId', authenticateToken, async (req, res, next)
 
     const { rows, count } = await Task.findAndCountAll({
       where,
+      attributes: {
+        include: [
+          // 최신 estimation source — AI 자동 예측 task 시각 분기용 (회색 + ✨)
+          [literal('(SELECT source FROM task_estimations WHERE task_id = `Task`.`id` ORDER BY id DESC LIMIT 1)'), 'latest_estimation_source'],
+        ],
+      },
       include: [
         { model: User, as: 'assignee', attributes: ['id', 'name', 'email', 'name_localized'] },
         { model: User, as: 'creator', attributes: ['id', 'name', 'name_localized'] },
@@ -744,14 +750,44 @@ router.put('/by-business/:businessId/:id', authenticateToken, async (req, res, n
       title: task.title, project_id: task.project_id,
     };
 
-    // 권한 — 시간/진행율은 담당자만 수정 가능
+    // 필드별 권한 정책 (사이클 N+3 — 일괄 정리)
+    //   - title/description/body/category   → 작성자 OR 담당자 OR workspace owner OR platform_admin
+    //   - status                             → 담당자 OR 작성자 OR owner
+    //   - assignee_id/due_date/start_date/priority/planned_week_start/recurrence_rule
+    //                                        → 작성자 OR owner (담당자 본인 자가 이전 X)
+    //   - project_id                         → owner only (큰 결정)
+    //   - estimated_hours/actual_hours/progress_percent → 담당자 OR owner (이미 적용)
     const myId = req.user.id;
+    const isCreator = task.created_by === myId;
     const isAssignee = task.assignee_id === myId;
     const isOwnerOrAdmin = req.user.platform_role === 'platform_admin'
       || (await BusinessMember.findOne({ where: { user_id: myId, business_id: task.business_id, role: 'owner' } }));
-    if ((updates.estimated_hours !== undefined || updates.actual_hours !== undefined || updates.progress_percent !== undefined)
-        && !isAssignee && !isOwnerOrAdmin) {
-      return errorResponse(res, 'only_assignee_can_edit_hours', 403);
+
+    const FIELD_RULES = {
+      title: () => isCreator || isAssignee || isOwnerOrAdmin,
+      description: () => isCreator || isAssignee || isOwnerOrAdmin,
+      body: () => isCreator || isAssignee || isOwnerOrAdmin,
+      category: () => isCreator || isAssignee || isOwnerOrAdmin,
+      status: () => isAssignee || isCreator || isOwnerOrAdmin,
+      assignee_id: () => isCreator || isOwnerOrAdmin,
+      due_date: () => isCreator || isOwnerOrAdmin,
+      start_date: () => isCreator || isOwnerOrAdmin,
+      planned_week_start: () => isCreator || isOwnerOrAdmin,
+      recurrence_rule: () => isCreator || isOwnerOrAdmin,
+      next_occurrence_at: () => isCreator || isOwnerOrAdmin,
+      project_id: () => isOwnerOrAdmin,
+      estimated_hours: () => isAssignee || isOwnerOrAdmin,
+      actual_hours: () => isAssignee || isOwnerOrAdmin,
+      progress_percent: () => isAssignee || isOwnerOrAdmin,
+      completed_at: () => isAssignee || isCreator || isOwnerOrAdmin,
+    };
+    const denied = [];
+    for (const f of Object.keys(updates)) {
+      const rule = FIELD_RULES[f];
+      if (rule && !rule()) denied.push(f);
+    }
+    if (denied.length > 0) {
+      return errorResponse(res, `forbidden_fields:${denied.join(',')}`, 403);
     }
 
     await task.update(updates);
@@ -1154,6 +1190,51 @@ router.post('/:id/comments', authenticateToken, async (req, res, next) => {
     }
 
     return successResponse(res, full.toJSON());
+  } catch (err) { next(err); }
+});
+
+// ============================================
+// PUT /api/tasks/:id/comments/:commentId — 본인 댓글 편집
+// 정책: 본인만 (workspace owner / platform_admin 도 X). 다른 사람 발화 위변조 차단.
+// ============================================
+router.put('/:id/comments/:commentId', authenticateToken, async (req, res, next) => {
+  try {
+    const task = await Task.findByPk(req.params.id);
+    if (!task) return errorResponse(res, 'task_not_found', 404);
+    const comment = await TaskComment.findOne({ where: { id: req.params.commentId, task_id: task.id } });
+    if (!comment) return errorResponse(res, 'comment_not_found', 404);
+    if (comment.user_id !== req.user.id) {
+      return errorResponse(res, 'only_author_can_edit', 403);
+    }
+    const { content } = req.body || {};
+    if (!content || !String(content).trim()) return errorResponse(res, 'content_required', 400);
+    await comment.update({ content: String(content).trim() });
+    const full = await TaskComment.findByPk(comment.id, {
+      include: [{ model: User, as: 'author', attributes: ['id', 'name'] }],
+    });
+    const io = req.app.get('io');
+    if (io) io.to(`task:${task.id}`).emit('comment:updated', full.toJSON());
+    return successResponse(res, full.toJSON());
+  } catch (err) { next(err); }
+});
+
+// ============================================
+// DELETE /api/tasks/:id/comments/:commentId — 본인 댓글 삭제
+// 정책: 본인만. 작성 직후 실수 정리. 분쟁 시 owner 가 별도 admin 도구로 처리.
+// ============================================
+router.delete('/:id/comments/:commentId', authenticateToken, async (req, res, next) => {
+  try {
+    const task = await Task.findByPk(req.params.id);
+    if (!task) return errorResponse(res, 'task_not_found', 404);
+    const comment = await TaskComment.findOne({ where: { id: req.params.commentId, task_id: task.id } });
+    if (!comment) return errorResponse(res, 'comment_not_found', 404);
+    if (comment.user_id !== req.user.id) {
+      return errorResponse(res, 'only_author_can_delete', 403);
+    }
+    await comment.destroy();
+    const io = req.app.get('io');
+    if (io) io.to(`task:${task.id}`).emit('comment:deleted', { id: Number(req.params.commentId), task_id: task.id });
+    return successResponse(res, { deleted: true });
   } catch (err) { next(err); }
 });
 

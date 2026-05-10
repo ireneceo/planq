@@ -134,6 +134,7 @@
     "notMyHours": "담당자만 수정 가능 (참고용)",
     "notMyProgress": "담당자만 수정 가능 (참고용)",
     "aiEstimate": "AI 예측시간 추천",
+    "aiEstimateHint": "AI 자동 예측 — 직접 입력하면 확정됩니다",
     "assigneePh": "담당자"
   },
   "empty": {
