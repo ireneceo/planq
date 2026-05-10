@@ -7,6 +7,18 @@ const { successResponse, errorResponse } = require('../middleware/errorHandler')
 const { sequelize } = require('../config/database');
 const { Op } = require('sequelize');
 
+// 사이클 N+5 — PERMISSION_MATRIX §5.10 재무 mutation 가드.
+// invoice 발행·결제 마킹·세금계산서·환불·삭제는 owner OR platform_admin 만. member 차단.
+// (draft 생성/편집은 별개 — checkBusinessAccess 통과한 member 도 허용)
+function assertInvoiceMutationOwner(req, res) {
+  const ok = req.businessRole === 'owner' || req.user?.platform_role === 'platform_admin';
+  if (!ok) {
+    errorResponse(res, 'owner_only — financial mutation requires workspace owner or platform admin', 403);
+    return false;
+  }
+  return true;
+}
+
 // PDF 다운로드 helper — 공통
 async function buildInvoicePdf(invoiceId) {
   const invoice = await Invoice.findByPk(invoiceId, {
@@ -488,6 +500,7 @@ router.get('/:businessId/:id', authenticateToken, attachWorkspaceScope(), async 
 //  - send_email: 공개 링크 + 메모로 이메일 발송 (recipient_email 또는 client.email)
 //  - 새 채팅방 자동 생성 금지
 router.post('/:businessId/:id/send', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+  if (!assertInvoiceMutationOwner(req, res)) return;
   const t = await sequelize.transaction();
   try {
     const { send_chat = false, send_email = false, message = '' } = req.body || {};
@@ -631,6 +644,7 @@ router.post('/:businessId/:id/send', authenticateToken, checkBusinessAccess, asy
 
 // ─── Installment: 결제 완료 마킹 ───
 router.post('/:businessId/:id/installments/:installId/mark-paid', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+  if (!assertInvoiceMutationOwner(req, res)) return;
   const t = await sequelize.transaction();
   try {
     const invoice = await Invoice.findOne({
@@ -690,6 +704,7 @@ router.post('/:businessId/:id/installments/:installId/mark-paid', authenticateTo
 
 // ─── Installment: 결제 완료 마킹 취소 ───
 router.post('/:businessId/:id/installments/:installId/unmark-paid', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+  if (!assertInvoiceMutationOwner(req, res)) return;
   const t = await sequelize.transaction();
   try {
     const invoice = await Invoice.findOne({
@@ -731,6 +746,7 @@ router.post('/:businessId/:id/installments/:installId/unmark-paid', authenticate
 
 // ─── Installment: 세금계산서 발행 마킹 ───
 router.post('/:businessId/:id/installments/:installId/mark-tax-invoice', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+  if (!assertInvoiceMutationOwner(req, res)) return;
   try {
     const invoice = await Invoice.findOne({
       where: { id: req.params.id, business_id: req.params.businessId },
@@ -776,6 +792,7 @@ router.post('/:businessId/:id/installments/:installId/mark-tax-invoice', authent
 
 // ─── Invoice: 삭제 (draft / canceled 만 허용) ───
 router.delete('/:businessId/:id', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+  if (!assertInvoiceMutationOwner(req, res)) return;
   try {
     const invoice = await Invoice.findOne({
       where: { id: req.params.id, business_id: req.params.businessId },
@@ -793,6 +810,7 @@ router.delete('/:businessId/:id', authenticateToken, checkBusinessAccess, async 
 
 // ─── Installment: 취소 ───
 router.delete('/:businessId/:id/installments/:installId', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+  if (!assertInvoiceMutationOwner(req, res)) return;
   try {
     const invoice = await Invoice.findOne({
       where: { id: req.params.id, business_id: req.params.businessId },

@@ -1,14 +1,54 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-05-10 v1.4.0 (사이클 N+3 — 추출 회귀 fix · UpdateBanner 제거 · 권한 정책 · 채팅방 unlink/archive)
+> **최종 업데이트:** 2026-05-10 v1.5.1 (사이클 N+4 — 통합 공유 1~6차 / 주간보고 Phase 2 / Q Talk 카드 / 프로젝트 문서 메뉴 / CRUD 보완)
 >
-> **이전 라이브:** 2026-05-10 `e16b125` (deploy-planq.sh, 외부 health 200, 103s)
+> **이전 라이브:** 2026-05-10 `5cd518e` (v1.5.1 follow-up, 외부 health 200, 113s) / `e1ee6e4` (v1.5.0 사이클 N+4, 105s)
 >
-> **다음 진입 ★ (사이클 N+4):** 모달 통일 스프린트 / 통합 공유 시스템 (share_token + ShareModal) / Smart Routing (App-First Deep Linking) / PushLog admin 통계 페이지 / iOS 가이드 UA 분기
+> **다음 진입 ★:** (Irene 선택)
 >
-> **차순위:** 주간 보고 (Weekly Review) Phase 2 / 권한 옵션 A + 개인 보관함 / Q note 텍스트 type + Quick Capture / Custom SMTP (Pro+)
+> **차순위:** 권한 옵션 A + 개인 보관함 / Q note 텍스트 type + Quick Capture / Custom SMTP (Pro+) / ShareModal 채팅방 발송 후 PostShareModal 흡수 (chat·email 통일 마무리)
 >
 > **결제 정책:** 1순위 자체 결제 (계좌이체 mark-paid), 2순위 PortOne (P-7 마지막). 월결제 + 연결제. Free 플랜 폐지 — 신규 가입은 starter+trialing 14일.
+
+---
+
+## ✅ 완료: 사이클 N+4 — v1.5.0 + v1.5.1 운영 라이브 (2026-05-10)
+
+2 commit 정식 deploy (`e1ee6e4` v1.5.0 105s + `5cd518e` v1.5.1 follow-up 113s). 외부 https://planq.kr health 200.
+
+### 주요 작업
+
+| 영역 | 작업 |
+|---|---|
+| **통합 공유 시스템 1~6차 ★★** | 1차 Q task / 2차 file·kb·calendar / 3차 4 UI 진입점 (TaskDetail·EventDrawer·DocsTab·Knowledge) / 4차 비번 보호 (bcrypt + X-Share-Password + ?p=) + 만료 옵션 / 5차 통합 이메일 (sendEntityShareEmail entity 별 라벨/CTA) / 6차 통합 채팅방 발송 + Q Talk 카드 풍부 렌더링 (4 신규 card_type, 톤별 색). services/share_helper.js + routes/share.js + SharePasswordPrompt 공통. Public preview 4종 (Smart Routing canAccess 자동 redirect) |
+| **Weekly Review Phase 2 ★** | Insights `/stats/weekly` 탭 — KPI 4장 + 완료율 추세 차트 1개. workspace 두번째 탭 "전체 주간보고" (owner 멤버별 필터). "지난주 내 업무보고" 라벨. snapshot_data attributes 누락 fix + BusinessMember 컬럼명 fix (`business_days → weekly_work_days`, `efficiency_rate` 제거). buildSnapshot 필터 확장 (start_date·기간미정·이번주완료 포함 — week 탭과 동일) |
+| **WeeklyReviewView 정리** | 박제 시점 그래프 가장 위 (LineChart 큰 1개, 실제 vs 예측 누적). 요약 KPI list 형식 (3 col x 2 row, label/value 좌우, 활용률 ⓘ 툴팁). 상태 한글 라벨 (status.observer). 삭제 버튼 + inline 확인 + list refresh. 모든 mutation 시각 피드백 (✓ 뱃지 / 에러 inline / 진행 라벨) |
+| **Q Task UI** | ScopeBtn / FinalizeBtn 회색 톤. FinalizeBtn 위치 보기 토글 앞. 4 탭 (mine) + 2 탭 (workspace) URL ?tab= 동기화. setTab + closeDetail race condition fix (setTab 안에서 task 정리). 담당자 필터 "(나)" 표시 |
+| **공통 컴포넌트 fix** | PlanQSelect menu maxHeight viewport-relative (`min(320px, calc(100vh - 80px))`) + menuPlacement 'auto' + maxMenuHeight 280 — 모든 드롭다운 가려짐 해결. SearchBox `box-sizing: border-box` 추가 (36px 정확) |
+| **프로젝트 문서 메뉴 추가 시스템** | 카드 "메뉴 추가" 토글 → 상단 탭바에 동적 탭 (📄 제목). localStorage 영속 (`qproject_pinned_docs_${projectId}`) + CustomEvent 동기화. 메뉴 탭 본문: PostEditor read-only + 편집 버튼 (?tab=docs&editPost=N → pendingEditId 패턴으로 자동 진입). list 회귀 방지 |
+| **Q docs 테이블 첨부 개선** | 첨부 칩 클릭 → 새 창 (`/files?file=N` / `/docs?post=N`). AttachChipLink (anchor + ↗). "첨부" → "파일/문서 첨부" 라벨. 모달 섹션 아이콘 (📎/📄) + 안내문. 새 문서 / AI 작성 후 자동 새 창 |
+| **CRUD 누락 fix** | Q note 세션 list 휴지통 + confirm dialog + active reset (deleteSession). Invoice DELETE backend 신설 (draft/canceled 만, sent/paid 차단) + drawer 빨간 "삭제" 버튼. WeeklyReviewView 에 삭제 추가. ProcessParts 는 이미 존재 |
+| **PWA / 작은 fix** | "새 창" 모호한 버튼 제거 (편집 1개만). 시간 표시 ISO → slice(0,10). 워크스페이스 mode = `user_id=all` (owner 만, user_name 응답 포함) |
+
+### 신규 모델/테이블 (DB sync 자동)
+- `tasks` 4 컬럼: share_token / shared_at / share_password_hash / share_expires_at
+- `files` 동일 4 컬럼 + (`shared_at` 신규)
+- `kb_documents` 동일 4 컬럼
+- `calendar_events` 동일 4 컬럼
+- backend: `services/share_helper.js`, `services/email_share`(emailService 안), `routes/share.js`
+
+### 신규 컴포넌트/페이지
+- `pages/Public/PublicTaskPage / PublicFilePage / PublicKbDocumentPage / PublicCalendarEventPage / SharePasswordPrompt`
+- `components/Common/ShareModal` (탭 3종: 링크/이메일/채팅방)
+- `components/QTask/WeeklyReviewTab + WeeklyReviewView + WeeklyReviewModal` (이전부터 존재, 이번 사이클 정리)
+- `pages/Insights/tabs/WeeklyTrendTab`
+- `pages/Admin/AdminPushLogsPage`
+
+### 운영 배포 결과
+| 시각 (KST) | Commit | 항목 | 결과 |
+|---|---|---|---|
+| 19:37 | `e1ee6e4` | 사이클 N+4 통합 공유 1~6차 + Phase 2 + Q Talk 카드 (v1.5.0) | ✅ 105s |
+| 21:43 | `5cd518e` | UX 정리 + 프로젝트 문서 메뉴 + CRUD 보완 (v1.5.1) | ✅ 113s |
 
 ---
 

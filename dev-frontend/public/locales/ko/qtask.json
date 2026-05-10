@@ -403,6 +403,8 @@
       "assignee": "담당자"
     },
     "clickToEdit": "클릭하여 수정",
+    "readOnly": "읽기 전용",
+    "readOnlyHint": "편집 권한이 없습니다 (참고용)",
     "reviewers": {
       "title": "컨펌자",
       "empty": "아직 컨펌자가 없습니다",

@@ -231,6 +231,82 @@ async function canFinancialAction(user, businessId, projectId) {
 | 플랫폼 통계 (구독 · 수익) | ● | - |
 | 사용자 비밀번호 강제 리셋 | ● | - |
 
+### 5.7 Task 본문 필드별 권한 (사이클 N+5 — 책임선 분리)
+
+업무는 **의뢰(description)** 와 **결과물(body)** 이 분리된 자산. 권한도 책임선대로 분리한다.
+
+| 필드 | 작성자 | 담당자 | 컨펌자 | 요청자 | owner | member | client | admin |
+|---|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
+| title | ● | ● | - | ● | ● | - | - | ● |
+| **description (의뢰 명세)** | ● | - | - | ● | ● | - | △ (요청 시) | ● |
+| **body (결과물)** ★ | - | ● | - | - | - | - | - | ● (감사) |
+| category | ● | ● | - | ● | ● | - | - | ● |
+| status (직접 PUT) | ● | - | - | ● | ● | - | - | ● |
+| status (워크플로우: start/submit_review/cancel) | - | ● | - | - | ● | - | - | ● |
+| status (approve / revision_requested) | - | - | ● | - | ● | - | - | ● |
+| ack (요청 수락) | - | ● | - | - | - | - | - | ● |
+| assignee_id | ● | - | - | ● | ● | - | - | ● |
+| due_date / start_date | ● | - | - | ● | ● | - | - | ● |
+| planned_week_start | ● | ● (자기 주간) | - | ● | ● | - | - | ● |
+| recurrence_rule | ● | - | - | ● | ● | - | - | ● |
+| project_id (이관) | - | - | - | - | ● | - | - | ● |
+| estimated_hours | - | ● | - | - | ● | - | - | ● |
+| actual_hours / progress | - | ● | - | - | ● | - | - | ● |
+| reviewers (add/remove) | ● | ● | - | ● | ● | - | - | ● |
+| share 토큰 | ● | ● | - | ● | ● | - | - | ● |
+| **DELETE task** ★ | △ (참여자·이력 0건만) | - | - | - | ● | - | - | ● |
+
+★ **사이클 N+5 정식 정책 (2026-05-10):**
+- **body (결과물)** — 담당자 본인 영역. owner 도 못 만짐. owner 가 결과물을 고치고 싶으면 **컨펌 반려 (revision_requested)** 워크플로우로 풀어야 함. admin 만 운영 감사 백도어.
+- **description (의뢰 명세)** — 발주자(작성자/요청자/owner) 영역. 담당자는 코멘트로 보충. 의뢰 명세를 담당자가 임의 수정 금지.
+- **DELETE task** — owner only. 단, 댓글·이력·참여자 모두 0건인 신생 task 는 작성자도 삭제 가능 (실수 정정).
+
+> **이유:** 담당자 결과물을 owner 가 임의 수정하면 책임선 무너지고 동기부여 저하. 의뢰 명세를 담당자가 수정하면 발주자 권한 침해. 본문이 두 갈래로 나뉘어 있으니 권한도 두 갈래.
+
+### 5.8 Q Note — 개인 도구 권한 (owner·admin 모두 차단)
+
+| 필드/액션 | 세션 생성자 | owner | member | client | admin |
+|---|:-:|:-:|:-:|:-:|:-:|
+| 세션 생성 | – | ● | ● | - (memory) | ● |
+| 세션 목록 (남 세션) | - | - | - | - | - |
+| 트랜스크립트 / 메모 / 답변 보기 | ● | - | - | - | - |
+| 편집 (제목·메모) | ● | - | - | - | - |
+| 답변·요약 생성 | ● | - | - | - | - |
+| 삭제 | ● | - | - | - | - |
+| 공유 (다른 사용자에게) | ● | - | - | - | - |
+
+> **원칙:** Q Note 는 **진짜 사적 공간**. owner 도 admin 도 남의 Q Note 못 봄. 음성/회의 내용은 매우 개인적이라 운영 감사 백도어조차 두지 않음. 코드 정합: `q-note/routers/sessions.py` 의 모든 라우트가 `_load_session_or_403(db, session_id, user['user_id'])` 강제 — `session.user_id ≠ user_id` 면 무조건 403. memory `feedback_qnote_personal_tool.md` 박제됨.
+
+### 5.9 Message 모더레이션 (Q Talk)
+
+| 액션 | 본인 (작성자) | 같은 대화 참여자 | owner | client | admin |
+|---|:-:|:-:|:-:|:-:|:-:|
+| 메시지 송신 | ● | ● | ● | △ (참여 conv) | ● |
+| 메시지 편집 | ● (본인 msg 만) | - | - | △ (본인 msg) | ● |
+| 메시지 삭제 (마스킹) — 본인 msg | ● | - | ● | △ (본인 msg) | ● |
+| 메시지 삭제 (마스킹) — 남 msg (모더레이션) | - | - | ● | - | ● |
+
+> **원칙:** 메시지는 마스킹 정책 (`is_deleted=true`, 원본 DB 유지, UI "삭제된 메시지"). owner 의 남 메시지 삭제는 **모더레이션** 용도 — 댓글 가이드라인 위반, 민감정보 노출 사고 등. AuditLog 강제.
+
+### 5.10 Invoice 재무 권한 (owner 강함 — member 차단)
+
+| 액션 | workspace owner | member | client | admin |
+|---|:-:|:-:|:-:|:-:|
+| draft 생성 | ● | ● (가벼움) | - | ● |
+| draft 편집 (금액·항목) | ● | ● | - | ● |
+| **발행 (sent)** ★ | ● | - | - | ● |
+| 분할 회차 생성/편집 | ● | ● (draft 만) | - | ● |
+| **결제 마킹 (mark-paid)** ★ | ● | - | - | ● |
+| 세금계산서 발행 (KR 사업자) ★ | ● | - | - | ● |
+| 환불 / 취소 | ● | - | - | ● |
+| 삭제 (draft/canceled only) ★ | ● | - | - | ● |
+| 공유 링크 (고객용) | ● | - | - | ● |
+| 외화 결제 정보 설정 | ● | - | - | ● |
+
+★ = 사이클 N+5 (2026-05-10) 정식 강화: `routes/invoices.js` `assertInvoiceMutationOwner` 가드 적용. member 가 호출하면 403 `owner_only`.
+
+> **핵심:** member 는 청구서 **발행·결제 마킹·세금계산서·삭제** 불가. draft 만 가능. 재무 사고·미수금 추적·세무 분쟁 방지. `invoices.owner_user_id` 컬럼은 "담당자 표시" 용도로 남기되 권한 부여 안 함 (헷갈림 방지).
+
 ---
 
 ## 6. 민감 정보 정책 — 응답 제외 규칙
@@ -445,5 +521,6 @@ const { canFinancial, reason } = usePermissions(projectId);
 |---|---|---|
 | 2026-04-24 | 초판 작성 — 5 역할, 3 토글, 전 매트릭스 | 기획 (Irene) + 30년차 관점 검증 |
 | 2026-04-28 | **§7 client 정책 백엔드 일괄 구현** — `middleware/access_scope.js` 신설. conversations/tasks/task_attachments/calendar/files/file_folders/posts/docs/invoices/dashboard 11개 라우트가 client 도 자기 자원 통과시키도록 통일. E2E 검증: client 격리 12/12 + owner 쓰기 5/5 통과 | Irene 요청 — "권한에 맞게 안 나옴" 진단 후 일괄 수정 |
+| 2026-05-10 | **사이클 N+5 — 책임선 명확화**: §5.7 Task 필드별 권한 신설 (description = 의뢰자 / body = 수행자), §5.8 Q Note 개인도구 박제 (owner 차단), §5.9 Message 모더레이션, §5.10 Invoice 재무 owner only. `routes/tasks.js` FIELD_RULES 분리, `TaskDetailDrawer.tsx` canEditDescription/canEditBody 분리. RichEditor 링크 클릭 항상 새 탭 | Irene 요청 — "관리자가 결과물 수정되는 게 말 안 됨" 진단 후 정책 정리 |
 
 이후 변경 시 이 테이블에 한 줄 + 관련 매트릭스 업데이트.

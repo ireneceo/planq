@@ -46,7 +46,9 @@ export default function RichEditor({
   const editor = useEditor({
     extensions: [
       StarterKit.configure({ heading: { levels: [1, 2, 3] }, link: false }),
-      Link.configure({ openOnClick: false, autolink: true, HTMLAttributes: { rel: 'noopener noreferrer' } }),
+      // 링크는 editable/readOnly 무관하게 항상 클릭 시 새 탭 — 편집 권한 있어도 본문 링크는 외부 이동 우선.
+      // 링크 텍스트 자체 편집은 bubble 메뉴(🔗) 로. 링크 옆 글자에 cursor 두고 selection 만들면 됨.
+      Link.configure({ openOnClick: true, autolink: true, HTMLAttributes: { rel: 'noopener noreferrer', target: '_blank' } }),
       Image.configure({ inline: false, allowBase64: false }),
       Placeholder.configure({
         placeholder: ({ node }) => node.type.name === 'paragraph' ? effectivePlaceholder : '',

@@ -403,6 +403,8 @@
       "assignee": "Assignee"
     },
     "clickToEdit": "Click to edit",
+    "readOnly": "Read-only",
+    "readOnlyHint": "You don't have permission to edit this (view only)",
     "reviewers": {
       "title": "Reviewers",
       "empty": "No reviewers yet",

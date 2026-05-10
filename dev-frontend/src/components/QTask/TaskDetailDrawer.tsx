@@ -140,7 +140,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
     return () => { cancelled = true; };
   }, [projectsProp, bizId]);
   const projects = projectsProp ?? projectsFetched;
-  const { hasRole } = useAuth();
+  const { user, hasRole } = useAuth();
   const drawerRef = useRef<HTMLElement>(null);
   useBodyScrollLock(!!taskId);
   useEscapeStack(!!taskId, onClose);
@@ -599,6 +599,18 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
           const iAmAssignee = myRoles.includes('assignee');
           const iAmReviewer = myRoles.includes('reviewer');
           const iAmRequesterOrOwner = myRoles.includes('requester');
+          // 사이클 N+5 — PERMISSION_MATRIX §5.7 책임선 분리:
+          //   title/category    → 작성자/담당자/owner/admin
+          //   description (의뢰)→ 작성자/owner/admin (담당자 빠짐)
+          //   body (결과물)     → 담당자/admin (owner 빠짐, admin 만 감사 백도어)
+          const iAmCreator = detailTask.created_by === myId;
+          const myWsRole = (user?.workspaces || []).find(w => w.business_id === bizId)?.role
+            || (user?.business_id === bizId ? user?.business_role : null);
+          const isPlatformAdmin = user?.platform_role === 'platform_admin';
+          const iAmWsOwner = myWsRole === 'owner' || isPlatformAdmin;
+          const canEditTitle = iAmCreator || iAmAssignee || iAmWsOwner;
+          const canEditDescription = iAmCreator || iAmWsOwner;
+          const canEditBody = iAmAssignee || isPlatformAdmin;
           const myReviewer = reviewers.find(rv => rv.user_id === myId);
           const dStatus = displayStatus(detailTask, todayStr);
           const sc = STATUS_COLOR[dStatus];
@@ -633,17 +645,23 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                     if (e.key === 'Escape') { setTitleDraft(''); setEditingTitle(false); }
                   }} />
               ) : (
-                <Title role="button" tabIndex={0}
+                <Title
+                  role={canEditTitle ? 'button' : undefined}
+                  tabIndex={canEditTitle ? 0 : undefined}
                   onMouseDown={(e) => e.stopPropagation()}
-                  onClick={(e) => { e.stopPropagation(); setTitleDraft(detailTask.title); setEditingTitle(true); }}
-                  title={t('detail.clickToEdit', '클릭하여 수정') as string}>
+                  onClick={canEditTitle
+                    ? (e) => { e.stopPropagation(); setTitleDraft(detailTask.title); setEditingTitle(true); }
+                    : undefined}
+                  title={canEditTitle
+                    ? (t('detail.clickToEdit', '클릭하여 수정') as string)
+                    : (t('detail.readOnlyHint', '편집 권한이 없습니다 (참고용)') as string)}>
                   <TitleText>{detailTask.title}</TitleText>
-                  <TitleEditIcon aria-hidden>
+                  {canEditTitle && <TitleEditIcon aria-hidden>
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
                       <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
                     </svg>
-                  </TitleEditIcon>
+                  </TitleEditIcon>}
                 </Title>
               )}
               <Meta>
@@ -971,7 +989,10 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
             </Section>
 
             <Section>
-              <SectionTitle>{t('detail.description', '업무 설명')}</SectionTitle>
+              <SectionTitle>
+                {t('detail.description', '업무 설명')}
+                {!canEditDescription && <ReadOnlyHint>{t('detail.readOnly', '읽기 전용')}</ReadOnlyHint>}
+              </SectionTitle>
               <DescEditorWrap>
                 <RichEditor
                   value={detailTask.description || ''}
@@ -980,6 +1001,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                   placeholder={t('detail.descPlaceholder', '업무 설명 — 이미지 붙여넣기·드래그 지원') as string}
                   uploadUrl={`/api/files/${bizId}`}
                   minHeight={120}
+                  readOnly={!canEditDescription}
                 />
               </DescEditorWrap>
             </Section>
@@ -1174,13 +1196,17 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
             )}
 
             <Section>
-              <SectionTitle>{t('detail.body', '결과물')}</SectionTitle>
+              <SectionTitle>
+                {t('detail.body', '결과물')}
+                {!canEditBody && <ReadOnlyHint>{t('detail.readOnly', '읽기 전용')}</ReadOnlyHint>}
+              </SectionTitle>
               <RichEditor value={detailTask.body || ''}
                 onChange={(html) => debouncedSave('body', html, 2000)}
                 onBlur={(html) => flushDebounced('body', html)}
                 placeholder={t('detail.bodyPlaceholder', '업무 결과물을 작성하세요.  / 입력 시 블록 추가')}
                 uploadUrl={`/api/tasks/${detailTask.id}/attachments?context=description`}
-                minHeight={260} />
+                minHeight={260}
+                readOnly={!canEditBody} />
             </Section>
 
             <TaskAttachments taskId={detailTask.id} onChangeCount={() => {}} />
@@ -1405,7 +1431,8 @@ const PillSpinner = styled.span`
 `;
 const Scroll = styled.div`flex:1;overflow-y:auto;overflow-x:hidden;min-width:0;&>*{min-width:0;max-width:100%;}&::-webkit-scrollbar{width:6px;}&::-webkit-scrollbar-thumb{background:#E2E8F0;border-radius:3px;}`;
 const Section = styled.div`border-bottom:1px solid #F1F5F9;padding:12px 14px;`;
-const SectionTitle = styled.h4`font-size:12px;font-weight:700;color:#0F172A;margin:0 0 8px;`;
+const SectionTitle = styled.h4`font-size:12px;font-weight:700;color:#0F172A;margin:0 0 8px;display:flex;align-items:center;gap:8px;`;
+const ReadOnlyHint = styled.span`font-size:11px;font-weight:500;color:#94A3B8;background:#F1F5F9;border-radius:10px;padding:2px 8px;`;
 const Title = styled.h3`font-size:19px;font-weight:700;color:#0F172A;margin:0 0 8px;line-height:1.35;cursor:pointer;border-radius:6px;padding:4px 6px;margin-left:-6px;transition:background 0.12s;display:flex;align-items:center;gap:8px;&:hover{background:#F1F5F9;}&:hover > span:last-child{opacity:1;}&:focus{outline:none;}&:focus-visible{outline:2px solid #14B8A6;outline-offset:2px;}`;
 const TitleText = styled.span`flex:1;min-width:0;`;
 const TitleEditIcon = styled.span`display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:6px;color:#94A3B8;opacity:0;transition:opacity 0.15s, background 0.12s;flex-shrink:0;`;

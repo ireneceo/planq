@@ -292,6 +292,18 @@ res.status(400).json({ success: false, message: 'Error description' });
 > **Q Task 상태 ENUM:** `not_started`, `waiting`, `in_progress`, `reviewing`, `revision_requested`, `completed`, `canceled`. (2026-04-25: `done_feedback` 폐지 — 컨펌 정책 충족 시 `recalcStatusFromReviewers` 가 자동 `completed` 전환). 관점별 UI 라벨은 `dev-frontend/src/utils/taskLabel.ts` 참조 (i18n `status.{code}.{role}` 4차원 구조).
 >
 > **Q Task 시간/진행율 권한 (2026-04-25):** `estimated_hours / actual_hours / progress_percent` 는 **담당자만 입력 가능**. 비담당자가 PATCH/PUT 시 `only_assignee_can_edit_hours` 403. 프론트는 `assignee_id !== myId` 시 input disabled (회색·점선·spinner 숨김). 다른 역할은 read-only 참고.
+>
+> **Q Task 본문 필드 책임선 분리 (2026-05-10, 사이클 N+5):** PERMISSION_MATRIX §5.7 정식 박제.
+> - **description (의뢰 명세)** → 작성자/owner/admin (담당자 빠짐). 담당자는 코멘트로 보충
+> - **body (결과물)** → 담당자/admin (owner 빠짐 — 결과물에 owner 가 손대고 싶으면 컨펌 반려 워크플로우로)
+> - **title/category** → 작성자/담당자/owner/admin
+> - **DELETE task** → owner/admin. 작성자는 댓글·이력·리뷰어 0건 신생 task 만 (실수 정정용)
+> - 프론트엔드: `TaskDetailDrawer.tsx` `canEditTitle/canEditDescription/canEditBody` 3분기. 권한 없으면 RichEditor `readOnly` + 섹션 옆 회색 "읽기 전용" 뱃지
+> - RichEditor 의 anchor 는 `openOnClick: true` + `target=_blank` — editable/readOnly 무관하게 본문 링크 항상 새 탭
+
+> **Invoice 재무 owner only (2026-05-10, 사이클 N+5):** PERMISSION_MATRIX §5.10. `assertInvoiceMutationOwner` 헬퍼 (`routes/invoices.js`) — 발행(send) / 결제 마킹(mark-paid·unmark-paid) / 세금계산서(mark-tax-invoice) / 삭제(invoice·installment) 5개 라우트에 적용. member 호출 시 403 `owner_only`. draft 생성·편집은 member 도 OK. `invoices.owner_user_id` 컬럼은 담당자 표시용으로만 — 권한 부여 안 함 (혼란 방지).
+
+> **Q Note 진짜 사적 공간 (코드 정합):** `q-note/routers/sessions.py` 의 모든 라우트가 `_load_session_or_403(db, session_id, user['user_id'])` 강제. 본인 세션 외 무조건 403 — owner 도 admin 도 백도어 없음. PERMISSION_MATRIX §5.8 박제. memory `feedback_qnote_personal_tool.md` 와 일치.
 
 > **댓글·메모 visibility 통일:** `personal`/`internal`/`shared` — `task_comments` 와 `project_notes` 공통 ENUM.
 >
