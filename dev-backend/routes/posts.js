@@ -89,6 +89,7 @@ function serialize(p, withContent = false) {
     parent_post_id: p.parent_post_id || null,
     kind: p.kind || 'doc',
     q_record_id: p.q_record_id || null,
+    linked_post_ids: Array.isArray(p.linked_post_ids) ? p.linked_post_ids : [],
     created_at: p.createdAt,
     updated_at: p.updatedAt,
     content_preview: (p.content_text || '').slice(0, 200),
@@ -241,6 +242,18 @@ router.get('/:id', authenticateToken, async (req, res, next) => {
         result.qrecord = { id: qrec.id, columns: qrec.columns };
       }
     }
+    // 연결된 다른 post 메타 (title/kind) 같이 — 표시용 chip
+    const linkedIds = result.linked_post_ids;
+    if (linkedIds.length > 0) {
+      const linked = await Post.findAll({
+        where: { id: linkedIds, business_id: post.business_id },
+        attributes: ['id', 'title', 'kind'],
+      });
+      const linkedMap = new Map(linked.map(p => [p.id, { id: p.id, title: p.title, kind: p.kind }]));
+      result.linked_posts = linkedIds.map(id => linkedMap.get(id)).filter(Boolean);
+    } else {
+      result.linked_posts = [];
+    }
     successResponse(res, result);
   } catch (err) { next(err); }
 });
@@ -277,18 +290,16 @@ router.post('/', authenticateToken, async (req, res, next) => {
       const parent = await Post.findOne({ where: { id: parent_post_id, business_id } });
       if (!parent) return errorResponse(res, 'invalid parent_post_id', 400);
     }
-    // kind='table' 이면 빈 q_record 1개 자동 생성 (1 컬럼 + 0 행)
+    // kind='table' 이면 빈 q_record 자동 생성 — 컬럼 0, 행 0. 사용자가 직접 컬럼 추가.
     let qRecordId = null;
     if (kind === 'table') {
       const { QRecord } = require('../models');
-      const crypto = require('crypto');
-      const newColId = () => 'c' + crypto.randomBytes(4).toString('hex');
       const qrec = await QRecord.create({
         business_id,
         project_id: project_id || null,
         name: String(title).slice(0, 200),
         category,
-        columns: [{ id: newColId(), name: '제목', type: 'text', order: 0 }],
+        columns: [],
         read_policy: 'all',
         created_by: req.user.id,
       });
@@ -571,6 +582,20 @@ router.put('/:id', authenticateToken, async (req, res, next) => {
     if (req.body.category !== undefined) patch.category = req.body.category;
     if (req.body.status !== undefined) patch.status = req.body.status;
     if (req.body.is_pinned !== undefined) patch.is_pinned = !!req.body.is_pinned;
+    // 다른 post 연결 — 자기 자신·중복 제거 + 같은 워크스페이스 내 post 만 허용
+    if (req.body.linked_post_ids !== undefined) {
+      const raw = Array.isArray(req.body.linked_post_ids) ? req.body.linked_post_ids : [];
+      const candidate = [...new Set(raw.map(Number).filter(n => Number.isFinite(n) && n !== post.id))];
+      if (candidate.length > 0) {
+        const valid = await Post.findAll({
+          where: { id: candidate, business_id: post.business_id },
+          attributes: ['id'],
+        });
+        patch.linked_post_ids = valid.map(p => p.id);
+      } else {
+        patch.linked_post_ids = [];
+      }
+    }
     if (req.body.project_id !== undefined) {
       const pid = req.body.project_id;
       if (pid === null || pid === '') {

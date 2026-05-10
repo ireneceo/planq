@@ -29,6 +29,7 @@ const TaskEstimation = require('./TaskEstimation');
 const TaskTemplate = require('./TaskTemplate');
 const TaskTemplateItem = require('./TaskTemplateItem');
 const PushSubscription = require('./PushSubscription');
+const PushLog = require('./PushLog');
 const FeedbackItem = require('./FeedbackItem');
 const TaskStatusHistory = require('./TaskStatusHistory');
 const TaskAttachment = require('./TaskAttachment');
@@ -374,6 +375,7 @@ module.exports = {
   TaskTemplate,
   TaskTemplateItem,
   PushSubscription,
+  PushLog,
   TaskStatusHistory,
   TaskAttachment,
   ProjectStatusOption,

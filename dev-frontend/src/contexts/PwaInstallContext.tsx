@@ -19,13 +19,18 @@ interface PwaInstallState {
   isIos: boolean;                 // iOS Safari (prompt API 미지원, 수동 안내만)
   platform: Platform;
   dismissedThisSession: boolean;  // 이번 탭 세션에서 사용자가 닫음
+  dismissedUntil: number | null;  // 이 시각(ms)까지 영구 dismiss (사용자가 "7일 안 보기" 선택)
   install: () => Promise<'accepted' | 'dismissed' | 'unavailable'>;
   dismissForSession: () => void;
+  dismissFor7Days: () => void;   // localStorage 에 7일 만료 박음
 }
 
 const Ctx = createContext<PwaInstallState | null>(null);
 
 const SESSION_DISMISS_KEY = 'pq_pwa_install_dismiss_session';
+// 사용자가 "7일 동안 안 보기" 선택 시 localStorage 에 만료 timestamp 저장
+const PERSIST_DISMISS_KEY = 'pq_pwa_install_dismiss_until';
+const DISMISS_DAYS = 7;
 
 function detectPlatform(): { platform: Platform; isIos: boolean; isStandalone: boolean } {
   const ua = navigator.userAgent.toLowerCase();
@@ -51,6 +56,14 @@ export function PwaInstallProvider({ children }: { children: ReactNode }) {
   const [isRelatedInstalled, setIsRelatedInstalled] = useState(false);
   const [dismissedThisSession, setDismissedThisSession] = useState<boolean>(() => {
     try { return sessionStorage.getItem(SESSION_DISMISS_KEY) === '1'; } catch { return false; }
+  });
+  const [dismissedUntil, setDismissedUntil] = useState<number | null>(() => {
+    try {
+      const v = Number(localStorage.getItem(PERSIST_DISMISS_KEY) || '0');
+      if (!Number.isFinite(v) || v <= 0) return null;
+      if (v < Date.now()) { localStorage.removeItem(PERSIST_DISMISS_KEY); return null; }
+      return v;
+    } catch { return null; }
   });
 
   // navigator.getInstalledRelatedApps() — 같은 origin PWA 가 이미 설치되어 있는지 감지.
@@ -109,6 +122,13 @@ export function PwaInstallProvider({ children }: { children: ReactNode }) {
     setDismissedThisSession(true);
   }, []);
 
+  const dismissFor7Days = useCallback(() => {
+    const until = Date.now() + DISMISS_DAYS * 24 * 60 * 60 * 1000;
+    try { localStorage.setItem(PERSIST_DISMISS_KEY, String(until)); } catch { /* ignore */ }
+    setDismissedUntil(until);
+    setDismissedThisSession(true); // 이번 탭에도 즉시 숨김
+  }, []);
+
   const value: PwaInstallState = {
     isStandalone,
     isRelatedInstalled,
@@ -116,6 +136,8 @@ export function PwaInstallProvider({ children }: { children: ReactNode }) {
     isIos,
     platform,
     dismissedThisSession,
+    dismissedUntil,
+    dismissFor7Days,
     install,
     dismissForSession,
   };

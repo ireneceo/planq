@@ -4,7 +4,11 @@ import { apiFetch } from '../contexts/AuthContext';
 export type QRecordColumnType =
   | 'text' | 'longtext' | 'number' | 'date' | 'datetime'
   | 'checkbox' | 'url' | 'email' | 'phone'
-  | 'select' | 'multi_select' | 'secret';
+  | 'select' | 'multi_select' | 'secret'
+  | 'attach'   // 파일/문서 첨부 — 셀 값 = { kind: 'file'|'post', id: number, label?: string }[]
+  | 'row_sum' | 'row_avg' | 'row_min' | 'row_max';  // 행 기준 자동 계산 — 같은 행의 모든 number 컬럼 합산/평균/최소/최대
+
+export type QRecordAggregate = 'none' | 'count' | 'sum' | 'avg' | 'min' | 'max' | 'empty' | 'filled';
 
 export interface QRecordColumn {
   id: string;
@@ -12,6 +16,7 @@ export interface QRecordColumn {
   type: QRecordColumnType;
   options?: string[];
   order: number;
+  aggregate?: QRecordAggregate;  // 컬럼 footer 집계 — none 또는 미설정 시 표시 X
 }
 
 export interface QRecordSummary {

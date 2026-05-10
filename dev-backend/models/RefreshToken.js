@@ -39,6 +39,12 @@ RefreshToken.init({
     type: DataTypes.ENUM('rotated', 'logout', 'reuse_detected', 'admin', 'expired'),
     allowNull: true,
   },
+  // rotate 시 옛 row 의 후속 row id. 옛 토큰으로 refresh 호출 (다중 탭 race) 시
+  // 후속 row 가 살아있고 revoked_at 이 grace window 이내면 정상 race 로 간주.
+  replaced_by_id: {
+    type: DataTypes.INTEGER, allowNull: true,
+    references: { model: 'refresh_tokens', key: 'id' },
+  },
   last_used_at: { type: DataTypes.DATE, allowNull: true },
 }, {
   sequelize,

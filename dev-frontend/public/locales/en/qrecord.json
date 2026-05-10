@@ -18,10 +18,6 @@
     "cols": "Cols", "rows": "Rows", "updated": "Updated",
     "workspace": "Workspace"
   },
-  "empty": {
-    "title": "No tables yet",
-    "body": "Store structured data (accounts · assets · contacts …) per workspace."
-  },
   "create": {
     "title": "New table",
     "nameLabel": "Table name",
@@ -40,13 +36,55 @@
     "nameLabel": "Column name",
     "typeLabel": "Type",
     "optionsLabel": "Options (one per line)",
+    "optionsPh": "e.g.\nIn progress\nReview\nDone",
     "editHint": "Click to edit",
-    "addHint": "Add column"
+    "addHint": "Add column",
+    "namePromptPh": "New column name",
+    "defaultName": "Column {{n}}",
+    "delete": "Delete column",
+    "deleteConfirm": "All cell data in this column will be removed.",
+    "deleteYes": "Delete",
+    "aggregateLabel": "Column summary (bottom row)",
+    "aggregateHint": "Auto-compute sum/avg/min/max of this column's values at the bottom row of the table."
+  },
+  "agg": {
+    "none": "None",
+    "count": "Rows with value",
+    "sum": "Sum",
+    "avg": "Average",
+    "min": "Min",
+    "max": "Max",
+    "empty": "Empty %",
+    "filled": "Filled %"
   },
   "row": { "deleteHint": "Delete row" },
   "cell": {
     "reveal": "Show",
     "secretPh": "Enter value (masked on save)",
-    "secretEnterPh": "Enter secret"
+    "secretEnterPh": "Enter secret",
+    "selectEmptyPh": "No options — add in column settings",
+    "attachAdd": "Attach",
+    "attachHint": "Add/edit attachments"
+  },
+  "empty": {
+    "title": "No tables yet",
+    "body": "Store structured data (accounts · assets · contacts …) per workspace.",
+    "firstColumn": "Add a column to get started",
+    "firstColumnHint": "e.g. Company, Owner, Status, Due date",
+    "firstColumnPh": "First column name (Enter)"
+  },
+  "attach": {
+    "title": "Add attachment",
+    "remove": "Remove",
+    "uploadSection": "Upload file",
+    "uploadHint": "Click or drop a file here",
+    "fileSection": "Link existing file",
+    "filePh": "Search/select file",
+    "docSection": "Link document",
+    "docPh": "Search/select document",
+    "newSection": "Create new document → link",
+    "newBlank": "Blank doc",
+    "newAi": "AI write",
+    "blankPostTitle": "New document"
   }
 }

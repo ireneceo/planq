@@ -143,3 +143,27 @@ export async function autoSubscribeIfPossible(): Promise<{ ok: boolean; reason?:
 
   return await subscribe();
 }
+
+// 권한 동기화 — 사용자가 OS/브라우저 설정에서 알림 권한 OFF 했을 때 backend 좀비 endpoint 정리.
+// 페이지 focus 복귀 시 호출. denied 면 backend 의 sub 도 자동 unsubscribe 시켜 발송 시도 자체 차단.
+export async function syncPermissionOnFocus(): Promise<void> {
+  if (!('serviceWorker' in navigator) || typeof Notification === 'undefined') return;
+  if (Notification.permission !== 'denied') return;
+  const subbed = await isSubscribed().catch(() => false);
+  if (!subbed) return;
+  await unsubscribe().catch(() => null);
+}
+
+// App 진입 1회 + focus/visibility 시 등록 — main.tsx 또는 App.tsx 에서 한 번만 호출
+let permissionSyncBound = false;
+export function bindPermissionSync(): void {
+  if (permissionSyncBound) return;
+  permissionSyncBound = true;
+  const handler = () => { void syncPermissionOnFocus(); };
+  window.addEventListener('focus', handler);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') handler();
+  });
+  // 첫 1회 — 앱 진입 시점
+  setTimeout(handler, 2000);
+}

@@ -72,8 +72,13 @@ function ensureUnlock() {
 // mp3 캐시 — null = 미시도, HTMLAudioElement = 사용 가능, mp3Failed=true 면 합성으로 영구 전환
 let mp3El: HTMLAudioElement | null = null;
 let mp3Failed = false;
+// debounce — 200ms 이내 중복 ping skip (짧은 간격에 여러 알림 도착 시 사운드 중첩 방지)
+let lastPingAt = 0;
 
 function playPing() {
+  const now = Date.now();
+  if (now - lastPingAt < 200) return;
+  lastPingAt = now;
   if (!mp3Failed) {
     if (!mp3El) {
       try {
@@ -220,6 +225,11 @@ export default function NotificationToaster() {
           });
         }
       }).catch(() => {});
+    });
+
+    // 새 빌드 알림 — main.tsx 의 update banner 핸들러로 forwarding
+    s.on('server:build', (payload: { build_id: string }) => {
+      window.dispatchEvent(new CustomEvent('planq:socket-build-id', { detail: payload }));
     });
 
     s.on('connect_error', async (err) => {

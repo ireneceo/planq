@@ -55,8 +55,10 @@ const generateAccessToken = (user) => {
 };
 
 const generateRefreshToken = (user) => {
+  // jti (UUID) 추가 — jwt.iat 가 초 단위라 같은 초에 두 번 sign 시 동일 토큰 → token_hash unique 충돌.
+  // 다중 탭 동시 refresh / 빠른 연속 login 같은 race 에서 401/409 회귀 차단.
   return jwt.sign(
-    { userId: user.id },
+    { userId: user.id, jti: crypto.randomUUID() },
     process.env.JWT_REFRESH_SECRET,
     { expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d' }
   );
@@ -520,9 +522,30 @@ router.post('/refresh', async (req, res, next) => {
       return errorResponse(res, 'Invalid refresh token', 401);
     }
 
-    // 4. 이미 revoked — 재사용 시도 (RFC 6749: refresh token reuse detection)
-    //    같은 user 의 모든 active row 일괄 revoke (디바이스 전체 logout). 도난 방어.
+    // 4. 이미 revoked — 재사용 시도. 단, 다중 탭 race 흡수:
+    //    rotated 직후 grace window (30초) 내, 후속 row 가 active 라면 정상 race 로 간주
+    //    → 새 access token 만 발급 (cookie 미갱신, 후속 row 보존). 도난 방어 유지하면서
+    //    멀쩡한 사용자가 강제 logout 되는 회귀 차단.
     if (tokenRow.revoked_at) {
+      const ROTATION_GRACE_MS = 30 * 1000;
+      const revokedAgo = Date.now() - new Date(tokenRow.revoked_at).getTime();
+      if (
+        tokenRow.revoked_reason === 'rotated' &&
+        tokenRow.replaced_by_id &&
+        revokedAgo < ROTATION_GRACE_MS
+      ) {
+        const successor = await RefreshToken.findByPk(tokenRow.replaced_by_id);
+        if (successor && !successor.revoked_at) {
+          // 정상 race — 후속 row 살아있으면 access token 만 재발급, cookie 그대로
+          const user = await User.findByPk(tokenRow.user_id);
+          if (user && user.status === 'active' && !user.is_ai) {
+            const accessOnly = generateAccessToken(user);
+            const userData = await getUserWithBusiness(user.id);
+            return successResponse(res, { token: accessOnly, user: userData });
+          }
+        }
+      }
+      // 진짜 reuse — 모든 row revoke
       await RefreshToken.update(
         { revoked_at: new Date(), revoked_reason: 'reuse_detected' },
         { where: { user_id: tokenRow.user_id, revoked_at: null } }
@@ -544,11 +567,16 @@ router.post('/refresh', async (req, res, next) => {
     }
 
     // 7. Rotate — 옛 row revoke (rotated) + 새 row 생성 + 새 cookie
+    //    옛 row 의 replaced_by_id 에 새 row id 저장 (다중 탭 race 흡수에 사용)
     const newAccessToken = generateAccessToken(user);
     const newRefreshToken = generateRefreshToken(user);
 
-    await tokenRow.update({ revoked_at: new Date(), revoked_reason: 'rotated' });
-    await createRefreshTokenRow(user, newRefreshToken, req);
+    const successorRow = await createRefreshTokenRow(user, newRefreshToken, req);
+    await tokenRow.update({
+      revoked_at: new Date(),
+      revoked_reason: 'rotated',
+      replaced_by_id: successorRow.id,
+    });
 
     // 새 cookie — 기존 cookie 의 maxAge 가 있다면 (remember=true 였음) 유지
     // request 시점엔 remember 옵션 없으니 기존 row 의 expires_at 까지 남은 시간으로 설정

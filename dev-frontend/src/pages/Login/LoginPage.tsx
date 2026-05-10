@@ -53,6 +53,11 @@ const BrandLogo = styled.img`
   display: block;
   margin: 0 auto 16px;
   user-select: none;
+
+  @media (max-width: 768px) {
+    max-width: 140px;
+    margin-bottom: 8px;
+  }
 `;
 
 const BrandDescription = styled.p`

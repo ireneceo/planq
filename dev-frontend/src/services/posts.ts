@@ -58,6 +58,9 @@ export interface PostDetail extends PostRow {
     id: number;
     columns: Array<{ id: string; name: string; type: string; options?: string[]; order: number }>;
   };
+  // 다른 post (문서/표) 연결
+  linked_post_ids?: number[];
+  linked_posts?: Array<{ id: number; title: string; kind: 'doc' | 'table' | 'brief' | 'template' }>;
 }
 
 export interface PostListFilter {
@@ -124,6 +127,7 @@ export async function createPost(payload: {
 export async function updatePost(id: number, patch: Partial<{
   title: string; content_json: TiptapDoc; category: string | null; status: 'draft' | 'published'; is_pinned: boolean;
   project_id: number | null; conversation_id: number | null;
+  linked_post_ids: number[];
 }>): Promise<PostDetail> {
   const r = await apiFetch(`/api/posts/${id}`, {
     method: 'PUT',
