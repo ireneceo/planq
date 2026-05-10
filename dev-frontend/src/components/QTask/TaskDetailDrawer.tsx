@@ -48,7 +48,7 @@ interface CommentRow {
   id: number;
   content: string;
   createdAt: string;
-  author?: { name: string };
+  author?: { id?: number; name: string };
   attachments?: CommentAttach[];
 }
 interface ReviewerRow {
@@ -189,6 +189,41 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
   const [commentExistingFileIds, setCommentExistingFileIds] = useState<number[]>([]);
   const [commentExistingPostIds, setCommentExistingPostIds] = useState<number[]>([]);
   const [commentSending, setCommentSending] = useState(false);
+  // 댓글 편집/삭제 — 본인 댓글만 (메시지 정책과 동일)
+  const [editingCommentId, setEditingCommentId] = useState<number | null>(null);
+  const [editingCommentDraft, setEditingCommentDraft] = useState('');
+  const [commentMenuFor, setCommentMenuFor] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (commentMenuFor === null) return;
+    const onClick = () => setCommentMenuFor(null);
+    document.addEventListener('click', onClick);
+    return () => document.removeEventListener('click', onClick);
+  }, [commentMenuFor]);
+
+  const submitEditComment = useCallback(async () => {
+    if (!detailTask || editingCommentId === null) return;
+    const trimmed = editingCommentDraft.trim();
+    if (!trimmed) return;
+    const r = await apiFetch(`/api/tasks/${detailTask.id}/comments/${editingCommentId}`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content: trimmed }),
+    });
+    if (r.ok) {
+      const j = await r.json();
+      setDetailTask(prev => prev ? { ...prev, comments: (prev.comments || []).map(cm => cm.id === editingCommentId ? { ...cm, content: j.data?.content || trimmed } : cm) } : prev);
+      setEditingCommentId(null);
+      setEditingCommentDraft('');
+    }
+  }, [detailTask, editingCommentId, editingCommentDraft]);
+
+  const deleteComment = useCallback(async (commentId: number) => {
+    if (!detailTask) return;
+    const r = await apiFetch(`/api/tasks/${detailTask.id}/comments/${commentId}`, { method: 'DELETE' });
+    if (r.ok) {
+      setDetailTask(prev => prev ? { ...prev, comments: (prev.comments || []).filter(cm => cm.id !== commentId) } : prev);
+    }
+  }, [detailTask]);
 
   const [revisionOpen, setRevisionOpen] = useState(false);
   const [revisionNote, setRevisionNote] = useState('');
@@ -943,8 +978,51 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
               <SectionTitle>{t('detail.comments', 'Comments')} ({detailTask.comments?.length || 0})</SectionTitle>
               {(detailTask.comments || []).map(c => (
                 <CommentItem key={c.id}>
-                  <CommentHead><strong>{c.author?.name}</strong><span>{c.createdAt?.slice(5, 16).replace('T', ' ')}</span></CommentHead>
-                  {c.content && c.content !== '(첨부파일)' && <CommentBody>{c.content}</CommentBody>}
+                  <CommentHead>
+                    <strong>{c.author?.name}</strong>
+                    <span>{c.createdAt?.slice(5, 16).replace('T', ' ')}</span>
+                    {c.author?.id === myId && (
+                      <CommentMoreBtn type="button"
+                        title={t('detail.commentMenu', { defaultValue: '편집/삭제' }) as string}
+                        aria-label={t('detail.commentMenu', { defaultValue: '편집/삭제' }) as string}
+                        onClick={(e) => { e.stopPropagation(); setCommentMenuFor(commentMenuFor === c.id ? null : c.id); }}>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="6" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="18" r="1.5"/></svg>
+                      </CommentMoreBtn>
+                    )}
+                    {commentMenuFor === c.id && (
+                      <CommentMenu onClick={(e) => e.stopPropagation()}>
+                        <CommentMenuBtn type="button" onClick={() => { setEditingCommentId(c.id); setEditingCommentDraft(c.content || ''); setCommentMenuFor(null); }}>
+                          {t('detail.commentEdit', { defaultValue: '편집' }) as string}
+                        </CommentMenuBtn>
+                        <CommentMenuBtn type="button" $danger onClick={() => { deleteComment(c.id); setCommentMenuFor(null); }}>
+                          {t('detail.commentDelete', { defaultValue: '삭제' }) as string}
+                        </CommentMenuBtn>
+                      </CommentMenu>
+                    )}
+                  </CommentHead>
+                  {editingCommentId === c.id ? (
+                    <CommentEditWrap>
+                      <CommentEditArea
+                        autoFocus value={editingCommentDraft}
+                        onChange={(e) => setEditingCommentDraft(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); submitEditComment(); }
+                          if (e.key === 'Escape') { setEditingCommentId(null); setEditingCommentDraft(''); }
+                        }}
+                        rows={3}
+                      />
+                      <CommentEditActions>
+                        <CommentEditCancel type="button" onClick={() => { setEditingCommentId(null); setEditingCommentDraft(''); }}>
+                          {t('common.cancel', '취소')}
+                        </CommentEditCancel>
+                        <CommentEditSave type="button" onClick={submitEditComment} disabled={!editingCommentDraft.trim()}>
+                          {t('common.save', { defaultValue: '저장' }) as string}
+                        </CommentEditSave>
+                      </CommentEditActions>
+                    </CommentEditWrap>
+                  ) : (
+                    c.content && c.content !== '(첨부파일)' && <CommentBody>{c.content}</CommentBody>
+                  )}
                   {(c.attachments || []).length > 0 && <CmtAtts>
                     {(c.attachments || []).map(a => {
                       const isImg = a.mime_type?.startsWith('image/');
@@ -1435,9 +1513,51 @@ const RevisionInput = styled.textarea`width:100%;min-height:60px;padding:6px 8px
 const RevisionRow = styled.div`display:flex;gap:6px;justify-content:flex-end;`;
 
 // Comments
-const CommentItem = styled.div`padding:8px 10px;background:#F8FAFC;border-radius:8px;& + &{margin-top:6px;}`;
-const CommentHead = styled.div`display:flex;gap:8px;align-items:baseline;font-size:11px;color:#64748B;margin-bottom:3px;& strong{color:#0F172A;font-weight:600;}`;
+const CommentItem = styled.div`
+  position:relative;padding:8px 10px;background:#F8FAFC;border-radius:8px;
+  & + &{margin-top:6px;}
+  &:hover .comment-more-btn{opacity:1;}
+`;
+const CommentHead = styled.div`
+  position:relative;display:flex;gap:8px;align-items:baseline;font-size:11px;color:#64748B;margin-bottom:3px;
+  & strong{color:#0F172A;font-weight:600;}
+`;
 const CommentBody = styled.div`font-size:12px;color:#1E293B;line-height:1.4;white-space:pre-wrap;`;
+const CommentMoreBtn = styled.button.attrs({ className: 'comment-more-btn' })`
+  margin-left:auto;width:22px;height:22px;background:transparent;border:none;border-radius:4px;
+  display:inline-flex;align-items:center;justify-content:center;color:#94A3B8;cursor:pointer;
+  opacity:0;transition:opacity 0.15s,background 0.15s;
+  &:hover{background:#FFFFFF;color:#0F172A;}
+  &:focus-visible{opacity:1;outline:1px solid #14B8A6;}
+`;
+const CommentMenu = styled.div`
+  position:absolute;right:0;top:18px;z-index:20;min-width:120px;padding:4px;
+  background:#FFFFFF;border:1px solid #E2E8F0;border-radius:8px;
+  box-shadow:0 4px 12px rgba(0,0,0,0.06);
+`;
+const CommentMenuBtn = styled.button<{$danger?:boolean}>`
+  width:100%;padding:6px 10px;text-align:left;font-size:12px;font-weight:500;
+  color:${p=>p.$danger?'#DC2626':'#334155'};background:transparent;border:none;border-radius:6px;cursor:pointer;
+  &:hover{background:${p=>p.$danger?'#FEF2F2':'#F8FAFC'};}
+`;
+const CommentEditWrap = styled.div`display:flex;flex-direction:column;gap:6px;`;
+const CommentEditArea = styled.textarea`
+  width:100%;padding:6px 8px;font-size:12px;color:#0F172A;line-height:1.5;
+  border:1px solid #14B8A6;border-radius:6px;background:#fff;font-family:inherit;resize:vertical;
+  &:focus{outline:none;box-shadow:0 0 0 3px rgba(20,184,166,0.15);}
+`;
+const CommentEditActions = styled.div`display:flex;justify-content:flex-end;gap:6px;`;
+const CommentEditCancel = styled.button`
+  height:26px;padding:0 10px;font-size:11px;font-weight:600;color:#475569;
+  background:#fff;border:1px solid #E2E8F0;border-radius:6px;cursor:pointer;
+  &:hover{background:#F8FAFC;}
+`;
+const CommentEditSave = styled.button`
+  height:26px;padding:0 12px;font-size:11px;font-weight:700;color:#fff;
+  background:#14B8A6;border:none;border-radius:6px;cursor:pointer;
+  &:hover:not(:disabled){background:#0D9488;}
+  &:disabled{background:#CBD5E1;cursor:not-allowed;}
+`;
 const CommentComposer = styled.div`display:flex;flex-direction:column;gap:6px;margin-top:8px;`;
 const CmtComposerRow = styled.div`display:flex;justify-content:flex-end;gap:6px;align-items:center;`;
 const CommentInput = styled.textarea`width:100%;padding:6px 10px;border:1px solid #E2E8F0;border-radius:8px;font-size:12px;color:#0F172A;font-family:inherit;resize:vertical;min-height:40px;max-height:120px;&:focus{outline:none;border-color:#14B8A6;}&::placeholder{color:#94A3B8;}`;

@@ -449,7 +449,7 @@ router.get('/:id/conversations', authenticateToken, async (req, res, next) => {
   try {
     const { project, role, error } = await loadProjectOrForbidden(Number(req.params.id), req.user.id);
     if (error) return errorResponse(res, error.message, error.code);
-    const where = { project_id: project.id };
+    const where = { project_id: project.id, archived_at: null };
     if (role === 'client') where.channel_type = 'customer';
     const convs = await Conversation.findAll({
       where,
@@ -460,6 +460,34 @@ router.get('/:id/conversations', authenticateToken, async (req, res, next) => {
 });
 
 // ============================================
+// ============================================
+// POST /api/projects/conversations/:id/unlink — 프로젝트 ↔ 채팅방 연결 끊기
+// 채팅방은 project_id=null 로 변경 → 워크스페이스 standalone 채팅으로 전환.
+// 메시지/참가자 보존. 권한: 프로젝트 owner/admin (client 제외).
+// ============================================
+router.post('/conversations/:id/unlink', authenticateToken, async (req, res, next) => {
+  try {
+    const conv = await Conversation.findByPk(req.params.id);
+    if (!conv) return errorResponse(res, 'conversation_not_found', 404);
+    if (!conv.project_id) return errorResponse(res, 'already_standalone', 400);
+    const { role, error } = await loadProjectOrForbidden(conv.project_id, req.user.id);
+    if (error) return errorResponse(res, error.message, error.code);
+    // owner / admin / member 가능. client 는 차단 (자기 연결 끊기 위험).
+    if (role === 'client') return errorResponse(res, 'forbidden', 403);
+
+    const prevProjectId = conv.project_id;
+    await conv.update({ project_id: null });
+    require('../services/auditService').logAudit(req, {
+      action: 'conversation.unlink_project',
+      targetType: 'conversation',
+      targetId: conv.id,
+      oldValue: { project_id: prevProjectId },
+      newValue: { project_id: null },
+    });
+    return successResponse(res, conv.toJSON());
+  } catch (err) { next(err); }
+});
+
 // PATCH /api/projects/conversations/:id — 채널 설정 변경
 // 바디: { display_name?, auto_extract_enabled?, translation_enabled?, translation_languages? }
 // translation_enabled true 시 translation_languages (정확히 2-원소, 서로 다른 언어) 필수.
@@ -1020,8 +1048,15 @@ router.get('/:id/tasks', authenticateToken, async (req, res, next) => {
   try {
     const { project, error } = await loadProjectOrForbidden(Number(req.params.id), req.user.id);
     if (error) return errorResponse(res, error.message, error.code);
+    const { literal } = require('sequelize');
     const tasks = await Task.findAll({
       where: { project_id: project.id },
+      attributes: {
+        include: [
+          // 최신 estimation source — AI 자동 예측 task 시각 분기 (회색 + ✨)
+          [literal('(SELECT source FROM task_estimations WHERE task_id = `Task`.`id` ORDER BY id DESC LIMIT 1)'), 'latest_estimation_source'],
+        ],
+      },
       include: [
         { model: User, as: 'assignee', attributes: ['id', 'name', 'name_localized'], required: false },
         { model: User, as: 'requester', attributes: ['id', 'name', 'name_localized'], required: false },

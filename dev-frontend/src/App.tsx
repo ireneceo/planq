@@ -4,7 +4,6 @@ import { AuthProvider } from './contexts/AuthContext';
 import { PwaInstallProvider } from './contexts/PwaInstallContext';
 import NotificationToaster from './components/Common/NotificationToaster';
 import PwaInstallBanner from './components/Common/PwaInstallBanner';
-import UpdateBanner from './components/Common/UpdateBanner';
 import BuildVersionGuard from './components/Common/BuildVersionGuard';
 import LimitReachedDialog from './components/Common/LimitReachedDialog';
 import AnnouncementBanner from './components/Common/AnnouncementBanner';
@@ -389,10 +388,9 @@ function App() {
       <NotificationToaster />
       {/* 모바일 PWA 설치 안내 — beforeinstallprompt + iOS Safari 안내 */}
       <PwaInstallBanner />
-      {/* 캐시 자동 갱신 — 새 빌드 감지 시 다음 navigation 에 hard reload */}
+      {/* (제거) BuildVersionGuard / UpdateBanner — 사이클 N+3 회귀로 시스템 제거.
+           SW activate 시 client 자동 navigate + 일반 reload 만으로 새 빌드 적용. */}
       <BuildVersionGuard />
-      {/* 새 빌드 알림 배너 — main.tsx 가 'planq:update-available' dispatch 시 우측 하단 슬라이드인 */}
-      <UpdateBanner />
       {/* 한도 도달 모달 — apiFetch 인터셉터가 'planq:limit-reached' dispatch */}
       <LimitReachedDialog />
       {/* 운영 공지 배너 — /me 의 platform.announcement_text 사용. 점검 모드는 미들웨어가 별도 503 처리 */}

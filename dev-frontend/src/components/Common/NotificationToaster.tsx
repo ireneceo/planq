@@ -227,10 +227,7 @@ export default function NotificationToaster() {
       }).catch(() => {});
     });
 
-    // 새 빌드 알림 — main.tsx 의 update banner 핸들러로 forwarding
-    s.on('server:build', (payload: { build_id: string }) => {
-      window.dispatchEvent(new CustomEvent('planq:socket-build-id', { detail: payload }));
-    });
+    // (제거) server:build → UpdateBanner forwarding — 사이클 N+3 회귀로 시스템 제거됨
 
     s.on('connect_error', async (err) => {
       const msg = String((err as Error)?.message || '');

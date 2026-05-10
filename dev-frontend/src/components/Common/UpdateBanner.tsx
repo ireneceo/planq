@@ -18,7 +18,11 @@ const UpdateBanner: React.FC = () => {
   const apply = () => {
     window.dispatchEvent(new CustomEvent('planq:apply-update'));
   };
-  const later = () => setShow(false);
+  const later = () => {
+    setShow(false);
+    // main.tsx 에 알림 — 같은 build_id 는 같은 세션 동안 다시 띄우지 않음
+    window.dispatchEvent(new CustomEvent('planq:update-dismiss'));
+  };
 
   if (!show) return null;
   return (

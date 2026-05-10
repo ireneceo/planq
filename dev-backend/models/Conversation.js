@@ -88,7 +88,19 @@ Conversation.init({
   translation_languages: {
     type: DataTypes.JSON,
     allowNull: true
-  }
+  },
+  // 채팅방 soft delete — 메시지 정책 (is_deleted) 과 동일 패턴.
+  // NOT NULL 이면 list/검색에서 제외, 메시지/참가자 row 보존 (감사 + 복구 여지).
+  // hard delete 는 platform_admin 별도 도구 (현재 미제공).
+  archived_at: {
+    type: DataTypes.DATE,
+    allowNull: true,
+  },
+  archived_by_user_id: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    references: { model: 'users', key: 'id' },
+  },
 }, {
   sequelize,
   tableName: 'conversations',

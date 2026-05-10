@@ -24,6 +24,8 @@ export interface TaskRow {
   id: number; project_id: number | null; business_id: number;
   title: string; status: string; due_date: string | null; start_date: string | null;
   progress_percent: number; estimated_hours: number | null; actual_hours: number | null;
+  // 최신 estimation 출처 — 'ai' 면 시각 분기 (회색 italic + ✨)
+  latest_estimation_source?: 'ai' | 'user' | null;
   assignee_id: number | null; assignee?: { id: number; name: string } | null;
 }
 

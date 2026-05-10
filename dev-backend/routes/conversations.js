@@ -21,7 +21,7 @@ router.get('/:businessId', authenticateToken, attachWorkspaceScope(), async (req
     const baseWhere = await conversationListWhere(req.user.id, Number(req.params.businessId), req.scope);
     if (!baseWhere) return errorResponse(res, 'forbidden', 403);
     const conversations = await Conversation.findAll({
-      where: { ...baseWhere, status: 'active' },
+      where: { ...baseWhere, status: 'active', archived_at: null },
       include: [
         { model: Client, attributes: ['id', 'display_name', 'company_name'] },
         {
@@ -147,7 +147,7 @@ router.get('/:businessId/unread-total', authenticateToken, attachWorkspaceScope(
     const baseWhere = await conversationListWhere(req.user.id, Number(req.params.businessId), req.scope);
     if (!baseWhere) return errorResponse(res, 'forbidden', 403);
     const conversations = await Conversation.findAll({
-      where: { ...baseWhere, status: 'active' },
+      where: { ...baseWhere, status: 'active', archived_at: null },
       attributes: ['id'],
     });
     const convIds = conversations.map(c => c.id);
@@ -697,6 +697,50 @@ router.post('/:businessId/client/:clientId/summary/refresh', authenticateToken, 
 
     const summary = await cueOrchestrator.generateClientSummary(client.id);
     successResponse(res, { summary, refreshed: !!summary });
+  } catch (err) { next(err); }
+});
+
+// ============================================
+// POST /api/conversations/:businessId/:id/archive — 채팅방 soft delete
+// 정책: archived_at NOT NULL → list/검색에서 제외 (메시지/참가자 row 보존).
+// 권한: workspace owner OR (project_id 있으면) 프로젝트 owner OR platform_admin. client 차단.
+// ============================================
+router.post('/:businessId/:id/archive', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+  try {
+    const businessId = Number(req.params.businessId);
+    const conv = await Conversation.findOne({ where: { id: req.params.id, business_id: businessId } });
+    if (!conv) return errorResponse(res, 'conversation_not_found', 404);
+    if (conv.archived_at) return errorResponse(res, 'already_archived', 400);
+
+    const wsMember = await BusinessMember.findOne({
+      where: { user_id: req.user.id, business_id: businessId, removed_at: null },
+      attributes: ['role'],
+    });
+    const isWorkspaceOwner = wsMember?.role === 'owner';
+    const isPlatformAdmin = req.user.platform_role === 'platform_admin';
+
+    let isProjectOwner = false;
+    if (conv.project_id) {
+      const pm = await ProjectMember.findOne({
+        where: { project_id: conv.project_id, user_id: req.user.id },
+        attributes: ['role'],
+      });
+      isProjectOwner = pm?.role === 'owner';
+    }
+
+    if (!isPlatformAdmin && !isWorkspaceOwner && !isProjectOwner) {
+      return errorResponse(res, 'workspace_owner_or_project_owner_required', 403);
+    }
+
+    await conv.update({ archived_at: new Date(), archived_by_user_id: req.user.id });
+    require('../services/auditService').logAudit(req, {
+      action: 'conversation.archive',
+      targetType: 'conversation',
+      targetId: conv.id,
+      oldValue: { archived_at: null },
+      newValue: { archived_at: conv.archived_at, archived_by_user_id: req.user.id, project_id: conv.project_id },
+    });
+    return successResponse(res, conv.toJSON());
   } catch (err) { next(err); }
 });
 
