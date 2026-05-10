@@ -10,7 +10,7 @@ import {
   formatMoney, invoiceStatusColor, installmentStatusColor,
   getInvoice, markInstallmentPaid, unmarkInstallmentPaid,
   markInstallmentTaxInvoice, cancelInstallment, updateInvoiceStatus,
-  findConversationForClient,
+  findConversationForClient, deleteInvoice,
   type ApiInvoice, type ApiInstallment,
 } from '../../services/invoices';
 
@@ -41,6 +41,30 @@ export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, 
   const [invoice, setInvoice] = useState<ApiInvoice | null>(initialInvoice);
   const [busy, setBusy] = useState(false);
   const [confirm, setConfirm] = useState<ConfirmState | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const handleDelete = () => {
+    if (!invoice) return;
+    setConfirm({
+      open: true,
+      title: t('detail.delete.title', { defaultValue: '청구서를 삭제할까요?' }) as string,
+      message: t('detail.delete.message', { defaultValue: '되돌릴 수 없습니다. 발송된 청구서는 삭제 대신 "취소" 처리하세요.' }) as string,
+      tone: 'danger',
+      onConfirm: async () => {
+        if (deleting) return;
+        setDeleting(true);
+        try {
+          await deleteInvoice(invoice.business_id, invoice.id);
+          setConfirm(null);
+          onChanged?.();
+          onClose();
+        } catch (e) {
+          console.error('[InvoiceDetailDrawer] delete error:', e);
+          setConfirm(null);
+        } finally { setDeleting(false); }
+      },
+    });
+  };
   const [taxModal, setTaxModal] = useState<{ installmentId: number } | null>(null);
   const [taxNoInput, setTaxNoInput] = useState('');
 
@@ -180,6 +204,12 @@ export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, 
 
         {/* 액션 바 */}
         <ActionRow>
+          {(invoice.status === 'draft' || invoice.status === 'canceled') && (
+            <ActionBtn onClick={handleDelete} style={{ color: '#DC2626', borderColor: '#FECACA' }}>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+              {t('detail.header.actions.delete', { defaultValue: '삭제' }) as string}
+            </ActionBtn>
+          )}
           <ActionBtn onClick={copyShareLink} disabled={!shareUrl}>
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.72"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.72-1.72"/></svg>
             {copiedMemo ? t('detail.header.actions.linkCopied') : t('detail.header.actions.copyLink')}

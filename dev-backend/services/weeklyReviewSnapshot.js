@@ -22,18 +22,34 @@ async function buildSnapshot(userId, businessId, weekStart, weekEnd) {
   const monday = weekStart;
   const friday = fridayOf(monday);
 
-  // 1. tasks — "이번 주 내 업무" 탭 필터와 동일
-  // assignee_id = userId
-  // planned_week_start = 이번 주 OR due_date가 이번 주 OR overdue 미완료
+  // 1. tasks — "이번 주 내 업무" 탭 (QTaskPage week 탭) 필터와 동일하게:
+  //   assignee_id = userId AND
+  //   ( planned_week_start = monday
+  //     OR start_date in [monday, friday]
+  //     OR due_date in [monday, friday]
+  //     OR (due_date < monday AND status not in completed/canceled)  -- overdue 미완료
+  //     OR (completed_at in [monday, friday])  -- 이번 주에 완료한 것
+  //     OR (start_date IS NULL AND due_date IS NULL AND status not in completed/canceled)  -- 기간 미정 미완료
+  //   )
   const tasks = await Task.findAll({
     where: {
       business_id: businessId,
       assignee_id: userId,
       [Op.or]: [
         { planned_week_start: monday },
+        { start_date: { [Op.between]: [monday, friday] } },
         { due_date: { [Op.between]: [monday, friday] } },
+        // overdue 미완료
         {
           due_date: { [Op.lt]: monday },
+          status: { [Op.notIn]: ['completed', 'canceled'] },
+        },
+        // 이번 주 완료
+        { completed_at: { [Op.between]: [`${monday} 00:00:00`, `${friday} 23:59:59`] } },
+        // 기간 미정 미완료
+        {
+          start_date: null,
+          due_date: null,
           status: { [Op.notIn]: ['completed', 'canceled'] },
         },
       ],

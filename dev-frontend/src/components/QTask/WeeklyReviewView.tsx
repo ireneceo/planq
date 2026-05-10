@@ -5,9 +5,11 @@
 import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import {
   getWeeklyReview,
   updateWeeklyReviewNote,
+  deleteWeeklyReview,
   type WeeklyReview,
 } from '../../services/weeklyReview';
 import { STATUS_COLOR } from '../../utils/taskLabel';
@@ -24,6 +26,11 @@ const WeeklyReviewView: React.FC<Props> = ({ reviewId, onBack }) => {
   const [editingNote, setEditingNote] = useState(false);
   const [noteValue, setNoteValue] = useState('');
   const [savingNote, setSavingNote] = useState(false);
+  const [noteSaved, setNoteSaved] = useState(false); // ✓ 뱃지 (2초 페이드)
+  const [noteError, setNoteError] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -39,15 +46,33 @@ const WeeklyReviewView: React.FC<Props> = ({ reviewId, onBack }) => {
     })();
   }, [reviewId]);
 
+  const handleDelete = async () => {
+    if (!review || deleting) return;
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      await deleteWeeklyReview(review.id);
+      onBack(); // 목록으로 돌아가기 (삭제 후 재박제 가능 — week 탭의 "이번 주 마무리" 버튼)
+    } catch (e) {
+      const msg = (e as Error)?.message || '';
+      setDeleteError(msg || (t('weeklyReview.view.deleteError', { defaultValue: '삭제 실패. 잠시 후 다시 시도하세요.' }) as string));
+      setDeleting(false);
+    }
+  };
+
   const saveNote = async () => {
     if (!review || savingNote) return;
     setSavingNote(true);
+    setNoteError(null);
     try {
       const updated = await updateWeeklyReviewNote(review.id, noteValue.trim() || null);
       setReview(updated);
       setEditingNote(false);
+      setNoteSaved(true);
+      setTimeout(() => setNoteSaved(false), 2000);
     } catch (e) {
-      console.error('[WeeklyReviewView] save note error:', e);
+      const msg = (e as Error)?.message || '';
+      setNoteError(msg || (t('weeklyReview.view.noteSaveError', { defaultValue: '저장 실패. 잠시 후 다시 시도하세요.' }) as string));
     } finally {
       setSavingNote(false);
     }
@@ -77,48 +102,104 @@ const WeeklyReviewView: React.FC<Props> = ({ reviewId, onBack }) => {
   return (
     <Container>
       <Header>
-        <BackBtn onClick={onBack}>&larr; {t('weeklyReview.view.back', '결산 목록')}</BackBtn>
+        <HeaderTopRow>
+          <BackBtn onClick={onBack}>&larr; {t('weeklyReview.view.back', '결산 목록')}</BackBtn>
+          {confirmDelete ? (
+            <DeleteConfirmRow>
+              <DeleteConfirmText>
+                {deleteError
+                  ? deleteError
+                  : t('weeklyReview.view.deleteConfirm', { defaultValue: '삭제 후 다시 박제 가능합니다' }) as string}
+              </DeleteConfirmText>
+              <CancelBtn type="button" onClick={() => { setConfirmDelete(false); setDeleteError(null); }} disabled={deleting}>
+                {t('common.cancel', '취소') as string}
+              </CancelBtn>
+              <DangerBtn type="button" onClick={handleDelete} disabled={deleting}>
+                {deleting
+                  ? (t('common.deleting', { defaultValue: '삭제 중...' }) as string)
+                  : t('common.delete', { defaultValue: '삭제' }) as string}
+              </DangerBtn>
+            </DeleteConfirmRow>
+          ) : (
+            <DeleteBtn type="button" onClick={() => setConfirmDelete(true)} title={t('weeklyReview.view.deleteHint', { defaultValue: '결산 삭제 (다시 박제 가능)' }) as string}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="3 6 5 6 21 6" />
+                <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                <path d="M10 11v6M14 11v6" />
+              </svg>
+              {t('weeklyReview.view.delete', { defaultValue: '삭제' }) as string}
+            </DeleteBtn>
+          )}
+        </HeaderTopRow>
         <HeaderTitle>
           {weekLabel()}
           <Badge $auto={review.finalized_by === 'auto'}>
             {review.finalized_by === 'auto' ? t('weeklyReview.tab.autoBadge', '자동') : t('weeklyReview.tab.manualBadge', '수동')}
           </Badge>
         </HeaderTitle>
-        <Period>{review.week_start} ~ {review.week_end}</Period>
+        <Period>{String(review.week_start).slice(0, 10)} ~ {String(review.week_end).slice(0, 10)}</Period>
       </Header>
 
-      {/* 요약 섹션 */}
+      {/* 그래프 — 가장 위 (큰 LineChart 1개) */}
+      {burndown.length > 0 && (
+        <Section>
+          <SectionTitle>{t('weeklyReview.view.chartTitle', { defaultValue: '주간 진척 (실제 누적 시간)' }) as string}</SectionTitle>
+          <BigChartCard>
+            <ResponsiveContainer width="100%" height={280}>
+              <LineChart data={burndown.map(p => ({
+                date: p.date.slice(5).replace('-', '/'),
+                actual: p.actual_cumulative,
+                estimated: p.estimated_cumulative,
+              }))} margin={{ top: 16, right: 24, bottom: 8, left: 8 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
+                <XAxis dataKey="date" stroke="#64748B" fontSize={12} />
+                <YAxis stroke="#64748B" fontSize={12} unit="h" />
+                <Tooltip contentStyle={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 8, fontSize: 12 }} />
+                <Legend wrapperStyle={{ fontSize: 12 }} />
+                <Line type="monotone" dataKey="actual" stroke="#14B8A6" strokeWidth={2.5} dot={{ r: 4 }} name={t('weeklyReview.view.chartActual', { defaultValue: '실제 누적' }) as string} />
+                <Line type="monotone" dataKey="estimated" stroke="#94A3B8" strokeWidth={1.5} strokeDasharray="4 4" dot={{ r: 3 }} name={t('weeklyReview.view.chartEstimated', { defaultValue: '예측 누적' }) as string} />
+              </LineChart>
+            </ResponsiveContainer>
+          </BigChartCard>
+        </Section>
+      )}
+
+      {/* 요약 — 항목/값 list 형식 (3 col x 2 row) */}
       {summary && (
         <Section>
           <SectionTitle>{t('weeklyReview.view.summaryTitle', '요약')}</SectionTitle>
-          <SummaryGrid>
-            <SummaryCard>
-              <SummaryLabel>{t('common.total', '총 업무')}</SummaryLabel>
-              <SummaryValue>{summary.total}</SummaryValue>
-            </SummaryCard>
-            <SummaryCard>
-              <SummaryLabel>{t('common.completed', '완료')}</SummaryLabel>
-              <SummaryValue $color="#22c55e">{summary.completed}</SummaryValue>
-            </SummaryCard>
-            <SummaryCard>
-              <SummaryLabel>{t('common.incomplete', '미완료')}</SummaryLabel>
-              <SummaryValue $color={summary.incomplete > 0 ? '#f59e0b' : undefined}>{summary.incomplete}</SummaryValue>
-            </SummaryCard>
-            <SummaryCard>
-              <SummaryLabel>{t('summary.est', '예측')}</SummaryLabel>
-              <SummaryValue>{summary.estimated_total}h</SummaryValue>
-            </SummaryCard>
-            <SummaryCard>
-              <SummaryLabel>{t('summary.act', '실제')}</SummaryLabel>
-              <SummaryValue>{summary.actual_total}h</SummaryValue>
-            </SummaryCard>
-            <SummaryCard>
-              <SummaryLabel>{t('common.utilization', '활용률')}</SummaryLabel>
-              <SummaryValue $color={summary.utilization_pct > 100 ? '#ef4444' : '#14b8a6'}>
+          <SummaryList>
+            <SummaryItem>
+              <SummaryItemLabel>{t('common.total', '총 업무')}</SummaryItemLabel>
+              <SummaryItemValue>{summary.total}</SummaryItemValue>
+            </SummaryItem>
+            <SummaryItem>
+              <SummaryItemLabel>{t('common.completed', '완료')}</SummaryItemLabel>
+              <SummaryItemValue $color="#22c55e">{summary.completed}</SummaryItemValue>
+            </SummaryItem>
+            <SummaryItem>
+              <SummaryItemLabel>{t('common.incomplete', '미완료')}</SummaryItemLabel>
+              <SummaryItemValue $color={summary.incomplete > 0 ? '#f59e0b' : undefined}>{summary.incomplete}</SummaryItemValue>
+            </SummaryItem>
+            <SummaryItem>
+              <SummaryItemLabel>{t('summary.est', '예측 시간')}</SummaryItemLabel>
+              <SummaryItemValue>{summary.estimated_total}h</SummaryItemValue>
+            </SummaryItem>
+            <SummaryItem>
+              <SummaryItemLabel>{t('summary.act', '실제 시간')}</SummaryItemLabel>
+              <SummaryItemValue>{summary.actual_total}h</SummaryItemValue>
+            </SummaryItem>
+            <SummaryItem title={t('weeklyReview.view.utilHint', { defaultValue: '활용률 = 실제 시간 / 캐파(주간 가용시간) × 100. 100% 이면 가용시간 만큼 사용. 100% 초과면 초과근무 의심.' }) as string}>
+              <SummaryItemLabel>
+                {t('common.utilization', '활용률')}
+                <InfoMark>i</InfoMark>
+              </SummaryItemLabel>
+              <SummaryItemValue $color={summary.utilization_pct > 100 ? '#ef4444' : '#14b8a6'}>
                 {summary.utilization_pct}%
-              </SummaryValue>
-            </SummaryCard>
-          </SummaryGrid>
+                <UtilSub>{summary.actual_total}h / {summary.capacity_hours}h</UtilSub>
+              </SummaryItemValue>
+            </SummaryItem>
+          </SummaryList>
         </Section>
       )}
 
@@ -126,6 +207,7 @@ const WeeklyReviewView: React.FC<Props> = ({ reviewId, onBack }) => {
       <Section>
         <SectionTitle>
           {t('weeklyReview.view.noteTitle', '한 주 메모')}
+          {noteSaved && <SavedBadge>✓ {t('common.saved', { defaultValue: '저장됨' }) as string}</SavedBadge>}
           {!editingNote && (
             <EditBtn onClick={() => setEditingNote(true)}>
               {review.retro_note ? t('common.edit', '수정') : t('weeklyReview.view.addNote', '메모 추가')}
@@ -140,12 +222,13 @@ const WeeklyReviewView: React.FC<Props> = ({ reviewId, onBack }) => {
               placeholder={t('weeklyReview.modal.notePlaceholder', '이번 주 어땠나요?')}
               rows={3}
             />
+            {noteError && <ErrLine>{noteError}</ErrLine>}
             <NoteActions>
-              <CancelBtn onClick={() => { setEditingNote(false); setNoteValue(review.retro_note || ''); }}>
+              <CancelBtn onClick={() => { setEditingNote(false); setNoteValue(review.retro_note || ''); setNoteError(null); }}>
                 {t('common.cancel', '취소')}
               </CancelBtn>
               <SaveBtn onClick={saveNote} disabled={savingNote}>
-                {savingNote ? '...' : t('common.save', '저장')}
+                {savingNote ? (t('common.saving', { defaultValue: '저장 중...' }) as string) : t('common.save', '저장')}
               </SaveBtn>
             </NoteActions>
           </NoteEditArea>
@@ -181,7 +264,7 @@ const WeeklyReviewView: React.FC<Props> = ({ reviewId, onBack }) => {
                   </Td>
                   <Td>
                     <StatusBadge $color={STATUS_COLOR[task.status as keyof typeof STATUS_COLOR]?.fg || '#94a3b8'}>
-                      {task.status}
+                      {t(`status.${task.status}.observer`, { defaultValue: t(`status.${task.status}`, { defaultValue: task.status }) }) as string}
                     </StatusBadge>
                   </Td>
                   <Td style={{ textAlign: 'right' }}>{task.estimated_hours || '-'}</Td>
@@ -194,23 +277,6 @@ const WeeklyReviewView: React.FC<Props> = ({ reviewId, onBack }) => {
         )}
       </Section>
 
-      {/* 번다운 (간단 표시) */}
-      {burndown.length > 0 && (
-        <Section>
-          <SectionTitle>{t('weeklyReview.view.burndownTitle', '주간 진척')}</SectionTitle>
-          <BurndownRow>
-            {burndown.map((p, i) => (
-              <BurndownDay key={i}>
-                <BurndownDate>{p.date.slice(5).replace('-', '/')}</BurndownDate>
-                <BurndownBar>
-                  <BurndownInner $pct={Math.min(100, (p.actual_cumulative / (p.estimated_cumulative || 1)) * 100)} />
-                </BurndownBar>
-                <BurndownVal>{p.actual_cumulative}h</BurndownVal>
-              </BurndownDay>
-            ))}
-          </BurndownRow>
-        </Section>
-      )}
     </Container>
   );
 };
@@ -240,6 +306,11 @@ const Header = styled.div`
   margin-bottom: 24px;
 `;
 
+const HeaderTopRow = styled.div`
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 8px;
+`;
+
 const BackBtn = styled.button`
   background: none;
   border: none;
@@ -247,8 +318,33 @@ const BackBtn = styled.button`
   font-size: 13px;
   cursor: pointer;
   padding: 0;
-  margin-bottom: 8px;
   &:hover { color: #14b8a6; }
+`;
+
+const DeleteBtn = styled.button`
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 12px; font-size: 12px; font-weight: 600;
+  background: #FFFFFF; color: #B91C1C;
+  border: 1px solid #FECACA; border-radius: 6px; cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+  &:hover { background: #FEF2F2; border-color: #DC2626; }
+`;
+
+const DeleteConfirmRow = styled.div`
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 6px 10px;
+  background: #FEF2F2; border: 1px solid #FECACA; border-radius: 6px;
+`;
+
+const DeleteConfirmText = styled.span`
+  font-size: 12px; color: #991B1B;
+`;
+
+const DangerBtn = styled.button`
+  padding: 5px 12px; font-size: 12px; font-weight: 700; color: #fff;
+  background: #DC2626; border: none; border-radius: 5px; cursor: pointer;
+  &:hover:not(:disabled) { background: #B91C1C; }
+  &:disabled { opacity: 0.5; cursor: not-allowed; }
 `;
 
 const HeaderTitle = styled.h1`
@@ -298,29 +394,80 @@ const EditBtn = styled.button`
   &:hover { text-decoration: underline; }
 `;
 
-const SummaryGrid = styled.div`
+const SavedBadge = styled.span`
+  display: inline-flex; align-items: center;
+  padding: 2px 8px; font-size: 11px; font-weight: 700;
+  color: #166534; background: #DCFCE7; border-radius: 999px;
+  animation: pqSavedFade 2s ease-out forwards;
+  @keyframes pqSavedFade {
+    0% { opacity: 0; transform: translateY(-2px); }
+    20% { opacity: 1; transform: translateY(0); }
+    80% { opacity: 1; }
+    100% { opacity: 0; }
+  }
+`;
+
+const ErrLine = styled.div`
+  font-size: 12px; color: #DC2626; padding: 6px 0;
+  background: #FEF2F2; border: 1px solid #FECACA; border-radius: 6px;
+  padding: 8px 10px; margin-top: 8px;
+`;
+
+const BigChartCard = styled.div`
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: 12px;
+  padding: 16px 20px;
+`;
+
+const SummaryList = styled.div`
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  grid-template-columns: repeat(3, 1fr);
   gap: 12px;
+  @media (max-width: 768px) { grid-template-columns: repeat(2, 1fr); }
+  @media (max-width: 480px) { grid-template-columns: 1fr; }
 `;
 
-const SummaryCard = styled.div`
-  background: #f8fafc;
+const SummaryItem = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  background: #F8FAFC;
   border-radius: 8px;
-  padding: 12px;
-  text-align: center;
+  border: 1px solid #E2E8F0;
 `;
 
-const SummaryLabel = styled.div`
-  font-size: 11px;
-  color: #94a3b8;
-  margin-bottom: 4px;
+const SummaryItemLabel = styled.div`
+  font-size: 13px;
+  font-weight: 500;
+  color: #64748B;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 `;
 
-const SummaryValue = styled.div<{ $color?: string }>`
-  font-size: 18px;
+const SummaryItemValue = styled.div<{ $color?: string }>`
+  font-size: 16px;
   font-weight: 700;
-  color: ${p => p.$color || '#1e293b'};
+  color: ${p => p.$color || '#0F172A'};
+  text-align: right;
+  display: flex; flex-direction: column; align-items: flex-end;
+`;
+
+const UtilSub = styled.span`
+  font-size: 10px;
+  font-weight: 500;
+  color: #94A3B8;
+  margin-top: 2px;
+`;
+
+const InfoMark = styled.span`
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 14px; height: 14px;
+  font-size: 9px; font-weight: 700;
+  color: #94A3B8; background: #F1F5F9;
+  border-radius: 50%; cursor: help;
 `;
 
 const NoteDisplay = styled.div`
@@ -432,43 +579,3 @@ const StatusBadge = styled.span<{ $color: string }>`
   color: ${p => p.$color};
 `;
 
-const BurndownRow = styled.div`
-  display: flex;
-  gap: 8px;
-`;
-
-const BurndownDay = styled.div`
-  flex: 1;
-  text-align: center;
-`;
-
-const BurndownDate = styled.div`
-  font-size: 11px;
-  color: #94a3b8;
-  margin-bottom: 4px;
-`;
-
-const BurndownBar = styled.div`
-  height: 60px;
-  background: #f1f5f9;
-  border-radius: 4px;
-  position: relative;
-  overflow: hidden;
-`;
-
-const BurndownInner = styled.div<{ $pct: number }>`
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: ${p => p.$pct}%;
-  background: #14b8a6;
-  border-radius: 4px;
-  transition: height 0.3s;
-`;
-
-const BurndownVal = styled.div`
-  font-size: 11px;
-  color: #475569;
-  margin-top: 4px;
-`;

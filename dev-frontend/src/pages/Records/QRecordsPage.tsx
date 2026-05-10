@@ -12,7 +12,7 @@ import Chip from '../../components/Common/Chip';
 import Spinner from '../../components/Common/Spinner';
 import StandardModal from '../../components/Common/StandardModal';
 import {
-  fetchRecords, fetchRecordCategories, createRecord,
+  fetchRecords, fetchRecordCategories, createRecord, deleteRecord,
   type QRecordSummary,
 } from '../../services/qrecord';
 
@@ -29,6 +29,20 @@ const QRecordsPage: React.FC = () => {
   const [cats, setCats] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [catSel, setCatSel] = useState<CatSel>('all');
+  const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const handleDelete = async (id: number) => {
+    if (deleting) return;
+    setDeleting(true);
+    try {
+      await deleteRecord(id);
+      setRecords(prev => prev.filter(r => r.id !== id));
+      setDeleteConfirmId(null);
+    } catch (e) {
+      console.error('[QRecordsPage] delete error:', e);
+    } finally { setDeleting(false); }
+  };
   const [query, setQuery] = useState('');
   const [view, setView] = useState<ViewMode>('grid');
   const [createOpen, setCreateOpen] = useState(false);
@@ -146,7 +160,12 @@ const QRecordsPage: React.FC = () => {
                   <Card key={r.id} onClick={() => navigate(`/records/${r.id}`)}>
                     <CardHeader>
                       <CardTitle>{r.name}</CardTitle>
-                      {r.category && <Chip variant="teal">{r.category}</Chip>}
+                      <CardHeaderRight>
+                        {r.category && <Chip variant="teal">{r.category}</Chip>}
+                        <RowDelBtn type="button" onClick={(e) => { e.stopPropagation(); setDeleteConfirmId(r.id); }} aria-label="delete" title={t('actions.delete', { defaultValue: '삭제' }) as string}>
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+                        </RowDelBtn>
+                      </CardHeaderRight>
                     </CardHeader>
                     {r.description && <CardDesc>{r.description}</CardDesc>}
                     <CardStats>
@@ -166,6 +185,7 @@ const QRecordsPage: React.FC = () => {
                   <ColCount>{t('list.cols', '컬럼')}</ColCount>
                   <ColCount>{t('list.rows', '행')}</ColCount>
                   <ColUpdated>{t('list.updated', '수정일')}</ColUpdated>
+                  <ColAction />
                 </ListHead>
                 {filtered.map(r => (
                   <ListRow key={r.id} onClick={() => navigate(`/records/${r.id}`)}>
@@ -175,9 +195,27 @@ const QRecordsPage: React.FC = () => {
                     <ColCount>{r.columns.length}</ColCount>
                     <ColCount>{r.row_count}</ColCount>
                     <ColUpdated>{new Date(r.updated_at).toLocaleDateString()}</ColUpdated>
+                    <ColAction>
+                      <RowDelBtn type="button" onClick={(e) => { e.stopPropagation(); setDeleteConfirmId(r.id); }} aria-label="delete" title={t('actions.delete', { defaultValue: '삭제' }) as string}>
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+                      </RowDelBtn>
+                    </ColAction>
                   </ListRow>
                 ))}
               </ListWrap>
+            )}
+
+            {deleteConfirmId !== null && (
+              <DelBackdrop onClick={() => !deleting && setDeleteConfirmId(null)}>
+                <DelDialog onClick={(e) => e.stopPropagation()}>
+                  <DelTitle>{t('delete.title', { defaultValue: '테이블을 삭제할까요?' }) as string}</DelTitle>
+                  <DelDesc>{t('delete.desc', { defaultValue: '컬럼 정의와 모든 행이 함께 삭제됩니다. 되돌릴 수 없습니다.' }) as string}</DelDesc>
+                  <DelActions>
+                    <Button variant="secondary" onClick={() => setDeleteConfirmId(null)} disabled={deleting}>{t('actions.cancel', '취소')}</Button>
+                    <Button variant="danger" onClick={() => handleDelete(deleteConfirmId)} disabled={deleting} loading={deleting}>{t('actions.delete', { defaultValue: '삭제' }) as string}</Button>
+                  </DelActions>
+                </DelDialog>
+              </DelBackdrop>
             )}
           </MainArea>
         </Split>
@@ -362,17 +400,41 @@ const CardStats = styled.div`
 `;
 const StatItem = styled.span``;
 
+const CardHeaderRight = styled.div`
+  display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0;
+`;
+const RowDelBtn = styled.button`
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 24px; height: 24px;
+  background: transparent; border: 1px solid transparent; border-radius: 6px;
+  color: #94A3B8; cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+  &:hover { background: #FEF2F2; border-color: #FECACA; color: #DC2626; }
+`;
+const ColAction = styled.div`display: flex; align-items: center; justify-content: flex-end;`;
+const DelBackdrop = styled.div`
+  position: fixed; inset: 0; background: rgba(15,23,42,0.4);
+  display: flex; align-items: center; justify-content: center; z-index: 1100; padding: 20px;
+`;
+const DelDialog = styled.div`
+  background: #fff; border-radius: 12px; max-width: 420px; width: 100%;
+  padding: 24px; box-shadow: 0 20px 60px rgba(15,23,42,0.2);
+`;
+const DelTitle = styled.h2`font-size: 16px; font-weight: 700; color: #0F172A; margin: 0 0 8px;`;
+const DelDesc = styled.p`font-size: 13px; color: #64748B; line-height: 1.6; margin: 0 0 20px;`;
+const DelActions = styled.div`display: flex; gap: 8px; justify-content: flex-end;`;
+
 // 리스트
 const ListWrap = styled.div`background: #fff; border: 1px solid #E2E8F0; border-radius: 10px; overflow: hidden;`;
 const ListHead = styled.div`
-  display: grid; grid-template-columns: 2fr 1fr 1fr 80px 80px 100px;
+  display: grid; grid-template-columns: 2fr 1fr 1fr 80px 80px 100px 40px;
   gap: 12px; padding: 10px 16px;
   background: #F8FAFC; border-bottom: 1px solid #E2E8F0;
   font-size: 11px; font-weight: 700; color: #64748B;
   text-transform: uppercase; letter-spacing: 0.4px;
 `;
 const ListRow = styled.button`
-  display: grid; grid-template-columns: 2fr 1fr 1fr 80px 80px 100px;
+  display: grid; grid-template-columns: 2fr 1fr 1fr 80px 80px 100px 40px;
   gap: 12px; align-items: center; width: 100%;
   padding: 12px 16px;
   background: #FFFFFF; border: none;

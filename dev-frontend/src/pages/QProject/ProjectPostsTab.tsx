@@ -4,7 +4,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 import {
   fetchPosts, fetchPost, createPost, updatePost, deletePost,
@@ -76,6 +76,25 @@ const ProjectPostsTab: React.FC<Props> = ({ businessId, projectId }) => {
   const [signOpen, setSignOpen] = useState(false);
   const [signReloadKey, setSignReloadKey] = useState(0);
   const [deleteTarget, setDeleteTarget] = useState<PostDetail | null>(null);
+
+  // 탭에 고정한 문서 id 목록 (프로젝트별 영속) — 탭바에 추가 탭으로 등장
+  const PIN_KEY = `qproject_pinned_docs_${projectId}`;
+  const [pinnedIds, setPinnedIds] = useState<number[]>(() => {
+    try {
+      const raw = localStorage.getItem(PIN_KEY);
+      if (raw) return JSON.parse(raw) as number[];
+    } catch { /* ignore */ }
+    return [];
+  });
+  const togglePin = useCallback((id: number) => {
+    setPinnedIds(prev => {
+      const next = prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id];
+      try { localStorage.setItem(PIN_KEY, JSON.stringify(next)); } catch { /* ignore */ }
+      // QProjectDetailPage 가 storage 이벤트 또는 custom event 로 갱신 감지
+      try { window.dispatchEvent(new CustomEvent('qproject-pinned-changed', { detail: { projectId } })); } catch { /* ignore */ }
+      return next;
+    });
+  }, [PIN_KEY, projectId]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -199,6 +218,36 @@ const ProjectPostsTab: React.FC<Props> = ({ businessId, projectId }) => {
     })();
     return () => { cancelled = true; };
   }, [activeId]);
+
+  // ?editPost=N 쿼리 자동 진입 — 메뉴 탭의 "편집" 버튼에서 호출
+  // ProjectPostsTab 가 이미 mount 된 상태에서도 작동하도록 dep = editPost 값
+  const [searchParams2, setSearchParams2] = useSearchParams();
+  const editPostQuery = searchParams2.get('editPost');
+  const [pendingEditId, setPendingEditId] = useState<number | null>(null);
+  useEffect(() => {
+    if (!editPostQuery) return;
+    const id = Number(editPostQuery);
+    if (!id) return;
+    setActiveId(id); // detail 로드 트리거
+    setMode('view'); // detail 도착 후 edit 전환 (아래 effect)
+    setPendingEditId(id);
+    // 쿼리 제거 (다음 호출 시 재진입 가능 — editPostQuery 가 다시 N 으로 set 되면 트리거됨)
+    const sp = new URLSearchParams(searchParams2);
+    sp.delete('editPost');
+    setSearchParams2(sp, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editPostQuery]);
+
+  // detail 도착 + pendingEditId 일치 → edit 전환 + draft 채움
+  useEffect(() => {
+    if (!detail || !pendingEditId || pendingEditId !== detail.id) return;
+    setTitleDraft(detail.title);
+    setContentDraft(detail.content_json);
+    setCategoryDraft(detail.category || '');
+    setError(null);
+    setMode('edit');
+    setPendingEditId(null);
+  }, [detail, pendingEditId]);
 
   const openPost = (id: number) => {
     if (activeId === id && mode === 'view') { setActiveId(null); setMode('list'); return; }
@@ -357,14 +406,28 @@ const ProjectPostsTab: React.FC<Props> = ({ businessId, projectId }) => {
                   {t('project.docs.pinned', '고정됨')}
                 </SectionLabel>
                 <Grid>
-                  {pinnedRows.map(r => <PostCard key={r.id} row={r} onClick={() => openPost(r.id)} formatDate={formatDate} />)}
+                  {pinnedRows.map(r => (
+                    <PostCard key={r.id} row={r}
+                      onClick={() => openPost(r.id)} formatDate={formatDate}
+                      pinnedToTab={pinnedIds.includes(r.id)}
+                      onTogglePin={() => togglePin(r.id)}
+                      tToggle={t}
+                    />
+                  ))}
                 </Grid>
               </Section>
             )}
             <Section>
               {pinnedRows.length > 0 && <SectionLabel>{t('project.docs.allDocs', '문서')} · {otherRows.length}</SectionLabel>}
               <Grid>
-                {otherRows.map(r => <PostCard key={r.id} row={r} onClick={() => openPost(r.id)} formatDate={formatDate} />)}
+                {otherRows.map(r => (
+                  <PostCard key={r.id} row={r}
+                    onClick={() => openPost(r.id)} formatDate={formatDate}
+                    pinnedToTab={pinnedIds.includes(r.id)}
+                    onTogglePin={() => togglePin(r.id)}
+                    tToggle={t}
+                  />
+                ))}
               </Grid>
             </Section>
           </>
@@ -659,14 +722,31 @@ interface PostCardProps {
   row: PostRow;
   onClick: () => void;
   formatDate: (iso: string) => string;
+  pinnedToTab?: boolean;
+  onTogglePin?: () => void;
+  tToggle?: (key: string, opts?: Record<string, unknown>) => string;
 }
-const PostCard: React.FC<PostCardProps> = ({ row, onClick, formatDate }) => (
+const PostCard: React.FC<PostCardProps> = ({ row, onClick, formatDate, pinnedToTab, onTogglePin, tToggle }) => (
   <Card type="button" onClick={onClick}>
     <CardHead>
       <CardKindIcon>
         <KindIcon kind={inferKind(row.title)} size={16} />
       </CardKindIcon>
       {row.is_pinned && <PinDot title="pinned" />}
+      {onTogglePin && (
+        <MenuToggleBtn type="button" $on={!!pinnedToTab}
+          onClick={(e) => { e.stopPropagation(); onTogglePin(); }}
+          title={(tToggle ? tToggle(pinnedToTab ? 'project.docs.removeFromMenu' : 'project.docs.addToMenu', { defaultValue: pinnedToTab ? '메뉴에서 제거' : '상단 메뉴에 추가' }) : '') as string}>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            {pinnedToTab
+              ? <line x1="5" y1="12" x2="19" y2="12" />
+              : <><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></>}
+          </svg>
+          {pinnedToTab
+            ? (tToggle ? tToggle('project.docs.inMenu', { defaultValue: '메뉴에 있음' }) : '메뉴에 있음') as string
+            : (tToggle ? tToggle('project.docs.addMenu', { defaultValue: '메뉴 추가' }) : '메뉴 추가') as string}
+        </MenuToggleBtn>
+      )}
     </CardHead>
     <CardTitle>{row.title}</CardTitle>
     {row.content_preview && <CardPreview>{row.content_preview}</CardPreview>}
@@ -803,6 +883,21 @@ const SectionLabel = styled.div`
 `;
 const Grid = styled.div`
   display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px;
+`;
+const MenuToggleBtn = styled.button<{ $on: boolean }>`
+  display: inline-flex; align-items: center; gap: 4px;
+  height: 22px; padding: 0 8px;
+  font-size: 11px; font-weight: 600;
+  background: ${p => p.$on ? '#F0FDFA' : 'transparent'};
+  color: ${p => p.$on ? '#0F766E' : '#64748B'};
+  border: 1px solid ${p => p.$on ? '#99F6E4' : '#E2E8F0'};
+  border-radius: 999px; cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+  &:hover {
+    background: ${p => p.$on ? '#CCFBF1' : '#F0FDFA'};
+    border-color: ${p => p.$on ? '#5EEAD4' : '#14B8A6'};
+    color: ${p => p.$on ? '#0F766E' : '#0F766E'};
+  }
 `;
 const Card = styled.button`
   all: unset; cursor: pointer; box-sizing: border-box;

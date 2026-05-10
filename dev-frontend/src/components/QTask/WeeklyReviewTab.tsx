@@ -92,7 +92,7 @@ const WeeklyReviewTab: React.FC<Props> = ({ businessId, userId, reviewScope = 'm
     return (
       <WeeklyReviewView
         reviewId={selectedId}
-        onBack={() => setSelectedId(null)}
+        onBack={() => { setSelectedId(null); load(false); }}
       />
     );
   }

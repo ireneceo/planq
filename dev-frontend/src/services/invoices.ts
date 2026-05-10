@@ -174,6 +174,12 @@ export async function createInvoice(businessId: number, payload: CreateInvoicePa
   return expectOk<ApiInvoice>(r);
 }
 
+// draft / canceled 상태만 삭제 가능 (백엔드 정책)
+export async function deleteInvoice(businessId: number, invoiceId: number): Promise<void> {
+  const r = await apiFetch(`/api/invoices/${businessId}/${invoiceId}`, { method: 'DELETE' });
+  await expectOk(r);
+}
+
 export async function sendInvoice(businessId: number, invoiceId: number, opts: SendInvoicePayload = {}): Promise<SendInvoiceResult> {
   const r = await apiFetch(`/api/invoices/${businessId}/${invoiceId}/send`, {
     method: 'POST',
