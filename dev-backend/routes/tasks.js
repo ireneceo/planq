@@ -750,29 +750,31 @@ router.put('/by-business/:businessId/:id', authenticateToken, async (req, res, n
       title: task.title, project_id: task.project_id,
     };
 
-    // 필드별 권한 정책 (사이클 N+3 — 일괄 정리)
-    //   - title/description/body/category   → 작성자 OR 담당자 OR workspace owner OR platform_admin
-    //   - status                             → 담당자 OR 작성자 OR owner
-    //   - assignee_id/due_date/start_date/priority/planned_week_start/recurrence_rule
-    //                                        → 작성자 OR owner (담당자 본인 자가 이전 X)
-    //   - project_id                         → owner only (큰 결정)
-    //   - estimated_hours/actual_hours/progress_percent → 담당자 OR owner (이미 적용)
+    // 필드별 권한 정책 (사이클 N+5 — PERMISSION_MATRIX §5.7 책임선 분리)
+    //   - title/category   → 작성자 OR 담당자 OR workspace owner OR admin
+    //   - description (의뢰)→ 작성자 OR owner OR admin (담당자 빠짐 — 의뢰 명세는 발주자 영역)
+    //   - body (결과물)     → 담당자 OR admin (owner 빠짐 — 수행자 영역. 변경 필요 시 컨펌 반려 워크플로우로)
+    //   - status            → 담당자 OR 작성자 OR owner OR admin
+    //   - assignee/due/start/recurrence → 작성자 OR owner OR admin
+    //   - project_id        → owner OR admin (큰 결정)
+    //   - estimated/actual/progress → 담당자 OR owner OR admin
     const myId = req.user.id;
     const isCreator = task.created_by === myId;
     const isAssignee = task.assignee_id === myId;
-    const isOwnerOrAdmin = req.user.platform_role === 'platform_admin'
-      || (await BusinessMember.findOne({ where: { user_id: myId, business_id: task.business_id, role: 'owner' } }));
+    const isPlatformAdmin = req.user.platform_role === 'platform_admin';
+    const isWsOwner = !!(await BusinessMember.findOne({ where: { user_id: myId, business_id: task.business_id, role: 'owner' } }));
+    const isOwnerOrAdmin = isPlatformAdmin || isWsOwner;
 
     const FIELD_RULES = {
       title: () => isCreator || isAssignee || isOwnerOrAdmin,
-      description: () => isCreator || isAssignee || isOwnerOrAdmin,
-      body: () => isCreator || isAssignee || isOwnerOrAdmin,
+      description: () => isCreator || isOwnerOrAdmin,                 // 담당자 빠짐 (의뢰자 영역)
+      body: () => isAssignee || isPlatformAdmin,                      // owner 빠짐, admin 백도어 (수행자 영역)
       category: () => isCreator || isAssignee || isOwnerOrAdmin,
       status: () => isAssignee || isCreator || isOwnerOrAdmin,
       assignee_id: () => isCreator || isOwnerOrAdmin,
       due_date: () => isCreator || isOwnerOrAdmin,
       start_date: () => isCreator || isOwnerOrAdmin,
-      planned_week_start: () => isCreator || isOwnerOrAdmin,
+      planned_week_start: () => isCreator || isAssignee || isOwnerOrAdmin,
       recurrence_rule: () => isCreator || isOwnerOrAdmin,
       next_occurrence_at: () => isCreator || isOwnerOrAdmin,
       project_id: () => isOwnerOrAdmin,
@@ -911,6 +913,10 @@ router.delete('/by-business/:businessId/:id', authenticateToken, async (req, res
     const task = await Task.findOne({ where: { id: req.params.id, business_id: businessId } });
     if (!task) return errorResponse(res, 'task_not_found', 404);
 
+    // 사이클 N+5 — PERMISSION_MATRIX §5.7 정책 강화:
+    //   admin / owner = 항상 삭제 가능
+    //   작성자 = 댓글·이력 0건일 때만 (실수 정정용 안전핀)
+    //   담당자·요청자만으로는 삭제 불가 — task 발주 후 임의 삭제 차단
     const isPlatformAdmin = req.user.platform_role === 'platform_admin';
     let isOwner = false;
     if (!isPlatformAdmin) {
@@ -918,11 +924,18 @@ router.delete('/by-business/:businessId/:id', authenticateToken, async (req, res
       if (!bm) return errorResponse(res, 'forbidden', 403);
       isOwner = bm.role === 'owner';
     }
-    const isMine = task.created_by === userId
-      || task.assignee_id === userId
-      || task.request_by_user_id === userId;
-    if (!isPlatformAdmin && !isOwner && !isMine) {
-      return errorResponse(res, 'forbidden_delete', 403);
+    if (!isPlatformAdmin && !isOwner) {
+      // 작성자 본인이 만든 task — 댓글·이력·리뷰어 0건일 때만 삭제 허용
+      const isCreator = task.created_by === userId;
+      if (!isCreator) return errorResponse(res, 'forbidden_delete — only workspace owner or task creator (untouched task) can delete', 403);
+      const [cmtCnt, histCnt, revCnt] = await Promise.all([
+        TaskComment.count({ where: { task_id: task.id } }),
+        TaskStatusHistory.count({ where: { task_id: task.id } }),
+        TaskReviewer.count({ where: { task_id: task.id } }),
+      ]);
+      if (cmtCnt > 0 || histCnt > 0 || revCnt > 0) {
+        return errorResponse(res, 'forbidden_delete — task has activity (comments/history/reviewers). Ask workspace owner.', 403);
+      }
     }
 
     const meta = { id: Number(req.params.id), project_id: task.project_id, business_id: task.business_id };
