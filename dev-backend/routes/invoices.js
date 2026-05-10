@@ -774,6 +774,23 @@ router.post('/:businessId/:id/installments/:installId/mark-tax-invoice', authent
   } catch (error) { next(error); }
 });
 
+// ─── Invoice: 삭제 (draft / canceled 만 허용) ───
+router.delete('/:businessId/:id', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+  try {
+    const invoice = await Invoice.findOne({
+      where: { id: req.params.id, business_id: req.params.businessId },
+    });
+    if (!invoice) return errorResponse(res, 'Invoice not found', 404);
+    if (!['draft', 'canceled'].includes(invoice.status)) {
+      return errorResponse(res, 'only_draft_or_canceled_can_be_deleted', 400, { current_status: invoice.status });
+    }
+    // installments + invoice 삭제 (cascade 안 되어 있으면 명시)
+    await InvoiceInstallment.destroy({ where: { invoice_id: invoice.id } });
+    await invoice.destroy();
+    return successResponse(res, { deleted: true });
+  } catch (err) { next(err); }
+});
+
 // ─── Installment: 취소 ───
 router.delete('/:businessId/:id/installments/:installId', authenticateToken, checkBusinessAccess, async (req, res, next) => {
   try {

@@ -13,6 +13,7 @@ import {
   getSession,
   createSession,
   updateSession,
+  deleteSession,
   uploadDocument,
   linkWorkspaceFileToSession,
   addUrl,
@@ -192,6 +193,20 @@ const QNotePage = () => {
   const [editingSession, setEditingSession] = useState<boolean>(false);
   const [phase, setPhase] = useState<Phase>('empty');
   const [sessions, setSessions] = useState<QNoteSession[]>([]);
+  const [sessionDeleteConfirmId, setSessionDeleteConfirmId] = useState<number | null>(null);
+  const [sessionDeleting, setSessionDeleting] = useState(false);
+  const handleSessionDelete = async (sessionId: number) => {
+    if (sessionDeleting) return;
+    setSessionDeleting(true);
+    try {
+      await deleteSession(sessionId);
+      setSessions(prev => prev.filter(s => s.id !== sessionId));
+      if (activeSession?.id === sessionId) setActiveSession(null);
+      setSessionDeleteConfirmId(null);
+    } catch (e) {
+      console.error('[QNotePage] delete session error:', e);
+    } finally { setSessionDeleting(false); }
+  };
   const [sessionQuery, setSessionQuery] = useState('');
   const [activeSession, setActiveSession] = useState<QNoteSession | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
@@ -1877,6 +1892,12 @@ const QNotePage = () => {
                 <SessionItemRow>
                   <SessionItemTitle>{session.title}</SessionItemTitle>
                   <SessionStatusBadge style={{ background: statusStyle.bg, color: statusStyle.fg }}>{statusLabel}</SessionStatusBadge>
+                  <SessionDelBtn type="button"
+                    onClick={(e) => { e.stopPropagation(); setSessionDeleteConfirmId(session.id); }}
+                    aria-label="delete"
+                    title={t('page.sessionDelete', { defaultValue: '세션 삭제' }) as string}>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+                  </SessionDelBtn>
                 </SessionItemRow>
                 <SessionItemMeta>
                   <span>{fmtWsDate(session.created_at)}</span>
@@ -1897,6 +1918,25 @@ const QNotePage = () => {
             );
           })}
         </SessionList>
+
+        {sessionDeleteConfirmId !== null && (
+          <SessDelBackdrop onClick={() => !sessionDeleting && setSessionDeleteConfirmId(null)}>
+            <SessDelDialog onClick={(e) => e.stopPropagation()}>
+              <SessDelTitle>{t('page.sessionDeleteTitle', { defaultValue: '세션을 삭제할까요?' }) as string}</SessDelTitle>
+              <SessDelDesc>{t('page.sessionDeleteDesc', { defaultValue: '발화·문서·QA 등 모든 데이터가 함께 삭제됩니다. 되돌릴 수 없습니다.' }) as string}</SessDelDesc>
+              <SessDelActions>
+                <SessDelCancel type="button" onClick={() => setSessionDeleteConfirmId(null)} disabled={sessionDeleting}>
+                  {t('common.cancel', { defaultValue: '취소' }) as string}
+                </SessDelCancel>
+                <SessDelConfirm type="button" onClick={() => handleSessionDelete(sessionDeleteConfirmId)} disabled={sessionDeleting}>
+                  {sessionDeleting
+                    ? (t('common.deleting', { defaultValue: '삭제 중...' }) as string)
+                    : (t('common.delete', { defaultValue: '삭제' }) as string)}
+                </SessDelConfirm>
+              </SessDelActions>
+            </SessDelDialog>
+          </SessDelBackdrop>
+        )}
       </Sidebar>
 
       {viewportNarrow && !sidebarCollapsed && (
@@ -2631,6 +2671,38 @@ const SessionItemRow = styled.div`
   align-items: center;
   gap: 6px;
   margin-bottom: 2px;
+`;
+const SessionDelBtn = styled.button`
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 22px; height: 22px;
+  background: transparent; border: 1px solid transparent; border-radius: 5px;
+  color: #94A3B8; cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+  &:hover { background: #FEF2F2; border-color: #FECACA; color: #DC2626; }
+`;
+const SessDelBackdrop = styled.div`
+  position: fixed; inset: 0; background: rgba(15,23,42,0.4);
+  display: flex; align-items: center; justify-content: center; z-index: 1100; padding: 20px;
+`;
+const SessDelDialog = styled.div`
+  background: #fff; border-radius: 12px; max-width: 420px; width: 100%;
+  padding: 24px; box-shadow: 0 20px 60px rgba(15,23,42,0.2);
+`;
+const SessDelTitle = styled.h2`font-size: 16px; font-weight: 700; color: #0F172A; margin: 0 0 8px;`;
+const SessDelDesc = styled.p`font-size: 13px; color: #64748B; line-height: 1.6; margin: 0 0 20px;`;
+const SessDelActions = styled.div`display: flex; gap: 8px; justify-content: flex-end;`;
+const SessDelCancel = styled.button`
+  padding: 8px 14px; font-size: 13px; font-weight: 600; color: #475569;
+  background: #fff; border: 1px solid #E2E8F0; border-radius: 8px; cursor: pointer;
+  &:hover:not(:disabled) { background: #F8FAFC; }
+  &:disabled { opacity: 0.5; cursor: not-allowed; }
+`;
+const SessDelConfirm = styled.button`
+  padding: 8px 14px; font-size: 13px; font-weight: 700; color: #fff;
+  background: #DC2626; border: none; border-radius: 8px; cursor: pointer;
+  &:hover:not(:disabled) { background: #B91C1C; }
+  &:disabled { opacity: 0.5; cursor: not-allowed; }
 `;
 
 const SessionItemTitle = styled.div`

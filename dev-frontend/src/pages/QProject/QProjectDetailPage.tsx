@@ -11,6 +11,8 @@ import TasksTab from './TasksTab';
 import DocsTab from './DocsTab';
 import ProjectPostsTab from './ProjectPostsTab';
 import TransactionsTab from './TransactionsTab';
+import PostEditor from '../../components/Docs/PostEditor';
+import { fetchPost, type PostDetail } from '../../services/posts';
 import PlanQSelect from '../../components/Common/PlanQSelect';
 import CalendarPicker from '../../components/Common/CalendarPicker';
 import { PROJECT_COLOR_PALETTE } from '../../utils/projectColors';
@@ -21,7 +23,8 @@ import ConfirmDialog from '../../components/Common/ConfirmDialog';
 const PROJECT_COLORS = PROJECT_COLOR_PALETTE.map(p => p.value);
 
 // process 탭 폐지 — Q docs 의 표(table) kind 로 흡수. 이전 url ?tab=process 는 docs 로 fallback.
-type TabKey = 'dashboard' | 'tasks' | 'info' | 'clients' | 'files' | 'docs' | 'transactions';
+// 'doc-:id' 형태는 사용자가 메뉴에 추가한 특정 문서 탭 (ProjectPostsTab 의 메뉴 추가 버튼).
+type TabKey = 'dashboard' | 'tasks' | 'info' | 'clients' | 'files' | 'docs' | 'transactions' | `doc-${number}`;
 
 interface BizMember { id: number; user_id: number; user?: { id: number; name: string; email?: string; is_ai?: boolean } }
 
@@ -65,8 +68,39 @@ const QProjectDetailPage: React.FC = () => {
   const validTabs: TabKey[] = ['dashboard', 'tasks', 'info', 'clients', 'files', 'docs', 'transactions'];
   const rawTab = searchParams.get('tab');
   // 이전 ?tab=process 진입 호환 — docs 로 fallback
-  const initialTab = (rawTab === 'process' ? 'docs' : (rawTab as TabKey)) || 'dashboard';
-  const [tab, setTabState] = useState<TabKey>(validTabs.includes(initialTab) ? initialTab : 'dashboard');
+  // doc-:id 도 허용 (사용자가 메뉴에 추가한 특정 문서)
+  const isDocTabKey = (s: string): s is `doc-${number}` => /^doc-\d+$/.test(s);
+  const initialTab: TabKey = (rawTab === 'process'
+    ? 'docs'
+    : (rawTab && (validTabs.includes(rawTab as TabKey) || isDocTabKey(rawTab))) ? (rawTab as TabKey)
+    : 'dashboard');
+  const [tab, setTabState] = useState<TabKey>(initialTab);
+
+  // 메뉴에 추가한 문서 (ProjectPostsTab 의 토글) — TabBar 에 추가 탭으로 등장
+  const PIN_KEY = `qproject_pinned_docs_${projectId}`;
+  const readPinnedIds = (): number[] => {
+    try { const raw = localStorage.getItem(PIN_KEY); if (raw) return JSON.parse(raw); } catch { /* ignore */ }
+    return [];
+  };
+  const [pinnedDocIds, setPinnedDocIds] = useState<number[]>(readPinnedIds);
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const ce = e as CustomEvent<{ projectId?: number }>;
+      if (!ce.detail || ce.detail.projectId === projectId) setPinnedDocIds(readPinnedIds());
+    };
+    window.addEventListener('qproject-pinned-changed', handler);
+    return () => window.removeEventListener('qproject-pinned-changed', handler);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId]);
+
+  // 메뉴 탭 라벨 캐시 — pinned id → post title
+  const [pinnedDocLabels, setPinnedDocLabels] = useState<Record<number, string>>({});
+  useEffect(() => {
+    const missing = pinnedDocIds.filter(id => !pinnedDocLabels[id]);
+    if (missing.length === 0) return;
+    Promise.all(missing.map(id => apiFetch(`/api/posts/${id}`).then(r => r.json()).then(j => [id, j?.data?.title || `#${id}`] as [number, string]).catch(() => [id, `#${id}`] as [number, string])))
+      .then(rows => setPinnedDocLabels(prev => ({ ...prev, ...Object.fromEntries(rows) })));
+  }, [pinnedDocIds, pinnedDocLabels]);
   const setTab = (k: TabKey) => {
     setTabState(k);
     const sp = new URLSearchParams(searchParams);
@@ -259,6 +293,15 @@ const QProjectDetailPage: React.FC = () => {
             {t(`tab.${k}`, lbl)}
           </Tab>
         ))}
+        {pinnedDocIds.map(id => {
+          const tabKey = `doc-${id}` as TabKey;
+          const label = pinnedDocLabels[id] || `#${id}`;
+          return (
+            <Tab key={tabKey} $active={tab === tabKey} onClick={() => setTab(tabKey)} title={label}>
+              📄 {label.length > 14 ? label.slice(0, 14) + '…' : label}
+            </Tab>
+          );
+        })}
       </TabBar>
 
       {tab === 'dashboard' && (
@@ -837,6 +880,21 @@ const QProjectDetailPage: React.FC = () => {
       )}
       {tab === 'transactions' && <TransactionsTab projectId={projectId} />}
 
+      {/* 메뉴에 추가된 문서 탭 (doc-:id) — PostEditor read-only + 편집 진입 */}
+      {isDocTabKey(tab) && (
+        <PinnedDocBody
+          postId={Number(tab.replace('doc-', ''))}
+          onEdit={(pid) => {
+            // 문서 탭으로 이동 + ?editPost=N 쿼리 → ProjectPostsTab 가 자동 편집 모드 진입
+            const sp = new URLSearchParams(searchParams);
+            sp.set('tab', 'docs');
+            sp.set('editPost', String(pid));
+            setTabState('docs');
+            setSearchParams(sp, { replace: true });
+          }}
+        />
+      )}
+
       {closeModalOpen && (
         <CloseBackdrop onMouseDown={(e) => { if (e.target === e.currentTarget) setCloseModalOpen(false); }}>
           <CloseDialog>
@@ -905,6 +963,79 @@ const QProjectDetailPage: React.FC = () => {
 };
 
 export default QProjectDetailPage;
+
+// ───────── 메뉴에 추가된 문서 탭 본문 (PostEditor read-only + 편집 액션) ─────────
+const PinnedDocBody: React.FC<{ postId: number; onEdit: (id: number) => void }> = ({ postId, onEdit }) => {
+  const [detail, setDetail] = useState<PostDetail | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    fetchPost(postId)
+      .then(d => { if (!cancelled) { if (d) setDetail(d); else setError('not_found'); } })
+      .catch(() => { if (!cancelled) setError('error'); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [postId]);
+
+  if (loading) return <PinnedDocLoading>불러오는 중...</PinnedDocLoading>;
+  if (error || !detail) return <PinnedDocEmpty>문서를 찾을 수 없습니다. 메뉴에서 제거하세요.</PinnedDocEmpty>;
+
+  return (
+    <PinnedDocCard>
+      <PinnedDocHeader>
+        <PinnedDocTitle>{detail.title}</PinnedDocTitle>
+        <PinnedDocActions>
+          <PinnedDocBtn type="button" onClick={() => onEdit(postId)} title="문서 탭에서 이 문서 편집">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+            </svg>
+            편집
+          </PinnedDocBtn>
+        </PinnedDocActions>
+      </PinnedDocHeader>
+      <PostEditor value={detail.content_json} onChange={() => {}} editable={false} />
+    </PinnedDocCard>
+  );
+};
+
+const PinnedDocCard = styled.div`
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: 12px;
+  padding: 24px 28px;
+`;
+const PinnedDocHeader = styled.div`
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; margin-bottom: 16px;
+  padding-bottom: 12px; border-bottom: 1px solid #E2E8F0;
+`;
+const PinnedDocTitle = styled.h2`
+  margin: 0; font-size: 18px; font-weight: 700; color: #0F172A;
+  flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+`;
+const PinnedDocActions = styled.div`
+  display: inline-flex; gap: 6px; flex-shrink: 0;
+`;
+const PinnedDocBtn = styled.button`
+  display: inline-flex; align-items: center; gap: 5px;
+  height: 32px; padding: 0 12px;
+  background: #14B8A6; color: #fff;
+  border: none; border-radius: 8px;
+  font-size: 12px; font-weight: 600; cursor: pointer;
+  transition: background 0.15s;
+  &:hover { background: #0D9488; }
+`;
+const PinnedDocLoading = styled.div`
+  text-align: center; padding: 40px; color: #94A3B8; font-size: 13px;
+`;
+const PinnedDocEmpty = styled.div`
+  text-align: center; padding: 40px; color: #DC2626; font-size: 13px;
+  background: #FEF2F2; border: 1px solid #FECACA; border-radius: 12px;
+`;
 
 // ───────── Dashboard Timeline (공용 GanttTrack) ─────────
 const DashTimeline: React.FC<{

@@ -457,15 +457,27 @@ const CellEditor: React.FC<{
 
   if (column.type === 'attach') {
     const items: AttachItem[] = Array.isArray(value) ? (value as AttachItem[]) : [];
+    const itemHref = (it: AttachItem) =>
+      it.kind === 'file' ? `/files?file=${it.id}` : `/docs?post=${it.id}`;
+    const itemTitle = (it: AttachItem) =>
+      `${it.kind === 'file' ? t('attach.openFile', { defaultValue: '파일 열기' }) : t('attach.openDoc', { defaultValue: '문서 열기' })} (${t('attach.newTab', { defaultValue: '새 창' }) as string})`;
+
     if (readOnly) {
       return (
         <ReadCell>
           {items.length === 0 ? <Dim>—</Dim> : (
             <AttachChips>
               {items.map((it, i) => (
-                <AttachChip key={i} $kind={it.kind}>
-                  {it.kind === 'file' ? '📎' : '📄'} {it.label || (it.kind === 'file' ? `파일 #${it.id}` : `문서 #${it.id}`)}
-                </AttachChip>
+                <AttachChipLink
+                  key={i}
+                  href={itemHref(it)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  $kind={it.kind}
+                  title={itemTitle(it) as string}
+                >
+                  {it.kind === 'file' ? '📎' : '📄'} {it.label || (it.kind === 'file' ? `${t('attach.fileNum', { defaultValue: '파일' }) as string} #${it.id}` : `${t('attach.docNum', { defaultValue: '문서' }) as string} #${it.id}`)}
+                </AttachChipLink>
               ))}
             </AttachChips>
           )}
@@ -473,19 +485,30 @@ const CellEditor: React.FC<{
       );
     }
     return (
-      <AttachCell type="button" onClick={() => onAttachOpen?.()} title={t('cell.attachHint', '첨부 추가/수정') as string}>
+      <AttachCellWrap>
         {items.length === 0 ? (
-          <AttachEmpty>+ {t('cell.attachAdd', '첨부')}</AttachEmpty>
+          <AttachEmptyBtn type="button" onClick={() => onAttachOpen?.()} title={t('cell.attachHint', '파일/문서 첨부 추가/수정') as string}>
+            + {t('cell.attachAdd', { defaultValue: '파일/문서 첨부' }) as string}
+          </AttachEmptyBtn>
         ) : (
           <AttachChips>
             {items.map((it, i) => (
-              <AttachChip key={i} $kind={it.kind}>
-                {it.kind === 'file' ? '📎' : '📄'} {it.label || (it.kind === 'file' ? `파일 #${it.id}` : `문서 #${it.id}`)}
-              </AttachChip>
+              <AttachChipLink
+                key={i}
+                href={itemHref(it)}
+                target="_blank"
+                rel="noopener noreferrer"
+                $kind={it.kind}
+                title={itemTitle(it) as string}
+                onClick={(e) => e.stopPropagation()}
+              >
+                {it.kind === 'file' ? '📎' : '📄'} {it.label || (it.kind === 'file' ? `${t('attach.fileNum', { defaultValue: '파일' }) as string} #${it.id}` : `${t('attach.docNum', { defaultValue: '문서' }) as string} #${it.id}`)}
+              </AttachChipLink>
             ))}
+            <AttachAddIcon type="button" onClick={(e) => { e.stopPropagation(); onAttachOpen?.(); }} title={t('cell.attachHint', '파일/문서 첨부 추가/수정') as string}>+</AttachAddIcon>
           </AttachChips>
         )}
-      </AttachCell>
+      </AttachCellWrap>
     );
   }
 
@@ -713,6 +736,8 @@ const AttachPickerModal: React.FC<{
         setItems([...items, { kind: 'post', id: j.data.id, label: result.title }]);
         // 새로 만든 post 가 후속 검색에서도 보이게 갱신
         fetchPosts(businessId, {}).then(ps => setPosts(ps)).catch(() => {});
+        // 새 창에서 편집 페이지 열기 (사용자가 즉시 검토/수정 가능)
+        try { window.open(`/docs?post=${j.data.id}`, '_blank', 'noopener,noreferrer'); } catch { /* popup blocked */ }
       }
     } finally {
       setBusy(false);
@@ -720,7 +745,7 @@ const AttachPickerModal: React.FC<{
     }
   };
 
-  // 새 빈 문서 작성 → 즉시 빈 post 생성 후 첨부 + 사용자가 별도 탭에서 편집
+  // 새 빈 문서 작성 → 즉시 빈 post 생성 후 첨부 + 새 창에서 편집 페이지 열기
   const handleBlankNew = async () => {
     setBusy(true);
     try {
@@ -737,32 +762,45 @@ const AttachPickerModal: React.FC<{
       if (j.success && j.data?.id) {
         setItems([...items, { kind: 'post', id: j.data.id, label: j.data.title }]);
         fetchPosts(businessId, {}).then(ps => setPosts(ps)).catch(() => {});
+        // 새 창에서 편집 페이지 열기 (사용자가 즉시 작성 가능)
+        try { window.open(`/docs?post=${j.data.id}`, '_blank', 'noopener,noreferrer'); } catch { /* popup blocked */ }
       }
     } finally { setBusy(false); }
   };
 
   return (
     <PopoverBackdrop onClick={() => !busy && onClose()}>
-      <AttachDialog onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={t('attach.title', '첨부 추가') as string}>
+      <AttachDialog onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={t('attach.title', { defaultValue: '파일/문서 첨부' }) as string}>
         <PopoverHeader>
-          <PopoverTitle>{t('attach.title', '첨부 추가')}</PopoverTitle>
+          <PopoverTitle>{t('attach.title', { defaultValue: '파일/문서 첨부' }) as string}</PopoverTitle>
           <PopoverClose type="button" onClick={onClose} disabled={busy} aria-label={t('actions.cancel', '취소') as string}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
           </PopoverClose>
         </PopoverHeader>
         <PopoverBody>
           {items.length > 0 && (
-            <CurrentList>
-              {items.map((it, i) => (
-                <CurrentItem key={i}>
-                  <span>{it.kind === 'file' ? '📎' : '📄'} {it.label || `${it.kind} #${it.id}`}</span>
-                  <RemoveItemBtn type="button" onClick={() => removeItem(i)} aria-label={t('attach.remove', '제거') as string}>×</RemoveItemBtn>
-                </CurrentItem>
-              ))}
-            </CurrentList>
+            <>
+              <SectionTitle>{t('attach.currentSection', { defaultValue: '연결된 첨부' }) as string}</SectionTitle>
+              <CurrentList>
+                {items.map((it, i) => (
+                  <CurrentItem key={i}>
+                    <CurrentItemLink
+                      href={it.kind === 'file' ? `/files?file=${it.id}` : `/docs?post=${it.id}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title={t('attach.openInNewTab', { defaultValue: '새 창에서 열기' }) as string}
+                    >
+                      {it.kind === 'file' ? '📎' : '📄'} {it.label || `${it.kind === 'file' ? t('attach.fileNum', { defaultValue: '파일' }) : t('attach.docNum', { defaultValue: '문서' })} #${it.id}`}
+                      <ExternalIcon>↗</ExternalIcon>
+                    </CurrentItemLink>
+                    <RemoveItemBtn type="button" onClick={() => removeItem(i)} aria-label={t('attach.remove', '제거') as string}>×</RemoveItemBtn>
+                  </CurrentItem>
+                ))}
+              </CurrentList>
+            </>
           )}
 
-          <SectionTitle>{t('attach.uploadSection', '파일 업로드')}</SectionTitle>
+          <SectionTitle>📎 {t('attach.uploadSection', { defaultValue: '파일 업로드 (새 파일)' }) as string}</SectionTitle>
           <DropZone type="button" onClick={() => fileInputRef.current?.click()} disabled={busy}>
             {t('attach.uploadHint', '클릭하거나 파일을 끌어다 놓으세요')}
           </DropZone>
@@ -771,29 +809,30 @@ const AttachPickerModal: React.FC<{
             onChange={(e) => { handleUpload(e.target.files); e.target.value = ''; }}
           />
 
-          <SectionTitle>{t('attach.fileSection', '워크스페이스 파일 연결')}</SectionTitle>
+          <SectionTitle>📎 {t('attach.fileSection', { defaultValue: '워크스페이스 파일 연결' }) as string}</SectionTitle>
           <PlanQSelect size="sm" isSearchable
             options={fileOptions}
             value={null}
             onChange={(opt) => opt && addExistingFile(Number((opt as PlanQSelectOption).value))}
-            placeholder={t('attach.filePh', '파일 검색·선택') as string}
+            placeholder={t('attach.filePh', { defaultValue: '기존 파일 검색·선택' }) as string}
           />
 
-          <SectionTitle>{t('attach.docSection', '문서 연결')}</SectionTitle>
+          <SectionTitle>📄 {t('attach.docSection', { defaultValue: '기존 문서 연결' }) as string}</SectionTitle>
           <PlanQSelect size="sm" isSearchable
             options={postOptions}
             value={null}
             onChange={(opt) => opt && addExistingPost(Number((opt as PlanQSelectOption).value))}
-            placeholder={t('attach.docPh', '문서 검색·선택') as string}
+            placeholder={t('attach.docPh', { defaultValue: '기존 문서 검색·선택' }) as string}
           />
 
-          <SectionTitle>{t('attach.newSection', '새 문서 작성 → 연결')}</SectionTitle>
+          <SectionTitle>📄 {t('attach.newSection', { defaultValue: '새 문서 작성 + 자동 연결' }) as string}</SectionTitle>
+          <SectionHelp>{t('attach.newHint', { defaultValue: '새 문서가 생성되어 이 셀에 자동 연결되고, 새 창에서 편집 페이지가 열립니다.' }) as string}</SectionHelp>
           <NewDocActions>
             <NewDocBtn type="button" onClick={handleBlankNew} disabled={busy}>
-              {t('attach.newBlank', '빈 문서')}
+              {t('attach.newBlank', { defaultValue: '빈 문서로 시작' }) as string}
             </NewDocBtn>
             <NewDocBtn type="button" $accent onClick={() => setAiOpen(true)} disabled={busy}>
-              {t('attach.newAi', 'AI 작성')}
+              {t('attach.newAi', { defaultValue: 'AI 자동 작성' }) as string}
             </NewDocBtn>
           </NewDocActions>
         </PopoverBody>
@@ -898,19 +937,37 @@ const RevealBtn = styled.button`
   color: #475569; border-radius: 4px; cursor: pointer;
   &:hover { background: #F8FAFC; }
 `;
-const AttachCell = styled.button`
-  width: 100%; min-height: 36px; padding: 6px 10px; background: transparent; border: none;
-  text-align: left; cursor: pointer; font-family: inherit;
-  &:hover { background: #F0FDFA; }
+const AttachCellWrap = styled.div`
+  width: 100%; min-height: 36px; padding: 6px 10px;
+  display: flex; align-items: center;
 `;
-const AttachEmpty = styled.span`color: #94A3B8; font-size: 12px;`;
-const AttachChips = styled.div`display: flex; flex-wrap: wrap; gap: 4px;`;
-const AttachChip = styled.span<{ $kind: 'file' | 'post' }>`
-  display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px;
+const AttachEmptyBtn = styled.button`
+  width: 100%; min-height: 24px; background: transparent; border: 1px dashed #CBD5E1;
+  border-radius: 6px; padding: 4px 8px; cursor: pointer; font-family: inherit;
+  color: #64748B; font-size: 12px; text-align: left;
+  &:hover { background: #F0FDFA; border-color: #14B8A6; color: #0F766E; }
+`;
+const AttachAddIcon = styled.button`
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 22px; height: 22px;
+  background: transparent; border: 1px solid #E2E8F0; border-radius: 50%;
+  color: #64748B; font-size: 14px; font-weight: 600; cursor: pointer;
+  flex-shrink: 0;
+  &:hover { background: #F0FDFA; border-color: #14B8A6; color: #0F766E; }
+`;
+const AttachChips = styled.div`display: flex; flex-wrap: wrap; gap: 4px; align-items: center;`;
+const AttachChipLink = styled.a<{ $kind: 'file' | 'post' }>`
+  display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px;
   background: ${p => p.$kind === 'file' ? '#FEF3C7' : '#DBEAFE'};
   color: ${p => p.$kind === 'file' ? '#92400E' : '#1E40AF'};
-  border-radius: 6px; font-size: 11px; font-weight: 500;
-  max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  border-radius: 6px; font-size: 11px; font-weight: 600;
+  max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  text-decoration: none; cursor: pointer;
+  transition: background 0.15s, transform 0.1s;
+  &:hover {
+    background: ${p => p.$kind === 'file' ? '#FDE68A' : '#BFDBFE'};
+    transform: translateY(-1px);
+  }
 `;
 // 빈 상태
 const EmptyWrap = styled.div`
@@ -1020,6 +1077,19 @@ const CurrentItem = styled.div`
   display: flex; align-items: center; gap: 8px; padding: 6px 10px;
   background: #F0FDFA; border-radius: 6px; font-size: 12px; color: #0F172A;
   > span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+`;
+const CurrentItemLink = styled.a`
+  flex: 1; display: inline-flex; align-items: center; gap: 6px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  color: #0F172A; text-decoration: none; font-weight: 500;
+  &:hover { color: #0F766E; }
+`;
+const ExternalIcon = styled.span`
+  font-size: 10px; color: #94A3B8; margin-left: 2px;
+`;
+const SectionHelp = styled.div`
+  font-size: 11px; color: #64748B; line-height: 1.5;
+  padding: 4px 0;
 `;
 const RemoveItemBtn = styled.button`
   width: 20px; height: 20px; background: transparent; border: none;

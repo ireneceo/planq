@@ -19,6 +19,7 @@ const WeeklyReviewModal: React.FC<Props> = ({ businessId, wsTz, onClose, onSaved
   const { t } = useTranslation('qtask');
   const [retroNote, setRetroNote] = useState('');
   const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [existingReview, setExistingReview] = useState<WeeklyReview | null>(null);
   const [showOverwriteConfirm, setShowOverwriteConfirm] = useState(false);
@@ -72,12 +73,14 @@ const WeeklyReviewModal: React.FC<Props> = ({ businessId, wsTz, onClose, onSaved
         retro_note: retroNote.trim() || undefined,
         overwrite: overwrite || !!existingReview,
       });
-      onSaved(review);
+      // 성공 시각 피드백 — 짧은 ✓ 후 close
+      setSaved(true);
+      setTimeout(() => onSaved(review), 800);
     } catch (e: any) {
       if (e.message?.includes('already_exists')) {
         setShowOverwriteConfirm(true);
       } else {
-        setError(e.message || 'Failed to save');
+        setError(e.message || (t('weeklyReview.modal.saveError', { defaultValue: '저장 실패. 잠시 후 다시 시도하세요.' }) as string));
       }
     } finally {
       setSaving(false);
@@ -94,13 +97,23 @@ const WeeklyReviewModal: React.FC<Props> = ({ businessId, wsTz, onClose, onSaved
           </Period>
         </Header>
 
-        {showOverwriteConfirm ? (
+        {saved ? (
+          <ConfirmBody>
+            <SavedIcon>✓</SavedIcon>
+            <ConfirmText>{t('weeklyReview.modal.saved', { defaultValue: '저장 완료. 결산 목록에서 확인하세요.' }) as string}</ConfirmText>
+          </ConfirmBody>
+        ) : showOverwriteConfirm ? (
           <ConfirmBody>
             <ConfirmText>{t('weeklyReview.modal.alreadyExists', '이번 주 결산이 이미 있어요. 지금 시점으로 덮어쓸까요?')}</ConfirmText>
+            {error && <ErrorMsg>{error}</ErrorMsg>}
             <BtnRow>
-              <CancelBtn onClick={() => setShowOverwriteConfirm(false)}>{t('common.cancel', '취소')}</CancelBtn>
+              <CancelBtn onClick={() => { setShowOverwriteConfirm(false); setError(null); }} disabled={saving}>
+                {t('common.cancel', '취소')}
+              </CancelBtn>
               <SaveBtn onClick={() => handleSave(true)} disabled={saving}>
-                {t('weeklyReview.modal.overwrite', '덮어쓰기')}
+                {saving
+                  ? (t('weeklyReview.modal.saving', { defaultValue: '저장 중...' }) as string)
+                  : t('weeklyReview.modal.overwrite', '덮어쓰기')}
               </SaveBtn>
             </BtnRow>
           </ConfirmBody>
@@ -119,9 +132,13 @@ const WeeklyReviewModal: React.FC<Props> = ({ businessId, wsTz, onClose, onSaved
             {error && <ErrorMsg>{error}</ErrorMsg>}
 
             <BtnRow>
-              <CancelBtn onClick={onClose}>{t('weeklyReview.modal.cancel', '취소')}</CancelBtn>
+              <CancelBtn onClick={onClose} disabled={saving}>
+                {t('weeklyReview.modal.cancel', '취소')}
+              </CancelBtn>
               <SaveBtn onClick={() => handleSave()} disabled={saving}>
-                {saving ? '...' : t('weeklyReview.modal.save', '저장')}
+                {saving
+                  ? (t('weeklyReview.modal.saving', { defaultValue: '저장 중...' }) as string)
+                  : t('weeklyReview.modal.save', '저장')}
               </SaveBtn>
             </BtnRow>
           </>
@@ -238,8 +255,18 @@ const ConfirmText = styled.p`
 `;
 
 const ErrorMsg = styled.div`
-  color: #dc2626;
+  color: #DC2626;
   font-size: 13px;
   margin-bottom: 12px;
+  padding: 8px 12px;
+  background: #FEF2F2; border: 1px solid #FECACA; border-radius: 6px;
   text-align: center;
+`;
+
+const SavedIcon = styled.div`
+  width: 56px; height: 56px;
+  display: flex; align-items: center; justify-content: center;
+  margin: 0 auto 14px;
+  font-size: 28px; font-weight: 800; color: #166534;
+  background: #DCFCE7; border-radius: 50%;
 `;
