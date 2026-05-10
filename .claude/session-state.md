@@ -1,65 +1,84 @@
+# PlanQ 개발 세션 상태
+
 ## 현재 작업 상태
-**마지막 업데이트:** 2026-05-10 15:21
-**작업 상태:** 사이클 N+3 완료 + v1.4.0 운영 라이브
-
-### 진행 중인 작업
-- 없음
-
-### 완료된 작업 (이번 세션)
-
-**v1.4.0 운영 라이브 (`e16b125`, 2026-05-10 15:19:55 UTC, 103s)**
-
-**근본 회귀 fix ★★:**
-- `task_extractor` JSON 키워드 누락 — `response_format: json_object` 사용 시 messages 안 'JSON' 단어 필수. 옛 프롬프트 누락으로 매번 OpenAI 400 → fallback `{tasks:[]}` → 추출 자체가 한 번도 정상 작동 안 했던 회귀
-- 검증: "퍼플히어 파비콘" + "앱 아이콘" 2개 정확 추출 200
-
-**UpdateBanner 시스템 통째 제거:**
-- 사이클 N+2 의 PWA 자동 무효화 시스템이 빌드 잦은 환경에서 banner 짜증 + cache-bust `_v=` query 무한 누적 회귀
-- main.tsx 폴링/socket build_id/UpdateBanner mount 모두 제거
-- SW activate 시 모든 client URL `_v=` query 정리 + 강제 navigate (갇힌 옛 PWA 자동 탈출)
-
-**권한 정책 보강:**
-- 댓글 본인 편집/삭제 PUT/DELETE 신규 (workspace owner 도 차단)
-- task PUT 필드별 차등 (title/description: 작성자/담당자/owner, assignee/due_date: 작성자/owner, project_id: owner only)
-
-**채팅방 정리:**
-- POST `/api/projects/conversations/:id/unlink` — project_id=null
-- POST `/api/conversations/:bizId/:id/archive` — soft delete (archived_at)
-- conversations.archived_at + archived_by_user_id 컬럼 신규
-- ⋮ 메뉴 + ConfirmDialog
-
-**latest_estimation_source 시각 분기:**
-- tasks list API literal subquery
-- NumInput `$ai` italic + AiInlineBadge `fx` 칠
-
-**부수 fix:**
-- weeklyReviewCron BusinessMember.active → removed_at:null
-- rate-limit /push/test IPv6 helper (ipKeyGenerator)
-
-### 검증 결과
-- 헬스체크 27/27 PASS
-- API 13/13 PASS (사이클 N+3 누적 통합)
-- UpdateBanner 흔적 산출물 4종 모두 0 (완전 제거)
-- 운영 sw.js navigate/_v 정리 11 라인 반영
-
-### 알려진 후속 (다음 사이클)
-- 운영 nginx /version.json + /sw.js + / no-cache (Irene sudo 1줄 — 직전 사이클부터 미적용)
-- 모달 통일 스프린트 / 통합 공유 시스템 / Smart Routing / PushLog admin 통계 / iOS UA 분기
+**마지막 업데이트:** 2026-05-10
+**작업 상태:** 완료
+**버전:** v1.5.2 운영 라이브 (commit `8dc5251` + `06e327f` bump)
 
 ---
 
-## 환경
-- **dev:** dev.planq.kr (port 3003) — chunk `BzZcjTHb` (build_id 1778426390945)
-- **운영:** planq.kr (port 3004) — commit `e16b125` (build_id 1778426390945)
-- **DB:** dev `planq_dev_db` / prod `planq_prod_db`
-- **PM2:** planq-dev-backend 1.4.0 / planq-prod-backend 1.4.0 / planq-qnote / planq-prod-qnote
+## 진행 중인 작업
+- 없음
 
-## 운영 라이브 (마지막)
-- commit: `e16b125`
-- timestamp: 2026-05-10 15:19:55 UTC (103s deploy)
-- backup: `/opt/planq/backups/20260510_151817`
-- 외부 health: ✅ 200
-- 버전: **v1.4.0** (minor, 1.3.0 → 1.4.0)
+---
+
+## 완료된 작업 (이번 세션)
+
+### 사이클 N+5 — 권한 매트릭스 책임선 분리 (v1.5.2)
+
+1. **Task 본문 책임선 분리**
+   - `description` 담당자 빠짐 (의뢰자 영역: 작성자/owner/admin)
+   - `body` owner 빠짐, admin 백도어 (수행자 영역: 담당자/admin)
+   - `routes/tasks.js` FIELD_RULES 분리
+   - 프론트엔드 `canEditTitle / canEditDescription / canEditBody` 3분기 + 회색 "읽기 전용" 뱃지
+
+2. **Task DELETE 안전핀**
+   - 작성자는 댓글·이력·리뷰어 0건 신생 task 만 삭제 가능 (실수 정정용)
+   - 활동 있으면 owner/admin 만
+
+3. **Invoice 재무 owner only**
+   - `assertInvoiceMutationOwner` 헬퍼 신설
+   - send / mark-paid / unmark-paid / mark-tax-invoice / delete(invoice·installment) 5 라우트 가드
+   - member 호출 → 403 `owner_only`
+
+4. **RichEditor 본문 링크**
+   - `openOnClick: true` + `target=_blank`
+   - editable/readOnly 무관 모든 사용처에서 항상 새 탭
+
+5. **Q Note 진짜 사적 공간 명문화**
+   - 코드 (`q-note/routers/sessions.py`) 는 이미 완벽 — 매트릭스가 코드 현실(admin 도 차단)에 일치
+
+6. **박제 문서**
+   - `docs/PERMISSION_MATRIX.md` §5.7~§5.10 신설 + §12 이력
+   - `CLAUDE.md` 사이클 N+5 정책 4 인라인 노트
+   - `dev-frontend/UI_DESIGN_GUIDE.md` §1.4-B 권한 부재 뱃지 패턴
+   - i18n ko/en `detail.readOnly` + `detail.readOnlyHint`
+
+### 검증
+- 헬스체크 27/27 PASS
+- API 권한 테스트 18/18 PASS (owner 9 + member 9)
+- 빌드 1.52s, 타입 에러 0
+- 운영 배포 109s, https://planq.kr/api/health 200
+
+---
+
+## 다음 할 일 (DEVELOPMENT_PLAN.md 기반)
+
+DEVELOPMENT_PLAN.md 상단 "다음 진입 ★" 차순위 — Irene 선택:
+- 권한 옵션 A + 개인 보관함
+- Q note 텍스트 type + Quick Capture
+- Custom SMTP (Pro+)
+- ShareModal 채팅방 발송 후 PostShareModal 흡수 (chat·email 통일 마무리)
+
+이번 사이클에서 발견한 follow-up:
+- **Message 편집/삭제 라우트 신규 구현** — 매트릭스 §5.9 명세는 박제됐지만 라우트 자체가 없음. 추후 구현 시 본인 msg + owner 모더레이션 정책 적용
+- **`invoices.owner_user_id` 컬럼 활용 재검토** — 담당자 표시는 가능하나 권한 부여 안 함. UI 에서 어떻게 노출할지
+
+---
+
+## 환경변수 / 인증 현황
+- SMTP 5개 dev/prod populated. 메일 발송 정상
+- DEEPGRAM 양쪽 EMPTY (Q Note STT 503 fallback)
+- JWT_SECRET dev/prod 분리 운영
+- platform_admin 계정: irene@irenewp.com (워크스페이스 owner 도 겸함)
+
+---
+
+## 주요 문서 위치
+- 권한 매트릭스: `/opt/planq/docs/PERMISSION_MATRIX.md` (이번 사이클 §5.7~§5.10 신설)
+- 개발 로드맵: `/opt/planq/DEVELOPMENT_PLAN.md`
+- UI 가이드: `/opt/planq/dev-frontend/UI_DESIGN_GUIDE.md` (§1.4-B 권한 뱃지 신설)
+- 프로젝트 규칙: `/opt/planq/CLAUDE.md`
 
 ---
 
