@@ -35,6 +35,9 @@ Post.init({
   kind: { type: DataTypes.ENUM('doc', 'table', 'brief', 'template'), allowNull: false, defaultValue: 'doc' },
   // kind='table' 일 때 연결된 QRecord. 그 외 null.
   q_record_id: { type: DataTypes.INTEGER, allowNull: true, references: { model: 'q_records', key: 'id' } },
+  // 다른 post (문서/표) 연결 — 본문 하단 "관련 문서" 영역. 단방향 (양방향 표시는 향후).
+  // [postId, postId, ...] 형식. 표시 시 join 으로 title/kind 같이 fetch.
+  linked_post_ids: { type: DataTypes.JSON, allowNull: true },
 }, {
   sequelize, tableName: 'posts', timestamps: true, underscored: true,
   indexes: [

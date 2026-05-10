@@ -116,6 +116,10 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
   const [pendingUploads, setPendingUploads] = useState<File[]>([]);
   const [pendingExistingIds, setPendingExistingIds] = useState<number[]>([]);
   const [, setPendingExistingMeta] = useState<Record<number, { name: string; size: number }>>({});
+  // 본문 하단 "관련 문서" 연결 — 다른 post(문서/표) 참조. 단방향 (저장 시 PUT linked_post_ids).
+  const [pendingPostIds, setPendingPostIds] = useState<number[]>([]);
+  // 표(table) 편집 모드의 본문 설명 에디터 collapsible — 빈 상태 신규일 때 닫혀 시작, 내용 있으면 열린 상태.
+  const [tableDescOpen, setTableDescOpen] = useState<boolean>(false);
   const submittingRef = useRef(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [aiOpen, setAiOpen] = useState(false);
@@ -225,6 +229,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
     setPendingUploads([]);
     setPendingExistingIds([]);
     setPendingExistingMeta({});
+    setPendingPostIds([]);
     setError(null);
   };
 
@@ -285,6 +290,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
     setPendingUploads([]);
     setPendingExistingIds([]);
     setPendingExistingMeta({});
+    setPendingPostIds([]);
     setError(null);
     setAiOpen(false);
   };
@@ -308,6 +314,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
     setPendingUploads([]);
     setPendingExistingIds([]);
     setPendingExistingMeta({});
+    setPendingPostIds([]);
     setError(null);
     setTplModalOpen(false);
   };
@@ -323,6 +330,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
     setPendingUploads([]);
     setPendingExistingIds([]);
     setPendingExistingMeta({});
+    setPendingPostIds([]);
     setError(null);
     setSlotTplId(null);
   };
@@ -334,6 +342,10 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
     setContentDraft(detail.content_json);
     setCategoryDraft(detail.category || '');
     setProjectDraft(detail.project_id);
+    setPendingPostIds(Array.isArray(detail.linked_post_ids) ? detail.linked_post_ids : []);
+    // 표 본문 설명 — 기존 내용이 있으면 자동 펼침, 없으면 접어두기
+    const hasContent = !!(detail.content_json && JSON.stringify(detail.content_json).length > 30);
+    setTableDescOpen(hasContent);
     setError(null);
   };
 
@@ -437,6 +449,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
           title: titleDraft.trim(),
           content_json: contentDraft as any,
           category: categoryVal,
+          linked_post_ids: pendingPostIds,
           // 프로젝트 scope 페이지에선 project_id 변경 막기 (강제 유지)
           ...(scope.type === 'workspace' ? { project_id: projectDraft } : {}),
         });
@@ -669,10 +682,38 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
                 )}
               </MetaRow>
               {error && <ErrorBar>{error}</ErrorBar>}
-              <PostEditor value={contentDraft} onChange={setContentDraft} placeholder={t('contentPlaceholder', '본문을 작성하세요…') as string} />
+              {detail?.kind === 'table' && detail.q_record_id ? (
+                <>
+                  {tableDescOpen ? (
+                    <DescBox>
+                      <DescBoxHeader>
+                        <DescBoxLabel>{t('tableDescTitle', { defaultValue: '표 설명 에디터' }) as string}</DescBoxLabel>
+                        <DescCloseBtn type="button" onClick={() => setTableDescOpen(false)}
+                          title={t('tableDescClose', { defaultValue: '에디터 닫기' }) as string}
+                          aria-label={t('tableDescClose', { defaultValue: '에디터 닫기' }) as string}>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                          <span>{t('tableDescCloseShort', { defaultValue: '닫기' }) as string}</span>
+                        </DescCloseBtn>
+                      </DescBoxHeader>
+                      <PostEditor
+                        value={contentDraft}
+                        onChange={setContentDraft}
+                        placeholder={t('tableDescPlaceholder', '표에 대한 설명을 입력하세요 (선택)') as string}
+                      />
+                    </DescBox>
+                  ) : (
+                    <DescToggleBtn type="button" onClick={() => setTableDescOpen(true)}>
+                      + {t('tableDescOpen', { defaultValue: '표 설명 에디터 열기' }) as string}
+                    </DescToggleBtn>
+                  )}
+                  <PostTableGrid recordId={detail.q_record_id} businessId={scope.businessId} />
+                </>
+              ) : (
+                <PostEditor value={contentDraft} onChange={setContentDraft} placeholder={t('contentPlaceholder', '본문을 작성하세요…') as string} />
+              )}
 
               <AttachSection>
-                <AttachTitle>{t('attachments', '첨부 파일')}</AttachTitle>
+                <AttachTitle>{t('attachments', '첨부 파일·문서')}</AttachTitle>
                 {mode === 'edit' && detail && detail.attachments.length > 0 && (
                   <AttachList>
                     {detail.attachments.map(a => (
@@ -691,6 +732,9 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
                   onUploadsChange={setPendingUploads}
                   existingFileIds={pendingExistingIds}
                   onExistingFileIdsChange={setPendingExistingIds}
+                  includePosts
+                  existingPostIds={pendingPostIds}
+                  onExistingPostIdsChange={setPendingPostIds}
                 />
               </AttachSection>
             </Body>
@@ -764,8 +808,13 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
               <div data-print-area>
                 <PrintOnlyTitle>{detail.title}</PrintOnlyTitle>
                 {detail.kind === 'table' && detail.q_record_id ? (
-                  // 표 kind — Q record 그리드 임베드
-                  <PostTableGrid recordId={detail.q_record_id} />
+                  // 표 kind — 본문 설명(있으면) + Q record 그리드 (보기 모드: read-only)
+                  <>
+                    {detail.content_json && (
+                      <PostEditor value={detail.content_json} onChange={() => {}} editable={false} />
+                    )}
+                    <PostTableGrid recordId={detail.q_record_id} businessId={scope.businessId} readOnly />
+                  </>
                 ) : (
                   <PostEditor value={detail.content_json} onChange={() => {}} editable={false} />
                 )}
@@ -779,28 +828,35 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
                 onAddMore={() => setSignOpen(true)}
               />
 
-              <AttachSection>
-                <AttachTitle>{t('attachments', '첨부 파일')}</AttachTitle>
-                {detail.attachments.length > 0 && (
-                  <AttachList>
-                    {detail.attachments.map(a => (
-                      <AttachRow key={a.id}>
-                        <AttachName href={a.file?.download_url || '#'} target="_blank" rel="noreferrer">
-                          {a.file?.file_name || '—'}
-                        </AttachName>
-                        <RemoveBtn type="button" onClick={() => detachOne(a.id)} title={t('actions.remove', '제거') as string} aria-label={t('actions.remove', '제거') as string}>×</RemoveBtn>
-                      </AttachRow>
-                    ))}
-                  </AttachList>
-                )}
-                <AttachmentField
-                  businessId={scope.businessId}
-                  uploads={pendingUploads}
-                  onUploadsChange={setPendingUploads}
-                  existingFileIds={pendingExistingIds}
-                  onExistingFileIdsChange={setPendingExistingIds}
-                />
-              </AttachSection>
+              {/* 보기 모드 — 첨부도 연결도 없으면 섹션 자체 숨김 */}
+              {(detail.attachments.length > 0 || (detail.linked_posts && detail.linked_posts.length > 0)) && (
+                <AttachSection>
+                  <AttachTitle>{t('attachments', '첨부 파일·문서')}</AttachTitle>
+                  {detail.attachments.length > 0 && (
+                    <AttachList>
+                      {detail.attachments.map(a => (
+                        <AttachRow key={a.id}>
+                          <AttachName href={a.file?.download_url || '#'} target="_blank" rel="noreferrer">
+                            {a.file?.file_name || '—'}
+                          </AttachName>
+                          <RemoveBtn type="button" onClick={() => detachOne(a.id)} title={t('actions.remove', '제거') as string} aria-label={t('actions.remove', '제거') as string}>×</RemoveBtn>
+                        </AttachRow>
+                      ))}
+                    </AttachList>
+                  )}
+                  {detail.linked_posts && detail.linked_posts.length > 0 && (
+                    <AttachList>
+                      {detail.linked_posts.map(lp => (
+                        <AttachRow key={`lp-${lp.id}`}>
+                          <AttachName as="a" href={`/docs?post=${lp.id}`}>
+                            {lp.kind === 'table' ? '📊 ' : '📄 '}{lp.title}
+                          </AttachName>
+                        </AttachRow>
+                      ))}
+                    </AttachList>
+                  )}
+                </AttachSection>
+              )}
             </Body>
           </>
         ) : (
@@ -1280,6 +1336,38 @@ const RemoveBtn = styled.button`
 `;
 
 const ErrorBar = styled.div`font-size: 12px; color: #DC2626; background: #FEF2F2; padding: 8px 12px; border-radius: 6px;`;
+const DescToggleBtn = styled.button`
+  align-self: flex-start;
+  padding: 6px 12px; font-size: 12px; font-weight: 500; color: #64748B;
+  background: transparent; border: 1px dashed #CBD5E1; border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s;
+  &:hover { color: #0F766E; border-color: #14B8A6; background: #F0FDFA; }
+`;
+const DescBox = styled.div`
+  display: flex; flex-direction: column;
+  border: 1px solid #E2E8F0; border-radius: 10px;
+  background: #fff;
+`;
+const DescBoxHeader = styled.div`
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 12px;
+  border-bottom: 1px solid #F1F5F9;
+  background: #F8FAFC;
+  border-radius: 10px 10px 0 0;
+`;
+const DescBoxLabel = styled.span`
+  font-size: 11px; font-weight: 700; color: #64748B;
+  text-transform: uppercase; letter-spacing: 0.05em;
+`;
+const DescCloseBtn = styled.button`
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 4px 8px; font-size: 11px; font-weight: 500; color: #64748B;
+  background: transparent; border: 1px solid transparent; border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s;
+  &:hover { color: #DC2626; border-color: #FECACA; background: #FEF2F2; }
+`;
 
 // 버튼 — PanelHeader 60px (padding 14*2=28 + 32 content) 와 일치하도록 32px
 const PrimaryBtn = styled.button`

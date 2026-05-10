@@ -139,22 +139,37 @@ const tokenRemainingMs = (): number => {
 let refreshInflight: Promise<boolean> | null = null;
 
 // Refresh 시도. 동시 호출은 동일 promise 공유.
+//   네트워크 blip / 서버 reload 일시 실패 흡수: 첫 호출 실패 + 응답 status 가 0 (네트워크) 또는
+//   5xx 면 1.5초 뒤 1회 재시도. 401 (인증 만료) 은 즉시 false (재시도 무의미).
 const tryRefresh = (): Promise<boolean> => {
   if (refreshInflight) return refreshInflight;
   refreshInflight = (async () => {
-    try {
-      const res = await fetch('/api/auth/refresh', {
-        method: 'POST',
-        credentials: 'include',
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.success && data.data?.token) {
-          setAccessToken(data.data.token);
-          return true;
+    const callOnce = async (): Promise<{ ok: boolean; networkOrServer: boolean }> => {
+      try {
+        const res = await fetch('/api/auth/refresh', {
+          method: 'POST',
+          credentials: 'include',
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && data.data?.token) {
+            setAccessToken(data.data.token);
+            return { ok: true, networkOrServer: false };
+          }
+          return { ok: false, networkOrServer: false };
         }
+        return { ok: false, networkOrServer: res.status >= 500 };
+      } catch {
+        return { ok: false, networkOrServer: true };
       }
-    } catch { /* network blip — refreshInflight 가 reject 되지 않게 흡수 */ }
+    };
+    const first = await callOnce();
+    if (first.ok) return true;
+    if (first.networkOrServer) {
+      await new Promise((r) => setTimeout(r, 1500));
+      const second = await callOnce();
+      if (second.ok) return true;
+    }
     setAccessToken(null);
     return false;
   })();

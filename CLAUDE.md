@@ -521,6 +521,26 @@ import DetailDrawer from 'components/Common/DetailDrawer';
 
 적용처: EventDrawer(신규) · TaskDetailDrawer · ClientsPage Drawer. 이후 신규 상세/편집 드로어는 반드시 DetailDrawer 사용.
 
+## 운영 안정성 규칙 (사이클 N+3 박제)
+
+외부 점검에서 도출된 7가지 — 신규 코드 작성 시 처음부터 적용. 같은 계열 회귀 차단.
+
+1. **Rate-limit (외부 quota·비용 라우트)** — push/email/sms/llm 처럼 외부 quota 또는 비용을 발생시키는 라우트는 **per-user rate-limit 필수**. `keyGenerator: req => 'name-' + req.user.id` 로 IP NAT 우회. 예: `/api/push/test` 분당 5회. 정책 누락 시 사용자 1명이 quota 폭주 가능.
+
+2. **PWA 자동 reload 안전** — `version.json` 또는 socket `server:build` 신호로 사용자 모르게 reload 시 **입력 도중 데이터 손실 위험**. `main.tsx` 의 `isReloadSafe()` 가드: input/textarea/contentEditable focus + `body.dataset.formDirty='1'` + `[data-form-dirty="1"]` 모두 체크 후 idle 일 때만 reload. 아니면 `<UpdateBanner>` 토스트 → 사용자 명시 클릭. 자동 reload 가 다시 들어가는 신규 코드는 같은 가드 재사용.
+
+3. **사운드/효과 debounce** — `playPing()` 같은 audio/효과 함수는 짧은 시간 연속 호출 시 중첩 재생 → UX 짜증. 200ms 이내 중복 skip 패턴 (lastTime ref). NotificationToaster.tsx 참조.
+
+4. **외부 endpoint 화이트리스트 (DB 저장 전)** — webhook · push · OAuth callback 등 외부 URL 을 DB 에 저장하는 경우 `new URL(...).protocol === 'https:'` + 알려진 도메인 화이트리스트 검증 필수. 임의 URL 무검증 저장 금지. `routes/push.js:isAllowedEndpoint()` 패턴 재사용.
+
+5. **Sub-resource 재등록 명시 cleanup** — endpoint·token·serial 같은 unique 자원이 다른 user 로 재등록될 때, 옛 row 를 `expired_at = NOW()` 명시 마크 후 신규 row insert. 그냥 update reassign 하면 감사 기록 사라짐. `routes/push.js` POST `/subscribe` 패턴 참조.
+
+6. **외부 발송 = LogTable 처음부터** — push/email/sms 같은 외부 발송은 처음 release 부터 Log 테이블 (user_id, target, status, status_code, error_message, sent_at). 운영 시작 후 추가는 히스토리 없음. PushLog/EmailLog 모델 참조.
+
+7. **Sticky 권한 동기화** — OS/브라우저 권한 OFF (push notification, mic, camera 등) 일 때 backend 의 자원 (구독·토큰·세션) 도 자동 정리. 좀비 endpoint 누적 차단. `services/push.ts:syncPermissionOnFocus()` + `bindPermissionSync()` 패턴 — 페이지 focus 복귀 시 권한 재검사 → denied 면 backend DELETE 자동.
+
+---
+
 ## UI 규칙 — 액션 버튼 / 중복 제출 / URL 싱크
 
 - **액션 버튼 3톤** (Primary / Secondary / Danger)만 사용. 상태 색을 버튼 배경에 칠하지 말 것. `UI_DESIGN_GUIDE.md` 섹션 1.7.

@@ -102,7 +102,43 @@ async function canJoinBusiness(userId, businessId) {
   return !!bm;
 }
 
+// 프론트 빌드 ID 캐시 — version.json 한 번 read 후 메모리. socket connection 마다 client 에 emit.
+//   클라가 자기 메모리 build_id 와 비교 → 다르면 사용자에게 "업데이트 사용 가능" 배너 표시.
+//   (60초 polling 은 안전망으로 5분 간격 유지)
+let cachedBuildId = '';
+function getBuildId() {
+  if (cachedBuildId) return cachedBuildId;
+  try {
+    const fs = require('fs');
+    const path = require('path');
+    const candidates = [
+      process.env.FRONTEND_BUILD_DIR && path.join(process.env.FRONTEND_BUILD_DIR, 'version.json'),
+      path.resolve(__dirname, '..', 'frontend-build', 'version.json'),
+      path.resolve(__dirname, '..', 'dev-frontend-build', 'version.json'),
+    ].filter(Boolean);
+    for (const p of candidates) {
+      try {
+        const j = JSON.parse(fs.readFileSync(p, 'utf8'));
+        if (j.build_id) { cachedBuildId = String(j.build_id); break; }
+      } catch { /* try next */ }
+    }
+  } catch { /* noop */ }
+  return cachedBuildId || '';
+}
+// build_id 변경 broadcast — deploy 직후 cache 강제 무효화 후 호출 (사용자 모두에게 1회 emit)
+function invalidateBuildId() {
+  cachedBuildId = '';
+  const id = getBuildId();
+  if (id) io.emit('server:build', { build_id: id });
+}
+// 외부 호출 (예: deploy hook) 가능하도록 노출
+app.locals.invalidatePlanqBuildId = invalidateBuildId;
+
 io.on('connection', (socket) => {
+  // 연결 직후 — 현재 빌드 ID 알림 (클라가 자기 build 와 다르면 reload 배너)
+  const id = getBuildId();
+  if (id) socket.emit('server:build', { build_id: id });
+
   // 대화방 room 참가 — 소유권 재검증 필수 (인증만으로는 부족)
   socket.on('join:conversation', async (conversationId) => {
     if (!conversationId) return;

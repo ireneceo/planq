@@ -282,23 +282,8 @@ const PostAiModal: React.FC<Props> = ({ open, onClose, businessId, projectId: pa
               {t('ai.contextLinked', '현재 페이지 컨텍스트로 연결되어 회사명·담당자·금액이 자동 채워집니다.')}
             </ContextBadge>
           )}
-          {/* blank/table 모드만 외부 첨부 표시. new 는 본문 안에 (제목·요구사항 다음에) 배치. */}
-          {(mode === 'blank' || mode === 'table') && (
-            <Field>
-              <Label>{t('common.attach', '파일·문서 첨부')} <OptionalMark>{t('brief.optional', '(선택)')}</OptionalMark></Label>
-              <AttachmentField
-                businessId={businessId}
-                uploads={briefStagedUploads}
-                onUploadsChange={setBriefStagedUploads}
-                existingFileIds={briefExistingIds}
-                onExistingFileIdsChange={setBriefExistingIds}
-                includePosts
-                existingPostIds={briefPostIds}
-                onExistingPostIdsChange={setBriefPostIds}
-                disabled={busy}
-              />
-            </Field>
-          )}
+          {/* blank/table 은 첨부 UI 미노출 — 에디터에서 본문 작성 중 첨부하도록.
+              모달 단계에 첨부가 있으면 'AI 가 자료 가공해서 만들어준다' 같은 오해를 줌. */}
           {mode === 'blank' ? (
             <BriefIntro>
               {t('ai.blankDesc', '빈 본문으로 시작합니다. 제목을 입력하고 본문을 직접 작성하세요. AI 사용량 안 씁니다.')}

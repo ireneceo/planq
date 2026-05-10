@@ -10,7 +10,8 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { requestSignatures, type PostDetail, type SignatureRequest } from '../../services/posts';
 import SingleDateField from '../Common/SingleDateField';
-import { listProjectConversations, listBusinessConversations, type ApiConversation } from '../../services/qtalk';
+import { listProjectConversations, listBusinessConversations, listBusinessMembers, type ApiConversation } from '../../services/qtalk';
+import { listClientsForBilling, type ApiClientLite } from '../../services/invoices';
 import PlanQSelect, { type PlanQSelectOption } from '../Common/PlanQSelect';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { useEscapeStack } from '../../hooks/useEscapeStack';
@@ -37,6 +38,8 @@ const PostSignatureModal: React.FC<Props> = ({ open, onClose, post, onSent }) =>
   const [sendChat, setSendChat] = useState(true);
   const [convOptions, setConvOptions] = useState<PlanQSelectOption[]>([]);
   const [convId, setConvId] = useState<number | null>(post.conversation_id);
+  // 워크스페이스 멤버 + 고객 — 서명자 picker 옵션
+  const [contactOptions, setContactOptions] = useState<Array<PlanQSelectOption & { email: string; name: string }>>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<{ count: number; viaChat: boolean; convId: number | null } | null>(null);
@@ -49,6 +52,59 @@ const PostSignatureModal: React.FC<Props> = ({ open, onClose, post, onSent }) =>
   useEffect(() => {
     if (open) setTimeout(() => firstEmailRef.current?.focus(), 50);
   }, [open]);
+
+  // 멤버 + 고객 통합 — 서명자 자동완성 picker
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    Promise.all([
+      listBusinessMembers(post.business_id).catch(() => []),
+      listClientsForBilling(post.business_id).catch(() => [] as ApiClientLite[]),
+    ]).then(([members, clients]) => {
+      if (cancelled) return;
+      const opts: Array<PlanQSelectOption & { email: string; name: string }> = [];
+      members.forEach(m => {
+        const email = m.user?.email;
+        const name = m.name || m.user?.name || '';
+        if (email) {
+          opts.push({
+            value: `m-${m.user_id}`,
+            label: `${name} · ${email} · ${t('sign.contactMember', { defaultValue: '멤버' }) as string}`,
+            email, name,
+          });
+        }
+      });
+      clients.forEach(c => {
+        const email = c.invite_email || c.billing_contact_email || c.tax_invoice_email;
+        const name = c.display_name || c.company_name || c.biz_name || '';
+        if (email) {
+          opts.push({
+            value: `c-${c.id}`,
+            label: `${name} · ${email} · ${t('sign.contactClient', { defaultValue: '고객' }) as string}`,
+            email, name,
+          });
+        }
+      });
+      setContactOptions(opts);
+    });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, post.business_id]);
+
+  const pickContact = (opt: (typeof contactOptions)[number] | null) => {
+    if (!opt) return;
+    // 이미 추가된 이메일이면 무시
+    const exists = signers.some(s => s.email.trim().toLowerCase() === opt.email.toLowerCase());
+    if (exists) return;
+    setSigners(prev => {
+      // 첫 빈 행이 있으면 거기에 채우고, 없으면 새 행 추가
+      const emptyIdx = prev.findIndex(r => !r.email.trim());
+      if (emptyIdx >= 0) {
+        return prev.map((r, i) => i === emptyIdx ? { ...r, email: opt.email, name: opt.name } : r);
+      }
+      return [...prev, { id: nextRowId++, email: opt.email, name: opt.name }];
+    });
+  };
 
   // 대화방 목록 (프로젝트 scope면 그 프로젝트, 전역이면 워크스페이스 전체)
   useEffect(() => {
@@ -185,7 +241,20 @@ const PostSignatureModal: React.FC<Props> = ({ open, onClose, post, onSent }) =>
           <Body>
             <Section>
               <SectionLabel>{t('sign.signers', '서명자')}</SectionLabel>
-              <SectionHint>{t('sign.signersHint', 'Enter 로 새 서명자를 추가합니다.')}</SectionHint>
+              <SectionHint>{t('sign.signersHintV2', { defaultValue: '멤버·고객을 검색해 빠르게 추가하거나, 아래에 이메일을 직접 입력하세요. Enter 로 새 행 추가.' }) as string}</SectionHint>
+              {contactOptions.length > 0 && (
+                <ContactPickWrap>
+                  <PlanQSelect
+                    size="sm"
+                    options={contactOptions}
+                    value={null}
+                    onChange={(opt) => pickContact(opt as (typeof contactOptions)[number] | null)}
+                    placeholder={t('sign.contactSearchPh', { defaultValue: '멤버·고객 검색해 추가 (이름·이메일)' }) as string}
+                    isClearable
+                    isSearchable
+                  />
+                </ContactPickWrap>
+              )}
               <SignerList>
                 {signers.map((s, idx) => {
                   const valid = !s.email || EMAIL_RE.test(s.email.trim());
@@ -339,6 +408,8 @@ const SectionHalf = styled.div`display: flex; flex-direction: column; gap: 6px;`
 const SectionLabel = styled.label`font-size: 12px; font-weight: 600; color: #0F172A; display: block; margin-bottom: 6px;`;
 const SectionHint = styled.div`font-size: 11px; color: #94A3B8; line-height: 1.5; margin-top: 4px;`;
 
+// 멤버·고객 picker
+const ContactPickWrap = styled.div`margin-bottom: 8px;`;
 // 서명자 입력
 const SignerList = styled.div`display: flex; flex-direction: column; gap: 6px;`;
 const SignerRowWrap = styled.div<{ $invalid: boolean }>`

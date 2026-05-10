@@ -20,10 +20,6 @@
     "cols": "컬럼", "rows": "행", "updated": "수정일",
     "workspace": "워크스페이스"
   },
-  "empty": {
-    "title": "아직 등록된 테이블이 없습니다",
-    "body": "계정 정보·자산·연락처 등 표 형태 데이터를 워크스페이스 단위로 보관하세요."
-  },
   "create": {
     "title": "새 테이블",
     "nameLabel": "테이블 이름",
@@ -42,13 +38,55 @@
     "nameLabel": "컬럼 이름",
     "typeLabel": "타입",
     "optionsLabel": "선택지 (한 줄에 하나)",
+    "optionsPh": "예:\n진행 중\n검토\n완료",
     "editHint": "클릭해서 편집",
-    "addHint": "컬럼 추가"
+    "addHint": "컬럼 추가",
+    "namePromptPh": "새 컬럼 이름",
+    "defaultName": "컬럼 {{n}}",
+    "delete": "컬럼 삭제",
+    "deleteConfirm": "이 컬럼의 모든 셀 데이터가 사라집니다.",
+    "deleteYes": "삭제",
+    "aggregateLabel": "열 자동 계산 (표 하단)",
+    "aggregateHint": "이 열의 값들을 표 맨 아래 줄에 합계·평균·최소·최대 등으로 자동 계산해 보여줍니다."
+  },
+  "agg": {
+    "none": "없음",
+    "count": "값 있는 행 수",
+    "sum": "합계",
+    "avg": "평균",
+    "min": "최소",
+    "max": "최대",
+    "empty": "비어있는 비율",
+    "filled": "채워진 비율"
   },
   "row": { "deleteHint": "행 삭제" },
   "cell": {
     "reveal": "보기",
     "secretPh": "값 입력 (저장 시 마스킹)",
-    "secretEnterPh": "시크릿 입력"
+    "secretEnterPh": "시크릿 입력",
+    "selectEmptyPh": "옵션 없음 — 컬럼 설정에서 추가",
+    "attachAdd": "첨부",
+    "attachHint": "첨부 추가/수정"
+  },
+  "empty": {
+    "title": "아직 등록된 테이블이 없습니다",
+    "body": "계정 정보·자산·연락처 등 표 형태 데이터를 워크스페이스 단위로 보관하세요.",
+    "firstColumn": "컬럼을 추가해 표를 시작하세요",
+    "firstColumnHint": "예: 회사명, 담당자, 상태, 마감일",
+    "firstColumnPh": "첫 컬럼 이름 (Enter)"
+  },
+  "attach": {
+    "title": "첨부 추가",
+    "remove": "제거",
+    "uploadSection": "파일 업로드",
+    "uploadHint": "클릭하거나 파일을 끌어다 놓으세요",
+    "fileSection": "워크스페이스 파일 연결",
+    "filePh": "파일 검색·선택",
+    "docSection": "문서 연결",
+    "docPh": "문서 검색·선택",
+    "newSection": "새 문서 작성 → 연결",
+    "newBlank": "빈 문서",
+    "newAi": "AI 작성",
+    "blankPostTitle": "새 문서"
   }
 }

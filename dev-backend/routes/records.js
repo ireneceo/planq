@@ -177,6 +177,7 @@ router.put('/:id', authenticateToken, async (req, res, next) => {
         name: String(c.name || `컬럼 ${i+1}`),
         type: c.type || 'text',
         options: c.options,
+        aggregate: c.aggregate || undefined,  // footer 집계 (sum/avg/count 등) — 누락 시 보존 안 됨 회귀 fix
         order: i,
       }));
     }

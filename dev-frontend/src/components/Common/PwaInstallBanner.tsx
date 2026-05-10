@@ -1,7 +1,9 @@
 // PWA 홈화면 추가 안내 배너 — 모바일 우선.
 //   - Chrome/Edge: beforeinstallprompt 잡혀 있으면 직접 prompt
 //   - iOS Safari: prompt API 미지원 → 사용 안내 (공유 → 홈 화면에 추가)
-//   - dismiss 는 sessionStorage 만 — 새 탭/세션에서는 다시 노출 (적극 유도)
+//   - dismiss 정책 (사이클 N+3 보완):
+//     · sessionStorage — 이번 탭만 닫기 (X 버튼)
+//     · localStorage 7일 — "7일 동안 안 보기" 버튼 (사용자가 영구히 안 보고 싶을 때)
 //   - 이미 설치(standalone) 된 경우는 노출 X
 //   - 상태는 PwaInstallContext 가 관리 → 설정 페이지의 InstallSection 과 deferred 공유
 import styled from 'styled-components';
@@ -12,13 +14,12 @@ import { usePwaInstall } from '../../contexts/PwaInstallContext';
 export default function PwaInstallBanner() {
   const { t } = useTranslation('common');
   const { user } = useAuth();
-  const { isStandalone, isRelatedInstalled, canPrompt, isIos, dismissedThisSession, install, dismissForSession } = usePwaInstall();
+  const { isStandalone, isRelatedInstalled, canPrompt, isIos, dismissedThisSession, dismissedUntil, install, dismissForSession, dismissFor7Days } = usePwaInstall();
 
-  // 비로그인 사용자에게는 미노출 — 마케팅 랜딩(/, /features 등) 에서 PWA 안내 어색.
-  // 로그인 후 앱 진입했을 때 "앱으로 설치" 유도가 의미 있음.
   if (!user) return null;
   if (isStandalone || isRelatedInstalled) return null;
   if (dismissedThisSession) return null;
+  if (dismissedUntil && dismissedUntil > Date.now()) return null;  // 7일 안 보기 활성
   if (!canPrompt && !isIos) return null;
 
   const handleInstall = async () => {
@@ -47,6 +48,9 @@ export default function PwaInstallBanner() {
           {t('pwa.installCta', '설치')}
         </CtaBtn>
       )}
+      <SnoozeBtn type="button" onClick={dismissFor7Days} title={t('pwa.snooze7d', { defaultValue: '7일 동안 안 보기' }) as string}>
+        {t('pwa.snooze7dShort', { defaultValue: '7일 안 보기' }) as string}
+      </SnoozeBtn>
       <CloseBtn type="button" onClick={dismissForSession} aria-label={t('common.close', '닫기') as string}>×</CloseBtn>
     </BannerRoot>
   );
@@ -58,8 +62,8 @@ const BannerRoot = styled.div`
   right: 16px;
   z-index: 8500;
   display: grid;
-  grid-template-columns: 36px 1fr auto auto;
-  gap: 12px;
+  grid-template-columns: 36px 1fr auto auto auto;
+  gap: 8px;
   align-items: center;
   padding: 12px 14px;
   background: #FFFFFF;
@@ -96,4 +100,10 @@ const CloseBtn = styled.button`
   display: flex; align-items: center; justify-content: center;
   border-radius: 4px;
   &:hover { background: #F1F5F9; color: #0F172A; }
+`;
+const SnoozeBtn = styled.button`
+  height: 32px; padding: 0 10px;
+  background: #fff; color: #64748B; border: 1px solid #E2E8F0; border-radius: 8px;
+  font-size: 11px; font-weight: 600; cursor: pointer;
+  &:hover { border-color: #CBD5E1; background: #F8FAFC; }
 `;
