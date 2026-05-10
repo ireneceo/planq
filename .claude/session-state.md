@@ -1,66 +1,65 @@
 ## 현재 작업 상태
-**마지막 업데이트:** 2026-05-10 11:23
-**작업 상태:** 중단 (2시간 후 재개 예정)
+**마지막 업데이트:** 2026-05-10 15:21
+**작업 상태:** 사이클 N+3 완료 + v1.4.0 운영 라이브
 
----
+### 진행 중인 작업
+- 없음
 
-## ⚡ 빠른 재개 (새 세션에서 이것만 붙여넣기)
+### 완료된 작업 (이번 세션)
 
-```
-session-state.md 읽고 이어서 개발해.
-```
+**v1.4.0 운영 라이브 (`e16b125`, 2026-05-10 15:19:55 UTC, 103s)**
 
----
+**근본 회귀 fix ★★:**
+- `task_extractor` JSON 키워드 누락 — `response_format: json_object` 사용 시 messages 안 'JSON' 단어 필수. 옛 프롬프트 누락으로 매번 OpenAI 400 → fallback `{tasks:[]}` → 추출 자체가 한 번도 정상 작동 안 했던 회귀
+- 검증: "퍼플히어 파비콘" + "앱 아이콘" 2개 정확 추출 200
 
-## 🔖 지금 중단 지점
+**UpdateBanner 시스템 통째 제거:**
+- 사이클 N+2 의 PWA 자동 무효화 시스템이 빌드 잦은 환경에서 banner 짜증 + cache-bust `_v=` query 무한 누적 회귀
+- main.tsx 폴링/socket build_id/UpdateBanner mount 모두 제거
+- SW activate 시 모든 client URL `_v=` query 정리 + 강제 navigate (갇힌 옛 PWA 자동 탈출)
 
-**마지막 작업:** v1.3.0 운영 라이브 + version bump commit (`e05b8b8`) + 9단계 검증 ALL PASS
+**권한 정책 보강:**
+- 댓글 본인 편집/삭제 PUT/DELETE 신규 (workspace owner 도 차단)
+- task PUT 필드별 차등 (title/description: 작성자/담당자/owner, assignee/due_date: 작성자/owner, project_id: owner only)
 
-**바로 다음 작업:** 운영 nginx `/version.json` no-cache 헤더 추가 (Irene 직접 sudo 1줄) → 그 후 사이클 N+3 진입
+**채팅방 정리:**
+- POST `/api/projects/conversations/:id/unlink` — project_id=null
+- POST `/api/conversations/:bizId/:id/archive` — soft delete (archived_at)
+- conversations.archived_at + archived_by_user_id 컬럼 신규
+- ⋮ 메뉴 + ConfirmDialog
 
-**맥락 유지할 것:**
-- 운영 PM2 1.3.0 / dev PM2 1.3.0 / 외부 health 200 정상
-- 운영 nginx config sudo 권한 문제로 Claude 가 직접 적용 불가 — Irene 이 SSH 로 1줄 실행 필요 (안내문은 직전 메시지에 있음)
-- weeklyReviewCron `BusinessMember.active` pre-existing 회귀 — 이번 사이클 무관, 다음 사이클 fix
+**latest_estimation_source 시각 분기:**
+- tasks list API literal subquery
+- NumInput `$ai` italic + AiInlineBadge `fx` 칠
 
----
+**부수 fix:**
+- weeklyReviewCron BusinessMember.active → removed_at:null
+- rate-limit /push/test IPv6 helper (ipKeyGenerator)
 
-## 📦 이번 세션 작업 요약
+### 검증 결과
+- 헬스체크 27/27 PASS
+- API 13/13 PASS (사이클 N+3 누적 통합)
+- UpdateBanner 흔적 산출물 4종 모두 0 (완전 제거)
+- 운영 sw.js navigate/_v 정리 11 라인 반영
 
-- 사이클 N+2 v1.3.0 운영 라이브 (650fb6f, 107s)
-- 표 (Q record) 고도화 — 시드 제거 / ColumnSettings popover / attach 셀 / 행 자동 계산 4 type / footer 8 aggregate / readOnly / collapsible 에디터
-- 본문↔문서 연결 (linked_post_ids), 서명 받기 멤버/고객 picker
-- Race fix (replaced_by_id + jti + retry), PWA 자동 무효화 (version.json + Socket server:build + UpdateBanner + form-dirty)
-- 외부 점검 7원칙 — rate-limit/화이트리스트/cleanup/PushLog/ping debounce/권한 동기화/reload safety
-- 규칙 박제 — CLAUDE.md "운영 안정성 규칙" + memory/feedback_ops_stability_7.md
-- 검증 9단계 ALL PASS (API 11/11 + SPA dev/prod 16/16 + 헬스 27/27)
-
-**커밋:** `e05b8b8 chore: bump version 1.2.0 → 1.3.0 (사이클 N+2 라이브)` / 직전 `650fb6f`
-
----
-
-## 📂 다음 할 일 (우선순위)
-
-1. ⚠️ 운영 nginx `/version.json` + `/sw.js` + `/` no-cache (Irene sudo 1줄)
-2. weeklyReviewCron BusinessMember.active 회귀 fix (5분 작업)
-3. 사이클 N+1 박제 안건 — list API `latest_estimation_source` 시각 분기 / 모달 통일 / 통합 공유 / Smart Routing 중 선택
-4. PushLog admin 통계 페이지 (모델만 만들었음, UI 후속)
-5. iOS 가이드 UA 분기 (Safari 16/17)
+### 알려진 후속 (다음 사이클)
+- 운영 nginx /version.json + /sw.js + / no-cache (Irene sudo 1줄 — 직전 사이클부터 미적용)
+- 모달 통일 스프린트 / 통합 공유 시스템 / Smart Routing / PushLog admin 통계 / iOS UA 분기
 
 ---
 
 ## 환경
-- **dev:** dev.planq.kr (port 3003) — chunk `DzpKsIk2` (build_id 1778411886500)
-- **운영:** planq.kr (port 3004) — commit `650fb6f` (build_id 1778411490010)
+- **dev:** dev.planq.kr (port 3003) — chunk `BzZcjTHb` (build_id 1778426390945)
+- **운영:** planq.kr (port 3004) — commit `e16b125` (build_id 1778426390945)
 - **DB:** dev `planq_dev_db` / prod `planq_prod_db`
-- **PM2:** planq-dev-backend 1.3.0 / planq-prod-backend 1.3.0 / planq-qnote / planq-prod-qnote
+- **PM2:** planq-dev-backend 1.4.0 / planq-prod-backend 1.4.0 / planq-qnote / planq-prod-qnote
 
 ## 운영 라이브 (마지막)
-- commit: `650fb6f` + `e05b8b8` (version bump)
-- timestamp: 2026-05-10 11:11:54 UTC (107s deploy)
-- backup: `/opt/planq/backups/20260510_110953`
+- commit: `e16b125`
+- timestamp: 2026-05-10 15:19:55 UTC (103s deploy)
+- backup: `/opt/planq/backups/20260510_151817`
 - 외부 health: ✅ 200
-- 버전: **v1.3.0** (minor, 1.2.0 → 1.3.0)
+- 버전: **v1.4.0** (minor, 1.3.0 → 1.4.0)
 
 ---
 

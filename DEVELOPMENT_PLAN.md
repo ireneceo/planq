@@ -1,14 +1,64 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-05-10 v1.3.0 (사이클 N+2 — 표 고도화 + PWA 자동 무효화 + race fix + push 7원칙)
+> **최종 업데이트:** 2026-05-10 v1.4.0 (사이클 N+3 — 추출 회귀 fix · UpdateBanner 제거 · 권한 정책 · 채팅방 unlink/archive)
 >
-> **이전 라이브:** 2026-05-10 `650fb6f` (deploy-planq.sh, 외부 health 200, 107s)
+> **이전 라이브:** 2026-05-10 `e16b125` (deploy-planq.sh, 외부 health 200, 103s)
 >
-> **다음 진입 ★ (사이클 N+3):** weeklyReviewCron BusinessMember.active 회귀 fix / latest_estimation_source 시각 분기 / 모달 통일 스프린트 / 통합 공유 시스템 (share_token + ShareModal) / Smart Routing (App-First Deep Linking)
+> **다음 진입 ★ (사이클 N+4):** 모달 통일 스프린트 / 통합 공유 시스템 (share_token + ShareModal) / Smart Routing (App-First Deep Linking) / PushLog admin 통계 페이지 / iOS 가이드 UA 분기
 >
 > **차순위:** 주간 보고 (Weekly Review) Phase 2 / 권한 옵션 A + 개인 보관함 / Q note 텍스트 type + Quick Capture / Custom SMTP (Pro+)
 >
 > **결제 정책:** 1순위 자체 결제 (계좌이체 mark-paid), 2순위 PortOne (P-7 마지막). 월결제 + 연결제. Free 플랜 폐지 — 신규 가입은 starter+trialing 14일.
+
+---
+
+## ✅ 완료: 사이클 N+3 — v1.4.0 운영 라이브 (2026-05-10)
+
+1 commit 1회 정식 deploy (`e16b125`). 외부 https://planq.kr health 200, 103s.
+
+### 주요 작업
+
+| 영역 | 작업 |
+|---|---|
+| **task_extractor 근본 회귀 fix ★★** | `response_format: json_object` 사용 시 messages 안 'JSON' 단어 필수 — 옛 프롬프트 누락으로 매번 OpenAI 400 → fallback `{tasks:[]}` → **추출 자체가 한 번도 정상 작동 안 했던 회귀**. 프롬프트에 JSON 키워드 추가 + REVIEW vs DELIVERABLE 구분 보강 (디자인 부탁/제작 요청 = task, 검토 부탁 = task X). 검증: "퍼플히어 파비콘" + "앱 아이콘" 정확 추출 |
+| **UpdateBanner 시스템 통째 제거 ★** | 사이클 N+2 의 PWA 자동 무효화 시스템이 빌드 잦은 환경에서 짜증 + cache-bust `_v=` query 무한 누적 회귀. main.tsx polling/socket build_id/UpdateBanner mount 모두 제거. SW activate 시 모든 client URL 의 `_v=` query 정리 + 강제 navigate (옛 PWA 자동 탈출) |
+| **댓글 본인 편집/삭제** | PUT/DELETE `/api/tasks/:id/comments/:commentId` 신규 — 본인만 (workspace owner 도 차단). UI: ⋮ 메뉴 + inline edit (Ctrl+Enter 저장 / Esc 취소). 메시지 정책 (작성자만) 동일 |
+| **task PUT 필드별 권한** | 단일 권한 → 필드별 차등. title/description/body: 작성자/담당자/owner / assignee/due_date: 작성자/owner / project_id: owner only / hours: 담당자/owner. 멤버 위변조 차단 |
+| **채팅방 unlink + archive** | POST `/api/projects/conversations/:id/unlink` (project_id=null) + POST `/api/conversations/:bizId/:id/archive` (soft delete). conversations.archived_at 컬럼 신규. ⋮ 메뉴에서 둘 다 ConfirmDialog 통과 |
+| **latest_estimation_source 시각 분기** | tasks list API 에 Sequelize literal subquery — 최신 estimation source 노출. NumInput `$ai` italic + AiInlineBadge `fx` 칠. 사용자가 입력하면 자동 user 톤 전환 |
+| **부수 fix** | weeklyReviewCron `BusinessMember.active → removed_at:null` (pre-existing 매시 에러) / rate-limit `/push/test` IPv6 helper (`ipKeyGenerator`) |
+
+### 신규/수정
+
+- **신규 컬럼**: `conversations.archived_at` + `archived_by_user_id` (soft delete)
+- **신규 endpoint**: `POST /api/tasks/:id/comments/:commentId` (PUT/DELETE), `POST /api/projects/conversations/:id/unlink`, `POST /api/conversations/:bizId/:id/archive`
+- **신규 권한 매트릭스**: `routes/tasks.js` PUT 의 `FIELD_RULES` (title/description/assignee/due_date/project_id/hours 각각 차등)
+- **신규 UI**: TaskDetailDrawer 댓글 ⋮ 메뉴 + inline edit, QProjectDetailPage ConvRow ⋮ 메뉴
+- **제거**: `UpdateBanner` mount + `/version.json` 폴링 + Socket `server:build` listener (frontend 만, backend emit 은 deprecated 잔존)
+
+### 검증 결과 (운영 라이브 직전)
+
+- 헬스체크 27/27 PASS
+- API 13/13 PASS — 누적 7건 (#1 cron + #2 est_source + #3 IPv6 + #4 unlink/archive + #5 JSON 키워드 + #6 댓글 권한 + #7 task PUT 권한)
+- 프론트 산출물에서 UpdateBanner 흔적 4종 모두 0 (완전 제거)
+- 운영 sw.js 에 navigate/`_v` 정리 코드 11 라인 반영
+
+### 운영 배포
+
+- 정식 deploy-planq.sh `e16b125` → 운영 reload (planq-prod-backend 1.3.0 → 1.4.0 + planq-prod-qnote)
+- 백업: `/opt/planq/backups/20260510_151817`
+- 외부 health 200, db_pool ok, openai/smtp/vapid configured
+- 버전: v1.3.0 → **v1.4.0** (minor)
+
+### 사용자 자동 회복 (옛 PWA 갇힌 사용자)
+
+운영 deploy 후 사용자가 평소 새로고침 한 번이면:
+1. nginx no-cache → 새 sw.js 받음 (updateViaCache:'none')
+2. 새 SW install → activate → 모든 client URL `_v=...&_v=...` 정리 + 강제 navigate
+3. 새 chunk → 새 main.tsx (UpdateBanner 시스템 없음)
+4. 정상
+
+수동 cache 비우기 안내 X.
 
 ---
 
