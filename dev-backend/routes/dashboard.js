@@ -313,13 +313,14 @@ async function collectInvites(userEmail) {
 async function collectCandidates(businessId, currentUserId) {
   if (!businessId) return [];
   // task_candidates 는 business_id 컬럼이 없음 → conversation 또는 project 경유.
+  // archive 된 conversation 의 candidate 는 인박스에서 제외 (사이클 N+9).
   const cands = await TaskCandidate.findAll({
     where: { status: 'pending' },
     include: [
       {
         model: Conversation,
-        attributes: ['id', 'title', 'display_name', 'business_id'],
-        where: { business_id: businessId },
+        attributes: ['id', 'title', 'display_name', 'business_id', 'archived_at'],
+        where: { business_id: businessId, archived_at: null },
         required: true,
       },
       // 추정 담당자 정보 — 담당자 미지정 시 "담당자 지정 필요" 표시용
@@ -339,8 +340,9 @@ async function collectCandidates(businessId, currentUserId) {
     // 본인 담당(accept) + 담당자 미지정(assign — owner/admin 이 지정 행동) 만 노출.
     if (assigneeName && !isMine) return [];
 
-    const convId = c.Conversation?.id || c.conversation_id;
-    const link = convId ? `/talk?conv=${convId}&candidate=${c.id}` : '/talk';
+    // 사이클 N+9 fix: 채팅방으로 가는 대신 Q task 의 "추출된 업무" 섹션 (scope=mine, tab=all)
+    // 으로 이동. 거기서 등록/병합/반려 액션 가능. URL 쿼리 ?candidate=Y → 해당 카드 강조.
+    const link = `/tasks?scope=mine&tab=all&candidate=${c.id}`;
     const convName = c.Conversation?.display_name || c.Conversation?.title || '';
     const assigneeBadge = assigneeName ? '담당: 나' : '담당자 지정 필요';
     const context = convName ? `${convName} · ${assigneeBadge}` : assigneeBadge;
