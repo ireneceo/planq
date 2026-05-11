@@ -147,6 +147,12 @@ Task.init({
     type: DataTypes.DECIMAL(5, 1),
     defaultValue: 0,
   },
+  // 'auto' (status 전환 시간 자동 누적) vs 'user' (사용자 직접 입력 — 자동 누적 정지). 사이클 N+6.
+  actual_source: {
+    type: DataTypes.ENUM('auto', 'user'),
+    defaultValue: 'auto',
+    allowNull: false,
+  },
   progress_percent: {
     type: DataTypes.INTEGER,
     defaultValue: 0,

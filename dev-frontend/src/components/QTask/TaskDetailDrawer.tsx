@@ -16,6 +16,8 @@ import {
 } from '../../utils/recurrence';
 import AttachmentField from '../Common/AttachmentField';
 import TaskAttachments from './TaskAttachments';
+import RelatedTasksSection from './RelatedTasksSection';
+import DescriptionAttachments from './DescriptionAttachments';
 import { STATUS_COLOR, displayStatus, getStatusLabel, type StatusCode } from '../../utils/taskLabel';
 import { getRoles, primaryPerspective } from '../../utils/taskRoles';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
@@ -80,6 +82,9 @@ interface TaskDetail {
   status: string; priority_order: number | null;
   start_date: string | null; due_date: string | null;
   estimated_hours: number | null; actual_hours: number; progress_percent: number;
+  // 시스템 자동 vs 사용자 입력 시그널 — 'ai'/'auto' 면 회색 italic, 'user' 면 검정 (사이클 N+6)
+  latest_estimation_source?: 'ai' | 'user' | null;
+  actual_source?: 'auto' | 'user' | null;
   source?: string; request_by_user_id?: number | null; request_ack_at?: string | null;
   review_round?: number | null; review_policy?: 'all'|'any';
   assignee_id: number | null; created_by: number; project_id: number | null;
@@ -112,10 +117,16 @@ export interface TaskDetailDrawerProps {
   onRefresh?: () => void;
 }
 
-const statusOptionsFor = (task: { source?: string }): string[] => {
+// 사이클 N+6: reviewer 0명이면 reviewing/revision_requested 단계 자체가 노출되지 않음.
+// 백엔드 PUT 도 같은 가드 (no_reviewers_assigned 400) — 양쪽 동시 적용으로 모순 0.
+const statusOptionsFor = (task: { source?: string; reviewers?: Array<{ user_id: number }> }): string[] => {
   const isReq = task.source === 'internal_request' || task.source === 'qtalk_extract';
-  if (isReq) return ['not_started','waiting','in_progress','reviewing','revision_requested','completed','canceled'];
-  return ['not_started','in_progress','reviewing','revision_requested','completed','canceled'];
+  const hasReviewers = (task.reviewers || []).length > 0;
+  let opts = isReq
+    ? ['not_started','waiting','in_progress','reviewing','revision_requested','completed','canceled']
+    : ['not_started','in_progress','reviewing','revision_requested','completed','canceled'];
+  if (!hasReviewers) opts = opts.filter(s => s !== 'reviewing' && s !== 'revision_requested');
+  return opts;
 };
 
 const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
@@ -790,11 +801,16 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                     <MetaCell>
                       <MetaLabel>{t('detail.meta.est', '예측')}</MetaLabel>
                       <MetaValueRow>
-                        <MetaNumInput key={`e-${detailTask.id}-${eHours}`}
+                        <MetaNumInput key={`e-${detailTask.id}-${eHours}-${detailTask.latest_estimation_source||'none'}`}
                           type="number" step="0.5" min="0"
+                          $ai={detailTask.latest_estimation_source === 'ai' && eHours > 0}
                           defaultValue={detailTask.estimated_hours ?? ''} placeholder="-"
                           disabled={!isAssignee}
-                          title={isAssignee ? undefined : t('detail.meta.assigneeOnly', '담당자만 수정 가능 (참고용)') as string}
+                          title={
+                            detailTask.latest_estimation_source === 'ai' && eHours > 0
+                              ? (t('detail.meta.aiEstHint', { defaultValue: 'AI 자동 예측 — 직접 입력하면 확정됩니다' }) as string)
+                              : (isAssignee ? undefined : t('detail.meta.assigneeOnly', '담당자만 수정 가능 (참고용)') as string)
+                          }
                           onBlur={e => { const v = e.target.value === '' ? null : Number(e.target.value); if ((v === null || !isNaN(v)) && isAssignee) saveField('estimated_hours', v); }} />
                         <MetaUnit>h</MetaUnit>
                         {isAssignee && (
@@ -825,12 +841,26 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                       </MetaValueRow>
                     </MetaCell>
                     <MetaCell>
-                      <MetaLabel>{t('detail.meta.act', '실제')}</MetaLabel>
+                      <MetaLabelRow>
+                        <MetaLabel>{t('detail.meta.act', '실제')}</MetaLabel>
+                        {detailTask.status === 'in_progress' && (
+                          <InProgressDot title={t('detail.meta.inProgressDot', { defaultValue: '진행 중' }) as string}
+                            aria-label={t('detail.meta.inProgressDot', { defaultValue: '진행 중' }) as string}>
+                            <span /> {t('detail.meta.inProgressDot', { defaultValue: '진행 중' })}
+                          </InProgressDot>
+                        )}
+                      </MetaLabelRow>
                       <MetaValueRow>
-                        <MetaNumInput type="number" step="0.5" min="0"
+                        <MetaNumInput key={`a-${detailTask.id}-${detailTask.actual_hours}-${detailTask.actual_source||'auto'}`}
+                          type="number" step="0.5" min="0"
+                          $ai={(detailTask.actual_source ?? 'auto') === 'auto' && Number(detailTask.actual_hours) > 0}
                           defaultValue={detailTask.actual_hours ?? ''} placeholder="-"
                           disabled={!isAssignee}
-                          title={isAssignee ? undefined : t('detail.meta.assigneeOnly', '담당자만 수정 가능 (참고용)') as string}
+                          title={
+                            (detailTask.actual_source ?? 'auto') === 'auto' && Number(detailTask.actual_hours) > 0
+                              ? (t('detail.meta.actHint', { defaultValue: '진행 시작·완료 시 자동 누적 — 직접 입력하면 확정됩니다' }) as string)
+                              : (isAssignee ? undefined : t('detail.meta.assigneeOnly', '담당자만 수정 가능 (참고용)') as string)
+                          }
                           onBlur={e => { const v = e.target.value === '' ? null : Number(e.target.value); if ((v === null || !isNaN(v)) && isAssignee) saveField('actual_hours', v); }} />
                         <MetaUnit>h</MetaUnit>
                       </MetaValueRow>
@@ -851,6 +881,28 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                   </>);
                 })()}
               </MetaGrid>
+              {/* 시간 자동 누적 안내 — tooltip 만으론 모바일/터치 환경에서 발견 불가. 상시 inline 노출. */}
+              <TimeAutoHint>
+                <TimeAutoHintIcon viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                  <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+                </TimeAutoHintIcon>
+                {t('detail.meta.timeHint', { defaultValue: '진행 시작·완료 시 실제 시간이 자동 누적됩니다 (직접 입력하면 확정)' })}
+              </TimeAutoHint>
+              {/* 100% 도달 + reviewer 있는 task — 자동 completed 안 됨. "확인 요청 보내기" 명시 클릭 안내. */}
+              {(detailTask.progress_percent || 0) === 100
+                && reviewers.length > 0
+                && detailTask.status !== 'completed'
+                && detailTask.status !== 'reviewing' && (
+                <ReviewReminderHint>
+                  <ReviewReminderIcon viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                    <polyline points="20 6 9 17 4 12"/>
+                  </ReviewReminderIcon>
+                  {t('detail.meta.reviewReminder', {
+                    defaultValue: '진행 100% 도달 — 컨펌자({{count}}명)에게 "확인 요청 보내기" 버튼을 눌러 완료 흐름을 시작하세요',
+                    count: reviewers.length,
+                  })}
+                </ReviewReminderHint>
+              )}
 
               {/* 반복하기 — 정기업무 (추가 폼과 동일 옵션) */}
               <MetaRecurRow>
@@ -1004,6 +1056,12 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                   readOnly={!canEditDescription}
                 />
               </DescEditorWrap>
+              {/* description 영역 첨부 (의뢰자 자료) — 결과물(body) 영역 첨부와 분리. 권한 = description 편집 권한. */}
+              <DescriptionAttachments taskId={detailTask.id} businessId={bizId} canEdit={canEditDescription} myId={myId} />
+              {/* 관련 업무 링크 — description 컨텍스트의 일부. 양쪽이 봐야 할 정보라 책임선 무관 workspace 멤버 누구나 편집. */}
+              {bizId && (
+                <RelatedTasksSection taskId={detailTask.id} businessId={bizId} canEdit={iAmAssignee || iAmCreator || iAmWsOwner || isPlatformAdmin} />
+              )}
             </Section>
 
             <Section>
@@ -1466,11 +1524,29 @@ const MetaGrid = styled.div`
   border-top: 1px solid #F1F5F9;
 `;
 const MetaCell = styled.div`
-  flex: 1 1 140px; min-width: 120px;
+  flex: 1 1 140px; min-width: 0;
   display: flex; flex-direction: column; gap: 3px;
 `;
 const MetaLabel = styled.label`font-size: 11px; color: #64748B; font-weight: 600;`;
-const MetaValueRow = styled.div`display: flex; align-items: center; gap: 6px;`;
+const MetaLabelRow = styled.div`display: flex; align-items: center; gap: 6px; min-height: 14px;`;
+// 모든 셀 값 영역 height 통일 (28px) — progress range(8px) 와 hour input(28px) 시각 정렬 일치
+const MetaValueRow = styled.div`display: flex; align-items: center; gap: 6px; min-width: 0; min-height: 28px;`;
+// 시간 자동 누적 상시 안내 — MetaGrid 아래. caption 톤, 1줄.
+const TimeAutoHint = styled.div`
+  display: flex; align-items: center; gap: 6px;
+  margin-top: 8px; padding: 6px 10px;
+  background: #F8FAFC; border: 1px solid #F1F5F9; border-radius: 6px;
+  font-size: 11px; color: #64748B; line-height: 1.4;
+`;
+const TimeAutoHintIcon = styled.svg`width: 12px; height: 12px; flex-shrink: 0; color: #94A3B8;`;
+// 100% 도달 + reviewer 있을 때 동적 안내 — Primary 톤 (강조이지만 경고 아님)
+const ReviewReminderHint = styled.div`
+  display: flex; align-items: flex-start; gap: 6px;
+  margin-top: 6px; padding: 8px 10px;
+  background: #F0FDFA; border: 1px solid #5EEAD4; border-radius: 6px;
+  font-size: 12px; color: #0F766E; font-weight: 500; line-height: 1.4;
+`;
+const ReviewReminderIcon = styled.svg`width: 14px; height: 14px; flex-shrink: 0; color: #14B8A6; margin-top: 1px;`;
 const MetaRecurRow = styled.div`
   display: flex; flex-direction: column; gap: 6px;
   padding: 8px 10px;
@@ -1488,20 +1564,39 @@ const MetaRecurOptions = styled.div`
   display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
   padding-top: 4px; border-top: 1px dashed #E2E8F0;
 `;
-const MetaNumInput = styled.input.attrs({ type: 'number', step: '0.5', min: '0' })`
+const MetaNumInput = styled.input.attrs({ type: 'number', step: '0.5', min: '0' })<{ $ai?: boolean }>`
   width: 64px; min-width: 0;
   height: 28px; padding: 3px 8px;
-  font-size: 13px; color: #0F172A;
+  font-size: 13px;
+  color: ${p => p.$ai ? '#94A3B8' : '#0F172A'};
+  font-style: ${p => p.$ai ? 'italic' : 'normal'};
   border: 1px solid #E2E8F0; border-radius: 6px;
   font-family: inherit;
-  &:focus { outline: none; border-color: #14B8A6; }
+  &:focus {
+    outline: none; border-color: #14B8A6;
+    color: #0F172A; font-style: normal;  /* 편집 진입 시 즉시 검정 톤 — "확정" 시그널 */
+  }
   &:disabled {
     color: #94A3B8; background: #F1F5F9;
-    border: 1px dashed #E2E8F0; cursor: not-allowed; font-weight: 500;
+    border: 1px dashed #E2E8F0; cursor: not-allowed; font-weight: 500; font-style: normal;
   }
   &:disabled::-webkit-outer-spin-button, &:disabled::-webkit-inner-spin-button { display: none; }
 `;
 const MetaUnit = styled.span`font-size: 11px; color: #94A3B8; flex-shrink: 0;`;
+// 진행 중 dot — 작업 중 (status=in_progress) 일 때 actual_hours 옆 라이브 표시 (Apple Watch 스톱워치 패턴)
+const InProgressDot = styled.span`
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 10px; font-weight: 600; color: #DC2626; flex-shrink: 0;
+  > span {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: #DC2626;
+    animation: pulse 1.4s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.4; transform: scale(0.8); }
+  }
+`;
 const AiBtn = styled.button`
   height: 28px; padding: 0 10px;
   display: inline-flex; align-items: center; justify-content: center; gap: 5px;
@@ -1516,9 +1611,9 @@ const AiBtn = styled.button`
   &:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 4px 10px rgba(20,184,166,0.4); }
   &:disabled { opacity: 0.6; cursor: not-allowed; }
 `;
-const MetaProgressPct = styled.span`font-size:11px;color:#475569;font-weight:600;min-width:32px;text-align:right;`;
+const MetaProgressPct = styled.span`font-size:11px;color:#475569;font-weight:600;min-width:32px;text-align:right;flex-shrink:0;white-space:nowrap;`;
 const MetaRangeInput = styled.input`
-  flex:1;appearance:none;-webkit-appearance:none;height:8px;border-radius:4px;
+  flex:1 1 0;min-width:0;appearance:none;-webkit-appearance:none;height:8px;border-radius:4px;
   background:linear-gradient(to right,#14B8A6 0%,#14B8A6 var(--pq-fill,0%),#F1F5F9 var(--pq-fill,0%),#F1F5F9 100%);
   outline:none;cursor:pointer;margin:0;padding:0;
   &::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:14px;height:14px;border-radius:50%;background:#FFF;border:2px solid #14B8A6;cursor:pointer;box-shadow:0 1px 2px rgba(0,0,0,0.1);}

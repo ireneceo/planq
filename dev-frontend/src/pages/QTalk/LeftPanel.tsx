@@ -408,7 +408,8 @@ const ProjectName = styled.div`
   text-overflow: ellipsis;
 `;
 
-// 읽지 않은 메시지 수 — ChatTop 안 (Name 옆) 인라인 배치 → 라벨/이름과 같은 라인 정렬
+// 읽지 않은 메시지 수 — ChatTop 안 우측 끝(margin-left:auto) 배치. Slack 모바일 패턴.
+// 모바일에선 살짝 더 크게 (가시성 강화).
 const Unread = styled.div`
   min-width: 18px;
   height: 18px;
@@ -422,10 +423,14 @@ const Unread = styled.div`
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  margin-left: auto;  /* 우측 끝으로 — CustomerTag 보다 우측, "알림" 명확 인지 */
+  @media (max-width: 1024px) {
+    min-width: 20px; height: 20px; font-size: 11px;
+  }
 `;
 
-// 핀(즐겨찾기) 토글 — 30년차 패턴: 비활성 시 hover 에서만 등장 (시각적 노이즈 최소화).
-// 활성(핀됨) 시 항상 노출 + 강조 색상.
+// 핀(즐겨찾기) 토글 — 데스크탑은 hover-only 노이즈 최소화 / 모바일은 hover 없으니 상시 노출.
+// 활성(핀됨) 시 채워진 별 + amber. 비활성 시 outline 별 + neutral gray.
 const PinBtn = styled.button<{ $pinned: boolean }>`
   flex-shrink: 0;
   display: inline-flex;
@@ -439,10 +444,14 @@ const PinBtn = styled.button<{ $pinned: boolean }>`
   border: none;
   border-radius: 6px;
   cursor: pointer;
-  color: ${(p) => (p.$pinned ? '#F59E0B' : '#94A3B8')};
+  color: ${(p) => (p.$pinned ? '#F59E0B' : '#CBD5E1')};
   opacity: ${(p) => (p.$pinned ? 1 : 0)};
   transition: opacity 0.15s, background 0.15s;
   &:hover { background: ${(p) => (p.$pinned ? '#FEF3C7' : '#F1F5F9')}; }
-  /* 행 hover 시 unpinned 도 등장 */
+  /* 행 hover 시 unpinned 도 등장 (데스크탑) */
   ${ChatRow}:hover & { opacity: 1; }
+  /* 모바일/터치: hover 가 없으므로 unpinned 별표 항상 outline 노출 (Slack/Notion 모바일 패턴) */
+  @media (hover: none), (max-width: 1024px) {
+    opacity: 1;
+  }
 `;
