@@ -23,10 +23,15 @@ export interface TaskRow {
 }
 
 // 업무 종류별 드롭다운 옵션 (Q Task 와 동일)
-const statusOptionsFor = (task: { source?: string }): string[] => {
+// 사이클 N+6: reviewer 0명이면 reviewing/revision_requested 단계 자체가 노출되지 않음. 백엔드 PUT 가드 (no_reviewers_assigned 400) 와 일관.
+const statusOptionsFor = (task: { source?: string; reviewers?: Array<{ user_id: number }> }): string[] => {
   const isReq = task.source === 'internal_request' || task.source === 'qtalk_extract';
-  if (isReq) return ['not_started', 'waiting', 'in_progress', 'reviewing', 'revision_requested', 'completed', 'canceled'];
-  return ['not_started', 'in_progress', 'reviewing', 'revision_requested', 'completed', 'canceled'];
+  const hasReviewers = (task.reviewers || []).length > 0;
+  let opts = isReq
+    ? ['not_started', 'waiting', 'in_progress', 'reviewing', 'revision_requested', 'completed', 'canceled']
+    : ['not_started', 'in_progress', 'reviewing', 'revision_requested', 'completed', 'canceled'];
+  if (!hasReviewers) opts = opts.filter(s => s !== 'reviewing' && s !== 'revision_requested');
+  return opts;
 };
 
 type SortKey = 'priority_order' | 'title' | 'status' | 'progress_percent' | 'due_date' | 'start_date';
@@ -323,7 +328,7 @@ const ProjectTaskList: React.FC<Props> = ({
 export default ProjectTaskList;
 
 // ═══ Styled (Q Task 와 완전 동일) ═══
-const ColRow = styled.div`display:flex;align-items:center;gap:6px;padding:6px 14px;border-bottom:1px solid #E2E8F0;background:#F8FAFC;position:sticky;top:0;z-index:1;`;
+const ColRow = styled.div`display:flex;align-items:center;gap:6px;padding:6px 14px;border-bottom:1px solid #E2E8F0;background:#F8FAFC;position:sticky;top:0;z-index:1;min-width:520px;`;
 const Col = styled.span<{$w?:string;$flex?:boolean;$flex2?:boolean;$center?:boolean;$hideBelow?:number}>`
   box-sizing:border-box;min-width:0;
   ${p=>p.$flex2 ? 'flex:2.5 1 0;'
@@ -337,7 +342,7 @@ const Col = styled.span<{$w?:string;$flex?:boolean;$flex2?:boolean;$center?:bool
 `;
 const TRow = styled.div<{$done?:boolean;$delayed?:boolean;$selected?:boolean}>`
   display:flex;align-items:center;gap:6px;padding:6px 12px;border-bottom:1px solid #F8FAFC;
-  opacity:${p=>p.$done?0.45:1};
+  min-width:520px;opacity:${p=>p.$done?0.45:1};
   ${p=>p.$selected?'background:#FFF1F2;box-shadow:inset 3px 0 0 #F43F5E;':p.$delayed&&!p.$done?'box-shadow:inset 3px 0 0 #DC2626;':''}
   &:hover{background:${p=>p.$selected?'#FFE4E6':p.$delayed&&!p.$done?'#FEF2F2':'#FAFBFC'};}
 `;
@@ -353,6 +358,7 @@ const InlineAddRow = styled.div`
   padding: 6px 12px;
   background: #F0FDFA;
   border-bottom: 1px solid #F8FAFC;
+  min-width: 520px;
 `;
 const InlineSpacer = styled.div`width: 24px; flex-shrink: 0;`;
 const InlineInput = styled.input`

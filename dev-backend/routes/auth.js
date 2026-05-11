@@ -522,12 +522,13 @@ router.post('/refresh', async (req, res, next) => {
       return errorResponse(res, 'Invalid refresh token', 401);
     }
 
-    // 4. 이미 revoked — 재사용 시도. 단, 다중 탭 race 흡수:
-    //    rotated 직후 grace window (30초) 내, 후속 row 가 active 라면 정상 race 로 간주
+    // 4. 이미 revoked — 재사용 시도. 단, 다중 탭/모바일 PWA wake-up race 흡수:
+    //    rotated 직후 grace window (5분) 내, 후속 row 가 active 라면 정상 race 로 간주
     //    → 새 access token 만 발급 (cookie 미갱신, 후속 row 보존). 도난 방어 유지하면서
     //    멀쩡한 사용자가 강제 logout 되는 회귀 차단.
+    //    grace 30s → 5min: 모바일 PWA 백그라운드 wake-up · 화면 잠금 복귀 흡수
     if (tokenRow.revoked_at) {
-      const ROTATION_GRACE_MS = 30 * 1000;
+      const ROTATION_GRACE_MS = 5 * 60 * 1000;
       const revokedAgo = Date.now() - new Date(tokenRow.revoked_at).getTime();
       if (
         tokenRow.revoked_reason === 'rotated' &&
@@ -545,13 +546,25 @@ router.post('/refresh', async (req, res, next) => {
           }
         }
       }
-      // 진짜 reuse — 모든 row revoke
+      // 진짜 reuse — 이 토큰의 chain 만 revoke (다른 디바이스 chain 보호)
+      // 30년차: 다중 디바이스 정책의 본질 = device 별 독립. 한 device 의 stale token
+      // 으로 다른 device 의 active session 까지 죽이면 사용자가 알 수 없는 강제 로그아웃을 겪음.
+      // chain 추적 — 이 token row 부터 successor 사슬을 끝까지 따라가서 그 row 들만 revoke.
+      const chainIds = [tokenRow.id];
+      let cur = tokenRow;
+      // 무한 루프 방어 — chain 길이 limit (정상 사용 시 7일 동안 수십 개 정도)
+      for (let i = 0; i < 1000 && cur.replaced_by_id; i++) {
+        const next = await RefreshToken.findByPk(cur.replaced_by_id);
+        if (!next) break;
+        chainIds.push(next.id);
+        cur = next;
+      }
       await RefreshToken.update(
         { revoked_at: new Date(), revoked_reason: 'reuse_detected' },
-        { where: { user_id: tokenRow.user_id, revoked_at: null } }
+        { where: { id: chainIds, revoked_at: null } }
       );
-      console.warn('[auth] reuse detected — all sessions revoked for user', tokenRow.user_id);
-      return errorResponse(res, 'Refresh token reuse detected — all sessions revoked', 401);
+      console.warn('[auth] reuse detected — chain revoked for user', tokenRow.user_id, 'chain:', chainIds.join(','));
+      return errorResponse(res, 'Refresh token reuse detected', 401);
     }
 
     // 5. 만료

@@ -54,6 +54,16 @@ async function loadTaskAndGuard(req, res) {
   return task;
 }
 
+// description 첨부 권한 = description 편집 권한 (사이클 N+5 책임선)
+//   = 작성자(created_by) / owner / admin. 담당자 빠짐 (의뢰자 영역).
+async function canEditDescriptionAttach(task, userId, platformRole) {
+  if (platformRole === 'platform_admin') return true;
+  if (task.created_by === userId) return true;
+  const bm = await BusinessMember.findOne({ where: { user_id: userId, business_id: task.business_id } });
+  if (bm && bm.role === 'owner') return true;
+  return false;
+}
+
 // ============================================
 // POST /api/tasks/:taskId/attachments — 업로드 (task/description/comment 공통)
 // Query: ?context=task|description|comment  ?commentId=...
@@ -75,9 +85,18 @@ router.post('/:taskId/attachments',
   async (req, res, next) => {
     try {
       if (!req.file) return errorResponse(res, 'file_required', 400);
-      const context = ['description', 'comment'].includes(req.query.context) ? req.query.context : 'task';
+      const context = ['description', 'description_attach', 'comment'].includes(req.query.context) ? req.query.context : 'task';
       const commentId = context === 'comment' ? Number(req.query.commentId || 0) || null : null;
       if (context === 'comment' && !commentId) return errorResponse(res, 'commentId_required', 400);
+      // description_attach: 의뢰자 영역 = 작성자/owner/admin 만 (담당자 빠짐)
+      if (context === 'description_attach') {
+        const ok = await canEditDescriptionAttach(req._task, req.user.id, req.user.platform_role);
+        if (!ok) {
+          // 업로드된 임시 파일 정리
+          try { fs.unlinkSync(req.file.path); } catch { /* ignore */ }
+          return errorResponse(res, 'only_creator_or_owner_can_attach_description', 403);
+        }
+      }
 
       // Drive 연동 + 프로젝트 소속 task 면 Drive 로 업로드
       let storageProvider = 'planq';
@@ -155,9 +174,13 @@ router.post('/:taskId/attachments/link', authenticateToken, async (req, res, nex
     if (!(await loadTaskAndGuard(req, res))) return;
     const fileIds = Array.isArray(req.body?.file_ids) ? req.body.file_ids.map(Number).filter(Boolean) : [];
     if (fileIds.length === 0) return errorResponse(res, 'file_ids required', 400);
-    const context = ['comment'].includes(req.body?.context) ? 'comment' : 'task';
+    const context = ['comment', 'description_attach'].includes(req.body?.context) ? req.body.context : 'task';
     const commentId = context === 'comment' ? Number(req.body?.comment_id || 0) || null : null;
     if (context === 'comment' && !commentId) return errorResponse(res, 'comment_id required', 400);
+    if (context === 'description_attach') {
+      const ok = await canEditDescriptionAttach(req._task, req.user.id, req.user.platform_role);
+      if (!ok) return errorResponse(res, 'only_creator_or_owner_can_attach_description', 403);
+    }
 
     const files = await File.findAll({
       where: { id: fileIds, business_id: req._task.business_id, deleted_at: null }
@@ -207,8 +230,10 @@ router.get('/:taskId/attachments', authenticateToken, async (req, res, next) => 
     if (!(await loadTaskAndGuard(req, res))) return;
     const ctxParam = String(req.query.context || 'task');
     const where = { task_id: req._task.id };
-    if (ctxParam !== 'all') {
-      // default: task/description 만 (comment 제외)
+    if (ctxParam === 'description_attach') {
+      where.context = 'description_attach';
+    } else if (ctxParam !== 'all') {
+      // default: task/description 만 (description_attach·comment 제외 — 결과물 영역용)
       where.context = { [require('sequelize').Op.in]: ['task', 'description'] };
     }
     const rows = await TaskAttachment.findAll({

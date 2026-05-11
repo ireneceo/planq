@@ -133,8 +133,10 @@
     "titleClickEdit": "클릭하여 업무명 수정",
     "notMyHours": "담당자만 수정 가능 (참고용)",
     "notMyProgress": "담당자만 수정 가능 (참고용)",
-    "aiEstimate": "AI 예측시간 추천",
+    "aiEstimate": "AI 다시 예측",
     "aiEstimateHint": "AI 자동 예측 — 직접 입력하면 확정됩니다",
+    "actHint": "진행 시작·완료 시 자동 누적 — 직접 입력하면 확정됩니다",
+    "inProgressDot": "진행 중",
     "assigneePh": "담당자"
   },
   "empty": {
@@ -144,10 +146,13 @@
     "askCue": "Cue 에게 묻기"
   },
   "tab": {
-    "week": "이번 주 내 업무",
-    "all": "내 전체업무",
+    "week": "이번 주 나의 업무",
+    "all": "나의 전체업무",
     "requested": "요청하기",
-    "weeklyReview": "주간 보고"
+    "weeklyReview": "주간 보고",
+    "weeklyReviewMine": "지난주 업무보고",
+    "workspaceTasks": "전체 업무",
+    "workspaceWeekly": "전체 주간보고"
   },
   "workspace": {
     "assignee": "담당자",
@@ -298,12 +303,41 @@
     "edit": "수정",
     "save": "저장",
     "cancel": "취소",
-    "loadMore": "더 보기"
+    "loadMore": "더 보기",
+    "meSuffix": " (나)"
   },
   "save": {
     "saving": "저장 중",
     "saved": "저장됨",
     "error": "저장 실패"
+  },
+  "descAttach": {
+    "add": "파일·문서 첨부",
+    "submit": "추가",
+    "remove": "삭제",
+    "uploading": "업로드 중...",
+    "error": {
+      "notPermitted": "의뢰자 영역 첨부 권한이 없습니다",
+      "disallowedExt": "허용되지 않는 파일 형식",
+      "tooLarge": "파일이 너무 큽니다",
+      "failed": "업로드 실패"
+    }
+  },
+  "links": {
+    "title": "관련 업무",
+    "empty": "연결된 업무 없음",
+    "loading": "불러오는 중...",
+    "add": "연결하기",
+    "remove": "연결 해제",
+    "searchPlaceholder": "업무 제목 검색...",
+    "searching": "검색 중...",
+    "searchEmpty": "검색 결과 없음",
+    "error": {
+      "alreadyLinked": "이미 연결된 업무",
+      "cannotLinkSelf": "자기 자신은 연결할 수 없습니다",
+      "crossWorkspace": "다른 워크스페이스 업무는 연결할 수 없습니다",
+      "failed": "연결 실패"
+    }
   },
   "detail": {
     "back": "돌아가기",
@@ -318,8 +352,14 @@
       "project": "프로젝트",
       "projectPh": "프로젝트 선택 (없으면 비워둠)",
       "assigneeOnly": "담당자만 수정 가능 (참고용)",
-      "aiEstimate": "AI 예측시간 추천",
-      "aiEstShort": "AI 추천"
+      "aiEstimate": "AI 다시 예측",
+      "aiEstShort": "AI 다시",
+      "aiEstHint": "AI 자동 예측 — 직접 입력하면 확정됩니다",
+      "actHint": "진행 시작·완료 시 자동 누적 — 직접 입력하면 확정됩니다",
+      "actAuto": "자동 누적",
+      "inProgressDot": "진행 중",
+      "timeHint": "진행 시작·완료 시 실제 시간이 자동 누적됩니다 (직접 입력하면 확정)",
+      "reviewReminder": "진행 100% 도달 — 컨펌자({{count}}명)에게 \"확인 요청 보내기\" 버튼을 눌러 완료 흐름을 시작하세요"
     },
     "description": "업무 설명",
     "body": "결과물",

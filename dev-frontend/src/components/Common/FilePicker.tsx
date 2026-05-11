@@ -174,13 +174,28 @@ const Backdrop = styled.div`
   position: fixed; inset: 0; background: rgba(15,23,42,0.4);
   display: flex; align-items: center; justify-content: center; z-index: 1100;
   padding: 20px;
+  /* 모바일: bottom sheet 패턴 — 화면 아래쪽에 붙어서 슬라이드업 */
+  @media (max-width: 640px) {
+    align-items: flex-end; justify-content: stretch;
+    padding: 0;
+  }
 `;
 const Dialog = styled.div`
   background: #fff; border-radius: 14px;
   width: 100%; max-width: 560px;
   max-height: 90vh; display: flex; flex-direction: column;
   box-shadow: 0 24px 48px rgba(15,23,42,0.18);
-  @media (max-width: 640px) { max-height: 100vh; height: 100vh; border-radius: 0; }
+  /* 모바일: bottom sheet — 풀스크린 X, 화면 75vh 까지만. 위쪽 둥근 모서리, 아래쪽 safe-area 보정. */
+  @media (max-width: 640px) {
+    max-height: 75vh; height: auto;
+    border-radius: 16px 16px 0 0;
+    padding-bottom: env(safe-area-inset-bottom);
+    animation: pq-sheet-up 0.22s ease-out;
+  }
+  @keyframes pq-sheet-up {
+    from { transform: translateY(100%); }
+    to   { transform: translateY(0); }
+  }
 `;
 const Header = styled.div`
   display: flex; align-items: center; justify-content: space-between;

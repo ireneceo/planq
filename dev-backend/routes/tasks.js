@@ -1,7 +1,7 @@
 const express = require('express');
 const { Op, fn, col, literal } = require('sequelize');
 const router = express.Router();
-const { Task, User, Project, BusinessMember, Business, TaskComment, TaskDailyProgress, TaskStatusHistory, TaskReviewer, Client } = require('../models');
+const { Task, User, Project, BusinessMember, Business, TaskComment, TaskDailyProgress, TaskStatusHistory, TaskReviewer, TaskLink, Client, AuditLog } = require('../models');
 const taskSnapshot = require('../services/task_snapshot');
 const { authenticateToken, checkBusinessAccess } = require('../middleware/auth');
 const { getUserScope, taskListWhere, canAccessTask, isMemberOrAbove } = require('../middleware/access_scope');
@@ -304,15 +304,29 @@ router.patch('/:id/time', authenticateToken, async (req, res, next) => {
 
     const updates = {};
     if (req.body.estimated_hours !== undefined) updates.estimated_hours = Number(req.body.estimated_hours) || 0;
-    if (req.body.actual_hours !== undefined) updates.actual_hours = Number(req.body.actual_hours) || 0;
+    if (req.body.actual_hours !== undefined) {
+      updates.actual_hours = Number(req.body.actual_hours) || 0;
+      // 사용자 직접 입력 → 자동 누적 정지 (회색 → 검정 톤 전환)
+      updates.actual_source = 'user';
+    }
     if (req.body.progress_percent !== undefined) updates.progress_percent = Math.max(0, Math.min(100, Number(req.body.progress_percent) || 0));
     if (req.body.planned_week_start !== undefined) updates.planned_week_start = req.body.planned_week_start || null;
     if (req.body.priority_order !== undefined) updates.priority_order = req.body.priority_order;
 
-    // 진행율 100% → 자동 완료 / 100% 미만으로 줄이면 완료 해제
+    // 진행율 100% ↔ status 자동 전환 (사이클 N+6)
+    // reviewer 분기:
+    //   - reviewer 0명 (1인 task) → 100% = 자동 completed
+    //   - reviewer ≥ 1명 (컨펌 필요) → 100% 입력해도 자동 completed 차단. status in_progress 유지.
+    //     사용자가 명시적으로 "확인 요청 보내기" 버튼 클릭 → submit-review → reviewing 으로 전환
+    //   - 100% 미만으로 줄이면 completed 해제 (양쪽 공통)
     if (updates.progress_percent === 100 && task.status !== 'completed') {
-      updates.status = 'completed';
-      updates.completed_at = new Date();
+      const { TaskReviewer } = require('../models');
+      const revCount = await TaskReviewer.count({ where: { task_id: task.id } });
+      if (revCount === 0) {
+        updates.status = 'completed';
+        updates.completed_at = new Date();
+      }
+      // reviewer 있으면 status 변경 X (in_progress 유지) — 사용자가 명시 컨펌 요청 보내야 함
     } else if (updates.progress_percent !== undefined && updates.progress_percent < 100 && task.status === 'completed') {
       updates.status = 'in_progress';
       updates.completed_at = null;
@@ -463,6 +477,9 @@ router.post('/', authenticateToken, async (req, res, next) => {
           const { TaskEstimation } = require('../models');
           const ai = await callAiEstimate(full.title, full.description || '');
           if (!ai || !ai.hours) return;
+          // task 가 아직 존재하는지 확인 — 빠른 삭제·테스트 cleanup 케이스에서 FK 에러 방지
+          const stillExists = await Task.findByPk(task.id, { attributes: ['id'] });
+          if (!stillExists) return;
           // tasks.estimated_hours 동기 (UI 표시용)
           await Task.update({ estimated_hours: ai.hours }, { where: { id: task.id } });
           await TaskEstimation.create({
@@ -472,6 +489,7 @@ router.post('/', authenticateToken, async (req, res, next) => {
             model: AI_MODEL,
           });
           // socket emit — 프론트 자동 갱신
+          // latest_estimation_source 명시 노출 (toJSON 만으로는 literal 컬럼 누락 → frontend 회색 분기 안 됨)
           if (io) {
             const updated = await Task.findByPk(task.id, {
               include: [
@@ -481,7 +499,12 @@ router.post('/', authenticateToken, async (req, res, next) => {
               ],
             });
             if (updated) {
-              const payload = { ...updated.toJSON(), actor_user_id: req.user.id, ai_estimate: true };
+              const payload = {
+                ...updated.toJSON(),
+                latest_estimation_source: 'ai',  // 방금 ai estimation row 만들었으므로 확정
+                actor_user_id: req.user.id,
+                ai_estimate: true,
+              };
               if (project_id) io.to(`project:${project_id}`).emit('task:updated', payload);
               io.to(`business:${business_id}`).emit('task:updated', payload);
             }
@@ -707,7 +730,10 @@ router.put('/by-business/:businessId/:id', authenticateToken, async (req, res, n
     if (status !== undefined) updates.status = status;
     if (due_date !== undefined) updates.due_date = due_date;
     if (estimated_hours !== undefined) updates.estimated_hours = estimated_hours;
-    if (actual_hours !== undefined) updates.actual_hours = actual_hours;
+    if (actual_hours !== undefined) {
+      updates.actual_hours = actual_hours;
+      updates.actual_source = 'user';  // 사용자 직접 입력 → 자동 누적 정지
+    }
     if (progress_percent !== undefined) updates.progress_percent = progress_percent;
     if (category !== undefined) updates.category = category;
     if (planned_week_start !== undefined) updates.planned_week_start = planned_week_start;
@@ -742,7 +768,46 @@ router.put('/by-business/:businessId/:id', authenticateToken, async (req, res, n
       }
     }
 
-    if (status === 'completed' && task.status !== 'completed') updates.completed_at = new Date();
+    // 완료 전환 시 progress 자동 100 (양방향 일관) — sync with PATCH /api/tasks/:id/time 로직
+    if (status === 'completed' && task.status !== 'completed') {
+      updates.completed_at = new Date();
+      if ((Number(task.progress_percent) || 0) < 100 && updates.progress_percent === undefined) {
+        updates.progress_percent = 100;
+      }
+    }
+
+    // 진행율 → status 자동 전환 (PATCH /time 과 동일 — 단일 진실 원천 회복)
+    // reviewer 분기: ≥1명이면 100% 입력해도 자동 completed 차단 (사용자 명시 컨펌 요청 필요)
+    if (updates.progress_percent === 100 && task.status !== 'completed' && updates.status === undefined) {
+      const revCount = await TaskReviewer.count({ where: { task_id: task.id } });
+      if (revCount === 0) {
+        updates.status = 'completed';
+        updates.completed_at = new Date();
+      }
+    } else if (updates.progress_percent !== undefined && updates.progress_percent < 100 && task.status === 'completed' && updates.status === undefined) {
+      updates.status = 'in_progress';
+      updates.completed_at = null;
+    }
+
+    // Reviewer 가드 (사이클 N+6) — reviewer 0명이면 reviewing/revision_requested 단계 진입 금지.
+    // submit-review 라우트는 이미 가드 (no_reviewers_add_first), recalcStatusFromReviewers 도 reviewer 0명이면 변경 안 함.
+    // 이 PUT 라우트가 status 직접 변경 경로라 같은 가드 필요 — 일관성 회복.
+    if (status === 'reviewing' || status === 'revision_requested') {
+      const revCount = await TaskReviewer.count({ where: { task_id: task.id } });
+      if (revCount === 0) {
+        return errorResponse(res, 'no_reviewers_assigned', 400);
+      }
+    }
+
+    // 완료 해제 시 progress 자동 조정 (사이클 N+6, 단일 진실 원천):
+    // status: completed → active status 전환이고 progress_percent === 100 이면 자동 90 (마무리 단계 의미).
+    // status=in_progress + progress=100% 모순 차단. UI 진입점 (리스트 체크박스, 우측 패널, 칸반) 모두 자동 일관.
+    if (status !== undefined && status !== 'completed' && status !== 'canceled' && task.status === 'completed') {
+      updates.completed_at = null;
+      if ((Number(task.progress_percent) || 0) === 100 && updates.progress_percent === undefined) {
+        updates.progress_percent = 90;
+      }
+    }
 
     // 변경 사항 스냅샷 (history 기록용) — update 직전에 비교
     const prev = {
@@ -1056,6 +1121,14 @@ router.get('/:id/detail', authenticateToken, async (req, res, next) => {
     if (scope.isClient && Array.isArray(json.comments)) {
       json.comments = json.comments.filter((c) => c.visibility === 'shared');
     }
+    // latest_estimation_source 명시 노출 — drawer 가 회색 분기 표시하려면 필요 (사이클 N+6)
+    try {
+      const { TaskEstimation } = require('../models');
+      const lastEst = await TaskEstimation.findOne({
+        where: { task_id: task.id }, order: [['id', 'DESC']], attributes: ['source'],
+      });
+      json.latest_estimation_source = lastEst ? lastEst.source : null;
+    } catch { json.latest_estimation_source = null; }
 
     // ─── 사이클 P8.1 — Cue 결과 메타 (출처 resolve + 최근 실행 이벤트) ───
     if (task.cue_kind) {
@@ -1510,6 +1583,158 @@ router.get('/public/by-token/:token/auth-check', authenticateToken, async (req, 
       canAccess: !!canAccess,
       appUrl: canAccess ? `/task?task=${task.id}` : null,
     });
+  } catch (err) { next(err); }
+});
+
+// ─────────────────────────────────────────────
+// 관련 업무 링크 (task_links 양방향)
+// ─────────────────────────────────────────────
+
+// 정렬 헬퍼 — 양방향이므로 항상 a < b 로 저장
+function sortPair(idA, idB) {
+  const a = Math.min(idA, idB);
+  const b = Math.max(idA, idB);
+  return [a, b];
+}
+
+// 같은 워크스페이스 + 접근 권한 검증 후 task 반환
+async function loadTaskWithAccess(taskId, userId, platformRole) {
+  const task = await Task.findByPk(taskId);
+  if (!task) return null;
+  const scope = await getUserScope(userId, task.business_id, platformRole);
+  const ok = await canAccessTask(userId, task, scope);
+  return ok ? task : null;
+}
+
+// GET /api/tasks/:id/links — 양방향 조회
+router.get('/:id/links', authenticateToken, async (req, res, next) => {
+  try {
+    const taskId = Number(req.params.id);
+    const task = await loadTaskWithAccess(taskId, req.user.id, req.user.platform_role);
+    if (!task) return errorResponse(res, 'not_found_or_forbidden', 404);
+
+    const links = await TaskLink.findAll({
+      where: { [Op.or]: [{ task_a_id: taskId }, { task_b_id: taskId }] },
+      include: [
+        { model: Task, as: 'taskA', attributes: ['id', 'title', 'status', 'project_id', 'due_date', 'assignee_id'] },
+        { model: Task, as: 'taskB', attributes: ['id', 'title', 'status', 'project_id', 'due_date', 'assignee_id'] },
+      ],
+      order: [['created_at', 'DESC']],
+    });
+
+    // 응답: 항상 "상대 task" 관점으로 normalize (taskA / taskB 중 내가 아닌 쪽)
+    const normalized = links.map((l) => {
+      const other = l.task_a_id === taskId ? l.taskB : l.taskA;
+      return {
+        link_id: l.id,
+        link_type: l.link_type,
+        created_at: l.created_at,
+        task: other ? other.toJSON() : null,
+      };
+    }).filter((x) => x.task);
+
+    return successResponse(res, normalized);
+  } catch (err) { next(err); }
+});
+
+// POST /api/tasks/:id/links body: { target_task_id }
+router.post('/:id/links', authenticateToken, async (req, res, next) => {
+  try {
+    const sourceId = Number(req.params.id);
+    const targetId = Number(req.body?.target_task_id);
+    if (!targetId) return errorResponse(res, 'target_task_id_required', 400);
+    if (sourceId === targetId) return errorResponse(res, 'cannot_link_self', 400);
+
+    const source = await loadTaskWithAccess(sourceId, req.user.id, req.user.platform_role);
+    if (!source) return errorResponse(res, 'source_not_found_or_forbidden', 404);
+
+    const target = await loadTaskWithAccess(targetId, req.user.id, req.user.platform_role);
+    if (!target) return errorResponse(res, 'target_not_found_or_forbidden', 404);
+
+    // 다른 워크스페이스 task 연결 차단 (멀티테넌트 격리)
+    if (source.business_id !== target.business_id) {
+      return errorResponse(res, 'cross_workspace_link_forbidden', 403);
+    }
+
+    const [a, b] = sortPair(sourceId, targetId);
+    try {
+      const link = await TaskLink.create({
+        task_a_id: a, task_b_id: b,
+        link_type: 'related',
+        created_by: req.user.id,
+      });
+      await AuditLog.create({
+        user_id: req.user.id,
+        business_id: source.business_id,
+        action: 'task_link.added',
+        target_type: 'TaskLink',
+        target_id: link.id,
+        new_value: { source_task_id: sourceId, target_task_id: targetId },
+      }).catch(() => null);
+      return successResponse(res, { link_id: link.id }, 'linked', 201);
+    } catch (e) {
+      if (e?.name === 'SequelizeUniqueConstraintError') {
+        return errorResponse(res, 'already_linked', 409);
+      }
+      throw e;
+    }
+  } catch (err) { next(err); }
+});
+
+// DELETE /api/tasks/:id/links/:targetId
+router.delete('/:id/links/:targetId', authenticateToken, async (req, res, next) => {
+  try {
+    const sourceId = Number(req.params.id);
+    const targetId = Number(req.params.targetId);
+    const source = await loadTaskWithAccess(sourceId, req.user.id, req.user.platform_role);
+    if (!source) return errorResponse(res, 'source_not_found_or_forbidden', 404);
+
+    const [a, b] = sortPair(sourceId, targetId);
+    const link = await TaskLink.findOne({ where: { task_a_id: a, task_b_id: b } });
+    if (!link) return errorResponse(res, 'link_not_found', 404);
+
+    await link.destroy();
+    await AuditLog.create({
+      user_id: req.user.id,
+      business_id: source.business_id,
+      action: 'task_link.removed',
+      target_type: 'TaskLink',
+      target_id: link.id,
+      old_value: { source_task_id: sourceId, target_task_id: targetId },
+    }).catch(() => null);
+
+    return successResponse(res, null, 'unlinked');
+  } catch (err) { next(err); }
+});
+
+// GET /api/tasks/by-business/:businessId/search?q=&exclude_id=&limit=
+// 같은 워크스페이스 task 제목 검색 (관련 업무 picker 용)
+router.get('/by-business/:businessId/search', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+  try {
+    const businessId = Number(req.params.businessId);
+    const q = String(req.query.q || '').trim();
+    const excludeId = req.query.exclude_id ? Number(req.query.exclude_id) : null;
+    const excludeIds = String(req.query.exclude_ids || '').split(',').map((s) => Number(s)).filter((n) => !isNaN(n));
+    const limit = Math.min(50, Math.max(1, Number(req.query.limit) || 20));
+
+    if (!q || q.length < 1) return successResponse(res, []);
+
+    const scope = await getUserScope(req.user.id, businessId, req.user.platform_role);
+    const where = await taskListWhere(req.user.id, businessId, scope);
+    where.title = { [Op.like]: `%${q}%` };
+    const allExcluded = [...excludeIds];
+    if (excludeId) allExcluded.push(excludeId);
+    if (allExcluded.length > 0) where.id = { [Op.notIn]: allExcluded };
+
+    const rows = await Task.findAll({
+      where,
+      include: [{ model: Project, attributes: ['id', 'name'], required: false }],
+      attributes: ['id', 'title', 'status', 'project_id', 'due_date', 'assignee_id'],
+      order: [['updated_at', 'DESC']],
+      limit,
+    });
+
+    return successResponse(res, rows.map((r) => r.toJSON()));
   } catch (err) { next(err); }
 });
 

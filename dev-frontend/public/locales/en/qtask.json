@@ -130,7 +130,10 @@
     "week": "This Week",
     "all": "All Tasks",
     "requested": "Requested",
-    "weeklyReview": "Weekly Review"
+    "weeklyReview": "Weekly Review",
+    "weeklyReviewMine": "Last Week's Review",
+    "workspaceTasks": "All Tasks",
+    "workspaceWeekly": "Workspace Weekly"
   },
   "workspace": {
     "assignee": "Assignee",
@@ -280,8 +283,10 @@
     "titleClickEdit": "Click to edit task name",
     "notMyHours": "Only the assignee can edit (read-only)",
     "notMyProgress": "Only the assignee can edit (read-only)",
-    "aiEstimate": "AI estimate suggestion",
+    "aiEstimate": "Re-estimate with AI",
     "aiEstimateHint": "Auto-estimated by AI — enter a value to confirm",
+    "actHint": "Auto-accumulated when you start/finish — enter a value to confirm",
+    "inProgressDot": "In progress",
     "assigneePh": "Assignee"
   },
   "empty": {
@@ -298,12 +303,41 @@
     "edit": "Edit",
     "save": "Save",
     "cancel": "Cancel",
-    "loadMore": "Load more"
+    "loadMore": "Load more",
+    "meSuffix": " (me)"
   },
   "save": {
     "saving": "Saving",
     "saved": "Saved",
     "error": "Save failed"
+  },
+  "descAttach": {
+    "add": "Attach file/document",
+    "submit": "Add",
+    "remove": "Remove",
+    "uploading": "Uploading...",
+    "error": {
+      "notPermitted": "You do not have permission to attach files to the description",
+      "disallowedExt": "File type not allowed",
+      "tooLarge": "File too large",
+      "failed": "Upload failed"
+    }
+  },
+  "links": {
+    "title": "Related tasks",
+    "empty": "No linked tasks",
+    "loading": "Loading...",
+    "add": "Link a task",
+    "remove": "Remove link",
+    "searchPlaceholder": "Search task title...",
+    "searching": "Searching...",
+    "searchEmpty": "No results",
+    "error": {
+      "alreadyLinked": "Already linked",
+      "cannotLinkSelf": "Cannot link to itself",
+      "crossWorkspace": "Cannot link tasks from another workspace",
+      "failed": "Link failed"
+    }
   },
   "detail": {
     "back": "Back",
@@ -318,8 +352,14 @@
       "project": "Project",
       "projectPh": "Select project (or leave empty)",
       "assigneeOnly": "Only the assignee can edit (read-only)",
-      "aiEstimate": "AI estimate suggestion",
-      "aiEstShort": "AI"
+      "aiEstimate": "Re-estimate with AI",
+      "aiEstShort": "Re-AI",
+      "aiEstHint": "Auto-estimated by AI — enter a value to confirm",
+      "actHint": "Auto-accumulated when you start/finish — enter a value to confirm",
+      "actAuto": "Auto-tracked",
+      "inProgressDot": "In progress",
+      "timeHint": "Actual hours are auto-accumulated when you start/finish (enter to confirm)",
+      "reviewReminder": "Progress reached 100% — click \"Submit for review\" to ask {{count}} reviewer(s) to start the completion flow"
     },
     "description": "Description",
     "descPlaceholder": "Brief description (1-2 lines)",

@@ -33,6 +33,7 @@ const PushLog = require('./PushLog');
 const FeedbackItem = require('./FeedbackItem');
 const TaskStatusHistory = require('./TaskStatusHistory');
 const TaskAttachment = require('./TaskAttachment');
+const TaskLink = require('./TaskLink');
 const ProjectStatusOption = require('./ProjectStatusOption');
 const ProjectStage = require('./ProjectStage');
 const ProjectProcessColumn = require('./ProjectProcessColumn');
@@ -334,6 +335,14 @@ TaskStatusHistory.belongsTo(Task, { foreignKey: 'task_id', onDelete: 'CASCADE' }
 TaskStatusHistory.belongsTo(User, { as: 'actor', foreignKey: 'actor_user_id' });
 TaskStatusHistory.belongsTo(User, { as: 'target', foreignKey: 'target_user_id' });
 Task.hasMany(TaskStatusHistory, { as: 'history', foreignKey: 'task_id' });
+// status_change 기록 후 actual_hours 자동 재계산 (사이클 N+6 — 진행 시간 자동 누적)
+TaskStatusHistory.addHook('afterCreate', async (row) => {
+  if (row.event_type !== 'status_change') return;
+  try {
+    const { recomputeActualHoursFromHistory } = require('../services/taskActualHours');
+    await recomputeActualHoursFromHistory(row.task_id);
+  } catch (e) { console.warn('[task actual_hours auto] hook failed:', e.message); }
+});
 
 // TaskAttachment
 TaskAttachment.belongsTo(Task, { foreignKey: 'task_id', onDelete: 'CASCADE' });
@@ -341,6 +350,11 @@ TaskAttachment.belongsTo(TaskComment, { foreignKey: 'comment_id', onDelete: 'CAS
 TaskAttachment.belongsTo(User, { as: 'uploader', foreignKey: 'uploaded_by' });
 Task.hasMany(TaskAttachment, { as: 'attachments', foreignKey: 'task_id' });
 TaskComment.hasMany(TaskAttachment, { as: 'attachments', foreignKey: 'comment_id' });
+
+// TaskLink (관련 업무 양방향 링크)
+TaskLink.belongsTo(Task, { as: 'taskA', foreignKey: 'task_a_id', onDelete: 'CASCADE' });
+TaskLink.belongsTo(Task, { as: 'taskB', foreignKey: 'task_b_id', onDelete: 'CASCADE' });
+TaskLink.belongsTo(User, { as: 'creator', foreignKey: 'created_by' });
 
 // FeedbackItem (P6 — 사용자 → 운영팀 피드백)
 FeedbackItem.belongsTo(User, { as: 'user', foreignKey: 'user_id' });
@@ -381,6 +395,7 @@ module.exports = {
   PushLog,
   TaskStatusHistory,
   TaskAttachment,
+  TaskLink,
   ProjectStatusOption,
   ProjectStage,
   ProjectProcessColumn,

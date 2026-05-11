@@ -50,6 +50,8 @@ interface TaskRow {
   estimated_hours: number | null; actual_hours: number; progress_percent: number;
   // 최신 estimation 출처 — 'ai' 면 시각 분기 (회색 + ✨), 'user' / null 은 일반
   latest_estimation_source?: 'ai' | 'user' | null;
+  // actual_hours 출처 — 'auto' (status 전환 자동 누적, 회색) vs 'user' (직접 입력, 검정). 사이클 N+6.
+  actual_source?: 'auto' | 'user' | null;
   planned_week_start: string | null; category: string | null;
   completed_at?: string | null;
   assignee_id: number | null; project_id: number | null; created_by: number;
@@ -545,6 +547,8 @@ const QTaskPage:React.FC=()=>{
   },[statusDropdownId]);
 
   // ── Save helpers ──
+  // 진행률 ↔ status 자동 전환은 backend (PATCH /time + PUT 양쪽) 가 단독 처리 — 단일 진실 원천.
+  // frontend optimistic 만 (응답 socket task:updated 가 정확한 status 로 다시 갱신).
   const saveField=async(taskId:number,field:string,value:unknown)=>{
     try{
       await apiFetch(`/api/tasks/${taskId}/time`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({[field]:value})});
@@ -553,19 +557,16 @@ const QTaskPage:React.FC=()=>{
         const u={...t,[field]:value};
         if(field==='progress_percent'){
           const pct=Number(value);
-          if(pct===100&&t.status!=='completed'){
+          const hasReviewer=(t.reviewers||[]).length>0;
+          // optimistic — backend 의 reviewer 분기와 일치
+          if(pct===100&&!hasReviewer&&t.status!=='completed'){
             u.status='completed';
           } else if(pct>0&&pct<100&&(t.status==='not_started'||t.status==='task_requested'||t.status==='task_re_requested'||t.status==='waiting')){
-            // 진행율 입력 → 자동으로 진행중
             u.status='in_progress';
-            apiFetch(`/api/tasks/by-business/${bizId}/${taskId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:'in_progress'})}).catch(()=>{});
           } else if(pct===0&&t.status==='in_progress'){
-            // 0%로 되돌림 → 대기 상태로 복귀
             u.status='not_started';
-            apiFetch(`/api/tasks/by-business/${bizId}/${taskId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:'not_started'})}).catch(()=>{});
           } else if(pct<100&&t.status==='completed'){
             u.status='in_progress';
-            apiFetch(`/api/tasks/by-business/${bizId}/${taskId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:'in_progress'})}).catch(()=>{});
           }
         }
         return u;
@@ -790,11 +791,16 @@ const QTaskPage:React.FC=()=>{
   };
 
   // 업무 종류별 선택 가능한 단계 목록
-  const statusOptionsFor=(task:{source?:string}):string[]=>{
+  // 사이클 N+6: reviewer 0명이면 reviewing/revision_requested 단계 자체가 없어야 일관 (UI 액션 노출 정책과 매트릭스 일치).
+  // 백엔드 PUT 도 같은 가드 (no_reviewers_assigned 400) — 양쪽 동시 적용으로 모순 0.
+  const statusOptionsFor=(task:{source?:string;reviewers?:Array<{user_id:number}>}):string[]=>{
     const isReq=task.source==='internal_request'||task.source==='qtalk_extract';
-    if(isReq)return ['not_started','waiting','in_progress','reviewing','revision_requested','completed','canceled'];
-    // 일반 업무 — waiting 제외
-    return ['not_started','in_progress','reviewing','revision_requested','completed','canceled'];
+    const hasReviewers=(task.reviewers||[]).length>0;
+    let opts=isReq
+      ? ['not_started','waiting','in_progress','reviewing','revision_requested','completed','canceled']
+      : ['not_started','in_progress','reviewing','revision_requested','completed','canceled'];
+    if(!hasReviewers) opts=opts.filter(s=>s!=='reviewing'&&s!=='revision_requested');
+    return opts;
   };
   // 드롭다운 옵션 라벨 — not_started 가 요청 업무면 task_requested 라벨 사용
   const optionLabel=(task:{source?:string;request_ack_at?:string|null},status:string,role:string):string=>{
@@ -866,9 +872,10 @@ const QTaskPage:React.FC=()=>{
           if(!inPeriod) return false;
 
           // 2) 내가 행동해야 하는 것 + 완료 옵션
-          const ds=displayStatus(t,todayStr);
+          // 담당자=나: 활성 단계(reviewing 포함) 모두 표시. 마감 책임이 끝까지 담당자에게 있어
+          // 컨펌 대기 중이라도 본인 화면에서 사라지면 안 됨. completed/canceled 는 hideCompletedInWeek 가 담당.
           if(t.assignee_id===myId){
-            if(['task_requested','waiting','in_progress','revision_requested'].includes(ds))return true;
+            if(!isDone) return true;
           }
           const myRev=t.reviewers?.find(rv=>rv.user_id===myId);
           if(myRev&&myRev.state==='pending'&&(t.status==='reviewing'||t.status==='revision_requested'))return true;
@@ -1206,8 +1213,11 @@ const QTaskPage:React.FC=()=>{
             {t('help.body','이번 주 본인이 행동할 업무, 우선순위 클릭 순서대로 매김(필터 안에서만 1,2,3..). 가용시간 = 일×영업일×효율, 그래프 baseline = 헤더의 내 업무 시간. 마감 지나면 지연 뱃지 클릭으로 마감 갱신.')}
           </HelpDot>
           {scope==='mine'&&tab==='week'&&(
-            <FinalizeBtn type="button" onClick={()=>setWeeklyReviewModalOpen(true)}>
-              {t('weeklyReview.finalize','이번 주 마무리')}
+            <FinalizeBtn type="button" onClick={()=>setWeeklyReviewModalOpen(true)} title={t('weeklyReview.finalize','이번 주 마무리') as string}>
+              <FinalizeIcon viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+              </FinalizeIcon>
+              <FinalizeText>{t('weeklyReview.finalize','이번 주 마무리')}</FinalizeText>
             </FinalizeBtn>
           )}
           <ViewToggle>
@@ -1226,6 +1236,13 @@ const QTaskPage:React.FC=()=>{
               {t('scope.workspace','전체 업무')}
             </ScopeBtn>
           </ScopeToggle>
+          <ScopeMobileWrap>
+            <PlanQSelect size="sm"
+              value={{value:scope,label:scope==='mine'?t('scope.mine','내 업무'):t('scope.workspace','전체 업무')}}
+              onChange={(v)=>setScope((v as {value:string})?.value as Scope||'mine')}
+              options={[{value:'mine',label:t('scope.mine','내 업무')},{value:'workspace',label:t('scope.workspace','전체 업무')}]}
+            />
+          </ScopeMobileWrap>
         </Header>
 
         {/* Tabs — 내 업무 모드 (이번 주 내 / 내 전체 / 요청하기 / 지난주 내 업무보고) */}
@@ -1273,8 +1290,8 @@ const QTaskPage:React.FC=()=>{
 
         {/* 일반 탭 — 기존 리스트 (week/all/requested/workspace-tasks/scope=workspace 기본) */}
         {tab!=='weekly-review' && tab!=='workspace-weekly' && (
-        <ListScroll>
-          {/* Filter bar (탭 아래) */}
+          <ListScroll>
+          {/* Filter bar — 테이블과 함께 스크롤 */}
           <FilterBar>
             <SearchBox placeholder={t('search','Search tasks...') as string} value={search} onChange={setSearch} width={200} size="md" />
             <div style={{minWidth:140}}>
@@ -1318,7 +1335,7 @@ const QTaskPage:React.FC=()=>{
 
           {/* Column headers (sortable) */}
           {viewMode==='list'&&(
-          <>
+          <TableHScroll>
           <ColRow>
             {tab==='week' && <Col $w="30px" $center onClick={()=>handleSort('priority_order')} data-tour="qtask-priority">#{sortIcon('priority_order')}</Col>}
             <Col $w="80px" $hideBelow={640} onClick={()=>handleSort('title')}>{t('col.project','Project')}</Col>
@@ -1524,14 +1541,24 @@ const QTaskPage:React.FC=()=>{
                           </EstWrap>
                         </TCell>
                         <TCell $w="62px" $center $hideBelow={900}>
-                          <NumInput key={`a${task.id}-${a}`}
-                            type="number" step="0.5" min="0"
-                            defaultValue={a?formatHours(a):''} placeholder="-"
-                            disabled={!editable}
-                            title={editable?undefined:t('list.notMyHours','담당자만 수정 가능 (참고용)') as string}
-                            onClick={ev=>ev.stopPropagation()}
-                            onBlur={ev=>{const v=Number(ev.target.value);if(!isNaN(v)&&editable){saveField(task.id,'actual_hours',v);(ev.target as HTMLInputElement).value=formatHours(v);}}}
-                            onKeyDown={ev=>{if(ev.key==='Enter')(ev.target as HTMLInputElement).blur();}} />
+                          <ActWrap>
+                            <NumInput key={`a${task.id}-${a}-${task.actual_source||'auto'}`}
+                              type="number" step="0.5" min="0"
+                              $ai={(task.actual_source ?? 'auto') === 'auto' && a > 0}
+                              defaultValue={a?formatHours(a):''} placeholder="-"
+                              disabled={!editable}
+                              title={
+                                (task.actual_source ?? 'auto') === 'auto' && a > 0
+                                  ? (t('list.actHint', { defaultValue: '진행 시작·완료 시 자동 누적 — 직접 입력하면 확정됩니다' }) as string)
+                                  : (editable?undefined:t('list.notMyHours','담당자만 수정 가능 (참고용)') as string)
+                              }
+                              onClick={ev=>ev.stopPropagation()}
+                              onBlur={ev=>{const v=Number(ev.target.value);if(!isNaN(v)&&editable){saveField(task.id,'actual_hours',v);(ev.target as HTMLInputElement).value=formatHours(v);}}}
+                              onKeyDown={ev=>{if(ev.key==='Enter')(ev.target as HTMLInputElement).blur();}} />
+                            {task.status==='in_progress' && (
+                              <InProgressDotMini title={t('list.inProgressDot', { defaultValue: '진행 중' }) as string} aria-hidden="true" />
+                            )}
+                          </ActWrap>
                         </TCell>
                       </>);
                     })()}
@@ -1848,7 +1875,7 @@ const QTaskPage:React.FC=()=>{
               </CustomRecurDialog>
             </CustomRecurOverlay>
           )}
-          </>
+          </TableHScroll>
           )}
           {viewMode==='kanban'&&(
             <KanbanBoard>
@@ -2532,26 +2559,29 @@ export default QTaskPage;
 
 // ═══ Styled ═══
 const Layout=styled.div`display:flex;height:calc(100vh - 0px);background:#F8FAFC;overflow:hidden;`;
-const LeftPanel=styled.div`flex:1;min-width:0;display:flex;flex-direction:column;background:#FFF;`;
+const LeftPanel=styled.div`flex:1;min-width:0;display:flex;flex-direction:column;background:#FFF;overflow:hidden;`;
 const Header=styled.div`padding:14px 20px;height:60px;display:flex;align-items:center;gap:12px;border-bottom:1px solid #E2E8F0;flex-shrink:0;`;
 const PageTitle=styled.h1`font-size:18px;font-weight:700;color:#0F172A;margin:0;flex-shrink:0;letter-spacing:-0.2px;`;
 const HideCheck=styled.label`display:flex;align-items:center;gap:4px;font-size:12px;color:#64748B;cursor:pointer;white-space:nowrap;& input{accent-color:#0D9488;}`;
 const ChipRow=styled.div`display:flex;gap:4px;margin-left:auto;`;
 const Chip=styled.span<{$teal?:boolean;$coral?:boolean}>`padding:2px 8px;font-size:11px;font-weight:600;border-radius:6px;background:${p=>p.$teal?'#F0FDFA':p.$coral?'#FFF1F2':'#F1F5F9'};color:${p=>p.$teal?'#0F766E':p.$coral?'#9F1239':'#475569'};`;
 
-const TabBar=styled.div`display:flex;border-bottom:1px solid #E2E8F0;flex-shrink:0;`;
-const TabBtn=styled.button<{$active?:boolean}>`flex:1;padding:10px;font-size:13px;font-weight:600;border:none;cursor:pointer;background:transparent;color:${p=>p.$active?'#0F766E':'#94A3B8'};border-bottom:2px solid ${p=>p.$active?'#14B8A6':'transparent'};display:inline-flex;align-items:center;justify-content:center;gap:6px;`;
-const FinalizeBtn=styled.button`padding:6px 14px;background:#FFFFFF;border:1px solid #E2E8F0;border-radius:6px;font-size:13px;font-weight:600;color:#475569;cursor:pointer;transition:background 0.15s, border-color 0.15s;&:hover{background:#F8FAFC;border-color:#CBD5E1;color:#0F172A;}`;
+const TabBar=styled.div`display:flex;border-bottom:1px solid #E2E8F0;flex-shrink:0;@media(max-width:640px){overflow-x:auto;-webkit-overflow-scrolling:touch;&::-webkit-scrollbar{display:none;}}`;
+const TabBtn=styled.button<{$active?:boolean}>`flex:1;padding:10px 8px;font-size:13px;font-weight:600;border:none;cursor:pointer;background:transparent;color:${p=>p.$active?'#0F766E':'#94A3B8'};border-bottom:2px solid ${p=>p.$active?'#14B8A6':'transparent'};display:inline-flex;align-items:center;justify-content:center;gap:4px;white-space:nowrap;@media(max-width:640px){flex:none;padding:10px 12px;font-size:12px;}`;
+const FinalizeBtn=styled.button`display:inline-flex;align-items:center;gap:6px;padding:6px 14px;background:#FFFFFF;border:1px solid #E2E8F0;border-radius:6px;font-size:13px;font-weight:600;color:#475569;cursor:pointer;transition:background 0.15s, border-color 0.15s;&:hover{background:#F8FAFC;border-color:#CBD5E1;color:#0F172A;}@media(max-width:640px){padding:6px 10px;}`;
+const FinalizeIcon=styled.svg`width:16px;height:16px;flex-shrink:0;`;
+const FinalizeText=styled.span`@media(max-width:640px){display:none;}`;
 const TabBadge=styled.span<{$active?:boolean}>`display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 6px;border-radius:9px;background:${p=>p.$active?'#F43F5E':'#CBD5E1'};color:#FFF;font-size:11px;font-weight:700;line-height:1;`;
-const ListScroll=styled.div`flex:1;overflow-y:auto;&::-webkit-scrollbar{width:6px;}&::-webkit-scrollbar-thumb{background:#E2E8F0;border-radius:3px;}`;
+const ListScroll=styled.div`flex:1;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;&::-webkit-scrollbar{width:6px;}&::-webkit-scrollbar-thumb{background:#E2E8F0;border-radius:3px;}`;
+const TableHScroll=styled.div`overflow-x:auto;overflow-y:visible;overscroll-behavior-x:contain;&::-webkit-scrollbar{height:6px;}&::-webkit-scrollbar-thumb{background:#E2E8F0;border-radius:3px;}`;
 const BottomAddLink=styled.button`margin:10px 14px 20px;padding:6px 0;background:transparent;color:#94A3B8;border:none;font-size:13px;font-weight:500;cursor:pointer;text-align:left;display:block;font-family:inherit;&:hover{color:#0F766E;}`;
 const FilterBar=styled.div`display:flex;align-items:center;gap:10px;padding:8px 14px;border-bottom:1px solid #F1F5F9;background:#FFF;flex-wrap:wrap;`;
 
-const ColRow=styled.div`display:flex;align-items:center;gap:6px;padding:6px 14px;border-bottom:1px solid #E2E8F0;background:#F8FAFC;position:sticky;top:0;z-index:1;`;
+const ColRow=styled.div`display:flex;align-items:center;gap:6px;padding:6px 14px;border-bottom:1px solid #E2E8F0;background:#F8FAFC;position:sticky;top:0;z-index:1;min-width:520px;`;
 const Col=styled.span<{$w?:string;$flex?:boolean;$center?:boolean;$hideBelow?:number}>`
   box-sizing:border-box;
   ${p=>p.$flex
-    ? 'flex:1 1 0;min-width:120px;'
+    ? 'flex:1 1 0;min-width:180px;'
     : `flex:0 0 ${p.$w||'auto'};width:${p.$w||'auto'};`}
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
   font-size:11px;font-weight:700;color:#94A3B8;cursor:pointer;user-select:none;
@@ -2561,11 +2591,11 @@ const Col=styled.span<{$w?:string;$flex?:boolean;$center?:boolean;$hideBelow?:nu
 `;
 
 
-const TRow=styled.div<{$done?:boolean;$delayed?:boolean;$selected?:boolean}>`display:flex;align-items:center;gap:6px;padding:7px 14px;border-bottom:1px solid #F8FAFC;opacity:${p=>p.$done?0.45:1};${p=>p.$selected?'background:#F0FDFA;box-shadow:inset 3px 0 0 #14B8A6;':p.$delayed&&!p.$done?'box-shadow:inset 3px 0 0 #DC2626;':''}&:hover{background:${p=>p.$selected?'#CCFBF1':p.$delayed&&!p.$done?'#FEF2F2':'#FAFBFC'};}`;
+const TRow=styled.div<{$done?:boolean;$delayed?:boolean;$selected?:boolean}>`display:flex;align-items:center;gap:6px;padding:7px 14px;border-bottom:1px solid #F8FAFC;min-width:520px;opacity:${p=>p.$done?0.45:1};${p=>p.$selected?'background:#F0FDFA;box-shadow:inset 3px 0 0 #14B8A6;':p.$delayed&&!p.$done?'box-shadow:inset 3px 0 0 #DC2626;':''}&:hover{background:${p=>p.$selected?'#CCFBF1':p.$delayed&&!p.$done?'#FEF2F2':'#FAFBFC'};}`;
 const TCell=styled.div<{$w?:string;$flex?:boolean;$center?:boolean;$hideBelow?:number}>`
   box-sizing:border-box;
   ${p=>p.$flex
-    ? 'flex:1 1 0;min-width:120px;display:flex;align-items:center;gap:6px;overflow:hidden;'
+    ? 'flex:1 1 0;min-width:180px;display:flex;align-items:center;gap:6px;overflow:hidden;'
     : `flex:0 0 ${p.$w||'auto'};width:${p.$w||'auto'};overflow:hidden;`}
   ${p=>p.$center&&'display:flex;justify-content:center;align-items:center;'}
   ${p=>p.$hideBelow?`@media (max-width: ${p.$hideBelow}px){display:none;}`:''}
@@ -2599,7 +2629,7 @@ const DelayChip=styled.button`
   &:hover{background:#E2E8F0;color:#0F172A;}
 `;
 const TaskCheck=styled.input`accent-color:#0D9488;cursor:pointer;width:15px;height:15px;flex-shrink:0;`;
-const QTaskInlineAddRow=styled.div`display:flex;align-items:center;gap:8px;padding:6px 12px;background:#F0FDFA;border-bottom:1px solid #F8FAFC;`;
+const QTaskInlineAddRow=styled.div`display:flex;align-items:center;gap:8px;padding:6px 12px;background:#F0FDFA;border-bottom:1px solid #F8FAFC;min-width:520px;`;
 const QTaskInlineSpacer=styled.div`width:24px;flex-shrink:0;`;
 const QTaskInlineInput=styled.input`flex:1;min-width:0;padding:4px 8px;height:26px;font-size:13px;color:#0F172A;background:#FFFFFF;border:1px solid #14B8A6;border-radius:6px;font-family:inherit;&:focus{outline:none;box-shadow:0 0 0 2px rgba(20,184,166,0.15);}&::placeholder{color:#94A3B8;}`;
 const TaskTitle=styled.span<{$done?:boolean}>`font-size:14px;font-weight:500;color:#0F172A;cursor:text;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;${p=>p.$done&&'text-decoration:line-through;color:#94A3B8;'}&:hover{color:#0F766E;}`;
@@ -2640,6 +2670,15 @@ const EstWrap=styled.span<{$flash?:boolean}>`
   position:relative;display:inline-flex;align-items:center;
   ${p=>p.$flash?'background:#D1FAE5;border-radius:5px;animation:estFlash 1.2s ease-out;':''}
   @keyframes estFlash{0%{background:#A7F3D0;}100%{background:transparent;}}
+`;
+// 실제시간 셀 wrap — 진행 중 dot 표시용
+const ActWrap=styled.span`position:relative;display:inline-flex;align-items:center;`;
+// 진행 중 라이브 dot — 작업 중 (status=in_progress) 일 때 actual_hours 옆 (Apple Watch 스톱워치 패턴)
+const InProgressDotMini=styled.span`
+  position:absolute;right:-6px;top:50%;transform:translateY(-50%);
+  width:6px;height:6px;border-radius:50%;background:#DC2626;
+  animation:actPulse 1.4s ease-in-out infinite;pointer-events:none;
+  @keyframes actPulse{0%,100%{opacity:1;transform:translateY(-50%) scale(1);}50%{opacity:0.4;transform:translateY(-50%) scale(0.8);}}
 `;
 const AiSparkBtn=styled.button`
   position:absolute;right:-2px;top:50%;transform:translateY(-50%);
@@ -2746,7 +2785,8 @@ const CustomRecurFieldLabel=styled.label`font-size:12px;color:#64748B;font-weigh
 const CustomRecurInline=styled.div`display:flex;gap:8px;align-items:center;`;
 const ViewToggle=styled.div`display:inline-flex;gap:2px;padding:2px;background:#F1F5F9;border-radius:8px;margin-left:auto;`;
 const ViewBtn=styled.button<{$active:boolean}>`padding:6px 10px;background:${p=>p.$active?'#FFFFFF':'transparent'};color:${p=>p.$active?'#0F766E':'#94A3B8'};border:none;border-radius:6px;cursor:pointer;display:inline-flex;align-items:center;box-shadow:${p=>p.$active?'0 1px 2px rgba(0,0,0,0.06)':'none'};transition:background 0.15s;&:hover{background:${p=>p.$active?'#FFFFFF':'#E2E8F0'};color:#0F766E;}`;
-const ScopeToggle=styled.div`display:inline-flex;gap:4px;padding:3px;background:#F1F5F9;border-radius:8px;`;
+const ScopeToggle=styled.div`display:inline-flex;gap:4px;padding:3px;background:#F1F5F9;border-radius:8px;@media(max-width:640px){display:none;}`;
+const ScopeMobileWrap=styled.div`display:none;min-width:100px;@media(max-width:640px){display:block;}`;
 
 // ── Kanban ──
 const KanbanBoard=styled.div`

@@ -26,6 +26,8 @@ export interface TaskRow {
   progress_percent: number; estimated_hours: number | null; actual_hours: number | null;
   // 최신 estimation 출처 — 'ai' 면 시각 분기 (회색 italic + ✨)
   latest_estimation_source?: 'ai' | 'user' | null;
+  // actual_hours 출처 — 'auto' (status 전환 자동 누적) vs 'user' (직접 입력). 사이클 N+6.
+  actual_source?: 'auto' | 'user' | null;
   assignee_id: number | null; assignee?: { id: number; name: string } | null;
 }
 
@@ -443,7 +445,7 @@ const SaveBtn = styled.button`padding:6px 14px;background:#14B8A6;color:#FFF;bor
 // List — Q Task 스타일
 const DateTrigger = styled.button`width:100%;height:32px;padding:0 10px;border:1px solid #E2E8F0;border-radius:6px;font-size:12px;color:#0F172A;background:#FFF;font-family:inherit;text-align:left;cursor:pointer;&:hover{border-color:#14B8A6;}`;
 const DatePlaceholder = styled.span`color:#94A3B8;`;
-const TableWrap = styled.div`background:#FFF;border:1px solid #E2E8F0;border-radius:8px;overflow:hidden;`;
+const TableWrap = styled.div`background:#FFF;border:1px solid #E2E8F0;border-radius:8px;overflow-x:auto;overflow-y:hidden;&::-webkit-scrollbar{height:6px;}&::-webkit-scrollbar-thumb{background:#E2E8F0;border-radius:3px;}`;
 const BottomAddLink = styled.button`margin-top:10px;padding:8px 14px;background:transparent;color:#94A3B8;border:none;font-size:13px;font-weight:500;cursor:pointer;text-align:left;display:block;font-family:inherit;&:hover{color:#0F766E;}`;
 const BottomAddSlot = styled.div`margin-top:16px;`;
 const AddBackdrop = styled.div`
