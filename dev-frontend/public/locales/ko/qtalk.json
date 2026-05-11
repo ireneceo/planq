@@ -96,7 +96,30 @@
     "searchPlaceholder": "대화·프로젝트 검색",
     "noResults": "검색 결과 없음",
     "noChats": "아직 대화가 없습니다",
-    "generalConversation": "일반 대화"
+    "generalConversation": "일반 대화",
+    "pin": "핀 고정",
+    "unpin": "핀 해제",
+    "menu": {
+      "aria": "채팅방 메뉴",
+      "unlink": "프로젝트에서 분리",
+      "archive": "채팅방 보관",
+      "permDenied": "워크스페이스 관리자 또는 프로젝트 owner 만 보관할 수 있어요.",
+      "archiveFailed": "보관에 실패했어요",
+      "unlinkFailed": "분리에 실패했어요"
+    },
+    "confirm": {
+      "cancel": "취소",
+      "archive": {
+        "title": "이 채팅방을 보관할까요?",
+        "body": "“{{name}}” 를 채팅 목록에서 보관해요. 메시지·파일·업무·할일은 그대로 남고, 워크스페이스 관리자가 다시 활성화할 수 있어요.",
+        "ok": "보관"
+      },
+      "unlink": {
+        "title": "프로젝트에서 분리할까요?",
+        "body": "“{{name}}” 의 프로젝트 연결을 해제해요. 채팅방·메시지·참여자는 그대로 유지되고, “일반 대화” 그룹으로 옮겨져요.",
+        "ok": "분리"
+      }
+    }
   },
   "newChat": {
     "title": "새 대화 시작",

@@ -9,6 +9,7 @@ import RightPanel from './RightPanel';
 import NewProjectModal, { type ProjectFormData } from './NewProjectModal';
 import NewChatModal, { type NewChatFormData } from './NewChatModal';
 import FirstVisitTour from '../../components/Common/FirstVisitTour';
+import ConfirmDialog from '../../components/Common/ConfirmDialog';
 import ChatSettingsModal from './ChatSettingsModal';
 import i18n from '../../i18n';
 import {
@@ -192,6 +193,16 @@ const QTalkPage: React.FC = () => {
   const [notes, setNotes] = useState<MockNote[]>([]);
   const [issues, setIssues] = useState<MockIssue[]>([]);
   const [candidates, setCandidates] = useState<MockTaskCandidate[]>([]);
+  // 채팅방 관리 ⋮ — ConfirmDialog 트리거. archive(보관) / unlink(프로젝트 분리).
+  const [archiveConv, setArchiveConv] = useState<MockConversation | null>(null);
+  const [unlinkConv, setUnlinkConv] = useState<MockConversation | null>(null);
+  const [archiveBusy, setArchiveBusy] = useState(false);
+  const [unlinkBusy, setUnlinkBusy] = useState(false);
+  // 권한 — workspace owner / platform admin 만 ⋮ 메뉴 노출.
+  // (project owner 인 멤버는 backend 가 허용하지만 UI 진입점은 단순화 — 다음 fix 에서 정교화)
+  const canManageConversation = useCallback((_c: MockConversation) => {
+    return user?.business_role === 'owner' || user?.platform_role === 'platform_admin';
+  }, [user?.business_role, user?.platform_role]);
 
   const location = useLocation();
   const navigate = useNavigate();
@@ -1085,6 +1096,9 @@ const QTalkPage: React.FC = () => {
         onOpenNewChat={() => setChatModalOpen(true)}
         collapsed={leftCollapsed}
         onToggleCollapsed={toggleLeft}
+        canManage={canManageConversation}
+        onArchive={(c) => setArchiveConv(c)}
+        onUnlink={(c) => setUnlinkConv(c)}
         onTogglePin={async (convId, pinned) => {
           // 옵티미스틱 — UI 즉시 반영
           const nowIso = pinned ? new Date().toISOString() : null;
@@ -1207,6 +1221,70 @@ const QTalkPage: React.FC = () => {
         steps={[
           { targetSelector: 'aside', title: t('tour.step1.title','Q talk') as string, body: t('tour.step1.body','왼쪽 패널에서 프로젝트·고객·일반 대화를 만들 수 있어요. 헤더 옆 ⓘ 클릭하면 자동 추출, 번역 등 자세한 작동을 볼 수 있어요.') as string, placement: 'auto' },
         ]}
+      />
+
+      {/* 채팅방 보관 — soft delete. archived_at NOT NULL → 목록 제외, 메시지·파일·할일은 보존. */}
+      <ConfirmDialog
+        isOpen={!!archiveConv && !archiveBusy}
+        variant="danger"
+        title={t('left.confirm.archive.title', '이 채팅방을 보관할까요?') as string}
+        message={
+          t('left.confirm.archive.body', { name: archiveConv?.name || '', defaultValue: '“{{name}}” 를 채팅 목록에서 보관해요. 메시지·파일·업무·할일은 그대로 남고, 워크스페이스 관리자가 다시 활성화할 수 있어요.' }) as string
+        }
+        confirmText={t('left.confirm.archive.ok', '보관') as string}
+        cancelText={t('left.confirm.cancel', '취소') as string}
+        onClose={() => setArchiveConv(null)}
+        onConfirm={async () => {
+          if (!archiveConv || !businessId || archiveBusy) return;
+          setArchiveBusy(true);
+          try {
+            const r = await apiFetch(`/api/conversations/${businessId}/${archiveConv.id}/archive`, { method: 'POST' });
+            const j = await r.json();
+            if (!r.ok || !j.success) {
+              setNotice(j.message === 'workspace_owner_or_project_owner_required'
+                ? (t('left.menu.permDenied', '워크스페이스 관리자 또는 프로젝트 owner 만 보관할 수 있어요.') as string)
+                : (j.message || (t('left.menu.archiveFailed', '보관에 실패했어요') as string)));
+              return;
+            }
+            // 옵티미스틱 제거 + 활성 채팅이었으면 선택 해제
+            setConversations(prev => prev.filter(c => c.id !== archiveConv.id));
+            if (activeConversationId === archiveConv.id) setActiveConversationId(null);
+          } finally {
+            setArchiveBusy(false);
+            setArchiveConv(null);
+          }
+        }}
+      />
+
+      {/* 프로젝트에서 분리 — project_id=null. 채팅방·메시지·참여자 모두 그대로 유지. */}
+      <ConfirmDialog
+        isOpen={!!unlinkConv && !unlinkBusy}
+        title={t('left.confirm.unlink.title', '프로젝트에서 분리할까요?') as string}
+        message={
+          t('left.confirm.unlink.body', { name: unlinkConv?.name || '', defaultValue: '“{{name}}” 의 프로젝트 연결을 해제해요. 채팅방·메시지·참여자는 그대로 유지되고, “일반 대화” 그룹으로 옮겨져요.' }) as string
+        }
+        confirmText={t('left.confirm.unlink.ok', '분리') as string}
+        cancelText={t('left.confirm.cancel', '취소') as string}
+        onClose={() => setUnlinkConv(null)}
+        onConfirm={async () => {
+          if (!unlinkConv || unlinkBusy) return;
+          setUnlinkBusy(true);
+          try {
+            const r = await apiFetch(`/api/projects/conversations/${unlinkConv.id}/unlink`, { method: 'POST' });
+            const j = await r.json();
+            if (!r.ok || !j.success) {
+              setNotice(j.message || (t('left.menu.unlinkFailed', '분리에 실패했어요') as string));
+              return;
+            }
+            // 옵티미스틱 — project_id null 로 변경. 분리된 채팅은 "일반 대화" 그룹으로 자동 이동.
+            setConversations(prev => prev.map(c =>
+              c.id === unlinkConv.id ? { ...c, project_id: null } : c
+            ));
+          } finally {
+            setUnlinkBusy(false);
+            setUnlinkConv(null);
+          }
+        }}
       />
     </Layout>
   );

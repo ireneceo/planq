@@ -96,7 +96,30 @@
     "searchPlaceholder": "Search chats and projects",
     "noResults": "No results",
     "noChats": "No conversations yet",
-    "generalConversation": "General"
+    "generalConversation": "General",
+    "pin": "Pin",
+    "unpin": "Unpin",
+    "menu": {
+      "aria": "Chat menu",
+      "unlink": "Detach from project",
+      "archive": "Archive chat",
+      "permDenied": "Only workspace admins or project owners can archive.",
+      "archiveFailed": "Archive failed",
+      "unlinkFailed": "Detach failed"
+    },
+    "confirm": {
+      "cancel": "Cancel",
+      "archive": {
+        "title": "Archive this chat?",
+        "body": "“{{name}}” will be hidden from the list. Messages, files, and tasks are preserved. A workspace admin can restore it later.",
+        "ok": "Archive"
+      },
+      "unlink": {
+        "title": "Detach from project?",
+        "body": "“{{name}}” will be disconnected from its project. The chat, messages, and members remain — it moves to the “General” group.",
+        "ok": "Detach"
+      }
+    }
   },
   "newChat": {
     "title": "Start new chat",
