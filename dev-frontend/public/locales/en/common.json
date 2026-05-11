@@ -326,6 +326,26 @@
   "vault": {
     "subtitle": "Your personal space — only you see this",
     "uncategorized": "Uncategorized",
+    "vis": { "L1": "Personal", "L2": "Team", "L3": "Workspace", "L4": "External" },
+    "visLong": {
+      "L1": "Only you",
+      "L2": "Project members",
+      "L3": "All workspace members",
+      "L4": "Shared externally"
+    },
+    "changeVis": {
+      "title": "Change visibility",
+      "hint": "Choose who can see this item.",
+      "L1Desc": "Only you can see it. Lands in your personal vault.",
+      "L2Desc": "Only members of the picked project can see it.",
+      "L3Desc": "Everyone in the workspace can see it.",
+      "projectPick": "Pick a project",
+      "projectPlaceholder": "Select project",
+      "external": "Share externally with a link →",
+      "cancel": "Cancel",
+      "save": "Apply",
+      "saving": "Saving..."
+    },
     "tab": {
       "dashboard": "Overview",
       "posts": "Docs",
