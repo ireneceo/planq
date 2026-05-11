@@ -112,8 +112,13 @@ async function getUsage(businessId) {
   const cached = _cacheGet(_usageCache, key);
   if (cached) return cached;
 
+  // 멤버 카운트 정책 (2026-05-11 fix):
+  //   - AI 시스템 멤버는 제외 (role='ai' — 모든 워크스페이스에 자동 생성. 한도와 무관)
+  //   - 제거된 멤버 제외 (removed_at NOT NULL)
+  //   회귀 fix: getUsage().members 가 모든 row 를 count 해서 "8/5 160%" 같은 잘못된 표시 발생.
+  //   add_member 가드와 일관 정책 (아래 case 'add_member' 도 동일).
   const [memberCount, clientCount, projectCount, conversationCount, storageRow, cueThisMonth, qnoteThisMonth] = await Promise.all([
-    BusinessMember.count({ where: { business_id: key } }),
+    BusinessMember.count({ where: { business_id: key, removed_at: null, role: { [Op.ne]: 'ai' } } }),
     Client.count({ where: { business_id: key } }),
     Project.count({ where: { business_id: key, status: { [Op.in]: ['active', 'paused'] } } }),
     Conversation.count({ where: { business_id: key } }),
@@ -204,7 +209,8 @@ async function can(businessId, action, ctx = {}) {
       return { ok: true };
     }
     case 'add_member': {
-      const cur = await BusinessMember.count({ where: { business_id: businessId } });
+      // getUsage().members 와 동일 정책 — AI 시스템 멤버 + 제거된 멤버 제외.
+      const cur = await BusinessMember.count({ where: { business_id: businessId, removed_at: null, role: { [Op.ne]: 'ai' } } });
       if (cur + 1 > limits.members_max) {
         return { ok: false, reason: 'members_quota_exceeded', limit: limits.members_max, current: cur };
       }

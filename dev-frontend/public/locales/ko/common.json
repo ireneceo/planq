@@ -325,7 +325,10 @@
   },
   "usageWarn": {
     "title": "한도가 거의 찼습니다",
+    "titleOver": "한도를 초과한 항목이 있어요",
     "cta": "플랜·Add-on",
+    "detail": "사용량 자세히",
+    "overBy": "({{count}} 초과)",
     "members": "멤버",
     "clients": "고객",
     "projects": "진행중 프로젝트",
@@ -338,6 +341,7 @@
     "maximum": "한도",
     "close": "닫기",
     "cta": "플랜·Add-on 보기",
+    "usageLink": "이번 달 사용량 자세히 보기 →",
     "members": {
       "title": "멤버 수 한도 도달",
       "desc": "현재 플랜의 멤버 한도를 초과했습니다. 멤버 add-on 으로 1명씩 추가하거나 상위 플랜으로 업그레이드하세요.",
