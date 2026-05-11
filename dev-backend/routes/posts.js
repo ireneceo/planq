@@ -10,7 +10,7 @@ const { v4: uuidv4 } = require('uuid');
 const { Op } = require('sequelize');
 const { Post, PostAttachment, PostCategory, File, User, Project, BusinessMember, Business, Conversation, Message } = require('../models');
 const { authenticateToken } = require('../middleware/auth');
-const { getUserScope, postListWhere, canAccessPost, isMemberOrAbove } = require('../middleware/access_scope');
+const { getUserScope, postListWhereByLevel, canAccessPostByLevel, isMemberOrAbove } = require('../middleware/access_scope');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const { sendPostShareEmail } = require('../services/emailService');
 
@@ -121,9 +121,16 @@ router.get('/', authenticateToken, async (req, res, next) => {
     if (!businessId) return errorResponse(res, 'business_id required', 400);
     const auth = await assertWorkspaceOrClient(req.user.id, businessId, req.user.platform_role);
     if (!auth.ok) return errorResponse(res, 'forbidden', 403);
-    // Client 면 자기 참여 프로젝트 post 만
-    const baseWhere = await postListWhere(req.user.id, businessId, auth.scope);
-    if (!baseWhere) return errorResponse(res, 'forbidden', 403);
+    // 사이클 N+9: 옵션 A — vlevel 단계별 (L1 본인 author / L2 프로젝트 멤버 / L3 워크스페이스)
+    // Client 는 옛 헬퍼 사용 (project-client 자기 프로젝트 post 만)
+    let baseWhere;
+    if (auth.scope.isClient) {
+      const { postListWhere } = require('../middleware/access_scope');
+      baseWhere = await postListWhere(req.user.id, businessId, auth.scope);
+      if (!baseWhere) return errorResponse(res, 'forbidden', 403);
+    } else {
+      baseWhere = postListWhereByLevel(auth.scope);
+    }
     const where = { ...baseWhere };
     if (req.query.project_id === 'null' || req.query.project_id === '') where.project_id = null;
     else if (req.query.project_id) where.project_id = Number(req.query.project_id);
@@ -172,9 +179,15 @@ router.get('/meta', authenticateToken, async (req, res, next) => {
     if (!businessId) return errorResponse(res, 'business_id required', 400);
     const auth = await assertWorkspaceOrClient(req.user.id, businessId, req.user.platform_role);
     if (!auth.ok) return errorResponse(res, 'forbidden', 403);
-    // Client 는 자기 참여 프로젝트 post 의 메타만
-    const baseScope = await postListWhere(req.user.id, businessId, auth.scope);
-    if (!baseScope) return errorResponse(res, 'forbidden', 403);
+    // 사이클 N+9: 옵션 A — vlevel 기반
+    let baseScope;
+    if (auth.scope.isClient) {
+      const { postListWhere } = require('../middleware/access_scope');
+      baseScope = await postListWhere(req.user.id, businessId, auth.scope);
+      if (!baseScope) return errorResponse(res, 'forbidden', 403);
+    } else {
+      baseScope = postListWhereByLevel(auth.scope);
+    }
     const scopeWhere = { ...baseScope };
     if (req.query.project_id === 'null' || req.query.project_id === '') scopeWhere.project_id = null;
     else if (req.query.project_id) scopeWhere.project_id = Number(req.query.project_id);
@@ -229,7 +242,16 @@ router.get('/:id', authenticateToken, async (req, res, next) => {
     });
     if (!post) return errorResponse(res, 'not_found', 404);
     const scope = await getUserScope(req.user.id, post.business_id, req.user.platform_role);
-    if (!(await canAccessPost(req.user.id, post, scope))) {
+    // 사이클 N+9: 옵션 A — vlevel 단계별 권한.
+    // Client 는 옛 헬퍼 사용 (project-client 자기 프로젝트 post 만).
+    let allowed;
+    if (scope.isClient) {
+      const { canAccessPost } = require('../middleware/access_scope');
+      allowed = await canAccessPost(req.user.id, post, scope);
+    } else {
+      allowed = await canAccessPostByLevel(req.user.id, post, scope);
+    }
+    if (!allowed) {
       return errorResponse(res, 'forbidden', 403);
     }
     await post.increment('view_count');

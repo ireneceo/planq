@@ -12,7 +12,7 @@ const {
 const { authenticateToken } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const {
-  getUserScope, taskListWhere, fileListWhere, postListWhere,
+  getUserScope, taskListWhere, fileListWhereByLevel, postListWhereByLevel,
   conversationListWhere,
 } = require('../middleware/access_scope');
 
@@ -31,9 +31,10 @@ router.get('/', authenticateToken, async (req, res, next) => {
     const isClient = scope.role === 'client';
 
     // 권한별 where 조건 — client 는 자기 데이터만, member/owner 는 워크스페이스 + 본인 프로젝트
+    // 사이클 N+9: file/post 는 옵션 A (visibility/vlevel 단계별) 적용
     const taskWhere = await taskListWhere(req.user.id, businessId, scope);
-    const fileWhere = await fileListWhere(req.user.id, businessId, scope);
-    const postWhere = await postListWhere(req.user.id, businessId, scope);
+    const fileWhere = fileListWhereByLevel(scope);
+    const postWhere = postListWhereByLevel(scope);
     const convWhere = await conversationListWhere(req.user.id, businessId, scope);
 
     // Q record 권한 — 워크스페이스 멤버 모두 read 가능. read_policy='owner' 면 owner+admin 만.
