@@ -113,14 +113,17 @@ async function collectTasks(businessId, userId) {
     });
   }
 
-  // 3) 내가 컨펌자 (pending)
+  // 3) 내가 컨펌자 (pending) — task 가 실제로 컨펌 대기 단계일 때만 노출.
+  // 회귀 fix: task 가 reviewing → revision_requested → in_progress 로 돌아간 후에도
+  // TaskReviewer.state='pending' 이 잔존해서 인박스에 "승인 대기" 잘못 노출되던 케이스 차단.
+  // QTaskPage 우측 패널 panelCounts.review 분기 (status reviewing | revision_requested)와 일관.
   const pendingReviews = await TaskReviewer.findAll({
     where: { user_id: userId, state: 'pending' },
     attributes: ['id', 'createdAt'],
     include: [{
       model: Task,
       required: true,
-      where: { business_id: businessId, status: { [Op.notIn]: ['completed', 'canceled'] } },
+      where: { business_id: businessId, status: { [Op.in]: ['reviewing', 'revision_requested'] } },
       attributes: ['id', 'title', 'due_date'],
       include: [{ model: User, as: 'assignee', attributes: ['id', 'name', 'name_localized'], required: false }],
     }],
