@@ -340,6 +340,44 @@ const QTaskPage:React.FC=()=>{
       prefillAppliedRef.current = true;
     }
   }, [searchParams, setSearchParams]);
+
+  // 인박스 → 업무 후보 카드 강조 (사이클 N+9). 인박스 task_candidate 클릭 시 ?candidate=Y
+  // → 우측 패널의 해당 카드로 스크롤 + 1.5s flash. all 탭 자동 전환 + 우측 패널 자동 열기.
+  const candidateFlashRef = useRef(false);
+  useEffect(() => {
+    if (candidateFlashRef.current) return;
+    const cid = searchParams.get('candidate');
+    if (!cid) return;
+    // 우측 패널 접혀있으면 펼침
+    setRightCollapsed(false);
+    // candidates 가 아직 로드 안 됐을 수 있어 polling — 최대 3초.
+    let tries = 0;
+    const timer = setInterval(() => {
+      tries++;
+      const el = document.querySelector(`[data-candidate-id="${cid}"]`) as HTMLElement | null;
+      if (el) {
+        clearInterval(timer);
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el.style.transition = 'background 0.3s, box-shadow 0.3s';
+        el.style.boxShadow = '0 0 0 2px rgba(244,63,94,0.5)';
+        el.style.background = 'rgba(244,63,94,0.08)';
+        setTimeout(() => {
+          el.style.boxShadow = '';
+          el.style.background = '';
+        }, 1800);
+        // URL 정리
+        const next = new URLSearchParams(searchParams);
+        next.delete('candidate');
+        setSearchParams(next, { replace: true });
+        candidateFlashRef.current = true;
+      } else if (tries >= 15) {  // 3s 대기 후 포기
+        clearInterval(timer);
+        candidateFlashRef.current = true;
+      }
+    }, 200);
+    return () => clearInterval(timer);
+    // candidates 변화는 polling 으로 자동 감지 — deps 에 안 넣어도 OK.
+  }, [searchParams, setSearchParams]);
   // 지연 뱃지 quick chip popover (사용자 요청: 마감 지난 업무 즉시 갱신 안내)
   const[delayChipsForId,setDelayChipsForId]=useState<number|null>(null);
   // AI 예측시간 호출 상태 (per task)
@@ -2310,7 +2348,7 @@ const QTaskPage:React.FC=()=>{
                 <RSection>
                   <RSTitle>{t('right.candidatesExtracted','추출된 업무')} ({candidates.length})</RSTitle>
                   {candidates.map(c=>(
-                    <CandCard key={c.id}>
+                    <CandCard key={c.id} data-candidate-id={c.id}>
                       <CandTitle>{c.title}</CandTitle>
                       <IMeta>
                         {c.project_name&&<IProjTag>{c.project_name}</IProjTag>}
