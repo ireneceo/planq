@@ -105,21 +105,30 @@ L1 자산을 명시적으로 공개로 promote 할 수 있어야 함:
 
 ---
 
-## 8. 작업 범위 (사이클 N+1)
+## 8. 작업 범위 (사이클 N+9 구현 — 2026-05-11)
 
-| # | 작업 |
-|:-:|---|
-| 1 | DB: `files.visibility` ENUM('L1','L2','L3','L4') 컬럼 추가 |
-| 2 | DB: `posts.visibility` 동일 |
-| 3 | DB: `kb_documents.scope` ENUM 에 'private' 추가 |
-| 4 | 마이그레이션: 기존 데이터 visibility = 'L3' 백필 |
-| 5 | access_scope.js: visibility 기반 필터 추가 |
-| 6 | 라우트 `/api/personal-vault/*` 신설 (또는 기존 routes 의 personal scope 추가) |
-| 7 | 페이지 `pages/PersonalVault/PersonalVaultPage.tsx` (프로젝트 페이지 패턴 재사용) |
-| 8 | 사이드바 메뉴 추가 + 섹션 헤더 |
-| 9 | 첫 사용 explainer + tour |
-| 10 | 카드 visibility 배지 + 변경 모달 |
+| # | 작업 | 상태 |
+|:-:|---|:-:|
+| 1 | DB: `files.visibility` ENUM('L1','L2','L3','L4') 컬럼 추가 | ✅ 청크 1 |
+| 2 | DB: `posts.vlevel` 신규 (기존 `visibility` 컬럼 'internal/public' 유지 — legacy 격리) | ✅ 청크 1 |
+| 3 | DB: `kb_documents.scope` ENUM 에 'private' 추가 | ✅ 청크 1 |
+| 4 | 마이그레이션: 기존 데이터 → L3 백필 (운영 files 5, posts 3) | ✅ 청크 1 |
+| 5 | access_scope.js: visibility 기반 필터 (ByLevel 헬퍼 6종) | ✅ 청크 1 |
+| 6 | 라우트 `/api/personal-vault/*` 신설 (summary, files, posts, kb-documents) | ✅ 청크 2 |
+| 7 | 페이지 `pages/PersonalVault/PersonalVaultPage.tsx` 4 탭 (대시·문서·파일·지식) | ✅ 청크 2 |
+| 8 | 사이드바 협업/개인 섹션 + 개인 보관함 NavItem | ✅ 청크 2 |
+| 9 | 첫 사용 explainer (localStorage dismiss) | ✅ 청크 2 |
+| 10 | 카드 visibility 배지 (컴포넌트) + 변경 모달 | ⚠️ 청크 4 (컴포넌트만, 카드/행 적용은 청크 5 잔여) |
+
+### 보강 (사용자 보고로 추가)
+- editor-image File 테이블 통합 — 본문 이미지가 Q file 메뉴에 노출 + share-link 가능 (commit `da8c80f`)
+- 인박스 task_candidate link → `/tasks` 후보 섹션 + archive 제외 + 카드 강조 (commit `d3e7f0a`)
+
+### 잔여 (청크 5, 다음 사이클)
+- VisibilityBadge 카드/행 적용 (Q file `DocsTab`, Q docs `PostsPage` 의 카드)
+- VisibilityChangeModal 진입점 연결 (배지 클릭)
+- 노트·메모 탭 (qnote_sessions.input_type 분리 후 v1.1)
 
 ---
 
-**상태:** 합의 완료, 사이클 N+1 시작 대기.
+**상태:** 사이클 N+9 핵심 청크 1~4 완료, 청크 5 (시각 시그널) 다음 사이클로.
