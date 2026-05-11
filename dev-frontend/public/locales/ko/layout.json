@@ -2,9 +2,11 @@
   "nav": {
     "sectionMain": "Main",
     "sectionBusiness": "워크스페이스",
-    "sectionFeatures": "기능",
+    "sectionFeatures": "협업",
+    "sectionPersonal": "개인",
     "sectionManage": "관리",
     "sectionAdmin": "관리",
+    "personalVault": "개인 보관함",
     "dashboard": "대시보드",
     "todo": "지금 할 일",
     "inbox": "확인 필요",

@@ -1,0 +1,160 @@
+// 개인 보관함 (Personal Vault) 라우트 — 사이클 N+9 (PERSONAL_VAULT_DESIGN.md)
+//
+// 본인의 L1 자산 (visibility/vlevel='L1' OR scope='private') 만 노출.
+// 옵션 A 정책 — 다른 멤버는 접근 불가. owner 도 본인 외엔 안 보임 (platform_admin 만 AuditLog 강제).
+//
+// 라우트:
+//   GET  /api/personal-vault/:businessId/summary      — 4 자산 통합 카운트 + 최근 항목
+//   GET  /api/personal-vault/:businessId/files        — 본인 L1 파일
+//   GET  /api/personal-vault/:businessId/posts        — 본인 L1 문서
+//   GET  /api/personal-vault/:businessId/kb-documents — 본인 private 지식
+
+const express = require('express');
+const { Op } = require('sequelize');
+const router = express.Router();
+const { authenticateToken } = require('../middleware/auth');
+const { attachWorkspaceScope } = require('../middleware/access_scope');
+const { File, Post, KbDocument } = require('../models');
+const { successResponse, errorResponse } = require('../middleware/errorHandler');
+
+// ── 공통 filter — 본인 L1/private 만 ──
+function vaultFilesWhere(scope) {
+  return {
+    business_id: scope.businessId,
+    uploader_id: scope.userId,
+    visibility: 'L1',
+    deleted_at: null,
+  };
+}
+function vaultPostsWhere(scope) {
+  return {
+    business_id: scope.businessId,
+    author_id: scope.userId,
+    vlevel: 'L1',
+  };
+}
+function vaultKbDocsWhere(scope) {
+  return {
+    business_id: scope.businessId,
+    uploaded_by: scope.userId,
+    scope: 'private',
+  };
+}
+
+// ============================================
+// GET /summary — 4 자산 카운트 + 각 최근 5
+// ============================================
+router.get('/:businessId/summary', authenticateToken, attachWorkspaceScope(), async (req, res, next) => {
+  try {
+    const scope = req.scope;
+    if (!scope.isOwner && !scope.isMember) {
+      return errorResponse(res, 'member_only', 403);
+    }
+    const [
+      fileCount, postCount, kbCount,
+      recentFiles, recentPosts, recentKb,
+    ] = await Promise.all([
+      File.count({ where: vaultFilesWhere(scope) }),
+      Post.count({ where: vaultPostsWhere(scope) }),
+      KbDocument.count({ where: vaultKbDocsWhere(scope) }),
+      File.findAll({
+        where: vaultFilesWhere(scope),
+        attributes: ['id', 'file_name', 'mime_type', 'file_size', 'created_at'],
+        order: [['created_at', 'DESC']], limit: 5,
+      }),
+      Post.findAll({
+        where: vaultPostsWhere(scope),
+        attributes: ['id', 'title', 'category', 'kind', 'created_at'],
+        order: [['created_at', 'DESC']], limit: 5,
+      }),
+      KbDocument.findAll({
+        where: vaultKbDocsWhere(scope),
+        attributes: ['id', 'title', 'source_type', 'created_at'],
+        order: [['created_at', 'DESC']], limit: 5,
+      }),
+    ]);
+
+    successResponse(res, {
+      counts: { files: fileCount, posts: postCount, kb_documents: kbCount },
+      recent: {
+        files: recentFiles,
+        posts: recentPosts,
+        kb_documents: recentKb,
+      },
+    });
+  } catch (err) { next(err); }
+});
+
+// ============================================
+// GET /files — 본인 L1 파일 list
+// ============================================
+router.get('/:businessId/files', authenticateToken, attachWorkspaceScope(), async (req, res, next) => {
+  try {
+    const scope = req.scope;
+    if (!scope.isOwner && !scope.isMember) return errorResponse(res, 'member_only', 403);
+
+    const limit = Math.min(Number(req.query.limit) || 50, 200);
+    const offset = Number(req.query.offset) || 0;
+    const q = (req.query.q || '').trim();
+
+    const where = vaultFilesWhere(scope);
+    if (q) where.file_name = { [Op.like]: `%${q}%` };
+
+    const { count, rows } = await File.findAndCountAll({
+      where,
+      order: [['created_at', 'DESC']],
+      limit, offset,
+    });
+    res.json({ success: true, data: rows, pagination: { total: count, limit, offset } });
+  } catch (err) { next(err); }
+});
+
+// ============================================
+// GET /posts — 본인 L1 문서 list
+// ============================================
+router.get('/:businessId/posts', authenticateToken, attachWorkspaceScope(), async (req, res, next) => {
+  try {
+    const scope = req.scope;
+    if (!scope.isOwner && !scope.isMember) return errorResponse(res, 'member_only', 403);
+
+    const limit = Math.min(Number(req.query.limit) || 50, 200);
+    const offset = Number(req.query.offset) || 0;
+    const q = (req.query.q || '').trim();
+    const kind = req.query.kind;
+
+    const where = vaultPostsWhere(scope);
+    if (q) where[Op.or] = [{ title: { [Op.like]: `%${q}%` } }, { content_text: { [Op.like]: `%${q}%` } }];
+    if (kind && ['doc', 'table', 'brief', 'template'].includes(kind)) where.kind = kind;
+
+    const { count, rows } = await Post.findAndCountAll({
+      where,
+      attributes: ['id', 'title', 'category', 'kind', 'status', 'is_pinned', 'created_at', 'updated_at', 'vlevel'],
+      order: [['updated_at', 'DESC']],
+      limit, offset,
+    });
+    res.json({ success: true, data: rows, pagination: { total: count, limit, offset } });
+  } catch (err) { next(err); }
+});
+
+// ============================================
+// GET /kb-documents — 본인 private 지식 list
+// ============================================
+router.get('/:businessId/kb-documents', authenticateToken, attachWorkspaceScope(), async (req, res, next) => {
+  try {
+    const scope = req.scope;
+    if (!scope.isOwner && !scope.isMember) return errorResponse(res, 'member_only', 403);
+
+    const limit = Math.min(Number(req.query.limit) || 50, 200);
+    const offset = Number(req.query.offset) || 0;
+
+    const { count, rows } = await KbDocument.findAndCountAll({
+      where: vaultKbDocsWhere(scope),
+      attributes: ['id', 'title', 'source_type', 'body', 'created_at', 'updated_at'],
+      order: [['updated_at', 'DESC']],
+      limit, offset,
+    });
+    res.json({ success: true, data: rows, pagination: { total: count, limit, offset } });
+  } catch (err) { next(err); }
+});
+
+module.exports = router;

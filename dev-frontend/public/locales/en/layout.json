@@ -2,7 +2,9 @@
   "nav": {
     "sectionMain": "Main",
     "sectionBusiness": "Workspace",
-    "sectionFeatures": "Features",
+    "sectionFeatures": "Collaboration",
+    "sectionPersonal": "Personal",
+    "personalVault": "Personal vault",
     "sectionManage": "Manage",
     "sectionAdmin": "Admin",
     "dashboard": "Dashboard",

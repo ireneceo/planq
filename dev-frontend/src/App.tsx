@@ -28,6 +28,7 @@ const QNotePage = lazy(() => import('./pages/QNote/QNotePage'));
 const ProfilePage = lazy(() => import('./pages/Profile/ProfilePage'));
 const WorkspaceSettingsPage = lazy(() => import('./pages/Settings/WorkspaceSettingsPage'));
 const QTalkPage = lazy(() => import('./pages/QTalk/QTalkPage'));
+const PersonalVaultPage = lazy(() => import('./pages/PersonalVault/PersonalVaultPage'));
 const QTaskPage = lazy(() => import('./pages/QTask/QTaskPage'));
 const QProjectPage = lazy(() => import('./pages/QProject/QProjectPage'));
 const QProjectDetailPage = lazy(() => import('./pages/QProject/QProjectDetailPage'));
@@ -243,6 +244,13 @@ function App() {
         <Route path="/files" element={
           <ProtectedRoute>
             <MainLayout><QFilePage /></MainLayout>
+          </ProtectedRoute>
+        } />
+
+        {/* 개인 보관함 — 사이클 N+9 (VISIBILITY_VOCABULARY §5) */}
+        <Route path="/personal-vault" element={
+          <ProtectedRoute>
+            <MainLayout><PersonalVaultPage /></MainLayout>
           </ProtectedRoute>
         } />
 

@@ -298,6 +298,8 @@ app.use('/api', require('./routes/kb'));
 app.use('/api/weekly-reviews', require('./routes/weekly_reviews'));
 // 통합 공유 — entity 무관 발송 (사이클 N+4 5차)
 app.use('/api/share', require('./routes/share'));
+// 개인 보관함 — 본인 L1/private 자산 통합 (사이클 N+9)
+app.use('/api/personal-vault', require('./routes/personal_vault'));
 
 // Error handler
 app.use(errorHandler);

@@ -323,6 +323,36 @@
     "androidHint": "Add to home screen for notifications and faster access",
     "iosHint": "Tap the Share button → \"Add to Home Screen\""
   },
+  "vault": {
+    "subtitle": "Your personal space — only you see this",
+    "uncategorized": "Uncategorized",
+    "tab": {
+      "dashboard": "Overview",
+      "posts": "Docs",
+      "files": "Files",
+      "kb": "Knowledge"
+    },
+    "recent": {
+      "posts": "Recent docs",
+      "files": "Recent files",
+      "kb": "Recent knowledge"
+    },
+    "explainer": {
+      "title": "Just your personal items",
+      "body": "The same items appear in Q file / Q docs menus too, but the lock badge distinguishes them. Use [Share] to publish them.",
+      "dismiss": "Dismiss"
+    },
+    "empty": {
+      "title": "No personal items yet",
+      "body": "When you upload from Q file or Q docs without picking a project, items land here automatically.",
+      "posts": "No personal docs",
+      "postsBody": "Docs created in Q docs without a project end up here.",
+      "files": "No personal files",
+      "filesBody": "Files uploaded in Q file without a project end up here.",
+      "kb": "No personal knowledge",
+      "kbBody": "Knowledge saved as 'private' in Q info ends up here."
+    }
+  },
   "usageWarn": {
     "title": "Approaching plan limits",
     "titleOver": "Some plan limits are exceeded",
