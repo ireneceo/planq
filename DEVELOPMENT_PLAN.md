@@ -6,9 +6,84 @@
 >
 > **다음 진입 ★:** (Irene 선택)
 >
-> **차순위:** 권한 옵션 A + 개인 보관함 / Q note 텍스트 type + Quick Capture / Custom SMTP (Pro+) / ShareModal 채팅방 발송 후 PostShareModal 흡수 (chat·email 통일 마무리)
+> **차순위:** 청크 5 (visibility 배지 카드/행 적용 + 5중 시각 시그널) / DocsTab 카드 hover share 아이콘 / 동적 OG (backend SSR + nginx /public/* proxy) / Q note 텍스트 type + Quick Capture / Custom SMTP (Pro+) / 설문 기능 MVP (4 사이클)
 >
 > **결제 정책:** 1순위 자체 결제 (계좌이체 mark-paid), 2순위 PortOne (P-7 마지막). 월결제 + 연결제. Free 플랜 폐지 — 신규 가입은 starter+trialing 14일.
+
+---
+
+## ✅ 완료: 사이클 N+9 — v1.6.0 / v1.6.1 권한 옵션 A + 개인 보관함 + 이미지 라이트박스 + 공유 미리보기 보강 (2026-05-11)
+
+9 commit 운영 라이브 (2회 deploy, 110s × 2). https://planq.kr health 200, planq-prod-backend v1.6.1. VISIBILITY_VOCABULARY.md / PERSONAL_VAULT_DESIGN.md 사이클 첫 청크 4개 (DB → 페이지 → 라우트 → 배지) + 사용자 보고 fix 3개 (이미지 lightbox · editor-image File 통합 · 인박스 후보 link).
+
+### 청크별 상세
+
+| Commit | 작업 | 핵심 |
+|---|---|---|
+| `e04a71b` 청크 1 | DB visibility ENUM | files/posts(vlevel)/kb_documents/invoices.owner_user_id 컬럼 + 마이그레이션 백필 + access_scope 옵션 A 헬퍼 6종 + projectMemberIds |
+| `8cc69e7` 청크 2 | 개인 보관함 | 사이드바 협업/개인 섹션 + `/personal-vault` 4 탭 + backend `/api/personal-vault/*` 4 라우트 + 첫 사용 explainer |
+| `a41a6ea` 청크 3 | 라우트 옵션 A | files/posts/search listWhere → ByLevel 점진 교체. client 는 옛 헬퍼 보존 (project-client) |
+| `59f6f25` 청크 4 | Visibility 배지 + 변경 모달 | VisibilityBadge (4 단계 아이콘+색) + VisibilityChangeModal + PUT `/api/files/.../visibility` + `/api/posts/.../visibility` |
+| `d812068` | 이미지 lightbox + 사이즈 | ImageLightbox + LightboxWrapper (자식 img 위임, ProseMirror 편집 영역 제외) + Tiptap Image width attribute + BubbleMenu S/M/L + 공유 미리보기 첨부 다운로드 라우트 |
+| `da8c80f` | editor-image File 통합 + OG | POST `/editor-image` business_id → File 등록 (Q file 메뉴 노출 + share-link) + PostEditor borderless + index.html generic OG |
+| `eb8769a` | 헬스체크 fix | VisibilityChangeModal raw `<select>` → PlanQSelect |
+| `d3e7f0a` | 인박스 후보 link fix | task_candidate link → `/tasks?scope=mine&tab=all&candidate=Y` + archive Conversation 제외 + Q task 우측 패널 자동 펼침 + CandCard 1.8s rose flash |
+
+### 데이터 변화 (운영)
+
+| 자원 | 변경 |
+|---|---|
+| `files.visibility` | 신규 ENUM('L1','L2','L3','L4'). 백필 5건 (L3=3, L2=2) |
+| `posts.vlevel` | 신규 ENUM. 백필 3건 (L2=3) |
+| `kb_documents.scope` | 'private' 추가 |
+| `invoices.owner_user_id` | 컬럼 추가. 백필 0건 (이미 created_by 채워져 있었음) |
+
+### 정책 변화 — 옵션 A 본격 적용
+
+| visibility | owner | member 참여 | member 비참여 | client |
+|---|:-:|:-:|:-:|:-:|
+| L1 (개인) | 자기만 | 자기만 | 자기만 | 자기만 |
+| L2 (팀) | ✅ | ✅ | ❌ | project-client only |
+| L3 (워크스) | ✅ | ✅ | ✅ | ❌ |
+
+### 신규 컴포넌트
+
+| 위치 | 역할 |
+|---|---|
+| `components/Common/VisibilityBadge.tsx` | 4 단계 시각 배지 (L1 lock·gray, L2 users·teal, L3 building·blue, L4 globe·orange) |
+| `components/Common/VisibilityChangeModal.tsx` | L1/L2/L3 picker + project 선택 (PlanQSelect) |
+| `components/Common/ImageLightbox.tsx` | 풀스크린 portal + Esc/배경 닫기 + body scroll lock |
+| `pages/PersonalVault/PersonalVaultPage.tsx` | 4 탭 (대시·문서·파일·지식) + 첫 사용 explainer |
+| `routes/personal_vault.js` | `/summary`, `/files`, `/posts`, `/kb-documents` |
+| `scripts/migrate-visibility-l-levels.js` | 백필 스크립트 |
+
+### 검증
+
+- 누적 E2E **19/19 PASS** + 청크별 60+ PASS (16+11+12+7+6+8 = 60)
+- 헬스체크 27/27
+- 빌드 1.5~2.3s 안팎, TS 에러 0
+- 외부 https://planq.kr/api/health 200, planq-prod-backend v1.6.1
+
+### 운영 배포
+
+| 시각 (KST) | Commit | 항목 | 결과 |
+|---|---|---|---|
+| 03:00 | `eb8769a` (누적 7) | v1.6.0 사이클 N+9 라이브 | ✅ 110s, invoices.owner_user_id 사전 ALTER + 백필 (files 5 + posts 3) |
+| 03:26 | `d3e7f0a` | v1.6.1 hotfix (인박스 후보 link) | ✅ 110s |
+
+### 잔여 (다음 사이클)
+
+- 청크 5: VisibilityBadge 카드/행 적용 (Q file, Q docs, Q info) + VisibilityChangeModal 진입점 + 5중 시그널 (헤더 sub-line, dismiss 박스, popup 자물쇠, FirstVisitTour)
+- DocsTab 카드 hover share 아이콘 (사용자 요청 잔여)
+- 동적 OG — backend SSR `/public/posts/:token` HTML 응답 + 운영 nginx `/public/*` proxy 변경 (sudo)
+- lua 모바일 반응형 7 파일 — lua 마무리 대기
+
+---
+
+## ✅ 완료: 사이클 N+8 + N+8 hotfix — v1.5.4 / v1.5.5 (2026-05-11)
+
+`c962c5f` + `2f379ee` 운영 라이브. 자세한 내역은 commit log 및 session-state 참조.
+주요: refresh_token rolling renewal · LeftPanel Unread/별표 일관 · AI 라벨 분기 · 인박스 reviewer 회귀 · Q Talk 채팅방 ⋮ · 멤버 카운트 (AI 제외) · UsageWarningCard 초과 표시 · LimitReachedDialog 사용량 링크 · 공유 미리보기 정책·설문 설계 docs · 인박스 task_candidate (다음 사이클로 이동) 등.
 
 ---
 
