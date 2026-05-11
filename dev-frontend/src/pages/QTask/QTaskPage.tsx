@@ -1712,7 +1712,7 @@ const QTaskPage:React.FC=()=>{
                       title={!newTitle.trim()
                         ? (t('add.estAiNeedTitle','제목 입력 후 클릭하면 AI 가 추천합니다') as string)
                         : (t('add.estAiHint','AI 가 제목·설명으로 예측 시간을 추천합니다') as string)}>
-                      {aiEstimating ? '…' : 'AI 추천'}
+                      {aiEstimating ? '…' : (newEstHours ? t('add.estAiAgain','AI 다시') : t('add.estAi','AI 추천'))}
                     </AddEstAiBtn>
                   </AddEstWrap>
                   {aiEstReason && <AddEstReason title={aiEstReason}>{aiEstReason}</AddEstReason>}
@@ -2401,7 +2401,7 @@ const QTaskPage:React.FC=()=>{
                       title={!newTitle.trim()
                         ? (t('add.estAiNeedTitle','제목 입력 후 클릭하면 AI 가 추천합니다') as string)
                         : (t('add.estAiHint','AI 가 제목·설명으로 예측 시간을 추천합니다') as string)}>
-                      {aiEstimating ? '…' : 'AI 추천'}
+                      {aiEstimating ? '…' : (newEstHours ? t('add.estAiAgain','AI 다시') : t('add.estAi','AI 추천'))}
                     </AddEstAiBtn>
                   </AddEstWrap>
                   {aiEstReason && <AddEstReason title={aiEstReason}>{aiEstReason}</AddEstReason>}

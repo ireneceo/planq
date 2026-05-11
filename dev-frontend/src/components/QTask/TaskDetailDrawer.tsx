@@ -835,7 +835,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                             {aiEstLoading
                               ? <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><circle cx="12" cy="12" r="9" strokeDasharray="40 16"><animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="0.8s" repeatCount="indefinite"/></circle></svg>
                               : <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 16.8 5.8 21.3l2.4-7.4L2 9.4h7.6L12 2z"/></svg>}
-                            <span>{t('detail.meta.aiEstShort', 'AI 추천')}</span>
+                            <span>{eHours > 0 ? t('detail.meta.aiEstAgain', 'AI 다시') : t('detail.meta.aiEstShort', 'AI 추천')}</span>
                           </AiBtn>
                         )}
                       </MetaValueRow>
