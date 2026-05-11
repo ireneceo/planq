@@ -793,6 +793,21 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                 </NavSection>
               )}
 
+              {/* ─── 개인 (Personal) — 사이클 N+9 — VISIBILITY_VOCABULARY §5 ─── */}
+              {hasBiz('owner', 'member') && (
+                <NavSection>
+                  <NavTitle $isCollapsed={isCollapsed}>{t('nav.sectionPersonal', '개인')}</NavTitle>
+                  <NavItem to="/personal-vault" $isCollapsed={isCollapsed} $active={isActive('/personal-vault')}
+                    title={isCollapsed ? t('nav.personalVault', '개인 보관함') : undefined}>
+                    <NavIcon $isCollapsed={isCollapsed}>
+                      {/* archive icon — 자물쇠 아님 (자물쇠는 Q note·visibility 배지 전용) */}
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3" width="20" height="5" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
+                    </NavIcon>
+                    <NavLabel $isCollapsed={isCollapsed}>{t('nav.personalVault', '개인 보관함')}</NavLabel>
+                  </NavItem>
+                </NavSection>
+              )}
+
               {/* 통계·분석 + 설정 — 단일 NavItem, 클릭 시 첫 하위로 이동 → SecondaryPanel 자동 표시 */}
               {/* 모바일에서는 SecondaryPanel 이 숨겨지므로 NavItem 아래 인라인 아코디언으로 서브 메뉴 펼침 */}
               {hasBiz('owner', 'member') && (

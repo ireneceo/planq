@@ -323,6 +323,36 @@
     "androidHint": "홈 화면에 추가하면 알림·빠른 진입이 가능합니다",
     "iosHint": "하단 공유 버튼 → \"홈 화면에 추가\""
   },
+  "vault": {
+    "subtitle": "본인만 보는 사적 영역",
+    "uncategorized": "미분류",
+    "tab": {
+      "dashboard": "대시보드",
+      "posts": "문서",
+      "files": "파일",
+      "kb": "지식"
+    },
+    "recent": {
+      "posts": "최근 문서",
+      "files": "최근 파일",
+      "kb": "최근 지식"
+    },
+    "explainer": {
+      "title": "개인 자료만 모인 곳",
+      "body": "같은 자료가 Q file·Q docs 메뉴에도 보이지만 권한 표시(자물쇠)로 구분됩니다. 공유는 [공유하기] 버튼으로 가능합니다.",
+      "dismiss": "닫기"
+    },
+    "empty": {
+      "title": "아직 개인 자료가 없어요",
+      "body": "Q file·Q docs 에서 업로드할 때 프로젝트를 지정하지 않으면 자동으로 여기에 모입니다.",
+      "posts": "개인 문서 없음",
+      "postsBody": "Q docs 에서 프로젝트 미연결로 작성한 문서가 여기에 모입니다.",
+      "files": "개인 파일 없음",
+      "filesBody": "Q file 에서 프로젝트 미연결로 올린 파일이 여기에 모입니다.",
+      "kb": "개인 지식 없음",
+      "kbBody": "Q info 에서 '개인'으로 저장한 지식이 여기에 모입니다."
+    }
+  },
   "usageWarn": {
     "title": "한도가 거의 찼습니다",
     "titleOver": "한도를 초과한 항목이 있어요",
