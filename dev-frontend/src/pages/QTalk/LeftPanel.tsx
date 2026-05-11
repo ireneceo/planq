@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useCallback } from 'react';
+import React, { useMemo, useState, useCallback, useEffect, useRef } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { type MockProject, type MockConversation } from './types';
@@ -20,6 +20,12 @@ interface Props {
   onToggleCollapsed: () => void;
   /** 핀(즐겨찾기) 토글 — 부모가 API 호출 + 옵티미스틱 업데이트 */
   onTogglePin?: (conversationId: number, pinned: boolean) => void;
+  /** 채팅방 관리 권한 — 부모가 user role 기반으로 계산. true 면 ⋮ 메뉴 노출. */
+  canManage?: (c: MockConversation) => boolean;
+  /** 채팅방 보관 (soft delete) — ConfirmDialog 후 실행 */
+  onArchive?: (c: MockConversation) => void;
+  /** 프로젝트에서 분리 (project_id=null) — ConfirmDialog 후 실행 */
+  onUnlink?: (c: MockConversation) => void;
   /** 모바일(<=tablet)에서 대화가 선택된 경우 LeftPanel 을 숨김 */
   mobileHidden?: boolean;
 }
@@ -34,12 +40,29 @@ interface ChatEntry {
 const LeftPanel: React.FC<Props> = ({
   projects, conversations, activeConversationId,
   onSelectConversation, onOpenNewChat, collapsed, onToggleCollapsed,
-  onTogglePin, mobileHidden = false,
+  onTogglePin, canManage, onArchive, onUnlink, mobileHidden = false,
 }) => {
   const { t } = useTranslation('qtalk');
   const { user } = useAuth();
   const isClient = user?.business_role === 'client';
   const [query, setQuery] = useState('');
+
+  // ChatRow ⋮ 메뉴 — 한 시점에 한 행만 open. row 외부 클릭 / Esc 닫힘.
+  const [menuOpenFor, setMenuOpenFor] = useState<number | null>(null);
+  const menuRootRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (menuOpenFor == null) return;
+    const onDown = (e: MouseEvent) => {
+      if (menuRootRef.current && !menuRootRef.current.contains(e.target as Node)) setMenuOpenFor(null);
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setMenuOpenFor(null); };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [menuOpenFor]);
 
   // 프로젝트 대화 + 프로젝트 없는 일반 대화를 1차원 리스트화한 뒤
   // last_message_at DESC 로 정렬 (Slack/카카오톡 패턴 — 새 메시지 오면 위로).
@@ -202,6 +225,54 @@ const LeftPanel: React.FC<Props> = ({
                     <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
                   </svg>
                 </PinBtn>
+              )}
+              {/* ⋮ 채팅방 관리 메뉴 — workspace owner / project owner / platform admin 만 노출.
+                  옵션: 프로젝트에서 분리 (project_id 있을 때) / 채팅방 보관 (Danger). ConfirmDialog 후 실행. */}
+              {canManage && canManage(c) && (onArchive || onUnlink) && (
+                <MenuRoot ref={menuOpenFor === c.id ? menuRootRef : undefined}>
+                  <MenuBtn
+                    type="button"
+                    $open={menuOpenFor === c.id}
+                    onClick={(e) => { e.stopPropagation(); setMenuOpenFor((prev) => prev === c.id ? null : c.id); }}
+                    aria-label={t('left.menu.aria', '채팅방 메뉴') as string}
+                    aria-haspopup="menu"
+                    aria-expanded={menuOpenFor === c.id}
+                    title={t('left.menu.aria', '채팅방 메뉴') as string}
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                      <circle cx="12" cy="5" r="1.6" /><circle cx="12" cy="12" r="1.6" /><circle cx="12" cy="19" r="1.6" />
+                    </svg>
+                  </MenuBtn>
+                  {menuOpenFor === c.id && (
+                    <Popover role="menu" onClick={(e) => e.stopPropagation()}>
+                      {c.project_id && onUnlink && (
+                        <MenuItem
+                          type="button" role="menuitem"
+                          onClick={() => { setMenuOpenFor(null); onUnlink(c); }}
+                        >
+                          <MenuIcon viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                            <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+                            <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+                            <line x1="2" y1="2" x2="22" y2="22" />
+                          </MenuIcon>
+                          {t('left.menu.unlink', '프로젝트에서 분리')}
+                        </MenuItem>
+                      )}
+                      {c.project_id && onUnlink && onArchive && <MenuDivider />}
+                      {onArchive && (
+                        <MenuItem
+                          type="button" role="menuitem" $danger
+                          onClick={() => { setMenuOpenFor(null); onArchive(c); }}
+                        >
+                          <MenuIcon viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                            <path d="M21 8v13H3V8" /><rect x="1" y="3" width="22" height="5" /><line x1="10" y1="12" x2="14" y2="12" />
+                          </MenuIcon>
+                          {t('left.menu.archive', '채팅방 보관')}
+                        </MenuItem>
+                      )}
+                    </Popover>
+                  )}
+                </MenuRoot>
               )}
             </ChatRow>
           );
@@ -455,4 +526,85 @@ const PinBtn = styled.button<{ $pinned: boolean }>`
   @media (hover: none), (max-width: 1024px) {
     opacity: 1;
   }
+`;
+
+// ⋮ 채팅방 관리 메뉴 — workspace owner / project owner / platform admin 만 노출.
+// 데스크탑: hover-only 노이즈 최소. 모바일: 상시 노출 (PinBtn 패턴 일치).
+const MenuRoot = styled.div`
+  position: relative;
+  flex-shrink: 0;
+  align-self: center;
+`;
+
+const MenuBtn = styled.button<{ $open: boolean }>`
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  margin: 0 0 0 2px;
+  padding: 0;
+  background: ${(p) => (p.$open ? '#F1F5F9' : 'transparent')};
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  color: ${(p) => (p.$open ? '#0F172A' : '#94A3B8')};
+  opacity: ${(p) => (p.$open ? 1 : 0)};
+  transition: opacity 0.15s, background 0.15s, color 0.15s;
+  &:hover { background: #F1F5F9; color: #0F172A; }
+  ${ChatRow}:hover & { opacity: 1; }
+  @media (hover: none), (max-width: 1024px) {
+    opacity: 1;
+  }
+`;
+
+// Popover — Linear/Slack 패턴. 우측 정렬해서 ⋮ 바로 아래 펼침.
+const Popover = styled.div`
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  min-width: 200px;
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
+  padding: 4px;
+  z-index: 100;
+  animation: pq-popover-in 0.12s ease-out;
+  @keyframes pq-popover-in {
+    from { opacity: 0; transform: translateY(-4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+`;
+
+const MenuItem = styled.button<{ $danger?: boolean }>`
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  color: ${(p) => (p.$danger ? '#B91C1C' : '#334155')};
+  text-align: left;
+  white-space: nowrap;
+  transition: background 0.1s;
+  &:hover { background: ${(p) => (p.$danger ? '#FEF2F2' : '#F8FAFC')}; }
+  &:focus-visible { outline: 2px solid #14B8A6; outline-offset: -2px; }
+`;
+
+const MenuIcon = styled.svg`
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+`;
+
+const MenuDivider = styled.div`
+  height: 1px;
+  background: #F1F5F9;
+  margin: 4px 0;
 `;

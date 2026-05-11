@@ -137,7 +137,7 @@ export interface MockMessage {
 
 export interface MockConversation {
   id: number;
-  project_id: number;
+  project_id: number | null;
   channel_type: ChannelType;
   name: string;
   auto_extract_enabled: boolean;
