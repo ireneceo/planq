@@ -74,6 +74,103 @@ const ReadOnlyHint = styled.span`
 
 본문 안 링크는 `RichEditor` 의 `Link.openOnClick: true + target='_blank'` 정책으로 **편집 권한 무관 항상 새 탭**. 권한 매트릭스는 `docs/PERMISSION_MATRIX.md` 참조.
 
+### 1.4-C 자동값 vs 사용자값 시각 구분 — 회색 italic vs 검정 (2026-05-11 사이클 N+6)
+
+시스템이 자동 채운 값 (AI 예측, 자동 누적 등) 과 사용자 직접 입력값을 시각적으로 구분.
+
+```tsx
+const NumInput = styled.input<{$ai?: boolean}>`
+  color: ${p => p.$ai ? '#94A3B8' : '#0F172A'};
+  font-style: ${p => p.$ai ? 'italic' : 'normal'};
+  &:focus { color: #0F172A; font-style: normal; /* 편집 진입 = 즉시 검정 = 확정 시그널 */ }
+`;
+<NumInput $ai={source === 'ai' || source === 'auto'} ... />
+```
+
+규칙:
+- 회색 italic = 시스템 자동값 (사용자 미확정)
+- 검정 normal = 사용자 명시 입력 (확정)
+- 사용자가 input 클릭하면 자동 검정 톤 전환 (별도 "확정" 버튼 X — 마찰 회피)
+- tooltip: `"AI 자동 예측 — 직접 입력하면 확정됩니다"` 또는 `"진행 시작·완료 시 자동 누적 — 직접 입력하면 확정됩니다"`
+
+적용처: Q Task 의 estimated_hours (`latest_estimation_source`) / actual_hours (`actual_source`).
+
+### 1.4-D 라이브 dot indicator — 진행 중 시그널 (2026-05-11)
+
+작업 중 status (in_progress 등) 일 때 라벨 옆 작은 ● dot + pulse 애니메이션 (Apple Watch 스톱워치 패턴). actual_hours 같은 시간 누적 필드에 의미.
+
+```tsx
+const InProgressDot = styled.span`
+  display:inline-flex; align-items:center; gap:4px;
+  font-size:10px; font-weight:600; color:#DC2626;
+  > span { width:6px; height:6px; border-radius:50%; background:#DC2626; animation: pulse 1.4s ease-in-out infinite; }
+  @keyframes pulse { 0%,100% { opacity:1; transform:scale(1); } 50% { opacity:0.4; transform:scale(0.8); } }
+`;
+```
+
+위치 원칙: input row 안이 아니라 **라벨 옆** (input row 폭 영향 0, 인접 셀 wrap 차단).
+
+### 1.4-E 자동 작동 안내 상시 노출 (2026-05-11)
+
+자동으로 작동하는 기능 (시간 누적, AI 예측, status 자동 전환) 의 안내는 **tooltip 의존 금지** (모바일/터치 환경에서 발견 불가). caption 박스로 상시 inline 노출.
+
+```tsx
+const TimeAutoHint = styled.div`
+  display:flex; align-items:center; gap:6px;
+  margin-top:8px; padding:6px 10px;
+  background:#F8FAFC; border:1px solid #F1F5F9; border-radius:6px;
+  font-size:11px; color:#64748B; line-height:1.4;
+`;
+// 예: "진행 시작·완료 시 실제 시간이 자동 누적됩니다 (직접 입력하면 확정)"
+```
+
+조건부 강조 (예: 100% 도달 + reviewer 있음) 안내는 Primary teal 톤 (`#F0FDFA` bg + `#0F766E` text + `#5EEAD4` border) — 강조이지만 경고 아님.
+
+### 1.4-F 모바일 bottom sheet — 풀스크린 모달 대체 (2026-05-11)
+
+모바일 (≤640px) 에서 모달/picker 가 풀스크린이면 답답. **75vh bottom sheet** (Slack/Apple 정석) 사용.
+
+```tsx
+const Backdrop = styled.div`
+  /* desktop: center modal */
+  display:flex; align-items:center; justify-content:center; padding:20px;
+  /* mobile: bottom sheet */
+  @media (max-width: 640px) {
+    align-items: flex-end; justify-content: stretch; padding: 0;
+  }
+`;
+const Dialog = styled.div`
+  border-radius:14px; max-width:560px; max-height:90vh;
+  @media (max-width: 640px) {
+    max-height: 75vh; height: auto;
+    border-radius: 16px 16px 0 0;
+    padding-bottom: env(safe-area-inset-bottom);
+    animation: pq-sheet-up 0.22s ease-out;
+  }
+  @keyframes pq-sheet-up {
+    from { transform: translateY(100%); }
+    to   { transform: translateY(0); }
+  }
+`;
+```
+
+이점: 작업 영역만 75% 차지 + 위쪽 컨텍스트 25% 살짝 보여 사용자가 "어디서 호출했는지" 인지 유지. iPhone 노치 safe-area 보정.
+
+### 1.4-G 모바일에서 hover-only 패턴 금지 (2026-05-11)
+
+`opacity:0` + `parent:hover & { opacity:1 }` 같은 hover 등장 패턴은 **모바일에서 영영 안 보임**. 모바일 분기 필수.
+
+```tsx
+const ActionBtn = styled.button<{$active?: boolean}>`
+  opacity: ${p => p.$active ? 1 : 0};
+  ${ParentRow}:hover & { opacity: 1; }
+  /* 모바일/터치: hover 없으니 항상 노출 */
+  @media (hover: none), (max-width: 1024px) { opacity: 1; }
+`;
+```
+
+적용 사례: QTalk LeftPanel PinBtn (즐겨찾기 별표) — 데스크탑은 hover-only 노이즈 최소화 / 모바일은 outline 별표 항상 노출.
+
 ### 1.5 이모지/아이콘 금지
 
 - 페이지 내 안내 메시지에 이모지 사용 금지
