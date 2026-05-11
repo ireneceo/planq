@@ -2,8 +2,8 @@
 
 ## 현재 작업 상태
 **마지막 업데이트:** 2026-05-11
-**작업 상태:** 완료 — v1.5.4 운영 라이브
-**버전:** v1.5.4 운영 라이브 (commit `c962c5f`, deploy 111s)
+**작업 상태:** 완료 — v1.5.5 운영 라이브
+**버전:** v1.5.5 운영 라이브 (commit `2f379ee`, deploy 125s)
 
 ---
 
@@ -13,71 +13,90 @@
 
 ---
 
-## 완료된 작업 (이번 세션 — 사이클 N+8 follow-up)
+## 완료된 작업 (이번 세션 — 사이클 N+8 + N+8 hotfix)
 
-### Backend
+### v1.5.4 (commit `c962c5f`)
 1. **refresh_token rolling renewal** (`routes/auth.js`)
-   - cookie maxAge 를 옛 tokenRow.expires_at → 새 successorRow.expires_at 기준으로 변경
-   - DB(매 rotation NOW+7d) 와 cookie 동기화 → 점진 감소 회귀 차단
-   - "여전히 자주 로그아웃" 회귀 fix. grace 5분 + chain 격리는 그대로 유지
-
-### Frontend
+   - cookie maxAge 를 successorRow.expires_at 기준 → 7일 갱신 (점진 감소 회귀 fix)
 2. **LeftPanel 모바일 Unread/별표 일관** (`pages/QTalk/LeftPanel.tsx`)
-   - Unread 를 ChatTop 안 → ChatRow 직접 자식으로 이동 + align-self:center
-   - ChatName flex:1 squeeze 회귀 해소. 데스크탑·모바일 같은 순서·위치
-   - margin-left:auto 제거 (ChatRow flex 의 자연 우측 정렬)
+   - Unread ChatBody 밖 → ChatRow 직접 자식, align-self:center
+3. **AI 라벨 분기 통일** (Drawer + InlineAddBox + Panel mode)
+   - 값 있으면 'AI 다시' / 없으면 'AI 추천' + i18n ko/en
+4. **TodoList 인박스 액션버튼 제거** — drawer 단일 진입점
 
-3. **AI 라벨 분기 통일** (`QTaskPage.tsx` + `TaskDetailDrawer.tsx`)
-   - InlineAddBox + Panel + Drawer 3곳: 값 있으면 'AI 다시' / 없으면 'AI 추천'
-   - i18n ko/en: `add.estAi`/`estAiAgain`/`estAiHint`/`estAiNeedTitle` 추가
-   - `detail.meta.aiEstShort` ko "AI 다시" → "AI 추천" 으로 수정 (호출 전 자연), `aiEstAgain` 신설
+### v1.5.5 hotfix (commit `04fc7e0` + `af9a1d8` + `5fe6db9` + `2f379ee`)
 
-4. **TodoList 인박스 액션버튼 제거** (`TodoList.tsx` + `TodoPage.tsx`)
-   - task ack/confirm InlineBtn 제거. drawer 가 단일 진입점 (이미 ack/approve/complete 자체 처리)
-   - onTaskAction prop + handleTaskAction 함수 정리
+5. **인박스 reviewer pending fix** (`routes/dashboard.js`)
+   - "내가 컨펌자 (pending)" 분기 task.status 필터 `NOT IN (completed,canceled)`
+     → `IN (reviewing, revision_requested)` 좁힘
+   - 운영 task#4 "튜토리얼 생성(퀵타임플레이어로)" 같은 케이스: in_progress 인데
+     reviewer.state='pending' 잔존만으로 인박스에 "승인 대기" 잘못 노출되던
+     회귀 차단. QTaskPage panelCounts.review 분기와 일관 (단일 진실 원천)
+
+6. **Q Talk 채팅방 ⋮ 메뉴** (`LeftPanel.tsx` + `QTalkPage.tsx`)
+   - ChatRow 에 ⋮ MenuBtn + Popover 추가 — 보관·프로젝트 분리 2 액션
+   - 데스크탑 hover-only, 모바일 상시 노출
+   - canManage = workspace_owner || platform_admin 만 노출
+   - ConfirmDialog 후 실행, 옵티미스틱 list 갱신
+   - i18n ko/en `left.menu.*` + `left.confirm.archive/unlink.*` 14 키
+
+7. **멤버 카운트 정합성** (`services/plan.js`)
+   - getUsage().members + add_member 가드: `removed_at IS NULL` + `role != 'ai'`
+   - "8/5 = 160%" 회귀 fix (basic plan biz 의 AI + 실제 7 카운트 회귀)
+   - UsageWarningCard: 초과 시 빨간 톤, Pct cap "100%+", `(N 초과)` 라벨
+   - LimitReachedDialog: "이번 달 사용량 자세히 보기 →" 인라인 링크
+   - PlanSettings: `#usage` 앵커
+
+8. **docs 박제** (`docs/SHARE_PREVIEW_POLICY.md` + `docs/SURVEY_SYSTEM_DESIGN.md`)
+   - 공유 미리보기 권한·노출·디자인 매트릭스 (4 페이지 공통 + 30년차 평가 + 보강 #1~#8)
+   - 설문 기능 MVP 4 사이클 설계 (5 질문 타입 + 익명/식별 + 13 라우트 + 6 UI 페이지)
 
 ### 검증
 - 헬스체크 27/27 PASS
-- E2E refresh rolling 10/10 + 정적 15/15 = 25/25 PASS
-- 빌드 1.59s, TS 에러 0
-- 외부 https://planq.kr/api/health 200, planq-prod-backend v1.5.4
+- E2E 누적 13/13 PASS (인박스 + Q Talk + 멤버 카운트 + refresh rolling)
+- 빌드 1.50~1.59s, TS 에러 0
+- 외부 https://planq.kr/api/health 200, planq-prod-backend v1.5.5
 
 ### 운영 배포
-- commit `c962c5f`, deploy-planq.sh `--auto`, 111s
-- 백업: `/opt/planq/backups/20260511_143100`
-- 외부 https://planq.kr/api/health 200
+- commit `2f379ee` (N+8 hotfix 누적 4 commit + docs), deploy-planq.sh --auto, 125s
+- 백업: `/opt/planq/backups/20260511_160916`
 
 ---
 
 ## 메모리 박제
-- 이번 사이클 신규 박제 없음 (기존 메모리만 활용)
+- 신규 박제 없음 (기존 메모리 + 본 세션 작업으로 충분)
 
 ---
 
 ## 다음 할 일 (DEVELOPMENT_PLAN.md 기반)
 DEVELOPMENT_PLAN.md "다음 진입 ★" — Irene 선택:
-- **권한 옵션 A + 개인 보관함** (1.5 사이클, 13~15 commit, 설계 완료 — VISIBILITY_VOCABULARY + PERSONAL_VAULT_DESIGN)
-- Q note 텍스트 type + Quick Capture (중, 설계 완료 — QNOTE_CAPTURE_DESIGN)
-- Custom SMTP (Pro+) (소, 설계 완료 — EMAIL_DELIVERY_POLICY)
-- ShareModal 채팅방 발송 후 PostShareModal 흡수 (chat·email 통일 마무리)
+- **권한 옵션 A + 개인 보관함** (1.5 사이클, 13~15 commit, 설계 완료)
+- Q note 텍스트 type + Quick Capture (중)
+- Custom SMTP (Pro+) (소)
+- **설문 기능 MVP** (4 사이클, 설계 완료 — docs/SURVEY_SYSTEM_DESIGN.md)
+- 공유 미리보기 보강 #1~#3 (공유자 정체성 / PublicShell / 1-step redirect, 2.5일)
 
 이번 사이클 follow-up:
 - lua 의 모바일 반응형 7 파일 — lua 마무리 후 별도 commit / 통합
-- Message 편집/삭제 라우트 신규 구현 (PERMISSION_MATRIX §5.9 박제만 됨)
+- AI 사용량 기능별 세분화 표시 (CueUsage action_type 별, Task AI 예측·번역 recordUsage 통합 누락 fix)
+- 시간 예측 workspace 학습 (callAiEstimate prompt 에 비슷한 task 통계 주입)
+- 파일 업로드 전 토큰 예상 표시 (Cue 통합 가드)
 
 ---
 
 ## 환경변수 / 인증 현황
-- SMTP 5개 dev/prod populated. 메일 발송 정상
+- SMTP 5개 dev/prod populated
 - DEEPGRAM 양쪽 EMPTY (Q Note STT 503 fallback)
-- JWT_SECRET dev/prod 분리 운영
-- platform_admin 계정: irene@irenecompany.com (dev), irene@irenewp.com (prod)
+- JWT_SECRET dev/prod 분리
+- platform_admin: irene@irenecompany.com (dev), irene@irenewp.com (prod)
 - .env 권한: 640 (planq 그룹 read)
 
 ---
 
 ## 주요 문서 위치
 - 권한 매트릭스: `/opt/planq/docs/PERMISSION_MATRIX.md`
+- 공유 미리보기 정책 (NEW): `/opt/planq/docs/SHARE_PREVIEW_POLICY.md`
+- 설문 기능 설계 (NEW): `/opt/planq/docs/SURVEY_SYSTEM_DESIGN.md`
 - 개발 로드맵: `/opt/planq/DEVELOPMENT_PLAN.md`
 - UI 가이드: `/opt/planq/dev-frontend/UI_DESIGN_GUIDE.md`
 - 프로젝트 규칙: `/opt/planq/CLAUDE.md`
