@@ -2,104 +2,109 @@
 
 ## 현재 작업 상태
 **마지막 업데이트:** 2026-05-11
-**작업 상태:** 완료 — v1.5.5 운영 라이브
-**버전:** v1.5.5 운영 라이브 (commit `2f379ee`, deploy 125s)
+**작업 상태:** 완료 — v1.6.0 운영 라이브
+**버전:** v1.6.0 운영 라이브 (commit `eb8769a`, deploy 110s)
 
 ---
 
 ## 진행 중인 작업
-- 없음
-- lua 의 모바일 반응형 7 파일 (PageShell, QCalendar, QProject + i18n) 은 working tree 미커밋 — lua 마무리 대기 (다음 사이클에서 통합)
+- 없음 (사이클 N+9 핵심 완료 — 청크 5 시각 시그널은 보강 청크)
+- lua 의 모바일 반응형 7 파일 미커밋 (대기)
 
 ---
 
-## 완료된 작업 (이번 세션 — 사이클 N+8 + N+8 hotfix)
+## 완료된 작업 (이번 세션 — 사이클 N+9)
 
-### v1.5.4 (commit `c962c5f`)
-1. **refresh_token rolling renewal** (`routes/auth.js`)
-   - cookie maxAge 를 successorRow.expires_at 기준 → 7일 갱신 (점진 감소 회귀 fix)
-2. **LeftPanel 모바일 Unread/별표 일관** (`pages/QTalk/LeftPanel.tsx`)
-   - Unread ChatBody 밖 → ChatRow 직접 자식, align-self:center
-3. **AI 라벨 분기 통일** (Drawer + InlineAddBox + Panel mode)
-   - 값 있으면 'AI 다시' / 없으면 'AI 추천' + i18n ko/en
-4. **TodoList 인박스 액션버튼 제거** — drawer 단일 진입점
+### 청크 1 — DB 4단계 visibility (commit e04a71b)
+- files / posts (vlevel) / kb_documents / invoices.owner_user_id 컬럼 + ENUM
+- 마이그레이션 백필 (운영 files 5 + posts 3 백필, invoices 0)
+- access_scope 옵션 A 헬퍼 6종 (canAccess + listWhere × file/post/kb)
+- getUserScope.projectMemberIds 추가
 
-### v1.5.5 hotfix (commit `04fc7e0` + `af9a1d8` + `5fe6db9` + `2f379ee`)
+### 청크 2 — 개인 보관함 (commit 8cc69e7)
+- 사이드바 협업/개인 섹션 (sectionFeatures → 협업 + sectionPersonal 신설)
+- `/personal-vault` 라우트 + PersonalVaultPage (4 탭: 대시·문서·파일·지식)
+- backend `/api/personal-vault/{summary,files,posts,kb-documents}` 4 라우트
+- 첫 사용 explainer (localStorage dismiss)
 
-5. **인박스 reviewer pending fix** (`routes/dashboard.js`)
-   - "내가 컨펌자 (pending)" 분기 task.status 필터 `NOT IN (completed,canceled)`
-     → `IN (reviewing, revision_requested)` 좁힘
-   - 운영 task#4 "튜토리얼 생성(퀵타임플레이어로)" 같은 케이스: in_progress 인데
-     reviewer.state='pending' 잔존만으로 인박스에 "승인 대기" 잘못 노출되던
-     회귀 차단. QTaskPage panelCounts.review 분기와 일관 (단일 진실 원천)
+### 청크 3 — 라우트 옵션 A 본격 적용 (commit a41a6ea)
+- files/posts/search 라우트 listWhere → ByLevel 점진 교체
+- canAccessFileByLevel / canAccessPostByLevel 단건 검사
+- client 는 옛 헬퍼 보존 (project-client 자기 프로젝트만)
 
-6. **Q Talk 채팅방 ⋮ 메뉴** (`LeftPanel.tsx` + `QTalkPage.tsx`)
-   - ChatRow 에 ⋮ MenuBtn + Popover 추가 — 보관·프로젝트 분리 2 액션
-   - 데스크탑 hover-only, 모바일 상시 노출
-   - canManage = workspace_owner || platform_admin 만 노출
-   - ConfirmDialog 후 실행, 옵티미스틱 list 갱신
-   - i18n ko/en `left.menu.*` + `left.confirm.archive/unlink.*` 14 키
+### 청크 4 — Visibility 배지 + 변경 API (commit 59f6f25)
+- VisibilityBadge (4 단계 아이콘 + 색)
+- VisibilityChangeModal (L1/L2/L3 picker + project 선택)
+- PUT /api/files/:bizId/:id/visibility + PUT /api/posts/:id/visibility
 
-7. **멤버 카운트 정합성** (`services/plan.js`)
-   - getUsage().members + add_member 가드: `removed_at IS NULL` + `role != 'ai'`
-   - "8/5 = 160%" 회귀 fix (basic plan biz 의 AI + 실제 7 카운트 회귀)
-   - UsageWarningCard: 초과 시 빨간 톤, Pct cap "100%+", `(N 초과)` 라벨
-   - LimitReachedDialog: "이번 달 사용량 자세히 보기 →" 인라인 링크
-   - PlanSettings: `#usage` 앵커
+### 이미지 lightbox + 공유 첨부 다운로드 (commit d812068)
+- ImageLightbox 컴포넌트 (풀스크린 portal, Esc/배경 닫기)
+- LightboxWrapper (자식 <img> 클릭 위임, ProseMirror 편집 영역 제외)
+- Tiptap Image extension width attribute + BubbleMenu S(33%)/M(66%)/L(원본)
+- backend `/api/posts/public/:token/attachments/:attId/download` 공개 라우트
 
-8. **docs 박제** (`docs/SHARE_PREVIEW_POLICY.md` + `docs/SURVEY_SYSTEM_DESIGN.md`)
-   - 공유 미리보기 권한·노출·디자인 매트릭스 (4 페이지 공통 + 30년차 평가 + 보강 #1~#8)
-   - 설문 기능 MVP 4 사이클 설계 (5 질문 타입 + 익명/식별 + 13 라우트 + 6 UI 페이지)
+### 문서 이미지 → File 통합 + OG (commit da8c80f)
+- POST /editor-image: business_id 받으면 표준 File 테이블에 row 생성
+  (visibility=L1 default, Q file 메뉴에 보임 + share-link 가능)
+- PostEditor businessId prop (3 호출처 — DocumentEditorPage, PostsPage, ProjectPostsTab)
+- PostEditor borderless prop + PublicPostPage 적용 (이중 박스 제거)
+- index.html generic OG / Twitter 메타 (PlanQ 로고 512px)
+
+### 헬스체크 fix (commit eb8769a)
+- VisibilityChangeModal raw <select> → PlanQSelect
 
 ### 검증
-- 헬스체크 27/27 PASS
-- E2E 누적 13/13 PASS (인박스 + Q Talk + 멤버 카운트 + refresh rolling)
-- 빌드 1.50~1.59s, TS 에러 0
-- 외부 https://planq.kr/api/health 200, planq-prod-backend v1.5.5
+- 누적 E2E 19/19 PASS (DB ENUM + 옵션 A + personal-vault + visibility 변경 + 공유 + editor-image + 마이그레이션)
+- 헬스체크 27/27
+- 빌드 2.27s, TS 에러 0
+- 외부 https://planq.kr/api/health 200, planq-prod-backend v1.6.0
 
 ### 운영 배포
-- commit `2f379ee` (N+8 hotfix 누적 4 commit + docs), deploy-planq.sh --auto, 125s
-- 백업: `/opt/planq/backups/20260511_160916`
+- commit `eb8769a` (누적 7), deploy-planq.sh --auto, 110s
+- 백업: `/opt/planq/backups/20260511_175933`
+- 운영 DB 사전 처리: invoices.owner_user_id 컬럼 ALTER (sequelize sync 의 "Too many keys" 회피)
+- 운영 마이그레이션 백필: files 5 (L3=3+L2=2) / posts 3 (L2=3) / invoices 0
 
 ---
 
-## 메모리 박제
-- 신규 박제 없음 (기존 메모리 + 본 세션 작업으로 충분)
+## 메모리 박제 (이번 세션)
+- 새 박제 없음 — 기존 설계 (VISIBILITY_VOCABULARY.md + PERSONAL_VAULT_DESIGN.md) 그대로 구현
 
 ---
 
-## 다음 할 일 (DEVELOPMENT_PLAN.md 기반)
-DEVELOPMENT_PLAN.md "다음 진입 ★" — Irene 선택:
-- **권한 옵션 A + 개인 보관함** (1.5 사이클, 13~15 commit, 설계 완료)
+## 다음 할 일
+
+### 청크 5 (남은 작업 — 다음 사이클)
+- VisibilityBadge 카드/행 적용 (Q file, Q docs, Q info 의 모든 카드)
+- VisibilityChangeModal 진입점 연결 (배지 클릭)
+- 5중 시각 시그널 (헤더 sub-line / 프로젝트 노트 dismiss 박스 / popup 자물쇠 / FirstVisitTour)
+- DocsTab 카드 hover share 아이콘 (사용자 요청 잔여)
+- 동적 OG (backend SSR `/public/posts/:token` HTML 응답 + 운영 nginx /public/* proxy 변경)
+
+### 다른 차순위
 - Q note 텍스트 type + Quick Capture (중)
 - Custom SMTP (Pro+) (소)
-- **설문 기능 MVP** (4 사이클, 설계 완료 — docs/SURVEY_SYSTEM_DESIGN.md)
-- 공유 미리보기 보강 #1~#3 (공유자 정체성 / PublicShell / 1-step redirect, 2.5일)
-
-이번 사이클 follow-up:
-- lua 의 모바일 반응형 7 파일 — lua 마무리 후 별도 commit / 통합
-- AI 사용량 기능별 세분화 표시 (CueUsage action_type 별, Task AI 예측·번역 recordUsage 통합 누락 fix)
-- 시간 예측 workspace 학습 (callAiEstimate prompt 에 비슷한 task 통계 주입)
-- 파일 업로드 전 토큰 예상 표시 (Cue 통합 가드)
+- 설문 기능 MVP (4 사이클, docs 완료)
+- AI 사용량 세분화 + Task AI 예측·번역 recordUsage 통합
 
 ---
 
 ## 환경변수 / 인증 현황
 - SMTP 5개 dev/prod populated
-- DEEPGRAM 양쪽 EMPTY (Q Note STT 503 fallback)
+- DEEPGRAM 양쪽 EMPTY
 - JWT_SECRET dev/prod 분리
 - platform_admin: irene@irenecompany.com (dev), irene@irenewp.com (prod)
-- .env 권한: 640 (planq 그룹 read)
+- .env 권한 640
 
 ---
 
 ## 주요 문서 위치
 - 권한 매트릭스: `/opt/planq/docs/PERMISSION_MATRIX.md`
-- 공유 미리보기 정책 (NEW): `/opt/planq/docs/SHARE_PREVIEW_POLICY.md`
-- 설문 기능 설계 (NEW): `/opt/planq/docs/SURVEY_SYSTEM_DESIGN.md`
+- 4단계 visibility: `/opt/planq/docs/VISIBILITY_VOCABULARY.md`
+- 개인 보관함 설계: `/opt/planq/docs/PERSONAL_VAULT_DESIGN.md`
+- 공유 미리보기 정책: `/opt/planq/docs/SHARE_PREVIEW_POLICY.md`
+- 설문 기능 설계: `/opt/planq/docs/SURVEY_SYSTEM_DESIGN.md`
 - 개발 로드맵: `/opt/planq/DEVELOPMENT_PLAN.md`
-- UI 가이드: `/opt/planq/dev-frontend/UI_DESIGN_GUIDE.md`
-- 프로젝트 규칙: `/opt/planq/CLAUDE.md`
 
 ---
 
