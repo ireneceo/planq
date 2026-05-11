@@ -319,6 +319,7 @@ router.post('/', authenticateToken, async (req, res, next) => {
       parent_post_id: parent_post_id || null,
       kind: ['doc', 'table', 'brief', 'template'].includes(kind) ? kind : 'doc',
       q_record_id: qRecordId,
+      vlevel: project_id ? 'L2' : 'L1',  // VISIBILITY_VOCABULARY.md — 프로젝트=팀 / 미연결=개인
     });
     const full = await Post.findByPk(post.id, {
       include: [
@@ -396,6 +397,7 @@ router.post('/:id/follow-up', authenticateToken, async (req, res, next) => {
       category: kind,
       author_id: req.user.id,
       parent_post_id: parent.id,
+      vlevel: parent.vlevel || (parent.project_id ? 'L2' : 'L1'),  // 부모 visibility 상속
     });
 
     require('../services/auditService').logAudit(req, {

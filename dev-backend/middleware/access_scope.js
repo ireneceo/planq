@@ -14,7 +14,7 @@
 const { Op } = require('sequelize');
 const {
   BusinessMember, Client, ProjectClient, ConversationParticipant,
-  Conversation, Project, TaskReviewer,
+  Conversation, Project, ProjectMember, TaskReviewer,
 } = require('../models');
 
 // ─────────────────────────────────────────────
@@ -32,6 +32,7 @@ async function getUserScope(userId, businessId, platformRole) {
     businessRole: null,
     clientIds: [],                  // me 와 매칭된 clients.id (보통 1개)
     projectClientProjectIds: [],    // me 가 ProjectClient.contact_user_id 인 project.id 들
+    projectMemberIds: [],           // me 가 ProjectMember 인 project.id 들 (옵션 A — L2 권한 검사용)
   };
   if (scope.isPlatformAdmin) {
     scope.businessRole = 'admin';
@@ -76,6 +77,17 @@ async function getUserScope(userId, businessId, platformRole) {
       scope.isClient = true;
       if (!scope.businessRole) scope.businessRole = 'client';
     }
+  }
+
+  // 4) ProjectMember — 옵션 A (사이클 N+9) L2 권한 검사용.
+  //    내가 멤버 (owner/member) 일 때만 채움. client 는 ProjectClient 로 별도 권한.
+  if (bm && (bm.role === 'owner' || bm.role === 'member')) {
+    const pmRows = await ProjectMember.findAll({
+      where: { user_id: userId },
+      include: [{ model: Project, attributes: ['id'], where: { business_id: businessId }, required: true }],
+      attributes: ['project_id'],
+    });
+    scope.projectMemberIds = pmRows.map((r) => r.project_id);
   }
 
   return scope;
@@ -269,6 +281,142 @@ async function canAccessPost(userId, post, scope) {
 }
 
 // ─────────────────────────────────────────────
+// 4단계 Visibility (사이클 N+9, 2026-05-11) — VISIBILITY_VOCABULARY.md 옵션 A
+//   L1=개인(uploader/author 본인만), L2=팀(프로젝트 멤버), L3=워크스페이스, L4=외부(share_token)
+//   files / posts / kb_documents 에 적용. Task / Conversation 등 협업 자산은 별도 정책.
+//
+//   기존 헬퍼 (canAccessFile/Post, fileListWhere/postListWhere) 는 "열린 문화" 유지.
+//   신규 헬퍼는 "ByLevel" suffix — 단계적 도입 (라우트 별로 교체).
+// ─────────────────────────────────────────────
+
+// File — L1=uploader, L2=project_id IN projectMemberIds, L3=workspace member, L4=share_token (route 별)
+async function canAccessFileByLevel(userId, file, scope) {
+  if (!file) return false;
+  if (!scope) scope = await getUserScope(userId, file.business_id);
+  if (scope.isPlatformAdmin) return true;
+  const v = file.visibility;
+  // L1 = 본인만 (uploader)
+  if (v === 'L1') return file.uploader_id === userId;
+  // L4 = share_token (route 가 token 검증 별도)
+  if (v === 'L4') return false;
+  // L3 = workspace member 이상
+  if (v === 'L3') return scope.isOwner || scope.isMember;
+  // L2 = project 멤버 (project_id 있으면), 없으면 fallback workspace member
+  if (v === 'L2') {
+    if (file.project_id) {
+      return (scope.projectMemberIds || []).includes(file.project_id) || scope.isOwner;
+    }
+    return scope.isOwner || scope.isMember;
+  }
+  // visibility NULL = legacy (백필 전) → workspace member 통과
+  return scope.isOwner || scope.isMember;
+}
+
+function fileListWhereByLevel(scope) {
+  if (scope.isPlatformAdmin) return { business_id: scope.businessId };
+  const conds = [];
+  // L1 — 본인 uploader
+  conds.push({ visibility: 'L1', uploader_id: scope.userId });
+  // L3 + legacy NULL — workspace member 이상 통과
+  if (scope.isOwner || scope.isMember) {
+    conds.push({ visibility: 'L3' });
+    conds.push({ visibility: null });
+  }
+  // owner 는 모든 L2 통과 (workspace 운영자)
+  if (scope.isOwner) {
+    conds.push({ visibility: 'L2' });
+  } else if ((scope.projectMemberIds || []).length > 0) {
+    // L2 — 내가 멤버인 프로젝트만
+    conds.push({ visibility: 'L2', project_id: { [Op.in]: scope.projectMemberIds } });
+  }
+  // L4 는 share_token 라우트에서 별도 검증 (list 에서는 제외)
+  // client 는 ProjectClient 경로로만 — list 호출 자체를 route 가 차단
+  if (conds.length === 0) return { business_id: scope.businessId, id: { [Op.in]: [-1] } };
+  return { business_id: scope.businessId, [Op.or]: conds };
+}
+
+// Post (vlevel) — 동일 패턴
+async function canAccessPostByLevel(userId, post, scope) {
+  if (!post) return false;
+  if (!scope) scope = await getUserScope(userId, post.business_id);
+  if (scope.isPlatformAdmin) return true;
+  const v = post.vlevel;
+  if (v === 'L1') return post.author_id === userId;
+  if (v === 'L4') return false;
+  if (v === 'L3') return scope.isOwner || scope.isMember;
+  if (v === 'L2') {
+    if (post.project_id) {
+      return (scope.projectMemberIds || []).includes(post.project_id) || scope.isOwner;
+    }
+    return scope.isOwner || scope.isMember;
+  }
+  return scope.isOwner || scope.isMember;
+}
+
+function postListWhereByLevel(scope) {
+  if (scope.isPlatformAdmin) return { business_id: scope.businessId };
+  const conds = [];
+  conds.push({ vlevel: 'L1', author_id: scope.userId });
+  if (scope.isOwner || scope.isMember) {
+    conds.push({ vlevel: 'L3' });
+    conds.push({ vlevel: null });
+  }
+  if (scope.isOwner) {
+    conds.push({ vlevel: 'L2' });
+  } else if ((scope.projectMemberIds || []).length > 0) {
+    conds.push({ vlevel: 'L2', project_id: { [Op.in]: scope.projectMemberIds } });
+  }
+  if (conds.length === 0) return { business_id: scope.businessId, id: { [Op.in]: [-1] } };
+  return { business_id: scope.businessId, [Op.or]: conds };
+}
+
+// KbDocument (scope) — 'private' 추가
+async function canAccessKbDocumentByLevel(userId, doc, scope) {
+  if (!doc) return false;
+  if (!scope) scope = await getUserScope(userId, doc.business_id);
+  if (scope.isPlatformAdmin) return true;
+  const s = doc.scope;
+  // private = 본인 (uploaded_by)
+  if (s === 'private') return doc.uploaded_by === userId;
+  // workspace = member 이상
+  if (s === 'workspace') return scope.isOwner || scope.isMember;
+  // project = project 멤버 또는 owner
+  if (s === 'project') {
+    if (doc.project_id) {
+      return (scope.projectMemberIds || []).includes(doc.project_id) || scope.isOwner;
+    }
+    return scope.isOwner || scope.isMember;
+  }
+  // client = 해당 client 의 멤버 또는 workspace owner
+  if (s === 'client') {
+    if (scope.isOwner) return true;
+    if (scope.isClient && scope.clientIds.includes(doc.client_id)) return true;
+    return scope.isMember; // member 는 client KB 접근 가능 (열린 문화)
+  }
+  return scope.isOwner || scope.isMember;
+}
+
+function kbDocumentsListWhereByLevel(scope) {
+  if (scope.isPlatformAdmin) return { business_id: scope.businessId };
+  const conds = [];
+  conds.push({ scope: 'private', uploaded_by: scope.userId });
+  if (scope.isOwner || scope.isMember) {
+    conds.push({ scope: 'workspace' });
+    conds.push({ scope: 'client' }); // 멤버는 client KB 도 접근 (열린 문화)
+  }
+  if (scope.isOwner) {
+    conds.push({ scope: 'project' });
+  } else if ((scope.projectMemberIds || []).length > 0) {
+    conds.push({ scope: 'project', project_id: { [Op.in]: scope.projectMemberIds } });
+  }
+  if (scope.isClient && scope.clientIds.length > 0) {
+    conds.push({ scope: 'client', client_id: { [Op.in]: scope.clientIds } });
+  }
+  if (conds.length === 0) return { business_id: scope.businessId, id: { [Op.in]: [-1] } };
+  return { business_id: scope.businessId, [Op.or]: conds };
+}
+
+// ─────────────────────────────────────────────
 // 미들웨어: req.scope 주입 + 워크스페이스 접근 확인
 // 사용법:
 //   router.get('/:businessId', authenticateToken, attachWorkspaceScope(), handler);
@@ -331,4 +479,11 @@ module.exports = {
   canAccessInvoice,
   postListWhere,
   canAccessPost,
+  // 사이클 N+9 — 4단계 Visibility 옵션 A
+  canAccessFileByLevel,
+  fileListWhereByLevel,
+  canAccessPostByLevel,
+  postListWhereByLevel,
+  canAccessKbDocumentByLevel,
+  kbDocumentsListWhereByLevel,
 };

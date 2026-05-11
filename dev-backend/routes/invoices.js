@@ -333,6 +333,7 @@ router.post('/:businessId', authenticateToken, checkBusinessAccess, async (req, 
       recipient_business_number: recipient_business_number || null,
       notes: notes || null,
       created_by: req.user.id,
+      owner_user_id: req.user.id,  // 담당자 default = 생성자. 발행 모달에서 변경 가능 (사이클 N+9)
       installment_mode: mode,
       bank_snapshot,
       vat_rate: vatRateNum,

@@ -93,6 +93,14 @@ Invoice.init({
     allowNull: false,
     references: { model: 'users', key: 'id' }
   },
+  // ─── 담당자 정책 (사이클 N+9, 2026-05-11) — project_invoice_signature_owner ───
+  // owner_user_id = 청구서 담당자. 인박스 알림·대시보드 분기 기준.
+  // 기본값: created_by 와 동일 (백필). 발행 모달에서 다른 멤버로 변경 가능.
+  owner_user_id: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    references: { model: 'users', key: 'id' },
+  },
   // ─── Q Bill (Phase 0) — 확장 ───
   // 프로젝트 연결 (프로젝트 Bill 탭·수익성 계산)
   project_id: { type: DataTypes.BIGINT, allowNull: true, references: { model: 'projects', key: 'id' } },
