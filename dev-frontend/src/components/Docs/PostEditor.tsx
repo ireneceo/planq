@@ -35,18 +35,21 @@ interface Props {
   onChange: (json: unknown) => void;
   placeholder?: string;
   editable?: boolean;
+  businessId?: number;           // 사이클 N+9 — 이미지 업로드 시 File 테이블 등록용
+  borderless?: boolean;          // 사이클 N+9 — 공유 미리보기 등에서 외곽 박스 제거 (이중 박스 회피)
 }
 
-async function uploadEditorImage(file: File): Promise<string | null> {
+async function uploadEditorImage(file: File, businessId?: number): Promise<string | null> {
   const fd = new FormData();
   fd.append('file', file);
+  if (businessId) fd.append('business_id', String(businessId));
   const r = await apiFetch('/api/posts/editor-image', { method: 'POST', body: fd });
   const j = await r.json();
   if (!j.success) return null;
   return j.data.url as string;
 }
 
-const PostEditor: React.FC<Props> = ({ value, onChange, placeholder, editable = true }) => {
+const PostEditor: React.FC<Props> = ({ value, onChange, placeholder, editable = true, businessId, borderless = false }) => {
   const fileRef = useRef<HTMLInputElement>(null);
 
   const editor = useEditor({
@@ -78,7 +81,7 @@ const PostEditor: React.FC<Props> = ({ value, onChange, placeholder, editable = 
             const f = item.getAsFile();
             if (f) {
               event.preventDefault();
-              uploadEditorImage(f).then(url => {
+              uploadEditorImage(f, businessId).then(url => {
                 if (url && editor) editor.chain().focus().setImage({ src: url }).run();
               });
               return true;
@@ -95,7 +98,7 @@ const PostEditor: React.FC<Props> = ({ value, onChange, placeholder, editable = 
         event.preventDefault();
         (async () => {
           for (const f of imgs) {
-            const url = await uploadEditorImage(f);
+            const url = await uploadEditorImage(f, businessId);
             if (url && editor) editor.chain().focus().setImage({ src: url }).run();
           }
         })();
@@ -132,7 +135,7 @@ const PostEditor: React.FC<Props> = ({ value, onChange, placeholder, editable = 
   const isActive = (name: string, attrs?: Record<string, unknown>) => editor.isActive(name, attrs);
 
   return (
-    <Wrap>
+    <Wrap $borderless={borderless}>
       {editable && (
         <Toolbar>
           <Group>
@@ -219,7 +222,7 @@ const PostEditor: React.FC<Props> = ({ value, onChange, placeholder, editable = 
           </ImgSizeBubble>
         </BubbleMenu>
       )}
-      <Body $editable={editable}>
+      <Body $editable={editable} $borderless={borderless}>
         <LightboxWrapper>
           <EditorContent editor={editor} />
         </LightboxWrapper>
@@ -230,11 +233,14 @@ const PostEditor: React.FC<Props> = ({ value, onChange, placeholder, editable = 
 
 export default PostEditor;
 
-const Wrap = styled.div`
-  background: #fff; border: 1px solid #E2E8F0; border-radius: 12px; overflow: hidden;
+const Wrap = styled.div<{ $borderless?: boolean }>`
+  background: ${p => p.$borderless ? 'transparent' : '#fff'};
+  border: ${p => p.$borderless ? 'none' : '1px solid #E2E8F0'};
+  border-radius: ${p => p.$borderless ? '0' : '12px'};
+  overflow: hidden;
   display: flex; flex-direction: column;
   flex-shrink: 0;           /* 부모 flex column 에서 줄어들지 않도록 — height 0 으로 사라지는 문제 방지 */
-  min-height: 280px;        /* 본문 영역 최소 280px (Toolbar 40 + Body 240) */
+  min-height: ${p => p.$borderless ? '0' : '280px'};        /* 본문 영역 최소 280px (Toolbar 40 + Body 240) */
 `;
 const Toolbar = styled.div`
   display: flex; align-items: center; gap: 2px; padding: 6px 8px;
@@ -266,8 +272,9 @@ const ImgSizeBtn = styled.button<{ $active?: boolean }>`
   &:hover { background: #334155; color: #FFF; }
 `;
 
-const Body = styled.div<{ $editable?: boolean }>`
-  padding: 16px 20px; min-height: ${p => p.$editable ? '240px' : '80px'};
+const Body = styled.div<{ $editable?: boolean; $borderless?: boolean }>`
+  padding: ${p => p.$borderless ? '0' : '16px 20px'};
+  min-height: ${p => p.$editable ? '240px' : '80px'};
 
   /* ─── 표 (Body 직속 자손 — 편집/보기 모드 무관 적용) ─── */
   /* border-collapse: separate 로 border-radius 작동. 셀은 right/bottom 만, 마지막 행/열 제거. */

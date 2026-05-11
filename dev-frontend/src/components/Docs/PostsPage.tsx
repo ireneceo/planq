@@ -698,6 +698,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
                       <PostEditor
                         value={contentDraft}
                         onChange={setContentDraft}
+                        businessId={scope.businessId}
                         placeholder={t('tableDescPlaceholder', '표에 대한 설명을 입력하세요 (선택)') as string}
                       />
                     </DescBox>
@@ -709,7 +710,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
                   <PostTableGrid recordId={detail.q_record_id} businessId={scope.businessId} />
                 </>
               ) : (
-                <PostEditor value={contentDraft} onChange={setContentDraft} placeholder={t('contentPlaceholder', '본문을 작성하세요…') as string} />
+                <PostEditor value={contentDraft} onChange={setContentDraft} businessId={scope.businessId} placeholder={t('contentPlaceholder', '본문을 작성하세요…') as string} />
               )}
 
               <AttachSection>
