@@ -190,31 +190,8 @@ const TodoPage: React.FC = () => {
     }
   };
 
-  // 업무 인라인 액션: ack(요청확인) / approve(컨펌 승인) / complete(최종 완료)
-  // 성공 시 해당 item 은 더 이상 내 할 일이 아니므로 로컬 리스트에서 제거 (targeted update).
-  // 전체 refetch 대신 1건만 갱신 → 깜빡임 zero + 네트워크 절약.
-  const handleTaskAction = async (item: TodoItem, action: 'ack' | 'approve' | 'complete') => {
-    if (item.drawer?.kind !== 'task') return;
-    const taskId = item.drawer.id;
-    const endpoint =
-      action === 'ack'      ? `/api/tasks/${taskId}/ack`
-    : action === 'approve'  ? `/api/tasks/${taskId}/reviewers/me/approve`
-    :                         `/api/tasks/${taskId}/complete`;
-    try {
-      const r = await apiFetch(endpoint, { method: 'POST' });
-      const j = await r.json();
-      if (!j.success) throw new Error(j.message || 'Failed');
-      setData(prev => prev ? {
-        ...prev,
-        items: prev.items.filter(i => i.id !== item.id),
-        total: Math.max(0, prev.total - 1),
-        counts: { ...prev.counts, [item.priority]: Math.max(0, (prev.counts[item.priority] || 0) - 1) },
-      } : prev);
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : 'Failed');
-    }
-  };
-
+  // ack/approve/complete 는 TaskDetailDrawer 가 단일 진입점으로 처리.
+  // (인박스 행 액션 버튼 제거 후 drawer 만 사용 — UX 단순화)
 
   // EventDrawer 콜백들
   // Update 는 변경 범위 (제목·시간·참석자 응답 등) 가 넓어 targeted 로 일관 처리 어려움 → silentLoad.
@@ -300,7 +277,6 @@ const TodoPage: React.FC = () => {
                   loading={loading}
                   onOpenDrawer={handleOpenDrawer}
                   onInviteAction={handleInviteAction}
-                  onTaskAction={handleTaskAction}
                 />}
           </>
         );

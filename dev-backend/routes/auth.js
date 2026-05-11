@@ -591,11 +591,14 @@ router.post('/refresh', async (req, res, next) => {
       replaced_by_id: successorRow.id,
     });
 
-    // 새 cookie — 기존 cookie 의 maxAge 가 있다면 (remember=true 였음) 유지
-    // request 시점엔 remember 옵션 없으니 기존 row 의 expires_at 까지 남은 시간으로 설정
-    const remainingMs = tokenRow.expires_at
-      ? Math.max(0, new Date(tokenRow.expires_at).getTime() - Date.now())
-      : 7 * 24 * 60 * 60 * 1000;
+    // Rolling renewal — DB 새 row 의 expires_at (createRefreshTokenRow 이 NOW+7일 갱신) 과
+    // cookie maxAge 를 동기화. 사용자 활동 기반 7일 유지 (idle timeout 모델).
+    // 회귀 fix: 이전엔 옛 row.expires_at 기준이라 DB(매번 새 7일)와 cookie(점진 감소)가
+    // 불일치 → 7일 안 됐는데도 cookie 만료 → 자주 로그아웃. 새 row 의 만료시각으로 통일.
+    const remainingMs = Math.max(
+      0,
+      new Date(successorRow.expires_at).getTime() - Date.now()
+    );
     res.cookie('refresh_token', newRefreshToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',

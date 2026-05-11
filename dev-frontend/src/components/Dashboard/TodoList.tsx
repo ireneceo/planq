@@ -98,10 +98,9 @@ interface Props {
   loading?: boolean;
   onOpenDrawer?: (item: TodoItem) => void;
   onInviteAction?: (item: TodoItem, action: 'accept' | 'decline') => void;
-  onTaskAction?: (item: TodoItem, action: 'ack' | 'approve' | 'complete') => void;
 }
 
-const TodoList: React.FC<Props> = ({ items, loading, onOpenDrawer, onInviteAction, onTaskAction }) => {
+const TodoList: React.FC<Props> = ({ items, loading, onOpenDrawer, onInviteAction }) => {
   const { t } = useTranslation('dashboard');
   const navigate = useNavigate();
   const fmt = useTimeFormat();
@@ -210,23 +209,9 @@ const TodoList: React.FC<Props> = ({ items, loading, onOpenDrawer, onInviteActio
                           {t('todo.action.decline')}
                         </InlineBtn>
                       </>
-                    ) : it.type === 'task' && it.verb === 'ack' ? (
-                      <>
-                        <InlineBtn type="button" $variant="primary"
-                          onClick={(e) => { e.stopPropagation(); onTaskAction?.(it, 'ack'); }}>
-                          {t('todo.action.ack')}
-                        </InlineBtn>
-                        <Chevron aria-hidden="true"><IconChevron /></Chevron>
-                      </>
-                    ) : it.type === 'task' && it.verb === 'confirm' ? (
-                      <>
-                        <InlineBtn type="button" $variant="primary"
-                          onClick={(e) => { e.stopPropagation(); onTaskAction?.(it, 'approve'); }}>
-                          {t('todo.action.confirm')}
-                        </InlineBtn>
-                        <Chevron aria-hidden="true"><IconChevron /></Chevron>
-                      </>
                     ) : (
+                      // task ack/confirm 행 액션 버튼 제거 — Card 클릭 → 우측 drawer 에서 확인/처리
+                      // invite 만 drawer 없으므로 inline 유지
                       <Chevron aria-hidden="true"><IconChevron /></Chevron>
                     )}
                   </CardRight>

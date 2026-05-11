@@ -184,11 +184,11 @@ const LeftPanel: React.FC<Props> = ({
               <ChatBody>
                 <ChatTop>
                   <ChatName $active={isActive}>{c.name}</ChatName>
-                  {c.unread_count > 0 && <Unread>{c.unread_count}</Unread>}
                   {c.channel_type === 'customer' && <CustomerTag>{t('channelBadge.customer', '고객')}</CustomerTag>}
                 </ChatTop>
                 <ProjectName>{p.name}</ProjectName>
               </ChatBody>
+              {c.unread_count > 0 && <Unread>{c.unread_count}</Unread>}
               {onTogglePin && (
                 <PinBtn
                   type="button"
@@ -408,7 +408,8 @@ const ProjectName = styled.div`
   text-overflow: ellipsis;
 `;
 
-// 읽지 않은 메시지 수 — ChatTop 안 우측 끝(margin-left:auto) 배치. Slack 모바일 패턴.
+// 읽지 않은 메시지 수 — ChatBody 옆, PinBtn 좌측. ChatRow 의 직접 자식이라
+// ChatName flex:1 에 squeeze 되지 않고 항상 우측에 명확히 표시. 데스크탑·모바일 일관.
 // 모바일에선 살짝 더 크게 (가시성 강화).
 const Unread = styled.div`
   min-width: 18px;
@@ -423,7 +424,7 @@ const Unread = styled.div`
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  margin-left: auto;  /* 우측 끝으로 — CustomerTag 보다 우측, "알림" 명확 인지 */
+  align-self: center;
   @media (max-width: 1024px) {
     min-width: 20px; height: 20px; font-size: 11px;
   }
