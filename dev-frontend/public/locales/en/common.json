@@ -325,7 +325,10 @@
   },
   "usageWarn": {
     "title": "Approaching plan limits",
+    "titleOver": "Some plan limits are exceeded",
     "cta": "Plans & Add-ons",
+    "detail": "View usage",
+    "overBy": "({{count}} over)",
     "members": "Members",
     "clients": "Clients",
     "projects": "Active projects",
@@ -338,6 +341,7 @@
     "maximum": "Limit",
     "close": "Close",
     "cta": "Plans & Add-ons",
+    "usageLink": "View this month's usage →",
     "members": {
       "title": "Member limit reached",
       "desc": "You've hit your plan's member cap. Add seats one at a time with the member add-on, or upgrade to a higher plan.",

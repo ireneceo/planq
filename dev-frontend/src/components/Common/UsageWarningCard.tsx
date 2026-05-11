@@ -72,25 +72,44 @@ const UsageWarningCard: React.FC<Props> = ({ businessId }) => {
 
   if (items.length === 0) return null;
 
+  // 한도 초과 항목 1개 이상이면 "초과" 톤으로 — 카드 색상·제목 강조.
+  const anyOver = items.some(it => it.pct >= 1);
+
   return (
-    <Wrap role="alert">
+    <Wrap role="alert" $over={anyOver}>
       <Header>
-        <Title>{t('usageWarn.title', '한도가 거의 찼습니다')}</Title>
-        <CtaLink to="/business/settings/plan">{t('usageWarn.cta', '플랜·Add-on')}</CtaLink>
+        <Title $over={anyOver}>
+          {anyOver
+            ? t('usageWarn.titleOver', '한도를 초과한 항목이 있어요')
+            : t('usageWarn.title', '한도가 거의 찼습니다')}
+        </Title>
+        <CtaGroup>
+          <CtaLink to="/business/settings/plan#usage">{t('usageWarn.detail', '사용량 자세히')}</CtaLink>
+          <CtaLink to="/business/settings/plan" $primary>{t('usageWarn.cta', '플랜·Add-on')}</CtaLink>
+        </CtaGroup>
       </Header>
       <List>
-        {items.map(it => (
-          <Row key={it.key} $danger={it.pct >= 1}>
-            <RowLabel>{it.label}</RowLabel>
-            <RowMeta>
-              {(it.format ? it.format(it.current) : it.current.toLocaleString())} / {it.format ? it.format(it.limit) : it.limit.toLocaleString()}
-              <Pct>{Math.round(it.pct * 100)}%</Pct>
-            </RowMeta>
-            <Bar>
-              <BarFill style={{ width: `${Math.min(100, it.pct * 100)}%` }} $danger={it.pct >= 1} />
-            </Bar>
-          </Row>
-        ))}
+        {items.map(it => {
+          const over = it.pct >= 1;
+          // 표시 정책: percent cap 100%+ (160% 같은 부풀린 수치 노출 X), 실제 초과량 별도 라벨.
+          const pctLabel = over ? '100%+' : `${Math.round(it.pct * 100)}%`;
+          const overBy = over ? Math.max(0, it.current - it.limit) : 0;
+          return (
+            <Row key={it.key} $danger={over}>
+              <RowLabel>{it.label}</RowLabel>
+              <RowMeta>
+                {(it.format ? it.format(it.current) : it.current.toLocaleString())} / {it.format ? it.format(it.limit) : it.limit.toLocaleString()}
+                <Pct $over={over}>{pctLabel}</Pct>
+                {over && overBy > 0 && !it.format && (
+                  <OverBy>{t('usageWarn.overBy', { count: overBy, defaultValue: '({{count}} 초과)' })}</OverBy>
+                )}
+              </RowMeta>
+              <Bar>
+                <BarFill style={{ width: `${Math.min(100, it.pct * 100)}%` }} $danger={over} />
+              </Bar>
+            </Row>
+          );
+        })}
       </List>
     </Wrap>
   );
@@ -108,22 +127,38 @@ function fmtMinutes(n: number) {
   return `${n}m`;
 }
 
-const Wrap = styled.div`
-  background: #FFFBEB;
-  border: 1px solid #FDE68A;
+// 초과 상태일 때는 빨간 톤 (Error), 아니면 노란 톤 (Warning).
+const Wrap = styled.div<{ $over?: boolean }>`
+  background: ${p => p.$over ? '#FEF2F2' : '#FFFBEB'};
+  border: 1px solid ${p => p.$over ? '#FECACA' : '#FDE68A'};
   border-radius: 10px;
   padding: 14px 16px 16px;
   margin-bottom: 16px;
 `;
 const Header = styled.div`
   display: flex; align-items: center; justify-content: space-between;
+  gap: 12px;
   margin-bottom: 10px;
+  flex-wrap: wrap;
 `;
-const Title = styled.div` font-size: 14px; font-weight: 700; color: #78350F; `;
-const CtaLink = styled(Link)`
-  font-size: 13px; font-weight: 600; color: #B45309;
+const Title = styled.div<{ $over?: boolean }>`
+  font-size: 14px; font-weight: 700;
+  color: ${p => p.$over ? '#991B1B' : '#78350F'};
+`;
+const CtaGroup = styled.div`
+  display: flex; align-items: center; gap: 12px;
+`;
+const CtaLink = styled(Link)<{ $primary?: boolean }>`
+  font-size: 13px; font-weight: 600;
+  color: ${p => p.$primary ? '#B45309' : '#64748B'};
   text-decoration: underline;
-  &:hover { color: #92400E; }
+  &:hover { color: ${p => p.$primary ? '#92400E' : '#334155'}; }
+`;
+const OverBy = styled.span`
+  font-size: 11px;
+  color: #B91C1C;
+  font-weight: 600;
+  margin-left: 4px;
 `;
 const List = styled.div` display: flex; flex-direction: column; gap: 8px; `;
 const Row = styled.div<{ $danger: boolean }>`
@@ -138,7 +173,10 @@ const RowMeta = styled.div`
   font-size: 12px; color: #92400E;
   display: flex; gap: 8px; align-items: baseline;
 `;
-const Pct = styled.span` font-weight: 700; `;
+const Pct = styled.span<{ $over?: boolean }>`
+  font-weight: 700;
+  color: ${p => p.$over ? '#B91C1C' : 'inherit'};
+`;
 const Bar = styled.div`
   grid-column: 1 / -1;
   height: 4px; border-radius: 2px;

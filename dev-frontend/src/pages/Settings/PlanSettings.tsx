@@ -198,8 +198,8 @@ const PlanSettings: React.FC<Props> = ({ businessId }) => {
         </MetaRow>
       </CurrentCard>
 
-      {/* 사용량 바 */}
-      <Section>
+      {/* 사용량 바 — #usage 앵커로 외부 링크 (UsageWarningCard / LimitReachedDialog) 에서 점프 가능. */}
+      <Section id="usage">
         <SectionTitle>{t('usage.title')}</SectionTitle>
         <UsageGrid>
           <UsageRow

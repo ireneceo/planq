@@ -70,6 +70,10 @@ const LimitReachedDialog: React.FC = () => {
         {detail.alternatives && detail.alternatives.length > 0 && (
           <AltList>{detail.alternatives.map((a, i) => <li key={i}>{a}</li>)}</AltList>
         )}
+        {/* 사용량 페이지로 이동 — 비용 가드에서 어떤 항목이 얼마나 차감되는지 확인 가능. */}
+        <UsageLink type="button" onClick={() => { close(); navigate('/business/settings/plan#usage'); }}>
+          {t('limit.usageLink', '이번 달 사용량 자세히 보기 →')}
+        </UsageLink>
         <Actions>
           <SecondaryBtn type="button" onClick={close}>{t('limit.close', '닫기')}</SecondaryBtn>
           <PrimaryBtn type="button" onClick={() => { close(); navigate(upgradeUrl); }}>
@@ -117,6 +121,14 @@ const AltList = styled.ul`
 const Actions = styled.div`
   display: flex; justify-content: flex-end; gap: 8px;
   margin-top: 8px;
+`;
+// 사용량 페이지로 이동하는 보조 링크 — 본문과 액션 사이 인라인.
+const UsageLink = styled.button`
+  align-self: flex-start;
+  background: none; border: 0; padding: 4px 0;
+  color: #0D9488; font-size: 13px; font-weight: 600;
+  cursor: pointer; text-decoration: underline;
+  &:hover { color: #0F766E; }
 `;
 const PrimaryBtn = styled.button`
   padding: 10px 18px; border-radius: 8px;
