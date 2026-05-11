@@ -12,7 +12,7 @@ const { sequelize } = require('../config/database');
 const gdrive = require('../services/gdrive');
 const planEngine = require('../services/plan');
 const { authenticateToken, checkBusinessAccess } = require('../middleware/auth');
-const { attachWorkspaceScope, fileListWhere, isMemberOrAbove, getUserScope } = require('../middleware/access_scope');
+const { attachWorkspaceScope, fileListWhereByLevel, canAccessFileByLevel, isMemberOrAbove, getUserScope } = require('../middleware/access_scope');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 
 const uploadDir = path.join(__dirname, '..', 'uploads');
@@ -262,8 +262,8 @@ async function verifyFolderOwnership(folderId, businessId, projectId) {
 
 router.get('/:businessId', authenticateToken, attachWorkspaceScope(), async (req, res, next) => {
   try {
-    const baseWhere = await fileListWhere(req.user.id, Number(req.params.businessId), req.scope);
-    if (!baseWhere) return errorResponse(res, 'forbidden', 403);
+    // 사이클 N+9: 옵션 A — visibility 단계별 (L1 본인만 / L2 프로젝트 멤버 / L3 워크스페이스)
+    const baseWhere = fileListWhereByLevel(req.scope);
     const where = { ...baseWhere, deleted_at: null };
     if (req.query.client_id) where.client_id = req.query.client_id;
     if (req.query.project_id) where.project_id = req.query.project_id;
@@ -644,11 +644,14 @@ router.get('/:businessId/:id/download', authenticateToken, attachWorkspaceScope(
       where: { id: req.params.id, business_id: req.params.businessId, deleted_at: null }
     });
     if (!file) return errorResponse(res, 'File not found', 404);
-    // Client: 자기 참여 프로젝트 파일 또는 본인 업로드만 다운로드 가능
+    // 사이클 N+9: 옵션 A — visibility 단계별 권한 (L1 본인만 / L2 프로젝트 멤버 / L3 워크스페이스)
+    // Client: 자기 참여 프로젝트 파일 또는 본인 업로드만 다운로드 가능 (별도 분기)
     if (req.scope?.isClient) {
       const inMyProject = file.project_id && req.scope.projectClientProjectIds.includes(file.project_id);
       const mineUpload = file.uploader_id === req.user.id;
       if (!inMyProject && !mineUpload) return errorResponse(res, 'forbidden', 403);
+    } else if (!(await canAccessFileByLevel(req.user.id, file, req.scope))) {
+      return errorResponse(res, 'forbidden', 403);
     }
     if (file.storage_provider !== 'planq') {
       if (file.external_url) return res.redirect(file.external_url);
