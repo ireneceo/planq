@@ -8,6 +8,7 @@ import React, { useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import type { VLevel } from './VisibilityBadge';
+import PlanQSelect from './PlanQSelect';
 
 interface Props {
   open: boolean;
@@ -72,10 +73,19 @@ const VisibilityChangeModal: React.FC<Props> = ({ open, current, canChooseL2 = t
         {picked === 'L2' && canChooseL2 && projects.length > 0 && (
           <ProjectRow>
             <ProjectLabel>{t('vault.changeVis.projectPick', '연결할 프로젝트') as string}</ProjectLabel>
-            <ProjectSelect value={projectId ?? ''} onChange={(e) => setProjectId(e.target.value ? Number(e.target.value) : null)}>
-              <option value="">{t('vault.changeVis.projectPlaceholder', '프로젝트 선택') as string}</option>
-              {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-            </ProjectSelect>
+            <PlanQSelect
+              size="sm"
+              isClearable
+              placeholder={t('vault.changeVis.projectPlaceholder', '프로젝트 선택') as string}
+              value={projectId == null
+                ? null
+                : { value: String(projectId), label: projects.find(p => p.id === projectId)?.name || String(projectId) }}
+              onChange={(v) => {
+                const val = (v as { value?: string } | null)?.value;
+                setProjectId(val ? Number(val) : null);
+              }}
+              options={projects.map(p => ({ value: String(p.id), label: p.name }))}
+            />
           </ProjectRow>
         )}
 
@@ -124,10 +134,6 @@ const OptTitle = styled.div` font-size: 13px; font-weight: 600; color: #0F172A; 
 const OptDesc = styled.div` font-size: 11px; color: #64748B; line-height: 1.4; `;
 const ProjectRow = styled.div` display: flex; flex-direction: column; gap: 4px; `;
 const ProjectLabel = styled.label` font-size: 11px; font-weight: 600; color: #475569; `;
-const ProjectSelect = styled.select`
-  padding: 8px 10px; border: 1px solid #E2E8F0; border-radius: 6px; font-size: 13px;
-  &:focus { outline: none; border-color: #14B8A6; }
-`;
 const ExternalLink = styled.button`
   align-self: flex-start; background: none; border: 0; padding: 4px 0;
   color: #C2410C; font-size: 12px; font-weight: 600; cursor: pointer; text-decoration: underline;
