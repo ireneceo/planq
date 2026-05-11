@@ -38,6 +38,15 @@ Post.init({
   // 다른 post (문서/표) 연결 — 본문 하단 "관련 문서" 영역. 단방향 (양방향 표시는 향후).
   // [postId, postId, ...] 형식. 표시 시 join 으로 title/kind 같이 fetch.
   linked_post_ids: { type: DataTypes.JSON, allowNull: true },
+  // ─── 4단계 Visibility (사이클 N+9, 2026-05-11) — VISIBILITY_VOCABULARY.md ───
+  // 기존 visibility(internal/public) 와 별개 — 신규 vocabulary.
+  // L1=개인(author 본인만), L2=팀(프로젝트 멤버), L3=워크스페이스, L4=외부(share_token)
+  // NULL = legacy. 마이그레이션 후 모든 row 에 값 있음.
+  vlevel: {
+    type: DataTypes.ENUM('L1', 'L2', 'L3', 'L4'),
+    allowNull: true,
+    defaultValue: null,
+  },
 }, {
   sequelize, tableName: 'posts', timestamps: true, underscored: true,
   indexes: [
@@ -47,6 +56,7 @@ Post.init({
     { fields: ['share_token'] },
     { fields: ['business_id', 'kind'] },
     { fields: ['q_record_id'] },
+    { fields: ['business_id', 'vlevel', 'author_id'] },
   ]
 });
 

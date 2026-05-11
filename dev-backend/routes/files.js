@@ -383,7 +383,8 @@ router.post('/:businessId', authenticateToken, checkBusinessAccess, upload.singl
           description: req.body.description || null,
           storage_provider: 'gdrive',
           external_id: driveFile.id,
-          external_url: driveFile.webViewLink
+          external_url: driveFile.webViewLink,
+          visibility: projectId ? 'L2' : 'L1',  // VISIBILITY_VOCABULARY.md §2 — 프로젝트=팀 / 미연결=개인 default
         });
         // 로컬 임시 파일 제거
         fs.unlinkSync(tempPath);
@@ -451,7 +452,8 @@ router.post('/:businessId', authenticateToken, checkBusinessAccess, upload.singl
             description: req.body.description || null,
             storage_provider: 'planq',
             content_hash: hash,
-            ref_count: 1
+            ref_count: 1,
+            visibility: projectId ? 'L2' : 'L1',
           }, { transaction: t });
         } else {
           file = existing;
@@ -470,7 +472,8 @@ router.post('/:businessId', authenticateToken, checkBusinessAccess, upload.singl
           description: req.body.description || null,
           storage_provider: 'planq',
           content_hash: hash,
-          ref_count: 1
+          ref_count: 1,
+          visibility: projectId ? 'L2' : 'L1',
         }, { transaction: t });
         // 쿼터 업데이트 (dedup 히트면 증가 없음)
         usage.bytes_used = Number(usage.bytes_used) + req.file.size;

@@ -99,6 +99,14 @@ File.init({
     type: DataTypes.DATE,
     allowNull: true
   },
+  // ─── 4단계 Visibility (사이클 N+9, 2026-05-11) — VISIBILITY_VOCABULARY.md ───
+  // L1=개인(uploader 본인만), L2=팀(프로젝트 멤버), L3=워크스페이스, L4=외부(share_token)
+  // NULL = legacy (백필 전. 이후엔 라우트가 항상 값 설정)
+  visibility: {
+    type: DataTypes.ENUM('L1', 'L2', 'L3', 'L4'),
+    allowNull: true,
+    defaultValue: null,
+  },
   deleted_at: {
     type: DataTypes.DATE,
     allowNull: true
@@ -112,7 +120,8 @@ File.init({
     { fields: ['business_id', 'project_id'] },
     { fields: ['business_id', 'content_hash'] },
     { fields: ['share_token'] },
-    { fields: ['deleted_at'] }
+    { fields: ['deleted_at'] },
+    { fields: ['business_id', 'visibility', 'uploader_id'] },
   ]
 });
 

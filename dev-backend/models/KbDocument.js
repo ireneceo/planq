@@ -92,10 +92,12 @@ KbDocument.init({
     allowNull: true,
     defaultValue: null,
   },
-  // scope: 적용 범위 — workspace 전체 / 특정 프로젝트 / 특정 고객 한정
-  // hybridSearch 우선순위: client → project → workspace (threshold 0.78)
+  // scope: 적용 범위 — private(uploader 본인만, L1) / workspace 전체(L3) /
+  //   특정 프로젝트(L2) / 특정 고객 한정(L2-client)
+  // 사이클 N+9 (2026-05-11): 'private' 추가 — 개인 보관함 자산 (uploaded_by 본인만 접근)
+  // hybridSearch 우선순위: client → project → workspace (threshold 0.78). private 는 검색 제외.
   scope: {
-    type: DataTypes.ENUM('workspace', 'project', 'client'),
+    type: DataTypes.ENUM('private', 'workspace', 'project', 'client'),
     allowNull: false,
     defaultValue: 'workspace',
   },
