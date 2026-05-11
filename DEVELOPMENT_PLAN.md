@@ -12,6 +12,54 @@
 
 ---
 
+## ✅ 완료: 사이클 N+6/N+7 — v1.5.3 진행률 sync + reviewer 분기 + 관련업무·description 첨부 + 시간 자동 누적 + 모바일 UX (2026-05-11)
+
+`1031409 + 4aecdff` 운영 라이브 (108s). 외부 https://planq.kr health 200. 18 파일 (+1259/-98). E2E 17/17 PASS.
+
+### 핵심 변경
+
+| 영역 | 변경 내용 | 동기 |
+|---|---|---|
+| **refresh_token chain 격리 ★★** | reuse_detected 가 같은 user 의 모든 active row 일괄 revoke 하던 회귀 → chain (replaced_by_id 사슬) 만 revoke. grace 30s → 5min (모바일 PWA wake-up 흡수) | Irene 보고: 자꾸 자동 로그아웃됨. user 16 하루 3회 강제 로그아웃 발화. 다중 디바이스 정책 본질 위반 |
+| **이번 주 내 업무 필터** | `QTaskPage.tsx:870` 담당자=나 분기에서 status 화이트리스트 제거 → 활성 status 모두 표시 (reviewing 포함) | "담당자가 컨펌 요청 보내도 본인 책임은 끝까지. 마감관리·시간계산 책임은 담당자" |
+| **관련 업무 링크 풀세트 ★** | `task_links` 테이블 (양방향 단일 row, a < b 강제), GET/POST/DELETE links + GET search, RelatedTasksSection (description 섹션 안), 자기 자신·중복·cross-workspace 차단 | "다른 업무 연결하기 — 파일/문서 연결처럼 검색하고 하나씩 추가" |
+| **description_attach 풀세트** | `TaskAttachment.context` ENUM 에 'description_attach' 추가, FilePicker 패턴 (uploads + 기존 파일·문서 link), 권한 = description 편집 권한 (작성자/owner/admin) | "업무 설명에도 댓글처럼 똑같이 파일첨부 아이콘 — 결과물용 첨부와 분리" |
+| **reviewer 가드 ★★** | reviewer 0명이면 reviewing/revision_requested 단계 차단 (400 no_reviewers_assigned). 100% 자동 completed 도 reviewer ≥ 1 시 차단 (in_progress 유지) | "컨펌자 없으면 확인요청중 단계 자체가 없어야 일관" + "100% 도달해도 컨펌 필요한 task 는 명시 클릭으로만 reviewing" |
+| **진행률 ↔ status 양방향 sync** | PATCH /time + PUT /by-business 모두 동일 로직 (단일 진실 원천). PUT 의 progress → status 자동 전환 분기 신규 추가 (이전 결함 fix). 100% → completed / completed → active 시 progress 90 자동 / completed 진입 시 progress < 100 이면 자동 100 | 사용자 지적: PUT 으로 progress 만 변경 시 status 안 따라옴. PATCH 양방향이지만 PUT 단방향 → 단일 진실 원천 위반 |
+| **실제 시간 자동 누적 ★★** | `services/taskActualHours.js` + TaskStatusHistory afterCreate hook. in_progress 진입 ~ 이탈 라운드 합산 (다중 라운드 지원). Task.actual_source ENUM('auto','user') — 사용자 직접 입력 시 자동 누적 정지. 현재 in_progress 면 실시간 누적 표시 | "진행 시작·확인 요청·완료 시점에 자동 계산. AI 회색·사용자 검정 톤 분리" |
+| **TaskDetailDrawer 시각 개편** | RelatedTasksSection (description 안) / DescriptionAttachments (FilePicker 패턴) / latest_estimation_source·actual_source 회색 분기 (`MetaNumInput $ai`) / InProgressDot (라벨 옆 라이브 dot, Apple Watch 패턴) / TimeAutoHint (시간 자동 안내 상시 노출) / ReviewReminderHint (100% reviewer 동적 노출) / MetaCell layout fix (진행률 cell·range slider vertical center) | "시간 자동 누적 안내 어디에 했어? 안 보여" / "진행률 % 안으로 가져와. 그래프 중앙정렬" |
+| **FilePicker 모바일 bottom sheet** | 풀스크린 → 75vh bottom sheet (Slack/Apple 정석). slide-up 애니메이션 + safe-area 보정 | "채팅 파일업로드 창 너무 길게 커져서 제대로 볼 수 없음" |
+| **QTalk LeftPanel 모바일** | PinBtn `@media (hover: none), (max-width: 1024px)` opacity 1 → unpinned 별표 항상 노출. Unread `margin-left: auto` 로 행 우측 끝 + 모바일 살짝 키움 | "모바일 채팅 리스트에 새 메시지 알림 안 나옴 + 즐겨찾기 별표 안 나옴" |
+| **auto-ai-estimate FK 가드** | setImmediate AI 예측 전 task 존재 확인 → test cleanup 후 FK 위반 회귀 방지 | 검증 중 발견된 로그 노이즈 |
+| **보안: .env 권한 640** | 600 → 640 (planq 그룹 read 허용). lua (PM, planq 그룹 멤버) PM2 환경변수 정상 로드. q-note/.env 도 664 → 640 강화 | lua 의 PM2 errored 보고 |
+
+### 검증
+
+- 헬스체크 27/27 PASS
+- API E2E 17/17 PASS (cycle verification 통합)
+  - 진행률 양방향 sync (PATCH+PUT 4 시나리오) + reviewer 분기 (3) + 관련업무 (4) + description_attach (2) + 자동 누적 (3) + 응답 표준 (1)
+- 빌드 1.5s 안팎, TS 에러 0
+- 운영 health 200, planq-prod-backend v1.5.3
+
+### 박제 (메모리 + 문서)
+
+- `feedback_no_options_just_fix.md` (신규) — 검증 중 발견된 에러 옵션 묻지 말고 직접 fix
+- `project_multi_device_session.md` 업데이트 — chain 격리 + grace 5분 박제
+- `feedback_no_mvp.md` 강화 — "MVP" 단어 자체 금지 (사용자 노출 표현)
+
+### 운영 배포
+
+| 시각 (KST) | Commit | 항목 | 결과 |
+|---|---|---|---|
+| 18:03 | `1031409 + 4aecdff` | 사이클 N+6/N+7 (v1.5.3) | ✅ 108s, 외부 health 200 |
+
+### 잔존 (다음 사이클)
+
+- lua 의 모바일 반응형 7 파일 미커밋 (PageShell, QCalendar, QProject + 그 i18n) — lua 마무리 대기
+- Message 편집/삭제 라우트 신규 구현 (PERMISSION_MATRIX §5.9 박제만 됨)
+
+---
+
 ## ✅ 완료: 사이클 N+5 — v1.5.2 권한 매트릭스 책임선 분리 (2026-05-10)
 
 `8dc5251 + 06e327f` 운영 라이브 (109s). 외부 https://planq.kr health 200. 30년차 솔루션 기획 관점의 권한 매트릭스 정식 박제 + 6 변경 + 매트릭스 4 영역 신설.

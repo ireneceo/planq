@@ -305,6 +305,19 @@ res.status(400).json({ success: false, message: 'Error description' });
 
 > **Q Note 진짜 사적 공간 (코드 정합):** `q-note/routers/sessions.py` 의 모든 라우트가 `_load_session_or_403(db, session_id, user['user_id'])` 강제. 본인 세션 외 무조건 403 — owner 도 admin 도 백도어 없음. PERMISSION_MATRIX §5.8 박제. memory `feedback_qnote_personal_tool.md` 와 일치.
 
+> **사이클 N+6/N+7 — v1.5.3 (2026-05-11):** 진행률 sync + reviewer 분기 + 관련업무·description 첨부 + 시간 자동 누적 + 모바일 UX. commit `1031409`.
+>
+> - **task_links 테이블 (양방향, a < b 강제)** — 관련 업무 링크. `routes/tasks.js` GET/POST/DELETE links + GET search. workspace 격리, cross-workspace 차단. 자기 자신·중복 차단. UI: `RelatedTasksSection.tsx` (description 섹션 안)
+> - **TaskAttachment.context ENUM 'description_attach' 신설** — 의뢰자 영역 댓글식 첨부. 권한 = description 편집 권한 (작성자/owner/admin, 담당자 빠짐). `DescriptionAttachments.tsx` (FilePicker 패턴, uploads + 기존 파일·문서 link)
+> - **Task.actual_source ENUM('auto','user')** — 시간 자동 누적 vs 사용자 입력 구분. `services/taskActualHours.js` recomputeActualHoursFromHistory + TaskStatusHistory afterCreate hook. in_progress 진입~이탈 라운드 합산. 사용자 직접 입력 시 'user' 자동 전환 + 자동 누적 정지
+> - **reviewer 가드 (PUT 라우트)** — reviewer 0명이면 status='reviewing'/'revision_requested' 차단 (400 `no_reviewers_assigned`). 100% 자동 completed 도 reviewer ≥ 1 시 차단 (in_progress 유지, "확인 요청 보내기" 명시 클릭 필요)
+> - **진행률 ↔ status 양방향 sync (PATCH + PUT 단일 진실 원천)** — `routes/tasks.js` PUT 에 progress → status 자동 전환 분기 추가. completed → active 전환 시 progress 100 → 90 자동 / completed 진입 시 progress < 100 이면 자동 100. frontend QTaskPage.saveField 의 이중 PUT 호출 제거
+> - **refresh_token chain 격리** — reuse_detected 가 같은 user 의 모든 active row 일괄 revoke 하던 회귀 → chain (`replaced_by_id` 사슬) 만 revoke. rotation grace 30s → 5min (모바일 PWA wake-up). memory `project_multi_device_session.md` 업데이트
+> - **이번 주 내 업무 필터** — 담당자=나 분기 status 화이트리스트 제거 → 활성 status 모두 표시 (reviewing 포함). "마감 책임 = 담당자 끝까지"
+> - **statusOptionsFor 3곳 일관** — QTaskPage / TaskDetailDrawer / ProjectTaskList — reviewer 0명이면 reviewing/revision_requested 옵션 숨김
+> - **모바일 UX** — FilePicker 75vh bottom sheet (slide-up, safe-area), QTalk LeftPanel PinBtn `@media (hover: none), (max-width: 1024px)` 항상 노출 + Unread `margin-left: auto` 우측 끝
+> - **보안 .env 권한 600 → 640** — planq 그룹 (irene + lua) read 허용. lua PM2 환경변수 정상 로드. q-note/.env 도 강화
+
 > **댓글·메모 visibility 통일:** `personal`/`internal`/`shared` — `task_comments` 와 `project_notes` 공통 ENUM.
 >
 > **운영 라이브 풀세트 (2026-05-05):**
