@@ -665,6 +665,32 @@ router.put('/:id', authenticateToken, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// ─── Visibility 변경 (사이클 N+9) ───
+// PUT /api/posts/:id/visibility  body: { level: 'L1'|'L2'|'L3', project_id? }
+// L2 → project_id 필수. 권한: author 본인 또는 workspace owner/admin
+router.put('/:id/visibility', authenticateToken, async (req, res, next) => {
+  try {
+    const { level, project_id } = req.body || {};
+    if (!['L1', 'L2', 'L3'].includes(level)) return errorResponse(res, 'invalid_level', 400);
+    const post = await Post.findByPk(req.params.id);
+    if (!post) return errorResponse(res, 'not_found', 404);
+    const scope = await getUserScope(req.user.id, post.business_id, req.user.platform_role);
+    const isAuthor = post.author_id === req.user.id;
+    const isOwner = scope.isOwner || scope.isPlatformAdmin;
+    if (!isAuthor && !isOwner) return errorResponse(res, 'forbidden', 403);
+
+    let nextProjectId = post.project_id;
+    if (level === 'L2') {
+      if (project_id) nextProjectId = Number(project_id);
+      if (!nextProjectId) return errorResponse(res, 'project_id_required_for_L2', 400);
+    } else if (level === 'L1' || level === 'L3') {
+      nextProjectId = null;
+    }
+    await post.update({ vlevel: level, project_id: nextProjectId });
+    successResponse(res, { id: post.id, vlevel: level, project_id: nextProjectId });
+  } catch (err) { next(err); }
+});
+
 // ─── 삭제 ───
 // 권한: 작성자(author) 또는 owner/platform_admin 만.
 router.delete('/:id', authenticateToken, async (req, res, next) => {
