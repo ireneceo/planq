@@ -10,6 +10,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import PostEditor from '../../components/Docs/PostEditor';
 import PageShell from '../../components/Layout/PageShell';
 import RevisionPanel from '../../components/Docs/RevisionPanel';
+import { useAuth } from '../../contexts/AuthContext';
 import {
   getDocument, updateDocument,
   KIND_LABELS_KO, type DocDetail,
@@ -19,6 +20,8 @@ const DocumentEditorPage: React.FC = () => {
   const { t } = useTranslation('qdocs');
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
+  const { user } = useAuth();
+  const businessId = user?.business_id || undefined;
   const docId = id ? Number(id) : null;
 
   const [doc, setDoc] = useState<DocDetail | null>(null);
@@ -103,6 +106,7 @@ const DocumentEditorPage: React.FC = () => {
             <PostEditor
               value={doc.body_json ?? (doc.body_html ?? null)}
               onChange={onBodyChange}
+              businessId={businessId}
               placeholder={t('editor.bodyPlaceholder', '본문을 작성하세요…') as string} />
           </EditorWrap>
         </MainCol>

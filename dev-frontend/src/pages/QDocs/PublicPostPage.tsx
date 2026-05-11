@@ -61,7 +61,7 @@ const PublicPostPage: React.FC = () => {
         <DocMeta>
           {post.author?.name || '—'} · {new Date(post.created_at).toLocaleDateString('ko-KR')}
         </DocMeta>
-        <PostEditor value={post.content_json} onChange={() => {}} editable={false} />
+        <PostEditor value={post.content_json} onChange={() => {}} editable={false} borderless />
 
         {post.attachments && post.attachments.length > 0 && (
           <AttachSection>

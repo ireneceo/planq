@@ -591,7 +591,7 @@ const ProjectPostsTab: React.FC<Props> = ({ businessId, projectId }) => {
             maxLength={40}
           />
           {error && <ErrorBar>{error}</ErrorBar>}
-          <PostEditor value={contentDraft} onChange={setContentDraft} placeholder={t('contentPlaceholder', '본문을 작성하세요…') as string} />
+          <PostEditor value={contentDraft} onChange={setContentDraft} businessId={businessId} placeholder={t('contentPlaceholder', '본문을 작성하세요…') as string} />
           <AttachSection>
             <AttachTitle>{t('attachments', '첨부 파일')}</AttachTitle>
             {mode === 'edit' && detail && detail.attachments.length > 0 && (

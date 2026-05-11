@@ -763,13 +763,43 @@ router.delete('/:id/attachments/:attId', authenticateToken, async (req, res, nex
 });
 
 // ─── 에디터 인라인 이미지 업로드 ───
-// POST /api/posts/editor-image  multipart 'file'
-// 응답: { url: '/api/posts/editor-image/:filename' }
+// POST /api/posts/editor-image  multipart 'file' + body/query.business_id
+// 사이클 N+9 통합: 인라인 이미지도 표준 File 테이블에 등록 (Q file 메뉴 노출 + share-link
+// 인프라 + visibility/quota 일관 적용). business_id 없으면 legacy 동작 (DB row 없음).
+// 응답: { url, file_id?, download_url? }
 router.post('/editor-image', authenticateToken, (req, res, next) => {
-  editorImageUpload.single('file')(req, res, (err) => {
-    if (err) return errorResponse(res, err.message || 'upload_failed', 400);
-    if (!req.file) return errorResponse(res, 'file_required', 400);
-    successResponse(res, { url: `/api/posts/editor-image/${req.file.filename}` }, 'uploaded');
+  editorImageUpload.single('file')(req, res, async (err) => {
+    try {
+      if (err) return errorResponse(res, err.message || 'upload_failed', 400);
+      if (!req.file) return errorResponse(res, 'file_required', 400);
+
+      const url = `/api/posts/editor-image/${req.file.filename}`;
+      const businessId = Number(req.body?.business_id || req.query?.business_id || 0);
+      if (!businessId) {
+        // legacy fallback — business_id 없으면 DB 등록 X (옛 호출자 호환)
+        return successResponse(res, { url }, 'uploaded');
+      }
+      // 워크스페이스 멤버 확인
+      if (!(await assertMember(req.user.id, businessId, req.user.platform_role === 'platform_admin'))) {
+        return errorResponse(res, 'forbidden', 403);
+      }
+      // 표준 File 등록 — visibility L1 default (개인 보관함). 사용자가 카드 share 로 promote.
+      const file = await File.create({
+        business_id: businessId,
+        uploader_id: req.user.id,
+        file_name: req.file.originalname,
+        file_path: req.file.path,
+        file_size: req.file.size,
+        mime_type: req.file.mimetype,
+        storage_provider: 'planq',
+        visibility: 'L1',
+      });
+      successResponse(res, {
+        url,
+        file_id: file.id,
+        download_url: `/api/files/${businessId}/${file.id}/download`,
+      }, 'uploaded');
+    } catch (e) { next(e); }
   });
 });
 
