@@ -4,6 +4,7 @@
 import React, { useCallback, useEffect, useRef } from 'react';
 import styled from 'styled-components';
 import { useEditor, EditorContent } from '@tiptap/react';
+import { BubbleMenu } from '@tiptap/react/menus';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
 import Link from '@tiptap/extension-link';
@@ -13,6 +14,21 @@ import { TableRow } from '@tiptap/extension-table-row';
 import { TableCell } from '@tiptap/extension-table-cell';
 import { TableHeader } from '@tiptap/extension-table-header';
 import { apiFetch } from '../../contexts/AuthContext';
+import { LightboxWrapper } from '../Common/ImageLightbox';
+
+// Image extension 확장 — width attribute (사이즈 조정용, 사이클 N+9)
+const ResizableImage = Image.extend({
+  addAttributes() {
+    return {
+      ...this.parent?.(),
+      width: {
+        default: null,
+        parseHTML: (el: HTMLElement) => el.getAttribute('width') || el.style.width || null,
+        renderHTML: (attrs: { width?: string | null }) => (attrs.width ? { width: attrs.width } : {}),
+      },
+    };
+  },
+});
 
 interface Props {
   value: unknown | null;         // Tiptap JSON
@@ -43,7 +59,7 @@ const PostEditor: React.FC<Props> = ({ value, onChange, placeholder, editable = 
       }),
       Placeholder.configure({ placeholder: placeholder || '본문을 작성하세요…' }),
       Link.configure({ openOnClick: false, HTMLAttributes: { rel: 'noopener noreferrer', target: '_blank' } }),
-      Image.configure({ inline: false, allowBase64: false, HTMLAttributes: { class: 'editor-image' } }),
+      ResizableImage.configure({ inline: false, allowBase64: false, HTMLAttributes: { class: 'editor-image' } }),
       Table.configure({ resizable: true, HTMLAttributes: { class: 'editor-table' } }),
       TableRow,
       TableHeader,
@@ -191,8 +207,22 @@ const PostEditor: React.FC<Props> = ({ value, onChange, placeholder, editable = 
           </Group>
         </Toolbar>
       )}
+      {editable && (
+        <BubbleMenu editor={editor} shouldShow={({ editor: ed }) => ed.isActive('image')}>
+          <ImgSizeBubble>
+            <ImgSizeBtn type="button" $active={editor.getAttributes('image').width === '33%'}
+              onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().updateAttributes('image', { width: '33%' }).run(); }}>S</ImgSizeBtn>
+            <ImgSizeBtn type="button" $active={editor.getAttributes('image').width === '66%'}
+              onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().updateAttributes('image', { width: '66%' }).run(); }}>M</ImgSizeBtn>
+            <ImgSizeBtn type="button" $active={!editor.getAttributes('image').width}
+              onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().updateAttributes('image', { width: null }).run(); }}>L</ImgSizeBtn>
+          </ImgSizeBubble>
+        </BubbleMenu>
+      )}
       <Body $editable={editable}>
-        <EditorContent editor={editor} />
+        <LightboxWrapper>
+          <EditorContent editor={editor} />
+        </LightboxWrapper>
       </Body>
     </Wrap>
   );
@@ -221,6 +251,21 @@ const ToolBtn = styled.button<{ $active?: boolean }>`
   &:hover { background: ${p => p.$active ? '#CCFBF1' : '#EEF2F6'}; color: #0F172A; }
   &:focus-visible { outline: 2px solid #14B8A6; outline-offset: 2px; }
 `;
+// 이미지 사이즈 BubbleMenu (편집 시 image 선택하면 노출)
+const ImgSizeBubble = styled.div`
+  display: inline-flex; align-items: center; gap: 2px; padding: 3px;
+  background: #0F172A; border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(15,23,42,0.25);
+`;
+const ImgSizeBtn = styled.button<{ $active?: boolean }>`
+  border: none;
+  background: ${p => p.$active ? '#334155' : 'transparent'};
+  color: ${p => p.$active ? '#FFF' : '#CBD5E1'};
+  padding: 4px 10px; border-radius: 5px;
+  font-size: 11px; font-weight: 700; cursor: pointer; min-width: 28px;
+  &:hover { background: #334155; color: #FFF; }
+`;
+
 const Body = styled.div<{ $editable?: boolean }>`
   padding: 16px 20px; min-height: ${p => p.$editable ? '240px' : '80px'};
 

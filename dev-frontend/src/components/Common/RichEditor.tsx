@@ -17,6 +17,22 @@ import styled from 'styled-components';
 import { apiFetch } from '../../contexts/AuthContext';
 import { SlashCommand } from './SlashCommand';
 import SlashCommandList from './SlashCommandList';
+import { LightboxWrapper } from './ImageLightbox';
+
+// Image extension 확장 — width attribute 지원 (사이클 N+9, 사이즈 조정용).
+// HTML 출력: <img src="..." width="33%" /> 등.
+const ResizableImage = Image.extend({
+  addAttributes() {
+    return {
+      ...this.parent?.(),
+      width: {
+        default: null,
+        parseHTML: (el: HTMLElement) => el.getAttribute('width') || el.style.width || null,
+        renderHTML: (attrs: { width?: string | null }) => (attrs.width ? { width: attrs.width } : {}),
+      },
+    };
+  },
+});
 
 type Props = {
   value: string;
@@ -49,7 +65,7 @@ export default function RichEditor({
       // 링크는 editable/readOnly 무관하게 항상 클릭 시 새 탭 — 편집 권한 있어도 본문 링크는 외부 이동 우선.
       // 링크 텍스트 자체 편집은 bubble 메뉴(🔗) 로. 링크 옆 글자에 cursor 두고 selection 만들면 됨.
       Link.configure({ openOnClick: true, autolink: true, HTMLAttributes: { rel: 'noopener noreferrer', target: '_blank' } }),
-      Image.configure({ inline: false, allowBase64: false }),
+      ResizableImage.configure({ inline: false, allowBase64: false }),
       Placeholder.configure({
         placeholder: ({ node }) => node.type.name === 'paragraph' ? effectivePlaceholder : '',
         includeChildren: false,
@@ -128,21 +144,38 @@ export default function RichEditor({
 
   if (!editor) return <EditorShell $mh={minHeight}><PlainFallback /></EditorShell>;
 
+  // 이미지 사이즈 토글 — editor 가 image 선택 시 BubbleMenu 노출
+  const setImageWidth = (w: string | null) => {
+    if (!editor) return;
+    editor.chain().focus().updateAttributes('image', { width: w }).run();
+  };
+
   return (
     <EditorShell $mh={minHeight}>
       {!readOnly && (
-        <BubbleMenu editor={editor}>
-          <Bubble>
-            <BBtn type="button" $active={editor.isActive('bold')} onMouseDown={e => { e.preventDefault(); editor.chain().focus().toggleBold().run(); }}>B</BBtn>
-            <BBtn type="button" $active={editor.isActive('italic')} style={{ fontStyle: 'italic' }} onMouseDown={e => { e.preventDefault(); editor.chain().focus().toggleItalic().run(); }}>I</BBtn>
-            <BBtn type="button" $active={editor.isActive('strike')} style={{ textDecoration: 'line-through' }} onMouseDown={e => { e.preventDefault(); editor.chain().focus().toggleStrike().run(); }}>S</BBtn>
-            <BBtn type="button" $active={editor.isActive('code')} onMouseDown={e => { e.preventDefault(); editor.chain().focus().toggleCode().run(); }}>{'</>'}</BBtn>
-            <BSep />
-            <BBtn type="button" $active={editor.isActive('link')} onMouseDown={e => { e.preventDefault(); setLink(); }}>🔗</BBtn>
-          </Bubble>
-        </BubbleMenu>
+        <>
+          <BubbleMenu editor={editor} shouldShow={({ editor: ed }) => ed.isActive('image')}>
+            <Bubble>
+              <BBtn type="button" $active={editor.getAttributes('image').width === '33%'} onMouseDown={e => { e.preventDefault(); setImageWidth('33%'); }}>S</BBtn>
+              <BBtn type="button" $active={editor.getAttributes('image').width === '66%'} onMouseDown={e => { e.preventDefault(); setImageWidth('66%'); }}>M</BBtn>
+              <BBtn type="button" $active={!editor.getAttributes('image').width || editor.getAttributes('image').width === '100%'} onMouseDown={e => { e.preventDefault(); setImageWidth(null); }}>L</BBtn>
+            </Bubble>
+          </BubbleMenu>
+          <BubbleMenu editor={editor} shouldShow={({ editor: ed }) => !ed.isActive('image') && !ed.state.selection.empty}>
+            <Bubble>
+              <BBtn type="button" $active={editor.isActive('bold')} onMouseDown={e => { e.preventDefault(); editor.chain().focus().toggleBold().run(); }}>B</BBtn>
+              <BBtn type="button" $active={editor.isActive('italic')} style={{ fontStyle: 'italic' }} onMouseDown={e => { e.preventDefault(); editor.chain().focus().toggleItalic().run(); }}>I</BBtn>
+              <BBtn type="button" $active={editor.isActive('strike')} style={{ textDecoration: 'line-through' }} onMouseDown={e => { e.preventDefault(); editor.chain().focus().toggleStrike().run(); }}>S</BBtn>
+              <BBtn type="button" $active={editor.isActive('code')} onMouseDown={e => { e.preventDefault(); editor.chain().focus().toggleCode().run(); }}>{'</>'}</BBtn>
+              <BSep />
+              <BBtn type="button" $active={editor.isActive('link')} onMouseDown={e => { e.preventDefault(); setLink(); }}>🔗</BBtn>
+            </Bubble>
+          </BubbleMenu>
+        </>
       )}
-      <EditorContent editor={editor} />
+      <LightboxWrapper>
+        <EditorContent editor={editor} />
+      </LightboxWrapper>
       {!readOnly && (
         <Hint>{t('editor.hintPrefix')} <kbd>/</kbd> {t('editor.hintSuffix')}</Hint>
       )}

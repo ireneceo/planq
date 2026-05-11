@@ -1003,9 +1003,43 @@ router.get('/public/:token', async (req, res, next) => {
     if (!post) return errorResponse(res, 'not_found', 404);
     await post.increment('view_count');
     const safe = serialize(post, true);
-    // 공개 응답에서 민감 정보 정리: business_id 는 노출 안 해도 무방하지만 frontend 에서 직접 사용은 X
-    delete safe.share_token; // 이미 URL 에 있어서 굳이 응답에 포함 안 함
+    // 공유 미리보기 — attachments 의 download_url 을 공개 라우트로 매핑 (인증 없이 다운로드 가능).
+    // 사이클 N+9 fix: 옛 download_url 은 /api/files/:bizId/:id/download (인증 필요) — 공개 페이지에선 401.
+    const token = req.params.token;
+    if (Array.isArray(safe.attachments)) {
+      safe.attachments = safe.attachments.map(a => a.file ? {
+        ...a,
+        file: { ...a.file, download_url: `/api/posts/public/${token}/attachments/${a.id}/download` },
+      } : a);
+    }
+    delete safe.share_token;
     return successResponse(res, safe);
+  } catch (err) { next(err); }
+});
+
+// GET /api/posts/public/:token/attachments/:attId/download
+// 공유 미리보기에서 첨부 파일 다운로드 (인증 없이 share_token 기반).
+// post.share_token 검증 + 해당 post 의 attachments 중 하나 → 파일 스트리밍.
+router.get('/public/:token/attachments/:attId/download', async (req, res, next) => {
+  try {
+    const post = await Post.findOne({
+      where: { share_token: req.params.token, status: 'published' },
+      attributes: ['id'],
+    });
+    if (!post) return errorResponse(res, 'not_found_or_expired', 404);
+    const att = await PostAttachment.findOne({
+      where: { id: req.params.attId, post_id: post.id },
+      include: [{ model: File, as: 'file' }],
+    });
+    if (!att || !att.file) return errorResponse(res, 'attachment_not_found', 404);
+    const file = att.file;
+    if (file.storage_provider !== 'planq') {
+      if (file.external_url) return res.redirect(file.external_url);
+      return errorResponse(res, 'external_file_no_url', 400);
+    }
+    const fs = require('fs');
+    if (!fs.existsSync(file.file_path)) return errorResponse(res, 'physical_file_missing', 410);
+    return res.download(file.file_path, file.file_name);
   } catch (err) { next(err); }
 });
 
