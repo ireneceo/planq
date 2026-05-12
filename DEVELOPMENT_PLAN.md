@@ -4,7 +4,7 @@
 >
 > **이전 라이브:** 2026-05-12 `3e2b595`/`d746d6f`/`966144e` (v1.7.1 N+11 5건, 218s) / `5807d2f`/`da62196`/`ec85423` (v1.7.0 N+10) / `2b64012` (모바일 반응형 lua) / `d3e7f0a` (v1.6.1 N+9 hotfix) / `eb8769a` (v1.6.0 N+9)
 >
-> **다음 진입 ★:** (Irene 선택)
+> **다음 진입 ★ (2026-05-13 최우선):** **운영 GDrive 연결 fix** — 운영 `.env` 의 `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` 가 placeholder (`<google_oauth_client_id>` / `<google_oauth_client_secret>`) 그대로. 코드는 정상, dev 는 OK. 진단 완료. 절차: ①Google Console (https://console.cloud.google.com/apis/credentials) 에서 OAuth client 의 **승인된 리디렉션 URI** 에 `https://planq.kr/api/cloud/callback/gdrive`, **승인된 JS 원본** 에 `https://planq.kr` 등록 확인/추가 → ②운영 `.env` 두 줄을 dev `.env` 실값으로 교체 (`/opt/planq/backend/.env`) → ③`pm2 restart planq-prod-backend` → ④https://planq.kr 에서 Drive 연결 재시도.
 >
 > **차순위:** 청크 5 (visibility 배지 카드/행 적용 + 5중 시각 시그널) / DocsTab 카드 hover share 아이콘 / 동적 OG (backend SSR + nginx /public/* proxy) / Q note 텍스트 type + Quick Capture / Custom SMTP (Pro+) / 설문 기능 MVP (4 사이클)
 >
