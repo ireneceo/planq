@@ -12,6 +12,7 @@ import { todayInTz, mondayOfDateStr, addDaysStr, detectBrowserTz } from '../../u
 import { STATUS_CODES, STATUS_COLOR, displayStatus, getStatusLabel, type StatusCode } from '../../utils/taskLabel';
 import { getRoles, primaryPerspective } from '../../utils/taskRoles';
 import TaskDetailDrawer from '../../components/QTask/TaskDetailDrawer';
+import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import TaskRowActionMenu from '../../components/QTask/TaskRowActionMenu';
 import { responsiveDrawerWidth } from '../../utils/responsiveDrawer';
 import AiTaskCreateModal from '../../components/QTask/AiTaskCreateModal';
@@ -535,18 +536,13 @@ const QTaskPage:React.FC=()=>{
     };
   }, [bizId, user?.id]);
 
-  // 모바일 PWA background 복귀 시 missed events 회복 — visibilitychange 로 task list 재조회
-  // (socket 재연결 동안 emit 된 task:new/updated/deleted 는 영구 손실되므로 보정 필요)
-  useEffect(() => {
-    const onVis = () => {
-      if (document.visibilityState !== 'visible') return;
-      load();
-      const s = socketRef.current;
-      if (s && !s.connected) s.connect();
-    };
-    document.addEventListener('visibilitychange', onVis);
-    return () => document.removeEventListener('visibilitychange', onVis);
-  }, [load]);
+  // 모바일 PWA background 복귀 시 missed events 회복 — socket 재연결 동안 emit 된
+  // task:new/updated/deleted 는 영구 손실되므로 load() 로 보정
+  useVisibilityRefresh(useCallback(() => {
+    load();
+    const s = socketRef.current;
+    if (s && !s.connected) s.connect();
+  }, [load]));
 
   // Esc 키로 드로어 닫기 (상세 + 업무 추가)
   useEffect(() => {

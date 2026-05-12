@@ -20,6 +20,7 @@ import {
 } from './types';
 import { useAuth, getAccessToken, apiFetch } from '../../contexts/AuthContext';
 import * as qtalkApi from '../../services/qtalk';
+import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 
 /**
  * QTalkPage — 실데이터 기반 (시드 데이터 로드)
@@ -459,6 +460,32 @@ const QTalkPage: React.FC = () => {
     window.dispatchEvent(new Event('planq:unread-changed'));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeConversationId, businessId]);
+
+  // 모바일 PWA background → foreground 복귀 시 회복:
+  //   1) socket 강제 재연결 — disconnect 사이 새 conv/message emit 미수신 가능
+  //   2) 활성 대화 messages 캐시 invalidate → useEffect 가 자동 재로드
+  //   3) 대화 목록 merge refresh — 새로 생성된 conv 누락 보정
+  useVisibilityRefresh(useCallback(() => {
+    const s = socketRef.current;
+    if (s && !s.connected) s.connect();
+    if (activeConversationId) {
+      setMessages(prev => {
+        const next = { ...prev };
+        delete next[activeConversationId];
+        return next;
+      });
+    }
+    if (businessId) {
+      qtalkApi.listBusinessConversations(businessId).then(apiConvs => {
+        const all = apiConvs.map(apiConversationToMock);
+        setConversations(prev => {
+          const ids = new Set(prev.map(c => c.id));
+          const newOnes = all.filter(c => !ids.has(c.id));
+          return newOnes.length ? [...prev, ...newOnes] : prev;
+        });
+      }).catch(() => null);
+    }
+  }, [activeConversationId, businessId]));
 
   // 대화 선택 시 메시지 lazy-load — 프로젝트 단위 초기 로드에 포함되지 않은 독립 대화도
   // 활성화되는 순간 메시지를 불러온다. 이미 캐시된 대화는 skip.

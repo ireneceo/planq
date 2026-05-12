@@ -1,4 +1,4 @@
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, useEffect } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { PwaInstallProvider } from './contexts/PwaInstallContext';
@@ -11,6 +11,7 @@ import TermsReacceptModal from './components/Common/TermsReacceptModal';
 import ImpersonateBanner from './components/Common/ImpersonateBanner';
 import ProtectedRoute from './components/ProtectedRoute';
 import ErrorBoundary from './components/Common/ErrorBoundary';
+import { installRoutePrefetch } from './lib/routePrefetch';
 import MainLayout from './components/Layout/MainLayout';
 import CueHelpDrawer from './components/Common/CueHelpDrawer';
 
@@ -97,6 +98,8 @@ const PlaceholderPage = ({ title }: { title: string }) => (
 );
 
 function App() {
+  // 라우트 청크 prefetch — idle 시점 핵심 페이지 + 전역 hover/focus delegation
+  useEffect(() => installRoutePrefetch(), []);
   return (
     <ErrorBoundary>
     <AuthProvider>
