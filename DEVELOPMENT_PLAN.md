@@ -12,7 +12,78 @@
 
 ---
 
-## 🔧 진행: 모바일 반응형 QA — 모달 GNB 오버랩 + 로그아웃 버튼 + i18n + 모달 디자인 통일 (2026-05-12)
+## ✅ 완료: 사이클 N+10 — v1.7.0 활성 conv unread + 다중 디바이스 세션 + 즐겨찾기 동기화 + 보관함 + 모바일 로그인 풀스크린 (2026-05-12)
+
+3 commit 운영 라이브 (2회 deploy + 1회 버전 bump deploy, 181s + 49s + 47s). https://planq.kr health 200, planq-prod-backend v1.7.0. 사용자 보고 4건 (활성 채팅방 unread / 모바일 자동 로그아웃 / 즐겨찾기 동기화 / 모바일 로그인 페이지 스크롤) + 추가 4건 (보관함 의미 / ⋮ "00" / 보관함 진입점 / 삭제) 모두 fix + Q Task 행 캘린더 click drawer 열림 버그 fix.
+
+### 청크별 상세
+
+| Commit | 작업 | 핵심 |
+|---|---|---|
+| `5807d2f` 메인 | 활성 conv unread + 다중 디바이스 + 즐겨찾기 + 보관함 + 모바일 로그인 + 캘린더 fix | 9 변경 영역 (DB + 7 backend + 6 frontend + 4 i18n) |
+| `da62196` hotfix | 보관함 라우트 순서 충돌 fix | `/:businessId/archived` 를 `/:businessId/:id` 앞으로 (Express 정의 순서 매칭 함정) |
+| `ec85423` 버전 | 1.6.1 → 1.7.0 minor bump | package.json + DEVELOPMENT_PLAN + session-state |
+
+### 데이터 변화
+
+| 자원 | 변경 |
+|---|---|
+| `refresh_tokens.client_kind` | 신규 ENUM('pwa','web') NOT NULL DEFAULT 'web'. login/register/refresh 시 X-Client-Kind 헤더 또는 body 로 결정. 기존 row 는 'web' 그대로 (sliding renewal 시 자연스럽게 본인 platform 로 갱신) |
+| `conversations.archivedBy` | 새 association (User belongsTo, as: 'archivedBy', foreignKey: 'archived_by_user_id') |
+
+### 정책 변화 — refresh_token TTL
+
+| client_kind | TTL | 갱신 | 동기 |
+|---|:-:|:-:|---|
+| pwa (PWA standalone) | 365일 | sliding (refresh 시마다 +365일) | 모바일 앱 = 푸시 수신 위해 사실상 무한 세션 |
+| web (브라우저) | 30일 | sliding | 데스크탑 활동 기반 만료 (Slack/Notion 패턴) |
+| remember=false | session cookie | — | 공용 PC 안전 |
+
+### 신규 컴포넌트 / 라우트
+
+| 위치 | 역할 |
+|---|---|
+| `pages/QTalk/ArchivedChatsModal.tsx` | 보관된 채팅 list + 복원 + 영구 삭제 (workspace admin only) |
+| `LeftPanel.tsx` Footer | 좌측 풋터 "보관된 채팅" 진입점 (admin only) |
+| `GET /api/conversations/:bizId/archived` | 보관 목록 |
+| `POST /api/conversations/:bizId/:id/unarchive` | 복원 |
+| `DELETE /api/conversations/:bizId/:id` | 영구 삭제 (archived_at NOT NULL 인 경우만) |
+| `conversation:pin` socket event | 같은 user 의 모든 디바이스에 핀 변경 broadcast |
+| `user:N` socket room | 다중 디바이스 동기화용 자동 join (server.js) |
+
+### 핵심 fix — Express 라우트 순서 함정
+
+`router.get('/:businessId/archived', ...)` 와 `router.get('/:businessId/:id', ...)` 는 둘 다 2-segment + param. Express 는 **정의 순서대로 매칭**하므로 `/:businessId/:id` 가 먼저 정의되면 `/api/conversations/3/archived` 를 `id="archived"` 로 받음 → conversation lookup 실패 → 404. **literal segment 라우트는 param 라우트보다 먼저 정의 강제**. 신규 라우트 추가 시 항상 체크.
+
+### 핵심 fix — React Portal Synthetic Event Bubbling
+
+`CalendarPicker` 가 `createPortal` 로 document.body 에 마운트되어도 **React synthetic event 는 virtual DOM tree 따라 bubble**. DayCell 클릭 → DateRangeCell → TRow.onClick → openDetail. Wrapper 에 `onClick={e => e.stopPropagation()}` + `onMouseDown` 추가로 일괄 차단. 다른 모든 사용처 (NewEventModal, ProjectTaskList, AdminBusinessesPage, NewProjectModal, SingleDateField, CandidateEditCard, TaskDetailDrawer 등) 동시 fix.
+
+### 검증
+
+- 헬스체크 27/27 PASS
+- 빌드 1.6 ~ 2.4s, TS 에러 0
+- 외부 https://planq.kr/api/health 200, planq-prod-backend v1.7.0
+
+### 운영 배포 (3회)
+
+| 시각 (KST) | Commit | 항목 | 결과 |
+|---|---|---|---|
+| 06:58 | `5807d2f` | 메인 (사이클 N+10) | ✅ 181s, refresh_tokens.client_kind ALTER + frontend rebuild |
+| 08:54 | `da62196` | hotfix 보관함 라우트 순서 | ✅ 49s (--skip-build) |
+| 09:08 | `ec85423` | 버전 1.7.0 bump | ✅ 47s (--skip-build) |
+
+### 잔여 (다음 사이클)
+
+- ⋮ 메뉴 "00" 정체 — i18n key 다 정상이지만 모바일 실측 필요 (PWA SW cache 가능성). 사용자가 새 v1.7.0 받으면 자연 해소 가능
+- 청크 5 (visibility 배지 카드/행 적용 + 5중 시각 시그널) — lua 충돌 우려로 다음 사이클
+- Q note 텍스트 type + Quick Capture
+- Custom SMTP (Pro+)
+- 설문 기능 MVP
+
+---
+
+## ✅ 완료: 모바일 반응형 QA — 모달 GNB 오버랩 + 로그아웃 버튼 + i18n + 모달 디자인 통일 (2026-05-12)
 
 17+ 모달 파일 모바일 반응형 수정 + 모달 디자인 통일 (Q Calendar NewEventModal 패턴).
 

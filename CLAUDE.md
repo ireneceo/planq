@@ -313,6 +313,7 @@ res.status(400).json({ success: false, message: 'Error description' });
 > - **reviewer 가드 (PUT 라우트)** — reviewer 0명이면 status='reviewing'/'revision_requested' 차단 (400 `no_reviewers_assigned`). 100% 자동 completed 도 reviewer ≥ 1 시 차단 (in_progress 유지, "확인 요청 보내기" 명시 클릭 필요)
 > - **진행률 ↔ status 양방향 sync (PATCH + PUT 단일 진실 원천)** — `routes/tasks.js` PUT 에 progress → status 자동 전환 분기 추가. completed → active 전환 시 progress 100 → 90 자동 / completed 진입 시 progress < 100 이면 자동 100. frontend QTaskPage.saveField 의 이중 PUT 호출 제거
 > - **refresh_token chain 격리** — reuse_detected 가 같은 user 의 모든 active row 일괄 revoke 하던 회귀 → chain (`replaced_by_id` 사슬) 만 revoke. rotation grace 30s → 5min (모바일 PWA wake-up). memory `project_multi_device_session.md` 업데이트
+> - **refresh_token TTL by client_kind (사이클 N+10, 2026-05-12):** `refresh_tokens.client_kind` ENUM('pwa','web'). PWA standalone=365일 / web=30일 sliding renewal. 결정 우선순위: `req.body.client_kind` > `X-Client-Kind` 헤더 > 옛 row.client_kind > 'web'. frontend `detectClientKind()` 가 `display-mode: standalone` 매치 시 'pwa' 결정. login/register/refresh fetch 에 헤더 + body 자동 전달. cookie maxAge 동기. JWT expiresIn 도 동일 분기 (365d/30d).
 > - **이번 주 내 업무 필터** — 담당자=나 분기 status 화이트리스트 제거 → 활성 status 모두 표시 (reviewing 포함). "마감 책임 = 담당자 끝까지"
 > - **statusOptionsFor 3곳 일관** — QTaskPage / TaskDetailDrawer / ProjectTaskList — reviewer 0명이면 reviewing/revision_requested 옵션 숨김
 > - **모바일 UX** — FilePicker 75vh bottom sheet (slide-up, safe-area), QTalk LeftPanel PinBtn `@media (hover: none), (max-width: 1024px)` 항상 노출 + Unread `margin-left: auto` 우측 끝
