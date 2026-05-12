@@ -535,6 +535,19 @@ const QTaskPage:React.FC=()=>{
     };
   }, [bizId, user?.id]);
 
+  // 모바일 PWA background 복귀 시 missed events 회복 — visibilitychange 로 task list 재조회
+  // (socket 재연결 동안 emit 된 task:new/updated/deleted 는 영구 손실되므로 보정 필요)
+  useEffect(() => {
+    const onVis = () => {
+      if (document.visibilityState !== 'visible') return;
+      load();
+      const s = socketRef.current;
+      if (s && !s.connected) s.connect();
+    };
+    document.addEventListener('visibilitychange', onVis);
+    return () => document.removeEventListener('visibilitychange', onVis);
+  }, [load]);
+
   // Esc 키로 드로어 닫기 (상세 + 업무 추가)
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -2906,7 +2919,7 @@ const RightPanel=styled.aside<{$w?:number;$overlay?:boolean}>`background:#FFF;bo
 `;
 const RightPanelBackdrop=styled.div`position:fixed;inset:0;background:rgba(15, 23, 42, 0.08);-webkit-z-index:45;animation:pqRpFade 0.22s ease-out;@keyframes pqRpFade{from{opacity:0;}to{opacity:1;}}@media (prefers-reduced-motion: reduce){animation:none;}`;
 const ResizeHandle=styled.div`position:absolute;top:0;left:-3px;width:6px;height:100%;cursor:col-resize;z-index:5;&:hover{background:rgba(20,184,166,0.2);}&:active{background:rgba(20,184,166,0.4);}`;
-const DetailDrawer=styled.aside<{$w?:number}>`position:fixed;top:60px;right:0;bottom:0;width:min(${p=>p.$w||560}px,calc(100vw - 56px));background:#FFF;border-left:1px solid #E2E8F0;box-shadow:-16px 0 40px rgba(15,23,42,0.14);display:flex;flex-direction:column;overflow:hidden;z-index:40;animation:pqSlideIn 0.28s cubic-bezier(0.22,1,0.36,1);@keyframes pqSlideIn{from{transform:translateX(100%);}to{transform:translateX(0);}}padding-bottom:env(safe-area-inset-bottom,0px);@media (prefers-reduced-motion: reduce){animation:none;}`;
+const DetailDrawer=styled.aside<{$w?:number}>`position:fixed;top:0;right:0;bottom:0;width:min(${p=>p.$w||560}px,calc(100vw - 56px));background:#FFF;border-left:1px solid #E2E8F0;box-shadow:-16px 0 40px rgba(15,23,42,0.14);display:flex;flex-direction:column;overflow:hidden;z-index:40;animation:pqSlideIn 0.28s cubic-bezier(0.22,1,0.36,1);@keyframes pqSlideIn{from{transform:translateX(100%);}to{transform:translateX(0);}}padding-bottom:env(safe-area-inset-bottom,0px);@media (prefers-reduced-motion: reduce){animation:none;}@media (max-width: 1024px){top:56px;}`;
 const DrawerBackdrop=styled.div`position:fixed;inset:0;background:rgba(15, 23, 42, 0.08);-webkit-z-index:39;animation:pqFadeIn 0.22s ease-out;@keyframes pqFadeIn{from{opacity:0;}to{opacity:1;}}@media (prefers-reduced-motion: reduce){animation:none;}`;
 const DrawerResizeHandle=styled.div`position:absolute;top:0;left:-4px;width:8px;height:100%;cursor:col-resize;z-index:45;&:hover{background:rgba(20,184,166,0.25);}&:active{background:rgba(20,184,166,0.45);}@media (max-width:1024px){display:none;}`;
 const RightHeader=styled.div`height:60px;padding:14px 20px;border-bottom:1px solid #E2E8F0;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;`;

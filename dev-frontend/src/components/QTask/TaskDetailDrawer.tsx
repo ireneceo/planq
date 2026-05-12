@@ -1457,7 +1457,7 @@ const Backdrop = styled.div`
   @media (prefers-reduced-motion: reduce){animation:none;}
 `;
 const Drawer = styled.aside<{ $w: number }>`
-  position:fixed;top:60px;right:0;bottom:0;
+  position:fixed;top:0;right:0;bottom:0;
   width:min(${p => p.$w}px, calc(100vw - 56px));
   background:#FFF;border-left:1px solid #E2E8F0;
   box-shadow:-16px 0 40px rgba(15,23,42,0.14);display:flex;flex-direction:column;overflow:hidden;z-index:40;
@@ -1465,6 +1465,7 @@ const Drawer = styled.aside<{ $w: number }>`
   @keyframes pqSlideIn{from{transform:translateX(100%);}to{transform:translateX(0);}}
   padding-bottom:env(safe-area-inset-bottom,0px);
   @media (prefers-reduced-motion: reduce){animation:none;}
+  @media (max-width: 1024px){ top:56px; }
 `;
 const ResizeHandle = styled.div`
   position:absolute;top:0;left:-4px;width:8px;height:100%;cursor:col-resize;z-index:45;

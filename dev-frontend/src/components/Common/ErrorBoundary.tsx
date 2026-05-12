@@ -9,47 +9,58 @@ interface Props {
 interface State {
   error: Error | null;
   resetKey: number;
+  silentReload: boolean;
 }
 
-class ErrorBoundary extends React.Component<Props, State> {
-  state: State = { error: null, resetKey: 0 };
+const isChunkLoadError = (error: Error | null | undefined): boolean => {
+  if (!error) return false;
+  if (error.name === 'ChunkLoadError') return true;
+  const msg = String(error.message || '');
+  return /Failed to fetch dynamically imported module|Loading chunk \d+ failed|Importing a module script failed/i.test(msg);
+};
 
-  static getDerivedStateFromError(error: Error): State {
-    return { error, resetKey: 0 };
+class ErrorBoundary extends React.Component<Props, State> {
+  state: State = { error: null, resetKey: 0, silentReload: false };
+
+  static getDerivedStateFromError(error: Error): Partial<State> {
+    // 새 배포 직후 옛 청크 파일이 사라져 lazy import 가 실패하는 케이스 — 사용자에게 에러 화면을
+    // 보여주지 않고 silent reload. 60초 가드는 render() 에서 처리 (여기는 pure 해야 함).
+    if (isChunkLoadError(error)) {
+      return { error, silentReload: true };
+    }
+    return { error, silentReload: false };
   }
 
   componentDidCatch(error: Error, info: React.ErrorInfo) {
-    // 새 배포 직후 이전 빌드의 chunk 파일이 사라져 lazy import 가 실패하는 케이스.
-    //   ─ "Failed to fetch dynamically imported module" / ChunkLoadError / "Loading chunk"
-    // 사용자에겐 1회 자동 새로고침으로 복구. 60초 가드로 무한 reload 방지.
-    const msg = String(error?.message || '');
-    const isChunkFail = error?.name === 'ChunkLoadError'
-      || /Failed to fetch dynamically imported module|Loading chunk \d+ failed|Importing a module script failed/i.test(msg);
-    if (isChunkFail) {
+    if (isChunkLoadError(error)) {
       const KEY = 'pq_chunk_reload_at';
       try {
         const last = Number(sessionStorage.getItem(KEY) || '0');
         if (Date.now() - last > 60_000) {
           sessionStorage.setItem(KEY, String(Date.now()));
-          // 다음 tick 에 reload — fallback UI 깜빡임 최소화
           setTimeout(() => { window.location.reload(); }, 0);
           return;
         }
       } catch { /* sessionStorage 차단 환경 — fallback UI 표시 */ }
+      // 60초 가드에 막혀 reload 안 함 → 일반 에러 화면 보여야 함
+      this.setState({ silentReload: false });
     }
     console.error('[ErrorBoundary]', error, info.componentStack);
   }
 
   // resetKey 증가로 하위 트리 실제 remount 를 유도 — state 만 null 로 되돌리면
   // 부모 컴포넌트는 같은 인스턴스라 데이터 fetch 가 다시 트리거되지 않아 또 실패한다.
-  reset = () => this.setState(s => ({ error: null, resetKey: s.resetKey + 1 }));
+  reset = () => this.setState(s => ({ error: null, resetKey: s.resetKey + 1, silentReload: false }));
 
   render() {
-    const { error, resetKey } = this.state;
+    const { error, resetKey, silentReload } = this.state;
     if (!error) {
       // key 를 매번 바꾸지 않고 reset 된 이후에만 바꿔 불필요 remount 방지.
       return <React.Fragment key={resetKey}>{this.props.children}</React.Fragment>;
     }
+
+    // ChunkLoadError → componentDidCatch 가 곧 reload. 사용자에게 에러 화면 보여주지 않음.
+    if (silentReload) return null;
 
     if (this.props.fallback) return this.props.fallback(error, this.reset);
 
