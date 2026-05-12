@@ -16,6 +16,7 @@ import type { TodoItem, TodoResponse } from '../../services/dashboard';
 import type { CalendarEvent } from '../../pages/QCalendar/types';
 import { updateEvent, deleteEvent, createMeetingRoom } from '../../services/calendar';
 import { useAuth, apiFetch, getAccessToken } from '../../contexts/AuthContext';
+import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 
 interface MemberOpt { user_id: number; name: string; }
 
@@ -130,6 +131,13 @@ const TodoPage: React.FC = () => {
       socketRef.current = null;
     };
   }, [silentLoad, user?.id]);
+
+  // 모바일 PWA background 복귀 시 missed events 회복
+  useVisibilityRefresh(useCallback(() => {
+    silentLoad();
+    const s = socketRef.current;
+    if (s && !s.connected) s.connect();
+  }, [silentLoad]));
 
   // workspaces 변경 시 join/leave 동기화 — diff 만 emit.
   useEffect(() => {
