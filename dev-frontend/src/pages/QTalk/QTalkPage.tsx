@@ -4,6 +4,7 @@ import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { io, type Socket } from 'socket.io-client';
 import LeftPanel from './LeftPanel';
+import ArchivedChatsModal from './ArchivedChatsModal';
 import ChatPanel from './ChatPanel';
 import RightPanel from './RightPanel';
 import NewProjectModal, { type ProjectFormData } from './NewProjectModal';
@@ -198,11 +199,14 @@ const QTalkPage: React.FC = () => {
   const [unlinkConv, setUnlinkConv] = useState<MockConversation | null>(null);
   const [archiveBusy, setArchiveBusy] = useState(false);
   const [unlinkBusy, setUnlinkBusy] = useState(false);
+  const [archivedModalOpen, setArchivedModalOpen] = useState(false);
   // 권한 — workspace owner / platform admin 만 ⋮ 메뉴 노출.
   // (project owner 인 멤버는 backend 가 허용하지만 UI 진입점은 단순화 — 다음 fix 에서 정교화)
   const canManageConversation = useCallback((_c: MockConversation) => {
     return user?.business_role === 'owner' || user?.platform_role === 'platform_admin';
   }, [user?.business_role, user?.platform_role]);
+  // 보관함 진입점 — 워크스페이스 admin only. canManageConversation 과 같은 정책.
+  const canViewArchive = user?.business_role === 'owner' || user?.platform_role === 'platform_admin';
 
   const location = useLocation();
   const navigate = useNavigate();
@@ -329,6 +333,10 @@ const QTalkPage: React.FC = () => {
       if (!isMine && !isActive) {
         window.dispatchEvent(new Event('planq:unread-changed'));
       }
+      // 활성 conv 도착분 → 백엔드 last_read_at 즉시 갱신 (다음 GET 에서도 0 유지)
+      if (!isMine && isActive && businessId) {
+        qtalkApi.markConversationRead(businessId, mapped.conversation_id).catch(() => null);
+      }
     });
 
     // 후보 생성 — POST 응답과 socket broadcast 가 둘 다 들어오므로 id 기준 dedup 필수
@@ -399,6 +407,13 @@ const QTalkPage: React.FC = () => {
             : m
         ) };
       });
+    });
+
+    // 다중 디바이스 동기화 — 같은 user 의 다른 디바이스에서 핀 토글 시 즉시 반영
+    socket.on('conversation:pin', (data: { conversation_id: number; pinned_at: string | null }) => {
+      setConversations(prev => prev.map(c =>
+        c.id === data.conversation_id ? { ...c, my_pinned_at: data.pinned_at } : c
+      ));
     });
 
     // 메모 생성
@@ -1099,6 +1114,7 @@ const QTalkPage: React.FC = () => {
         canManage={canManageConversation}
         onArchive={(c) => setArchiveConv(c)}
         onUnlink={(c) => setUnlinkConv(c)}
+        onOpenArchive={canViewArchive ? () => setArchivedModalOpen(true) : undefined}
         onTogglePin={async (convId, pinned) => {
           // 옵티미스틱 — UI 즉시 반영
           const nowIso = pinned ? new Date().toISOString() : null;
@@ -1286,6 +1302,21 @@ const QTalkPage: React.FC = () => {
           }
         }}
       />
+
+      {/* 보관함 — workspace admin 만. 복원 시 부모 conversations 다시 fetch (소켓이 자동 갱신 안 함). */}
+      {canViewArchive && businessId && (
+        <ArchivedChatsModal
+          open={archivedModalOpen}
+          businessId={businessId}
+          onClose={() => setArchivedModalOpen(false)}
+          onAfter={async () => {
+            try {
+              const fresh = await qtalkApi.listBusinessConversations(businessId);
+              setConversations(fresh.map(apiConversationToMock));
+            } catch { /* silent — modal 안 에러는 ArchivedChatsModal 이 표시 */ }
+          }}
+        />
+      )}
     </Layout>
   );
 };

@@ -129,6 +129,7 @@ User.hasMany(Client, { as: 'clientProfiles', foreignKey: 'user_id' });
 // Conversation
 Conversation.belongsTo(Business, { foreignKey: 'business_id' });
 Conversation.belongsTo(Client, { foreignKey: 'client_id' });
+Conversation.belongsTo(User, { as: 'archivedBy', foreignKey: 'archived_by_user_id' });
 Business.hasMany(Conversation, { as: 'conversations', foreignKey: 'business_id' });
 Client.hasMany(Conversation, { as: 'conversations', foreignKey: 'client_id' });
 

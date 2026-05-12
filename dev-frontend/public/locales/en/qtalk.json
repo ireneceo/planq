@@ -102,23 +102,44 @@
     "menu": {
       "aria": "Chat menu",
       "unlink": "Detach from project",
-      "archive": "Archive chat",
+      "archive": "Move to archive",
       "permDenied": "Only workspace admins or project owners can archive.",
       "archiveFailed": "Archive failed",
       "unlinkFailed": "Detach failed"
     },
+    "viewArchived": "Archived chats",
     "confirm": {
       "cancel": "Cancel",
       "archive": {
-        "title": "Archive this chat?",
-        "body": "“{{name}}” will be hidden from the list. Messages, files, and tasks are preserved. A workspace admin can restore it later.",
-        "ok": "Archive"
+        "title": "Move this chat to the archive?",
+        "body": "“{{name}}” will disappear from the list and move to the archive. Messages, files, and tasks are preserved. An admin can restore it or permanently delete it from the archive.",
+        "ok": "Move to archive"
       },
       "unlink": {
         "title": "Detach from project?",
         "body": "“{{name}}” will be disconnected from its project. The chat, messages, and members remain — it moves to the “General” group.",
         "ok": "Detach"
       }
+    }
+  },
+  "archived": {
+    "title": "Archived chats",
+    "description": "Archived chats are hidden from the list. Restore brings them back to active; permanent delete removes them along with messages and attachments.",
+    "fetchFailed": "Failed to load archived chats",
+    "loading": "Loading…",
+    "empty": "No archived chats",
+    "noProject": "General",
+    "archivedAt": "Archived: {{ts}}",
+    "archivedBy": "by {{name}}",
+    "restore": "Restore",
+    "deleteForever": "Delete forever",
+    "restoreFailed": "Failed to restore",
+    "deleteFailed": "Failed to delete",
+    "confirmDelete": {
+      "title": "Delete forever?",
+      "body": "\"{{name}}\" and all its messages and attachments will be permanently removed. This cannot be undone.",
+      "ok": "Delete forever",
+      "cancel": "Cancel"
     }
   },
   "newChat": {

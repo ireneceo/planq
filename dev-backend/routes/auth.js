@@ -16,14 +16,38 @@ const hashRefreshToken = (raw) => crypto.createHash('sha256').update(raw).digest
 // 30년차 시각: user.refresh_token 단일 컬럼은 다중 디바이스에서 충돌 (한 디바이스가 refresh
 // 하면 다른 디바이스 cookie 가 invalid). refresh_tokens 테이블은 device 별 row 라
 // 모든 디바이스가 독립적으로 refresh.
-async function createRefreshTokenRow(user, rawToken, req, transaction = null) {
-  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+//
+// TTL 정책 (사이클 N+10):
+//   pwa (모바일 PWA standalone) — 365일. 모바일 앱은 push 수신을 위해 사실상 무한 세션 유지.
+//                                  refresh 호출 시마다 sliding renewal 로 365일 재설정.
+//   web (데스크탑 브라우저)      — 30일. 활동 시 sliding renewal.
+// 결정 우선순위: req.body.client_kind > req.headers['x-client-kind'] > 옛 row.client_kind > 'web'.
+const TTL_MS_BY_KIND = {
+  pwa: 365 * 24 * 60 * 60 * 1000,
+  web: 30 * 24 * 60 * 60 * 1000,
+};
+function resolveClientKind(req, fallback) {
+  const body = (req?.body?.client_kind || '').toString().toLowerCase();
+  if (body === 'pwa' || body === 'web') return body;
+  const hdr = (req?.headers?.['x-client-kind'] || '').toString().toLowerCase();
+  if (hdr === 'pwa' || hdr === 'web') return hdr;
+  if (fallback === 'pwa' || fallback === 'web') return fallback;
+  return 'web';
+}
+function jwtExpiresInForKind(kind) {
+  return kind === 'pwa' ? '365d' : '30d';
+}
+
+async function createRefreshTokenRow(user, rawToken, req, transaction = null, opts = {}) {
+  const kind = opts.clientKind || resolveClientKind(req);
+  const expiresAt = new Date(Date.now() + TTL_MS_BY_KIND[kind]);
   const ua = (req?.headers?.['user-agent'] || '').slice(0, 500);
   const ip = (req?.ip || req?.connection?.remoteAddress || '').slice(0, 64);
   return RefreshToken.create({
     user_id: user.id,
     token_hash: hashRefreshToken(rawToken),
     user_agent: ua, ip_address: ip,
+    client_kind: kind,
     expires_at: expiresAt,
     last_used_at: new Date(),
   }, transaction ? { transaction } : {});
@@ -54,13 +78,14 @@ const generateAccessToken = (user) => {
   );
 };
 
-const generateRefreshToken = (user) => {
+const generateRefreshToken = (user, clientKind = 'web') => {
   // jti (UUID) 추가 — jwt.iat 가 초 단위라 같은 초에 두 번 sign 시 동일 토큰 → token_hash unique 충돌.
   // 다중 탭 동시 refresh / 빠른 연속 login 같은 race 에서 401/409 회귀 차단.
+  // expiresIn: pwa=365d (모바일 long-lived) / web=30d (데스크탑). cookie maxAge 와 동일.
   return jwt.sign(
     { userId: user.id, jti: crypto.randomUUID() },
     process.env.JWT_REFRESH_SECRET,
-    { expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d' }
+    { expiresIn: jwtExpiresInForKind(clientKind) }
   );
 };
 
@@ -359,17 +384,18 @@ router.post('/register', async (req, res, next) => {
     }, { transaction });
 
     // 5. Generate tokens
+    const clientKind = resolveClientKind(req);
     const accessToken = generateAccessToken(user);
-    const refreshToken = generateRefreshToken(user);
+    const refreshToken = generateRefreshToken(user, clientKind);
 
     // 6. Save refresh token row (다중 디바이스 세션 — 신규 row, 기존 row 영향 X)
-    await createRefreshTokenRow(user, refreshToken, req, transaction);
+    await createRefreshTokenRow(user, refreshToken, req, transaction, { clientKind });
 
     await transaction.commit();
 
     // 6. Set refresh token as HttpOnly cookie
-    // remember=true (default, 기존 동작): 7일 persistent cookie — 브라우저 닫아도 유지
-    // remember=false (사용자 명시 OFF): session cookie — 브라우저 닫으면 자동 로그아웃 (공용 PC 안전)
+    // remember=true (default): pwa=365일 / web=30일 persistent cookie — sliding renewal 로 활동 시 자동 연장
+    // remember=false (공용 PC OFF): session cookie — 브라우저 닫으면 자동 로그아웃
     const remember = req.body?.remember !== false;
     const cookieOpts = {
       httpOnly: true,
@@ -377,7 +403,7 @@ router.post('/register', async (req, res, next) => {
       sameSite: 'strict',
       path: '/api/auth',
     };
-    if (remember) cookieOpts.maxAge = 7 * 24 * 60 * 60 * 1000;
+    if (remember) cookieOpts.maxAge = TTL_MS_BY_KIND[clientKind];
     res.cookie('refresh_token', refreshToken, cookieOpts);
 
     successResponse(res, {
@@ -463,16 +489,17 @@ router.post('/login', async (req, res, next) => {
     }
 
     // Generate tokens
+    const clientKind = resolveClientKind(req);
     const accessToken = generateAccessToken(user);
-    const refreshToken = generateRefreshToken(user);
+    const refreshToken = generateRefreshToken(user, clientKind);
 
     // 다중 디바이스 — 신규 row 추가 (기존 디바이스 row 들 영향 X)
-    await createRefreshTokenRow(user, refreshToken, req);
+    await createRefreshTokenRow(user, refreshToken, req, null, { clientKind });
     await user.update({ last_login_at: new Date() });
 
     // Set refresh token as HttpOnly cookie
-    // remember=true (default, 기존 동작): 7일 persistent cookie
-    // remember=false (사용자 명시): session cookie — 브라우저 닫으면 자동 로그아웃 (공용 PC 안전)
+    // remember=true (default): pwa=365일 / web=30일 persistent cookie — sliding renewal
+    // remember=false (공용 PC): session cookie — 브라우저 닫으면 자동 로그아웃
     const remember = req.body?.remember !== false;
     const cookieOpts = {
       httpOnly: true,
@@ -480,7 +507,7 @@ router.post('/login', async (req, res, next) => {
       sameSite: 'strict',
       path: '/api/auth',
     };
-    if (remember) cookieOpts.maxAge = 7 * 24 * 60 * 60 * 1000;
+    if (remember) cookieOpts.maxAge = TTL_MS_BY_KIND[clientKind];
     res.cookie('refresh_token', refreshToken, cookieOpts);
 
     // Get user with business info
@@ -581,10 +608,13 @@ router.post('/refresh', async (req, res, next) => {
 
     // 7. Rotate — 옛 row revoke (rotated) + 새 row 생성 + 새 cookie
     //    옛 row 의 replaced_by_id 에 새 row id 저장 (다중 탭 race 흡수에 사용)
+    //    client_kind 는 옛 row 그대로 따라감 (PWA 모바일은 365일 유지, 데스크탑은 30일).
+    //    sliding renewal — createRefreshTokenRow 가 NOW + TTL_MS_BY_KIND[kind] 로 새 만료 갱신.
+    const inheritKind = tokenRow.client_kind || 'web';
     const newAccessToken = generateAccessToken(user);
-    const newRefreshToken = generateRefreshToken(user);
+    const newRefreshToken = generateRefreshToken(user, inheritKind);
 
-    const successorRow = await createRefreshTokenRow(user, newRefreshToken, req);
+    const successorRow = await createRefreshTokenRow(user, newRefreshToken, req, null, { clientKind: inheritKind });
     await tokenRow.update({
       revoked_at: new Date(),
       revoked_reason: 'rotated',
