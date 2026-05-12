@@ -1,14 +1,71 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-05-12 v1.7.0 (사이클 N+10 — 활성 conv unread + 다중 디바이스 세션 PWA 365일 + 즐겨찾기 동기화 + 보관함 + 모바일 로그인 풀스크린 + 캘린더 클릭 fix)
+> **최종 업데이트:** 2026-05-12 v1.7.1 (사이클 N+11 — Q Task 우측 패널 빈 공간 fix + ErrorBoundary 깜빡임 제거 + 모바일 visibilitychange 실시간 회복 + 라우트 prefetch + vendor 청크 분리 + 빌드 OOM 박제)
 >
-> **이전 라이브:** 2026-05-12 `5807d2f` (v1.7.0 N+10 메인, 181s) / `da62196` (v1.7.0 N+10 hotfix, 49s) / `2b64012` (모바일 반응형 lua) / `d3e7f0a` (v1.6.1 N+9 hotfix, 110s) / `eb8769a` (v1.6.0 N+9, 110s)
+> **이전 라이브:** 2026-05-12 `3e2b595`/`d746d6f`/`966144e` (v1.7.1 N+11 5건, 218s) / `5807d2f`/`da62196`/`ec85423` (v1.7.0 N+10) / `2b64012` (모바일 반응형 lua) / `d3e7f0a` (v1.6.1 N+9 hotfix) / `eb8769a` (v1.6.0 N+9)
 >
 > **다음 진입 ★:** (Irene 선택)
 >
 > **차순위:** 청크 5 (visibility 배지 카드/행 적용 + 5중 시각 시그널) / DocsTab 카드 hover share 아이콘 / 동적 OG (backend SSR + nginx /public/* proxy) / Q note 텍스트 type + Quick Capture / Custom SMTP (Pro+) / 설문 기능 MVP (4 사이클)
 >
 > **결제 정책:** 1순위 자체 결제 (계좌이체 mark-paid), 2순위 PortOne (P-7 마지막). 월결제 + 연결제. Free 플랜 폐지 — 신규 가입은 starter+trialing 14일.
+
+---
+
+## ✅ 완료: 사이클 N+11 — v1.7.1 우측 패널 + ErrorBoundary + 모바일 실시간 + prefetch + 청크 분할 (2026-05-12)
+
+3 commit 운영 라이브 (218s, 1회 deploy). 사용자 보고 3건 + 인프라 개선 2건 모두 fix.
+
+### 청크별 상세
+
+| Commit | 작업 | 핵심 |
+|---|---|---|
+| `966144e` UX fix | Q Task 우측 패널 빈 공간 + ErrorBoundary 깜빡임 + Q Task 모바일 실시간 회복 | 3건 사용자 보고 |
+| `d746d6f` perf | 라우트 prefetch + visibilitychange 일괄 적용 (Q Talk/Todo) | 모바일 페이지 이동 + 모든 socket 페이지 회복 |
+| `3e2b595` build | vendor 청크 분리 + 빌드 OOM scripts 박제 | 인프라 안정화 |
+
+### 핵심 fix 5건
+
+1. **Q Task 우측 패널 상단 빈 공간 해소** — `2b64012` lua 모바일 fix 가 17+ 모달 일괄 적용하며 TaskDetailDrawer + QTaskPage 업무추가 패널까지 `top:0` → `top:60px` 로 휩쓸음. 데스크탑은 상단 GNB 없는데 60px 빈 공간 발생. 모바일도 GNB 56px 인데 60px 처리되어 4px 어긋남. fix: 데스크탑 `top:0`, 모바일 `top:56px` (`@media max-width:1024px`).
+
+2. **ErrorBoundary "문제가 발생했습니다" 깜빡임 제거** — ChunkLoadError 자동 reload 시 `setTimeout(reload, 0)` 전에 React 가 fallback render 한 frame 그리던 회귀. `getDerivedStateFromError` 에 `silentReload` flag → render() 에서 `null` 반환해 fallback UI 안 그림. 60초 가드에 막혀 reload 못 할 때만 일반 에러 화면.
+
+3. **useVisibilityRefresh 공통 훅 + 3 페이지 적용** — PWA background → foreground 복귀 시 socket 재연결 사이 missed events 보정 표준 패턴. 5초 minInterval 가드. QTaskPage / QTalkPage / TodoPage 에 적용. QTalkPage 는 socket 재연결 + 활성 conv messages cache invalidate + 대화 목록 merge refresh 3중 회복.
+
+4. **라우트 청크 prefetch 인프라** — `lib/routePrefetch.ts` 신규. 17 핵심 path 매핑. 앱 mount idle 시 자주 가는 5개 (dashboard/talk/tasks/calendar/notes) 미리 다운로드. 전역 mouseover + focusin delegation 으로 모든 internal link hover 자동 prefetch. Vite module promise 캐시로 lazy() 와 동일 import 공유.
+
+5. **vendor 청크 분리 + 빌드 OOM 박제** — `vite.config.ts` manualChunks 추가:
+   - vendor-tiptap (416KB) — RichEditor 사용 페이지만
+   - vendor-recharts (310KB) — Insights/WeeklyReview 만
+   - vendor-react/router/select/socket/i18n/styled/date/tippy 분리
+   - **index 청크 343 → 165 KB (52% 감소)**
+   - `package.json` scripts.build 에 `NODE_OPTIONS=--max-old-space-size=4096` 박제 — `npm run build` 만으로 안정 빌드
+
+### 신규 파일
+
+| 위치 | 역할 |
+|---|---|
+| `hooks/useVisibilityRefresh.ts` | PWA background 복귀 시 refetch 표준 훅 |
+| `lib/routePrefetch.ts` | 라우트 청크 prefetch — idle + hover delegation |
+
+### 검증
+
+- 빌드 3.73 ~ 4.07s, TS 에러 0
+- 헬스체크 27/27 PASS
+- 외부 https://planq.kr/api/health 200, planq-prod-backend v1.7.1
+
+### 운영 배포
+
+| 시각 (KST) | Commit | 항목 | 결과 |
+|---|---|---|---|
+| 18:05 | `3e2b595` | UX fix + prefetch + 청크 분할 통합 | ✅ 218s |
+| 18:?? | (예정) | v1.7.0 → 1.7.1 버전 bump | --skip-build |
+
+### 메모리 박제 (이번 사이클)
+
+- `feedback_react_portal_bubble.md` (이전 사이클 — 그대로 유효)
+- `feedback_express_route_order.md` (이전 사이클 — 그대로 유효)
+- 새 메모리 없음 (인프라 개선 위주, 회귀 패턴 박제는 이전 사이클에서 끝남)
 
 ---
 
