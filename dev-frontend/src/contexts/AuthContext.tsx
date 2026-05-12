@@ -101,6 +101,21 @@ export const useAuth = () => {
 // Access token은 메모리에만 저장 (XSS 안전)
 let accessToken: string | null = null;
 
+// 클라이언트 종류 감지 — PWA standalone 이면 'pwa' (모바일 앱), 아니면 'web' (브라우저).
+// 백엔드에 전달되어 refresh_token TTL 결정 (pwa=365일 / web=30일 sliding renewal).
+// SSR 환경 안전성 — window 미존재 시 'web' 기본.
+const detectClientKind = (): 'pwa' | 'web' => {
+  if (typeof window === 'undefined') return 'web';
+  try {
+    const standalone =
+      window.matchMedia?.('(display-mode: standalone)').matches ||
+      (window.navigator as Navigator & { standalone?: boolean }).standalone === true;
+    return standalone ? 'pwa' : 'web';
+  } catch {
+    return 'web';
+  }
+};
+
 export const getAccessToken = () => accessToken;
 // 사칭(impersonate) 모드에서 token swap 할 때만 export. 일반 흐름은 register/login/refresh 가 내부에서 호출.
 export const _impersonateSetAccessToken = (token: string | null) => {
@@ -148,6 +163,7 @@ const tryRefresh = (): Promise<boolean> => {
       try {
         const res = await fetch('/api/auth/refresh', {
           method: 'POST',
+          headers: { 'X-Client-Kind': detectClientKind() },
           credentials: 'include',
         });
         if (res.ok) {
@@ -364,11 +380,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   // remember 기본값 true (기존 동작 호환). false 면 백엔드가 session cookie 설정 → 브라우저
   // 닫으면 refresh_token 사라져 자동 로그아웃. 공용 PC 사용자가 명시적 OFF 시 안전.
   const login = async (email: string, password: string, remember: boolean = true): Promise<boolean> => {
+    const clientKind = detectClientKind();
     const res = await fetch('/api/auth/login', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'X-Client-Kind': clientKind },
       credentials: 'include',
-      body: JSON.stringify({ email, password, remember }),
+      body: JSON.stringify({ email, password, remember, client_kind: clientKind }),
     });
 
     if (res.ok) {
@@ -389,12 +406,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   const register = async (name: string, email: string, password: string, businessName: string, opts?: { terms_accepted?: boolean; privacy_accepted?: boolean }): Promise<boolean> => {
+    const clientKind = detectClientKind();
     const res = await fetch('/api/auth/register', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'X-Client-Kind': clientKind },
       credentials: 'include',
       body: JSON.stringify({
         email, password, name, business_name: businessName,
+        client_kind: clientKind,
         terms_accepted: opts?.terms_accepted ?? false,
         privacy_accepted: opts?.privacy_accepted ?? false,
       }),

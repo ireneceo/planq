@@ -26,6 +26,8 @@ interface Props {
   onArchive?: (c: MockConversation) => void;
   /** 프로젝트에서 분리 (project_id=null) — ConfirmDialog 후 실행 */
   onUnlink?: (c: MockConversation) => void;
+  /** 보관함 보기 (워크스페이스 admin only) — 풋터 링크 클릭 시 호출. 없으면 풋터 숨김. */
+  onOpenArchive?: () => void;
   /** 모바일(<=tablet)에서 대화가 선택된 경우 LeftPanel 을 숨김 */
   mobileHidden?: boolean;
 }
@@ -40,7 +42,7 @@ interface ChatEntry {
 const LeftPanel: React.FC<Props> = ({
   projects, conversations, activeConversationId,
   onSelectConversation, onOpenNewChat, collapsed, onToggleCollapsed,
-  onTogglePin, canManage, onArchive, onUnlink, mobileHidden = false,
+  onTogglePin, canManage, onArchive, onUnlink, onOpenArchive, mobileHidden = false,
 }) => {
   const { t } = useTranslation('qtalk');
   const { user } = useAuth();
@@ -211,7 +213,7 @@ const LeftPanel: React.FC<Props> = ({
                 </ChatTop>
                 <ProjectName>{p.name}</ProjectName>
               </ChatBody>
-              {c.unread_count > 0 && <Unread>{c.unread_count}</Unread>}
+              {!isActive && c.unread_count > 0 && <Unread>{c.unread_count}</Unread>}
               {onTogglePin && (
                 <PinBtn
                   type="button"
@@ -278,6 +280,17 @@ const LeftPanel: React.FC<Props> = ({
           );
         })}
       </ChatList>
+      {/* 보관함 진입점 — 워크스페이스 admin 만 노출. 풋터는 항상 좌측 하단 고정. */}
+      {onOpenArchive && (
+        <Footer>
+          <ArchiveLink type="button" onClick={onOpenArchive} title={t('left.viewArchived', '보관된 채팅 보기') as string}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M21 8v13H3V8" /><rect x="1" y="3" width="22" height="5" /><line x1="10" y1="12" x2="14" y2="12" />
+            </svg>
+            <span>{t('left.viewArchived', '보관된 채팅')}</span>
+          </ArchiveLink>
+        </Footer>
+      )}
     </Container>
   );
 };
@@ -414,6 +427,31 @@ const Empty = styled.div`
   text-align: center;
   color: #94A3B8;
   font-size: 12px;
+`;
+
+const Footer = styled.div`
+  flex-shrink: 0;
+  padding: 8px 10px;
+  border-top: 1px solid #E2E8F0;
+  background: #FFFFFF;
+`;
+const ArchiveLink = styled.button`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #64748B;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s, color 0.15s;
+  &:hover { background: #F1F5F9; color: #0F172A; }
+  svg { flex-shrink: 0; }
 `;
 
 const ChatRow = styled.div<{ $active: boolean }>`

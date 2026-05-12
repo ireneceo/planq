@@ -96,6 +96,9 @@ router.post('/:businessId/:id/pin', authenticateToken, checkBusinessAccess, asyn
       defaults: { conversation_id: convId, user_id: req.user.id, role: 'member' },
     });
     await part.update({ pinned_at: new Date() });
+    // 다중 디바이스 동기화 — 같은 user 의 모든 socket 에 핀 상태 broadcast
+    const io = req.app.get('io');
+    if (io) io.to(`user:${req.user.id}`).emit('conversation:pin', { conversation_id: convId, pinned_at: part.pinned_at });
     return successResponse(res, { pinned_at: part.pinned_at });
   } catch (err) { next(err); }
 });
@@ -109,6 +112,9 @@ router.delete('/:businessId/:id/pin', authenticateToken, checkBusinessAccess, as
     if (part && part.pinned_at) {
       await part.update({ pinned_at: null });
     }
+    // 다중 디바이스 동기화 — 같은 user 의 모든 socket 에 핀 해제 broadcast
+    const io = req.app.get('io');
+    if (io) io.to(`user:${req.user.id}`).emit('conversation:pin', { conversation_id: convId, pinned_at: null });
     return successResponse(res, { pinned_at: null });
   } catch (err) { next(err); }
 });
@@ -741,6 +747,91 @@ router.post('/:businessId/:id/archive', authenticateToken, checkBusinessAccess, 
       newValue: { archived_at: conv.archived_at, archived_by_user_id: req.user.id, project_id: conv.project_id },
     });
     return successResponse(res, conv.toJSON());
+  } catch (err) { next(err); }
+});
+
+// ============================================
+// 보관함 — 보관된 채팅방 관리 (사이클 N+10)
+// ============================================
+// 권한: workspace owner OR platform_admin (member·client 차단).
+//   archive 라우트와 일관 — 보관/복원/영구삭제는 모두 관리자 권한.
+
+async function assertWorkspaceAdmin(req, businessId) {
+  const wsMember = await BusinessMember.findOne({
+    where: { user_id: req.user.id, business_id: businessId, removed_at: null },
+    attributes: ['role'],
+  });
+  const isWorkspaceOwner = wsMember?.role === 'owner';
+  const isPlatformAdmin = req.user.platform_role === 'platform_admin';
+  return isPlatformAdmin || isWorkspaceOwner;
+}
+
+// GET /api/conversations/:businessId/archived — 보관된 채팅방 목록
+router.get('/:businessId/archived', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+  try {
+    const businessId = Number(req.params.businessId);
+    if (!(await assertWorkspaceAdmin(req, businessId))) {
+      return errorResponse(res, 'workspace_owner_required', 403);
+    }
+    const { Op } = require('sequelize');
+    const conversations = await Conversation.findAll({
+      where: { business_id: businessId, archived_at: { [Op.ne]: null } },
+      include: [
+        { model: Project, attributes: ['id', 'name'], required: false },
+        { model: User, as: 'archivedBy', attributes: ['id', 'name', 'email'], required: false },
+      ],
+      order: [['archived_at', 'DESC']],
+    });
+    return successResponse(res, conversations.map(c => c.toJSON()));
+  } catch (err) { next(err); }
+});
+
+// POST /api/conversations/:businessId/:id/unarchive — 보관 해제 (복원)
+router.post('/:businessId/:id/unarchive', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+  try {
+    const businessId = Number(req.params.businessId);
+    if (!(await assertWorkspaceAdmin(req, businessId))) {
+      return errorResponse(res, 'workspace_owner_required', 403);
+    }
+    const conv = await Conversation.findOne({ where: { id: req.params.id, business_id: businessId } });
+    if (!conv) return errorResponse(res, 'conversation_not_found', 404);
+    if (!conv.archived_at) return errorResponse(res, 'not_archived', 400);
+    const oldArchivedAt = conv.archived_at;
+    await conv.update({ archived_at: null, archived_by_user_id: null });
+    require('../services/auditService').logAudit(req, {
+      action: 'conversation.unarchive',
+      targetType: 'conversation',
+      targetId: conv.id,
+      oldValue: { archived_at: oldArchivedAt },
+      newValue: { archived_at: null },
+    });
+    return successResponse(res, conv.toJSON());
+  } catch (err) { next(err); }
+});
+
+// DELETE /api/conversations/:businessId/:id — 영구 삭제 (보관함 안에서만)
+//   안전핀: archived_at NOT NULL 인 conv 만 삭제 가능. 활성 conv 직접 삭제 차단.
+//   30년차 정책: 활성 채팅을 직접 hard delete 하면 메시지·파일·업무까지 연쇄 손실 위험 → 보관 단계 강제.
+//   삭제 후 메시지·첨부 row 는 DB FK ON DELETE CASCADE 또는 별도 cleanup cron 으로 처리.
+router.delete('/:businessId/:id', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+  try {
+    const businessId = Number(req.params.businessId);
+    if (!(await assertWorkspaceAdmin(req, businessId))) {
+      return errorResponse(res, 'workspace_owner_required', 403);
+    }
+    const conv = await Conversation.findOne({ where: { id: req.params.id, business_id: businessId } });
+    if (!conv) return errorResponse(res, 'conversation_not_found', 404);
+    if (!conv.archived_at) return errorResponse(res, 'must_archive_first', 400);
+    const snapshot = { id: conv.id, name: conv.name, project_id: conv.project_id, archived_at: conv.archived_at };
+    await conv.destroy();
+    require('../services/auditService').logAudit(req, {
+      action: 'conversation.delete',
+      targetType: 'conversation',
+      targetId: snapshot.id,
+      oldValue: snapshot,
+      newValue: null,
+    });
+    return successResponse(res, { id: snapshot.id, deleted: true });
   } catch (err) { next(err); }
 });
 

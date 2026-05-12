@@ -5,13 +5,26 @@ import styled from 'styled-components';
 import { useAuth } from '../../contexts/AuthContext';
 
 const Container = styled.div`
+  /* dvh (dynamic viewport height) — iOS Safari 의 가변 주소창 포함 정확한 화면 높이.
+     vh fallback 은 옛 브라우저 안전망. */
   min-height: 100vh;
+  min-height: 100dvh;
   background: linear-gradient(180deg, #F8FAFC 0%, #E2E8F0 100%);
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   padding: 20px;
+
+  @media (max-width: 768px) {
+    /* 모바일은 카드 박스 없이 풀스크린 — Container 자체가 폼 배경.
+       padding 0 으로 LoginBox 가 가장자리까지 차지. */
+    padding: 0;
+    background: #FFFFFF;
+    /* 모바일에서 정확히 디바이스 높이만큼만 — 스크롤 발생 차단 */
+    height: 100dvh;
+    min-height: 100dvh;
+  }
 `;
 
 const LoginBox = styled.div`
@@ -25,7 +38,11 @@ const LoginBox = styled.div`
 
   @media (max-width: 768px) {
     flex-direction: column;
-    max-width: 440px;
+    max-width: 100%;
+    /* 모바일 풀스크린 — 카드 시각 효과 제거 */
+    border-radius: 0;
+    box-shadow: none;
+    height: 100%;
   }
 `;
 
@@ -41,8 +58,10 @@ const LeftSection = styled.div`
   min-height: 480px;
 
   @media (max-width: 768px) {
-    padding: 40px 30px;
+    /* 모바일 — 짧은 헤더로 (로고만). 폼이 주인. */
+    padding: 24px 24px 20px;
     min-height: auto;
+    flex: 0 0 auto;
   }
 `;
 
@@ -76,7 +95,12 @@ const RightSection = styled.div`
   justify-content: center;
 
   @media (max-width: 768px) {
-    padding: 40px 30px;
+    /* 폼이 길어도 RightSection 안에서만 스크롤 — Container 자체는 fixed.
+       safe-area-inset-bottom 으로 iOS 홈바 영역 보정. */
+    padding: 24px 24px calc(24px + env(safe-area-inset-bottom));
+    flex: 1 1 auto;
+    overflow-y: auto;
+    justify-content: flex-start;
   }
 `;
 
@@ -468,7 +492,7 @@ const LoginPage: React.FC = () => {
                 onChange={(e) => setRemember(e.target.checked)}
               />
               <RememberLabel htmlFor="login-remember">
-                {t('login.rememberMe', '로그인 상태 유지 (7일)')}
+                {t('login.rememberMe', '로그인 상태 유지')}
               </RememberLabel>
             </RememberRow>
             <RememberHint>

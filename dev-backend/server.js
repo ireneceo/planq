@@ -139,6 +139,12 @@ io.on('connection', (socket) => {
   const id = getBuildId();
   if (id) socket.emit('server:build', { build_id: id });
 
+  // user 별 room 자동 join — 다중 디바이스 동기화용 (핀, 알림 등 같은 user 의 모든 socket).
+  // socket.userId 는 socket 인증 미들웨어가 채워 둠. 없으면 skip (인증 실패 socket).
+  if (socket.userId) {
+    socket.join(`user:${socket.userId}`);
+  }
+
   // 대화방 room 참가 — 소유권 재검증 필수 (인증만으로는 부족)
   socket.on('join:conversation', async (conversationId) => {
     if (!conversationId) return;

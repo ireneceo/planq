@@ -187,6 +187,12 @@ export interface ApiConversation {
     role: string;
     User?: { id: number; name: string; email: string; avatar_url?: string | null };
   }>;
+  // 보관 정보 (보관된 채팅 응답에만 채워짐 — listArchivedConversations)
+  name?: string | null;
+  archived_at?: string | null;
+  archived_by_user_id?: number | null;
+  archivedBy?: { id: number; name: string; email: string } | null;
+  Project?: { id: number; name: string } | null;
 }
 
 export async function pinConversation(businessId: number, conversationId: number): Promise<boolean> {
@@ -302,6 +308,20 @@ export async function listBusinessConversations(businessId: number): Promise<Api
 export async function markConversationRead(businessId: number, conversationId: number): Promise<{ last_read_at: string }> {
   const res = await apiFetch(`/api/conversations/${businessId}/${conversationId}/read`, { method: 'PUT' });
   return handle<{ last_read_at: string }>(res);
+}
+
+// 보관함 — admin 만 (workspace owner / platform_admin). 사이클 N+10.
+export async function listArchivedConversations(businessId: number): Promise<ApiConversation[]> {
+  const res = await apiFetch(`/api/conversations/${businessId}/archived`);
+  return handle<ApiConversation[]>(res);
+}
+export async function unarchiveConversation(businessId: number, conversationId: number): Promise<ApiConversation> {
+  const res = await apiFetch(`/api/conversations/${businessId}/${conversationId}/unarchive`, { method: 'POST' });
+  return handle<ApiConversation>(res);
+}
+export async function deleteConversationHard(businessId: number, conversationId: number): Promise<{ id: number; deleted: true }> {
+  const res = await apiFetch(`/api/conversations/${businessId}/${conversationId}`, { method: 'DELETE' });
+  return handle<{ id: number; deleted: true }>(res);
 }
 
 // 사이드바 토탈 unread — 워크스페이스 전체 합계.
