@@ -275,12 +275,17 @@ const Backdrop = styled.div`
   background: rgba(15, 23, 42, 0.5);
   display: flex; align-items: center; justify-content: center;
   padding: 24px;
+  @media (max-width: 640px) { padding: 0; align-items: stretch; }
 `;
 const Dialog = styled.div`
   width: 100%; max-width: 720px; max-height: 90vh;
   background: #FFFFFF; border-radius: 14px;
   box-shadow: 0 24px 48px rgba(15, 23, 42, 0.18);
   display: flex; flex-direction: column; overflow: hidden;
+  @media (max-width: 640px) {
+    max-width: none; max-height: none; border-radius: 0;
+    margin-top: 60px; height: calc(100vh - 60px); height: calc(100dvh - 60px);
+  }
 `;
 const Header = styled.div`
   padding: 18px 22px 14px;

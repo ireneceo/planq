@@ -182,9 +182,9 @@ const NewDocumentModal: React.FC<Props> = ({ open, onClose, templates, businessI
 
   return (
     <Backdrop onClick={onClose}>
-      <Dialog onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={t('newModal.title', '새 문서')}>
+      <Dialog onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={t('newModal.title')}>
         <Header>
-          <Title>{t('newModal.title', '새 문서 만들기')}</Title>
+          <Title>{t('newModal.title')}</Title>
           <CloseBtn type="button" onClick={onClose} aria-label="Close">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
           </CloseBtn>
@@ -352,7 +352,17 @@ const Dialog = styled.div`
   width: 100%; max-width: 720px; max-height: 80vh;
   display: flex; flex-direction: column;
   box-shadow: 0 20px 60px rgba(15,23,42,0.2);
-  @media (max-width: 640px) { max-height: 100vh; height: 100vh; border-radius: 0; }
+  /* mobile: top/bottom 고정으로 GNB 피하고 화면 안에 확실히 배치 */
+  @media (max-width: 640px) {
+    position: fixed;
+    top: 70px;
+    bottom: 20px;
+    left: 16px;
+    right: 16px;
+    width: auto;
+    max-width: none;
+    max-height: none;
+  }
 `;
 const Header = styled.div`
   display: flex; align-items: center; justify-content: space-between;

@@ -191,15 +191,15 @@ const QProjectPage: React.FC = () => {
           <ViewTabs>
             <ViewTab $active={view === 'list'} onClick={() => setView('list')} type="button">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>
-              {t('view.list')}
+              <span>{t('view.list')}</span>
             </ViewTab>
             <ViewTab $active={view === 'timeline'} onClick={() => setView('timeline')} type="button">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="15" y2="12"/><line x1="3" y1="18" x2="18" y2="18"/></svg>
-              {t('view.timeline')}
+              <span>{t('view.timeline')}</span>
             </ViewTab>
             <ViewTab $active={view === 'calendar'} onClick={() => setView('calendar')} type="button">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-              {t('view.calendar')}
+              <span>{t('view.calendar')}</span>
             </ViewTab>
           </ViewTabs>
           <ClosedToggle type="button" $on={showClosed} onClick={() => setShowClosed((v) => !v)}
@@ -207,9 +207,9 @@ const QProjectPage: React.FC = () => {
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               {showClosed ? <path d="M20 6L9 17l-5-5"/> : <><circle cx="12" cy="12" r="10"/><line x1="8" y1="12" x2="16" y2="12"/></>}
             </svg>
-            {t('filter.closed', '종료 포함')}
+            <span>{t('filter.closed', '종료 포함')}</span>
           </ClosedToggle>
-          <NewProjectCta type="button" onClick={() => setNewProjectOpen(true)}>+ {t('newProject', '새 프로젝트')}</NewProjectCta>
+          <NewProjectCta type="button" onClick={() => setNewProjectOpen(true)}>+ <span>{t('newProject', '새 프로젝트')}</span></NewProjectCta>
         </>
       }
     >
@@ -677,13 +677,23 @@ const CalendarView: React.FC<{
 };
 
 // ─── Styled ───
-const NewProjectCta = styled.button`padding:7px 14px;background:#14B8A6;color:#FFF;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;margin-left:8px;&:hover{background:#0D9488;}`;
+const NewProjectCta = styled.button`
+  display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  padding:0 12px;height:32px;background:#14B8A6;color:#FFF;border:none;border-radius:8px;
+  font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;
+  &:hover{background:#0D9488;}
+  @media(max-width:640px){width:32px;padding:0;span{display:none;}}
+`;
 const ViewTabs = styled.div`
   display: inline-flex;
   gap: 4px;
   padding: 3px;
   background: #F1F5F9;
   border-radius: 8px;
+  @media (max-width: 640px) {
+    gap: 2px;
+    padding: 2px;
+  }
 `;
 const ViewTab = styled.button<{ $active: boolean }>`
   display: inline-flex;
@@ -700,6 +710,10 @@ const ViewTab = styled.button<{ $active: boolean }>`
   box-shadow: ${p => p.$active ? '0 1px 2px rgba(0,0,0,0.06)' : 'none'};
   transition: background 0.15s;
   &:hover { background: ${p => p.$active ? '#FFFFFF' : '#E2E8F0'}; }
+  @media (max-width: 640px) {
+    padding: 6px 8px;
+    span { display: none; }
+  }
 `;
 
 const EmptyState = styled.div`
@@ -887,10 +901,12 @@ const MenuItem = styled.button<{ $danger?: boolean }>`
 const ConfirmBackdrop = styled.div`
   position:fixed; inset:0; background:rgba(15,23,42,0.4); z-index:200;
   display:flex; align-items:center; justify-content:center; padding:24px;
+  @media (max-width: 640px) { padding:16px; }
 `;
 const ConfirmModal = styled.div`
   background:#FFFFFF; border-radius:12px; padding:24px; max-width:400px; width:100%;
   box-shadow:0 10px 40px rgba(0,0,0,0.15);
+  @media (max-width: 640px) { margin-top:60px; max-height:calc(100vh - 100px); overflow-y:auto; }
 `;
 const ConfirmTitle = styled.h3`margin:0 0 8px; font-size:16px; font-weight:700; color:#0F172A;`;
 const ConfirmBody = styled.p`margin:0 0 20px; font-size:13px; color:#475569; line-height:1.5;`;
@@ -913,6 +929,10 @@ const ClosedToggle = styled.button<{ $on?: boolean }>`
   border:1px solid ${p => p.$on ? '#99F6E4' : '#E2E8F0'}; border-radius:8px;
   font-size:12px; font-weight:600; cursor:pointer;
   &:hover{ border-color:#14B8A6; color:#0F766E; }
+  @media (max-width: 640px) {
+    padding: 6px 8px;
+    span { display: none; }
+  }
 `;
 
 // Timeline

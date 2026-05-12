@@ -520,7 +520,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
             <TemplateBtn type="button" onClick={openTemplateModal} title={t('templates.openHint', '견적·청구·NDA·제안서·회의록 5종 템플릿에서 시작') as string}>
               {t('templates.btn', '템플릿')}
             </TemplateBtn>
-            <NewBtn type="button" onClick={() => { setAiIntent('manual'); setAiOpen(true); }} title={t('new', '새 문서 — 빈 문서 또는 표') as string} aria-label={t('new', '새 문서') as string}>
+            <NewBtn type="button" onClick={() => { setAiIntent('manual'); setAiOpen(true); }} title={t('btn.new') as string} aria-label={t('btn.new') as string}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
               </svg>
@@ -611,7 +611,25 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
           {loading ? (
             <Dim>{t('loading', '로딩 중…')}</Dim>
           ) : filtered.length === 0 ? (
-            <EmptyList>{t('list.empty', '아직 작성된 문서가 없습니다')}</EmptyList>
+            <EmptyState
+              icon={(
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                  <polyline points="14 2 14 8 20 8"/>
+                  <line x1="16" y1="13" x2="8" y2="13"/>
+                  <line x1="16" y1="17" x2="8" y2="17"/>
+                </svg>
+              )}
+              title={t('empty.title') as string}
+              description={t('empty.line1') as string}
+              ctaLabel={t('btn.new') as string}
+              ctaIcon={(
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
+                  <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+                </svg>
+              )}
+              onCta={startNew}
+            />
           ) : (
             filtered.map(r => (
               <RowItem
@@ -643,7 +661,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
       </Sidebar>
       )}
 
-      <Content>
+      <Content $hasDetail={!!detail || isEditing}>
         {isEditing ? (
           <>
             <PanelHeader>
@@ -879,7 +897,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
                 {t('empty.line2', '왼쪽 목록에서 기존 문서를 선택하거나, 새로 작성할 수 있습니다.')}
               </>
             )}
-            ctaLabel={t('new', '새 문서') as string}
+            ctaLabel={t('btn.new') as string}
             ctaIcon={(
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
                 <line x1="12" y1="5" x2="12" y2="19"/>
@@ -1251,13 +1269,16 @@ const RowMeta = styled.div`
   display: flex; align-items: center; gap: 4px;
   font-size: 11px; color: #94A3B8; flex-wrap: wrap;
 `;
-const EmptyList = styled.div`padding: 40px 20px; color: #94A3B8; font-size: 12px; text-align: center;`;
 const Dim = styled.div`padding: 24px 16px; color: #94A3B8; font-size: 12px; text-align: center;`;
 
-const Content = styled.section`
+const Content = styled.section<{ $hasDetail?: boolean }>`
   display: flex; flex-direction: column;
   min-height: 0; overflow: hidden;
   background: #fff;
+  /* 모바일에서 문서 미선택 시 Content 숨기고 리스트만 표시 */
+  @media (max-width: 900px) {
+    display: ${p => p.$hasDetail ? 'flex' : 'none'};
+  }
 `;
 const Body = styled.div`
   flex: 1; min-height: 0;
@@ -1272,7 +1293,10 @@ const TitleInput = styled.input`
   font-size: 15px; font-weight: 700; color: #0F172A;
   &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 2px rgba(20,184,166,0.15); }
 `;
-const EditActions = styled.div`display: flex; gap: 8px;`;
+const EditActions = styled.div`
+  display: flex; gap: 8px; flex-wrap: wrap;
+  @media (max-width: 640px) { gap: 6px; }
+`;
 const ViewMeta = styled.div`
   display: flex; align-items: center; gap: 8px;
   font-size: 12px; color: #94A3B8; flex-wrap: wrap;
@@ -1373,14 +1397,14 @@ const DescCloseBtn = styled.button`
 // 버튼 — PanelHeader 60px (padding 14*2=28 + 32 content) 와 일치하도록 32px
 const PrimaryBtn = styled.button`
   height: 32px; padding: 0 14px; background: #14B8A6; color: #fff; border: none; border-radius: 8px;
-  font-size: 13px; font-weight: 600; cursor: pointer;
+  font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap;
   display: inline-flex; align-items: center;
   &:hover:not(:disabled) { background: #0D9488; }
   &:disabled { opacity: 0.5; cursor: not-allowed; }
 `;
 const SignBtn = styled.button`
   height: 32px; padding: 0 14px;
-  display: inline-flex; align-items: center;
+  display: inline-flex; align-items: center; white-space: nowrap;
   font-size: 13px; font-weight: 700; color: #0F766E;
   background: #F0FDFA; border: 1px solid #14B8A6; border-radius: 8px; cursor: pointer;
   transition: background 0.15s, color 0.15s, transform 0.15s;
@@ -1388,13 +1412,13 @@ const SignBtn = styled.button`
   &:focus-visible { outline: 2px solid #0D9488; outline-offset: 2px; }
 `;
 const SecondaryBtn = styled.button`
-  height: 32px; padding: 0 14px; background: #fff; color: #0F172A;
+  height: 32px; padding: 0 14px; background: #fff; color: #0F172A; white-space: nowrap;
   border: 1px solid #CBD5E1; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer;
   &:hover:not(:disabled) { background: #F8FAFC; }
   &:disabled { opacity: 0.5; cursor: not-allowed; }
 `;
 const DangerBtn = styled.button`
-  height: 32px; padding: 0 14px; background: #fff; color: #DC2626;
+  height: 32px; padding: 0 14px; background: #fff; color: #DC2626; white-space: nowrap;
   border: 1px solid #FCA5A5; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer;
   &:hover:not(:disabled) { background: #FEF2F2; border-color: #DC2626; }
 `;

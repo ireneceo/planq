@@ -7,6 +7,8 @@
     "fromFileNoExisting": "기존 파일을 1개 이상 선택해 주세요",
     "fromFileResult": "{{ok}}건 추가, {{skip}}건 스킵",
     "exportCsv": "CSV 다운로드",
+    "csvUpload": "CSV 업로드",
+    "aiIngest": "AI 추가",
     "loading": "로드 중…",
     "filters": "필터",
     "allScopes": "전체 적용 범위",

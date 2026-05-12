@@ -1,5 +1,5 @@
 {
-  "title": "캘린더",
+  "title": "Q calendar",
   "today": "오늘",
   "prev": "이전",
   "next": "다음",
@@ -8,7 +8,7 @@
     "week": "주",
     "day": "일"
   },
-  "new": "+ 새 일정",
+  "new": "새 일정",
   "filter": {
     "all": "전체",
     "mine": "나",

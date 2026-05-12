@@ -159,6 +159,7 @@ const Overlay = styled.div`
   align-items: center;
   justify-content: center;
   z-index: 1100;
+  @media (max-width: 640px) { padding: 16px; }
 `;
 
 const Dialog = styled.div`
@@ -168,6 +169,7 @@ const Dialog = styled.div`
   max-width: 400px;
   padding: 24px;
   box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+  @media (max-width: 640px) { margin-top: 60px; max-height: calc(100vh - 100px); overflow-y: auto; }
 `;
 
 const Header = styled.div`

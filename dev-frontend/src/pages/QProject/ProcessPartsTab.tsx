@@ -340,8 +340,19 @@ const DelBtn = styled.button`width:24px;height:24px;border:none;background:trans
 const Empty = styled.div`padding:40px;text-align:center;color:#94A3B8;font-size:12px;`;
 const DragHandle = styled.span`display:inline-block;color:#CBD5E1;cursor:grab;user-select:none;font-size:14px;line-height:1;&:hover{color:#14B8A6;}`;
 
-const Backdrop = styled.div`position:fixed;inset:0;background:rgba(15,23,42,0.4);z-index:100;display:flex;align-items:center;justify-content:center;`;
-const Modal = styled.div`background:#FFF;border-radius:10px;padding:20px;width:480px;max-width:90vw;max-height:80vh;display:flex;flex-direction:column;gap:10px;`;
+const Backdrop = styled.div`
+  position:fixed;inset:0;background:rgba(15,23,42,0.4);z-index:100;
+  display:flex;align-items:center;justify-content:center;
+  @media (max-width: 640px) { align-items:stretch; }
+`;
+const Modal = styled.div`
+  background:#FFF;border-radius:10px;padding:20px;width:480px;max-width:90vw;max-height:80vh;
+  display:flex;flex-direction:column;gap:10px;
+  @media (max-width: 640px) {
+    width:100%;max-width:none;max-height:none;border-radius:0;
+    margin-top:60px;height:calc(100vh - 60px);height:calc(100dvh - 60px);
+  }
+`;
 const ModalTitle = styled.h3`margin:0;font-size:16px;font-weight:700;color:#0F172A;`;
 const ModalList = styled.div`display:flex;flex-direction:column;gap:6px;flex:1;overflow-y:auto;`;
 const Row2 = styled.div`display:flex;align-items:center;gap:8px;padding:6px 8px;background:#F8FAFC;border-radius:6px;`;

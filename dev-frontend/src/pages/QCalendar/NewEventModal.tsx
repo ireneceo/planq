@@ -312,10 +312,23 @@ const Modal = styled.div`
   z-index: 70; width: 540px; max-width: calc(100vw - 40px); max-height: calc(100vh - 48px);
   background: #fff; border-radius: 14px; box-shadow: 0 30px 60px -20px rgba(15, 23, 42, 0.25);
   display: flex; flex-direction: column; overflow: hidden;
+
+  /* mobile: top/bottom 고정으로 GNB 피하고 화면 안에 확실히 배치 */
+  @media (max-width: 640px) {
+    top: 70px;
+    bottom: 20px;
+    left: 16px;
+    right: 16px;
+    transform: none;
+    width: auto;
+    max-width: none;
+    max-height: none;
+  }
 `;
 const Header = styled.div`
   display: flex; align-items: center; padding: 14px 18px;
   border-bottom: 1px solid #EEF2F6;
+  flex-shrink: 0;
 `;
 const HeaderTitle = styled.div`
   flex: 1; font-size: 15px; font-weight: 700; color: #0F172A; letter-spacing: -0.1px;
@@ -328,6 +341,7 @@ const CloseBtn = styled.button`
 const Body = styled.div`
   padding: 16px 18px; overflow-y: auto;
   display: flex; flex-direction: column; gap: 14px;
+  flex: 1; min-height: 0;
 `;
 const Field = styled.div` display: flex; flex-direction: column; gap: 6px; position: relative; `;
 const Label = styled.label`
@@ -399,6 +413,7 @@ const Textarea = styled.textarea`
 const Footer = styled.div`
   padding: 12px 18px; border-top: 1px solid #EEF2F6;
   display: flex; justify-content: flex-end; gap: 8px;
+  flex-shrink: 0;
 `;
 const SecondaryBtn = styled.button`
   padding: 8px 14px; border-radius: 7px; font-size: 13px; font-weight: 500;

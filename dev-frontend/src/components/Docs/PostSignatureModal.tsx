@@ -377,6 +377,11 @@ const Dialog = styled.div`
   max-height: 92vh; overflow-y: auto;
   box-shadow: 0 20px 60px rgba(0,0,0,0.2);
   display: flex; flex-direction: column;
+  /* mobile: top/bottom 고정으로 GNB 피하고 화면 안에 확실히 배치 */
+  @media (max-width: 640px) {
+    position: fixed; top: 70px; bottom: 20px; left: 16px; right: 16px;
+    width: auto; max-width: none; max-height: none;
+  }
 `;
 const Header = styled.div`
   display: flex; align-items: center; justify-content: space-between;

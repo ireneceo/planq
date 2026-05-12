@@ -752,8 +752,20 @@ const HistoryNote = styled.div`color:#94A3B8;white-space:nowrap;overflow:hidden;
 const Dim = styled.div`padding:20px;text-align:center;font-size:12px;color:#94A3B8;`;
 
 /* 모달 */
-const Modal = styled.div`position:fixed;inset:0;z-index:80;background:rgba(15,23,42,.24);display:flex;align-items:center;justify-content:center;padding:20px;`;
-const Dialog = styled.div`background:#fff;border-radius:14px;width:100%;max-width:520px;box-shadow:0 20px 50px rgba(15,23,42,.2);display:flex;flex-direction:column;overflow:hidden;`;
+const Modal = styled.div`
+  position:fixed;inset:0;z-index:80;background:rgba(15,23,42,.24);
+  display:flex;align-items:center;justify-content:center;padding:20px;
+  @media (max-width: 640px) { padding:0; align-items:stretch; }
+`;
+const Dialog = styled.div`
+  background:#fff;border-radius:14px;width:100%;max-width:520px;
+  box-shadow:0 20px 50px rgba(15,23,42,.2);display:flex;flex-direction:column;overflow:hidden;
+  @media (max-width: 640px) {
+    max-width:none;border-radius:0;
+    margin-top:60px;max-height:calc(100vh - 60px);max-height:calc(100dvh - 60px);
+    overflow-y:auto;
+  }
+`;
 const DTitle = styled.div`padding:20px 22px 12px;font-size:16px;font-weight:700;color:#0F172A;`;
 const DBody = styled.div`padding:0 22px 16px;font-size:13px;color:#475569;line-height:1.6;p{margin:4px 0;}`;
 const DFooter = styled.div`padding:12px 22px;border-top:1px solid #EEF2F6;display:flex;gap:8px;justify-content:flex-end;`;

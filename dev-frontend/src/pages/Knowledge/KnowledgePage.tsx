@@ -358,13 +358,13 @@ const KnowledgePage = () => {
       }
       actions={
         <>
-          <CsvUploadBtn type="button" onClick={() => setCsvIngestOpen(true)} title={t('page.csvUpload', 'CSV 일괄 업로드') as string}>
+          <CsvUploadBtn type="button" onClick={() => setCsvIngestOpen(true)} title={t('page.csvUpload') as string}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
               <polyline points="17 8 12 3 7 8"/>
               <line x1="12" y1="3" x2="12" y2="15"/>
             </svg>
-            {t('page.csvUpload', 'CSV 업로드')}
+            {t('page.csvUpload')}
           </CsvUploadBtn>
           <CsvBtn type="button" onClick={handleExportCsv} disabled={!filtered.length} title={t('page.exportCsv') as string}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
@@ -374,9 +374,9 @@ const KnowledgePage = () => {
             </svg>
             {t('page.exportCsv')}
           </CsvBtn>
-          <AiBtn type="button" onClick={() => setAiIngestOpen(true)} title={t('page.aiIngest', 'AI 로 자동 추가') as string}>
+          <AiBtn type="button" onClick={() => setAiIngestOpen(true)} title={t('page.aiIngest') as string}>
             <SparkleIcon size={14} />
-            {t('page.aiIngest', 'AI 로 추가')}
+            {t('page.aiIngest')}
           </AiBtn>
           <NewBtn type="button" onClick={() => setModalOpen(true)}>{t('page.new')}</NewBtn>
         </>
@@ -1029,9 +1029,15 @@ const KnowledgePage = () => {
 
       {/* ─── 사이클 P3 — 통합 단일 폼 등록 모달 ─── */}
       {modalOpen && (
-        <Backdrop onClick={() => !submitting && closeModal()}>
+        <>
+          <Backdrop onClick={() => !submitting && closeModal()} />
           <Modal onClick={e => e.stopPropagation()} role="dialog" aria-modal="true">
-            <ModalHeader>{t('modal.title')}</ModalHeader>
+            <ModalHeader>
+              <ModalTitle>{t('modal.title')}</ModalTitle>
+              <ModalCloseBtn type="button" onClick={() => !submitting && closeModal()} aria-label="Close">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><line x1="6" y1="6" x2="18" y2="18"/><line x1="6" y1="18" x2="18" y2="6"/></svg>
+              </ModalCloseBtn>
+            </ModalHeader>
             <ModalBody>
               {/* 1) 제목 (필수) */}
               <Field>
@@ -1291,7 +1297,7 @@ const KnowledgePage = () => {
               </PrimaryBtn>
             </ModalFooter>
           </Modal>
-        </Backdrop>
+        </>
       )}
 
       {aiIngestOpen && businessId && (
@@ -1593,7 +1599,9 @@ const NewBtn = styled.button`
   background: #14B8A6; color: #FFFFFF;
   border: none; border-radius: 6px;
   font-size: 13px; font-weight: 600; cursor: pointer;
+  white-space: nowrap;
   &:hover { background: #0D9488; }
+  @media (max-width: 640px) { height: 36px; font-size: 12px; padding: 0 12px; }
 `;
 const CsvBtn = styled.button`
   display: inline-flex; align-items: center; gap: 6px;
@@ -1601,9 +1609,11 @@ const CsvBtn = styled.button`
   background: #FFFFFF; color: #475569;
   border: 1px solid #CBD5E1; border-radius: 6px;
   font-size: 13px; font-weight: 600; cursor: pointer;
+  white-space: nowrap;
   transition: all 0.15s;
   &:hover:not(:disabled) { background: #F1F5F9; border-color: #94A3B8; color: #0F172A; }
   &:disabled { opacity: 0.5; cursor: not-allowed; }
+  @media (max-width: 640px) { height: 36px; font-size: 12px; padding: 0 10px; gap: 4px; }
 `;
 // AI 자동 추가 버튼 — 별 아이콘 + teal accent. Q docs NewDocumentModal "AI 로 시작" 패턴 카피.
 const AiBtn = styled.button`
@@ -1612,9 +1622,11 @@ const AiBtn = styled.button`
   background: #F0FDFA; color: #0F766E;
   border: 1px solid #99F6E4; border-radius: 6px;
   font-size: 13px; font-weight: 600; cursor: pointer;
+  white-space: nowrap;
   transition: all 0.15s;
   svg { color: #14B8A6; }
   &:hover { background: #CCFBF1; border-color: #14B8A6; }
+  @media (max-width: 640px) { height: 36px; font-size: 12px; padding: 0 10px; gap: 4px; }
 `;
 const CsvUploadBtn = styled.button`
   display: inline-flex; align-items: center; gap: 6px;
@@ -1622,8 +1634,10 @@ const CsvUploadBtn = styled.button`
   background: #FFFFFF; color: #475569;
   border: 1px solid #CBD5E1; border-radius: 6px;
   font-size: 13px; font-weight: 600; cursor: pointer;
+  white-space: nowrap;
   transition: all 0.15s;
   &:hover { background: #F1F5F9; border-color: #94A3B8; color: #0F172A; }
+  @media (max-width: 640px) { height: 36px; font-size: 12px; padding: 0 10px; gap: 4px; }
 `;
 
 const Loading = styled.div`padding: 40px; text-align: center; color: #94A3B8;`;
@@ -1971,11 +1985,31 @@ const ChipX = styled.button`
   color: #94A3B8; border-radius: 4px; font-size: 14px;
   &:hover { background: #FEE2E2; color: #DC2626; }
 `;
-const Backdrop = styled.div`position: fixed; inset: 0; background: rgba(15,23,42,0.40); z-index: 50; display: flex; align-items: center; justify-content: center; padding: 20px;`;
-const Modal = styled.div`width: 100%; max-width: 600px; background: #FFFFFF; border-radius: 14px; box-shadow: 0 24px 48px rgba(15,23,42,0.18); display: flex; flex-direction: column; max-height: 90vh; overflow: hidden;`;
-const ModalHeader = styled.div`padding: 18px 22px 12px; font-size: 16px; font-weight: 700; color: #0F172A; border-bottom: 1px solid #E2E8F0;`;
-const ModalBody = styled.div`padding: 20px 22px; overflow-y: auto; display: flex; flex-direction: column; gap: 14px;`;
-const ModalFooter = styled.div`padding: 14px 22px; border-top: 1px solid #E2E8F0; display: flex; justify-content: flex-end; gap: 8px;`;
+const Backdrop = styled.div`
+  position: fixed; inset: 0; background: rgba(15, 23, 42, 0.08); z-index: 50;
+`;
+const Modal = styled.div`
+  position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  z-index: 60; width: 600px; max-width: calc(100vw - 40px); max-height: calc(100vh - 48px);
+  background: #fff; border-radius: 14px; box-shadow: 0 30px 60px -20px rgba(15, 23, 42, 0.25);
+  display: flex; flex-direction: column; overflow: hidden;
+  @media (max-width: 640px) {
+    top: 70px; bottom: 20px; left: 16px; right: 16px;
+    transform: none; width: auto; max-width: none; max-height: none;
+  }
+`;
+const ModalHeader = styled.div`
+  display: flex; align-items: center; padding: 14px 18px;
+  border-bottom: 1px solid #EEF2F6; flex-shrink: 0;
+`;
+const ModalTitle = styled.div`flex: 1; font-size: 15px; font-weight: 700; color: #0F172A; letter-spacing: -0.1px;`;
+const ModalCloseBtn = styled.button`
+  width: 30px; height: 30px; border: none; background: transparent; color: #64748B;
+  border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center;
+  &:hover { background: #F1F5F9; color: #0F172A; }
+`;
+const ModalBody = styled.div`padding: 16px 18px; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; flex: 1; min-height: 0;`;
+const ModalFooter = styled.div`padding: 14px 18px; border-top: 1px solid #EEF2F6; display: flex; justify-content: flex-end; gap: 8px;`;
 const Field = styled.div`display: flex; flex-direction: column; gap: 6px; flex: 1;`;
 const Label = styled.label`font-size: 13px; font-weight: 600; color: #0F172A;`;
 const ErrorBox = styled.div`

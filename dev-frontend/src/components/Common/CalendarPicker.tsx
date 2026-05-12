@@ -197,7 +197,9 @@ const CalendarPicker: React.FC<CalendarPickerProps> = ({
   if (!isOpen) return null;
 
   return createPortal((
-    <Wrapper ref={wrapperRef} style={{ top: pos.top, left: pos.left }}>
+    <Wrapper ref={wrapperRef} style={{ top: pos.top, left: pos.left }}
+      onClick={e => e.stopPropagation()}
+      onMouseDown={e => e.stopPropagation()}>
       <Layout>
         {!singleMode && (
           <Sidebar>
