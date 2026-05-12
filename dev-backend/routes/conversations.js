@@ -327,6 +327,29 @@ router.delete('/:businessId/:id/participants/:userId', authenticateToken, checkB
 ProjectMember; // silence unused import (future: project member pre-selection)
 
 // ─────────────────────────────────────────────────────────
+// 보관함 — 보관된 채팅 목록 (workspace admin only).
+// 라우트 순서 주의: `/:businessId/archived` (literal) 가 `/:businessId/:id` (param)
+// 보다 먼저 정의되어야 Express 가 archived 를 :id 로 잘못 매칭하지 않음.
+// ─────────────────────────────────────────────────────────
+router.get('/:businessId/archived', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+  try {
+    const businessId = Number(req.params.businessId);
+    if (!(await assertWorkspaceAdmin(req, businessId))) {
+      return errorResponse(res, 'workspace_owner_required', 403);
+    }
+    const conversations = await Conversation.findAll({
+      where: { business_id: businessId, archived_at: { [Op.ne]: null } },
+      include: [
+        { model: Project, attributes: ['id', 'name'], required: false },
+        { model: User, as: 'archivedBy', attributes: ['id', 'name', 'email'], required: false },
+      ],
+      order: [['archived_at', 'DESC']],
+    });
+    return successResponse(res, conversations.map(c => c.toJSON()));
+  } catch (err) { next(err); }
+});
+
+// ─────────────────────────────────────────────────────────
 // Get conversation detail + messages
 // ─────────────────────────────────────────────────────────
 router.get('/:businessId/:id', authenticateToken, attachWorkspaceScope(), async (req, res, next) => {
@@ -766,25 +789,7 @@ async function assertWorkspaceAdmin(req, businessId) {
   return isPlatformAdmin || isWorkspaceOwner;
 }
 
-// GET /api/conversations/:businessId/archived — 보관된 채팅방 목록
-router.get('/:businessId/archived', authenticateToken, checkBusinessAccess, async (req, res, next) => {
-  try {
-    const businessId = Number(req.params.businessId);
-    if (!(await assertWorkspaceAdmin(req, businessId))) {
-      return errorResponse(res, 'workspace_owner_required', 403);
-    }
-    const { Op } = require('sequelize');
-    const conversations = await Conversation.findAll({
-      where: { business_id: businessId, archived_at: { [Op.ne]: null } },
-      include: [
-        { model: Project, attributes: ['id', 'name'], required: false },
-        { model: User, as: 'archivedBy', attributes: ['id', 'name', 'email'], required: false },
-      ],
-      order: [['archived_at', 'DESC']],
-    });
-    return successResponse(res, conversations.map(c => c.toJSON()));
-  } catch (err) { next(err); }
-});
+// 보관함 GET /:businessId/archived 는 라우트 순서 충돌 방지를 위해 파일 상단 (`/:businessId/:id` 정의 직전) 으로 이동됨.
 
 // POST /api/conversations/:businessId/:id/unarchive — 보관 해제 (복원)
 router.post('/:businessId/:id/unarchive', authenticateToken, checkBusinessAccess, async (req, res, next) => {
