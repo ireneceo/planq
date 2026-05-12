@@ -2,12 +2,33 @@
 
 ## 현재 작업 상태
 **마지막 업데이트:** 2026-05-12
-**작업 상태:** 진행 — 모바일 반응형 QA (커밋 대기)
-**버전:** v1.6.1 운영 (dev 빌드 완료, 39 파일 수정)
+**작업 상태:** 완료 — v1.7.0 운영 라이브 (사이클 N+10)
+**버전:** v1.7.0 (commits `5807d2f` 181s + `da62196` 49s hotfix)
 
 ---
 
-## 진행 중인 작업
+## 사이클 N+10 운영 라이브 (2026-05-12)
+
+### 메인 (commit 5807d2f, 181s)
+- 활성 conv unread 차단 — LeftPanel 시각 차단 + socket message:new 시 자동 markRead
+- refresh_tokens.client_kind ENUM('pwa','web') 컬럼 + PWA 365일 / web 30일 sliding renewal
+- X-Client-Kind 헤더 자동 전달 (login/register/refresh)
+- 핀 토글 socket emit (io.to user:N) + 다중 디바이스 즉시 동기화. server.js user 별 room 자동 join
+- 보관함 시스템 — GET archived / POST unarchive / DELETE 라우트 + ArchivedChatsModal + LeftPanel 풋터 진입점
+- LoginPage 100dvh 모바일 풀스크린 + safe-area-inset-bottom
+- CalendarPicker createPortal Wrapper stopPropagation — 캘린더 날짜 클릭 시 React tree bubble 로 detail drawer 열리던 버그 fix (10 호출처 일괄 해결)
+- 로그인 라벨 "(7일)" 제거
+- Conversation.archivedBy User association + i18n key ko/en 양쪽 풀세트
+
+### Hotfix (commit da62196, 49s)
+- 보관함 라우트 순서 충돌 fix — `/:businessId/archived` 를 `/:businessId/:id` 앞으로 (Express 정의 순서 매칭 함정)
+
+### 직전 사이클 (lua 모바일 반응형 — commit 2b64012)
+이전에 진행되던 모바일 반응형 QA (모달 GNB 오버랩, 로그아웃 버튼, i18n, 모달 디자인 통일) 가 lua 의 commit 2b64012 로 정리됨.
+
+---
+
+## 이전 진행 기록
 
 ### 모바일 반응형 QA (2026-05-12)
 모달 GNB 오버랩 fix + 로그아웃 버튼 visibility + i18n + 모달 디자인 통일
