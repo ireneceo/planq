@@ -227,11 +227,16 @@ const Backdrop = styled.div`
   position: fixed; inset: 0; background: rgba(15,23,42,0.5);
   display: flex; align-items: center; justify-content: center;
   z-index: 1200; padding: 16px;
+  @media (max-width: 640px) { padding: 0; align-items: stretch; }
 `;
 const Dialog = styled.div`
   background: #FFFFFF; border-radius: 14px; width: min(480px, 100%);
   max-height: 90vh; display: flex; flex-direction: column;
   box-shadow: 0 20px 60px rgba(0,0,0,0.25);
+  @media (max-width: 640px) {
+    width: 100%; max-height: none; border-radius: 0;
+    margin-top: 60px; height: calc(100vh - 60px); height: calc(100dvh - 60px);
+  }
 `;
 const ModalHeader = styled.div`
   display: flex; justify-content: space-between; align-items: center;

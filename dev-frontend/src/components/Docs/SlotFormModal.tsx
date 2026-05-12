@@ -183,7 +183,16 @@ export default SlotFormModal;
 
 // ─── styled ───
 const Backdrop = styled.div`position: fixed; inset: 0; background: rgba(15,23,42,0.40); z-index: 50; display: flex; align-items: center; justify-content: center; padding: 20px;`;
-const Modal = styled.div`width: 100%; max-width: 880px; background: #FFFFFF; border-radius: 14px; box-shadow: 0 24px 48px rgba(15,23,42,0.18); display: flex; flex-direction: column; max-height: 90vh; overflow: hidden;`;
+const Modal = styled.div`
+  width: 100%; max-width: 880px; background: #FFFFFF; border-radius: 14px;
+  box-shadow: 0 24px 48px rgba(15,23,42,0.18); display: flex; flex-direction: column;
+  max-height: 90vh; overflow: hidden;
+  /* mobile: top/bottom 고정으로 GNB 피하고 화면 안에 확실히 배치 */
+  @media (max-width: 640px) {
+    position: fixed; top: 70px; bottom: 20px; left: 16px; right: 16px;
+    width: auto; max-width: none; max-height: none;
+  }
+`;
 const Header = styled.div`padding: 18px 22px; border-bottom: 1px solid #E2E8F0; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0;`;
 const Title = styled.h2`font-size: 16px; font-weight: 700; color: #0F172A; margin: 0;`;
 const CloseBtn = styled.button`width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; background: transparent; border: none; border-radius: 8px; color: #64748B; cursor: pointer; &:hover { background: #F1F5F9; color: #0F172A; }`;

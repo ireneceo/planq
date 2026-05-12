@@ -72,6 +72,12 @@ const Header = styled.div`
   justify-content: space-between;
   gap: 16px;
   flex-shrink: 0;
+  @media (max-width: 640px) {
+    flex-wrap: wrap;
+    gap: 12px;
+    min-height: auto;
+    padding: 12px 16px;
+  }
 `;
 
 const HeaderLeft = styled.div`
@@ -79,6 +85,10 @@ const HeaderLeft = styled.div`
   align-items: center;
   gap: 10px;
   min-width: 0;
+  flex-shrink: 0;
+  @media (max-width: 640px) {
+    min-width: auto;
+  }
 `;
 
 // 제목과 helpDot 은 한 묶음 — 제목 끝나면 바로 helpDot 붙음 (사용자 요청)
@@ -115,6 +125,11 @@ const HeaderRight = styled.div`
   align-items: center;
   gap: 10px;
   flex-shrink: 0;
+  @media (max-width: 640px) {
+    flex-wrap: wrap;
+    gap: 8px;
+    flex-shrink: 1;
+  }
 `;
 
 const Body = styled.div`

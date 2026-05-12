@@ -32,6 +32,13 @@ const Bar = styled.div`
   gap: 12px;
   flex-shrink: 0;
   background: #ffffff;
+  @media (max-width: 640px) {
+    flex-direction: column;
+    align-items: flex-start;
+    min-height: auto;
+    padding: 12px 16px;
+    gap: 8px;
+  }
 `;
 
 export const PanelTitle = styled.h1`
@@ -54,6 +61,12 @@ export const PanelSubTitle = styled.h2`
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  @media (max-width: 640px) {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+    line-height: 1.4;
+  }
 `;
 
 export const PanelMetaTitle = styled.h2`

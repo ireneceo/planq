@@ -22,6 +22,7 @@ import { taskToEvent, isTaskEvent } from './taskToEvent';
 import TaskDetailDrawer from '../../components/QTask/TaskDetailDrawer';
 import { apiFetch } from '../../contexts/AuthContext';
 import { todayInTz, detectBrowserTz } from '../../utils/timezones';
+import PlanQSelect from '../../components/Common/PlanQSelect';
 
 // ─── URL 싱크 ───
 const readUrl = (search: string) => {
@@ -298,24 +299,48 @@ const QCalendarPage: React.FC = () => {
 
   const days = view === 'week' ? getWeekDays(anchor, 0) : view === 'day' ? [anchor] : [];
 
+  const viewOptions = useMemo(() => [
+    { value: 'month', label: t('view.month') },
+    { value: 'week', label: t('view.week') },
+    { value: 'day', label: t('view.day') },
+  ], [t]);
+
+  const scopeOptions = useMemo(() => [
+    { value: 'all', label: t('filter.all') },
+    { value: 'mine', label: t('filter.mine') },
+    { value: 'tasks', label: t('filter.tasks') },
+    { value: 'events', label: t('filter.events') },
+  ], [t]);
+
   const headerActions = (
-    <Actions>
-      <ScopeSegment>
-        {(['all','mine','tasks','events'] as CalendarScope[]).map((s) => (
-          <ScopePill key={s} $active={scope === s} onClick={() => setScope(s)}>
-            {t(`filter.${s}`)}
-          </ScopePill>
-        ))}
-      </ScopeSegment>
-      <ViewSegment>
-        {(['month', 'week', 'day'] as CalendarViewMode[]).map((v) => (
-          <ViewBtn key={v} $active={view === v} onClick={() => setView(v)}>
-            {t(`view.${v}`)}
-          </ViewBtn>
-        ))}
-      </ViewSegment>
-      <NewBtn onClick={handleOpenNew}>{t('new')}</NewBtn>
-    </Actions>
+    <ActionsRow>
+      <PlanQSelect size="sm"
+        value={scopeOptions.find(o => o.value === scope)}
+        onChange={(opt: unknown) => {
+          const v = (opt as { value?: CalendarScope } | null)?.value;
+          if (v) setScope(v);
+        }}
+        options={scopeOptions}
+        isSearchable={false}
+        menuPlacement="bottom"
+      />
+      <PlanQSelect size="sm"
+        value={viewOptions.find(o => o.value === view)}
+        onChange={(opt: unknown) => {
+          const v = (opt as { value?: CalendarViewMode } | null)?.value;
+          if (v) setView(v);
+        }}
+        options={viewOptions}
+        isSearchable={false}
+        menuPlacement="bottom"
+      />
+      <NewEventBtn onClick={handleOpenNew} type="button" title={t('new')}>
+        <NewEventIcon viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+          <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+        </NewEventIcon>
+        <NewEventText>{t('new')}</NewEventText>
+      </NewEventBtn>
+    </ActionsRow>
   );
 
   return (
@@ -323,6 +348,7 @@ const QCalendarPage: React.FC = () => {
       <Toolbar>
         <ToolbarLeft>
           <TodayBtn onClick={goToday}>{t('today')}</TodayBtn>
+          <HeaderTitle>{headerTitle}</HeaderTitle>
           <NavIconBtn onClick={goPrev} aria-label={t('prev')}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <polyline points="15 18 9 12 15 6" />
@@ -333,7 +359,6 @@ const QCalendarPage: React.FC = () => {
               <polyline points="9 18 15 12 9 6" />
             </svg>
           </NavIconBtn>
-          <HeaderTitle>{headerTitle}</HeaderTitle>
         </ToolbarLeft>
       </Toolbar>
 
@@ -404,32 +429,22 @@ const QCalendarPage: React.FC = () => {
 export default QCalendarPage;
 
 // ── styled ──
-const Actions = styled.div` display: flex; align-items: center; gap: 10px; `;
-const ScopeSegment = styled.div`
-  display: inline-flex; background: #F1F5F9; border-radius: 8px; padding: 3px;
+const ActionsRow = styled.div`
+  display: flex; align-items: center; gap: 8px;
+  @media (max-width: 640px) { gap: 6px; }
 `;
-const ScopePill = styled.button<{ $active: boolean }>`
-  padding: 5px 12px; border-radius: 6px; font-size: 12px; font-weight: 600;
-  border: none; cursor: pointer;
-  background: ${({ $active }) => $active ? '#fff' : 'transparent'};
-  color: ${({ $active }) => $active ? '#0F172A' : '#64748B'};
-  box-shadow: ${({ $active }) => $active ? '0 1px 2px rgba(15,23,42,0.08)' : 'none'};
-  &:hover { color: ${({ $active }) => $active ? '#0F172A' : '#334155'}; }
-`;
-const ViewSegment = styled.div`
-  display: inline-flex; background: #F1F5F9; border-radius: 8px; padding: 3px;
-`;
-const ViewBtn = styled.button<{ $active: boolean }>`
-  padding: 5px 14px; border-radius: 6px; font-size: 12px; font-weight: 600;
-  border: none; cursor: pointer;
-  background: ${({ $active }) => $active ? '#fff' : 'transparent'};
-  color: ${({ $active }) => $active ? '#0F172A' : '#64748B'};
-  box-shadow: ${({ $active }) => $active ? '0 1px 2px rgba(15,23,42,0.08)' : 'none'};
-`;
-const NewBtn = styled.button`
-  padding: 7px 14px; border-radius: 7px; font-size: 12.5px; font-weight: 600;
-  background: #14B8A6; color: #fff; border: none; cursor: pointer;
+const NewEventBtn = styled.button`
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  padding: 0 12px; height: 32px; border-radius: 8px; font-size: 13px; font-weight: 600;
+  background: #14B8A6; color: #fff; border: none; cursor: pointer; white-space: nowrap;
   &:hover { background: #0F766E; }
+  @media (max-width: 640px) { width: 32px; padding: 0; }
+`;
+const NewEventIcon = styled.svg`
+  width: 16px; height: 16px; flex-shrink: 0;
+`;
+const NewEventText = styled.span`
+  @media (max-width: 640px) { display: none; }
 `;
 
 const Toolbar = styled.div`
@@ -449,7 +464,8 @@ const NavIconBtn = styled.button`
   &:hover { background: #F8FAFC; color: #0F172A; }
 `;
 const HeaderTitle = styled.h2`
-  margin: 0 0 0 10px; font-size: 18px; font-weight: 700; color: #0F172A; letter-spacing: -0.3px;
+  margin: 0 10px 0 10px; font-size: 18px; font-weight: 700; color: #0F172A; letter-spacing: -0.3px;
+  @media (max-width: 640px) { font-size: 16px; margin: 0 6px; }
 `;
 const ViewWrap = styled.div`
   height: calc(100vh - 60px - 56px - 40px); min-height: 520px;

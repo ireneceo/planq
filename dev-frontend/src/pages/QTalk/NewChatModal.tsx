@@ -319,6 +319,18 @@ const Dialog = styled.div`
   display:flex;flex-direction:column;max-height:90vh;overflow:hidden;
   animation:nmPop 0.18s ease-out;
   @keyframes nmPop{from{transform:translateY(8px);opacity:0.6;}to{transform:translateY(0);opacity:1;}}
+
+  /* mobile: top/bottom 고정으로 GNB 피하고 화면 안에 확실히 배치 */
+  @media (max-width: 640px) {
+    position: fixed;
+    top: 70px;
+    bottom: 20px;
+    left: 16px;
+    right: 16px;
+    width: auto;
+    max-width: none;
+    max-height: none;
+  }
 `;
 const Header = styled.div`
   padding:18px 22px;border-bottom:1px solid #E2E8F0;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;
@@ -331,6 +343,7 @@ const CloseBtn = styled.button`
 `;
 const Body = styled.div`
   padding:20px 22px;overflow-y:auto;display:flex;flex-direction:column;gap:18px;
+  flex:1;min-height:0;
 `;
 const Field = styled.div`display:flex;flex-direction:column;gap:6px;`;
 const Label = styled.label`font-size:13px;font-weight:600;color:#0F172A;`;

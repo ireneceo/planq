@@ -64,6 +64,9 @@ const Sidebar = styled.div<{ $isOpen?: boolean; $isCollapsed?: boolean }>`
   ${mediaTablet} {
     transform: translateX(${props => props.$isOpen ? '0' : '-100%'});
     width: 240px; transition: transform 0.3s, width 0.3s ease;
+    /* 모바일 브라우저에서 주소창 포함 문제 해결 */
+    height: 100dvh;
+    height: -webkit-fill-available;
   }
 `;
 
@@ -302,6 +305,7 @@ const SidebarFooter = styled.div<{ $isCollapsed?: boolean }>`
   `}
   ${mediaTablet} {
     padding: 12px 16px;
+    padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
     display: block;
   }
 `;

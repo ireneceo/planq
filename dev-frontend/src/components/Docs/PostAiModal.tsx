@@ -230,7 +230,7 @@ const PostAiModal: React.FC<Props> = ({ open, onClose, businessId, projectId: pa
 
   return (
     <Backdrop onClick={() => !busy && onClose()}>
-      <Dialog onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={(intent === 'ai' ? t('ai.title', 'AI 로 작성') : t('new.title', '새 문서')) as string}>
+      <Dialog onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={(intent === 'ai' ? t('ai.title') : t('btn.new')) as string}>
         <Header>
           <Title>
             {intent === 'ai' && (
@@ -238,7 +238,7 @@ const PostAiModal: React.FC<Props> = ({ open, onClose, businessId, projectId: pa
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 16.8 5.8 21.3l2.4-7.4L2 9.4h7.6L12 2z"/></svg>
               </Sparkle>
             )}
-            {intent === 'ai' ? t('ai.title', 'AI 로 작성') : t('new.title', '새 문서')}
+            {intent === 'ai' ? t('ai.title') : t('btn.new')}
           </Title>
           <CloseBtn type="button" onClick={onClose} disabled={busy} aria-label={t('common.close', '닫기') as string}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
@@ -462,7 +462,11 @@ const Dialog = styled.div`
   max-height: 90vh;
   display: flex; flex-direction: column;
   box-shadow: 0 20px 60px rgba(0,0,0,0.2);
-  @media (max-width: 640px) { max-height: 100vh; height: 100vh; border-radius: 0; }
+  /* mobile: top/bottom 고정으로 GNB 피하고 화면 안에 확실히 배치 */
+  @media (max-width: 640px) {
+    position: fixed; top: 70px; bottom: 20px; left: 16px; right: 16px;
+    width: auto; max-width: none; max-height: none;
+  }
 `;
 const Header = styled.div`
   display: flex; align-items: center; justify-content: space-between;

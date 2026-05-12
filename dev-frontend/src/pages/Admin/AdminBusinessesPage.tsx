@@ -648,12 +648,17 @@ const ModalOverlay = styled.div`
   position: fixed; inset: 0; z-index: 90;
   background: rgba(15,23,42,0.28);
   display: flex; align-items: center; justify-content: center; padding: 20px;
+  @media (max-width: 640px) { padding: 0; align-items: stretch; }
 `;
 const Dialog = styled.div`
   background: #fff; border-radius: 14px; width: 100%; max-width: 460px;
   box-shadow: 0 20px 50px rgba(15,23,42,0.2);
   display: flex; flex-direction: column; overflow: hidden;
   max-height: calc(100vh - 40px);
+  @media (max-width: 640px) {
+    max-width: none; border-radius: 0;
+    margin-top: 60px; max-height: calc(100vh - 60px); max-height: calc(100dvh - 60px);
+  }
 `;
 const DTitle = styled.div`padding: 18px 20px 8px; font-size: 15px; font-weight: 700; color: #0F172A;`;
 const DBody = styled.div`padding: 0 20px 16px; display: flex; flex-direction: column; gap: 14px; overflow-y: auto;`;

@@ -519,6 +519,17 @@ const Modal = styled.div`
     from { transform: translateY(20px); opacity: 0; }
     to { transform: translateY(0); opacity: 1; }
   }
+  /* mobile: top/bottom 고정으로 GNB 피하고 화면 안에 확실히 배치 */
+  @media (max-width: 640px) {
+    position: fixed;
+    top: 70px;
+    bottom: 20px;
+    left: 16px;
+    right: 16px;
+    width: auto;
+    max-width: none;
+    max-height: none;
+  }
 `;
 
 const ModalHeader = styled.div`
@@ -553,6 +564,7 @@ const CloseBtn = styled.button`
 
 const ModalBody = styled.div`
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
   padding: 20px 22px;
   display: flex;

@@ -355,11 +355,14 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
   // 발송 결과 화면 — 채팅방 가기 / 닫기
   if (sentResult) {
     return (
-      <Backdrop onClick={onClose}>
-        <Dialog onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={t('newInvoice.sent.title', '발송 완료') as string} style={{ maxWidth: 460 }}>
+      <>
+        <Backdrop onClick={onClose} />
+        <Dialog onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={t('newInvoice.sent.title', '발송 완료') as string} style={{ width: 460 }}>
           <Head>
             <Title>{t('newInvoice.sent.title', '발송 완료')}</Title>
-            <CloseBtn type="button" onClick={onClose} aria-label={t('common.close', '닫기') as string}>×</CloseBtn>
+            <CloseBtn type="button" onClick={onClose} aria-label={t('common.close', '닫기') as string}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><line x1="6" y1="6" x2="18" y2="18"/><line x1="6" y1="18" x2="18" y2="6"/></svg>
+            </CloseBtn>
           </Head>
           <SentBody>
             <SentIcon>✓</SentIcon>
@@ -382,7 +385,7 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
             </SentActions>
           </SentBody>
         </Dialog>
-      </Backdrop>
+      </>
     );
   }
 
@@ -394,12 +397,13 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
   if (deliverSummary.length === 0 && client) deliverSummary.push('공개 링크만 생성 (수동 전달)');
 
   return (
-    <Backdrop onClick={onClose}>
+    <>
+      <Backdrop onClick={onClose} />
       <Dialog onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={t('newInvoice.title') as string}>
         <Head>
           <Title>{t('newInvoice.title')}</Title>
           <CloseBtn onClick={onClose} aria-label={t('common.close') as string}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><line x1="6" y1="6" x2="18" y2="18"/><line x1="6" y1="18" x2="18" y2="6"/></svg>
           </CloseBtn>
         </Head>
 
@@ -842,39 +846,34 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
           </FooterRight>
         </Footer>
       </Dialog>
-    </Backdrop>
+    </>
   );
 }
 
 // ─── styled ───
 const Backdrop = styled.div`
-  position: fixed; inset: 0; background: rgba(15, 23, 42, 0.5);
-  display: flex; align-items: center; justify-content: center;
-  z-index: 1000; padding: 20px;
-  animation: fadeIn 0.15s ease-out;
-  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+  position: fixed; inset: 0; background: rgba(15, 23, 42, 0.08); z-index: 1000;
 `;
 const Dialog = styled.div`
-  background: #fff; border-radius: 16px; max-width: 880px; width: 100%;
-  max-height: 92vh; display: flex; flex-direction: column;
-  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.2);
-  animation: slideUp 0.2s ease-out;
-  @keyframes slideUp {
-    from { transform: translateY(8px); opacity: 0; }
-    to { transform: translateY(0); opacity: 1; }
+  position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  z-index: 1010; width: 880px; max-width: calc(100vw - 40px); max-height: calc(100vh - 48px);
+  background: #fff; border-radius: 14px; box-shadow: 0 30px 60px -20px rgba(15, 23, 42, 0.25);
+  display: flex; flex-direction: column; overflow: hidden;
+  @media (max-width: 640px) {
+    top: 70px; bottom: 20px; left: 16px; right: 16px;
+    transform: none; width: auto; max-width: none; max-height: none;
   }
 `;
 const Head = styled.div`
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 18px 24px; border-bottom: 1px solid #F1F5F9; flex-shrink: 0;
+  display: flex; align-items: center; padding: 14px 18px;
+  border-bottom: 1px solid #EEF2F6; flex-shrink: 0;
 `;
 const Title = styled.h2`
-  font-size: 17px; font-weight: 700; color: #0F172A; letter-spacing: -0.3px; margin: 0;
+  flex: 1; font-size: 15px; font-weight: 700; color: #0F172A; letter-spacing: -0.1px; margin: 0;
 `;
 const CloseBtn = styled.button`
-  width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center;
-  background: transparent; border: none; border-radius: 6px; cursor: pointer; color: #64748B;
-  font-size: 22px; line-height: 1;
+  width: 30px; height: 30px; border: none; background: transparent; color: #64748B;
+  border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center;
   &:hover { background: #F1F5F9; color: #0F172A; }
 `;
 // 발송 결과 화면

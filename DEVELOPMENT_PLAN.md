@@ -1,6 +1,6 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-05-11 v1.6.1 (사이클 N+9 hotfix — 인박스 업무 후보 링크 fix)
+> **최종 업데이트:** 2026-05-12 v1.6.1 (모바일 반응형 — 모달 GNB fix + 로그아웃 버튼 + i18n + 디자인 통일)
 >
 > **이전 라이브:** 2026-05-11 `d3e7f0a` (v1.6.1 N+9 hotfix, 110s) / `eb8769a` (v1.6.0 N+9, 110s) / `2f379ee` (v1.5.5 N+8 hotfix, 125s) / `c962c5f` (v1.5.4 N+8 follow-up, 111s) / `1031409` (v1.5.3 N+6/N+7, 108s)
 >
@@ -9,6 +9,47 @@
 > **차순위:** 청크 5 (visibility 배지 카드/행 적용 + 5중 시각 시그널) / DocsTab 카드 hover share 아이콘 / 동적 OG (backend SSR + nginx /public/* proxy) / Q note 텍스트 type + Quick Capture / Custom SMTP (Pro+) / 설문 기능 MVP (4 사이클)
 >
 > **결제 정책:** 1순위 자체 결제 (계좌이체 mark-paid), 2순위 PortOne (P-7 마지막). 월결제 + 연결제. Free 플랜 폐지 — 신규 가입은 starter+trialing 14일.
+
+---
+
+## 🔧 진행: 모바일 반응형 QA — 모달 GNB 오버랩 + 로그아웃 버튼 + i18n + 모달 디자인 통일 (2026-05-12)
+
+17+ 모달 파일 모바일 반응형 수정 + 모달 디자인 통일 (Q Calendar NewEventModal 패턴).
+
+### 수정 내역
+
+| 영역 | 변경 내용 |
+|---|---|
+| **모달 GNB 오버랩 fix (17+ 파일)** | 모든 모달에 `@media (max-width: 640px) { margin-top: 60px; height: calc(100vh - 60px); height: calc(100dvh - 60px); }` 추가 — GNB 60px 영역 확보 |
+| **모바일 로그아웃 버튼** | `MainLayout.tsx` Sidebar 에 `height: 100dvh; height: -webkit-fill-available;` + SidebarFooter `padding-bottom: calc(12px + env(safe-area-inset-bottom))` |
+| **PageShell 헤더 래핑** | `PageShell.tsx` Header/HeaderRight 에 `flex-wrap: wrap` — 모바일에서 버튼 잘림 방지 |
+| **Q Info i18n** | `knowledge.json` (en/ko) `csvUpload`, `aiIngest` 키 추가 + KnowledgePage.tsx 한글 fallback 제거 |
+| **모달 디자인 통일 (Q Calendar 패턴)** | KnowledgePage.tsx, NewInvoiceModal.tsx — 밝은 backdrop (rgba 0.08) + centered transform + 14px border-radius + 헤더 title + close 버튼 |
+| **PostsPage.tsx** | 미사용 `EmptyList` styled component 제거 (TS6133 에러 fix) |
+
+### 수정 파일 (39개)
+
+```
+MainLayout.tsx, PageShell.tsx, PanelHeader.tsx
+KnowledgePage.tsx, KbAiIngestModal.tsx, KbCsvIngestModal.tsx
+NewInvoiceModal.tsx, CheckoutModal.tsx
+QCalendarPage.tsx, NewEventModal.tsx, CalendarPicker.tsx
+QProjectPage.tsx, DocsTab.tsx, ProcessPartsTab.tsx
+QTaskPage.tsx, TaskDetailDrawer.tsx, AiTaskCreateModal.tsx
+TemplateSaveModal.tsx, TemplateSelectModal.tsx, WeeklyReviewModal.tsx
+PostsPage.tsx, PostAiModal.tsx, PostSignatureModal.tsx, SlotFormModal.tsx
+NewDocumentModal.tsx, StartMeetingModal.tsx
+ChatSettingsModal.tsx, NewChatModal.tsx, NewProjectModal.tsx
+GlobalSearchModal.tsx, PlanSettings.tsx, StorageSettings.tsx
+AdminBusinessesPage.tsx
+knowledge.json (en/ko), qcalendar.json (en/ko), qproject.json (en/ko)
+```
+
+### 검증
+
+- 헬스체크 27/27 PASS
+- 빌드 성공, TS 에러 0
+- PM2 planq-dev-backend + planq-qnote online
 
 ---
 

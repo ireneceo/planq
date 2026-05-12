@@ -2,6 +2,7 @@
   "page": {
     "title": "Q project"
   },
+  "newProject": "새 프로젝트",
   "view": {
     "split": "기본",
     "list": "리스트",

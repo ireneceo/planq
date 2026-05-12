@@ -1311,6 +1311,18 @@ const ModalBox = styled.div`
   flex-direction: column;
   max-height: calc(100vh - 40px);
   overflow: hidden;
+
+  /* mobile: top/bottom 고정으로 GNB 피하고 화면 안에 확실히 배치 */
+  @media (max-width: 640px) {
+    position: fixed;
+    top: 70px;
+    bottom: 20px;
+    left: 16px;
+    right: 16px;
+    width: auto;
+    max-width: none;
+    max-height: none;
+  }
 `;
 
 const Header = styled.div`
@@ -1319,6 +1331,7 @@ const Header = styled.div`
   justify-content: space-between;
   align-items: center;
   border-bottom: 1px solid #f1f5f9;
+  flex-shrink: 0;
 `;
 
 const Title = styled.h2`
@@ -1351,6 +1364,8 @@ const Body = styled.div`
   flex-direction: column;
   gap: 22px;
   overflow-y: auto;
+  flex: 1;
+  min-height: 0;
 `;
 
 const Field = styled.div`
@@ -1944,6 +1959,7 @@ const Footer = styled.div`
   justify-content: flex-end;
   gap: 10px;
   border-top: 1px solid #f1f5f9;
+  flex-shrink: 0;
 `;
 
 const SecondaryBtn = styled.button`

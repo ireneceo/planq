@@ -306,8 +306,20 @@ const LinkBtn = styled.button`
 `;
 const InlineHint = styled.div`font-size:12px;color:#94A3B8;padding:8px 12px;background:#F8FAFC;border-radius:8px;`;
 
-const Modal = styled.div`position:fixed;inset:0;z-index:80;background:rgba(15,23,42,.24);display:flex;align-items:center;justify-content:center;padding:20px;`;
-const Dialog = styled.div`background:#fff;border-radius:14px;width:100%;max-width:440px;box-shadow:0 20px 50px rgba(15,23,42,.2);display:flex;flex-direction:column;overflow:hidden;`;
+const Modal = styled.div`
+  position:fixed;inset:0;z-index:80;background:rgba(15,23,42,.24);
+  display:flex;align-items:center;justify-content:center;padding:20px;
+  @media (max-width: 640px) { padding:0; align-items:stretch; }
+`;
+const Dialog = styled.div`
+  background:#fff;border-radius:14px;width:100%;max-width:440px;
+  box-shadow:0 20px 50px rgba(15,23,42,.2);display:flex;flex-direction:column;overflow:hidden;
+  @media (max-width: 640px) {
+    max-width:none;border-radius:0;
+    margin-top:60px;max-height:calc(100vh - 60px);max-height:calc(100dvh - 60px);
+    overflow-y:auto;
+  }
+`;
 const DTitle = styled.div`padding:18px 20px 10px;font-size:15px;font-weight:700;color:#0F172A;`;
 const DBody = styled.div`padding:0 20px 16px;font-size:13px;color:#475569;line-height:1.5;strong{color:#0F172A;}p{margin:4px 0;}`;
 const DFooter = styled.div`padding:12px 20px;border-top:1px solid #EEF2F6;display:flex;gap:8px;justify-content:flex-end;`;

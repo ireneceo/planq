@@ -129,13 +129,17 @@ const Backdrop = styled.div`
   position: fixed; inset: 0; background: rgba(15,23,42,0.4);
   display: flex; align-items: center; justify-content: center;
   z-index: 1000; padding: 20px;
+  @media (max-width: 640px) { padding: 0; align-items: stretch; }
 `;
 const Dialog = styled.div`
   background: #fff; border-radius: 14px;
   width: 100%; max-width: 560px; max-height: 90vh;
   display: flex; flex-direction: column;
   box-shadow: 0 20px 60px rgba(0,0,0,0.2);
-  @media (max-width: 640px) { max-height: 100vh; height: 100vh; border-radius: 0; }
+  @media (max-width: 640px) {
+    max-width: none; max-height: none; border-radius: 0;
+    margin-top: 60px; height: calc(100vh - 60px); height: calc(100dvh - 60px);
+  }
 `;
 const Header = styled.div`
   display: flex; align-items: center; justify-content: space-between;
