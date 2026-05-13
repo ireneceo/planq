@@ -1,14 +1,33 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-05-12 v1.7.1 (사이클 N+11 — Q Task 우측 패널 빈 공간 fix + ErrorBoundary 깜빡임 제거 + 모바일 visibilitychange 실시간 회복 + 라우트 prefetch + vendor 청크 분리 + 빌드 OOM 박제)
+> **최종 업데이트:** 2026-05-13 v1.7.1 (사이클 N+12 — Q Task 반복 설정 격주 저장 버그 fix + 반복 설정 권한 체크 UX 개선)
 >
 > **이전 라이브:** 2026-05-12 `3e2b595`/`d746d6f`/`966144e` (v1.7.1 N+11 5건, 218s) / `5807d2f`/`da62196`/`ec85423` (v1.7.0 N+10) / `2b64012` (모바일 반응형 lua) / `d3e7f0a` (v1.6.1 N+9 hotfix) / `eb8769a` (v1.6.0 N+9)
 >
-> **다음 진입 ★ (2026-05-13 최우선):** **운영 GDrive 연결 fix** — 운영 `.env` 의 `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` 가 placeholder (`<google_oauth_client_id>` / `<google_oauth_client_secret>`) 그대로. 코드는 정상, dev 는 OK. 진단 완료. 절차: ①Google Console (https://console.cloud.google.com/apis/credentials) 에서 OAuth client 의 **승인된 리디렉션 URI** 에 `https://planq.kr/api/cloud/callback/gdrive`, **승인된 JS 원본** 에 `https://planq.kr` 등록 확인/추가 → ②운영 `.env` 두 줄을 dev `.env` 실값으로 교체 (`/opt/planq/backend/.env`) → ③`pm2 restart planq-prod-backend` → ④https://planq.kr 에서 Drive 연결 재시도.
+> **다음 진입 ★:** 운영 GDrive 연결 fix (irene 직접 진행 필요 — Google Console + .env 시크릿)
 >
 > **차순위:** 청크 5 (visibility 배지 카드/행 적용 + 5중 시각 시그널) / DocsTab 카드 hover share 아이콘 / 동적 OG (backend SSR + nginx /public/* proxy) / Q note 텍스트 type + Quick Capture / Custom SMTP (Pro+) / 설문 기능 MVP (4 사이클)
 >
 > **결제 정책:** 1순위 자체 결제 (계좌이체 mark-paid), 2순위 PortOne (P-7 마지막). 월결제 + 연결제. Free 플랜 폐지 — 신규 가입은 starter+trialing 14일.
+
+---
+
+## ✅ 완료: 사이클 N+12 — Q Task 반복 설정 격주 버그 fix + 권한 UX 개선 (2026-05-13)
+
+### 버그 수정
+
+1. **격주 반복 저장 안 되는 버그 fix** — TaskDetailDrawer에서 `setRecurPreset(p)` 후 `setTimeout(saveRule, 0)` 호출 시 React state가 아직 업데이트 안 된 이전 값('weekly')으로 RRULE 빌드. 격주 선택해도 매주로 저장됨. `buildRecurRule`과 `saveRule`에 `overrides` 파라미터 추가해서 새 값을 직접 전달하도록 fix.
+
+2. **반복 설정 RRULE 파싱 누락 fix** — 상세 진입 시 `setRecurEnabled(true)`만 호출하고 preset/endType/endCount/endUntil을 복원 안 함. `parseRRule()` 사용해서 전체 recurrence state 복원.
+
+3. **반복 설정 권한 체크 UX 개선** — 담당자(작성자 아닌 경우)는 `recurrence_rule` 수정 권한이 없는데 UI에서 편집 가능하게 보이고 저장 시 403 에러 발생. `canEditRecurrence` 권한 체크 추가해서 권한 없으면:
+   - 체크박스/select 모두 disabled
+   - "읽기 전용" 힌트 표시
+   - 전체 영역 흐린 스타일 (opacity 0.7, 회색 배경)
+
+### 수정된 파일
+
+- `dev-frontend/src/components/QTask/TaskDetailDrawer.tsx` — parseRRule import, recurrence state 복원, buildRecurRule overrides, canEditRecurrence 권한 체크, UI disabled 처리
 
 ---
 

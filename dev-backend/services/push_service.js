@@ -1,7 +1,12 @@
 // Web Push 발송 서비스 — 사이클 J + 사이클 N+3 보완.
 // 모든 발송 시도는 PushLog 에 기록 (운영 가시성·실패율·abuse 추적).
 // VAPID 키는 .env 에 저장. 없으면 push 비활성 (백엔드 정상 기동).
+//
+// 운영 가시성 (사이클 N+12 보완):
+//   - 동일 user 5분 윈도우 3회 이상 failed → platform_admin email 알림 (1시간 throttle).
+//   - 박제: feedback_external_dispatch_validation.md
 const webpush = require('web-push');
+const { Op } = require('sequelize');
 const { PushSubscription, PushLog } = require('../models');
 
 const VAPID_PUBLIC = process.env.VAPID_PUBLIC_KEY || '';
@@ -32,6 +37,39 @@ function endpointHost(endpoint) {
 async function logPush(payload) {
   // best-effort — 발송 흐름이 log 실패로 깨지지 않게
   try { await PushLog.create(payload); } catch (e) { console.error('[push] log failed:', e.message); }
+}
+
+// 실패 알림 throttle — 같은 user 에 대해 1시간 내 한 번만 platform_admin 에게 notify.
+// memory 캐시 (단일 process). pm2 cluster 환경에선 process 별 throttle 이지만 spam 충분히 억제.
+const FAILURE_ALERT_TTL_MS = 60 * 60 * 1000;
+const FAILURE_WINDOW_MS = 5 * 60 * 1000;
+const FAILURE_THRESHOLD = 3;
+const failureAlertCache = new Map();
+
+async function maybeAlertOnFailure(userId) {
+  if (!userId) return;
+  try {
+    const lastAlert = failureAlertCache.get(userId) || 0;
+    if (Date.now() - lastAlert < FAILURE_ALERT_TTL_MS) return;
+    const since = new Date(Date.now() - FAILURE_WINDOW_MS);
+    const count = await PushLog.count({
+      where: { user_id: userId, status: 'failed', createdAt: { [Op.gte]: since } },
+    });
+    if (count < FAILURE_THRESHOLD) return;
+    failureAlertCache.set(userId, Date.now());
+    // platform_admin email 만 발송 (push 발송 자체가 실패 중인 상황이라 push 채널 사용 불가)
+    const { notifyPlatformAdmins } = require('./platformNotify');
+    await notifyPlatformAdmins({
+      eventKind: 'feedback',
+      title: `Push 발송 실패 누적 — user ${userId}`,
+      body: `최근 5분 내 ${count}회 발송 실패. PushLog 의 status='failed' rows 확인 필요. 가능 원인: subscription expired (410/404) / VAPID 키 mismatch / 좀비 p256dh.`,
+      link: `/admin/users`,
+      ctaLabel: 'Admin Users',
+      relatedEntityId: userId,
+    });
+  } catch (e) {
+    console.warn('[push] failure alert dispatch error:', e.message);
+  }
 }
 
 // payload 형식: { title, body, link?, tag?, icon? }
@@ -80,6 +118,8 @@ async function sendPushToUser(userId, payload, opts = {}) {
           status: 'failed', status_code: code, error_message: String(e.message || '').slice(0, 500),
           category, payload_title: payload.title,
         });
+        // 5분 윈도우 3회 이상 실패 시 platform_admin 알림 (1시간 throttle)
+        maybeAlertOnFailure(userId).catch(() => null);
       }
     }
   }

@@ -62,14 +62,19 @@ export function useUnreadTotal(businessId: number | null | undefined): number {
     }
 
     const onChanged = () => refresh();
+    const onVisible = () => { if (document.visibilityState === 'visible') refresh(); };
     window.addEventListener('planq:unread-changed', onChanged);
     window.addEventListener('focus', onChanged);
+    // 모바일 PWA 는 focus 이벤트가 항상 발동하지 않음 → visibilitychange 로 보강.
+    // 박제: feedback_visibility_refresh_server_fresh.md
+    document.addEventListener('visibilitychange', onVisible);
 
     return () => {
       cancelled = true;
       if (pending) clearTimeout(pending);
       window.removeEventListener('planq:unread-changed', onChanged);
       window.removeEventListener('focus', onChanged);
+      document.removeEventListener('visibilitychange', onVisible);
       if (socketRef.current) {
         socketRef.current.disconnect();
         socketRef.current = null;

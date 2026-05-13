@@ -565,6 +565,26 @@ import DetailDrawer from 'components/Common/DetailDrawer';
 
 7. **Sticky 권한 동기화** — OS/브라우저 권한 OFF (push notification, mic, camera 등) 일 때 backend 의 자원 (구독·토큰·세션) 도 자동 정리. 좀비 endpoint 누적 차단. `services/push.ts:syncPermissionOnFocus()` + `bindPermissionSync()` 패턴 — 페이지 focus 복귀 시 권한 재검사 → denied 면 backend DELETE 자동.
 
+8. **외부 발송 입력 검증 + 실패율 모니터링 (사이클 N+12 박제)** — push/email/sms 라우트는 형식 검증 표준:
+   - web push: `p256dh.length >= 80` (base64url 65 bytes), `auth.length >= 8`
+   - email: RFC 5322 form, sms: E.164
+   존재 검사만으로 부족 — 깨진 데이터가 DB 저장되면 발송 시점 silent fail. 동일 user 5분 윈도우 3회 실패 → platform_admin email 알림 (push 채널은 본인이 실패 중일 수 있어 사용 금지). 헬스체크에 24h 실패율 임계치 항목 추가. `services/push_service.js:maybeAlertOnFailure()` 패턴 참조. 박제: `feedback_external_dispatch_validation.md`.
+
+9. **visibility/focus 복원 = server fresh 덮어쓰기 (사이클 N+12 박제)** — `useVisibilityRefresh` 같은 PWA background→foreground 복원 로직에서 list-style 자원 (conv, task, file 등) 은 **server response 전체로 setState 교체**. 신규만 merge 하는 패턴은 stale unread/last_message 회귀 유발. merge 가 정말 필요하면 *왜 server 응답을 무시하는지* 주석 명시. focus 외 `visibilitychange` 도 listen (모바일 PWA focus 발동 보장 없음). 박제: `feedback_visibility_refresh_server_fresh.md`.
+
+---
+
+## 검증 시나리오 — 채팅·알림 (사이클 N+12 박제)
+
+채팅·알림 영역 (Q Talk, NotificationToaster, push, socket) 기능 추가/수정 시 **아래 4 시나리오 모두 검증**. 활성 시나리오 하나만 통과시키면 회귀가 운영까지 도달함 (N+11 → N+12 회귀 실사례).
+
+1. **활성 conv 외 conv 메시지** → 사이드바 토탈 unread +1 + 좌측 리스트 conv row unread +1 + (활성 tab 이면) NotificationToaster 토스터 + ping 사운드
+2. **background → foreground 복귀** → 백그라운드 동안 다른 conv 에 도착한 메시지로 사이드바·리스트 unread 갱신 (활성 conv 의 messages 만 복원 ≠ 검증 완료)
+3. **OS push 실제 도착** (in-app 토스터와 분리) → 데스크탑·모바일 둘 다 background tab. 다른 user 가 메시지 → 두 디바이스 모두 OS notification + PushLog status='sent'. test push (디바이스 알림 테스트) 통과 ≠ 실제 채팅 push 도착 보장
+4. **다중 디바이스 동기화** → 같은 user 데스크탑 + 모바일 동시 접속. 한 쪽에서 conv 읽음/핀 → 다른 쪽 자동 반영 (`user:N` socket room broadcast)
+
+박제: `feedback_chat_notification_verification.md`.
+
 ---
 
 ## UI 규칙 — 액션 버튼 / 중복 제출 / URL 싱크
