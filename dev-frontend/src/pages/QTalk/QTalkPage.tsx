@@ -463,17 +463,16 @@ const QTalkPage: React.FC = () => {
 
   // 모바일 PWA background → foreground 복귀 시 회복:
   //   1) socket 강제 재연결 — disconnect 사이 새 conv/message emit 미수신 가능
-  //   2) 활성 대화 messages 캐시 invalidate → useEffect 가 자동 재로드
+  //   2) 활성 대화 messages 직접 재로드 — invalidate 만 하면 useEffect deps 가 [activeConversationId]
+  //      뿐이라 재실행 안 되어 빈 상태로 멈춤 (회귀 fix)
   //   3) 대화 목록 merge refresh — 새로 생성된 conv 누락 보정
   useVisibilityRefresh(useCallback(() => {
     const s = socketRef.current;
     if (s && !s.connected) s.connect();
     if (activeConversationId) {
-      setMessages(prev => {
-        const next = { ...prev };
-        delete next[activeConversationId];
-        return next;
-      });
+      qtalkApi.listConversationMessages(activeConversationId).then(msgs => {
+        setMessages(prev => ({ ...prev, [activeConversationId]: msgs.map(apiMessageToMock) }));
+      }).catch(() => null);
     }
     if (businessId) {
       qtalkApi.listBusinessConversations(businessId).then(apiConvs => {
