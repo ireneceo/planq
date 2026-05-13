@@ -67,6 +67,15 @@ router.post('/subscribe', authenticateToken, async (req, res, next) => {
     if (!endpoint || !keys?.p256dh || !keys?.auth) {
       return errorResponse(res, 'invalid_subscription', 400);
     }
+    // p256dh 는 base64url 인코딩된 65 bytes 공개키 → 약 87 chars.
+    // 짧으면 web-push 발송 시 "p256dh value should be 65 bytes long" 으로 실패해 모든 알림이 안 옴.
+    // backend 에서 미리 차단해 좀비 row 누적 방지.
+    if (typeof keys.p256dh !== 'string' || keys.p256dh.length < 80) {
+      return errorResponse(res, 'invalid_p256dh', 400);
+    }
+    if (typeof keys.auth !== 'string' || keys.auth.length < 8) {
+      return errorResponse(res, 'invalid_auth', 400);
+    }
     // 화이트리스트 검증 — 임의 URL DB 저장 차단
     if (!isAllowedEndpoint(endpoint)) {
       return errorResponse(res, 'invalid_endpoint_host', 400);

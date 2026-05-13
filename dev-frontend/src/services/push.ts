@@ -55,6 +55,18 @@ export async function subscribe(): Promise<{ ok: boolean; reason?: string }> {
 
   // 기존 구독 정리 (있으면 server 갱신만)
   let sub = await reg.pushManager.getSubscription();
+  // 기존 sub 가 invalid 한 경우 (p256dh 짧음 등 — SW 업데이트 사이 깨진 케이스) 강제 재구독.
+  // backend 에서도 동일 검증하지만 client 측에서 미리 unsubscribe 해 endpoint 갱신 보장.
+  if (sub) {
+    const checkJson = sub.toJSON() as { keys?: { p256dh?: string; auth?: string } };
+    const p = checkJson.keys?.p256dh || '';
+    const a = checkJson.keys?.auth || '';
+    if (p.length < 80 || a.length < 8) {
+      console.warn('[push] invalid existing subscription detected — resubscribing');
+      await sub.unsubscribe().catch(() => null);
+      sub = null;
+    }
+  }
   if (!sub) {
     try {
       sub = await reg.pushManager.subscribe({

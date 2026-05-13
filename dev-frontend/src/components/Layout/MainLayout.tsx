@@ -468,9 +468,25 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(() => readLS(LS_COLLAPSED, false));
   const [searchOpen, setSearchOpen] = useState(false);
+  // 모바일 (≤1024) 에서 통계·분석/설정 NavItem 첫 클릭 = 펼침만, 두 번째 = 이동.
+  // 데스크탑은 SecondaryPanel 이 있어 즉시 이동 (기존 동작).
+  const [mobileExpandedSection, setMobileExpandedSection] = useState<SecondarySection>(null);
   const { workspaceTz, workspaceRefs, userTz, userRefs } = useTimezones();
 
   useEffect(() => { setSidebarOpen(false); }, [location.pathname]);
+  // 경로 변경 시 펼침 state reset (메뉴 안에서 하위 클릭 후 다른 페이지 가면 자동 접힘)
+  useEffect(() => { setMobileExpandedSection(null); }, [location.pathname]);
+
+  const handleSecondaryNavClick = (section: SecondarySection) => (e: React.MouseEvent) => {
+    // 데스크탑은 기존 즉시 이동 동작 유지 — SecondaryPanel 이 옆에 펼쳐지므로 충분.
+    if (typeof window === 'undefined') return;
+    if (!window.matchMedia('(max-width: 1024px)').matches) return;
+    // 이미 펼쳐있으면 (두 번째 클릭) → 이동 진행
+    if (mobileExpandedSection === section) return;
+    // 첫 클릭 → 펼침만, 이동 차단
+    e.preventDefault();
+    setMobileExpandedSection(section);
+  };
   useEffect(() => { writeLS(LS_COLLAPSED, isCollapsed); }, [isCollapsed]);
 
   // ⌘K / Ctrl+\ 글로벌 검색 단축키
@@ -819,6 +835,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                   <NavTitle $isCollapsed={isCollapsed}>{t('nav.sectionManage', '관리')}</NavTitle>
                   <NavItem
                     to="/stats/overview"
+                    onClick={handleSecondaryNavClick('reports')}
                     $isCollapsed={isCollapsed}
                     $active={isActive('/stats')}
                     title={isCollapsed ? t('nav.sectionReports', '통계·분석') : undefined}
@@ -826,7 +843,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                     <NavIcon $isCollapsed={isCollapsed}><IconInsights /></NavIcon>
                     <NavLabel $isCollapsed={isCollapsed}>{t('nav.sectionReports', '통계·분석')}</NavLabel>
                   </NavItem>
-                  {isActive('/stats') && (
+                  {(isActive('/stats') || mobileExpandedSection === 'reports') && (
                     <AccordionWrap>
                       <AccordionItem to="/stats/overview" $active={isActive('/stats/overview')}>
                         <IconStatsOverview /> {t('nav.statsOverview', '개요')}
@@ -853,6 +870,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                   )}
                   <NavItem
                     to="/business/settings"
+                    onClick={handleSecondaryNavClick('settings')}
                     $isCollapsed={isCollapsed}
                     $active={
                       location.pathname.startsWith('/business/settings') ||
@@ -868,7 +886,8 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                     || location.pathname.startsWith('/settings')
                     || location.pathname.startsWith('/profile')
                     || isActive('/business/clients')
-                    || isActive('/business/members')) && (
+                    || isActive('/business/members')
+                    || mobileExpandedSection === 'settings') && (
                     <AccordionWrap>
                       {hasBiz('owner', 'member') && (
                         <AccordionItem

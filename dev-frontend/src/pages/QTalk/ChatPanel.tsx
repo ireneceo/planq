@@ -134,13 +134,34 @@ const ChatPanel: React.FC<Props> = ({
   // textarea ref — 채팅방 진입 시 자동 포커스 + 입력 시 auto-resize (2줄 가려짐 방지)
   const textInputRef = React.useRef<HTMLTextAreaElement | null>(null);
   // input 변경 시 textarea 높이를 scrollHeight 로 동기화 (max-height 120px 도달 시 내부 스크롤)
-  React.useEffect(() => {
+  // useLayoutEffect + raf — mount 직후 layout 미완 시 placeholder 가 1줄로 측정되어 textarea 가
+  // 1줄 높이로 고정되던 회귀. 다음 frame 에서 재측정해 안내문 wrap 후 정확한 높이 확보.
+  React.useLayoutEffect(() => {
     const el = textInputRef.current;
     if (!el) return;
-    el.style.height = 'auto';
-    const next = Math.min(el.scrollHeight, 120);
-    el.style.height = `${next}px`;
+    const measure = () => {
+      el.style.height = 'auto';
+      el.style.height = `${Math.min(el.scrollHeight, 120)}px`;
+    };
+    measure();
+    const raf = requestAnimationFrame(measure);
+    return () => cancelAnimationFrame(raf);
   }, [input]);
+  // 폭 변경(회전·사이드바 토글·키보드 등) 시 재측정
+  React.useEffect(() => {
+    const measure = () => {
+      const el = textInputRef.current;
+      if (!el) return;
+      el.style.height = 'auto';
+      el.style.height = `${Math.min(el.scrollHeight, 120)}px`;
+    };
+    window.addEventListener('resize', measure);
+    window.visualViewport?.addEventListener('resize', measure);
+    return () => {
+      window.removeEventListener('resize', measure);
+      window.visualViewport?.removeEventListener('resize', measure);
+    };
+  }, []);
   // 활성 대화방 변경 시 자동 포커스 (모바일에서는 키보드 자동 펼치지 않도록 skip)
   React.useEffect(() => {
     if (!activeConversationId) return;

@@ -11,7 +11,7 @@ const { successResponse, errorResponse } = require('../middleware/errorHandler')
 
 const EVENT_KINDS = [
   // 워크스페이스 멤버 알림
-  'signature', 'invoice', 'tax_invoice', 'task', 'event', 'invite', 'mention',
+  'message', 'signature', 'invoice', 'tax_invoice', 'task', 'event', 'invite', 'mention',
   // 플랫폼 관리자 알림 (business_id NULL row 로 저장)
   'inquiry', 'signup', 'payment', 'subscription', 'trial', 'feedback',
 ];
@@ -140,16 +140,21 @@ async function notify({ userId, businessId, eventKind, title, body, link, ctaLab
           //    여기선 single biz 컨텍스트라 그 biz 의 인박스 항목만 fetch.
           let inboxTotal = 0;
           try {
-            const dashRoute = require('./dashboard');
-            // dashboard 의 todo 응답 헬퍼 직접 호출은 어려워 — 핵심 항목별 카운트 합산
-            // (간이 추정: task ack/revise + reviewer pending + invoice 등)
-            // 정확한 합산은 todo endpoint 호출하는 게 확실 — 같은 backend 라 localhost loopback.
-            const fetchRes = await fetch(`http://localhost:${process.env.PORT || 3003}/api/dashboard/todo?business_id=${businessId}`, {
-              headers: { Authorization: `Bearer ${require('jsonwebtoken').sign({id:userId,email:'sys@planq',platform_role:'business_member'}, process.env.JWT_SECRET, {expiresIn:'10s'})}` }
-            });
-            const j = await fetchRes.json();
-            if (j.success) inboxTotal = Number(j.data?.total || 0);
-          } catch (e) { /* fallback: chatUnread 만 사용 */ }
+            // dashboard 의 todo endpoint 호출 — 같은 backend 라 localhost loopback.
+            // **timeout 1.5s 강제** — hang 시 push 발송 전체가 지연되던 회귀 차단.
+            const controller = new AbortController();
+            const timer = setTimeout(() => controller.abort(), 1500);
+            try {
+              const fetchRes = await fetch(`http://localhost:${process.env.PORT || 3003}/api/dashboard/todo?business_id=${businessId}`, {
+                signal: controller.signal,
+                headers: { Authorization: `Bearer ${require('jsonwebtoken').sign({id:userId,email:'sys@planq',platform_role:'business_member'}, process.env.JWT_SECRET, {expiresIn:'10s'})}` }
+              });
+              const j = await fetchRes.json();
+              if (j.success) inboxTotal = Number(j.data?.total || 0);
+            } finally {
+              clearTimeout(timer);
+            }
+          } catch (e) { /* timeout / fetch 실패 — chatUnread 만 사용 */ }
           badge = chatUnread + inboxTotal;
         }
       } catch { /* badge 계산 실패해도 push 자체는 보냄 */ }
