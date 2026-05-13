@@ -491,15 +491,26 @@ function defineExternalTests() {
   // 박제: feedback_external_dispatch_validation.md (push/email/sms 같은 외부 발송은 검증 시점에
   // 직접 발송 흐름 + 실패 누적 같이 확인)
   test('external', 'PushLog 24h 실패율 < 50%', async () => {
-    process.chdir('/opt/planq/dev-backend');
-    const { PushLog } = require('/opt/planq/dev-backend/models');
-    const { Op } = require('sequelize');
-    const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
-    const total = await PushLog.count({ where: { createdAt: { [Op.gte]: since } } });
+    // health-check 가 /opt/planq 에서 실행되어 모듈 lookup path 가 backend node_modules 가 아니어서
+    // 자식 process 로 dev-backend cwd 에서 직접 count 만 수행 (sequelize/Op 모두 거기 있음).
+    const { spawnSync } = require('child_process');
+    const r = spawnSync('node', ['-e', `
+      const { PushLog } = require('./models');
+      const { Op } = require('sequelize');
+      (async () => {
+        const since = new Date(Date.now() - 24*60*60*1000);
+        const total = await PushLog.count({ where: { created_at: { [Op.gte]: since } } });
+        const failed = await PushLog.count({ where: { created_at: { [Op.gte]: since }, status: 'failed' } });
+        process.stdout.write(JSON.stringify({ total, failed }));
+        process.exit(0);
+      })().catch(e => { process.stderr.write(e.message); process.exit(1); });
+    `], { cwd: '/opt/planq/dev-backend', encoding: 'utf-8', timeout: 10000 });
+    if (r.status !== 0) throw new Error('child process failed: ' + (r.stderr || 'unknown'));
+    // dotenvx 같은 헬퍼가 stdout 에 정보 메시지 prefix 할 수 있어 JSON 블록만 추출
+    const match = String(r.stdout || '').match(/\{[^{}]*"total"\s*:\s*\d+[^{}]*\}/);
+    if (!match) throw new Error('parse failed: ' + (r.stdout || '').slice(0, 100));
+    const { total, failed } = JSON.parse(match[0]);
     if (total === 0) return true; // 24h 발송 0건 — 검증 의미 없음, 통과
-    const failed = await PushLog.count({
-      where: { createdAt: { [Op.gte]: since }, status: 'failed' },
-    });
     const rate = (failed / total) * 100;
     if (rate >= 50) {
       throw new Error(`24h push 실패율 ${rate.toFixed(1)}% (${failed}/${total}) — subscription/VAPID 점검 필요`);
