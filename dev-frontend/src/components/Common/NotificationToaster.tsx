@@ -189,6 +189,12 @@ export default function NotificationToaster() {
     }
     // Ping 사운드 — 항상. 활성 conv 든 다른 페이지든. (Irene 명시: 사운드 와야 함)
     playPing();
+    // 사이드바 토탈 unread 갱신 트리거 — message 토스터는 활성 conv 외 다른 conv 의 새 메시지를
+    // 의미하므로 useUnreadTotal 이 즉시 refetch 해야 사이드바 뱃지가 stale 되지 않음.
+    // QTalkPage 가 activeConv 가 아닌 경우 unread-changed dispatch 가 되지 않던 회귀 fix.
+    if (toast.type === 'message') {
+      window.dispatchEvent(new Event('planq:unread-changed'));
+    }
     if (skipToast) return;
 
     const id = `t-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;

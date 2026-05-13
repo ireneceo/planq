@@ -477,12 +477,14 @@ const QTalkPage: React.FC = () => {
     if (businessId) {
       qtalkApi.listBusinessConversations(businessId).then(apiConvs => {
         const all = apiConvs.map(apiConversationToMock);
-        setConversations(prev => {
-          const ids = new Set(prev.map(c => c.id));
-          const newOnes = all.filter(c => !ids.has(c.id));
-          return newOnes.length ? [...prev, ...newOnes] : prev;
-        });
+        // server fresh data 가 client state 를 덮어쓰는 게 default — background 동안 다른 conv 에
+        // 도착한 메시지의 unread_count / last_message_at 이 client 에 반영 안 되던 회귀 fix.
+        // 신규만 merge 하면 stale. 단 client-only state (선택 상태 등) 는 별도 ref 로 유지.
+        // 박제: feedback_visibility_refresh_server_fresh.md
+        setConversations(all);
       }).catch(() => null);
+      // 사이드바 토탈 unread 도 같이 갱신
+      window.dispatchEvent(new Event('planq:unread-changed'));
     }
   }, [activeConversationId, businessId]));
 

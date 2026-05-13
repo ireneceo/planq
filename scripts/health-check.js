@@ -486,6 +486,26 @@ function defineExternalTests() {
     if (res.status !== 200) throw new Error(`Deepgram returned ${res.status}`);
     return true;
   });
+
+  // 사이클 N+12 — PushLog 실패율 모니터링.
+  // 박제: feedback_external_dispatch_validation.md (push/email/sms 같은 외부 발송은 검증 시점에
+  // 직접 발송 흐름 + 실패 누적 같이 확인)
+  test('external', 'PushLog 24h 실패율 < 50%', async () => {
+    process.chdir('/opt/planq/dev-backend');
+    const { PushLog } = require('/opt/planq/dev-backend/models');
+    const { Op } = require('sequelize');
+    const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const total = await PushLog.count({ where: { createdAt: { [Op.gte]: since } } });
+    if (total === 0) return true; // 24h 발송 0건 — 검증 의미 없음, 통과
+    const failed = await PushLog.count({
+      where: { createdAt: { [Op.gte]: since }, status: 'failed' },
+    });
+    const rate = (failed / total) * 100;
+    if (rate >= 50) {
+      throw new Error(`24h push 실패율 ${rate.toFixed(1)}% (${failed}/${total}) — subscription/VAPID 점검 필요`);
+    }
+    return true;
+  });
 }
 
 // ============================================

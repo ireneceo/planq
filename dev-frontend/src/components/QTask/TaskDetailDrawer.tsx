@@ -11,7 +11,7 @@ import PlanQSelect from '../Common/PlanQSelect';
 import RichEditor from '../Common/RichEditor';
 import ShareModal from '../Common/ShareModal';
 import {
-  buildPresetRRule, buildCustomRRule,
+  buildPresetRRule, buildCustomRRule, parseRRule,
   type RecurPreset, type RecurEndType, type RecurCustomUnit,
 } from '../../utils/recurrence';
 import AttachmentField from '../Common/AttachmentField';
@@ -174,21 +174,34 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
   // custom 옵션은 추가 폼의 별도 모달에서 처리 — 상세에선 preset 만 (추후 보강 가능)
   const [recurCustomEvery] = useState<string>('1');
   const [recurCustomUnit] = useState<RecurCustomUnit>('week');
-  // detailTask 로드되면 기존 recurrence_rule 존재만 감지 (parser 없음 — 사용자가 변경 시 새로 빌드)
+  // detailTask 로드되면 기존 recurrence_rule 파싱 → 모든 recurrence state 복원 (격주 등 preset 유지)
   React.useEffect(() => {
-    setRecurEnabled(!!detailTask?.recurrence_rule);
+    const parsed = parseRRule(detailTask?.recurrence_rule);
+    setRecurEnabled(parsed.enabled);
+    setRecurPreset(parsed.preset);
+    setRecurEndType(parsed.endType);
+    setRecurEndCount(String(parsed.endCount));
+    setRecurEndUntil(parsed.endUntil || '');
   }, [detailTask?.id, detailTask?.recurrence_rule]);
 
   // 현재 폼 상태 → RRULE 문자열 (없으면 null) — 추가 폼의 buildCurrentRRule 와 동일 로직
-  const buildRecurRule = (dueDate: string | null): string | null => {
+  // overrides: setState 비동기 우회 — 새 값을 직접 전달
+  const buildRecurRule = (
+    dueDate: string | null,
+    overrides?: { preset?: RecurPreset; endType?: RecurEndType; endCount?: string; endUntil?: string }
+  ): string | null => {
     if (!recurEnabled || !dueDate) return null;
+    const finalPreset = overrides?.preset ?? recurPreset;
+    const finalEndType = overrides?.endType ?? recurEndType;
+    const finalEndCount = overrides?.endCount ?? recurEndCount;
+    const finalEndUntil = overrides?.endUntil ?? recurEndUntil;
     const end = {
-      type: recurEndType,
-      count: recurEndType === 'count' ? Number(recurEndCount) || 1 : undefined,
-      until: recurEndType === 'until' ? recurEndUntil : undefined,
+      type: finalEndType,
+      count: finalEndType === 'count' ? Number(finalEndCount) || 1 : undefined,
+      until: finalEndType === 'until' ? finalEndUntil : undefined,
     };
-    if (recurPreset === 'custom') return buildCustomRRule(Number(recurCustomEvery) || 1, recurCustomUnit, end);
-    return buildPresetRRule(recurPreset, dueDate, end);
+    if (finalPreset === 'custom') return buildCustomRRule(Number(recurCustomEvery) || 1, recurCustomUnit, end);
+    return buildPresetRRule(finalPreset, dueDate, end);
   };
   const [statusOpen, setStatusOpen] = useState(false);
   const [openReviewers, setOpenReviewers] = useState(false);
@@ -622,6 +635,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
           const canEditTitle = iAmCreator || iAmAssignee || iAmWsOwner;
           const canEditDescription = iAmCreator || iAmWsOwner;
           const canEditBody = iAmAssignee || isPlatformAdmin;
+          const canEditRecurrence = iAmCreator || iAmWsOwner;  // 백엔드 FIELD_RULES와 일치
           const myReviewer = reviewers.find(rv => rv.user_id === myId);
           const dStatus = displayStatus(detailTask, todayStr);
           const sc = STATUS_COLOR[dStatus];
@@ -904,11 +918,12 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                 </ReviewReminderHint>
               )}
 
-              {/* 반복하기 — 정기업무 (추가 폼과 동일 옵션) */}
-              <MetaRecurRow>
+              {/* 반복하기 — 정기업무 (추가 폼과 동일 옵션). 권한: 작성자/owner/admin */}
+              <MetaRecurRow $disabled={!canEditRecurrence}>
                 <MetaRecurToggle>
-                  <input type="checkbox" checked={recurEnabled} disabled={!detailTask.due_date}
+                  <input type="checkbox" checked={recurEnabled} disabled={!canEditRecurrence || !detailTask.due_date}
                     onChange={(e) => {
+                      if (!canEditRecurrence) return;
                       const enabled = e.target.checked;
                       setRecurEnabled(enabled);
                       if (!enabled) {
@@ -925,11 +940,13 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                       }
                     }} />
                   <span>{t('recur.toggle', '반복하기')}</span>
-                  {!detailTask.due_date && <MetaRecurHint>{t('recur.needDueDate', '반복하려면 마감일이 필요해요')}</MetaRecurHint>}
+                  {!canEditRecurrence && <ReadOnlyHint>{t('detail.readOnly', '읽기 전용')}</ReadOnlyHint>}
+                  {canEditRecurrence && !detailTask.due_date && <MetaRecurHint>{t('recur.needDueDate', '반복하려면 마감일이 필요해요')}</MetaRecurHint>}
                 </MetaRecurToggle>
                 {recurEnabled && detailTask.due_date && (() => {
-                  const saveRule = () => {
-                    const rule = buildRecurRule(detailTask.due_date);
+                  // overrides: setState 비동기 우회 — 새 값을 직접 전달
+                  const saveRule = (overrides?: { preset?: RecurPreset; endType?: RecurEndType; endCount?: string; endUntil?: string }) => {
+                    const rule = buildRecurRule(detailTask.due_date, overrides);
                     if (rule) {
                       saveField('recurrence_rule', rule);
                       setDetailTask(prev => prev ? { ...prev, recurrence_rule: rule } : prev);
@@ -948,13 +965,15 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                   return (
                     <MetaRecurOptions>
                       <PlanQSelect size="sm"
+                        isDisabled={!canEditRecurrence}
                         value={{ value: recurPreset, label: presetLabels[recurPreset] }}
                         onChange={(v) => {
+                          if (!canEditRecurrence) return;
                           const p = (v as { value?: string })?.value as RecurPreset | undefined;
                           if (!p || p === 'custom') return; // custom 은 별도 모달 (추가 폼 흐름) — 상세에선 일단 preset 만
                           setRecurPreset(p);
-                          // setState 비동기라 직접 빌드
-                          setTimeout(saveRule, 0);
+                          // setState 비동기 우회 — 새 값을 직접 전달
+                          saveRule({ preset: p });
                         }}
                         options={[
                           { value: 'daily', label: presetLabels.daily },
@@ -964,6 +983,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                           { value: 'yearly', label: presetLabels.yearly },
                         ]} />
                       <PlanQSelect size="sm"
+                        isDisabled={!canEditRecurrence}
                         value={{
                           value: recurEndType,
                           label: recurEndType === 'never' ? t('recur.endTypeNever', '계속 반복') as string
@@ -971,10 +991,11 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                             : t('recur.endTypeUntil', '특정 날짜까지') as string,
                         }}
                         onChange={(v) => {
+                          if (!canEditRecurrence) return;
                           const next = (v as { value?: string })?.value as RecurEndType | undefined;
                           if (!next) return;
                           setRecurEndType(next);
-                          setTimeout(saveRule, 0);
+                          saveRule({ endType: next });
                         }}
                         options={[
                           { value: 'never', label: t('recur.endTypeNever', '계속 반복') as string },
@@ -983,14 +1004,16 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                         ]} />
                       {recurEndType === 'count' && (
                         <MetaNumInput type="number" min="1" max="999"
-                          value={recurEndCount} onChange={e => setRecurEndCount(e.target.value)}
-                          onBlur={saveRule}
+                          disabled={!canEditRecurrence}
+                          value={recurEndCount} onChange={e => canEditRecurrence && setRecurEndCount(e.target.value)}
+                          onBlur={() => canEditRecurrence && saveRule()}
                           style={{ width: 70 }} />
                       )}
                       {recurEndType === 'until' && (
                         <SingleDateField
+                          disabled={!canEditRecurrence}
                           value={recurEndUntil}
-                          onChange={(d) => { setRecurEndUntil(d); setTimeout(saveRule, 0); }}
+                          onChange={(d) => { if (canEditRecurrence) { setRecurEndUntil(d); saveRule({ endUntil: d }); } }}
                           width={140}
                         />
                       )}
@@ -1548,11 +1571,14 @@ const ReviewReminderHint = styled.div`
   font-size: 12px; color: #0F766E; font-weight: 500; line-height: 1.4;
 `;
 const ReviewReminderIcon = styled.svg`width: 14px; height: 14px; flex-shrink: 0; color: #14B8A6; margin-top: 1px;`;
-const MetaRecurRow = styled.div`
+const MetaRecurRow = styled.div<{ $disabled?: boolean }>`
   display: flex; flex-direction: column; gap: 6px;
   padding: 8px 10px;
-  background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 6px;
+  background: ${p => p.$disabled ? '#F8FAFC' : '#FFFFFF'};
+  border: 1px solid ${p => p.$disabled ? '#F1F5F9' : '#E2E8F0'};
+  border-radius: 6px;
   margin-top: 10px;
+  opacity: ${p => p.$disabled ? 0.7 : 1};
 `;
 const MetaRecurToggle = styled.label`
   display: inline-flex; align-items: center; gap: 8px;
