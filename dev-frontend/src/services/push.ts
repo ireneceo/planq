@@ -120,6 +120,27 @@ export async function isSubscribed(): Promise<boolean> {
   return !!sub;
 }
 
+// browser 의 PushSubscription.endpoint 가 backend 의 active row 에 존재하는지 검증.
+// browser 에는 sub 가 있는데 backend 에 row 가 없는 desync (좀비 자동 expire, DB reset 등) 시 false.
+// 박제: feedback_external_dispatch_validation.md (N+12 — push 무성공 회귀의 핵심 원인)
+async function backendHasMatchingSub(): Promise<{ matched: boolean; browserEndpoint: string | null }> {
+  if (!('serviceWorker' in navigator)) return { matched: false, browserEndpoint: null };
+  const reg = await navigator.serviceWorker.getRegistration();
+  if (!reg) return { matched: false, browserEndpoint: null };
+  const sub = await reg.pushManager.getSubscription();
+  if (!sub) return { matched: false, browserEndpoint: null };
+  try {
+    const r = await apiFetch('/api/push/me');
+    if (!r.ok) return { matched: false, browserEndpoint: sub.endpoint };
+    const j = await r.json();
+    const list: string[] = j?.data?.endpoints || [];
+    return { matched: list.includes(sub.endpoint), browserEndpoint: sub.endpoint };
+  } catch {
+    // 네트워크 에러 — 보수적으로 matched=true 처리해 무한 재구독 루프 방지.
+    return { matched: true, browserEndpoint: sub.endpoint };
+  }
+}
+
 export async function sendTestPush(): Promise<{ sent: number; skipped?: string }> {
   const r = await apiFetch('/api/push/test', { method: 'POST', headers: { 'Content-Type': 'application/json' } });
   const j = await r.json();
@@ -140,7 +161,20 @@ export async function autoSubscribeIfPossible(): Promise<{ ok: boolean; reason?:
   if (perm === 'denied') return { ok: false, reason: 'permission_denied' };
 
   if (perm === 'granted') {
-    if (await isSubscribed()) return { ok: true, reason: 'already_subscribed' };
+    // browser sub 존재만으로 'already_subscribed' 끝내면 backend desync 시 영영 재구독 안 됨.
+    // backend 에 endpoint row 가 실제 있는지 비교 → 미스매치면 browser sub 해제 후 재구독.
+    // 박제: N+12 dev PushLog total=17, sent=0, skipped=12("no_subs") 회귀.
+    if (await isSubscribed()) {
+      const check = await backendHasMatchingSub();
+      if (check.matched) return { ok: true, reason: 'already_subscribed' };
+      // desync — browser sub 해제 후 subscribe() 가 깨끗하게 재등록
+      try {
+        const reg = await navigator.serviceWorker.getRegistration();
+        const s = reg ? await reg.pushManager.getSubscription() : null;
+        if (s) await s.unsubscribe();
+        console.warn('[push] backend desync — resubscribing', { browserEndpoint: check.browserEndpoint });
+      } catch { /* unsubscribe 실패 무시 — subscribe() 가 재시도 */ }
+    }
     return await subscribe();
   }
 
@@ -157,13 +191,30 @@ export async function autoSubscribeIfPossible(): Promise<{ ok: boolean; reason?:
 }
 
 // 권한 동기화 — 사용자가 OS/브라우저 설정에서 알림 권한 OFF 했을 때 backend 좀비 endpoint 정리.
-// 페이지 focus 복귀 시 호출. denied 면 backend 의 sub 도 자동 unsubscribe 시켜 발송 시도 자체 차단.
+// 페이지 focus 복귀 시 호출.
+//   denied → backend 의 sub 도 자동 unsubscribe (좀비 차단)
+//   granted → backend desync 검증 후 미스매치면 재구독 (N+12 회귀 자동 복구)
 export async function syncPermissionOnFocus(): Promise<void> {
   if (!('serviceWorker' in navigator) || typeof Notification === 'undefined') return;
-  if (Notification.permission !== 'denied') return;
-  const subbed = await isSubscribed().catch(() => false);
-  if (!subbed) return;
-  await unsubscribe().catch(() => null);
+  const perm = Notification.permission;
+  if (perm === 'denied') {
+    const subbed = await isSubscribed().catch(() => false);
+    if (!subbed) return;
+    await unsubscribe().catch(() => null);
+    return;
+  }
+  if (perm === 'granted') {
+    // browser 에 sub 가 있는데 backend 에 없을 경우 자동 복구. 사용자 액션 불필요.
+    const check = await backendHasMatchingSub().catch(() => ({ matched: true, browserEndpoint: null }));
+    if (!check.matched) {
+      try {
+        const reg = await navigator.serviceWorker.getRegistration();
+        const s = reg ? await reg.pushManager.getSubscription() : null;
+        if (s) await s.unsubscribe();
+      } catch { /* ignore */ }
+      await subscribe().catch(() => null);
+    }
+  }
 }
 
 // App 진입 1회 + focus/visibility 시 등록 — main.tsx 또는 App.tsx 에서 한 번만 호출
