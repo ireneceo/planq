@@ -2,8 +2,27 @@
 
 ## 현재 작업 상태
 **마지막 업데이트:** 2026-05-13
-**작업 상태:** 완료 — 사이클 N+12 (Q Task 반복 설정 버그 fix)
-**버전:** v1.7.1
+**작업 상태:** 완료 — v1.7.2 운영 라이브 (사이클 N+12)
+**버전:** v1.7.2 (commits `e7e8420` + `78e38a8` + `793a896` + `ccc5d02` — 102s deploy)
+
+### 사이클 N+12 핵심
+1. **채팅 푸시 복원** (e7e8420) — EVENT_KINDS 'message' 매트릭스 노출, badge 계산 1.5s timeout, POST /subscribe 입력 검증 + 좀비 sub 자동 unsubscribe→재구독
+2. **재진입 메시지 회복** (e7e8420) — QTalkPage useVisibilityRefresh 가 직접 listConversationMessages 호출 + setMessages 교체
+3. **입력란 초기 높이** (e7e8420) — ChatPanel auto-resize useEffect → useLayoutEffect + raf 재측정
+4. **사이드바 2-step** (e7e8420) — 모바일 통계·분석/설정 NavItem 첫 클릭 펼침, 두 번째 이동
+5. **Q Task 격주 반복 저장 fix** (78e38a8 lua) — setTimeout 대신 saveRule({preset:p}) 새 값 직접 전달
+6. **Q Task 반복 권한 UX** (78e38a8 lua) — canEditRecurrence 없으면 disabled + 읽기 전용 힌트
+7. **push backend desync 자동 복구** (793a896) — GET /api/push/me + backendHasMatchingSub. autoSubscribeIfPossible/syncPermissionOnFocus 모두 granted 상태에서 미스매치 시 자동 재구독. **N+12 회귀 핵심: dev PushLog 7d total=17 sent=0 skipped=12("no_subs") 원인이 좀비 cleanup 후 desync 였음**
+8. **외부 발송 입력 검증 + 실패율 모니터링** (78e38a8 lua) — push_service maybeAlertOnFailure (5분 3회 실패 platform_admin email), health-check PushLog 24h 실패율 < 50%
+9. **visibility refresh = server fresh 덮어쓰기** (78e38a8 lua) — QTalkPage setConversations(all) 로 stale unread/last_message_at 회귀 차단
+10. **health-check PushLog 항목 fix** (ccc5d02) — child_process 분리 + dotenvx prefix 처리
+
+### 검증
+- 빌드 937ms, TS 에러 0
+- 헬스체크 27/28 PASS (1 fail = pm2 명령 권한 환경 차이, 실제 서비스 online 확인)
+- API 8/8 PASS — 401 격리 / VAPID / rate-limit 5-per-min / p256dh 검증 / endpoint whitelist
+- 실 채팅 push 발송 검증: u=15 → conv 97 → irene, PushLog **sent code=201 sub_id=9** ✅
+- 운영 https://planq.kr/api/health 200, planq-prod-backend v1.7.2 online
 
 ---
 
