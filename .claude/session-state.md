@@ -2,8 +2,14 @@
 
 ## 현재 작업 상태
 **마지막 업데이트:** 2026-05-13
-**작업 상태:** 완료 — v1.7.2 운영 라이브 (사이클 N+12)
-**버전:** v1.7.2 (commits `e7e8420` + `78e38a8` + `793a896` + `ccc5d02` — 102s deploy)
+**작업 상태:** 완료 — v1.7.3 운영 라이브 (사이클 N+12 + 후속 fix)
+**버전:** v1.7.3 (commits `e7e8420` + `78e38a8` + `793a896` + `ccc5d02` + `d6e696f` + `8867807` — 102s + 93s + 93s deploy)
+
+### N+12 후속 fix (사용자 보고 3건)
+- **알림 클릭 chunk 에러 자동 복구** (`d6e696f`) — ErrorBoundary 의 reset() 가 chunk error 였으면 location.reload() + SW update. 60초 자동 가드 reload 도 SW update 함께
+- **채팅방 진입 스크롤 즉시화** (`d6e696f`) — scrollToBottom 의 RAF×2 지연 제거. useLayoutEffect commit 직후 즉시 scrollIntoView. "위에 갔다 옴" 회귀 차단
+- **sw.js push/notificationclick 시점 self.registration.update()** (`8867807`) — 알림 도착·클릭 자체가 새 SW install→activate 트리거. PWA 자동 갱신
+- **sw.js badge 진단** (`d6e696f`) — setAppBadge 결과를 client message 로 post. 모바일 디바이스에서 콘솔 진단 가능
 
 ### 사이클 N+12 핵심
 1. **채팅 푸시 복원** (e7e8420) — EVENT_KINDS 'message' 매트릭스 노출, badge 계산 1.5s timeout, POST /subscribe 입력 검증 + 좀비 sub 자동 unsubscribe→재구독

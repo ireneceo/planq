@@ -1,6 +1,6 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-05-13 v1.7.2 (사이클 N+12 — 채팅 푸시 복원 + 재진입 메시지 회복 + 입력란 초기 높이 + 사이드바 2-step + Q Task 격주 반복 저장 + 권한 UX + push backend desync 자동 복구 + health-check PushLog 24h)
+> **최종 업데이트:** 2026-05-13 v1.7.3 (사이클 N+12 후속 — 알림 클릭 chunk 에러 자동 복구 + 채팅방 진입 스크롤 즉시화 + sw.js push/notificationclick 시점 self.registration.update() 자가 점검 + badge 진단)
 >
 > **이전 라이브:** 2026-05-13 `e7e8420`/`78e38a8`/`793a896`/`ccc5d02` (v1.7.2 N+12, 102s deploy) / 2026-05-12 `3e2b595`/`d746d6f`/`966144e` (v1.7.1 N+11) / `5807d2f`/`da62196`/`ec85423` (v1.7.0 N+10) / `d3e7f0a` (v1.6.1 N+9 hotfix) / `eb8769a` (v1.6.0 N+9)
 >
