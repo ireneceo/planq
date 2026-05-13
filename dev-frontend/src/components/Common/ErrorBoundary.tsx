@@ -36,9 +36,20 @@ class ErrorBoundary extends React.Component<Props, State> {
       const KEY = 'pq_chunk_reload_at';
       try {
         const last = Number(sessionStorage.getItem(KEY) || '0');
+        // 60초 가드 — 단일 chunk 가 영영 missing 인 경우 무한 reload 방지.
+        // 박제: 알림 클릭 → 옛 hash chunk fetch 실패 회귀 (사이클 N+12).
         if (Date.now() - last > 60_000) {
           sessionStorage.setItem(KEY, String(Date.now()));
-          setTimeout(() => { window.location.reload(); }, 0);
+          // SW 캐시까지 같이 비우고 reload — 옛 chunk hash 가 SW Cache 에 박혀있는 케이스 보강.
+          (async () => {
+            try {
+              if ('serviceWorker' in navigator) {
+                const reg = await navigator.serviceWorker.getRegistration();
+                if (reg) await reg.update().catch(() => null);
+              }
+            } catch { /* silent */ }
+            window.location.reload();
+          })();
           return;
         }
       } catch { /* sessionStorage 차단 환경 — fallback UI 표시 */ }
@@ -48,9 +59,26 @@ class ErrorBoundary extends React.Component<Props, State> {
     console.error('[ErrorBoundary]', error, info.componentStack);
   }
 
-  // resetKey 증가로 하위 트리 실제 remount 를 유도 — state 만 null 로 되돌리면
-  // 부모 컴포넌트는 같은 인스턴스라 데이터 fetch 가 다시 트리거되지 않아 또 실패한다.
-  reset = () => this.setState(s => ({ error: null, resetKey: s.resetKey + 1, silentReload: false }));
+  // resetKey 증가로 하위 트리 실제 remount — state 만 null 로 되돌리면 데이터 fetch 가 재발동 안 함.
+  // chunk error 였으면 명시적 reload — 사용자가 "다시 시도" 누른 건 60초 가드 무관하게 통과시킨다.
+  // 박제: 알림 클릭 → 옛 청크 hash 404 → reset 만 하면 같은 chunk 다시 fetch → 같은 에러 무한 반복.
+  reset = () => {
+    const err = this.state.error;
+    if (err && isChunkLoadError(err)) {
+      try { sessionStorage.removeItem('pq_chunk_reload_at'); } catch { /* silent */ }
+      (async () => {
+        try {
+          if ('serviceWorker' in navigator) {
+            const reg = await navigator.serviceWorker.getRegistration();
+            if (reg) await reg.update().catch(() => null);
+          }
+        } catch { /* silent */ }
+        window.location.reload();
+      })();
+      return;
+    }
+    this.setState(s => ({ error: null, resetKey: s.resetKey + 1, silentReload: false }));
+  };
 
   render() {
     const { error, resetKey, silentReload } = this.state;

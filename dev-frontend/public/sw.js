@@ -103,23 +103,36 @@ self.addEventListener('push', (event) => {
   event.waitUntil((async () => {
     await self.registration.showNotification(title, options);
     // App Badging API — 데스크탑 PWA 아이콘 / 모바일 홈스크린 숫자.
-    // App Badge — payload.badge 가 number 일 때만 호출. 인자 없이 setAppBadge() 하면
-    // 일부 브라우저가 "•"(점) 또는 "1" 로 표시하는 부작용 → Irene 명시: 숫자 없으면 표시 자체 X.
+    // 진단 정보를 client 로 post 해 디바이스에서 콘솔로 확인 가능 (사이클 N+12 박제).
+    const badgeDiag = {
+      hasSetAppBadge: 'setAppBadge' in self.navigator,
+      hasClearAppBadge: 'clearAppBadge' in self.navigator,
+      payloadBadge: payload.badge,
+      payloadBadgeType: typeof payload.badge,
+      result: 'skipped',
+      error: null,
+    };
     try {
       if ('setAppBadge' in self.navigator && typeof payload.badge === 'number') {
         if (payload.badge > 0) {
           await self.navigator.setAppBadge(payload.badge);
+          badgeDiag.result = 'set:' + payload.badge;
         } else if ('clearAppBadge' in self.navigator) {
           await self.navigator.clearAppBadge();
+          badgeDiag.result = 'cleared';
         }
+      } else {
+        badgeDiag.result = !('setAppBadge' in self.navigator) ? 'unsupported_api' : 'no_badge_number';
       }
-    } catch { /* unsupported / blocked — silent */ }
-    // 진단용 — push 도달 확인. 클라이언트가 listening 중이면 받음.
-    // 자동 진단 모달이 5초 timeout 으로 OS 차단 케이스 detect.
+    } catch (e) {
+      badgeDiag.result = 'error';
+      badgeDiag.error = String(e && e.message || e);
+    }
+    // 진단용 — push 도달 + badge 호출 결과 client 에 전달. DevTools 콘솔로 확인.
     try {
       const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
       for (const c of clients) {
-        c.postMessage({ type: 'planq:push-received', payload });
+        c.postMessage({ type: 'planq:push-received', payload, badgeDiag });
       }
     } catch { /* silent */ }
   })());
