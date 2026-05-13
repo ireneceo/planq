@@ -12,6 +12,62 @@
 
 ---
 
+## ✅ 완료: 사이클 N+12 후속 — 알림 안정성·채팅 스크롤·SW 자가 update (2026-05-13)
+
+운영 라이브 직후 사용자 보고 4건 + push backend desync 자동 복구 박제. 3 commit 운영 라이브 (102s + 93s + 38s = 233s).
+
+### 청크별 상세
+
+| Commit | 작업 | 핵심 |
+|---|---|---|
+| `e7e8420` | 채팅 푸시 복원 + 재진입 메시지 회복 + 입력란 초기 높이 + 사이드바 2-step | 4건 사용자 보고 (운영 v1.7.1 직후 회귀) |
+| `78e38a8` | Q Task 격주 반복 + 권한 UX + 외부 발송 검증 + visibility refresh server fresh | lua 협업 — 사이클 N+12 메인 |
+| `793a896` | push backend desync 자동 복구 — GET /api/push/me + backendHasMatchingSub | dev PushLog sent=0/skipped=12 회귀의 진짜 원인 차단 |
+| `ccc5d02` | health-check PushLog 24h 실패율 항목 fix | child_process 분리 + dotenvx prefix 처리 |
+| `d6e696f` | 알림 클릭 chunk 자동 복구 + 채팅방 진입 스크롤 즉시화 + badge 진단 | "Something went wrong" + "위에 갔다 옴" 회귀 fix |
+| `8867807` | sw.js push/notificationclick 시점 self.registration.update() | PWA 자가 update — 사용자 재시작 불필요 |
+| `c96d515` | v1.7.2 → 1.7.3 bump | 후속 fix 통합 운영 라이브 |
+
+### 핵심 fix 7건
+
+1. **푸시 매트릭스 'message' eventKind 노출** (e7e8420) — `routes/notifications.js` EVENT_KINDS 에 'message' 추가. badge 계산 1.5s AbortController timeout 으로 hang 차단.
+2. **POST /subscribe 입력 검증 + 좀비 자동 재구독** (e7e8420) — p256dh ≥ 80, auth ≥ 8. frontend subscribe() 가 기존 sub invalid 시 자동 unsubscribe→재구독.
+3. **재진입 메시지 회복** (e7e8420) — QTalkPage useVisibilityRefresh 가 직접 listConversationMessages 호출 + setMessages 교체. cache invalidate 만으로는 deps 반응 안 됨.
+4. **push backend desync 자동 복구** (793a896) — backendHasMatchingSub() 헬퍼 + autoSubscribeIfPossible 의 'already_subscribed' early return 분기 검증. granted 인데 backend 에 row 없으면 자동 unsubscribe → 재구독. 네트워크 에러 시 보수적으로 matched=true (무한 루프 방지).
+5. **ErrorBoundary chunk reload 강화** (d6e696f) — reset() 가 chunk error 였으면 location.reload() + SW update. 60초 자동 가드 reload 도 SW update 동반.
+6. **ChatPanel 스크롤 즉시화** (d6e696f) — `requestAnimationFrame x 2` 지연 제거. useLayoutEffect commit 직후 즉시 scrollIntoView. 후속 1 RAF + ResizeObserver 가 비동기 콘텐츠 보정.
+7. **sw.js 자가 update** (8867807) — push handler 와 notificationclick handler 시작 부분에 `await self.registration.update()`. 알림 도착·클릭 자체가 새 SW install→activate 트리거. PWA 자동 갱신.
+
+### 박제 메모리 (이번 사이클)
+
+CLAUDE.md §8·§9 + 4 시나리오 검증 + N+12 회귀 패턴 박제 (78e38a8 lua commit 포함):
+- `feedback_external_dispatch_validation.md` — push/email/sms 형식 검증 + 5분 3회 platform_admin email
+- `feedback_visibility_refresh_server_fresh.md` — list 자원은 server response 전체로 setState 교체
+- `feedback_chat_notification_verification.md` — 채팅·알림 4 시나리오 (활성 외 conv / bg→fg / OS push / 다중 디바이스)
+
+### 검증
+
+- 빌드 0.93~1.05s, TS 에러 0
+- 헬스체크 27/28 PASS (1 fail = pm2 권한 환경 차이, 실 서비스 online)
+- API 8/8 PASS — 401 격리 / VAPID / rate-limit 5-per-min / p256dh 검증 / endpoint whitelist
+- 실 채팅 검증: u=15 → conv 97 → irene (dev) sent code=201 ✅
+- 운영 검증: lua → conv 10 → irene 3 디바이스 모두 sent code=201 ✅
+
+### 운영 배포 (3회)
+
+| 시각 (UTC) | Commit | 항목 | 결과 |
+|---|---|---|---|
+| 05:50 | `ccc5d02` | N+12 통합 + push desync 자동 복구 + health-check fix | ✅ 102s |
+| 06:05 | `d6e696f` | 알림 chunk + 채팅 스크롤 + badge 진단 | ✅ 93s |
+| 07:32 | `8867807` | sw.js 자가 update | ✅ 93s |
+| 07:35 | `c96d515` | v1.7.3 bump | ✅ 38s (--skip-build) |
+
+### 메모리 박제 (이번 세션 신규 추가 예정)
+
+- `feedback_pwa_sw_self_update.md` — sw.js push/notificationclick 시점 self.registration.update() 패턴. 옛 SW + 새 빌드 desync 자동 회복
+
+---
+
 ## ✅ 완료: 사이클 N+12 — Q Task 반복 설정 격주 버그 fix + 권한 UX 개선 (2026-05-13)
 
 ### 버그 수정
