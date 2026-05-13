@@ -379,7 +379,12 @@ const ChatPanel: React.FC<Props> = ({
         el.scrollTop = target;
       }
     };
-    window.requestAnimationFrame(() => { window.requestAnimationFrame(doIt); });
+    // useLayoutEffect 안에서 호출 시 DOM commit 직후 layout phase 라 즉시 호출 가능 —
+    // 옛 코드는 RAF x 2 지연으로 "첫 paint top 0 → 2 frame 후 bottom 점프" 회귀 발생.
+    // 박제: 사이클 N+12 — 채팅방 진입 시 위에 갔다 옴 회귀. 비동기 콘텐츠 보정은 ResizeObserver 가 별도 처리.
+    doIt();
+    // 후속 보정 1회 — 이미지/번역 박스가 nextTick 에 추가될 때 sentinel 따라가기.
+    window.requestAnimationFrame(doIt);
   }, []);
 
   // 콘텐츠 크기 변화 감지 — 이미지 / 번역 박스 / 카드 같은 비동기 로드로 리스트 높이가 늘어날 때
