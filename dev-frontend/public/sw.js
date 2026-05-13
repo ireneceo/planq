@@ -82,6 +82,10 @@ self.addEventListener('fetch', (event) => {
 
 self.addEventListener('push', (event) => {
   if (!event.data) return;
+  // push 도착 시 새 SW 자가 점검 — 옛 SW 가 활성인데 새 빌드가 떠 있으면 install + activate.
+  // PWA wake-up 자체가 SW lifecycle 진행 트리거 (모바일에서 자동 update 안 도는 회귀 차단).
+  // 박제: 사이클 N+12 — 알림 클릭 시 옛 main bundle 메모리로 옛 chunk hash 404 회귀.
+  event.waitUntil(self.registration.update().catch(() => null));
   let payload;
   try { payload = event.data.json(); } catch { payload = { title: 'PlanQ', body: event.data.text() }; }
   const title = payload.title || 'PlanQ';
@@ -140,6 +144,8 @@ self.addEventListener('push', (event) => {
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
+  // 알림 클릭 시점에도 SW 자가 점검 — push 와 notificationclick 가 별개 wake-up 일 수 있음.
+  event.waitUntil(self.registration.update().catch(() => null));
   const rawLink = event.notification.data?.link || '/';
   // same-origin URL 은 path 로 추출 (일부 브라우저의 c.navigate 가 절대 URL silent-fail).
   // cross-origin 은 그대로 openWindow 에 넘김 (브라우저가 새 탭으로 처리).
