@@ -113,6 +113,26 @@ router.post('/subscribe', authenticateToken, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// 본인 디바이스 subscription 상태 — frontend 가 browser sub.endpoint 와 비교해 desync 감지용.
+// (사이클 N+12 박제) browser 에는 sub 가 있는데 backend 에 active row 가 없는 desync 시나리오
+// (좀비 자동 expire, 디바이스 양도, DB reset 등) 에서 frontend 가 자동 재구독 트리거할 수 있게.
+router.get('/me', authenticateToken, async (req, res, next) => {
+  try {
+    const rows = await PushSubscription.findAll({
+      where: { user_id: req.user.id, expired_at: null },
+      attributes: ['id', 'endpoint', 'last_used_at', 'user_agent'],
+      order: [['last_used_at', 'DESC']],
+    });
+    return successResponse(res, {
+      count: rows.length,
+      endpoints: rows.map(r => r.endpoint),
+      subscriptions: rows.map(r => ({
+        id: r.id, endpoint: r.endpoint, last_used_at: r.last_used_at, user_agent: r.user_agent,
+      })),
+    });
+  } catch (e) { next(e); }
+});
+
 // 구독 해지 — endpoint 기준 (현재 디바이스만)
 router.delete('/subscribe', authenticateToken, async (req, res, next) => {
   try {
