@@ -1,8 +1,36 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-05-14 v1.9.0 운영 라이브 + 사이클 N+14 후속 hotfix 4건 + 알림 진입 시각 점프 fix
+> **최종 업데이트:** 2026-05-14 헬스체크 multi-user PM2 지원 fix
 >
 > **이전 라이브:** v1.9.0 (commit `8bb96ac`) — visibility 통합 + Q Note 공유 + Q info 프로젝트 스코프 + 라벨 통일
+
+---
+
+## ✅ 완료: 헬스체크 multi-user PM2 지원 + 좀비 프로세스 정리 (2026-05-14)
+
+### 배경
+
+`/개발완료` 실행 시 헬스체크가 `PM2 planq-dev-backend online` 항목에서 false negative — `process not online` 으로 실패. 실제로는 백엔드는 정상 가동 중 (port 3003 응답 OK).
+
+### 원인
+
+`scripts/health-check.js` 의 `pm2Online()` 가 현재 user (irene) 의 `pm2 jlist` 만 검사. CLAUDE.md 협업 규칙대로 **planq-dev-backend / planq-qnote 는 lua 의 PM2 에 등록**되어 있음. 단일 user 검사만으로는 협업 환경에서 false negative.
+
+### 수정
+
+| 항목 | 변경 |
+|---|---|
+| `scripts/health-check.js:pm2Online()` | irene `pm2 jlist` + `sudo -n -u lua pm2 jlist` 두 source 합쳐서 검사 |
+| 좀비 node 프로세스 (PID 557245, 565607) | 2h+ hang 상태의 옛 GDrive 테스트 스크립트 kill |
+
+### 검증
+
+- 헬스체크 재실행: **28/28 ALL PASSED**
+- 좀비 프로세스 0건 확인
+
+### 수정된 파일
+
+- `scripts/health-check.js`
 
 ---
 

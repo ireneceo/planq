@@ -166,15 +166,24 @@ function findPattern(files, pattern, allowList = []) {
 // ============================================
 // PM2 상태 체크
 // ============================================
+// CLAUDE.md 협업 규칙: planq-dev-backend / planq-qnote 는 lua 의 PM2 에 등록되어 있음.
+// irene 의 PM2 만 확인하면 false negative — irene + lua 두 user 의 jlist 를 합쳐서 검사.
 function pm2Online(name) {
-  try {
-    const out = execSync('pm2 jlist', { encoding: 'utf-8' });
-    const list = JSON.parse(out);
-    const proc = list.find((p) => p.name === name);
-    return proc && proc.pm2_env.status === 'online';
-  } catch {
-    return false;
+  const sources = [
+    { cmd: 'pm2 jlist' },
+    { cmd: 'sudo -n -u lua pm2 jlist' },
+  ];
+  for (const s of sources) {
+    try {
+      const out = execSync(s.cmd, { encoding: 'utf-8', stdio: ['ignore', 'pipe', 'ignore'] });
+      const list = JSON.parse(out);
+      const proc = list.find((p) => p.name === name);
+      if (proc && proc.pm2_env.status === 'online') return true;
+    } catch {
+      // 해당 source 접근 불가 — 다음 source 시도
+    }
   }
+  return false;
 }
 
 // ============================================
