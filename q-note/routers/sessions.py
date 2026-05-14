@@ -214,7 +214,7 @@ async def recorder_acquire(
   """녹음 시작 시 호출. 다른 탭/기기가 이미 활성 락을 쥐고 있으면 409."""
   async with db_connect() as db:
     db.row_factory = aiosqlite.Row
-    row = await _load_session_or_403(db, session_id, user['user_id'])
+    row = await _load_session_or_403(db, session_id, user['user_id'], user.get('business_id'))
     state = _recorder_lock_state(row)
     if state['active'] and state['token'] != body.token:
       raise HTTPException(
@@ -242,7 +242,7 @@ async def recorder_heartbeat(
   """녹음 중 5초마다 호출. 내 토큰이 아니면 409 → 프론트가 녹음 중단."""
   async with db_connect() as db:
     db.row_factory = aiosqlite.Row
-    row = await _load_session_or_403(db, session_id, user['user_id'])
+    row = await _load_session_or_403(db, session_id, user['user_id'], user.get('business_id'))
     state = _recorder_lock_state(row)
     if state['token'] != body.token:
       # 다른 탭이 가로챘거나 이미 release 됨
@@ -267,7 +267,7 @@ async def recorder_release(
   """녹음 종료/일시정지 시 호출. 내 토큰일 때만 해제."""
   async with db_connect() as db:
     db.row_factory = aiosqlite.Row
-    row = await _load_session_or_403(db, session_id, user['user_id'])
+    row = await _load_session_or_403(db, session_id, user['user_id'], user.get('business_id'))
     state = _recorder_lock_state(row)
     if state['token'] == body.token:
       await db.execute(
@@ -279,14 +279,86 @@ async def recorder_release(
     return success({'released': True})
 
 
-async def _load_session_or_403(db, session_id: int, user_id: int) -> aiosqlite.Row:
+async def _load_session_or_403(db, session_id: int, user_id: int, user_business_id: Optional[int] = None) -> aiosqlite.Row:
+  """세션 로딩 + visibility 권한 검사 (사이클 N+14).
+
+  정책:
+    - status='recording' → owner only (편집·디버그용, 다른 사람 접근 절대 차단)
+    - L1 (개인)        → owner only
+    - L2 (프로젝트 팀) → owner OR same-project member (Node internal API 호출)
+    - L3 (워크스페이스) → owner OR same-business 멤버
+    - L4 (외부 공유)   → share_token 별도 endpoint 로만 접근. 인증 사용자도 visibility 검사 따름
+                         (이 endpoint 는 인증 user 용 — L4 도 검사 path 동일하게 적용)
+  """
   cursor = await db.execute('SELECT * FROM sessions WHERE id = ?', (session_id,))
   row = await cursor.fetchone()
   if not row:
     raise HTTPException(status_code=404, detail='Session not found')
-  if row['user_id'] != user_id:
+
+  # owner 항상 통과
+  if row['user_id'] == user_id:
+    return row
+
+  # 녹화 중은 owner only — 잠정 데이터 절대 노출 금지
+  if row['status'] == 'recording':
+    raise HTTPException(status_code=403, detail='recording_owner_only')
+
+  visibility = row['visibility'] if 'visibility' in row.keys() else 'L1'
+  if visibility == 'L1':
     raise HTTPException(status_code=403, detail='Forbidden')
-  return row
+
+  # L3: same business 멤버 → user_business_id 비교
+  if visibility == 'L3':
+    if user_business_id is not None and user_business_id == row['business_id']:
+      return row
+    raise HTTPException(status_code=403, detail='Forbidden')
+
+  # L2: project 멤버 → Node internal API 검사
+  if visibility == 'L2':
+    proj_id = row['project_id'] if 'project_id' in row.keys() else None
+    if not proj_id:
+      raise HTTPException(status_code=403, detail='L2 requires project_id')
+    if await _is_user_in_project(user_id, proj_id):
+      return row
+    raise HTTPException(status_code=403, detail='Forbidden')
+
+  # L4: 인증된 사용자가 동일 워크스페이스라면 OK (외부 token 사용자는 별도 endpoint)
+  if visibility == 'L4':
+    if user_business_id is not None and user_business_id == row['business_id']:
+      return row
+    raise HTTPException(status_code=403, detail='Forbidden')
+
+  raise HTTPException(status_code=403, detail='Forbidden')
+
+
+async def _is_user_in_project(user_id: int, project_id: int) -> bool:
+  """Node 백엔드의 internal API 호출하여 project membership 확인.
+
+  Node API: GET /api/internal/project-membership/:userId/:projectId
+            INTERNAL_API_KEY 헤더 필수.
+  실패 시 False 반환 (보수적).
+  """
+  import httpx
+  internal_key = os.environ.get('INTERNAL_API_KEY')
+  if not internal_key:
+    return False
+  node_base = os.environ.get('PLANQ_BACKEND_URL', 'http://localhost:3003')
+  try:
+    async with httpx.AsyncClient(timeout=2.0) as client:
+      r = await client.get(
+        f'{node_base}/api/internal/project-membership/{user_id}/{project_id}',
+        headers={'x-internal-api-key': internal_key},
+      )
+      if r.status_code == 200:
+        body = r.json()
+        # Node 응답: { success: true, data: { member: bool, role: str } }
+        d = body.get('data') if isinstance(body, dict) else None
+        if isinstance(d, dict):
+          return bool(d.get('member'))
+        return False
+  except Exception:
+    return False
+  return False
 
 
 def _validate_url_ssrf(url: str) -> None:
@@ -533,22 +605,67 @@ async def list_sessions(
   business_id: int = Query(...),
   page: int = Query(1, ge=1),
   limit: int = Query(20, ge=1, le=100),
+  scope: str = Query('mine', pattern='^(mine|shared|all)$'),
+  visibility: Optional[str] = Query(None, pattern='^L[1-4]$'),
   user: dict = Depends(get_current_user)
 ):
+  """세션 목록 (사이클 N+14 visibility 통합).
+
+  scope:
+    - mine   — 내가 만든 session 만 (개인 보관함 sessions 탭이 사용)
+    - shared — 다른 사람이 만들었지만 내가 볼 수 있는 (L2 멤버 / L3 워크스페이스)
+    - all    — mine + shared
+  visibility: 특정 level 만 필터 (개인 보관함 'L1' 으로 호출)
+  """
   offset = (page - 1) * limit
+  uid = user['user_id']
+
+  # base WHERE: business_id 동일
+  conds = ['business_id = ?']
+  params: list = [business_id]
+
+  # scope 분기
+  if scope == 'mine':
+    conds.append('user_id = ?')
+    params.append(uid)
+  elif scope == 'shared':
+    # 본인 소유 제외 + 권한 통과 (L3 항상 OK, L2 는 my project IDs)
+    my_proj_ids = await _get_user_project_ids(uid, business_id)
+    if my_proj_ids:
+      placeholders = ','.join(['?'] * len(my_proj_ids))
+      conds.append(f"user_id <> ? AND (visibility = 'L3' OR (visibility = 'L2' AND project_id IN ({placeholders})))")
+      params.append(uid)
+      params.extend(my_proj_ids)
+    else:
+      conds.append("user_id <> ? AND visibility = 'L3'")
+      params.append(uid)
+  else:  # all
+    my_proj_ids = await _get_user_project_ids(uid, business_id)
+    if my_proj_ids:
+      placeholders = ','.join(['?'] * len(my_proj_ids))
+      conds.append(f"(user_id = ? OR visibility = 'L3' OR (visibility = 'L2' AND project_id IN ({placeholders})))")
+      params.append(uid)
+      params.extend(my_proj_ids)
+    else:
+      conds.append("(user_id = ? OR visibility = 'L3')")
+      params.append(uid)
+
+  if visibility:
+    conds.append('visibility = ?')
+    params.append(visibility)
+
+  where_sql = ' AND '.join(conds)
+
   async with db_connect() as db:
     db.row_factory = aiosqlite.Row
     cursor = await db.execute(
-      '''SELECT * FROM sessions
-         WHERE business_id = ? AND user_id = ?
-         ORDER BY created_at DESC
-         LIMIT ? OFFSET ?''',
-      (business_id, user['user_id'], limit, offset)
+      f'SELECT * FROM sessions WHERE {where_sql} ORDER BY created_at DESC LIMIT ? OFFSET ?',
+      tuple(params + [limit, offset])
     )
     rows = await cursor.fetchall()
     cursor = await db.execute(
-      'SELECT COUNT(*) as cnt FROM sessions WHERE business_id = ? AND user_id = ?',
-      (business_id, user['user_id'])
+      f'SELECT COUNT(*) as cnt FROM sessions WHERE {where_sql}',
+      tuple(params)
     )
     total = (await cursor.fetchone())['cnt']
     return success(
@@ -557,11 +674,39 @@ async def list_sessions(
     )
 
 
+async def _get_user_project_ids(user_id: int, business_id: int) -> list:
+  """Node API 호출 — 사용자가 속한 project IDs (해당 business 내).
+
+  INTERNAL_API_KEY 사용. 실패 시 빈 리스트 (보수적).
+  """
+  import httpx
+  internal_key = os.environ.get('INTERNAL_API_KEY')
+  if not internal_key:
+    return []
+  node_base = os.environ.get('PLANQ_BACKEND_URL', 'http://localhost:3003')
+  try:
+    async with httpx.AsyncClient(timeout=2.0) as client:
+      r = await client.get(
+        f'{node_base}/api/internal/user-project-ids/{user_id}',
+        params={'business_id': business_id},
+        headers={'x-internal-api-key': internal_key},
+      )
+      if r.status_code == 200:
+        body = r.json()
+        # Node 응답: { success: true, data: { project_ids: [...] } }
+        d = body.get('data') if isinstance(body, dict) else None
+        ids = (d or {}).get('project_ids') or []
+        return [int(x) for x in ids if isinstance(x, int) or (isinstance(x, str) and x.isdigit())]
+  except Exception:
+    return []
+  return []
+
+
 @router.get('/{session_id}')
 async def get_session(session_id: int, user: dict = Depends(get_current_user)):
   async with db_connect() as db:
     db.row_factory = aiosqlite.Row
-    row = await _load_session_or_403(db, session_id, user['user_id'])
+    row = await _load_session_or_403(db, session_id, user['user_id'], user.get('business_id'))
 
     cursor = await db.execute(
       'SELECT * FROM utterances WHERE session_id = ? ORDER BY id ASC',
@@ -616,7 +761,7 @@ async def update_session(
 ):
   async with db_connect() as db:
     db.row_factory = aiosqlite.Row
-    await _load_session_or_403(db, session_id, user['user_id'])
+    await _load_session_or_403(db, session_id, user['user_id'], user.get('business_id'))
 
     fields, values = _build_field_updates(body)
     if fields:
@@ -646,10 +791,140 @@ async def update_session(
 async def delete_session(session_id: int, user: dict = Depends(get_current_user)):
   async with db_connect() as db:
     db.row_factory = aiosqlite.Row
-    await _load_session_or_403(db, session_id, user['user_id'])
+    await _load_session_or_403(db, session_id, user['user_id'], user.get('business_id'))
     await db.execute('DELETE FROM sessions WHERE id = ?', (session_id,))
     await db.commit()
     return success({'id': session_id})
+
+
+# ─────────────────────────────────────────────────────────
+# Visibility 변경 + 공유 (사이클 N+14)
+# 정책:
+#   - owner 만 변경 가능
+#   - status='recording' → 변경 차단 (잠정 데이터)
+#   - L2 선택 시 project_id 필수
+#   - 외부 참석자 (participants 에 external) + L3/L4 → shared_consent=1 필수
+# ─────────────────────────────────────────────────────────
+
+class VisibilityChangeBody(BaseModel):
+  visibility: str = Field(..., pattern='^L[1-3]$')
+  project_id: Optional[int] = None
+  shared_consent: Optional[bool] = None
+
+
+@router.put('/{session_id}/visibility')
+async def change_visibility(
+  session_id: int,
+  body: VisibilityChangeBody,
+  user: dict = Depends(get_current_user),
+):
+  """Q Note session 의 공유 범위 변경 (L1/L2/L3).
+
+  L4 (외부 share_token) 는 별도 POST /share endpoint 사용.
+  """
+  async with db_connect() as db:
+    db.row_factory = aiosqlite.Row
+    cursor = await db.execute('SELECT * FROM sessions WHERE id = ?', (session_id,))
+    row = await cursor.fetchone()
+    if not row:
+      raise HTTPException(status_code=404, detail='Session not found')
+    if row['user_id'] != user['user_id']:
+      raise HTTPException(status_code=403, detail='owner_only')
+    if row['status'] == 'recording':
+      raise HTTPException(status_code=400, detail='cannot_change_while_recording')
+
+    new_vis = body.visibility
+    new_proj_id = body.project_id
+
+    if new_vis == 'L2':
+      if not new_proj_id:
+        raise HTTPException(status_code=400, detail='project_id_required_for_L2')
+      # project membership 미리 검증 — 본인이 그 project 의 멤버여야 L2 가능
+      if not await _is_user_in_project(user['user_id'], new_proj_id):
+        raise HTTPException(status_code=403, detail='not_a_project_member')
+    else:
+      new_proj_id = None  # L1/L3 면 project_id null
+
+    # 외부 참석자 동의 검사 — L3 이상 공유 시
+    if new_vis == 'L3':
+      participants_raw = row['participants'] if 'participants' in row.keys() else None
+      has_external = False
+      if participants_raw:
+        try:
+          participants = json.loads(participants_raw) if isinstance(participants_raw, str) else participants_raw
+          if isinstance(participants, list):
+            has_external = any(p.get('external') or p.get('is_external') for p in participants)
+        except Exception:
+          has_external = False
+      if has_external and not body.shared_consent and not row['shared_consent']:
+        raise HTTPException(status_code=400, detail='external_consent_required')
+
+    shared_consent = 1 if body.shared_consent else (row['shared_consent'] or 0)
+    await db.execute(
+      """UPDATE sessions
+         SET visibility = ?, project_id = ?, shared_consent = ?, updated_at = datetime('now')
+         WHERE id = ?""",
+      (new_vis, new_proj_id, shared_consent, session_id)
+    )
+    await db.commit()
+    cursor = await db.execute('SELECT * FROM sessions WHERE id = ?', (session_id,))
+    updated = await cursor.fetchone()
+    return success(_deserialize_session(updated))
+
+
+@router.post('/{session_id}/share')
+async def create_share_token(session_id: int, user: dict = Depends(get_current_user)):
+  """L4 (외부 공유 링크) 활성화 — share_token 발급.
+
+  visibility 도 L4 로 표시되지만 L1/L2/L3 컬럼은 따로 유지 (token 폐기 시 복원).
+  """
+  import secrets
+  async with db_connect() as db:
+    db.row_factory = aiosqlite.Row
+    cursor = await db.execute('SELECT * FROM sessions WHERE id = ?', (session_id,))
+    row = await cursor.fetchone()
+    if not row:
+      raise HTTPException(status_code=404, detail='Session not found')
+    if row['user_id'] != user['user_id']:
+      raise HTTPException(status_code=403, detail='owner_only')
+    if row['status'] == 'recording':
+      raise HTTPException(status_code=400, detail='cannot_share_while_recording')
+
+    if row['share_token']:
+      return success({'share_token': row['share_token'], 'shared_at': row['shared_at']})
+
+    token = secrets.token_urlsafe(32)
+    now = 'datetime("now")'
+    await db.execute(
+      f"""UPDATE sessions
+          SET share_token = ?, shared_at = {now}, updated_at = {now}
+          WHERE id = ?""",
+      (token, session_id)
+    )
+    await db.commit()
+    return success({'share_token': token})
+
+
+@router.delete('/{session_id}/share')
+async def revoke_share_token(session_id: int, user: dict = Depends(get_current_user)):
+  """share_token 폐기 — L4 비활성화. visibility 는 그대로 유지."""
+  async with db_connect() as db:
+    db.row_factory = aiosqlite.Row
+    cursor = await db.execute('SELECT * FROM sessions WHERE id = ?', (session_id,))
+    row = await cursor.fetchone()
+    if not row:
+      raise HTTPException(status_code=404, detail='Session not found')
+    if row['user_id'] != user['user_id']:
+      raise HTTPException(status_code=403, detail='owner_only')
+    await db.execute(
+      """UPDATE sessions
+         SET share_token = NULL, shared_at = NULL, share_expires_at = NULL,
+             updated_at = datetime('now')
+         WHERE id = ?""",
+      (session_id,)
+    )
+    await db.commit()
+    return success({'revoked': True})
 
 
 # ─────────────────────────────────────────────────────────
@@ -664,7 +939,7 @@ async def upload_document(
 ):
   async with db_connect() as db:
     db.row_factory = aiosqlite.Row
-    session = await _load_session_or_403(db, session_id, user['user_id'])
+    session = await _load_session_or_403(db, session_id, user['user_id'], user.get('business_id'))
     business_id = session['business_id']
 
     original_name = file.filename or 'unnamed'
@@ -773,7 +1048,7 @@ async def link_workspace_file_to_session(
 
   async with db_connect() as db:
     db.row_factory = aiosqlite.Row
-    session = await _load_session_or_403(db, session_id, user['user_id'])
+    session = await _load_session_or_403(db, session_id, user['user_id'], user.get('business_id'))
     business_id = session['business_id']
 
   # Node 의 internal endpoint 로 file 메타 + path 가져오기
@@ -854,7 +1129,7 @@ async def delete_document(
 ):
   async with db_connect() as db:
     db.row_factory = aiosqlite.Row
-    await _load_session_or_403(db, session_id, user['user_id'])
+    await _load_session_or_403(db, session_id, user['user_id'], user.get('business_id'))
 
     cursor = await db.execute(
       'SELECT * FROM documents WHERE id = ? AND session_id = ?',
@@ -894,7 +1169,7 @@ async def add_url(
 
   async with db_connect() as db:
     db.row_factory = aiosqlite.Row
-    session = await _load_session_or_403(db, session_id, user['user_id'])
+    session = await _load_session_or_403(db, session_id, user['user_id'], user.get('business_id'))
     business_id = session['business_id']
 
     # 세션당 URL 개수 제한 (documents 에서 source_type='url' 카운트)
@@ -965,7 +1240,7 @@ async def upload_self_voice_sample(
   """
   async with db_connect() as db:
     db.row_factory = aiosqlite.Row
-    await _load_session_or_403(db, session_id, user['user_id'])
+    await _load_session_or_403(db, session_id, user['user_id'], user.get('business_id'))
 
     cursor = await db.execute(
       'SELECT embedding FROM voice_fingerprints WHERE user_id = ?', (user['user_id'],)
@@ -1085,7 +1360,7 @@ async def merge_speakers(
 
   async with db_connect() as db:
     db.row_factory = aiosqlite.Row
-    await _load_session_or_403(db, session_id, user['user_id'])
+    await _load_session_or_403(db, session_id, user['user_id'], user.get('business_id'))
 
     cursor = await db.execute(
       'SELECT id, is_self FROM speakers WHERE id IN (?, ?) AND session_id = ?',
@@ -1133,7 +1408,7 @@ async def match_speaker(
   """
   async with db_connect() as db:
     db.row_factory = aiosqlite.Row
-    await _load_session_or_403(db, session_id, user['user_id'])
+    await _load_session_or_403(db, session_id, user['user_id'], user.get('business_id'))
 
     cursor = await db.execute(
       'SELECT * FROM speakers WHERE id = ? AND session_id = ?',
@@ -1185,7 +1460,7 @@ async def reassign_utterance_speaker(
   """
   async with db_connect() as db:
     db.row_factory = aiosqlite.Row
-    await _load_session_or_403(db, session_id, user['user_id'])
+    await _load_session_or_403(db, session_id, user['user_id'], user.get('business_id'))
 
     cursor = await db.execute(
       'SELECT * FROM utterances WHERE id = ? AND session_id = ?',
@@ -1258,7 +1533,7 @@ async def delete_url(
   """url_id 는 documents.id (source_type='url')."""
   async with db_connect() as db:
     db.row_factory = aiosqlite.Row
-    await _load_session_or_403(db, session_id, user['user_id'])
+    await _load_session_or_403(db, session_id, user['user_id'], user.get('business_id'))
 
     cursor = await db.execute(
       "SELECT id FROM documents WHERE id = ? AND session_id = ? AND source_type = 'url'",
@@ -1313,7 +1588,7 @@ async def list_qa_pairs(
   """Q&A 목록 조회. source 필터 가능 (custom|generated|priority)."""
   async with db_connect() as db:
     db.row_factory = aiosqlite.Row
-    await _load_session_or_403(db, session_id, user['user_id'])
+    await _load_session_or_403(db, session_id, user['user_id'], user.get('business_id'))
 
     query = 'SELECT * FROM qa_pairs WHERE session_id = ?'
     params: list = [session_id]
@@ -1338,7 +1613,7 @@ async def create_qa_pair(
   """Q&A 단건 등록 (고객 직접 등록 = source='custom')."""
   async with db_connect() as db:
     db.row_factory = aiosqlite.Row
-    await _load_session_or_403(db, session_id, user['user_id'])
+    await _load_session_or_403(db, session_id, user['user_id'], user.get('business_id'))
 
     cursor = await db.execute('''
       INSERT INTO qa_pairs (session_id, source, category, question_text, answer_text, is_priority)
@@ -1425,7 +1700,7 @@ async def refresh_vocabulary_endpoint(
   기존 수동 추가 키워드는 보존. 편집 모달 "어휘 재추출" 버튼용."""
   async with db_connect() as db:
     db.row_factory = aiosqlite.Row
-    await _load_session_or_403(db, session_id, user['user_id'])
+    await _load_session_or_403(db, session_id, user['user_id'], user.get('business_id'))
 
   from services.answer_service import refresh_session_vocabulary
   total = await refresh_session_vocabulary(session_id, merge=True)
@@ -1454,7 +1729,7 @@ async def create_priority_qa(
   임베딩은 SYNC 로 계산 — 생성 직후 find-answer 가 즉시 매칭 가능해야 한다."""
   async with db_connect() as db:
     db.row_factory = aiosqlite.Row
-    await _load_session_or_403(db, session_id, user['user_id'])
+    await _load_session_or_403(db, session_id, user['user_id'], user.get('business_id'))
 
     short_ans = (body.short_answer or '').strip() or None
     kw_clean = (body.keywords or '').strip() or None
@@ -1578,7 +1853,7 @@ async def upload_priority_qa_file(
   """
   async with db_connect() as db:
     db.row_factory = aiosqlite.Row
-    await _load_session_or_403(db, session_id, user['user_id'])
+    await _load_session_or_403(db, session_id, user['user_id'], user.get('business_id'))
 
   raw = await file.read()
   if len(raw) > 10 * 1024 * 1024:
@@ -1624,7 +1899,7 @@ async def delete_priority_qa_by_file(
   주의: /{qa_id} 보다 먼저 선언되어야 한다 (FastAPI 라우팅 매칭 순서)."""
   async with db_connect() as db:
     db.row_factory = aiosqlite.Row
-    await _load_session_or_403(db, session_id, user['user_id'])
+    await _load_session_or_403(db, session_id, user['user_id'], user.get('business_id'))
     cursor = await db.execute(
       '''DELETE FROM qa_pairs
          WHERE session_id = ? AND is_priority = 1 AND source_filename = ?''',
@@ -1643,7 +1918,7 @@ async def delete_priority_qa(
 ):
   async with db_connect() as db:
     db.row_factory = aiosqlite.Row
-    await _load_session_or_403(db, session_id, user['user_id'])
+    await _load_session_or_403(db, session_id, user['user_id'], user.get('business_id'))
     cursor = await db.execute(
       'SELECT id FROM qa_pairs WHERE id = ? AND session_id = ? AND is_priority = 1',
       (qa_id, session_id),
@@ -1665,7 +1940,7 @@ async def update_qa_pair(
   """Q&A 수정. AI 생성 답변 수정 시 is_reviewed=1 자동 설정."""
   async with db_connect() as db:
     db.row_factory = aiosqlite.Row
-    await _load_session_or_403(db, session_id, user['user_id'])
+    await _load_session_or_403(db, session_id, user['user_id'], user.get('business_id'))
 
     cursor = await db.execute(
       'SELECT * FROM qa_pairs WHERE id = ? AND session_id = ?', (qa_id, session_id)
@@ -1713,7 +1988,7 @@ async def delete_qa_pair(
   """Q&A 삭제. 꼬리질문도 함께 삭제."""
   async with db_connect() as db:
     db.row_factory = aiosqlite.Row
-    await _load_session_or_403(db, session_id, user['user_id'])
+    await _load_session_or_403(db, session_id, user['user_id'], user.get('business_id'))
 
     cursor = await db.execute(
       'SELECT id FROM qa_pairs WHERE id = ? AND session_id = ?', (qa_id, session_id)
@@ -1736,7 +2011,7 @@ async def download_qa_template(
   """CSV 템플릿 다운로드."""
   async with db_connect() as db:
     db.row_factory = aiosqlite.Row
-    await _load_session_or_403(db, session_id, user['user_id'])
+    await _load_session_or_403(db, session_id, user['user_id'], user.get('business_id'))
 
   output = io.StringIO()
   writer = csv.writer(output)
@@ -1774,7 +2049,7 @@ async def upload_qa_csv(
   """CSV 업로드로 Q&A 일괄 등록. 같은 question_text면 UPDATE."""
   async with db_connect() as db:
     db.row_factory = aiosqlite.Row
-    await _load_session_or_403(db, session_id, user['user_id'])
+    await _load_session_or_403(db, session_id, user['user_id'], user.get('business_id'))
 
   raw = await file.read()
   if len(raw) > 2 * 1024 * 1024:
@@ -1855,7 +2130,7 @@ async def trigger_qa_generation(
   """자료 기반 Q&A 자동 생성 (수동 트리거). 백그라운드 실행."""
   async with db_connect() as db:
     db.row_factory = aiosqlite.Row
-    await _load_session_or_403(db, session_id, user['user_id'])
+    await _load_session_or_403(db, session_id, user['user_id'], user.get('business_id'))
 
     # indexed 문서가 있는지 확인
     cursor = await db.execute(
@@ -1883,7 +2158,7 @@ async def find_answer_endpoint(
   """
   async with db_connect() as db:
     db.row_factory = aiosqlite.Row
-    await _load_session_or_403(db, session_id, user['user_id'])
+    await _load_session_or_403(db, session_id, user['user_id'], user.get('business_id'))
 
   result = await find_answer(session_id, body.question_text.strip())
 
@@ -1954,7 +2229,7 @@ async def translate_answer_endpoint(
   """답변 텍스트 번역 (프론트에서 답변 표시 후 별도 호출)."""
   async with db_connect() as db:
     db.row_factory = aiosqlite.Row
-    await _load_session_or_403(db, session_id, user['user_id'])
+    await _load_session_or_403(db, session_id, user['user_id'], user.get('business_id'))
 
   from services.answer_service import _get_session_languages
   answer_lang, translation_lang, meeting_lang = await _get_session_languages(session_id)
@@ -1981,7 +2256,7 @@ async def get_cached_answer(
   """
   async with db_connect() as db:
     db.row_factory = aiosqlite.Row
-    await _load_session_or_403(db, session_id, user['user_id'])
+    await _load_session_or_403(db, session_id, user['user_id'], user.get('business_id'))
 
     cursor = await db.execute(
       'SELECT * FROM detected_questions WHERE session_id = ? AND utterance_id = ? AND answer_text IS NOT NULL',

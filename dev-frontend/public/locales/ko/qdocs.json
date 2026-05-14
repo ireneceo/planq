@@ -198,8 +198,8 @@
   "actions": {
     "print": "PDF / 인쇄 (저장하려면 ‘대상: PDF로 저장’ 선택)",
     "saveAsTemplate": "템플릿으로 저장",
-    "sendToKnowledge": "Q knowledge 로 보내기 — Cue 가 답변 시 참조",
-    "sendToKnowledgeOk": "Q knowledge 에 추가됐습니다 — 인덱싱 후 Cue 답변에 활용됩니다",
+    "sendToKnowledge": "Q info 로 보내기 — Cue 가 답변 시 참조",
+    "sendToKnowledgeOk": "Q info 에 추가됐습니다 — 인덱싱 후 Cue 답변에 활용됩니다",
     "sendToKnowledgeErr": "추가 실패: {{msg}}"
   },
   "project": {

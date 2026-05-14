@@ -19,7 +19,7 @@
   },
   "help": {
     "body": "Company knowledge DB referenced by Cue, AI writing, and Q note answer-finding.\n\n• Categories: Policy / Manual / Incident / FAQ / About / Pricing\n• Scope: Workspace / Project / Client\n• Narrower scope = higher answer precision",
-    "cuePrefill": "Tell me how categories and scopes in Q knowledge affect Cue's answers"
+    "cuePrefill": "Tell me how categories and scopes in Q info affect Cue's answers"
   },
   "cat": {
     "all": "All",

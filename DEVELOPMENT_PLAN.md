@@ -1,6 +1,85 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-05-14 사이클 N+13 dev fix 완료 + 검증 PASS — **운영 배포 대기** (사용자 `/배포` 명령 필요)
+> **최종 업데이트:** 2026-05-14 사이클 N+14 dev fix 완료 + 검증 13/13 PASS — **운영 배포 대기** (사용자 `/배포` 명령 필요)
+>
+> **사이클 N+14 영역:** Q file/Q docs/Q info/Q note visibility 4단계 통합 + Q Note 공유 정책 변경 (기본 L1 + 명시 활성화) + Q info 프로젝트 스코프 활성화 (ProjectKnowledgeTab 신규) + 개인 보관함 5탭 (Q note 추가) + 라벨 통일
+
+---
+
+## ✅ dev 완료: 사이클 N+14 — Visibility 통합 + Q Note 공유 + Q info 프로젝트 스코프 (2026-05-14)
+
+### 통합 아키텍처
+
+| 자산 | visibility 컬럼 | 매핑 |
+|---|---|---|
+| Q file | `files.visibility` L1-L4 | 직접 |
+| Q docs | `posts.visibility` internal/public | 헬퍼 변환 (다음 사이클 마이그) |
+| Q info | `kb_documents.scope` private/workspace/project/client | 헬퍼 매핑 |
+| Q note | `sessions.visibility` L1-L4 (신규) | 직접 |
+
+**공통 컴포넌트:** `VisibilityBadge` / `VisibilityChangeModal` / `ShareModal` / `AttachmentField` / `DetailDrawer`. 4 자산 모두 같은 컴포넌트로 통일.
+
+### Q Note 정책 변경 (메모리 박제 갱신)
+
+기존 "공유 절대 안 함" → **기본 L1 + 사용자 명시 활성화 시 공유 가능**
+
+- DB: `sessions` 에 6 컬럼 추가 (`visibility/project_id/share_token/shared_at/share_expires_at/shared_consent`) + 2 인덱스
+- `_load_session_or_403` — owner / L1 / L2 (Node internal API project-membership 검증) / L3 (same business) / L4 (인증 동일 워크스페이스)
+- 3 신규 endpoint — PUT visibility / POST share / DELETE share
+- `status='recording'` 시 차단 강제
+
+### Q info 프로젝트 스코프
+
+- 신규 `pages/QProject/ProjectKnowledgeTab.tsx` (KnowledgePage 와 동일 UI/UX, AttachmentField/ShareModal/DetailDrawer 공통)
+- 프로젝트 탭: `dashboard / tasks / clients / files / docs / **info(Q info)** / transactions / details(메타)`
+- 옛 `info` (프로젝트 메타) → `details` 로 키 변경
+
+### 개인 보관함 (Personal Vault) 5탭
+
+`dashboard / posts / files / kb / **notes(Q note)**` — Single Source of Truth, Multiple Views
+
+- `routes/personal_vault.js` 의 `/sessions` endpoint 신규 — Q Note `/api/sessions?scope=mine&visibility=L1` proxy
+- "지식" → "정보" 라벨 통일
+
+### Q Note ↔ Node Internal API
+
+- Q Note 가 별도 SQLite 라 ProjectMember 직접 조회 불가
+- Node 신규: `GET /api/internal/project-membership/:userId/:projectId`, `GET /api/internal/user-project-ids/:userId?business_id=N`
+- 인증: `x-internal-api-key` 헤더
+- **응답 파싱 함정**: Node `{success, data: {member}}` 구조. Python 측 `body.get('data').get('member')` 추출 필요 (직접 `body.get('member')` 면 None 반환되어 모든 L2 fail)
+
+### 라벨 통일
+
+- `qdocs.json sendToKnowledge*`, `knowledge.json cuePrefill` 의 "Q knowledge" → "Q info" (ko/en)
+
+### 검증 13/13 PASS (실 API)
+
+| 시나리오 | 결과 |
+|---|---|
+| KB scope=project 등록 + 필터 조회 | ✓ |
+| PersonalVault /sessions endpoint | ✓ |
+| Q Note visibility L1 → L3 | ✓ |
+| recording 중 차단 (400) | ✓ |
+| L2 project_id 검증 + 정상 경로 | ✓ |
+| share_token 발급 + 폐기 | ✓ |
+| Internal API project-membership / user-project-ids | ✓ |
+
+### 변경 통계
+
+- **DB**: q-note sessions 6 컬럼 + 2 인덱스 (dev 적용 완료)
+- **Backend**: Q Note Python 1 파일 + Node 4 파일 (server.js / routes/internal.js 신규 / routes/personal_vault.js / services/visibility.js 신규)
+- **Frontend**: 5 파일 변경 + 1 파일 신규 (ProjectKnowledgeTab.tsx)
+- **메모리**: 1 갱신 (qnote_personal_tool 정책 변경) + 1 신규 (visibility_unified_arch)
+
+### 박제
+
+- 메모리 `feedback_qnote_personal_tool.md` — 정책 변경 (사이클 N+14)
+- 메모리 `project_visibility_unified_arch.md` — 신규 (4 자산 통합 아키텍처)
+
+---
+
+## ✅ dev 완료: 사이클 N+13 (이전) — 알림 trigger fix + Daily.co → Google Meet (2026-05-14)
+> **이전 라이브:** 2026-05-14 사이클 N+13 (v1.8.0) — 채팅·업무 알림 trigger fix + Daily.co → Google Meet (이미 운영 라이브)
 >
 > **dev 적용된 사이클 N+13:** 채팅·업무 알림 발송 trigger 누락 회귀 fix (routes/projects.js POST messages + routes/task_workflow.js 7 라우트 + push_service urgency/TTL + subscribe same-host 좀비 정리)
 >

@@ -17,6 +17,7 @@ import PlanQSelect, { type PlanQSelectOption } from '../../components/Common/Pla
 import SearchBox from '../../components/Common/SearchBox';
 import DetailDrawer from '../../components/Common/DetailDrawer';
 import ShareModal from '../../components/Common/ShareModal';
+import AttachmentField from '../../components/Common/AttachmentField';
 // 가로 Tabs 폐지 — 좌측 카테고리 트리로 변경 (Q file/Q record 패턴 통일)
 import ConfirmDialog from '../../components/Common/ConfirmDialog';
 import KbAiIngestModal from './KbAiIngestModal';
@@ -29,7 +30,7 @@ import {
 } from '../../services/knowledge';
 import { apiFetch } from '../../contexts/AuthContext';
 import { listProjects, listWorkspaceClients, type ApiProject, type WorkspaceClientRow } from '../../services/qtalk';
-import { fetchWorkspaceFiles, formatBytes, type ProjectFile } from '../../services/files';
+import { fetchWorkspaceFiles, uploadMyFile, formatBytes, type ProjectFile } from '../../services/files';
 import { fetchPosts, type PostRow } from '../../services/posts';
 
 const CATEGORIES: KbCategory[] = ['policy', 'manual', 'incident', 'faq', 'about', 'pricing'];
@@ -107,7 +108,6 @@ const KnowledgePage = () => {
   });
   // 첨부 — 새 업로드 + 기존 파일 + 기존 문서 (모두 다중)
   const [uploadFiles, setUploadFiles] = useState<File[]>([]);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const [wsFiles, setWsFiles] = useState<ProjectFile[]>([]);
   const [wsFilesLoaded, setWsFilesLoaded] = useState(false);
   const [pickedFileIds, setPickedFileIds] = useState<Set<number>>(new Set());
@@ -825,12 +825,21 @@ const KnowledgePage = () => {
                   </DrawerCustomList>
                 </DrawerSection>
               )}
-              {/* 첨부 파일 — 등록과 동일하게 add/remove 가능 */}
+              {/* 첨부 파일·문서 — AttachmentField 통합 컴포넌트로 통일 (사이클 P5 후속, 2026-05-14).
+                  새 정보 등록 모달과 같은 UI/UX. 새 업로드는 표준 File 테이블 등록 후 즉시
+                  attached_file_ids 에 link. 기존 파일/문서 선택도 즉시 PATCH updateKnowledge. */}
               <DrawerSection>
-                <SectionLabel>{t('drawer.attachedFiles', '첨부 파일')} {detail.attached_files && detail.attached_files.length > 0 && <small>({detail.attached_files.length})</small>}</SectionLabel>
-                {detail.attached_files && detail.attached_files.length > 0 && (
+                <SectionLabel>
+                  {t('drawer.attached', '첨부 파일·문서')}
+                  {(((detail.attached_files?.length) || 0) + ((detail.attached_posts?.length) || 0)) > 0 && (
+                    <small> ({((detail.attached_files?.length) || 0) + ((detail.attached_posts?.length) || 0)})</small>
+                  )}
+                </SectionLabel>
+
+                {/* 현재 첨부된 파일 목록 — read-only 표시 + remove */}
+                {(detail.attached_files?.length || 0) > 0 && (
                   <AttachList>
-                    {detail.attached_files.map(f => (
+                    {(detail.attached_files || []).map(f => (
                       <AttachRow key={`f-${f.id}`}>
                         <AttachIcon viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
                           <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
@@ -865,45 +874,11 @@ const KnowledgePage = () => {
                     ))}
                   </AttachList>
                 )}
-                <AttachAddRow>
-                  <PlanQSelect size="sm"
-                    placeholder={t('drawer.addFilePh', '파일 검색해서 추가...') as string}
-                    value={null}
-                    options={(wsFiles || [])
-                      .filter(f => typeof f.id === 'number' && !(detail.attached_file_ids || []).includes(f.id as number))
-                      .map(f => ({ value: String(f.id), label: f.file_name }))}
-                    onChange={async (opt) => {
-                      const v = (opt as PlanQSelectOption | null)?.value;
-                      const next = v ? [...(detail.attached_file_ids || []), Number(v)] : null;
-                      if (!next) return;
-                      try {
-                        await updateKnowledge(businessId, detail.id, { attached_file_ids: next });
-                        const f = (wsFiles || []).find(x => Number(x.id) === Number(v));
-                        if (f && typeof f.id === 'number') {
-                          const fileId: number = f.id;
-                          setDetail(prev => prev ? {
-                            ...prev,
-                            attached_file_ids: next,
-                            attached_files: [...(prev.attached_files || []), {
-                              id: fileId, file_name: f.file_name, file_size: f.file_size,
-                              mime_type: f.mime_type, storage_provider: f.storage_provider,
-                              external_url: f.external_url || null,
-                            }],
-                          } : prev);
-                          setDocs(prev => prev.map(x => x.id === detail.id ? { ...x, attached_file_ids: next } : x));
-                        }
-                      } catch { /* skip */ }
-                    }}
-                  />
-                </AttachAddRow>
-              </DrawerSection>
 
-              {/* 첨부 문서 — 등록과 동일하게 add/remove 가능 */}
-              <DrawerSection>
-                <SectionLabel>{t('drawer.attachedPosts', '첨부 문서')} {detail.attached_posts && detail.attached_posts.length > 0 && <small>({detail.attached_posts.length})</small>}</SectionLabel>
-                {detail.attached_posts && detail.attached_posts.length > 0 && (
+                {/* 현재 첨부된 문서 목록 — read-only 표시 + remove */}
+                {(detail.attached_posts?.length || 0) > 0 && (
                   <AttachList>
-                    {detail.attached_posts.map(p => (
+                    {(detail.attached_posts || []).map(p => (
                       <AttachRow key={`p-${p.id}`}>
                         <AttachIcon viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
                           <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
@@ -937,34 +912,99 @@ const KnowledgePage = () => {
                     ))}
                   </AttachList>
                 )}
-                <AttachAddRow>
-                  <PlanQSelect size="sm"
-                    placeholder={t('drawer.addPostPh', '문서 검색해서 추가...') as string}
-                    value={null}
-                    options={(wsPosts || [])
-                      .filter(p => !(detail.attached_post_ids || []).includes(p.id))
-                      .map(p => ({ value: String(p.id), label: p.title }))}
-                    onChange={async (opt) => {
-                      const v = (opt as PlanQSelectOption | null)?.value;
-                      const next = v ? [...(detail.attached_post_ids || []), Number(v)] : null;
-                      if (!next) return;
+
+                {/* 추가 영역 — AttachmentField (등록 모달과 동일 컴포넌트) */}
+                <AttachmentField
+                  businessId={businessId}
+                  uploads={[]}
+                  onUploadsChange={async (files) => {
+                    if (files.length === 0) return;
+                    // 새 업로드 → 표준 File 등록 → file_id + 메타 받음 → attached_file_ids 에 추가
+                    const newAttached: KbDetail['attached_files'] = [];
+                    const newFileIds: number[] = [];
+                    for (const file of files) {
                       try {
-                        await updateKnowledge(businessId, detail.id, { attached_post_ids: next });
-                        const p = (wsPosts || []).find(x => x.id === Number(v));
-                        if (p) {
-                          setDetail(prev => prev ? {
-                            ...prev,
-                            attached_post_ids: next,
-                            attached_posts: [...(prev.attached_posts || []), {
-                              id: p.id, title: p.title, project_id: p.project_id ?? null, category: p.category ?? null,
-                            }],
-                          } : prev);
-                          setDocs(prev => prev.map(x => x.id === detail.id ? { ...x, attached_post_ids: next } : x));
+                        const r = await uploadMyFile(businessId, file);
+                        if (r.success && r.file) {
+                          const fid = Number(String(r.file.id).replace(/^direct-/, ''));
+                          if (Number.isFinite(fid)) {
+                            newFileIds.push(fid);
+                            newAttached!.push({
+                              id: fid,
+                              file_name: r.file.file_name,
+                              file_size: r.file.file_size,
+                              mime_type: r.file.mime_type || null,
+                              storage_provider: r.file.storage_provider || 'planq',
+                              external_url: null,
+                            });
+                          }
                         }
-                      } catch { /* skip */ }
-                    }}
-                  />
-                </AttachAddRow>
+                      } catch { /* 한 건 실패해도 다른 파일은 계속 */ }
+                    }
+                    if (newFileIds.length === 0) return;
+                    const current = Array.isArray(detail.attached_file_ids) ? detail.attached_file_ids : [];
+                    const next = Array.from(new Set([...current, ...newFileIds]));
+                    try {
+                      await updateKnowledge(businessId, detail.id, { attached_file_ids: next });
+                      setDetail(prev => prev ? {
+                        ...prev,
+                        attached_file_ids: next,
+                        attached_files: [...(prev.attached_files || []), ...(newAttached || [])],
+                      } : prev);
+                      setDocs(prev => prev.map(x => x.id === detail.id ? { ...x, attached_file_ids: next } : x));
+                    } catch { /* skip */ }
+                  }}
+                  existingFileIds={detail.attached_file_ids || []}
+                  onExistingFileIdsChange={async (ids) => {
+                    // 추가된 ID 만 빠르게 PATCH (제거는 위 AttachRemoveBtn 에서 처리)
+                    const current = Array.isArray(detail.attached_file_ids) ? detail.attached_file_ids : [];
+                    const added = ids.filter(id => !current.includes(id));
+                    if (added.length === 0) return;
+                    const next = Array.from(new Set([...current, ...added]));
+                    try {
+                      await updateKnowledge(businessId, detail.id, { attached_file_ids: next });
+                      // 새로 추가된 파일들의 메타 합치기 — 이미 fetch 된 wsFiles 에서 lookup
+                      const addedMeta = added
+                        .map(id => (wsFiles || []).find(f => Number(String(f.id).replace(/^direct-/, '')) === id))
+                        .filter((f): f is ProjectFile => !!f && typeof f.id !== 'undefined')
+                        .map(f => ({
+                          id: Number(String(f.id).replace(/^direct-/, '')),
+                          file_name: f.file_name, file_size: f.file_size,
+                          mime_type: f.mime_type || null,
+                          storage_provider: f.storage_provider || 'planq',
+                          external_url: f.external_url || null,
+                        }));
+                      setDetail(prev => prev ? {
+                        ...prev,
+                        attached_file_ids: next,
+                        attached_files: [...(prev.attached_files || []), ...addedMeta],
+                      } : prev);
+                      setDocs(prev => prev.map(x => x.id === detail.id ? { ...x, attached_file_ids: next } : x));
+                    } catch { /* skip */ }
+                  }}
+                  includePosts
+                  existingPostIds={detail.attached_post_ids || []}
+                  onExistingPostIdsChange={async (ids) => {
+                    const current = Array.isArray(detail.attached_post_ids) ? detail.attached_post_ids : [];
+                    const added = ids.filter(id => !current.includes(id));
+                    if (added.length === 0) return;
+                    const next = Array.from(new Set([...current, ...added]));
+                    try {
+                      await updateKnowledge(businessId, detail.id, { attached_post_ids: next });
+                      const addedMeta = added
+                        .map(id => (wsPosts || []).find(p => p.id === id))
+                        .filter((p): p is PostRow => !!p)
+                        .map(p => ({ id: p.id, title: p.title, project_id: p.project_id ?? null, category: p.category ?? null }));
+                      setDetail(prev => prev ? {
+                        ...prev,
+                        attached_post_ids: next,
+                        attached_posts: [...(prev.attached_posts || []), ...addedMeta],
+                      } : prev);
+                      setDocs(prev => prev.map(x => x.id === detail.id ? { ...x, attached_post_ids: next } : x));
+                    } catch { /* skip */ }
+                  }}
+                  workspaceFiles={wsFiles}
+                />
               </DrawerSection>
             </DrawerSections>
           )}
@@ -1195,93 +1235,21 @@ const KnowledgePage = () => {
                 )}
               </Field>
 
-              {/* 6) 새 파일 업로드 */}
+              {/* 6) 자료 첨부 — 새 업로드 + 기존 파일/문서 연결 (AttachmentField 통합 컴포넌트)
+                  사이클 P5 후속 (2026-05-14) — 상세 우측 패널과 동일 UI/UX 통일. */}
               <Field>
-                <Label>{t('modal.uploadFiles', '새 파일 업로드')} <OptionalMark>{t('modal.optional')}</OptionalMark></Label>
-                <UploadDrop
-                  onClick={() => fileInputRef.current?.click()}
-                  onDragOver={e => { e.preventDefault(); }}
-                  onDrop={e => {
-                    e.preventDefault();
-                    if (e.dataTransfer.files) setUploadFiles(prev => [...prev, ...Array.from(e.dataTransfer.files)]);
-                  }}
-                >
-                  <UploadIcon viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                    <polyline points="17 8 12 3 7 8"/>
-                    <line x1="12" y1="3" x2="12" y2="15"/>
-                  </UploadIcon>
-                  <UploadText>{t('modal.uploadHint', '파일을 드래그하거나 클릭')}</UploadText>
-                  <UploadSub>{t('modal.uploadAccept', 'txt · md · html · json · csv (최대 5MB)')}</UploadSub>
-                  <input ref={fileInputRef} type="file" hidden multiple
-                    accept=".txt,.md,.markdown,.html,.htm,.json,.csv,.log"
-                    onChange={e => { if (e.target.files) setUploadFiles(prev => [...prev, ...Array.from(e.target.files!)]); e.target.value = ''; }}
-                  />
-                </UploadDrop>
-                {uploadFiles.length > 0 && (
-                  <ChipList>
-                    {uploadFiles.map((f, i) => (
-                      <Chip key={i}>
-                        <ChipText>{f.name}</ChipText>
-                        <ChipMeta>{formatBytes(f.size)}</ChipMeta>
-                        <ChipX type="button" onClick={() => setUploadFiles(prev => prev.filter((_, idx) => idx !== i))}>×</ChipX>
-                      </Chip>
-                    ))}
-                  </ChipList>
-                )}
-              </Field>
-
-              {/* 7) 기존 파일/문서 연결 (통합 단일 검색) */}
-              <Field>
-                <Label>{t('modal.attachExisting', '기존 파일/문서 연결')} <OptionalMark>{t('modal.optional')}</OptionalMark></Label>
-                <PlanQSelect
-                  size="sm" isSearchable isMulti
-                  menuPlacement="bottom"
-                  placeholder={t('modal.searchAttachHint', '검색어 입력해서 파일·문서 찾기...') as string}
-                  value={[
-                    ...Array.from(pickedFileIds).map(id => {
-                      const f = wsFiles.find(x => Number(x.id.replace(/^direct-/, '')) === id);
-                      return { value: `f:${id}`, label: `[${t('modal.fileTagInline', '파일')}] ${f?.file_name || `#${id}`}` };
-                    }),
-                    ...Array.from(pickedPostIds).map(id => {
-                      const p = wsPosts.find(x => x.id === id);
-                      return { value: `p:${id}`, label: `[${t('modal.postTagInline', '문서')}] ${p?.title || `#${id}`}` };
-                    }),
-                  ]}
-                  onChange={(opts) => {
-                    const fileSet = new Set<number>();
-                    const postSet = new Set<number>();
-                    if (Array.isArray(opts)) {
-                      for (const o of opts) {
-                        const v = (o as PlanQSelectOption).value as string;
-                        if (v.startsWith('f:')) fileSet.add(Number(v.slice(2)));
-                        else if (v.startsWith('p:')) postSet.add(Number(v.slice(2)));
-                      }
-                    }
-                    setPickedFileIds(fileSet);
-                    setPickedPostIds(postSet);
-                  }}
-                  options={[
-                    ...wsFiles.map(f => ({
-                      value: `f:${f.id.replace(/^direct-/, '')}`,
-                      label: `[${t('modal.fileTagInline', '파일')}] ${f.file_name} (${formatBytes(f.file_size)})`,
-                    })),
-                    ...wsPosts.map(p => ({
-                      value: `p:${p.id}`,
-                      label: `[${t('modal.postTagInline', '문서')}] ${p.project ? `${p.title} · ${p.project.name}` : p.title}`,
-                    })),
-                  ]}
-                  filterOption={(option, raw) => {
-                    const q = (raw || '').trim().toLowerCase();
-                    if (!q) return false;
-                    return String(option.label).toLowerCase().includes(q);
-                  }}
-                  noOptionsMessage={({ inputValue }) =>
-                    !String(inputValue || '').trim()
-                      ? (t('modal.searchHint', '검색어를 입력하세요') as string)
-                      : (!wsFilesLoaded || !wsPostsLoaded) ? (t('page.loading') as string)
-                      : (t('modal.noFiles') as string)
-                  }
+                <Label>{t('modal.attach', '자료 첨부')} <OptionalMark>{t('modal.optional')}</OptionalMark></Label>
+                <AttachmentField
+                  businessId={businessId}
+                  uploads={uploadFiles}
+                  onUploadsChange={setUploadFiles}
+                  existingFileIds={Array.from(pickedFileIds)}
+                  onExistingFileIdsChange={(ids) => setPickedFileIds(new Set(ids))}
+                  includePosts
+                  existingPostIds={Array.from(pickedPostIds)}
+                  onExistingPostIdsChange={(ids) => setPickedPostIds(new Set(ids))}
+                  workspaceFiles={wsFiles}
+                  accept=".txt,.md,.markdown,.html,.htm,.json,.csv,.log,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip"
                 />
               </Field>
 
@@ -1945,9 +1913,6 @@ const AttachRemoveBtn = styled.button`
   transition: all 0.15s;
   &:hover { background: #FEF2F2; color: #B91C1C; border-color: #FECACA; }
 `;
-const AttachAddRow = styled.div`
-  margin-top: 8px;
-`;
 const Spacer = styled.div`flex: 1;`;
 const ShareFooterBtn = styled.button`
   height: 34px; padding: 0 12px;
@@ -1968,23 +1933,6 @@ const DangerBtn = styled.button`
 // ─── 등록 모달 ───
 const RequiredMark = styled.span`color: #DC2626; margin-left: 2px;`;
 const OptionalMark = styled.span`color: #94A3B8; font-weight: 400; font-size: 11px; margin-left: 4px;`;
-const ChipList = styled.div`
-  display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px;
-`;
-const Chip = styled.span`
-  display: inline-flex; align-items: center; gap: 6px;
-  padding: 4px 8px 4px 10px;
-  background: #F1F5F9; border: 1px solid #E2E8F0; border-radius: 6px;
-  font-size: 12px;
-`;
-const ChipText = styled.span`color: #0F172A; max-width: 180px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;`;
-const ChipMeta = styled.span`color: #94A3B8; font-size: 10px;`;
-const ChipX = styled.button`
-  all: unset; cursor: pointer;
-  width: 18px; height: 18px; display: inline-flex; align-items: center; justify-content: center;
-  color: #94A3B8; border-radius: 4px; font-size: 14px;
-  &:hover { background: #FEE2E2; color: #DC2626; }
-`;
 const Backdrop = styled.div`
   position: fixed; inset: 0; background: rgba(15, 23, 42, 0.08); z-index: 50;
 `;
@@ -2027,16 +1975,4 @@ const TextArea = styled.textarea`padding: 8px 10px; border: 1px solid #E2E8F0; b
 const PrimaryBtn = styled.button`height: 36px; padding: 0 18px; background: #14B8A6; color: #FFFFFF; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; &:disabled { background: #CBD5E1; cursor: not-allowed; } &:hover:not(:disabled) { background: #0D9488; }`;
 const SecondaryBtn = styled.button`height: 36px; padding: 0 14px; background: transparent; color: #475569; border: 1px solid #E2E8F0; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; &:hover { background: #F8FAFC; border-color: #CBD5E1; }`;
 
-// ─── 업로드 탭 ───
-const UploadDrop = styled.div`
-  border: 2px dashed #CBD5E1;
-  background: #F8FAFC;
-  border-radius: 12px; padding: 28px 16px;
-  display: flex; flex-direction: column; align-items: center; gap: 8px;
-  cursor: pointer; transition: all 0.15s; text-align: center;
-  &:hover { border-color: #14B8A6; background: #F0FDFA; }
-`;
-const UploadIcon = styled.svg`width: 36px; height: 36px; color: #94A3B8;`;
-const UploadText = styled.div`font-size: 13px; font-weight: 600; color: #334155;`;
-const UploadSub = styled.div`font-size: 11px; color: #94A3B8;`;
 
