@@ -828,7 +828,37 @@ router.delete('/:businessId/:id', authenticateToken, checkBusinessAccess, async 
     if (!conv) return errorResponse(res, 'conversation_not_found', 404);
     if (!conv.archived_at) return errorResponse(res, 'must_archive_first', 400);
     const snapshot = { id: conv.id, name: conv.name, project_id: conv.project_id, archived_at: conv.archived_at };
-    await conv.destroy();
+
+    // 사이클 N+14 hotfix — child rows 명시 cascade 삭제 (FK DELETE_RULE='NO ACTION' 회피).
+    // conversations 참조 FK 중 NO ACTION 인 것: conversation_participants, messages, task_candidates.
+    // messages 참조 FK 중 NO ACTION 인 것: message_attachments.
+    // 순서: message_attachments → messages → conversation_participants → task_candidates → conversation
+    const convId = conv.id;
+    const t = await sequelize.transaction();
+    try {
+      const MessageAttachment = require('../models').MessageAttachment;
+      const TaskCandidate = require('../models').TaskCandidate;
+      // 1. message_attachments — messages.conversation_id 기반 IN 절
+      await sequelize.query(
+        `DELETE ma FROM message_attachments ma
+         INNER JOIN messages m ON ma.message_id = m.id
+         WHERE m.conversation_id = :cid`,
+        { replacements: { cid: convId }, transaction: t }
+      );
+      // 2. messages
+      await Message.destroy({ where: { conversation_id: convId }, transaction: t });
+      // 3. conversation_participants
+      await ConversationParticipant.destroy({ where: { conversation_id: convId }, transaction: t });
+      // 4. task_candidates
+      await TaskCandidate.destroy({ where: { conversation_id: convId }, transaction: t });
+      // 5. conversation 본체
+      await conv.destroy({ transaction: t });
+      await t.commit();
+    } catch (e) {
+      await t.rollback();
+      throw e;
+    }
+
     require('../services/auditService').logAudit(req, {
       action: 'conversation.delete',
       targetType: 'conversation',
