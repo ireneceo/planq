@@ -13,7 +13,7 @@ const express = require('express');
 const { Op } = require('sequelize');
 const router = express.Router();
 const { authenticateToken } = require('../middleware/auth');
-const { attachWorkspaceScope } = require('../middleware/access_scope');
+const { attachWorkspaceScope, isMemberOrAbove } = require('../middleware/access_scope');
 const { File, Post, KbDocument } = require('../models');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 
@@ -47,7 +47,7 @@ function vaultKbDocsWhere(scope) {
 router.get('/:businessId/summary', authenticateToken, attachWorkspaceScope(), async (req, res, next) => {
   try {
     const scope = req.scope;
-    if (!scope.isOwner && !scope.isMember) {
+    if (!isMemberOrAbove(scope)) {
       return errorResponse(res, 'member_only', 403);
     }
     const [
@@ -91,7 +91,7 @@ router.get('/:businessId/summary', authenticateToken, attachWorkspaceScope(), as
 router.get('/:businessId/files', authenticateToken, attachWorkspaceScope(), async (req, res, next) => {
   try {
     const scope = req.scope;
-    if (!scope.isOwner && !scope.isMember) return errorResponse(res, 'member_only', 403);
+    if (!isMemberOrAbove(scope)) return errorResponse(res, 'member_only', 403);
 
     const limit = Math.min(Number(req.query.limit) || 50, 200);
     const offset = Number(req.query.offset) || 0;
@@ -115,7 +115,7 @@ router.get('/:businessId/files', authenticateToken, attachWorkspaceScope(), asyn
 router.get('/:businessId/posts', authenticateToken, attachWorkspaceScope(), async (req, res, next) => {
   try {
     const scope = req.scope;
-    if (!scope.isOwner && !scope.isMember) return errorResponse(res, 'member_only', 403);
+    if (!isMemberOrAbove(scope)) return errorResponse(res, 'member_only', 403);
 
     const limit = Math.min(Number(req.query.limit) || 50, 200);
     const offset = Number(req.query.offset) || 0;
@@ -142,7 +142,7 @@ router.get('/:businessId/posts', authenticateToken, attachWorkspaceScope(), asyn
 router.get('/:businessId/kb-documents', authenticateToken, attachWorkspaceScope(), async (req, res, next) => {
   try {
     const scope = req.scope;
-    if (!scope.isOwner && !scope.isMember) return errorResponse(res, 'member_only', 403);
+    if (!isMemberOrAbove(scope)) return errorResponse(res, 'member_only', 403);
 
     const limit = Math.min(Number(req.query.limit) || 50, 200);
     const offset = Number(req.query.offset) || 0;
@@ -154,6 +154,46 @@ router.get('/:businessId/kb-documents', authenticateToken, attachWorkspaceScope(
       limit, offset,
     });
     res.json({ success: true, data: rows, pagination: { total: count, limit, offset } });
+  } catch (err) { next(err); }
+});
+
+// ============================================
+// GET /sessions — 본인 L1 Q Note session list (사이클 N+14)
+// Q Note 는 별도 SQLite. Python backend (port 8000) proxy.
+// ============================================
+router.get('/:businessId/sessions', authenticateToken, attachWorkspaceScope(), async (req, res, next) => {
+  try {
+    const scope = req.scope;
+    if (!isMemberOrAbove(scope)) return errorResponse(res, 'member_only', 403);
+
+    const businessId = Number(req.params.businessId);
+    const limit = Math.min(Number(req.query.limit) || 50, 100);
+    const page = Math.max(1, Math.ceil(((Number(req.query.offset) || 0) / limit) + 1));
+    const qnoteBase = process.env.QNOTE_URL || 'http://localhost:8000';
+    const authHeader = req.headers.authorization;
+    if (!authHeader) return errorResponse(res, 'missing_token', 401);
+
+    try {
+      const r = await fetch(
+        `${qnoteBase}/api/sessions?business_id=${businessId}&scope=mine&visibility=L1&limit=${limit}&page=${page}`,
+        { headers: { Authorization: authHeader } }
+      );
+      if (!r.ok) {
+        return successResponse(res, [], { offset: 0, limit, total: 0 });
+      }
+      const j = await r.json();
+      return res.json({
+        success: true,
+        data: j.data || [],
+        pagination: {
+          total: j.pagination?.total || 0,
+          limit, offset: (page - 1) * limit,
+        },
+      });
+    } catch (e) {
+      console.warn('[personal_vault sessions proxy]', e.message);
+      return successResponse(res, [], { offset: 0, limit, total: 0 });
+    }
   } catch (err) { next(err); }
 });
 

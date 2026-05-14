@@ -383,6 +383,18 @@ async function extractTaskCandidates({ conversationId, userId, businessId }) {
     try {
       const created = [];
       for (const c of withSimilar) {
+        // 사이클 N+14 hotfix — guessed_due_date sanitize.
+        // LLM 이 빈 문자열 / 'null' / 'Invalid date' / 'YYYY-MM-DD' 외 형식 반환 시 DATE INSERT fail.
+        // 유효한 YYYY-MM-DD 형식만 통과시키고 나머지는 null.
+        const rawDate = c.guessed_due_date;
+        let safeDate = null;
+        if (rawDate && typeof rawDate === 'string') {
+          const trimmed = rawDate.trim();
+          if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+            const d = new Date(trimmed + 'T00:00:00');
+            if (!isNaN(d.getTime())) safeDate = trimmed;
+          }
+        }
         const candidate = await TaskCandidate.create({
           project_id: conversation.project_id,
           conversation_id: conversationId,
@@ -393,7 +405,7 @@ async function extractTaskCandidates({ conversationId, userId, businessId }) {
           description: c.description ? String(c.description).slice(0, 2000) : null,
           guessed_role: c.guessed_role ? String(c.guessed_role).slice(0, 50) : null,
           guessed_assignee_user_id: c.guessed_assignee_user_id || null,
-          guessed_due_date: c.guessed_due_date || null,
+          guessed_due_date: safeDate,
           similar_task_id: c.similar_task_id || null,
           recurrence_hint: c.recurrence_hint || null,
           status: 'pending',
