@@ -2,6 +2,8 @@ import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import HelpDot from '../../components/Common/HelpDot';
+import VisibilityBadge, { type VLevel } from '../../components/Common/VisibilityBadge';
+import VisibilityChangeModal from '../../components/Common/VisibilityChangeModal';
 import styled from 'styled-components';
 import StartMeetingModal from './StartMeetingModal';
 import type { StartConfig } from './StartMeetingModal';
@@ -27,6 +29,7 @@ import {
   acquireRecorderLock,
   heartbeatRecorderLock,
   releaseRecorderLock,
+  changeSessionVisibility,
 } from '../../services/qnote';
 import type { QNoteSession, QNoteUtterance, QNoteSpeaker } from '../../services/qnote';
 import { LiveSession } from '../../services/qnoteLive';
@@ -209,6 +212,9 @@ const QNotePage = () => {
   };
   const [sessionQuery, setSessionQuery] = useState('');
   const [activeSession, setActiveSession] = useState<QNoteSession | null>(null);
+  // 사이클 N+14 — visibility 변경 모달 + 에러 표시
+  const [visibilityModalOpen, setVisibilityModalOpen] = useState(false);
+  const [visibilityError, setVisibilityError] = useState<string | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
     if (typeof window !== 'undefined') return window.innerWidth < 900;
     return false;
@@ -2248,6 +2254,15 @@ const QNotePage = () => {
                 <SessionMeta>
                   <Badge>{t('page.phase.review')}</Badge>
                   <Badge>{t('page.sessionUtteranceCount', { count: activeSession.utterance_count })}</Badge>
+                  {/* 사이클 N+14 — visibility 배지. owner 만 클릭 가능 (변경 모달 트리거). */}
+                  <VisibilityBadge
+                    level={(activeSession.visibility as VLevel) || 'L1'}
+                    size="sm"
+                    onClick={String(activeSession.user_id) === String(user?.id) ? () => setVisibilityModalOpen(true) : undefined}
+                  />
+                  {visibilityError && (
+                    <span style={{ fontSize: 11, color: '#B91C1C' }}>{visibilityError}</span>
+                  )}
                 </SessionMeta>
               </HeaderLeft>
               <HeaderRight>
@@ -2333,6 +2348,30 @@ const QNotePage = () => {
         onClose={() => { setShowStartModal(false); setEditingSession(false); }}
         onStart={handleSaveSessionEdit}
       />
+      {/* 사이클 N+14 — visibility 변경 모달 (통합 컴포넌트 사용) */}
+      {activeSession && (
+        <VisibilityChangeModal
+          open={visibilityModalOpen}
+          current={(activeSession.visibility as VLevel) || 'L1'}
+          canChooseL2={!!activeSession.project_id}
+          projects={[]}
+          onConfirm={async ({ level }) => {
+            setVisibilityError(null);
+            try {
+              const updated = await changeSessionVisibility(activeSession.id, { visibility: level });
+              setActiveSession(updated);
+              setSessions((prev) => prev.map((s) => (s.id === updated.id ? { ...s, visibility: updated.visibility, project_id: updated.project_id } : s)));
+            } catch (e) {
+              // status=recording / external_consent_required 등 backend 에러
+              const msg = (e as Error).message;
+              setVisibilityError(msg);
+              console.warn('[visibility]', msg);
+              throw e; // VisibilityChangeModal 이 닫히지 않게 (사용자가 에러 보고 재시도 가능)
+            }
+          }}
+          onClose={() => { setVisibilityModalOpen(false); setVisibilityError(null); }}
+        />
+      )}
     </Layout>
   );
 };

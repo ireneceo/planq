@@ -16,8 +16,9 @@ import { useAuth, apiFetch } from '../../contexts/AuthContext';
 import PageShell from '../../components/Layout/PageShell';
 import EmptyState from '../../components/Common/EmptyState';
 
-type Tab = 'dashboard' | 'posts' | 'files' | 'kb';
-const TABS: Tab[] = ['dashboard', 'posts', 'files', 'kb'];
+// 사이클 N+14 — Q note (notes) 탭 추가
+type Tab = 'dashboard' | 'posts' | 'files' | 'kb' | 'notes';
+const TABS: Tab[] = ['dashboard', 'posts', 'files', 'kb', 'notes'];
 
 interface VaultFile {
   id: number; file_name: string; mime_type: string; file_size: number; created_at: string;
@@ -28,6 +29,11 @@ interface VaultPost {
 }
 interface VaultKb {
   id: number; title: string; source_type: string; body: string | null; created_at: string; updated_at: string;
+}
+interface VaultSession {
+  id: number; title: string; status: string; visibility: string;
+  duration_seconds: number; utterance_count: number;
+  created_at: string; updated_at: string;
 }
 
 const PersonalVaultPage: React.FC = () => {
@@ -63,6 +69,7 @@ const PersonalVaultPage: React.FC = () => {
   const [posts, setPosts] = useState<VaultPost[] | null>(null);
   const [files, setFiles] = useState<VaultFile[] | null>(null);
   const [kbs, setKbs] = useState<VaultKb[] | null>(null);
+  const [sessions, setSessions] = useState<VaultSession[] | null>(null);
   const [loading, setLoading] = useState(false);
 
   // 탭 진입 시 데이터 로드
@@ -88,6 +95,10 @@ const PersonalVaultPage: React.FC = () => {
           const r = await apiFetch(`/api/personal-vault/${businessId}/kb-documents`);
           const j = await r.json();
           if (!cancelled && j.success) setKbs(j.data);
+        } else if (tab === 'notes' && !sessions) {
+          const r = await apiFetch(`/api/personal-vault/${businessId}/sessions`);
+          const j = await r.json();
+          if (!cancelled && j.success) setSessions(j.data);
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -95,7 +106,7 @@ const PersonalVaultPage: React.FC = () => {
     };
     load();
     return () => { cancelled = true; };
-  }, [tab, businessId, summary, posts, files, kbs]);
+  }, [tab, businessId, summary, posts, files, kbs, sessions]);
 
   return (
     <PageShell title={t('layout:nav.personalVault', '개인 보관함') as string}>
@@ -128,7 +139,7 @@ const PersonalVaultPage: React.FC = () => {
           <TabBtn key={k} type="button" role="tab" aria-selected={tab === k}
             $active={tab === k} onClick={() => setTabSync(k)}>
             {t(`common:vault.tab.${k}`, {
-              defaultValue: { dashboard: '대시보드', posts: '문서', files: '파일', kb: '지식' }[k]
+              defaultValue: { dashboard: '대시보드', posts: '문서', files: '파일', kb: '정보', notes: '노트' }[k]
             }) as string}
           </TabBtn>
         ))}
@@ -233,12 +244,30 @@ const PersonalVaultPage: React.FC = () => {
       {tab === 'kb' && kbs && (
         <ListWrap>
           {kbs.length === 0 ? (
-            <EmptyState title={t('common:vault.empty.kb', '개인 지식 없음') as string}
-              description={t('common:vault.empty.kbBody', { defaultValue: 'Q info 에서 \\u0027개인\\u0027 으로 저장한 지식이 여기에 모입니다.' }) as string} />
+            <EmptyState title={t('common:vault.empty.kb', '개인 정보 없음') as string}
+              description={t('common:vault.empty.kbBody', { defaultValue: 'Q info 에서 \\u0027개인\\u0027 으로 저장한 정보가 여기에 모입니다.' }) as string} />
           ) : kbs.map(k => (
             <Card key={k.id} onClick={() => navigate(`/info?doc=${k.id}`)}>
               <CardTitle>{k.title}</CardTitle>
               <CardMeta>{k.source_type}</CardMeta>
+            </Card>
+          ))}
+        </ListWrap>
+      )}
+
+      {tab === 'notes' && sessions && (
+        <ListWrap>
+          {sessions.length === 0 ? (
+            <EmptyState title={t('common:vault.empty.notes', '개인 노트 없음') as string}
+              description={t('common:vault.empty.notesBody', { defaultValue: 'Q note 에서 만든 회의 메모·녹음·트랜스크립트가 여기에 모입니다.' }) as string} />
+          ) : sessions.map(s => (
+            <Card key={s.id} onClick={() => navigate(`/notes?session=${s.id}`)}>
+              <CardTitle>{s.title}</CardTitle>
+              <CardMeta>
+                {s.status === 'recording' ? '녹음 중' : s.status === 'completed' ? '완료' : s.status}
+                {s.utterance_count > 0 && ` · 발화 ${s.utterance_count}`}
+                {s.duration_seconds > 0 && ` · ${Math.round(s.duration_seconds / 60)}분`}
+              </CardMeta>
             </Card>
           ))}
         </ListWrap>

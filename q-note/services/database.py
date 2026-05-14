@@ -112,6 +112,26 @@ async def _run_migrations(db):
     if not await _column_exists(db, 'sessions', col):
       await db.execute(f"ALTER TABLE sessions ADD COLUMN {col} {typ}")
 
+  # sessions: visibility 4단계 (사이클 N+14) — Q Note 공유 정책
+  #   L1 (개인) — owner 만, 기본값. 옛 row 호환.
+  #   L2 (팀 비공개) — project_id 의 멤버. project_id 필요.
+  #   L3 (워크스페이스) — same business 멤버.
+  #   L4 (외부) — share_token 발급, public.
+  # share 활성화 조건: status='ended' + (외부 참석자 있으면 shared_consent=1)
+  session_share_cols = [
+    ('visibility', "TEXT NOT NULL DEFAULT 'L1'"),
+    ('project_id', 'INTEGER'),  # MySQL projects 참조 (soft ref, FK 불가)
+    ('share_token', 'TEXT'),
+    ('shared_at', 'TEXT'),
+    ('share_expires_at', 'TEXT'),
+    ('shared_consent', 'INTEGER NOT NULL DEFAULT 0'),
+  ]
+  for col, typ in session_share_cols:
+    if not await _column_exists(db, 'sessions', col):
+      await db.execute(f"ALTER TABLE sessions ADD COLUMN {col} {typ}")
+  await db.execute("CREATE INDEX IF NOT EXISTS idx_sessions_visibility ON sessions(business_id, visibility)")
+  await db.execute("CREATE INDEX IF NOT EXISTS idx_sessions_share_token ON sessions(share_token) WHERE share_token IS NOT NULL")
+
   # qa_pairs: 임베딩 + priority 플래그 + 1문장 답변 + 키워드
   qa_extra_cols = [
     ('embedding', 'BLOB'),              # OpenAI text-embedding-3-small (1536 × float32)

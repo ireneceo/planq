@@ -93,6 +93,46 @@ export interface QNoteSession {
   meeting_answer_length?: string | null;
   keywords?: string[] | null;
   recorder_lock?: { active: boolean; heartbeat_at: string | null } | null;
+  // 사이클 N+14 — visibility 4단계 (L1/L2/L3/L4)
+  visibility?: 'L1' | 'L2' | 'L3' | 'L4' | null;
+  project_id?: number | null;
+  share_token?: string | null;
+  shared_at?: string | null;
+  shared_consent?: number | null;
+}
+
+// visibility 변경 API
+export async function changeSessionVisibility(
+  sessionId: number,
+  body: { visibility: 'L1' | 'L2' | 'L3'; project_id?: number; shared_consent?: boolean }
+): Promise<QNoteSession> {
+  const res = await fetch(`/api/sessions/${sessionId}/visibility`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getAccessToken()}` },
+    body: JSON.stringify(body),
+  });
+  const j = await res.json();
+  if (!j.success) throw new Error(j.message || j.detail || 'visibility_change_failed');
+  return j.data;
+}
+
+export async function createSessionShareToken(sessionId: number): Promise<{ share_token: string }> {
+  const res = await fetch(`/api/sessions/${sessionId}/share`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${getAccessToken()}` },
+  });
+  const j = await res.json();
+  if (!j.success) throw new Error(j.message || j.detail || 'share_failed');
+  return j.data;
+}
+
+export async function revokeSessionShareToken(sessionId: number): Promise<void> {
+  const res = await fetch(`/api/sessions/${sessionId}/share`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${getAccessToken()}` },
+  });
+  const j = await res.json();
+  if (!j.success) throw new Error(j.message || j.detail || 'revoke_failed');
 }
 
 export interface RecorderLockError extends Error {

@@ -198,8 +198,8 @@
   "actions": {
     "print": "PDF / Print (choose 'Save as PDF' as destination to download)",
     "saveAsTemplate": "Save as template",
-    "sendToKnowledge": "Send to Q knowledge — Cue will reference it",
-    "sendToKnowledgeOk": "Added to Q knowledge — Cue will use it after indexing",
+    "sendToKnowledge": "Send to Q info — Cue will reference it",
+    "sendToKnowledgeOk": "Added to Q info — Cue will use it after indexing",
     "sendToKnowledgeErr": "Add failed: {{msg}}"
   },
   "project": {

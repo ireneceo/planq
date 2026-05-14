@@ -306,6 +306,8 @@ app.use('/api/weekly-reviews', require('./routes/weekly_reviews'));
 app.use('/api/share', require('./routes/share'));
 // 개인 보관함 — 본인 L1/private 자산 통합 (사이클 N+9)
 app.use('/api/personal-vault', require('./routes/personal_vault'));
+// Internal API — Q Note ↔ Node 통신 (사이클 N+14 visibility 검사)
+app.use('/api/internal', require('./routes/internal'));
 
 // Error handler
 app.use(errorHandler);
