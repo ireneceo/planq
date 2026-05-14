@@ -69,11 +69,13 @@
     "attendees": "Attendees",
     "attendeesEmpty": "No attendees yet",
     "meetingUrl": "Meeting URL",
-    "meetingUrlPlaceholder": "https://meet.daily.co/...",
+    "meetingUrlPlaceholder": "https://meet.google.com/...",
     "color": "Color",
     "colorInherit": "Inherit from project",
-    "autoCreateMeeting": "Auto-create video meeting",
-    "autoCreateMeetingHelp": "Generates a Daily.co room automatically"
+    "autoCreateMeeting": "Auto-create Google Meet",
+    "autoCreateMeetingHelp": "Creates a Google Calendar event with a Meet link automatically",
+    "gcalConnectPrompt": "Connect Google account",
+    "gcalConnectHelp": "Go to workspace settings → Cloud integrations to connect Google Calendar and enable auto Meet links"
   },
   "button": {
     "create": "Create event",

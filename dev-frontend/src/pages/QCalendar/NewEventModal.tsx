@@ -12,6 +12,7 @@ import { getVideoStatus } from '../../services/calendar';
 interface Props {
   initialStart: Date;
   projects: Array<{ id: number; name: string; color?: string | null }>;
+  businessId?: number | null;
   onClose: () => void;
   onCreate: (payload: Partial<CalendarEvent>) => void;
 }
@@ -29,7 +30,7 @@ const TIME_OPTIONS = (() => {
   return arr;
 })();
 
-const NewEventModal: React.FC<Props> = ({ initialStart, projects, onClose, onCreate }) => {
+const NewEventModal: React.FC<Props> = ({ initialStart, projects, businessId, onClose, onCreate }) => {
   const { t, i18n } = useTranslation('qcalendar');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -55,15 +56,20 @@ const NewEventModal: React.FC<Props> = ({ initialStart, projects, onClose, onCre
   const [projectId, setProjectId] = useState<number | ''>('');
   const [meetingUrl, setMeetingUrl] = useState('');
   const [autoCreateMeeting, setAutoCreateMeeting] = useState(false);
-  const [dailyConfigured, setDailyConfigured] = useState(false);
+  // 사이클 N+13 — Daily.co 완전 교체, Google Meet 자동 생성으로 변경
+  const [gcalConfigured, setGcalConfigured] = useState(false);
+  const [gcalConnected, setGcalConnected] = useState(false);
   const [rrule, setRrule] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    getVideoStatus()
-      .then((s) => setDailyConfigured(!!s.daily_configured))
-      .catch(() => setDailyConfigured(false));
-  }, []);
+    getVideoStatus(businessId || undefined)
+      .then((s) => {
+        setGcalConfigured(!!s.gcal_configured);
+        setGcalConnected(!!s.gcal_connected);
+      })
+      .catch(() => { setGcalConfigured(false); setGcalConnected(false); });
+  }, [businessId]);
 
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const dateTriggerRef = useRef<HTMLButtonElement>(null);
@@ -114,8 +120,11 @@ const NewEventModal: React.FC<Props> = ({ initialStart, projects, onClose, onCre
       visibility,
       project_id: projectId === '' ? null : Number(projectId),
       meeting_url: meetingUrl.trim() || null,
-      meeting_provider: meetingUrl.trim() ? (meetingUrl.includes('daily.co') ? 'daily' : 'manual') : null,
-      auto_create_meeting: autoCreateMeeting && dailyConfigured,
+      // 사이클 N+13 — daily.co URL 매핑 제거. 자동 생성은 google_meet, 수동 입력은 manual.
+      meeting_provider: autoCreateMeeting && gcalConnected
+        ? 'google_meet'
+        : (meetingUrl.trim() ? 'manual' : null),
+      auto_create_meeting: autoCreateMeeting && gcalConnected,
       rrule,
     } as unknown as Partial<CalendarEvent>);
   };
@@ -259,7 +268,9 @@ const NewEventModal: React.FC<Props> = ({ initialStart, projects, onClose, onCre
 
           <Field>
             <Label>{t('form.meetingUrl')}</Label>
-            {dailyConfigured && (
+            {/* Google Meet 자동 생성 — 워크스페이스가 Google Calendar 연결되어 있을 때만 노출.
+                연결 안 됨 + 서버 OAuth 설정은 정상 → "Google 계정 연결하기" CTA 안내. */}
+            {gcalConnected && (
               <AutoMeetingRow>
                 <CheckboxLabel>
                   <input
@@ -272,6 +283,14 @@ const NewEventModal: React.FC<Props> = ({ initialStart, projects, onClose, onCre
                     <small>{t('form.autoCreateMeetingHelp')}</small>
                   </AutoMeetingText>
                 </CheckboxLabel>
+              </AutoMeetingRow>
+            )}
+            {!gcalConnected && gcalConfigured && (
+              <AutoMeetingRow as="a" href="/business/settings/storage" style={{ textDecoration: 'none', cursor: 'pointer' }}>
+                <AutoMeetingText>
+                  <strong>{t('form.gcalConnectPrompt')}</strong>
+                  <small>{t('form.gcalConnectHelp')}</small>
+                </AutoMeetingText>
               </AutoMeetingRow>
             )}
             <Input

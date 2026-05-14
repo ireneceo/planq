@@ -59,8 +59,16 @@ export async function deleteEvent(bizId: number, id: number): Promise<void> {
   await handle<unknown>(res);
 }
 
-export async function getVideoStatus(): Promise<{ daily_configured: boolean }> {
-  const res = await apiFetch('/api/calendar/video/status');
+// 사이클 N+13 — Daily.co 완전 교체, Google Meet (Google Calendar API) 채택.
+// gcal_configured  서버 .env 에 Google OAuth credentials 있는지 (전역)
+// gcal_connected   해당 워크스페이스가 Google Calendar OAuth 완료했는지
+export async function getVideoStatus(bizId?: number): Promise<{
+  gcal_configured: boolean;
+  gcal_connected: boolean;
+  account_email: string | null;
+}> {
+  const qs = bizId ? `?business_id=${bizId}` : '';
+  const res = await apiFetch(`/api/calendar/video/status${qs}`);
   return handle(res);
 }
 

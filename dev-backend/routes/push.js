@@ -15,10 +15,42 @@ const express = require('express');
 const router = express.Router();
 const rateLimit = require('express-rate-limit');
 const { ipKeyGenerator } = require('express-rate-limit');
+const { Op } = require('sequelize');
 const { authenticateToken } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const { PushSubscription } = require('../models');
 const { getPublicKey, sendPushToUser } = require('../services/push_service');
+
+// 같은 user 의 같은 push service host (web.push.apple.com / fcm.googleapis.com / ...) 의
+// 다른 active sub 들 만료. 한 사용자가 한 host 당 active 1개만 유지.
+// 시나리오: iOS Safari 가 갱신 시점에 새 endpoint 발급할 때 옛 endpoint 가 active 로 남아
+//           같이 발송되어 OS 가 silent drop 하던 회귀 (사이클 N+13 박제).
+// 다른 host (FCM vs Apple) 는 별개로 둠 — 한 사람이 Mac Chrome + iPhone Safari 동시 사용 OK.
+function endpointHostOf(rawUrl) {
+  try { return new URL(rawUrl).hostname.toLowerCase(); } catch { return null; }
+}
+async function expireSameHostZombies(userId, newEndpoint, keepId) {
+  const host = endpointHostOf(newEndpoint);
+  if (!host) return 0;
+  const peers = await PushSubscription.findAll({
+    where: {
+      user_id: userId,
+      expired_at: null,
+      ...(keepId ? { id: { [Op.ne]: keepId } } : {}),
+    },
+  });
+  let n = 0;
+  for (const p of peers) {
+    if (endpointHostOf(p.endpoint) === host) {
+      await p.update({
+        endpoint: `expired:${p.id}:${p.endpoint}`.slice(0, 500),
+        expired_at: new Date(),
+      });
+      n++;
+    }
+  }
+  return n;
+}
 
 // 외부 점검 반영 — 알려진 push service 도메인 화이트리스트
 // (Chromium / FCM / Mozilla / Apple / Microsoft Edge)
@@ -92,7 +124,11 @@ router.post('/subscribe', authenticateToken, async (req, res, next) => {
           user_agent: user_agent || existing.user_agent,
           expired_at: null, last_used_at: new Date(),
         });
-        return successResponse(res, { id: existing.id, updated: true });
+        // 같은 host 의 옛 active sub 들 (다른 endpoint) 자동 정리.
+        // 사이클 N+13 — iOS Safari endpoint 갱신 시 옛 sub 가 active 로 남아
+        //   같이 발송되고 OS 가 silent drop 하던 회귀 차단.
+        const zombies = await expireSameHostZombies(req.user.id, endpoint, existing.id);
+        return successResponse(res, { id: existing.id, updated: true, zombies_expired: zombies });
       }
       // 다른 user — 옛 row 는 expired 마크 (감사 기록 보존). PushSubscription endpoint unique 라
       // 옛 row 의 endpoint 를 unique 해소 위해 prefix 변경.
@@ -109,7 +145,9 @@ router.post('/subscribe', authenticateToken, async (req, res, next) => {
       user_agent: user_agent || null,
       last_used_at: new Date(),
     });
-    return successResponse(res, { id: row.id, created: true }, 'subscribed', 201);
+    // 새 sub 등록 — 같은 host 의 옛 active sub 들 자동 만료.
+    const zombies = await expireSameHostZombies(req.user.id, endpoint, row.id);
+    return successResponse(res, { id: row.id, created: true, zombies_expired: zombies }, 'subscribed', 201);
   } catch (e) { next(e); }
 });
 

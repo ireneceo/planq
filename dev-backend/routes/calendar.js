@@ -11,13 +11,16 @@ const { authenticateToken, checkBusinessAccess } = require('../middleware/auth')
 const { attachWorkspaceScope, isMemberOrAbove, getUserScope } = require('../middleware/access_scope');
 const { createAuditLog } = require('../middleware/audit');
 const { RRule, rrulestr } = require('rrule');
-const dailyService = require('../services/daily');
+// 사이클 N+13: Daily.co 완전 교체 → Google Calendar API (Meet 자동 생성)
+const gcal = require('../services/google_calendar');
 const crypto = require('crypto');
 const { Business } = require('../models');
 
 const HEX_RE = /^#[0-9A-Fa-f]{6}$/;
 const CATEGORY_SET = new Set(['personal', 'work', 'meeting', 'deadline', 'other']);
-const PROVIDER_SET = new Set(['daily', 'manual']);
+// google_meet = Google Calendar API 로 자동 발급
+// manual      = 사용자가 직접 회의실 URL 입력
+const PROVIDER_SET = new Set(['google_meet', 'manual']);
 const VISIBILITY_SET = new Set(['personal', 'business']);
 const RESPONSE_SET = new Set(['pending', 'accepted', 'declined', 'tentative']);
 
@@ -197,17 +200,33 @@ router.post('/by-business/:businessId', authenticateToken, checkBusinessAccess, 
       projectId = prj.id;
     }
 
-    // Daily.co 회의실 자동 생성 — auto_create_meeting 옵션 시
+    // Google Meet 자동 생성 — auto_create_meeting 옵션 시
+    // 워크스페이스에 Google Calendar 연동 (BusinessCloudToken provider='gcal') 있어야 발급 가능.
+    // 미연결 시 errorResponse 'gcal_not_connected' 로 frontend 가 연결 CTA 표시.
     let finalMeetingUrl = meeting_url?.trim() || null;
     let finalMeetingProvider = PROVIDER_SET.has(meeting_provider) ? meeting_provider : null;
-    if (auto_create_meeting && dailyService.isConfigured()) {
-      const room = await dailyService.createRoom({
-        namePrefix: title.trim().slice(0, 30),
-        expiresAt: new Date(ed.getTime() + 60 * 60 * 1000), // 미팅 종료 1시간 후
-      });
-      if (room) {
-        finalMeetingUrl = room.url;
-        finalMeetingProvider = 'daily';
+    if (auto_create_meeting) {
+      const gcalToken = await gcal.getTokenForBusiness(businessId);
+      if (!gcalToken) {
+        await t.rollback();
+        return errorResponse(res, 'gcal_not_connected', 400);
+      }
+      try {
+        const cal = await gcal.getCalendarClient(gcalToken);
+        const meeting = await gcal.createMeetingEvent(cal, {
+          summary: title.trim(),
+          description: description?.trim() || null,
+          startAt: sd,
+          endAt: ed,
+        });
+        if (meeting?.meetUrl) {
+          finalMeetingUrl = meeting.meetUrl;
+          finalMeetingProvider = 'google_meet';
+        }
+      } catch (e) {
+        console.error('[gcal createMeetingEvent]', e.message);
+        await t.rollback();
+        return errorResponse(res, 'gcal_meeting_create_failed', 502);
       }
     }
 
@@ -536,14 +555,31 @@ router.put('/by-business/:businessId/:id/attendees/:attendeeId', authenticateTok
 });
 
 // ============================================
-// GET /video/status — Daily.co 구성 여부 (프론트 UI 토글 제어용)
+// GET /video/status — Google Calendar 연동 상태 (프론트 UI 토글 제어용)
+//   응답: { gcal_configured: 서버 .env 에 Google OAuth credentials 있는지,
+//           gcal_connected:  업로드한 워크스페이스가 OAuth 완료했는지 }
+// 사이클 N+13 — Daily.co 완전 교체. 기존 daily_configured 응답 키는 제거.
 // ============================================
-router.get('/video/status', authenticateToken, (req, res) => {
-  return successResponse(res, { daily_configured: dailyService.isConfigured() });
+router.get('/video/status', authenticateToken, async (req, res, next) => {
+  try {
+    const businessId = req.query.business_id ? Number(req.query.business_id) : null;
+    const configured = gcal.isConfigured();
+    let connected = false;
+    let accountEmail = null;
+    if (businessId && configured) {
+      const tk = await gcal.getTokenForBusiness(businessId);
+      if (tk) { connected = true; accountEmail = tk.account_email; }
+    }
+    return successResponse(res, {
+      gcal_configured: configured,
+      gcal_connected: connected,
+      account_email: accountEmail,
+    });
+  } catch (err) { next(err); }
 });
 
 // ============================================
-// POST /by-business/:businessId/:id/meeting — 기존 이벤트에 Daily.co 회의실 자동 생성
+// POST /by-business/:businessId/:id/meeting — 기존 이벤트에 Google Meet 회의실 자동 생성
 // ============================================
 router.post('/by-business/:businessId/:id/meeting', authenticateToken, checkBusinessAccess, async (req, res, next) => {
   try {
@@ -556,15 +592,25 @@ router.post('/by-business/:businessId/:id/meeting', authenticateToken, checkBusi
     if (event.created_by !== req.user.id && bm.role !== 'owner') {
       return errorResponse(res, 'only_creator_or_owner', 403);
     }
-    if (!dailyService.isConfigured()) return errorResponse(res, 'daily_not_configured', 503);
+    const gcalToken = await gcal.getTokenForBusiness(businessId);
+    if (!gcalToken) return errorResponse(res, 'gcal_not_connected', 400);
 
-    const room = await dailyService.createRoom({
-      namePrefix: event.title.slice(0, 30),
-      expiresAt: new Date(new Date(event.end_at).getTime() + 60 * 60 * 1000),
-    });
-    if (!room) return errorResponse(res, 'room_creation_failed', 502);
+    let meeting;
+    try {
+      const cal = await gcal.getCalendarClient(gcalToken);
+      meeting = await gcal.createMeetingEvent(cal, {
+        summary: event.title,
+        description: event.description,
+        startAt: event.start_at,
+        endAt: event.end_at,
+      });
+    } catch (e) {
+      console.error('[gcal /:id/meeting]', e.message);
+      return errorResponse(res, 'gcal_meeting_create_failed', 502);
+    }
+    if (!meeting?.meetUrl) return errorResponse(res, 'meet_url_not_returned', 502);
 
-    await event.update({ meeting_url: room.url, meeting_provider: 'daily' });
+    await event.update({ meeting_url: meeting.meetUrl, meeting_provider: 'google_meet' });
 
     await createAuditLog({
       user_id: req.user.id,
@@ -572,7 +618,7 @@ router.post('/by-business/:businessId/:id/meeting', authenticateToken, checkBusi
       action: 'event.meeting_created',
       target_type: 'calendar_event',
       target_id: event.id,
-      new_value: { meeting_url: room.url, meeting_provider: 'daily' },
+      new_value: { meeting_url: meeting.meetUrl, meeting_provider: 'google_meet' },
       ip_address: req.ip,
     });
 

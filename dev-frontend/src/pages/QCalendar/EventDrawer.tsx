@@ -14,17 +14,17 @@ interface Props {
   onUpdate: (patch: Partial<CalendarEvent>) => void;
   onDelete: () => void;
   onCreateMeetingRoom?: () => Promise<void>;
-  dailyConfigured?: boolean;
+  // 사이클 N+13: Daily.co → Google Meet 교체. 워크스페이스의 Google Calendar 연동 여부
+  gcalConnected?: boolean;
 }
 
-const EventDrawer: React.FC<Props> = ({ event, onClose, onUpdate, onDelete, onCreateMeetingRoom, dailyConfigured }) => {
+const EventDrawer: React.FC<Props> = ({ event, onClose, onUpdate, onDelete, onCreateMeetingRoom, gcalConnected }) => {
   const { t } = useTranslation('qcalendar');
   // formatRRuleLabel 은 qtask 네임스페이스의 recur.* 키 (이미 풀세트 자산) 를 사용.
   // utils 가 i18n 네임스페이스 비종속이도록 t 를 외부에서 주입받는 패턴.
   const { t: tQtask } = useTranslation('qtask');
   const [copied, setCopied] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const [embedOpen, setEmbedOpen] = useState(false);
   const [creatingRoom, setCreatingRoom] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
 
@@ -123,11 +123,8 @@ const EventDrawer: React.FC<Props> = ({ event, onClose, onUpdate, onDelete, onCr
               <SectionBody>
                 <MutedSmall>{t('drawer.meeting')}</MutedSmall>
                 <MeetingActions>
-                  {event.meeting_provider === 'daily' && (
-                    <JoinBtn as="button" type="button" onClick={() => setEmbedOpen((x) => !x)}>
-                      {embedOpen ? t('drawer.closeEmbed') : t('drawer.openInEmbed')}
-                    </JoinBtn>
-                  )}
+                  {/* Google Meet 는 X-Frame-Options 로 iframe embed 불가 — 외부 링크만 사용.
+                      옛 daily.co iframe embed 분기는 제거 (사이클 N+13). */}
                   <CopyBtn as="a" href={event.meeting_url} target="_blank" rel="noreferrer">
                     {t('drawer.joinMeeting')} ↗
                   </CopyBtn>
@@ -135,20 +132,10 @@ const EventDrawer: React.FC<Props> = ({ event, onClose, onUpdate, onDelete, onCr
                     {copied ? t('drawer.linkCopied') : t('drawer.copyLink')}
                   </CopyBtn>
                 </MeetingActions>
-                {embedOpen && event.meeting_provider === 'daily' && (
-                  <MeetingEmbed>
-                    <iframe
-                      src={event.meeting_url}
-                      title={t('drawer.meeting')}
-                      allow="camera; microphone; fullscreen; speaker; display-capture; autoplay"
-                      allowFullScreen
-                    />
-                  </MeetingEmbed>
-                )}
               </SectionBody>
             </Section>
           ) : (
-            dailyConfigured && onCreateMeetingRoom && (
+            gcalConnected && onCreateMeetingRoom && (
               <Section>
                 <SectionIcon>
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -337,12 +324,6 @@ const Description = styled.div`
   font-size: 13px; color: #334155; line-height: 1.55; white-space: pre-wrap;
 `;
 const MeetingActions = styled.div` display: flex; gap: 6px; margin-top: 4px; flex-wrap: wrap; `;
-const MeetingEmbed = styled.div`
-  margin-top: 10px;
-  width: 100%; aspect-ratio: 16/10; border-radius: 10px; overflow: hidden;
-  background: #0F172A; border: 1px solid #E2E8F0;
-  iframe { width: 100%; height: 100%; border: 0; }
-`;
 const CreateRoomBtn = styled.button`
   margin-top: 4px;
   display: inline-flex; align-items: center; gap: 6px;
@@ -350,12 +331,6 @@ const CreateRoomBtn = styled.button`
   background: #14B8A6; color: #fff; border: none; cursor: pointer;
   &:hover:not(:disabled) { background: #0F766E; }
   &:disabled { background: #CBD5E1; cursor: not-allowed; }
-`;
-const JoinBtn = styled.a`
-  display: inline-flex; align-items: center; padding: 7px 12px; border-radius: 6px;
-  background: #14B8A6; color: #fff; font-size: 12px; font-weight: 600;
-  text-decoration: none;
-  &:hover { background: #0F766E; }
 `;
 const CopyBtn = styled.button`
   display: inline-flex; align-items: center; padding: 7px 12px; border-radius: 6px;

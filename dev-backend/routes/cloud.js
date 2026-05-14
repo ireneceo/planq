@@ -5,12 +5,14 @@ const { BusinessCloudToken, Business, User } = require('../models');
 const { authenticateToken, checkBusinessAccess } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const gdrive = require('../services/gdrive');
+const gcal = require('../services/google_calendar');
 
 // ─── 구성 상태 ───
 router.get('/providers', authenticateToken, async (req, res, next) => {
   try {
     successResponse(res, {
-      gdrive: { configured: gdrive.isConfigured() }
+      gdrive: { configured: gdrive.isConfigured() },
+      gcal:   { configured: gcal.isConfigured() },
     });
   } catch (error) { next(error); }
 });
@@ -123,13 +125,79 @@ router.get('/callback/gdrive', async (req, res) => {
   }
 });
 
+// ─── Google Calendar OAuth 시작 (Google Meet 자동 생성용) ───
+// 사이클 N+13: Daily.co 완전 교체. 워크스페이스 owner 가 Google 계정 1개 OAuth →
+//   그 calendar 의 events.insert 시 conferenceData.createRequest 로 Meet 링크 자동 발급.
+router.post('/connect/gcal/:businessId', authenticateToken, checkBusinessAccess, requireOwnerForCloud, async (req, res, next) => {
+  try {
+    if (!gcal.isConfigured()) return errorResponse(res, 'Google Calendar not configured on server', 500);
+    const url = gcal.buildAuthUrl(Number(req.params.businessId), req.user.id);
+    successResponse(res, { auth_url: url });
+  } catch (error) { next(error); }
+});
+
+router.get('/callback/gcal', async (req, res) => {
+  const { code, state, error: oauthError } = req.query;
+  const closeWindowHtml = (title, body) => `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${title}</title>
+    <style>body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#F8FAFC;color:#0F172A;}
+    .box{background:#fff;border:1px solid #E2E8F0;border-radius:12px;padding:28px 32px;max-width:420px;text-align:center;box-shadow:0 4px 12px rgba(15,23,42,0.06);}
+    h2{margin:0 0 8px;font-size:18px;color:#0F766E;}.err h2{color:#DC2626;}
+    p{margin:0 0 16px;font-size:13px;color:#475569;line-height:1.5;}
+    button{height:34px;padding:0 16px;background:#14B8A6;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;}
+    button:hover{background:#0D9488;}</style></head>
+    <body><div class="box ${title.includes('실패') ? 'err' : ''}">${body}<button onclick="window.close()">닫기</button></div>
+    <script>setTimeout(() => { try { window.opener && window.opener.postMessage({ type: 'gcal:connected', ok: ${!title.includes('실패')} }, '*'); } catch(e){} }, 300);</script>
+    </body></html>`;
+
+  if (oauthError) {
+    return res.status(400).send(closeWindowHtml('연동 실패', `<h2>연동 실패</h2><p>Google 에서 거부됨: ${oauthError}</p>`));
+  }
+  if (!code || !state) {
+    return res.status(400).send(closeWindowHtml('연동 실패', '<h2>연동 실패</h2><p>잘못된 요청</p>'));
+  }
+  const parsed = gcal.parseState(state);
+  if (!parsed) return res.status(400).send(closeWindowHtml('연동 실패', '<h2>연동 실패</h2><p>state 검증 실패</p>'));
+
+  try {
+    const { tokens, accountEmail } = await gcal.exchangeCodeForTokens(code);
+
+    const [record] = await BusinessCloudToken.findOrCreate({
+      where: { business_id: parsed.businessId, provider: 'gcal' },
+      defaults: {
+        business_id: parsed.businessId,
+        provider: 'gcal',
+        access_token: tokens.access_token,
+        refresh_token: tokens.refresh_token,
+        expires_at: tokens.expiry_date ? new Date(tokens.expiry_date) : null,
+        scope: tokens.scope,
+        account_email: accountEmail,
+        connected_by: parsed.userId,
+        connected_at: new Date(),
+      },
+    });
+    record.access_token = tokens.access_token;
+    if (tokens.refresh_token) record.refresh_token = tokens.refresh_token;
+    record.expires_at = tokens.expiry_date ? new Date(tokens.expiry_date) : null;
+    record.scope = tokens.scope || record.scope;
+    record.account_email = accountEmail || record.account_email;
+    record.connected_by = parsed.userId;
+    record.connected_at = new Date();
+    await record.save();
+
+    return res.send(closeWindowHtml('연동 완료', `<h2>Google Calendar 연동 완료</h2><p>계정: <strong>${accountEmail || '(확인 불가)'}</strong><br/>화상회의 시 Google Meet 링크가 자동으로 만들어집니다.</p>`));
+  } catch (e) {
+    console.error('[gcal callback]', e);
+    return res.status(500).send(closeWindowHtml('연동 실패', `<h2>연동 실패</h2><p>${e.message || '서버 오류'}</p>`));
+  }
+});
+
 // ─── 연동 해제 ───
 router.delete('/disconnect/:provider/:businessId', authenticateToken, checkBusinessAccess, requireOwnerForCloud, async (req, res, next) => {
   try {
     const { provider, businessId } = req.params;
-    if (!['gdrive'].includes(provider)) return errorResponse(res, 'unknown provider', 400);
+    if (!['gdrive', 'gcal'].includes(provider)) return errorResponse(res, 'unknown provider', 400);
     await BusinessCloudToken.destroy({ where: { business_id: businessId, provider } });
-    // 주의: 외부 클라우드의 실제 파일은 그대로 남음 (의도된 동작)
+    // 주의: 외부 클라우드의 실제 파일/이벤트는 그대로 남음 (의도된 동작)
     successResponse(res, null, 'Disconnected');
   } catch (error) { next(error); }
 });

@@ -21,13 +21,14 @@ const StorageSettings: React.FC<Props> = ({ businessId }) => {
   const { t } = useTranslation('settings');
   const tr = (k: string, fb?: string) => t(k, (fb ?? '') as string) as unknown as string;
 
-  const [providers, setProviders] = useState<{ gdrive: ProviderState }>({
-    gdrive: { configured: false, connected: false }
+  const [providers, setProviders] = useState<{ gdrive: ProviderState; gcal: ProviderState }>({
+    gdrive: { configured: false, connected: false },
+    gcal:   { configured: false, connected: false },
   });
   const [planqStatus, setPlanqStatus] = useState<StorageStatus | null>(null);
   const [loading, setLoading] = useState(true);
-  const [connecting, setConnecting] = useState<'gdrive' | null>(null);
-  const [disconnectTarget, setDisconnectTarget] = useState<'gdrive' | null>(null);
+  const [connecting, setConnecting] = useState<'gdrive' | 'gcal' | null>(null);
+  const [disconnectTarget, setDisconnectTarget] = useState<'gdrive' | 'gcal' | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -38,7 +39,8 @@ const StorageSettings: React.FC<Props> = ({ businessId }) => {
         fetchStorageStatus(businessId)
       ]);
       const next = {
-        gdrive: { configured: !!pv?.data?.gdrive?.configured, connected: !!st?.data?.gdrive, ...st?.data?.gdrive }
+        gdrive: { configured: !!pv?.data?.gdrive?.configured, connected: !!st?.data?.gdrive, ...st?.data?.gdrive },
+        gcal:   { configured: !!pv?.data?.gcal?.configured,   connected: !!st?.data?.gcal,   ...st?.data?.gcal },
       };
       setProviders(next);
       setPlanqStatus(usage);
@@ -50,7 +52,7 @@ const StorageSettings: React.FC<Props> = ({ businessId }) => {
   // OAuth 팝업 수신
   useEffect(() => {
     const onMsg = (e: MessageEvent) => {
-      if (e.data?.type === 'gdrive:connected' && e.data.ok) {
+      if ((e.data?.type === 'gdrive:connected' || e.data?.type === 'gcal:connected') && e.data.ok) {
         setConnecting(null);
         load();
       }
@@ -59,7 +61,7 @@ const StorageSettings: React.FC<Props> = ({ businessId }) => {
     return () => window.removeEventListener('message', onMsg);
   }, [load]);
 
-  const handleConnect = async (provider: 'gdrive') => {
+  const handleConnect = async (provider: 'gdrive' | 'gcal') => {
     setConnecting(provider);
     try {
       const r = await apiFetch(`/api/cloud/connect/${provider}/${businessId}`, { method: 'POST' });
@@ -73,7 +75,7 @@ const StorageSettings: React.FC<Props> = ({ businessId }) => {
       const top = (window.screen.height - h) / 2;
       // 직접 popup 참조 보관 — 이름으로 다시 찾는 window.open('', 'name') 패턴은
       // 명명창이 사라진 후 빈 새 창을 만들어내므로 절대 사용하지 않는다.
-      const popup = window.open(j.data.auth_url, 'planq-oauth', `width=${w},height=${h},left=${left},top=${top}`);
+      const popup = window.open(j.data.auth_url, `planq-oauth-${provider}`, `width=${w},height=${h},left=${left},top=${top}`);
       if (!popup) {
         // 팝업 차단됨
         setConnecting(null);
@@ -191,6 +193,42 @@ const StorageSettings: React.FC<Props> = ({ businessId }) => {
           ) : (
             <PrimaryBtn type="button" disabled={!!connecting} onClick={() => handleConnect('gdrive')}>
               {connecting === 'gdrive' ? tr('storage.connecting', '연결 중…') : tr('storage.connect', '연결하기')}
+            </PrimaryBtn>
+          )}
+        </CardActions>
+      </ProviderCard>
+
+      {/* Google Calendar — 화상회의 자동 생성용 (사이클 N+13, Daily.co 완전 교체) */}
+      <ProviderCard $active={providers.gcal.connected}>
+        <CardHead>
+          <CardIcon $bg="#DBEAFE" $fg="#1D4ED8">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+              <line x1="16" y1="2" x2="16" y2="6"/>
+              <line x1="8" y1="2" x2="8" y2="6"/>
+              <line x1="3" y1="10" x2="21" y2="10"/>
+            </svg>
+          </CardIcon>
+          <CardTitleWrap>
+            <CardTitle>{tr('storage.gcal.title', 'Google Calendar (Meet 자동 생성)')}</CardTitle>
+            <CardSub>
+              {providers.gcal.connected
+                ? `${tr('storage.connected', '연결됨')} · ${providers.gcal.account_email || ''}`
+                : tr('storage.gcal.desc', '화상 미팅 일정 만들 때 Google Meet 링크가 자동으로 발급됩니다 (calendar.events scope)')}
+            </CardSub>
+          </CardTitleWrap>
+          {providers.gcal.connected && <StatusBadge $kind="active">{tr('storage.active', '사용 중')}</StatusBadge>}
+        </CardHead>
+        <CardActions>
+          {!providers.gcal.configured ? (
+            <InlineHint>{tr('storage.gcal.notConfigured', '서버에 Google OAuth 가 설정되지 않았습니다 (.env 확인 필요)')}</InlineHint>
+          ) : providers.gcal.connected ? (
+            <DangerBtn type="button" onClick={() => setDisconnectTarget('gcal')}>
+              {tr('storage.disconnect', '연결 해제')}
+            </DangerBtn>
+          ) : (
+            <PrimaryBtn type="button" disabled={!!connecting} onClick={() => handleConnect('gcal')}>
+              {connecting === 'gcal' ? tr('storage.connecting', '연결 중…') : tr('storage.connect', '연결하기')}
             </PrimaryBtn>
           )}
         </CardActions>

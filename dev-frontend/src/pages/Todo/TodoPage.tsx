@@ -309,7 +309,7 @@ const TodoPage: React.FC = () => {
           onUpdate={handleEventUpdate}
           onDelete={handleEventDelete}
           onCreateMeetingRoom={handleEventCreateMeetingRoom}
-          dailyConfigured={false}
+          gcalConnected={false}
         />
       )}
       <FirstVisitTour

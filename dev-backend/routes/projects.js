@@ -587,6 +587,59 @@ router.post('/conversations/:id/messages', authenticateToken, async (req, res, n
       io.to(`conv:${conv.id}`).emit('message:new', full.toJSON());
     }
 
+    // ──────────────────────────────────────────────────────────────
+    // 알림 fan-out — 멘션(eventKind='mention') + 일반 새 메시지(eventKind='message')
+    // ──────────────────────────────────────────────────────────────
+    // CLAUDE.md §13 박제: 새 메시지/status 전이 라우트는 notify 호출 강제.
+    // 사이클 N+13 회귀 fix — qtalk.ts sendMessage 가 이 라우트로 발송하는데
+    // notify 누락 상태였음. 채팅 push 가 절대 안 가던 근본 원인.
+    //
+    // 보내는 사람(sender)은 제외, channel_type='customer' 가 아니면 client 도 제외.
+    // mention 된 user 는 'mention' 으로만 발송(중복 방지).
+    try {
+      const { resolveMentions } = require('../services/mention_parser');
+      const { notifyMany } = require('./notifications');
+      const biz = await Business.findByPk(conv.business_id, { attributes: ['name', 'brand_name'] });
+      const wsName = biz?.brand_name || biz?.name || null;
+      const previewBody = cleaned.length > 140 ? cleaned.slice(0, 140) + '…' : cleaned;
+      const link = `${process.env.APP_URL || 'https://dev.planq.kr'}/talk?conv=${conv.id}`;
+      const senderUser = await User.findByPk(req.user.id, { attributes: ['name'] });
+      const senderName = senderUser?.name || 'PlanQ';
+      const convTitle = conv.title || conv.display_name || '대화';
+
+      const mentioned = cleaned ? await resolveMentions(cleaned, conv.business_id, req.user.id) : [];
+
+      // 참여자: sender 제외. client 는 채널이 customer 일 때만 (internal 채널은 client 비참여)
+      const participants = await ConversationParticipant.findAll({
+        where: { conversation_id: conv.id, user_id: { [Op.ne]: req.user.id } },
+        attributes: ['user_id', 'role'],
+      });
+      let recipientIds = participants.map((p) => p.user_id);
+      if (conv.channel_type !== 'customer') {
+        const clientParts = participants.filter((p) => p.role === 'client').map((p) => p.user_id);
+        recipientIds = recipientIds.filter((id) => !clientParts.includes(id));
+      }
+      const mentionedSet = new Set(mentioned);
+      const plainRecipients = recipientIds.filter((id) => !mentionedSet.has(id));
+
+      if (mentioned.length > 0) {
+        notifyMany({
+          userIds: mentioned, businessId: conv.business_id, eventKind: 'mention',
+          title: `${senderName} 님이 ${convTitle} 에서 언급`,
+          body: previewBody, link, ctaLabel: '대화 보기', workspaceName: wsName,
+          tag: `conv:${conv.id}`,
+        }).catch((e) => console.warn('[notify mention]', e.message));
+      }
+      if (plainRecipients.length > 0) {
+        notifyMany({
+          userIds: plainRecipients, businessId: conv.business_id, eventKind: 'message',
+          title: `${senderName} · ${convTitle}`,
+          body: previewBody, link, ctaLabel: '대화 보기', workspaceName: wsName,
+          tag: `conv:${conv.id}`,
+        }).catch((e) => console.warn('[notify message]', e.message));
+      }
+    } catch (e) { console.warn('[notify message outer]', e.message); }
+
     // 비동기 번역 — 메시지 발송 응답 후 백그라운드에서 LLM 호출 + DB 업데이트 + Socket.IO push
     if (conv.translation_enabled && Array.isArray(conv.translation_languages) && (kind || 'text') === 'text') {
       setImmediate(async () => {

@@ -58,7 +58,8 @@ const QCalendarPage: React.FC = () => {
   const [projects, setProjects] = useState<ProjectOption[]>([]);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [dailyConfigured, setDailyConfigured] = useState(false);
+  // 사이클 N+13: Daily.co → Google Meet 교체. 워크스페이스가 Google Calendar 연동되어 있어야 자동 생성 가능.
+  const [gcalConnected, setGcalConnected] = useState(false);
   const today = useMemo(() => new Date(), []);
 
   // 업무 상세 드로어 (Q Task 페이지로 이동하지 않고 캘린더 위에 오버레이)
@@ -81,10 +82,11 @@ const QCalendarPage: React.FC = () => {
   const todayStr = todayInTz(wsTz);
 
   useEffect(() => {
-    getVideoStatus()
-      .then((s) => setDailyConfigured(!!s.daily_configured))
-      .catch(() => setDailyConfigured(false));
-  }, []);
+    if (!bizId) return;
+    getVideoStatus(bizId)
+      .then((s) => setGcalConnected(!!s.gcal_connected))
+      .catch(() => setGcalConnected(false));
+  }, [bizId]);
 
   // ─── 범위 조회: view + anchor 기반 ───
   const fetchRange = useCallback(async () => {
@@ -405,7 +407,7 @@ const QCalendarPage: React.FC = () => {
           onUpdate={handleUpdate}
           onDelete={handleDelete}
           onCreateMeetingRoom={handleCreateMeetingRoom}
-          dailyConfigured={dailyConfigured}
+          gcalConnected={gcalConnected}
         />
       )}
 
@@ -413,6 +415,7 @@ const QCalendarPage: React.FC = () => {
         <NewEventModal
           initialStart={newModalInitial}
           projects={projects}
+          businessId={bizId}
           onClose={() => setShowNewModal(false)}
           onCreate={handleCreate}
         />

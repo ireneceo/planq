@@ -1,14 +1,84 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-05-13 v1.7.3 (사이클 N+12 후속 — 알림 클릭 chunk 에러 자동 복구 + 채팅방 진입 스크롤 즉시화 + sw.js push/notificationclick 시점 self.registration.update() 자가 점검 + badge 진단)
+> **최종 업데이트:** 2026-05-14 사이클 N+13 dev fix 완료 + 검증 PASS — **운영 배포 대기** (사용자 `/배포` 명령 필요)
 >
-> **이전 라이브:** 2026-05-13 `e7e8420`/`78e38a8`/`793a896`/`ccc5d02` (v1.7.2 N+12, 102s deploy) / 2026-05-12 `3e2b595`/`d746d6f`/`966144e` (v1.7.1 N+11) / `5807d2f`/`da62196`/`ec85423` (v1.7.0 N+10) / `d3e7f0a` (v1.6.1 N+9 hotfix) / `eb8769a` (v1.6.0 N+9)
+> **dev 적용된 사이클 N+13:** 채팅·업무 알림 발송 trigger 누락 회귀 fix (routes/projects.js POST messages + routes/task_workflow.js 7 라우트 + push_service urgency/TTL + subscribe same-host 좀비 정리)
 >
-> **다음 진입 ★:** 운영 GDrive 연결 fix (irene 직접 진행 필요 — Google Console + .env 시크릿)
+> **이전 라이브:** 2026-05-13 `c96d515`/`8867807`/`d6e696f`/`ccc5d02` (v1.7.3 N+12 후속) / `e7e8420`/`78e38a8`/`793a896` (v1.7.2 N+12) / 2026-05-12 `3e2b595`/`d746d6f`/`966144e` (v1.7.1 N+11) / `5807d2f`/`da62196`/`ec85423` (v1.7.0 N+10)
 >
-> **차순위:** 청크 5 (visibility 배지 카드/행 적용 + 5중 시각 시그널) / DocsTab 카드 hover share 아이콘 / 동적 OG (backend SSR + nginx /public/* proxy) / Q note 텍스트 type + Quick Capture / Custom SMTP (Pro+) / 설문 기능 MVP (4 사이클)
+> **다음 진입 ★:** 사이클 N+13 운영 배포 (사용자 `/배포` 받으면 진행) — 채팅 push 가 단 한 번도 안 도달했던 회귀 근본 fix
+>
+> **차순위:** 운영 GDrive 연결 fix (irene 직접) / 청크 5 visibility 배지 / DocsTab share / 동적 OG / Q note 텍스트 / Custom SMTP / 설문 MVP
 >
 > **결제 정책:** 1순위 자체 결제 (계좌이체 mark-paid), 2순위 PortOne (P-7 마지막). 월결제 + 연결제. Free 플랜 폐지 — 신규 가입은 starter+trialing 14일.
+
+---
+
+## ✅ dev 완료: 사이클 N+13 — 알림 발송 trigger 누락 회귀 fix (2026-05-14)
+
+사용자 호소: "모바일에서 알림이 제대로 안와. 잘 오다가 또 안와. 채팅오면 무조건 와야 해. 업무 확인요청 들어오는 것도 와야 하고. 앱이 꺼졌든 켜졌든 오는 거 아니야? 제발 안정적이게 해줘. 알림이 제대로 안되서 고객을 초대 못하고 있어."
+
+진단 결과: **"잘 오다가 또 안와" 가 아니라 사실은 처음부터 발송이 누락된 상태.** 5/13 07:27 의 sent 는 lua 가 디바이스 알림 테스트로 직접 발송한 흔적. 실 채팅·업무 알림은 0건.
+
+### 근본 원인 (3 영역)
+
+| 영역 | 원인 | 증상 |
+|---|---|---|
+| **채팅** | `routes/projects.js:551` POST `/conversations/:id/messages` 에 notify 호출 0건. frontend `qtalk.ts:394 sendMessage` 가 이 라우트로 발송. `routes/conversations.js:401` 의 다른 메시지 라우트엔 notify 있지만 frontend 가 호출 안 함 = dead code | 채팅 push 가 단 한 번도 안 도달 |
+| **업무 확인요청** | `routes/task_workflow.js` 7 라우트 모두 notify 호출 0건. status 를 직접 변경하므로 `routes/tasks.js` PUT 의 status 알림 분기 안 거침 | 확인요청·수정요청·완료 알림 0 |
+| **PushSubscription 좀비** | iOS Safari endpoint 갱신 시 옛 sub 가 `expired_at NULL` 그대로 → fan-out → Apple silent drop | 운영 irene iPhone sub 3개 active. "한 번은 오고 한 번은 안 오는" 변동성 |
+
+### fix 3 영역 + 인프라 강화
+
+1. **`routes/projects.js`** POST `/conversations/:id/messages` 에 mention + message notifyMany 추가. `routes/conversations.js` 패턴 복사 (sender 자동 제외, internal 채널은 client 제외, mention 분리해 중복 방지).
+2. **`routes/task_workflow.js`** 7 라우트 notify 추가:
+   - `ack` → 요청자 ("담당자가 요청을 확인했습니다")
+   - `submit-review` → reviewers ("업무 검토 요청")
+   - `cancel-review` → reviewers ("검토 요청이 취소되었습니다")
+   - `approve` → completed 면 요청자 ("요청한 업무 완료"), 아니면 담당자 ("컨펌자가 승인했습니다")
+   - `revision` → 담당자 ("업무 수정 요청") + note 본문
+   - `complete` → 요청자 ("업무 완료")
+   - `reviewers POST` → 새 reviewer (라운드 중이면 "검토 요청", 아니면 "컨펌자로 추가")
+   - 공통 헬퍼 `notifyTask` / `notifyTaskMany` / `buildTaskLink` / `workspaceName` 신설
+3. **`routes/push.js`** POST `/subscribe` 에 `expireSameHostZombies(userId, newEndpoint, keepId)` 헬퍼 — 같은 user × 같은 push service host (`web.push.apple.com` / `fcm.googleapis.com` / ...) 의 옛 active sub 자동 만료. 한 host 당 active 1개. 다른 host 는 별개 (Mac Chrome + iPhone Safari 동시 OK). unique 제약 해소 위해 옛 row 의 endpoint 를 `'expired:<id>:<원본>'` prefix 변경.
+4. **`services/push_service.js`** `webpush.sendNotification` 에 `TTL: 86400, urgency: 'high'` 옵션 — RFC 8030 immediate delivery. topic 의도적 비활성 (collapse 안 시키고 모든 메시지 도착).
+
+### 검증 (실 API 5/5 PASS, node test 스크립트)
+
+| 시나리오 | 검증 | 결과 |
+|---|---|---|
+| [1] 채팅 메시지 push trigger | login owner → POST messages → sleep 3s → PushLog row `김오너 · notify-test-...` | ✓ PASS |
+| [2] submit-review reviewer push | reviewer 추가 + submit → PushLog `'업무 검토 요청'` | ✓ PASS |
+| [3] revision 담당자 push | reviewer revision → PushLog `'업무 수정 요청'` | ✓ PASS |
+| [4] approve completed 요청자 push | reviewer approve all → recalc completed → PushLog `'요청한 업무가 완료되었습니다'` | ✓ PASS |
+| [5] same-host 좀비 sub 자동 정리 | owner 가 같은 host 의 새 endpoint 등록 → 옛 sub 1개 자동 expired | ✓ PASS |
+
+(검증 가짜 endpoint 라 `'Public key is not valid for specified curve'` 로 failed — trigger 자체는 정상 호출됨이 입증. 운영에선 실 endpoint 라 sent code=201)
+
+### 변경 파일 (백엔드만, DB 변경 없음)
+
+| 파일 | 변경 |
+|---|---|
+| `routes/projects.js` | notifyMany 추가 (mention + message) — 60줄 |
+| `routes/task_workflow.js` | 7 라우트 notify + 4 헬퍼 — 110줄 |
+| `routes/push.js` | `expireSameHostZombies` + subscribe 두 분기 호출 — 30줄 |
+| `services/push_service.js` | TTL + urgency 옵션 — 5줄 |
+| `CLAUDE.md` | §13~§15 신규 회귀 패턴 박제 |
+| `MEMORY.md` + 2 신규 메모리 | feedback_notify_trigger_required.md / feedback_push_same_host_zombie.md |
+
+### 박제 (메모리 + CLAUDE.md)
+
+- `feedback_notify_trigger_required.md` — 메시지/status 전이 라우트는 notify 호출 강제
+- `feedback_push_same_host_zombie.md` — PushSubscription 같은 host 좀비 자동 만료
+- CLAUDE.md §13 notify 호출 강제 / §14 좀비 자동 만료 / §15 urgency 'high' + TTL 1일
+
+### 운영 배포 (사용자 `/배포` 명령 받으면)
+
+1. version bump v1.7.3 → v1.8.0 (minor — 알림 정상화는 의미 있는 기능 회복)
+2. commit + push
+3. `dev/scripts/deploy-planq.sh` 실행
+4. 운영 https://planq.kr 헬스체크 + 직접 채팅 메시지 1건 → 운영 PushLog 'sent' code=201 확인
+5. (선택) 운영 좀비 sub 명시적 cleanup — 사용자 승인 후 한 번만
 
 ---
 
