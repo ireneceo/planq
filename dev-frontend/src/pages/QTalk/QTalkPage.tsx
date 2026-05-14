@@ -1124,9 +1124,12 @@ const QTalkPage: React.FC = () => {
       ? candidates.filter((c) => c.conversation_id === activeConversationId && c.status === 'pending')
       : [];
 
-  if (!businessId) return <Empty>{t('page.noBusiness', '워크스페이스가 선택되지 않았습니다.')}</Empty>;
-  if (loading) return <Empty>{t('page.loading', '프로젝트 로드 중...')}</Empty>;
-  if (loadError) return <Empty>{t('page.loadFailed', { msg: loadError })}</Empty>;
+  if (!businessId) return <Layout><CenteredHint>{t('page.noBusiness', '워크스페이스가 선택되지 않았습니다.')}</CenteredHint></Layout>;
+  if (loadError) return <Layout><CenteredHint>{t('page.loadFailed', { msg: loadError })}</CenteredHint></Layout>;
+  // 사이클 N+14 후속 UX fix: loading 동안 Empty 컴포넌트 (전체화면 중앙) 사용하면
+  // Layout (100dvh + 56px 분기) 와 viewport 단위 차이로 spinner 위치가 점프. 같은 Layout
+  // wrapper 안에서 spinner 만 표시 — 알림 클릭 진입 시 시각 점프 0.
+  if (loading) return <Layout><CenteredHint><Spinner /></CenteredHint></Layout>;
 
   return (
     <Layout>
@@ -1351,13 +1354,28 @@ const QTalkPage: React.FC = () => {
 
 export default QTalkPage;
 
-const Empty = styled.div`
+// 사이클 N+14 후속 — loading/no-business/error 상태에서 Layout wrapper 안 중앙 정렬.
+// Empty 대신 사용해 viewport 단위/56px 분기 차이로 spinner 점프 회귀 차단.
+const CenteredHint = styled.div`
+  flex: 1;
   display: flex;
   align-items: center;
   justify-content: center;
-  height: calc(100vh - 56px);
   color: #64748B;
   font-size: 14px;
+  min-height: 0;
+`;
+
+const Spinner = styled.span`
+  width: 24px;
+  height: 24px;
+  border: 2px solid #E2E8F0;
+  border-top-color: #14B8A6;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
 `;
 
 const Toast = styled.div`
