@@ -23,10 +23,13 @@ CalendarEvent.init({
   color: { type: DataTypes.STRING(20), allowNull: true },
   // RFC5545 RRULE (Phase C)
   rrule: { type: DataTypes.STRING(500), allowNull: true },
-  // 화상 미팅 (Phase D)
+  // 화상 미팅 (Phase D — N+13 사이클에 Daily.co 폐지, Google Meet 채택)
+  // ENUM 에 'daily' 잔존 = 옛 row 호환 (운영에 옛 daily row 가 있을 경우).
+  //   새 row 는 'google_meet' / 'manual' 만 작성됨.
+  //   마이그레이션 후 잔존 'daily' row 가 0건이면 다음 사이클에 ENUM 정리.
   meeting_url: { type: DataTypes.STRING(500), allowNull: true },
   meeting_provider: {
-    type: DataTypes.ENUM('daily', 'manual'),
+    type: DataTypes.ENUM('google_meet', 'manual', 'daily'),
     allowNull: true,
   },
   // 공용(business) / 개인(personal) — personal 은 created_by 본인만 조회

@@ -69,11 +69,13 @@
     "attendees": "참석자",
     "attendeesEmpty": "아직 추가된 참석자가 없습니다",
     "meetingUrl": "화상 미팅 링크",
-    "meetingUrlPlaceholder": "https://meet.daily.co/...",
+    "meetingUrlPlaceholder": "https://meet.google.com/...",
     "color": "색상",
     "colorInherit": "프로젝트 색 상속",
-    "autoCreateMeeting": "화상 미팅 자동 생성",
-    "autoCreateMeetingHelp": "Daily.co 링크를 자동 생성합니다"
+    "autoCreateMeeting": "Google Meet 자동 생성",
+    "autoCreateMeetingHelp": "Google Calendar 에 일정이 만들어지면서 Meet 링크가 자동으로 발급됩니다",
+    "gcalConnectPrompt": "Google 계정 연결하기",
+    "gcalConnectHelp": "워크스페이스 설정 → 외부 연동에서 Google Calendar 를 연결하면 자동 Meet 링크를 사용할 수 있습니다"
   },
   "button": {
     "create": "일정 만들기",

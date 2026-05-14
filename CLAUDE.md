@@ -578,6 +578,12 @@ import DetailDrawer from 'components/Common/DetailDrawer';
 
 12. **useLayoutEffect 안의 layout 측정은 즉시, RAF 지연 금지 (사이클 N+12 후속)** — DOM commit 직후 layout phase 라 scrollIntoView/scrollTop 즉시 호출 가능. `requestAnimationFrame x 2` 지연 패턴은 "첫 paint 가 측정 전 위치로 그려진 뒤 2 frame 후 점프" 회귀 유발 — 사용자 입장에서 "위에 갔다 옴". 비동기 콘텐츠 (이미지·번역 박스) 보정만 후속 1 RAF + ResizeObserver 로 별도 처리. ChatPanel `scrollToBottom` 패턴 참조.
 
+13. **메시지/status 전이 라우트는 notify 호출 강제 (사이클 N+13 박제)** — 새 메시지 발송 라우트, status 전이 라우트, reviewer/assignee 변경 라우트는 **반드시 `routes/notifications.js` 의 `notify` / `notifyMany` 호출 코드 포함**. 누락 시 OS push 영영 0. 사이클 N+13 회귀 실사례: `routes/projects.js POST /conversations/:id/messages` (frontend qtalk.ts sendMessage 호출) + `routes/task_workflow.js` 7 라우트 (ack, submit-review, cancel-review, approve, revision, complete, reviewers POST) 모두 notify 누락 상태였음. 운영 데이터로 PushLog 검증 시 `'테스트 알림' 또는 admin 직접 발송' 만 sent` 패턴이면 trigger 누락 강한 의심. 검증 패턴 — node test 스크립트: login → POST → sleep 3000 → `SELECT FROM push_logs WHERE user_id IN (...) AND created_at >= since` row ≥ 1 확인. 박제: `feedback_notify_trigger_required.md`.
+
+14. **PushSubscription 같은 host 좀비 자동 만료 (사이클 N+13 박제)** — `POST /api/push/subscribe` 시점에 **같은 user 의 같은 push service host (web.push.apple.com / fcm.googleapis.com / ...) 의 다른 active sub 들 자동 `expired_at` 마크**. 한 user × 한 host = active 1개만. 다른 host 는 별개 (Mac Chrome + iPhone Safari 동시 OK). iOS Safari 가 endpoint 갱신 시 옛 sub 가 `expired_at IS NULL` 그대로 → `sendPushToUser` 가 모든 active sub 로 fan-out → Apple push service 가 옛 endpoint silent drop → 사용자 "한 번은 오고 한 번은 안 오는" 변동성 회귀 차단. unique 제약 해소 위해 옛 row 의 `endpoint` 를 `'expired:<id>:<원본>'` 으로 prefix 변경. 박제: `feedback_push_same_host_zombie.md`.
+
+15. **web-push 발송 옵션 — urgency 'high' + TTL 1일 (사이클 N+13 박제)** — `webpush.sendNotification(sub, json, { TTL: 86400, urgency: 'high' })`. urgency 'high' 는 push service 가 즉시 전달 시도 (default 'normal' 보다 빠름, 모바일 도착률 ↑). TTL 86400 = 1일 (default 28일은 너무 길어 stale 알림 도착). topic 옵션은 의도적으로 비활성 — 짧은 시간 다건 메시지가 collapse 되지 않게.
+
 ---
 
 ## 검증 시나리오 — 채팅·알림 (사이클 N+12 박제)

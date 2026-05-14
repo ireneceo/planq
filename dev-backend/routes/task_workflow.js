@@ -74,6 +74,51 @@ function broadcast(req, task, event = 'task:updated', payload = null) {
   io.to(`business:${task.business_id}`).emit(event, data);
 }
 
+// ─────────────────────────────────────────────
+// 알림 헬퍼 — 모든 워크플로 액션에서 재사용
+// CLAUDE.md §13 박제: status 전이 라우트는 notify 호출 강제.
+// 사이클 N+13 회귀 fix — 이 파일의 모든 라우트가 notify 누락 상태였음.
+//   → 확인요청 보내도 reviewer 에게 알림 0
+//   → 수정요청 받아도 담당자에게 알림 0
+//   → 컨펌 끝나도 요청자에게 알림 0
+// ─────────────────────────────────────────────
+function buildTaskLink(taskId) {
+  return `${process.env.APP_URL || 'https://dev.planq.kr'}/tasks?task=${taskId}`;
+}
+
+async function workspaceName(businessId) {
+  try {
+    const Business = require('../models').Business;
+    const biz = await Business.findByPk(businessId, { attributes: ['name', 'brand_name'] });
+    return biz?.brand_name || biz?.name || null;
+  } catch { return null; }
+}
+
+// 단일 user 에게 task 알림
+function notifyTask({ userId, task, title, body, ctaLabel, wsName, excludeUserId }) {
+  if (!userId || (excludeUserId && userId === excludeUserId)) return;
+  const { notify } = require('./notifications');
+  notify({
+    userId, businessId: task.business_id, eventKind: 'task',
+    title, body: body || `"${task.title}"`,
+    link: buildTaskLink(task.id), ctaLabel: ctaLabel || '업무 보기',
+    workspaceName: wsName, tag: `task:${task.id}`,
+  }).catch((e) => console.warn('[notify task]', e.message));
+}
+
+// 여러 user 에게 task 알림 (자기 자신 자동 제외)
+function notifyTaskMany({ userIds, task, title, body, ctaLabel, wsName, excludeUserId }) {
+  const list = (userIds || []).filter((id) => id && id !== excludeUserId);
+  if (list.length === 0) return;
+  const { notifyMany } = require('./notifications');
+  notifyMany({
+    userIds: list, businessId: task.business_id, eventKind: 'task',
+    title, body: body || `"${task.title}"`,
+    link: buildTaskLink(task.id), ctaLabel: ctaLabel || '업무 보기',
+    workspaceName: wsName, tag: `task:${task.id}`,
+  }).catch((e) => console.warn('[notify task many]', e.message));
+}
+
 // 컨펌자들의 state 조합 + 정책을 보고 메인 status 재계산
 // 정책 충족(전원/1명 승인) 시 자동으로 completed 전환 — done_feedback 단계 폐지
 // completed/canceled 이 아니고 (reviewers 가 있는) 상태에서는 전이 가능
@@ -133,6 +178,16 @@ router.post('/:id/ack', authenticateToken, async (req, res, next) => {
     } catch (e) { await t.rollback(); throw e; }
 
     broadcast(req, task);
+
+    // 요청자에게 알림 — 담당자가 요청 확인했음
+    const wsName = await workspaceName(task.business_id);
+    notifyTask({
+      userId: task.request_by_user_id || task.created_by,
+      task, wsName, excludeUserId: req.user.id,
+      title: '담당자가 요청을 확인했습니다',
+      ctaLabel: '업무 보기',
+    });
+
     return successResponse(res, task.toJSON());
   } catch (err) { next(err); }
 });
@@ -171,6 +226,17 @@ router.post('/:id/submit-review', authenticateToken, async (req, res, next) => {
     } catch (e) { await t.rollback(); throw e; }
 
     broadcast(req, task);
+
+    // reviewers 전체에게 검토 요청 알림
+    const wsName = await workspaceName(task.business_id);
+    notifyTaskMany({
+      userIds: reviewers.map((r) => r.user_id),
+      task, wsName, excludeUserId: req.user.id,
+      title: '업무 검토 요청',
+      body: `"${task.title}" 검토를 요청받았습니다`,
+      ctaLabel: '검토하기',
+    });
+
     return successResponse(res, task.toJSON());
   } catch (err) { next(err); }
 });
@@ -184,6 +250,10 @@ router.post('/:id/cancel-review', authenticateToken, async (req, res, next) => {
     if (!task) return;
     if (!(await isAssignee(task, req.user.id))) return errorResponse(res, 'only_assignee', 403);
     if (task.status !== 'reviewing') return errorResponse(res, 'not_in_review', 400);
+
+    const reviewersBeforeCancel = await TaskReviewer.findAll({
+      where: { task_id: task.id }, attributes: ['user_id'],
+    });
 
     const t = await sequelize.transaction();
     try {
@@ -201,6 +271,16 @@ router.post('/:id/cancel-review', authenticateToken, async (req, res, next) => {
     } catch (e) { await t.rollback(); throw e; }
 
     broadcast(req, task);
+
+    // reviewers 에게 취소 알림 (이미 검토 화면 열어둔 사람 위해)
+    const wsName = await workspaceName(task.business_id);
+    notifyTaskMany({
+      userIds: reviewersBeforeCancel.map((r) => r.user_id),
+      task, wsName, excludeUserId: req.user.id,
+      title: '검토 요청이 취소되었습니다',
+      ctaLabel: '업무 보기',
+    });
+
     return successResponse(res, task.toJSON());
   } catch (err) { next(err); }
 });
@@ -240,6 +320,28 @@ router.post('/:id/reviewers/me/approve', authenticateToken, async (req, res, nex
 
     await task.reload();
     broadcast(req, task);
+
+    // 라운드가 끝나 completed 로 전이됐으면 요청자에게 완료 알림.
+    // 그렇지 않으면 (다른 reviewer 들이 아직 pending) 담당자에게 부분 승인 알림.
+    const wsName = await workspaceName(task.business_id);
+    if (task.status === 'completed') {
+      notifyTask({
+        userId: task.request_by_user_id || task.created_by,
+        task, wsName, excludeUserId: req.user.id,
+        title: '요청한 업무가 완료되었습니다',
+        ctaLabel: '결과 확인',
+      });
+    } else {
+      // 담당자에게 부분 승인 (다른 reviewer 들 대기 중)
+      notifyTask({
+        userId: task.assignee_id,
+        task, wsName, excludeUserId: req.user.id,
+        title: '컨펌자가 승인했습니다',
+        body: `"${task.title}" — 다른 컨펌자 대기 중`,
+        ctaLabel: '업무 보기',
+      });
+    }
+
     return successResponse(res, { task: task.toJSON(), new_status: newStatus });
   } catch (err) { next(err); }
 });
@@ -279,6 +381,17 @@ router.post('/:id/reviewers/me/revision', authenticateToken, async (req, res, ne
 
     await task.reload();
     broadcast(req, task);
+
+    // 담당자에게 수정 요청 알림 — note 첨부
+    const wsName = await workspaceName(task.business_id);
+    notifyTask({
+      userId: task.assignee_id,
+      task, wsName, excludeUserId: req.user.id,
+      title: '업무 수정 요청',
+      body: note.length > 140 ? note.slice(0, 140) + '…' : note,
+      ctaLabel: '수정 시작',
+    });
+
     return successResponse(res, task.toJSON());
   } catch (err) { next(err); }
 });
@@ -340,6 +453,16 @@ router.post('/:id/complete', authenticateToken, async (req, res, next) => {
     } catch (e) { await t.rollback(); throw e; }
 
     broadcast(req, task);
+
+    // 요청자에게 완료 알림
+    const wsName = await workspaceName(task.business_id);
+    notifyTask({
+      userId: task.request_by_user_id || task.created_by,
+      task, wsName, excludeUserId: req.user.id,
+      title: '요청한 업무가 완료되었습니다',
+      ctaLabel: '결과 확인',
+    });
+
     return successResponse(res, task.toJSON());
   } catch (err) { next(err); }
 });
@@ -385,6 +508,17 @@ router.post('/:id/reviewers', authenticateToken, async (req, res, next) => {
       await t.commit();
       const full = await TaskReviewer.findByPk(rev.id, { include: [{ model: User, as: 'user', attributes: ['id', 'name', 'name_localized'] }] });
       broadcast(req, task);
+
+      // 새 컨펌자 본인에게 알림 — task 가 reviewing 중이면 "검토 요청", 아니면 "컨펌자로 추가됨"
+      const wsName = await workspaceName(task.business_id);
+      const isInActiveRound = task.status === 'reviewing' || task.status === 'revision_requested';
+      notifyTask({
+        userId: user_id, task, wsName, excludeUserId: req.user.id,
+        title: isInActiveRound ? '업무 검토 요청' : '업무 컨펌자로 추가되었습니다',
+        body: isInActiveRound ? `"${task.title}" 검토를 요청받았습니다` : `"${task.title}"`,
+        ctaLabel: isInActiveRound ? '검토하기' : '업무 보기',
+      });
+
       return successResponse(res, full.toJSON());
     } catch (e) { await t.rollback(); throw e; }
   } catch (err) { next(err); }

@@ -1,10 +1,15 @@
-// Web Push 발송 서비스 — 사이클 J + 사이클 N+3 보완.
+// Web Push 발송 서비스 — 사이클 J + N+3 + N+12 + N+13 보완.
 // 모든 발송 시도는 PushLog 에 기록 (운영 가시성·실패율·abuse 추적).
 // VAPID 키는 .env 에 저장. 없으면 push 비활성 (백엔드 정상 기동).
 //
 // 운영 가시성 (사이클 N+12 보완):
 //   - 동일 user 5분 윈도우 3회 이상 failed → platform_admin email 알림 (1시간 throttle).
 //   - 박제: feedback_external_dispatch_validation.md
+//
+// 도착률 강화 (사이클 N+13):
+//   - urgency 'high' — 즉시 전달 (iOS Safari / Chrome 모두 적용)
+//   - TTL 86400 (1일) — push service 큐잉 시간. 1일 지난 stale 알림은 silent drop.
+//   - topic = tag — 같은 conv/task 의 연속 알림 collapse (모바일 잠금화면 정리)
 const webpush = require('web-push');
 const { Op } = require('sequelize');
 const { PushSubscription, PushLog } = require('../models');
@@ -12,6 +17,10 @@ const { PushSubscription, PushLog } = require('../models');
 const VAPID_PUBLIC = process.env.VAPID_PUBLIC_KEY || '';
 const VAPID_PRIVATE = process.env.VAPID_PRIVATE_KEY || '';
 const VAPID_SUBJECT = process.env.VAPID_SUBJECT || 'mailto:noreply@planq.kr';
+
+// 도착률 옵션 — 전송 시점에 매 호출 적용
+const DEFAULT_TTL_SECONDS = 86400;   // 1일
+const DEFAULT_URGENCY = 'high';      // immediate delivery
 
 let inited = false;
 function ensureInit() {
@@ -89,13 +98,17 @@ async function sendPushToUser(userId, payload, opts = {}) {
   }
 
   const json = JSON.stringify(payload);
+  // RFC 8030 옵션 — 모바일 도착률 안정성 (사이클 N+13)
+  // TTL: 1일. urgency: 'high' — push service 가 즉시 전달 시도.
+  // topic 은 의도적으로 비활성 — 짧은 시간 다건 메시지가 collapse 되지 않게.
+  const sendOpts = { TTL: DEFAULT_TTL_SECONDS, urgency: DEFAULT_URGENCY };
   let sent = 0;
   for (const s of subs) {
     try {
       await webpush.sendNotification({
         endpoint: s.endpoint,
         keys: { p256dh: s.p256dh, auth: s.auth },
-      }, json);
+      }, json, sendOpts);
       await s.update({ last_used_at: new Date() });
       sent++;
       await logPush({
