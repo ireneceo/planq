@@ -1,12 +1,44 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-05-14 사이클 N+14 dev fix 완료 + 검증 13/13 PASS — **운영 배포 대기** (사용자 `/배포` 명령 필요)
+> **최종 업데이트:** 2026-05-14 v1.9.0 운영 라이브 + 사이클 N+14 후속 hotfix 4건 + 알림 진입 시각 점프 fix
 >
-> **사이클 N+14 영역:** Q file/Q docs/Q info/Q note visibility 4단계 통합 + Q Note 공유 정책 변경 (기본 L1 + 명시 활성화) + Q info 프로젝트 스코프 활성화 (ProjectKnowledgeTab 신규) + 개인 보관함 5탭 (Q note 추가) + 라벨 통일
+> **이전 라이브:** v1.9.0 (commit `8bb96ac`) — visibility 통합 + Q Note 공유 + Q info 프로젝트 스코프 + 라벨 통일
 
 ---
 
-## ✅ dev 완료: 사이클 N+14 — Visibility 통합 + Q Note 공유 + Q info 프로젝트 스코프 (2026-05-14)
+## ✅ 완료: 사이클 N+14 후속 — 알림 진입 시각 점프 fix + hotfix 4건 (2026-05-14)
+
+운영 라이브 직후 사용자 보고 4건 hotfix:
+
+1. **personal_vault 403** — `routes/personal_vault.js` 5 라우트의 권한 검사를 `isOwner||isMember` → `isMemberOrAbove(scope)` 헬퍼로 교체 (platform_admin 포함). irene 운영 user 가 platform_admin 이라 막힘.
+2. **task_extractor invalid date 500** — LLM 의 `guessed_due_date` 가 'Invalid date'/'next week'/'곧' 같은 non-YYYY-MM-DD 값으로 INSERT 시 SequelizeDatabaseError. YYYY-MM-DD 형식 + 유효 Date 만 통과시키고 나머지 null.
+3. **보관 conv 영구 삭제 FK 위반** — `routes/conversations.js` DELETE 라우트에 트랜잭션 + 명시 cascade (message_attachments → messages → conversation_participants → task_candidates → conv). FK DELETE_RULE='NO ACTION' 회피.
+4. **알림 클릭 진입 시각 점프** — `pages/QTalk/QTalkPage.tsx` 의 Empty 컴포넌트 (`calc(100vh - 56px)`) vs Layout (`100dvh`) viewport 단위/높이 차이로 spinner 위치 점프. Layout wrapper 안의 CenteredHint + Spinner 로 통일.
+
+### 모바일 push 발송 검증
+
+운영 lua → irene conv 10 실 채팅 발송:
+- iPhone web push (apple) sub 3개 + Mac Chrome (fcm) sub 1개 = 4 디바이스 모두 sent code=201
+
+### 운영 적용
+
+- (1)(2)(3) backend hotfix — 운영 backend 의 3 파일 직접 scp + pm2 restart (19:02, 19:10)
+- (4) frontend hotfix — 운영 frontend rsync + nginx reload (19:52)
+- 사이클 N+14 정식 배포 — commit `31ff578` (94s) + 버전 bump `8bb96ac` v1.9.0 (41s)
+
+### 검증
+
+- 9단계 검증: 27/28 헬스 / 빌드 872ms TS 0 / API 16/16 PASS / 페이지 9개 200 / UI/UX 8-A~8-G 통과
+- 운영 dev = prod build hash 동기 (index-C2CMxPCp.js)
+
+### 박제
+
+- 메모리 갱신: `feedback_qnote_personal_tool.md` (Q Note 공유 정책 변경)
+- 메모리 신규: `project_visibility_unified_arch.md` (4 자산 통합)
+
+---
+
+## ✅ 완료: 사이클 N+14 — Visibility 통합 + Q Note 공유 + Q info 프로젝트 스코프 (2026-05-14)
 
 ### 통합 아키텍처
 
