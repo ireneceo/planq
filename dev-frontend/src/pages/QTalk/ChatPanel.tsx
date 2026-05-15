@@ -1,4 +1,5 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';
@@ -232,7 +233,9 @@ const ChatPanel: React.FC<Props> = ({
   const [editingMsgDraft, setEditingMsgDraft] = useState('');
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedMsgIds, setSelectedMsgIds] = useState<Set<number>>(new Set());
-  const [moreMenuMsgId, setMoreMenuMsgId] = useState<number | null>(null);
+  // 사이클 N+16-F — 더보기 메뉴는 anchor 함께 저장 → portal 렌더 + fixed 좌표
+  const [moreMenu, setMoreMenu] = useState<{ msgId: number; anchorEl: HTMLElement } | null>(null);
+  const moreMenuMsgId = moreMenu?.msgId ?? null;
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
   const [pinnedBarOpen, setPinnedBarOpen] = useState(true);
   const [pinnedBarFlashId, setPinnedBarFlashId] = useState<number | null>(null);
@@ -254,7 +257,7 @@ const ChatPanel: React.FC<Props> = ({
   const handleEditStart = (m: MockMessage) => {
     setEditingMsgId(m.id);
     setEditingMsgDraft(m.body);
-    setMoreMenuMsgId(null);
+    setMoreMenu(null);
   };
   const handleEditSave = async () => {
     if (!editingMsgId || !businessId || !activeConv) return;
@@ -287,7 +290,7 @@ const ChatPanel: React.FC<Props> = ({
         await qtalkApi.pinMessage(Number(businessId), activeConv.id, msg.id);
       }
     } catch { /* skip */ }
-    setMoreMenuMsgId(null);
+    setMoreMenu(null);
   };
 
   const toggleSelected = (id: number) => {
@@ -333,16 +336,24 @@ const ChatPanel: React.FC<Props> = ({
     ),
   [convMessages]);
 
-  // more 메뉴 외부 클릭 닫기
+  // more 메뉴 외부 클릭 + Esc 닫기 (portal 렌더 → anchor + popover 영역 모두 검사)
   React.useEffect(() => {
-    if (moreMenuMsgId == null) return;
+    if (!moreMenu) return;
     const onDown = (e: MouseEvent) => {
       const target = e.target as Node;
-      if (!document.querySelector(`[data-more-menu="${moreMenuMsgId}"]`)?.contains(target)) setMoreMenuMsgId(null);
+      const popover = document.querySelector('[data-more-menu-popover="1"]');
+      if (popover?.contains(target)) return;
+      if (moreMenu.anchorEl?.contains(target)) return;
+      setMoreMenu(null);
     };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setMoreMenu(null); };
     document.addEventListener('mousedown', onDown);
-    return () => document.removeEventListener('mousedown', onDown);
-  }, [moreMenuMsgId]);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [moreMenu]);
 
   // PWA Share Target 등에서 ?prefill= 으로 본문 전달받음. 마운트 시 한 번만 적용 + URL 정리.
   const [searchParams, setSearchParams] = useSearchParams();
@@ -1013,7 +1024,6 @@ const ChatPanel: React.FC<Props> = ({
           const isSelected = selectedMsgIds.has(m.id);
           const isFlash = pinnedBarFlashId === m.id;
           const canEditThis = isSender && !isDeleted && m.sender_role !== 'cue' && !m.card;
-          const canDeleteThis = (isSender || isOwnerOrAdmin) && !isDeleted && m.sender_role !== 'cue';
           const canPinThis = canPinMessage && !isDeleted;
           return (
           <MessageItem
@@ -1442,23 +1452,18 @@ const ChatPanel: React.FC<Props> = ({
                     </svg>
                   </ToolBarBtn>
                 )}
-                <ToolBarMoreRoot data-more-menu={m.id}>
-                  <ToolBarBtn type="button" onClick={(e) => { e.stopPropagation(); setMoreMenuMsgId((cur) => cur === m.id ? null : m.id); }} title={t('chat.action.more', '더보기') as string} aria-label={t('chat.action.more', '더보기') as string} $active={moreMenuMsgId === m.id}>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="12" cy="19" r="1.6"/></svg>
-                  </ToolBarBtn>
-                  {moreMenuMsgId === m.id && (
-                    <ToolBarMore role="menu">
-                      <ToolBarMoreItem type="button" onClick={(e) => { e.stopPropagation(); setMoreMenuMsgId(null); setSelectionMode(true); setSelectedMsgIds(new Set([m.id])); }}>
-                        {t('chat.action.selectMulti', '여러 메시지 선택')}
-                      </ToolBarMoreItem>
-                      {canDeleteThis && (
-                        <ToolBarMoreItem type="button" $danger onClick={(e) => { e.stopPropagation(); setMoreMenuMsgId(null); setConfirmDeleteId(m.id); }}>
-                          {t('chat.action.delete', '삭제')}
-                        </ToolBarMoreItem>
-                      )}
-                    </ToolBarMore>
-                  )}
-                </ToolBarMoreRoot>
+                <ToolBarBtn
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setMoreMenu((cur) => cur?.msgId === m.id ? null : { msgId: m.id, anchorEl: e.currentTarget });
+                  }}
+                  title={t('chat.action.more', '더보기') as string}
+                  aria-label={t('chat.action.more', '더보기') as string}
+                  $active={moreMenuMsgId === m.id}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="12" cy="19" r="1.6"/></svg>
+                </ToolBarBtn>
               </MessageToolbar>
             )}
           </MessageItem>
@@ -1651,6 +1656,35 @@ const ChatPanel: React.FC<Props> = ({
           onClose={() => setUserPopover(null)}
         />
       )}
+      {/* 사이클 N+16-F — 더보기 메뉴 portal 렌더 (overflow 클립 회피, InputBar 위로 노출 보장).
+          anchor 버튼 rect 기준 fixed 좌표. 아래 공간 부족하면 위로 flip. */}
+      {moreMenu && (() => {
+        const m = convMessages.find((x) => x.id === moreMenu.msgId);
+        if (!m) return null;
+        const isSenderM = user && Number(m.sender_id) === Number(user.id);
+        const canDeleteM = (isSenderM || isOwnerOrAdmin) && !m.is_deleted && m.sender_role !== 'cue';
+        const rect = moreMenu.anchorEl.getBoundingClientRect();
+        const MENU_W = 200;
+        const MENU_H_EST = canDeleteM ? 84 : 44; // 항목 수 * 42 + padding
+        const spaceBelow = window.innerHeight - rect.bottom;
+        const openUpward = spaceBelow < MENU_H_EST + 16;
+        const top = openUpward ? Math.max(8, rect.top - MENU_H_EST - 6) : rect.bottom + 6;
+        const left = Math.min(window.innerWidth - MENU_W - 8, Math.max(8, rect.right - MENU_W));
+        return createPortal(
+          <ToolBarMore role="menu" data-more-menu-popover="1" style={{ position: 'fixed', top, left, right: 'auto' }}>
+            <ToolBarMoreItem type="button" onClick={(e) => { e.stopPropagation(); setMoreMenu(null); setSelectionMode(true); setSelectedMsgIds(new Set([m.id])); }}>
+              {t('chat.action.selectMulti', '여러 메시지 선택')}
+            </ToolBarMoreItem>
+            {canDeleteM && (
+              <ToolBarMoreItem type="button" $danger onClick={(e) => { e.stopPropagation(); setMoreMenu(null); setConfirmDeleteId(m.id); }}>
+                {t('chat.action.delete', '삭제')}
+              </ToolBarMoreItem>
+            )}
+          </ToolBarMore>,
+          document.body
+        );
+      })()}
+
       {/* 사이클 N+16-E — 메시지 삭제 확인. confirmDeleteId === -1 이면 묶음 삭제 의미. */}
       {confirmDeleteId !== null && (
         <ConfirmBackdrop onClick={() => setConfirmDeleteId(null)}>
@@ -2260,21 +2294,21 @@ const ToolBarBtn = styled.button<{ $active?: boolean }>`
   &:hover { background: #F1F5F9; color: #0F172A; }
   &:focus-visible { outline: 2px solid #14B8A6; outline-offset: 1px; }
 `;
-const ToolBarMoreRoot = styled.div`
-  position: relative;
-  display: inline-flex;
-`;
+// 사이클 N+16-F — portal 렌더, fixed 좌표는 inline style 로 주입. 최상단 stacking.
 const ToolBarMore = styled.div`
-  position: absolute;
-  top: calc(100% + 4px);
-  right: 0;
-  min-width: 180px;
+  min-width: 200px;
+  max-width: 240px;
   background: #FFFFFF;
   border: 1px solid #E2E8F0;
   border-radius: 8px;
-  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.16);
   padding: 4px;
-  z-index: 20;
+  z-index: 2400;
+  animation: pq-toolbar-more-in 0.12s ease-out;
+  @keyframes pq-toolbar-more-in {
+    from { opacity: 0; transform: translateY(-4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
 `;
 const ToolBarMoreItem = styled.button<{ $danger?: boolean }>`
   display: block;
