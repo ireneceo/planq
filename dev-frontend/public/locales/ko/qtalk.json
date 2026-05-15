@@ -89,6 +89,9 @@
       "body": "프로젝트·고객·일반 대화를 만들 수 있습니다.\n\n• 자동 업무 추출 ON: 메시지에서 후보가 우측 패널에 모임\n• 번역 표시 ON: 메시지마다 두 언어 동시 표시",
       "cuePrefill": "Q talk 의 채팅 종류, 자동 추출, 번역 표시가 어떻게 작동하는지 알려줘"
     },
+    "preview": {
+      "you": "나"
+    },
     "expand": "리스트 열기",
     "newChat": "새 대화",
     "newProject": "새 프로젝트",
@@ -224,11 +227,19 @@
     "noChannel": "대화 채널이 없습니다",
     "noChannelDesc": "좌측에서 채널을 선택하거나 새 채널을 만드세요.",
     "noMessages": "첫 메시지를 보내세요",
+    "read": {
+      "sent": "전송됨",
+      "read": "읽음",
+      "allRead": "전체 읽음",
+      "someRead": "읽음 {{read}}/{{total}}"
+    },
     "expandLeft": "좌측 열기",
     "expandRight": "우측 열기",
     "back": "리스트로 돌아가기",
     "rename": "클릭해서 이름 수정",
     "openSettings": "채팅 설정",
+    "openUserInfo": "프로필 보기",
+    "scrollToBottom": "맨 아래로",
     "help": "도움말 / 피드백",
     "upload": {
       "failed": "업로드 실패"
@@ -402,5 +413,17 @@
       "invitePh": "워크스페이스 멤버 선택",
       "invite": "초대"
     }
+  },
+  "userInfo": {
+    "owner": "오너",
+    "member": "멤버",
+    "client": "고객",
+    "email": "이메일",
+    "jobTitle": "직책",
+    "organization": "소속",
+    "company": "회사",
+    "phone": "전화",
+    "noInfo": "추가 정보가 없습니다",
+    "notFound": "정보를 불러올 수 없습니다"
   }
 }

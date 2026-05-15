@@ -32,6 +32,37 @@ import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 const STORAGE_LEFT = 'qtalk_left_collapsed';
 const STORAGE_RIGHT = 'qtalk_right_collapsed';
 
+// 사이클 N+15-A — 진입 즉시성 캐시 (stale-while-revalidate).
+// projects + conversations 만 캐시 (메시지·후보는 fresh 가 더 중요해서 제외).
+// 재진입 시 즉시 좌측 리스트 렌더 → 사용자는 spinner 한 번도 안 봄.
+// 1h TTL 후 무시 (스키마 변경/보관 처리 등으로 stale 가능성).
+const CACHE_KEY = (bid: number) => `qtalk_cache_v1_${bid}`;
+const CACHE_TTL_MS = 60 * 60 * 1000;
+
+function loadQtalkCache(bid: number): { projects: MockProject[]; conversations: MockConversation[] } | null {
+  try {
+    const raw = localStorage.getItem(CACHE_KEY(bid));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed.ts !== 'number') return null;
+    if (Date.now() - parsed.ts > CACHE_TTL_MS) return null;
+    return {
+      projects: Array.isArray(parsed.projects) ? parsed.projects : [],
+      conversations: Array.isArray(parsed.conversations) ? parsed.conversations : [],
+    };
+  } catch { return null; }
+}
+
+function saveQtalkCache(bid: number, projects: MockProject[], conversations: MockConversation[]) {
+  try {
+    localStorage.setItem(CACHE_KEY(bid), JSON.stringify({
+      ts: Date.now(),
+      projects,
+      conversations,
+    }));
+  } catch { /* quota — 무시 */ }
+}
+
 // ─────────────────────────────────────────────
 // API → Mock 타입 변환 (기존 panel 컴포넌트 호환)
 // ─────────────────────────────────────────────
@@ -65,6 +96,17 @@ function apiProjectToMock(p: qtalkApi.ApiProject): MockProject {
 }
 
 function apiConversationToMock(c: qtalkApi.ApiConversation): MockConversation {
+  let preview: MockConversation['last_message_preview'] = null;
+  if (c.last_message_preview) {
+    const lp = c.last_message_preview;
+    const localizedName = lp.sender_name_localized?.[i18n.language] || lp.sender_name || null;
+    preview = {
+      content: lp.content,
+      sender_id: lp.sender_id,
+      sender_name: localizedName,
+      is_ai: lp.is_ai,
+    };
+  }
   return {
     id: c.id,
     project_id: c.project_id || 0,
@@ -74,6 +116,7 @@ function apiConversationToMock(c: qtalkApi.ApiConversation): MockConversation {
     unread_count: c.unread_count || 0,
     last_extracted_message_id: c.last_extracted_message_id,
     last_message_at: c.last_message_at || c.created_at || null,
+    last_message_preview: preview,
     my_pinned_at: c.my_pinned_at || null,
   };
 }
@@ -126,6 +169,8 @@ function apiMessageToMock(m: qtalkApi.ApiMessage): MockMessage {
     })(),
     translations: m.translations ?? null,
     detected_language: m.detected_language ?? null,
+    read_by_count: typeof m.read_by_count === 'number' ? m.read_by_count : undefined,
+    other_count: typeof m.other_count === 'number' ? m.other_count : undefined,
   };
 }
 
@@ -188,8 +233,11 @@ const QTalkPage: React.FC = () => {
   const { user } = useAuth();
   const businessId = user?.business_id || null;
 
-  const [projects, setProjects] = useState<MockProject[]>([]);
-  const [conversations, setConversations] = useState<MockConversation[]>([]);
+  // 캐시 즉시 hydrate — 재진입 시 spinner 없이 좌측 리스트 즉시 표시.
+  // businessId 바뀌면 useEffect 에서 다시 hydrate (워크스페이스 전환).
+  const initialCache = businessId ? loadQtalkCache(Number(businessId)) : null;
+  const [projects, setProjects] = useState<MockProject[]>(initialCache?.projects || []);
+  const [conversations, setConversations] = useState<MockConversation[]>(initialCache?.conversations || []);
   const [messages, setMessages] = useState<Record<number, MockMessage[]>>({});
   const [tasks, setTasks] = useState<MockTask[]>([]);
   const [notes, setNotes] = useState<MockNote[]>([]);
@@ -252,7 +300,9 @@ const QTalkPage: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.search]);
 
-  const [loading, setLoading] = useState(true);
+  // 캐시 있으면 loading=false (즉시 표시). 캐시 없으면 loading=true → LeftPanel 이 skeleton 렌더.
+  // 풀스크린 spinner 게이트는 제거 (사이클 N+15-A): 위치 점프 0 + skeleton 으로 인지 즉시성 확보.
+  const [loading, setLoading] = useState(!initialCache);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const [leftCollapsed, setLeftCollapsed] = useState<boolean>(() => {
@@ -324,10 +374,19 @@ const QTalkPage: React.FC = () => {
       setConversations((prev) => prev.map((c) => {
         if (c.id !== mapped.conversation_id) return c;
         const incrementUnread = !isMine && !isActive;
+        // 사이클 N+15-D — 실시간 last_message_preview 갱신. 채팅 리스트의 한 줄도 즉시 따라옴.
+        const previewContent = (mapped.body || '').trim()
+          || (mapped.card ? '[카드]' : (mapped.attachments && mapped.attachments.length > 0 ? `[첨부 ${mapped.attachments.length}개]` : ''));
         return {
           ...c,
           last_message_at: mapped.created_at,
           unread_count: incrementUnread ? (c.unread_count || 0) + 1 : c.unread_count,
+          last_message_preview: previewContent ? {
+            content: previewContent.length > 200 ? previewContent.slice(0, 200) : previewContent,
+            sender_id: mapped.sender_id,
+            sender_name: mapped.sender_name || null,
+            is_ai: mapped.sender_role === 'cue',
+          } : c.last_message_preview,
         };
       }));
       // 사이드바 토탈 unread 갱신 트리거
@@ -398,6 +457,30 @@ const QTalkPage: React.FC = () => {
       });
     });
 
+    // 사이클 N+15-C — 다른 참여자가 대화방을 읽음 → 내 메시지의 read_by_count 실시간 갱신.
+    // 같은 conv room 의 모든 socket 으로 broadcast 됨 (자기 자신 포함될 수 있어 sender_id 분기).
+    socket.on('conversation:read', (data: { conversation_id: number; user_id: number; last_read_at: string }) => {
+      const readerMs = new Date(data.last_read_at).getTime();
+      setMessages((prev) => {
+        const arr = prev[data.conversation_id];
+        if (!arr) return prev;
+        let touched = false;
+        const next = arr.map((m) => {
+          // reader 가 sender 본인이면 skip (자기 메시지 자기가 읽은 건 카운트 X)
+          if (m.sender_id === data.user_id) return m;
+          // 이 메시지 created_at 이 reader 의 last_read_at 이하면 읽힘 인정.
+          // read_by_count 가 other_count 이상이면 더 늘리지 않음.
+          if (new Date(m.created_at).getTime() > readerMs) return m;
+          const cur = m.read_by_count ?? 0;
+          const cap = m.other_count ?? Infinity;
+          if (cur >= cap) return m;
+          touched = true;
+          return { ...m, read_by_count: cur + 1 };
+        });
+        return touched ? { ...prev, [data.conversation_id]: next } : prev;
+      });
+    });
+
     // 메시지 번역 완료 (비동기 LLM 결과 — 메시지 자체는 이미 발송됨)
     socket.on('message:translated', (data: { id: number; conversation_id: number; translations: Record<string, string>; detected_language: string }) => {
       setMessages((prev) => {
@@ -450,14 +533,33 @@ const QTalkPage: React.FC = () => {
 
   // 대화방 진입 시 읽음 처리 — 백엔드 last_read_at = NOW() + 로컬 unread_count 0
   // active 인 동안 새 메시지가 와도 socket handler 가 unread 증가를 막아주므로 진입 시 1 회면 충분.
+  // 사이클 N+15-D: await markRead → dispatch 순서 강제. 그래야 useUnreadTotal 의 refresh API 가
+  // 이미 last_read_at 갱신된 DB 를 읽음. 옛 fire-and-forget 패턴은 race 로 사이드바 숫자 stale.
   useEffect(() => {
     if (!activeConversationId || !user?.id || !businessId) return;
-    qtalkApi.markConversationRead(businessId, activeConversationId).catch(() => null);
-    setConversations(prev => prev.map(c =>
-      c.id === activeConversationId ? { ...c, unread_count: 0 } : c
-    ));
-    // 사이드바 토탈 unread 갱신
-    window.dispatchEvent(new Event('planq:unread-changed'));
+    // 사이클 N+15-D — 채팅 리스트 + 사이드바 동시 차감 (같은 frame). 옛 패턴은 사이드바가 200ms 뒤에 떨어졌음.
+    let prevUnread = 0;
+    setConversations(prev => prev.map(c => {
+      if (c.id === activeConversationId) {
+        prevUnread = c.unread_count || 0;
+        return { ...c, unread_count: 0 };
+      }
+      return c;
+    }));
+    // 사이드바도 즉시 차감 (옵티미스틱) — 옛 conv unread 만큼.
+    if (prevUnread > 0) {
+      window.dispatchEvent(new CustomEvent('planq:unread-changed', { detail: { optimisticDelta: -prevUnread } }));
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        await qtalkApi.markConversationRead(businessId, activeConversationId);
+      } catch { /* silent */ }
+      if (cancelled) return;
+      // markRead 완료 후 한 번 더 dispatch → backend 와 reconcile
+      window.dispatchEvent(new Event('planq:unread-changed'));
+    })();
+    return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeConversationId, businessId]);
 
@@ -544,44 +646,39 @@ const QTalkPage: React.FC = () => {
     }
   }, [activeConversationId, activeProjectId, conversations]);
 
-  // ── 초기 로드: 프로젝트 목록 ──
+  // ── 초기 로드: 프로젝트 + 대화 병렬 fetch + 캐시 저장 ──
+  // 사이클 N+15-A: listProjects + listBusinessConversations 직렬 → 병렬. 게이트 spinner 없이
+  // 캐시(있으면) 즉시 표시 → 백그라운드 fresh fetch → 도착하면 덮어쓰기 + 캐시 갱신.
   useEffect(() => {
     if (!businessId) { setLoading(false); return; }
     let cancelled = false;
     (async () => {
       try {
-        setLoading(true);
         setLoadError(null);
-        const list = await qtalkApi.listProjects(businessId);
+        const bid = Number(businessId);
+        const [projList, convList] = await Promise.all([
+          qtalkApi.listProjects(businessId),
+          qtalkApi.listBusinessConversations(businessId).catch(() => [] as qtalkApi.ApiConversation[]),
+        ]);
         if (cancelled) return;
-        const mapped = list.map(apiProjectToMock);
-        setProjects(mapped);
-        if (mapped.length > 0) {
-          // URL ?project=ID 가 있을 때만 선택. 기본 자동 선택 X — 빈 상태(대화 시작하기) 를 보여줘야 함
+
+        const mappedProjects = projList.map(apiProjectToMock);
+        const mappedConvs = convList.map(apiConversationToMock);
+        setProjects(mappedProjects);
+        setConversations(mappedConvs);
+        setConvsRaw(prev => {
+          const next = { ...prev };
+          for (const c of convList) next[c.id] = c;
+          return next;
+        });
+        saveQtalkCache(bid, mappedProjects, mappedConvs);
+
+        if (mappedProjects.length > 0) {
           const params = new URLSearchParams(window.location.search);
           const qpid = Number(params.get('project'));
-          if (qpid && mapped.some((p) => p.id === qpid)) {
+          if (qpid && mappedProjects.some((p) => p.id === qpid)) {
             setActiveProjectId((prev) => prev ?? qpid);
           }
-          // 좌측 리스트 채우기 — 워크스페이스 전체 대화 한번에 로드
-          // (프로젝트별 fetch 는 독립 대화/project_id null 을 놓쳤음).
-          (async () => {
-            try {
-              const apiConvs = await qtalkApi.listBusinessConversations(businessId);
-              if (cancelled) return;
-              const all: MockConversation[] = apiConvs.map(apiConversationToMock);
-              setConversations(prev => {
-                const existingIds = new Set(prev.map(c => c.id));
-                const newOnes = all.filter(c => !existingIds.has(c.id));
-                return [...prev, ...newOnes];
-              });
-              setConvsRaw(prev => {
-                const next = { ...prev };
-                for (const c of apiConvs) next[c.id] = c;
-                return next;
-              });
-            } catch {/* silent */}
-          })();
         }
       } catch (err: unknown) {
         if (cancelled) return;
@@ -591,6 +688,22 @@ const QTalkPage: React.FC = () => {
       }
     })();
     return () => { cancelled = true; };
+  }, [businessId]);
+
+  // 워크스페이스 전환 시 캐시 재 hydrate — 옛 워크스페이스 state 가 잠시 보이는 회귀 차단
+  useEffect(() => {
+    if (!businessId) return;
+    const cached = loadQtalkCache(Number(businessId));
+    if (cached) {
+      setProjects(cached.projects);
+      setConversations(cached.conversations);
+      setLoading(false);
+    } else {
+      setProjects([]);
+      setConversations([]);
+      setLoading(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [businessId]);
 
   // ── 프로젝트 선택 시 해당 프로젝트 데이터 전부 fetch ──
@@ -631,20 +744,30 @@ const QTalkPage: React.FC = () => {
           }
         }
 
-        // 각 채널의 메시지 병렬 로드
-        const messagesByConv: Record<number, MockMessage[]> = {};
-        await Promise.all(
-          mappedConvs.map(async (c) => {
+        // 사이클 N+15-A — 메시지는 활성 채널 우선, 나머지는 백그라운드 채움.
+        // 옛 Promise.all 동기 게이트는 사용자가 활성 대화 메시지를 보기까지 모든 채널 응답을 기다리게
+        // 만들어 초기 로드를 N x roundtrip 까지 늘렸음. 활성 conv lazy-load effect (line 495+) 가
+        // 이미 즉시 fetch 하므로 여기선 백그라운드 prefetch 만 — 채널 전환 시 즉시성 유지.
+        const targetActiveId = (() => {
+          const current = mappedConvs.find((c) => c.id === activeConversationId);
+          if (current) return current.id;
+          const customer = mappedConvs.find((c) => c.channel_type === 'customer');
+          return customer?.id ?? mappedConvs[0]?.id;
+        })();
+        for (const c of mappedConvs) {
+          if (c.id === targetActiveId) continue; // active 는 별도 effect 가 처리
+          // 캐시 hit 이면 skip — 다시 fetch 하지 않음
+          if (messages[c.id] !== undefined) continue;
+          (async () => {
             try {
               const msgs = await qtalkApi.listConversationMessages(c.id);
-              messagesByConv[c.id] = msgs.map(apiMessageToMock);
-            } catch {
-              messagesByConv[c.id] = [];
-            }
-          })
-        );
-        if (cancelled) return;
-        setMessages((prev) => ({ ...prev, ...messagesByConv }));
+              if (cancelled) return;
+              setMessages((prev) => prev[c.id] === undefined
+                ? { ...prev, [c.id]: msgs.map(apiMessageToMock) }
+                : prev);
+            } catch { /* silent — 채널 전환 시 lazy-load 가 재시도 */ }
+          })();
+        }
 
         // 기타 데이터 누적
         setTasks((prev) => {
@@ -832,29 +955,52 @@ const QTalkPage: React.FC = () => {
 
   const [extracting, setExtracting] = useState(false);
 
-  // 청크 2: 메시지 전송 (사이클 O4 — existingFileIds 추가)
+  // 청크 2: 메시지 전송 (사이클 O4 — existingFileIds 추가).
+  // 사이클 N+15-E — Optimistic local insertion. 사용자 클릭 즉시 메시지 표시 (네트워크 RT 0ms 인상).
+  // tempId(음수) → API 성공 시 real id 로 replace. 실패 시 표시는 유지 + 추후 재시도 UI 가능.
   const handleSendMessage = async (body: string, files?: File[], existingFileIds?: number[], existingPostIds?: number[]) => {
     if (!activeConversationId) return;
+    const convId = activeConversationId; // 클로저 안정화
+    const hasAttachments = (files && files.length > 0) || (existingFileIds && existingFileIds.length > 0);
+    const hasPosts = existingPostIds && existingPostIds.length > 0;
+    const content = body.trim();
+    if (!content && !hasAttachments && !hasPosts) return;
+    // 옵티미스틱: 사용자 본인 메시지를 즉시 화면에 (음수 tempId).
+    const tempId = -Date.now();
+    const optimisticMsg: MockMessage | null = (content || hasAttachments) ? {
+      id: tempId,
+      conversation_id: convId,
+      sender_id: Number(user?.id || 0),
+      sender_name: user?.name || '',
+      sender_role: 'member' as const,
+      sender_color: '#0D9488',
+      body: content,
+      created_at: new Date().toISOString(),
+      is_question: content.endsWith('?'),
+      attachments: [],
+      translations: null,
+      detected_language: null,
+    } : null;
+    if (optimisticMsg) {
+      setMessages((prev) => ({ ...prev, [convId]: [...(prev[convId] || []), optimisticMsg] }));
+      setConversations((prev) => prev.map((c) =>
+        c.id === convId ? { ...c, last_message_at: optimisticMsg.created_at } : c
+      ));
+    }
     try {
-      const hasAttachments = (files && files.length > 0) || (existingFileIds && existingFileIds.length > 0);
-      const hasPosts = existingPostIds && existingPostIds.length > 0;
-      const content = body.trim();
-      // 빈 본문 + 첨부도 post 도 없으면 무의미 — early return
-      if (!content && !hasAttachments && !hasPosts) return;
-      // post 만 있고 본문·일반첨부 없으면 sendMessage 스킵 (카드 메시지만 share-to-chat 으로 별도 생성)
       const created = (content || hasAttachments)
-        ? await qtalkApi.sendMessage(activeConversationId, content)
+        ? await qtalkApi.sendMessage(convId, content)
         : { id: 0 } as Awaited<ReturnType<typeof qtalkApi.sendMessage>>;
       const attachmentResults: qtalkApi.ApiMessageAttachment[] = [];
       if (files && files.length > 0) {
         const uploads = await Promise.allSettled(
-          files.map((f) => qtalkApi.uploadMessageAttachment(activeConversationId, created.id, f))
+          files.map((f) => qtalkApi.uploadMessageAttachment(convId, created.id, f))
         );
         uploads.forEach((r) => { if (r.status === 'fulfilled') attachmentResults.push(r.value); });
       }
       if (existingFileIds && existingFileIds.length > 0) {
         const links = await Promise.allSettled(
-          existingFileIds.map((id) => qtalkApi.linkExistingFileToMessage(activeConversationId, created.id, id))
+          existingFileIds.map((id) => qtalkApi.linkExistingFileToMessage(convId, created.id, id))
         );
         links.forEach((r) => { if (r.status === 'fulfilled') attachmentResults.push(r.value); });
       }
@@ -862,35 +1008,37 @@ const QTalkPage: React.FC = () => {
       if (hasPosts) {
         const { sharePostToChat } = await import('../../services/posts');
         await Promise.allSettled(
-          existingPostIds!.map((pid) => sharePostToChat(pid, { conversation_id: activeConversationId }))
+          existingPostIds!.map((pid) => sharePostToChat(pid, { conversation_id: convId }))
         );
       }
-      // 일반 메시지가 있을 때만 mapped 추가 (post 만 있을 땐 fresh fetch 로 처리)
-      // 주의: socket message:new 가 POST 응답보다 먼저 도착할 수 있음 → dedup 필수.
+      // 옵티미스틱 메시지를 real id 메시지로 교체. socket message:new 가 이미 추가했을 수도 있어 dedup.
       if (created.id) {
         const mapped = apiMessageToMock({ ...created, attachments: attachmentResults });
         setMessages((prev) => {
-          const arr = prev[activeConversationId] || [];
-          if (arr.some((m) => m.id === mapped.id)) return prev; // 중복 방지
-          return { ...prev, [activeConversationId]: [...arr, mapped] };
+          const arr = prev[convId] || [];
+          // optimistic tempId 제거 + real id 가 이미 있으면 그대로, 없으면 append
+          const withoutTemp = arr.filter((m) => m.id !== tempId);
+          if (withoutTemp.some((m) => m.id === mapped.id)) {
+            return { ...prev, [convId]: withoutTemp };
+          }
+          return { ...prev, [convId]: [...withoutTemp, mapped] };
         });
         // 내가 보낸 메시지도 대화 리스트 상단으로 끌어올림
         setConversations((prev) => prev.map((c) =>
-          c.id === activeConversationId ? { ...c, last_message_at: mapped.created_at } : c
+          c.id === convId ? { ...c, last_message_at: mapped.created_at } : c
         ));
       }
       // post 만 첨부했거나, post 도 같이 첨부했으면 fresh 로 카드 메시지 끌어옴
       if (hasPosts) {
         try {
-          const fresh = await qtalkApi.listConversationMessages(activeConversationId);
-          setMessages((prev) => ({ ...prev, [activeConversationId]: fresh.map(apiMessageToMock) }));
+          const fresh = await qtalkApi.listConversationMessages(convId);
+          setMessages((prev) => ({ ...prev, [convId]: fresh.map(apiMessageToMock) }));
         } catch { /* skip */ }
       }
       // 번역 폴링 fallback — Socket.IO `message:translated` 이벤트가 안 도착해도
       // 4초 후 GET 으로 직접 갱신해 translations 보장. 옛 번들에서도 동작.
-      const conv = conversations.find(c => c.id === activeConversationId);
+      const conv = conversations.find(c => c.id === convId);
       if (conv && (conv as MockConversation & { translation_enabled?: boolean }).id) {
-        const convId = activeConversationId;
         setTimeout(async () => {
           try {
             const fresh = await qtalkApi.listConversationMessages(convId);
@@ -909,6 +1057,12 @@ const QTalkPage: React.FC = () => {
         }, 4000);
       }
     } catch (err: unknown) {
+      // 사이클 N+15-E — 옵티미스틱 메시지 실패 시 화면에서 제거 (phantom 방지).
+      setMessages((prev) => {
+        const arr = prev[convId];
+        if (!arr) return prev;
+        return { ...prev, [convId]: arr.filter((m) => m.id !== tempId) };
+      });
       showNotice(t('page.sendFailed', { msg: err instanceof Error ? err.message : '' }));
     }
   };
@@ -1126,10 +1280,8 @@ const QTalkPage: React.FC = () => {
 
   if (!businessId) return <Layout><CenteredHint>{t('page.noBusiness', '워크스페이스가 선택되지 않았습니다.')}</CenteredHint></Layout>;
   if (loadError) return <Layout><CenteredHint>{t('page.loadFailed', { msg: loadError })}</CenteredHint></Layout>;
-  // 사이클 N+14 후속 UX fix: loading 동안 Empty 컴포넌트 (전체화면 중앙) 사용하면
-  // Layout (100dvh + 56px 분기) 와 viewport 단위 차이로 spinner 위치가 점프. 같은 Layout
-  // wrapper 안에서 spinner 만 표시 — 알림 클릭 진입 시 시각 점프 0.
-  if (loading) return <Layout><CenteredHint><Spinner /></CenteredHint></Layout>;
+  // 사이클 N+15-A: 풀스크린 spinner 게이트 제거. LeftPanel/ChatPanel 이 내부 skeleton 으로 처리.
+  // 캐시(있으면) 즉시 표시 → 백그라운드 fresh → 사용자는 위치 점프/spinner 한 번도 안 봄.
 
   return (
     <Layout>
@@ -1138,6 +1290,7 @@ const QTalkPage: React.FC = () => {
         conversations={conversations}
         activeProjectId={activeProjectId}
         activeConversationId={activeConversationId}
+        loading={loading}
         onSelectConversation={handleSelectConversation}
         onOpenNewChat={() => setChatModalOpen(true)}
         collapsed={leftCollapsed}
@@ -1366,17 +1519,7 @@ const CenteredHint = styled.div`
   min-height: 0;
 `;
 
-const Spinner = styled.span`
-  width: 24px;
-  height: 24px;
-  border: 2px solid #E2E8F0;
-  border-top-color: #14B8A6;
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-  @keyframes spin {
-    to { transform: rotate(360deg); }
-  }
-`;
+// (사이클 N+15-A) Spinner 컴포넌트 제거 — 풀스크린 게이트 자체가 사라짐.
 
 const Toast = styled.div`
   position: fixed;

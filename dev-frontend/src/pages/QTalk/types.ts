@@ -133,6 +133,10 @@ export interface MockMessage {
   card?: PostCardMeta | SignatureCardMeta | InvoiceCardMeta | TaskCardMeta | FileCardMeta | KbDocCardMeta | CalendarEventCardMeta | null;
   translations?: Partial<Record<'ko'|'en'|'ja'|'zh'|'es', string>> | null;
   detected_language?: 'ko'|'en'|'ja'|'zh'|'es' | null;
+  // 사이클 N+15-C — 읽음 표시. read_by_count = 본인 제외 참여자 중 읽은 수.
+  // other_count = 본인 제외 참여자 총수. 1 = 1:1, 2+ = 그룹.
+  read_by_count?: number;
+  other_count?: number;
 }
 
 export interface MockConversation {
@@ -143,6 +147,14 @@ export interface MockConversation {
   auto_extract_enabled: boolean;
   last_message?: string;
   last_message_at?: string | null;
+  // 사이클 N+15-D — WhatsApp 스타일 채팅 리스트 한 줄 preview
+  last_message_preview?: {
+    content: string;
+    sender_id: number;
+    sender_name: string | null;
+    is_ai: boolean;
+    is_mine?: boolean; // QTalkPage 가 user.id 와 비교해서 채움
+  } | null;
   unread_count: number;
   last_extracted_message_id?: number | null;
   last_extracted_at?: string | null;

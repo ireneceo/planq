@@ -60,10 +60,53 @@ router.get('/:businessId', authenticateToken, attachWorkspaceScope(), async (req
       unreadMap = new Map(rows.map(r => [r.cid, Number(r.cnt)]));
     }
 
+    // 사이클 N+15-D — WhatsApp 패턴 last_message preview.
+    // 채팅 리스트에서 채팅방 이름 아래 한 줄로 마지막 대화 표시 → 사용자가 어떤 대화인지 즉시 인식.
+    let lastMsgMap = new Map();
+    if (convIds.length > 0) {
+      const [lastRows] = await sequelize.query(
+        `SELECT m1.conversation_id AS cid, m1.content, m1.sender_id, m1.kind, m1.is_ai,
+                m1.created_at,
+                u.name AS sender_name,
+                u.name_localized AS sender_name_localized,
+                (SELECT COUNT(*) FROM message_attachments ma WHERE ma.message_id = m1.id) AS att_count
+           FROM messages m1
+           INNER JOIN (
+             SELECT conversation_id, MAX(created_at) AS mt
+             FROM messages
+             WHERE conversation_id IN (:cids)
+               AND (is_deleted IS NULL OR is_deleted = 0)
+             GROUP BY conversation_id
+           ) latest ON m1.conversation_id = latest.conversation_id AND m1.created_at = latest.mt
+           LEFT JOIN users u ON u.id = m1.sender_id`,
+        { replacements: { cids: convIds } }
+      );
+      for (const r of lastRows) {
+        let preview = (r.content || '').trim();
+        if (!preview) {
+          if (r.kind === 'card') preview = '[카드]';
+          else if (Number(r.att_count) > 0) preview = Number(r.att_count) === 1 ? '[첨부 1개]' : `[첨부 ${r.att_count}개]`;
+        }
+        // 200자 cap — 응답 크기 보호
+        if (preview.length > 200) preview = preview.slice(0, 200);
+        let nameLocalized = null;
+        try { nameLocalized = r.sender_name_localized ? JSON.parse(r.sender_name_localized) : null; } catch { /* not JSON */ }
+        lastMsgMap.set(r.cid, {
+          content: preview,
+          sender_id: r.sender_id,
+          sender_name: r.sender_name || null,
+          sender_name_localized: nameLocalized,
+          is_ai: !!r.is_ai,
+          created_at: r.created_at,
+        });
+      }
+    }
+
     const enriched = conversations.map(c => {
       const obj = c.toJSON();
       obj.my_pinned_at = pinMap.get(c.id) || null;
       obj.unread_count = unreadMap.get(c.id) || 0;
+      obj.last_message_preview = lastMsgMap.get(c.id) || null;
       return obj;
     });
     // 정렬: 핀 우선 (pinned_at NOT NULL DESC), 그 안에서 last_message_at DESC
@@ -139,6 +182,16 @@ router.put('/:businessId/:id/read', authenticateToken, checkBusinessAccess, asyn
       defaults: { conversation_id: convId, user_id: req.user.id, role: 'member' },
     });
     await part.update({ last_read_at: new Date() });
+    // 사이클 N+15-C — 같은 conv room 의 다른 참여자에게 "이 user 가 읽었음" broadcast.
+    // 발송자는 자기 메시지의 read_by_count 를 실시간 +1.
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`conv:${convId}`).emit('conversation:read', {
+        conversation_id: convId,
+        user_id: req.user.id,
+        last_read_at: part.last_read_at,
+      });
+    }
     return successResponse(res, { last_read_at: part.last_read_at });
   } catch (err) { next(err); }
 });
