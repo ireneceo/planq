@@ -268,6 +268,38 @@
     "openSettings": "Chat settings",
     "openUserInfo": "View profile",
     "scrollToBottom": "Jump to latest",
+    "edited": "edited",
+    "deleted": "Message deleted",
+    "editCancel": "Cancel",
+    "editSave": "Save",
+    "editHint": "Esc to cancel · ⌘+Enter to save",
+    "action": {
+      "copy": "Copy message",
+      "edit": "Edit",
+      "pin": "Pin as notice",
+      "unpin": "Unpin",
+      "more": "More",
+      "selectMulti": "Select multiple",
+      "delete": "Delete"
+    },
+    "pinned": {
+      "count_one": "{{count}} pinned",
+      "count_other": "{{count}} pinned",
+      "unpin": "Unpin"
+    },
+    "selection": {
+      "count_one": "{{count}} selected",
+      "count_other": "{{count}} selected",
+      "copy": "Copy",
+      "delete": "Delete",
+      "cancel": "Cancel"
+    },
+    "confirmDelete": {
+      "title": "Delete this message?",
+      "singleBody": "This message will be hidden from everyone. The original stays on record but the chat shows only \"Message deleted\".",
+      "bulkBody_one": "{{count}} selected messages will be hidden from everyone. Attachments remain on record.",
+      "bulkBody_other": "{{count}} selected messages will be hidden from everyone. Attachments remain on record."
+    },
     "help": "Help / Feedback",
     "upload": {
       "failed": "Upload failed"

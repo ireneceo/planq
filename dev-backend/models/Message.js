@@ -109,6 +109,15 @@ Message.init({
     type: DataTypes.DATE,
     allowNull: true
   },
+  // 사이클 N+16-E — 메시지 핀 공지 (Slack 패턴).
+  pinned_at: {
+    type: DataTypes.DATE,
+    allowNull: true,
+  },
+  pinned_by_user_id: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+  },
   // ─── Phase 5 답글 + Cue Draft 잠금 ───
   reply_to_message_id: {
     type: DataTypes.BIGINT,

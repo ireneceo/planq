@@ -6,6 +6,7 @@ import {
   type MockMessage, type MockProject, type MockConversation, type PostCardMeta,
 } from './types';
 import { useAuth, apiFetch } from '../../contexts/AuthContext';
+import * as qtalkApi from '../../services/qtalk';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 import LetterAvatar from '../../components/Common/LetterAvatar';
 import EmptyState from '../../components/Common/EmptyState';
@@ -225,6 +226,123 @@ const ChatPanel: React.FC<Props> = ({
   const [draftBody, setDraftBody] = useState('');
   // 사이클 N+15-E — 발신자 정보 popover. open 상태 + anchor + userId 저장.
   const [userPopover, setUserPopover] = useState<{ userId: number; anchorEl: HTMLElement } | null>(null);
+
+  // 사이클 N+16-E — 메시지 액션 (수정 / 삭제 / 핀 / 묶음 선택).
+  const [editingMsgId, setEditingMsgId] = useState<number | null>(null);
+  const [editingMsgDraft, setEditingMsgDraft] = useState('');
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedMsgIds, setSelectedMsgIds] = useState<Set<number>>(new Set());
+  const [moreMenuMsgId, setMoreMenuMsgId] = useState<number | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
+  const [pinnedBarOpen, setPinnedBarOpen] = useState(true);
+  const [pinnedBarFlashId, setPinnedBarFlashId] = useState<number | null>(null);
+
+  const isOwnerOrAdmin = user?.business_role === 'owner' || user?.platform_role === 'platform_admin';
+  const canPinMessage = isOwnerOrAdmin; // 프로젝트 owner 도 가능하지만 UI 단순화 (backend 가 검사)
+
+  const handleCopyText = async (text: string) => {
+    try { await navigator.clipboard.writeText(text); }
+    catch {
+      const ta = document.createElement('textarea');
+      ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); } catch { /* skip */ }
+      document.body.removeChild(ta);
+    }
+  };
+
+  const handleEditStart = (m: MockMessage) => {
+    setEditingMsgId(m.id);
+    setEditingMsgDraft(m.body);
+    setMoreMenuMsgId(null);
+  };
+  const handleEditSave = async () => {
+    if (!editingMsgId || !businessId || !activeConv) return;
+    const next = editingMsgDraft.trim();
+    if (!next) return;
+    try {
+      await qtalkApi.editMessage(Number(businessId), activeConv.id, editingMsgId, next);
+      // socket 이 자동 갱신. 옵티미스틱 미적용 (서버 반영 후 시각 즉시)
+    } catch { /* 실패시 그대로 유지 */ }
+    setEditingMsgId(null);
+    setEditingMsgDraft('');
+  };
+  const handleEditCancel = () => { setEditingMsgId(null); setEditingMsgDraft(''); };
+
+  const handleDelete = async (msgId: number) => {
+    if (!businessId || !activeConv) return;
+    try {
+      await qtalkApi.deleteMessage(Number(businessId), activeConv.id, msgId);
+      // socket 이 갱신
+    } catch { /* skip */ }
+    setConfirmDeleteId(null);
+  };
+
+  const handleTogglePinMsg = async (msg: MockMessage) => {
+    if (!businessId || !activeConv) return;
+    try {
+      if (msg.pinned_at) {
+        await qtalkApi.unpinMessage(Number(businessId), activeConv.id, msg.id);
+      } else {
+        await qtalkApi.pinMessage(Number(businessId), activeConv.id, msg.id);
+      }
+    } catch { /* skip */ }
+    setMoreMenuMsgId(null);
+  };
+
+  const toggleSelected = (id: number) => {
+    setSelectedMsgIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+  const exitSelection = () => { setSelectionMode(false); setSelectedMsgIds(new Set()); };
+  const handleBulkCopy = async () => {
+    const selected = convMessages
+      .filter((m) => selectedMsgIds.has(m.id) && !m.is_deleted)
+      .map((m) => `[${m.sender_name} ${formatGroupTime(m.created_at)}] ${m.body || (m.attachments?.length ? `[첨부 ${m.attachments.length}개]` : '')}`)
+      .join('\n');
+    await handleCopyText(selected);
+    exitSelection();
+  };
+  const handleBulkDelete = async () => {
+    if (!businessId || !activeConv) return;
+    const ids = [...selectedMsgIds];
+    for (const id of ids) {
+      try { await qtalkApi.deleteMessage(Number(businessId), activeConv.id, id); }
+      catch { /* skip */ }
+    }
+    exitSelection();
+    setConfirmDeleteId(null);
+  };
+
+  // 핀 메시지 클릭 → 본문으로 스크롤 + 잠시 하이라이트
+  const scrollToMessage = (msgId: number) => {
+    const el = document.querySelector(`[data-msg-id="${msgId}"]`);
+    if (el && el instanceof HTMLElement) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      setPinnedBarFlashId(msgId);
+      window.setTimeout(() => setPinnedBarFlashId(null), 1800);
+    }
+  };
+
+  const pinnedMessages = useMemo(() =>
+    convMessages.filter((m) => m.pinned_at && !m.is_deleted).sort((a, b) =>
+      (new Date(b.pinned_at || 0).getTime()) - (new Date(a.pinned_at || 0).getTime())
+    ),
+  [convMessages]);
+
+  // more 메뉴 외부 클릭 닫기
+  React.useEffect(() => {
+    if (moreMenuMsgId == null) return;
+    const onDown = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (!document.querySelector(`[data-more-menu="${moreMenuMsgId}"]`)?.contains(target)) setMoreMenuMsgId(null);
+    };
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, [moreMenuMsgId]);
 
   // PWA Share Target 등에서 ?prefill= 으로 본문 전달받음. 마운트 시 한 번만 적용 + URL 정리.
   const [searchParams, setSearchParams] = useSearchParams();
@@ -791,6 +909,64 @@ const ChatPanel: React.FC<Props> = ({
         </HeaderRight>
       </HeaderBar>
 
+      {/* 사이클 N+16-E — 핀 공지 영역 (Slack 패턴). 1개 이상 핀 시 헤더 아래 노란 액센트 바.
+          접힘: "📌 공지 N개" 한 줄. 펴짐: 핀 메시지 리스트, 클릭 시 본문으로 스크롤 + 잠시 강조. */}
+      {pinnedMessages.length > 0 && (
+        <PinnedBar>
+          <PinnedHeader type="button" onClick={() => setPinnedBarOpen((v) => !v)} aria-expanded={pinnedBarOpen}>
+            <PinIcon viewBox="0 0 24 24" fill="currentColor"><path d="M14 4l-1 1 1 1-4 4-4-1-1 1 4 4-5 5 1 1 5-5 4 4 1-1-1-4 4-4 1 1 1-1z"/></PinIcon>
+            <PinnedTitle>{t('chat.pinned.count', { count: pinnedMessages.length, defaultValue: `공지 ${pinnedMessages.length}개` })}</PinnedTitle>
+            <PinChevron $open={pinnedBarOpen} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="6 9 12 15 18 9" />
+            </PinChevron>
+          </PinnedHeader>
+          {pinnedBarOpen && (
+            <PinnedList>
+              {pinnedMessages.map((m) => (
+                <PinnedItem key={m.id} type="button" onClick={() => scrollToMessage(m.id)}>
+                  <PinnedSender>{m.sender_name}</PinnedSender>
+                  <PinnedBody>{m.body || (m.attachments?.length ? `[첨부 ${m.attachments.length}개]` : '')}</PinnedBody>
+                  <PinnedTime>{formatGroupTime(m.pinned_at || m.created_at)}</PinnedTime>
+                  {canPinMessage && (
+                    <PinnedUnpinBtn
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); handleTogglePinMsg(m); }}
+                      title={t('chat.pinned.unpin', '공지 해제') as string}
+                      aria-label={t('chat.pinned.unpin', '공지 해제') as string}
+                    >
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                    </PinnedUnpinBtn>
+                  )}
+                </PinnedItem>
+              ))}
+            </PinnedList>
+          )}
+        </PinnedBar>
+      )}
+
+      {/* 사이클 N+16-E — 묶음 선택 모드 액션 바 */}
+      {selectionMode && (
+        <SelectionBar>
+          <SelectionCount>{t('chat.selection.count', { count: selectedMsgIds.size, defaultValue: `${selectedMsgIds.size}개 선택됨` })}</SelectionCount>
+          <SelectionActions>
+            <SelectionBtn type="button" disabled={selectedMsgIds.size === 0} onClick={handleBulkCopy}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+              </svg>
+              {t('chat.selection.copy', '복사')}
+            </SelectionBtn>
+            <SelectionBtn type="button" $danger disabled={selectedMsgIds.size === 0} onClick={() => setConfirmDeleteId(-1)}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/>
+              </svg>
+              {t('chat.selection.delete', '삭제')}
+            </SelectionBtn>
+            <SelectionCancel type="button" onClick={exitSelection}>{t('chat.selection.cancel', '취소')}</SelectionCancel>
+          </SelectionActions>
+        </SelectionBar>
+      )}
+
       {/* 업무 후보 알림 배너 — pending 후보가 있을 때만 (안내 전용 — 우측 패널이 이미 열려 있으니 X 로 닫기만) */}
       {!isClient && candidatesCount > 0 && !bannerDismissed && (
         <CandidatesBannerWrap>
@@ -829,16 +1005,51 @@ const ChatPanel: React.FC<Props> = ({
         {convMessages.map((m, idx) => {
           const prev = idx > 0 ? convMessages[idx - 1] : undefined;
           const continuation = isContinuation(m, prev);
+          // 사이클 N+16-E — 메시지 액션 권한 + 상태
+          const isSender = user && Number(m.sender_id) === Number(user.id);
+          const isDeleted = !!m.is_deleted;
+          const isEditing = editingMsgId === m.id;
+          const isPinned = !!m.pinned_at;
+          const isSelected = selectedMsgIds.has(m.id);
+          const isFlash = pinnedBarFlashId === m.id;
+          const canEditThis = isSender && !isDeleted && m.sender_role !== 'cue' && !m.card;
+          const canDeleteThis = (isSender || isOwnerOrAdmin) && !isDeleted && m.sender_role !== 'cue';
+          const canPinThis = canPinMessage && !isDeleted;
           return (
-          <MessageItem key={m.id} data-msg-id={m.id} $continuation={continuation}>
+          <MessageItem
+            key={m.id}
+            data-msg-id={m.id}
+            $continuation={continuation}
+            $selected={selectionMode && isSelected}
+            $flashing={isFlash}
+            $pinned={isPinned}
+            onClick={selectionMode && !isDeleted ? () => toggleSelected(m.id) : undefined}
+            $clickable={selectionMode && !isDeleted}
+          >
+            {selectionMode && (
+              <MsgCheckbox $checked={isSelected} $disabled={isDeleted} aria-hidden="true">
+                {isSelected && (
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.6" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                )}
+              </MsgCheckbox>
+            )}
             {continuation ? (
               <AvatarSpacer aria-hidden="true" />
+            ) : m.sender_role === 'cue' ? (
+              // Cue 는 AI — 프로필 popover 없음
+              <LetterAvatar name={m.sender_name} size={36} variant="cue" />
             ) : (
-              <LetterAvatar
-                name={m.sender_name}
-                size={36}
-                variant={m.sender_role === 'cue' ? 'cue' : 'neutral'}
-              />
+              // 사이클 N+16-D — 아바타 클릭 시 발신자 정보 popover (SenderName 과 동일 동작)
+              <AvatarBtn
+                type="button"
+                onClick={(e) => { e.stopPropagation(); if (selectionMode) return; setUserPopover({ userId: m.sender_id, anchorEl: e.currentTarget }); }}
+                title={t('chat.openUserInfo', '프로필 보기') as string}
+                aria-label={t('chat.openUserInfo', '프로필 보기') as string}
+              >
+                <LetterAvatar name={m.sender_name} size={36} variant="neutral" />
+              </AvatarBtn>
             )}
             <MessageBody>
               {!continuation && (
@@ -849,17 +1060,40 @@ const ChatPanel: React.FC<Props> = ({
                   ) : (
                     <SenderName
                       type="button"
-                      onClick={(e) => setUserPopover({ userId: m.sender_id, anchorEl: e.currentTarget })}
+                      onClick={(e) => { e.stopPropagation(); if (selectionMode) return; setUserPopover({ userId: m.sender_id, anchorEl: e.currentTarget }); }}
                       title={t('chat.openUserInfo', '프로필 보기') as string}
                     >
                       {m.sender_name}
                     </SenderName>
                   )}
                   <TimeStamp>{formatGroupTime(m.created_at)}</TimeStamp>
+                  {m.is_edited && !m.is_deleted && <EditedMark>({t('chat.edited', '수정됨')})</EditedMark>}
                   {m.sender_role === 'cue' && <CueBadge>Cue</CueBadge>}
                 </MessageHeader>
               )}
-              {m.card?.card_type === 'signature_request' ? (
+              {isDeleted ? (
+                <DeletedPlaceholder>{t('chat.deleted', '삭제된 메시지입니다')}</DeletedPlaceholder>
+              ) : isEditing ? (
+                <EditFormWrap>
+                  <EditTextArea
+                    value={editingMsgDraft}
+                    autoFocus
+                    rows={Math.min(8, Math.max(2, editingMsgDraft.split('\n').length))}
+                    onChange={(e) => setEditingMsgDraft(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Escape') { e.preventDefault(); handleEditCancel(); }
+                      if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); handleEditSave(); }
+                    }}
+                  />
+                  <EditActions>
+                    <EditBtn type="button" onClick={handleEditCancel}>{t('chat.editCancel', '취소')}</EditBtn>
+                    <EditBtn type="button" $primary disabled={!editingMsgDraft.trim()} onClick={handleEditSave}>
+                      {t('chat.editSave', '저장')}
+                    </EditBtn>
+                    <EditHint>{t('chat.editHint', 'Esc 취소 · ⌘+Enter 저장')}</EditHint>
+                  </EditActions>
+                </EditFormWrap>
+              ) : m.card?.card_type === 'signature_request' ? (
                 <SignCard onClick={() => window.open(m.card!.card_type === 'signature_request' ? (m.card as { sign_url: string }).sign_url : '', '_blank', 'noopener,noreferrer')}>
                   <SignCardIcon>
                     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="M2 2l7.586 7.586"/><circle cx="11" cy="11" r="2"/></svg>
@@ -1053,9 +1287,9 @@ const ChatPanel: React.FC<Props> = ({
                   );
                 })()
               )}
-              {m.card?.note && <CardNote>{m.card.note}</CardNote>}
+              {!isDeleted && m.card?.note && <CardNote>{m.card.note}</CardNote>}
 
-              {m.attachments && m.attachments.length > 0 && (
+              {!isDeleted && m.attachments && m.attachments.length > 0 && (
                 <AttachRow>
                   {m.attachments.map((a) => {
                     const isImg = (a.mime_type || '').startsWith('image/');
@@ -1090,7 +1324,7 @@ const ChatPanel: React.FC<Props> = ({
               )}
 
               {/* 출처 인용 (Cue 메시지일 때) */}
-              {m.ai_sources && m.ai_sources.length > 0 && (
+              {!isDeleted && m.ai_sources && m.ai_sources.length > 0 && (
                 <SourceBox>
                   <SourceLabel>{t('chat.draft.sourceLabel', '출처')}</SourceLabel>
                   {m.ai_sources.map((s, i) => (
@@ -1100,7 +1334,7 @@ const ChatPanel: React.FC<Props> = ({
               )}
 
               {/* 질문 아래 Cue 답변 대기 카드 (담당자만) */}
-              {m.is_question && m.cue_draft && !isClient && (
+              {!isDeleted && m.is_question && m.cue_draft && !isClient && (
                 <CueDraftCard $locked={!!m.cue_draft.processing_by}>
                   <DraftHeader>
                     <DraftLabel>
@@ -1166,7 +1400,7 @@ const ChatPanel: React.FC<Props> = ({
               {/* 사이클 N+15-C — 읽음 표시. 내가 보낸 메시지만, 시스템 메시지/Cue 제외.
                   1:1 (other_count <= 1): "읽음" / "전송됨" / (둘 다 아닐 때 nothing).
                   그룹 (other_count >= 2): "읽음 N/M" (N==M 일 때 그냥 "전체 읽음"). */}
-              {user && Number(m.sender_id) === Number(user.id) && m.sender_role !== 'cue' && typeof m.other_count === 'number' && m.other_count > 0 && (() => {
+              {!isDeleted && user && Number(m.sender_id) === Number(user.id) && m.sender_role !== 'cue' && typeof m.other_count === 'number' && m.other_count > 0 && (() => {
                 const read = m.read_by_count ?? 0;
                 const total = m.other_count;
                 if (total <= 1) {
@@ -1177,6 +1411,56 @@ const ChatPanel: React.FC<Props> = ({
                 return <ReadMark $read={false}>{t('chat.read.sent', '전송됨')}</ReadMark>;
               })()}
             </MessageBody>
+            {/* 사이클 N+16-E — hover toolbar (Slack 패턴). 데스크탑 hover / 모바일 long-press 패턴은 추후 추가.
+                선택 모드 / 편집 모드 / 삭제된 메시지 / Cue 메시지는 toolbar 숨김. */}
+            {!selectionMode && !isEditing && !isDeleted && m.sender_role !== 'cue' && (
+              <MessageToolbar>
+                <ToolBarBtn type="button" onClick={(e) => { e.stopPropagation(); handleCopyText(m.body || ''); }} title={t('chat.action.copy', '메시지 복사') as string} aria-label={t('chat.action.copy', '메시지 복사') as string}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                  </svg>
+                </ToolBarBtn>
+                {canEditThis && (
+                  <ToolBarBtn type="button" onClick={(e) => { e.stopPropagation(); handleEditStart(m); }} title={t('chat.action.edit', '수정') as string} aria-label={t('chat.action.edit', '수정') as string}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                    </svg>
+                  </ToolBarBtn>
+                )}
+                {canPinThis && (
+                  <ToolBarBtn
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); handleTogglePinMsg(m); }}
+                    title={isPinned ? t('chat.action.unpin', '공지 해제') as string : t('chat.action.pin', '공지로 고정') as string}
+                    aria-label={isPinned ? t('chat.action.unpin', '공지 해제') as string : t('chat.action.pin', '공지로 고정') as string}
+                    $active={isPinned}
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill={isPinned ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M14 4l-1 1 1 1-4 4-4-1-1 1 4 4-5 5 1 1 5-5 4 4 1-1-1-4 4-4 1 1 1-1z"/>
+                    </svg>
+                  </ToolBarBtn>
+                )}
+                <ToolBarMoreRoot data-more-menu={m.id}>
+                  <ToolBarBtn type="button" onClick={(e) => { e.stopPropagation(); setMoreMenuMsgId((cur) => cur === m.id ? null : m.id); }} title={t('chat.action.more', '더보기') as string} aria-label={t('chat.action.more', '더보기') as string} $active={moreMenuMsgId === m.id}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="12" cy="19" r="1.6"/></svg>
+                  </ToolBarBtn>
+                  {moreMenuMsgId === m.id && (
+                    <ToolBarMore role="menu">
+                      <ToolBarMoreItem type="button" onClick={(e) => { e.stopPropagation(); setMoreMenuMsgId(null); setSelectionMode(true); setSelectedMsgIds(new Set([m.id])); }}>
+                        {t('chat.action.selectMulti', '여러 메시지 선택')}
+                      </ToolBarMoreItem>
+                      {canDeleteThis && (
+                        <ToolBarMoreItem type="button" $danger onClick={(e) => { e.stopPropagation(); setMoreMenuMsgId(null); setConfirmDeleteId(m.id); }}>
+                          {t('chat.action.delete', '삭제')}
+                        </ToolBarMoreItem>
+                      )}
+                    </ToolBarMore>
+                  )}
+                </ToolBarMoreRoot>
+              </MessageToolbar>
+            )}
           </MessageItem>
           );
         })}
@@ -1366,6 +1650,27 @@ const ChatPanel: React.FC<Props> = ({
           anchorEl={userPopover.anchorEl}
           onClose={() => setUserPopover(null)}
         />
+      )}
+      {/* 사이클 N+16-E — 메시지 삭제 확인. confirmDeleteId === -1 이면 묶음 삭제 의미. */}
+      {confirmDeleteId !== null && (
+        <ConfirmBackdrop onClick={() => setConfirmDeleteId(null)}>
+          <ConfirmDialog onClick={(e) => e.stopPropagation()}>
+            <ConfirmTitle>{t('chat.confirmDelete.title', '메시지를 삭제할까요?')}</ConfirmTitle>
+            <ConfirmBody>
+              {confirmDeleteId === -1
+                ? t('chat.confirmDelete.bulkBody', { count: selectedMsgIds.size, defaultValue: `선택한 ${selectedMsgIds.size}개 메시지가 모두에게 안 보이게 됩니다. 첨부 파일은 그대로 보관됩니다.` })
+                : t('chat.confirmDelete.singleBody', '이 메시지는 모두에게 안 보이게 됩니다. 원본은 보관되지만 채팅창엔 "삭제된 메시지" 로만 표시됩니다.')}
+            </ConfirmBody>
+            <ConfirmActions>
+              <ConfirmCancel type="button" onClick={() => setConfirmDeleteId(null)}>
+                {t('common.cancel', '취소')}
+              </ConfirmCancel>
+              <ConfirmDanger type="button" onClick={() => confirmDeleteId === -1 ? handleBulkDelete() : handleDelete(confirmDeleteId)}>
+                {t('common.delete', '삭제')}
+              </ConfirmDanger>
+            </ConfirmActions>
+          </ConfirmDialog>
+        </ConfirmBackdrop>
       )}
     </Container>
   );
@@ -1762,12 +2067,35 @@ const SkelMsgBubble = styled.div<{ $width: string; $mine?: boolean }>`
 
 // Hangouts/Slack 패턴 — 그룹 첫 메시지는 윗 마진 (그룹 간격), 연속(같은 발신자 + 5분 이내) 은
 // 거의 붙어서 나오게 (Irene 명시: 줄간격 좁게). 그룹 시작 12px / 연속 0px.
-const MessageItem = styled.div<{ $continuation?: boolean }>`
+const MessageItem = styled.div<{ $continuation?: boolean; $selected?: boolean; $flashing?: boolean; $pinned?: boolean; $clickable?: boolean }>`
+  position: relative;
   display: flex;
   gap: 12px;
   align-items: flex-start;
   margin-top: ${(p) => (p.$continuation ? '0' : '12px')};
+  padding: 4px 6px;
+  margin-left: -6px;
+  margin-right: -6px;
+  border-radius: 8px;
+  cursor: ${(p) => (p.$clickable ? 'pointer' : 'default')};
+  transition: background 0.15s;
   &:first-child { margin-top: 0; }
+  /* 핀 메시지 좌측 액센트 — 미세한 노란 막대 */
+  ${(p) => p.$pinned && `
+    box-shadow: inset 3px 0 0 #F59E0B;
+  `}
+  /* 선택된 상태 */
+  ${(p) => p.$selected && `
+    background: rgba(20, 184, 166, 0.08);
+    box-shadow: inset 3px 0 0 #14B8A6;
+  `}
+  /* PinnedBar 클릭 시 잠시 강조 */
+  ${(p) => p.$flashing && `
+    background: rgba(245, 158, 11, 0.18);
+    transition: background 0.4s;
+  `}
+  &:hover button.pq-msg-toolbar-btn { opacity: 1; }
+  &:hover > .pq-msg-toolbar { opacity: 1; pointer-events: auto; transform: translateY(0); }
 `;
 
 // 그룹 연속 메시지에서 Avatar 자리 차지 (들여쓰기 정렬용 빈 박스)
@@ -1777,9 +2105,381 @@ const AvatarSpacer = styled.div`
   flex-shrink: 0;
 `;
 
+// 사이클 N+16-D — 아바타 클릭 → 발신자 정보 popover. 시각적으로 LetterAvatar 그대로 보이도록 button 은 wrapper.
+const AvatarBtn = styled.button`
+  flex-shrink: 0;
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.1s, box-shadow 0.15s;
+  &:hover { transform: scale(1.04); box-shadow: 0 0 0 2px rgba(20,184,166,0.18); }
+  &:focus-visible { outline: 2px solid #14B8A6; outline-offset: 2px; }
+`;
+
 const MessageBody = styled.div`
   flex: 1;
   min-width: 0;
+`;
+
+// 사이클 N+16-E — 묶음 선택 체크박스
+const MsgCheckbox = styled.div<{ $checked: boolean; $disabled?: boolean }>`
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  border: 1.6px solid ${(p) => (p.$checked ? '#14B8A6' : '#CBD5E1')};
+  background: ${(p) => (p.$checked ? '#14B8A6' : 'transparent')};
+  color: #FFFFFF;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 8px;
+  opacity: ${(p) => (p.$disabled ? 0.4 : 1)};
+  transition: background 0.15s, border-color 0.15s;
+`;
+
+// (수정됨) 라벨
+const EditedMark = styled.span`
+  font-size: 10px;
+  color: #94A3B8;
+  font-style: italic;
+`;
+
+// 삭제된 메시지 placeholder (CLAUDE.md 운영 정책)
+const DeletedPlaceholder = styled.div`
+  font-size: 12px;
+  color: #94A3B8;
+  font-style: italic;
+  padding: 6px 12px;
+  background: #F8FAFC;
+  border: 1px dashed #CBD5E1;
+  border-radius: 8px;
+  margin-top: 4px;
+  width: fit-content;
+  max-width: 100%;
+`;
+
+// 인라인 편집 폼
+const EditFormWrap = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 4px;
+`;
+const EditTextArea = styled.textarea`
+  width: 100%;
+  resize: vertical;
+  min-height: 60px;
+  padding: 10px 12px;
+  border: 1px solid #14B8A6;
+  border-radius: 8px;
+  background: #FFFFFF;
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #0F172A;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.1);
+`;
+const EditActions = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+`;
+const EditBtn = styled.button<{ $primary?: boolean }>`
+  height: 28px;
+  padding: 0 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid ${(p) => (p.$primary ? '#0D9488' : '#CBD5E1')};
+  background: ${(p) => (p.$primary ? '#14B8A6' : '#FFFFFF')};
+  color: ${(p) => (p.$primary ? '#FFFFFF' : '#334155')};
+  transition: background 0.15s;
+  &:hover:not(:disabled) {
+    background: ${(p) => (p.$primary ? '#0D9488' : '#F8FAFC')};
+  }
+  &:disabled { opacity: 0.5; cursor: not-allowed; }
+`;
+const EditHint = styled.span`
+  font-size: 11px;
+  color: #94A3B8;
+  margin-left: auto;
+`;
+
+// hover toolbar (Slack 패턴). MessageItem 우측 상단 absolute, hover 시 등장.
+const MessageToolbar = styled.div.attrs({ className: 'pq-msg-toolbar' })`
+  position: absolute;
+  top: 0;
+  right: 8px;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
+  padding: 2px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s, transform 0.15s;
+  z-index: 5;
+  @media (hover: none), (max-width: 640px) {
+    /* 모바일/터치: 항상 노출 (hover 없음) */
+    position: static;
+    transform: none;
+    margin-top: 4px;
+    opacity: 1;
+    pointer-events: auto;
+    box-shadow: none;
+    background: transparent;
+    border: none;
+    padding: 0;
+    justify-content: flex-end;
+  }
+`;
+const ToolBarBtn = styled.button<{ $active?: boolean }>`
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 6px;
+  background: ${(p) => (p.$active ? '#F0FDFA' : 'transparent')};
+  color: ${(p) => (p.$active ? '#0F766E' : '#64748B')};
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  &:hover { background: #F1F5F9; color: #0F172A; }
+  &:focus-visible { outline: 2px solid #14B8A6; outline-offset: 1px; }
+`;
+const ToolBarMoreRoot = styled.div`
+  position: relative;
+  display: inline-flex;
+`;
+const ToolBarMore = styled.div`
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  min-width: 180px;
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+  padding: 4px;
+  z-index: 20;
+`;
+const ToolBarMoreItem = styled.button<{ $danger?: boolean }>`
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 8px 12px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  color: ${(p) => (p.$danger ? '#B91C1C' : '#334155')};
+  cursor: pointer;
+  transition: background 0.1s;
+  &:hover { background: ${(p) => (p.$danger ? '#FEF2F2' : '#F8FAFC')}; }
+`;
+
+// PinnedBar — Slack 패턴 헤더 아래 공지 영역
+const PinnedBar = styled.div`
+  flex-shrink: 0;
+  background: linear-gradient(180deg, #FEF3C7 0%, #FEF9E7 100%);
+  border-bottom: 1px solid #FCD34D;
+`;
+const PinnedHeader = styled.button`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 16px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 12px;
+  color: #92400E;
+  transition: background 0.15s;
+  &:hover { background: rgba(245, 158, 11, 0.08); }
+`;
+const PinIcon = styled.svg`
+  width: 14px;
+  height: 14px;
+  color: #D97706;
+  flex-shrink: 0;
+`;
+const PinnedTitle = styled.span`
+  font-size: 12px;
+  font-weight: 700;
+  color: #92400E;
+`;
+const PinChevron = styled.svg<{ $open: boolean }>`
+  width: 12px;
+  height: 12px;
+  color: #92400E;
+  margin-left: auto;
+  transition: transform 0.15s;
+  transform: rotate(${(p) => (p.$open ? '0deg' : '-90deg')});
+`;
+const PinnedList = styled.div`
+  display: flex;
+  flex-direction: column;
+  padding: 0 8px 8px;
+  gap: 4px;
+  max-height: 200px;
+  overflow-y: auto;
+`;
+const PinnedItem = styled.button`
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 30px 8px 12px;
+  background: #FFFFFF;
+  border: 1px solid rgba(217, 119, 6, 0.18);
+  border-radius: 8px;
+  cursor: pointer;
+  text-align: left;
+  font-size: 12px;
+  transition: background 0.15s, border-color 0.15s;
+  &:hover { background: #FFFBEB; border-color: #F59E0B; }
+`;
+const PinnedSender = styled.span`
+  font-weight: 700;
+  color: #0F172A;
+  flex-shrink: 0;
+`;
+const PinnedBody = styled.span`
+  flex: 1;
+  color: #334155;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+`;
+const PinnedTime = styled.span`
+  font-size: 10px;
+  color: #94A3B8;
+  flex-shrink: 0;
+`;
+const PinnedUnpinBtn = styled.button`
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 22px;
+  height: 22px;
+  border: none;
+  background: transparent;
+  color: #94A3B8;
+  border-radius: 4px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  &:hover { background: #FEF3C7; color: #92400E; }
+`;
+
+// SelectionBar — 묶음 선택 모드 상단 액션 바
+const SelectionBar = styled.div`
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 16px;
+  background: #F0FDFA;
+  border-bottom: 1px solid #99F6E4;
+`;
+const SelectionCount = styled.span`
+  font-size: 12px;
+  font-weight: 700;
+  color: #0F766E;
+`;
+const SelectionActions = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 6px;
+`;
+const SelectionBtn = styled.button<{ $danger?: boolean }>`
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid ${(p) => (p.$danger ? '#FCA5A5' : '#CBD5E1')};
+  background: #FFFFFF;
+  color: ${(p) => (p.$danger ? '#B91C1C' : '#334155')};
+  transition: background 0.15s, border-color 0.15s;
+  &:hover:not(:disabled) {
+    background: ${(p) => (p.$danger ? '#FEF2F2' : '#F8FAFC')};
+    border-color: ${(p) => (p.$danger ? '#DC2626' : '#94A3B8')};
+  }
+  &:disabled { opacity: 0.4; cursor: not-allowed; }
+`;
+const SelectionCancel = styled.button`
+  height: 30px;
+  padding: 0 12px;
+  background: transparent;
+  border: none;
+  font-size: 12px;
+  font-weight: 600;
+  color: #64748B;
+  cursor: pointer;
+  border-radius: 6px;
+  &:hover { background: #FFFFFF; color: #0F172A; }
+`;
+
+const ConfirmBackdrop = styled.div`
+  position: fixed; inset: 0;
+  background: rgba(15, 23, 42, 0.35);
+  z-index: 2500;
+  display: flex; align-items: center; justify-content: center;
+  padding: 20px;
+`;
+const ConfirmDialog = styled.div`
+  background: #FFFFFF;
+  border-radius: 12px;
+  width: 100%;
+  max-width: 420px;
+  padding: 20px 22px;
+  box-shadow: 0 20px 50px rgba(15, 23, 42, 0.2);
+  display: flex; flex-direction: column; gap: 12px;
+`;
+const ConfirmTitle = styled.div`
+  font-size: 15px; font-weight: 700; color: #0F172A;
+`;
+const ConfirmBody = styled.div`
+  font-size: 13px; color: #475569; line-height: 1.55;
+`;
+const ConfirmActions = styled.div`
+  display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px;
+`;
+const ConfirmCancel = styled.button`
+  height: 34px; padding: 0 14px;
+  background: #FFFFFF; border: 1px solid #CBD5E1; border-radius: 8px;
+  font-size: 13px; font-weight: 600; color: #334155; cursor: pointer;
+  &:hover { background: #F8FAFC; }
+`;
+const ConfirmDanger = styled.button`
+  height: 34px; padding: 0 14px;
+  background: #DC2626; border: none; border-radius: 8px;
+  font-size: 13px; font-weight: 700; color: #FFFFFF; cursor: pointer;
+  &:hover { background: #B91C1C; }
 `;
 
 const MessageHeader = styled.div`

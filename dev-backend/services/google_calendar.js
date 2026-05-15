@@ -14,7 +14,13 @@
 const { google } = require('googleapis');
 const { BusinessCloudToken } = require('../models');
 
-const SCOPES = ['https://www.googleapis.com/auth/calendar.events'];
+// 사이클 N+16-B — openid email 추가 (id_token 에 email claim 받기 위해).
+// 옛 scope 만으로는 사용자 이메일 표시 불가했음 (callback 에 "계정: (확인 불가)" 회귀).
+const SCOPES = [
+  'https://www.googleapis.com/auth/calendar.events',
+  'openid',
+  'email',
+];
 
 function isConfigured() {
   return !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET && process.env.GOOGLE_REDIRECT_URI);
@@ -78,15 +84,31 @@ function parseState(state) {
 async function exchangeCodeForTokens(code) {
   const client = newOAuth2Client();
   const { tokens } = await client.getToken(code);
-  // calendar.events scope 에선 별도 userinfo 호출 없이 토큰만 사용 — calendar.calendarList.get('primary') 로 account_email 추출
   let accountEmail = null;
-  try {
-    client.setCredentials(tokens);
-    const cal = google.calendar({ version: 'v3', auth: client });
-    const primary = await cal.calendarList.get({ calendarId: 'primary' });
-    accountEmail = primary.data?.id || null;
-  } catch (e) {
-    console.error('[gcal] primary calendarList.get failed:', e.message);
+  // 1차: id_token JWT payload 의 email claim (OpenID — 가장 안전, 호출 0회).
+  // build URL 에 openid email scope 가 포함되어 있어야 동작.
+  if (tokens.id_token) {
+    try {
+      const parts = String(tokens.id_token).split('.');
+      if (parts.length === 3) {
+        const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8'));
+        if (payload && payload.email) accountEmail = payload.email;
+      }
+    } catch (e) {
+      console.warn('[gcal] id_token parse failed:', e.message);
+    }
+  }
+  // 2차: calendar.calendarList.get('primary') 의 id (= 사용자 이메일)
+  if (!accountEmail) {
+    try {
+      client.setCredentials(tokens);
+      const cal = google.calendar({ version: 'v3', auth: client });
+      const primary = await cal.calendarList.get({ calendarId: 'primary' });
+      const id = primary.data?.id;
+      if (id && id.includes('@')) accountEmail = id;
+    } catch (e) {
+      console.error('[gcal] primary calendarList.get failed:', e.message);
+    }
   }
   return { tokens, accountEmail };
 }

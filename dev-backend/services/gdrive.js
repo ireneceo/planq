@@ -163,6 +163,24 @@ async function deleteFile(drive, fileId) {
 }
 
 /**
+ * 사이클 N+16-E — 파일 메타 조회 + 바이트 스트림 가져오기.
+ * 채팅 이미지 inline 미리보기용 서버 프록시. drive.file scope 로 PlanQ 가 만든 파일만 접근.
+ */
+async function getFileMeta(drive, fileId) {
+  const r = await drive.files.get({
+    fileId,
+    fields: 'id, name, mimeType, size, webViewLink, webContentLink, trashed',
+  });
+  return r.data;
+}
+
+async function getFileStream(drive, fileId) {
+  // alt=media → response.data 는 stream
+  const r = await drive.files.get({ fileId, alt: 'media' }, { responseType: 'stream' });
+  return r.data;
+}
+
+/**
  * 폴더 이름 변경
  */
 async function renameFile(drive, fileId, name) {
@@ -311,6 +329,8 @@ module.exports = {
   uploadFile,
   deleteFile,
   renameFile,
+  getFileMeta,
+  getFileStream,
   getTokenForBusiness,
   ensureProjectFolder,
   ensureConversationsFolder,

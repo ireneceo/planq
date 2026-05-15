@@ -59,22 +59,26 @@
       "email": "External backup"
     },
     "eventLabel": {
+      "message": "Chat messages",
+      "mention": "Chat mentions",
+      "comment_mention": "Comment mentions",
       "signature": "Signatures",
       "invoice": "Invoices & payments",
       "tax_invoice": "Tax invoices",
       "task": "Tasks",
       "event": "Calendar",
-      "invite": "Invites",
-      "mention": "Mentions"
+      "invite": "Invites"
     },
     "eventDesc": {
+      "message": "New message arrives in a chat room",
+      "mention": "@-mentioned in chat",
+      "comment_mention": "@-mentioned in task or document comments",
       "signature": "Requests received / signed / rejected",
       "invoice": "Sent / payment notice / paid",
       "tax_invoice": "Tax invoice issuance deadlines",
       "task": "Assigned / under review / completed",
       "event": "Added / changed / upcoming",
-      "invite": "Workspace and project invites",
-      "mention": "Mentioned in comments or chat"
+      "invite": "Workspace and project invites"
     },
     "footerNote": "Inbox is the in-app notification area. Chat / Email go to external channels.",
     "policy": {

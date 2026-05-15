@@ -183,10 +183,47 @@ export default function NotificationToaster() {
     setToasts(prev => prev.filter(x => x.id !== id));
   }, []);
 
+  // 사이클 N+16-C — 알림 매트릭스 prefs 캐시 (chat channel 검사용).
+  // 옛 toaster 는 주석에만 "chat channel ON 일 때만 표시" 라고 적고 실제 코드 검사 안 함 — 회귀 fix.
+  // 마운트 시 + 'planq:notif-prefs-changed' 시 fetch. 5분 캐시.
+  const prefsRef = useRef<{ matrix: Record<string, Record<string, boolean>>; ts: number } | null>(null);
+  const refreshPrefs = useCallback(async () => {
+    if (!user) return;
+    const bizId = user.business_id ? Number(user.business_id) : null;
+    if (!bizId) return;
+    try {
+      const r = await apiFetch(`/api/notifications/prefs?business_id=${bizId}`);
+      const j = await r.json();
+      if (j.success && j.data?.matrix) {
+        prefsRef.current = { matrix: j.data.matrix, ts: Date.now() };
+      }
+    } catch { /* fall back to default ON */ }
+  }, [user]);
+  useEffect(() => {
+    refreshPrefs();
+    const onChanged = () => refreshPrefs();
+    window.addEventListener('planq:notif-prefs-changed', onChanged);
+    return () => window.removeEventListener('planq:notif-prefs-changed', onChanged);
+  }, [refreshPrefs]);
+
+  // toast.type → event_kind 매핑. 'message' 토스트는 'message' 또는 'mention' 둘 다 가능 (backend 구분 X)
+  // → 어느 하나라도 chat=ON 이면 표시. 사용자가 두 토글 모두 끄면 모든 chat 토스터 차단.
+  const isChatChannelAllowed = (toastType: string): boolean => {
+    const matrix = prefsRef.current?.matrix;
+    if (!matrix) return true; // prefs 미로딩 → 기본 ON
+    const check = (ev: string) => matrix[ev]?.chat !== false;
+    if (toastType === 'message') return check('message') || check('mention');
+    if (toastType === 'task') return check('task');
+    if (toastType === 'invoice') return check('invoice') || check('tax_invoice');
+    if (toastType === 'signature') return check('signature');
+    if (toastType === 'event') return check('event');
+    return true; // system / 알 수 없음 — 표시
+  };
+
   const add = useCallback((toast: Omit<Toast, 'id' | 'ts'>) => {
     // ★ Irene 정책 (2026-05-08): 사운드는 항상 울려야 함 — 새 메시지 인지.
     //   토스트는 활성 conv / 같은 페이지면 skip (이미 보고 있어서 시각 노이즈).
-    //   즉 분리: 사운드 = 항상 / 토스트 = context-aware skip
+    //   사이클 N+16-C — 추가로 chat channel pref OFF 면 skip (전수조사 fix).
     let skipToast = false;
     if (toast.contextKey?.startsWith('conv:')) {
       const cid = Number(toast.contextKey.slice(5));
@@ -195,11 +232,11 @@ export default function NotificationToaster() {
     if (toast.link && activePathRef.current === toast.link.split('?')[0]) {
       if (!toast.link.includes('?')) skipToast = true;
     }
+    if (!isChatChannelAllowed(toast.type)) skipToast = true;
     // Ping 사운드 — 항상. 활성 conv 든 다른 페이지든. (Irene 명시: 사운드 와야 함)
     playPing();
     // 사이드바 토탈 unread 갱신 트리거 — message 토스터는 활성 conv 외 다른 conv 의 새 메시지를
     // 의미하므로 useUnreadTotal 이 즉시 refetch 해야 사이드바 뱃지가 stale 되지 않음.
-    // QTalkPage 가 activeConv 가 아닌 경우 unread-changed dispatch 가 되지 않던 회귀 fix.
     if (toast.type === 'message') {
       window.dispatchEvent(new Event('planq:unread-changed'));
     }
@@ -209,6 +246,7 @@ export default function NotificationToaster() {
     const next: Toast = { ...toast, id, ts: Date.now() };
     // 자동 페이드 제거: X 닫기 / 클릭 이동 시만 닫힘. MAX_VISIBLE 만 유지.
     setToasts(prev => [...prev, next].slice(-MAX_VISIBLE));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Global socket — user 가 로그인되어 있을 때만 연결

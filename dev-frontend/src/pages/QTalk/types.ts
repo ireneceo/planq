@@ -137,6 +137,11 @@ export interface MockMessage {
   // other_count = 본인 제외 참여자 총수. 1 = 1:1, 2+ = 그룹.
   read_by_count?: number;
   other_count?: number;
+  // 사이클 N+16-E — 메시지 수정 / 삭제 / 핀.
+  is_edited?: boolean;
+  is_deleted?: boolean;
+  edited_at?: string | null;
+  pinned_at?: string | null;
 }
 
 export interface MockConversation {

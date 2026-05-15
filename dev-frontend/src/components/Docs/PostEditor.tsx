@@ -13,8 +13,16 @@ import { Table } from '@tiptap/extension-table';
 import { TableRow } from '@tiptap/extension-table-row';
 import { TableCell } from '@tiptap/extension-table-cell';
 import { TableHeader } from '@tiptap/extension-table-header';
+import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight';
+import { createLowlight, common } from 'lowlight';
 import { apiFetch } from '../../contexts/AuthContext';
 import { LightboxWrapper } from '../Common/ImageLightbox';
+import { codeBlockNodeView } from '../Common/CodeBlockNodeView';
+
+// 사이클 N+16 — 노션 스타일 코드 블록. lowlight + common 언어팩 (30개+: js/ts/python/go/rust/sql/bash 등).
+const lowlight = createLowlight(common);
+const PqCodeBlock = CodeBlockLowlight.configure({ lowlight, defaultLanguage: 'plaintext' })
+  .extend({ addNodeView: codeBlockNodeView });
 
 // Image extension 확장 — width attribute (사이즈 조정용, 사이클 N+9)
 const ResizableImage = Image.extend({
@@ -59,7 +67,10 @@ const PostEditor: React.FC<Props> = ({ value, onChange, placeholder, editable = 
         // TipTap v3 StarterKit 가 Link 를 자체 포함 → 별도 Link 와 mark 중복.
         // SK 의 Link 비활성 (콘솔: "Duplicate extension names found: ['link']")
         link: false,
+        // 사이클 N+16 — 노션 스타일 코드 블록을 CodeBlockLowlight 로 교체.
+        codeBlock: false,
       }),
+      PqCodeBlock,
       Placeholder.configure({ placeholder: placeholder || '본문을 작성하세요…' }),
       Link.configure({ openOnClick: false, HTMLAttributes: { rel: 'noopener noreferrer', target: '_blank' } }),
       ResizableImage.configure({ inline: false, allowBase64: false, HTMLAttributes: { class: 'editor-image' } }),
@@ -142,7 +153,7 @@ const PostEditor: React.FC<Props> = ({ value, onChange, placeholder, editable = 
             <ToolBtn type="button" $active={isActive('bold')} onClick={() => editor.chain().focus().toggleBold().run()} title="굵게">B</ToolBtn>
             <ToolBtn type="button" $active={isActive('italic')} onClick={() => editor.chain().focus().toggleItalic().run()} title="기울임" style={{ fontStyle: 'italic' }}>I</ToolBtn>
             <ToolBtn type="button" $active={isActive('strike')} onClick={() => editor.chain().focus().toggleStrike().run()} title="취소선" style={{ textDecoration: 'line-through' }}>S</ToolBtn>
-            <ToolBtn type="button" $active={isActive('code')} onClick={() => editor.chain().focus().toggleCode().run()} title="인라인 코드" style={{ fontFamily: 'monospace' }}>{'</>'}</ToolBtn>
+            <ToolBtn type="button" $active={isActive('code')} onClick={() => editor.chain().focus().toggleCode().run()} title="인라인 코드" style={{ fontFamily: 'monospace' }}>code</ToolBtn>
           </Group>
           <Sep />
           <Group>
@@ -155,7 +166,7 @@ const PostEditor: React.FC<Props> = ({ value, onChange, placeholder, editable = 
             <ToolBtn type="button" $active={isActive('bulletList')} onClick={() => editor.chain().focus().toggleBulletList().run()} title="글머리 기호">•</ToolBtn>
             <ToolBtn type="button" $active={isActive('orderedList')} onClick={() => editor.chain().focus().toggleOrderedList().run()} title="번호 매기기">1.</ToolBtn>
             <ToolBtn type="button" $active={isActive('blockquote')} onClick={() => editor.chain().focus().toggleBlockquote().run()} title="인용">❝</ToolBtn>
-            <ToolBtn type="button" $active={isActive('codeBlock')} onClick={() => editor.chain().focus().toggleCodeBlock().run()} title="코드 블록" style={{ fontFamily: 'monospace' }}>{ '{ }' }</ToolBtn>
+            <ToolBtn type="button" $active={isActive('codeBlock')} onClick={() => editor.chain().focus().toggleCodeBlock().run()} title="코드 블록 (syntax 색상 + 복사 버튼)" style={{ fontFamily: 'monospace' }}>{ '</>' }</ToolBtn>
           </Group>
           <Sep />
           <Group>
@@ -347,8 +358,24 @@ const Body = styled.div<{ $editable?: boolean; $borderless?: boolean }>`
     ol li::marker { color: #94A3B8; font-weight: 600; }
     blockquote { border-left: 3px solid #14B8A6; padding: 4px 12px; background: #F0FDFA; color: #334155; border-radius: 0 6px 6px 0; }
     code { background: #F1F5F9; padding: 2px 6px; border-radius: 4px; font-size: 12px; font-family: 'SFMono-Regular', Menlo, Consolas, monospace; color: #BE185D; }
-    pre { background: #0F172A; color: #E2E8F0; padding: 12px 14px; border-radius: 8px; font-size: 12px; overflow-x: auto; }
-    pre code { background: transparent; color: inherit; padding: 0; }
+    /* CodeBlockLowlight node view 가 자체 스타일 가짐 — 옛 pre/code 스타일은 fallback. */
+    pre { background: #1E293B; color: #E2E8F0; padding: 12px 14px; border-radius: 8px; font-size: 12px; overflow-x: auto; }
+    pre code { background: transparent; color: inherit; padding: 0; font-family: 'SFMono-Regular', Menlo, Consolas, monospace; }
+
+    /* 사이클 N+16 — highlight.js (atom-one-dark 톤) syntax 색상.
+       lowlight 가 hljs-* 클래스 입혀줌 → 노션 수준 syntax highlighting. */
+    .hljs-comment, .hljs-quote { color: #94A3B8; font-style: italic; }
+    .hljs-keyword, .hljs-selector-tag, .hljs-literal, .hljs-section, .hljs-link { color: #C792EA; }
+    .hljs-string, .hljs-attr, .hljs-template-tag, .hljs-template-variable, .hljs-addition, .hljs-meta-string { color: #C3E88D; }
+    .hljs-number, .hljs-symbol, .hljs-bullet, .hljs-meta { color: #F78C6C; }
+    .hljs-title, .hljs-title.function_, .hljs-name { color: #82AAFF; }
+    .hljs-variable, .hljs-template-tag { color: #EEFFFF; }
+    .hljs-type, .hljs-class .hljs-title, .hljs-built_in, .hljs-builtin-name { color: #FFCB6B; }
+    .hljs-attribute, .hljs-selector-attr, .hljs-selector-pseudo, .hljs-property { color: #FFCB6B; }
+    .hljs-regexp, .hljs-deletion { color: #FF5370; }
+    .hljs-tag, .hljs-selector-class, .hljs-selector-id { color: #F07178; }
+    .hljs-emphasis { font-style: italic; }
+    .hljs-strong { font-weight: 700; }
     a { color: #0D9488; text-decoration: underline; }
     img.editor-image { max-width: 100%; height: auto; border-radius: 8px; margin: 12px 0; display: block; }
     img.editor-image.ProseMirror-selectednode { outline: 2px solid #14B8A6; outline-offset: 2px; }

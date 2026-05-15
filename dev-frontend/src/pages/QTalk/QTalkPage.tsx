@@ -171,6 +171,10 @@ function apiMessageToMock(m: qtalkApi.ApiMessage): MockMessage {
     detected_language: m.detected_language ?? null,
     read_by_count: typeof m.read_by_count === 'number' ? m.read_by_count : undefined,
     other_count: typeof m.other_count === 'number' ? m.other_count : undefined,
+    is_edited: !!m.is_edited,
+    is_deleted: !!m.is_deleted,
+    edited_at: m.edited_at || null,
+    pinned_at: m.pinned_at || null,
   };
 }
 
@@ -418,12 +422,35 @@ const QTalkPage: React.FC = () => {
       });
     });
 
-    // 메시지 업데이트 (Draft 승인/거절 등)
+    // 메시지 업데이트 (Draft 승인/거절 + 사이클 N+16-E 수정)
     socket.on('message:updated', (msg: qtalkApi.ApiMessage) => {
       const mapped = apiMessageToMock(msg);
       setMessages((prev) => {
         const arr = prev[mapped.conversation_id] || [];
         return { ...prev, [mapped.conversation_id]: arr.map((m) => (m.id === mapped.id ? mapped : m)) };
+      });
+    });
+
+    // 사이클 N+16-E — 메시지 삭제 (soft) / 핀 / 언핀 실시간.
+    socket.on('message:deleted', (data: { id: number; conversation_id: number }) => {
+      setMessages((prev) => {
+        const arr = prev[data.conversation_id];
+        if (!arr) return prev;
+        return { ...prev, [data.conversation_id]: arr.map((m) => m.id === data.id ? { ...m, is_deleted: true } : m) };
+      });
+    });
+    socket.on('message:pinned', (data: { id: number; conversation_id: number; pinned_at: string }) => {
+      setMessages((prev) => {
+        const arr = prev[data.conversation_id];
+        if (!arr) return prev;
+        return { ...prev, [data.conversation_id]: arr.map((m) => m.id === data.id ? { ...m, pinned_at: data.pinned_at } : m) };
+      });
+    });
+    socket.on('message:unpinned', (data: { id: number; conversation_id: number }) => {
+      setMessages((prev) => {
+        const arr = prev[data.conversation_id];
+        if (!arr) return prev;
+        return { ...prev, [data.conversation_id]: arr.map((m) => m.id === data.id ? { ...m, pinned_at: null } : m) };
       });
     });
 

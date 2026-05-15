@@ -59,22 +59,26 @@
       "email": "외부 backup"
     },
     "eventLabel": {
+      "message": "채팅 메시지",
+      "mention": "채팅 멘션",
+      "comment_mention": "댓글 멘션",
       "signature": "서명",
       "invoice": "청구·결제",
       "tax_invoice": "세금계산서",
       "task": "업무",
       "event": "일정",
-      "invite": "초대",
-      "mention": "멘션"
+      "invite": "초대"
     },
     "eventDesc": {
+      "message": "채팅방에 새 메시지 도착",
+      "mention": "채팅에서 @로 나를 부름",
+      "comment_mention": "업무·문서 댓글에서 @로 나를 부름",
       "signature": "서명 요청 받음 / 완료 / 거절",
       "invoice": "청구서 발송 / 입금 알림 / 결제 완료",
       "tax_invoice": "세금계산서 발행 마감",
       "task": "업무 할당 / 검토 / 완료",
       "event": "일정 추가 / 변경 / 임박",
-      "invite": "워크스페이스·프로젝트 초대",
-      "mention": "댓글 / 채팅에서 나를 언급"
+      "invite": "워크스페이스·프로젝트 초대"
     },
     "footerNote": "확인필요(Inbox)는 PlanQ 안에서 직접 보는 알림 영역입니다. 채팅/이메일은 외부로 나가는 알림.",
     "policy": {

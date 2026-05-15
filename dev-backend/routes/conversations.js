@@ -555,6 +555,148 @@ router.post('/:businessId/:id/messages', authenticateToken, attachWorkspaceScope
 });
 
 // ─────────────────────────────────────────────────────────
+// 사이클 N+16-E — 메시지 수정 / 삭제 / 핀 (Slack 패턴)
+//
+// 권한:
+//   - edit: 본인 메시지만 (sender_id === user.id). AI 메시지 / 시스템 메시지 / 카드 메시지 수정 불가.
+//   - delete (soft): 본인 + workspace owner + platform admin. CLAUDE.md 운영 정책 그대로.
+//   - pin: workspace owner / platform admin / project owner. 채널에 최대 50개 권장.
+// ─────────────────────────────────────────────────────────
+router.put('/:businessId/:id/messages/:msgId', authenticateToken, attachWorkspaceScope(), async (req, res, next) => {
+  try {
+    const { businessId, id: convId, msgId } = req.params;
+    const conv = await Conversation.findOne({ where: { id: convId, business_id: businessId } });
+    if (!conv) return errorResponse(res, 'conversation_not_found', 404);
+    if (!(await canAccessConversation(req.user.id, conv, req.scope))) return errorResponse(res, 'forbidden', 403);
+
+    const msg = await Message.findOne({ where: { id: msgId, conversation_id: conv.id } });
+    if (!msg) return errorResponse(res, 'message_not_found', 404);
+    if (msg.is_deleted) return errorResponse(res, 'message_deleted', 400);
+    if (msg.is_ai || msg.kind !== 'text') return errorResponse(res, 'cannot_edit_non_text', 400);
+    if (Number(msg.sender_id) !== Number(req.user.id)) return errorResponse(res, 'only_sender_can_edit', 403);
+
+    const content = String(req.body?.content || '').trim();
+    if (!content) return errorResponse(res, 'empty_content', 400);
+    await msg.update({ content, is_edited: true, edited_at: new Date() });
+
+    const fullMsg = await Message.findByPk(msg.id, {
+      include: [{ model: User, as: 'sender', attributes: ['id', 'name', 'email', 'name_localized'] }],
+    });
+    const io = req.app.get('io');
+    if (io) io.to(`conv:${conv.id}`).emit('message:updated', fullMsg.toJSON());
+    await createAuditLog({ userId: req.user.id, businessId, action: 'message.edit', targetType: 'Message', targetId: msg.id });
+    return successResponse(res, fullMsg.toJSON());
+  } catch (err) { next(err); }
+});
+
+router.delete('/:businessId/:id/messages/:msgId', authenticateToken, attachWorkspaceScope(), async (req, res, next) => {
+  try {
+    const { businessId, id: convId, msgId } = req.params;
+    const conv = await Conversation.findOne({ where: { id: convId, business_id: businessId } });
+    if (!conv) return errorResponse(res, 'conversation_not_found', 404);
+    if (!(await canAccessConversation(req.user.id, conv, req.scope))) return errorResponse(res, 'forbidden', 403);
+
+    const msg = await Message.findOne({ where: { id: msgId, conversation_id: conv.id } });
+    if (!msg) return errorResponse(res, 'message_not_found', 404);
+    if (msg.is_deleted) return successResponse(res, { id: msg.id, is_deleted: true });
+
+    // 권한: 본인 OR workspace owner OR platform admin
+    const isSender = Number(msg.sender_id) === Number(req.user.id);
+    const isOwner = req.businessRole === 'owner' || req.user.platform_role === 'platform_admin';
+    if (!isSender && !isOwner) return errorResponse(res, 'forbidden_delete', 403);
+
+    // 마스킹 (CLAUDE.md 운영 정책): is_deleted=true, content/첨부 DB 유지. UI 가 '삭제된 메시지' 처리.
+    await msg.update({ is_deleted: true, deleted_at: new Date(), pinned_at: null });
+
+    const io = req.app.get('io');
+    if (io) io.to(`conv:${conv.id}`).emit('message:deleted', { id: msg.id, conversation_id: conv.id });
+    await createAuditLog({ userId: req.user.id, businessId, action: 'message.delete', targetType: 'Message', targetId: msg.id });
+    return successResponse(res, { id: msg.id, is_deleted: true });
+  } catch (err) { next(err); }
+});
+
+router.post('/:businessId/:id/messages/:msgId/pin', authenticateToken, attachWorkspaceScope(), async (req, res, next) => {
+  try {
+    const { businessId, id: convId, msgId } = req.params;
+    const conv = await Conversation.findOne({ where: { id: convId, business_id: businessId } });
+    if (!conv) return errorResponse(res, 'conversation_not_found', 404);
+    if (!(await canAccessConversation(req.user.id, conv, req.scope))) return errorResponse(res, 'forbidden', 403);
+
+    // 권한: owner / admin / project owner (project_id 있으면)
+    const isOwner = req.businessRole === 'owner' || req.user.platform_role === 'platform_admin';
+    let isProjectOwner = false;
+    if (!isOwner && conv.project_id) {
+      const { ProjectMember } = require('../models');
+      const pm = await ProjectMember.findOne({ where: { project_id: conv.project_id, user_id: req.user.id, role: 'owner' } });
+      isProjectOwner = !!pm;
+    }
+    if (!isOwner && !isProjectOwner) return errorResponse(res, 'forbidden_pin', 403);
+
+    const msg = await Message.findOne({ where: { id: msgId, conversation_id: conv.id } });
+    if (!msg) return errorResponse(res, 'message_not_found', 404);
+    if (msg.is_deleted) return errorResponse(res, 'message_deleted', 400);
+    if (msg.pinned_at) return successResponse(res, { id: msg.id, pinned_at: msg.pinned_at });
+
+    await msg.update({ pinned_at: new Date(), pinned_by_user_id: req.user.id });
+
+    const io = req.app.get('io');
+    if (io) io.to(`conv:${conv.id}`).emit('message:pinned', { id: msg.id, conversation_id: conv.id, pinned_at: msg.pinned_at });
+    await createAuditLog({ userId: req.user.id, businessId, action: 'message.pin', targetType: 'Message', targetId: msg.id });
+    return successResponse(res, { id: msg.id, pinned_at: msg.pinned_at });
+  } catch (err) { next(err); }
+});
+
+router.delete('/:businessId/:id/messages/:msgId/pin', authenticateToken, attachWorkspaceScope(), async (req, res, next) => {
+  try {
+    const { businessId, id: convId, msgId } = req.params;
+    const conv = await Conversation.findOne({ where: { id: convId, business_id: businessId } });
+    if (!conv) return errorResponse(res, 'conversation_not_found', 404);
+    if (!(await canAccessConversation(req.user.id, conv, req.scope))) return errorResponse(res, 'forbidden', 403);
+
+    const isOwner = req.businessRole === 'owner' || req.user.platform_role === 'platform_admin';
+    let isProjectOwner = false;
+    if (!isOwner && conv.project_id) {
+      const { ProjectMember } = require('../models');
+      const pm = await ProjectMember.findOne({ where: { project_id: conv.project_id, user_id: req.user.id, role: 'owner' } });
+      isProjectOwner = !!pm;
+    }
+    if (!isOwner && !isProjectOwner) return errorResponse(res, 'forbidden_pin', 403);
+
+    const msg = await Message.findOne({ where: { id: msgId, conversation_id: conv.id } });
+    if (!msg) return errorResponse(res, 'message_not_found', 404);
+    if (!msg.pinned_at) return successResponse(res, { id: msg.id, pinned_at: null });
+
+    await msg.update({ pinned_at: null, pinned_by_user_id: null });
+
+    const io = req.app.get('io');
+    if (io) io.to(`conv:${conv.id}`).emit('message:unpinned', { id: msg.id, conversation_id: conv.id });
+    await createAuditLog({ userId: req.user.id, businessId, action: 'message.unpin', targetType: 'Message', targetId: msg.id });
+    return successResponse(res, { id: msg.id, pinned_at: null });
+  } catch (err) { next(err); }
+});
+
+// 핀 메시지 목록 (헤더 아래 공지 영역용 — 메시지 본문 + 첨부 같이)
+router.get('/:businessId/:id/pinned', authenticateToken, attachWorkspaceScope(), async (req, res, next) => {
+  try {
+    const { businessId, id: convId } = req.params;
+    const conv = await Conversation.findOne({ where: { id: convId, business_id: businessId } });
+    if (!conv) return errorResponse(res, 'conversation_not_found', 404);
+    if (!(await canAccessConversation(req.user.id, conv, req.scope))) return errorResponse(res, 'forbidden', 403);
+    const { MessageAttachment } = require('../models');
+    const list = await Message.findAll({
+      where: { conversation_id: conv.id, pinned_at: { [Op.ne]: null }, is_deleted: false },
+      include: [
+        { model: User, as: 'sender', attributes: ['id', 'name', 'email', 'name_localized'] },
+        { model: MessageAttachment, as: 'attachments', attributes: ['id', 'file_name', 'file_size', 'mime_type'], required: false },
+      ],
+      order: [['pinned_at', 'DESC']],
+      limit: 50,
+    });
+    return successResponse(res, list.map(m => m.toJSON()));
+  } catch (err) { next(err); }
+});
+
+// ─────────────────────────────────────────────────────────
 // 수동으로 Cue 트리거 (현재 대화의 마지막 고객 메시지로)
 // ─────────────────────────────────────────────────────────
 router.post('/:businessId/:id/cue/trigger', authenticateToken, checkBusinessAccess, async (req, res, next) => {

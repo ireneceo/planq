@@ -240,6 +240,38 @@
     "openSettings": "채팅 설정",
     "openUserInfo": "프로필 보기",
     "scrollToBottom": "맨 아래로",
+    "edited": "수정됨",
+    "deleted": "삭제된 메시지입니다",
+    "editCancel": "취소",
+    "editSave": "저장",
+    "editHint": "Esc 취소 · ⌘+Enter 저장",
+    "action": {
+      "copy": "메시지 복사",
+      "edit": "수정",
+      "pin": "공지로 고정",
+      "unpin": "공지 해제",
+      "more": "더보기",
+      "selectMulti": "여러 메시지 선택",
+      "delete": "삭제"
+    },
+    "pinned": {
+      "count_one": "공지 {{count}}개",
+      "count_other": "공지 {{count}}개",
+      "unpin": "공지 해제"
+    },
+    "selection": {
+      "count_one": "{{count}}개 선택됨",
+      "count_other": "{{count}}개 선택됨",
+      "copy": "복사",
+      "delete": "삭제",
+      "cancel": "취소"
+    },
+    "confirmDelete": {
+      "title": "메시지를 삭제할까요?",
+      "singleBody": "이 메시지는 모두에게 안 보이게 됩니다. 원본은 보관되지만 채팅창엔 \"삭제된 메시지\" 로만 표시됩니다.",
+      "bulkBody_one": "선택한 {{count}}개 메시지가 모두에게 안 보이게 됩니다. 첨부 파일은 그대로 보관됩니다.",
+      "bulkBody_other": "선택한 {{count}}개 메시지가 모두에게 안 보이게 됩니다. 첨부 파일은 그대로 보관됩니다."
+    },
     "help": "도움말 / 피드백",
     "upload": {
       "failed": "업로드 실패"
