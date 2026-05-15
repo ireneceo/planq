@@ -1,8 +1,70 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-05-15 사이클 N+16 — 코드블록·드래프트·메시지액션·핀공지 (v1.11.0 운영 라이브)
+> **최종 업데이트:** 2026-05-15 사이클 N+16-F — 메시지 더보기 메뉴 portal 회귀 hotfix (v1.11.0 운영 라이브)
 >
-> **이전 라이브:** v1.11.0 (commit `36362fc`) — Q docs 코드 블록 + 드래프트 / GDrive 닫기 fix / 알림 매트릭스 분리 / 아바타 popover / 메시지 액션·핀·이미지fix
+> **이전 라이브:** v1.11.0 (commit `36362fc` + hotfix `efb890f`) — Q docs 코드 블록 + 드래프트 / GDrive 닫기 fix / 알림 매트릭스 분리 / 아바타 popover / 메시지 액션·핀·이미지fix + ⋮ 메뉴 portal
+
+---
+
+## ✅ 완료: 사이클 N+16 — 코드블록·드래프트·Drive fix·알림·메시지액션·핀공지·이미지fix (2026-05-15)
+
+### 5개 사이클 통합 (v1.10.0 → v1.11.0)
+
+**N+16-A 코드 블록 + 드래프트 자동저장:**
+- `@tiptap/extension-code-block-lowlight` + `lowlight` common 30+ 언어팩
+- 신규 `CodeBlockNodeView` — 회색 박스 + atom-one-dark syntax + 언어 selector (button+popover) + 복사 버튼
+- 신규 `useLocalDraft` hook — localStorage debounce 500ms, 7일 TTL
+- `ProjectPostsTab` 드래프트 자동 복원 + 주황 배너
+
+**N+16-B GDrive/Calendar 연동 보강:**
+- `buildCallbackHtml` 헬퍼 통합. postMessage 즉시 + 800ms auto-close + 1.5s fallback 안내 (Chrome COOP 차단 회피)
+- `gcal` scope 에 `openid email` 추가 + `id_token` JWT email claim 파싱 → "(확인 불가)" 회귀 fix
+
+**N+16-C 알림 매트릭스 전수조사:**
+- `notification_prefs.event_kind` ENUM 에 `comment_mention` 추가 (DB ALTER)
+- `message` event UI 노출 (옛 매트릭스 누락 → 이메일 OFF 적용 안 되던 회귀)
+- `mention` 분리: 채팅 @멘션 vs 댓글 멘션. `routes/tasks.js` 댓글 dispatch → `comment_mention`
+- `NotificationToaster` prefs matrix fetch + chat channel 검사 (옛 주석만 있고 실 코드 누락)
+- `useUnreadTotal` debounce 200→50ms + 옵티미스틱
+
+**N+16-D 채팅 아바타 클릭:**
+- 아바타 클릭 → `UserInfoPopover` (이름 클릭과 동일). Cue 제외
+
+**N+16-E 메시지 액션 + 핀 공지 + GDrive 이미지 fix:**
+- DB: `messages.pinned_at + pinned_by_user_id` + 인덱스
+- routes: PUT/DELETE message + POST/DELETE pin + GET pinned (5 라우트)
+- `ChatPanel` hover toolbar (복사/수정/핀/⋮) + 인라인 수정 + 묶음 선택 모드 + `PinnedBar`
+- "(수정됨)" / "삭제된 메시지" placeholder / 핀 좌측 노란 띠 / 선택 좌측 teal 띠
+- GDrive 이미지 회귀 fix: `/raw` 가 `storage_provider` 분기 → Drive API 서버 프록시 stream
+- `services/gdrive.js` 신규 helper: `getFileMeta`, `getFileStream`
+
+**N+16-F hotfix — 더보기 메뉴 portal:**
+- ⋮ 메뉴가 `MessageList` overflow 안 absolute positioned → InputBar 뒤로 클립되던 회귀
+- `createPortal` 로 `document.body` 직접 렌더 + `position: fixed` + 버튼 rect 기준 좌표
+- 하단 공간 부족 시 위로 auto flip / viewport 경계 보호 / z-index 2400 / 페이드 애니메이션
+- Esc 닫기 + anchor 기반 외부 클릭 닫기
+
+### 변경 통계
+
+- N+16: 27 files, 1,790 insertions, 77 deletions (commit `36362fc`)
+- N+16-F hotfix: 1 file, 70 insertions, 36 deletions (commit `efb890f`)
+
+### 운영 적용
+
+- v1.11.0 정식: 2026-05-15 08:09 (commit `36362fc`)
+- N+16-F hotfix: 2026-05-15 08:25 — frontend rsync + nginx reload (commit `efb890f`)
+- 백업: `/opt/planq/backups/20260515_080732`
+
+### 검증
+
+- 헬스체크 28/28 PASS
+- API 15/15 PASS — send / edit / edit empty 400 / pin / 멱등 / list / pinned_at 필드 / unpin / delete / edit-deleted 400 / GET 제외 / 타인 edit 403 / not_found 404 / /raw redirect
+- 빌드 923ms TS 0
+- 페이지 5/5 200 (/talk /talk?conv=N /docs /tasks /settings)
+
+### 박제
+
+- 메모리 stale 정정: Q Task 정기업무 + Weekly Review 는 이미 구현 완료 — 다음 세션에서 메모리 plan 갱신 권장
 
 ---
 
