@@ -7,6 +7,61 @@ const { successResponse, errorResponse } = require('../middleware/errorHandler')
 const gdrive = require('../services/gdrive');
 const gcal = require('../services/google_calendar');
 
+// 사이클 N+16-B — OAuth 콜백 팝업 자동 닫기 + COOP 차단 시 사용자 친화 안내.
+// 옛 버전: 300ms 후 postMessage + 사용자가 직접 "닫기" 클릭 → 일부 브라우저(Chrome/Safari)가
+// Cross-Origin-Opener-Policy 로 window.close() 차단 → 닫기 안 됨.
+// 새 버전:
+//   1) 즉시 postMessage (부모가 상태 갱신)
+//   2) 800ms 뒤 자동 window.close() 시도
+//   3) 1.5s 후에도 살아있으면 안내 화면 ("이 창을 닫으셔도 됩니다") 로 교체
+function buildCallbackHtml({ provider, ok, title, body }) {
+  // provider: 'gdrive' | 'gcal' (postMessage type 분기)
+  const messageType = provider === 'gcal' ? 'gcal:connected' : 'gdrive:connected';
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${title}</title>
+<style>
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#F8FAFC;color:#0F172A;}
+  .box{background:#fff;border:1px solid #E2E8F0;border-radius:12px;padding:28px 32px;max-width:420px;text-align:center;box-shadow:0 4px 12px rgba(15,23,42,0.06);}
+  h2{margin:0 0 10px;font-size:18px;color:${ok ? '#0F766E' : '#DC2626'};}
+  p{margin:0 0 16px;font-size:13px;color:#475569;line-height:1.55;}
+  button{height:36px;padding:0 18px;background:#14B8A6;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;}
+  button:hover{background:#0D9488;}
+  .hint{font-size:11.5px;color:#94A3B8;margin-top:6px;}
+  #fallback{display:none;}
+</style></head>
+<body>
+  <div class="box" id="primary">
+    ${body}
+    <button type="button" id="closeBtn">닫기</button>
+    <div class="hint">잠시 후 자동으로 닫힙니다…</div>
+  </div>
+  <div class="box" id="fallback">
+    <h2 style="color:#0F766E;">✓ 완료</h2>
+    <p>이 창을 닫으셔도 됩니다.<br/>브라우저 보안 정책으로 자동 닫기가 막힌 환경입니다.</p>
+  </div>
+  <script>
+    (function(){
+      // 1) 부모 창에 결과 즉시 통보 (실패 안전)
+      try { window.opener && window.opener.postMessage({ type: ${JSON.stringify(messageType)}, ok: ${ok ? 'true' : 'false'} }, '*'); } catch(e){}
+      var tryClose = function(){
+        try { window.close(); } catch(e){}
+      };
+      // 2) 닫기 버튼
+      document.getElementById('closeBtn').addEventListener('click', tryClose);
+      // 3) 800ms 후 자동 닫기 시도
+      setTimeout(tryClose, 800);
+      // 4) 1.5s 후 닫혀 있지 않으면 안내 화면으로 교체 (COOP 차단된 경우)
+      setTimeout(function(){
+        if (!document.hidden) {
+          var p = document.getElementById('primary');
+          var f = document.getElementById('fallback');
+          if (p && f) { p.style.display = 'none'; f.style.display = 'block'; }
+        }
+      }, 1500);
+    })();
+  </script>
+</body></html>`;
+}
+
 // ─── 구성 상태 ───
 router.get('/providers', authenticateToken, async (req, res, next) => {
   try {
@@ -60,26 +115,17 @@ router.post('/connect/gdrive/:businessId', authenticateToken, checkBusinessAcces
 // Google 이 이 엔드포인트로 리디렉트. state 로 사용자 복원.
 router.get('/callback/gdrive', async (req, res) => {
   const { code, state, error: oauthError } = req.query;
-  const closeWindowHtml = (title, body) => `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${title}</title>
-    <style>body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#F8FAFC;color:#0F172A;}
-    .box{background:#fff;border:1px solid #E2E8F0;border-radius:12px;padding:28px 32px;max-width:420px;text-align:center;box-shadow:0 4px 12px rgba(15,23,42,0.06);}
-    h2{margin:0 0 8px;font-size:18px;color:#0F766E;}.err h2{color:#DC2626;}
-    p{margin:0 0 16px;font-size:13px;color:#475569;line-height:1.5;}
-    button{height:34px;padding:0 16px;background:#14B8A6;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;}
-    button:hover{background:#0D9488;}</style></head>
-    <body><div class="box ${title.includes('실패') ? 'err' : ''}">${body}<button onclick="window.close()">닫기</button></div>
-    <script>setTimeout(() => { try { window.opener && window.opener.postMessage({ type: 'gdrive:connected', ok: ${!title.includes('실패')} }, '*'); } catch(e){} }, 300);</script>
-    </body></html>`;
+  const ok = (title, body) => buildCallbackHtml({ provider: 'gdrive', ok: !title.includes('실패'), title, body });
 
   if (oauthError) {
-    return res.status(400).send(closeWindowHtml('연동 실패', `<h2>연동 실패</h2><p>Google 에서 거부됨: ${oauthError}</p>`));
+    return res.status(400).send(ok('연동 실패', `<h2>연동 실패</h2><p>Google 에서 거부됨: ${oauthError}</p>`));
   }
   if (!code || !state) {
-    return res.status(400).send(closeWindowHtml('연동 실패', '<h2>연동 실패</h2><p>잘못된 요청</p>'));
+    return res.status(400).send(ok('연동 실패', '<h2>연동 실패</h2><p>잘못된 요청</p>'));
   }
 
   const parsed = gdrive.parseState(state);
-  if (!parsed) return res.status(400).send(closeWindowHtml('연동 실패', '<h2>연동 실패</h2><p>state 검증 실패</p>'));
+  if (!parsed) return res.status(400).send(ok('연동 실패', '<h2>연동 실패</h2><p>state 검증 실패</p>'));
 
   try {
     // 토큰 교환
@@ -118,10 +164,16 @@ router.get('/callback/gdrive', async (req, res) => {
     }
     await record.save();
 
-    return res.send(closeWindowHtml('연동 완료', `<h2>Google Drive 연동 완료</h2><p>계정: <strong>${accountEmail || '(확인 불가)'}</strong><br/>루트 폴더 생성됨.</p>`));
+    return res.send(buildCallbackHtml({
+      provider: 'gdrive', ok: true, title: '연동 완료',
+      body: `<h2>Google Drive 연동 완료</h2><p>계정: <strong>${accountEmail || '(확인 불가)'}</strong><br/>루트 폴더 생성됨.</p>`,
+    }));
   } catch (e) {
     console.error('[gdrive callback]', e);
-    return res.status(500).send(closeWindowHtml('연동 실패', `<h2>연동 실패</h2><p>${e.message || '서버 오류'}</p>`));
+    return res.status(500).send(buildCallbackHtml({
+      provider: 'gdrive', ok: false, title: '연동 실패',
+      body: `<h2>연동 실패</h2><p>${e.message || '서버 오류'}</p>`,
+    }));
   }
 });
 
@@ -138,25 +190,16 @@ router.post('/connect/gcal/:businessId', authenticateToken, checkBusinessAccess,
 
 router.get('/callback/gcal', async (req, res) => {
   const { code, state, error: oauthError } = req.query;
-  const closeWindowHtml = (title, body) => `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${title}</title>
-    <style>body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#F8FAFC;color:#0F172A;}
-    .box{background:#fff;border:1px solid #E2E8F0;border-radius:12px;padding:28px 32px;max-width:420px;text-align:center;box-shadow:0 4px 12px rgba(15,23,42,0.06);}
-    h2{margin:0 0 8px;font-size:18px;color:#0F766E;}.err h2{color:#DC2626;}
-    p{margin:0 0 16px;font-size:13px;color:#475569;line-height:1.5;}
-    button{height:34px;padding:0 16px;background:#14B8A6;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;}
-    button:hover{background:#0D9488;}</style></head>
-    <body><div class="box ${title.includes('실패') ? 'err' : ''}">${body}<button onclick="window.close()">닫기</button></div>
-    <script>setTimeout(() => { try { window.opener && window.opener.postMessage({ type: 'gcal:connected', ok: ${!title.includes('실패')} }, '*'); } catch(e){} }, 300);</script>
-    </body></html>`;
+  const ok = (title, body) => buildCallbackHtml({ provider: 'gcal', ok: !title.includes('실패'), title, body });
 
   if (oauthError) {
-    return res.status(400).send(closeWindowHtml('연동 실패', `<h2>연동 실패</h2><p>Google 에서 거부됨: ${oauthError}</p>`));
+    return res.status(400).send(ok('연동 실패', `<h2>연동 실패</h2><p>Google 에서 거부됨: ${oauthError}</p>`));
   }
   if (!code || !state) {
-    return res.status(400).send(closeWindowHtml('연동 실패', '<h2>연동 실패</h2><p>잘못된 요청</p>'));
+    return res.status(400).send(ok('연동 실패', '<h2>연동 실패</h2><p>잘못된 요청</p>'));
   }
   const parsed = gcal.parseState(state);
-  if (!parsed) return res.status(400).send(closeWindowHtml('연동 실패', '<h2>연동 실패</h2><p>state 검증 실패</p>'));
+  if (!parsed) return res.status(400).send(ok('연동 실패', '<h2>연동 실패</h2><p>state 검증 실패</p>'));
 
   try {
     const { tokens, accountEmail } = await gcal.exchangeCodeForTokens(code);
@@ -184,10 +227,16 @@ router.get('/callback/gcal', async (req, res) => {
     record.connected_at = new Date();
     await record.save();
 
-    return res.send(closeWindowHtml('연동 완료', `<h2>Google Calendar 연동 완료</h2><p>계정: <strong>${accountEmail || '(확인 불가)'}</strong><br/>화상회의 시 Google Meet 링크가 자동으로 만들어집니다.</p>`));
+    return res.send(buildCallbackHtml({
+      provider: 'gcal', ok: true, title: '연동 완료',
+      body: `<h2>Google Calendar 연동 완료</h2><p>계정: <strong>${accountEmail || '(확인 불가)'}</strong><br/>화상회의 시 Google Meet 링크가 자동으로 만들어집니다.</p>`,
+    }));
   } catch (e) {
     console.error('[gcal callback]', e);
-    return res.status(500).send(closeWindowHtml('연동 실패', `<h2>연동 실패</h2><p>${e.message || '서버 오류'}</p>`));
+    return res.status(500).send(buildCallbackHtml({
+      provider: 'gcal', ok: false, title: '연동 실패',
+      body: `<h2>연동 실패</h2><p>${e.message || '서버 오류'}</p>`,
+    }));
   }
 });
 

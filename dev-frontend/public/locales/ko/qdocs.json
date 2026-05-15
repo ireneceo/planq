@@ -583,5 +583,10 @@
     "fieldsCount": "{{n}}건",
     "noChanges": "변경 내용 없음",
     "bodyEdited": "본문 수정됨"
+  },
+  "draft": {
+    "restored": "작성 중이던 내용을 복원했어요",
+    "minutesAgo": "분 전",
+    "dismiss": "닫기"
   }
 }

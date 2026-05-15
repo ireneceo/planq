@@ -246,6 +246,37 @@ router.get('/:id/raw', async (req, res, next) => {
   try {
     const att = await MessageAttachment.findByPk(req.params.id);
     if (!att) return errorResponse(res, 'not_found', 404);
+
+    // 사이클 N+16-E — storage_provider 별 분기.
+    //   planq (자체) — /public 으로 redirect (옛 동작).
+    //   gdrive — 서버 프록시 (drive.file scope 로 PlanQ 가 만든 파일만 접근). file_path 가 Drive file_id.
+    if (att.storage_provider === 'gdrive') {
+      try {
+        const gdrive = require('../services/gdrive');
+        const { Conversation } = require('../models');
+        const msg = await Message.findByPk(att.message_id, { attributes: ['conversation_id'] });
+        if (!msg) return errorResponse(res, 'message_not_found', 404);
+        const conv = await Conversation.findByPk(msg.conversation_id, { attributes: ['business_id'] });
+        if (!conv) return errorResponse(res, 'conversation_not_found', 404);
+        const token = await gdrive.getTokenForBusiness(conv.business_id);
+        if (!token) return errorResponse(res, 'gdrive_token_missing', 410);
+        const drive = await gdrive.getDriveClient(token);
+        if (att.mime_type && att.mime_type.startsWith('image/')) {
+          res.setHeader('Content-Type', att.mime_type);
+          res.setHeader('X-Content-Type-Options', 'nosniff');
+          res.setHeader('Content-Disposition', 'inline');
+          res.setHeader('Cache-Control', 'private, max-age=3600');
+          const stream = await gdrive.getFileStream(drive, att.file_path);
+          return stream.pipe(res);
+        }
+        // 비이미지: drive 의 webViewLink 로 redirect (사용자가 클릭 다운로드)
+        return res.redirect(302, att.external_url || '/');
+      } catch (e) {
+        console.error('[message-attachments] gdrive raw failed:', e.message);
+        return errorResponse(res, 'gdrive_stream_failed', 502);
+      }
+    }
+
     const stored = path.basename(att.file_path);
     return res.redirect(302, `/api/message-attachments/public/${stored}`);
   } catch (err) { next(err); }

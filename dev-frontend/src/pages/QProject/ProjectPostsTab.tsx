@@ -24,6 +24,7 @@ import { listTemplates, type DocTemplate, KIND_LABELS_KO } from '../../services/
 import { useAuth } from '../../contexts/AuthContext';
 import ConfirmDialog from '../../components/Common/ConfirmDialog';
 import EmptyState from '../../components/Common/EmptyState';
+import { useLocalDraft } from '../../hooks/useLocalDraft';
 
 interface Props {
   businessId: number;
@@ -79,6 +80,68 @@ const ProjectPostsTab: React.FC<Props> = ({ businessId, projectId }) => {
 
   // 탭에 고정한 문서 id 목록 (프로젝트별 영속) — 탭바에 추가 탭으로 등장
   const PIN_KEY = `qproject_pinned_docs_${projectId}`;
+
+  // 사이클 N+16 — 드래프트 자동저장 (localStorage). 새로고침/탭 닫혀도 복원.
+  // new 모드: 프로젝트별 단일 드래프트. edit 모드: post id 별 별도 드래프트.
+  const draftKey = mode === 'edit' && activeId
+    ? `qproject-post-edit-${projectId}-${activeId}`
+    : `qproject-post-new-${projectId}`;
+  const isContentEmpty = (c: unknown) => {
+    if (!c) return true;
+    const obj = c as { content?: unknown[] };
+    if (!Array.isArray(obj.content) || obj.content.length === 0) return true;
+    // doc 안 paragraph 1개 + text 없는 케이스도 empty 로 본다
+    return false;
+  };
+  const draft = useLocalDraft<{ title: string; category: string; content: unknown }>({
+    key: draftKey,
+    value: { title: titleDraft, category: categoryDraft, content: contentDraft },
+    debounceMs: 500,
+    enabled: mode === 'new' || mode === 'edit',
+    isEmpty: (v) => !v.title.trim() && !v.category.trim() && isContentEmpty(v.content),
+  });
+
+  // 드래프트 복원 — new/edit 모드 진입 시 localStorage 에서 직접 읽어 복원.
+  // 마지막으로 복원한 key 추적해서 중복 복원 차단.
+  const lastRestoredKeyRef = useRef<string | null>(null);
+  const [restoredBanner, setRestoredBanner] = useState<{ key: string; savedAt: number } | null>(null);
+  useEffect(() => {
+    if (mode !== 'new' && mode !== 'edit') {
+      lastRestoredKeyRef.current = null;
+      setRestoredBanner(null);
+      return;
+    }
+    if (lastRestoredKeyRef.current === draftKey) return;
+    lastRestoredKeyRef.current = draftKey;
+    try {
+      const raw = localStorage.getItem(draftKey);
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed.savedAt !== 'number') return;
+      const v = parsed.value as { title: string; category: string; content: unknown };
+      if (!v) return;
+      // 7일 이상 된 드래프트 무시
+      if (Date.now() - parsed.savedAt > 7 * 24 * 60 * 60 * 1000) {
+        localStorage.removeItem(draftKey);
+        return;
+      }
+      const hasContent = (v.title && v.title.trim()) || (v.category && v.category.trim()) || !isContentEmpty(v.content);
+      if (!hasContent) return;
+      // edit 모드: detail 이 아직 안 도착했거나 같은 글의 미저장 변경분일 때만 복원.
+      // detail 도착 후 detail.title 과 v.title 이 동일하면 굳이 덮어쓸 필요 없음 — 무의미.
+      if (mode === 'edit') {
+        if (!detail) return; // edit 모드인데 detail 없으면 그냥 detail 도착 기다림
+        if (v.title === detail.title && v.category === (detail.category || '') && JSON.stringify(v.content) === JSON.stringify(detail.content_json)) {
+          return;
+        }
+      }
+      setTitleDraft(v.title);
+      setCategoryDraft(v.category);
+      setContentDraft(v.content);
+      setRestoredBanner({ key: draftKey, savedAt: parsed.savedAt });
+    } catch { /* ignore corrupted */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draftKey, mode, detail?.id]);
   const [pinnedIds, setPinnedIds] = useState<number[]>(() => {
     try {
       const raw = localStorage.getItem(PIN_KEY);
@@ -315,6 +378,9 @@ const ProjectPostsTab: React.FC<Props> = ({ businessId, projectId }) => {
         }
         setDetail(final); setActiveId(final.id); setMode('view');
         setPendingUploads([]); setPendingExistingIds([]); setPendingExistingMeta({});
+        // 사이클 N+16 — 저장 성공 → 드래프트 정리.
+        draft.clear();
+        setRestoredBanner(null);
         await load();
       } else if (mode === 'edit' && detail) {
         const patched = await updatePost(detail.id, {
@@ -323,6 +389,8 @@ const ProjectPostsTab: React.FC<Props> = ({ businessId, projectId }) => {
           category: categoryVal,
         });
         setDetail(patched); setMode('view');
+        draft.clear();
+        setRestoredBanner(null);
         await load();
       }
     } catch (e) { setError((e as Error).message); }
@@ -577,6 +645,21 @@ const ProjectPostsTab: React.FC<Props> = ({ businessId, projectId }) => {
 
       {(mode === 'edit' || mode === 'new') && (
         <DetailBody>
+          {restoredBanner && (
+            <DraftBanner>
+              <DraftBannerIcon viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/>
+                <path d="M21 3v5h-5"/>
+                <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/>
+                <path d="M3 21v-5h5"/>
+              </DraftBannerIcon>
+              <DraftBannerText>
+                {t('draft.restored', '작성 중이던 내용을 복원했어요')}
+                <DraftBannerTime>· {Math.max(1, Math.round((Date.now() - restoredBanner.savedAt) / 60000))}{t('draft.minutesAgo', '분 전')}</DraftBannerTime>
+              </DraftBannerText>
+              <DraftBannerDismiss type="button" onClick={() => setRestoredBanner(null)} aria-label={t('draft.dismiss', '닫기') as string}>×</DraftBannerDismiss>
+            </DraftBanner>
+          )}
           <TitleInput
             autoFocus={mode === 'new'}
             value={titleDraft}
@@ -1015,6 +1098,51 @@ const TitleInput = styled.input`
   border: none; border-bottom: 1px solid #E2E8F0; background: transparent;
   &:focus { outline: none; border-bottom-color: #14B8A6; }
   &::placeholder { color: #CBD5E1; }
+`;
+// 사이클 N+16 — 드래프트 복원 배너. 새로고침/탭 닫기 후 다시 열었을 때 안내.
+const DraftBanner = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  margin-bottom: 12px;
+  background: #FFF7ED;
+  border: 1px solid #FED7AA;
+  border-radius: 8px;
+  font-size: 13px;
+  color: #9A3412;
+`;
+const DraftBannerIcon = styled.svg`
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  color: #EA580C;
+`;
+const DraftBannerText = styled.div`
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 500;
+`;
+const DraftBannerTime = styled.span`
+  color: #C2410C;
+  font-size: 11px;
+  font-weight: 600;
+`;
+const DraftBannerDismiss = styled.button`
+  width: 22px;
+  height: 22px;
+  border: none;
+  background: transparent;
+  color: #9A3412;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  border-radius: 6px;
+  padding: 0;
+  line-height: 1;
+  &:hover { background: #FED7AA; }
 `;
 const CategoryInput = styled.input`
   width: 100%; padding: 6px 0; font-size: 13px; color: #475569;

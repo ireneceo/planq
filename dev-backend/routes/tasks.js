@@ -1264,13 +1264,14 @@ router.post('/:id/comments', authenticateToken, async (req, res, next) => {
           const biz = await Business.findByPk(task.business_id, { attributes: ['name', 'brand_name'] });
           const previewBody = comment.content.length > 140 ? comment.content.slice(0, 140) + '…' : comment.content;
           notifyMany({
-            userIds: mentioned, businessId: task.business_id, eventKind: 'mention',
+            // 사이클 N+16-C — 업무 댓글 멘션은 채팅 멘션과 별도 토글 (comment_mention).
+            userIds: mentioned, businessId: task.business_id, eventKind: 'comment_mention',
             title: `업무 댓글에서 언급됨 — ${task.title}`,
             body: previewBody,
             link: `${process.env.APP_URL || 'https://dev.planq.kr'}/tasks?task=${task.id}`,
             ctaLabel: '댓글 보기',
             workspaceName: biz?.brand_name || biz?.name || null,
-          }).catch((e) => console.warn('[notify mention task]', e.message));
+          }).catch((e) => console.warn('[notify comment_mention task]', e.message));
         }
       } catch (e) { console.warn('[mention task outer]', e.message); }
     }

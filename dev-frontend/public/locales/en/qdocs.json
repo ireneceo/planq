@@ -582,5 +582,10 @@
     "fieldsCount": "{{n}} fields",
     "noChanges": "No changes",
     "bodyEdited": "Body edited"
+  },
+  "draft": {
+    "restored": "Restored your unsaved draft",
+    "minutesAgo": " min ago",
+    "dismiss": "Dismiss"
   }
 }

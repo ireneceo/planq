@@ -13,12 +13,19 @@ interface Props {
   isOwner: boolean;
 }
 
-type EventKind = 'signature' | 'invoice' | 'tax_invoice' | 'task' | 'event' | 'invite' | 'mention';
+// 사이클 N+16-C — 'message' (채팅 일반) + 'comment_mention' (업무 댓글 멘션) 신규 토글.
+// 옛 'mention' 은 채팅 @멘션 전용으로 의미 정정. 댓글 멘션은 별도 row.
+type EventKind = 'message' | 'mention' | 'comment_mention' | 'signature' | 'invoice' | 'tax_invoice' | 'task' | 'event' | 'invite';
 // 4 채널 — 인박스(영구) / 인앱(우측 상단 토스트) / 디바이스(OS push) / 이메일
 type Channel = 'inbox' | 'chat' | 'push' | 'email';
 type Matrix = Record<EventKind, Record<Channel, boolean>>;
 
-const EVENTS: EventKind[] = ['signature', 'invoice', 'tax_invoice', 'task', 'event', 'invite', 'mention'];
+const EVENTS: EventKind[] = [
+  'message', 'mention',          // 채팅 (일반 메시지 / @멘션)
+  'comment_mention',              // 업무·문서 댓글 @멘션
+  'task', 'event', 'invite',     // 업무·일정·초대
+  'signature', 'invoice', 'tax_invoice', // 청구·서명
+];
 const CHANNELS: Channel[] = ['inbox', 'chat', 'push', 'email'];
 
 const NotificationSettings: React.FC<Props> = ({ businessId }) => {
@@ -61,6 +68,8 @@ const NotificationSettings: React.FC<Props> = ({ businessId }) => {
       });
       const j = await r.json();
       if (!j.success) throw new Error(j.message || 'save_failed');
+      // 사이클 N+16-C — Toaster 캐시 무효화 (chat channel 검사 즉시 반영).
+      window.dispatchEvent(new Event('planq:notif-prefs-changed'));
     } catch (e) {
       // 실패 시 원복
       setMatrix({ ...matrix, [event]: { ...matrix[event], [channel]: current } });

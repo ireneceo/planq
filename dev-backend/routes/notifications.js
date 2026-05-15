@@ -11,7 +11,9 @@ const { successResponse, errorResponse } = require('../middleware/errorHandler')
 
 const EVENT_KINDS = [
   // 워크스페이스 멤버 알림
-  'message', 'signature', 'invoice', 'tax_invoice', 'task', 'event', 'invite', 'mention',
+  'message', 'signature', 'invoice', 'tax_invoice', 'task', 'event', 'invite',
+  'mention',          // 채팅 @멘션 (사이클 N+16-C 부터 채팅 전용)
+  'comment_mention',  // 업무/문서 댓글 @멘션 (사이클 N+16-C 신규)
   // 플랫폼 관리자 알림 (business_id NULL row 로 저장)
   'inquiry', 'signup', 'payment', 'subscription', 'trial', 'feedback',
 ];

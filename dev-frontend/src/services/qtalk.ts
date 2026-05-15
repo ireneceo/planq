@@ -230,6 +230,11 @@ export interface ApiMessage {
   ai_confidence?: number;
   ai_source?: string;
   is_edited?: boolean;
+  is_deleted?: boolean;
+  edited_at?: string | null;
+  deleted_at?: string | null;
+  pinned_at?: string | null;
+  pinned_by_user_id?: number | null;
   // 백엔드 toJSON override 가 createdAt → created_at (snake_case) 으로 통일.
   created_at: string;
   updated_at: string;
@@ -411,6 +416,35 @@ export async function sendMessage(conversationId: number, content: string, reply
     body: JSON.stringify({ content, reply_to_message_id: replyTo || null }),
   });
   return handle<ApiMessage>(res);
+}
+
+// 사이클 N+16-E — 메시지 수정 / 삭제 / 핀
+export async function editMessage(businessId: number, conversationId: number, messageId: number, content: string): Promise<ApiMessage> {
+  const res = await apiFetch(`/api/conversations/${businessId}/${conversationId}/messages/${messageId}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ content }),
+  });
+  return handle<ApiMessage>(res);
+}
+export async function deleteMessage(businessId: number, conversationId: number, messageId: number): Promise<boolean> {
+  const res = await apiFetch(`/api/conversations/${businessId}/${conversationId}/messages/${messageId}`, { method: 'DELETE' });
+  const j = await res.json().catch(() => null);
+  return !!j?.success;
+}
+export async function pinMessage(businessId: number, conversationId: number, messageId: number): Promise<boolean> {
+  const res = await apiFetch(`/api/conversations/${businessId}/${conversationId}/messages/${messageId}/pin`, { method: 'POST' });
+  const j = await res.json().catch(() => null);
+  return !!j?.success;
+}
+export async function unpinMessage(businessId: number, conversationId: number, messageId: number): Promise<boolean> {
+  const res = await apiFetch(`/api/conversations/${businessId}/${conversationId}/messages/${messageId}/pin`, { method: 'DELETE' });
+  const j = await res.json().catch(() => null);
+  return !!j?.success;
+}
+export async function listPinnedMessages(businessId: number, conversationId: number): Promise<ApiMessage[]> {
+  const res = await apiFetch(`/api/conversations/${businessId}/${conversationId}/pinned`);
+  return handle<ApiMessage[]>(res);
 }
 
 export async function uploadMessageAttachment(

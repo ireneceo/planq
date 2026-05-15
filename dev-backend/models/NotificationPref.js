@@ -29,9 +29,13 @@ NotificationPref.init({
   },
   event_kind: {
     type: DataTypes.ENUM(
-      'signature', 'invoice', 'tax_invoice', 'task', 'event', 'invite', 'mention',
+      // 워크스페이스 멤버 알림
+      'signature', 'invoice', 'tax_invoice', 'task', 'event', 'invite',
+      'message',          // 채팅 일반 메시지
+      'mention',          // 채팅 @멘션 (사이클 N+16-C 부터 채팅 전용)
+      'comment_mention',  // 업무/문서 댓글 @멘션 (사이클 N+16-C 신규 — 채팅 멘션과 분리)
+      // 플랫폼 관리자 알림 (business_id NULL row 로 저장)
       'inquiry', 'signup', 'payment', 'subscription', 'trial', 'feedback',
-      'message',
     ),
     allowNull: false,
   },
