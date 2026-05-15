@@ -11,6 +11,7 @@ import LetterAvatar from '../../components/Common/LetterAvatar';
 import EmptyState from '../../components/Common/EmptyState';
 import PostCardPreviewModal from './PostCardPreviewModal';
 import FilePicker, { type FilePickerResult } from '../../components/Common/FilePicker';
+import UserInfoPopover from '../../components/Common/UserInfoPopover';
 import { fetchWorkspaceFiles, uploadMyFile } from '../../services/files';
 import { mediaTablet } from '../../theme/breakpoints';
 
@@ -130,6 +131,12 @@ const ChatPanel: React.FC<Props> = ({
     || channels[0]
     || null;
   const convMessages: MockMessage[] = activeConv ? messages[activeConv.id] || [] : [];
+  // 사이클 N+15-A — 활성 대화 메시지 lazy-load 진행 중 (undefined). 빈 conv (배열은 있되 길이 0) 와 구분.
+  const messagesLoading = activeConv ? messages[activeConv.id] === undefined : false;
+  // 사이클 N+15-E — 스크롤-바닥 floating 버튼 노출 여부 + 새 메시지 카운트.
+  // distance > 240px 일 때 표시 (sticky threshold 와 일치). 새 메시지 +N 뱃지.
+  const [showScrollToBottom, setShowScrollToBottom] = useState(false);
+  const [pendingNewCount, setPendingNewCount] = useState(0);
   const [input, setInput] = useState('');
   // textarea ref — 채팅방 진입 시 자동 포커스 + 입력 시 auto-resize (2줄 가려짐 방지)
   const textInputRef = React.useRef<HTMLTextAreaElement | null>(null);
@@ -188,8 +195,36 @@ const ChatPanel: React.FC<Props> = ({
     // fallback — 모든 환경에서 350ms 후 한 번 더 (키보드 애니메이션 기간 보정)
     window.setTimeout(ensureVisible, 350);
   }, []);
+
+  // 사이클 N+15-B — 모바일 키보드 up 감지 → body[data-keyboard-up=1] 토글.
+  // 일부 iOS 버전이 `env(safe-area-inset-bottom)` 을 키보드 up 상태에서도 34px 유지하는 버그 회피용.
+  // InputBar 의 padding-bottom 이 body[data-keyboard-up=1] 셀렉터에서 0 으로 강제 → 입력란-키보드 사이 빈 공간 0.
+  // Hangouts/iMessage 와 동일한 "키보드 위 입력란 딱 붙음" 인상.
+  React.useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const update = () => {
+      // 키보드 up 판정: visualViewport 가 window.innerHeight 의 70% 미만 = 키보드가 30%+ 차지
+      const isUp = vv.height < window.innerHeight * 0.70;
+      if (isUp) {
+        document.body.setAttribute('data-keyboard-up', '1');
+      } else {
+        document.body.removeAttribute('data-keyboard-up');
+      }
+    };
+    update();
+    vv.addEventListener('resize', update);
+    window.addEventListener('orientationchange', update);
+    return () => {
+      vv.removeEventListener('resize', update);
+      window.removeEventListener('orientationchange', update);
+      document.body.removeAttribute('data-keyboard-up');
+    };
+  }, []);
   const [editingDraftId, setEditingDraftId] = useState<number | null>(null);
   const [draftBody, setDraftBody] = useState('');
+  // 사이클 N+15-E — 발신자 정보 popover. open 상태 + anchor + userId 저장.
+  const [userPopover, setUserPopover] = useState<{ userId: number; anchorEl: HTMLElement } | null>(null);
 
   // PWA Share Target 등에서 ?prefill= 으로 본문 전달받음. 마운트 시 한 번만 적용 + URL 정리.
   const [searchParams, setSearchParams] = useSearchParams();
@@ -287,6 +322,13 @@ const ChatPanel: React.FC<Props> = ({
     setStagedPostMeta({});
     setUploadingFiles([]);
     scrollToBottom();
+    // 사이클 N+15-B — 전송 후 키보드 유지 (Hangouts/iMessage 패턴).
+    // iOS Safari 는 value reset + reflow 만으로 dismiss 하는 케이스가 있어 명시적 focus 재호출.
+    // 데스크탑은 useEffect 의 activeConversationId 변경 분기에서 이미 focus, 모바일도 여기서 보존.
+    requestAnimationFrame(() => {
+      const el = textInputRef.current;
+      if (el && document.activeElement !== el) el.focus({ preventScroll: true });
+    });
   };
   const handleFilePicked = async (result: FilePickerResult) => {
     if (result.uploaded && result.uploaded.length > 0) {
@@ -421,7 +463,7 @@ const ChatPanel: React.FC<Props> = ({
     return () => { ro.disconnect(); mo.disconnect(); };
   }, [scrollToBottom]);
 
-  // 스크롤 위치 localStorage 저장 (throttled via rAF)
+  // 스크롤 위치 localStorage 저장 (throttled via rAF) + floating "↓" 버튼 노출 결정.
   const saveScrollRaf = React.useRef(0);
   const handleScrollSave = React.useCallback(() => {
     if (saveScrollRaf.current) return;
@@ -432,6 +474,14 @@ const ChatPanel: React.FC<Props> = ({
       const key = scrollKey(activeConv.id);
       if (!key) return;
       try { localStorage.setItem(key, String(el.scrollTop)); } catch { /* quota */ }
+      // 사이클 N+15-E — 바닥 거리 측정 → floating 버튼 토글.
+      const distance = el.scrollHeight - el.scrollTop - el.clientHeight;
+      setShowScrollToBottom((cur) => {
+        const next = distance > 240;
+        // 바닥 근처로 돌아가면 pending count 도 리셋
+        if (cur && !next) setPendingNewCount(0);
+        return next;
+      });
     });
   }, [activeConv?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -441,6 +491,8 @@ const ChatPanel: React.FC<Props> = ({
   React.useEffect(() => {
     initialScrolledRef.current = false;
     prevMessageCount.current = 0;
+    setShowScrollToBottom(false);
+    setPendingNewCount(0);
   }, [activeConv?.id]);
 
   // 메시지 렌더 시 스크롤 처리
@@ -468,7 +520,13 @@ const ChatPanel: React.FC<Props> = ({
       const list = messageListRef.current;
       if (isMine || !list) { scrollToBottom(); return; }
       const distance = list.scrollHeight - list.scrollTop - list.clientHeight;
-      if (distance < 120) scrollToBottom();
+      if (distance < 120) {
+        scrollToBottom();
+      } else {
+        // 사이클 N+15-E — 사용자가 위로 스크롤 중일 때 새 타인 메시지 도착: pending count +1.
+        // floating ↓ 버튼에 뱃지로 노출됨. 바닥 도달 시 자동 리셋.
+        setPendingNewCount((c) => c + (next - prev));
+      }
     }
   }, [convMessages, scrollToBottom, activeConv?.id, user]);
 
@@ -749,7 +807,23 @@ const ChatPanel: React.FC<Props> = ({
 
       {/* 메시지 흐름 */}
       <MessageList ref={messageListRef} onScroll={handleScrollSave}>
-        {convMessages.length === 0 && (
+        {/* 사이클 N+15-A — 메시지 lazy-load 중일 때 skeleton 3행. 빈 conv 와 분리. */}
+        {messagesLoading && convMessages.length === 0 && (
+          <SkeletonMessages aria-busy="true" aria-label="loading messages">
+            <SkelMsgRow $align="left">
+              <SkelMsgAvatar />
+              <SkelMsgBubble $width="60%" />
+            </SkelMsgRow>
+            <SkelMsgRow $align="right">
+              <SkelMsgBubble $width="45%" $mine />
+            </SkelMsgRow>
+            <SkelMsgRow $align="left">
+              <SkelMsgAvatar />
+              <SkelMsgBubble $width="70%" />
+            </SkelMsgRow>
+          </SkeletonMessages>
+        )}
+        {!messagesLoading && convMessages.length === 0 && (
           <NoMsgBox>{t('chat.noMessages', '첫 메시지를 보내세요')}</NoMsgBox>
         )}
         {convMessages.map((m, idx) => {
@@ -769,7 +843,18 @@ const ChatPanel: React.FC<Props> = ({
             <MessageBody>
               {!continuation && (
                 <MessageHeader>
-                  <SenderName>{m.sender_name}</SenderName>
+                  {m.sender_role === 'cue' ? (
+                    // Cue 는 AI — 정보 popover 없음
+                    <SenderName as="span" style={{ cursor: 'default' }}>{m.sender_name}</SenderName>
+                  ) : (
+                    <SenderName
+                      type="button"
+                      onClick={(e) => setUserPopover({ userId: m.sender_id, anchorEl: e.currentTarget })}
+                      title={t('chat.openUserInfo', '프로필 보기') as string}
+                    >
+                      {m.sender_name}
+                    </SenderName>
+                  )}
                   <TimeStamp>{formatGroupTime(m.created_at)}</TimeStamp>
                   {m.sender_role === 'cue' && <CueBadge>Cue</CueBadge>}
                 </MessageHeader>
@@ -1078,6 +1163,19 @@ const ChatPanel: React.FC<Props> = ({
                   </DraftActions>
                 </CueDraftCard>
               )}
+              {/* 사이클 N+15-C — 읽음 표시. 내가 보낸 메시지만, 시스템 메시지/Cue 제외.
+                  1:1 (other_count <= 1): "읽음" / "전송됨" / (둘 다 아닐 때 nothing).
+                  그룹 (other_count >= 2): "읽음 N/M" (N==M 일 때 그냥 "전체 읽음"). */}
+              {user && Number(m.sender_id) === Number(user.id) && m.sender_role !== 'cue' && typeof m.other_count === 'number' && m.other_count > 0 && (() => {
+                const read = m.read_by_count ?? 0;
+                const total = m.other_count;
+                if (total <= 1) {
+                  return <ReadMark $read={read >= 1}>{read >= 1 ? t('chat.read.read', '읽음') : t('chat.read.sent', '전송됨')}</ReadMark>;
+                }
+                if (read >= total) return <ReadMark $read>{t('chat.read.allRead', '전체 읽음')}</ReadMark>;
+                if (read > 0) return <ReadMark $read>{t('chat.read.someRead', { read, total, defaultValue: '읽음 {{read}}/{{total}}' }) as string}</ReadMark>;
+                return <ReadMark $read={false}>{t('chat.read.sent', '전송됨')}</ReadMark>;
+              })()}
             </MessageBody>
           </MessageItem>
           );
@@ -1085,6 +1183,23 @@ const ChatPanel: React.FC<Props> = ({
         {/* 스크롤 sentinel — scrollHeight 계산 없이 안정적으로 마지막 위치로 점프 가능 */}
         <div ref={messagesEndRef} aria-hidden="true" style={{ height: 1 }} />
       </MessageList>
+      {/* 사이클 N+15-E — 스크롤-바닥 floating 버튼. 위로 240px+ 떨어졌을 때만 노출.
+          새 타인 메시지 도착 시 pending count 뱃지. 클릭 → smooth scroll 바닥. */}
+      {showScrollToBottom && (
+        <ScrollToBottomBtn
+          type="button"
+          onClick={() => { scrollToBottom(); setPendingNewCount(0); }}
+          aria-label={t('chat.scrollToBottom', '맨 아래로') as string}
+          title={t('chat.scrollToBottom', '맨 아래로') as string}
+        >
+          {pendingNewCount > 0 && (
+            <ScrollPendingBadge>{pendingNewCount > 99 ? '99+' : pendingNewCount}</ScrollPendingBadge>
+          )}
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="6 9 12 15 18 9" />
+          </svg>
+        </ScrollToBottomBtn>
+      )}
 
       {/* 입력창 */}
       <InputBar>
@@ -1168,7 +1283,11 @@ const ChatPanel: React.FC<Props> = ({
             })}
           </StagedRow>
         )}
-        <InputWrap>
+        <InputWrap
+          as="form"
+          onSubmit={(e: React.FormEvent) => { e.preventDefault(); handleSend(); }}
+          autoComplete="off"
+        >
           <AttachBtn type="button" onClick={() => setFilePickerOpen(true)} title={t('chat.input.attach', '파일 첨부') as string}>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
@@ -1182,6 +1301,13 @@ const ChatPanel: React.FC<Props> = ({
             onFocus={handleInputFocus}
             onCompositionStart={handleCompositionStart}
             onCompositionEnd={handleCompositionEnd}
+            /* 사이클 N+15-B — 모바일 키보드 액세서리 바 (위/아래 화살표) 최소화 + 자동수정/사전 변환 비활성 */
+            autoCorrect="off"
+            autoCapitalize="sentences"
+            autoComplete="off"
+            spellCheck={false}
+            inputMode="text"
+            enterKeyHint="send"
             onPaste={(e) => {
               // 클립보드의 이미지(스크린샷 등) 즉시 업로드
               const items = e.clipboardData?.items;
@@ -1202,6 +1328,7 @@ const ChatPanel: React.FC<Props> = ({
             rows={1}
           />
           <SendBtn
+            type="button"
             disabled={
               uploadingFiles.some(x => !x.error) ||
               (!input.trim() && stagedExistingIds.length === 0 && stagedPostIds.length === 0)
@@ -1229,6 +1356,15 @@ const ChatPanel: React.FC<Props> = ({
           variant="modal"
           multiple
           includePosts
+        />
+      )}
+      {businessId && userPopover && (
+        <UserInfoPopover
+          open
+          userId={userPopover.userId}
+          businessId={Number(businessId)}
+          anchorEl={userPopover.anchorEl}
+          onClose={() => setUserPopover(null)}
         />
       )}
     </Container>
@@ -1525,6 +1661,105 @@ const NoMsgBox = styled.div`
   padding: 40px 20px; text-align: center; color: #94A3B8; font-size: 13px;
 `;
 
+// 사이클 N+15-C — 읽음 표시 라벨.
+// 본인 메시지 우측 하단 작은 11px 톤. read=true 면 teal, false 면 회색 (Slack/iMessage 패턴).
+// 영문 노트: 상대 디바이스가 알림만 받고 conv 진입 전이면 last_read_at 갱신 안 됨 → '전송됨' 유지.
+const ReadMark = styled.div<{ $read: boolean }>`
+  margin-top: 2px;
+  align-self: flex-end;
+  font-size: 11px;
+  font-weight: 500;
+  color: ${(p) => (p.$read ? '#0D9488' : '#94A3B8')};
+  letter-spacing: -0.1px;
+`;
+
+// 사이클 N+15-E — 스크롤-바닥 floating 버튼.
+// Container 의 absolute 자식 — MessageList 위에 떠 있는 형태. 위로 240px+ 스크롤 시 등장.
+// 데스크탑: 우측 하단 (InputBar 위), 모바일: 같은 위치 — InputBar 높이 + 12px 마진.
+const ScrollToBottomBtn = styled.button`
+  position: absolute;
+  right: 18px;
+  bottom: 90px;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: #FFFFFF;
+  color: #334155;
+  border: 1px solid #E2E8F0;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 20;
+  transition: transform 0.15s, background 0.15s, border-color 0.15s;
+  animation: pq-scrolltop-in 0.18s ease-out;
+  @keyframes pq-scrolltop-in {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  &:hover { background: #F8FAFC; border-color: #14B8A6; color: #0D9488; }
+  &:focus-visible { outline: 2px solid #14B8A6; outline-offset: 2px; }
+  @media (max-width: 640px) {
+    right: 14px;
+    bottom: 84px;
+  }
+`;
+const ScrollPendingBadge = styled.span`
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 10px;
+  background: #F43F5E;
+  color: #FFFFFF;
+  font-size: 11px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 0 2px #FFFFFF;
+`;
+
+// 사이클 N+15-A — 메시지 lazy-load skeleton.
+// shimmer 만 사용 (pulse 안 씀 — 채팅 박스 안 노이즈 최소). 좌/우 정렬 번갈아 → 실 메시지 흐름 인상.
+const SkeletonMessages = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 8px 0;
+`;
+const SkelMsgRow = styled.div<{ $align: 'left' | 'right' }>`
+  display: flex;
+  flex-direction: ${(p) => (p.$align === 'right' ? 'row-reverse' : 'row')};
+  align-items: flex-start;
+  gap: 12px;
+`;
+const SkelMsgAvatar = styled.div`
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: linear-gradient(90deg, #F1F5F9 0%, #E2E8F0 50%, #F1F5F9 100%);
+  background-size: 200% 100%;
+  animation: pq-msgskel-shimmer 1.4s linear infinite;
+  flex-shrink: 0;
+  @keyframes pq-msgskel-shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+`;
+const SkelMsgBubble = styled.div<{ $width: string; $mine?: boolean }>`
+  width: ${(p) => p.$width};
+  height: 36px;
+  border-radius: 12px;
+  background: linear-gradient(90deg,
+    ${(p) => (p.$mine ? '#E0F7F4 0%, #CCFBF1 50%, #E0F7F4 100%' : '#F1F5F9 0%, #E2E8F0 50%, #F1F5F9 100%')});
+  background-size: 200% 100%;
+  animation: pq-msgskel-shimmer 1.4s linear infinite;
+`;
+
 // Hangouts/Slack 패턴 — 그룹 첫 메시지는 윗 마진 (그룹 간격), 연속(같은 발신자 + 5분 이내) 은
 // 거의 붙어서 나오게 (Irene 명시: 줄간격 좁게). 그룹 시작 12px / 연속 0px.
 const MessageItem = styled.div<{ $continuation?: boolean }>`
@@ -1554,10 +1789,20 @@ const MessageHeader = styled.div`
   margin-bottom: 4px;
 `;
 
-const SenderName = styled.span`
+const SenderName = styled.button`
+  /* 사이클 N+15-E — 발신자 이름 클릭 시 유저 정보 popover. button 으로 변경 (a11y + hover 영향). */
+  background: transparent;
+  border: none;
+  padding: 0;
   font-size: 13px;
   font-weight: 600;
   color: #0F172A;
+  font-family: inherit;
+  cursor: pointer;
+  text-align: left;
+  transition: color 0.15s;
+  &:hover { color: #0D9488; text-decoration: underline; }
+  &:focus-visible { outline: 2px solid #14B8A6; outline-offset: 2px; border-radius: 4px; }
 `;
 
 const TimeStamp = styled.span`
@@ -1865,6 +2110,11 @@ const InputBar = styled.div`
   @media (max-width: 640px) {
     padding: 8px 12px;
     padding-bottom: max(8px, env(safe-area-inset-bottom, 8px));
+  }
+  /* 사이클 N+15-B — 모바일 키보드 up 시 safe-area 무시. 일부 iOS 가 키보드 위에서도 34px 잔존하는 버그 회피.
+     InputBar 가 키보드에 딱 붙어 Hangouts/iMessage 와 동일한 인상. */
+  body[data-keyboard-up="1"] & {
+    padding-bottom: 6px;
   }
 `;
 

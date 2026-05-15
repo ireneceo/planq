@@ -785,19 +785,42 @@ router.get('/conversations/:id/messages', authenticateToken, async (req, res, ne
         return errorResponse(res, 'forbidden_channel', 403);
       }
     }
-    const { MessageAttachment } = require('../models');
-    const msgs = await Message.findAll({
-      where: { conversation_id: conv.id, is_deleted: false },
-      include: [
-        { model: User, as: 'sender', attributes: ['id', 'name', 'email', 'name_localized'] },
-        // 첨부 — 페이지 새로고침/재진입 시 채팅 이미지·파일이 사라지지 않도록 필수.
-        // association alias 'attachments' (models/index.js:119)
-        { model: MessageAttachment, as: 'attachments', attributes: ['id', 'file_name', 'file_size', 'mime_type', 'file_id'], required: false },
-      ],
-      order: [['created_at', 'ASC']],
-      limit: 200,
+    const { MessageAttachment, ConversationParticipant } = require('../models');
+    const [msgs, parts] = await Promise.all([
+      Message.findAll({
+        where: { conversation_id: conv.id, is_deleted: false },
+        include: [
+          { model: User, as: 'sender', attributes: ['id', 'name', 'email', 'name_localized'] },
+          // 첨부 — 페이지 새로고침/재진입 시 채팅 이미지·파일이 사라지지 않도록 필수.
+          // association alias 'attachments' (models/index.js:119)
+          { model: MessageAttachment, as: 'attachments', attributes: ['id', 'file_name', 'file_size', 'mime_type', 'file_id'], required: false },
+        ],
+        order: [['created_at', 'ASC']],
+        limit: 200,
+      }),
+      ConversationParticipant.findAll({
+        where: { conversation_id: conv.id },
+        attributes: ['user_id', 'last_read_at'],
+      }),
+    ]);
+    // 사이클 N+15-C — 메시지마다 read_by_count + other_count 부착.
+    // read_by_count: sender 외 참여자 중 last_read_at >= m.created_at 인 수.
+    // other_count: sender 외 참여자 총수 (1:1 ↔ 그룹 판별용).
+    const result = msgs.map((m) => {
+      const json = m.toJSON();
+      const createdMs = new Date(m.created_at).getTime();
+      let readBy = 0;
+      let others = 0;
+      for (const p of parts) {
+        if (p.user_id === m.sender_id) continue;
+        others += 1;
+        if (p.last_read_at && new Date(p.last_read_at).getTime() >= createdMs) readBy += 1;
+      }
+      json.read_by_count = readBy;
+      json.other_count = others;
+      return json;
     });
-    return successResponse(res, msgs.map((m) => m.toJSON()));
+    return successResponse(res, result);
   } catch (err) { next(err); }
 });
 

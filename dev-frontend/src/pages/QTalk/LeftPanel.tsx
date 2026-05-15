@@ -14,6 +14,8 @@ interface Props {
   conversations: MockConversation[];
   activeProjectId: number | null;
   activeConversationId: number | null;
+  /** 초기 fetch 진행 중 + 캐시 없음 — true 일 때 skeleton 노출 (사이클 N+15-A) */
+  loading?: boolean;
   onSelectConversation: (projectId: number, conversationId: number) => void;
   onOpenNewChat: () => void;
   collapsed: boolean;
@@ -41,6 +43,7 @@ interface ChatEntry {
 
 const LeftPanel: React.FC<Props> = ({
   projects, conversations, activeConversationId,
+  loading = false,
   onSelectConversation, onOpenNewChat, collapsed, onToggleCollapsed,
   onTogglePin, canManage, onArchive, onUnlink, onOpenArchive, mobileHidden = false,
 }) => {
@@ -186,7 +189,21 @@ const LeftPanel: React.FC<Props> = ({
       </SearchSection>
 
       <ChatList>
-        {filteredChats.length === 0 && (
+        {/* skeleton: 캐시 없음 + 초기 fetch 진행 중일 때만 노출. 캐시 있으면 항상 실 데이터 우선 표시. */}
+        {filteredChats.length === 0 && loading && !query && (
+          <SkeletonList aria-busy="true" aria-label="loading conversations">
+            {[0, 1, 2, 3].map((i) => (
+              <SkeletonRow key={i} style={{ animationDelay: `${i * 0.08}s` }}>
+                <SkeletonAvatar />
+                <SkeletonText>
+                  <SkeletonLine $width="70%" />
+                  <SkeletonLine $width="40%" $sub />
+                </SkeletonText>
+              </SkeletonRow>
+            ))}
+          </SkeletonList>
+        )}
+        {filteredChats.length === 0 && !loading && (
           <Empty>
             {query ? t('left.noResults', '검색 결과 없음') : t('left.noChats', '아직 대화가 없습니다')}
           </Empty>
@@ -211,7 +228,21 @@ const LeftPanel: React.FC<Props> = ({
                   <ChatName $active={isActive}>{c.name}</ChatName>
                   {c.channel_type === 'customer' && <CustomerTag>{t('channelBadge.customer', '고객')}</CustomerTag>}
                 </ChatTop>
-                <ProjectName>{p.name}</ProjectName>
+                {/* 사이클 N+15-D — WhatsApp 패턴 마지막 대화 한 줄. preview 있으면 우선, 없으면 프로젝트명 fallback. */}
+                {c.last_message_preview ? (
+                  <LastMessagePreview $unread={c.unread_count > 0 && !isActive}>
+                    {c.last_message_preview.sender_id === Number(user?.id || 0) ? (
+                      <PreviewSenderTag>{t('left.preview.you', '나')}: </PreviewSenderTag>
+                    ) : c.last_message_preview.is_ai ? (
+                      <PreviewSenderTag>Cue: </PreviewSenderTag>
+                    ) : c.channel_type === 'customer' || (p && p.id < 0) ? null : (
+                      <PreviewSenderTag>{c.last_message_preview.sender_name || ''}: </PreviewSenderTag>
+                    )}
+                    <PreviewText>{c.last_message_preview.content}</PreviewText>
+                  </LastMessagePreview>
+                ) : (
+                  <ProjectName>{p.name}</ProjectName>
+                )}
               </ChatBody>
               {!isActive && c.unread_count > 0 && <Unread>{c.unread_count}</Unread>}
               {onTogglePin && (
@@ -429,6 +460,53 @@ const Empty = styled.div`
   font-size: 12px;
 `;
 
+// 사이클 N+15-A — 초기 로딩 skeleton (Slack/카카오톡 패턴).
+// 캐시 없음 + 초기 fetch 진행 시 4 행 placeholder. 펄스 애니메이션은 stagger 로 자연스럽게.
+const SkeletonList = styled.div`
+  padding: 6px 4px;
+`;
+const SkeletonRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 10px;
+  margin: 2px 0;
+  border-radius: 10px;
+  animation: pq-skel-pulse 1.6s ease-in-out infinite;
+  @keyframes pq-skel-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.55; }
+  }
+`;
+const SkeletonAvatar = styled.div`
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: linear-gradient(90deg, #F1F5F9 0%, #E2E8F0 50%, #F1F5F9 100%);
+  background-size: 200% 100%;
+  animation: pq-skel-shimmer 1.4s linear infinite;
+  flex-shrink: 0;
+  @keyframes pq-skel-shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+`;
+const SkeletonText = styled.div`
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+`;
+const SkeletonLine = styled.div<{ $width: string; $sub?: boolean }>`
+  width: ${(p) => p.$width};
+  height: ${(p) => (p.$sub ? '8px' : '10px')};
+  border-radius: 4px;
+  background: linear-gradient(90deg, #F1F5F9 0%, #E2E8F0 50%, #F1F5F9 100%);
+  background-size: 200% 100%;
+  animation: pq-skel-shimmer 1.4s linear infinite;
+`;
+
 const Footer = styled.div`
   flex-shrink: 0;
   padding: 8px 10px;
@@ -517,6 +595,25 @@ const ProjectName = styled.div`
   text-overflow: ellipsis;
 `;
 
+// 사이클 N+15-D — WhatsApp 패턴 last_message preview.
+// unread 시 글자색 진하게 (대비) + 굵게 / 읽음·active 시 옅게.
+// 1줄 ellipsis, 발신자 prefix 가 있으면 회색 + ': '.
+const LastMessagePreview = styled.div<{ $unread: boolean }>`
+  font-size: 12px;
+  font-weight: ${(p) => (p.$unread ? 600 : 400)};
+  color: ${(p) => (p.$unread ? '#334155' : '#94A3B8')};
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 2px;
+  line-height: 1.35;
+`;
+const PreviewSenderTag = styled.span`
+  color: #94A3B8;
+  font-weight: 500;
+`;
+const PreviewText = styled.span``;
+
 // 읽지 않은 메시지 수 — ChatBody 옆, PinBtn 좌측. ChatRow 의 직접 자식이라
 // ChatName flex:1 에 squeeze 되지 않고 항상 우측에 명확히 표시. 데스크탑·모바일 일관.
 // 모바일에선 살짝 더 크게 (가시성 강화).
@@ -539,8 +636,10 @@ const Unread = styled.div`
   }
 `;
 
-// 핀(즐겨찾기) 토글 — 데스크탑은 hover-only 노이즈 최소화 / 모바일은 hover 없으니 상시 노출.
-// 활성(핀됨) 시 채워진 별 + amber. 비활성 시 outline 별 + neutral gray.
+// 핀(즐겨찾기) 토글 — 사이클 N+15-E: 상시 노출 (hover-only 폐지).
+// 옛 hover 노출은 "다른 row 호버할 때 별이 깜빡거리는" 인상을 유발 → 사용자가 의도와 무관해 보임.
+// 항상 28x28 자리 차지, 색상으로만 상태 구분.
+//   pinned=true: amber 채움 / pinned=false: 연회색 outline
 const PinBtn = styled.button<{ $pinned: boolean }>`
   flex-shrink: 0;
   display: inline-flex;
@@ -555,15 +654,9 @@ const PinBtn = styled.button<{ $pinned: boolean }>`
   border-radius: 6px;
   cursor: pointer;
   color: ${(p) => (p.$pinned ? '#F59E0B' : '#CBD5E1')};
-  opacity: ${(p) => (p.$pinned ? 1 : 0)};
-  transition: opacity 0.15s, background 0.15s;
-  &:hover { background: ${(p) => (p.$pinned ? '#FEF3C7' : '#F1F5F9')}; }
-  /* 행 hover 시 unpinned 도 등장 (데스크탑) */
-  ${ChatRow}:hover & { opacity: 1; }
-  /* 모바일/터치: hover 가 없으므로 unpinned 별표 항상 outline 노출 (Slack/Notion 모바일 패턴) */
-  @media (hover: none), (max-width: 1024px) {
-    opacity: 1;
-  }
+  transition: background 0.15s, color 0.15s;
+  &:hover { background: ${(p) => (p.$pinned ? '#FEF3C7' : '#F1F5F9')}; color: ${(p) => (p.$pinned ? '#D97706' : '#94A3B8')}; }
+  &:focus-visible { outline: 2px solid #14B8A6; outline-offset: 1px; }
 `;
 
 // ⋮ 채팅방 관리 메뉴 — workspace owner / project owner / platform admin 만 노출.
@@ -574,6 +667,8 @@ const MenuRoot = styled.div`
   align-self: center;
 `;
 
+// 사이클 N+15-E — 상시 노출. 옛 hover-only 는 사용자가 발견하지 못함 + 호버 깜빡임 노이즈.
+// 평소 연회색, 호버/오픈 시 진한 색 + 배경 tint.
 const MenuBtn = styled.button<{ $open: boolean }>`
   display: inline-flex;
   align-items: center;
@@ -586,14 +681,10 @@ const MenuBtn = styled.button<{ $open: boolean }>`
   border: none;
   border-radius: 6px;
   cursor: pointer;
-  color: ${(p) => (p.$open ? '#0F172A' : '#94A3B8')};
-  opacity: ${(p) => (p.$open ? 1 : 0)};
-  transition: opacity 0.15s, background 0.15s, color 0.15s;
+  color: ${(p) => (p.$open ? '#0F172A' : '#CBD5E1')};
+  transition: background 0.15s, color 0.15s;
   &:hover { background: #F1F5F9; color: #0F172A; }
-  ${ChatRow}:hover & { opacity: 1; }
-  @media (hover: none), (max-width: 1024px) {
-    opacity: 1;
-  }
+  &:focus-visible { outline: 2px solid #14B8A6; outline-offset: 1px; }
 `;
 
 // Popover — Linear/Slack 패턴. 우측 정렬해서 ⋮ 바로 아래 펼침.

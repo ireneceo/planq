@@ -162,13 +162,21 @@ export default function NotificationToaster() {
   // 페이지에서 사용자가 한 번이라도 클릭/키 입력/터치하면 자동으로 unlock.
   useEffect(() => { ensureUnlock(); }, []);
 
-  // 활성 컨텍스트 추적 — toast 가 같은 page/conv 에 떠 있으면 표시 X
+  // 활성 컨텍스트 추적 — toast 가 같은 page/conv 에 떠 있으면 표시 X.
+  // 사이클 N+15-D — URL 패턴 2종 모두 인식: /talk?conv=123 (쿼리), /talk/123 (path).
+  // 옛 쿼리만 본 코드는 path-param 진입 직후 (URL 정규화 직전) 토스트 skip 실패.
+  // 더 나아가, focus 상태(visibilitychange) 도 함께 본다 — 데스크탑 탭이 background 면 토스트 표시 OK.
   useEffect(() => {
     activePathRef.current = location.pathname;
-    // /talk?conv=123 같은 패턴에서 conv id 추출
     const params = new URLSearchParams(location.search);
-    const conv = params.get('conv');
-    activeConvIdRef.current = conv ? Number(conv) : null;
+    const queryConv = params.get('conv');
+    if (queryConv) {
+      activeConvIdRef.current = Number(queryConv);
+      return;
+    }
+    // path-param /talk/:id 또는 /chat/:id
+    const m = location.pathname.match(/^\/(?:talk|chat)\/(\d+)/);
+    activeConvIdRef.current = m ? Number(m[1]) : null;
   }, [location.pathname, location.search]);
 
   const dismiss = useCallback((id: string) => {

@@ -181,6 +181,15 @@ export interface ApiConversation {
   // 읽지 않은 메시지 수 (사용자 본인 기준).
   // 본인이 보낸 메시지 제외, last_read_at 이후 메시지만 카운트, 삭제 메시지 제외.
   unread_count?: number;
+  // 사이클 N+15-D — 채팅 리스트에 표시할 마지막 메시지 한 줄 (WhatsApp 패턴).
+  last_message_preview?: {
+    content: string;
+    sender_id: number;
+    sender_name: string | null;
+    sender_name_localized: Record<string, string> | null;
+    is_ai: boolean;
+    created_at: string;
+  } | null;
   participants?: Array<{
     id: number;
     user_id: number;
@@ -229,6 +238,11 @@ export interface ApiMessage {
   meta?: ApiMessageMeta | null;
   translations?: Partial<Record<SupportedLang, string>> | null;
   detected_language?: SupportedLang | null;
+  // 사이클 N+15-C — 읽음 표시 (Slack/iMessage 패턴).
+  // read_by_count: 이 메시지를 sender 외 다른 참여자 중 몇 명이 읽었는지.
+  // other_count: 메시지를 받을 다른 참여자 총수 (1:1 vs 그룹 판별용).
+  read_by_count?: number;
+  other_count?: number;
 }
 
 export type ApiMessageMeta =

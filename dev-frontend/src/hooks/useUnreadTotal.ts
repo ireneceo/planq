@@ -37,11 +37,14 @@ export function useUnreadTotal(businessId: number | null | undefined): number {
 
     refresh();
 
-    // Socket — 새 메시지 / 읽음 처리 즉시 갱신 (debounce 200ms 로 burst 합침)
+    // 사이클 N+15-D — 사이드바 뱃지 실시간성 강화.
+    // (1) 옵티미스틱: socket message:new 이벤트로 타 발신자 메시지 도착 시 setCount(+1) 즉시.
+    //     채팅 리스트(QTalkPage)와 사이드바가 같은 frame 에 +1 → "타이밍 mismatch" 회귀 차단.
+    // (2) 그 후 50ms debounce 로 backend API 와 reconcile (정확성).
     let pending: ReturnType<typeof setTimeout> | null = null;
     const debouncedRefresh = () => {
       if (pending) clearTimeout(pending);
-      pending = setTimeout(refresh, 200);
+      pending = setTimeout(refresh, 50);
     };
 
     if (getAccessToken()) {
@@ -55,13 +58,29 @@ export function useUnreadTotal(businessId: number | null | undefined): number {
       });
       s.on('connect_error', () => { /* silent reconnect */ });
       // 새 메시지 — sender 본인 메시지든 타인 것이든 일단 refresh (백엔드 SQL 이 본인 발신 제외)
-      s.on('message:new', debouncedRefresh);
+      s.on('message:new', (msg: { sender_id?: number; conversation_id?: number }) => {
+        // 옵티미스틱 +1 — 타인 발신 메시지일 때만. 본인 발신은 backend 에서 제외되므로 카운트 변경 X.
+        if (msg && msg.sender_id && Number(msg.sender_id) !== Number(user.id)) {
+          setCount((prev) => prev + 1);
+        }
+        debouncedRefresh();
+      });
       // 인박스/읽음 변경
       s.on('inbox:refresh', debouncedRefresh);
+      // 사이클 N+15-D — 자기 conv 진입 시 즉시 뱃지에서 차감 (그 conv 의 unread 만큼).
+      //   QTalkPage 가 'planq:unread-changed' detail 로 차감량 전달.
       socketRef.current = s;
     }
 
-    const onChanged = () => refresh();
+    // 'planq:unread-changed' 가 CustomEvent 로 detail.optimisticDelta 를 줄 수 있음.
+    // 채팅방 진입 시 QTalkPage 가 차감 정보 전달 → 사이드바 즉시 -N (await API 기다리지 않음).
+    const onChanged = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail && typeof detail.optimisticDelta === 'number') {
+        setCount((prev) => Math.max(0, prev + detail.optimisticDelta));
+      }
+      refresh();
+    };
     const onVisible = () => { if (document.visibilityState === 'visible') refresh(); };
     window.addEventListener('planq:unread-changed', onChanged);
     window.addEventListener('focus', onChanged);

@@ -89,6 +89,9 @@
       "body": "Create chats linked to projects, clients, or standalone.\n\n• Auto-extract ON: task candidates from messages collect in the right panel\n• Translation ON: every message shows both languages",
       "cuePrefill": "Tell me how chat types, auto-extract, and translation work in Q talk"
     },
+    "preview": {
+      "you": "You"
+    },
     "expand": "Open list",
     "newChat": "New chat",
     "newProject": "New project",
@@ -252,11 +255,19 @@
     "noChannel": "No conversation channel yet",
     "noChannelDesc": "Pick a channel on the left or create a new one.",
     "noMessages": "Send the first message",
+    "read": {
+      "sent": "Sent",
+      "read": "Read",
+      "allRead": "Read by all",
+      "someRead": "Read {{read}}/{{total}}"
+    },
     "expandLeft": "Expand left panel",
     "expandRight": "Expand right panel",
     "back": "Back to list",
     "rename": "Click to rename",
     "openSettings": "Chat settings",
+    "openUserInfo": "View profile",
+    "scrollToBottom": "Jump to latest",
     "help": "Help / Feedback",
     "upload": {
       "failed": "Upload failed"
@@ -402,5 +413,17 @@
         "Customer view (simplified)"
       ]
     }
+  },
+  "userInfo": {
+    "owner": "Owner",
+    "member": "Member",
+    "client": "Client",
+    "email": "Email",
+    "jobTitle": "Job title",
+    "organization": "Org",
+    "company": "Company",
+    "phone": "Phone",
+    "noInfo": "No additional info",
+    "notFound": "Could not load profile"
   }
 }
