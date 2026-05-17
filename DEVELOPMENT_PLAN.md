@@ -1,14 +1,47 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-05-17 사이클 N+17-hotfix — 로그아웃 회귀 + 에러 메시지 한국어 + push 401 무한 retry 차단 (v1.12.1 운영 라이브, commit `5ba36cb`)
+> **최종 업데이트:** 2026-05-18 사이클 N+18~N+21 + hotfix 3건 — 워크스페이스 주간보고서·디자인 시스템·사용량 시각화·멤버 메뉴 권한·청구 담당 통합 (v1.13.0 운영 라이브, commit `5317eca`)
 >
-> **직전 라이브:** v1.12.0 (commit `3c1a98b`) — N+17 사이클 (Q Note 메모 통합 + 로딩 75% 감소 등)
+> **직전 라이브:** v1.12.1 (commit `5ba36cb`) — N+17 사이클 + hotfix (Q Note 메모 + 로그아웃 회귀 fix)
 >
-> **이전 라이브:** v1.11.0 (commit `36362fc` + hotfix `efb890f`) — Q docs 코드 블록 + 드래프트 / GDrive 닫기 fix / 알림 매트릭스 분리 / 아바타 popover / 메시지 액션·핀·이미지fix + ⋮ 메뉴 portal
+> **이전 라이브:** v1.12.0 (commit `3c1a98b`) — N+17 사이클 (Q Note 메모 통합 + 로딩 75% 감소 등)
 
 ---
 
-## ✅ 완료: 사이클 N+17 — Q Note 메모 통합 + 로딩속도 + 채팅모바일 + 로그아웃 fix (2026-05-17)
+## ✅ 완료: 사이클 N+18~N+21 — 주간보고·디자인 시스템·권한·청구·히스토리 (2026-05-17 ~ 18, v1.13.0)
+
+### 완료된 작업
+
+| 사이클 | 작업 | 핵심 산출물 | 상태 |
+|------|------|---|:----:|
+| N+18 | 워크스페이스 통합 주간보고서 | `business_weekly_reports` 테이블 신규, snapshot v1 스키마 (KPI delta·highlights·risks·blockers·issues·next_week·portfolio·heatmap·decisions), `WeeklyReviewWorkspaceView` 신규, cron 자동 박제 + 수동 박제, ProjectStage history. + Q Project 검색·필터 + 메모 분리 창 | ✅ |
+| N+19 | 디자인 시스템 + 요청 정책 | `ActionButton` + `DrawerFooter` 공용 컴포넌트 (3톤 × 3사이즈), TaskDetailDrawer Action* alias 마이그레이션, WeeklyReviewModal 마이그레이션, 요청 탭 estimated_hours/recurrence_rule UI 숨김 + 백엔드 sanitize (책임선 분리), DetailDrawer z-index 60 | ✅ |
+| N+19 hotfix | GDrive reconnect 옛 폴더 재사용 | `cloud.js` callback 에서 createRootFolder 전 Drive 같은 이름 폴더 search → 재사용 (drive.file scope 안전) | ✅ |
+| N+20 | 사용량 시각화 + AI 학습 | `TaskEstimation.business_id` 컬럼 + backfill, `cue_actions_by_type` 응답, `/qnote/estimate` endpoint, `UsageWarningCard` Primary CTA (Danger red), `PlanSettings` Cue breakdown 막대, `PostAiModal` cue hint + 임박 확인 모달, `callAiEstimate` 워크스페이스 few-shot | ✅ |
+| N+21 | 멤버 메뉴 권한 + admin role | `BusinessMember.role` admin ENUM, `business_member_permissions` 테이블 (UNIQUE biz+user+menu_key), `businesses.default_billing_owner_id`, `project_status_history` + `invoice_status_history`, `middleware/menu_permission.js`, 권한 라우트 5종, Invoice 8 mutation 라우트 `requireMenu('qbill','write')` 가드, AuditLog 5 영역 누락 채움, `MemberPermissionMatrix` + `DefaultBillingOwnerSection` | ✅ |
+| N+21 hotfix | 메뉴 정렬 + qmail/qinfo + insights | MENU_LIST 사이드바 순서 1:1 정합 (11종), qmail·qinfo 추가, insights write 코어스 → read, role 라벨 "오너/관리자" 통일, 한글 white-space:nowrap, sticky 컬럼 min-width 160px | ✅ |
+| N+21 hotfix2 | 설정 페이지 헤더 중복 + 외부 연동 이름 | StorageSettings 내부 `<SectionTitle>` 제거 + PermissionsSettings 내부 `<Title>` 제거 (외부 헤더만), "파일 저장소" → "파일·외부 연동" / "Storage & Integrations" (캘린더 포함 의도 반영), 자체 스토리지 "사용 안 함" 제거 (개인 보관함은 항상 자체) | ✅ |
+
+### 30년차 콘텐츠 기획·시스템 분석가 박제 결정 사항
+
+1. **권한 4-Layer 아키텍처**: Role (owner/admin/member/client) + 워크스페이스 토글 (financial/schedule/client_info × all/pm) + 멤버별 메뉴 권한 (9 메뉴 × 3 레벨, default write) + 자원 owner (Invoice.owner_user_id). PERMISSION_MATRIX.md 의 "열린 문화" 일관.
+2. **개인 보관함 정책 재정의**: Drive 연동과 무관, 항상 자체 스토리지. 워크스페이스 공용 quota 안 합산. 개인별 quota 분리 X (단순화).
+3. **워크스페이스 주간보고서 vs 개인 주간보고서**: 워크스페이스 × 주차 = 1 row (담당자 fan-out X). 개인본은 멤버 × 주차 = N row 그대로. 둘 독립.
+4. **AI 워크스페이스 학습**: callAiEstimate 가 같은 워크스페이스 최근 12 사용자 추정 few-shot 사용. 같은 task 제목이어도 옷가게 vs 컨설팅 다르게 추정.
+5. **상태 히스토리**: project/invoice 상태 전이 모두 자동 박제. AuditLog 와 별개 (전용 history 테이블).
+6. **요청 탭 책임선**: 의뢰자는 명세만, 시간/반복 설정은 담당자 ack 후. UI/백엔드 양쪽 가드.
+
+### 수정된 파일 (66개)
+
+**백엔드 모델 (5 신규)**: `BusinessWeeklyReport.js`, `BusinessMemberPermission.js`, `ProjectStatusHistory.js`, `InvoiceStatusHistory.js`, `Business.js` (default_billing_owner_id 컬럼)
+**백엔드 middleware**: `menu_permission.js` 신규
+**백엔드 routes**: `businesses.js`, `cloud.js`, `files.js`, `invoices.js`, `plan.js`, `projects.js`, `task_estimations.js`, `tasks.js`, `weekly_reviews.js`
+**백엔드 services**: `plan.js`, `templateApply.js`, `weeklyReviewCron.js`, `weeklyReviewSnapshot.js`
+**프론트 신규 컴포넌트**: `Common/ActionButton.tsx`, `Common/DrawerFooter.tsx`, `Permissions/MemberPermissionMatrix.tsx`, `Permissions/DefaultBillingOwnerSection.tsx`, `QTask/WeeklyReviewWorkspaceView.tsx`, `QNote/MemoStandalonePage.tsx`, `QNote/NewNoteModal.tsx`
+**프론트 services**: `permissions.ts` 신규, `plan.ts` · `weeklyReview.ts` 확장
+**i18n**: ko/en common · layout · plan · qdocs · qnote · qproject · qtask · settings (총 약 100 키 추가)
+
+---
 
 **v1.12.0 운영 라이브 (commit `3c1a98b`, 99s 배포)**
 

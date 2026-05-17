@@ -286,6 +286,20 @@ res.status(400).json({ success: false, message: 'Error description' });
 > - `clients.display_name_localized` JSON
 > - 신규 라우트 12: `GET/PUT /api/businesses/:id/me/profile`, `POST /api/users/:id/email-verify-request`+confirm, `POST /api/users/:id/secondary-email-{verify,change}-{request,verify,confirm}`, `DELETE /api/users/:id/secondary-email`
 > - `users.username` 한 번 정해지면 변경 차단 (안전핀, `routes/users.js:128-143`)
+>
+> **사이클 N+18~N+21 (2026-05-17~18, v1.13.0):**
+> - **워크스페이스 통합 주간보고서** — `business_weekly_reports` 신규 (UNIQUE biz+week_start, JSON snapshot v1: kpi/highlights/risks/blockers/issues/next_week/portfolio/heatmap/decisions/team_highlights). 일 23:59 cron 자동 + 수동 박제 (owner/admin). 개인본 `weekly_reviews` 와 독립.
+> - **멤버 메뉴 권한 (PERMISSION_MATRIX 4-Layer 중 Layer 3)** — `BusinessMember.role` ENUM `admin` 추가. `business_member_permissions` 신규 (UNIQUE biz+user+menu_key, level ENUM none/read/write). 11 메뉴 (qtalk/qmail/qtask/qcalendar/qnote/qdocs/qinfo/qfile/qbill/clients/insights) × 3 레벨. 기본값 write (열린 문화) — row 없음 = 전권. `middleware/menu_permission.js requireMenu(menu,level)`. insights READ_ONLY (write 입력 시 read 코어스). admin = owner_only 외 자동 전권.
+> - **청구 담당 통합** — `businesses.default_billing_owner_id`. Invoice 발행 owner_user_id selector 는 Q Bill write 권한자만 (owner/admin 자동 포함). PERMISSION_MATRIX §5.10 + §5.11 정렬.
+> - **TaskEstimation.business_id 컬럼 추가** — 워크스페이스별 시간 예측 패턴 학습. `callAiEstimate(title,desc,businessId)` 가 같은 워크스페이스 최근 12 사용자 추정 few-shot 사용 (같은 task 제목이어도 워크스페이스마다 다르게 추정).
+> - **상태 히스토리 박제** — `project_status_history` + `invoice_status_history` 신규. 상태 전이 시 자동 row insert (changed_by 포함). AuditLog 와 별개 (전용 history).
+> - **AuditLog 누락 5 영역 채움** — business_members invite/remove · cloud.disconnect · file.delete · clients.* (이미 호출 중)
+> - **사용량 시각화** — `/api/plan/:id/status.cue_actions_by_type` JSON breakdown. PlanSettings #usage 에 기능별 누적 막대 (brief/docs_generate/kb_embed 등). UsageWarningCard 초과 시 Primary CTA "지금 업그레이드" (Danger red). PostAiModal cue 잔여 hint + 임박 시 확인 모달.
+> - **Q Note 토큰 예상 endpoint** — `POST /api/plan/:id/qnote/estimate { file_size_bytes }` → `{ estimated_minutes, current_minutes, limit_minutes, will_exceed }`. 향후 음성 업로드 STT 기능에 즉시 적용.
+> - **요청 탭 책임선 분리** — `tab='requested'` 시 예측시간/AI/반복 UI 숨김 + 백엔드 POST 라우트 sanitize (담당자 ≠ 작성자면 NULL 강제). PERMISSION_MATRIX §5.7 일관.
+> - **디자인 시스템** — `components/Common/ActionButton.tsx` (3톤 × sm 36/md 40/lg 44 + Spinner + focus ring) + `DrawerFooter.tsx` (sticky bottom + safe-area + 좌/우 슬롯). TaskDetailDrawer Action* alias 마이그레이션 (사용처 17곳 무변경).
+> - **개인 보관함 정책 재정의** — Drive 연동과 무관, 항상 자체 스토리지. 워크스페이스 공용 quota 안 합산. 개인별 quota 분리 X. 설정 페이지 "파일 저장소" → **"파일·외부 연동"** (캘린더 포함 의도).
+> - **GDrive reconnect 옛 폴더 재사용** — drive.file scope 안에서 같은 이름 폴더 search → 가장 오래된 createdTime 재사용. 중복 폴더 자동 차단.
 
 **기타 (2):** kb_chunks, kb_documents, kb_pinned_faqs, cue_usage
 
