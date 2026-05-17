@@ -1581,10 +1581,13 @@ const ToastDot = styled.span`
 
 const Layout = styled.div`
   display: flex;
+  /* 사이클 N+17 — 모바일 키보드 대응 3중 fallback:
+     1순위 var(--vvh): ChatPanel useEffect 가 visualViewport.height JS sync (iOS PWA 정확)
+     2순위 100dvh:    modern brower dynamic viewport
+     3순위 100vh:     legacy fallback */
   height: 100vh;
-  /* iOS Safari 주소창이 보일 때 100vh 가 viewport 보다 커지는 문제 — 입력란이 화면 아래로
-     밀려 가려진다. dvh(dynamic viewport height) 가 정확. fallback 으로 100vh 유지. */
   height: 100dvh;
+  height: var(--vvh, 100dvh);
   background: #F8FAFC;
   overflow: hidden;
   min-height: 0;
@@ -1592,5 +1595,6 @@ const Layout = styled.div`
   @media (max-width: 1024px) {
     height: calc(100vh - 56px);
     height: calc(100dvh - 56px);
+    height: calc(var(--vvh, 100dvh) - 56px);
   }
 `;

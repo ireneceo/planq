@@ -400,7 +400,7 @@ router.post('/register', async (req, res, next) => {
     const cookieOpts = {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
+      sameSite: 'lax',
       path: '/api/auth',
     };
     if (remember) cookieOpts.maxAge = TTL_MS_BY_KIND[clientKind];
@@ -504,7 +504,7 @@ router.post('/login', async (req, res, next) => {
     const cookieOpts = {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
+      sameSite: 'lax',
       path: '/api/auth',
     };
     if (remember) cookieOpts.maxAge = TTL_MS_BY_KIND[clientKind];
@@ -529,6 +529,8 @@ router.post('/refresh', async (req, res, next) => {
   try {
     const refreshToken = req.cookies?.refresh_token;
     if (!refreshToken) {
+      // 진단 로그 — cookie 가 사라진 경우 (iOS Safari ITP / sameSite=strict 호환성 / 브라우저 정리)
+      console.warn('[auth.refresh] 401 no_cookie ua=%s ip=%s', (req.headers['user-agent']||'').slice(0,80), req.ip);
       return errorResponse(res, 'Refresh token required', 401);
     }
 
@@ -537,6 +539,7 @@ router.post('/refresh', async (req, res, next) => {
     try {
       decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
     } catch (err) {
+      console.warn('[auth.refresh] 401 jwt_invalid name=%s', err.name);
       return errorResponse(res, 'Invalid or expired refresh token', 401);
     }
 
@@ -546,16 +549,28 @@ router.post('/refresh', async (req, res, next) => {
 
     // 3. row 없음 또는 user_id 불일치 — 위조/탈취 의심
     if (!tokenRow || tokenRow.user_id !== decoded.userId) {
+      console.warn('[auth.refresh] 401 no_row user=%s row_exists=%s', decoded.userId, !!tokenRow);
       return errorResponse(res, 'Invalid refresh token', 401);
     }
 
-    // 4. 이미 revoked — 재사용 시도. 단, 다중 탭/모바일 PWA wake-up race 흡수:
-    //    rotated 직후 grace window (5분) 내, 후속 row 가 active 라면 정상 race 로 간주
-    //    → 새 access token 만 발급 (cookie 미갱신, 후속 row 보존). 도난 방어 유지하면서
-    //    멀쩡한 사용자가 강제 logout 되는 회귀 차단.
-    //    grace 30s → 5min: 모바일 PWA 백그라운드 wake-up · 화면 잠금 복귀 흡수
+    // 4. 이미 revoked — 재사용 시도.
+    //    grace window (15분) 내 + 후속 row active → 정상 race (다중 탭 / PWA wake / bfcache) 로 간주.
+    //    → 새 access token 만 발급 (cookie 미갱신). 도난 방어 유지하면서 멀쩡한 사용자 강제 logout 회귀 차단.
+    //
+    //    grace 변경 사이클별:
+    //      30s → 5min (N+7, PWA wake-up 흡수)
+    //      → 15min (N+17, Chrome bfcache + 14분 idle 후 stale tab 시나리오 실 발생 박제)
+    //
+    //    [중요 변경 — 사이클 N+17] chain follow 자체 폐지.
+    //      이전 동작: revoke grace 밖이면 successor chain 끝까지 따라가 active row 들도 reuse_detected.
+    //      문제: 다중 탭 / bfcache / 다른 디바이스 race 가 정상 사용자의 마지막 active token 까지 죽임.
+    //            Irene 실 사례 (#1451) — 14분 idle 후 옛 cookie 호출 → chain 따라 active 까지 죽음 → logout.
+    //      신 동작: grace 밖이어도 chain 안 따라감. 호출된 stale row 만 audit log 남기고 401.
+    //              정상 사용자의 다른 active row 보존 → cookie 살아있는 한 다음 호출은 정상 통과.
+    //      도난 trade-off: 도난자가 stale token 으로 한 번 401 받지만 chain 차단 없음.
+    //                     PlanQ 의 실제 도난 의심 0건 vs race-induced logout 빈도 vs UX 안정성 trade-off.
     if (tokenRow.revoked_at) {
-      const ROTATION_GRACE_MS = 5 * 60 * 1000;
+      const ROTATION_GRACE_MS = 15 * 60 * 1000;  // 5min → 15min
       const revokedAgo = Date.now() - new Date(tokenRow.revoked_at).getTime();
       if (
         tokenRow.revoked_reason === 'rotated' &&
@@ -573,24 +588,11 @@ router.post('/refresh', async (req, res, next) => {
           }
         }
       }
-      // 진짜 reuse — 이 토큰의 chain 만 revoke (다른 디바이스 chain 보호)
-      // 30년차: 다중 디바이스 정책의 본질 = device 별 독립. 한 device 의 stale token
-      // 으로 다른 device 의 active session 까지 죽이면 사용자가 알 수 없는 강제 로그아웃을 겪음.
-      // chain 추적 — 이 token row 부터 successor 사슬을 끝까지 따라가서 그 row 들만 revoke.
-      const chainIds = [tokenRow.id];
-      let cur = tokenRow;
-      // 무한 루프 방어 — chain 길이 limit (정상 사용 시 7일 동안 수십 개 정도)
-      for (let i = 0; i < 1000 && cur.replaced_by_id; i++) {
-        const next = await RefreshToken.findByPk(cur.replaced_by_id);
-        if (!next) break;
-        chainIds.push(next.id);
-        cur = next;
-      }
-      await RefreshToken.update(
-        { revoked_at: new Date(), revoked_reason: 'reuse_detected' },
-        { where: { id: chainIds, revoked_at: null } }
+      // grace 밖 — audit log 만 (chain follow 폐지)
+      console.warn(
+        '[auth.refresh] 401 stale_reuse user=%d row=%d revoked_ago_min=%d reason=%s',
+        tokenRow.user_id, tokenRow.id, Math.round(revokedAgo / 60000), tokenRow.revoked_reason
       );
-      console.warn('[auth] reuse detected — chain revoked for user', tokenRow.user_id, 'chain:', chainIds.join(','));
       return errorResponse(res, 'Refresh token reuse detected', 401);
     }
 
@@ -632,7 +634,7 @@ router.post('/refresh', async (req, res, next) => {
     res.cookie('refresh_token', newRefreshToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
+      sameSite: 'lax',
       maxAge: remainingMs,
       path: '/api/auth',
     });

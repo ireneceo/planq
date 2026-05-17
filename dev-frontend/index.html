@@ -17,7 +17,14 @@
     <meta name="application-name" content="PlanQ" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Outfit:wght@200;300;400;500;600;700;800&family=Noto+Sans+KR:wght@200;300;400;500;600;700;900&display=swap" rel="stylesheet" />
+    <!--
+      사이클 N+17 — Google Fonts weight 축소.
+      실 사용: 700 (525곳), 600 (651곳), 500 (202곳), 400 (19곳).
+      거의 안 쓰는 200/300/800/900 제거 → 폰트 파일 fetch 19개 → 12개 (약 35% 감소).
+      Outfit 은 Landing 페이지에서만 사용하지만 적은 weight 라 그대로 둠 (다음 사이클 lazy 검토).
+      display=swap: 폰트 다운로드 동안 fallback 표시 → FOIT 차단, FCP 향상.
+    -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@400;500;600;700&family=Noto+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet" />
     <title>PlanQ</title>
     <!-- 기본 메타 (SEO + SNS 카드) — 공유 페이지의 동적 OG 는 backend SSR 라우트가 별도 처리 (운영 nginx 가 /public/* 을 backend 로 proxy 할 때) -->
     <meta name="description" content="PlanQ — 일이 일이 되지 않게. 업무·프로젝트·사람·시간·고객·청구를 하나로 연결해 시간을 돈으로 바꾸는 수익성 엔진." />
