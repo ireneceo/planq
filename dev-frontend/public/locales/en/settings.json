@@ -14,7 +14,7 @@
     "billing": "Billing",
     "email": "Email",
     "notifications": "Notifications",
-    "storage": "File Storage",
+    "storage": "Storage & Integrations",
     "plan": "Subscription",
     "permissions": "Permissions",
     "members": "Members",
@@ -114,15 +114,15 @@
     "saved": "Saved"
   },
   "storage": {
-    "title": "File Storage",
-    "desc": "Choose where files are stored — PlanQ's own storage or an external cloud like Google Drive. Switch anytime; existing files stay put.",
+    "title": "Storage & Integrations",
+    "desc": "Configure workspace file storage and external integrations. Choose between PlanQ storage or Google Drive; connecting Google Calendar enables auto-generated Meet links.",
     "active": "In use",
     "inactive": "Inactive",
     "connected": "Connected",
     "soon": "Coming soon",
-    "scopeTitle": "What goes to Drive — and what stays local",
-    "scopeBackedUp": "Workspace shared: project / task / chat attachments auto-saved to Drive",
-    "scopeLocal": "Personal files (My files, personal notes): kept in PlanQ's own storage — never sent to Drive",
+    "scopeTitle": "File location — workspace shared vs personal vault",
+    "scopeBackedUp": "Workspace shared (project/task/chat attachments): goes to Drive when connected; otherwise PlanQ storage",
+    "scopeLocal": "Personal vault (My files, personal notes): always PlanQ storage — independent of Drive integration, no per-user quota (counted against workspace shared quota)",
     "scopeOneWay": "Files you create or delete directly in Drive will NOT sync to PlanQ. Manage files inside PlanQ only.",
     "connect": "Connect",
     "connecting": "Connecting…",
@@ -133,7 +133,8 @@
     "openInDrive": "Open in Drive",
     "planq": {
       "title": "PlanQ Storage",
-      "desc": "Default storage · Plan-based quota",
+      "desc": "Workspace shared + personal vault — both stored in PlanQ. Plan-based quota.",
+      "descConnected": "Personal vault always uses PlanQ storage. New workspace shared uploads go to Drive — existing files preserved.",
       "inactiveDesc": "New uploads go to Google Drive. Existing files remain here"
     },
     "gdrive": {
