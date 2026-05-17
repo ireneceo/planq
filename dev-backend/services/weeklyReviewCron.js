@@ -6,8 +6,8 @@
 
 const cron = require('node-cron');
 const { Op } = require('sequelize');
-const { WeeklyReview, WeeklyReviewSetting, Business, BusinessMember, User } = require('../models');
-const { buildSnapshot } = require('./weeklyReviewSnapshot');
+const { WeeklyReview, WeeklyReviewSetting, Business, BusinessMember, BusinessWeeklyReport, User } = require('../models');
+const { buildSnapshot, buildWorkspaceSnapshot } = require('./weeklyReviewSnapshot');
 
 // 날짜 유틸
 function mondayOfDate(d) {
@@ -121,7 +121,57 @@ function initWeeklyReviewCron() {
         console.log(`[weeklyReviewCron] auto created for user ${m.user_id}, biz ${m.business_id}, week ${weekStart}`);
       }
 
-      console.log(`[weeklyReviewCron] done. processed=${processed}, created=${created}`);
+      // ─── 워크스페이스 통합본 박제 (사이클 N+18) ───
+      // 멤버 fan-out 과 별개로, 월요일 00시에 들어선 워크스페이스 × 1건 박제.
+      // 같은 주차 manual row 가 있으면 skip (수동 우선).
+      const businessesNeedingWorkspaceReport = new Set();
+      for (const m of members) {
+        const wsTz = m.Business?.timezone || 'Asia/Seoul';
+        const nowInTz = getNowInTz(wsTz);
+        if (nowInTz && nowInTz.weekday === 1 && nowInTz.hour === 0) {
+          businessesNeedingWorkspaceReport.add(m.business_id);
+        }
+      }
+      let wsCreated = 0;
+      for (const bizId of businessesNeedingWorkspaceReport) {
+        const biz = await Business.findByPk(bizId, { attributes: ['timezone'] });
+        const wsTz = biz?.timezone || 'Asia/Seoul';
+        const nowInTz = getNowInTz(wsTz);
+        if (!nowInTz) continue;
+        const todayInTz = new Date(nowInTz.year, nowInTz.month - 1, nowInTz.day);
+        const lastMonday = mondayOfDate(addDays(todayInTz, -7));
+        const lastSunday = addDays(lastMonday, 6);
+        const weekStart = dateToStr(lastMonday);
+        const weekEnd = dateToStr(lastSunday);
+
+        const existing = await BusinessWeeklyReport.findOne({
+          where: { business_id: bizId, week_start: weekStart },
+        });
+        if (existing && existing.finalized_by === 'manual') {
+          // 수동 박제 보존 — 자동 덮어쓰기 금지
+          continue;
+        }
+        const snapshot = await buildWorkspaceSnapshot(bizId, weekStart);
+        if (existing) {
+          await existing.update({
+            week_end: weekEnd,
+            finalized_at: new Date(),
+            finalized_by: 'auto',
+            snapshot_data: snapshot,
+          });
+        } else {
+          await BusinessWeeklyReport.create({
+            business_id: bizId, week_start: weekStart, week_end: weekEnd,
+            finalized_at: new Date(),
+            finalized_by: 'auto',
+            snapshot_data: snapshot,
+          });
+        }
+        wsCreated++;
+        console.log(`[weeklyReviewCron] workspace report auto created for biz ${bizId}, week ${weekStart}`);
+      }
+
+      console.log(`[weeklyReviewCron] done. processed=${processed}, personal_created=${created}, workspace_created=${wsCreated}`);
     } catch (err) {
       console.error('[weeklyReviewCron] error:', err.message);
     }

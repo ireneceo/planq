@@ -48,6 +48,8 @@ import { useListKeyboardNav } from '../../hooks/useListKeyboardNav';
 import { deriveMemoPreview } from '../../utils/qnoteBody';
 // MemoView (PostEditor 풀모드 + 헤더) — 메모 신규/편집 시점에만 chunk fetch (vendor-tiptap lazy).
 const MemoView = React.lazy(() => import('./MemoView'));
+// NewNoteModal — Q docs PostAiModal manual mode 패턴 동일 (탭 메모/음성 + 옵션). 사이클 N+17 hotfix.
+import NewNoteModal, { type NewNoteKind } from './NewNoteModal';
 
 /**
  * Q Note 페이지
@@ -205,17 +207,10 @@ const QNotePage = () => {
   const [sessionDeleting, setSessionDeleting] = useState(false);
   // 사이클 N+17 — text 메모 신규 작성 (페이지 안에서 빈 메모 → 우측 panel 에서 PostEditor 풀모드 편집)
   const [composingMemo, setComposingMemo] = useState(false);
-  // NewSessionBtn 의 + 드롭다운 (음성 / 메모 선택)
-  const [newBtnMenuOpen, setNewBtnMenuOpen] = useState(false);
-  const newBtnWrapRef = useRef<HTMLDivElement | null>(null);
-  useEffect(() => {
-    if (!newBtnMenuOpen) return;
-    const onDoc = (e: MouseEvent) => {
-      if (!newBtnWrapRef.current?.contains(e.target as Node)) setNewBtnMenuOpen(false);
-    };
-    document.addEventListener('mousedown', onDoc);
-    return () => document.removeEventListener('mousedown', onDoc);
-  }, [newBtnMenuOpen]);
+  // 신규 작성 시 prefill 옵션 (NewNoteModal 에서 선택한 project/client)
+  const [composingPrefill, setComposingPrefill] = useState<{ project_id: number | null; client_id: number | null }>({ project_id: null, client_id: null });
+  // 사이클 N+17 hotfix — + 클릭 시 NewNoteModal 열림 (Q docs PostAiModal manual mode 패턴 통일)
+  const [newNoteModalOpen, setNewNoteModalOpen] = useState(false);
   const handleSessionDelete = async (sessionId: number) => {
     if (sessionDeleting) return;
     setSessionDeleting(true);
@@ -1870,60 +1865,19 @@ const QNotePage = () => {
               {t('page.help.body')}
             </HelpDot>
           </TitleGroup>
-          <NewBtnWrap ref={newBtnWrapRef}>
-            <NewSessionBtn
-              type="button"
-              onClick={() => setNewBtnMenuOpen((x) => !x)}
-              title={t('page.newNoteOrMemo', { defaultValue: '새 음성 노트 또는 메모' }) as string}
-              aria-label={t('page.newNoteOrMemo', { defaultValue: '새 음성 노트 또는 메모' }) as string}
-              aria-haspopup="menu"
-              aria-expanded={newBtnMenuOpen}
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
-                <line x1="12" y1="5" x2="12" y2="19" />
-                <line x1="5" y1="12" x2="19" y2="12" />
-              </svg>
-            </NewSessionBtn>
-            {newBtnMenuOpen && (
-              <NewBtnMenu role="menu">
-                <NewBtnMenuItem
-                  role="menuitem"
-                  onClick={() => { setNewBtnMenuOpen(false); setShowStartModal(true); }}
-                >
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/>
-                    <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
-                    <line x1="12" y1="19" x2="12" y2="23"/>
-                    <line x1="8" y1="23" x2="16" y2="23"/>
-                  </svg>
-                  <div>
-                    {t('page.menuVoice', { defaultValue: '음성 노트 시작' }) as string}
-                    <NewBtnMenuDesc>{t('page.menuVoiceDesc', { defaultValue: '회의 녹음 + STT + 답변 찾기' }) as string}</NewBtnMenuDesc>
-                  </div>
-                </NewBtnMenuItem>
-                <NewBtnMenuItem
-                  role="menuitem"
-                  onClick={() => {
-                    setNewBtnMenuOpen(false);
-                    setActiveSession(null);
-                    setComposingMemo(true);
-                    navigate('/notes', { replace: true });
-                  }}
-                >
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                    <polyline points="14 2 14 8 20 8"/>
-                    <line x1="9" y1="13" x2="15" y2="13"/>
-                    <line x1="9" y1="17" x2="13" y2="17"/>
-                  </svg>
-                  <div>
-                    {t('page.menuMemo', { defaultValue: '메모 작성' }) as string}
-                    <NewBtnMenuDesc>{t('page.menuMemoDesc', { defaultValue: '텍스트 메모 — 코드블록 / 서식 지원' }) as string}</NewBtnMenuDesc>
-                  </div>
-                </NewBtnMenuItem>
-              </NewBtnMenu>
-            )}
-          </NewBtnWrap>
+          {/* 사이클 N+17 hotfix — Q docs PostAiModal manual mode 패턴 통일.
+              dropdown 제거 → + 클릭 시 NewNoteModal 열림 (탭 메모/음성 + 옵션 프로젝트/고객). */}
+          <NewSessionBtn
+            type="button"
+            onClick={() => setNewNoteModalOpen(true)}
+            title={t('page.newNoteOrMemo', { defaultValue: '새 노트' }) as string}
+            aria-label={t('page.newNoteOrMemo', { defaultValue: '새 노트' }) as string}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+              <line x1="12" y1="5" x2="12" y2="19" />
+              <line x1="5" y1="12" x2="19" y2="12" />
+            </svg>
+          </NewSessionBtn>
         </SidebarHeader>
 
         <SearchWrap>
@@ -2053,9 +2007,9 @@ const QNotePage = () => {
             icon={<MicIcon size={36} />}
             title={t('page.empty.title')}
             description={<>{t('page.empty.line1')}<br />{t('page.empty.line2')}</>}
-            ctaLabel={t('page.newMeetingStart')}
+            ctaLabel={t('page.empty.cta')}
             ctaIcon={<PlusIcon size={16} />}
-            onCta={() => setShowStartModal(true)}
+            onCta={() => setNewNoteModalOpen(true)}
           />
         )}
 
@@ -2070,7 +2024,9 @@ const QNotePage = () => {
               key={composingMemo ? 'new' : `s-${activeSession?.id}`}
               session={composingMemo ? null : (activeSession || null)}
               businessId={businessId ? Number(businessId) : 0}
-              onCreated={(s) => { setActiveSession(s); setComposingMemo(false); loadSessions(); navigate(`/notes/${s.id}`, { replace: true }); }}
+              prefillProjectId={composingMemo ? composingPrefill.project_id : null}
+              prefillClientId={composingMemo ? composingPrefill.client_id : null}
+              onCreated={(s) => { setActiveSession(s); setComposingMemo(false); setComposingPrefill({ project_id: null, client_id: null }); loadSessions(); navigate(`/notes/${s.id}`, { replace: true }); }}
               onUpdated={(s) => { setActiveSession(s); setSessions(prev => prev.map(x => x.id === s.id ? { ...x, ...s } : x)); }}
               onDelete={async (id) => {
                 await deleteSession(id);
@@ -2487,6 +2443,47 @@ const QNotePage = () => {
         popup 은 우하단 FAB / ⌘+Shift+M 글로벌 quick capture 전용으로 분리.
         양쪽 동기화: popup 작성 후 페이지 진입 시 listMyRecentMemos 자동 갱신.
       */}
+
+      {/* 사이클 N+17 hotfix — Q docs PostAiModal manual mode 패턴 통일 진입 모달 */}
+      {newNoteModalOpen && businessId && (
+        <NewNoteModal
+          open={newNoteModalOpen}
+          onClose={() => setNewNoteModalOpen(false)}
+          businessId={Number(businessId)}
+          onStart={async (kind: NewNoteKind, opts) => {
+            setNewNoteModalOpen(false);
+            setComposingPrefill({ project_id: opts.project_id, client_id: opts.client_id });
+            if (kind === 'memo') {
+              // 사이클 N+17 hotfix — 진입 즉시 빈 메모 row 생성 → URL 즉시 /notes/{id} 갱신.
+              // "실시간 저장" UX 원칙 — 사용자가 본문 작성 안 하고 닫으면 MemoView 의 onClose 가
+              // isDocEmpty 검사로 자동 delete (양산 차단). createSession 의 default doc 은 빈 paragraph.
+              try {
+                const emptyDoc = { type: 'doc', content: [{ type: 'paragraph' }] };
+                const created = await createSession({
+                  business_id: Number(businessId),
+                  title: 'Untitled',
+                  input_type: 'text',
+                  body: JSON.stringify(emptyDoc),
+                  ...(opts.project_id ? { project_id: opts.project_id } : {}),
+                } as any);
+                setActiveSession(created);
+                setComposingMemo(false);
+                setSessions(prev => [created, ...prev]);
+                navigate(`/notes/${created.id}`, { replace: true });
+              } catch (e) {
+                // 실패 시 옛 흐름 (composing 모드 + 첫 글자 입력 시 POST) 으로 fallback
+                console.warn('[QNote] preCreate failed, falling back to lazy create', e);
+                setActiveSession(null);
+                setComposingMemo(true);
+                navigate('/notes', { replace: true });
+              }
+            } else {
+              // 음성 노트 — 옛 흐름: StartMeetingModal 열림. project/client prefill 은 차후 사이클.
+              setShowStartModal(true);
+            }
+          }}
+        />
+      )}
     </Layout>
   );
 };
@@ -2784,29 +2781,8 @@ const NewSessionBtn = styled.button`
   &:hover { background: #0D9488; }
   &:focus-visible { outline: 2px solid #0D9488; outline-offset: 2px; }
 `;
-// 사이클 N+17 — NewSessionBtn 의 드롭다운 (음성/메모 선택)
-const NewBtnWrap = styled.div` position: relative; `;
-const NewBtnMenu = styled.div`
-  position: absolute; right: 0; top: calc(100% + 4px);
-  background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 10px;
-  box-shadow: 0 8px 24px rgba(15,23,42,0.12);
-  min-width: 200px; padding: 4px; z-index: 50;
-`;
-const NewBtnMenuItem = styled.button.attrs({ type: 'button' as const })`
-  display: flex; align-items: center; gap: 10px;
-  width: 100%; padding: 10px 12px;
-  background: transparent; border: none; border-radius: 6px;
-  font-size: 13px; font-weight: 500; color: #0F172A;
-  cursor: pointer; text-align: left;
-  transition: background 0.15s;
-  &:hover { background: #F0FDFA; color: #0F766E; }
-  & > svg { flex-shrink: 0; color: #64748B; }
-  &:hover > svg { color: #0F766E; }
-`;
-const NewBtnMenuDesc = styled.span`
-  display: block;
-  font-size: 11px; font-weight: 400; color: #94A3B8; margin-top: 1px;
-`;
+// 사이클 N+17 hotfix — 옛 dropdown 폐기. + 진입은 NewNoteModal 로 통일 (Q docs PostAiModal 패턴).
+// 옛 NewBtnWrap/NewBtnMenu/NewBtnMenuItem/NewBtnMenuDesc styled 제거 (TS strict unused 회피).
 
 const SearchWrap = styled.div`
   padding: 12px 20px 12px;

@@ -31,8 +31,13 @@
     "completed": "완료"
   },
   "filter": {
-    "closed": "종료 포함",
-    "toggleClosed": "종료된 프로젝트 표시"
+    "all": "전체",
+    "active": "진행 중",
+    "paused": "대기",
+    "closed": "종료",
+    "searchPlaceholder": "프로젝트 이름·고객사·설명 검색",
+    "noResults": "조건에 맞는 프로젝트가 없습니다",
+    "clearFilters": "필터 초기화"
   },
   "card": {
     "menu": "프로젝트 메뉴",

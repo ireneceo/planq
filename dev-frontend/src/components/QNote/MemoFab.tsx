@@ -17,7 +17,8 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../contexts/AuthContext';
 import MemoPopup from './MemoPopup';
 
-const FAB_HIDDEN_PATHS = ['/talk'];
+// /memo/:id 은 메모 팝업이 standalone 모드로 풀스크린 마운트되는 분리 창 — FAB 노출하면 자기 안에 자기 떠서 혼란
+const FAB_HIDDEN_PATHS = ['/talk', '/memo'];
 
 const FabBtn = styled.button`
   position: fixed; right: 20px; bottom: 16px;

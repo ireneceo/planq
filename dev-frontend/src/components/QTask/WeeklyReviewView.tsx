@@ -203,6 +203,97 @@ const WeeklyReviewView: React.FC<Props> = ({ reviewId, onBack }) => {
         </Section>
       )}
 
+      {/* 사이클 N+18 — 핵심 성과 (key completions) */}
+      {snap?.key_completions && snap.key_completions.length > 0 && (
+        <Section>
+          <SectionTitle>{t('weeklyReview.workspace.highlights.title', '핵심 성과')}</SectionTitle>
+          <SimpleList>
+            {snap.key_completions.map(k => (
+              <SimpleRow key={k.task_id}>
+                <SimpleTitle>{k.title}</SimpleTitle>
+                <SimpleMeta>{k.project_name || '—'} · {k.estimated_hours}h</SimpleMeta>
+              </SimpleRow>
+            ))}
+          </SimpleList>
+        </Section>
+      )}
+
+      {/* 위험 + 블로커 + 이슈 (있을 때만) */}
+      {((snap?.risks && snap.risks.length > 0) || (snap?.blockers && snap.blockers.length > 0) || (snap?.issues && snap.issues.length > 0)) && (
+        <Section>
+          <SectionTitle>{t('weeklyReview.workspace.risks.title', '위험 신호')}</SectionTitle>
+          <RiskGrid>
+            {snap?.risks && snap.risks.length > 0 && (
+              <RiskCol>
+                <RiskColTitle>{t('weeklyReview.workspace.risks.title', '위험')}</RiskColTitle>
+                {snap.risks.map(r => (
+                  <SimpleRow key={`r-${r.task_id}-${r.kind}`}>
+                    <SimpleTitle>{r.title}</SimpleTitle>
+                    <SimpleMeta>{r.project_name || '—'} · {r.detail}</SimpleMeta>
+                  </SimpleRow>
+                ))}
+              </RiskCol>
+            )}
+            {snap?.blockers && snap.blockers.length > 0 && (
+              <RiskCol>
+                <RiskColTitle>{t('weeklyReview.workspace.blockers.title', '블로커')}</RiskColTitle>
+                {snap.blockers.map(b => (
+                  <SimpleRow key={`b-${b.task_id}`}>
+                    <SimpleTitle>{b.title}</SimpleTitle>
+                    <SimpleMeta>{b.blocked_status} · {b.days_blocked}일째</SimpleMeta>
+                  </SimpleRow>
+                ))}
+              </RiskCol>
+            )}
+            {snap?.issues && snap.issues.length > 0 && (
+              <RiskCol>
+                <RiskColTitle>{t('weeklyReview.workspace.issues.title', '이슈')}</RiskColTitle>
+                {snap.issues.map(i => (
+                  <SimpleRow key={`i-${i.id}`}>
+                    <SimpleTitle>{i.title}</SimpleTitle>
+                    <SimpleMeta>{i.project_name || '—'} · {i.days_open}일 경과</SimpleMeta>
+                  </SimpleRow>
+                ))}
+              </RiskCol>
+            )}
+          </RiskGrid>
+        </Section>
+      )}
+
+      {/* 다음 주 전망 */}
+      {snap?.next_week_focus && snap.next_week_focus.length > 0 && (
+        <Section>
+          <SectionTitle>{t('weeklyReview.workspace.nextWeek.title', '다음 주 전망')}</SectionTitle>
+          <SimpleList>
+            {snap.next_week_focus.map(n => (
+              <SimpleRow key={n.task_id}>
+                <SimpleTitle>{n.title}</SimpleTitle>
+                <SimpleMeta>D-{n.days_until} · {n.project_name || '—'}</SimpleMeta>
+              </SimpleRow>
+            ))}
+          </SimpleList>
+        </Section>
+      )}
+
+      {/* 본인 관여 프로젝트 */}
+      {snap?.projects && snap.projects.length > 0 && (
+        <Section>
+          <SectionTitle>{t('weeklyReview.workspace.portfolio.title', '프로젝트 현황')}</SectionTitle>
+          <SimpleList>
+            {snap.projects.map(p => (
+              <SimpleRow key={p.project_id}>
+                <SimpleTitle>{p.name}</SimpleTitle>
+                <SimpleMeta>
+                  {p.progress_percent}% · {p.completed_tasks}/{p.total_tasks}
+                  {p.overdue_count > 0 ? ` · ⚠ ${p.overdue_count}` : ''}
+                  {p.d_day !== null ? (p.d_day < 0 ? ` · D+${-p.d_day}` : ` · D-${p.d_day}`) : ''}
+                </SimpleMeta>
+              </SimpleRow>
+            ))}
+          </SimpleList>
+        </Section>
+      )}
+
       {/* 한 주 메모 */}
       <Section>
         <SectionTitle>
@@ -579,3 +670,32 @@ const StatusBadge = styled.span<{ $color: string }>`
   color: ${p => p.$color};
 `;
 
+
+// 사이클 N+18 — 개인본 확장 섹션용 styled
+const SimpleList = styled.div`
+  display: flex; flex-direction: column; gap: 8px;
+`;
+const SimpleRow = styled.div`
+  padding: 8px 12px;
+  background: #F8FAFC;
+  border-radius: 6px;
+  border: 1px solid #E2E8F0;
+`;
+const SimpleTitle = styled.div`
+  font-size: 13px; color: #0F172A; font-weight: 500;
+`;
+const SimpleMeta = styled.div`
+  font-size: 11px; color: #64748B; margin-top: 2px;
+`;
+const RiskGrid = styled.div`
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;
+  @media (max-width: 768px) { grid-template-columns: 1fr; }
+`;
+const RiskCol = styled.div`
+  display: flex; flex-direction: column; gap: 6px;
+`;
+const RiskColTitle = styled.div`
+  font-size: 11px; font-weight: 700; color: #64748B;
+  text-transform: uppercase; letter-spacing: 0.4px;
+  padding-bottom: 4px; border-bottom: 1px solid #E2E8F0;
+`;

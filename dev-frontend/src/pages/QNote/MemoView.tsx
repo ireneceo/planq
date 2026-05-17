@@ -23,6 +23,9 @@ const PostEditor = lazy(() => import('../../components/Docs/PostEditor'));
 interface Props {
   session: QNoteSession | null;
   businessId: number;
+  // 사이클 N+17 hotfix — NewNoteModal 에서 선택한 project/client prefill (신규 메모일 때만)
+  prefillProjectId?: number | null;
+  prefillClientId?: number | null;
   onCreated: (session: QNoteSession) => void;
   onUpdated: (session: QNoteSession) => void;
   onDelete: (id: number) => void;
@@ -42,7 +45,9 @@ function timeAgo(t: (k: string, opts?: any) => string, savedAt: number | null): 
   return t('memoPopup.savedAt', { ago: `${Math.floor(min / 60)}h` }) as string;
 }
 
-const MemoView: React.FC<Props> = ({ session, businessId, onCreated, onUpdated, onDelete, onClose }) => {
+const MemoView: React.FC<Props> = ({ session, businessId, prefillProjectId, prefillClientId, onCreated, onUpdated, onDelete, onClose }) => {
+  // prefillClientId — sessions 컬럼 X. 다음 사이클 source_meta 등에 보존 예정 (props interface 만 받아둠).
+  void prefillClientId;
   const { t } = useTranslation('qnote');
   const [doc, setDoc] = useState<unknown>(() => parseBodyToDoc(session?.body));
   const [sessionId, setSessionId] = useState<number | null>(session?.id ?? null);
@@ -78,9 +83,13 @@ const MemoView: React.FC<Props> = ({ session, businessId, onCreated, onUpdated, 
         onUpdated(updated);
         return updated;
       }
+      // 사이클 N+17 hotfix — NewNoteModal prefill (project_id) 반영.
+      // project_id 가 있으면 visibility L2 자동 설정. client_id 는 sessions 테이블 컬럼 X
+      // (다음 사이클 컬럼 추가 후 메타 보존).
       const created = await createSession({
         business_id: businessId, title, input_type: 'text', body: bodyJson,
-      });
+        ...(prefillProjectId ? { project_id: prefillProjectId } : {}),
+      } as any);
       setSessionId(created.id);
       setSavedAt(Date.now()); setSaveState('saved');
       dirtyRef.current = false;
@@ -136,7 +145,14 @@ const MemoView: React.FC<Props> = ({ session, businessId, onCreated, onUpdated, 
           )}
           <IconBtn
             type="button"
-            onClick={onClose}
+            onClick={() => {
+              // 사이클 N+17 hotfix — 빈 메모 닫기 시 자동 delete (URL 즉시 생성 정책의 cleanup).
+              if (sessionId && isDocEmpty(doc)) {
+                onDelete(sessionId);
+                return;
+              }
+              onClose();
+            }}
             title={t('memoPopup.close') as string}
             aria-label={t('memoPopup.close') as string}
           >
@@ -149,13 +165,14 @@ const MemoView: React.FC<Props> = ({ session, businessId, onCreated, onUpdated, 
 
       <Body>
         <Suspense fallback={<EditorLoading>{t('memoPopup.searchLoading') as string}</EditorLoading>}>
+          {/* 사이클 N+17 hotfix — Q docs PostsPage 와 동일한 카드 스타일 (borderless 제거).
+              회색 페이지 bg + 흰 카드 (PostEditor Wrap 의 default border + border-radius:12). */}
           <PostEditor
             value={doc}
             onChange={(next) => { dirtyRef.current = true; setDoc(next); }}
             placeholder={t('memoPopup.bodyPlaceholder') as string}
             editable
             businessId={businessId}
-            borderless
           />
         </Suspense>
       </Body>
@@ -239,8 +256,12 @@ const IconBtn = styled.button`
 const Body = styled.div`
   flex: 1; min-height: 0;
   display: flex; flex-direction: column;
-  padding: 0;
+  /* 사이클 N+17 — Q docs PostsPage Body 와 spacing 동기 (좌우 들러붙음 fix) */
+  padding: 24px 28px;
+  background: #F8FAFC;
+  gap: 16px;
   overflow-y: auto;
+  @media (max-width: 768px) { padding: 16px 18px; }
 `;
 const EditorLoading = styled.div`
   display: flex; align-items: center; justify-content: center;

@@ -150,7 +150,7 @@
     "all": "나의 전체업무",
     "requested": "요청하기",
     "weeklyReview": "주간 보고",
-    "weeklyReviewMine": "지난주 업무보고",
+    "weeklyReviewMine": "나의 주간보고",
     "workspaceTasks": "전체 업무",
     "workspaceWeekly": "전체 주간보고"
   },
@@ -529,6 +529,95 @@
       "title": "지난 주 결산이 있어요",
       "desc": "회의 또는 회고에 활용하세요.",
       "viewBtn": "보러 가기"
+    },
+    "workspace": {
+      "tabTitle": "워크스페이스 통합 보고서",
+      "finalize": "이번 주 마무리 (워크스페이스)",
+      "ownerOnlyHint": "워크스페이스 관리자만 박제할 수 있습니다",
+      "exec": {
+        "label": "이번 주 한 마디",
+        "placeholder": "이번 주 워크스페이스 헤드라인 (선택, 관리자만)",
+        "empty": "헤드라인이 비어 있습니다 — 관리자가 한 줄을 채워 보세요."
+      },
+      "retro": {
+        "label": "워크스페이스 회고",
+        "placeholder": "이번 주를 한 단락으로 정리하세요 (선택)",
+        "empty": "회고가 비어 있습니다."
+      },
+      "kpi": {
+        "completed": "완료 업무",
+        "active_projects": "활성 프로젝트",
+        "avg_utilization": "평균 가동률",
+        "open_issues": "미해결 이슈",
+        "overdue": "지연 업무",
+        "noPrev": "전주 데이터 없음"
+      },
+      "highlights": {
+        "title": "핵심 성과",
+        "empty": "이번 주 완료된 핵심 성과가 없습니다"
+      },
+      "risks": {
+        "title": "위험 신호",
+        "kindOverdue": "마감 지연",
+        "kindStalled": "정체",
+        "kindDueSoonLow": "마감 임박 + 저진행",
+        "severityHigh": "높음",
+        "severityMedium": "보통",
+        "severityLow": "낮음",
+        "empty": "위험 신호 없음 — 안정"
+      },
+      "blockers": {
+        "title": "블로커",
+        "statusWaiting": "대기 중",
+        "statusRevision": "수정 요청",
+        "daysBlocked": "{{n}}일째 막힘",
+        "empty": "막힌 업무 없음"
+      },
+      "issues": {
+        "title": "미해결 이슈",
+        "daysOpen": "{{n}}일 경과",
+        "empty": "미해결 이슈 없음"
+      },
+      "nextWeek": {
+        "title": "다음 주 전망",
+        "dueIn": "D-{{n}}",
+        "empty": "다음 주 마감 예정 업무 없음"
+      },
+      "decisions": {
+        "title": "결정 필요",
+        "kindRevision": "수정 요청 미응답",
+        "kindUnassigned": "담당자 미지정 + 마감 임박",
+        "kindOverdueNoReviewer": "지연 + 컨펌자 미지정",
+        "empty": "결정 대기 항목 없음"
+      },
+      "portfolio": {
+        "title": "프로젝트 현황",
+        "healthGreen": "양호",
+        "healthYellow": "주의",
+        "healthRed": "위험",
+        "tasks": "{{c}} / {{t}}",
+        "noEnd": "기한 없음",
+        "empty": "활성 프로젝트 없음"
+      },
+      "heatmap": {
+        "title": "멤버 가동률",
+        "underloaded": "여유",
+        "normal": "정상",
+        "overloaded": "과부하",
+        "tasksCount": "완료 {{c}}건",
+        "empty": "활성 멤버 없음"
+      },
+      "team": {
+        "title": "팀 하이라이트",
+        "noTop": "이번 주 완료 없음",
+        "empty": "이번 주 멤버 활동 없음"
+      },
+      "delta": {
+        "up": "+",
+        "down": "",
+        "noChange": "—"
+      },
+      "drillDown": "이 멤버 개인 보고서 보기"
     }
   },
   "rowAction": {

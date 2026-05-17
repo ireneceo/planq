@@ -131,7 +131,7 @@
     "all": "All Tasks",
     "requested": "Requested",
     "weeklyReview": "Weekly Review",
-    "weeklyReviewMine": "Last Week's Review",
+    "weeklyReviewMine": "My Weekly Review",
     "workspaceTasks": "All Tasks",
     "workspaceWeekly": "Workspace Weekly"
   },
@@ -529,6 +529,95 @@
       "title": "Last week's review is ready",
       "desc": "Use it for meetings or retrospectives.",
       "viewBtn": "View"
+    },
+    "workspace": {
+      "tabTitle": "Workspace Weekly Report",
+      "finalize": "Finalize this week (workspace)",
+      "ownerOnlyHint": "Only workspace admins can finalize",
+      "exec": {
+        "label": "Headline",
+        "placeholder": "One-line workspace headline (optional, admin only)",
+        "empty": "No headline — admin can fill in a one-liner."
+      },
+      "retro": {
+        "label": "Workspace retro",
+        "placeholder": "Sum up the week in a paragraph (optional)",
+        "empty": "No retro yet."
+      },
+      "kpi": {
+        "completed": "Completed",
+        "active_projects": "Active projects",
+        "avg_utilization": "Avg utilization",
+        "open_issues": "Open issues",
+        "overdue": "Overdue",
+        "noPrev": "No prior data"
+      },
+      "highlights": {
+        "title": "Key wins",
+        "empty": "No key completions this week"
+      },
+      "risks": {
+        "title": "Risk signals",
+        "kindOverdue": "Overdue",
+        "kindStalled": "Stalled",
+        "kindDueSoonLow": "Due soon · low progress",
+        "severityHigh": "High",
+        "severityMedium": "Medium",
+        "severityLow": "Low",
+        "empty": "No risks — stable"
+      },
+      "blockers": {
+        "title": "Blockers",
+        "statusWaiting": "Waiting",
+        "statusRevision": "Revision requested",
+        "daysBlocked": "blocked {{n}}d",
+        "empty": "No blockers"
+      },
+      "issues": {
+        "title": "Open issues",
+        "daysOpen": "open {{n}}d",
+        "empty": "No open issues"
+      },
+      "nextWeek": {
+        "title": "Next week outlook",
+        "dueIn": "D-{{n}}",
+        "empty": "No tasks due next week"
+      },
+      "decisions": {
+        "title": "Decisions required",
+        "kindRevision": "Revision unanswered",
+        "kindUnassigned": "Unassigned + due soon",
+        "kindOverdueNoReviewer": "Overdue · no reviewer",
+        "empty": "No pending decisions"
+      },
+      "portfolio": {
+        "title": "Projects",
+        "healthGreen": "Healthy",
+        "healthYellow": "Watch",
+        "healthRed": "At risk",
+        "tasks": "{{c}} / {{t}}",
+        "noEnd": "No end date",
+        "empty": "No active projects"
+      },
+      "heatmap": {
+        "title": "Member utilization",
+        "underloaded": "Light",
+        "normal": "Normal",
+        "overloaded": "Overloaded",
+        "tasksCount": "{{c}} done",
+        "empty": "No active members"
+      },
+      "team": {
+        "title": "Team highlights",
+        "noTop": "No completions this week",
+        "empty": "No member activity"
+      },
+      "delta": {
+        "up": "+",
+        "down": "",
+        "noChange": "—"
+      },
+      "drillDown": "Open this member's personal review"
     }
   },
   "rowAction": {

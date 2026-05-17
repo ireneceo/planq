@@ -79,6 +79,8 @@ const QRecordAudit = require('./QRecordAudit');
 // ─── 주간 보고 (Weekly Review) ───
 const WeeklyReview = require('./WeeklyReview');
 const WeeklyReviewSetting = require('./WeeklyReviewSetting');
+// ─── 워크스페이스 통합 주간 보고서 (사이클 N+18) ───
+const BusinessWeeklyReport = require('./BusinessWeeklyReport');
 // ─── Refresh Token (다중 디바이스 세션) ───
 const RefreshToken = require('./RefreshToken');
 
@@ -443,6 +445,7 @@ module.exports = {
   // 주간 보고
   WeeklyReview,
   WeeklyReviewSetting,
+  BusinessWeeklyReport,
   RefreshToken,
 };
 
@@ -523,6 +526,11 @@ WeeklyReview.belongsTo(Business, { foreignKey: 'business_id' });
 WeeklyReview.belongsTo(User, { as: 'user', foreignKey: 'user_id' });
 Business.hasMany(WeeklyReview, { as: 'weeklyReviews', foreignKey: 'business_id' });
 User.hasMany(WeeklyReview, { as: 'weeklyReviews', foreignKey: 'user_id' });
+
+// BusinessWeeklyReport — 워크스페이스 통합 주간 보고서 (사이클 N+18)
+BusinessWeeklyReport.belongsTo(Business, { foreignKey: 'business_id' });
+BusinessWeeklyReport.belongsTo(User, { as: 'finalizer', foreignKey: 'finalized_by_user_id' });
+Business.hasMany(BusinessWeeklyReport, { as: 'workspaceWeeklyReports', foreignKey: 'business_id' });
 
 // RefreshToken — 다중 디바이스 세션
 RefreshToken.belongsTo(User, { foreignKey: 'user_id', onDelete: 'CASCADE' });

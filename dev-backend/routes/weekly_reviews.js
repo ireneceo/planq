@@ -13,9 +13,10 @@ const express = require('express');
 const router = express.Router();
 const { Op } = require('sequelize');
 const { authenticateToken } = require('../middleware/auth');
-const { WeeklyReview, WeeklyReviewSetting, Business, BusinessMember } = require('../models');
-const { buildSnapshot } = require('../services/weeklyReviewSnapshot');
+const { WeeklyReview, WeeklyReviewSetting, Business, BusinessMember, BusinessWeeklyReport, User } = require('../models');
+const { buildSnapshot, buildWorkspaceSnapshot } = require('../services/weeklyReviewSnapshot');
 const { successResponse, errorResponse } = require('../utils/response');
+const { logAudit } = require('../services/auditService');
 
 // 날짜 유틸
 function mondayOfDateStr(dateStr) {
@@ -288,6 +289,179 @@ router.put('/settings', authenticateToken, async (req, res, next) => {
   } catch (err) {
     next(err);
   }
+});
+
+// ─────────────────────────────────────────────────────────────
+// 워크스페이스 통합 주간 보고서 (사이클 N+18) — /workspace/...
+// 워크스페이스 × 주차 = 1 row. owner/admin 만 박제·편집·삭제.
+// literal 경로 → /:id 보다 먼저 정의 (express literal-first 룰).
+// ─────────────────────────────────────────────────────────────
+
+async function assertWorkspaceAdmin(userId, businessId) {
+  const member = await BusinessMember.findOne({
+    where: { user_id: userId, business_id: businessId },
+    attributes: ['role'],
+  });
+  if (!member) return { ok: false, code: 'not_member' };
+  if (!['owner', 'admin'].includes(member.role)) return { ok: false, code: 'forbidden' };
+  return { ok: true, role: member.role };
+}
+
+// ----- POST /workspace — 수동 박제 (owner/admin)
+router.post('/workspace', authenticateToken, async (req, res, next) => {
+  try {
+    const { business_id, week_start } = req.body;
+    const userId = req.user.id;
+    if (!business_id) return errorResponse(res, 'business_id required', 400);
+
+    const adm = await assertWorkspaceAdmin(userId, business_id);
+    if (!adm.ok) return errorResponse(res, adm.code === 'not_member' ? 'forbidden' : 'workspace_admin_required', 403);
+
+    const biz = await Business.findByPk(business_id, { attributes: ['timezone'] });
+    const wsTz = biz?.timezone || 'Asia/Seoul';
+    const today = todayInTz(wsTz);
+    const monday = week_start || mondayOfDateStr(today);
+    const sunday = addDaysStr(monday, 6);
+    if (monday > today) return errorResponse(res, 'invalid_week', 400, { message: 'Cannot finalize future week' });
+
+    const snapshot = await buildWorkspaceSnapshot(business_id, monday);
+
+    // upsert — UNIQUE (business_id, week_start)
+    const existing = await BusinessWeeklyReport.findOne({
+      where: { business_id, week_start: monday },
+    });
+    let row;
+    if (existing) {
+      await existing.update({
+        week_end: sunday,
+        finalized_at: new Date(),
+        finalized_by: 'manual',
+        finalized_by_user_id: userId,
+        snapshot_data: snapshot,
+      });
+      row = existing;
+    } else {
+      row = await BusinessWeeklyReport.create({
+        business_id, week_start: monday, week_end: sunday,
+        finalized_at: new Date(),
+        finalized_by: 'manual',
+        finalized_by_user_id: userId,
+        snapshot_data: snapshot,
+      });
+    }
+    logAudit(req, {
+      action: existing ? 'workspace_weekly_report.overwrite' : 'workspace_weekly_report.create',
+      targetType: 'business_weekly_report',
+      targetId: row.id,
+      newValue: { business_id, week_start: monday, finalized_by: 'manual' },
+    });
+    return successResponse(res, row.toJSON(), existing ? 'Workspace weekly report updated' : 'Workspace weekly report created', existing ? 200 : 201);
+  } catch (err) { next(err); }
+});
+
+// ----- GET /workspace — 통합본 리스트
+router.get('/workspace', authenticateToken, async (req, res, next) => {
+  try {
+    const { business_id, limit = 24, before } = req.query;
+    const userId = req.user.id;
+    if (!business_id) return errorResponse(res, 'business_id required', 400);
+
+    const member = await BusinessMember.findOne({ where: { user_id: userId, business_id } });
+    if (!member) return errorResponse(res, 'forbidden', 403);
+
+    const where = { business_id };
+    if (before) where.week_start = { [Op.lt]: before };
+
+    const rows = await BusinessWeeklyReport.findAll({
+      where,
+      order: [['week_start', 'DESC']],
+      limit: Math.min(100, Number(limit) || 24),
+      attributes: ['id', 'business_id', 'week_start', 'week_end', 'finalized_at', 'finalized_by', 'finalized_by_user_id', 'executive_summary', 'retro_note', 'snapshot_data', 'created_at'],
+      include: [{ model: User, as: 'finalizer', attributes: ['id', 'name'], required: false }],
+    });
+    // 리스트는 가볍게 — kpi 만 포함, 큰 배열 제외
+    const list = rows.map(r => {
+      const snap = r.snapshot_data || {};
+      return {
+        id: r.id,
+        week_start: r.week_start,
+        week_end: r.week_end,
+        finalized_at: r.finalized_at,
+        finalized_by: r.finalized_by,
+        finalizer_name: r.finalizer?.name || null,
+        executive_summary: r.executive_summary,
+        retro_note: r.retro_note,
+        kpi: snap.kpi || null,
+        created_at: r.created_at,
+      };
+    });
+    return successResponse(res, list);
+  } catch (err) { next(err); }
+});
+
+// ----- GET /workspace/:rid — 통합본 단건
+router.get('/workspace/:rid', authenticateToken, async (req, res, next) => {
+  try {
+    const { rid } = req.params;
+    const userId = req.user.id;
+    const row = await BusinessWeeklyReport.findByPk(rid);
+    if (!row) return errorResponse(res, 'not_found', 404);
+    const member = await BusinessMember.findOne({ where: { user_id: userId, business_id: row.business_id } });
+    if (!member) return errorResponse(res, 'forbidden', 403);
+    return successResponse(res, row.toJSON());
+  } catch (err) { next(err); }
+});
+
+// ----- PUT /workspace/:rid — executive_summary + retro_note (owner/admin)
+router.put('/workspace/:rid', authenticateToken, async (req, res, next) => {
+  try {
+    const { rid } = req.params;
+    const { executive_summary, retro_note } = req.body;
+    const userId = req.user.id;
+    const row = await BusinessWeeklyReport.findByPk(rid);
+    if (!row) return errorResponse(res, 'not_found', 404);
+    const adm = await assertWorkspaceAdmin(userId, row.business_id);
+    if (!adm.ok) return errorResponse(res, 'workspace_admin_required', 403);
+
+    const patch = {};
+    if (executive_summary !== undefined) patch.executive_summary = executive_summary || null;
+    if (retro_note !== undefined) patch.retro_note = retro_note || null;
+    if (Object.keys(patch).length === 0) return errorResponse(res, 'nothing_to_update', 400);
+
+    const oldValue = { executive_summary: row.executive_summary, retro_note: row.retro_note };
+    await row.update(patch);
+    logAudit(req, {
+      action: 'workspace_weekly_report.update',
+      targetType: 'business_weekly_report',
+      targetId: row.id,
+      oldValue, newValue: patch,
+    });
+    return successResponse(res, row.toJSON());
+  } catch (err) { next(err); }
+});
+
+// ----- DELETE /workspace/:rid — owner only
+router.delete('/workspace/:rid', authenticateToken, async (req, res, next) => {
+  try {
+    const { rid } = req.params;
+    const userId = req.user.id;
+    const row = await BusinessWeeklyReport.findByPk(rid);
+    if (!row) return errorResponse(res, 'not_found', 404);
+    const member = await BusinessMember.findOne({
+      where: { user_id: userId, business_id: row.business_id },
+      attributes: ['role'],
+    });
+    if (!member || member.role !== 'owner') return errorResponse(res, 'owner_only', 403);
+    const snapshot = { week_start: row.week_start, business_id: row.business_id };
+    await row.destroy();
+    logAudit(req, {
+      action: 'workspace_weekly_report.delete',
+      targetType: 'business_weekly_report',
+      targetId: Number(rid),
+      oldValue: snapshot,
+    });
+    return successResponse(res, { deleted: true });
+  } catch (err) { next(err); }
 });
 
 // ============================================
