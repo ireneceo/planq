@@ -107,23 +107,24 @@ const StorageSettings: React.FC<Props> = ({ businessId }) => {
 
   return (
     <Wrap>
-      <SectionTitle>{tr('storage.title', '파일 저장소')}</SectionTitle>
-      <SectionDesc>{tr('storage.desc', '파일을 PlanQ 자체 스토리지에 보관할지, Google Drive 같은 외부 클라우드에 보관할지 선택하세요. 언제든 전환 가능하며, 기존 파일은 그대로 유지됩니다.')}</SectionDesc>
+      {/* 외부 헤더 (WorkspaceSettingsPage 의 pageTitle) 가 이미 "파일·외부 연동" 표시.
+          내부 제목 중복 노출 차단 — desc 만 유지. */}
+      <SectionDesc>{tr('storage.desc', '워크스페이스 파일 보관 위치와 외부 연동을 설정합니다. 자체 스토리지 또는 Google Drive 중 선택, Google Calendar 연결 시 화상회의 자동 발급.')}</SectionDesc>
 
       <Notice>
         <NoticeIcon aria-hidden>!</NoticeIcon>
         <NoticeText>
-          <strong>{tr('storage.scopeTitle', 'Drive 에 보관되는 파일과 보관되지 않는 파일')}</strong>
+          <strong>{tr('storage.scopeTitle', '파일 보관 위치 — 워크스페이스 공용 vs 개인 보관함')}</strong>
           <ul>
-            <li>{tr('storage.scopeBackedUp', '워크스페이스 공용: 프로젝트·업무·채팅 첨부 파일은 Drive 에 자동 저장')}</li>
-            <li>{tr('storage.scopeLocal', '개인 파일 (내 파일·개인 메모): PlanQ 자체 스토리지에 보관 — Drive 에 가지 않음')}</li>
+            <li>{tr('storage.scopeBackedUp', '워크스페이스 공용 (프로젝트·업무·채팅 첨부): Drive 연결 시 Drive 로, 미연결 시 자체 스토리지')}</li>
+            <li>{tr('storage.scopeLocal', '개인 보관함 (내 파일·개인 메모): 항상 자체 스토리지 — Drive 연동과 무관, 개인별 분리 없음 (워크스페이스 공용 quota 안 합산)')}</li>
             <li>{tr('storage.scopeOneWay', 'Drive 에서 직접 만들거나 삭제한 파일은 PlanQ 와 동기화되지 않습니다. 파일 관리는 PlanQ 안에서만 해주세요.')}</li>
           </ul>
         </NoticeText>
       </Notice>
 
-      {/* PlanQ 자체 */}
-      <ProviderCard $active={!gdriveConnected} $disabled={gdriveConnected}>
+      {/* PlanQ 자체 — 항상 "사용 중" (개인 보관함은 Drive 무관, 항상 자체) */}
+      <ProviderCard $active={true}>
         <CardHead>
           <CardIcon $bg="#F0FDFA" $fg="#0D9488">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -134,13 +135,11 @@ const StorageSettings: React.FC<Props> = ({ businessId }) => {
             <CardTitle>{tr('storage.planq.title', 'PlanQ 자체 스토리지')}</CardTitle>
             <CardSub>
               {gdriveConnected
-                ? tr('storage.planq.inactiveDesc', '신규 업로드는 Google Drive 로 보내집니다. 기존 파일은 그대로 유지')
-                : tr('storage.planq.desc', '기본 저장소 · 플랜별 용량 한도 적용')}
+                ? tr('storage.planq.descConnected', '개인 보관함은 항상 자체 스토리지. 워크스페이스 공용 신규 업로드는 Drive 로 — 기존 파일 그대로 유지.')
+                : tr('storage.planq.desc', '워크스페이스 공용 + 개인 보관함 모두 자체 스토리지. 플랜별 용량 한도 적용.')}
             </CardSub>
           </CardTitleWrap>
-          {gdriveConnected
-            ? <StatusBadge $kind="inactive">{tr('storage.inactive', '사용 안 함')}</StatusBadge>
-            : <StatusBadge $kind="active">{tr('storage.active', '사용 중')}</StatusBadge>}
+          <StatusBadge $kind="active">{tr('storage.active', '사용 중')}</StatusBadge>
         </CardHead>
         {planqStatus && (
           <CardBody>
@@ -269,7 +268,6 @@ const SkBar = styled.div`background:linear-gradient(90deg,#F1F5F9 0px,#E2E8F0 40
 const SkCard = styled(SkBar)`height:88px;margin-bottom:12px;border-radius:12px;`;
 
 const Wrap = styled.div`display:flex;flex-direction:column;gap:12px;`;
-const SectionTitle = styled.h2`font-size:18px;font-weight:700;color:#0F172A;margin:0;`;
 const SectionDesc = styled.p`font-size:13px;color:#64748B;line-height:1.6;margin:0 0 12px;`;
 
 const ProviderCard = styled.div<{ $active: boolean; $disabled?: boolean }>`

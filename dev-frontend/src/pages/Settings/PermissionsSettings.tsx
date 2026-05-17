@@ -135,8 +135,9 @@ const PermissionsSettings: React.FC<Props> = ({ businessId, isOwner }) => {
 
   return (
     <Wrap>
+      {/* 외부 헤더 (WorkspaceSettingsPage tabs.permissions) 가 이미 "권한 정책" 표시.
+          내부 Title 중복 차단 — subtitle/안내만 남김 (사이클 N+21-fix2). */}
       <Header>
-        <Title>{t('permissions.title')}</Title>
         <Subtitle>{t('permissions.subtitle')}</Subtitle>
         {!isOwner && (
           <OwnerHint>
@@ -215,9 +216,6 @@ const Wrap = styled.div`
 `;
 const Header = styled.div`
   display: flex; flex-direction: column; gap: 6px;
-`;
-const Title = styled.h2`
-  font-size: 18px; font-weight: 700; color: #0F172A; margin: 0;
 `;
 const Subtitle = styled.p`
   font-size: 13px; color: #64748B; margin: 0; line-height: 1.6;
