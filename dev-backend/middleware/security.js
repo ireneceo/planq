@@ -72,11 +72,13 @@ const ssrfProtection = (req, res, next) => {
 // Cookie 보안 설정
 // ============================================
 
+// 일반 cookie 옵션 헬퍼 (현재 미사용이지만 export 됨 — 추후 사용 시 안전한 default).
+// sameSite='lax' — iOS PWA standalone / Safari ITP 호환성. same-origin POST 는 그대로 보냄.
 const cookieOptions = {
   httpOnly: true,
   secure: process.env.NODE_ENV === 'production',
-  sameSite: 'strict',
-  maxAge: 7 * 24 * 60 * 60 * 1000, // 7일 (Refresh Token)
+  sameSite: 'lax',
+  maxAge: 7 * 24 * 60 * 60 * 1000,
   path: '/'
 };
 
@@ -207,7 +209,10 @@ const setupSecurity = (app) => {
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization']
+    // X-Client-Kind: PWA standalone vs 데스크탑 브라우저 구분 (refresh_token TTL 결정).
+    //                 누락 시 모든 디바이스가 'web' (30d) 으로 처리되어 PWA 365d 미적용.
+    // X-Internal-Api-Key: Q Note (Python) → Node 내부 호출용. CORS 통과 필요.
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Client-Kind', 'X-Internal-Api-Key']
   }));
 
   // Rate Limiting — 전체 API

@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useCallback, Suspense } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import HelpDot from '../../components/Common/HelpDot';
@@ -44,6 +44,9 @@ import {
 import SharedEmptyState from '../../components/Common/EmptyState';
 import SearchBoxCommon from '../../components/Common/SearchBox';
 import { useListKeyboardNav } from '../../hooks/useListKeyboardNav';
+import { deriveMemoPreview } from '../../utils/qnoteBody';
+// MemoView (PostEditor 풀모드 + 헤더) — 메모 신규/편집 시점에만 chunk fetch (vendor-tiptap lazy).
+const MemoView = React.lazy(() => import('./MemoView'));
 
 /**
  * Q Note 페이지
@@ -198,6 +201,19 @@ const QNotePage = () => {
   const [sessions, setSessions] = useState<QNoteSession[]>([]);
   const [sessionDeleteConfirmId, setSessionDeleteConfirmId] = useState<number | null>(null);
   const [sessionDeleting, setSessionDeleting] = useState(false);
+  // 사이클 N+17 — text 메모 신규 작성 (페이지 안에서 빈 메모 → 우측 panel 에서 PostEditor 풀모드 편집)
+  const [composingMemo, setComposingMemo] = useState(false);
+  // NewSessionBtn 의 + 드롭다운 (음성 / 메모 선택)
+  const [newBtnMenuOpen, setNewBtnMenuOpen] = useState(false);
+  const newBtnWrapRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!newBtnMenuOpen) return;
+    const onDoc = (e: MouseEvent) => {
+      if (!newBtnWrapRef.current?.contains(e.target as Node)) setNewBtnMenuOpen(false);
+    };
+    document.addEventListener('mousedown', onDoc);
+    return () => document.removeEventListener('mousedown', onDoc);
+  }, [newBtnMenuOpen]);
   const handleSessionDelete = async (sessionId: number) => {
     if (sessionDeleting) return;
     setSessionDeleting(true);
@@ -566,6 +582,8 @@ const QNotePage = () => {
   //   그 외     → paused (이어서 녹음 가능)
   // 리스트 재클릭 → 선택 해제 (토글). 통일된 UX 원칙.
   const handleSessionClick = (sessionId: number) => {
+    // 사이클 N+17 — text 메모도 우측 detail panel 로 (popup 아님). composing 모드 해제.
+    setComposingMemo(false);
     if (activeSession?.id === sessionId) {
       setActiveSession(null);
       setPhase('empty');
@@ -670,7 +688,7 @@ const QNotePage = () => {
           documents: [],
           workspaceFileIds: [],
           urls: [],
-          captureMode: detail.capture_mode || 'microphone',
+          captureMode: (detail.capture_mode === 'text' ? 'microphone' : (detail.capture_mode || 'microphone')),
           priorityQAs: [],
           priorityQACsv: null,
           meetingAnswerStyle: '',
@@ -849,7 +867,7 @@ const QNotePage = () => {
         documents: [],
         workspaceFileIds: [],
         urls: [],
-        captureMode: activeSession.capture_mode || 'microphone',
+        captureMode: (activeSession.capture_mode === 'text' ? 'microphone' : (activeSession.capture_mode || 'microphone')),
         priorityQAs: [],
         priorityQACsv: null,
         meetingAnswerStyle: '',
@@ -859,7 +877,8 @@ const QNotePage = () => {
     }
     setLiveError(null);
 
-    const captureMode = pendingConfig?.captureMode || activeSession.capture_mode || 'microphone';
+    const rawCaptureMode = pendingConfig?.captureMode || activeSession.capture_mode || 'microphone';
+    const captureMode: 'microphone' | 'web_conference' = rawCaptureMode === 'text' ? 'microphone' : rawCaptureMode;
     if (captureMode === 'web_conference' && phase === 'paused') {
       setLiveNotice(t('page.errors.reshareTab'));
     }
@@ -1849,16 +1868,60 @@ const QNotePage = () => {
               {t('page.help.body')}
             </HelpDot>
           </TitleGroup>
-          <NewSessionBtn
-            onClick={() => setShowStartModal(true)}
-            title={t('page.newMeeting')}
-            aria-label={t('page.newMeeting')}
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
-              <line x1="12" y1="5" x2="12" y2="19" />
-              <line x1="5" y1="12" x2="19" y2="12" />
-            </svg>
-          </NewSessionBtn>
+          <NewBtnWrap ref={newBtnWrapRef}>
+            <NewSessionBtn
+              type="button"
+              onClick={() => setNewBtnMenuOpen((x) => !x)}
+              title={t('page.newNoteOrMemo', { defaultValue: '새 음성 노트 또는 메모' }) as string}
+              aria-label={t('page.newNoteOrMemo', { defaultValue: '새 음성 노트 또는 메모' }) as string}
+              aria-haspopup="menu"
+              aria-expanded={newBtnMenuOpen}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+                <line x1="12" y1="5" x2="12" y2="19" />
+                <line x1="5" y1="12" x2="19" y2="12" />
+              </svg>
+            </NewSessionBtn>
+            {newBtnMenuOpen && (
+              <NewBtnMenu role="menu">
+                <NewBtnMenuItem
+                  role="menuitem"
+                  onClick={() => { setNewBtnMenuOpen(false); setShowStartModal(true); }}
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/>
+                    <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                    <line x1="12" y1="19" x2="12" y2="23"/>
+                    <line x1="8" y1="23" x2="16" y2="23"/>
+                  </svg>
+                  <div>
+                    {t('page.menuVoice', { defaultValue: '음성 노트 시작' }) as string}
+                    <NewBtnMenuDesc>{t('page.menuVoiceDesc', { defaultValue: '회의 녹음 + STT + 답변 찾기' }) as string}</NewBtnMenuDesc>
+                  </div>
+                </NewBtnMenuItem>
+                <NewBtnMenuItem
+                  role="menuitem"
+                  onClick={() => {
+                    setNewBtnMenuOpen(false);
+                    setActiveSession(null);
+                    setComposingMemo(true);
+                    navigate('/notes', { replace: true });
+                  }}
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                    <polyline points="14 2 14 8 20 8"/>
+                    <line x1="9" y1="13" x2="15" y2="13"/>
+                    <line x1="9" y1="17" x2="13" y2="17"/>
+                  </svg>
+                  <div>
+                    {t('page.menuMemo', { defaultValue: '메모 작성' }) as string}
+                    <NewBtnMenuDesc>{t('page.menuMemoDesc', { defaultValue: '텍스트 메모 — 코드블록 / 서식 지원' }) as string}</NewBtnMenuDesc>
+                  </div>
+                </NewBtnMenuItem>
+              </NewBtnMenu>
+            )}
+          </NewBtnWrap>
         </SidebarHeader>
 
         <SearchWrap>
@@ -1874,20 +1937,26 @@ const QNotePage = () => {
           {sessions.length === 0 && <EmptySessionMsg>{t('page.emptySessionList')}</EmptySessionMsg>}
           {filteredSessions.map((session) => {
             const isActive = activeSession?.id === session.id;
-            const statusLabel =
-              session.status === 'recording' ? t('page.sessionStatus.recording') :
-              session.status === 'paused' ? t('page.sessionStatus.paused') :
-              session.status === 'completed' ? t('page.sessionStatus.completed') :
-              session.status === 'prepared' ? t('page.sessionStatus.prepared') : t('page.sessionStatus.pending');
+            const isTextMemo = session.input_type === 'text';
+            // 메모 (text) 와 회의 (voice) 별로 status label / 색 분리
+            const statusLabel = isTextMemo
+              ? t('page.memoStatus', { defaultValue: '메모' })
+              : (session.status === 'recording' ? t('page.sessionStatus.recording') :
+                 session.status === 'paused' ? t('page.sessionStatus.paused') :
+                 session.status === 'completed' ? t('page.sessionStatus.completed') :
+                 session.status === 'prepared' ? t('page.sessionStatus.prepared') : t('page.sessionStatus.pending'));
             // Q Task 파스텔 pill 팔레트와 통일 (bg / fg 2톤)
-            const statusStyle: { bg: string; fg: string } =
-              session.status === 'recording' ? { bg: '#FEE2E2', fg: '#B91C1C' } :
-              session.status === 'paused' ? { bg: '#FEF3C7', fg: '#92400E' } :
-              session.status === 'completed' ? { bg: '#E2E8F0', fg: '#475569' } :
-              session.status === 'prepared' ? { bg: '#CCFBF1', fg: '#0F766E' } :
-              { bg: '#F1F5F9', fg: '#64748B' };
+            const statusStyle: { bg: string; fg: string } = isTextMemo
+              ? { bg: '#F0FDFA', fg: '#0F766E' }   // teal — text 메모 표식 (MemoFab 와 같은 톤)
+              : (session.status === 'recording' ? { bg: '#FEE2E2', fg: '#B91C1C' } :
+                 session.status === 'paused' ? { bg: '#FEF3C7', fg: '#92400E' } :
+                 session.status === 'completed' ? { bg: '#E2E8F0', fg: '#475569' } :
+                 session.status === 'prepared' ? { bg: '#CCFBF1', fg: '#0F766E' } :
+                 { bg: '#F1F5F9', fg: '#64748B' });
             const participants = session.participants || [];
             const participantNames = participants.map((p) => p.name).join(', ');
+            // text 메모는 utterance / participants 대신 본문 미리보기
+            const memoPreview = isTextMemo ? deriveMemoPreview(session.body, 80) : '';
             return (
               <SessionItem
                 key={session.id}
@@ -1907,16 +1976,27 @@ const QNotePage = () => {
                 </SessionItemRow>
                 <SessionItemMeta>
                   <span>{fmtWsDate(session.created_at)}</span>
-                  {session.utterance_count > 0 && (
+                  {isTextMemo ? (
+                    memoPreview && (
+                      <>
+                        <Dot>·</Dot>
+                        <SessionParticipants>{memoPreview}</SessionParticipants>
+                      </>
+                    )
+                  ) : (
                     <>
-                      <Dot>·</Dot>
-                      <span>{t('page.sessionUtteranceCount', { count: session.utterance_count })}</span>
-                    </>
-                  )}
-                  {participantNames && (
-                    <>
-                      <Dot>·</Dot>
-                      <SessionParticipants>{participantNames}</SessionParticipants>
+                      {session.utterance_count > 0 && (
+                        <>
+                          <Dot>·</Dot>
+                          <span>{t('page.sessionUtteranceCount', { count: session.utterance_count })}</span>
+                        </>
+                      )}
+                      {participantNames && (
+                        <>
+                          <Dot>·</Dot>
+                          <SessionParticipants>{participantNames}</SessionParticipants>
+                        </>
+                      )}
                     </>
                   )}
                 </SessionItemMeta>
@@ -1965,7 +2045,8 @@ const QNotePage = () => {
           </SidebarToggleChevron>
         </CollapseToggle>
 
-        {phase === 'empty' && (
+        {/* 사이클 N+17 — 빈 상태 (메모 작성 중 X + 활성 세션 X) */}
+        {phase === 'empty' && !composingMemo && (
           <SharedEmptyState
             icon={<MicIcon size={36} />}
             title={t('page.empty.title')}
@@ -1976,7 +2057,33 @@ const QNotePage = () => {
           />
         )}
 
-        {showRecordingUI && activeSession && (
+        {/*
+          사이클 N+17 — text 메모 풀모드 편집 view.
+          composingMemo (신규 빈 메모) OR activeSession.input_type === 'text' (기존 메모 클릭).
+          PostEditor (TipTap RichEditor) borderless=false 풀모드 — toolbar + 코드블록 + 서식.
+        */}
+        {(composingMemo || (activeSession?.input_type === 'text')) && (
+          <Suspense fallback={null}>
+            <MemoView
+              key={composingMemo ? 'new' : `s-${activeSession?.id}`}
+              session={composingMemo ? null : (activeSession || null)}
+              businessId={businessId ? Number(businessId) : 0}
+              onCreated={(s) => { setActiveSession(s); setComposingMemo(false); loadSessions(); navigate(`/notes/${s.id}`, { replace: true }); }}
+              onUpdated={(s) => { setActiveSession(s); setSessions(prev => prev.map(x => x.id === s.id ? { ...x, ...s } : x)); }}
+              onDelete={async (id) => {
+                await deleteSession(id);
+                setSessions(prev => prev.filter(s => s.id !== id));
+                setActiveSession(null);
+                setComposingMemo(false);
+                setPhase('empty');
+                navigate('/notes', { replace: true });
+              }}
+              onClose={() => { setComposingMemo(false); setActiveSession(null); navigate('/notes', { replace: true }); }}
+            />
+          </Suspense>
+        )}
+
+        {showRecordingUI && activeSession && activeSession.input_type !== 'text' && (
           <>
             {headerCollapsed ? (
               <CollapsedHeader>
@@ -2232,7 +2339,7 @@ const QNotePage = () => {
           </>
         )}
 
-        {phase === 'review' && activeSession && (
+        {phase === 'review' && activeSession && activeSession.input_type !== 'text' && (
           <>
             <MainHeader>
               <HeaderLeft>
@@ -2337,7 +2444,7 @@ const QNotePage = () => {
           meetingLanguages: activeSession.meeting_languages || [],
           translationLanguage: activeSession.translation_language || '',
           answerLanguage: activeSession.answer_language || '',
-          captureMode: activeSession.capture_mode || 'web_conference',
+          captureMode: (activeSession.capture_mode === 'text' ? 'web_conference' : (activeSession.capture_mode || 'web_conference')),
           pastedContext: activeSession.pasted_context || '',
           urls: [],
           priorityQAs: [],
@@ -2372,6 +2479,12 @@ const QNotePage = () => {
           onClose={() => { setVisibilityModalOpen(false); setVisibilityError(null); }}
         />
       )}
+
+      {/*
+        사이클 N+17 — text 메모는 페이지 안 우측 panel 에서 풀모드 편집 (popup 안 띄움).
+        popup 은 우하단 FAB / ⌘+Shift+M 글로벌 quick capture 전용으로 분리.
+        양쪽 동기화: popup 작성 후 페이지 진입 시 listMyRecentMemos 자동 갱신.
+      */}
     </Layout>
   );
 };
@@ -2668,7 +2781,29 @@ const NewSessionBtn = styled.button`
   padding: 0;
   &:hover { background: #0D9488; }
   &:focus-visible { outline: 2px solid #0D9488; outline-offset: 2px; }
-  /* legacy 잔여 hover 정리 — 색상 우선 */
+`;
+// 사이클 N+17 — NewSessionBtn 의 드롭다운 (음성/메모 선택)
+const NewBtnWrap = styled.div` position: relative; `;
+const NewBtnMenu = styled.div`
+  position: absolute; right: 0; top: calc(100% + 4px);
+  background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(15,23,42,0.12);
+  min-width: 200px; padding: 4px; z-index: 50;
+`;
+const NewBtnMenuItem = styled.button.attrs({ type: 'button' as const })`
+  display: flex; align-items: center; gap: 10px;
+  width: 100%; padding: 10px 12px;
+  background: transparent; border: none; border-radius: 6px;
+  font-size: 13px; font-weight: 500; color: #0F172A;
+  cursor: pointer; text-align: left;
+  transition: background 0.15s;
+  &:hover { background: #F0FDFA; color: #0F766E; }
+  & > svg { flex-shrink: 0; color: #64748B; }
+  &:hover > svg { color: #0F766E; }
+`;
+const NewBtnMenuDesc = styled.span`
+  display: block;
+  font-size: 11px; font-weight: 400; color: #94A3B8; margin-top: 1px;
 `;
 
 const SearchWrap = styled.div`

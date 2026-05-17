@@ -55,7 +55,8 @@ export interface QNoteUtterance {
   created_at: string;
 }
 
-export type QNoteCaptureMode = 'microphone' | 'web_conference';
+export type QNoteCaptureMode = 'microphone' | 'web_conference' | 'text';
+export type QNoteInputType = 'voice' | 'text';
 
 export interface QNoteDetectedQuestion {
   utterance_id: number;
@@ -99,6 +100,12 @@ export interface QNoteSession {
   share_token?: string | null;
   shared_at?: string | null;
   shared_consent?: number | null;
+  // 사이클 N+17 — text 메모 통합
+  input_type?: QNoteInputType | null;
+  translate_enabled?: number | null;
+  linked_voice_session_id?: number | null;
+  body?: string | null;
+  summarized_at?: string | null;
 }
 
 // visibility 변경 API
@@ -211,6 +218,11 @@ export interface CreateSessionPayload {
   // NOTE: keywords 는 서버 측에서 brief/pasted/participants/profile 을 기반으로 자동 추출.
   // 필요 시 수동 override 도 받도록 열어둠.
   keywords?: string[];
+  // 사이클 N+17 — text 메모 통합
+  input_type?: QNoteInputType;
+  translate_enabled?: boolean;
+  linked_voice_session_id?: number | null;
+  body?: string;
 }
 
 export async function listSessions(businessId: number, page = 1, limit = 20) {
@@ -239,6 +251,15 @@ export async function updateSession(sessionId: number, payload: Partial<CreateSe
     body: JSON.stringify(payload),
   });
   return handle<QNoteSession>(res);
+}
+
+// 사이클 N+17 — 본인 최근 text 메모 (Quick Capture 검색바 + 자동 이어쓰기)
+export async function listMyRecentMemos(businessId: number, opts: { limit?: number; q?: string } = {}) {
+  const params = new URLSearchParams({ business_id: String(businessId) });
+  if (opts.limit) params.set('limit', String(opts.limit));
+  if (opts.q && opts.q.trim()) params.set('q', opts.q.trim());
+  const res = await apiFetch(`${BASE}/sessions/me/recent-memos?${params.toString()}`);
+  return handle<QNoteSession[]>(res);
 }
 
 export async function deleteSession(sessionId: number) {

@@ -182,3 +182,148 @@ Q note (회의 진행 중)
 ---
 
 **상태:** 합의 완료, 사이클 N+2 시작 대기 (사이클 N+1 권한 정책 후).
+
+---
+
+## v2 갱신 — 사이클 N+17 환경 반영 (2026-05-17)
+
+> N+2 합의 (2026-05-08) → N+17 (2026-05-17) 사이 N+3~N+16 사이클을 거치며 visibility 통합 아키텍처 / Q Note 공유 정책 / PWA Share Target / AutoSaveField 표준 / 글로벌 단축키 인프라가 변경됨. 본 섹션은 원문 §1~§9 의 항목별 delta + 새 영역. **§7~§9 는 v2 가 우선**.
+
+### v2-§1. visibility 통합 아키텍처 (N+14)
+
+| 옛 안 (§3, §4, §6) | v2 갱신 |
+|---|---|
+| 메모 popup 의 🔒 자물쇠 상시 + tooltip "본인만 봐요" | `VisibilityBadge` 컴포넌트로 교체. default L1, 클릭 시 `VisibilityChangeModal` 호출 (L1→L2/L3/L4). 모든 자산 통일 |
+| 음성/메모 = 사적 공간 (옛 정책) | 기본 L1 + 명시 변경 시 공유 가능 (N+14 박제). recording status 중인 voice 만 visibility 변경 차단, text 메모는 항상 변경 가능 |
+| linked_voice_session_id cross-business 제약 미명시 | 같은 `business_id` 강제. 다른 워크스페이스 voice session 에 link 시 400 |
+
+### v2-§2. sessions 테이블 신설 컬럼 (옛 §7 교체)
+
+| 컬럼 | 타입 | 기본값 | 용도 |
+|---|---|---|---|
+| `input_type` | TEXT NOT NULL | `'voice'` | 'voice' \| 'text' 분기 |
+| `translate_enabled` | INTEGER NOT NULL | `1` | LLM 답변 언어 분기 (§5) |
+| `linked_voice_session_id` | INTEGER FK | NULL | 메모↔회의 자동 연결 |
+| `summarized_at` | TEXT | NULL | 정리하기 1회 여부 |
+
+**추가 변경:**
+- `CAPTURE_MODES` 화이트리스트 (`routers/sessions.py:165`) 에 `'text'` 추가
+- text 메모는 status 전이 `prepared`→`active`→`completed` (voice 의 `recording` 단계 skip)
+- 마이그레이션은 SQLite `ALTER TABLE` 4번 (sessions table). 외래키는 FK pragma 검사 비활성 환경이므로 인덱스만 추가
+
+### v2-§3. 글로벌 단축키 충돌 검사
+
+| 단축키 | 현재 사용처 |
+|---|---|
+| ⌘/ · Ctrl+\ | 우측 패널 토글 (Q Talk RightPanel, Q Task) — `QTalk/RightPanel.tsx:142` |
+| ⌘+Enter · Ctrl+Enter | 인라인 폼 submit (Q Task, Q Talk 메모) |
+| **⌘+M (mac)** | OS minimize. 브라우저에서 페이지 전달 되긴 하나 일부 환경에서 가로채임 |
+| **Ctrl+M (win/linux)** | OS·브라우저 충돌 없음 |
+
+**대체안:** mac 도 `⌘+Shift+M` (또는 `Alt+M`) 으로 안전하게 — 그러나 Notion/Slack 의 ⌘+M Quick Capture 관행과 다름. **결정 필요**.
+
+### v2-§4. FAB 위치 정리
+
+현재 우하단은 `CueHelpDrawer.tsx:226` 의 Cue FAB 가 차지 (`bottom: 80px` 계산 + `FAB_HIDDEN_PATHS` 배열).
+
+**제안 배치:**
+```
+                                              ┌────┐
+                                              │ 메모 │  bottom: 80px (위)
+                                              └────┘
+                                              ┌────┐
+                                              │ Cue │  bottom: 16px (아래)
+                                              └────┘
+```
+
+- 메모 FAB 도 `FAB_HIDDEN_PATHS` 패턴 재사용 (Q Talk 자동 숨김)
+- 모바일 BottomNav 충돌 회피: `padding-bottom: env(safe-area-inset-bottom)`
+- Client 역할은 두 FAB 모두 hide (이미 Q Note 차단 메모리 박제)
+
+### v2-§5. AutoSaveField debounce
+
+CLAUDE.md 표준은 input 2초 / select 300ms. **메모 popup 만 1초로 유지** (즉시 저장됨이 본질, 불안감 ↓). 합의 박제 필요.
+
+### v2-§6. PWA Share Target 통합
+
+이미 `manifest.json:24-39` + `sw.js:35-78` + `ShareReceivePage.tsx` 인프라 있음. v2 추가:
+
+- `ShareReceivePage` destination 옵션 5종에 **"Q Note 메모로 추가"** 추가
+- 텍스트 / URL 공유 → Quick Capture 같은 흐름으로 진입 (제목 자동 추출 + 본문 prefill)
+- 이미지·파일 공유는 기존 destination 유지 (메모와 직접 연결 안 함 — 별도 사이클)
+
+### v2-§7. 회의↔메모 자동 연결 (§4 강화)
+
+| 조건 | 메모 popup 의 "현재 회의에 연결" 토글 |
+|---|---|
+| 사용자 자신의 voice session status='recording' row 존재 | default ON |
+| status='active' (text 메모) row 존재 | disabled (text↔text 연결은 의미 없음) |
+| 그 외 | 토글 hidden |
+
+서버 측: `POST /api/sessions` 에 `linked_voice_session_id` 전달. 검증:
+- 같은 `business_id` AND 같은 `user_id` AND `input_type='voice'` AND status='recording' 만 허용
+- 아니면 400 `invalid_link_target`
+
+### v2-§8. Cue RAG 인덱싱 (신규)
+
+기존 박제 — `project_kb_engine_reuse.md` (Q Talk KB = Q Note 엔진 재사용). 메모 corpus 도 같은 패턴:
+
+- 메모 "정리하기" 완료 시 (summarized_at 마킹 시점) 자동 kb_chunks 인덱싱
+- visibility 별 RAG 범위:
+  - L1 → 본인 Cue 만 (개인 corpus, business_id + user_id 매칭)
+  - L2/L3 → 프로젝트/워크스페이스 멤버 Cue (visibility 헬퍼 재사용)
+  - L4 → kb 인덱싱 X (외부 공유는 RAG 무관)
+
+### v2-§9. 5중 시그널 (v2 통합)
+
+| 시그널 | 위치 | 구현 |
+|---|---|---|
+| 시그널 1 — 사이드바 | "노트" 메뉴 라벨 그대로 (음성+텍스트 포괄) | i18n 변경 없음 |
+| 시그널 2 — 헤더 | Q note 페이지 헤더에 `input_type` chip ("음성/텍스트") | tab 분리 또는 헤더 chip |
+| 시그널 3 — 탭 분리 | 목록에서 음성/텍스트 두 탭 | 옵션 — 사이클 후반 결정 |
+| 시그널 4 — popup 안 | `VisibilityBadge` (default L1) | 공통 컴포넌트 |
+| 시그널 5 — 첫 사용 tour | ⌘+M / FAB 사용법 1회 안내 | localStorage 플래그 |
+
+### v2-§10. 작업 매트릭스 갱신
+
+| # | 영역 | 작업 | 규모 |
+|:-:|---|---|:-:|
+| 1 | DB | SQLite ALTER: input_type / translate_enabled / linked_voice_session_id / summarized_at + CAPTURE_MODES 화이트리스트 'text' 추가 | 소 |
+| 2 | Q Note Python | sessions 라우터: input_type='text' 분기 (status 'active'/'completed', recording skip) + linked_voice_session_id 검증 + summarized_at 마킹 | 중 |
+| 3 | MemoPopup 컴포넌트 | sticky 핀 + AutoSaveField 1초 + VisibilityBadge + 모바일 풀스크린 + "현재 회의 연결" 토글 | 중 |
+| 4 | Quick Capture FAB + 단축키 | 우하단 메모 FAB (Cue 위) + ⌘+Shift+M (또는 ⌘+M) 글로벌 단축키. Q Talk/Client hide | 중 |
+| 5 | 번역 토글 | 회의 시작 모달 + 진행 중 우상단 토글 + LLM 프롬프트 분기 | 소 |
+| 6 | Q Note 페이지 — 텍스트 모드 분기 | 목록 view 에 음성/텍스트 두 type 동시 표시 (input_type 컬럼) | 소 |
+| 7 | AI 분기 모달 "정리하기" | 음성·텍스트 공통 5액션 (업무 / Q info / Q docs / 외부공유 / 보관) | 대 |
+| 8 | PWA Share Target | ShareReceivePage 에 "Q note 메모로 추가" destination 추가 | 소 |
+| 9 | Cue RAG 인덱싱 | summarized_at 시점 kb_chunks 자동 인덱싱 (visibility 별 scope) | 중 |
+| 10 | 5중 시그널 + tour | VisibilityBadge / 헤더 chip / 첫 사용 tour | 소 |
+
+**예상:** 10~12 commit, 1 사이클.
+
+### v2-§11. MVP 분리 안 (옵션)
+
+대형 사이클이라 두 단계로 쪼개고 싶다면:
+
+**N+17 코어 (5 commit):** ① DB ② Python sessions ③ MemoPopup ④ Quick Capture FAB+단축키 ⑥ Q Note 페이지 텍스트 모드
+
+**N+18 확장 (5~6 commit):** ⑤ 번역 토글 ⑦ AI 분기 모달 ⑧ PWA Share Target ⑨ Cue RAG ⑩ 5중 시그널
+
+---
+
+**v2 상태:** 재검토 완료. **Irene 결정 박제 (2026-05-17 N+17):**
+- ① 단축키: **⌘+Shift+M (mac) / Ctrl+Shift+M (win)** — OS 충돌 없음, Slack 관행 친숙
+- ② FAB: **메모 FAB 하나만 우하단 16px 녹색 원형**. Cue FAB 는 80px 로 위로 이동
+- ③ 스코프: **N+17 MVP 코어 5 commit 먼저** → 사용 감각 확인 후 N+18 확장 (번역/AI분기/Share Target/Cue RAG/시그널)
+
+### v2-§12. N+17 MVP 코어 5 commit 순서 (확정)
+
+| commit | 작업 | 파일 |
+|:-:|---|---|
+| 1 | DB ALTER: input_type / translate_enabled / linked_voice_session_id / summarized_at + CAPTURE_MODES `'text'` 추가 | `q-note/data/qnote.db` (ALTER) + `q-note/routers/sessions.py:165` |
+| 2 | Python sessions text 분기: status `prepared→active→completed` (recording skip), input_type='text' INSERT 분기, linked_voice_session_id 검증, summarized_at field | `q-note/routers/sessions.py` |
+| 3 | MemoPopup 컴포넌트 신규 (sticky 핀 + AutoSaveField 1초 + VisibilityBadge + 모바일 풀스크린 + 회의 연결 토글) | `dev-frontend/src/components/QNote/MemoPopup.tsx` (신규) |
+| 4 | Quick Capture FAB + ⌘+Shift+M / Ctrl+Shift+M 글로벌 단축키 (Cue FAB 위치 위로 이동) | `dev-frontend/src/components/QNote/MemoFab.tsx` (신규) + `dev-frontend/src/components/Cue/CueHelpDrawer.tsx` (위치 조정) + `dev-frontend/src/components/Layout/MainLayout.tsx` (FAB mount) |
+| 5 | Q Note 페이지에 text/voice 두 type 동시 표시 + input_type chip + 텍스트 메모 클릭 시 MemoPopup 재오픈 | `dev-frontend/src/pages/QNote/QNotePage.tsx` |
+
+각 commit 단위로 빌드 + API 호출 검증 + frontend 페이지 확인 (CLAUDE.md "청크 단위 E2E 검증" 박제 준수).

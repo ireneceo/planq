@@ -45,6 +45,7 @@ interface Props {
   editable?: boolean;
   businessId?: number;           // 사이클 N+9 — 이미지 업로드 시 File 테이블 등록용
   borderless?: boolean;          // 사이클 N+9 — 공유 미리보기 등에서 외곽 박스 제거 (이중 박스 회피)
+  compact?: boolean;             // 사이클 N+17 — 메모 popup 같은 좁은 컨테이너 용. toolbar 한 줄 + 가로 스크롤 + min-height 축소.
 }
 
 async function uploadEditorImage(file: File, businessId?: number): Promise<string | null> {
@@ -57,7 +58,7 @@ async function uploadEditorImage(file: File, businessId?: number): Promise<strin
   return j.data.url as string;
 }
 
-const PostEditor: React.FC<Props> = ({ value, onChange, placeholder, editable = true, businessId, borderless = false }) => {
+const PostEditor: React.FC<Props> = ({ value, onChange, placeholder, editable = true, businessId, borderless = false, compact = false }) => {
   const fileRef = useRef<HTMLInputElement>(null);
 
   const editor = useEditor({
@@ -146,9 +147,9 @@ const PostEditor: React.FC<Props> = ({ value, onChange, placeholder, editable = 
   const isActive = (name: string, attrs?: Record<string, unknown>) => editor.isActive(name, attrs);
 
   return (
-    <Wrap $borderless={borderless}>
+    <Wrap $borderless={borderless} $compact={compact}>
       {editable && (
-        <Toolbar>
+        <Toolbar $compact={compact}>
           <Group>
             <ToolBtn type="button" $active={isActive('bold')} onClick={() => editor.chain().focus().toggleBold().run()} title="굵게">B</ToolBtn>
             <ToolBtn type="button" $active={isActive('italic')} onClick={() => editor.chain().focus().toggleItalic().run()} title="기울임" style={{ fontStyle: 'italic' }}>I</ToolBtn>
@@ -233,7 +234,7 @@ const PostEditor: React.FC<Props> = ({ value, onChange, placeholder, editable = 
           </ImgSizeBubble>
         </BubbleMenu>
       )}
-      <Body $editable={editable} $borderless={borderless}>
+      <Body $editable={editable} $borderless={borderless} $compact={compact}>
         <LightboxWrapper>
           <EditorContent editor={editor} />
         </LightboxWrapper>
@@ -244,27 +245,55 @@ const PostEditor: React.FC<Props> = ({ value, onChange, placeholder, editable = 
 
 export default PostEditor;
 
-const Wrap = styled.div<{ $borderless?: boolean }>`
+const Wrap = styled.div<{ $borderless?: boolean; $compact?: boolean }>`
   background: ${p => p.$borderless ? 'transparent' : '#fff'};
   border: ${p => p.$borderless ? 'none' : '1px solid #E2E8F0'};
   border-radius: ${p => p.$borderless ? '0' : '12px'};
   overflow: hidden;
   display: flex; flex-direction: column;
-  flex-shrink: 0;           /* 부모 flex column 에서 줄어들지 않도록 — height 0 으로 사라지는 문제 방지 */
-  min-height: ${p => p.$borderless ? '0' : '280px'};        /* 본문 영역 최소 280px (Toolbar 40 + Body 240) */
+  /* 사이클 N+17 — compact 면 popup 안에서 부모 height 100% 채워 사용 (popup 자체가 가변) */
+  ${p => p.$compact ? `flex: 1; min-height: 0;` : `
+    flex-shrink: 0;
+    min-height: ${p.$borderless ? '0' : '280px'};
+  `}
 `;
-const Toolbar = styled.div`
+const Toolbar = styled.div<{ $compact?: boolean }>`
   display: flex; align-items: center; gap: 2px; padding: 6px 8px;
-  background: #F8FAFC; border-bottom: 1px solid #E2E8F0; flex-wrap: wrap;
+  background: #F8FAFC; border-bottom: 1px solid #E2E8F0;
+  /* 사이클 N+17 — compact (메모 popup) 는 한 줄 강제 + 가로 스크롤. wrap 으로 3줄 차지 회피.
+     자식 ToolBtn 강제 축소 + Sep 마진 축소 — 같은 컴포넌트 재사용하면서 compact 모드만 다른 size 적용. */
+  ${p => p.$compact ? `
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 4px 6px;
+    gap: 1px;
+    scrollbar-width: thin;
+    &::-webkit-scrollbar { height: 4px; }
+    &::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 2px; }
+    /* 자식 toolbar 버튼 강제 축소 (모든 인스턴스 prop 안 바꿔도 cascade 로 적용) */
+    & > div > button, & > button {
+      min-width: 24px !important; height: 24px !important;
+      padding: 0 4px !important; font-size: 11px !important;
+      flex-shrink: 0;
+    }
+    & > div { gap: 1px !important; flex-shrink: 0; }
+  ` : `flex-wrap: wrap;`}
 `;
 const Group = styled.div`display: inline-flex; gap: 2px;`;
 const Sep = styled.div`width: 1px; height: 18px; background: #E2E8F0; margin: 0 4px;`;
-const ToolBtn = styled.button<{ $active?: boolean }>`
-  all: unset; cursor: pointer; min-width: 28px; height: 28px; padding: 0 8px;
+const ToolBtn = styled.button<{ $active?: boolean; $compact?: boolean }>`
+  all: unset; cursor: pointer;
+  /* 사이클 N+17 — compact 에선 버튼 크기 최소. 더 많은 버튼이 한 줄에 들어감. */
+  min-width: ${p => p.$compact ? '24px' : '28px'};
+  height: ${p => p.$compact ? '24px' : '28px'};
+  padding: ${p => p.$compact ? '0 5px' : '0 8px'};
   display: inline-flex; align-items: center; justify-content: center;
-  font-size: 12px; font-weight: 700; color: ${p => p.$active ? '#0F766E' : '#475569'};
+  font-size: ${p => p.$compact ? '11px' : '12px'};
+  font-weight: 700; color: ${p => p.$active ? '#0F766E' : '#475569'};
   background: ${p => p.$active ? '#F0FDFA' : 'transparent'};
   border-radius: 6px;
+  flex-shrink: 0;
   &:hover { background: ${p => p.$active ? '#CCFBF1' : '#EEF2F6'}; color: #0F172A; }
   &:focus-visible { outline: 2px solid #14B8A6; outline-offset: 2px; }
 `;
@@ -283,9 +312,9 @@ const ImgSizeBtn = styled.button<{ $active?: boolean }>`
   &:hover { background: #334155; color: #FFF; }
 `;
 
-const Body = styled.div<{ $editable?: boolean; $borderless?: boolean }>`
-  padding: ${p => p.$borderless ? '0' : '16px 20px'};
-  min-height: ${p => p.$editable ? '240px' : '80px'};
+const Body = styled.div<{ $editable?: boolean; $borderless?: boolean; $compact?: boolean }>`
+  padding: ${p => p.$compact ? '8px 12px' : (p.$borderless ? '0' : '16px 20px')};
+  min-height: ${p => p.$compact ? '0' : (p.$editable ? '240px' : '80px')};
 
   /* ─── 표 (Body 직속 자손 — 편집/보기 모드 무관 적용) ─── */
   /* border-collapse: separate 로 border-radius 작동. 셀은 right/bottom 만, 마지막 행/열 제거. */

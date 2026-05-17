@@ -174,7 +174,15 @@ const ChatPanel: React.FC<Props> = ({
   // 활성 대화방 변경 시 자동 포커스 (모바일에서는 키보드 자동 펼치지 않도록 skip)
   React.useEffect(() => {
     if (!activeConversationId) return;
-    if (typeof window !== 'undefined' && window.matchMedia('(max-width: 640px)').matches) return;
+    const isMobile = typeof window !== 'undefined' && window.matchMedia('(max-width: 640px)').matches;
+    // 사이클 N+17 — 모바일 채팅 알림 진입 시: vvh 초기 sync 보장 + 마지막 메시지 즉시 스크롤.
+    // 알림 클릭으로 진입 시 첫 layout 에서 vvh 가 setProperty 안 됐을 수 있음 (visualViewport
+    // resize 가 아직 fire X). 진입 즉시 강제 setProperty + scrollToBottom 두 번 (다음 paint).
+    if (isMobile && typeof window !== 'undefined' && window.visualViewport) {
+      const vv = window.visualViewport;
+      document.documentElement.style.setProperty('--vvh', `${vv.height}px`);
+    }
+    if (isMobile) return;
     const tm = window.setTimeout(() => textInputRef.current?.focus(), 80);
     return () => window.clearTimeout(tm);
   }, [activeConversationId]);
@@ -198,29 +206,36 @@ const ChatPanel: React.FC<Props> = ({
     window.setTimeout(ensureVisible, 350);
   }, []);
 
-  // 사이클 N+15-B — 모바일 키보드 up 감지 → body[data-keyboard-up=1] 토글.
+  // 사이클 N+15-B + N+17 — 모바일 키보드 up 감지 → body[data-keyboard-up=1] 토글.
   // 일부 iOS 버전이 `env(safe-area-inset-bottom)` 을 키보드 up 상태에서도 34px 유지하는 버그 회피용.
   // InputBar 의 padding-bottom 이 body[data-keyboard-up=1] 셀렉터에서 0 으로 강제 → 입력란-키보드 사이 빈 공간 0.
-  // Hangouts/iMessage 와 동일한 "키보드 위 입력란 딱 붙음" 인상.
+  //
+  // 사이클 N+17 강화: 100dvh 가 iOS Safari standalone PWA 에서 키보드 펼침에 즉시 반응 안 하는
+  // 회귀 차단. visualViewport.height 를 CSS var(--vvh) 로 강제 sync → Container 가 그 높이 그대로
+  // 적용. 결과 — 키보드 펼치는 즉시 InputBar 가 정확히 키보드 위에 붙음 + 마지막 메시지 가시.
   React.useEffect(() => {
     const vv = window.visualViewport;
     if (!vv) return;
     const update = () => {
-      // 키보드 up 판정: visualViewport 가 window.innerHeight 의 70% 미만 = 키보드가 30%+ 차지
       const isUp = vv.height < window.innerHeight * 0.70;
       if (isUp) {
         document.body.setAttribute('data-keyboard-up', '1');
       } else {
         document.body.removeAttribute('data-keyboard-up');
       }
+      // CSS var --vvh — viewport 변화 즉시 반영. 모든 px 단위 (dvh 보다 정확).
+      document.documentElement.style.setProperty('--vvh', `${vv.height}px`);
     };
     update();
     vv.addEventListener('resize', update);
+    vv.addEventListener('scroll', update);
     window.addEventListener('orientationchange', update);
     return () => {
       vv.removeEventListener('resize', update);
+      vv.removeEventListener('scroll', update);
       window.removeEventListener('orientationchange', update);
       document.body.removeAttribute('data-keyboard-up');
+      document.documentElement.style.removeProperty('--vvh');
     };
   }, []);
   const [editingDraftId, setEditingDraftId] = useState<number | null>(null);
@@ -451,12 +466,15 @@ const ChatPanel: React.FC<Props> = ({
     setStagedPostMeta({});
     setUploadingFiles([]);
     scrollToBottom();
-    // 사이클 N+15-B — 전송 후 키보드 유지 (Hangouts/iMessage 패턴).
+    // 사이클 N+15-B + N+17 — 전송 후 키보드 유지 (Hangouts/iMessage 패턴).
     // iOS Safari 는 value reset + reflow 만으로 dismiss 하는 케이스가 있어 명시적 focus 재호출.
-    // 데스크탑은 useEffect 의 activeConversationId 변경 분기에서 이미 focus, 모바일도 여기서 보존.
+    // N+17 추가: textarea height 가 1줄로 줄면서 InputBar 위치 변경 → viewport 재계산 후
+    // 한 번 더 scrollToBottom 으로 마지막 메시지 시야 보장 (키보드 유지 + 입력란 바로 위 정확 위치).
     requestAnimationFrame(() => {
       const el = textInputRef.current;
       if (el && document.activeElement !== el) el.focus({ preventScroll: true });
+      // textarea 1줄 reset 후 layout 안정화 + 마지막 메시지 가시 보장
+      window.setTimeout(() => scrollToBottom(false), 50);
     });
   };
   const handleFilePicked = async (result: FilePickerResult) => {
@@ -1572,11 +1590,11 @@ const ChatPanel: React.FC<Props> = ({
             })}
           </StagedRow>
         )}
-        <InputWrap
-          as="form"
-          onSubmit={(e: React.FormEvent) => { e.preventDefault(); handleSend(); }}
-          autoComplete="off"
-        >
+        {/*
+          사이클 N+17 — form 태그 제거 (iOS InputAccessoryView 위/아래 화살표 + 완료 바 트리거 차단).
+          handleKeyDown 가 Enter 시 handleSend 호출하므로 form submit 의존 없음. SendBtn 도 type="button".
+        */}
+        <InputWrap>
           <AttachBtn type="button" onClick={() => setFilePickerOpen(true)} title={t('chat.input.attach', '파일 첨부') as string}>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
@@ -1726,12 +1744,15 @@ const Container = styled.main<{ $mobileHidden?: boolean }>`
     display: ${(p) => (p.$mobileHidden ? 'none' : 'flex')};
     width: 100%;
   }
-  /* 모바일 키보드 대응 — 100vh 는 iOS Safari 에서 주소창 포함 잘못 계산.
-     100dvh (dynamic viewport) 가 키보드 올라올 때 줄어드는 정확한 viewport.
-     부모 Layout 도 100dvh 로 통일 (QTalkPage 의 Layout). */
+  /* 모바일 키보드 대응 — 사이클 N+17:
+     1순위: var(--vvh) — visualViewport API 로 JS 가 즉시 sync (키보드 펼침/접힘 정확)
+     2순위: 100dvh — modern brower fallback
+     3순위: -webkit-fill-available — 옛 iOS Safari fallback
+     ChatPanel 의 useEffect 가 vv.height 를 documentElement 에 setProperty. */
   @media (max-width: 640px) {
-    height: 100dvh;
     height: -webkit-fill-available;
+    height: 100dvh;
+    height: var(--vvh, 100dvh);
   }
 `;
 

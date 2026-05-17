@@ -51,7 +51,12 @@ class Participant(BaseModel):
   role: Optional[str] = Field(None, max_length=200)
 
 
-CAPTURE_MODES = {'microphone', 'web_conference'}
+CAPTURE_MODES = {'microphone', 'web_conference', 'text'}
+
+INPUT_TYPES = {'voice', 'text'}
+
+# 본문 (text 메모) 최대 길이 — 일반 메모 한 건이라 넉넉히 잡되 비정상 입력은 차단
+MAX_BODY_LEN = 500_000
 
 
 ANSWER_LENGTHS = {'short', 'medium', 'long'}
@@ -68,6 +73,10 @@ class CreateSessionRequest(BaseModel):
   answer_language: Optional[str] = None
   pasted_context: Optional[str] = None
   capture_mode: Optional[str] = None
+  input_type: Optional[str] = 'voice'  # 'voice' | 'text'
+  translate_enabled: Optional[bool] = True
+  linked_voice_session_id: Optional[int] = None
+  body: Optional[str] = None  # text 메모 본문 (input_type='text' 일 때)
   user_name: Optional[str] = Field(None, max_length=100)
   user_bio: Optional[str] = Field(None, max_length=2000)
   user_expertise: Optional[str] = Field(None, max_length=500)
@@ -90,6 +99,8 @@ class UpdateSessionRequest(BaseModel):
   answer_language: Optional[str] = None
   pasted_context: Optional[str] = None
   capture_mode: Optional[str] = None
+  translate_enabled: Optional[bool] = None
+  body: Optional[str] = None  # text 메모 본문 (자동저장)
   user_name: Optional[str] = Field(None, max_length=100)
   user_bio: Optional[str] = Field(None, max_length=2000)
   user_expertise: Optional[str] = Field(None, max_length=500)
@@ -162,6 +173,39 @@ def _validate_participants(plist: Optional[List[Participant]]) -> None:
 def _validate_capture_mode(mode: Optional[str]) -> None:
   if mode is not None and mode not in CAPTURE_MODES:
     raise HTTPException(status_code=400, detail=f'invalid capture_mode (must be one of {sorted(CAPTURE_MODES)})')
+
+
+def _validate_input_type(input_type: Optional[str]) -> None:
+  if input_type is not None and input_type not in INPUT_TYPES:
+    raise HTTPException(status_code=400, detail=f'invalid input_type (must be one of {sorted(INPUT_TYPES)})')
+
+
+def _validate_body(body: Optional[str]) -> None:
+  if body is not None and len(body) > MAX_BODY_LEN:
+    raise HTTPException(status_code=400, detail=f'body too long (max {MAX_BODY_LEN})')
+
+
+async def _validate_linked_voice_session(
+  db, linked_id: Optional[int], business_id: int, user_id: int
+) -> None:
+  """linked_voice_session_id 가 본인의 voice 세션이고 같은 워크스페이스인지 검증.
+
+  메모 popup 의 "현재 회의 연결" 토글이 누른 시점에 voice session 이 사용자 자신 것이 아니거나
+  cross-business 면 즉시 거부.
+  """
+  if linked_id is None:
+    return
+  cur = await db.execute(
+    "SELECT business_id, user_id, input_type, status FROM sessions WHERE id = ?",
+    (linked_id,),
+  )
+  row = await cur.fetchone()
+  if not row:
+    raise HTTPException(status_code=400, detail='invalid_link_target: session not found')
+  if row['business_id'] != business_id or row['user_id'] != user_id:
+    raise HTTPException(status_code=400, detail='invalid_link_target: not your session')
+  if row['input_type'] != 'voice':
+    raise HTTPException(status_code=400, detail='invalid_link_target: must be voice session')
 
 
 # ─────────────────────────────────────────────────────────
@@ -430,6 +474,11 @@ def _build_field_updates(body: UpdateSessionRequest):
   if body.capture_mode is not None:
     _validate_capture_mode(body.capture_mode)
     fields.append('capture_mode = ?'); values.append(body.capture_mode)
+  if body.translate_enabled is not None:
+    fields.append('translate_enabled = ?'); values.append(1 if body.translate_enabled else 0)
+  if body.body is not None:
+    _validate_body(body.body)
+    fields.append('body = ?'); values.append(body.body)
   # 사용자 프로필 스냅샷
   if body.user_name is not None:
     fields.append('user_name = ?'); values.append(body.user_name)
@@ -531,6 +580,11 @@ async def create_session(body: CreateSessionRequest, user: dict = Depends(get_cu
   _validate_pasted_context(body.pasted_context)
   _validate_participants(body.participants)
   _validate_capture_mode(body.capture_mode)
+  _validate_input_type(body.input_type)
+  _validate_body(body.body)
+
+  input_type = body.input_type or 'voice'
+  is_text = input_type == 'text'
 
   language = 'multi'
   if body.meeting_languages and len(body.meeting_languages) == 1:
@@ -538,7 +592,10 @@ async def create_session(body: CreateSessionRequest, user: dict = Depends(get_cu
 
   participants_json = json.dumps([p.model_dump() for p in body.participants]) if body.participants else None
   languages_json = json.dumps(body.meeting_languages) if body.meeting_languages else None
-  capture_mode = body.capture_mode or 'microphone'
+  # text 메모는 capture_mode 자동 'text', voice 는 기존 default 'microphone'
+  capture_mode = body.capture_mode or ('text' if is_text else 'microphone')
+  if is_text and capture_mode != 'text':
+    raise HTTPException(status_code=400, detail='text input must have capture_mode=text')
 
   # 새 필드 검증
   if body.user_expertise_level and body.user_expertise_level not in EXPERTISE_LEVELS:
@@ -547,12 +604,9 @@ async def create_session(body: CreateSessionRequest, user: dict = Depends(get_cu
     raise HTTPException(status_code=400, detail='invalid answer_length')
   language_levels_json = json.dumps(body.user_language_levels) if body.user_language_levels else None
 
-  # 사용자가 keywords 를 주지 않았으면 브리프/자료/참여자/프로필에서 자동 추출
-  # (회의 시작 전에 미리 사전을 만들어두기 위함 — STT 부팅 시점에 이미 가지고 있음)
-  # NOTE: 문서는 이 시점에 아직 업로드되기 전이므로 brief 기반 초안만. 문서 인덱싱 완료 후
-  # ingest.py 가 refresh_session_vocabulary 를 호출해 문서 내용 기반으로 재추출 + 병합.
+  # voice 만 keywords 자동 생성 — text 메모는 STT 없으므로 어휘사전 불필요
   keywords_list = _sanitize_keywords(body.keywords)
-  if not keywords_list and (body.brief or body.pasted_context or body.participants or body.user_bio or body.user_expertise):
+  if not is_text and not keywords_list and (body.brief or body.pasted_context or body.participants or body.user_bio or body.user_expertise):
     try:
       user_profile = {}
       if body.user_name: user_profile['name'] = body.user_name
@@ -572,25 +626,35 @@ async def create_session(body: CreateSessionRequest, user: dict = Depends(get_cu
       keywords_list = []
   keywords_json = json.dumps(keywords_list) if keywords_list else None
 
+  # text 메모는 STT 단계 X → 'active' 로 바로 진입 (사용자 입력 중)
+  # voice 는 기존 그대로 'prepared' → 사용자가 "녹음 시작" 누르면 'recording'
+  initial_status = 'active' if is_text else 'prepared'
+  translate_enabled_int = 1 if (body.translate_enabled is None or body.translate_enabled) else 0
+
   async with db_connect() as db:
     db.row_factory = aiosqlite.Row
-    # 신규 세션은 'prepared' 상태 — 사용자가 "녹음 시작" 을 눌러야 'recording' 으로 전환
+    # linked_voice_session_id 검증 (text 메모만 의미 있음)
+    if body.linked_voice_session_id is not None and not is_text:
+      raise HTTPException(status_code=400, detail='linked_voice_session_id only allowed for text input')
+    await _validate_linked_voice_session(db, body.linked_voice_session_id, body.business_id, user['user_id'])
+
     cursor = await db.execute(
       '''INSERT INTO sessions
            (business_id, user_id, title, language, status, brief, participants,
             meeting_languages, translation_language, answer_language, pasted_context, capture_mode,
             user_name, user_bio, user_expertise, user_organization, user_job_title,
             user_language_levels, user_expertise_level, meeting_answer_style, meeting_answer_length,
-            keywords)
-         VALUES (?, ?, ?, ?, 'prepared', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+            keywords, input_type, translate_enabled, linked_voice_session_id, body)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
       (
-        body.business_id, user['user_id'], body.title, language,
+        body.business_id, user['user_id'], body.title, language, initial_status,
         body.brief, participants_json, languages_json,
         body.translation_language, body.answer_language, body.pasted_context, capture_mode,
         body.user_name, body.user_bio, body.user_expertise, body.user_organization, body.user_job_title,
         language_levels_json, body.user_expertise_level,
         body.meeting_answer_style, body.meeting_answer_length,
         keywords_json,
+        input_type, translate_enabled_int, body.linked_voice_session_id, body.body,
       )
     )
     await db.commit()
@@ -598,6 +662,42 @@ async def create_session(body: CreateSessionRequest, user: dict = Depends(get_cu
     cursor = await db.execute('SELECT * FROM sessions WHERE id = ?', (session_id,))
     row = await cursor.fetchone()
     return success(_deserialize_session(row))
+
+
+@router.get('/me/recent-memos')
+async def list_my_recent_memos(
+  business_id: int = Query(...),
+  limit: int = Query(10, ge=1, le=50),
+  q: Optional[str] = Query(None, max_length=100),
+  user: dict = Depends(get_current_user),
+):
+  """본인의 최근 text 메모 목록 (Quick Capture 검색바 + 자동 이어쓰기 용).
+
+  - input_type='text' 만
+  - user_id = 본인
+  - status IN ('active', 'completed')  — 작성중/완료 둘 다
+  - 최근 updated_at 순
+  - q 입력 시 title / body LIKE 부분일치 (대소문자 무시, % escape)
+  """
+  conds = ['business_id = ?', 'user_id = ?', "input_type = 'text'", "status IN ('active','completed')"]
+  params: list = [business_id, user['user_id']]
+  if q and q.strip():
+    needle = q.strip()
+    # SQL LIKE wildcard escape — %, _, \ 안전 처리
+    needle = needle.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')
+    conds.append("(LOWER(IFNULL(title,'')) LIKE LOWER(?) ESCAPE '\\' OR LOWER(IFNULL(body,'')) LIKE LOWER(?) ESCAPE '\\')")
+    params.extend([f'%{needle}%', f'%{needle}%'])
+
+  where_sql = ' AND '.join(conds)
+  async with db_connect() as db:
+    db.row_factory = aiosqlite.Row
+    cursor = await db.execute(
+      # id DESC fallback — 같은 초에 INSERT 된 메모도 안정적 정렬 (큰 id = 최신)
+      f'SELECT * FROM sessions WHERE {where_sql} ORDER BY updated_at DESC, id DESC LIMIT ?',
+      [*params, limit],
+    )
+    rows = await cursor.fetchall()
+    return success([_deserialize_session(r) for r in rows])
 
 
 @router.get('')
@@ -761,7 +861,10 @@ async def update_session(
 ):
   async with db_connect() as db:
     db.row_factory = aiosqlite.Row
-    await _load_session_or_403(db, session_id, user['user_id'], user.get('business_id'))
+    row = await _load_session_or_403(db, session_id, user['user_id'], user.get('business_id'))
+    # Q Note 는 본인 도구 — visibility 는 read 권한만 부여. 편집은 owner only (memo 이든 회의이든)
+    if row['user_id'] != user['user_id']:
+      raise HTTPException(status_code=403, detail='owner_only')
 
     fields, values = _build_field_updates(body)
     if fields:
@@ -791,7 +894,15 @@ async def update_session(
 async def delete_session(session_id: int, user: dict = Depends(get_current_user)):
   async with db_connect() as db:
     db.row_factory = aiosqlite.Row
-    await _load_session_or_403(db, session_id, user['user_id'], user.get('business_id'))
+    row = await _load_session_or_403(db, session_id, user['user_id'], user.get('business_id'))
+    # Q Note 는 본인 도구 — 삭제도 owner only (다른 사람이 L3 공유받았다고 지우면 안 됨)
+    if row['user_id'] != user['user_id']:
+      raise HTTPException(status_code=403, detail='owner_only')
+    # voice session 삭제 시 이를 link 한 text 메모들의 reference 를 NULL 로 정리 (FK 위반 방지)
+    await db.execute(
+      'UPDATE sessions SET linked_voice_session_id = NULL WHERE linked_voice_session_id = ?',
+      (session_id,),
+    )
     await db.execute('DELETE FROM sessions WHERE id = ?', (session_id,))
     await db.commit()
     return success({'id': session_id})

@@ -2,18 +2,24 @@ import { lazy, Suspense, useEffect } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { PwaInstallProvider } from './contexts/PwaInstallContext';
-import NotificationToaster from './components/Common/NotificationToaster';
-import PwaInstallBanner from './components/Common/PwaInstallBanner';
-import BuildVersionGuard from './components/Common/BuildVersionGuard';
-import LimitReachedDialog from './components/Common/LimitReachedDialog';
-import AnnouncementBanner from './components/Common/AnnouncementBanner';
-import TermsReacceptModal from './components/Common/TermsReacceptModal';
-import ImpersonateBanner from './components/Common/ImpersonateBanner';
+// 첫 paint 에 반드시 필요한 eager — Auth/PWA context, Layout, ErrorBoundary, ProtectedRoute, prefetch
 import ProtectedRoute from './components/ProtectedRoute';
 import ErrorBoundary from './components/Common/ErrorBoundary';
 import { installRoutePrefetch } from './lib/routePrefetch';
 import MainLayout from './components/Layout/MainLayout';
-import CueHelpDrawer from './components/Common/CueHelpDrawer';
+
+// 사이클 N+17 — 조건부 표시 / idle 시점 mount 컴포넌트는 모두 lazy.
+// 첫 paint 에 안 보이는 (조건 X) 또는 비활성 (toast/alert/PWA banner) 컴포넌트가 main bundle 부담.
+// lazy 화 → entry preload ↓ 첫 로드 시간 ↓. Suspense fallback={null} 로 invisible 동안 무영향.
+const NotificationToaster = lazy(() => import('./components/Common/NotificationToaster'));
+const PwaInstallBanner = lazy(() => import('./components/Common/PwaInstallBanner'));
+const BuildVersionGuard = lazy(() => import('./components/Common/BuildVersionGuard'));
+const LimitReachedDialog = lazy(() => import('./components/Common/LimitReachedDialog'));
+const AnnouncementBanner = lazy(() => import('./components/Common/AnnouncementBanner'));
+const TermsReacceptModal = lazy(() => import('./components/Common/TermsReacceptModal'));
+const ImpersonateBanner = lazy(() => import('./components/Common/ImpersonateBanner'));
+const CueHelpDrawer = lazy(() => import('./components/Common/CueHelpDrawer'));
+const MemoFab = lazy(() => import('./components/QNote/MemoFab'));
 
 // Eager — 자주 진입하거나 첫 화면 (Login). 분리해도 의미 작음
 import LoginPage from './pages/Login/LoginPage';
@@ -407,23 +413,22 @@ function App() {
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       </Suspense>
-      {/* 글로벌 Cue 도움말 — ⌘? / Ctrl+/ + cue:ask 이벤트 receiver */}
-      <CueHelpDrawer />
-      {/* 우측 상단 인앱 알림 toaster — Phase 2: focus-steal 없이 실시간 알림 */}
-      <NotificationToaster />
-      {/* 모바일 PWA 설치 안내 — beforeinstallprompt + iOS Safari 안내 */}
-      <PwaInstallBanner />
-      {/* (제거) BuildVersionGuard / UpdateBanner — 사이클 N+3 회귀로 시스템 제거.
-           SW activate 시 client 자동 navigate + 일반 reload 만으로 새 빌드 적용. */}
-      <BuildVersionGuard />
-      {/* 한도 도달 모달 — apiFetch 인터셉터가 'planq:limit-reached' dispatch */}
-      <LimitReachedDialog />
-      {/* 운영 공지 배너 — /me 의 platform.announcement_text 사용. 점검 모드는 미들웨어가 별도 503 처리 */}
-      <AnnouncementBanner />
-      {/* 약관 변경 시 재동의 — current_terms_version != user.terms_version 시 자동 노출 */}
-      <TermsReacceptModal />
-      {/* 사칭 진행 중 배너 — JWT impersonator 클레임이 있을 때만 표시 */}
-      <ImpersonateBanner />
+      {/*
+        사이클 N+17 — 전역 overlay/banner 컴포넌트 lazy 일괄 wrap.
+        모두 첫 paint 에 invisible 또는 조건부 표시 — fallback={null} 안전.
+        idle 시점 또는 조건 발동 시 chunk 받음 → entry preload 부담 감소.
+      */}
+      <Suspense fallback={null}>
+        <CueHelpDrawer />
+        <MemoFab />
+        <NotificationToaster />
+        <PwaInstallBanner />
+        <BuildVersionGuard />
+        <LimitReachedDialog />
+        <AnnouncementBanner />
+        <TermsReacceptModal />
+        <ImpersonateBanner />
+      </Suspense>
     </PwaInstallProvider>
     </AuthProvider>
     </ErrorBoundary>

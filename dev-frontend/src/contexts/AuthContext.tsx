@@ -159,23 +159,33 @@ let refreshInflight: Promise<boolean> | null = null;
 const tryRefresh = (): Promise<boolean> => {
   if (refreshInflight) return refreshInflight;
   refreshInflight = (async () => {
-    const callOnce = async (): Promise<{ ok: boolean; networkOrServer: boolean }> => {
+    const callOnce = async (): Promise<{ ok: boolean; networkOrServer: boolean; status?: number }> => {
       try {
+        const clientKind = detectClientKind();
+        // headers 와 body 양쪽에 client_kind 전달 — CORS 가 헤더 막을 경우 body 가 백업
         const res = await fetch('/api/auth/refresh', {
           method: 'POST',
-          headers: { 'X-Client-Kind': detectClientKind() },
+          headers: { 'Content-Type': 'application/json', 'X-Client-Kind': clientKind },
           credentials: 'include',
+          body: JSON.stringify({ client_kind: clientKind }),
         });
         if (res.ok) {
           const data = await res.json();
           if (data.success && data.data?.token) {
             setAccessToken(data.data.token);
-            return { ok: true, networkOrServer: false };
+            return { ok: true, networkOrServer: false, status: 200 };
           }
-          return { ok: false, networkOrServer: false };
+          return { ok: false, networkOrServer: false, status: res.status };
         }
-        return { ok: false, networkOrServer: res.status >= 500 };
-      } catch {
+        // 진단: 401 vs 5xx 구분
+        if (res.status === 401) {
+          console.warn('[auth.refresh] 401 — cookie 가 사라졌거나 refresh token invalid. 자동 logout 진행.');
+        } else if (res.status >= 500) {
+          console.warn('[auth.refresh] 5xx status=' + res.status + ' — 서버 일시 오류, 재시도.');
+        }
+        return { ok: false, networkOrServer: res.status >= 500, status: res.status };
+      } catch (e) {
+        console.warn('[auth.refresh] network error', (e as Error).message);
         return { ok: false, networkOrServer: true };
       }
     };
