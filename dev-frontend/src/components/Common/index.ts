@@ -7,3 +7,7 @@ export { default as AutoSaveField } from './AutoSaveField';
 export { default as FileUpload } from './FileUpload';
 export * from './Modal';
 export { default as LanguageSelector } from './LanguageSelector';
+export { default as ActionButton } from './ActionButton';
+export type { ActionButtonTone, ActionButtonSize } from './ActionButton';
+export { default as DrawerFooter } from './DrawerFooter';
+export type { DrawerFooterProps } from './DrawerFooter';

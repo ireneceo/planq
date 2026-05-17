@@ -356,24 +356,6 @@ router.post('/', authenticateToken, async (req, res, next) => {
     if (!business_id) return errorResponse(res, 'business_id required', 400);
     if (!title || !String(title).trim()) return errorResponse(res, 'title required', 400);
 
-    // 정기업무 — recurrence_rule 들어오면 due_date 필수, RRULE 검증, next_occurrence_at 계산
-    let nextOccurrenceAt = null;
-    if (recurrence_rule) {
-      if (!due_date) {
-        return errorResponse(res, 'due_date is required for recurring tasks (it serves as the first occurrence)', 400);
-      }
-      const { RRule } = require('rrule');
-      const { computeNextOccurrence } = require('../services/recurringTaskGenerator');
-      try {
-        RRule.parseString(recurrence_rule);
-      } catch (e) {
-        return errorResponse(res, `Invalid recurrence_rule: ${e.message}`, 400);
-      }
-      // parent 자체가 첫 occurrence (count=1) → 다음 occurrence 계산
-      const next = computeNextOccurrence(recurrence_rule, due_date, 1);
-      nextOccurrenceAt = next ? next.toISOString().slice(0, 10) : null;
-    }
-
     // 워크스페이스 접근권 확인 — 멤버(owner/member) OR 클라이언트
     const bm = await BusinessMember.findOne({ where: { user_id: req.user.id, business_id } });
     let isClient = false;
@@ -394,6 +376,33 @@ router.post('/', authenticateToken, async (req, res, next) => {
       return errorResponse(res, 'Clients can only request tasks to members, not assign to themselves.', 403);
     }
 
+    // 사이클 N+19 — PERMISSION_MATRIX §5.7 정렬:
+    // 요청 케이스 (담당자 ≠ 작성자) 에서는 예측시간/반복설정 작성 권한 없음.
+    // 담당자가 ack 후 본인 캐파에 맞춰 정한다. 조용히 무시 (사용자 friction ↓).
+    const effectiveEstimatedHours = isInternalRequest ? null : (estimated_hours || null);
+    const effectiveRecurrenceRule = isInternalRequest ? null : (recurrence_rule || null);
+    if (isInternalRequest && (estimated_hours || recurrence_rule)) {
+      console.warn('[tasks.POST] requester=' + req.user.id + ' assignee=' + finalAssignee + ' — estimated_hours/recurrence_rule sanitized (책임선 분리)');
+    }
+
+    // 정기업무 — recurrence_rule 들어오면 due_date 필수, RRULE 검증, next_occurrence_at 계산
+    let nextOccurrenceAt = null;
+    if (effectiveRecurrenceRule) {
+      if (!due_date) {
+        return errorResponse(res, 'due_date is required for recurring tasks (it serves as the first occurrence)', 400);
+      }
+      const { RRule } = require('rrule');
+      const { computeNextOccurrence } = require('../services/recurringTaskGenerator');
+      try {
+        RRule.parseString(effectiveRecurrenceRule);
+      } catch (e) {
+        return errorResponse(res, `Invalid recurrence_rule: ${e.message}`, 400);
+      }
+      // parent 자체가 첫 occurrence (count=1) → 다음 occurrence 계산
+      const next = computeNextOccurrence(effectiveRecurrenceRule, due_date, 1);
+      nextOccurrenceAt = next ? next.toISOString().slice(0, 10) : null;
+    }
+
     const task = await Task.create({
       business_id,
       project_id: project_id || null,
@@ -402,7 +411,7 @@ router.post('/', authenticateToken, async (req, res, next) => {
       assignee_id: finalAssignee,
       due_date: due_date || null,
       start_date: start_date || null,
-      estimated_hours: estimated_hours || null,
+      estimated_hours: effectiveEstimatedHours,
       category: category || null,
       source_message_id: source_message_id || null,
       conversation_id: conversation_id || null,
@@ -414,7 +423,7 @@ router.post('/', authenticateToken, async (req, res, next) => {
       cue_kind: cue_kind || null,
       cue_context_ref: cue_context_ref || null,
       // 정기업무 — parent 시리즈 (instance 는 cron 이 자동 생성)
-      recurrence_rule: recurrence_rule || null,
+      recurrence_rule: effectiveRecurrenceRule,
       recurrence_parent_id: null,
       next_occurrence_at: nextOccurrenceAt,
     });

@@ -7,6 +7,8 @@ import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { createWeeklyReview, getLatestWeeklyReview, type WeeklyReview } from '../../services/weeklyReview';
 import { mondayOfDateStr, addDaysStr, todayInTz } from '../../utils/timezones';
+import ActionButton from '../Common/ActionButton';
+import DrawerFooter from '../Common/DrawerFooter';
 
 interface Props {
   businessId: number;
@@ -103,20 +105,20 @@ const WeeklyReviewModal: React.FC<Props> = ({ businessId, wsTz, onClose, onSaved
             <ConfirmText>{t('weeklyReview.modal.saved', { defaultValue: '저장 완료. 결산 목록에서 확인하세요.' }) as string}</ConfirmText>
           </ConfirmBody>
         ) : showOverwriteConfirm ? (
-          <ConfirmBody>
-            <ConfirmText>{t('weeklyReview.modal.alreadyExists', '이번 주 결산이 이미 있어요. 지금 시점으로 덮어쓸까요?')}</ConfirmText>
-            {error && <ErrorMsg>{error}</ErrorMsg>}
-            <BtnRow>
-              <CancelBtn onClick={() => { setShowOverwriteConfirm(false); setError(null); }} disabled={saving}>
-                {t('common.cancel', '취소')}
-              </CancelBtn>
-              <SaveBtn onClick={() => handleSave(true)} disabled={saving}>
-                {saving
-                  ? (t('weeklyReview.modal.saving', { defaultValue: '저장 중...' }) as string)
-                  : t('weeklyReview.modal.overwrite', '덮어쓰기')}
-              </SaveBtn>
-            </BtnRow>
-          </ConfirmBody>
+          <>
+            <ConfirmBody>
+              <ConfirmText>{t('weeklyReview.modal.alreadyExists', '이번 주 결산이 이미 있어요. 지금 시점으로 덮어쓸까요?')}</ConfirmText>
+              {error && <ErrorMsg>{error}</ErrorMsg>}
+            </ConfirmBody>
+            <DrawerFooter align="right" size="sm">
+              <ActionButton tone="secondary" size="sm" onClick={() => { setShowOverwriteConfirm(false); setError(null); }} disabled={saving}>
+                {t('common.cancel', '취소') as string}
+              </ActionButton>
+              <ActionButton tone="primary" size="sm" loading={saving} onClick={() => handleSave(true)}>
+                {t('weeklyReview.modal.overwrite', '덮어쓰기') as string}
+              </ActionButton>
+            </DrawerFooter>
+          </>
         ) : (
           <>
             <Body>
@@ -127,20 +129,16 @@ const WeeklyReviewModal: React.FC<Props> = ({ businessId, wsTz, onClose, onSaved
                 placeholder={t('weeklyReview.modal.notePlaceholder', '이번 주 어땠나요? (선택)')}
                 rows={3}
               />
+              {error && <ErrorMsg>{error}</ErrorMsg>}
             </Body>
-
-            {error && <ErrorMsg>{error}</ErrorMsg>}
-
-            <BtnRow>
-              <CancelBtn onClick={onClose} disabled={saving}>
-                {t('weeklyReview.modal.cancel', '취소')}
-              </CancelBtn>
-              <SaveBtn onClick={() => handleSave()} disabled={saving}>
-                {saving
-                  ? (t('weeklyReview.modal.saving', { defaultValue: '저장 중...' }) as string)
-                  : t('weeklyReview.modal.save', '저장')}
-              </SaveBtn>
-            </BtnRow>
+            <DrawerFooter align="right" size="sm">
+              <ActionButton tone="secondary" size="sm" onClick={onClose} disabled={saving}>
+                {t('weeklyReview.modal.cancel', '취소') as string}
+              </ActionButton>
+              <ActionButton tone="primary" size="sm" loading={saving} onClick={() => handleSave()}>
+                {t('weeklyReview.modal.save', '저장') as string}
+              </ActionButton>
+            </DrawerFooter>
           </>
         )}
       </Dialog>
@@ -166,14 +164,17 @@ const Dialog = styled.div`
   background: #fff;
   border-radius: 12px;
   width: 90%;
-  max-width: 400px;
-  padding: 24px;
+  max-width: 420px;
   box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   @media (max-width: 640px) { margin-top: 60px; max-height: calc(100vh - 100px); overflow-y: auto; }
 `;
 
 const Header = styled.div`
-  margin-bottom: 20px;
+  padding: 20px 20px 0;
+  margin-bottom: 16px;
   text-align: center;
 `;
 
@@ -190,7 +191,7 @@ const Period = styled.div`
 `;
 
 const Body = styled.div`
-  margin-bottom: 20px;
+  padding: 0 20px 16px;
 `;
 
 const NoteLabel = styled.label`
@@ -215,38 +216,8 @@ const NoteInput = styled.textarea`
   }
 `;
 
-const BtnRow = styled.div`
-  display: flex;
-  gap: 10px;
-  justify-content: flex-end;
-`;
-
-const CancelBtn = styled.button`
-  padding: 8px 16px;
-  border: 1px solid #e2e8f0;
-  background: #fff;
-  border-radius: 6px;
-  font-size: 14px;
-  color: #64748b;
-  cursor: pointer;
-  &:hover { background: #f8fafc; }
-`;
-
-const SaveBtn = styled.button`
-  padding: 8px 20px;
-  border: none;
-  background: #14b8a6;
-  border-radius: 6px;
-  font-size: 14px;
-  font-weight: 600;
-  color: #fff;
-  cursor: pointer;
-  &:hover { background: #0d9488; }
-  &:disabled { opacity: 0.6; cursor: not-allowed; }
-`;
-
 const ConfirmBody = styled.div`
-  padding: 20px 0;
+  padding: 20px;
 `;
 
 const ConfirmText = styled.p`

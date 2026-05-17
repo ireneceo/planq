@@ -10,6 +10,7 @@ import SingleDateField from '../Common/SingleDateField';
 import PlanQSelect from '../Common/PlanQSelect';
 import RichEditor from '../Common/RichEditor';
 import ShareModal from '../Common/ShareModal';
+import ActionButton from '../Common/ActionButton';
 import {
   buildPresetRRule, buildCustomRRule, parseRRule,
   type RecurPreset, type RecurEndType, type RecurCustomUnit,
@@ -1667,9 +1668,12 @@ const ActionCard = styled.div`background:#F8FAFC;border:1px solid #E2E8F0;border
   & > button{transition:background 0.15s, color 0.15s, border-color 0.15s;}
 `;
 const ActionCardTitle = styled.div`font-size:10px;font-weight:700;color:#64748B;text-transform:uppercase;letter-spacing:0.3px;`;
-const ActionPrimary = styled.button`padding:8px 12px;background:#14B8A6;color:#FFF;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;transition:background 0.15s;&:disabled{background:#CBD5E1;cursor:not-allowed;}&:hover:not(:disabled){background:#0D9488;}`;
-const ActionSecondary = styled.button`padding:7px 12px;background:#FFF;color:#334155;border:1px solid #CBD5E1;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;&:disabled{color:#CBD5E1;cursor:not-allowed;}&:hover:not(:disabled){border-color:#94A3B8;background:#F8FAFC;}`;
-const ActionDanger = styled.button`padding:7px 12px;background:#FFF;color:#DC2626;border:1px solid #FECACA;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;&:disabled{color:#CBD5E1;border-color:#E2E8F0;cursor:not-allowed;}&:hover:not(:disabled){background:#FEF2F2;border-color:#DC2626;}`;
+// 사이클 N+19 — 옛 3개 styled 를 공용 ActionButton 으로 alias.
+// 사용처 17곳 코드 변경 없이 디자인 시스템 통일 (sm 36px / Primary teal / Secondary gray / Danger red).
+type _ABProps = Omit<React.ComponentProps<typeof ActionButton>, 'tone' | 'size'>;
+const ActionPrimary: React.FC<_ABProps> = (p) => <ActionButton tone="primary" size="sm" {...p} />;
+const ActionSecondary: React.FC<_ABProps> = (p) => <ActionButton tone="secondary" size="sm" {...p} />;
+const ActionDanger: React.FC<_ABProps> = (p) => <ActionButton tone="danger" size="sm" {...p} />;
 const ActionHint = styled.div`display:flex;flex-direction:column;gap:4px;`;
 const ActionHintRow = styled.div`display:flex;align-items:center;gap:8px;font-size:12px;color:#475569;flex-wrap:wrap;`;
 const TextLink = styled.button`background:transparent;border:none;color:#0F766E;font-size:12px;font-weight:600;cursor:pointer;padding:0;text-decoration:underline;&:disabled{color:#CBD5E1;cursor:not-allowed;}&:hover:not(:disabled){color:#134E4A;}`;
