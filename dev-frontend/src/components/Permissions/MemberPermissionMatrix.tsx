@@ -12,8 +12,12 @@ import {
   type MemberPermissionRow, type MenuKey, type PermissionLevel,
 } from '../../services/permissions';
 
-const MENU_LIST: MenuKey[] = ['qtalk', 'qtask', 'qnote', 'qdocs', 'qbill', 'qcalendar', 'qfile', 'clients', 'insights'];
+// 사이드바 순서 그대로 (talk → mail → task → calendar → note → docs → info → file → bill → clients → insights)
+const MENU_LIST: MenuKey[] = ['qtalk', 'qmail', 'qtask', 'qcalendar', 'qnote', 'qdocs', 'qinfo', 'qfile', 'qbill', 'clients', 'insights'];
 const LEVEL_LIST: PermissionLevel[] = ['write', 'read', 'none'];
+// insights 는 조회 전용 — write 옵션 X
+const READ_ONLY_MENUS = new Set<MenuKey>(['insights']);
+const levelOptionsFor = (m: MenuKey): PermissionLevel[] => READ_ONLY_MENUS.has(m) ? ['read', 'none'] : LEVEL_LIST;
 
 interface Props { businessId: number; isOwner: boolean; onChanged?: () => void; }
 
@@ -148,7 +152,7 @@ const MemberPermissionMatrix: React.FC<Props> = ({ businessId, isOwner, onChange
                             size="sm"
                             isDisabled={!isOwner}
                             value={{ value: r.menus[m] || 'write', label: t(`level.${r.menus[m] || 'write'}`, r.menus[m] || 'write') as string }}
-                            options={LEVEL_LIST.map(l => ({ value: l, label: t(`level.${l}`, l) as string }))}
+                            options={levelOptionsFor(m).map(l => ({ value: l, label: t(`level.${l}`, l) as string }))}
                             onChange={(opt) => {
                               const v = (opt as PlanQSelectOption)?.value as PermissionLevel;
                               if (v && v !== r.menus[m]) onLevel(r.user_id, m, v);
@@ -208,33 +212,51 @@ const TableWrap = styled.div`
 `;
 const Table = styled.table` width: 100%; border-collapse: collapse; font-size: 12px; `;
 const Th = styled.th<{ $sticky?: boolean }>`
-  text-align: left; padding: 10px 12px;
-  font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px;
-  color: #64748B; background: #F8FAFC;
+  text-align: left; padding: 12px 14px;
+  font-size: 12px; font-weight: 700; color: #475569;
+  background: #F8FAFC;
   border-bottom: 1px solid #E2E8F0;
   white-space: nowrap;
-  ${p => p.$sticky && 'position: sticky; left: 0; z-index: 2; background: #F8FAFC;'}
+  letter-spacing: -0.1px;
+  ${p => p.$sticky && 'position: sticky; left: 0; z-index: 2; background: #F8FAFC; min-width: 160px;'}
 `;
-const ThStack = styled.div` display: inline-flex; align-items: center; gap: 6px; `;
+const ThStack = styled.div`
+  display: inline-flex; align-items: center; gap: 6px;
+  white-space: nowrap;
+`;
 const Td = styled.td<{ $sticky?: boolean }>`
-  padding: 10px 12px; border-bottom: 1px solid #F1F5F9; vertical-align: middle;
-  ${p => p.$sticky && 'position: sticky; left: 0; background: #FFFFFF; z-index: 1;'}
+  padding: 12px 14px; border-bottom: 1px solid #F1F5F9; vertical-align: middle;
+  white-space: nowrap;
+  ${p => p.$sticky && 'position: sticky; left: 0; background: #FFFFFF; z-index: 1; min-width: 160px;'}
 `;
-const MemberName = styled.div` font-size: 13px; font-weight: 600; color: #0F172A; `;
-const MemberEmail = styled.div` font-size: 11px; color: #94A3B8; margin-top: 2px; `;
+const MemberName = styled.div`
+  font-size: 13px; font-weight: 600; color: #0F172A;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  max-width: 180px;
+`;
+const MemberEmail = styled.div`
+  font-size: 11px; color: #94A3B8; margin-top: 2px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  max-width: 180px;
+`;
 const RoleBadge = styled.span<{ $kind: 'owner' | 'admin' | 'member' }>`
-  display: inline-block; padding: 2px 8px;
+  display: inline-block; padding: 4px 10px;
   font-size: 11px; font-weight: 700; border-radius: 999px;
+  white-space: nowrap;
   background: ${p => p.$kind === 'owner' ? '#F0FDFA' : p.$kind === 'admin' ? '#DBEAFE' : '#F1F5F9'};
   color: ${p => p.$kind === 'owner' ? '#0F766E' : p.$kind === 'admin' ? '#1E40AF' : '#64748B'};
 `;
-const RoleRow = styled.div` display: inline-flex; align-items: center; gap: 6px; `;
+const RoleRow = styled.div`
+  display: inline-flex; align-items: center; gap: 8px;
+  white-space: nowrap;
+`;
 const SmallBtn = styled.button<{ $kind: 'promote' | 'demote' }>`
   background: transparent;
   border: 1px solid ${p => p.$kind === 'promote' ? '#14B8A6' : '#FCA5A5'};
   color: ${p => p.$kind === 'promote' ? '#0F766E' : '#B91C1C'};
-  font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 6px;
-  cursor: pointer;
+  font-size: 11px; font-weight: 600; padding: 4px 10px; border-radius: 6px;
+  cursor: pointer; white-space: nowrap;
+  line-height: 1.4;
   &:hover { background: ${p => p.$kind === 'promote' ? '#F0FDFA' : '#FEF2F2'}; }
 `;
 const CountChip = styled.span`
