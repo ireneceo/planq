@@ -566,7 +566,7 @@ router.get('/:businessId/members', authenticateToken, checkBusinessAccess, async
 // ═════════════════════════════════════════════════════════════
 
 const { BusinessMemberPermission } = require('../models');
-const { getMemberMenuLevels, VALID_MENUS, VALID_LEVELS } = require('../middleware/menu_permission');
+const { getMemberMenuLevels, VALID_MENUS, VALID_LEVELS, READ_ONLY_MENUS } = require('../middleware/menu_permission');
 
 // 권한 변경은 owner/admin 만
 async function assertWorkspaceAdmin(userId, businessId) {
@@ -614,6 +614,9 @@ router.put('/:businessId/members/:userId/permissions', authenticateToken, checkB
     if (!VALID_MENUS.includes(menu_key)) return errorResponse(res, 'invalid_menu_key', 400);
     if (!VALID_LEVELS.includes(level)) return errorResponse(res, 'invalid_level', 400);
 
+    // 사이클 N+21-fix — insights 등 read-only 메뉴는 write 강제 차단 → read 로 hint.
+    const effectiveLevel = (READ_ONLY_MENUS.includes(menu_key) && level === 'write') ? 'read' : level;
+
     // 대상 멤버 존재 확인
     const targetMember = await BusinessMember.findOne({
       where: { business_id: businessId, user_id: targetUserId, removed_at: null },
@@ -628,20 +631,20 @@ router.put('/:businessId/members/:userId/permissions', authenticateToken, checkB
     // upsert
     const [row, created] = await BusinessMemberPermission.findOrCreate({
       where: { business_id: businessId, user_id: targetUserId, menu_key },
-      defaults: { level, updated_by: req.user.id },
+      defaults: { level: effectiveLevel, updated_by: req.user.id },
     });
     const old_level = row.level;
     if (!created) {
-      await row.update({ level, updated_by: req.user.id });
+      await row.update({ level: effectiveLevel, updated_by: req.user.id });
     }
     require('../services/auditService').logAudit(req, {
       action: 'member_permission.update',
       targetType: 'business_member_permission',
       targetId: row.id,
       oldValue: { menu_key, level: old_level },
-      newValue: { menu_key, level },
+      newValue: { menu_key, level: effectiveLevel },
     });
-    return successResponse(res, { id: row.id, business_id: businessId, user_id: targetUserId, menu_key, level });
+    return successResponse(res, { id: row.id, business_id: businessId, user_id: targetUserId, menu_key, level: effectiveLevel });
   } catch (e) { next(e); }
 });
 

@@ -2,7 +2,8 @@
 // PERMISSION_MATRIX Layer 3 — 9 메뉴 × 3 레벨 + admin role 임명 + 기본 청구 담당
 import { apiFetch } from '../contexts/AuthContext';
 
-export type MenuKey = 'qtalk' | 'qtask' | 'qnote' | 'qdocs' | 'qbill' | 'qcalendar' | 'qfile' | 'clients' | 'insights';
+// 사이드바 메뉴 순서 그대로 — 11종. insights 는 조회 전용 (write 의미 X).
+export type MenuKey = 'qtalk' | 'qmail' | 'qtask' | 'qcalendar' | 'qnote' | 'qdocs' | 'qinfo' | 'qfile' | 'qbill' | 'clients' | 'insights';
 export type PermissionLevel = 'none' | 'read' | 'write';
 export type MemberRole = 'owner' | 'admin' | 'member' | 'ai';
 

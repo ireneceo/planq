@@ -373,9 +373,9 @@
   },
   "matrix": {
     "title": "Member menu permissions",
-    "desc": "Adjust per-menu view/read/write per member. Default is full write — restrict only if needed. Owners and admins always have full access.",
+    "desc": "Adjust read/write per menu per member. Default is full write — restrict only if needed. Owners and admins always have full access.",
     "loading": "Loading...",
-    "ownerOnlyHint": "Only the workspace owner can make changes.",
+    "ownerOnlyHint": "Only owners and admins can change permissions.",
     "col": { "member": "Member", "role": "Role" },
     "writableCount": "Writable members",
     "warnNoQbillWrite": "⚠ No member has Q Bill write access — invoices cannot be issued. At least 1 recommended."
@@ -394,12 +394,14 @@
   },
   "menu": {
     "qtalk": "Q Talk",
+    "qmail": "Q Mail",
     "qtask": "Q Task",
+    "qcalendar": "Q Calendar",
     "qnote": "Q Note",
     "qdocs": "Q docs",
-    "qbill": "Q Bill",
-    "qcalendar": "Q Calendar",
+    "qinfo": "Q info",
     "qfile": "Q File",
+    "qbill": "Q Bill",
     "clients": "Clients",
     "insights": "Insights"
   },
@@ -409,11 +411,11 @@
   },
   "billing": {
     "title": "Default billing owner",
-    "desc": "New invoices are auto-assigned to this owner. Only members with Q Bill write access can be selected.",
+    "desc": "New invoices are auto-assigned to this owner. Choose from owners, admins, or members with Q Bill write access.",
     "loading": "Loading...",
     "label": "Default billing owner",
     "noneOption": "(none)",
-    "hint": "Select from {{count}} Q Bill writers. New invoices auto-assign this owner."
+    "hint": "Select from {{count}} candidate(s). Auto-filled on new invoice creation."
   },
   "common": {
     "saved": "Saved"
