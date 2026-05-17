@@ -32,6 +32,8 @@ interface Props {
   onBlank?: () => void;
   // 진입 의도 — 'manual'(빈 문서/표) 또는 'ai'(AI 작성/자료정리). default 'manual'
   intent?: 'manual' | 'ai';
+  // 진입 시 default tab 강제 (예: + 드롭다운 "표" 선택 → defaultMode='table')
+  defaultMode?: 'blank' | 'new' | 'brief' | 'table';
 }
 
 const KIND_OPTIONS: PlanQSelectOption[] = [
@@ -47,12 +49,12 @@ const KIND_OPTIONS: PlanQSelectOption[] = [
 
 type Mode = 'blank' | 'new' | 'brief' | 'table';
 
-const PostAiModal: React.FC<Props> = ({ open, onClose, businessId, projectId: pageProjectId, clientId: pageClientId, onGenerate, onBlank, intent = 'manual' }) => {
+const PostAiModal: React.FC<Props> = ({ open, onClose, businessId, projectId: pageProjectId, clientId: pageClientId, onGenerate, onBlank, intent = 'manual', defaultMode: defaultModeProp }) => {
   const { t } = useTranslation('qdocs');
   const navigate = useNavigate();
   // intent 별 사용 가능 탭 — manual: 빈문서+표 / ai: AI 작성+자료정리
   const visibleModes: Mode[] = intent === 'ai' ? ['new', 'brief'] : ['blank', 'table'];
-  const defaultMode: Mode = intent === 'ai' ? 'new' : 'blank';
+  const defaultMode: Mode = defaultModeProp ?? (intent === 'ai' ? 'new' : 'blank');
   const [mode, setMode] = useState<Mode>(defaultMode);
   // intent 가 바뀔 때마다 default 모드로 초기화
   useEffect(() => { if (open) setMode(defaultMode); }, [intent, open]);  // eslint-disable-line react-hooks/exhaustive-deps

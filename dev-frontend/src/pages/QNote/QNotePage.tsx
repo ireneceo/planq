@@ -211,6 +211,8 @@ const QNotePage = () => {
   const [composingPrefill, setComposingPrefill] = useState<{ project_id: number | null; client_id: number | null }>({ project_id: null, client_id: null });
   // 사이클 N+17 hotfix — + 클릭 시 NewNoteModal 열림 (Q docs PostAiModal manual mode 패턴 통일)
   const [newNoteModalOpen, setNewNoteModalOpen] = useState(false);
+  // 사이클 N+22 — + 버튼 드롭다운 (메모 즉시 / 음성 모달) — Irene 요청
+  const [newNoteDropdownOpen, setNewNoteDropdownOpen] = useState(false);
   const handleSessionDelete = async (sessionId: number) => {
     if (sessionDeleting) return;
     setSessionDeleting(true);
@@ -1865,19 +1867,56 @@ const QNotePage = () => {
               {t('page.help.body')}
             </HelpDot>
           </TitleGroup>
-          {/* 사이클 N+17 hotfix — Q docs PostAiModal manual mode 패턴 통일.
-              dropdown 제거 → + 클릭 시 NewNoteModal 열림 (탭 메모/음성 + 옵션 프로젝트/고객). */}
-          <NewSessionBtn
-            type="button"
-            onClick={() => setNewNoteModalOpen(true)}
-            title={t('page.newNoteOrMemo', { defaultValue: '새 노트' }) as string}
-            aria-label={t('page.newNoteOrMemo', { defaultValue: '새 노트' }) as string}
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
-              <line x1="12" y1="5" x2="12" y2="19" />
-              <line x1="5" y1="12" x2="19" y2="12" />
-            </svg>
-          </NewSessionBtn>
+          {/* 사이클 N+22 — Irene 요청: NewNoteModal 모달 대신 즉시 드롭다운.
+              메모 = 즉시 새 세션 + URL, 음성 = StartMeetingModal (회의 prep). */}
+          <NewSessionWrap>
+            <NewSessionBtn
+              type="button"
+              onClick={() => setNewNoteDropdownOpen(v => !v)}
+              title={t('page.newNoteOrMemo', { defaultValue: '새 노트' }) as string}
+              aria-label={t('page.newNoteOrMemo', { defaultValue: '새 노트' }) as string}
+              aria-expanded={newNoteDropdownOpen}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+                <line x1="12" y1="5" x2="12" y2="19" />
+                <line x1="5" y1="12" x2="19" y2="12" />
+              </svg>
+            </NewSessionBtn>
+            {newNoteDropdownOpen && (
+              <NewNoteDropdown onMouseLeave={() => setNewNoteDropdownOpen(false)}>
+                <NewNoteItem type="button" onClick={async () => {
+                  setNewNoteDropdownOpen(false);
+                  try {
+                    const emptyDoc = { type: 'doc', content: [{ type: 'paragraph' }] };
+                    const created = await createSession({
+                      business_id: Number(businessId),
+                      title: 'Untitled',
+                      input_type: 'text',
+                      body: JSON.stringify(emptyDoc),
+                    } as any);
+                    setActiveSession(created);
+                    setComposingMemo(false);
+                    setSessions(prev => [created, ...prev]);
+                    navigate(`/notes/${created.id}`, { replace: true });
+                  } catch (e) {
+                    setActiveSession(null);
+                    setComposingMemo(true);
+                    navigate('/notes', { replace: true });
+                  }
+                }}>
+                  <NewNoteItemTitle>{t('page.newNoteDropdown.memoLabel', { defaultValue: '메모' }) as string}</NewNoteItemTitle>
+                  <NewNoteItemDesc>{t('page.newNoteDropdown.memoDesc', { defaultValue: '텍스트 · 코드블록 · 서식 지원' }) as string}</NewNoteItemDesc>
+                </NewNoteItem>
+                <NewNoteItem type="button" onClick={() => {
+                  setNewNoteDropdownOpen(false);
+                  setShowStartModal(true);
+                }}>
+                  <NewNoteItemTitle>{t('page.newNoteDropdown.voiceLabel', { defaultValue: '음성 노트' }) as string}</NewNoteItemTitle>
+                  <NewNoteItemDesc>{t('page.newNoteDropdown.voiceDesc', { defaultValue: '회의 녹음 + STT + 답변 찾기' }) as string}</NewNoteItemDesc>
+                </NewNoteItem>
+              </NewNoteDropdown>
+            )}
+          </NewSessionWrap>
         </SidebarHeader>
 
         <SearchWrap>
@@ -2007,9 +2046,29 @@ const QNotePage = () => {
             icon={<MicIcon size={36} />}
             title={t('page.empty.title')}
             description={<>{t('page.empty.line1')}<br />{t('page.empty.line2')}</>}
-            ctaLabel={t('page.empty.cta')}
+            ctaLabel={t('page.empty.ctaMemo', { defaultValue: '새 메모' }) as string}
             ctaIcon={<PlusIcon size={16} />}
-            onCta={() => setNewNoteModalOpen(true)}
+            onCta={async () => {
+              try {
+                const emptyDoc = { type: 'doc', content: [{ type: 'paragraph' }] };
+                const created = await createSession({
+                  business_id: Number(businessId),
+                  title: 'Untitled',
+                  input_type: 'text',
+                  body: JSON.stringify(emptyDoc),
+                } as any);
+                setActiveSession(created);
+                setComposingMemo(false);
+                setSessions(prev => [created, ...prev]);
+                navigate(`/notes/${created.id}`, { replace: true });
+              } catch {
+                setActiveSession(null);
+                setComposingMemo(true);
+                navigate('/notes', { replace: true });
+              }
+            }}
+            secondaryCtaLabel={t('page.empty.ctaVoice', { defaultValue: '새 음성노트' }) as string}
+            onSecondaryCta={() => setShowStartModal(true)}
           />
         )}
 
@@ -2781,8 +2840,34 @@ const NewSessionBtn = styled.button`
   &:hover { background: #0D9488; }
   &:focus-visible { outline: 2px solid #0D9488; outline-offset: 2px; }
 `;
-// 사이클 N+17 hotfix — 옛 dropdown 폐기. + 진입은 NewNoteModal 로 통일 (Q docs PostAiModal 패턴).
-// 옛 NewBtnWrap/NewBtnMenu/NewBtnMenuItem/NewBtnMenuDesc styled 제거 (TS strict unused 회피).
+// 사이클 N+22 — Irene 요청: + 클릭 = 드롭다운 (메모 즉시 / 음성 모달)
+const NewSessionWrap = styled.div`position: relative;`;
+const NewNoteDropdown = styled.div`
+  position: absolute; top: calc(100% + 6px); right: 0;
+  min-width: 220px;
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: 10px;
+  box-shadow: 0 8px 24px -6px rgba(15,23,42,0.18);
+  z-index: 100;
+  overflow: hidden;
+  animation: pqNoteDdFade 0.12s ease-out;
+  @keyframes pqNoteDdFade { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
+`;
+const NewNoteItem = styled.button`
+  display: block; width: 100%; text-align: left;
+  padding: 10px 14px;
+  background: transparent; border: none; cursor: pointer;
+  &:hover { background: #F8FAFC; }
+  &:focus-visible { background: #F0FDFA; outline: none; }
+  & + & { border-top: 1px solid #F1F5F9; }
+`;
+const NewNoteItemTitle = styled.div`
+  font-size: 13px; font-weight: 600; color: #0F172A;
+`;
+const NewNoteItemDesc = styled.div`
+  font-size: 11px; color: #94A3B8; margin-top: 2px;
+`;
 
 const SearchWrap = styled.div`
   padding: 12px 20px 12px;

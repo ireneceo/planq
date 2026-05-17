@@ -29,7 +29,15 @@
       "title": "Start a note",
       "line1": "Jot a quick memo, or record a voice note for meetings —",
       "line2": "real-time transcription, translation, and Q&A detection do the rest.",
-      "cta": "Start new note"
+      "cta": "New note",
+      "ctaMemo": "New memo",
+      "ctaVoice": "New voice note"
+    },
+    "newNoteDropdown": {
+      "memoLabel": "Memo",
+      "memoDesc": "Text · code blocks · formatting",
+      "voiceLabel": "Voice note",
+      "voiceDesc": "Meeting recording + STT + answer finder"
     },
     "header": {
       "editTitleHint": "Click to edit",

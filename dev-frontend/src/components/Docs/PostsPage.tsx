@@ -126,6 +126,9 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
   const [shareOpen, setShareOpen] = useState(false);
   const [aiOpen, setAiOpen] = useState(false);
   const [aiIntent, setAiIntent] = useState<'manual' | 'ai'>('manual');
+  // 사이클 N+22 — + 버튼 드롭다운 (빈 문서 즉시 / 표는 모달 default table) + 모달 default tab
+  const [newDropdownOpen, setNewDropdownOpen] = useState(false);
+  const [aiDefaultMode, setAiDefaultMode] = useState<'blank' | 'new' | 'brief' | 'table' | undefined>(undefined);
   const [signOpen, setSignOpen] = useState(false);
   // 사이클 O3 — Q knowledge 로 보내기 (post → KbDocument import)
   const [knowledgeBusy, setKnowledgeBusy] = useState(false);
@@ -521,11 +524,25 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
             <TemplateBtn type="button" onClick={openTemplateModal} title={t('templates.openHint', '견적·청구·NDA·제안서·회의록 5종 템플릿에서 시작') as string}>
               {t('templates.btn', '템플릿')}
             </TemplateBtn>
-            <NewBtn type="button" onClick={() => { setAiIntent('manual'); setAiOpen(true); }} title={t('btn.new') as string} aria-label={t('btn.new') as string}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-              </svg>
-            </NewBtn>
+            <NewBtnWrap>
+              <NewBtn type="button" onClick={() => setNewDropdownOpen(v => !v)} title={t('btn.new') as string} aria-label={t('btn.new') as string} aria-expanded={newDropdownOpen}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+                </svg>
+              </NewBtn>
+              {newDropdownOpen && (
+                <NewDropdown onMouseLeave={() => setNewDropdownOpen(false)}>
+                  <NewItem type="button" onClick={() => { setNewDropdownOpen(false); startNew(); }}>
+                    <NewItemTitle>{t('newDropdown.blankLabel', { defaultValue: '빈 문서' }) as string}</NewItemTitle>
+                    <NewItemDesc>{t('newDropdown.blankDesc', { defaultValue: '빈 본문으로 즉시 시작' }) as string}</NewItemDesc>
+                  </NewItem>
+                  <NewItem type="button" onClick={() => { setNewDropdownOpen(false); setAiIntent('manual'); setAiDefaultMode('table'); setAiOpen(true); }}>
+                    <NewItemTitle>{t('newDropdown.tableLabel', { defaultValue: '표' }) as string}</NewItemTitle>
+                    <NewItemDesc>{t('newDropdown.tableDesc', { defaultValue: '계정·자산 등 행/열 데이터' }) as string}</NewItemDesc>
+                  </NewItem>
+                </NewDropdown>
+              )}
+            </NewBtnWrap>
           </HeaderBtnRow>
         </PanelHeader>
 
@@ -623,13 +640,15 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
               )}
               title={t('empty.title') as string}
               description={t('empty.line1') as string}
-              ctaLabel={t('btn.new') as string}
+              ctaLabel={t('newDropdown.blankLabel', { defaultValue: '빈 문서' }) as string}
               ctaIcon={(
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
                   <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
                 </svg>
               )}
               onCta={startNew}
+              secondaryCtaLabel={t('newDropdown.tableLabel', { defaultValue: '표' }) as string}
+              onSecondaryCta={() => { setAiIntent('manual'); setAiDefaultMode('table'); setAiOpen(true); }}
             />
           ) : (
             filtered.map(r => (
@@ -898,7 +917,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
                 {t('empty.line2', '왼쪽 목록에서 기존 문서를 선택하거나, 새로 작성할 수 있습니다.')}
               </>
             )}
-            ctaLabel={t('btn.new') as string}
+            ctaLabel={t('newDropdown.blankLabel', { defaultValue: '빈 문서' }) as string}
             ctaIcon={(
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
                 <line x1="12" y1="5" x2="12" y2="19"/>
@@ -906,6 +925,8 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
               </svg>
             )}
             onCta={startNew}
+            secondaryCtaLabel={t('newDropdown.tableLabel', { defaultValue: '표' }) as string}
+            onSecondaryCta={() => { setAiIntent('manual'); setAiDefaultMode('table'); setAiOpen(true); }}
           />
         )}
       </Content>
@@ -933,12 +954,13 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
       {aiOpen && (
         <PostAiModal
           open={aiOpen}
-          onClose={() => setAiOpen(false)}
+          onClose={() => { setAiOpen(false); setAiDefaultMode(undefined); }}
           businessId={scope.businessId}
           projectId={scope.type === 'project' ? scope.projectId : null}
           onGenerate={startFromAi}
           onBlank={startNew}
           intent={aiIntent}
+          defaultMode={aiDefaultMode}
         />
       )}
 
@@ -1129,6 +1151,27 @@ const NewBtn = styled.button`
   &:hover { background: #0D9488; }
   &:focus-visible { outline: 2px solid #0D9488; outline-offset: 2px; }
 `;
+// 사이클 N+22 — + 드롭다운 (빈 문서 / 표)
+const NewBtnWrap = styled.div`position: relative;`;
+const NewDropdown = styled.div`
+  position: absolute; top: calc(100% + 6px); right: 0;
+  min-width: 220px;
+  background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 10px;
+  box-shadow: 0 8px 24px -6px rgba(15,23,42,0.18);
+  z-index: 100; overflow: hidden;
+  animation: pqDocsNewDdFade 0.12s ease-out;
+  @keyframes pqDocsNewDdFade { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
+`;
+const NewItem = styled.button`
+  display: block; width: 100%; text-align: left;
+  padding: 10px 14px;
+  background: transparent; border: none; cursor: pointer;
+  &:hover { background: #F8FAFC; }
+  &:focus-visible { background: #F0FDFA; outline: none; }
+  & + & { border-top: 1px solid #F1F5F9; }
+`;
+const NewItemTitle = styled.div`font-size: 13px; font-weight: 600; color: #0F172A;`;
+const NewItemDesc = styled.div`font-size: 11px; color: #94A3B8; margin-top: 2px;`;
 const ModalBackdrop = styled.div`
   position: fixed; inset: 0; background: rgba(15,23,42,0.4);
   display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 20px;
