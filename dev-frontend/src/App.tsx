@@ -32,6 +32,8 @@ const ForgotPasswordPage = lazy(() => import('./pages/Login/ForgotPasswordPage')
 const ResetPasswordPage = lazy(() => import('./pages/Login/ResetPasswordPage'));
 const VerifyEmailPage = lazy(() => import('./pages/Login/VerifyEmailPage'));
 const QNotePage = lazy(() => import('./pages/QNote/QNotePage'));
+// 사이클 N+17 hotfix — 메모 분리 창 전용 minimal page (MainLayout 우회)
+const MemoStandalonePage = lazy(() => import('./pages/QNote/MemoStandalonePage'));
 const ProfilePage = lazy(() => import('./pages/Profile/ProfilePage'));
 const WorkspaceSettingsPage = lazy(() => import('./pages/Settings/WorkspaceSettingsPage'));
 const QTalkPage = lazy(() => import('./pages/QTalk/QTalkPage'));
@@ -247,6 +249,12 @@ function App() {
         <Route path="/notes/:sessionId" element={
           <ProtectedRoute>
             <MainLayout><QNotePage /></MainLayout>
+          </ProtectedRoute>
+        } />
+        {/* 사이클 N+17 hotfix — 메모 분리 창 (Document PiP / window.open). MainLayout 우회 = popup 디자인 그대로 */}
+        <Route path="/memo/:id" element={
+          <ProtectedRoute>
+            <MemoStandalonePage />
           </ProtectedRoute>
         } />
 

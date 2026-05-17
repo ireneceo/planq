@@ -34,6 +34,9 @@ interface Props {
   businessId: number;
   existingSessionId?: number | null;
   onCreated?: (session: QNoteSession) => void;
+  // 사이클 N+17 hotfix — 분리 창 (Document PiP / window.open) 안에서 fullscreen popup 으로.
+  // floating 위치/드래그/리사이즈 비활성, ⧉ 분리 버튼 hide, close=window.close().
+  standalone?: boolean;
 }
 
 type SaveState = 'idle' | 'saving' | 'saved' | 'error';
@@ -81,21 +84,21 @@ function timeAgo(t: (k: string, opts?: any) => string, savedAt: number | null): 
 // ─── styled ───
 const fadeIn = keyframes`from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); }`;
 
-const Container = styled.div<{ $x: number; $y: number; $w: number; $h: number; $dragging: boolean }>`
+const Container = styled.div<{ $x: number; $y: number; $w: number; $h: number; $dragging: boolean; $standalone?: boolean }>`
   position: fixed;
-  left: ${(p) => p.$x}px;
-  top: ${(p) => p.$y}px;
-  width: ${(p) => p.$w}px;
-  height: ${(p) => p.$h}px;
+  left: ${(p) => p.$standalone ? '0' : `${p.$x}px`};
+  top: ${(p) => p.$standalone ? '0' : `${p.$y}px`};
+  width: ${(p) => p.$standalone ? '100vw' : `${p.$w}px`};
+  height: ${(p) => p.$standalone ? '100vh' : `${p.$h}px`};
   z-index: 2301;
   background: #FFFFFF;
-  border-radius: 14px;
-  box-shadow: 0 20px 50px -12px rgba(15, 23, 42, 0.28), 0 0 0 1px rgba(15, 23, 42, 0.06);
+  border-radius: ${(p) => p.$standalone ? '0' : '14px'};
+  box-shadow: ${(p) => p.$standalone ? 'none' : '0 20px 50px -12px rgba(15, 23, 42, 0.28), 0 0 0 1px rgba(15, 23, 42, 0.06)'};
   display: flex; flex-direction: column;
   animation: ${fadeIn} 0.16s ease;
-  ${(p) => p.$dragging && css`user-select: none; cursor: grabbing;`}
+  ${(p) => p.$dragging && !p.$standalone && css`user-select: none; cursor: grabbing;`}
 
-  /* 모바일 — 풀스크린, 드래그/리사이즈 무력화 */
+  /* 모바일 — 풀스크린 (standalone 도 동일) */
   @media (max-width: 640px) {
     left: 0 !important; top: 0 !important;
     width: 100vw !important; height: 100vh !important;
@@ -104,10 +107,10 @@ const Container = styled.div<{ $x: number; $y: number; $w: number; $h: number; $
   }
 `;
 
-const Header = styled.div`
+const Header = styled.div<{ $standalone?: boolean }>`
   display: flex; align-items: center; gap: 8px;
   padding: 10px 12px 8px;
-  cursor: grab;
+  cursor: ${(p) => p.$standalone ? 'default' : 'grab'};
   user-select: none;
   flex-shrink: 0;
 
@@ -287,7 +290,7 @@ const IconResize = () => (
 );
 
 // ─── 컴포넌트 ───
-const MemoPopup: React.FC<Props> = ({ open, onClose, businessId, existingSessionId, onCreated }) => {
+const MemoPopup: React.FC<Props> = ({ open, onClose, businessId, existingSessionId, onCreated, standalone = false }) => {
   const { t } = useTranslation('qnote');
 
   // ─── layout (drag/resize) ───
@@ -577,7 +580,9 @@ const MemoPopup: React.FC<Props> = ({ open, onClose, businessId, existingSession
     }
     const id = sessionIdRef.current;
     if (!id) return;  // 빈 상태에서 분리 의미 없음
-    const url = `${window.location.origin}/notes/${id}?detached=1`;
+    // 사이클 N+17 hotfix — 분리 창 전용 minimal route (MainLayout 우회, popup 디자인).
+    // 옛 /notes/{id}?detached=1 은 풀 페이지로 떴음. /memo/{id} 가 사이드바 없이 popup 형태.
+    const url = `${window.location.origin}/memo/${id}`;
 
     // Chrome Document PiP — 진짜 브라우저 밖 floating window
     const dpip = (window as any).documentPictureInPicture;
@@ -614,10 +619,11 @@ const MemoPopup: React.FC<Props> = ({ open, onClose, businessId, existingSession
       ref={containerRef}
       $x={layout.x} $y={layout.y} $w={layout.w} $h={layout.h}
       $dragging={dragging || resizing}
+      $standalone={standalone}
       role="dialog"
       aria-label={t('memoPopup.title')}
     >
-      <Header onMouseDown={startDrag}>
+      <Header $standalone={standalone} onMouseDown={standalone ? undefined : startDrag}>
         <SearchWrap ref={searchWrapRef}>
           <SearchIcon><IconSearch /></SearchIcon>
           <SearchInput
@@ -669,14 +675,16 @@ const MemoPopup: React.FC<Props> = ({ open, onClose, businessId, existingSession
         >
           <IconPlus />
         </HeaderBtn>
-        <HeaderBtn
-          onClick={detachToWindow}
-          title={t('memoPopup.detach') as string}
-          aria-label={t('memoPopup.detach') as string}
-          disabled={!sessionId}
-        >
-          <IconDetach />
-        </HeaderBtn>
+        {!standalone && (
+          <HeaderBtn
+            onClick={detachToWindow}
+            title={t('memoPopup.detach') as string}
+            aria-label={t('memoPopup.detach') as string}
+            disabled={!sessionId}
+          >
+            <IconDetach />
+          </HeaderBtn>
+        )}
         <HeaderBtn
           onClick={handleClose}
           title={t('memoPopup.close') as string}
@@ -710,8 +718,8 @@ const MemoPopup: React.FC<Props> = ({ open, onClose, businessId, existingSession
         </Suspense>
       </Body>
 
-      {/* 8방향 리사이즈 핸들 — corner 4 + edge 4 */}
-      {(['n','s','e','w','nw','ne','sw','se'] as const).map((d) => (
+      {/* 8방향 리사이즈 핸들 — standalone (분리 창) 에선 hide (OS window 자체가 resize) */}
+      {!standalone && (['n','s','e','w','nw','ne','sw','se'] as const).map((d) => (
         <ResizeEdge
           key={d}
           $dir={d}
@@ -719,7 +727,7 @@ const MemoPopup: React.FC<Props> = ({ open, onClose, businessId, existingSession
           aria-label={t('memoPopup.resize') as string}
         />
       ))}
-      <ResizeCornerHint><IconResize /></ResizeCornerHint>
+      {!standalone && <ResizeCornerHint><IconResize /></ResizeCornerHint>}
     </Container>,
     document.body
   );

@@ -26,9 +26,10 @@
     "sidebarOpen": "Open sidebar",
     "sidebarCollapse": "Collapse sidebar",
     "empty": {
-      "title": "Start a recording",
-      "line1": "Real-time speech recognition, translation, and question detection",
-      "line2": "automatically build your meeting notes."
+      "title": "Start a note",
+      "line1": "Jot a quick memo, or record a voice note for meetings —",
+      "line2": "real-time transcription, translation, and Q&A detection do the rest.",
+      "cta": "Start new note"
     },
     "header": {
       "editTitleHint": "Click to edit",
@@ -313,5 +314,24 @@
     "docName": "Document #{{id}}",
     "chunkUnit": "{{count}} chunks",
     "saveBtn": "Save"
+  },
+  "newNoteModal": {
+    "title": "New note",
+    "tabsAria": "Choose note type",
+    "kindMemo": "Memo",
+    "kindMemoHint": "Text — code blocks / formatting",
+    "kindVoice": "Voice note",
+    "kindVoiceHint": "Recording + STT + answer search",
+    "memoDesc": "Starts with an empty body. The first line auto-becomes the title.",
+    "voiceDesc": "Next step sets the recording mode, language, and participants before starting.",
+    "client": "Link client",
+    "clientPh": "Pick client — auto-fills company / contact (optional)",
+    "clientEmpty": "No clients registered",
+    "project": "Link project",
+    "projectPh": "Pick project — auto-maps to client (optional)",
+    "optional": "(optional)",
+    "cancel": "Cancel",
+    "startMemo": "Write memo",
+    "startVoice": "Start voice note"
   }
 }

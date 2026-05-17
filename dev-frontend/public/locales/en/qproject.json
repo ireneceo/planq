@@ -31,8 +31,13 @@
     "completed": "Completed"
   },
   "filter": {
-    "closed": "Show closed",
-    "toggleClosed": "Toggle closed projects"
+    "all": "All",
+    "active": "Active",
+    "paused": "Paused",
+    "closed": "Closed",
+    "searchPlaceholder": "Search by name, client, or description",
+    "noResults": "No projects match the current filter",
+    "clearFilters": "Clear filters"
   },
   "card": {
     "menu": "Project menu",

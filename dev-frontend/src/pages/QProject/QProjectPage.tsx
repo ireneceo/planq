@@ -9,9 +9,11 @@ import { useTimeFormat } from '../../hooks/useTimeFormat';
 import { todayInTz, addDaysStr, detectBrowserTz } from '../../utils/timezones';
 import { colorForProject, lightenColor } from '../../utils/projectColors';
 import NewProjectModal, { type ProjectFormData } from '../QTalk/NewProjectModal';
+import SearchBox from '../../components/Common/SearchBox';
 
 // ─── Types ───
 type ViewMode = 'list' | 'timeline' | 'calendar';
+type StatusFilter = 'all' | 'active' | 'paused' | 'closed';
 
 interface ProjectMemberRow {
   user_id: number;
@@ -86,7 +88,9 @@ const QProjectPage: React.FC = () => {
   const [projects, setProjects] = useState<ProjectRow[]>([]);
   const [tasksByProject, setTasksByProject] = useState<Record<number, TaskRow[]>>({});
   const [newProjectOpen, setNewProjectOpen] = useState(false);
-  const [showClosed, setShowClosed] = useState(false);
+  // 검색 + 상태 필터 (사이클 N+17). 기본은 'active' — 진행 중만 노출. 종료/대기는 명시 선택 시 표시.
+  const [query, setQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('active');
   const handleCreateProject = useCallback(async (data: ProjectFormData & { project_type?: 'fixed' | 'ongoing' }) => {
     if (!user?.business_id) return;
     const res = await apiFetch('/api/projects', {
@@ -161,11 +165,32 @@ const QProjectPage: React.FC = () => {
     });
   }, [projects, tasksByProject, todayStr]);
 
-  // closed 필터링
-  const visibleProjects = useMemo(
-    () => showClosed ? enriched : enriched.filter((p) => p.status !== 'closed'),
-    [enriched, showClosed]
-  );
+  // 상태 + 검색 필터링 (이름·설명·고객사·멤버명 across-field 검색)
+  const visibleProjects = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return enriched.filter((p) => {
+      if (statusFilter !== 'all' && p.status !== statusFilter) return false;
+      if (!q) return true;
+      if (p.name?.toLowerCase().includes(q)) return true;
+      if (p.description?.toLowerCase().includes(q)) return true;
+      if (p.client_company?.toLowerCase().includes(q)) return true;
+      // 멤버 이름 (workspace 표시명 + display_name + base name) 매칭
+      if (p.projectMembers?.some((m) => {
+        const u = m.User;
+        if (!u) return false;
+        const names = [u.display_name, u.name];
+        const locA = u.display_name_localized ? Object.values(u.display_name_localized) : [];
+        const locB = u.name_localized ? Object.values(u.name_localized) : [];
+        return [...names, ...locA, ...locB].some((n) => n?.toLowerCase().includes(q));
+      })) return true;
+      // 고객 contact_name 매칭
+      if (p.projectClients?.some((c) => c.contact_name?.toLowerCase().includes(q))) return true;
+      return false;
+    });
+  }, [enriched, statusFilter, query]);
+
+  const filterActive = query.trim().length > 0 || statusFilter !== 'active';
+  const clearFilters = () => { setQuery(''); setStatusFilter('active'); };
 
   const changeProjectStatus = useCallback(async (projectId: number, next: 'active' | 'paused' | 'closed') => {
     const r = await apiFetch(`/api/projects/${projectId}`, {
@@ -202,13 +227,21 @@ const QProjectPage: React.FC = () => {
               <span>{t('view.calendar')}</span>
             </ViewTab>
           </ViewTabs>
-          <ClosedToggle type="button" $on={showClosed} onClick={() => setShowClosed((v) => !v)}
-            title={t('filter.toggleClosed', '종료된 프로젝트 표시') as string}>
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              {showClosed ? <path d="M20 6L9 17l-5-5"/> : <><circle cx="12" cy="12" r="10"/><line x1="8" y1="12" x2="16" y2="12"/></>}
-            </svg>
-            <span>{t('filter.closed', '종료 포함')}</span>
-          </ClosedToggle>
+          <SearchBox
+            value={query}
+            onChange={setQuery}
+            placeholder={t('filter.searchPlaceholder') as string}
+            width={240}
+          />
+          <FilterSeg role="tablist" aria-label={t('filter.searchPlaceholder') as string}>
+            {(['active', 'paused', 'closed', 'all'] as StatusFilter[]).map((s) => (
+              <FilterSegBtn key={s} type="button" $active={statusFilter === s}
+                role="tab" aria-selected={statusFilter === s}
+                onClick={() => setStatusFilter(s)}>
+                {t(`filter.${s}`)}
+              </FilterSegBtn>
+            ))}
+          </FilterSeg>
           <NewProjectCta type="button" onClick={() => setNewProjectOpen(true)}>+ <span>{t('newProject', '새 프로젝트')}</span></NewProjectCta>
         </>
       }
@@ -232,6 +265,18 @@ const QProjectPage: React.FC = () => {
           <EmptyTitle>{t('empty.title')}</EmptyTitle>
           <EmptyDesc>{t('empty.desc')}</EmptyDesc>
           <EmptyCta type="button" onClick={() => navigate('/talk')}>{t('empty.cta')}</EmptyCta>
+        </EmptyState>
+      ) : visibleProjects.length === 0 ? (
+        <EmptyState>
+          <EmptyIcon aria-hidden>
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
+          </EmptyIcon>
+          <EmptyTitle>{t('filter.noResults')}</EmptyTitle>
+          {filterActive && (
+            <EmptyCta type="button" onClick={clearFilters}>{t('filter.clearFilters')}</EmptyCta>
+          )}
         </EmptyState>
       ) : view === 'list' ? (
         <ListView projects={visibleProjects} formatDate={formatDate} t={t} onOpen={(id) => navigate(`/projects/p/${id}`)} onStatusChange={changeProjectStatus} />
@@ -922,17 +967,22 @@ const ConfirmDanger = styled.button`
   &:hover{ background:#B91C1C; }
 `;
 
-// 상단 closed 토글
-const ClosedToggle = styled.button<{ $on?: boolean }>`
-  display:inline-flex; align-items:center; gap:6px; padding:6px 10px;
-  background:${p => p.$on ? '#F0FDFA' : '#FFFFFF'}; color:${p => p.$on ? '#0F766E' : '#64748B'};
-  border:1px solid ${p => p.$on ? '#99F6E4' : '#E2E8F0'}; border-radius:8px;
-  font-size:12px; font-weight:600; cursor:pointer;
-  &:hover{ border-color:#14B8A6; color:#0F766E; }
-  @media (max-width: 640px) {
-    padding: 6px 8px;
-    span { display: none; }
-  }
+// 상태 필터 세그먼트 (ClientsPage 와 동일 디자인 패턴 — UI 일관성)
+const FilterSeg = styled.div`
+  display: inline-flex; background: #F1F5F9; padding: 3px; border-radius: 8px; gap: 2px;
+  @media (max-width: 640px) { padding: 2px; }
+`;
+const FilterSegBtn = styled.button<{ $active: boolean }>`
+  padding: 6px 12px; border: none;
+  background: ${p => p.$active ? '#FFFFFF' : 'transparent'};
+  color: ${p => p.$active ? '#0F766E' : '#64748B'};
+  border-radius: 6px;
+  font-size: 12px; font-weight: 600; cursor: pointer;
+  box-shadow: ${p => p.$active ? '0 1px 2px rgba(0,0,0,0.06)' : 'none'};
+  transition: color 0.15s, background 0.15s;
+  &:hover { color: #0F766E; }
+  &:focus-visible { outline: 2px solid rgba(15,118,110,0.5); outline-offset: 2px; }
+  @media (max-width: 640px) { padding: 6px 10px; font-size: 11px; }
 `;
 
 // Timeline

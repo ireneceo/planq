@@ -8,7 +8,7 @@
     "newMeeting": "새 음성 노트",
     "newMeetingStart": "새 음성 노트 시작",
     "memoStatus": "메모",
-    "newNoteOrMemo": "새 음성 노트 또는 메모",
+    "newNoteOrMemo": "새 노트",
     "menuVoice": "음성 노트 시작",
     "menuVoiceDesc": "회의 녹음 + STT + 답변 찾기",
     "menuMemo": "메모 작성",
@@ -26,9 +26,10 @@
     "sidebarOpen": "사이드바 열기",
     "sidebarCollapse": "사이드바 닫기",
     "empty": {
-      "title": "녹음을 시작해 보세요",
-      "line1": "실시간 음성 인식, 번역, 질문 감지로",
-      "line2": "음성 노트를 자동으로 만들어드립니다."
+      "title": "노트를 시작해 보세요",
+      "line1": "메모로 빠르게 적거나, 음성 노트로 회의를 녹음하면",
+      "line2": "실시간 받아쓰기·번역·질문 감지가 자동으로 도와드립니다.",
+      "cta": "새 노트 시작"
     },
     "header": {
       "editTitleHint": "클릭하여 수정",
@@ -313,5 +314,24 @@
     "docName": "문서 #{{id}}",
     "chunkUnit": "{{count}} chunks",
     "saveBtn": "저장"
+  },
+  "newNoteModal": {
+    "title": "새 노트",
+    "tabsAria": "노트 종류 선택",
+    "kindMemo": "메모",
+    "kindMemoHint": "텍스트 — 코드블록 / 서식 지원",
+    "kindVoice": "음성 노트",
+    "kindVoiceHint": "회의 녹음 + STT + 답변 찾기",
+    "memoDesc": "빈 본문으로 시작합니다. 제목은 첫 줄에서 자동 추출돼요.",
+    "voiceDesc": "다음 단계에서 녹음 모드·언어·참여자를 설정한 후 시작합니다.",
+    "client": "고객 연결",
+    "clientPh": "고객 선택 — 회사명·담당자 자동 채움 (선택)",
+    "clientEmpty": "등록된 고객 없음",
+    "project": "프로젝트 연결",
+    "projectPh": "프로젝트 선택 — 고객 자동 매핑 (선택)",
+    "optional": "(선택)",
+    "cancel": "취소",
+    "startMemo": "메모 작성",
+    "startVoice": "음성 노트 시작"
   }
 }
