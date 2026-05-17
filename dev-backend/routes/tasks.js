@@ -493,6 +493,7 @@ router.post('/', authenticateToken, async (req, res, next) => {
           await Task.update({ estimated_hours: ai.hours }, { where: { id: task.id } });
           await TaskEstimation.create({
             task_id: task.id,
+            business_id: task.business_id,
             value: ai.hours,
             source: 'ai',
             model: AI_MODEL,
@@ -641,6 +642,7 @@ router.post('/ai-create/confirm', authenticateToken, async (req, res, next) => {
         try {
           await TaskEstimation.create({
             task_id: task.id,
+            business_id: task.business_id,
             value: estimatedHours,
             source: 'ai',
             model: 'gpt-4o-mini',

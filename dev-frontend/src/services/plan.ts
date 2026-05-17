@@ -45,7 +45,32 @@ export interface PlanUsage {
   storage_bytes: number;
   file_count: number;
   cue_actions_this_month: number;
+  // 사이클 N+20 — action_type 별 breakdown.
+  // 키 예시: 'brief', 'docs_generate', 'kb_embed', 'ai_estimate', 'task_summarize', 'qnote_answer', 'post_draft'
+  cue_actions_by_type?: Record<string, number>;
   qnote_minutes_this_month: number;
+}
+
+export interface QnoteEstimate {
+  estimated_minutes: number;
+  current_minutes: number;
+  limit_minutes: number | null;
+  remaining_minutes: number | null;
+  will_exceed: boolean;
+  file_size_bytes: number;
+}
+
+// 사이클 N+20 — Q Note 업로드 전 토큰 예상 (분 단위)
+export async function estimateQnoteUpload(businessId: number, fileSizeBytes: number): Promise<QnoteEstimate> {
+  const { apiFetch } = await import('../contexts/AuthContext');
+  const res = await apiFetch(`/api/plan/${businessId}/qnote/estimate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ file_size_bytes: fileSizeBytes }),
+  });
+  const json = await res.json();
+  if (!json.success) throw new Error(json.message || 'estimate failed');
+  return json.data;
 }
 
 export interface PlanHistoryItem {

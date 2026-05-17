@@ -29,7 +29,17 @@
     "warningSoon": "한도 임박",
     "warningFull": "한도 초과 임박",
     "cueUnit": "회",
-    "qnoteUnit": "분"
+    "qnoteUnit": "분",
+    "cueBreakdown": "Cue 사용 — 기능별 내역",
+    "cueKind": {
+      "brief": "자료정리 (Brief)",
+      "docs_generate": "문서 작성",
+      "kb_embed": "지식 임베딩",
+      "ai_estimate": "예측 시간",
+      "task_summarize": "업무 요약",
+      "qnote_answer": "Q Note 답변",
+      "post_draft": "초안 작성"
+    }
   },
   "comparison": {
     "title": "플랜 비교",

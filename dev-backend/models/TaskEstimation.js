@@ -17,6 +17,13 @@ TaskEstimation.init({
     references: { model: 'tasks', key: 'id' },
     onDelete: 'CASCADE',
   },
+  // 사이클 N+20 — 워크스페이스별 추정 패턴 집계용 (few-shot 학습, 통계).
+  // task.business_id 와 동일 — 입력 시점에 함께 저장.
+  business_id: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: { model: 'businesses', key: 'id' },
+  },
   value: {
     type: DataTypes.DECIMAL(6, 2),
     allowNull: false,
@@ -45,6 +52,7 @@ TaskEstimation.init({
   indexes: [
     { fields: ['task_id', 'created_at'] },
     { fields: ['task_id', 'source'] },
+    { fields: ['business_id', 'created_at'], name: 'idx_biz_created' },
   ],
 });
 
