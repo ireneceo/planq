@@ -28,6 +28,7 @@ import {
   uploadKnowledgeFile,
   type KbDocumentRow, type KbCategory, type KbScope,
 } from '../../services/knowledge';
+import { mapApiError } from '../../utils/apiError';
 import { apiFetch } from '../../contexts/AuthContext';
 import { listProjects, listWorkspaceClients, type ApiProject, type WorkspaceClientRow } from '../../services/qtalk';
 import { fetchWorkspaceFiles, uploadMyFile, formatBytes, type ProjectFile } from '../../services/files';
@@ -61,6 +62,7 @@ const formatDateSafe = (input: string | number | Date | null | undefined, kind: 
 
 const KnowledgePage = () => {
   const { t } = useTranslation('knowledge');
+  const { t: tErr } = useTranslation('errors');
   const { user } = useAuth();
   const businessId = user?.business_id ? Number(user.business_id) : null;
 
@@ -289,8 +291,7 @@ const KnowledgePage = () => {
       await load();
       setTimeout(() => closeModal(), 800);
     } catch (e) {
-      const msg = e instanceof Error ? e.message : 'error';
-      setSubmitError(t('modal.errSave', { msg }) as string);
+      setSubmitError(t('modal.errSave', { msg: mapApiError(e, tErr) }) as string);
     } finally { setSubmitting(false); }
   };
 

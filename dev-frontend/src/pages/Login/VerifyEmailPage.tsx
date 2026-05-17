@@ -3,9 +3,11 @@ import React, { useEffect, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { Link, useParams } from 'react-router-dom';
+import { mapApiError } from '../../utils/apiError';
 
 const VerifyEmailPage: React.FC = () => {
   const { t } = useTranslation('auth');
+  const { t: tErr } = useTranslation('errors');
   const { token } = useParams<{ token: string }>();
   const [state, setState] = useState<'pending' | 'success' | 'error'>('pending');
   const [err, setErr] = useState<string | null>(null);
@@ -21,7 +23,7 @@ const VerifyEmailPage: React.FC = () => {
         if (j.success) setState('success');
         else { setState('error'); setErr(j.message || 'failed'); }
       })
-      .catch(e => { setState('error'); setErr(e instanceof Error ? e.message : 'error'); });
+      .catch(e => { setState('error'); setErr(mapApiError(e, tErr)); });
   }, [token]);
 
   return (

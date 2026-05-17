@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next';
 import { apiFetch } from '../../contexts/AuthContext';
 import { SparkleIcon } from '../../components/Common/Icons';
 import PlanQSelect, { type PlanQSelectOption } from '../../components/Common/PlanQSelect';
+import { mapApiError } from '../../utils/apiError';
 
 type Lang = 'ko' | 'en';
 type Category = 'policy' | 'manual' | 'incident' | 'faq' | 'about' | 'pricing';
@@ -30,6 +31,7 @@ const CATEGORIES: Category[] = ['policy', 'manual', 'incident', 'faq', 'about', 
 
 const KbAiIngestModal: React.FC<Props> = ({ businessId, onClose, onSaved }) => {
   const { t } = useTranslation('knowledge');
+  const { t: tErr } = useTranslation('errors');
   const [step, setStep] = useState<'input' | 'review'>('input');
   const [text, setText] = useState('');
   const [sourceLanguage, setSourceLanguage] = useState<Lang>('ko');
@@ -63,7 +65,7 @@ const KbAiIngestModal: React.FC<Props> = ({ businessId, onClose, onSaved }) => {
         setStep('review');
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'error');
+      setError(mapApiError(e, tErr));
     } finally {
       setAnalyzing(false);
     }
@@ -94,7 +96,7 @@ const KbAiIngestModal: React.FC<Props> = ({ businessId, onClose, onSaved }) => {
       onSaved();
       onClose();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'error');
+      setError(mapApiError(e, tErr));
     } finally {
       setSaving(false);
     }

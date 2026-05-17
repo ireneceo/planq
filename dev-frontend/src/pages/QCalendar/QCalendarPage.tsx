@@ -23,6 +23,7 @@ import TaskDetailDrawer from '../../components/QTask/TaskDetailDrawer';
 import { apiFetch } from '../../contexts/AuthContext';
 import { todayInTz, detectBrowserTz } from '../../utils/timezones';
 import PlanQSelect from '../../components/Common/PlanQSelect';
+import { mapApiError } from '../../utils/apiError';
 
 // ─── URL 싱크 ───
 const readUrl = (search: string) => {
@@ -39,6 +40,7 @@ interface ProjectOption { id: number; name: string; color?: string | null }
 
 const QCalendarPage: React.FC = () => {
   const { t, i18n } = useTranslation('qcalendar');
+  const { t: tErr } = useTranslation('errors');
   const location = useLocation();
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -115,7 +117,7 @@ const QCalendarPage: React.FC = () => {
       });
       setEvents(list);
     } catch (e) {
-      setErrorMsg(e instanceof Error ? e.message : 'failed');
+      setErrorMsg(mapApiError(e, tErr));
     } finally {
       setLoading(false);
     }
@@ -260,7 +262,7 @@ const QCalendarPage: React.FC = () => {
       setShowNewModal(false);
       setSelectedEventId(created.id);
     } catch (e) {
-      setErrorMsg(e instanceof Error ? e.message : 'create_failed');
+      setErrorMsg(mapApiError(e, tErr));
     }
   }, [bizId]);
 
@@ -272,7 +274,7 @@ const QCalendarPage: React.FC = () => {
       const updated = await updateEvent(bizId, selectedEventId, patch);
       setEvents((prev) => prev.map((e) => (e.id === selectedEventId ? updated : e)));
     } catch (e) {
-      setErrorMsg(e instanceof Error ? e.message : 'update_failed');
+      setErrorMsg(mapApiError(e, tErr));
       // 실패 시 재조회로 복구
       fetchRange();
     }
@@ -284,7 +286,7 @@ const QCalendarPage: React.FC = () => {
       const updated = await createMeetingRoom(bizId, selectedEventId);
       setEvents((prev) => prev.map((e) => (e.id === selectedEventId ? updated : e)));
     } catch (e) {
-      setErrorMsg(e instanceof Error ? e.message : 'meeting_create_failed');
+      setErrorMsg(mapApiError(e, tErr));
     }
   }, [selectedEventId, bizId]);
 
@@ -295,7 +297,7 @@ const QCalendarPage: React.FC = () => {
       setEvents((prev) => prev.filter((e) => e.id !== selectedEventId));
       setSelectedEventId(null);
     } catch (e) {
-      setErrorMsg(e instanceof Error ? e.message : 'delete_failed');
+      setErrorMsg(mapApiError(e, tErr));
     }
   }, [selectedEventId, bizId]);
 

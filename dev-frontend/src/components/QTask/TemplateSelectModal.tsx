@@ -13,6 +13,7 @@ import PlanQSelect from '../Common/PlanQSelect';
 import SingleDateField from '../Common/SingleDateField';
 import SearchBox from '../Common/SearchBox';
 import { apiFetch } from '../../contexts/AuthContext';
+import { mapApiError } from '../../utils/apiError';
 
 interface Member { user_id: number; name: string; }
 
@@ -60,6 +61,7 @@ const CATEGORY_LABELS: Record<string, string> = {
 
 export default function TemplateSelectModal({ open, onClose, businessId, projectId, members, onApplied }: Props) {
   const { t } = useTranslation('qtask');
+  const { t: tErr } = useTranslation('errors');
   const [stage, setStage] = useState<Stage>('list');
   const [templates, setTemplates] = useState<Template[]>([]);
   const [loading, setLoading] = useState(false);
@@ -143,7 +145,7 @@ export default function TemplateSelectModal({ open, onClose, businessId, project
       roles.forEach(r => { map[r] = null; });
       setAssigneeMap(map);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'unknown');
+      setError(mapApiError(e, tErr));
     } finally {
       setLoading(false);
     }
@@ -165,7 +167,7 @@ export default function TemplateSelectModal({ open, onClose, businessId, project
       const list: TemplateItem[] = j.data?.items || [];
       setEditItems(list);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'unknown');
+      setError(mapApiError(e, tErr));
     } finally {
       setLoading(false);
     }
@@ -212,7 +214,7 @@ export default function TemplateSelectModal({ open, onClose, businessId, project
       if (j3.success) setTemplates(j3.data || []);
       setStage('list');
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'unknown');
+      setError(mapApiError(e, tErr));
     } finally {
       setSubmitting(false);
     }
@@ -258,7 +260,7 @@ export default function TemplateSelectModal({ open, onClose, businessId, project
       setTemplates(prev => prev.filter(x => x.id !== tpl.id));
       setConfirmDeleteId(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'unknown');
+      setError(mapApiError(err, tErr));
     }
   };
 
@@ -282,7 +284,7 @@ export default function TemplateSelectModal({ open, onClose, businessId, project
       onApplied(j.data?.created || []);
       onClose();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'unknown');
+      setError(mapApiError(e, tErr));
     } finally {
       setSubmitting(false);
     }

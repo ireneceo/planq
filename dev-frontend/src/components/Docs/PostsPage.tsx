@@ -19,6 +19,7 @@ import { uploadMyFile, uploadProjectFile } from '../../services/files';
 import ConfirmDialog from '../Common/ConfirmDialog';
 import PostEditor from './PostEditor';
 import PostTableGrid from './PostTableGrid';
+import { mapApiError } from '../../utils/apiError';
 import { generateHTML } from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
 import Link from '@tiptap/extension-link';
@@ -71,6 +72,7 @@ function inferKindFromTitle(title: string, category: string | null): 'contract' 
 
 const PostsPage: React.FC<Props> = ({ scope }) => {
   const { t } = useTranslation('qdocs');
+  const { t: tErr } = useTranslation('errors');
   const { formatDate } = useTimeFormat();
 
   const [rows, setRows] = useState<PostRow[]>([]);
@@ -374,8 +376,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
         setKnowledgeMsg(t('actions.sendToKnowledgeErr', '추가 실패: {{msg}}', { msg: j.message || 'error' }) as string);
       }
     } catch (e) {
-      const msg = e instanceof Error ? e.message : 'error';
-      setKnowledgeMsg(t('actions.sendToKnowledgeErr', '추가 실패: {{msg}}', { msg }) as string);
+      setKnowledgeMsg(t('actions.sendToKnowledgeErr', '추가 실패: {{msg}}', { msg: mapApiError(e, tErr) }) as string);
     } finally {
       setKnowledgeBusy(false);
       setTimeout(() => setKnowledgeMsg(null), 4000);

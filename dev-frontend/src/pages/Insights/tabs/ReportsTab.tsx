@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import styled from 'styled-components';
 import { fetchTab, generateReport, type RangePreset } from '../../../services/insights';
 import { ErrorBanner, SkeletonGrid, SkeletonCard } from '../components';
+import { mapApiError } from '../../../utils/apiError';
 
 interface Report {
   id: number; kind: string; title: string | null;
@@ -19,6 +20,7 @@ type Kind = 'monthly' | 'quarterly' | 'yearly';
 
 const ReportsTab: React.FC<{ businessId: number; range: RangePreset }> = ({ businessId }) => {
   const { t } = useTranslation('insights');
+  const { t: tErr } = useTranslation('errors');
   const [data, setData] = useState<Data | null>(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
@@ -44,7 +46,7 @@ const ReportsTab: React.FC<{ businessId: number; range: RangePreset }> = ({ busi
       await generateReport(businessId, kind);
       await reload();
     } catch (e) {
-      setGenErr(e instanceof Error ? e.message : String(e));
+      setGenErr(mapApiError(e, tErr));
     } finally {
       setGenerating(null);
     }

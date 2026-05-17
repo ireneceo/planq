@@ -5,7 +5,7 @@
 //   3) GET /api/push/vapid-public-key
 //   4) PushManager.subscribe({ applicationServerKey })
 //   5) POST /api/push/subscribe (endpoint, keys, user_agent)
-import { apiFetch } from '../contexts/AuthContext';
+import { apiFetch, getAccessToken } from '../contexts/AuthContext';
 
 function urlBase64ToUint8Array(base64String: string): Uint8Array {
   const padding = '='.repeat((4 - base64String.length % 4) % 4);
@@ -36,6 +36,8 @@ export async function registerServiceWorker(): Promise<ServiceWorkerRegistration
 }
 
 export async function subscribe(): Promise<{ ok: boolean; reason?: string }> {
+  // 사이클 N+17 — logout 상태면 즉시 return. 로그인 페이지에서 401 무한 retry 회귀 차단.
+  if (!getAccessToken()) return { ok: false, reason: 'not_authenticated' };
   if (!await isPushSupported()) return { ok: false, reason: 'unsupported' };
 
   const perm = await Notification.requestPermission();
@@ -155,6 +157,8 @@ const AUTO_PROMPT_KEY = 'planq:push:lastPrompt';
 const PROMPT_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000; // 7일
 
 export async function autoSubscribeIfPossible(): Promise<{ ok: boolean; reason?: string }> {
+  // 사이클 N+17 — logout 상태 즉시 return (401 무한 retry 차단)
+  if (!getAccessToken()) return { ok: false, reason: 'not_authenticated' };
   if (!(await isPushSupported())) return { ok: false, reason: 'unsupported' };
 
   const perm = Notification.permission;
@@ -196,6 +200,9 @@ export async function autoSubscribeIfPossible(): Promise<{ ok: boolean; reason?:
 //   granted → backend desync 검증 후 미스매치면 재구독 (N+12 회귀 자동 복구)
 export async function syncPermissionOnFocus(): Promise<void> {
   if (!('serviceWorker' in navigator) || typeof Notification === 'undefined') return;
+  // 사이클 N+17 — logout 상태 (accessToken null) 면 즉시 return.
+  // 로그인 페이지에서 focus/visibility 시 push subscribe → 401 → refresh → 401 → 무한 retry 회귀 차단.
+  if (!getAccessToken()) return;
   const perm = Notification.permission;
   if (perm === 'denied') {
     const subbed = await isSubscribed().catch(() => false);

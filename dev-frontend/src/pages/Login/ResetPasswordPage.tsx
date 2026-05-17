@@ -3,9 +3,11 @@ import React, { useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { Link, useNavigate, useParams } from 'react-router-dom';
+import { mapApiError } from '../../utils/apiError';
 
 const ResetPasswordPage: React.FC = () => {
   const { t } = useTranslation('auth');
+  const { t: tErr } = useTranslation('errors');
   const { token } = useParams<{ token: string }>();
   const navigate = useNavigate();
   const [pwd, setPwd] = useState('');
@@ -30,7 +32,7 @@ const ResetPasswordPage: React.FC = () => {
       setDone(true);
       window.setTimeout(() => navigate('/login'), 2000);
     } catch (e) {
-      setErr(e instanceof Error ? e.message : 'error');
+      setErr(mapApiError(e, tErr));
     } finally {
       setSubmitting(false);
     }

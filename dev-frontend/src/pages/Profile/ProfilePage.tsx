@@ -23,6 +23,7 @@ import { MicIcon, CheckIcon, XIcon, TrashIcon } from '../../components/Common/Ic
 import { useTimezones } from '../../hooks/useTimezones';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 import EmailChangeModal from './EmailChangeModal';
+import { mapApiError } from '../../utils/apiError';
 import {
   cityFromTz,
   offsetFromTz,
@@ -53,6 +54,7 @@ type RecPurpose = 'register' | 'verify';
 
 export default function ProfilePage() {
   const { t } = useTranslation('profile');
+  const { t: tErr } = useTranslation('errors');
   const { user, updateUser } = useAuth();
   const { formatDateTime } = useTimeFormat();
   const [fpList, setFpList] = useState<VoiceFingerprintList | null>(null);
@@ -315,7 +317,7 @@ export default function ProfilePage() {
       const s = await getVoiceFingerprints();
       setFpList(s);
     } catch (e) {
-      setError(e instanceof Error ? e.message : t('messages.errorLoadStatus'));
+      setError(mapApiError(e, tErr));
     } finally {
       setLoading(false);
     }
@@ -365,7 +367,7 @@ export default function ProfilePage() {
         if (e >= hardMax) stopRecording();
       }, 100);
     } catch (e) {
-      setError(e instanceof Error ? e.message : t('messages.errorMicPermission'));
+      setError(mapApiError(e, tErr));
       setRecState('error');
     }
   };
@@ -402,7 +404,7 @@ export default function ProfilePage() {
       }
       setRecState('idle');
     } catch (e) {
-      const base = e instanceof Error ? e.message : t('messages.errorProcess');
+      const base = mapApiError(e, tErr);
       const prefix = purpose === 'verify' ? t('messages.errorPrefixVerify') : t('messages.errorPrefixRegister');
       setError(`${prefix}: ${base}`);
       setRecState('idle');
@@ -434,7 +436,7 @@ export default function ProfilePage() {
           await load();
           setSuccess(t('messages.successDeleteLanguage', { label }));
         } catch (e) {
-          setError(e instanceof Error ? e.message : t('messages.errorDelete'));
+          setError(mapApiError(e, tErr));
         }
       },
     });
@@ -452,7 +454,7 @@ export default function ProfilePage() {
           await load();
           setSuccess(t('messages.successDeleteAll'));
         } catch (e) {
-          setError(e instanceof Error ? e.message : t('messages.errorDelete'));
+          setError(mapApiError(e, tErr));
         }
       },
     });
@@ -475,7 +477,7 @@ export default function ProfilePage() {
       if (updateUser) updateUser({ language: code });
       setSuccess(t('messages.successLanguageChanged'));
     } catch (e) {
-      setError(e instanceof Error ? e.message : t('messages.errorLanguageSave'));
+      setError(mapApiError(e, tErr));
     } finally {
       setLangSaving(false);
     }

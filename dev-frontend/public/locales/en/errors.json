@@ -1,0 +1,52 @@
+{
+  "generic": "An error occurred",
+  "network_error": "Please check your network connection",
+  "timeout": "Request timed out. Please try again",
+  "server_error": "A temporary server error occurred. Please try again shortly",
+  "client_error": "Could not process the request",
+
+  "invalid_credentials": "Email or password does not match",
+  "email_password_required": "Please enter both email and password",
+  "refresh_required": "No login information found",
+  "refresh_invalid": "Session expired. Please log in again",
+  "refresh_expired": "Session expired. Please log in again",
+  "account_suspended": "This account is suspended. Please contact admin",
+  "invalid_user": "Invalid user",
+  "unauthenticated": "Login required",
+  "no_workspace": "No workspace available",
+  "rate_limit_login": "Too many login attempts. Please try again shortly",
+  "rate_limit_generic": "Too many requests. Please try again shortly",
+
+  "forbidden": "Permission denied",
+  "owner_only": "Only the author can change this",
+  "not_found": "Not found",
+
+  "business_id_required": "Workspace info is required",
+  "name_required": "Please enter a name",
+  "email_required": "Please enter an email",
+  "invalid_email": "Invalid email format",
+  "message_required": "Please enter a message",
+  "message_too_long": "Message is too long",
+  "endpoint_required": "Endpoint is required",
+
+  "push_unavailable": "Push notifications are unavailable",
+  "push_invalid_subscription": "Push subscription is invalid",
+  "push_invalid_endpoint": "Push endpoint is not allowed",
+
+  "business_not_found": "Workspace not found",
+  "invalid_plan": "Invalid plan code",
+  "invalid_trial_date": "Invalid trial end date",
+
+  "qnote_recording_lock": "Cannot change while recording",
+  "qnote_project_required": "Please select a project",
+  "qnote_not_project_member": "You are not a project member",
+  "qnote_external_consent_required": "External attendee share consent is required",
+  "qnote_link_target_invalid": "Could not find meeting to link",
+  "qnote_link_voice_only": "Can only link to voice meetings",
+
+  "invite_expired": "Invite is expired or invalid",
+  "invite_accept_failed": "Failed to accept invite",
+
+  "unknown_capture_mode": "Unsupported capture mode",
+  "audio_not_supported": "This browser does not support audio features"
+}

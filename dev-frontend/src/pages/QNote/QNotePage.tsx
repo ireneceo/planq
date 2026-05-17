@@ -34,6 +34,7 @@ import {
 import type { QNoteSession, QNoteUtterance, QNoteSpeaker } from '../../services/qnote';
 import { LiveSession } from '../../services/qnoteLive';
 import type { LiveEvent } from '../../services/qnoteLive';
+import { mapApiError } from '../../utils/apiError';
 import {
   MicIcon,
   StopIcon,
@@ -166,6 +167,7 @@ function joinTranslation(segments: BlockSegment[]): { text: string; hasAny: bool
 
 const QNotePage = () => {
   const { t } = useTranslation('qnote');
+  const { t: tErr } = useTranslation('errors');
   const { user } = useAuth();
   const { formatDate: fmtWsDate } = useTimeFormat();
   const businessId = user?.business_id ?? null;
@@ -933,7 +935,7 @@ const QNotePage = () => {
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       console.error('[QNote] live.start failed:', err);
-      let hint = msg;
+      let hint = mapApiError(err, tErr);
       if (/Permission denied|NotAllowedError/i.test(msg)) {
         hint = t('page.errors.permissionDenied');
       } else if (/tab|display/i.test(msg)) {
@@ -1047,7 +1049,7 @@ const QNotePage = () => {
       setActiveSession(detail);
       setSessions((prev) => prev.map((s) => s.id === detail.id ? detail : s));
     } catch (err) {
-      setLiveError(err instanceof Error ? err.message : t('page.errors.sessionCreate'));
+      setLiveError(mapApiError(err, tErr));
     }
   };
 
@@ -1135,7 +1137,7 @@ const QNotePage = () => {
       setPhase('prepared');
       navigate(`/notes/${created.id}`, { replace: true });
     } catch (err) {
-      setLiveError(err instanceof Error ? err.message : t('page.errors.sessionCreate'));
+      setLiveError(mapApiError(err, tErr));
     }
   };
 
@@ -1330,7 +1332,7 @@ const QNotePage = () => {
         [virtualId]: {
           ...prev[virtualId],
           loading: false,
-          error: err instanceof Error ? err.message : t('page.question.manualGenerateError', '답변 생성 실패'),
+          error: mapApiError(err, tErr),
         },
       }));
     } finally {
@@ -1625,7 +1627,7 @@ const QNotePage = () => {
         } catch (err) {
           setAnswerData((prev) => ({
             ...prev,
-            [questionUttId]: { ...prev[questionUttId], error: err instanceof Error ? err.message : t('page.question.findError'), loading: false },
+            [questionUttId]: { ...prev[questionUttId], error: mapApiError(err, tErr), loading: false },
           }));
         }
       };
