@@ -117,13 +117,14 @@ async function getUsage(businessId) {
   //   - 제거된 멤버 제외 (removed_at NOT NULL)
   //   회귀 fix: getUsage().members 가 모든 row 를 count 해서 "8/5 160%" 같은 잘못된 표시 발생.
   //   add_member 가드와 일관 정책 (아래 case 'add_member' 도 동일).
-  const [memberCount, clientCount, projectCount, conversationCount, storageRow, cueThisMonth, qnoteThisMonth] = await Promise.all([
+  const [memberCount, clientCount, projectCount, conversationCount, storageRow, cueThisMonth, cueByType, qnoteThisMonth] = await Promise.all([
     BusinessMember.count({ where: { business_id: key, removed_at: null, role: { [Op.ne]: 'ai' } } }),
     Client.count({ where: { business_id: key } }),
     Project.count({ where: { business_id: key, status: { [Op.in]: ['active', 'paused'] } } }),
     Conversation.count({ where: { business_id: key } }),
     BusinessStorageUsage.findOne({ where: { business_id: key } }),
     getCueActionsThisMonth(key),
+    getCueActionsByTypeThisMonth(key),
     getQnoteMinutesThisMonth(key),
   ]);
 
@@ -135,6 +136,9 @@ async function getUsage(businessId) {
     storage_bytes: storageRow ? Number(storageRow.bytes_used) : 0,
     file_count: storageRow ? storageRow.file_count : 0,
     cue_actions_this_month: cueThisMonth,
+    // 사이클 N+20 — Cue 사용량 action_type 별 breakdown.
+    // 예: { ai_estimate: 12, task_summarize: 5, qnote_answer: 30, post_draft: 8, ... }
+    cue_actions_by_type: cueByType,
     qnote_minutes_this_month: qnoteThisMonth,
   };
   _cacheSet(_usageCache, key, result);
@@ -154,6 +158,24 @@ async function getCueActionsThisMonth(businessId) {
   } catch (e) {
     console.error('[plan] getCueActionsThisMonth failed:', e.message);
     return 0;
+  }
+}
+
+// 사이클 N+20 — action_type 별 breakdown. UsageWarningCard / PlanSettings #usage 에서 사용.
+async function getCueActionsByTypeThisMonth(businessId) {
+  const now = new Date();
+  const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  try {
+    const rows = await CueUsage.findAll({
+      where: { business_id: businessId, year_month: ym },
+      attributes: ['action_type', 'action_count'],
+    });
+    const out = {};
+    for (const r of rows) out[r.action_type] = (out[r.action_type] || 0) + (r.action_count || 0);
+    return out;
+  } catch (e) {
+    console.error('[plan] getCueActionsByTypeThisMonth failed:', e.message);
+    return {};
   }
 }
 

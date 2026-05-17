@@ -110,6 +110,40 @@ router.get('/:businessId/status', authenticateToken, checkBusinessAccess, async 
   } catch (error) { next(error); }
 });
 
+// ─── Q Note 업로드 전 토큰 예상 (사이클 N+20) ───
+// 파일 size 기반 분 수 추정 + 현재 한도 잔여 표시 → 사용자가 업로드 전 확인.
+// 정확도는 ±50% — 추정용이지 정밀 산출 아님. 분 단위 보수적 (1MB ≈ 1분).
+router.post('/:businessId/qnote/estimate', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+  try {
+    const businessId = Number(req.params.businessId);
+    const fileSizeBytes = Number(req.body?.file_size_bytes);
+    if (!fileSizeBytes || fileSizeBytes <= 0) {
+      return errorResponse(res, 'file_size_bytes required', 400);
+    }
+    // 보수적 추정: 평균 STT 음성/영상 1MB ≈ 1분. 최소 1분.
+    const estimatedMinutes = Math.max(1, Math.ceil(fileSizeBytes / (1024 * 1024)));
+
+    const [{ plan }, usage] = await Promise.all([
+      planEngine.getBusinessPlan(businessId),
+      planEngine.getUsage(businessId),
+    ]);
+    const limits = planEngine.getEffectiveLimits ? await planEngine.getEffectiveLimits(businessId) : null;
+    const limitMinutes = limits?.qnote_minutes_monthly ?? plan.limits?.qnote_minutes_monthly ?? null;
+    const currentMinutes = Number(usage.qnote_minutes_this_month || 0);
+    const remainingMinutes = limitMinutes != null ? Math.max(0, limitMinutes - currentMinutes) : null;
+    const willExceed = limitMinutes != null ? (currentMinutes + estimatedMinutes > limitMinutes) : false;
+
+    return successResponse(res, {
+      estimated_minutes: estimatedMinutes,
+      current_minutes: currentMinutes,
+      limit_minutes: limitMinutes,
+      remaining_minutes: remainingMinutes,
+      will_exceed: willExceed,
+      file_size_bytes: fileSizeBytes,
+    });
+  } catch (e) { next(e); }
+});
+
 // ─── 체험 시작 (Starter 이상, 14일) ───
 // 조건: 현재 free + trial_ends_at 비어있음 (재체험 방지)
 router.post('/:businessId/start-trial', authenticateToken, checkBusinessAccess, async (req, res, next) => {

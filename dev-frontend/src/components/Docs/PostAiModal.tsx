@@ -14,6 +14,7 @@ import { createBrief } from '../../services/posts';
 import { listClientsForBilling, type ApiClientLite } from '../../services/invoices';
 import { listProjects, type ApiProject } from '../../services/qtalk';
 import { uploadMyFile } from '../../services/files';
+import { fetchStatus } from '../../services/plan';
 import PlanQSelect, { type PlanQSelectOption } from '../Common/PlanQSelect';
 import AttachmentField from '../Common/AttachmentField';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
@@ -63,6 +64,27 @@ const PostAiModal: React.FC<Props> = ({ open, onClose, businessId, projectId: pa
   const [briefStagedUploads, setBriefStagedUploads] = useState<File[]>([]);
   const [briefExistingIds, setBriefExistingIds] = useState<number[]>([]);
   const [briefPostIds, setBriefPostIds] = useState<number[]>([]);
+
+  // 사이클 N+20 — Cue 사용량 hint + 한도 초과 임박 시 확인 모달
+  const [cueUsage, setCueUsage] = useState<{ current: number; limit: number | null } | null>(null);
+  const [briefConfirmOpen, setBriefConfirmOpen] = useState(false);
+  useEffect(() => {
+    if (!open || !businessId) return;
+    let mounted = true;
+    fetchStatus(businessId)
+      .then((s) => {
+        if (!mounted || !s) return;
+        setCueUsage({
+          current: s.usage?.cue_actions_this_month ?? 0,
+          limit: s.plan?.limits?.cue_actions_monthly ?? null,
+        });
+      })
+      .catch(() => { /* status fetch 실패 — hint 미표시 */ });
+    return () => { mounted = false; };
+  }, [open, businessId]);
+  const cueRemaining = cueUsage?.limit != null ? Math.max(0, cueUsage.limit - cueUsage.current) : null;
+  const cueNearLimit = cueUsage?.limit != null && cueUsage.current / cueUsage.limit >= 0.8;
+  const cueOverLimit = cueUsage?.limit != null && cueUsage.current >= cueUsage.limit;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [usage, setUsage] = useState<{ total: number; limit: number } | null>(null);
@@ -219,10 +241,24 @@ const PostAiModal: React.FC<Props> = ({ open, onClose, businessId, projectId: pa
   // 빈 에디터 진입 — 부모 startNew 호출
   const submitBlank = () => { if (onBlank) { onBlank(); onClose(); } };
 
-  const submit = () => mode === 'blank' ? submitBlank()
-    : mode === 'brief' ? submitBrief()
-    : mode === 'table' ? submitTable()
-    : submitNewDoc();
+  // 사이클 N+20 — brief / new doc 은 AI cue 차감. 한도 초과 임박 시 확인 모달.
+  const submitWithCueGuard = (action: () => void) => {
+    if (cueOverLimit) {
+      // 이미 초과 — 진행 차단 (사용자에게 알리고 업그레이드 유도). modal 안에서 disable.
+      return;
+    }
+    if (cueNearLimit) {
+      setBriefConfirmOpen(true);
+      return;
+    }
+    action();
+  };
+  const submit = () => {
+    if (mode === 'blank') return submitBlank();
+    if (mode === 'table') return submitTable();
+    if (mode === 'brief') return submitWithCueGuard(submitBrief);
+    return submitWithCueGuard(submitNewDoc);
+  };
   const canSubmit = mode === 'blank' ? true
     : mode === 'table' ? true   // 자동 제목으로 즉시 생성, 셀렉터만 채우면 됨
     : mode === 'brief' ? (!!briefText.trim() || briefStagedUploads.length > 0 || briefExistingIds.length > 0 || briefPostIds.length > 0)
@@ -417,12 +453,22 @@ const PostAiModal: React.FC<Props> = ({ open, onClose, businessId, projectId: pa
               {t('ai.usage', '이번 달 사용량')}: <strong>{usage.total} / {usage.limit}</strong>
             </UsageRow>
           )}
+          {/* 사이클 N+20 — Cue 잔여 hint (AI 모드만). 초과 임박/도달 시 강조. */}
+          {intent === 'ai' && cueUsage && cueUsage.limit != null && (mode === 'brief' || mode === 'new') && (
+            <CueHint $danger={cueOverLimit} $warn={cueNearLimit && !cueOverLimit}>
+              {cueOverLimit
+                ? t('ai.cueOver', { defaultValue: 'AI 한도 초과 — 플랜을 업그레이드해야 진행할 수 있어요.' }) as string
+                : cueNearLimit
+                  ? t('ai.cueNear', { remaining: cueRemaining, defaultValue: '잔여 {{remaining}}회 — 진행 시 확인 모달이 뜹니다.' }) as string
+                  : t('ai.cueNormal', { used: cueUsage.current, limit: cueUsage.limit, defaultValue: 'AI 사용 1회 차감 (이번 달 {{used}}/{{limit}})' }) as string}
+            </CueHint>
+          )}
           {error && <ErrorBox>{error}</ErrorBox>}
         </Body>
 
         <Footer>
           <SecondaryBtn type="button" onClick={onClose} disabled={busy}>{t('cancel', '취소')}</SecondaryBtn>
-          <PrimaryBtn type="button" $accent={intent === 'ai'} onClick={submit} disabled={busy || !canSubmit}>
+          <PrimaryBtn type="button" $accent={intent === 'ai'} onClick={submit} disabled={busy || !canSubmit || cueOverLimit}>
             {busy ? (
               <><Spinner />{mode === 'brief'
                 ? t('brief.generating', '작성 중...')
@@ -445,6 +491,35 @@ const PostAiModal: React.FC<Props> = ({ open, onClose, businessId, projectId: pa
             )}
           </PrimaryBtn>
         </Footer>
+
+        {/* 사이클 N+20 — Cue 한도 임박 시 진행 확인 모달 */}
+        {briefConfirmOpen && cueUsage && (
+          <ConfirmOverlay onClick={() => setBriefConfirmOpen(false)}>
+            <ConfirmDialog onClick={(e) => e.stopPropagation()}>
+              <ConfirmTitle>{t('ai.cueConfirmTitle', 'AI 한도 임박 — 진행할까요?')}</ConfirmTitle>
+              <ConfirmDesc>
+                {t('ai.cueConfirmDesc', {
+                  used: cueUsage.current,
+                  limit: cueUsage.limit,
+                  remaining: cueRemaining,
+                  defaultValue: '이번 달 AI 사용 {{used}}/{{limit}} — 잔여 {{remaining}}회. 이 작업은 1회 차감됩니다.',
+                }) as string}
+              </ConfirmDesc>
+              <ConfirmActions>
+                <SecondaryBtn type="button" onClick={() => setBriefConfirmOpen(false)}>
+                  {t('cancel', '취소') as string}
+                </SecondaryBtn>
+                <PrimaryBtn type="button" $accent={true} onClick={() => {
+                  setBriefConfirmOpen(false);
+                  if (mode === 'brief') submitBrief();
+                  else if (mode === 'new') submitNewDoc();
+                }}>
+                  {t('ai.cueConfirmProceed', '진행') as string}
+                </PrimaryBtn>
+              </ConfirmActions>
+            </ConfirmDialog>
+          </ConfirmOverlay>
+        )}
       </Dialog>
     </Backdrop>
   );
@@ -577,4 +652,39 @@ const Spinner = styled.span`
   border-radius: 50%;
   animation: spin 0.7s linear infinite;
   @keyframes spin { to { transform: rotate(360deg); } }
+`;
+
+// 사이클 N+20 — Cue 한도 hint + 확인 모달 styled
+const CueHint = styled.div<{ $danger?: boolean; $warn?: boolean }>`
+  margin-top: 8px;
+  padding: 8px 12px;
+  background: ${p => p.$danger ? '#FEF2F2' : p.$warn ? '#FFFBEB' : '#F0FDFA'};
+  border: 1px solid ${p => p.$danger ? '#FECACA' : p.$warn ? '#FDE68A' : '#99F6E4'};
+  color: ${p => p.$danger ? '#991B1B' : p.$warn ? '#78350F' : '#0F766E'};
+  border-radius: 8px;
+  font-size: 12px; font-weight: 500;
+`;
+const ConfirmOverlay = styled.div`
+  position: absolute; inset: 0;
+  background: rgba(15,23,42,0.45);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 10;
+  border-radius: 14px;
+`;
+const ConfirmDialog = styled.div`
+  background: #FFFFFF;
+  border-radius: 12px;
+  padding: 20px 22px;
+  max-width: 380px; width: 90%;
+  box-shadow: 0 16px 48px rgba(15,23,42,0.25);
+  display: flex; flex-direction: column; gap: 12px;
+`;
+const ConfirmTitle = styled.div`
+  font-size: 15px; font-weight: 700; color: #0F172A;
+`;
+const ConfirmDesc = styled.div`
+  font-size: 13px; color: #475569; line-height: 1.6;
+`;
+const ConfirmActions = styled.div`
+  display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px;
 `;

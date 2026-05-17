@@ -376,7 +376,9 @@
   "usageWarn": {
     "title": "Approaching plan limits",
     "titleOver": "Some plan limits are exceeded",
+    "subtitleOver": "New additions are blocked while over limit. Upgrade your plan or remove existing items.",
     "cta": "Plans & Add-ons",
+    "ctaUpgrade": "Upgrade now",
     "detail": "View usage",
     "overBy": "({{count}} over)",
     "members": "Members",

@@ -29,7 +29,17 @@
     "warningSoon": "Approaching limit",
     "warningFull": "Near limit",
     "cueUnit": "actions",
-    "qnoteUnit": "minutes"
+    "qnoteUnit": "minutes",
+    "cueBreakdown": "Cue Usage — By Feature",
+    "cueKind": {
+      "brief": "Brief",
+      "docs_generate": "Doc Generation",
+      "kb_embed": "Knowledge Embedding",
+      "ai_estimate": "Time Estimation",
+      "task_summarize": "Task Summary",
+      "qnote_answer": "Q Note Answer",
+      "post_draft": "Draft"
+    }
   },
   "comparison": {
     "title": "Compare Plans",

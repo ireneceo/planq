@@ -376,7 +376,9 @@
   "usageWarn": {
     "title": "한도가 거의 찼습니다",
     "titleOver": "한도를 초과한 항목이 있어요",
+    "subtitleOver": "초과 상태에선 신규 추가가 차단됩니다. 플랜을 올리거나 기존 항목을 정리하세요.",
     "cta": "플랜·Add-on",
+    "ctaUpgrade": "지금 업그레이드",
     "detail": "사용량 자세히",
     "overBy": "({{count}} 초과)",
     "members": "멤버",

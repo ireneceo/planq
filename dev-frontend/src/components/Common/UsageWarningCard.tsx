@@ -78,14 +78,23 @@ const UsageWarningCard: React.FC<Props> = ({ businessId }) => {
   return (
     <Wrap role="alert" $over={anyOver}>
       <Header>
-        <Title $over={anyOver}>
-          {anyOver
-            ? t('usageWarn.titleOver', '한도를 초과한 항목이 있어요')
-            : t('usageWarn.title', '한도가 거의 찼습니다')}
-        </Title>
+        <TitleArea>
+          <Title $over={anyOver}>
+            {anyOver
+              ? t('usageWarn.titleOver', '한도를 초과한 항목이 있어요')
+              : t('usageWarn.title', '한도가 거의 찼습니다')}
+          </Title>
+          {anyOver && (
+            <Subtitle>{t('usageWarn.subtitleOver', '초과 상태에선 신규 추가가 차단됩니다. 플랜을 올리거나 기존 항목을 정리하세요.')}</Subtitle>
+          )}
+        </TitleArea>
         <CtaGroup>
           <CtaLink to="/business/settings/plan#usage">{t('usageWarn.detail', '사용량 자세히')}</CtaLink>
-          <CtaLink to="/business/settings/plan" $primary>{t('usageWarn.cta', '플랜·Add-on')}</CtaLink>
+          <CtaPrimary to="/business/settings/plan" $danger={anyOver}>
+            {anyOver
+              ? t('usageWarn.ctaUpgrade', '지금 업그레이드')
+              : t('usageWarn.cta', '플랜·Add-on')}
+          </CtaPrimary>
         </CtaGroup>
       </Header>
       <List>
@@ -136,23 +145,41 @@ const Wrap = styled.div<{ $over?: boolean }>`
   margin-bottom: 16px;
 `;
 const Header = styled.div`
-  display: flex; align-items: center; justify-content: space-between;
+  display: flex; align-items: flex-start; justify-content: space-between;
   gap: 12px;
   margin-bottom: 10px;
   flex-wrap: wrap;
+`;
+const TitleArea = styled.div`
+  display: flex; flex-direction: column; gap: 2px;
+  flex: 1; min-width: 200px;
 `;
 const Title = styled.div<{ $over?: boolean }>`
   font-size: 14px; font-weight: 700;
   color: ${p => p.$over ? '#991B1B' : '#78350F'};
 `;
-const CtaGroup = styled.div`
-  display: flex; align-items: center; gap: 12px;
+const Subtitle = styled.div`
+  font-size: 12px; color: #991B1B; line-height: 1.5;
 `;
-const CtaLink = styled(Link)<{ $primary?: boolean }>`
+const CtaGroup = styled.div`
+  display: flex; align-items: center; gap: 8px; flex-shrink: 0;
+`;
+const CtaLink = styled(Link)`
   font-size: 13px; font-weight: 600;
-  color: ${p => p.$primary ? '#B45309' : '#64748B'};
-  text-decoration: underline;
-  &:hover { color: ${p => p.$primary ? '#92400E' : '#334155'}; }
+  color: #64748B; text-decoration: underline;
+  &:hover { color: #334155; }
+`;
+// 사이클 N+20 — 초과 상태일 때 Primary 강조 (Danger red), 경고만일 때 amber.
+const CtaPrimary = styled(Link)<{ $danger?: boolean }>`
+  display: inline-flex; align-items: center;
+  height: 36px; padding: 0 14px;
+  font-size: 13px; font-weight: 600;
+  color: #FFFFFF;
+  background: ${p => p.$danger ? '#DC2626' : '#B45309'};
+  border-radius: 8px;
+  text-decoration: none;
+  transition: background 0.15s;
+  &:hover { background: ${p => p.$danger ? '#B91C1C' : '#92400E'}; }
 `;
 const OverBy = styled.span`
   font-size: 11px;

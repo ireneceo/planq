@@ -248,6 +248,26 @@ const PlanSettings: React.FC<Props> = ({ businessId }) => {
             t={t}
           />
         </UsageGrid>
+        {/* 사이클 N+20 — Cue 사용량 기능별 breakdown.
+            cue_actions_by_type 응답 있을 때만 (이번 달 사용 0 이면 객체 비어있을 수 있음). */}
+        {usage.cue_actions_by_type && Object.keys(usage.cue_actions_by_type).length > 0 && (
+          <CueBreakdown>
+            <CueBreakdownTitle>{t('usage.cueBreakdown', 'Cue 사용 — 기능별 내역')}</CueBreakdownTitle>
+            <CueBreakdownList>
+              {Object.entries(usage.cue_actions_by_type)
+                .sort((a, b) => b[1] - a[1])
+                .map(([kind, count]) => (
+                  <CueBreakdownRow key={kind}>
+                    <CueBreakdownLabel>{t(`usage.cueKind.${kind}`, kind)}</CueBreakdownLabel>
+                    <CueBreakdownBar>
+                      <CueBreakdownFill style={{ width: `${Math.min(100, (count / Math.max(1, usage.cue_actions_this_month)) * 100)}%` }} />
+                    </CueBreakdownBar>
+                    <CueBreakdownCount>{count}</CueBreakdownCount>
+                  </CueBreakdownRow>
+                ))}
+            </CueBreakdownList>
+          </CueBreakdown>
+        )}
       </Section>
 
       {/* 비교표 */}
@@ -870,4 +890,46 @@ const ReceiptLink = styled.a`
   text-decoration: none; padding: 4px 10px;
   border: 1px solid #5EEAD4; border-radius: 6px;
   &:hover { background: #F0FDFA; }
+`;
+
+// 사이클 N+20 — Cue 사용량 기능별 breakdown
+const CueBreakdown = styled.div`
+  margin-top: 16px;
+  padding: 14px 16px;
+  background: #F8FAFC;
+  border: 1px solid #E2E8F0;
+  border-radius: 10px;
+`;
+const CueBreakdownTitle = styled.div`
+  font-size: 12px; font-weight: 700; color: #64748B;
+  text-transform: uppercase; letter-spacing: 0.4px;
+  margin-bottom: 10px;
+`;
+const CueBreakdownList = styled.div`
+  display: flex; flex-direction: column; gap: 8px;
+`;
+const CueBreakdownRow = styled.div`
+  display: grid;
+  grid-template-columns: 140px 1fr 60px;
+  align-items: center;
+  gap: 12px;
+  @media (max-width: 640px) {
+    grid-template-columns: 1fr 50px;
+    grid-template-rows: auto auto;
+    gap: 4px;
+    & > :nth-child(2) { grid-column: 1 / -1; }
+  }
+`;
+const CueBreakdownLabel = styled.div`
+  font-size: 13px; color: #0F172A; font-weight: 500;
+`;
+const CueBreakdownBar = styled.div`
+  height: 6px; background: #E2E8F0; border-radius: 999px; overflow: hidden;
+`;
+const CueBreakdownFill = styled.div`
+  height: 100%; background: #14B8A6;
+  transition: width 0.3s;
+`;
+const CueBreakdownCount = styled.div`
+  font-size: 13px; color: #0F766E; font-weight: 700; text-align: right;
 `;

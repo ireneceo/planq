@@ -110,6 +110,7 @@ async function applyTemplate({ templateId, businessId, projectId = null, startDa
       try {
         await TaskEstimation.create({
           task_id: task.id,
+          business_id: task.business_id,
           value: Number(item.estimated_hours),
           source: 'ai',
           model: 'task_template',
