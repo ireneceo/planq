@@ -160,7 +160,7 @@ const PersonalVaultPage: React.FC = () => {
             <StatValue>{summary.counts.files}</StatValue>
           </Stat>
           <Stat>
-            <StatLabel>{t('common:vault.tab.kb', { defaultValue: '지식' }) as string}</StatLabel>
+            <StatLabel>{t('common:vault.tab.kb', { defaultValue: '정보' }) as string}</StatLabel>
             <StatValue>{summary.counts.kb_documents}</StatValue>
           </Stat>
           {summary.recent.posts.length > 0 && (
@@ -191,7 +191,7 @@ const PersonalVaultPage: React.FC = () => {
           )}
           {summary.recent.kb_documents.length > 0 && (
             <Section>
-              <SectionTitle>{t('common:vault.recent.kb', '최근 지식') as string}</SectionTitle>
+              <SectionTitle>{t('common:vault.recent.kb', '최근 정보') as string}</SectionTitle>
               <List>
                 {summary.recent.kb_documents.map(k => (
                   <Row key={k.id} onClick={() => navigate(`/info?doc=${k.id}`)}>
@@ -214,63 +214,79 @@ const PersonalVaultPage: React.FC = () => {
       )}
 
       {tab === 'posts' && posts && (
-        <ListWrap>
-          {posts.length === 0 ? (
+        posts.length === 0 ? (
+          <EmptyWrap>
             <EmptyState title={t('common:vault.empty.posts', '개인 문서 없음') as string}
               description={t('common:vault.empty.postsBody', { defaultValue: 'Q docs 에서 프로젝트 미연결로 작성한 문서가 여기에 모입니다.' }) as string} />
-          ) : posts.map(p => (
-            <Card key={p.id} onClick={() => navigate(`/docs?post=${p.id}`)}>
-              <CardTitle>{p.title}</CardTitle>
-              <CardMeta>{p.kind} · {p.category || t('common:vault.uncategorized', '미분류') as string}</CardMeta>
-            </Card>
-          ))}
-        </ListWrap>
+          </EmptyWrap>
+        ) : (
+          <ListWrap>
+            {posts.map(p => (
+              <Card key={p.id} onClick={() => navigate(`/docs?post=${p.id}`)}>
+                <CardTitle>{p.title}</CardTitle>
+                <CardMeta>{p.kind} · {p.category || t('common:vault.uncategorized', '미분류') as string}</CardMeta>
+              </Card>
+            ))}
+          </ListWrap>
+        )
       )}
 
       {tab === 'files' && files && (
-        <ListWrap>
-          {files.length === 0 ? (
+        files.length === 0 ? (
+          <EmptyWrap>
             <EmptyState title={t('common:vault.empty.files', '개인 파일 없음') as string}
               description={t('common:vault.empty.filesBody', { defaultValue: 'Q file 에서 프로젝트 미연결로 올린 파일이 여기에 모입니다.' }) as string} />
-          ) : files.map(f => (
-            <Card key={f.id} onClick={() => navigate(`/files?file=${f.id}`)}>
-              <CardTitle>{f.file_name}</CardTitle>
-              <CardMeta>{f.mime_type} · {formatBytes(f.file_size)}</CardMeta>
-            </Card>
-          ))}
-        </ListWrap>
+          </EmptyWrap>
+        ) : (
+          <ListWrap>
+            {files.map(f => (
+              <Card key={f.id} onClick={() => navigate(`/files?file=${f.id}`)}>
+                <CardTitle>{f.file_name}</CardTitle>
+                <CardMeta>{f.mime_type} · {formatBytes(f.file_size)}</CardMeta>
+              </Card>
+            ))}
+          </ListWrap>
+        )
       )}
 
       {tab === 'kb' && kbs && (
-        <ListWrap>
-          {kbs.length === 0 ? (
+        kbs.length === 0 ? (
+          <EmptyWrap>
             <EmptyState title={t('common:vault.empty.kb', '개인 정보 없음') as string}
               description={t('common:vault.empty.kbBody', { defaultValue: 'Q info 에서 \\u0027개인\\u0027 으로 저장한 정보가 여기에 모입니다.' }) as string} />
-          ) : kbs.map(k => (
-            <Card key={k.id} onClick={() => navigate(`/info?doc=${k.id}`)}>
-              <CardTitle>{k.title}</CardTitle>
-              <CardMeta>{k.source_type}</CardMeta>
-            </Card>
-          ))}
-        </ListWrap>
+          </EmptyWrap>
+        ) : (
+          <ListWrap>
+            {kbs.map(k => (
+              <Card key={k.id} onClick={() => navigate(`/info?doc=${k.id}`)}>
+                <CardTitle>{k.title}</CardTitle>
+                <CardMeta>{k.source_type}</CardMeta>
+              </Card>
+            ))}
+          </ListWrap>
+        )
       )}
 
       {tab === 'notes' && sessions && (
-        <ListWrap>
-          {sessions.length === 0 ? (
+        sessions.length === 0 ? (
+          <EmptyWrap>
             <EmptyState title={t('common:vault.empty.notes', '개인 노트 없음') as string}
               description={t('common:vault.empty.notesBody', { defaultValue: 'Q note 에서 만든 회의 메모·녹음·트랜스크립트가 여기에 모입니다.' }) as string} />
-          ) : sessions.map(s => (
-            <Card key={s.id} onClick={() => navigate(`/notes?session=${s.id}`)}>
-              <CardTitle>{s.title}</CardTitle>
-              <CardMeta>
-                {s.status === 'recording' ? '녹음 중' : s.status === 'completed' ? '완료' : s.status}
-                {s.utterance_count > 0 && ` · 발화 ${s.utterance_count}`}
-                {s.duration_seconds > 0 && ` · ${Math.round(s.duration_seconds / 60)}분`}
-              </CardMeta>
-            </Card>
-          ))}
-        </ListWrap>
+          </EmptyWrap>
+        ) : (
+          <ListWrap>
+            {sessions.map(s => (
+              <Card key={s.id} onClick={() => navigate(`/notes?session=${s.id}`)}>
+                <CardTitle>{s.title}</CardTitle>
+                <CardMeta>
+                  {s.status === 'recording' ? '녹음 중' : s.status === 'completed' ? '완료' : s.status}
+                  {s.utterance_count > 0 && ` · 발화 ${s.utterance_count}`}
+                  {s.duration_seconds > 0 && ` · ${Math.round(s.duration_seconds / 60)}분`}
+                </CardMeta>
+              </Card>
+            ))}
+          </ListWrap>
+        )
       )}
     </PageShell>
   );
@@ -365,7 +381,11 @@ const Card = styled.div`
 const CardTitle = styled.div` font-size: 14px; color: #0F172A; font-weight: 600; margin-bottom: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; `;
 const CardMeta = styled.div` font-size: 11px; color: #94A3B8; `;
 
-const EmptyWrap = styled.div` padding: 32px 0; `;
+const EmptyWrap = styled.div`
+  padding: 48px 16px;
+  display: flex; align-items: center; justify-content: center;
+  min-height: 280px;
+`;
 
 const SkWrap = styled.div` display: flex; flex-direction: column; gap: 8px; `;
 const SkRow = styled.div`
