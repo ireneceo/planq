@@ -81,6 +81,10 @@ const WeeklyReview = require('./WeeklyReview');
 const WeeklyReviewSetting = require('./WeeklyReviewSetting');
 // ─── 워크스페이스 통합 주간 보고서 (사이클 N+18) ───
 const BusinessWeeklyReport = require('./BusinessWeeklyReport');
+// ─── 멤버 권한 + 상태 전이 히스토리 (사이클 N+21) ───
+const BusinessMemberPermission = require('./BusinessMemberPermission');
+const ProjectStatusHistory = require('./ProjectStatusHistory');
+const InvoiceStatusHistory = require('./InvoiceStatusHistory');
 // ─── Refresh Token (다중 디바이스 세션) ───
 const RefreshToken = require('./RefreshToken');
 
@@ -446,6 +450,9 @@ module.exports = {
   WeeklyReview,
   WeeklyReviewSetting,
   BusinessWeeklyReport,
+  BusinessMemberPermission,
+  ProjectStatusHistory,
+  InvoiceStatusHistory,
   RefreshToken,
 };
 
@@ -531,6 +538,21 @@ User.hasMany(WeeklyReview, { as: 'weeklyReviews', foreignKey: 'user_id' });
 BusinessWeeklyReport.belongsTo(Business, { foreignKey: 'business_id' });
 BusinessWeeklyReport.belongsTo(User, { as: 'finalizer', foreignKey: 'finalized_by_user_id' });
 Business.hasMany(BusinessWeeklyReport, { as: 'workspaceWeeklyReports', foreignKey: 'business_id' });
+
+// BusinessMemberPermission — 멤버 메뉴 권한 (사이클 N+21)
+BusinessMemberPermission.belongsTo(Business, { foreignKey: 'business_id' });
+BusinessMemberPermission.belongsTo(User, { foreignKey: 'user_id' });
+BusinessMemberPermission.belongsTo(User, { as: 'updater', foreignKey: 'updated_by' });
+Business.hasMany(BusinessMemberPermission, { as: 'memberPermissions', foreignKey: 'business_id' });
+User.hasMany(BusinessMemberPermission, { as: 'menuPermissions', foreignKey: 'user_id' });
+
+// ProjectStatusHistory + InvoiceStatusHistory (사이클 N+21)
+ProjectStatusHistory.belongsTo(Project, { foreignKey: 'project_id' });
+ProjectStatusHistory.belongsTo(User, { as: 'changer', foreignKey: 'changed_by' });
+Project.hasMany(ProjectStatusHistory, { as: 'statusHistory', foreignKey: 'project_id' });
+InvoiceStatusHistory.belongsTo(Invoice, { foreignKey: 'invoice_id' });
+InvoiceStatusHistory.belongsTo(User, { as: 'changer', foreignKey: 'changed_by' });
+Invoice.hasMany(InvoiceStatusHistory, { as: 'statusHistory', foreignKey: 'invoice_id' });
 
 // RefreshToken — 다중 디바이스 세션
 RefreshToken.belongsTo(User, { foreignKey: 'user_id', onDelete: 'CASCADE' });

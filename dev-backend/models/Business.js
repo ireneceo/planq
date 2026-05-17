@@ -227,6 +227,12 @@ Business.init({
     type: DataTypes.JSON,
     allowNull: true,
     defaultValue: { financial: 'all', schedule: 'all', client_info: 'all' },
+  },
+  // 사이클 N+21 — 새 청구서 발행 시 owner_user_id 기본값 (PERMISSION_MATRIX §5 Layer 4).
+  // Q Bill write 권한자 (owner/admin 또는 명시 write member) 중 선택.
+  default_billing_owner_id: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
   }
 }, {
   sequelize,

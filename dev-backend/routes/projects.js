@@ -358,6 +358,20 @@ router.put('/:id', authenticateToken, async (req, res, next) => {
         { where: { project_id: project.id, status: 'active' } },
       );
     }
+    // 사이클 N+21 — Project 상태 전이 history 박제
+    if (patch.status && patch.status !== prevStatus) {
+      try {
+        const { ProjectStatusHistory } = require('../models');
+        await ProjectStatusHistory.create({
+          project_id: project.id,
+          business_id: project.business_id,
+          from_status: prevStatus,
+          to_status: patch.status,
+          changed_by: req.user.id,
+          note: null,
+        });
+      } catch (e) { console.warn('[ProjectStatusHistory create]', e.message); }
+    }
     // 외부 클라우드 폴더 이름 동기화 (이름 변경됨 + 매핑 존재)
     if (patch.name && patch.name !== prevName) {
       const { BusinessCloudToken } = require('../models');

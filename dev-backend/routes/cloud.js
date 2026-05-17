@@ -270,6 +270,13 @@ router.delete('/disconnect/:provider/:businessId', authenticateToken, checkBusin
     if (!['gdrive', 'gcal'].includes(provider)) return errorResponse(res, 'unknown provider', 400);
     await BusinessCloudToken.destroy({ where: { business_id: businessId, provider } });
     // 주의: 외부 클라우드의 실제 파일/이벤트는 그대로 남음 (의도된 동작)
+    // 사이클 N+21 — audit
+    require('../services/auditService').logAudit(req, {
+      action: 'cloud.disconnect',
+      targetType: 'business_cloud_token',
+      targetId: Number(businessId),
+      oldValue: { provider },
+    });
     successResponse(res, null, 'Disconnected');
   } catch (error) { next(error); }
 });

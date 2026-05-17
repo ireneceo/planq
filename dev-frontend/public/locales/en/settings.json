@@ -370,5 +370,52 @@
         "2": "Try again in Chrome / Edge / Samsung Internet, or iOS Safari"
       }
     }
+  },
+  "matrix": {
+    "title": "Member menu permissions",
+    "desc": "Adjust per-menu view/read/write per member. Default is full write — restrict only if needed. Owners and admins always have full access.",
+    "loading": "Loading...",
+    "ownerOnlyHint": "Only the workspace owner can make changes.",
+    "col": { "member": "Member", "role": "Role" },
+    "writableCount": "Writable members",
+    "warnNoQbillWrite": "⚠ No member has Q Bill write access — invoices cannot be issued. At least 1 recommended."
+  },
+  "role": {
+    "owner": "Owner",
+    "admin": "Admin",
+    "member": "Member",
+    "promote": "Promote",
+    "demote": "Demote"
+  },
+  "level": {
+    "write": "Write",
+    "read": "Read",
+    "none": "Hide"
+  },
+  "menu": {
+    "qtalk": "Q Talk",
+    "qtask": "Q Task",
+    "qnote": "Q Note",
+    "qdocs": "Q docs",
+    "qbill": "Q Bill",
+    "qcalendar": "Q Calendar",
+    "qfile": "Q File",
+    "clients": "Clients",
+    "insights": "Insights"
+  },
+  "confirm": {
+    "promoteAdminTitle": "Promote to admin",
+    "promoteAdmin": "Promote {{name}} to admin? Admins have almost all permissions except HR, billing settings, and tax invoices."
+  },
+  "billing": {
+    "title": "Default billing owner",
+    "desc": "New invoices are auto-assigned to this owner. Only members with Q Bill write access can be selected.",
+    "loading": "Loading...",
+    "label": "Default billing owner",
+    "noneOption": "(none)",
+    "hint": "Select from {{count}} Q Bill writers. New invoices auto-assign this owner."
+  },
+  "common": {
+    "saved": "Saved"
   }
 }

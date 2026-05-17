@@ -6,6 +6,9 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import styled, { css, keyframes } from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { apiFetch } from '../../contexts/AuthContext';
+// 사이클 N+21 — 멤버 매트릭스 + 기본 청구 담당
+import MemberPermissionMatrix from '../../components/Permissions/MemberPermissionMatrix';
+import DefaultBillingOwnerSection from '../../components/Permissions/DefaultBillingOwnerSection';
 
 type ToggleKey = 'financial' | 'schedule' | 'client_info';
 type ToggleValue = 'all' | 'pm';
@@ -194,6 +197,10 @@ const PermissionsSettings: React.FC<Props> = ({ businessId, isOwner }) => {
           </Card>
         ))}
       </Grid>
+
+      {/* 사이클 N+21 — 멤버별 메뉴 권한 매트릭스 + 기본 청구 담당 */}
+      <MemberPermissionMatrix businessId={businessId} isOwner={isOwner} />
+      <DefaultBillingOwnerSection businessId={businessId} isOwner={isOwner} />
     </Wrap>
   );
 };

@@ -2,6 +2,23 @@ const express = require('express');
 const router = express.Router();
 const { Invoice, InvoiceItem, InvoiceInstallment, Client, User, Business, Post, Conversation, Message } = require('../models');
 const { authenticateToken, checkBusinessAccess } = require('../middleware/auth');
+const { requireMenu } = require('../middleware/menu_permission');
+
+// 사이클 N+21 — Invoice 상태 전이 history 박제 헬퍼
+async function recordInvoiceStatusChange(invoice, fromStatus, toStatus, userId, note = null) {
+  if (!toStatus || fromStatus === toStatus) return;
+  try {
+    const { InvoiceStatusHistory } = require('../models');
+    await InvoiceStatusHistory.create({
+      invoice_id: invoice.id,
+      business_id: invoice.business_id,
+      from_status: fromStatus,
+      to_status: toStatus,
+      changed_by: userId,
+      note,
+    });
+  } catch (e) { console.warn('[InvoiceStatusHistory create]', e.message); }
+}
 const { attachWorkspaceScope, invoiceListWhere, canAccessInvoice, isMemberOrAbove } = require('../middleware/access_scope');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const { sequelize } = require('../config/database');
@@ -268,7 +285,7 @@ router.get('/:businessId', authenticateToken, attachWorkspaceScope(), async (req
 });
 
 // Create invoice (Invoice + Items 를 단일 transaction 으로 원자화)
-router.post('/:businessId', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+router.post('/:businessId', authenticateToken, checkBusinessAccess, requireMenu('qbill','write'), async (req, res, next) => {
   const t = await sequelize.transaction();
   try {
     const {
@@ -500,7 +517,7 @@ router.get('/:businessId/:id', authenticateToken, attachWorkspaceScope(), async 
 //  - send_chat: 해당 client/project 의 기존 conversation 자동 검색 → 결제 요청 카드 메시지 (없으면 무시)
 //  - send_email: 공개 링크 + 메모로 이메일 발송 (recipient_email 또는 client.email)
 //  - 새 채팅방 자동 생성 금지
-router.post('/:businessId/:id/send', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+router.post('/:businessId/:id/send', authenticateToken, checkBusinessAccess, requireMenu('qbill','write'), async (req, res, next) => {
   if (!assertInvoiceMutationOwner(req, res)) return;
   const t = await sequelize.transaction();
   try {
@@ -513,9 +530,12 @@ router.post('/:businessId/:id/send', authenticateToken, checkBusinessAccess, asy
     if (!invoice) { await t.rollback(); return errorResponse(res, 'Invoice not found', 404); }
     if (invoice.status !== 'draft') { await t.rollback(); return errorResponse(res, 'invalid_state — only draft can be sent', 400); }
     const crypto = require('crypto');
+    const prevStatus = invoice.status;
     const updates = { status: 'sent', issued_at: new Date(), sent_at: new Date() };
     if (!invoice.share_token) updates.share_token = crypto.randomBytes(32).toString('hex');
     await invoice.update(updates, { transaction: t });
+    // 사이클 N+21 — status history 박제 (트랜잭션 outside, best-effort)
+    setImmediate(() => recordInvoiceStatusChange(invoice, prevStatus, 'sent', req.user.id, 'send invoice'));
     if (invoice.installment_mode === 'split') {
       await InvoiceInstallment.update(
         { status: 'sent' },
@@ -644,7 +664,7 @@ router.post('/:businessId/:id/send', authenticateToken, checkBusinessAccess, asy
 // (이동됨: source-candidates / find-conversation 은 라우트 매칭 순서를 위해 위(GET /:businessId 다음)로 이동)
 
 // ─── Installment: 결제 완료 마킹 ───
-router.post('/:businessId/:id/installments/:installId/mark-paid', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+router.post('/:businessId/:id/installments/:installId/mark-paid', authenticateToken, checkBusinessAccess, requireMenu('qbill','write'), async (req, res, next) => {
   if (!assertInvoiceMutationOwner(req, res)) return;
   const t = await sequelize.transaction();
   try {
@@ -670,6 +690,7 @@ router.post('/:businessId/:id/installments/:installId/mark-paid', authenticateTo
     const all = await InvoiceInstallment.findAll({ where: { invoice_id: invoice.id }, transaction: t });
     const paidSum = all.filter(i => i.status === 'paid').reduce((s, i) => s + Number(i.amount), 0);
     const totalSum = all.reduce((s, i) => s + Number(i.amount), 0);
+    const prevInvoiceStatus = invoice.status;
     const newStatus = paidSum >= totalSum ? 'paid' : (paidSum > 0 ? 'partially_paid' : invoice.status);
     await invoice.update({
       paid_amount: paidSum,
@@ -678,6 +699,8 @@ router.post('/:businessId/:id/installments/:installId/mark-paid', authenticateTo
     }, { transaction: t });
 
     await t.commit();
+    // 사이클 N+21 — status history (installment mark-paid 로 인한 자동 전이)
+    setImmediate(() => recordInvoiceStatusChange(invoice, prevInvoiceStatus, newStatus, req.user.id, 'installment mark-paid'));
     const refreshed = await Invoice.findByPk(invoice.id, {
       include: [{ model: InvoiceInstallment, as: 'installments', separate: true, order: [['installment_no', 'ASC']] }],
     });
@@ -704,7 +727,7 @@ router.post('/:businessId/:id/installments/:installId/mark-paid', authenticateTo
 });
 
 // ─── Installment: 결제 완료 마킹 취소 ───
-router.post('/:businessId/:id/installments/:installId/unmark-paid', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+router.post('/:businessId/:id/installments/:installId/unmark-paid', authenticateToken, checkBusinessAccess, requireMenu('qbill','write'), async (req, res, next) => {
   if (!assertInvoiceMutationOwner(req, res)) return;
   const t = await sequelize.transaction();
   try {
@@ -720,9 +743,12 @@ router.post('/:businessId/:id/installments/:installId/unmark-paid', authenticate
     const all = await InvoiceInstallment.findAll({ where: { invoice_id: invoice.id }, transaction: t });
     const paidSum = all.filter(i => i.status === 'paid').reduce((s, i) => s + Number(i.amount), 0);
     const totalSum = all.reduce((s, i) => s + Number(i.amount), 0);
+    const prevStatus = invoice.status;
     const newStatus = paidSum >= totalSum ? 'paid' : (paidSum > 0 ? 'partially_paid' : 'sent');
     await invoice.update({ paid_amount: paidSum, status: newStatus, paid_at: newStatus === 'paid' ? invoice.paid_at : null }, { transaction: t });
     await t.commit();
+    // 사이클 N+21 — status history
+    setImmediate(() => recordInvoiceStatusChange(invoice, prevStatus, newStatus, req.user.id, 'installment unmark-paid'));
     const refreshed = await Invoice.findByPk(invoice.id, {
       include: [{ model: InvoiceInstallment, as: 'installments', separate: true, order: [['installment_no', 'ASC']] }],
     });
@@ -746,7 +772,7 @@ router.post('/:businessId/:id/installments/:installId/unmark-paid', authenticate
 });
 
 // ─── Installment: 세금계산서 발행 마킹 ───
-router.post('/:businessId/:id/installments/:installId/mark-tax-invoice', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+router.post('/:businessId/:id/installments/:installId/mark-tax-invoice', authenticateToken, checkBusinessAccess, requireMenu('qbill','write'), async (req, res, next) => {
   if (!assertInvoiceMutationOwner(req, res)) return;
   try {
     const invoice = await Invoice.findOne({
@@ -792,7 +818,7 @@ router.post('/:businessId/:id/installments/:installId/mark-tax-invoice', authent
 });
 
 // ─── Invoice: 삭제 (draft / canceled 만 허용) ───
-router.delete('/:businessId/:id', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+router.delete('/:businessId/:id', authenticateToken, checkBusinessAccess, requireMenu('qbill','write'), async (req, res, next) => {
   if (!assertInvoiceMutationOwner(req, res)) return;
   try {
     const invoice = await Invoice.findOne({
@@ -810,7 +836,7 @@ router.delete('/:businessId/:id', authenticateToken, checkBusinessAccess, async 
 });
 
 // ─── Installment: 취소 ───
-router.delete('/:businessId/:id/installments/:installId', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+router.delete('/:businessId/:id/installments/:installId', authenticateToken, checkBusinessAccess, requireMenu('qbill','write'), async (req, res, next) => {
   if (!assertInvoiceMutationOwner(req, res)) return;
   try {
     const invoice = await Invoice.findOne({
@@ -828,7 +854,7 @@ router.delete('/:businessId/:id/installments/:installId', authenticateToken, che
 });
 
 // Update invoice status
-router.patch('/:businessId/:id/status', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+router.patch('/:businessId/:id/status', authenticateToken, checkBusinessAccess, requireMenu('qbill','write'), async (req, res, next) => {
   try {
     // 인보이스 상태 변경(특히 'paid')은 owner 또는 platform_admin 만
     if (req.businessRole !== 'owner' && req.user.platform_role !== 'platform_admin') {
@@ -855,6 +881,8 @@ router.patch('/:businessId/:id/status', authenticateToken, checkBusinessAccess, 
     if (status === 'canceled') updates.paid_at = null;
 
     await invoice.update(updates);
+    // 사이클 N+21 — status history
+    setImmediate(() => recordInvoiceStatusChange(invoice, prevStatus, status, req.user.id, 'PATCH /:id/status'));
 
     require('../services/auditService').logAudit(req, {
       action: 'invoice.status.change',
