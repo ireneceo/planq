@@ -589,6 +589,13 @@ router.delete('/:businessId/:id', authenticateToken, checkBusinessAccess, async 
     try {
       await softDeleteFile(file, t);
       await t.commit();
+      // 사이클 N+21 — 파일 삭제 audit
+      require('../services/auditService').logAudit(req, {
+        action: 'file.delete',
+        targetType: 'file',
+        targetId: file.id,
+        oldValue: { name: file.original_filename, size: Number(file.size_bytes) || 0 },
+      });
       successResponse(res, null, 'File deleted');
     } catch (e) { await t.rollback(); throw e; }
   } catch (error) {

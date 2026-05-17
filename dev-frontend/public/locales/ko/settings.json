@@ -370,5 +370,52 @@
         "2": "Chrome / Edge / Samsung Internet 또는 iOS Safari 에서 다시 시도하세요"
       }
     }
+  },
+  "matrix": {
+    "title": "멤버별 메뉴 권한",
+    "desc": "메뉴별 보기/읽기/쓰기를 멤버 단위로 조정합니다. 기본값은 전권(write)이며, 필요한 경우만 제한하세요. 오너·관리자는 항상 전권입니다.",
+    "loading": "불러오는 중...",
+    "ownerOnlyHint": "워크스페이스 오너만 변경할 수 있습니다.",
+    "col": { "member": "멤버", "role": "역할" },
+    "writableCount": "쓰기 가능 인원",
+    "warnNoQbillWrite": "⚠ Q Bill 쓰기 권한자가 없습니다. 청구서 발행이 불가합니다 — 최소 1명 권장."
+  },
+  "role": {
+    "owner": "오너",
+    "admin": "관리자",
+    "member": "멤버",
+    "promote": "관리자로",
+    "demote": "멤버로"
+  },
+  "level": {
+    "write": "쓰기",
+    "read": "읽기",
+    "none": "숨김"
+  },
+  "menu": {
+    "qtalk": "Q Talk",
+    "qtask": "Q Task",
+    "qnote": "Q Note",
+    "qdocs": "Q docs",
+    "qbill": "Q Bill",
+    "qcalendar": "Q Calendar",
+    "qfile": "Q File",
+    "clients": "고객",
+    "insights": "통계"
+  },
+  "confirm": {
+    "promoteAdminTitle": "관리자 임명",
+    "promoteAdmin": "{{name}} 을(를) 관리자로 임명할까요? 관리자는 인사·결제·세금계산서 외 거의 모든 권한을 가집니다."
+  },
+  "billing": {
+    "title": "기본 청구 담당",
+    "desc": "새 청구서 발행 시 자동으로 owner 로 지정됩니다. Q Bill 쓰기 권한자만 선택할 수 있어요.",
+    "loading": "불러오는 중...",
+    "label": "기본 청구 담당자",
+    "noneOption": "지정 안 함",
+    "hint": "Q Bill 쓰기 권한자 {{count}}명 중 선택. 새 청구서 발행 시 자동 owner 로 지정됩니다."
+  },
+  "common": {
+    "saved": "저장됨"
   }
 }

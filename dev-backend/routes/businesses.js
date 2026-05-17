@@ -527,6 +527,13 @@ router.post('/:businessId/members/invite', authenticateToken, checkBusinessAcces
       });
     } catch (e) { console.warn('member invite email failed:', e.message); }
 
+    // 사이클 N+21 — 인사 변경 audit log
+    require('../services/auditService').logAudit(req, {
+      action: 'business_member.invite',
+      targetType: 'business_member',
+      targetId: created.id,
+      newValue: { email: email.trim(), default_role: created.default_role || null },
+    });
     successResponse(res, created, 'Member invited', 201);
   } catch (error) { next(error); }
 });
@@ -551,6 +558,197 @@ router.get('/:businessId/members', authenticateToken, checkBusinessAccess, async
   } catch (error) {
     next(error);
   }
+});
+
+// ═════════════════════════════════════════════════════════════
+// 멤버 권한 (사이클 N+21) — admin role + 9 메뉴 × 3 레벨
+// PERMISSION_MATRIX §5 Layer 3
+// ═════════════════════════════════════════════════════════════
+
+const { BusinessMemberPermission } = require('../models');
+const { getMemberMenuLevels, VALID_MENUS, VALID_LEVELS } = require('../middleware/menu_permission');
+
+// 권한 변경은 owner/admin 만
+async function assertWorkspaceAdmin(userId, businessId) {
+  const bm = await BusinessMember.findOne({
+    where: { business_id: businessId, user_id: userId, removed_at: null },
+    attributes: ['role'],
+  });
+  if (!bm) return { ok: false, code: 'not_member' };
+  if (!['owner', 'admin'].includes(bm.role)) return { ok: false, code: 'workspace_admin_required' };
+  return { ok: true, role: bm.role };
+}
+
+// GET — 워크스페이스 전체 멤버의 메뉴 권한 매트릭스 + role
+router.get('/:businessId/members-permissions', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+  try {
+    const businessId = Number(req.params.businessId);
+    const members = await BusinessMember.findAll({
+      where: { business_id: businessId, removed_at: null, role: { [require('sequelize').Op.ne]: 'ai' } },
+      include: [{ model: User, as: 'user', attributes: ['id', 'name', 'email'] }],
+    });
+    const out = await Promise.all(members.map(async (m) => {
+      const ml = await getMemberMenuLevels(businessId, m.user_id);
+      return {
+        user_id: m.user_id,
+        name: m.user?.name || '',
+        email: m.user?.email || '',
+        role: m.role,
+        menus: ml?.menus || {},
+      };
+    }));
+    return successResponse(res, { members: out, valid_menus: VALID_MENUS, valid_levels: VALID_LEVELS });
+  } catch (e) { next(e); }
+});
+
+// PUT — 멤버 메뉴 권한 한 건 업데이트
+router.put('/:businessId/members/:userId/permissions', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+  try {
+    const businessId = Number(req.params.businessId);
+    const targetUserId = Number(req.params.userId);
+    const { menu_key, level } = req.body;
+
+    const adm = await assertWorkspaceAdmin(req.user.id, businessId);
+    if (!adm.ok) return errorResponse(res, adm.code, 403);
+
+    if (!VALID_MENUS.includes(menu_key)) return errorResponse(res, 'invalid_menu_key', 400);
+    if (!VALID_LEVELS.includes(level)) return errorResponse(res, 'invalid_level', 400);
+
+    // 대상 멤버 존재 확인
+    const targetMember = await BusinessMember.findOne({
+      where: { business_id: businessId, user_id: targetUserId, removed_at: null },
+      attributes: ['role'],
+    });
+    if (!targetMember) return errorResponse(res, 'target_not_member', 404);
+    // owner/admin 의 권한은 row 무관 (항상 write). 변경 의미 없으므로 차단.
+    if (['owner', 'admin', 'ai'].includes(targetMember.role)) {
+      return errorResponse(res, 'role_has_implicit_full_access', 400);
+    }
+
+    // upsert
+    const [row, created] = await BusinessMemberPermission.findOrCreate({
+      where: { business_id: businessId, user_id: targetUserId, menu_key },
+      defaults: { level, updated_by: req.user.id },
+    });
+    const old_level = row.level;
+    if (!created) {
+      await row.update({ level, updated_by: req.user.id });
+    }
+    require('../services/auditService').logAudit(req, {
+      action: 'member_permission.update',
+      targetType: 'business_member_permission',
+      targetId: row.id,
+      oldValue: { menu_key, level: old_level },
+      newValue: { menu_key, level },
+    });
+    return successResponse(res, { id: row.id, business_id: businessId, user_id: targetUserId, menu_key, level });
+  } catch (e) { next(e); }
+});
+
+// PUT — 멤버 role 변경 (member ↔ admin). owner 변경은 별도 라우트 (인사 권한).
+router.put('/:businessId/members/:userId/role', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+  try {
+    const businessId = Number(req.params.businessId);
+    const targetUserId = Number(req.params.userId);
+    const { role } = req.body;
+
+    const adm = await assertWorkspaceAdmin(req.user.id, businessId);
+    if (!adm.ok) return errorResponse(res, adm.code, 403);
+
+    // role 전이 정책: member ↔ admin 만. owner 임명/해제는 owner 만 (별도 라우트).
+    if (!['member', 'admin'].includes(role)) {
+      return errorResponse(res, 'role_must_be_member_or_admin', 400);
+    }
+    const targetMember = await BusinessMember.findOne({
+      where: { business_id: businessId, user_id: targetUserId, removed_at: null },
+    });
+    if (!targetMember) return errorResponse(res, 'target_not_member', 404);
+    if (targetMember.role === 'owner' || targetMember.role === 'ai') {
+      return errorResponse(res, 'cannot_change_owner_or_ai_role', 400);
+    }
+    if (targetMember.role === role) {
+      return successResponse(res, { user_id: targetUserId, role, unchanged: true });
+    }
+    const oldRole = targetMember.role;
+    await targetMember.update({ role });
+    require('../services/auditService').logAudit(req, {
+      action: 'member_role.change',
+      targetType: 'business_member',
+      targetId: targetMember.id,
+      oldValue: { role: oldRole },
+      newValue: { role },
+    });
+    return successResponse(res, { user_id: targetUserId, role });
+  } catch (e) { next(e); }
+});
+
+// GET — Q Bill 청구서 owner 후보 (write 권한 가진 멤버만)
+router.get('/:businessId/billing-owner-candidates', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+  try {
+    const businessId = Number(req.params.businessId);
+    const members = await BusinessMember.findAll({
+      where: { business_id: businessId, removed_at: null, role: { [require('sequelize').Op.ne]: 'ai' } },
+      include: [{ model: User, as: 'user', attributes: ['id', 'name', 'email'] }],
+    });
+    const candidates = [];
+    for (const m of members) {
+      // owner/admin = 무조건 후보
+      if (m.role === 'owner' || m.role === 'admin') {
+        candidates.push({ user_id: m.user_id, name: m.user?.name || '', email: m.user?.email || '', role: m.role, level: 'write' });
+        continue;
+      }
+      // member — qbill level 평가
+      const perm = await BusinessMemberPermission.findOne({
+        where: { business_id: businessId, user_id: m.user_id, menu_key: 'qbill' },
+        attributes: ['level'],
+      });
+      const level = perm?.level || 'write';
+      if (level === 'write') {
+        candidates.push({ user_id: m.user_id, name: m.user?.name || '', email: m.user?.email || '', role: m.role, level });
+      }
+    }
+    return successResponse(res, candidates);
+  } catch (e) { next(e); }
+});
+
+// PUT — workspace default_billing_owner 변경
+router.put('/:businessId/default-billing-owner', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+  try {
+    const businessId = Number(req.params.businessId);
+    const { user_id } = req.body;
+
+    const adm = await assertWorkspaceAdmin(req.user.id, businessId);
+    if (!adm.ok) return errorResponse(res, adm.code, 403);
+
+    const biz = await Business.findByPk(businessId);
+    if (!biz) return errorResponse(res, 'not_found', 404);
+    const oldValue = biz.default_billing_owner_id;
+
+    if (user_id != null) {
+      // 후보 검증 — write 권한자만 OK
+      const targetMember = await BusinessMember.findOne({
+        where: { business_id: businessId, user_id: Number(user_id), removed_at: null },
+        attributes: ['role'],
+      });
+      if (!targetMember) return errorResponse(res, 'target_not_member', 404);
+      if (!['owner', 'admin'].includes(targetMember.role)) {
+        const perm = await BusinessMemberPermission.findOne({
+          where: { business_id: businessId, user_id: Number(user_id), menu_key: 'qbill' },
+        });
+        const level = perm?.level || 'write';
+        if (level !== 'write') return errorResponse(res, 'target_lacks_qbill_write', 400);
+      }
+    }
+    await biz.update({ default_billing_owner_id: user_id || null });
+    require('../services/auditService').logAudit(req, {
+      action: 'business.default_billing_owner.update',
+      targetType: 'business',
+      targetId: businessId,
+      oldValue: { default_billing_owner_id: oldValue },
+      newValue: { default_billing_owner_id: user_id || null },
+    });
+    return successResponse(res, { default_billing_owner_id: user_id || null });
+  } catch (e) { next(e); }
 });
 
 // ─── Cue 설정·사용량 조회 ───
@@ -746,6 +944,14 @@ router.delete('/:id/members/:memberId', authenticateToken, async (req, res, next
 
     await member.update({ removed_at: new Date(), removed_by: req.user.id }, { transaction: t });
     await t.commit();
+    // 사이클 N+21 — 인사 변경 audit log (가장 중요한 영역)
+    require('../services/auditService').logAudit(req, {
+      action: 'business_member.remove',
+      targetType: 'business_member',
+      targetId: member.id,
+      oldValue: { user_id: member.user_id, role: member.role },
+      newValue: { removed_at: 'now' },
+    });
     return successResponse(res, { id: member.id, removed: true });
   } catch (err) { await t.rollback().catch(() => {}); next(err); }
 });
