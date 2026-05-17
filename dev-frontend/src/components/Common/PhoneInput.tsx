@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import styled from 'styled-components';
+import { useTranslation } from 'react-i18next';
 
 interface PhoneInputProps {
   value: string;
@@ -41,9 +42,10 @@ const ErrorMessage = styled.div`
 `;
 
 const PhoneInput: React.FC<PhoneInputProps> = ({
-  value, onChange, placeholder = 'Phone number', required = false,
+  value, onChange, placeholder, required = false,
   disabled = false, autoFocus = false, onBlur
 }) => {
+  const { t } = useTranslation('common');
   const [error, setError] = useState<string | null>(null);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -53,9 +55,10 @@ const PhoneInput: React.FC<PhoneInputProps> = ({
   };
 
   const handleBlur = () => {
-    if (required && !value) setError('Phone number is required');
+    if (required && !value) setError(t('phone.required', { defaultValue: '전화번호를 입력해주세요' }) as string);
     onBlur?.();
   };
+  const ph = placeholder || (t('phone.placeholder', { defaultValue: '전화번호' }) as string);
 
   return (
     <Container>
@@ -64,7 +67,7 @@ const PhoneInput: React.FC<PhoneInputProps> = ({
         value={value}
         onChange={handleChange}
         onBlur={handleBlur}
-        placeholder={placeholder}
+        placeholder={ph}
         disabled={disabled}
         autoFocus={autoFocus}
         hasError={!!error}

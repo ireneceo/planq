@@ -5,6 +5,7 @@ import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import ModalActionButton from '../Common/ModalActionButton';
 import { apiFetch } from '../../contexts/AuthContext';
+import { mapApiError } from '../../utils/apiError';
 
 interface Props {
   open: boolean;
@@ -17,6 +18,7 @@ interface Props {
 
 export default function TemplateSaveModal({ open, onClose, businessId, projectId, projectName, onSaved }: Props) {
   const { t } = useTranslation('qtask');
+  const { t: tErr } = useTranslation('errors');
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState<string>('');
@@ -65,7 +67,7 @@ export default function TemplateSaveModal({ open, onClose, businessId, projectId
       onSaved(j.data?.id);
       onClose();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'unknown');
+      setError(mapApiError(e, tErr));
     } finally {
       setSubmitting(false);
     }

@@ -13,6 +13,7 @@ import { useTranslation } from 'react-i18next';
 import { useLocation } from 'react-router-dom';
 import { apiFetch, useAuth } from '../../contexts/AuthContext';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
+import { mapApiError } from '../../utils/apiError';
 
 // 사이클 P7d — 채팅 모드 분리: qhelper(PlanQ 매뉴얼) / workspace(Cue, 워크스페이스 데이터)
 // 'feedback' / 'inquiry' 는 별도 view (채팅 아닌 폼)
@@ -30,6 +31,7 @@ interface Turn {
 
 const CueHelpDrawer: React.FC = () => {
   const { t } = useTranslation('common');
+  const { t: tErr } = useTranslation('errors');
   const location = useLocation();
   const { user } = useAuth();
   const isGuest = !user;
@@ -147,7 +149,7 @@ const CueHelpDrawer: React.FC = () => {
       setTurns(prev => prev.map((tn, i) => i === prev.length - 1 ? { ...tn, a: j.data.answer || '', loading: false } : tn));
     } catch (e) {
       setTurns(prev => prev.map((tn, i) => i === prev.length - 1
-        ? { ...tn, error: e instanceof Error ? e.message : 'error', loading: false }
+        ? { ...tn, error: mapApiError(e, tErr), loading: false }
         : tn));
     } finally {
       setSubmitting(false);
@@ -183,7 +185,7 @@ const CueHelpDrawer: React.FC = () => {
       setInqName(''); setInqEmail(''); setInqMessage('');
       window.setTimeout(() => setInqResultMsg(null), 8000);
     } catch (e) {
-      setInqResultMsg(t('qhelper.inqErr', '제출 실패: {{msg}}', { msg: e instanceof Error ? e.message : 'error' }) as string);
+      setInqResultMsg(t('qhelper.inqErr', '제출 실패: {{msg}}', { msg: mapApiError(e, tErr) }) as string);
     } finally {
       setSubmitting(false);
     }
@@ -216,7 +218,7 @@ const CueHelpDrawer: React.FC = () => {
       setFbPriority('normal');
       window.setTimeout(() => setFbResultMsg(null), 6000);
     } catch (e) {
-      setFbResultMsg(t('qhelper.fbErr', '제출 실패: {{msg}}', { msg: e instanceof Error ? e.message : 'error' }) as string);
+      setFbResultMsg(t('qhelper.fbErr', '제출 실패: {{msg}}', { msg: mapApiError(e, tErr) }) as string);
     } finally {
       setSubmitting(false);
     }

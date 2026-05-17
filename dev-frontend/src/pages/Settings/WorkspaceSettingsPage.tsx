@@ -11,6 +11,7 @@ import PermissionsSettings from './PermissionsSettings';
 import BillingSettings from './BillingSettings';
 import EmailSettings from './EmailSettings';
 import NotificationSettings from './NotificationSettings';
+import { mapApiError } from '../../utils/apiError';
 import TimezoneSelector from '../../components/Common/TimezoneSelector';
 import PageShell from '../../components/Layout/PageShell';
 import { useTimezones } from '../../hooks/useTimezones';
@@ -482,6 +483,7 @@ const InfoBanner = styled.div`
 // ─────────────────────────────────────────────
 export default function WorkspaceSettingsPage() {
   const { t } = useTranslation('settings');
+  const { t: tErr } = useTranslation('errors');
   const { user } = useAuth();
   const businessId = user?.business_id || 0;
   const isAdmin = user?.business_role === 'owner' || user?.platform_role === 'platform_admin';
@@ -548,7 +550,7 @@ export default function WorkspaceSettingsPage() {
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       if (msg.includes('last_owner_protection')) setMemberError(t('members.drawer.errLastOwner', '마지막 관리자는 강등할 수 없습니다.') as string);
-      else setMemberError(msg);
+      else setMemberError(mapApiError(err, tErr));
     } finally { setMemberBusy(false); }
   };
 
@@ -565,7 +567,7 @@ export default function WorkspaceSettingsPage() {
       const msg = err instanceof Error ? err.message : String(err);
       if (msg.includes('last_owner_protection')) setMemberError(t('members.drawer.errLastOwner', '마지막 관리자는 제거할 수 없습니다.') as string);
       else if (msg.includes('forbidden')) setMemberError(t('members.drawer.errForbidden', '제거 권한이 없습니다.') as string);
-      else setMemberError(msg);
+      else setMemberError(mapApiError(err, tErr));
     } finally { setMemberBusy(false); }
   };
 
@@ -599,7 +601,7 @@ export default function WorkspaceSettingsPage() {
       if (msg.includes('already_member')) setInviteError(t('members.inviteErrAlreadyMember', '이미 멤버로 등록되어 있습니다.') as string);
       else if (msg.includes('already_invited')) setInviteError(t('members.inviteErrAlreadyInvited', '이미 초대된 이메일입니다.') as string);
       else if (msg.includes('forbidden')) setInviteError(t('members.inviteErrForbidden', '초대 권한이 없습니다.') as string);
-      else setInviteError(msg);
+      else setInviteError(mapApiError(err, tErr));
     } finally {
       setInviteBusy(false);
     }

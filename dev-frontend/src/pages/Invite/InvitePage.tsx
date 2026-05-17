@@ -3,6 +3,7 @@ import styled from 'styled-components';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth, apiFetch } from '../../contexts/AuthContext';
+import { mapApiError } from '../../utils/apiError';
 
 type InviteType = 'project_client' | 'workspace_client' | 'workspace_member';
 interface InviteInfo {
@@ -20,6 +21,7 @@ interface InviteInfo {
 const InvitePage: React.FC = () => {
   const { token } = useParams<{ token: string }>();
   const { t } = useTranslation('common');
+  const { t: tErr } = useTranslation('errors');
   const { user } = useAuth();
   const navigate = useNavigate();
 
@@ -37,7 +39,7 @@ const InvitePage: React.FC = () => {
         if (!body.success) throw new Error(body.message || 'invalid_or_expired_invite');
         setInfo(body.data);
       } catch (err: unknown) {
-        setError(err instanceof Error ? err.message : 'invalid_or_expired_invite');
+        setError(mapApiError(err, tErr));
       } finally {
         setLoading(false);
       }
@@ -53,7 +55,7 @@ const InvitePage: React.FC = () => {
       if (!body.success) throw new Error(body.message);
       navigate(body.data?.redirect || '/dashboard');
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Accept failed');
+      setError(mapApiError(err, tErr));
     } finally {
       setAccepting(false);
     }

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { mapApiError } from '../../utils/apiError';
 import styled from 'styled-components';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -342,6 +343,7 @@ const BottomLinks = styled.div`
 
 const LoginPage: React.FC = () => {
   const { t } = useTranslation('auth');
+  const { t: tErr } = useTranslation('errors');
   const navigate = useNavigate();
   const location = useLocation();
   const { login, logout, user, isAuthenticated, isLoading: authLoading } = useAuth();
@@ -395,7 +397,7 @@ const LoginPage: React.FC = () => {
     } catch (err: unknown) {
       // eslint-disable-next-line no-console
       console.error('[DevQuickLogin] failed', { email: devEmail, err });
-      setError(err instanceof Error ? err.message : t('login.errorGeneric'));
+      setError(mapApiError(err, tErr));
       setIsLoading(false);
     }
   };
@@ -425,8 +427,7 @@ const LoginPage: React.FC = () => {
         setError(t('login.errorInvalid'));
       }
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : t('login.errorGeneric');
-      setError(message);
+      setError(mapApiError(err, tErr));
     } finally {
       setIsLoading(false);
     }

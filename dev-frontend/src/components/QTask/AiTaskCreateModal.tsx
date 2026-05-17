@@ -9,6 +9,7 @@ import PlanQSelect from '../Common/PlanQSelect';
 import SingleDateField from '../Common/SingleDateField';
 import { CalendarIcon, ClockIcon } from '../Common/Icons';
 import { apiFetch } from '../../contexts/AuthContext';
+import { mapApiError } from '../../utils/apiError';
 
 interface Member { user_id: number; name: string; }
 interface Project { id: number; name: string; }
@@ -55,6 +56,7 @@ function fmtMd(iso: string): string {
 
 export default function AiTaskCreateModal({ open, onClose, businessId, projectId, projectFixed, projects = [], members, onCreated }: Props) {
   const { t } = useTranslation('qtask');
+  const { t: tErr } = useTranslation('errors');
   const [stage, setStage] = useState<Stage>('input');
   const [prompt, setPrompt] = useState('');
   const [reasoning, setReasoning] = useState('');
@@ -107,7 +109,7 @@ export default function AiTaskCreateModal({ open, onClose, businessId, projectId
       setReasoning(j.data?.reasoning || '');
       setStage('preview');
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'unknown');
+      setError(mapApiError(e, tErr));
       setStage('input');
     } finally {
       setSubmitting(false);
@@ -140,7 +142,7 @@ export default function AiTaskCreateModal({ open, onClose, businessId, projectId
       onCreated(created);
       onClose();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'unknown');
+      setError(mapApiError(e, tErr));
     } finally {
       setSubmitting(false);
     }

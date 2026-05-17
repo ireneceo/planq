@@ -21,6 +21,7 @@ import {
 import { useAuth, getAccessToken, apiFetch } from '../../contexts/AuthContext';
 import * as qtalkApi from '../../services/qtalk';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
+import { mapApiError } from '../../utils/apiError';
 
 /**
  * QTalkPage — 실데이터 기반 (시드 데이터 로드)
@@ -234,6 +235,7 @@ function apiCandidateToMock(c: qtalkApi.ApiTaskCandidate): MockTaskCandidate {
 
 const QTalkPage: React.FC = () => {
   const { t } = useTranslation('qtalk');
+  const { t: tErr } = useTranslation('errors');
   const { user } = useAuth();
   const businessId = user?.business_id || null;
 
@@ -709,7 +711,7 @@ const QTalkPage: React.FC = () => {
         }
       } catch (err: unknown) {
         if (cancelled) return;
-        setLoadError(err instanceof Error ? err.message : (t('page.loadFailedShort', '프로젝트 목록 로드 실패') as string));
+        setLoadError(mapApiError(err, tErr));
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -915,8 +917,7 @@ const QTalkPage: React.FC = () => {
       setModalOpen(false);
       showNotice(t('page.projectCreated', { name: mapped.name }));
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : (t('page.projectCreateFailed', '프로젝트 생성 실패') as string);
-      showNotice(t('page.createFailed', { msg }));
+      showNotice(t('page.createFailed', { msg: mapApiError(err, tErr) }));
     }
   };
 
@@ -975,8 +976,7 @@ const QTalkPage: React.FC = () => {
       setChatModalOpen(false);
       showNotice(t('page.chatCreated', { title: conv.title }));
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : (t('page.chatCreateFailed', '대화 생성 실패') as string);
-      showNotice(t('page.createFailed', { msg }));
+      showNotice(t('page.createFailed', { msg: mapApiError(err, tErr) }));
     }
   };
 
@@ -1090,7 +1090,7 @@ const QTalkPage: React.FC = () => {
         if (!arr) return prev;
         return { ...prev, [convId]: arr.filter((m) => m.id !== tempId) };
       });
-      showNotice(t('page.sendFailed', { msg: err instanceof Error ? err.message : '' }));
+      showNotice(t('page.sendFailed', { msg: mapApiError(err, tErr) }));
     }
   };
 
@@ -1100,7 +1100,7 @@ const QTalkPage: React.FC = () => {
       const updated = await qtalkApi.updateConversation(conversationId, { display_name: name });
       setConversations((prev) => prev.map((c) => (c.id === conversationId ? { ...c, name: updated.display_name || updated.title || c.name } : c)));
     } catch (err: unknown) {
-      showNotice(t('page.renameFailed', { msg: err instanceof Error ? err.message : '' }));
+      showNotice(t('page.renameFailed', { msg: mapApiError(err, tErr) }));
     }
   };
 
@@ -1110,7 +1110,7 @@ const QTalkPage: React.FC = () => {
       const updated = await qtalkApi.updateConversation(conversationId, { auto_extract_enabled: enabled });
       setConversations((prev) => prev.map((c) => (c.id === conversationId ? { ...c, auto_extract_enabled: updated.auto_extract_enabled } : c)));
     } catch (err: unknown) {
-      showNotice(t('page.autoExtractFailed', { msg: err instanceof Error ? err.message : '' }));
+      showNotice(t('page.autoExtractFailed', { msg: mapApiError(err, tErr) }));
     }
   };
 
@@ -1128,7 +1128,7 @@ const QTalkPage: React.FC = () => {
       }
       setIssues((prev) => [apiIssueToMock(created), ...prev]);
     } catch (err: unknown) {
-      showNotice(t('page.issueAddFailed', { msg: err instanceof Error ? err.message : '' }));
+      showNotice(t('page.issueAddFailed', { msg: mapApiError(err, tErr) }));
     }
   };
 
@@ -1137,7 +1137,7 @@ const QTalkPage: React.FC = () => {
       const updated = await qtalkApi.updateIssue(id, body);
       setIssues((prev) => prev.map((i) => (i.id === id ? apiIssueToMock(updated) : i)));
     } catch (err: unknown) {
-      showNotice(t('page.issueEditFailed', { msg: err instanceof Error ? err.message : '' }));
+      showNotice(t('page.issueEditFailed', { msg: mapApiError(err, tErr) }));
     }
   };
 
@@ -1146,7 +1146,7 @@ const QTalkPage: React.FC = () => {
       await qtalkApi.deleteIssue(id);
       setIssues((prev) => prev.filter((i) => i.id !== id));
     } catch (err: unknown) {
-      showNotice(t('page.issueDeleteFailed', { msg: err instanceof Error ? err.message : '' }));
+      showNotice(t('page.issueDeleteFailed', { msg: mapApiError(err, tErr) }));
     }
   };
 
@@ -1164,7 +1164,7 @@ const QTalkPage: React.FC = () => {
       }
       setNotes((prev) => [apiNoteToMock(created), ...prev]);
     } catch (err: unknown) {
-      showNotice(t('page.noteAddFailed', { msg: err instanceof Error ? err.message : '' }));
+      showNotice(t('page.noteAddFailed', { msg: mapApiError(err, tErr) }));
     }
   };
 
@@ -1177,7 +1177,7 @@ const QTalkPage: React.FC = () => {
       const updated = await qtalkApi.updateTaskStatus(id, nextStatus);
       setTasks((prev) => prev.map((tk) => (tk.id === id ? apiTaskToMock(updated) : tk)));
     } catch (err: unknown) {
-      showNotice(t('page.taskStatusFailed', { msg: err instanceof Error ? err.message : '' }));
+      showNotice(t('page.taskStatusFailed', { msg: mapApiError(err, tErr) }));
     }
   };
 
@@ -1214,11 +1214,11 @@ const QTalkPage: React.FC = () => {
         });
       }
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : '';
-      if (msg === 'extraction_already_in_progress') {
+      const raw = err instanceof Error ? err.message : '';
+      if (raw === 'extraction_already_in_progress') {
         showNotice(t('extract.inProgress'));
       } else {
-        showNotice(t('extract.failed', { msg }));
+        showNotice(t('extract.failed', { msg: mapApiError(err, tErr) }));
       }
     } finally {
       setExtracting(false);
@@ -1236,7 +1236,7 @@ const QTalkPage: React.FC = () => {
         setTasks((prev) => [apiTaskToMock(result.task), ...prev]);
       }
     } catch (err: unknown) {
-      showNotice(`register_failed: ${err instanceof Error ? err.message : ''}`);
+      showNotice(mapApiError(err, tErr));
     }
   };
 
@@ -1248,7 +1248,7 @@ const QTalkPage: React.FC = () => {
       await qtalkApi.mergeCandidate(id, candidate.similar_task_id);
       setCandidates((prev) => prev.filter((c) => c.id !== id));
     } catch (err: unknown) {
-      showNotice(`merge_failed: ${err instanceof Error ? err.message : ''}`);
+      showNotice(mapApiError(err, tErr));
     }
   };
 
@@ -1258,7 +1258,7 @@ const QTalkPage: React.FC = () => {
       await qtalkApi.rejectCandidate(id);
       setCandidates((prev) => prev.filter((c) => c.id !== id));
     } catch (err: unknown) {
-      showNotice(`reject_failed: ${err instanceof Error ? err.message : ''}`);
+      showNotice(mapApiError(err, tErr));
     }
   };
 
@@ -1276,7 +1276,7 @@ const QTalkPage: React.FC = () => {
         };
       });
     } catch (err: unknown) {
-      showNotice(`draft_approve_failed: ${err instanceof Error ? err.message : ''}`);
+      showNotice(mapApiError(err, tErr));
     }
   };
 
@@ -1293,7 +1293,7 @@ const QTalkPage: React.FC = () => {
         return result;
       });
     } catch (err: unknown) {
-      showNotice(`draft_reject_failed: ${err instanceof Error ? err.message : ''}`);
+      showNotice(mapApiError(err, tErr));
     }
   };
 

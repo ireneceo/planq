@@ -5,6 +5,7 @@ import React, { useState, useCallback } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { apiFetch } from '../../contexts/AuthContext';
+import { mapApiError } from '../../utils/apiError';
 
 const SAMPLE_CSV = `title,body,category,tags,source_language,auto_translate
 환불 정책,결제 후 7일 안에 환불 가능. 사용 흔적 있으면 30%만 환급.,policy,"환불,정책",ko,true
@@ -28,6 +29,7 @@ interface CsvCandidate {
 
 const KbCsvIngestModal: React.FC<Props> = ({ businessId, onClose, onSaved }) => {
   const { t } = useTranslation('knowledge');
+  const { t: tErr } = useTranslation('errors');
   const [csv, setCsv] = useState('');
   const [candidates, setCandidates] = useState<CsvCandidate[]>([]);
   const [step, setStep] = useState<'input' | 'preview'>('input');
@@ -65,7 +67,7 @@ const KbCsvIngestModal: React.FC<Props> = ({ businessId, onClose, onSaved }) => 
       setCandidates(list);
       setStep('preview');
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'error');
+      setError(mapApiError(e, tErr));
     } finally {
       setParsing(false);
     }
@@ -88,7 +90,7 @@ const KbCsvIngestModal: React.FC<Props> = ({ businessId, onClose, onSaved }) => 
       onSaved();
       onClose();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'error');
+      setError(mapApiError(e, tErr));
     } finally {
       setSaving(false);
     }

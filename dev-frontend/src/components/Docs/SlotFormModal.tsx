@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next';
 import { apiFetch } from '../../contexts/AuthContext';
 import i18n from '../../i18n';
 import SingleDateField from '../Common/SingleDateField';
+import { mapApiError } from '../../utils/apiError';
 
 export type SlotType = 'text' | 'textarea' | 'number' | 'date' | 'email';
 
@@ -56,6 +57,7 @@ interface Props {
 
 const SlotFormModal: React.FC<Props> = ({ templateId, businessId, projectId, clientId, open, onClose, onConfirm }) => {
   const { t } = useTranslation('qdocs');
+  const { t: tErr } = useTranslation('errors');
   const [ctx, setCtx] = useState<TemplateContext | null>(null);
   const [values, setValues] = useState<Record<string, string | number>>({});
   const [loading, setLoading] = useState(false);
@@ -75,7 +77,7 @@ const SlotFormModal: React.FC<Props> = ({ templateId, businessId, projectId, cli
         setCtx(j.data);
         setValues(j.data.default_values || {});
       })
-      .catch(e => setError(e instanceof Error ? e.message : 'error'))
+      .catch(e => setError(mapApiError(e, tErr)))
       .finally(() => setLoading(false));
   }, [open, templateId, businessId, projectId, clientId]);
 

@@ -16,6 +16,7 @@ import FilePicker, { type FilePickerResult } from '../../components/Common/FileP
 import UserInfoPopover from '../../components/Common/UserInfoPopover';
 import { fetchWorkspaceFiles, uploadMyFile } from '../../services/files';
 import { mediaTablet } from '../../theme/breakpoints';
+import { mapApiError } from '../../utils/apiError';
 
 interface Props {
   project: MockProject | null;
@@ -52,6 +53,7 @@ const ChatPanel: React.FC<Props> = ({
   onOpenNewChat, onMobileBack, mobileHidden = false,
 }) => {
   const { t } = useTranslation('qtalk');
+  const { t: tErr } = useTranslation('errors');
   const { user } = useAuth();
   const { formatTime } = useTimeFormat();
   const isClient = user?.business_role === 'client';
@@ -438,7 +440,7 @@ const ChatPanel: React.FC<Props> = ({
       }
       setUploadingFiles(prev => prev.filter(x => x.tempId !== tempId));
     } catch (e) {
-      setUploadingFiles(prev => prev.map(x => x.tempId === tempId ? { ...x, error: e instanceof Error ? e.message : '업로드 실패' } : x));
+      setUploadingFiles(prev => prev.map(x => x.tempId === tempId ? { ...x, error: mapApiError(e, tErr) } : x));
     }
   };
 

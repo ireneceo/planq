@@ -4,6 +4,7 @@ import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import LandingLayout from '../../components/Landing/LandingLayout';
 import { useReveal } from '../../hooks/useReveal';
+import { mapApiError } from '../../utils/apiError';
 
 const Reveal: React.FC<{ children: React.ReactNode; as?: React.ElementType }> = ({ children, as = 'div' }) => {
   const ref = useReveal<HTMLElement>();
@@ -16,6 +17,7 @@ const REASONS: Reason[] = ['sales', 'support', 'partnership', 'other'];
 
 const ContactPage: React.FC = () => {
   const { t } = useTranslation('landing');
+  const { t: tErr } = useTranslation('errors');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [reason, setReason] = useState<Reason>('sales');
@@ -45,7 +47,7 @@ const ContactPage: React.FC = () => {
       setName(''); setEmail(''); setMessage(''); setReason('sales');
     } catch (err) {
       setResult('err');
-      setErrMsg(err instanceof Error ? err.message : 'submit_failed');
+      setErrMsg(mapApiError(err, tErr));
     } finally {
       setSubmitting(false);
     }

@@ -25,6 +25,7 @@ import type { QAPair, QNoteDocument } from '../../services/qnote';
 import { apiFetch, useAuth } from '../../contexts/AuthContext';
 import FilePicker, { type FilePickerResult } from '../../components/Common/FilePicker';
 import { fetchWorkspaceFiles } from '../../services/files';
+import { mapApiError } from '../../utils/apiError';
 
 interface Props {
   open: boolean;
@@ -104,6 +105,7 @@ function getLanguageLabel(code: string): string {
 
 const StartMeetingModal = ({ open, userLanguage, editMode, initialConfig, editingSessionId, onClose, onStart }: Props) => {
   const { t } = useTranslation('qnote');
+  const { t: tErr } = useTranslation('errors');
   const effectiveUserLanguage = userLanguage || getDefaultLanguageFromBrowser();
   const [title, setTitle] = useState('');
   const [brief, setBrief] = useState('');
@@ -485,9 +487,9 @@ const StartMeetingModal = ({ open, userLanguage, editMode, initialConfig, editin
           setPriorityCsv(null);
         }
       } catch (err) {
-        const detail = err instanceof Error ? err.message : t('startModal.priority.uploadFailUnknown', '알 수 없는 오류');
+        const detail = mapApiError(err, tErr);
         setPriorityCsvResult(t('startModal.priority.uploadFail', { msg: detail }));
-        showFileError(t('startModal.priority.uploadFailShort', { msg: err instanceof Error ? err.message : '' }));
+        showFileError(t('startModal.priority.uploadFailShort', { msg: detail }));
       } finally {
         setPriorityCsvUploading(false);
       }
@@ -507,7 +509,7 @@ const StartMeetingModal = ({ open, userLanguage, editMode, initialConfig, editin
       await deletePriorityQAByFile(editingSessionId, filename);
       setExistingPriorityQAs((prev) => prev.filter((q) => q.source_filename !== filename));
     } catch (err) {
-      showFileError(err instanceof Error ? err.message : t('startModal.priority.deleteFail', '파일 삭제 실패'));
+      showFileError(mapApiError(err, tErr));
     }
   };
 
@@ -517,7 +519,7 @@ const StartMeetingModal = ({ open, userLanguage, editMode, initialConfig, editin
       await deletePriorityQA(editingSessionId, qaId);
       setExistingPriorityQAs((prev) => prev.filter((q) => q.id !== qaId));
     } catch (err) {
-      showFileError(err instanceof Error ? err.message : t('startModal.priority.deleteQAFail', 'Q&A 삭제 실패'));
+      showFileError(mapApiError(err, tErr));
     }
   };
 
@@ -528,7 +530,7 @@ const StartMeetingModal = ({ open, userLanguage, editMode, initialConfig, editin
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       setExistingDocuments((prev) => prev.filter((d) => d.id !== docId));
     } catch (err) {
-      showFileError(err instanceof Error ? err.message : t('startModal.priority.deleteDocFail', '문서 삭제 실패'));
+      showFileError(mapApiError(err, tErr));
     }
   };
 
@@ -544,7 +546,7 @@ const StartMeetingModal = ({ open, userLanguage, editMode, initialConfig, editin
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
     } catch (err) {
-      showFileError(err instanceof Error ? err.message : t('startModal.vocabulary.saveFail', '어휘사전 저장 실패'));
+      showFileError(mapApiError(err, tErr));
     }
   };
 
@@ -575,7 +577,7 @@ const StartMeetingModal = ({ open, userLanguage, editMode, initialConfig, editin
       const res = await refreshSessionVocabulary(editingSessionId);
       setSessionKeywords(res.keywords || []);
     } catch (err) {
-      showFileError(err instanceof Error ? err.message : t('startModal.vocabulary.refreshFail', '어휘 재추출 실패'));
+      showFileError(mapApiError(err, tErr));
     } finally {
       setRefreshingVocab(false);
     }
@@ -897,7 +899,7 @@ const StartMeetingModal = ({ open, userLanguage, editMode, initialConfig, editin
                 try {
                   await downloadPriorityQATemplate();
                 } catch (err) {
-                  showFileError(err instanceof Error ? err.message : t('startModal.priority.templateDownloadFail', '템플릿 다운로드 실패'));
+                  showFileError(mapApiError(err, tErr));
                 }
               }}
             >

@@ -3,6 +3,7 @@ import React, { useEffect, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { fetchAddons, requestAddon, type AddonItem, type AddonStatus, type AddonField, formatBytes, formatMinutes } from '../../services/plan';
+import { mapApiError } from '../../utils/apiError';
 
 interface Props {
   businessId: number;
@@ -11,6 +12,7 @@ interface Props {
 
 const AddonSection: React.FC<Props> = ({ businessId, isOwner }) => {
   const { t } = useTranslation('settings');
+  const { t: tErr } = useTranslation('errors');
   const [data, setData] = useState<AddonStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
@@ -25,7 +27,7 @@ const AddonSection: React.FC<Props> = ({ businessId, isOwner }) => {
       setData(d);
       setErr(null);
     } catch (e) {
-      setErr(e instanceof Error ? e.message : 'failed');
+      setErr(mapApiError(e, tErr));
     } finally {
       setLoading(false);
     }
@@ -46,7 +48,7 @@ const AddonSection: React.FC<Props> = ({ businessId, isOwner }) => {
       }) as string);
       await reload();
     } catch (e) {
-      setResultMsg(t('addon.requestErr', '신청 실패: {{msg}}', { msg: e instanceof Error ? e.message : String(e) }) as string);
+      setResultMsg(t('addon.requestErr', '신청 실패: {{msg}}', { msg: mapApiError(e, tErr) }) as string);
     } finally {
       setRequestingCode(null);
     }

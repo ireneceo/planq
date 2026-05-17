@@ -3,6 +3,7 @@ import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import styled from 'styled-components';
 import { useAuth } from '../../contexts/AuthContext';
+import { mapApiError } from '../../utils/apiError';
 
 const Container = styled.div`
   min-height: 100vh;
@@ -260,6 +261,7 @@ const CheckIcon = () => (
 
 const RegisterPage: React.FC = () => {
   const { t } = useTranslation('auth');
+  const { t: tErr } = useTranslation('errors');
   const navigate = useNavigate();
   const location = useLocation();
   const { register, isAuthenticated, isLoading: authLoading } = useAuth();
@@ -328,8 +330,7 @@ const RegisterPage: React.FC = () => {
         setError(t('register.errorGeneric'));
       }
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : t('register.errorGeneric');
-      setError(message);
+      setError(mapApiError(err, tErr));
     } finally {
       setIsLoading(false);
     }

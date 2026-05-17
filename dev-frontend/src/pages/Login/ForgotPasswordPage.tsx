@@ -4,9 +4,11 @@ import React, { useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
+import { mapApiError } from '../../utils/apiError';
 
 const ForgotPasswordPage: React.FC = () => {
   const { t } = useTranslation('auth');
+  const { t: tErr } = useTranslation('errors');
   const [email, setEmail] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
@@ -25,7 +27,7 @@ const ForgotPasswordPage: React.FC = () => {
       if (!j.success) throw new Error(j.message || 'failed');
       setDone(true);
     } catch (e) {
-      setErr(e instanceof Error ? e.message : 'error');
+      setErr(mapApiError(e, tErr));
     } finally {
       setSubmitting(false);
     }
