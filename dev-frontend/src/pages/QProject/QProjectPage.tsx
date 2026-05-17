@@ -805,10 +805,11 @@ const ProjectCard = styled.div`
   padding: 16px 18px;
   cursor: pointer;
   transition: box-shadow 0.15s, border-color 0.15s, transform 0.15s;
-  /* 카드 내부 flex column — 하단 블록 (진행률·기간·사람) 을 항상 카드 바닥에 정렬 */
+  /* 카드 내부 flex column — 하단 블록 (진행률·기간·사람) 을 카드 바닥에 정렬.
+     사이클 N+22 — min-height 강제 제거 (Irene): 내용 적은 카드는 짧게,
+     같은 row 의 옆 카드와는 grid stretch (default) 로 상하단 자동 정렬됨. */
   display: flex;
   flex-direction: column;
-  min-height: 240px;
   &:hover {
     box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
     border-color: #CBD5E1;
