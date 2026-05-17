@@ -1,8 +1,44 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-05-15 사이클 N+16-F — 메시지 더보기 메뉴 portal 회귀 hotfix (v1.11.0 운영 라이브)
+> **최종 업데이트:** 2026-05-17 사이클 N+17 — Q Note 메모 통합 + 로딩 75% 감소 + 채팅 모바일 + 로그아웃 회귀 fix (v1.12.0 운영 라이브)
 >
 > **이전 라이브:** v1.11.0 (commit `36362fc` + hotfix `efb890f`) — Q docs 코드 블록 + 드래프트 / GDrive 닫기 fix / 알림 매트릭스 분리 / 아바타 popover / 메시지 액션·핀·이미지fix + ⋮ 메뉴 portal
+
+---
+
+## ✅ 완료: 사이클 N+17 — Q Note 메모 통합 + 로딩속도 + 채팅모바일 + 로그아웃 fix (2026-05-17)
+
+**v1.12.0 운영 라이브 (commit `3c1a98b`, 99s 배포)**
+
+### Q Note 메모 통합 (RichEditor + popup + 페이지 detail panel)
+- MemoPopup 신규 — TipTap RichEditor lazy / 드래그/리사이즈 8방향 / 최근 메모 자동 이어쓰기 / 검색바 드롭다운 / 별도창 (Chrome Document PiP + window.open fallback)
+- MemoFab 신규 — 우하단 FAB + ⌘+Shift+M / Ctrl+Shift+M 글로벌 단축키
+- MemoView 신규 — Q Note 페이지 우측 풀모드 편집 panel
+- NewSessionBtn dropdown (음성/메모 선택), text 메모 click → 우측 panel
+- utils/qnoteBody — body JSON ↔ legacy plain text 호환 helper (검색·preview·제목 추출)
+- DB: sessions input_type/translate_enabled/linked_voice_session_id/summarized_at/body 5컬럼
+- API: POST/PUT text 메모 + GET /me/recent-memos + owner_only edit + chain follow 폐지
+
+### 로딩 속도 — Entry 75% 감소
+- vite-plugin-compression — 빌드 시 .gz 미리 생성 (level 9)
+- nginx gzip_static on (dev. 운영은 sudo 수동 적용 필요)
+- vendor-highlight 청크 분리 (lowlight 318KB → lazy)
+- App.tsx 9 overlay 컴포넌트 lazy
+- Google Fonts weight 19개 → 12개
+- 실 전송 716KB → 181KB
+
+### 채팅 모바일 4 회귀 fix
+- ChatPanel `<form>` 제거 → iOS InputAccessoryView (위/아래 화살표) 차단
+- visualViewport → CSS var(--vvh) JS sync (키보드 정확 위치)
+- send 후 scrollToBottom 안정화
+- Container/Layout height 3중 fallback
+
+### 로그아웃 회귀 fix
+- refresh route chain follow 폐지 — stale row audit log + 401, active row 보존
+- rotation grace 5min → 15min (bfcache/idle/race 흡수)
+- CORS allowedHeaders X-Client-Kind/X-Internal-Api-Key
+- cookie sameSite strict → lax (iOS Safari ITP 호환)
+- 진단 로그 (no_cookie/jwt_invalid/no_row/stale_reuse)
 
 ---
 
