@@ -155,12 +155,35 @@ router.get('/callback/gdrive', async (req, res) => {
     record.connected_by = parsed.userId;
     record.connected_at = new Date();
 
-    // 루트 폴더 생성 (없으면)
+    // 루트 폴더 확보 (없으면)
+    // 사이클 N+19 hotfix — disconnect→reconnect 시 Drive 에 옛 "PlanQ - {bizName}" 폴더가
+    // 남아 있으면 그것을 재사용. drive.file scope 라 PlanQ 가 직접 만든 폴더만 검색 가능.
+    // 같은 이름 폴더 2개 이상이면 createdTime ASC 첫 번째 (가장 오래된 — 진짜 옛 폴더).
     if (!record.root_folder_id) {
       const biz = await Business.findByPk(parsed.businessId);
+      const bizName = biz ? biz.name : 'workspace';
+      const targetName = `PlanQ - ${bizName}`;
       const drive = await gdrive.getDriveClient(record);
-      const root = await gdrive.createRootFolder(drive, biz ? biz.name : 'workspace');
-      record.root_folder_id = root.id;
+      let folderId = null;
+      try {
+        const list = await drive.files.list({
+          q: `name='${targetName.replace(/'/g, "\\'")}' and mimeType='application/vnd.google-apps.folder' and trashed=false`,
+          fields: 'files(id, name, createdTime)',
+          orderBy: 'createdTime',
+          pageSize: 1,
+        });
+        if (list.data.files && list.data.files.length > 0) {
+          folderId = list.data.files[0].id;
+          console.log('[gdrive callback] reusing existing root folder for biz=' + parsed.businessId + ' folder=' + folderId);
+        }
+      } catch (e) {
+        console.warn('[gdrive callback] root folder search failed:', e.message);
+      }
+      if (!folderId) {
+        const root = await gdrive.createRootFolder(drive, bizName);
+        folderId = root.id;
+      }
+      record.root_folder_id = folderId;
     }
     await record.save();
 
