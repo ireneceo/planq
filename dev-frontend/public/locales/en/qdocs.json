@@ -497,6 +497,12 @@
   "btn": {
     "new": "New document"
   },
+  "newDropdown": {
+    "blankLabel": "Blank doc",
+    "blankDesc": "Start with an empty body",
+    "tableLabel": "Table",
+    "tableDesc": "Rows & columns (accounts, assets, etc.)"
+  },
   "editor": {
     "loading": "Loading document...",
     "notFound": "Document not found",

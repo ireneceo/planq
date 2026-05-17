@@ -29,7 +29,15 @@
       "title": "노트를 시작해 보세요",
       "line1": "메모로 빠르게 적거나, 음성 노트로 회의를 녹음하면",
       "line2": "실시간 받아쓰기·번역·질문 감지가 자동으로 도와드립니다.",
-      "cta": "새 노트 시작"
+      "cta": "새 노트",
+      "ctaMemo": "새 메모",
+      "ctaVoice": "새 음성노트"
+    },
+    "newNoteDropdown": {
+      "memoLabel": "메모",
+      "memoDesc": "텍스트 · 코드블록 · 서식 지원",
+      "voiceLabel": "음성 노트",
+      "voiceDesc": "회의 녹음 + STT + 답변 찾기"
     },
     "header": {
       "editTitleHint": "클릭하여 수정",

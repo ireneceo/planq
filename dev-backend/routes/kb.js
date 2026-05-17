@@ -114,12 +114,12 @@ router.post('/businesses/:businessId/kb/documents', authenticateToken, checkBusi
     }
 
     const allowedCategories = ['policy','manual','incident','faq','about','pricing'];
-    const allowedScopes = ['workspace','project','client'];
+    const allowedScopes = ['private','workspace','project','client'];
     const finalCategories = Array.isArray(categories)
       ? categories.filter(c => allowedCategories.includes(c))
       : (allowedCategories.includes(category) ? [category] : ['manual']);
     const finalCategory = finalCategories[0] || 'manual';
-    let finalScope = allowedScopes.includes(scope) ? scope : 'workspace';
+    let finalScope = allowedScopes.includes(scope) ? scope : ((project_id ? 'project' : (client_id ? 'client' : 'private')));
     let finalProjectId = null;
     let finalClientId = null;
     if (finalScope === 'project') {
@@ -236,12 +236,12 @@ router.post('/businesses/:businessId/kb/documents/upload',
       if (!text.trim()) return errorResponse(res, 'empty_file_body', 400);
 
       const allowedCategories = ['policy','manual','incident','faq','about','pricing'];
-      const allowedScopes = ['workspace','project','client'];
+      const allowedScopes = ['private','workspace','project','client'];
       const finalCategories = Array.isArray(req.body.categories)
         ? req.body.categories.filter(c => allowedCategories.includes(c))
         : (allowedCategories.includes(req.body.category) ? [req.body.category] : ['manual']);
       const finalCategory = finalCategories[0] || 'manual';
-      let finalScope = allowedScopes.includes(req.body.scope) ? req.body.scope : 'workspace';
+      let finalScope = allowedScopes.includes(req.body.scope) ? req.body.scope : ((req.body.project_id ? 'project' : (req.body.client_id ? 'client' : 'private')));
       let finalProjectId = null;
       let finalClientId = null;
       if (finalScope === 'project') {
@@ -328,12 +328,12 @@ router.post('/businesses/:businessId/kb/documents/import-from-file', authenticat
     if (!text.trim()) return errorResponse(res, 'empty_file_body', 400);
 
     const allowedCategories = ['policy','manual','incident','faq','about','pricing'];
-    const allowedScopes = ['workspace','project','client'];
+    const allowedScopes = ['private','workspace','project','client'];
     const finalCategories = Array.isArray(categories)
       ? categories.filter(c => allowedCategories.includes(c))
       : (allowedCategories.includes(category) ? [category] : ['manual']);
     const finalCategory = finalCategories[0] || 'manual';
-    let finalScope = allowedScopes.includes(scope) ? scope : 'workspace';
+    let finalScope = allowedScopes.includes(scope) ? scope : ((project_id ? 'project' : (client_id ? 'client' : 'private')));
     let finalProjectId = null;
     let finalClientId = null;
     if (finalScope === 'project') {
@@ -397,12 +397,12 @@ router.post('/businesses/:businessId/kb/documents/import-from-post', authenticat
     if (!text.trim()) return errorResponse(res, 'empty_post_body', 400);
 
     const allowedCategories = ['policy','manual','incident','faq','about','pricing'];
-    const allowedScopes = ['workspace','project','client'];
+    const allowedScopes = ['private','workspace','project','client'];
     const finalCategories = Array.isArray(categories)
       ? categories.filter(c => allowedCategories.includes(c))
       : (allowedCategories.includes(category) ? [category] : ['manual']);
     const finalCategory = finalCategories[0] || 'manual';
-    let finalScope = allowedScopes.includes(scope) ? scope : 'workspace';
+    let finalScope = allowedScopes.includes(scope) ? scope : ((project_id ? 'project' : (client_id ? 'client' : 'private')));
     let finalProjectId = null;
     let finalClientId = null;
     if (finalScope === 'project') {
@@ -514,7 +514,7 @@ router.put('/businesses/:businessId/kb/documents/:docId', authenticateToken, che
       }
     }
     if (req.body.scope !== undefined) {
-      const allowedScopes = ['workspace','project','client'];
+      const allowedScopes = ['private','workspace','project','client'];
       if (allowedScopes.includes(req.body.scope)) patch.scope = req.body.scope;
     }
     if (req.body.project_id !== undefined) patch.project_id = req.body.project_id ? Number(req.body.project_id) : null;
@@ -897,9 +897,9 @@ router.post('/businesses/:businessId/kb/documents/batch', authenticateToken, che
     if (items.length > 500) return errorResponse(res, 'too_many_items', 400);
 
     const ALLOWED_CAT = ['policy','manual','incident','faq','about','pricing'];
-    const ALLOWED_SCOPE = ['workspace','project','client'];
+    const ALLOWED_SCOPE = ['private','workspace','project','client'];
     const ALLOWED_VIS = ['translate','show_original','hide_other'];
-    const finalScope = ALLOWED_SCOPE.includes(scope) ? scope : 'workspace';
+    const finalScope = ALLOWED_SCOPE.includes(scope) ? scope : (project_id ? 'project' : (client_id ? 'client' : 'private'));
     const finalAutoTranslate = auto_translate !== false;
     const finalVisibility = ALLOWED_VIS.includes(translation_visibility) ? translation_visibility : 'translate';
 

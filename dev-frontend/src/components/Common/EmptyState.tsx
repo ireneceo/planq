@@ -55,7 +55,12 @@ const Wrap = styled.div<{ $size: 'sm' | 'md' }>`
   align-items: center;
   justify-content: center;
   text-align: center;
-  ${p => p.$size === 'md' ? `flex: 1; padding: 40px;` : `padding: 20px 16px;`}
+  width: 100%;
+  /* 사이클 N+22 — 부모가 grid item 이어도 자체 너비 100% + 가운데 보장.
+     min-height 로 빈 컨테이너에서도 시각적으로 안정된 높이 확보. */
+  ${p => p.$size === 'md'
+    ? `flex: 1; padding: 40px; min-height: 280px; grid-column: 1 / -1;`
+    : `padding: 20px 16px;`}
 `;
 const IconCircle = styled.div`
   width: 72px;
