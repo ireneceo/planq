@@ -1749,33 +1749,41 @@ const QTaskPage:React.FC=()=>{
                       onClose={()=>setNewDatePickerOpen(false)} />
                   )}
                 </AddOptField>
-                <AddOptField style={{flex:'0 0 200px'}}>
-                  <AddOptLabel>{t('add.estHours','예측(h)')}</AddOptLabel>
-                  <AddEstWrap>
-                    <AddEstNumberInput type="number" step="0.5" min="0" placeholder="—"
-                      value={newEstHours} onChange={e=>{setNewEstHours(e.target.value);setAiEstReason('');}} />
-                    <AddEstAiBtn type="button" disabled={!newTitle.trim()||aiEstimating}
-                      onClick={handleAiEstimate}
-                      title={!newTitle.trim()
-                        ? (t('add.estAiNeedTitle','제목 입력 후 클릭하면 AI 가 추천합니다') as string)
-                        : (t('add.estAiHint','AI 가 제목·설명으로 예측 시간을 추천합니다') as string)}>
-                      {aiEstimating ? '…' : (newEstHours ? t('add.estAiAgain','AI 다시') : t('add.estAi','AI 추천'))}
-                    </AddEstAiBtn>
-                  </AddEstWrap>
-                  {aiEstReason && <AddEstReason title={aiEstReason}>{aiEstReason}</AddEstReason>}
-                </AddOptField>
+                {/* 사이클 N+19 — 요청 탭에서는 예측시간/AI 추천 UI 숨김.
+                    estimated_hours 는 담당자만 입력 (PERMISSION_MATRIX §5.7).
+                    요청자는 명세만 — description 에 기대 시간 적으면 됨. */}
+                {tab!=='requested' && (
+                  <AddOptField style={{flex:'0 0 200px'}}>
+                    <AddOptLabel>{t('add.estHours','예측(h)')}</AddOptLabel>
+                    <AddEstWrap>
+                      <AddEstNumberInput type="number" step="0.5" min="0" placeholder="—"
+                        value={newEstHours} onChange={e=>{setNewEstHours(e.target.value);setAiEstReason('');}} />
+                      <AddEstAiBtn type="button" disabled={!newTitle.trim()||aiEstimating}
+                        onClick={handleAiEstimate}
+                        title={!newTitle.trim()
+                          ? (t('add.estAiNeedTitle','제목 입력 후 클릭하면 AI 가 추천합니다') as string)
+                          : (t('add.estAiHint','AI 가 제목·설명으로 예측 시간을 추천합니다') as string)}>
+                        {aiEstimating ? '…' : (newEstHours ? t('add.estAiAgain','AI 다시') : t('add.estAi','AI 추천'))}
+                      </AddEstAiBtn>
+                    </AddEstWrap>
+                    {aiEstReason && <AddEstReason title={aiEstReason}>{aiEstReason}</AddEstReason>}
+                  </AddOptField>
+                )}
               </AddOptRow>
-              {/* 반복 토글 + 옵션 — panel 과 동일 */}
-              <RecurRow>
-                <RecurToggleLabel>
-                  <input type="checkbox" checked={newRecurEnabled} disabled={!newDueDate}
-                    onChange={(e)=>setNewRecurEnabled(e.target.checked)} />
-                  <span>{t('recur.toggle','반복하기')}</span>
-                  {!newDueDate && <RecurHint>{t('recur.needDueDate','반복하려면 마감일이 필요해요')}</RecurHint>}
-                </RecurToggleLabel>
-              </RecurRow>
+              {/* 반복 토글 + 옵션 — 요청 탭에서는 숨김 (담당자가 ack 후 정함).
+                  요청은 일시적, 정기성은 담당자 권한. */}
+              {tab!=='requested' && (
+                <RecurRow>
+                  <RecurToggleLabel>
+                    <input type="checkbox" checked={newRecurEnabled} disabled={!newDueDate}
+                      onChange={(e)=>setNewRecurEnabled(e.target.checked)} />
+                    <span>{t('recur.toggle','반복하기')}</span>
+                    {!newDueDate && <RecurHint>{t('recur.needDueDate','반복하려면 마감일이 필요해요')}</RecurHint>}
+                  </RecurToggleLabel>
+                </RecurRow>
+              )}
               {/* 반복 활성 + 마감일 있을 때만 옵션 펼침 */}
-              {newRecurEnabled && newDueDate && (
+              {tab!=='requested' && newRecurEnabled && newDueDate && (
                 <InlineRecurRow>
                   <PlanQSelect size="sm"
                     value={(()=>{
@@ -2915,9 +2923,10 @@ const RightPanel=styled.aside<{$w?:number;$overlay?:boolean}>`background:#FFF;bo
 `;
 const RightPanelBackdrop=styled.div`position:fixed;inset:0;background:rgba(15, 23, 42, 0.08);-webkit-z-index:45;animation:pqRpFade 0.22s ease-out;@keyframes pqRpFade{from{opacity:0;}to{opacity:1;}}@media (prefers-reduced-motion: reduce){animation:none;}`;
 const ResizeHandle=styled.div`position:absolute;top:0;left:-3px;width:6px;height:100%;cursor:col-resize;z-index:5;&:hover{background:rgba(20,184,166,0.2);}&:active{background:rgba(20,184,166,0.4);}`;
-const DetailDrawer=styled.aside<{$w?:number}>`position:fixed;top:0;right:0;bottom:0;width:min(${p=>p.$w||560}px,calc(100vw - 56px));background:#FFF;border-left:1px solid #E2E8F0;box-shadow:-16px 0 40px rgba(15,23,42,0.14);display:flex;flex-direction:column;overflow:hidden;z-index:40;animation:pqSlideIn 0.28s cubic-bezier(0.22,1,0.36,1);@keyframes pqSlideIn{from{transform:translateX(100%);}to{transform:translateX(0);}}padding-bottom:env(safe-area-inset-bottom,0px);@media (prefers-reduced-motion: reduce){animation:none;}@media (max-width: 1024px){top:56px;}`;
-const DrawerBackdrop=styled.div`position:fixed;inset:0;background:rgba(15, 23, 42, 0.08);-webkit-z-index:39;animation:pqFadeIn 0.22s ease-out;@keyframes pqFadeIn{from{opacity:0;}to{opacity:1;}}@media (prefers-reduced-motion: reduce){animation:none;}`;
-const DrawerResizeHandle=styled.div`position:absolute;top:0;left:-4px;width:8px;height:100%;cursor:col-resize;z-index:45;&:hover{background:rgba(20,184,166,0.25);}&:active{background:rgba(20,184,166,0.45);}@media (max-width:1024px){display:none;}`;
+// 사이클 N+19 — DetailDrawer z-index 40 → 60 (RightPanel overlay 50 보다 위, 사용자 의도)
+const DetailDrawer=styled.aside<{$w?:number}>`position:fixed;top:0;right:0;bottom:0;width:min(${p=>p.$w||560}px,calc(100vw - 56px));background:#FFF;border-left:1px solid #E2E8F0;box-shadow:-16px 0 40px rgba(15,23,42,0.14);display:flex;flex-direction:column;overflow:hidden;z-index:60;animation:pqSlideIn 0.28s cubic-bezier(0.22,1,0.36,1);@keyframes pqSlideIn{from{transform:translateX(100%);}to{transform:translateX(0);}}padding-bottom:env(safe-area-inset-bottom,0px);@media (prefers-reduced-motion: reduce){animation:none;}@media (max-width: 1024px){top:56px;}`;
+const DrawerBackdrop=styled.div`position:fixed;inset:0;background:rgba(15, 23, 42, 0.08);z-index:55;animation:pqFadeIn 0.22s ease-out;@keyframes pqFadeIn{from{opacity:0;}to{opacity:1;}}@media (prefers-reduced-motion: reduce){animation:none;}`;
+const DrawerResizeHandle=styled.div`position:absolute;top:0;left:-4px;width:8px;height:100%;cursor:col-resize;z-index:61;&:hover{background:rgba(20,184,166,0.25);}&:active{background:rgba(20,184,166,0.45);}@media (max-width:1024px){display:none;}`;
 const RightHeader=styled.div`height:60px;padding:14px 20px;border-bottom:1px solid #E2E8F0;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;`;
 const RightTitle=styled.h2`font-size:13px;font-weight:700;color:#0F172A;margin:0;letter-spacing:-0.1px;`;
 const RightScroll=styled.div`flex:1;overflow-y:auto;overflow-x:hidden;min-width:0;&>*{min-width:0;max-width:100%;}&::-webkit-scrollbar{width:6px;}&::-webkit-scrollbar-thumb{background:#E2E8F0;border-radius:3px;}`;
