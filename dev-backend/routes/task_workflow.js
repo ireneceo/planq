@@ -392,6 +392,20 @@ router.post('/:id/reviewers/me/revision', authenticateToken, async (req, res, ne
       ctaLabel: '수정 시작',
     });
 
+    // 사이클 N+27 — Cue 가 assignee 이고 cue_kind 있으면 revision_note 포함 자동 재실행
+    try {
+      const { Business } = require('../models');
+      const biz = await Business.findByPk(task.business_id, { attributes: ['cue_user_id'] });
+      if (biz?.cue_user_id && biz.cue_user_id === task.assignee_id && task.cue_kind) {
+        const { executeForTask } = require('../services/cue_task_executor');
+        setImmediate(() => {
+          executeForTask(task.id, { revisionNote: note }).then(r => {
+            console.log('[cue_task_executor revision]', task.id, r.ok ? 'ok' : `skip: ${r.reason}`);
+          }).catch(e => console.error('[cue_task_executor revision crash]', e.message));
+        });
+      }
+    } catch (e) { console.warn('[revision cue check]', e.message); }
+
     return successResponse(res, task.toJSON());
   } catch (err) { next(err); }
 });

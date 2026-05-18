@@ -53,6 +53,10 @@ export interface TodoItem {
   drawer?: { kind: 'task' | 'event'; id: number };  // 우측 드로어용
   inline?: 'invite';             // Accept/Decline 인라인 버튼 활성화
   workspace?: TodoWorkspace;     // cross-workspace 모드 시 부착
+  // task_candidate 전용 — 인박스 inline 등록/반려 모달용 (사이클 N+26)
+  candidate_id?: number;
+  conversation_id?: number | null;
+  guessed_assignee?: { id: number; name: string } | null;
 }
 
 export interface TodoResponse {

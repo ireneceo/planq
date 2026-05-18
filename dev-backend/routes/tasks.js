@@ -1287,6 +1287,39 @@ router.post('/:id/comments', authenticateToken, async (req, res, next) => {
       } catch (e) { console.warn('[mention task outer]', e.message); }
     }
 
+    // 사이클 N+27 — Cue 가 assignee 이고 cue_kind 있는 task 의 새 댓글이면 Cue 가 댓글 읽고 task.body 업데이트 + 답글 댓글
+    // 조건: 댓글 작성자가 Cue 자신이 아니어야 (무한 루프 방지) + reviewing 상태 (1차 결과 받은 후 추가 지시)
+    try {
+      const Business = require('../models').Business;
+      const biz = await Business.findByPk(task.business_id, { attributes: ['cue_user_id'] });
+      const isCueAssigned = biz?.cue_user_id && biz.cue_user_id === task.assignee_id && task.cue_kind;
+      const isAuthorNotCue = req.user.id !== biz?.cue_user_id;
+      const isReviewable = task.status === 'reviewing' || task.status === 'revision_requested';
+      if (isCueAssigned && isAuthorNotCue && isReviewable) {
+        setImmediate(async () => {
+          try {
+            const { executeForTask } = require('../services/cue_task_executor');
+            const r = await executeForTask(task.id, { commentNote: comment.content });
+            if (r.ok) {
+              // Cue 답글 댓글 추가 (사용자에게 "반영했어요" 알림)
+              const replyComment = await TaskComment.create({
+                task_id: task.id, user_id: biz.cue_user_id,
+                content: '댓글을 반영해 결과를 업데이트했어요. 위 본문을 확인해주세요.',
+                visibility: 'shared',
+              });
+              const replyFull = await TaskComment.findByPk(replyComment.id, {
+                include: [{ model: User, as: 'author', attributes: ['id', 'name'] }],
+              });
+              if (io && replyFull) io.to(`task:${task.id}`).emit('comment:new', replyFull.toJSON());
+              console.log('[cue_task_executor comment]', task.id, 'ok');
+            } else {
+              console.log('[cue_task_executor comment]', task.id, 'skip:', r.reason);
+            }
+          } catch (e) { console.error('[cue_task_executor comment crash]', e.message); }
+        });
+      }
+    } catch (e) { console.warn('[comment cue check]', e.message); }
+
     return successResponse(res, full.toJSON());
   } catch (err) { next(err); }
 });

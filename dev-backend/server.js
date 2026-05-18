@@ -413,6 +413,11 @@ scheduleNextMidnight();
 const { initWeeklyReviewCron } = require('./services/weeklyReviewCron');
 initWeeklyReviewCron();
 
+// 채팅 자동 업무 추출 디바운스 트리거 + cron fallback (사이클 N+27)
+const taskExtractorScheduler = require('./services/taskExtractorScheduler');
+taskExtractorScheduler.setIo(io);
+taskExtractorScheduler.initCronFallback();
+
 // Graceful shutdown
 process.on('SIGTERM', () => {
   console.log('Shutting down...');

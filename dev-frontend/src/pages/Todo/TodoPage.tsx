@@ -11,6 +11,7 @@ import PushPromptBanner from '../../components/Common/PushPromptBanner';
 import TodoList from '../../components/Dashboard/TodoList';
 import TaskDetailDrawer from '../../components/QTask/TaskDetailDrawer';
 import DailyStartModal from '../../components/Focus/DailyStartModal';
+import CandidateActionModal from '../../components/Focus/CandidateActionModal';
 import EventDrawer from '../../pages/QCalendar/EventDrawer';
 import { fetchTodo } from '../../services/dashboard';
 import type { TodoItem, TodoResponse } from '../../services/dashboard';
@@ -61,6 +62,16 @@ const TodoPage: React.FC = () => {
   // cross-workspace inbox: task 의 정확한 워크스페이스 bizId 추적 (default bizId 와 다를 수 있음)
   const [selectedTaskBizId, setSelectedTaskBizId] = useState<number | null>(null);
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
+  // 인박스 task_candidate 카드 클릭 시 inline 모달 (사이클 N+26)
+  const [candidateInfo, setCandidateInfo] = useState<{
+    candidate_id: number;
+    title: string;
+    conversation_id: number | null;
+    conversation_name: string | null;
+    guessed_assignee: { id: number; name: string } | null;
+    workspace_name: string | null;
+    workspace_business_id: number | null;
+  } | null>(null);
 
   // silent=true 이면 skeleton 으로 되돌리지 않고 백그라운드 교체만. 드로어 내부 수정 후
   // 리스트를 업데이트할 때 뒤 리스트가 "깜빡"이지 않도록.
@@ -166,6 +177,20 @@ const TodoPage: React.FC = () => {
       })
       .catch(() => { /* noop */ });
   }, [bizId]);
+
+  // task_candidate 인박스 카드 클릭 핸들러
+  const handleOpenCandidate = (item: TodoItem) => {
+    if (!item.candidate_id) return;
+    setCandidateInfo({
+      candidate_id: item.candidate_id,
+      title: item.subject,
+      conversation_id: item.conversation_id ?? null,
+      conversation_name: item.context || null,
+      guessed_assignee: item.guessed_assignee || null,
+      workspace_name: item.workspace?.brand_name || null,
+      workspace_business_id: item.workspace?.business_id ?? bizId ?? null,
+    });
+  };
 
   const handleOpenDrawer = async (item: TodoItem) => {
     if (item.drawer?.kind === 'task') {
@@ -286,6 +311,7 @@ const TodoPage: React.FC = () => {
                   loading={loading}
                   onOpenDrawer={handleOpenDrawer}
                   onInviteAction={handleInviteAction}
+                  onOpenCandidate={handleOpenCandidate}
                 />}
           </>
         );
@@ -321,6 +347,20 @@ const TodoPage: React.FC = () => {
       />
       {/* 업무 흐름 — 오늘 시작 안내 모달 (focus_enabled + daily_prompt true 일 때만) */}
       <DailyStartModal />
+
+      {/* 인박스 task_candidate 카드 클릭 = inline 등록/반려 모달 (사이클 N+26) */}
+      <CandidateActionModal
+        open={!!candidateInfo}
+        info={candidateInfo}
+        onClose={() => setCandidateInfo(null)}
+        onRegistered={(taskId, businessBizId) => {
+          silentLoad();
+          // 등록된 task drawer 자동 오픈
+          setSelectedTaskId(taskId);
+          setSelectedTaskBizId(businessBizId);
+        }}
+        onRejected={() => { silentLoad(); }}
+      />
     </PageShell>
   );
 };

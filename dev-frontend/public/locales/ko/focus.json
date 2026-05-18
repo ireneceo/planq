@@ -21,6 +21,22 @@
     "idleDiscard": "그 시간 빼기",
     "idleKeep": "계속 진행"
   },
+  "candidateModal": {
+    "title": "업무 후보 처리",
+    "fromConv": "Q Talk · {{conv}} 에서 추출",
+    "fromQtalk": "Q Talk 대화에서 추출",
+    "titleLabel": "업무명",
+    "titlePh": "업무명을 입력하세요",
+    "assignee": "담당자",
+    "assigneePh": "담당자 선택",
+    "guessedAssignee": "Q Talk 가 \"{{name}}\" 으로 추정",
+    "dueDate": "마감일 (선택)",
+    "dueDatePh": "비워두면 마감 없음",
+    "register": "업무로 등록",
+    "registering": "등록 중...",
+    "reject": "반려",
+    "rejecting": "반려 중..."
+  },
   "dailyStart": {
     "title": "오늘 시작하기",
     "intro": "오늘 마감·확인요청·지연된 업무를 모았어요. 골라서 시작하거나, 비워두고 닫아도 OK.",

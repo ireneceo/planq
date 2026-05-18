@@ -129,6 +129,8 @@ export interface MockMessage {
     processing_by?: { user_id: number; name: string } | null;
   };
   ai_sources?: { doc_id: number; title: string; section: string; snippet: string }[];
+  is_ai?: boolean;
+  cue_rating?: 1 | -1 | null;
   attachments?: { id: number; file_name: string; file_size: number; mime_type?: string | null }[];
   card?: PostCardMeta | SignatureCardMeta | InvoiceCardMeta | TaskCardMeta | FileCardMeta | KbDocCardMeta | CalendarEventCardMeta | null;
   translations?: Partial<Record<'ko'|'en'|'ja'|'zh'|'es', string>> | null;

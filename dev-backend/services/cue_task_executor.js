@@ -54,23 +54,28 @@ function htmlWrap(text) {
 
 // ─── kind 별 실행 ──────────────────────────────────────────
 
-async function execSummarize(task) {
-  // cue_context_ref.meeting_id 로 Q Note 세션의 utterances 가져와 요약
-  // Q Note 는 별도 Python — Node 백엔드에서 직접 접근 어려움.
-  // 단순화: task.title/body 만으로 요약 (사용자가 본문에 회의록 붙여넣은 케이스)
+function feedbackBlock(opts) {
+  if (!opts) return '';
+  const lines = [];
+  if (opts.revisionNote) lines.push(`사용자 수정 요청: ${opts.revisionNote}`);
+  if (opts.commentNote) lines.push(`사용자 추가 코멘트: ${opts.commentNote}`);
+  return lines.length ? `\n\n# 이번 요청에 반영해야 할 사용자 피드백\n${lines.join('\n')}\n` : '';
+}
+
+async function execSummarize(task, opts = {}) {
   const seed = `${task.title}\n\n${(task.body || '').replace(/<[^>]+>/g, ' ').slice(0, 4000)}`;
   if (seed.trim().length < 30) {
     return { ok: false, reason: 'no_content_to_summarize' };
   }
   const r = await llm(
     '너는 회의 요약 전문가. 핵심 결정·액션 아이템·리스크를 3개 bullet 으로 요약. 한국어.',
-    `다음 내용을 요약하세요.\n\n${seed}`,
+    `다음 내용을 요약하세요.\n\n${seed}${feedbackBlock(opts)}`,
     600,
   );
   return { ok: true, body: htmlWrap(`# 자동 요약\n\n${r.content}`), input_tokens: r.input_tokens, output_tokens: r.output_tokens };
 }
 
-async function execDraftReply(task) {
+async function execDraftReply(task, opts = {}) {
   // cue_context_ref.conversation_id → 최근 5 고객 메시지 → 답장 초안
   const ref = task.cue_context_ref || {};
   if (!ref.conversation_id) return { ok: false, reason: 'conversation_id_required' };
@@ -88,25 +93,23 @@ async function execDraftReply(task) {
 
   const r = await llm(
     '너는 친절한 고객 응대 담당자. 정확하고 전문적이며 짧고 명확한 답장 초안. 한국어. 3~5문장.',
-    `다음 대화에 대한 답장 초안을 작성하세요. 업무 지시: "${task.title}"\n\n${conversation}`,
+    `다음 대화에 대한 답장 초안을 작성하세요. 업무 지시: "${task.title}"\n\n${conversation}${feedbackBlock(opts)}`,
     500,
   );
   return { ok: true, body: htmlWrap(`# 답장 초안\n\n${r.content}`), input_tokens: r.input_tokens, output_tokens: r.output_tokens };
 }
 
-async function execCategorize(task) {
-  // task.title + body → 카테고리 + 태그 추천
+async function execCategorize(task, opts = {}) {
   const text = `${task.title}\n\n${(task.body || '').replace(/<[^>]+>/g, ' ').slice(0, 2000)}`;
   const r = await llm(
     '너는 분류 전문가. JSON 만 출력. 형식: {"category":"...","tags":["...","..."]}',
-    `다음 업무를 분류하고 태그를 추천하세요.\n\n${text}`,
+    `다음 업무를 분류하고 태그를 추천하세요.\n\n${text}${feedbackBlock(opts)}`,
     200,
   );
   return { ok: true, body: htmlWrap(`# 자동 분류\n\n${r.content}`), input_tokens: r.input_tokens, output_tokens: r.output_tokens };
 }
 
-async function execResearch(task) {
-  // task.title 을 query 로 KB 검색 → LLM 정리
+async function execResearch(task, opts = {}) {
   const { hybridSearch } = require('./kb_service');
   const results = await hybridSearch(task.business_id, task.title, { topK: 5 }).catch(() => null);
   let context = '';
@@ -115,7 +118,7 @@ async function execResearch(task) {
   }
   const r = await llm(
     '너는 자료 조사 전문가. KB 자료를 인용하며 답변. 출처 없으면 솔직히 "자료 부족" 명시.',
-    `질문: ${task.title}\n\n참조 자료:\n${context || '(없음)'}\n\n답변을 정리하세요.`,
+    `질문: ${task.title}\n\n참조 자료:\n${context || '(없음)'}\n\n답변을 정리하세요.${feedbackBlock(opts)}`,
     600,
   );
   return { ok: true, body: htmlWrap(`# 자료 조사\n\n${r.content}`), input_tokens: r.input_tokens, output_tokens: r.output_tokens };
@@ -123,7 +126,9 @@ async function execResearch(task) {
 
 // ─── 메인 entrypoint ──────────────────────────────────────
 
-async function executeForTask(taskId) {
+async function executeForTask(taskId, opts = {}) {
+  // opts.revisionNote — revision_requested 시 사용자 피드백 (system prompt 에 포함)
+  // opts.commentNote — task 댓글에서 트리거된 경우 댓글 본문
   const task = await Task.findByPk(taskId);
   if (!task) return { ok: false, reason: 'task_not_found' };
   if (!task.cue_kind) return { ok: false, reason: 'cue_kind_not_set' };
@@ -151,10 +156,10 @@ async function executeForTask(taskId) {
   let result;
   try {
     switch (task.cue_kind) {
-      case 'summarize':   result = await execSummarize(task); break;
-      case 'draft_reply': result = await execDraftReply(task); break;
-      case 'categorize':  result = await execCategorize(task); break;
-      case 'research':    result = await execResearch(task); break;
+      case 'summarize':   result = await execSummarize(task, opts); break;
+      case 'draft_reply': result = await execDraftReply(task, opts); break;
+      case 'categorize':  result = await execCategorize(task, opts); break;
+      case 'research':    result = await execResearch(task, opts); break;
       default:
         return { ok: false, reason: 'unknown_kind' };
     }

@@ -336,6 +336,11 @@
       "reject": "Reject",
       "sourceLabel": "Source"
     },
+    "cueRating": {
+      "label": "How was this answer?",
+      "up": "Helpful",
+      "down": "Not helpful"
+    },
     "input": {
       "cueWaiting_one": "1 Cue draft pending",
       "cueWaiting_other": "{{count}} Cue drafts pending",
