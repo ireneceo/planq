@@ -3,12 +3,26 @@
 ## 현재 작업 상태
 **마지막 업데이트:** 2026-05-18
 **작업 상태:** 완료
-**운영 라이브 버전:** v1.13.0 (commit `5317eca`, 배포 `20260517_183327`)
+**운영 라이브 버전:** v1.14.0 (commit `bfb5835`, 배포 `20260518_061702`, 103초)
+**직전 라이브:** v1.13.0 (commit `5317eca`, 배포 `20260517_183327`)
 
 ### 진행 중인 작업
 - 없음
 
-### 완료된 작업 (이번 세션 N+18~N+21 + hotfix 3건)
+### 완료된 작업 (이번 세션 N+22 누적 패키지 + 운영 데이터 cleanup)
+
+**N+22 — 채팅 sender 워크스페이스명 + 한글 파일명 + dock badge race + Q Task/프로필 UX**
+- `services/displayName.js` 신규 — BusinessMember.name 우선 fallback User.name. conversations.js + projects.js 11지점 적용. 채팅 이력 전체 워크스페이스명 즉시 반영.
+- `services/filename.js` 신규 — multer latin1 mojibake 복구 + RFC 5987 Content-Disposition. 6 라우트 (posts/files/task_attachments/message_attachments/kb) 일괄.
+- 운영 cleanup: 한글 파일명 17 row 복구 (File 11 + MessageAttachment 5 + TaskAttachment 1), 본문 이미지 3 row L1→L3 promote.
+- SW push handler — visible client 있으면 setAppBadge skip (race 차단). useGlobalBadge — visibility/focus 시 강제 재호출.
+- Q Task statusOptionsFor 3 파일 waiting 일관, TaskRowActionMenu 6점→3점, EdgeHandle 통일 (Q Talk/Q docs).
+- Profile Container 2열 grid + nicknameUsage 사용처 hint. WorkspaceSettings/Profile 에 refreshUser 추가.
+- Q Talk ChatRow align center + 별/⋮ 간격 조정, canManageConversation admin role 포함.
+- PostEditor read-only 모드 selectednode outline 제거 (공개 페이지 이미지 위/아래 녹색선 차단).
+- q-note services/database.py — text 메모 5 컬럼 idempotent migration (input_type/translate_enabled/linked_voice_session_id/summarized_at/body).
+
+### 완료된 작업 (이전 세션 N+18~N+21 + hotfix 3건)
 
 **N+18 — 워크스페이스 통합 주간보고서**
 - `business_weekly_reports` 테이블 신규 (UNIQUE biz+week_start)
