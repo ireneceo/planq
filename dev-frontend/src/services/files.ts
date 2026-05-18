@@ -314,7 +314,20 @@ export function extOf(name: string): string {
   return m ? m[1].toLowerCase() : '';
 }
 
+// 브라우저가 직접 렌더 가능한 이미지 확장자만 — heic/heif/raw/tiff 등은 미리보기 X, 파일 카드로.
+// 사이클 N+23: HEIC(iPhone 기본) 업로드 시 깨진 이미지 아이콘 노출 회귀 차단.
+const RENDERABLE_IMAGE_EXTS = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'avif', 'bmp', 'ico']);
+const NON_RENDERABLE_IMAGE_MIMES = new Set([
+  'image/heic', 'image/heif', 'image/heic-sequence', 'image/heif-sequence',
+  'image/tiff', 'image/x-tiff',
+  'image/x-canon-cr2', 'image/x-canon-cr3', 'image/x-nikon-nef', 'image/x-sony-arw', 'image/x-adobe-dng',
+]);
+
 export function isImage(mime: string | null, name: string): boolean {
-  if (mime?.startsWith('image/')) return true;
-  return ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'].includes(extOf(name));
+  const m = (mime || '').toLowerCase();
+  if (NON_RENDERABLE_IMAGE_MIMES.has(m)) return false;
+  if (m.startsWith('image/')) return true;
+  const ext = extOf(name);
+  if (['heic', 'heif', 'tiff', 'tif', 'raw', 'cr2', 'cr3', 'nef', 'arw', 'dng'].includes(ext)) return false;
+  return RENDERABLE_IMAGE_EXTS.has(ext);
 }

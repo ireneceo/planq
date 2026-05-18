@@ -14,7 +14,7 @@ import EmptyState from '../../components/Common/EmptyState';
 import PostCardPreviewModal from './PostCardPreviewModal';
 import FilePicker, { type FilePickerResult } from '../../components/Common/FilePicker';
 import UserInfoPopover from '../../components/Common/UserInfoPopover';
-import { fetchWorkspaceFiles, uploadMyFile } from '../../services/files';
+import { fetchWorkspaceFiles, uploadMyFile, isImage as isRenderableImage } from '../../services/files';
 import { mediaTablet } from '../../theme/breakpoints';
 import { mapApiError } from '../../utils/apiError';
 
@@ -1322,26 +1322,39 @@ const ChatPanel: React.FC<Props> = ({
               {!isDeleted && m.attachments && m.attachments.length > 0 && (
                 <AttachRow>
                   {m.attachments.map((a) => {
-                    const isImg = (a.mime_type || '').startsWith('image/');
+                    // 사이클 N+23: HEIC/HEIF/TIFF 같이 브라우저 미지원 포맷은 isRenderableImage=false
+                    //   → 파일 카드. 깨진 이미지 아이콘 노출 차단. <img onError> 도 같은 fallback.
+                    const isImg = isRenderableImage(a.mime_type || '', a.file_name);
                     const imgSrc = `/api/message-attachments/${a.id}/raw`;
                     return isImg ? (
-                      // <img> / <a target=_blank> 모두 인증헤더 못 실음 → /raw (image only, public)
                       <AttachImageLink key={a.id} href={imgSrc} target="_blank" rel="noreferrer">
                         <AttachImage
                           src={imgSrc}
                           alt={a.file_name}
                           onLoad={() => {
-                            // 이미지 로드되면 컨텐츠 높이가 늘어남 → 마지막 메시지가 viewport 밖으로 밀림
-                            // 사용자가 거의 끝에 있을 때만 다시 스크롤 (위로 올려둔 상태면 방해 안 함)
                             const list = messageListRef.current;
                             if (!list) return;
                             const distance = list.scrollHeight - list.scrollTop - list.clientHeight;
                             if (distance < 240) scrollToBottom(false);
                           }}
+                          onError={(e) => {
+                            // 미리보기 실패 — 파일 카드 형태로 in-place 교체. 깨진 아이콘 X.
+                            const img = e.currentTarget;
+                            const parent = img.parentElement?.parentElement; // AttachImageLink 의 부모
+                            if (!parent) { img.style.display = 'none'; return; }
+                            const card = document.createElement('button');
+                            card.type = 'button';
+                            card.className = 'attach-fallback-card';
+                            card.title = a.file_name;
+                            card.onclick = () => downloadAttachment(a.id, a.file_name);
+                            card.style.cssText = 'display:inline-flex;align-items:center;gap:10px;padding:10px 12px;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:10px;cursor:pointer;font:inherit;color:#0F172A;max-width:280px;';
+                            const ext = (a.file_name.split('.').pop() || 'FILE').slice(0, 4).toUpperCase();
+                            card.innerHTML = `<span style="display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;background:#E2E8F0;color:#475569;border-radius:6px;font-size:10px;font-weight:700;flex-shrink:0">${ext}</span><span style="display:flex;flex-direction:column;min-width:0;text-align:left"><span style="font-size:13px;font-weight:600;color:#0F172A;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px">${a.file_name.replace(/</g,'&lt;')}</span><span style="font-size:11px;color:#64748B">${(a.file_size/1024).toFixed(0)}KB · 미리보기 불가</span></span>`;
+                            img.parentElement?.replaceWith(card);
+                          }}
                         />
                       </AttachImageLink>
                     ) : (
-                      // 비이미지: 클릭 시 JS fetch (auth header + refresh) → blob → 다운로드 트리거
                       <AttachFileLink key={a.id} as="button" type="button" title={a.file_name}
                         onClick={() => downloadAttachment(a.id, a.file_name)}>
                         <AttachIcon>{a.file_name.split('.').pop()?.slice(0, 3).toUpperCase() || 'FILE'}</AttachIcon>
