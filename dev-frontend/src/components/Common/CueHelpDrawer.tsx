@@ -227,7 +227,10 @@ const CueHelpDrawer: React.FC = () => {
   // 컨텍스트 기반 자동 숨김 — Q Talk 같이 우하단 입력 영역(전송버튼/IME 도구)을 점유하는 화면에서는
   // FAB 가 충돌하므로 숨긴다. 도움말은 헤더의 ⓘ 아이콘 또는 단축키 (⌘? / Ctrl+/) 로 접근.
   // 새 페이지 추가 시 이 목록만 갱신.
-  const FAB_HIDDEN_PATHS = ['/talk'];
+  // 사이클 N+24: /talk 차단 해제 — 사용자 요청 "Q Talk 에서도 헬프 FAB 노출".
+  // 옛 정책은 Q Talk 채팅 InputBar 위 입력 도구 충돌 우려였으나, FAB 가 우하단 (메모: bottom 16px, 헬프: bottom 80px)
+  // 이라 채팅 입력란과 분리. 표시 유지.
+  const FAB_HIDDEN_PATHS: string[] = [];
   const fabHidden = FAB_HIDDEN_PATHS.some(p => location.pathname === p || location.pathname.startsWith(`${p}/`));
 
   return (
