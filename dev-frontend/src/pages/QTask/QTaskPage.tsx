@@ -343,15 +343,18 @@ const QTaskPage:React.FC=()=>{
   }, [searchParams, setSearchParams]);
 
   // 인박스 → 업무 후보 카드 강조 (사이클 N+9). 인박스 task_candidate 클릭 시 ?candidate=Y
-  // → 우측 패널의 해당 카드로 스크롤 + 1.5s flash. all 탭 자동 전환 + 우측 패널 자동 열기.
+  // → 우측 패널의 해당 카드로 스크롤 + flash. all 탭 자동 전환 + 우측 패널 자동 열기.
+  // 사이클 N+26: 후보 못 찾을 때 silent 실패 대신 상단 안내 띠 노출 (사용자 표현: "눌러도 없어").
   const candidateFlashRef = useRef(false);
+  const [candidateMissing, setCandidateMissing] = useState<string | null>(null);
   useEffect(() => {
     if (candidateFlashRef.current) return;
     const cid = searchParams.get('candidate');
     if (!cid) return;
-    // 우측 패널 접혀있으면 펼침
+    // 우측 패널 접혀있으면 펼침 + scope/tab 강제 (다른 탭에서 진입한 경우)
     setRightCollapsed(false);
-    // candidates 가 아직 로드 안 됐을 수 있어 polling — 최대 3초.
+    if (scope === 'mine' && tab !== 'all') setTab('all');
+    // candidates 가 아직 로드 안 됐을 수 있어 polling — 최대 5초.
     let tries = 0;
     const timer = setInterval(() => {
       tries++;
@@ -366,18 +369,22 @@ const QTaskPage:React.FC=()=>{
           el.style.boxShadow = '';
           el.style.background = '';
         }, 1800);
-        // URL 정리
         const next = new URLSearchParams(searchParams);
         next.delete('candidate');
         setSearchParams(next, { replace: true });
         candidateFlashRef.current = true;
-      } else if (tries >= 15) {  // 3s 대기 후 포기
+      } else if (tries >= 25) {  // 5s 대기 후 포기 — 보통 다른 워크스페이스 후보거나 이미 처리됨
         clearInterval(timer);
         candidateFlashRef.current = true;
+        setCandidateMissing(cid);
+        const next = new URLSearchParams(searchParams);
+        next.delete('candidate');
+        setSearchParams(next, { replace: true });
       }
     }, 200);
     return () => clearInterval(timer);
     // candidates 변화는 polling 으로 자동 감지 — deps 에 안 넣어도 OK.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams, setSearchParams]);
   // 지연 뱃지 quick chip popover (사용자 요청: 마감 지난 업무 즉시 갱신 안내)
   const[delayChipsForId,setDelayChipsForId]=useState<number|null>(null);
@@ -1312,6 +1319,22 @@ const QTaskPage:React.FC=()=>{
               {t('tab.weeklyReviewMine', { defaultValue: '지난주 내 업무보고' }) as string}
             </TabBtn>
           </TabBar>
+        )}
+
+        {/* 인박스에서 진입한 후보를 못 찾았을 때 안내 띠 (cross-workspace / 이미 처리됨) */}
+        {candidateMissing && (
+          <CandMissingBar role="status">
+            <CandMissingIcon>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            </CandMissingIcon>
+            <CandMissingBody>
+              <CandMissingTitle>{t('candidate.missingTitle', '이 업무 후보를 현재 워크스페이스에서 찾을 수 없습니다')}</CandMissingTitle>
+              <CandMissingDesc>{t('candidate.missingDesc', '다른 워크스페이스의 후보이거나 이미 등록·반려되었을 수 있어요. 우측 "추출된 업무" 섹션에서 최신 목록을 확인하세요.')}</CandMissingDesc>
+            </CandMissingBody>
+            <CandMissingClose type="button" onClick={() => setCandidateMissing(null)} aria-label={t('common.close','닫기') as string}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </CandMissingClose>
+          </CandMissingBar>
         )}
 
         {/* Tabs — 전체 업무 모드 (전체 업무 / 전체 주간보고) */}
@@ -2631,6 +2654,31 @@ const QTaskPage:React.FC=()=>{
   );
 };
 export default QTaskPage;
+
+// ═══ Candidate Missing 안내 띠 (인박스에서 진입했으나 후보 못 찾았을 때) ═══
+const CandMissingBar = styled.div`
+  display: flex; align-items: flex-start; gap: 10px;
+  margin: 0 20px 12px; padding: 12px 14px;
+  background: #FFFBEB; border: 1px solid #FCD34D; border-radius: 10px;
+`;
+const CandMissingIcon = styled.span`
+  display: inline-flex; flex-shrink: 0;
+  width: 24px; height: 24px;
+  align-items: center; justify-content: center;
+  color: #B45309;
+`;
+const CandMissingBody = styled.div`flex: 1; min-width: 0;`;
+const CandMissingTitle = styled.div`
+  font-size: 13px; font-weight: 700; color: #92400E; margin-bottom: 2px;
+`;
+const CandMissingDesc = styled.div`font-size: 12px; color: #78350F; line-height: 1.5;`;
+const CandMissingClose = styled.button`
+  flex-shrink: 0; width: 24px; height: 24px; padding: 0;
+  background: transparent; border: none; border-radius: 4px; cursor: pointer;
+  color: #92400E;
+  display: inline-flex; align-items: center; justify-content: center;
+  &:hover { background: rgba(146, 64, 14, 0.1); }
+`;
 
 // ═══ Styled ═══
 const Layout=styled.div`display:flex;height:calc(100vh - 0px);background:#F8FAFC;overflow:hidden;`;

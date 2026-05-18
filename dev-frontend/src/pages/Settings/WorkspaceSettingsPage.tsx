@@ -11,6 +11,7 @@ import PermissionsSettings from './PermissionsSettings';
 import BillingSettings from './BillingSettings';
 import EmailSettings from './EmailSettings';
 import NotificationSettings from './NotificationSettings';
+import WorkManagementSettings from '../../components/Settings/WorkManagementSettings';
 import { mapApiError } from '../../utils/apiError';
 import TimezoneSelector from '../../components/Common/TimezoneSelector';
 import PageShell from '../../components/Layout/PageShell';
@@ -32,7 +33,7 @@ import {
   type CueInfo,
 } from '../../services/workspace';
 
-type TabKey = 'brand' | 'legal' | 'language' | 'storage' | 'plan' | 'permissions' | 'members' | 'cue' | 'billing' | 'email' | 'notifications';
+type TabKey = 'brand' | 'legal' | 'language' | 'storage' | 'plan' | 'permissions' | 'members' | 'cue' | 'billing' | 'email' | 'notifications' | 'work-flow';
 
 // ─────────────────────────────────────────────
 // Styled
@@ -736,6 +737,7 @@ export default function WorkspaceSettingsPage() {
       case 'billing':     return t('tabs.billing', '청구 설정') as string;
       case 'email':       return t('tabs.email', '이메일') as string;
       case 'notifications': return t('tabs.notificationSettings', '알림 설정') as string;
+      case 'work-flow':   return t('tabs.workFlow', '업무 관리') as string;
       case 'brand':
       case 'legal':
       default:          return t('page.title') as string;  // brand/legal = "워크스페이스"
@@ -1137,6 +1139,11 @@ export default function WorkspaceSettingsPage() {
       {/* ─── NOTIFICATIONS (Phase E placeholder) ─── */}
       {tab === 'notifications' && businessId && (
         <NotificationSettings businessId={businessId} isOwner={isAdmin} />
+      )}
+
+      {/* ─── WORK FLOW (사이클 N+26) — 주간 자동 확정 + 향후 업무 정책 ─── */}
+      {tab === 'work-flow' && businessId && (
+        <WorkManagementSettings businessId={businessId} isAdmin={isAdmin} />
       )}
 
       {/* ─── MEMBERS ─── */}

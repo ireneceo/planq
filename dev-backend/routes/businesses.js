@@ -319,6 +319,61 @@ router.put('/:businessId/mail', authenticateToken, checkBusinessAccess, async (r
   } catch (err) { next(err); }
 });
 
+// ─── 주간 보고 자동 확정 설정 (사이클 N+26) ───
+// 워크스페이스 단위 — 매주 N요일 H시에 지난 주 보고서 자동 확정
+router.get('/:businessId/weekly-finalize', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+  try {
+    const business = await Business.findByPk(req.params.businessId, {
+      attributes: ['id', 'timezone', 'weekly_finalize_dow', 'weekly_finalize_hour', 'weekly_finalize_enabled'],
+    });
+    if (!business) return errorResponse(res, 'Workspace not found', 404);
+    return successResponse(res, {
+      timezone: business.timezone,
+      weekly_finalize_dow: business.weekly_finalize_dow,
+      weekly_finalize_hour: business.weekly_finalize_hour,
+      weekly_finalize_enabled: business.weekly_finalize_enabled,
+    });
+  } catch (err) { next(err); }
+});
+
+router.put('/:businessId/weekly-finalize', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+  try {
+    if (req.businessRole !== 'owner' && req.businessRole !== 'admin' && req.user.platform_role !== 'platform_admin') {
+      return errorResponse(res, 'owner_or_admin_only', 403);
+    }
+    const business = await Business.findByPk(req.params.businessId);
+    if (!business) return errorResponse(res, 'Workspace not found', 404);
+    const { weekly_finalize_dow, weekly_finalize_hour, weekly_finalize_enabled } = req.body || {};
+    const updates = {};
+    if (weekly_finalize_dow !== undefined) {
+      const v = Number(weekly_finalize_dow);
+      if (!Number.isFinite(v) || v < 0 || v > 6) return errorResponse(res, 'invalid_dow', 400, { message: 'dow must be 0-6' });
+      updates.weekly_finalize_dow = v;
+    }
+    if (weekly_finalize_hour !== undefined) {
+      const v = Number(weekly_finalize_hour);
+      if (!Number.isFinite(v) || v < 0 || v > 23) return errorResponse(res, 'invalid_hour', 400, { message: 'hour must be 0-23' });
+      updates.weekly_finalize_hour = v;
+    }
+    if (typeof weekly_finalize_enabled === 'boolean') updates.weekly_finalize_enabled = weekly_finalize_enabled;
+    await business.update(updates);
+    try {
+      await createAuditLog({
+        userId: req.user.id, businessId: business.id,
+        action: 'business.weekly_finalize_update',
+        targetType: 'business', targetId: business.id,
+        newValue: updates,
+      });
+    } catch { /* audit silent */ }
+    return successResponse(res, {
+      timezone: business.timezone,
+      weekly_finalize_dow: business.weekly_finalize_dow,
+      weekly_finalize_hour: business.weekly_finalize_hour,
+      weekly_finalize_enabled: business.weekly_finalize_enabled,
+    });
+  } catch (err) { next(err); }
+});
+
 router.put('/:businessId/billing', authenticateToken, checkBusinessAccess, async (req, res, next) => {
   try {
     const business = await Business.findByPk(req.params.businessId);

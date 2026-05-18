@@ -57,23 +57,29 @@ function initWeeklyReviewCron() {
 
     try {
       // 1. 활성 멤버 순회 — BusinessMember 는 active 컬럼 없음. removed_at NULL 이 활성.
+      // 사이클 N+26: 워크스페이스 단위 weekly_finalize_dow/hour/enabled 설정에 따라 트리거.
+      // weekly_finalize_enabled=false 인 워크스페이스는 자동 확정 자체 skip.
       const members = await BusinessMember.findAll({
         where: { removed_at: null },
-        include: [{ model: Business, attributes: ['id', 'timezone'] }],
+        include: [{ model: Business, attributes: ['id', 'timezone', 'weekly_finalize_dow', 'weekly_finalize_hour', 'weekly_finalize_enabled'] }],
       });
 
       let processed = 0;
       let created = 0;
 
       for (const m of members) {
-        const wsTz = m.Business?.timezone || 'Asia/Seoul';
+        const biz = m.Business;
+        if (!biz) continue;
+        if (biz.weekly_finalize_enabled === false) continue;  // 워크스페이스 자동 확정 OFF
+        const wsTz = biz.timezone || 'Asia/Seoul';
         const nowInTz = getNowInTz(wsTz);
 
         if (!nowInTz) continue;
 
-        // 월요일 00:00~00:59 인지 확인
-        const isJustAfterSundayEnd = nowInTz.weekday === 1 && nowInTz.hour === 0;
-        if (!isJustAfterSundayEnd) continue;
+        // 워크스페이스 설정된 요일·시각인지 확인 (default 월요일 0시)
+        const targetDow = biz.weekly_finalize_dow != null ? Number(biz.weekly_finalize_dow) : 1;
+        const targetHour = biz.weekly_finalize_hour != null ? Number(biz.weekly_finalize_hour) : 0;
+        if (nowInTz.weekday !== targetDow || nowInTz.hour !== targetHour) continue;
 
         processed++;
 
@@ -126,9 +132,14 @@ function initWeeklyReviewCron() {
       // 같은 주차 manual row 가 있으면 skip (수동 우선).
       const businessesNeedingWorkspaceReport = new Set();
       for (const m of members) {
-        const wsTz = m.Business?.timezone || 'Asia/Seoul';
+        const biz = m.Business;
+        if (!biz || biz.weekly_finalize_enabled === false) continue;
+        const wsTz = biz.timezone || 'Asia/Seoul';
         const nowInTz = getNowInTz(wsTz);
-        if (nowInTz && nowInTz.weekday === 1 && nowInTz.hour === 0) {
+        if (!nowInTz) continue;
+        const targetDow = biz.weekly_finalize_dow != null ? Number(biz.weekly_finalize_dow) : 1;
+        const targetHour = biz.weekly_finalize_hour != null ? Number(biz.weekly_finalize_hour) : 0;
+        if (nowInTz.weekday === targetDow && nowInTz.hour === targetHour) {
           businessesNeedingWorkspaceReport.add(m.business_id);
         }
       }

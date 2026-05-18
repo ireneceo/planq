@@ -18,7 +18,26 @@
     "plan": "Subscription",
     "permissions": "Permissions",
     "members": "Members",
-    "cue": "Cue"
+    "cue": "Cue",
+    "workFlow": "Work Management"
+  },
+  "workManagement": {
+    "autoFinalize": {
+      "title": "Weekly Report Auto-Finalize",
+      "desc": "Each week's workspace report will be auto-finalized at this day & time. Timezone: {{tz}}.",
+      "enabled": "Auto-finalize on",
+      "enabledHint": "When off, automatic finalize stops. The \"Finalize this week\" button still works manually.",
+      "dow": "Day of week",
+      "dowHint": "Last week's data will be finalized on this day (default: Monday).",
+      "hour": "Hour",
+      "hourHint": "Based on workspace timezone (default: 00:00 — right after midnight).",
+      "nextLabel": "Next auto-finalize"
+    },
+    "dow": {
+      "sun": "Sunday", "mon": "Monday", "tue": "Tuesday", "wed": "Wednesday",
+      "thu": "Thursday", "fri": "Friday", "sat": "Saturday"
+    },
+    "readOnly": "Only workspace admins can change these settings."
   },
   "email": {
     "system": {
@@ -404,7 +423,8 @@
     "qfile": "Q File",
     "qbill": "Q Bill",
     "clients": "Clients",
-    "insights": "Insights"
+    "insights": "Insights",
+    "weekly_team": "Team Weekly Report"
   },
   "confirm": {
     "promoteAdminTitle": "Promote to admin",

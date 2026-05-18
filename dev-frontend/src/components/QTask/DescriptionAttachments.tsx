@@ -11,6 +11,7 @@ import { useTranslation } from 'react-i18next';
 import styled from 'styled-components';
 import { apiFetch } from '../../contexts/AuthContext';
 import AttachmentField from '../Common/AttachmentField';
+import { useImageLightbox } from '../Common/ImageLightbox';
 
 interface AttachmentRow {
   id: number;
@@ -41,6 +42,7 @@ const DescriptionAttachments: React.FC<Props> = ({ taskId, businessId, canEdit, 
   const [existingPostIds, setExistingPostIds] = useState<number[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [errMsg, setErrMsg] = useState<string | null>(null);
+  const { open: openImageLightbox, lightbox: imageLightbox } = useImageLightbox();
 
   const fetchList = useCallback(async () => {
     setLoading(true);
@@ -121,7 +123,11 @@ const DescriptionAttachments: React.FC<Props> = ({ taskId, businessId, canEdit, 
 
   return (
     <Wrap>
-      {list.length > 0 && (
+      {list.length > 0 && (() => {
+        // 이미지 첨부만 모아 갤러리 라이트박스
+        const imgList = list.filter(a => a.mime_type?.startsWith('image/') && a.preview_url);
+        const lbItems = imgList.map(a => ({ src: a.preview_url as string, alt: a.original_name }));
+        return (
         <ChipList>
           {list.map((a) => {
             const isImg = a.mime_type?.startsWith('image/');
@@ -129,9 +135,12 @@ const DescriptionAttachments: React.FC<Props> = ({ taskId, businessId, canEdit, 
             const canRemove = canEdit || a.uploader?.id === myId;
             return isImg && a.preview_url ? (
               <ImgChip key={a.id} title={a.original_name}>
-                <a href={a.preview_url} target="_blank" rel="noopener noreferrer">
+                <ImgBtn type="button" onClick={() => {
+                  const idx = imgList.findIndex(x => x.id === a.id);
+                  openImageLightbox(lbItems, idx < 0 ? 0 : idx);
+                }} aria-label={a.original_name}>
                   <ImgPreview src={a.preview_url} alt={a.original_name} />
-                </a>
+                </ImgBtn>
                 {canRemove && <ImgRemove type="button" onClick={() => remove(a.id)}
                   title={t('descAttach.remove', { defaultValue: '삭제' }) as string}
                   aria-label={t('descAttach.remove', { defaultValue: '삭제' }) as string}>×</ImgRemove>}
@@ -149,7 +158,9 @@ const DescriptionAttachments: React.FC<Props> = ({ taskId, businessId, canEdit, 
             );
           })}
         </ChipList>
-      )}
+        );
+      })()}
+      {imageLightbox}
 
       {canEdit && (
         <>
@@ -221,7 +232,11 @@ const FileChipX = styled.button`
   &:hover{background:#FEE2E2;color:#DC2626;}
 `;
 const ImgChip = styled.div`position:relative;display:inline-block;border-radius:8px;overflow:hidden;border:1px solid #E2E8F0;`;
-const ImgPreview = styled.img`display:block;width:64px;height:64px;object-fit:cover;cursor:zoom-in;`;
+const ImgBtn = styled.button`
+  all: unset; display: block; cursor: zoom-in;
+  &:focus-visible { outline: 2px solid #14B8A6; outline-offset: 2px; }
+`;
+const ImgPreview = styled.img`display:block;width:64px;height:64px;object-fit:cover;`;
 const ImgRemove = styled.button`
   position:absolute;top:2px;right:2px;
   width:20px;height:20px;border-radius:10px;

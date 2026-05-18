@@ -9,6 +9,7 @@ import WorkspaceSwitcher from './WorkspaceSwitcher';
 import GlobalSearchModal from '../Common/GlobalSearchModal';
 import WorkspaceBillingBanner from './WorkspaceBillingBanner';
 import SidebarClock from './SidebarClock';
+import FocusWidget from '../Focus/FocusWidget';
 import PanelHeader, { PanelTitle } from './PanelHeader';
 import { useTimezones } from '../../hooks/useTimezones';
 import { useInboxCount } from '../../hooks/useInboxCount';
@@ -942,6 +943,14 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                           <IconFile /> {t('nav.storage', '파일 저장소')}
                         </AccordionItem>
                       )}
+                      {hasBiz('owner', 'member') && (
+                        <AccordionItem
+                          to="/business/settings/work-flow"
+                          $active={location.pathname.includes('/work-flow')}
+                        >
+                          <IconTodo /> {t('nav.workFlow', '업무 관리')}
+                        </AccordionItem>
+                      )}
                       {hasBiz('owner') && (
                         <AccordionItem
                           to="/business/settings/plan"
@@ -1035,6 +1044,8 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                 locale={(i18n.language === 'ko' ? 'ko' : 'en')}
                 isWorkspaceAdmin={hasRole('business_owner', 'platform_admin')}
               />
+              {/* 업무 흐름 위젯 — focus_enabled=true 인 사용자에게만 렌더 (zero overhead) */}
+              <FocusWidget isCollapsed={false} />
               <div style={{ marginBottom: 8 }}>
                 <LanguageSelector variant="sidebar" />
               </div>
@@ -1050,6 +1061,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
           )}
           {isCollapsed && (
             <>
+              <FocusWidget isCollapsed />
               <CollapsedAvatarButton
                 onClick={() => navigate('/profile')}
                 title={`${userDisplayName || ''} — ${t('user.profile')}`}

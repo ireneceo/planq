@@ -1,0 +1,60 @@
+{
+  "widget": {
+    "title": "Work Flow",
+    "state": {
+      "idle": "Idle",
+      "active": "Focusing",
+      "paused": "Paused",
+      "idle_detected": "Away detected"
+    },
+    "idleHint": "Pick a task to start",
+    "noTask": "No task selected",
+    "start": "Start",
+    "pause": "Pause",
+    "resume": "Resume",
+    "stop": "Stop",
+    "view": "Open task",
+    "startedAt": "from {{time}}",
+    "elapsedAria": "Elapsed {{seconds}} seconds",
+    "idleDetectedTitle": "Stepped away?",
+    "idleDetectedDesc": "No activity for {{min}} minutes",
+    "idleDiscard": "Discard idle time",
+    "idleKeep": "Keep running"
+  },
+  "dailyStart": {
+    "title": "Start your day",
+    "intro": "Today's deadlines, review requests, and overdue tasks — all in one place. Pick one to start, or close to skip.",
+    "todayTitle": "Due today",
+    "reviewTitle": "Review requests",
+    "overdueTitle": "Overdue",
+    "dontShowToday": "Don't show again today",
+    "overdueDays": "{{n}}d overdue",
+    "dueToday": "Due today",
+    "dueTomorrow": "Due tomorrow",
+    "dueDays": "{{n}}d left"
+  },
+  "bar": {
+    "idleTitle": "Not started yet",
+    "idleHint": "Start focusing on this task — actual time will accumulate automatically.",
+    "startThis": "Start with this task",
+    "otherTitle": "Another task is running",
+    "otherHint": "Currently focusing on \"{{title}}\". Switching will auto-stop that session.",
+    "switchToThis": "Switch to this task",
+    "activeTitle": "Focusing",
+    "pausedTitle": "Paused",
+    "idleDetectedTitle": "Away detected"
+  },
+  "settings": {
+    "sectionTitle": "My Work Flow",
+    "sectionDesc": "When enabled, a progress widget appears in the sidebar. Easy to turn on and off — no pressure.",
+    "enabled": "Enable focus tracking",
+    "enabledHint": "When off, the widget is hidden entirely.",
+    "idleMin": "Idle detection threshold",
+    "idleMinHint": "After this period of no activity, the widget gives you a heads up.",
+    "autoPauseMin": "Auto-pause after",
+    "autoPauseMinHint": "After this much inactivity, the session auto-pauses.",
+    "dailyPrompt": "Daily start prompt",
+    "dailyPromptHint": "Shows today's tasks when you arrive after login.",
+    "minutes": "{{n}} min"
+  }
+}

@@ -307,6 +307,26 @@ async function assertWorkspaceAdmin(userId, businessId) {
   return { ok: true, role: member.role };
 }
 
+// 워크스페이스 통합 주간보고 보기 권한 (사이클 N+26)
+// - owner / admin = 자동 통과
+// - member = business_member_permissions.menu_key='weekly_team' 가 'read'/'write' 일 때만
+//   default 정책: weekly_team 은 다른 메뉴와 달리 'none' 이 default (row 없으면 차단)
+async function assertWorkspaceWeeklyTeam(userId, businessId) {
+  const member = await BusinessMember.findOne({
+    where: { user_id: userId, business_id: businessId },
+    attributes: ['role'],
+  });
+  if (!member) return { ok: false, code: 'not_member' };
+  if (['owner', 'admin'].includes(member.role)) return { ok: true, role: member.role };
+  const { BusinessMemberPermission } = require('../models');
+  const perm = await BusinessMemberPermission.findOne({
+    where: { user_id: userId, business_id: businessId, menu_key: 'weekly_team' },
+    attributes: ['level'],
+  });
+  if (!perm || perm.level === 'none') return { ok: false, code: 'weekly_team_not_granted' };
+  return { ok: true, role: member.role };
+}
+
 // ----- POST /workspace — 수동 박제 (owner/admin)
 router.post('/workspace', authenticateToken, async (req, res, next) => {
   try {
@@ -366,8 +386,9 @@ router.get('/workspace', authenticateToken, async (req, res, next) => {
     const userId = req.user.id;
     if (!business_id) return errorResponse(res, 'business_id required', 400);
 
-    const member = await BusinessMember.findOne({ where: { user_id: userId, business_id } });
-    if (!member) return errorResponse(res, 'forbidden', 403);
+    // 사이클 N+26 — weekly_team 권한 가드 (default none — owner/admin 자동, member 는 명시 read 필요)
+    const guard = await assertWorkspaceWeeklyTeam(userId, business_id);
+    if (!guard.ok) return errorResponse(res, guard.code === 'not_member' ? 'forbidden' : 'weekly_team_not_granted', 403);
 
     const where = { business_id };
     if (before) where.week_start = { [Op.lt]: before };
@@ -406,8 +427,9 @@ router.get('/workspace/:rid', authenticateToken, async (req, res, next) => {
     const userId = req.user.id;
     const row = await BusinessWeeklyReport.findByPk(rid);
     if (!row) return errorResponse(res, 'not_found', 404);
-    const member = await BusinessMember.findOne({ where: { user_id: userId, business_id: row.business_id } });
-    if (!member) return errorResponse(res, 'forbidden', 403);
+    // 사이클 N+26 — weekly_team 권한 가드
+    const guard = await assertWorkspaceWeeklyTeam(userId, row.business_id);
+    if (!guard.ok) return errorResponse(res, guard.code === 'not_member' ? 'forbidden' : 'weekly_team_not_granted', 403);
     return successResponse(res, row.toJSON());
   } catch (err) { next(err); }
 });

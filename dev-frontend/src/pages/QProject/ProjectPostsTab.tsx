@@ -613,7 +613,6 @@ const ProjectPostsTab: React.FC<Props> = ({ businessId, projectId }) => {
           </div>
           <SignatureProgressSection
             postId={detail.id}
-            postTitle={detail.title}
             inferredKind={inferKindFromTitle(detail.title, detail.category)}
             reloadTrigger={signReloadKey}
             onAddMore={() => setSignOpen(true)}

@@ -12,10 +12,10 @@ import { useNavigate } from 'react-router-dom';
 import { listSignatures, cancelSignature, remindSignature, type SignatureRequest, type SignatureStatus } from '../../services/posts';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 import ConfirmDialog from '../Common/ConfirmDialog';
+import ImageLightbox from '../Common/ImageLightbox';
 
 interface Props {
   postId: number;
-  postTitle: string;
   /** category 또는 제목으로 추정한 종류 — 후속 액션 결정 */
   inferredKind: 'contract' | 'nda' | 'sow' | 'proposal' | 'quote' | 'other';
   /** 모달에서 발송 직후 또는 외부에서 새로고침 트리거 */
@@ -24,7 +24,7 @@ interface Props {
   onAddMore: () => void;
 }
 
-const SignatureProgressSection: React.FC<Props> = ({ postId, postTitle, inferredKind, reloadTrigger, onAddMore }) => {
+const SignatureProgressSection: React.FC<Props> = ({ postId, inferredKind, reloadTrigger, onAddMore }) => {
   const { t } = useTranslation('qdocs');
   const { formatDateTime, formatTimeAgo } = useTimeFormat();
   const navigate = useNavigate();
@@ -32,7 +32,8 @@ const SignatureProgressSection: React.FC<Props> = ({ postId, postTitle, inferred
   const [loading, setLoading] = useState(true);
   const [actionMenuId, setActionMenuId] = useState<number | null>(null);
   const [busyId, setBusyId] = useState<number | null>(null);
-  const [lightbox, setLightbox] = useState<{ image: string; signer: string; signedAt: string } | null>(null);
+  const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
+  const [lightboxAlt, setLightboxAlt] = useState<string>('');
   const [copiedToken, setCopiedToken] = useState<string | null>(null);
   const [cancelTarget, setCancelTarget] = useState<SignatureRequest | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
@@ -213,7 +214,10 @@ const SignatureProgressSection: React.FC<Props> = ({ postId, postTitle, inferred
               </Td>
               <Td>
                 {sr.signature_image_b64 && sr.signature_image_b64 !== '(present)' ? (
-                  <SigThumb onClick={() => setLightbox({ image: sr.signature_image_b64!, signer: sr.signer_name || sr.signer_email, signedAt: sr.signed_at || '' })}>
+                  <SigThumb onClick={() => {
+                    setLightboxSrc(sr.signature_image_b64!);
+                    setLightboxAlt(`${sr.signer_name || sr.signer_email}${sr.signed_at ? ' · ' + formatDateTime(sr.signed_at) : ''}`);
+                  }}>
                     <img src={sr.signature_image_b64} alt="signature" />
                   </SigThumb>
                 ) : sr.status === 'signed' ? (
@@ -261,21 +265,8 @@ const SignatureProgressSection: React.FC<Props> = ({ postId, postTitle, inferred
         variant="danger"
       />
 
-      {/* 서명 이미지 라이트박스 */}
-      {lightbox && (
-        <Lightbox onClick={() => setLightbox(null)}>
-          <LightboxInner onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={postTitle}>
-            <LightboxClose type="button" onClick={() => setLightbox(null)} aria-label={t('common.close', '닫기') as string}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
-            </LightboxClose>
-            <LightboxImg src={lightbox.image} alt="signature" />
-            <LightboxMeta>
-              <strong>{lightbox.signer}</strong>
-              {lightbox.signedAt && ` · ${formatDateTime(lightbox.signedAt)}`}
-            </LightboxMeta>
-          </LightboxInner>
-        </Lightbox>
-      )}
+      {/* 서명 이미지 라이트박스 — 공통 ImageLightbox */}
+      <ImageLightbox src={lightboxSrc} alt={lightboxAlt} onClose={() => setLightboxSrc(null)} />
     </Section>
   );
 };
@@ -471,29 +462,6 @@ const MenuItem = styled.button<{ $danger?: boolean }>`
   &:hover:not(:disabled) { background: ${p => p.$danger ? '#FEF2F2' : '#F1F5F9'}; }
   &:disabled { opacity: 0.5; cursor: not-allowed; }
 `;
-
-// 라이트박스
-const Lightbox = styled.div`
-  position: fixed; inset: 0; background: rgba(15,23,42,0.65);
-  display: flex; align-items: center; justify-content: center; z-index: 1100; padding: 24px;
-`;
-const LightboxInner = styled.div`
-  position: relative; background: #fff; border-radius: 14px; padding: 24px;
-  max-width: 600px; width: 100%; max-height: 80vh; display: flex; flex-direction: column; gap: 12px;
-  box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-`;
-const LightboxClose = styled.button`
-  position: absolute; top: 12px; right: 12px;
-  width: 28px; height: 28px; padding: 0;
-  display: flex; align-items: center; justify-content: center;
-  background: transparent; border: none; border-radius: 6px; cursor: pointer; color: #64748B;
-  &:hover { background: #F1F5F9; color: #0F172A; }
-`;
-const LightboxImg = styled.img`
-  max-width: 100%; max-height: 60vh; object-fit: contain;
-  background: #FAFBFC; border-radius: 10px; border: 1px solid #E2E8F0;
-`;
-const LightboxMeta = styled.div`font-size:13px;color:#64748B;text-align:center;`;
 
 // 스켈레톤
 const SkeletonRow = styled.div`

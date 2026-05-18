@@ -48,7 +48,7 @@ const WeeklyReviewAutoSection: React.FC<Props> = ({ businessId }) => {
   return (
     <Section>
       <SectionHeader>
-        <SectionTitle>{t('weeklyReview.auto.title', '주간 보고 자동 박제')}</SectionTitle>
+        <SectionTitle>{t('weeklyReview.auto.title', '주간 보고 자동 확정')}</SectionTitle>
       </SectionHeader>
       <SectionBody>
         <Description>{t('weeklyReview.auto.desc', '매주 일요일 23:59 자동으로 그 주 결산을 저장합니다.')}</Description>

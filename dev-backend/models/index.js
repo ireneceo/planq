@@ -87,6 +87,7 @@ const ProjectStatusHistory = require('./ProjectStatusHistory');
 const InvoiceStatusHistory = require('./InvoiceStatusHistory');
 // ─── Refresh Token (다중 디바이스 세션) ───
 const RefreshToken = require('./RefreshToken');
+const FocusSession = require('./FocusSession');
 
 // ============================================
 // 글로벌 toJSON override — createdAt/updatedAt → created_at/updated_at
@@ -454,6 +455,7 @@ module.exports = {
   ProjectStatusHistory,
   InvoiceStatusHistory,
   RefreshToken,
+  FocusSession,
 };
 
 // Q record associations
@@ -557,6 +559,13 @@ Invoice.hasMany(InvoiceStatusHistory, { as: 'statusHistory', foreignKey: 'invoic
 // RefreshToken — 다중 디바이스 세션
 RefreshToken.belongsTo(User, { foreignKey: 'user_id', onDelete: 'CASCADE' });
 User.hasMany(RefreshToken, { as: 'refreshTokens', foreignKey: 'user_id' });
+
+// FocusSession — 업무 흐름 (개인 시간 추적)
+FocusSession.belongsTo(User, { foreignKey: 'user_id', onDelete: 'CASCADE' });
+FocusSession.belongsTo(Business, { foreignKey: 'business_id' });
+FocusSession.belongsTo(Task, { foreignKey: 'task_id', onDelete: 'SET NULL' });
+User.hasMany(FocusSession, { as: 'focusSessions', foreignKey: 'user_id' });
+Task.hasMany(FocusSession, { as: 'focusSessions', foreignKey: 'task_id' });
 
 WeeklyReviewSetting.belongsTo(Business, { foreignKey: 'business_id' });
 WeeklyReviewSetting.belongsTo(User, { foreignKey: 'user_id' });

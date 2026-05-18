@@ -28,12 +28,14 @@
 const { BusinessMember, BusinessMemberPermission } = require('../models');
 
 // 사이드바 메뉴 순서와 정합 — talk → mail → task → calendar → note → docs → info → file → bill → clients → insights
+// weekly_team: 워크스페이스 통합 주간보고 보기 (사이클 N+26, default 'none' — 멤버끼리 자동 공유 X)
 const VALID_MENUS = new Set([
   'qtalk', 'qmail', 'qtask', 'qcalendar', 'qnote', 'qdocs', 'qinfo', 'qfile', 'qbill', 'clients', 'insights',
+  'weekly_team',
 ]);
 const VALID_LEVELS = new Set(['none', 'read', 'write']);
-// insights 는 조회만 의미 있음 — write 입력 시 read 로 강제
-const READ_ONLY_MENUS = new Set(['insights']);
+// insights / weekly_team 은 조회만 의미 있음 — write 입력 시 read 로 강제
+const READ_ONLY_MENUS = new Set(['insights', 'weekly_team']);
 
 function extractBusinessId(req, opts) {
   if (opts && typeof opts.bizFrom === 'function') return opts.bizFrom(req);

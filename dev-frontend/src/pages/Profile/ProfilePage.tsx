@@ -17,6 +17,7 @@ import { LANGUAGES, getLanguageByCode, type LanguageOption } from '../../constan
 import PlanQSelect from '../../components/Common/PlanQSelect';
 import ConfirmDialog from '../../components/Common/ConfirmDialog';
 import AutoSaveField from '../../components/Common/AutoSaveField';
+import FocusSettingsCard from '../../components/Focus/FocusSettingsCard';
 import TimezoneSelector from '../../components/Common/TimezoneSelector';
 import PageShell from '../../components/Layout/PageShell';
 import { MicIcon, CheckIcon, XIcon, TrashIcon } from '../../components/Common/Icons';
@@ -1016,6 +1017,9 @@ export default function ProfilePage() {
 
         {/* 개인정보 안내 */}
         <UserTimezoneSection />
+
+        {/* ─── 내 업무 흐름 (Focus) — 사이클 N+26 ─── */}
+        <FocusSettingsCard />
 
         <Card>
           <SectionTitle>{t('privacy.sectionTitle')}</SectionTitle>

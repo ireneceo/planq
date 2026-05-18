@@ -302,6 +302,10 @@
     "line2": "all connected in one screen.",
     "askCue": "Ask Cue"
   },
+  "candidate": {
+    "missingTitle": "Couldn't find this task candidate in the current workspace",
+    "missingDesc": "It may belong to another workspace, or it may have already been registered or dismissed. Check the latest list in the \"Extracted tasks\" panel on the right."
+  },
   "common": {
     "total": "Total",
     "completed": "Completed",
@@ -535,8 +539,19 @@
     },
     "workspace": {
       "tabTitle": "Workspace Weekly Report",
-      "finalize": "Finalize this week (workspace)",
+      "finalize": "Finalize this week",
       "ownerOnlyHint": "Only workspace admins can finalize",
+      "banner": {
+        "enabledTitle": "Auto-finalizes every {{dow}} at {{hour}}",
+        "disabledTitle": "Auto-finalize is off",
+        "disabledDesc": "An admin can turn auto-finalize on in \"Work Management\" settings — weekly reports will then be created automatically.",
+        "nextLabel": "Next auto-finalize",
+        "toSettings": "Settings"
+      },
+      "dow": {
+        "sun": "Sunday", "mon": "Monday", "tue": "Tuesday", "wed": "Wednesday",
+        "thu": "Thursday", "fri": "Friday", "sat": "Saturday"
+      },
       "exec": {
         "label": "Headline",
         "placeholder": "One-line workspace headline (optional, admin only)",

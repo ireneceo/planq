@@ -279,6 +279,7 @@ app.use('/api/insights', require('./routes/insights'));
 app.use('/api/stats', require('./routes/stats'));
 app.use('/api/reports', require('./routes/reports'));
 app.use('/api/push', require('./routes/push'));
+app.use('/api/focus', require('./routes/focus'));
 app.use('/api/tasks', require('./routes/task_estimations'));
 app.use('/api/task-templates', require('./routes/task_templates'));
 app.use('/api/clients', require('./routes/clients'));
