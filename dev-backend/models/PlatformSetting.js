@@ -62,6 +62,13 @@ PlatformSetting.init({
   announcement_text: { type: DataTypes.STRING(500), allowNull: true },
   announcement_dismissible: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true },
   announcement_severity: { type: DataTypes.ENUM('info', 'warn', 'critical'), allowNull: false, defaultValue: 'info' },
+  // ─── SEO / SNS 공유 메타 (사이클 N+23, 2026-05-18) ───
+  // SNS 공유 시 썸네일/제목/설명. PublicPostPage 같은 페이지별 라우트는 자기 컨텐츠 (post.title/summary) 우선,
+  // fallback 으로 platform_settings 의 seo_* 사용. og_image_url 은 1200x630 권장 (Open Graph 표준).
+  seo_title: { type: DataTypes.STRING(255), allowNull: true },
+  seo_description: { type: DataTypes.STRING(500), allowNull: true },
+  seo_keywords: { type: DataTypes.STRING(500), allowNull: true },
+  og_image_url: { type: DataTypes.STRING(500), allowNull: true },
   updated_by_user_id: {
     type: DataTypes.INTEGER,
     allowNull: true,

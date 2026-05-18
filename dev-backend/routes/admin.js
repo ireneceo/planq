@@ -355,6 +355,11 @@ router.put('/platform-settings', async (req, res, next) => {
       ...(b.announcement_dismissible !== undefined ? { announcement_dismissible: !!b.announcement_dismissible } : {}),
       ...(b.announcement_severity && ['info', 'warn', 'critical'].includes(b.announcement_severity)
         ? { announcement_severity: b.announcement_severity } : {}),
+      // SEO / SNS 공유 메타 (사이클 N+23)
+      ...setStr('seo_title', 255),
+      ...setStr('seo_description', 500),
+      ...setStr('seo_keywords', 500),
+      ...setStr('og_image_url', 500),
       updated_by_user_id: req.user.id,
     };
     // VAT rate 0~1 검증
@@ -370,9 +375,10 @@ router.put('/platform-settings', async (req, res, next) => {
     } else {
       row = await PlatformSetting.create({ brand: updates.brand || 'PlanQ', ...updates });
     }
-    // emailService + maintenance 캐시 무효화
+    // emailService + maintenance + ogMeta 캐시 무효화
     try { require('../services/emailService').invalidatePlatformCache?.(); } catch { /* */ }
     try { require('../middleware/maintenance').invalidateMaintenanceCache?.(); } catch { /* */ }
+    try { require('../middleware/ogMeta').invalidatePlatformCache?.(); } catch { /* */ }
     require('../services/auditService').logAudit(req, {
       action: 'platform_settings.update',
       targetType: 'platform_setting',
