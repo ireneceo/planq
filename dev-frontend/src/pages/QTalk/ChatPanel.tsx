@@ -1610,13 +1610,17 @@ const ChatPanel: React.FC<Props> = ({
             onFocus={handleInputFocus}
             onCompositionStart={handleCompositionStart}
             onCompositionEnd={handleCompositionEnd}
-            /* 사이클 N+15-B — 모바일 키보드 액세서리 바 (위/아래 화살표) 최소화 + 자동수정/사전 변환 비활성 */
+            /* 사이클 N+15-B — 모바일 키보드 액세서리 바 (위/아래 화살표) 최소화 + 자동수정/사전 변환 비활성
+               사이클 N+23 — lang="ko" + autoCapitalize=off — 일부 안드로이드/iOS 한글 키보드에서 첫
+               글자 누락 (예: "나" → "ㅏ") 회귀의 흔한 원인은 자동 대소문자 처리. autoCapitalize=sentences
+               가 한글 IME 첫 자모와 race condition. 한글 입력에는 영향 없는 sentences 를 off 로. */
             autoCorrect="off"
-            autoCapitalize="sentences"
+            autoCapitalize="off"
             autoComplete="off"
             spellCheck={false}
             inputMode="text"
             enterKeyHint="send"
+            lang="ko"
             onPaste={(e) => {
               // 클립보드의 이미지(스크린샷 등) 즉시 업로드
               const items = e.clipboardData?.items;

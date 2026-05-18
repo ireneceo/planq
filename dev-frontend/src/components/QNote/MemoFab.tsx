@@ -18,7 +18,8 @@ import { useAuth } from '../../contexts/AuthContext';
 import MemoPopup from './MemoPopup';
 
 // /memo/:id 은 메모 팝업이 standalone 모드로 풀스크린 마운트되는 분리 창 — FAB 노출하면 자기 안에 자기 떠서 혼란
-const FAB_HIDDEN_PATHS = ['/talk', '/memo'];
+// 사이클 N+23: /talk 차단 해제 — 사용자 요청 "Q Talk 에서도 메모 FAB 표시"
+const FAB_HIDDEN_PATHS = ['/memo'];
 
 const FabBtn = styled.button`
   position: fixed; right: 20px; bottom: 16px;
