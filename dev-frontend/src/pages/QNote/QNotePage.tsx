@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import HelpDot from '../../components/Common/HelpDot';
 import VisibilityBadge, { type VLevel } from '../../components/Common/VisibilityBadge';
 import VisibilityChangeModal from '../../components/Common/VisibilityChangeModal';
+import QNoteShareModal from '../../components/QNote/QNoteShareModal';
 import styled from 'styled-components';
 import StartMeetingModal from './StartMeetingModal';
 import type { StartConfig } from './StartMeetingModal';
@@ -234,6 +235,8 @@ const QNotePage = () => {
   const [summaryModal, setSummaryModal] = useState<{ open: boolean; loading: boolean; data: { key_points: string[]; full_summary: string } | null; error: string | null }>({ open: false, loading: false, data: null, error: null });
   const [questionsModal, setQuestionsModal] = useState(false);
   const [settingsViewOpen, setSettingsViewOpen] = useState(false);
+  // 사이클 N+25 — 공유 모달 (visibility + share_token 통합)
+  const [shareModalOpen, setShareModalOpen] = useState(false);
   const [visibilityError, setVisibilityError] = useState<string | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
     if (typeof window !== 'undefined') return window.innerWidth < 900;
@@ -2395,6 +2398,16 @@ const QNotePage = () => {
                 </SessionMeta>
               </HeaderLeft>
               <HeaderRight>
+                {/* 사이클 N+25 — 공유 버튼 (visibility + share_token 통합 모달) */}
+                {String(activeSession.user_id) === String(user?.id) && (
+                  <SecondaryBtn
+                    type="button"
+                    onClick={() => setShareModalOpen(true)}
+                    title={t('page.reviewBar.shareTitle', '회의록 공유') as string}
+                  >
+                    {t('page.reviewBar.share', '공유')}
+                  </SecondaryBtn>
+                )}
                 {/* 사이클 N+24 — 종료 후 설정 보기 (read-only StartMeetingModal) */}
                 <SecondaryBtn
                   type="button"
@@ -2533,6 +2546,23 @@ const QNotePage = () => {
             }
           }}
           onClose={() => { setVisibilityModalOpen(false); setVisibilityError(null); }}
+        />
+      )}
+
+      {/* 사이클 N+25 — Q Note 공유 모달 (visibility + share_token 통합) */}
+      {shareModalOpen && activeSession && (
+        <QNoteShareModal
+          open={shareModalOpen}
+          sessionId={activeSession.id}
+          currentVisibility={(activeSession.visibility as VLevel) || 'L1'}
+          hasProject={!!activeSession.project_id}
+          shareToken={activeSession.share_token || null}
+          sessionTitle={activeSession.title}
+          onClose={() => setShareModalOpen(false)}
+          onChanged={(next) => {
+            setActiveSession((prev) => prev ? { ...prev, visibility: next.visibility, share_token: next.share_token ?? null } : prev);
+            setSessions((prev) => prev.map((s) => (s.id === activeSession.id ? { ...s, visibility: next.visibility, share_token: next.share_token ?? null } : s)));
+          }}
         />
       )}
 
