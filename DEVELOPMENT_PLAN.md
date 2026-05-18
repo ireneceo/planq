@@ -1,10 +1,90 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-05-18 사이클 N+18~N+21 + hotfix 3건 — 워크스페이스 주간보고서·디자인 시스템·사용량 시각화·멤버 메뉴 권한·청구 담당 통합 (v1.13.0 운영 라이브, commit `5317eca`)
+> **최종 업데이트:** 2026-05-18 사이클 N+22~N+25 — 채팅 sender 워크스페이스명·한글 파일명·HEIC·OG SEO·Q Note 종료후/공유 통합 (v1.15.0 운영 라이브, commit `64ace71`)
 >
-> **직전 라이브:** v1.12.1 (commit `5ba36cb`) — N+17 사이클 + hotfix (Q Note 메모 + 로그아웃 회귀 fix)
+> **직전 라이브:** v1.13.0 (commit `5317eca`) — N+18~N+21 사이클 (주간보고·디자인 시스템·권한·청구·히스토리)
 >
-> **이전 라이브:** v1.12.0 (commit `3c1a98b`) — N+17 사이클 (Q Note 메모 통합 + 로딩 75% 감소 등)
+> **이전 라이브:** v1.12.1 (commit `5ba36cb`) — N+17 사이클 + hotfix (Q Note 메모 + 로그아웃 회귀 fix)
+
+---
+
+## ✅ 완료: 사이클 N+22~N+25 (2026-05-18, v1.14.0 → v1.15.0)
+
+### 완료된 작업
+
+| 사이클 | 작업 | 상태 |
+|------|------|:----:|
+| N+22 | 채팅 sender = BusinessMember.name (`services/displayName.js`) — 11지점 일관 적용, irene 워크스페이스 "김미정"→"아이린"/"IRENE" | ✅ |
+| N+22 | 좌측 메뉴 워크스페이스명 즉시 반영 (Settings/Profile `refreshUser()`) | ✅ |
+| N+22 | 프로필 2열 grid + 사용처 hint 박제 (nicknameUsage / nicknameEnUsage ko/en) | ✅ |
+| N+22 | Q Task drawer 닫힘 상태에서도 클릭 시 열림 + waiting status 드롭다운 3 파일 일관 | ✅ |
+| N+22 | Q Task EdgeHandle 통일 (Q Talk/Q docs 표준 8×60→14×72 teal) | ✅ |
+| N+22 | Q Task 6점 grip → 3점 ⋮ (`TaskRowActionMenu.tsx`) | ✅ |
+| N+22 | Q Talk 별·⋮ center 정렬 + admin role 권한 가드 | ✅ |
+| N+22 | 한글 파일명 mojibake 복구 (`services/filename.js`) — multer latin1 fix + RFC 5987 + 운영 17 row cleanup | ✅ |
+| N+22 | 본문 인라인 이미지 L1→L3 (`/api/posts/editor-image`) + 운영 3 row promote | ✅ |
+| N+22 | PostEditor 이미지 selectednode outline read-only 차단 (위/아래 녹색선 제거) | ✅ |
+| N+22 | PWA dock badge race fix — SW visible client skip + client visibility reapply | ✅ |
+| N+22 | q-note text 메모 5 컬럼 idempotent migration (운영 prod qnote.db) | ✅ |
+| N+23 | SEO·SNS OG 동적 응답 (`middleware/ogMeta.js`) — share bot UA 17종 + 페이지별 OG | ✅ |
+| N+23 | OG 썸네일 1200×630 자동 생성 (`scripts/generate-og-default.js`, puppeteer) | ✅ |
+| N+23 | platform_settings 4 컬럼 + Admin "SEO·SNS 공유" 카드 | ✅ |
+| N+23 | KB AI ingest parser — 단일 object 도 array 래핑 (짧은 자격증명 텍스트 회귀) | ✅ |
+| N+23 | MemoFab Q Talk 노출 + 채팅 textarea lang=ko + autoCapitalize=off | ✅ |
+| N+23 | HEIC/HEIF/TIFF/RAW 미리보기 fallback (`services/files.ts` isImage + onError) | ✅ |
+| N+23 | Google Calendar 정기 회의 — rrule → events.insert recurrence 전달 (모든 회차 Meet 영구 유효) | ✅ |
+| N+24 | 채팅 실시간 회복 가드 (visibility/focus/online tryRecover) | ✅ |
+| N+24 | RightPanel "프로젝트 상세 보기" navigate onClick 추가 | ✅ |
+| N+24 | CueHelpDrawer FAB_HIDDEN_PATHS 에서 /talk 제거 (Q Talk 도 헬프 FAB 노출) | ✅ |
+| N+24 | Q Note 종료 후 [설정 보기] [요약 생성] [질문 보기] 3 버튼 onClick + 모달 | ✅ |
+| N+24 | MemoFab allowed 가드에 admin role 추가 (N+21 가드 누락 회귀) | ✅ |
+| N+24 | '지식' → '정보' 라벨 잔존 처리 (common.json + knowledge.json 4곳) | ✅ |
+| N+25 | Q Note 공유 통합 모달 (`QNoteShareModal.tsx`) — visibility L1~L3 + L4 share_token 한 모달 | ✅ |
+| N+25 | q-note `GET /api/sessions/public/by-token/:token` anonymous endpoint | ✅ |
+| N+25 | `PublicQNoteSessionPage.tsx` + `/public/qnote-sessions/:token` 라우트 — read-only 미리보기 | ✅ |
+
+### 운영 데이터 cleanup (1회)
+- 한글 파일명 mojibake 17 row 복구 (File 11 + MessageAttachment 5 + TaskAttachment 1)
+- 본문 인라인 이미지 3 row L1 → L3 promote (KIYUL AI 캐릭터 디자인 등)
+
+### 30년차 콘텐츠 기획·시스템 분석가 박제 결정 사항
+
+1. **표시명 단일 진실 원천** — 모든 사용자 노출 표시명은 BusinessMember.name 우선, User.name fallback. `services/displayName.js` 거치도록 강제. 11지점 일관 (conversations.js 5 + projects.js 4 + 응답 1 추가). 새 메시지 라우트도 같은 helper 통과.
+2. **한글 파일명 안전** — multer latin1 → utf8 decode + Content-Disposition RFC 5987. `services/filename.js` 헬퍼 6 라우트 일관 (posts/files/task_attachments/message_attachments/kb).
+3. **OG meta 페이지별** — SPA SEO 한계 극복. UA 봇 감지 → backend dynamic HTML. nginx UA map + share bot 만 backend proxy.
+4. **PWA dock badge** — SW push와 client setAppBadge race 차단. visible client 시 SW skip → client 단일 진실. visibility/focus 시 latest total 재호출.
+5. **Q Note 공유 통합 모달** — visibility 4단계 + share_token 한 모달. 다른 자산도 다음 사이클에 같은 패턴 통일 권장.
+6. **Google recurring meeting** — PlanQ rrule 자체 expansion + Google 의 recurrence 양쪽 동기. Meet 링크는 single conference object 가 모든 회차에 유효.
+
+### 수정된 파일 (33개)
+
+**Backend 신규 (7)**: `middleware/ogMeta.js`, `services/displayName.js`, `services/filename.js`, `scripts/fix-filename-mojibake.js`, `scripts/promote-editor-images-l3.js`, `scripts/generate-og-default.js`, `q-note/routers/sessions.py` (public/by-token GET 추가)
+**Backend 수정**: `routes/admin.js`, `routes/calendar.js`, `routes/conversations.js`, `routes/files.js`, `routes/kb.js`, `routes/message_attachments.js`, `routes/posts.js`, `routes/projects.js`, `routes/task_attachments.js`, `models/PlatformSetting.js`, `server.js`, `services/google_calendar.js`
+**Frontend 신규 (3)**: `components/QNote/QNoteShareModal.tsx`, `pages/QNote/PublicQNoteSessionPage.tsx`, `public/og-default.png` (1200×630)
+**Frontend 수정**: `components/Common/CueHelpDrawer.tsx`, `components/Docs/PostEditor.tsx`, `components/QNote/MemoFab.tsx`, `components/QTask/TaskDetailDrawer.tsx`, `components/QTask/TaskRowActionMenu.tsx`, `hooks/useGlobalBadge.ts`, `pages/Admin/AdminPlatformSettingsPage.tsx`, `pages/Profile/ProfilePage.tsx`, `pages/QNote/QNotePage.tsx`, `pages/QProject/ProjectTaskList.tsx`, `pages/QTalk/ChatPanel.tsx`, `pages/QTalk/LeftPanel.tsx`, `pages/QTalk/QTalkPage.tsx`, `pages/QTalk/RightPanel.tsx`, `pages/QTask/QTaskPage.tsx`, `pages/Settings/WorkspaceSettingsPage.tsx`, `services/files.ts`, `services/qnote.ts`, `index.html`, App.tsx
+**i18n**: ko/en `profile.json` · `qtask.json`, ko `common.json` · `knowledge.json`
+**Q-note**: `services/database.py` (5 컬럼 idempotent migration)
+
+### 운영 배포 (이번 세션 4건)
+- `bfb5835` v1.14.0 (N+22 패키지) — 103초
+- `e8dbbf6` (SEO·OG N+23) — 99초  
+- `04a19d8` / `6d4bab8` / `7b7d139` (N+23 hotfix 3건)
+- `6135fb8` (N+24 채팅 실시간 + 우측 패널 + FAB) — 100초
+- `dafb78a` (N+24 Q Note 종료후) — 104초
+- `64ace71` v1.15.0 (N+25 Q Note 공유) — 107초
+
+### 운영 nginx 적용 (사용자 직접 1회)
+- share bot UA map + planq.kr location / 안 conditional proxy (운영서버 sudo 필요로 사용자 SSH 직접 적용)
+- `/tmp/planq-share-bot.conf` 운영에 배포됨
+
+### 남은 작업 (다음 세션)
+
+- **B**: 개인 보관함 = 프로젝트 페이지처럼 등록·수정·관리 풀세트 (큰 UX 변경)
+- **C**: Image Lightbox 통일 — 채팅·문서·곳곳에서 이미지 클릭 시 원본+닫기 동일 컴포넌트
+- **D**: 입력란 외 클릭 영역 확장 — 첫 줄 외 영역 클릭 시 자동 커서 진입
+- **E**: 메모/음성노트/다른 자산 공유 시 권한 설정 같은 컴포넌트로 (QNoteShareModal 패턴 ShareModal 통합)
+- **F**: 운영 nginx OG share bot proxy 적용 (사용자 SSH 직접 1회 명령 실행 필요)
+- **F1**: dev qnote PM2 등록 재정비 (현재 errored — irene uvicorn 수동 서빙)
 
 ---
 

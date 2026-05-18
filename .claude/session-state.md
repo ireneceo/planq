@@ -3,99 +3,102 @@
 ## 현재 작업 상태
 **마지막 업데이트:** 2026-05-18
 **작업 상태:** 완료
-**운영 라이브 버전:** v1.15.0 (commit `7b7d139`, 배포 `20260518_073409`, 104초)
-**직전 라이브:** v1.14.0 (commit `bfb5835`, 배포 `20260518_061702`)
+**운영 라이브 버전:** v1.15.0 (commit `64ace71`, 7회 배포)
+**직전 라이브:** v1.13.0 (commit `5317eca`)
 
 ### 진행 중인 작업
 - 없음
 
-### 완료된 작업 (이번 세션 N+23 누적 패키지 — 4 commits 운영 라이브)
+---
 
-**N+23 — SEO·HEIC·Google Meet·KB AI fix 묶음**
-- SEO/SNS OG 동적 응답: `services/ogMetaInjector`(현 `middleware/ogMeta.js`) — share bot UA 17종 감지 시 페이지별 OG meta. `/public/posts/:token` 은 post.title+content_text. nginx UA map (planq-share-bot.conf) + location / 안 conditional proxy.
-- OG 썸네일 1200×630 자동 생성 — `scripts/generate-og-default.js` (puppeteer 로 slogan SVG → PNG). index.html og:image 도 교체.
-- `platform_settings` 4 컬럼 추가 (seo_title/seo_description/seo_keywords/og_image_url) + Admin "SEO·SNS 공유" 카드 (4 필드 + 썸네일 preview).
-- KB AI ingest parser — 단일 object 도 array 래핑 (LLM 이 짧은 자격증명 텍스트에 wrapper 생략하던 회귀). SYSTEM_PROMPT 도 자격증명/연락처 가이드 추가.
-- MemoFab FAB_HIDDEN_PATHS 에서 /talk 제거 — Q Talk 페이지에서도 메모 FAB 노출.
-- ChatPanel TextInput — lang="ko" + autoCapitalize=off (한글 IME 첫 자모 누락 회귀 가드).
-- HEIC/HEIF/TIFF/RAW — `services/files.ts` isImage() 가 false 반환 → 파일 카드. AttachImage onError 핸들러 — 미리보기 실패 시 in-place 파일 카드 교체 (깨진 아이콘 차단).
-- Google Calendar createMeetingEvent + rrule 인자 → events.insert 의 recurrence 배열로 전달. PlanQ 정기 일정의 Meet 링크가 첫 회차만 유효하던 회귀 fix — 이제 모든 회차 영구 유효.
+## ★ 다음 세션 우선 작업 (사용자 직접 요청)
 
-### 완료된 작업 (이전 세션 N+22 누적 패키지 + 운영 데이터 cleanup)
+다음 `/개발시작` 시 아래 항목 우선 안내 — 사용자가 이번 세션에 보고했으나 시간 제약으로 다음 사이클로 미룬 작업들.
 
-**N+22 — 채팅 sender 워크스페이스명 + 한글 파일명 + dock badge race + Q Task/프로필 UX**
-- `services/displayName.js` 신규 — BusinessMember.name 우선 fallback User.name. conversations.js + projects.js 11지점 적용. 채팅 이력 전체 워크스페이스명 즉시 반영.
-- `services/filename.js` 신규 — multer latin1 mojibake 복구 + RFC 5987 Content-Disposition. 6 라우트 (posts/files/task_attachments/message_attachments/kb) 일괄.
-- 운영 cleanup: 한글 파일명 17 row 복구 (File 11 + MessageAttachment 5 + TaskAttachment 1), 본문 이미지 3 row L1→L3 promote.
-- SW push handler — visible client 있으면 setAppBadge skip (race 차단). useGlobalBadge — visibility/focus 시 강제 재호출.
-- Q Task statusOptionsFor 3 파일 waiting 일관, TaskRowActionMenu 6점→3점, EdgeHandle 통일 (Q Talk/Q docs).
-- Profile Container 2열 grid + nicknameUsage 사용처 hint. WorkspaceSettings/Profile 에 refreshUser 추가.
-- Q Talk ChatRow align center + 별/⋮ 간격 조정, canManageConversation admin role 포함.
-- PostEditor read-only 모드 selectednode outline 제거 (공개 페이지 이미지 위/아래 녹색선 차단).
-- q-note services/database.py — text 메모 5 컬럼 idempotent migration (input_type/translate_enabled/linked_voice_session_id/summarized_at/body).
+### B. 개인 보관함 풀세트 — 프로젝트 페이지처럼
+- 현재 개인 보관함이 다른 자산 보기 위주
+- 프로젝트 페이지 같은 구조로 자료 등록·수정·관리·삭제 모두 가능하게
+- "지식" 라벨은 N+24 에 정리 완료 → "정보" 통일
+- 사용자 표현: "개인보관함도 프로젝트처럼 해당 탭에서 다 보고 관리하고 수정하고 등록하게 해줘야지"
 
-### 완료된 작업 (이전 세션 N+18~N+21 + hotfix 3건)
+### C. Image Lightbox 통일 (전 영역)
+- 채팅·문서·곳곳에서 이미지 클릭 시 동작 불일치
+- 사용자 표현: "이미지 클릭하면 원본크기 안보이거나 보이더라도 닫기가 안나와서 곤란"
+- LightboxWrapper 통합 + 모든 이미지 표시처에서 동일 컴포넌트 사용
+- 닫기 버튼 일관 노출
 
-**N+18 — 워크스페이스 통합 주간보고서**
-- `business_weekly_reports` 테이블 신규 (UNIQUE biz+week_start)
-- snapshot_data JSON 스키마 v1: kpi(delta) · highlights · risks(overdue/stalled/due-soon) · blockers · issues · next_week · portfolio(health) · member_utilization · team_highlights · decisions_required
-- `WeeklyReviewWorkspaceView` 신규 — Hero + KPI band + 3x2 grid + Portfolio + Heatmap + Team Highlights + Retro
-- cron 일 23:59 ws_tz 자동 박제 (manual 보존) + 수동 박제 (owner/admin)
-- Q Project 검색·필터 + 메모 분리 창 (MemoPopup standalone) + Q Note 빈 상태 멘트
+### D. 입력란 외 클릭 영역 확장
+- 사용자 표현: "모든 데이터에 아무곳을 클릭해도 커서가 들어가게. 첫줄을 눌러야만 커서가 들어가"
+- textarea / contenteditable wrapper 클릭 시 자동 focus
+- description/body 같은 큰 입력 영역의 빈 공간 클릭도 진입
 
-**N+19 — 디자인 시스템 + 요청 정책**
-- `components/Common/ActionButton.tsx` (3톤 × sm 36/md 40/lg 44 + Spinner + focus ring)
-- `components/Common/DrawerFooter.tsx` (sticky bottom + safe-area + 좌/우 슬롯)
-- TaskDetailDrawer Action* alias 마이그레이션 (17 사용처 무변경)
-- WeeklyReviewModal footer 교체
-- 요청 탭 estimated_hours/recurrence_rule UI 숨김 + 백엔드 sanitize (책임선 분리)
-- DetailDrawer z-index 60 (RightPanel overlay 위)
+### E. 메모/다른 자산 공유 시 권한 설정 통합
+- 사용자 표현: "공유하는 기능과 보기/쓰기/읽기 권한 설정 같은 패턴으로 정리 안되어 있어? 필요한 모든 곳에 같은 컴포넌트"
+- N+25 에 QNoteShareModal 만 만들었음. 다른 자산은 ShareModal + VisibilityChangeModal 분리
+- ShareModal 자체를 visibility 통합형으로 확장 또는 새 통합 컴포넌트
+- 메모(text 메모) / 음성노트 / 모든 공유 가능 자산 동일 흐름
 
-**N+19 hotfix — GDrive 옛 폴더 재사용**
-- cloud.js callback 에서 createRootFolder 전 Drive 같은 이름 폴더 search → 재사용
+### F. 운영 nginx OG share bot proxy 적용 (사용자 직접 SSH)
+- 운영서버에서 1회 sudo 명령 실행 필요 (운영서버 sudo NOPASSWD 아님)
+- `/tmp/planq-share-bot.conf` 이미 배포됨
+- 적용 후 카카오톡·페이스북 등에서 공유 시 페이지별 OG meta 동적 응답
 
-**N+20 — 사용량 시각화 + AI 학습 + 결제 유도**
-- `TaskEstimation.business_id` 컬럼 + backfill + idx + FK
-- `/api/plan/:id/status.cue_actions_by_type` JSON breakdown
-- `POST /api/plan/:id/qnote/estimate` endpoint
-- `UsageWarningCard` 초과 시 "지금 업그레이드" Primary CTA (Danger red)
-- `PlanSettings` Cue 기능별 누적 막대
-- `PostAiModal` cue 잔여 hint + 한도 임박 확인 모달
-- `callAiEstimate` 워크스페이스 최근 12 사용자 추정 few-shot
+```bash
+ssh irene@87.106.78.146
+sudo cp /tmp/planq-share-bot.conf /etc/nginx/conf.d/planq-share-bot.conf
+sudo sed -i 's|location / {|location / {\n        if ($planq_share_bot) { proxy_pass http://localhost:3004; break; }|' /etc/nginx/sites-available/planq.kr
+sudo nginx -t && sudo systemctl reload nginx
+```
 
-**N+21 — 멤버 메뉴 권한 + admin role + 청구 담당 + 히스토리**
-- `BusinessMember.role` ENUM `admin` 추가
-- `business_member_permissions` 신규 (UNIQUE biz+user+menu_key, ENUM level)
-- `businesses.default_billing_owner_id` 컬럼
-- `project_status_history` + `invoice_status_history` 신규 + 4 전이 지점 박제
-- `middleware/menu_permission.js` (requireMenu + getMemberMenuLevels)
-- 권한 라우트 5종 + Invoice 8 mutation `requireMenu('qbill','write')` 가드
-- AuditLog 5 영역 누락 채움 (members invite/remove · file.delete · cloud.disconnect)
-- `MemberPermissionMatrix` + `DefaultBillingOwnerSection` 컴포넌트
-- ConfirmDialog 사용 (window.confirm 금지)
+### F1. dev qnote PM2 등록 재정비
+- 현재 lua PM2 의 planq-qnote 가 errored (잘못된 bash 인터프리터)
+- irene 가 띄운 uvicorn(PID 변동)이 port 8000 수동 서빙 중
+- 운영 PM2 는 정상 (deploy 스크립트가 올바른 옵션으로 띄움)
+- dev 환경 정리만 필요
 
-**N+21 hotfix — 메뉴 정렬·라벨 통일·반응형**
-- MENU_LIST 사이드바 순서 1:1 정합 (11종)
-- qmail · qinfo 추가 (9 → 11 menu_key)
-- insights write 코어스 → read (READ_ONLY_MENUS)
-- "오너 / 관리자" 라벨 통일
-- 한글 white-space:nowrap, sticky 컬럼 min-width 160px
+---
 
-**N+21 hotfix2 — 설정 페이지 정리**
-- StorageSettings 내부 `<SectionTitle>` 제거 + PermissionsSettings `<Title>` 제거 (외부 헤더 중복 차단)
-- "파일 저장소" → "파일·외부 연동" / "Storage & Integrations"
-- 자체 스토리지 카드 항상 "사용 중" (Drive 연결돼도 개인 보관함은 자체)
-- 개인 보관함 정책 명시 (Drive 무관 / 워크스페이스 quota 합산 X / 개인 quota 분리 없음)
+## 완료된 작업 (이번 세션 — N+22~N+25)
 
-**운영 배포** — commit `5317eca` 운영 라이브 (105초, 백업 `20260517_183327`). 버전 bump `858b18c` v1.13.0.
+### N+22 (v1.14.0)
+- 채팅 sender 워크스페이스명 적용 (`services/displayName.js` 11지점)
+- 좌측 메뉴 워크스페이스명 즉시 반영 (refreshUser hook)
+- 프로필 2열 grid + 사용처 hint
+- Q Task drawer 닫힘 상태 클릭 동작 + waiting status 드롭다운 + EdgeHandle + 6점→3점
+- Q Talk 별·⋮ 정렬 + admin role 권한
+- 한글 파일명 mojibake 복구 (`services/filename.js`, 운영 17 row cleanup)
+- 본문 인라인 이미지 L1→L3 + 운영 3 row promote
+- PostEditor 이미지 selectednode outline read-only 차단
+- PWA dock badge race fix (SW visible client skip + visibility reapply)
+- q-note text 메모 5 컬럼 idempotent migration
 
-### 다음 할 일
+### N+23
+- SEO·SNS OG 동적 응답 (`middleware/ogMeta.js`) — share bot UA 17종
+- OG 썸네일 1200×630 자동 생성 + Admin "SEO·SNS 공유" 카드
+- KB AI ingest parser fix (자격증명 짧은 텍스트도 추출)
+- MemoFab Q Talk 노출 + 채팅 한글 IME 가드
+- HEIC/HEIF 미리보기 fallback
+- Google Calendar 정기 회의 — rrule → recurrence
 
-- **PERMISSION_MATRIX.md §5 풀 보강** — admin role + Layer 3 멤버 메뉴 권한 표 추가 (이번엔 메모리만 박제)
-- **UI_DESIGN_GUIDE.md 섹션 신규** — ActionButton + DrawerFooter 사용법 박제
-- **Phase 2: 나머지 8 메뉴 가드 적용** — qtask/qnote/qdocs/qcalendar/qfile/clients/insights/qmail/qinfo (이번엔 qbill 만)
-- **Phase 2: archive 정책 명시** — Task soft-archive, Conversation hard delete 검토
-- **노션 import** — 사용자 "나중에" 보류. 필요 시 ZIP import Wizard Phase 1 진행
+### N+24
+- 채팅 실시간 회복 가드 (visibility/focus/online tryRecover)
+- RightPanel "프로젝트 상세 보기" navigate
+- CueHelpDrawer Q Talk 노출 (FAB_HIDDEN_PATHS 비움)
+- Q Note 종료 후 [설정 보기] [요약 생성] [질문 보기] 3 버튼 + 모달
+- MemoFab allowed admin role 추가
+- "지식" → "정보" 라벨 잔존 처리
+
+### N+25 (v1.15.0)
+- Q Note 공유 통합 모달 (`QNoteShareModal.tsx`) — visibility L1~L3 + L4 share_token 한 모달
+- q-note `GET /api/sessions/public/by-token/:token` anonymous endpoint
+- `PublicQNoteSessionPage.tsx` + `/public/qnote-sessions/:token` 라우트
+
+### 운영 데이터 cleanup (1회)
+- 한글 파일명 mojibake 17 row 복구
+- 본문 인라인 이미지 3 row L1 → L3 promote
+
+### 운영 배포 (7건)
+- v1.14.0 (N+22) / N+23 OG / N+23 hotfix 3건 / N+24 채팅실시간 / N+24 QNote / v1.15.0 (N+25)
 
 ---
 
@@ -107,3 +110,5 @@
 이전 세션 이어서 작업하고 싶어.
 /opt/planq/.claude/session-state.md 읽어줘.
 ```
+
+`/개발시작` 명령 시 위 ★ "다음 세션 우선 작업" 섹션 (B/C/D/E/F/F1) 이 가장 먼저 안내됩니다.
