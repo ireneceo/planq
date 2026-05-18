@@ -209,6 +209,11 @@ app.use(requestIdMiddleware);
 const { maintenanceMiddleware } = require('./middleware/maintenance');
 app.use(maintenanceMiddleware);
 
+// SEO / SNS 공유 봇 OG meta 동적 응답 (사이클 N+23). UA 가 share bot 이면 페이지별 OG 채운 HTML
+// 반환. 일반 사용자는 그냥 통과 → SPA index.html. nginx 가 정적 응답하기 전 backend 가 가로챔.
+const { ogMetaMiddleware } = require('./middleware/ogMeta');
+app.use(ogMetaMiddleware);
+
 // Security
 setupSecurity(app);
 

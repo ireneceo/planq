@@ -25,6 +25,11 @@ interface PlatformSettings {
   announcement_text: string | null;
   announcement_dismissible: boolean;
   announcement_severity: 'info' | 'warn' | 'critical';
+  // SEO / SNS (사이클 N+23)
+  seo_title: string | null;
+  seo_description: string | null;
+  seo_keywords: string | null;
+  og_image_url: string | null;
 }
 
 const EMPTY: PlatformSettings = {
@@ -32,6 +37,7 @@ const EMPTY: PlatformSettings = {
   terms_version: '1.0', privacy_version: '1.0',
   maintenance_mode: false, maintenance_message: '',
   announcement_text: '', announcement_dismissible: true, announcement_severity: 'info',
+  seo_title: '', seo_description: '', seo_keywords: '', og_image_url: '',
 };
 
 const AdminPlatformSettingsPage = () => {
@@ -59,6 +65,10 @@ const AdminPlatformSettingsPage = () => {
           announcement_text: r.data.announcement_text || '',
           announcement_dismissible: r.data.announcement_dismissible !== false,
           announcement_severity: r.data.announcement_severity || 'info',
+          seo_title: r.data.seo_title || '',
+          seo_description: r.data.seo_description || '',
+          seo_keywords: r.data.seo_keywords || '',
+          og_image_url: r.data.og_image_url || '',
         });
       }
     } finally { setLoading(false); }
@@ -249,6 +259,68 @@ const AdminPlatformSettingsPage = () => {
           </Field>
         </FieldRow>
       </Card>
+
+      {/* SEO / SNS 공유 메타 (사이클 N+23) */}
+      <Card>
+        <SectionTitle>{t('platform.seoSection', 'SEO · SNS 공유')}</SectionTitle>
+        <SectionHint>
+          {t('platform.seoHint', '카카오톡·페이스북·트위터 등에서 PlanQ 링크 공유 시 노출되는 제목·설명·썸네일입니다. 공개 문서(/public/posts/...) 같은 페이지는 자기 제목·요약을 우선 사용하고, 비어있으면 여기 기본값으로 fallback 합니다.')}
+        </SectionHint>
+
+        <Field>
+          <Label>{t('platform.seo_title', 'SEO 기본 제목')}</Label>
+          <AutoSaveField type="input" onSave={async () => save({ seo_title: data.seo_title })}>
+            <Input
+              value={data.seo_title || ''}
+              onChange={(e) => set('seo_title', e.target.value)}
+              placeholder="PlanQ — 일이 일이 되지 않게"
+              maxLength={255}
+            />
+          </AutoSaveField>
+        </Field>
+
+        <Field>
+          <Label>{t('platform.seo_description', 'SEO 기본 설명')}</Label>
+          <AutoSaveField type="input" onSave={async () => save({ seo_description: data.seo_description })}>
+            <Input
+              value={data.seo_description || ''}
+              onChange={(e) => set('seo_description', e.target.value)}
+              placeholder="업무·프로젝트·사람·시간·고객·청구를 하나로 연결해 시간을 돈으로 바꾸는 수익성 엔진."
+              maxLength={500}
+            />
+          </AutoSaveField>
+        </Field>
+
+        <Field>
+          <Label>{t('platform.seo_keywords', 'SEO 키워드 (쉼표 구분)')}</Label>
+          <AutoSaveField type="input" onSave={async () => save({ seo_keywords: data.seo_keywords })}>
+            <Input
+              value={data.seo_keywords || ''}
+              onChange={(e) => set('seo_keywords', e.target.value)}
+              placeholder="업무관리, 프로젝트관리, 고객관리, B2B SaaS, 워크스페이스"
+              maxLength={500}
+            />
+          </AutoSaveField>
+        </Field>
+
+        <Field>
+          <Label>{t('platform.og_image_url', 'OG 썸네일 이미지 URL (1200×630 권장)')}</Label>
+          <AutoSaveField type="input" onSave={async () => save({ og_image_url: data.og_image_url })}>
+            <Input
+              value={data.og_image_url || ''}
+              onChange={(e) => set('og_image_url', e.target.value)}
+              placeholder="https://planq.kr/og-default.png"
+              maxLength={500}
+            />
+          </AutoSaveField>
+          <OgPreviewRow>
+            <OgThumb src={data.og_image_url || 'https://planq.kr/og-default.png'} alt="OG preview" />
+            <OgHint>
+              {t('platform.og_image_hint', '비우면 기본 썸네일(og-default.png — 슬로건 + 로고)을 사용합니다. SNS 표준 1200×630 권장.')}
+            </OgHint>
+          </OgPreviewRow>
+        </Field>
+      </Card>
     </PageShell>
   );
 };
@@ -326,6 +398,20 @@ const Input = styled.input`
   font-family: inherit;
   &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.15); }
   &::placeholder { color: #94A3B8; }
+`;
+const OgPreviewRow = styled.div`
+  display: flex; gap: 16px; align-items: flex-start;
+  padding: 12px; border: 1px dashed #E2E8F0; border-radius: 8px;
+  background: #F8FAFC;
+`;
+const OgThumb = styled.img`
+  width: 240px; height: 126px; object-fit: cover;
+  border-radius: 6px; border: 1px solid #E2E8F0; background: #FFFFFF;
+  flex-shrink: 0;
+`;
+const OgHint = styled.div`
+  font-size: 12px; color: #64748B; line-height: 1.6;
+  flex: 1;
 `;
 const Skeleton = styled.div`
   height: 200px;
