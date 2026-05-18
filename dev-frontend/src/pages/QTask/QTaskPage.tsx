@@ -843,9 +843,10 @@ const QTaskPage:React.FC=()=>{
   const statusOptionsFor=(task:{source?:string;reviewers?:Array<{user_id:number}>}):string[]=>{
     const isReq=task.source==='internal_request'||task.source==='qtalk_extract';
     const hasReviewers=(task.reviewers||[]).length>0;
+    // waiting (진행대기) 은 DB ENUM 정식 값 — 리스트/상세 뱃지에서 노출되므로 드롭다운도 일관 포함.
     let opts=isReq
       ? ['not_started','waiting','in_progress','reviewing','revision_requested','completed','canceled']
-      : ['not_started','in_progress','reviewing','revision_requested','completed','canceled'];
+      : ['not_started','waiting','in_progress','reviewing','revision_requested','completed','canceled'];
     if(!hasReviewers) opts=opts.filter(s=>s!=='reviewing'&&s!=='revision_requested');
     return opts;
   };
@@ -2066,11 +2067,21 @@ const QTaskPage:React.FC=()=>{
       </LeftPanel>
 
       {/* ════ RIGHT ════ */}
-      {!isNarrow && rightCollapsed?(
-        <CollapsedStrip><CollapseBtn onClick={()=>setRightCollapsed(false)}>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="15 18 9 12 15 6"/></svg>
-        </CollapseBtn></CollapsedStrip>
-      ):detailTaskId&&bizId?(
+      {/* CollapsedStrip — 0폭 anchor + EdgeHandle (Q Talk / Q docs 표준 통일) */}
+      {!isNarrow && rightCollapsed && (
+        <CollapsedStrip>
+          <EdgeHandle
+            type="button"
+            onClick={()=>setRightCollapsed(false)}
+            aria-label={t('right.expand','패널 열기') as string}
+            title={`${t('right.expand','패널 열기')} (⌘/)`}
+          >
+            <EdgeChevron><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg></EdgeChevron>
+          </EdgeHandle>
+        </CollapsedStrip>
+      )}
+      {/* TaskDetailDrawer 는 position:fixed 오버레이 — rightCollapsed 와 무관하게 detailTaskId 만 보고 렌더. */}
+      {detailTaskId && bizId && (
         <TaskDetailDrawer
           taskId={detailTaskId}
           bizId={Number(bizId)}
@@ -2084,7 +2095,7 @@ const QTaskPage:React.FC=()=>{
           onPatch={(patch)=>setAllTasks(prev=>prev.map(t=>t.id===patch.id?({...t,...patch} as TaskRow):t))}
           onRefresh={load}
         />
-      ):null}
+      )}
       {/* ── 탭별 기본 패널 — 항상 렌더. 상세 드로어는 position:fixed로 덮음. ── */}
       {isNarrow && rightOverlayOpen && <RightPanelBackdrop onClick={()=>setRightOverlayOpen(false)} />}
       {isNarrow && !detailTaskId && (
@@ -2098,6 +2109,18 @@ const QTaskPage:React.FC=()=>{
       {(((!isNarrow && !rightCollapsed) || (isNarrow && rightOverlayOpen)) && (!isClient || !!detailTaskId))&&(
         <RightPanel $w={rightWidth} $overlay={isNarrow}>
           {!isNarrow && !detailTaskId&&<ResizeHandle onMouseDown={startResize} />}
+          {/* 열림 상태에서도 EdgeHandle 로 닫기 — Q Talk / Q docs 표준 통일 */}
+          {!isNarrow && (
+            <EdgeHandle
+              type="button"
+              onClick={()=>setRightCollapsed(true)}
+              aria-label={t('right.collapse','패널 접기') as string}
+              title={`${t('right.collapse','패널 접기')} (⌘/)`}
+              $onPanel
+            >
+              <EdgeChevron><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg></EdgeChevron>
+            </EdgeHandle>
+          )}
           <RightHeader>
             <RightTitle>
               {scope==='workspace'
@@ -2106,9 +2129,6 @@ const QTaskPage:React.FC=()=>{
                 : tab==='requested' ? t('tab.requested','요청하기')
                 : t('tab.all','내 전체업무')}
             </RightTitle>
-            <CollapseBtn onClick={()=>setRightCollapsed(true)}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="9 18 15 12 9 6"/></svg>
-            </CollapseBtn>
           </RightHeader>
           <RightScroll>
             {(()=>{
@@ -2903,8 +2923,29 @@ const NameChip=styled.span<{$type:'from'|'to'|'observer'}>`
 `;
 
 
-// Right panel — Q Talk style
-const CollapsedStrip=styled.aside`width:36px;flex-shrink:0;background:#FFF;border-left:1px solid #E2E8F0;display:flex;flex-direction:column;align-items:center;padding:12px 0;@media(max-width:1200px){display:none;}`;
+// Right panel — Q Talk / Q docs 표준 EdgeHandle 패턴 (2026-05-18 통일)
+// CollapsedStrip 은 0 폭 anchor — EdgeHandle 만 LeftPanel·RightPanel 경계에 노출.
+const CollapsedStrip=styled.aside`width:0;flex-shrink:0;position:relative;@media(max-width:1200px){display:none;}`;
+// 8×60 회색 알약 → hover 14×72 teal. 접힘/열림 양쪽 동일 모양, $onPanel 여부로 좌표만 분기.
+const EdgeHandle=styled.button<{$onPanel?:boolean}>`
+  position:absolute;top:50%;left:0;transform:translate(-50%,-50%);
+  width:8px;height:60px;
+  padding:0;border:none;background:#CBD5E1;
+  border-radius:4px;cursor:pointer;z-index:10;
+  box-shadow:0 1px 3px rgba(15,23,42,0.08);
+  transition:width 0.15s ease, background 0.15s ease, height 0.15s ease;
+  display:flex;align-items:center;justify-content:center;
+  &::before{content:'';position:absolute;top:-10px;bottom:-10px;left:-8px;right:-8px;}
+  &:hover{width:14px;height:72px;background:#14B8A6;}
+  &:focus-visible{outline:2px solid #14B8A6;outline-offset:2px;}
+`;
+const EdgeChevron=styled.span`
+  display:flex;align-items:center;justify-content:center;
+  color:#64748B;
+  svg{width:10px;height:10px;}
+  ${EdgeHandle}:hover &{color:#FFFFFF;}
+`;
+// CollapseBtn — 입력 폼 닫기 버튼 (line 2401) 에서 계속 사용 — 우측 패널 토글에서만 EdgeHandle 로 대체
 const CollapseBtn=styled.button`width:28px;height:28px;display:flex;align-items:center;justify-content:center;background:transparent;border:none;border-radius:6px;color:#64748B;cursor:pointer;&:hover{background:#F1F5F9;color:#0F172A;}`;
 const RightPanel=styled.aside<{$w?:number;$overlay?:boolean}>`background:#FFF;border-left:1px solid #E2E8F0;display:flex;flex-direction:column;overflow:hidden;
   ${p=>p.$overlay?`

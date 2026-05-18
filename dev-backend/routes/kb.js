@@ -7,6 +7,7 @@ const { KbDocument, KbChunk, KbPinnedFaq, File: FileModel, Post } = require('../
 const { authenticateToken, checkBusinessAccess } = require('../middleware/auth');
 const { isMemberOrAbove, getUserScope } = require('../middleware/access_scope');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
+const { decodeOriginalName } = require('../services/filename');
 const { createAuditLog } = require('../middleware/audit');
 const kbService = require('../services/kb_service');
 const fs = require('fs');
@@ -253,12 +254,13 @@ router.post('/businesses/:businessId/kb/documents/upload',
         if (!finalClientId) return errorResponse(res, 'client_id_required_for_client_scope', 400);
       }
 
+      const decodedName = decodeOriginalName(req.file.originalname);
       const doc = await KbDocument.create({
         business_id: businessId,
-        title: String(req.body.title || req.file.originalname).slice(0, 300),
+        title: String(req.body.title || decodedName).slice(0, 300),
         body: text,
         source_type: 'file',
-        file_name: req.file.originalname,
+        file_name: decodedName,
         file_path: path.relative(path.join(__dirname, '..'), req.file.path),
         file_size: req.file.size,
         mime_type: req.file.mimetype || null,
@@ -279,7 +281,7 @@ router.post('/businesses/:businessId/kb/documents/upload',
         userId: req.user.id, businessId,
         action: 'kb.document_upload',
         targetType: 'KbDocument', targetId: doc.id,
-        newValue: { file_name: req.file.originalname, size: text.length },
+        newValue: { file_name: decodedName, size: text.length },
       });
 
       return successResponse(res, doc, 'Uploaded and queued for indexing', 201);

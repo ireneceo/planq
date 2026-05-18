@@ -484,7 +484,7 @@ const InfoBanner = styled.div`
 export default function WorkspaceSettingsPage() {
   const { t } = useTranslation('settings');
   const { t: tErr } = useTranslation('errors');
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
   const businessId = user?.business_id || 0;
   const isAdmin = user?.business_role === 'owner' || user?.platform_role === 'platform_admin';
 
@@ -681,23 +681,28 @@ export default function WorkspaceSettingsPage() {
   const showEn = defaultLanguage === 'ko';
 
   // Save handlers
+  // 사이클 N+22: brand 수정 후 AuthContext.user.workspaces 즉시 동기 — 좌측 사이드바
+  // WorkspaceSwitcher 가 user.workspaces[active].brand_name 를 직접 읽으므로 새로고침 없이 반영.
   const saveBrand = useCallback(async (payload: Partial<Workspace>) => {
     if (!businessId) return;
     const updated = await updateBrand(businessId, payload);
     setWs(updated);
-  }, [businessId]);
+    await refreshUser();
+  }, [businessId, refreshUser]);
 
   const saveLegal = useCallback(async (payload: Partial<Workspace>) => {
     if (!businessId) return;
     const updated = await updateLegal(businessId, payload);
     setWs(updated);
-  }, [businessId]);
+    await refreshUser();
+  }, [businessId, refreshUser]);
 
   const saveSettings = useCallback(async (payload: Partial<Workspace>) => {
     if (!businessId) return;
     const updated = await updateSettings(businessId, payload);
     setWs(updated);
-  }, [businessId]);
+    await refreshUser();
+  }, [businessId, refreshUser]);
 
   const changeCueMode = useCallback(async (mode: 'smart' | 'auto' | 'draft') => {
     if (!businessId) return;

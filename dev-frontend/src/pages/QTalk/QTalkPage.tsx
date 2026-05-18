@@ -255,13 +255,14 @@ const QTalkPage: React.FC = () => {
   const [archiveBusy, setArchiveBusy] = useState(false);
   const [unlinkBusy, setUnlinkBusy] = useState(false);
   const [archivedModalOpen, setArchivedModalOpen] = useState(false);
-  // 권한 — workspace owner / platform admin 만 ⋮ 메뉴 노출.
-  // (project owner 인 멤버는 backend 가 허용하지만 UI 진입점은 단순화 — 다음 fix 에서 정교화)
+  // 권한 — workspace owner / admin / platform admin 만 ⋮ 메뉴 노출 (사이클 N+22: admin role 포함).
+  // 멤버(member)는 채팅방 보관/분리 권한 없음 — 의도된 차단. PERMISSION_MATRIX §5.3.
+  // (project owner 인 member 는 backend 가 허용하지만 UI 진입점은 단순화 — 다음 fix 에서 정교화)
   const canManageConversation = useCallback((_c: MockConversation) => {
-    return user?.business_role === 'owner' || user?.platform_role === 'platform_admin';
+    return user?.business_role === 'owner' || user?.business_role === 'admin' || user?.platform_role === 'platform_admin';
   }, [user?.business_role, user?.platform_role]);
-  // 보관함 진입점 — 워크스페이스 admin only. canManageConversation 과 같은 정책.
-  const canViewArchive = user?.business_role === 'owner' || user?.platform_role === 'platform_admin';
+  // 보관함 진입점 — owner/admin/platform_admin. canManageConversation 과 같은 정책.
+  const canViewArchive = user?.business_role === 'owner' || user?.business_role === 'admin' || user?.platform_role === 'platform_admin';
 
   const location = useLocation();
   const navigate = useNavigate();

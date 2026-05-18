@@ -17,6 +17,7 @@ const { authenticateToken } = require('../middleware/auth');
 const { createAuditLog } = require('../middleware/audit');
 const taskExtractor = require('../services/task_extractor');
 const cueOrchestrator = require('../services/cue_orchestrator');
+const { applyMemberDisplayName, applyMemberDisplayNameOne } = require('../services/displayName');
 
 // ============================================
 // 공통 미들웨어: 워크스페이스 접근 확인 (BusinessMember 기준)
@@ -594,11 +595,13 @@ router.post('/conversations/:id/messages', authenticateToken, async (req, res, n
     const full = await Message.findByPk(msg.id, {
       include: [{ model: User, as: 'sender', attributes: ['id', 'name', 'email', 'name_localized'] }],
     });
+    const fullJson = full.toJSON();
+    await applyMemberDisplayNameOne(fullJson, conv.business_id, ['sender']);
 
     // Socket.IO broadcast — 메시지 즉시 발송 (번역 기다리지 않음)
     const io = req.app.get('io');
     if (io) {
-      io.to(`conv:${conv.id}`).emit('message:new', full.toJSON());
+      io.to(`conv:${conv.id}`).emit('message:new', fullJson);
     }
 
     // ──────────────────────────────────────────────────────────────
@@ -684,13 +687,13 @@ router.post('/conversations/:id/messages', authenticateToken, async (req, res, n
     }
 
     // Cue 자동 응답 트리거 (customer 채널 + 비 AI 메시지만, 비동기)
-    if (conv.channel_type === 'customer' && !full.toJSON().is_ai) {
+    if (conv.channel_type === 'customer' && !fullJson.is_ai) {
       setImmediate(async () => {
         try {
           const business = await Business.findByPk(conv.business_id);
           if (!business || !business.cue_user_id) return;
           const cueResult = await cueOrchestrator.respondToMessage({
-            message: full.toJSON(),
+            message: fullJson,
             conversation: conv,
             business,
             client: null,
@@ -702,6 +705,7 @@ router.post('/conversations/:id/messages', authenticateToken, async (req, res, n
             });
             if (io && cueMsg) {
               const payload = cueMsg.toJSON();
+              await applyMemberDisplayNameOne(payload, conv.business_id, ['sender']);
               payload.ai_mode_used = cueResult.mode; // draft / auto
               io.to(`conv:${conv.id}`).emit('message:new', payload);
             }
@@ -712,7 +716,7 @@ router.post('/conversations/:id/messages', authenticateToken, async (req, res, n
       });
     }
 
-    return successResponse(res, full.toJSON());
+    return successResponse(res, fullJson);
   } catch (err) { next(err); }
 });
 
@@ -746,13 +750,15 @@ router.post('/messages/:id/approve-draft', authenticateToken, async (req, res, n
     const full = await Message.findByPk(msg.id, {
       include: [{ model: User, as: 'sender', attributes: ['id', 'name', 'email', 'name_localized'] }],
     });
+    const fullJson = full.toJSON();
+    await applyMemberDisplayNameOne(fullJson, conv?.business_id, ['sender']);
 
     const io = req.app.get('io');
     if (io) {
-      io.to(`conv:${msg.conversation_id}`).emit('message:updated', full.toJSON());
+      io.to(`conv:${msg.conversation_id}`).emit('message:updated', fullJson);
     }
 
-    return successResponse(res, full.toJSON());
+    return successResponse(res, fullJson);
   } catch (err) { next(err); }
 });
 
@@ -834,6 +840,7 @@ router.get('/conversations/:id/messages', authenticateToken, async (req, res, ne
       json.other_count = others;
       return json;
     });
+    await applyMemberDisplayName(result, conv.business_id, ['sender']);
     return successResponse(res, result);
   } catch (err) { next(err); }
 });

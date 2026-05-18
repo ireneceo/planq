@@ -174,6 +174,18 @@ async def _run_migrations(db):
   except Exception:
     pass
 
+  # sessions: text 메모 통합 (사이클 N+17) — 음성/텍스트 input_type, 본문 body, 번역 토글, 연결된 음성 세션, 요약 시각
+  session_memo_cols = [
+    ('input_type', "TEXT NOT NULL DEFAULT 'voice'"),   # 'voice' | 'text'
+    ('translate_enabled', "INTEGER NOT NULL DEFAULT 1"),
+    ('linked_voice_session_id', 'INTEGER'),            # text 메모가 음성 세션과 연결될 때
+    ('summarized_at', 'TEXT'),                         # AI 요약 마지막 시각
+    ('body', 'TEXT'),                                  # text 메모 본문 (TipTap JSON 또는 plain)
+  ]
+  for col, typ in session_memo_cols:
+    if not await _column_exists(db, 'sessions', col):
+      await db.execute(f"ALTER TABLE sessions ADD COLUMN {col} {typ}")
+
   # voice_fingerprints: 단일 언어(user_id PK) → 다국어(UNIQUE user_id + language) 로 전환
   # 기존 Table 에 language 컬럼이 없으면 migration 수행
   if not await _column_exists(db, 'voice_fingerprints', 'language'):

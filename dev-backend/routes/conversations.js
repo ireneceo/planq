@@ -9,6 +9,7 @@ const { successResponse, errorResponse } = require('../middleware/errorHandler')
 const { createAuditLog } = require('../middleware/audit');
 const cueOrchestrator = require('../services/cue_orchestrator');
 const kbService = require('../services/kb_service');
+const { applyMemberDisplayName, applyMemberDisplayNameOne, getMemberNameMap } = require('../services/displayName');
 
 const isAdmin = (req) =>
   req.user?.platform_role === 'platform_admin' || req.businessRole === 'owner';
@@ -64,11 +65,13 @@ router.get('/:businessId', authenticateToken, attachWorkspaceScope(), async (req
     // 채팅 리스트에서 채팅방 이름 아래 한 줄로 마지막 대화 표시 → 사용자가 어떤 대화인지 즉시 인식.
     let lastMsgMap = new Map();
     if (convIds.length > 0) {
+      // 워크스페이스 표시명 우선 — BusinessMember.name → users.name fallback.
+      // 같은 conv 리스트는 단일 business_id 안이라 bm JOIN 1회로 충분.
       const [lastRows] = await sequelize.query(
         `SELECT m1.conversation_id AS cid, m1.content, m1.sender_id, m1.kind, m1.is_ai,
                 m1.created_at,
-                u.name AS sender_name,
-                u.name_localized AS sender_name_localized,
+                COALESCE(NULLIF(bm.name, ''), u.name) AS sender_name,
+                COALESCE(bm.name_localized, u.name_localized) AS sender_name_localized,
                 (SELECT COUNT(*) FROM message_attachments ma WHERE ma.message_id = m1.id) AS att_count
            FROM messages m1
            INNER JOIN (
@@ -78,8 +81,9 @@ router.get('/:businessId', authenticateToken, attachWorkspaceScope(), async (req
                AND (is_deleted IS NULL OR is_deleted = 0)
              GROUP BY conversation_id
            ) latest ON m1.conversation_id = latest.conversation_id AND m1.created_at = latest.mt
-           LEFT JOIN users u ON u.id = m1.sender_id`,
-        { replacements: { cids: convIds } }
+           LEFT JOIN users u ON u.id = m1.sender_id
+           LEFT JOIN business_members bm ON bm.user_id = m1.sender_id AND bm.business_id = :bizId`,
+        { replacements: { cids: convIds, bizId: Number(req.params.businessId) } }
       );
       for (const r of lastRows) {
         let preview = (r.content || '').trim();
@@ -89,8 +93,15 @@ router.get('/:businessId', authenticateToken, attachWorkspaceScope(), async (req
         }
         // 200자 cap — 응답 크기 보호
         if (preview.length > 200) preview = preview.slice(0, 200);
+        // sender_name_localized: COALESCE 결과는 driver 에 따라 string 또는 이미 파싱된 object — 양쪽 호환.
         let nameLocalized = null;
-        try { nameLocalized = r.sender_name_localized ? JSON.parse(r.sender_name_localized) : null; } catch { /* not JSON */ }
+        if (r.sender_name_localized) {
+          if (typeof r.sender_name_localized === 'object') {
+            nameLocalized = r.sender_name_localized;
+          } else {
+            try { nameLocalized = JSON.parse(r.sender_name_localized); } catch { /* not JSON */ }
+          }
+        }
         lastMsgMap.set(r.cid, {
           content: preview,
           sender_id: r.sender_id,
@@ -443,7 +454,16 @@ router.get('/:businessId/:id', authenticateToken, attachWorkspaceScope(), async 
     }
 
     const result = conversation.toJSON();
-    result.messages = messages;
+    // toJSON 직후 — 워크스페이스 표시명을 sender · participants.User 양쪽에 일관 적용
+    result.messages = await applyMemberDisplayName(
+      messages.map(m => (m.toJSON ? m.toJSON() : m)),
+      Number(req.params.businessId),
+      ['sender']
+    );
+    if (Array.isArray(result.participants)) {
+      // participants[i].User 로 nested 됨 → path 'User'
+      await applyMemberDisplayName(result.participants, Number(req.params.businessId), ['User']);
+    }
     successResponse(res, result);
   } catch (error) { next(error); }
 });
@@ -485,8 +505,13 @@ router.post('/:businessId/:id/messages', authenticateToken, attachWorkspaceScope
     const fullMsg = await Message.findByPk(msg.id, {
       include: [{ model: User, as: 'sender', attributes: ['id', 'name', 'email', 'name_localized'] }],
     });
+    let emitMsg = null;
+    if (fullMsg) {
+      emitMsg = fullMsg.toJSON();
+      await applyMemberDisplayNameOne(emitMsg, Number(req.params.businessId), ['sender']);
+    }
     const io = req.app.get('io');
-    if (io && fullMsg) io.to(`conv:${conversation.id}`).emit('message:new', fullMsg.toJSON());
+    if (io && emitMsg) io.to(`conv:${conversation.id}`).emit('message:new', emitMsg);
 
     await createAuditLog({
       userId: req.user.id,
@@ -550,7 +575,8 @@ router.post('/:businessId/:id/messages', authenticateToken, attachWorkspaceScope
     //       (Cue 는 오직 고객 메시지에만 자동 응답)
     // 단, 현재 테스트에서는 사람의 메시지도 Cue 에게 전달해볼 수 있도록 trigger 엔드포인트 분리.
 
-    successResponse(res, msg, 'Message sent', 201);
+    // 응답도 sender enriched payload 사용 — socket emit 과 동일 (워크스페이스 표시명 포함)
+    successResponse(res, emitMsg || msg, 'Message sent', 201);
   } catch (error) { next(error); }
 });
 
@@ -582,10 +608,12 @@ router.put('/:businessId/:id/messages/:msgId', authenticateToken, attachWorkspac
     const fullMsg = await Message.findByPk(msg.id, {
       include: [{ model: User, as: 'sender', attributes: ['id', 'name', 'email', 'name_localized'] }],
     });
+    const payload = fullMsg.toJSON();
+    await applyMemberDisplayNameOne(payload, Number(businessId), ['sender']);
     const io = req.app.get('io');
-    if (io) io.to(`conv:${conv.id}`).emit('message:updated', fullMsg.toJSON());
+    if (io) io.to(`conv:${conv.id}`).emit('message:updated', payload);
     await createAuditLog({ userId: req.user.id, businessId, action: 'message.edit', targetType: 'Message', targetId: msg.id });
-    return successResponse(res, fullMsg.toJSON());
+    return successResponse(res, payload);
   } catch (err) { next(err); }
 });
 
@@ -692,7 +720,9 @@ router.get('/:businessId/:id/pinned', authenticateToken, attachWorkspaceScope(),
       order: [['pinned_at', 'DESC']],
       limit: 50,
     });
-    return successResponse(res, list.map(m => m.toJSON()));
+    const payload = list.map(m => m.toJSON());
+    await applyMemberDisplayName(payload, Number(businessId), ['sender']);
+    return successResponse(res, payload);
   } catch (err) { next(err); }
 });
 

@@ -241,6 +241,9 @@
     "toWeek": "This week"
   },
   "right": {
+    "expand": "Open panel",
+    "collapse": "Collapse panel",
+    "toggle": "Toggle insight panel",
     "title": "Overview",
     "received": "Incoming requests",
     "review": "Review requests",

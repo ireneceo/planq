@@ -260,6 +260,9 @@
     "toWeek": "이번 주로"
   },
   "right": {
+    "expand": "패널 열기",
+    "collapse": "패널 접기",
+    "toggle": "인사이트 패널 토글",
     "title": "현황",
     "received": "받은 업무요청",
     "review": "확인 요청 받음",

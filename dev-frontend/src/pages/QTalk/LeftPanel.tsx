@@ -534,7 +534,9 @@ const ArchiveLink = styled.button`
 
 const ChatRow = styled.div<{ $active: boolean }>`
   display: flex;
-  align-items: flex-start;
+  /* 사이클 N+22: 별·⋮ 가 row 중앙에 정렬되도록 center. flex-start 였을 땐 2줄 body 옆에서 위로 떠있어 시각 노이즈 + 거리감.
+     body 는 flex column 이라 자체 정렬 영향 없음. */
+  align-items: center;
   gap: 10px;
   padding: 10px 10px;
   margin: 2px 0;
@@ -640,6 +642,7 @@ const Unread = styled.div`
 // 옛 hover 노출은 "다른 row 호버할 때 별이 깜빡거리는" 인상을 유발 → 사용자가 의도와 무관해 보임.
 // 항상 28x28 자리 차지, 색상으로만 상태 구분.
 //   pinned=true: amber 채움 / pinned=false: 연회색 outline
+// 사이클 N+22: 별·⋮ 사이 거리 = 별이 끝나면 바로 ⋮. 옛 4px+2px 빈 공간 제거. row 우측 핸들 묶음 효과.
 const PinBtn = styled.button<{ $pinned: boolean }>`
   flex-shrink: 0;
   display: inline-flex;
@@ -647,7 +650,7 @@ const PinBtn = styled.button<{ $pinned: boolean }>`
   justify-content: center;
   width: 28px;
   height: 28px;
-  margin: 0 0 0 4px;
+  margin: 0;
   padding: 0;
   background: transparent;
   border: none;
@@ -661,10 +664,12 @@ const PinBtn = styled.button<{ $pinned: boolean }>`
 
 // ⋮ 채팅방 관리 메뉴 — workspace owner / project owner / platform admin 만 노출.
 // 데스크탑: hover-only 노이즈 최소. 모바일: 상시 노출 (PinBtn 패턴 일치).
+// 사이클 N+22: 별 옆에 바짝 붙임 — 옛 ChatRow gap:10px 만큼 떨어져있던 거리를 -6px negative margin 으로 보정.
 const MenuRoot = styled.div`
   position: relative;
   flex-shrink: 0;
   align-self: center;
+  margin-left: -6px;
 `;
 
 // 사이클 N+15-E — 상시 노출. 옛 hover-only 는 사용자가 발견하지 못함 + 호버 깜빡임 노이즈.
@@ -675,7 +680,7 @@ const MenuBtn = styled.button<{ $open: boolean }>`
   justify-content: center;
   width: 28px;
   height: 28px;
-  margin: 0 0 0 2px;
+  margin: 0;
   padding: 0;
   background: ${(p) => (p.$open ? '#F1F5F9' : 'transparent')};
   border: none;

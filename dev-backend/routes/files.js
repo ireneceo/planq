@@ -11,6 +11,7 @@ const { File, FileFolder, User, Client, Project, Business, BusinessStorageUsage,
 const { sequelize } = require('../config/database');
 const gdrive = require('../services/gdrive');
 const planEngine = require('../services/plan');
+const { decodeOriginalName, buildContentDisposition } = require('../services/filename');
 const { authenticateToken, checkBusinessAccess } = require('../middleware/auth');
 const { attachWorkspaceScope, fileListWhereByLevel, canAccessFileByLevel, isMemberOrAbove, getUserScope } = require('../middleware/access_scope');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
@@ -197,7 +198,9 @@ router.get('/public/:token/download', async (req, res, next) => {
       return errorResponse(res, 'external_file_no_url', 400);
     }
     if (!fs.existsSync(file.file_path)) return errorResponse(res, 'physical_file_missing', 410);
-    res.download(file.file_path, file.file_name);
+    res.setHeader('Content-Disposition', buildContentDisposition(file.file_name));
+    if (file.mime_type) res.setHeader('Content-Type', file.mime_type);
+    return res.sendFile(path.resolve(file.file_path));
   } catch (err) { next(err); }
 });
 
@@ -364,7 +367,7 @@ router.post('/:businessId', authenticateToken, checkBusinessAccess, upload.singl
         }
         // 파일 업로드 (stream)
         const driveFile = await gdrive.uploadFile(drive, {
-          name: req.file.originalname,
+          name: decodeOriginalName(req.file.originalname),
           mimeType: req.file.mimetype,
           body: fs.createReadStream(tempPath),
           parentId: parentFolderId
@@ -376,7 +379,7 @@ router.post('/:businessId', authenticateToken, checkBusinessAccess, upload.singl
           folder_id: folderId,
           client_id: req.body.client_id || null,
           uploader_id: req.user.id,
-          file_name: req.file.originalname,
+          file_name: decodeOriginalName(req.file.originalname),
           file_path: driveFile.id,  // gdrive 는 file_path 필드를 external_id 로 활용
           file_size: Number(driveFile.size || req.file.size),
           mime_type: req.file.mimetype,
@@ -445,7 +448,7 @@ router.post('/:businessId', authenticateToken, checkBusinessAccess, upload.singl
             folder_id: folderId,
             client_id: req.body.client_id || null,
             uploader_id: req.user.id,
-            file_name: req.file.originalname,
+            file_name: decodeOriginalName(req.file.originalname),
             file_path: existing.file_path,
             file_size: existing.file_size,
             mime_type: existing.mime_type,
@@ -465,7 +468,7 @@ router.post('/:businessId', authenticateToken, checkBusinessAccess, upload.singl
           folder_id: folderId,
           client_id: req.body.client_id || null,
           uploader_id: req.user.id,
-          file_name: req.file.originalname,
+          file_name: decodeOriginalName(req.file.originalname),
           file_path: req.file.path,
           file_size: req.file.size,
           mime_type: req.file.mimetype,
@@ -693,7 +696,9 @@ router.get('/:businessId/:id/download', authenticateToken, attachWorkspaceScope(
       return errorResponse(res, 'External file has no URL', 400);
     }
     if (!fs.existsSync(file.file_path)) return errorResponse(res, 'Physical file missing', 410);
-    res.download(file.file_path, file.file_name);
+    res.setHeader('Content-Disposition', buildContentDisposition(file.file_name));
+    if (file.mime_type) res.setHeader('Content-Type', file.mime_type);
+    return res.sendFile(path.resolve(file.file_path));
   } catch (error) {
     next(error);
   }
