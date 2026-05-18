@@ -3,11 +3,23 @@
 ## 현재 작업 상태
 **마지막 업데이트:** 2026-05-18
 **작업 상태:** 완료
-**운영 라이브 버전:** v1.15.0 (commit `64ace71`, 7회 배포)
-**직전 라이브:** v1.13.0 (commit `5317eca`)
+**운영 라이브 버전:** v1.16.0 (commit `ab113a6`, 2026-05-18 18:58)
+**직전 라이브:** v1.15.0 (commit `64ace71`, 7회 배포 후 종합)
 
 ### 진행 중인 작업
 - 없음
+
+### N+26~N+27 사이클 핵심 산출물 (v1.16.0)
+- **업무 흐름 (Focus)** — 좌측 사이드바 위젯 4-상태 + 업무 상세 인라인 바 + 개인 설정 (/profile)
+- **DailyStartModal** — 로그인 첫 진입 오늘 시작 안내 + 유휴 감지 + 자동 일시정지
+- **주간 보고 자동 확정 설정** — 워크스페이스 "업무 관리" 메뉴 (요일·시각·enabled) + 워크스페이스 통합 보고 안내 띠
+- **weekly_team 메뉴 권한** — default `none` (멤버끼리 자동 공유 X, owner/admin 자동)
+- **인박스 task_candidate inline 모달** — 카드 클릭 시 즉시 등록/반려 모달 (이동 X)
+- **채팅 자동 업무 추출 디바운스** — 60초 무활동 / 5+ burst / cron 1분 fallback
+- **Cue 주고받음** — revision_note 자동 재실행 + 댓글 trigger Cue task.body 업데이트 + 답글
+- **Cue 답변 thumbs** — messages.cue_rating + 채팅 메시지 👍/👎 버튼
+- **Image Lightbox 통일** — 갤러리 모드 + useImageLightbox hook + 5 사이트 통합
+- **인박스 후보 권한 가드** — owner/admin 만 미지정 후보 노출 + "박제"→"확정" 라벨
 
 ---
 
