@@ -59,7 +59,9 @@ export type QNoteCaptureMode = 'microphone' | 'web_conference' | 'text';
 export type QNoteInputType = 'voice' | 'text';
 
 export interface QNoteDetectedQuestion {
+  id?: number;
   utterance_id: number;
+  question_text?: string;
   answer_text: string;
   answer_tier: string | null;
   matched_qa_id: number | null;
@@ -130,6 +132,22 @@ export async function createSessionShareToken(sessionId: number): Promise<{ shar
   });
   const j = await res.json();
   if (!j.success) throw new Error(j.message || j.detail || 'share_failed');
+  return j.data;
+}
+
+// 사이클 N+24: 회의 종료 후 요약 생성 — q-note 의 /api/llm/summary 호출.
+//   transcript 는 review 모드에서 화면에 보이는 utterances 들을 합쳐서 전달.
+export async function generateSessionSummary(
+  sessionId: number,
+  transcript: string
+): Promise<{ key_points: string[]; full_summary: string }> {
+  const res = await fetch(`/api/llm/summary`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getAccessToken()}` },
+    body: JSON.stringify({ session_id: sessionId, transcript }),
+  });
+  const j = await res.json();
+  if (!j.success) throw new Error(j.message || j.detail || 'summary_failed');
   return j.data;
 }
 

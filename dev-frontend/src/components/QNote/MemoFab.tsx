@@ -60,8 +60,9 @@ const MemoFab: React.FC = () => {
   const location = useLocation();
   const [open, setOpen] = useState(false);
 
-  // 권한 — 비즈니스 멤버 (owner/member) 만. client / 로그인 안 한 상태 / 비즈니스 없음 → hide
-  const allowed = !!user?.business_id && (user.business_role === 'owner' || user.business_role === 'member');
+  // 권한 — 비즈니스 멤버 (owner/admin/member) 만. client / 로그인 안 한 상태 / 비즈니스 없음 → hide
+  // 사이클 N+24: 'admin' role 추가 (N+21 에 신설됐는데 가드 누락 회귀 fix)
+  const allowed = !!user?.business_id && ['owner', 'admin', 'member'].includes(user.business_role || '');
   const businessId = user?.business_id ? Number(user.business_id) : 0;
   const pathHidden = FAB_HIDDEN_PATHS.some((p) => location.pathname === p || location.pathname.startsWith(`${p}/`));
 
