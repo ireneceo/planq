@@ -735,20 +735,29 @@ router.get('/businesses/:businessId/kb/pinned/template.csv', authenticateToken, 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
 
 const SYSTEM_PROMPT_INGEST = `너는 PlanQ Knowledge Base 자료 정리 도우미.
-사용자가 자유 텍스트(회의록·매뉴얼·이메일 등)를 던지면 KB 항목 후보를 추출해.
+사용자가 자유 텍스트를 던지면 KB 항목 후보를 추출해.
+
+지원 입력 유형 (사이클 N+23 — 짧은 자유 정보도 모두 OK):
+- 회의록·매뉴얼·이메일·정책 문서 (큰 텍스트)
+- 계정·자격증명 정보 (서비스 ID/비밀번호/연락처)
+- 연락처·주소·은행 계좌·기관 정보
+- 기타 항목별로 정리할 수 있는 모든 자유 텍스트
 
 핵심 원칙 (반드시 지킬 것):
 1. 원문 정보만 사용. 새로운 정보·예시·해설을 절대 추가하지 마.
-2. 문장은 거의 그대로. 오타·띄어쓰기·줄바꿈만 정리. 문장 구조 재작성 금지.
-3. 토픽이 명확히 다르면 여러 항목으로 분리 (다른 미팅·다른 주제·다른 시점).
-   애매하면 1개로 합쳐.
-4. 카테고리 자동 분류: policy(정책)/manual(매뉴얼)/incident(사고)/faq(자주묻는질문)/about(회사소개)/pricing(가격) 중 가장 적합한 1개.
-5. 태그 3~6개 추출 (원문 키워드만).
-6. title 은 원문에서 핵심 명사구로 50자 이내.
-7. 답변 형식: JSON 배열만 출력. 다른 설명 X.
-   [{ "title": "...", "body": "...", "category": "manual", "tags": ["키워드1","키워드2"] }]
-8. body 는 원문 그대로 (오타/공백만 정리). 줄바꿈 \\n 그대로 유지.
-9. 모르는 건 만들지 마. 카테고리 애매하면 'manual', 태그 부족하면 적게.`;
+2. 문장은 거의 그대로. 오타·띄어쓰기·줄바꿈만 정리.
+3. 토픽이 명확히 다르면 여러 항목으로 분리. 한 서비스의 자격증명 정보처럼 묶음이면 1개 항목.
+4. 카테고리 자동 분류: policy(정책)/manual(매뉴얼·자격증명·연락처 포함)/incident(사고)/faq(자주묻는질문)/about(회사소개)/pricing(가격) 중 가장 적합한 1개.
+   계정/자격증명/연락처 정보는 'manual' 카테고리 사용.
+5. 태그 2~6개 추출 (원문 키워드만). 자격증명이면 ["서비스명","자격증명","연락처"] 같이.
+6. title: 원문 첫 줄 또는 핵심 명사구. 50자 이내. 예: "기율법무법인 링크드인 계정" "Mary 전화번호".
+7. body: 원문 그대로 (오타/공백만 정리). 줄바꿈 \\n 그대로 유지.
+
+답변 형식 — **반드시 다음 중 하나**:
+- 단일 항목이면: { "items": [{ "title": "...", "body": "...", "category": "manual", "tags": [...] }] }
+- 다중 항목이면: { "items": [{ ... }, { ... }] }
+- 절대 빈 items 반환 금지. 텍스트가 한 줄이라도 의미 있으면 1개 항목으로 추출.
+- 다른 설명 X. JSON 만.`;
 
 router.post('/businesses/:businessId/kb/ai-ingest', authenticateToken, checkBusinessAccess, async (req, res, next) => {
   try {
@@ -795,14 +804,19 @@ router.post('/businesses/:businessId/kb/ai-ingest', authenticateToken, checkBusi
     const j = await r.json();
     const content = (j.choices?.[0]?.message?.content || '').trim();
 
-    // JSON 파싱 — { items: [...] } 또는 [...] 둘 다 허용
+    // JSON 파싱 — 4 형식 모두 허용:
+    //   1) [...]              — 배열
+    //   2) { items: [...] }   — wrapper
+    //   3) { candidates: [...] } — wrapper
+    //   4) { title, body, ... } — 단일 객체 (사용자 입력이 짧을 때 LLM 이 자주 반환. 회귀 fix N+23)
     let candidates = [];
     try {
       const parsed = JSON.parse(content);
-      candidates = Array.isArray(parsed) ? parsed
-        : Array.isArray(parsed.items) ? parsed.items
-        : Array.isArray(parsed.candidates) ? parsed.candidates
-        : [];
+      if (Array.isArray(parsed)) candidates = parsed;
+      else if (Array.isArray(parsed.items)) candidates = parsed.items;
+      else if (Array.isArray(parsed.candidates)) candidates = parsed.candidates;
+      else if (parsed && typeof parsed === 'object' && parsed.title && parsed.body) candidates = [parsed];
+      else candidates = [];
     } catch {
       console.error('[kb/ai-ingest] JSON parse failed:', content.slice(0, 200));
       return errorResponse(res, 'llm_invalid_response', 502);
