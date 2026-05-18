@@ -8,6 +8,69 @@
 
 ---
 
+## ✅ 완료: 사이클 N+26~N+27 (2026-05-18, v1.16.0)
+
+### 완료된 작업
+
+| 사이클 | 작업 | 핵심 산출물 | 상태 |
+|------|------|---|:----:|
+| N+26 | 업무 흐름 (Focus) MVP | `focus_sessions` 테이블 + `users.focus_*` 5컬럼 + `/api/focus/*` 10 라우트 + `FocusWidget` 4-상태 사이드바 위젯 + `TaskFocusBar` drawer 본문 상단 + `FocusSettingsCard` /profile 섹션 + default OFF zero-overhead | ✅ |
+| N+26 | DailyStartModal + 유휴 감지 | `useActivityTracker` hook (mouse/keyboard/touch 5s throttle) + 60s 무활동 시 prompt + auto_pause_min 초과 시 자동 일시정지 + 모달 (오늘 마감/확인요청/지연 3 카테고리) | ✅ |
+| N+26 | 주간 보고 자동 확정 설정 | `businesses.weekly_finalize_dow/hour/enabled` 3컬럼 + `assertWorkspaceWeeklyTeam` helper + GET/PUT `/api/businesses/:id/weekly-finalize` + `weeklyReviewCron` 워크스페이스 설정 기반 + WorkManagementSettings 페이지 + WorkspaceFinalizeBanner | ✅ |
+| N+26 | weekly_team 메뉴 권한 | `BusinessMemberPermission.menu_key` 'weekly_team' 추가 (default 'none' — 멤버끼리 자동 공유 X) + MemberPermissionMatrix UI 자동 노출 | ✅ |
+| N+26 | Image Lightbox 통일 | `ImageLightbox` 갤러리 모드 (← → 화살표 + 키보드 + swipe + 인덱스) + `useImageLightbox` hook + 5 사이트 통합 (Chat 첨부·Task 첨부·Description·댓글·Signature) | ✅ |
+| N+26 | 인박스 후보 권한 가드 | `collectCandidates` userRole 인자 — 미지정 후보 owner/admin 만. QTaskPage candidate 진입 못 찾을 때 안내 띠. context "담당자 지정 필요" 중복 제거 | ✅ |
+| N+26 | "박제" → "확정" 라벨 | 사용자 노출 5건 (WeeklyReviewAutoSection/Tab/View + WeeklyTrendTab + qtask.json) — 자연스러운 한국어 | ✅ |
+| N+27 | 인박스 task_candidate inline 모달 | `dashboard.js` 응답 +3 필드 (candidate_id, conversation_id, guessed_assignee) + `CandidateActionModal` — 카드 클릭 시 즉시 등록/반려 (이동 X) + 등록 후 새 task drawer 자동 오픈 | ✅ |
+| N+27 | 채팅 자동 업무 추출 디바운스 | `taskExtractorScheduler` in-memory per-conv timer + 60초 무활동 또는 5+ burst → 추출 + 3+ 새 메시지 threshold + cron 1분 fallback + `candidates:created` socket | ✅ |
+| N+27 | Cue 주고받음 (revision + 댓글) | A) revision_requested 라우트에서 task.assignee=Cue 시 revisionNote 자동 재실행. B) 댓글 추가 시 Cue 가 댓글 읽고 task.body 업데이트 + "반영했어요" 답글 댓글. `executeForTask(taskId, opts={revisionNote, commentNote})` feedbackBlock 주입 | ✅ |
+| N+27 | Cue smart mode 명세 확인 | confidence = max(topFaqScore, topChunkScore). smart: ≥0.5 auto / <0.5 draft. UI/i18n 이미 명확 (코드 변경 없음) | ✅ |
+| N+27 | Cue 답변 thumbs up/down | `messages.cue_rating` 3컬럼 + `POST /api/projects/messages/:id/cue-rating` + ChatPanel Cue 메시지 hover 시 👍/👎 (재클릭 = 취소) | ✅ |
+| N+27 hotfix | 채팅방 진입 점프 회귀 | `activeConv.id` reset effect 를 `useEffect` → `useLayoutEffect` 로 변경 — paint phase 일치로 "위 → 맨 아래" 점프 제거 | ✅ |
+
+### DB 변경
+
+| 변경 | 내용 |
+|------|------|
+| `focus_sessions` 테이블 신규 | state ENUM(active/paused/stopped) · started/ended/pause_total/last_activity · auto_paused · end_reason. 인덱스 3종 (user_state · user_task · biz_date) |
+| `users` +5 컬럼 | focus_enabled · focus_idle_min · focus_auto_pause_min · focus_daily_prompt · focus_prompt_last_dismissed_date |
+| `businesses` +3 컬럼 | weekly_finalize_dow · weekly_finalize_hour · weekly_finalize_enabled |
+| `messages` +3 컬럼 | cue_rating · cue_rating_at · cue_rating_by_user_id |
+| `business_member_permissions.menu_key` | weekly_team 추가 (default 'none', READ_ONLY) |
+| 마이그레이션 스크립트 | `dev-backend/migrations/n26-focus-sessions.js` + `n27-cue-feedback.js` |
+
+### 30년차 결정 박제
+
+1. **명명 — "포커스" 채택** — "근무 시작/종료" 부담 회피 + PlanQ Cue 컨셉 결 맞춤
+2. **default OFF + zero overhead** — focus_enabled=false 시 컴포넌트 렌더 자체 없음
+3. **"박제" → "확정"** — 사용자 노출 라벨 자연스러운 한국어로 통일
+4. **사이드바 위젯 = 진짜 적극성** — 자주 뜨는 팝업은 학습되어 dismiss 됨. 위젯은 부담 0
+5. **인박스 inline 액션** — 알림 → 즉시 액션 모달 (이동 X). 4 step → 1 step
+6. **채팅 추출 디바운스** — 60s 무활동 또는 5+ burst. LLM 토큰 절약
+7. **Cue 주고받음** — revision_note (공식) + 댓글 (대화형) 두 패턴 모두
+8. **weekly_team 권한** — 멤버끼리 자동 공유 X. owner/admin 자동 + 명시 read 부여만
+9. **useLayoutEffect phase 일관성** — reset effect 와 scroll effect 같은 paint phase 에서 처리
+
+### 수정된 파일 (40+)
+
+**Backend 신규 (5)**: `models/FocusSession.js`, `routes/focus.js`, `services/taskExtractorScheduler.js`, `migrations/n26-focus-sessions.js`, `migrations/n27-cue-feedback.js`
+
+**Backend 수정**: `middleware/menu_permission.js`, `models/{Business,Message,User,index}.js`, `routes/{businesses,dashboard,projects,task_workflow,tasks,weekly_reviews}.js`, `server.js`, `services/{cue_task_executor,weeklyReviewCron}.js`
+
+**Frontend 신규 (8)**: `components/Focus/{FocusWidget,TaskFocusBar,FocusSettingsCard,DailyStartModal,CandidateActionModal}.tsx`, `components/Settings/WorkManagementSettings.tsx`, `components/QTask/WorkspaceFinalizeBanner.tsx`, `hooks/useActivityTracker.ts`
+
+**Frontend 수정**: `components/{Common/ImageLightbox,Dashboard/TodoList,Docs/PostsPage,Docs/SignatureProgressSection,Layout/MainLayout,Permissions/MemberPermissionMatrix}.tsx`, `components/QTask/{DescriptionAttachments,TaskAttachments,TaskDetailDrawer,WeeklyReviewAutoSection,WeeklyReviewTab,WeeklyReviewView}.tsx`, `pages/{Insights/tabs/WeeklyTrendTab,Profile/ProfilePage,QProject/ProjectPostsTab,QTalk/{ChatPanel,types},QTask/QTaskPage,Settings/WorkspaceSettingsPage,Todo/TodoPage}.tsx`, `services/{dashboard,permissions,qtalk}.ts`, `i18n.ts`
+
+**i18n**: ko/en `focus.json` (신규) · `layout.json` · `qtalk.json` · `qtask.json` · `settings.json`
+
+**문서**: `docs/WORK_FLOW_DESIGN.md` (신규, 30년차 UI/UX 디자인 시스템 포함)
+
+### 운영 배포 (이번 세션 3건)
+- `8f66cc9` (N+26 통합) → `19c1b5a` v1.16.0 (버전 업) → `ab113a6` (N+27) — 사실상 v1.16.0 한 번에 라이브
+- `ae96c30` (채팅 점프 회귀 hotfix) — 113초
+
+---
+
 ## ✅ 완료: 사이클 N+22~N+25 (2026-05-18, v1.14.0 → v1.15.0)
 
 ### 완료된 작업

@@ -3,114 +3,59 @@
 ## 현재 작업 상태
 **마지막 업데이트:** 2026-05-18
 **작업 상태:** 완료
-**운영 라이브 버전:** v1.16.0 (commit `ab113a6`, 2026-05-18 18:58)
-**직전 라이브:** v1.15.0 (commit `64ace71`, 7회 배포 후 종합)
+**운영 라이브 버전:** v1.16.0 (commit `ae96c30`, 채팅 점프 hotfix 포함)
+**직전 라이브:** v1.15.0 (commit `64ace71`)
 
 ### 진행 중인 작업
 - 없음
 
-### N+26~N+27 사이클 핵심 산출물 (v1.16.0)
-- **업무 흐름 (Focus)** — 좌측 사이드바 위젯 4-상태 + 업무 상세 인라인 바 + 개인 설정 (/profile)
-- **DailyStartModal** — 로그인 첫 진입 오늘 시작 안내 + 유휴 감지 + 자동 일시정지
-- **주간 보고 자동 확정 설정** — 워크스페이스 "업무 관리" 메뉴 (요일·시각·enabled) + 워크스페이스 통합 보고 안내 띠
-- **weekly_team 메뉴 권한** — default `none` (멤버끼리 자동 공유 X, owner/admin 자동)
-- **인박스 task_candidate inline 모달** — 카드 클릭 시 즉시 등록/반려 모달 (이동 X)
-- **채팅 자동 업무 추출 디바운스** — 60초 무활동 / 5+ burst / cron 1분 fallback
-- **Cue 주고받음** — revision_note 자동 재실행 + 댓글 trigger Cue task.body 업데이트 + 답글
-- **Cue 답변 thumbs** — messages.cue_rating + 채팅 메시지 👍/👎 버튼
-- **Image Lightbox 통일** — 갤러리 모드 + useImageLightbox hook + 5 사이트 통합
-- **인박스 후보 권한 가드** — owner/admin 만 미지정 후보 노출 + "박제"→"확정" 라벨
+---
+
+## 완료된 작업 (이번 세션 — N+26~N+27, v1.16.0)
+
+### N+26 (8f66cc9)
+- **업무 흐름 (Focus) MVP** — focus_sessions 테이블 + users 5컬럼 + /api/focus/* 10 라우트 + FocusWidget 4-상태 사이드바 + TaskFocusBar drawer + FocusSettingsCard /profile
+- **DailyStartModal + 유휴 감지** — useActivityTracker hook + 60s 무활동 prompt + auto_pause_min 자동 일시정지
+- **주간 보고 자동 확정** — businesses 3컬럼 + assertWorkspaceWeeklyTeam helper + 워크스페이스 "업무 관리" 페이지 + 안내 띠
+- **weekly_team 메뉴 권한** — default 'none' (멤버끼리 자동 공유 X) + READ_ONLY 분류
+- **Image Lightbox 통일** — 갤러리 모드 + useImageLightbox hook + 5 사이트 통합 + Signature 자체 Lightbox 교체
+- **인박스 후보 권한 가드** — owner/admin 만 미지정 후보 + QTaskPage candidate not found 안내 띠 + context 중복 제거
+- **"박제" → "확정"** — 사용자 노출 5건 정리
+
+### N+27 (ab113a6)
+- **인박스 task_candidate inline 모달** — CandidateActionModal — 카드 클릭 시 즉시 등록/반려 (이동 X)
+- **채팅 자동 업무 추출 디바운스** — taskExtractorScheduler — 60s 무활동 / 5+ burst / 3+ msg threshold + cron 1분 fallback
+- **Cue 주고받음 양방향** — revision_note 자동 재실행 (A) + 댓글 trigger task.body 업데이트 + 답글 댓글 (B). executeForTask(opts) feedbackBlock prompt 주입
+- **Cue 답변 thumbs** — messages 3컬럼 + cue-rating 라우트 + ChatPanel 👍/👎 버튼
+- **Cue smart mode 명세 확인** — confidence ≥0.5 auto / <0.5 draft (코드 변경 없음)
+
+### N+27 hotfix (ae96c30)
+- **채팅방 진입 점프 회귀 fix** — activeConv.id reset effect 를 useEffect → useLayoutEffect 로. paint phase 일치
+
+### 운영 배포 (이번 세션 4건)
+- `8f66cc9` (N+26 통합 — 107s)
+- `19c1b5a` (v1.16.0 버전 업 — 100s)
+- `ab113a6` (N+27 — 105s)
+- `ae96c30` (채팅 hotfix — 113s)
+
+### 신규 memory 박제 (3건)
+- `project_focus_system.md` — Focus 시간 추적 시스템 (4-state · DB · API · UI · zero overhead)
+- `project_cue_two_way.md` — Cue task revision+댓글 양방향 + 무한 루프 방지
+- `feedback_uselayoutEffect_phase.md` — 같은 paint phase 통일 (useEffect 섞으면 점프)
 
 ---
 
-## ★ 다음 세션 우선 작업 (사용자 직접 요청)
+## 다음 할 일
 
-다음 `/개발시작` 시 아래 항목 우선 안내 — 사용자가 이번 세션에 보고했으나 시간 제약으로 다음 사이클로 미룬 작업들.
+### 다음 사이클 박제 (Phase 4 + 개선)
 
-### B. 개인 보관함 풀세트 — 프로젝트 페이지처럼
-- 현재 개인 보관함이 다른 자산 보기 위주
-- 프로젝트 페이지 같은 구조로 자료 등록·수정·관리·삭제 모두 가능하게
-- "지식" 라벨은 N+24 에 정리 완료 → "정보" 통일
-- 사용자 표현: "개인보관함도 프로젝트처럼 해당 탭에서 다 보고 관리하고 수정하고 등록하게 해줘야지"
-
-### C. Image Lightbox 통일 (전 영역)
-- 채팅·문서·곳곳에서 이미지 클릭 시 동작 불일치
-- 사용자 표현: "이미지 클릭하면 원본크기 안보이거나 보이더라도 닫기가 안나와서 곤란"
-- LightboxWrapper 통합 + 모든 이미지 표시처에서 동일 컴포넌트 사용
-- 닫기 버튼 일관 노출
-
-### D. 입력란 외 클릭 영역 확장
-- 사용자 표현: "모든 데이터에 아무곳을 클릭해도 커서가 들어가게. 첫줄을 눌러야만 커서가 들어가"
-- textarea / contenteditable wrapper 클릭 시 자동 focus
-- description/body 같은 큰 입력 영역의 빈 공간 클릭도 진입
-
-### E. 메모/다른 자산 공유 시 권한 설정 통합
-- 사용자 표현: "공유하는 기능과 보기/쓰기/읽기 권한 설정 같은 패턴으로 정리 안되어 있어? 필요한 모든 곳에 같은 컴포넌트"
-- N+25 에 QNoteShareModal 만 만들었음. 다른 자산은 ShareModal + VisibilityChangeModal 분리
-- ShareModal 자체를 visibility 통합형으로 확장 또는 새 통합 컴포넌트
-- 메모(text 메모) / 음성노트 / 모든 공유 가능 자산 동일 흐름
-
-### F. 운영 nginx OG share bot proxy 적용 (사용자 직접 SSH)
-- 운영서버에서 1회 sudo 명령 실행 필요 (운영서버 sudo NOPASSWD 아님)
-- `/tmp/planq-share-bot.conf` 이미 배포됨
-- 적용 후 카카오톡·페이스북 등에서 공유 시 페이지별 OG meta 동적 응답
-
-```bash
-ssh irene@87.106.78.146
-sudo cp /tmp/planq-share-bot.conf /etc/nginx/conf.d/planq-share-bot.conf
-sudo sed -i 's|location / {|location / {\n        if ($planq_share_bot) { proxy_pass http://localhost:3004; break; }|' /etc/nginx/sites-available/planq.kr
-sudo nginx -t && sudo systemctl reload nginx
-```
-
-### F1. dev qnote PM2 등록 재정비
-- 현재 lua PM2 의 planq-qnote 가 errored (잘못된 bash 인터프리터)
-- irene 가 띄운 uvicorn(PID 변동)이 port 8000 수동 서빙 중
-- 운영 PM2 는 정상 (deploy 스크립트가 올바른 옵션으로 띄움)
-- dev 환경 정리만 필요
-
----
-
-## 완료된 작업 (이번 세션 — N+22~N+25)
-
-### N+22 (v1.14.0)
-- 채팅 sender 워크스페이스명 적용 (`services/displayName.js` 11지점)
-- 좌측 메뉴 워크스페이스명 즉시 반영 (refreshUser hook)
-- 프로필 2열 grid + 사용처 hint
-- Q Task drawer 닫힘 상태 클릭 동작 + waiting status 드롭다운 + EdgeHandle + 6점→3점
-- Q Talk 별·⋮ 정렬 + admin role 권한
-- 한글 파일명 mojibake 복구 (`services/filename.js`, 운영 17 row cleanup)
-- 본문 인라인 이미지 L1→L3 + 운영 3 row promote
-- PostEditor 이미지 selectednode outline read-only 차단
-- PWA dock badge race fix (SW visible client skip + visibility reapply)
-- q-note text 메모 5 컬럼 idempotent migration
-
-### N+23
-- SEO·SNS OG 동적 응답 (`middleware/ogMeta.js`) — share bot UA 17종
-- OG 썸네일 1200×630 자동 생성 + Admin "SEO·SNS 공유" 카드
-- KB AI ingest parser fix (자격증명 짧은 텍스트도 추출)
-- MemoFab Q Talk 노출 + 채팅 한글 IME 가드
-- HEIC/HEIF 미리보기 fallback
-- Google Calendar 정기 회의 — rrule → recurrence
-
-### N+24
-- 채팅 실시간 회복 가드 (visibility/focus/online tryRecover)
-- RightPanel "프로젝트 상세 보기" navigate
-- CueHelpDrawer Q Talk 노출 (FAB_HIDDEN_PATHS 비움)
-- Q Note 종료 후 [설정 보기] [요약 생성] [질문 보기] 3 버튼 + 모달
-- MemoFab allowed admin role 추가
-- "지식" → "정보" 라벨 잔존 처리
-
-### N+25 (v1.15.0)
-- Q Note 공유 통합 모달 (`QNoteShareModal.tsx`) — visibility L1~L3 + L4 share_token 한 모달
-- q-note `GET /api/sessions/public/by-token/:token` anonymous endpoint
-- `PublicQNoteSessionPage.tsx` + `/public/qnote-sessions/:token` 라우트
-
-### 운영 데이터 cleanup (1회)
-- 한글 파일명 mojibake 17 row 복구
-- 본문 인라인 이미지 3 row L1 → L3 promote
-
-### 운영 배포 (7건)
-- v1.14.0 (N+22) / N+23 OG / N+23 hotfix 3건 / N+24 채팅실시간 / N+24 QNote / v1.15.0 (N+25)
+1. **개인 보관함 풀세트** — 프로젝트 페이지처럼 등록·수정·관리 풀 가능하게
+2. **입력란 외 클릭 영역 확장** — description/body wrapper 빈 공간 클릭 시 자동 커서 진입
+3. **운영 nginx OG share bot proxy** — 사용자 SSH 직접 1회 sudo 명령 필요
+4. **dev qnote PM2 재정비** — 현재 errored (irene uvicorn 수동 서빙)
+5. **Focus Phase 4** — Insights 통합 / 다중 디바이스 socket sync / push 알림 옵션
+6. **Cue 답변 학습 적용** — cue_rating -1 모아 system prompt 에 "이런 답변 피하라" hint
+7. **모바일 PWA Share Target Phase 2** — 추가 destination
 
 ---
 
@@ -123,4 +68,4 @@ sudo nginx -t && sudo systemctl reload nginx
 /opt/planq/.claude/session-state.md 읽어줘.
 ```
 
-`/개발시작` 명령 시 위 ★ "다음 세션 우선 작업" 섹션 (B/C/D/E/F/F1) 이 가장 먼저 안내됩니다.
+`/개발시작` 명령 시 위 "다음 할 일" 섹션이 가장 먼저 안내됩니다.
