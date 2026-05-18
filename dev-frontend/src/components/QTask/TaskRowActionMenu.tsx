@@ -1,5 +1,5 @@
 // 업무 row 액션 메뉴 — Q Task / 프로젝트>업무 공통.
-// 노션 패턴: hover 시 좌측 ⋮⋮ 핸들 → 드롭다운 (아래 추가 / 복제 / 삭제).
+// 사이클 N+22: 6 점 grip(드래그 연상) → 3 점 ⋮ (Q Talk 와 동일 표준). 동작은 동일 — 드롭다운(아래 추가 / 복제 / 삭제).
 // Menu 는 createPortal 로 document.body 에 띄워 부모 overflow:hidden 영향 X.
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -58,7 +58,7 @@ export default function TaskRowActionMenu({ onAddBelow, onCopy, onDelete, busy }
         $open={open}
         disabled={busy}
       >
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="6" r="1.8"/><circle cx="9" cy="12" r="1.8"/><circle cx="9" cy="18" r="1.8"/><circle cx="15" cy="6" r="1.8"/><circle cx="15" cy="12" r="1.8"/><circle cx="15" cy="18" r="1.8"/></svg>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="12" cy="19" r="1.6"/></svg>
       </Handle>
       {open && menuPos && createPortal(
         <Menu ref={menuRef} role="menu" style={{ top: menuPos.top, left: menuPos.left }}>

@@ -55,7 +55,7 @@ type RecPurpose = 'register' | 'verify';
 export default function ProfilePage() {
   const { t } = useTranslation('profile');
   const { t: tErr } = useTranslation('errors');
-  const { user, updateUser } = useAuth();
+  const { user, updateUser, refreshUser } = useAuth();
   const { formatDateTime } = useTimeFormat();
   const [fpList, setFpList] = useState<VoiceFingerprintList | null>(null);
   const [loading, setLoading] = useState(true);
@@ -146,6 +146,9 @@ export default function ProfilePage() {
     updateUser({ name: next });
   }, [user?.id, accountName, t, updateUser]);
 
+  // 사이클 N+22: 워크스페이스 표시명 PUT 후 AuthContext 즉시 refresh — 채팅·사이드바·멘션 모두 새 이름 반영.
+  // BusinessMember.name 이 채팅 sender 표시의 source 이고 (services/displayName.js), 좌측 메뉴 WorkspaceSwitcher 도
+  // user.workspaces[active] 의 brand_name 을 보므로 refresh 없이는 stale.
   const saveWsName = useCallback(async () => {
     if (!businessId) throw new Error('No workspace');
     const next = wsName.trim();
@@ -157,7 +160,8 @@ export default function ProfilePage() {
     });
     const data = await res.json();
     if (!res.ok || !data.success) throw new Error(data.message || t('messages.errorSave'));
-  }, [businessId, wsName, t]);
+    await refreshUser();
+  }, [businessId, wsName, t, refreshUser]);
 
   const saveWsNameEn = useCallback(async () => {
     if (!businessId) throw new Error('No workspace');
@@ -171,7 +175,8 @@ export default function ProfilePage() {
     });
     const data = await res.json();
     if (!res.ok || !data.success) throw new Error(data.message || t('messages.errorSave'));
-  }, [businessId, wsNameEn, t]);
+    await refreshUser();
+  }, [businessId, wsNameEn, t, refreshUser]);
 
   const saveUsername = useCallback(async () => {
     if (!user?.id) throw new Error('Not logged in');
@@ -642,7 +647,7 @@ export default function ProfilePage() {
                     maxLength={100}
                   />
                 </AutoSaveField>
-                <Hint>{t('workspaceProfile.nicknameHint', '리스트·채팅·업무 담당자 등에서 이 이름으로 표시됩니다.')}</Hint>
+                <Hint>{t('workspaceProfile.nicknameUsage', '사용처: Q Talk 채팅 발신자 · Q Task 담당자 · 댓글/멘션 · 멤버 목록 · 워크스페이스 안 모든 표시')}</Hint>
               </FieldBody>
             </FieldRow>
 
@@ -657,7 +662,7 @@ export default function ProfilePage() {
                     maxLength={100}
                   />
                 </AutoSaveField>
-                <Hint>{t('workspaceProfile.nicknameEnHint', '선택 — 영어 UI 사용자에게 이렇게 표시됩니다')}</Hint>
+                <Hint>{t('workspaceProfile.nicknameEnUsage', '사용처: 영어 UI 로 보는 멤버·고객에게 위의 한글 닉네임 대신 이 이름이 표시됩니다 (선택)')}</Hint>
               </FieldBody>
             </FieldRow>
           </Card>
@@ -755,7 +760,7 @@ export default function ProfilePage() {
         </Card>
 
         {/* 언어 레벨 — 답변 난이도 조절 */}
-        <Card>
+        <Card $wide>
           <SectionTitle>{t('languageLevel.sectionTitle')}</SectionTitle>
           <Description>
             <Trans i18nKey="languageLevel.description" ns="profile" components={{ 1: <strong />, 2: <strong />, 3: <br />, 4: <strong /> }} />
@@ -836,7 +841,7 @@ export default function ProfilePage() {
         </Card>
 
         {/* 음성 핑거프린트 (다국어) */}
-        <Card>
+        <Card $wide>
           <SectionTitle>{t('voice.sectionTitle')}</SectionTitle>
           <Description>
             <Trans i18nKey="voice.description" ns="profile" components={{ 1: <strong />, 2: <strong /> }} />
@@ -1047,17 +1052,27 @@ export default function ProfilePage() {
 
 // ─── Styled ───────────────────────────────────
 
+// 사이클 N+22: 2열 grid — 입력란이 좁아져 AutoSave 표시 잘 보이게.
+// 카드 폭이 480px 이하로 좁아지지 않게 minmax, 모바일·태블릿(≤1024) 은 1열.
 const Container = styled.div`
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 16px;
+  align-items: start;
+  @media (max-width: 1024px) {
+    grid-template-columns: 1fr;
+  }
 `;
 
-const Card = styled.section`
+const Card = styled.section<{ $wide?: boolean }>`
   background: #fff;
   border: 1px solid #e2e8f0;
   border-radius: 12px;
   padding: 24px;
+  min-width: 0;
+  ${(p) => p.$wide && `
+    grid-column: 1 / -1;
+  `}
 `;
 
 const SectionTitle = styled.h2`

@@ -116,8 +116,16 @@ self.addEventListener('push', (event) => {
       result: 'skipped',
       error: null,
     };
+    // 사이클 N+22: visible client (=페이지 active) 있으면 SW 의 setAppBadge skip — client useGlobalBadge
+    // 가 단일 진실. 옛 race: 사용자가 conv 읽어 client setAppBadge(3) 호출 → 직후 SW push 가 payload.badge=4
+    // (잘못된 stale 값) 로 덮어쓰던 회귀. payload.badge 자체도 backend 시점 snapshot 이라 client 의 즉시
+    // 갱신과 desync 가능. 그래서 client 가 살아있으면 SW 는 알림만 띄우고 badge 는 client 에 위임.
     try {
-      if ('setAppBadge' in self.navigator && typeof payload.badge === 'number') {
+      const visibleClients = await self.clients.matchAll({ type: 'window', includeUncontrolled: false });
+      const hasFocusedClient = visibleClients.some(c => c.focused || c.visibilityState === 'visible');
+      if (hasFocusedClient) {
+        badgeDiag.result = 'skipped_active_client';
+      } else if ('setAppBadge' in self.navigator && typeof payload.badge === 'number') {
         if (payload.badge > 0) {
           await self.navigator.setAppBadge(payload.badge);
           badgeDiag.result = 'set:' + payload.badge;

@@ -407,7 +407,11 @@ const Body = styled.div<{ $editable?: boolean; $borderless?: boolean; $compact?:
     .hljs-strong { font-weight: 700; }
     a { color: #0D9488; text-decoration: underline; }
     img.editor-image { max-width: 100%; height: auto; border-radius: 8px; margin: 12px 0; display: block; }
-    img.editor-image.ProseMirror-selectednode { outline: 2px solid #14B8A6; outline-offset: 2px; }
+    /* 사이클 N+22: read-only 에서는 selectednode outline 노출 X — 외부 공유 페이지에서 이미지 클릭 시 teal outline 위/아래
+       잔상이 "녹색선" 으로 보이던 회귀 차단. 편집 모드만 outline 표시. */
+    ${p => p.$editable
+      ? `img.editor-image.ProseMirror-selectednode { outline: 2px solid #14B8A6; outline-offset: 2px; }`
+      : `img.editor-image.ProseMirror-selectednode { outline: none; }`}
     p.is-editor-empty:first-child::before {
       color: #94A3B8; content: attr(data-placeholder);
       float: left; height: 0; pointer-events: none;

@@ -16,6 +16,7 @@ const { Conversation, Message, MessageAttachment, File: FileModel } = require('.
 const { authenticateToken } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const { canAccessConversation } = require('../middleware/access_scope');
+const { decodeOriginalName } = require('../services/filename');
 
 const UPLOAD_ROOT = path.join(__dirname, '..', 'uploads');
 if (!fs.existsSync(UPLOAD_ROOT)) fs.mkdirSync(UPLOAD_ROOT, { recursive: true });
@@ -120,7 +121,7 @@ router.post('/:conversationId/:messageId',
 
       const created = await MessageAttachment.create({
         message_id: msg.id,
-        file_name: req.file.originalname,
+        file_name: decodeOriginalName(req.file.originalname),
         file_path: path.relative(path.join(__dirname, '..'), req.file.path),
         file_size: req.file.size,
         mime_type: req.file.mimetype || null,

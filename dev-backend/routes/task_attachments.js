@@ -9,6 +9,7 @@ const { authenticateToken } = require('../middleware/auth');
 const { getUserScope, canAccessTask, isMemberOrAbove } = require('../middleware/access_scope');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const gdrive = require('../services/gdrive');
+const { decodeOriginalName, buildContentDisposition } = require('../services/filename');
 
 const UPLOAD_ROOT = path.join(__dirname, '..', 'uploads');
 if (!fs.existsSync(UPLOAD_ROOT)) fs.mkdirSync(UPLOAD_ROOT, { recursive: true });
@@ -115,7 +116,7 @@ router.post('/:taskId/attachments',
             const drive = await gdrive.getDriveClient(cloudToken);
             const projectFolderId = await gdrive.ensureProjectFolder(drive, cloudToken, project);
             const driveFile = await gdrive.uploadFile(drive, {
-              name: req.file.originalname, mimeType: req.file.mimetype,
+              name: decodeOriginalName(req.file.originalname), mimeType: req.file.mimetype,
               body: fs.createReadStream(req.file.path), parentId: projectFolderId
             });
             storageProvider = 'gdrive';
@@ -136,7 +137,7 @@ router.post('/:taskId/attachments',
         task_id: req._task.id,
         comment_id: commentId,
         context,
-        original_name: req.file.originalname,
+        original_name: decodeOriginalName(req.file.originalname),
         stored_name: finalStoredName,
         file_path: finalFilePath,
         file_size: req.file.size,

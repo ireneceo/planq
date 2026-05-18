@@ -9,6 +9,7 @@ const crypto = require('crypto');
 const { v4: uuidv4 } = require('uuid');
 const { Op } = require('sequelize');
 const { Post, PostAttachment, PostCategory, File, User, Project, BusinessMember, Business, Conversation, Message } = require('../models');
+const { decodeOriginalName, buildContentDisposition } = require('../services/filename');
 const { authenticateToken } = require('../middleware/auth');
 const { getUserScope, postListWhereByLevel, canAccessPostByLevel, isMemberOrAbove } = require('../middleware/access_scope');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
@@ -783,16 +784,17 @@ router.post('/editor-image', authenticateToken, (req, res, next) => {
       if (!(await assertMember(req.user.id, businessId, req.user.platform_role === 'platform_admin'))) {
         return errorResponse(res, 'forbidden', 403);
       }
-      // 표준 File 등록 — visibility L1 default (개인 보관함). 사용자가 카드 share 로 promote.
+      // 표준 File 등록 — visibility L3 (워크스페이스) — 본문 인라인 이미지는 그 문서와 동일 노출 범위.
+      // 옛 L1(개인) 정책은 사용자가 Q File 리스트에서 자기 본문 이미지 못 찾는 회귀 유발 → L3 로 변경.
       const file = await File.create({
         business_id: businessId,
         uploader_id: req.user.id,
-        file_name: req.file.originalname,
+        file_name: decodeOriginalName(req.file.originalname),
         file_path: req.file.path,
         file_size: req.file.size,
         mime_type: req.file.mimetype,
         storage_provider: 'planq',
-        visibility: 'L1',
+        visibility: 'L3',
       });
       successResponse(res, {
         url,
@@ -1067,9 +1069,13 @@ router.get('/public/:token/attachments/:attId/download', async (req, res, next) 
       if (file.external_url) return res.redirect(file.external_url);
       return errorResponse(res, 'external_file_no_url', 400);
     }
-    const fs = require('fs');
-    if (!fs.existsSync(file.file_path)) return errorResponse(res, 'physical_file_missing', 410);
-    return res.download(file.file_path, file.file_name);
+    const fsLocal = require('fs');
+    if (!fsLocal.existsSync(file.file_path)) return errorResponse(res, 'physical_file_missing', 410);
+    // 한글 파일명 안전 — RFC 5987 filename*=UTF-8'' 우선 + ASCII fallback. res.download 의 default
+    // Content-Disposition 는 ASCII only 라 한글 깨짐 → 직접 헤더 설정 후 sendFile.
+    res.setHeader('Content-Disposition', buildContentDisposition(file.file_name));
+    if (file.mime_type) res.setHeader('Content-Type', file.mime_type);
+    return res.sendFile(path.resolve(file.file_path));
   } catch (err) { next(err); }
 });
 
