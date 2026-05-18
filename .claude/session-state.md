@@ -3,13 +3,25 @@
 ## 현재 작업 상태
 **마지막 업데이트:** 2026-05-18
 **작업 상태:** 완료
-**운영 라이브 버전:** v1.14.0 (commit `bfb5835`, 배포 `20260518_061702`, 103초)
-**직전 라이브:** v1.13.0 (commit `5317eca`, 배포 `20260517_183327`)
+**운영 라이브 버전:** v1.15.0 (commit `7b7d139`, 배포 `20260518_073409`, 104초)
+**직전 라이브:** v1.14.0 (commit `bfb5835`, 배포 `20260518_061702`)
 
 ### 진행 중인 작업
 - 없음
 
-### 완료된 작업 (이번 세션 N+22 누적 패키지 + 운영 데이터 cleanup)
+### 완료된 작업 (이번 세션 N+23 누적 패키지 — 4 commits 운영 라이브)
+
+**N+23 — SEO·HEIC·Google Meet·KB AI fix 묶음**
+- SEO/SNS OG 동적 응답: `services/ogMetaInjector`(현 `middleware/ogMeta.js`) — share bot UA 17종 감지 시 페이지별 OG meta. `/public/posts/:token` 은 post.title+content_text. nginx UA map (planq-share-bot.conf) + location / 안 conditional proxy.
+- OG 썸네일 1200×630 자동 생성 — `scripts/generate-og-default.js` (puppeteer 로 slogan SVG → PNG). index.html og:image 도 교체.
+- `platform_settings` 4 컬럼 추가 (seo_title/seo_description/seo_keywords/og_image_url) + Admin "SEO·SNS 공유" 카드 (4 필드 + 썸네일 preview).
+- KB AI ingest parser — 단일 object 도 array 래핑 (LLM 이 짧은 자격증명 텍스트에 wrapper 생략하던 회귀). SYSTEM_PROMPT 도 자격증명/연락처 가이드 추가.
+- MemoFab FAB_HIDDEN_PATHS 에서 /talk 제거 — Q Talk 페이지에서도 메모 FAB 노출.
+- ChatPanel TextInput — lang="ko" + autoCapitalize=off (한글 IME 첫 자모 누락 회귀 가드).
+- HEIC/HEIF/TIFF/RAW — `services/files.ts` isImage() 가 false 반환 → 파일 카드. AttachImage onError 핸들러 — 미리보기 실패 시 in-place 파일 카드 교체 (깨진 아이콘 차단).
+- Google Calendar createMeetingEvent + rrule 인자 → events.insert 의 recurrence 배열로 전달. PlanQ 정기 일정의 Meet 링크가 첫 회차만 유효하던 회귀 fix — 이제 모든 회차 영구 유효.
+
+### 완료된 작업 (이전 세션 N+22 누적 패키지 + 운영 데이터 cleanup)
 
 **N+22 — 채팅 sender 워크스페이스명 + 한글 파일명 + dock badge race + Q Task/프로필 UX**
 - `services/displayName.js` 신규 — BusinessMember.name 우선 fallback User.name. conversations.js + projects.js 11지점 적용. 채팅 이력 전체 워크스페이스명 즉시 반영.
