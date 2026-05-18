@@ -2383,3 +2383,77 @@ async def get_cached_answer(
       'matched_qa_id': row['matched_qa_id'],
       'sources': json.loads(row['answer_sources']) if row['answer_sources'] else [],
     })
+
+
+# ─── Public (인증 없음) ─────────────────────────────────────
+# 사이클 N+25 — 외부 공유 링크. share_token 기반 read-only 미리보기.
+# share_token 발급은 POST /{session_id}/share (소유자만). 본 라우트는 anonymous.
+
+@router.get('/public/by-token/{token}')
+async def get_public_session_by_token(token: str):
+  """share_token 으로 세션 read-only 조회 (외부 공유 미리보기).
+
+  반환: 회의 메타 + utterances + summary + 질문/답변. recorder_lock / pasted_context 같은 운영 필드는 제외.
+  """
+  async with db_connect() as db:
+    db.row_factory = aiosqlite.Row
+    cursor = await db.execute(
+      'SELECT * FROM sessions WHERE share_token = ? AND status IN ("completed", "active")',
+      (token,)
+    )
+    row = await cursor.fetchone()
+    if not row:
+      raise HTTPException(status_code=404, detail='not_found_or_expired')
+    # 만료 검사 (share_expires_at 가 있으면)
+    if row['share_expires_at']:
+      cur = await db.execute("SELECT datetime('now') >= ? AS expired", (row['share_expires_at'],))
+      expired = (await cur.fetchone())['expired']
+      if expired:
+        raise HTTPException(status_code=410, detail='link_expired')
+
+    session_id = row['id']
+    cursor = await db.execute(
+      '''SELECT id, speaker, original_text, translated_text, original_language,
+                is_question, start_time, end_time
+         FROM utterances WHERE session_id = ? ORDER BY id ASC''',
+      (session_id,)
+    )
+    utterances = [dict(r) for r in await cursor.fetchall()]
+
+    cursor = await db.execute(
+      'SELECT id, deepgram_speaker_id, participant_name, is_self '
+      'FROM speakers WHERE session_id = ? ORDER BY id ASC',
+      (session_id,)
+    )
+    speakers = [dict(r) for r in await cursor.fetchall()]
+
+    cursor = await db.execute(
+      'SELECT key_points, full_summary FROM summaries WHERE session_id = ?',
+      (session_id,)
+    )
+    summary_row = await cursor.fetchone()
+    summary = dict(summary_row) if summary_row else None
+
+    # 민감 필드 제외하고 응답 (active_recorder_token / heartbeat / pasted_context 등 제외)
+    public_meta = {
+      'id': row['id'],
+      'title': row['title'],
+      'language': row['language'],
+      'meeting_languages': json.loads(row['meeting_languages']) if row['meeting_languages'] else [],
+      'translation_language': row['translation_language'],
+      'duration_seconds': row['duration_seconds'],
+      'utterance_count': row['utterance_count'],
+      'status': row['status'],
+      'created_at': row['created_at'],
+      'shared_at': row['shared_at'],
+      'participants': json.loads(row['participants']) if row['participants'] else [],
+      'brief': row['brief'],
+      'input_type': row['input_type'] if 'input_type' in row.keys() else 'voice',
+      'body': row['body'] if 'body' in row.keys() else None,
+    }
+    return success({
+      'session': public_meta,
+      'utterances': utterances,
+      'speakers': speakers,
+      'summary': summary,
+    })
