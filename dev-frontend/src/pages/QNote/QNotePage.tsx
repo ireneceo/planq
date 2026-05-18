@@ -30,6 +30,7 @@ import {
   heartbeatRecorderLock,
   releaseRecorderLock,
   changeSessionVisibility,
+  generateSessionSummary,
 } from '../../services/qnote';
 import type { QNoteSession, QNoteUtterance, QNoteSpeaker } from '../../services/qnote';
 import { LiveSession } from '../../services/qnoteLive';
@@ -229,6 +230,10 @@ const QNotePage = () => {
   const [activeSession, setActiveSession] = useState<QNoteSession | null>(null);
   // 사이클 N+14 — visibility 변경 모달 + 에러 표시
   const [visibilityModalOpen, setVisibilityModalOpen] = useState(false);
+  // 사이클 N+24 — review 모드 헤더 버튼 모달 state
+  const [summaryModal, setSummaryModal] = useState<{ open: boolean; loading: boolean; data: { key_points: string[]; full_summary: string } | null; error: string | null }>({ open: false, loading: false, data: null, error: null });
+  const [questionsModal, setQuestionsModal] = useState(false);
+  const [settingsViewOpen, setSettingsViewOpen] = useState(false);
   const [visibilityError, setVisibilityError] = useState<string | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
     if (typeof window !== 'undefined') return window.innerWidth < 900;
@@ -2390,8 +2395,42 @@ const QNotePage = () => {
                 </SessionMeta>
               </HeaderLeft>
               <HeaderRight>
-                <SecondaryBtn>{t('page.reviewBar.summary')}</SecondaryBtn>
-                <SecondaryBtn>{t('page.reviewBar.questions')}</SecondaryBtn>
+                {/* 사이클 N+24 — 종료 후 설정 보기 (read-only StartMeetingModal) */}
+                <SecondaryBtn
+                  type="button"
+                  onClick={() => setSettingsViewOpen(true)}
+                  title={t('page.reviewBar.settingsTitle', '회의 설정 보기') as string}
+                >
+                  {t('page.reviewBar.settings', '설정 보기')}
+                </SecondaryBtn>
+                {/* 요약 생성 — q-note /api/llm/summary 호출 */}
+                <SecondaryBtn
+                  type="button"
+                  disabled={summaryModal.loading}
+                  onClick={async () => {
+                    setSummaryModal({ open: true, loading: true, data: null, error: null });
+                    try {
+                      const transcript = renderBlocks
+                        .filter((b) => b.kind === 'speech' || b.kind === 'question')
+                        .map((b) => b.segments.map((s) => s.original).join(' '))
+                        .join('\n');
+                      if (!transcript.trim()) {
+                        setSummaryModal({ open: true, loading: false, data: null, error: t('page.reviewBar.emptyTranscript', '요약할 발화가 없습니다.') as string });
+                        return;
+                      }
+                      const data = await generateSessionSummary(activeSession.id, transcript);
+                      setSummaryModal({ open: true, loading: false, data, error: null });
+                    } catch (e) {
+                      setSummaryModal({ open: true, loading: false, data: null, error: (e as Error).message || 'summary_failed' });
+                    }
+                  }}
+                >
+                  {summaryModal.loading ? t('page.reviewBar.summarizing', '요약 생성 중...') : t('page.reviewBar.summary')}
+                </SecondaryBtn>
+                {/* 질문 보기 — detected_questions 모달 */}
+                <SecondaryBtn type="button" onClick={() => setQuestionsModal(true)}>
+                  {t('page.reviewBar.questions')} ({(activeSession.detected_questions || []).length})
+                </SecondaryBtn>
               </HeaderRight>
             </MainHeader>
 
@@ -2497,6 +2536,89 @@ const QNotePage = () => {
         />
       )}
 
+      {/* 사이클 N+24 — 요약 결과 모달 */}
+      {summaryModal.open && (
+        <ModalBackdrop onClick={() => setSummaryModal({ open: false, loading: false, data: null, error: null })}>
+          <ModalCard onClick={(e) => e.stopPropagation()}>
+            <ModalHeader>
+              <ModalTitle>{t('page.summaryModal.title', '회의 요약')}</ModalTitle>
+              <ModalCloseBtn type="button" onClick={() => setSummaryModal({ open: false, loading: false, data: null, error: null })}>×</ModalCloseBtn>
+            </ModalHeader>
+            <ModalBody>
+              {summaryModal.loading && <ModalDim>{t('page.summaryModal.loading', 'AI 가 요약을 생성하고 있습니다...')}</ModalDim>}
+              {summaryModal.error && <ModalError>{summaryModal.error}</ModalError>}
+              {summaryModal.data && (
+                <>
+                  {summaryModal.data.key_points?.length > 0 && (
+                    <>
+                      <ModalSectionTitle>{t('page.summaryModal.keyPoints', '핵심 요점')}</ModalSectionTitle>
+                      <ul style={{ margin: '0 0 16px 18px', padding: 0 }}>
+                        {summaryModal.data.key_points.map((p, i) => (<li key={i} style={{ fontSize: 13, lineHeight: 1.6, color: '#0F172A', marginBottom: 4 }}>{p}</li>))}
+                      </ul>
+                    </>
+                  )}
+                  {summaryModal.data.full_summary && (
+                    <>
+                      <ModalSectionTitle>{t('page.summaryModal.fullSummary', '전체 요약')}</ModalSectionTitle>
+                      <ModalText>{summaryModal.data.full_summary}</ModalText>
+                    </>
+                  )}
+                </>
+              )}
+            </ModalBody>
+          </ModalCard>
+        </ModalBackdrop>
+      )}
+
+      {/* 사이클 N+24 — 질문 목록 모달 (detected_questions read-only) */}
+      {questionsModal && activeSession && (
+        <ModalBackdrop onClick={() => setQuestionsModal(false)}>
+          <ModalCard onClick={(e) => e.stopPropagation()}>
+            <ModalHeader>
+              <ModalTitle>{t('page.questionsModal.title', '질문 목록')} ({(activeSession.detected_questions || []).length})</ModalTitle>
+              <ModalCloseBtn type="button" onClick={() => setQuestionsModal(false)}>×</ModalCloseBtn>
+            </ModalHeader>
+            <ModalBody>
+              {(activeSession.detected_questions || []).length === 0 ? (
+                <ModalDim>{t('page.questionsModal.empty', '감지된 질문이 없습니다.')}</ModalDim>
+              ) : (
+                (activeSession.detected_questions || []).map((q, i) => (
+                  <div key={q.id ?? q.utterance_id ?? i} style={{ padding: '12px 0', borderBottom: '1px solid #E2E8F0' }}>
+                    {q.question_text && <div style={{ fontSize: 13, fontWeight: 600, color: '#0F172A', marginBottom: 6 }}>{q.question_text}</div>}
+                    {q.answer_text && <div style={{ fontSize: 12, color: '#475569', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{q.answer_text}</div>}
+                  </div>
+                ))
+              )}
+            </ModalBody>
+          </ModalCard>
+        </ModalBackdrop>
+      )}
+
+      {/* 사이클 N+24 — 회의 설정 read-only 보기 (종료 후 어떻게 설정했는지 확인) */}
+      {settingsViewOpen && activeSession && (
+        <ModalBackdrop onClick={() => setSettingsViewOpen(false)}>
+          <ModalCard onClick={(e) => e.stopPropagation()}>
+            <ModalHeader>
+              <ModalTitle>{t('page.settingsView.title', '회의 설정')}</ModalTitle>
+              <ModalCloseBtn type="button" onClick={() => setSettingsViewOpen(false)}>×</ModalCloseBtn>
+            </ModalHeader>
+            <ModalBody>
+              <SettingsViewRow><SettingsViewLabel>{t('page.settingsView.brief', '회의 안내')}</SettingsViewLabel><SettingsViewValue>{activeSession.brief || '—'}</SettingsViewValue></SettingsViewRow>
+              <SettingsViewRow><SettingsViewLabel>{t('page.settingsView.participants', '참여자')}</SettingsViewLabel><SettingsViewValue>{(activeSession.participants || []).map((p) => p.role ? `${p.name} (${p.role})` : p.name).join(', ') || '—'}</SettingsViewValue></SettingsViewRow>
+              <SettingsViewRow><SettingsViewLabel>{t('page.settingsView.meetingLanguages', '회의 언어')}</SettingsViewLabel><SettingsViewValue>{(activeSession.meeting_languages || []).map((c) => getLanguageByCode(c)?.label || c).join(' · ') || '—'}</SettingsViewValue></SettingsViewRow>
+              <SettingsViewRow><SettingsViewLabel>{t('page.settingsView.translationLanguage', '번역 언어')}</SettingsViewLabel><SettingsViewValue>{activeSession.translation_language ? (getLanguageByCode(activeSession.translation_language)?.label || activeSession.translation_language) : '—'}</SettingsViewValue></SettingsViewRow>
+              <SettingsViewRow><SettingsViewLabel>{t('page.settingsView.answerLanguage', '답변 언어')}</SettingsViewLabel><SettingsViewValue>{activeSession.answer_language ? (getLanguageByCode(activeSession.answer_language)?.label || activeSession.answer_language) : '—'}</SettingsViewValue></SettingsViewRow>
+              <SettingsViewRow><SettingsViewLabel>{t('page.settingsView.answerStyle', '답변 스타일')}</SettingsViewLabel><SettingsViewValue>{activeSession.meeting_answer_style || '—'}</SettingsViewValue></SettingsViewRow>
+              <SettingsViewRow><SettingsViewLabel>{t('page.settingsView.answerLength', '답변 길이')}</SettingsViewLabel><SettingsViewValue>{activeSession.meeting_answer_length || '—'}</SettingsViewValue></SettingsViewRow>
+              <SettingsViewRow><SettingsViewLabel>{t('page.settingsView.context', '회의 컨텍스트')}</SettingsViewLabel><SettingsViewValue>{activeSession.pasted_context || '—'}</SettingsViewValue></SettingsViewRow>
+              <SettingsViewEditBtn type="button" onClick={() => { setSettingsViewOpen(false); setEditingSession(true); setShowStartModal(true); }}>
+                {t('page.settingsView.edit', '설정 수정하기')}
+              </SettingsViewEditBtn>
+            </ModalBody>
+          </ModalCard>
+        </ModalBackdrop>
+      )}
+
       {/*
         사이클 N+17 — text 메모는 페이지 안 우측 panel 에서 풀모드 편집 (popup 안 띄움).
         popup 은 우하단 FAB / ⌘+Shift+M 글로벌 quick capture 전용으로 분리.
@@ -2548,6 +2670,61 @@ const QNotePage = () => {
 };
 
 export default QNotePage;
+
+// 사이클 N+24 — review 모드 모달들 (요약 / 질문 / 설정 보기) — 공통 styled
+const ModalBackdrop = styled.div`
+  position: fixed; inset: 0; background: rgba(15, 23, 42, 0.4);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 100; padding: 24px;
+`;
+const ModalCard = styled.div`
+  background: #FFFFFF; border-radius: 14px;
+  width: 100%; max-width: 600px; max-height: 80vh;
+  display: flex; flex-direction: column; overflow: hidden;
+  box-shadow: 0 24px 48px rgba(15, 23, 42, 0.18);
+`;
+const ModalHeader = styled.div`
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 20px; border-bottom: 1px solid #E2E8F0;
+`;
+const ModalTitle = styled.h3`
+  margin: 0; font-size: 16px; font-weight: 700; color: #0F172A;
+`;
+const ModalCloseBtn = styled.button`
+  width: 28px; height: 28px; border: none; background: transparent;
+  border-radius: 6px; cursor: pointer; font-size: 20px; color: #64748B;
+  display: inline-flex; align-items: center; justify-content: center;
+  &:hover { background: #F1F5F9; color: #0F172A; }
+`;
+const ModalBody = styled.div`
+  padding: 20px; overflow-y: auto; flex: 1; min-height: 0;
+`;
+const ModalDim = styled.div`color: #64748B; font-size: 13px; padding: 8px 0;`;
+const ModalError = styled.div`color: #B91C1C; font-size: 13px; padding: 12px; background: #FEF2F2; border-radius: 6px; border: 1px solid #FECACA;`;
+const ModalSectionTitle = styled.h4`
+  margin: 0 0 8px; font-size: 13px; font-weight: 700; color: #334155;
+`;
+const ModalText = styled.div`
+  font-size: 13px; line-height: 1.7; color: #0F172A; white-space: pre-wrap;
+`;
+const SettingsViewRow = styled.div`
+  display: grid; grid-template-columns: 110px 1fr; gap: 12px;
+  padding: 10px 0; border-bottom: 1px solid #F1F5F9;
+  &:last-of-type { border-bottom: none; }
+`;
+const SettingsViewLabel = styled.div`
+  font-size: 12px; font-weight: 600; color: #64748B; padding-top: 2px;
+`;
+const SettingsViewValue = styled.div`
+  font-size: 13px; color: #0F172A; line-height: 1.6; white-space: pre-wrap; word-break: break-word;
+`;
+const SettingsViewEditBtn = styled.button`
+  margin-top: 16px; width: 100%; padding: 10px;
+  background: #0F766E; color: #FFFFFF;
+  border: none; border-radius: 8px; cursor: pointer;
+  font-size: 13px; font-weight: 600;
+  &:hover { background: #115E59; }
+`;
 
 // ─────────────────────────────────────────────────────────
 // SpeakerPopover — 발화 블록의 [화자 N ▾] 클릭 시 인라인 팝오버
