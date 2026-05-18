@@ -46,6 +46,10 @@ Message.init({
     defaultValue: false,
     allowNull: false
   },
+  // Cue 답변 평가 (사이클 N+27 Phase 5-4) — Cue 메시지에만 의미
+  cue_rating: { type: DataTypes.TINYINT, allowNull: true, comment: '-1=down, 0=neutral, 1=up' },
+  cue_rating_at: { type: DataTypes.DATE, allowNull: true },
+  cue_rating_by_user_id: { type: DataTypes.INTEGER, allowNull: true },
   ai_confidence: {
     type: DataTypes.DECIMAL(4, 3),
     allowNull: true

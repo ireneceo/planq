@@ -308,6 +308,11 @@
       "reject": "거절",
       "sourceLabel": "출처"
     },
+    "cueRating": {
+      "label": "이 답변 어땠나요?",
+      "up": "도움됨",
+      "down": "아쉬움"
+    },
     "input": {
       "cueWaiting_one": "Cue 답변 대기 1개",
       "cueWaiting_other": "Cue 답변 대기 {{count}}개",

@@ -348,11 +348,11 @@ async function collectCandidates(businessId, currentUserId, userRole) {
     // 담당자 미지정 후보 — owner/admin 만 표시 (지정 권한 없는 사용자에게 노이즈 X)
     if (!assigneeName && !canAssign) return [];
 
-    // 사이클 N+9 fix: 채팅방으로 가는 대신 Q task 의 "추출된 업무" 섹션 (scope=mine, tab=all)
-    // 으로 이동. 거기서 등록/병합/반려 액션 가능. URL 쿼리 ?candidate=Y → 해당 카드 강조.
+    // 사이클 N+26 hotfix: 인박스 카드 클릭 = 즉시 등록/반려 모달 (이동 X).
+    // candidate_id / guessed_assignee / conversation_id 응답 → 모달이 default 채움.
+    // link 는 fallback 용 (모달이 마운트 안 된 경우 / 옛 클라이언트).
     const link = `/tasks?scope=mine&tab=all&candidate=${c.id}`;
     const convName = c.Conversation?.display_name || c.Conversation?.title || '';
-    // context = 대화방명 만 (assigneeBadge 는 verb 라벨에 이미 명시되어 중복)
     const context = convName || null;
     return [{
       id: `candidate-${c.id}`,
@@ -366,6 +366,10 @@ async function collectCandidates(businessId, currentUserId, userRole) {
       createdAt: safeToIso(c.extracted_at || c.extractedAt),
       actor: { name: 'Q Talk' },
       link,
+      // 인박스 inline 모달용 추가 데이터 (사이클 N+26)
+      candidate_id: c.id,
+      conversation_id: c.Conversation?.id || null,
+      guessed_assignee: c.guessedAssignee ? { id: c.guessedAssignee.id, name: c.guessedAssignee.name } : null,
     }];
   });
 }

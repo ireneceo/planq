@@ -21,6 +21,22 @@
     "idleDiscard": "Discard idle time",
     "idleKeep": "Keep running"
   },
+  "candidateModal": {
+    "title": "Task candidate action",
+    "fromConv": "Q Talk · extracted from {{conv}}",
+    "fromQtalk": "Extracted from Q Talk conversation",
+    "titleLabel": "Task name",
+    "titlePh": "Enter a task name",
+    "assignee": "Assignee",
+    "assigneePh": "Select assignee",
+    "guessedAssignee": "Q Talk guessed \"{{name}}\"",
+    "dueDate": "Due date (optional)",
+    "dueDatePh": "Leave blank for no due date",
+    "register": "Register as task",
+    "registering": "Registering...",
+    "reject": "Reject",
+    "rejecting": "Rejecting..."
+  },
   "dailyStart": {
     "title": "Start your day",
     "intro": "Today's deadlines, review requests, and overdue tasks — all in one place. Pick one to start, or close to skip.",

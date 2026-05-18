@@ -98,9 +98,11 @@ interface Props {
   loading?: boolean;
   onOpenDrawer?: (item: TodoItem) => void;
   onInviteAction?: (item: TodoItem, action: 'accept' | 'decline') => void;
+  // 인박스 task_candidate 카드 클릭 시 inline 모달 (사이클 N+26)
+  onOpenCandidate?: (item: TodoItem) => void;
 }
 
-const TodoList: React.FC<Props> = ({ items, loading, onOpenDrawer, onInviteAction }) => {
+const TodoList: React.FC<Props> = ({ items, loading, onOpenDrawer, onInviteAction, onOpenCandidate }) => {
   const { t } = useTranslation('dashboard');
   const navigate = useNavigate();
   const fmt = useTimeFormat();
@@ -136,6 +138,11 @@ const TodoList: React.FC<Props> = ({ items, loading, onOpenDrawer, onInviteActio
   }
 
   const handleClick = (it: TodoItem) => {
+    // task_candidate — 인박스 inline 모달 (등록/반려 즉시)
+    if (it.type === 'task_candidate' && onOpenCandidate && it.candidate_id) {
+      onOpenCandidate(it);
+      return;
+    }
     if (it.drawer && onOpenDrawer) {
       onOpenDrawer(it);
       return;

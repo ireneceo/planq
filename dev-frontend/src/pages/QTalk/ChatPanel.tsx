@@ -1396,6 +1396,44 @@ const ChatPanel: React.FC<Props> = ({
                 </SourceBox>
               )}
 
+              {/* Cue 답변 평가 — 사이클 N+27 Phase 5-4 */}
+              {!isDeleted && m.is_ai && (
+                <CueRatingRow>
+                  <CueRatingLabel>{t('chat.cueRating.label', '이 답변 어땠나요?')}</CueRatingLabel>
+                  <CueRatingBtn
+                    type="button"
+                    $active={m.cue_rating === 1}
+                    onClick={async () => {
+                      const next = m.cue_rating === 1 ? 0 : 1;
+                      await apiFetch(`/api/projects/messages/${m.id}/cue-rating`, {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ rating: next }),
+                      });
+                    }}
+                    title={t('chat.cueRating.up', '도움됨') as string}
+                    aria-label={t('chat.cueRating.up', '도움됨') as string}
+                  >
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></svg>
+                  </CueRatingBtn>
+                  <CueRatingBtn
+                    type="button"
+                    $active={m.cue_rating === -1}
+                    $danger
+                    onClick={async () => {
+                      const next = m.cue_rating === -1 ? 0 : -1;
+                      await apiFetch(`/api/projects/messages/${m.id}/cue-rating`, {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ rating: next }),
+                      });
+                    }}
+                    title={t('chat.cueRating.down', '아쉬움') as string}
+                    aria-label={t('chat.cueRating.down', '아쉬움') as string}
+                  >
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17"/></svg>
+                  </CueRatingBtn>
+                </CueRatingRow>
+              )}
+
               {/* 질문 아래 Cue 답변 대기 카드 (담당자만) */}
               {!isDeleted && m.is_question && m.cue_draft && !isClient && (
                 <CueDraftCard $locked={!!m.cue_draft.processing_by}>
@@ -2766,6 +2804,26 @@ const SourceLabel = styled.div`
 const SourceItem = styled.div`
   font-size: 11px;
   color: #475569;
+`;
+
+// Cue 답변 평가 — 사이클 N+27 Phase 5-4
+const CueRatingRow = styled.div`
+  display: inline-flex; align-items: center; gap: 6px;
+  margin-top: 6px;
+`;
+const CueRatingLabel = styled.span`
+  font-size: 11px; color: #94A3B8; font-weight: 500;
+`;
+const CueRatingBtn = styled.button<{ $active?: boolean; $danger?: boolean }>`
+  width: 24px; height: 24px; padding: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: ${p => p.$active ? (p.$danger ? '#FEE2E2' : '#F0FDFA') : 'transparent'};
+  color: ${p => p.$active ? (p.$danger ? '#DC2626' : '#0F766E') : '#94A3B8'};
+  border: 1px solid ${p => p.$active ? (p.$danger ? '#FECACA' : '#CCFBF1') : '#E2E8F0'};
+  border-radius: 4px; cursor: pointer;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+  &:hover { background: ${p => p.$danger ? '#FEF2F2' : '#F0FDFA'}; color: ${p => p.$danger ? '#DC2626' : '#0F766E'}; }
+  &:focus-visible { outline: 2px solid rgba(20,184,166,0.4); outline-offset: 1px; }
 `;
 
 const CueDraftCard = styled.div<{ $locked: boolean }>`

@@ -716,6 +716,15 @@ router.post('/conversations/:id/messages', authenticateToken, async (req, res, n
       });
     }
 
+    // 사이클 N+27 — 자동 업무 추출 디바운스 트리거 (auto_extract_enabled 대화만)
+    // in-memory timer 가 60초 무활동 또는 5+ 메시지 누적 시 LLM 호출
+    if (conv.auto_extract_enabled && !fullJson.is_ai && (kind || 'text') === 'text') {
+      try {
+        const { scheduleExtract } = require('../services/taskExtractorScheduler');
+        scheduleExtract(conv.id);
+      } catch (e) { console.warn('[auto extract schedule]', e.message); }
+    }
+
     return successResponse(res, fullJson);
   } catch (err) { next(err); }
 });
@@ -759,6 +768,40 @@ router.post('/messages/:id/approve-draft', authenticateToken, async (req, res, n
     }
 
     return successResponse(res, fullJson);
+  } catch (err) { next(err); }
+});
+
+// ============================================
+// POST /api/projects/messages/:id/cue-rating — Cue 답변 평가 (사이클 N+27 Phase 5-4)
+// body: { rating: 1 | -1 | 0 } (1=up, -1=down, 0=취소)
+// ============================================
+router.post('/messages/:id/cue-rating', authenticateToken, async (req, res, next) => {
+  try {
+    const msg = await Message.findByPk(req.params.id);
+    if (!msg) return errorResponse(res, 'message_not_found', 404);
+    if (!msg.is_ai) return errorResponse(res, 'not_ai_message', 400);
+    const conv = await Conversation.findByPk(msg.conversation_id);
+    if (!conv) return errorResponse(res, 'conversation_not_found', 404);
+    // 워크스페이스 멤버 (owner/admin/member) 또는 conversation participant 만 평가 가능
+    const { BusinessMember, ConversationParticipant } = require('../models');
+    const member = await BusinessMember.findOne({ where: { user_id: req.user.id, business_id: conv.business_id } });
+    if (!member) {
+      const participant = await ConversationParticipant.findOne({ where: { user_id: req.user.id, conversation_id: conv.id } });
+      if (!participant) return errorResponse(res, 'forbidden', 403);
+    }
+    const { rating } = req.body || {};
+    if (![1, -1, 0].includes(rating)) return errorResponse(res, 'invalid_rating', 400);
+    await msg.update({
+      cue_rating: rating === 0 ? null : rating,
+      cue_rating_at: rating === 0 ? null : new Date(),
+      cue_rating_by_user_id: rating === 0 ? null : req.user.id,
+    });
+    // Socket.IO broadcast — 같은 conv 의 다른 사용자도 즉시 갱신
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`conv:${conv.id}`).emit('message:updated', (await msg.reload()).toJSON());
+    }
+    return successResponse(res, { id: msg.id, cue_rating: msg.cue_rating });
   } catch (err) { next(err); }
 });
 
