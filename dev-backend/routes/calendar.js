@@ -218,6 +218,10 @@ router.post('/by-business/:businessId', authenticateToken, checkBusinessAccess, 
           description: description?.trim() || null,
           startAt: sd,
           endAt: ed,
+          // 사이클 N+23: 정기 일정 rrule 을 Google Calendar 의 recurrence 로 전달 →
+          // 모든 회차에 동일 Meet 링크 영구 유효. 옛 단일 이벤트 패턴은 첫 회차 끝나면
+          // "회의 존재 안 함" 회귀.
+          rrule: rrule?.trim() || null,
         });
         if (meeting?.meetUrl) {
           finalMeetingUrl = meeting.meetUrl;
