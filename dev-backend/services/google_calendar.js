@@ -142,15 +142,26 @@ async function getTokenForBusiness(businessId) {
  * Google Calendar 이벤트 생성 + Meet 링크 자동 발급
  *
  * @param {object} cal       google.calendar 클라이언트
- * @param {object} input     { summary, description, startAt, endAt, attendeeEmails?, timezone? }
+ * @param {object} input     { summary, description, startAt, endAt, attendeeEmails?, timezone?, rrule? }
  * @returns {object}         { id, htmlLink, hangoutLink, meetUrl, conferenceId }
  *
  * conferenceData.createRequest 가 핵심 — events.insert 시 conferenceDataVersion=1 헤더와 함께
  * 보내면 Google 이 Meet 링크 발급해서 응답의 hangoutLink + conferenceData.entryPoints 에 포함.
+ *
+ * 사이클 N+23 — rrule 파라미터 추가:
+ *   PlanQ 의 정기 일정 rrule 을 Google Calendar 의 recurrence 필드 (RRULE 배열) 로 그대로 전달.
+ *   → Google 이 정기 이벤트로 인식 → 모든 회차에 동일 Meet 링크 영구 유효.
+ *   미전달 시 (단일) 첫 회차만 유효, 다음 회차에서 "회의 존재 안 함" 에러 발생하던 회귀 fix.
  */
-async function createMeetingEvent(cal, { summary, description, startAt, endAt, attendeeEmails, timezone }) {
+async function createMeetingEvent(cal, { summary, description, startAt, endAt, attendeeEmails, timezone, rrule }) {
   const requestId = `planq-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
   const tz = timezone || 'Asia/Seoul';
+  // rrule 정규화 — Google API 는 ["RRULE:..."] 또는 ["RRULE:...", "EXDATE:..."] 배열을 받음.
+  let recurrence = undefined;
+  if (rrule && typeof rrule === 'string' && rrule.trim()) {
+    const normalized = rrule.trim().startsWith('RRULE:') ? rrule.trim() : `RRULE:${rrule.trim()}`;
+    recurrence = [normalized];
+  }
   const res = await cal.events.insert({
     calendarId: 'primary',
     conferenceDataVersion: 1,  // ← 필수. 안 보내면 conferenceData 가 무시됨.
@@ -160,6 +171,7 @@ async function createMeetingEvent(cal, { summary, description, startAt, endAt, a
       description: description || null,
       start: { dateTime: new Date(startAt).toISOString(), timeZone: tz },
       end:   { dateTime: new Date(endAt).toISOString(),   timeZone: tz },
+      ...(recurrence ? { recurrence } : {}),
       attendees: Array.isArray(attendeeEmails)
         ? attendeeEmails.filter((e) => e && /@/.test(e)).map((email) => ({ email }))
         : undefined,
