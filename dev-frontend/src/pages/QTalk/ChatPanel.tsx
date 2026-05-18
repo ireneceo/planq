@@ -639,9 +639,12 @@ const ChatPanel: React.FC<Props> = ({
   }, [activeConv?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 대화 전환 시 "초기 스크롤 미완료" 플래그 리셋
+  // 사이클 N+27 회귀 fix — useEffect 였을 때 paint 이후 실행되어
+  // useLayoutEffect (scroll) 가 옛 true 값으로 if 블록 건너뜀 → "첫 paint 위에 있다가 점프" 회귀.
+  // useLayoutEffect 로 변경 — paint 전에 ref reset + 같은 phase 의 scroll useLayoutEffect 가 fresh false 값으로 즉시 scrollToBottom 호출.
   const initialScrolledRef = React.useRef(false);
   const prevMessageCount = React.useRef(0);
-  React.useEffect(() => {
+  React.useLayoutEffect(() => {
     initialScrolledRef.current = false;
     prevMessageCount.current = 0;
     setShowScrollToBottom(false);
