@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
 import {
   type MockProject, type MockConversation, type MockTask, type MockNote, type MockIssue, type MockTaskCandidate,
 } from './types';
@@ -44,6 +45,7 @@ const RightPanel: React.FC<Props> = ({
   const { t } = useTranslation('qtalk');
   const { user } = useAuth();
   const { formatTimeAgo } = useTimeFormat();
+  const navigate = useNavigate();
   const isClient = user?.business_role === 'client';
   const myUserId = user ? Number(user.id) : -1;
   // 업무 status 라벨 (observer 관점) — overdue 판정에 오늘 날짜 (워크스페이스 tz 정확도는 부모에서 주입 가능, 우선 로컬 ISO)
@@ -557,7 +559,9 @@ const RightPanel: React.FC<Props> = ({
                   {m.is_default_assignee && !(m as unknown as { is_pm?: boolean }).is_pm && <PmTag>{t('right.info.members.pm', 'PM')}</PmTag>}
                 </MemberRow>
               ))}
-              <DetailLink>→ {t('right.info.detail', '프로젝트 상세 보기')}</DetailLink>
+              <DetailLink type="button" onClick={() => navigate(`/projects/p/${project.id}`)}>
+                → {t('right.info.detail', '프로젝트 상세 보기')}
+              </DetailLink>
             </SectionBody>
             );
           })()}

@@ -336,6 +336,8 @@ const QTalkPage: React.FC = () => {
   // socket handler closure 안에서 stale 안 되도록 ref mirror
   const activeConversationIdRef = useRef<number | null>(null);
   useEffect(() => { activeConversationIdRef.current = activeConversationId; }, [activeConversationId]);
+  const activeProjectIdRef = useRef<number | null>(null);
+  useEffect(() => { activeProjectIdRef.current = activeProjectId; }, [activeProjectId]);
 
   useEffect(() => {
     if (!user) return; // 로그인 후에만 연결
@@ -560,6 +562,36 @@ const QTalkPage: React.FC = () => {
       }
     };
   }, [activeConversationId]);
+
+  // 사이클 N+24 — 채팅 실시간 회복 가드:
+  //   visibilitychange / focus / online 시 socket.connected 검사 → 끊어졌으면 강제 connect +
+  //   active conv 재join. PWA standalone 모드에서 background → foreground 복귀 시 socket 끊김 회귀
+  //   ("알림은 오는데 채팅창 새 메시지 안 올라옴") 차단.
+  useEffect(() => {
+    const tryRecover = () => {
+      const s = socketRef.current;
+      if (!s) return;
+      if (!s.connected) {
+        try { s.connect(); } catch { /* noop */ }
+      }
+      // join 재시도 (서버가 disconnect 동안 leave 처리했을 수 있음)
+      if (activeConversationIdRef.current) {
+        s.emit('join:conversation', activeConversationIdRef.current);
+      }
+      if (activeProjectIdRef.current) {
+        s.emit('join:project', activeProjectIdRef.current);
+      }
+    };
+    const onVisible = () => { if (document.visibilityState === 'visible') tryRecover(); };
+    window.addEventListener('focus', tryRecover);
+    window.addEventListener('online', tryRecover);
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      window.removeEventListener('focus', tryRecover);
+      window.removeEventListener('online', tryRecover);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, []);
 
   // 대화방 진입 시 읽음 처리 — 백엔드 last_read_at = NOW() + 로컬 unread_count 0
   // active 인 동안 새 메시지가 와도 socket handler 가 unread 증가를 막아주므로 진입 시 1 회면 충분.
