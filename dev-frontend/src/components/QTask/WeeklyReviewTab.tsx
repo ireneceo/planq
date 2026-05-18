@@ -16,6 +16,7 @@ import {
 } from '../../services/weeklyReview';
 import WeeklyReviewView from './WeeklyReviewView';
 import WeeklyReviewWorkspaceView from './WeeklyReviewWorkspaceView';
+import WorkspaceFinalizeBanner from './WorkspaceFinalizeBanner';
 import PlanQSelect, { type PlanQSelectOption } from '../Common/PlanQSelect';
 import SearchBox from '../Common/SearchBox';
 
@@ -142,6 +143,7 @@ const WeeklyReviewTab: React.FC<Props> = ({ businessId, userId, reviewScope = 'm
 
   return (
     <Container>
+      {reviewScope === 'workspace' && <WorkspaceFinalizeBanner businessId={businessId} />}
       <Header>
         <HeaderLeft>
           {reviewScope === 'workspace' && (() => {
@@ -182,7 +184,7 @@ const WeeklyReviewTab: React.FC<Props> = ({ businessId, userId, reviewScope = 'm
               {finalizing ? '...' : t('weeklyReview.workspace.finalize') as string}
             </FinalizeBtn>
           )}
-          <AutoLabel>{t('weeklyReview.auto.title', '자동 박제')}</AutoLabel>
+          <AutoLabel>{t('weeklyReview.auto.title', '자동 확정')}</AutoLabel>
           <ToggleSwitch onClick={toggleAuto} $on={autoEnabled}>
             <ToggleKnob $on={autoEnabled} />
           </ToggleSwitch>

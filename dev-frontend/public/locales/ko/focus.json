@@ -1,0 +1,60 @@
+{
+  "widget": {
+    "title": "업무 흐름",
+    "state": {
+      "idle": "쉬는 중",
+      "active": "포커스 중",
+      "paused": "잠시 멈춤",
+      "idle_detected": "자리 비움 감지"
+    },
+    "idleHint": "시작할 업무를 골라주세요",
+    "noTask": "업무 미지정",
+    "start": "시작",
+    "pause": "잠시 멈춤",
+    "resume": "재개",
+    "stop": "종료",
+    "view": "업무 열기",
+    "startedAt": "{{time}} 부터",
+    "elapsedAria": "경과 {{seconds}}초",
+    "idleDetectedTitle": "자리 비우셨나요?",
+    "idleDetectedDesc": "{{min}}분 동안 활동이 없어요",
+    "idleDiscard": "그 시간 빼기",
+    "idleKeep": "계속 진행"
+  },
+  "dailyStart": {
+    "title": "오늘 시작하기",
+    "intro": "오늘 마감·확인요청·지연된 업무를 모았어요. 골라서 시작하거나, 비워두고 닫아도 OK.",
+    "todayTitle": "오늘 마감",
+    "reviewTitle": "확인 요청 받음",
+    "overdueTitle": "지연된 업무",
+    "dontShowToday": "오늘 다시 보지 않기",
+    "overdueDays": "{{n}}일 지연",
+    "dueToday": "오늘 마감",
+    "dueTomorrow": "내일 마감",
+    "dueDays": "{{n}}일 남음"
+  },
+  "bar": {
+    "idleTitle": "아직 시작 안 했어요",
+    "idleHint": "이 업무로 포커스를 시작하면 실제 시간이 자동 누적돼요.",
+    "startThis": "이 업무로 시작",
+    "otherTitle": "다른 업무 진행 중",
+    "otherHint": "\"{{title}}\" 에서 진행 중이에요. 전환하면 그 세션은 자동 종료됩니다.",
+    "switchToThis": "이 업무로 전환",
+    "activeTitle": "포커스 중",
+    "pausedTitle": "잠시 멈춤",
+    "idleDetectedTitle": "자리 비움 감지"
+  },
+  "settings": {
+    "sectionTitle": "내 업무 흐름",
+    "sectionDesc": "활성화하면 좌측 사이드바에 진행 상태 위젯이 표시돼요. 부담 없이 켰다 끌 수 있어요.",
+    "enabled": "포커스 추적 활성",
+    "enabledHint": "꺼두면 위젯 자체가 안 보입니다.",
+    "idleMin": "유휴 감지 임계",
+    "idleMinHint": "이 시간 동안 입력·마우스 활동 없으면 위젯이 알려드려요.",
+    "autoPauseMin": "자동 일시정지",
+    "autoPauseMinHint": "이 시간 이상 무활동이면 자동으로 일시정지로 전환돼요.",
+    "dailyPrompt": "아침 시작 안내",
+    "dailyPromptHint": "로그인 후 처음 들어올 때 오늘 처리할 업무를 모아 보여드려요.",
+    "minutes": "{{n}}분"
+  }
+}

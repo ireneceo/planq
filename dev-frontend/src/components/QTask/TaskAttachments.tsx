@@ -5,6 +5,7 @@ import styled from 'styled-components';
 import { apiFetch, useAuth } from '../../contexts/AuthContext';
 import ConfirmDialog from '../Common/ConfirmDialog';
 import AttachmentField from '../Common/AttachmentField';
+import { useImageLightbox } from '../Common/ImageLightbox';
 
 type AttachRow = {
   id: number;
@@ -55,6 +56,11 @@ export default function TaskAttachments({ taskId, onChangeCount }: Props) {
   // 업로드 대상은 description(인라인 이미지)을 제외한 task/comment 첨부만 표시
   // description 이미지는 에디터 안에 인라인으로만 나타남
   const visibleRows = rows.filter(r => r.context !== 'description');
+
+  // 이미지 첨부만 모아 갤러리 라이트박스 — 클릭한 이미지부터 좌우 이동
+  const { open: openImageLightbox, lightbox: imageLightbox } = useImageLightbox();
+  const imageRows = visibleRows.filter(r => r.mime_type?.startsWith('image/') && r.preview_url);
+  const lightboxItems = imageRows.map(r => ({ src: r.preview_url as string, alt: r.original_name }));
 
   useEffect(() => { onChangeCount?.(visibleRows.length); }, [visibleRows.length, onChangeCount]);
 
@@ -144,7 +150,14 @@ export default function TaskAttachments({ taskId, onChangeCount }: Props) {
                 return (
                   <Row key={r.id}>
                     {isImg && r.preview_url ? (
-                      <PreviewImg src={r.preview_url} alt={r.original_name} onClick={() => download(r)} />
+                      <PreviewImg
+                        src={r.preview_url}
+                        alt={r.original_name}
+                        onClick={() => {
+                          const idx = imageRows.findIndex(x => x.id === r.id);
+                          openImageLightbox(lightboxItems, idx < 0 ? 0 : idx);
+                        }}
+                      />
                     ) : (
                       <FileIcon>{extIcon(r.original_name)}</FileIcon>
                     )}
@@ -172,6 +185,7 @@ export default function TaskAttachments({ taskId, onChangeCount }: Props) {
         cancelText={t('attachments.cancel')}
         variant="danger"
       />
+      {imageLightbox}
       {pickerOpen && (
         <PickerInline>
           {/* 인라인 추가 폼과 동일 — 별도 submit/cancel 버튼 없음.

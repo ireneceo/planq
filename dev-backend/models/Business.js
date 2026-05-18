@@ -233,7 +233,12 @@ Business.init({
   default_billing_owner_id: {
     type: DataTypes.INTEGER,
     allowNull: true,
-  }
+  },
+  // ─── 주간 보고 자동 확정 시각 — 사이클 N+26 ───
+  // 워크스페이스 단위 일괄 설정. timezone 은 Business.timezone 기준.
+  weekly_finalize_dow: { type: DataTypes.TINYINT, allowNull: false, defaultValue: 1, comment: '자동 확정 요일 (0=일~6=토). default 1=월요일' },
+  weekly_finalize_hour: { type: DataTypes.TINYINT, allowNull: false, defaultValue: 0, comment: '자동 확정 시각 (0-23). default 0 (자정 직후)' },
+  weekly_finalize_enabled: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true, comment: '자동 확정 ON/OFF' },
 }, {
   sequelize,
   tableName: 'businesses',

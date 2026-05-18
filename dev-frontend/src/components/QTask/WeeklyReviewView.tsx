@@ -109,7 +109,7 @@ const WeeklyReviewView: React.FC<Props> = ({ reviewId, onBack }) => {
               <DeleteConfirmText>
                 {deleteError
                   ? deleteError
-                  : t('weeklyReview.view.deleteConfirm', { defaultValue: '삭제 후 다시 박제 가능합니다' }) as string}
+                  : t('weeklyReview.view.deleteConfirm', { defaultValue: '삭제 후 다시 확정 가능합니다' }) as string}
               </DeleteConfirmText>
               <CancelBtn type="button" onClick={() => { setConfirmDelete(false); setDeleteError(null); }} disabled={deleting}>
                 {t('common.cancel', '취소') as string}
@@ -121,7 +121,7 @@ const WeeklyReviewView: React.FC<Props> = ({ reviewId, onBack }) => {
               </DangerBtn>
             </DeleteConfirmRow>
           ) : (
-            <DeleteBtn type="button" onClick={() => setConfirmDelete(true)} title={t('weeklyReview.view.deleteHint', { defaultValue: '결산 삭제 (다시 박제 가능)' }) as string}>
+            <DeleteBtn type="button" onClick={() => setConfirmDelete(true)} title={t('weeklyReview.view.deleteHint', { defaultValue: '결산 삭제 (다시 확정 가능)' }) as string}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <polyline points="3 6 5 6 21 6" />
                 <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />

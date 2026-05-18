@@ -17,6 +17,7 @@ import UserInfoPopover from '../../components/Common/UserInfoPopover';
 import { fetchWorkspaceFiles, uploadMyFile, isImage as isRenderableImage } from '../../services/files';
 import { mediaTablet } from '../../theme/breakpoints';
 import { mapApiError } from '../../utils/apiError';
+import { useImageLightbox } from '../../components/Common/ImageLightbox';
 
 interface Props {
   project: MockProject | null;
@@ -57,6 +58,9 @@ const ChatPanel: React.FC<Props> = ({
   const { user } = useAuth();
   const { formatTime } = useTimeFormat();
   const isClient = user?.business_role === 'client';
+
+  // 첨부 이미지 라이트박스 — 같은 메시지 안 이미지들이 갤러리로 묶임
+  const { open: openImageLightbox, lightbox: imageLightbox } = useImageLightbox();
 
   // Hangouts/Slack 패턴 — 그룹 헤더에서 풍부한 시각 표시
   //   오늘 → 14:18 / 어제 → 어제 14:18 / 7일내 → 월 14:18 / 그 외 → 5/3 14:18
@@ -1319,7 +1323,14 @@ const ChatPanel: React.FC<Props> = ({
               )}
               {!isDeleted && m.card?.note && <CardNote>{m.card.note}</CardNote>}
 
-              {!isDeleted && m.attachments && m.attachments.length > 0 && (
+              {!isDeleted && m.attachments && m.attachments.length > 0 && (() => {
+                // 같은 메시지의 이미지 첨부만 갤러리로 묶음 — 한 이미지 클릭 후 ← → 로 이동 가능
+                const imgAttachs = (m.attachments || []).filter(a => isRenderableImage(a.mime_type || '', a.file_name));
+                const lightboxItems = imgAttachs.map(a => ({
+                  src: `/api/message-attachments/${a.id}/raw`,
+                  alt: a.file_name,
+                }));
+                return (
                 <AttachRow>
                   {m.attachments.map((a) => {
                     // 사이클 N+23: HEIC/HEIF/TIFF 같이 브라우저 미지원 포맷은 isRenderableImage=false
@@ -1327,7 +1338,15 @@ const ChatPanel: React.FC<Props> = ({
                     const isImg = isRenderableImage(a.mime_type || '', a.file_name);
                     const imgSrc = `/api/message-attachments/${a.id}/raw`;
                     return isImg ? (
-                      <AttachImageLink key={a.id} href={imgSrc} target="_blank" rel="noreferrer">
+                      <AttachImageBtn
+                        key={a.id}
+                        type="button"
+                        onClick={() => {
+                          const idx = imgAttachs.findIndex(x => x.id === a.id);
+                          openImageLightbox(lightboxItems, idx < 0 ? 0 : idx);
+                        }}
+                        title={a.file_name}
+                      >
                         <AttachImage
                           src={imgSrc}
                           alt={a.file_name}
@@ -1340,7 +1359,7 @@ const ChatPanel: React.FC<Props> = ({
                           onError={(e) => {
                             // 미리보기 실패 — 파일 카드 형태로 in-place 교체. 깨진 아이콘 X.
                             const img = e.currentTarget;
-                            const parent = img.parentElement?.parentElement; // AttachImageLink 의 부모
+                            const parent = img.parentElement?.parentElement; // AttachImageBtn 의 부모
                             if (!parent) { img.style.display = 'none'; return; }
                             const card = document.createElement('button');
                             card.type = 'button';
@@ -1353,7 +1372,7 @@ const ChatPanel: React.FC<Props> = ({
                             img.parentElement?.replaceWith(card);
                           }}
                         />
-                      </AttachImageLink>
+                      </AttachImageBtn>
                     ) : (
                       <AttachFileLink key={a.id} as="button" type="button" title={a.file_name}
                         onClick={() => downloadAttachment(a.id, a.file_name)}>
@@ -1364,7 +1383,8 @@ const ChatPanel: React.FC<Props> = ({
                     );
                   })}
                 </AttachRow>
-              )}
+                );
+              })()}
 
               {/* 출처 인용 (Cue 메시지일 때) */}
               {!isDeleted && m.ai_sources && m.ai_sources.length > 0 && (
@@ -1743,6 +1763,9 @@ const ChatPanel: React.FC<Props> = ({
           </ConfirmDialog>
         </ConfirmBackdrop>
       )}
+
+      {/* 첨부 이미지 라이트박스 — 같은 메시지의 이미지들이 갤러리로 묶임 */}
+      {imageLightbox}
     </Container>
   );
 };
@@ -3106,7 +3129,11 @@ const StagedX = styled.button`
 const AttachRow = styled.div`
   display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px;
 `;
-const AttachImageLink = styled.a`display: block; max-width: 220px; border-radius: 8px; overflow: hidden;`;
+const AttachImageBtn = styled.button`
+  display: block; max-width: 220px; border-radius: 8px; overflow: hidden;
+  padding: 0; background: transparent; border: none; cursor: zoom-in; font-family: inherit;
+  &:focus-visible { outline: 2px solid #14B8A6; outline-offset: 2px; }
+`;
 const AttachImage = styled.img`
   display: block; max-width: 220px; max-height: 200px; border-radius: 8px;
   border: 1px solid #E2E8F0; background: #F8FAFC;

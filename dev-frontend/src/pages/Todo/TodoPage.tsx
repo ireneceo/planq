@@ -10,6 +10,7 @@ import InsightCards from '../../components/Common/InsightCards';
 import PushPromptBanner from '../../components/Common/PushPromptBanner';
 import TodoList from '../../components/Dashboard/TodoList';
 import TaskDetailDrawer from '../../components/QTask/TaskDetailDrawer';
+import DailyStartModal from '../../components/Focus/DailyStartModal';
 import EventDrawer from '../../pages/QCalendar/EventDrawer';
 import { fetchTodo } from '../../services/dashboard';
 import type { TodoItem, TodoResponse } from '../../services/dashboard';
@@ -318,6 +319,8 @@ const TodoPage: React.FC = () => {
           { targetSelector: 'header', title: t('todo.tour.step1.title','확인 필요 (인박스)') as string, body: t('todo.tour.step1.body','내가 직접 행동해야 할 일이 모입니다 — 받은 업무·컨펌 대기·결제·서명·후보(본인 담당). 다른 사람 담당 항목은 그 사람 인박스에 가요.') as string, placement: 'bottom' },
         ]}
       />
+      {/* 업무 흐름 — 오늘 시작 안내 모달 (focus_enabled + daily_prompt true 일 때만) */}
+      <DailyStartModal />
     </PageShell>
   );
 };

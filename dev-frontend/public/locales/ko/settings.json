@@ -18,7 +18,26 @@
     "plan": "구독 플랜",
     "permissions": "권한",
     "members": "멤버",
-    "cue": "Cue"
+    "cue": "Cue",
+    "workFlow": "업무 관리"
+  },
+  "workManagement": {
+    "autoFinalize": {
+      "title": "주간 보고 자동 확정",
+      "desc": "지정한 요일·시각에 지난 주 워크스페이스 통합 보고서가 자동으로 만들어져요. 워크스페이스 timezone({{tz}}) 기준입니다.",
+      "enabled": "자동 확정 활성",
+      "enabledHint": "꺼두면 자동 생성을 멈춰요. 수동으로 \"이번 주 확정\" 버튼은 그대로 사용 가능.",
+      "dow": "요일",
+      "dowHint": "지난 주 데이터를 이 요일 기준으로 확정합니다 (default: 월요일).",
+      "hour": "시각",
+      "hourHint": "워크스페이스 timezone 기준 (default: 자정 직후 00시).",
+      "nextLabel": "다음 자동 확정"
+    },
+    "dow": {
+      "sun": "일요일", "mon": "월요일", "tue": "화요일", "wed": "수요일",
+      "thu": "목요일", "fri": "금요일", "sat": "토요일"
+    },
+    "readOnly": "워크스페이스 관리자만 변경할 수 있습니다."
   },
   "email": {
     "system": {
@@ -404,7 +423,8 @@
     "qfile": "Q File",
     "qbill": "Q Bill",
     "clients": "고객",
-    "insights": "통계"
+    "insights": "통계",
+    "weekly_team": "통합 주간보고"
   },
   "confirm": {
     "promoteAdminTitle": "관리자 임명",

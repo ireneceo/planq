@@ -107,7 +107,7 @@ const WeeklyTrendTab: React.FC<Props> = ({ businessId }) => {
           </svg>
         </EmptyIcon>
         <EmptyTitle>{t('weekly.empty.title', { defaultValue: '아직 누적된 주간 결산이 없습니다' }) as string}</EmptyTitle>
-        <EmptyHint>{t('weekly.empty.hint', { defaultValue: 'Q Task 의 "이번 주 마무리" 또는 일요일 23:59 cron 으로 박제됩니다. 4주+ 누적되면 의미있는 추세를 볼 수 있습니다.' }) as string}</EmptyHint>
+        <EmptyHint>{t('weekly.empty.hint', { defaultValue: 'Q Task 의 "이번 주 마무리" 또는 일요일 23:59 cron 으로 확정됩니다. 4주+ 누적되면 의미있는 추세를 볼 수 있습니다.' }) as string}</EmptyHint>
       </EmptyState>
     );
   }

@@ -309,8 +309,13 @@ async function collectInvites(userEmail) {
 /* ─────────────────────────────────────────────
    Q Talk/Q Note 추출 후보 — pending 상태만
    사용자: "확인 필요" inbox 에 실데이터 표시
+
+   권한 정책 (사이클 N+26):
+   - verb='accept' (본인이 추정 담당자) → 모든 role 노출. 본인 행동(수락) 필요
+   - verb='assign' (담당자 미지정) → owner/admin 만 노출. 멤버/클라이언트에게는 의미 없는 알림
+     (담당자 지정 권한이 없는 사용자에게 띄워봤자 클릭해도 할 수 있는 액션 없음)
    ──────────────────────────────────────────── */
-async function collectCandidates(businessId, currentUserId) {
+async function collectCandidates(businessId, currentUserId, userRole) {
   if (!businessId) return [];
   // task_candidates 는 business_id 컬럼이 없음 → conversation 또는 project 경유.
   // archive 된 conversation 의 candidate 는 인박스에서 제외 (사이클 N+9).
@@ -333,19 +338,22 @@ async function collectCandidates(businessId, currentUserId) {
     order: [['extracted_at', 'DESC']],
     limit: 20,
   });
+  const canAssign = userRole === 'owner' || userRole === 'admin';
   return cands.flatMap((c) => {
     const assigneeName = c.guessedAssignee?.name || null;
     const isMine = c.guessedAssignee?.id === currentUserId;
     // 인박스 = "내가 직접 행동해야 할 것" 만. 다른 사람 담당 candidate 는 그 사람 인박스에 가야 함.
-    // 본인 담당(accept) + 담당자 미지정(assign — owner/admin 이 지정 행동) 만 노출.
     if (assigneeName && !isMine) return [];
+
+    // 담당자 미지정 후보 — owner/admin 만 표시 (지정 권한 없는 사용자에게 노이즈 X)
+    if (!assigneeName && !canAssign) return [];
 
     // 사이클 N+9 fix: 채팅방으로 가는 대신 Q task 의 "추출된 업무" 섹션 (scope=mine, tab=all)
     // 으로 이동. 거기서 등록/병합/반려 액션 가능. URL 쿼리 ?candidate=Y → 해당 카드 강조.
     const link = `/tasks?scope=mine&tab=all&candidate=${c.id}`;
     const convName = c.Conversation?.display_name || c.Conversation?.title || '';
-    const assigneeBadge = assigneeName ? '담당: 나' : '담당자 지정 필요';
-    const context = convName ? `${convName} · ${assigneeBadge}` : assigneeBadge;
+    // context = 대화방명 만 (assigneeBadge 는 verb 라벨에 이미 명시되어 중복)
+    const context = convName || null;
     return [{
       id: `candidate-${c.id}`,
       type: 'task_candidate',
@@ -769,7 +777,7 @@ router.get('/todo', authenticateToken, async (req, res, next) => {
       const [tasks, events, candidates, invoices, signatures, paymentNotifies, taxInvoices, planqSubs] = await Promise.all([
         collectTasks(w.business_id, userId),
         collectEvents(w.business_id, userId),
-        collectCandidates(w.business_id, userId),
+        collectCandidates(w.business_id, userId, userRole),
         collectInvoices(w.business_id),
         collectSignatures(w.business_id, req.user.email, userRole),
         collectPaymentNotifies(w.business_id, userRole),

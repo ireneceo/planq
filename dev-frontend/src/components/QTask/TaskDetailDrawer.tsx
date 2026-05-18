@@ -16,6 +16,8 @@ import {
   type RecurPreset, type RecurEndType, type RecurCustomUnit,
 } from '../../utils/recurrence';
 import AttachmentField from '../Common/AttachmentField';
+import { useImageLightbox } from '../Common/ImageLightbox';
+import TaskFocusBar from '../Focus/TaskFocusBar';
 import TaskAttachments from './TaskAttachments';
 import RelatedTasksSection from './RelatedTasksSection';
 import DescriptionAttachments from './DescriptionAttachments';
@@ -134,6 +136,8 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
   width, onWidthChange, onClose, onPatch, onRefresh,
 }) => {
   const { t } = useTranslation('qtask');
+  // 댓글 첨부 이미지 라이트박스 — 한 댓글의 이미지들이 갤러리로 묶임
+  const { open: openImageLightbox, lightbox: imageLightbox } = useImageLightbox();
   // 프로젝트 옵션 — props 우선, 없으면 자체 fetch (TodoPage / QCalendarPage 같은 호출 측 호환)
   const [projectsFetched, setProjectsFetched] = useState<DrawerProjectOption[]>([]);
   React.useEffect(() => {
@@ -655,6 +659,8 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
           const memberOptions = members.filter(m => m.user_id !== detailTask.assignee_id && !reviewers.some(rv => rv.user_id === m.user_id));
 
           return (<>
+            {/* 업무 흐름 인라인 바 — focus_enabled=true 일 때만 렌더 */}
+            <TaskFocusBar taskId={detailTask.id} businessId={bizId} />
             <Section>
               {editingTitle ? (
                 <TitleInput autoFocus value={titleDraft}
@@ -1136,18 +1142,28 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                   ) : (
                     c.content && c.content !== '(첨부파일)' && <CommentBody>{c.content}</CommentBody>
                   )}
-                  {(c.attachments || []).length > 0 && <CmtAtts>
+                  {(c.attachments || []).length > 0 && (() => {
+                    // 한 댓글 안의 이미지 첨부만 갤러리로 묶음 — 다른 댓글 이미지와는 별개
+                    const cmtImgs = (c.attachments || [])
+                      .filter(a => a.mime_type?.startsWith('image/') && a.stored_name)
+                      .map(a => ({ id: a.id, src: `/api/tasks/public/attach/${a.stored_name}`, alt: a.original_name }));
+                    const cmtItems = cmtImgs.map(x => ({ src: x.src, alt: x.alt }));
+                    return (
+                  <CmtAtts>
                     {(c.attachments || []).map(a => {
                       const isImg = a.mime_type?.startsWith('image/');
                       const preview = (isImg && a.stored_name) ? `/api/tasks/public/attach/${a.stored_name}` : null;
                       const dl = `/api/tasks/attachments/${a.id}/download`;
-                      // 이미지는 public preview URL 로 새 탭 (인증 불필요).
-                      // 비이미지는 fetch 로 blob 받아 다운로드 (auth header 포함). window.open 은
-                      // 새 탭에 access token 못 실어 401 발생.
+                      // 이미지는 ImageLightbox 로 — 새 탭 대신 같은 페이지 갤러리.
+                      // 비이미지는 fetch 로 blob 받아 다운로드 (auth header 포함).
                       return isImg && preview ? (
-                        <a key={a.id} href={preview} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}>
+                        <CmtAttImgBtn key={a.id} type="button" onClick={(e) => {
+                          e.stopPropagation();
+                          const idx = cmtImgs.findIndex(x => x.id === a.id);
+                          openImageLightbox(cmtItems, idx < 0 ? 0 : idx);
+                        }} aria-label={a.original_name}>
                           <CmtAttImg src={preview} alt={a.original_name}/>
-                        </a>
+                        </CmtAttImgBtn>
                       ) : (
                         <CmtAttFile key={a.id} as="button" type="button" onClick={async (e) => {
                           e.preventDefault();
@@ -1168,7 +1184,9 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                         </CmtAttFile>
                       );
                     })}
-                  </CmtAtts>}
+                  </CmtAtts>
+                    );
+                  })()}
                 </CommentItem>
               ))}
               <CommentComposer>
@@ -1446,6 +1464,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
         onClose={() => setShareOpen(false)}
       />
     )}
+    {imageLightbox}
   </>);
 };
 
@@ -1740,7 +1759,11 @@ const CmtStagedRow = styled.div`display:flex;flex-wrap:wrap;gap:4px;`;
 const CmtStaged = styled.span`display:inline-flex;align-items:center;gap:4px;padding:2px 6px 2px 8px;background:#F0FDFA;color:#0F766E;border:1px solid #99F6E4;border-radius:12px;font-size:11px;`;
 const CmtStagedX = styled.button`width:16px;height:16px;display:flex;align-items:center;justify-content:center;background:transparent;border:none;color:#0F766E;cursor:pointer;font-size:14px;line-height:1;&:hover{color:#DC2626;}`;
 const CmtAtts = styled.div`display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;`;
-const CmtAttImg = styled.img`max-width:160px;max-height:120px;object-fit:cover;border-radius:6px;border:1px solid #E2E8F0;cursor:pointer;`;
+const CmtAttImgBtn = styled.button`
+  all: unset; display: inline-block; cursor: zoom-in; border-radius: 6px;
+  &:focus-visible { outline: 2px solid #14B8A6; outline-offset: 2px; }
+`;
+const CmtAttImg = styled.img`max-width:160px;max-height:120px;object-fit:cover;border-radius:6px;border:1px solid #E2E8F0;display:block;`;
 const CmtAttFile = styled.a`display:inline-flex;align-items:center;gap:6px;padding:4px 8px;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:6px;text-decoration:none;color:#0F172A;font-size:11px;max-width:200px;&:hover{border-color:#14B8A6;background:#F0FDFA;color:#0F766E;}`;
 const CmtAttIcon = styled.span`width:22px;height:22px;flex-shrink:0;display:flex;align-items:center;justify-content:center;background:#E2E8F0;color:#475569;font-size:9px;font-weight:700;border-radius:3px;`;
 const CmtAttName = styled.span`overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`;
