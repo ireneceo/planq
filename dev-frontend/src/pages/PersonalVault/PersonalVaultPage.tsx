@@ -17,6 +17,7 @@ import PageShell from '../../components/Layout/PageShell';
 import EmptyState from '../../components/Common/EmptyState';
 import DocsTab from '../QProject/DocsTab';  // N+30 — 개인 보관함 files 탭 풀세트 재사용
 import PostsPage from '../../components/Docs/PostsPage';  // N+30 phase2 — posts 탭 풀세트 재사용
+import KnowledgePage from '../Knowledge/KnowledgePage';  // N+30 phase3 — kb 탭 풀세트 재사용
 
 // 사이클 N+14 — Q note (notes) 탭 추가
 type Tab = 'dashboard' | 'posts' | 'files' | 'kb' | 'notes';
@@ -227,22 +228,10 @@ const PersonalVaultPage: React.FC = () => {
         <DocsTab scope={{ type: 'personal', businessId }} />
       )}
 
-      {tab === 'kb' && kbs && (
-        kbs.length === 0 ? (
-          <EmptyWrap>
-            <EmptyState title={t('common:vault.empty.kb', '개인 정보 없음') as string}
-              description={t('common:vault.empty.kbBody', { defaultValue: 'Q info 에서 \\u0027개인\\u0027 으로 저장한 정보가 여기에 모입니다.' }) as string} />
-          </EmptyWrap>
-        ) : (
-          <ListWrap>
-            {kbs.map(k => (
-              <Card key={k.id} onClick={() => navigate(`/info?doc=${k.id}`)}>
-                <CardTitle>{k.title}</CardTitle>
-                <CardMeta>{k.source_type}</CardMeta>
-              </Card>
-            ))}
-          </ListWrap>
-        )
+      {/* N+30 phase3 — 개인 보관함 kb 탭 풀세트. KnowledgePage embedded=true mode='personal'.
+          fetchPersonalKb 자체 호출 (본인 + scope='private'). PageShell wrapping skip (부모 PageShell 안에서). */}
+      {tab === 'kb' && (
+        <KnowledgePage embedded mode="personal" />
       )}
 
       {tab === 'notes' && sessions && (

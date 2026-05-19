@@ -781,7 +781,10 @@ router.get('/todo', authenticateToken, async (req, res, next) => {
       const [tasks, events, candidates, invoices, signatures, paymentNotifies, taxInvoices, planqSubs] = await Promise.all([
         collectTasks(w.business_id, userId),
         collectEvents(w.business_id, userId),
-        collectCandidates(w.business_id, userId, userRole),
+        // N+30 — 사용자 정책: task_candidate 는 채팅 옆 (RightPanel) + 본인 전체 업무 옆 (QTaskPage 인박스) 만 노출.
+        // dashboard 인박스에서 제거 (옛 N+26 박제 reverse) — "확인요청 (대기)" 그룹에 섞여 사용자 혼란 유발.
+        // collectCandidates 함수 자체는 보존 (향후 별도 카테고리 또는 옵트인 활용 가능성).
+        Promise.resolve([]),
         collectInvoices(w.business_id),
         collectSignatures(w.business_id, req.user.email, userRole),
         collectPaymentNotifies(w.business_id, userRole),

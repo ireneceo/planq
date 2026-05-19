@@ -48,6 +48,15 @@ async function handle<T>(res: Response): Promise<T> {
   return j.data as T;
 }
 
+// N+30 — 개인 보관함 KB list. 본인 uploaded_by + scope='private' (PERSONAL_VAULT_DESIGN.md §2)
+// backend GET /api/personal-vault/:bizId/kb-documents (N+9) — 응답을 KbDocumentRow shape 어댑트
+export async function fetchPersonalKb(businessId: number): Promise<KbDocumentRow[]> {
+  const res = await apiFetch(`/api/personal-vault/${businessId}/kb-documents`);
+  const j = await res.json();
+  if (!j.success) return [];
+  return (j.data || []) as KbDocumentRow[];
+}
+
 export async function listKnowledge(businessId: number, filter: KbListFilter = {}): Promise<KbDocumentRow[]> {
   const sp = new URLSearchParams();
   if (filter.category) sp.set('category', filter.category);
