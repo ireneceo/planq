@@ -193,23 +193,19 @@ const ChatPanel: React.FC<Props> = ({
     return () => window.clearTimeout(tm);
   }, [activeConversationId]);
 
-  // 모바일 키보드 가림 fix — textarea focus 시 키보드 올라오면서 입력란이 viewport 밖으로 밀리는 케이스.
-  // visualViewport API 로 키보드 resize 감지해서 강제 scrollIntoView. iOS Safari / Android Chrome 양쪽 검증.
+  // 모바일 키보드 가림 fix — 사이클 N+28 (점프 진동 회귀 fix):
+  // 옛 코드: scrollIntoView({block:'end', behavior:'smooth'}) 를 visualViewport.resize once + setTimeout 350ms 두 번 호출.
+  // 키보드 펼치는 progressive 애니메이션 도중 smooth scroll 이 부모 컨테이너를 흔들어 focus blur → 키보드 내림 → 다시 올라옴 진동.
+  // 새 코드: block:'nearest' + behavior:'auto' (instant) — 이미 보이면 안 움직임. textarea 가 안 보일 때만 최소 스크롤. setTimeout fallback 만 유지 (350ms 한 번).
+  // vvh CSS sync 가 Container/InputBar 위치를 키보드 위로 정확히 잡으므로 강제 scrollIntoView 는 보조 역할.
   const handleInputFocus = React.useCallback(() => {
     const el = textInputRef.current;
     if (!el) return;
-    const ensureVisible = () => {
-      el.scrollIntoView({ block: 'end', inline: 'nearest', behavior: 'smooth' });
-    };
-    // visualViewport 가 있으면 키보드 올라온 직후 정확히 한 번 fire
-    if (window.visualViewport) {
-      const onResize = () => { ensureVisible(); };
-      window.visualViewport.addEventListener('resize', onResize, { once: true });
-      // 안전장치: 1s 후 listener 정리 (이미 once 라 자동 해제되지만 명시적)
-      window.setTimeout(() => window.visualViewport?.removeEventListener('resize', onResize), 1000);
-    }
-    // fallback — 모든 환경에서 350ms 후 한 번 더 (키보드 애니메이션 기간 보정)
-    window.setTimeout(ensureVisible, 350);
+    window.setTimeout(() => {
+      const node = textInputRef.current;
+      if (!node) return;
+      node.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'auto' });
+    }, 350);
   }, []);
 
   // 사이클 N+15-B + N+17 — 모바일 키보드 up 감지 → body[data-keyboard-up=1] 토글.
@@ -1827,16 +1823,10 @@ const Container = styled.main<{ $mobileHidden?: boolean }>`
     display: ${(p) => (p.$mobileHidden ? 'none' : 'flex')};
     width: 100%;
   }
-  /* 모바일 키보드 대응 — 사이클 N+17:
-     1순위: var(--vvh) — visualViewport API 로 JS 가 즉시 sync (키보드 펼침/접힘 정확)
-     2순위: 100dvh — modern brower fallback
-     3순위: -webkit-fill-available — 옛 iOS Safari fallback
-     ChatPanel 의 useEffect 가 vv.height 를 documentElement 에 setProperty. */
-  @media (max-width: 640px) {
-    height: -webkit-fill-available;
-    height: 100dvh;
-    height: var(--vvh, 100dvh);
-  }
+  /* 모바일 키보드 대응 — 사이클 N+28 (회귀 fix):
+     ChatPanel 은 부모 QTalkPage Layout (height: calc(var(--vvh) - 56px)) 안에서 flex:1 로 자동 fill.
+     자식이 var(--vvh) 를 강제 적용하면 부모보다 56px 커져 InputBar 가 Layout overflow:hidden 으로 잘려 "입력란이 화면 아래로 가려짐" 회귀.
+     모바일 미디어쿼리에서 height 명시 제거 — flex grow 만 의존. */
 `;
 
 const MobileBackBtn = styled.button`
