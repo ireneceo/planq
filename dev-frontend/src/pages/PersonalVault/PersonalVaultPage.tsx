@@ -15,6 +15,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth, apiFetch } from '../../contexts/AuthContext';
 import PageShell from '../../components/Layout/PageShell';
 import EmptyState from '../../components/Common/EmptyState';
+import DocsTab from '../QProject/DocsTab';  // N+30 — 개인 보관함 files 탭 풀세트 재사용
 
 // 사이클 N+14 — Q note (notes) 탭 추가
 type Tab = 'dashboard' | 'posts' | 'files' | 'kb' | 'notes';
@@ -231,22 +232,10 @@ const PersonalVaultPage: React.FC = () => {
         )
       )}
 
-      {tab === 'files' && files && (
-        files.length === 0 ? (
-          <EmptyWrap>
-            <EmptyState title={t('common:vault.empty.files', '개인 파일 없음') as string}
-              description={t('common:vault.empty.filesBody', { defaultValue: 'Q file 에서 프로젝트 미연결로 올린 파일이 여기에 모입니다.' }) as string} />
-          </EmptyWrap>
-        ) : (
-          <ListWrap>
-            {files.map(f => (
-              <Card key={f.id} onClick={() => navigate(`/files?file=${f.id}`)}>
-                <CardTitle>{f.file_name}</CardTitle>
-                <CardMeta>{f.mime_type} · {formatBytes(f.file_size)}</CardMeta>
-              </Card>
-            ))}
-          </ListWrap>
-        )
+      {/* N+30 — 개인 보관함 풀세트. DocsTab 의 scope='personal' 모드 재사용
+          (PERSONAL_VAULT_DESIGN.md §3 컴포넌트 재사용 원칙). 업로드/검색/카드 view/⋮ 메뉴 등 풀세트 자동. */}
+      {tab === 'files' && businessId && (
+        <DocsTab scope={{ type: 'personal', businessId }} />
       )}
 
       {tab === 'kb' && kbs && (
@@ -294,12 +283,8 @@ const PersonalVaultPage: React.FC = () => {
 
 export default PersonalVaultPage;
 
-function formatBytes(n: number): string {
-  if (n >= 1024 ** 3) return `${(n / 1024 ** 3).toFixed(1)}GB`;
-  if (n >= 1024 ** 2) return `${(n / 1024 ** 2).toFixed(0)}MB`;
-  if (n >= 1024) return `${(n / 1024).toFixed(0)}KB`;
-  return `${n}B`;
-}
+// N+30 — formatBytes 는 files 탭 자체 list 제거 (DocsTab 마운트로 대체) 후 dead code 가 됨.
+// DocsTab 안에 자체 formatBytes 있으므로 제거. dashboard 의 recent.files 는 mime/size 표시 없이 제목만 노출.
 
 const LoadingSkeleton: React.FC = () => (
   <SkWrap>

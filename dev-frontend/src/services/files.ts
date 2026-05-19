@@ -76,6 +76,33 @@ export async function fetchWorkspaceFiles(businessId: number): Promise<ProjectFi
   return (j.data || []) as ProjectFile[];
 }
 
+// N+30 — 개인 보관함 (Personal Vault) 파일 list
+// 본인 업로드 + visibility=L1 + project_id=null 만 (PERSONAL_VAULT_DESIGN.md §2)
+// backend GET /api/personal-vault/:bizId/files 응답 형식을 ProjectFile shape 로 어댑트
+export async function fetchPersonalFiles(businessId: number): Promise<ProjectFile[]> {
+  const r = await apiFetch(`/api/personal-vault/${businessId}/files`);
+  const j = await r.json();
+  if (!j.success) return [];
+  const raw = (j.data || []) as Array<{
+    id: number; file_name: string; mime_type: string; file_size: number; created_at: string;
+  }>;
+  return raw.map(f => ({
+    id: `direct-${f.id}`,
+    source: 'direct' as FileSource,
+    file_name: f.file_name,
+    file_size: Number(f.file_size),
+    mime_type: f.mime_type,
+    uploader_id: 0,        // 본인 자산이라 서버에서 표시 안 함
+    uploader_name: '나',
+    uploaded_at: f.created_at,
+    download_url: `/api/files/${businessId}/${f.id}/download`,
+    folder_id: null,
+    deletable: true,        // 본인 자산이므로 항상 삭제 가능
+    storage_provider: 'planq' as StorageProvider,
+    project_context: null,  // personal vault — 프로젝트 컨텍스트 없음
+  }));
+}
+
 export async function fetchFolders(projectId: number): Promise<FileFolder[]> {
   const r = await apiFetch(`/api/folders/projects/${projectId}`);
   const j = await r.json();
