@@ -50,9 +50,13 @@ const SECONDARY_COLLAPSED_KEY = 'planq.secondaryCollapsed';
 const LayoutContainer = styled.div`
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   background-color: #F8FAFC;
-  overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
-  min-height: 100vh;
+  /* N+29 — 모바일 viewport 안정성. body 가 스크롤 받지 않고 자체 자식(MainContent) 만 스크롤.
+     min-height:100vh 옛 정책은 iOS toolbar hide/show 시 100vh 변동 인한 페이지 흔들림 회귀 유발. */
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 `;
 
 const Sidebar = styled.div<{ $isOpen?: boolean; $isCollapsed?: boolean }>`
@@ -361,7 +365,14 @@ const CollapsedLogoutIcon = styled.button`
 
 const MainContent = styled.div<{ $marginLeft: number }>`
   margin-left: ${props => props.$marginLeft}px;
-  min-height: 100vh; transition: margin-left 0.25s ease;
+  /* N+29 — 자체 스크롤 영역. body 가 스크롤 안 받게 LayoutContainer overflow:hidden + 자식 MainContent flex:1 overflow-y:auto.
+     모바일 fixed MobileHeader (56px) 는 MobileContentPadding 으로 보정. */
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  transition: margin-left 0.25s ease;
   ${mediaTablet} { margin-left: 0; }
 `;
 

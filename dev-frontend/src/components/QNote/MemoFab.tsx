@@ -3,7 +3,7 @@
 // 정책:
 //  - 우하단 16px (모바일 동일), 메모 FAB 하나만 brand teal 원형
 //  - Cue FAB (Coral) 는 80px 로 위로 이동 (CueHelpDrawer 가 별도 처리)
-//  - Q Talk (/talk 및 하위) 페이지에서는 자동 숨김 (CueHelpDrawer 와 동일 FAB_HIDDEN_PATHS 정책)
+//  - Q Talk (/talk 및 하위) 페이지에서는 자동 숨김 — ChatPanel SendBtn 영역 침범 차단 (N+29)
 //  - Client 역할 차단 (Q Note 자체가 client 접근 불가, FAB 도 무의미)
 //  - guest (로그인 X) 도 차단
 //  - 모달/드로어 열려있는 동안 (body[data-overlay-open=true]) 숨김
@@ -18,8 +18,10 @@ import { useAuth } from '../../contexts/AuthContext';
 import MemoPopup from './MemoPopup';
 
 // /memo/:id 은 메모 팝업이 standalone 모드로 풀스크린 마운트되는 분리 창 — FAB 노출하면 자기 안에 자기 떠서 혼란
-// 사이클 N+23: /talk 차단 해제 — 사용자 요청 "Q Talk 에서도 메모 FAB 표시"
-const FAB_HIDDEN_PATHS = ['/memo'];
+// 사이클 N+29: /talk 재차단 — 모바일에서 우하단 16px 위치가 ChatPanel InputBar 의 SendBtn 영역을
+// 침범해 채팅 메시지 전송을 가림 (CueHelp FAB 는 bottom:80px 이라 InputBar 위로 비켜남, 메모 FAB 만 충돌).
+// N+23 에 노출 박제 → N+29 에 사용자 호소 "메시지 전송 방해" 로 reverse. 메모는 ⌘+Shift+M 단축키로 데스크탑 접근.
+const FAB_HIDDEN_PATHS = ['/memo', '/talk'];
 
 const FabBtn = styled.button`
   position: fixed; right: 20px; bottom: 16px;
