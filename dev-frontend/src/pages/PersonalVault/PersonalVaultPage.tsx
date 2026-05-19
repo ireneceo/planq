@@ -16,6 +16,7 @@ import { useAuth, apiFetch } from '../../contexts/AuthContext';
 import PageShell from '../../components/Layout/PageShell';
 import EmptyState from '../../components/Common/EmptyState';
 import DocsTab from '../QProject/DocsTab';  // N+30 — 개인 보관함 files 탭 풀세트 재사용
+import PostsPage from '../../components/Docs/PostsPage';  // N+30 phase2 — posts 탭 풀세트 재사용
 
 // 사이클 N+14 — Q note (notes) 탭 추가
 type Tab = 'dashboard' | 'posts' | 'files' | 'kb' | 'notes';
@@ -214,22 +215,10 @@ const PersonalVaultPage: React.FC = () => {
         </DashboardGrid>
       )}
 
-      {tab === 'posts' && posts && (
-        posts.length === 0 ? (
-          <EmptyWrap>
-            <EmptyState title={t('common:vault.empty.posts', '개인 문서 없음') as string}
-              description={t('common:vault.empty.postsBody', { defaultValue: 'Q docs 에서 프로젝트 미연결로 작성한 문서가 여기에 모입니다.' }) as string} />
-          </EmptyWrap>
-        ) : (
-          <ListWrap>
-            {posts.map(p => (
-              <Card key={p.id} onClick={() => navigate(`/docs?post=${p.id}`)}>
-                <CardTitle>{p.title}</CardTitle>
-                <CardMeta>{p.kind} · {p.category || t('common:vault.uncategorized', '미분류') as string}</CardMeta>
-              </Card>
-            ))}
-          </ListWrap>
-        )
+      {/* N+30 phase2 — 개인 보관함 posts 탭 풀세트. PostsPage 의 scope='personal' 모드 재사용.
+          fetch + 검색 + 새 글 + 편집 + 카테고리 등 풀세트 자동. backend posts.js:345 가 project_id 없으면 vlevel=L1 자동. */}
+      {tab === 'posts' && businessId && (
+        <PostsPage scope={{ type: 'personal', businessId }} />
       )}
 
       {/* N+30 — 개인 보관함 풀세트. DocsTab 의 scope='personal' 모드 재사용

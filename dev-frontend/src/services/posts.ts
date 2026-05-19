@@ -69,6 +69,15 @@ export interface PostListFilter {
   category?: string;
   mine?: boolean;
 }
+// N+30 — 개인 보관함 Post list. 본인 author + vlevel=L1 + project_id=null
+// backend GET /api/personal-vault/:bizId/posts (N+9) 응답을 PostRow shape 어댑트
+export async function fetchPersonalPosts(businessId: number): Promise<PostRow[]> {
+  const r = await apiFetch(`/api/personal-vault/${businessId}/posts`);
+  const j = await r.json();
+  if (!j.success) return [];
+  return (j.data || []) as PostRow[];
+}
+
 export async function fetchPosts(businessId: number, filter: PostListFilter = {}): Promise<PostRow[]> {
   const params = new URLSearchParams({ business_id: String(businessId) });
   if (filter.projectId === null) params.set('project_id', 'null');
