@@ -22,7 +22,8 @@ import {
 
 export type DocScope =
   | { type: 'project'; projectId: number; businessId: number }
-  | { type: 'workspace'; businessId: number };
+  | { type: 'workspace'; businessId: number }
+  | { type: 'personal'; businessId: number };  // N+30 — 개인 보관함 (본인 + L1 + project_id=null)
 
 type SortKey = 'recent' | 'name' | 'size';
 type ViewMode = 'grid' | 'list';
@@ -43,6 +44,7 @@ const DocsTab: React.FC<Props> = (props) => {
       ? { type: 'project', projectId: props.projectId, businessId: props.businessId }
       : { type: 'workspace', businessId: props.businessId! });
   const isWorkspace = scope.type === 'workspace';
+  const isPersonal = scope.type === 'personal';   // N+30 개인 보관함 모드
   const projectId = scope.type === 'project' ? scope.projectId : 0;
   const businessId = scope.businessId;
   const { t } = useTranslation('qproject');
@@ -71,7 +73,14 @@ const DocsTab: React.FC<Props> = (props) => {
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    if (isWorkspace) {
+    if (isPersonal) {
+      // N+30 — 개인 보관함: 본인 L1 파일만. 폴더 X (개인 보관함은 평면 view)
+      import('../../services/files').then(({ fetchPersonalFiles }) => {
+        fetchPersonalFiles(businessId).then(fs => {
+          if (!cancelled) { setFiles(fs); setFolders([]); setLoading(false); }
+        });
+      });
+    } else if (isWorkspace) {
       fetchWorkspaceFiles(businessId).then(fs => {
         if (!cancelled) { setFiles(fs); setFolders([]); setLoading(false); }
       });
@@ -93,7 +102,7 @@ const DocsTab: React.FC<Props> = (props) => {
       });
     }
     return () => { cancelled = true; };
-  }, [projectId, businessId, isWorkspace]);
+  }, [projectId, businessId, isWorkspace, isPersonal]);
 
   // 선택 모드 종료 시 선택 초기화
   useEffect(() => { if (!selectMode) setSelectedIds(new Set()); }, [selectMode]);
@@ -163,6 +172,17 @@ const DocsTab: React.FC<Props> = (props) => {
   const handleFiles = useCallback(async (fileList: FileList | File[]) => {
     const arr = Array.from(fileList);
     if (arr.length === 0) return;
+    // N+30 — 개인 보관함 모드: project_id 없이 uploadMyFile → backend 가 자동 visibility=L1 (files.js:390)
+    if (isPersonal) {
+      setUploadingCount(n => n + arr.length);
+      for (const f of arr) {
+        try {
+          const r = await uploadMyFile(businessId, f);
+          if (r.success && r.file) setFiles(prev => [r.file!, ...prev]);
+        } finally { setUploadingCount(n => n - 1); }
+      }
+      return;
+    }
     if (isWorkspace) {
       // 워크스페이스 모드:
       //  - "내 파일" 폴더 선택 중이면 바로 업로드 (project_id 없이)
@@ -188,7 +208,7 @@ const DocsTab: React.FC<Props> = (props) => {
         if (r.success && r.file) setFiles(prev => [r.file!, ...prev]);
       } finally { setUploadingCount(n => n - 1); }
     }
-  }, [businessId, projectId, folderSel, isWorkspace]);
+  }, [businessId, projectId, folderSel, isWorkspace, isPersonal]);
 
   const commitWorkspaceUpload = useCallback(async () => {
     if (!pendingUpload || !workspaceUploadProject) return;
@@ -385,8 +405,10 @@ const DocsTab: React.FC<Props> = (props) => {
         </SelectToggle>
       </Toolbar>
 
-      {/* Split: 좌 (폴더 트리 or 프로젝트 그룹) + 우 파일 영역 */}
+      {/* Split: 좌 (폴더 트리 or 프로젝트 그룹) + 우 파일 영역
+          N+30 — personal 모드: 좌측 패널 자체 렌더 X (평면 view, 폴더·프로젝트 그룹 없음) */}
       <Split>
+        {!isPersonal && (
         <FolderTreePanel>
           {isWorkspace ? (
             <ProjectGroups
@@ -440,6 +462,7 @@ const DocsTab: React.FC<Props> = (props) => {
             />
           )}
         </FolderTreePanel>
+        )}
 
         <FilesArea>
           {selectMode && selectedIds.size > 0 && (
