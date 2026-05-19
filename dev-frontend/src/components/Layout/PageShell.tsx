@@ -22,6 +22,7 @@ type Props = {
   actions?: ReactNode;              // 헤더 우측 영역 (검색·버튼 등)
   children: ReactNode;
   bodyPadding?: string;             // 본문 padding 커스터마이즈가 필요할 때만
+  embedded?: boolean;               // N+30 — PageShell-in-PageShell 회귀 차단. true 면 헤더/Page wrap 없이 children 만 렌더. PersonalVaultPage 같은 부모 PageShell 안에서 KnowledgePage 등 자체 PageShell 컴포넌트 마운트 시 사용.
 };
 
 export default function PageShell({
@@ -31,7 +32,11 @@ export default function PageShell({
   actions,
   children,
   bodyPadding,
+  embedded,
 }: Props) {
+  // N+30 — embedded 모드: 부모 PageShell 안에서 마운트되는 경우 헤더 + Page wrapping skip.
+  // PersonalVaultPage 안의 KnowledgePage 같은 케이스. 부모가 헤더/스크롤 영역 이미 제공.
+  if (embedded) return <>{children}</>;
   return (
     <Page>
       <Header>

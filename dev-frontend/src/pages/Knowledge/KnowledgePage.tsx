@@ -24,7 +24,7 @@ import KbAiIngestModal from './KbAiIngestModal';
 import KbCsvIngestModal from './KbCsvIngestModal';
 import { SparkleIcon } from '../../components/Common/Icons';
 import {
-  listKnowledge, createKnowledge, deleteKnowledge, updateKnowledge,
+  listKnowledge, fetchPersonalKb, createKnowledge, deleteKnowledge, updateKnowledge,
   uploadKnowledgeFile,
   type KbDocumentRow, type KbCategory, type KbScope,
 } from '../../services/knowledge';
@@ -60,7 +60,14 @@ const formatDateSafe = (input: string | number | Date | null | undefined, kind: 
   return kind === 'date' ? d.toLocaleDateString() : d.toLocaleString();
 };
 
-const KnowledgePage = () => {
+// N+30 — 개인 보관함 통합용 props. mode='personal' 시 fetchPersonalKb (본인 + scope='private') 호출
+// + PageShell wrapping 차단 (embedded). 옛 호출처 (Q info 메뉴) 는 props 안 전달 → workspace 모드 그대로.
+interface KnowledgePageProps {
+  embedded?: boolean;
+  mode?: 'workspace' | 'personal';
+}
+
+const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 'workspace' }) => {
   const { t } = useTranslation('knowledge');
   const { t: tErr } = useTranslation('errors');
   const { user } = useAuth();
@@ -146,6 +153,14 @@ const KnowledgePage = () => {
     if (!businessId) return;
     setLoading(true);
     try {
+      // N+30 — 개인 보관함 모드: fetchPersonalKb (본인 + scope='private') 자체 호출. 필터 UI 무시.
+      if (mode === 'personal') {
+        const list = await fetchPersonalKb(businessId);
+        // client-side query 필터 (backend 가 personal-vault 라우트에서 q 미지원)
+        const q = debouncedSearch.current.trim().toLowerCase();
+        setDocs(q ? list.filter(d => (d.title || '').toLowerCase().includes(q)) : list);
+        return;
+      }
       const filter: Parameters<typeof listKnowledge>[1] = {};
       if (activeScope !== 'all') filter.scope = activeScope;
       if (activeProject) filter.project_id = activeProject;
@@ -155,7 +170,7 @@ const KnowledgePage = () => {
       const list = await listKnowledge(businessId, filter);
       setDocs(list);
     } finally { setLoading(false); }
-  }, [businessId, activeScope, activeProject, activeClient, activeTag]);
+  }, [businessId, mode, activeScope, activeProject, activeClient, activeTag]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -350,6 +365,7 @@ const KnowledgePage = () => {
 
   return (
     <PageShell
+      embedded={embedded}
       title={t('page.title') as string}
       count={docs.length}
       helpDot={
