@@ -53,7 +53,8 @@ type FilterSel =
 
 export type PostsScope =
   | { type: 'workspace'; businessId: number }
-  | { type: 'project'; businessId: number; projectId: number };
+  | { type: 'project'; businessId: number; projectId: number }
+  | { type: 'personal'; businessId: number };  // N+30 — 개인 보관함 (본인 + vlevel=L1 + project_id=null)
 
 interface Props {
   scope: PostsScope;
@@ -143,7 +144,8 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
   const [slotTplId, setSlotTplId] = useState<number | null>(null);
   const [tplSearch, setTplSearch] = useState('');
   const { user } = useAuth();
-  const businessId = scope.type === 'workspace' ? scope.businessId : (user?.business_id ? Number(user.business_id) : null);
+  // N+30 — personal 도 scope.businessId 우선 사용 (multi-workspace 사용자 시 user.business_id fallback 잘못된 bizId 회귀 차단)
+  const businessId = (scope.type === 'workspace' || scope.type === 'personal') ? scope.businessId : (user?.business_id ? Number(user.business_id) : null);
   // 템플릿 저장 모달 상태
   const [saveTplOpen, setSaveTplOpen] = useState(false);
   const [saveTplName, setSaveTplName] = useState('');
@@ -177,6 +179,17 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
   const load = useCallback(async () => {
     setLoading(true);
     try {
+      // N+30 — 개인 보관함 모드: 자체 fetch 함수 (본인 + L1 + project_id=null 자동)
+      if (scope.type === 'personal') {
+        const { fetchPersonalPosts } = await import('../../services/posts');
+        const list = await fetchPersonalPosts(scope.businessId);
+        // 클라이언트 측 query 필터 (backend 가 q 파라미터 안 받음)
+        const filtered = query
+          ? list.filter(p => (p.title || '').toLowerCase().includes(query.toLowerCase()))
+          : list;
+        setRows(filtered);
+        return;
+      }
       // 필터를 API 파라미터로 변환
       const apiFilter: { projectId?: number | null; query?: string; category?: string; mine?: boolean } = {
         query: query || undefined,
