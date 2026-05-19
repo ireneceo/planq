@@ -40,8 +40,10 @@ html, body {
   #root {
     width: 100%;
     max-width: 100vw;
-    min-height: 100%;
-    overflow-x: hidden;
+    /* N+29 — 모바일 viewport 안정성. min-height:100% 옛 정책은 콘텐츠 늘어남 + body 스크롤 의존.
+       height:100% + 자식 LayoutContainer flex column overflow:hidden 으로 자체 스크롤 영역 강제. */
+    height: 100%;
+    overflow: hidden;
   }
 
   * {

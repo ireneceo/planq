@@ -59,7 +59,10 @@ const Page = styled.div`
   display: flex;
   flex-direction: column;
   background: #f8fafc;
-  min-height: calc(100vh - 64px);
+  /* N+29 — 모바일 viewport 안정성. 부모(MainContent) 안에서 height:100% 차지 + 헤더 고정 + Body 만 스크롤.
+     min-height:calc(100vh-64px) 옛 정책은 iOS toolbar hide/show 시 100vh 변동 → 페이지 흔들림 회귀. */
+  height: 100%;
+  min-height: 0;
 `;
 
 const Header = styled.div`
@@ -136,4 +139,8 @@ const Body = styled.div`
   padding: 20px;
   flex: 1;
   min-width: 0;
+  /* N+29 — 본문만 스크롤. flex 자식 안에서 overflow-y:auto 가 동작하려면 min-height:0 필수 (flex hack). */
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 `;
