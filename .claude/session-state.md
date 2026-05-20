@@ -3,19 +3,16 @@
 ## 현재 작업 상태
 **마지막 업데이트:** 2026-05-20
 **작업 상태:** 완료
-**운영 라이브 버전:** v1.16.0 (commit `f32f134`, N+30 개인 보관함 Phase 1+2+3 + ImageLightbox + dashboard fix)
+**운영 라이브 버전:** v1.16.1 (commit `8947504`, N+31 Q Talk 모바일 viewport 회귀 fix)
 
 ### 진행 중인 작업
 - 없음
 
 ### 완료된 작업 (이번 세션)
-- Q docs 모바일 UI 개선
-  - [템플릿] 모달: Q Calendar 스타일 적용 (top: 70px; bottom: 20px; left/right: 16px)
-  - [+] 드롭다운: position fixed로 화면 내 고정 (top: 68px; right: 16px)
-  - 문서 상세: 사이드바 숨김 + 뒤로가기 버튼 (제목 앞 인라인) + 헤더+본문 함께 스크롤
-- Profile 모바일 UI 개선
-  - 이메일 영역: flex-wrap으로 버튼 줄바꿈 처리
-  - 언어레벨 표: LevelTableWrap으로 가로 스크롤 추가
+- N+31 Q Talk 모바일 viewport 회귀 fix (v1.16.1 라이브)
+  - 증상: 모바일 PWA 진입 시 입력란이 위로 붙거나 아래에 큰 빈 공간 노출
+  - Root cause: N+29 가 LayoutContainer/#root 를 height:100% 로 바꾸며 body(정적 layout viewport) ≠ Layout(동적 vvh) 불일치
+  - Fix: #root + LayoutContainer 도 var(--vvh, 100dvh) 단위로 일관화 + vvh sync 글로벌 (main.tsx) + ChatPanel 중복 sync 제거
 
 ---
 

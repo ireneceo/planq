@@ -1,10 +1,42 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-05-20 사이클 N+30 — Q docs/Profile 모바일 UI 개선 (템플릿 모달 Q Calendar 스타일 + 드롭다운 위치 + 문서 상세 뒤로가기 + 프로필 overflow 수정)
+> **최종 업데이트:** 2026-05-20 사이클 N+31 — Q Talk 모바일 viewport 회귀 fix (v1.16.1 라이브, commit `8947504`)
 >
 > **직전 라이브:** v1.16.0 (commit `ab113a6`) — N+26~N+27 사이클 (업무 흐름 Focus MVP + 인박스 inline 모달 + Cue 주고받음)
 >
 > **이전 라이브:** v1.15.0 (commit `64ace71`) — N+22~N+25 사이클 (채팅 sender 워크스페이스명·OG SEO·Q Note 공유 통합)
+
+---
+
+## ✅ 완료: 사이클 N+31 모바일 viewport 회귀 fix (2026-05-20, v1.16.1)
+
+### 회귀 증상
+모바일 PWA 에서 Q Talk 진입 시 입력란이 화면 위로 붙거나 아래쪽에 큰 빈 공간 노출. 입력은 되지만 메시지 영역 확인/복사 불가.
+
+### Root cause
+**N+29 (`58a8eac`)** 가 `LayoutContainer` / `#root` 를 `min-height:100vh` → `height:100%` 로 변경 (toolbar hide/show 흔들림 fix 목적). 그 결과 body(정적 layout viewport, `position:fixed`) 와 Q Talk Layout(동적 `var(--vvh)`) 사이에 viewport 단위 불일치. 두 viewport 차이만큼 빈 공간 노출 + InputBar 위치 어긋남.
+
+추가로 `--vvh` sync 가 ChatPanel useEffect 안에만 있어서 첫 paint fallback `100dvh` → 다음 frame vvh 적용 시 갑작스런 축소 race + cleanup 의 `removeProperty('--vvh')` 가 다른 페이지 vvh 까지 깨뜨림.
+
+### Fix
+| 파일 | 변경 |
+|------|------|
+| `dev-frontend/src/index.css` | 모바일 `#root` height: `100%` → `var(--vvh, 100dvh)` |
+| `dev-frontend/src/components/Layout/MainLayout.tsx` | `LayoutContainer` height: `100%` → `var(--vvh, 100dvh)` |
+| `dev-frontend/src/main.tsx` | vvh sync 글로벌화 — `visualViewport.resize/scroll` + `orientationchange` + `focusin/focusout` 트리거 |
+| `dev-frontend/src/pages/QTalk/ChatPanel.tsx` | 중복 vvh sync useEffect 제거 |
+
+### Trade-off
+iOS Safari **브라우저** (PWA 아닌) 의 toolbar hide/show 시 vvh 변동으로 페이지 살짝 흔들릴 가능성. PWA standalone 에는 toolbar 없으므로 무관. **PWA 사용성 우선** — 입력란 안 보이면 앱 무용지물.
+
+### 30년차 결정 박제
+1. **viewport 단위 일관성 > toolbar 흔들림** — 자식 (Layout) 이 `var(--vvh)` 라면 부모 (LayoutContainer/#root) 도 같은 단위. 한 chain 안에 정적 100% 와 동적 vvh 섞이면 차이만큼 빈 공간 회귀.
+2. **vvh sync 는 글로벌** — 페이지별 useEffect 에 묶지 말 것. 마운트 race + cleanup 부수효과로 다른 페이지까지 깨짐.
+
+### 운영 배포 (이번 세션)
+- `8947504` v1.16.1 (N+31 mobile viewport fix) — 103초
+
+---
 
 ---
 
