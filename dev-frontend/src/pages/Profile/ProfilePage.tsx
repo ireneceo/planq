@@ -767,41 +767,43 @@ export default function ProfilePage() {
             <Trans i18nKey="languageLevel.description" ns="profile" components={{ 1: <strong />, 2: <strong />, 3: <br />, 4: <strong /> }} />
           </Description>
 
-          <LevelTableHead>
-            <LevelTableCell $head>{t('languageLevel.col.lang')}</LevelTableCell>
-            <LevelTableCell $head>{t('languageLevel.col.reading')}</LevelTableCell>
-            <LevelTableCell $head>{t('languageLevel.col.speaking')}</LevelTableCell>
-            <LevelTableCell $head>{t('languageLevel.col.listening')}</LevelTableCell>
-            <LevelTableCell $head>{t('languageLevel.col.writing')}</LevelTableCell>
-          </LevelTableHead>
-          {['ko', 'en', 'ja', 'zh', 'es', 'fr', 'de'].map((code) => {
-            const meta = LANGUAGES.find((l) => l.code === code);
-            const label = meta?.label || code.toUpperCase();
-            const block = languageLevels[code] || {};
-            return (
-              <LevelRow key={code}>
-                <LevelLangCell>{label}</LevelLangCell>
-                {(['reading', 'speaking', 'listening', 'writing'] as const).map((skill) => {
-                  const current = block[skill] ?? 0;
-                  return (
-                    <LevelCell key={skill}>
-                      <PlanQSelect
-                        size="sm"
-                        isClearable={false}
-                        isSearchable={false}
-                        value={LEVEL_OPTIONS.find((o) => o.value === current) || LEVEL_OPTIONS[0]}
-                        onChange={(opt) => {
-                          const v = (opt as { value: number } | null)?.value ?? 0;
-                          saveLanguageLevel(code, skill, v);
-                        }}
-                        options={LEVEL_OPTIONS}
-                      />
-                    </LevelCell>
-                  );
-                })}
-              </LevelRow>
-            );
-          })}
+          <LevelTableWrap>
+            <LevelTableHead>
+              <LevelTableCell $head>{t('languageLevel.col.lang')}</LevelTableCell>
+              <LevelTableCell $head>{t('languageLevel.col.reading')}</LevelTableCell>
+              <LevelTableCell $head>{t('languageLevel.col.speaking')}</LevelTableCell>
+              <LevelTableCell $head>{t('languageLevel.col.listening')}</LevelTableCell>
+              <LevelTableCell $head>{t('languageLevel.col.writing')}</LevelTableCell>
+            </LevelTableHead>
+            {['ko', 'en', 'ja', 'zh', 'es', 'fr', 'de'].map((code) => {
+              const meta = LANGUAGES.find((l) => l.code === code);
+              const label = meta?.label || code.toUpperCase();
+              const block = languageLevels[code] || {};
+              return (
+                <LevelRow key={code}>
+                  <LevelLangCell>{label}</LevelLangCell>
+                  {(['reading', 'speaking', 'listening', 'writing'] as const).map((skill) => {
+                    const current = block[skill] ?? 0;
+                    return (
+                      <LevelCell key={skill}>
+                        <PlanQSelect
+                          size="sm"
+                          isClearable={false}
+                          isSearchable={false}
+                          value={LEVEL_OPTIONS.find((o) => o.value === current) || LEVEL_OPTIONS[0]}
+                          onChange={(opt) => {
+                            const v = (opt as { value: number } | null)?.value ?? 0;
+                            saveLanguageLevel(code, skill, v);
+                          }}
+                          options={LEVEL_OPTIONS}
+                        />
+                      </LevelCell>
+                    );
+                  })}
+                </LevelRow>
+              );
+            })}
+          </LevelTableWrap>
           <Hint style={{ marginTop: 10 }}>
             {t('languageLevel.unsetHint')}
           </Hint>
@@ -1146,6 +1148,7 @@ const EmailRow = styled.div`
   display: flex;
   gap: 8px;
   align-items: center;
+  flex-wrap: wrap;
 `;
 
 const Hint = styled.div`
@@ -1165,6 +1168,12 @@ const VerifyBadge = styled.span<{ $ok?: boolean }>`
 `;
 
 // 언어 레벨 테이블 — 5 column 균등 (lang + 4 skills). 셀 폭 충분하게 minmax 사용 (라벨 wrap 방지).
+// 모바일에서 가로 스크롤 허용
+const LevelTableWrap = styled.div`
+  overflow-x: auto;
+  margin: 0 -4px;
+  padding: 0 4px;
+`;
 const LevelTableHead = styled.div`
   display: grid;
   grid-template-columns: minmax(96px, 0.9fr) repeat(4, minmax(130px, 1fr));

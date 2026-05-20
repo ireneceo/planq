@@ -520,7 +520,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
           </EdgeHandle>
         </CollapsedStrip>
       ) : (
-      <Sidebar>
+      <Sidebar $hasDetail={!!detail || isEditing}>
         <PanelHeader>
           <TitleGroup>
             <PanelTitle>{scope.type === 'workspace' ? t('page.title', 'Q docs') : t('tab.title', '문서')}</PanelTitle>
@@ -698,13 +698,18 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
         {isEditing ? (
           <>
             <PanelHeader>
-              <TitleInput
-                autoFocus={mode === 'new'}
-                value={titleDraft}
-                onChange={e => setTitleDraft(e.target.value)}
-                placeholder={t('titlePlaceholder', '문서 제목') as string}
-                maxLength={200}
-              />
+              <TitleRow>
+                <MobileBackBtn type="button" onClick={cancelEdit} aria-label={t('back', '뒤로') as string}>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+                </MobileBackBtn>
+                <TitleInput
+                  autoFocus={mode === 'new'}
+                  value={titleDraft}
+                  onChange={e => setTitleDraft(e.target.value)}
+                  placeholder={t('titlePlaceholder', '문서 제목') as string}
+                  maxLength={200}
+                />
+              </TitleRow>
               <EditActions>
                 <SecondaryBtn type="button" disabled={saving} onClick={cancelEdit}>{t('cancel', '취소')}</SecondaryBtn>
                 <PrimaryBtn type="button" disabled={saving || !titleDraft.trim()} onClick={submit}>
@@ -794,9 +799,13 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
         ) : detail ? (
           <>
             <PanelHeader>
-              <PanelSubTitle>
-                {detail.is_pinned && <PinDot title={t('list.pinned', '고정됨') as string} />}
-                {detail.title}
+              <TitleRow>
+                <MobileBackBtn type="button" onClick={() => setDetail(null)} aria-label={t('back', '뒤로') as string}>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+                </MobileBackBtn>
+                <PanelSubTitle>
+                  {detail.is_pinned && <PinDot title={t('list.pinned', '고정됨') as string} />}
+                  {detail.title}
                 {/* 양방향 링크: 자료정리에서 파생된 후속 문서면 parent 로 가는 링크 */}
                 {detail.parent_post_id && (
                   <ParentLink href={`/docs/brief/${detail.parent_post_id}`}
@@ -805,6 +814,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
                   </ParentLink>
                 )}
               </PanelSubTitle>
+              </TitleRow>
               <EditActions>
                 <SignBtn type="button" onClick={() => setSignOpen(true)} title={t('sign.headerHint', '서명자에게 이메일로 서명 요청') as string}>
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 4 }}><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="M2 2l7.586 7.586"/><circle cx="11" cy="11" r="2"/></svg>
@@ -995,16 +1005,18 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
               </ModalClose>
             </ModalHead>
-            <ModalSub>{t('saveTpl.sub', '현재 본문을 워크스페이스 템플릿으로 저장합니다. 다음 새 글 작성 시 검색해서 사용할 수 있습니다.')}</ModalSub>
-            <SaveTplField>
-              <SaveTplLabel>{t('saveTpl.name', '템플릿 이름')} *</SaveTplLabel>
-              <TplSearchInput type="text" value={saveTplName} onChange={e => setSaveTplName(e.target.value)} placeholder={t('saveTpl.namePh', '예: 우리 회사 표준 NDA') as string} />
-            </SaveTplField>
-            <SaveTplField>
-              <SaveTplLabel>{t('saveTpl.desc', '설명 (선택)')}</SaveTplLabel>
-              <TplSearchInput type="text" value={saveTplDesc} onChange={e => setSaveTplDesc(e.target.value)} placeholder={t('saveTpl.descPh', '한 줄 요약') as string} />
-            </SaveTplField>
-            {saveTplError && <SaveTplError>{saveTplError}</SaveTplError>}
+            <ModalBody>
+              <ModalSub>{t('saveTpl.sub', '현재 본문을 워크스페이스 템플릿으로 저장합니다. 다음 새 글 작성 시 검색해서 사용할 수 있습니다.')}</ModalSub>
+              <SaveTplField>
+                <SaveTplLabel>{t('saveTpl.name', '템플릿 이름')} *</SaveTplLabel>
+                <TplSearchInput type="text" value={saveTplName} onChange={e => setSaveTplName(e.target.value)} placeholder={t('saveTpl.namePh', '예: 우리 회사 표준 NDA') as string} />
+              </SaveTplField>
+              <SaveTplField>
+                <SaveTplLabel>{t('saveTpl.desc', '설명 (선택)')}</SaveTplLabel>
+                <TplSearchInput type="text" value={saveTplDesc} onChange={e => setSaveTplDesc(e.target.value)} placeholder={t('saveTpl.descPh', '한 줄 요약') as string} />
+              </SaveTplField>
+              {saveTplError && <SaveTplError>{saveTplError}</SaveTplError>}
+            </ModalBody>
             <ModalFooter>
               <SecondaryBtn type="button" onClick={() => !saveTplBusy && setSaveTplOpen(false)}>{t('cancel', '취소')}</SecondaryBtn>
               <PrimaryBtn type="button" disabled={saveTplBusy || !saveTplName.trim() || !detail} onClick={async () => {
@@ -1040,32 +1052,34 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
               </ModalClose>
             </ModalHead>
-            <ModalSub>{t('templates.modalSub', '본문이 자동으로 채워집니다. 자유롭게 편집한 후 저장하세요.')}</ModalSub>
-            <TplSearchInput
-              autoFocus
-              type="text"
-              value={tplSearch}
-              onChange={e => setTplSearch(e.target.value)}
-              placeholder={t('templates.searchPh', '템플릿 검색 (이름·설명·종류)') as string}
-            />
-            <TplGrid>
-              {templates.length === 0 ? (
-                <Empty>{t('templates.loading', '로드 중...')}</Empty>
-              ) : filteredTemplates.length === 0 ? (
-                <Empty>{t('templates.noResult', '검색 결과 없음')}</Empty>
-              ) : (
-                filteredTemplates.map(tpl => (
-                  <TplCard key={tpl.id} type="button" onClick={() => startFromTemplate(tpl)}>
-                    <TplCardIcon><KindIcon kind={tpl.kind} size={20} /></TplCardIcon>
-                    <TplCardBody>
-                      <TplCardName>{tpl.name}</TplCardName>
-                      <TplCardDesc>{tpl.description}</TplCardDesc>
-                    </TplCardBody>
-                    {tpl.is_system && <TplBadgeSys>{t('templates.system', '기본')}</TplBadgeSys>}
-                  </TplCard>
-                ))
-              )}
-            </TplGrid>
+            <ModalBody>
+              <ModalSub>{t('templates.modalSub', '본문이 자동으로 채워집니다. 자유롭게 편집한 후 저장하세요.')}</ModalSub>
+              <TplSearchInput
+                autoFocus
+                type="text"
+                value={tplSearch}
+                onChange={e => setTplSearch(e.target.value)}
+                placeholder={t('templates.searchPh', '템플릿 검색 (이름·설명·종류)') as string}
+              />
+              <TplGrid>
+                {templates.length === 0 ? (
+                  <Empty>{t('templates.loading', '로드 중...')}</Empty>
+                ) : filteredTemplates.length === 0 ? (
+                  <Empty>{t('templates.noResult', '검색 결과 없음')}</Empty>
+                ) : (
+                  filteredTemplates.map(tpl => (
+                    <TplCard key={tpl.id} type="button" onClick={() => startFromTemplate(tpl)}>
+                      <TplCardIcon><KindIcon kind={tpl.kind} size={20} /></TplCardIcon>
+                      <TplCardBody>
+                        <TplCardName>{tpl.name}</TplCardName>
+                        <TplCardDesc>{tpl.description}</TplCardDesc>
+                      </TplCardBody>
+                      {tpl.is_system && <TplBadgeSys>{t('templates.system', '기본')}</TplBadgeSys>}
+                    </TplCard>
+                  ))
+                )}
+              </TplGrid>
+            </ModalBody>
           </ModalDialog>
         </ModalBackdrop>
       )}
@@ -1107,11 +1121,15 @@ const Layout = styled.div<{ $collapsed?: boolean }>`
 `;
 
 // 좌측 사이드바 (리스트)
-const Sidebar = styled.aside`
+const Sidebar = styled.aside<{ $hasDetail?: boolean }>`
   display: flex; flex-direction: column; position: relative;
   background: #fff; border-right: 1px solid #E2E8F0;
   min-height: 0;
-  @media (max-width: 900px) { border-right: none; border-bottom: 1px solid #E2E8F0; }
+  @media (max-width: 900px) {
+    border-right: none; border-bottom: 1px solid #E2E8F0;
+    /* 모바일에서 문서 선택 시 리스트 숨기고 상세만 표시 */
+    display: ${p => p.$hasDetail ? 'none' : 'flex'};
+  }
 `;
 // 접힘 상태: 0 폭 + EdgeHandle 만 노출 (Q Talk LeftPanel 패턴 통일)
 const CollapsedStrip = styled.aside`
@@ -1172,7 +1190,16 @@ const NewDropdown = styled.div`
   box-shadow: 0 8px 24px -6px rgba(15,23,42,0.18);
   z-index: 100; overflow: hidden;
   animation: pqDocsNewDdFade 0.12s ease-out;
-  @keyframes pqDocsNewDdFade { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
+  @keyframes pqDocsNewDdFade { from { opacity: 0; } to { opacity: 1; } }
+  /* 모바일 — 헤더 아래 우측 정렬 */
+  @media (max-width: 640px) {
+    position: fixed;
+    top: 68px;
+    right: 16px;
+    left: auto;
+    min-width: auto;
+    width: 200px;
+  }
 `;
 const NewItem = styled.button`
   display: block; width: 100%; text-align: left;
@@ -1185,23 +1212,37 @@ const NewItem = styled.button`
 const NewItemTitle = styled.div`font-size: 13px; font-weight: 600; color: #0F172A;`;
 const NewItemDesc = styled.div`font-size: 11px; color: #94A3B8; margin-top: 2px;`;
 const ModalBackdrop = styled.div`
-  position: fixed; inset: 0; background: rgba(15,23,42,0.4);
-  display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 20px;
+  position: fixed; inset: 0; background: rgba(15,23,42,0.08);
+  z-index: 60;
 `;
 const ModalDialog = styled.div`
-  background: #FFF; border-radius: 14px; max-width: 640px; width: 100%; padding: 22px 24px;
-  box-shadow: 0 20px 60px rgba(0,0,0,0.2);
-  max-height: 80vh; overflow-y: auto;
+  position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  z-index: 70; width: 540px; max-width: calc(100vw - 40px); max-height: calc(100vh - 48px);
+  background: #FFF; border-radius: 14px;
+  box-shadow: 0 30px 60px -20px rgba(15,23,42,0.25);
+  display: flex; flex-direction: column; overflow: hidden;
+  /* 모바일 — Q Calendar 패턴: 헤더(70px) 아래로 배치 */
+  @media (max-width: 640px) {
+    top: 70px; bottom: 20px; left: 16px; right: 16px;
+    transform: none; width: auto; max-width: none; max-height: none;
+  }
 `;
-const ModalHead = styled.div`display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;`;
-const ModalTitle = styled.h2`font-size:16px;font-weight:700;color:#0F172A;margin:0;`;
+const ModalHead = styled.div`
+  display:flex;justify-content:space-between;align-items:center;
+  padding: 14px 18px; border-bottom: 1px solid #EEF2F6; flex-shrink: 0;
+`;
+const ModalTitle = styled.h2`font-size:15px;font-weight:700;color:#0F172A;margin:0;letter-spacing:-0.1px;`;
 const ModalClose = styled.button`
-  width:28px;height:28px;border:none;background:transparent;color:#64748B;cursor:pointer;border-radius:6px;
+  width:30px;height:30px;border:none;background:transparent;color:#64748B;cursor:pointer;border-radius:6px;
   display:flex;align-items:center;justify-content:center;
   &:hover{background:#F1F5F9;color:#0F172A;}
 `;
-const ModalSub = styled.p`font-size:12px;color:#64748B;margin:0 0 14px 0;line-height:1.5;`;
-const TplGrid = styled.div`display:grid;grid-template-columns:repeat(2,1fr);gap:8px;@media(max-width:520px){grid-template-columns:1fr;}`;
+const ModalBody = styled.div`
+  padding: 16px 18px; overflow-y: auto; flex: 1; min-height: 0;
+  display: flex; flex-direction: column; gap: 14px;
+`;
+const ModalSub = styled.p`font-size:12px;color:#64748B;margin:0;line-height:1.5;`;
+const TplGrid = styled.div`display:grid;grid-template-columns:repeat(2,1fr);gap:8px;flex:1;overflow-y:auto;@media(max-width:520px){grid-template-columns:1fr;}`;
 const TplCard = styled.button`
   display:flex;gap:10px;padding:12px;font-family:inherit;text-align:left;
   background:#FFF;border:1px solid #E2E8F0;border-radius:10px;cursor:pointer;
@@ -1241,7 +1282,10 @@ const ParentLink = styled.a`
 const SaveTplField = styled.div`display:flex;flex-direction:column;gap:6px;margin-bottom:10px;`;
 const SaveTplLabel = styled.label`font-size:12px;font-weight:600;color:#0F172A;`;
 const SaveTplError = styled.div`font-size:12px;color:#DC2626;background:#FEF2F2;padding:8px 10px;border-radius:6px;margin-bottom:8px;`;
-const ModalFooter = styled.div`display:flex;justify-content:flex-end;gap:8px;margin-top:8px;`;
+const ModalFooter = styled.div`
+  padding: 12px 18px; border-top: 1px solid #EEF2F6;
+  display: flex; justify-content: flex-end; gap: 8px; flex-shrink: 0;
+`;
 const TplCardBody = styled.div`flex:1;min-width:0;`;
 const TplCardName = styled.div`font-size:13px;font-weight:600;color:#0F172A;margin-bottom:2px;`;
 const TplCardDesc = styled.div`font-size:11px;color:#64748B;line-height:1.4;`;
@@ -1334,6 +1378,8 @@ const Content = styled.section<{ $hasDetail?: boolean }>`
   /* 모바일에서 문서 미선택 시 Content 숨기고 리스트만 표시 */
   @media (max-width: 900px) {
     display: ${p => p.$hasDetail ? 'flex' : 'none'};
+    /* 모바일: 헤더+본문 함께 스크롤 */
+    overflow-y: auto;
   }
 `;
 const Body = styled.div`
@@ -1342,6 +1388,11 @@ const Body = styled.div`
   overflow-y: auto;
   background: #F8FAFC;
   display: flex; flex-direction: column; gap: 16px;
+  @media (max-width: 900px) {
+    /* 모바일: Content가 스크롤하므로 Body는 스크롤 안 함 */
+    overflow-y: visible;
+    padding: 16px;
+  }
 `;
 const TitleInput = styled.input`
   flex: 1; height: 32px; padding: 0 10px;
@@ -1472,6 +1523,24 @@ const SecondaryBtn = styled.button`
   border: 1px solid #CBD5E1; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer;
   &:hover:not(:disabled) { background: #F8FAFC; }
   &:disabled { opacity: 0.5; cursor: not-allowed; }
+`;
+// 모바일 제목 행 — 뒤로가기 + 제목을 한 줄에
+const TitleRow = styled.div`
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  flex: 1;
+`;
+// 모바일 뒤로가기 버튼 — 데스크톱에서는 숨김, 제목과 인라인
+const MobileBackBtn = styled.button`
+  display: none;
+  @media (max-width: 900px) {
+    display: flex; align-items: center; justify-content: center;
+    width: 28px; height: 28px; flex-shrink: 0; margin-right: 4px;
+    background: transparent; border: none; color: #64748B; cursor: pointer;
+    border-radius: 6px;
+    &:hover { background: #F1F5F9; color: #0F172A; }
+  }
 `;
 const DangerBtn = styled.button`
   height: 32px; padding: 0 14px; background: #fff; color: #DC2626; white-space: nowrap;
