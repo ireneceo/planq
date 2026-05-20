@@ -1,10 +1,36 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-05-18 사이클 N+26~N+27 — 업무 흐름(Focus) MVP + 주간 보고 자동 확정 + 인박스 inline 모달 + 채팅 자동 추출 + Cue 주고받음(revision+댓글) + Cue 답변 thumbs (v1.16.0 운영 라이브, commit `ab113a6`)
+> **최종 업데이트:** 2026-05-20 사이클 N+30 — Q docs/Profile 모바일 UI 개선 (템플릿 모달 Q Calendar 스타일 + 드롭다운 위치 + 문서 상세 뒤로가기 + 프로필 overflow 수정)
 >
-> **직전 라이브:** v1.15.0 (commit `64ace71`) — N+22~N+25 사이클 (채팅 sender 워크스페이스명·OG SEO·Q Note 공유 통합)
+> **직전 라이브:** v1.16.0 (commit `ab113a6`) — N+26~N+27 사이클 (업무 흐름 Focus MVP + 인박스 inline 모달 + Cue 주고받음)
 >
-> **이전 라이브:** v1.13.0 (commit `5317eca`) — N+18~N+21 사이클 (주간보고·디자인 시스템·권한·청구·히스토리)
+> **이전 라이브:** v1.15.0 (commit `64ace71`) — N+22~N+25 사이클 (채팅 sender 워크스페이스명·OG SEO·Q Note 공유 통합)
+
+---
+
+## ✅ 완료: 사이클 N+30 모바일 UI 개선 (2026-05-20)
+
+### 완료된 작업
+
+| 작업 | 설명 | 상태 |
+|------|------|:----:|
+| Q docs 템플릿 모달 | 모바일에서 헤더에 가려지던 문제 수정 — Q Calendar 스타일 적용 (`top: 70px; bottom: 20px; left/right: 16px`) | ✅ |
+| Q docs [+] 드롭다운 | 화면 밖으로 나가던 문제 수정 — `position: fixed; top: 68px; right: 16px;` | ✅ |
+| Q docs 문서 상세 모바일 | 사이드바 숨김 + 뒤로가기 버튼 추가 (제목 앞 인라인) + 헤더+본문 함께 스크롤 | ✅ |
+| Profile 이메일 영역 | 버튼 wrap 처리 (`flex-wrap: wrap`) — 화면 밖으로 나가던 문제 수정 | ✅ |
+| Profile 언어레벨 표 | 가로 스크롤 wrapper 추가 (`overflow-x: auto`) — "말하기" 컬럼 잘림 수정 | ✅ |
+
+### 수정된 파일
+
+- `dev-frontend/src/components/Docs/PostsPage.tsx` — 템플릿 모달, 드롭다운, 사이드바 숨김, 뒤로가기 버튼, 스크롤 동작
+- `dev-frontend/src/pages/Profile/ProfilePage.tsx` — EmailRow flex-wrap, LevelTableWrap horizontal scroll
+
+### 30년차 결정 박제
+
+1. **Q Calendar 모달 패턴 재사용** — 새 디자인 대신 기존 검증된 패턴 (`position: fixed; top: 70px; bottom: 20px;`)
+2. **TitleRow wrapper** — PanelHeader가 모바일에서 column 레이아웃이라 뒤로가기+제목을 inline으로 감싸야 함
+3. **Sidebar $hasDetail prop** — 문서 선택 시 사이드바 숨김, 뒤로가기로 복귀
+4. **Content overflow 분리** — 모바일에서 헤더+본문 함께 스크롤 (Content `overflow-y: auto`, Body `overflow-y: visible`)
 
 ---
 
