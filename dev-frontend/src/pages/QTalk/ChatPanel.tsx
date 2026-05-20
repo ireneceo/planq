@@ -208,38 +208,8 @@ const ChatPanel: React.FC<Props> = ({
     }, 350);
   }, []);
 
-  // 사이클 N+15-B + N+17 — 모바일 키보드 up 감지 → body[data-keyboard-up=1] 토글.
-  // 일부 iOS 버전이 `env(safe-area-inset-bottom)` 을 키보드 up 상태에서도 34px 유지하는 버그 회피용.
-  // InputBar 의 padding-bottom 이 body[data-keyboard-up=1] 셀렉터에서 0 으로 강제 → 입력란-키보드 사이 빈 공간 0.
-  //
-  // 사이클 N+17 강화: 100dvh 가 iOS Safari standalone PWA 에서 키보드 펼침에 즉시 반응 안 하는
-  // 회귀 차단. visualViewport.height 를 CSS var(--vvh) 로 강제 sync → Container 가 그 높이 그대로
-  // 적용. 결과 — 키보드 펼치는 즉시 InputBar 가 정확히 키보드 위에 붙음 + 마지막 메시지 가시.
-  React.useEffect(() => {
-    const vv = window.visualViewport;
-    if (!vv) return;
-    const update = () => {
-      const isUp = vv.height < window.innerHeight * 0.70;
-      if (isUp) {
-        document.body.setAttribute('data-keyboard-up', '1');
-      } else {
-        document.body.removeAttribute('data-keyboard-up');
-      }
-      // CSS var --vvh — viewport 변화 즉시 반영. 모든 px 단위 (dvh 보다 정확).
-      document.documentElement.style.setProperty('--vvh', `${vv.height}px`);
-    };
-    update();
-    vv.addEventListener('resize', update);
-    vv.addEventListener('scroll', update);
-    window.addEventListener('orientationchange', update);
-    return () => {
-      vv.removeEventListener('resize', update);
-      vv.removeEventListener('scroll', update);
-      window.removeEventListener('orientationchange', update);
-      document.body.removeAttribute('data-keyboard-up');
-      document.documentElement.style.removeProperty('--vvh');
-    };
-  }, []);
+  // N+31 — vvh sync 글로벌 이동 (main.tsx). ChatPanel 마운트 race 차단.
+  // 옛 cleanup 의 removeProperty('--vvh') 가 다른 페이지/모달 viewport 까지 깨뜨리던 회귀도 같이 정리.
   const [editingDraftId, setEditingDraftId] = useState<number | null>(null);
   const [draftBody, setDraftBody] = useState('');
   // 사이클 N+15-E — 발신자 정보 popover. open 상태 + anchor + userId 저장.

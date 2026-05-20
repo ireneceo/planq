@@ -51,9 +51,11 @@ const LayoutContainer = styled.div`
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   background-color: #F8FAFC;
   -webkit-font-smoothing: antialiased;
-  /* N+29 — 모바일 viewport 안정성. body 가 스크롤 받지 않고 자체 자식(MainContent) 만 스크롤.
-     min-height:100vh 옛 정책은 iOS toolbar hide/show 시 100vh 변동 인한 페이지 흔들림 회귀 유발. */
-  height: 100%;
+  /* N+31 — viewport 단위 vvh 일관화.
+     N+29 가 height:100% 로 toolbar 흔들림은 잡았으나 모바일 PWA 에서
+     body(정적 layout viewport) ≠ Layout(동적 vvh) 으로 빈 공간 회귀.
+     LayoutContainer 도 vvh 단위로 맞춰 자식 Layout 과 동기화. */
+  height: var(--vvh, 100dvh);
   display: flex;
   flex-direction: column;
   overflow: hidden;
