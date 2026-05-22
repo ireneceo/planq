@@ -388,7 +388,8 @@ function scheduleNextMidnight() {
       console.log('[recurring-invoice]', { ok: r.ok, skip: r.skip, fail: r.fail });
     } catch (e) { console.warn('[recurring-invoice] failed', e.message); }
     try {
-      const r = await recurringTask.runDailyRecurringTaskGen();
+      // io 주입 — generator 가 새 인스턴스 broadcast (CLAUDE.md 16번)
+      const r = await recurringTask.runDailyRecurringTaskGen(new Date(), io);
       console.log('[recurring-task]', { ok: r.ok, skip: r.skip, fail: r.fail });
     } catch (e) { console.warn('[recurring-task] failed', e.message); }
     try {

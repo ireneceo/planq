@@ -60,7 +60,8 @@ function computeNextOccurrence(ruleStr, lastOccurrenceDateStr, generatedCount) {
   return nextDate;
 }
 
-async function generateOneSeries(parent, today = new Date()) {
+// io: socket.io Server instance (server.js 에서 주입). 없으면 broadcast 스킵 (단위 테스트 안전).
+async function generateOneSeries(parent, today = new Date(), io = null) {
   if (!parent.next_occurrence_at) {
     return { parent_id: parent.id, skipped: 'series_ended' };
   }
@@ -120,6 +121,29 @@ async function generateOneSeries(parent, today = new Date()) {
       next_occurrence_at: null,
     });
     createdId = inst.id;
+
+    // 실시간 동기화 — 새 인스턴스가 다른 사용자/디바이스에 즉시 보이도록.
+    // CLAUDE.md "운영 안정성 16번" — 모든 task 생성 라우트는 broadcast 강제.
+    if (io) {
+      try {
+        const { Task: TaskModel, Project, User } = require('../models');
+        const full = await TaskModel.findByPk(inst.id, {
+          include: [
+            { model: Project, attributes: ['id', 'name'], required: false },
+            { model: User, as: 'assignee', attributes: ['id', 'name', 'name_localized'], required: false },
+            { model: User, as: 'requester', attributes: ['id', 'name', 'name_localized'], required: false },
+          ],
+        });
+        if (full) {
+          // actor_user_id null — cron 발생이라 본인 액션 토스터 차단 대상 없음
+          const payload = { ...full.toJSON(), actor_user_id: null, _source: 'recurring_cron' };
+          if (parent.business_id) io.to(`business:${parent.business_id}`).emit('task:new', payload);
+          if (parent.project_id) io.to(`project:${parent.project_id}`).emit('task:new', payload);
+        }
+      } catch (e) {
+        console.warn('[recurringTask] broadcast failed', inst.id, e.message);
+      }
+    }
   }
 
   // parent.next_occurrence_at advance
@@ -142,7 +166,8 @@ async function generateOneSeries(parent, today = new Date()) {
   };
 }
 
-async function runDailyRecurringTaskGen(today = new Date()) {
+// io: server.js 가 cron 진입점에서 주입.
+async function runDailyRecurringTaskGen(today = new Date(), io = null) {
   const cutoffDate = new Date(today);
   cutoffDate.setDate(today.getDate() + 7);
   const cutoffStr = toDateOnlyStr(cutoffDate);
@@ -159,7 +184,7 @@ async function runDailyRecurringTaskGen(today = new Date()) {
   const out = { ok: 0, skip: 0, fail: 0, results: [] };
   for (const p of parents) {
     try {
-      const r = await generateOneSeries(p, today);
+      const r = await generateOneSeries(p, today, io);
       if (r.instance_id) out.ok += 1;
       else out.skip += 1;
       out.results.push(r);

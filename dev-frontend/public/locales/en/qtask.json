@@ -201,6 +201,7 @@
     "presetMonthly": "Monthly on the {{day}}",
     "presetYearly": "Annually on {{month}} {{day}}",
     "presetCustom": "Custom...",
+    "instance": "Auto-generated instance from a recurring task",
     "endLabel": "Ends",
     "endTypeNever": "Never",
     "endTypeCount": "After N times",
