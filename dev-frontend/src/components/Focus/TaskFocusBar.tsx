@@ -78,6 +78,13 @@ const TaskFocusBar: React.FC<Props> = ({ taskId, assigneeId, status }) => {
     return () => window.clearInterval(id);
   }, [enabled, loadCurrent]);
 
+  // N+49-3 — status 변경 시 즉시 re-fetch. status 'in_progress' 진입/이탈 시 backend 가 focus session 만들거나 끊는데
+  // 30s polling 으로 기다리면 사용자 인지로 "사라졌다 나옴" 깜빡임 회귀. 즉시 동기화로 차단.
+  useEffect(() => {
+    if (!enabled) return;
+    loadCurrent();
+  }, [status, enabled, loadCurrent]);
+
   useEffect(() => {
     if (!session || session.state !== 'active' || session.task_id !== taskId) return;
     const id = window.setInterval(() => setTick(t => t + 1), 1000);
@@ -201,12 +208,14 @@ const TONE: Record<Tone, { bg: string; border: string; dot: string; titleColor: 
 const Bar = styled.div<{ $tone: Tone }>`
   display: flex; align-items: center; gap: 14px;
   /* N+32 — 사용자 호소 "헤더 크게" 정합. sticky top 으로 drawer 본문 스크롤 시에도 항상 보임.
-     padding/margin 키워 헤더처럼 강조. */
+     padding/margin 키워 헤더처럼 강조.
+     N+49-3 — top: 12px 띄움 (헤더 들러붙음 호소). 좌우 14px 로 Section 과 정합 (좌우 짧음 호소).
+     sticky top: 0 그대로 — 스크롤 시 헤더 바로 아래 고정. */
   padding: 14px 18px;
   background: ${p => TONE[p.$tone].bg};
   border: 1px solid ${p => TONE[p.$tone].border};
   border-radius: 10px;
-  margin: 0 20px 14px;
+  margin: 12px 14px 14px;
   position: sticky;
   top: 0;
   z-index: 5;
