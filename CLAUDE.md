@@ -598,6 +598,42 @@ import DetailDrawer from 'components/Common/DetailDrawer';
 
 15. **web-push 발송 옵션 — urgency 'high' + TTL 1일 (사이클 N+13 박제)** — `webpush.sendNotification(sub, json, { TTL: 86400, urgency: 'high' })`. urgency 'high' 는 push service 가 즉시 전달 시도 (default 'normal' 보다 빠름, 모바일 도착률 ↑). TTL 86400 = 1일 (default 28일은 너무 길어 stale 알림 도착). topic 옵션은 의도적으로 비활성 — 짧은 시간 다건 메시지가 collapse 되지 않게.
 
+16. **🔥 실시간 데이터 반영 — 모든 페이지 강제 (사이클 N+38 박제)** — **사용자 호소 핵심: "리프레시 없이 즉시 보여야 한다".** 다른 사용자가 데이터 추가/수정/삭제하면 본인이 그 페이지를 열고 있을 때 **즉시 자동 반영**. 페이지 mount 시 다음 4 요소 모두 구현 필수:
+
+    **(a) socket 연결 + business room join** — `io({ auth: token })` + `s.emit('join:business', businessId)` (cross-workspace 사용자는 모든 워크스페이스 room join). 재연결 시 `s.on('connect')` 에서 자동 재 join (TodoPage.tsx:122-124 패턴).
+
+    **(b) backend broadcast 호출** — 데이터 변경 라우트는 모두 `io.to('business:${bizId}').emit('<event>', payload)` 호출. 라우트 추가 시 같이 broadcast 강제:
+       - tasks: `task:new` / `task:updated` / `task:deleted`
+       - candidates: `candidate:new` / `candidate:updated` (`routes/task_workflow.js` broadcast helper 참조)
+       - messages: `message:new` (routes/conversations.js)
+       - posts/files/kb/invoices/events: 같은 패턴 — entity 별 event 명. 누락 시 사용자 호소 "갱신 안 됨" 반복.
+
+    **(c) frontend listener + silentLoad 또는 setState merge** — `s.on('<event>', debouncedReload)` (250ms debounce + 250ms 합치기) 또는 즉시 `setState((prev) => merge(prev, payload))`. list 큰 페이지는 silentLoad (server fresh — memory `feedback_visibility_refresh_server_fresh.md`), list 작은 페이지는 즉시 state merge.
+
+    **(d) visibility/focus 복귀 안전망** — `useVisibilityRefresh(silentLoad)` 훅 추가. PWA background → foreground 또는 socket 끊김 → 재연결 시 missed event 회복. 모바일 PWA 에서 시스템이 socket 끊을 때 정합.
+
+    **(e) 같은 탭 안 안전망 (선택)** — workflow 액션 (status 변경 등) 시 `window.dispatchEvent(new CustomEvent('inbox:refresh'))` + 페이지가 `window.addEventListener('inbox:refresh', debouncedReload)`. socket broadcast 와 별개로 자체 액션 즉시 sync (TaskDetailDrawer + TodoPage N+35 패턴).
+
+    **검증 시나리오 — 신규 페이지 추가 시 필수 통과:**
+       1. **2 브라우저 탭** (다른 사용자 시뮬레이션) — A 가 추가/수정 → B 가 그 페이지 열고 있으면 즉시 보임 (≤ 1초)
+       2. **socket 끊김** — 모바일 background 5분 후 foreground → 그 동안 다른 사용자가 추가한 데이터 즉시 보임
+       3. **다중 디바이스** — 같은 사용자 데스크탑 + 모바일 동시 접속. 한 쪽 액션 → 다른 쪽 즉시 반영 (`user:N` socket room)
+       4. **새로고침 불필요** — F5 안 눌러도 페이지 자체가 갱신. F5 누르면 리셋 — 사용자 호소 "리프레시 안 해도" 보장
+
+    **신규 페이지 / 라우트 추가 시 체크리스트:**
+       - [ ] backend route 가 `broadcast()` 호출하는가?
+       - [ ] frontend 페이지가 socket listener 등록하는가?
+       - [ ] silentLoad 함수가 200~250ms debounce 되는가?
+       - [ ] `useVisibilityRefresh` 등록되어 있는가?
+       - [ ] 다른 탭에서 변경 시 즉시 보이는지 visual 검증했는가?
+
+    **회귀 사례 (N+35~):**
+       - 확인필요 카드 (Dashboard/TodoPage) — socket broadcast 정합인데도 silentLoad debounce 지연 → window CustomEvent 안전망 추가
+       - MemoPopup → QNote sync — backend Q note 가 별도 FastAPI 라 socket.io 사용 X → window CustomEvent 패턴
+       - task_workflow.js 8 라우트 broadcast 누락 (옛) → `broadcast(req, task)` 호출 강제
+
+    **박제: 신규 모든 페이지/라우트 작성 시 이 16번 항목을 체크리스트로 사용. 누락 시 사용자 호소 회귀 반복.**
+
 ---
 
 ## 검증 시나리오 — 채팅·알림 (사이클 N+12 박제)
