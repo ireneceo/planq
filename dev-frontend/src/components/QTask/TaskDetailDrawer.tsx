@@ -450,7 +450,12 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
       const opts: RequestInit = { method };
       if (body) { opts.headers = { 'Content-Type': 'application/json' }; opts.body = JSON.stringify(body); }
       const r = await (await apiFetch(`/api/tasks/${detailTask.id}${path}`, opts)).json();
-      if (r.success) await refreshAfterAction();
+      if (r.success) {
+        await refreshAfterAction();
+        // N+35 — 즉시 인박스 카드 동기화 안전망 (socket broadcast 와 별개로 같은 탭의 TodoPage 즉시 reload).
+        // socket 지연/끊김 케이스에서도 카드 갱신 보장. 사용자 호소: "확인필요 카드 실시간 갱신 안 됨"
+        try { window.dispatchEvent(new CustomEvent('inbox:refresh')); } catch { /* noop */ }
+      }
       return r;
     } finally { setActionBusy(false); }
   };

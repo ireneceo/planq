@@ -473,6 +473,18 @@ const QNotePage = () => {
     loadSessions();
   }, [loadSessions]);
 
+  // N+35 — 글로벌 sync. MemoPopup 자동저장/생성 시 list 즉시 갱신.
+  // backend Q note 가 별도 FastAPI 라 socket.io 없음 → window CustomEvent 패턴.
+  useEffect(() => {
+    const onSync = () => { loadSessions(); };
+    window.addEventListener('qnote-session-created', onSync);
+    window.addEventListener('qnote-session-updated', onSync);
+    return () => {
+      window.removeEventListener('qnote-session-created', onSync);
+      window.removeEventListener('qnote-session-updated', onSync);
+    };
+  }, [loadSessions]);
+
   // URL 파라미터로 세션 자동 열기 (/notes/:sessionId)
   // handleStartMeeting 이 직접 navigate 했을 때는 openReview 를 다시 부르면 안 됨
   // → urlSessionIdHandled 를 navigate 전에 세팅 + activeSessionRef 가 이미 해당 id 이면 스킵
