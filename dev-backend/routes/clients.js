@@ -5,6 +5,15 @@ const { authenticateToken, checkBusinessAccess } = require('../middleware/auth')
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const { createAuditLog } = require('../middleware/audit');
 
+// N+38 — 실시간 동기화 (CLAUDE.md 운영 안정성 16번 박제).
+function broadcastClient(req, client, event = 'client:updated') {
+  const io = req.app.get('io');
+  if (!io) return;
+  const data = client.toJSON ? client.toJSON() : client;
+  const bizId = client.business_id || req.params.businessId;
+  if (bizId) io.to(`business:${bizId}`).emit(event, data);
+}
+
 // List clients for a business
 // 프로젝트 매칭은 ProjectClient.contact_user_id = Client.user_id 로 통일 (FK 기반).
 // email/name 문자열 매칭 폐기 — 고객이 이름/이메일 변경 시 연결이 끊기거나 동명이인 혼선 제거.
@@ -88,6 +97,7 @@ router.post('/:businessId', authenticateToken, checkBusinessAccess, async (req, 
       action: 'client.invited', targetType: 'client', targetId: client.id,
       newValue: { user_id, display_name, company_name },
     });
+    broadcastClient(req, client, 'client:new');
     successResponse(res, client, 'Client invited', 201);
   } catch (error) {
     next(error);
@@ -161,7 +171,7 @@ router.put('/:businessId/:id', authenticateToken, checkBusinessAccess, async (re
       patch.status = status; before.status = client.status;
     }
 
-    if (Object.keys(patch).length === 0) return successResponse(res, client);
+    if (Object.keys(patch).length === 0) { broadcastClient(req, client, 'client:updated'); return successResponse(res, client); }
     await client.update(patch);
     await createAuditLog({
       userId: req.user.id, businessId: req.params.businessId,

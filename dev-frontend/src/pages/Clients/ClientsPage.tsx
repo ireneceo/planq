@@ -112,6 +112,36 @@ export default function ClientsPage() {
 
   useEffect(() => { load(); }, [load]);
 
+  // N+38 — 실시간 동기화 (CLAUDE.md 운영 안정성 16번 박제).
+  useEffect(() => {
+    if (!businessId) return;
+    let pending: number | null = null;
+    const debouncedReload = () => {
+      if (pending) return;
+      pending = window.setTimeout(() => { pending = null; void load(); }, 250);
+    };
+    let socket: { disconnect: () => void } | null = null;
+    import('socket.io-client').then(({ io }) => {
+      import('../../contexts/AuthContext').then(({ getAccessToken }) => {
+        if (!getAccessToken()) return;
+        const s = io({
+          auth: (cb) => cb({ token: getAccessToken() }),
+          transports: ['websocket', 'polling'],
+          reconnection: true,
+        });
+        socket = s;
+        s.on('connect', () => { s.emit('join:business', Number(businessId)); });
+        s.on('client:new', debouncedReload);
+        s.on('client:updated', debouncedReload);
+        s.on('client:deleted', debouncedReload);
+      });
+    });
+    return () => {
+      if (pending) window.clearTimeout(pending);
+      if (socket) socket.disconnect();
+    };
+  }, [businessId, load]);
+
   // 드로어 상세 로드
   useEffect(() => {
     if (!activeId) { setActiveDetail(null); setHistory([]); setHistoryLoaded(false); setHistoryOpen(false); return; }
