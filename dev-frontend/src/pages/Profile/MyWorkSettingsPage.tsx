@@ -23,9 +23,10 @@ const MyWorkSettingsPage: React.FC = () => {
 
 export default MyWorkSettingsPage;
 
+// 사용자 호소: "좌우 풀이 아니야" — max-width: 720px 가 본문 폭 제한. PageShell 의 표준 body
+// padding 안에서 좌우 풀 차지하도록 max-width 제거. 단일 column flex 유지 (카드 2개 세로 배치).
 const Body = styled.div`
   display: flex;
   flex-direction: column;
   gap: 16px;
-  max-width: 720px;
 `;
