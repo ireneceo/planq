@@ -7,6 +7,15 @@ const {
   BusinessMember, User, Client, Project,
 } = require('../models');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
+
+// N+38 — 실시간 동기화 (CLAUDE.md 운영 안정성 16번 박제).
+function broadcastEvent(req, event, eventName = 'event:updated') {
+  const io = req.app.get('io');
+  if (!io) return;
+  const data = event.toJSON ? event.toJSON() : event;
+  if (event.business_id) io.to(`business:${event.business_id}`).emit(eventName, data);
+}
+
 const { authenticateToken, checkBusinessAccess } = require('../middleware/auth');
 const { attachWorkspaceScope, isMemberOrAbove, getUserScope } = require('../middleware/access_scope');
 const { createAuditLog } = require('../middleware/audit');
@@ -320,6 +329,7 @@ router.post('/by-business/:businessId', authenticateToken, checkBusinessAccess, 
       }
     } catch (e) { console.warn('[notify event invite outer]', e.message); }
 
+    broadcastEvent(req, full, 'event:created');
     return successResponse(res, full.toJSON(), 'created', 201);
   } catch (err) {
     if (!t.finished) await t.rollback();
@@ -480,6 +490,7 @@ router.put('/by-business/:businessId/:id', authenticateToken, checkBusinessAcces
     });
 
     const full = await CalendarEvent.findByPk(event.id, { include: INCLUDE_DETAIL });
+    broadcastEvent(req, full, 'event:updated');
     return successResponse(res, full.toJSON());
   } catch (err) {
     if (!t.finished) await t.rollback();
@@ -516,6 +527,7 @@ router.delete('/by-business/:businessId/:id', authenticateToken, checkBusinessAc
       ip_address: req.ip,
     });
 
+    broadcastEvent(req, { id: event.id, business_id: event.business_id }, 'event:deleted');
     return successResponse(res, { id: event.id });
   } catch (err) { next(err); }
 });

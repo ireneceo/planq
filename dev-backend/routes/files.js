@@ -16,6 +16,15 @@ const { authenticateToken, checkBusinessAccess } = require('../middleware/auth')
 const { attachWorkspaceScope, fileListWhereByLevel, canAccessFileByLevel, isMemberOrAbove, getUserScope } = require('../middleware/access_scope');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 
+// N+38 — 실시간 동기화 (CLAUDE.md 운영 안정성 16번 박제).
+function broadcastFile(req, file, event = 'file:updated') {
+  const io = req.app.get('io');
+  if (!io) return;
+  const data = file.toJSON ? file.toJSON() : file;
+  if (file.business_id) io.to(`business:${file.business_id}`).emit(event, data);
+  if (file.project_id) io.to(`project:${file.project_id}`).emit(event, data);
+}
+
 const uploadDir = path.join(__dirname, '..', 'uploads');
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
 
@@ -392,6 +401,7 @@ router.post('/:businessId', authenticateToken, checkBusinessAccess, upload.singl
         // 로컬 임시 파일 제거
         fs.unlinkSync(tempPath);
         tempPath = null;
+        broadcastFile(req, file, 'file:new');
         return successResponse(res, file, 'File uploaded to Drive', 201);
       } catch (e) {
         console.error('[files] gdrive upload failed:', e.message);
@@ -491,6 +501,7 @@ router.post('/:businessId', authenticateToken, checkBusinessAccess, upload.singl
       const previewUrl = (isImage && file.file_path)
         ? `/api/files/public-image/${path.basename(file.file_path)}`
         : null;
+      broadcastFile(req, file, 'file:new');
       successResponse(res, { ...file.toJSON(), preview_url: previewUrl }, 'File uploaded', 201);
     } catch (e) {
       await t.rollback();
@@ -599,6 +610,7 @@ router.delete('/:businessId/:id', authenticateToken, checkBusinessAccess, async 
         targetId: file.id,
         oldValue: { name: file.original_filename, size: Number(file.size_bytes) || 0 },
       });
+      broadcastFile(req, { id: file.id, business_id: file.business_id, project_id: file.project_id }, 'file:deleted');
       successResponse(res, null, 'File deleted');
     } catch (e) { await t.rollback(); throw e; }
   } catch (error) {
@@ -629,6 +641,7 @@ router.post('/:businessId/bulk-delete', authenticateToken, checkBusinessAccess, 
     try {
       for (const f of files) await softDeleteFile(f, t);
       await t.commit();
+      for (const f of files) broadcastFile(req, { id: f.id, business_id: f.business_id, project_id: f.project_id }, 'file:deleted');
       successResponse(res, { deleted: files.length }, `${files.length} files deleted`);
     } catch (e) { await t.rollback(); throw e; }
   } catch (error) {

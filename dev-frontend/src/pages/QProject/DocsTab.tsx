@@ -104,6 +104,48 @@ const DocsTab: React.FC<Props> = (props) => {
     return () => { cancelled = true; };
   }, [projectId, businessId, isWorkspace, isPersonal]);
 
+  // N+38 — 실시간 동기화 (CLAUDE.md 운영 안정성 16번 박제).
+  // 다른 사용자가 파일 업로드/삭제/이동/visibility 변경 시 본인이 페이지 열고 있으면 즉시 보임.
+  // backend files.js 가 business room 으로 broadcast.
+  useEffect(() => {
+    if (!businessId) return;
+    let pending: number | null = null;
+    const triggerReload = () => {
+      if (pending) return;
+      pending = window.setTimeout(() => {
+        pending = null;
+        // 같은 fetch 흐름 재호출 — 위 effect 의 deps 변경 트리거하기 어려우니 직접 fetch
+        if (isPersonal) {
+          import('../../services/files').then(({ fetchPersonalFiles }) => fetchPersonalFiles(businessId).then(fs => setFiles(fs)));
+        } else if (isWorkspace) {
+          fetchWorkspaceFiles(businessId).then(fs => setFiles(fs));
+        } else {
+          Promise.all([fetchProjectFiles(projectId), fetchFolders(projectId)]).then(([fs, fd]) => { setFiles(fs); setFolders(fd); });
+        }
+      }, 250);
+    };
+    let socket: { disconnect: () => void } | null = null;
+    import('socket.io-client').then(({ io }) => {
+      import('../../contexts/AuthContext').then(({ getAccessToken }) => {
+        if (!getAccessToken()) return;
+        const s = io({
+          auth: (cb) => cb({ token: getAccessToken() }),
+          transports: ['websocket', 'polling'],
+          reconnection: true,
+        });
+        socket = s;
+        s.on('connect', () => { s.emit('join:business', businessId); });
+        s.on('file:new', triggerReload);
+        s.on('file:updated', triggerReload);
+        s.on('file:deleted', triggerReload);
+      });
+    });
+    return () => {
+      if (pending) window.clearTimeout(pending);
+      if (socket) socket.disconnect();
+    };
+  }, [businessId, projectId, isWorkspace, isPersonal]);
+
   // 선택 모드 종료 시 선택 초기화
   useEffect(() => { if (!selectMode) setSelectedIds(new Set()); }, [selectMode]);
 
