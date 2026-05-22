@@ -7,6 +7,23 @@ const {
   BusinessMember, User, Client, Project,
 } = require('../models');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
+const { applyMemberDisplayName, applyMemberDisplayNameOne } = require('../services/displayName');
+
+// 워크스페이스 표시명 우선 적용 — N+39-7. event.creator + attendees[].user 양쪽.
+async function applyEventDisplayNames(items, businessId) {
+  if (!businessId) return items;
+  const list = Array.isArray(items) ? items : [items];
+  await applyMemberDisplayName(list, businessId, ['creator']);
+  // attendees[].user 평면화 후 처리
+  const attendeeUsers = [];
+  for (const e of list) {
+    if (Array.isArray(e?.attendees)) {
+      for (const a of e.attendees) if (a?.user) attendeeUsers.push(a);
+    }
+  }
+  if (attendeeUsers.length) await applyMemberDisplayName(attendeeUsers, businessId, ['user']);
+  return items;
+}
 
 // N+38 — 실시간 동기화 (CLAUDE.md 운영 안정성 16번 박제).
 function broadcastEvent(req, event, eventName = 'event:updated') {
@@ -164,6 +181,7 @@ router.get('/by-business/:businessId', authenticateToken, attachWorkspaceScope()
     }
 
     events.sort((a, b) => new Date(a.start_at) - new Date(b.start_at));
+    await applyEventDisplayNames(events, businessId);
     return successResponse(res, events);
   } catch (err) { next(err); }
 });

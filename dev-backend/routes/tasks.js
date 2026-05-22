@@ -118,6 +118,8 @@ router.get('/my-week', authenticateToken, async (req, res, next) => {
       return s + est * (1 - prog);
     }, 0);
 
+    const tasksJson = tasks.map(t => t.toJSON());
+    await applyMemberDisplayName(tasksJson, businessId, ['assignee']);
     return successResponse(res, {
       week: monday,
       capacity,
@@ -128,7 +130,7 @@ router.get('/my-week', authenticateToken, async (req, res, next) => {
         total_remaining: Math.round(totalRemaining * 10) / 10,
       },
       burndown,
-      tasks: tasks.map(t => t.toJSON()),
+      tasks: tasksJson,
     });
   } catch (err) { next(err); }
 });
@@ -189,11 +191,13 @@ router.get('/my-month', authenticateToken, async (req, res, next) => {
 
     const capacity = await getMemberCapacity(userId, businessId);
 
+    const tasksJson = tasks.map(t => t.toJSON());
+    await applyMemberDisplayName(tasksJson, businessId, ['assignee']);
     return successResponse(res, {
       month,
       capacity,
       weeks,
-      tasks: tasks.map(t => t.toJSON()),
+      tasks: tasksJson,
     });
   } catch (err) { next(err); }
 });
@@ -277,7 +281,9 @@ router.get('/backlog', authenticateToken, async (req, res, next) => {
       order: [['priority_order', 'ASC'], ['created_at', 'DESC']],
     });
 
-    return successResponse(res, tasks.map(t => t.toJSON()));
+    const tasksJson = tasks.map(t => t.toJSON());
+    await applyMemberDisplayName(tasksJson, businessId, ['assignee']);
+    return successResponse(res, tasksJson);
   } catch (err) { next(err); }
 });
 
@@ -1436,7 +1442,9 @@ router.get('/requested', authenticateToken, async (req, res, next) => {
       ],
       order: [['due_date', 'ASC'], ['priority_order', 'ASC'], ['created_at', 'DESC']],
     });
-    return successResponse(res, tasks.map((t) => t.toJSON()));
+    const tasksJson = tasks.map((t) => t.toJSON());
+    await applyMemberDisplayName(tasksJson, businessId, ['assignee']);
+    return successResponse(res, tasksJson);
   } catch (err) { next(err); }
 });
 
@@ -1488,7 +1496,9 @@ router.get('/extracted-candidates', authenticateToken, async (req, res, next) =>
       order: [['extracted_at', 'DESC']],
       limit: 20,
     });
-    return successResponse(res, cands.map(c => ({ ...c.toJSON(), project_name: projMap.get(c.project_id) })));
+    const candsJson = cands.map(c => ({ ...c.toJSON(), project_name: projMap.get(c.project_id) }));
+    await applyMemberDisplayName(candsJson, businessId, ['guessedAssignee']);
+    return successResponse(res, candsJson);
   } catch (err) { next(err); }
 });
 

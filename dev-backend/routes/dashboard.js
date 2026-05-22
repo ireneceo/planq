@@ -10,6 +10,15 @@ const {
 } = require('../models');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const { authenticateToken } = require('../middleware/auth');
+const { getMemberNameMap } = require('../services/displayName');
+
+// 워크스페이스 표시명 우선 — BusinessMember.name → fallback User.name.
+// dashboard 의 actor/context 는 plain 객체로 빌드되므로 inline 으로 name 덮어쓴다.
+function resolveName(user, nameMap) {
+  if (!user) return null;
+  const m = user.id ? nameMap.get(user.id) : null;
+  return m?.name_localized || m?.name || user.name_localized || user.name || null;
+}
 
 /* ─────────────────────────────────────────────
    Priority / verb 규칙
@@ -56,6 +65,30 @@ function safeToIso(dt) {
 async function collectTasks(businessId, userId) {
   const items = [];
 
+  // 워크스페이스 표시명 map (1회 fetch, 아래 4 블록에서 재사용)
+  // N+39-7: dashboard 응답에 BusinessMember.name 우선 표시
+  const nameMap = await (async () => {
+    // 모든 후보 user id 수집을 위해 raw 쿼리 4번 빠르게 (소규모, dashboard 는 limit ≤30 × 4 = 120 task)
+    const all = await Task.findAll({
+      where: {
+        business_id: businessId,
+        [Op.or]: [
+          { assignee_id: userId, request_by_user_id: { [Op.ne]: userId, [Op.not]: null } },
+          { assignee_id: userId, status: 'revision_requested' },
+          { request_by_user_id: userId, status: 'done_feedback' },
+        ],
+      },
+      attributes: ['assignee_id', 'request_by_user_id'],
+      limit: 200,
+    });
+    const ids = new Set();
+    for (const t of all) {
+      if (t.assignee_id) ids.add(t.assignee_id);
+      if (t.request_by_user_id) ids.add(t.request_by_user_id);
+    }
+    return await getMemberNameMap(businessId, [...ids]);
+  })();
+
   // 1) 요청 확인 미완료 — 타인이 나에게 할당했으나 아직 ack 안 누름
   const unconfirmed = await Task.findAll({
     where: {
@@ -78,10 +111,10 @@ async function collectTasks(businessId, userId) {
       priority: bucketByDue(due),
       verb: 'ack',
       subject: t.title,
-      context: t.requester ? `요청: ${t.requester.name}` : null,
+      context: t.requester ? `요청: ${resolveName(t.requester, nameMap)}` : null,
       dueAt: due ? due.toISOString() : null,
       createdAt: safeToIso(t.createdAt),
-      actor: t.requester ? { name: t.requester.name } : null,
+      actor: t.requester ? { name: resolveName(t.requester, nameMap) } : null,
       drawer: { kind: 'task', id: t.id },
     });
   }
@@ -105,10 +138,10 @@ async function collectTasks(businessId, userId) {
       priority: due && due < new Date() ? 'urgent' : 'today',
       verb: 'revise',
       subject: t.title,
-      context: t.requester ? `요청: ${t.requester.name}` : null,
+      context: t.requester ? `요청: ${resolveName(t.requester, nameMap)}` : null,
       dueAt: due ? due.toISOString() : null,
       createdAt: safeToIso(t.updatedAt),
-      actor: t.requester ? { name: t.requester.name } : null,
+      actor: t.requester ? { name: resolveName(t.requester, nameMap) } : null,
       drawer: { kind: 'task', id: t.id },
     });
   }
@@ -139,10 +172,10 @@ async function collectTasks(businessId, userId) {
       priority: bucketByDue(due) === 'week' ? 'waiting' : bucketByDue(due),
       verb: 'confirm',
       subject: t.title,
-      context: t.assignee ? `담당: ${t.assignee.name}` : null,
+      context: t.assignee ? `담당: ${resolveName(t.assignee, nameMap)}` : null,
       dueAt: due ? due.toISOString() : null,
       createdAt: safeToIso(r.createdAt),
-      actor: t.assignee ? { name: t.assignee.name } : null,
+      actor: t.assignee ? { name: resolveName(t.assignee, nameMap) } : null,
       drawer: { kind: 'task', id: t.id },
     });
   }
@@ -166,10 +199,10 @@ async function collectTasks(businessId, userId) {
       priority: 'today',
       verb: 'approve',
       subject: t.title,
-      context: t.assignee ? `담당: ${t.assignee.name}` : null,
+      context: t.assignee ? `담당: ${resolveName(t.assignee, nameMap)}` : null,
       dueAt: due ? due.toISOString() : null,
       createdAt: safeToIso(t.updatedAt),
-      actor: t.assignee ? { name: t.assignee.name } : null,
+      actor: t.assignee ? { name: resolveName(t.assignee, nameMap) } : null,
       drawer: { kind: 'task', id: t.id },
     });
   }

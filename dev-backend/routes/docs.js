@@ -15,6 +15,7 @@ const {
   Business, BusinessMember, Client, Project, User, Quote, Invoice,
 } = require('../models');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
+const { applyMemberDisplayName, applyMemberDisplayNameOne } = require('../services/displayName');
 const { authenticateToken } = require('../middleware/auth');
 const { getUserScope, isMemberOrAbove, assertMemberOrAbove } = require('../middleware/access_scope');
 const cue = require('../services/cue_orchestrator');
@@ -280,7 +281,10 @@ router.get('/documents', authenticateToken, async (req, res, next) => {
       limit, offset,
     });
     const total = await Document.count({ where });
-    return successResponse(res, list.map(d => d.toJSON()));
+    const json = list.map(d => d.toJSON());
+    // N+39-7: 워크스페이스 표시명 우선 (creator)
+    if (where.business_id) await applyMemberDisplayName(json, where.business_id, ['creator']);
+    return successResponse(res, json);
     // pagination 정보 추후 successResponse에 옵셔널로
     void total;
   } catch (e) { next(e); }
@@ -540,7 +544,9 @@ router.get('/documents/:id', authenticateToken, async (req, res, next) => {
       const okProject = doc.project_id && auth.scope.projectClientProjectIds.includes(doc.project_id);
       if (!okClient && !okProject) return errorResponse(res, 'forbidden', 403);
     }
-    return successResponse(res, doc.toJSON());
+    const json = doc.toJSON();
+    await applyMemberDisplayNameOne(json, doc.business_id, ['creator']);
+    return successResponse(res, json);
   } catch (e) { next(e); }
 });
 
