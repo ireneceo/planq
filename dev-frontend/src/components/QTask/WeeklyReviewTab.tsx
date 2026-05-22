@@ -178,12 +178,12 @@ const WeeklyReviewTab: React.FC<Props> = ({ businessId, userId, reviewScope = 'm
           />
           <Count>{reviews.length}</Count>
         </HeaderLeft>
+        {/* N+38 — workspace 탭의 수동 "이번 주 마무리" 버튼 + AutoToggle 제거.
+            WorkspaceFinalizeBanner 가 자동 박제 안내 + [설정 변경 →] 링크 제공 — 중복 UI 차단.
+            사용자 호소: "이런 버튼 필요해? 자동 박제 default ON 이면 의미 없어".
+            mine 탭의 AutoToggle 은 본인 자동 박제 토글이라 유지. */}
+        {reviewScope !== 'workspace' && (
         <AutoToggle>
-          {reviewScope === 'workspace' && (
-            <FinalizeBtn type="button" onClick={finalizeWorkspace} disabled={finalizing}>
-              {finalizing ? '...' : t('weeklyReview.workspace.finalize') as string}
-            </FinalizeBtn>
-          )}
           <AutoLabel>{t('weeklyReview.auto.title', '자동 확정')}</AutoLabel>
           <ToggleSwitch onClick={toggleAuto} $on={autoEnabled}>
             <ToggleKnob $on={autoEnabled} />
@@ -192,6 +192,7 @@ const WeeklyReviewTab: React.FC<Props> = ({ businessId, userId, reviewScope = 'm
             {autoEnabled ? t('weeklyReview.auto.enabled', '켜짐') : t('weeklyReview.auto.disabled', '꺼짐')}
           </AutoStatus>
         </AutoToggle>
+        )}
       </Header>
 
       {finalizeError && <ErrorMsg>{finalizeError}</ErrorMsg>}
