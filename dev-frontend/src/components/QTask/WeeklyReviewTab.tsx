@@ -10,7 +10,6 @@ import {
   getWeeklyReviewSettings,
   updateWeeklyReviewSettings,
   listWorkspaceWeeklyReports,
-  createWorkspaceWeeklyReport,
   type WeeklyReviewListItem,
   type WorkspaceWeeklyReportListItem,
 } from '../../services/weeklyReview';
@@ -467,11 +466,7 @@ const SectionLabel = styled.div`
   text-transform: uppercase; letter-spacing: 0.6px;
   margin: 12px 0 4px;
 `;
-// N+38 — FinalizeBtn 제거. workspace 수동 박제 버튼 unused.
-const ErrorMsg = styled.div`
-  background: #FEE2E2; color: #991B1B; padding: 8px 12px;
-  border-radius: 6px; font-size: 12px;
-`;
+// N+38 — FinalizeBtn / ErrorMsg 제거. workspace 수동 박제 폐기 후속.
 const WorkspaceCardList = styled.div`
   display: flex; flex-direction: column; gap: 12px;
 `;
