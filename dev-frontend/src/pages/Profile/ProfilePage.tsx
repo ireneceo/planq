@@ -1058,9 +1058,13 @@ export default function ProfilePage() {
 
 // 사이클 N+22: 2열 grid — 입력란이 좁아져 AutoSave 표시 잘 보이게.
 // 카드 폭이 480px 이하로 좁아지지 않게 minmax, 모바일·태블릿(≤1024) 은 1열.
+// 사이클 N+39: grid-auto-flow: dense 추가 — 조건부 카드 (워크스페이스 프로필 등) 로
+// 인해 홀수 일반 카드 발생 시 마지막 카드 옆에 빈 열 노출되던 회귀 fix.
+// dense flow 가 다음 element 를 빈 자리에 자동 배치 — 사용자 호소 "처음에 빈 열" 차단.
 const Container = styled.div`
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-auto-flow: dense;
   gap: 16px;
   align-items: start;
   @media (max-width: 1024px) {
