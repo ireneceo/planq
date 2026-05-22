@@ -431,6 +431,9 @@ const MemoPopup: React.FC<Props> = ({ open, onClose, businessId, existingSession
         const updated = await updateSession(sessionIdRef.current, { title, body: bodyJson } as any);
         setSavedAt(Date.now()); setSaveState('saved');
         dirtyRef.current = false;
+        // N+35 — 글로벌 sync 이벤트. 다른 탭/페이지의 QNotePage 가 listen → list 즉시 갱신.
+        // backend Q note 가 별도 FastAPI service 라 socket.io 없음 → window CustomEvent 패턴.
+        try { window.dispatchEvent(new CustomEvent('qnote-session-updated', { detail: { id: updated.id } })); } catch { /* noop */ }
         return updated;
       }
       const created = await createSession({
@@ -440,6 +443,8 @@ const MemoPopup: React.FC<Props> = ({ open, onClose, businessId, existingSession
       setSavedAt(Date.now()); setSaveState('saved');
       dirtyRef.current = false;
       onCreated?.(created);
+      // N+35 — 신규 메모 생성 시 글로벌 sync (다른 페이지/탭의 QNotePage 자동 reload)
+      try { window.dispatchEvent(new CustomEvent('qnote-session-created', { detail: { id: created.id } })); } catch { /* noop */ }
       return created;
     } catch (e) {
       setSaveState('error'); throw e;

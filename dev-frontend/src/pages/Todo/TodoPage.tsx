@@ -134,8 +134,13 @@ const TodoPage: React.FC = () => {
     s.on('event:deleted', debouncedReload);
     // Phase D — 서명/결제알림/세금계산서/PATCH 통합 신호
     s.on('inbox:refresh', debouncedReload);
+    // N+35 — 같은 탭 안 안전망 (socket 지연/끊김 시 즉시 sync).
+    // TaskDetailDrawer 의 workflow 액션 성공 시 즉시 dispatch.
+    const onLocalRefresh = () => debouncedReload();
+    window.addEventListener('inbox:refresh', onLocalRefresh);
     return () => {
       if (pending) window.clearTimeout(pending);
+      window.removeEventListener('inbox:refresh', onLocalRefresh);
       // 모든 joined room leave
       for (const id of joinedRoomsRef.current) s.emit('leave:business', id);
       joinedRoomsRef.current.clear();
