@@ -35,7 +35,9 @@
     "register": "Register as task",
     "registering": "Registering...",
     "reject": "Reject",
-    "rejecting": "Rejecting..."
+    "rejecting": "Rejecting...",
+    "skip": "Skip",
+    "skipping": "Skipping..."
   },
   "dailyStart": {
     "title": "Start your day",
@@ -52,13 +54,18 @@
   "bar": {
     "idleTitle": "Not started yet",
     "idleHint": "Start focusing on this task — actual time will accumulate automatically.",
+    "idleHintAuto": "Click \"Start\" — time tracking begins automatically.",
     "startThis": "Start with this task",
     "otherTitle": "Another task is running",
     "otherHint": "Currently focusing on \"{{title}}\". Switching will auto-stop that session.",
+    "otherHintAuto": "Currently on \"{{title}}\". Starting this task will auto-switch.",
     "switchToThis": "Switch to this task",
     "activeTitle": "Focusing",
     "pausedTitle": "Paused",
-    "idleDetectedTitle": "Away detected"
+    "idleDetectedTitle": "Away detected",
+    "disabledTitle": "Focus is off",
+    "disabledHint": "Enable Focus in My Work Settings — time will track automatically when in progress.",
+    "goToSettings": "Go to settings"
   },
   "settings": {
     "sectionTitle": "My Work Flow",

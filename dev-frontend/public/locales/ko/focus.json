@@ -35,7 +35,9 @@
     "register": "업무로 등록",
     "registering": "등록 중...",
     "reject": "반려",
-    "rejecting": "반려 중..."
+    "rejecting": "반려 중...",
+    "skip": "건너뛰기",
+    "skipping": "건너뛰는 중..."
   },
   "dailyStart": {
     "title": "오늘 시작하기",
@@ -52,13 +54,18 @@
   "bar": {
     "idleTitle": "아직 시작 안 했어요",
     "idleHint": "이 업무로 포커스를 시작하면 실제 시간이 자동 누적돼요.",
+    "idleHintAuto": "\"진행 시작\" 버튼을 누르면 시간이 자동 측정돼요.",
     "startThis": "이 업무로 시작",
     "otherTitle": "다른 업무 진행 중",
     "otherHint": "\"{{title}}\" 에서 진행 중이에요. 전환하면 그 세션은 자동 종료됩니다.",
+    "otherHintAuto": "\"{{title}}\" 에서 진행 중. 이 업무 진행 시작 시 자동 전환됩니다.",
     "switchToThis": "이 업무로 전환",
     "activeTitle": "포커스 중",
     "pausedTitle": "잠시 멈춤",
-    "idleDetectedTitle": "자리 비움 감지"
+    "idleDetectedTitle": "자리 비움 감지",
+    "disabledTitle": "포커스 꺼져 있어요",
+    "disabledHint": "내 업무 설정에서 포커스를 켜면 진행중에 시간이 자동 측정돼요.",
+    "goToSettings": "설정으로 가기"
   },
   "settings": {
     "sectionTitle": "내 업무 흐름",

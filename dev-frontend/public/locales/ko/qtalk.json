@@ -14,6 +14,8 @@
     "collapse": "접기",
     "candidates": {
       "title": "업무 후보",
+      "showOld": "이전 후보 보기",
+      "hideOld": "최근만 보기",
       "similar": "유사 업무 발견",
       "register": "등록",
       "merge": "내용 추가",

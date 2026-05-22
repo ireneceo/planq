@@ -374,6 +374,8 @@
       "reviewReminder": "Progress reached 100% — click \"Submit for review\" to ask {{count}} reviewer(s) to start the completion flow"
     },
     "description": "Description",
+    "descriptionSelf": "My work notes",
+    "descriptionRequest": "Request content",
     "descPlaceholder": "Brief description (1-2 lines)",
     "body": "Deliverable",
     "bodyPlaceholder": "Write the deliverable. Paste/drag images.",
@@ -449,10 +451,12 @@
       "toLabel": "Requested to {{name}}",
       "toLabelAnon": "Sent request",
       "assigneePrefix": "Assignee",
+      "creatorPrefix": "Author",
       "mine": "My task",
       "fromRequester": "Requester",
       "toAssignee": "Assignee",
-      "assignee": "Assignee"
+      "assignee": "Assignee",
+      "creator": "Author"
     },
     "clickToEdit": "Click to edit",
     "readOnly": "Read-only",
