@@ -552,6 +552,7 @@ router.post('/:businessId/:id/move', authenticateToken, checkBusinessAccess, asy
     }
     file.folder_id = folderId;
     await file.save();
+    broadcastFile(req, file, 'file:updated');
     successResponse(res, file, 'File moved');
   } catch (error) {
     next(error);
@@ -582,6 +583,7 @@ router.put('/:businessId/:id/visibility', authenticateToken, attachWorkspaceScop
       nextProjectId = null;  // 개인 또는 워크스페이스 — 프로젝트 연결 해제
     }
     await file.update({ visibility: level, project_id: nextProjectId });
+    broadcastFile(req, file, 'file:updated');
     successResponse(res, { id: file.id, visibility: level, project_id: nextProjectId });
   } catch (err) { next(err); }
 });
