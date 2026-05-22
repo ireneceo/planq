@@ -17,7 +17,8 @@ import { LANGUAGES, getLanguageByCode, type LanguageOption } from '../../constan
 import PlanQSelect from '../../components/Common/PlanQSelect';
 import ConfirmDialog from '../../components/Common/ConfirmDialog';
 import AutoSaveField from '../../components/Common/AutoSaveField';
-import FocusSettingsCard from '../../components/Focus/FocusSettingsCard';
+// N+32 — FocusSettingsCard / UserTimezoneSection 은 /me/work-settings 페이지로 이동.
+// UserTimezoneSection 함수는 이 파일 내 정의 (export) — 새 페이지가 import.
 import TimezoneSelector from '../../components/Common/TimezoneSelector';
 import PageShell from '../../components/Layout/PageShell';
 import { MicIcon, CheckIcon, XIcon, TrashIcon } from '../../components/Common/Icons';

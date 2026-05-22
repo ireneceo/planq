@@ -31,16 +31,15 @@ interface FocusSession {
 
 interface Props {
   taskId: number;
-  businessId: number;
+  // businessId 는 N+32 후속 (옵션 B) 단순화에서 사용 X 됐지만 호출처 호환 유지를 위해 선택 prop. 향후 제거 가능.
+  businessId?: number;
   // N+32 — 담당자 가드. 본인이 담당자 아니면 Focus UI null.
   assigneeId?: number | null;
   // N+32 후속 (옵션 B) — task.status 의존. 'in_progress' 일 때만 일시정지/재개 노출.
-  // 다른 status (not_started/reviewing/completed 등) 에서는 TaskFocusBar 자체 안 보임.
-  // task status 진행 = Focus active, status 변경 = Focus 자동 stop (backend hook).
   status?: string;
 }
 
-const TaskFocusBar: React.FC<Props> = ({ taskId, businessId, assigneeId, status }) => {
+const TaskFocusBar: React.FC<Props> = ({ taskId, assigneeId, status }) => {
   const { t } = useTranslation('focus');
   const { user } = useAuth();
   const myId = user?.id ? Number(user.id) : 0;
