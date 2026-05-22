@@ -142,8 +142,8 @@ export default function SidebarClock({
     return () => window.clearInterval(id);
   }, []);
 
-  const sameTz = workspaceTz === userTz;
-
+  // N+45 — 사용자 호소: 워크스페이스와 본인 시계 각각 표시. tz 가 같아도 두 줄 유지 (라벨 의미 명확).
+  // 옛 sameTz 통합 분기 제거.
   const uniqueRefs = useMemo(() => {
     const seen = new Set<string>([workspaceTz, userTz]);
     return referenceTzs.filter((r) => {
@@ -178,17 +178,15 @@ export default function SidebarClock({
           <Time $variant="workspace">{formatTimeInTz(now, workspaceTz, localeTag)}</Time>
         </Row>
 
-        {!sameTz && (
-          <Row
-            $interactive
-            title={tooltipFor(userTz, t('clock.you'))}
-            onClick={() => navigate('/profile')}
-            type="button"
-          >
-            <City $variant="you">{cityFromTz(userTz)}</City>
-            <Time $variant="you">{formatTimeInTz(now, userTz, localeTag)}</Time>
-          </Row>
-        )}
+        <Row
+          $interactive
+          title={tooltipFor(userTz, t('clock.you'))}
+          onClick={() => navigate('/profile')}
+          type="button"
+        >
+          <City $variant="you">{cityFromTz(userTz)}</City>
+          <Time $variant="you">{formatTimeInTz(now, userTz, localeTag)}</Time>
+        </Row>
       </List>
 
       {uniqueRefs.length > 0 && (
