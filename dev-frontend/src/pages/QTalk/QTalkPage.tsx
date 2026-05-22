@@ -249,6 +249,8 @@ const QTalkPage: React.FC = () => {
   const [notes, setNotes] = useState<MockNote[]>([]);
   const [issues, setIssues] = useState<MockIssue[]>([]);
   const [candidates, setCandidates] = useState<MockTaskCandidate[]>([]);
+  // N+36 옵션 D — "이전 후보 보기" 토글. default false (30일 이전 hidden 후보 숨김).
+  const [showHiddenCandidates, setShowHiddenCandidates] = useState(false);
   // 채팅방 관리 ⋮ — ConfirmDialog 트리거. archive(보관) / unlink(프로젝트 분리).
   const [archiveConv, setArchiveConv] = useState<MockConversation | null>(null);
   const [unlinkConv, setUnlinkConv] = useState<MockConversation | null>(null);
@@ -780,7 +782,7 @@ const QTalkPage: React.FC = () => {
           qtalkApi.listProjectTasks(activeProjectId).catch(() => [] as qtalkApi.ApiTask[]),
           qtalkApi.listProjectNotes(activeProjectId).catch(() => [] as qtalkApi.ApiNote[]),
           qtalkApi.listProjectIssues(activeProjectId).catch(() => [] as qtalkApi.ApiIssue[]),
-          qtalkApi.listProjectCandidates(activeProjectId).catch(() => [] as qtalkApi.ApiTaskCandidate[]),
+          qtalkApi.listProjectCandidates(activeProjectId, showHiddenCandidates).catch(() => [] as qtalkApi.ApiTaskCandidate[]),
         ]);
         if (cancelled) return;
 
@@ -868,7 +870,7 @@ const QTalkPage: React.FC = () => {
         const [notesList, issuesList, candList, tasksList] = await Promise.all([
           qtalkApi.listConvNotes(activeConversationId).catch(() => [] as qtalkApi.ApiNote[]),
           qtalkApi.listConvIssues(activeConversationId).catch(() => [] as qtalkApi.ApiIssue[]),
-          qtalkApi.listConvCandidates(activeConversationId).catch(() => [] as qtalkApi.ApiTaskCandidate[]),
+          qtalkApi.listConvCandidates(activeConversationId, showHiddenCandidates).catch(() => [] as qtalkApi.ApiTaskCandidate[]),
           qtalkApi.listConvTasks(activeConversationId).catch(() => [] as qtalkApi.ApiTask[]),
         ]);
         if (cancelled) return;
@@ -1427,6 +1429,8 @@ const QTalkPage: React.FC = () => {
         notes={notes}
         issues={issues}
         candidates={projectCandidates}
+        showHiddenCandidates={showHiddenCandidates}
+        onToggleHiddenCandidates={() => setShowHiddenCandidates(v => !v)}
         collapsed={rightCollapsed}
         onToggleCollapsed={toggleRight}
         onRegisterCandidate={handleRegisterCandidate}

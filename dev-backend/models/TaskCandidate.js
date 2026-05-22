@@ -25,6 +25,10 @@ TaskCandidate.init({
   registered_task_id: { type: DataTypes.INTEGER, allowNull: true },
   resolved_at: { type: DataTypes.DATE, allowNull: true },
   resolved_by_user_id: { type: DataTypes.INTEGER, allowNull: true },
+  // N+36 옵션 D — 만료 정책. 30일 이전 pending 후보는 cron 이 hidden_at 마크 (기본 list 에서 숨김).
+  // 90일 이전 + status='rejected' 또는 hidden_at>60일 → cron 이 hard delete.
+  // "이전 후보 보기" 토글로 hidden_at 무관 회복 가능.
+  hidden_at: { type: DataTypes.DATE, allowNull: true },
 }, {
   sequelize,
   tableName: 'task_candidates',
