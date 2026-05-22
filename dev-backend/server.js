@@ -412,6 +412,9 @@ scheduleNextMidnight();
 // 주간 보고 자동 박제 cron (매시간 0분)
 const { initWeeklyReviewCron } = require('./services/weeklyReviewCron');
 initWeeklyReviewCron();
+// N+36 옵션 D — 업무 후보 만료 cron (30일 hide / 90일 rejected delete / 60일 hidden delete)
+const { initCandidateCleanupCron } = require('./services/candidateCleanup');
+initCandidateCleanupCron();
 
 // 채팅 자동 업무 추출 디바운스 트리거 + cron fallback (사이클 N+27)
 const taskExtractorScheduler = require('./services/taskExtractorScheduler');

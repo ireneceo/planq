@@ -369,8 +369,10 @@ export async function listProjectIssues(projectId: number): Promise<ApiIssue[]> 
   return handle<ApiIssue[]>(res);
 }
 
-export async function listProjectCandidates(projectId: number): Promise<ApiTaskCandidate[]> {
-  const res = await apiFetch(`/api/projects/${projectId}/task-candidates`);
+// N+36 옵션 D — includeHidden=true 시 backend 가 hidden_at 무관 모두 반환 ("이전 후보 보기" 토글)
+export async function listProjectCandidates(projectId: number, includeHidden = false): Promise<ApiTaskCandidate[]> {
+  const qs = includeHidden ? '?include_hidden=true' : '';
+  const res = await apiFetch(`/api/projects/${projectId}/task-candidates${qs}`);
   return handle<ApiTaskCandidate[]>(res);
 }
 
@@ -383,8 +385,10 @@ export async function listConvIssues(convId: number): Promise<ApiIssue[]> {
   const res = await apiFetch(`/api/projects/conversations/${convId}/issues`);
   return handle<ApiIssue[]>(res);
 }
-export async function listConvCandidates(convId: number): Promise<ApiTaskCandidate[]> {
-  const res = await apiFetch(`/api/projects/conversations/${convId}/task-candidates`);
+// N+36 옵션 D — includeHidden=true 시 backend 가 hidden_at 무관 모두 반환
+export async function listConvCandidates(convId: number, includeHidden = false): Promise<ApiTaskCandidate[]> {
+  const qs = includeHidden ? '?include_hidden=true' : '';
+  const res = await apiFetch(`/api/projects/conversations/${convId}/task-candidates${qs}`);
   return handle<ApiTaskCandidate[]>(res);
 }
 export async function listConvTasks(convId: number): Promise<ApiTask[]> {

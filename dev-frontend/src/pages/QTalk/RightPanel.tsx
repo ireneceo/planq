@@ -23,6 +23,9 @@ interface Props {
   notes: MockNote[];
   issues: MockIssue[];
   candidates: MockTaskCandidate[];
+  // N+36 옵션 D — "이전 후보 보기" 토글 (30일 이전 hidden 후보 포함)
+  showHiddenCandidates?: boolean;
+  onToggleHiddenCandidates?: () => void;
   collapsed: boolean;
   onToggleCollapsed: () => void;
   onRegisterCandidate: (id: number, overrides?: RegisterCandidateOverrides) => void;
@@ -39,6 +42,7 @@ type Section = 'issues' | 'myTasks' | 'projectTasks' | 'notes' | 'info';
 
 const RightPanel: React.FC<Props> = ({
   project, activeConversationId, conversations, tasks, notes, issues, candidates, collapsed, onToggleCollapsed,
+  showHiddenCandidates = false, onToggleHiddenCandidates,
   onRegisterCandidate, onMergeCandidate, onRejectCandidate,
   onAddIssue, onUpdateIssue, onDeleteIssue, onAddNote, onToggleTask,
 }) => {
@@ -227,8 +231,8 @@ const RightPanel: React.FC<Props> = ({
       )}
 
       <Scroll>
-        {/* 업무 후보 (있을 때만) */}
-        {!isClient && candidates.length > 0 && (
+        {/* 업무 후보 (있을 때만) — N+36 옵션 D: 토글 시 hidden 도 포함 (있건 없건 토글은 보임) */}
+        {!isClient && (candidates.length > 0 || showHiddenCandidates) && (
           <CandidatesSection data-section="candidates">
             <CandidatesHeader>
               <CandidatesTitle>
@@ -239,6 +243,14 @@ const RightPanel: React.FC<Props> = ({
                 {t('right.candidates.title', '업무 후보')}
                 <Count>{candidates.length}</Count>
               </CandidatesTitle>
+              {/* N+36 옵션 D — "이전 후보 보기" 토글 (30일 이전 hidden 후보 포함) */}
+              {onToggleHiddenCandidates && (
+                <HiddenToggle type="button" onClick={onToggleHiddenCandidates} aria-pressed={showHiddenCandidates}>
+                  {showHiddenCandidates
+                    ? t('right.candidates.hideOld', '최근만 보기')
+                    : t('right.candidates.showOld', '이전 후보 보기')}
+                </HiddenToggle>
+              )}
             </CandidatesHeader>
             {candidates.map((c) => (
               <CandidateEditCard
@@ -704,6 +716,19 @@ const Scroll = styled.div`
   overflow-y: auto;
   &::-webkit-scrollbar { width: 6px; }
   &::-webkit-scrollbar-thumb { background: #E2E8F0; border-radius: 3px; }
+`;
+
+const HiddenToggle = styled.button`
+  background: transparent;
+  border: 1px solid #CBD5E1;
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 11px; font-weight: 500;
+  color: #475569;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+  &:hover { background: #F8FAFC; border-color: #94A3B8; }
+  &[aria-pressed="true"] { background: #F1F5F9; border-color: #94A3B8; color: #0F172A; }
 `;
 
 const CandidatesSection = styled.div`

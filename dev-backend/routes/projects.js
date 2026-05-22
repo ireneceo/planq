@@ -1302,6 +1302,8 @@ router.get('/conversations/:convId/task-candidates', authenticateToken, async (r
     const status = req.query.status || 'pending';
     const where = { conversation_id: conversation.id };
     if (status !== 'all') where.status = status;
+    // N+36 옵션 D — 기본은 hidden_at=null 만. ?include_hidden=true 시 모두 (이전 후보 보기 토글).
+    if (req.query.include_hidden !== 'true') where.hidden_at = null;
     const cands = await TaskCandidate.findAll({
       where,
       include: [{ model: User, as: 'guessedAssignee', attributes: ['id', 'name', 'name_localized'], required: false }],
@@ -1389,6 +1391,8 @@ router.get('/:id/task-candidates', authenticateToken, async (req, res, next) => 
     const status = req.query.status || 'pending';
     const where = { project_id: project.id };
     if (status !== 'all') where.status = status;
+    // N+36 옵션 D — 기본 hidden_at=null. ?include_hidden=true 시 모두.
+    if (req.query.include_hidden !== 'true') where.hidden_at = null;
     const cands = await TaskCandidate.findAll({
       where,
       include: [{ model: User, as: 'guessedAssignee', attributes: ['id', 'name', 'name_localized'] }],
