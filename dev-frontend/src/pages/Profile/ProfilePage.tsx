@@ -626,6 +626,25 @@ export default function ProfilePage() {
           </FieldRow>
         </Card>
 
+        {/* 개인정보 처리 — 첫 행 2번째 열 (사용자 호소: 계정정보 옆 빈 공간 차단) */}
+        <Card>
+          <SectionTitle>{t('privacy.sectionTitle')}</SectionTitle>
+          <PrivacyList>
+            <PrivacyItem>
+              <Trans i18nKey="privacy.item1" ns="profile" components={{ 1: <strong />, 2: <strong /> }} />
+            </PrivacyItem>
+            <PrivacyItem>
+              <Trans i18nKey="privacy.item2" ns="profile" components={{ 1: <strong /> }} />
+            </PrivacyItem>
+            <PrivacyItem>
+              <Trans i18nKey="privacy.item3" ns="profile" components={{ 1: <strong /> }} />
+            </PrivacyItem>
+            <PrivacyItem>
+              <Trans i18nKey="privacy.item4" ns="profile" components={{ 1: <strong /> }} />
+            </PrivacyItem>
+          </PrivacyList>
+        </Card>
+
         {/* 워크스페이스 프로필 — 현재 워크스페이스에서만 적용 (제목에 실제 워크스페이스 이름) */}
         {businessId > 0 && wsNameLoaded && (
           <Card>
@@ -1021,23 +1040,6 @@ export default function ProfilePage() {
         {/* N+32 — UserTimezoneSection + FocusSettingsCard 는 /me/work-settings 페이지로 이동.
             ProfilePage 는 개인 정보 (이름/언어/약력 등) 중심. 업무 도구 설정은 별도 메뉴. */}
 
-        <Card>
-          <SectionTitle>{t('privacy.sectionTitle')}</SectionTitle>
-          <PrivacyList>
-            <PrivacyItem>
-              <Trans i18nKey="privacy.item1" ns="profile" components={{ 1: <strong />, 2: <strong /> }} />
-            </PrivacyItem>
-            <PrivacyItem>
-              <Trans i18nKey="privacy.item2" ns="profile" components={{ 1: <strong /> }} />
-            </PrivacyItem>
-            <PrivacyItem>
-              <Trans i18nKey="privacy.item3" ns="profile" components={{ 1: <strong /> }} />
-            </PrivacyItem>
-            <PrivacyItem>
-              <Trans i18nKey="privacy.item4" ns="profile" components={{ 1: <strong /> }} />
-            </PrivacyItem>
-          </PrivacyList>
-        </Card>
       </Container>
 
       <ConfirmDialog
@@ -1058,15 +1060,14 @@ export default function ProfilePage() {
 
 // 사이클 N+22: 2열 grid — 입력란이 좁아져 AutoSave 표시 잘 보이게.
 // 카드 폭이 480px 이하로 좁아지지 않게 minmax, 모바일·태블릿(≤1024) 은 1열.
-// 사이클 N+39: grid-auto-flow: dense 추가 — 조건부 카드 (워크스페이스 프로필 등) 로
-// 인해 홀수 일반 카드 발생 시 마지막 카드 옆에 빈 열 노출되던 회귀 fix.
-// dense flow 가 다음 element 를 빈 자리에 자동 배치 — 사용자 호소 "처음에 빈 열" 차단.
+// 사이클 N+49: 개인정보 처리 카드를 계정정보 옆 (첫 행 2열) 로 이동 + align-items 제거.
+// dense 유지 — 조건부 카드 ($wide 등) 로 빈 자리 생기면 다음 element 자동 배치.
+// align-items 명시 제거 → grid default stretch → 같은 행 카드 높이 자동 동일 (사용자 호소 정돈).
 const Container = styled.div`
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   grid-auto-flow: dense;
   gap: 16px;
-  align-items: start;
   @media (max-width: 1024px) {
     grid-template-columns: 1fr;
   }
@@ -1078,6 +1079,10 @@ const Card = styled.section<{ $wide?: boolean }>`
   border-radius: 12px;
   padding: 24px;
   min-width: 0;
+  /* N+49 — grid item stretch 명시. 같은 행 카드 높이 동일 보장 (Container align-items default stretch 와 함께) */
+  height: 100%;
+  display: flex;
+  flex-direction: column;
   ${(p) => p.$wide && `
     grid-column: 1 / -1;
   `}
