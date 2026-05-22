@@ -1,12 +1,62 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-05-22 사이클 N+32~N+38 — Focus 옵션 A 통합 + 실시간 동기화 7 영역 + /검증 skill PlanQ 특수 박제 (v1.16.2 라이브 9 commit + 10 commit 미라이브 대기)
+> **최종 업데이트:** 2026-05-22 사이클 N+39~N+48 — PWA hook · 실시간 동기화 보강 · displayName 전수 · 정기업무 · Brief · Q Note 정리하기 · share_token 만료 · Smart Routing · SaaS readiness (v1.17.0 라이브 15 commit `4844db5`)
 >
-> **직전 라이브:** v1.16.2 (commit `7d7accc`) — N+32~N+37 9 commit
+> **직전 라이브:** v1.16.2 (commit `242bc43`) — N+32~N+38 11 commit (Focus 옵션 A + 실시간 동기화 7 영역 + /검증 skill PlanQ 특수)
 >
 > **이전 라이브:** v1.16.1 (commit `8947504`) — N+31 사이클 (Q Talk 모바일 viewport 회귀 fix)
 >
 > **이전 라이브:** v1.16.0 (commit `ab113a6`) — N+26~N+27 사이클 (업무 흐름 Focus MVP + 인박스 inline 모달 + Cue 주고받음)
+
+---
+
+## ✅ 완료: 사이클 N+39~N+48 (2026-05-22, v1.17.0 라이브 — 15 commit)
+
+### 핵심 (9 사이클)
+
+| 사이클 | 핵심 |
+|--------|------|
+| **N+39** | PWA useVisibilityRefresh 6 페이지 + 실시간 동기화 보강 (posts/files/kb/calendar/invoices/clients) + ProfilePage grid + i18n ko/en + /검증 10단계 Playwright MCP 정책 + displayName 전수 (5 commit) |
+| **N+40** | Q Task 정기업무 audit — cron broadcast (CLAUDE.md 16번) + parent DELETE 자식 detach + TaskDetailDrawer 인스턴스 chip + i18n |
+| **N+41** | Q docs Brief broadcastPost(post:new) 보강 — 자료정리 실시간 동기화 |
+| **N+42** | Q Note 정리하기 4 액션 분기 모달 (QNoteSummaryModal) + summarized_at PATCH + prefill 라우팅 (Tasks/Knowledge/Docs/Share) |
+| **N+43** | share_token 만료 (Post/Document/Invoice) — share_expires_at 컬럼 3 + 라우트 5 + ShareModal 4 옵션 (7/30/90/무기한) + 만료일 표시 |
+| **N+44** | 만료 응답 통일 — 7 entity 410 + ExpiredShareLink 친절 페이지 + dead code 정리 (ShareModal 9→5 entity) |
+| **N+45** | FocusWidget baseline ref 카운터 (tick 누적 버그 fix — Date.now() 단조 증가) + SidebarClock revert (자의적 기획 변경 원복) |
+| **N+46** | SidebarClock userTzExplicit 정책 — user.timezone 명시 set 시만 두 줄, 안 했으면 "설정" subtle hint |
+| **N+47** | Smart Routing 매트릭스 정합 — Post/Invoice auth-check + 자동 redirect 0.3s (6/6 entity 통일) |
+| **N+48** | 운영 진입 readiness — 외부 API timeout 표준화 (OpenAI fetch 10 곳 AbortSignal.timeout) |
+
+### 30년차 결정 박제
+
+1. **실시간 동기화 강제 (CLAUDE.md 16번)** — cron 자동 생성 시점도 broadcast. generator 에 io 주입 패턴 정착
+2. **FK ON DELETE 미명시 위험 fix** — application-layer detach (parent DELETE 시 자식 instance 의 recurrence_parent_id null)
+3. **만료 응답 RFC 9110 준수** — 410 Gone + code='share_expired' + expired_at 메타. 7 entity 100% 통일
+4. **share_helper.checkShareExpiry 단일 출처** — 라우트별 inline 검사 X
+5. **client tick 누적 패턴 안티** — actual_seconds + tick → Date.now() baseline 으로 정확한 단조 증가
+6. **자의적 기획 변경 금지** — sameTz 통합은 의도된 UX (다국 워크스페이스 vs 다국 거주). 사용자 명시 set 시만 두 줄
+7. **외부 API timeout 표준화** — OpenAI chat 45s / embedding 30s / 짧은 응답 20s. hang 방어
+8. **prefill URL pattern** — `?prefill=`, `?prefill_brief=`, `?prefill_title=` 네임스페이스 명확
+9. **Smart Routing 매트릭스 정합** — 7/7 entity (Document skip = in-app 라우트 없음 정당화)
+10. **revoke = share_token=null 통일** — 별도 share_revoked_at 컬럼 X (File 패턴 일관)
+
+### 운영 진입 readiness audit 결과 (N+48)
+
+| 항목 | 상태 |
+|------|------|
+| 외부 API timeout | ✅ N+48 완성 (10 곳) |
+| fan-out 비동기 | ✅ 기존 박제 |
+| pagination | ⚠️ 부분 (admin/docs/personal_vault) — 별도 사이클 |
+| AuditLog 일관 | ⚠️ 11/41 라우트 — 별도 사이클 |
+| pino + request_id | ✅ middleware/errorHandler.js |
+| uploads cleanup | ✅ services/uploadCleanup.js + cron |
+
+### 미완 (다음 사이클)
+
+1. **pagination 전수 보강** — admin/docs/personal_vault 외 list 라우트 audit
+2. **AuditLog CUD 라우트 audit** — 11/41 → 전수
+3. **PWA Share Target audit** — manifest + ShareReceivePage 실 동작 검증
+4. **Phase 9 통합 컨텍스트 + Q Mail** (9주, 큰 사이클)
 
 ---
 
