@@ -1,18 +1,22 @@
-// TaskFocusBar — TaskDetailDrawer 본문 상단에 표시되는 포커스 인라인 바 (사이클 N+26)
+// TaskFocusBar — TaskDetailDrawer 본문 상단 sticky 포커스 바 (사이클 N+26 신설, N+32 옵션 A 통합)
 //
-// 조건부 렌더 패턴:
-//   focus_enabled=false  → null (렌더 X)
-//   세션 없음            → "포커스 시작" CTA
-//   이 task 의 active    → 카운터 + 일시정지/종료
-//   이 task 의 paused    → "잠시 멈춤" 라벨 + 재개/종료
-//   다른 task active     → "다른 업무 진행 중" 안내 + 전환 버튼
+// 30년차 UX 옵션 A (통합 동기) — task status ↔ Focus 자동 동기:
+//   - 본인이 담당자가 아니면 null (회귀 fix — 비담당자에게 진행/재개 버튼 보이던 회귀 차단)
+//   - task status 변경이 Focus trigger — "이 업무로 시작" 수동 버튼 제거
+//   - 일시정지/재개는 micro state (status 변경 X)
+//   - focus_enabled=false 이면 안내 CTA (설정 페이지 링크) — 기능 발견성 강화
 //
-// 4가지 상태 모두 시각적으로 명확한 톤 차이 — sidebar FocusWidget 의 light-bg 변형.
+// 4가지 상태:
+//   focus_enabled=false  → 안내 CTA + 설정 페이지 링크 (담당자 본인일 때만)
+//   세션 없음            → 안내 ("진행 시작 버튼으로 자동 시작" 힌트)
+//   이 task 의 active    → 큰 카운터 + 일시정지/완료
+//   이 task 의 paused    → "잠시 멈춤" + 재개/완료
 
 import React, { useEffect, useState, useCallback } from 'react';
 import styled, { keyframes, css } from 'styled-components';
 import { useTranslation } from 'react-i18next';
-import { apiFetch } from '../../contexts/AuthContext';
+import { Link } from 'react-router-dom';
+import { useAuth, apiFetch } from '../../contexts/AuthContext';
 
 interface FocusSession {
   id: number;
@@ -28,10 +32,16 @@ interface FocusSession {
 interface Props {
   taskId: number;
   businessId: number;
+  // N+32 — 담당자 가드. 본인이 담당자가 아니면 Focus UI null.
+  // 진행/재개 액션은 담당자 권한이고 시간 측정도 담당자 본인 측정.
+  assigneeId?: number | null;
 }
 
-const TaskFocusBar: React.FC<Props> = ({ taskId, businessId }) => {
+const TaskFocusBar: React.FC<Props> = ({ taskId, businessId, assigneeId }) => {
   const { t } = useTranslation('focus');
+  const { user } = useAuth();
+  const myId = user?.id ? Number(user.id) : 0;
+  const iAmAssignee = !!assigneeId && Number(assigneeId) === myId;
   const [enabled, setEnabled] = useState<boolean | null>(null);
   const [session, setSession] = useState<FocusSession | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -82,37 +92,51 @@ const TaskFocusBar: React.FC<Props> = ({ taskId, businessId }) => {
     } finally { setSubmitting(false); }
   }, [submitting]);
 
-  const onStart = () => act('/api/focus/start', { business_id: businessId, task_id: taskId });
-  const onSwitch = () => act('/api/focus/start', { business_id: businessId, task_id: taskId });
   const onPause = () => session && act('/api/focus/pause', { session_id: session.id, reason: 'manual' });
   const onResume = () => session && act('/api/focus/resume', { session_id: session.id });
   const onStop = () => session && act('/api/focus/stop', { session_id: session.id, end_reason: 'manual' });
 
+  // N+32 — 담당자 가드. 본인이 담당자 아니면 UI null. 진행/재개 액션은 담당자 권한이고,
+  // 시간 측정도 본인 측정. 비담당자에게 버튼 보이던 회귀 fix.
+  if (!iAmAssignee) return null;
+
   if (enabled === null) return null;
-  if (!enabled) return null;  // 비활성 — 렌더 X
+
+  // N+32 — focus_enabled=false 시 null 대신 안내 CTA. "기본적으로 내용 나오게" 정책 (사용자 호소).
+  if (!enabled) {
+    return (
+      <Bar $tone="idle">
+        <ToneDot $tone="idle" />
+        <Body>
+          <Title>{t('bar.disabledTitle', '포커스 꺼져 있어요')}</Title>
+          <Hint>{t('bar.disabledHint', '내 업무 설정에서 포커스를 켜면 진행 시작 시 시간이 자동 측정돼요.')}</Hint>
+        </Body>
+        <Actions>
+          <CtaLink to="/me/work-settings">
+            {t('bar.goToSettings', '설정으로 가기')} →
+          </CtaLink>
+        </Actions>
+      </Bar>
+    );
+  }
 
   // 활성 세션이 다른 task 인가?
   const isOtherTask = session && session.task_id && session.task_id !== taskId;
 
-  // 1) 세션 없음 — start CTA
+  // 1) 세션 없음 — 진행 시작 안내 (옵션 A: 진행 시작 버튼이 trigger)
   if (!session) {
     return (
       <Bar $tone="idle">
         <ToneDot $tone="idle" />
         <Body>
           <Title>{t('bar.idleTitle', '아직 시작 안 했어요')}</Title>
-          <Hint>{t('bar.idleHint', '이 업무로 포커스를 시작하면 실제 시간이 자동 누적돼요.')}</Hint>
+          <Hint>{t('bar.idleHintAuto', '"진행 시작" 버튼을 누르면 시간이 자동 측정돼요.')}</Hint>
         </Body>
-        <Actions>
-          <PrimaryBtn type="button" onClick={onStart} disabled={submitting}>
-            <SvgPlay /> {t('bar.startThis', '이 업무로 시작')}
-          </PrimaryBtn>
-        </Actions>
       </Bar>
     );
   }
 
-  // 2) 다른 task 진행 중
+  // 2) 다른 task 진행 중 — 안내만 (수동 전환 버튼 제거. 다른 task 의 진행 시작이 자동 전환)
   if (isOtherTask) {
     return (
       <Bar $tone="other">
@@ -120,14 +144,9 @@ const TaskFocusBar: React.FC<Props> = ({ taskId, businessId }) => {
         <Body>
           <Title>{t('bar.otherTitle', '다른 업무 진행 중')}</Title>
           <Hint title={session.task?.title}>
-            {t('bar.otherHint', '"{{title}}" 에서 진행 중이에요. 전환하면 그 세션은 자동 종료됩니다.', { title: session.task?.title || t('widget.noTask') })}
+            {t('bar.otherHintAuto', '"{{title}}" 에서 진행 중. 이 업무 진행 시작 시 자동 전환됩니다.', { title: session.task?.title || t('widget.noTask') })}
           </Hint>
         </Body>
-        <Actions>
-          <PrimaryBtn type="button" onClick={onSwitch} disabled={submitting}>
-            <SvgPlay /> {t('bar.switchToThis', '이 업무로 전환')}
-          </PrimaryBtn>
-        </Actions>
       </Bar>
     );
   }
@@ -176,9 +195,21 @@ function formatDuration(sec: number): string {
   return `${s}s`;
 }
 
-const SvgPlay = () => <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><polygon points="6 4 20 12 6 20 6 4"/></svg>;
-const SvgPause = () => <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14"/><rect x="14" y="5" width="4" height="14"/></svg>;
-const SvgStop = () => <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="1"/></svg>;
+const SvgPlay = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><polygon points="6 4 20 12 6 20 6 4"/></svg>;
+const SvgPause = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14"/><rect x="14" y="5" width="4" height="14"/></svg>;
+const SvgStop = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="1"/></svg>;
+
+// N+32 — 설정 페이지로 가는 inline link (focus_enabled=false 시 CTA)
+const CtaLink = styled(Link)`
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 8px 14px; height: 36px;
+  background: #14B8A6; color: #FFFFFF;
+  border-radius: 8px;
+  text-decoration: none;
+  font-size: 13px; font-weight: 600;
+  transition: background 0.15s;
+  &:hover { background: #0D9488; }
+`;
 
 const breath = keyframes`0%{transform:scale(1)}50%{transform:scale(1.15)}100%{transform:scale(1)}`;
 const pulseAlert = keyframes`0%{transform:scale(1);opacity:1}50%{transform:scale(1.25);opacity:0.6}100%{transform:scale(1);opacity:1}`;
@@ -193,12 +224,18 @@ const TONE: Record<Tone, { bg: string; border: string; dot: string; titleColor: 
 };
 
 const Bar = styled.div<{ $tone: Tone }>`
-  display: flex; align-items: center; gap: 12px;
-  padding: 12px 14px;
+  display: flex; align-items: center; gap: 14px;
+  /* N+32 — 사용자 호소 "헤더 크게" 정합. sticky top 으로 drawer 본문 스크롤 시에도 항상 보임.
+     padding/margin 키워 헤더처럼 강조. */
+  padding: 14px 18px;
   background: ${p => TONE[p.$tone].bg};
   border: 1px solid ${p => TONE[p.$tone].border};
   border-radius: 10px;
-  margin: 0 20px 12px;
+  margin: 0 20px 14px;
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
   transition: background 0.18s, border-color 0.18s;
 `;
 const ToneDot = styled.span<{ $tone: Tone }>`
@@ -210,23 +247,27 @@ const ToneDot = styled.span<{ $tone: Tone }>`
 `;
 const Body = styled.div`flex: 1; min-width: 0;`;
 const Title = styled.div`
-  font-size: 13px; font-weight: 700; color: #0F172A;
-  letter-spacing: -0.1px; margin-bottom: 2px;
+  font-size: 14px; font-weight: 700; color: #0F172A;
+  letter-spacing: -0.1px; margin-bottom: 3px;
 `;
 const Hint = styled.div`
   font-size: 12px; color: #475569; line-height: 1.45;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 `;
 const Counter = styled.div`
-  font-size: 13px; font-weight: 600; color: #334155;
+  /* N+32 — 시간 강조. 사용자 의도 "크게" 정합. tabular-nums 로 안 흔들림. */
+  font-size: 22px; font-weight: 700; color: #0F172A;
   font-variant-numeric: tabular-nums;
+  letter-spacing: -0.5px;
+  line-height: 1.1;
 `;
-const Actions = styled.div`display: flex; gap: 6px; flex-shrink: 0;`;
+const Actions = styled.div`display: flex; gap: 8px; flex-shrink: 0;`;
 const baseBtn = css`
-  display: inline-flex; align-items: center; gap: 4px;
-  height: 32px; padding: 0 12px;
-  border-radius: 6px;
-  font-size: 12px; font-weight: 600;
+  /* N+32 — 사용자 의도 "버튼 크게". 36px 표준 (ActionButton 디자인 시스템 정합) */
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 36px; padding: 0 14px;
+  border-radius: 8px;
+  font-size: 13px; font-weight: 600;
   cursor: pointer;
   border: 1px solid transparent;
   transition: background 0.12s, transform 0.08s;

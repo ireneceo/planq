@@ -1017,11 +1017,8 @@ export default function ProfilePage() {
           )}
         </Card>
 
-        {/* 개인정보 안내 */}
-        <UserTimezoneSection />
-
-        {/* ─── 내 업무 흐름 (Focus) — 사이클 N+26 ─── */}
-        <FocusSettingsCard />
+        {/* N+32 — UserTimezoneSection + FocusSettingsCard 는 /me/work-settings 페이지로 이동.
+            ProfilePage 는 개인 정보 (이름/언어/약력 등) 중심. 업무 도구 설정은 별도 메뉴. */}
 
         <Card>
           <SectionTitle>{t('privacy.sectionTitle')}</SectionTitle>
@@ -1755,7 +1752,7 @@ const BrowserHint = styled.button`
   &:hover { color: #134e4a; }
 `;
 
-function UserTimezoneSection() {
+export function UserTimezoneSection() {
   const { t } = useTranslation('profile');
   const { userTz, userRefs, update } = useTimezones();
   const [now, setNow] = useState<Date>(new Date());

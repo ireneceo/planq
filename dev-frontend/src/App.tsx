@@ -35,6 +35,7 @@ const QNotePage = lazy(() => import('./pages/QNote/QNotePage'));
 // 사이클 N+17 hotfix — 메모 분리 창 전용 minimal page (MainLayout 우회)
 const MemoStandalonePage = lazy(() => import('./pages/QNote/MemoStandalonePage'));
 const ProfilePage = lazy(() => import('./pages/Profile/ProfilePage'));
+const MyWorkSettingsPage = lazy(() => import('./pages/Profile/MyWorkSettingsPage'));
 const WorkspaceSettingsPage = lazy(() => import('./pages/Settings/WorkspaceSettingsPage'));
 const QTalkPage = lazy(() => import('./pages/QTalk/QTalkPage'));
 const PersonalVaultPage = lazy(() => import('./pages/PersonalVault/PersonalVaultPage'));
@@ -295,6 +296,11 @@ function App() {
         <Route path="/profile" element={
           <ProtectedRoute>
             <MainLayout><ProfilePage /></MainLayout>
+          </ProtectedRoute>
+        } />
+        <Route path="/me/work-settings" element={
+          <ProtectedRoute>
+            <MainLayout><MyWorkSettingsPage /></MainLayout>
           </ProtectedRoute>
         } />
 

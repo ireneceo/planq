@@ -1246,6 +1246,10 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
             <SecondaryNavItem $collapsed={secondaryCollapsed} to="/profile" $active={isActive('/profile')}>
               <IconUsers /> {t('user.profile')}
             </SecondaryNavItem>
+            {/* N+32 — 내 업무 설정 (타임존 + 업무 흐름). ProfilePage 와 분리. */}
+            <SecondaryNavItem $collapsed={secondaryCollapsed} to="/me/work-settings" $active={isActive('/me/work-settings')}>
+              <IconCalendar /> {t('nav.myWorkSettings', '내 업무 설정')}
+            </SecondaryNavItem>
           </SecondaryBody>
         </SecondaryPanel>
       )}
