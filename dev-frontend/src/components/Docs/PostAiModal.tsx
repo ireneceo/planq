@@ -34,6 +34,9 @@ interface Props {
   intent?: 'manual' | 'ai';
   // 진입 시 default tab 강제 (예: + 드롭다운 "표" 선택 → defaultMode='table')
   defaultMode?: 'blank' | 'new' | 'brief' | 'table';
+  // N+42 — Q Note 정리하기 → 정식 문서 승격 진입 시 brief 모드 prefill
+  initialBriefTitle?: string;
+  initialBriefText?: string;
 }
 
 const KIND_OPTIONS: PlanQSelectOption[] = [
@@ -49,7 +52,7 @@ const KIND_OPTIONS: PlanQSelectOption[] = [
 
 type Mode = 'blank' | 'new' | 'brief' | 'table';
 
-const PostAiModal: React.FC<Props> = ({ open, onClose, businessId, projectId: pageProjectId, clientId: pageClientId, onGenerate, onBlank, intent = 'manual', defaultMode: defaultModeProp }) => {
+const PostAiModal: React.FC<Props> = ({ open, onClose, businessId, projectId: pageProjectId, clientId: pageClientId, onGenerate, onBlank, intent = 'manual', defaultMode: defaultModeProp, initialBriefTitle, initialBriefText }) => {
   const { t } = useTranslation('qdocs');
   const navigate = useNavigate();
   // intent 별 사용 가능 탭 — manual: 빈문서+표 / ai: AI 작성+자료정리
@@ -61,8 +64,14 @@ const PostAiModal: React.FC<Props> = ({ open, onClose, businessId, projectId: pa
   const [kind, setKind] = useState<DocKind | null>(null);
   const [title, setTitle] = useState('');
   const [userInput, setUserInput] = useState('');
-  const [briefTitle, setBriefTitle] = useState('');
-  const [briefText, setBriefText] = useState('');
+  const [briefTitle, setBriefTitle] = useState(initialBriefTitle || '');
+  const [briefText, setBriefText] = useState(initialBriefText || '');
+  // N+42 — prefill 변경 시 동기화 (모달 close 후 다른 prefill 로 재열림)
+  useEffect(() => {
+    if (!open) return;
+    if (initialBriefTitle !== undefined) setBriefTitle(initialBriefTitle);
+    if (initialBriefText !== undefined) setBriefText(initialBriefText);
+  }, [open, initialBriefTitle, initialBriefText]);
   const [briefStagedUploads, setBriefStagedUploads] = useState<File[]>([]);
   const [briefExistingIds, setBriefExistingIds] = useState<number[]>([]);
   const [briefPostIds, setBriefPostIds] = useState<number[]>([]);

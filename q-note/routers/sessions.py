@@ -111,6 +111,8 @@ class UpdateSessionRequest(BaseModel):
   meeting_answer_style: Optional[str] = Field(None, max_length=2000)
   meeting_answer_length: Optional[str] = Field(None, max_length=20)
   keywords: Optional[List[str]] = None
+  # N+42 — 정리하기 모달이 트랜스크립트를 외부 자산(업무/지식/문서/공유) 으로 변환할 때 timestamp 기록
+  mark_summarized: Optional[bool] = None
 
 
 class AddUrlRequest(BaseModel):
@@ -476,6 +478,8 @@ def _build_field_updates(body: UpdateSessionRequest):
     fields.append('capture_mode = ?'); values.append(body.capture_mode)
   if body.translate_enabled is not None:
     fields.append('translate_enabled = ?'); values.append(1 if body.translate_enabled else 0)
+  if body.mark_summarized:
+    fields.append("summarized_at = datetime('now')")
   if body.body is not None:
     _validate_body(body.body)
     fields.append('body = ?'); values.append(body.body)

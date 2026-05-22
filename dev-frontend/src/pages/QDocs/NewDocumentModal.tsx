@@ -23,16 +23,20 @@ interface Props {
   templates: DocTemplate[];
   businessId: number;
   onCreated: (doc: DocSummary) => void;
+  // N+42 — Q Note 정리하기 → "정식 문서 승격" 진입. brief 모드 + text prefill.
+  initialMode?: 'blank' | 'brief';
+  initialBriefText?: string;
+  initialBriefTitle?: string;
 }
 
-const NewDocumentModal: React.FC<Props> = ({ open, onClose, templates, businessId, onCreated }) => {
+const NewDocumentModal: React.FC<Props> = ({ open, onClose, templates, businessId, onCreated, initialMode, initialBriefText, initialBriefTitle }) => {
   const { t } = useTranslation('qdocs');
   const navigate = useNavigate();
   const [busy, setBusy] = useState(false);
   const [tab, setTab] = useState<'ai' | 'template' | 'blank'>('ai');
   // AI 탭의 두 모드: blank (빈 화면 prompt) / brief (자료 업로드 → 정리)
   // 메모 project_qdocs_restructure_brief_plan: 별도 탭 신설 X. AI 탭 안의 모드 토글로 통합.
-  const [aiMode, setAiMode] = useState<'blank' | 'brief'>('blank');
+  const [aiMode, setAiMode] = useState<'blank' | 'brief'>(initialMode === 'brief' ? 'brief' : 'blank');
 
   // AI 모드 입력
   const [aiKind, setAiKind] = useState<DocKind>('proposal');
@@ -44,9 +48,17 @@ const NewDocumentModal: React.FC<Props> = ({ open, onClose, templates, businessI
   const [aiUsage, setAiUsage] = useState<{ remaining: number; limit: number } | null>(null);
 
   // Brief 모드 입력 (자료정리)
-  const [briefTitle, setBriefTitle] = useState('');
-  const [briefText, setBriefText] = useState('');  // multi-line — 한 textarea 안에 여러 자료 paste 또는 줄로 구분
+  const [briefTitle, setBriefTitle] = useState(initialBriefTitle || '');
+  const [briefText, setBriefText] = useState(initialBriefText || '');  // multi-line — 한 textarea 안에 여러 자료 paste 또는 줄로 구분
   const [briefError, setBriefError] = useState<string | null>(null);
+
+  // N+42 — prefill 값 변경 시 동기화 (모달 close 후 다시 open 도 처리)
+  useEffect(() => {
+    if (!open) return;
+    if (initialMode === 'brief') setAiMode('brief');
+    if (initialBriefText !== undefined) setBriefText(initialBriefText);
+    if (initialBriefTitle !== undefined) setBriefTitle(initialBriefTitle);
+  }, [open, initialMode, initialBriefText, initialBriefTitle]);
 
   // 컨텍스트 후보 — modal open 시 한 번 fetch
   const [clients, setClients] = useState<ApiClientLite[]>([]);
