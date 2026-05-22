@@ -11,6 +11,7 @@ import PageShell from '../../components/Layout/PageShell';
 import TrialStatusBanner from '../../components/Common/TrialStatusBanner';
 import UsageWarningCard from '../../components/Common/UsageWarningCard';
 import { useAuth, apiFetch } from '../../contexts/AuthContext';
+import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import { fetchTodo, type TodoResponse, type TodoItem } from '../../services/dashboard';
 
 interface CalEventLite {
@@ -32,13 +33,42 @@ const DashboardPage: React.FC = () => {
   const [events, setEvents] = useState<CalEventLite[]>([]);
   const [eventsLoading, setEventsLoading] = useState(true);
 
-  useEffect(() => {
+  const reloadTodo = useCallback(() => {
     setTodoLoading(true);
     fetchTodo()
       .then(setTodo)
       .catch(() => setTodo(null))
       .finally(() => setTodoLoading(false));
   }, []);
+  useEffect(() => { reloadTodo(); }, [reloadTodo]);
+
+  // N+39-2 — 실시간 동기화 + PWA visibility 안전망
+  useVisibilityRefresh(reloadTodo);
+  useEffect(() => {
+    if (!bizId) return;
+    let pending: number | null = null;
+    const debouncedReload = () => {
+      if (pending) return;
+      pending = window.setTimeout(() => { pending = null; reloadTodo(); }, 250);
+    };
+    let socket: { disconnect: () => void } | null = null;
+    import('socket.io-client').then(({ io }) => {
+      import('../../contexts/AuthContext').then(({ getAccessToken }) => {
+        if (!getAccessToken()) return;
+        const s = io({
+          auth: (cb) => cb({ token: getAccessToken() }),
+          transports: ['websocket', 'polling'],
+          reconnection: true,
+        });
+        socket = s;
+        s.on('connect', () => { s.emit('join:business', Number(bizId)); });
+        s.on('task:new', debouncedReload); s.on('task:updated', debouncedReload); s.on('task:deleted', debouncedReload);
+        s.on('event:created', debouncedReload); s.on('event:updated', debouncedReload); s.on('event:deleted', debouncedReload);
+        s.on('inbox:refresh', debouncedReload);
+      });
+    });
+    return () => { if (pending) window.clearTimeout(pending); if (socket) socket.disconnect(); };
+  }, [bizId, reloadTodo]);
 
   useEffect(() => {
     if (!bizId) return;

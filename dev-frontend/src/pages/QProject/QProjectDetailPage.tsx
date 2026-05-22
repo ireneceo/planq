@@ -7,6 +7,7 @@ import { apiFetch } from '../../contexts/AuthContext';
 import PageShell from '../../components/Layout/PageShell';
 import AutoSaveField from '../../components/Common/AutoSaveField';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
+import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import TasksTab from './TasksTab';
 import DocsTab from './DocsTab';
 import ProjectPostsTab from './ProjectPostsTab';
@@ -201,6 +202,35 @@ const QProjectDetailPage: React.FC = () => {
   }, [projectId]);
 
   useEffect(() => { load(); }, [load]);
+
+  // N+39-2 — 실시간 동기화 (CLAUDE.md 16번) + PWA visibility 안전망
+  const projectBizId = project?.business_id;
+  useVisibilityRefresh(useCallback(() => { void load(); }, [load]));
+  useEffect(() => {
+    if (!projectBizId || !projectId) return;
+    let pending: number | null = null;
+    const debouncedReload = () => {
+      if (pending) return;
+      pending = window.setTimeout(() => { pending = null; void load(); }, 250);
+    };
+    let socket: { disconnect: () => void } | null = null;
+    import('socket.io-client').then(({ io }) => {
+      import('../../contexts/AuthContext').then(({ getAccessToken }) => {
+        if (!getAccessToken()) return;
+        const s = io({
+          auth: (cb) => cb({ token: getAccessToken() }),
+          transports: ['websocket', 'polling'],
+          reconnection: true,
+        });
+        socket = s;
+        s.on('connect', () => { s.emit('join:business', Number(projectBizId)); s.emit('join:project', Number(projectId)); });
+        s.on('task:new', debouncedReload); s.on('task:updated', debouncedReload); s.on('task:deleted', debouncedReload);
+        s.on('note:new', debouncedReload); s.on('issue:new', debouncedReload);
+        s.on('post:new', debouncedReload); s.on('post:updated', debouncedReload); s.on('post:deleted', debouncedReload);
+      });
+    });
+    return () => { if (pending) window.clearTimeout(pending); if (socket) socket.disconnect(); };
+  }, [projectBizId, projectId, load]);
 
   const stats = useMemo(() => {
     const total = tasks.length;

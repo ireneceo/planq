@@ -672,6 +672,7 @@ router.post('/businesses/:businessId/kb/pinned', authenticateToken, checkBusines
       targetId: faq.id
     });
 
+    broadcastKb(req, { id: faq.id, business_id: faq.business_id }, 'kb:pinned:new');
     successResponse(res, faq, 'Created', 201);
   } catch (err) { next(err); }
 });
@@ -703,6 +704,7 @@ router.put('/businesses/:businessId/kb/pinned/:faqId', authenticateToken, checkB
       newValue: updates
     });
 
+    broadcastKb(req, { id: faq.id, business_id: faq.business_id }, 'kb:pinned:updated');
     successResponse(res, faq);
   } catch (err) { next(err); }
 });
@@ -715,6 +717,7 @@ router.delete('/businesses/:businessId/kb/pinned/:faqId', authenticateToken, che
       where: { id: req.params.faqId, business_id: req.params.businessId }
     });
     if (!faq) return errorResponse(res, 'FAQ not found', 404);
+    const snapForBroadcast = { id: faq.id, business_id: faq.business_id };
     await faq.destroy();
     await createAuditLog({
       userId: req.user.id,
@@ -723,6 +726,7 @@ router.delete('/businesses/:businessId/kb/pinned/:faqId', authenticateToken, che
       targetType: 'KbPinnedFaq',
       targetId: faq.id
     });
+    broadcastKb(req, snapForBroadcast, 'kb:pinned:deleted');
     successResponse(res, { deleted: true });
   } catch (err) { next(err); }
 });

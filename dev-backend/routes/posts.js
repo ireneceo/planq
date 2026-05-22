@@ -761,6 +761,7 @@ router.post('/:id/attachments', authenticateToken, async (req, res, next) => {
       const a = await PostAttachment.create({ post_id: post.id, file_id: f.id, sort_order: existing + i });
       created.push({ id: a.id, file_id: f.id, sort_order: a.sort_order });
     }
+    broadcastPost(req, post, 'post:updated');
     successResponse(res, created, `${created.length} attached`);
   } catch (err) { next(err); }
 });
@@ -776,6 +777,7 @@ router.delete('/:id/attachments/:attId', authenticateToken, async (req, res, nex
       return errorResponse(res, 'forbidden', 403);
     }
     await att.destroy();
+    broadcastPost(req, post, 'post:updated');
     successResponse(res, null, 'Detached');
   } catch (err) { next(err); }
 });
