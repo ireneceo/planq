@@ -32,12 +32,15 @@ interface FocusSession {
 interface Props {
   taskId: number;
   businessId: number;
-  // N+32 — 담당자 가드. 본인이 담당자가 아니면 Focus UI null.
-  // 진행/재개 액션은 담당자 권한이고 시간 측정도 담당자 본인 측정.
+  // N+32 — 담당자 가드. 본인이 담당자 아니면 Focus UI null.
   assigneeId?: number | null;
+  // N+32 후속 (옵션 B) — task.status 의존. 'in_progress' 일 때만 일시정지/재개 노출.
+  // 다른 status (not_started/reviewing/completed 등) 에서는 TaskFocusBar 자체 안 보임.
+  // task status 진행 = Focus active, status 변경 = Focus 자동 stop (backend hook).
+  status?: string;
 }
 
-const TaskFocusBar: React.FC<Props> = ({ taskId, businessId, assigneeId }) => {
+const TaskFocusBar: React.FC<Props> = ({ taskId, businessId, assigneeId, status }) => {
   const { t } = useTranslation('focus');
   const { user } = useAuth();
   const myId = user?.id ? Number(user.id) : 0;
@@ -94,22 +97,25 @@ const TaskFocusBar: React.FC<Props> = ({ taskId, businessId, assigneeId }) => {
 
   const onPause = () => session && act('/api/focus/pause', { session_id: session.id, reason: 'manual' });
   const onResume = () => session && act('/api/focus/resume', { session_id: session.id });
-  const onStop = () => session && act('/api/focus/stop', { session_id: session.id, end_reason: 'manual' });
 
-  // N+32 — 담당자 가드. 본인이 담당자 아니면 UI null. 진행/재개 액션은 담당자 권한이고,
-  // 시간 측정도 본인 측정. 비담당자에게 버튼 보이던 회귀 fix.
+  // N+32 후속 (옵션 B 정합) — 표시 조건 단순화:
+  //   1. 담당자 본인만 (비담당자는 시간 측정 / 일시정지·재개 의미 X)
+  //   2. status === 'in_progress' 일 때만 (진행중이 아니면 Focus 의미 X)
+  //   3. focus_enabled=false 면 안내 CTA + 설정 페이지 링크 (사용자 호소: 기본적으로 내용 나오게)
+  //   4. session 의 다른 task / 종료 / 전환 / 세션없음 등 혼란 UI 모두 제거
+  //   5. 일시정지/재개만 — task status 가 종료/완료/검토 단계의 진실 원천
   if (!iAmAssignee) return null;
-
+  if (status !== 'in_progress') return null;
   if (enabled === null) return null;
 
-  // N+32 — focus_enabled=false 시 null 대신 안내 CTA. "기본적으로 내용 나오게" 정책 (사용자 호소).
+  // focus_enabled=false — 안내 CTA + 설정 페이지 링크
   if (!enabled) {
     return (
       <Bar $tone="idle">
         <ToneDot $tone="idle" />
         <Body>
           <Title>{t('bar.disabledTitle', '포커스 꺼져 있어요')}</Title>
-          <Hint>{t('bar.disabledHint', '내 업무 설정에서 포커스를 켜면 진행 시작 시 시간이 자동 측정돼요.')}</Hint>
+          <Hint>{t('bar.disabledHint', '내 업무 설정에서 포커스를 켜면 진행중에 시간이 자동 측정돼요.')}</Hint>
         </Body>
         <Actions>
           <CtaLink to="/me/work-settings">
@@ -120,38 +126,11 @@ const TaskFocusBar: React.FC<Props> = ({ taskId, businessId, assigneeId }) => {
     );
   }
 
-  // 활성 세션이 다른 task 인가?
-  const isOtherTask = session && session.task_id && session.task_id !== taskId;
+  // session 이 이 task 의 active/paused 가 아니면 안 보임
+  // (status 진입 직후 backend hook 이 session 만들기 전 race — polling 30s 마다 자동 회복)
+  if (!session || session.task_id !== taskId) return null;
 
-  // 1) 세션 없음 — 진행 시작 안내 (옵션 A: 진행 시작 버튼이 trigger)
-  if (!session) {
-    return (
-      <Bar $tone="idle">
-        <ToneDot $tone="idle" />
-        <Body>
-          <Title>{t('bar.idleTitle', '아직 시작 안 했어요')}</Title>
-          <Hint>{t('bar.idleHintAuto', '"진행 시작" 버튼을 누르면 시간이 자동 측정돼요.')}</Hint>
-        </Body>
-      </Bar>
-    );
-  }
-
-  // 2) 다른 task 진행 중 — 안내만 (수동 전환 버튼 제거. 다른 task 의 진행 시작이 자동 전환)
-  if (isOtherTask) {
-    return (
-      <Bar $tone="other">
-        <ToneDot $tone="other" />
-        <Body>
-          <Title>{t('bar.otherTitle', '다른 업무 진행 중')}</Title>
-          <Hint title={session.task?.title}>
-            {t('bar.otherHintAuto', '"{{title}}" 에서 진행 중. 이 업무 진행 시작 시 자동 전환됩니다.', { title: session.task?.title || t('widget.noTask') })}
-          </Hint>
-        </Body>
-      </Bar>
-    );
-  }
-
-  // 3) 이 task 진행 중 — active 또는 paused
+  // 이 task 진행 중 — active / paused / idle_detected
   const liveSec = session.state === 'active' ? session.actual_seconds + tick : session.actual_seconds;
   const isPaused = session.state === 'paused';
   const isIdle = session.auto_paused;
@@ -176,9 +155,6 @@ const TaskFocusBar: React.FC<Props> = ({ taskId, businessId, assigneeId }) => {
             <SvgPause /> {t('widget.pause', '잠시 멈춤')}
           </SecondaryBtn>
         )}
-        <DangerBtn type="button" onClick={onStop} disabled={submitting} title={t('widget.stop', '종료') as string} aria-label={t('widget.stop', '종료') as string}>
-          <SvgStop />
-        </DangerBtn>
       </Actions>
     </Bar>
   );
@@ -197,7 +173,7 @@ function formatDuration(sec: number): string {
 
 const SvgPlay = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><polygon points="6 4 20 12 6 20 6 4"/></svg>;
 const SvgPause = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14"/><rect x="14" y="5" width="4" height="14"/></svg>;
-const SvgStop = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="1"/></svg>;
+// SvgStop / DangerBtn 제거 — N+32 후속 (옵션 B): 종료 버튼은 task status 액션이 책임. Focus 자체 종료 X.
 
 // N+32 — 설정 페이지로 가는 inline link (focus_enabled=false 시 CTA)
 const CtaLink = styled(Link)`
@@ -286,10 +262,4 @@ const SecondaryBtn = styled.button`
   border-color: #CBD5E1;
   &:hover:not(:disabled) { background: #F8FAFC; border-color: #94A3B8; }
 `;
-const DangerBtn = styled.button`
-  ${baseBtn}
-  width: 32px; padding: 0; justify-content: center;
-  background: transparent; color: #DC2626;
-  border-color: #FECACA;
-  &:hover:not(:disabled) { background: #FEF2F2; border-color: #DC2626; }
-`;
+// DangerBtn 제거 — N+32 후속 (옵션 B): Focus 자체 종료 버튼 없음. task status 가 종료/완료 책임.
