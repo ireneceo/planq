@@ -4,8 +4,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import ExpiredShareLink from '../../components/Common/ExpiredShareLink';
+import { apiFetch, getAccessToken } from '../../contexts/AuthContext';
 
 interface Installment {
   id: number;
@@ -70,6 +71,7 @@ function formatDate(iso: string | null): string {
 const PublicInvoicePage: React.FC = () => {
   const { t } = useTranslation('qbill');
   const { token } = useParams<{ token: string }>();
+  const navigate = useNavigate();
   const [invoice, setInvoice] = useState<PublicInvoice | null>(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
@@ -104,6 +106,20 @@ const PublicInvoicePage: React.FC = () => {
       }
     })();
   }, [token]);
+
+  // N+47 — Smart Routing. PlanQ 로그인된 사용자면 in-app 으로 자동 redirect.
+  useEffect(() => {
+    if (!token || !invoice) return;
+    if (!getAccessToken()) return;
+    apiFetch(`/api/invoices/public/${token}/auth-check`)
+      .then(r => r.json())
+      .then(j => {
+        if (j.success && j.data?.canAccess && j.data?.appUrl) {
+          setTimeout(() => navigate(j.data.appUrl), 300);
+        }
+      })
+      .catch(() => { /* silent */ });
+  }, [token, invoice, navigate]);
 
   // 모달 열림 동안 body scroll lock + Esc 닫기
   useEffect(() => {

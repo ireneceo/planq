@@ -1095,6 +1095,24 @@ router.get('/public/:token', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// N+47 — Smart Routing auth-check (PlanQ 로그인된 사용자면 in-app 으로 자동 redirect 정보 제공).
+// 응답: { canAccess: boolean, appUrl: string | null }
+// 본 endpoint 는 authenticateToken 필요. 비로그인은 호출 안 함 (PublicPostPage 의 useEffect 가 getAccessToken() check).
+router.get('/public/:token/auth-check', authenticateToken, async (req, res, next) => {
+  try {
+    const post = await Post.findOne({ where: { share_token: req.params.token } });
+    if (!post) return errorResponse(res, 'not_found', 404);
+    const { checkShareExpiry } = require('../services/share_helper');
+    if (checkShareExpiry(post, res)) return;
+    // 멤버 (owner/admin/member) 이면 PostsPage 안에서 ?post=:id 로 진입 가능
+    const isMember = await assertMember(req.user.id, post.business_id, req.user.platform_role === 'platform_admin');
+    return successResponse(res, {
+      canAccess: !!isMember,
+      appUrl: isMember ? `/docs?post=${post.id}` : null,
+    });
+  } catch (err) { next(err); }
+});
+
 // GET /api/posts/public/:token/attachments/:attId/download
 // 공유 미리보기에서 첨부 파일 다운로드 (인증 없이 share_token 기반).
 // post.share_token 검증 + 해당 post 의 attachments 중 하나 → 파일 스트리밍.

@@ -4,9 +4,10 @@
 import React, { useEffect, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import PostEditor from '../../components/Docs/PostEditor';
 import ExpiredShareLink from '../../components/Common/ExpiredShareLink';
+import { apiFetch, getAccessToken } from '../../contexts/AuthContext';
 
 interface PublicPost {
   id: number;
@@ -23,6 +24,7 @@ interface PublicPost {
 const PublicPostPage: React.FC = () => {
   const { t } = useTranslation('qdocs');
   const { token } = useParams<{ token: string }>();
+  const navigate = useNavigate();
   const [post, setPost] = useState<PublicPost | null>(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
@@ -49,6 +51,20 @@ const PublicPostPage: React.FC = () => {
       }
     })();
   }, [token]);
+
+  // N+47 — Smart Routing. PlanQ 로그인된 사용자면 in-app 으로 자동 redirect (0.3s).
+  useEffect(() => {
+    if (!token || !post) return;
+    if (!getAccessToken()) return;
+    apiFetch(`/api/posts/public/${token}/auth-check`)
+      .then(r => r.json())
+      .then(j => {
+        if (j.success && j.data?.canAccess && j.data?.appUrl) {
+          setTimeout(() => navigate(j.data.appUrl), 300);
+        }
+      })
+      .catch(() => { /* silent */ });
+  }, [token, post, navigate]);
 
   if (loading) return <Center>{t('public.loading', '문서 로드 중...')}</Center>;
   if (expired) return <ExpiredShareLink expiredAt={expired.at} />;
