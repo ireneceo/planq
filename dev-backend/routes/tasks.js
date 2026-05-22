@@ -7,6 +7,9 @@ const { authenticateToken, checkBusinessAccess } = require('../middleware/auth')
 const { getUserScope, taskListWhere, canAccessTask, isMemberOrAbove } = require('../middleware/access_scope');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const { todayInTz, mondayOfDateStr, addDaysStr, mondayOfIsoWeek } = require('../utils/datetime');
+// N+34 — 워크스페이스 표시명 helper. BusinessMember.name 우선, User.name fallback.
+// 사용자 호소: "담당자 이름이 워크스페이스 프로필 이름이 아니야" — User.name 직접 사용 회귀 fix.
+const { applyMemberDisplayName, applyMemberDisplayNameOne } = require('../services/displayName');
 
 // 업무의 "오늘/이번 주/마감 지연" 경계는 워크스페이스 타임존 기준.
 // 아래 헬퍼는 Asia/Seoul 워크스페이스에서 00:00~23:59 이 하루의 경계가 되도록 보장한다.
@@ -715,7 +718,9 @@ router.get('/by-business/:businessId', authenticateToken, async (req, res, next)
     res.set('X-Total-Count', String(count));
     res.set('X-Limit', String(limit));
     res.set('X-Offset', String(offset));
-    return successResponse(res, rows.map(t => t.toJSON()));
+    const plain = rows.map(t => t.toJSON());
+    await applyMemberDisplayName(plain, businessId, ['assignee', 'creator', 'requester']);
+    return successResponse(res, plain);
   } catch (err) { next(err); }
 });
 
@@ -1163,6 +1168,8 @@ router.get('/:id/detail', authenticateToken, async (req, res, next) => {
     }
     // Client 는 internal/personal 댓글 제외
     const json = task.toJSON();
+    // N+34 — assignee/creator/requester 이름 워크스페이스 표시명으로 덮어쓰기
+    await applyMemberDisplayNameOne(json, task.business_id, ['assignee', 'creator', 'requester']);
     if (scope.isClient && Array.isArray(json.comments)) {
       json.comments = json.comments.filter((c) => c.visibility === 'shared');
     }
