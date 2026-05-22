@@ -17,6 +17,7 @@ const {
 const { authenticateToken, checkBusinessAccess } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const stats = require('../services/stats');
+const { getMemberNameMap } = require('../services/displayName');
 
 // 기간 파싱 — ?from=YYYY-MM-DD&to=YYYY-MM-DD or ?range=30d|90d|month|prev-month|quarter
 function parsePeriod(q) {
@@ -106,11 +107,27 @@ router.get('/:businessId/tasks', authenticateToken, checkBusinessAccess, async (
     const tasks = await Task.findAll({
       where,
       include: [
-        { model: User, as: 'assignee', attributes: ['id', 'name'], required: false },
+        { model: User, as: 'assignee', attributes: ['id', 'name', 'name_localized'], required: false },
       ],
       order: [['created_at', 'DESC']],
       limit: 2000, // 안전 가드
     });
+
+    // 워크스페이스 표시명 우선 — BusinessMember.name → fallback User.name
+    // N+39-7: stats 응답의 assignee_name 도 워크스페이스 단위로 통일
+    {
+      const ids = [...new Set(tasks.map((t) => t.assignee_id).filter(Boolean))];
+      const nameMap = await getMemberNameMap(businessId, ids);
+      if (nameMap.size) {
+        for (const t of tasks) {
+          if (!t.assignee) continue;
+          const m = nameMap.get(t.assignee.id);
+          if (!m) continue;
+          if (m.name) t.assignee.set('name', m.name);
+          if (m.name_localized) t.assignee.set('name_localized', m.name_localized);
+        }
+      }
+    }
 
     // 같은 task 의 ai 추정 — 가장 최신
     const taskIds = tasks.map((t) => t.id);

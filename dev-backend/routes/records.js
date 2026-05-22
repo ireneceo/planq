@@ -7,6 +7,7 @@ const { Op } = require('sequelize');
 const { QRecord, QRecordRow, QRecordAudit, User, Project, BusinessMember } = require('../models');
 const { authenticateToken } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
+const { applyMemberDisplayName, applyMemberDisplayNameOne } = require('../services/displayName');
 
 // ─── 권한 헬퍼 ───
 async function assertMember(userId, businessId, isPlatformAdmin) {
@@ -77,6 +78,7 @@ router.get('/', authenticateToken, async (req, res, next) => {
       ...r.toJSON(),
       row_count: cmap[r.id] || 0,
     }));
+    await applyMemberDisplayName(data, businessId, ['creator']);
     successResponse(res, data);
   } catch (err) { next(err); }
 });
@@ -142,6 +144,7 @@ router.get('/:id', authenticateToken, async (req, res, next) => {
     if (!r) return errorResponse(res, 'not_found', 404);
     const isAdmin = req.user.platform_role === 'platform_admin';
     if (!(await assertMember(req.user.id, r.business_id, isAdmin))) return errorResponse(res, 'forbidden', 403);
+    const rBusinessId = r.business_id;
 
     // read_policy=owner 면 owner+admin 만
     if (r.read_policy === 'owner') {
@@ -154,7 +157,9 @@ router.get('/:id', authenticateToken, async (req, res, next) => {
       order: [['position', 'ASC'], ['id', 'ASC']],
     });
     const masked = maskRowsForSecrets(rows, r.columns);
-    successResponse(res, { ...r.toJSON(), rows: masked });
+    const json = { ...r.toJSON(), rows: masked };
+    await applyMemberDisplayNameOne(json, rBusinessId, ['creator']);
+    successResponse(res, json);
   } catch (err) { next(err); }
 });
 
