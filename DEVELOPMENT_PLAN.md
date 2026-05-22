@@ -10,15 +10,49 @@
 
 ---
 
-## ✅ 완료: 사이클 N+49 hotfix — Profile 2열 정합 (2026-05-22, hotfix b957955)
+## ✅ 완료: 사이클 N+49 hotfix 시리즈 — UI 정돈 + Focus 위젯 회귀 fix (2026-05-22, 6 commit 운영 라이브)
 
-### 변경
+### 사용자 호소 → fix 매트릭스
 
-| 작업 | 설명 | 상태 |
-|------|------|:----:|
-| 개인정보 처리 카드 위치 | 맨 마지막 → 계정 정보 직후 (첫 행 2번째 열) | ✅ |
-| Container align-items 제거 | `align-items: start` → grid default stretch | ✅ |
-| Card height 명시 | `height: 100%` + flex column → 같은 행 카드 높이 동일 | ✅ |
+| 호소 | 진단 | commit | 운영 push |
+|------|------|--------|----------|
+| ProfilePage 첫 열 빈 공간 | grid Container 안 `<div ref={errorBannerRef} />` + banner 가 첫 cell 점유 | `7c18596` | 19:45:47 |
+| FocusBar 헤더 들러붙음 | margin top 0 | `e866c1a` | 19:54:57 |
+| FocusBar 좌우 짧음 | Bar margin 20px vs Section padding 14px | `e866c1a` | 19:54:57 |
+| 단계 이동 시 깜빡임 | TaskFocusBar useEffect deps 에 status 없음 → 30s polling 대기 → session=null 사이 return null → 사라짐 | `e866c1a` | 19:54:57 |
+| MyWorkSettings 좌우 풀 아님 | Body max-width: 720px | `384d8a6` | 20:11:04 |
+| FocusWidget 정지 버튼 색 혼란 | N+32 옵션 B 박제 위반 — TaskFocusBar 는 제거됐는데 FocusWidget 만 DangerBtn 잔존 | `3228313` | 20:18:58 |
+| 에디터 빈 곳 클릭 시 커서 진입 X | TipTap EditorContent default 동작 | `2c1aeba` | 20:27:?? |
+| 좌측 FocusWidget idle 상태 "시작" 버튼 무의미 | N+32 옵션 A 박제 위반 — task 없이 session 생성하는 PrimaryBtn 잔존 | 진행 중 | 예정 |
+
+### 30년차 결정 박제
+
+- **grid item 분포 audit 필수** — 빈 ref div 라도 grid cell 차지. wrapper 안 자식 element 전부 확인
+- **TaskFocusBar status deps** — status prop 의존 컴포넌트는 useEffect deps 에 명시 (30s polling race 차단)
+- **N+32 옵션 A/B 박제 정합** — Focus 자체 Start/Stop 버튼 없음. task status 가 trigger + 종료 책임
+- **TipTap wrapper click → focus('end')** — Notion/Google Docs 표준 UX. ProseMirror DOM 안 클릭은 자동 처리, 그 외 wrapper 영역만 명시
+- **자의적 기획 변경 금지** — sameTz 통합 같은 의도된 정책 임의 제거 X. revert 후 진짜 원인 추적
+
+### FocusWidget 상태 매트릭스 (N+49 정합)
+
+| 상태 | UI |
+|------|-----|
+| focus_enabled=false | 위젯 hide |
+| session 없음 (idle) | 안내 + "내 업무로 가기" link (Start 버튼 X) |
+| session.task=null (orphan) | "업무 미지정" + 안내 "다른 업무 시작 시 자동 전환" |
+| active | 카운터 + Pause + ViewBtn |
+| paused | 카운터 + Resume + ViewBtn |
+| auto_paused (idle_detected) | 카운터 + idle prompt |
+
+### 수정된 파일
+
+- `dev-frontend/src/pages/Profile/ProfilePage.tsx` — banner/ref div Container 밖
+- `dev-frontend/src/components/Focus/TaskFocusBar.tsx` — margin + status deps
+- `dev-frontend/src/pages/Profile/MyWorkSettingsPage.tsx` — max-width 제거
+- `dev-frontend/src/components/Focus/FocusWidget.tsx` — DangerBtn 제거, Start 버튼 → GotoLink, orphan 안내, useAuth import 정리
+- `dev-frontend/src/components/Common/RichEditor.tsx` — wrapper onClick → focus('end')
+- `dev-frontend/src/components/Docs/PostEditor.tsx` — 동일 패턴
+- `dev-frontend/public/locales/ko/focus.json`, `en/focus.json` — gotoTasks/noTaskHint i18n 신규
 
 ### 사용자 호소
 
