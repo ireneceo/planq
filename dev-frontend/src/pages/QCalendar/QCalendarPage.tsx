@@ -125,6 +125,37 @@ const QCalendarPage: React.FC = () => {
 
   useEffect(() => { fetchRange(); }, [fetchRange]);
 
+  // N+38 — 실시간 동기화 (CLAUDE.md 운영 안정성 16번 박제).
+  // 다른 사용자가 일정 추가/수정/삭제 시 본인이 캘린더 열고 있으면 즉시 보임.
+  useEffect(() => {
+    if (!bizId) return;
+    let pending: number | null = null;
+    const debouncedReload = () => {
+      if (pending) return;
+      pending = window.setTimeout(() => { pending = null; void fetchRange(); }, 250);
+    };
+    let socket: { disconnect: () => void } | null = null;
+    import('socket.io-client').then(({ io }) => {
+      import('../../contexts/AuthContext').then(({ getAccessToken }) => {
+        if (!getAccessToken()) return;
+        const s = io({
+          auth: (cb) => cb({ token: getAccessToken() }),
+          transports: ['websocket', 'polling'],
+          reconnection: true,
+        });
+        socket = s;
+        s.on('connect', () => { s.emit('join:business', bizId); });
+        s.on('event:created', debouncedReload);
+        s.on('event:updated', debouncedReload);
+        s.on('event:deleted', debouncedReload);
+      });
+    });
+    return () => {
+      if (pending) window.clearTimeout(pending);
+      if (socket) socket.disconnect();
+    };
+  }, [bizId, fetchRange]);
+
   // 프로젝트 목록 (모달 드롭다운 + 색 상속용)
   useEffect(() => {
     if (!bizId) return;
