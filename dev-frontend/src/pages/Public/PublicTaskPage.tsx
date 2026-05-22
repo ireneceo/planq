@@ -11,6 +11,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { apiFetch, getAccessToken } from '../../contexts/AuthContext';
 import SharePasswordPrompt from './SharePasswordPrompt';
+import ExpiredShareLink from '../../components/Common/ExpiredShareLink';
 
 interface TaskPreview {
   id: number;
@@ -52,6 +53,8 @@ const PublicTaskPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [needPw, setNeedPw] = useState(false);
+  // N+44 — 만료된 링크 410 응답 분기
+  const [expired, setExpired] = useState<{ at: string | null } | null>(null);
   const [pwError, setPwError] = useState<string | null>(null);
   const [pwBusy, setPwBusy] = useState(false);
 
@@ -66,6 +69,8 @@ const PublicTaskPage = () => {
       if (j.success) {
         setTask(j.data);
         setNeedPw(false);
+      } else if (r.status === 410 && j.code === 'share_expired') {
+        setExpired({ at: j.expired_at || null });
       } else if (r.status === 401 && j.requires_password) {
         setNeedPw(true);
         if (pw) setPwError(j.message === 'password_wrong' ? 'wrong' : null);
@@ -96,6 +101,7 @@ const PublicTaskPage = () => {
   }, [token, task, navigate]);
 
   if (loading) return <Wrap><Card><Hint>{t('public.loading', { defaultValue: '불러오는 중...' }) as string}</Hint></Card></Wrap>;
+  if (expired) return <ExpiredShareLink expiredAt={expired.at} />;
   if (needPw) return <SharePasswordPrompt onSubmit={fetchTask} busy={pwBusy} error={pwError} />;
   if (error || !task) return (
     <Wrap><Card>

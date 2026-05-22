@@ -5,6 +5,7 @@ import React, { useEffect, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
+import ExpiredShareLink from '../../components/Common/ExpiredShareLink';
 
 interface PublicDoc {
   id: number; title: string; status: string; kind: string;
@@ -28,17 +29,28 @@ const PublicDocPage: React.FC = () => {
   const [signing, setSigning] = useState(false);
   const [signedDone, setSignedDone] = useState<{ status: string; at: string } | null>(null);
   const [signError, setSignError] = useState<string | null>(null);
+  // N+44 — 410 share_expired 분기
+  const [expired, setExpired] = useState<{ at: string | null } | null>(null);
 
   useEffect(() => {
     if (!token) return;
-    fetch(`/api/docs/public/${token}`)
-      .then(r => r.json())
-      .then(j => {
-        if (!j.success) throw new Error(j.message || 'load_failed');
-        setDoc(j.data);
-      })
-      .catch(e => setErr(e.message))
-      .finally(() => setLoading(false));
+    (async () => {
+      try {
+        const r = await fetch(`/api/docs/public/${token}`);
+        const j = await r.json().catch(() => ({}));
+        if (r.status === 410 && j.code === 'share_expired') {
+          setExpired({ at: j.expired_at || null });
+        } else if (!j.success) {
+          throw new Error(j.message || 'load_failed');
+        } else {
+          setDoc(j.data);
+        }
+      } catch (e) {
+        setErr((e as Error).message);
+      } finally {
+        setLoading(false);
+      }
+    })();
   }, [token]);
 
   const submitSign = async (accept: boolean) => {
@@ -71,6 +83,7 @@ const PublicDocPage: React.FC = () => {
   };
 
   if (loading) return <Center>{t('public.loading', '문서 로드 중...')}</Center>;
+  if (expired) return <ExpiredShareLink expiredAt={expired.at} />;
   if (err || !doc) return <Center>{err || t('public.notFound', '공개되지 않았거나 만료된 링크입니다')}</Center>;
 
   const alreadySigned = !!doc.signed_at;

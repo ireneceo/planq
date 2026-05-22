@@ -63,4 +63,27 @@ async function verifySharePassword(entity, req) {
   return { ok: true };
 }
 
-module.exports = { applyShareUpdate, verifySharePassword };
+// N+44 — 공개 endpoint 만료 응답 통일 (Post/Doc/Invoice 의 N+43 패턴과 일치):
+//   만료된 share_expires_at < NOW 이면 410 + { code: 'share_expired', expired_at } 응답.
+//   helper 가 res 직접 write 하므로 라우트는 호출 후 return 만 하면 됨.
+//
+// 사용 패턴:
+//   const entity = await Model.findOne({ where: { share_token } });   // share_expires_at WHERE 조건 빼야 함
+//   if (!entity) return errorResponse(res, 'not_found', 404);
+//   if (checkShareExpiry(entity, res)) return;
+//   // 정상 처리
+function checkShareExpiry(entity, res) {
+  if (!entity || !entity.share_expires_at) return false;
+  if (new Date(entity.share_expires_at) < new Date()) {
+    res.status(410).json({
+      success: false,
+      code: 'share_expired',
+      message: 'This share link has expired.',
+      expired_at: entity.share_expires_at,
+    });
+    return true;
+  }
+  return false;
+}
+
+module.exports = { applyShareUpdate, verifySharePassword, checkShareExpiry };

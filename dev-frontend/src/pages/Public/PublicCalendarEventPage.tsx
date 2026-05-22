@@ -5,6 +5,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { apiFetch, getAccessToken } from '../../contexts/AuthContext';
 import SharePasswordPrompt from './SharePasswordPrompt';
+import ExpiredShareLink from '../../components/Common/ExpiredShareLink';
 
 interface CalendarPreview {
   id: number;
@@ -63,6 +64,7 @@ const PublicCalendarEventPage = () => {
   const [needPw, setNeedPw] = useState(false);
   const [pwError, setPwError] = useState<string | null>(null);
   const [pwBusy, setPwBusy] = useState(false);
+  const [expired, setExpired] = useState<{ at: string | null } | null>(null);
 
   const fetchEv = useCallback(async (pw?: string) => {
     if (!token) return;
@@ -73,7 +75,9 @@ const PublicCalendarEventPage = () => {
         pw ? { headers: { 'X-Share-Password': pw } } : undefined);
       const j = await r.json();
       if (j.success) { setEv(j.data); setNeedPw(false); }
-      else if (r.status === 401 && j.requires_password) {
+      else if (r.status === 410 && j.code === 'share_expired') {
+        setExpired({ at: j.expired_at || null });
+      } else if (r.status === 401 && j.requires_password) {
         setNeedPw(true);
         if (pw) setPwError(j.message === 'password_wrong' ? 'wrong' : null);
       } else { setError(j.message || 'not_found'); }
@@ -96,6 +100,7 @@ const PublicCalendarEventPage = () => {
   }, [token, ev, navigate]);
 
   if (loading) return <Wrap><Card><Hint>{t('public.loading', { defaultValue: '불러오는 중...' }) as string}</Hint></Card></Wrap>;
+  if (expired) return <ExpiredShareLink expiredAt={expired.at} />;
   if (needPw) return <SharePasswordPrompt onSubmit={fetchEv} busy={pwBusy} error={pwError} />;
   if (error || !ev) return (
     <Wrap><Card>

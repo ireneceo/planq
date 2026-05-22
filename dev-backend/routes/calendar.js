@@ -709,14 +709,9 @@ router.delete('/:id/share', authenticateToken, async (req, res, next) => {
 
 router.get('/public/by-token/:token', async (req, res, next) => {
   try {
+    // N+44 — 410 통일
     const ev = await CalendarEvent.findOne({
-      where: {
-        share_token: req.params.token,
-        [Op.or]: [
-          { share_expires_at: null },
-          { share_expires_at: { [Op.gt]: new Date() } },
-        ],
-      },
+      where: { share_token: req.params.token },
       include: [
         { model: User, as: 'creator', attributes: ['id', 'name'], required: false },
         { model: Project, attributes: ['id', 'name'], required: false },
@@ -726,8 +721,9 @@ router.get('/public/by-token/:token', async (req, res, next) => {
         'all_day', 'category', 'meeting_url', 'shared_at', 'share_expires_at',
         'share_password_hash', 'business_id', 'project_id'],
     });
-    if (!ev) return errorResponse(res, 'not_found_or_expired', 404);
-    const { verifySharePassword } = require('../services/share_helper');
+    if (!ev) return errorResponse(res, 'not_found', 404);
+    const { verifySharePassword, checkShareExpiry } = require('../services/share_helper');
+    if (checkShareExpiry(ev, res)) return;
     const v = await verifySharePassword(ev, req);
     if (!v.ok) return res.status(v.status).json({ success: false, message: v.error, requires_password: v.requires_password });
     return successResponse(res, {
@@ -750,16 +746,11 @@ router.get('/public/by-token/:token', async (req, res, next) => {
 
 router.get('/public/by-token/:token/auth-check', authenticateToken, async (req, res, next) => {
   try {
-    const ev = await CalendarEvent.findOne({
-      where: {
-        share_token: req.params.token,
-        [Op.or]: [
-          { share_expires_at: null },
-          { share_expires_at: { [Op.gt]: new Date() } },
-        ],
-      },
-    });
-    if (!ev) return errorResponse(res, 'not_found_or_expired', 404);
+    // N+44 — 410 통일
+    const ev = await CalendarEvent.findOne({ where: { share_token: req.params.token } });
+    if (!ev) return errorResponse(res, 'not_found', 404);
+    const { checkShareExpiry } = require('../services/share_helper');
+    if (checkShareExpiry(ev, res)) return;
     const scope = await getUserScope(req.user.id, ev.business_id, req.user.platform_role);
     const canAccess = isMemberOrAbove(scope) || ev.created_by === req.user.id;
     return successResponse(res, {
