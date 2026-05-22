@@ -64,6 +64,7 @@ async function callAiEstimate(title, description, businessId = null) {
         max_tokens: 100,
         response_format: { type: 'json_object' },
       }),
+      signal: AbortSignal.timeout(20_000),
     });
     if (!r.ok) return null;
     const j = await r.json();

@@ -147,6 +147,7 @@ async function callOpenAi(systemPrompt, userPrompt) {
         max_tokens: 2000,
         response_format: { type: 'json_object' },
       }),
+      signal: AbortSignal.timeout(45_000),
     });
     if (!r.ok) {
       const err = await r.text();

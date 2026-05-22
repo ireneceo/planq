@@ -29,6 +29,7 @@ async function llm(system, user, maxTokens = 800) {
       temperature: 0.3,
       max_tokens: maxTokens,
     }),
+    signal: AbortSignal.timeout(45_000),
   });
   if (!r.ok) {
     const t = await r.text().catch(() => '');
