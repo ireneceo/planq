@@ -13,9 +13,10 @@ import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { useEscapeStack } from '../../hooks/useEscapeStack';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 
+// N+44 — ShareModal 실 사용 5 entity 만 유지. document/invoice/quote/report 는 별도 UI 흐름
+// (PostSignatureModal, Invoice send 라우트 자체 발급) 사용 — ShareModal 통한 호출 dead code 였음.
 export type ShareEntityType =
-  | 'task' | 'file' | 'kb_document' | 'calendar_event'
-  | 'post' | 'document' | 'invoice' | 'quote' | 'report';
+  | 'task' | 'file' | 'kb_document' | 'calendar_event' | 'post';
 
 interface Props {
   open: boolean;
@@ -32,10 +33,6 @@ const PATH_MAP: Record<ShareEntityType, string> = {
   kb_document: 'kb-documents',
   calendar_event: 'calendar-events',
   post: 'posts',
-  document: 'documents',
-  invoice: 'invoices',
-  quote: 'quotes',
-  report: 'reports',
 };
 
 // 미리보기 URL 패턴 (frontend 라우트)
@@ -45,10 +42,6 @@ const PUBLIC_PATH_MAP: Record<ShareEntityType, string> = {
   kb_document: '/public/kb',
   calendar_event: '/public/calendar',
   post: '/public/posts',
-  document: '/public/docs',
-  invoice: '/public/invoices',
-  quote: '/public/quotes',
-  report: '/public/reports',
 };
 
 const ShareModal: React.FC<Props> = ({ open, entityType, entityId, entityTitle, onClose }) => {

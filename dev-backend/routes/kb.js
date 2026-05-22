@@ -1045,14 +1045,9 @@ router.delete('/kb-documents/:id/share', authenticateToken, async (req, res, nex
 
 router.get('/kb-documents/public/by-token/:token', async (req, res, next) => {
   try {
+    // N+44 — 410 통일
     const doc = await KbDocument.findOne({
-      where: {
-        share_token: req.params.token,
-        [Op.or]: [
-          { share_expires_at: null },
-          { share_expires_at: { [Op.gt]: new Date() } },
-        ],
-      },
+      where: { share_token: req.params.token },
       include: [
         { model: User, as: 'uploader', attributes: ['id', 'name'], required: false },
         { model: Business, attributes: ['id', 'name', 'brand_name'], required: false },
@@ -1060,8 +1055,9 @@ router.get('/kb-documents/public/by-token/:token', async (req, res, next) => {
       attributes: ['id', 'title', 'body', 'source_type', 'shared_at', 'share_expires_at',
         'share_password_hash', 'business_id', 'created_at', 'file_name', 'mime_type'],
     });
-    if (!doc) return errorResponse(res, 'not_found_or_expired', 404);
-    const { verifySharePassword } = require('../services/share_helper');
+    if (!doc) return errorResponse(res, 'not_found', 404);
+    const { verifySharePassword, checkShareExpiry } = require('../services/share_helper');
+    if (checkShareExpiry(doc, res)) return;
     const v = await verifySharePassword(doc, req);
     if (!v.ok) return res.status(v.status).json({ success: false, message: v.error, requires_password: v.requires_password });
     return successResponse(res, {
@@ -1081,16 +1077,11 @@ router.get('/kb-documents/public/by-token/:token', async (req, res, next) => {
 
 router.get('/kb-documents/public/by-token/:token/auth-check', authenticateToken, async (req, res, next) => {
   try {
-    const doc = await KbDocument.findOne({
-      where: {
-        share_token: req.params.token,
-        [Op.or]: [
-          { share_expires_at: null },
-          { share_expires_at: { [Op.gt]: new Date() } },
-        ],
-      },
-    });
-    if (!doc) return errorResponse(res, 'not_found_or_expired', 404);
+    // N+44 — 410 통일
+    const doc = await KbDocument.findOne({ where: { share_token: req.params.token } });
+    if (!doc) return errorResponse(res, 'not_found', 404);
+    const { checkShareExpiry } = require('../services/share_helper');
+    if (checkShareExpiry(doc, res)) return;
     const scope = await getUserScope(req.user.id, doc.business_id, req.user.platform_role);
     const canAccess = isMemberOrAbove(scope);
     return successResponse(res, {

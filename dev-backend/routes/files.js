@@ -77,15 +77,9 @@ router.delete('/:id/share', authenticateToken, async (req, res, next) => {
 
 router.get('/public/by-token/:token', async (req, res, next) => {
   try {
+    // N+44 — share_expires_at WHERE 제거. 만료 토큰 410 + share_expired 통일 응답.
     const file = await File.findOne({
-      where: {
-        share_token: req.params.token,
-        deleted_at: null,
-        [Op.or]: [
-          { share_expires_at: null },
-          { share_expires_at: { [Op.gt]: new Date() } },
-        ],
-      },
+      where: { share_token: req.params.token, deleted_at: null },
       include: [
         { model: User, as: 'uploader', attributes: ['id', 'name'], required: false },
         { model: Business, attributes: ['id', 'name', 'brand_name'], required: false },
@@ -93,8 +87,9 @@ router.get('/public/by-token/:token', async (req, res, next) => {
       attributes: ['id', 'file_name', 'mime_type', 'file_size', 'storage_provider',
         'shared_at', 'share_expires_at', 'share_password_hash', 'business_id', 'created_at'],
     });
-    if (!file) return errorResponse(res, 'not_found_or_expired', 404);
-    const { verifySharePassword } = require('../services/share_helper');
+    if (!file) return errorResponse(res, 'not_found', 404);
+    const { verifySharePassword, checkShareExpiry } = require('../services/share_helper');
+    if (checkShareExpiry(file, res)) return;
     const v = await verifySharePassword(file, req);
     if (!v.ok) return res.status(v.status).json({ success: false, message: v.error, requires_password: v.requires_password });
     return successResponse(res, {
@@ -113,17 +108,11 @@ router.get('/public/by-token/:token', async (req, res, next) => {
 
 router.get('/public/by-token/:token/auth-check', authenticateToken, async (req, res, next) => {
   try {
-    const file = await File.findOne({
-      where: {
-        share_token: req.params.token,
-        deleted_at: null,
-        [Op.or]: [
-          { share_expires_at: null },
-          { share_expires_at: { [Op.gt]: new Date() } },
-        ],
-      },
-    });
-    if (!file) return errorResponse(res, 'not_found_or_expired', 404);
+    // N+44 — 410 통일
+    const file = await File.findOne({ where: { share_token: req.params.token, deleted_at: null } });
+    if (!file) return errorResponse(res, 'not_found', 404);
+    const { checkShareExpiry } = require('../services/share_helper');
+    if (checkShareExpiry(file, res)) return;
     const scope = await getUserScope(req.user.id, file.business_id, req.user.platform_role);
     const canAccess = isMemberOrAbove(scope);
     return successResponse(res, {
@@ -135,18 +124,11 @@ router.get('/public/by-token/:token/auth-check', authenticateToken, async (req, 
 
 router.get('/public/by-token/:token/download', async (req, res, next) => {
   try {
-    const file = await File.findOne({
-      where: {
-        share_token: req.params.token,
-        deleted_at: null,
-        [Op.or]: [
-          { share_expires_at: null },
-          { share_expires_at: { [Op.gt]: new Date() } },
-        ],
-      },
-    });
-    if (!file) return errorResponse(res, 'not_found_or_expired', 404);
-    const { verifySharePassword } = require('../services/share_helper');
+    // N+44 — 410 통일
+    const file = await File.findOne({ where: { share_token: req.params.token, deleted_at: null } });
+    if (!file) return errorResponse(res, 'not_found', 404);
+    const { verifySharePassword, checkShareExpiry } = require('../services/share_helper');
+    if (checkShareExpiry(file, res)) return;
     const v = await verifySharePassword(file, req);
     if (!v.ok) return res.status(v.status).json({ success: false, message: v.error, requires_password: v.requires_password });
     if (file.storage_provider !== 'planq') {

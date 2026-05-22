@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
+import ExpiredShareLink from '../../components/Common/ExpiredShareLink';
 
 interface Installment {
   id: number;
@@ -72,6 +73,8 @@ const PublicInvoicePage: React.FC = () => {
   const [invoice, setInvoice] = useState<PublicInvoice | null>(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
+  // N+44 — 410 share_expired 분기
+  const [expired, setExpired] = useState<{ at: string | null } | null>(null);
 
   // 알림 모달
   const [notifyOpen, setNotifyOpen] = useState(false);
@@ -83,14 +86,23 @@ const PublicInvoicePage: React.FC = () => {
 
   useEffect(() => {
     if (!token) return;
-    fetch(`/api/invoices/public/${token}`)
-      .then(r => r.json())
-      .then(j => {
-        if (!j.success) throw new Error(j.message || 'load_failed');
-        setInvoice(j.data);
-      })
-      .catch(e => setErr((e as Error).message))
-      .finally(() => setLoading(false));
+    (async () => {
+      try {
+        const r = await fetch(`/api/invoices/public/${token}`);
+        const j = await r.json().catch(() => ({}));
+        if (r.status === 410 && j.code === 'share_expired') {
+          setExpired({ at: j.expired_at || null });
+        } else if (!j.success) {
+          throw new Error(j.message || 'load_failed');
+        } else {
+          setInvoice(j.data);
+        }
+      } catch (e) {
+        setErr((e as Error).message);
+      } finally {
+        setLoading(false);
+      }
+    })();
   }, [token]);
 
   // 모달 열림 동안 body scroll lock + Esc 닫기
@@ -176,6 +188,7 @@ const PublicInvoicePage: React.FC = () => {
   };
 
   if (loading) return <Center>{t('public.loading', '청구서 로드 중...')}</Center>;
+  if (expired) return <ExpiredShareLink expiredAt={expired.at} />;
   if (err || !invoice) return <Center>{err || t('public.notFound', '공개되지 않았거나 만료된 링크입니다')}</Center>;
 
   const isFullyPaid = invoice.status === 'paid';

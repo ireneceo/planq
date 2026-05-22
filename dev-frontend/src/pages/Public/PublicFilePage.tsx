@@ -7,6 +7,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { apiFetch, getAccessToken } from '../../contexts/AuthContext';
 import SharePasswordPrompt from './SharePasswordPrompt';
+import ExpiredShareLink from '../../components/Common/ExpiredShareLink';
 
 interface FilePreview {
   id: number;
@@ -41,6 +42,7 @@ const PublicFilePage = () => {
   const [pwError, setPwError] = useState<string | null>(null);
   const [pwBusy, setPwBusy] = useState(false);
   const [verifiedPw, setVerifiedPw] = useState<string | null>(null);
+  const [expired, setExpired] = useState<{ at: string | null } | null>(null);
 
   const fetchFile = useCallback(async (pw?: string) => {
     if (!token) return;
@@ -54,6 +56,8 @@ const PublicFilePage = () => {
         setFile(j.data);
         setNeedPw(false);
         if (pw) setVerifiedPw(pw);
+      } else if (r.status === 410 && j.code === 'share_expired') {
+        setExpired({ at: j.expired_at || null });
       } else if (r.status === 401 && j.requires_password) {
         setNeedPw(true);
         if (pw) setPwError(j.message === 'password_wrong' ? 'wrong' : null);
@@ -80,6 +84,7 @@ const PublicFilePage = () => {
   }, [token, file, navigate]);
 
   if (loading) return <Wrap><Card><Hint>{t('public.loading', { defaultValue: '불러오는 중...' }) as string}</Hint></Card></Wrap>;
+  if (expired) return <ExpiredShareLink expiredAt={expired.at} />;
   if (needPw) return <SharePasswordPrompt onSubmit={fetchFile} busy={pwBusy} error={pwError} />;
   if (error || !file) return (
     <Wrap><Card>

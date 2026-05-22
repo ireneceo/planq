@@ -6,6 +6,7 @@ import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
 import PostEditor from '../../components/Docs/PostEditor';
+import ExpiredShareLink from '../../components/Common/ExpiredShareLink';
 
 interface PublicPost {
   id: number;
@@ -25,20 +26,32 @@ const PublicPostPage: React.FC = () => {
   const [post, setPost] = useState<PublicPost | null>(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
+  // N+44 — 410 share_expired 분기 (N+43 백엔드 응답)
+  const [expired, setExpired] = useState<{ at: string | null } | null>(null);
 
   useEffect(() => {
     if (!token) return;
-    fetch(`/api/posts/public/${token}`)
-      .then(r => r.json())
-      .then(j => {
-        if (!j.success) throw new Error(j.message || 'load_failed');
-        setPost(j.data);
-      })
-      .catch(e => setErr((e as Error).message))
-      .finally(() => setLoading(false));
+    (async () => {
+      try {
+        const r = await fetch(`/api/posts/public/${token}`);
+        const j = await r.json().catch(() => ({}));
+        if (r.status === 410 && j.code === 'share_expired') {
+          setExpired({ at: j.expired_at || null });
+        } else if (!j.success) {
+          throw new Error(j.message || 'load_failed');
+        } else {
+          setPost(j.data);
+        }
+      } catch (e) {
+        setErr((e as Error).message);
+      } finally {
+        setLoading(false);
+      }
+    })();
   }, [token]);
 
   if (loading) return <Center>{t('public.loading', '문서 로드 중...')}</Center>;
+  if (expired) return <ExpiredShareLink expiredAt={expired.at} />;
   if (err || !post) return <Center>{err || t('public.notFound', '공개되지 않았거나 만료된 링크입니다')}</Center>;
 
   return (
