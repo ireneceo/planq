@@ -211,6 +211,42 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
   useEffect(() => { load(); }, [load]);
   useEffect(() => { loadMeta(); }, [loadMeta]);
 
+  // N+38 — 실시간 동기화 (CLAUDE.md 운영 안정성 16번 박제).
+  // 다른 사용자가 문서 추가/수정/삭제 시 본인이 페이지 열고 있으면 즉시 보임.
+  // backend posts.js 가 'business:${bizId}' room 으로 broadcast — TodoPage 의 socket
+  // 연결과 같은 글로벌 socket 사용. 여기는 listener 만 추가하면 됨 (글로벌 socket
+  // 없는 경우는 자체 io({...}) 연결 + business room join 추가 필요).
+  useEffect(() => {
+    if (!scope.businessId) return;
+    let pending: number | null = null;
+    const debouncedReload = () => {
+      if (pending) return;
+      pending = window.setTimeout(() => { pending = null; void load(); void loadMeta(); }, 250);
+    };
+    // 페이지 mount 시 자체 socket 연결 + business room join + listener 3종
+    import('socket.io-client').then(({ io }) => {
+      import('../../contexts/AuthContext').then(({ getAccessToken }) => {
+        if (!getAccessToken()) return;
+        const s = io({
+          auth: (cb) => cb({ token: getAccessToken() }),
+          transports: ['websocket', 'polling'],
+          reconnection: true,
+        });
+        s.on('connect', () => { s.emit('join:business', scope.businessId); });
+        s.on('post:new', debouncedReload);
+        s.on('post:updated', debouncedReload);
+        s.on('post:deleted', debouncedReload);
+        // cleanup
+        (window as unknown as { __planq_postsSocket?: { disconnect: () => void } }).__planq_postsSocket = s;
+      });
+    });
+    return () => {
+      if (pending) window.clearTimeout(pending);
+      const s = (window as unknown as { __planq_postsSocket?: { disconnect: () => void } }).__planq_postsSocket;
+      if (s) { s.disconnect(); delete (window as unknown as { __planq_postsSocket?: unknown }).__planq_postsSocket; }
+    };
+  }, [scope.businessId, load, loadMeta]);
+
   useEffect(() => {
     if (!activeId) {
       setDetail(null);
