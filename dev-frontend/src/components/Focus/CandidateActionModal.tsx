@@ -206,8 +206,8 @@ const CandidateActionModal: React.FC<Props> = ({ open, info, onClose, onRegister
           <FooterLeft>
             <RejectBtn type="button" onClick={handleReject} disabled={submitting !== null}>
               {submitting === 'reject'
-                ? t('candidateModal.rejecting', '반려 중...')
-                : t('candidateModal.reject', '반려')}
+                ? t('candidateModal.skipping', '건너뛰는 중...')
+                : t('candidateModal.skip', '건너뛰기')}
             </RejectBtn>
           </FooterLeft>
           <FooterRight>
@@ -312,11 +312,13 @@ const baseFooterBtn = `
   transition: background 0.12s, color 0.12s;
   &:disabled { opacity: 0.5; cursor: not-allowed; }
 `;
+// N+36 — "반려" → "건너뛰기". Secondary 톤 (회색 outline) — 부정적 위험 액션 아님.
+// 사용자 호소: "거절 멘트 부적합 + 버튼 라인 없어서 클릭 어려움" (옛 border #FECACA 옅은 빨강).
 const RejectBtn = styled.button`
   ${baseFooterBtn}
-  background: #FFFFFF; color: #DC2626;
-  border: 1px solid #FECACA;
-  &:hover:not(:disabled) { background: #FEF2F2; border-color: #DC2626; }
+  background: #FFFFFF; color: #475569;
+  border: 1px solid #CBD5E1;
+  &:hover:not(:disabled) { background: #F8FAFC; border-color: #94A3B8; }
 `;
 const CancelBtn = styled.button`
   ${baseFooterBtn}
