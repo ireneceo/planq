@@ -1,12 +1,41 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-05-22 사이클 N+39~N+48 — PWA hook · 실시간 동기화 보강 · displayName 전수 · 정기업무 · Brief · Q Note 정리하기 · share_token 만료 · Smart Routing · SaaS readiness (v1.17.0 라이브 15 commit `4844db5`)
+> **최종 업데이트:** 2026-05-22 사이클 N+39~N+49 — PWA hook · 실시간 동기화 보강 · displayName 전수 · 정기업무 · Brief · Q Note 정리하기 · share_token 만료 · Smart Routing · SaaS readiness · Profile 2열 정합 (v1.17.0 라이브 17 commit, hotfix `b957955`)
 >
 > **직전 라이브:** v1.16.2 (commit `242bc43`) — N+32~N+38 11 commit (Focus 옵션 A + 실시간 동기화 7 영역 + /검증 skill PlanQ 특수)
 >
 > **이전 라이브:** v1.16.1 (commit `8947504`) — N+31 사이클 (Q Talk 모바일 viewport 회귀 fix)
 >
 > **이전 라이브:** v1.16.0 (commit `ab113a6`) — N+26~N+27 사이클 (업무 흐름 Focus MVP + 인박스 inline 모달 + Cue 주고받음)
+
+---
+
+## ✅ 완료: 사이클 N+49 hotfix — Profile 2열 정합 (2026-05-22, hotfix b957955)
+
+### 변경
+
+| 작업 | 설명 | 상태 |
+|------|------|:----:|
+| 개인정보 처리 카드 위치 | 맨 마지막 → 계정 정보 직후 (첫 행 2번째 열) | ✅ |
+| Container align-items 제거 | `align-items: start` → grid default stretch | ✅ |
+| Card height 명시 | `height: 100%` + flex column → 같은 행 카드 높이 동일 | ✅ |
+
+### 사용자 호소
+
+"내프로필 좌측 첫번째 공간이 비었다. 워프로랩 프로필 높이는 옆의 열과 같아야 함."
+
+### 30년차 결정 박제
+
+- grid 2열 + dense 배치만으로는 충분치 않음. 카드 height 명시 + align-items 명시 제거가 진짜 fix.
+- 직전 N+39-3 의 dense 만 추가했던 게 미흡 (높이 불일치 회귀 잔존). 이번에 완성.
+
+### 수정된 파일
+
+- `dev-frontend/src/pages/Profile/ProfilePage.tsx` (26 +, 21 -)
+
+### 운영 라이브
+
+`b957955` → 운영 push (timestamp 20260522_193237, 108s)
 
 ---
 
