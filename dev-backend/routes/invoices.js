@@ -283,6 +283,34 @@ router.get('/public/:token/pdf', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// N+47 — Smart Routing auth-check. 멤버 또는 invoice 의 client_id 본인이면 in-app 진입.
+// /:businessId 매칭보다 먼저 등록 — public/* 패턴 우선.
+router.get('/public/:token/auth-check', authenticateToken, async (req, res, next) => {
+  try {
+    const invoice = await Invoice.findOne({ where: { share_token: req.params.token } });
+    if (!invoice) return errorResponse(res, 'not_found', 404);
+    const { checkShareExpiry } = require('../services/share_helper');
+    if (checkShareExpiry(invoice, res)) return;
+    // 멤버 또는 platform_admin → in-app 청구서 탭
+    const isPlatformAdmin = req.user.platform_role === 'platform_admin';
+    const bm = isPlatformAdmin ? null : await require('../models').BusinessMember.findOne({
+      where: { user_id: req.user.id, business_id: invoice.business_id },
+    });
+    let canAccess = isPlatformAdmin || !!bm;
+    // 또는 client 본인 — client_id 매칭
+    if (!canAccess && invoice.client_id) {
+      const client = await require('../models').Client.findOne({
+        where: { id: invoice.client_id, user_id: req.user.id, status: 'active' },
+      });
+      if (client) canAccess = true;
+    }
+    return successResponse(res, {
+      canAccess,
+      appUrl: canAccess ? `/bills?tab=invoices&invoice=${invoice.id}` : null,
+    });
+  } catch (err) { next(err); }
+});
+
 // List invoices — client 면 자기 client_id 의 invoice 만
 router.get('/:businessId', authenticateToken, attachWorkspaceScope(), async (req, res, next) => {
   try {
