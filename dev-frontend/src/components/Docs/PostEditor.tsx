@@ -146,8 +146,16 @@ const PostEditor: React.FC<Props> = ({ value, onChange, placeholder, editable = 
 
   const isActive = (name: string, attrs?: Record<string, unknown>) => editor.isActive(name, attrs);
 
+  // N+49 hotfix — wrapper 빈 영역 클릭 시 editor 끝으로 focus. ProseMirror DOM 안 클릭은 자동.
+  // 사용자 호소: "빈 노트/문서 에디터 어디 클릭해도 커서 진입 가능"
+  const handleWrapperClick = (e: React.MouseEvent) => {
+    if (!editable || !editor) return;
+    if ((e.target as HTMLElement).closest('.ProseMirror')) return;
+    editor.commands.focus('end');
+  };
+
   return (
-    <Wrap $borderless={borderless} $compact={compact}>
+    <Wrap $borderless={borderless} $compact={compact} onClick={handleWrapperClick}>
       {editable && (
         <Toolbar $compact={compact}>
           <Group>

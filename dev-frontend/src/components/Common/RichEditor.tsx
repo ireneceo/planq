@@ -150,8 +150,17 @@ export default function RichEditor({
     editor.chain().focus().updateAttributes('image', { width: w }).run();
   };
 
+  // N+49 hotfix — wrapper 빈 영역 클릭 시 editor 끝으로 focus. TipTap 표준 패턴.
+  // ProseMirror DOM 안 클릭은 자동 처리 (이미 동작). wrapper padding/min-height 빈 영역만 처리.
+  // 사용자 호소: "에디터 빈 곳 클릭해도 첫 번째 줄 커서 진입" — 빈 노트/문서 진입 시 어디 클릭해도 커서 진입.
+  const handleWrapperClick = (e: React.MouseEvent) => {
+    if (readOnly || !editor) return;
+    if ((e.target as HTMLElement).closest('.ProseMirror')) return;
+    editor.commands.focus('end');
+  };
+
   return (
-    <EditorShell $mh={minHeight}>
+    <EditorShell $mh={minHeight} onClick={handleWrapperClick}>
       {!readOnly && (
         <>
           <BubbleMenu editor={editor} shouldShow={({ editor: ed }) => ed.isActive('image')}>
