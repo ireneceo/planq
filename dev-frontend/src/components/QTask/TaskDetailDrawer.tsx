@@ -747,10 +747,19 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                       {t('detail.chip.mine', '내 업무')}
                     </DrawerNameChip>;
                   }
-                  // 타인 담당 (관찰자 관점)
+                  // 타인 담당 (관찰자/컨펌자 관점) — N+34: 작성자 명시 추가 (사용자 호소: "작성자 꼭 표시")
+                  const creatorName = detailTask.creator?.name || detailTask.requester?.name || '';
                   if (asgName) {
                     return <DrawerNameChip $type="observer" title={t('detail.chip.assignee', '담당자') as string}>
-                      {t('detail.chip.assigneePrefix', '담당')} · {asgName}
+                      {creatorName && creatorName !== asgName
+                        ? `${t('detail.chip.creatorPrefix', '작성')} · ${creatorName} → ${t('detail.chip.assigneePrefix', '담당')} · ${asgName}`
+                        : `${t('detail.chip.assigneePrefix', '담당')} · ${asgName}`}
+                    </DrawerNameChip>;
+                  }
+                  // 담당자 미지정 — 작성자만 표시
+                  if (creatorName) {
+                    return <DrawerNameChip $type="observer" title={t('detail.chip.creator', '작성자') as string}>
+                      {t('detail.chip.creatorPrefix', '작성')} · {creatorName}
                     </DrawerNameChip>;
                   }
                   return null;
@@ -1071,7 +1080,13 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
 
             <Section>
               <SectionTitle>
-                {t('detail.description', '업무 설명')}
+                {/* N+34 — description 라벨 동적: created_by === assignee_id 이면 "내가 적은 업무 메모"
+                    (자기 업무), 다르면 "요청 내용" (요청 받은 업무). 사용자 인지 부담 완화. */}
+                {detailTask.created_by === detailTask.assignee_id
+                  ? t('detail.descriptionSelf', '내가 적은 업무 메모')
+                  : detailTask.created_by !== myId && detailTask.assignee_id === myId
+                  ? t('detail.descriptionRequest', '요청 내용')
+                  : t('detail.description', '업무 설명')}
                 {!canEditDescription && <ReadOnlyHint>{t('detail.readOnly', '읽기 전용')}</ReadOnlyHint>}
               </SectionTitle>
               <DescEditorWrap>
