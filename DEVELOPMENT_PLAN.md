@@ -1,10 +1,69 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-05-20 사이클 N+31 — Q Talk 모바일 viewport 회귀 fix (v1.16.1 라이브, commit `8947504`)
+> **최종 업데이트:** 2026-05-22 사이클 N+32~N+38 — Focus 옵션 A 통합 + 실시간 동기화 7 영역 + /검증 skill PlanQ 특수 박제 (v1.16.2 라이브 9 commit + 10 commit 미라이브 대기)
 >
-> **직전 라이브:** v1.16.0 (commit `ab113a6`) — N+26~N+27 사이클 (업무 흐름 Focus MVP + 인박스 inline 모달 + Cue 주고받음)
+> **직전 라이브:** v1.16.2 (commit `7d7accc`) — N+32~N+37 9 commit
 >
-> **이전 라이브:** v1.15.0 (commit `64ace71`) — N+22~N+25 사이클 (채팅 sender 워크스페이스명·OG SEO·Q Note 공유 통합)
+> **이전 라이브:** v1.16.1 (commit `8947504`) — N+31 사이클 (Q Talk 모바일 viewport 회귀 fix)
+>
+> **이전 라이브:** v1.16.0 (commit `ab113a6`) — N+26~N+27 사이클 (업무 흐름 Focus MVP + 인박스 inline 모달 + Cue 주고받음)
+
+---
+
+## ✅ 완료: 사이클 N+32~N+38 (2026-05-22, v1.16.2 라이브 + 10 commit 미라이브)
+
+### N+38 — 실시간 동기화 전수 fix + /검증 skill 박제 (10 commit 미라이브)
+
+CLAUDE.md "운영 안정성 16번" 강력 박제 신설 + 7 영역 적용:
+
+| commit | 영역 | 내용 |
+|--------|------|------|
+| `c3eb48d` | 박제 | CLAUDE.md 16번 박제 + session-state 다음 사이클 |
+| `7346a1b` | release | package.json v1.16.2 |
+| `fd5e648` | Q docs | posts.js broadcast 4 mutation + PostsPage socket listener |
+| `944b290` | Q file + Calendar | files.js 4 + calendar.js 3 mutation + DocsTab/QCalendarPage listener |
+| `0758c1d` | Q info + Q Bill | kb.js 4 + invoices.js 2 mutation + KnowledgePage/InvoicesTab listener |
+| `e5762ef` | Q Project + Clients | projects.js conv notes/issues + clients.js 3 mutation + ClientsPage listener |
+| `3ab989a` | 정리 | workspace 주간보고 수동 박제 + AutoToggle 제거 (banner 만) |
+| `d9e636a` | cleanup | WeeklyReviewTab unused vars |
+| `d3a01bd` | cleanup | WeeklyReviewTab 마지막 unused 2건 |
+| `496c704` | /검증 skill | PlanQ 특수 5 항목 박제 (멀티테넌트/Socket/Q Note/Visibility권한/hydration) |
+
+### N+32~N+37 (v1.16.2 라이브, commit `7d7accc`)
+
+| 사이클 | 핵심 |
+|--------|------|
+| N+32 | Focus 옵션 A 통합 동기 + 옵션 B 단순화 + "내 업무 설정" 메뉴 분리 |
+| N+33 | Q Talk 채팅 진입 마지막 메시지 회귀 — 2.5초 force-stick 윈도우 |
+| N+34 | Drawer 작성자 chip 항상 + description 라벨 동적 + tasks.js displayName helper |
+| N+35 | MemoPopup→QNote window CustomEvent + 인박스 안전망 |
+| N+36 | "반려"→"건너뛰기" + 옵션 D 후보 만료 (30일 hide / 90일 delete + 이전 후보 보기 토글) |
+| N+37 | 주간 진척 그래프 actual 미입력 시 estimated*progress 추정 |
+
+### 30년차 박제 결정
+
+1. **Focus 옵션 A 통합 동기** — task status `in_progress` 진입 = Focus auto start. 이탈 = auto stop. paused 는 micro state.
+2. **사용자 멘탈모델 mismatch** — "요청 vs 자기 업무" 구분이 entity 에 없음 → UI 라벨 동적 명확화.
+3. **실시간 동기화 강력 박제** (CLAUDE.md 16번) — 4 요소 강제 (socket join / broadcast / listener / visibility refresh).
+4. **/검증 PlanQ 특수 5 항목** — 멀티테넌트 / Socket.IO / Q Note 별도 service / Visibility 4단계+권한 4-Layer / Vite hydration.
+
+### 미완 (다음 사이클)
+
+1. **운영 push** — 10 commit 미라이브 (다음 세션 `/배포`)
+2. **PWA useVisibilityRefresh 안전망** — N+38 추가 7 페이지에 hook
+3. **실시간 동기화 보강** — posts 11 / files move·visibility / kb pinned / QProjectDetailPage / DashboardPage
+4. **ProfilePage grid 정리** — 1938 라인 큰 작업
+5. **i18n ko/en 키 정합** — 신규 키 다수
+6. **Playwright MCP e2e** — /검증 10단계 통합 (--e2e 옵션). LLM auto-fix selector 한정만
+7. **나머지 task GET 라우트 displayName** — my-week / my-month / my-year / backlog
+8. **다른 라우트 displayName 전수** — dashboard / stats / calendar / docs / records
+
+### 수정된 파일 (19)
+
+**Backend (7)**: routes/posts.js, files.js, calendar.js, kb.js, invoices.js, clients.js, projects.js
+**Frontend (8)**: PostsPage, DocsTab, QCalendarPage, KnowledgePage, InvoicesTab, ClientsPage, WeeklyReviewTab
+**박제**: CLAUDE.md, .claude/commands/검증.md, .claude/session-state.md, DEVELOPMENT_PLAN.md
+**버전**: dev-backend/package.json, dev-frontend/package.json (1.16.1 → 1.16.2)
 
 ---
 
