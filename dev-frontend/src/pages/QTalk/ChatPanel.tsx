@@ -560,9 +560,11 @@ const ChatPanel: React.FC<Props> = ({
       const grew = cur > lastSize;
       lastSize = cur;
       if (!grew) return;
+      // N+33 — 진입 후 2.5초 force-stick. 비동기 콘텐츠(이미지/번역/Cue 카드) 로딩으로
+      // list height 폭증 시 distance > 240 라도 무조건 바닥. 사용자 호소 fix.
+      const elapsedSinceEnter = Date.now() - enteredAtRef.current;
+      if (elapsedSinceEnter < 2500) { scrollToBottom(false); return; }
       const distance = list.scrollHeight - list.scrollTop - list.clientHeight;
-      // 240px 이내(이미지 한 장 정도) 면 바닥으로 따라가기. 초기 진입 직후엔 distance 가 0~큰값 모두
-      // 가능하므로 initialScrolledRef 와 무관하게 적용.
       if (distance < 240) scrollToBottom(false);
     });
     ro.observe(list);
@@ -573,6 +575,8 @@ const ChatPanel: React.FC<Props> = ({
         const grew = cur > lastSize;
         lastSize = cur;
         if (grew) {
+          const elapsedSinceEnter = Date.now() - enteredAtRef.current;
+          if (elapsedSinceEnter < 2500) { scrollToBottom(false); return; }
           const distance = list.scrollHeight - list.scrollTop - list.clientHeight;
           if (distance < 240) scrollToBottom(false);
         }
@@ -610,9 +614,14 @@ const ChatPanel: React.FC<Props> = ({
   // useLayoutEffect 로 변경 — paint 전에 ref reset + 같은 phase 의 scroll useLayoutEffect 가 fresh false 값으로 즉시 scrollToBottom 호출.
   const initialScrolledRef = React.useRef(false);
   const prevMessageCount = React.useRef(0);
+  // N+33 — 진입 후 force-stick 윈도우. 진입 직후 2.5초 동안 ResizeObserver/MutationObserver 가
+  // distance 임계치 무시하고 무조건 바닥 추적. 이미지/번역 박스/Cue 카드 같은 비동기 콘텐츠가
+  // 늘어나면서 distance > 240 으로 자동 따라가기가 끊겨 "마지막 채팅 안 보임" 회귀 차단.
+  const enteredAtRef = React.useRef(0);
   React.useLayoutEffect(() => {
     initialScrolledRef.current = false;
     prevMessageCount.current = 0;
+    enteredAtRef.current = Date.now();
     setShowScrollToBottom(false);
     setPendingNewCount(0);
   }, [activeConv?.id]);
