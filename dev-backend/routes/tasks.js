@@ -870,6 +870,40 @@ router.put('/by-business/:businessId/:id', authenticateToken, async (req, res, n
 
     await task.update(updates);
 
+    // N+32 — 옵션 A 통합 동기: task status ↔ Focus session 자동 연결
+    //   - in_progress 진입 (담당자 본인 + focus_enabled=true): 기존 활성 stop → 새 session active
+    //   - in_progress 이탈 (담당자 본인): 활성 session 자동 stop (end_reason='status_change')
+    // 사용자 의도: "진행 시작 누르면 단계이동 같이 움직여야지" (2중 구조 통합)
+    if (updates.status !== undefined && updates.status !== prev.status && task.assignee_id === req.user.id) {
+      try {
+        const { FocusSession, User } = require('../models');
+        const u = await User.findByPk(req.user.id, { attributes: ['focus_enabled'] });
+        if (u && u.focus_enabled) {
+          if (updates.status === 'in_progress' && prev.status !== 'in_progress') {
+            await FocusSession.update(
+              { state: 'stopped', ended_at: new Date(), end_reason: 'switch' },
+              { where: { user_id: req.user.id, state: { [Op.in]: ['active', 'paused'] } } }
+            );
+            await FocusSession.create({
+              user_id: req.user.id,
+              business_id: task.business_id,
+              task_id: task.id,
+              state: 'active',
+              started_at: new Date(),
+              last_activity_at: new Date(),
+            });
+          } else if (prev.status === 'in_progress' && updates.status !== 'in_progress') {
+            await FocusSession.update(
+              { state: 'stopped', ended_at: new Date(), end_reason: 'status_change' },
+              { where: { user_id: req.user.id, task_id: task.id, state: { [Op.in]: ['active', 'paused'] } } }
+            );
+          }
+        }
+      } catch (e) {
+        console.warn('[task PUT] focus auto sync failed:', e.message);
+      }
+    }
+
     // 단계이동·주요 필드 변경 history 기록 (워크플로우 외 직접 PUT 도 추적)
     try {
       const actorId = req.user.id;

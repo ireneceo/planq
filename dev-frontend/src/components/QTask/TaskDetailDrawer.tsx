@@ -659,8 +659,8 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
           const memberOptions = members.filter(m => m.user_id !== detailTask.assignee_id && !reviewers.some(rv => rv.user_id === m.user_id));
 
           return (<>
-            {/* 업무 흐름 인라인 바 — focus_enabled=true 일 때만 렌더 */}
-            <TaskFocusBar taskId={detailTask.id} businessId={bizId} />
+            {/* 업무 흐름 sticky 바 — N+32 옵션 A 통합. 담당자 본인만 표시. */}
+            <TaskFocusBar taskId={detailTask.id} businessId={bizId} assigneeId={detailTask.assignee_id} />
             <Section>
               {editingTitle ? (
                 <TitleInput autoFocus value={titleDraft}
