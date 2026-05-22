@@ -7,8 +7,10 @@
       "paused": "Paused",
       "idle_detected": "Away detected"
     },
-    "idleHint": "Pick a task to start",
+    "idleHint": "Click \"Start\" on any task in Q Task — time will track automatically.",
+    "gotoTasks": "Go to my tasks",
     "noTask": "No task selected",
+    "noTaskHint": "The task for this session is gone. Starting another task will auto-switch.",
     "start": "Start",
     "pause": "Pause",
     "resume": "Resume",

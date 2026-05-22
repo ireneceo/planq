@@ -9,8 +9,8 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import styled, { keyframes, css } from 'styled-components';
 import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router-dom';
-import { apiFetch, useAuth } from '../../contexts/AuthContext';
+import { useNavigate, Link } from 'react-router-dom';
+import { apiFetch } from '../../contexts/AuthContext';
 import { useActivityTracker } from '../../hooks/useActivityTracker';
 
 interface FocusSession {
@@ -31,7 +31,7 @@ interface Props { isCollapsed?: boolean; }
 
 const FocusWidget: React.FC<Props> = ({ isCollapsed }) => {
   const { t } = useTranslation('focus');
-  const { user } = useAuth();
+  // useAuth 제거 — N+49 hotfix 로 onStart 제거 후 user 미사용
   const navigate = useNavigate();
 
   // user.focus_enabled 가 아직 응답에 없으면 server settings 한 번 fetch
@@ -175,10 +175,8 @@ const FocusWidget: React.FC<Props> = ({ isCollapsed }) => {
     } finally { setSubmitting(false); }
   }, [submitting]);
 
-  const onStart = () => {
-    if (!user?.business_id) return;
-    action('/api/focus/start', { business_id: user.business_id });
-  };
+  // N+49 hotfix — onStart 제거. N+32 옵션 A 박제: task status 'in_progress' 진입이 Focus auto start trigger.
+  // Focus 자체로 task 없이 시작하면 orphan session — 의미 없음. 사용자 호소 "업무 미지정인데 작동" 회귀 차단.
   const onPause = () => session && action('/api/focus/pause', { session_id: session.id, reason: 'manual' });
   const onResume = () => session && action('/api/focus/resume', { session_id: session.id });
   // N+49 hotfix — onStop 제거 (N+32 옵션 B: task status 가 종료 책임)
@@ -208,6 +206,8 @@ const FocusWidget: React.FC<Props> = ({ isCollapsed }) => {
     );
   }
 
+  // N+49 hotfix — idle 상태 (session 없음). N+32 옵션 A: Focus 는 task status 가 trigger.
+  // 위젯에서 직접 Start X. 안내 + Q Task 진입점 link (옵션 B — 사용자 학습 + 진입).
   if (!session) {
     return (
       <Wrap>
@@ -215,11 +215,11 @@ const FocusWidget: React.FC<Props> = ({ isCollapsed }) => {
           <Dot $state="idle" />
           <Label>{t('widget.title')}</Label>
         </WidgetHeader>
-        <SubText>{t('widget.idleHint', '시작할 업무를 골라주세요')}</SubText>
+        <SubText>{t('widget.idleHint', 'Q Task 에서 "진행 시작"을 누르면 시간이 자동 추적돼요.')}</SubText>
         <Actions>
-          <PrimaryBtn type="button" onClick={onStart} disabled={submitting}>
-            <SvgPlay /> {t('widget.start')}
-          </PrimaryBtn>
+          <GotoLink to="/tasks" title={t('widget.gotoTasks', '내 업무로 가기') as string}>
+            <SvgExternal /> {t('widget.gotoTasks', '내 업무로 가기')}
+          </GotoLink>
         </Actions>
       </Wrap>
     );
@@ -238,7 +238,10 @@ const FocusWidget: React.FC<Props> = ({ isCollapsed }) => {
       {session.task ? (
         <TaskTitle title={session.task.title}>{session.task.title}</TaskTitle>
       ) : (
-        <TaskTitle as="span">{t('widget.noTask', '업무 미지정')}</TaskTitle>
+        <>
+          <TaskTitle as="span">{t('widget.noTask', '업무 미지정')}</TaskTitle>
+          <SubText>{t('widget.noTaskHint', '이 세션의 업무가 사라졌어요. 다른 업무를 시작하면 자동 전환됩니다.')}</SubText>
+        </>
       )}
       <Counter aria-label={t('widget.elapsedAria', { seconds: liveSeconds }) as string}>
         {formatDuration(liveSeconds)}
@@ -397,6 +400,14 @@ const ViewBtn = styled.button`
   width: 28px; padding: 0;
   background: rgba(255, 255, 255, 0.06); color: rgba(255, 255, 255, 0.7);
   &:hover { background: rgba(255, 255, 255, 0.12); color: #FFFFFF; }
+`;
+// N+49 hotfix — idle 상태 안내 + Q Task 진입 link (button 아닌 Link — 자연스러운 navigation)
+const GotoLink = styled(Link)`
+  ${baseBtn}
+  text-decoration: none;
+  background: rgba(255, 255, 255, 0.1); color: #FFFFFF;
+  &:hover { background: rgba(255, 255, 255, 0.18); color: #FFFFFF; }
+  svg { flex-shrink: 0; }
 `;
 const CollapsedDot = styled.button<{ $state: DotState }>`
   width: 36px; height: 36px;
