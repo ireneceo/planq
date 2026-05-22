@@ -181,7 +181,7 @@ const FocusWidget: React.FC<Props> = ({ isCollapsed }) => {
   };
   const onPause = () => session && action('/api/focus/pause', { session_id: session.id, reason: 'manual' });
   const onResume = () => session && action('/api/focus/resume', { session_id: session.id });
-  const onStop = () => session && action('/api/focus/stop', { session_id: session.id, end_reason: 'manual' });
+  // N+49 hotfix — onStop 제거 (N+32 옵션 B: task status 가 종료 책임)
   const onView = () => session?.task_id && navigate(`/tasks?task=${session.task_id}`);
 
   if (enabled === null) return null;  // loading
@@ -244,6 +244,9 @@ const FocusWidget: React.FC<Props> = ({ isCollapsed }) => {
         {formatDuration(liveSeconds)}
       </Counter>
       <Actions>
+        {/* N+49 hotfix — Stop(DangerBtn) 제거. N+32 옵션 B 박제: 종료는 task status 가 책임 (in_progress 이탈 시 자동 stop).
+            TaskFocusBar 는 이미 제거됐는데 FocusWidget 만 남아있던 회귀. 빨간 배경 + Resume 녹색과 시각 충돌 호소 +
+            사용자 의미 혼란 ("완료? 종료?") 차단. pause/resume 만 유지 (micro state). */}
         {isPaused ? (
           <PrimaryBtn type="button" onClick={onResume} disabled={submitting} title={t('widget.resume') as string}>
             <SvgPlay /> {t('widget.resume')}
@@ -253,9 +256,6 @@ const FocusWidget: React.FC<Props> = ({ isCollapsed }) => {
             <SvgPause />
           </SecondaryBtn>
         )}
-        <DangerBtn type="button" onClick={onStop} disabled={submitting} title={t('widget.stop') as string} aria-label={t('widget.stop') as string}>
-          <SvgStop />
-        </DangerBtn>
         {session.task && (
           <ViewBtn type="button" onClick={onView} title={t('widget.view') as string} aria-label={t('widget.view') as string}>
             <SvgExternal />
@@ -301,7 +301,6 @@ function formatStartTime(iso: string, t: (k: string, opts?: Record<string, unkno
 // ─── icons (minimal feather) ───────────────────────────────────
 const SvgPlay = () => <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><polygon points="6 4 20 12 6 20 6 4"/></svg>;
 const SvgPause = () => <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14"/><rect x="14" y="5" width="4" height="14"/></svg>;
-const SvgStop = () => <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="1"/></svg>;
 const SvgExternal = () => <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>;
 
 // ─── motion ─────────────────────────────────────────────────────
@@ -392,12 +391,6 @@ const SecondaryBtn = styled.button`
   width: 28px; padding: 0;
   background: rgba(255, 255, 255, 0.1); color: #FFFFFF;
   &:hover:not(:disabled) { background: rgba(255, 255, 255, 0.18); }
-`;
-const DangerBtn = styled.button`
-  ${baseBtn}
-  width: 28px; padding: 0;
-  background: rgba(244, 63, 94, 0.15); color: #FECDD3;
-  &:hover:not(:disabled) { background: rgba(244, 63, 94, 0.3); color: #FFFFFF; }
 `;
 const ViewBtn = styled.button`
   ${baseBtn}
