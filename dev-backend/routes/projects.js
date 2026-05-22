@@ -1253,6 +1253,11 @@ router.post('/conversations/:convId/notes', authenticateToken, async (req, res, 
     const full = await ProjectNote.findByPk(note.id, {
       include: [{ model: User, as: 'author', attributes: ['id', 'name'] }],
     });
+    // N+38 — business room broadcast (CLAUDE.md 16번 박제)
+    const io = req.app.get('io');
+    if (io && conversation.business_id) {
+      io.to(`business:${conversation.business_id}`).emit('note:new', full.toJSON());
+    }
     return successResponse(res, full.toJSON());
   } catch (err) { next(err); }
 });
@@ -1289,6 +1294,11 @@ router.post('/conversations/:convId/issues', authenticateToken, async (req, res,
     const full = await ProjectIssue.findByPk(issue.id, {
       include: [{ model: User, as: 'author', attributes: ['id', 'name'] }],
     });
+    // N+38 — business room broadcast
+    const io = req.app.get('io');
+    if (io && conversation.business_id) {
+      io.to(`business:${conversation.business_id}`).emit('issue:new', full.toJSON());
+    }
     return successResponse(res, full.toJSON());
   } catch (err) { next(err); }
 });
