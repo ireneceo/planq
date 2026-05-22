@@ -5,6 +5,7 @@ import HelpDot from '../../components/Common/HelpDot';
 import VisibilityBadge, { type VLevel } from '../../components/Common/VisibilityBadge';
 import VisibilityChangeModal from '../../components/Common/VisibilityChangeModal';
 import QNoteShareModal from '../../components/QNote/QNoteShareModal';
+import QNoteSummaryModal from '../../components/QNote/QNoteSummaryModal';
 import styled from 'styled-components';
 import StartMeetingModal from './StartMeetingModal';
 import type { StartConfig } from './StartMeetingModal';
@@ -237,6 +238,8 @@ const QNotePage = () => {
   const [settingsViewOpen, setSettingsViewOpen] = useState(false);
   // 사이클 N+25 — 공유 모달 (visibility + share_token 통합)
   const [shareModalOpen, setShareModalOpen] = useState(false);
+  // N+42 — 정리하기 분기 모달 (4 액션: 업무/지식/문서/공유)
+  const [summaryModalOpen, setSummaryModalOpen] = useState(false);
   const [visibilityError, setVisibilityError] = useState<string | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
     if (typeof window !== 'undefined') return window.innerWidth < 900;
@@ -2410,6 +2413,16 @@ const QNotePage = () => {
                 </SessionMeta>
               </HeaderLeft>
               <HeaderRight>
+                {/* N+42 — 정리하기 분기 모달 (4 액션). owner 본인만 노출 */}
+                {String(activeSession.user_id) === String(user?.id) && (
+                  <SecondaryBtn
+                    type="button"
+                    onClick={() => setSummaryModalOpen(true)}
+                    title={t('page.reviewBar.organizeTitle', '회의/메모를 업무/지식/문서/공유로 변환') as string}
+                  >
+                    {t('page.reviewBar.organize', '정리하기')}
+                  </SecondaryBtn>
+                )}
                 {/* 사이클 N+25 — 공유 버튼 (visibility + share_token 통합 모달) */}
                 {String(activeSession.user_id) === String(user?.id) && (
                   <SecondaryBtn
@@ -2558,6 +2571,23 @@ const QNotePage = () => {
             }
           }}
           onClose={() => { setVisibilityModalOpen(false); setVisibilityError(null); }}
+        />
+      )}
+
+      {/* N+42 — 정리하기 분기 모달 (4 액션) */}
+      {summaryModalOpen && activeSession && (
+        <QNoteSummaryModal
+          open={summaryModalOpen}
+          onClose={() => setSummaryModalOpen(false)}
+          sessionId={activeSession.id}
+          sessionTitle={activeSession.title || ''}
+          transcriptText={renderBlocks
+            .filter((b) => b.kind === 'speech' || b.kind === 'question')
+            .map((b) => b.segments.map((s) => s.original).join(' '))
+            .join('\n')}
+          onShare={() => setShareModalOpen(true)}
+          qnoteApiBase="/qnote/api"
+          qnoteToken={getAccessToken() || undefined}
         />
       )}
 

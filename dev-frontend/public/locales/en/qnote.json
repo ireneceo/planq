@@ -71,7 +71,21 @@
     },
     "reviewBar": {
       "summary": "Generate Summary",
+      "organize": "Organize",
+      "organizeTitle": "Convert this session to task / knowledge / document / external share",
       "questions": "View Questions"
+    },
+    "summary": {
+      "title": "Organize",
+      "desc": "Convert this session into another form.",
+      "actionTask": "Create task",
+      "actionTaskHint": "Prefill Q Task new-task modal with the transcript",
+      "actionKnowledge": "Register knowledge",
+      "actionKnowledgeHint": "Save as a new entry in Q info",
+      "actionDocs": "Promote to document",
+      "actionDocsHint": "AI-organize into a Q docs Brief",
+      "actionShare": "External share",
+      "actionShareHint": "Share with a link or PDF"
     },
     "reviewEmpty": "No utterances recorded.",
     "speaker": {

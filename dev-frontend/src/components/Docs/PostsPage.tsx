@@ -94,6 +94,24 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
     const v = Number(searchParams.get('post'));
     return Number.isFinite(v) && v > 0 ? v : null;
   });
+
+  // N+42 — Q Note 정리하기 → 정식 문서 승격 (?prefill_brief=text 으로 진입). 마운트 시 한 번만.
+  useEffect(() => {
+    if (briefPrefillAppliedRef.current) return;
+    const text = searchParams.get('prefill_brief');
+    const title = searchParams.get('prefill_brief_title');
+    if (!text && !title) return;
+    setAiInitialBriefText(text || '');
+    setAiInitialBriefTitle((title || '').slice(0, 200));
+    setAiDefaultMode('brief');
+    setAiIntent('ai');
+    setAiOpen(true);
+    const next = new URLSearchParams(searchParams);
+    next.delete('prefill_brief');
+    next.delete('prefill_brief_title');
+    setSearchParams(next, { replace: true });
+    briefPrefillAppliedRef.current = true;
+  }, [searchParams, setSearchParams]);
   // URL 싱크는 별도 effect 로 분리 — setActiveId 호출 흐름에 부수효과 안 만들도록.
   useEffect(() => {
     setSearchParams(prev => {
@@ -131,6 +149,10 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
   // 사이클 N+22 — + 버튼 드롭다운 (빈 문서 즉시 / 표는 모달 default table) + 모달 default tab
   const [newDropdownOpen, setNewDropdownOpen] = useState(false);
   const [aiDefaultMode, setAiDefaultMode] = useState<'blank' | 'new' | 'brief' | 'table' | undefined>(undefined);
+  // N+42 — Q Note 정리하기 → 정식 문서 승격 진입 prefill
+  const [aiInitialBriefTitle, setAiInitialBriefTitle] = useState<string | undefined>(undefined);
+  const [aiInitialBriefText, setAiInitialBriefText] = useState<string | undefined>(undefined);
+  const briefPrefillAppliedRef = useRef(false);
   const [signOpen, setSignOpen] = useState(false);
   // 사이클 O3 — Q knowledge 로 보내기 (post → KbDocument import)
   const [knowledgeBusy, setKnowledgeBusy] = useState(false);
@@ -1016,13 +1038,15 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
       {aiOpen && (
         <PostAiModal
           open={aiOpen}
-          onClose={() => { setAiOpen(false); setAiDefaultMode(undefined); }}
+          onClose={() => { setAiOpen(false); setAiDefaultMode(undefined); setAiInitialBriefText(undefined); setAiInitialBriefTitle(undefined); }}
           businessId={scope.businessId}
           projectId={scope.type === 'project' ? scope.projectId : null}
           onGenerate={startFromAi}
           onBlank={startNew}
           intent={aiIntent}
           defaultMode={aiDefaultMode}
+          initialBriefText={aiInitialBriefText}
+          initialBriefTitle={aiInitialBriefTitle}
         />
       )}
 

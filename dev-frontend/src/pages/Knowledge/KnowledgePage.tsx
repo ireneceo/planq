@@ -7,6 +7,7 @@
 //   - 진짜 1줄 리스트 + 우측 DetailDrawer
 //   - 카운트 0 카테고리 자동 숨김
 import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../contexts/AuthContext';
@@ -99,6 +100,9 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
 
   // ─── 새 지식 등록 모달 (사이클 P3 — 단일 폼) ───
   const [modalOpen, setModalOpen] = useState(false);
+  // N+42 — Q Note 정리하기 → 지식 등록 prefill (?prefill=encodedText 으로 진입)
+  const [searchParams, setSearchParams] = useSearchParams();
+  const prefillAppliedRef = useRef(false);
   // ─── KB-Ingest 사이클 (2026-05-05) — AI 자동 추가 + CSV 일괄 업로드 ───
   const [aiIngestOpen, setAiIngestOpen] = useState(false);
   const [csvIngestOpen, setCsvIngestOpen] = useState(false);
@@ -139,6 +143,25 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
       setClients(c.filter(x => x.status !== 'archived'));
     });
   }, [businessId]);
+
+  // N+42: Q Note 정리하기 → 지식 등록 prefill. 마운트 시 한 번만 적용 + URL 정리.
+  useEffect(() => {
+    if (prefillAppliedRef.current) return;
+    const prefill = searchParams.get('prefill');
+    const prefillTitle = searchParams.get('prefill_title');
+    if (!prefill && !prefillTitle) return;
+    setDraft(prev => ({
+      ...prev,
+      title: (prefillTitle || '').slice(0, 200),
+      body: (prefill || '').slice(0, 8000),
+    }));
+    setModalOpen(true);
+    const next = new URLSearchParams(searchParams);
+    next.delete('prefill');
+    next.delete('prefill_title');
+    setSearchParams(next, { replace: true });
+    prefillAppliedRef.current = true;
+  }, [searchParams, setSearchParams]);
 
   // ─── 검색 디바운스 ───
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
