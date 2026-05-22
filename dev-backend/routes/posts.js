@@ -17,6 +17,17 @@ const { sendPostShareEmail } = require('../services/emailService');
 
 const APP_URL = process.env.APP_URL || 'https://dev.planq.kr';
 
+// N+38 — 실시간 동기화 (CLAUDE.md 운영 안정성 16번 박제):
+// 다른 사용자가 문서 추가/수정/삭제 시 본인이 페이지 열고 있으면 즉시 보임.
+// task_workflow.js 패턴 재사용. business room 으로 broadcast (project room 추가 가능).
+function broadcastPost(req, post, event = 'post:updated') {
+  const io = req.app.get('io');
+  if (!io) return;
+  const data = post.toJSON ? post.toJSON() : post;
+  if (post.business_id) io.to(`business:${post.business_id}`).emit(event, data);
+  if (post.project_id) io.to(`project:${post.project_id}`).emit(event, data);
+}
+
 // 에디터 인라인 이미지 저장 경로
 const EDITOR_IMG_DIR = path.join(__dirname, '..', 'uploads', 'editor-images');
 if (!fs.existsSync(EDITOR_IMG_DIR)) fs.mkdirSync(EDITOR_IMG_DIR, { recursive: true });
@@ -362,6 +373,7 @@ router.post('/', authenticateToken, async (req, res, next) => {
       targetId: post.id,
       newValue: { title: post.title, category: post.category, status: post.status, project_id: post.project_id },
     });
+    broadcastPost(req, full, 'post:new');
     successResponse(res, serialize(full, true), 'Post created', 201);
   } catch (err) { next(err); }
 });
@@ -436,6 +448,7 @@ router.post('/:id/follow-up', authenticateToken, async (req, res, next) => {
         { model: Project, attributes: ['id', 'name', 'color'], required: false },
       ],
     });
+    broadcastPost(req, full, 'post:new');
     return successResponse(res, serialize(full, true), 'Follow-up created', 201);
   } catch (err) { next(err); }
 });
@@ -662,6 +675,7 @@ router.put('/:id', authenticateToken, async (req, res, next) => {
     });
     // Phase D+1: stage 자동 진행 (status/category 변경 가능성)
     if (full?.project_id) require('../services/projectStageEngine').onPostChanged(full.id).catch(() => null);
+    broadcastPost(req, full, 'post:updated');
     successResponse(res, serialize(full, true), 'Post updated');
   } catch (err) { next(err); }
 });
@@ -688,6 +702,7 @@ router.put('/:id/visibility', authenticateToken, async (req, res, next) => {
       nextProjectId = null;
     }
     await post.update({ vlevel: level, project_id: nextProjectId });
+    broadcastPost(req, post, 'post:updated');
     successResponse(res, { id: post.id, vlevel: level, project_id: nextProjectId });
   } catch (err) { next(err); }
 });
@@ -713,6 +728,7 @@ router.delete('/:id', authenticateToken, async (req, res, next) => {
     }
     const snapshot = { title: post.title, category: post.category, status: post.status, project_id: post.project_id };
     await PostAttachment.destroy({ where: { post_id: post.id } });
+    const snapForBroadcast = { id: post.id, business_id: post.business_id, project_id: post.project_id };
     await post.destroy();
     require('../services/auditService').logAudit(req, {
       action: 'post.delete',
@@ -721,6 +737,7 @@ router.delete('/:id', authenticateToken, async (req, res, next) => {
       businessId: post.business_id,
       oldValue: snapshot,
     });
+    broadcastPost(req, snapForBroadcast, 'post:deleted');
     successResponse(res, null, 'Post deleted');
   } catch (err) { next(err); }
 });
