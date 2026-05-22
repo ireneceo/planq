@@ -877,6 +877,8 @@ router.delete('/categories/:id', authenticateToken, async (req, res, next) => {
 
 // ─── 공유: token 발급/조회 ───
 // POST /api/posts/:id/share — share_token 없으면 발급, 있으면 그대로 반환
+// body: { expires_in_days?: number | null }  // null/생략 = 무제한 (기본 30일 권장 — 프론트에서 default 전달)
+// N+43: share_expires_at 박제. expires_in_days <= 0 또는 null 이면 무제한.
 router.post('/:id/share', authenticateToken, async (req, res, next) => {
   try {
     const post = await Post.findByPk(req.params.id);
@@ -884,19 +886,27 @@ router.post('/:id/share', authenticateToken, async (req, res, next) => {
     if (!(await assertMember(req.user.id, post.business_id, req.user.platform_role === 'platform_admin'))) {
       return errorResponse(res, 'forbidden', 403);
     }
+    const days = Number(req.body?.expires_in_days);
+    const expiresAt = Number.isFinite(days) && days > 0
+      ? new Date(Date.now() + days * 86400 * 1000)
+      : null;
     if (!post.share_token) {
       const token = crypto.randomBytes(32).toString('hex');
-      await post.update({ share_token: token, shared_at: new Date() });
+      await post.update({ share_token: token, shared_at: new Date(), share_expires_at: expiresAt });
+    } else if (req.body?.expires_in_days !== undefined) {
+      // 기존 토큰 유지 + 만료일만 갱신 (재발급 아님)
+      await post.update({ share_expires_at: expiresAt });
     }
     return successResponse(res, {
       share_token: post.share_token,
       share_url: `${APP_URL}/public/posts/${post.share_token}`,
       shared_at: post.shared_at,
+      share_expires_at: post.share_expires_at,
     });
   } catch (err) { next(err); }
 });
 
-// DELETE /api/posts/:id/share — share_token 무효화
+// DELETE /api/posts/:id/share — share_token 무효화 (revoke)
 router.delete('/:id/share', authenticateToken, async (req, res, next) => {
   try {
     const post = await Post.findByPk(req.params.id);
@@ -904,7 +914,7 @@ router.delete('/:id/share', authenticateToken, async (req, res, next) => {
     if (!(await assertMember(req.user.id, post.business_id, req.user.platform_role === 'platform_admin'))) {
       return errorResponse(res, 'forbidden', 403);
     }
-    await post.update({ share_token: null, shared_at: null });
+    await post.update({ share_token: null, shared_at: null, share_expires_at: null });
     return successResponse(res, { revoked: true });
   } catch (err) { next(err); }
 });
@@ -1034,6 +1044,9 @@ router.get('/public/:token/pdf', async (req, res, next) => {
       include: [{ model: User, as: 'author', attributes: ['id', 'name', 'name_localized'] }],
     });
     if (!post) return errorResponse(res, 'not_found', 404);
+    if (post.share_expires_at && new Date(post.share_expires_at) < new Date()) {
+      return res.status(410).json({ success: false, code: 'share_expired', message: 'This share link has expired.' });
+    }
     const pdf = await buildPostPdf(post);
     res.setHeader('Content-Type', 'application/pdf');
     // ASCII filename + RFC 5987 UTF-8 filename* (한글 등 비 ASCII 문자 지원)
@@ -1057,6 +1070,15 @@ router.get('/public/:token', async (req, res, next) => {
       ],
     });
     if (!post) return errorResponse(res, 'not_found', 404);
+    // N+43: 만료 검사. share_expires_at < NOW 이면 410 + 친절한 응답 (frontend 가 만료 페이지로 분기).
+    if (post.share_expires_at && new Date(post.share_expires_at) < new Date()) {
+      return res.status(410).json({
+        success: false,
+        code: 'share_expired',
+        message: 'This share link has expired.',
+        expired_at: post.share_expires_at,
+      });
+    }
     await post.increment('view_count');
     const safe = serialize(post, true);
     // 공유 미리보기 — attachments 의 download_url 을 공개 라우트로 매핑 (인증 없이 다운로드 가능).
@@ -1080,9 +1102,12 @@ router.get('/public/:token/attachments/:attId/download', async (req, res, next) 
   try {
     const post = await Post.findOne({
       where: { share_token: req.params.token, status: 'published' },
-      attributes: ['id'],
+      attributes: ['id', 'share_expires_at'],
     });
     if (!post) return errorResponse(res, 'not_found_or_expired', 404);
+    if (post.share_expires_at && new Date(post.share_expires_at) < new Date()) {
+      return res.status(410).json({ success: false, code: 'share_expired', message: 'This share link has expired.' });
+    }
     const att = await PostAttachment.findOne({
       where: { id: req.params.attId, post_id: post.id },
       include: [{ model: File, as: 'file' }],

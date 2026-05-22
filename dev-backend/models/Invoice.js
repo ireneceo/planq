@@ -124,6 +124,8 @@ Invoice.init({
   payment_terms: { type: DataTypes.TEXT, allowNull: true },
   // 공개 공유 링크 토큰 (고객이 로그인 없이 청구서 조회·결제)
   share_token: { type: DataTypes.STRING(64), allowNull: true, unique: true },
+  // N+43 — share_token 만료. NULL = 무제한 (legacy). 만료 시 공개 endpoint 410 + 친절한 만료 페이지. revoke = share_token=NULL.
+  share_expires_at: { type: DataTypes.DATE, allowNull: true },
   viewed_at: { type: DataTypes.DATE, allowNull: true, comment: '첫 열람 시각' },
   // 세금계산서 (팝빌)
   tax_invoice_status: {

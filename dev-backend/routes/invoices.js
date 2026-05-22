@@ -125,6 +125,15 @@ router.get('/public/:token', async (req, res, next) => {
     if (invoice.status === 'draft' || invoice.status === 'canceled') {
       return errorResponse(res, 'not_available', 404);
     }
+    // N+43: 만료 검사
+    if (invoice.share_expires_at && new Date(invoice.share_expires_at) < new Date()) {
+      return res.status(410).json({
+        success: false,
+        code: 'share_expired',
+        message: 'This share link has expired.',
+        expired_at: invoice.share_expires_at,
+      });
+    }
     // 첫 열람 기록
     if (!invoice.viewed_at) {
       try { await invoice.update({ viewed_at: new Date() }); } catch {}
@@ -199,6 +208,9 @@ router.post('/public/:token/notify-paid', async (req, res, next) => {
     if (invoice.status === 'draft' || invoice.status === 'canceled' || invoice.status === 'paid') {
       return errorResponse(res, 'not_available', 400);
     }
+    if (invoice.share_expires_at && new Date(invoice.share_expires_at) < new Date()) {
+      return res.status(410).json({ success: false, code: 'share_expired', message: 'This share link has expired.' });
+    }
     const installmentId = req.body?.installment_id ? Number(req.body.installment_id) : null;
     const payerName = req.body?.payer_name ? String(req.body.payer_name).slice(0, 80).trim() : null;
     const payerMemo = req.body?.payer_memo ? String(req.body.payer_memo).slice(0, 200).trim() : null;
@@ -260,6 +272,9 @@ router.get('/public/:token/pdf', async (req, res, next) => {
     const inv = await Invoice.findOne({ where: { share_token: req.params.token } });
     if (!inv) return errorResponse(res, 'not_found', 404);
     if (inv.status === 'draft' || inv.status === 'canceled') return errorResponse(res, 'not_available', 404);
+    if (inv.share_expires_at && new Date(inv.share_expires_at) < new Date()) {
+      return res.status(410).json({ success: false, code: 'share_expired', message: 'This share link has expired.' });
+    }
     const { pdf, invoice } = await buildInvoicePdf(inv.id);
     res.setHeader('Content-Type', 'application/pdf');
     const asciiName = (invoice.invoice_number || 'invoice').replace(/[^\w-]/g, '_').slice(0, 80) || 'invoice';
@@ -530,7 +545,7 @@ router.post('/:businessId/:id/send', authenticateToken, checkBusinessAccess, req
   if (!assertInvoiceMutationOwner(req, res)) return;
   const t = await sequelize.transaction();
   try {
-    const { send_chat = false, send_email = false, message = '' } = req.body || {};
+    const { send_chat = false, send_email = false, message = '', expires_in_days } = req.body || {};
 
     const invoice = await Invoice.findOne({
       where: { id: req.params.id, business_id: req.params.businessId },
@@ -542,6 +557,11 @@ router.post('/:businessId/:id/send', authenticateToken, checkBusinessAccess, req
     const prevStatus = invoice.status;
     const updates = { status: 'sent', issued_at: new Date(), sent_at: new Date() };
     if (!invoice.share_token) updates.share_token = crypto.randomBytes(32).toString('hex');
+    // N+43: share_token 만료 — 청구서는 due_date 와 무관하게 default 무제한 (사용자가 받은 결제 링크가
+    // 만료되어 결제 못 하면 사고). 사용자가 명시적 expires_in_days 줬을 때만 적용.
+    if (Number.isFinite(Number(expires_in_days)) && Number(expires_in_days) > 0) {
+      updates.share_expires_at = new Date(Date.now() + Number(expires_in_days) * 86400 * 1000);
+    }
     await invoice.update(updates, { transaction: t });
     // 사이클 N+21 — status history 박제 (트랜잭션 outside, best-effort)
     setImmediate(() => recordInvoiceStatusChange(invoice, prevStatus, 'sent', req.user.id, 'send invoice'));

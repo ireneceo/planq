@@ -11,6 +11,7 @@ import { useTranslation } from 'react-i18next';
 import { apiFetch, useAuth } from '../../contexts/AuthContext';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { useEscapeStack } from '../../hooks/useEscapeStack';
+import { useTimeFormat } from '../../hooks/useTimeFormat';
 
 export type ShareEntityType =
   | 'task' | 'file' | 'kb_document' | 'calendar_event'
@@ -53,10 +54,13 @@ const PUBLIC_PATH_MAP: Record<ShareEntityType, string> = {
 const ShareModal: React.FC<Props> = ({ open, entityType, entityId, entityTitle, onClose }) => {
   const { t } = useTranslation('common');
   const { user } = useAuth();
+  const { formatDate } = useTimeFormat();
   const [loading, setLoading] = useState(true);
   const [shareToken, setShareToken] = useState<string | null>(null);
   const [shareUrl, setShareUrl] = useState<string>('');
-  const [expires, setExpires] = useState<7 | 30 | null>(null);
+  const [expires, setExpires] = useState<7 | 30 | 90 | null>(null);
+  // 발급된 토큰의 실제 만료일 (백엔드 응답에서 받음). UI 표시용.
+  const [shareExpiresAt, setShareExpiresAt] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
   const [confirmRevoke, setConfirmRevoke] = useState(false);
@@ -103,6 +107,7 @@ const ShareModal: React.FC<Props> = ({ open, entityType, entityId, entityTitle, 
         setShareToken(j.data.share_token);
         setShareUrl(j.data.share_url || `${window.location.origin}${PUBLIC_PATH_MAP[entityType]}/${j.data.share_token}`);
         setPasswordSet(!!j.data.password_set);
+        setShareExpiresAt(j.data.share_expires_at || null);
       }
     } finally {
       setBusy(false);
@@ -167,7 +172,7 @@ const ShareModal: React.FC<Props> = ({ open, entityType, entityId, entityTitle, 
     } catch { /* clipboard 불가 환경 */ }
   };
 
-  const setExpiry = async (days: 7 | 30 | null) => {
+  const setExpiry = async (days: 7 | 30 | 90 | null) => {
     setExpires(days);
     await issueToken({ expires_in_days: days });
   };
@@ -369,15 +374,24 @@ const ShareModal: React.FC<Props> = ({ open, entityType, entityId, entityTitle, 
                   { v: null, label: t('share.expiryNever', { defaultValue: '무기한' }) as string },
                   { v: 7,    label: t('share.expiry7d',    { defaultValue: '7일' }) as string },
                   { v: 30,   label: t('share.expiry30d',   { defaultValue: '30일' }) as string },
+                  { v: 90,   label: t('share.expiry90d',   { defaultValue: '90일' }) as string },
                 ] as const).map(opt => (
                   <Chip key={String(opt.v)} type="button"
                     $active={expires === opt.v}
-                    onClick={() => setExpiry(opt.v as 7 | 30 | null)}
+                    onClick={() => setExpiry(opt.v as 7 | 30 | 90 | null)}
                     disabled={busy}>
                     {opt.label}
                   </Chip>
                 ))}
               </ChipRow>
+              {shareExpiresAt && (
+                <Hint>
+                  {t('share.expiresOn', {
+                    date: formatDate(shareExpiresAt),
+                    defaultValue: '이 링크는 {{date}} 에 만료됩니다',
+                  }) as string}
+                </Hint>
+              )}
 
               <SectionLabel>
                 {t('share.password', { defaultValue: '비밀번호' }) as string}

@@ -42,6 +42,8 @@ Document.init({
   // 공유
   share_token: { type: DataTypes.STRING(64), allowNull: true, unique: true },
   shared_at: { type: DataTypes.DATE, allowNull: true },
+  // N+43 — share_token 만료. NULL = 무제한. 만료 시 공개 endpoint 410 + 친절한 만료 페이지. revoke = share_token=NULL.
+  share_expires_at: { type: DataTypes.DATE, allowNull: true },
   viewed_at: { type: DataTypes.DATE, allowNull: true },
   signed_at: { type: DataTypes.DATE, allowNull: true },
   signature_data: { type: DataTypes.JSON, allowNull: true },
