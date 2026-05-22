@@ -39,7 +39,11 @@ const FocusWidget: React.FC<Props> = ({ isCollapsed }) => {
   const [idleMin, setIdleMin] = useState(15);
   const [autoPauseMin, setAutoPauseMin] = useState(30);
   const [session, setSession] = useState<FocusSession | null>(null);
-  const [tick, setTick] = useState(0);  // 매초 카운터 트리거
+  const [tick, setTick] = useState(0);  // 매초 카운터 re-render 트리거 (값 자체는 카운터에 더하지 않음)
+  // N+45 — 정확한 카운터 baseline. server fetch 시점의 actual_seconds + Date.now() ms 차이로 계산
+  // (옛 로직: actual_seconds + tick → 30초마다 server fetch 가 actual_seconds 30 증가시키는데 tick reset 안 돼서
+  //  카운터가 빨라지다가 점프하는 회귀)
+  const baselineRef = useRef<{ actualSec: number; at: number } | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [idlePromptVisible, setIdlePromptVisible] = useState(false);
   const idleStartRef = useRef<number | null>(null);
@@ -78,7 +82,14 @@ const FocusWidget: React.FC<Props> = ({ isCollapsed }) => {
     return () => window.clearInterval(id);
   }, [enabled, loadCurrent]);
 
-  // 1초마다 tick — 카운터 실시간 갱신 (active 일 때만)
+  // baseline 갱신 — session.actual_seconds 가 server fetch 로 바뀔 때마다 그 시점을 기록.
+  // 카운터는 baseline.actualSec + (Date.now - baseline.at) 으로 계산 (정확한 단조 증가).
+  useEffect(() => {
+    if (!session) { baselineRef.current = null; return; }
+    baselineRef.current = { actualSec: session.actual_seconds, at: Date.now() };
+  }, [session?.id, session?.state, session?.actual_seconds]);
+
+  // 1초마다 tick — 카운터 re-render 트리거 (active 일 때만). 값은 baselineRef + Date 차이로 계산.
   useEffect(() => {
     if (!session || session.state !== 'active') return;
     const id = window.setInterval(() => setTick(t => t + 1), 1000);
@@ -176,13 +187,15 @@ const FocusWidget: React.FC<Props> = ({ isCollapsed }) => {
   if (enabled === null) return null;  // loading
   if (!enabled) return null;  // 비활성 — zero overhead
 
-  // 카운터 실시간 계산 (server actual_seconds + 마지막 fetch 후 경과)
+  // 카운터 실시간 계산 — baseline 시점 (server fetch) 부터 Date.now() 경과 ms 더해서 표시.
+  // tick state 는 매초 re-render 만 트리거 (값 자체는 카운터에 더하지 않음 — 30s sync 시점 double-count 버그 차단).
+  void tick;
   const liveSeconds = (() => {
     if (!session) return 0;
     if (session.state !== 'active') return session.actual_seconds;
-    // 마지막 fetch 의 actual_seconds 가 갱신된 시점 = updated_at (응답에 없음). 단순화:
-    // active 면 actual_seconds + tick (서버 시점 ms 차이는 무시) — 정확도는 다음 fetch (30s) 에서 동기화
-    return session.actual_seconds + tick;
+    const base = baselineRef.current;
+    if (!base) return session.actual_seconds;
+    return base.actualSec + Math.floor((Date.now() - base.at) / 1000);
   })();
 
   if (isCollapsed) {
