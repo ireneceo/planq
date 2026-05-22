@@ -582,6 +582,11 @@ router.post('/brief', authenticateToken, async (req, res, next) => {
         recommended_next_kind: result.recommended_next_kind,
       },
     });
+    // N+41: brief post 도 일반 post 와 동일하게 socket broadcast.
+    // PostsPage / BriefViewerPage 가 다른 사용자 액션 즉시 반영. CLAUDE.md 16번.
+    try {
+      broadcastPost(req, result.post, 'post:new');
+    } catch (e) { console.warn('[brief broadcast]', e.message); }
     return successResponse(res, {
       post_id: result.post.id,
       title: result.post.title,
