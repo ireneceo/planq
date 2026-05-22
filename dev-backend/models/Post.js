@@ -22,6 +22,9 @@ Post.init({
   view_count: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
   share_token: { type: DataTypes.STRING(64), allowNull: true, unique: true },
   shared_at: { type: DataTypes.DATE, allowNull: true },
+  // N+43 — share_token 만료. NULL = 무제한 (legacy). 만료된 token 은 공개 endpoint 가 410 응답 + 친절한 만료 페이지.
+  // 철회 (revoke) 는 share_token = NULL 로 통일 (File 패턴, 별도 컬럼 불필요).
+  share_expires_at: { type: DataTypes.DATE, allowNull: true },
   // 자료정리(Brief) 메타 — category='brief' 인 post 의 source 자료, 시점·파일 보기 토글, 추천 후속 문서 종류
   // 일반 post 는 null
   brief_meta: { type: DataTypes.JSON, allowNull: true },

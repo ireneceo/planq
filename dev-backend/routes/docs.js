@@ -598,6 +598,8 @@ router.delete('/documents/:id', authenticateToken, async (req, res, next) => {
 });
 
 // POST /api/docs/documents/:id/share  — share_token 발급 + 발송 로그
+// N+43: Document.share_expires_at 박제 (Post/Invoice 와 패턴 통일). DocumentShare.expires_at 은 발송 단위 만료
+// (recipient_email 별 다른 만료) — 둘 다 운용. 공개 endpoint 는 doc.share_expires_at primary 검사.
 router.post('/documents/:id/share', authenticateToken, async (req, res, next) => {
   try {
     const { method, recipient_email, recipient_name, expires_in_days } = req.body;
@@ -607,12 +609,15 @@ router.post('/documents/:id/share', authenticateToken, async (req, res, next) =>
       return errorResponse(res, 'forbidden', 403);
     }
     const token = crypto.randomBytes(32).toString('hex');
-    if (!doc.share_token) {
-      await doc.update({ share_token: token, shared_at: new Date(), status: 'sent' });
-    }
     const expiresAt = expires_in_days
       ? new Date(Date.now() + Number(expires_in_days) * 86400 * 1000)
       : null;
+    if (!doc.share_token) {
+      await doc.update({ share_token: token, shared_at: new Date(), status: 'sent', share_expires_at: expiresAt });
+    } else if (expires_in_days !== undefined) {
+      // 토큰 유지 + 만료일만 갱신
+      await doc.update({ share_expires_at: expiresAt });
+    }
     const share = await DocumentShare.create({
       document_id: doc.id,
       share_method: method || 'link',
@@ -622,7 +627,20 @@ router.post('/documents/:id/share', authenticateToken, async (req, res, next) =>
       expires_at: expiresAt,
       shared_by: req.user.id,
     });
-    return successResponse(res, { share: share.toJSON(), share_url: `/public/docs/${doc.share_token || token}` });
+    return successResponse(res, { share: share.toJSON(), share_url: `/public/docs/${doc.share_token || token}`, share_expires_at: doc.share_expires_at });
+  } catch (e) { next(e); }
+});
+
+// DELETE /api/docs/documents/:id/share — share_token revoke (N+43)
+router.delete('/documents/:id/share', authenticateToken, async (req, res, next) => {
+  try {
+    const doc = await Document.findByPk(req.params.id);
+    if (!doc) return errorResponse(res, 'not_found', 404);
+    if (!(await assertBusinessAccess(req.user.id, doc.business_id, req.user.platform_role))) {
+      return errorResponse(res, 'forbidden', 403);
+    }
+    await doc.update({ share_token: null, shared_at: null, share_expires_at: null });
+    return successResponse(res, { revoked: true });
   } catch (e) { next(e); }
 });
 
@@ -662,6 +680,15 @@ router.get('/public/:token', async (req, res, next) => {
       include: [{ model: DocumentTemplate, attributes: ['id', 'name', 'mode', 'schema_json'] }],
     });
     if (!doc) return errorResponse(res, 'not_found', 404);
+    // N+43: 만료 검사
+    if (doc.share_expires_at && new Date(doc.share_expires_at) < new Date()) {
+      return res.status(410).json({
+        success: false,
+        code: 'share_expired',
+        message: 'This share link has expired.',
+        expired_at: doc.share_expires_at,
+      });
+    }
     if (!doc.viewed_at) await doc.update({ viewed_at: new Date(), status: 'viewed' });
     const safe = doc.toJSON();
     delete safe.created_by;
@@ -685,6 +712,9 @@ router.post('/public/:token/sign', async (req, res, next) => {
       where: { share_token: req.params.token, archived_at: null },
     });
     if (!doc) return errorResponse(res, 'not_found', 404);
+    if (doc.share_expires_at && new Date(doc.share_expires_at) < new Date()) {
+      return res.status(410).json({ success: false, code: 'share_expired', message: 'This share link has expired.' });
+    }
     if (doc.signed_at) return errorResponse(res, 'already_signed', 409);
 
     const sig = {
