@@ -512,12 +512,14 @@ export default function ProfilePage() {
 
   return (
     <PageShell title={t('header.title')}>
+      {/* N+49 hotfix-2 — ref div + banner 를 Container 밖으로 이동.
+          이전: grid Container 안에 빈 div 가 첫 grid cell 차지 → 계정 정보가 두번째 cell 로 밀림 →
+          첫 행 첫 열 빈 공간 회귀 (사용자 호소). banner 도 grid item 으로 잡혀 정렬 깨짐. */}
+      <div ref={errorBannerRef} />
+      {error && <Banner $kind="error"><XIcon size={14} />{error}</Banner>}
+      {success && <Banner $kind="success"><CheckIcon size={14} />{success}</Banner>}
+
       <Container>
-
-        <div ref={errorBannerRef} />
-        {error && <Banner $kind="error"><XIcon size={14} />{error}</Banner>}
-        {success && <Banner $kind="success"><CheckIcon size={14} />{success}</Banner>}
-
         {/* 계정 정보 — 모든 워크스페이스 공유 (이름·아이디·이메일·기본 언어) */}
         <Card>
           <SectionTitle>{t('basic.accountSection', '계정 정보')}</SectionTitle>
