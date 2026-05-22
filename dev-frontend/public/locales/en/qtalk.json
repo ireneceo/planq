@@ -14,6 +14,8 @@
     "collapse": "Collapse",
     "candidates": {
       "title": "Task Candidates",
+      "showOld": "Show older",
+      "hideOld": "Show recent only",
       "similar": "Similar task found",
       "register": "Register",
       "merge": "Merge",

@@ -374,6 +374,8 @@
       "reviewReminder": "진행 100% 도달 — 컨펌자({{count}}명)에게 \"확인 요청 보내기\" 버튼을 눌러 완료 흐름을 시작하세요"
     },
     "description": "업무 설명",
+    "descriptionSelf": "내가 적은 업무 메모",
+    "descriptionRequest": "요청 내용",
     "body": "결과물",
     "bodyPlaceholder": "업무 결과물을 작성하세요. 이미지 붙여넣기/드래그 가능",
     "descPlaceholder": "설명을 입력하세요...",
@@ -449,10 +451,12 @@
       "toLabel": "{{name}}에게 요청함",
       "toLabelAnon": "요청함",
       "assigneePrefix": "담당",
+      "creatorPrefix": "작성",
       "mine": "내 업무",
       "fromRequester": "요청자",
       "toAssignee": "담당자",
-      "assignee": "담당자"
+      "assignee": "담당자",
+      "creator": "작성자"
     },
     "clickToEdit": "클릭하여 수정",
     "readOnly": "읽기 전용",
