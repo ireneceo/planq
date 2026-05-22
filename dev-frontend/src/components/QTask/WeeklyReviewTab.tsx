@@ -40,8 +40,8 @@ const WeeklyReviewTab: React.FC<Props> = ({ businessId, userId, reviewScope = 'm
   // workspace 모드 전용 — 통합본 리스트 + 선택된 통합본 (사이클 N+18)
   const [workspaceReports, setWorkspaceReports] = useState<WorkspaceWeeklyReportListItem[]>([]);
   const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<number | null>(null);
-  const [finalizing, setFinalizing] = useState(false);
-  const [finalizeError, setFinalizeError] = useState<string | null>(null);
+  // N+38 — finalizing/finalizeError state + finalizeWorkspace 함수 + FinalizeBtn styled
+  // workspace 탭의 수동 박제 버튼 제거로 unused. WorkspaceFinalizeBanner + 설정 페이지로 대체.
 
   const load = useCallback(async (append = false) => {
     try {
@@ -90,20 +90,6 @@ const WeeklyReviewTab: React.FC<Props> = ({ businessId, userId, reviewScope = 'm
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [businessId, userId, reviewScope]);
-
-  const finalizeWorkspace = async () => {
-    setFinalizing(true);
-    setFinalizeError(null);
-    try {
-      const created = await createWorkspaceWeeklyReport(businessId);
-      await loadWorkspaceReports();
-      setSelectedWorkspaceId(created.id);
-    } catch (e) {
-      setFinalizeError((e as Error).message);
-    } finally {
-      setFinalizing(false);
-    }
-  };
 
   const toggleAuto = async () => {
     const newVal = !autoEnabled;
@@ -195,7 +181,6 @@ const WeeklyReviewTab: React.FC<Props> = ({ businessId, userId, reviewScope = 'm
         )}
       </Header>
 
-      {finalizeError && <ErrorMsg>{finalizeError}</ErrorMsg>}
 
       {/* workspace 모드 — 통합본 카드 (워크스페이스 × 주차 = 1) */}
       {reviewScope === 'workspace' && workspaceReports.length > 0 && (
@@ -482,13 +467,7 @@ const SectionLabel = styled.div`
   text-transform: uppercase; letter-spacing: 0.6px;
   margin: 12px 0 4px;
 `;
-const FinalizeBtn = styled.button`
-  background: #14B8A6; color: #FFFFFF; border: none;
-  padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: 600;
-  cursor: pointer; margin-right: 8px;
-  &:hover { background: #0F766E; }
-  &:disabled { opacity: 0.5; cursor: not-allowed; }
-`;
+// N+38 — FinalizeBtn 제거. workspace 수동 박제 버튼 unused.
 const ErrorMsg = styled.div`
   background: #FEE2E2; color: #991B1B; padding: 8px 12px;
   border-radius: 6px; font-size: 12px;
