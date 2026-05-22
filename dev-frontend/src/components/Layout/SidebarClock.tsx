@@ -13,6 +13,8 @@ type Props = {
   workspaceTz: string;
   workspaceLabel?: string;
   userTz: string;
+  // N+46 — 사용자가 명시 set 했는지. false 면 user 시계 row 숨김 + 본인 시간대 설정 안내 노출.
+  userTzExplicit?: boolean;
   referenceTzs: string[];
   locale?: 'ko' | 'en';
   isWorkspaceAdmin?: boolean;
@@ -87,6 +89,29 @@ const Time = styled.span<{ $variant: 'workspace' | 'you' | 'reference' }>`
   flex-shrink: 0;
 `;
 
+// N+46 — 본인 시간대 설정 안내 (user.timezone 미설정 시 한 줄 hint).
+// 사이드바 dark bg 위에 subtle 톤. 클릭하면 /profile 진입.
+const SetupHint = styled.button`
+  width: 100%;
+  margin-top: 2px;
+  padding: 4px ${ROW_PAD_X};
+  background: none;
+  border: none;
+  color: rgba(204, 251, 241, 0.45);
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: 5px;
+  transition: color 0.15s, background 0.15s;
+  text-align: left;
+  &:hover { color: #ffffff; background: rgba(255, 255, 255, 0.05); }
+  &:focus-visible { outline: 2px solid rgba(20, 184, 166, 0.4); outline-offset: 1px; }
+  span[aria-hidden] { font-size: 12px; opacity: 0.7; }
+`;
+
 const ExpandButton = styled.button<{ $open?: boolean }>`
   width: 100%;
   margin-top: 4px;
@@ -128,6 +153,7 @@ export default function SidebarClock({
   workspaceTz,
   workspaceLabel,
   userTz,
+  userTzExplicit = false,
   referenceTzs,
   locale = 'en',
   isWorkspaceAdmin = false,
@@ -178,7 +204,9 @@ export default function SidebarClock({
           <Time $variant="workspace">{formatTimeInTz(now, workspaceTz, localeTag)}</Time>
         </Row>
 
-        {!sameTz && (
+        {/* N+46 — user 시계는 명시 set 됐고 + workspaceTz 와 다를 때만 표시.
+            명시 안 했으면 (NULL) browser fallback 정보 가치 낮음 → 한 줄 + 아래 hint 로 안내. */}
+        {userTzExplicit && !sameTz && (
           <Row
             $interactive
             title={tooltipFor(userTz, t('clock.you'))}
@@ -188,6 +216,15 @@ export default function SidebarClock({
             <City $variant="you">{cityFromTz(userTz)}</City>
             <Time $variant="you">{formatTimeInTz(now, userTz, localeTag)}</Time>
           </Row>
+        )}
+        {/* user 시계 안 보일 때 (명시 안 했거나 workspace tz 와 같을 때) — 설정 안내.
+            subtle 톤. 클릭 시 프로필로. */}
+        {!userTzExplicit && (
+          <SetupHint type="button" onClick={() => navigate('/profile')}
+            title={t('clock.userSetupHintTitle', { defaultValue: '본인 시간대를 다르게 설정하면 두 줄로 표시됩니다' }) as string}>
+            <span aria-hidden="true">+</span>
+            {t('clock.userSetupHint', { defaultValue: '본인 시간대 설정' })}
+          </SetupHint>
         )}
       </List>
 

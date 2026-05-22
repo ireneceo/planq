@@ -13,6 +13,9 @@ export type TimezonesState = {
   workspaceRefs: string[];
   userTz: string;
   userRefs: string[];
+  // N+46 — 사용자가 명시 set 했는지 여부. NULL fallback (browser tz) 인 경우 false.
+  // SidebarClock 에서 두 줄 표시 여부 판단에 사용 — 명시 set + workspaceTz 와 다를 때만 user 시계 표시.
+  userTzExplicit: boolean;
 };
 
 export function useTimezones() {
@@ -23,6 +26,7 @@ export function useTimezones() {
   const workspaceRefs = Array.isArray(user?.workspace_reference_timezones)
     ? (user!.workspace_reference_timezones as string[])
     : [];
+  const userTzExplicit = !!(user?.timezone);
   const userTz = user?.timezone || browserTz;
   const userRefs = Array.isArray(user?.reference_timezones)
     ? (user!.reference_timezones as string[])
@@ -75,5 +79,5 @@ export function useTimezones() {
     }
   }, [user, updateUser, workspaceTz, workspaceRefs, userTz, userRefs]);
 
-  return { workspaceTz, workspaceRefs, userTz, userRefs, update };
+  return { workspaceTz, workspaceRefs, userTz, userRefs, userTzExplicit, update };
 }

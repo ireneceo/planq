@@ -88,7 +88,9 @@
     "reference": "참조",
     "manage": "타임존 관리",
     "expand": "참조 {{count}}개 더보기",
-    "collapse": "접기"
+    "collapse": "접기",
+    "userSetupHint": "본인 시간대 설정",
+    "userSetupHintTitle": "본인 시간대를 다르게 설정하면 두 줄로 표시됩니다 (선택 사항)"
   },
   "switcher": {
     "tooltip": "워크스페이스 전환",

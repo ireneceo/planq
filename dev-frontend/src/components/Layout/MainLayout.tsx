@@ -485,7 +485,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   // 모바일 (≤1024) 에서 통계·분석/설정 NavItem 첫 클릭 = 펼침만, 두 번째 = 이동.
   // 데스크탑은 SecondaryPanel 이 있어 즉시 이동 (기존 동작).
   const [mobileExpandedSection, setMobileExpandedSection] = useState<SecondarySection>(null);
-  const { workspaceTz, workspaceRefs, userTz, userRefs } = useTimezones();
+  const { workspaceTz, workspaceRefs, userTz, userRefs, userTzExplicit } = useTimezones();
 
   useEffect(() => { setSidebarOpen(false); }, [location.pathname]);
   // 경로 변경 시 펼침 state reset (메뉴 안에서 하위 클릭 후 다른 페이지 가면 자동 접힘)
@@ -1053,6 +1053,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                 workspaceTz={workspaceTz}
                 workspaceLabel={user?.business_name || undefined}
                 userTz={userTz}
+                userTzExplicit={userTzExplicit}
                 referenceTzs={[...workspaceRefs, ...userRefs]}
                 locale={(i18n.language === 'ko' ? 'ko' : 'en')}
                 isWorkspaceAdmin={hasRole('business_owner', 'platform_admin')}

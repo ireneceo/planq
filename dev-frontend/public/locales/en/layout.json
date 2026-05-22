@@ -87,7 +87,9 @@
     "reference": "Reference",
     "manage": "Manage timezones",
     "expand": "{{count}} more",
-    "collapse": "Collapse"
+    "collapse": "Collapse",
+    "userSetupHint": "Set your timezone",
+    "userSetupHintTitle": "Set a different personal timezone to see two rows (optional)"
   },
   "switcher": {
     "tooltip": "Switch workspace",
