@@ -101,6 +101,7 @@ interface TaskDetail {
   comments?: CommentRow[];
   daily_progress?: { snapshot_date: string; progress_percent: number; actual_hours: number; estimated_hours: number | null }[];
   recurrence_rule?: string | null;
+  recurrence_parent_id?: number | null;
 }
 
 export interface DrawerProjectOption { id: number; name: string; }
@@ -938,7 +939,18 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                 </ReviewReminderHint>
               )}
 
-              {/* 반복하기 — 정기업무 (추가 폼과 동일 옵션). 권한: 작성자/owner/admin */}
+              {/* 정기업무 인스턴스 표시 — cron 자동 생성된 자식 task. 편집 UI 숨김 */}
+              {detailTask.recurrence_parent_id && !detailTask.recurrence_rule && (
+                <MetaRecurRow $disabled>
+                  <MetaRecurToggle as="div">
+                    <span aria-hidden="true" style={{ fontSize: 12 }}>↻</span>
+                    <span>{t('recur.instance', { defaultValue: '정기업무에서 자동 생성된 1회분' })}</span>
+                  </MetaRecurToggle>
+                </MetaRecurRow>
+              )}
+              {/* 반복하기 — 정기업무 (추가 폼과 동일 옵션). 권한: 작성자/owner/admin.
+                  인스턴스(자식) 인 경우 편집 UI 숨김 — parent 에서만 편집 (시리즈 일관성) */}
+              {!detailTask.recurrence_parent_id && (
               <MetaRecurRow $disabled={!canEditRecurrence}>
                 <MetaRecurToggle>
                   <input type="checkbox" checked={recurEnabled} disabled={!canEditRecurrence || !detailTask.due_date}
@@ -1041,6 +1053,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                   );
                 })()}
               </MetaRecurRow>
+              )}
             </Section>
 
             {/* 액션 섹션 — 항상 마운트 유지 (상태 전환 시 섹션 자체가 사라지며 생기는 깜빡임 방지) */}

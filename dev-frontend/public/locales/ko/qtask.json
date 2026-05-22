@@ -226,6 +226,7 @@
     "endTypeUntil": "특정 날짜까지",
     "endCountSuffix": "회 후",
     "needDueDate": "반복하려면 마감일이 필요해요",
+    "instance": "정기업무에서 자동 생성된 1회분",
     "indicator": "반복",
     "customTitle": "사용자 지정 반복",
     "customEvery": "반복 간격",

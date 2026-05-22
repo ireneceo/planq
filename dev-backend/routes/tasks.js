@@ -1063,9 +1063,22 @@ router.delete('/by-business/:businessId/:id', authenticateToken, async (req, res
 
     // TaskReviewer/TaskAttachment/TaskStatusHistory 는 FK onDelete: CASCADE 설정됨.
     // TaskComment · TaskDailyProgress 는 cascade 없음 → 수동 삭제 + 원자화.
+    //
+    // 정기업무 (N+40): tasks.recurrence_parent_id FK 가 DDL ON DELETE 미명시 (default RESTRICT).
+    // parent (recurrence_rule != null && recurrence_parent_id == null) 삭제 시 자식 인스턴스가
+    // 있으면 FK constraint 에러. 정책:
+    //   - 자식 인스턴스의 recurrence_parent_id = null 로 detach (인스턴스는 독립 task 로 남김 — 데이터 보존)
+    //   - parent 의 next_occurrence_at 도 어차피 같이 사라지므로 향후 자동 생성 중단
     const { sequelize } = require('../config/database');
     const t = await sequelize.transaction();
     try {
+      const isRecurringParent = task.recurrence_rule && !task.recurrence_parent_id;
+      if (isRecurringParent) {
+        await Task.update(
+          { recurrence_parent_id: null },
+          { where: { recurrence_parent_id: task.id }, transaction: t },
+        );
+      }
       await TaskComment.destroy({ where: { task_id: task.id }, transaction: t });
       await TaskDailyProgress.destroy({ where: { task_id: task.id }, transaction: t });
       await task.destroy({ transaction: t });
