@@ -110,7 +110,9 @@ async function callLLM(model, messages, opts = {}) {
         messages,
         temperature: opts.temperature ?? 0.3,
         max_tokens: opts.maxTokens || 400
-      })
+      }),
+      // N+48 — 외부 API timeout 강제 (운영 readiness). OpenAI hang 시 backend stall 방어.
+      signal: AbortSignal.timeout(45_000),
     });
     if (!r.ok) {
       const err = await r.text();

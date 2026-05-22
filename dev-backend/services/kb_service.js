@@ -26,7 +26,8 @@ async function embedText(text) {
         'Authorization': `Bearer ${OPENAI_API_KEY}`,
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ model: EMBED_MODEL, input: t })
+      body: JSON.stringify({ model: EMBED_MODEL, input: t }),
+      signal: AbortSignal.timeout(30_000),  // N+48 embedding 30s
     });
     if (!r.ok) {
       console.warn('[kb_service] embed failed', r.status);
@@ -294,6 +295,7 @@ async function extractTags(docId) {
         max_completion_tokens: 200,
         response_format: { type: 'json_object' },
       }),
+      signal: AbortSignal.timeout(45_000),  // N+48 chat 45s
     });
     if (!r.ok) { console.warn('[kb_service] tag extraction LLM failed', r.status); return; }
     const data = await r.json();

@@ -37,7 +37,8 @@ async function callLLMJson(messages, opts = {}) {
         temperature: opts.temperature ?? 0.1,
         max_tokens: opts.maxTokens || 1500,
         response_format: { type: 'json_object' }
-      })
+      }),
+      signal: AbortSignal.timeout(45_000),
     });
     if (!r.ok) {
       const err = await r.text();

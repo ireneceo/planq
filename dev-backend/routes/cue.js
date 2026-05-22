@@ -158,6 +158,7 @@ router.post('/help-public', async (req, res, next) => {
         temperature: 0.3,
         max_tokens: 400,
       }),
+      signal: AbortSignal.timeout(45_000),
     });
     if (!r.ok) {
       const t = await r.text().catch(() => '');
@@ -261,6 +262,7 @@ router.post('/help', authenticateToken, async (req, res, next) => {
         temperature: 0.3,
         max_tokens: 600,
       }),
+      signal: AbortSignal.timeout(45_000),
     });
     if (!r.ok) {
       const t = await r.text().catch(() => '');

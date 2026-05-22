@@ -77,6 +77,7 @@ JSON RULES:
         max_tokens: Math.min(2000, Math.max(400, Math.ceil(text.length * 4) + 200)),
         response_format: { type: 'json_object' },
       }),
+      signal: AbortSignal.timeout(20_000),  // 번역은 짧은 응답 — 20s
     });
     if (!r.ok) {
       const err = await r.text();
