@@ -9,6 +9,7 @@ import { useTranslation, Trans } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { useNavigate } from 'react-router-dom';
 import { useAuth, apiFetch } from '../../contexts/AuthContext';
+import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 import LetterAvatar from '../../components/Common/LetterAvatar';
 import SearchBox from '../../components/Common/SearchBox';
@@ -111,6 +112,9 @@ export default function ClientsPage() {
   }, [businessId]);
 
   useEffect(() => { load(); }, [load]);
+
+  // N+39 — PWA visibility 안전망
+  useVisibilityRefresh(load);
 
   // N+38 — 실시간 동기화 (CLAUDE.md 운영 안정성 16번 박제).
   useEffect(() => {

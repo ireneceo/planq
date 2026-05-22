@@ -1,6 +1,7 @@
 // 문서(포스팅) 공용 페이지 — 워크스페이스·프로젝트 공용
 // 레이아웃 패턴: Q Note 와 동일 (Sidebar + Content 2컬럼 + PanelHeader)
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import HelpDot from '../Common/HelpDot';
@@ -210,6 +211,9 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => { loadMeta(); }, [loadMeta]);
+
+  // N+39 — PWA background → foreground 복귀 시 missed events 회복 (CLAUDE.md 운영 안정성 16번 (d))
+  useVisibilityRefresh(useCallback(() => { void load(); void loadMeta(); }, [load, loadMeta]));
 
   // N+38 — 실시간 동기화 (CLAUDE.md 운영 안정성 16번 박제).
   // 다른 사용자가 문서 추가/수정/삭제 시 본인이 페이지 열고 있으면 즉시 보임.
