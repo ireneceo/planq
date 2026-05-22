@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import styled from 'styled-components';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -124,6 +125,9 @@ const QCalendarPage: React.FC = () => {
   }, [bizId, view, anchor, scope]);
 
   useEffect(() => { fetchRange(); }, [fetchRange]);
+
+  // N+39 — PWA visibility 안전망
+  useVisibilityRefresh(useCallback(() => { void fetchRange(); }, [fetchRange]));
 
   // N+38 — 실시간 동기화 (CLAUDE.md 운영 안정성 16번 박제).
   // 다른 사용자가 일정 추가/수정/삭제 시 본인이 캘린더 열고 있으면 즉시 보임.

@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import { useAuth } from '../../contexts/AuthContext';
+import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import {
   listInvoices, formatMoney, invoiceStatusColor, countByStatus,
   type ApiInvoice, type InvoiceStatus,
@@ -65,6 +66,9 @@ export default function InvoicesTab() {
   }, [businessId, reloadKey]);
 
   const reload = useCallback(() => setReloadKey(k => k + 1), []);
+
+  // N+39 — PWA visibility 안전망
+  useVisibilityRefresh(reload);
 
   // N+38 — 실시간 동기화 (CLAUDE.md 운영 안정성 16번 박제).
   // 다른 사용자가 청구서 추가/수정/삭제 시 본인이 페이지 열고 있으면 즉시 보임.

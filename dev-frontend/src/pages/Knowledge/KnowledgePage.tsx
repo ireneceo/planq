@@ -10,6 +10,7 @@ import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react'
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../contexts/AuthContext';
+import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import PageShell from '../../components/Layout/PageShell';
 import HelpDot from '../../components/Common/HelpDot';
 import EmptyState from '../../components/Common/EmptyState';
@@ -173,6 +174,9 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
   }, [businessId, mode, activeScope, activeProject, activeClient, activeTag]);
 
   useEffect(() => { void load(); }, [load]);
+
+  // N+39 — PWA visibility 안전망
+  useVisibilityRefresh(useCallback(() => { void load(); }, [load]));
 
   // N+38 — 실시간 동기화 (CLAUDE.md 운영 안정성 16번 박제).
   // 다른 사용자가 자료 추가/수정/삭제 시 본인이 페이지 열고 있으면 즉시 보임.

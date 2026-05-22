@@ -5,6 +5,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
+import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import DetailDrawer from '../../components/Common/DetailDrawer';
 import ShareModal from '../../components/Common/ShareModal';
 import EmptyState from '../../components/Common/EmptyState';
@@ -103,6 +104,18 @@ const DocsTab: React.FC<Props> = (props) => {
     }
     return () => { cancelled = true; };
   }, [projectId, businessId, isWorkspace, isPersonal]);
+
+  // N+39 — PWA visibility 안전망 (socket 끊김 / background→foreground)
+  useVisibilityRefresh(useCallback(() => {
+    if (!businessId) return;
+    if (isPersonal) {
+      import('../../services/files').then(({ fetchPersonalFiles }) => fetchPersonalFiles(businessId).then(fs => setFiles(fs)));
+    } else if (isWorkspace) {
+      fetchWorkspaceFiles(businessId).then(fs => setFiles(fs));
+    } else {
+      Promise.all([fetchProjectFiles(projectId), fetchFolders(projectId)]).then(([fs, fd]) => { setFiles(fs); setFolders(fd); });
+    }
+  }, [businessId, projectId, isPersonal, isWorkspace]));
 
   // N+38 — 실시간 동기화 (CLAUDE.md 운영 안정성 16번 박제).
   // 다른 사용자가 파일 업로드/삭제/이동/visibility 변경 시 본인이 페이지 열고 있으면 즉시 보임.
