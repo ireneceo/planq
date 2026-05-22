@@ -24,6 +24,14 @@ const { successResponse, errorResponse } = require('../middleware/errorHandler')
 const { sequelize } = require('../config/database');
 const { Op } = require('sequelize');
 
+// N+38 — 실시간 동기화 (CLAUDE.md 운영 안정성 16번 박제).
+function broadcastInvoice(req, invoice, event = 'invoice:updated') {
+  const io = req.app.get('io');
+  if (!io) return;
+  const data = invoice.toJSON ? invoice.toJSON() : invoice;
+  if (invoice.business_id) io.to(`business:${invoice.business_id}`).emit(event, data);
+}
+
 // 사이클 N+5 — PERMISSION_MATRIX §5.10 재무 mutation 가드.
 // invoice 발행·결제 마킹·세금계산서·환불·삭제는 owner OR platform_admin 만. member 차단.
 // (draft 생성/편집은 별개 — checkBusinessAccess 통과한 member 도 허용)
@@ -425,6 +433,7 @@ router.post('/:businessId', authenticateToken, checkBusinessAccess, requireMenu(
     });
     // Phase D+1: project stage 자동 진행
     if (result?.project_id) require('../services/projectStageEngine').onInvoiceChanged(result.id).catch(() => null);
+    broadcastInvoice(req, result, 'invoice:new');
     successResponse(res, result, 'Invoice created', 201);
   } catch (error) {
     await t.rollback();
@@ -830,7 +839,9 @@ router.delete('/:businessId/:id', authenticateToken, checkBusinessAccess, requir
     }
     // installments + invoice 삭제 (cascade 안 되어 있으면 명시)
     await InvoiceInstallment.destroy({ where: { invoice_id: invoice.id } });
+    const snapForBroadcast = { id: invoice.id, business_id: invoice.business_id };
     await invoice.destroy();
+    broadcastInvoice(req, snapForBroadcast, 'invoice:deleted');
     return successResponse(res, { deleted: true });
   } catch (err) { next(err); }
 });

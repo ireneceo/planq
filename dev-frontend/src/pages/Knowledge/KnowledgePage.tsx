@@ -174,6 +174,37 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
 
   useEffect(() => { void load(); }, [load]);
 
+  // N+38 — 실시간 동기화 (CLAUDE.md 운영 안정성 16번 박제).
+  // 다른 사용자가 자료 추가/수정/삭제 시 본인이 페이지 열고 있으면 즉시 보임.
+  useEffect(() => {
+    if (!businessId) return;
+    let pending: number | null = null;
+    const debouncedReload = () => {
+      if (pending) return;
+      pending = window.setTimeout(() => { pending = null; void load(); }, 250);
+    };
+    let socket: { disconnect: () => void } | null = null;
+    import('socket.io-client').then(({ io }) => {
+      import('../../contexts/AuthContext').then(({ getAccessToken }) => {
+        if (!getAccessToken()) return;
+        const s = io({
+          auth: (cb) => cb({ token: getAccessToken() }),
+          transports: ['websocket', 'polling'],
+          reconnection: true,
+        });
+        socket = s;
+        s.on('connect', () => { s.emit('join:business', businessId); });
+        s.on('kb:new', debouncedReload);
+        s.on('kb:updated', debouncedReload);
+        s.on('kb:deleted', debouncedReload);
+      });
+    });
+    return () => {
+      if (pending) window.clearTimeout(pending);
+      if (socket) socket.disconnect();
+    };
+  }, [businessId, load]);
+
   // ─── DetailDrawer fetch ───
   useEffect(() => {
     if (!detailId || !businessId) { setDetail(null); return; }

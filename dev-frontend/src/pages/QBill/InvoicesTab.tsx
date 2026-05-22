@@ -66,6 +66,38 @@ export default function InvoicesTab() {
 
   const reload = useCallback(() => setReloadKey(k => k + 1), []);
 
+  // N+38 — 실시간 동기화 (CLAUDE.md 운영 안정성 16번 박제).
+  // 다른 사용자가 청구서 추가/수정/삭제 시 본인이 페이지 열고 있으면 즉시 보임.
+  useEffect(() => {
+    if (!businessId) return;
+    let pending: number | null = null;
+    const debouncedReload = () => {
+      if (pending) return;
+      pending = window.setTimeout(() => { pending = null; reload(); }, 250);
+    };
+    let socket: { disconnect: () => void } | null = null;
+    import('socket.io-client').then(({ io }) => {
+      import('../../contexts/AuthContext').then(({ getAccessToken }) => {
+        if (!getAccessToken()) return;
+        const s = io({
+          auth: (cb) => cb({ token: getAccessToken() }),
+          transports: ['websocket', 'polling'],
+          reconnection: true,
+        });
+        socket = s;
+        s.on('connect', () => { s.emit('join:business', businessId); });
+        s.on('invoice:new', debouncedReload);
+        s.on('invoice:updated', debouncedReload);
+        s.on('invoice:deleted', debouncedReload);
+        s.on('inbox:refresh', debouncedReload);  // 기존 invoice 의 6 라우트 inbox:refresh 도 catch
+      });
+    });
+    return () => {
+      if (pending) window.clearTimeout(pending);
+      if (socket) socket.disconnect();
+    };
+  }, [businessId, reload]);
+
   const counts = useMemo(() => countByStatus(invoices), [invoices]);
 
   const filtered = useMemo(() => {

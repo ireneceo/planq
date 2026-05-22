@@ -7,6 +7,15 @@ const { KbDocument, KbChunk, KbPinnedFaq, File: FileModel, Post } = require('../
 const { authenticateToken, checkBusinessAccess } = require('../middleware/auth');
 const { isMemberOrAbove, getUserScope } = require('../middleware/access_scope');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
+
+// N+38 — 실시간 동기화 (CLAUDE.md 운영 안정성 16번 박제).
+function broadcastKb(req, doc, event = 'kb:updated') {
+  const io = req.app.get('io');
+  if (!io) return;
+  const data = doc.toJSON ? doc.toJSON() : doc;
+  if (doc.business_id) io.to(`business:${doc.business_id}`).emit(event, data);
+  if (doc.project_id) io.to(`project:${doc.project_id}`).emit(event, data);
+}
 const { decodeOriginalName } = require('../services/filename');
 const { createAuditLog } = require('../middleware/audit');
 const kbService = require('../services/kb_service');
@@ -201,6 +210,7 @@ router.post('/businesses/:businessId/kb/documents', authenticateToken, checkBusi
       newValue: { title: doc.title, size: mergedBody.length, files: fileIds.length, posts: postIds.length }
     });
 
+    broadcastKb(req, doc, 'kb:new');
     successResponse(res, doc, 'Document created and queued for indexing', 201);
   } catch (err) { next(err); }
 });
@@ -284,6 +294,7 @@ router.post('/businesses/:businessId/kb/documents/upload',
         newValue: { file_name: decodedName, size: text.length },
       });
 
+      broadcastKb(req, doc, 'kb:new');
       return successResponse(res, doc, 'Uploaded and queued for indexing', 201);
     } catch (err) { next(err); }
   }
@@ -558,6 +569,7 @@ router.put('/businesses/:businessId/kb/documents/:docId', authenticateToken, che
       targetType: 'KbDocument', targetId: doc.id,
       newValue: { fields: Object.keys(patch) }
     });
+    broadcastKb(req, doc, 'kb:updated');
     successResponse(res, doc);
   } catch (err) { next(err); }
 });
@@ -571,6 +583,7 @@ router.delete('/businesses/:businessId/kb/documents/:docId', authenticateToken, 
     if (!doc) return errorResponse(res, 'Document not found', 404);
 
     await KbChunk.destroy({ where: { kb_document_id: doc.id } });
+    const snapForBroadcast = { id: doc.id, business_id: doc.business_id, project_id: doc.project_id };
     await doc.destroy();
 
     await createAuditLog({
@@ -581,6 +594,7 @@ router.delete('/businesses/:businessId/kb/documents/:docId', authenticateToken, 
       targetId: doc.id
     });
 
+    broadcastKb(req, snapForBroadcast, 'kb:deleted');
     successResponse(res, { deleted: true });
   } catch (err) { next(err); }
 });
