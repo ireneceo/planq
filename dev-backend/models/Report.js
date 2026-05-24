@@ -31,7 +31,7 @@ Report.init({
   generated_by: { type: DataTypes.INTEGER, allowNull: true, references: { model: 'users', key: 'id' } },
   pdf_url: { type: DataTypes.STRING(500), allowNull: true },
   // 외부 공유용 (인증 불필요 링크)
-  share_token: { type: DataTypes.STRING(64), allowNull: true, unique: true },
+  share_token: { type: DataTypes.STRING(64), allowNull: true },
   // 실패 시 마지막 에러 메시지
   error_message: { type: DataTypes.TEXT, allowNull: true },
   // 오너가 내러티브로 달 수 있는 주석
@@ -41,7 +41,10 @@ Report.init({
   tableName: 'reports',
   timestamps: true,
   underscored: true,
-  indexes: [{ fields: ['business_id', 'period_start'] }],
+  indexes: [
+    { fields: ['business_id', 'period_start'] },
+    { unique: true, fields: ['share_token'], name: 'reports_share_token_unique' },
+  ],
 });
 
 module.exports = Report;

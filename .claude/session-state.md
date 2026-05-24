@@ -1,43 +1,65 @@
 # PlanQ 개발 세션 상태
 **마지막 업데이트:** 2026-05-24
-**작업 상태:** 완료 — N+50~N+60 11 사이클 SaaS readiness (미라이브 11 commit + dev DB schema 정리)
+**작업 상태:** 완료 — N+50~N+61 12 사이클 SaaS readiness (미라이브 13 commit)
 **최근 운영 라이브 commit:** `2c1aeba` (editor wrapper click fix)
-**미라이브 commit:** 11 + dev DB schema fix (N+60 — 운영 DB 적용 SQL 박제)
+**미라이브 commit:** 13 — N+50/51/52/53/54/55/56/57/58/59/60 + N+61 sequelize 모델 unique 제거 (이번 세션)
 
 ---
 
-## 이번 세션 완료 (N+50 ~ N+60)
+## 이번 세션 완료 (N+50 ~ N+61)
 
-### N+60 — DB 중복 인덱스 정리 (sequelize sync 누적 fix)
+### N+61 — sequelize 모델 unique:true 제거 (인덱스 누적 근본 차단)
 
-**30년차 시각 critical 발견:** dev DB 의 11 테이블이 MySQL 64 키 한도 도달. 다음 `sync({alter:true})` 시 ALTER 실패 — 운영 진입 직전 폭탄. memory `feedback_sync_alter_too_many_keys.md` 박제 사례 재발.
+**N+60 의 진짜 마무리.** N+60 은 dev DB 일회성 정리였고, sequelize 가 다음 sync 마다 또 중복 만들지 않게 모델 정의 자체를 바꿔야 영구 안전.
 
-**원인:** sequelize sync 가 unique 컬럼 (share_token, invite_token 등) 의 인덱스를 매 sync 마다 새로 생성 → share_token_2, share_token_3 ... 50+ 누적.
+**근본 원인:** column-level `unique: true` 가 sync 마다 sequelize 의 자동 인덱스 생성 trigger → `share_token_2`, `share_token_3` ... 무한 누적.
 
-**dev DB 정리 (700 ALTER):**
-| 테이블 | before | after |
-|--------|--------|-------|
-| posts | 64 keys | 13 |
-| documents | 64 | 13 |
-| files | 64 | 11 |
-| invoices | 64 | 9 |
-| business_members / clients / users / signature_requests / quotes / reports / businesses | 64 | 6~9 |
+**해결:** column-level unique 제거 + `indexes: [{ unique: true, fields: [...], name: '...' }]` 배열에 명시 (이름 지정). sequelize 가 이름으로 인식해 중복 생성 안 함.
+
+**변경된 16 모델:**
+| 모델 | column |
+|------|--------|
+| Business | slug |
+| BusinessMember | invite_token |
+| CalendarEvent | share_token |
+| Client | invite_token |
+| Document | share_token |
+| File | share_token |
+| Invoice | invoice_number, share_token |
+| KbDocument | share_token |
+| Post | share_token (non-unique → unique 변경) |
+| PushSubscription | endpoint |
+| Quote | share_token |
+| RefreshToken | token_hash (indexes 이미 있음, column만 제거) |
+| Report | share_token |
+| SignatureRequest | token (indexes 이미 있음, column만 제거) |
+| Task | share_token |
+| User | email, username |
 
 **검증:**
-- 헬스체크 28/28 통과 (인덱스 정리 영향 없음)
-- EXPLAIN audit_logs `business_id + created_at` → `audit_logs_business_id_created_at` backward index scan 정합
-- EXPLAIN files `business_id + visibility + deleted_at` → 인덱스 사용 (옵티마이저 선택)
+- 모든 모델 syntax check OK (14 모델)
+- 1st sync — 명시 인덱스 새로 생성 (정상)
+- **2nd sync — 인덱스 카운트 변화 0** (누적 차단 성공 ✅)
+- 헬스체크 28/28 통과
+- column-level `unique: true` 잔존 0건
 
-**운영 DB 적용 SQL 박제:**
-- `dev-backend/scripts/cleanup-duplicate-indexes.sql` — 운영 배포 시 참고 (information_schema 에서 자동 SQL 추출 + 점검 절차)
+**누적 차단 검증 (1st sync vs 2nd sync):**
+| 테이블 | 1st sync 후 | 2nd sync 후 |
+|--------|-------------|-------------|
+| businesses | 5 | 5 ✓ |
+| users | 6 | 6 ✓ |
+| files | 12 | 12 ✓ |
+| posts | 15 | 15 ✓ |
+| invoices | 12 | 12 ✓ |
+| tasks | 13 | 13 ✓ |
+| (16 모두) | unchanged | unchanged ✓ |
 
-**30년차 결정 박제 (N+60):**
-- **sequelize sync({alter:true}) 의 unique 인덱스 누적 = 자연 누적 폭탄** — 다음 사이클에 모델 정의에서 unique:true 제거 + 명시 index 만 사용 검토
-- **운영 DB 적용 시 — 백업 + 점검 모드 + 헬스체크** 3단계 필수 (memory: project_backup_strategy.md)
-- **인덱스 정리는 SELECT 후 자동 ALTER 생성** — 수동 list 보다 information_schema 쿼리로 안전
-- **EXPLAIN 통계 작은 데이터셋은 부정확** — 운영 데이터셋에서 다시 확인 필요 (필요 시 ANALYZE TABLE)
+**30년차 결정 박제 (N+61):**
+- **column-level `unique: true` = sync 누적 폭탄 trigger** — sequelize 가 이름 없이 자동 생성하니 매번 새 인덱스
+- **indexes 배열 + name: '...' 지정** — sequelize 가 이름으로 인식 → 중복 안 만듦
+- **운영 DB 적용 시** — sync-database.js 실행하면 명시 인덱스 1회 생성됨. 그 후로는 안정. N+60 SQL 정리 + N+61 모델 변경 = 영구 안전
 
-### N+50~N+59 (요약)
+### N+50~N+60 (요약)
 - N+50 `457c8ec` — pagination 10 라우트 전수
 - N+51 `707edcc` — AuditLog Tier 1 16 action + invoice FK fix
 - N+52 `60ef03b` — PWA Share 회귀 + LoginPage search 보존
@@ -48,13 +70,14 @@
 - N+57 `2108f13` — chat destination attachFileIds
 - N+58 `355c396` — file batch meta + ChatPanel chip meta
 - N+59 `d6e4f49` — files share/bulk audit + AuditLog admin pagination
+- N+60 `17cec52` — dev DB 중복 인덱스 정리 (700 ALTER) + 운영 적용 SQL 박제
 
 ## 다음 사이클 (미완)
 
-1. **운영 push** — 미라이브 11 commit + N+60 DB 정리 SQL 적용
-2. **sequelize 모델 unique:true 제거** — 인덱스 누적 근본 차단
-3. **AdminAuditLogsPage target_type filter UI 추가** — backend filter 이미 있음
-4. **QNote / PostsPage attachFileIds 받기** — N+57 패턴 (변경 폭 큼)
+1. **운영 push** — 미라이브 13 commit + N+60 SQL 운영 적용
+2. **AdminAuditLogsPage target_type filter UI** — backend 이미 있음
+3. **QNote / PostsPage attachFileIds 받기** — N+57 패턴 (변경 폭 큼)
+4. **3차 AuditLog 보강 (선택)** — docs CRUD / task_templates apply
 5. **Phase 9 통합 컨텍스트 + Q Mail** (9주, 큰 사이클)
 
 ---

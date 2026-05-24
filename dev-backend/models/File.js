@@ -77,10 +77,10 @@ File.init({
     defaultValue: 1
   },
   // 공유 링크 — 통합 공유 시스템 (Task/KbDocument/CalendarEvent 와 일관)
+  // 사이클 N+61 — column-level unique 제거. indexes 배열 명시 (sync 누적 차단)
   share_token: {
     type: DataTypes.STRING(64),
     allowNull: true,
-    unique: true
   },
   shared_at: {
     type: DataTypes.DATE,
@@ -119,7 +119,7 @@ File.init({
   indexes: [
     { fields: ['business_id', 'project_id'] },
     { fields: ['business_id', 'content_hash'] },
-    { fields: ['share_token'] },
+    { unique: true, fields: ['share_token'], name: 'files_share_token_unique' },
     { fields: ['deleted_at'] },
     { fields: ['business_id', 'visibility', 'uploader_id'] },
   ]

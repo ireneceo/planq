@@ -192,7 +192,7 @@ KbDocument.init({
     references: { model: 'kb_documents', key: 'id' },
   },
   // 공유 링크 (사이클 N+4 — 통합 공유 시스템)
-  share_token: { type: DataTypes.STRING(64), allowNull: true, unique: true },
+  share_token: { type: DataTypes.STRING(64), allowNull: true },
   shared_at: { type: DataTypes.DATE, allowNull: true },
   share_password_hash: { type: DataTypes.STRING(255), allowNull: true },
   share_expires_at: { type: DataTypes.DATE, allowNull: true },
@@ -206,6 +206,7 @@ KbDocument.init({
     { fields: ['business_id', 'category'] },
     { fields: ['business_id', 'scope', 'project_id'] },
     { fields: ['business_id', 'scope', 'client_id'] },
+    { unique: true, fields: ['share_token'], name: 'kb_documents_share_token_unique' },
   ]
 });
 

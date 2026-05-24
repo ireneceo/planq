@@ -20,7 +20,7 @@ Post.init({
   visibility: { type: DataTypes.ENUM('internal', 'public'), allowNull: false, defaultValue: 'internal' },
   is_pinned: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
   view_count: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
-  share_token: { type: DataTypes.STRING(64), allowNull: true, unique: true },
+  share_token: { type: DataTypes.STRING(64), allowNull: true },
   shared_at: { type: DataTypes.DATE, allowNull: true },
   // N+43 — share_token 만료. NULL = 무제한 (legacy). 만료된 token 은 공개 endpoint 가 410 응답 + 친절한 만료 페이지.
   // 철회 (revoke) 는 share_token = NULL 로 통일 (File 패턴, 별도 컬럼 불필요).
@@ -56,7 +56,7 @@ Post.init({
     { fields: ['business_id', 'project_id', 'created_at'] },
     { fields: ['business_id', 'is_pinned'] },
     { fields: ['business_id', 'conversation_id'] },
-    { fields: ['share_token'] },
+    { unique: true, fields: ['share_token'], name: 'posts_share_token_unique' },
     { fields: ['business_id', 'kind'] },
     { fields: ['q_record_id'] },
     { fields: ['business_id', 'vlevel', 'author_id'] },

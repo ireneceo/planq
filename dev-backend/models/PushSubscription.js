@@ -16,7 +16,7 @@ PushSubscription.init({
     references: { model: 'businesses', key: 'id' },
   },
   endpoint: {
-    type: DataTypes.STRING(500), allowNull: false, unique: true,
+    type: DataTypes.STRING(500), allowNull: false,
   },
   p256dh: { type: DataTypes.STRING(200), allowNull: false },
   auth: { type: DataTypes.STRING(100), allowNull: false },
@@ -30,6 +30,7 @@ PushSubscription.init({
   indexes: [
     { fields: ['user_id'] },
     { fields: ['business_id'] },
+    { unique: true, fields: ['endpoint'], name: 'push_subscriptions_endpoint_unique' },
   ],
 });
 

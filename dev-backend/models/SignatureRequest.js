@@ -57,7 +57,7 @@ SignatureRequest.init({
   signer_name: { type: DataTypes.STRING(100), allowNull: true },
 
   // 토큰 (URL)
-  token: { type: DataTypes.STRING(64), allowNull: false, unique: true },
+  token: { type: DataTypes.STRING(64), allowNull: false },
 
   // 이메일 OTP 본인 확인
   otp_code_hash: { type: DataTypes.STRING(64), allowNull: true },  // sha256
