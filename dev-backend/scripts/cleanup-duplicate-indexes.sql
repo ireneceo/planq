@@ -1,0 +1,43 @@
+-- 사이클 N+60 — 중복 인덱스 정리 (운영 DB 적용용)
+-- ============================================
+-- 배경: sequelize sync({alter:true}) 가 unique 컬럼 (share_token, invite_token 등) 의
+--   인덱스를 매 sync 마다 새로 생성 → share_token_2, share_token_3 ... 누적
+--   11 테이블이 MySQL 64 키 한도 도달 (다음 sync ALTER 실패)
+-- memory: feedback_sync_alter_too_many_keys.md 박제
+--
+-- 실행 전 백업 필수: mysqldump (memory: project_backup_strategy.md)
+-- 운영 적용 시 점검 사항:
+--   1. DB 백업 완료 확인
+--   2. 운영 점검 모드 (maintenance) 진입 — 짧은 시간 (1~2분)
+--   3. 이 SQL 실행
+--   4. 헬스체크 + 핵심 EXPLAIN 확인
+--   5. 점검 모드 해제
+--
+-- 자동 생성 SQL — information_schema 에서 _N 패턴 인덱스 추출:
+--
+--   SELECT CONCAT('ALTER TABLE ', TABLE_NAME, ' DROP INDEX `', INDEX_NAME, '`;')
+--   FROM information_schema.STATISTICS
+--   WHERE TABLE_SCHEMA = 'planq_dev_db'
+--     AND INDEX_NAME REGEXP '_[0-9]+$'
+--     AND INDEX_NAME NOT LIKE 'PRIMARY'
+--   GROUP BY TABLE_NAME, INDEX_NAME;
+--
+-- 보존되는 정식 인덱스 (drop X):
+--   files / posts / documents / invoices: share_token (1개)
+--   business_members: invite_token (1개)
+--   etc — 각 unique 컬럼당 1개 인덱스만
+--
+-- dev 적용 결과 (2026-05-24):
+--   posts: 64 → 13 keys
+--   documents: 64 → 13
+--   files: 64 → 11
+--   invoices: 64 → 9
+--   business_members / clients / users 도 normal level 회복
+--
+-- 운영 적용 — 위 SELECT 로 SQL 추출 후 실행. dev 와 같은 결과 예상.
+-- 본 파일은 박제용 (memory).
+
+-- 정리 후 점검 쿼리:
+-- SELECT TABLE_NAME, COUNT(DISTINCT INDEX_NAME) FROM information_schema.STATISTICS
+-- WHERE TABLE_SCHEMA = 'planq_admin' GROUP BY TABLE_NAME HAVING COUNT(DISTINCT INDEX_NAME) > 15;
+-- → 0 row 이면 OK
