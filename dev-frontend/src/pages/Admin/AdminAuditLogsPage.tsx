@@ -27,16 +27,68 @@ interface AuditRow {
   User?: { id: number; name: string; email: string } | null;
 }
 
-const COMMON_ACTIONS = [
-  'user.impersonate',
-  'user.data_export',
-  'platform_settings.update',
-  'plan.change',
-  'payment.mark_paid',
-  'business.create',
-  'kb.document_create',
-  'kb.document_update',
-  'kb.document_delete',
+// 사이클 N+62 — 카테고리 그룹화. N+51/54/59 추가 action 반영 + target_type filter.
+// 운영자가 보안 사고 분석 시 빠르게 필터링 가능하도록 그룹별 정리.
+const ACTION_GROUPS: { labelKey: string; actions: string[] }[] = [
+  {
+    labelKey: 'adminAudit.group.security',  // 보안·권한
+    actions: [
+      'user.impersonate', 'user.data_export', 'user.status_change',
+      'user.secondary_email_change', 'user.secondary_email_remove',
+      'platform_settings.update', 'member_permission.update',
+      'task.reviewer_add', 'task.reviewer_remove', 'task.policy_change',
+    ],
+  },
+  {
+    labelKey: 'adminAudit.group.finance',   // 재무
+    actions: [
+      'invoice.create', 'invoice.send', 'invoice.delete',
+      'invoice.installment.mark_paid', 'invoice.installment.unmark_paid',
+      'invoice.installment.mark_tax_invoice', 'invoice.installment.cancel',
+      'invoice.status.change',
+      'payment.mark_paid', 'subscription.checkout',
+      'addon.mark_paid', 'addon.cancel',
+      'plan.trial_start', 'plan.upgrade', 'plan.downgrade_schedule', 'plan.cancel_schedule',
+      'business.default_billing_owner.update',
+    ],
+  },
+  {
+    labelKey: 'adminAudit.group.content',   // 콘텐츠
+    actions: [
+      'post.create', 'post.update', 'post.delete', 'post.brief.create',
+      'kb.document_create', 'kb.document_update', 'kb.document_delete', 'kb.document_upload',
+      'document.public_sign', 'document.archive',
+      'document.share', 'document.share_revoke', 'document_template.archive',
+      'record.delete', 'task_template.delete',
+    ],
+  },
+  {
+    labelKey: 'adminAudit.group.files',     // 파일
+    actions: [
+      'file.upload', 'file.delete', 'file.visibility_change',
+      'file.share_link_create', 'file.share_link_revoke', 'file.bulk_delete',
+    ],
+  },
+  {
+    labelKey: 'adminAudit.group.signature', // 서명
+    actions: ['signature.request', 'signature.sign'],
+  },
+  {
+    labelKey: 'adminAudit.group.workspace', // 워크스페이스
+    actions: [
+      'business.create', 'business.weekly_finalize_update',
+      'workspace_weekly_report.create', 'workspace_weekly_report.update',
+      'workspace_weekly_report.overwrite', 'workspace_weekly_report.delete',
+      'project.client_added', 'conversation.archive', 'conversation.unlink_project',
+    ],
+  },
+];
+
+// 자주 쓰는 target_type — DB 통계 기준 (사이클 N+62)
+const COMMON_TARGET_TYPES = [
+  'Post', 'KbDocument', 'file', 'calendar_event', 'conversation', 'Message',
+  'business', 'Task', 'client', 'document', 'SignatureRequest', 'payment',
+  'invoice', 'q_record', 'User', 'business_member_permission', 'project_client',
 ];
 
 const AdminAuditLogsPage = () => {
@@ -45,18 +97,20 @@ const AdminAuditLogsPage = () => {
   const [rows, setRows] = useState<AuditRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterAction, setFilterAction] = useState<string>('all');
+  const [filterTargetType, setFilterTargetType] = useState<string>('all'); // N+62
   const [filterUserId, setFilterUserId] = useState<string>('');
   const [filterFrom, setFilterFrom] = useState<string>('');
   const [filterTo, setFilterTo] = useState<string>('');
   const [detailId, setDetailId] = useState<number | null>(null);
 
   // 사이클 N+59 — auto-paginate (N+55 패턴). 5 페이지 × 500 = 2500 audit row 까지 누적.
-  // 운영 audit 가 누적되면 1 page (200) 로 부족. 보안 사고 분석 시 더 가져와야.
+  // 사이클 N+62 — target_type filter 추가
   const load = useCallback(async () => {
     setLoading(true);
     try {
       const baseParams = new URLSearchParams();
       if (filterAction !== 'all') baseParams.set('action', filterAction);
+      if (filterTargetType !== 'all') baseParams.set('target_type', filterTargetType);
       if (filterUserId.trim()) baseParams.set('user_id', filterUserId.trim());
       if (filterFrom) baseParams.set('from', filterFrom);
       if (filterTo) baseParams.set('to', filterTo);
@@ -75,15 +129,29 @@ const AdminAuditLogsPage = () => {
       }
       setRows(collected);
     } finally { setLoading(false); }
-  }, [filterAction, filterUserId, filterFrom, filterTo]);
+  }, [filterAction, filterTargetType, filterUserId, filterFrom, filterTo]);
 
   useEffect(() => { void load(); }, [load]);
 
   const detail = useMemo(() => rows.find(r => r.id === detailId) || null, [rows, detailId]);
 
-  const actionOptions: PlanQSelectOption[] = useMemo(() => [
-    { value: 'all', label: t('adminAudit.actionAll', '전체 액션') as string },
-    ...COMMON_ACTIONS.map(a => ({ value: a, label: a })),
+  // 사이클 N+62 — 그룹별 action options (재무/콘텐츠/보안 등)
+  const actionOptions: PlanQSelectOption[] = useMemo(() => {
+    const opts: PlanQSelectOption[] = [
+      { value: 'all', label: t('adminAudit.actionAll', '전체 액션') as string },
+    ];
+    for (const group of ACTION_GROUPS) {
+      const groupLabel = t(group.labelKey, group.labelKey) as string;
+      for (const a of group.actions) {
+        opts.push({ value: a, label: `[${groupLabel}] ${a}` });
+      }
+    }
+    return opts;
+  }, [t]);
+
+  const targetTypeOptions: PlanQSelectOption[] = useMemo(() => [
+    { value: 'all', label: t('adminAudit.targetTypeAll', '전체 대상') as string },
+    ...COMMON_TARGET_TYPES.map(tt => ({ value: tt, label: tt })),
   ], [t]);
 
   return (
@@ -92,10 +160,15 @@ const AdminAuditLogsPage = () => {
       count={rows.length}
       actions={
         <FilterRow>
-          <PlanQSelect size="sm" isSearchable={false}
+          <PlanQSelect size="sm" isSearchable={true}
             value={actionOptions.find(o => o.value === filterAction)}
             options={actionOptions}
             onChange={(opt) => setFilterAction((opt as PlanQSelectOption | null)?.value as string || 'all')}
+          />
+          <PlanQSelect size="sm" isSearchable={false}
+            value={targetTypeOptions.find(o => o.value === filterTargetType)}
+            options={targetTypeOptions}
+            onChange={(opt) => setFilterTargetType((opt as PlanQSelectOption | null)?.value as string || 'all')}
           />
           <SmallInput type="number" placeholder={t('adminAudit.userIdPh', 'user ID') as string}
             value={filterUserId} onChange={e => setFilterUserId(e.target.value)} />

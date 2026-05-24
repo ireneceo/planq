@@ -210,6 +210,29 @@
     "desc": "이 페이지에 접근할 권한이 없습니다.",
     "back": "뒤로 가기"
   },
+  "adminAudit": {
+    "title": "감사 로그",
+    "actionAll": "전체 액션",
+    "targetTypeAll": "전체 대상",
+    "userIdPh": "user ID",
+    "empty": "조건에 맞는 로그가 없습니다",
+    "detail": "로그 상세",
+    "group": {
+      "security": "보안·권한",
+      "finance": "재무",
+      "content": "콘텐츠",
+      "files": "파일",
+      "signature": "서명",
+      "workspace": "워크스페이스"
+    },
+    "col": {
+      "when": "시각",
+      "user": "사용자",
+      "action": "액션",
+      "target": "대상",
+      "ip": "IP"
+    }
+  },
   "attachments": {
     "title": "첨부파일",
     "add": "파일 추가",
