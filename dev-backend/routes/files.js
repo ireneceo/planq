@@ -659,9 +659,25 @@ router.post('/:businessId/bulk-delete', authenticateToken, checkBusinessAccess, 
 
     const t = await sequelize.transaction();
     try {
+      // 사이클 N+59 — bulk delete audit 사전 snapshot (destroy 후엔 메타 잃음)
+      const snapshots = files.map((f) => ({
+        id: f.id,
+        file_name: f.file_name,
+        file_size: Number(f.file_size) || 0,
+        project_id: f.project_id,
+        visibility: f.visibility,
+      }));
       for (const f of files) await softDeleteFile(f, t);
       await t.commit();
       for (const f of files) broadcastFile(req, { id: f.id, business_id: f.business_id, project_id: f.project_id }, 'file:deleted');
+      // 사이클 N+59 — bulk delete audit. 다량 데이터 삭제 = 보안 감사 critical
+      require('../services/auditService').logAudit(req, {
+        action: 'file.bulk_delete',
+        targetType: 'file',
+        targetId: null,
+        businessId: Number(req.params.businessId),
+        oldValue: { count: snapshots.length, files: snapshots },
+      });
       successResponse(res, { deleted: files.length }, `${files.length} files deleted`);
     } catch (e) { await t.rollback(); throw e; }
   } catch (error) {
@@ -753,12 +769,27 @@ router.post('/:businessId/:id/share-link', authenticateToken, checkBusinessAcces
       : 30;
     const token = crypto.randomBytes(32).toString('hex');
     const expiresAt = new Date(Date.now() + expiresDays * 86400000);
+    const prevHadToken = !!file.share_token;
     await file.update({
       share_token: token,
       share_expires_at: expiresAt,
       share_created_at: new Date(),
     });
     const appUrl = process.env.APP_URL || 'https://dev.planq.kr';
+    // 사이클 N+59 — audit. 파일 외부 노출 (share token 발급) = 보안 critical
+    require('../services/auditService').logAudit(req, {
+      action: 'file.share_link_create',
+      targetType: 'file',
+      targetId: file.id,
+      businessId: file.business_id,
+      oldValue: { had_previous_token: prevHadToken },
+      newValue: {
+        file_name: file.file_name,
+        expires_days: expiresDays,
+        expires_at: expiresAt.toISOString(),
+        visibility: file.visibility,
+      },
+    });
     return successResponse(res, {
       share_token: token,
       share_url: `${appUrl}/api/files/public/${token}/download`,
@@ -776,7 +807,18 @@ router.delete('/:businessId/:id/share-link', authenticateToken, checkBusinessAcc
       where: { id: req.params.id, business_id: req.params.businessId, deleted_at: null }
     });
     if (!file) return errorResponse(res, 'File not found', 404);
+    const hadToken = !!file.share_token;
+    const prevExpiresAt = file.share_expires_at;
     await file.update({ share_token: null, share_expires_at: null, share_created_at: null });
+    // 사이클 N+59 — audit. share revoke (외부 접근 차단)
+    require('../services/auditService').logAudit(req, {
+      action: 'file.share_link_revoke',
+      targetType: 'file',
+      targetId: file.id,
+      businessId: file.business_id,
+      oldValue: { had_token: hadToken, share_expires_at: prevExpiresAt },
+      newValue: { file_name: file.file_name },
+    });
     return successResponse(res, { ok: true });
   } catch (err) { next(err); }
 });
