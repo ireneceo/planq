@@ -12,7 +12,7 @@ const {
   ProjectStatusOption, ProjectProcessColumn, ProjectProcessPart,
   File, FileFolder, MessageAttachment, TaskAttachment,
 } = require('../models');
-const { successResponse, errorResponse } = require('../middleware/errorHandler');
+const { successResponse, errorResponse, parsePagination, paginatedResponse } = require('../middleware/errorHandler');
 const { authenticateToken } = require('../middleware/auth');
 const { createAuditLog } = require('../middleware/audit');
 const taskExtractor = require('../services/task_extractor');
@@ -1588,7 +1588,9 @@ router.get('/workspace/:businessId/all-tasks', authenticateToken, async (req, re
     if (req.query.mine === '1') where.assignee_id = req.user.id;
     else if (req.query.assignee_id) where.assignee_id = Number(req.query.assignee_id);
 
-    const tasks = await Task.findAll({
+    // 사이클 N+50 — pagination. 워크스페이스 전체 task 누적 — default 500 / max 1000
+    const { limit, page, offset } = parsePagination(req, { defaultLimit: 500, maxLimit: 1000 });
+    const { rows, count } = await Task.findAndCountAll({
       where,
       include: [
         { model: Project, attributes: ['id', 'name', 'client_company', 'status'] },
@@ -1597,8 +1599,10 @@ router.get('/workspace/:businessId/all-tasks', authenticateToken, async (req, re
         { model: TaskReviewer, as: 'reviewers', attributes: ['id', 'user_id', 'state', 'is_client'], required: false },
       ],
       order: [['createdAt', 'DESC']],
+      limit, offset,
+      distinct: true,
     });
-    return successResponse(res, tasks.map((t) => t.toJSON()));
+    return paginatedResponse(res, rows.map((t) => t.toJSON()), count, { limit, page, offset });
   } catch (err) { next(err); }
 });
 
@@ -1951,6 +1955,12 @@ router.get('/workspace/:bizId/all-files', authenticateToken, async (req, res, ne
       || await Business.findOne({ where: { id: bizId, owner_id: req.user.id } });
     if (!isMember) return errorResponse(res, 'Access denied', 403);
 
+    // 사이클 N+50 — UNION-style 집계 (direct + chat + task + post). 정식 pagination 은 SQL UNION refactor 필요.
+    // 임시: 각 source 최대 2000 cap + 최종 merge 결과 limit/offset 인메모리 슬라이스.
+    // 운영 워크스페이스 source 별 2000 초과 드물 — 초과 시 후속 사이클에 SQL UNION 으로 전환.
+    const MAX_PER_SOURCE = 2000;
+    const { limit, page, offset } = parsePagination(req, { defaultLimit: 500, maxLimit: 1000 });
+
     const projects = await Project.findAll({
       where: { business_id: bizId },
       attributes: ['id', 'name', 'color']
@@ -1974,7 +1984,9 @@ router.get('/workspace/:bizId/all-files', authenticateToken, async (req, res, ne
       include: [
         { model: User, as: 'uploader', attributes: ['id', 'name'] },
         { model: FileFolder, as: 'folder', attributes: ['id', 'name'] }
-      ]
+      ],
+      order: [['created_at', 'DESC']],
+      limit: MAX_PER_SOURCE,
     });
     for (const f of directFiles) {
       const proj = projMap.get(f.project_id);
@@ -2020,7 +2032,9 @@ router.get('/workspace/:bizId/all-files', authenticateToken, async (req, res, ne
           where: { conversation_id: { [Op.in]: conversations.map(c => c.id) } },
           attributes: ['id', 'conversation_id', 'sender_id'],
           include: [{ model: User, as: 'sender', attributes: ['id', 'name', 'name_localized'] }]
-        }]
+        }],
+        order: [['created_at', 'DESC']],
+        limit: MAX_PER_SOURCE,
       });
       for (const a of chatFiles) {
         const conv = convMap.get(a.Message.conversation_id);
@@ -2058,7 +2072,9 @@ router.get('/workspace/:bizId/all-files', authenticateToken, async (req, res, ne
     if (tasks.length > 0) {
       const taskFiles = await TaskAttachment.findAll({
         where: { task_id: { [Op.in]: tasks.map(t => t.id) } },
-        include: [{ model: User, as: 'uploader', attributes: ['id', 'name'] }]
+        include: [{ model: User, as: 'uploader', attributes: ['id', 'name'] }],
+        order: [['created_at', 'DESC']],
+        limit: MAX_PER_SOURCE,
       });
       for (const a of taskFiles) {
         const task = taskMap.get(a.task_id);
@@ -2097,7 +2113,9 @@ router.get('/workspace/:bizId/all-files', authenticateToken, async (req, res, ne
       const postMap = new Map(postsInBiz.map(p => [p.id, p]));
       const postAtts = await PostAttachment.findAll({
         where: { post_id: { [Op.in]: postsInBiz.map(p => p.id) } },
-        include: [{ model: File, as: 'file', include: [{ model: User, as: 'uploader', attributes: ['id', 'name'] }] }]
+        include: [{ model: File, as: 'file', include: [{ model: User, as: 'uploader', attributes: ['id', 'name'] }] }],
+        order: [['created_at', 'DESC']],
+        limit: MAX_PER_SOURCE,
       });
       for (const a of postAtts) {
         const f = a.file;
@@ -2125,7 +2143,10 @@ router.get('/workspace/:bizId/all-files', authenticateToken, async (req, res, ne
     }
 
     results.sort((a, b) => new Date(b.uploaded_at) - new Date(a.uploaded_at));
-    successResponse(res, results);
+    // 사이클 N+50 — merged results 인메모리 슬라이스 (pagination 응답 형식 정합)
+    const total = results.length;
+    const sliced = results.slice(offset, offset + limit);
+    return paginatedResponse(res, sliced, total, { limit, page, offset });
   } catch (error) {
     next(error);
   }

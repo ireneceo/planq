@@ -54,13 +54,18 @@ router.get('/', authenticateToken, async (req, res, next) => {
     if (req.query.project_id) where.project_id = Number(req.query.project_id);
     if (req.query.category) where.category = req.query.category;
 
-    const records = await QRecord.findAll({
+    // 사이클 N+50 — pagination. Q Records (Q info) 누적 가능 — default 200 / max 500
+    const { parsePagination, paginatedResponse } = require('../middleware/errorHandler');
+    const { limit, page, offset } = parsePagination(req, { defaultLimit: 200, maxLimit: 500 });
+    const { rows: records, count } = await QRecord.findAndCountAll({
       where,
       order: [['position', 'ASC'], ['created_at', 'DESC']],
       include: [
         { model: User, as: 'creator', attributes: ['id', 'name'] },
         { model: Project, attributes: ['id', 'name'] },
       ],
+      limit, offset,
+      distinct: true,
     });
 
     // 행 카운트도 같이
@@ -79,7 +84,7 @@ router.get('/', authenticateToken, async (req, res, next) => {
       row_count: cmap[r.id] || 0,
     }));
     await applyMemberDisplayName(data, businessId, ['creator']);
-    successResponse(res, data);
+    return paginatedResponse(res, data, count, { limit, page, offset });
   } catch (err) { next(err); }
 });
 

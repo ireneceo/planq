@@ -5,7 +5,7 @@ const { Task, User, Project, BusinessMember, Business, TaskComment, TaskDailyPro
 const taskSnapshot = require('../services/task_snapshot');
 const { authenticateToken, checkBusinessAccess } = require('../middleware/auth');
 const { getUserScope, taskListWhere, canAccessTask, isMemberOrAbove } = require('../middleware/access_scope');
-const { successResponse, errorResponse } = require('../middleware/errorHandler');
+const { successResponse, errorResponse, parsePagination, paginatedResponse } = require('../middleware/errorHandler');
 const { todayInTz, mondayOfDateStr, addDaysStr, mondayOfIsoWeek } = require('../utils/datetime');
 // N+34 — 워크스페이스 표시명 helper. BusinessMember.name 우선, User.name fallback.
 // 사용자 호소: "담당자 이름이 워크스페이스 프로필 이름이 아니야" — User.name 직접 사용 회귀 fix.
@@ -272,18 +272,22 @@ router.get('/backlog', authenticateToken, async (req, res, next) => {
       where[Op.or] = [{ assignee_id: req.user.id }, { assignee_id: null }];
     }
 
-    const tasks = await Task.findAll({
+    // 사이클 N+50 — pagination. backlog 누적 가능 — default 200 / max 500
+    const { limit, page, offset } = parsePagination(req, { defaultLimit: 200, maxLimit: 500 });
+    const { rows, count } = await Task.findAndCountAll({
       where,
       include: [
         { model: Project, attributes: ['id', 'name'], required: false },
         { model: User, as: 'assignee', attributes: ['id', 'name', 'name_localized'], required: false },
       ],
       order: [['priority_order', 'ASC'], ['created_at', 'DESC']],
+      limit, offset,
+      distinct: true,
     });
 
-    const tasksJson = tasks.map(t => t.toJSON());
+    const tasksJson = rows.map(t => t.toJSON());
     await applyMemberDisplayName(tasksJson, businessId, ['assignee']);
-    return successResponse(res, tasksJson);
+    return paginatedResponse(res, tasksJson, count, { limit, page, offset });
   } catch (err) { next(err); }
 });
 
@@ -1443,7 +1447,9 @@ router.get('/requested', authenticateToken, async (req, res, next) => {
       return errorResponse(res, 'forbidden', 403);
     }
 
-    const tasks = await Task.findAll({
+    // 사이클 N+50 — pagination. default 200 / max 500
+    const { limit, page, offset } = parsePagination(req, { defaultLimit: 200, maxLimit: 500 });
+    const { rows, count } = await Task.findAndCountAll({
       where: {
         business_id: businessId,
         created_by: req.user.id,
@@ -1454,10 +1460,12 @@ router.get('/requested', authenticateToken, async (req, res, next) => {
         { model: User, as: 'assignee', attributes: ['id', 'name', 'name_localized'], required: false },
       ],
       order: [['due_date', 'ASC'], ['priority_order', 'ASC'], ['created_at', 'DESC']],
+      limit, offset,
+      distinct: true,
     });
-    const tasksJson = tasks.map((t) => t.toJSON());
+    const tasksJson = rows.map((t) => t.toJSON());
     await applyMemberDisplayName(tasksJson, businessId, ['assignee']);
-    return successResponse(res, tasksJson);
+    return paginatedResponse(res, tasksJson, count, { limit, page, offset });
   } catch (err) { next(err); }
 });
 

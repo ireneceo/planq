@@ -173,12 +173,45 @@ pm2 restart planq-dev-backend
 res.json({ success: true, data: result });
 res.json({ success: true, data: result, message: '선택적 메시지' });
 
-// 성공 (목록)
-res.json({ success: true, data: [...], pagination: { page, limit, total } });
+// 성공 (목록 — pagination)
+res.json({ success: true, data: [...], pagination: { total, limit, page, offset, has_more } });
 
 // 실패
 res.status(400).json({ success: false, message: 'Error description' });
 ```
+
+### List 라우트 pagination 표준 (사이클 N+50 박제)
+
+**모든 신규 GET list 라우트는 `parsePagination` + `paginatedResponse` 사용 필수.** SaaS readiness — workspace 데이터 누적 시 unbounded 응답 OOM 차단.
+
+```javascript
+const { parsePagination, paginatedResponse } = require('../middleware/errorHandler');
+
+router.get('/', authenticateToken, async (req, res, next) => {
+  try {
+    const { limit, page, offset } = parsePagination(req, { defaultLimit: 200, maxLimit: 500 });
+    const { rows, count } = await Model.findAndCountAll({
+      where,
+      include,
+      order: [['created_at', 'DESC']],
+      limit, offset,
+      distinct: true,  // include 조인이 1:N 일 때 count 정확도
+    });
+    return paginatedResponse(res, rows.map(serialize), count, { limit, page, offset });
+  } catch (err) { next(err); }
+});
+```
+
+**default / max 가이드:**
+- 일반 list (records, posts, backlog, requested, archived): default 200 / max 500
+- files / aggregate (all-tasks, all-files): default 500 / max 1000
+- 큰 list (conversations, kb): cap 1000 / max 2000 (post-fetch sort/filter 있을 때 paginatedResponse 대신 soft cap 만)
+
+**?page=** 1-base 또는 **?offset=** 둘 다 지원. offset 우선. ?limit 없으면 default 사용. ?limit > max 면 max 로 cap.
+
+**Frontend 호환성:** `data` 필드는 여전히 배열 — pagination 키만 추가됨. 기존 호출은 무변경 동작. frontend 가 `?page=` 또는 `pagination` 키를 점진 opt-in 가능.
+
+**적용 완료 (사이클 N+50):** files / posts / conversations(soft cap) / archived / projects all-tasks · all-files / tasks backlog · requested / records / kb(soft cap)
 
 ### 파일 크기 기준
 - 라우트 파일: 500줄 이상이면 기능별 분리 검토

@@ -14,7 +14,7 @@ const planEngine = require('../services/plan');
 const { decodeOriginalName, buildContentDisposition } = require('../services/filename');
 const { authenticateToken, checkBusinessAccess } = require('../middleware/auth');
 const { attachWorkspaceScope, fileListWhereByLevel, canAccessFileByLevel, isMemberOrAbove, getUserScope } = require('../middleware/access_scope');
-const { successResponse, errorResponse } = require('../middleware/errorHandler');
+const { successResponse, errorResponse, parsePagination, paginatedResponse } = require('../middleware/errorHandler');
 
 // N+38 — 실시간 동기화 (CLAUDE.md 운영 안정성 16번 박제).
 function broadcastFile(req, file, event = 'file:updated') {
@@ -264,15 +264,20 @@ router.get('/:businessId', authenticateToken, attachWorkspaceScope(), async (req
     if (req.query.folder_id) where.folder_id = req.query.folder_id;
     if (req.query.folder_id === 'null') where.folder_id = null;
 
-    const files = await File.findAll({
+    // 사이클 N+50 — pagination. include 가 1:1 (uploader/client) 라 distinct 안전.
+    // files 는 누적 빠름 — default 500 / max 1000. frontend 가 ?page= 점진 opt-in
+    const { limit, page, offset } = parsePagination(req, { defaultLimit: 500, maxLimit: 1000 });
+    const { rows, count } = await File.findAndCountAll({
       where,
       include: [
         { model: User, as: 'uploader', attributes: ['id', 'name'] },
         { model: Client, attributes: ['id', 'display_name'] }
       ],
-      order: [['created_at', 'DESC']]
+      order: [['created_at', 'DESC']],
+      limit, offset,
+      distinct: true,
     });
-    successResponse(res, files);
+    return paginatedResponse(res, rows, count, { limit, page, offset });
   } catch (error) {
     next(error);
   }

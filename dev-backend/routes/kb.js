@@ -78,10 +78,15 @@ router.get('/businesses/:businessId/kb/documents', authenticateToken, checkBusin
     if (req.query.client_id) where.client_id = parseInt(req.query.client_id, 10) || null;
     if (req.query.q) where.title = { [require('sequelize').Op.like]: `%${String(req.query.q).slice(0,80)}%` };
 
+    // 사이클 N+50 — SaaS readiness cap. KB documents 는 보통 작지만 (10~100) 안전망.
+    // post-fetch JS filter (categories/tags) 가 있어 정식 pagination 대신 cap. 사용자 ?limit 가능.
+    const rawLimit = Number(req.query.limit);
+    const safeLimit = Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(rawLimit, 2000) : 1000;
     let docs = await KbDocument.findAll({
       where,
       attributes: ['id', 'title', 'source_type', 'category', 'categories', 'scope', 'project_id', 'client_id', 'file_name', 'file_size', 'version', 'status', 'chunk_count', 'uploaded_by', 'tags', 'attached_file_ids', 'attached_post_ids', 'custom_columns', 'custom_values', 'read_policy', 'client_ids', 'created_at', 'updated_at'],
-      order: [['updated_at', 'DESC']]
+      order: [['updated_at', 'DESC']],
+      limit: safeLimit,
     });
     // 멀티 카테고리 필터 (?categories=policy,manual) — categories JSON 또는 legacy category 매칭
     if (req.query.categories) {

@@ -12,7 +12,7 @@ const { Post, PostAttachment, PostCategory, File, User, Project, BusinessMember,
 const { decodeOriginalName, buildContentDisposition } = require('../services/filename');
 const { authenticateToken } = require('../middleware/auth');
 const { getUserScope, postListWhereByLevel, canAccessPostByLevel, isMemberOrAbove } = require('../middleware/access_scope');
-const { successResponse, errorResponse } = require('../middleware/errorHandler');
+const { successResponse, errorResponse, parsePagination, paginatedResponse } = require('../middleware/errorHandler');
 const { sendPostShareEmail } = require('../services/emailService');
 
 const APP_URL = process.env.APP_URL || 'https://dev.planq.kr';
@@ -172,13 +172,16 @@ router.get('/', authenticateToken, async (req, res, next) => {
       if (projIds.length > 0) orConds.push({ project_id: { [Op.in]: projIds } });
       where[Op.or] = orConds;
     }
-    const rows = await Post.findAll({
+    // 사이클 N+50 — pagination. 기존 hardcoded limit 200 정형화. include 1:1 → distinct:true 안전
+    const { limit, page, offset } = parsePagination(req, { defaultLimit: 200, maxLimit: 500 });
+    const { rows, count } = await Post.findAndCountAll({
       where,
       include,
       order: [['is_pinned', 'DESC'], ['updated_at', 'DESC']],
-      limit: 200,
+      limit, offset,
+      distinct: true,
     });
-    successResponse(res, rows.map(r => serialize(r)));
+    return paginatedResponse(res, rows.map(r => serialize(r)), count, { limit, page, offset });
   } catch (err) { next(err); }
 });
 
