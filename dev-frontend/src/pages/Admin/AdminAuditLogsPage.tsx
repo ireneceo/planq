@@ -50,18 +50,30 @@ const AdminAuditLogsPage = () => {
   const [filterTo, setFilterTo] = useState<string>('');
   const [detailId, setDetailId] = useState<number | null>(null);
 
+  // 사이클 N+59 — auto-paginate (N+55 패턴). 5 페이지 × 500 = 2500 audit row 까지 누적.
+  // 운영 audit 가 누적되면 1 page (200) 로 부족. 보안 사고 분석 시 더 가져와야.
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const sp = new URLSearchParams();
-      if (filterAction !== 'all') sp.set('action', filterAction);
-      if (filterUserId.trim()) sp.set('user_id', filterUserId.trim());
-      if (filterFrom) sp.set('from', filterFrom);
-      if (filterTo) sp.set('to', filterTo);
-      sp.set('limit', '200');
-      const r = await apiFetch(`/api/admin/audit-logs?${sp.toString()}`);
-      const j = await r.json();
-      if (j.success) setRows(j.data || []);
+      const baseParams = new URLSearchParams();
+      if (filterAction !== 'all') baseParams.set('action', filterAction);
+      if (filterUserId.trim()) baseParams.set('user_id', filterUserId.trim());
+      if (filterFrom) baseParams.set('from', filterFrom);
+      if (filterTo) baseParams.set('to', filterTo);
+      const collected: AuditRow[] = [];
+      const MAX_PAGES = 5;
+      const LIMIT = 500;
+      for (let page = 1; page <= MAX_PAGES; page++) {
+        const p = new URLSearchParams(baseParams);
+        p.set('page', String(page));
+        p.set('limit', String(LIMIT));
+        const r = await apiFetch(`/api/admin/audit-logs?${p.toString()}`);
+        const j = await r.json();
+        if (!j.success) break;
+        collected.push(...((j.data || []) as AuditRow[]));
+        if (!j.pagination || !j.pagination.has_more) break;
+      }
+      setRows(collected);
     } finally { setLoading(false); }
   }, [filterAction, filterUserId, filterFrom, filterTo]);
 

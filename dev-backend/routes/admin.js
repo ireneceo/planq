@@ -825,24 +825,29 @@ router.post('/users/:id/impersonate', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// GET /api/admin/audit-logs — 운영자 액션 추적. 필터: user_id, action, target_type, 기간
+// GET /api/admin/audit-logs — 운영자 액션 추적. 필터: user_id, action, target_type, business_id, 기간
+// 사이클 N+59 — pagination (N+50 표준) + business_id filter 추가 (특정 워크스페이스 audit 만 조회)
 router.get('/audit-logs', async (req, res, next) => {
   try {
     const { AuditLog, User } = require('../models');
     const { Op } = require('sequelize');
+    const { parsePagination, paginatedResponse } = require('../middleware/errorHandler');
     const where = {};
     if (req.query.user_id) where.user_id = Number(req.query.user_id);
+    if (req.query.business_id) where.business_id = Number(req.query.business_id);
     if (req.query.action) where.action = String(req.query.action).slice(0, 100);
     if (req.query.target_type) where.target_type = String(req.query.target_type).slice(0, 50);
     if (req.query.from) where.created_at = { ...(where.created_at || {}), [Op.gte]: new Date(String(req.query.from)) };
     if (req.query.to) where.created_at = { ...(where.created_at || {}), [Op.lte]: new Date(String(req.query.to)) };
-    const limit = Math.min(Number(req.query.limit) || 100, 500);
-    const rows = await AuditLog.findAll({
-      where, limit,
+    const { limit, page, offset } = parsePagination(req, { defaultLimit: 200, maxLimit: 500 });
+    const { rows, count } = await AuditLog.findAndCountAll({
+      where,
       include: [{ model: User, attributes: ['id', 'name', 'email'], required: false }],
       order: [['created_at', 'DESC']],
+      limit, offset,
+      distinct: true,
     });
-    return successResponse(res, rows.map(r => r.toJSON()));
+    return paginatedResponse(res, rows.map(r => r.toJSON()), count, { limit, page, offset });
   } catch (err) { next(err); }
 });
 

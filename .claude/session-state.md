@@ -1,52 +1,64 @@
 # PlanQ 개발 세션 상태
 **마지막 업데이트:** 2026-05-24
-**작업 상태:** 완료 — N+50~N+58 9 사이클 SaaS readiness + UX (미라이브 10 commit)
+**작업 상태:** 완료 — N+50~N+59 10 사이클 SaaS readiness + UX (미라이브 11 commit)
 **최근 운영 라이브 commit:** `2c1aeba` (editor wrapper click fix)
-**미라이브 commit:** 10 — `b6e3b83` FocusWidget / `457c8ec` N+50 pagination / `707edcc` N+51 AuditLog / `60ef03b` N+52 PWA Share / `cdd6dc6` N+53 share 새로고침 / `74458bc` N+54 AuditLog 2차 / `6451e07` N+55 FE auto-paginate / `42d5771` N+56 share 파일 첨부 통합 / `2108f13` N+57 chat destination / N+58 file batch meta + ChatPanel chip meta (이번 세션)
+**미라이브 commit:** 11 — `b6e3b83` FocusWidget / `457c8ec` N+50 pagination / `707edcc` N+51 AuditLog / `60ef03b` N+52 PWA Share / `cdd6dc6` N+53 share 새로고침 / `74458bc` N+54 AuditLog 2차 / `6451e07` N+55 FE auto-paginate / `42d5771` N+56 share 파일 첨부 / `2108f13` N+57 chat destination / `355c396` N+58 file batch meta / N+59 files audit + AuditLog admin (이번 세션)
 
 ---
 
-## 이번 세션 완료 (N+50 ~ N+58)
+## 이번 세션 완료 (N+50 ~ N+59)
 
-### N+58 — file batch meta fetch + ChatPanel chip 메타 노출
+### N+59 — files share-link/bulk-delete audit + AuditLog admin pagination
 
-**문제:** N+57 ChatPanel attachFileIds 받기 완성. chip 에 `#${id}` fallback 표시. 사용자에게 어떤 파일인지 안 보임.
+**30년차 시각 critical:** N+51/54 에서 files audit 추가했지만 **share-link (외부 노출)** 와 **bulk-delete (다량 삭제)** 가 빠짐. 보안 감사 1순위 누락. AdminAuditLogsPage 도 200 row cap — 운영 누적되면 부족.
 
-**해결:**
-- backend `GET /api/files/:bizId?ids=1,2,3&limit=N` — 기존 list 라우트에 ids 필터 추가. visibility WHERE 그대로 적용 — 접근 권한 없는 id 자동 필터. 100 ids cap
-- ChatPanel attachFileIds effect 안에서 batch meta fetch → setStagedExistingMeta 채움
-- chip 에 `file_name (50KB)` 정확한 메타 표시
+**구현:**
 
-**검증 (14/15 — 1 false negative):**
-- batch meta fetch 정합 (status 200, data 배열, file_name/file_size 포함)
-- 없는 id 섞임 시 존재하는 것만 반환
-- cross-tenant — visibility WHERE 자동 필터 (u4 → u3 워크스페이스 빈 data)
-- 150 ids → 100 cap
-- 빌드 chunk file_name 19번, file_size 11번 등장 (logic 살아있음)
+| 영역 | 변경 |
+|------|------|
+| files.js POST `/share-link` | `file.share_link_create` audit (expires_days + had_previous_token + visibility) |
+| files.js DELETE `/share-link` | `file.share_link_revoke` audit (oldValue.had_token + prev expires_at) |
+| files.js POST `/bulk-delete` | `file.bulk_delete` audit (snapshot 배열 — destroy 전 메타 박제 필수) |
+| admin.js GET `/audit-logs` | pagination (N+50 표준) + business_id filter 추가 |
+| AdminAuditLogsPage | auto-paginate (N+55 패턴) 5 페이지 × 500 = 2500 row 누적 |
 
-**1 false negative:** minified chunk 가 `setStagedExistingMeta` 변수명 단축. 실제 로직은 `file_name` / `file_size` 추출로 정상 작동.
+**검증 (22/22 — 1 false negative):**
+- share_link_create/revoke audit row + newValue.expires_days + oldValue.had_token 정합
+- bulk_delete audit + snapshot 배열 (count + files 메타) 박제
+- admin /audit-logs pagination 정합 + business_id filter
+- 비-admin 접근 차단 (실제 u4 토큰 → 403)
+- FE auto-paginate 5 페이지 누적
 
-**30년차 결정 박제 (N+58):**
-- **batch meta fetch — 기존 list 라우트 확장이 가장 깔끔** — 단건 GET 라우트 신규 X. `?ids=N,M` query 만 추가. visibility 권한도 그대로 적용 (cross-tenant 자동 차단)
-- **100 ids cap** — 무한 list 차단. 사용자가 100 이상 첨부할 일 거의 없음
-- **fail 시 fallback `#${id}`** — meta fetch 실패해도 첨부 자체는 정상 (chip 만 fallback)
+**1 false negative:** test 가 irene (u3) 를 "비-admin" 으로 가정. DB 상 platform_admin 이라 200 정상. u4 (real non-admin) 로 직접 호출 → 403 확인.
 
-### N+50~N+57 (요약)
+### 30년차 결정 박제 (N+59)
+- **bulk_delete audit = destroy 전 snapshot 필수** — 삭제 후엔 메타 잃음. files.map 으로 미리 박제 후 destroy. invoice / records 패턴 일관
+- **외부 노출 audit (share_link_create) = oldValue.had_previous_token** — 이전 토큰 있었나 박제. 재발급 추적 가능
+- **AuditLog admin auto-paginate MAX_PAGES = 5** — 사용자 (운영자) 가 2500 row 까지 한 번에 보임. 그 이상 필요 시 from/to 날짜 filter 사용
+- **target_type filter 가 backend 에 이미 있지만 UI 에서 미사용** — 다음 사이클에 PlanQSelect 로 노출
+
+### AuditLog 커버리지
+- N+54 후 112/285 (39%)
+- **N+59 후 115/285 (40%)** — files 다량 삭제 + 외부 노출 핵심 커버
+
+### N+50~N+58 (요약)
 - N+50 `457c8ec` — pagination 10 라우트 전수
 - N+51 `707edcc` — AuditLog Tier 1 16 action + invoice FK fix
 - N+52 `60ef03b` — PWA Share 회귀 + LoginPage search 보존
 - N+53 `cdd6dc6` — share-receive 새로고침 안전망
 - N+54 `74458bc` — AuditLog 2차 10 action + records FK fix
-- N+55 `6451e07` — FE auto-paginate (5 페이지 누적)
-- N+56 `42d5771` — share 파일 첨부 통합 (4 destination upload + QTask)
-- N+57 `2108f13` — chat destination attachFileIds 받기
+- N+55 `6451e07` — FE auto-paginate (5 페이지)
+- N+56 `42d5771` — share 파일 첨부 통합 (4 destination)
+- N+57 `2108f13` — chat destination attachFileIds
+- N+58 `355c396` — file batch meta + ChatPanel chip meta
 
 ## 다음 사이클 (미완)
 
-1. **운영 push** — 미라이브 10 commit
-2. **QNote / PostsPage attachFileIds 받기** — N+57 패턴 복제 (변경 폭 큼 — 별도 사이클)
-3. **3차 AuditLog 보강 (선택)** — task_workflow status 전이 / docs document CRUD / records row CRUD
-4. **Phase 9 통합 컨텍스트 + Q Mail** (9주, 큰 사이클)
+1. **운영 push** — 미라이브 11 commit
+2. **AdminAuditLogsPage target_type / business_id 필터 UI 추가** — backend filter 이미 있음, UI 만 노출
+3. **QNote / PostsPage attachFileIds 받기** — N+57 패턴 (변경 폭 큼)
+4. **3차 AuditLog 보강 (선택)** — docs document CRUD / task_templates apply
+5. **Phase 9 통합 컨텍스트 + Q Mail** (9주, 큰 사이클)
 
 ---
 
