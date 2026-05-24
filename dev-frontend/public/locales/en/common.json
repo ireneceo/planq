@@ -312,8 +312,12 @@
       "note": "Note",
       "noteDesc": "Save to Q Note",
       "doc": "Document",
-      "docDesc": "Insert into new document"
+      "docDesc": "Insert into new document",
+      "file": "Q File",
+      "fileDesc": "Save to workspace files"
     },
+    "uploading": "Uploading...",
+    "fileNote": "Files are auto-saved to your workspace. Chat / Task / Note / Document destinations prefill text only; file attachment integration is coming in a future cycle.",
     "hint": "File and image sharing will arrive in a future update. For now, please attach directly inside PlanQ."
   },
   "pwa": {
