@@ -343,15 +343,27 @@ const ChatPanel: React.FC<Props> = ({
   }, [moreMenu]);
 
   // PWA Share Target 등에서 ?prefill= 으로 본문 전달받음. 마운트 시 한 번만 적용 + URL 정리.
+  // 사이클 N+57 — ?attachFileIds=1,2,3 도 같이 받아 stagedExistingIds 에 prefill.
+  // 사용자가 채팅방 선택 시 input + chip 자동 노출. send 시 자동 첨부.
   const [searchParams, setSearchParams] = useSearchParams();
   const prefillAppliedRef = useRef(false);
   useEffect(() => {
     if (prefillAppliedRef.current) return;
     const prefill = searchParams.get('prefill');
-    if (prefill) {
-      setInput((prev) => prev || decodeURIComponent(prefill));
+    const attachFileIds = searchParams.get('attachFileIds');
+    if (prefill || attachFileIds) {
+      if (prefill) {
+        setInput((prev) => prev || decodeURIComponent(prefill));
+      }
+      if (attachFileIds) {
+        const ids = attachFileIds.split(',').map(s => Number(s)).filter(n => Number.isFinite(n) && n > 0);
+        if (ids.length > 0) {
+          setStagedExistingIds(prev => Array.from(new Set([...prev, ...ids])));
+        }
+      }
       const next = new URLSearchParams(searchParams);
       next.delete('prefill');
+      next.delete('attachFileIds');
       setSearchParams(next, { replace: true });
       prefillAppliedRef.current = true;
     }
