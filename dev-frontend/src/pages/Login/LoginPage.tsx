@@ -404,11 +404,15 @@ const LoginPage: React.FC = () => {
 
   useEffect(() => {
     if (!authLoading && isAuthenticated && user) {
-      const from = (location.state as { from?: { pathname: string } })?.from?.pathname;
+      // 사이클 N+52 — state.from 의 pathname + search + hash 모두 보존.
+      // PWA Share Target 시나리오: 미인증 사용자가 외부 앱에서 공유 → /share-receive?shared=1
+      // 진입 → 로그인 후 ?shared=1 query 잃으면 SW Cache 안 읽어 빈 페이지 노출.
+      const fromLoc = (location.state as { from?: { pathname: string; search?: string; hash?: string } })?.from;
+      const fromPath = fromLoc ? `${fromLoc.pathname || ''}${fromLoc.search || ''}${fromLoc.hash || ''}` : null;
       const redirectQuery = new URLSearchParams(location.search).get('redirect');
-      const target = redirectQuery || from;
+      const target = redirectQuery || fromPath;
       const isValidPath = target && target.startsWith('/') && !target.startsWith('//') && !target.includes('javascript:');
-      if (isValidPath && target !== '/login' && target !== '/register') {
+      if (isValidPath && !target.startsWith('/login') && !target.startsWith('/register')) {
         navigate(target, { replace: true });
       } else {
         navigate('/dashboard', { replace: true });
