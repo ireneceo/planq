@@ -342,9 +342,13 @@ const ChatPanel: React.FC<Props> = ({
     };
   }, [moreMenu]);
 
+  // 사이클 N+58 — meta batch fetch 용 businessId. effect 보다 위로 이동 (TS hoisting).
+  const businessIdForPrefill = user?.business_id ? Number(user.business_id) : null;
+
   // PWA Share Target 등에서 ?prefill= 으로 본문 전달받음. 마운트 시 한 번만 적용 + URL 정리.
   // 사이클 N+57 — ?attachFileIds=1,2,3 도 같이 받아 stagedExistingIds 에 prefill.
-  // 사용자가 채팅방 선택 시 input + chip 자동 노출. send 시 자동 첨부.
+  // 사이클 N+58 — chip 에 파일 이름·크기 표시 위해 backend batch meta fetch.
+  // 사용자가 채팅방 선택 시 input + chip(이름+크기) 자동 노출. send 시 자동 첨부.
   const [searchParams, setSearchParams] = useSearchParams();
   const prefillAppliedRef = useRef(false);
   useEffect(() => {
@@ -355,10 +359,26 @@ const ChatPanel: React.FC<Props> = ({
       if (prefill) {
         setInput((prev) => prev || decodeURIComponent(prefill));
       }
-      if (attachFileIds) {
+      if (attachFileIds && businessIdForPrefill) {
         const ids = attachFileIds.split(',').map(s => Number(s)).filter(n => Number.isFinite(n) && n > 0);
         if (ids.length > 0) {
           setStagedExistingIds(prev => Array.from(new Set([...prev, ...ids])));
+          // 사이클 N+58 — batch meta fetch (이름·크기) — chip 에 "#id" 대신 실제 메타 노출
+          import('../../contexts/AuthContext').then(({ apiFetch }) => {
+            apiFetch(`/api/files/${businessIdForPrefill}?ids=${ids.join(',')}&limit=${ids.length}`)
+              .then(r => r.json())
+              .then(j => {
+                if (!j.success || !Array.isArray(j.data)) return;
+                const metaUpdate: Record<number, { name: string; size: number }> = {};
+                for (const f of j.data) {
+                  if (f && f.id) metaUpdate[Number(f.id)] = { name: String(f.file_name || `#${f.id}`), size: Number(f.file_size || 0) };
+                }
+                if (Object.keys(metaUpdate).length > 0) {
+                  setStagedExistingMeta(prev => ({ ...prev, ...metaUpdate }));
+                }
+              })
+              .catch(() => { /* meta fetch 실패해도 chip 은 #id fallback 으로 정상 */ });
+          });
         }
       }
       const next = new URLSearchParams(searchParams);
@@ -367,7 +387,7 @@ const ChatPanel: React.FC<Props> = ({
       setSearchParams(next, { replace: true });
       prefillAppliedRef.current = true;
     }
-  }, [searchParams, setSearchParams]);
+  }, [searchParams, setSearchParams, businessIdForPrefill]);
 
   // 채팅방 이름 인라인 편집
   const [editingName, setEditingName] = useState(false);
