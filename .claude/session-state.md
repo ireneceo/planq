@@ -1,49 +1,73 @@
 # PlanQ 개발 세션 상태
-**마지막 업데이트:** 2026-05-22
-**작업 상태:** 완료 — v1.17.0 운영 라이브 (N+39~N+49 시리즈, 미라이브 1 commit)
+**마지막 업데이트:** 2026-05-24
+**작업 상태:** 완료 — N+50 pagination 전수 보강 (미라이브 commit 2개)
 **최근 운영 라이브 commit:** `2c1aeba` (editor wrapper click fix, timestamp 20260522_202700)
-**미라이브 commit:** 1 — FocusWidget idle/orphan 상태 정합 (다음 /배포 명시)
+**미라이브 commit:** 2 — N+49 FocusWidget idle/orphan (`b6e3b83`) + N+50 pagination 전수 보강 (이번 세션)
 
 ---
 
-## 이번 세션 완료 (N+39~N+49)
+## 이번 세션 완료 (N+50)
 
-### N+39~N+48 (이전 세션 박제 완료, 운영 라이브)
-| 사이클 | 핵심 |
-|--------|------|
-| N+39 | PWA visibility + 실시간 동기화 + i18n + Playwright 정책 + displayName 전수 |
-| N+40 | Q Task 정기업무 cron broadcast + parent DELETE detach |
-| N+41 | Q docs Brief broadcastPost |
-| N+42 | Q Note QNoteSummaryModal 4 액션 + summarized_at |
-| N+43 | share_token 만료 (Post/Doc/Invoice) + ShareModal 4 옵션 |
-| N+44 | 만료 응답 410 통일 (7 entity) + ExpiredShareLink |
-| N+45 | FocusWidget baseline 카운터 + SidebarClock revert |
-| N+46 | userTzExplicit + 설정 hint |
-| N+47 | Smart Routing 매트릭스 (Post/Invoice) |
-| N+48 | 외부 API timeout 표준화 (OpenAI 10 곳) |
+### N+50 — pagination 전수 보강 (SaaS readiness)
 
-### N+49 hotfix 시리즈 (이번 세션, 6 commit 운영 라이브 + 1 미라이브)
+**목적:** list 라우트 unbounded 응답 차단 — workspace 데이터 누적 시 OOM 위험 제거
 
-| commit | 호소 | fix |
-|--------|------|-----|
-| `7c18596` | ProfilePage 첫 열 빈 공간 | `<div ref={errorBannerRef} />` + banner Container 밖으로 |
-| `e866c1a` | FocusBar 헤더 들러붙음 + 좌우 짧음 + 단계 이동 깜빡임 | margin 12px 14px 14px + useEffect deps 에 status 추가 |
-| `384d8a6` | MyWorkSettings 좌우 풀 아님 | Body max-width: 720px 제거 |
-| `3228313` | FocusWidget 정지 버튼 색 혼란 | DangerBtn/onStop/SvgStop 제거 (N+32 옵션 B 정합) |
-| `2c1aeba` | 에디터 빈 곳 클릭 시 커서 진입 X | RichEditor+PostEditor wrapper onClick → focus('end') |
-| (미라이브) | FocusWidget idle 상태 "시작" 버튼 무의미 | Start 버튼 → "내 업무로 가기" Link + orphan 안내 (N+32 옵션 A 정합) |
+**audit 결과:** 이미 pagination 적용 = admin/docs/personal_vault/signatures. 누락 10 라우트 = files / posts / conversations / archived / all-tasks / all-files / backlog / requested / records / kb
 
-### 30년차 결정 박제 (memory)
+**구현:**
 
-- `feedback_grid_card_height_match.md` — grid 다열 카드 높이 정합
-- `feedback_focus_widget_states.md` — FocusWidget 상태 매트릭스 (Focus Start/Stop 버튼 X 박제)
+| 라우트 | default / max | 패턴 |
+|--------|---------------|------|
+| `files.js GET /:bizId` | 500 / 1000 | findAndCountAll + paginatedResponse |
+| `posts.js GET /` | 200 / 500 | findAndCountAll + paginatedResponse (hardcoded 200 정형화) |
+| `conversations.js GET /:bizId` | cap 1000 / max 2000 | soft cap (post-fetch sort 때문에 정식 pagination X) |
+| `conversations.js /:bizId/archived` | 100 / 500 | findAndCountAll + paginatedResponse |
+| `projects.js /workspace/:bizId/all-tasks` | 500 / 1000 | findAndCountAll + paginatedResponse |
+| `projects.js /workspace/:bizId/all-files` | 500 / 1000 | UNION 집계 — 각 source MAX_PER_SOURCE=2000 + merged 인메모리 슬라이스 |
+| `tasks.js /backlog` | 200 / 500 | findAndCountAll + paginatedResponse |
+| `tasks.js /requested` | 200 / 500 | findAndCountAll + paginatedResponse |
+| `records.js GET /` | 200 / 500 | findAndCountAll + paginatedResponse |
+| `kb.js /businesses/:bizId/kb/documents` | cap 1000 / max 2000 | soft cap (post-fetch JS filter 때문) |
+
+**헬퍼 추가:**
+- `middleware/errorHandler.js` — `parsePagination(req, opts)` + `paginatedResponse(res, data, total, pag)`
+- `utils/response.js` — 동일 시그니처 (legacy import path 양쪽 호환)
+
+**Frontend 호환성:** `data` 필드는 여전히 array — pagination 키만 추가됨. 기존 호출 무변경. frontend 가 `?page=` / `?limit=` 점진 opt-in 가능.
+
+**CLAUDE.md 박제:** "List 라우트 pagination 표준" 섹션 — 신규 라우트 작성 가이드 + default/max 가이드.
+
+**검증:**
+- 10 라우트 전수 API 호출 — pagination 응답 정합 OK
+- Cap test: `?limit=99999` → max 500/1000 enforce OK
+- Offset test: `?offset=10&limit=5` → page=3 calculation OK
+- 백엔드 restart 무에러
+
+**수정된 파일:**
+- `dev-backend/middleware/errorHandler.js` (+45)
+- `dev-backend/utils/response.js` (+42)
+- `dev-backend/routes/files.js` (1 라우트)
+- `dev-backend/routes/posts.js` (1 라우트)
+- `dev-backend/routes/conversations.js` (2 라우트)
+- `dev-backend/routes/projects.js` (2 라우트 — all-tasks / all-files)
+- `dev-backend/routes/tasks.js` (2 라우트)
+- `dev-backend/routes/records.js` (1 라우트)
+- `dev-backend/routes/kb.js` (1 라우트)
+- `CLAUDE.md` (pagination 표준 박제)
+
+### 30년차 결정 박제
+
+- **SaaS readiness pagination = 응답 형식 통일 (paginatedResponse)** — `data` 배열 보존 + `pagination` 옵션 키 추가. 기존 frontend 호환 + 향후 opt-in
+- **default/max 분기** — files/aggregate 500/1000, 일반 200/500, post-fetch sort 있는 라우트는 cap-only
+- **distinct: true 필수** — include 가 1:N 일 때 findAndCountAll count 부정확 방지
+- **soft cap vs 정식 pagination** — post-fetch sort/filter 가 있으면 SQL pagination 후 in-memory 보정이 어긋남. cap-only 로 안전
 
 ## 다음 사이클 (미완)
 
-1. **미라이브 1 commit 운영 push** (FocusWidget idle/orphan)
-2. **pagination 전수 보강** — list 라우트 audit
-3. **AuditLog CUD 라우트 audit** — 11/41 → 전수
-4. **PWA Share Target audit** — manifest + ShareReceivePage 실 동작 검증
+1. **미라이브 2 commit 운영 push** — `b6e3b83` FocusWidget + 이번 N+50 pagination
+2. **AuditLog CUD 라우트 audit** — 11/41 → 전수
+3. **PWA Share Target audit** — manifest + ShareReceivePage 실 동작 검증
+4. **Frontend pagination opt-in** — 큰 list 페이지 (Files / Posts / Tasks) "더 보기" 버튼 또는 무한 스크롤
 5. **Phase 9 통합 컨텍스트 + Q Mail** (9주, 큰 사이클)
 
 ---

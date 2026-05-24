@@ -25,6 +25,41 @@ const errorResponse = (res, message = 'Internal server error', statusCode = 500,
   return res.status(statusCode).json(response);
 };
 
+// 사이클 N+50 — pagination 표준 헬퍼 (utils/response.js 와 같은 시그니처)
+// 정책: list 라우트 unbounded 응답 차단. 기본 200 / max 500. ?page= / ?offset= 둘 다 지원
+function parsePagination(req, { defaultLimit = 200, maxLimit = 500 } = {}) {
+  const rawLimit = Number(req.query.limit);
+  const limit = Number.isFinite(rawLimit) && rawLimit > 0
+    ? Math.min(rawLimit, maxLimit)
+    : defaultLimit;
+  const rawOffset = req.query.offset;
+  let offset;
+  let page;
+  if (rawOffset !== undefined && rawOffset !== '') {
+    offset = Math.max(Number(rawOffset) || 0, 0);
+    page = Math.floor(offset / limit) + 1;
+  } else {
+    page = Math.max(Number(req.query.page) || 1, 1);
+    offset = (page - 1) * limit;
+  }
+  return { limit, page, offset };
+}
+
+function paginatedResponse(res, data, total, { limit, page, offset }, statusCode = 200) {
+  const arrLen = Array.isArray(data) ? data.length : 0;
+  return res.status(statusCode).json({
+    success: true,
+    data,
+    pagination: {
+      total: Number(total) || 0,
+      limit,
+      page,
+      offset,
+      has_more: (offset + arrLen) < (Number(total) || 0),
+    },
+  });
+}
+
 const errorHandler = (err, req, res, next) => {
   let statusCode = err.statusCode || 500;
   let message = err.message || 'Internal server error';
@@ -71,4 +106,4 @@ const errorHandler = (err, req, res, next) => {
   return res.status(statusCode).json(body);
 };
 
-module.exports = { successResponse, errorResponse, errorHandler, requestIdMiddleware };
+module.exports = { successResponse, errorResponse, errorHandler, requestIdMiddleware, parsePagination, paginatedResponse };

@@ -5,7 +5,7 @@ const { Conversation, ConversationParticipant, Message, User, Client, Business, 
 const { sequelize } = require('../config/database');
 const { authenticateToken, checkBusinessAccess } = require('../middleware/auth');
 const { attachWorkspaceScope, conversationListWhere, canAccessConversation } = require('../middleware/access_scope');
-const { successResponse, errorResponse } = require('../middleware/errorHandler');
+const { successResponse, errorResponse, parsePagination, paginatedResponse } = require('../middleware/errorHandler');
 const { createAuditLog } = require('../middleware/audit');
 const cueOrchestrator = require('../services/cue_orchestrator');
 const kbService = require('../services/kb_service');
@@ -21,6 +21,10 @@ router.get('/:businessId', authenticateToken, attachWorkspaceScope(), async (req
   try {
     const baseWhere = await conversationListWhere(req.user.id, Number(req.params.businessId), req.scope);
     if (!baseWhere) return errorResponse(res, 'forbidden', 403);
+    // 사이클 N+50 — SaaS readiness 상한. 후속 pin/unread 보정이 in-memory 라서 정식 pagination 응답 X.
+    // 대신 last_message_at DESC 상한 1000 (max 2000) 으로 unbounded 차단. 운영 워크스페이스 conv 1000 미만 가정.
+    const rawLimit = Number(req.query.limit);
+    const safeLimit = Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(rawLimit, 2000) : 1000;
     const conversations = await Conversation.findAll({
       where: { ...baseWhere, status: 'active', archived_at: null },
       include: [
@@ -31,7 +35,8 @@ router.get('/:businessId', authenticateToken, attachWorkspaceScope(), async (req
           include: [{ model: User, attributes: ['id', 'name', 'email', 'avatar_url', 'is_ai'] }]
         }
       ],
-      order: [['last_message_at', 'DESC']]
+      order: [['last_message_at', 'DESC']],
+      limit: safeLimit,
     });
     // 사용자 본인의 pinned_at + last_read_at 부착 (응답 sort 용 + unread 계산).
     // ConversationParticipant 의 두 필드는 사용자별 — 같은 conv 라도 사람마다 핀/읽음 상태가 다름.
@@ -401,15 +406,19 @@ router.get('/:businessId/archived', authenticateToken, checkBusinessAccess, asyn
     if (!(await assertWorkspaceAdmin(req, businessId))) {
       return errorResponse(res, 'workspace_owner_required', 403);
     }
-    const conversations = await Conversation.findAll({
+    // 사이클 N+50 — pagination. archived 누적 가능 (수년 운영) — 보수적 100 / max 500
+    const { limit, page, offset } = parsePagination(req, { defaultLimit: 100, maxLimit: 500 });
+    const { rows, count } = await Conversation.findAndCountAll({
       where: { business_id: businessId, archived_at: { [Op.ne]: null } },
       include: [
         { model: Project, attributes: ['id', 'name'], required: false },
         { model: User, as: 'archivedBy', attributes: ['id', 'name', 'email'], required: false },
       ],
       order: [['archived_at', 'DESC']],
+      limit, offset,
+      distinct: true,
     });
-    return successResponse(res, conversations.map(c => c.toJSON()));
+    return paginatedResponse(res, rows.map(c => c.toJSON()), count, { limit, page, offset });
   } catch (err) { next(err); }
 });
 
