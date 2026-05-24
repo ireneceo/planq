@@ -477,6 +477,22 @@ router.post('/:businessId', authenticateToken, checkBusinessAccess, requireMenu(
     // Phase D+1: project stage 자동 진행
     if (result?.project_id) require('../services/projectStageEngine').onInvoiceChanged(result.id).catch(() => null);
     broadcastInvoice(req, result, 'invoice:new');
+    // 사이클 N+51 — audit 보강. 청구서 생성 = 재무 mutation
+    require('../services/auditService').logAudit(req, {
+      action: 'invoice.create',
+      targetType: 'invoice',
+      targetId: result.id,
+      newValue: {
+        invoice_number: result.invoice_number,
+        title: result.title,
+        client_id: result.client_id,
+        project_id: result.project_id,
+        currency: result.currency,
+        grand_total: result.grand_total,
+        installment_mode: result.installment_mode,
+        source_post_id: result.source_post_id,
+      },
+    });
     successResponse(res, result, 'Invoice created', 201);
   } catch (error) {
     await t.rollback();
@@ -714,6 +730,20 @@ router.post('/:businessId/:id/send', authenticateToken, checkBusinessAccess, req
       ],
     });
     if (refreshed?.project_id) require('../services/projectStageEngine').onInvoiceChanged(refreshed.id).catch(() => null);
+    // 사이클 N+51 — audit 보강. draft → sent 전이 + 발송 채널 기록
+    require('../services/auditService').logAudit(req, {
+      action: 'invoice.send',
+      targetType: 'invoice',
+      targetId: invoice.id,
+      oldValue: { status: 'draft' },
+      newValue: {
+        status: 'sent',
+        invoice_number: invoice.invoice_number,
+        deliver_chat: !!deliver.chat,
+        deliver_email: !!deliver.email && !deliver.email.error,
+        share_expires_at: invoice.share_expires_at,
+      },
+    });
     successResponse(res, { invoice: refreshed, deliver }, 'Invoice sent');
   } catch (error) { try { await t.rollback(); } catch {} next(error); }
 });
@@ -844,6 +874,19 @@ router.post('/:businessId/:id/installments/:installId/mark-tax-invoice', authent
     const at = req.body?.tax_invoice_at ? new Date(req.body.tax_invoice_at) : new Date();
     if (!no) return errorResponse(res, 'tax_invoice_no required', 400);
     await inst.update({ tax_invoice_no: no, tax_invoice_at: at, tax_invoice_marked_by: req.user.id });
+    // 사이클 N+51 — audit. 세금계산서 발행 마킹 (한국 사업자 컴플라이언스)
+    require('../services/auditService').logAudit(req, {
+      action: 'invoice.installment.mark_tax_invoice',
+      targetType: 'invoice_installment',
+      targetId: inst.id,
+      newValue: {
+        invoice_id: invoice.id,
+        invoice_number: invoice.invoice_number,
+        installment_no: inst.installment_no,
+        tax_invoice_no: no,
+        tax_invoice_at: at,
+      },
+    });
     const io = req.app.get('io');
     if (io) io.to(`business:${invoice.business_id}`).emit('inbox:refresh', { reason: 'tax_invoice_issued', invoice_id: invoice.id });
     if (invoice?.project_id) require('../services/projectStageEngine').onInvoiceChanged(invoice.id).catch(() => null);
@@ -885,11 +928,28 @@ router.delete('/:businessId/:id', authenticateToken, checkBusinessAccess, requir
     if (!['draft', 'canceled'].includes(invoice.status)) {
       return errorResponse(res, 'only_draft_or_canceled_can_be_deleted', 400, { current_status: invoice.status });
     }
-    // installments + invoice 삭제 (cascade 안 되어 있으면 명시)
+    // installments + items + invoice 삭제 (cascade 안 되어 있으면 명시)
+    // FK 정책: invoice_items / invoice_installments 모두 ON DELETE 미명시 → 명시 destroy 필요
     await InvoiceInstallment.destroy({ where: { invoice_id: invoice.id } });
-    const snapForBroadcast = { id: invoice.id, business_id: invoice.business_id };
+    await InvoiceItem.destroy({ where: { invoice_id: invoice.id } });
+    const snap = {
+      id: invoice.id,
+      business_id: invoice.business_id,
+      invoice_number: invoice.invoice_number,
+      title: invoice.title,
+      status: invoice.status,
+      grand_total: invoice.grand_total,
+      currency: invoice.currency,
+    };
     await invoice.destroy();
-    broadcastInvoice(req, snapForBroadcast, 'invoice:deleted');
+    broadcastInvoice(req, snap, 'invoice:deleted');
+    // 사이클 N+51 — audit. 청구서 삭제 = 재무 mutation
+    require('../services/auditService').logAudit(req, {
+      action: 'invoice.delete',
+      targetType: 'invoice',
+      targetId: snap.id,
+      oldValue: snap,
+    });
     return successResponse(res, { deleted: true });
   } catch (err) { next(err); }
 });
@@ -907,7 +967,22 @@ router.delete('/:businessId/:id/installments/:installId', authenticateToken, che
     });
     if (!inst) return errorResponse(res, 'Installment not found', 404);
     if (inst.status === 'paid') return errorResponse(res, 'cannot_cancel_paid', 400);
+    const prevStatus = inst.status;
     await inst.update({ status: 'canceled' });
+    // 사이클 N+51 — audit. installment 취소
+    require('../services/auditService').logAudit(req, {
+      action: 'invoice.installment.cancel',
+      targetType: 'invoice_installment',
+      targetId: inst.id,
+      oldValue: { status: prevStatus },
+      newValue: {
+        status: 'canceled',
+        invoice_id: invoice.id,
+        invoice_number: invoice.invoice_number,
+        installment_no: inst.installment_no,
+        amount: inst.amount,
+      },
+    });
     successResponse(res, inst, 'Installment canceled');
   } catch (error) { next(error); }
 });

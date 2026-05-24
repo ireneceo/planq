@@ -689,6 +689,7 @@ router.post('/:id/secondary-email-change-verify', authenticateToken, async (req,
     }
 
     const newEmail = user.pending_secondary_email;
+    const prevSecondary = user.secondary_email;
     await user.update({
       secondary_email: newEmail,
       secondary_email_verified_at: new Date(),
@@ -696,6 +697,15 @@ router.post('/:id/secondary-email-change-verify', authenticateToken, async (req,
       secondary_email_otp_hash: null,
       secondary_email_otp_expires_at: null,
       secondary_email_otp_attempts: 0,
+    });
+    // 사이클 N+51 — audit. 보조 이메일 변경 = 계정 복구 채널 변경 (보안 critical)
+    require('../services/auditService').logAudit(req, {
+      action: 'user.secondary_email_change',
+      targetType: 'user',
+      targetId: user.id,
+      userId: user.id,
+      oldValue: { secondary_email: prevSecondary },
+      newValue: { secondary_email: newEmail, verified_at: user.secondary_email_verified_at },
     });
 
     return successResponse(res, { secondary_email: newEmail, changed: true });
@@ -712,6 +722,7 @@ router.delete('/:id/secondary-email', authenticateToken, async (req, res, next) 
     }
     const user = await User.findByPk(req.user.id);
     if (!user) return errorResponse(res, 'user_not_found', 404);
+    const prevSecondary = user.secondary_email;
     await user.update({
       secondary_email: null,
       secondary_email_verified_at: null,
@@ -719,6 +730,14 @@ router.delete('/:id/secondary-email', authenticateToken, async (req, res, next) 
       secondary_email_otp_hash: null,
       secondary_email_otp_expires_at: null,
       secondary_email_otp_attempts: 0,
+    });
+    // 사이클 N+51 — audit. 보조 이메일 제거 (보안 critical)
+    require('../services/auditService').logAudit(req, {
+      action: 'user.secondary_email_remove',
+      targetType: 'user',
+      targetId: user.id,
+      userId: user.id,
+      oldValue: { secondary_email: prevSecondary },
     });
     return successResponse(res, { removed: true });
   } catch (err) { next(err); }
@@ -735,7 +754,17 @@ router.patch('/:id/status', authenticateToken, requireRole('platform_admin'), as
       return errorResponse(res, 'Invalid status', 400);
     }
 
+    const prevStatus = user.status;
     await user.update({ status });
+    // 사이클 N+51 — audit. platform admin 의 계정 상태 변경 (suspend/activate)
+    require('../services/auditService').logAudit(req, {
+      action: 'user.status_change',
+      targetType: 'user',
+      targetId: user.id,
+      userId: req.user.id,
+      oldValue: { status: prevStatus },
+      newValue: { status, target_user_email: user.email },
+    });
     successResponse(res, { id: user.id, status });
   } catch (error) {
     next(error);

@@ -175,6 +175,16 @@ router.post('/:businessId/start-trial', authenticateToken, checkBusinessAccess, 
     await biz.save();
     planEngine.invalidateBusinessCache(businessId);
 
+    // 사이클 N+51 — audit. 무료 체험 시작 = 구독 상태 변경
+    require('../services/auditService').logAudit(req, {
+      action: 'plan.trial_start',
+      targetType: 'business',
+      targetId: businessId,
+      businessId,
+      oldValue: { plan: 'free' },
+      newValue: { plan: plan_code, trial_ends_at: trialEnd },
+    });
+
     successResponse(res, { plan_code, trial_ends_at: trialEnd });
   } catch (error) { next(error); }
 });
@@ -204,6 +214,15 @@ router.post('/:businessId/change', authenticateToken, checkBusinessAccess, async
       biz.plan_expires_at = scheduledAt;
       await biz.save();
       planEngine.invalidateBusinessCache(businessId);
+      // 사이클 N+51 — audit. 다운그레이드 예약
+      require('../services/auditService').logAudit(req, {
+        action: 'plan.downgrade_schedule',
+        targetType: 'business',
+        targetId: businessId,
+        businessId,
+        oldValue: { plan: currentPlan.code },
+        newValue: { scheduled_plan: to_plan, effective_at: scheduledAt },
+      });
       return successResponse(res, {
         scheduled: true,
         scheduled_plan: to_plan,
@@ -229,6 +248,15 @@ router.post('/:businessId/change', authenticateToken, checkBusinessAccess, async
       await biz.save();
     }
     planEngine.invalidateBusinessCache(businessId);
+    // 사이클 N+51 — audit. 업그레이드 즉시 적용
+    require('../services/auditService').logAudit(req, {
+      action: 'plan.upgrade',
+      targetType: 'business',
+      targetId: businessId,
+      businessId,
+      oldValue: { plan: currentPlan.code },
+      newValue: { plan: to_plan, billing_cycle, expires_at: expiresAt },
+    });
     successResponse(res, {
       upgraded: true,
       plan: to_plan,
@@ -261,6 +289,15 @@ router.post('/:businessId/cancel-schedule', authenticateToken, checkBusinessAcce
       effective_at: new Date(),
     });
     planEngine.invalidateBusinessCache(businessId);
+    // 사이클 N+51 — audit. 예약 다운그레이드 취소
+    require('../services/auditService').logAudit(req, {
+      action: 'plan.cancel_schedule',
+      targetType: 'business',
+      targetId: businessId,
+      businessId,
+      oldValue: { scheduled_plan: scheduled },
+      newValue: { scheduled_plan: null },
+    });
     successResponse(res, { canceled_scheduled_plan: scheduled });
   } catch (error) { next(error); }
 });
@@ -289,6 +326,21 @@ router.post('/:businessId/checkout', authenticateToken, checkBusinessAccess, asy
       businessId, planCode: plan_code, cycle, userId: req.user.id, currency,
       taxInvoice: tax_invoice && tax_invoice.biz_no ? tax_invoice : null,
     });
+    // 사이클 N+51 — audit. 결제 요청 (Subscription + pending Payment)
+    require('../services/auditService').logAudit(req, {
+      action: 'subscription.checkout',
+      targetType: 'subscription',
+      targetId: result.subscription.id,
+      businessId,
+      newValue: {
+        plan_code,
+        cycle,
+        currency,
+        payment_id: result.payment.id,
+        amount: result.payment.amount,
+        tax_invoice_requested: !!(tax_invoice && tax_invoice.biz_no),
+      },
+    });
     return successResponse(res, {
       subscription_id: result.subscription.id,
       payment_id: result.payment.id,
@@ -315,6 +367,22 @@ router.post('/:businessId/payments/:paymentId/mark-paid', authenticateToken, che
       paymentId, markedByUserId: req.user.id,
       payerName: req.body?.payer_name, payerMemo: req.body?.payer_memo,
       taxInvoice: req.body?.tax_invoice && req.body.tax_invoice.biz_no ? req.body.tax_invoice : null,
+    });
+    // 사이클 N+51 — audit. 결제 완료 마킹 (재무 critical)
+    require('../services/auditService').logAudit(req, {
+      action: 'payment.mark_paid',
+      targetType: 'payment',
+      targetId: paymentId,
+      businessId,
+      oldValue: { status: pay.status },
+      newValue: {
+        status: result.payment.status,
+        amount: result.payment.amount,
+        currency: result.payment.currency,
+        subscription_id: result.subscription.id,
+        plan_code: result.subscription.plan_code,
+        payer_name: req.body?.payer_name,
+      },
     });
     return successResponse(res, {
       payment: result.payment.toJSON(),
@@ -455,6 +523,21 @@ router.post('/:businessId/addons/orders/:paymentId/mark-paid', authenticateToken
       payerMemo: req.body?.payer_memo,
       taxInvoice: req.body?.tax_invoice && req.body.tax_invoice.biz_no ? req.body.tax_invoice : null,
     });
+    // 사이클 N+51 — audit. 애드온 결제 완료 (재무)
+    require('../services/auditService').logAudit(req, {
+      action: 'addon.mark_paid',
+      targetType: 'payment',
+      targetId: paymentId,
+      businessId,
+      oldValue: { status: pay.status },
+      newValue: {
+        already_paid: !!r.alreadyPaid,
+        addon_code: pay.addon_code,
+        addon_quantity: pay.addon_quantity,
+        amount: pay.amount,
+        currency: pay.currency,
+      },
+    });
     return successResponse(res, { paid: true, payment_id: r.payment.id, already_paid: !!r.alreadyPaid });
   } catch (err) { next(err); }
 });
@@ -472,6 +555,14 @@ router.delete('/:businessId/addons/:addonCode', authenticateToken, checkBusiness
     const addonBilling = require('../services/addonBilling');
     try {
       const r = await addonBilling.cancelAddon({ businessId, addonCode, quantity, userId: req.user.id });
+      // 사이클 N+51 — audit. 애드온 해지 (한도 즉시 차감, 환불 X)
+      require('../services/auditService').logAudit(req, {
+        action: 'addon.cancel',
+        targetType: 'business',
+        targetId: businessId,
+        businessId,
+        newValue: { addon_code: addonCode, quantity_canceled: quantity, ...r },
+      });
       return successResponse(res, { canceled: true, ...r });
     } catch (e) {
       if (e.message === 'invalid_addon_code') return errorResponse(res, 'invalid_addon_code', 400);
