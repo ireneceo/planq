@@ -1,8 +1,10 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-05-22 사이클 N+39~N+49 — PWA hook · 실시간 동기화 보강 · displayName 전수 · 정기업무 · Brief · Q Note 정리하기 · share_token 만료 · Smart Routing · SaaS readiness · Profile 2열 정합 (v1.17.0 라이브 17 commit, hotfix `b957955`)
+> **최종 업데이트:** 2026-05-24 사이클 N+49~N+62 — SaaS readiness 완성 (pagination 전수 / AuditLog 전수 / share 4 destination 통합 / DB 인덱스 영구 안전 / AdminAuditLogsPage 보강) (**v1.18.0** 라이브 14 commit, commit `a50d0c0`)
 >
-> **직전 라이브:** v1.16.2 (commit `242bc43`) — N+32~N+38 11 commit (Focus 옵션 A + 실시간 동기화 7 영역 + /검증 skill PlanQ 특수)
+> **직전 라이브:** v1.17.0 — N+39~N+49 17 commit (PWA hook · 실시간 동기화 보강 · displayName · 정기업무 · Brief · Q Note 정리하기 · share_token 만료 · Smart Routing · Profile 2열 정합)
+>
+> **이전 라이브:** v1.16.2 (commit `242bc43`) — N+32~N+38 11 commit (Focus 옵션 A + 실시간 동기화 7 영역 + /검증 skill PlanQ 특수)
 >
 > **이전 라이브:** v1.16.1 (commit `8947504`) — N+31 사이클 (Q Talk 모바일 viewport 회귀 fix)
 >
