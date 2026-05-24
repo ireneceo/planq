@@ -322,21 +322,29 @@ const QTaskPage:React.FC=()=>{
   const[statusDropdownId,setStatusDropdownId]=useState<number|null>(null);
 
   // PWA Share Target 등에서 ?prefill= 으로 본문 전달받음. 마운트 시 한 번만 적용.
+  // 사이클 N+56 — ?attachFileIds=1,2,3 도 같이 받아 새 task 모달 첨부 prefill.
   const [searchParams, setSearchParams] = useSearchParams();
   const prefillAppliedRef = useRef(false);
   useEffect(() => {
     if (prefillAppliedRef.current) return;
     const prefill = searchParams.get('prefill');
-    if (prefill) {
-      const decoded = decodeURIComponent(prefill);
-      // 첫 줄 = title, 나머지 = description
-      const lines = decoded.split('\n');
-      setNewTitle(lines[0]?.slice(0, 200) || '');
-      if (lines.length > 1) setNewDescription(lines.slice(1).join('\n'));
+    const attachFileIds = searchParams.get('attachFileIds');
+    if (prefill || attachFileIds) {
+      if (prefill) {
+        const decoded = decodeURIComponent(prefill);
+        const lines = decoded.split('\n');
+        setNewTitle(lines[0]?.slice(0, 200) || '');
+        if (lines.length > 1) setNewDescription(lines.slice(1).join('\n'));
+      }
+      if (attachFileIds) {
+        const ids = attachFileIds.split(',').map(s => Number(s)).filter(n => Number.isFinite(n) && n > 0);
+        if (ids.length > 0) setNewExistingFileIds(ids);
+      }
       setAddingTask(true);
       setAddInline(true);
       const next = new URLSearchParams(searchParams);
       next.delete('prefill');
+      next.delete('attachFileIds');
       setSearchParams(next, { replace: true });
       prefillAppliedRef.current = true;
     }

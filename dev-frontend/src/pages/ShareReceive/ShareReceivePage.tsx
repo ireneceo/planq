@@ -139,13 +139,20 @@ const ShareReceivePage: React.FC = () => {
         navigate('/files');
         return;
       }
-      // 다른 destination — 텍스트 prefill 로 이동.
-      // 파일이 있으면 일단 워크스페이스 업로드 → 그 후 ?attachFileIds=1,2,3 로 prefill 가능 (다음 사이클 통합)
+      // 사이클 N+56 — 파일 첨부 통합. fileNote i18n 약속 (파일 자동 저장) 코드 정합.
+      // 다른 destination 도 파일 있으면 우선 워크스페이스 업로드 → ?attachFileIds 로 같이 전달.
+      // destination 페이지 (chat/task/note/doc) 가 attachFileIds 받아 첨부 prefill 통합은 다음 사이클.
+      // 지금은 워크스페이스 저장 보장 + URL 에 file id 박제 (사용자가 destination 에서 직접 첨부).
+      let attachQuery = '';
+      if (files.length > 0) {
+        const ids = await uploadFilesToWorkspace();
+        if (ids.length > 0) attachQuery = `&attachFileIds=${ids.join(',')}`;
+      }
       switch (target) {
-        case 'chat':  navigate(`/talk?prefill=${encoded}`); break;
-        case 'task':  navigate(`/tasks?prefill=${encoded}`); break;
-        case 'note':  navigate(`/qnote?prefill=${encoded}`); break;
-        case 'doc':   navigate(`/docs?prefill=${encoded}`); break;
+        case 'chat':  navigate(`/talk?prefill=${encoded}${attachQuery}`); break;
+        case 'task':  navigate(`/tasks?prefill=${encoded}${attachQuery}`); break;
+        case 'note':  navigate(`/qnote?prefill=${encoded}${attachQuery}`); break;
+        case 'doc':   navigate(`/docs?prefill=${encoded}${attachQuery}`); break;
       }
       // 사이클 N+53 — destination 선택 완료 시 cache 정리 (새로고침 안전망 해제)
       await cleanupShareCache(fileCount);
