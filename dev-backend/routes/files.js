@@ -489,6 +489,21 @@ router.post('/:businessId', authenticateToken, checkBusinessAccess, upload.singl
         ? `/api/files/public-image/${path.basename(file.file_path)}`
         : null;
       broadcastFile(req, file, 'file:new');
+      // 사이클 N+51 — audit. 파일 업로드 (스토리지 mutation + visibility 결정)
+      require('../services/auditService').logAudit(req, {
+        action: 'file.upload',
+        targetType: 'file',
+        targetId: file.id,
+        businessId,
+        newValue: {
+          file_name: file.file_name,
+          file_size: Number(file.file_size),
+          mime_type: file.mime_type,
+          project_id: file.project_id,
+          visibility: file.visibility,
+          storage_provider: file.storage_provider,
+        },
+      });
       successResponse(res, { ...file.toJSON(), preview_url: previewUrl }, 'File uploaded', 201);
     } catch (e) {
       await t.rollback();
@@ -569,8 +584,18 @@ router.put('/:businessId/:id/visibility', authenticateToken, attachWorkspaceScop
     } else if (level === 'L1' || level === 'L3') {
       nextProjectId = null;  // 개인 또는 워크스페이스 — 프로젝트 연결 해제
     }
+    const prevVisibility = file.visibility;
+    const prevProjectId = file.project_id;
     await file.update({ visibility: level, project_id: nextProjectId });
     broadcastFile(req, file, 'file:updated');
+    // 사이클 N+51 — audit. visibility 변경 = 보안 critical (다른 사용자 노출 범위 변경)
+    require('../services/auditService').logAudit(req, {
+      action: 'file.visibility_change',
+      targetType: 'file',
+      targetId: file.id,
+      oldValue: { visibility: prevVisibility, project_id: prevProjectId },
+      newValue: { visibility: level, project_id: nextProjectId },
+    });
     successResponse(res, { id: file.id, visibility: level, project_id: nextProjectId });
   } catch (err) { next(err); }
 });
