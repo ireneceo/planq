@@ -40,7 +40,7 @@ CalendarEvent.init({
   },
   created_by: { type: DataTypes.INTEGER, allowNull: false },
   // 공유 링크 (사이클 N+4 — 통합 공유 시스템)
-  share_token: { type: DataTypes.STRING(64), allowNull: true, unique: true },
+  share_token: { type: DataTypes.STRING(64), allowNull: true },
   shared_at: { type: DataTypes.DATE, allowNull: true },
   share_password_hash: { type: DataTypes.STRING(255), allowNull: true },
   share_expires_at: { type: DataTypes.DATE, allowNull: true },
@@ -53,6 +53,7 @@ CalendarEvent.init({
     { fields: ['business_id', 'start_at'] },
     { fields: ['business_id', 'project_id'] },
     { fields: ['created_by'] },
+    { unique: true, fields: ['share_token'], name: 'calendar_events_share_token_unique' },
   ],
 });
 

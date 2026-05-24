@@ -27,7 +27,7 @@ Quote.init({
   notes: { type: DataTypes.TEXT, allowNull: true },
   signature_url: { type: DataTypes.STRING(500), allowNull: true },
   // 공개 공유 토큰 (로그인 없이 고객이 승인 가능)
-  share_token: { type: DataTypes.STRING(64), allowNull: true, unique: true },
+  share_token: { type: DataTypes.STRING(64), allowNull: true },
   viewed_at: { type: DataTypes.DATE, allowNull: true },
   accepted_at: { type: DataTypes.DATE, allowNull: true },
   // 전환된 Invoice 참조 (Q Bill §4.2)
@@ -43,6 +43,7 @@ Quote.init({
     { fields: ['client_id'] },
     { fields: ['project_id'] },
     { unique: true, fields: ['business_id', 'quote_number'] },
+    { unique: true, fields: ['share_token'], name: 'quotes_share_token_unique' },
   ],
 });
 

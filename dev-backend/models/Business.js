@@ -14,10 +14,10 @@ Business.init({
     type: DataTypes.STRING(200),
     allowNull: true
   },
+  // 사이클 N+61 — column-level unique 제거. indexes 배열 명시 (sync 중복 누적 차단)
   slug: {
     type: DataTypes.STRING(200),
     allowNull: false,
-    unique: true
   },
   logo_url: {
     type: DataTypes.STRING(500),
@@ -243,7 +243,10 @@ Business.init({
   sequelize,
   tableName: 'businesses',
   timestamps: true,
-  underscored: true
+  underscored: true,
+  indexes: [
+    { unique: true, fields: ['slug'], name: 'businesses_slug_unique' },
+  ],
 });
 
 module.exports = Business;

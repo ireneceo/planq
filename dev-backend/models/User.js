@@ -9,10 +9,10 @@ User.init({
     primaryKey: true,
     autoIncrement: true
   },
+  // 사이클 N+61 — column-level unique 제거. indexes 배열 명시 (sync 누적 차단)
   email: {
     type: DataTypes.STRING(100),
     allowNull: false,
-    unique: true
   },
   // 이메일 변경 OTP (P-1.5)
   // 새 이메일에 6자리 코드 발송 → verify 시 email 로 교체. 미검증 동안 pending_email 에 보관.
@@ -55,7 +55,6 @@ User.init({
   username: {
     type: DataTypes.STRING(50),
     allowNull: true,
-    unique: true
   },
   password_hash: {
     type: DataTypes.STRING(255),
@@ -177,7 +176,11 @@ User.init({
   sequelize,
   tableName: 'users',
   timestamps: true,
-  underscored: true
+  underscored: true,
+  indexes: [
+    { unique: true, fields: ['email'], name: 'users_email_unique' },
+    { unique: true, fields: ['username'], name: 'users_username_unique' },
+  ],
 });
 
 module.exports = User;

@@ -27,7 +27,7 @@ RefreshToken.init({
     references: { model: 'users', key: 'id' },
   },
   // SHA-256 hash of raw token. raw token 은 cookie 만, DB 에 평문 저장 X.
-  token_hash: { type: DataTypes.STRING(255), allowNull: false, unique: true },
+  token_hash: { type: DataTypes.STRING(255), allowNull: false },
   // 디바이스 식별 — 사용자에게 "이 디바이스" 표시 + 도난 추적
   user_agent: { type: DataTypes.STRING(500), allowNull: true },
   ip_address: { type: DataTypes.STRING(64), allowNull: true },

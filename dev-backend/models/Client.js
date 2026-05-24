@@ -22,7 +22,6 @@ Client.init({
   invite_token: {
     type: DataTypes.STRING(100),
     allowNull: true,
-    unique: true,
   },
   invite_email: {
     type: DataTypes.STRING(200),
@@ -107,7 +106,8 @@ Client.init({
   timestamps: true,
   underscored: true,
   indexes: [
-    { unique: true, fields: ['business_id', 'user_id'] }
+    { unique: true, fields: ['business_id', 'user_id'] },
+    { unique: true, fields: ['invite_token'], name: 'clients_invite_token_unique' },
   ]
 });
 

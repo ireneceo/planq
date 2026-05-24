@@ -40,7 +40,7 @@ Document.init({
   quote_id: { type: DataTypes.BIGINT, allowNull: true, references: { model: 'quotes', key: 'id' } },
   invoice_id: { type: DataTypes.INTEGER, allowNull: true, references: { model: 'invoices', key: 'id' } },
   // 공유
-  share_token: { type: DataTypes.STRING(64), allowNull: true, unique: true },
+  share_token: { type: DataTypes.STRING(64), allowNull: true },
   shared_at: { type: DataTypes.DATE, allowNull: true },
   // N+43 — share_token 만료. NULL = 무제한. 만료 시 공개 endpoint 410 + 친절한 만료 페이지. revoke = share_token=NULL.
   share_expires_at: { type: DataTypes.DATE, allowNull: true },
@@ -66,7 +66,7 @@ Document.init({
     { fields: ['project_id'] },
     { fields: ['quote_id'] },
     { fields: ['invoice_id'] },
-    { fields: ['share_token'] },
+    { unique: true, fields: ['share_token'], name: 'documents_share_token_unique' },
     { fields: ['template_id'] },
   ],
 });
