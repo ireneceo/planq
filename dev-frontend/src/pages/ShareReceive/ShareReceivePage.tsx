@@ -8,6 +8,10 @@
 //   2) URL 쿼리만 있는 경우 그대로 (legacy GET fallback)
 //   3) 사용자에게 "어디로 보낼까요?" 선택 (채팅·업무·메모·문서·파일)
 //   4) 선택 → 해당 영역에 파일 업로드 + 텍스트 prefill
+//
+// 사이클 N+53 — 새로고침 안전망: cache.delete 를 destination 선택 완료 후로 미룸.
+// 사용자가 destination 선택 전 새로고침해도 cache 가 살아있어 데이터 복원됨.
+// stale 차단: payload.ts 가 10분 이상 지났으면 자동 정리.
 
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -22,15 +26,24 @@ interface SharePayload {
   text: string;
   url: string;
   fileCount: number;
+  ts: number;
 }
 
-async function loadSharePayload(): Promise<{ payload: SharePayload | null; files: File[] }> {
-  if (typeof caches === 'undefined') return { payload: null, files: [] };
+const SHARE_CACHE = 'planq-share-v1';
+const SHARE_TTL_MS = 10 * 60 * 1000; // 10분 — share 받고 10분 안에 destination 선택해야
+
+async function loadSharePayload(): Promise<{ payload: SharePayload | null; files: File[]; stale: boolean }> {
+  if (typeof caches === 'undefined') return { payload: null, files: [], stale: false };
   try {
-    const cache = await caches.open('planq-share-v1');
+    const cache = await caches.open(SHARE_CACHE);
     const meta = await cache.match('/_share_payload');
-    if (!meta) return { payload: null, files: [] };
+    if (!meta) return { payload: null, files: [], stale: false };
     const payload = await meta.json() as SharePayload;
+    // stale 검사 — 10분 이상 지났으면 자동 정리 (다른 사용자 share 였을 수도 있고)
+    if (payload.ts && Date.now() - payload.ts > SHARE_TTL_MS) {
+      await cleanupShareCache(payload.fileCount || 0);
+      return { payload: null, files: [], stale: true };
+    }
     const files: File[] = [];
     for (let i = 0; i < (payload.fileCount || 0); i++) {
       const r = await cache.match(`/_share_file_${i}`);
@@ -39,11 +52,19 @@ async function loadSharePayload(): Promise<{ payload: SharePayload | null; files
       const filename = decodeURIComponent(r.headers.get('X-Filename') || `share-${i}`);
       files.push(new File([blob], filename, { type: blob.type }));
     }
-    // 사용 후 cache 비우기 (공유 한 번 처리하면 유지 X)
+    // 사이클 N+53 — cache.delete 는 destination 선택 완료 후 (cleanupShareCache) 로 미룸.
+    // 사용자 새로고침 시 데이터 잃지 않게.
+    return { payload, files, stale: false };
+  } catch { return { payload: null, files: [], stale: false }; }
+}
+
+async function cleanupShareCache(fileCount: number): Promise<void> {
+  if (typeof caches === 'undefined') return;
+  try {
+    const cache = await caches.open(SHARE_CACHE);
     await cache.delete('/_share_payload');
-    for (let i = 0; i < (payload.fileCount || 0); i++) await cache.delete(`/_share_file_${i}`);
-    return { payload, files };
-  } catch { return { payload: null, files: [] }; }
+    for (let i = 0; i < fileCount; i++) await cache.delete(`/_share_file_${i}`);
+  } catch { /* best-effort */ }
 }
 
 const ShareReceivePage: React.FC = () => {
@@ -57,19 +78,25 @@ const ShareReceivePage: React.FC = () => {
   const [text, setText] = useState(params.get('text') || '');
   const [url, setUrl] = useState(params.get('url') || '');
   const [files, setFiles] = useState<File[]>([]);
+  const [fileCount, setFileCount] = useState(0); // cleanup 시 사용 — file 인덱스 개수
   const [loading, setLoading] = useState(params.get('shared') === '1');
   const [busy, setBusy] = useState<string | null>(null);
+  const [stale, setStale] = useState(false);
 
-  // POST 공유 — SW 가 파일 + 텍스트 Cache 에 저장 후 ?shared=1 로 redirect
+  // POST 공유 — SW 가 파일 + 텍스트 Cache 에 저장 후 ?shared=1 로 redirect.
+  // 사이클 N+53: cache.delete 는 sendTo 완료 후 (새로고침 안전망).
   useEffect(() => {
     if (params.get('shared') !== '1') return;
     let cancelled = false;
-    loadSharePayload().then(({ payload, files: f }) => {
-      if (cancelled || !payload) { setLoading(false); return; }
+    loadSharePayload().then(({ payload, files: f, stale: s }) => {
+      if (cancelled) return;
+      if (s) setStale(true);
+      if (!payload) { setLoading(false); return; }
       setTitle(payload.title || '');
       setText(payload.text || '');
       setUrl(payload.url || '');
       setFiles(f);
+      setFileCount(payload.fileCount || 0);
       setLoading(false);
     }).catch(() => setLoading(false));
     return () => { cancelled = true; };
@@ -108,6 +135,7 @@ const ShareReceivePage: React.FC = () => {
       if (target === 'file') {
         if (files.length === 0) { setBusy(null); return; }
         await uploadFilesToWorkspace();
+        await cleanupShareCache(fileCount);
         navigate('/files');
         return;
       }
@@ -119,6 +147,8 @@ const ShareReceivePage: React.FC = () => {
         case 'note':  navigate(`/qnote?prefill=${encoded}`); break;
         case 'doc':   navigate(`/docs?prefill=${encoded}`); break;
       }
+      // 사이클 N+53 — destination 선택 완료 시 cache 정리 (새로고침 안전망 해제)
+      await cleanupShareCache(fileCount);
     } finally {
       setBusy(null);
     }
@@ -135,6 +165,11 @@ const ShareReceivePage: React.FC = () => {
   return (
     <PageShell title={t('shareReceive.title', 'PlanQ 로 공유') as string}>
       <Wrap>
+        {stale && (
+          <StaleNote>
+            {t('shareReceive.staleNote', '공유 받은 데이터가 오래되어 자동 정리되었습니다. 다시 공유해주세요.')}
+          </StaleNote>
+        )}
         {(content || files.length > 0) && (
           <PreviewBox>
             <PreviewLabel>{t('shareReceive.received', '받은 내용')}</PreviewLabel>
@@ -151,7 +186,7 @@ const ShareReceivePage: React.FC = () => {
             )}
           </PreviewBox>
         )}
-        {!content && files.length === 0 && (
+        {!stale && !content && files.length === 0 && (
           <PreviewBox>{t('shareReceive.empty', '(빈 내용)')}</PreviewBox>
         )}
 
@@ -225,3 +260,7 @@ const DestIcon = styled.span`
 const DestTitle = styled.div`font-size: 14px; font-weight: 700; color: #0F172A;`;
 const DestDesc = styled.div`font-size: 11px; color: #64748B;`;
 const Hint = styled.div`font-size: 11px; color: #94A3B8; padding: 8px 0; line-height: 1.5;`;
+const StaleNote = styled.div`
+  background: #FEF3C7; border: 1px solid #F59E0B; border-radius: 10px;
+  padding: 12px 14px; font-size: 13px; color: #92400E; line-height: 1.5;
+`;

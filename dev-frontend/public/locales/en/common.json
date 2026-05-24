@@ -318,6 +318,7 @@
     },
     "uploading": "Uploading...",
     "fileNote": "Files are auto-saved to your workspace. Chat / Task / Note / Document destinations prefill text only; file attachment integration is coming in a future cycle.",
+    "staleNote": "The shared data has expired and was cleared automatically. Please share again.",
     "hint": "File and image sharing will arrive in a future update. For now, please attach directly inside PlanQ."
   },
   "pwa": {
