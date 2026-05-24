@@ -210,6 +210,29 @@
     "desc": "You do not have permission to access this page.",
     "back": "Go back"
   },
+  "adminAudit": {
+    "title": "Audit logs",
+    "actionAll": "All actions",
+    "targetTypeAll": "All targets",
+    "userIdPh": "user ID",
+    "empty": "No logs match the filter",
+    "detail": "Log detail",
+    "group": {
+      "security": "Security",
+      "finance": "Finance",
+      "content": "Content",
+      "files": "Files",
+      "signature": "Signature",
+      "workspace": "Workspace"
+    },
+    "col": {
+      "when": "Time",
+      "user": "User",
+      "action": "Action",
+      "target": "Target",
+      "ip": "IP"
+    }
+  },
   "attachments": {
     "title": "Attachments",
     "add": "Add file",
