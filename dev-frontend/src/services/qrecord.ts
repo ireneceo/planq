@@ -49,13 +49,25 @@ export interface QRecordDetail extends QRecordSummary {
   rows: QRecordRow[];
 }
 
+// 사이클 N+55 — auto-paginate. records 백엔드 default 200 / max 500. 5 page 자동 누적.
 export async function fetchRecords(businessId: number, opts?: { projectId?: number | null; category?: string }): Promise<QRecordSummary[]> {
-  const qs = new URLSearchParams({ business_id: String(businessId) });
-  if (opts?.projectId != null) qs.set('project_id', String(opts.projectId));
-  if (opts?.category) qs.set('category', opts.category);
-  const r = await apiFetch(`/api/records?${qs.toString()}`);
-  const j = await r.json();
-  return (j.data || []) as QRecordSummary[];
+  const baseParams = new URLSearchParams({ business_id: String(businessId) });
+  if (opts?.projectId != null) baseParams.set('project_id', String(opts.projectId));
+  if (opts?.category) baseParams.set('category', opts.category);
+  const collected: QRecordSummary[] = [];
+  const MAX_PAGES = 5;
+  const LIMIT = 500;
+  for (let page = 1; page <= MAX_PAGES; page++) {
+    const p = new URLSearchParams(baseParams);
+    p.set('page', String(page));
+    p.set('limit', String(LIMIT));
+    const r = await apiFetch(`/api/records?${p}`);
+    const j = await r.json();
+    if (!j.success) break;
+    collected.push(...((j.data || []) as QRecordSummary[]));
+    if (!j.pagination || !j.pagination.has_more) break;
+  }
+  return collected;
 }
 
 export async function fetchRecordCategories(businessId: number): Promise<string[]> {

@@ -69,26 +69,45 @@ export interface PostListFilter {
   category?: string;
   mine?: boolean;
 }
+// 사이클 N+55 — auto-paginate. N+50 백엔드 cap (posts default 200 / max 500,
+// personal-vault default 200 / max 500) 적용 시 1 page 부족할 수 있음. 5 page 자동 누적.
+const POSTS_AUTO_LIMIT = 500; // posts 백엔드 max
+const POSTS_AUTO_MAX_PAGES = 5;
+async function fetchPostsAllPages(buildUrl: (page: number, limit: number) => string): Promise<PostRow[]> {
+  const collected: PostRow[] = [];
+  for (let page = 1; page <= POSTS_AUTO_MAX_PAGES; page++) {
+    const r = await apiFetch(buildUrl(page, POSTS_AUTO_LIMIT));
+    const j = await r.json();
+    if (!j.success) break;
+    collected.push(...(j.data || []) as PostRow[]);
+    if (!j.pagination || !j.pagination.has_more) break;
+  }
+  return collected;
+}
+
 // N+30 — 개인 보관함 Post list. 본인 author + vlevel=L1 + project_id=null
-// backend GET /api/personal-vault/:bizId/posts (N+9) 응답을 PostRow shape 어댑트
+// backend GET /api/personal-vault/:bizId/posts (N+9) 응답을 PostRow shape 어댑트.
+// N+55 — auto-paginate.
 export async function fetchPersonalPosts(businessId: number): Promise<PostRow[]> {
-  const r = await apiFetch(`/api/personal-vault/${businessId}/posts`);
-  const j = await r.json();
-  if (!j.success) return [];
-  return (j.data || []) as PostRow[];
+  return fetchPostsAllPages((page, limit) =>
+    `/api/personal-vault/${businessId}/posts?page=${page}&limit=${limit}`
+  );
 }
 
 export async function fetchPosts(businessId: number, filter: PostListFilter = {}): Promise<PostRow[]> {
-  const params = new URLSearchParams({ business_id: String(businessId) });
-  if (filter.projectId === null) params.set('project_id', 'null');
-  else if (filter.projectId !== undefined) params.set('project_id', String(filter.projectId));
-  if (filter.query) params.set('q', filter.query);
-  if (filter.category) params.set('category', filter.category);
-  if (filter.mine) params.set('mine', '1');
-  const r = await apiFetch(`/api/posts?${params}`);
-  const j = await r.json();
-  if (!j.success) return [];
-  return j.data as PostRow[];
+  const baseParams = new URLSearchParams({ business_id: String(businessId) });
+  if (filter.projectId === null) baseParams.set('project_id', 'null');
+  else if (filter.projectId !== undefined) baseParams.set('project_id', String(filter.projectId));
+  if (filter.query) baseParams.set('q', filter.query);
+  if (filter.category) baseParams.set('category', filter.category);
+  if (filter.mine) baseParams.set('mine', '1');
+  // N+55 — auto-paginate (workspace posts 2000+ 누적 가능)
+  return fetchPostsAllPages((page, limit) => {
+    const p = new URLSearchParams(baseParams);
+    p.set('page', String(page));
+    p.set('limit', String(limit));
+    return `/api/posts?${p}`;
+  });
 }
 
 export interface PostsMeta {

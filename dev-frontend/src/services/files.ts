@@ -62,7 +62,31 @@ function parseFileId(composite: string): { source: FileSource; id: number } | nu
 
 // ─── API 래퍼 ───
 
+// 사이클 N+55 — auto-paginate 헬퍼.
+// N+50 백엔드 pagination cap (default 500 / max 1000) 에 맞춰 frontend 가 자동 누적.
+// has_more=true 면 다음 page fetch — 최대 5 페이지 = 5000 항목 cap (무한 루프 방지).
+// UI 변경 X — 사용자에게는 단일 array 로 보임 (1000+ 워크스페이스에서도 정상).
+const AUTO_PAGINATE_MAX_PAGES = 5;
+const AUTO_PAGINATE_LIMIT = 1000; // 백엔드 max 와 일치
+
+async function fetchAllPages<T>(buildUrl: (page: number, limit: number) => string): Promise<T[]> {
+  const collected: T[] = [];
+  for (let page = 1; page <= AUTO_PAGINATE_MAX_PAGES; page++) {
+    const r = await apiFetch(buildUrl(page, AUTO_PAGINATE_LIMIT));
+    const j = await r.json();
+    if (!j.success) break;
+    const data = (j.data || []) as T[];
+    collected.push(...data);
+    const pag = j.pagination;
+    // pagination 메타 없는 옛 응답 — 첫 페이지로 끝
+    if (!pag) break;
+    if (!pag.has_more) break;
+  }
+  return collected;
+}
+
 export async function fetchProjectFiles(projectId: number): Promise<ProjectFile[]> {
+  // /api/projects/:id/files — pagination 미적용 라우트 (project 단위 작음). single fetch.
   const r = await apiFetch(`/api/projects/${projectId}/files`);
   const j = await r.json();
   if (!j.success) return [];
@@ -70,22 +94,21 @@ export async function fetchProjectFiles(projectId: number): Promise<ProjectFile[
 }
 
 export async function fetchWorkspaceFiles(businessId: number): Promise<ProjectFile[]> {
-  const r = await apiFetch(`/api/projects/workspace/${businessId}/all-files`);
-  const j = await r.json();
-  if (!j.success) return [];
-  return (j.data || []) as ProjectFile[];
+  // /api/projects/workspace/:bizId/all-files — N+50 pagination (default 500 / max 1000).
+  // auto-paginate 로 5000 항목까지 자동 누적.
+  return fetchAllPages<ProjectFile>((page, limit) =>
+    `/api/projects/workspace/${businessId}/all-files?page=${page}&limit=${limit}`
+  );
 }
 
 // N+30 — 개인 보관함 (Personal Vault) 파일 list
 // 본인 업로드 + visibility=L1 + project_id=null 만 (PERSONAL_VAULT_DESIGN.md §2)
-// backend GET /api/personal-vault/:bizId/files 응답 형식을 ProjectFile shape 로 어댑트
+// backend GET /api/personal-vault/:bizId/files 응답 형식을 ProjectFile shape 로 어댑트.
+// 사이클 N+55 — pagination auto-paginate.
 export async function fetchPersonalFiles(businessId: number): Promise<ProjectFile[]> {
-  const r = await apiFetch(`/api/personal-vault/${businessId}/files`);
-  const j = await r.json();
-  if (!j.success) return [];
-  const raw = (j.data || []) as Array<{
+  const raw = await fetchAllPages<{
     id: number; file_name: string; mime_type: string; file_size: number; created_at: string;
-  }>;
+  }>((page, limit) => `/api/personal-vault/${businessId}/files?page=${page}&limit=${limit}`);
   return raw.map(f => ({
     id: `direct-${f.id}`,
     source: 'direct' as FileSource,

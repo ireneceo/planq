@@ -420,8 +420,15 @@ const QTaskPage:React.FC=()=>{
     if(!bizId)return;
     setLoading(true);
     try{
-      const r=await(await apiFetch(`/api/projects/workspace/${bizId}/all-tasks`)).json();
-      if(r.success)setAllTasks(r.data||[]);
+      // 사이클 N+55 — auto-paginate. 워크스페이스 task 1000+ 누적 시 5000 까지 자동 누적
+      const allTasksCollected: unknown[] = [];
+      for (let page = 1; page <= 5; page++) {
+        const r = await(await apiFetch(`/api/projects/workspace/${bizId}/all-tasks?page=${page}&limit=1000`)).json();
+        if (!r.success) break;
+        allTasksCollected.push(...(r.data || []));
+        if (!r.pagination || !r.pagination.has_more) break;
+      }
+      setAllTasks(allTasksCollected as never[]);
       try{
         const mr=await(await apiFetch(`/api/businesses/${bizId}/members`)).json();
         if(mr.success){
