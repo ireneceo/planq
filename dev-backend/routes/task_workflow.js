@@ -533,6 +533,19 @@ router.post('/:id/reviewers', authenticateToken, async (req, res, next) => {
         ctaLabel: isInActiveRound ? '검토하기' : '업무 보기',
       });
 
+      // 사이클 N+54 — audit. reviewer 추가 = 책임선/권한 변경
+      require('../services/auditService').logAudit(req, {
+        action: 'task.reviewer_add',
+        targetType: 'task',
+        targetId: task.id,
+        businessId: task.business_id,
+        newValue: {
+          task_title: task.title,
+          reviewer_user_id: user_id,
+          is_client: !!is_client,
+        },
+      });
+
       return successResponse(res, full.toJSON());
     } catch (e) { await t.rollback(); throw e; }
   } catch (err) { next(err); }
@@ -567,6 +580,15 @@ router.delete('/:id/reviewers/:userId', authenticateToken, async (req, res, next
 
     await task.reload();
     broadcast(req, task);
+    // 사이클 N+54 — audit. reviewer 제거 = 책임선/권한 변경
+    require('../services/auditService').logAudit(req, {
+      action: 'task.reviewer_remove',
+      targetType: 'task',
+      targetId: task.id,
+      businessId: task.business_id,
+      oldValue: { reviewer_user_id: rev.user_id, is_client: rev.is_client },
+      newValue: { task_title: task.title },
+    });
     return successResponse(res, { removed: true, user_id: Number(req.params.userId) });
   } catch (err) { next(err); }
 });
@@ -603,6 +625,15 @@ router.patch('/:id/policy', authenticateToken, async (req, res, next) => {
 
     await task.reload();
     broadcast(req, task);
+    // 사이클 N+54 — audit. policy 변경 (all vs any) = 컨펌 통과 기준 변경
+    require('../services/auditService').logAudit(req, {
+      action: 'task.policy_change',
+      targetType: 'task',
+      targetId: task.id,
+      businessId: task.business_id,
+      oldValue: { review_policy: task._previousDataValues?.review_policy || null },
+      newValue: { review_policy, task_title: task.title },
+    });
     return successResponse(res, task.toJSON());
   } catch (err) { next(err); }
 });

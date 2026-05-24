@@ -208,9 +208,20 @@ router.delete('/:id', authenticateToken, async (req, res, next) => {
     if (!['owner', 'platform_admin'].includes(role) && r.created_by !== req.user.id) {
       return errorResponse(res, '오너 또는 작성자만 삭제할 수 있습니다', 403);
     }
-    await QRecordAudit.create({ q_record_id: r.id, user_id: req.user.id, action: 'record.delete' });
+    const snap = { name: r.name, category: r.category, business_id: r.business_id, columns_count: (r.columns || []).length };
+    // q_record_audits FK 가 ON DELETE 미명시 (RESTRICT) → 명시 destroy 필요.
+    // record 삭제 시 QRecordAudit 영속 가치 잃음. AuditLog (사이클 N+54) 가 영구 audit 대체.
     await QRecordRow.destroy({ where: { q_record_id: r.id } });
+    await QRecordAudit.destroy({ where: { q_record_id: r.id } });
     await r.destroy();
+    // 사이클 N+54 — audit 통합. AuditLog 가 record 삭제 영구 박제.
+    require('../services/auditService').logAudit(req, {
+      action: 'record.delete',
+      targetType: 'q_record',
+      targetId: r.id,
+      businessId: snap.business_id,
+      oldValue: snap,
+    });
     successResponse(res, { deleted: true });
   } catch (err) { next(err); }
 });

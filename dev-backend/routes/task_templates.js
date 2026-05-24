@@ -214,7 +214,16 @@ router.delete('/:id', authenticateToken, async (req, res, next) => {
     if (!(await ensureMember(req.user.id, tpl.business_id, req.user.platform_role))) {
       return errorResponse(res, 'forbidden', 403);
     }
+    const snap = { name: tpl.name, category: tpl.category, business_id: tpl.business_id, is_system: tpl.is_system };
     await tpl.destroy(); // CASCADE 로 items 도 삭제
+    // 사이클 N+54 — audit. 템플릿 삭제 = 콘텐츠 mutation (다른 사용자 적용 영향)
+    require('../services/auditService').logAudit(req, {
+      action: 'task_template.delete',
+      targetType: 'task_template',
+      targetId: tpl.id,
+      businessId: snap.business_id,
+      oldValue: snap,
+    });
     return successResponse(res, { deleted: true, id: tpl.id });
   } catch (err) { next(err); }
 });

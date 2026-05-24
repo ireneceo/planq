@@ -239,6 +239,15 @@ router.delete('/templates/:id', authenticateToken, async (req, res, next) => {
       return errorResponse(res, 'forbidden_role', 403);
     }
     await tpl.update({ is_active: false });
+    // 사이클 N+54 — audit. template 삭제 (콘텐츠 mutation)
+    require('../services/auditService').logAudit(req, {
+      action: 'document_template.archive',
+      targetType: 'document_template',
+      targetId: tpl.id,
+      businessId: tpl.business_id,
+      oldValue: { title: tpl.title, kind: tpl.kind, is_active: true },
+      newValue: { is_active: false },
+    });
     return successResponse(res, { id: tpl.id, archived: true });
   } catch (e) { next(e); }
 });
@@ -592,7 +601,17 @@ router.delete('/documents/:id', authenticateToken, async (req, res, next) => {
     if (!(await assertBusinessAccess(req.user.id, doc.business_id, req.user.platform_role))) {
       return errorResponse(res, 'forbidden', 403);
     }
+    const prevStatus = doc.status;
     await doc.update({ archived_at: new Date(), status: 'archived' });
+    // 사이클 N+54 — audit. 문서 archive (서명·계약 등 법적 콘텐츠일 수 있음)
+    require('../services/auditService').logAudit(req, {
+      action: 'document.archive',
+      targetType: 'document',
+      targetId: doc.id,
+      businessId: doc.business_id,
+      oldValue: { status: prevStatus, title: doc.title, kind: doc.kind },
+      newValue: { status: 'archived' },
+    });
     return successResponse(res, { id: doc.id, archived: true });
   } catch (e) { next(e); }
 });
@@ -627,6 +646,20 @@ router.post('/documents/:id/share', authenticateToken, async (req, res, next) =>
       expires_at: expiresAt,
       shared_by: req.user.id,
     });
+    // 사이클 N+54 — audit. 외부 노출 (share_token 발급)
+    require('../services/auditService').logAudit(req, {
+      action: 'document.share',
+      targetType: 'document',
+      targetId: doc.id,
+      businessId: doc.business_id,
+      newValue: {
+        document_title: doc.title,
+        share_method: method || 'link',
+        recipient_email: recipient_email || null,
+        recipient_name: recipient_name || null,
+        share_expires_at: expiresAt,
+      },
+    });
     return successResponse(res, { share: share.toJSON(), share_url: `/public/docs/${doc.share_token || token}`, share_expires_at: doc.share_expires_at });
   } catch (e) { next(e); }
 });
@@ -639,7 +672,17 @@ router.delete('/documents/:id/share', authenticateToken, async (req, res, next) 
     if (!(await assertBusinessAccess(req.user.id, doc.business_id, req.user.platform_role))) {
       return errorResponse(res, 'forbidden', 403);
     }
+    const hadToken = !!doc.share_token;
     await doc.update({ share_token: null, shared_at: null, share_expires_at: null });
+    // 사이클 N+54 — audit. share revoke (외부 접근 차단)
+    require('../services/auditService').logAudit(req, {
+      action: 'document.share_revoke',
+      targetType: 'document',
+      targetId: doc.id,
+      businessId: doc.business_id,
+      oldValue: { share_token: hadToken ? '***' : null, share_expires_at: doc.share_expires_at },
+      newValue: { share_token: null },
+    });
     return successResponse(res, { revoked: true });
   } catch (e) { next(e); }
 });
@@ -745,6 +788,27 @@ router.post('/public/:token/sign', async (req, res, next) => {
         body_json_snapshot: null,
       });
     } catch { /* revision 실패해도 서명 성공 */ }
+
+    // 사이클 N+54 — audit. public 서명 = 법적 효력 — IP + signer 정보 박제 필수
+    require('../services/auditService').logAudit(
+      { ip: req.ip, headers: req.headers, body: { business_id: doc.business_id } },
+      {
+        action: 'document.public_sign',
+        targetType: 'document',
+        targetId: doc.id,
+        businessId: doc.business_id,
+        userId: null, // 익명 서명 (외부 고객)
+        newValue: {
+          document_title: doc.title,
+          signer_name: sig.signer_name,
+          signer_email: sig.signer_email,
+          accept: sig.accept,
+          status: newStatus,
+          signed_at: sig.signed_at,
+          signed_ip: sig.signed_ip,
+        },
+      }
+    );
 
     return successResponse(res, { status: newStatus, signed_at: sig.signed_at });
   } catch (e) { next(e); }
