@@ -263,6 +263,12 @@ router.get('/:businessId', authenticateToken, attachWorkspaceScope(), async (req
     if (req.query.project_id) where.project_id = req.query.project_id;
     if (req.query.folder_id) where.folder_id = req.query.folder_id;
     if (req.query.folder_id === 'null') where.folder_id = null;
+    // 사이클 N+58 — ?ids=1,2,3 batch meta fetch (ChatPanel chip meta 등)
+    // visibility WHERE 그대로 적용 — 접근 권한 없는 id 는 자동 필터.
+    if (req.query.ids) {
+      const idsArr = String(req.query.ids).split(',').map(Number).filter(n => Number.isFinite(n) && n > 0).slice(0, 100);
+      if (idsArr.length > 0) where.id = idsArr;
+    }
 
     // 사이클 N+50 — pagination. include 가 1:1 (uploader/client) 라 distinct 안전.
     // files 는 누적 빠름 — default 500 / max 1000. frontend 가 ?page= 점진 opt-in
