@@ -696,6 +696,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
         <SidebarHeader $isCollapsed={isCollapsed}>
           {isCollapsed ? (
             <SidebarToggleButton
+              type="button"
               onClick={() => setIsCollapsed(false)}
               aria-label={t('nav.expandSidebar')}
               title={t('nav.expandSidebar')}
@@ -706,6 +707,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
             <>
               <Logo src="/planQ_white_new.svg" alt="PlanQ" />
               <SidebarToggleButton
+                type="button"
                 onClick={() => setIsCollapsed(true)}
                 aria-label={t('nav.collapseSidebar')}
                 title={t('nav.collapseSidebar')}
