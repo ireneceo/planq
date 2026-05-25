@@ -349,7 +349,16 @@
     "installTitle": "PlanQ 앱으로 설치",
     "installCta": "설치",
     "androidHint": "홈 화면에 추가하면 알림·빠른 진입이 가능합니다",
-    "iosHint": "하단 공유 버튼 → \"홈 화면에 추가\""
+    "iosHint": "하단 공유 버튼 → \"홈 화면에 추가\"",
+    "snooze7d": "7일 동안 안 보기",
+    "snooze7dShort": "7일 안 보기",
+    "openInApp": {
+      "aria": "PlanQ 앱으로 열기",
+      "title": "PlanQ 앱이 설치되어 있어요",
+      "sub": "앱으로 열면 더 빠르고 알림도 받을 수 있어요",
+      "cta": "앱으로 열기",
+      "dismiss": "닫기"
+    }
   },
   "vault": {
     "subtitle": "본인만 보는 사적 영역",
