@@ -13,6 +13,7 @@ import MainLayout from './components/Layout/MainLayout';
 // lazy 화 → entry preload ↓ 첫 로드 시간 ↓. Suspense fallback={null} 로 invisible 동안 무영향.
 const NotificationToaster = lazy(() => import('./components/Common/NotificationToaster'));
 const PwaInstallBanner = lazy(() => import('./components/Common/PwaInstallBanner'));
+const OpenInAppBanner = lazy(() => import('./components/Common/OpenInAppBanner'));
 const BuildVersionGuard = lazy(() => import('./components/Common/BuildVersionGuard'));
 const LimitReachedDialog = lazy(() => import('./components/Common/LimitReachedDialog'));
 const AnnouncementBanner = lazy(() => import('./components/Common/AnnouncementBanner'));
@@ -446,6 +447,7 @@ function App() {
         <MemoFab />
         <NotificationToaster />
         <PwaInstallBanner />
+        <OpenInAppBanner />
         <BuildVersionGuard />
         <LimitReachedDialog />
         <AnnouncementBanner />

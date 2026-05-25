@@ -427,8 +427,11 @@ function kbDocumentsListWhereByLevel(scope) {
 //   req.businessRole  — 'owner' | 'member' | 'client' | 'admin'
 //   req.businessMember — { role, business_id, user_id } (member/owner 일 때만, client 면 null)
 // ─────────────────────────────────────────────
+// N+69 — opts.platformAdminAs: 옛 checkBusinessAccess 호환용. platform_admin 의 businessRole
+//        을 'owner' 로 강제 (기본은 'admin'). 옛 라우트가 `businessRole === 'owner'` 검사 시 호환.
 function attachWorkspaceScope(opts = {}) {
   const allowClient = opts.memberOnly !== true;
+  const platformAdminAs = opts.platformAdminAs;  // 'owner' | 'admin' | undefined
   return async function attachScope(req, res, next) {
     try {
       if (!req.user) {
@@ -441,6 +444,10 @@ function attachWorkspaceScope(opts = {}) {
         return res.status(400).json({ success: false, message: 'Business ID required' });
       }
       const scope = await getUserScope(req.user.id, businessId, req.user.platform_role);
+      // platformAdminAs 옵션 적용 (옛 호환)
+      if (platformAdminAs && scope.isPlatformAdmin) {
+        scope.businessRole = platformAdminAs;
+      }
       const allowed =
         scope.isPlatformAdmin ||
         scope.isOwner ||
@@ -450,6 +457,7 @@ function attachWorkspaceScope(opts = {}) {
         return res.status(403).json({ success: false, message: 'No access to this business' });
       }
       req.scope = scope;
+      req.businessId = businessId;  // 옛 checkBusinessAccess 호환
       req.businessRole = scope.businessRole;
       if (scope.isOwner || scope.isMember) {
         req.businessMember = { role: scope.businessRole, business_id: businessId, user_id: req.user.id };
