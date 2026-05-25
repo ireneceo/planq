@@ -14,6 +14,8 @@ import PanelHeader, { PanelTitle } from './PanelHeader';
 import { useTimezones } from '../../hooks/useTimezones';
 import { useInboxCount } from '../../hooks/useInboxCount';
 import { useAdminInboxCounts } from '../../hooks/useAdminInboxCounts';
+import { useNotificationCount } from '../../hooks/useNotifications';
+import NotificationDropdown from '../Common/NotificationDropdown';
 import { useUnreadTotal } from '../../hooks/useUnreadTotal';
 import { useGlobalBadge } from '../../hooks/useGlobalBadge';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
@@ -95,6 +97,30 @@ const Logo = styled.img`
 /* N+63 — 시인성·세련도 강화. circle bg + 굵은 chevron + hover scale/translate.
    옛: 18×18 stroke 2.2 + subtle hover → 사용자 호소 "너무 얇아서 알기 어려움".
    새: 32×32 클릭 영역 + 28×28 circle bg (always visible) + 20×20 chevron stroke 2.6 + hover 시 scale 1.08 + 화살표 방향 살짝 translate. */
+/* N+63 — 사이드바 헤더 종 모양 (알림 feed dropdown trigger). 좌측 메뉴 숫자 (확인필요) 와 분리. */
+const BellButton = styled.button`
+  position: relative;
+  width: 32px; height: 32px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  cursor: pointer; padding: 0;
+  display: flex; align-items: center; justify-content: center;
+  color: #FFFFFF; border-radius: 50%;
+  transition: background 0.18s, border-color 0.18s, transform 0.18s;
+  &:hover { background: rgba(255, 255, 255, 0.18); transform: scale(1.06); }
+  &:active { transform: scale(0.96); }
+  &:focus-visible { outline: 2px solid #5EEAD4; outline-offset: 2px; }
+`;
+const BellBadge = styled.span`
+  position: absolute; top: -4px; right: -4px;
+  min-width: 16px; height: 16px; padding: 0 4px;
+  background: #F43F5E; color: #FFFFFF;
+  border-radius: 999px;
+  font-size: 10px; font-weight: 700; line-height: 16px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 2px solid #115E59;
+`;
+
 const SidebarToggleButton = styled.button`
   width: 32px; height: 32px;
   background: rgba(255, 255, 255, 0.10);
@@ -639,6 +665,10 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   const inboxCount = useInboxCount(user?.business_id ? Number(user.business_id) : null);
   // N+63 — platform_admin 좌측 inbox badge (feedback + inquiries)
   const adminCounts = useAdminInboxCounts();
+  // N+63 — 알림 feed (Activity Feed) 미읽음 카운트. 확인필요 (Action Queue) 와 분리.
+  const notifCount = useNotificationCount();
+  const [notifOpen, setNotifOpen] = useState(false);
+  const bellRef = useRef<HTMLButtonElement>(null);
   const talkUnreadCount = useUnreadTotal(user?.business_id ? Number(user.business_id) : null);
   // OS app badge (데스크탑 dock / 모바일 홈스크린 아이콘) — 인박스 + 채팅 합산 단일 적용.
   // 둘 중 하나라도 > 0 이면 표시. 사용자가 실제로 봐서 둘 다 0 될 때까지 안 사라짐.
@@ -697,6 +727,8 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
 
   return (
     <LayoutContainer>
+      {/* N+63 — 알림 dropdown (사이드바 종 모양 trigger) */}
+      <NotificationDropdown open={notifOpen} onClose={() => setNotifOpen(false)} anchorRef={bellRef} />
       <MobileHeader>
         <HamburgerButton onClick={() => setSidebarOpen(true)} aria-label={t('nav.expandSidebar')}>
           <IconHamburger />
@@ -721,6 +753,19 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
           ) : (
             <>
               <Logo src="/planQ_white_new.svg" alt="PlanQ" />
+              <BellButton
+                ref={bellRef}
+                type="button"
+                onClick={() => setNotifOpen(v => !v)}
+                aria-label={t('notifications.title', '알림') as string}
+                title={t('notifications.title', '알림') as string}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+                  <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+                </svg>
+                {notifCount > 0 && <BellBadge>{notifCount > 99 ? '99+' : notifCount}</BellBadge>}
+              </BellButton>
               <SidebarToggleButton
                 type="button"
                 onClick={() => setIsCollapsed(true)}

@@ -75,6 +75,14 @@
     "logout": "로그아웃",
     "menu": "계정 메뉴"
   },
+  "notifications": {
+    "title": "알림",
+    "loading": "불러오는 중…",
+    "emptyTitle": "새 알림이 없어요",
+    "emptyHint": "댓글·일정·결제 등 알림이 여기로 모입니다.",
+    "markAllRead": "모두 읽음",
+    "viewAll": "전체 알림 보기"
+  },
   "role": {
     "platform_admin": "플랫폼 관리자",
     "business_owner": "관리자",

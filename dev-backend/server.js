@@ -196,6 +196,8 @@ io.on('connection', (socket) => {
 });
 
 app.set('io', io);
+// N+63 — cron 등 req.app context 없는 곳에서 notify() 의 inbox socket emit 위해 global ref.
+global.__planqIo = io;
 
 // Body parser + Cookie parser — rate limiter skip 함수가 req.body 에 접근하므로 security 보다 먼저 파싱되어야 함
 app.use(express.json({ limit: '10mb' }));
