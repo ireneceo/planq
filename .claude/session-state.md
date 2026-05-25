@@ -1,49 +1,86 @@
 # PlanQ 개발 세션 상태
-**마지막 업데이트:** 2026-05-24
-**작업 상태:** **v1.18.0 운영 라이브 완료** — N+50~N+62 13 사이클 SaaS readiness 완성
-**운영 라이브 commit:** `a50d0c0` (timestamp 20260524_191626)
-**운영 DB:** N+60 cleanup SQL 적용 완료 (893 ALTER), N+61 named unique 인덱스 16개 생성 — **영구 누적 차단**
+**마지막 업데이트:** 2026-05-25 10:25
+**작업 상태:** 중단 (이어서 재개 예정)
 
 ---
 
-## v1.18.0 라이브 (2026-05-24)
+## ⚡ 빠른 재개 (새 세션에서 이것만 붙여넣기)
 
-### 14 commit 운영 push 완료
-
-| commit | 내용 |
-|--------|------|
-| `b6e3b83` | N+49 FocusWidget idle/orphan 정합 |
-| `457c8ec` | N+50 pagination 10 라우트 전수 |
-| `707edcc` | N+51 AuditLog Tier 1 16 action + invoice FK fix |
-| `60ef03b` | N+52 PWA Share 회귀 + LoginPage search 보존 |
-| `cdd6dc6` | N+53 share-receive 새로고침 안전망 |
-| `74458bc` | N+54 AuditLog 2차 10 action + records FK fix |
-| `6451e07` | N+55 FE auto-paginate (5 페이지) |
-| `42d5771` | N+56 share 파일 첨부 통합 |
-| `2108f13` | N+57 chat destination attachFileIds |
-| `355c396` | N+58 file batch meta + ChatPanel chip meta |
-| `d6e4f49` | N+59 files share/bulk audit + AuditLog admin pagination |
-| `17cec52` | N+60 DB 중복 인덱스 정리 SQL 박제 |
-| `59b32c1` | N+61 sequelize 모델 unique 제거 — 영구 차단 |
-| `a50d0c0` | N+62 AdminAuditLogsPage 보강 |
-
-### 운영 DB 작업 완료 (별도 적용)
-- 893 ALTER 실행 — 16 테이블 64 한도 → 13 이하
-- N+61 sync — 16 named unique 인덱스 모두 생성
-- 영구 누적 차단 보장
-
-### 검증 결과
-- https://planq.kr/api/health → ok (production)
-- HTTP/1.1 200
-- PM2 planq-prod-backend (1.18.0) + planq-prod-qnote online
+```
+session-state.md 읽고 이어서 개발해.
+```
 
 ---
 
-## 다음 사이클 (미완)
+## 🔖 지금 중단 지점
 
-1. **QNote / PostsPage attachFileIds 받기** — N+57 패턴 (변경 폭 큼)
-2. **3차 AuditLog 보강 (선택)** — docs CRUD / task_templates apply
-3. **Phase 9 통합 컨텍스트 + Q Mail** (9주, 큰 사이클)
+**마지막 작업:** N+63 사이클 10 commit 운영 라이브 완료. B3 platform_admin 좌측 메뉴 inbox badge (`1b7dd6f`) 마지막 라이브.
+
+**바로 다음 작업:** 사용자 답변 대기 — 5건 피드백 마킹 결과 확인 + 다음 청크 선택 (#3c 피드백 이미지 첨부 UI / #5 일반 댓글 알림 / P2b QNote+Posts attachFileIds / Phase 9 통합 컨텍스트 / 반응형 Phase 8).
+
+**맥락 유지할 것:**
+- N+63 캘린더 영역 거의 완성 (P0~P2 + 후속 + reminder cron + 정기 exception + UI 마무리)
+- 운영 피드백 5건 마킹 완료 (#2/#3/#4 done, #1/#5 reviewing — 사용자 답변 기다리는 중)
+- platform_admin 좌측 inbox badge 라이브 — 새 피드백/문의 들어오면 즉시 visible
+
+---
+
+## 📦 이번 세션 작업 요약 (N+63 사이클 10 commit)
+
+- `a1d2181` Q캘린더 P0~P2 + Q Talk 모바일 viewport + inbox 실시간
+- `3bbe6dd` EventDrawer URL/attendees + weekly cron backfill + body→content fix
+- `defe04b` 삭제 confirm modal + 토글 시인성 강화
+- `0d4ffb5` PostsPage EdgeHandle + SidebarToggle type
+- `dc723dd` reminder cron + 클라이언트 attendee + reduced-motion
+- `366e955` 정기일정 exception (single/future/all RFC 5545)
+- `cd53e68` 모든 필드 modal + instance picker
+- `bacecd5` AuditLog 3차 보강 + 정기일정 exception 시각화
+- `b31b651` AttachmentField 이미지 첨부 thumbnail (10 사용처 자동)
+- `1b7dd6f` platform_admin 좌측 메뉴 inbox badge
+
+**마지막 커밋:** `1b7dd6f` — feat(N+63 B3): platform_admin 좌측 메뉴 inbox badge
+
+---
+
+## 📂 다음 할 일 (우선순위)
+
+### 즉시 가능 (작은)
+- **#3c 피드백 이미지 첨부 UI** (~1h) — attachments JSON 컬럼 있음, FeedbackWidget UI 만
+- **#5 일반 댓글 알림** (~2h) — 멘션 외 일반 댓글에도 notify
+
+### 중 사이클 (1일)
+- **P2b N+57 attachFileIds — QNote/Posts 확장** (session-state 명시 미완)
+- **Q캘린더 Google Calendar pull sync** (현재 단방향만)
+- **Q Task Kanban view**
+
+### 대 사이클 (3일+)
+- **Phase 9 통합 컨텍스트 + Q Mail** (9주, memory `project_unified_context_arch.md`)
+- **반응형 Phase 8 일괄 스프린트** (1주)
+- **AI 업무 분해·추천 강화** (3~5일)
+
+### 사용자 답변 대기 (피드백)
+- **#1 lua** "프로젝트 생성시 Q talk 생성 여부" — 추가 설명 필요 (자동 토글 vs 동작 확인)
+- **#5 irene** "댓글 알림 + 좌측 메뉴 + 전체 알림 페이지" — 부분 적용 (좌측 badge), 나머지 다음 사이클
+
+---
+
+## 🔑 환경변수 / 인증 현황
+
+- dev: `health-check@planq.kr` / `HealthCheck2026!`
+- 운영 ssh: `irene@87.106.78.146`
+- GitHub: `id_ed25519_planq` 키
+- 운영 DB: `planq_admin` / `planq_prod_db`
+- 운영 backup: `/opt/planq/backups/`
+- 피드백 backup: `/opt/planq/backups/feedback/feedback_20260525_*.sql`
+
+---
+
+## 📚 주요 문서 위치
+
+- `CLAUDE.md` — 전체 규칙
+- `DEVELOPMENT_PLAN.md` — 개발 로드맵
+- `dev-frontend/UI_DESIGN_GUIDE.md` — UI 가이드
+- `dev-frontend/COLOR_GUIDE.md` — 색상
 
 ---
 
@@ -51,6 +88,5 @@
 
 새 Claude 세션 시작 시:
 ```
-이전 세션 이어서 작업하고 싶어.
-/opt/planq/.claude/session-state.md 읽어줘.
+session-state.md 읽고 이어서 개발해.
 ```
