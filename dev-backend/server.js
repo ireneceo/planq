@@ -276,6 +276,8 @@ app.use('/api/users', require('./routes/users'));
 app.use('/api/businesses', require('./routes/businesses'));
 // Q Mail (Phase 9 — M1)
 app.use('/api/businesses', require('./routes/email_accounts'));
+// OAuth 로그인 (Google / Microsoft)
+app.use('/api/auth', require('./routes/auth_oauth'));
 app.use('/api/notifications', require('./routes/notifications'));
 app.use('/api/feedback', require('./routes/feedback'));
 app.use('/api/cue', require('./routes/cue'));
