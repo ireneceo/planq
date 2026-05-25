@@ -94,59 +94,66 @@ const Logo = styled.img`
   display: block; user-select: none; flex-shrink: 0;
 `;
 
+/* N+63 — 사이드바 헤더 우측 버튼 그룹 (종 + 토글). 묶음 정렬 + 작은 gap. */
+const HeaderActions = styled.div`
+  display: flex; align-items: center; gap: 2px;
+  margin-left: auto;
+`;
+
 /* N+63 — 시인성·세련도 강화. circle bg + 굵은 chevron + hover scale/translate.
    옛: 18×18 stroke 2.2 + subtle hover → 사용자 호소 "너무 얇아서 알기 어려움".
    새: 32×32 클릭 영역 + 28×28 circle bg (always visible) + 20×20 chevron stroke 2.6 + hover 시 scale 1.08 + 화살표 방향 살짝 translate. */
-/* N+63 — 사이드바 헤더 종 모양 (알림 feed dropdown trigger). 좌측 메뉴 숫자 (확인필요) 와 분리. */
+/* N+63 — 사이드바 헤더 종 모양 (알림 feed dropdown trigger). 좌측 메뉴 숫자 (확인필요) 와 분리.
+   심플 디자인 — circle bg 제거, transparent 평소 + subtle hover. 옆 SidebarToggleButton 과 페어. */
 const BellButton = styled.button`
   position: relative;
   width: 32px; height: 32px;
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: transparent;
+  border: none;
   cursor: pointer; padding: 0;
   display: flex; align-items: center; justify-content: center;
-  color: #FFFFFF; border-radius: 50%;
-  transition: background 0.18s, border-color 0.18s, transform 0.18s;
-  &:hover { background: rgba(255, 255, 255, 0.18); transform: scale(1.06); }
-  &:active { transform: scale(0.96); }
+  color: #99F6E4;
+  border-radius: 8px;
+  transition: background 0.15s, color 0.15s;
+  &:hover { background: rgba(255, 255, 255, 0.10); color: #FFFFFF; }
+  &:active { background: rgba(255, 255, 255, 0.18); }
   &:focus-visible { outline: 2px solid #5EEAD4; outline-offset: 2px; }
 `;
 const BellBadge = styled.span`
-  position: absolute; top: -4px; right: -4px;
-  min-width: 16px; height: 16px; padding: 0 4px;
+  position: absolute; top: 0; right: 0;
+  min-width: 14px; height: 14px; padding: 0 3px;
   background: #F43F5E; color: #FFFFFF;
   border-radius: 999px;
-  font-size: 10px; font-weight: 700; line-height: 16px;
+  font-size: 9px; font-weight: 700; line-height: 14px;
   display: inline-flex; align-items: center; justify-content: center;
-  border: 2px solid #115E59;
+  border: 1.5px solid #115E59;
 `;
 
+/* N+63 — 사이드바 헤더 토글. BellButton 과 페어 — 동일 톤 (transparent + subtle hover bg).
+   옛 circle bg 두 개 무거움 → 심플 transparent. chevron nudge 시인성 유지. */
 const SidebarToggleButton = styled.button`
   width: 32px; height: 32px;
-  background: rgba(255, 255, 255, 0.10);
-  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: transparent;
+  border: none;
   cursor: pointer; padding: 0;
   display: flex; align-items: center; justify-content: center;
-  color: #FFFFFF; border-radius: 50%;
-  transition: background 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
+  color: #99F6E4;
+  border-radius: 8px;
+  transition: background 0.15s, color 0.15s;
   &:hover {
-    background: rgba(255, 255, 255, 0.20);
-    border-color: rgba(255, 255, 255, 0.35);
-    transform: scale(1.08);
+    background: rgba(255, 255, 255, 0.10);
+    color: #FFFFFF;
   }
   &:hover svg { animation: chevronNudge 0.6s ease infinite; }
-  &:active { transform: scale(0.96); }
+  &:active { background: rgba(255, 255, 255, 0.18); }
   &:focus-visible { outline: 2px solid #5EEAD4; outline-offset: 2px; }
-  svg { width: 16px; height: 16px; transition: transform 0.18s ease; }
+  svg { width: 16px; height: 16px; transition: transform 0.15s ease; }
   @keyframes chevronNudge {
     0%, 100% { transform: translateX(0); }
     50% { transform: translateX(2px); }
   }
   @media (prefers-reduced-motion: reduce) {
-    transition: none;
-    &:hover { transform: none; }
     &:hover svg { animation: none; }
-    &:active { transform: none; }
   }
   ${mediaTablet} { display: none; }
 `;
@@ -753,27 +760,29 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
           ) : (
             <>
               <Logo src="/planQ_white_new.svg" alt="PlanQ" />
-              <BellButton
-                ref={bellRef}
-                type="button"
-                onClick={() => setNotifOpen(v => !v)}
-                aria-label={t('notifications.title', '알림') as string}
-                title={t('notifications.title', '알림') as string}
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
-                  <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
-                </svg>
-                {notifCount > 0 && <BellBadge>{notifCount > 99 ? '99+' : notifCount}</BellBadge>}
-              </BellButton>
-              <SidebarToggleButton
-                type="button"
-                onClick={() => setIsCollapsed(true)}
-                aria-label={t('nav.collapseSidebar')}
-                title={t('nav.collapseSidebar')}
-              >
-                <IconChevronLeft />
-              </SidebarToggleButton>
+              <HeaderActions>
+                <BellButton
+                  ref={bellRef}
+                  type="button"
+                  onClick={() => setNotifOpen(v => !v)}
+                  aria-label={t('notifications.title', '알림') as string}
+                  title={t('notifications.title', '알림') as string}
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+                    <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+                  </svg>
+                  {notifCount > 0 && <BellBadge>{notifCount > 99 ? '99+' : notifCount}</BellBadge>}
+                </BellButton>
+                <SidebarToggleButton
+                  type="button"
+                  onClick={() => setIsCollapsed(true)}
+                  aria-label={t('nav.collapseSidebar')}
+                  title={t('nav.collapseSidebar')}
+                >
+                  <IconChevronLeft />
+                </SidebarToggleButton>
+              </HeaderActions>
             </>
           )}
           <MobileCloseButton
