@@ -349,7 +349,16 @@
     "installTitle": "Install PlanQ app",
     "installCta": "Install",
     "androidHint": "Add to home screen for notifications and faster access",
-    "iosHint": "Tap the Share button → \"Add to Home Screen\""
+    "iosHint": "Tap the Share button → \"Add to Home Screen\"",
+    "snooze7d": "Don't show for 7 days",
+    "snooze7dShort": "Hide 7 days",
+    "openInApp": {
+      "aria": "Open in PlanQ app",
+      "title": "PlanQ app is installed",
+      "sub": "Faster access and notifications when opened in the app",
+      "cta": "Open in app",
+      "dismiss": "Dismiss"
+    }
   },
   "vault": {
     "subtitle": "Your personal space — only you see this",
