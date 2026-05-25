@@ -1200,27 +1200,38 @@ const CollapsedStrip = styled.aside`
   width: 0; flex-shrink: 0; position: relative;
   @media (max-width: 900px) { display: none; }
 `;
+/* N+63 — 시인성·세련도 강화. QTask/QTalk EdgeHandle 일관 패턴. */
 const EdgeHandle = styled.button`
   position: absolute; top: 50%; right: 0;
   transform: translate(50%, -50%);
-  width: 8px; height: 60px;
-  padding: 0; border: none; background: #CBD5E1;
-  border-radius: 4px; cursor: pointer; z-index: 10;
-  box-shadow: 0 1px 3px rgba(15,23,42,0.08);
-  transition: width 0.15s ease, background 0.15s ease, height 0.15s ease;
+  width: 12px; height: 72px;
+  padding: 0; border: none;
+  background: linear-gradient(180deg, #94A3B8 0%, #64748B 100%);
+  border-radius: 6px; cursor: pointer; z-index: 10;
+  box-shadow: 0 2px 6px rgba(15,23,42,0.15), 0 0 0 1px rgba(255,255,255,0.4) inset;
+  transition: width 0.2s ease, height 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
   display: flex; align-items: center; justify-content: center;
   &::before {
     content: ''; position: absolute;
-    top: -10px; bottom: -10px; left: -8px; right: -8px;
+    top: -10px; bottom: -10px; left: -12px; right: -12px;
   }
-  &:hover { width: 14px; height: 72px; background: #14B8A6; }
-  &:focus-visible { outline: 2px solid #14B8A6; outline-offset: 2px; }
+  &:hover {
+    width: 18px; height: 84px;
+    background: linear-gradient(180deg, #14B8A6 0%, #0F766E 100%);
+    box-shadow: 0 4px 12px rgba(20,184,166,0.35), 0 0 0 1px rgba(255,255,255,0.6) inset;
+  }
+  &:hover svg { animation: chevronNudgePanelD 0.7s ease infinite; }
+  &:active { transform: translate(50%, -50%) scale(0.95); }
+  &:focus-visible { outline: 2px solid #14B8A6; outline-offset: 3px; }
+  @keyframes chevronNudgePanelD {
+    0%, 100% { transform: translateX(0); }
+    50% { transform: translateX(-2px); }
+  }
 `;
 const EdgeChevron = styled.span`
   display: flex; align-items: center; justify-content: center;
-  color: #64748B;
-  svg { width: 10px; height: 10px; }
-  ${EdgeHandle}:hover & { color: #FFFFFF; }
+  color: #FFFFFF;
+  svg { width: 14px; height: 14px; transition: transform 0.18s ease; }
 `;
 // 우측 컨텐츠 — background 를 Content 에 직접 부여
 // 제목 + 헬프 아이콘 묶음 — Q note 와 동일 (제목 끝나면 바로 helpDot 붙임)
