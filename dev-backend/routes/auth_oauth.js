@@ -9,32 +9,37 @@
 // 6. backend: frontend `/oauth/callback?token=...` redirect → frontend 가 JWT 저장 + dashboard
 const express = require('express');
 const router = express.Router();
-const jwt = require('jsonwebtoken');
 const { User } = require('../models');
-const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const googleOauthLogin = require('../services/google_oauth_login');
+// 옛 /login 의 refresh_token cookie 패턴 재사용 (다중 디바이스 + sliding renewal 정합)
+const { helpers } = require('./auth');
+const { createRefreshTokenRow, generateAccessToken, generateRefreshToken, resolveClientKind, TTL_MS_BY_KIND } = helpers;
 
-const APP_BASE = process.env.APP_BASE_URL || 'https://dev.planq.kr';
-
-function generateJwt(user, clientKind = 'web') {
-  const ttl = clientKind === 'pwa' ? '365d' : '15m';
-  return jwt.sign(
-    { userId: user.id, email: user.email },
-    process.env.JWT_SECRET,
-    { expiresIn: ttl }
-  );
-}
-
-// CSP 정합 — inline script 금지. token 은 URL fragment 로 전달 (referrer 노출 X, server-side log 안 보임).
-// frontend /oauth/callback route 가 hash 파싱 + localStorage 저장 + redirect.
-function buildRedirectTarget({ ok, token, error, isNewUser }) {
+// 성공/실패 redirect target (CSP 정합 — inline script X)
+function buildRedirectTarget({ ok, error, isNewUser }) {
   if (!ok) {
     const safeErr = encodeURIComponent(error || 'unknown_error');
     return `/login?oauth_error=${safeErr}`;
   }
-  const safeToken = token || '';
-  const next = isNewUser ? 'onboarding' : 'inbox';
-  return `/oauth/callback#token=${encodeURIComponent(safeToken)}&next=${next}`;
+  // 신규 사용자 → onboarding, 기존 → inbox
+  // AuthContext mount 시 tryRefresh() 가 자동 호출되어 refresh_token cookie 로 access token 받음
+  return isNewUser ? '/onboarding' : '/inbox';
+}
+
+// refresh_token cookie 발급 — 옛 login 라우트와 동일
+async function issueSessionCookie(req, res, user) {
+  const clientKind = resolveClientKind(req);
+  const refreshToken = generateRefreshToken(user, clientKind);
+  await createRefreshTokenRow(user, refreshToken, req, null, { clientKind });
+  await user.update({ last_login_at: new Date() });
+  const cookieOpts = {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    path: '/api/auth',
+    maxAge: TTL_MS_BY_KIND[clientKind],
+  };
+  res.cookie('refresh_token', refreshToken, cookieOpts);
 }
 
 // 1. Google OAuth 시작
@@ -98,8 +103,9 @@ router.get('/google/callback', async (req, res) => {
       return res.redirect(302, buildRedirectTarget({ ok: false, error: 'account_suspended' }));
     }
 
-    const token = generateJwt(user);
-    return res.redirect(302, buildRedirectTarget({ ok: true, token, isNewUser }));
+    // refresh_token cookie 발급 (옛 /login 패턴 정합) — AuthContext 가 mount 시 자동 refresh
+    await issueSessionCookie(req, res, user);
+    return res.redirect(302, buildRedirectTarget({ ok: true, isNewUser }));
   } catch (e) {
     console.error('[auth_oauth/google/callback]', e);
     return res.redirect(302, buildRedirectTarget({ ok: false, error: e.message || 'oauth_failed' }));
