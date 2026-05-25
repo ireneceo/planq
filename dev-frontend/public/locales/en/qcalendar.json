@@ -113,7 +113,15 @@
     "reminderNone": "No reminder",
     "reminderMin": "{{count}} min before",
     "reminderHour": "{{count}} hour before",
-    "reminderDay": "{{count}} day before"
+    "reminderDay": "{{count}} day before",
+    "scopeTitle": "Apply changes to",
+    "scopeDesc": "Which occurrences of this recurring event should change?",
+    "scopeSingle": "This event only",
+    "scopeSingleHint": "Change only the selected occurrence",
+    "scopeFuture": "This and following events",
+    "scopeFutureHint": "Change this and all future occurrences",
+    "scopeAll": "All events",
+    "scopeAllHint": "Change all past and future occurrences"
   },
   "empty": {
     "month": "No events this month",

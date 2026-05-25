@@ -113,7 +113,15 @@
     "reminderNone": "알림 없음",
     "reminderMin": "{{count}}분 전",
     "reminderHour": "{{count}}시간 전",
-    "reminderDay": "{{count}}일 전"
+    "reminderDay": "{{count}}일 전",
+    "scopeTitle": "변경 범위 선택",
+    "scopeDesc": "이 정기 일정의 어느 회차까지 변경할까요?",
+    "scopeSingle": "이 일정만",
+    "scopeSingleHint": "선택한 회차만 변경. 다른 회차는 그대로",
+    "scopeFuture": "이 일정 이후 모두",
+    "scopeFutureHint": "이 회차부터 미래 회차까지 변경. 과거 회차는 그대로",
+    "scopeAll": "모든 일정",
+    "scopeAllHint": "과거·미래 모든 회차 변경"
   },
   "empty": {
     "month": "이번 달엔 예정된 일정이 없습니다",

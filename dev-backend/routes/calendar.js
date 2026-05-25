@@ -138,17 +138,40 @@ router.get('/by-business/:businessId', authenticateToken, attachWorkspaceScope()
       order: [['start_at', 'ASC']],
     });
 
-    // RRULE expansion — 반복 이벤트를 개별 instance 로 분해
+    // RRULE expansion — 반복 이벤트를 개별 instance 로 분해.
+    // N+63 P2a — exception_dates 의 회차는 skip (EXDATE), exception child 는 별도 fetch 해서
+    //   같은 recurrence_id (회차 date) 의 master instance 자리에 child 가 대체.
+    // 1단계: master rawEvents 분류 + exception child 별도 fetch
+    const masterIds = rawEvents.filter(e => e.rrule).map(e => e.id);
+    const exceptionChildren = masterIds.length > 0
+      ? await CalendarEvent.findAll({
+          where: {
+            recurrence_parent_id: { [Op.in]: masterIds },
+            // 범위 overlap
+            start_at: { [Op.lt]: end },
+            end_at: { [Op.gt]: start },
+          },
+          include: INCLUDE_DETAIL,
+        })
+      : [];
+    // recurrence_id (YYYY-MM-DD) 별로 exception child 인덱싱
+    const exceptionByParentDate = new Map();
+    for (const child of exceptionChildren) {
+      const key = `${child.recurrence_parent_id}_${child.recurrence_id}`;
+      exceptionByParentDate.set(key, child.toJSON());
+    }
+
     let events = [];
     for (const e of rawEvents) {
       const json = e.toJSON();
+      // child (exception) 는 master expansion 안에서 대체 — 단독으로 push 하지 않음 (중복 방지)
+      if (json.recurrence_parent_id) continue;
       if (!json.rrule) {
         events.push(json);
         continue;
       }
       try {
         const dur = new Date(json.end_at).getTime() - new Date(json.start_at).getTime();
-        // RRULE 문자열 정규화 — DTSTART 포함되지 않은 경우 rule 로부터 파싱
         const ruleSrc = json.rrule.startsWith('RRULE:') || json.rrule.startsWith('DTSTART')
           ? json.rrule
           : `RRULE:${json.rrule}`;
@@ -156,20 +179,36 @@ router.get('/by-business/:businessId', authenticateToken, attachWorkspaceScope()
         const instances = rule instanceof RRule
           ? rule.between(start, end, true)
           : rule.between(start, end, true);
+        // exception_dates set (YYYY-MM-DD) — EXDATE 처리
+        const exDates = new Set((Array.isArray(json.exception_dates) ? json.exception_dates : []).map(d => String(d).slice(0, 10)));
         for (const inst of instances) {
+          const instDate = inst.toISOString().slice(0, 10);
+          // EXDATE 의 회차 = master 에서 skip
+          if (exDates.has(instDate)) {
+            // child 가 대체 있는지
+            const child = exceptionByParentDate.get(`${json.id}_${instDate}`);
+            if (child) events.push({ ...child, _is_exception: true, _parent_event_id: json.id });
+            continue;
+          }
           events.push({
             ...json,
             start_at: inst.toISOString(),
             end_at: new Date(inst.getTime() + dur).toISOString(),
-            _instance_key: `${json.id}_${inst.toISOString().slice(0, 10)}`,
+            _instance_key: `${json.id}_${instDate}`,
             _parent_event_id: json.id,
           });
         }
       } catch (err) {
         console.error('rrule expansion failed', json.id, err.message);
-        // 실패 시 원본 이벤트만 포함
         events.push(json);
       }
+    }
+    // exception child 가 master 범위 밖이라 위 loop 에서 안 잡힌 경우 별도 push
+    for (const child of exceptionChildren) {
+      const cjson = child.toJSON();
+      const cdate = String(cjson.recurrence_id).slice(0, 10);
+      const alreadyAdded = events.some(e => e._is_exception && e.id === cjson.id);
+      if (!alreadyAdded) events.push({ ...cjson, _is_exception: true, _parent_event_id: cjson.recurrence_parent_id });
     }
 
     // scope=mine — 내가 만들었거나 attendee 인 것만
@@ -393,6 +432,162 @@ router.get('/by-business/:businessId/:id', authenticateToken, attachWorkspaceSco
   } catch (err) { next(err); }
 });
 
+// N+63 P2a — 정기일정 scope 변경 (single|future). RFC 5545 exception pattern.
+// 호출 시점: PUT 라우트 안에서 master event + scope ∈ {single, future} 일 때.
+// single: master.exception_dates += [recurrence_id] + 새 child event 생성
+// future: master.rrule += UNTIL=recurrence_id-1 + 새 master event 생성 (새 rrule + 새 start_at)
+async function handleRecurrenceScopeUpdate({ req, res, event, scope, businessId }) {
+  const t = await sequelize.transaction();
+  try {
+    const body = req.body || {};
+    const targetDateStr = String(body.recurrence_id || body.from_date || '').slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(targetDateStr)) {
+      await t.rollback();
+      return errorResponse(res, 'recurrence_id (YYYY-MM-DD) required for scope=single|future', 400);
+    }
+    const targetDate = new Date(`${targetDateStr}T00:00:00Z`);
+
+    // 변경된 instance 의 새 start/end — body 우선, 없으면 master 의 시간 사용
+    //   (target date 의 시각만 변경, 시간 부분은 master 의 시간 그대로 또는 body 명시값)
+    const masterStart = new Date(event.start_at);
+    const masterDur = new Date(event.end_at).getTime() - masterStart.getTime();
+    let newStart;
+    if (body.start_at) {
+      newStart = parseDate(body.start_at);
+      if (!newStart) { await t.rollback(); return errorResponse(res, 'invalid start_at', 400); }
+    } else {
+      // master 의 시각 (시:분) + target 의 날짜
+      newStart = new Date(targetDate);
+      newStart.setUTCHours(masterStart.getUTCHours(), masterStart.getUTCMinutes(), 0, 0);
+    }
+    let newEnd;
+    if (body.end_at) {
+      newEnd = parseDate(body.end_at);
+      if (!newEnd) { await t.rollback(); return errorResponse(res, 'invalid end_at', 400); }
+    } else {
+      newEnd = new Date(newStart.getTime() + masterDur);
+    }
+
+    if (scope === 'single') {
+      // 1. master.exception_dates 에 targetDateStr 추가 (set)
+      const existing = Array.isArray(event.exception_dates) ? event.exception_dates : [];
+      const exSet = new Set(existing.map(d => String(d).slice(0, 10)));
+      exSet.add(targetDateStr);
+      await event.update({ exception_dates: Array.from(exSet).sort() }, { transaction: t });
+
+      // 2. 새 child event (rrule 없는 exception)
+      const child = await CalendarEvent.create({
+        business_id: event.business_id,
+        project_id: body.project_id !== undefined ? body.project_id : event.project_id,
+        title: (body.title?.trim()) || event.title,
+        description: body.description !== undefined ? (body.description?.trim() || null) : event.description,
+        location: body.location !== undefined ? (body.location?.trim() || null) : event.location,
+        start_at: newStart,
+        end_at: newEnd,
+        all_day: body.all_day !== undefined ? !!body.all_day : event.all_day,
+        category: body.category && CATEGORY_SET.has(body.category) ? body.category : event.category,
+        color: body.color && HEX_RE.test(body.color) ? body.color : event.color,
+        rrule: null,  // child = single exception. rrule 없음
+        meeting_url: event.meeting_url,
+        meeting_provider: event.meeting_provider,
+        visibility: event.visibility,
+        created_by: req.user.id,
+        recurrence_parent_id: event.id,
+        recurrence_id: targetDateStr,
+        reminder_minutes: event.reminder_minutes,
+      }, { transaction: t });
+
+      // 3. attendees 복사 (master 의 attendees)
+      const masterAttendees = await CalendarEventAttendee.findAll({ where: { event_id: event.id } });
+      if (masterAttendees.length > 0) {
+        await CalendarEventAttendee.bulkCreate(
+          masterAttendees.map(a => ({ event_id: child.id, user_id: a.user_id, client_id: a.client_id, response: 'pending' })),
+          { transaction: t }
+        );
+      }
+
+      await t.commit();
+      await createAuditLog({
+        user_id: req.user.id, business_id: businessId,
+        action: 'event.recurrence_exception',
+        target_type: 'calendar_event', target_id: event.id,
+        new_value: { recurrence_id: targetDateStr, child_id: child.id },
+        ip_address: req.ip,
+      });
+      const full = await CalendarEvent.findByPk(child.id, { include: INCLUDE_DETAIL });
+      broadcastEvent(req, full, 'event:updated');
+      return successResponse(res, full.toJSON());
+    }
+
+    // scope === 'future'
+    // 1. master.rrule 에 UNTIL=targetDate-1 추가 (target 직전 날까지만 유효)
+    const dayBefore = new Date(targetDate.getTime() - 24 * 60 * 60 * 1000);
+    const untilStr = formatRRuleUntil(dayBefore);
+    const ruleSrc = event.rrule.startsWith('RRULE:') ? event.rrule : `RRULE:${event.rrule}`;
+    const oldRule = rrulestr(ruleSrc, { dtstart: new Date(event.start_at) });
+    const oldOpts = oldRule instanceof RRule ? oldRule.options : oldRule.rrules()[0].options;
+    const newOldRule = new RRule({ ...oldOpts, until: dayBefore, count: null });
+    await event.update({ rrule: newOldRule.toString().replace(/^DTSTART[^\n]*\n/, '') }, { transaction: t });
+
+    // 2. 새 master event 생성 (새 start = targetDate + 시각, 같은 rrule pattern but 새 DTSTART)
+    //    body 의 rrule 명시되면 그것 사용, 없으면 옛 rrule 의 FREQ 등 유지 (UNTIL 제거)
+    const newMasterRule = body.rrule || event.rrule.replace(/;?UNTIL=[^;]+/i, '').replace(/;?COUNT=[^;]+/i, '');
+    const newMaster = await CalendarEvent.create({
+      business_id: event.business_id,
+      project_id: body.project_id !== undefined ? body.project_id : event.project_id,
+      title: (body.title?.trim()) || event.title,
+      description: body.description !== undefined ? (body.description?.trim() || null) : event.description,
+      location: body.location !== undefined ? (body.location?.trim() || null) : event.location,
+      start_at: newStart,
+      end_at: newEnd,
+      all_day: body.all_day !== undefined ? !!body.all_day : event.all_day,
+      category: body.category && CATEGORY_SET.has(body.category) ? body.category : event.category,
+      color: body.color && HEX_RE.test(body.color) ? body.color : event.color,
+      rrule: newMasterRule,
+      meeting_url: event.meeting_url,
+      meeting_provider: event.meeting_provider,
+      visibility: event.visibility,
+      created_by: req.user.id,
+      reminder_minutes: event.reminder_minutes,
+    }, { transaction: t });
+
+    const masterAttendees2 = await CalendarEventAttendee.findAll({ where: { event_id: event.id } });
+    if (masterAttendees2.length > 0) {
+      await CalendarEventAttendee.bulkCreate(
+        masterAttendees2.map(a => ({ event_id: newMaster.id, user_id: a.user_id, client_id: a.client_id, response: 'pending' })),
+        { transaction: t }
+      );
+    }
+
+    await t.commit();
+    await createAuditLog({
+      user_id: req.user.id, business_id: businessId,
+      action: 'event.recurrence_split',
+      target_type: 'calendar_event', target_id: event.id,
+      new_value: { from_date: targetDateStr, new_master_id: newMaster.id, old_rrule_until: untilStr },
+      ip_address: req.ip,
+    });
+    const full = await CalendarEvent.findByPk(newMaster.id, { include: INCLUDE_DETAIL });
+    broadcastEvent(req, full, 'event:updated');
+    return successResponse(res, full.toJSON());
+  } catch (err) {
+    if (!t.finished) await t.rollback();
+    console.error('[recurrence scope]', err);
+    return errorResponse(res, 'recurrence_scope_failed: ' + err.message, 500);
+  }
+}
+
+function formatRRuleUntil(d) {
+  // RRULE 표준 UNTIL = YYYYMMDDTHHmmssZ (UTC)
+  const y = d.getUTCFullYear();
+  const m = String(d.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(d.getUTCDate()).padStart(2, '0');
+  const hh = String(d.getUTCHours()).padStart(2, '0');
+  const mm = String(d.getUTCMinutes()).padStart(2, '0');
+  const ss = String(d.getUTCSeconds()).padStart(2, '0');
+  return `${y}${m}${day}T${hh}${mm}${ss}Z`;
+}
+
 // ============================================
 // PUT /by-business/:businessId/:id — 수정
 // attendees 배열이 오면 전체 교체
@@ -412,6 +607,18 @@ router.put('/by-business/:businessId/:id', authenticateToken, checkBusinessAcces
     if (event.created_by !== req.user.id && bm.role !== 'owner') {
       await t.rollback();
       return errorResponse(res, 'only_creator_or_owner', 403);
+    }
+
+    // N+63 P2a — 정기일정 scope 분기 (single|future|all). default=all (기존 동작).
+    //   single: master 의 exception_dates 에 recurrence_id 추가 + 새 child event 생성 (변경된 attr)
+    //   future: master rrule 에 UNTIL=recurrence_id-1 추가 + 새 master event 생성 (새 rrule, 새 start_at)
+    //   all   : 기존 PUT 그대로 — master 만 변경 (모든 회차 영향)
+    // master event (rrule != null) 가 아니거나 scope=all 이면 기존 흐름 그대로.
+    const scope = String(req.query.scope || 'all').toLowerCase();
+    const isMaster = !!event.rrule && !event.recurrence_parent_id;
+    if (isMaster && (scope === 'single' || scope === 'future')) {
+      await t.rollback();
+      return await handleRecurrenceScopeUpdate({ req, res, event, scope, businessId });
     }
 
     const {
@@ -586,8 +793,59 @@ router.delete('/by-business/:businessId/:id', authenticateToken, checkBusinessAc
       return errorResponse(res, 'only_creator_or_owner', 403);
     }
 
+    // N+63 P2a — scope 분기. master event 일 때만 적용.
+    //   single: master.exception_dates += [recurrence_id] (이 회차만 skip, master/children 유지)
+    //   future: master.rrule += UNTIL=recurrence_id-1 (이 날짜 이후 회차 모두 skip)
+    //   all   : master + 모든 child exception 까지 cascade 삭제 (default 변경 — 옛은 master 만)
+    const delScope = String(req.query.scope || 'all').toLowerCase();
+    const isMasterDel = !!event.rrule && !event.recurrence_parent_id;
+    if (isMasterDel && (delScope === 'single' || delScope === 'future')) {
+      const targetDateStr = String(req.query.recurrence_id || '').slice(0, 10);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(targetDateStr)) {
+        return errorResponse(res, 'recurrence_id (YYYY-MM-DD) required for scope=single|future', 400);
+      }
+      if (delScope === 'single') {
+        const ex = Array.isArray(event.exception_dates) ? event.exception_dates : [];
+        const exSet = new Set(ex.map(d => String(d).slice(0, 10)));
+        exSet.add(targetDateStr);
+        await event.update({ exception_dates: Array.from(exSet).sort() });
+        // 같은 회차의 child exception 도 cascade 삭제
+        await CalendarEvent.destroy({ where: { recurrence_parent_id: event.id, recurrence_id: targetDateStr } });
+      } else {
+        // future
+        const dayBefore = new Date(`${targetDateStr}T00:00:00Z`);
+        dayBefore.setUTCDate(dayBefore.getUTCDate() - 1);
+        const untilStr = formatRRuleUntil(dayBefore);
+        const ruleSrc = event.rrule.startsWith('RRULE:') ? event.rrule : `RRULE:${event.rrule}`;
+        const oldRule = rrulestr(ruleSrc, { dtstart: new Date(event.start_at) });
+        const oldOpts = oldRule instanceof RRule ? oldRule.options : oldRule.rrules()[0].options;
+        const newOldRule = new RRule({ ...oldOpts, until: dayBefore, count: null });
+        await event.update({ rrule: newOldRule.toString().replace(/^DTSTART[^\n]*\n/, '') });
+        // target 이후 child exception 도 cascade 삭제
+        await CalendarEvent.destroy({
+          where: {
+            recurrence_parent_id: event.id,
+            recurrence_id: { [Op.gte]: targetDateStr },
+          },
+        });
+      }
+      await createAuditLog({
+        user_id: req.user.id, business_id: businessId,
+        action: delScope === 'single' ? 'event.recurrence_skip' : 'event.recurrence_truncate',
+        target_type: 'calendar_event', target_id: event.id,
+        new_value: { scope: delScope, recurrence_id: targetDateStr },
+        ip_address: req.ip,
+      });
+      broadcastEvent(req, await CalendarEvent.findByPk(event.id, { include: INCLUDE_DETAIL }), 'event:updated');
+      return successResponse(res, { id: event.id, scope: delScope, recurrence_id: targetDateStr });
+    }
+
     const snapshot = { title: event.title, start_at: event.start_at, end_at: event.end_at };
     const savedGcalEventId = event.gcal_event_id;  // N+63 — destroy 전 snapshot
+    // P2a — master 삭제 시 children cascade
+    if (isMasterDel) {
+      await CalendarEvent.destroy({ where: { recurrence_parent_id: event.id } });
+    }
     await event.destroy();
 
     // N+63 — Google Calendar sync (best-effort, destroy 후)

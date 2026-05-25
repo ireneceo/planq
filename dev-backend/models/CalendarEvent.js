@@ -42,6 +42,13 @@ CalendarEvent.init({
   reminder_minutes: { type: DataTypes.INTEGER, allowNull: true },
   // 중복 발송 방지 — cron 이 한 이벤트당 한 번만 발송. null = 아직 안 보냄.
   reminder_sent_at: { type: DataTypes.DATE, allowNull: true },
+  // N+63 P2a — 정기일정 "이 일정만" / "앞으로 모두" 변경 (RFC 5545 exception pattern).
+  //   recurrence_parent_id: null = master (rrule 보유) 또는 일반 단일. 값 = exception child (이 회차만 다름)
+  //   recurrence_id: exception child 가 대체하는 master 의 회차 date (YYYY-MM-DD)
+  //   exception_dates: master 의 EXDATE 배열 — rrule expansion 시 이 date 의 회차는 skip
+  recurrence_parent_id: { type: DataTypes.BIGINT, allowNull: true },
+  recurrence_id: { type: DataTypes.DATEONLY, allowNull: true },
+  exception_dates: { type: DataTypes.JSON, allowNull: true, defaultValue: null },
   // 공용(business) / 개인(personal) — personal 은 created_by 본인만 조회
   visibility: {
     type: DataTypes.ENUM('personal', 'business'),

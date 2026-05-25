@@ -45,8 +45,18 @@ export async function createEvent(bizId: number, payload: Partial<CalendarEvent>
   return handle<CalendarEvent>(res);
 }
 
-export async function updateEvent(bizId: number, id: number, patch: Partial<CalendarEvent>): Promise<CalendarEvent> {
-  const res = await apiFetch(`/api/calendar/by-business/${bizId}/${id}`, {
+// N+63 P2a — scope option. master event (rrule) 의 시간/title 변경 시:
+//   scope='single' + recurrence_id (YYYY-MM-DD): 이 회차만 (child exception 생성)
+//   scope='future' + from_date: 이 날짜 이후 모두 (master split)
+//   scope='all' (default): 모든 회차 (기존 동작)
+export async function updateEvent(
+  bizId: number,
+  id: number,
+  patch: Partial<CalendarEvent> & { recurrence_id?: string | null; from_date?: string | null },
+  scope: 'single' | 'future' | 'all' = 'all',
+): Promise<CalendarEvent> {
+  const qs = scope !== 'all' ? `?scope=${scope}` : '';
+  const res = await apiFetch(`/api/calendar/by-business/${bizId}/${id}${qs}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(patch),
@@ -54,8 +64,16 @@ export async function updateEvent(bizId: number, id: number, patch: Partial<Cale
   return handle<CalendarEvent>(res);
 }
 
-export async function deleteEvent(bizId: number, id: number): Promise<void> {
-  const res = await apiFetch(`/api/calendar/by-business/${bizId}/${id}`, { method: 'DELETE' });
+export async function deleteEvent(
+  bizId: number,
+  id: number,
+  scope: 'single' | 'future' | 'all' = 'all',
+  recurrenceId?: string,
+): Promise<void> {
+  const qs = scope !== 'all'
+    ? `?scope=${scope}&recurrence_id=${encodeURIComponent(recurrenceId || '')}`
+    : '';
+  const res = await apiFetch(`/api/calendar/by-business/${bizId}/${id}${qs}`, { method: 'DELETE' });
   await handle<unknown>(res);
 }
 
