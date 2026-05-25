@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
-import type { CalendarEvent, EventCategory, EventVisibility } from './types';
+import type { CalendarEvent, EventCategory } from './types';
+import VisibilityField, { serializeVisibility, parseVisibility, type VisibilityValue } from '../../components/Common/VisibilityField';
 import { CATEGORY_OPTIONS, getEventColors } from './categoryColors';
 import { toDateKey, formatTime } from './dateUtils';
 import DetailDrawer from '../../components/Common/DetailDrawer';
@@ -31,8 +32,8 @@ interface ProjectOption {
   color?: string | null;
 }
 
-interface MemberOption { user_id: number; name: string; }
-interface ClientOption { id: number; display_name?: string | null; company_name?: string | null; }
+interface MemberOption { user_id: number; name: string; role?: string }
+interface ClientOption { id: number; display_name?: string | null; company_name?: string | null; biz_name?: string | null; }
 
 interface Props {
   event: CalendarEvent | null;
@@ -344,22 +345,35 @@ const EventDrawer: React.FC<Props> = ({
             </CategoryRow>
             {canEdit && (
               <Grid2>
-                <Field>
+                <Field style={{ gridColumn: '1 / -1' }}>
                   <FieldLabel>{t('form.visibility', '공개 범위')}</FieldLabel>
-                  <AutoSaveField type="select" onSave={async () => { /* PlanQSelect onChange 가 직접 호출 — 아래 */ }}>
-                    <PlanQSelect
-                      size="sm"
-                      options={[
-                        { value: 'business', label: t('visibility.business') },
-                        { value: 'personal', label: t('visibility.personal') },
-                      ]}
-                      value={{ value: event.visibility, label: t(`visibility.${event.visibility}`) }}
-                      onChange={(opt) => {
-                        const v = (opt as { value?: EventVisibility } | null)?.value;
-                        if (v && v !== event.visibility) updateMaybeScoped({ visibility: v });
-                      }}
-                    />
-                  </AutoSaveField>
+                  {/* N+66 — 통합 VisibilityField (NewEventModal · KnowledgePage 정합). 옛 personal/business 2 select 폐지. */}
+                  <VisibilityField
+                    value={parseVisibility({
+                      vlevel: event.vlevel ?? null,
+                      scope: null,
+                      read_policy: null,
+                      project_id: event.project_id ?? null,
+                      client_id: null,
+                      client_ids: event.target_client_ids ?? null,
+                      target_member_ids: event.target_member_ids ?? null,
+                    })}
+                    onChange={(v: VisibilityValue) => {
+                      const ser = serializeVisibility(v);
+                      const patch: Partial<CalendarEvent> = {
+                        vlevel: v.vlevel,
+                        target_member_ids: ser.target_member_ids,
+                        target_client_ids: v.variant === 'L4' ? ser.client_ids : [],
+                        // legacy backward-compat (hook 가 자동 동기지만 explicit)
+                        visibility: v.vlevel === 'L1' ? 'personal' : 'business',
+                      };
+                      if (v.variant === 'L2_project') patch.project_id = ser.project_id;
+                      updateMaybeScoped(patch);
+                    }}
+                    projects={(projects || []).map(p => ({ id: p.id, name: p.name }))}
+                    clients={(clients || []).map(c => ({ id: c.id, display_name: c.display_name || c.company_name }))}
+                    members={(members || []).map(m => ({ user_id: m.user_id, name: m.name, role: m.role || 'member' }))}
+                  />
                 </Field>
                 <Field>
                   <FieldLabel>{t('form.project')}</FieldLabel>
