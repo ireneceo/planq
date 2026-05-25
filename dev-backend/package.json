@@ -1,6 +1,6 @@
 {
   "name": "planq-backend",
-  "version": "1.19.1",
+  "version": "1.20.0",
   "description": "PlanQ - B2B Business Communication & Task OS",
   "main": "server.js",
   "scripts": {
