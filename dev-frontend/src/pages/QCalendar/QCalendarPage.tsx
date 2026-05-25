@@ -71,6 +71,7 @@ const QCalendarPage: React.FC = () => {
     return q ? Number(q) : null;
   });
   const [members, setMembers] = useState<Array<{ user_id: number; name: string }>>([]);
+  const [clientsList, setClientsList] = useState<Array<{ id: number; display_name?: string | null; company_name?: string | null }>>([]);
   useEffect(() => {
     if (!bizId) return;
     apiFetch(`/api/businesses/${bizId}/members`).then((r) => r.json()).then((j) => {
@@ -78,6 +79,16 @@ const QCalendarPage: React.FC = () => {
         setMembers((j.data || []).map((m: { user_id: number; name?: string | null; User?: { name: string } }) => ({
           user_id: m.user_id, name: m.name || m.User?.name || `#${m.user_id}`,
         })));
+      }
+    }).catch(() => {});
+    // N+63 — 클라이언트 attendee picker. active 클라이언트만.
+    apiFetch(`/api/clients/${bizId}`).then((r) => r.json()).then((j) => {
+      if (j.success) {
+        setClientsList((j.data || [])
+          .filter((c: { status?: string }) => c.status === 'active')
+          .map((c: { id: number; display_name?: string | null; company_name?: string | null }) => ({
+            id: c.id, display_name: c.display_name, company_name: c.company_name,
+          })));
       }
     }).catch(() => {});
   }, [bizId]);
@@ -443,6 +454,7 @@ const QCalendarPage: React.FC = () => {
           event={selectedEvent}
           projects={projects}
           members={members}
+          clients={clientsList}
           myUserId={myUserId}
           myBusinessRole={user?.business_role || null}
           onClose={() => setSelectedEventId(null)}

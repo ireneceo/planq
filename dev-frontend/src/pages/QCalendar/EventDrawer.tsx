@@ -32,11 +32,13 @@ interface ProjectOption {
 }
 
 interface MemberOption { user_id: number; name: string; }
+interface ClientOption { id: number; display_name?: string | null; company_name?: string | null; }
 
 interface Props {
   event: CalendarEvent | null;
   projects?: ProjectOption[];
   members?: MemberOption[];
+  clients?: ClientOption[];
   myUserId?: number | null;
   myBusinessRole?: string | null;
   onClose: () => void;
@@ -58,7 +60,7 @@ const mkISO = (dateStr: string, timeStr: string, allDay: boolean, isEnd: boolean
 };
 
 const EventDrawer: React.FC<Props> = ({
-  event, projects = [], members = [], myUserId, myBusinessRole,
+  event, projects = [], members = [], clients = [], myUserId, myBusinessRole,
   onClose, onUpdate, onDelete, onCreateMeetingRoom, gcalConnected,
 }) => {
   const { t, i18n } = useTranslation('qcalendar');
@@ -351,6 +353,50 @@ const EventDrawer: React.FC<Props> = ({
           </SectionBody>
         </Section>
 
+        {/* N+63 — 임박 알림 (reminder_minutes). 5분/10분/15분/30분/1시간/1일 + 없음 */}
+        <Section>
+          <SectionIcon>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+              <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+            </svg>
+          </SectionIcon>
+          <SectionBody>
+            <MutedSmall>{t('drawer.reminder', '임박 알림')}</MutedSmall>
+            {canEdit ? (
+              <AutoSaveField type="select" onSave={async () => { /* onChange 직접 호출 */ }}>
+                <PlanQSelect
+                  size="sm"
+                  isClearable
+                  placeholder={t('drawer.reminderNone', '알림 없음') as string}
+                  options={[
+                    { value: 5, label: t('drawer.reminderMin', { count: 5, defaultValue: '{{count}}분 전' }) as string },
+                    { value: 10, label: t('drawer.reminderMin', { count: 10, defaultValue: '{{count}}분 전' }) as string },
+                    { value: 15, label: t('drawer.reminderMin', { count: 15, defaultValue: '{{count}}분 전' }) as string },
+                    { value: 30, label: t('drawer.reminderMin', { count: 30, defaultValue: '{{count}}분 전' }) as string },
+                    { value: 60, label: t('drawer.reminderHour', { count: 1, defaultValue: '{{count}}시간 전' }) as string },
+                    { value: 1440, label: t('drawer.reminderDay', { count: 1, defaultValue: '{{count}}일 전' }) as string },
+                  ]}
+                  value={(event as CalendarEvent & { reminder_minutes?: number | null }).reminder_minutes
+                    ? { value: (event as CalendarEvent & { reminder_minutes?: number | null }).reminder_minutes!, label: '' }
+                    : null}
+                  onChange={(opt) => {
+                    const v = opt ? Number((opt as { value: number }).value) : null;
+                    const cur = (event as CalendarEvent & { reminder_minutes?: number | null }).reminder_minutes ?? null;
+                    if (v !== cur) onUpdate({ reminder_minutes: v } as unknown as Partial<CalendarEvent>);
+                  }}
+                />
+              </AutoSaveField>
+            ) : (
+              <Plain>
+                {(event as CalendarEvent & { reminder_minutes?: number | null }).reminder_minutes
+                  ? t('drawer.reminderMin', { count: (event as CalendarEvent & { reminder_minutes?: number }).reminder_minutes })
+                  : t('drawer.reminderNone', '알림 없음')}
+              </Plain>
+            )}
+          </SectionBody>
+        </Section>
+
         {/* 정기 일정 — RecurrencePicker */}
         <Section>
           <SectionIcon>
@@ -527,27 +573,50 @@ const EventDrawer: React.FC<Props> = ({
                 })}
               </AttendeeList>
             )}
-            {canEdit && members.length > 0 && (() => {
+            {canEdit && (members.length > 0 || clients.length > 0) && (() => {
               const existingUserIds = new Set((event.attendees || []).map(a => a.user_id).filter(Boolean));
-              const addable = members.filter(m => !existingUserIds.has(m.user_id));
-              if (addable.length === 0) return null;
+              const existingClientIds = new Set((event.attendees || []).map(a => a.client_id).filter(Boolean));
+              const addableMembers = members.filter(m => !existingUserIds.has(m.user_id));
+              const addableClients = clients.filter(c => !existingClientIds.has(c.id));
+              if (addableMembers.length === 0 && addableClients.length === 0) return null;
+              // 통합 picker — 멤버/고객 grouped options. value prefix 로 분기:
+              //   'u-{userId}' = 멤버, 'c-{clientId}' = 고객
+              const groupedOptions = [
+                ...(addableMembers.length > 0 ? [{
+                  label: t('drawer.attendeeGroupMember', '멤버') as string,
+                  options: addableMembers.map(m => ({ value: `u-${m.user_id}`, label: m.name })),
+                }] : []),
+                ...(addableClients.length > 0 ? [{
+                  label: t('drawer.attendeeGroupClient', '고객') as string,
+                  options: addableClients.map(c => ({
+                    value: `c-${c.id}`,
+                    label: c.display_name || c.company_name || `#${c.id}`,
+                  })),
+                }] : []),
+              ];
               return (
                 <AddAttendeeRow>
                   <PlanQSelect
                     size="sm"
                     placeholder={t('drawer.addAttendee', '+ 참석자 추가') as string}
-                    options={addable.map(m => ({ value: m.user_id, label: m.name }))}
+                    options={groupedOptions}
                     value={null}
                     onChange={(opt) => {
-                      const v = opt ? Number((opt as { value: number }).value) : null;
+                      const v = opt ? String((opt as { value: string }).value) : '';
                       if (!v) return;
+                      const [kind, idStr] = v.split('-');
+                      const id = Number(idStr);
+                      if (!id) return;
+                      const newRow = kind === 'c'
+                        ? { client_id: id, response: 'pending' as const }
+                        : { user_id: id, response: 'pending' as const };
                       const next = [
                         ...(event.attendees || []).map(x => ({
                           user_id: x.user_id ?? undefined,
                           client_id: x.client_id ?? undefined,
                           response: x.response,
                         })),
-                        { user_id: v, response: 'pending' as const },
+                        newRow,
                       ];
                       onUpdate({ attendees: next as unknown as CalendarEvent['attendees'] });
                     }}

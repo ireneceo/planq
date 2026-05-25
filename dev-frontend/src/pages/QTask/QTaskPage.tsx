@@ -3022,6 +3022,12 @@ const EdgeHandle=styled.button<{$onPanel?:boolean}>`
     0%, 100% { transform: translateX(0); }
     50% { transform: translateX(2px); }
   }
+  @media (prefers-reduced-motion: reduce) {
+    transition: none;
+    &:hover { width: 12px; height: 72px; }
+    &:hover svg { animation: none; }
+    &:active { transform: translate(-50%,-50%); }
+  }
 `;
 const EdgeChevron=styled.span`
   display:flex;align-items:center;justify-content:center;

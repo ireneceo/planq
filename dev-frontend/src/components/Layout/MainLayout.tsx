@@ -115,6 +115,12 @@ const SidebarToggleButton = styled.button`
     0%, 100% { transform: translateX(0); }
     50% { transform: translateX(2px); }
   }
+  @media (prefers-reduced-motion: reduce) {
+    transition: none;
+    &:hover { transform: none; }
+    &:hover svg { animation: none; }
+    &:active { transform: none; }
+  }
   ${mediaTablet} { display: none; }
 `;
 
@@ -329,6 +335,12 @@ const SecondaryCloseButton = styled.button`
   @keyframes chevronNudge {
     0%, 100% { transform: translateX(0); }
     50% { transform: translateX(2px); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    transition: none;
+    &:hover { transform: none; }
+    &:hover svg { animation: none; }
+    &:active { transform: none; }
   }
 `;
 

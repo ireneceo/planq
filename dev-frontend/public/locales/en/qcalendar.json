@@ -104,7 +104,16 @@
     "reissuing": "Reissuing...",
     "reissueHint": "Reissue expired links. Recurring meetings require one link valid for all occurrences.",
     "noLocation": "No location",
-    "noDescription": "No description"
+    "noDescription": "No description",
+    "addAttendee": "+ Add attendee",
+    "removeAttendee": "Remove",
+    "attendeeGroupMember": "Members",
+    "attendeeGroupClient": "Clients",
+    "reminder": "Reminder",
+    "reminderNone": "No reminder",
+    "reminderMin": "{{count}} min before",
+    "reminderHour": "{{count}} hour before",
+    "reminderDay": "{{count}} day before"
   },
   "empty": {
     "month": "No events this month",

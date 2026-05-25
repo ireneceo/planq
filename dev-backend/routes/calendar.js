@@ -211,6 +211,7 @@ router.post('/by-business/:businessId', authenticateToken, checkBusinessAccess, 
       auto_create_meeting,
       visibility, project_id,
       attendees = [],
+      reminder_minutes,  // N+63 — 임박 알림 (5/10/15/30/60 분 등). null = OFF
     } = req.body || {};
 
     if (!title?.trim()) { await t.rollback(); return errorResponse(res, 'title is required', 400); }
@@ -278,6 +279,9 @@ router.post('/by-business/:businessId', authenticateToken, checkBusinessAccess, 
       meeting_url: finalMeetingUrl,
       meeting_provider: finalMeetingProvider,
       gcal_event_id: finalGcalEventId,
+      reminder_minutes: Number.isFinite(Number(reminder_minutes)) && Number(reminder_minutes) > 0
+        ? Math.min(10080, Number(reminder_minutes))  // max 1주 (7 * 24 * 60)
+        : null,
       visibility: VISIBILITY_SET.has(visibility) ? visibility : 'business',
       created_by: req.user.id,
     }, { transaction: t });
@@ -417,6 +421,7 @@ router.put('/by-business/:businessId/:id', authenticateToken, checkBusinessAcces
       meeting_url, meeting_provider,
       visibility, project_id,
       attendees,
+      reminder_minutes,  // N+63 — 변경 시 reminder_sent_at 도 리셋 (다시 보낼 수 있게)
     } = req.body || {};
 
     const updates = {};
@@ -458,6 +463,18 @@ router.put('/by-business/:businessId/:id', authenticateToken, checkBusinessAcces
         if (!prj) { await t.rollback(); return errorResponse(res, 'invalid_project', 400); }
         updates.project_id = prj.id;
       }
+    }
+    // N+63 — 알림 minutes 변경. 값 바뀌면 reminder_sent_at 리셋 (재발송 가능).
+    // start_at 변경되면 cron 이 새 start_at 기준으로 재계산 + sent_at 리셋 필요.
+    if (reminder_minutes !== undefined) {
+      const v = Number.isFinite(Number(reminder_minutes)) && Number(reminder_minutes) > 0
+        ? Math.min(10080, Number(reminder_minutes))
+        : null;
+      updates.reminder_minutes = v;
+      updates.reminder_sent_at = null;
+    } else if (start_at !== undefined) {
+      // 시간 변경 시 sent_at 리셋 — 새 시간 기준으로 다시 발송 가능
+      updates.reminder_sent_at = null;
     }
 
     const oldValue = {
