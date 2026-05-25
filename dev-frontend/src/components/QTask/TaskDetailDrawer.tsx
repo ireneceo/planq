@@ -10,6 +10,7 @@ import SingleDateField from '../Common/SingleDateField';
 import PlanQSelect from '../Common/PlanQSelect';
 import RichEditor from '../Common/RichEditor';
 import ShareModal from '../Common/ShareModal';
+import ConfirmDialog from '../Common/ConfirmDialog';
 import ActionButton from '../Common/ActionButton';
 import {
   buildPresetRRule, buildCustomRRule, parseRRule,
@@ -1483,28 +1484,15 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                 || detailTask.assignee_id === myId
                 || detailTask.request_by_user_id === myId;
               if (!isAdmin && !isMine) return null;
+              // N+63 — inline DangerConfirm 제거. drawer 끝에 펼쳐져 사용자가 스크롤 위치에 따라 안 보이는 회귀.
+              // ConfirmDialog (modal, zIndex 2100) 로 교체 — drawer 위 가운데 항상 노출.
               return (
                 <DangerSection>
-                  {!deleteConfirmOpen ? (
-                    <DangerActionRow>
-                      <ActionDanger onClick={() => setDeleteConfirmOpen(true)} disabled={deleting}>
-                        {t('detail.delete.button', '업무 삭제')}
-                      </ActionDanger>
-                    </DangerActionRow>
-                  ) : (
-                    <DangerConfirm>
-                      <DangerTitle>{t('detail.delete.confirmTitle', '정말 삭제하시겠습니까?')}</DangerTitle>
-                      <DangerBody>{t('detail.delete.confirmBody', '삭제된 업무는 복구할 수 없습니다. 댓글·첨부·이력도 함께 사라집니다.')}</DangerBody>
-                      <DangerRow>
-                        <ActionSecondary onClick={() => setDeleteConfirmOpen(false)} disabled={deleting}>
-                          {t('common.cancel', '취소')}
-                        </ActionSecondary>
-                        <ActionDanger onClick={handleDelete} disabled={deleting}>
-                          {deleting ? t('detail.delete.deleting', '삭제 중...') : t('detail.delete.confirm', '삭제')}
-                        </ActionDanger>
-                      </DangerRow>
-                    </DangerConfirm>
-                  )}
+                  <DangerActionRow>
+                    <ActionDanger onClick={() => setDeleteConfirmOpen(true)} disabled={deleting}>
+                      {t('detail.delete.button', '업무 삭제')}
+                    </ActionDanger>
+                  </DangerActionRow>
                 </DangerSection>
               );
             })()}
@@ -1521,6 +1509,18 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
         onClose={() => setShareOpen(false)}
       />
     )}
+    {/* N+63 — 삭제 confirm modal (drawer 위, zIndex 2100). 옛 inline DangerConfirm 은 drawer 끝에 펼쳐져
+        사용자 스크롤 위치에 따라 안 보이는 회귀. 가운데 modal 로 항상 노출 보장. */}
+    <ConfirmDialog
+      isOpen={deleteConfirmOpen}
+      onClose={() => { if (!deleting) setDeleteConfirmOpen(false); }}
+      onConfirm={handleDelete}
+      title={t('detail.delete.confirmTitle', '정말 삭제하시겠습니까?') as string}
+      message={t('detail.delete.confirmBody', '삭제된 업무는 복구할 수 없습니다. 댓글·첨부·이력도 함께 사라집니다.') as string}
+      confirmText={(deleting ? t('detail.delete.deleting', '삭제 중...') : t('detail.delete.confirm', '삭제')) as string}
+      cancelText={t('common.cancel', '취소') as string}
+      variant="danger"
+    />
     {imageLightbox}
   </>);
 };
@@ -1848,10 +1848,7 @@ const WarnRow = styled.div`display:flex;gap:6px;justify-content:flex-end;`;
 
 // 업무 삭제 (위험 영역)
 const DangerSection = styled.div`margin-top:16px;padding:16px 14px 20px;border-top:1px dashed #E2E8F0;display:flex;flex-direction:column;gap:8px;`;
-const DangerConfirm = styled.div`padding:12px;background:#FEF2F2;border:1px solid #FECACA;border-radius:8px;display:flex;flex-direction:column;gap:8px;`;
-const DangerTitle = styled.div`font-size:13px;font-weight:700;color:#991B1B;`;
-const DangerBody = styled.div`font-size:12px;color:#7F1D1D;line-height:1.5;`;
-const DangerRow = styled.div`display:flex;gap:6px;justify-content:flex-end;`;
+// N+63 — DangerConfirm / DangerTitle / DangerBody / DangerRow 제거 (ConfirmDialog modal 로 대체)
 const DangerActionRow = styled.div`display:flex;justify-content:flex-end;`;
 
 // History
