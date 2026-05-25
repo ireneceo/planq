@@ -96,9 +96,9 @@ const DailyStartModal: React.FC = () => {
       });
       if (r.ok) {
         setOpen(false);
-        // 잠시 후 task drawer 열기 (URL 쿼리)
-        const path = item.project_id ? `/projects/${item.project_id}` : '/tasks';
-        navigate(`${path}?task=${item.id}`);
+        // /tasks?task=:id — TaskDetailDrawer URL sync 의 표준 (project_id 무관)
+        // 옛: project_id 있으면 /projects/:pid?task=:id 였는데 QProjectPage 가 ?task= 처리 안 함 → 프로젝트만 열림 회귀
+        navigate(`/tasks?task=${item.id}`);
       }
     } finally { setSubmitting(null); }
   }, [submitting, navigate]);
