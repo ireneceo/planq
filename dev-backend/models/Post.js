@@ -63,4 +63,19 @@ Post.init({
   ]
 });
 
+// N+65 — vlevel 자동 백필 hook (KbDocument/CalendarEvent 정합).
+// 옛 visibility (internal/public) 와 vlevel 양방향:
+//   - vlevel 명시: 그대로 + visibility 도 동기 (L1→internal, L2→internal, L3→internal, L4→public)
+//     ※ internal/public 가 share/노출 정책 분기 — L4 만 public, 나머지 internal
+//   - vlevel 미명시: visibility 로 추론 (internal+project_id→L2, internal→L3, public→L4)
+Post.addHook('beforeSave', (post) => {
+  if (post.vlevel) {
+    post.visibility = post.vlevel === 'L4' ? 'public' : 'internal';
+  } else {
+    if (post.visibility === 'public') post.vlevel = 'L4';
+    else if (post.project_id) post.vlevel = 'L2';
+    else post.vlevel = 'L3';
+  }
+});
+
 module.exports = Post;

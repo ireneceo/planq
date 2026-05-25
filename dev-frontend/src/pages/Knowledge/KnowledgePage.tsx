@@ -37,6 +37,7 @@ import { apiFetch } from '../../contexts/AuthContext';
 import { listProjects, listWorkspaceClients, type ApiProject, type WorkspaceClientRow } from '../../services/qtalk';
 import { fetchWorkspaceFiles, uploadMyFile, formatBytes, type ProjectFile } from '../../services/files';
 import { fetchPosts, type PostRow } from '../../services/posts';
+import VisibilityField, { serializeVisibility, parseVisibility, type VisibilityValue } from '../../components/Common/VisibilityField';
 
 // N+64 — 옛 ENUM 6 (i18n cat.{key} 라벨 보유, fallback 표시용). 자유 카테고리는 string 그대로.
 const CATEGORIES: KbCategory[] = [...LEGACY_KB_CATEGORIES];
@@ -257,13 +258,21 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
         s.on('kb:new', debouncedReload);
         s.on('kb:updated', debouncedReload);
         s.on('kb:deleted', debouncedReload);
+        // N+65 — KbCategory CRUD 다른 탭/디바이스 즉시 반영
+        const debouncedReloadCats = () => {
+          if (pending) return;
+          pending = window.setTimeout(() => { pending = null; void reloadCategories(); }, 250);
+        };
+        s.on('kb:cat:new', debouncedReloadCats);
+        s.on('kb:cat:updated', debouncedReloadCats);
+        s.on('kb:cat:deleted', debouncedReloadCats);
       });
     });
     return () => {
       if (pending) window.clearTimeout(pending);
       if (socket) socket.disconnect();
     };
-  }, [businessId, load]);
+  }, [businessId, load, reloadCategories]);
 
   // ─── DetailDrawer fetch ───
   useEffect(() => {
@@ -801,68 +810,32 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
                       }}
                       options={CATEGORIES.map(c => ({ value: c, label: t(`cat.${c}`) as string }))} />
                   </MetaEditWrap>
-                  <MetaLabel>{t('drawer.scope')}</MetaLabel>
-                  <MetaEditWrap>
-                    <PlanQSelect size="sm" isSearchable={false}
-                      value={{ value: detail.scope, label: t(`scope.${detail.scope}`) as string }}
-                      options={SCOPES.map(s => ({ value: s, label: t(`scope.${s}`) as string }))}
-                      onChange={async (opt) => {
-                        const next = (opt as PlanQSelectOption | null)?.value as KbScope | undefined;
-                        if (!next || next === detail.scope) return;
+                  {/* N+65 — 상세 패널 visibility 통합 (등록 모달과 동일 VisibilityField). 옛 scope/project/client/read_policy 4 row 폐지. */}
+                  <MetaLabel>{t('drawer.visibility', '공유 범위')}</MetaLabel>
+                  <MetaEditWrap style={{ gridColumn: '1 / -1' }}>
+                    <VisibilityField
+                      value={parseVisibility({
+                        vlevel: detail.vlevel ?? null,
+                        scope: detail.scope ?? null,
+                        read_policy: detail.read_policy ?? null,
+                        project_id: detail.project_id ?? null,
+                        client_id: detail.client_id ?? null,
+                        client_ids: detail.client_ids ?? null,
+                        target_member_ids: detail.target_member_ids ?? null,
+                      })}
+                      onChange={async (v: VisibilityValue) => {
+                        const payload = serializeVisibility(v);
                         try {
-                          const patch: Partial<{ scope: KbScope; project_id: number | null; client_id: number | null }> = { scope: next };
-                          if (next === 'workspace') { patch.project_id = null; patch.client_id = null; }
-                          if (next === 'project') patch.client_id = null;
-                          if (next === 'client') patch.project_id = null;
-                          await updateKnowledge(businessId, detail.id, patch);
-                          setDocs(prev => prev.map(x => x.id === detail.id ? { ...x, ...patch, scope: next } : x));
-                          setDetail(prev => prev ? { ...prev, ...patch, scope: next } : prev);
+                          const updated = await updateKnowledge(businessId, detail.id, payload);
+                          setDocs(prev => prev.map(x => x.id === detail.id ? { ...x, ...updated } : x));
+                          setDetail(prev => prev ? { ...prev, ...updated } : prev);
                         } catch { /* skip */ }
                       }}
+                      projects={projects.map(p => ({ id: p.id, name: p.name }))}
+                      clients={clients.map(c => ({ id: c.id, display_name: c.display_name, biz_name: c.biz_name, company_name: c.company_name }))}
+                      members={members}
                     />
                   </MetaEditWrap>
-                  {detail.scope === 'project' && (
-                    <>
-                      <MetaLabel>{t('drawer.project')}</MetaLabel>
-                      <MetaEditWrap>
-                        <PlanQSelect size="sm"
-                          value={detail.project_id ? { value: String(detail.project_id), label: projects.find(p => p.id === detail.project_id)?.name || `#${detail.project_id}` } : undefined}
-                          options={projects.map(p => ({ value: String(p.id), label: p.name }))}
-                          onChange={async (opt) => {
-                            const v = (opt as PlanQSelectOption | null)?.value;
-                            const next = v ? Number(v) : null;
-                            if (next === detail.project_id) return;
-                            try {
-                              await updateKnowledge(businessId, detail.id, { project_id: next });
-                              setDocs(prev => prev.map(x => x.id === detail.id ? { ...x, project_id: next } : x));
-                              setDetail(prev => prev ? { ...prev, project_id: next } : prev);
-                            } catch { /* skip */ }
-                          }}
-                        />
-                      </MetaEditWrap>
-                    </>
-                  )}
-                  {detail.scope === 'client' && (
-                    <>
-                      <MetaLabel>{t('drawer.client')}</MetaLabel>
-                      <MetaEditWrap>
-                        <PlanQSelect size="sm"
-                          value={detail.client_id ? { value: String(detail.client_id), label: (() => { const c = clients.find(x => x.id === detail.client_id); return c?.display_name || c?.biz_name || c?.company_name || `#${detail.client_id}`; })() } : undefined}
-                          options={clients.map(c => ({ value: String(c.id), label: c.display_name || c.biz_name || c.company_name || `#${c.id}` }))}
-                          onChange={async (opt) => {
-                            const v = (opt as PlanQSelectOption | null)?.value;
-                            const next = v ? Number(v) : null;
-                            if (next === detail.client_id) return;
-                            try {
-                              await updateKnowledge(businessId, detail.id, { client_id: next });
-                              setDocs(prev => prev.map(x => x.id === detail.id ? { ...x, client_id: next } : x));
-                              setDetail(prev => prev ? { ...prev, client_id: next } : prev);
-                            } catch { /* skip */ }
-                          }}
-                        />
-                      </MetaEditWrap>
-                    </>
-                  )}
                   <MetaLabel>{t('drawer.tags', '태그')}</MetaLabel>
                   <MetaEditWrap>
                     <TagsEdit
@@ -875,25 +848,7 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
                       }}
                     />
                   </MetaEditWrap>
-                  <MetaLabel>{t('drawer.readPolicy', '권한')}</MetaLabel>
-                  <MetaEditWrap>
-                    <PlanQSelect size="sm" isSearchable={false}
-                      value={{ value: detail.read_policy || 'all', label: t(`readPolicy.${detail.read_policy || 'all'}`, (detail.read_policy === 'owner' ? '운영진만' : '모두')) as string }}
-                      options={[
-                        { value: 'all', label: t('readPolicy.all', '모두') as string },
-                        { value: 'owner', label: t('readPolicy.owner', '운영진만') as string },
-                      ]}
-                      onChange={async (opt) => {
-                        const next = (opt as PlanQSelectOption | null)?.value as 'all' | 'owner' | undefined;
-                        if (!next || next === detail.read_policy) return;
-                        try {
-                          await updateKnowledge(businessId, detail.id, { read_policy: next });
-                          setDocs(prev => prev.map(x => x.id === detail.id ? { ...x, read_policy: next } : x));
-                          setDetail(prev => prev ? { ...prev, read_policy: next } : prev);
-                        } catch { /* skip */ }
-                      }}
-                    />
-                  </MetaEditWrap>
+                  {/* N+65 — read_policy 옛 2 select 제거. visibility 에 통합됨. */}
                   <MetaLabel>{t('drawer.status')}</MetaLabel>
                   <MetaValue>{t(`status.${detail.status}`)}</MetaValue>
                   <MetaLabel>{t('drawer.createdAt')}</MetaLabel>
@@ -1325,101 +1280,39 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
                   placeholder={t('modal.bodyPh') as string} rows={5} />
               </Field>
 
-              {/* 5) 공유 범위 — N+64 통합 4단계 (L1/L2/L3/L4) + L2 두 분기 (프로젝트/멤버) */}
+              {/* 5) 공유 범위 — N+65 VisibilityField 공통 컴포넌트 (등록·상세 동일 UI) */}
               <Field>
                 <Label>{t('modal.readPolicy', '공유 범위')}</Label>
-                <PolicyRadioGroup>
-                  <PolicyRadio
-                    type="button"
-                    $active={draft.vlevel === 'L3'}
-                    onClick={() => setDraft(d => ({ ...d, vlevel: 'L3', scope: 'workspace', read_policy: 'all', project_id: null, client_id: null, client_ids: [], target_member_ids: [] }))}>
-                    <PolicyTitle>{t('modal.vAll', '전체 워크스페이스')}</PolicyTitle>
-                    <PolicyHint>{t('modal.vAllHint', '오너·멤버 모두 볼 수 있어요')}</PolicyHint>
-                  </PolicyRadio>
-                  <PolicyRadio
-                    type="button"
-                    $active={draft.vlevel === 'L2' && draft.scope === 'project'}
-                    onClick={() => setDraft(d => ({ ...d, vlevel: 'L2', scope: 'project', read_policy: 'all', target_member_ids: [], client_id: null, client_ids: [] }))}>
-                    <PolicyTitle>{t('modal.vProject', '특정 프로젝트')}</PolicyTitle>
-                    <PolicyHint>{t('modal.vProjectHint', '그 프로젝트 멤버만 볼 수 있어요')}</PolicyHint>
-                  </PolicyRadio>
-                  <PolicyRadio
-                    type="button"
-                    $active={draft.vlevel === 'L2' && draft.scope === 'workspace'}
-                    onClick={() => setDraft(d => ({ ...d, vlevel: 'L2', scope: 'workspace', read_policy: 'owner', project_id: null, client_id: null, client_ids: [] }))}>
-                    <PolicyTitle>{t('modal.vMembers', '특정 멤버')}</PolicyTitle>
-                    <PolicyHint>{t('modal.vMembersHint', '선택한 멤버만 볼 수 있어요 (단가표·내부 계정 등)')}</PolicyHint>
-                  </PolicyRadio>
-                  <PolicyRadio
-                    type="button"
-                    $active={draft.vlevel === 'L4'}
-                    onClick={() => setDraft(d => ({ ...d, vlevel: 'L4', scope: 'client', read_policy: 'all', project_id: null, target_member_ids: [] }))}>
-                    <PolicyTitle>{t('modal.vClient', '특정 고객 (다중 가능)')}</PolicyTitle>
-                    <PolicyHint>{t('modal.vClientHint', '선택한 고객(들)과 우리 팀이 볼 수 있어요')}</PolicyHint>
-                  </PolicyRadio>
-                  <PolicyRadio
-                    type="button"
-                    $active={draft.vlevel === 'L1'}
-                    onClick={() => setDraft(d => ({ ...d, vlevel: 'L1', scope: 'private', read_policy: 'all', project_id: null, client_id: null, client_ids: [], target_member_ids: [] }))}>
-                    <PolicyTitle>{t('modal.vPrivate', '나만 보기')}</PolicyTitle>
-                    <PolicyHint>{t('modal.vPrivateHint', '본인만 볼 수 있어요 (개인 보관함)')}</PolicyHint>
-                  </PolicyRadio>
-                </PolicyRadioGroup>
-                {draft.vlevel === 'L2' && draft.scope === 'project' && (
-                  <ScopeSubField>
-                    <SubLabel>{t('modal.projectPick')}</SubLabel>
-                    <PlanQSelect size="sm" isSearchable
-                      menuPlacement="bottom"
-                      placeholder={t('modal.projectPh') as string}
-                      value={draft.project_id
-                        ? { value: String(draft.project_id), label: projects.find(p => p.id === draft.project_id)?.name || `Project #${draft.project_id}` }
-                        : null}
-                      onChange={(opt) => setDraft(d => ({ ...d, project_id: (opt as PlanQSelectOption | null)?.value ? Number((opt as PlanQSelectOption).value) : null }))}
-                      options={projects.map(p => ({ value: String(p.id), label: p.name }))} />
-                  </ScopeSubField>
-                )}
-                {draft.vlevel === 'L2' && draft.scope === 'workspace' && (
-                  <ScopeSubField>
-                    <SubLabel>{t('modal.memberPick', '멤버 선택')}</SubLabel>
-                    <PlanQSelect size="sm" isSearchable isMulti
-                      menuPlacement="bottom"
-                      placeholder={t('modal.memberPh', '멤버 선택') as string}
-                      value={draft.target_member_ids.map(id => {
-                        const m = members.find(x => x.user_id === id);
-                        return { value: String(id), label: m ? `${m.name} (${m.role})` : `User #${id}` };
-                      })}
-                      onChange={(opts) => {
-                        const ids: number[] = [];
-                        if (Array.isArray(opts)) for (const o of opts) {
-                          const n = Number((o as PlanQSelectOption).value);
-                          if (n) ids.push(n);
-                        }
-                        setDraft(d => ({ ...d, target_member_ids: ids }));
-                      }}
-                      options={members.map(m => ({ value: String(m.user_id), label: `${m.name} (${m.role})` }))} />
-                  </ScopeSubField>
-                )}
-                {draft.vlevel === 'L4' && (
-                  <ScopeSubField>
-                    <SubLabel>{t('modal.clientPick')}</SubLabel>
-                    <PlanQSelect size="sm" isSearchable isMulti
-                      menuPlacement="bottom"
-                      placeholder={t('modal.clientPh') as string}
-                      value={draft.client_ids.map(id => {
-                        const c = clients.find(x => x.id === id);
-                        return { value: String(id), label: c?.display_name || c?.biz_name || c?.company_name || `Client #${id}` };
-                      })}
-                      onChange={(opts) => {
-                        const ids: number[] = [];
-                        if (Array.isArray(opts)) for (const o of opts) {
-                          const n = Number((o as PlanQSelectOption).value);
-                          if (n) ids.push(n);
-                        }
-                        setDraft(d => ({ ...d, client_ids: ids, client_id: ids[0] || null }));
-                      }}
-                      options={clients.map(c => ({ value: String(c.id), label: c.display_name || c.biz_name || c.company_name || `Client #${c.id}` }))} />
-                  </ScopeSubField>
-                )}
+                <VisibilityField
+                  value={{
+                    vlevel: draft.vlevel,
+                    variant: draft.vlevel === 'L2'
+                      ? (draft.scope === 'project' ? 'L2_project' : 'L2_members')
+                      : draft.vlevel,
+                    project_id: draft.project_id,
+                    client_ids: draft.client_ids,
+                    target_member_ids: draft.target_member_ids,
+                  }}
+                  onChange={(v) => {
+                    const ser = serializeVisibility(v);
+                    setDraft(d => ({
+                      ...d,
+                      vlevel: v.vlevel,
+                      scope: v.variant === 'L1' ? 'private'
+                        : v.variant === 'L2_project' ? 'project'
+                        : v.variant === 'L4' ? 'client'
+                        : 'workspace',
+                      read_policy: v.variant === 'L2_members' ? 'owner' : 'all',
+                      project_id: ser.project_id,
+                      client_id: ser.client_id,
+                      client_ids: ser.client_ids,
+                      target_member_ids: ser.target_member_ids,
+                    }));
+                  }}
+                  projects={projects.map(p => ({ id: p.id, name: p.name }))}
+                  clients={clients.map(c => ({ id: c.id, display_name: c.display_name, biz_name: c.biz_name, company_name: c.company_name }))}
+                  members={members}
+                />
               </Field>
 
               {/* 6) 자료 첨부 — 새 업로드 + 기존 파일/문서 연결 (AttachmentField 통합 컴포넌트)
