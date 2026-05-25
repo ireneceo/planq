@@ -442,6 +442,7 @@ const QCalendarPage: React.FC = () => {
         <EventDrawer
           event={selectedEvent}
           projects={projects}
+          members={members}
           myUserId={myUserId}
           myBusinessRole={user?.business_role || null}
           onClose={() => setSelectedEventId(null)}

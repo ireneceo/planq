@@ -515,9 +515,9 @@ async function fetchBlockers(businessId, userIdFilter) {
       const lastComment = await TaskComment.findOne({
         where: { task_id: t.id },
         order: [['created_at', 'DESC']],
-        attributes: ['body'],
+        attributes: ['content'],  // N+63 — task_comments 컬럼은 'body' 가 아닌 'content'. cron error 'Unknown column body' 회귀 fix.
       });
-      if (lastComment?.body) reasonSnippet = String(lastComment.body).slice(0, 80);
+      if (lastComment?.content) reasonSnippet = String(lastComment.content).slice(0, 80);
     }
     results.push({
       task_id: t.id, title: t.title,
