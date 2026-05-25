@@ -1347,25 +1347,51 @@ router.post('/:id/comments', authenticateToken, async (req, res, next) => {
     const io = req.app.get('io');
     if (io) io.to(`task:${task.id}`).emit('comment:new', full.toJSON());
 
-    // 멘션 알림 (shared / internal 가시성만 — personal 은 본인만 보이므로 알림 무의미)
+    // 멘션 알림 + N+63 일반 댓글 알림 (shared / internal 가시성만)
+    let mentionedSet = new Set();
     if (finalVis !== 'personal') {
       try {
         const { resolveMentions } = require('../services/mention_parser');
         const mentioned = await resolveMentions(comment.content, task.business_id, req.user.id);
+        mentionedSet = new Set(mentioned);
+        const Business = require('../models').Business;
+        const biz = await Business.findByPk(task.business_id, { attributes: ['name', 'brand_name'] });
+        const previewBody = comment.content.length > 140 ? comment.content.slice(0, 140) + '…' : comment.content;
+        const wsName = biz?.brand_name || biz?.name || null;
+        const link = `${process.env.APP_URL || 'https://dev.planq.kr'}/tasks?task=${task.id}`;
+
+        // (a) 멘션 알림 (별도 토글 — comment_mention)
         if (mentioned.length > 0) {
           const { notifyMany } = require('./notifications');
-          const Business = require('../models').Business;
-          const biz = await Business.findByPk(task.business_id, { attributes: ['name', 'brand_name'] });
-          const previewBody = comment.content.length > 140 ? comment.content.slice(0, 140) + '…' : comment.content;
           notifyMany({
-            // 사이클 N+16-C — 업무 댓글 멘션은 채팅 멘션과 별도 토글 (comment_mention).
             userIds: mentioned, businessId: task.business_id, eventKind: 'comment_mention',
             title: `업무 댓글에서 언급됨 — ${task.title}`,
-            body: previewBody,
-            link: `${process.env.APP_URL || 'https://dev.planq.kr'}/tasks?task=${task.id}`,
-            ctaLabel: '댓글 보기',
-            workspaceName: biz?.brand_name || biz?.name || null,
+            body: previewBody, link, ctaLabel: '댓글 보기', workspaceName: wsName,
+            actorUserId: req.user.id, entityType: 'task', entityId: task.id, ioApp: io,
           }).catch((e) => console.warn('[notify comment_mention task]', e.message));
+        }
+
+        // (b) N+63 — 일반 댓글 알림 (사용자 호소 #5). assignee + creator + reviewers (작성자/멘션됨 제외).
+        //     eventKind='task' 통합 (별도 'comment' kind 도입은 다음 사이클).
+        const { TaskReviewer } = require('../models');
+        const reviewers = await TaskReviewer.findAll({ where: { task_id: task.id }, attributes: ['user_id'] });
+        const recipientSet = new Set();
+        if (task.assignee_id) recipientSet.add(task.assignee_id);
+        if (task.created_by) recipientSet.add(task.created_by);
+        if (task.request_by_user_id) recipientSet.add(task.request_by_user_id);
+        for (const r of reviewers) if (r.user_id) recipientSet.add(r.user_id);
+        recipientSet.delete(req.user.id);  // 작성자 본인 제외
+        for (const m of mentionedSet) recipientSet.delete(m);  // 멘션됨 제외 (중복 차단)
+        // Client 가 internal 댓글에 알림 받으면 안 됨 — client_id 인 사용자 필터 (생략 — visibility 가 internal 이면 backend 가 이미 차단)
+        if (recipientSet.size > 0) {
+          const { notifyMany } = require('./notifications');
+          const authorName = req.user.email?.split('@')[0] || '누군가';
+          notifyMany({
+            userIds: [...recipientSet], businessId: task.business_id, eventKind: 'task',
+            title: `${authorName} 님이 업무 댓글을 남김 — ${task.title}`,
+            body: previewBody, link, ctaLabel: '댓글 보기', workspaceName: wsName,
+            actorUserId: req.user.id, entityType: 'task', entityId: task.id, ioApp: io,
+          }).catch((e) => console.warn('[notify task comment]', e.message));
         }
       } catch (e) { console.warn('[mention task outer]', e.message); }
     }

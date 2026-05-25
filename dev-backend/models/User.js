@@ -46,8 +46,9 @@ User.init({
   secondary_email_otp_attempts: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
   secondary_email_locked_until: { type: DataTypes.DATE, allowNull: true },
   // ─── 업무 흐름 (Focus) 개인 설정 — 사이클 N+26 ───
-  // default OFF — 사용자가 명시 ON 했을 때만 좌측 사이드바 위젯 노출.
-  focus_enabled: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false, comment: '업무 흐름 기능 ON/OFF' },
+  // N+63 — default ON 변경 (사용자 호소). 옛 OFF 사용자는 변경 없음 (column 만 default 변경, 기존 row 영향 X).
+  // 사용자가 명시 OFF 만 차단.
+  focus_enabled: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true, comment: '업무 흐름 기능 ON/OFF (N+63: 기본 ON)' },
   focus_idle_min: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 15, comment: '유휴 감지 임계 (분)' },
   focus_auto_pause_min: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 30, comment: '자동 일시정지 시간 (분)' },
   focus_daily_prompt: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true, comment: '아침 시작 안내 모달 (focus_enabled=true 시만 효과)' },
