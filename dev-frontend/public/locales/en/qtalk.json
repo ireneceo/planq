@@ -352,7 +352,8 @@
       "extractNow": "Extract tasks",
       "attach": "Attach file",
       "attachExisting": "Existing file (no re-upload)",
-      "placeholder": "Type a message (Enter to send · Shift+Enter for newline)"
+      "placeholder": "Type a message",
+      "hint": "Enter to send · Shift+Enter for newline"
     },
     "yesterday": "Yesterday",
     "weekday": {

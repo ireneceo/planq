@@ -2140,6 +2140,7 @@ const QTaskPage:React.FC=()=>{
           onClose={closeDetail}
           onPatch={(patch)=>setAllTasks(prev=>prev.map(t=>t.id===patch.id?({...t,...patch} as TaskRow):t))}
           onRefresh={load}
+          onDuplicated={(newId)=>{ openDetail(newId); load(); }}
         />
       )}
       {/* ── 탭별 기본 패널 — 항상 렌더. 상세 드로어는 position:fixed로 덮음. ── */}

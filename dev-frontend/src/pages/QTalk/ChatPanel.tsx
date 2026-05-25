@@ -148,15 +148,17 @@ const ChatPanel: React.FC<Props> = ({
   const [input, setInput] = useState('');
   // textarea ref — 채팅방 진입 시 자동 포커스 + 입력 시 auto-resize (2줄 가려짐 방지)
   const textInputRef = React.useRef<HTMLTextAreaElement | null>(null);
-  // input 변경 시 textarea 높이를 scrollHeight 로 동기화 (max-height 120px 도달 시 내부 스크롤)
-  // useLayoutEffect + raf — mount 직후 layout 미완 시 placeholder 가 1줄로 측정되어 textarea 가
-  // 1줄 높이로 고정되던 회귀. 다음 frame 에서 재측정해 안내문 wrap 후 정확한 높이 확보.
+  // N+63 — auto-resize 정합. min-height 46px (CSS) 와 일치하는 floor 보장.
+  // 빈 input + 긴 placeholder 시 scrollHeight 가 1줄로 측정되어 textarea 가 1줄 높이로
+  // 고정되던 회귀 — Math.max(46, ...) 로 차단. placeholder wrap 도 안에서 다 보임.
+  const MIN_H = 46;
+  const MAX_H = 120;
   React.useLayoutEffect(() => {
     const el = textInputRef.current;
     if (!el) return;
     const measure = () => {
       el.style.height = 'auto';
-      el.style.height = `${Math.min(el.scrollHeight, 120)}px`;
+      el.style.height = `${Math.max(MIN_H, Math.min(el.scrollHeight, MAX_H))}px`;
     };
     measure();
     const raf = requestAnimationFrame(measure);
@@ -168,7 +170,7 @@ const ChatPanel: React.FC<Props> = ({
       const el = textInputRef.current;
       if (!el) return;
       el.style.height = 'auto';
-      el.style.height = `${Math.min(el.scrollHeight, 120)}px`;
+      el.style.height = `${Math.max(MIN_H, Math.min(el.scrollHeight, MAX_H))}px`;
     };
     window.addEventListener('resize', measure);
     window.visualViewport?.addEventListener('resize', measure);
@@ -1718,8 +1720,9 @@ const ChatPanel: React.FC<Props> = ({
                 uploadMany(files);
               }
             }}
-            placeholder={t('chat.input.placeholder', '메시지를 입력하세요 (Enter 전송 · Shift+Enter 줄바꿈)')}
-            rows={1}
+            placeholder={t('chat.input.placeholder', '메시지 입력') as string}
+            title={t('chat.input.hint', 'Enter 전송 · Shift+Enter 줄바꿈') as string}
+            rows={2}
           />
           <SendBtn
             type="button"
@@ -3088,12 +3091,17 @@ const TextInput = styled.textarea`
   background: transparent;
   resize: none;
   font-size: 13px;
+  line-height: 1.45;
   color: #0F172A;
   font-family: inherit;
   padding: 4px 0;
+  /* N+63 — min-height 명시. scrollHeight 만 의존하면 빈 input + 긴 placeholder 가
+     1줄 wrap 으로 가려지는 회귀 차단. line-height 1.45 × 2줄 + padding 8 ≈ 46px.
+     입력 시 useLayoutEffect 가 max(46, min(scrollHeight, 120)) 로 동작. */
+  min-height: 46px;
   max-height: 120px;
   &:focus { outline: none; }
-  &::placeholder { color: #94A3B8; }
+  &::placeholder { color: #94A3B8; line-height: 1.45; }
 `;
 
 const SendBtn = styled.button`

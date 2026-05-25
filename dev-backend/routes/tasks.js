@@ -22,6 +22,16 @@ function fridayOf(mondayStr) {
   return addDaysStr(mondayStr, 4);
 }
 
+// N+63 — task 변경 socket broadcast helper. CLAUDE.md §16 (b) 박제 정합.
+// 호출자가 io.to(...).emit('task:new'|'task:updated'|'task:deleted', payload) 마치고 inbox 동기화도 같이 보장.
+// 사용자 호소 "확인 다 했는데 안 없어져" — inbox count hook 이 'inbox:refresh' 만 listen 하기 때문에 task 변경 broadcast 가 task:* event 만 emit 하면 누락.
+function broadcastInboxRefresh(io, businessId, projectId, reason, taskId) {
+  if (!io || !businessId) return;
+  const payload = { reason, task_id: taskId };
+  io.to(`business:${businessId}`).emit('inbox:refresh', payload);
+  if (projectId) io.to(`project:${projectId}`).emit('inbox:refresh', payload);
+}
+
 // ─── 헬퍼: 멤버 가용시간 조회 ───
 async function getMemberCapacity(userId, businessId) {
   const bm = await BusinessMember.findOne({ where: { user_id: userId, business_id: businessId } });
@@ -469,6 +479,7 @@ router.post('/', authenticateToken, async (req, res, next) => {
       const newTaskPayload = { ...full.toJSON(), actor_user_id: req.user.id };
       if (project_id) io.to(`project:${project_id}`).emit('task:new', newTaskPayload);
       if (business_id) io.to(`business:${business_id}`).emit('task:new', newTaskPayload);
+      broadcastInboxRefresh(io, business_id, project_id, 'task_new', full.id);
     }
 
     // 알림: 담당자 ≠ 생성자 일 때만 — 본인이 본인에게 만든 업무는 noise
@@ -530,6 +541,7 @@ router.post('/', authenticateToken, async (req, res, next) => {
               };
               if (project_id) io.to(`project:${project_id}`).emit('task:updated', payload);
               io.to(`business:${business_id}`).emit('task:updated', payload);
+              broadcastInboxRefresh(io, business_id, project_id, 'task_ai_estimate', updated.id);
             }
           }
         } catch (e) { console.warn('[auto-ai-estimate]', e.message); }
@@ -676,6 +688,7 @@ router.post('/ai-create/confirm', authenticateToken, async (req, res, next) => {
         const payload = { ...full.toJSON(), actor_user_id: req.user.id };
         if (project_id) io.to(`project:${project_id}`).emit('task:new', payload);
         io.to(`business:${business_id}`).emit('task:new', payload);
+        broadcastInboxRefresh(io, business_id, project_id, 'task_new', full.id);
       }
     }
 
@@ -966,6 +979,7 @@ router.put('/by-business/:businessId/:id', authenticateToken, async (req, res, n
       } catch { /* 실패해도 broadcast 자체는 진행 */ }
       if (task.project_id) io.to(`project:${task.project_id}`).emit('task:updated', payload);
       io.to(`business:${task.business_id}`).emit('task:updated', payload);
+      broadcastInboxRefresh(io, task.business_id, task.project_id, 'task_updated', task.id);
     }
 
     // 알림: status 변경 / 담당자 변경에 따라 요청자/담당자/리뷰어에게 알림
@@ -1094,6 +1108,7 @@ router.delete('/by-business/:businessId/:id', authenticateToken, async (req, res
     if (io) {
       if (meta.project_id) io.to(`project:${meta.project_id}`).emit('task:deleted', meta);
       io.to(`business:${meta.business_id}`).emit('task:deleted', meta);
+      broadcastInboxRefresh(io, meta.business_id, meta.project_id, 'task_deleted', meta.id);
     }
 
     return successResponse(res, { id: meta.id, deleted: true });
@@ -1117,18 +1132,21 @@ router.post('/:id/copy', authenticateToken, async (req, res, next) => {
     // 복제 제목 — "원제목 (복사)"
     const copyTitle = src.title + ' (복사)';
 
+    // N+63 — 사용자 요구 "담당자랑 날짜 리셋". body(결과물) 와 description(의뢰)·메타는 복사.
+    // 새 업무는 처음부터 시작 — assignee/due_date/start_date/planned_week_start 모두 null.
     const copy = await Task.create({
       business_id: src.business_id,
       project_id: src.project_id,
       title: copyTitle.slice(0, 200),
       description: src.description,
-      assignee_id: src.assignee_id,
-      due_date: src.due_date,
-      start_date: src.start_date,
+      body: src.body,
+      assignee_id: null,
+      due_date: null,
+      start_date: null,
       estimated_hours: src.estimated_hours,
       category: src.category,
       conversation_id: src.conversation_id,
-      planned_week_start: src.planned_week_start,
+      planned_week_start: null,
       created_by: req.user.id,
       source: 'manual',
       // 새 task — 진행/완료 상태는 처음부터
@@ -1152,6 +1170,7 @@ router.post('/:id/copy', authenticateToken, async (req, res, next) => {
       const payload = { ...full.toJSON(), actor_user_id: req.user.id };
       if (src.project_id) io.to(`project:${src.project_id}`).emit('task:new', payload);
       io.to(`business:${src.business_id}`).emit('task:new', payload);
+      broadcastInboxRefresh(io, src.business_id, src.project_id, 'task_copy', full.id);
     }
 
     return successResponse(res, full.toJSON(), 'copied', 201);

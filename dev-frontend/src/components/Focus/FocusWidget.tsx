@@ -179,7 +179,14 @@ const FocusWidget: React.FC<Props> = ({ isCollapsed }) => {
   // Focus 자체로 task 없이 시작하면 orphan session — 의미 없음. 사용자 호소 "업무 미지정인데 작동" 회귀 차단.
   const onPause = () => session && action('/api/focus/pause', { session_id: session.id, reason: 'manual' });
   const onResume = () => session && action('/api/focus/resume', { session_id: session.id });
-  // N+49 hotfix — onStop 제거 (N+32 옵션 B: task status 가 종료 책임)
+  // N+63 — orphan 만 명시적 stop. N+32 옵션 B 박제 정합: task status 가 종료 책임 — 하지만
+  // task 가 사라진 orphan 은 trigger 자체가 불가능한 좀비 상태. 사용자가 "계속 나오잖아" 호소.
+  // 일반 active/paused session 에는 stop 버튼 노출 X (옵션 B 박제 유지).
+  const onStopOrphan = async () => {
+    if (!session || session.task_id) return;
+    await action('/api/focus/stop', { session_id: session.id, end_reason: 'orphan_dismiss' });
+    setSession(null);  // 즉시 위젯에서 사라짐
+  };
   const onView = () => session?.task_id && navigate(`/tasks?task=${session.task_id}`);
 
   if (enabled === null) return null;  // loading
@@ -241,6 +248,10 @@ const FocusWidget: React.FC<Props> = ({ isCollapsed }) => {
         <>
           <TaskTitle as="span">{t('widget.noTask', '업무 미지정')}</TaskTitle>
           <SubText>{t('widget.noTaskHint', '이 세션의 업무가 사라졌어요. 다른 업무를 시작하면 자동 전환됩니다.')}</SubText>
+          {/* N+63 — orphan dismiss. 사용자 호소 "계속 나오잖아" — task 없는 좀비 session 명시 종료 경로 */}
+          <SecondaryBtn type="button" onClick={onStopOrphan} disabled={submitting} style={{ marginTop: 6 }}>
+            {t('widget.dismissOrphan', '이 세션 종료')}
+          </SecondaryBtn>
         </>
       )}
       <Counter aria-label={t('widget.elapsedAria', { seconds: liveSeconds }) as string}>

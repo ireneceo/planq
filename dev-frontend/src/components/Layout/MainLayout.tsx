@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import styled, { css } from 'styled-components';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -317,34 +317,13 @@ const SidebarFooter = styled.div<{ $isCollapsed?: boolean }>`
   }
 `;
 
-const UserInfo = styled(Link)`
-  display: flex; align-items: center; gap: 10px; margin-bottom: 8px;
-  text-decoration: none; cursor: pointer;
-  border-radius: 6px; padding: 4px;
-  transition: background 0.15s;
-  &:hover { background: rgba(255, 255, 255, 0.06); }
-`;
-
 const UserAvatar = styled.div`
   width: 32px; height: 32px; border-radius: 50%;
   background: #0F766E; color: #FFFFFF;
   display: flex; align-items: center; justify-content: center;
   font-size: 13px; font-weight: 600; flex-shrink: 0;
 `;
-
-const UserName = styled.div`
-  font-size: 13px; font-weight: 500; color: #FFFFFF;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-`;
-
-const UserRoleText = styled.div`font-size: 11px; color: #5EEAD4;`;
-
-const LogoutButton = styled.button`
-  width: 100%; padding: 8px; background: none;
-  border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 6px;
-  color: #CCFBF1; font-size: 12px; cursor: pointer; transition: all 0.15s;
-  &:hover { background: rgba(220, 38, 38, 0.15); color: #FCA5A5; border-color: rgba(220, 38, 38, 0.3); }
-`;
+// N+63 — 옛 UserInfo/UserName/UserRoleText/LogoutButton 제거 (UserMenuButton 통합으로 대체)
 
 const CollapsedAvatarButton = styled.button`
   background: none; border: none; padding: 0; cursor: pointer;
@@ -364,6 +343,77 @@ const CollapsedLogoutIcon = styled.button`
   &:hover { background: rgba(220, 38, 38, 0.15); color: #FCA5A5; border-color: rgba(220, 38, 38, 0.3); }
   svg { width: 14px; height: 14px; }
 `;
+
+// N+63 — UserMenu 통합 컴포넌트
+const UserMenuWrap = styled.div`
+  position: relative;
+`;
+const UserMenuButton = styled.button`
+  width: 100%; padding: 6px 8px;
+  display: flex; align-items: center; gap: 8px;
+  background: transparent; border: 1px solid transparent;
+  border-radius: 8px; cursor: pointer; color: #FFFFFF;
+  transition: background 0.15s, border-color 0.15s;
+  &:hover { background: rgba(255, 255, 255, 0.06); }
+  &:focus-visible { outline: none; border-color: rgba(255, 255, 255, 0.2); }
+`;
+const UserMenuName = styled.span`
+  flex: 1; min-width: 0;
+  font-size: 13px; font-weight: 500; color: #FFFFFF;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  text-align: left;
+`;
+const UserMenuChevron = styled.span<{ $open: boolean }>`
+  width: 14px; height: 14px;
+  display: flex; align-items: center; justify-content: center;
+  color: #99F6E4; flex-shrink: 0;
+  transition: transform 0.15s;
+  transform: ${({ $open }) => $open ? 'rotate(180deg)' : 'rotate(0deg)'};
+  svg { width: 14px; height: 14px; }
+`;
+const UserMenuPopover = styled.div`
+  position: absolute; bottom: calc(100% + 6px); left: 0; right: 0;
+  background: #115E59;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  padding: 8px;
+  z-index: 50;
+  display: flex; flex-direction: column; gap: 2px;
+`;
+const UserMenuMeta = styled.div`
+  padding: 6px 10px 8px;
+`;
+const UserMenuMetaName = styled.div`
+  font-size: 13px; font-weight: 600; color: #FFFFFF;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+`;
+const UserMenuMetaRole = styled.div`
+  font-size: 11px; color: #5EEAD4; margin-top: 2px;
+`;
+const UserMenuDivider = styled.div`
+  height: 1px; background: rgba(255, 255, 255, 0.1); margin: 4px 0;
+`;
+const UserMenuLangRow = styled.div`
+  padding: 4px 6px;
+`;
+const UserMenuItemBase = css<{ $danger?: boolean }>`
+  display: flex; align-items: center;
+  padding: 8px 10px; border-radius: 6px;
+  font-size: 13px; font-weight: 500;
+  text-decoration: none;
+  background: transparent; border: none; cursor: pointer; width: 100%;
+  text-align: left;
+  color: ${({ $danger }) => $danger ? '#FCA5A5' : '#CCFBF1'};
+  transition: background 0.15s, color 0.15s;
+  &:hover {
+    background: ${({ $danger }) => $danger ? 'rgba(220, 38, 38, 0.18)' : 'rgba(255, 255, 255, 0.08)'};
+    color: ${({ $danger }) => $danger ? '#FECACA' : '#FFFFFF'};
+  }
+  &:focus-visible { outline: 2px solid rgba(94, 234, 212, 0.5); outline-offset: -2px; }
+`;
+const UserMenuItemLink = styled(Link)<{ $danger?: boolean }>`${UserMenuItemBase}`;
+const UserMenuItemBtn = styled.button<{ $danger?: boolean }>`${UserMenuItemBase}`;
 
 const MainContent = styled.div<{ $marginLeft: number }>`
   margin-left: ${props => props.$marginLeft}px;
@@ -482,6 +532,23 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(() => readLS(LS_COLLAPSED, false));
   const [searchOpen, setSearchOpen] = useState(false);
+  // N+63 — 사이드바 user 메뉴 (avatar 클릭 popover). LanguageSelector + 프로필 link + 로그아웃 통합.
+  // 옛 SidebarFooter 가 3블록 (Language + UserInfo + Logout) 으로 공간 차지 → avatar 1줄로 압축.
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const userMenuRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!userMenuOpen) return;
+    const onDown = (e: MouseEvent) => {
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) setUserMenuOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setUserMenuOpen(false); };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [userMenuOpen]);
   // 모바일 (≤1024) 에서 통계·분석/설정 NavItem 첫 클릭 = 펼침만, 두 번째 = 이동.
   // 데스크탑은 SecondaryPanel 이 있어 즉시 이동 (기존 동작).
   const [mobileExpandedSection, setMobileExpandedSection] = useState<SecondarySection>(null);
@@ -1060,17 +1127,42 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
               />
               {/* 업무 흐름 위젯 — focus_enabled=true 인 사용자에게만 렌더 (zero overhead) */}
               <FocusWidget isCollapsed={false} />
-              <div style={{ marginBottom: 8 }}>
-                <LanguageSelector variant="sidebar" />
-              </div>
-              <UserInfo to="/profile" title={t('user.profile')}>
-                <UserAvatar>{userDisplayName?.charAt(0)?.toUpperCase() || 'U'}</UserAvatar>
-                <div style={{ overflow: 'hidden' }}>
-                  <UserName>{userDisplayName}</UserName>
-                  <UserRoleText>{getRoleLabel(user)}</UserRoleText>
-                </div>
-              </UserInfo>
-              <LogoutButton onClick={logout}>{t('user.logout')}</LogoutButton>
+              {/* N+63 — UserMenu 통합: avatar+이름 1줄 + 클릭 popover (Language + 프로필 + 로그아웃).
+                  옛 3블록 (LanguageSelector + UserInfo + LogoutButton) 합쳐 공간 절약 (모바일 호소 fix). */}
+              <UserMenuWrap ref={userMenuRef}>
+                {userMenuOpen && (
+                  <UserMenuPopover role="menu">
+                    <UserMenuMeta>
+                      <UserMenuMetaName>{userDisplayName}</UserMenuMetaName>
+                      <UserMenuMetaRole>{getRoleLabel(user)}</UserMenuMetaRole>
+                    </UserMenuMeta>
+                    <UserMenuDivider />
+                    <UserMenuLangRow>
+                      <LanguageSelector variant="sidebar" />
+                    </UserMenuLangRow>
+                    <UserMenuDivider />
+                    <UserMenuItemLink to="/profile" onClick={() => setUserMenuOpen(false)} role="menuitem">
+                      {t('user.profile')}
+                    </UserMenuItemLink>
+                    <UserMenuItemBtn type="button" $danger onClick={() => { setUserMenuOpen(false); logout(); }} role="menuitem">
+                      {t('user.logout')}
+                    </UserMenuItemBtn>
+                  </UserMenuPopover>
+                )}
+                <UserMenuButton
+                  type="button"
+                  aria-expanded={userMenuOpen}
+                  aria-haspopup="menu"
+                  aria-label={`${userDisplayName} — ${t('user.menu', { defaultValue: '계정 메뉴' }) as string}`}
+                  onClick={() => setUserMenuOpen(v => !v)}
+                >
+                  <UserAvatar>{userDisplayName?.charAt(0)?.toUpperCase() || 'U'}</UserAvatar>
+                  <UserMenuName>{userDisplayName}</UserMenuName>
+                  <UserMenuChevron $open={userMenuOpen}>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><polyline points="6 9 12 15 18 9"/></svg>
+                  </UserMenuChevron>
+                </UserMenuButton>
+              </UserMenuWrap>
             </>
           )}
           {isCollapsed && (

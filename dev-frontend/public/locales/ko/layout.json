@@ -72,7 +72,8 @@
   },
   "user": {
     "profile": "내 프로필",
-    "logout": "로그아웃"
+    "logout": "로그아웃",
+    "menu": "계정 메뉴"
   },
   "role": {
     "platform_admin": "플랫폼 관리자",

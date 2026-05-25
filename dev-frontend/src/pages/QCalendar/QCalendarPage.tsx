@@ -435,11 +435,15 @@ const QCalendarPage: React.FC = () => {
           onClose={() => setSelectedTaskId(null)}
           onPatch={() => { refreshTasks(); }}
           onRefresh={refreshTasks}
+          onDuplicated={(newId) => { setSelectedTaskId(newId); refreshTasks(); }}
         />
       )}
       {selectedEvent && (
         <EventDrawer
           event={selectedEvent}
+          projects={projects}
+          myUserId={myUserId}
+          myBusinessRole={user?.business_role || null}
           onClose={() => setSelectedEventId(null)}
           onUpdate={handleUpdate}
           onDelete={handleDelete}

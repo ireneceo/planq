@@ -92,11 +92,19 @@
     "joinMeeting": "Join meeting",
     "openInEmbed": "Join here",
     "closeEmbed": "Close meeting",
-    "createRoom": "Create Daily link",
+    "createRoom": "Create Google Meet link",
     "creating": "Creating...",
     "copyLink": "Copy link",
     "linkCopied": "Link copied",
-    "project": "Project"
+    "project": "Project",
+    "schedule": "Schedule",
+    "readOnly": "Read only",
+    "readOnlyHint": "Only the creator or workspace owner can edit",
+    "reissueMeeting": "Reissue link",
+    "reissuing": "Reissuing...",
+    "reissueHint": "Reissue expired links. Recurring meetings require one link valid for all occurrences.",
+    "noLocation": "No location",
+    "noDescription": "No description"
   },
   "empty": {
     "month": "No events this month",

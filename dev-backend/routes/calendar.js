@@ -232,6 +232,7 @@ router.post('/by-business/:businessId', authenticateToken, checkBusinessAccess, 
     // 미연결 시 errorResponse 'gcal_not_connected' 로 frontend 가 연결 CTA 표시.
     let finalMeetingUrl = meeting_url?.trim() || null;
     let finalMeetingProvider = PROVIDER_SET.has(meeting_provider) ? meeting_provider : null;
+    let finalGcalEventId = null;  // N+63 — 단방향 sync 추적
     if (auto_create_meeting) {
       const gcalToken = await gcal.getTokenForBusiness(businessId);
       if (!gcalToken) {
@@ -253,6 +254,7 @@ router.post('/by-business/:businessId', authenticateToken, checkBusinessAccess, 
         if (meeting?.meetUrl) {
           finalMeetingUrl = meeting.meetUrl;
           finalMeetingProvider = 'google_meet';
+          finalGcalEventId = meeting.id || null;
         }
       } catch (e) {
         console.error('[gcal createMeetingEvent]', e.message);
@@ -275,6 +277,7 @@ router.post('/by-business/:businessId', authenticateToken, checkBusinessAccess, 
       rrule: rrule?.trim() || null,
       meeting_url: finalMeetingUrl,
       meeting_provider: finalMeetingProvider,
+      gcal_event_id: finalGcalEventId,
       visibility: VISIBILITY_SET.has(visibility) ? visibility : 'business',
       created_by: req.user.id,
     }, { transaction: t });
@@ -464,6 +467,17 @@ router.put('/by-business/:businessId/:id', authenticateToken, checkBusinessAcces
 
     await event.update(updates, { transaction: t });
 
+    // N+63 — Google Calendar 단방향 sync (PlanQ → Google).
+    // event.gcal_event_id 가 있으면 (Meet 자동 발급된 이벤트), Google Calendar 의
+    // 같은 event 도 시간/제목/설명 변경 반영. 실패해도 PlanQ 변경은 commit (best-effort sync).
+    // transaction 밖에서 호출 — Google API 가 느려도 DB 트랜잭션 holding 시간 안 늘림.
+    const needsGcalSync = event.gcal_event_id && (
+      updates.title !== undefined ||
+      updates.description !== undefined ||
+      updates.start_at !== undefined ||
+      updates.end_at !== undefined
+    );
+
     // attendees 교체
     if (Array.isArray(attendees)) {
       await CalendarEventAttendee.destroy({ where: { event_id: event.id }, transaction: t });
@@ -507,6 +521,29 @@ router.put('/by-business/:businessId/:id', authenticateToken, checkBusinessAcces
       ip_address: req.ip,
     });
 
+    // N+63 — Google Calendar sync (best-effort, transaction 밖)
+    if (needsGcalSync) {
+      try {
+        const gcalToken = await gcal.getTokenForBusiness(businessId);
+        if (gcalToken) {
+          const cal = await gcal.getCalendarClient(gcalToken);
+          await gcal.updateEvent(cal, event.gcal_event_id, {
+            summary: event.title,
+            description: event.description,
+            startAt: event.start_at,
+            endAt: event.end_at,
+          });
+        }
+      } catch (e) {
+        // 404/410: 이미 사라진 google event → gcal_event_id 정리
+        if (e.code === 404 || e.code === 410) {
+          await event.update({ gcal_event_id: null }).catch(() => {});
+        } else {
+          console.warn('[gcal sync PUT]', e.message);
+        }
+      }
+    }
+
     const full = await CalendarEvent.findByPk(event.id, { include: INCLUDE_DETAIL });
     broadcastEvent(req, full, 'event:updated');
     return successResponse(res, full.toJSON());
@@ -533,7 +570,19 @@ router.delete('/by-business/:businessId/:id', authenticateToken, checkBusinessAc
     }
 
     const snapshot = { title: event.title, start_at: event.start_at, end_at: event.end_at };
+    const savedGcalEventId = event.gcal_event_id;  // N+63 — destroy 전 snapshot
     await event.destroy();
+
+    // N+63 — Google Calendar sync (best-effort, destroy 후)
+    if (savedGcalEventId) {
+      try {
+        const gcalToken = await gcal.getTokenForBusiness(businessId);
+        if (gcalToken) {
+          const cal = await gcal.getCalendarClient(gcalToken);
+          await gcal.deleteEvent(cal, savedGcalEventId);
+        }
+      } catch (e) { console.warn('[gcal sync DELETE]', e.message); }
+    }
 
     await createAuditLog({
       user_id: req.user.id,
@@ -630,13 +679,18 @@ router.post('/by-business/:businessId/:id/meeting', authenticateToken, checkBusi
     if (!gcalToken) return errorResponse(res, 'gcal_not_connected', 400);
 
     let meeting;
+    let cal;
     try {
-      const cal = await gcal.getCalendarClient(gcalToken);
+      cal = await gcal.getCalendarClient(gcalToken);
+      // N+63 — rrule 전달. N+23 fix 가 신규 생성 (POST /by-business) 에만 적용되어
+      // 재발급 라우트가 누락되어 있었음. 정기 회의의 옛 링크 만료 / 다음 회차
+      // "회의 없음" 회귀 사용자 self-fix 경로 — 재발급 시에도 정기 정합.
       meeting = await gcal.createMeetingEvent(cal, {
         summary: event.title,
         description: event.description,
         startAt: event.start_at,
         endAt: event.end_at,
+        rrule: event.rrule || undefined,
       });
     } catch (e) {
       console.error('[gcal /:id/meeting]', e.message);
@@ -644,7 +698,18 @@ router.post('/by-business/:businessId/:id/meeting', authenticateToken, checkBusi
     }
     if (!meeting?.meetUrl) return errorResponse(res, 'meet_url_not_returned', 502);
 
-    await event.update({ meeting_url: meeting.meetUrl, meeting_provider: 'google_meet' });
+    // N+63 — 옛 gcal event cleanup (재발급 시 옛 Google Calendar 이벤트 정리)
+    // 옛 event 가 캘린더에 남아있으면 사용자 혼란 (만료된 Meet 링크 + 새 링크 동시 노출)
+    if (event.gcal_event_id && event.gcal_event_id !== meeting.id) {
+      try { await gcal.deleteEvent(cal, event.gcal_event_id); }
+      catch (e) { console.warn('[gcal cleanup old event]', e.message); }
+    }
+
+    await event.update({
+      meeting_url: meeting.meetUrl,
+      meeting_provider: 'google_meet',
+      gcal_event_id: meeting.id || null,
+    });
 
     await createAuditLog({
       user_id: req.user.id,

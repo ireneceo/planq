@@ -331,12 +331,15 @@ const TodoPage: React.FC = () => {
           members={members}
           onClose={closeTaskDrawer}
           onRefresh={silentLoad}
+          onDuplicated={(newId)=>{ setSelectedTaskId(newId); silentLoad(); }}
         />
       )}
 
       {selectedEvent && (
         <EventDrawer
           event={selectedEvent}
+          myUserId={myId}
+          myBusinessRole={user?.business_role || null}
           onClose={closeEventDrawer}
           onUpdate={handleEventUpdate}
           onDelete={handleEventDelete}

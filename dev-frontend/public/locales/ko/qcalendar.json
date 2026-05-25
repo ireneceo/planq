@@ -92,11 +92,19 @@
     "joinMeeting": "미팅 참여",
     "openInEmbed": "여기서 참여",
     "closeEmbed": "미팅 닫기",
-    "createRoom": "Daily 링크 생성",
+    "createRoom": "Google Meet 링크 생성",
     "creating": "생성 중...",
     "copyLink": "링크 복사",
     "linkCopied": "링크 복사됨",
-    "project": "프로젝트"
+    "project": "프로젝트",
+    "schedule": "일정",
+    "readOnly": "읽기 전용",
+    "readOnlyHint": "편집은 작성자 또는 관리자만 가능합니다",
+    "reissueMeeting": "링크 재발급",
+    "reissuing": "재발급 중...",
+    "reissueHint": "만료된 링크는 재발급으로 복구하세요. 정기 회의는 모든 회차에 동일 링크가 유효해야 합니다.",
+    "noLocation": "위치 없음",
+    "noDescription": "설명 없음"
   },
   "empty": {
     "month": "이번 달엔 예정된 일정이 없습니다",

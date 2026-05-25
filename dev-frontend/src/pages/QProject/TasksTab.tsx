@@ -266,6 +266,7 @@ const TasksTab: React.FC<Props> = ({ projectId, businessId, projectName, tasks, 
           onClose={closeDetail}
           onPatch={(patch) => onLocalUpdate(patch.id, patch as Partial<TaskRow>)}
           onRefresh={onRefresh}
+          onDuplicated={(newId) => { openDetail(newId); onRefresh(); }}
         />
       )}
       <AiTaskCreateModal
