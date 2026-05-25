@@ -83,6 +83,8 @@ const WeeklyReview = require('./WeeklyReview');
 const WeeklyReviewSetting = require('./WeeklyReviewSetting');
 // ─── 워크스페이스 통합 주간 보고서 (사이클 N+18) ───
 const BusinessWeeklyReport = require('./BusinessWeeklyReport');
+// ─── OAuth Connections (N+70 Task 62) ───
+const OauthConnection = require('./OauthConnection');
 // ─── Q Mail (Phase 9 — M1) ───
 const EmailAccount = require('./EmailAccount');
 const EmailThread = require('./EmailThread');
@@ -450,6 +452,8 @@ module.exports = {
   Notification,
   EmailLog,
   PlatformSetting,
+  // OAuth Connections (N+70)
+  OauthConnection,
   // Q Mail (Phase 9 M1)
   EmailAccount,
   EmailThread,
@@ -705,3 +709,7 @@ EmailDraft.belongsTo(Business, { foreignKey: 'business_id' });
 EmailDraft.belongsTo(User, { foreignKey: 'user_id', onDelete: 'CASCADE' });
 EmailDraft.belongsTo(EmailAccount, { foreignKey: 'account_id', onDelete: 'SET NULL' });
 EmailDraft.belongsTo(EmailMessage, { as: 'inReplyTo', foreignKey: 'in_reply_to_message_id', onDelete: 'SET NULL' });
+
+// OauthConnection (N+70 Task 62) — external provider 연결
+OauthConnection.belongsTo(User, { foreignKey: 'user_id', onDelete: 'CASCADE' });
+User.hasMany(OauthConnection, { as: 'oauthConnections', foreignKey: 'user_id' });
