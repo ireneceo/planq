@@ -6,6 +6,7 @@
 // 지원 entity: task / file / kb_document / calendar_event / post / document / invoice / quote / report
 // 1차: task (이번 사이클). 나머지는 backend route 가 추가되는 대로 자연스럽게 동작.
 import { useEffect, useState, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { apiFetch, useAuth } from '../../contexts/AuthContext';
@@ -73,6 +74,9 @@ const ShareModal: React.FC<Props> = ({ open, entityType, entityId, entityTitle, 
   // 채팅방 탭
   const [conversations, setConversations] = useState<Array<{ id: number; title: string; last_message_at: string | null }>>([]);
   const [chatTarget, setChatTarget] = useState<number | null>(null);
+  // N+63 — 채팅방 전송 후 "바로 보러가기" 위해 sent 시점의 conv id 보존
+  const [chatSentConvId, setChatSentConvId] = useState<number | null>(null);
+  const navigate = useNavigate();
   const [chatMsg, setChatMsg] = useState('');
   const [chatBusy, setChatBusy] = useState(false);
   const [chatSent, setChatSent] = useState(false);
@@ -143,9 +147,11 @@ const ShareModal: React.FC<Props> = ({ open, entityType, entityId, entityTitle, 
       const j = await r.json();
       if (j.success) {
         setChatSent(true);
+        setChatSentConvId(chatTarget);  // N+63 — "보러가기" 버튼용 conv id 보존
         setChatMsg('');
         setChatTarget(null);
-        setTimeout(() => setChatSent(false), 3000);
+        // 3초 후 success 메시지/버튼 자동 hide (사용자가 클릭 안 하면 modal 그대로)
+        setTimeout(() => { setChatSent(false); setChatSentConvId(null); }, 6000);
       } else {
         setChatError(j.message || (t('share.chat.sendFail', { defaultValue: '발송 실패' }) as string));
       }
@@ -300,7 +306,19 @@ const ShareModal: React.FC<Props> = ({ open, entityType, entityId, entityTitle, 
                 maxLength={1000}
               />
               {chatError && <ErrLine>{chatError}</ErrLine>}
-              {chatSent && <SuccessLine>{t('share.chat.sent', { defaultValue: '대화방으로 전송됨' }) as string}</SuccessLine>}
+              {chatSent && (
+                <SuccessRow>
+                  <SuccessLine>{t('share.chat.sent', { defaultValue: '대화방으로 전송됨' }) as string}</SuccessLine>
+                  {chatSentConvId && (
+                    <GoToChatBtn type="button" onClick={() => {
+                      navigate(`/qtalk?conv=${chatSentConvId}`);
+                      onClose();
+                    }}>
+                      {t('share.chat.goToChat', { defaultValue: '대화방 열기' }) as string} →
+                    </GoToChatBtn>
+                  )}
+                </SuccessRow>
+              )}
               <EmailActions>
                 <PrimaryBtn type="button" onClick={sendChat} disabled={chatBusy || !chatTarget}>
                   {chatBusy
@@ -582,6 +600,22 @@ const EmailTextarea = styled.textarea`
 const EmailActions = styled.div`display: flex; justify-content: flex-end; margin-top: 4px;`;
 const ErrLine = styled.div`font-size: 12px; color: #DC2626; padding: 4px 0;`;
 const SuccessLine = styled.div`font-size: 12px; color: #0F766E; padding: 4px 0; font-weight: 600;`;
+// N+63 — 채팅방 전송 후 "바로 보러가기" 버튼 (사용자 호소). success line + 버튼 한 row.
+const SuccessRow = styled.div`
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  padding: 8px 12px; background: #F0FDFA; border: 1px solid #5EEAD4;
+  border-radius: 8px; margin-top: 4px;
+`;
+const GoToChatBtn = styled.button`
+  margin-left: auto;
+  padding: 6px 12px; border-radius: 6px;
+  background: #14B8A6; color: #FFFFFF;
+  border: none; cursor: pointer;
+  font-size: 12px; font-weight: 600;
+  transition: background 0.15s;
+  &:hover { background: #0F766E; }
+  &:focus-visible { outline: 2px solid #5EEAD4; outline-offset: 2px; }
+`;
 const ConvList = styled.div`
   display: flex; flex-direction: column; gap: 4px;
   max-height: 180px; overflow-y: auto; padding: 4px;
