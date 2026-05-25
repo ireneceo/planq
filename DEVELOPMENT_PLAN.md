@@ -1,6 +1,12 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-05-24 사이클 N+49~N+62 — SaaS readiness 완성 (pagination 전수 / AuditLog 전수 / share 4 destination 통합 / DB 인덱스 영구 안전 / AdminAuditLogsPage 보강) (**v1.18.0** 라이브 14 commit, commit `a50d0c0`)
+> **최종 업데이트:** 2026-05-25 사이클 N+63~N+70 — visibility 통일 전수 + Q Mail M1 (DB/IMAP/계정 등록 UI) + Google OAuth 로그인 + Gmail OAuth 메일 연동 + OAuth 표준 3분기 흐름 (subject/email/신규) + 계정 합치기 (oauth_connections + secondary_email)
+>
+> **직전 라이브:** **v1.19.1** (commit `4f33541`, 2026-05-25) — N+68+N+69 운영 라이브 (visibility 통일 마무리 / Q Mail 기획 / SaaS readiness alias / Smart Routing 1차)
+>
+> **직전 라이브:** v1.19.0 — N+63~N+67 21 commit visibility 전수 통일 + 운영 라이브
+>
+> **직전 라이브:** v1.18.0 — N+49~N+62 14 commit SaaS readiness 완성 (pagination 전수 / AuditLog 전수 / share 4 destination / DB 인덱스 영구 / AdminAuditLogsPage 보강)
 >
 > **직전 라이브:** v1.17.0 — N+39~N+49 17 commit (PWA hook · 실시간 동기화 보강 · displayName · 정기업무 · Brief · Q Note 정리하기 · share_token 만료 · Smart Routing · Profile 2열 정합)
 >
@@ -9,6 +15,49 @@
 > **이전 라이브:** v1.16.1 (commit `8947504`) — N+31 사이클 (Q Talk 모바일 viewport 회귀 fix)
 >
 > **이전 라이브:** v1.16.0 (commit `ab113a6`) — N+26~N+27 사이클 (업무 흐름 Focus MVP + 인박스 inline 모달 + Cue 주고받음)
+
+---
+
+## ✅ 완료: 사이클 N+70 — Q Mail M1 + Google OAuth 로그인 + Gmail OAuth 메일 연동 + OAuth Connection 표준 (2026-05-25, 8 commit, 운영 미배포)
+
+**핵심 산출물:**
+
+1. **Q_MAIL_SPEC.md v2 (943줄 / 15섹션 + 부록 2)** — 30년차 3 관점 (개발/업무효율/UI-UX) 통합 + 사용자 호소 6 기능 (라벨/할일추출/답변필요/FAQ마이닝/스팸/Uncertain) + 다른 페이지 통일 매트릭스
+2. **Q Mail M1 — DB + IMAP 풀세트**:
+   - 6 신규 모델 (EmailAccount/Thread/Message/Attachment/ThreadParticipant/Draft)
+   - 4 확장 (clients.email_aliases/email_status, task_candidates.source_type+email_thread, kb_documents.faq_*)
+   - EmailAccount CRUD 7 endpoint + AES-256-GCM 암호화 + IMAP /test
+   - services/emailImapCron.js — 5분 cron + imap-simple + mailparser + thread/client 자동 매칭 + 첨부 File 저장 + socket emit
+   - 첫 sync UIDNEXT init (옛 16,862통 hang 차단)
+3. **EmailAccountSettings.tsx** — 워크스페이스 admin 이 메일 계정 직접 등록 UI (preset Gmail/Outlook/Naver/Daum/iCloud/Custom + 연결 테스트 + 비밀번호 hash 응답 차단)
+4. **Google OAuth PlanQ 로그인 (Task A)**:
+   - services/google_oauth_login.js + routes/auth_oauth.js
+   - refresh_token cookie 패턴 (옛 /login 정합) — CSP 정합 (inline script X)
+   - 신규 가입 시 자동 Business + Cue + 14일 trial (좌측 메뉴 채워짐)
+   - browser Accept-Language 우선 (Google profile.locale 보다 정확)
+5. **Gmail OAuth 메일 연동 (Task C)**:
+   - 같은 GOOGLE_CLIENT_ID/SECRET 공유 (GDrive + Calendar + Login + Mail 4 통합)
+   - XOAUTH2 SASL (RFC 7628) + access_token 자동 refresh
+   - EmailAccount.auth_type ENUM ('password'/'google_oauth'/'microsoft_oauth')
+   - EmailAccountSettings UI "Gmail 로 연결" Google 4색 로고 버튼
+6. **OAuth Connection 표준 흐름 (Task 62)**:
+   - oauth_connections 신규 테이블 (UNIQUE provider+subject + UNIQUE user_id+provider)
+   - 3 분기: [1] subject 매칭 즉시 로그인 / [2] email 매칭 → /oauth/connect-confirm 명시 동의 / [3] 신규 가입 + auto OauthConnection
+   - frontend OauthConnectConfirmPage — 기존 PlanQ ↔ Google 양쪽 카드 비교 + 1클릭 연결
+   - Settings API (GET list / POST initiate / DELETE 해제 + OAuth-only lockout 방지)
+7. **계정 합치기**: id=3 (Irene 옛, irenecompany.com) + secondary_email='irene@irenewp.com' → Google 로그인 시 옛 워크스페이스 합쳐짐
+8. **DailyStartModal fix** — 업무 진행 링크 `/projects/${pid}?task=` (오작동) → `/tasks?task=` 통일
+
+**검증:**
+- 0단계 28/28 ✓ + 1단계 빌드 1.07s exit 0
+- 3+5단계 9/9 API smoke ✓
+- 4단계 16 routes 200 OK
+- Irene 본인 Google OAuth 로그인 + 계정 합치기 e2e 성공
+
+**다음 사이클 (N+71+):**
+- Q Mail M2 인박스 read-only UI (MailPage 3컬럼 + MailThreadList + MailThreadDetail iframe sandbox)
+- Settings → "Google 로그인 연결/해제" UI (API 는 이미 있음)
+- Microsoft OAuth (B/D) — 한국 시장 후순위
 
 ---
 
