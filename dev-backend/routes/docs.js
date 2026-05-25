@@ -156,6 +156,14 @@ router.post('/templates', authenticateToken, async (req, res, next) => {
       visibility: visibility || 'workspace_only', locale: locale || 'ko',
       is_system: false, created_by: req.user.id,
     });
+    // N+63 — audit. 신규 템플릿
+    require('../services/auditService').logAudit(req, {
+      action: 'document_template.create',
+      targetType: 'document_template',
+      targetId: tpl.id,
+      businessId: tpl.business_id,
+      newValue: { title: tpl.title, kind: tpl.kind, visibility: tpl.visibility },
+    });
     return successResponse(res, tpl.toJSON(), 201);
   } catch (e) { next(e); }
 });
@@ -218,7 +226,17 @@ router.put('/templates/:id', authenticateToken, async (req, res, next) => {
                      'variables_json', 'ai_prompt_template', 'visibility', 'locale', 'is_active'];
     const updates = {};
     for (const k of allowed) if (req.body[k] !== undefined) updates[k] = req.body[k];
+    const prev = { title: tpl.title, is_active: tpl.is_active };
     await tpl.update(updates);
+    // N+63 — audit. 템플릿 수정
+    require('../services/auditService').logAudit(req, {
+      action: 'document_template.update',
+      targetType: 'document_template',
+      targetId: tpl.id,
+      businessId: tpl.business_id,
+      oldValue: prev,
+      newValue: updates,
+    });
     return successResponse(res, tpl.toJSON());
   } catch (e) { next(e); }
 });
@@ -330,6 +348,14 @@ router.post('/documents', authenticateToken, async (req, res, next) => {
     if (template_id) {
       DocumentTemplate.increment('usage_count', { where: { id: template_id } }).catch(() => {});
     }
+    // N+63 — audit. 신규 문서 (계약·견적·법적 콘텐츠 가능)
+    require('../services/auditService').logAudit(req, {
+      action: 'document.create',
+      targetType: 'document',
+      targetId: doc.id,
+      businessId: doc.business_id,
+      newValue: { title: doc.title, kind: doc.kind, status: doc.status, template_id: template_id || null },
+    });
     return successResponse(res, doc.toJSON(), 201);
   } catch (e) { next(e); }
 });
@@ -589,6 +615,14 @@ router.put('/documents/:id', authenticateToken, async (req, res, next) => {
       changed_by: req.user.id,
     });
     await doc.update(updates);
+    // N+63 — audit. 문서 수정 (status 변경·본문 변경 등 법적 콘텐츠 추적)
+    require('../services/auditService').logAudit(req, {
+      action: 'document.update',
+      targetType: 'document',
+      targetId: doc.id,
+      businessId: doc.business_id,
+      newValue: { changed_keys: Object.keys(changes), status: doc.status },
+    });
     return successResponse(res, doc.toJSON());
   } catch (e) { next(e); }
 });
