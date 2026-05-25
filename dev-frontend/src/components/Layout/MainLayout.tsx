@@ -91,12 +91,30 @@ const Logo = styled.img`
   display: block; user-select: none; flex-shrink: 0;
 `;
 
+/* N+63 — 시인성·세련도 강화. circle bg + 굵은 chevron + hover scale/translate.
+   옛: 18×18 stroke 2.2 + subtle hover → 사용자 호소 "너무 얇아서 알기 어려움".
+   새: 32×32 클릭 영역 + 28×28 circle bg (always visible) + 20×20 chevron stroke 2.6 + hover 시 scale 1.08 + 화살표 방향 살짝 translate. */
 const SidebarToggleButton = styled.button`
-  background: none; border: none; cursor: pointer; padding: 6px;
+  width: 32px; height: 32px;
+  background: rgba(255, 255, 255, 0.10);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  cursor: pointer; padding: 0;
   display: flex; align-items: center; justify-content: center;
-  color: #CCFBF1; border-radius: 6px; transition: all 0.2s;
-  &:hover { background: rgba(255, 255, 255, 0.08); color: #FFFFFF; }
-  svg { width: 18px; height: 18px; }
+  color: #FFFFFF; border-radius: 50%;
+  transition: background 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
+  &:hover {
+    background: rgba(255, 255, 255, 0.20);
+    border-color: rgba(255, 255, 255, 0.35);
+    transform: scale(1.08);
+  }
+  &:hover svg { animation: chevronNudge 0.6s ease infinite; }
+  &:active { transform: scale(0.96); }
+  &:focus-visible { outline: 2px solid #5EEAD4; outline-offset: 2px; }
+  svg { width: 16px; height: 16px; transition: transform 0.18s ease; }
+  @keyframes chevronNudge {
+    0%, 100% { transform: translateX(0); }
+    50% { transform: translateX(2px); }
+  }
   ${mediaTablet} { display: none; }
 `;
 
@@ -289,12 +307,29 @@ const SecondaryNavItem = styled(Link)<{ $active?: boolean; $collapsed?: boolean 
   `}
 `;
 
+/* N+63 — light bg 위 circle + hover scale/nudge. SidebarToggleButton 의 light variant. */
 const SecondaryCloseButton = styled.button`
-  background: none; border: none; padding: 6px; cursor: pointer;
+  width: 32px; height: 32px;
+  background: #F8FAFC;
+  border: 1px solid #E2E8F0;
+  cursor: pointer; padding: 0;
   display: flex; align-items: center; justify-content: center;
-  color: #64748B; border-radius: 6px; transition: all 0.15s;
-  &:hover { background: #F1F5F9; color: #0F172A; }
-  svg { width: 16px; height: 16px; }
+  color: #475569; border-radius: 50%;
+  transition: background 0.18s ease, border-color 0.18s ease, color 0.18s ease, transform 0.18s ease;
+  &:hover {
+    background: #F0FDFA;
+    border-color: #5EEAD4;
+    color: #0F766E;
+    transform: scale(1.08);
+  }
+  &:hover svg { animation: chevronNudge 0.6s ease infinite; }
+  &:active { transform: scale(0.96); }
+  &:focus-visible { outline: 2px solid #14B8A6; outline-offset: 2px; }
+  svg { width: 16px; height: 16px; transition: transform 0.18s ease; }
+  @keyframes chevronNudge {
+    0%, 100% { transform: translateX(0); }
+    50% { transform: translateX(2px); }
+  }
 `;
 
 // ─────────────────────────────────────────────────────────────
@@ -513,8 +548,9 @@ const IconStatsTeam = () => (<svg width="16" height="16" viewBox="0 0 24 24" fil
 const IconStatsFinance = () => (<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></svg>);
 const IconStatsReports = () => (<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>);
 const IconStatsOverview = () => (<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 3v18h18"/><path d="M7 14l4-4 4 4 5-5"/></svg>);
-const IconChevronLeft = () => (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><polyline points="15 18 9 12 15 6"/></svg>);
-const IconChevronRight = () => (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><polyline points="9 18 15 12 9 6"/></svg>);
+/* N+63 — chevron 굵기 2.2 → 2.6 + 끝점 둥글게 (세련도). 시인성 향상. */
+const IconChevronLeft = () => (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>);
+const IconChevronRight = () => (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>);
 const IconLogout = () => (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>);
 const IconHamburger = () => (<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>);
 const IconClose = () => (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><line x1="6" y1="6" x2="18" y2="18"/><line x1="6" y1="18" x2="18" y2="6"/></svg>);

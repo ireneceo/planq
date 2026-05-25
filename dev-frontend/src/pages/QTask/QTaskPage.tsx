@@ -2998,24 +2998,35 @@ const NameChip=styled.span<{$type:'from'|'to'|'observer'}>`
 // Right panel — Q Talk / Q docs 표준 EdgeHandle 패턴 (2026-05-18 통일)
 // CollapsedStrip 은 0 폭 anchor — EdgeHandle 만 LeftPanel·RightPanel 경계에 노출.
 const CollapsedStrip=styled.aside`width:0;flex-shrink:0;position:relative;@media(max-width:1200px){display:none;}`;
-// 8×60 회색 알약 → hover 14×72 teal. 접힘/열림 양쪽 동일 모양, $onPanel 여부로 좌표만 분기.
+// N+63 — 시인성·세련도 강화. 옛 8×60 회색 → 12×72 + 진한 색 + chevron 14×14 + hover 시 18×84 teal + nudge animation.
+// 평소도 명확히 보이게, hover 시 확실한 affordance, focus ring 강화.
 const EdgeHandle=styled.button<{$onPanel?:boolean}>`
   position:absolute;top:50%;left:0;transform:translate(-50%,-50%);
-  width:8px;height:60px;
-  padding:0;border:none;background:#CBD5E1;
-  border-radius:4px;cursor:pointer;z-index:10;
-  box-shadow:0 1px 3px rgba(15,23,42,0.08);
-  transition:width 0.15s ease, background 0.15s ease, height 0.15s ease;
+  width:12px;height:72px;
+  padding:0;border:none;
+  background:linear-gradient(180deg, #94A3B8 0%, #64748B 100%);
+  border-radius:6px;cursor:pointer;z-index:10;
+  box-shadow:0 2px 6px rgba(15,23,42,0.15), 0 0 0 1px rgba(255,255,255,0.4) inset;
+  transition:width 0.2s ease, height 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
   display:flex;align-items:center;justify-content:center;
-  &::before{content:'';position:absolute;top:-10px;bottom:-10px;left:-8px;right:-8px;}
-  &:hover{width:14px;height:72px;background:#14B8A6;}
-  &:focus-visible{outline:2px solid #14B8A6;outline-offset:2px;}
+  &::before{content:'';position:absolute;top:-10px;bottom:-10px;left:-12px;right:-12px;}
+  &:hover{
+    width:18px;height:84px;
+    background:linear-gradient(180deg, #14B8A6 0%, #0F766E 100%);
+    box-shadow:0 4px 12px rgba(20,184,166,0.35), 0 0 0 1px rgba(255,255,255,0.6) inset;
+  }
+  &:hover svg{ animation: chevronNudgePanel 0.7s ease infinite; }
+  &:active{transform:translate(-50%,-50%) scale(0.95);}
+  &:focus-visible{outline:2px solid #14B8A6;outline-offset:3px;}
+  @keyframes chevronNudgePanel {
+    0%, 100% { transform: translateX(0); }
+    50% { transform: translateX(2px); }
+  }
 `;
 const EdgeChevron=styled.span`
   display:flex;align-items:center;justify-content:center;
-  color:#64748B;
-  svg{width:10px;height:10px;}
-  ${EdgeHandle}:hover &{color:#FFFFFF;}
+  color:#FFFFFF;
+  svg{width:14px;height:14px;transition:transform 0.18s ease;}
 `;
 // CollapseBtn — 입력 폼 닫기 버튼 (line 2401) 에서 계속 사용 — 우측 패널 토글에서만 EdgeHandle 로 대체
 const CollapseBtn=styled.button`width:28px;height:28px;display:flex;align-items:center;justify-content:center;background:transparent;border:none;border-radius:6px;color:#64748B;cursor:pointer;&:hover{background:#F1F5F9;color:#0F172A;}`;
