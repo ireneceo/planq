@@ -16,10 +16,13 @@ import { Link } from 'react-router-dom';
 import {
   fetchProjectFiles, fetchWorkspaceFiles, uploadProjectFile, uploadMyFile, deleteProjectFile, bulkDeleteFiles,
   fetchFolders, createFolder, renameFolder, deleteFolder, reorderFolder, moveFile,
-  createShareLink, bulkDownloadZip,
+  createShareLink, bulkDownloadZip, updateFileVisibility,
   formatBytes, extOf, isImage,
   type ProjectFile, type FileSource, type FileFolder,
 } from '../../services/files';
+import VisibilityField, { serializeVisibility, parseVisibility, type VisibilityValue } from '../../components/Common/VisibilityField';
+import { listProjects, listWorkspaceClients, type ApiProject, type WorkspaceClientRow } from '../../services/qtalk';
+import { apiFetch } from '../../contexts/AuthContext';
 
 export type DocScope =
   | { type: 'project'; projectId: number; businessId: number }
@@ -70,6 +73,25 @@ const DocsTab: React.FC<Props> = (props) => {
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [moveTargetOpen, setMoveTargetOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  // N+67 — visibility 변경 UI 용 (preview drawer 안)
+  const [projects, setProjects] = useState<ApiProject[]>([]);
+  const [clients, setClients] = useState<WorkspaceClientRow[]>([]);
+  const [members, setMembers] = useState<Array<{ user_id: number; name: string; role: string }>>([]);
+  useEffect(() => {
+    const bizId = scope.type === 'project' ? scope.businessId : scope.businessId;
+    if (!bizId) return;
+    listProjects(bizId).then(setProjects).catch(() => {});
+    listWorkspaceClients(bizId).then(c => setClients(c.filter(x => x.status !== 'archived'))).catch(() => {});
+    apiFetch(`/api/businesses/${bizId}/members`).then(r => r.json()).then(j => {
+      if (j?.success && Array.isArray(j.data)) {
+        setMembers(j.data.map((m: { user_id?: number; id?: number; user?: { id?: number; name?: string }; name?: string; role?: string }) => ({
+          user_id: m.user_id || m.id || m.user?.id || 0,
+          name: m.user?.name || m.name || '—',
+          role: m.role || 'member',
+        })).filter((m: { user_id: number }) => m.user_id > 0));
+      }
+    }).catch(() => {});
+  }, [scope]);
 
   useEffect(() => {
     let cancelled = false;
@@ -739,6 +761,38 @@ const DocsTab: React.FC<Props> = (props) => {
                   <MetaKey>{t('docs.col.context', '출처')}</MetaKey><MetaVal>{preview.context.label}</MetaVal>
                 </MetaItem>}
               </MetaList>
+              {/* N+67 — 공유 범위 변경 UI (source='direct' 인 파일만 변경 가능. 채팅/업무 첨부는 상위 visibility 따름) */}
+              {preview.source === 'direct' && (
+                <VisibilitySection>
+                  <SectionLabel>{t('docs.visibility', '공유 범위')}</SectionLabel>
+                  <VisibilityField
+                    value={parseVisibility({
+                      vlevel: preview.visibility ?? null,
+                      project_id: preview.project_id ?? null,
+                      client_id: null,
+                      client_ids: null,
+                      target_member_ids: null,
+                    })}
+                    onChange={async (v: VisibilityValue) => {
+                      const fileIdNum = Number(String(preview.id).replace(/^direct-/, ''));
+                      if (!fileIdNum) return;
+                      const bizId = scope.businessId;
+                      const ser = serializeVisibility(v);
+                      try {
+                        await updateFileVisibility(bizId, fileIdNum, {
+                          level: v.vlevel,
+                          ...(v.variant === 'L2_project' && ser.project_id ? { project_id: ser.project_id } : {}),
+                        });
+                        setPreview(prev => prev ? { ...prev, visibility: v.vlevel, project_id: ser.project_id } : prev);
+                      } catch (_) { /* skip */ }
+                    }}
+                    projects={projects.map(p => ({ id: p.id, name: p.name }))}
+                    clients={clients.map(c => ({ id: c.id, display_name: c.display_name, biz_name: c.biz_name, company_name: c.company_name }))}
+                    members={members}
+                    hide={{ L4: true }}  // file 외부 share 는 ShareModal 흐름이 표준
+                  />
+                </VisibilitySection>
+              )}
             </DetailDrawer.Body>
           </>
         )}
@@ -1535,6 +1589,13 @@ const PreviewFallback = styled.div`display:flex;flex-direction:column;align-item
 const PvExtCircle = styled.div`width:72px;height:72px;border-radius:50%;background:#fff;border:1px solid #E2E8F0;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:800;color:#475569;letter-spacing:.5px;`;
 const PvFallbackHint = styled.div`font-size:12px;color:#64748B;text-align:center;`;
 const MetaList = styled.div`display:flex;flex-direction:column;gap:10px;`;
+// N+67 — visibility 변경 영역 (preview drawer)
+const VisibilitySection = styled.div`
+  margin-top: 18px; padding-top: 14px;
+  border-top: 1px solid #E2E8F0;
+  display: flex; flex-direction: column; gap: 10px;
+`;
+const SectionLabel = styled.div`font-size: 11px; font-weight: 700; color: #64748B; text-transform: uppercase; letter-spacing: 0.4px;`;
 const MetaItem = styled.div`display:flex;align-items:flex-start;gap:10px;font-size:13px;`;
 const MetaKey = styled.div`flex:0 0 74px;font-size:11px;font-weight:700;color:#94A3B8;text-transform:uppercase;letter-spacing:.3px;padding-top:2px;`;
 const MetaVal = styled.div`color:#0F172A;word-break:break-all;`;

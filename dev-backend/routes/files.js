@@ -568,27 +568,28 @@ router.post('/:businessId/:id/move', authenticateToken, checkBusinessAccess, asy
 });
 
 // ─── Visibility 변경 (사이클 N+9) ───
-// PUT /api/files/:businessId/:id/visibility  body: { level: 'L1'|'L2'|'L3', project_id? }
-// L2 선택 시 project_id 필수 (없으면 400). owner 또는 uploader 본인만 변경 가능.
+// PUT /api/files/:businessId/:id/visibility  body: { level: 'L1'|'L2'|'L3'|'L4', project_id?, target_member_ids?, target_client_ids? }
+// L2-project: project_id 필수. L4: 외부 share — share_token 미사용 시 발급 별도 share 라우트.
+// N+67 — L4 까지 통일. owner/admin 또는 uploader 본인만 변경 가능.
 router.put('/:businessId/:id/visibility', authenticateToken, attachWorkspaceScope(), async (req, res, next) => {
   try {
     const { level, project_id } = req.body || {};
-    if (!['L1', 'L2', 'L3'].includes(level)) return errorResponse(res, 'invalid_level', 400);
+    if (!['L1', 'L2', 'L3', 'L4'].includes(level)) return errorResponse(res, 'invalid_level', 400);
     const file = await File.findOne({
       where: { id: req.params.id, business_id: req.params.businessId, deleted_at: null }
     });
     if (!file) return errorResponse(res, 'file_not_found', 404);
-    // 권한: workspace owner / platform_admin 또는 uploader 본인
-    const isOwner = req.scope.isOwner || req.scope.isPlatformAdmin;
+    // 권한: workspace owner/admin 또는 uploader 본인
+    const isOwner = req.scope.isOwner || req.scope.isPlatformAdmin || req.businessRole === 'admin';
     const isUploader = file.uploader_id === req.user.id;
     if (!isOwner && !isUploader) return errorResponse(res, 'forbidden', 403);
-    // L2 → project_id 필수 (또는 이미 있음)
+    // L2 → project_id 필수
     let nextProjectId = file.project_id;
     if (level === 'L2') {
       if (project_id) nextProjectId = Number(project_id);
       if (!nextProjectId) return errorResponse(res, 'project_id_required_for_L2', 400);
-    } else if (level === 'L1' || level === 'L3') {
-      nextProjectId = null;  // 개인 또는 워크스페이스 — 프로젝트 연결 해제
+    } else if (level === 'L1' || level === 'L3' || level === 'L4') {
+      nextProjectId = null;
     }
     const prevVisibility = file.visibility;
     const prevProjectId = file.project_id;

@@ -688,13 +688,13 @@ router.put('/:id', authenticateToken, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// ─── Visibility 변경 (사이클 N+9) ───
-// PUT /api/posts/:id/visibility  body: { level: 'L1'|'L2'|'L3', project_id? }
-// L2 → project_id 필수. 권한: author 본인 또는 workspace owner/admin
+// ─── Visibility 변경 (사이클 N+9 → N+67 L4 통일) ───
+// PUT /api/posts/:id/visibility  body: { level: 'L1'|'L2'|'L3'|'L4', project_id? }
+// L2 → project_id 필수. L4 → share_token 자동 발급 (없으면). 권한: author 본인 또는 workspace owner/admin
 router.put('/:id/visibility', authenticateToken, async (req, res, next) => {
   try {
     const { level, project_id } = req.body || {};
-    if (!['L1', 'L2', 'L3'].includes(level)) return errorResponse(res, 'invalid_level', 400);
+    if (!['L1', 'L2', 'L3', 'L4'].includes(level)) return errorResponse(res, 'invalid_level', 400);
     const post = await Post.findByPk(req.params.id);
     if (!post) return errorResponse(res, 'not_found', 404);
     const scope = await getUserScope(req.user.id, post.business_id, req.user.platform_role);
@@ -706,12 +706,19 @@ router.put('/:id/visibility', authenticateToken, async (req, res, next) => {
     if (level === 'L2') {
       if (project_id) nextProjectId = Number(project_id);
       if (!nextProjectId) return errorResponse(res, 'project_id_required_for_L2', 400);
-    } else if (level === 'L1' || level === 'L3') {
+    } else if (level === 'L1' || level === 'L3' || level === 'L4') {
       nextProjectId = null;
     }
-    await post.update({ vlevel: level, project_id: nextProjectId });
+    const patch = { vlevel: level, project_id: nextProjectId };
+    // N+67 — L4 선택 시 share_token 자동 발급 (없으면)
+    if (level === 'L4' && !post.share_token) {
+      const crypto = require('crypto');
+      patch.share_token = crypto.randomBytes(24).toString('base64url');
+      patch.shared_at = new Date();
+    }
+    await post.update(patch);
     broadcastPost(req, post, 'post:updated');
-    successResponse(res, { id: post.id, vlevel: level, project_id: nextProjectId });
+    successResponse(res, { id: post.id, vlevel: level, project_id: nextProjectId, share_token: post.share_token });
   } catch (err) { next(err); }
 });
 

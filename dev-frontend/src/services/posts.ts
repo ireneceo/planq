@@ -10,6 +10,8 @@ export interface PostRow {
   category: string | null;
   status: 'draft' | 'published';
   visibility: 'internal' | 'public';
+  // N+67 — 통합 visibility (L1-L4). 옛 internal/public 와 hook 양방향 동기.
+  vlevel?: 'L1' | 'L2' | 'L3' | 'L4' | null;
   is_pinned: boolean;
   view_count: number;
   author: { id: number; name: string } | null;
@@ -165,6 +167,21 @@ export async function updatePost(id: number, patch: Partial<{
   const j = await r.json();
   if (!j.success) throw new Error(j.message || 'update failed');
   return j.data as PostDetail;
+}
+
+// N+67 — Post visibility 변경 (L1-L4 통일)
+export async function updatePostVisibility(
+  postId: number,
+  body: { level: 'L1' | 'L2' | 'L3' | 'L4'; project_id?: number }
+): Promise<{ id: number; vlevel: string; project_id: number | null; share_token?: string | null }> {
+  const r = await apiFetch(`/api/posts/${postId}/visibility`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const j = await r.json();
+  if (!j.success) throw new Error(j.message || 'visibility_change_failed');
+  return j.data;
 }
 
 export async function deletePost(id: number): Promise<boolean> {
