@@ -28,7 +28,9 @@ import { SparkleIcon } from '../../components/Common/Icons';
 import {
   listKnowledge, fetchPersonalKb, createKnowledge, deleteKnowledge, updateKnowledge,
   uploadKnowledgeFile,
-  type KbDocumentRow, type KbCategory, type KbScope,
+  listKbCategories, createKbCategory,
+  LEGACY_KB_CATEGORIES,
+  type KbDocumentRow, type KbCategory, type KbScope, type KbVlevel, type KbCategoryRow,
 } from '../../services/knowledge';
 import { mapApiError } from '../../utils/apiError';
 import { apiFetch } from '../../contexts/AuthContext';
@@ -36,7 +38,8 @@ import { listProjects, listWorkspaceClients, type ApiProject, type WorkspaceClie
 import { fetchWorkspaceFiles, uploadMyFile, formatBytes, type ProjectFile } from '../../services/files';
 import { fetchPosts, type PostRow } from '../../services/posts';
 
-const CATEGORIES: KbCategory[] = ['policy', 'manual', 'incident', 'faq', 'about', 'pricing'];
+// N+64 — 옛 ENUM 6 (i18n cat.{key} 라벨 보유, fallback 표시용). 자유 카테고리는 string 그대로.
+const CATEGORIES: KbCategory[] = [...LEGACY_KB_CATEGORIES];
 const SCOPES: KbScope[] = ['workspace', 'project', 'client'];
 // 사용자 정의 항목 타입
 const COL_TYPE_LABEL: Record<string, string> = {
@@ -116,10 +119,29 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
     // Q info — 사용자 정의 항목
     custom_columns: [] as Array<{ id: string; name: string; type: string; show_in_list: boolean }>,
     custom_values: {} as Record<string, string>,
-    // 권한
+    // 권한 (legacy)
     read_policy: 'all' as 'all' | 'owner',
     client_ids: [] as number[],
+    // N+64 — 통합 visibility (L3 default = 워크스페이스 전체)
+    vlevel: 'L3' as KbVlevel,
+    target_member_ids: [] as number[],
   });
+  // N+64 — 카테고리 마스터 (자유 추가/편집)
+  const [catMaster, setCatMaster] = useState<KbCategoryRow[]>([]);
+  const [catOrphan, setCatOrphan] = useState<string[]>([]);
+  const [newCatInput, setNewCatInput] = useState('');
+  const [catAdding, setCatAdding] = useState(false);
+  // 워크스페이스 멤버 (L2-members picker 용)
+  const [members, setMembers] = useState<Array<{ user_id: number; name: string; role: string }>>([]);
+  // 카테고리 master + orphan fetch 헬퍼
+  const reloadCategories = useCallback(async () => {
+    if (!businessId) return;
+    try {
+      const j = await listKbCategories(businessId);
+      setCatMaster(j.master);
+      setCatOrphan(j.orphan);
+    } catch (_) { /* ignore */ }
+  }, [businessId]);
   // 첨부 — 새 업로드 + 기존 파일 + 기존 문서 (모두 다중)
   const [uploadFiles, setUploadFiles] = useState<File[]>([]);
   const [wsFiles, setWsFiles] = useState<ProjectFile[]>([]);
@@ -142,6 +164,17 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
       setProjects(p);
       setClients(c.filter(x => x.status !== 'archived'));
     });
+    // N+64 — 카테고리 마스터 + 워크스페이스 멤버 fetch
+    reloadCategories();
+    apiFetch(`/api/businesses/${businessId}/members`).then(r => r.json()).then(j => {
+      if (j?.success && Array.isArray(j.data)) {
+        setMembers(j.data.map((m: { user_id?: number; id?: number; user?: { id?: number; name?: string }; name?: string; role?: string }) => ({
+          user_id: m.user_id || m.id || m.user?.id || 0,
+          name: m.user?.name || m.name || '—',
+          role: m.role || 'member',
+        })).filter((m: { user_id: number }) => m.user_id > 0));
+      }
+    }).catch(() => {});
   }, [businessId]);
 
   // N+42: Q Note 정리하기 → 지식 등록 prefill. 마운트 시 한 번만 적용 + URL 정리.
@@ -283,10 +316,11 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
   }, [modalOpen, businessId, wsFilesLoaded, wsPostsLoaded]);
 
   const resetModal = () => {
-    setDraft({ title: '', body: '', category: 'manual', categories: ['manual'], scope: 'workspace', project_id: null, client_id: null, custom_columns: [], custom_values: {}, read_policy: 'all', client_ids: [] });
+    setDraft({ title: '', body: '', category: 'manual', categories: ['manual'], scope: 'workspace', project_id: null, client_id: null, custom_columns: [], custom_values: {}, read_policy: 'all', client_ids: [], vlevel: 'L3', target_member_ids: [] });
     setUploadFiles([]);
     setPickedFileIds(new Set());
     setPickedPostIds(new Set());
+    setNewCatInput('');
     setSubmitError(null);
     setResultMsg(null);
   };
@@ -304,11 +338,15 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
     if (!hasContent) {
       setSubmitError(t('modal.errContentRequired', '본문 또는 첨부 (파일/문서) 중 하나는 필요합니다') as string); return;
     }
-    if (draft.scope === 'project' && !draft.project_id) {
-      setSubmitError(t('modal.errProjectRequired') as string); return;
+    // N+64 — vlevel 검증
+    if (draft.vlevel === 'L2' && draft.scope === 'project' && !draft.project_id) {
+      setSubmitError(t('modal.errProjectRequired', '프로젝트를 선택하세요') as string); return;
     }
-    if (draft.scope === 'client' && !draft.client_id) {
-      setSubmitError(t('modal.errClientRequired') as string); return;
+    if (draft.vlevel === 'L4' && !draft.client_id && draft.client_ids.length === 0) {
+      setSubmitError(t('modal.errClientRequired', '고객을 선택하세요') as string); return;
+    }
+    if (draft.vlevel === 'L2' && draft.scope === 'workspace' && draft.target_member_ids.length === 0) {
+      setSubmitError(t('modal.errMembersRequired', '멤버를 한 명 이상 선택하세요') as string); return;
     }
     setSubmitting(true); setSubmitError(null); setResultMsg(null);
     try {
@@ -323,6 +361,9 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
         custom_values: Object.keys(draft.custom_values).length > 0 ? draft.custom_values : undefined,
         read_policy: draft.read_policy,
         client_ids: draft.scope === 'client' && draft.client_ids.length > 0 ? draft.client_ids : undefined,
+        // N+64 — 통합 visibility (서버가 vlevel 우선 처리)
+        vlevel: draft.vlevel,
+        target_member_ids: draft.target_member_ids.length > 0 ? draft.target_member_ids : undefined,
       };
 
       // 1) 새로 업로드된 파일을 워크스페이스 파일로 변환 (workspace 첨부) — workspaceFile 변환 후 file_id 모음
@@ -1161,17 +1202,62 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
                   placeholder={t('modal.titlePh') as string} maxLength={300} />
               </Field>
 
-              {/* 2) 카테고리 */}
+              {/* 2) 카테고리 — N+64 자유 추가/편집 (LEGACY 6 + master + orphan union, 자유 추가 input) */}
               <Field>
                 <Label>{t('modal.category')}</Label>
-                <PlanQSelect size="sm" isMulti isSearchable={false}
-                  value={(draft.categories.length > 0 ? draft.categories : [draft.category]).map(c => ({ value: c, label: t(`cat.${c}`) as string }))}
+                <PlanQSelect size="sm" isMulti isSearchable
+                  value={(draft.categories.length > 0 ? draft.categories : [draft.category]).map(c => ({
+                    value: c, label: LEGACY_KB_CATEGORIES.includes(c as typeof LEGACY_KB_CATEGORIES[number]) ? (t(`cat.${c}`) as string) : c,
+                  }))}
                   onChange={(opts) => {
                     const arr = Array.isArray(opts) ? opts : [];
-                    const next = arr.map(o => (o as PlanQSelectOption).value as KbCategory);
+                    const next = arr.map(o => String((o as PlanQSelectOption).value));
                     setDraft(d => ({ ...d, categories: next.length > 0 ? next : ['manual'], category: next[0] || 'manual' }));
                   }}
-                  options={CATEGORIES.map(c => ({ value: c, label: t(`cat.${c}`) as string }))} />
+                  options={(() => {
+                    const seen = new Set<string>();
+                    const opts: { value: string; label: string }[] = [];
+                    for (const c of LEGACY_KB_CATEGORIES) { seen.add(c); opts.push({ value: c, label: t(`cat.${c}`) as string }); }
+                    for (const m of catMaster) if (!seen.has(m.name)) { seen.add(m.name); opts.push({ value: m.name, label: m.name }); }
+                    for (const o of catOrphan) if (!seen.has(o)) { seen.add(o); opts.push({ value: o, label: o }); }
+                    return opts;
+                  })()} />
+                {/* 자유 추가 input */}
+                <NewCatRow>
+                  <TextInput
+                    value={newCatInput}
+                    onChange={e => setNewCatInput(e.target.value)}
+                    placeholder={t('modal.newCatPh', '새 카테고리 이름') as string}
+                    maxLength={40}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') { e.preventDefault(); (document.getElementById('kb-add-cat-btn') as HTMLButtonElement)?.click(); }
+                    }}
+                  />
+                  <SecondaryBtn
+                    id="kb-add-cat-btn" type="button" disabled={!newCatInput.trim() || catAdding}
+                    onClick={async () => {
+                      const name = newCatInput.trim();
+                      if (!name || !businessId) return;
+                      // 중복 검사 — 이미 선택 또는 master 에 있으면 안내 + 선택만
+                      const dup = draft.categories.includes(name);
+                      if (dup) { setNewCatInput(''); return; }
+                      setCatAdding(true);
+                      try {
+                        await createKbCategory(businessId, name);
+                        await reloadCategories();
+                        setDraft(d => ({ ...d, categories: [...d.categories, name] }));
+                        setNewCatInput('');
+                      } catch (_) { /* ignore */ } finally { setCatAdding(false); }
+                    }}>
+                    + {t('modal.addCat', '추가')}
+                  </SecondaryBtn>
+                </NewCatRow>
+                {newCatInput.trim() && (() => {
+                  const name = newCatInput.trim();
+                  const exists = [...LEGACY_KB_CATEGORIES, ...catMaster.map(m => m.name), ...catOrphan].includes(name);
+                  if (exists) return <DupHint>{t('modal.catDup', '이미 같은 이름이 있어요 — 추가하면 자동 선택됩니다') as string}</DupHint>;
+                  return null;
+                })()}
               </Field>
 
               {/* 3) 사용자 정의 항목 추가 */}
@@ -1239,40 +1325,47 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
                   placeholder={t('modal.bodyPh') as string} rows={5} />
               </Field>
 
-              {/* 5) 공유 범위 (라디오 4 옵션) — project/client 선택은 라디오 아래 추가 노출 */}
+              {/* 5) 공유 범위 — N+64 통합 4단계 (L1/L2/L3/L4) + L2 두 분기 (프로젝트/멤버) */}
               <Field>
                 <Label>{t('modal.readPolicy', '공유 범위')}</Label>
                 <PolicyRadioGroup>
                   <PolicyRadio
                     type="button"
-                    $active={draft.scope === 'workspace' && draft.read_policy === 'all'}
-                    onClick={() => setDraft(d => ({ ...d, scope: 'workspace', read_policy: 'all' }))}>
-                    <PolicyTitle>{t('modal.policyAll', '전체 워크스페이스')}</PolicyTitle>
-                    <PolicyHint>{t('modal.policyAllHint', '오너·멤버 모두 볼 수 있어요')}</PolicyHint>
+                    $active={draft.vlevel === 'L3'}
+                    onClick={() => setDraft(d => ({ ...d, vlevel: 'L3', scope: 'workspace', read_policy: 'all', project_id: null, client_id: null, client_ids: [], target_member_ids: [] }))}>
+                    <PolicyTitle>{t('modal.vAll', '전체 워크스페이스')}</PolicyTitle>
+                    <PolicyHint>{t('modal.vAllHint', '오너·멤버 모두 볼 수 있어요')}</PolicyHint>
                   </PolicyRadio>
                   <PolicyRadio
                     type="button"
-                    $active={draft.scope === 'project'}
-                    onClick={() => setDraft(d => ({ ...d, scope: 'project', read_policy: 'all' }))}>
-                    <PolicyTitle>{t('modal.policyProject', '특정 프로젝트')}</PolicyTitle>
-                    <PolicyHint>{t('modal.policyProjectHint', '그 프로젝트 멤버만 볼 수 있어요')}</PolicyHint>
+                    $active={draft.vlevel === 'L2' && draft.scope === 'project'}
+                    onClick={() => setDraft(d => ({ ...d, vlevel: 'L2', scope: 'project', read_policy: 'all', target_member_ids: [], client_id: null, client_ids: [] }))}>
+                    <PolicyTitle>{t('modal.vProject', '특정 프로젝트')}</PolicyTitle>
+                    <PolicyHint>{t('modal.vProjectHint', '그 프로젝트 멤버만 볼 수 있어요')}</PolicyHint>
                   </PolicyRadio>
                   <PolicyRadio
                     type="button"
-                    $active={draft.scope === 'client'}
-                    onClick={() => setDraft(d => ({ ...d, scope: 'client', read_policy: 'all' }))}>
-                    <PolicyTitle>{t('modal.policyClient', '특정 고객 (다중 가능)')}</PolicyTitle>
-                    <PolicyHint>{t('modal.policyClientHint', '선택한 고객(들)과 우리 팀이 볼 수 있어요')}</PolicyHint>
+                    $active={draft.vlevel === 'L2' && draft.scope === 'workspace'}
+                    onClick={() => setDraft(d => ({ ...d, vlevel: 'L2', scope: 'workspace', read_policy: 'owner', project_id: null, client_id: null, client_ids: [] }))}>
+                    <PolicyTitle>{t('modal.vMembers', '특정 멤버')}</PolicyTitle>
+                    <PolicyHint>{t('modal.vMembersHint', '선택한 멤버만 볼 수 있어요 (단가표·내부 계정 등)')}</PolicyHint>
                   </PolicyRadio>
                   <PolicyRadio
                     type="button"
-                    $active={draft.scope === 'workspace' && draft.read_policy === 'owner'}
-                    onClick={() => setDraft(d => ({ ...d, scope: 'workspace', read_policy: 'owner' }))}>
-                    <PolicyTitle>{t('modal.policyOwner', '운영진만')}</PolicyTitle>
-                    <PolicyHint>{t('modal.policyOwnerHint', '오너·관리자만 볼 수 있어요 (단가표·내부 계정 등)')}</PolicyHint>
+                    $active={draft.vlevel === 'L4'}
+                    onClick={() => setDraft(d => ({ ...d, vlevel: 'L4', scope: 'client', read_policy: 'all', project_id: null, target_member_ids: [] }))}>
+                    <PolicyTitle>{t('modal.vClient', '특정 고객 (다중 가능)')}</PolicyTitle>
+                    <PolicyHint>{t('modal.vClientHint', '선택한 고객(들)과 우리 팀이 볼 수 있어요')}</PolicyHint>
+                  </PolicyRadio>
+                  <PolicyRadio
+                    type="button"
+                    $active={draft.vlevel === 'L1'}
+                    onClick={() => setDraft(d => ({ ...d, vlevel: 'L1', scope: 'private', read_policy: 'all', project_id: null, client_id: null, client_ids: [], target_member_ids: [] }))}>
+                    <PolicyTitle>{t('modal.vPrivate', '나만 보기')}</PolicyTitle>
+                    <PolicyHint>{t('modal.vPrivateHint', '본인만 볼 수 있어요 (개인 보관함)')}</PolicyHint>
                   </PolicyRadio>
                 </PolicyRadioGroup>
-                {draft.scope === 'project' && (
+                {draft.vlevel === 'L2' && draft.scope === 'project' && (
                   <ScopeSubField>
                     <SubLabel>{t('modal.projectPick')}</SubLabel>
                     <PlanQSelect size="sm" isSearchable
@@ -1285,7 +1378,28 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
                       options={projects.map(p => ({ value: String(p.id), label: p.name }))} />
                   </ScopeSubField>
                 )}
-                {draft.scope === 'client' && (
+                {draft.vlevel === 'L2' && draft.scope === 'workspace' && (
+                  <ScopeSubField>
+                    <SubLabel>{t('modal.memberPick', '멤버 선택')}</SubLabel>
+                    <PlanQSelect size="sm" isSearchable isMulti
+                      menuPlacement="bottom"
+                      placeholder={t('modal.memberPh', '멤버 선택') as string}
+                      value={draft.target_member_ids.map(id => {
+                        const m = members.find(x => x.user_id === id);
+                        return { value: String(id), label: m ? `${m.name} (${m.role})` : `User #${id}` };
+                      })}
+                      onChange={(opts) => {
+                        const ids: number[] = [];
+                        if (Array.isArray(opts)) for (const o of opts) {
+                          const n = Number((o as PlanQSelectOption).value);
+                          if (n) ids.push(n);
+                        }
+                        setDraft(d => ({ ...d, target_member_ids: ids }));
+                      }}
+                      options={members.map(m => ({ value: String(m.user_id), label: `${m.name} (${m.role})` }))} />
+                  </ScopeSubField>
+                )}
+                {draft.vlevel === 'L4' && (
                   <ScopeSubField>
                     <SubLabel>{t('modal.clientPick')}</SubLabel>
                     <PlanQSelect size="sm" isSearchable isMulti
@@ -1297,11 +1411,9 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
                       })}
                       onChange={(opts) => {
                         const ids: number[] = [];
-                        if (Array.isArray(opts)) {
-                          for (const o of opts) {
-                            const n = Number((o as PlanQSelectOption).value);
-                            if (n) ids.push(n);
-                          }
+                        if (Array.isArray(opts)) for (const o of opts) {
+                          const n = Number((o as PlanQSelectOption).value);
+                          if (n) ids.push(n);
                         }
                         setDraft(d => ({ ...d, client_ids: ids, client_id: ids[0] || null }));
                       }}
@@ -1696,6 +1808,17 @@ const ScopeSubField = styled.div`
 const SubLabel = styled.div`
   font-size: 11px; font-weight: 700; color: #64748B;
   text-transform: uppercase; letter-spacing: 0.4px;
+`;
+// N+64 — 자유 카테고리 추가 input row
+const NewCatRow = styled.div`
+  display: flex; gap: 8px; margin-top: 6px;
+  & > input { flex: 1; }
+`;
+const DupHint = styled.div`
+  margin-top: 4px;
+  padding: 6px 10px;
+  background: #FEF3C7; border: 1px solid #FCD34D;
+  border-radius: 6px; font-size: 12px; color: #92400E;
 `;
 
 // 권한 라디오 (4 옵션 — 큰 카드 형태)
