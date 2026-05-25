@@ -354,7 +354,12 @@
   "vault": {
     "subtitle": "Your personal space — only you see this",
     "uncategorized": "Uncategorized",
-    "vis": { "L1": "Personal", "L2": "Team", "L3": "Workspace", "L4": "External" },
+    "vis": {
+      "L1": "Personal",
+      "L2": "Team",
+      "L3": "Workspace",
+      "L4": "External"
+    },
     "visLong": {
       "L1": "Only you",
       "L2": "Project members",
@@ -500,5 +505,13 @@
     "taskCompletedReviewer": "Reviewed task is now complete",
     "taskReviewing": "Review requested — please confirm",
     "taskRevisionRequested": "Revision requested"
+  },
+  "share": {
+    "chat": {
+      "sent": "Sent to chat",
+      "goToChat": "Open chat",
+      "sendFail": "Failed to send",
+      "network": "Network error"
+    }
   }
 }

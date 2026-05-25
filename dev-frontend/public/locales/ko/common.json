@@ -354,7 +354,12 @@
   "vault": {
     "subtitle": "본인만 보는 사적 영역",
     "uncategorized": "미분류",
-    "vis": { "L1": "개인", "L2": "팀", "L3": "워크스페이스", "L4": "외부" },
+    "vis": {
+      "L1": "개인",
+      "L2": "팀",
+      "L3": "워크스페이스",
+      "L4": "외부"
+    },
     "visLong": {
       "L1": "본인만",
       "L2": "프로젝트 멤버",
@@ -500,5 +505,13 @@
     "taskCompletedReviewer": "검토한 업무가 완료 처리됐어요",
     "taskReviewing": "검토 요청 — 컨펌해 주세요",
     "taskRevisionRequested": "수정 요청이 들어왔어요"
+  },
+  "share": {
+    "chat": {
+      "sent": "대화방으로 전송됨",
+      "goToChat": "대화방 열기",
+      "sendFail": "발송 실패",
+      "network": "네트워크 오류"
+    }
   }
 }

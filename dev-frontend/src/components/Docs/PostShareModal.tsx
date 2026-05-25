@@ -252,7 +252,7 @@ const PostShareModal: React.FC<Props> = ({ open, onClose, post, onChanged }) => 
                   <SecondaryBtn type="button" onClick={() => { setChatSentInfo(null); setChatTarget(null); }}>
                     {t('share.chat.again', '다른 채팅방에 보내기')}
                   </SecondaryBtn>
-                  <SecondaryBtn type="button" onClick={() => { onClose(); navigate(`/talk/${chatSentInfo.convId}`); }}>
+                  <SecondaryBtn type="button" onClick={() => { navigate(`/qtalk?conv=${chatSentInfo.convId}`); onClose(); }}>
                     {t('share.chat.goView', '채팅방 가서 보기')}
                   </SecondaryBtn>
                   <PrimaryBtn type="button" onClick={onClose}>{t('common.close', '닫기')}</PrimaryBtn>
