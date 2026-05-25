@@ -92,10 +92,17 @@ async function findOrCreateThread({ businessId, accountId, parsed, fromEmail }) 
   return { thread: newThread, isNew: true };
 }
 
-// client 매칭 — email exact or aliases JSON contains
+// client 매칭 — invite_email / billing_contact_email exact or aliases JSON contains
 async function matchClient(businessId, fromEmail) {
+  const { Op } = require('sequelize');
   const exact = await Client.findOne({
-    where: { business_id: businessId, email: fromEmail },
+    where: {
+      business_id: businessId,
+      [Op.or]: [
+        { invite_email: fromEmail },
+        { billing_contact_email: fromEmail },
+      ],
+    },
     attributes: ['id'],
   });
   if (exact) return exact.id;
@@ -156,7 +163,16 @@ async function syncOne(account) {
 
   let newCount = 0;
   try {
-    await conn.openBox(account.imap_folder);
+    const box = await conn.openBox(account.imap_folder);
+    // 첫 sync (imap_last_uid=0) — UIDNEXT-1 로 init (앞으로 도착하는 메일만)
+    // 옛 메일 backfill 은 별도 API (account.backfill_days 옵션 추후)
+    if (account.imap_last_uid === 0 && box.uidnext) {
+      const initUid = box.uidnext - 1;
+      await account.update({ imap_last_uid: initUid, last_sync_at: new Date(), last_sync_error: null });
+      console.log(`[emailImapCron] account #${account.id} (${account.email}) first sync init — last_uid=${initUid} (INBOX has ${box.messages?.total || '?'} messages, only new mail will be fetched)`);
+      try { await conn.end(); } catch (_) { /* ignore */ }
+      return 0;
+    }
     const searchCriteria = [['UID', `${account.imap_last_uid + 1}:*`]];
     const fetchOptions = { bodies: [''], markSeen: false, struct: true };
     const results = await conn.search(searchCriteria, fetchOptions);
@@ -305,7 +321,11 @@ async function tick() {
   try {
     const accounts = await EmailAccount.findAll({
       where: { is_active: true },
-      order: [['last_sync_at', 'ASC NULLS FIRST']],
+      // MySQL — NULL 먼저 (한 번도 sync 안 된 계정 우선)
+      order: [
+        [require('sequelize').literal('last_sync_at IS NULL'), 'DESC'],
+        ['last_sync_at', 'ASC'],
+      ],
       limit: 50,
     });
     for (const acc of accounts) {
