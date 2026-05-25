@@ -10,11 +10,19 @@
 const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcryptjs');
-const { User, Business, BusinessMember, sequelize } = require('../models');
+const { User, Business, BusinessMember, OauthConnection, sequelize } = require('../models');
 const googleOauthLogin = require('../services/google_oauth_login');
 // 옛 /login 의 refresh_token cookie 패턴 재사용 (다중 디바이스 + sliding renewal 정합)
 const { helpers } = require('./auth');
 const { createRefreshTokenRow, generateAccessToken, generateRefreshToken, resolveClientKind, TTL_MS_BY_KIND } = helpers;
+
+// connect-confirm token 임시 저장 (5분 만료, in-memory)
+const confirmStash = new Map();
+setInterval(() => {
+  for (const [k, v] of confirmStash.entries()) {
+    if (v.exp < Date.now()) confirmStash.delete(k);
+  }
+}, 30000);
 
 // slug 생성 (옛 /register 패턴)
 function generateSlug(name) {
@@ -139,8 +147,49 @@ router.get('/google/callback', async (req, res) => {
       return res.redirect(302, buildRedirectTarget({ ok: false, error: 'email_not_verified' }));
     }
 
-    let user = await User.findOne({ where: { email: profile.email } });
+    const { Op } = require('sequelize');
+    // N+70 Task 62 — 3분기 OAuth 흐름 (표준 OAuth Connection 패턴)
+    let user = null;
     let isNewUser = false;
+    let needsConnectionConfirm = false;
+    let prospectUser = null;  // email 매칭 user — 연결 확인 후 attach
+
+    // [분기 1] oauth_connections subject 매칭 → 그 사용자 즉시 로그인
+    const existingConn = await OauthConnection.findOne({
+      where: { provider: 'google', subject: profile.google_sub },
+      include: [{ model: User, attributes: ['id', 'email', 'status'] }],
+    });
+    if (existingConn && existingConn.User) {
+      user = await User.findByPk(existingConn.User.id);
+      await existingConn.update({ last_used_at: new Date() });
+    } else {
+      // [분기 2] email 매칭 (primary or verified secondary) — 연결 확인 페이지로
+      prospectUser = await User.findOne({
+        where: {
+          [Op.or]: [
+            { email: profile.email },
+            { secondary_email: profile.email, secondary_email_verified_at: { [Op.ne]: null } },
+          ],
+        },
+      });
+      if (prospectUser) {
+        // 연결 확인 페이지로 redirect — 사용자 명시 동의 필요
+        // confirm token 5분 in-memory (간단)
+        const confirmToken = require('crypto').randomBytes(24).toString('base64url');
+        confirmStash.set(confirmToken, {
+          user_id: prospectUser.id,
+          provider: 'google',
+          subject: profile.google_sub,
+          email: profile.email,
+          display_name: profile.name,
+          picture: profile.picture,
+          exp: Date.now() + 5 * 60 * 1000,
+        });
+        return res.redirect(302, `/oauth/connect-confirm?token=${confirmToken}&email=${encodeURIComponent(profile.email)}&existing_email=${encodeURIComponent(prospectUser.email)}&name=${encodeURIComponent(profile.name || '')}`);
+      }
+      // [분기 3] 둘 다 없음 → 신규 가입 (기존 로직 그대로)
+    }
+    // 아래는 분기 1 (existing user) 또는 분기 3 (신규) 흐름 계속
     if (!user) {
       // N+70 hotfix — browser Accept-Language 우선 (Google profile.locale 보다 정확)
       const browserLang = String(req.headers['accept-language'] || '').toLowerCase();
@@ -164,6 +213,17 @@ router.get('/google/callback', async (req, res) => {
         }, { transaction: t });
         // 자동 Business + Cue (옛 /register 정합) — 좌측 메뉴 채워짐 + 14일 trial
         await setupNewWorkspace(user, wantsKo, t);
+        // OAuth Connection 자동 생성 (subject 박제 — 다음 로그인은 즉시 분기 1)
+        await OauthConnection.create({
+          user_id: user.id,
+          provider: 'google',
+          subject: profile.google_sub,
+          email: profile.email,
+          display_name: profile.name || null,
+          picture: profile.picture || null,
+          connected_at: new Date(),
+          last_used_at: new Date(),
+        }, { transaction: t });
         await t.commit();
       } catch (e) {
         await t.rollback();
@@ -187,6 +247,128 @@ router.get('/google/callback', async (req, res) => {
   } catch (e) {
     console.error('[auth_oauth/google/callback]', e);
     return res.redirect(302, buildRedirectTarget({ ok: false, error: e.message || 'oauth_failed' }));
+  }
+});
+
+// ─── N+70 Task 62 — Connect Confirm 흐름 + Settings API ─────────
+// 사용자가 옛 계정에 Google OAuth 를 attach 하는 흐름.
+// 1. callback 분기 2 에서 redirect 시 token 발급
+// 2. frontend /oauth/connect-confirm page 가 token 으로 정보 fetch
+// 3. 사용자가 "예 연결" 클릭 → POST /api/auth/google/connect-confirm
+
+// GET /api/auth/google/connect-confirm/info?token=...
+router.get('/google/connect-confirm/info', (req, res) => {
+  const token = String(req.query.token || '');
+  const stash = confirmStash.get(token);
+  if (!stash || stash.exp < Date.now()) {
+    return res.status(400).json({ success: false, message: 'invalid_or_expired_token' });
+  }
+  // user lookup
+  User.findByPk(stash.user_id, { attributes: ['id', 'email', 'name', 'avatar_url'] }).then(u => {
+    if (!u) return res.status(404).json({ success: false, message: 'user_not_found' });
+    res.json({
+      success: true,
+      data: {
+        existing_user: { id: u.id, email: u.email, name: u.name, avatar_url: u.avatar_url },
+        google: {
+          email: stash.email,
+          display_name: stash.display_name,
+          picture: stash.picture,
+        },
+      },
+    });
+  }).catch(e => res.status(500).json({ success: false, message: e.message }));
+});
+
+// POST /api/auth/google/connect-confirm  body: { token, action: 'connect' | 'cancel' }
+router.post('/google/connect-confirm', async (req, res) => {
+  try {
+    const { token, action } = req.body || {};
+    const stash = confirmStash.get(String(token));
+    if (!stash || stash.exp < Date.now()) {
+      return res.status(400).json({ success: false, message: 'invalid_or_expired_token' });
+    }
+    confirmStash.delete(token);
+    if (action !== 'connect') {
+      return res.json({ success: true, data: { action: 'cancelled' } });
+    }
+    const user = await User.findByPk(stash.user_id);
+    if (!user || user.status !== 'active') {
+      return res.status(403).json({ success: false, message: 'user_inactive' });
+    }
+    // OauthConnection 생성 (이미 다른 sub 가 user_id+google 에 있으면 교체)
+    const existing = await OauthConnection.findOne({ where: { user_id: user.id, provider: 'google' } });
+    if (existing) {
+      await existing.update({
+        subject: stash.subject,
+        email: stash.email,
+        display_name: stash.display_name,
+        picture: stash.picture,
+        last_used_at: new Date(),
+      });
+    } else {
+      await OauthConnection.create({
+        user_id: user.id,
+        provider: 'google',
+        subject: stash.subject,
+        email: stash.email,
+        display_name: stash.display_name,
+        picture: stash.picture,
+        connected_at: new Date(),
+        last_used_at: new Date(),
+      });
+    }
+    // 즉시 로그인 (refresh_token cookie set)
+    await issueSessionCookie(req, res, user);
+    res.json({ success: true, data: { action: 'connected', user_id: user.id, next: '/inbox' } });
+  } catch (e) {
+    console.error('[connect-confirm POST]', e);
+    res.status(500).json({ success: false, message: e.message });
+  }
+});
+
+// ─── Settings 메뉴 API — 내 연결 list / 추가 / 해제 ─────────
+const { authenticateToken } = require('../middleware/auth');
+
+// GET /api/auth/oauth-connections — 본인 연결 list
+router.get('/oauth-connections', authenticateToken, async (req, res) => {
+  try {
+    const rows = await OauthConnection.findAll({
+      where: { user_id: req.user.id },
+      attributes: ['id', 'provider', 'email', 'display_name', 'picture', 'connected_at', 'last_used_at'],
+      order: [['connected_at', 'DESC']],
+    });
+    res.json({ success: true, data: rows });
+  } catch (e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+});
+
+// POST /api/auth/oauth-connections/google/initiate — 로그인된 사용자가 Settings 에서 Google 연결 시작
+router.post('/oauth-connections/google/initiate', authenticateToken, (req, res) => {
+  // state 에 user_id 추가 — callback 에서 분기 2 거치지 않고 직접 연결
+  // 단순화 — 기존 initiate 그대로 사용. callback 시 email 매칭으로 attach.
+  // 향후: state encode user_id 로 명시 attach
+  const { url } = googleOauthLogin.buildAuthUrl();
+  res.json({ success: true, data: { auth_url: url } });
+});
+
+// DELETE /api/auth/oauth-connections/:id — 본인 연결 해제
+router.delete('/oauth-connections/:id', authenticateToken, async (req, res) => {
+  try {
+    const conn = await OauthConnection.findOne({ where: { id: req.params.id, user_id: req.user.id } });
+    if (!conn) return res.status(404).json({ success: false, message: 'not_found' });
+    // 비밀번호 없는 OAuth-only 사용자는 마지막 연결 해제 차단 (lockout 방지)
+    const user = await User.findByPk(req.user.id);
+    const isOauthOnly = user.password_hash && user.password_hash.startsWith('$2a$12$oauth_no_password_set');
+    const remainingCount = await OauthConnection.count({ where: { user_id: req.user.id } });
+    if (isOauthOnly && remainingCount <= 1) {
+      return res.status(400).json({ success: false, message: 'cannot_remove_last_oauth_method_set_password_first' });
+    }
+    await conn.destroy();
+    res.json({ success: true, data: { disconnected: true } });
+  } catch (e) {
+    res.status(500).json({ success: false, message: e.message });
   }
 });
 
