@@ -11,11 +11,24 @@ EmailAccount.init({
   business_id: { type: DataTypes.INTEGER, allowNull: false, references: { model: 'businesses', key: 'id' } },
   email: { type: DataTypes.STRING(255), allowNull: false },
   display_name: { type: DataTypes.STRING(100), allowNull: true },
-  // IMAP
+  // 인증 방식 — N+70 Task C/D 통합
+  //   password: IMAP/SMTP 비밀번호 직접 (앱 비밀번호) — 옛 방식
+  //   google_oauth: Gmail API + XOAUTH2 — OAuth 2.0
+  //   microsoft_oauth: Microsoft Graph + XOAUTH2 — 향후 D
+  auth_type: {
+    type: DataTypes.ENUM('password', 'google_oauth', 'microsoft_oauth'),
+    allowNull: false, defaultValue: 'password',
+  },
+  // OAuth 토큰 (auth_type !== 'password' 일 때)
+  oauth_access_token_encrypted: { type: DataTypes.TEXT, allowNull: true },
+  oauth_refresh_token_encrypted: { type: DataTypes.TEXT, allowNull: true },
+  oauth_expires_at: { type: DataTypes.DATE, allowNull: true },
+  oauth_scope: { type: DataTypes.TEXT, allowNull: true },
+  // IMAP (auth_type='password' 시 필수, oauth 시 host/port 만 사용)
   imap_host: { type: DataTypes.STRING(200), allowNull: false },
   imap_port: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 993 },
   imap_username: { type: DataTypes.STRING(255), allowNull: false },
-  imap_password_encrypted: { type: DataTypes.TEXT, allowNull: false },
+  imap_password_encrypted: { type: DataTypes.TEXT, allowNull: true },  // OAuth 시 null
   imap_tls: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true },
   imap_folder: { type: DataTypes.STRING(50), allowNull: false, defaultValue: 'INBOX' },
   imap_last_uid: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },

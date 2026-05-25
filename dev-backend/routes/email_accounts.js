@@ -217,9 +217,97 @@ router.post('/:businessId/email-accounts/:id/sync-now', authenticateToken, check
       where: { id: req.params.id, business_id: req.params.businessId },
     });
     if (!acc) return errorResponse(res, 'not_found', 404);
-    // emailImapCron 의 syncOne 직접 호출 (M1 후속 — 지금은 placeholder)
+    // 백그라운드 fire-and-forget
+    const emailImapCron = require('../services/emailImapCron');
+    emailImapCron.syncOne(acc).catch(e => console.error('[sync-now]', e.message));
     successResponse(res, { triggered: true, account_id: acc.id });
   } catch (err) { next(err); }
+});
+
+// ─── Gmail OAuth (N+70 Task C) — 앱 비밀번호 대체 ───────────────────
+// GET /api/businesses/:businessId/email-accounts/oauth/gmail/initiate?return_to=...
+//   → Google OAuth URL 302 redirect (scope: https://mail.google.com/ + email + profile)
+router.get('/:businessId/email-accounts/oauth/gmail/initiate', authenticateToken, checkBusinessAccess, async (req, res) => {
+  try {
+    if (!isAdmin(req)) return res.status(403).send('admin only');
+    if (!process.env.GOOGLE_CLIENT_ID) return res.status(500).send('GOOGLE_CLIENT_ID 미설정');
+    const gmailOauth = require('../services/gmail_oauth');
+    const url = gmailOauth.buildAuthUrl({
+      businessId: Number(req.params.businessId),
+      userId: req.user.id,
+      returnUrl: req.query.return_to || '/business/settings/mail-accounts',
+    });
+    return res.redirect(302, url);
+  } catch (e) {
+    console.error('[gmail-oauth/initiate]', e);
+    return res.status(500).send(e.message);
+  }
+});
+
+// GET /api/businesses/email-accounts/oauth/gmail/callback?code=&state=
+//   → Google 이 redirect — code 교환 + EmailAccount 생성/갱신 + frontend redirect
+//   (note: 이 callback 은 business path 외부 — Google 가 등록한 redirect URI 그대로 사용)
+router.get('/email-accounts/oauth/gmail/callback', async (req, res) => {
+  // CSP 정합 — inline script X. 성공 시 302 redirect, 실패 시 settings 페이지에 ?error= 쿼리.
+  const buildSuccessRedirect = (returnUrl, email) => {
+    const target = (returnUrl || '/business/settings/mail-accounts').replace(/[?#].*/, '');
+    return `${target}?gmail_connected=${encodeURIComponent(email)}`;
+  };
+  const buildErrorRedirect = (returnUrl, error) => {
+    const target = (returnUrl || '/business/settings/mail-accounts').replace(/[?#].*/, '');
+    return `${target}?gmail_error=${encodeURIComponent(error)}`;
+  };
+
+  try {
+    const { code, state, error: oauthError } = req.query;
+    const gmailOauth = require('../services/gmail_oauth');
+    if (oauthError) return res.redirect(302, buildErrorRedirect(null, oauthError));
+    if (!code || !state) return res.redirect(302, buildErrorRedirect(null, 'invalid_request'));
+    const parsed = gmailOauth.decodeState(String(state));
+    if (!parsed) return res.redirect(302, buildErrorRedirect(null, 'invalid_state'));
+
+    const tokens = await gmailOauth.exchangeCodeForTokens(String(code));
+    const { encrypt } = require('../services/encryption');
+
+    // 같은 email 이미 등록돼 있으면 갱신 (OAuth 토큰 교체)
+    let acc = await EmailAccount.findOne({
+      where: { business_id: parsed.businessId, email: tokens.email },
+    });
+    const count = await EmailAccount.count({ where: { business_id: parsed.businessId } });
+    const isFirst = count === 0;
+    const payload = {
+      business_id: parsed.businessId,
+      email: tokens.email,
+      display_name: tokens.name || null,
+      auth_type: 'google_oauth',
+      oauth_access_token_encrypted: encrypt(tokens.access_token),
+      oauth_refresh_token_encrypted: tokens.refresh_token ? encrypt(tokens.refresh_token) : (acc?.oauth_refresh_token_encrypted || null),
+      oauth_expires_at: tokens.expires_at,
+      oauth_scope: tokens.scope,
+      imap_host: 'imap.gmail.com',
+      imap_port: 993,
+      imap_username: tokens.email,
+      imap_password_encrypted: null,    // OAuth 시 password 없음
+      imap_tls: true,
+      imap_folder: 'INBOX',
+      smtp_host: 'smtp.gmail.com',
+      smtp_port: 587,
+      smtp_username: tokens.email,
+      smtp_password_encrypted: null,
+      smtp_tls: true,
+      is_active: true,
+    };
+    if (acc) {
+      await acc.update(payload);
+    } else {
+      payload.is_default = isFirst;
+      acc = await EmailAccount.create(payload);
+    }
+    return res.redirect(302, buildSuccessRedirect(parsed.returnUrl, tokens.email));
+  } catch (e) {
+    console.error('[gmail-oauth/callback]', e);
+    return res.redirect(302, buildErrorRedirect(null, e.message));
+  }
 });
 
 module.exports = router;

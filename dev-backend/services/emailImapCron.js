@@ -144,13 +144,40 @@ async function saveAttachmentAsFile({ businessId, fromEmail, att, accountUserId 
   }
 }
 
-// account 1개 sync
+// account 1개 sync — N+70 auth_type 분기 (password / google_oauth)
 async function syncOne(account) {
-  const password = decrypt(account.imap_password_encrypted);
-  if (!password) throw new Error('password_decrypt_failed');
-
-  const conn = await imaps.connect({
-    imap: {
+  let imapConfig;
+  if (account.auth_type === 'google_oauth') {
+    // OAuth — access_token 으로 XOAUTH2 SASL 인증
+    const gmailOauth = require('./gmail_oauth');
+    let accessToken = decrypt(account.oauth_access_token_encrypted);
+    // 만료 check + refresh
+    const expiresAt = account.oauth_expires_at ? new Date(account.oauth_expires_at).getTime() : 0;
+    const now = Date.now();
+    if (!accessToken || (expiresAt && now > expiresAt - 60000)) {
+      const refreshToken = decrypt(account.oauth_refresh_token_encrypted);
+      if (!refreshToken) throw new Error('oauth_refresh_token_missing');
+      const refreshed = await gmailOauth.refreshAccessToken(refreshToken);
+      accessToken = refreshed.access_token;
+      await account.update({
+        oauth_access_token_encrypted: require('./encryption').encrypt(accessToken),
+        oauth_expires_at: refreshed.expires_at,
+      });
+    }
+    imapConfig = {
+      user: account.imap_username,
+      xoauth2: gmailOauth.buildXOAuth2(account.imap_username, accessToken),
+      host: account.imap_host,
+      port: account.imap_port,
+      tls: account.imap_tls,
+      authTimeout: 30000,
+      tlsOptions: { rejectUnauthorized: false },
+    };
+  } else {
+    // 옛 password 방식
+    const password = decrypt(account.imap_password_encrypted);
+    if (!password) throw new Error('password_decrypt_failed');
+    imapConfig = {
       user: account.imap_username,
       password,
       host: account.imap_host,
@@ -158,8 +185,10 @@ async function syncOne(account) {
       tls: account.imap_tls,
       authTimeout: 30000,
       tlsOptions: { rejectUnauthorized: false },
-    },
-  });
+    };
+  }
+
+  const conn = await imaps.connect({ imap: imapConfig });
 
   let newCount = 0;
   try {
