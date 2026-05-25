@@ -74,6 +74,14 @@
     "logout": "Logout",
     "menu": "Account menu"
   },
+  "notifications": {
+    "title": "Notifications",
+    "loading": "Loading…",
+    "emptyTitle": "No new notifications",
+    "emptyHint": "Comments, events, and payments will appear here.",
+    "markAllRead": "Mark all read",
+    "viewAll": "View all notifications"
+  },
   "role": {
     "platform_admin": "Platform Admin",
     "business_owner": "Admin",

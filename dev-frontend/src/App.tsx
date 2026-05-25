@@ -84,6 +84,7 @@ const LandingBlog = lazy(() => import('./pages/Landing/BlogPage'));
 const RootRoute = lazy(() => import('./pages/Landing/RootRoute'));
 const DashboardPage = lazy(() => import('./pages/Dashboard/DashboardPage'));
 const TodoPage = lazy(() => import('./pages/Todo/TodoPage'));
+const NotificationsPage = lazy(() => import('./pages/Notifications/NotificationsPage'));
 const QBillPage = lazy(() => import('./pages/QBill/QBillPage'));
 const KnowledgePage = lazy(() => import('./pages/Knowledge/KnowledgePage'));
 // Q record 메뉴는 폐지 — Q docs 의 표 kind 로 흡수. /records → /docs redirect.
@@ -138,6 +139,12 @@ function App() {
         } />
         {/* 하위 호환 redirect: 이전 북마크 */}
         <Route path="/todo" element={<Navigate to="/inbox" replace />} />
+        {/* N+63 — 알림 feed (Activity Feed). 확인 필요 (/inbox = Action Queue) 와 별도. */}
+        <Route path="/notifications" element={
+          <ProtectedRoute>
+            <MainLayout><NotificationsPage /></MainLayout>
+          </ProtectedRoute>
+        } />
 
         {/* PWA Share Target — 외부 공유 시트 → PlanQ 진입 */}
         <Route path="/share-receive" element={

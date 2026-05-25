@@ -64,6 +64,7 @@ const Report = require('./Report');
 // ─── 플랫폼 문의 ───
 const ContactInquiry = require('./ContactInquiry');
 const NotificationPref = require('./NotificationPref');
+const Notification = require('./Notification');
 const EmailLog = require('./EmailLog');
 const PlatformSetting = require('./PlatformSetting');
 // ─── Q docs (문서·템플릿 통합 시스템) ───
@@ -433,6 +434,7 @@ module.exports = {
   // 플랫폼 문의
   ContactInquiry,
   NotificationPref,
+  Notification,
   EmailLog,
   PlatformSetting,
   // Q docs
@@ -643,6 +645,11 @@ ContactInquiry.belongsTo(Business, { foreignKey: 'business_id' });
 NotificationPref.belongsTo(User, { foreignKey: 'user_id', onDelete: 'CASCADE' });
 NotificationPref.belongsTo(Business, { foreignKey: 'business_id', onDelete: 'CASCADE' });
 User.hasMany(NotificationPref, { as: 'notificationPrefs', foreignKey: 'user_id' });
+
+// N+63 — Notification (인앱 알림 feed). dashboard/todo (확인 필요) 와 분리.
+Notification.belongsTo(User, { foreignKey: 'user_id', onDelete: 'CASCADE' });
+Notification.belongsTo(User, { as: 'actor', foreignKey: 'actor_user_id', onDelete: 'SET NULL' });
+Notification.belongsTo(Business, { foreignKey: 'business_id', onDelete: 'CASCADE' });
 
 // EmailLog — 메일 발송 모니터링
 EmailLog.belongsTo(User, { foreignKey: 'initiated_by', as: 'initiator' });

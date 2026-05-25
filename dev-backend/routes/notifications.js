@@ -92,9 +92,39 @@ router.isAllowed = isAllowed;
 //
 // 시스템 메일 (인증 OTP, 비밀번호 재설정) 도 매트릭스 무관 —
 //   전용 helper (sendVerificationCodeEmail / sendSignatureOtpEmail) 사용.
-async function notify({ userId, businessId, eventKind, title, body, link, ctaLabel, workspaceName, tag }) {
+async function notify({ userId, businessId, eventKind, title, body, link, ctaLabel, workspaceName, tag, actorUserId, entityType, entityId, ioApp }) {
   if (!userId || !eventKind) return { inbox: false, email: false, push: false };
-  const results = { inbox: true, email: false, push: false };
+  const results = { inbox: false, email: false, push: false };
+
+  // N+63 — inbox 채널 실 처리 (알림 feed, Activity Feed). 옛 hardcoded true → 실 Notification.create.
+  // NotificationPref event_kind × channel='inbox' 토글로 사용자가 받을 종류 선택 (기본 ON).
+  // socket emit 'notification:new' → 좌측 사이드바 종 모양 즉시 +1.
+  if (await isAllowed(userId, businessId, eventKind, 'inbox')) {
+    try {
+      const { Notification } = require('../models');
+      const row = await Notification.create({
+        user_id: userId,
+        business_id: businessId || null,
+        event_kind: eventKind,
+        title: title || '(no title)',
+        body: body || null,
+        link: link || null,
+        cta_label: ctaLabel || null,
+        actor_user_id: actorUserId || null,
+        entity_type: entityType || null,
+        entity_id: entityId || null,
+      });
+      results.inbox = !!row.id;
+      // 실시간 — `user:${userId}` room 으로 emit (multi-device sync).
+      // notify() 가 server.js req.app context 없는 곳 (cron 등) 에서도 호출됨 — ioApp 명시 전달 우선.
+      try {
+        const io = ioApp || global.__planqIo || null;
+        if (io) io.to(`user:${userId}`).emit('notification:new', { id: row.id, kind: eventKind });
+      } catch { /* socket emit 실패해도 row 는 저장됨 */ }
+    } catch (e) {
+      console.error('[notify inbox]', e.message);
+    }
+  }
 
   // email 채널
   if (await isAllowed(userId, businessId, eventKind, 'email')) {
@@ -176,13 +206,81 @@ async function notify({ userId, businessId, eventKind, title, body, link, ctaLab
 }
 
 // 멀티 수신자용 (워크스페이스 멤버 N 명에게 한 번에)
-async function notifyMany({ userIds, businessId, eventKind, title, body, link, ctaLabel, workspaceName, excludeUserId, tag }) {
+async function notifyMany({ userIds, businessId, eventKind, title, body, link, ctaLabel, workspaceName, excludeUserId, tag, actorUserId, entityType, entityId, ioApp }) {
   const filtered = (userIds || []).filter((id) => id && id !== excludeUserId);
   const results = await Promise.all(
-    filtered.map((uid) => notify({ userId: uid, businessId, eventKind, title, body, link, ctaLabel, workspaceName, tag }))
+    filtered.map((uid) => notify({ userId: uid, businessId, eventKind, title, body, link, ctaLabel, workspaceName, tag, actorUserId, entityType, entityId, ioApp }))
   );
   return results;
 }
+
+// ─────────────────────────────────────────────
+// N+63 — 인앱 알림 feed 라우트 (Notification 테이블)
+// ─────────────────────────────────────────────
+
+// GET /api/notifications?unread_only=true&limit=20&before=ISO
+router.get('/', authenticateToken, async (req, res, next) => {
+  try {
+    const { Notification, User } = require('../models');
+    const limit = Math.min(Number(req.query.limit) || 30, 100);
+    const where = { user_id: req.user.id };
+    if (String(req.query.unread_only) === 'true') where.read_at = null;
+    if (req.query.before) {
+      const d = new Date(req.query.before);
+      if (!isNaN(d.getTime())) where.created_at = { [require('sequelize').Op.lt]: d };
+    }
+    const rows = await Notification.findAll({
+      where,
+      include: [{ model: User, as: 'actor', attributes: ['id', 'name', 'name_localized'], required: false }],
+      order: [['created_at', 'DESC']],
+      limit,
+    });
+    return successResponse(res, rows.map(r => r.toJSON()));
+  } catch (err) { next(err); }
+});
+
+// GET /api/notifications/unread-count
+router.get('/unread-count', authenticateToken, async (req, res, next) => {
+  try {
+    const { Notification } = require('../models');
+    const n = await Notification.count({ where: { user_id: req.user.id, read_at: null } });
+    return successResponse(res, { count: n });
+  } catch (err) { next(err); }
+});
+
+// PATCH /api/notifications/:id/read
+router.patch('/:id/read', authenticateToken, async (req, res, next) => {
+  try {
+    const { Notification } = require('../models');
+    const row = await Notification.findOne({ where: { id: req.params.id, user_id: req.user.id } });
+    if (!row) return errorResponse(res, 'not_found', 404);
+    if (!row.read_at) {
+      await row.update({ read_at: new Date() });
+      // multi-device 동기화 — 다른 디바이스 즉시 -1
+      try {
+        const io = req.app.get('io');
+        if (io) io.to(`user:${req.user.id}`).emit('notification:read', { id: row.id });
+      } catch { /* skip */ }
+    }
+    return successResponse(res, { id: row.id, read_at: row.read_at });
+  } catch (err) { next(err); }
+});
+
+// POST /api/notifications/read-all
+router.post('/read-all', authenticateToken, async (req, res, next) => {
+  try {
+    const { Notification } = require('../models');
+    const [affected] = await Notification.update(
+      { read_at: new Date() },
+      { where: { user_id: req.user.id, read_at: null } }
+    );
+    try {
+      const io = req.app.get('io');
+      if (io) io.to(`user:${req.user.id}`).emit('notification:read-all');
+    } catch { /* skip */ }
+    return successResponse(res, { affected });
+  } catch (err) { next(err); }
+});
 
 module.exports = router;
 module.exports.isAllowed = isAllowed;
