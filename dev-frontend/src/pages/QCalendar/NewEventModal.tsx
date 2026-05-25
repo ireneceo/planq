@@ -8,6 +8,9 @@ import PlanQSelect from '../../components/Common/PlanQSelect';
 import CalendarPicker from '../../components/Common/CalendarPicker';
 import RecurrencePicker from '../../components/Common/RecurrencePicker';
 import { getVideoStatus } from '../../services/calendar';
+import VisibilityField, { serializeVisibility, type VisibilityValue } from '../../components/Common/VisibilityField';
+import { listWorkspaceClients, type WorkspaceClientRow } from '../../services/qtalk';
+import { apiFetch } from '../../contexts/AuthContext';
 
 interface Props {
   initialStart: Date;
@@ -53,6 +56,25 @@ const NewEventModal: React.FC<Props> = ({ initialStart, projects, businessId, on
   const [allDay, setAllDay] = useState(false);
   const [category, setCategory] = useState<EventCategory>('meeting');
   const [visibility, setVisibility] = useState<EventVisibility>('business');
+  // N+66 — 통합 visibility 5단계
+  const [vis, setVis] = useState<VisibilityValue>({
+    vlevel: 'L3', variant: 'L3', project_id: null, client_ids: [], target_member_ids: [],
+  });
+  const [clientsList, setClientsList] = useState<WorkspaceClientRow[]>([]);
+  const [members, setMembers] = useState<Array<{ user_id: number; name: string; role: string }>>([]);
+  useEffect(() => {
+    if (!businessId) return;
+    listWorkspaceClients(businessId).then(c => setClientsList(c.filter(x => x.status !== 'archived'))).catch(() => {});
+    apiFetch(`/api/businesses/${businessId}/members`).then(r => r.json()).then(j => {
+      if (j?.success && Array.isArray(j.data)) {
+        setMembers(j.data.map((m: { user_id?: number; id?: number; user?: { id?: number; name?: string }; name?: string; role?: string }) => ({
+          user_id: m.user_id || m.id || m.user?.id || 0,
+          name: m.user?.name || m.name || '—',
+          role: m.role || 'member',
+        })).filter((m: { user_id: number }) => m.user_id > 0));
+      }
+    }).catch(() => {});
+  }, [businessId]);
   const [projectId, setProjectId] = useState<number | ''>('');
   const [meetingUrl, setMeetingUrl] = useState('');
   const [autoCreateMeeting, setAutoCreateMeeting] = useState(false);
@@ -109,6 +131,12 @@ const NewEventModal: React.FC<Props> = ({ initialStart, projects, businessId, on
     if (new Date(eISO) < new Date(sISO)) return;
 
     setSubmitting(true);
+    // N+66 — vlevel 우선. hook 가 visibility 자동 동기.
+    const ser = serializeVisibility(vis);
+    // L2-project 가 선택되면 project_id 도 sync (정합)
+    const finalProjectId = vis.variant === 'L2_project'
+      ? ser.project_id
+      : (projectId === '' ? null : Number(projectId));
     onCreate({
       title: title.trim(),
       description: description.trim() || null,
@@ -117,15 +145,18 @@ const NewEventModal: React.FC<Props> = ({ initialStart, projects, businessId, on
       end_at: eISO,
       all_day: allDay,
       category,
-      visibility,
-      project_id: projectId === '' ? null : Number(projectId),
+      visibility,  // backend hook 가 vlevel 우선 처리하므로 backward-compat
+      project_id: finalProjectId,
       meeting_url: meetingUrl.trim() || null,
-      // 사이클 N+13 — daily.co URL 매핑 제거. 자동 생성은 google_meet, 수동 입력은 manual.
       meeting_provider: autoCreateMeeting && gcalConnected
         ? 'google_meet'
         : (meetingUrl.trim() ? 'manual' : null),
       auto_create_meeting: autoCreateMeeting && gcalConnected,
       rrule,
+      // N+66 — 통합 visibility
+      vlevel: vis.vlevel,
+      target_member_ids: ser.target_member_ids,
+      target_client_ids: vis.variant === 'L4' ? ser.client_ids : [],
     } as unknown as Partial<CalendarEvent>);
   };
 
@@ -244,19 +275,24 @@ const NewEventModal: React.FC<Props> = ({ initialStart, projects, businessId, on
                 onChange={(opt) => setProjectId(opt ? Number((opt as { value: number | string }).value) : '')}
               />
             </Field>
-            <Field>
-              <Label>{t('form.visibility')}</Label>
-              <PlanQSelect
-                size="sm"
-                options={[
-                  { value: 'business', label: t('visibility.business') },
-                  { value: 'personal', label: t('visibility.personal') },
-                ]}
-                value={{ value: visibility, label: t(`visibility.${visibility}`) }}
-                onChange={(opt) => opt && setVisibility((opt as { value: string }).value as EventVisibility)}
-              />
-            </Field>
           </Grid2>
+          {/* N+66 — 공유 범위 통합 (KnowledgePage 와 동일 VisibilityField). 옛 personal/business 2 select 폐지. */}
+          <Field>
+            <Label>{t('form.visibility')}</Label>
+            <VisibilityField
+              value={vis}
+              onChange={(v) => {
+                setVis(v);
+                // legacy visibility state 도 동기 (backward compat)
+                setVisibility(v.vlevel === 'L1' ? 'personal' : 'business');
+                // L2-project 선택 시 projectId 도 sync
+                if (v.variant === 'L2_project' && v.project_id) setProjectId(v.project_id);
+              }}
+              projects={projects.map(p => ({ id: p.id, name: p.name }))}
+              clients={clientsList.map(c => ({ id: c.id, display_name: c.display_name, biz_name: c.biz_name, company_name: c.company_name }))}
+              members={members}
+            />
+          </Field>
 
           <Field>
             <Label>{t('form.location')}</Label>

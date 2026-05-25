@@ -110,10 +110,10 @@ export interface QNoteSession {
   summarized_at?: string | null;
 }
 
-// visibility 변경 API
+// visibility 변경 API — N+66: L4 도 type 으로 받음 (backend Q note 가 거부하면 별도 share 흐름 안내)
 export async function changeSessionVisibility(
   sessionId: number,
-  body: { visibility: 'L1' | 'L2' | 'L3'; project_id?: number; shared_consent?: boolean }
+  body: { visibility: 'L1' | 'L2' | 'L3' | 'L4'; project_id?: number; shared_consent?: boolean }
 ): Promise<QNoteSession> {
   const res = await fetch(`/api/sessions/${sessionId}/visibility`, {
     method: 'PUT',

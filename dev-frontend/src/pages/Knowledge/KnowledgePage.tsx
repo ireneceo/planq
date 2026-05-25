@@ -50,7 +50,7 @@ const COL_TYPE_LABEL: Record<string, string> = {
 };
 
 interface KbDetail extends KbDocumentRow {
-  body?: string;
+  body?: string | null;  // N+65 — KbDocumentRow.body 와 type 정합 (null 허용)
   file_name?: string | null;
   file_size?: number | null;
   uploaded_by?: number;
@@ -1689,19 +1689,6 @@ const CsvUploadBtn = styled.button`
 `;
 
 const Loading = styled.div`padding: 40px; text-align: center; color: #94A3B8;`;
-// 공유 범위 라디오 아래 부속 입력 (project / client 선택)
-const ScopeSubField = styled.div`
-  margin-top: 12px;
-  padding: 12px;
-  background: #F8FAFC;
-  border: 1px solid #E2E8F0;
-  border-radius: 8px;
-  display: flex; flex-direction: column; gap: 6px;
-`;
-const SubLabel = styled.div`
-  font-size: 11px; font-weight: 700; color: #64748B;
-  text-transform: uppercase; letter-spacing: 0.4px;
-`;
 // N+64 — 자유 카테고리 추가 input row
 const NewCatRow = styled.div`
   display: flex; gap: 8px; margin-top: 6px;
@@ -1713,25 +1700,7 @@ const DupHint = styled.div`
   background: #FEF3C7; border: 1px solid #FCD34D;
   border-radius: 6px; font-size: 12px; color: #92400E;
 `;
-
-// 권한 라디오 (4 옵션 — 큰 카드 형태)
-const PolicyRadioGroup = styled.div`
-  display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
-  @media (max-width: 640px) { grid-template-columns: 1fr; }
-`;
-const PolicyRadio = styled.button<{ $active: boolean }>`
-  display: flex; flex-direction: column; align-items: flex-start; gap: 2px;
-  padding: 10px 12px;
-  background: ${p => p.$active ? '#F0FDFA' : '#FFFFFF'};
-  border: 1px solid ${p => p.$active ? '#14B8A6' : '#E2E8F0'};
-  border-radius: 8px;
-  cursor: pointer; text-align: left;
-  transition: all 0.15s;
-  &:hover:not(:disabled) { border-color: #14B8A6; background: #F0FDFA; }
-  &:focus-visible { outline: 2px solid rgba(20,184,166,0.3); outline-offset: 2px; }
-`;
-const PolicyTitle = styled.div`font-size: 13px; font-weight: 700; color: #0F172A;`;
-const PolicyHint = styled.div`font-size: 11px; color: #64748B; line-height: 1.4;`;
+// N+65 — 옛 PolicyRadio* / ScopeSubField / SubLabel styled 제거 (VisibilityField 로 통합)
 
 // 사용자 정의 항목 추가 (이름·타입·값·표시여부)
 const CustomColList = styled.div`display: flex; flex-direction: column; gap: 6px;`;
