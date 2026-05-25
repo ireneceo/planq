@@ -104,7 +104,16 @@
     "reissuing": "재발급 중...",
     "reissueHint": "만료된 링크는 재발급으로 복구하세요. 정기 회의는 모든 회차에 동일 링크가 유효해야 합니다.",
     "noLocation": "위치 없음",
-    "noDescription": "설명 없음"
+    "noDescription": "설명 없음",
+    "addAttendee": "+ 참석자 추가",
+    "removeAttendee": "제거",
+    "attendeeGroupMember": "멤버",
+    "attendeeGroupClient": "고객",
+    "reminder": "임박 알림",
+    "reminderNone": "알림 없음",
+    "reminderMin": "{{count}}분 전",
+    "reminderHour": "{{count}}시간 전",
+    "reminderDay": "{{count}}일 전"
   },
   "empty": {
     "month": "이번 달엔 예정된 일정이 없습니다",

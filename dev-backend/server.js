@@ -413,6 +413,9 @@ scheduleNextMidnight();
 // 주간 보고 자동 박제 cron (매시간 0분)
 const { initWeeklyReviewCron } = require('./services/weeklyReviewCron');
 initWeeklyReviewCron();
+// N+63 — 일정 임박 알림 cron (5분 단위)
+const { initCalendarReminderCron } = require('./services/calendarReminderCron');
+initCalendarReminderCron();
 // N+36 옵션 D — 업무 후보 만료 cron (30일 hide / 90일 rejected delete / 60일 hidden delete)
 const { initCandidateCleanupCron } = require('./services/candidateCleanup');
 initCandidateCleanupCron();

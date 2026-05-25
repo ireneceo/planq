@@ -37,6 +37,11 @@ CalendarEvent.init({
   // 이후 PUT (시간/제목/설명 변경) / DELETE 시 같은 google event 를 update/delete 하여 sync.
   // null = PlanQ only (Meet 발급 안 한 일반 이벤트).
   gcal_event_id: { type: DataTypes.STRING(100), allowNull: true },
+  // N+63 — 임박 알림 (start_at - reminder_minutes 시점에 attendees 에게 알림 발송).
+  // null = 알림 비활성. 5/10/15/30/60 분 등. EventDrawer 셀렉트로 사용자 설정.
+  reminder_minutes: { type: DataTypes.INTEGER, allowNull: true },
+  // 중복 발송 방지 — cron 이 한 이벤트당 한 번만 발송. null = 아직 안 보냄.
+  reminder_sent_at: { type: DataTypes.DATE, allowNull: true },
   // 공용(business) / 개인(personal) — personal 은 created_by 본인만 조회
   visibility: {
     type: DataTypes.ENUM('personal', 'business'),
