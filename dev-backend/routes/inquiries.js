@@ -125,6 +125,23 @@ router.get('/admin', authenticateToken, requireRole('platform_admin'), async (re
   } catch (err) { next(err); }
 });
 
+// ─── GET /api/inquiries/admin/counts — 상태별 카운트 (platform_admin badge) ───
+// N+63 — 좌측 메뉴 admin inbox badge 용. miss 처리 (new + in_progress) 만 count.
+router.get('/admin/counts', authenticateToken, requireRole('platform_admin'), async (req, res, next) => {
+  try {
+    const { sequelize } = require('../config/database');
+    const [rows] = await sequelize.query(
+      "SELECT status, COUNT(*) AS n FROM contact_inquiries GROUP BY status"
+    );
+    const counts = { new: 0, in_progress: 0, resolved: 0, spam: 0 };
+    for (const r of rows) {
+      if (counts[r.status] !== undefined) counts[r.status] = Number(r.n);
+    }
+    const pending = counts.new + counts.in_progress;  // badge 표시 대상
+    return successResponse(res, { counts, pending });
+  } catch (err) { next(err); }
+});
+
 // ─── PATCH /api/inquiries/admin/:id — 상태/답변 업데이트 (platform_admin) ───
 router.patch('/admin/:id', authenticateToken, requireRole('platform_admin'), async (req, res, next) => {
   try {

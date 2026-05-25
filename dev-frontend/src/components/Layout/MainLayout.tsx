@@ -13,6 +13,7 @@ import FocusWidget from '../Focus/FocusWidget';
 import PanelHeader, { PanelTitle } from './PanelHeader';
 import { useTimezones } from '../../hooks/useTimezones';
 import { useInboxCount } from '../../hooks/useInboxCount';
+import { useAdminInboxCounts } from '../../hooks/useAdminInboxCounts';
 import { useUnreadTotal } from '../../hooks/useUnreadTotal';
 import { useGlobalBadge } from '../../hooks/useGlobalBadge';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
@@ -636,6 +637,8 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   const isActive = (path: string) => location.pathname === path || location.pathname.startsWith(path + '/');
   const isAdminMode = location.pathname.startsWith('/admin');
   const inboxCount = useInboxCount(user?.business_id ? Number(user.business_id) : null);
+  // N+63 — platform_admin 좌측 inbox badge (feedback + inquiries)
+  const adminCounts = useAdminInboxCounts();
   const talkUnreadCount = useUnreadTotal(user?.business_id ? Number(user.business_id) : null);
   // OS app badge (데스크탑 dock / 모바일 홈스크린 아이콘) — 인박스 + 채팅 합산 단일 적용.
   // 둘 중 하나라도 > 0 이면 표시. 사용자가 실제로 봐서 둘 다 0 될 때까지 안 사라짐.
@@ -778,18 +781,28 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                   <NavLabel $isCollapsed={isCollapsed}>{t('nav.businesses')}</NavLabel>
                 </NavItem>
                 <NavItem to="/admin/inquiries" $isCollapsed={isCollapsed} $active={isActive('/admin/inquiries')}
-                  title={isCollapsed ? t('nav.inquiries', '문의 인박스') : undefined}>
+                  title={isCollapsed ? `${t('nav.inquiries', '문의 인박스')}${adminCounts.inquiriesPending > 0 ? ` (${adminCounts.inquiriesPending})` : ''}` : undefined}>
                   <NavIcon $isCollapsed={isCollapsed}>
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>
                   </NavIcon>
                   <NavLabel $isCollapsed={isCollapsed}>{t('nav.inquiries', '문의 인박스')}</NavLabel>
+                  {adminCounts.inquiriesPending > 0 && (
+                    <InboxBadge $collapsed={isCollapsed} aria-label={`${t('nav.inquiries', '문의 인박스')} ${adminCounts.inquiriesPending}`}>
+                      {adminCounts.inquiriesPending > 99 ? '99+' : adminCounts.inquiriesPending}
+                    </InboxBadge>
+                  )}
                 </NavItem>
                 <NavItem to="/admin/feedback" $isCollapsed={isCollapsed} $active={isActive('/admin/feedback')}
-                  title={isCollapsed ? t('nav.feedback', '사용자 피드백') : undefined}>
+                  title={isCollapsed ? `${t('nav.feedback', '사용자 피드백')}${adminCounts.feedbackPending > 0 ? ` (${adminCounts.feedbackPending})` : ''}` : undefined}>
                   <NavIcon $isCollapsed={isCollapsed}>
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
                   </NavIcon>
                   <NavLabel $isCollapsed={isCollapsed}>{t('nav.feedback', '사용자 피드백')}</NavLabel>
+                  {adminCounts.feedbackPending > 0 && (
+                    <InboxBadge $collapsed={isCollapsed} aria-label={`${t('nav.feedback', '사용자 피드백')} ${adminCounts.feedbackPending}`}>
+                      {adminCounts.feedbackPending > 99 ? '99+' : adminCounts.feedbackPending}
+                    </InboxBadge>
+                  )}
                 </NavItem>
                 <NavItem to="/admin/email-logs" $isCollapsed={isCollapsed} $active={isActive('/admin/email-logs')}
                   title={isCollapsed ? t('nav.emailLogs', '메일 발송 모니터링') : undefined}>
