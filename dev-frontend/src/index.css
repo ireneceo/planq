@@ -29,10 +29,14 @@ html, body {
     bottom: 0;
     width: 100%;
     max-width: 100vw;
-    height: 100%;
-    overflow-x: hidden;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
+    /* N+63 — body 도 vvh 로 정합. N+31 미완 fix: #root 만 vvh 로 바꿔서
+       키보드 up 시 body(100% = layout viewport) > #root(vvh) 차이만큼
+       body background 가 흰 영역으로 노출 + iOS 자동 scrollIntoView 가
+       body overflow-y:auto 를 트리거해 페이지 전체 점프 회귀.
+       모든 스크롤은 PageShell.Body / MainContent / ChatPanel.MessagesArea 가
+       자체 overflow-y:auto 로 처리 (N+29 박제) → body 는 overflow:hidden 안전. */
+    height: var(--vvh, 100%);
+    overflow: hidden;
     overscroll-behavior: none;
     touch-action: pan-y;
   }
@@ -40,9 +44,8 @@ html, body {
   #root {
     width: 100%;
     max-width: 100vw;
-    /* N+31 — 모바일 viewport 동기화 회복. N+29 가 height:100% 로 fix 했더니
-       body(정적 layout viewport) 와 자식 Layout(동적 var(--vvh)) 사이에 빈 공간 노출 회귀.
-       PWA standalone 에서는 toolbar 없어 vvh 흔들림 없음 — PWA 사용성 우선. */
+    /* N+31 — #root 도 vvh. body 와 동일 단위로 layout viewport / visual viewport
+       불일치 차단. PWA standalone 에서는 toolbar 없어 vvh 흔들림 0. */
     height: var(--vvh, 100dvh);
     overflow: hidden;
   }

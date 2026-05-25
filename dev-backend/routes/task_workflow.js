@@ -72,6 +72,10 @@ function broadcast(req, task, event = 'task:updated', payload = null) {
   const data = payload || task.toJSON();
   if (task.project_id) io.to(`project:${task.project_id}`).emit(event, data);
   io.to(`business:${task.business_id}`).emit(event, data);
+  // N+63 — task status 전이 시 inbox 카운트도 함께 갱신 트리거.
+  // useInboxCount / useUnreadTotal / TodoPage / DashboardPage 가 'inbox:refresh' 만 listen → 사용자 호소 "확인 다 했는데 안 없어져" 회귀 fix.
+  // CLAUDE.md §16 (b) broadcast 누락 + (e) window CustomEvent 안전망 정합.
+  io.to(`business:${task.business_id}`).emit('inbox:refresh', { reason: 'task_workflow', task_id: task.id, event });
 }
 
 // ─────────────────────────────────────────────

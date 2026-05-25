@@ -71,7 +71,8 @@
   },
   "user": {
     "profile": "My Profile",
-    "logout": "Logout"
+    "logout": "Logout",
+    "menu": "Account menu"
   },
   "role": {
     "platform_admin": "Platform Admin",

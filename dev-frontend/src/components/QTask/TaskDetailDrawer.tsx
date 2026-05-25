@@ -119,6 +119,8 @@ export interface TaskDetailDrawerProps {
   onClose: () => void;
   onPatch?: (patch: DrawerTaskPatch) => void;
   onRefresh?: () => void;
+  // N+63 — 복사 후 새 task drawer 자동 전환 (parent 가 URL ?task= 변경)
+  onDuplicated?: (newTaskId: number) => void;
 }
 
 // 사이클 N+6: reviewer 0명이면 reviewing/revision_requested 단계 자체가 노출되지 않음.
@@ -134,7 +136,7 @@ const statusOptionsFor = (task: { source?: string; reviewers?: Array<{ user_id: 
 
 const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
   taskId, bizId, myId, todayStr, members, projects: projectsProp,
-  width, onWidthChange, onClose, onPatch, onRefresh,
+  width, onWidthChange, onClose, onPatch, onRefresh, onDuplicated,
 }) => {
   const { t } = useTranslation('qtask');
   // 댓글 첨부 이미지 라이트박스 — 한 댓글의 이미지들이 갤러리로 묶임
@@ -221,6 +223,20 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
   const [commentSending, setCommentSending] = useState(false);
   // 공유 모달 — 통합 ShareModal
   const [shareOpen, setShareOpen] = useState(false);
+  // N+63 — 복사: POST /api/tasks/:id/copy → 응답으로 새 task → parent 가 ?task=newId 로 전환
+  const [duplicating, setDuplicating] = useState(false);
+  const handleDuplicate = useCallback(async () => {
+    if (duplicating || !taskId) return;
+    setDuplicating(true);
+    try {
+      const r = await apiFetch(`/api/tasks/${taskId}/copy`, { method: 'POST' });
+      const j = await r.json();
+      if (j.success && j.data?.id && onDuplicated) {
+        onDuplicated(Number(j.data.id));
+      }
+    } catch { /* silent — 사용자가 다시 시도 */ }
+    finally { setDuplicating(false); }
+  }, [taskId, duplicating, onDuplicated]);
   // 댓글 편집/삭제 — 본인 댓글만 (메시지 정책과 동일)
   const [editingCommentId, setEditingCommentId] = useState<number | null>(null);
   const [editingCommentDraft, setEditingCommentDraft] = useState('');
@@ -619,6 +635,14 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
             aria-label={t('detail.share', { defaultValue: '공유' }) as string}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
           </ShareIconBtn>
+        )}
+        {/* N+63 — 복사 (담당자/마감일/시작일/진행률/실제시간 리셋, 본문·설명·예측시간·카테고리·프로젝트 복사) */}
+        {detailTask && onDuplicated && (
+          <DuplicateIconBtn type="button" onClick={handleDuplicate} disabled={duplicating}
+            title={t('detail.duplicate', { defaultValue: '복사 (담당자·날짜 리셋)' }) as string}
+            aria-label={t('detail.duplicate', { defaultValue: '복사' }) as string}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+          </DuplicateIconBtn>
         )}
         <CloseBtn onClick={onClose} title={t('detail.close', '닫기') as string}>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -1551,6 +1575,7 @@ const DrawerHeader = styled.div`height:60px;padding:14px 20px;border-bottom:1px 
 const BackBtn = styled.button`display:flex;align-items:center;gap:4px;background:transparent;border:none;color:#0F766E;font-size:12px;font-weight:600;cursor:pointer;padding:0;outline:none;&:hover{color:#134E4A;}&:focus{outline:none;}&:focus-visible{outline:2px solid #14B8A6;outline-offset:2px;border-radius:4px;}`;
 const CloseBtn = styled.button`width:28px;height:28px;display:flex;align-items:center;justify-content:center;background:transparent;border:none;border-radius:6px;color:#64748B;cursor:pointer;outline:none;&:hover{background:#F1F5F9;color:#0F172A;}&:focus{outline:none;}&:focus-visible{outline:2px solid #14B8A6;outline-offset:-2px;}`;
 const ShareIconBtn = styled.button`width:28px;height:28px;display:flex;align-items:center;justify-content:center;background:transparent;border:none;border-radius:6px;color:#0F766E;cursor:pointer;outline:none;transition:background 0.15s;&:hover{background:#F0FDFA;color:#134E4A;}&:focus-visible{outline:2px solid #14B8A6;outline-offset:-2px;}`;
+const DuplicateIconBtn = styled.button`width:28px;height:28px;display:flex;align-items:center;justify-content:center;background:transparent;border:none;border-radius:6px;color:#64748B;cursor:pointer;outline:none;transition:background 0.15s;&:hover:not(:disabled){background:#F1F5F9;color:#0F172A;}&:focus-visible{outline:2px solid #14B8A6;outline-offset:-2px;}&:disabled{opacity:0.5;cursor:not-allowed;}`;
 const SaveStatusPill = styled.span<{ $status: 'idle'|'saving'|'saved'|'error' }>`
   display:inline-flex;align-items:center;gap:4px;margin-left:auto;padding:3px 10px;border-radius:999px;font-size:11px;font-weight:600;
   opacity:${p => p.$status === 'idle' ? 0 : 1};transition:opacity 0.2s;

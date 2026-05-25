@@ -11,6 +11,7 @@
     "gotoTasks": "Go to my tasks",
     "noTask": "No task selected",
     "noTaskHint": "The task for this session is gone. Starting another task will auto-switch.",
+    "dismissOrphan": "End this session",
     "start": "Start",
     "pause": "Pause",
     "resume": "Resume",

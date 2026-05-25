@@ -32,6 +32,11 @@ CalendarEvent.init({
     type: DataTypes.ENUM('google_meet', 'manual', 'daily'),
     allowNull: true,
   },
+  // N+63 — Google Calendar event id. PlanQ → Google Calendar 단방향 sync.
+  // Meet 자동 발급 시 생성되는 Google Calendar event 의 id 저장 →
+  // 이후 PUT (시간/제목/설명 변경) / DELETE 시 같은 google event 를 update/delete 하여 sync.
+  // null = PlanQ only (Meet 발급 안 한 일반 이벤트).
+  gcal_event_id: { type: DataTypes.STRING(100), allowNull: true },
   // 공용(business) / 개인(personal) — personal 은 created_by 본인만 조회
   visibility: {
     type: DataTypes.ENUM('personal', 'business'),

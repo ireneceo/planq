@@ -9,6 +9,7 @@ import { useAuth, getAccessToken } from '../contexts/AuthContext';
 export function useInboxCount(businessId: number | null | undefined): number {
   const [count, setCount] = useState(0);
   const socketRef = useRef<Socket | null>(null);
+  const localCleanupRef = useRef<(() => void) | null>(null);
   const { user } = useAuth();
 
   useEffect(() => {
@@ -24,7 +25,28 @@ export function useInboxCount(businessId: number | null | undefined): number {
 
     refresh();
 
-    // Socket.IO 'inbox:refresh' 구독 — Todo/Inbox 페이지에서 발행
+    let pending: ReturnType<typeof setTimeout> | null = null;
+    const debounced = () => {
+      if (pending) clearTimeout(pending);
+      pending = setTimeout(refresh, 300);
+    };
+
+    // N+63 — CLAUDE.md §16 (e) 안전망 박제 정합. TaskDetailDrawer 가 status 변경 시
+    // window.dispatchEvent('inbox:refresh') 호출하지만 본 hook 이 못 받아 사이드바
+    // 뱃지 안 줄어드는 회귀 fix. 같은 탭 안 즉시 sync — socket 없을 때도 작동.
+    // visibility 복귀도 같이 — PWA background → foreground 후 missed event 회복.
+    const onLocalRefresh = () => debounced();
+    const onVisibility = () => { if (document.visibilityState === 'visible') refresh(); };
+    window.addEventListener('inbox:refresh', onLocalRefresh);
+    document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('focus', refresh);
+    localCleanupRef.current = () => {
+      window.removeEventListener('inbox:refresh', onLocalRefresh);
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('focus', refresh);
+    };
+
+    // Socket.IO 'inbox:refresh' 구독 — backend 가 task workflow 라우트에서 emit
     if (getAccessToken()) {
       const socket = io(window.location.origin, {
         auth: (cb) => cb({ token: getAccessToken() }),
@@ -42,17 +64,16 @@ export function useInboxCount(businessId: number | null | undefined): number {
         }
       });
       socketRef.current = socket;
-
-      let pending: ReturnType<typeof setTimeout> | null = null;
-      const debounced = () => {
-        if (pending) clearTimeout(pending);
-        pending = setTimeout(refresh, 300);
-      };
       socket.on('inbox:refresh', debounced);
+      // N+63 — workspace room join → backend 가 io.to('business:N').emit('inbox:refresh') 받음.
+      // socket connect 후 register (이미 user 인증 + bizId 있으니 즉시).
+      socket.emit('join:business', businessId);
+      socket.on('connect', () => socket.emit('join:business', businessId));
     }
 
     return () => {
       cancelled = true;
+      if (localCleanupRef.current) { localCleanupRef.current(); localCleanupRef.current = null; }
       if (socketRef.current) {
         socketRef.current.disconnect();
         socketRef.current = null;

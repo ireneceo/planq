@@ -11,6 +11,7 @@
     "gotoTasks": "내 업무로 가기",
     "noTask": "업무 미지정",
     "noTaskHint": "이 세션의 업무가 사라졌어요. 다른 업무를 시작하면 자동 전환됩니다.",
+    "dismissOrphan": "이 세션 종료",
     "start": "시작",
     "pause": "잠시 멈춤",
     "resume": "재개",
