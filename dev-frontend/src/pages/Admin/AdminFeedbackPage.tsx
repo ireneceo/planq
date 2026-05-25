@@ -29,6 +29,8 @@ interface FeedbackItem {
   responded_by: number | null;
   responded_at: string | null;
   created_at: string;
+  // N+63 — 사용자 호소 #3c 피드백 이미지 첨부 (base64 dataUrl 배열)
+  attachments?: Array<{ name: string; type: string; dataUrl: string }> | null;
   user?: { id: number; name: string; email: string };
   responder?: { id: number; name: string };
 }
@@ -186,6 +188,20 @@ const AdminFeedbackPage = () => {
                 <SectionLabel>{t('adminFeedback.body', '내용')}</SectionLabel>
                 <BodyBox>{detail.body}</BodyBox>
               </Section>
+              {/* N+63 — 사용자 호소 #3c 피드백 이미지 첨부 표시. base64 dataUrl 직접 src. */}
+              {Array.isArray(detail.attachments) && detail.attachments.length > 0 && (
+                <Section>
+                  <SectionLabel>{t('adminFeedback.attachments', '첨부 이미지')} ({detail.attachments.length})</SectionLabel>
+                  <AttachGrid>
+                    {detail.attachments.map((a, i) => (
+                      <AttachItem key={i} href={a.dataUrl} target="_blank" rel="noreferrer" title={a.name}>
+                        <AttachThumb src={a.dataUrl} alt={a.name} />
+                        <AttachLabel>{a.name}</AttachLabel>
+                      </AttachItem>
+                    ))}
+                  </AttachGrid>
+                </Section>
+              )}
               <Section>
                 <SectionLabel>{t('adminFeedback.response', '운영팀 답변')}</SectionLabel>
                 <FieldRow>
@@ -292,6 +308,28 @@ const BodyBox = styled.pre`
   font-size: 13px; color: #0F172A; font-family: inherit;
   white-space: pre-wrap; word-break: break-word;
   max-height: 240px; overflow-y: auto;
+`;
+// N+63 — 피드백 첨부 이미지 grid
+const AttachGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 8px;
+`;
+const AttachItem = styled.a`
+  display: flex; flex-direction: column; gap: 4px;
+  text-decoration: none; color: inherit;
+  padding: 6px; border: 1px solid #E2E8F0; border-radius: 8px;
+  background: #FFFFFF;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  &:hover { border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20,184,166,0.1); }
+`;
+const AttachThumb = styled.img`
+  width: 100%; aspect-ratio: 1; object-fit: cover;
+  border-radius: 6px; background: #F1F5F9;
+`;
+const AttachLabel = styled.div`
+  font-size: 11px; color: #64748B;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 `;
 const FieldRow = styled.div`display: flex; gap: 12px;`;
 const FieldHalf = styled.div`flex: 1; display: flex; flex-direction: column; gap: 6px;`;

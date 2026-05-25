@@ -49,6 +49,10 @@ const CueHelpDrawer: React.FC = () => {
   const [fbPriority, setFbPriority] = useState<'normal' | 'high'>('normal');
   const [fbBody, setFbBody] = useState('');
   const [fbResultMsg, setFbResultMsg] = useState<string | null>(null);
+  // N+63 — 피드백 이미지 첨부 (사용자 호소 #3c). base64 dataUrl 로 backend attachments JSON 에 직접 저장.
+  // 1MB cap per file, 최대 3개. backend 의 attachments.slice(0, 5) 도 5건 cap 있음.
+  const [fbAttachments, setFbAttachments] = useState<Array<{ name: string; type: string; dataUrl: string }>>([]);
+  const [fbAttachError, setFbAttachError] = useState<string | null>(null);
 
   // 문의 모드 폼 상태 (게스트 전용 — 랜딩 /contact 와 동일 백엔드)
   const [inqName, setInqName] = useState('');
@@ -203,11 +207,10 @@ const CueHelpDrawer: React.FC = () => {
         body: JSON.stringify({
           category: fbCategory,
           priority: fbPriority,
-          // title 은 더 이상 사용자에게 묻지 않음 — body 단일 입력.
-          // 백엔드 호환 위해 body 의 첫 줄(또는 처음 60자) 을 임시 title 로 보냄.
           title: (fbBody.trim().split('\n')[0] || '').slice(0, 60) || '(제목 없음)',
           body: fbBody.trim(),
           page_url: location.pathname + (location.search || ''),
+          attachments: fbAttachments.length > 0 ? fbAttachments : null,
         }),
       });
       const j = await res.json();
@@ -216,13 +219,50 @@ const CueHelpDrawer: React.FC = () => {
       setFbBody('');
       setFbCategory('improve');
       setFbPriority('normal');
+      setFbAttachments([]);
+      setFbAttachError(null);
       window.setTimeout(() => setFbResultMsg(null), 6000);
     } catch (e) {
       setFbResultMsg(t('qhelper.fbErr', '제출 실패: {{msg}}', { msg: mapApiError(e, tErr) }) as string);
     } finally {
       setSubmitting(false);
     }
-  }, [fbCategory, fbPriority, fbBody, submitting, location, t]);
+  }, [fbCategory, fbPriority, fbBody, fbAttachments, submitting, location, t]);
+
+  // N+63 — 피드백 이미지 첨부 (1MB cap, 최대 3개, image only). base64 dataUrl.
+  const onFbFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    e.target.value = '';  // 같은 파일 재선택 가능
+    setFbAttachError(null);
+    if (fbAttachments.length + files.length > 3) {
+      setFbAttachError(t('qhelper.fbAttachMax', '최대 3개까지 첨부 가능') as string);
+      return;
+    }
+    for (const f of files) {
+      if (!f.type.startsWith('image/')) {
+        setFbAttachError(t('qhelper.fbAttachImageOnly', '이미지만 첨부 가능') as string);
+        return;
+      }
+      if (f.size > 1024 * 1024) {
+        setFbAttachError(t('qhelper.fbAttachTooBig', '파일당 1MB 이하', { name: f.name }) as string);
+        return;
+      }
+    }
+    try {
+      const reads = await Promise.all(files.map(f => new Promise<{ name: string; type: string; dataUrl: string }>((res, rej) => {
+        const reader = new FileReader();
+        reader.onload = () => res({ name: f.name, type: f.type, dataUrl: String(reader.result) });
+        reader.onerror = rej;
+        reader.readAsDataURL(f);
+      })));
+      setFbAttachments(prev => [...prev, ...reads]);
+    } catch {
+      setFbAttachError(t('qhelper.fbAttachReadFail', '파일 읽기 실패') as string);
+    }
+  }, [fbAttachments, t]);
+  const removeFbAttachment = useCallback((idx: number) => {
+    setFbAttachments(prev => prev.filter((_, i) => i !== idx));
+  }, []);
 
   // 컨텍스트 기반 자동 숨김 — Q Talk 같이 우하단 입력 영역(전송버튼/IME 도구)을 점유하는 화면에서는
   // FAB 가 충돌하므로 숨긴다. 도움말은 헤더의 ⓘ 아이콘 또는 단축키 (⌘? / Ctrl+/) 로 접근.
@@ -420,6 +460,31 @@ const CueHelpDrawer: React.FC = () => {
                   placeholder={t('qhelper.fbBodyPh', '구체적으로 적어주시면 빠르게 반영할 수 있습니다.\n예) 어디서 / 무엇이 / 어떻게 되었으면') as string}
                   rows={6}
                 />
+              </FbField>
+              <FbField>
+                <FbLabel>{t('qhelper.fbAttach', '이미지 첨부 (선택)')}</FbLabel>
+                <FbAttachRow>
+                  <FbAttachBtn type="button" onClick={() => document.getElementById('fb-attach-input')?.click()} disabled={fbAttachments.length >= 3}>
+                    + {t('qhelper.fbAttachAdd', '이미지 추가')}
+                  </FbAttachBtn>
+                  <FbAttachHint>{t('qhelper.fbAttachHint', '최대 3개, 파일당 1MB 이하 (스크린샷 권장)')}</FbAttachHint>
+                  <input
+                    id="fb-attach-input" type="file" hidden multiple accept="image/*"
+                    onChange={onFbFileChange}
+                  />
+                </FbAttachRow>
+                {fbAttachments.length > 0 && (
+                  <FbAttachList>
+                    {fbAttachments.map((a, i) => (
+                      <FbAttachChip key={i}>
+                        <FbAttachThumb src={a.dataUrl} alt={a.name} />
+                        <FbAttachName title={a.name}>{a.name}</FbAttachName>
+                        <FbAttachRemove type="button" onClick={() => removeFbAttachment(i)} aria-label={t('qhelper.fbAttachRemove', '삭제') as string}>×</FbAttachRemove>
+                      </FbAttachChip>
+                    ))}
+                  </FbAttachList>
+                )}
+                {fbAttachError && <FbAttachErr>{fbAttachError}</FbAttachErr>}
               </FbField>
               <FbCheck>
                 <input
@@ -791,6 +856,48 @@ const FbResult = styled.div`
   padding: 10px 12px;
   background: #F0FDFA; border: 1px solid #5EEAD4; border-radius: 8px;
   font-size: 13px; color: #0F766E;
+`;
+// N+63 — 피드백 이미지 첨부 (사용자 호소 #3c)
+const FbAttachRow = styled.div`
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+`;
+const FbAttachBtn = styled.button`
+  padding: 6px 12px; border-radius: 6px;
+  background: #FFFFFF; border: 1px solid #CBD5E1;
+  font-size: 12px; font-weight: 500; color: #475569; cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+  &:hover:not(:disabled) { background: #F0FDFA; border-color: #5EEAD4; color: #0F766E; }
+  &:disabled { opacity: 0.5; cursor: not-allowed; }
+`;
+const FbAttachHint = styled.span`
+  font-size: 11px; color: #94A3B8;
+`;
+const FbAttachList = styled.div`
+  display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px;
+`;
+const FbAttachChip = styled.div`
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 8px 4px 4px;
+  background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 6px;
+  font-size: 11px; color: #475569;
+  max-width: 200px;
+`;
+const FbAttachThumb = styled.img`
+  width: 36px; height: 36px; object-fit: cover; border-radius: 4px;
+  background: #F1F5F9;
+`;
+const FbAttachName = styled.span`
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 120px;
+`;
+const FbAttachRemove = styled.button`
+  width: 18px; height: 18px; padding: 0;
+  background: transparent; border: none; color: #94A3B8;
+  font-size: 14px; line-height: 1; cursor: pointer; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  &:hover { background: #FEE2E2; color: #B91C1C; }
+`;
+const FbAttachErr = styled.div`
+  margin-top: 6px; font-size: 11px; color: #B91C1C;
 `;
 const FbSendBtn = styled.button`
   width: 100%;
