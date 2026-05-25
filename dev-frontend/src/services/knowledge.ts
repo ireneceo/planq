@@ -1,8 +1,12 @@
 // Q knowledge — KbDocument CRUD + 카테고리·스코프 필터.
 import { apiFetch } from '../contexts/AuthContext';
 
-export type KbCategory = 'policy' | 'manual' | 'incident' | 'faq' | 'about' | 'pricing';
-export type KbScope = 'workspace' | 'project' | 'client';
+// N+64 — 자유 카테고리 (string). 옛 ENUM 6개는 backward-compat 라벨.
+export type KbCategory = string;
+export const LEGACY_KB_CATEGORIES = ['policy', 'manual', 'incident', 'faq', 'about', 'pricing'] as const;
+export type KbScope = 'private' | 'workspace' | 'project' | 'client';
+// N+64 — 통합 visibility (PlanQ VISIBILITY_VOCABULARY.md L1-L4)
+export type KbVlevel = 'L1' | 'L2' | 'L3' | 'L4';
 
 export interface KbDocumentRow {
   id: number;
@@ -24,6 +28,9 @@ export interface KbDocumentRow {
   custom_values?: Record<string, unknown> | null;
   read_policy?: 'all' | 'owner';
   client_ids?: number[] | null;
+  // N+64 — 통합 visibility
+  vlevel?: KbVlevel | null;
+  target_member_ids?: number[] | null;
   // 상세 GET 응답에만 포함되는 필드들
   body?: string | null;
   attached_files?: Array<{ id: number; file_name: string; file_size: number; mime_type: string | null; storage_provider: string; external_url: string | null }>;
@@ -87,6 +94,9 @@ export interface KbCreateInput {
   custom_values?: Record<string, unknown>;
   read_policy?: 'all' | 'owner';
   client_ids?: number[];
+  // N+64 — 통합 visibility (서버가 vlevel 우선 처리, 없으면 scope fallback)
+  vlevel?: KbVlevel;
+  target_member_ids?: number[];
 }
 
 export async function createKnowledge(businessId: number, input: KbCreateInput): Promise<KbDocumentRow> {
@@ -109,6 +119,9 @@ export async function updateKnowledge(businessId: number, docId: number, patch: 
   tags: string[];
   attached_file_ids: number[];
   attached_post_ids: number[];
+  // N+64 — 통합 visibility
+  vlevel: KbVlevel;
+  target_member_ids: number[];
 }>): Promise<KbDocumentRow> {
   const r = await apiFetch(`/api/businesses/${businessId}/kb/documents/${docId}`, {
     method: 'PUT',
@@ -182,4 +195,39 @@ export async function importKnowledgeFromPost(businessId: number, input: KbImpor
     body: JSON.stringify(input),
   });
   return handle<KbDocumentRow>(res);
+}
+
+// ─── KbCategory — N+64 (자유 추가/편집 + 중복 감지 마스터) ────────
+export interface KbCategoryRow {
+  id: number;
+  name: string;
+  sort_order: number;
+}
+export interface KbCategoryListResp {
+  master: KbCategoryRow[];
+  orphan: string[];   // 마스터에 없지만 KbDocument 안에서 사용 중인 자유 카테고리
+}
+export async function listKbCategories(businessId: number): Promise<KbCategoryListResp> {
+  const res = await apiFetch(`/api/businesses/${businessId}/kb/categories`);
+  return handle<KbCategoryListResp>(res);
+}
+export async function createKbCategory(businessId: number, name: string): Promise<{ id: number; name: string; sort_order: number; created: boolean }> {
+  const res = await apiFetch(`/api/businesses/${businessId}/kb/categories`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name }),
+  });
+  return handle(res);
+}
+export async function renameKbCategory(businessId: number, id: number, name: string): Promise<KbCategoryRow> {
+  const res = await apiFetch(`/api/businesses/${businessId}/kb/categories/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name }),
+  });
+  return handle<KbCategoryRow>(res);
+}
+export async function deleteKbCategory(businessId: number, id: number): Promise<void> {
+  const res = await apiFetch(`/api/businesses/${businessId}/kb/categories/${id}`, { method: 'DELETE' });
+  await handle(res);
 }

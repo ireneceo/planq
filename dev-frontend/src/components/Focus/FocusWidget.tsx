@@ -255,7 +255,9 @@ const FocusWidget: React.FC<Props> = ({ isCollapsed }) => {
         <ElapsedMini>{formatStartTime(session.started_at, t)}</ElapsedMini>
       </WidgetHeader>
       {session.task ? (
-        <TaskTitle title={session.task.title}>{session.task.title}</TaskTitle>
+        <TaskTitle as="button" type="button" $clickable title={session.task.title} onClick={onView}>
+          {session.task.title}
+        </TaskTitle>
       ) : (
         <>
           <TaskTitle as="span">{t('widget.noTask', '업무 미지정')}</TaskTitle>
@@ -377,11 +379,19 @@ const SubText = styled.div`
   color: rgba(255, 255, 255, 0.6);
   line-height: 1.35;
 `;
-const TaskTitle = styled.div`
+const TaskTitle = styled.div<{ $clickable?: boolean }>`
   font-size: 13px; font-weight: 600;
   color: #FFFFFF;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   letter-spacing: -0.1px;
+  ${p => p.$clickable && css`
+    cursor: pointer;
+    background: none; border: none; padding: 0;
+    text-align: left; width: 100%;
+    transition: color 0.15s, text-decoration 0.15s;
+    &:hover { color: #99F6E4; text-decoration: underline; }
+    &:focus-visible { outline: 2px solid #5EEAD4; outline-offset: 2px; border-radius: 4px; }
+  `}
 `;
 const Counter = styled.div`
   font-size: 12px; font-weight: 600;
