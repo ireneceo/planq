@@ -50,9 +50,9 @@ function getNowInTz(tz) {
 }
 
 // ─── cron 초기화 ───
-function initWeeklyReviewCron() {
-  // 매시간 0분 트리거
-  cron.schedule('0 * * * *', async () => {
+// N+63 — cron callback 을 함수로 추출. server.js init 시 즉시 1회 실행 (PM2 restart 후 다음 정각 기다림 X).
+//   사용자 호소 "왜 저장된 게 없어" — 다음 정각까지 기다리지 않고 즉시 backfill.
+async function runWeeklyReviewCron() {
     console.log('[weeklyReviewCron] triggered at', new Date().toISOString());
 
     try {
@@ -76,10 +76,21 @@ function initWeeklyReviewCron() {
 
         if (!nowInTz) continue;
 
-        // 워크스페이스 설정된 요일·시각인지 확인 (default 월요일 0시)
+        // 워크스페이스 설정된 요일·시각 (default 월요일 0시).
+        // N+63 — 옛: 1시간 window 만. PM2 restart / 서버 다운 miss 회귀.
+        // 새: trigger 시점 이미 지났으면 매시간 시도. 아래 line ~100 `if (exists) continue` 가 멱등 보장.
         const targetDow = biz.weekly_finalize_dow != null ? Number(biz.weekly_finalize_dow) : 1;
         const targetHour = biz.weekly_finalize_hour != null ? Number(biz.weekly_finalize_hour) : 0;
-        if (nowInTz.weekday !== targetDow || nowInTz.hour !== targetHour) continue;
+        const currentDow = nowInTz.weekday;
+        let daysFromTargetDow = (currentDow - targetDow + 7) % 7;
+        if (daysFromTargetDow === 0 && nowInTz.hour < targetHour) daysFromTargetDow = 7;
+        const triggerHourMs = new Date(
+          nowInTz.year, nowInTz.month - 1, nowInTz.day - daysFromTargetDow, targetHour
+        ).getTime();
+        const nowMs = new Date(
+          nowInTz.year, nowInTz.month - 1, nowInTz.day, nowInTz.hour
+        ).getTime();
+        if (nowMs < triggerHourMs) continue;
 
         processed++;
 
@@ -139,7 +150,22 @@ function initWeeklyReviewCron() {
         if (!nowInTz) continue;
         const targetDow = biz.weekly_finalize_dow != null ? Number(biz.weekly_finalize_dow) : 1;
         const targetHour = biz.weekly_finalize_hour != null ? Number(biz.weekly_finalize_hour) : 0;
-        if (nowInTz.weekday === targetDow && nowInTz.hour === targetHour) {
+        // N+63 — 옛 코드: 1시간 window 만 trigger → PM2 restart / 서버 다운으로 그 1시간 miss 하면 다음 주까지 0.
+        //   사용자 호소: "왜 저장된 게 없어? 매주 mon 00:00 자동 확정" — 5/25 mon 00:00 KST cron miss 회귀.
+        // 새 코드: 이번 주 trigger 시점이 이미 지났으면 매시간 시도. existing 검사로 멱등 (한 번만 생성).
+        //   같은 주차 row 있으면 아래 루프에서 skip.
+        const currentDow = nowInTz.weekday;  // 0=Sun, 1=Mon, ..., 6=Sat
+        let daysFromTargetDow = (currentDow - targetDow + 7) % 7;
+        // 정확히 targetDow 일이지만 targetHour 아직 안 도래했으면 지난 주 trigger 로 간주
+        if (daysFromTargetDow === 0 && nowInTz.hour < targetHour) daysFromTargetDow = 7;
+        // 이번 주의 trigger 시각 — currentDow 에서 daysFromTargetDow 일 전 + targetHour 시
+        const triggerHourMs = new Date(
+          nowInTz.year, nowInTz.month - 1, nowInTz.day - daysFromTargetDow, targetHour
+        ).getTime();
+        const nowMs = new Date(
+          nowInTz.year, nowInTz.month - 1, nowInTz.day, nowInTz.hour
+        ).getTime();
+        if (nowMs >= triggerHourMs) {
           businessesNeedingWorkspaceReport.add(m.business_id);
         }
       }
@@ -158,10 +184,8 @@ function initWeeklyReviewCron() {
         const existing = await BusinessWeeklyReport.findOne({
           where: { business_id: bizId, week_start: weekStart },
         });
-        if (existing && existing.finalized_by === 'manual') {
-          // 수동 박제 보존 — 자동 덮어쓰기 금지
-          continue;
-        }
+        // N+63 — auto/manual 둘 다 있으면 skip (멱등). 옛 코드는 auto 만 있으면 매시간 update 했음 — 의도 아님.
+        if (existing) continue;
         const snapshot = await buildWorkspaceSnapshot(bizId, weekStart);
         if (existing) {
           await existing.update({
@@ -186,9 +210,15 @@ function initWeeklyReviewCron() {
     } catch (err) {
       console.error('[weeklyReviewCron] error:', err.message);
     }
-  });
-
-  console.log('[weeklyReviewCron] initialized — runs at :00 every hour');
 }
 
-module.exports = { initWeeklyReviewCron };
+function initWeeklyReviewCron() {
+  // 매시간 0분 cron
+  cron.schedule('0 * * * *', runWeeklyReviewCron);
+  // N+63 — server start 직후 1회 즉시 실행 (PM2 restart 후 backfill miss 차단).
+  // 약간 지연 (5s) — DB / 다른 service init 완료 후.
+  setTimeout(() => { runWeeklyReviewCron().catch(e => console.error('[weeklyReviewCron] startup run err', e.message)); }, 5000);
+  console.log('[weeklyReviewCron] initialized — runs at :00 every hour + startup once');
+}
+
+module.exports = { initWeeklyReviewCron, runWeeklyReviewCron };

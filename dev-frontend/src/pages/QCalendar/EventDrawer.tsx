@@ -31,9 +31,12 @@ interface ProjectOption {
   color?: string | null;
 }
 
+interface MemberOption { user_id: number; name: string; }
+
 interface Props {
   event: CalendarEvent | null;
   projects?: ProjectOption[];
+  members?: MemberOption[];
   myUserId?: number | null;
   myBusinessRole?: string | null;
   onClose: () => void;
@@ -55,7 +58,7 @@ const mkISO = (dateStr: string, timeStr: string, allDay: boolean, isEnd: boolean
 };
 
 const EventDrawer: React.FC<Props> = ({
-  event, projects = [], myUserId, myBusinessRole,
+  event, projects = [], members = [], myUserId, myBusinessRole,
   onClose, onUpdate, onDelete, onCreateMeetingRoom, gcalConnected,
 }) => {
   const { t, i18n } = useTranslation('qcalendar');
@@ -414,6 +417,16 @@ const EventDrawer: React.FC<Props> = ({
               <MutedSmall>{t('drawer.meeting')}</MutedSmall>
               {event.meeting_url ? (
                 <>
+                  {/* N+63 사용자 호소 — 재발급 후 변화 확인 위해 URL 자체 노출.
+                      location 자동 덮어쓰기는 사용자 입력 침범 → 별도 영역 (Google Calendar / Outlook 표준 패턴). */}
+                  <MeetingUrl
+                    href={event.meeting_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    title={event.meeting_url}
+                  >
+                    {event.meeting_url}
+                  </MeetingUrl>
                   <MeetingActions>
                     {/* Google Meet 는 X-Frame-Options 로 iframe embed 불가 — 외부 링크만 */}
                     <CopyBtn as="a" href={event.meeting_url} target="_blank" rel="noreferrer">
@@ -471,7 +484,7 @@ const EventDrawer: React.FC<Props> = ({
           </SectionBody>
         </Section>
 
-        {/* 참석자 — read-only (다음 청크에서 인라인 편집) */}
+        {/* 참석자 — 인라인 편집 (멤버 picker + 각 row 제거 버튼) */}
         <Section>
           <SectionIcon>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -492,11 +505,56 @@ const EventDrawer: React.FC<Props> = ({
                       <Avatar>{name[0]}</Avatar>
                       <AttendeeName>{name}</AttendeeName>
                       <ResponsePill $response={a.response}>{t(`response.${a.response}`)}</ResponsePill>
+                      {canEdit && (
+                        <AttendeeRemoveBtn
+                          type="button"
+                          title={t('drawer.removeAttendee', '제거') as string}
+                          aria-label={t('drawer.removeAttendee', '제거') as string}
+                          onClick={() => {
+                            const next = (event.attendees || [])
+                              .filter(x => x.id !== a.id)
+                              .map(x => ({
+                                user_id: x.user_id ?? undefined,
+                                client_id: x.client_id ?? undefined,
+                                response: x.response,
+                              }));
+                            onUpdate({ attendees: next as unknown as CalendarEvent['attendees'] });
+                          }}
+                        >×</AttendeeRemoveBtn>
+                      )}
                     </AttendeeRow>
                   );
                 })}
               </AttendeeList>
             )}
+            {canEdit && members.length > 0 && (() => {
+              const existingUserIds = new Set((event.attendees || []).map(a => a.user_id).filter(Boolean));
+              const addable = members.filter(m => !existingUserIds.has(m.user_id));
+              if (addable.length === 0) return null;
+              return (
+                <AddAttendeeRow>
+                  <PlanQSelect
+                    size="sm"
+                    placeholder={t('drawer.addAttendee', '+ 참석자 추가') as string}
+                    options={addable.map(m => ({ value: m.user_id, label: m.name }))}
+                    value={null}
+                    onChange={(opt) => {
+                      const v = opt ? Number((opt as { value: number }).value) : null;
+                      if (!v) return;
+                      const next = [
+                        ...(event.attendees || []).map(x => ({
+                          user_id: x.user_id ?? undefined,
+                          client_id: x.client_id ?? undefined,
+                          response: x.response,
+                        })),
+                        { user_id: v, response: 'pending' as const },
+                      ];
+                      onUpdate({ attendees: next as unknown as CalendarEvent['attendees'] });
+                    }}
+                  />
+                </AddAttendeeRow>
+              );
+            })()}
           </SectionBody>
         </Section>
 
@@ -684,6 +742,25 @@ const Textarea = styled.textarea`
 `;
 
 // meeting
+// N+63 — URL 자체 표시. 재발급 후 즉시 변화 확인 가능. 텍스트 select·복사 OK, 클릭 시 새 탭 진입.
+const MeetingUrl = styled.a`
+  display: inline-block;
+  padding: 6px 10px;
+  background: #F0FDFA;
+  border: 1px solid #99F6E4;
+  border-radius: 6px;
+  font-family: 'SF Mono', 'Monaco', 'Menlo', 'Roboto Mono', monospace;
+  font-size: 12px;
+  color: #0F766E;
+  text-decoration: none;
+  word-break: break-all;
+  line-height: 1.45;
+  user-select: text;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+  &:hover { background: #CCFBF1; border-color: #5EEAD4; text-decoration: underline; }
+  &:focus-visible { outline: 2px solid #14B8A6; outline-offset: 1px; }
+`;
 const MeetingActions = styled.div` display: flex; gap: 6px; flex-wrap: wrap; `;
 const MeetingHint = styled.div`
   font-size: 11px; color: #94A3B8; line-height: 1.45; margin-top: 4px;
@@ -726,6 +803,17 @@ const ResponsePill = styled.span<{ $response: string }>`
   color: ${({ $response }) => ({
     accepted: '#15803D', declined: '#B91C1C', tentative: '#A16207', pending: '#64748B',
   }[$response] || '#64748B')};
+`;
+const AttendeeRemoveBtn = styled.button`
+  width: 22px; height: 22px; border-radius: 50%;
+  background: transparent; border: 1px solid transparent;
+  color: #94A3B8; font-size: 16px; line-height: 1; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  margin-left: 4px; flex-shrink: 0; padding: 0;
+  &:hover { background: #FEF2F2; color: #B91C1C; border-color: #FECACA; }
+`;
+const AddAttendeeRow = styled.div`
+  margin-top: 8px;
 `;
 
 // footer
