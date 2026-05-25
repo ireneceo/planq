@@ -99,6 +99,7 @@ const TimeGridView: React.FC<Props> = ({ today, days, events, onSelectEvent, onS
                     onClick={() => onSelectEvent(e.id, e.start_at?.slice(0, 10))}
                   >
                     {isTask && <CheckIcon size={11} style={{ marginRight: 3, verticalAlign: '-2px' }} />}{e.title}
+                    {(e as { _is_exception?: boolean })._is_exception && <ExceptionMark title="변경된 회차">✎</ExceptionMark>}
                   </AllDayChip>
                 );
               })}
@@ -156,7 +157,10 @@ const TimeGridView: React.FC<Props> = ({ today, days, events, onSelectEvent, onS
                         onClick={() => onSelectEvent(e.id, e.start_at?.slice(0, 10))}
                       >
                         <EventHeader>
-                          <EventTitle>{e.title}</EventTitle>
+                          <EventTitle>
+                            {e.title}
+                            {(e as { _is_exception?: boolean })._is_exception && <ExceptionMark title="변경된 회차">✎</ExceptionMark>}
+                          </EventTitle>
                         </EventHeader>
                         <EventMeta>{formatTime(start)} – {formatTime(end)}</EventMeta>
                         {e.location && <EventMeta>· {e.location}</EventMeta>}
@@ -297,4 +301,11 @@ const EventTitle = styled.div`
 const EventMeta = styled.div`
   opacity: 0.85; font-size: 11px; overflow: hidden;
   white-space: nowrap; text-overflow: ellipsis;
+`;
+// N+63 P2a 후속 — child exception (변경된 정기 회차) 시각 마커
+const ExceptionMark = styled.span`
+  display: inline-flex; align-items: center; justify-content: center;
+  margin-left: 4px; padding: 0 4px; min-width: 14px; height: 14px;
+  background: #FEF3C7; color: #92400E;
+  border-radius: 4px; font-size: 10px; font-weight: 700; line-height: 1;
 `;

@@ -104,6 +104,10 @@ const MonthView: React.FC<Props> = ({ anchor, today, events, onSelectEvent, onSe
                           <ChipTime>{formatChipTime(e.start_at)}</ChipTime>
                         )}
                         {e.title}
+                        {/* N+63 P2a 후속 — child exception (정기 회차 중 변경된 것) 마커 */}
+                        {(e as { _is_exception?: boolean })._is_exception && (
+                          <ExceptionMark title="변경된 회차">✎</ExceptionMark>
+                        )}
                       </ChipTitle>
                     </EventChip>
                   );
@@ -248,6 +252,13 @@ const ChipTitle = styled.span`
 `;
 const ChipTime = styled.span`
   opacity: 0.7; margin-right: 4px; font-variant-numeric: tabular-nums;
+`;
+// N+63 P2a 후속 — child exception (변경된 정기 회차) 시각 마커
+const ExceptionMark = styled.span`
+  display: inline-flex; align-items: center; justify-content: center;
+  margin-left: 4px; padding: 0 4px; min-width: 14px; height: 14px;
+  background: #FEF3C7; color: #92400E;
+  border-radius: 4px; font-size: 10px; font-weight: 700; line-height: 1;
 `;
 const MoreLink = styled.div`
   font-size: 11px; font-weight: 600; color: #14B8A6;

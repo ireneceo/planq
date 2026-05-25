@@ -106,6 +106,15 @@ router.post('/:id/apply', authenticateToken, async (req, res, next) => {
       }
     }
 
+    // N+63 — audit (운영 readiness 마무리). 템플릿 적용은 빈번 + 다수 task 생성이라 추적 필요.
+    require('../services/auditService').logAudit(req, {
+      action: 'task_template.apply',
+      targetType: 'task_template',
+      targetId: result.templateId,
+      businessId: Number(business_id),
+      newValue: { project_id: project_id || null, start_date, task_count: result.created.length },
+    });
+
     return successResponse(res, {
       created: result.created.map(t => t.toJSON()),
       count: result.created.length,
@@ -141,7 +150,17 @@ router.put('/:id', authenticateToken, async (req, res, next) => {
     if (typeof description === 'string') updates.description = description.slice(0, 2000) || null;
     if (typeof category === 'string') updates.category = category.slice(0, 50) || null;
     if (typeof is_default === 'boolean') updates.is_default = is_default;
+    const prev = { name: tpl.name, category: tpl.category, is_default: tpl.is_default };
     await tpl.update(updates);
+    // N+63 — audit. 메타 수정
+    require('../services/auditService').logAudit(req, {
+      action: 'task_template.update',
+      targetType: 'task_template',
+      targetId: tpl.id,
+      businessId: tpl.business_id,
+      oldValue: prev,
+      newValue: updates,
+    });
     return successResponse(res, tpl.toJSON());
   } catch (err) { next(err); }
 });
@@ -199,6 +218,14 @@ router.put('/:id/items', authenticateToken, async (req, res, next) => {
     });
     const data = full.toJSON();
     data.items = (data.items || []).sort((a, b) => a.order_index - b.order_index);
+    // N+63 — audit. items 갱신 (콘텐츠 mutation)
+    require('../services/auditService').logAudit(req, {
+      action: 'task_template.items_update',
+      targetType: 'task_template',
+      targetId: tpl.id,
+      businessId: tpl.business_id,
+      newValue: { task_count: items.length, total_duration_days: totalDur },
+    });
     return successResponse(res, data);
   } catch (err) { next(err); }
 });
@@ -313,6 +340,14 @@ router.post('/from-project/:projectId', authenticateToken, async (req, res, next
 
     const full = await TaskTemplate.findByPk(tpl.id, {
       include: [{ model: TaskTemplateItem, as: 'items' }],
+    });
+    // N+63 — audit. 프로젝트 → 템플릿 신규 생성
+    require('../services/auditService').logAudit(req, {
+      action: 'task_template.create_from_project',
+      targetType: 'task_template',
+      targetId: tpl.id,
+      businessId: tpl.business_id,
+      newValue: { name: tpl.name, source_project_id: project.id, task_count: datedTasks.length },
     });
     return successResponse(res, full.toJSON(), 'saved_as_template', 201);
   } catch (err) { next(err); }
