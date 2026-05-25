@@ -49,11 +49,32 @@ CalendarEvent.init({
   recurrence_parent_id: { type: DataTypes.BIGINT, allowNull: true },
   recurrence_id: { type: DataTypes.DATEONLY, allowNull: true },
   exception_dates: { type: DataTypes.JSON, allowNull: true, defaultValue: null },
-  // 공용(business) / 개인(personal) — personal 은 created_by 본인만 조회
+  // 공용(business) / 개인(personal) — personal 은 created_by 본인만 조회 [legacy]
+  // N+65 — vlevel 통합. visibility 컬럼은 backward-compat 으로 유지 (hook 가 vlevel ↔ visibility 양방향 동기).
   visibility: {
     type: DataTypes.ENUM('personal', 'business'),
     allowNull: false,
     defaultValue: 'business',
+  },
+  // ─── N+65 — 4단계 Visibility (VISIBILITY_VOCABULARY.md 정합) ───
+  // L1=개인(created_by 본인만) / L2=팀 (project_id 또는 target_member_ids) /
+  // L3=워크스페이스 전체 / L4=외부(특정 고객 + share_token)
+  vlevel: {
+    type: DataTypes.ENUM('L1', 'L2', 'L3', 'L4'),
+    allowNull: true,
+    defaultValue: null,
+  },
+  // L2-members 분기: 워크스페이스 안 특정 user 만 접근
+  target_member_ids: {
+    type: DataTypes.JSON,
+    allowNull: true,
+    defaultValue: null,
+  },
+  // L4 분기: 특정 client 다중
+  target_client_ids: {
+    type: DataTypes.JSON,
+    allowNull: true,
+    defaultValue: null,
   },
   created_by: { type: DataTypes.INTEGER, allowNull: false },
   // 공유 링크 (사이클 N+4 — 통합 공유 시스템)
@@ -71,7 +92,19 @@ CalendarEvent.init({
     { fields: ['business_id', 'project_id'] },
     { fields: ['created_by'] },
     { unique: true, fields: ['share_token'], name: 'calendar_events_share_token_unique' },
+    { fields: ['business_id', 'vlevel'], name: 'calendar_events_biz_vlevel' },
   ],
+});
+
+// N+65 — vlevel ↔ visibility 양방향 동기 hook (옛 라우트도 정합 유지)
+// vlevel 명시되면 visibility 도 동기 (personal=L1, business=L2/L3/L4)
+// vlevel 없으면 visibility 로 추론 (personal→L1, business→L3)
+CalendarEvent.addHook('beforeSave', (event) => {
+  if (event.vlevel) {
+    event.visibility = event.vlevel === 'L1' ? 'personal' : 'business';
+  } else {
+    event.vlevel = event.visibility === 'personal' ? 'L1' : 'L3';
+  }
 });
 
 module.exports = CalendarEvent;

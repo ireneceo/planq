@@ -1,5 +1,7 @@
 export type EventCategory = 'personal' | 'work' | 'meeting' | 'deadline' | 'other';
 export type EventVisibility = 'personal' | 'business';
+// N+65 — 통합 visibility (VISIBILITY_VOCABULARY.md L1-L4)
+export type EventVlevel = 'L1' | 'L2' | 'L3' | 'L4';
 export type AttendeeResponse = 'pending' | 'accepted' | 'declined' | 'tentative';
 export type MeetingProvider = 'daily' | 'manual';
 
@@ -28,6 +30,10 @@ export interface CalendarEvent {
   meeting_url: string | null;
   meeting_provider: MeetingProvider | null;
   visibility: EventVisibility;
+  // N+65 — 통합 visibility (hook 가 옛 visibility 와 자동 동기)
+  vlevel?: EventVlevel | null;
+  target_member_ids?: number[] | null;
+  target_client_ids?: number[] | null;
   created_by: number;
   creator?: { id: number; name: string; email?: string } | null;
   Project?: { id: number; name: string; color?: string | null } | null;

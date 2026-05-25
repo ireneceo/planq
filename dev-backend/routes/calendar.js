@@ -251,6 +251,8 @@ router.post('/by-business/:businessId', authenticateToken, checkBusinessAccess, 
       visibility, project_id,
       attendees = [],
       reminder_minutes,  // N+63 — 임박 알림 (5/10/15/30/60 분 등). null = OFF
+      // N+65 — 4단계 visibility 통합
+      vlevel, target_member_ids, target_client_ids,
     } = req.body || {};
 
     if (!title?.trim()) { await t.rollback(); return errorResponse(res, 'title is required', 400); }
@@ -322,6 +324,10 @@ router.post('/by-business/:businessId', authenticateToken, checkBusinessAccess, 
         ? Math.min(10080, Number(reminder_minutes))  // max 1주 (7 * 24 * 60)
         : null,
       visibility: VISIBILITY_SET.has(visibility) ? visibility : 'business',
+      // N+65 — vlevel 명시되면 hook 가 visibility 도 동기. L2/L4 sub-target 받음.
+      vlevel: ['L1','L2','L3','L4'].includes(vlevel) ? vlevel : null,
+      target_member_ids: Array.isArray(target_member_ids) ? target_member_ids.map(Number).filter(Boolean) : null,
+      target_client_ids: Array.isArray(target_client_ids) ? target_client_ids.map(Number).filter(Boolean) : null,
       created_by: req.user.id,
     }, { transaction: t });
 
@@ -661,6 +667,19 @@ router.put('/by-business/:businessId/:id', authenticateToken, checkBusinessAcces
     if (visibility !== undefined) {
       if (!VISIBILITY_SET.has(visibility)) { await t.rollback(); return errorResponse(res, 'invalid visibility', 400); }
       updates.visibility = visibility;
+    }
+    // N+65 — vlevel 통합 visibility (등록 모달과 정합). hook 가 visibility 도 자동 동기.
+    if (req.body.vlevel !== undefined) {
+      if (req.body.vlevel === null) updates.vlevel = null;
+      else if (['L1','L2','L3','L4'].includes(req.body.vlevel)) updates.vlevel = req.body.vlevel;
+    }
+    if (req.body.target_member_ids !== undefined) {
+      updates.target_member_ids = Array.isArray(req.body.target_member_ids)
+        ? req.body.target_member_ids.map(Number).filter(Boolean) : null;
+    }
+    if (req.body.target_client_ids !== undefined) {
+      updates.target_client_ids = Array.isArray(req.body.target_client_ids)
+        ? req.body.target_client_ids.map(Number).filter(Boolean) : null;
     }
     if (project_id !== undefined) {
       if (project_id === null) {
