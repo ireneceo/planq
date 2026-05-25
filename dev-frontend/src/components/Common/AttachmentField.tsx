@@ -144,11 +144,7 @@ const AttachmentField: React.FC<Props> = ({
       {uploads.length > 0 && (
         <ChipList>
           {uploads.map((f, i) => (
-            <Chip key={i}>
-              <ChipText>{f.name}</ChipText>
-              <ChipMeta>{formatBytes(f.size)}</ChipMeta>
-              <ChipX type="button" onClick={() => removeUpload(i)} disabled={disabled}>×</ChipX>
-            </Chip>
+            <UploadChipItem key={i} file={f} onRemove={() => removeUpload(i)} disabled={disabled} />
           ))}
         </ChipList>
       )}
@@ -207,6 +203,34 @@ const AttachmentField: React.FC<Props> = ({
   );
 };
 
+// N+63 — 이미지 미리보기. 사용자 호소 "요청 추가 시 이미지 첨부 시 미리보기가 표시되지 않고 파일 아이콘으로만 노출".
+// 이미지 mime 만 createObjectURL → thumbnail, 비이미지는 기존 아이콘.
+// blob URL leak 방지 — unmount 시 revoke.
+const UploadChipItem: React.FC<{ file: File; onRemove: () => void; disabled?: boolean }> = ({ file, onRemove, disabled }) => {
+  const previewUrl = useMemo(() => {
+    if (file.type && file.type.startsWith('image/')) {
+      try { return URL.createObjectURL(file); } catch { return null; }
+    }
+    return null;
+  }, [file]);
+  useEffect(() => () => { if (previewUrl) URL.revokeObjectURL(previewUrl); }, [previewUrl]);
+  return (
+    <Chip>
+      {previewUrl ? (
+        <ChipThumb src={previewUrl} alt={file.name} />
+      ) : (
+        <ChipFileIcon viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+          <polyline points="14 2 14 8 20 8" />
+        </ChipFileIcon>
+      )}
+      <ChipText>{file.name}</ChipText>
+      <ChipMeta>{formatBytes(file.size)}</ChipMeta>
+      <ChipX type="button" onClick={onRemove} disabled={disabled}>×</ChipX>
+    </Chip>
+  );
+};
+
 export default AttachmentField;
 
 // ─── styled (KnowledgePage 새 지식 등록 폼과 동일) ───
@@ -230,6 +254,15 @@ const Chip = styled.span`
   padding: 4px 8px 4px 10px;
   background: #F1F5F9; border: 1px solid #E2E8F0; border-radius: 6px;
   font-size: 12px;
+`;
+// N+63 — 이미지 첨부 시 thumbnail (40x40, 모서리 둥글게)
+const ChipThumb = styled.img`
+  width: 40px; height: 40px; object-fit: cover;
+  border-radius: 6px; margin: -2px 2px -2px -4px;
+  background: #F1F5F9;
+`;
+const ChipFileIcon = styled.svg`
+  width: 14px; height: 14px; color: #64748B; flex-shrink: 0;
 `;
 const ChipText = styled.span`color: #0F172A; max-width: 180px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;`;
 const ChipMeta = styled.span`color: #94A3B8; font-size: 10px;`;
