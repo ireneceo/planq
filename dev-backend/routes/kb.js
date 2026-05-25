@@ -769,6 +769,9 @@ router.post('/businesses/:businessId/kb/categories', authenticateToken, checkBus
       where: { business_id: businessId, name },
       defaults: { business_id: businessId, name, sort_order: Number(req.body?.sort_order) || 0 }
     });
+    // N+64 — 다른 탭/디바이스 카테고리 즉시 반영 (CLAUDE.md 운영 안정성 16번)
+    const io = req.app.get('io');
+    if (io && created) io.to(`business:${businessId}`).emit('kb:cat:new', { id: row.id, name: row.name });
     successResponse(res, { id: row.id, name: row.name, sort_order: row.sort_order, created });
   } catch (err) { next(err); }
 });
@@ -799,6 +802,8 @@ router.put('/businesses/:businessId/kb/categories/:id', authenticateToken, check
     const patch = { name: newName };
     if (req.body?.sort_order !== undefined) patch.sort_order = Number(req.body.sort_order) || 0;
     await row.update(patch);
+    const io = req.app.get('io');
+    if (io) io.to(`business:${businessId}`).emit('kb:cat:updated', { id: row.id, name: row.name });
     successResponse(res, { id: row.id, name: row.name, sort_order: row.sort_order });
   } catch (err) { next(err); }
 });
@@ -810,7 +815,10 @@ router.delete('/businesses/:businessId/kb/categories/:id', authenticateToken, ch
     const businessId = parseInt(req.params.businessId, 10);
     const row = await KbCategory.findOne({ where: { id: req.params.id, business_id: businessId } });
     if (!row) return errorResponse(res, 'not_found', 404);
+    const snap = { id: row.id, name: row.name };
     await row.destroy();
+    const io = req.app.get('io');
+    if (io) io.to(`business:${businessId}`).emit('kb:cat:deleted', snap);
     successResponse(res, null, 'deleted');
   } catch (err) { next(err); }
 });
