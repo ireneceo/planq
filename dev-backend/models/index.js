@@ -83,6 +83,13 @@ const WeeklyReview = require('./WeeklyReview');
 const WeeklyReviewSetting = require('./WeeklyReviewSetting');
 // ─── 워크스페이스 통합 주간 보고서 (사이클 N+18) ───
 const BusinessWeeklyReport = require('./BusinessWeeklyReport');
+// ─── Q Mail (Phase 9 — M1) ───
+const EmailAccount = require('./EmailAccount');
+const EmailThread = require('./EmailThread');
+const EmailMessage = require('./EmailMessage');
+const EmailAttachment = require('./EmailAttachment');
+const EmailThreadParticipant = require('./EmailThreadParticipant');
+const EmailDraft = require('./EmailDraft');
 // ─── 멤버 권한 + 상태 전이 히스토리 (사이클 N+21) ───
 const BusinessMemberPermission = require('./BusinessMemberPermission');
 const ProjectStatusHistory = require('./ProjectStatusHistory');
@@ -443,6 +450,13 @@ module.exports = {
   Notification,
   EmailLog,
   PlatformSetting,
+  // Q Mail (Phase 9 M1)
+  EmailAccount,
+  EmailThread,
+  EmailMessage,
+  EmailAttachment,
+  EmailThreadParticipant,
+  EmailDraft,
   // Q docs
   DocumentTemplate,
   Document,
@@ -660,3 +674,34 @@ Notification.belongsTo(Business, { foreignKey: 'business_id', onDelete: 'CASCADE
 // EmailLog — 메일 발송 모니터링
 EmailLog.belongsTo(User, { foreignKey: 'initiated_by', as: 'initiator' });
 EmailLog.belongsTo(Business, { foreignKey: 'business_id' });
+
+// ─── Q Mail (Phase 9 M1) — associations ─────────────────────────────
+EmailAccount.belongsTo(Business, { foreignKey: 'business_id', onDelete: 'CASCADE' });
+Business.hasMany(EmailAccount, { as: 'emailAccounts', foreignKey: 'business_id' });
+
+EmailThread.belongsTo(Business, { foreignKey: 'business_id', onDelete: 'CASCADE' });
+EmailThread.belongsTo(EmailAccount, { foreignKey: 'account_id', onDelete: 'CASCADE' });
+EmailThread.belongsTo(Client, { foreignKey: 'client_id', onDelete: 'SET NULL' });
+EmailThread.belongsTo(Project, { foreignKey: 'project_id', onDelete: 'SET NULL' });
+EmailAccount.hasMany(EmailThread, { as: 'threads', foreignKey: 'account_id' });
+Business.hasMany(EmailThread, { as: 'emailThreads', foreignKey: 'business_id' });
+Client.hasMany(EmailThread, { as: 'emailThreads', foreignKey: 'client_id' });
+
+EmailMessage.belongsTo(EmailThread, { foreignKey: 'thread_id', onDelete: 'CASCADE' });
+EmailMessage.belongsTo(Business, { foreignKey: 'business_id' });
+EmailMessage.belongsTo(User, { as: 'sender', foreignKey: 'sent_by_user_id', onDelete: 'SET NULL' });
+EmailThread.hasMany(EmailMessage, { as: 'messages', foreignKey: 'thread_id', onDelete: 'CASCADE' });
+
+EmailAttachment.belongsTo(EmailMessage, { foreignKey: 'message_id', onDelete: 'CASCADE' });
+EmailAttachment.belongsTo(File, { foreignKey: 'file_id', onDelete: 'SET NULL' });
+EmailMessage.hasMany(EmailAttachment, { as: 'attachments', foreignKey: 'message_id', onDelete: 'CASCADE' });
+
+EmailThreadParticipant.belongsTo(EmailThread, { foreignKey: 'thread_id', onDelete: 'CASCADE' });
+EmailThreadParticipant.belongsTo(User, { foreignKey: 'user_id', onDelete: 'CASCADE' });
+EmailThread.hasMany(EmailThreadParticipant, { as: 'participantsLinks', foreignKey: 'thread_id', onDelete: 'CASCADE' });
+
+EmailDraft.belongsTo(EmailThread, { foreignKey: 'thread_id', onDelete: 'CASCADE' });
+EmailDraft.belongsTo(Business, { foreignKey: 'business_id' });
+EmailDraft.belongsTo(User, { foreignKey: 'user_id', onDelete: 'CASCADE' });
+EmailDraft.belongsTo(EmailAccount, { foreignKey: 'account_id', onDelete: 'SET NULL' });
+EmailDraft.belongsTo(EmailMessage, { as: 'inReplyTo', foreignKey: 'in_reply_to_message_id', onDelete: 'SET NULL' });

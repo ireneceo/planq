@@ -274,6 +274,8 @@ app.use('/api/projects', require('./routes/projects'));
 app.use('/api/projects', require('./routes/project_process'));
 app.use('/api/users', require('./routes/users'));
 app.use('/api/businesses', require('./routes/businesses'));
+// Q Mail (Phase 9 — M1)
+app.use('/api/businesses', require('./routes/email_accounts'));
 app.use('/api/notifications', require('./routes/notifications'));
 app.use('/api/feedback', require('./routes/feedback'));
 app.use('/api/cue', require('./routes/cue'));
@@ -418,6 +420,9 @@ initWeeklyReviewCron();
 // N+63 — 일정 임박 알림 cron (5분 단위)
 const { initCalendarReminderCron } = require('./services/calendarReminderCron');
 initCalendarReminderCron();
+// Q Mail M1 — IMAP fetch cron (5분 단위)
+const emailImapCron = require('./services/emailImapCron');
+emailImapCron.init();
 // N+36 옵션 D — 업무 후보 만료 cron (30일 hide / 90일 rejected delete / 60일 hidden delete)
 const { initCandidateCleanupCron } = require('./services/candidateCleanup');
 initCandidateCleanupCron();
