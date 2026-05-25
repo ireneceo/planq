@@ -36,6 +36,9 @@ interface ClientOption { id: number; display_name?: string | null; company_name?
 
 interface Props {
   event: CalendarEvent | null;
+  // N+63 P2a 후속 — 사용자가 클릭한 instance 의 date (YYYY-MM-DD). master 의 경우 modal single 선택 시 정확한 회차 식별.
+  // 없으면 master.start_at 의 date (첫 회차 fallback).
+  instanceDate?: string | null;
   projects?: ProjectOption[];
   members?: MemberOption[];
   clients?: ClientOption[];
@@ -61,7 +64,7 @@ const mkISO = (dateStr: string, timeStr: string, allDay: boolean, isEnd: boolean
 };
 
 const EventDrawer: React.FC<Props> = ({
-  event, projects = [], members = [], clients = [], myUserId, myBusinessRole,
+  event, instanceDate, projects = [], members = [], clients = [], myUserId, myBusinessRole,
   onClose, onUpdate, onDelete, onCreateMeetingRoom, gcalConnected,
 }) => {
   const { t, i18n } = useTranslation('qcalendar');
@@ -136,20 +139,23 @@ const EventDrawer: React.FC<Props> = ({
   }, [startDate, endDate, i18n.language]);
 
   // 시간/날짜 저장 (4 필드 묶음) — debounce 300ms (select)
-  // N+63 P2a — master event (rrule != null, recurrence_parent_id null) 의 시간 변경 시 modal 분기
+  // N+63 P2a — master event (rrule != null, recurrence_parent_id null) 의 instance-affecting 필드 변경 시 modal.
+  //   instance-affecting (master 면 modal 분기): title/start_at/end_at/all_day/category/location/description/visibility/project_id/color
+  //   instance-independent (master 라도 modal X — event 전체 속성): rrule/attendees/reminder_minutes
   const isMaster = !!event?.rrule && !event?.recurrence_parent_id;
-  const saveSchedule = async (sd: string, ed: string, st: string, et: string, allDay: boolean) => {
-    const sISO = mkISO(sd, st, allDay, false);
-    const eISO = mkISO(ed, et, allDay, true);
-    if (new Date(eISO) < new Date(sISO)) return;
-    const patch = { start_at: sISO, end_at: eISO, all_day: allDay };
+  const updateMaybeScoped = (patch: Partial<CalendarEvent>): void | Promise<void> => {
     if (isMaster) {
-      // 정기 master — modal 거쳐 single/future/all 선택
       setPendingPatch(patch);
       setScopeModalOpen(true);
       return;
     }
-    await onUpdate(patch);
+    return Promise.resolve(onUpdate(patch));
+  };
+  const saveSchedule = async (sd: string, ed: string, st: string, et: string, allDay: boolean) => {
+    const sISO = mkISO(sd, st, allDay, false);
+    const eISO = mkISO(ed, et, allDay, true);
+    if (new Date(eISO) < new Date(sISO)) return;
+    await updateMaybeScoped({ start_at: sISO, end_at: eISO, all_day: allDay });
   };
   // modal 에서 사용자가 scope 선택 후 적용
   const applyScopeUpdate = async (scope: 'single' | 'future' | 'all') => {
@@ -157,9 +163,8 @@ const EventDrawer: React.FC<Props> = ({
     if (scope === 'all') {
       await onUpdate(pendingPatch);
     } else {
-      // single/future → recurrence_id = master 의 start_at date (첫 회차 기준)
-      // (instance date prop 받지 않아 단순화 — 이번 1차 fix. picker 확장은 다음 사이클)
-      const recurrenceId = toDateKey(new Date(event.start_at));
+      // N+63 P2a 후속 — instance picker 적용. instanceDate prop 우선, fallback master start_at.
+      const recurrenceId = instanceDate || toDateKey(new Date(event.start_at));
       await onUpdate(pendingPatch, { scope, recurrence_id: recurrenceId });
     }
     setPendingPatch(null);
@@ -175,7 +180,7 @@ const EventDrawer: React.FC<Props> = ({
             {canEdit ? (
               <AutoSaveField type="input" onSave={async () => {
                 const v = title.trim();
-                if (v && v !== event.title) await onUpdate({ title: v });
+                if (v && v !== event.title) await updateMaybeScoped({ title: v });
               }}>
                 <TitleInput
                   value={title}
@@ -331,7 +336,7 @@ const EventDrawer: React.FC<Props> = ({
                   type="button"
                   $active={event.category === cat}
                   disabled={!canEdit}
-                  onClick={() => { if (canEdit && event.category !== cat) onUpdate({ category: cat }); }}
+                  onClick={() => { if (canEdit && event.category !== cat) updateMaybeScoped({ category: cat }); }}
                 >
                   {t(`category.${cat}`)}
                 </CategoryBtn>
@@ -351,7 +356,7 @@ const EventDrawer: React.FC<Props> = ({
                       value={{ value: event.visibility, label: t(`visibility.${event.visibility}`) }}
                       onChange={(opt) => {
                         const v = (opt as { value?: EventVisibility } | null)?.value;
-                        if (v && v !== event.visibility) onUpdate({ visibility: v });
+                        if (v && v !== event.visibility) updateMaybeScoped({ visibility: v });
                       }}
                     />
                   </AutoSaveField>
@@ -370,7 +375,7 @@ const EventDrawer: React.FC<Props> = ({
                       }
                       onChange={(opt) => {
                         const v = opt ? Number((opt as { value: number }).value) : null;
-                        if (v !== event.project_id) onUpdate({ project_id: v });
+                        if (v !== event.project_id) updateMaybeScoped({ project_id: v });
                       }}
                     />
                   </AutoSaveField>
@@ -464,7 +469,7 @@ const EventDrawer: React.FC<Props> = ({
             {canEdit ? (
               <AutoSaveField type="input" onSave={async () => {
                 const v = location.trim();
-                if ((v || null) !== (event.location || null)) await onUpdate({ location: v || null });
+                if ((v || null) !== (event.location || null)) await updateMaybeScoped({ location: v || null });
               }}>
                 <Input
                   value={location}
@@ -542,7 +547,7 @@ const EventDrawer: React.FC<Props> = ({
             {canEdit ? (
               <AutoSaveField type="input" onSave={async () => {
                 const v = description.trim();
-                if ((v || null) !== (event.description || null)) await onUpdate({ description: v || null });
+                if ((v || null) !== (event.description || null)) await updateMaybeScoped({ description: v || null });
               }}>
                 <Textarea
                   rows={3}

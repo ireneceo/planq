@@ -53,6 +53,8 @@ const QCalendarPage: React.FC = () => {
   const [view, setView] = useState<CalendarViewMode>(initial.view);
   const [scope, setScope] = useState<CalendarScope>(initial.scope);
   const [selectedEventId, setSelectedEventId] = useState<number | null>(initial.eventId);
+  // N+63 P2a 후속 — 사용자가 클릭한 instance 의 date (YYYY-MM-DD). EventDrawer modal single 선택 시 사용
+  const [selectedInstanceDate, setSelectedInstanceDate] = useState<string | null>(null);
   const [showNewModal, setShowNewModal] = useState(false);
   const [newModalInitial, setNewModalInitial] = useState<Date>(new Date());
 
@@ -260,7 +262,7 @@ const QCalendarPage: React.FC = () => {
 
   const goToday = useCallback(() => setAnchor(new Date()), []);
 
-  const handleSelectEvent = useCallback((id: number) => {
+  const handleSelectEvent = useCallback((id: number, instanceDate?: string) => {
     // Task 이벤트는 같은 페이지에 TaskDetailDrawer 오버레이로 오픈 (재클릭 토글)
     const asTask = taskEvents.find((e) => isTaskEvent(e) && e.id === id);
     if (asTask && isTaskEvent(asTask)) {
@@ -268,6 +270,7 @@ const QCalendarPage: React.FC = () => {
       return;
     }
     setSelectedEventId((cur) => (cur === id ? null : id));
+    setSelectedInstanceDate(instanceDate || null);
   }, [taskEvents]);
 
   const refreshTasks = useCallback(async () => {
@@ -467,6 +470,7 @@ const QCalendarPage: React.FC = () => {
       {selectedEvent && (
         <EventDrawer
           event={selectedEvent}
+          instanceDate={selectedInstanceDate}
           projects={projects}
           members={members}
           clients={clientsList}

@@ -12,7 +12,7 @@ interface Props {
   today: Date;
   days: Date[]; // 1 (day) or 7 (week)
   events: CalendarItem[];
-  onSelectEvent: (id: number) => void;
+  onSelectEvent: (id: number, instanceDate?: string) => void;
   onSelectDate: (date: Date) => void;
 }
 
@@ -96,7 +96,7 @@ const TimeGridView: React.FC<Props> = ({ today, days, events, onSelectEvent, onS
                     $bg={c.bg}
                     $fg={c.fg}
                     $border={c.border}
-                    onClick={() => onSelectEvent(e.id)}
+                    onClick={() => onSelectEvent(e.id, e.start_at?.slice(0, 10))}
                   >
                     {isTask && <CheckIcon size={11} style={{ marginRight: 3, verticalAlign: '-2px' }} />}{e.title}
                   </AllDayChip>
@@ -153,7 +153,7 @@ const TimeGridView: React.FC<Props> = ({ today, days, events, onSelectEvent, onS
                         $bg={c.bg}
                         $fg={c.fg}
                         $border={c.border}
-                        onClick={() => onSelectEvent(e.id)}
+                        onClick={() => onSelectEvent(e.id, e.start_at?.slice(0, 10))}
                       >
                         <EventHeader>
                           <EventTitle>{e.title}</EventTitle>
