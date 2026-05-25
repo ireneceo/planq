@@ -109,19 +109,38 @@ async function indexDocument(docId) {
     await KbChunk.destroy({ where: { kb_document_id: doc.id } });
 
     const chunks = splitIntoChunks(text);
+    let insertedCount = 0;
     for (const c of chunks) {
       const embedding = await embedText(c.content);
-      await KbChunk.create({
-        kb_document_id: doc.id,
-        business_id: doc.business_id,
-        chunk_index: c.chunk_index,
-        content: c.content,
-        token_count: c.token_count,
-        embedding
-      });
+      // N+68 — race-safe: embed 동안 doc 삭제됐을 가능성. final check + FK catch.
+      const stillExists = await KbDocument.findByPk(doc.id, { attributes: ['id'] });
+      if (!stillExists) {
+        console.log(`[kb] doc #${doc.id} deleted during indexing, abort`);
+        return;
+      }
+      try {
+        await KbChunk.create({
+          kb_document_id: doc.id,
+          business_id: doc.business_id,
+          chunk_index: c.chunk_index,
+          content: c.content,
+          token_count: c.token_count,
+          embedding
+        });
+        insertedCount++;
+      } catch (e) {
+        if (e.name === 'SequelizeForeignKeyConstraintError') {
+          console.log(`[kb] FK race — doc #${doc.id} deleted, abort indexing`);
+          return;
+        }
+        throw e;
+      }
     }
 
-    await doc.update({ status: 'ready', chunk_count: chunks.length });
+    // 최종 status update 도 doc 존재 시만
+    try {
+      await doc.update({ status: 'ready', chunk_count: insertedCount });
+    } catch (e) { /* doc 삭제됐으면 무시 */ }
   } catch (err) {
     await doc.update({ status: 'failed', error_message: String(err.message).slice(0, 1000) });
     throw err;

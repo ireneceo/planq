@@ -29,6 +29,17 @@ DocumentTemplate.init({
     type: DataTypes.ENUM('workspace_only', 'client_shareable'),
     defaultValue: 'workspace_only',
   },
+  // N+68 — 4단계 visibility 통합. workspace_only→L3 / client_shareable→L4.
+  vlevel: {
+    type: DataTypes.ENUM('L1', 'L2', 'L3', 'L4'),
+    allowNull: true,
+    defaultValue: null,
+  },
+  target_member_ids: {
+    type: DataTypes.JSON,
+    allowNull: true,
+    defaultValue: null,
+  },
   locale: { type: DataTypes.ENUM('ko', 'en', 'bilingual'), defaultValue: 'ko' },
   is_system: { type: DataTypes.BOOLEAN, defaultValue: false },
   is_active: { type: DataTypes.BOOLEAN, defaultValue: true },
@@ -45,6 +56,15 @@ DocumentTemplate.init({
     { fields: ['is_system'] },
     { fields: ['kind', 'is_active'] },
   ],
+});
+
+// N+68 — vlevel ↔ visibility 양방향 동기 (workspace_only=L3, client_shareable=L4)
+DocumentTemplate.addHook('beforeSave', (t) => {
+  if (t.vlevel) {
+    t.visibility = t.vlevel === 'L4' ? 'client_shareable' : 'workspace_only';
+  } else {
+    t.vlevel = t.visibility === 'client_shareable' ? 'L4' : 'L3';
+  }
 });
 
 module.exports = DocumentTemplate;
