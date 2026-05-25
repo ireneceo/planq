@@ -4,7 +4,7 @@ const router = express.Router();
 const { sequelize } = require('../config/database');
 const {
   CalendarEvent, CalendarEventAttendee,
-  BusinessMember, User, Client, Project,
+  BusinessMember, User, Client, Project, ProjectMember,
 } = require('../models');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const { applyMemberDisplayName, applyMemberDisplayNameOne } = require('../services/displayName');
@@ -110,10 +110,10 @@ router.get('/by-business/:businessId', authenticateToken, attachWorkspaceScope()
     };
     if (req.query.project_id) baseWhere.project_id = Number(req.query.project_id);
 
-    // visibility:
-    //   owner / member — business 전부 + 본인 personal (default '전체' 탭)
-    //   client         — 본인이 attendee 인 business event 만 (PERMISSION_MATRIX §7)
-    // 멤버가 '나' 만 보고 싶을 때는 query.scope=mine 로 후처리 필터 (line 145).
+    // N+67 — 권한 query refactor. vlevel 우선 + legacy visibility fallback.
+    //   client — 본인이 attendee 인 business event 만 (PERMISSION_MATRIX §7)
+    //   owner/admin — 모든 event
+    //   member  — L1 (본인) / L2 (참여 프로젝트 또는 target_member_ids) / L3 / L4
     if (req.scope?.isClient) {
       const myAttendees = await CalendarEventAttendee.findAll({
         where: { user_id: req.user.id },
@@ -124,12 +124,27 @@ router.get('/by-business/:businessId', authenticateToken, attachWorkspaceScope()
       baseWhere.id = { [Op.in]: ids };
       baseWhere[Op.and] = [{ visibility: 'business' }];
     } else {
-      baseWhere[Op.and] = [{
-        [Op.or]: [
-          { visibility: 'business' },
-          { visibility: 'personal', created_by: req.user.id },
-        ],
-      }];
+      const isAdmin = req.businessRole === 'owner' || req.businessRole === 'admin' || req.user?.platform_role === 'platform_admin';
+      if (!isAdmin) {
+        const userId = parseInt(req.user.id, 10);
+        const myProjectIds = (await ProjectMember.findAll({
+          where: { user_id: userId },
+          attributes: ['project_id'],
+        })).map(r => r.project_id);
+        baseWhere[Op.and] = [{
+          [Op.or]: [
+            { created_by: userId },  // 본인 생성은 무조건 노출
+            { vlevel: 'L3' },
+            { vlevel: 'L4' },
+            { vlevel: 'L2', project_id: { [Op.in]: myProjectIds.length > 0 ? myProjectIds : [0] } },
+            sequelize.literal(`vlevel='L2' AND JSON_CONTAINS(target_member_ids, '${userId}')`),
+            // legacy fallback (vlevel NULL) — 옛 visibility 기반
+            { vlevel: null, visibility: 'business' },
+            { vlevel: null, visibility: 'personal', created_by: userId },
+          ],
+        }];
+      }
+      // admin 은 baseWhere 추가 필터 없음 — 모든 event
     }
 
     const rawEvents = await CalendarEvent.findAll({
@@ -609,8 +624,8 @@ router.put('/by-business/:businessId/:id', authenticateToken, checkBusinessAcces
     const event = await CalendarEvent.findOne({ where: { id: req.params.id, business_id: businessId } });
     if (!event) { await t.rollback(); return errorResponse(res, 'event_not_found', 404); }
 
-    // 편집 권한: 작성자 또는 owner
-    if (event.created_by !== req.user.id && bm.role !== 'owner') {
+    // 편집 권한: 작성자 또는 owner/admin (N+67 — admin 도 편집 허용. PERMISSION_MATRIX 정합)
+    if (event.created_by !== req.user.id && bm.role !== 'owner' && bm.role !== 'admin') {
       await t.rollback();
       return errorResponse(res, 'only_creator_or_owner', 403);
     }
@@ -808,7 +823,7 @@ router.delete('/by-business/:businessId/:id', authenticateToken, checkBusinessAc
 
     const event = await CalendarEvent.findOne({ where: { id: req.params.id, business_id: businessId } });
     if (!event) return errorResponse(res, 'event_not_found', 404);
-    if (event.created_by !== req.user.id && bm.role !== 'owner') {
+    if (event.created_by !== req.user.id && bm.role !== 'owner' && bm.role !== 'admin') {
       return errorResponse(res, 'only_creator_or_owner', 403);
     }
 
@@ -987,7 +1002,7 @@ router.post('/by-business/:businessId/:id/meeting', authenticateToken, checkBusi
 
     const event = await CalendarEvent.findOne({ where: { id: req.params.id, business_id: businessId } });
     if (!event) return errorResponse(res, 'event_not_found', 404);
-    if (event.created_by !== req.user.id && bm.role !== 'owner') {
+    if (event.created_by !== req.user.id && bm.role !== 'owner' && bm.role !== 'admin') {
       return errorResponse(res, 'only_creator_or_owner', 403);
     }
     const gcalToken = await gcal.getTokenForBusiness(businessId);

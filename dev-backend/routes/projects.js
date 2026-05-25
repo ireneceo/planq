@@ -2015,7 +2015,10 @@ router.get('/workspace/:bizId/all-files', authenticateToken, async (req, res, ne
         folder_id: f.folder_id,
         project_context: proj ? { id: proj.id, name: proj.name, color: proj.color } : null,
         deletable: true,
-        storage_provider: f.storage_provider
+        storage_provider: f.storage_provider,
+        // N+67 — visibility 노출 (frontend file detail drawer 에 표시 + 변경 UI)
+        visibility: f.visibility,
+        project_id: f.project_id,
       });
     }
 

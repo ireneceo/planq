@@ -136,27 +136,56 @@ function resolveVisibility(body) {
 router.get('/businesses/:businessId/kb/documents', authenticateToken, checkBusinessAccess, async (req, res, next) => {
   if (req.businessRole === 'client') return errorResponse(res, 'forbidden', 403);
   try {
+    const { Op } = require('sequelize');
+    const { sequelize } = require('../config/database');
+    const { ProjectMember } = require('../models');
+    const businessId = parseInt(req.params.businessId, 10);
     // 사이클 G — 카테고리/스코프 필터 (옵션)
-    const where = { business_id: req.params.businessId };
+    const where = { business_id: businessId };
     const allowedCats = ['policy','manual','incident','faq','about','pricing'];
-    // 단일 category (legacy 호환) — 하위 호환
     if (req.query.category && allowedCats.includes(req.query.category)) {
       where.category = req.query.category;
     }
-    if (req.query.scope && ['workspace','project','client'].includes(req.query.scope)) {
+    if (req.query.scope && ['private','workspace','project','client'].includes(req.query.scope)) {
       where.scope = req.query.scope;
     }
     if (req.query.project_id) where.project_id = parseInt(req.query.project_id, 10) || null;
     if (req.query.client_id) where.client_id = parseInt(req.query.client_id, 10) || null;
-    if (req.query.q) where.title = { [require('sequelize').Op.like]: `%${String(req.query.q).slice(0,80)}%` };
+    if (req.query.q) where.title = { [Op.like]: `%${String(req.query.q).slice(0,80)}%` };
 
-    // 사이클 N+50 — SaaS readiness cap. KB documents 는 보통 작지만 (10~100) 안전망.
-    // post-fetch JS filter (categories/tags) 가 있어 정식 pagination 대신 cap. 사용자 ?limit 가능.
+    // N+67 — 권한 query refactor. L1/L2-members 등 visibility 권한 검증.
+    // owner/admin = 모든 row 노출. member = L1 (본인) / L2 (참여 프로젝트 또는 target_member_ids) / L3 / L4.
+    const isAdmin = req.businessRole === 'owner' || req.businessRole === 'admin' || req.user?.platform_role === 'platform_admin';
+    if (!isAdmin) {
+      const userId = parseInt(req.user.id, 10);
+      const myProjectIds = (await ProjectMember.findAll({
+        where: { user_id: userId },
+        attributes: ['project_id'],
+      })).map(r => r.project_id);
+      where[Op.and] = [{
+        [Op.or]: [
+          // 본인 업로드는 vlevel 무관 노출 (개인 보관함 패턴)
+          { uploaded_by: userId },
+          // 신규 vlevel 기반
+          { vlevel: 'L3' },
+          { vlevel: 'L4' },
+          { vlevel: 'L2', scope: 'project', project_id: { [Op.in]: myProjectIds.length > 0 ? myProjectIds : [0] } },
+          // L2-members — JSON contains. user_id 는 숫자라 SQL injection 안전.
+          sequelize.literal(`vlevel='L2' AND scope='workspace' AND JSON_CONTAINS(target_member_ids, '${userId}')`),
+          // legacy fallback (vlevel NULL) — 옛 scope/read_policy 기반
+          { vlevel: null, scope: 'workspace', read_policy: 'all' },
+          { vlevel: null, scope: 'project', project_id: { [Op.in]: myProjectIds.length > 0 ? myProjectIds : [0] } },
+          { vlevel: null, scope: 'client' },
+        ],
+      }];
+    }
+
+    // 사이클 N+50 — SaaS readiness cap
     const rawLimit = Number(req.query.limit);
     const safeLimit = Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(rawLimit, 2000) : 1000;
     let docs = await KbDocument.findAll({
       where,
-      attributes: ['id', 'title', 'source_type', 'category', 'categories', 'scope', 'project_id', 'client_id', 'file_name', 'file_size', 'version', 'status', 'chunk_count', 'uploaded_by', 'tags', 'attached_file_ids', 'attached_post_ids', 'custom_columns', 'custom_values', 'read_policy', 'client_ids', 'created_at', 'updated_at'],
+      attributes: ['id', 'title', 'source_type', 'category', 'categories', 'scope', 'project_id', 'client_id', 'file_name', 'file_size', 'version', 'status', 'chunk_count', 'uploaded_by', 'tags', 'attached_file_ids', 'attached_post_ids', 'custom_columns', 'custom_values', 'read_policy', 'client_ids', 'vlevel', 'target_member_ids', 'created_at', 'updated_at'],
       order: [['updated_at', 'DESC']],
       limit: safeLimit,
     });
@@ -568,6 +597,22 @@ router.get('/businesses/:businessId/kb/documents/:docId', authenticateToken, che
       }]
     });
     if (!doc) return errorResponse(res, 'Document not found', 404);
+    // N+67 — 권한 검증: list 와 같은 정책. owner/admin 또는 본인 업로드 또는 vlevel-based 접근.
+    const isAdmin = req.businessRole === 'owner' || req.businessRole === 'admin' || req.user?.platform_role === 'platform_admin';
+    if (!isAdmin && doc.uploaded_by !== req.user.id) {
+      const vl = doc.vlevel || (doc.scope === 'private' ? 'L1' : doc.scope === 'project' ? 'L2' : doc.scope === 'client' ? 'L4' : 'L3');
+      if (vl === 'L1') return errorResponse(res, 'forbidden', 403);
+      if (vl === 'L2' && doc.scope === 'workspace') {
+        // L2-members 검사
+        const targetIds = Array.isArray(doc.target_member_ids) ? doc.target_member_ids : [];
+        if (!targetIds.includes(req.user.id)) return errorResponse(res, 'forbidden', 403);
+      }
+      if (vl === 'L2' && doc.scope === 'project' && doc.project_id) {
+        const { ProjectMember } = require('../models');
+        const isProjectMember = await ProjectMember.findOne({ where: { user_id: req.user.id, project_id: doc.project_id }, attributes: ['id'] });
+        if (!isProjectMember) return errorResponse(res, 'forbidden', 403);
+      }
+    }
 
     const result = doc.toJSON();
     // 첨부 파일 메타 (다운로드 가능)

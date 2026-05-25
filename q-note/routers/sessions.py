@@ -922,7 +922,8 @@ async def delete_session(session_id: int, user: dict = Depends(get_current_user)
 # ─────────────────────────────────────────────────────────
 
 class VisibilityChangeBody(BaseModel):
-  visibility: str = Field(..., pattern='^L[1-3]$')
+  # N+67 — L4 통일 (외부 공유). L4 선택 시 자동으로 share_token 발급.
+  visibility: str = Field(..., pattern='^L[1-4]$')
   project_id: Optional[int] = None
   shared_consent: Optional[bool] = None
 
@@ -933,9 +934,9 @@ async def change_visibility(
   body: VisibilityChangeBody,
   user: dict = Depends(get_current_user),
 ):
-  """Q Note session 의 공유 범위 변경 (L1/L2/L3).
+  """Q Note session 공유 범위 변경 (L1/L2/L3/L4).
 
-  L4 (외부 share_token) 는 별도 POST /share endpoint 사용.
+  N+67 — L4 통일. L4 선택 시 share_token 자동 발급 (POST /share 와 같은 결과).
   """
   async with db_connect() as db:
     db.row_factory = aiosqlite.Row
@@ -954,14 +955,13 @@ async def change_visibility(
     if new_vis == 'L2':
       if not new_proj_id:
         raise HTTPException(status_code=400, detail='project_id_required_for_L2')
-      # project membership 미리 검증 — 본인이 그 project 의 멤버여야 L2 가능
       if not await _is_user_in_project(user['user_id'], new_proj_id):
         raise HTTPException(status_code=403, detail='not_a_project_member')
     else:
-      new_proj_id = None  # L1/L3 면 project_id null
+      new_proj_id = None
 
-    # 외부 참석자 동의 검사 — L3 이상 공유 시
-    if new_vis == 'L3':
+    # 외부 참석자 동의 검사 — L3/L4 공유 시
+    if new_vis in ('L3', 'L4'):
       participants_raw = row['participants'] if 'participants' in row.keys() else None
       has_external = False
       if participants_raw:
@@ -975,12 +975,28 @@ async def change_visibility(
         raise HTTPException(status_code=400, detail='external_consent_required')
 
     shared_consent = 1 if body.shared_consent else (row['shared_consent'] or 0)
-    await db.execute(
-      """UPDATE sessions
-         SET visibility = ?, project_id = ?, shared_consent = ?, updated_at = datetime('now')
-         WHERE id = ?""",
-      (new_vis, new_proj_id, shared_consent, session_id)
-    )
+
+    # N+67 — L4 선택 시 share_token 자동 발급 (없으면)
+    new_share_token = row['share_token'] if 'share_token' in row.keys() else None
+    new_shared_at = row['shared_at'] if 'shared_at' in row.keys() else None
+    if new_vis == 'L4' and not new_share_token:
+      import secrets
+      new_share_token = secrets.token_urlsafe(32)
+      await db.execute(
+        """UPDATE sessions
+           SET visibility = ?, project_id = ?, shared_consent = ?,
+               share_token = ?, shared_at = datetime('now'),
+               updated_at = datetime('now')
+           WHERE id = ?""",
+        (new_vis, new_proj_id, shared_consent, new_share_token, session_id)
+      )
+    else:
+      await db.execute(
+        """UPDATE sessions
+           SET visibility = ?, project_id = ?, shared_consent = ?, updated_at = datetime('now')
+           WHERE id = ?""",
+        (new_vis, new_proj_id, shared_consent, session_id)
+      )
     await db.commit()
     cursor = await db.execute('SELECT * FROM sessions WHERE id = ?', (session_id,))
     updated = await cursor.fetchone()

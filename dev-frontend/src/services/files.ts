@@ -24,12 +24,31 @@ export interface ProjectFile {
   download_url: string;
   preview_url?: string;
   context?: { kind: 'conversation' | 'task' | 'meeting'; id: number; label: string };
-  project_context?: ProjectContext | null;  // 워크스페이스 모드에서만 의미 있음
+  project_context?: ProjectContext | null;
   folder_id: number | null;
   deletable: boolean;
   storage_provider: StorageProvider;
-  external_id?: string | null;          // Drive 파일 id (외부 저장소)
-  external_url?: string | null;         // Drive webViewLink
+  external_id?: string | null;
+  external_url?: string | null;
+  // N+67 — visibility 필드 (source='direct' 일 때만 변경 가능)
+  visibility?: 'L1' | 'L2' | 'L3' | 'L4' | null;
+  project_id?: number | null;
+}
+
+// N+67 — File visibility 변경 API
+export async function updateFileVisibility(
+  businessId: number,
+  fileId: number,
+  body: { level: 'L1' | 'L2' | 'L3' | 'L4'; project_id?: number }
+): Promise<{ id: number; visibility: string; project_id: number | null }> {
+  const r = await apiFetch(`/api/files/${businessId}/${fileId}/visibility`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const j = await r.json();
+  if (!j.success) throw new Error(j.message || 'visibility_change_failed');
+  return j.data;
 }
 
 export interface FileFolder {

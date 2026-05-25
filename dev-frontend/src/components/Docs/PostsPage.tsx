@@ -32,9 +32,11 @@ import { TableHeader } from '@tiptap/extension-table-header';
 import {
   fetchPosts, fetchPost, createPost, updatePost, deletePost,
   attachToPost, detachFromPost, fetchPostsMeta,
-  createCategory,
+  createCategory, updatePostVisibility,
   type PostRow, type PostDetail, type PostsMeta,
 } from '../../services/posts';
+import VisibilityChangeModal from '../Common/VisibilityChangeModal';
+import { listProjects, listWorkspaceClients, type ApiProject, type WorkspaceClientRow } from '../../services/qtalk';
 import { listTemplates, type DocTemplate, KIND_LABELS_KO } from '../../services/docs';
 import KindIcon from './KindIcon';
 import PostShareModal from './PostShareModal';
@@ -42,7 +44,6 @@ import PostAiModal from './PostAiModal';
 import PostSignatureModal from './PostSignatureModal';
 import SignatureProgressSection from './SignatureProgressSection';
 import PlanQSelect, { type PlanQSelectOption } from '../Common/PlanQSelect';
-import { listProjects, type ApiProject } from '../../services/qtalk';
 import { useAuth, apiFetch } from '../../contexts/AuthContext';
 
 // 좌측 필터: 전체(기본) / 프로젝트 그룹 / 카테고리
@@ -125,6 +126,32 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeId]);
   const [detail, setDetail] = useState<PostDetail | null>(null);
+  // N+67 — visibility 변경 모달 + fetch context
+  const [visModalOpen, setVisModalOpen] = useState(false);
+  const [visProjects, setVisProjects] = useState<ApiProject[]>([]);
+  const [visClients, setVisClients] = useState<WorkspaceClientRow[]>([]);
+  const [visMembers, setVisMembers] = useState<Array<{ user_id: number; name: string; role: string }>>([]);
+  useEffect(() => {
+    if (!detail?.business_id) return;
+    const bizId = detail.business_id;
+    listProjects(bizId).then(setVisProjects).catch(() => {});
+    listWorkspaceClients(bizId).then(c => setVisClients(c.filter(x => x.status !== 'archived'))).catch(() => {});
+    apiFetch(`/api/businesses/${bizId}/members`).then(r => r.json()).then(j => {
+      if (j?.success && Array.isArray(j.data)) {
+        setVisMembers(j.data.map((m: { user_id?: number; id?: number; user?: { id?: number; name?: string }; name?: string; role?: string }) => ({
+          user_id: m.user_id || m.id || m.user?.id || 0,
+          name: m.user?.name || m.name || '—',
+          role: m.role || 'member',
+        })).filter((m: { user_id: number }) => m.user_id > 0));
+      }
+    }).catch(() => {});
+  }, [detail?.business_id]);
+  const visLabel = (vl: string | null | undefined) => {
+    if (vl === 'L1') return '나만';
+    if (vl === 'L2') return '팀';
+    if (vl === 'L4') return '외부';
+    return '워크스페이스';
+  };
   const [mode, setMode] = useState<'view' | 'edit' | 'new'>('view');
   const [titleDraft, setTitleDraft] = useState('');
   const [contentDraft, setContentDraft] = useState<unknown>(null);
@@ -922,6 +949,14 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
                     {detail.project.name}
                   </ProjectTag>
                 )}
+                {/* N+67 — visibility chip + 변경 modal */}
+                <VisibilityChip
+                  type="button"
+                  onClick={() => setVisModalOpen(true)}
+                  title={t('visibility.change', '공유 범위 변경') as string}
+                >
+                  {t('visibility.label', '공유') as string}: {visLabel(detail.vlevel)}
+                </VisibilityChip>
                 {detail.share_token && (
                   <ShareTag title={t('share.publicHint', '공개 링크가 활성화되어 있습니다') as string}>
                     <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 2 }}><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.72"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.72-1.72"/></svg>
@@ -1032,6 +1067,28 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
           onClose={() => setShareOpen(false)}
           post={detail}
           onChanged={updated => setDetail(updated)}
+        />
+      )}
+
+      {/* N+67 — visibility 변경 모달 (VisibilityField wrapper) */}
+      {detail && (
+        <VisibilityChangeModal
+          open={visModalOpen}
+          current={(detail.vlevel as 'L1'|'L2'|'L3'|'L4') || 'L3'}
+          canChooseL2
+          projects={visProjects.map(p => ({ id: p.id, name: p.name }))}
+          members={visMembers}
+          clients={visClients.map(c => ({ id: c.id, display_name: c.display_name, biz_name: c.biz_name, company_name: c.company_name }))}
+          onConfirm={async ({ level, projectId }) => {
+            try {
+              const r = await updatePostVisibility(detail.id, {
+                level,
+                ...(projectId ? { project_id: projectId } : {}),
+              });
+              setDetail(prev => prev ? { ...prev, vlevel: r.vlevel as 'L1'|'L2'|'L3'|'L4', project_id: r.project_id, share_token: r.share_token ?? prev.share_token } : prev);
+            } catch (e) { /* keep modal open on error */ throw e; }
+          }}
+          onClose={() => setVisModalOpen(false)}
         />
       )}
 
@@ -1507,6 +1564,19 @@ const CategoryTag = styled.button`
 const MetaRow = styled.div`
   display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;
   @media (max-width: 640px) { grid-template-columns: 1fr; }
+`;
+// N+67 — visibility chip (PostsPage detail meta row)
+const VisibilityChip = styled.button`
+  display: inline-flex; align-items: center; gap: 4px;
+  background: #F1F5F9; color: #475569;
+  border: 1px solid #CBD5E1;
+  border-radius: 12px;
+  padding: 2px 10px;
+  font-size: 11px; font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+  &:hover { background: #E2E8F0; border-color: #94A3B8; }
+  &:focus-visible { outline: 2px solid #5EEAD4; outline-offset: 2px; }
 `;
 const ShareTag = styled.span`
   display: inline-flex; align-items: center; padding: 2px 8px;
