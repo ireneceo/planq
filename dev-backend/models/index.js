@@ -14,6 +14,7 @@ const AuditLog = require('./AuditLog');
 const KbDocument = require('./KbDocument');
 const KbChunk = require('./KbChunk');
 const KbPinnedFaq = require('./KbPinnedFaq');
+const KbCategory = require('./KbCategory');
 const CueUsage = require('./CueUsage');
 const Project = require('./Project');
 const ProjectMember = require('./ProjectMember');
@@ -252,6 +253,10 @@ KbDocument.belongsTo(Project, { foreignKey: 'project_id' });
 KbDocument.belongsTo(Client, { foreignKey: 'client_id' });
 Business.hasMany(KbDocument, { as: 'kbDocuments', foreignKey: 'business_id' });
 
+// KbCategory — N+64 (Q info 카테고리 마스터)
+KbCategory.belongsTo(Business, { foreignKey: 'business_id', onDelete: 'CASCADE' });
+Business.hasMany(KbCategory, { as: 'kbCategories', foreignKey: 'business_id' });
+
 // KbChunk
 KbChunk.belongsTo(KbDocument, { foreignKey: 'kb_document_id', onDelete: 'CASCADE' });
 KbChunk.belongsTo(Business, { foreignKey: 'business_id' });
@@ -386,6 +391,7 @@ module.exports = {
   KbDocument,
   KbChunk,
   KbPinnedFaq,
+  KbCategory,
   CueUsage,
   Project,
   ProjectMember,

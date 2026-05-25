@@ -191,6 +191,25 @@ KbDocument.init({
     allowNull: true,
     references: { model: 'kb_documents', key: 'id' },
   },
+  // ─── 4단계 Visibility (사이클 N+64) — VISIBILITY_VOCABULARY.md 정합 ───
+  // L1=개인(uploaded_by 본인만, scope='private') / L2=팀(특정 프로젝트 멤버 또는 특정 멤버) /
+  // L3=워크스페이스 전체 / L4=외부(특정 고객 + share_token)
+  // 옛 scope/read_policy 와 공존 — 라우트가 항상 vlevel 채움 (legacy row 는 마이그레이션 스크립트로 백필).
+  // L2 의 두 분기:
+  //   - project_id 있으면 L2-project
+  //   - target_member_ids 있으면 L2-members (워크스페이스 안 특정 user 지정)
+  vlevel: {
+    type: DataTypes.ENUM('L1', 'L2', 'L3', 'L4'),
+    allowNull: true,
+    defaultValue: null,
+  },
+  // L2-members 분기 — 워크스페이스 안 특정 user 만 접근 (운영진만 같은 케이스도 여기로).
+  // [user_id1, user_id2, ...] 형식.
+  target_member_ids: {
+    type: DataTypes.JSON,
+    allowNull: true,
+    defaultValue: null,
+  },
   // 공유 링크 (사이클 N+4 — 통합 공유 시스템)
   share_token: { type: DataTypes.STRING(64), allowNull: true },
   shared_at: { type: DataTypes.DATE, allowNull: true },
@@ -206,8 +225,20 @@ KbDocument.init({
     { fields: ['business_id', 'category'] },
     { fields: ['business_id', 'scope', 'project_id'] },
     { fields: ['business_id', 'scope', 'client_id'] },
+    { fields: ['business_id', 'vlevel'], name: 'kb_documents_biz_vlevel' },
     { unique: true, fields: ['share_token'], name: 'kb_documents_share_token_unique' },
   ]
+});
+
+// N+64 — vlevel 자동 백필 hook. 라우트가 vlevel 명시하면 그대로, 안 하면 scope/read_policy 로 매핑.
+// upload/import 같은 옛 라우트도 hook 덕분에 vlevel 항상 채워짐.
+KbDocument.addHook('beforeSave', (doc) => {
+  if (doc.vlevel) return;
+  if (doc.scope === 'private') doc.vlevel = 'L1';
+  else if (doc.scope === 'project') doc.vlevel = 'L2';
+  else if (doc.scope === 'client') doc.vlevel = 'L4';
+  else if (doc.scope === 'workspace' && doc.read_policy === 'owner') doc.vlevel = 'L2';
+  else doc.vlevel = 'L3';
 });
 
 module.exports = KbDocument;

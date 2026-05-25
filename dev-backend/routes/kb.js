@@ -3,7 +3,7 @@
 
 const express = require('express');
 const router = express.Router();
-const { KbDocument, KbChunk, KbPinnedFaq, File: FileModel, Post } = require('../models');
+const { KbDocument, KbChunk, KbPinnedFaq, KbCategory, File: FileModel, Post } = require('../models');
 const { authenticateToken, checkBusinessAccess } = require('../middleware/auth');
 const { isMemberOrAbove, getUserScope } = require('../middleware/access_scope');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
@@ -55,6 +55,78 @@ const kbUpload = multer({
 
 const isAdmin = (req) =>
   req.user?.platform_role === 'platform_admin' || req.businessRole === 'owner';
+
+// ─── N+64: 카테고리 + visibility 통합 헬퍼 ───────────────────
+// 카테고리: 자유 string (40자 cap). categories JSON 우선, category 컬럼은 ENUM 호환 위해 'manual' fallback 또는 ENUM-match.
+// vlevel: L1/L2/L3/L4 + target_member_ids — 라우트가 항상 vlevel 채움.
+const LEGACY_CAT_ENUM = ['policy','manual','incident','faq','about','pricing'];
+function sanitizeCategories(input) {
+  if (input === null) return null;
+  if (!Array.isArray(input)) return undefined;
+  const cleaned = input.map(c => String(c || '').trim().slice(0, 40)).filter(Boolean);
+  // dedup
+  return Array.from(new Set(cleaned));
+}
+function pickLegacyCategoryEnum(categories) {
+  if (!Array.isArray(categories)) return 'manual';
+  const match = categories.find(c => LEGACY_CAT_ENUM.includes(c));
+  return match || 'manual';
+}
+// 새 categories 가 들어오면 KbCategory 마스터 row 자동 upsert (사용자가 자유 추가한 카테고리도 마스터에 박제 → 다음 등록 시 추천)
+async function upsertKbCategories(businessId, categories) {
+  if (!Array.isArray(categories) || categories.length === 0) return;
+  for (const name of categories) {
+    try {
+      await KbCategory.findOrCreate({
+        where: { business_id: businessId, name },
+        defaults: { business_id: businessId, name, sort_order: 0 }
+      });
+    } catch (_) { /* unique 충돌 무시 */ }
+  }
+}
+// visibility 입력 → DB 컬럼 매핑
+// req.body 의 vlevel, target_member_ids, project_id, client_id, client_ids 를 받아
+// scope/read_policy/project_id/client_id/client_ids/vlevel/target_member_ids 풀세트 반환
+function resolveVisibility(body) {
+  const inVlevel = body.vlevel;
+  if (!['L1','L2','L3','L4'].includes(inVlevel)) return null;  // vlevel 없으면 legacy scope 로 fallback
+  const out = {
+    vlevel: inVlevel,
+    target_member_ids: null,
+    scope: 'workspace',
+    read_policy: 'all',
+    project_id: null,
+    client_id: null,
+    client_ids: null,
+  };
+  if (inVlevel === 'L1') {
+    out.scope = 'private';
+  } else if (inVlevel === 'L2') {
+    if (body.project_id) {
+      out.scope = 'project';
+      out.project_id = Number(body.project_id) || null;
+    } else if (Array.isArray(body.target_member_ids) && body.target_member_ids.length > 0) {
+      out.scope = 'workspace';
+      out.read_policy = 'owner'; // legacy 호환 — 멤버 지정은 owner-only 영역에 가까움
+      out.target_member_ids = body.target_member_ids.map(Number).filter(Boolean);
+    } else {
+      // L2 인데 target 없음 — 프로젝트도 멤버도 미지정. 일단 workspace 로 fallback (라우트가 400 처리해도 됨)
+      out.scope = 'workspace';
+    }
+  } else if (inVlevel === 'L3') {
+    out.scope = 'workspace';
+  } else if (inVlevel === 'L4') {
+    out.scope = 'client';
+    if (Array.isArray(body.client_ids) && body.client_ids.length > 0) {
+      out.client_ids = body.client_ids.map(Number).filter(Boolean);
+      out.client_id = out.client_ids[0]; // legacy single 호환
+    } else if (body.client_id) {
+      out.client_id = Number(body.client_id) || null;
+      out.client_ids = out.client_id ? [out.client_id] : null;
+    }
+  }
+  return out;
+}
 
 // ─────────────────────────────────────────────────────────
 // Documents
@@ -128,22 +200,40 @@ router.post('/businesses/:businessId/kb/documents', authenticateToken, checkBusi
       return errorResponse(res, 'body_or_attachments_required', 400);
     }
 
-    const allowedCategories = ['policy','manual','incident','faq','about','pricing'];
+    // N+64 — 자유 카테고리 (string 40자 cap). categories JSON 우선, 옛 category ENUM 은 backward-compat.
+    const sanitized = sanitizeCategories(categories) ?? (category ? [String(category).trim().slice(0, 40)] : ['manual']);
+    const finalCategories = sanitized.length > 0 ? sanitized : ['manual'];
+    const finalCategory = pickLegacyCategoryEnum(finalCategories);
+
+    // N+64 — vlevel 우선, 없으면 legacy scope 로 fallback
+    const v = resolveVisibility(req.body);
     const allowedScopes = ['private','workspace','project','client'];
-    const finalCategories = Array.isArray(categories)
-      ? categories.filter(c => allowedCategories.includes(c))
-      : (allowedCategories.includes(category) ? [category] : ['manual']);
-    const finalCategory = finalCategories[0] || 'manual';
-    let finalScope = allowedScopes.includes(scope) ? scope : ((project_id ? 'project' : (client_id ? 'client' : 'private')));
-    let finalProjectId = null;
-    let finalClientId = null;
-    if (finalScope === 'project') {
-      finalProjectId = parseInt(project_id, 10) || null;
-      if (!finalProjectId) return errorResponse(res, 'project_id_required_for_project_scope', 400);
+    let finalScope, finalProjectId, finalClientId, finalReadPolicy, finalClientIds, finalVlevel, finalTargetMembers;
+    if (v) {
+      finalScope = v.scope; finalProjectId = v.project_id; finalClientId = v.client_id;
+      finalReadPolicy = v.read_policy; finalClientIds = v.client_ids;
+      finalVlevel = v.vlevel; finalTargetMembers = v.target_member_ids;
+    } else {
+      finalScope = allowedScopes.includes(scope) ? scope : ((project_id ? 'project' : (client_id ? 'client' : 'private')));
+      finalProjectId = null; finalClientId = null;
+      finalReadPolicy = ['all', 'owner'].includes(read_policy) ? read_policy : 'all';
+      finalClientIds = Array.isArray(client_ids) ? client_ids.map(Number).filter(Boolean) : null;
+      finalVlevel = null;  // hook 가 채움
+      finalTargetMembers = null;
+      if (finalScope === 'project') {
+        finalProjectId = parseInt(project_id, 10) || null;
+        if (!finalProjectId) return errorResponse(res, 'project_id_required_for_project_scope', 400);
+      }
+      if (finalScope === 'client') {
+        finalClientId = parseInt(client_id, 10) || null;
+        if (!finalClientId) return errorResponse(res, 'client_id_required_for_client_scope', 400);
+      }
     }
-    if (finalScope === 'client') {
-      finalClientId = parseInt(client_id, 10) || null;
-      if (!finalClientId) return errorResponse(res, 'client_id_required_for_client_scope', 400);
+    if (finalVlevel === 'L2' && finalScope === 'project' && !finalProjectId) {
+      return errorResponse(res, 'project_id_required_for_L2_project', 400);
+    }
+    if (finalVlevel === 'L4' && !finalClientId) {
+      return errorResponse(res, 'client_id_required_for_L4', 400);
     }
 
     // 첨부 파일 텍스트 추출 → 본문에 합치기 (txt/md/html/json/csv 만)
@@ -192,11 +282,15 @@ router.post('/businesses/:businessId/kb/documents', authenticateToken, checkBusi
       attached_post_ids: postIds.length > 0 ? postIds : null,
       custom_columns: Array.isArray(custom_columns) ? custom_columns : null,
       custom_values: (custom_values && typeof custom_values === 'object') ? custom_values : null,
-      read_policy: ['all', 'owner'].includes(read_policy) ? read_policy : 'all',
-      client_ids: Array.isArray(client_ids) ? client_ids.map(Number).filter(Boolean) : null,
+      read_policy: finalReadPolicy,
+      client_ids: finalClientIds,
+      vlevel: finalVlevel,
+      target_member_ids: finalTargetMembers,
       uploaded_by: req.user.id,
       status: 'pending',
     });
+    // N+64 — categories 마스터 자동 upsert
+    upsertKbCategories(businessId, finalCategories).catch(() => {});
 
     // 비동기 인덱싱 + LLM 태그 추출
     kbService.indexDocument(doc.id).catch(err => {
@@ -251,12 +345,11 @@ router.post('/businesses/:businessId/kb/documents/upload',
       }
       if (!text.trim()) return errorResponse(res, 'empty_file_body', 400);
 
-      const allowedCategories = ['policy','manual','incident','faq','about','pricing'];
+      // N+64 — 자유 카테고리 (string 40자 cap)
+      const sanU = sanitizeCategories(req.body.categories) ?? (req.body.category ? [String(req.body.category).trim().slice(0,40)] : ['manual']);
+      const finalCategories = sanU.length > 0 ? sanU : ['manual'];
+      const finalCategory = pickLegacyCategoryEnum(finalCategories);
       const allowedScopes = ['private','workspace','project','client'];
-      const finalCategories = Array.isArray(req.body.categories)
-        ? req.body.categories.filter(c => allowedCategories.includes(c))
-        : (allowedCategories.includes(req.body.category) ? [req.body.category] : ['manual']);
-      const finalCategory = finalCategories[0] || 'manual';
       let finalScope = allowedScopes.includes(req.body.scope) ? req.body.scope : ((req.body.project_id ? 'project' : (req.body.client_id ? 'client' : 'private')));
       let finalProjectId = null;
       let finalClientId = null;
@@ -345,12 +438,11 @@ router.post('/businesses/:businessId/kb/documents/import-from-file', authenticat
     }
     if (!text.trim()) return errorResponse(res, 'empty_file_body', 400);
 
-    const allowedCategories = ['policy','manual','incident','faq','about','pricing'];
+    // N+64 — 자유 카테고리 (string 40자 cap)
+    const sanU = sanitizeCategories(categories) ?? (category ? [String(category).trim().slice(0,40)] : ['manual']);
+    const finalCategories = sanU.length > 0 ? sanU : ['manual'];
+    const finalCategory = pickLegacyCategoryEnum(finalCategories);
     const allowedScopes = ['private','workspace','project','client'];
-    const finalCategories = Array.isArray(categories)
-      ? categories.filter(c => allowedCategories.includes(c))
-      : (allowedCategories.includes(category) ? [category] : ['manual']);
-    const finalCategory = finalCategories[0] || 'manual';
     let finalScope = allowedScopes.includes(scope) ? scope : ((project_id ? 'project' : (client_id ? 'client' : 'private')));
     let finalProjectId = null;
     let finalClientId = null;
@@ -414,12 +506,11 @@ router.post('/businesses/:businessId/kb/documents/import-from-post', authenticat
     }
     if (!text.trim()) return errorResponse(res, 'empty_post_body', 400);
 
-    const allowedCategories = ['policy','manual','incident','faq','about','pricing'];
+    // N+64 — 자유 카테고리 (string 40자 cap)
+    const sanU = sanitizeCategories(categories) ?? (category ? [String(category).trim().slice(0,40)] : ['manual']);
+    const finalCategories = sanU.length > 0 ? sanU : ['manual'];
+    const finalCategory = pickLegacyCategoryEnum(finalCategories);
     const allowedScopes = ['private','workspace','project','client'];
-    const finalCategories = Array.isArray(categories)
-      ? categories.filter(c => allowedCategories.includes(c))
-      : (allowedCategories.includes(category) ? [category] : ['manual']);
-    const finalCategory = finalCategories[0] || 'manual';
     let finalScope = allowedScopes.includes(scope) ? scope : ((project_id ? 'project' : (client_id ? 'client' : 'private')));
     let finalProjectId = null;
     let finalClientId = null;
@@ -516,27 +607,41 @@ router.put('/businesses/:businessId/kb/documents/:docId', authenticateToken, che
     const patch = {};
     if (req.body.title !== undefined) patch.title = String(req.body.title).slice(0, 300);
     if (req.body.body !== undefined) patch.body = String(req.body.body || '');
+    // N+64 — 자유 카테고리 (40자 cap)
     if (req.body.category !== undefined) {
-      const allowedCategories = ['policy','manual','incident','faq','about','pricing'];
-      if (allowedCategories.includes(req.body.category)) patch.category = req.body.category;
+      const c = String(req.body.category || '').trim().slice(0, 40);
+      if (c) patch.category = c;
     }
-    // 멀티 카테고리 — patch.categories 배열 + legacy patch.category 도 첫 원소로 동기화
     if (req.body.categories !== undefined) {
-      const allowedCategories = ['policy','manual','incident','faq','about','pricing'];
       if (Array.isArray(req.body.categories)) {
-        const filtered = req.body.categories.filter(c => allowedCategories.includes(c));
-        patch.categories = filtered.length > 0 ? filtered : null;
-        if (filtered.length > 0) patch.category = filtered[0];
+        const cleaned = sanitizeCategories(req.body.categories);
+        patch.categories = cleaned && cleaned.length > 0 ? cleaned : null;
+        if (cleaned && cleaned.length > 0) patch.category = pickLegacyCategoryEnum(cleaned);
+        // 마스터에 자동 upsert
+        if (cleaned && cleaned.length > 0) upsertKbCategories(doc.business_id, cleaned).catch(() => {});
       } else if (req.body.categories === null) {
         patch.categories = null;
       }
     }
-    if (req.body.scope !== undefined) {
-      const allowedScopes = ['private','workspace','project','client'];
-      if (allowedScopes.includes(req.body.scope)) patch.scope = req.body.scope;
+    // N+64 — vlevel 통합 visibility 적용
+    const vUpd = resolveVisibility(req.body);
+    if (vUpd) {
+      patch.vlevel = vUpd.vlevel;
+      patch.target_member_ids = vUpd.target_member_ids;
+      patch.scope = vUpd.scope;
+      patch.read_policy = vUpd.read_policy;
+      patch.project_id = vUpd.project_id;
+      patch.client_id = vUpd.client_id;
+      patch.client_ids = vUpd.client_ids;
+    } else {
+      // legacy 단일 필드 PATCH (vlevel 없이) — 그대로 받음
+      if (req.body.scope !== undefined) {
+        const allowedScopes = ['private','workspace','project','client'];
+        if (allowedScopes.includes(req.body.scope)) patch.scope = req.body.scope;
+      }
+      if (req.body.project_id !== undefined) patch.project_id = req.body.project_id ? Number(req.body.project_id) : null;
+      if (req.body.client_id !== undefined) patch.client_id = req.body.client_id ? Number(req.body.client_id) : null;
     }
-    if (req.body.project_id !== undefined) patch.project_id = req.body.project_id ? Number(req.body.project_id) : null;
-    if (req.body.client_id !== undefined) patch.client_id = req.body.client_id ? Number(req.body.client_id) : null;
     if (req.body.custom_columns !== undefined) {
       patch.custom_columns = Array.isArray(req.body.custom_columns) ? req.body.custom_columns : null;
     }
@@ -618,6 +723,95 @@ router.post('/businesses/:businessId/kb/documents/:docId/reindex', authenticateT
     });
 
     successResponse(res, { queued: true });
+  } catch (err) { next(err); }
+});
+
+// ─────────────────────────────────────────────────────────
+// KbCategory — 사이클 N+64 (자유 추가/편집 + 중복 감지 마스터)
+// ─────────────────────────────────────────────────────────
+
+// GET — 마스터 + KbDocument.categories JSON 안의 자유 카테고리 union
+router.get('/businesses/:businessId/kb/categories', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+  try {
+    if (req.businessRole === 'client') return errorResponse(res, 'forbidden', 403);
+    const businessId = parseInt(req.params.businessId, 10);
+    const rows = await KbCategory.findAll({
+      where: { business_id: businessId },
+      order: [['sort_order', 'ASC'], ['name', 'ASC']],
+    });
+    // KbDocument.categories JSON 안의 자유 string 도 union (마스터에 없는 것은 master_id null 로)
+    const docs = await KbDocument.findAll({
+      where: { business_id: businessId },
+      attributes: ['categories'],
+    });
+    const used = new Set();
+    for (const d of docs) {
+      const cats = Array.isArray(d.categories) ? d.categories : [];
+      for (const c of cats) if (c) used.add(String(c));
+    }
+    const masterNames = new Set(rows.map(r => r.name));
+    const orphan = [...used].filter(n => !masterNames.has(n)).sort();
+    successResponse(res, {
+      master: rows.map(r => ({ id: r.id, name: r.name, sort_order: r.sort_order })),
+      orphan, // 마스터에 등록 안 된 자유 카테고리 (KbDocument 안에서만 사용 중)
+    });
+  } catch (err) { next(err); }
+});
+
+// POST — 카테고리 마스터 등록 (자유 추가, 같은 이름 중복 차단)
+router.post('/businesses/:businessId/kb/categories', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+  try {
+    if (req.businessRole === 'client') return errorResponse(res, 'forbidden', 403);
+    const businessId = parseInt(req.params.businessId, 10);
+    const name = String(req.body?.name || '').trim().slice(0, 40);
+    if (!name) return errorResponse(res, 'name_required', 400);
+    const [row, created] = await KbCategory.findOrCreate({
+      where: { business_id: businessId, name },
+      defaults: { business_id: businessId, name, sort_order: Number(req.body?.sort_order) || 0 }
+    });
+    successResponse(res, { id: row.id, name: row.name, sort_order: row.sort_order, created });
+  } catch (err) { next(err); }
+});
+
+// PUT — 마스터 rename. 기존 KbDocument.categories JSON 안 같은 이름도 일괄 교체.
+router.put('/businesses/:businessId/kb/categories/:id', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+  try {
+    if (req.businessRole === 'client') return errorResponse(res, 'forbidden', 403);
+    const businessId = parseInt(req.params.businessId, 10);
+    const row = await KbCategory.findOne({ where: { id: req.params.id, business_id: businessId } });
+    if (!row) return errorResponse(res, 'not_found', 404);
+    const newName = req.body?.name !== undefined ? String(req.body.name).trim().slice(0, 40) : row.name;
+    if (!newName) return errorResponse(res, 'name_required', 400);
+    if (newName !== row.name) {
+      // 같은 워크스페이스에 이미 같은 이름 있으면 차단
+      const dup = await KbCategory.findOne({ where: { business_id: businessId, name: newName } });
+      if (dup) return errorResponse(res, 'duplicate_name', 409);
+      // KbDocument.categories JSON 안 일괄 교체
+      const docs = await KbDocument.findAll({ where: { business_id: businessId } });
+      for (const d of docs) {
+        const cats = Array.isArray(d.categories) ? d.categories : [];
+        if (cats.includes(row.name)) {
+          const next = cats.map(c => c === row.name ? newName : c);
+          await d.update({ categories: next, category: pickLegacyCategoryEnum(next) });
+        }
+      }
+    }
+    const patch = { name: newName };
+    if (req.body?.sort_order !== undefined) patch.sort_order = Number(req.body.sort_order) || 0;
+    await row.update(patch);
+    successResponse(res, { id: row.id, name: row.name, sort_order: row.sort_order });
+  } catch (err) { next(err); }
+});
+
+// DELETE — 마스터 삭제. 기존 KbDocument.categories JSON 의 같은 이름은 그대로 남김 (사용자 의도 보존).
+router.delete('/businesses/:businessId/kb/categories/:id', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+  try {
+    if (req.businessRole === 'client') return errorResponse(res, 'forbidden', 403);
+    const businessId = parseInt(req.params.businessId, 10);
+    const row = await KbCategory.findOne({ where: { id: req.params.id, business_id: businessId } });
+    if (!row) return errorResponse(res, 'not_found', 404);
+    await row.destroy();
+    successResponse(res, null, 'deleted');
   } catch (err) { next(err); }
 });
 
