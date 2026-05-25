@@ -908,6 +908,27 @@ router.put('/by-business/:businessId/:id/attendees/:attendeeId', authenticateTok
       ip_address: req.ip,
     });
 
+    // N+63 — 주최자 (created_by) 에게 응답 알림. 응답한 본인 제외.
+    if (event.created_by && event.created_by !== req.user.id) {
+      try {
+        const { notify } = require('./notifications');
+        const Business = require('../models').Business;
+        const biz = await Business.findByPk(businessId, { attributes: ['name', 'brand_name'] });
+        const respLabel = { accepted: '수락', declined: '거절', tentative: '미정', pending: '미응답' }[response] || response;
+        const respName = req.user.email?.split('@')[0] || '참석자';
+        notify({
+          userId: event.created_by, businessId, eventKind: 'event',
+          title: `${respName} 님이 "${event.title}" ${respLabel}`,
+          body: null,
+          link: `${process.env.APP_URL || 'https://dev.planq.kr'}/calendar?event=${event.id}`,
+          ctaLabel: '일정 보기',
+          workspaceName: biz?.brand_name || biz?.name || null,
+          actorUserId: req.user.id, entityType: 'calendar_event', entityId: event.id,
+          ioApp: req.app.get('io'),
+        }).catch((e) => console.warn('[notify event response]', e.message));
+      } catch (e) { console.warn('[notify event response outer]', e.message); }
+    }
+
     return successResponse(res, attendee.toJSON());
   } catch (err) { next(err); }
 });

@@ -66,6 +66,18 @@ const FocusWidget: React.FC<Props> = ({ isCollapsed }) => {
     return () => { cancelled = true; };
   }, []);
 
+  // N+63 — 설정 변경 시 즉시 반영 (FocusSettingsCard 가 dispatchEvent). 새로고침 없이 위젯 표시/숨김.
+  useEffect(() => {
+    const onChange = (e: Event) => {
+      const detail = (e as CustomEvent).detail || {};
+      if (typeof detail.focus_enabled === 'boolean') setEnabled(detail.focus_enabled);
+      if (detail.focus_idle_min !== undefined) setIdleMin(Number(detail.focus_idle_min) || 15);
+      if (detail.focus_auto_pause_min !== undefined) setAutoPauseMin(Number(detail.focus_auto_pause_min) || 30);
+    };
+    window.addEventListener('focus:settings-changed', onChange);
+    return () => window.removeEventListener('focus:settings-changed', onChange);
+  }, []);
+
   const loadCurrent = useCallback(async () => {
     try {
       const r = await apiFetch('/api/focus/current');

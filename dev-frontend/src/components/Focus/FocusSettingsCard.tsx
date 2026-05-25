@@ -49,7 +49,12 @@ const FocusSettingsCard: React.FC = () => {
         body: JSON.stringify(patch),
       });
       const j = await r.json();
-      if (j.success) setS(prev => prev ? { ...prev, ...j.data } : prev);
+      if (j.success) {
+        setS(prev => prev ? { ...prev, ...j.data } : prev);
+        // N+63 — 즉시 반영. 사이드바 FocusWidget 가 setting fetch 1회만 하므로
+        // toggle 변경 후 새로고침 없이 위젯 표시/숨김 + 옵션 변경 즉시 반영.
+        window.dispatchEvent(new CustomEvent('focus:settings-changed', { detail: j.data }));
+      }
     } finally { setSavingKey(null); }
   };
 
