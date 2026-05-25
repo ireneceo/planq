@@ -34,6 +34,17 @@ export interface CalendarEvent {
   attendees?: CalendarAttendee[];
   createdAt?: string;
   updatedAt?: string;
+  // N+63 — 임박 알림
+  reminder_minutes?: number | null;
+  reminder_sent_at?: string | null;
+  // N+63 P2a — 정기일정 exception (RFC 5545)
+  recurrence_parent_id?: number | null;
+  recurrence_id?: string | null;
+  exception_dates?: string[] | null;
+  // GET expansion 시점 메타 (server response)
+  _is_exception?: boolean;
+  _parent_event_id?: number;
+  _instance_key?: string;
 }
 
 export type CalendarViewMode = 'month' | 'week' | 'day';

@@ -235,9 +235,16 @@ const TodoPage: React.FC = () => {
   // EventDrawer 콜백들
   // Update 는 변경 범위 (제목·시간·참석자 응답 등) 가 넓어 targeted 로 일관 처리 어려움 → silentLoad.
   // Delete 는 해당 event 의 모든 파생 item (respond/attend 복수) 을 로컬에서 제거 (targeted).
-  const handleEventUpdate = async (patch: Partial<CalendarEvent>) => {
+  const handleEventUpdate = async (
+    patch: Partial<CalendarEvent>,
+    options?: { scope?: 'single' | 'future' | 'all'; recurrence_id?: string },
+  ) => {
     if (!bizId || !selectedEvent) return;
-    const next = await updateEvent(bizId, selectedEvent.id, patch);
+    const scope = options?.scope || 'all';
+    const fullPatch = options?.recurrence_id
+      ? { ...patch, recurrence_id: options.recurrence_id, from_date: options.recurrence_id }
+      : patch;
+    const next = await updateEvent(bizId, selectedEvent.id, fullPatch, scope);
     setSelectedEvent(next);
     silentLoad();
   };

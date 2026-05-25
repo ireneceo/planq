@@ -42,7 +42,8 @@ interface Props {
   myUserId?: number | null;
   myBusinessRole?: string | null;
   onClose: () => void;
-  onUpdate: (patch: Partial<CalendarEvent>) => Promise<void> | void;
+  // N+63 P2a — options 로 scope/recurrence_id 전달. 정기 master 시 modal 거치고 parent 가 services 호출
+  onUpdate: (patch: Partial<CalendarEvent>, options?: { scope?: 'single' | 'future' | 'all'; recurrence_id?: string }) => Promise<void> | void;
   onDelete: () => void;
   onCreateMeetingRoom?: () => Promise<void>;
   // 사이클 N+13: Daily.co → Google Meet 교체. 워크스페이스의 Google Calendar 연동 여부
@@ -73,6 +74,9 @@ const EventDrawer: React.FC<Props> = ({
   const [shareOpen, setShareOpen] = useState(false);
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const dateTriggerRef = useRef<HTMLButtonElement>(null);
+  // N+63 P2a — 정기 master 시간 변경 modal (single/future/all 분기)
+  const [scopeModalOpen, setScopeModalOpen] = useState(false);
+  const [pendingPatch, setPendingPatch] = useState<Partial<CalendarEvent> | null>(null);
 
   // 편집 권한: 작성자 또는 owner (백엔드 PUT 라우트와 일치)
   const canEdit = !!event && (event.created_by === myUserId || myBusinessRole === 'owner');
@@ -132,11 +136,34 @@ const EventDrawer: React.FC<Props> = ({
   }, [startDate, endDate, i18n.language]);
 
   // 시간/날짜 저장 (4 필드 묶음) — debounce 300ms (select)
+  // N+63 P2a — master event (rrule != null, recurrence_parent_id null) 의 시간 변경 시 modal 분기
+  const isMaster = !!event?.rrule && !event?.recurrence_parent_id;
   const saveSchedule = async (sd: string, ed: string, st: string, et: string, allDay: boolean) => {
     const sISO = mkISO(sd, st, allDay, false);
     const eISO = mkISO(ed, et, allDay, true);
     if (new Date(eISO) < new Date(sISO)) return;
-    await onUpdate({ start_at: sISO, end_at: eISO, all_day: allDay });
+    const patch = { start_at: sISO, end_at: eISO, all_day: allDay };
+    if (isMaster) {
+      // 정기 master — modal 거쳐 single/future/all 선택
+      setPendingPatch(patch);
+      setScopeModalOpen(true);
+      return;
+    }
+    await onUpdate(patch);
+  };
+  // modal 에서 사용자가 scope 선택 후 적용
+  const applyScopeUpdate = async (scope: 'single' | 'future' | 'all') => {
+    if (!pendingPatch || !event) return;
+    if (scope === 'all') {
+      await onUpdate(pendingPatch);
+    } else {
+      // single/future → recurrence_id = master 의 start_at date (첫 회차 기준)
+      // (instance date prop 받지 않아 단순화 — 이번 1차 fix. picker 확장은 다음 사이클)
+      const recurrenceId = toDateKey(new Date(event.start_at));
+      await onUpdate(pendingPatch, { scope, recurrence_id: recurrenceId });
+    }
+    setPendingPatch(null);
+    setScopeModalOpen(false);
   };
 
   return (
@@ -679,6 +706,33 @@ const EventDrawer: React.FC<Props> = ({
           onClose={() => setShareOpen(false)}
         />
       )}
+      {/* N+63 P2a — 정기일정 scope modal. master 시간 변경 시 띄움. zIndex 2100 (drawer 위) */}
+      {scopeModalOpen && (
+        <>
+          <ScopeBackdrop onClick={() => { setScopeModalOpen(false); setPendingPatch(null); }} />
+          <ScopeModal role="dialog" aria-modal="true" aria-label={t('drawer.scopeTitle', '변경 범위 선택') as string}>
+            <ScopeTitle>{t('drawer.scopeTitle', '변경 범위 선택')}</ScopeTitle>
+            <ScopeDesc>{t('drawer.scopeDesc', '이 정기 일정의 어느 회차까지 변경할까요?')}</ScopeDesc>
+            <ScopeOption type="button" onClick={() => applyScopeUpdate('single')}>
+              <ScopeOptName>{t('drawer.scopeSingle', '이 일정만')}</ScopeOptName>
+              <ScopeOptHint>{t('drawer.scopeSingleHint', '선택한 회차만 변경. 다른 회차는 그대로')}</ScopeOptHint>
+            </ScopeOption>
+            <ScopeOption type="button" onClick={() => applyScopeUpdate('future')}>
+              <ScopeOptName>{t('drawer.scopeFuture', '이 일정 이후 모두')}</ScopeOptName>
+              <ScopeOptHint>{t('drawer.scopeFutureHint', '이 회차부터 미래 회차까지 변경. 과거 회차는 그대로')}</ScopeOptHint>
+            </ScopeOption>
+            <ScopeOption type="button" onClick={() => applyScopeUpdate('all')}>
+              <ScopeOptName>{t('drawer.scopeAll', '모든 일정')}</ScopeOptName>
+              <ScopeOptHint>{t('drawer.scopeAllHint', '과거·미래 모든 회차 변경')}</ScopeOptHint>
+            </ScopeOption>
+            <ScopeFooter>
+              <SecondaryBtn type="button" onClick={() => { setScopeModalOpen(false); setPendingPatch(null); }}>
+                {t('button.cancel', '취소')}
+              </SecondaryBtn>
+            </ScopeFooter>
+          </ScopeModal>
+        </>
+      )}
     </DetailDrawer>
   );
 };
@@ -906,4 +960,43 @@ const ShareBtn = styled.button`
   background: transparent; color: #475569; border: 1px solid #CBD5E1; cursor: pointer;
   display: inline-flex; align-items: center; gap: 6px;
   &:hover { background: #F0FDFA; color: #0F766E; border-color: #99F6E4; }
+`;
+
+// N+63 P2a — RecurrenceScopeModal styled
+const ScopeBackdrop = styled.div`
+  position: fixed; inset: 0; background: rgba(15, 23, 42, 0.4);
+  z-index: 2099;
+`;
+const ScopeModal = styled.div`
+  position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  z-index: 2100;
+  width: 420px; max-width: calc(100vw - 32px);
+  background: #FFFFFF; border-radius: 12px;
+  box-shadow: 0 24px 48px rgba(15, 23, 42, 0.2);
+  padding: 20px;
+  display: flex; flex-direction: column; gap: 10px;
+`;
+const ScopeTitle = styled.h3`
+  margin: 0; font-size: 16px; font-weight: 700; color: #0F172A;
+`;
+const ScopeDesc = styled.p`
+  margin: 0 0 8px; font-size: 13px; color: #64748B; line-height: 1.5;
+`;
+const ScopeOption = styled.button`
+  display: flex; flex-direction: column; gap: 3px;
+  padding: 12px 14px; border-radius: 8px;
+  background: #F8FAFC; border: 1px solid #E2E8F0;
+  text-align: left; cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+  &:hover { background: #F0FDFA; border-color: #5EEAD4; }
+  &:focus-visible { outline: 2px solid #14B8A6; outline-offset: 2px; }
+`;
+const ScopeOptName = styled.span`
+  font-size: 14px; font-weight: 600; color: #0F172A;
+`;
+const ScopeOptHint = styled.span`
+  font-size: 12px; color: #64748B; line-height: 1.45;
+`;
+const ScopeFooter = styled.div`
+  display: flex; justify-content: flex-end; margin-top: 4px;
 `;

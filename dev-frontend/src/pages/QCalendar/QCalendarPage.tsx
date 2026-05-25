@@ -312,19 +312,34 @@ const QCalendarPage: React.FC = () => {
     }
   }, [bizId]);
 
-  const handleUpdate = useCallback(async (patch: Partial<CalendarEvent>) => {
+  const handleUpdate = useCallback(async (
+    patch: Partial<CalendarEvent>,
+    options?: { scope?: 'single' | 'future' | 'all'; recurrence_id?: string },
+  ) => {
     if (selectedEventId == null || !bizId) return;
-    // 낙관적 업데이트 — 즉시 반영 후 서버 응답으로 덮어씀
-    setEvents((prev) => prev.map((e) => (e.id === selectedEventId ? { ...e, ...patch } as CalendarEvent : e)));
+    const scope = options?.scope || 'all';
+    // 낙관적 업데이트 — scope=all 만 (single/future 는 서버가 새 event 생성하므로 재조회)
+    if (scope === 'all') {
+      setEvents((prev) => prev.map((e) => (e.id === selectedEventId ? { ...e, ...patch } as CalendarEvent : e)));
+    }
     try {
-      const updated = await updateEvent(bizId, selectedEventId, patch);
-      setEvents((prev) => prev.map((e) => (e.id === selectedEventId ? updated : e)));
+      const fullPatch = options?.recurrence_id
+        ? { ...patch, recurrence_id: options.recurrence_id, from_date: options.recurrence_id }
+        : patch;
+      const updated = await updateEvent(bizId, selectedEventId, fullPatch, scope);
+      if (scope === 'all') {
+        setEvents((prev) => prev.map((e) => (e.id === selectedEventId ? updated : e)));
+      } else {
+        // single/future — 새 event 생성됨. 전체 재조회 + 새 event 선택
+        await fetchRange();
+        if (updated?.id) setSelectedEventId(updated.id);
+      }
     } catch (e) {
       setErrorMsg(mapApiError(e, tErr));
       // 실패 시 재조회로 복구
       fetchRange();
     }
-  }, [selectedEventId, bizId, fetchRange]);
+  }, [selectedEventId, bizId, fetchRange, tErr]);
 
   const handleCreateMeetingRoom = useCallback(async () => {
     if (selectedEventId == null || !bizId) return;
