@@ -836,3 +836,11 @@ router.post('/resend-verify-email', authenticateToken, async (req, res, next) =>
 });
 
 module.exports = router;
+// N+70 — auth_oauth.js 에서 재사용 (OAuth callback 도 같은 refresh_token cookie 패턴)
+module.exports.helpers = {
+  createRefreshTokenRow,
+  generateAccessToken,
+  generateRefreshToken,
+  resolveClientKind,
+  TTL_MS_BY_KIND,
+};
