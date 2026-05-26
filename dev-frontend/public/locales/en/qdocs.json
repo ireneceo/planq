@@ -388,9 +388,32 @@
     "unavailable": "AI service is temporarily unavailable. Please try again shortly.",
     "failed": "AI draft failed."
   },
+  "vis": {
+    "L1": "Private",
+    "L2": "Team",
+    "L3": "Workspace",
+    "L4": "External"
+  },
+  "kind": {
+    "label": "Document type",
+    "doc": "Document",
+    "table": "Table",
+    "changed": "Changed to {{kind}}",
+    "changeErr": "Change failed: {{msg}}",
+    "changeToDocTitle": "Change to Document",
+    "changeToDocMsg": "All columns and data in the table will be lost. Continue?",
+    "changeToDocConfirmBtn": "Change to Document"
+  },
+  "visibility": {
+    "openLabel": "Visibility",
+    "button": "Visibility",
+    "change": "Change visibility",
+    "changeHint": "Change visibility — Private / Team (project members) / Workspace / External"
+  },
   "share": {
     "button": "Share",
     "title": "Share",
+    "headerHint": "Share with people outside — generate link, send email, set expiry",
     "publicHint": "Public link is active",
     "publicBadge": "Shared",
     "link": {

@@ -528,12 +528,24 @@ router.post('/businesses/:businessId/kb/documents/import-from-post', authenticat
     const post = await Post.findOne({ where: { id: post_id, business_id: businessId } });
     if (!post) return errorResponse(res, 'post_not_found', 404);
 
-    // post.body_text 우선 (plain), 없으면 body_html → strip
-    let text = post.body_text || '';
-    if (!text && post.body_html) {
-      text = String(post.body_html).replace(/<style[\s\S]*?<\/style>/gi, '').replace(/<script[\s\S]*?<\/script>/gi, '').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim();
+    // N+72-7 fix — 실제 컬럼명 `content_text` / `content_json` 사용 (옛: body_text/body_html 오참조 → 항상 empty_post_body 회귀).
+    let text = (post.content_text || '').trim();
+    // content_text 가 비어있고 content_json 만 있으면 (RichEditor JSON) text 추출 시도
+    if (!text && post.content_json) {
+      try {
+        const json = typeof post.content_json === 'string' ? JSON.parse(post.content_json) : post.content_json;
+        const extractText = (node) => {
+          if (!node) return '';
+          if (typeof node === 'string') return node;
+          if (node.text) return node.text;
+          if (Array.isArray(node.content)) return node.content.map(extractText).join(' ');
+          if (Array.isArray(node)) return node.map(extractText).join(' ');
+          return '';
+        };
+        text = extractText(json).replace(/\s+/g, ' ').trim();
+      } catch { /* JSON parse fail — ignore */ }
     }
-    if (!text.trim()) return errorResponse(res, 'empty_post_body', 400);
+    if (!text) return errorResponse(res, '본문이 비어있어 Q knowledge 에 보낼 수 없습니다.', 400);
 
     // N+64 — 자유 카테고리 (string 40자 cap)
     const sanU = sanitizeCategories(categories) ?? (category ? [String(category).trim().slice(0,40)] : ['manual']);
