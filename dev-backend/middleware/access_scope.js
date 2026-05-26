@@ -378,28 +378,33 @@ function postListWhereByLevel(scope) {
   return { business_id: scope.businessId, [Op.or]: conds };
 }
 
-// KbDocument (scope) — 'private' 추가
+// KbDocument — 본인 + scope (private/workspace/project/client) + N+72 vlevel L2-members
 async function canAccessKbDocumentByLevel(userId, doc, scope) {
   if (!doc) return false;
   if (!scope) scope = await getUserScope(userId, doc.business_id);
   if (scope.isPlatformAdmin) return true;
+  // 본인 업로드 무조건 OK
+  if (doc.uploaded_by === userId) return true;
+  // N+72 — vlevel L2-members 분기 우선 (KbDocument 도 target_member_ids 있음)
+  if (doc.vlevel === 'L2' && doc.scope !== 'project') {
+    const targetIds = Array.isArray(doc.target_member_ids) ? doc.target_member_ids : [];
+    if (targetIds.length > 0) {
+      return targetIds.includes(userId) || scope.isOwner;
+    }
+  }
   const s = doc.scope;
-  // private = 본인 (uploaded_by)
-  if (s === 'private') return doc.uploaded_by === userId;
-  // workspace = member 이상
+  if (s === 'private') return false;  // 본인 외 차단 (위에서 본인 통과)
   if (s === 'workspace') return scope.isOwner || scope.isMember;
-  // project = project 멤버 또는 owner
   if (s === 'project') {
     if (doc.project_id) {
       return (scope.projectMemberIds || []).includes(doc.project_id) || scope.isOwner;
     }
     return scope.isOwner || scope.isMember;
   }
-  // client = 해당 client 의 멤버 또는 workspace owner
   if (s === 'client') {
     if (scope.isOwner) return true;
     if (scope.isClient && scope.clientIds.includes(doc.client_id)) return true;
-    return scope.isMember; // member 는 client KB 접근 가능 (열린 문화)
+    return scope.isMember;
   }
   return scope.isOwner || scope.isMember;
 }
