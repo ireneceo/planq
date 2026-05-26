@@ -520,7 +520,12 @@ router.post('/:businessId/:id/messages', authenticateToken, attachWorkspaceScope
       await applyMemberDisplayNameOne(emitMsg, Number(req.params.businessId), ['sender']);
     }
     const io = req.app.get('io');
-    if (io && emitMsg) io.to(`conv:${conversation.id}`).emit('message:new', emitMsg);
+    if (io && emitMsg) {
+      // N+71 fix — conv room (활성 대화방 본 사람) + business room (Q Talk 안 다른 conv 보고 있는 사람)
+      // 사용자 호소: "Q Talk 안에 있으면 리스트 unread 실시간 반영 안 됨"
+      io.to(`conv:${conversation.id}`).emit('message:new', emitMsg);
+      io.to(`business:${conversation.business_id}`).emit('message:new', emitMsg);
+    }
 
     await createAuditLog({
       userId: req.user.id,

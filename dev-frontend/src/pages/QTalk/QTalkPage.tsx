@@ -368,6 +368,14 @@ const QTalkPage: React.FC = () => {
 
     socketRef.current = socket;
 
+    // N+71 fix — business room join (활성 conv 아닌 다른 conv 메시지도 받아야 리스트 unread 실시간 갱신)
+    // backend 가 message:new 를 conv:${id} + business:${bizId} 둘 다 emit. activeConv 들어가면 conv:${id} 추가 join (중복 메시지는 setMessages dedup 으로 차단).
+    const joinBusinessRoom = () => {
+      if (businessId) socket.emit('join:business', businessId);
+    };
+    socket.on('connect', joinBusinessRoom);
+    joinBusinessRoom();  // 첫 connect 시점 즉시
+
     // 메시지 수신
     socket.on('message:new', (msg: qtalkApi.ApiMessage) => {
       const mapped = apiMessageToMock(msg);
