@@ -1,15 +1,25 @@
-// 인박스 상단 — 디바이스 알림이 꺼져 있을 때 켜기 유도 띠 배너.
-//   - status: default-off / granted-off / denied 일 때 표시
-//   - unsupported / granted-on 이면 미표시
+// 디바이스 알림 안내 — 모든 페이지 상단 (MainLayout 통합).
+//   - default-off / granted-off / denied / iOS-not-pwa 표시
+//   - granted-off: 자동 silent re-subscribe 시도 — 실패 시 명시 banner
 //   - dismiss 는 sessionStorage (탭 닫으면 다시 표시 — 적극 유도)
-//   - 차단(denied) 케이스는 켤 수 없으므로 브라우저 설정 안내만
-import { useState } from 'react';
+//   - iOS Safari (PWA 아님) — push 자체 미지원이지만 사용자 안내 + "홈 화면에 추가" 유도
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { usePushStatus } from '../../hooks/usePushStatus';
 
 const SESSION_DISMISS_KEY = 'pq_push_prompt_dismiss_session';
+
+// iOS Safari 비-PWA 감지 — push 미지원이지만 별도 안내 ("홈 화면에 추가 후")
+function isIosNotPwa(): boolean {
+  const ua = navigator.userAgent.toLowerCase();
+  const isIos = /iphone|ipad|ipod/.test(ua) && !/crios|fxios/.test(ua);
+  if (!isIos) return false;
+  const standalone = window.matchMedia('(display-mode: standalone)').matches
+    || (window.navigator as Navigator & { standalone?: boolean }).standalone === true;
+  return !standalone;
+}
 
 export default function PushPromptBanner() {
   const { t } = useTranslation('settings');
@@ -19,9 +29,40 @@ export default function PushPromptBanner() {
   });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const iosNotPwa = isIosNotPwa();
+
+  // N+72-6 — granted-off (OS 권한 OK + browser sub 없음) 자동 silent re-subscribe
+  // 사용자가 명시 "지금 켜기" 누르지 않아도 자동 복구 (1회 시도)
+  useEffect(() => {
+    if (status !== 'granted-off') return;
+    (async () => {
+      const { subscribe } = await import('../../services/push');
+      const r = await subscribe();
+      if (r.ok) await refresh();  // banner 자동 사라짐
+    })();
+  }, [status, refresh]);
 
   if (dismissed) return null;
+  // iOS PWA 안 + push 안 됨 (default-off / granted-off) — 둘 다 banner 노출
+  if (iosNotPwa && status !== 'denied') {
+    // iOS Safari (PWA 아님) — "홈 화면에 추가" 유도 banner
+    return (
+      <Banner role="status">
+        <BellIcon>📱</BellIcon>
+        <Body>
+          <Title>{t('pushPrompt.iosTitle', { defaultValue: 'iPhone 알림은 PlanQ 앱 설치 후 가능' }) as string}</Title>
+          <Desc>{t('pushPrompt.iosDesc', { defaultValue: 'Safari 하단 공유 버튼 → "홈 화면에 추가" → 추가된 PlanQ 앱에서 알림이 작동해요' }) as string}</Desc>
+        </Body>
+        <CloseBtn type="button" onClick={() => {
+          try { sessionStorage.setItem(SESSION_DISMISS_KEY, '1'); } catch { /* */ }
+          setDismissed(true);
+        }} aria-label={t('common.close', { defaultValue: '닫기' }) as string}>×</CloseBtn>
+      </Banner>
+    );
+  }
   if (status === 'loading' || status === 'unsupported' || status === 'granted-on') return null;
+  // granted-off 자동 silent subscribe 시도 중 — banner 안 보임 (사용자 noise 차단)
+  if (status === 'granted-off') return null;
 
   const dismiss = () => {
     try { sessionStorage.setItem(SESSION_DISMISS_KEY, '1'); } catch { /* */ }

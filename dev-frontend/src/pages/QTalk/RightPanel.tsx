@@ -47,8 +47,10 @@ const RightPanel: React.FC<Props> = ({
   onAddIssue, onUpdateIssue, onDeleteIssue, onAddNote, onToggleTask,
 }) => {
   const { t } = useTranslation('qtalk');
+  // N+72-6 — status 라벨은 qtask namespace 에 정의됨. raw "not_started" 표시 회귀 fix
+  const { t: tStatus } = useTranslation('qtask');
   const { user } = useAuth();
-  const { formatTimeAgo } = useTimeFormat();
+  const { formatTimeAgo, formatDate } = useTimeFormat();
   const navigate = useNavigate();
   const isClient = user?.business_role === 'client';
   const myUserId = user ? Number(user.id) : -1;
@@ -377,11 +379,11 @@ const RightPanel: React.FC<Props> = ({
                         return (
                           <StatusPill $bg={sc.bg} $fg={sc.fg}>
                             {getStatusLabel({ status: task.status, due_date: task.due_date }, 'observer', todayStr,
-                              (k, f) => t(k, f || '') as string)}
+                              (k, f) => tStatus(k, f || '') as string)}
                           </StatusPill>
                         );
                       })()}
-                      {task.due_date && <TaskDue>{task.due_date}</TaskDue>}
+                      {task.due_date && <TaskDue>{formatDate(task.due_date)}</TaskDue>}
                       {task.recurrence && <RecurIcon title={t('right.myTasks.recurTitle', '반복 업무') as string}>↻</RecurIcon>}
                     </TaskMeta>
                   </TaskBody>
@@ -427,14 +429,14 @@ const RightPanel: React.FC<Props> = ({
                 >
                   <ProjectTaskTitle>{task.title}</ProjectTaskTitle>
                   <ProjectTaskRight>
-                    {task.due_date && <ProjectTaskDue>{task.due_date}</ProjectTaskDue>}
+                    {task.due_date && <ProjectTaskDue>{formatDate(task.due_date)}</ProjectTaskDue>}
                     {task.recurrence && <RecurIcon>↻</RecurIcon>}
                     {(() => {
                       const sc = STATUS_COLOR[task.status as StatusCode] || STATUS_COLOR.not_started;
                       return (
                         <StatusPill $bg={sc.bg} $fg={sc.fg}>
                           {getStatusLabel({ status: task.status, due_date: task.due_date }, 'observer', todayStr,
-                            (k, f) => t(k, f || '') as string)}
+                            (k, f) => tStatus(k, f || '') as string)}
                         </StatusPill>
                       );
                     })()}

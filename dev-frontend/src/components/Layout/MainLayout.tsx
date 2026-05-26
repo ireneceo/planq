@@ -21,6 +21,7 @@ import { useGlobalBadge } from '../../hooks/useGlobalBadge';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { mediaTablet } from '../../theme/breakpoints';
 import InstallPromptBanner from '../Common/InstallPromptBanner';
+import PushPromptBanner from '../Common/PushPromptBanner';
 import i18n from '../../i18n';
 
 // ─────────────────────────────────────────────────────────────
@@ -532,6 +533,12 @@ const Overlay = styled.div<{ $show?: boolean }>`
 
 const MobileContentPadding = styled.div`
   ${mediaTablet} { padding-top: 56px; }
+`;
+
+// N+72-6 — PushPromptBanner 의 외부 wrap. 좌우 padding 정렬 + 페이지 콘텐츠 위 적정 간격
+const PushPromptWrap = styled.div`
+  padding: 12px 20px 0;
+  ${mediaTablet} { padding: 8px 12px 0; }
 `;
 
 // 모바일 인라인 아코디언 — Stats / Settings 서브 메뉴
@@ -1466,6 +1473,12 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
 
       <MainContent $marginLeft={mainMarginLeft}>
         <WorkspaceBillingBanner />
+        {/* N+72-6 — 알림 안내 모든 페이지 mount (옛: TodoPage 만). granted-off 자동 silent re-subscribe + iOS 비-PWA 안내 */}
+        {user && (
+          <PushPromptWrap>
+            <PushPromptBanner />
+          </PushPromptWrap>
+        )}
         <MobileContentPadding>{children}</MobileContentPadding>
       </MainContent>
       <InstallPromptBanner />
