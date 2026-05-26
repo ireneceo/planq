@@ -33,7 +33,24 @@ session-state.md 읽고 이어서 개발해.
 
 ## 다음 사이클 (N+73+) — 우선순위 순
 
-### 🥇 1순위 — 외부 공유 = 팀 + 개인 (사용자 강조)
+### 🥇 1순위 — 알림 시스템 동기화 + 클릭 링크 회귀 fix (사용자 호소 2026-05-26)
+
+> "우측 상단 알림 배너랑 좌측 알림종 드롭다운 숫자가 동기화 안 됨. 닫거나 클릭하면 둘 다 읽음 처리되어야"
+> "알림 내용 누르면 링크가 다 제대로 안 걸리고 랜딩페이지로 가는데, 우측 상단 배너는 잘 감"
+
+**범위:**
+- **(a) 동기화** — 우측 NotificationToaster (in-app 토스터) + 좌측 BellDropdown (알림 종) + OS app badge — 셋 다 단일 source. `useUnreadTotal` 패턴 재사용
+- **(b) 닫기/클릭 = 읽음** — 토스터 닫기·드롭다운 클릭 모두 backend `mark-read` 호출 + 옵티미스틱 -1
+- **(c) 링크 회귀** — 좌측 종 드롭다운 알림 클릭 시 deep link 누락 (랜딩페이지로 fallback). 우측 토스터의 deep link 로직과 동일하게. `notification.target_url` 또는 `target_type + target_id` 기반 라우팅 표 점검
+- 검증 — 알림 7 카테고리 (메시지/업무/문서/파일/일정/청구/서명) 각각 클릭 → 정확한 URL 진입 확인 (drawer URL 싱크 `?task=N` `?post=N` 등)
+
+**관련 코드:**
+- `components/Common/NotificationToaster.tsx` (우측 in-app 토스터)
+- `components/Common/BellDropdown.tsx` 또는 사이드바 종 (좌측 드롭다운)
+- `routes/notifications.js` (backend mark-read + listing)
+- `hooks/useUnreadTotal.ts` (N+72-6 박제 — 단일 캐시 패턴 재사용)
+
+### 🥈 2순위 — 외부 공유 = 팀 + 개인 (사용자 강조)
 
 > "외부공유 팀+개인 이게 제일 중요한데"
 
@@ -54,23 +71,29 @@ session-state.md 읽고 이어서 개발해.
 - canAccess L4 회귀 fix 완료 (N+72)
 - Q docs default L3 변경 완료 (N+72-4)
 - 4 자산 visibility 컬럼 + filter 강제 완료
+- N+72 운영 DB `posts.target_member_ids` 컬럼 추가 완료 (N+72-7)
 - **남은 작업:** L2 팀 공유 UX 표준화 (target_member_ids selector + Audit) + 통합 ShareModal 컴포넌트 + 외부 share 만료 알림
 
-### 🥈 2순위 — Q Mail M2 인박스 read-only UI
+### 🥉 3순위 — Q Mail M2 인박스 read-only UI
 
 - MailPage 3컬럼 (계정·폴더·스레드 / 스레드 리스트 / 스레드 본문)
 - MailThreadList — pagination + filter (읽음/안읽음/답변필요/스팸)
 - MailThreadDetail — iframe sandbox (HTML 보안 격리) + 첨부 다운로드 + 답글 placeholder
 - 인박스(/inbox) 의 Q Mail 카드 통합
 
-### 🥉 3순위 — 외부 연동 Phase 2-4 (개인 자산)
+### 4순위 — 외부 연동 Phase 2-4 (개인 자산)
 
 - Phase 2: 개인 GCal (owner_scope='user')
 - Phase 3: 개인 Gmail (owner_scope='user', XOAUTH2)
 - Phase 4: 개인 Drive (owner_scope='user', drive.file scope)
 - ProfileIntegrationsPage 의 Phase 2-4 placeholder → 실 UI
 
-### 4순위 — 기타
+### 5순위 — 명칭 통일 후속 (N+72-7 에서 Q docs 만 처리됨)
+
+- "공유 범위" → "공개" — Q file / Q info / Q calendar / Q task 모두 동일 적용
+- VisibilityBadge fullLabel 통일
+
+### 6순위 — 기타
 
 - Settings → "Google 로그인 연결/해제" UI (backend API 존재)
 - Microsoft OAuth (Task B/D) — 한국 시장 후순위

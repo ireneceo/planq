@@ -151,10 +151,10 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
     }).catch(() => {});
   }, [visBizId]);
   const visLabel = (vl: string | null | undefined) => {
-    if (vl === 'L1') return '나만';
-    if (vl === 'L2') return '팀';
-    if (vl === 'L4') return '외부';
-    return '워크스페이스';
+    if (vl === 'L1') return t('vis.L1', '나만') as string;
+    if (vl === 'L2') return t('vis.L2', '팀') as string;
+    if (vl === 'L4') return t('vis.L4', '외부') as string;
+    return t('vis.L3', '워크스페이스') as string;
   };
   const [mode, setMode] = useState<'view' | 'edit' | 'new'>('view');
   const [titleDraft, setTitleDraft] = useState('');
@@ -473,6 +473,59 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
   };
 
   // 사이클 O3 — 포스트를 Q knowledge 로 보내기 (인덱싱 후 Cue 답변에 활용)
+  // N+72-7 — 문서 ↔ 표 타입 변경 (편집 모드).
+  //   표→문서: 빈 표면 자유, 컬럼/행 있으면 ConfirmDialog (force_kind_change=true)
+  //   문서→표: 자유 (빈 q_record 자동 생성)
+  const [pendingKindChange, setPendingKindChange] = useState<'doc' | 'table' | null>(null);
+
+  const doKindChange = async (newKind: 'doc' | 'table', force = false) => {
+    if (!detail || !businessId) return;
+    try {
+      const r = await apiFetch(`/api/posts/${detail.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ kind: newKind, force_kind_change: force }),
+      });
+      const j = await r.json();
+      if (j.success && j.data) {
+        setDetail(j.data);
+        setKnowledgeMsg(t('kind.changed', '{{kind}} 으로 변경됐습니다', { kind: newKind === 'table' ? '표' : '문서' }) as string);
+        setTimeout(() => setKnowledgeMsg(null), 3000);
+      } else {
+        setKnowledgeMsg(t('kind.changeErr', '변경 실패: {{msg}}', { msg: j.message || 'error' }) as string);
+        setTimeout(() => setKnowledgeMsg(null), 8000);
+      }
+    } catch (e) {
+      setKnowledgeMsg(t('kind.changeErr', '변경 실패: {{msg}}', { msg: mapApiError(e, tErr) }) as string);
+      setTimeout(() => setKnowledgeMsg(null), 8000);
+    }
+  };
+
+  const changeKind = async (newKind: 'doc' | 'table') => {
+    if (!detail || detail.kind === newKind) return;
+    // 표→문서: q_record 가 비어있어도 backend 409 안 나옴 → 일단 force=false 로 시도, 409 면 confirm
+    if (newKind === 'doc' && detail.kind === 'table' && detail.q_record_id) {
+      // 우선 force=false 로 호출, 409 (table_has_data) 일 때만 confirm
+      const r = await apiFetch(`/api/posts/${detail.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ kind: 'doc', force_kind_change: false }),
+      });
+      if (r.status === 409) {
+        setPendingKindChange('doc');  // ConfirmDialog 띄움
+        return;
+      }
+      const j = await r.json();
+      if (j.success && j.data) {
+        setDetail(j.data);
+        setKnowledgeMsg(t('kind.changed', '문서로 변경됐습니다') as string);
+        setTimeout(() => setKnowledgeMsg(null), 3000);
+      }
+      return;
+    }
+    await doKindChange(newKind, false);
+  };
+
   const sendToKnowledge = async (post: PostDetail) => {
     if (!businessId || knowledgeBusy) return;
     setKnowledgeBusy(true);
@@ -500,7 +553,9 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
       setKnowledgeMsg(t('actions.sendToKnowledgeErr', '추가 실패: {{msg}}', { msg: mapApiError(e, tErr) }) as string);
     } finally {
       setKnowledgeBusy(false);
-      setTimeout(() => setKnowledgeMsg(null), 4000);
+      // 에러는 더 길게 (8초), 성공은 4초
+      const isErr = (s: string | null) => s && (s.includes('실패') || s.includes('Failed') || s.includes('에러'));
+      setTimeout(() => setKnowledgeMsg(null), isErr(knowledgeMsg) ? 8000 : 4000);
     }
   };
 
@@ -846,6 +901,19 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
                     isSearchable
                   />
                 )}
+                {/* N+72-7 — 문서 ↔ 표 타입 toggle (편집 모드에서 변경 가능). 표→문서: 데이터 있으면 confirm 모달 */}
+                {mode === 'edit' && detail && (
+                  <KindToggle role="tablist" aria-label={t('kind.label', '문서 형태') as string}>
+                    <KindBtn type="button" role="tab" aria-selected={detail.kind !== 'table'} $active={detail.kind !== 'table'} onClick={() => changeKind('doc')}>
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                      {t('kind.doc', '문서') as string}
+                    </KindBtn>
+                    <KindBtn type="button" role="tab" aria-selected={detail.kind === 'table'} $active={detail.kind === 'table'} onClick={() => changeKind('table')}>
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg>
+                      {t('kind.table', '표') as string}
+                    </KindBtn>
+                  </KindToggle>
+                )}
               </MetaRow>
               {error && <ErrorBar>{error}</ErrorBar>}
               {detail?.kind === 'table' && detail.q_record_id ? (
@@ -873,6 +941,8 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
                       + {t('tableDescOpen', { defaultValue: '표 설명 에디터 열기' }) as string}
                     </DescToggleBtn>
                   )}
+                  {/* N+72-7 — 본문↔표 간격 (편집 모드) */}
+                  <SectionGap />
                   <PostTableGrid recordId={detail.q_record_id} businessId={scope.businessId} />
                 </>
               ) : (
@@ -926,31 +996,37 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
               </PanelSubTitle>
               </TitleRow>
               <EditActions>
+                {/* N+72-7 — 30년차 UX 재구성. 공개=visibility (chip), 공유=share (외부). 자주 안 쓰는 액션은 IconBtn + 툴팁. */}
+                {/* 1) 공개 범위 chip — 상태 표시 + 클릭 시 변경 모달 */}
+                <VisChip type="button" onClick={() => setVisModalOpen(true)} title={t('visibility.changeHint', '공개 범위 변경') as string} $level={detail.vlevel || 'L3'}>
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/></svg>
+                  {t('visibility.openLabel', '공개') as string}: {visLabel(detail.vlevel)}
+                </VisChip>
+                {/* 2) Primary 액션 — 자주 쓰는 것 */}
+                <PrimaryBtn type="button" onClick={() => setShareOpen(true)} title={t('share.headerHint', '외부 사람과 공유 — 링크 / 이메일 / 만료') as string}>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 4 }}><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+                  {t('share.button', '공유')}
+                </PrimaryBtn>
                 <SignBtn type="button" onClick={() => setSignOpen(true)} title={t('sign.headerHint', '서명자에게 이메일로 서명 요청') as string}>
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 4 }}><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="M2 2l7.586 7.586"/><circle cx="11" cy="11" r="2"/></svg>
                   {t('sign.button', '서명 받기')}
                 </SignBtn>
-                <SecondaryBtn type="button" onClick={() => setVisModalOpen(true)} title={t('visibility.change', '공유 범위 변경 (워크스페이스 / 프로젝트 / 멤버 / 고객 / 나만)') as string}>
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 4 }}><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><circle cx="9" cy="9" r="0.5" fill="currentColor"/><circle cx="15" cy="9" r="0.5" fill="currentColor"/></svg>
-                  {t('visibility.button', '공유 범위') as string}: {visLabel(detail.vlevel)}
-                </SecondaryBtn>
-                <PrimaryBtn type="button" onClick={() => setShareOpen(true)}>
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 4 }}><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
-                  {t('share.button', '공유')}
-                </PrimaryBtn>
+                {/* 3) IconBtn + 툴팁 — 가끔 쓰는 것 */}
+                <IconBtn type="button" onClick={startEdit} title={t('edit', '편집') as string} aria-label={t('edit', '편집') as string}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                </IconBtn>
+                <IconBtn type="button" onClick={() => sendToKnowledge(detail)} title={t('actions.sendToKnowledge', 'Q knowledge 로 보내기 — Cue 가 답변 시 참조') as string} aria-label={t('actions.sendToKnowledge', 'Q knowledge 로 보내기') as string} disabled={knowledgeBusy}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 6.253v13"/><path d="M12 6.253C10.832 5.477 9.246 5 7.5 5 5.754 5 4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253"/><path d="M12 6.253C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18s-3.332.477-4.5 1.253"/></svg>
+                </IconBtn>
+                <IconBtn type="button" onClick={() => { setSaveTplName(detail.title); setSaveTplDesc(''); setSaveTplError(null); setSaveTplOpen(true); }} title={t('actions.saveAsTemplate', '템플릿으로 저장 — 다음 새 글 작성 시 검색해서 사용') as string} aria-label={t('actions.saveAsTemplate', '템플릿으로 저장') as string}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+                </IconBtn>
                 <IconBtn type="button" onClick={() => window.print()} title={t('actions.print', 'PDF / 인쇄 (저장하려면 ‘대상: PDF로 저장’ 선택)') as string} aria-label={t('actions.print', 'PDF / 인쇄') as string}>
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
                 </IconBtn>
-                <SecondaryBtn type="button" onClick={() => sendToKnowledge(detail)} title={t('actions.sendToKnowledge', 'Q knowledge 로 보내기 — Cue 가 답변 시 참조') as string} disabled={knowledgeBusy}>
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 4 }}><path d="M12 6.253v13"/><path d="M12 6.253C10.832 5.477 9.246 5 7.5 5 5.754 5 4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253"/><path d="M12 6.253C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18s-3.332.477-4.5 1.253"/></svg>
-                  {knowledgeBusy ? t('actions.sendingToKnowledge', { defaultValue: '보내는 중...' }) as string : t('actions.sendToKnowledgeShort', { defaultValue: 'Q info 로' }) as string}
-                </SecondaryBtn>
-                <SecondaryBtn type="button" onClick={() => { setSaveTplName(detail.title); setSaveTplDesc(''); setSaveTplError(null); setSaveTplOpen(true); }} title={t('actions.saveAsTemplate', '템플릿으로 저장 — 다음 새 글 작성 시 검색해서 사용') as string}>
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 4 }}><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
-                  {t('actions.saveAsTemplateShort', { defaultValue: '템플릿' }) as string}
-                </SecondaryBtn>
-                <SecondaryBtn type="button" onClick={startEdit}>{t('edit', '편집')}</SecondaryBtn>
-                <DangerBtn type="button" onClick={() => setDeleteTarget(detail)}>{t('delete', '삭제')}</DangerBtn>
+                <IconBtn type="button" onClick={() => setDeleteTarget(detail)} title={t('delete', '삭제') as string} aria-label={t('delete', '삭제') as string} style={{ color: '#DC2626' }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                </IconBtn>
               </EditActions>
             </PanelHeader>
             <Body>
@@ -999,6 +1075,8 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
                     {detail.content_json && (
                       <PostEditor value={detail.content_json} onChange={() => {}} editable={false} />
                     )}
+                    {/* N+72-7 — 본문↔표 사이 간격 (사용자 호소 "들러붙어 보기 안좋아") */}
+                    {detail.content_json && <SectionGap />}
                     <PostTableGrid recordId={detail.q_record_id} businessId={scope.businessId} readOnly />
                   </>
                 ) : (
@@ -1084,6 +1162,18 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
         title={t('deleteTitle', '문서 삭제') as string}
         message={t('deleteMessage', '"{{title}}" 문서를 삭제할까요? 이 작업은 되돌릴 수 없습니다.', { title: deleteTarget?.title || '' }) as string}
         confirmText={t('delete', '삭제') as string}
+        cancelText={t('cancel', '취소') as string}
+        variant="danger"
+      />
+
+      {/* N+72-7 — 표→문서 변경 시 표 데이터 사라짐 확인 (force_kind_change=true) */}
+      <ConfirmDialog
+        isOpen={pendingKindChange === 'doc'}
+        onClose={() => setPendingKindChange(null)}
+        onConfirm={() => { doKindChange('doc', true); setPendingKindChange(null); }}
+        title={t('kind.changeToDocTitle', '문서로 변경') as string}
+        message={t('kind.changeToDocMsg', '표의 컬럼·데이터가 모두 사라집니다. 계속하시겠습니까?') as string}
+        confirmText={t('kind.changeToDocConfirmBtn', '문서로 변경') as string}
         cancelText={t('cancel', '취소') as string}
         variant="danger"
       />
@@ -1537,6 +1627,44 @@ const RowVisChip = styled.span<{ $level: string }>`
   background: ${p => p.$level === 'L1' ? '#F1F5F9' : p.$level === 'L2' ? '#FEF3C7' : p.$level === 'L4' ? '#FCE7F3' : '#CCFBF1'};
   color: ${p => p.$level === 'L1' ? '#475569' : p.$level === 'L2' ? '#92400E' : p.$level === 'L4' ? '#9F1239' : '#0F766E'};
 `;
+// N+72-7 — 본문↔표 사이 시각 간격 (사용자 호소 "들러붙어 보기 안좋아")
+const SectionGap = styled.div`
+  height: 24px;
+`;
+// N+72-7 — 문서/표 kind toggle (편집 모드 MetaRow)
+const KindToggle = styled.div`
+  display: inline-flex;
+  border: 1px solid #E2E8F0;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #F8FAFC;
+`;
+const KindBtn = styled.button<{ $active: boolean }>`
+  display: inline-flex; align-items: center; gap: 5px;
+  height: 32px; padding: 0 12px;
+  background: ${p => p.$active ? '#FFFFFF' : 'transparent'};
+  color: ${p => p.$active ? '#0F766E' : '#64748B'};
+  border: none;
+  font-size: 12px; font-weight: 600;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+  box-shadow: ${p => p.$active ? '0 1px 2px rgba(0,0,0,0.06)' : 'none'};
+  &:hover { color: ${p => p.$active ? '#0F766E' : '#334155'}; }
+  & + & { border-left: 1px solid #E2E8F0; }
+`;
+// N+72-7 — 헤더 공개범위 chip (RowVisChip 보다 크고 button 형태, 클릭=변경)
+const VisChip = styled.button<{ $level: string }>`
+  display: inline-flex; align-items: center; gap: 5px;
+  height: 28px; padding: 0 10px;
+  background: ${p => p.$level === 'L1' ? '#F1F5F9' : p.$level === 'L2' ? '#FEF3C7' : p.$level === 'L4' ? '#FCE7F3' : '#CCFBF1'};
+  color: ${p => p.$level === 'L1' ? '#475569' : p.$level === 'L2' ? '#92400E' : p.$level === 'L4' ? '#9F1239' : '#0F766E'};
+  border: 1px solid ${p => p.$level === 'L1' ? '#CBD5E1' : p.$level === 'L2' ? '#FDE68A' : p.$level === 'L4' ? '#FBCFE8' : '#5EEAD4'};
+  border-radius: 999px;
+  font-size: 12px; font-weight: 600;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+  &:hover { filter: brightness(0.97); }
+`;
 const ShareMini = styled.span`font-size: 11px; cursor: help;`;
 const RowMeta = styled.div`
   margin-top: 6px;
@@ -1728,11 +1856,6 @@ const MobileBackBtn = styled.button`
     border-radius: 6px;
     &:hover { background: #F1F5F9; color: #0F172A; }
   }
-`;
-const DangerBtn = styled.button`
-  height: 32px; padding: 0 14px; background: #fff; color: #DC2626; white-space: nowrap;
-  border: 1px solid #FCA5A5; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer;
-  &:hover:not(:disabled) { background: #FEF2F2; border-color: #DC2626; }
 `;
 const KnowledgeToast = styled.div`
   position: fixed; bottom: 24px; right: 24px;

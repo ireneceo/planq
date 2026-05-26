@@ -101,6 +101,9 @@ function serialize(p, withContent = false) {
     parent_post_id: p.parent_post_id || null,
     kind: p.kind || 'doc',
     q_record_id: p.q_record_id || null,
+    // N+72-7 — serialize 에 vlevel/target_member_ids 빠져 있어 PUT 응답에 안 실리는 회귀 fix
+    vlevel: p.vlevel || (p.project_id ? 'L2' : 'L3'),
+    target_member_ids: Array.isArray(p.target_member_ids) ? p.target_member_ids : null,
     linked_post_ids: Array.isArray(p.linked_post_ids) ? p.linked_post_ids : [],
     created_at: p.createdAt,
     updated_at: p.updatedAt,
@@ -632,6 +635,39 @@ router.put('/:id', authenticateToken, async (req, res, next) => {
     if (req.body.category !== undefined) patch.category = req.body.category;
     if (req.body.status !== undefined) patch.status = req.body.status;
     if (req.body.is_pinned !== undefined) patch.is_pinned = !!req.body.is_pinned;
+    // N+72-7 — 표 ↔ 문서 kind 전환 (사용자 호소)
+    // 표 → 문서: q_record 가 비어있으면 자유, 컬럼/행 있으면 force_kind_change=true 필요
+    // 문서 → 표: 자유 — 빈 q_record 자동 생성
+    if (req.body.kind !== undefined && ['doc', 'table'].includes(req.body.kind) && req.body.kind !== post.kind) {
+      const { QRecord } = require('../models');
+      if (req.body.kind === 'doc' && post.kind === 'table' && post.q_record_id) {
+        const qrec = await QRecord.findByPk(post.q_record_id);
+        const hasContent = qrec && Array.isArray(qrec.columns) && qrec.columns.length > 0;
+        if (hasContent && !req.body.force_kind_change) {
+          return errorResponse(res, '표에 컬럼/데이터가 있습니다. 문서로 변경 시 모두 사라집니다. 확인 후 다시 시도해주세요. (force_kind_change=true)', 409);
+        }
+        // q_record 제거 + post 분리
+        if (qrec) await qrec.destroy().catch(() => null);
+        patch.kind = 'doc';
+        patch.q_record_id = null;
+      } else if (req.body.kind === 'table' && post.kind === 'doc') {
+        const qrec = await QRecord.create({
+          business_id: post.business_id,
+          project_id: post.project_id,
+          name: String(req.body.title || post.title).slice(0, 200),
+          category: req.body.category || post.category,
+          columns: [],
+          read_policy: 'all',
+          created_by: req.user.id,
+        });
+        patch.kind = 'table';
+        patch.q_record_id = qrec.id;
+      }
+    }
+    // 공개 범위 변경 (visibility — vlevel)
+    if (req.body.vlevel !== undefined && ['L1', 'L2', 'L3', 'L4'].includes(req.body.vlevel)) {
+      patch.vlevel = req.body.vlevel;
+    }
     // 다른 post 연결 — 자기 자신·중복 제거 + 같은 워크스페이스 내 post 만 허용
     if (req.body.linked_post_ids !== undefined) {
       const raw = Array.isArray(req.body.linked_post_ids) ? req.body.linked_post_ids : [];
