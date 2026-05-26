@@ -276,6 +276,15 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
       if (pending) return;
       pending = window.setTimeout(() => { pending = null; void load(); void loadMeta(); }, 250);
     };
+    // N+72 fix — 열린 detail 도 갱신 (저장 직후 실시간 반영 안 됨 호소)
+    const refetchOpenDetail = async (postId: number) => {
+      try {
+        if (activeId === postId) {
+          const d = await fetchPost(postId);
+          setDetail(d);
+        }
+      } catch (_) { /* skip */ }
+    };
     // 페이지 mount 시 자체 socket 연결 + business room join + listener 3종
     import('socket.io-client').then(({ io }) => {
       import('../../contexts/AuthContext').then(({ getAccessToken }) => {
@@ -287,9 +296,12 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
         });
         s.on('connect', () => { s.emit('join:business', scope.businessId); });
         s.on('post:new', debouncedReload);
-        s.on('post:updated', debouncedReload);
+        s.on('post:updated', (payload: { id: number } | number) => {
+          debouncedReload();
+          const id = typeof payload === 'number' ? payload : payload?.id;
+          if (id) void refetchOpenDetail(id);
+        });
         s.on('post:deleted', debouncedReload);
-        // cleanup
         (window as unknown as { __planq_postsSocket?: { disconnect: () => void } }).__planq_postsSocket = s;
       });
     });
@@ -298,7 +310,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
       const s = (window as unknown as { __planq_postsSocket?: { disconnect: () => void } }).__planq_postsSocket;
       if (s) { s.disconnect(); delete (window as unknown as { __planq_postsSocket?: unknown }).__planq_postsSocket; }
     };
-  }, [scope.businessId, load, loadMeta]);
+  }, [scope.businessId, load, loadMeta, activeId]);
 
   useEffect(() => {
     if (!activeId) {
@@ -909,6 +921,10 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 4 }}><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="M2 2l7.586 7.586"/><circle cx="11" cy="11" r="2"/></svg>
                   {t('sign.button', '서명 받기')}
                 </SignBtn>
+                <SecondaryBtn type="button" onClick={() => setVisModalOpen(true)} title={t('visibility.change', '공유 범위 변경 (워크스페이스 / 프로젝트 / 멤버 / 고객 / 나만)') as string}>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 4 }}><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><circle cx="9" cy="9" r="0.5" fill="currentColor"/><circle cx="15" cy="9" r="0.5" fill="currentColor"/></svg>
+                  {t('visibility.button', '공유 범위') as string}: {visLabel(detail.vlevel)}
+                </SecondaryBtn>
                 <PrimaryBtn type="button" onClick={() => setShareOpen(true)}>
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 4 }}><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
                   {t('share.button', '공유')}
