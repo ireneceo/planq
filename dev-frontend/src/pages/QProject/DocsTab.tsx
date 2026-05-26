@@ -84,11 +84,13 @@ const DocsTab: React.FC<Props> = (props) => {
     listWorkspaceClients(bizId).then(c => setClients(c.filter(x => x.status !== 'archived'))).catch(() => {});
     apiFetch(`/api/businesses/${bizId}/members`).then(r => r.json()).then(j => {
       if (j?.success && Array.isArray(j.data)) {
-        setMembers(j.data.map((m: { user_id?: number; id?: number; user?: { id?: number; name?: string }; name?: string; role?: string }) => ({
-          user_id: m.user_id || m.id || m.user?.id || 0,
-          name: m.user?.name || m.name || '—',
-          role: m.role || 'member',
-        })).filter((m: { user_id: number }) => m.user_id > 0));
+        setMembers(j.data
+          .filter((m: { user?: { is_ai?: boolean }; role?: string }) => !m.user?.is_ai && m.role !== 'ai')
+          .map((m: { user_id?: number; id?: number; user?: { id?: number; name?: string }; name?: string; role?: string }) => ({
+            user_id: m.user_id || m.id || m.user?.id || 0,
+            name: m.user?.name || m.name || '—',
+            role: m.role || 'member',
+          })).filter((m: { user_id: number }) => m.user_id > 0));
       }
     }).catch(() => {});
   }, [scope]);
