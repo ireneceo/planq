@@ -20,6 +20,7 @@ import SearchBox from '../../components/Common/SearchBox';
 import DetailDrawer from '../../components/Common/DetailDrawer';
 import ShareModal from '../../components/Common/ShareModal';
 import AttachmentField from '../../components/Common/AttachmentField';
+import RichEditor from '../../components/Common/RichEditor';
 // 가로 Tabs 폐지 — 좌측 카테고리 트리로 변경 (Q file/Q record 패턴 통일)
 import ConfirmDialog from '../../components/Common/ConfirmDialog';
 import KbAiIngestModal from './KbAiIngestModal';
@@ -1275,11 +1276,16 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
                 </CustomColList>
               </Field>
 
-              {/* 4) 내용 */}
+              {/* 4) 내용 — N+72-5: TextArea → RichEditor (Tiptap, HTML 출력). Q docs 와 동일 에디터 */}
               <Field>
                 <Label>{t('modal.body')} <OptionalMark>{t('modal.optional', '(선택)')}</OptionalMark></Label>
-                <TextArea value={draft.body} onChange={e => setDraft(d => ({ ...d, body: e.target.value }))}
-                  placeholder={t('modal.bodyPh') as string} rows={5} />
+                <RichEditor
+                  value={draft.body}
+                  onChange={(html) => setDraft(d => ({ ...d, body: html }))}
+                  placeholder={t('modal.bodyPh') as string}
+                  minHeight={200}
+                  uploadUrl={businessId ? `/api/files/${businessId}/upload-inline-image` : undefined}
+                />
               </Field>
 
               {/* 5) 공유 범위 — N+65 VisibilityField 공통 컴포넌트 (등록·상세 동일 UI) */}
@@ -1460,27 +1466,43 @@ const DrawerBodyEdit: React.FC<{
     if (draft === (initialValue || '')) return;
     try { await updateKnowledge(businessId, docId, { body: draft }); onSaved(draft); } catch { /* skip */ }
   };
+  // N+72-5 — RichEditor (HTML) — 화면 표시도 dangerouslySetInnerHTML 으로 HTML 렌더
   if (!editing) {
-    const v = initialValue || '—';
-    return <BodyClickable onClick={() => setEditing(true)}>{v}</BodyClickable>;
+    const v = initialValue || '';
+    if (!v) return <BodyClickable onClick={() => setEditing(true)}>—</BodyClickable>;
+    // 옛 plain text 안 깨지게 — HTML 형태 아니면 <p> wrap
+    const isHtml = /<[a-z][\s\S]*>/i.test(v);
+    const html = isHtml ? v : `<p>${v.replace(/\n/g, '<br/>')}</p>`;
+    return <BodyClickable onClick={() => setEditing(true)} dangerouslySetInnerHTML={{ __html: html }} />;
   }
   return (
-    <BodyTextarea
-      autoFocus rows={6}
-      value={draft}
-      onChange={e => setDraft(e.target.value)}
-      onBlur={commit}
-      onKeyDown={(e) => { if (e.key === 'Escape') { setDraft(initialValue || ''); setEditing(false); } }}
-    />
+    <BodyEditWrap>
+      <RichEditor
+        value={draft}
+        onChange={setDraft}
+        onBlur={() => commit()}
+        minHeight={180}
+        uploadUrl={businessId ? `/api/files/${businessId}/upload-inline-image` : undefined}
+      />
+    </BodyEditWrap>
   );
 };
 
 const BodyClickable = styled.div`
   font-size: 13px; color: #334155; line-height: 1.6;
-  white-space: pre-wrap; word-break: break-word;
+  word-break: break-word;
   padding: 10px 12px; background: #F8FAFC; border-radius: 6px;
   cursor: text;
   &:hover { background: #F0FDFA; }
+  & p { margin: 0 0 8px; }
+  & p:last-child { margin-bottom: 0; }
+  & ul, & ol { padding-left: 20px; margin: 6px 0; }
+  & img { max-width: 100%; height: auto; }
+`;
+const BodyEditWrap = styled.div`
+  border: 1px solid #14B8A6; border-radius: 8px;
+  padding: 6px;
+  & .ProseMirror { min-height: 180px; }
 `;
 
 // 태그 인라인 편집 — 쉼표 구분 input. blur 시 저장.
@@ -1541,13 +1563,7 @@ const TagsInput = styled.input`
   font-size: 12px; color: #0F172A; font-family: inherit;
   &:focus { outline: none; box-shadow: 0 0 0 2px rgba(20,184,166,0.2); }
 `;
-const BodyTextarea = styled.textarea`
-  width: 100%; padding: 10px 12px;
-  border: 1px solid #14B8A6; border-radius: 6px;
-  font-size: 13px; color: #0F172A; font-family: inherit; line-height: 1.6;
-  resize: vertical; min-height: 120px;
-  &:focus { outline: none; box-shadow: 0 0 0 2px rgba(20,184,166,0.2); }
-`;
+// N+72-5 — BodyTextarea 폐기 (RichEditor 통합)
 const DrawerCustomList = styled.div`
   display: flex; flex-direction: column; gap: 8px;
 `;
@@ -1781,8 +1797,10 @@ const Split = styled.div`
 `;
 const TreePanel = styled.div`
   background: #fff; border: 1px solid #E2E8F0; border-radius: 10px; padding: 6px;
-  position: sticky; top: 8px;
-  max-height: calc(100vh - 180px); overflow-y: auto;
+  /* N+72-5 fix — Body overflow-y:auto 안에서 sticky top:0. 옛 top:8px 는 padding 과 중복돼 안 보이는 회귀.
+     사용자 호소 "문서 길면 메뉴 따라가야 하는데 안 됨" */
+  position: sticky; top: 0;
+  max-height: calc(100vh - 100px); overflow-y: auto;
   @media (max-width: 900px) { position: static; max-height: none; }
 `;
 const TreeRoot = styled.div`display: flex; flex-direction: column; gap: 1px;`;
@@ -2033,7 +2051,7 @@ const SuccessBox = styled.div`
   font-size: 12px; color: #0F766E;
 `;
 const TextInput = styled.input`height: 36px; padding: 0 10px; border: 1px solid #E2E8F0; border-radius: 6px; font-size: 13px; color: #0F172A; &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20,184,166,0.15); }`;
-const TextArea = styled.textarea`padding: 8px 10px; border: 1px solid #E2E8F0; border-radius: 6px; font-size: 13px; color: #0F172A; font-family: inherit; resize: vertical; &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20,184,166,0.15); }`;
+// N+72-5 — TextArea 폐기 (RichEditor 통합)
 const PrimaryBtn = styled.button`height: 36px; padding: 0 18px; background: #14B8A6; color: #FFFFFF; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; &:disabled { background: #CBD5E1; cursor: not-allowed; } &:hover:not(:disabled) { background: #0D9488; }`;
 const SecondaryBtn = styled.button`height: 36px; padding: 0 14px; background: transparent; color: #475569; border: 1px solid #E2E8F0; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; &:hover { background: #F8FAFC; border-color: #CBD5E1; }`;
 
