@@ -1,89 +1,103 @@
 # PlanQ 세션 상태
 
-## 현재 작업 상태
-**마지막 업데이트:** 2026-05-25 (사이클 N+70 완료, /개발완료)
-**작업 상태:** 완료 — 다음 섹션에서 M2 진행 예정
+**마지막 업데이트:** 2026-05-26 06:58 (사이클 N+71~N+72-6 완료)
+**작업 상태:** 완료 — v1.20.0 운영 라이브 (commit `028f9ef`)
 
 ---
 
-## ⚡ 빠른 재개 (새 세션에서 이것만 붙여넣기)
+## ⚡ 빠른 재개
 
+새 세션 시작 시:
 ```
 session-state.md 읽고 이어서 개발해.
 ```
 
 ---
 
-## 🔖 직전 사이클 — N+70 (Q Mail M1 + OAuth 통합)
+## 완료된 작업 (사이클 N+71~N+72-6, 8 commit)
 
-**완료 (12 commit, 운영 미배포):**
-- Q Mail M1 — 6 DB 모델 + IMAP cron + EmailAccount CRUD + AES-256-GCM + EmailAccountSettings UI
-- Google OAuth PlanQ 로그인 — refresh_token cookie 패턴 + 자동 Business+Cue 가입
-- Gmail OAuth 메일 연동 (XOAUTH2 RFC 7628) — 앱 비밀번호 대체
-- OAuth Connection 표준 3분기 (oauth_connections 테이블)
-- 계정 합치기: id=3 (irenecompany.com) + secondary_email='irenewp.com'
-- DailyStartModal 업무 진행 링크 fix (/projects → /tasks)
-
-**최근 commit:** `312e130` (DailyStartModal fix)
-
-**바로 다음 작업:** Q Mail M2 인박스 UI (MailPage 3컬럼 + MailThreadList + MailThreadDetail iframe sandbox)
-
----
-
-## 📦 누적 사이클
-
-| 사이클 | 영역 | 버전 |
+| commit | 사이클 | 내용 |
 |---|---|---|
-| N+70 | Q Mail M1 + OAuth | (미배포) |
-| N+68+N+69 | visibility 통일 마무리 + Q Mail 기획 | v1.19.1 |
-| N+63~N+67 | visibility 전수 통일 | v1.19.0 |
-| N+49~N+62 | SaaS readiness | v1.18.0 |
-| N+39~N+49 | PWA + 실시간 + 정기업무 + Brief | v1.17.0 |
+| `b0aa7d9` | N+71 | Q Talk 리스트 unread 실시간 회귀 fix (business room broadcast + join:business) |
+| `20c22c2` | N+72 Phase 1 | 외부 연동 통합 모델 + ProfileIntegrationsPage |
+| `0a92d36` | N+72 시급 3건 | 문서 실시간 + 공유권한 UI + L4 권한 회귀 |
+| `b491416` | N+72-2 | PostsPage L2-members 멤버 안 보임 fix |
+| `eae15bb` | N+72-3 | 권한 전수 검사 + Cue 멤버 제외 4곳 일괄 |
+| `94c4dcc` | N+72-4 | Q docs default L3 + 리스트 vlevel chip + Public 외부뷰 + 아이콘 텍스트화 |
+| `821a8a0` | N+72-5 | Q info RichEditor + 카테고리 트리 sticky top:0 |
+| `028f9ef` | N+72-6 | 알림 통합 (전 워크스페이스 합산 + 실시간 + 워크스페이스 selector dot) |
+
+운영 배포: 121s, https://planq.kr/api/health 200 ✓
 
 ---
 
-## 📂 다음 할 일 (우선순위 순)
+## 다음 사이클 (N+73+) — 우선순위 순
 
-1. **Q Mail M2 인박스 UI** (1주) — MailPage 3컬럼 + ThreadList + ThreadDetail iframe sandbox + 사이드바 메뉴 활성
-2. **Settings → "Google 로그인 연결/해제" UI** — API 는 이미 있음 (GET /oauth-connections / DELETE :id)
-3. **Microsoft OAuth (B/D)** — 한국 시장 후순위
-4. **Q Mail M3 답장 + M5 답변 필요 AI 분류 + M6 FAQ 마이닝** — 사용자 호소 ★
+### 🥇 1순위 — 외부 공유 = 팀 + 개인 (사용자 강조)
+
+> "외부공유 팀+개인 이게 제일 중요한데"
+
+**범위:**
+- visibility L2 (팀 비공개) 공유 — project_members 또는 명시 member 리스트
+- visibility L4 (외부) share_token — 만료 + revoke + 7일 미사용 NULL cron 이미 존재
+- 통합 ShareModal — Q task / Q file / Q info / Q calendar 4 자산 동일 UX
+- 개인 보관함 (L1) — Apple Photos 패턴: Single Source / Multiple Views
+
+**관련 설계 문서:**
+- `docs/SHARE_SYSTEM_UNIFIED.md` (project_share_system_unified.md memory)
+- `docs/VISIBILITY_VOCABULARY.md` (project_visibility_unified_arch.md memory)
+- `docs/PERSONAL_VAULT_DESIGN.md` (project_personal_vault.md memory)
+- `docs/SMART_ROUTING_DESIGN.md` (project_smart_routing_appfirst.md memory)
+
+**현재 상태:**
+- visibility 4단계 vocab 박제 완료 (L1/L2/L3/L4)
+- canAccess L4 회귀 fix 완료 (N+72)
+- Q docs default L3 변경 완료 (N+72-4)
+- 4 자산 visibility 컬럼 + filter 강제 완료
+- **남은 작업:** L2 팀 공유 UX 표준화 (target_member_ids selector + Audit) + 통합 ShareModal 컴포넌트 + 외부 share 만료 알림
+
+### 🥈 2순위 — Q Mail M2 인박스 read-only UI
+
+- MailPage 3컬럼 (계정·폴더·스레드 / 스레드 리스트 / 스레드 본문)
+- MailThreadList — pagination + filter (읽음/안읽음/답변필요/스팸)
+- MailThreadDetail — iframe sandbox (HTML 보안 격리) + 첨부 다운로드 + 답글 placeholder
+- 인박스(/inbox) 의 Q Mail 카드 통합
+
+### 🥉 3순위 — 외부 연동 Phase 2-4 (개인 자산)
+
+- Phase 2: 개인 GCal (owner_scope='user')
+- Phase 3: 개인 Gmail (owner_scope='user', XOAUTH2)
+- Phase 4: 개인 Drive (owner_scope='user', drive.file scope)
+- ProfileIntegrationsPage 의 Phase 2-4 placeholder → 실 UI
+
+### 4순위 — 기타
+
+- Settings → "Google 로그인 연결/해제" UI (backend API 존재)
+- Microsoft OAuth (Task B/D) — 한국 시장 후순위
+- Q Mail M3 — 답글/전송/Draft (SMTP)
+- AdminAuditLogs 보강 후속
 
 ---
 
-## 🔑 환경변수 / 인증 현황
+## 환경
 
-**OAuth (Google 4 통합):**
-- GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET 설정 ✓
-- GOOGLE_REDIRECT_URI (GDrive)
-- GOOGLE_LOGIN_REDIRECT_URI (선택, fallback 자동 — Login)
-- GMAIL_OAUTH_REDIRECT_URI (선택, fallback 자동 — Gmail)
-- GCP 콘솔 등록 완료 (Irene)
-
-**Q Mail:**
-- SMTP_HOST/PORT/USER/PASSWORD (PlanQ default 발송, Gmail)
-- IMAP — EmailAccount 별 등록 (5분 cron)
-- EMAIL_ENCRYPTION_KEY (옵션, JWT_SECRET fallback)
+- dev: dev.planq.kr / 87.106.11.184 / port 3003
+- prod: **planq.kr / 87.106.78.146 / port 3004** (v1.20.0 라이브)
+- DB: planq_dev_db (dev) / planq_admin (prod)
+- PM2: planq-dev-backend / planq-qnote (dev) · planq-prod-backend / planq-prod-qnote (prod)
 
 ---
 
-## 주요 문서 위치
+## 핵심 메모리 신규 박제
 
-- `docs/Q_MAIL_SPEC.md` (943줄 v2)
-- `docs/UNIFIED_CONTEXT_DESIGN.md` (Phase 9 메인)
-- `docs/EMAIL_DELIVERY_POLICY.md` (메일 발송 정책)
-- `DEVELOPMENT_PLAN.md` (개발 히스토리)
+- `project_unread_unified_arch.md` — 알림 통합 패턴 (단일 endpoint + 모듈 캐시 hook + 4 트리거)
+- `project_external_connections_owner_scope.md` — 외부 연동 owner_scope ENUM
 
 ---
 
 ## 복구 가이드
 
-운영 롤백:
-```bash
-ssh irene@87.106.78.146 'tar -xzf /opt/planq/backups/{TIMESTAMP}/backend.tar.gz -C /opt/planq && pm2 reload planq-prod-backend'
 ```
-
-dev 백업:
-```bash
-mysqldump -u dev_admin planq_dev_db > /opt/planq/backups/dev_$(date +%Y%m%d_%H%M).sql
+이전 세션 이어서 작업하고 싶어.
+/opt/planq/.claude/session-state.md 읽어줘.
 ```
