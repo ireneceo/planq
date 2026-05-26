@@ -289,48 +289,41 @@ async function canAccessPost(userId, post, scope) {
 //   신규 헬퍼는 "ByLevel" suffix — 단계적 도입 (라우트 별로 교체).
 // ─────────────────────────────────────────────
 
-// File — L1=uploader, L2=project_id IN projectMemberIds, L3=workspace member, L4=share_token (route 별)
+// File — L1=uploader, L2=project_id IN projectMemberIds, L3=workspace member, L4=workspace member (share_token 은 public route 별도)
 async function canAccessFileByLevel(userId, file, scope) {
   if (!file) return false;
   if (!scope) scope = await getUserScope(userId, file.business_id);
   if (scope.isPlatformAdmin) return true;
+  // 본인 업로드 무조건 OK
+  if (file.uploader_id === userId) return true;
   const v = file.visibility;
-  // L1 = 본인만 (uploader)
-  if (v === 'L1') return file.uploader_id === userId;
-  // L4 = share_token (route 가 token 검증 별도)
-  if (v === 'L4') return false;
-  // L3 = workspace member 이상
+  if (v === 'L1') return false;
+  // N+72 fix — L4 도 워크스페이스 멤버는 보여야 (옛 false 회귀, "삭제됨" 표시 원인)
+  if (v === 'L4') return scope.isOwner || scope.isMember;
   if (v === 'L3') return scope.isOwner || scope.isMember;
-  // L2 = project 멤버 (project_id 있으면), 없으면 fallback workspace member
   if (v === 'L2') {
     if (file.project_id) {
       return (scope.projectMemberIds || []).includes(file.project_id) || scope.isOwner;
     }
     return scope.isOwner || scope.isMember;
   }
-  // visibility NULL = legacy (백필 전) → workspace member 통과
   return scope.isOwner || scope.isMember;
 }
 
 function fileListWhereByLevel(scope) {
   if (scope.isPlatformAdmin) return { business_id: scope.businessId };
   const conds = [];
-  // L1 — 본인 uploader
   conds.push({ visibility: 'L1', uploader_id: scope.userId });
-  // L3 + legacy NULL — workspace member 이상 통과
   if (scope.isOwner || scope.isMember) {
     conds.push({ visibility: 'L3' });
+    conds.push({ visibility: 'L4' });  // N+72 fix — L4 도 워크스페이스 멤버 list 에 보여야
     conds.push({ visibility: null });
   }
-  // owner 는 모든 L2 통과 (workspace 운영자)
   if (scope.isOwner) {
     conds.push({ visibility: 'L2' });
   } else if ((scope.projectMemberIds || []).length > 0) {
-    // L2 — 내가 멤버인 프로젝트만
     conds.push({ visibility: 'L2', project_id: { [Op.in]: scope.projectMemberIds } });
   }
-  // L4 는 share_token 라우트에서 별도 검증 (list 에서는 제외)
-  // client 는 ProjectClient 경로로만 — list 호출 자체를 route 가 차단
   if (conds.length === 0) return { business_id: scope.businessId, id: { [Op.in]: [-1] } };
   return { business_id: scope.businessId, [Op.or]: conds };
 }
@@ -340,16 +333,30 @@ async function canAccessPostByLevel(userId, post, scope) {
   if (!post) return false;
   if (!scope) scope = await getUserScope(userId, post.business_id);
   if (scope.isPlatformAdmin) return true;
+  // 본인 작성 무조건 OK
+  if (post.author_id === userId) return true;
   const v = post.vlevel;
-  if (v === 'L1') return post.author_id === userId;
-  if (v === 'L4') return false;
+  // L1 — 본인만 (위에서 처리)
+  if (v === 'L1') return false;
+  // L4 — 외부 공개 = 워크스페이스 멤버 + share_token 으로 외부도 OK (raw 인증 사용자는 멤버여야)
+  // N+72 fix: L4 면서 워크스페이스 멤버면 OK (옛 false 회귀 — "삭제됨" 표시 원인)
+  if (v === 'L4') return scope.isOwner || scope.isMember;
+  // L3 — 워크스페이스 전체
   if (v === 'L3') return scope.isOwner || scope.isMember;
+  // L2 — 프로젝트 (project_id 있음) 또는 specific members (target_member_ids)
   if (v === 'L2') {
     if (post.project_id) {
       return (scope.projectMemberIds || []).includes(post.project_id) || scope.isOwner;
     }
+    // L2-members 분기 — target_member_ids 검사
+    const targetIds = Array.isArray(post.target_member_ids) ? post.target_member_ids : [];
+    if (targetIds.length > 0) {
+      return targetIds.includes(userId) || scope.isOwner;
+    }
+    // 옛 L2 (target 없음) — workspace fallback
     return scope.isOwner || scope.isMember;
   }
+  // vlevel NULL legacy fallback
   return scope.isOwner || scope.isMember;
 }
 
@@ -359,6 +366,7 @@ function postListWhereByLevel(scope) {
   conds.push({ vlevel: 'L1', author_id: scope.userId });
   if (scope.isOwner || scope.isMember) {
     conds.push({ vlevel: 'L3' });
+    conds.push({ vlevel: 'L4' });  // N+72 fix — L4 도 워크스페이스 멤버 보여야
     conds.push({ vlevel: null });
   }
   if (scope.isOwner) {
