@@ -599,9 +599,11 @@ router.post('/conversations/:id/messages', authenticateToken, async (req, res, n
     await applyMemberDisplayNameOne(fullJson, conv.business_id, ['sender']);
 
     // Socket.IO broadcast — 메시지 즉시 발송 (번역 기다리지 않음)
+    // N+71 fix — conv room + business room 둘 다 emit (Q Talk 리스트 실시간 갱신 회귀 fix)
     const io = req.app.get('io');
     if (io) {
       io.to(`conv:${conv.id}`).emit('message:new', fullJson);
+      io.to(`business:${conv.business_id}`).emit('message:new', fullJson);
     }
 
     // ──────────────────────────────────────────────────────────────
