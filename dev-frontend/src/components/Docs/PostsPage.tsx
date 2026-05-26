@@ -131,21 +131,25 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
   const [visProjects, setVisProjects] = useState<ApiProject[]>([]);
   const [visClients, setVisClients] = useState<WorkspaceClientRow[]>([]);
   const [visMembers, setVisMembers] = useState<Array<{ user_id: number; name: string; role: string }>>([]);
+  // N+72 fix — 페이지 mount 시 즉시 fetch (detail null 이어도 OK).
+  // 옛: deps=[detail?.business_id] 였는데 modal 열 시점에 visMembers=[] 회귀 (사용자 호소 "멤버 리스트에 안뜨던데").
+  const visBizId = scope.type === 'project' ? scope.businessId : (scope.type === 'workspace' || scope.type === 'personal' ? scope.businessId : null);
   useEffect(() => {
-    if (!detail?.business_id) return;
-    const bizId = detail.business_id;
-    listProjects(bizId).then(setVisProjects).catch(() => {});
-    listWorkspaceClients(bizId).then(c => setVisClients(c.filter(x => x.status !== 'archived'))).catch(() => {});
-    apiFetch(`/api/businesses/${bizId}/members`).then(r => r.json()).then(j => {
+    if (!visBizId) return;
+    listProjects(visBizId).then(setVisProjects).catch(() => {});
+    listWorkspaceClients(visBizId).then(c => setVisClients(c.filter(x => x.status !== 'archived'))).catch(() => {});
+    apiFetch(`/api/businesses/${visBizId}/members`).then(r => r.json()).then(j => {
       if (j?.success && Array.isArray(j.data)) {
-        setVisMembers(j.data.map((m: { user_id?: number; id?: number; user?: { id?: number; name?: string }; name?: string; role?: string }) => ({
-          user_id: m.user_id || m.id || m.user?.id || 0,
-          name: m.user?.name || m.name || '—',
-          role: m.role || 'member',
-        })).filter((m: { user_id: number }) => m.user_id > 0));
+        setVisMembers(j.data
+          .filter((m: { user?: { is_ai?: boolean }; role?: string }) => !m.user?.is_ai && m.role !== 'ai')
+          .map((m: { user_id?: number; id?: number; user?: { id?: number; name?: string }; name?: string; role?: string }) => ({
+            user_id: m.user_id || m.id || m.user?.id || 0,
+            name: m.user?.name || m.name || '—',
+            role: m.role || 'member',
+          })).filter((m: { user_id: number }) => m.user_id > 0));
       }
     }).catch(() => {});
-  }, [detail?.business_id]);
+  }, [visBizId]);
   const visLabel = (vl: string | null | undefined) => {
     if (vl === 'L1') return '나만';
     if (vl === 'L2') return '팀';
