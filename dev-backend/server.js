@@ -278,6 +278,8 @@ app.use('/api/businesses', require('./routes/businesses'));
 app.use('/api/businesses', require('./routes/email_accounts'));
 // OAuth 로그인 (Google / Microsoft)
 app.use('/api/auth', require('./routes/auth_oauth'));
+// 외부 연동 Phase 1 — 통합 (workspace + user scope)
+app.use('/api', require('./routes/external_connections'));
 app.use('/api/notifications', require('./routes/notifications'));
 app.use('/api/feedback', require('./routes/feedback'));
 app.use('/api/cue', require('./routes/cue'));

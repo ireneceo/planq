@@ -85,6 +85,8 @@ const WeeklyReviewSetting = require('./WeeklyReviewSetting');
 const BusinessWeeklyReport = require('./BusinessWeeklyReport');
 // ─── OAuth Connections (N+70 Task 62) ───
 const OauthConnection = require('./OauthConnection');
+// ─── External Connections Phase 1 (2026-05-26) — 통합 외부 연동 ───
+const ExternalConnection = require('./ExternalConnection');
 // ─── Q Mail (Phase 9 — M1) ───
 const EmailAccount = require('./EmailAccount');
 const EmailThread = require('./EmailThread');
@@ -454,6 +456,8 @@ module.exports = {
   PlatformSetting,
   // OAuth Connections (N+70)
   OauthConnection,
+  // External Connections Phase 1 (2026-05-26)
+  ExternalConnection,
   // Q Mail (Phase 9 M1)
   EmailAccount,
   EmailThread,
@@ -713,3 +717,9 @@ EmailDraft.belongsTo(EmailMessage, { as: 'inReplyTo', foreignKey: 'in_reply_to_m
 // OauthConnection (N+70 Task 62) — external provider 연결
 OauthConnection.belongsTo(User, { foreignKey: 'user_id', onDelete: 'CASCADE' });
 User.hasMany(OauthConnection, { as: 'oauthConnections', foreignKey: 'user_id' });
+
+// ExternalConnection (Phase 1) — 통합 외부 연동
+ExternalConnection.belongsTo(Business, { foreignKey: 'business_id', onDelete: 'CASCADE' });
+ExternalConnection.belongsTo(User, { foreignKey: 'user_id', onDelete: 'CASCADE' });
+Business.hasMany(ExternalConnection, { as: 'externalConnections', foreignKey: 'business_id' });
+User.hasMany(ExternalConnection, { as: 'externalConnections', foreignKey: 'user_id' });
