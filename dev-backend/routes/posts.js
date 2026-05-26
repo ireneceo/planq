@@ -356,7 +356,11 @@ router.post('/', authenticateToken, async (req, res, next) => {
       parent_post_id: parent_post_id || null,
       kind: ['doc', 'table', 'brief', 'template'].includes(kind) ? kind : 'doc',
       q_record_id: qRecordId,
-      vlevel: project_id ? 'L2' : 'L1',  // VISIBILITY_VOCABULARY.md — 프로젝트=팀 / 미연결=개인
+      // N+72 fix — 신규 문서 default visibility.
+      // 옛: 프로젝트 = L2 / 미연결 = L1 (나만보기) — 사용자 호소 "공유한 문서를 다른 사람이 못 봄"
+      // 새: 프로젝트 = L2 / 워크스페이스 = L3 (멤버 모두) — 일반 SaaS 패턴.
+      //      L1 원하면 등록 후 "공유 범위 → 나만보기" 변경 (UI 명시 동작).
+      vlevel: req.body.vlevel || (project_id ? 'L2' : 'L3'),
     });
     const full = await Post.findByPk(post.id, {
       include: [

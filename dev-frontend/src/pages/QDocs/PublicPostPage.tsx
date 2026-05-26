@@ -52,19 +52,19 @@ const PublicPostPage: React.FC = () => {
     })();
   }, [token]);
 
-  // N+47 — Smart Routing. PlanQ 로그인된 사용자면 in-app 으로 자동 redirect (0.3s).
+  // N+72-3 fix — 옛 자동 redirect 제거 (사용자 호소 "로그인했어도 따로 보이는게 맞다").
+  // share link 의 의도는 외부 뷰. in-app 으로 가고 싶으면 별도 버튼 (아래 InAppOpenLink) 명시 클릭.
+  const [appUrl, setAppUrl] = useState<string | null>(null);
   useEffect(() => {
     if (!token || !post) return;
     if (!getAccessToken()) return;
     apiFetch(`/api/posts/public/${token}/auth-check`)
       .then(r => r.json())
       .then(j => {
-        if (j.success && j.data?.canAccess && j.data?.appUrl) {
-          setTimeout(() => navigate(j.data.appUrl), 300);
-        }
+        if (j.success && j.data?.canAccess && j.data?.appUrl) setAppUrl(j.data.appUrl);
       })
       .catch(() => { /* silent */ });
-  }, [token, post, navigate]);
+  }, [token, post]);
 
   if (loading) return <Center>{t('public.loading', '문서 로드 중...')}</Center>;
   if (expired) return <ExpiredShareLink expiredAt={expired.at} />;
@@ -75,6 +75,11 @@ const PublicPostPage: React.FC = () => {
       <Toolbar className="no-print">
         <Brand src="/planQ-slogan_color.svg" alt="PlanQ" />
         <ToolbarSpacer />
+        {appUrl && (
+          <PrintBtn type="button" onClick={() => navigate(appUrl)} style={{ background: '#14B8A6', color: '#FFFFFF', border: 'none' }}>
+            {t('public.openInApp', { defaultValue: 'PlanQ 앱에서 열기' }) as string}
+          </PrintBtn>
+        )}
         <PrintBtn type="button" onClick={() => window.open(`/api/posts/public/${token}/pdf`, '_blank')}>{t('public.downloadPdf', 'PDF 다운로드')}</PrintBtn>
       </Toolbar>
 
