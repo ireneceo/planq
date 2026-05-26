@@ -1,8 +1,10 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-05-25 사이클 N+63~N+70 — visibility 통일 전수 + Q Mail M1 (DB/IMAP/계정 등록 UI) + Google OAuth 로그인 + Gmail OAuth 메일 연동 + OAuth 표준 3분기 흐름 (subject/email/신규) + 계정 합치기 (oauth_connections + secondary_email)
+> **최종 업데이트:** 2026-05-26 사이클 N+71~N+72-6 — Q Talk 리스트 unread 실시간 회귀 fix + 외부 연동 Phase 1 통합 모델 + visibility/공유 권한 전수 검사 + Q docs default L3 + Q info RichEditor + 알림 통합 (전 워크스페이스 합산 + 실시간 + 워크스페이스 selector dot)
 >
-> **직전 라이브:** **v1.19.1** (commit `4f33541`, 2026-05-25) — N+68+N+69 운영 라이브 (visibility 통일 마무리 / Q Mail 기획 / SaaS readiness alias / Smart Routing 1차)
+> **직전 라이브:** **v1.20.0** (commit `028f9ef`, 2026-05-26) — N+71~N+72-6 운영 라이브 (8 commit 알림 통합 마무리 + 외부 연동 Phase 1 + visibility 회귀 전수 fix)
+>
+> **직전 라이브:** v1.19.1 (commit `4f33541`, 2026-05-25) — N+68+N+69 운영 라이브 (visibility 통일 마무리 / Q Mail 기획 / SaaS readiness alias / Smart Routing 1차)
 >
 > **직전 라이브:** v1.19.0 — N+63~N+67 21 commit visibility 전수 통일 + 운영 라이브
 >
@@ -15,6 +17,64 @@
 > **이전 라이브:** v1.16.1 (commit `8947504`) — N+31 사이클 (Q Talk 모바일 viewport 회귀 fix)
 >
 > **이전 라이브:** v1.16.0 (commit `ab113a6`) — N+26~N+27 사이클 (업무 흐름 Focus MVP + 인박스 inline 모달 + Cue 주고받음)
+
+---
+
+## ✅ 완료: 사이클 N+71~N+72-6 — 알림 통합 + 외부 연동 Phase 1 + visibility 회귀 전수 fix (2026-05-26, 8 commit, 운영 라이브 v1.20.0)
+
+**핵심 산출물:**
+
+1. **N+71 — Q Talk 리스트 unread 실시간 회귀 fix** (사용자 호소):
+   - backend message:new = conv room 만 → conv room + business room 양쪽 emit
+   - QTalkPage socket.on('connect') 에서 join:business 자동 호출
+   - 활성 외 다른 conv 메시지 도착 시 좌측 리스트 unread + 미리보기 즉시 갱신
+
+2. **N+72 Phase 1 — 외부 연동 통합 모델**:
+   - docs/EXTERNAL_INTEGRATIONS_DESIGN.md (380줄) — owner_scope (workspace/user) 패턴 + 4 provider × 5 자원 매트릭스
+   - models/ExternalConnection.js — AES-256-GCM 암호화 + UNIQUE (business_id, owner_scope, user_id, provider, account_email)
+   - routes/external_connections.js — admin GET /api/businesses/:bizId + user GET /api/me/external-connections + legacy adapter
+   - ProfileIntegrationsPage.tsx — 4 섹션 (로그인/캘린더/메일/파일) + Phase 2-4 ComingSoonNote
+
+3. **N+72 시급 3건 + 전수 검사** (사용자 호소 "30년차 수준 전수검사"):
+   - 문서 저장 실시간 갱신 (post:updated event refetchOpenDetail)
+   - 공유범위 UI 가시성 — VisibilityChip 옆 "공유 범위: {label}" SecondaryBtn
+   - L4 권한 회귀 — canAccessPostByLevel/FileByLevel/KbDocByLevel 모두 L4=workspace member 자동 통과 + L2-members target_member_ids
+   - PostsPage L2-members modal 멤버 안 보임 — visBizId 도출 변경 + 모든 4 곳 (PostsPage/NewEventModal/KnowledgePage/DocsTab) Cue AI 필터
+
+4. **N+72-4 — Q docs default L3 + 공유 UI**:
+   - routes/posts.js default vlevel L1 → L3 (사용자 호소 "내가 공유한 문서가 삭제되었다고 떠")
+   - 리스트 RowVisChip (L1=slate/L2=amber/L4=rose/L3=teal)
+   - PublicPostPage 자동 redirect 제거 — "PlanQ 앱에서 열기" 버튼만 제공
+   - 책갈피/책 IconBtn → SecondaryBtn 텍스트 라벨 ("Q info 로", "템플릿")
+
+5. **N+72-5 — Q info RichEditor + sticky 헤더**:
+   - KnowledgePage TextArea → Tiptap RichEditor (modal + drawer 둘 다)
+   - TreePanel sticky top:8px → top:0 (body padding 보정)
+
+6. **N+72-6 — 알림 통합 (사용자 호소 핵심 "실시간 + 통일된 숫자 필수")**:
+   - backend GET /api/conversations/me/unread-total-all — 4 경로 합집합 (BusinessMember + clients.user_id + clients.invite_email + project_members)
+   - useUnreadTotal.ts 재작성 — 단일 모듈 캐시 + 단일 socket + ref-count cleanup (사이드바·OS badge·워크스페이스 selector 모두 같은 데이터)
+   - useUnreadByBusiness() 신규 hook — 워크스페이스별 unread 맵
+   - socket message:new 옵티미스틱 +1 + 50ms debounce reconcile + inbox:refresh + focus + visibilitychange 4 트리거
+   - WorkspaceSwitcher — Trigger OtherUnreadBadge (Coral) + 드롭다운 per-biz MenuUnreadBadge
+   - PushPromptBanner 전역 mount (옛: TodoPage 만) + granted-off 자동 silent re-subscribe + iOS Safari 비-PWA 안내
+   - Q Talk RightPanel — formatDate(due_date) + tStatus (qtask namespace) raw "not_started" 회귀 fix
+
+**DB 변경:**
+- external_connections 신규 테이블 (Phase 1 통합 모델)
+
+**검증:**
+- 0단계 28/28 ✓
+- 빌드 exit 0 (937ms)
+- API 실호출 5 케이스 (정상/익명/위조/ghost/멀티테넌트 격리) 통과
+- 운영 배포 121s, https://planq.kr/api/health 200 ✓
+
+**다음 사이클 (N+73+):**
+- **외부 공유 = 팀 + 개인 (1순위 — 사용자 강조)** — visibility L2 팀 공유 + share_token 외부 + 통합 ShareModal 4 자산 (Q task/file/info/calendar). 설계: project_share_system_unified.md, project_visibility_unified_arch.md, project_personal_vault.md
+- Q Mail M2 인박스 read-only UI (3컬럼 + iframe sandbox)
+- 외부 연동 Phase 2-4 — 개인 GCal/Gmail/Drive (owner_scope='user')
+- Settings → "Google 로그인 연결/해제" UI (API 존재)
+- Microsoft OAuth (Task B/D) — 한국 시장 후순위
 
 ---
 
