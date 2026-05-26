@@ -329,7 +329,9 @@
     "enable": "Turn on now",
     "enabling": "Enabling…",
     "errMsg": "Couldn't enable notifications: {{r}}",
-    "settings": "Notification settings"
+    "settings": "Notification settings",
+    "iosTitle": "iPhone notifications require installing the PlanQ app",
+    "iosDesc": "Tap Safari's share button → \"Add to Home Screen\" → notifications work in the installed PlanQ app"
   },
   "pwa": {
     "sectionTitle": "Install PlanQ app",

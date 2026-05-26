@@ -15,6 +15,67 @@ const isAdmin = (req) =>
   req.user?.platform_role === 'platform_admin' || req.businessRole === 'owner';
 
 // ─────────────────────────────────────────────────────────
+// 사이드바 전역 unread — 사용자의 모든 가입 워크스페이스 합산.
+// 사용자 호소 (2026-05-26): "다른 워크스페이스에 메시지 와도 사이드바에서 안 보임"
+// 응답: { total: 43, by_business: { 6: 35, 7: 8, 3: 0 } }
+// 라우트 정의 순서 — `/:businessId` 보다 먼저 (Express 순서 매칭, feedback_express_route_order.md)
+// ─────────────────────────────────────────────────────────
+router.get('/me/unread-total-all', authenticateToken, async (req, res, next) => {
+  try {
+    const uid = req.user.id;
+    // 1) 사용자가 접근 가능한 모든 워크스페이스 — 4 경로 합집합
+    //    (a) BusinessMember row
+    //    (b) clients.user_id (Client 가입형)
+    //    (c) clients.invite_email = user.email (이메일 초대형)
+    //    (d) project_members → projects.business_id (멤버 아닌데 프로젝트 참여)
+    const [bizRows] = await sequelize.query(
+      `SELECT business_id FROM business_members WHERE user_id = :uid
+       UNION
+       SELECT business_id FROM clients WHERE user_id = :uid
+       UNION
+       SELECT business_id FROM clients WHERE invite_email = (SELECT email FROM users WHERE id = :uid)
+       UNION
+       SELECT DISTINCT p.business_id FROM project_members pm
+         INNER JOIN projects p ON p.id = pm.project_id
+        WHERE pm.user_id = :uid`,
+      { replacements: { uid } }
+    );
+    const bizIds = bizRows.map(r => r.business_id).filter(Boolean);
+    if (bizIds.length === 0) return successResponse(res, { total: 0, by_business: {} });
+
+    // 2) 각 워크스페이스마다 conversationListWhere(권한 필터) 적용 → conv id 수집
+    const byBiz = {};
+    let total = 0;
+    for (const bizId of bizIds) {
+      // scope 인자 생략 → getUserScope() 자동 호출 (BusinessMember 자동 인식)
+      const baseWhere = await conversationListWhere(uid, bizId);
+      if (!baseWhere) continue;
+      const convs = await Conversation.findAll({
+        where: { ...baseWhere, status: 'active', archived_at: null },
+        attributes: ['id'],
+      });
+      const convIds = convs.map(c => c.id);
+      if (convIds.length === 0) { byBiz[bizId] = 0; continue; }
+      const [rows] = await sequelize.query(
+        `SELECT COUNT(m.id) AS cnt
+           FROM messages m
+           LEFT JOIN conversation_participants cp
+             ON cp.conversation_id = m.conversation_id AND cp.user_id = :uid
+          WHERE m.conversation_id IN (:cids)
+            AND m.sender_id != :uid
+            AND (m.is_deleted IS NULL OR m.is_deleted = 0)
+            AND (cp.last_read_at IS NULL OR m.created_at > cp.last_read_at)`,
+        { replacements: { uid, cids: convIds } }
+      );
+      const cnt = Number(rows[0]?.cnt || 0);
+      byBiz[bizId] = cnt;
+      total += cnt;
+    }
+    return successResponse(res, { total, by_business: byBiz });
+  } catch (err) { next(err); }
+});
+
+// ─────────────────────────────────────────────────────────
 // List conversations — client 면 자기 참여 대화방만
 // ─────────────────────────────────────────────────────────
 router.get('/:businessId', authenticateToken, attachWorkspaceScope(), async (req, res, next) => {

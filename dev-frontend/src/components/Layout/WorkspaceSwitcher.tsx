@@ -3,6 +3,7 @@ import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth, type WorkspaceMembership } from '../../contexts/AuthContext';
+import { useUnreadByBusiness } from '../../hooks/useUnreadTotal';
 
 /**
  * WorkspaceSwitcher (사이드바 전용)
@@ -44,6 +45,7 @@ interface Props {
 const WorkspaceSwitcher: React.FC<Props> = ({ collapsed }) => {
   const { t } = useTranslation('layout');
   const { user, switchWorkspace } = useAuth();
+  const unreadByBiz = useUnreadByBusiness();
   const location = useLocation();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
@@ -78,6 +80,13 @@ const WorkspaceSwitcher: React.FC<Props> = ({ collapsed }) => {
 
   // 옵션이 2개 이상이면 드롭다운 (워크스페이스 여러 개 OR platform_admin 추가)
   const multiple = workspaces.length > 1 || (isPlatformAdmin && workspaces.length >= 1);
+
+  // N+72-6 — 다른 워크스페이스(현재 active 제외) 의 총 unread. Trigger 에 dot/숫자 표시 → 사용자가
+  //          "다른 워크스페이스에 알림 있다" 인지. 드롭다운 안에서는 워크스페이스별 숫자 표시.
+  const otherWsUnread = workspaces.reduce((sum, w) => {
+    if (activeWs && w.business_id === activeWs.business_id) return sum;
+    return sum + (unreadByBiz[w.business_id] || 0);
+  }, 0);
 
   const roleLabel = (w: WorkspaceMembership) => t(ROLE_LABEL_KEY[w.role], ROLE_LABEL_FALLBACK[w.role]);
 
@@ -140,6 +149,11 @@ const WorkspaceSwitcher: React.FC<Props> = ({ collapsed }) => {
               <Name $admin={isAdminMode}>{currentName}</Name>
               <RolePill $admin={isAdminMode}>{currentSub}</RolePill>
             </Info>
+            {multiple && otherWsUnread > 0 && (
+              <OtherUnreadBadge title={t('switcher.otherUnread', '다른 워크스페이스 알림 {{n}}개', { n: otherWsUnread }) as string}>
+                {otherWsUnread > 99 ? '99+' : otherWsUnread}
+              </OtherUnreadBadge>
+            )}
             {multiple && (
               <Chevron viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" $open={open}>
                 <polyline points="6 9 12 15 18 9" />
@@ -174,6 +188,10 @@ const WorkspaceSwitcher: React.FC<Props> = ({ collapsed }) => {
                       <ItemName>{w.brand_name}</ItemName>
                       <ItemSub>{roleLabel(w)}</ItemSub>
                     </ItemBody>
+                    {(() => {
+                      const n = unreadByBiz[w.business_id] || 0;
+                      return n > 0 ? <MenuUnreadBadge>{n > 99 ? '99+' : n}</MenuUnreadBadge> : null;
+                    })()}
                     {isCurrent && (
                       <Check viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                         <polyline points="20 6 9 17 4 12" />
@@ -438,6 +456,24 @@ const Check = styled.svg`
   width: 14px;
   height: 14px;
   color: #5EEAD4;
+  flex-shrink: 0;
+`;
+// N+72-6 — 다른 워크스페이스 unread 숫자 (Trigger 의 chevron 옆)
+const OtherUnreadBadge = styled.span`
+  min-width: 18px; height: 18px; padding: 0 6px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: #F43F5E; color: #FFFFFF;
+  font-size: 10px; font-weight: 700;
+  border-radius: 999px;
+  flex-shrink: 0;
+`;
+// 드롭다운 안 워크스페이스별 unread 숫자
+const MenuUnreadBadge = styled.span`
+  min-width: 20px; height: 20px; padding: 0 7px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: #F43F5E; color: #FFFFFF;
+  font-size: 11px; font-weight: 700;
+  border-radius: 999px;
   flex-shrink: 0;
 `;
 const Spinner = styled.div`

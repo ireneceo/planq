@@ -106,6 +106,7 @@
     "adminSection": "System",
     "platformAdmin": "Platform Admin",
     "platformAdminSub": "All workspaces & users",
+    "otherUnread": "{{n}} notifications in other workspaces",
     "role": {
       "owner": "Admin",
       "member": "Member",

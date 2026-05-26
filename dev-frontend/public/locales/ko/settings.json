@@ -329,7 +329,9 @@
     "enable": "지금 켜기",
     "enabling": "켜는 중…",
     "errMsg": "알림 켜기 실패: {{r}}",
-    "settings": "알림 설정"
+    "settings": "알림 설정",
+    "iosTitle": "iPhone 알림은 PlanQ 앱 설치 후 가능",
+    "iosDesc": "Safari 하단 공유 버튼 → \"홈 화면에 추가\" → 추가된 PlanQ 앱에서 알림이 작동해요"
   },
   "pwa": {
     "sectionTitle": "PlanQ 앱으로 설치",

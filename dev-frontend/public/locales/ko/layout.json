@@ -107,6 +107,7 @@
     "adminSection": "시스템",
     "platformAdmin": "플랫폼 관리자",
     "platformAdminSub": "전체 워크스페이스·사용자",
+    "otherUnread": "다른 워크스페이스 알림 {{n}}개",
     "role": {
       "owner": "관리자",
       "member": "멤버",
