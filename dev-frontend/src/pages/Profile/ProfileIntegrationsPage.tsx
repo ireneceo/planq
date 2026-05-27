@@ -87,12 +87,39 @@ const ProfileIntegrationsPage: React.FC = () => {
       const r = await apiFetch(`/api/auth/oauth-connections/${id}`, { method: 'DELETE' });
       const j = await r.json();
       if (!j.success) {
-        setErrorMsg(j.message || (t('integrations.disconnectFailed', { defaultValue: '해제 실패' }) as string));
+        // backend 의 lockout 방어 메시지를 사용자 친화 한글로
+        const friendlyMap: Record<string, string> = {
+          cannot_remove_last_oauth_method_set_password_first:
+            t('integrations.disconnectLockoutWarn', { defaultValue: '비밀번호가 설정되지 않아 마지막 로그인 수단을 해제할 수 없어요. 먼저 프로필에서 비밀번호를 설정해주세요.' }) as string,
+        };
+        setErrorMsg(friendlyMap[j.message] || j.message || (t('integrations.disconnectFailed', { defaultValue: '해제 실패' }) as string));
         return;
       }
       await load();
     } catch (e) {
       setErrorMsg((e as Error).message);
+    }
+  };
+
+  // N+75-C — Google 연결 시작 (Settings 에서 신규 추가). backend POST /initiate → auth_url 받아 같은 창 redirect.
+  const [connectBusy, setConnectBusy] = useState(false);
+  const onConnectGoogle = async () => {
+    if (connectBusy) return;
+    setConnectBusy(true);
+    setErrorMsg(null);
+    try {
+      const r = await apiFetch('/api/auth/oauth-connections/google/initiate', { method: 'POST' });
+      const j = await r.json();
+      if (!j.success || !j.data?.auth_url) {
+        setErrorMsg(j.message || (t('integrations.connectFailed', { defaultValue: 'Google 연결 시작 실패' }) as string));
+        setConnectBusy(false);
+        return;
+      }
+      // Google OAuth redirect — 같은 탭. callback 완료 시 자동으로 PlanQ 로 복귀.
+      window.location.href = j.data.auth_url;
+    } catch (e) {
+      setErrorMsg((e as Error).message);
+      setConnectBusy(false);
     }
   };
 
@@ -117,7 +144,18 @@ const ProfileIntegrationsPage: React.FC = () => {
         <SectionSub>{t('integrations.loginSub', 'PlanQ 에 로그인할 때 사용하는 외부 계정') as string}</SectionSub>
         {oauthConns.length === 0 ? (
           <Empty>
-            {t('integrations.loginEmpty', '연결된 로그인 계정이 없어요. 로그아웃 후 "Google 로 계속" 으로 연결할 수 있어요.') as string}
+            <span>{t('integrations.loginEmpty2', { defaultValue: '연결된 로그인 계정이 없어요.' }) as string}</span>
+            <ConnectGoogleBtn type="button" onClick={onConnectGoogle} disabled={connectBusy}>
+              <GoogleG viewBox="0 0 18 18" aria-hidden="true">
+                <path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.875 2.684-6.615z"/>
+                <path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z"/>
+                <path fill="#FBBC05" d="M3.964 10.71A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.042l3.007-2.332z"/>
+                <path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z"/>
+              </GoogleG>
+              {connectBusy
+                ? t('integrations.connectingGoogle', { defaultValue: '연결 중…' }) as string
+                : t('integrations.connectGoogle', { defaultValue: 'Google 계정 연결' }) as string}
+            </ConnectGoogleBtn>
           </Empty>
         ) : (
           <ConnList>
@@ -134,6 +172,20 @@ const ProfileIntegrationsPage: React.FC = () => {
                 </DangerBtn>
               </ConnRow>
             ))}
+            {/* N+75-C — 추가 provider (Microsoft) 안내 + 같은 google 다른 계정 추가는 향후 */}
+            {!oauthConns.some(c => c.provider === 'google') && (
+              <ConnectGoogleBtn type="button" onClick={onConnectGoogle} disabled={connectBusy}>
+                <GoogleG viewBox="0 0 18 18" aria-hidden="true">
+                  <path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.875 2.684-6.615z"/>
+                  <path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z"/>
+                  <path fill="#FBBC05" d="M3.964 10.71A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.042l3.007-2.332z"/>
+                  <path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z"/>
+                </GoogleG>
+                {connectBusy
+                  ? t('integrations.connectingGoogle', { defaultValue: '연결 중…' }) as string
+                  : t('integrations.connectGoogle', { defaultValue: 'Google 계정 연결' }) as string}
+              </ConnectGoogleBtn>
+            )}
           </ConnList>
         )}
       </Section>
@@ -251,6 +303,26 @@ const DangerBtn = styled.button`
   cursor: pointer;
   &:hover { background: #FEF2F2; border-color: #FCA5A5; color: #991B1B; }
   &:focus-visible { outline: 2px solid #5EEAD4; outline-offset: 2px; }
+`;
+// N+75-C — Google 연결 버튼 (Empty / ConnList 둘 다 사용). Google 브랜드 가이드라인 정합.
+const ConnectGoogleBtn = styled.button`
+  display: inline-flex; align-items: center; gap: 10px;
+  height: 40px; padding: 0 16px;
+  background: #FFFFFF; color: #1F1F1F;
+  border: 1px solid #DADCE0; border-radius: 8px;
+  font-size: 14px; font-weight: 500;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, box-shadow 0.12s;
+  &:hover:not(:disabled) {
+    background: #F8FAFC; border-color: #CBD5E1;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.06);
+  }
+  &:disabled { opacity: 0.6; cursor: wait; }
+  &:focus-visible { outline: 2px solid #14B8A6; outline-offset: 2px; }
+`;
+const GoogleG = styled.svg`
+  width: 16px; height: 16px;
+  flex-shrink: 0;
 `;
 const DividerBox = styled.div`
   margin-top: 24px; padding: 16px 18px;
