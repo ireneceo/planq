@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { Link, useNavigate } from 'react-router-dom';
 import { useNotifications, type NotificationItem } from '../../hooks/useNotifications';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
+import { resolveNotificationLink } from '../../utils/notificationLink';
 
 interface Props {
   open: boolean;
@@ -42,7 +43,9 @@ const NotificationDropdown: React.FC<Props> = ({ open, onClose, anchorRef }) => 
 
   const handleClick = (item: NotificationItem) => {
     if (!item.read_at) markRead(item.id);
-    if (item.link) navigate(item.link);
+    // N+73 — Toaster 와 같은 라우팅 helper 사용. link 누락 시 entity_type/event_kind fallback.
+    const target = resolveNotificationLink(item);
+    navigate(target);
     onClose();
   };
 

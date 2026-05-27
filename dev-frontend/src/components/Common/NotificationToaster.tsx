@@ -15,14 +15,16 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useAuth, getAccessToken, apiFetch } from '../../contexts/AuthContext';
+import { notificationRowToToastLink, type NotificationFullRow } from '../../utils/notificationLink';
 
 interface Toast {
   id: string;
   type: 'message' | 'task' | 'invoice' | 'signature' | 'event' | 'system';
   title: string;
   body?: string;
-  link?: string;       // 클릭 시 이동
-  contextKey?: string; // 활성 페이지 매칭용 (예: conv:123, task:45)
+  link?: string;            // 클릭 시 이동 (resolveNotificationLink 통과한 값)
+  contextKey?: string;      // 활성 페이지 매칭용 (예: conv:123, task:45)
+  notificationId?: number;  // N+73 — DB Notification.id (있으면 닫기/클릭 시 mark-read 호출)
   ts: number;
 }
 
@@ -180,7 +182,16 @@ export default function NotificationToaster() {
   }, [location.pathname, location.search]);
 
   const dismiss = useCallback((id: string) => {
-    setToasts(prev => prev.filter(x => x.id !== id));
+    // N+73 — 닫기 시 DB Notification mark-read 호출. 좌측 BellDropdown 즉시 동기화.
+    setToasts(prev => {
+      const target = prev.find(x => x.id === id);
+      if (target?.notificationId) {
+        apiFetch(`/api/notifications/${target.notificationId}/read`, { method: 'PATCH' }).catch(() => null);
+        // 옵티미스틱 — 좌측 종 unread 즉시 -1 (socket notification:read 도 보강)
+        window.dispatchEvent(new CustomEvent('notification:refresh'));
+      }
+      return prev.filter(x => x.id !== id);
+    });
   }, []);
 
   // 사이클 N+16-C — 알림 매트릭스 prefs 캐시 (chat channel 검사용).
@@ -280,6 +291,56 @@ export default function NotificationToaster() {
     });
 
     // (제거) server:build → UpdateBanner forwarding — 사이클 N+3 회귀로 시스템 제거됨
+
+    // N+73 — backend notify() 가 emit 하는 full row notification:new. DB Notification.id 포함.
+    //   옛 raw event (message:new / task:new / ...) 와 같이 listen → 같은 알림이 둘 다 도착 가능.
+    //   → contextKey 또는 notificationId 로 dedup. notificationId 우선.
+    //   장점: notification_id 가 있으면 닫기 시 mark-read 호출 가능 → 좌측 BellDropdown 즉시 동기화.
+    s.on('notification:new', (row: NotificationFullRow) => {
+      const link = notificationRowToToastLink(row);
+      const typeMap: Record<string, Toast['type']> = {
+        message: 'message', mention: 'message', comment_mention: 'message',
+        task: 'task',
+        invoice: 'invoice', tax_invoice: 'invoice',
+        signature: 'signature',
+        event: 'event',
+      };
+      const toastType = typeMap[row.event_kind] || 'system';
+      // contextKey — 활성 페이지 매칭용 + 옛 raw event 와 dedup 키
+      let contextKey: string | undefined;
+      if (row.entity_type === 'conversation' && row.entity_id) contextKey = `conv:${row.entity_id}`;
+      else if (row.entity_type === 'task' && row.entity_id) contextKey = `task:${row.entity_id}`;
+      else if (row.entity_type === 'post' && row.entity_id) contextKey = `post:${row.entity_id}`;
+
+      // setToasts functional update — stale closure 회피 + dedup + 신규 추가 단일 처리
+      let didMatch = false;
+      setToasts(prev => {
+        // 1) 같은 notification_id 이미 있으면 skip
+        if (prev.some(t => t.notificationId === row.id)) { didMatch = true; return prev; }
+        // 2) 옛 raw event 로 만든 같은 contextKey toast 가 있으면 notificationId 채우기
+        if (contextKey) {
+          const idx = prev.findIndex(t => t.contextKey === contextKey && !t.notificationId);
+          if (idx >= 0) {
+            const updated = [...prev];
+            updated[idx] = { ...updated[idx], notificationId: row.id, link };
+            didMatch = true;
+            return updated;
+          }
+        }
+        return prev;
+      });
+      // setState 콜백 동기 실행 후 didMatch 검사 — 신규 toast 가 필요한 경우만 add (sound/skip 정책 적용)
+      if (!didMatch) {
+        add({
+          type: toastType,
+          title: row.title,
+          body: row.body || undefined,
+          link,
+          contextKey,
+          notificationId: row.id,
+        });
+      }
+    });
 
     s.on('connect_error', async (err) => {
       const msg = String((err as Error)?.message || '');
@@ -420,8 +481,9 @@ export default function NotificationToaster() {
         <ToastCard key={toast.id}
           $type={toast.type}
           onClick={() => {
-            if (toast.link) navigate(toast.link);
-            dismiss(toast.id);
+            // N+73 — toast.link 가 항상 정확 (Toaster 자체 link OR notification:new full row OR resolveNotificationLink fallback)
+            navigate(toast.link || '/notifications');
+            dismiss(toast.id);  // dismiss 가 mark-read 까지 처리
           }}
           role="alert"
         >
