@@ -31,52 +31,35 @@ session-state.md 읽고 이어서 개발해.
 
 ---
 
-## 다음 사이클 (N+73+) — 우선순위 순
+## 다음 사이클 (N+75+) — 우선순위 순
 
-### 🥇 1순위 — 외부 공유 = 팀 + 개인 (사용자 강조)
+### 🥇 1순위 — 명칭 통일 후속 (N+72-7 에서 Q docs 만 처리됨)
 
-> "외부공유 팀+개인 이게 제일 중요한데"
+- "공유 범위" → "공개" — Q file / Q info / Q calendar / Q task 4 자산 동일 적용
+- VisibilityBadge fullLabel 통일 ("워크스페이스 공개" 등)
+- 사용자 일관성 호소 (N+72-7 박제) 후속 작업
 
-**범위:**
-- visibility L2 (팀 비공개) 공유 — project_members 또는 명시 member 리스트
-- visibility L4 (외부) share_token — 만료 + revoke + 7일 미사용 NULL cron 이미 존재
-- 통합 ShareModal — Q task / Q file / Q info / Q calendar 4 자산 동일 UX
-- 개인 보관함 (L1) — Apple Photos 패턴: Single Source / Multiple Views
-
-**관련 설계 문서:**
-- `docs/SHARE_SYSTEM_UNIFIED.md` (project_share_system_unified.md memory)
-- `docs/VISIBILITY_VOCABULARY.md` (project_visibility_unified_arch.md memory)
-- `docs/PERSONAL_VAULT_DESIGN.md` (project_personal_vault.md memory)
-- `docs/SMART_ROUTING_DESIGN.md` (project_smart_routing_appfirst.md memory)
-
-**현재 상태:**
-- visibility 4단계 vocab 박제 완료 (L1/L2/L3/L4)
-- canAccess L4 회귀 fix 완료 (N+72)
-- Q docs default L3 변경 완료 (N+72-4)
-- 4 자산 visibility 컬럼 + filter 강제 완료
-- N+72 운영 DB `posts.target_member_ids` 컬럼 추가 완료 (N+72-7)
-- **남은 작업:** L2 팀 공유 UX 표준화 (target_member_ids selector + Audit) + 통합 ShareModal 컴포넌트 + 외부 share 만료 알림
-
-### 🥉 3순위 — Q Mail M2 인박스 read-only UI
+### 🥈 2순위 — Q Mail M2 인박스 read-only UI
 
 - MailPage 3컬럼 (계정·폴더·스레드 / 스레드 리스트 / 스레드 본문)
 - MailThreadList — pagination + filter (읽음/안읽음/답변필요/스팸)
 - MailThreadDetail — iframe sandbox (HTML 보안 격리) + 첨부 다운로드 + 답글 placeholder
 - 인박스(/inbox) 의 Q Mail 카드 통합
 
-### 4순위 — 외부 연동 Phase 2-4 (개인 자산)
+### 🥉 3순위 — 외부 연동 Phase 2-4 (개인 자산)
 
 - Phase 2: 개인 GCal (owner_scope='user')
 - Phase 3: 개인 Gmail (owner_scope='user', XOAUTH2)
 - Phase 4: 개인 Drive (owner_scope='user', drive.file scope)
 - ProfileIntegrationsPage 의 Phase 2-4 placeholder → 실 UI
 
-### 5순위 — 명칭 통일 후속 (N+72-7 에서 Q docs 만 처리됨)
+### 4순위 — 빌드 메모리 8GB 옵션 deploy 스크립트 박제
 
-- "공유 범위" → "공개" — Q file / Q info / Q calendar / Q task 모두 동일 적용
-- VisibilityBadge fullLabel 통일
+- N+74 배포 시 4GB OOM Kill → 수동 8GB 빌드 + rsync + restart 복구
+- scripts/deploy-planq.sh 에 NODE_OPTIONS='--max-old-space-size=8192' 환경변수 옵션 추가
+- 또는 deploy 시 시스템 메모리 확인 후 자동 설정
 
-### 6순위 — 기타
+### 5순위 — 기타
 
 - Settings → "Google 로그인 연결/해제" UI (backend API 존재)
 - Microsoft OAuth (Task B/D) — 한국 시장 후순위
@@ -85,10 +68,20 @@ session-state.md 읽고 이어서 개발해.
 
 ---
 
+## ✅ N+74 완료된 항목 (참조용)
+- 외부 공유 팀(L2) target_member_ids — files/posts 양쪽
+- canAccessFile/Post L2-members JSON_CONTAINS 분기
+- shareExpiryNotify D-3 자동 알림 cron
+- shareTokenCleanup 6 자산 확장
+- share_expiry event_kind 신규 + NotificationPref 매트릭스 등록
+- 알림 deep link 절대 URL → path 정규화 (운영 42건 backfill)
+
+---
+
 ## 환경
 
 - dev: dev.planq.kr / 87.106.11.184 / port 3003
-- prod: **planq.kr / 87.106.78.146 / port 3004** (v1.20.0 라이브)
+- prod: **planq.kr / 87.106.78.146 / port 3004** (v1.21.0 라이브)
 - DB: planq_dev_db (dev) / planq_admin (prod)
 - PM2: planq-dev-backend / planq-qnote (dev) · planq-prod-backend / planq-prod-qnote (prod)
 
