@@ -56,9 +56,11 @@ const VisibilityBadge: React.FC<Props> = ({ level, compact, onClick, size = 'sm'
   const { t } = useTranslation('common');
   if (!level) return null;
   const tk = TOKENS[level];
-  const label = t(`vault.vis.${level}`, { defaultValue: { L1: '개인', L2: '팀', L3: '워크스페이스', L4: '외부' }[level] }) as string;
+  // N+75 — 명칭 통일: 모든 visibility 표시는 "공개" 라는 단일 어휘로.
+  // 짧은 label (chip) + 긴 fullLabel (tooltip) 모두 통일 — Q file/Q docs/Q info/Q calendar/Q note 일관.
+  const label = t(`vault.vis.${level}`, { defaultValue: { L1: '나만', L2: '팀', L3: '워크스페이스', L4: '외부' }[level] }) as string;
   const fullLabel = t(`vault.visLong.${level}`, {
-    defaultValue: { L1: '본인만', L2: '프로젝트 멤버', L3: '워크스페이스 공개', L4: '외부 공개' }[level],
+    defaultValue: { L1: '나만 공개', L2: '팀 공개 (프로젝트/지정 멤버)', L3: '워크스페이스 공개', L4: '외부 공개 (링크)' }[level],
   }) as string;
 
   if (onClick) {

@@ -65,7 +65,7 @@
     "category": "분류",
     "project": "프로젝트",
     "projectNone": "프로젝트 없음",
-    "visibility": "공개 범위",
+    "visibility": "공개",
     "attendees": "참석자",
     "attendeesEmpty": "아직 추가된 참석자가 없습니다",
     "meetingUrl": "화상 미팅 링크",

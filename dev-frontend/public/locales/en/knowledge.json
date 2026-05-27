@@ -98,7 +98,7 @@
     "searchAttachHint": "Search files or documents...",
     "fileTagInline": "File",
     "postTagInline": "Doc",
-    "readPolicy": "Share scope",
+    "readPolicy": "Visibility",
     "policyAll": "Whole workspace",
     "policyAllHint": "Owner & members can read",
     "policyProject": "Specific project",

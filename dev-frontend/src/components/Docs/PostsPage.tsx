@@ -1056,9 +1056,9 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
                 <VisibilityChip
                   type="button"
                   onClick={() => setVisModalOpen(true)}
-                  title={t('visibility.change', '공유 범위 변경') as string}
+                  title={t('visibility.change', { defaultValue: '공개 범위 변경' }) as string}
                 >
-                  {t('visibility.label', '공유') as string}: {visLabel(detail.vlevel)}
+                  {t('visibility.label', { defaultValue: '공개' }) as string}: {visLabel(detail.vlevel)}
                 </VisibilityChip>
                 {detail.share_token && (
                   <ShareTag title={t('share.publicHint', '공개 링크가 활성화되어 있습니다') as string}>

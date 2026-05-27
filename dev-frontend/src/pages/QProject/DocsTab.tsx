@@ -763,10 +763,10 @@ const DocsTab: React.FC<Props> = (props) => {
                   <MetaKey>{t('docs.col.context', '출처')}</MetaKey><MetaVal>{preview.context.label}</MetaVal>
                 </MetaItem>}
               </MetaList>
-              {/* N+67 — 공유 범위 변경 UI (source='direct' 인 파일만 변경 가능. 채팅/업무 첨부는 상위 visibility 따름) */}
+              {/* N+67 — 공개 범위 변경 UI (source='direct' 인 파일만 변경 가능. 채팅/업무 첨부는 상위 visibility 따름) */}
               {preview.source === 'direct' && (
                 <VisibilitySection>
-                  <SectionLabel>{t('docs.visibility', '공유 범위')}</SectionLabel>
+                  <SectionLabel>{t('docs.visibility', { defaultValue: '공개' }) as string}</SectionLabel>
                   <VisibilityField
                     value={parseVisibility({
                       vlevel: preview.visibility ?? null,
