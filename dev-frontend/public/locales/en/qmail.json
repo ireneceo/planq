@@ -49,5 +49,26 @@
     "passwordRequired": "Enter the password",
     "passwordEditHint": "(Leave empty to keep current)",
     "optional": "Optional"
+  },
+  "folders": {
+    "title": "Mailboxes",
+    "reply_needed": "Reply needed",
+    "inbox": "Inbox",
+    "spam": "Spam",
+    "archived": "Archived"
+  },
+  "actions": {
+    "markSpam": "Mark spam",
+    "notSpam": "Not spam"
+  },
+  "selectWorkspace": "Select a workspace.",
+  "selectThread": "Select a thread",
+  "emptyFolder": "No mail in this folder",
+  "loading": "Loading…",
+  "me": "Me",
+  "messageCount": "{{n}} messages",
+  "replyHint": "Reply / send / labels — coming next cycle (M3).",
+  "errors": {
+    "loadList": "Failed to load inbox"
   }
 }

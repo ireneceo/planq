@@ -276,6 +276,8 @@ app.use('/api/users', require('./routes/users'));
 app.use('/api/businesses', require('./routes/businesses'));
 // Q Mail (Phase 9 — M1)
 app.use('/api/businesses', require('./routes/email_accounts'));
+// N+75-D — Q Mail M2 인박스 read-only API (email_threads list/detail/mark-read/mark-spam)
+app.use('/api/businesses', require('./routes/email_threads'));
 // OAuth 로그인 (Google / Microsoft)
 app.use('/api/auth', require('./routes/auth_oauth'));
 // 외부 연동 Phase 1 — 통합 (workspace + user scope)
