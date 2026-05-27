@@ -49,5 +49,26 @@
     "passwordRequired": "비밀번호를 입력하세요",
     "passwordEditHint": "(비워두면 기존 유지)",
     "optional": "선택"
+  },
+  "folders": {
+    "title": "메일함",
+    "reply_needed": "답변 필요",
+    "inbox": "인박스",
+    "spam": "스팸",
+    "archived": "보관"
+  },
+  "actions": {
+    "markSpam": "스팸으로",
+    "notSpam": "스팸 해제"
+  },
+  "selectWorkspace": "워크스페이스를 선택해 주세요.",
+  "selectThread": "스레드를 선택해 주세요",
+  "emptyFolder": "이 폴더에 메일이 없어요",
+  "loading": "불러오는 중…",
+  "me": "나",
+  "messageCount": "{{n}}개 메시지",
+  "replyHint": "답장 / 전송 / 라벨 기능은 다음 사이클(M3)에서 제공됩니다.",
+  "errors": {
+    "loadList": "인박스 로딩 실패"
   }
 }
