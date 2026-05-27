@@ -413,6 +413,12 @@ function scheduleNextMidnight() {
       const r = await shareCleanup.runShareTokenCleanup();
       console.log('[share-token-cleanup]', r);
     } catch (e) { console.warn('[share-token-cleanup] failed', e.message); }
+    // N+74-B — 공유 링크 만료 3일 전 author 에게 알림 (사용자 호소 "외부 share 만료 임박 알림")
+    try {
+      const shareExpiry = require('./services/shareExpiryNotify');
+      const r = await shareExpiry.runShareExpiryNotify(io);
+      console.log('[share-expiry-notify]', r);
+    } catch (e) { console.warn('[share-expiry-notify] failed', e.message); }
     scheduleNextMidnight();
   }, delay);
 }
