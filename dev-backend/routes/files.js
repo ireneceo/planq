@@ -573,7 +573,7 @@ router.post('/:businessId/:id/move', authenticateToken, checkBusinessAccess, asy
 // N+67 — L4 까지 통일. owner/admin 또는 uploader 본인만 변경 가능.
 router.put('/:businessId/:id/visibility', authenticateToken, attachWorkspaceScope(), async (req, res, next) => {
   try {
-    const { level, project_id } = req.body || {};
+    const { level, project_id, target_member_ids } = req.body || {};
     if (!['L1', 'L2', 'L3', 'L4'].includes(level)) return errorResponse(res, 'invalid_level', 400);
     const file = await File.findOne({
       where: { id: req.params.id, business_id: req.params.businessId, deleted_at: null }
@@ -583,27 +583,45 @@ router.put('/:businessId/:id/visibility', authenticateToken, attachWorkspaceScop
     const isOwner = req.scope.isOwner || req.scope.isPlatformAdmin || req.businessRole === 'admin';
     const isUploader = file.uploader_id === req.user.id;
     if (!isOwner && !isUploader) return errorResponse(res, 'forbidden', 403);
-    // L2 → project_id 필수
+    // N+74 — L2 = project_id 또는 target_member_ids 둘 중 하나 필수
     let nextProjectId = file.project_id;
+    let nextTargetMemberIds = null;
     if (level === 'L2') {
-      if (project_id) nextProjectId = Number(project_id);
-      if (!nextProjectId) return errorResponse(res, 'project_id_required_for_L2', 400);
-    } else if (level === 'L1' || level === 'L3' || level === 'L4') {
+      if (project_id) {
+        nextProjectId = Number(project_id);
+      } else if (Array.isArray(target_member_ids) && target_member_ids.length > 0) {
+        // L2-members 분기 — project_id 없이 명시 멤버 리스트
+        nextProjectId = null;
+        nextTargetMemberIds = target_member_ids.map(Number).filter(n => Number.isFinite(n));
+        if (nextTargetMemberIds.length === 0) return errorResponse(res, 'invalid_target_member_ids', 400);
+      } else {
+        return errorResponse(res, 'L2 는 project_id 또는 target_member_ids 중 하나 필요', 400);
+      }
+    } else {
+      // L1/L3/L4 — project_id, target_member_ids 모두 null
       nextProjectId = null;
+      nextTargetMemberIds = null;
     }
     const prevVisibility = file.visibility;
+    const prevVlevel = file.vlevel;
     const prevProjectId = file.project_id;
-    await file.update({ visibility: level, project_id: nextProjectId });
+    const prevTargetIds = file.target_member_ids;
+    // N+74 — vlevel + visibility 둘 다 갱신 (legacy 정합) + target_member_ids
+    await file.update({
+      vlevel: level,
+      visibility: level,
+      project_id: nextProjectId,
+      target_member_ids: nextTargetMemberIds,
+    });
     broadcastFile(req, file, 'file:updated');
-    // 사이클 N+51 — audit. visibility 변경 = 보안 critical (다른 사용자 노출 범위 변경)
     require('../services/auditService').logAudit(req, {
       action: 'file.visibility_change',
       targetType: 'file',
       targetId: file.id,
-      oldValue: { visibility: prevVisibility, project_id: prevProjectId },
-      newValue: { visibility: level, project_id: nextProjectId },
+      oldValue: { vlevel: prevVlevel, visibility: prevVisibility, project_id: prevProjectId, target_member_ids: prevTargetIds },
+      newValue: { vlevel: level, visibility: level, project_id: nextProjectId, target_member_ids: nextTargetMemberIds },
     });
-    successResponse(res, { id: file.id, visibility: level, project_id: nextProjectId });
+    successResponse(res, { id: file.id, vlevel: level, visibility: level, project_id: nextProjectId, target_member_ids: nextTargetMemberIds });
   } catch (err) { next(err); }
 });
 

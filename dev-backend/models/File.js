@@ -107,6 +107,18 @@ File.init({
     allowNull: true,
     defaultValue: null,
   },
+  // N+74 — vlevel 신컬럼 (Post/KbDocument 와 정합). visibility 는 legacy 유지 + 동시 갱신.
+  vlevel: {
+    type: DataTypes.ENUM('L1', 'L2', 'L3', 'L4'),
+    allowNull: true,
+    defaultValue: 'L3',
+  },
+  // N+74 — L2-members 분기 (project_id 없이 명시 멤버 리스트)
+  target_member_ids: {
+    type: DataTypes.JSON,
+    allowNull: true,
+    defaultValue: null,
+  },
   deleted_at: {
     type: DataTypes.DATE,
     allowNull: true
