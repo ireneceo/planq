@@ -99,6 +99,10 @@ async function notify({ userId, businessId, eventKind, title, body, link, ctaLab
   // N+63 — inbox 채널 실 처리 (알림 feed, Activity Feed). 옛 hardcoded true → 실 Notification.create.
   // NotificationPref event_kind × channel='inbox' 토글로 사용자가 받을 종류 선택 (기본 ON).
   // socket emit 'notification:new' → 좌측 사이드바 종 모양 즉시 +1.
+  // N+73 — link 자동 생성 (호출자가 link 미전달 시 entity_type+entity_id 매핑)
+  const { buildLink } = require('../services/notification_link');
+  const resolvedLink = link || buildLink({ entity_type: entityType, entity_id: entityId, event_kind: eventKind });
+
   if (await isAllowed(userId, businessId, eventKind, 'inbox')) {
     try {
       const { Notification } = require('../models');
@@ -108,18 +112,29 @@ async function notify({ userId, businessId, eventKind, title, body, link, ctaLab
         event_kind: eventKind,
         title: title || '(no title)',
         body: body || null,
-        link: link || null,
+        link: resolvedLink,
         cta_label: ctaLabel || null,
         actor_user_id: actorUserId || null,
         entity_type: entityType || null,
         entity_id: entityId || null,
       });
       results.inbox = !!row.id;
-      // 실시간 — `user:${userId}` room 으로 emit (multi-device sync).
-      // notify() 가 server.js req.app context 없는 곳 (cron 등) 에서도 호출됨 — ioApp 명시 전달 우선.
+      // N+73 — multi-device sync. socket emit 에 full row 포함 (옛: { id, kind } 만).
+      //   Toaster 가 받으면 notification_id 까지 알아 닫기 시 mark-read 호출 가능.
+      //   Dropdown 은 refresh API 호출로 갱신 — 이 payload 도 옵티미스틱 prepend 에 사용 가능.
       try {
         const io = ioApp || global.__planqIo || null;
-        if (io) io.to(`user:${userId}`).emit('notification:new', { id: row.id, kind: eventKind });
+        if (io) io.to(`user:${userId}`).emit('notification:new', {
+          id: row.id,
+          event_kind: eventKind,
+          title: row.title,
+          body: row.body,
+          link: row.link,
+          entity_type: row.entity_type,
+          entity_id: row.entity_id,
+          business_id: row.business_id,
+          created_at: row.createdAt || row.created_at,
+        });
       } catch { /* socket emit 실패해도 row 는 저장됨 */ }
     } catch (e) {
       console.error('[notify inbox]', e.message);
@@ -193,7 +208,7 @@ async function notify({ userId, businessId, eventKind, title, body, link, ctaLab
       const r = await sendPushToUser(userId, {
         title: title || 'PlanQ',
         body: body || '',
-        link: link || '/',
+        link: resolvedLink,  // N+73 — inbox 채널과 같은 link (호출자 미전달 시 buildLink 적용됨)
         tag: tag || `${eventKind}:${userId}`,
         ...(badge !== undefined ? { badge } : {}),
       });
