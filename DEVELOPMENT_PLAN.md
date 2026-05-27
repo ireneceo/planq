@@ -1,8 +1,8 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-05-27 사이클 N+74 — 외부 공유 = 팀(L2) + 만료 임박 알림 + share 4 자산 cleanup 확장
+> **최종 업데이트:** 2026-05-27 사이클 N+74 (A/B/C/D) — 외부 공유 팀(L2) + 만료 임박 알림 + 알림 deep link 절대 URL hotfix
 >
-> **직전 라이브:** **v1.21.0** (commit `2f108ed`, 2026-05-27) — N+74 외부 공유 팀(L2) 완성 (files vlevel/target_member_ids + L2-members JSON_CONTAINS + shareExpiryNotify D-3 + cleanup 4 자산 확장)
+> **직전 라이브:** **v1.21.0** (commit `468fcda`, 2026-05-27) — N+74 운영 라이브 + D hotfix (옛 알림 link 절대 URL 회귀 fix — 운영 42건 path 정규화 백필)
 >
 > **직전 라이브:** v1.20.1 (commit `fa26899`, 2026-05-27) — N+73 알림 시스템 통합 (notification_link helper backend+frontend mirror + Toaster 닫기=읽음 + Dropdown deep link 통일)
 >
@@ -21,6 +21,32 @@
 > **이전 라이브:** v1.16.1 (commit `8947504`) — N+31 사이클 (Q Talk 모바일 viewport 회귀 fix)
 >
 > **이전 라이브:** v1.16.0 (commit `ab113a6`) — N+26~N+27 사이클 (업무 흐름 Focus MVP + 인박스 inline 모달 + Cue 주고받음)
+
+---
+
+## ✅ 완료: 사이클 N+74 (A/B/C/D) — 외부 공유 팀(L2) + 만료 알림 + deep link hotfix (2026-05-27, 4 commit, 운영 라이브 v1.21.0)
+
+**Phase A (commit `7742988`):** files vlevel/target_member_ids + L2-members JSON_CONTAINS + PUT visibility 분기
+**Phase B (commit `0a7afd4`):** shareExpiryNotify D-3 cron + backfill_vlevel.js + PersonalVault 점검 (변경 X)
+**Phase C (commit `2f108ed`):** share_expiry event_kind 신규 + shareTokenCleanup 6 자산 확장
+**Phase D hotfix (commit `468fcda`):** 사용자 호소 "알림 클릭 링크 안 됨" — 옛 운영 알림 link 가 절대 URL 형식 ('https://planq.kr/talk?conv=X') → normalizeLink helper + 운영 backfill 42건 정규화
+
+**DB ALTER (자동/수동):**
+- files.vlevel ENUM + files.target_member_ids JSON (sync 자동)
+- posts.target_member_ids JSON (운영 수동 ALTER)
+- notifications.event_kind ENUM 에 'share_expiry' 추가 (sync 자동)
+
+**검증:** 헬스 28/28 / API 7/7 / normalizeLink 9/9 / 운영 hash 갱신 + PM2 v1.21.0 reload
+
+**회귀 박제 (다음 검증 시 우선 확인):**
+- N+73 deep link helper 추가 시 **운영 옛 데이터 sample 검증 누락** → 회귀 발견
+- 검증 패턴: 신규 코드 단위 통과 ≠ 옛 DB 데이터 호환. 운영 sample 1건 필수
+- 빌드 메모리 4GB → 8GB 상향 (배포 스크립트 옵션 추가 후속)
+
+**다음 사이클:**
+- Q Mail M2 인박스 read-only UI
+- 외부 연동 Phase 2-4 개인 자산
+- 명칭 통일 후속 (Q file/Q info/Q calendar/Q task)
 
 ---
 
