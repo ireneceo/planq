@@ -237,12 +237,31 @@ build_frontend() {
 
   cd "$DEV_FE"
   rm -rf node_modules/.cache 2>/dev/null || true
-  NODE_OPTIONS='--max-old-space-size=4096' npm run build 2>&1 | tail -5
 
-  if [ ! -f "$DEV_FE_BUILD/index.html" ]; then
-    error "Frontend build 실패 — $DEV_FE_BUILD/index.html 없음"
+  # N+75-B — 빌드 메모리 8GB 강제 (N+74 배포 사고 박제).
+  # 옛 4GB 로 OOM Killed → backend rsync 완료 + frontend 옛 빌드 그대로 → 미완성 배포 회귀.
+  # set -eu 가 pipe exit code 못 잡으니 PIPESTATUS 검사 + index.html mtime 사전·사후 비교로 이중 안전망.
+  BUILD_LOG="/tmp/planq-deploy-build-$(date +%s).log"
+  PRE_MTIME=$(stat -c %Y "$DEV_FE_BUILD/index.html" 2>/dev/null || echo 0)
+
+  NODE_OPTIONS='--max-old-space-size=8192' npm run build > "$BUILD_LOG" 2>&1
+  BUILD_EXIT=$?
+  tail -8 "$BUILD_LOG"
+
+  if [ $BUILD_EXIT -ne 0 ]; then
+    error "Frontend build 실패 (exit $BUILD_EXIT) — log: $BUILD_LOG"
     exit 1
   fi
+  if [ ! -f "$DEV_FE_BUILD/index.html" ]; then
+    error "Frontend build 실패 — $DEV_FE_BUILD/index.html 없음 (log: $BUILD_LOG)"
+    exit 1
+  fi
+  POST_MTIME=$(stat -c %Y "$DEV_FE_BUILD/index.html" 2>/dev/null || echo 0)
+  if [ "$POST_MTIME" = "$PRE_MTIME" ]; then
+    error "Frontend build 실패 — index.html mtime 갱신 안 됨 (옛 빌드 그대로). log: $BUILD_LOG"
+    exit 1
+  fi
+  rm -f "$BUILD_LOG"
   success "frontend 빌드 완료"
 }
 
