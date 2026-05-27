@@ -1,8 +1,10 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-05-27 사이클 N+73 — 알림 시스템 통합 (Toaster ↔ Dropdown ↔ OS badge 단일 source + deep link 통일 helper)
+> **최종 업데이트:** 2026-05-27 사이클 N+74 — 외부 공유 = 팀(L2) + 만료 임박 알림 + share 4 자산 cleanup 확장
 >
-> **직전 라이브:** **v1.20.1** (commit `fa26899`, 2026-05-27) — N+73 알림 시스템 통합 (notification_link helper backend+frontend mirror + Toaster 닫기=읽음 + Dropdown deep link 통일)
+> **직전 라이브:** **v1.21.0** (commit `2f108ed`, 2026-05-27) — N+74 외부 공유 팀(L2) 완성 (files vlevel/target_member_ids + L2-members JSON_CONTAINS + shareExpiryNotify D-3 + cleanup 4 자산 확장)
+>
+> **직전 라이브:** v1.20.1 (commit `fa26899`, 2026-05-27) — N+73 알림 시스템 통합 (notification_link helper backend+frontend mirror + Toaster 닫기=읽음 + Dropdown deep link 통일)
 >
 > **직전 라이브:** v1.20.0 (commit `028f9ef`, 2026-05-26) — N+71~N+72-6 운영 라이브 (8 commit 알림 통합 마무리 + 외부 연동 Phase 1 + visibility 회귀 전수 fix)
 >
