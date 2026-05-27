@@ -14,33 +14,39 @@ const { Op } = require('sequelize');
 const STALE_DAYS = 30;
 
 async function runShareTokenCleanup() {
-  const stats = { posts: 0, documents: 0, invoices: 0 };
+  // N+74-B — files/kb_documents/calendar_events 추가 (옛: posts/documents/invoices 만)
+  const stats = { posts: 0, documents: 0, invoices: 0, files: 0, kb_documents: 0, calendar_events: 0 };
   const cutoff = new Date(Date.now() - STALE_DAYS * 86400 * 1000);
-  const { Post, Document, Invoice } = require('../models');
+  const { Post, Document, Invoice, File, KbDocument, CalendarEvent } = require('../models');
 
-  try {
-    const [n] = await Post.update(
-      { share_token: null, shared_at: null },
-      { where: { share_token: { [Op.ne]: null }, shared_at: { [Op.lt]: cutoff } } }
-    );
-    stats.posts = n;
-  } catch (e) { console.warn('[share-cleanup posts]', e.message); }
+  const targets = [
+    { model: Post, key: 'posts', hasSharedAt: true },
+    { model: Document, key: 'documents', hasSharedAt: true },
+    { model: Invoice, key: 'invoices', hasSharedAt: true },
+    // N+74-B 신규 3 자산. shared_at 컬럼 없으면 share_expires_at 또는 updated_at 기준 (없으면 skip).
+    { model: File, key: 'files', hasSharedAt: false },
+    { model: KbDocument, key: 'kb_documents', hasSharedAt: false },
+    { model: CalendarEvent, key: 'calendar_events', hasSharedAt: false },
+  ];
 
-  try {
-    const [n] = await Document.update(
-      { share_token: null, shared_at: null },
-      { where: { share_token: { [Op.ne]: null }, shared_at: { [Op.lt]: cutoff } } }
-    );
-    stats.documents = n;
-  } catch (e) { console.warn('[share-cleanup documents]', e.message); }
-
-  try {
-    const [n] = await Invoice.update(
-      { share_token: null, shared_at: null },
-      { where: { share_token: { [Op.ne]: null }, shared_at: { [Op.lt]: cutoff } } }
-    );
-    stats.invoices = n;
-  } catch (e) { /* Invoice 에 share_token 없으면 skip */ }
+  for (const { model, key, hasSharedAt } of targets) {
+    try {
+      const where = { share_token: { [Op.ne]: null } };
+      if (hasSharedAt) {
+        where.shared_at = { [Op.lt]: cutoff };
+      } else {
+        // shared_at 없으면 updated_at 기준 — 30일간 손 안 댄 share 만 정리
+        where.updated_at = { [Op.lt]: cutoff };
+      }
+      const update = { share_token: null };
+      if (hasSharedAt) update.shared_at = null;
+      const [n] = await model.update(update, { where });
+      stats[key] = n;
+    } catch (e) {
+      // 컬럼/모델 불일치 시 skip
+      console.warn(`[share-cleanup ${key}]`, e.message);
+    }
+  }
 
   return stats;
 }

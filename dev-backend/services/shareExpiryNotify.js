@@ -47,14 +47,13 @@ async function runShareExpiryNotify(ioApp) {
       for (const row of rows) {
         const authorId = row[authorField];
         if (!authorId) { stats.skipped += 1; continue; }
-        // 이미 warn 발송했으면 skip
+        // 이미 share_expiry warn 발송했으면 skip (event_kind + entity 정확 매칭)
         const existing = await Notification.findOne({
           where: {
             user_id: authorId,
-            event_kind: 'signature',  // re-use event_kind (NotificationPref 매트릭스 등록된 종류 사용)
+            event_kind: 'share_expiry',
             entity_type,
             entity_id: row.id,
-            title: { [Op.like]: '[공유 링크 만료 임박]%' },
           },
         });
         if (existing) { stats.skipped += 1; continue; }
@@ -63,7 +62,7 @@ async function runShareExpiryNotify(ioApp) {
         await notify({
           userId: authorId,
           businessId: row.business_id,
-          eventKind: 'signature',  // 'share_expiry' event_kind 신규 추가 시 향후 정합
+          eventKind: 'share_expiry',  // N+74-B 신규 event_kind — NotificationPref 매트릭스에서 사용자가 별도 토글 가능
           title: `[공유 링크 만료 임박] ${row[titleField] || '(제목 없음)'}`,
           body: `외부 공유 링크가 ${daysLeft}일 후 만료됩니다. 갱신하려면 다시 공유해주세요.`,
           entityType: entity_type,
