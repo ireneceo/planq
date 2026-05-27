@@ -36,10 +36,32 @@ const EVENT_KIND_FALLBACK: Record<string, () => string> = {
   feedback: () => `/admin/feedback`,
 };
 
+// N+74-D fix — backend 옛 notify 호출자가 'https://planq.kr/talk?conv=3' 같은 절대 URL 을
+// link 에 저장한 경우 react-router navigate() 가 외부 link 처리 → 클릭 시 작동 안 됨.
+// 같은 도메인 (planq.kr / dev.planq.kr / localhost) 이면 path 부분만 추출.
+function normalizeLink(link: string): string | null {
+  if (typeof link !== 'string' || !link) return null;
+  // 이미 path 형식 + 의미 있는 경로
+  if (link.startsWith('/') && link !== '/') return link;
+  // 절대 URL — 같은 도메인이면 path 추출
+  if (link.startsWith('http://') || link.startsWith('https://')) {
+    try {
+      const u = new URL(link);
+      const sameDomain = ['planq.kr', 'www.planq.kr', 'dev.planq.kr', 'localhost', '127.0.0.1'].includes(u.hostname);
+      if (sameDomain) {
+        const path = u.pathname + u.search + u.hash;
+        return path && path !== '/' ? path : null;
+      }
+    } catch { /* invalid URL */ }
+  }
+  return null;
+}
+
 export function resolveNotificationLink(ctx: NotificationLinkContext): string {
-  // 1) DB Notification.link 가 있고 유효한 path 면 그대로 사용
-  if (ctx.link && typeof ctx.link === 'string' && ctx.link.startsWith('/') && ctx.link !== '/') {
-    return ctx.link;
+  // 1) DB Notification.link 가 유효한 path 또는 같은 도메인 URL 이면 path 로 정규화
+  if (ctx.link) {
+    const normalized = normalizeLink(ctx.link);
+    if (normalized) return normalized;
   }
   // 2) entity_type + entity_id 매핑
   if (ctx.entity_type && ctx.entity_id && ENTITY_LINK[ctx.entity_type]) {

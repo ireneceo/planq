@@ -101,8 +101,10 @@ async function notify({ userId, businessId, eventKind, title, body, link, ctaLab
   // NotificationPref event_kind × channel='inbox' 토글로 사용자가 받을 종류 선택 (기본 ON).
   // socket emit 'notification:new' → 좌측 사이드바 종 모양 즉시 +1.
   // N+73 — link 자동 생성 (호출자가 link 미전달 시 entity_type+entity_id 매핑)
-  const { buildLink } = require('../services/notification_link');
-  const resolvedLink = link || buildLink({ entity_type: entityType, entity_id: entityId, event_kind: eventKind });
+  // N+74-D — 호출자가 절대 URL 전달 시 path 로 정규화 (옛 코드의 'https://planq.kr/...' 차단)
+  const { buildLink, normalizeLink } = require('../services/notification_link');
+  const normalizedFromCaller = normalizeLink(link);
+  const resolvedLink = normalizedFromCaller || buildLink({ entity_type: entityType, entity_id: entityId, event_kind: eventKind });
 
   if (await isAllowed(userId, businessId, eventKind, 'inbox')) {
     try {

@@ -53,4 +53,23 @@ function buildLink({ entity_type, entity_id, event_kind } = {}) {
   return '/';
 }
 
-module.exports = { buildLink, ENTITY_LINK, EVENT_KIND_FALLBACK };
+// N+74-D — backend notify() 호출자가 절대 URL ('https://planq.kr/talk?conv=3') 을 link 인자로
+// 전달하는 옛 코드 보호. frontend react-router navigate() 가 외부 link 처리되어 클릭 시 작동 안 됨.
+// 같은 도메인이면 path 부분만 추출. 옛 호출자가 그대로 'https://planq.kr/...' 넘겨도 OK.
+const SAME_DOMAINS = new Set(['planq.kr', 'www.planq.kr', 'dev.planq.kr', 'localhost', '127.0.0.1']);
+function normalizeLink(link) {
+  if (typeof link !== 'string' || !link) return null;
+  if (link.startsWith('/') && link !== '/') return link;
+  if (link.startsWith('http://') || link.startsWith('https://')) {
+    try {
+      const u = new URL(link);
+      if (SAME_DOMAINS.has(u.hostname)) {
+        const path = u.pathname + u.search + u.hash;
+        return path && path !== '/' ? path : null;
+      }
+    } catch { /* invalid */ }
+  }
+  return null;
+}
+
+module.exports = { buildLink, normalizeLink, ENTITY_LINK, EVENT_KIND_FALLBACK };
