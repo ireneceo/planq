@@ -346,7 +346,7 @@ const EventDrawer: React.FC<Props> = ({
             {canEdit && (
               <Grid2>
                 <Field style={{ gridColumn: '1 / -1' }}>
-                  <FieldLabel>{t('form.visibility', '공개 범위')}</FieldLabel>
+                  <FieldLabel>{t('form.visibility', { defaultValue: '공개' }) as string}</FieldLabel>
                   {/* N+66 — 통합 VisibilityField (NewEventModal · KnowledgePage 정합). 옛 personal/business 2 select 폐지. */}
                   <VisibilityField
                     value={parseVisibility({

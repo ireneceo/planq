@@ -814,7 +814,7 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
                       options={CATEGORIES.map(c => ({ value: c, label: t(`cat.${c}`) as string }))} />
                   </MetaEditWrap>
                   {/* N+65 — 상세 패널 visibility 통합 (등록 모달과 동일 VisibilityField). 옛 scope/project/client/read_policy 4 row 폐지. */}
-                  <MetaLabel>{t('drawer.visibility', '공유 범위')}</MetaLabel>
+                  <MetaLabel>{t('drawer.visibility', { defaultValue: '공개' }) as string}</MetaLabel>
                   <MetaEditWrap style={{ gridColumn: '1 / -1' }}>
                     <VisibilityField
                       value={parseVisibility({
@@ -1288,9 +1288,9 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
                 />
               </Field>
 
-              {/* 5) 공유 범위 — N+65 VisibilityField 공통 컴포넌트 (등록·상세 동일 UI) */}
+              {/* 5) 공개 범위 — N+65 VisibilityField 공통 컴포넌트 (등록·상세 동일 UI) */}
               <Field>
-                <Label>{t('modal.readPolicy', '공유 범위')}</Label>
+                <Label>{t('modal.readPolicy', { defaultValue: '공개' }) as string}</Label>
                 <VisibilityField
                   value={{
                     vlevel: draft.vlevel,
