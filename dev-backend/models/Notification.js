@@ -16,10 +16,11 @@ Notification.init({
   user_id: { type: DataTypes.INTEGER, allowNull: false },
   business_id: { type: DataTypes.INTEGER, allowNull: true },
   event_kind: {
-    // NotificationPref 의 ENUM 과 동일 — 13종. 신규 종류 추가 시 양쪽 같이 갱신.
+    // NotificationPref 의 ENUM 과 동일 — 신규 종류 추가 시 양쪽 같이 갱신.
+    // N+74-B — 'share_expiry' 추가 (외부 공유 링크 만료 임박 알림)
     type: DataTypes.ENUM(
       'signature', 'invoice', 'tax_invoice', 'task', 'event', 'invite',
-      'message', 'mention', 'comment_mention',
+      'message', 'mention', 'comment_mention', 'share_expiry',
       'inquiry', 'signup', 'payment', 'subscription', 'trial', 'feedback',
     ),
     allowNull: false,
