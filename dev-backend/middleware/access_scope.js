@@ -12,6 +12,7 @@
 //   platform_admin → 모든 워크스페이스 통과
 
 const { Op } = require('sequelize');
+const { sequelize } = require('../config/database');
 const {
   BusinessMember, Client, ProjectClient, ConversationParticipant,
   Conversation, Project, ProjectMember, TaskReviewer,
@@ -289,21 +290,28 @@ async function canAccessPost(userId, post, scope) {
 //   신규 헬퍼는 "ByLevel" suffix — 단계적 도입 (라우트 별로 교체).
 // ─────────────────────────────────────────────
 
-// File — L1=uploader, L2=project_id IN projectMemberIds, L3=workspace member, L4=workspace member (share_token 은 public route 별도)
+// File — N+74 vlevel 컬럼 우선 (legacy visibility 도 fallback). Post 와 동일 정책.
+//   L1=uploader / L2=project_id 또는 target_member_ids / L3=workspace / L4=workspace member + share_token
 async function canAccessFileByLevel(userId, file, scope) {
   if (!file) return false;
   if (!scope) scope = await getUserScope(userId, file.business_id);
   if (scope.isPlatformAdmin) return true;
   // 본인 업로드 무조건 OK
   if (file.uploader_id === userId) return true;
-  const v = file.visibility;
+  // N+74 — vlevel 신컬럼 우선, legacy visibility fallback
+  const v = file.vlevel || file.visibility;
   if (v === 'L1') return false;
-  // N+72 fix — L4 도 워크스페이스 멤버는 보여야 (옛 false 회귀, "삭제됨" 표시 원인)
+  // L4 도 워크스페이스 멤버는 보여야 (N+72 fix)
   if (v === 'L4') return scope.isOwner || scope.isMember;
   if (v === 'L3') return scope.isOwner || scope.isMember;
   if (v === 'L2') {
     if (file.project_id) {
       return (scope.projectMemberIds || []).includes(file.project_id) || scope.isOwner;
+    }
+    // N+74 — L2-members 분기 (target_member_ids)
+    const targetIds = Array.isArray(file.target_member_ids) ? file.target_member_ids : [];
+    if (targetIds.length > 0) {
+      return targetIds.includes(userId) || scope.isOwner;
     }
     return scope.isOwner || scope.isMember;
   }
@@ -313,16 +321,27 @@ async function canAccessFileByLevel(userId, file, scope) {
 function fileListWhereByLevel(scope) {
   if (scope.isPlatformAdmin) return { business_id: scope.businessId };
   const conds = [];
-  conds.push({ visibility: 'L1', uploader_id: scope.userId });
+  // L1 — 본인 업로드 (vlevel 또는 legacy visibility)
+  conds.push({ [Op.or]: [{ vlevel: 'L1' }, { visibility: 'L1' }], uploader_id: scope.userId });
   if (scope.isOwner || scope.isMember) {
+    // L3 / L4 / legacy null — 워크스페이스 멤버는 모두 OK
+    conds.push({ vlevel: 'L3' });
+    conds.push({ vlevel: 'L4' });
     conds.push({ visibility: 'L3' });
-    conds.push({ visibility: 'L4' });  // N+72 fix — L4 도 워크스페이스 멤버 list 에 보여야
-    conds.push({ visibility: null });
+    conds.push({ visibility: 'L4' });
+    conds.push({ vlevel: null, visibility: null });
   }
   if (scope.isOwner) {
+    conds.push({ vlevel: 'L2' });
     conds.push({ visibility: 'L2' });
-  } else if ((scope.projectMemberIds || []).length > 0) {
-    conds.push({ visibility: 'L2', project_id: { [Op.in]: scope.projectMemberIds } });
+  } else {
+    // L2 — project_id 매칭 OR target_member_ids 안 본인 포함
+    if ((scope.projectMemberIds || []).length > 0) {
+      conds.push({ vlevel: 'L2', project_id: { [Op.in]: scope.projectMemberIds } });
+      conds.push({ visibility: 'L2', project_id: { [Op.in]: scope.projectMemberIds } });
+    }
+    // N+74 — L2-members (target_member_ids JSON contains userId). MySQL JSON_CONTAINS 사용.
+    conds.push(sequelize.literal(`vlevel = 'L2' AND JSON_CONTAINS(target_member_ids, '${Number(scope.userId)}')`));
   }
   if (conds.length === 0) return { business_id: scope.businessId, id: { [Op.in]: [-1] } };
   return { business_id: scope.businessId, [Op.or]: conds };
@@ -373,6 +392,10 @@ function postListWhereByLevel(scope) {
     conds.push({ vlevel: 'L2' });
   } else if ((scope.projectMemberIds || []).length > 0) {
     conds.push({ vlevel: 'L2', project_id: { [Op.in]: scope.projectMemberIds } });
+  }
+  // N+74 — L2-members (target_member_ids JSON 에 본인 포함). owner 는 위에서 이미 통과
+  if (!scope.isOwner) {
+    conds.push(sequelize.literal(`vlevel = 'L2' AND JSON_CONTAINS(target_member_ids, '${Number(scope.userId)}')`));
   }
   if (conds.length === 0) return { business_id: scope.businessId, id: { [Op.in]: [-1] } };
   return { business_id: scope.businessId, [Op.or]: conds };
