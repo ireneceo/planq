@@ -1,8 +1,10 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-05-27 사이클 N+74 (A/B/C/D) — 외부 공유 팀(L2) + 만료 임박 알림 + 알림 deep link 절대 URL hotfix
+> **최종 업데이트:** 2026-05-27 사이클 N+75 (A/B/C/D) — 명칭 통일 + deploy OOM 차단 + Settings Google 연결 + Q Mail M2 인박스 read-only
 >
-> **직전 라이브:** **v1.21.0** (commit `468fcda`, 2026-05-27) — N+74 운영 라이브 + D hotfix (옛 알림 link 절대 URL 회귀 fix — 운영 42건 path 정규화 백필)
+> **직전 라이브:** **v1.22.0** (commit `6b52029`, 2026-05-27) — N+75 운영 라이브 (Q Mail M2 인박스 + Settings Google 연결 + 명칭 통일 + deploy 8GB)
+>
+> **직전 라이브:** v1.21.0 (commit `468fcda`, 2026-05-27) — N+74 운영 라이브 + D hotfix (옛 알림 link 절대 URL 회귀 fix — 운영 42건 path 정규화 백필)
 >
 > **직전 라이브:** v1.20.1 (commit `fa26899`, 2026-05-27) — N+73 알림 시스템 통합 (notification_link helper backend+frontend mirror + Toaster 닫기=읽음 + Dropdown deep link 통일)
 >
@@ -21,6 +23,23 @@
 > **이전 라이브:** v1.16.1 (commit `8947504`) — N+31 사이클 (Q Talk 모바일 viewport 회귀 fix)
 >
 > **이전 라이브:** v1.16.0 (commit `ab113a6`) — N+26~N+27 사이클 (업무 흐름 Focus MVP + 인박스 inline 모달 + Cue 주고받음)
+
+---
+
+## ✅ 완료: 사이클 N+75 (A/B/C/D) — 명칭 통일 + deploy OOM 차단 + Google 연결 UI + Q Mail M2 (2026-05-27, 4 commit, 운영 라이브 v1.22.0)
+
+**Phase A (commit `8a860c5`):** 명칭 통일 — "공유/공개 범위" → "공개" 5 자산 (VisibilityBadge + DocsTab + KnowledgePage 2곳 + EventDrawer + PostsPage) + i18n ko/en
+**Phase B (commit `67b7ef6`):** deploy 스크립트 OOM 차단 — NODE_OPTIONS 4GB → 8GB + pipe 제거 + PRE/POST mtime 3중 안전망 (N+74 Killed 회귀 방지)
+**Phase C (commit `02c3ed0`):** Settings ProfileIntegrationsPage — Google 로그인 연결 UI 활성화 (backend API 이미 있었으나 frontend 연결 버튼 누락 — 사용자가 막힌 상태) + Google 브랜드 4색 G + 친화 에러
+**Phase D (commit `6b52029`):** Q Mail M2 인박스 read-only — backend routes/email_threads.js (list/detail/mark-read/mark-spam/mark-not-spam, requireMenu+멀티테넌트) + frontend MailPage 3컬럼 (폴더트리 / 리스트 / iframe sandbox 상세) + URL 싱크 + 반응형
+
+**검증:** 헬스 28/28 / 빌드 8GB 0건 OOM / API 통합 7/7 / 7 페이지 200 / 운영 verify ✓
+
+**다음 사이클 (N+76+):**
+- Q Mail M3 — 답장 (Tiptap + SMTP) + 라벨 / 스타 / 할당 + AI 답변 제안 (Cue)
+- 외부 연동 Phase 2-4 개인 자산 (개인 GCal/Gmail/Drive)
+- AdminAuditLogs 보강 후속
+- 사용자별 알림 매트릭스 UI 보강 (NotificationPref)
 
 ---
 

@@ -1,7 +1,7 @@
 # PlanQ 세션 상태
 
-**마지막 업데이트:** 2026-05-27 07:05 (사이클 N+74 A/B/C/D 완료)
-**작업 상태:** 완료 — v1.21.0 운영 라이브 (commit `468fcda` + 운영 backfill 42건)
+**마지막 업데이트:** 2026-05-27 20:00 (사이클 N+75 A/B/C/D 완료)
+**작업 상태:** 완료 — v1.22.0 운영 라이브 (commit `6b52029` + N+75-B OOM 차단 첫 검증 통과)
 
 ---
 
@@ -33,33 +33,26 @@ session-state.md 읽고 이어서 개발해.
 
 ## 다음 사이클 (N+75+) — 우선순위 순
 
-### 🥇 1순위 — 명칭 통일 후속 (N+72-7 에서 Q docs 만 처리됨)
+### 🥇 1순위 — Q Mail M3 답장 / 라벨 / 할당 / AI 답변
 
-- "공유 범위" → "공개" — Q file / Q info / Q calendar / Q task 4 자산 동일 적용
-- VisibilityBadge fullLabel 통일 ("워크스페이스 공개" 등)
-- 사용자 일관성 호소 (N+72-7 박제) 후속 작업
+- 답장 (Tiptap RichEditor + AttachmentField + SMTP 전송)
+- 라벨 / 스타 / 할당 (assignee_user_id) / 팔로우
+- AI 답변 제안 (Cue 통합 — KbDocument 참조 FAQ)
+- email_threads.js mutation 라우트 socket broadcast 추가 (M2 read-only 라 0)
 
-### 🥈 2순위 — Q Mail M2 인박스 read-only UI
-
-- MailPage 3컬럼 (계정·폴더·스레드 / 스레드 리스트 / 스레드 본문)
-- MailThreadList — pagination + filter (읽음/안읽음/답변필요/스팸)
-- MailThreadDetail — iframe sandbox (HTML 보안 격리) + 첨부 다운로드 + 답글 placeholder
-- 인박스(/inbox) 의 Q Mail 카드 통합
-
-### 🥉 3순위 — 외부 연동 Phase 2-4 (개인 자산)
+### 🥈 2순위 — 외부 연동 Phase 2-4 (개인 자산)
 
 - Phase 2: 개인 GCal (owner_scope='user')
 - Phase 3: 개인 Gmail (owner_scope='user', XOAUTH2)
 - Phase 4: 개인 Drive (owner_scope='user', drive.file scope)
 - ProfileIntegrationsPage 의 Phase 2-4 placeholder → 실 UI
 
-### 4순위 — 빌드 메모리 8GB 옵션 deploy 스크립트 박제
+### 🥉 3순위 — FAQ 자동 클러스터링 (Q Mail M4)
 
-- N+74 배포 시 4GB OOM Kill → 수동 8GB 빌드 + rsync + restart 복구
-- scripts/deploy-planq.sh 에 NODE_OPTIONS='--max-old-space-size=8192' 환경변수 옵션 추가
-- 또는 deploy 시 시스템 메모리 확인 후 자동 설정
+- email_faq_suggestions 라우트 (Q_MAIL_SPEC §3.6)
+- 사용자가 자주 답하는 패턴 → KbDocument 자동 등록 제안
 
-### 5순위 — 기타
+### 4순위 — 기타
 
 - Settings → "Google 로그인 연결/해제" UI (backend API 존재)
 - Microsoft OAuth (Task B/D) — 한국 시장 후순위
