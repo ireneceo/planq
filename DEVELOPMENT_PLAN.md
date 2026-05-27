@@ -1,8 +1,10 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-05-26 사이클 N+71~N+72-6 — Q Talk 리스트 unread 실시간 회귀 fix + 외부 연동 Phase 1 통합 모델 + visibility/공유 권한 전수 검사 + Q docs default L3 + Q info RichEditor + 알림 통합 (전 워크스페이스 합산 + 실시간 + 워크스페이스 selector dot)
+> **최종 업데이트:** 2026-05-27 사이클 N+73 — 알림 시스템 통합 (Toaster ↔ Dropdown ↔ OS badge 단일 source + deep link 통일 helper)
 >
-> **직전 라이브:** **v1.20.0** (commit `028f9ef`, 2026-05-26) — N+71~N+72-6 운영 라이브 (8 commit 알림 통합 마무리 + 외부 연동 Phase 1 + visibility 회귀 전수 fix)
+> **직전 라이브:** **v1.20.1** (commit `fa26899`, 2026-05-27) — N+73 알림 시스템 통합 (notification_link helper backend+frontend mirror + Toaster 닫기=읽음 + Dropdown deep link 통일)
+>
+> **직전 라이브:** v1.20.0 (commit `028f9ef`, 2026-05-26) — N+71~N+72-6 운영 라이브 (8 commit 알림 통합 마무리 + 외부 연동 Phase 1 + visibility 회귀 전수 fix)
 >
 > **직전 라이브:** v1.19.1 (commit `4f33541`, 2026-05-25) — N+68+N+69 운영 라이브 (visibility 통일 마무리 / Q Mail 기획 / SaaS readiness alias / Smart Routing 1차)
 >
@@ -20,7 +22,51 @@
 
 ---
 
-## ✅ 완료: 사이클 N+71~N+72-6 — 알림 통합 + 외부 연동 Phase 1 + visibility 회귀 전수 fix (2026-05-26, 8 commit, 운영 라이브 v1.20.0)
+## ✅ 완료: 사이클 N+73 — 알림 시스템 통합 (2026-05-27, 1 commit, 운영 라이브 v1.20.1)
+
+**사용자 호소 (2026-05-26):**
+- "우측 알림 배너랑 좌측 알림종 드롭다운 숫자가 동기화 안 됨. 닫거나 클릭하면 둘 다 읽음 처리되어야"
+- "알림 내용 누르면 링크가 다 제대로 안 걸리고 랜딩페이지로 가는데, 우측 토스터는 잘 감"
+
+**핵심 산출물:**
+
+1. **통합 라우팅 helper (backend + frontend mirror)**:
+   - `services/notification_link.js` — buildLink({entity_type, entity_id, event_kind})
+   - `utils/notificationLink.ts` — resolveNotificationLink + notificationRowToToastLink
+   - 11 매핑 통과: conversation/task/post/file/invoice/signature_request/calendar_event/kb_document + invite/inquiry/signup/payment/subscription/trial/feedback
+
+2. **backend (routes/notifications.js)**:
+   - notify() link 자동 생성 — 호출자 link 미전달 시 buildLink 호출
+   - socket 'notification:new' full row emit (옛: {id,kind} 만 → id/event_kind/title/body/link/entity_type/entity_id/business_id/created_at 전체)
+   - push 채널 link 도 resolvedLink 통일
+
+3. **frontend NotificationDropdown**:
+   - resolveNotificationLink fallback — item.link 없으면 entity_type/event_kind 매핑
+   - 옛 `if (item.link) navigate(...)` (없으면 navigate 호출 X) → 항상 안전한 path 진입
+
+4. **frontend NotificationToaster**:
+   - Toast interface 에 notificationId 추가
+   - socket 'notification:new' listen + dedup (notificationId / contextKey)
+   - 옛 raw event (message:new/task:new) 와 매칭 시 notificationId 채우기
+   - dismiss() — notificationId 있으면 PATCH /:id/read + 'notification:refresh' dispatch → 좌측 종 즉시 동기화
+   - 클릭 시 toast.link || '/notifications' (랜딩 fallback 차단)
+
+**검증:**
+- buildLink 단위 11/11
+- notify() 통합 3/3 (auto/explicit/fallback)
+- API 통합 5/5 (목록/IDOR 404/익명 401/unread-count/read-all)
+- Socket 4 요소 (a/b/c/d) 모두 정합
+- 빌드 1.23s exit 0
+- 6 페이지 SPA 라우팅 200
+
+**다음 사이클 (N+74+):**
+- 외부 공유 = 팀(L2) + 개인(L1) — 사용자 1순위 강조
+- Q Mail M2 인박스 read-only UI
+- 외부 연동 Phase 2-4 개인 자산
+
+---
+
+## ✅ 완료: 사이클 N+71~N+72-7 — 알림 통합 + 외부 연동 Phase 1 + visibility 회귀 전수 fix + Q docs UX (2026-05-26, 9 commit, 운영 라이브 v1.20.0)
 
 **핵심 산출물:**
 
