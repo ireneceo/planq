@@ -1,7 +1,7 @@
 # PlanQ 세션 상태
 
-**마지막 업데이트:** 2026-05-26 06:58 (사이클 N+71~N+72-6 완료)
-**작업 상태:** 완료 — v1.20.0 운영 라이브 (commit `028f9ef`)
+**마지막 업데이트:** 2026-05-27 04:28 (사이클 N+73 완료)
+**작업 상태:** 완료 — v1.20.1 운영 라이브 (commit `fa26899`)
 
 ---
 
@@ -33,24 +33,7 @@ session-state.md 읽고 이어서 개발해.
 
 ## 다음 사이클 (N+73+) — 우선순위 순
 
-### 🥇 1순위 — 알림 시스템 동기화 + 클릭 링크 회귀 fix (사용자 호소 2026-05-26)
-
-> "우측 상단 알림 배너랑 좌측 알림종 드롭다운 숫자가 동기화 안 됨. 닫거나 클릭하면 둘 다 읽음 처리되어야"
-> "알림 내용 누르면 링크가 다 제대로 안 걸리고 랜딩페이지로 가는데, 우측 상단 배너는 잘 감"
-
-**범위:**
-- **(a) 동기화** — 우측 NotificationToaster (in-app 토스터) + 좌측 BellDropdown (알림 종) + OS app badge — 셋 다 단일 source. `useUnreadTotal` 패턴 재사용
-- **(b) 닫기/클릭 = 읽음** — 토스터 닫기·드롭다운 클릭 모두 backend `mark-read` 호출 + 옵티미스틱 -1
-- **(c) 링크 회귀** — 좌측 종 드롭다운 알림 클릭 시 deep link 누락 (랜딩페이지로 fallback). 우측 토스터의 deep link 로직과 동일하게. `notification.target_url` 또는 `target_type + target_id` 기반 라우팅 표 점검
-- 검증 — 알림 7 카테고리 (메시지/업무/문서/파일/일정/청구/서명) 각각 클릭 → 정확한 URL 진입 확인 (drawer URL 싱크 `?task=N` `?post=N` 등)
-
-**관련 코드:**
-- `components/Common/NotificationToaster.tsx` (우측 in-app 토스터)
-- `components/Common/BellDropdown.tsx` 또는 사이드바 종 (좌측 드롭다운)
-- `routes/notifications.js` (backend mark-read + listing)
-- `hooks/useUnreadTotal.ts` (N+72-6 박제 — 단일 캐시 패턴 재사용)
-
-### 🥈 2순위 — 외부 공유 = 팀 + 개인 (사용자 강조)
+### 🥇 1순위 — 외부 공유 = 팀 + 개인 (사용자 강조)
 
 > "외부공유 팀+개인 이게 제일 중요한데"
 
