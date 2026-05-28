@@ -417,6 +417,18 @@ const ChatPanel: React.FC<Props> = ({
   const [stagedPostMeta, setStagedPostMeta] = useState<Record<number, { title: string }>>({});
   const [filePickerOpen, setFilePickerOpen] = useState(false);
   const [dragOver, setDragOver] = useState(false);
+  // 드래그 enter/leave 깊이 카운터 — 자식 요소 경계마다 leave 가 fire 돼도 0 일 때만 해제.
+  const dragDepthRef = useRef(0);
+  // 드래그가 창 밖으로 빠지거나 다른 곳에 드롭돼 onDragLeave/onDrop 이 누락돼도 오버레이 강제 해제.
+  useEffect(() => {
+    const clear = () => { dragDepthRef.current = 0; setDragOver(false); };
+    window.addEventListener('drop', clear);
+    window.addEventListener('dragend', clear);
+    return () => {
+      window.removeEventListener('drop', clear);
+      window.removeEventListener('dragend', clear);
+    };
+  }, []);
   // FilePicker 의 businessId — useAuth() 의 user.business_id 사용 (MockProject 에는 business_id 없음)
   const businessId = user?.business_id ? Number(user.business_id) : null;
 
@@ -835,6 +847,7 @@ const ChatPanel: React.FC<Props> = ({
         const types = e.dataTransfer?.types;
         if (types && Array.from(types).includes('Files')) {
           e.preventDefault();
+          dragDepthRef.current += 1;
           setDragOver(true);
         }
       }}
@@ -846,12 +859,18 @@ const ChatPanel: React.FC<Props> = ({
           e.dataTransfer.dropEffect = 'copy';
         }
       }}
-      onDragLeave={(e) => {
-        // 자식으로 진입 시에도 leave 가 fire 되므로 currentTarget 검사
-        if (e.currentTarget === e.target) setDragOver(false);
+      onDragLeave={() => {
+        // 자식 요소 경계마다 leave 가 fire → depth 카운터로 0 일 때만 해제.
+        // (옛 currentTarget===target 검사는 자식 위에서 창 밖으로 나가면 stuck 됐음)
+        if (dragDepthRef.current > 0) dragDepthRef.current -= 1;
+        if (dragDepthRef.current <= 0) {
+          dragDepthRef.current = 0;
+          setDragOver(false);
+        }
       }}
       onDrop={(e) => {
         e.preventDefault();
+        dragDepthRef.current = 0;
         setDragOver(false);
         if (!activeConversationId) return;
         const files = Array.from(e.dataTransfer?.files || []);

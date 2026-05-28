@@ -12,12 +12,48 @@
 
 const express = require('express');
 const router = express.Router();
+const fs = require('fs');
+const path = require('path');
 const { Op } = require('sequelize');
 const { sequelize } = require('../config/database');
 const { EmailThread, EmailMessage, EmailAttachment, EmailAccount, Client, Project, User, File } = require('../models');
 const { authenticateToken, checkBusinessAccess } = require('../middleware/auth');
 const { requireMenu } = require('../middleware/menu_permission');
 const { successResponse, errorResponse, parsePagination, paginatedResponse } = require('../middleware/errorHandler');
+const { sendMail } = require('../services/emailSend');
+
+// HTML → 미리보기 텍스트 (480자) — 스레드 last_message_preview / body_text 용
+function htmlToPreview(html) {
+  return String(html || '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 480);
+}
+
+// 실시간 broadcast (CLAUDE.md 16번 — 모든 mutation 라우트 필수)
+function broadcastMail(req, businessId, event, payload) {
+  const io = req.app.get('io');
+  if (io) io.to(`business:${businessId}`).emit(event, payload);
+}
+
+// attachment_file_ids → nodemailer attachments + 검증된 File rows (멀티테넌트 + 물리 존재)
+async function resolveAttachments(fileIds, businessId) {
+  if (!Array.isArray(fileIds) || !fileIds.length) return { atts: [], files: [] };
+  const files = await File.findAll({
+    where: { id: { [Op.in]: fileIds.map(Number) }, business_id: businessId, deleted_at: null },
+  });
+  const atts = files
+    .map(f => {
+      const abs = path.isAbsolute(f.file_path) ? f.file_path : path.join(__dirname, '..', f.file_path);
+      return { filename: f.file_name, path: abs, contentType: f.mime_type || undefined, _exists: fs.existsSync(abs) };
+    })
+    .filter(a => a._exists)
+    .map(({ _exists, ...a }) => a);
+  return { atts, files };
+}
 
 // 폴더 → where 매핑 (Q_MAIL_SPEC §4.1 폴더 트리 정합)
 function folderWhere(folder, userId) {
@@ -230,6 +266,127 @@ router.post('/:businessId/email-threads/:id/mark-not-spam',
       if (thread.status !== 'spam') return errorResponse(res, 'not_spam', 400);
       await thread.update({ status: 'open' });
       return successResponse(res, { id: thread.id, status: 'open' });
+    } catch (err) { next(err); }
+  }
+);
+
+// ─────────────────────────────────────────────
+// POST 답장 — outbound 메시지 발송 + 스레드 갱신 + reply_needed 해제 + broadcast
+//   body: { body_html, to?, cc?, bcc?, attachment_file_ids? }
+//   to 미지정 시 마지막 inbound 발신자에게 자동 답장
+// ─────────────────────────────────────────────
+router.post('/:businessId/email-threads/:id/messages',
+  authenticateToken, checkBusinessAccess, requireMenu('qmail', 'write'),
+  async (req, res, next) => {
+    try {
+      const businessId = Number(req.params.businessId);
+      const threadId = Number(req.params.id);
+      const { body_html, to, cc, bcc, attachment_file_ids } = req.body || {};
+      if (!body_html || !String(body_html).trim()) return errorResponse(res, 'body_required', 400);
+
+      const thread = await EmailThread.findOne({ where: { id: threadId, business_id: businessId } });
+      if (!thread) return errorResponse(res, 'thread_not_found', 404);
+
+      const account = await EmailAccount.findOne({ where: { id: thread.account_id, business_id: businessId } });
+      if (!account) return errorResponse(res, 'account_not_found', 404);
+
+      // 스레드 메시지 — 스레딩 헤더 + 답장 수신자 결정
+      const msgs = await EmailMessage.findAll({
+        where: { thread_id: threadId, business_id: businessId },
+        order: [['sent_at', 'ASC'], ['id', 'ASC']],
+      });
+      const lastInbound = [...msgs].reverse().find(m => m.direction === 'inbound');
+      const lastMsg = msgs.length ? msgs[msgs.length - 1] : null;
+
+      // 수신자: 명시 to 우선, 없으면 마지막 inbound 발신자
+      let toList = (Array.isArray(to) && to.length) ? to : (lastInbound ? [lastInbound.from_email] : []);
+      toList = toList.map(s => String(s || '').trim()).filter(Boolean);
+      if (!toList.length) return errorResponse(res, 'recipient_required', 400);
+
+      // 제목: Re: 접두 (이미 있으면 그대로)
+      const baseSubject = (thread.subject || (lastMsg && lastMsg.subject) || '').trim();
+      const subject = /^re:/i.test(baseSubject) ? baseSubject : `Re: ${baseSubject}`.trim();
+
+      // RFC 스레딩 헤더
+      const inReplyTo = lastMsg ? lastMsg.message_id : null;
+      const references = msgs.map(m => m.message_id).filter(Boolean);
+
+      const { atts, files } = await resolveAttachments(attachment_file_ids, businessId);
+
+      // 발송 (실패 시 502 — outbound row 안 만듦. 프론트는 작성 내용 유지)
+      let sendResult;
+      try {
+        sendResult = await sendMail(account, {
+          to: toList, cc, bcc, subject, html: body_html,
+          inReplyTo, references, attachments: atts,
+        });
+      } catch (e) {
+        console.error('[qmail] reply send failed:', e.message);
+        return errorResponse(res, `send_failed: ${e.message}`, 502);
+      }
+
+      const now = new Date();
+      const preview = htmlToPreview(body_html);
+
+      const outMsg = await EmailMessage.create({
+        thread_id: threadId,
+        business_id: businessId,
+        direction: 'outbound',
+        message_id: sendResult.messageId || `<planq-${threadId}-${now.getTime()}@planq>`,
+        in_reply_to: inReplyTo,
+        references_chain: references.join(' ') || null,
+        from_email: account.email,
+        from_name: account.display_name || null,
+        to_emails: toList,
+        cc_emails: (Array.isArray(cc) && cc.length) ? cc : null,
+        bcc_emails: (Array.isArray(bcc) && bcc.length) ? bcc : null,
+        subject,
+        body_html,
+        body_text: preview,
+        sent_by_user_id: req.user.id,
+        is_read: true,
+        delivery_status: 'sent',
+        sent_at: now,
+      });
+
+      for (const f of files) {
+        await EmailAttachment.create({
+          message_id: outMsg.id,
+          file_id: f.id,
+          filename: f.file_name,
+          mime_type: f.mime_type || null,
+          size_bytes: f.file_size || null,
+        });
+      }
+
+      // 답장 했으니 reply_needed 해제 + uncertain → open
+      await thread.update({
+        reply_needed: false,
+        reply_needed_reason: null,
+        last_message_at: now,
+        last_message_direction: 'outbound',
+        last_message_preview: preview,
+        message_count: (thread.message_count || 0) + 1,
+        ...(thread.status === 'uncertain' ? { status: 'open' } : {}),
+      });
+
+      broadcastMail(req, businessId, 'mail:updated', {
+        thread_id: threadId,
+        reply_needed: false,
+        last_message_at: now,
+        last_message_direction: 'outbound',
+        last_message_preview: preview,
+      });
+
+      return successResponse(res, {
+        id: outMsg.id,
+        thread_id: threadId,
+        direction: 'outbound',
+        message_id: outMsg.message_id,
+        delivery_status: 'sent',
+        sent_at: now,
+        rejected: sendResult.rejected,
+      });
     } catch (err) { next(err); }
   }
 );

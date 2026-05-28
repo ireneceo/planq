@@ -67,7 +67,17 @@
   "loading": "Loading…",
   "me": "Me",
   "messageCount": "{{n}} messages",
-  "replyHint": "Reply / send / labels — coming next cycle (M3).",
+  "reply": {
+    "button": "Reply",
+    "to": "To",
+    "placeholder": "Write your reply…",
+    "send": "Send",
+    "cancel": "Cancel",
+    "shortcut": "⌘/Ctrl + Enter to send",
+    "emptyBody": "Please enter a message",
+    "uploadFailed": "Attachment upload failed",
+    "sendFailed": "Send failed"
+  },
   "errors": {
     "loadList": "Failed to load inbox"
   }
