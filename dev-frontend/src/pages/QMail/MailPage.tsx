@@ -8,13 +8,19 @@
 // read-only: 답장/전송 X (M3 후속), 라벨/스타/할당 X (M3 후속)
 // 가능: 폴더 전환, 스레드 조회, 읽음 처리 (open 시 자동), 스팸 마킹
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import styled from 'styled-components';
+import { io, type Socket } from 'socket.io-client';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';
 import PageShell from '../../components/Layout/PageShell';
-import { useAuth, apiFetch } from '../../contexts/AuthContext';
+import { useAuth, apiFetch, getAccessToken } from '../../contexts/AuthContext';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
+import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
+import RichEditor from '../../components/Common/RichEditor';
+import AttachmentField from '../../components/Common/AttachmentField';
+import ActionButton from '../../components/Common/ActionButton';
+import { uploadMyFile } from '../../services/files';
 
 type Folder = 'reply_needed' | 'inbox' | 'spam' | 'archived';
 
@@ -174,6 +180,115 @@ const MailPage: React.FC = () => {
     }
   };
 
+  // ── 실시간 silent 갱신 (socket / visibility) — 스피너 없이 list+counts+열린 detail 갱신
+  const silentReload = useCallback(() => {
+    loadList();
+    loadCounts();
+    if (activeId) loadDetail(activeId);
+  }, [loadList, loadCounts, activeId, loadDetail]);
+  const silentReloadRef = useRef(silentReload);
+  useEffect(() => { silentReloadRef.current = silentReload; }, [silentReload]);
+
+  const socketRef = useRef<Socket | null>(null);
+  useEffect(() => {
+    if (!user || !businessId || !getAccessToken()) return;
+    const s = io({
+      auth: (cb) => cb({ token: getAccessToken() }),
+      transports: ['websocket', 'polling'],
+      reconnection: true, reconnectionDelay: 1500, reconnectionDelayMax: 8000, reconnectionAttempts: Infinity,
+    });
+    socketRef.current = s;
+    let pending: number | null = null;
+    const debounced = () => {
+      if (pending) return;
+      pending = window.setTimeout(() => { pending = null; silentReloadRef.current(); }, 250);
+    };
+    s.on('connect', () => { s.emit('join:business', businessId); });
+    s.on('mail:new', debounced);
+    s.on('mail:updated', debounced);
+    const onLocal = () => debounced();
+    window.addEventListener('mail:refresh', onLocal);
+    return () => {
+      if (pending) window.clearTimeout(pending);
+      window.removeEventListener('mail:refresh', onLocal);
+      s.emit('leave:business', businessId);
+      s.disconnect();
+      socketRef.current = null;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, businessId]);
+
+  useVisibilityRefresh(useCallback(() => {
+    silentReloadRef.current();
+    const s = socketRef.current;
+    if (s && !s.connected) s.connect();
+  }, []));
+
+  // ── 답장 컴포저 ──
+  const [replyOpen, setReplyOpen] = useState(false);
+  const [replyHtml, setReplyHtml] = useState('');
+  const [replyUploads, setReplyUploads] = useState<File[]>([]);
+  const [replyFileIds, setReplyFileIds] = useState<number[]>([]);
+  const [sending, setSending] = useState(false);
+  const [replyError, setReplyError] = useState<string | null>(null);
+
+  // 스레드 전환 시 컴포저 초기화
+  useEffect(() => {
+    setReplyOpen(false); setReplyHtml(''); setReplyUploads([]); setReplyFileIds([]); setReplyError(null);
+  }, [activeId]);
+
+  // 답장 받는 사람 힌트 (마지막 inbound 발신자)
+  const replyToHint = useMemo(() => {
+    if (!detail) return '';
+    const lastInbound = [...detail.messages].reverse().find(m => m.direction === 'inbound');
+    return lastInbound?.from_email || detail.client?.company_name || '';
+  }, [detail]);
+
+  const isEmptyHtml = (h: string) =>
+    !h.replace(/<[^>]*>/g, '').replace(/&nbsp;/gi, ' ').trim();
+
+  const sendReply = async () => {
+    if (!detail || !businessId || sending) return;
+    if (isEmptyHtml(replyHtml)) {
+      setReplyError(t('reply.emptyBody', { defaultValue: '내용을 입력해 주세요' }) as string);
+      return;
+    }
+    setSending(true);
+    setReplyError(null);
+    try {
+      // 새 업로드 먼저 올려 file id 확보 → 기존 선택 파일과 합침
+      const fileIds = [...replyFileIds];
+      for (const f of replyUploads) {
+        const up = await uploadMyFile(businessId, f);
+        if (up.success && up.file) fileIds.push(Number(String(up.file.id).replace('direct-', '')));
+        else throw new Error(up.message || (t('reply.uploadFailed', { defaultValue: '첨부 업로드 실패' }) as string));
+      }
+      const r = await apiFetch(`/api/businesses/${businessId}/email-threads/${detail.id}/messages`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ body_html: replyHtml, attachment_file_ids: fileIds }),
+      });
+      const j = await r.json();
+      if (!j.success) throw new Error(j.message || (t('reply.sendFailed', { defaultValue: '발송 실패' }) as string));
+      // 성공 — 컴포저 닫고 갱신 (성공 토스트 금지)
+      setReplyOpen(false); setReplyHtml(''); setReplyUploads([]); setReplyFileIds([]);
+      await loadDetail(detail.id);
+      loadList();
+      loadCounts();
+    } catch (e) {
+      setReplyError((e as Error).message);
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const onComposerKeyDown = (e: React.KeyboardEvent) => {
+    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+      e.preventDefault();
+      sendReply();
+    }
+  };
+
   if (!businessId) return <PageShell title="Q Mail"><Empty>{t('selectWorkspace', { defaultValue: '워크스페이스를 선택해 주세요.' }) as string}</Empty></PageShell>;
 
   return (
@@ -300,9 +415,45 @@ const MailPage: React.FC = () => {
                 ))}
               </MessagesScroll>
               <DetailFooter>
-                <FooterHint>
-                  {t('replyHint', { defaultValue: '답장 / 전송 / 라벨 기능은 다음 사이클(M3)에서 제공됩니다.' }) as string}
-                </FooterHint>
+                {!replyOpen ? (
+                  <ReplyBar>
+                    <ActionButton tone="primary" size="md" onClick={() => setReplyOpen(true)}>
+                      {t('reply.button', { defaultValue: '답장' }) as string}
+                    </ActionButton>
+                  </ReplyBar>
+                ) : (
+                  <Composer onKeyDown={onComposerKeyDown}>
+                    {replyToHint && (
+                      <ComposerTo>
+                        {t('reply.to', { defaultValue: '받는 사람' }) as string}: <strong>{replyToHint}</strong>
+                      </ComposerTo>
+                    )}
+                    <RichEditor
+                      value={replyHtml}
+                      onChange={setReplyHtml}
+                      placeholder={t('reply.placeholder', { defaultValue: '답장 내용을 입력하세요…' }) as string}
+                    />
+                    <AttachmentField
+                      businessId={businessId}
+                      uploads={replyUploads}
+                      onUploadsChange={setReplyUploads}
+                      existingFileIds={replyFileIds}
+                      onExistingFileIdsChange={setReplyFileIds}
+                    />
+                    {replyError && <ComposerError>{replyError}</ComposerError>}
+                    <ComposerActions>
+                      <ComposerHint>{t('reply.shortcut', { defaultValue: '⌘/Ctrl + Enter 로 보내기' }) as string}</ComposerHint>
+                      <ComposerBtns>
+                        <ActionButton tone="secondary" size="md" onClick={() => setReplyOpen(false)} disabled={sending}>
+                          {t('reply.cancel', { defaultValue: '취소' }) as string}
+                        </ActionButton>
+                        <ActionButton tone="primary" size="md" loading={sending} onClick={sendReply}>
+                          {t('reply.send', { defaultValue: '보내기' }) as string}
+                        </ActionButton>
+                      </ComposerBtns>
+                    </ComposerActions>
+                  </Composer>
+                )}
               </DetailFooter>
             </>
           )}
@@ -521,9 +672,35 @@ const DetailFooter = styled.div`
   padding: 14px 24px;
   border-top: 1px solid #E2E8F0;
   background: #F8FAFC;
+  max-height: 55vh;
+  overflow-y: auto;
 `;
-const FooterHint = styled.div`
+const ReplyBar = styled.div`
+  display: flex;
+`;
+const Composer = styled.div`
+  display: flex; flex-direction: column; gap: 10px;
+`;
+const ComposerTo = styled.div`
   font-size: 12px; color: #64748B;
+  strong { color: #0F172A; font-weight: 600; }
+`;
+const ComposerError = styled.div`
+  padding: 8px 10px;
+  background: #FEF2F2; color: #B91C1C;
+  border: 1px solid #FECACA; border-radius: 8px;
+  font-size: 12px;
+`;
+const ComposerActions = styled.div`
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  flex-wrap: wrap;
+`;
+const ComposerHint = styled.div`
+  font-size: 11px; color: #94A3B8;
+`;
+const ComposerBtns = styled.div`
+  display: flex; align-items: center; gap: 8px;
+  margin-left: auto;
 `;
 
 const Loading = styled.div`

@@ -67,7 +67,17 @@
   "loading": "불러오는 중…",
   "me": "나",
   "messageCount": "{{n}}개 메시지",
-  "replyHint": "답장 / 전송 / 라벨 기능은 다음 사이클(M3)에서 제공됩니다.",
+  "reply": {
+    "button": "답장",
+    "to": "받는 사람",
+    "placeholder": "답장 내용을 입력하세요…",
+    "send": "보내기",
+    "cancel": "취소",
+    "shortcut": "⌘/Ctrl + Enter 로 보내기",
+    "emptyBody": "내용을 입력해 주세요",
+    "uploadFailed": "첨부 업로드 실패",
+    "sendFailed": "발송 실패"
+  },
   "errors": {
     "loadList": "인박스 로딩 실패"
   }
