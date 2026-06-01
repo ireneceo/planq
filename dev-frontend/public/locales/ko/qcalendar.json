@@ -129,5 +129,7 @@
     "day": "오늘은 예정된 일정이 없습니다"
   },
   "more": "+ {{count}}개 더보기",
-  "allDay": "종일"
+  "allDay": "종일",
+  "personalCalendar": "내 캘린더",
+  "personalCalendarHint": "내 Google 캘린더 일정 표시/숨김"
 }

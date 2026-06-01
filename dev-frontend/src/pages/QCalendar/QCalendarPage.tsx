@@ -9,7 +9,7 @@ import TimeGridView from './TimeGridView';
 import EventDrawer from './EventDrawer';
 import { responsiveDrawerWidth } from '../../utils/responsiveDrawer';
 import NewEventModal from './NewEventModal';
-import type { CalendarEvent, CalendarViewMode, CalendarScope, CalendarItem } from './types';
+import type { CalendarEvent, CalendarViewMode, CalendarScope, CalendarItem, PersonalCalendarEvent } from './types';
 import {
   addDays, addMonths, getWeekDays, startOfDay, startOfMonth, startOfWeek, toDateKey,
 } from './dateUtils';
@@ -19,7 +19,7 @@ import {
   getVideoStatus, createMeetingRoom, listTasksForCalendar,
 } from '../../services/calendar';
 import { listProjects } from '../../services/qtalk';
-import { taskToEvent, isTaskEvent } from './taskToEvent';
+import { taskToEvent, isTaskEvent, isPersonalEvent, personalToEvent } from './taskToEvent';
 import TaskDetailDrawer from '../../components/QTask/TaskDetailDrawer';
 import { apiFetch } from '../../contexts/AuthContext';
 import { todayInTz, detectBrowserTz } from '../../utils/timezones';
@@ -60,6 +60,10 @@ const QCalendarPage: React.FC = () => {
 
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [taskEvents, setTaskEvents] = useState<CalendarItem[]>([]);
+  // 개인 Google 캘린더 overlay (외부 연동 Phase 2)
+  const [personalEvents, setPersonalEvents] = useState<PersonalCalendarEvent[]>([]);
+  const [personalConnected, setPersonalConnected] = useState(false);
+  const [showPersonal, setShowPersonal] = useState(true);
   const [projects, setProjects] = useState<ProjectOption[]>([]);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -104,6 +108,21 @@ const QCalendarPage: React.FC = () => {
       .catch(() => setGcalConnected(false));
   }, [bizId]);
 
+  // 개인 Google 캘린더 연결 여부 (외부 연동 Phase 2) — 연결됐을 때만 overlay 토글 노출
+  useEffect(() => {
+    if (!bizId) return;
+    apiFetch(`/api/me/external-connections?business_id=${bizId}`)
+      .then((r) => r.json())
+      .then((j) => {
+        if (j.success) {
+          setPersonalConnected((j.data || []).some(
+            (c: { provider?: string; is_active?: boolean }) => c.provider === 'google_calendar' && c.is_active
+          ));
+        }
+      })
+      .catch(() => {});
+  }, [bizId]);
+
   // ─── 범위 조회: view + anchor 기반 ───
   const fetchRange = useCallback(async () => {
     if (!bizId) return;
@@ -130,12 +149,26 @@ const QCalendarPage: React.FC = () => {
         scope: serverScope,
       });
       setEvents(list);
+
+      // 개인 Google 일정 overlay (연결 + 토글 ON 일 때만). 실패해도 회사 일정은 정상 표시.
+      if (personalConnected && showPersonal) {
+        try {
+          const r = await apiFetch(
+            `/api/me/calendar/events?business_id=${bizId}&start=${rangeStart.toISOString()}&end=${rangeEnd.toISOString()}`
+          );
+          const j = await r.json();
+          if (j.success) setPersonalEvents((j.data?.events || []).map(personalToEvent));
+          else setPersonalEvents([]);
+        } catch { setPersonalEvents([]); }
+      } else {
+        setPersonalEvents([]);
+      }
     } catch (e) {
       setErrorMsg(mapApiError(e, tErr));
     } finally {
       setLoading(false);
     }
-  }, [bizId, view, anchor, scope]);
+  }, [bizId, view, anchor, scope, personalConnected, showPersonal]);
 
   useEffect(() => { fetchRange(); }, [fetchRange]);
 
@@ -202,13 +235,16 @@ const QCalendarPage: React.FC = () => {
     navigate({ pathname: '/calendar', search: qs ? `?${qs}` : '' }, { replace: true });
   }, [view, anchor, scope, selectedEventId, selectedTaskId, navigate]);
 
-  // 4필터 적용 — events + task-as-events 통합
+  // 4필터 적용 — events + task-as-events + 개인 Google 일정 통합
   const filteredEvents = useMemo<CalendarItem[]>(() => {
-    const merged: CalendarItem[] = [...events, ...taskEvents];
+    const personal: CalendarItem[] = (personalConnected && showPersonal) ? personalEvents : [];
+    const merged: CalendarItem[] = [...events, ...taskEvents, ...personal];
+    // 업무 탭은 업무만 (개인 일정 제외), 일정 탭은 일정(개인 포함)
     if (scope === 'events') return merged.filter((e) => !isTaskEvent(e));
     if (scope === 'tasks') return merged.filter(isTaskEvent);
     if (scope === 'mine' && myUserId) {
       return merged.filter((e) => {
+        if (isPersonalEvent(e)) return true; // 개인 캘린더 = 항상 본인 일정
         if (isTaskEvent(e)) {
           // 업무: 담당자 OR 생성자 (= 본인이 직접 관련된 업무)
           const t = e as { assignee_id?: number | null; created_by?: number | null };
@@ -218,7 +254,7 @@ const QCalendarPage: React.FC = () => {
       });
     }
     return merged;
-  }, [events, taskEvents, scope, myUserId]);
+  }, [events, taskEvents, personalEvents, personalConnected, showPersonal, scope, myUserId]);
 
   const selectedEvent = useMemo(
     () => (selectedEventId != null ? events.find((e) => e.id === selectedEventId) || null : null),
@@ -262,7 +298,13 @@ const QCalendarPage: React.FC = () => {
 
   const goToday = useCallback(() => setAnchor(new Date()), []);
 
-  const handleSelectEvent = useCallback((id: number, instanceDate?: string) => {
+  const handleSelectEvent = useCallback((id: number | string, instanceDate?: string) => {
+    // 개인 Google 일정 (string id) — 읽기 전용. Google Calendar 원본을 새 탭에서 연다.
+    if (typeof id === 'string') {
+      const p = personalEvents.find((e) => e.id === id);
+      if (p?.html_link) window.open(p.html_link, '_blank', 'noopener');
+      return;
+    }
     // Task 이벤트는 같은 페이지에 TaskDetailDrawer 오버레이로 오픈 (재클릭 토글)
     const asTask = taskEvents.find((e) => isTaskEvent(e) && e.id === id);
     if (asTask && isTaskEvent(asTask)) {
@@ -271,7 +313,7 @@ const QCalendarPage: React.FC = () => {
     }
     setSelectedEventId((cur) => (cur === id ? null : id));
     setSelectedInstanceDate(instanceDate || null);
-  }, [taskEvents]);
+  }, [taskEvents, personalEvents]);
 
   const refreshTasks = useCallback(async () => {
     if (!bizId) return;
@@ -428,6 +470,18 @@ const QCalendarPage: React.FC = () => {
             </svg>
           </NavIconBtn>
         </ToolbarLeft>
+        {personalConnected && (
+          <PersonalToggle
+            type="button"
+            $on={showPersonal}
+            onClick={() => setShowPersonal((v) => !v)}
+            aria-pressed={showPersonal}
+            title={t('personalCalendarHint', { defaultValue: '내 Google 캘린더 일정 표시/숨김' }) as string}
+          >
+            <PersonalDot />
+            {t('personalCalendar', { defaultValue: '내 캘린더' }) as string}
+          </PersonalToggle>
+        )}
       </Toolbar>
 
       <ViewWrap>
@@ -528,6 +582,25 @@ const Toolbar = styled.div`
   padding: 6px 0 14px;
 `;
 const ToolbarLeft = styled.div` display: flex; align-items: center; gap: 6px; `;
+// 개인 Google 캘린더 overlay 토글 (violet) — 회사 일정(teal)과 색 분리
+const PersonalToggle = styled.button<{ $on: boolean }>`
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 30px; padding: 0 12px;
+  border-radius: 999px;
+  font-size: 12px; font-weight: 600;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, opacity 0.12s;
+  border: 1px solid ${(p) => (p.$on ? '#C4B5FD' : '#E2E8F0')};
+  background: ${(p) => (p.$on ? '#F5F3FF' : '#FFFFFF')};
+  color: ${(p) => (p.$on ? '#6D28D9' : '#94A3B8')};
+  opacity: ${(p) => (p.$on ? 1 : 0.7)};
+  &:hover { border-color: #C4B5FD; }
+  &:focus-visible { outline: 2px solid #8B5CF6; outline-offset: 2px; }
+`;
+const PersonalDot = styled.span`
+  width: 8px; height: 8px; border-radius: 50%;
+  background: #8B5CF6; flex-shrink: 0;
+`;
 const TodayBtn = styled.button`
   padding: 6px 12px; border: 1px solid #CBD5E1; border-radius: 6px;
   background: #fff; color: #0F172A; font-size: 12.5px; font-weight: 600; cursor: pointer;
