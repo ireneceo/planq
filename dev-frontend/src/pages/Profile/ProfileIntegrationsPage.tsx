@@ -338,7 +338,7 @@ const ProfileIntegrationsPage: React.FC = () => {
       {/* ─── 개인 Drive (옵션) ─── */}
       <Section>
         <SectionTitle>{t('integrations.drive', '파일 (개인)') as string}</SectionTitle>
-        <SectionSub>{t('integrations.driveSub', '내 Drive 의 개인 파일을 PlanQ 에서 끌어와 봐요') as string}</SectionSub>
+        <SectionSub>{t('integrations.driveSub', 'PlanQ 파일을 내 개인 Google Drive 에 저장하고 여기서 함께 봐요 (회사 Drive 와 분리)') as string}</SectionSub>
         {personalConns.filter(c => c.provider === 'google_drive').length === 0 ? (
           <Empty>
             <span>{t('integrations.driveEmpty', '연결된 개인 파일 저장소가 없어요') as string}</span>

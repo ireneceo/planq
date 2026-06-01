@@ -1,7 +1,8 @@
-// services/personalDrive.js — 개인 Google Drive 파일 목록 (읽기 전용)
+// services/personalDrive.js — 개인 Google Drive 파일 목록
 //
-// external_connections (owner_scope='user', provider='google_drive') 의 내 Drive 파일을
-// Q File 개인 탭에서 열람. drive.readonly scope — 다운로드/링크 열기만, PlanQ 가 수정하지 않음.
+// external_connections (owner_scope='user', provider='google_drive') 기준.
+// drive.file scope (비제한 — 회사 Drive 와 동일) → PlanQ 가 내 개인 Drive 에 저장/연 파일만 보임.
+// 기존 전체 파일 열람(drive.readonly)은 제한 권한·유료심사라 채택 안 함 (Irene 결정 2026-06-01).
 const { google } = require('googleapis');
 const personalOauth = require('./personalOauth');
 

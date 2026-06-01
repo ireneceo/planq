@@ -32,6 +32,10 @@
 
 **설계:** `docs/EXTERNAL_INTEGRATIONS_DESIGN.md` — `external_connections.owner_scope`(workspace/user) + 같은 GOOGLE_CLIENT_ID 재사용. **DB 스키마: 추가 1개만** (`email_accounts.owner_user_id`).
 
+> **권한 등급 결정 (2026-06-01, Irene):** Google 검증 부담 최소화 —
+> - 개인 캘린더 `calendar.readonly` (sensitive, 일반 검증, CASA X) + 개인 Drive `drive.file` (비제한, 회사 Drive 와 동일 = PlanQ 저장 파일만, CASA X) → **이 둘만 출시 검증** 진행
+> - 개인 Gmail `mail.google.com` 은 restricted(CASA 유료심사) → **OAuth 원클릭은 검증 대기 항목으로 보류**. **Q Mail 자체는 IMAP 앱 비밀번호로 검증 없이 정상 작동** (회사 메일 이미 그 방식). 일반 이메일앱 기능 제약 없음.
+
 **Chunk 1 — 개인 OAuth 공통 기반:**
 - `services/personalOauth.js` — Google 3 provider scope(calendar.readonly/drive.readonly/mail.google.com) + HMAC state(owner_scope='user', 10분 TTL) + 토큰 교환/refresh/revoke
 - `routes/external_connections.js` — `POST /me/oauth/google/initiate` + `GET /me/oauth/google/callback`(단일 redirect URI, provider 는 state 분기) → `external_connections`(cal/drive) 또는 `EmailAccount`(gmail) 저장. AES-256-GCM.
