@@ -12,7 +12,7 @@ interface Props {
   today: Date;
   days: Date[]; // 1 (day) or 7 (week)
   events: CalendarItem[];
-  onSelectEvent: (id: number, instanceDate?: string) => void;
+  onSelectEvent: (id: number | string, instanceDate?: string) => void;
   onSelectDate: (date: Date) => void;
 }
 

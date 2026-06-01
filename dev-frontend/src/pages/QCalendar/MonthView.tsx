@@ -28,7 +28,7 @@ interface Props {
   anchor: Date;
   today: Date;
   events: CalendarItem[];
-  onSelectEvent: (id: number, instanceDate?: string) => void;
+  onSelectEvent: (id: number | string, instanceDate?: string) => void;
   onSelectDate: (date: Date) => void;
 }
 

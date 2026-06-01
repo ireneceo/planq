@@ -1,4 +1,35 @@
-import type { CalendarEvent, TaskAsEvent } from './types';
+import type { CalendarEvent, TaskAsEvent, CalendarItem, PersonalCalendarEvent } from './types';
+
+// 개인 Google 캘린더 일정 (read-only overlay) 식별
+export const isPersonalEvent = (e: CalendarItem): e is PersonalCalendarEvent =>
+  (e as PersonalCalendarEvent)._source === 'personal_google';
+
+// /api/me/calendar/events 응답 raw → PersonalCalendarEvent (violet 색 고정)
+interface PersonalRaw {
+  id: string;
+  title: string;
+  description?: string | null;
+  location?: string | null;
+  start_at: string;
+  end_at: string | null;
+  all_day: boolean;
+  html_link?: string | null;
+  account_email?: string | null;
+}
+export const personalToEvent = (raw: PersonalRaw): PersonalCalendarEvent => ({
+  id: raw.id,
+  _source: 'personal_google',
+  title: raw.title || '(제목 없음)',
+  description: raw.description ?? null,
+  location: raw.location ?? null,
+  start_at: raw.start_at,
+  end_at: raw.end_at || raw.start_at,
+  all_day: !!raw.all_day,
+  color: '#8B5CF6',
+  html_link: raw.html_link ?? null,
+  account_email: raw.account_email ?? null,
+  read_only: true,
+});
 
 // Q Task API 응답 형태 (/api/tasks/by-business/:bizId)
 interface TaskRow {
