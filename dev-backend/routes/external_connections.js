@@ -17,6 +17,49 @@ const {
 } = require('../models');
 const { authenticateToken, checkBusinessAccess } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
+const personalOauth = require('../services/personalOauth');
+const { encrypt } = require('../services/encryption');
+
+// 본인이 해당 워크스페이스 멤버인지 검증 (owner 도 business_members 행 보유 — 확인됨)
+async function assertBusinessMember(req, bizId) {
+  if (req.user.platform_role === 'platform_admin') return true;
+  const bm = await BusinessMember.findOne({ where: { user_id: req.user.id, business_id: bizId, removed_at: null } });
+  return !!bm;
+}
+
+const PERSONAL_PROVIDERS = ['google_calendar', 'google_drive', 'gmail'];
+
+// OAuth 콜백 창 HTML — 부모창 postMessage 후 자동 닫기 (cloud.js 패턴 정합, COOP fallback 포함)
+function personalCallbackHtml({ ok, provider, title, body }) {
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${title}</title>
+<style>
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#F8FAFC;color:#0F172A;}
+  .box{background:#fff;border:1px solid #E2E8F0;border-radius:12px;padding:28px 32px;max-width:420px;text-align:center;box-shadow:0 4px 12px rgba(15,23,42,0.06);}
+  h2{margin:0 0 10px;font-size:18px;color:${ok ? '#0F766E' : '#DC2626'};}
+  p{margin:0 0 16px;font-size:13px;color:#475569;line-height:1.55;}
+  button{height:36px;padding:0 18px;background:#14B8A6;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;}
+  button:hover{background:#0D9488;}
+  .hint{font-size:11.5px;color:#94A3B8;margin-top:6px;}
+  #fallback{display:none;}
+</style></head>
+<body>
+  <div class="box" id="primary">
+    ${body}
+    <button type="button" id="closeBtn">닫기</button>
+    <div class="hint">잠시 후 자동으로 닫힙니다…</div>
+  </div>
+  <div class="box" id="fallback"><h2 style="color:#0F766E;">✓ 완료</h2><p>이 창을 닫으셔도 됩니다.</p></div>
+  <script>
+    (function(){
+      try { window.opener && window.opener.postMessage({ type: 'personal:connected', provider: ${JSON.stringify(provider || null)}, ok: ${ok ? 'true' : 'false'} }, '*'); } catch(e){}
+      var tryClose = function(){ try { window.close(); } catch(e){} };
+      document.getElementById('closeBtn').addEventListener('click', tryClose);
+      setTimeout(tryClose, 800);
+      setTimeout(function(){ if(!document.hidden){ var p=document.getElementById('primary'),f=document.getElementById('fallback'); if(p&&f){p.style.display='none';f.style.display='block';} } }, 1500);
+    })();
+  </script>
+</body></html>`;
+}
 
 function isAdminRole(req) {
   return req.businessRole === 'owner'
@@ -168,16 +211,98 @@ router.post('/me/external-connections', authenticateToken, async (req, res, next
   } catch (err) { next(err); }
 });
 
-// DELETE /api/me/external-connections/:id — 본인 해제
+// DELETE /api/me/external-connections/:id — 본인 해제 (Google 토큰 revoke best-effort)
 router.delete('/me/external-connections/:id', authenticateToken, async (req, res, next) => {
   try {
     const conn = await ExternalConnection.findOne({
       where: { id: req.params.id, user_id: req.user.id, owner_scope: 'user' },
     });
     if (!conn) return errorResponse(res, 'not_found', 404);
+    if (conn.auth_type === 'oauth') await personalOauth.revokeToken(conn);
     await conn.destroy();
     successResponse(res, null, 'disconnected');
   } catch (err) { next(err); }
+});
+
+// ─── 개인 OAuth 흐름 (Phase 2-4) ──────────────────────────
+// POST /api/me/oauth/google/initiate  body: { provider, business_id }
+// → Google 동의 화면 auth_url 반환. 프론트가 popup 으로 연다.
+router.post('/me/oauth/google/initiate', authenticateToken, async (req, res, next) => {
+  try {
+    if (!personalOauth.isConfigured()) return errorResponse(res, 'google_oauth_not_configured', 500);
+    const provider = String((req.body || {}).provider || '');
+    const bizId = parseInt((req.body || {}).business_id, 10);
+    if (!PERSONAL_PROVIDERS.includes(provider)) return errorResponse(res, 'unsupported_provider', 400);
+    if (!bizId) return errorResponse(res, 'business_id_required', 400);
+    if (!(await assertBusinessMember(req, bizId))) return errorResponse(res, 'no_business_access', 403);
+    const auth_url = personalOauth.buildAuthUrl({ userId: req.user.id, businessId: bizId, provider });
+    successResponse(res, { auth_url });
+  } catch (err) { next(err); }
+});
+
+// GET /api/me/oauth/google/callback?code=&state=  (Google redirect — 비인증, state 로 사용자 복원)
+router.get('/me/oauth/google/callback', async (req, res) => {
+  const { code, state, error: oauthError } = req.query;
+  const fail = (msg) => res.status(400).send(personalCallbackHtml({
+    ok: false, provider: null, title: '연동 실패',
+    body: `<h2>연동 실패</h2><p>${msg}</p>`,
+  }));
+
+  if (oauthError) return fail(`Google 에서 거부됨: ${oauthError}`);
+  if (!code || !state) return fail('잘못된 요청');
+  const parsed = personalOauth.parseState(state);
+  if (!parsed) return fail('보안 검증 실패 (state 만료/위조)');
+
+  try {
+    // 멤버십 재검증 (state 의 user 가 여전히 그 워크스페이스 멤버인지)
+    const bm = await BusinessMember.findOne({ where: { user_id: parsed.userId, business_id: parsed.businessId, removed_at: null } });
+    if (!bm) return fail('워크스페이스 접근 권한 없음');
+
+    const { tokens, email, name, sub } = await personalOauth.exchangeCodeForTokens(code);
+    if (!email) return fail('Google 계정 이메일을 확인할 수 없습니다');
+
+    const scopeList = personalOauth.PROVIDER_SCOPES[parsed.provider].join(' ');
+    const baseFields = {
+      auth_type: 'oauth',
+      account_email: email,
+      account_name: name || null,
+      account_external_id: sub || null,
+      scope: tokens.scope || scopeList,
+      access_token_encrypted: tokens.access_token ? encrypt(tokens.access_token) : null,
+      expires_at: tokens.expiry_date ? new Date(tokens.expiry_date) : null,
+      is_active: true,
+      last_sync_error: null,
+      fail_count: 0,
+    };
+    // refresh_token 은 재동의 시에만 옴 — 있으면 갱신, 없으면 기존 유지
+    if (tokens.refresh_token) baseFields.refresh_token_encrypted = encrypt(tokens.refresh_token);
+
+    // upsert — 같은 (user, business, provider, email) 1개 (UNIQUE 키 정합)
+    const [conn, created] = await ExternalConnection.findOrCreate({
+      where: {
+        owner_scope: 'user', business_id: parsed.businessId,
+        user_id: parsed.userId, provider: parsed.provider, account_email: email,
+      },
+      defaults: {
+        owner_scope: 'user', business_id: parsed.businessId,
+        user_id: parsed.userId, provider: parsed.provider,
+        ...baseFields,
+      },
+    });
+    if (!created) await conn.update(baseFields);
+
+    const labelMap = { google_calendar: 'Google Calendar', google_drive: 'Google Drive', gmail: 'Gmail' };
+    return res.send(personalCallbackHtml({
+      ok: true, provider: parsed.provider, title: '연동 완료',
+      body: `<h2>${labelMap[parsed.provider]} 연동 완료</h2><p>계정: <strong>${email}</strong></p>`,
+    }));
+  } catch (e) {
+    console.error('[me/oauth callback]', e);
+    return res.status(500).send(personalCallbackHtml({
+      ok: false, provider: parsed.provider, title: '연동 실패',
+      body: `<h2>연동 실패</h2><p>${e.message || '서버 오류'}</p>`,
+    }));
+  }
 });
 
 module.exports = router;
