@@ -14,6 +14,7 @@ import { io, type Socket } from 'socket.io-client';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';
 import PageShell from '../../components/Layout/PageShell';
+import PanelHeader, { PanelTitle, PanelSubTitle } from '../../components/Layout/PanelHeader';
 import { useAuth, apiFetch, getAccessToken } from '../../contexts/AuthContext';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
@@ -475,11 +476,11 @@ const MailPage: React.FC = () => {
   if (!businessId) return <PageShell title="Q Mail"><Empty>{t('selectWorkspace', { defaultValue: '워크스페이스를 선택해 주세요.' }) as string}</Empty></PageShell>;
 
   return (
-    <PageShell title="Q Mail">
-      <Grid>
-        {/* 좌: 폴더 트리 */}
-        <FolderCol>
-          <FolderHeader>{t('folders.title', { defaultValue: '메일함' }) as string}</FolderHeader>
+    <MailLayout>
+      {/* 좌: 폴더 트리 */}
+      <FolderCol>
+        <PanelHeader><PanelTitle>Q Mail</PanelTitle></PanelHeader>
+        <FolderScroll>
           {FOLDERS.map(({ key, defaultLabel }) => (
             <FolderItem
               key={key}
@@ -527,14 +528,15 @@ const MailPage: React.FC = () => {
               })}
             </AcctSection>
           )}
-        </FolderCol>
+        </FolderScroll>
+      </FolderCol>
 
-        {/* 중: 스레드 리스트 */}
-        <ListCol>
-          <ListHeader>
-            <ListTitle>{t(`folders.${folder}`, { defaultValue: FOLDERS.find(f => f.key === folder)?.defaultLabel }) as string}</ListTitle>
-            <ListCount>{threads.length}</ListCount>
-          </ListHeader>
+      {/* 중: 스레드 리스트 */}
+      <ListCol>
+        <PanelHeader>
+          <PanelSubTitle>{t(`folders.${folder}`, { defaultValue: FOLDERS.find(f => f.key === folder)?.defaultLabel }) as string}</PanelSubTitle>
+          <ListCount>{threads.length}</ListCount>
+        </PanelHeader>
           {errorMsg && <ErrorBar>{errorMsg}</ErrorBar>}
           {listLoading && threads.length === 0 ? (
             <Loading>
@@ -603,9 +605,9 @@ const MailPage: React.FC = () => {
             </EmptyDetail>
           ) : (
             <>
-              <DetailHeader>
-                <DetailSubject>{detail.subject || '(no subject)'}</DetailSubject>
-                <DetailMeta>
+              <PanelHeader>
+                <PanelSubTitle>{detail.subject || '(no subject)'}</PanelSubTitle>
+                <DetailHeaderRight>
                   {detail.message_count > 1 && <MetaChip>{t('messageCount', { defaultValue: '{{n}}개 메시지', n: detail.message_count }) as string}</MetaChip>}
                   {detail.client && <MetaChip>{detail.client.display_name || detail.client.company_name}</MetaChip>}
                   <DangerBtn type="button" onClick={onMarkSpam}>
@@ -613,7 +615,9 @@ const MailPage: React.FC = () => {
                       ? t('actions.notSpam', { defaultValue: '스팸 해제' }) as string
                       : t('actions.markSpam', { defaultValue: '스팸으로' }) as string}
                   </DangerBtn>
-                </DetailMeta>
+                </DetailHeaderRight>
+              </PanelHeader>
+              <DetailToolbar>
                 <DetailControls>
                   <CtrlBtn type="button" $on={detail.is_starred} onClick={() => patchThread(detail.id, { is_starred: !detail.is_starred })}>
                     {detail.is_starred ? '★' : '☆'} {t('actions.star', { defaultValue: '별표' }) as string}
@@ -658,7 +662,7 @@ const MailPage: React.FC = () => {
                     placeholder={t('actions.newLabel', { defaultValue: '+ 새 라벨' }) as string}
                   />
                 </DetailLabels>
-              </DetailHeader>
+              </DetailToolbar>
               <MessagesScroll>
                 {detail.messages.map(m => (
                   <MessageCard key={m.id} $outbound={m.direction === 'outbound'}>
@@ -741,8 +745,7 @@ const MailPage: React.FC = () => {
             </>
           )}
         </DetailCol>
-      </Grid>
-    </PageShell>
+    </MailLayout>
   );
 };
 
@@ -751,17 +754,21 @@ export default MailPage;
 // ─────────────────────────────────────────────
 // styles
 // ─────────────────────────────────────────────
-const Grid = styled.div`
+// 표준 3컬럼 full-bleed 레이아웃 — Q Talk 의 Layout 과 동일 (PageShell·카드 X)
+const MailLayout = styled.div`
   display: grid;
-  grid-template-columns: 220px minmax(280px, 360px) 1fr;
-  gap: 0;
-  height: calc(100vh - 140px);
-  background: #FFFFFF;
-  border: 1px solid #E2E8F0;
-  border-radius: 12px;
+  grid-template-columns: 240px minmax(300px, 380px) 1fr;
+  height: 100vh;
+  height: 100dvh;
+  height: var(--vvh, 100dvh);
+  background: #F8FAFC;
   overflow: hidden;
+  min-height: 0;
   @media (max-width: 1024px) {
-    grid-template-columns: 180px 1fr;
+    grid-template-columns: 200px 1fr;
+    height: calc(100vh - 56px);
+    height: calc(100dvh - 56px);
+    height: calc(var(--vvh, 100dvh) - 56px);
     & > :last-child { display: none; }
   }
   @media (max-width: 640px) {
@@ -773,16 +780,14 @@ const Grid = styled.div`
 const FolderCol = styled.div`
   border-right: 1px solid #E2E8F0;
   background: #F8FAFC;
-  padding: 16px 8px;
-  display: flex; flex-direction: column; gap: 4px;
-  overflow-y: auto;
+  display: flex; flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
 `;
-const FolderHeader = styled.div`
-  padding: 4px 12px 8px;
-  font-size: 11px; font-weight: 600;
-  color: #94A3B8;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+const FolderScroll = styled.div`
+  flex: 1; overflow-y: auto;
+  padding: 12px 8px;
+  display: flex; flex-direction: column; gap: 4px;
 `;
 const FolderItem = styled.button<{ $active: boolean }>`
   display: flex; align-items: center; justify-content: space-between;
@@ -837,19 +842,8 @@ const ListCol = styled.div`
   display: flex; flex-direction: column;
   overflow: hidden;
 `;
-const ListHeader = styled.div`
-  display: flex; align-items: baseline; gap: 8px;
-  padding: 14px 20px;
-  border-bottom: 1px solid #E2E8F0;
-  background: #FFFFFF;
-`;
-const ListTitle = styled.h2`
-  margin: 0;
-  font-size: 14px; font-weight: 700;
-  color: #0F172A;
-`;
 const ListCount = styled.span`
-  font-size: 12px; color: #94A3B8;
+  font-size: 13px; font-weight: 600; color: #94A3B8;
 `;
 const ThreadList = styled.div`
   flex: 1; overflow-y: auto;
@@ -926,19 +920,16 @@ const DetailCol = styled.div`
   overflow: hidden;
   background: #FFFFFF;
 `;
-const DetailHeader = styled.div`
-  padding: 16px 24px;
-  border-bottom: 1px solid #E2E8F0;
+// 상세 헤더 우측 (메시지 수·고객 칩 + 스팸) — PanelHeader 안 오른쪽 슬롯
+const DetailHeaderRight = styled.div`
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  flex-shrink: 0;
 `;
-const DetailSubject = styled.h2`
-  margin: 0 0 8px;
-  font-size: 18px; font-weight: 700;
-  color: #0F172A;
-  line-height: 1.4;
-`;
-const DetailMeta = styled.div`
-  display: flex; align-items: center; gap: 8px;
-  flex-wrap: wrap;
+// 상세 부가 툴바 (컨트롤·라벨) — PanelHeader 아래 별도 줄
+const DetailToolbar = styled.div`
+  padding: 12px 20px;
+  border-bottom: 1px solid #F1F5F9;
+  background: #FFFFFF;
 `;
 const MetaChip = styled.span`
   padding: 2px 8px;
@@ -949,7 +940,7 @@ const MetaChip = styled.span`
 // M3-B — 상세 헤더 컨트롤 (별표/팔로우/담당) + 라벨
 const DetailControls = styled.div`
   display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
-  margin-top: 10px;
+  margin-top: 0;
 `;
 const CtrlBtn = styled.button<{ $on: boolean }>`
   height: 28px; padding: 0 12px;
