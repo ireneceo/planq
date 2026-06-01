@@ -38,6 +38,8 @@ EmailAccount.init({
   smtp_username: { type: DataTypes.STRING(255), allowNull: true },
   smtp_password_encrypted: { type: DataTypes.TEXT, allowNull: true },
   smtp_tls: { type: DataTypes.BOOLEAN, allowNull: true, defaultValue: true },
+  // 개인 메일 소유자 — NULL = 회사 공용 (모든 멤버 접근), set = 개인 (본인만 접근, 외부 연동 Phase 3)
+  owner_user_id: { type: DataTypes.INTEGER, allowNull: true, references: { model: 'users', key: 'id' } },
   // 상태
   is_active: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true },
   is_default: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },

@@ -263,6 +263,44 @@ router.get('/me/oauth/google/callback', async (req, res) => {
     const { tokens, email, name, sub } = await personalOauth.exchangeCodeForTokens(code);
     if (!email) return fail('Google 계정 이메일을 확인할 수 없습니다');
 
+    // ── Gmail 은 EmailAccount (Q Mail M1 파이프라인) 로 저장 — 기존 IMAP cron 재사용 + owner_user_id 격리 ──
+    if (parsed.provider === 'gmail') {
+      const acctFields = {
+        business_id: parsed.businessId,
+        owner_user_id: parsed.userId,           // 개인 메일 — 본인만 접근
+        email,
+        display_name: name || null,
+        auth_type: 'google_oauth',
+        oauth_access_token_encrypted: tokens.access_token ? encrypt(tokens.access_token) : null,
+        oauth_expires_at: tokens.expiry_date ? new Date(tokens.expiry_date) : null,
+        oauth_scope: tokens.scope || personalOauth.PROVIDER_SCOPES.gmail.join(' '),
+        imap_host: 'imap.gmail.com',
+        imap_port: 993,
+        imap_username: email,
+        imap_tls: true,
+        imap_folder: 'INBOX',
+        is_active: true,
+        last_sync_error: null,
+        fail_count: 0,
+      };
+      if (tokens.refresh_token) acctFields.oauth_refresh_token_encrypted = encrypt(tokens.refresh_token);
+
+      const [acct, acctCreated] = await EmailAccount.findOrCreate({
+        where: { business_id: parsed.businessId, email },
+        defaults: acctFields,
+      });
+      if (!acctCreated) {
+        // 같은 워크스페이스에 같은 email 이 이미 있음 — 안전 가드 (회사 공용/타인 개인 덮어쓰기 금지)
+        if (acct.owner_user_id == null) return fail('이 메일은 회사 공용 계정으로 등록되어 있어 개인으로 연결할 수 없습니다');
+        if (acct.owner_user_id !== parsed.userId) return fail('이 메일은 다른 사용자에게 연결되어 있습니다');
+        await acct.update(acctFields);
+      }
+      return res.send(personalCallbackHtml({
+        ok: true, provider: 'gmail', title: '연동 완료',
+        body: `<h2>Gmail 연동 완료</h2><p>계정: <strong>${email}</strong><br/>5분 내 새 메일이 인박스에 들어옵니다.</p>`,
+      }));
+    }
+
     const scopeList = personalOauth.PROVIDER_SCOPES[parsed.provider].join(' ');
     const baseFields = {
       auth_type: 'oauth',
