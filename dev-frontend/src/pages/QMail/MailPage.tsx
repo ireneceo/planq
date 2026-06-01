@@ -20,6 +20,7 @@ import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import RichEditor from '../../components/Common/RichEditor';
 import AttachmentField from '../../components/Common/AttachmentField';
 import ActionButton from '../../components/Common/ActionButton';
+import PlanQSelect from '../../components/Common/PlanQSelect';
 import { uploadMyFile } from '../../services/files';
 
 type Folder = 'reply_needed' | 'inbox' | 'assigned' | 'following' | 'spam' | 'archived';
@@ -248,6 +249,42 @@ const MailPage: React.FC = () => {
   }, [detail, businessId, myUserId, members, loadCounts]);
 
   const labelColor = useCallback((name: string) => labelMaster.find(l => l.name === name)?.color || '#14B8A6', [labelMaster]);
+  const assignOptions = useMemo(() => [
+    { value: 0, label: t('actions.unassigned', { defaultValue: '담당 없음' }) as string },
+    ...members.map(m => ({ value: m.user_id, label: m.name })),
+  ], [members, t]);
+
+  // 담당자 지정 (멤버 선택 — PlanQSelect)
+  const assignTo = useCallback(async (uid: number | null) => {
+    if (!detail || !businessId) return;
+    setDetail(prev => (prev ? { ...prev, assignee_user_id: uid, assignee_name: uid ? (members.find(m => m.user_id === uid)?.name || null) : null } : prev));
+    try {
+      await apiFetch(`/api/businesses/${businessId}/email-threads/${detail.id}/assign`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_id: uid }),
+      });
+      loadCounts();
+    } catch { /* noop */ }
+  }, [detail, businessId, members, loadCounts]);
+
+  // 새 라벨 생성 (마스터 추가 후 현재 스레드에 적용)
+  const [newLabelName, setNewLabelName] = useState('');
+  const [labelBusy, setLabelBusy] = useState(false);
+  const createLabel = useCallback(async () => {
+    const nm = newLabelName.trim();
+    if (!nm || !businessId || labelBusy) return;
+    setLabelBusy(true);
+    try {
+      const r = await apiFetch(`/api/businesses/${businessId}/email-labels`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: nm }),
+      });
+      const j = await r.json();
+      if (j.success) {
+        setLabelMaster(j.data || []);
+        setNewLabelName('');
+        if (detail && !(detail.labels || []).includes(nm)) toggleLabel(nm);
+      }
+    } catch { /* noop */ } finally { setLabelBusy(false); }
+  }, [newLabelName, businessId, labelBusy, detail, toggleLabel]);
 
 
   // 스레드 detail fetch + auto mark-read
@@ -351,6 +388,32 @@ const MailPage: React.FC = () => {
   const [replyFileIds, setReplyFileIds] = useState<number[]>([]);
   const [sending, setSending] = useState(false);
   const [replyError, setReplyError] = useState<string | null>(null);
+  const [aiBusy, setAiBusy] = useState(false);
+
+  // AI 답변 제안 (Cue) — 마지막 inbound 기반 초안 → 컴포저 채움
+  const aiSuggest = useCallback(async () => {
+    if (!detail || !businessId || aiBusy) return;
+    setAiBusy(true);
+    setReplyError(null);
+    try {
+      const r = await apiFetch(`/api/businesses/${businessId}/email-threads/${detail.id}/ai-suggest`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}),
+      });
+      const j = await r.json();
+      if (!j.success) {
+        const map: Record<string, string> = {
+          cue_usage_limit_exceeded: t('reply.aiLimitExceeded', { defaultValue: '이번 달 Cue 사용량을 모두 썼어요.' }) as string,
+          ai_unavailable: t('reply.aiUnavailable', { defaultValue: 'AI 서비스를 잠시 사용할 수 없어요.' }) as string,
+          no_inbound_message: t('reply.aiNoInbound', { defaultValue: '답장할 받은 메일이 없어요.' }) as string,
+        };
+        setReplyError(map[j.message] || (t('reply.aiFailed', { defaultValue: 'AI 제안 생성 실패' }) as string));
+        return;
+      }
+      if (j.data?.suggestion) setReplyHtml(j.data.suggestion);
+    } catch (e) {
+      setReplyError((e as Error).message);
+    } finally { setAiBusy(false); }
+  }, [detail, businessId, aiBusy, t]);
 
   // 스레드 전환 시 컴포저 초기화
   useEffect(() => {
@@ -487,36 +550,38 @@ const MailPage: React.FC = () => {
             </EmptyList>
           ) : (
             <ThreadList>
-              {threads.map(t => (
+              {threads.map(mt => (
                 <ThreadItem
-                  key={t.id}
+                  key={mt.id}
                   type="button"
-                  $active={activeId === t.id}
-                  $unread={t.unread_count > 0}
-                  onClick={() => setActive(t.id)}
+                  $active={activeId === mt.id}
+                  $unread={mt.unread_count > 0}
+                  onClick={() => setActive(mt.id)}
                 >
                   <ThreadRow1>
                     <ThreadSender>
-                      {t.client?.display_name || t.client?.company_name || t.account?.display_name || t.account?.email || '(unknown)'}
+                      {mt.client?.display_name || mt.client?.company_name || mt.account?.display_name || mt.account?.email || '(unknown)'}
                     </ThreadSender>
                     <ThreadRow1Right>
                       <StarSpan
                         role="button"
-                        aria-label={t.is_starred ? '별표 해제' : '별표'}
-                        $on={t.is_starred}
-                        onClick={(e) => toggleStar(e, t)}
-                      >{t.is_starred ? '★' : '☆'}</StarSpan>
-                      <ThreadTime>{formatTimeAgo(t.last_message_at)}</ThreadTime>
+                        aria-label={mt.is_starred
+                          ? t('actions.unstar', { defaultValue: '별표 해제' }) as string
+                          : t('actions.star', { defaultValue: '별표' }) as string}
+                        $on={mt.is_starred}
+                        onClick={(e) => toggleStar(e, mt)}
+                      >{mt.is_starred ? '★' : '☆'}</StarSpan>
+                      <ThreadTime>{formatTimeAgo(mt.last_message_at)}</ThreadTime>
                     </ThreadRow1Right>
                   </ThreadRow1>
-                  <ThreadSubject $unread={t.unread_count > 0}>
-                    {t.unread_count > 0 && <UnreadDot />}
-                    {t.subject || '(no subject)'}
+                  <ThreadSubject $unread={mt.unread_count > 0}>
+                    {mt.unread_count > 0 && <UnreadDot />}
+                    {mt.subject || '(no subject)'}
                   </ThreadSubject>
-                  {t.last_message_preview && <ThreadPreview>{t.last_message_preview}</ThreadPreview>}
-                  {t.labels && t.labels.length > 0 && (
+                  {mt.last_message_preview && <ThreadPreview>{mt.last_message_preview}</ThreadPreview>}
+                  {mt.labels && mt.labels.length > 0 && (
                     <RowLabels>
-                      {t.labels.map(l => <LabelChip key={l} $color={labelColor(l)}>{l}</LabelChip>)}
+                      {mt.labels.map(l => <LabelChip key={l} $color={labelColor(l)}>{l}</LabelChip>)}
                     </RowLabels>
                   )}
                 </ThreadItem>
@@ -558,13 +623,23 @@ const MailPage: React.FC = () => {
                       ? t('actions.following', { defaultValue: '팔로우 중' }) as string
                       : t('actions.follow', { defaultValue: '팔로우' }) as string}
                   </CtrlBtn>
-                  <CtrlBtn type="button" $on={detail.assignee_user_id === myUserId} onClick={toggleAssignMe}>
-                    {detail.assignee_user_id === myUserId
-                      ? t('actions.assignedToMe', { defaultValue: '내 담당 ✓' }) as string
-                      : detail.assignee_name
-                        ? (t('actions.assignedTo', { defaultValue: '담당: {{name}}', name: detail.assignee_name }) as string)
+                  {myUserId && (
+                    <CtrlBtn type="button" $on={detail.assignee_user_id === myUserId} onClick={toggleAssignMe}>
+                      {detail.assignee_user_id === myUserId
+                        ? t('actions.assignedToMe', { defaultValue: '내 담당 ✓' }) as string
                         : t('actions.assignMe', { defaultValue: '내가 담당' }) as string}
-                  </CtrlBtn>
+                    </CtrlBtn>
+                  )}
+                  <AssignWrap>
+                    <PlanQSelect
+                      size="sm"
+                      value={assignOptions.find(o => o.value === (detail.assignee_user_id || 0))}
+                      onChange={(opt: unknown) => { const v = (opt as { value?: number } | null)?.value || 0; assignTo(v > 0 ? v : null); }}
+                      options={assignOptions}
+                      isSearchable
+                      menuPlacement="bottom"
+                    />
+                  </AssignWrap>
                 </DetailControls>
                 <DetailLabels>
                   {(detail.labels || []).map(l => (
@@ -575,6 +650,13 @@ const MailPage: React.FC = () => {
                   {labelMaster.filter(lm => !(detail.labels || []).includes(lm.name)).map(lm => (
                     <AddLabelChip key={lm.name} type="button" $color={lm.color} onClick={() => toggleLabel(lm.name)}>+ {lm.name}</AddLabelChip>
                   ))}
+                  <NewLabelInput
+                    value={newLabelName}
+                    disabled={labelBusy}
+                    onChange={(e) => setNewLabelName(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); createLabel(); } }}
+                    placeholder={t('actions.newLabel', { defaultValue: '+ 새 라벨' }) as string}
+                  />
                 </DetailLabels>
               </DetailHeader>
               <MessagesScroll>
@@ -638,7 +720,11 @@ const MailPage: React.FC = () => {
                     />
                     {replyError && <ComposerError>{replyError}</ComposerError>}
                     <ComposerActions>
-                      <ComposerHint>{t('reply.shortcut', { defaultValue: '⌘/Ctrl + Enter 로 보내기' }) as string}</ComposerHint>
+                      <AiSuggestBtn type="button" onClick={aiSuggest} disabled={aiBusy || sending}>
+                        {aiBusy
+                          ? t('reply.aiThinking', { defaultValue: 'Cue 작성 중…' }) as string
+                          : t('reply.aiSuggest', { defaultValue: '✨ AI 답변 제안' }) as string}
+                      </AiSuggestBtn>
                       <ComposerBtns>
                         <ActionButton tone="secondary" size="md" onClick={() => setReplyOpen(false)} disabled={sending}>
                           {t('reply.cancel', { defaultValue: '취소' }) as string}
@@ -648,6 +734,7 @@ const MailPage: React.FC = () => {
                         </ActionButton>
                       </ComposerBtns>
                     </ComposerActions>
+                    <ComposerHint>{t('reply.shortcut', { defaultValue: '⌘/Ctrl + Enter 로 보내기' }) as string}</ComposerHint>
                   </Composer>
                 )}
               </DetailFooter>
@@ -888,6 +975,18 @@ const AddLabelChip = styled.button<{ $color: string }>`
   border: 1px dashed ${p => p.$color}88;
   &:hover { background: ${p => p.$color}12; }
 `;
+const NewLabelInput = styled.input`
+  height: 24px; padding: 0 10px;
+  border: 1px dashed #CBD5E1; border-radius: 999px;
+  font-size: 11px; color: #334155;
+  width: 96px;
+  &::placeholder { color: #94A3B8; }
+  &:focus { outline: none; border-color: #14B8A6; border-style: solid; }
+  &:disabled { opacity: 0.5; }
+`;
+const AssignWrap = styled.div`
+  min-width: 150px;
+`;
 const DangerBtn = styled.button`
   margin-left: auto;
   height: 28px; padding: 0 12px;
@@ -975,6 +1074,20 @@ const ComposerHint = styled.div`
 const ComposerBtns = styled.div`
   display: flex; align-items: center; gap: 8px;
   margin-left: auto;
+`;
+// AI 답변 제안 — Coral 강조 (AI 감지/액션 컬러)
+const AiSuggestBtn = styled.button`
+  height: 36px; padding: 0 14px;
+  border-radius: 8px;
+  font-size: 13px; font-weight: 600;
+  cursor: pointer;
+  color: #F43F5E;
+  background: #FFF1F2;
+  border: 1px solid #FECDD3;
+  transition: background 0.12s, border-color 0.12s;
+  &:hover:not(:disabled) { background: #FFE4E6; border-color: #FDA4AF; }
+  &:disabled { opacity: 0.6; cursor: wait; }
+  &:focus-visible { outline: 2px solid #F43F5E; outline-offset: 2px; }
 `;
 
 const Loading = styled.div`
