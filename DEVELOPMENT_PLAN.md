@@ -26,6 +26,37 @@
 
 ---
 
+## 🚧 진행: 사이클 N+76 — 외부 연동 팀/개인 Phase 2-4 (개인 GCal·Drive·Gmail) (2026-06-01, dev 검증 완료 · 운영 미배포)
+
+> **사용자 호소:** "외부연동 서비스를 팀이랑 개인을 잘 정리하는 게 우선 아니었어? 이거 다 했어?" → Phase 1(틀)만 되어 있고 개인 자산 실연결(Phase 2-4)이 placeholder 였음. 이번 사이클에 실연결.
+
+**설계:** `docs/EXTERNAL_INTEGRATIONS_DESIGN.md` — `external_connections.owner_scope`(workspace/user) + 같은 GOOGLE_CLIENT_ID 재사용. **DB 스키마: 추가 1개만** (`email_accounts.owner_user_id`).
+
+**Chunk 1 — 개인 OAuth 공통 기반:**
+- `services/personalOauth.js` — Google 3 provider scope(calendar.readonly/drive.readonly/mail.google.com) + HMAC state(owner_scope='user', 10분 TTL) + 토큰 교환/refresh/revoke
+- `routes/external_connections.js` — `POST /me/oauth/google/initiate` + `GET /me/oauth/google/callback`(단일 redirect URI, provider 는 state 분기) → `external_connections`(cal/drive) 또는 `EmailAccount`(gmail) 저장. AES-256-GCM.
+- 검증 13/13 (auth_url scope/redirect/state, 400/403/401 격리, 위조 state 거부)
+
+**Phase 2 — 개인 Google Calendar overlay:**
+- `services/personalCalendar.js` (events.list, 10s timeout) + `GET /me/calendar/events`
+- `QCalendarPage` — 개인 일정 **violet(#8B5CF6) overlay** + "내 캘린더" 토글(연결 시만) + 클릭 시 Google 원본 새 탭. `PersonalCalendarEvent` 타입 + `isPersonalEvent` 가드.
+- `ProfileIntegrationsPage` 캘린더 "Google Calendar 연결" 버튼 실작동(popup OAuth)
+
+**Phase 4 — 개인 Google Drive 탭:**
+- `services/personalDrive.js` (files.list) + `GET /me/drive/files`
+- `QFilePage` 탭 분리(회사 파일 / 내 파일) + `PersonalDriveTab`(검색·열기). 검증 4/4.
+
+**Phase 3 — 개인 Gmail + Q Mail 폴더 분리 (프라이버시 critical):**
+- `email_accounts.owner_user_id`(NULL=회사 공용, set=개인) — **기존 IMAP cron 무변경으로 개인 Gmail 자동 수집**
+- **프라이버시 격리** `routes/email_threads.js` — `accessibleAccountIds()`(회사 공용 + 본인 개인)로 list/detail/mark-*/reply 전부 제한. 다른 사람 개인 메일 절대 노출 X (admin 도)
+- `GET /me/email-accounts` + `GET /:biz/mail-accounts`(폴더트리용) + 개인 메일 해제
+- `MailPage` 폴더트리 **회사/개인 계정 그룹** + 계정 필터. `ProfileIntegrationsPage` 메일 "Gmail 연결"
+- **격리 검증 9/9** — B 가 A 개인 메일을 list/detail/mark-read/mail-accounts 어디서도 못 봄, A 는 다 봄
+
+**남은 것:** Google Cloud Console 에 redirect URI `${origin}/api/me/oauth/google/callback` 1개 등록 + 최종 OAuth 동의 클릭(Irene 실계정) → E2E 완결. Microsoft(Phase 5)·옛 모델 마이그레이션(Phase 6-7) 후순위.
+
+---
+
 ## ✅ 완료: 사이클 N+75 (A/B/C/D) — 명칭 통일 + deploy OOM 차단 + Google 연결 UI + Q Mail M2 (2026-05-27, 4 commit, 운영 라이브 v1.22.0)
 
 **Phase A (commit `8a860c5`):** 명칭 통일 — "공유/공개 범위" → "공개" 5 자산 (VisibilityBadge + DocsTab + KnowledgePage 2곳 + EventDrawer + PostsPage) + i18n ko/en
