@@ -56,7 +56,7 @@ const PersonalDriveTab: React.FC<{ businessId: number }> = ({ businessId }) => {
   if (connected === false) {
     return (
       <Notice>
-        <NoticeText>{t('drive.notConnected', { defaultValue: 'Google Drive 를 연결하면 내 개인 파일을 여기서 볼 수 있어요.' }) as string}</NoticeText>
+        <NoticeText>{t('drive.notConnected', { defaultValue: 'Google Drive 를 연결하면 PlanQ 가 내 드라이브에 저장한 파일을 여기서 볼 수 있어요.' }) as string}</NoticeText>
         <NoticeBtn type="button" onClick={() => { window.location.href = '/profile/integrations'; }}>
           {t('drive.connectCta', { defaultValue: '내 외부 연동에서 연결하기' }) as string} →
         </NoticeBtn>
@@ -71,7 +71,7 @@ const PersonalDriveTab: React.FC<{ businessId: number }> = ({ businessId }) => {
           value={q}
           onChange={(e) => setQ(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter') load(q); }}
-          placeholder={t('drive.searchPlaceholder', { defaultValue: '내 Drive 파일 검색 (Enter)' }) as string}
+          placeholder={t('drive.searchPlaceholder', { defaultValue: 'PlanQ 저장 파일 검색 (Enter)' }) as string}
         />
         {accountEmail && <AccountTag>{accountEmail}</AccountTag>}
       </Bar>
@@ -79,7 +79,7 @@ const PersonalDriveTab: React.FC<{ businessId: number }> = ({ businessId }) => {
       {loading ? (
         <Empty>{t('drive.loading', { defaultValue: '불러오는 중…' }) as string}</Empty>
       ) : files.length === 0 ? (
-        <Empty>{t('drive.empty', { defaultValue: '파일이 없어요' }) as string}</Empty>
+        <Empty>{t('drive.empty', { defaultValue: '아직 PlanQ 가 내 드라이브에 저장한 파일이 없어요' }) as string}</Empty>
       ) : (
         <List>
           {files.map((f) => (

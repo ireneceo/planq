@@ -4,10 +4,10 @@
 // 단일 redirect URI 로 3 provider 통합 — provider 는 state 에 encode (Google Console 에 1개만 등록):
 //   ${origin}/api/me/oauth/google/callback
 //
-// 최소 권한 원칙:
-//   google_calendar → calendar.readonly  (Q Calendar overlay 표시 전용, 쓰기 X)
-//   google_drive    → drive.readonly     (Q File 개인 탭 열람 전용)
-//   gmail           → mail.google.com     (IMAP/SMTP XOAUTH2 — 회사 메일과 동일)
+// 권한 등급 (Google 검증 부담 고려):
+//   google_calendar → calendar.readonly  (sensitive — 일반 검증, CASA X)
+//   google_drive    → drive.file          (비제한 — 회사 Drive 와 동일, PlanQ 가 만든/연 파일만. CASA X)
+//   gmail           → mail.google.com     (restricted — CASA 필요. OAuth 원클릭 전용, 검증 대기 항목)
 //
 // 토큰은 호출측에서 services/encryption 으로 암호화하여 external_connections 에 저장.
 const { google } = require('googleapis');
@@ -17,7 +17,7 @@ const { encrypt, decrypt } = require('./encryption');
 // provider → OAuth scope (openid/email/profile 로 계정 식별)
 const PROVIDER_SCOPES = {
   google_calendar: ['https://www.googleapis.com/auth/calendar.readonly', 'openid', 'email', 'profile'],
-  google_drive: ['https://www.googleapis.com/auth/drive.readonly', 'openid', 'email', 'profile'],
+  google_drive: ['https://www.googleapis.com/auth/drive.file', 'openid', 'email', 'profile'],
   gmail: ['https://mail.google.com/', 'openid', 'email', 'profile'],
 };
 
