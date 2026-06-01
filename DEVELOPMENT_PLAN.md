@@ -1,6 +1,6 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-05-27 사이클 N+75 (A/B/C/D) — 명칭 통일 + deploy OOM 차단 + Settings Google 연결 + Q Mail M2 인박스 read-only
+> **최종 업데이트:** 2026-06-01 사이클 N+76 — 외부 연동 팀/개인 Phase 2-4 (개인 GCal·Drive·Gmail). dev 검증 완료 · 운영 미배포 · Google 검증 대기
 >
 > **직전 라이브:** **v1.22.0** (commit `6b52029`, 2026-05-27) — N+75 운영 라이브 (Q Mail M2 인박스 + Settings Google 연결 + 명칭 통일 + deploy 8GB)
 >

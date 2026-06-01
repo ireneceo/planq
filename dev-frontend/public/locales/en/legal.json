@@ -30,7 +30,9 @@
       "title": "3. Third-Party Sharing and International Transfers",
       "intro": "The Company does not share personal data with third parties without user consent. The following transfers occur only when the user opts in:",
       "items": [
-        "Google LLC (USA) — when you connect Google Drive: email, OAuth token. Purpose: file storage. Retention: until disconnection.",
+        "Google LLC (USA) — when you connect Google Drive: email, OAuth token. Purpose: storing and managing files created by PlanQ (drive.file scope). Retention: until disconnection.",
+        "Google LLC (USA) — when you connect Google Calendar: email, calendar events (read-only), OAuth token. Purpose: showing your events inside PlanQ Calendar. Retention: until disconnection.",
+        "PlanQ's access, use, and storage of Google user data complies with the Google API Services User Data Policy, including the Limited Use requirements. Such data is used only to provide the features described above, and is never used for advertising or sold to third parties.",
         "Stripe, Inc. (USA / Malaysia) — global card payments: amount, email. Card details handled by Stripe directly.",
         "PortOne (Iamport Inc., Korea) — Korean payments: amount, email.",
         "OpenAI, L.L.C. (USA) — Cue AI feature: partial conversation content. Not used for model training (per OpenAI API terms).",
