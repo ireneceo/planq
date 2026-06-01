@@ -56,6 +56,16 @@ const PROVIDER_ICON: Record<string, string> = {
   apple_calendar: '📅',
 };
 
+// Google 4색 G 로고 (브랜드 가이드라인) — 연결 버튼 공통
+const GoogleIcon: React.FC = () => (
+  <GoogleG viewBox="0 0 18 18" aria-hidden="true">
+    <path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.875 2.684-6.615z"/>
+    <path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z"/>
+    <path fill="#FBBC05" d="M3.964 10.71A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.042l3.007-2.332z"/>
+    <path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z"/>
+  </GoogleG>
+);
+
 const ProfileIntegrationsPage: React.FC = () => {
   const { t } = useTranslation('profile');
   const { user } = useAuth();
@@ -122,6 +132,48 @@ const ProfileIntegrationsPage: React.FC = () => {
       setConnectBusy(false);
     }
   };
+
+  // ── 개인 외부 자원 연결 (캘린더 등) — popup OAuth (owner_scope='user') ──
+  const [connProvider, setConnProvider] = useState<string | null>(null);
+  const connectPersonal = useCallback(async (provider: string) => {
+    if (!businessId || connProvider) return;
+    setConnProvider(provider);
+    setErrorMsg(null);
+    try {
+      const r = await apiFetch('/api/me/oauth/google/initiate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ provider, business_id: businessId }),
+      });
+      const j = await r.json();
+      if (!j.success || !j.data?.auth_url) {
+        setErrorMsg(j.message || (t('integrations.connectFailed2', { defaultValue: '연결 시작에 실패했어요' }) as string));
+        setConnProvider(null);
+        return;
+      }
+      const popup = window.open(j.data.auth_url, 'planq-personal-oauth', 'width=520,height=660');
+      if (!popup) {
+        setErrorMsg(t('integrations.popupBlocked', { defaultValue: '팝업이 차단되었어요. 브라우저에서 팝업을 허용해 주세요.' }) as string);
+        setConnProvider(null);
+      }
+    } catch (e) {
+      setErrorMsg((e as Error).message);
+      setConnProvider(null);
+    }
+  }, [businessId, connProvider, t]);
+
+  // popup 콜백 완료 → postMessage 수신 시 목록 갱신
+  useEffect(() => {
+    const onMsg = (e: MessageEvent) => {
+      if (e.data && e.data.type === 'personal:connected') {
+        setConnProvider(null);
+        if (e.data.ok) load();
+        else setErrorMsg(t('integrations.connectFailed2', { defaultValue: '연결에 실패했어요. 다시 시도해 주세요.' }) as string);
+      }
+    };
+    window.addEventListener('message', onMsg);
+    return () => window.removeEventListener('message', onMsg);
+  }, [load, t]);
 
   const onDisconnectPersonal = async (id: number | string) => {
     if (typeof id === 'string') return;  // legacy 표시 row
@@ -197,7 +249,12 @@ const ProfileIntegrationsPage: React.FC = () => {
         {personalConns.filter(c => ['google_calendar', 'microsoft_calendar', 'apple_calendar'].includes(c.provider)).length === 0 ? (
           <Empty>
             <span>{t('integrations.calendarEmpty', '연결된 개인 캘린더가 없어요') as string}</span>
-            <ComingSoonNote>{t('integrations.calendarSoon', '🚧 Phase 2 — 다음 사이클에서 등록 가능') as string}</ComingSoonNote>
+            <ConnectGoogleBtn type="button" onClick={() => connectPersonal('google_calendar')} disabled={connProvider === 'google_calendar'}>
+              <GoogleIcon />
+              {connProvider === 'google_calendar'
+                ? t('integrations.connecting', { defaultValue: '연결 중…' }) as string
+                : t('integrations.connectCalendar', { defaultValue: 'Google Calendar 연결' }) as string}
+            </ConnectGoogleBtn>
           </Empty>
         ) : (
           <ConnList>
