@@ -23,7 +23,7 @@
 3. ⏳ **Google OAuth 검증 제출 — 미완 (Irene 액션 대기).** Verification Center 가 "branding 먼저 verify" 로 막힘(콘솔 UI 이슈 의심). 도메인·브랜딩·게시 다 됐는데 제출 버튼 안 뜸. **메모리 `project_google_oauth_verification_pending` 참조.** 막히면 Google 문의. → 승인 전엔 test user 만 연결 가능
    - Irene: "할 때 물을게" — 검증 제출 자료(권한 justification 등) 요청 오면 Claude 가 작성
 
-**Q Mail M3 완료 (dev, 검증 통과 — 미배포):**
+**Q Mail M3 운영 라이브 (v1.24.0, deploy 0e500b2, 운영 email_labels ALTER 완료):**
 - M3-A 답장/SMTP (운영 라이브)
 - M3-B 스타/라벨/라벨생성/할당(PlanQSelect)/팔로우 + 폴더(회사·개인·내담당·팔로우) — `businesses.email_labels` 컬럼 추가(dev) + EmailThreadParticipant + 격리 유지
 - M3-C AI 답변 제안 — `cue_orchestrator.generateEmailReplyDraft`(gpt-4o-mini, 날조금지) + POST `/ai-suggest`(cue_usage 'email_reply') + 컴포저 "✨ AI 답변 제안" 버튼

@@ -1,8 +1,10 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-06-01 사이클 N+76 — 외부 연동 팀/개인 Phase 2-4 (개인 GCal·Drive·Gmail)
+> **최종 업데이트:** 2026-06-01 사이클 N+76 — 외부 연동 Phase 2-4 + Q Mail M3 (답장·라벨·할당·AI답변)
 >
-> **직전 라이브:** **v1.23.0** (commit `7ba9fac`, 2026-06-01) — N+76 외부 연동 Phase 2-4 운영 라이브 (개인 캘린더 overlay + 개인 Drive 탭 + 개인 Gmail 격리). Google 검증 제출 대기
+> **직전 라이브:** **v1.24.0** (commit `0e500b2`, 2026-06-01) — Q Mail M3 운영 라이브 (스타·라벨·할당·팔로우·폴더 + AI 답변 제안). `businesses.email_labels` 운영 ALTER 완료
+>
+> **직전 라이브:** v1.23.0 (commit `7ba9fac`, 2026-06-01) — N+76 외부 연동 Phase 2-4 (개인 GCal overlay + 개인 Drive 탭 + 개인 Gmail 격리). Google 검증 제출 대기
 >
 > **직전 라이브:** **v1.22.0** (commit `6b52029`, 2026-05-27) — N+75 운영 라이브 (Q Mail M2 인박스 + Settings Google 연결 + 명칭 통일 + deploy 8GB)
 >
