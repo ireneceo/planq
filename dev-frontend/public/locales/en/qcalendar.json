@@ -129,5 +129,7 @@
     "day": "No events today"
   },
   "more": "+ {{count}} more",
-  "allDay": "All day"
+  "allDay": "All day",
+  "personalCalendar": "My calendar",
+  "personalCalendarHint": "Show/hide my Google Calendar events"
 }
