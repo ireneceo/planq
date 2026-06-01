@@ -301,10 +301,30 @@ const ProfileIntegrationsPage: React.FC = () => {
       <Section>
         <SectionTitle>{t('integrations.drive', '파일 (개인)') as string}</SectionTitle>
         <SectionSub>{t('integrations.driveSub', '내 Drive 의 개인 파일을 PlanQ 에서 끌어와 봐요') as string}</SectionSub>
-        <Empty>
-          <span>{t('integrations.driveEmpty', '연결된 개인 파일 저장소가 없어요') as string}</span>
-          <ComingSoonNote>{t('integrations.driveSoon', '🚧 Phase 4 — 다음 사이클에서 등록 가능') as string}</ComingSoonNote>
-        </Empty>
+        {personalConns.filter(c => c.provider === 'google_drive').length === 0 ? (
+          <Empty>
+            <span>{t('integrations.driveEmpty', '연결된 개인 파일 저장소가 없어요') as string}</span>
+            <ConnectGoogleBtn type="button" onClick={() => connectPersonal('google_drive')} disabled={connProvider === 'google_drive'}>
+              <GoogleIcon />
+              {connProvider === 'google_drive'
+                ? t('integrations.connecting', { defaultValue: '연결 중…' }) as string
+                : t('integrations.connectDrive', { defaultValue: 'Google Drive 연결' }) as string}
+            </ConnectGoogleBtn>
+          </Empty>
+        ) : (
+          <ConnList>
+            {personalConns.filter(c => c.provider === 'google_drive').map(c => (
+              <ConnRow key={c.id}>
+                <ConnIcon>{PROVIDER_ICON[c.provider] || '📁'}</ConnIcon>
+                <ConnInfo>
+                  <ConnTitle>{PROVIDER_LABEL[c.provider]}</ConnTitle>
+                  <ConnSub>{c.account_email}</ConnSub>
+                </ConnInfo>
+                <DangerBtn type="button" onClick={() => onDisconnectPersonal(c.id)}>{t('integrations.disconnect', '해제') as string}</DangerBtn>
+              </ConnRow>
+            ))}
+          </ConnList>
+        )}
       </Section>
 
       <DividerBox>
