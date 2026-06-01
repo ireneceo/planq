@@ -1,6 +1,8 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-06-01 사이클 N+76 — 외부 연동 Phase 2-4 + Q Mail M3 (답장·라벨·할당·AI답변)
+> **최종 업데이트:** 2026-06-01 사이클 N+76 — 외부 연동 Phase 2-4 + Q Mail M3 + Q Mail UI/UX 통일(공통 PanelLayout·2-pane) + 새 메일 작성
+>
+> **공통 레이아웃 박제:** `components/Layout/PanelLayout.tsx` (`PanelLayout`+`Panel`) — 멀티컬럼 페이지 통일 컴포넌트. Q Mail 적용 완료, 타 메뉴 마이그레이션 예정. UI/UX 최상위 기준: memory `feedback_uiux_unified_master`
 >
 > **직전 라이브:** **v1.24.0** (commit `0e500b2`, 2026-06-01) — Q Mail M3 운영 라이브 (스타·라벨·할당·팔로우·폴더 + AI 답변 제안). `businesses.email_labels` 운영 ALTER 완료
 >

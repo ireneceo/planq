@@ -478,6 +478,64 @@ router.post('/:businessId/email-threads/:id/messages',
 );
 
 // ─────────────────────────────────────────────
+// 새 메일 작성/발송 (compose) — 새 스레드 + outbound 메시지 + SMTP 발송
+// POST /:biz/email-compose  body: { account_id, to[], cc?, bcc?, subject, body_html, attachment_file_ids? }
+// ─────────────────────────────────────────────
+router.post('/:businessId/email-compose',
+  authenticateToken, checkBusinessAccess, requireMenu('qmail', 'write'),
+  async (req, res, next) => {
+    try {
+      const businessId = Number(req.params.businessId);
+      const { account_id, to, cc, bcc, subject, body_html, attachment_file_ids } = req.body || {};
+      if (!body_html || !String(body_html).trim()) return errorResponse(res, 'body_required', 400);
+      const toList = (Array.isArray(to) ? to : [to]).map(s => String(s || '').trim()).filter(Boolean);
+      if (!toList.length) return errorResponse(res, 'recipient_required', 400);
+
+      // 발신 계정 — 본인이 접근 가능한 계정만 (개인 메일 격리 동일 적용)
+      const acctIds = await accessibleAccountIds(businessId, req.user.id);
+      const accId = Number(account_id);
+      if (!acctIds.includes(accId)) return errorResponse(res, 'account_not_accessible', 403);
+      const account = await EmailAccount.findOne({ where: { id: accId, business_id: businessId } });
+      if (!account) return errorResponse(res, 'account_not_found', 404);
+
+      const { atts, files } = await resolveAttachments(attachment_file_ids, businessId);
+      const subj = String(subject || '').trim() || '(제목 없음)';
+
+      let sendResult;
+      try {
+        sendResult = await sendMail(account, { to: toList, cc, bcc, subject: subj, html: body_html, attachments: atts });
+      } catch (e) {
+        console.error('[qmail] compose send failed:', e.message);
+        return errorResponse(res, `send_failed: ${e.message}`, 502);
+      }
+
+      const now = new Date();
+      const preview = htmlToPreview(body_html);
+      const thread = await EmailThread.create({
+        business_id: businessId, account_id: accId, subject: subj, status: 'open',
+        reply_needed: false, message_count: 1, unread_count: 0,
+        last_message_at: now, last_message_direction: 'outbound', last_message_preview: preview,
+      });
+      const outMsg = await EmailMessage.create({
+        thread_id: thread.id, business_id: businessId, direction: 'outbound',
+        message_id: sendResult.messageId || `<planq-compose-${thread.id}-${now.getTime()}@planq>`,
+        from_email: account.email, from_name: account.display_name || null,
+        to_emails: toList,
+        cc_emails: (Array.isArray(cc) && cc.length) ? cc : null,
+        bcc_emails: (Array.isArray(bcc) && bcc.length) ? bcc : null,
+        subject: subj, body_html, body_text: preview,
+        sent_by_user_id: req.user.id, is_read: true, delivery_status: 'sent', sent_at: now,
+      });
+      for (const f of files) {
+        await EmailAttachment.create({ message_id: outMsg.id, file_id: f.id, filename: f.file_name, mime_type: f.mime_type || null, size_bytes: f.file_size || null });
+      }
+      broadcastMail(req, businessId, 'mail:new', { thread_id: thread.id });
+      return successResponse(res, { id: thread.id, thread_id: thread.id, rejected: sendResult.rejected }, 'sent', 201);
+    } catch (err) { next(err); }
+  }
+);
+
+// ─────────────────────────────────────────────
 // M3-C — AI 답변 제안 (Cue) — 마지막 inbound + 비즈니스 컨텍스트 → 답장 초안
 // POST /:biz/email-threads/:id/ai-suggest → { suggestion(html), usage }
 // ─────────────────────────────────────────────

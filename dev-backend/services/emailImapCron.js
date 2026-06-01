@@ -368,8 +368,15 @@ async function tick() {
           fail_count: failCount,
         });
         console.error(`[emailImapCron] account #${acc.id} sync failed (${failCount} consecutive):`, e.message);
-        // 3회 연속 실패 → admin alert
-        if (failCount === FAIL_ALERT_THRESHOLD) {
+        // 3회 연속 실패 → admin alert.
+        // 단, "인증/설정이 안 된 계정"은 자동알림(메일) 발송 X — 노이즈 + 잘못된/없는 주소로 반송 방지.
+        //   · neverSynced: 한 번도 성공 sync 안 됨 (검증 안 된 신규/잘못 등록 계정)
+        //   · authConfigError: 자격증명 오류 (decrypt/password/auth/token 등) — 사용자가 재인증해야 하는 문제
+        // → 둘 다 DB 에 last_sync_error 만 기록하고 자동메일 안 보냄. 사용자는 Settings 에서 상태 확인.
+        const errMsg = String(e.message || '');
+        const isAuthConfigError = /decrypt|password|auth|credential|login|xoauth|token|invalid|missing/i.test(errMsg);
+        const neverSynced = !acc.last_sync_at;
+        if (failCount === FAIL_ALERT_THRESHOLD && !isAuthConfigError && !neverSynced) {
           try {
             const { notify } = require('../routes/notifications');
             const { User } = require('../models');
@@ -384,6 +391,8 @@ async function tick() {
               }).catch(() => {});
             }
           } catch (_) { /* ignore */ }
+        } else if (failCount === FAIL_ALERT_THRESHOLD) {
+          console.warn(`[emailImapCron] account #${acc.id} (${acc.email}) — 인증/설정 미완 또는 미검증 계정이라 자동알림 생략`);
         }
       }
     }
