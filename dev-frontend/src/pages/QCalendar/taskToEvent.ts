@@ -1,4 +1,4 @@
-import type { CalendarEvent, TaskAsEvent, CalendarItem, PersonalCalendarEvent } from './types';
+import type { TaskAsEvent, CalendarItem, PersonalCalendarEvent } from './types';
 
 // 개인 Google 캘린더 일정 (read-only overlay) 식별
 export const isPersonalEvent = (e: CalendarItem): e is PersonalCalendarEvent =>
@@ -84,5 +84,5 @@ export const taskToEvent = (task: TaskRow): TaskAsEvent | null => {
 };
 
 // TaskAsEvent 식별
-export const isTaskEvent = (e: CalendarEvent | TaskAsEvent): e is TaskAsEvent =>
+export const isTaskEvent = (e: CalendarItem): e is TaskAsEvent =>
   (e as TaskAsEvent)._source === 'task';
