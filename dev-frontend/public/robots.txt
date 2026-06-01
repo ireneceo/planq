@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /$
+Allow: /login
+Allow: /register
+Allow: /privacy
+Allow: /terms
+Disallow: /api/
+
+Sitemap: https://planq.kr/sitemap.xml
