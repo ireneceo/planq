@@ -10,6 +10,7 @@ import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import PageShell from '../../components/Layout/PageShell';
 import { useAuth, apiFetch } from '../../contexts/AuthContext';
+import { useTimeFormat } from '../../hooks/useTimeFormat';
 
 interface ExternalConnection {
   id: number | string;
@@ -79,6 +80,7 @@ const GoogleIcon: React.FC = () => (
 
 const ProfileIntegrationsPage: React.FC = () => {
   const { t } = useTranslation('profile');
+  const { formatDate, formatDateTime } = useTimeFormat();
   const { user } = useAuth();
   const businessId = user?.business_id ? Number(user.business_id) : null;
   const [personalConns, setPersonalConns] = useState<ExternalConnection[]>([]);
@@ -239,7 +241,7 @@ const ProfileIntegrationsPage: React.FC = () => {
                 <ConnInfo>
                   <ConnTitle>{c.provider === 'google' ? 'Google' : 'Microsoft'}</ConnTitle>
                   <ConnSub>{c.email}{c.display_name && ` · ${c.display_name}`}</ConnSub>
-                  <ConnMeta>{t('integrations.connectedAt', '연결: {{date}}', { date: new Date(c.connected_at).toLocaleDateString() }) as string}</ConnMeta>
+                  <ConnMeta>{t('integrations.connectedAt', '연결: {{date}}', { date: formatDate(c.connected_at) }) as string}</ConnMeta>
                 </ConnInfo>
                 <DangerBtn type="button" onClick={() => onDisconnectOauth(c.id)}>
                   {t('integrations.disconnect', '해제') as string}
@@ -318,7 +320,7 @@ const ProfileIntegrationsPage: React.FC = () => {
                   <ConnSub>{m.email}</ConnSub>
                   {m.last_sync_error
                     ? <ConnMeta style={{ color: '#B91C1C' }}>{t('integrations.mailSyncError', { defaultValue: '동기화 오류 — 재연결이 필요할 수 있어요' }) as string}</ConnMeta>
-                    : m.last_sync_at && <ConnMeta>{t('integrations.lastSync', { defaultValue: '최근 동기화: {{date}}', date: new Date(m.last_sync_at).toLocaleString() }) as string}</ConnMeta>}
+                    : m.last_sync_at && <ConnMeta>{t('integrations.lastSync', { defaultValue: '최근 동기화: {{date}}', date: formatDateTime(m.last_sync_at) }) as string}</ConnMeta>}
                 </ConnInfo>
                 <DangerBtn type="button" onClick={() => onDisconnectMail(m.id)}>{t('integrations.disconnect', '해제') as string}</DangerBtn>
               </ConnRow>

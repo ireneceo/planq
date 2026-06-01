@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { apiFetch } from '../../contexts/AuthContext';
+import { useTimeFormat } from '../../hooks/useTimeFormat';
 
 interface DriveFile {
   id: string;
@@ -25,6 +26,7 @@ const formatSize = (n: number | null): string => {
 
 const PersonalDriveTab: React.FC<{ businessId: number }> = ({ businessId }) => {
   const { t } = useTranslation('qfile');
+  const { formatDate } = useTimeFormat();
   const [connected, setConnected] = useState<boolean | null>(null);
   const [files, setFiles] = useState<DriveFile[]>([]);
   const [accountEmail, setAccountEmail] = useState<string | null>(null);
@@ -84,7 +86,7 @@ const PersonalDriveTab: React.FC<{ businessId: number }> = ({ businessId }) => {
             <Row key={f.id} href={f.web_view_link || undefined} target="_blank" rel="noopener noreferrer" $clickable={!!f.web_view_link}>
               {f.icon_link ? <Icon src={f.icon_link} alt="" /> : <IconFallback>📄</IconFallback>}
               <FileName>{f.name}</FileName>
-              <FileMeta>{formatSize(f.size)} · {new Date(f.modified_at).toLocaleDateString()}</FileMeta>
+              <FileMeta>{formatSize(f.size)} · {formatDate(f.modified_at)}</FileMeta>
             </Row>
           ))}
         </List>

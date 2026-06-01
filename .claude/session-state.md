@@ -1,7 +1,31 @@
 # PlanQ 세션 상태
 
-**마지막 업데이트:** 2026-05-27 20:00 (사이클 N+75 A/B/C/D 완료)
-**작업 상태:** 완료 — v1.22.0 운영 라이브 (commit `6b52029` + N+75-B OOM 차단 첫 검증 통과)
+**마지막 업데이트:** 2026-06-01 (사이클 N+76 외부 연동 Phase 2-4 — dev 검증 완료, 미커밋·미배포)
+**작업 상태:** dev 구현+검증 완료. 커밋 대기(/개발완료) + 운영 배포 대기(Irene /배포). 직전 라이브 v1.22.0 (`6b52029`)
+
+---
+
+## 🚧 사이클 N+76 — 외부 연동 팀/개인 Phase 2-4 (개인 GCal·Drive·Gmail)
+
+**계기:** 사용자 "외부연동 팀/개인 정리 우선 아니었어? 다 했어?" → Phase 1(틀)만 됐고 Phase 2-4(개인 실연결)는 placeholder 였음 → 이번 사이클 실연결.
+
+**완료 (dev 검증):**
+- **Chunk 1** 개인 OAuth 공통 — `services/personalOauth.js` + `routes/external_connections.js` initiate/callback (단일 redirect URI, provider state 분기). 검증 13/13
+- **Phase 2** 개인 GCal overlay — `personalCalendar.js` + `GET /me/calendar/events` + QCalendarPage violet 토글 + ProfileIntegrations 연결버튼
+- **Phase 4** 개인 GDrive — `personalDrive.js` + `GET /me/drive/files` + QFilePage 탭 분리 + PersonalDriveTab. 검증 4/4
+- **Phase 3** 개인 Gmail — `email_accounts.owner_user_id` 컬럼(ALTER 완료) + 기존 cron 무변경 자동수집 + **프라이버시 격리**(accessibleAccountIds, list/detail/mark/reply 전부) + MailPage 회사/개인 폴더 그룹. **격리 검증 9/9**
+- 빌드 3회 exit 0, SPA 4페이지 200, gmail initiate scope OK
+
+**남은 것 (E2E 완결 위해 Irene 액션 필요):**
+1. **Google Cloud Console** 에 redirect URI 추가 등록: `https://dev.planq.kr/api/me/oauth/google/callback` (운영도 `https://planq.kr/...`)
+2. 실제 Google 동의 클릭으로 개인 캘린더/Drive/Gmail 연결 → overlay·파일·메일 도착 최종 확인
+3. `/개발완료` 로 커밋 + `/배포` 로 운영 반영
+
+**후순위:** Microsoft(Phase 5), 옛 모델→external_connections 마이그레이션(Phase 6-7)
+
+---
+
+## (이전) 사이클 N+75 완료 — v1.22.0 운영 라이브 (commit `6b52029`)
 
 ---
 
