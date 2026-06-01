@@ -30,7 +30,16 @@
 - 검증: 헬스 28/28, API 10/10(+격리), AI 4/4 실 LLM, 빌드 exit 0
 - **운영 배포 시 ALTER 필요:** `ALTER TABLE businesses ADD COLUMN email_labels JSON NULL`
 
-**다음 개발 후보:** Q Mail M4(FAQ 자동 클러스터링) / AdminAuditLogs 보강 / NotificationPref UI / M3 운영 배포.
+**Q Mail UI/UX 통일 + 작성 기능 (dev, 미배포):**
+- **공통 레이아웃 컴포넌트 신설** `components/Layout/PanelLayout.tsx` (`PanelLayout` full-bleed flex + `Panel` 컬럼) — Q Talk/Note/Task가 각자 inline 복제하던 걸 단일 컴포넌트로. **Q Mail이 사용** (이후 다른 메뉴도 마이그레이션 → 100% 통일)
+- **Q Mail 2-pane 재구성** (3-pane → 2-pane): 좌=헤더+폴더탭(답변필요/인박스/내담당/팔로우/스팸/보관)+계정칩+리스트 / 우=상세. **Q Talk LeftPanel+ChatPanel 패턴**. 리스트 행=Q Talk `ChatRow` 정확값(둥근행·active inset #0D9488·hover #F8FAFC)
+- **새 메일 작성/발송** — `POST /email-compose`(새 스레드+outbound+SMTP) + "새 메일" 버튼(Q Talk NewChatBtn 동일 32×32) + 작성 모달. 검증 4/4
+- **dev DB 데모 메일 8개 시드** (biz 3, `contact@irenecompany.com`) — 화면 확인용. **확인 후 제거 가능** (소스 mock 아님, DB 실데이터)
+- ★ **UI/UX 최상위 기준 박제** `feedback_uiux_unified_master` — 공통 컴포넌트 우선·디자인토큰 100%·ad-hoc 금지
+
+**Q Mail 미완(dev):** 실 계정 발송 E2E(데모는 가짜 SMTP라 502), 메일 검색, pagination, 다른 메뉴 PanelLayout 마이그레이션.
+
+**다음 개발 후보:** 다른 메뉴 PanelLayout 통일 / Q Mail M4(FAQ) / AdminAuditLogs / M3+UI통일 운영 배포.
 
 **후순위:** 개인 Gmail OAuth 원클릭(CASA 검증 후), Microsoft(Phase 5), 옛 모델→external_connections 마이그레이션(Phase 6-7)
 

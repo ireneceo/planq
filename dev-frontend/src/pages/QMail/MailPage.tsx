@@ -474,6 +474,56 @@ const MailPage: React.FC = () => {
     }
   };
 
+  // ── 새 메일 작성 (compose) ──
+  const [composeOpen, setComposeOpen] = useState(false);
+  const [cAccountId, setCAccountId] = useState<number | null>(null);
+  const [cTo, setCTo] = useState('');
+  const [cSubject, setCSubject] = useState('');
+  const [cBody, setCBody] = useState('');
+  const [cUploads, setCUploads] = useState<File[]>([]);
+  const [cFileIds, setCFileIds] = useState<number[]>([]);
+  const [cSending, setCSending] = useState(false);
+  const [cError, setCError] = useState<string | null>(null);
+  // 열 때 발신 계정 기본값 = 첫 계정
+  useEffect(() => {
+    if (composeOpen && cAccountId == null && accounts.length) setCAccountId(accounts[0].id);
+  }, [composeOpen, cAccountId, accounts]);
+  const composeAccountOptions = useMemo(
+    () => accounts.map(a => ({ value: a.id, label: `${a.display_name || a.email}${a.is_personal ? ' (개인)' : ''}` })),
+    [accounts],
+  );
+  const closeCompose = () => {
+    setComposeOpen(false); setCTo(''); setCSubject(''); setCBody(''); setCUploads([]); setCFileIds([]); setCError(null);
+  };
+  const sendCompose = async () => {
+    if (!businessId || cSending) return;
+    if (!cTo.trim()) { setCError(t('compose.toRequired', { defaultValue: '받는 사람을 입력해 주세요' }) as string); return; }
+    if (isEmptyHtml(cBody)) { setCError(t('compose.bodyRequired', { defaultValue: '내용을 입력해 주세요' }) as string); return; }
+    const accId = cAccountId || accounts[0]?.id;
+    if (!accId) { setCError(t('compose.noAccount', { defaultValue: '보낼 메일 계정이 없어요' }) as string); return; }
+    setCSending(true); setCError(null);
+    try {
+      const fileIds = [...cFileIds];
+      for (const f of cUploads) {
+        const up = await uploadMyFile(businessId, f);
+        if (up.success && up.file) fileIds.push(Number(String(up.file.id).replace('direct-', '')));
+        else throw new Error(up.message || (t('reply.uploadFailed', { defaultValue: '첨부 업로드 실패' }) as string));
+      }
+      const to = cTo.split(/[,;\s]+/).map(s => s.trim()).filter(Boolean);
+      const r = await apiFetch(`/api/businesses/${businessId}/email-compose`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ account_id: accId, to, subject: cSubject, body_html: cBody, attachment_file_ids: fileIds }),
+      });
+      const j = await r.json();
+      if (!j.success) throw new Error(j.message || (t('compose.sendFailed', { defaultValue: '발송 실패' }) as string));
+      closeCompose();
+      loadList(); loadCounts(); loadAccounts();
+      if (j.data?.thread_id) setActive(j.data.thread_id);
+    } catch (e) {
+      setCError((e as Error).message);
+    } finally { setCSending(false); }
+  };
+
   if (!businessId) return <PageShell title="Q Mail"><Empty>{t('selectWorkspace', { defaultValue: '워크스페이스를 선택해 주세요.' }) as string}</Empty></PageShell>;
 
   return (
@@ -482,7 +532,11 @@ const MailPage: React.FC = () => {
       <Panel $width={340}>
         <PanelHeader>
           <PanelTitle>Q Mail</PanelTitle>
-          <ListCount>{threads.length}</ListCount>
+          <ComposeBtn type="button" onClick={() => setComposeOpen(true)} title={t('compose.new', { defaultValue: '새 메일' }) as string} aria-label={t('compose.new', { defaultValue: '새 메일' }) as string}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+            </svg>
+          </ComposeBtn>
         </PanelHeader>
         <FolderTabs>
           {FOLDERS.map(({ key, defaultLabel }) => (
@@ -712,6 +766,51 @@ const MailPage: React.FC = () => {
             </>
           )}
         </Panel>
+
+      {composeOpen && (
+        <ComposeOverlay onMouseDown={closeCompose}>
+          <ComposeModal onMouseDown={(e) => e.stopPropagation()}>
+            <ComposeHead>
+              <ComposeTitle>{t('compose.new', { defaultValue: '새 메일' }) as string}</ComposeTitle>
+              <CloseBtn type="button" onClick={closeCompose} aria-label={t('common.close', { defaultValue: '닫기' }) as string}>✕</CloseBtn>
+            </ComposeHead>
+            <ComposeBody>
+              {accounts.length > 1 && (
+                <ComposeField>
+                  <ComposeLabel>{t('compose.from', { defaultValue: '보내는 계정' }) as string}</ComposeLabel>
+                  <PlanQSelect
+                    size="sm"
+                    value={composeAccountOptions.find(o => o.value === cAccountId)}
+                    onChange={(opt: unknown) => { const v = (opt as { value?: number } | null)?.value; if (v) setCAccountId(Number(v)); }}
+                    options={composeAccountOptions}
+                    isSearchable={false}
+                    menuPlacement="bottom"
+                  />
+                </ComposeField>
+              )}
+              <ComposeField>
+                <ComposeLabel>{t('compose.to', { defaultValue: '받는 사람' }) as string}</ComposeLabel>
+                <ComposeInput value={cTo} onChange={(e) => setCTo(e.target.value)} placeholder="name@example.com" inputMode="email" />
+              </ComposeField>
+              <ComposeField>
+                <ComposeLabel>{t('compose.subject', { defaultValue: '제목' }) as string}</ComposeLabel>
+                <ComposeInput value={cSubject} onChange={(e) => setCSubject(e.target.value)} placeholder={t('compose.subjectPh', { defaultValue: '제목을 입력하세요' }) as string} />
+              </ComposeField>
+              <RichEditor value={cBody} onChange={setCBody} placeholder={t('compose.bodyPh', { defaultValue: '메일 내용을 입력하세요…' }) as string} />
+              <AttachmentField businessId={businessId} uploads={cUploads} onUploadsChange={setCUploads} existingFileIds={cFileIds} onExistingFileIdsChange={setCFileIds} />
+              {cError && <ComposerError>{cError}</ComposerError>}
+            </ComposeBody>
+            <ComposeFoot>
+              <ActionButton tone="secondary" size="md" onClick={closeCompose} disabled={cSending}>
+                {t('compose.cancel', { defaultValue: '취소' }) as string}
+              </ActionButton>
+              <ActionButton tone="primary" size="md" loading={cSending} onClick={sendCompose}>
+                {t('compose.send', { defaultValue: '보내기' }) as string}
+              </ActionButton>
+            </ComposeFoot>
+          </ComposeModal>
+        </ComposeOverlay>
+      )}
     </PanelLayout>
   );
 };
@@ -770,8 +869,66 @@ const AcctChip = styled.button<{ $active: boolean }>`
   &:hover { border-color: #5EEAD4; }
 `;
 
-const ListCount = styled.span`
-  font-size: 13px; font-weight: 600; color: #94A3B8;
+// 새 메일 작성 버튼 — Q Talk NewChatBtn 과 동일값
+const ComposeBtn = styled.button`
+  width: 32px; height: 32px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: #14B8A6; border: none; border-radius: 8px;
+  color: #FFFFFF; cursor: pointer;
+  transition: background 0.15s; flex-shrink: 0;
+  &:hover { background: #0D9488; }
+  &:focus-visible { outline: 2px solid rgba(20, 184, 166, 0.3); outline-offset: 2px; }
+`;
+// 새 메일 작성 모달
+const ComposeOverlay = styled.div`
+  position: fixed; inset: 0; z-index: 1000;
+  background: rgba(15, 23, 42, 0.45);
+  display: flex; align-items: center; justify-content: center;
+  padding: 20px;
+  @media (max-width: 640px) { padding: 0; align-items: stretch; }
+`;
+const ComposeModal = styled.div`
+  width: min(680px, 100%); max-height: 90vh;
+  background: #FFFFFF; border-radius: 14px;
+  box-shadow: 0 4px 12px rgba(15,23,42,0.06), 0 12px 40px rgba(15,23,42,0.18);
+  display: flex; flex-direction: column; overflow: hidden;
+  @media (max-width: 640px) { border-radius: 0; max-height: 100vh; height: 100vh; }
+`;
+const ComposeHead = styled.div`
+  min-height: 60px; padding: 14px 20px;
+  border-bottom: 1px solid #E2E8F0;
+  display: flex; align-items: center; justify-content: space-between;
+  flex-shrink: 0;
+`;
+const ComposeTitle = styled.h2`
+  margin: 0; font-size: 18px; font-weight: 700; color: #0F172A; letter-spacing: -0.2px;
+`;
+const CloseBtn = styled.button`
+  width: 30px; height: 30px; border: none; background: transparent;
+  color: #94A3B8; font-size: 16px; cursor: pointer; border-radius: 8px;
+  &:hover { background: #F1F5F9; color: #0F172A; }
+`;
+const ComposeBody = styled.div`
+  padding: 16px 20px; overflow-y: auto;
+  display: flex; flex-direction: column; gap: 12px;
+`;
+const ComposeField = styled.div`
+  display: flex; flex-direction: column; gap: 4px;
+`;
+const ComposeLabel = styled.label`
+  font-size: 12px; font-weight: 600; color: #64748B;
+`;
+const ComposeInput = styled.input`
+  height: 40px; padding: 0 12px;
+  border: 1px solid #E2E8F0; border-radius: 8px;
+  font-size: 14px; color: #0F172A;
+  &::placeholder { color: #94A3B8; }
+  &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20,184,166,0.12); }
+`;
+const ComposeFoot = styled.div`
+  padding: 12px 20px; border-top: 1px solid #E2E8F0;
+  display: flex; align-items: center; justify-content: flex-end; gap: 8px;
+  flex-shrink: 0;
 `;
 // Q Talk ChatList 와 동일 — 둥근 행이 측면 여백 갖도록 padding
 const ThreadList = styled.div`
