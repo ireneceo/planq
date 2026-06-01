@@ -228,6 +228,12 @@ Business.init({
     allowNull: true,
     defaultValue: { financial: 'all', schedule: 'all', client_info: 'all' },
   },
+  // Q Mail 라벨 마스터 (M3-B) — [{ name, color }] (KbCategory 패턴, 별도 테이블 X)
+  email_labels: {
+    type: DataTypes.JSON,
+    allowNull: true,
+    defaultValue: null,
+  },
   // 사이클 N+21 — 새 청구서 발행 시 owner_user_id 기본값 (PERMISSION_MATRIX §5 Layer 4).
   // Q Bill write 권한자 (owner/admin 또는 명시 write member) 중 선택.
   default_billing_owner_id: {

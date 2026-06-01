@@ -22,7 +22,7 @@ import AttachmentField from '../../components/Common/AttachmentField';
 import ActionButton from '../../components/Common/ActionButton';
 import { uploadMyFile } from '../../services/files';
 
-type Folder = 'reply_needed' | 'inbox' | 'spam' | 'archived';
+type Folder = 'reply_needed' | 'inbox' | 'assigned' | 'following' | 'spam' | 'archived';
 
 // 메일 계정 (회사 공용 / 개인) — 폴더트리 그룹 (외부 연동 Phase 3)
 interface MailAccount {
@@ -64,11 +64,19 @@ interface Message {
 
 interface ThreadDetail extends Thread {
   messages: Message[];
+  assignee_user_id?: number | null;
+  assignee_name?: string | null;
+  my_following?: boolean;
 }
+
+interface MailLabel { name: string; color: string }
+interface MailMember { user_id: number; name: string }
 
 const FOLDERS: Array<{ key: Folder; defaultLabel: string }> = [
   { key: 'reply_needed', defaultLabel: '답변 필요' },
   { key: 'inbox', defaultLabel: '인박스' },
+  { key: 'assigned', defaultLabel: '내 담당' },
+  { key: 'following', defaultLabel: '팔로우' },
   { key: 'spam', defaultLabel: '스팸' },
   { key: 'archived', defaultLabel: '보관' },
 ];
@@ -79,6 +87,7 @@ const MailPage: React.FC = () => {
   const { formatTimeAgo } = useTimeFormat();
   const [sp, setSp] = useSearchParams();
   const businessId = user?.business_id ? Number(user.business_id) : null;
+  const myUserId = user?.id ? Number(user.id) : null;
 
   const folderParam = (sp.get('folder') as Folder) || 'inbox';
   const folder: Folder = useMemo(
@@ -97,9 +106,11 @@ const MailPage: React.FC = () => {
   const [detailLoading, setDetailLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [folderCounts, setFolderCounts] = useState<Record<Folder, number>>({
-    reply_needed: 0, inbox: 0, spam: 0, archived: 0,
+    reply_needed: 0, inbox: 0, assigned: 0, following: 0, spam: 0, archived: 0,
   });
   const [accounts, setAccounts] = useState<MailAccount[]>([]);
+  const [labelMaster, setLabelMaster] = useState<MailLabel[]>([]);
+  const [members, setMembers] = useState<MailMember[]>([]);
 
   const setFolder = (f: Folder) => {
     const nsp = new URLSearchParams(sp);
@@ -152,7 +163,7 @@ const MailPage: React.FC = () => {
     } catch { /* silent — 계정 그룹은 부가 */ }
   }, [businessId]);
 
-  // 폴더 카운트 fetch (4 폴더 병렬)
+  // 폴더 카운트 fetch (병렬)
   const loadCounts = useCallback(async () => {
     if (!businessId) return;
     const results = await Promise.all(
@@ -166,6 +177,78 @@ const MailPage: React.FC = () => {
     );
     setFolderCounts(Object.fromEntries(results) as Record<Folder, number>);
   }, [businessId]);
+
+  // 라벨 마스터 + 멤버 (M3-B 라벨/할당용)
+  const loadLabels = useCallback(async () => {
+    if (!businessId) return;
+    try {
+      const j = await apiFetch(`/api/businesses/${businessId}/email-labels`).then(r => r.json());
+      if (j.success) setLabelMaster(j.data || []);
+    } catch { /* silent */ }
+  }, [businessId]);
+  const loadMembers = useCallback(async () => {
+    if (!businessId) return;
+    try {
+      const j = await apiFetch(`/api/businesses/${businessId}/members`).then(r => r.json());
+      if (j.success) setMembers((j.data || []).map((m: { user_id: number; name?: string | null; User?: { name: string } }) => ({ user_id: m.user_id, name: m.name || m.User?.name || `#${m.user_id}` })));
+    } catch { /* silent */ }
+  }, [businessId]);
+
+  // 스레드 부분 수정 (스타/라벨/보관) — 낙관적 갱신
+  const patchThread = useCallback(async (id: number, patch: Record<string, unknown>) => {
+    if (!businessId) return;
+    setThreads(prev => prev.map(t => (t.id === id ? { ...t, ...patch } as Thread : t)));
+    setDetail(prev => (prev && prev.id === id ? { ...prev, ...patch } as ThreadDetail : prev));
+    try {
+      await apiFetch(`/api/businesses/${businessId}/email-threads/${id}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch),
+      });
+      loadCounts();
+    } catch { /* 실패 시 silentReload 로 복원 */ silentReloadRef.current?.(); }
+  }, [businessId, loadCounts]);
+
+  const toggleStar = useCallback((e: React.MouseEvent, th: Thread) => {
+    e.stopPropagation();
+    patchThread(th.id, { is_starred: !th.is_starred });
+  }, [patchThread]);
+
+  // 라벨 토글 (상세) — 현재 라벨 배열에 추가/제거
+  const toggleLabel = useCallback((name: string) => {
+    if (!detail) return;
+    const cur = detail.labels || [];
+    const next = cur.includes(name) ? cur.filter(l => l !== name) : [...cur, name];
+    patchThread(detail.id, { labels: next });
+  }, [detail, patchThread]);
+
+  // 팔로우 토글 (상세)
+  const toggleFollow = useCallback(async () => {
+    if (!detail || !businessId) return;
+    const next = !detail.my_following;
+    setDetail(prev => (prev ? { ...prev, my_following: next } : prev));
+    try {
+      await apiFetch(`/api/businesses/${businessId}/email-threads/${detail.id}/follow`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ follow: next }),
+      });
+      loadCounts();
+    } catch { /* noop */ }
+  }, [detail, businessId, loadCounts]);
+
+  // 담당 토글 (상세) — 본인 ↔ 해제
+  const toggleAssignMe = useCallback(async () => {
+    if (!detail || !businessId || !myUserId) return;
+    const mine = detail.assignee_user_id === myUserId;
+    const uid = mine ? null : myUserId;
+    setDetail(prev => (prev ? { ...prev, assignee_user_id: uid, assignee_name: mine ? null : (members.find(m => m.user_id === myUserId)?.name || null) } : prev));
+    try {
+      await apiFetch(`/api/businesses/${businessId}/email-threads/${detail.id}/assign`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_id: uid }),
+      });
+      loadCounts();
+    } catch { /* noop */ }
+  }, [detail, businessId, myUserId, members, loadCounts]);
+
+  const labelColor = useCallback((name: string) => labelMaster.find(l => l.name === name)?.color || '#14B8A6', [labelMaster]);
+
 
   // 스레드 detail fetch + auto mark-read
   const loadDetail = useCallback(async (id: number) => {
@@ -193,6 +276,8 @@ const MailPage: React.FC = () => {
   useEffect(() => { loadList(); }, [loadList]);
   useEffect(() => { loadCounts(); }, [loadCounts]);
   useEffect(() => { loadAccounts(); }, [loadAccounts]);
+  useEffect(() => { loadLabels(); }, [loadLabels]);
+  useEffect(() => { loadMembers(); }, [loadMembers]);
   useEffect(() => {
     if (activeId) loadDetail(activeId);
     else setDetail(null);
@@ -414,13 +499,26 @@ const MailPage: React.FC = () => {
                     <ThreadSender>
                       {t.client?.display_name || t.client?.company_name || t.account?.display_name || t.account?.email || '(unknown)'}
                     </ThreadSender>
-                    <ThreadTime>{formatTimeAgo(t.last_message_at)}</ThreadTime>
+                    <ThreadRow1Right>
+                      <StarSpan
+                        role="button"
+                        aria-label={t.is_starred ? '별표 해제' : '별표'}
+                        $on={t.is_starred}
+                        onClick={(e) => toggleStar(e, t)}
+                      >{t.is_starred ? '★' : '☆'}</StarSpan>
+                      <ThreadTime>{formatTimeAgo(t.last_message_at)}</ThreadTime>
+                    </ThreadRow1Right>
                   </ThreadRow1>
                   <ThreadSubject $unread={t.unread_count > 0}>
                     {t.unread_count > 0 && <UnreadDot />}
                     {t.subject || '(no subject)'}
                   </ThreadSubject>
                   {t.last_message_preview && <ThreadPreview>{t.last_message_preview}</ThreadPreview>}
+                  {t.labels && t.labels.length > 0 && (
+                    <RowLabels>
+                      {t.labels.map(l => <LabelChip key={l} $color={labelColor(l)}>{l}</LabelChip>)}
+                    </RowLabels>
+                  )}
                 </ThreadItem>
               ))}
             </ThreadList>
@@ -451,6 +549,33 @@ const MailPage: React.FC = () => {
                       : t('actions.markSpam', { defaultValue: '스팸으로' }) as string}
                   </DangerBtn>
                 </DetailMeta>
+                <DetailControls>
+                  <CtrlBtn type="button" $on={detail.is_starred} onClick={() => patchThread(detail.id, { is_starred: !detail.is_starred })}>
+                    {detail.is_starred ? '★' : '☆'} {t('actions.star', { defaultValue: '별표' }) as string}
+                  </CtrlBtn>
+                  <CtrlBtn type="button" $on={!!detail.my_following} onClick={toggleFollow}>
+                    {detail.my_following
+                      ? t('actions.following', { defaultValue: '팔로우 중' }) as string
+                      : t('actions.follow', { defaultValue: '팔로우' }) as string}
+                  </CtrlBtn>
+                  <CtrlBtn type="button" $on={detail.assignee_user_id === myUserId} onClick={toggleAssignMe}>
+                    {detail.assignee_user_id === myUserId
+                      ? t('actions.assignedToMe', { defaultValue: '내 담당 ✓' }) as string
+                      : detail.assignee_name
+                        ? (t('actions.assignedTo', { defaultValue: '담당: {{name}}', name: detail.assignee_name }) as string)
+                        : t('actions.assignMe', { defaultValue: '내가 담당' }) as string}
+                  </CtrlBtn>
+                </DetailControls>
+                <DetailLabels>
+                  {(detail.labels || []).map(l => (
+                    <LabelChip key={l} $color={labelColor(l)} $clickable onClick={() => toggleLabel(l)} title={t('actions.removeLabel', { defaultValue: '라벨 제거' }) as string}>
+                      {l} ✕
+                    </LabelChip>
+                  ))}
+                  {labelMaster.filter(lm => !(detail.labels || []).includes(lm.name)).map(lm => (
+                    <AddLabelChip key={lm.name} type="button" $color={lm.color} onClick={() => toggleLabel(lm.name)}>+ {lm.name}</AddLabelChip>
+                  ))}
+                </DetailLabels>
               </DetailHeader>
               <MessagesScroll>
                 {detail.messages.map(m => (
@@ -687,6 +812,27 @@ const ThreadPreview = styled.div`
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
 `;
+// M3-B — 행 별표 + 라벨 칩
+const ThreadRow1Right = styled.span`
+  display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0;
+`;
+const StarSpan = styled.span<{ $on: boolean }>`
+  font-size: 14px; line-height: 1; cursor: pointer;
+  color: ${p => p.$on ? '#F59E0B' : '#CBD5E1'};
+  &:hover { color: ${p => p.$on ? '#D97706' : '#94A3B8'}; }
+`;
+const RowLabels = styled.div`
+  display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px;
+`;
+const LabelChip = styled.span<{ $color: string; $clickable?: boolean }>`
+  display: inline-flex; align-items: center; gap: 3px;
+  padding: 1px 8px; border-radius: 999px;
+  font-size: 11px; font-weight: 600;
+  color: ${p => p.$color};
+  background: ${p => p.$color}1A;
+  border: 1px solid ${p => p.$color}55;
+  cursor: ${p => p.$clickable ? 'pointer' : 'default'};
+`;
 
 const DetailCol = styled.div`
   display: flex; flex-direction: column;
@@ -712,6 +858,35 @@ const MetaChip = styled.span`
   background: #F1F5F9; color: #475569;
   font-size: 11px; font-weight: 500;
   border-radius: 999px;
+`;
+// M3-B — 상세 헤더 컨트롤 (별표/팔로우/담당) + 라벨
+const DetailControls = styled.div`
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  margin-top: 10px;
+`;
+const CtrlBtn = styled.button<{ $on: boolean }>`
+  height: 28px; padding: 0 12px;
+  border-radius: 999px;
+  font-size: 12px; font-weight: 600;
+  cursor: pointer;
+  border: 1px solid ${p => p.$on ? '#5EEAD4' : '#E2E8F0'};
+  background: ${p => p.$on ? '#F0FDFA' : '#FFFFFF'};
+  color: ${p => p.$on ? '#0F766E' : '#64748B'};
+  transition: background 0.12s, border-color 0.12s;
+  &:hover { border-color: #5EEAD4; }
+  &:focus-visible { outline: 2px solid #5EEAD4; outline-offset: 2px; }
+`;
+const DetailLabels = styled.div`
+  display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px;
+`;
+const AddLabelChip = styled.button<{ $color: string }>`
+  padding: 2px 10px; border-radius: 999px;
+  font-size: 11px; font-weight: 600;
+  cursor: pointer;
+  color: ${p => p.$color};
+  background: #FFFFFF;
+  border: 1px dashed ${p => p.$color}88;
+  &:hover { background: ${p => p.$color}12; }
 `;
 const DangerBtn = styled.button`
   margin-left: auto;

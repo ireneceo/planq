@@ -17,11 +17,13 @@
 - **권한 등급 결정:** 캘린더 `calendar.readonly`(sensitive) + Drive `drive.file`(비제한) → 출시 검증 OK. Gmail `mail.google.com`(restricted=CASA) OAuth 원클릭은 **보류**. Q Mail 은 IMAP 앱비번으로 검증 없이 작동(회사 메일 이미 그 방식)
 - 개인정보처리방침(`locales/*/legal.json`) Google 캘린더 + Limited Use 조항 추가
 
-**남은 것 (순서대로):**
-1. ✅ Google Console — redirect URI(8개) + scope(calendar.readonly, drive.file) + 브랜딩 등록 **완료**
-2. **`/배포`** — 운영 반영 (Irene). **운영 DB ALTER 필수:** `ALTER TABLE email_accounts ADD COLUMN owner_user_id INT NULL`
-3. Google Console **"앱 게시 → 검증 제출"** (Irene) → 승인까지 며칠~몇 주 → 승인 후 일반 사용자 사용
-4. 검증 승인 전엔 Testing 모드 = 본인(test user)만 연결 가능
+**남은 것:**
+1. ✅ Google Console redirect URI + scope + 브랜딩 + 도메인 소유권 인증 **완료**
+2. ✅ **운영 배포 완료** (v1.23.0, owner_user_id 컬럼 운영 확인) + sitemap.xml/robots.txt 추가 배포
+3. ⏳ **Google OAuth 검증 제출 — 미완 (Irene 액션 대기).** Verification Center 가 "branding 먼저 verify" 로 막힘(콘솔 UI 이슈 의심). 도메인·브랜딩·게시 다 됐는데 제출 버튼 안 뜸. **메모리 `project_google_oauth_verification_pending` 참조.** 막히면 Google 문의. → 승인 전엔 test user 만 연결 가능
+   - Irene: "할 때 물을게" — 검증 제출 자료(권한 justification 등) 요청 오면 Claude 가 작성
+
+**다음 개발:** Q Mail M3 — 답장(M3-A 코드 라이브·미검증 → 검증 먼저) + 라벨/스타/할당(M3-B) + AI 답변(M3-C). 그 외 AdminAuditLogs 보강 / NotificationPref UI.
 
 **후순위:** 개인 Gmail OAuth 원클릭(CASA 검증 후), Microsoft(Phase 5), 옛 모델→external_connections 마이그레이션(Phase 6-7)
 
