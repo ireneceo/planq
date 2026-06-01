@@ -387,10 +387,31 @@ async function generateDocumentDraft(businessId, { systemPrompt, userPrompt, max
   };
 }
 
+// ─── Q Mail M3-C — 이메일 답장 초안 (gpt-4o-mini, CueUsage 'email_reply') ───
+// 마지막 inbound 메일 + 비즈니스 컨텍스트로 답장 본문 초안 생성. 사실 날조 금지 프롬프트.
+async function generateEmailReplyDraft(businessId, { businessName, subject, latestInboundText, language = 'ko' }) {
+  const usage = await checkUsageLimit(businessId);
+  if (usage.over) return { error: 'usage_limit_exceeded', usage };
+  const lang = language === 'en' ? 'English' : 'Korean';
+  const systemPrompt = `You are an assistant drafting a professional email reply on behalf of "${businessName || 'our team'}". `
+    + `Write a concise, polite reply in ${lang}. Only use information present in the incoming email; `
+    + `do NOT invent facts, prices, dates, or commitments. If something must be confirmed, say it will be checked and followed up. `
+    + `Output ONLY the reply body text — no subject line, no greeting placeholder like [Name], no signature.`;
+  const userPrompt = `Incoming email${subject ? ` (subject: ${subject})` : ''}:\n\n${(latestInboundText || '').slice(0, 4000)}\n\nDraft a reply body.`;
+  const result = await callLLM(MODEL_MINI, [
+    { role: 'system', content: systemPrompt },
+    { role: 'user', content: userPrompt },
+  ], { temperature: 0.4, maxTokens: 600 });
+  if (result.fallback) return { error: 'llm_unavailable', fallback: true };
+  await recordUsage(businessId, 'email_reply', MODEL_MINI, result.input_tokens, result.output_tokens);
+  return { content: result.content, usage: await checkUsageLimit(businessId) };
+}
+
 module.exports = {
   respondToMessage,
   generateClientSummary,
   generateDocumentDraft,
+  generateEmailReplyDraft,
   checkUsageLimit,
   recordUsage,
   isSensitive,

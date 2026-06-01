@@ -23,7 +23,14 @@
 3. ⏳ **Google OAuth 검증 제출 — 미완 (Irene 액션 대기).** Verification Center 가 "branding 먼저 verify" 로 막힘(콘솔 UI 이슈 의심). 도메인·브랜딩·게시 다 됐는데 제출 버튼 안 뜸. **메모리 `project_google_oauth_verification_pending` 참조.** 막히면 Google 문의. → 승인 전엔 test user 만 연결 가능
    - Irene: "할 때 물을게" — 검증 제출 자료(권한 justification 등) 요청 오면 Claude 가 작성
 
-**다음 개발:** Q Mail M3 — 답장(M3-A 코드 라이브·미검증 → 검증 먼저) + 라벨/스타/할당(M3-B) + AI 답변(M3-C). 그 외 AdminAuditLogs 보강 / NotificationPref UI.
+**Q Mail M3 완료 (dev, 검증 통과 — 미배포):**
+- M3-A 답장/SMTP (운영 라이브)
+- M3-B 스타/라벨/라벨생성/할당(PlanQSelect)/팔로우 + 폴더(회사·개인·내담당·팔로우) — `businesses.email_labels` 컬럼 추가(dev) + EmailThreadParticipant + 격리 유지
+- M3-C AI 답변 제안 — `cue_orchestrator.generateEmailReplyDraft`(gpt-4o-mini, 날조금지) + POST `/ai-suggest`(cue_usage 'email_reply') + 컴포저 "✨ AI 답변 제안" 버튼
+- 검증: 헬스 28/28, API 10/10(+격리), AI 4/4 실 LLM, 빌드 exit 0
+- **운영 배포 시 ALTER 필요:** `ALTER TABLE businesses ADD COLUMN email_labels JSON NULL`
+
+**다음 개발 후보:** Q Mail M4(FAQ 자동 클러스터링) / AdminAuditLogs 보강 / NotificationPref UI / M3 운영 배포.
 
 **후순위:** 개인 Gmail OAuth 원클릭(CASA 검증 후), Microsoft(Phase 5), 옛 모델→external_connections 마이그레이션(Phase 6-7)
 

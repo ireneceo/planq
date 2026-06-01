@@ -478,6 +478,52 @@ router.post('/:businessId/email-threads/:id/messages',
 );
 
 // ─────────────────────────────────────────────
+// M3-C — AI 답변 제안 (Cue) — 마지막 inbound + 비즈니스 컨텍스트 → 답장 초안
+// POST /:biz/email-threads/:id/ai-suggest → { suggestion(html), usage }
+// ─────────────────────────────────────────────
+router.post('/:businessId/email-threads/:id/ai-suggest',
+  authenticateToken, checkBusinessAccess, requireMenu('qmail', 'write'),
+  async (req, res, next) => {
+    try {
+      const businessId = Number(req.params.businessId);
+      const threadId = Number(req.params.id);
+      const acctIds = await accessibleAccountIds(businessId, req.user.id);
+      const thread = await EmailThread.findOne({ where: { id: threadId, business_id: businessId, account_id: { [Op.in]: acctIds.length ? acctIds : [0] } } });
+      if (!thread) return errorResponse(res, 'thread_not_found', 404);
+
+      const msgs = await EmailMessage.findAll({ where: { thread_id: threadId, business_id: businessId }, order: [['sent_at', 'ASC'], ['id', 'ASC']] });
+      const lastInbound = [...msgs].reverse().find(m => m.direction === 'inbound');
+      if (!lastInbound) return errorResponse(res, 'no_inbound_message', 400);
+
+      // 본문 텍스트 확보 (body_text 우선, 없으면 body_html strip — AI 입력용 4000자)
+      const stripped = lastInbound.body_text
+        || String(lastInbound.body_html || '').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim();
+      const latestInboundText = (stripped || '').slice(0, 4000);
+      if (!latestInboundText) return errorResponse(res, 'empty_inbound', 400);
+
+      const biz = await Business.findByPk(businessId, { attributes: ['id', 'name', 'brand_name', 'default_language'] });
+      const language = (req.body || {}).language || biz?.default_language || 'ko';
+
+      const cueOrch = require('../services/cue_orchestrator');
+      const out = await cueOrch.generateEmailReplyDraft(businessId, {
+        businessName: (biz && (biz.brand_name || biz.name)) || null,
+        subject: thread.subject,
+        latestInboundText,
+        language,
+      });
+      if (out.error === 'usage_limit_exceeded') return errorResponse(res, 'cue_usage_limit_exceeded', 429);
+      if (out.error === 'llm_unavailable') return errorResponse(res, 'ai_unavailable', 503);
+
+      // 텍스트 → 안전한 HTML (문단/줄바꿈)
+      const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      const html = (out.content || '').trim().split(/\n{2,}/).map(p => `<p>${esc(p).replace(/\n/g, '<br>')}</p>`).join('');
+
+      return successResponse(res, { suggestion: html, usage: out.usage });
+    } catch (err) { next(err); }
+  }
+);
+
+// ─────────────────────────────────────────────
 // M3-B — PUT thread (스타/라벨/보관/연결) · assign · follow · email-labels CRUD
 // ─────────────────────────────────────────────
 
