@@ -13,7 +13,7 @@
 const express = require('express');
 const router = express.Router();
 const {
-  ExternalConnection, BusinessCloudToken, EmailAccount, BusinessMember, Business,
+  ExternalConnection, BusinessCloudToken, EmailAccount, EmailThread, BusinessMember, Business,
 } = require('../models');
 const { authenticateToken, checkBusinessAccess } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
@@ -382,6 +382,38 @@ router.get('/me/calendar/events', authenticateToken, async (req, res, next) => {
       }
     }
     successResponse(res, { events, connections });
+  } catch (err) { next(err); }
+});
+
+// ─── Phase 3 — 개인 메일 계정 (Gmail) ──────────────────────
+// GET /api/me/email-accounts?business_id= — 본인 개인 메일 계정 (owner_user_id=me)
+router.get('/me/email-accounts', authenticateToken, async (req, res, next) => {
+  try {
+    const where = { owner_user_id: req.user.id };
+    if (req.query.business_id) {
+      const bizId = parseInt(req.query.business_id, 10);
+      if (!(await assertBusinessMember(req, bizId))) return errorResponse(res, 'no_business_access', 403);
+      where.business_id = bizId;
+    }
+    const rows = await EmailAccount.findAll({
+      where,
+      attributes: ['id', 'business_id', 'email', 'display_name', 'auth_type', 'is_active', 'last_sync_at', 'last_sync_error', 'fail_count', 'created_at'],
+      order: [['created_at', 'DESC']],
+    });
+    successResponse(res, rows.map(r => ({ ...r.toJSON(), provider: 'gmail', owner_scope: 'user' })));
+  } catch (err) { next(err); }
+});
+
+// DELETE /api/me/email-accounts/:id — 본인 개인 메일 해제 (owner_user_id=me 만)
+router.delete('/me/email-accounts/:id', authenticateToken, async (req, res, next) => {
+  try {
+    const acct = await EmailAccount.findOne({ where: { id: req.params.id, owner_user_id: req.user.id } });
+    if (!acct) return errorResponse(res, 'not_found', 404);
+    // 개인 메일 데이터(스레드/메시지/첨부) 정리 후 계정 삭제 — FK 제약 회피.
+    // 스레드 삭제 시 EmailMessage·EmailAttachment 는 onDelete CASCADE 로 함께 제거.
+    await EmailThread.destroy({ where: { account_id: acct.id, business_id: acct.business_id } });
+    await acct.destroy();
+    successResponse(res, null, 'disconnected');
   } catch (err) { next(err); }
 });
 

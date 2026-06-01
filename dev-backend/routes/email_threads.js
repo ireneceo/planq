@@ -69,6 +69,17 @@ function folderWhere(folder, userId) {
   }
 }
 
+// 프라이버시 격리 (외부 연동 Phase 3) — 이 사용자가 볼 수 있는 메일 계정 id 집합:
+//   회사 공용 계정 (owner_user_id NULL, 모든 멤버) + 본인 개인 계정 (owner_user_id = 나).
+//   다른 사람의 개인 메일은 절대 노출 X (admin 도 차단 — 개인정보 보호).
+async function accessibleAccountIds(businessId, userId) {
+  const accts = await EmailAccount.findAll({
+    where: { business_id: businessId, [Op.or]: [{ owner_user_id: null }, { owner_user_id: userId }] },
+    attributes: ['id'],
+  });
+  return accts.map(a => a.id);
+}
+
 // ─────────────────────────────────────────────
 // GET list — 인박스 / 폴더별
 // ─────────────────────────────────────────────
@@ -84,7 +95,16 @@ router.get('/:businessId/email-threads',
         business_id: businessId,
         ...folderWhere(folder, req.user.id),
       };
-      if (account_id) where.account_id = Number(account_id);
+      // 프라이버시 격리 — 접근 가능한 계정으로만 제한 (개인 메일 격리)
+      const acctIds = await accessibleAccountIds(businessId, req.user.id);
+      if (!acctIds.length) return paginatedResponse(res, [], 0, { limit, page, offset });
+      if (account_id) {
+        const reqId = Number(account_id);
+        if (!acctIds.includes(reqId)) return paginatedResponse(res, [], 0, { limit, page, offset });
+        where.account_id = reqId;
+      } else {
+        where.account_id = { [Op.in]: acctIds };
+      }
       if (client_id) where.client_id = Number(client_id);
       if (project_id) where.project_id = Number(project_id);
       if (String(unread) === 'true') where.unread_count = { [Op.gt]: 0 };
@@ -138,6 +158,45 @@ router.get('/:businessId/email-threads',
 );
 
 // ─────────────────────────────────────────────
+// GET mail-accounts — 폴더트리용 접근 가능 계정 (회사 공용 + 본인 개인) + 계정별 unread
+//   :id 충돌 방지 위해 별도 literal 경로 사용 (express literal 우선)
+// ─────────────────────────────────────────────
+router.get('/:businessId/mail-accounts',
+  authenticateToken, checkBusinessAccess, requireMenu('qmail', 'read'),
+  async (req, res, next) => {
+    try {
+      const businessId = Number(req.params.businessId);
+      const accts = await EmailAccount.findAll({
+        where: {
+          business_id: businessId, is_active: true,
+          [Op.or]: [{ owner_user_id: null }, { owner_user_id: req.user.id }],
+        },
+        attributes: ['id', 'email', 'display_name', 'owner_user_id'],
+        order: [['owner_user_id', 'ASC'], ['created_at', 'ASC']],
+      });
+      const ids = accts.map(a => a.id);
+      const unreadMap = {};
+      if (ids.length) {
+        const rows = await EmailThread.findAll({
+          where: { business_id: businessId, account_id: { [Op.in]: ids } },
+          attributes: ['account_id', [sequelize.fn('SUM', sequelize.col('unread_count')), 'unread']],
+          group: ['account_id'],
+        });
+        rows.forEach(r => { unreadMap[r.account_id] = Number(r.get('unread')) || 0; });
+      }
+      const data = accts.map(a => ({
+        id: a.id,
+        email: a.email,
+        display_name: a.display_name,
+        is_personal: a.owner_user_id != null,
+        unread: unreadMap[a.id] || 0,
+      }));
+      return successResponse(res, data);
+    } catch (err) { next(err); }
+  }
+);
+
+// ─────────────────────────────────────────────
 // GET detail — 스레드의 모든 message + 첨부
 // ─────────────────────────────────────────────
 router.get('/:businessId/email-threads/:id',
@@ -147,8 +206,9 @@ router.get('/:businessId/email-threads/:id',
       const businessId = Number(req.params.businessId);
       const id = Number(req.params.id);
 
+      const acctIds = await accessibleAccountIds(businessId, req.user.id);
       const thread = await EmailThread.findOne({
-        where: { id, business_id: businessId },
+        where: { id, business_id: businessId, account_id: { [Op.in]: acctIds.length ? acctIds : [0] } },
         include: [
           { model: EmailAccount, attributes: ['id', 'email', 'display_name'], required: false },
           { model: Client, attributes: ['id', 'display_name', 'company_name', 'invite_email'], required: false },
@@ -218,8 +278,9 @@ router.post('/:businessId/email-threads/:id/mark-read',
   authenticateToken, checkBusinessAccess, requireMenu('qmail', 'read'),
   async (req, res, next) => {
     try {
+      const acctIds = await accessibleAccountIds(Number(req.params.businessId), req.user.id);
       const thread = await EmailThread.findOne({
-        where: { id: req.params.id, business_id: req.params.businessId },
+        where: { id: req.params.id, business_id: req.params.businessId, account_id: { [Op.in]: acctIds.length ? acctIds : [0] } },
       });
       if (!thread) return errorResponse(res, 'thread_not_found', 404);
       if (thread.unread_count > 0) {
@@ -242,8 +303,9 @@ router.post('/:businessId/email-threads/:id/mark-spam',
   authenticateToken, checkBusinessAccess, requireMenu('qmail', 'read'),
   async (req, res, next) => {
     try {
+      const acctIds = await accessibleAccountIds(Number(req.params.businessId), req.user.id);
       const thread = await EmailThread.findOne({
-        where: { id: req.params.id, business_id: req.params.businessId },
+        where: { id: req.params.id, business_id: req.params.businessId, account_id: { [Op.in]: acctIds.length ? acctIds : [0] } },
       });
       if (!thread) return errorResponse(res, 'thread_not_found', 404);
       await thread.update({ status: 'spam' });
@@ -259,8 +321,9 @@ router.post('/:businessId/email-threads/:id/mark-not-spam',
   authenticateToken, checkBusinessAccess, requireMenu('qmail', 'read'),
   async (req, res, next) => {
     try {
+      const acctIds = await accessibleAccountIds(Number(req.params.businessId), req.user.id);
       const thread = await EmailThread.findOne({
-        where: { id: req.params.id, business_id: req.params.businessId },
+        where: { id: req.params.id, business_id: req.params.businessId, account_id: { [Op.in]: acctIds.length ? acctIds : [0] } },
       });
       if (!thread) return errorResponse(res, 'thread_not_found', 404);
       if (thread.status !== 'spam') return errorResponse(res, 'not_spam', 400);
@@ -284,7 +347,10 @@ router.post('/:businessId/email-threads/:id/messages',
       const { body_html, to, cc, bcc, attachment_file_ids } = req.body || {};
       if (!body_html || !String(body_html).trim()) return errorResponse(res, 'body_required', 400);
 
-      const thread = await EmailThread.findOne({ where: { id: threadId, business_id: businessId } });
+      const acctIds = await accessibleAccountIds(businessId, req.user.id);
+      const thread = await EmailThread.findOne({
+        where: { id: threadId, business_id: businessId, account_id: { [Op.in]: acctIds.length ? acctIds : [0] } },
+      });
       if (!thread) return errorResponse(res, 'thread_not_found', 404);
 
       const account = await EmailAccount.findOne({ where: { id: thread.account_id, business_id: businessId } });
