@@ -65,4 +65,20 @@ export interface TaskAsEvent extends CalendarEvent {
   _task_assignee_name?: string | null;
 }
 
-export type CalendarItem = CalendarEvent | TaskAsEvent;
+// 개인 Google 캘린더 일정 (읽기 전용 overlay) — GET /api/me/calendar/events
+export interface PersonalCalendarEvent {
+  id: string;            // 'gcal-{connId}-{eventId}'
+  _source: 'personal_google';
+  title: string;
+  description?: string | null;
+  location?: string | null;
+  start_at: string;
+  end_at: string;
+  all_day: boolean;
+  color: string;         // violet #8B5CF6 (회사 일정과 색 분리)
+  html_link: string | null;
+  account_email: string | null;
+  read_only: true;
+}
+
+export type CalendarItem = CalendarEvent | TaskAsEvent | PersonalCalendarEvent;
