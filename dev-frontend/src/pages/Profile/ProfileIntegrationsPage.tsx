@@ -36,6 +36,17 @@ interface OauthConnectionRow {
   last_used_at: string | null;
 }
 
+// 개인 메일 (EmailAccount owner_user_id=me) — 외부 연동 Phase 3
+interface PersonalMailRow {
+  id: number;
+  email: string;
+  display_name: string | null;
+  auth_type: string;
+  is_active: boolean;
+  last_sync_at: string | null;
+  last_sync_error: string | null;
+}
+
 const PROVIDER_LABEL: Record<string, string> = {
   google_calendar: 'Google Calendar',
   google_drive: 'Google Drive',
@@ -72,18 +83,21 @@ const ProfileIntegrationsPage: React.FC = () => {
   const businessId = user?.business_id ? Number(user.business_id) : null;
   const [personalConns, setPersonalConns] = useState<ExternalConnection[]>([]);
   const [oauthConns, setOauthConns] = useState<OauthConnectionRow[]>([]);
+  const [personalMail, setPersonalMail] = useState<PersonalMailRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [r1, r2] = await Promise.all([
+      const [r1, r2, r3] = await Promise.all([
         apiFetch(`/api/me/external-connections${businessId ? `?business_id=${businessId}` : ''}`).then(r => r.json()),
         apiFetch('/api/auth/oauth-connections').then(r => r.json()),
+        businessId ? apiFetch(`/api/me/email-accounts?business_id=${businessId}`).then(r => r.json()) : Promise.resolve({ success: false }),
       ]);
       if (r1.success) setPersonalConns(r1.data);
       if (r2.success) setOauthConns(r2.data);
+      if (r3.success) setPersonalMail(r3.data);
     } catch (_) { /* skip */ } finally {
       setLoading(false);
     }
@@ -183,6 +197,14 @@ const ProfileIntegrationsPage: React.FC = () => {
     } catch (_) { /* skip */ }
   };
 
+  // 개인 메일 해제 (EmailAccount + 관련 스레드 정리는 백엔드)
+  const onDisconnectMail = async (id: number) => {
+    try {
+      await apiFetch(`/api/me/email-accounts/${id}`, { method: 'DELETE' });
+      await load();
+    } catch (_) { /* skip */ }
+  };
+
   return (
     <PageShell title={t('integrations.title', '내 외부 연동') as string}>
       <Hint>
@@ -275,24 +297,38 @@ const ProfileIntegrationsPage: React.FC = () => {
       {/* ─── 개인 메일 ─── */}
       <Section>
         <SectionTitle>{t('integrations.mail', '메일 (개인)') as string}</SectionTitle>
-        <SectionSub>{t('integrations.mailSub', '개인 메일도 Q Mail 인박스에서 받을 수 있어요 (회사 공용과 분리 표시)') as string}</SectionSub>
-        {personalConns.filter(c => ['gmail', 'outlook'].includes(c.provider)).length === 0 ? (
+        <SectionSub>{t('integrations.mailSub', '개인 메일도 Q Mail 인박스에서 받을 수 있어요 (회사 공용과 분리 표시, 본인만 보임)') as string}</SectionSub>
+        {personalMail.length === 0 ? (
           <Empty>
             <span>{t('integrations.mailEmpty', '연결된 개인 메일이 없어요') as string}</span>
-            <ComingSoonNote>{t('integrations.mailSoon', '🚧 Phase 3 — 다음 사이클에서 등록 가능') as string}</ComingSoonNote>
+            <ConnectGoogleBtn type="button" onClick={() => connectPersonal('gmail')} disabled={connProvider === 'gmail'}>
+              <GoogleIcon />
+              {connProvider === 'gmail'
+                ? t('integrations.connecting', { defaultValue: '연결 중…' }) as string
+                : t('integrations.connectGmail', { defaultValue: 'Gmail 연결' }) as string}
+            </ConnectGoogleBtn>
           </Empty>
         ) : (
           <ConnList>
-            {personalConns.filter(c => ['gmail', 'outlook'].includes(c.provider)).map(c => (
-              <ConnRow key={c.id}>
-                <ConnIcon>{PROVIDER_ICON[c.provider] || '✉️'}</ConnIcon>
+            {personalMail.map(m => (
+              <ConnRow key={m.id}>
+                <ConnIcon>✉️</ConnIcon>
                 <ConnInfo>
-                  <ConnTitle>{PROVIDER_LABEL[c.provider]}</ConnTitle>
-                  <ConnSub>{c.account_email}</ConnSub>
+                  <ConnTitle>Gmail</ConnTitle>
+                  <ConnSub>{m.email}</ConnSub>
+                  {m.last_sync_error
+                    ? <ConnMeta style={{ color: '#B91C1C' }}>{t('integrations.mailSyncError', { defaultValue: '동기화 오류 — 재연결이 필요할 수 있어요' }) as string}</ConnMeta>
+                    : m.last_sync_at && <ConnMeta>{t('integrations.lastSync', { defaultValue: '최근 동기화: {{date}}', date: new Date(m.last_sync_at).toLocaleString() }) as string}</ConnMeta>}
                 </ConnInfo>
-                <DangerBtn type="button" onClick={() => onDisconnectPersonal(c.id)}>{t('integrations.disconnect', '해제') as string}</DangerBtn>
+                <DangerBtn type="button" onClick={() => onDisconnectMail(m.id)}>{t('integrations.disconnect', '해제') as string}</DangerBtn>
               </ConnRow>
             ))}
+            <ConnectGoogleBtn type="button" onClick={() => connectPersonal('gmail')} disabled={connProvider === 'gmail'}>
+              <GoogleIcon />
+              {connProvider === 'gmail'
+                ? t('integrations.connecting', { defaultValue: '연결 중…' }) as string
+                : t('integrations.connectGmailMore', { defaultValue: '메일 계정 더 연결' }) as string}
+            </ConnectGoogleBtn>
           </ConnList>
         )}
       </Section>
@@ -360,7 +396,6 @@ const Empty = styled.div`
   display: flex; flex-direction: column; gap: 6px;
   font-size: 13px;
 `;
-const ComingSoonNote = styled.div`font-size: 11px; color: #F59E0B; font-weight: 600;`;
 const ConnList = styled.div`display: flex; flex-direction: column; gap: 8px;`;
 const ConnRow = styled.div`
   display: flex; align-items: center; gap: 12px;

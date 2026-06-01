@@ -24,6 +24,15 @@ import { uploadMyFile } from '../../services/files';
 
 type Folder = 'reply_needed' | 'inbox' | 'spam' | 'archived';
 
+// 메일 계정 (회사 공용 / 개인) — 폴더트리 그룹 (외부 연동 Phase 3)
+interface MailAccount {
+  id: number;
+  email: string;
+  display_name: string | null;
+  is_personal: boolean;
+  unread: number;
+}
+
 interface Thread {
   id: number;
   subject: string | null;
@@ -78,6 +87,9 @@ const MailPage: React.FC = () => {
   );
   const threadIdParam = sp.get('thread');
   const activeId = threadIdParam ? Number(threadIdParam) : null;
+  // 계정(회사/개인) 필터 — null = 전체 (외부 연동 Phase 3)
+  const accountParam = sp.get('account');
+  const accountFilter = accountParam ? Number(accountParam) : null;
 
   const [threads, setThreads] = useState<Thread[]>([]);
   const [listLoading, setListLoading] = useState(false);
@@ -87,6 +99,7 @@ const MailPage: React.FC = () => {
   const [folderCounts, setFolderCounts] = useState<Record<Folder, number>>({
     reply_needed: 0, inbox: 0, spam: 0, archived: 0,
   });
+  const [accounts, setAccounts] = useState<MailAccount[]>([]);
 
   const setFolder = (f: Folder) => {
     const nsp = new URLSearchParams(sp);
@@ -102,13 +115,23 @@ const MailPage: React.FC = () => {
     setSp(nsp, { replace: true });
   };
 
-  // 폴더 list fetch
+  // 계정 필터 토글 (재클릭 해제 — 공통 UX 규칙)
+  const setAccount = (id: number | null) => {
+    const nsp = new URLSearchParams(sp);
+    if (id === null || accountFilter === id) nsp.delete('account');
+    else nsp.set('account', String(id));
+    nsp.delete('thread');
+    setSp(nsp, { replace: true });
+  };
+
+  // 폴더 list fetch (계정 필터 반영)
   const loadList = useCallback(async () => {
     if (!businessId) return;
     setListLoading(true);
     setErrorMsg(null);
     try {
-      const r = await apiFetch(`/api/businesses/${businessId}/email-threads?folder=${folder}&limit=100`);
+      const acctQ = accountFilter ? `&account_id=${accountFilter}` : '';
+      const r = await apiFetch(`/api/businesses/${businessId}/email-threads?folder=${folder}&limit=100${acctQ}`);
       const j = await r.json();
       if (j.success) setThreads(j.data || []);
       else setErrorMsg(j.message || (t('errors.loadList', { defaultValue: '인박스 로딩 실패' }) as string));
@@ -117,7 +140,17 @@ const MailPage: React.FC = () => {
     } finally {
       setListLoading(false);
     }
-  }, [businessId, folder, t]);
+  }, [businessId, folder, accountFilter, t]);
+
+  // 메일 계정 목록 (회사/개인 그룹 + unread)
+  const loadAccounts = useCallback(async () => {
+    if (!businessId) return;
+    try {
+      const r = await apiFetch(`/api/businesses/${businessId}/mail-accounts`);
+      const j = await r.json();
+      if (j.success) setAccounts(j.data || []);
+    } catch { /* silent — 계정 그룹은 부가 */ }
+  }, [businessId]);
 
   // 폴더 카운트 fetch (4 폴더 병렬)
   const loadCounts = useCallback(async () => {
@@ -159,6 +192,7 @@ const MailPage: React.FC = () => {
 
   useEffect(() => { loadList(); }, [loadList]);
   useEffect(() => { loadCounts(); }, [loadCounts]);
+  useEffect(() => { loadAccounts(); }, [loadAccounts]);
   useEffect(() => {
     if (activeId) loadDetail(activeId);
     else setDetail(null);
@@ -184,8 +218,9 @@ const MailPage: React.FC = () => {
   const silentReload = useCallback(() => {
     loadList();
     loadCounts();
+    loadAccounts();
     if (activeId) loadDetail(activeId);
-  }, [loadList, loadCounts, activeId, loadDetail]);
+  }, [loadList, loadCounts, loadAccounts, activeId, loadDetail]);
   const silentReloadRef = useRef(silentReload);
   useEffect(() => { silentReloadRef.current = silentReload; }, [silentReload]);
 
@@ -308,6 +343,42 @@ const MailPage: React.FC = () => {
               {folderCounts[key] > 0 && <FolderCount>{folderCounts[key]}</FolderCount>}
             </FolderItem>
           ))}
+
+          {/* 계정 그룹 (회사 / 개인) — 2개 이상일 때만 노출 */}
+          {accounts.length > 1 && (
+            <AcctSection>
+              {accountFilter !== null && (
+                <AcctItem type="button" $active={false} onClick={() => setAccount(null)}>
+                  <AcctEmail>{t('accounts.all', { defaultValue: '전체 계정 보기' }) as string}</AcctEmail>
+                </AcctItem>
+              )}
+              {(['company', 'personal'] as const).map((group) => {
+                const list = accounts.filter(a => (group === 'personal' ? a.is_personal : !a.is_personal));
+                if (!list.length) return null;
+                return (
+                  <AcctGroup key={group}>
+                    <AcctGroupLabel>
+                      {group === 'company'
+                        ? t('accounts.company', { defaultValue: '회사' }) as string
+                        : t('accounts.personal', { defaultValue: '개인' }) as string}
+                    </AcctGroupLabel>
+                    {list.map((a) => (
+                      <AcctItem
+                        key={a.id}
+                        type="button"
+                        $active={accountFilter === a.id}
+                        onClick={() => setAccount(a.id)}
+                        title={a.email}
+                      >
+                        <AcctEmail>{a.display_name || a.email}</AcctEmail>
+                        {a.unread > 0 && <FolderCount>{a.unread}</FolderCount>}
+                      </AcctItem>
+                    ))}
+                  </AcctGroup>
+                );
+              })}
+            </AcctSection>
+          )}
         </FolderCol>
 
         {/* 중: 스레드 리스트 */}
@@ -519,6 +590,34 @@ const FolderCount = styled.span`
   font-size: 11px; font-weight: 700;
   border-radius: 999px;
   text-align: center;
+`;
+// 계정 그룹 (회사/개인) — 외부 연동 Phase 3
+const AcctSection = styled.div`
+  margin-top: 14px; padding-top: 12px;
+  border-top: 1px solid #E2E8F0;
+  display: flex; flex-direction: column; gap: 4px;
+`;
+const AcctGroup = styled.div`
+  display: flex; flex-direction: column; gap: 2px; margin-top: 4px;
+`;
+const AcctGroupLabel = styled.div`
+  padding: 4px 12px 2px;
+  font-size: 11px; font-weight: 700; letter-spacing: 0.02em;
+  color: #94A3B8; text-transform: uppercase;
+`;
+const AcctItem = styled.button<{ $active: boolean }>`
+  display: flex; align-items: center; justify-content: space-between; gap: 6px;
+  width: 100%; padding: 7px 12px;
+  background: ${p => p.$active ? '#EDE9FE' : 'transparent'};
+  color: ${p => p.$active ? '#6D28D9' : '#334155'};
+  border: none; border-radius: 6px;
+  font-size: 12.5px; font-weight: ${p => p.$active ? 600 : 500};
+  cursor: pointer; text-align: left;
+  transition: background 0.12s;
+  &:hover { background: ${p => p.$active ? '#EDE9FE' : '#F1F5F9'}; }
+`;
+const AcctEmail = styled.span`
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 `;
 
 const ListCol = styled.div`
