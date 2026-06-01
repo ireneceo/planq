@@ -15,6 +15,7 @@ import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';
 import PageShell from '../../components/Layout/PageShell';
 import PanelHeader, { PanelTitle, PanelSubTitle } from '../../components/Layout/PanelHeader';
+import { PanelLayout, Panel } from '../../components/Layout/PanelLayout';
 import { useAuth, apiFetch, getAccessToken } from '../../contexts/AuthContext';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
@@ -476,67 +477,33 @@ const MailPage: React.FC = () => {
   if (!businessId) return <PageShell title="Q Mail"><Empty>{t('selectWorkspace', { defaultValue: '워크스페이스를 선택해 주세요.' }) as string}</Empty></PageShell>;
 
   return (
-    <MailLayout>
-      {/* 좌: 폴더 트리 */}
-      <FolderCol>
-        <PanelHeader><PanelTitle>Q Mail</PanelTitle></PanelHeader>
-        <FolderScroll>
-          {FOLDERS.map(({ key, defaultLabel }) => (
-            <FolderItem
-              key={key}
-              type="button"
-              $active={folder === key}
-              onClick={() => setFolder(key)}
-            >
-              <FolderLabel>{t(`folders.${key}`, { defaultValue: defaultLabel }) as string}</FolderLabel>
-              {folderCounts[key] > 0 && <FolderCount>{folderCounts[key]}</FolderCount>}
-            </FolderItem>
-          ))}
-
-          {/* 계정 그룹 (회사 / 개인) — 2개 이상일 때만 노출 */}
-          {accounts.length > 1 && (
-            <AcctSection>
-              {accountFilter !== null && (
-                <AcctItem type="button" $active={false} onClick={() => setAccount(null)}>
-                  <AcctEmail>{t('accounts.all', { defaultValue: '전체 계정 보기' }) as string}</AcctEmail>
-                </AcctItem>
-              )}
-              {(['company', 'personal'] as const).map((group) => {
-                const list = accounts.filter(a => (group === 'personal' ? a.is_personal : !a.is_personal));
-                if (!list.length) return null;
-                return (
-                  <AcctGroup key={group}>
-                    <AcctGroupLabel>
-                      {group === 'company'
-                        ? t('accounts.company', { defaultValue: '회사' }) as string
-                        : t('accounts.personal', { defaultValue: '개인' }) as string}
-                    </AcctGroupLabel>
-                    {list.map((a) => (
-                      <AcctItem
-                        key={a.id}
-                        type="button"
-                        $active={accountFilter === a.id}
-                        onClick={() => setAccount(a.id)}
-                        title={a.email}
-                      >
-                        <AcctEmail>{a.display_name || a.email}</AcctEmail>
-                        {a.unread > 0 && <FolderCount>{a.unread}</FolderCount>}
-                      </AcctItem>
-                    ))}
-                  </AcctGroup>
-                );
-              })}
-            </AcctSection>
-          )}
-        </FolderScroll>
-      </FolderCol>
-
-      {/* 중: 스레드 리스트 */}
-      <ListCol>
+    <PanelLayout>
+      {/* 좌: 메일 리스트 (폴더 = 상단 탭) — 2-pane, Q Talk LeftPanel 패턴 */}
+      <Panel $width={340}>
         <PanelHeader>
-          <PanelSubTitle>{t(`folders.${folder}`, { defaultValue: FOLDERS.find(f => f.key === folder)?.defaultLabel }) as string}</PanelSubTitle>
+          <PanelTitle>Q Mail</PanelTitle>
           <ListCount>{threads.length}</ListCount>
         </PanelHeader>
+        <FolderTabs>
+          {FOLDERS.map(({ key, defaultLabel }) => (
+            <FolderTab key={key} type="button" $active={folder === key} onClick={() => setFolder(key)}>
+              {t(`folders.${key}`, { defaultValue: defaultLabel }) as string}
+              {folderCounts[key] > 0 && <TabCount $active={folder === key}>{folderCounts[key]}</TabCount>}
+            </FolderTab>
+          ))}
+        </FolderTabs>
+        {accounts.length > 1 && (
+          <AcctFilterRow>
+            <AcctChip type="button" $active={accountFilter === null} onClick={() => setAccount(null)}>
+              {t('accounts.all', { defaultValue: '전체' }) as string}
+            </AcctChip>
+            {accounts.map((a) => (
+              <AcctChip key={a.id} type="button" $active={accountFilter === a.id} onClick={() => setAccount(a.id)} title={a.email}>
+                {a.display_name || a.email}{a.unread > 0 ? ` ${a.unread}` : ''}
+              </AcctChip>
+            ))}
+          </AcctFilterRow>
+        )}
           {errorMsg && <ErrorBar>{errorMsg}</ErrorBar>}
           {listLoading && threads.length === 0 ? (
             <Loading>
@@ -590,10 +557,10 @@ const MailPage: React.FC = () => {
               ))}
             </ThreadList>
           )}
-        </ListCol>
+        </Panel>
 
         {/* 우: 상세 */}
-        <DetailCol>
+        <Panel $grow $last $hideTablet>
           {detailLoading && !detail ? (
             <Loading><Spinner /></Loading>
           ) : !detail ? (
@@ -744,8 +711,8 @@ const MailPage: React.FC = () => {
               </DetailFooter>
             </>
           )}
-        </DetailCol>
-    </MailLayout>
+        </Panel>
+    </PanelLayout>
   );
 };
 
@@ -754,111 +721,78 @@ export default MailPage;
 // ─────────────────────────────────────────────
 // styles
 // ─────────────────────────────────────────────
-// 표준 3컬럼 full-bleed 레이아웃 — Q Talk 의 Layout 과 동일 (PageShell·카드 X)
-const MailLayout = styled.div`
-  display: grid;
-  grid-template-columns: 240px minmax(300px, 380px) 1fr;
-  height: 100vh;
-  height: 100dvh;
-  height: var(--vvh, 100dvh);
-  background: #F8FAFC;
-  overflow: hidden;
-  min-height: 0;
-  @media (max-width: 1024px) {
-    grid-template-columns: 200px 1fr;
-    height: calc(100vh - 56px);
-    height: calc(100dvh - 56px);
-    height: calc(var(--vvh, 100dvh) - 56px);
-    & > :last-child { display: none; }
-  }
-  @media (max-width: 640px) {
-    grid-template-columns: 1fr;
-    & > :nth-child(1) { display: none; }
-  }
+// Q Talk 의 Layout 과 동일 — flex row, full-bleed (PageShell·카드 X)
+// 컨테이너·패널은 공통 components/Layout/PanelLayout 의 PanelLayout/Panel 사용 (통일)
+// 폴더 탭 (답변필요/인박스/내담당/팔로우/스팸/보관) — 좌측 상단 가로 탭
+const FolderTabs = styled.div`
+  display: flex; gap: 2px;
+  padding: 4px 8px 0;
+  border-bottom: 1px solid #E2E8F0;
+  overflow-x: auto;
+  flex-shrink: 0;
+  scrollbar-width: none;
+  &::-webkit-scrollbar { display: none; }
 `;
-
-const FolderCol = styled.div`
-  border-right: 1px solid #E2E8F0;
-  background: #F8FAFC;
-  display: flex; flex-direction: column;
-  overflow: hidden;
-  min-height: 0;
+const FolderTab = styled.button<{ $active: boolean }>`
+  display: inline-flex; align-items: center; gap: 5px;
+  flex-shrink: 0;
+  padding: 8px 10px 9px;
+  border: none; background: transparent;
+  font-size: 13px; font-weight: ${p => p.$active ? 700 : 500};
+  color: ${p => p.$active ? '#0F766E' : '#64748B'};
+  border-bottom: 2px solid ${p => p.$active ? '#14B8A6' : 'transparent'};
+  cursor: pointer; white-space: nowrap;
+  transition: color 0.12s;
+  &:hover { color: #0F766E; }
 `;
-const FolderScroll = styled.div`
-  flex: 1; overflow-y: auto;
-  padding: 12px 8px;
-  display: flex; flex-direction: column; gap: 4px;
+const TabCount = styled.span<{ $active: boolean }>`
+  min-width: 16px; padding: 0 5px;
+  background: ${p => p.$active ? '#14B8A6' : '#E2E8F0'};
+  color: ${p => p.$active ? '#FFFFFF' : '#64748B'};
+  font-size: 10px; font-weight: 700;
+  border-radius: 999px; text-align: center;
 `;
-const FolderItem = styled.button<{ $active: boolean }>`
-  display: flex; align-items: center; justify-content: space-between;
-  width: 100%; padding: 8px 12px;
-  background: ${p => p.$active ? '#CCFBF1' : 'transparent'};
-  color: ${p => p.$active ? '#0F766E' : '#334155'};
-  border: none; border-radius: 6px;
-  font-size: 13px; font-weight: ${p => p.$active ? 600 : 500};
+// 계정 필터 칩 (회사/개인) — 탭 아래
+const AcctFilterRow = styled.div`
+  display: flex; gap: 6px; flex-wrap: wrap;
+  padding: 8px 10px;
+  border-bottom: 1px solid #F1F5F9;
+  flex-shrink: 0;
+`;
+const AcctChip = styled.button<{ $active: boolean }>`
+  padding: 3px 10px; border-radius: 999px;
+  font-size: 11px; font-weight: 600;
   cursor: pointer;
-  transition: background 0.12s;
-  &:hover { background: ${p => p.$active ? '#CCFBF1' : '#F1F5F9'}; }
-`;
-const FolderLabel = styled.span``;
-const FolderCount = styled.span`
-  min-width: 20px; padding: 0 6px;
-  background: #14B8A6; color: #FFFFFF;
-  font-size: 11px; font-weight: 700;
-  border-radius: 999px;
-  text-align: center;
-`;
-// 계정 그룹 (회사/개인) — 외부 연동 Phase 3
-const AcctSection = styled.div`
-  margin-top: 14px; padding-top: 12px;
-  border-top: 1px solid #E2E8F0;
-  display: flex; flex-direction: column; gap: 4px;
-`;
-const AcctGroup = styled.div`
-  display: flex; flex-direction: column; gap: 2px; margin-top: 4px;
-`;
-const AcctGroupLabel = styled.div`
-  padding: 4px 12px 2px;
-  font-size: 11px; font-weight: 700; letter-spacing: 0.02em;
-  color: #94A3B8; text-transform: uppercase;
-`;
-const AcctItem = styled.button<{ $active: boolean }>`
-  display: flex; align-items: center; justify-content: space-between; gap: 6px;
-  width: 100%; padding: 7px 12px;
-  background: ${p => p.$active ? '#EDE9FE' : 'transparent'};
-  color: ${p => p.$active ? '#6D28D9' : '#334155'};
-  border: none; border-radius: 6px;
-  font-size: 12.5px; font-weight: ${p => p.$active ? 600 : 500};
-  cursor: pointer; text-align: left;
-  transition: background 0.12s;
-  &:hover { background: ${p => p.$active ? '#EDE9FE' : '#F1F5F9'}; }
-`;
-const AcctEmail = styled.span`
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  border: 1px solid ${p => p.$active ? '#5EEAD4' : '#E2E8F0'};
+  background: ${p => p.$active ? '#F0FDFA' : '#FFFFFF'};
+  color: ${p => p.$active ? '#0F766E' : '#64748B'};
+  max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  &:hover { border-color: #5EEAD4; }
 `;
 
-const ListCol = styled.div`
-  border-right: 1px solid #E2E8F0;
-  display: flex; flex-direction: column;
-  overflow: hidden;
-`;
 const ListCount = styled.span`
   font-size: 13px; font-weight: 600; color: #94A3B8;
 `;
+// Q Talk ChatList 와 동일 — 둥근 행이 측면 여백 갖도록 padding
 const ThreadList = styled.div`
   flex: 1; overflow-y: auto;
+  padding: 6px 6px 12px;
+  &::-webkit-scrollbar { width: 6px; }
+  &::-webkit-scrollbar-thumb { background: #E2E8F0; border-radius: 3px; }
 `;
+// Q Talk ChatRow 정확값 — 둥근 행, active=#F0FDFA + inset 3px 0 0 #0D9488, hover #F8FAFC
 const ThreadItem = styled.button<{ $active: boolean; $unread: boolean }>`
   display: block; width: 100%;
-  padding: 12px 16px;
-  background: ${p => p.$active ? '#F0FDFA' : 'transparent'};
+  padding: 10px 10px;
+  margin: 2px 0;
+  border-radius: 10px;
   border: none;
-  border-bottom: 1px solid #F1F5F9;
-  border-left: 3px solid ${p => p.$active ? '#14B8A6' : 'transparent'};
+  background: ${p => p.$active ? '#F0FDFA' : 'transparent'};
+  ${p => p.$active && 'box-shadow: inset 3px 0 0 #0D9488;'}
   text-align: left;
   cursor: pointer;
   transition: background 0.1s;
-  &:hover { background: ${p => p.$active ? '#F0FDFA' : '#F8FAFC'}; }
+  &:hover { ${p => !p.$active && 'background: #F8FAFC;'} }
 `;
 const ThreadRow1 = styled.div`
   display: flex; justify-content: space-between; align-items: baseline;
@@ -915,11 +849,6 @@ const LabelChip = styled.span<{ $color: string; $clickable?: boolean }>`
   cursor: ${p => p.$clickable ? 'pointer' : 'default'};
 `;
 
-const DetailCol = styled.div`
-  display: flex; flex-direction: column;
-  overflow: hidden;
-  background: #FFFFFF;
-`;
 // 상세 헤더 우측 (메시지 수·고객 칩 + 스팸) — PanelHeader 안 오른쪽 슬롯
 const DetailHeaderRight = styled.div`
   display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
