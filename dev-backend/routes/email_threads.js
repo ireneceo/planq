@@ -16,7 +16,7 @@ const fs = require('fs');
 const path = require('path');
 const { Op } = require('sequelize');
 const { sequelize } = require('../config/database');
-const { EmailThread, EmailMessage, EmailAttachment, EmailAccount, Client, Project, User, File } = require('../models');
+const { EmailThread, EmailMessage, EmailAttachment, EmailAccount, EmailThreadParticipant, Business, Client, Project, User, File } = require('../models');
 const { authenticateToken, checkBusinessAccess } = require('../middleware/auth');
 const { requireMenu } = require('../middleware/menu_permission');
 const { successResponse, errorResponse, parsePagination, paginatedResponse } = require('../middleware/errorHandler');
@@ -59,8 +59,9 @@ async function resolveAttachments(fileIds, businessId) {
 function folderWhere(folder, userId) {
   switch (folder) {
     case 'reply_needed': return { reply_needed: true, status: { [Op.in]: ['open', 'uncertain'] } };
-    case 'assigned': return { assignee_user_id: userId, status: 'open' };
-    case 'following': return { status: 'open' };  // EmailThreadFollower 별도 모델 — M3 (skip)
+    // assigned/following 은 EmailThreadParticipant 조인 필요 → 리스트 라우트에서 thread_id 필터로 처리. 여기선 status 기준만.
+    case 'assigned':
+    case 'following': return { status: { [Op.in]: ['open', 'uncertain'] } };
     case 'uncertain': return { status: 'uncertain' };
     case 'spam': return { status: 'spam' };
     case 'archived': return { status: 'archived' };
@@ -104,6 +105,14 @@ router.get('/:businessId/email-threads',
         where.account_id = reqId;
       } else {
         where.account_id = { [Op.in]: acctIds };
+      }
+      // assigned/following 폴더 — 본인 participant 가 달린 thread 로 제한
+      if (folder === 'assigned' || folder === 'following') {
+        const pcol = folder === 'assigned' ? 'is_assigned' : 'is_following';
+        const parts = await EmailThreadParticipant.findAll({ where: { user_id: req.user.id, [pcol]: true }, attributes: ['thread_id'] });
+        const tids = parts.map(p => p.thread_id);
+        if (!tids.length) return paginatedResponse(res, [], 0, { limit, page, offset });
+        where.id = { [Op.in]: tids };
       }
       if (client_id) where.client_id = Number(client_id);
       if (project_id) where.project_id = Number(project_id);
@@ -227,6 +236,14 @@ router.get('/:businessId/email-threads/:id',
         order: [['sent_at', 'ASC'], ['id', 'ASC']],
       });
 
+      // M3-B — 담당/팔로우 상태 (EmailThreadParticipant)
+      const parts = await EmailThreadParticipant.findAll({
+        where: { thread_id: id },
+        include: [{ model: User, attributes: ['id', 'name'], required: false }],
+      });
+      const assignedP = parts.find(p => p.is_assigned);
+      const myP = parts.find(p => p.user_id === req.user.id);
+
       const tj = thread.toJSON();
       return successResponse(res, {
         id: tj.id,
@@ -240,6 +257,9 @@ router.get('/:businessId/email-threads/:id',
         unread_count: tj.unread_count || 0,
         message_count: tj.message_count || 0,
         labels: tj.labels || [],
+        assignee_user_id: assignedP ? assignedP.user_id : null,
+        assignee_name: assignedP && assignedP.User ? assignedP.User.name : null,
+        my_following: !!(myP && myP.is_following),
         last_message_at: tj.last_message_at,
         account: tj.EmailAccount,
         client: tj.Client,
@@ -453,6 +473,137 @@ router.post('/:businessId/email-threads/:id/messages',
         sent_at: now,
         rejected: sendResult.rejected,
       });
+    } catch (err) { next(err); }
+  }
+);
+
+// ─────────────────────────────────────────────
+// M3-B — PUT thread (스타/라벨/보관/연결) · assign · follow · email-labels CRUD
+// ─────────────────────────────────────────────
+
+// PUT /:biz/email-threads/:id — 부분 수정 (is_starred / labels / status(archive) / client_id / project_id)
+router.put('/:businessId/email-threads/:id',
+  authenticateToken, checkBusinessAccess, requireMenu('qmail', 'write'),
+  async (req, res, next) => {
+    try {
+      const businessId = Number(req.params.businessId);
+      const acctIds = await accessibleAccountIds(businessId, req.user.id);
+      const thread = await EmailThread.findOne({
+        where: { id: req.params.id, business_id: businessId, account_id: { [Op.in]: acctIds.length ? acctIds : [0] } },
+      });
+      if (!thread) return errorResponse(res, 'thread_not_found', 404);
+      const b = req.body || {};
+      const patch = {};
+      if (typeof b.is_starred === 'boolean') patch.is_starred = b.is_starred;
+      if (Array.isArray(b.labels)) patch.labels = b.labels.map(s => String(s).slice(0, 50)).filter(Boolean).slice(0, 20);
+      if (b.status && ['open', 'archived'].includes(b.status)) patch.status = b.status;
+      if ('client_id' in b) patch.client_id = b.client_id ? Number(b.client_id) : null;
+      if ('project_id' in b) patch.project_id = b.project_id ? Number(b.project_id) : null;
+      if (!Object.keys(patch).length) return errorResponse(res, 'no_fields', 400);
+      await thread.update(patch);
+      broadcastMail(req, businessId, 'mail:updated', { thread_id: thread.id, ...patch });
+      return successResponse(res, { id: thread.id, ...patch });
+    } catch (err) { next(err); }
+  }
+);
+
+// POST /:biz/email-threads/:id/assign — body { user_id|null } (담당자 1명, EmailThreadParticipant.is_assigned)
+router.post('/:businessId/email-threads/:id/assign',
+  authenticateToken, checkBusinessAccess, requireMenu('qmail', 'write'),
+  async (req, res, next) => {
+    try {
+      const businessId = Number(req.params.businessId);
+      const threadId = Number(req.params.id);
+      const acctIds = await accessibleAccountIds(businessId, req.user.id);
+      const thread = await EmailThread.findOne({ where: { id: threadId, business_id: businessId, account_id: { [Op.in]: acctIds.length ? acctIds : [0] } } });
+      if (!thread) return errorResponse(res, 'thread_not_found', 404);
+      const userId = (req.body || {}).user_id ? Number(req.body.user_id) : null;
+      // 다른 담당 해제 (담당자 1명 정책)
+      await EmailThreadParticipant.update({ is_assigned: false }, { where: { thread_id: threadId, is_assigned: true } });
+      if (userId) {
+        const [p] = await EmailThreadParticipant.findOrCreate({ where: { thread_id: threadId, user_id: userId }, defaults: { thread_id: threadId, user_id: userId } });
+        await p.update({ is_assigned: true });
+      }
+      broadcastMail(req, businessId, 'mail:updated', { thread_id: threadId, assignee_user_id: userId });
+      return successResponse(res, { thread_id: threadId, assignee_user_id: userId });
+    } catch (err) { next(err); }
+  }
+);
+
+// POST /:biz/email-threads/:id/follow — body { follow: bool } (본인 팔로우)
+router.post('/:businessId/email-threads/:id/follow',
+  authenticateToken, checkBusinessAccess, requireMenu('qmail', 'read'),
+  async (req, res, next) => {
+    try {
+      const businessId = Number(req.params.businessId);
+      const threadId = Number(req.params.id);
+      const acctIds = await accessibleAccountIds(businessId, req.user.id);
+      const thread = await EmailThread.findOne({ where: { id: threadId, business_id: businessId, account_id: { [Op.in]: acctIds.length ? acctIds : [0] } } });
+      if (!thread) return errorResponse(res, 'thread_not_found', 404);
+      const follow = !!(req.body || {}).follow;
+      const [p] = await EmailThreadParticipant.findOrCreate({ where: { thread_id: threadId, user_id: req.user.id }, defaults: { thread_id: threadId, user_id: req.user.id } });
+      await p.update({ is_following: follow });
+      return successResponse(res, { thread_id: threadId, is_following: follow });
+    } catch (err) { next(err); }
+  }
+);
+
+// ─── 라벨 마스터 (businesses.email_labels JSON — 별도 테이블 X) ───
+router.get('/:businessId/email-labels',
+  authenticateToken, checkBusinessAccess, requireMenu('qmail', 'read'),
+  async (req, res, next) => {
+    try {
+      const biz = await Business.findByPk(req.params.businessId, { attributes: ['id', 'email_labels'] });
+      return successResponse(res, (biz && biz.email_labels) || []);
+    } catch (err) { next(err); }
+  }
+);
+
+router.post('/:businessId/email-labels',
+  authenticateToken, checkBusinessAccess, requireMenu('qmail', 'write'),
+  async (req, res, next) => {
+    try {
+      const { name, color } = req.body || {};
+      const nm = String(name || '').trim().slice(0, 50);
+      if (!nm) return errorResponse(res, 'name_required', 400);
+      const biz = await Business.findByPk(req.params.businessId);
+      const labels = Array.isArray(biz.email_labels) ? [...biz.email_labels] : [];
+      if (labels.some(l => l.name === nm)) return errorResponse(res, 'duplicate', 409);
+      labels.push({ name: nm, color: /^#[0-9A-Fa-f]{6}$/.test(color) ? color : '#14B8A6' });
+      await biz.update({ email_labels: labels });
+      return successResponse(res, labels, 'created', 201);
+    } catch (err) { next(err); }
+  }
+);
+
+router.put('/:businessId/email-labels/:name',
+  authenticateToken, checkBusinessAccess, requireMenu('qmail', 'write'),
+  async (req, res, next) => {
+    try {
+      const oldName = decodeURIComponent(req.params.name);
+      const { newName, color } = req.body || {};
+      const biz = await Business.findByPk(req.params.businessId);
+      const labels = Array.isArray(biz.email_labels) ? [...biz.email_labels] : [];
+      const idx = labels.findIndex(l => l.name === oldName);
+      if (idx < 0) return errorResponse(res, 'not_found', 404);
+      const nm = newName ? String(newName).trim().slice(0, 50) : oldName;
+      if (nm !== oldName && labels.some(l => l.name === nm)) return errorResponse(res, 'duplicate', 409);
+      labels[idx] = { name: nm, color: /^#[0-9A-Fa-f]{6}$/.test(color) ? color : labels[idx].color };
+      await biz.update({ email_labels: labels });
+      return successResponse(res, labels);
+    } catch (err) { next(err); }
+  }
+);
+
+router.delete('/:businessId/email-labels/:name',
+  authenticateToken, checkBusinessAccess, requireMenu('qmail', 'write'),
+  async (req, res, next) => {
+    try {
+      const name = decodeURIComponent(req.params.name);
+      const biz = await Business.findByPk(req.params.businessId);
+      const labels = Array.isArray(biz.email_labels) ? biz.email_labels.filter(l => l.name !== name) : [];
+      await biz.update({ email_labels: labels });
+      return successResponse(res, labels, 'deleted');
     } catch (err) { next(err); }
   }
 );
