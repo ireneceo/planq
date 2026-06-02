@@ -1,6 +1,19 @@
 # PlanQ 세션 상태
 
-**마지막 업데이트:** 2026-06-01 (사이클 N+76 외부 연동 Phase 2-4 — **운영 라이브 v1.23.0**)
+**마지막 업데이트:** 2026-06-02 (사이클 N+77 — **운영 라이브 v1.25.0**)
+**작업 상태:** 운영 배포 완료 (commit `0a10099`, deploy 20260602_065750, 136s). 운영 검증 ✓ (헬스/프론트/PM2 + fix 코드 운영 반영 확인 + Q Task 컨펌 backfill 3건).
+
+## 🆕 사이클 N+77 (v1.25.0) — 알림 숫자 실시간 회귀 근본 fix + 표/PanelLayout/Q Task 컨펌
+
+- **★ 숫자 뱃지 실시간 회귀 근본 차단:** unread 훅(`useUnreadTotal`) socket 이 business room join 안 해 message:new 못 받던 회귀 (소리/배너/푸시는 토스터 별도 socket 이라 정상이었음). `server.js autoJoinUserBusinesses(socket)` — connection 시 역할별 auto-join (멤버=`business:X` / 고객=`conv:X`, 프라이버시 유지). 클라도 connect/refresh 시 join 이중 보장. **memory `feedback_unread_badge_socket_room_join`**
+- **영구 가드:** `scripts/health-check.js` `realtime` 카테고리 + server `debug:rooms` ack. join 없이 연결→business room auto-join 검증. negative test 로 가드 유효성 증명. `/검증` 매번 자동 검출 (29/29)
+- **공개 문서 넓은 표:** `PostEditor.tsx` `width:max-content; min-width:100%` + `.tableWrapper` 가로 스크롤 (우측 잘림 해소, Notion/GitHub 기준)
+- **Q Task 요청업무 컨펌 필수:** `routes/tasks.js` — 요청자(request_by) 를 reviewer 자동 등록(단일+AI 경로). 담당자 "완료"→"확인요청" 강제. 기존 요청업무 dev+prod backfill. `TaskDetailDrawer` 드롭다운이 로드된 reviewers state 사용(리스트와 일관)
+- **PanelLayout 통일:** Q Talk/Task/Note 가 공통 `components/Layout/PanelLayout`(PanelLayout/PanelGridLayout/CollapsibleSidebar/Panel) 사용. `panelShellHeight` 공유. 잠복버그(QTask 태블릿 56px, QNote 900↔1024 breakpoint) 동반 수정
+
+---
+
+## (이전) 사이클 N+76 (v1.23.0) — 외부 연동 Phase 2-4
 **작업 상태:** 운영 배포 완료 (commit `7ba9fac`, deploy 20260601_162841, 160s). 운영 DB owner_user_id ✅. 남은 것: Google Console "앱 게시 → 검증 제출" (Irene). 직전 라이브 v1.22.0 (`6b52029`)
 
 ---
