@@ -61,8 +61,14 @@
     "title": "Mailboxes",
     "reply_needed": "Reply needed",
     "inbox": "Inbox",
+    "uncertain": "Review suggested",
     "spam": "Spam",
     "archived": "Archived"
+  },
+  "uncertain": {
+    "billing": "Billing/payment",
+    "quote": "Quote/contract",
+    "review": "Review suggested"
   },
   "actions": {
     "markSpam": "Mark spam",

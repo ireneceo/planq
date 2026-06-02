@@ -302,6 +302,15 @@ async function syncOne(account) {
         if (!existingPart && fromEmail) {
           participants.push({ email: fromEmail, name: fromName, is_internal: false });
         }
+        // M5 — 신규 inbound thread 만 자동 스팸/Uncertain 분류 (기존 thread 는 status 유지)
+        let spamFields = {};
+        if (isNew) {
+          try {
+            const { classify } = require('./emailSpamFilter');
+            const c = classify({ subject: parsed.subject, bodyText: parsed.text, fromEmail, headers: parsed.headers });
+            spamFields = { status: c.status, spam_score: c.spam_score, uncertain_reason: c.uncertain_reason };
+          } catch (e) { console.warn('[emailSpam] classify', e.message); }
+        }
         await thread.update({
           message_count: thread.message_count + 1,
           unread_count: thread.unread_count + 1,
@@ -310,6 +319,7 @@ async function syncOne(account) {
           last_message_preview: preview,
           participants,
           client_id: clientId,
+          ...spamFields,
         });
 
         // socket emit

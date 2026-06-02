@@ -25,7 +25,7 @@ import ActionButton from '../../components/Common/ActionButton';
 import PlanQSelect from '../../components/Common/PlanQSelect';
 import { uploadMyFile } from '../../services/files';
 
-type Folder = 'reply_needed' | 'inbox' | 'assigned' | 'following' | 'spam' | 'archived';
+type Folder = 'reply_needed' | 'inbox' | 'uncertain' | 'assigned' | 'following' | 'spam' | 'archived';
 
 // 메일 계정 (회사 공용 / 개인) — 폴더트리 그룹 (외부 연동 Phase 3)
 interface MailAccount {
@@ -49,6 +49,7 @@ interface Thread {
   labels: string[];
   account: { id: number; email: string; display_name?: string | null } | null;
   client: { id: number; display_name?: string; company_name?: string } | null;
+  uncertain_reason?: string | null;
 }
 
 interface Message {
@@ -78,6 +79,7 @@ interface MailMember { user_id: number; name: string }
 const FOLDERS: Array<{ key: Folder; defaultLabel: string }> = [
   { key: 'reply_needed', defaultLabel: '답변 필요' },
   { key: 'inbox', defaultLabel: '인박스' },
+  { key: 'uncertain', defaultLabel: '확인 권장' },
   { key: 'assigned', defaultLabel: '내 담당' },
   { key: 'following', defaultLabel: '팔로우' },
   { key: 'spam', defaultLabel: '스팸' },
@@ -109,7 +111,7 @@ const MailPage: React.FC = () => {
   const [detailLoading, setDetailLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [folderCounts, setFolderCounts] = useState<Record<Folder, number>>({
-    reply_needed: 0, inbox: 0, assigned: 0, following: 0, spam: 0, archived: 0,
+    reply_needed: 0, inbox: 0, uncertain: 0, assigned: 0, following: 0, spam: 0, archived: 0,
   });
   const [accounts, setAccounts] = useState<MailAccount[]>([]);
   const [labelMaster, setLabelMaster] = useState<MailLabel[]>([]);
@@ -659,6 +661,11 @@ const MailPage: React.FC = () => {
                     {mt.subject || '(no subject)'}
                   </ThreadSubject>
                   {mt.last_message_preview && <ThreadPreview>{mt.last_message_preview}</ThreadPreview>}
+                  {mt.status === 'uncertain' && (
+                    <UncertainBadge>
+                      ⚠ {t(`uncertain.${mt.uncertain_reason || 'review'}`, { defaultValue: t('uncertain.review', { defaultValue: '검토 권장' }) }) as string}
+                    </UncertainBadge>
+                  )}
                   {mt.labels && mt.labels.length > 0 && (
                     <RowLabels>
                       {mt.labels.map(l => <LabelChip key={l} $color={labelColor(l)}>{l}</LabelChip>)}
@@ -1112,6 +1119,13 @@ const StarSpan = styled.span<{ $on: boolean }>`
 `;
 const RowLabels = styled.div`
   display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px;
+`;
+// M5 — Uncertain(확인 권장) 사유 배지 (Warning amber)
+const UncertainBadge = styled.span`
+  display: inline-flex; align-items: center; gap: 3px; align-self: flex-start;
+  margin-top: 4px; padding: 2px 8px; border-radius: 999px;
+  background: rgba(245, 158, 11, 0.13); color: #92400E;
+  font-size: 11px; font-weight: 700;
 `;
 const LabelChip = styled.span<{ $color: string; $clickable?: boolean }>`
   display: inline-flex; align-items: center; gap: 3px;
