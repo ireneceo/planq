@@ -1,6 +1,8 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-06-02 사이클 N+77 — **v1.25.0 운영 라이브** (commit `0a10099`, deploy 20260602_065750). 알림 숫자 실시간 회귀 근본 fix(socket business/conv room 서버 auto-join + health-check `realtime` 영구 가드) + 공개문서 넓은 표 가로스크롤 + Q Task 요청자=필수 컨펌자 + PanelLayout 통일(Q Talk/Task/Note)
+> **최종 업데이트:** 2026-06-02 사이클 N+78 — v1.25.1 운영 라이브 (채팅 입력·대화 모바일 정밀 수정 + 자동읽음 차단)
+>
+> **이전 최종 업데이트:** 2026-06-02 사이클 N+77 — **v1.25.0 운영 라이브** (commit `0a10099`, deploy 20260602_065750). 알림 숫자 실시간 회귀 근본 fix(socket business/conv room 서버 auto-join + health-check `realtime` 영구 가드) + 공개문서 넓은 표 가로스크롤 + Q Task 요청자=필수 컨펌자 + PanelLayout 통일(Q Talk/Task/Note)
 >
 > **이전:** 2026-06-01 사이클 N+76 — 외부 연동 Phase 2-4 + Q Mail M3 + Q Mail UI/UX 통일(공통 PanelLayout·2-pane) + 새 메일 작성
 >

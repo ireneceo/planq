@@ -1,6 +1,14 @@
 # PlanQ 세션 상태
 
-**마지막 업데이트:** 2026-06-02 (사이클 N+77 — **운영 라이브 v1.25.0**)
+**마지막 업데이트:** 2026-06-02 (사이클 N+78 — **운영 라이브 v1.25.1** 채팅 모바일 정밀 수정)
+**작업 상태:** 운영 배포 완료 (commit `396dc9b`, deploy 20260602_091006, 128s). 검증 ✓.
+
+## 🆕 사이클 N+78 (v1.25.1) — 채팅 입력·대화 모바일 정밀 수정 + 자동읽음 차단
+- **채팅 자동읽음 차단** (38fafcd): 창 안 보고 있을 때(백그라운드/자동복원) 메시지 읽음 처리 안 함 → 미읽음 뱃지 정확. `QTalkPage` viewing 게이트(`visibilityState`). memory `feedback_unread_badge_socket_room_join`
+- **채팅 모바일 정밀 수정** (396dc9b, ChatPanel.tsx): 30년차 3축 감사 → 입력창 모바일 16px(iOS 줌 차단) / 전송·첨부 44px 터치타겟 / overflow-wrap:anywhere(긴 URL 가로스크롤) / 스크롤 임계값 120·200→240 통일 / visualViewport 축소(키보드up) 즉시 바닥 / 이미지 lazy·async / IME onBlur 리셋 / aria-label
+- **채팅 "완벽화" 다음 단계 후보 (미구현):** 작성중 메시지 임시저장(localStorage per-conv) / 위로 스크롤 시 과거 메시지 무한 로드(pagination) / "여기까지 읽음" 구분선. 감사에서 도출, 분리 작업.
+
+## (이전) 사이클 N+77 (v1.25.0)
 **작업 상태:** 운영 배포 완료 (commit `0a10099`, deploy 20260602_065750, 136s). 운영 검증 ✓ (헬스/프론트/PM2 + fix 코드 운영 반영 확인 + Q Task 컨펌 backfill 3건).
 
 ## 🆕 사이클 N+77 (v1.25.0) — 알림 숫자 실시간 회귀 근본 fix + 표/PanelLayout/Q Task 컨펌
