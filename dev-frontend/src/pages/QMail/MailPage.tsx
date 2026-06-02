@@ -116,6 +116,10 @@ const MailPage: React.FC = () => {
   const [accounts, setAccounts] = useState<MailAccount[]>([]);
   const [labelMaster, setLabelMaster] = useState<MailLabel[]>([]);
   const [members, setMembers] = useState<MailMember[]>([]);
+  // 메일 검색 (제목·미리보기·본문) — 300ms 디바운스
+  const [searchQ, setSearchQ] = useState('');
+  const [qDebounced, setQDebounced] = useState('');
+  useEffect(() => { const id = window.setTimeout(() => setQDebounced(searchQ.trim()), 300); return () => window.clearTimeout(id); }, [searchQ]);
   // M4 — FAQ 자동 클러스터링 제안
   const [faqSuggestions, setFaqSuggestions] = useState<Array<{ id: number; question: string; answer: string; occurrence_count: number }>>([]);
   const [faqExpandId, setFaqExpandId] = useState<number | null>(null);
@@ -151,7 +155,8 @@ const MailPage: React.FC = () => {
     setErrorMsg(null);
     try {
       const acctQ = accountFilter ? `&account_id=${accountFilter}` : '';
-      const r = await apiFetch(`/api/businesses/${businessId}/email-threads?folder=${folder}&limit=100${acctQ}`);
+      const qP = qDebounced ? `&q=${encodeURIComponent(qDebounced)}` : '';
+      const r = await apiFetch(`/api/businesses/${businessId}/email-threads?folder=${folder}&limit=100${acctQ}${qP}`);
       const j = await r.json();
       if (j.success) setThreads(j.data || []);
       else setErrorMsg(j.message || (t('errors.loadList', { defaultValue: '인박스 로딩 실패' }) as string));
@@ -160,7 +165,7 @@ const MailPage: React.FC = () => {
     } finally {
       setListLoading(false);
     }
-  }, [businessId, folder, accountFilter, t]);
+  }, [businessId, folder, accountFilter, qDebounced, t]);
 
   // 메일 계정 목록 (회사/개인 그룹 + unread)
   const loadAccounts = useCallback(async () => {
@@ -579,6 +584,20 @@ const MailPage: React.FC = () => {
             </FolderTab>
           ))}
         </FolderTabs>
+        <SearchRow>
+          <SearchIcon viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <circle cx="11" cy="11" r="7" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+          </SearchIcon>
+          <SearchInput
+            value={searchQ}
+            onChange={(e) => setSearchQ(e.target.value)}
+            placeholder={t('search.placeholder', { defaultValue: '메일 검색 (제목·내용)' }) as string}
+            aria-label={t('search.placeholder', { defaultValue: '메일 검색' }) as string}
+          />
+          {searchQ && (
+            <SearchClear type="button" onClick={() => setSearchQ('')} aria-label={t('search.clear', { defaultValue: '검색 지우기' }) as string}>×</SearchClear>
+          )}
+        </SearchRow>
         {accounts.length > 1 && (
           <AcctFilterRow>
             <AcctChip type="button" $active={accountFilter === null} onClick={() => setAccount(null)}>
@@ -628,7 +647,9 @@ const MailPage: React.FC = () => {
               <EmptyIcon viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
                 <path d="M22 6l-10 7L2 6" /><rect x="2" y="4" width="20" height="16" rx="2" />
               </EmptyIcon>
-              <EmptyText>{t('emptyFolder', { defaultValue: '이 폴더에 메일이 없어요' }) as string}</EmptyText>
+              <EmptyText>{qDebounced
+                ? (t('search.empty', { defaultValue: '검색 결과가 없어요' }) as string)
+                : (t('emptyFolder', { defaultValue: '이 폴더에 메일이 없어요' }) as string)}</EmptyText>
             </EmptyList>
           ) : (
             <ThreadList>
@@ -976,6 +997,25 @@ const TabCount = styled.span<{ $active: boolean }>`
   border-radius: 999px; text-align: center;
 `;
 // 계정 필터 칩 (회사/개인) — 탭 아래
+// 메일 검색창
+const SearchRow = styled.div`
+  display: flex; align-items: center; gap: 6px;
+  margin: 8px 10px; padding: 0 10px;
+  background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px;
+  flex-shrink: 0;
+  &:focus-within { border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20,184,166,0.1); }
+`;
+const SearchIcon = styled.svg`width: 15px; height: 15px; color: #94A3B8; flex-shrink: 0;`;
+const SearchInput = styled.input`
+  flex: 1; min-width: 0; border: none; background: transparent; outline: none;
+  height: 34px; font-size: 13px; color: #0F172A; font-family: inherit;
+  &::placeholder { color: #94A3B8; }
+`;
+const SearchClear = styled.button`
+  flex-shrink: 0; border: none; background: transparent; cursor: pointer;
+  color: #94A3B8; font-size: 18px; line-height: 1; padding: 0 2px;
+  &:hover { color: #0F172A; }
+`;
 const AcctFilterRow = styled.div`
   display: flex; gap: 6px; flex-wrap: wrap;
   padding: 8px 10px;

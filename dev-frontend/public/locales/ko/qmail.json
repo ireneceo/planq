@@ -1,4 +1,9 @@
 {
+  "search": {
+    "placeholder": "메일 검색 (제목·내용)",
+    "clear": "검색 지우기",
+    "empty": "검색 결과가 없어요"
+  },
   "faq": {
     "title": "FAQ 후보",
     "occurrence_one": "{{count}}건",

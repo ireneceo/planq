@@ -1,4 +1,9 @@
 {
+  "search": {
+    "placeholder": "Search mail (subject·content)",
+    "clear": "Clear search",
+    "empty": "No results found"
+  },
   "faq": {
     "title": "FAQ candidates",
     "occurrence_one": "{{count}}",
