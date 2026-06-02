@@ -344,6 +344,7 @@
       "down": "Not helpful"
     },
     "input": {
+      "aria": "Message input",
       "cueWaiting_one": "1 Cue draft pending",
       "cueWaiting_other": "{{count}} Cue drafts pending",
       "cueWaitingHint": "Click to jump to the message",

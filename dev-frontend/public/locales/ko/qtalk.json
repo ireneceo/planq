@@ -316,6 +316,7 @@
       "down": "아쉬움"
     },
     "input": {
+      "aria": "메시지 입력",
       "cueWaiting_one": "Cue 답변 대기 1개",
       "cueWaiting_other": "Cue 답변 대기 {{count}}개",
       "cueWaitingHint": "클릭하면 해당 메시지로 이동합니다",
