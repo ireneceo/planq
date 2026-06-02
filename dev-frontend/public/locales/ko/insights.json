@@ -137,7 +137,10 @@
       "topRevenue": "인당 매출 1위",
       "topAccuracy": "정확도 1위",
       "overUtil": "가동률 초과",
-      "totalCompleted": "완료 업무 합계"
+      "totalCompleted": "완료 업무 합계",
+      "faqAccepted": "FAQ 신규 등록",
+      "faqTimeSaved": "응대 시간 절감",
+      "minutesUnit": "분"
     },
     "chart": {
       "utilization": {

@@ -91,6 +91,8 @@ const TeamTab: React.FC<{ businessId: number; range: RangePreset }> = ({ busines
         <KpiCard><KpiLabel>{t('team.kpi.topAccuracy', '정확도 1위')}</KpiLabel><KpiValueBig>{fmtPct(data.kpis.top_accuracy.value)}</KpiValueBig></KpiCard>
         <KpiCard><KpiLabel>{t('team.kpi.overUtil', '가동률 초과')}</KpiLabel><KpiValueBig>{fmtNum(data.kpis.over_util_count.value)}</KpiValueBig></KpiCard>
         <KpiCard><KpiLabel>{t('team.kpi.totalCompleted', '완료 업무 합계')}</KpiLabel><KpiValueBig>{fmtNum(data.kpis.total_completed.value)}</KpiValueBig></KpiCard>
+        <KpiCard><KpiLabel>{t('team.kpi.faqAccepted', 'FAQ 신규 등록')}</KpiLabel><KpiValueBig>{fmtNum(data.kpis.faq_accepted?.value || 0)}</KpiValueBig></KpiCard>
+        <KpiCard><KpiLabel>{t('team.kpi.faqTimeSaved', '응대 시간 절감')}</KpiLabel><KpiValueBig>{fmtNum(data.kpis.faq_time_saved?.value || 0)}{t('team.kpi.minutesUnit', '분')}</KpiValueBig></KpiCard>
       </KpiGrid>
 
       <SectionLabel>{t('team.chart.utilization.title', '직원별 가동률')}</SectionLabel>
