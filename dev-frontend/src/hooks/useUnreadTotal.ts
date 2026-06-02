@@ -47,9 +47,20 @@ function broadcast(state: AllResponse) {
   listeners.forEach((fn) => fn(state));
 }
 
+// 알려진 모든 워크스페이스 business room join (client 측 defense).
+//   서버가 connection 시 자동 join 하지만(근본 fix), 세션 중 새 워크스페이스가 추가되거나
+//   서버 auto-join 이 누락돼도 message:new 를 받도록 이중 보장. join:business 는 멱등.
+function joinKnownBusinesses() {
+  if (!socket) return;
+  Object.keys(currentState.by_business).forEach((bizId) => {
+    socket!.emit('join:business', Number(bizId));
+  });
+}
+
 async function refreshAll() {
   const next = await fetchAll();
   broadcast(next);
+  joinKnownBusinesses();
 }
 
 function scheduleRefresh() {
@@ -68,6 +79,8 @@ function ensureSocket(userId: string | number) {
     reconnectionAttempts: Infinity,
   });
   s.on('connect_error', () => { /* silent reconnect */ });
+  // 재연결 포함 — connect 마다 알려진 워크스페이스 room 재join (서버 auto-join 과 이중 보장).
+  s.on('connect', joinKnownBusinesses);
   s.on('message:new', (msg: { sender_id?: number }) => {
     // 옵티미스틱 +1 — 본인 발신 제외 (backend SQL 도 본인 제외)
     if (msg?.sender_id && Number(msg.sender_id) !== Number(userId)) {
