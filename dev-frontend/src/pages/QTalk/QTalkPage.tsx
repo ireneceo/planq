@@ -11,6 +11,7 @@ import NewProjectModal, { type ProjectFormData } from './NewProjectModal';
 import NewChatModal, { type NewChatFormData } from './NewChatModal';
 import FirstVisitTour from '../../components/Common/FirstVisitTour';
 import ConfirmDialog from '../../components/Common/ConfirmDialog';
+import { PanelLayout } from '../../components/Layout/PanelLayout';
 import ChatSettingsModal from './ChatSettingsModal';
 import i18n from '../../i18n';
 import {
@@ -1348,13 +1349,13 @@ const QTalkPage: React.FC = () => {
       ? candidates.filter((c) => c.conversation_id === activeConversationId && c.status === 'pending')
       : [];
 
-  if (!businessId) return <Layout><CenteredHint>{t('page.noBusiness', '워크스페이스가 선택되지 않았습니다.')}</CenteredHint></Layout>;
-  if (loadError) return <Layout><CenteredHint>{t('page.loadFailed', { msg: loadError })}</CenteredHint></Layout>;
+  if (!businessId) return <PanelLayout><CenteredHint>{t('page.noBusiness', '워크스페이스가 선택되지 않았습니다.')}</CenteredHint></PanelLayout>;
+  if (loadError) return <PanelLayout><CenteredHint>{t('page.loadFailed', { msg: loadError })}</CenteredHint></PanelLayout>;
   // 사이클 N+15-A: 풀스크린 spinner 게이트 제거. LeftPanel/ChatPanel 이 내부 skeleton 으로 처리.
   // 캐시(있으면) 즉시 표시 → 백그라운드 fresh → 사용자는 위치 점프/spinner 한 번도 안 봄.
 
   return (
-    <Layout>
+    <PanelLayout>
       <LeftPanel
         projects={projects}
         conversations={conversations}
@@ -1573,7 +1574,7 @@ const QTalkPage: React.FC = () => {
           }}
         />
       )}
-    </Layout>
+    </PanelLayout>
   );
 };
 
@@ -1624,22 +1625,3 @@ const ToastDot = styled.span`
   box-shadow: 0 0 0 2px rgba(94, 234, 212, 0.3);
 `;
 
-const Layout = styled.div`
-  display: flex;
-  /* 사이클 N+17 — 모바일 키보드 대응 3중 fallback:
-     1순위 var(--vvh): ChatPanel useEffect 가 visualViewport.height JS sync (iOS PWA 정확)
-     2순위 100dvh:    modern brower dynamic viewport
-     3순위 100vh:     legacy fallback */
-  height: 100vh;
-  height: 100dvh;
-  height: var(--vvh, 100dvh);
-  background: #F8FAFC;
-  overflow: hidden;
-  min-height: 0;
-
-  @media (max-width: 1024px) {
-    height: calc(100vh - 56px);
-    height: calc(100dvh - 56px);
-    height: calc(var(--vvh, 100dvh) - 56px);
-  }
-`;

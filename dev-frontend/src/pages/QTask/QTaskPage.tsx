@@ -7,6 +7,7 @@ import { useAuth, getAccessToken } from '../../contexts/AuthContext';
 import { apiFetch } from '../../contexts/AuthContext';
 import CalendarPicker from '../../components/Common/CalendarPicker';
 import SingleDateField from '../../components/Common/SingleDateField';
+import { PanelLayout, Panel } from '../../components/Layout/PanelLayout';
 import PlanQSelect from '../../components/Common/PlanQSelect';
 import { todayInTz, mondayOfDateStr, addDaysStr, detectBrowserTz } from '../../utils/timezones';
 import { STATUS_CODES, STATUS_COLOR, displayStatus, getStatusLabel, type StatusCode } from '../../utils/taskLabel';
@@ -1272,8 +1273,8 @@ const QTaskPage:React.FC=()=>{
   const sortIcon=(key:SortKey)=>sortKey===key?(sortDir==='asc'?'↑':'↓'):'';
 
   return(
-    <Layout>
-      <LeftPanel onMouseDownCapture={(e)=>{
+    <PanelLayout>
+      <Panel $grow $last onMouseDownCapture={(e)=>{
         // 드로어 열린 상태에서 좌측 리스트의 빈 영역 클릭 → 드로어 닫기
         // (행/버튼/입력/캘린더/폼/포털 클릭은 각자 핸들러로 처리되므로 제외)
         if(!detailTaskId&&!addingTask)return;
@@ -2110,7 +2111,7 @@ const QTaskPage:React.FC=()=>{
 
         </ListScroll>
         )}
-      </LeftPanel>
+      </Panel>
 
       {/* ════ RIGHT ════ */}
       {/* CollapsedStrip — 0폭 anchor + EdgeHandle (Q Talk / Q docs 표준 통일) */}
@@ -2674,7 +2675,7 @@ const QTaskPage:React.FC=()=>{
           onCreated={()=>{ /* socket task:new 가 자동 반영 */ }}
         />
       )}
-    </Layout>
+    </PanelLayout>
   );
 };
 export default QTaskPage;
@@ -2705,8 +2706,6 @@ const CandMissingClose = styled.button`
 `;
 
 // ═══ Styled ═══
-const Layout=styled.div`display:flex;height:calc(100vh - 0px);background:#F8FAFC;overflow:hidden;`;
-const LeftPanel=styled.div`flex:1;min-width:0;display:flex;flex-direction:column;background:#FFF;overflow:hidden;`;
 const Header=styled.div`padding:14px 20px;height:60px;display:flex;align-items:center;gap:12px;border-bottom:1px solid #E2E8F0;flex-shrink:0;`;
 const PageTitle=styled.h1`font-size:18px;font-weight:700;color:#0F172A;margin:0;flex-shrink:0;letter-spacing:-0.2px;`;
 const HideCheck=styled.label`display:flex;align-items:center;gap:4px;font-size:12px;color:#64748B;cursor:pointer;white-space:nowrap;& input{accent-color:#0D9488;}`;
