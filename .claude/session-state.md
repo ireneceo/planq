@@ -1,7 +1,7 @@
 # PlanQ 세션 상태
 
-**마지막 업데이트:** 2026-06-02 (사이클 N+79 — 채팅 "완벽화" 3기능 + IDOR 보안 fix)
-**작업 상태:** 완료 (dev 검증 완료 · **운영 미배포**). 직전 운영 라이브 v1.25.1 (commit `cb3a4ed`, deploy 20260602_091006).
+**마지막 업데이트:** 2026-06-02 (사이클 N+79 — **운영 라이브 v1.26.0**)
+**작업 상태:** 운영 배포 완료 (commit `626c4cf`, deploy 20260602_143025, 128s). IDOR fix 운영 반영 확인(canAccessConversation 0→2). 채팅 3기능 + 보안 fix 라이브.
 
 ---
 
@@ -20,9 +20,9 @@
 - N+77 v1.25.0: 알림 숫자 실시간 회귀 근본 fix(socket auto-join + health-check `realtime` 영구 가드) + 문서 표 + Q Task 컨펌 + PanelLayout 통일
 
 ## 다음 할 일
-- **N+79 운영 배포** (`/배포`) — IDOR 보안 fix 포함이라 가급적 빠르게. 백엔드 projects.js·conversations.js + 프론트 변경
-- 채팅 후속(선택): 구분선/무한로드를 미읽음·50+메시지 실데이터 시나리오로 실기기 확인
-- 보류: Q Mail M4(FAQ 자동 클러스터링 — EmailFaqSuggestion 모델 존재) / 다른 메뉴 PanelLayout 통일 / AdminAuditLogs
+- **Q Mail M4** (FAQ 자동 클러스터링) — EmailFaqSuggestion 모델 존재, docs/Q_MAIL_SPEC §1.4/§3.6
+- 다른 메뉴 PanelLayout 통일 / AdminAuditLogs
+- 채팅 후속(선택): 구분선/무한로드를 미읽음·50+메시지 실데이터로 실기기 확인
 
 ---
 
