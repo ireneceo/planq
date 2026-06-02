@@ -1,6 +1,8 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-06-02 사이클 N+80~81 — **v1.27.0 운영 라이브** (commit `92ae47f`, deploy 20260602_171551). Q Mail M4(FAQ 자동 클러스터링·자동답변·insights 통계) + M5(스팸/Uncertain 자동 분류). `email_messages.faq_embedding` 컬럼 + `email_faq_suggestions` 테이블 운영 생성
+> **최종 업데이트:** 2026-06-02 사이클 N+82 — **v1.28.0 운영 라이브** (commit `ec493af`, deploy 20260602_182341). Q Mail 메일 검색(제목·미리보기·본문) + 무한스크롤 pagination. **Q Mail 핵심 완결** (인박스·읽기·답장·라벨·AI답변·FAQ·스팸분류·검색·페이지네이션)
+>
+> **이전:** 2026-06-02 사이클 N+80~81 — **v1.27.0** (commit `92ae47f`). Q Mail M4(FAQ 클러스터링·자동답변·insights) + M5(스팸/Uncertain 분류). `email_messages.faq_embedding` 컬럼 + `email_faq_suggestions` 테이블
 >
 > **이전:** 2026-06-02 사이클 N+79 — **v1.26.0 운영 라이브** (commit `626c4cf`). 채팅 3기능(임시저장·읽음 구분선·무한로드) + cross-tenant IDOR 보안 fix + 오래된-200 버그 수정
 >
