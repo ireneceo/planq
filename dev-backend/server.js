@@ -102,6 +102,24 @@ async function canJoinBusiness(userId, businessId) {
   return !!bm;
 }
 
+// connection 직후 — user 가 멤버인 '모든' 워크스페이스 business room 자동 join.
+//   ★ 회귀 근본 차단 (사용자 호소 "소리만 나고 숫자 안 오름"):
+//   unread 뱃지 hook(useUnreadTotal) 의 싱글톤 socket 이 join:business 를 emit 하지 않아
+//   message:new(business room emit)를 실시간으로 못 받던 회귀. client 가 join 을 '잊어버려도'
+//   서버가 connection 시점에 보장 → 모든 socket(뱃지/토스터/리스트/미래코드)이 자동 수신.
+//   범위는 canJoinBusiness 와 동일(BusinessMember) — client 는 conv room 으로 별도 수신(프라이버시).
+async function autoJoinUserBusinesses(socket) {
+  if (!socket.userId) return;
+  const { BusinessMember } = getModels();
+  const rows = await BusinessMember.findAll({
+    where: { user_id: socket.userId },
+    attributes: ['business_id'],
+  });
+  for (const r of rows) {
+    if (r.business_id) socket.join(`business:${r.business_id}`);
+  }
+}
+
 // 프론트 빌드 ID 캐시 — version.json 한 번 read 후 메모리. socket connection 마다 client 에 emit.
 //   클라가 자기 메모리 build_id 와 비교 → 다르면 사용자에게 "업데이트 사용 가능" 배너 표시.
 //   (60초 polling 은 안전망으로 5분 간격 유지)
@@ -143,6 +161,8 @@ io.on('connection', (socket) => {
   // socket.userId 는 socket 인증 미들웨어가 채워 둠. 없으면 skip (인증 실패 socket).
   if (socket.userId) {
     socket.join(`user:${socket.userId}`);
+    // ★ 전 워크스페이스 business room 자동 join — 숫자 뱃지(useUnreadTotal) 실시간 회귀 근본 차단.
+    autoJoinUserBusinesses(socket).catch((e) => console.warn('[socket] autoJoinUserBusinesses', e.message));
   }
 
   // 대화방 room 참가 — 소유권 재검증 필수 (인증만으로는 부족)
