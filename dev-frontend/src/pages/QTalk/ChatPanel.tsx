@@ -632,6 +632,25 @@ const ChatPanel: React.FC<Props> = ({
     return () => { ro.disconnect(); mo.disconnect(); };
   }, [scrollToBottom]);
 
+  // 모바일 키보드 펼침 시 마지막 메시지 가림 방지 — visualViewport 가 60px 이상 줄면(키보드 up)
+  // 바닥 근처였다면 즉시(instant) 바닥으로. smooth 금지(N+28 진동 회귀). 멀리 위면 그대로 둠.
+  React.useEffect(() => {
+    if (typeof window === 'undefined' || !window.visualViewport) return;
+    const vv = window.visualViewport;
+    let prevH = vv.height;
+    const onResize = () => {
+      const shrank = vv.height < prevH - 60;
+      prevH = vv.height;
+      if (!shrank) return;
+      const list = messageListRef.current;
+      if (!list) return;
+      const distance = list.scrollHeight - list.scrollTop - list.clientHeight;
+      if (distance < 240) scrollToBottom(false);
+    };
+    vv.addEventListener('resize', onResize);
+    return () => vv.removeEventListener('resize', onResize);
+  }, [scrollToBottom]);
+
   // 스크롤 위치 localStorage 저장 (throttled via rAF) + floating "↓" 버튼 노출 결정.
   const saveScrollRaf = React.useRef(0);
   const handleScrollSave = React.useCallback(() => {
@@ -697,7 +716,10 @@ const ChatPanel: React.FC<Props> = ({
       const list = messageListRef.current;
       if (isMine || !list) { scrollToBottom(); return; }
       const distance = list.scrollHeight - list.scrollTop - list.clientHeight;
-      if (distance < 120) {
+      // NEAR_BOTTOM 240px 통일 — ResizeObserver(자동추적)·handleScrollSave(버튼 노출)와 동일 임계.
+      // 옛 120px 불일치: 150px 거리에 타인 메시지 → 이 분기는 pending +1, 동시에 RO(240)는 바닥 스크롤
+      // → "바닥인데 새 메시지 뱃지" 모순. 같은 임계로 통일해 둘 중 하나만 동작.
+      if (distance < 240) {
         scrollToBottom();
       } else {
         // 사이클 N+15-E — 사용자가 위로 스크롤 중일 때 새 타인 메시지 도착: pending count +1.
@@ -717,8 +739,8 @@ const ChatPanel: React.FC<Props> = ({
     const list = messageListRef.current;
     if (!list) return;
     const distance = list.scrollHeight - list.scrollTop - list.clientHeight;
-    // 200px 이내면 바닥으로 (메시지 + 번역 박스 높이 고려)
-    if (distance < 200) scrollToBottom();
+    // NEAR_BOTTOM 240px 통일 (번역 박스 추가로 높이 늘어도 바닥 근처면 따라가기)
+    if (distance < 240) scrollToBottom();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lastMsgTranslationKey]);
 
@@ -1381,6 +1403,8 @@ const ChatPanel: React.FC<Props> = ({
                         <AttachImage
                           src={imgSrc}
                           alt={a.file_name}
+                          loading="lazy"
+                          decoding="async"
                           onLoad={() => {
                             const list = messageListRef.current;
                             if (!list) return;
@@ -1712,6 +1736,10 @@ const ChatPanel: React.FC<Props> = ({
             onFocus={handleInputFocus}
             onCompositionStart={handleCompositionStart}
             onCompositionEnd={handleCompositionEnd}
+            /* IME 안전장치 — 일부 안드로이드/IME 에서 compositionend 가 누락되면 composingRef 가
+               영구 true 로 남아 Enter 전송이 영영 막히는 회귀 방지. blur 시 강제 리셋. */
+            onBlur={() => { composingRef.current = false; }}
+            aria-label={t('chat.input.aria', { defaultValue: '메시지 입력' }) as string}
             /* 사이클 N+15-B — 모바일 키보드 액세서리 바 (위/아래 화살표) 최소화 + 자동수정/사전 변환 비활성
                사이클 N+23 — lang="ko" + autoCapitalize=off — 일부 안드로이드/iOS 한글 키보드에서 첫
                글자 누락 (예: "나" → "ㅏ") 회귀의 흔한 원인은 자동 대소문자 처리. autoCapitalize=sentences
@@ -2697,6 +2725,8 @@ const MessageText = styled.div<{ $question: boolean }>`
   line-height: 1.5;
   white-space: pre-wrap;
   word-break: break-word;
+  /* 공백 없는 긴 문자열(URL 등)도 강제 줄바꿈 → 모바일 가로 스크롤 차단 */
+  overflow-wrap: anywhere;
   ${(p) => p.$question && `
     padding: 10px 12px;
     background: #FFF1F2;
@@ -3109,7 +3139,10 @@ const TextInput = styled.textarea`
   border: none;
   background: transparent;
   resize: none;
-  font-size: 13px;
+  font-size: 14px;
+  /* iOS 는 font-size < 16px 인 input 포커스 시 자동 줌(화면 확대) → 키보드 뜰 때 레이아웃 튐.
+     모바일/태블릿에선 16px 로 올려 자동 줌 차단 (데스크탑은 14px 유지). */
+  @media (max-width: 1024px) { font-size: 16px; }
   line-height: 1.45;
   color: #0F172A;
   font-family: inherit;
@@ -3124,8 +3157,8 @@ const TextInput = styled.textarea`
 `;
 
 const SendBtn = styled.button`
-  width: 32px;
-  height: 32px;
+  width: 36px;
+  height: 36px;
   border-radius: 8px;
   background: #0D9488;
   color: #FFFFFF;
@@ -3134,15 +3167,22 @@ const SendBtn = styled.button`
   align-items: center;
   justify-content: center;
   cursor: pointer;
+  flex-shrink: 0;
+  touch-action: manipulation;
+  /* 모바일 터치 타겟 44px 확보 */
+  @media (max-width: 1024px) { width: 44px; height: 44px; }
   &:hover:not(:disabled) { background: #0F766E; }
   &:disabled { background: #E2E8F0; color: #94A3B8; cursor: not-allowed; }
 `;
 
 // ─── 첨부 UI ───
 const AttachBtn = styled.button`
-  width: 32px; height: 32px; border-radius: 8px;
+  width: 36px; height: 36px; border-radius: 8px;
   background: transparent; color: #64748B; border: none;
   display: flex; align-items: center; justify-content: center; cursor: pointer;
+  flex-shrink: 0;
+  touch-action: manipulation;
+  @media (max-width: 1024px) { width: 44px; height: 44px; }
   &:hover { background: #F1F5F9; color: #0F172A; }
 `;
 const StagedRow = styled.div`
