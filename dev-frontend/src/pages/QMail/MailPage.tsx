@@ -420,6 +420,7 @@ const MailPage: React.FC = () => {
   const [sending, setSending] = useState(false);
   const [replyError, setReplyError] = useState<string | null>(null);
   const [aiBusy, setAiBusy] = useState(false);
+  const [aiFaqSources, setAiFaqSources] = useState<string[]>([]); // M4 — AI 답변이 활용한 등록 FAQ
 
   // AI 답변 제안 (Cue) — 마지막 inbound 기반 초안 → 컴포저 채움
   const aiSuggest = useCallback(async () => {
@@ -441,6 +442,7 @@ const MailPage: React.FC = () => {
         return;
       }
       if (j.data?.suggestion) setReplyHtml(j.data.suggestion);
+      setAiFaqSources(j.data?.faq_used ? (j.data.faq_sources || []) : []);
     } catch (e) {
       setReplyError((e as Error).message);
     } finally { setAiBusy(false); }
@@ -448,7 +450,7 @@ const MailPage: React.FC = () => {
 
   // 스레드 전환 시 컴포저 초기화
   useEffect(() => {
-    setReplyOpen(false); setReplyHtml(''); setReplyUploads([]); setReplyFileIds([]); setReplyError(null);
+    setReplyOpen(false); setReplyHtml(''); setReplyUploads([]); setReplyFileIds([]); setReplyError(null); setAiFaqSources([]);
   }, [activeId]);
 
   // 답장 받는 사람 힌트 (마지막 inbound 발신자)
@@ -596,7 +598,7 @@ const MailPage: React.FC = () => {
               </FaqSuggestHead>
               {faqSuggestions.slice(0, 5).map(s => (
                 <FaqItem key={s.id}>
-                  <FaqQ onClick={() => setFaqExpandId(faqExpandId === s.id ? null : s.id)}>
+                  <FaqQ type="button" onClick={() => setFaqExpandId(faqExpandId === s.id ? null : s.id)}>
                     <FaqQText>{s.question}</FaqQText>
                     <FaqOcc>{t('faq.occurrence', { count: s.occurrence_count, defaultValue: `${s.occurrence_count}건` }) as string}</FaqOcc>
                   </FaqQ>
@@ -799,6 +801,12 @@ const MailPage: React.FC = () => {
                       onExistingFileIdsChange={setReplyFileIds}
                     />
                     {replyError && <ComposerError>{replyError}</ComposerError>}
+                    {aiFaqSources.length > 0 && (
+                      <FaqUsedBadge title={aiFaqSources.join(', ')}>
+                        ✨ {t('reply.faqUsed', { defaultValue: '등록된 FAQ 기반 답변' }) as string}
+                        {aiFaqSources[0] ? ` · ${aiFaqSources[0]}` : ''}
+                      </FaqUsedBadge>
+                    )}
                     <ComposerActions>
                       <AiSuggestBtn type="button" onClick={aiSuggest} disabled={aiBusy || sending}>
                         {aiBusy
@@ -922,6 +930,14 @@ const FaqDismissBtn = styled.button`
   background: #FFFFFF; color: #64748B; border: 1px solid #E2E8F0; font-size: 12px; font-weight: 600;
   &:hover:not(:disabled) { background: #F1F5F9; color: #0F172A; }
   &:disabled { opacity: 0.5; cursor: not-allowed; }
+`;
+// M4 — AI 답변이 등록 FAQ 를 활용했을 때 배지 (컴포저)
+const FaqUsedBadge = styled.div`
+  display: inline-flex; align-items: center; gap: 4px; align-self: flex-start;
+  margin: 0 0 8px; padding: 4px 10px; border-radius: 999px;
+  background: rgba(244, 63, 94, 0.08); color: #F43F5E;
+  font-size: 11px; font-weight: 700; max-width: 100%;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 `;
 // 폴더 탭 (답변필요/인박스/내담당/팔로우/스팸/보관) — 좌측 상단 가로 탭
 const FolderTabs = styled.div`

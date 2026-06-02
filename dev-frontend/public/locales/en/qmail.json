@@ -75,6 +75,7 @@
   "me": "Me",
   "messageCount": "{{n}} messages",
   "reply": {
+    "faqUsed": "Reply based on registered FAQ",
     "button": "Reply",
     "to": "To",
     "placeholder": "Write your reply…",
