@@ -389,14 +389,19 @@ async function generateDocumentDraft(businessId, { systemPrompt, userPrompt, max
 
 // ─── Q Mail M3-C — 이메일 답장 초안 (gpt-4o-mini, CueUsage 'email_reply') ───
 // 마지막 inbound 메일 + 비즈니스 컨텍스트로 답장 본문 초안 생성. 사실 날조 금지 프롬프트.
-async function generateEmailReplyDraft(businessId, { businessName, subject, latestInboundText, language = 'ko' }) {
+async function generateEmailReplyDraft(businessId, { businessName, subject, latestInboundText, language = 'ko', faqContext = null }) {
   const usage = await checkUsageLimit(businessId);
   if (usage.over) return { error: 'usage_limit_exceeded', usage };
   const lang = language === 'en' ? 'English' : 'Korean';
-  const systemPrompt = `You are an assistant drafting a professional email reply on behalf of "${businessName || 'our team'}". `
-    + `Write a concise, polite reply in ${lang}. Only use information present in the incoming email; `
+  let systemPrompt = `You are an assistant drafting a professional email reply on behalf of "${businessName || 'our team'}". `
+    + `Write a concise, polite reply in ${lang}. Only use information present in the incoming email`
+    + (faqContext ? ` or in the registered FAQ answers below` : '') + `; `
     + `do NOT invent facts, prices, dates, or commitments. If something must be confirmed, say it will be checked and followed up. `
     + `Output ONLY the reply body text — no subject line, no greeting placeholder like [Name], no signature.`;
+  // M4 — 등록 FAQ 답변을 권위 있는 근거로 주입 (정확한 사실. 질문과 무관하면 사용 X — 날조 금지 유지)
+  if (faqContext) {
+    systemPrompt += `\n\nRegistered FAQ answers (authoritative — base your reply on the matching one if the incoming email asks about it):\n${faqContext}`;
+  }
   const userPrompt = `Incoming email${subject ? ` (subject: ${subject})` : ''}:\n\n${(latestInboundText || '').slice(0, 4000)}\n\nDraft a reply body.`;
   const result = await callLLM(MODEL_MINI, [
     { role: 'system', content: systemPrompt },

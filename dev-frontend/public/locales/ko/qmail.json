@@ -75,6 +75,7 @@
   "me": "나",
   "messageCount": "{{n}}개 메시지",
   "reply": {
+    "faqUsed": "등록된 FAQ 기반 답변",
     "button": "답장",
     "to": "받는 사람",
     "placeholder": "답장 내용을 입력하세요…",

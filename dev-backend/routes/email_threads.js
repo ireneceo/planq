@@ -562,12 +562,28 @@ router.post('/:businessId/email-threads/:id/ai-suggest',
       const biz = await Business.findByPk(businessId, { attributes: ['id', 'name', 'brand_name', 'default_language'] });
       const language = (req.body || {}).language || biz?.default_language || 'ko';
 
+      // M4 — 등록된 FAQ 활용: 들어온 질문과 강하게 매칭되는 FAQ(KbDocument category=faq)를
+      //   AI 답변의 권위 있는 근거로 주입 → "다음 같은 질문 자동답변" 가치 실현. (raw cosine ≥ 0.80)
+      let faqContext = null; let faqSources = [];
+      try {
+        const kbService = require('../services/kb_service');
+        const search = await kbService.hybridSearch(businessId, latestInboundText, { category: 'faq', limit: 3 });
+        // text-embedding-3-small(한국어) 기준 — genuine 매칭 ~0.6+, 비매칭 ~0.5↓. 0.55 로 분리.
+        //   주입해도 LLM 이 "질문과 매칭될 때만 사용" 지시 받으므로 borderline 도 안전(날조 금지 유지).
+        const strong = (search.kb_chunks || []).filter(c => (c.raw_score || 0) >= 0.55);
+        if (strong.length) {
+          faqContext = strong.map(c => `- ${c.document_title}: ${c.snippet}`).join('\n');
+          faqSources = [...new Set(strong.map(c => c.document_title).filter(Boolean))];
+        }
+      } catch { /* FAQ 활용은 선택 — 실패해도 일반 초안 생성 */ }
+
       const cueOrch = require('../services/cue_orchestrator');
       const out = await cueOrch.generateEmailReplyDraft(businessId, {
         businessName: (biz && (biz.brand_name || biz.name)) || null,
         subject: thread.subject,
         latestInboundText,
         language,
+        faqContext,
       });
       if (out.error === 'usage_limit_exceeded') return errorResponse(res, 'cue_usage_limit_exceeded', 429);
       if (out.error === 'llm_unavailable') return errorResponse(res, 'ai_unavailable', 503);
@@ -576,7 +592,7 @@ router.post('/:businessId/email-threads/:id/ai-suggest',
       const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
       const html = (out.content || '').trim().split(/\n{2,}/).map(p => `<p>${esc(p).replace(/\n/g, '<br>')}</p>`).join('');
 
-      return successResponse(res, { suggestion: html, usage: out.usage });
+      return successResponse(res, { suggestion: html, usage: out.usage, faq_used: faqSources.length > 0, faq_sources: faqSources });
     } catch (err) { next(err); }
   }
 );
