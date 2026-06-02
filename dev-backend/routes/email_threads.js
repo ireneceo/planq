@@ -118,13 +118,22 @@ router.get('/:businessId/email-threads',
       if (project_id) where.project_id = Number(project_id);
       if (String(unread) === 'true') where.unread_count = { [Op.gt]: 0 };
       if (String(starred) === 'true') where.is_starred = true;
-      // 풀텍스트 — subject + last_message_preview
+      // 풀텍스트 — subject + last_message_preview + 메시지 본문(body_text)
       if (q && String(q).trim()) {
         const kw = String(q).trim().slice(0, 100);
-        where[Op.or] = [
+        // 본문 매칭 thread id (접근 가능 계정 스코프 내) — 제목/미리보기에 없어도 내용으로 검색
+        const [bodyRows] = await sequelize.query(
+          'SELECT DISTINCT thread_id FROM email_messages WHERE business_id = :bid AND account_scope_match AND body_text LIKE :kw LIMIT 500'
+            .replace('account_scope_match', 'thread_id IN (SELECT id FROM email_threads WHERE business_id = :bid AND account_id IN (:acctIds))'),
+          { replacements: { bid: businessId, kw: `%${kw}%`, acctIds: acctIds.length ? acctIds : [0] } }
+        );
+        const bodyTids = bodyRows.map(r => r.thread_id);
+        const orConds = [
           { subject: { [Op.like]: `%${kw}%` } },
           { last_message_preview: { [Op.like]: `%${kw}%` } },
         ];
+        if (bodyTids.length) orConds.push({ id: { [Op.in]: bodyTids } });
+        where[Op.or] = orConds;
       }
 
       const { rows, count } = await EmailThread.findAndCountAll({
