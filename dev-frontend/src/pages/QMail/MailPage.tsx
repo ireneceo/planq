@@ -107,6 +107,10 @@ const MailPage: React.FC = () => {
 
   const [threads, setThreads] = useState<Thread[]>([]);
   const [listLoading, setListLoading] = useState(false);
+  // 무한스크롤 — 현재 페이지 + 더 있음 + 추가로딩
+  const pageRef = useRef(1);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [detail, setDetail] = useState<ThreadDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -148,7 +152,8 @@ const MailPage: React.FC = () => {
     setSp(nsp, { replace: true });
   };
 
-  // 폴더 list fetch (계정 필터 반영)
+  // 폴더 list fetch (계정 필터 반영) — page 1 (replace). 무한스크롤은 loadMore 가 append.
+  const PAGE_SIZE = 30;
   const loadList = useCallback(async () => {
     if (!businessId) return;
     setListLoading(true);
@@ -156,9 +161,9 @@ const MailPage: React.FC = () => {
     try {
       const acctQ = accountFilter ? `&account_id=${accountFilter}` : '';
       const qP = qDebounced ? `&q=${encodeURIComponent(qDebounced)}` : '';
-      const r = await apiFetch(`/api/businesses/${businessId}/email-threads?folder=${folder}&limit=100${acctQ}${qP}`);
+      const r = await apiFetch(`/api/businesses/${businessId}/email-threads?folder=${folder}&limit=${PAGE_SIZE}&page=1${acctQ}${qP}`);
       const j = await r.json();
-      if (j.success) setThreads(j.data || []);
+      if (j.success) { setThreads(j.data || []); pageRef.current = 1; setHasMore(!!j.pagination?.has_more); }
       else setErrorMsg(j.message || (t('errors.loadList', { defaultValue: '인박스 로딩 실패' }) as string));
     } catch (e) {
       setErrorMsg((e as Error).message);
@@ -166,6 +171,28 @@ const MailPage: React.FC = () => {
       setListLoading(false);
     }
   }, [businessId, folder, accountFilter, qDebounced, t]);
+
+  // 무한스크롤 — 다음 페이지 append
+  const loadMore = useCallback(async () => {
+    if (!businessId || loadingMore || !hasMore) return;
+    setLoadingMore(true);
+    try {
+      const next = pageRef.current + 1;
+      const acctQ = accountFilter ? `&account_id=${accountFilter}` : '';
+      const qP = qDebounced ? `&q=${encodeURIComponent(qDebounced)}` : '';
+      const r = await apiFetch(`/api/businesses/${businessId}/email-threads?folder=${folder}&limit=${PAGE_SIZE}&page=${next}${acctQ}${qP}`);
+      const j = await r.json();
+      if (j.success) {
+        const fresh: Thread[] = j.data || [];
+        setThreads(prev => {
+          const seen = new Set(prev.map(t => t.id));
+          return [...prev, ...fresh.filter(t => !seen.has(t.id))];
+        });
+        pageRef.current = next;
+        setHasMore(!!j.pagination?.has_more);
+      }
+    } catch { /* silent — 다음 스크롤에 재시도 */ } finally { setLoadingMore(false); }
+  }, [businessId, folder, accountFilter, qDebounced, loadingMore, hasMore]);
 
   // 메일 계정 목록 (회사/개인 그룹 + unread)
   const loadAccounts = useCallback(async () => {
@@ -652,7 +679,10 @@ const MailPage: React.FC = () => {
                 : (t('emptyFolder', { defaultValue: '이 폴더에 메일이 없어요' }) as string)}</EmptyText>
             </EmptyList>
           ) : (
-            <ThreadList>
+            <ThreadList onScroll={(e) => {
+              const el = e.currentTarget;
+              if (hasMore && !loadingMore && el.scrollHeight - el.scrollTop - el.clientHeight < 300) loadMore();
+            }}>
               {threads.map(mt => (
                 <ThreadItem
                   key={mt.id}
@@ -694,6 +724,7 @@ const MailPage: React.FC = () => {
                   )}
                 </ThreadItem>
               ))}
+              {loadingMore && <ListMoreRow><Spinner /></ListMoreRow>}
             </ThreadList>
           )}
         </Panel>
@@ -1095,6 +1126,9 @@ const ComposeFoot = styled.div`
   flex-shrink: 0;
 `;
 // Q Talk ChatList 와 동일 — 둥근 행이 측면 여백 갖도록 padding
+const ListMoreRow = styled.div`
+  display: flex; justify-content: center; align-items: center; padding: 12px 0;
+`;
 const ThreadList = styled.div`
   flex: 1; overflow-y: auto;
   padding: 6px 6px 12px;
