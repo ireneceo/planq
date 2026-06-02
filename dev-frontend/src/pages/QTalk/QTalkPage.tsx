@@ -391,9 +391,12 @@ const QTalkPage: React.FC = () => {
       // - 현재 보고 있는 활성 대화방이면 unread 증가 X (이미 보고 있는 것)
       const isMine = String(mapped.sender_id) === String(user?.id);
       const isActive = activeConversationIdRef.current === mapped.conversation_id;
+      // ★ '읽음'은 실제로 창을 보고 있을 때만 — 활성 대화여도 앱이 백그라운드(또는 화면 꺼짐)면
+      //   읽지 않은 것으로 취급 (사용자 호소: 앱만 열어두고 채팅창 안 봤는데 읽음 처리됨).
+      const viewing = isActive && (typeof document === 'undefined' || document.visibilityState === 'visible');
       setConversations((prev) => prev.map((c) => {
         if (c.id !== mapped.conversation_id) return c;
-        const incrementUnread = !isMine && !isActive;
+        const incrementUnread = !isMine && !viewing;
         // 사이클 N+15-D — 실시간 last_message_preview 갱신. 채팅 리스트의 한 줄도 즉시 따라옴.
         const previewContent = (mapped.body || '').trim()
           || (mapped.card ? '[카드]' : (mapped.attachments && mapped.attachments.length > 0 ? `[첨부 ${mapped.attachments.length}개]` : ''));
@@ -409,12 +412,12 @@ const QTalkPage: React.FC = () => {
           } : c.last_message_preview,
         };
       }));
-      // 사이드바 토탈 unread 갱신 트리거
-      if (!isMine && !isActive) {
+      // 사이드바 토탈 unread 갱신 트리거 — 보고 있지 않으면(비활성 or 백그라운드) 미읽음 반영
+      if (!isMine && !viewing) {
         window.dispatchEvent(new Event('planq:unread-changed'));
       }
-      // 활성 conv 도착분 → 백엔드 last_read_at 즉시 갱신 (다음 GET 에서도 0 유지)
-      if (!isMine && isActive && businessId) {
+      // 활성 conv 도착분 → 백엔드 last_read_at 즉시 갱신 (단, '실제로 보고 있을 때만')
+      if (!isMine && viewing && businessId) {
         qtalkApi.markConversationRead(businessId, mapped.conversation_id).catch(() => null);
       }
     });
@@ -610,29 +613,40 @@ const QTalkPage: React.FC = () => {
   // 이미 last_read_at 갱신된 DB 를 읽음. 옛 fire-and-forget 패턴은 race 로 사이드바 숫자 stale.
   useEffect(() => {
     if (!activeConversationId || !user?.id || !businessId) return;
-    // 사이클 N+15-D — 채팅 리스트 + 사이드바 동시 차감 (같은 frame). 옛 패턴은 사이드바가 200ms 뒤에 떨어졌음.
-    let prevUnread = 0;
-    setConversations(prev => prev.map(c => {
-      if (c.id === activeConversationId) {
-        prevUnread = c.unread_count || 0;
-        return { ...c, unread_count: 0 };
-      }
-      return c;
-    }));
-    // 사이드바도 즉시 차감 (옵티미스틱) — 옛 conv unread 만큼.
-    if (prevUnread > 0) {
-      window.dispatchEvent(new CustomEvent('planq:unread-changed', { detail: { optimisticDelta: -prevUnread } }));
-    }
     let cancelled = false;
-    (async () => {
-      try {
-        await qtalkApi.markConversationRead(businessId, activeConversationId);
-      } catch { /* silent */ }
-      if (cancelled) return;
-      // markRead 완료 후 한 번 더 dispatch → backend 와 reconcile
-      window.dispatchEvent(new Event('planq:unread-changed'));
-    })();
-    return () => { cancelled = true; };
+
+    const doMarkRead = () => {
+      // 사이클 N+15-D — 채팅 리스트 + 사이드바 동시 차감 (같은 frame).
+      let prevUnread = 0;
+      setConversations(prev => prev.map(c => {
+        if (c.id === activeConversationId) { prevUnread = c.unread_count || 0; return { ...c, unread_count: 0 }; }
+        return c;
+      }));
+      if (prevUnread > 0) {
+        window.dispatchEvent(new CustomEvent('planq:unread-changed', { detail: { optimisticDelta: -prevUnread } }));
+      }
+      (async () => {
+        try { await qtalkApi.markConversationRead(businessId, activeConversationId); } catch { /* silent */ }
+        if (cancelled) return;
+        window.dispatchEvent(new Event('planq:unread-changed'));
+      })();
+    };
+
+    // ★ '실제로 보고 있을 때만' 읽음 처리. 앱을 열어둔 채(백그라운드) 또는 URL 로 대화가 자동 복원만 된
+    //   경우엔 읽음 처리하지 않고 미읽음 유지 → foreground 로 돌아와 실제로 볼 때(visible) 처리.
+    //   (사용자 호소: 채팅창을 열지도 않았는데 읽음 처리되어 뱃지가 0)
+    if (typeof document === 'undefined' || document.visibilityState === 'visible') {
+      doMarkRead();
+      return () => { cancelled = true; };
+    }
+    const onVisible = () => {
+      if (document.visibilityState === 'visible' && !cancelled) {
+        document.removeEventListener('visibilitychange', onVisible);
+        doMarkRead();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => { cancelled = true; document.removeEventListener('visibilitychange', onVisible); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeConversationId, businessId]);
 
