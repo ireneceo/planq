@@ -451,6 +451,19 @@ router.post('/', authenticateToken, async (req, res, next) => {
       next_occurrence_at: nextOccurrenceAt,
     });
 
+    // 요청업무(internal_request) — 요청자를 컨펌자(reviewer)로 자동 등록 → 컨펌 필수화.
+    // 담당자가 곧장 '완료' 하지 못하고 '확인요청'(submit-review) → 요청자 승인 흐름 강제.
+    // (책임선 = 권한선: 요청자=발주자가 결과물 컨펌 권한을 가짐. memory feedback_responsibility_line)
+    // 담당자===요청자(자기 자신에게 요청)면 컨펌 불필요 → 스킵.
+    if (isInternalRequest && finalAssignee && finalAssignee !== req.user.id) {
+      try {
+        await TaskReviewer.findOrCreate({
+          where: { task_id: task.id, user_id: req.user.id },
+          defaults: { task_id: task.id, user_id: req.user.id, is_client: false, added_by_user_id: req.user.id },
+        });
+      } catch (e) { console.warn('[task POST auto-reviewer]', e.message); }
+    }
+
     // 사이클 P8 — assignee=Cue && cue_kind 면 비동기 자동 실행
     try {
       const biz = await Business.findByPk(business_id, { attributes: ['cue_user_id'] });
@@ -661,6 +674,16 @@ router.post('/ai-create/confirm', authenticateToken, async (req, res, next) => {
         source: isInternalRequest ? 'internal_request' : 'manual',
         request_by_user_id: isInternalRequest ? req.user.id : null,
       });
+
+      // 요청업무 — 요청자를 컨펌자로 자동 등록 (단일 생성 경로와 동일 정책, 컨펌 필수화)
+      if (isInternalRequest && finalAssignee && finalAssignee !== req.user.id) {
+        try {
+          await TaskReviewer.findOrCreate({
+            where: { task_id: task.id, user_id: req.user.id },
+            defaults: { task_id: task.id, user_id: req.user.id, is_client: false, added_by_user_id: req.user.id },
+          });
+        } catch (e) { console.warn('[ai-create auto-reviewer]', e.message); }
+      }
 
       // task_estimations source='ai' — AI 추천값 박제 (사용자 인라인 수정 시 source='user' row 추가됨)
       if (estimatedHours) {

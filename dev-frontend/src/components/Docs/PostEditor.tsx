@@ -326,11 +326,25 @@ const Body = styled.div<{ $editable?: boolean; $borderless?: boolean; $compact?:
 
   /* ─── 표 (Body 직속 자손 — 편집/보기 모드 무관 적용) ─── */
   /* border-collapse: separate 로 border-radius 작동. 셀은 right/bottom 만, 마지막 행/열 제거. */
-  & .tableWrapper { margin: 16px 0; overflow-x: auto; }
+  /* 문서 표 기준 (Notion/GitHub) — 컨테이너보다 넓은 표는 '절대 잘리지 않고' 블록 안에서 가로 스크롤.
+     .tableWrapper(Tiptap 자동 생성) 가 스크롤 영역. 표는 colgroup 자연폭(width:max-content)을 가지되
+     작은 표는 min-width:100% 로 칼럼을 꽉 채움. 옛 width:100% 는 넓은 표를 강제로 끼워맞춰
+     resizable colgroup 고정폭과 충돌 → 우측 잘림 회귀의 원인. */
+  & .tableWrapper {
+    margin: 16px 0;
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    &::-webkit-scrollbar { height: 8px; }
+    &::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 4px; }
+  }
   & .tableWrapper table { margin: 0; }
   & table {
     border-collapse: separate; border-spacing: 0;
-    width: 100%; table-layout: fixed;
+    table-layout: fixed;
+    width: max-content;
+    min-width: 100%;
+    max-width: none;
     font-size: 13px; margin: 16px 0;
     border: 1px solid #CBD5E1; border-radius: 10px;
     overflow: hidden;

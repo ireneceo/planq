@@ -738,7 +738,9 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                     <RoundBadge title={t('detail.reviewers.roundTip', 'Review round') as string}>R{detailTask.review_round}</RoundBadge>}
                   {statusOpen && (
                     <StatusDropdown data-dropdown="status-detail">
-                      {statusOptionsFor(detailTask).map(s => {
+                      {/* reviewers 는 별도 로드된 state — detailTask.reviewers(stale/누락 가능) 대신 사용해야
+                          리스트 드롭다운과 동일하게 '확인요청중(reviewing)' 등 컨펌 단계가 노출됨. */}
+                      {statusOptionsFor({ ...detailTask, reviewers }).map(s => {
                         const c = STATUS_COLOR[s as StatusCode] || STATUS_COLOR.not_started;
                         return (
                           <StatusOption key={s} $bg={c.bg} $fg={c.fg} $active={detailTask.status === s}

@@ -1,27 +1,69 @@
-import styled from 'styled-components';
+import styled, { css } from 'styled-components';
 
 /**
- * 멀티 컬럼(패널) 페이지 공통 레이아웃 — Q Talk / Q Mail / Q Note / Q Task 통일.
+ * 멀티 컬럼(패널) 페이지 공통 레이아웃 — Q Talk / Q Mail / Q Note / Q Task 통일 (단일 진실 원천).
  *
- * 각 페이지가 Layout/Panel 스타일을 따로 복제하지 않도록 단일 컴포넌트로 박제.
- * - `PanelLayout`  : full-bleed flex row 컨테이너 (PageShell·카드 없이 MainContent 를 꽉 채움)
- * - `Panel`        : 패널 컬럼 (흰색 · border-right · flex column). 고정폭(좌측 리스트) 또는 flex(본문)
- * - 패널 헤더는 공통 `PanelHeader`(60px) 사용 → 좌우 border-bottom 수평 연결
+ * 각 페이지가 Layout/Panel/Sidebar 스타일을 따로 복제하지 않도록 박제.
+ * 두 가지 컨테이너 전략을 제공하되, viewport 높이 수학(panelShellHeight)은 하나로 공유한다.
  *
- * height 는 Q Talk 패턴 3중 fallback: var(--vvh)(ChatPanel JS sync) → 100dvh → 100vh.
+ * - `PanelLayout`       : flex row 컨테이너 (Q Talk / Q Mail / Q Task)
+ * - `PanelGridLayout`   : grid 컨테이너 + 1열(사이드바) 접힘 애니메이션 (Q Note)
+ * - `Panel`             : 패널 컬럼 (고정폭 또는 flex). $relative 로 position:relative 옵션
+ * - `CollapsibleSidebar`: 접히는 사이드바 (데스크탑 translateX 슬라이드 + 태블릿/모바일 absolute 오버레이 드로어)
+ * - `SidebarBackdrop`   : 오버레이 드로어 뒤 dim 백드롭 (태블릿/모바일)
+ *
+ * 패널 헤더는 공통 `PanelHeader`(60px) 사용 → 좌우 border-bottom 수평 연결.
  */
-export const PanelLayout = styled.div`
-  display: flex;
+
+/**
+ * 공통 viewport 높이 — 멀티컬럼 페이지 전부 동일.
+ *  - 데스크탑: var(--vvh)(ChatPanel JS sync) → 100dvh → 100vh 3중 fallback (모바일 키보드/iOS PWA 대응)
+ *  - 태블릿/모바일(≤1024px): MainLayout 의 fixed MobileHeader(56px) 만큼 빼서 하단 잘림 방지
+ *
+ * 이 fragment 를 단일 원천으로 두어, 페이지마다 제각각이던 height 규칙(일부는 dvh/vvh 누락,
+ * 일부는 56px 보정 누락)을 근절한다.
+ */
+export const panelShellHeight = css`
   height: 100vh;
   height: 100dvh;
   height: var(--vvh, 100dvh);
-  background: #F8FAFC;
-  overflow: hidden;
-  min-height: 0;
   @media (max-width: 1024px) {
     height: calc(100vh - 56px);
     height: calc(100dvh - 56px);
     height: calc(var(--vvh, 100dvh) - 56px);
+  }
+`;
+
+export const PanelLayout = styled.div`
+  display: flex;
+  ${panelShellHeight}
+  background: #F8FAFC;
+  overflow: hidden;
+  min-height: 0;
+`;
+
+/**
+ * PanelGridLayout — grid 컨테이너. 1열(사이드바) 접힘을 grid-template-columns 트랜지션으로 부드럽게.
+ *  $cols : grid-template-columns 값 (예: 접힘 '0px 1fr' / 펼침 '300px 1fr')
+ *
+ * 태블릿/모바일(≤1024px)은 display:block 으로 전환 → 사이드바는 CollapsibleSidebar 가
+ * absolute 오버레이로 빠지고, 본문 패널([data-panel-main])이 전체 높이를 채운다
+ * (block 모드에서 height:100% 누락 시 본문 붕괴 → 1024px 동일 breakpoint 로 보정).
+ */
+export const PanelGridLayout = styled.div<{ $cols?: string }>`
+  display: grid;
+  grid-template-columns: ${(p) => p.$cols || '300px 1fr'};
+  ${panelShellHeight}
+  background: #FFFFFF;
+  overflow: hidden;
+  min-height: 0;
+  position: relative;
+  transition: grid-template-columns 200ms ease;
+  @media (max-width: 1024px) {
+    display: block;
+    & > [data-panel-main] {
+      height: 100%;
+    }
   }
 `;
 
@@ -30,22 +72,69 @@ export const PanelLayout = styled.div`
  *  $width    : 고정폭(px). 미지정 + $grow 시 flex:1 (본문 패널)
  *  $grow     : true 면 남은 공간 채움 (본문 패널, flex:1)
  *  $last     : 마지막 패널 (border-right 제거)
+ *  $relative : position:relative (엣지 토글 바 등 absolute 자식 anchor)
  *  $hideTablet / $hideMobile : 반응형 숨김
  */
 export const Panel = styled.div<{
   $width?: number;
   $grow?: boolean;
   $last?: boolean;
+  $relative?: boolean;
   $hideTablet?: boolean;
   $hideMobile?: boolean;
 }>`
   ${(p) => (p.$grow ? 'flex: 1; min-width: 0;' : `width: ${p.$width || 300}px; flex-shrink: 0;`)}
   background: #FFFFFF;
   ${(p) => (p.$last ? '' : 'border-right: 1px solid #E2E8F0;')}
+  ${(p) => (p.$relative ? 'position: relative;' : '')}
   display: flex;
   flex-direction: column;
   overflow: hidden;
   min-height: 0;
   ${(p) => (p.$hideTablet ? '@media (max-width: 1024px) { display: none; }' : '')}
   ${(p) => (p.$hideMobile ? '@media (max-width: 640px) { display: none; }' : '')}
+`;
+
+/**
+ * CollapsibleSidebar — 접히는 사이드바 (세션/대화 리스트 등).
+ *  $collapsed : true 면 접힘 (데스크탑 translateX -100% + visibility hidden)
+ *
+ * - 데스크탑: PanelGridLayout 의 grid 1열 폭(0px↔300px) 트랜지션과 함께 슬라이드
+ * - 태블릿/모바일(≤1024px): absolute 오버레이 드로어 (좌측 고정, 그림자, z-index 30)
+ *    → 펼침 시 SidebarBackdrop 와 함께 노출
+ */
+export const CollapsibleSidebar = styled.aside<{ $collapsed?: boolean }>`
+  background: #FFFFFF;
+  border-right: 1px solid #E2E8F0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transform: translateX(${(p) => (p.$collapsed ? '-100%' : '0')});
+  transition: transform 200ms ease;
+  visibility: ${(p) => (p.$collapsed ? 'hidden' : 'visible')};
+  @media (max-width: 1024px) {
+    position: absolute;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 300px;
+    max-width: 85vw;
+    z-index: 30;
+    box-shadow: 4px 0 16px rgba(15, 23, 42, 0.12);
+  }
+`;
+
+/**
+ * SidebarBackdrop — CollapsibleSidebar 오버레이 드로어 뒤 dim 백드롭 (태블릿/모바일 전용).
+ * 데스크탑에선 숨김. 클릭 시 사이드바 닫기 핸들러를 부모가 연결.
+ */
+export const SidebarBackdrop = styled.div`
+  display: none;
+  @media (max-width: 1024px) {
+    display: block;
+    position: absolute;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.35);
+    z-index: 25;
+  }
 `;
