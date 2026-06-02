@@ -178,6 +178,7 @@ export interface ApiConversation {
   translation_languages: SupportedLang[] | null;
   // 사용자 본인의 핀(즐겨찾기) 시각. null = 핀 안 됨. 백엔드가 사용자별로 채워서 응답.
   my_pinned_at?: string | null;
+  my_last_read_at?: string | null;
   // 읽지 않은 메시지 수 (사용자 본인 기준).
   // 본인이 보낸 메시지 제외, last_read_at 이후 메시지만 카운트, 삭제 메시지 제외.
   unread_count?: number;
@@ -352,6 +353,19 @@ export async function getUnreadTotal(businessId: number): Promise<{ total: numbe
 export async function listConversationMessages(conversationId: number): Promise<ApiMessage[]> {
   const res = await apiFetch(`/api/projects/conversations/${conversationId}/messages`);
   return handle<ApiMessage[]>(res);
+}
+
+// 과거 메시지 무한 로드 — beforeId 보다 오래된 limit 개 (시간순 ASC). hasMore=더 있음.
+export async function loadOlderMessages(
+  conversationId: number,
+  beforeId: number,
+  limit = 50,
+): Promise<{ messages: ApiMessage[]; hasMore: boolean }> {
+  const res = await apiFetch(`/api/projects/conversations/${conversationId}/messages?before=${beforeId}&limit=${limit}`);
+  let body: { success: boolean; data?: ApiMessage[]; has_more?: boolean; message?: string } | null = null;
+  try { body = await res.json(); } catch { throw new Error(`HTTP ${res.status}`); }
+  if (!res.ok || !body?.success) throw new Error(body?.message || `HTTP ${res.status}`);
+  return { messages: body.data || [], hasMore: !!body.has_more };
 }
 
 export async function listProjectTasks(projectId: number): Promise<ApiTask[]> {

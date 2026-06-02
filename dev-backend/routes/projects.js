@@ -849,25 +849,41 @@ router.get('/conversations/:id/messages', authenticateToken, async (req, res, ne
       if (role === 'client' && conv.channel_type !== 'customer') {
         return errorResponse(res, 'forbidden_channel', 403);
       }
+    } else {
+      // 독립 대화(standalone, project_id 없음) — 접근 검사 (cross-tenant/IDOR 차단).
+      //   워크스페이스 멤버 이상 또는 참여 client 만. 옛 코드는 standalone 에 검사 없어 conv id 열거로
+      //   타 워크스페이스 메시지 조회 가능했던 갭. (검증 사이클 발견 fix)
+      const { canAccessConversation } = require('../middleware/access_scope');
+      if (!(await canAccessConversation(req.user.id, conv))) {
+        return errorResponse(res, 'forbidden', 403);
+      }
     }
     const { MessageAttachment, ConversationParticipant } = require('../models');
-    const [msgs, parts] = await Promise.all([
+    // 페이지네이션 — 최신 N개를 우선 로드 (옛 'ASC limit 200' 은 긴 대화에서 '오래된 200개' 만 보이는 버그).
+    //   ?limit=N (default 50, max 200) · ?before=<messageId> → 그 메시지보다 오래된 N개 (무한 스크롤 업).
+    const limit = Math.min(Math.max(Number(req.query.limit) || 50, 1), 200);
+    const beforeId = Number(req.query.before) || null;
+    const msgWhere = { conversation_id: conv.id, is_deleted: false };
+    if (beforeId) msgWhere.id = { [Op.lt]: beforeId };
+    const [msgsDesc, parts] = await Promise.all([
       Message.findAll({
-        where: { conversation_id: conv.id, is_deleted: false },
+        where: msgWhere,
         include: [
           { model: User, as: 'sender', attributes: ['id', 'name', 'email', 'name_localized'] },
           // 첨부 — 페이지 새로고침/재진입 시 채팅 이미지·파일이 사라지지 않도록 필수.
           // association alias 'attachments' (models/index.js:119)
           { model: MessageAttachment, as: 'attachments', attributes: ['id', 'file_name', 'file_size', 'mime_type', 'file_id'], required: false },
         ],
-        order: [['created_at', 'ASC']],
-        limit: 200,
+        order: [['id', 'DESC']],   // 최신 우선
+        limit: limit + 1,          // +1 로 has_more 판별
       }),
       ConversationParticipant.findAll({
         where: { conversation_id: conv.id },
         attributes: ['user_id', 'last_read_at'],
       }),
     ]);
+    const hasMore = msgsDesc.length > limit;
+    const msgs = msgsDesc.slice(0, limit).reverse(); // 화면 표시용 시간순(ASC) 복원
     // 사이클 N+15-C — 메시지마다 read_by_count + other_count 부착.
     // read_by_count: sender 외 참여자 중 last_read_at >= m.created_at 인 수.
     // other_count: sender 외 참여자 총수 (1:1 ↔ 그룹 판별용).
@@ -886,7 +902,8 @@ router.get('/conversations/:id/messages', authenticateToken, async (req, res, ne
       return json;
     });
     await applyMemberDisplayName(result, conv.business_id, ['sender']);
-    return successResponse(res, result);
+    // data 는 기존과 동일하게 메시지 배열 (호출처 무변경). has_more 만 추가 (무한 스크롤 업 판별용).
+    return res.json({ success: true, data: result, has_more: hasMore });
   } catch (err) { next(err); }
 });
 

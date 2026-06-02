@@ -229,6 +229,8 @@
     "noChannel": "대화 채널이 없습니다",
     "noChannelDesc": "좌측에서 채널을 선택하거나 새 채널을 만드세요.",
     "noMessages": "첫 메시지를 보내세요",
+    "loadingOlder": "이전 메시지 불러오는 중…",
+    "unreadDivider": "여기까지 읽음",
     "read": {
       "sent": "전송됨",
       "read": "읽음",

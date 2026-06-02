@@ -120,6 +120,7 @@ function apiConversationToMock(c: qtalkApi.ApiConversation): MockConversation {
     last_message_at: c.last_message_at || c.created_at || null,
     last_message_preview: preview,
     my_pinned_at: c.my_pinned_at || null,
+    my_last_read_at: c.my_last_read_at || null,
   };
 }
 
@@ -708,6 +709,41 @@ const QTalkPage: React.FC = () => {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeConversationId]);
+
+  // 과거 메시지 무한 로드 — 위로 스크롤 시 ChatPanel 이 onLoadOlder 호출.
+  //   대화별 hasMore/loading 추적. oldest 메시지 id 기준 이전 50개 prepend.
+  const [olderState, setOlderState] = useState<Record<number, { hasMore: boolean; loading: boolean }>>({});
+  const loadOlderMessages = useCallback(async () => {
+    const convId = activeConversationIdRef.current;
+    if (!convId) return;
+    const cur = messages[convId] || [];
+    if (cur.length === 0) return;
+    setOlderState((p) => {
+      const st = p[convId];
+      if (st && (st.loading || !st.hasMore)) return p; // 이미 로딩 중/더 없음
+      return { ...p, [convId]: { hasMore: st?.hasMore ?? true, loading: true } };
+    });
+    const oldestId = cur[0].id;
+    try {
+      const { messages: older, hasMore } = await qtalkApi.loadOlderMessages(convId, oldestId);
+      setMessages((prev) => {
+        const existing = prev[convId] || [];
+        const existIds = new Set(existing.map((m) => m.id));
+        const fresh = older.map(apiMessageToMock).filter((m) => !existIds.has(m.id));
+        if (fresh.length === 0) return prev;
+        return { ...prev, [convId]: [...fresh, ...existing] };
+      });
+      setOlderState((p) => ({ ...p, [convId]: { hasMore, loading: false } }));
+    } catch {
+      setOlderState((p) => ({ ...p, [convId]: { hasMore: p[convId]?.hasMore ?? true, loading: false } }));
+    }
+  }, [messages]);
+
+  // 활성 대화 older 상태 — 초기값: 첫 로드가 50개 꽉 차면 더 있을 가능성(첫 onLoadOlder 가 정확히 확정).
+  const activeMsgCount = activeConversationId ? (messages[activeConversationId]?.length || 0) : 0;
+  const activeOlder = activeConversationId ? olderState[activeConversationId] : undefined;
+  const hasMoreOlder = activeOlder ? activeOlder.hasMore : activeMsgCount >= 50;
+  const loadingOlder = !!activeOlder?.loading;
 
   // 프로젝트 변경 시 room join/leave — 독립 대화(-1/null)는 스킵
   useEffect(() => {
@@ -1430,6 +1466,9 @@ const QTalkPage: React.FC = () => {
         onOpenNewChat={() => setChatModalOpen(true)}
         onMobileBack={handleMobileBack}
         mobileHidden={activeConversationId === null}
+        onLoadOlder={loadOlderMessages}
+        hasMoreOlder={hasMoreOlder}
+        loadingOlder={loadingOlder}
         onFocusCandidates={() => {
           if (rightCollapsed) setRightCollapsed(false);
           // 다음 tick 에 우측 패널의 candidates 섹션으로 스크롤

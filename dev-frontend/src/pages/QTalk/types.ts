@@ -167,6 +167,7 @@ export interface MockConversation {
   last_extracted_at?: string | null;
   // 사용자 본인의 핀(즐겨찾기) 시각. null/undefined = 핀 안 됨.
   my_pinned_at?: string | null;
+  my_last_read_at?: string | null;
 }
 
 export interface MockTaskCandidate {

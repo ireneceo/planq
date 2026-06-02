@@ -257,6 +257,8 @@
     "noChannel": "No conversation channel yet",
     "noChannelDesc": "Pick a channel on the left or create a new one.",
     "noMessages": "Send the first message",
+    "loadingOlder": "Loading earlier messages…",
+    "unreadDivider": "Unread from here",
     "read": {
       "sent": "Sent",
       "read": "Read",
