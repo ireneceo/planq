@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import HelpDot from '../../components/Common/HelpDot';
 import VisibilityBadge, { type VLevel } from '../../components/Common/VisibilityBadge';
 import VisibilityChangeModal from '../../components/Common/VisibilityChangeModal';
+import { PanelGridLayout, CollapsibleSidebar, SidebarBackdrop, Panel } from '../../components/Layout/PanelLayout';
 import QNoteShareModal from '../../components/QNote/QNoteShareModal';
 import QNoteSummaryModal from '../../components/QNote/QNoteSummaryModal';
 import styled from 'styled-components';
@@ -246,12 +247,14 @@ const QNotePage = () => {
     return false;
   });
   const [viewportNarrow, setViewportNarrow] = useState<boolean>(() => {
-    if (typeof window !== 'undefined') return window.innerWidth < 900;
+    // 1024px — PanelGridLayout/CollapsibleSidebar 의 오버레이 드로어 전환 breakpoint 와 일치.
+    // (옛 900px 은 CSS 1024px 와 어긋나 900~1024 구간에서 사이드바가 백드롭 없이 본문 위 겹침)
+    if (typeof window !== 'undefined') return window.innerWidth <= 1024;
     return false;
   });
 
   useEffect(() => {
-    const mql = window.matchMedia('(max-width: 900px)');
+    const mql = window.matchMedia('(max-width: 1024px)');
     const handler = (e: MediaQueryListEvent | MediaQueryList) => {
       const narrow = 'matches' in e ? e.matches : false;
       setViewportNarrow(narrow);
@@ -1881,8 +1884,8 @@ const QNotePage = () => {
   };
 
   return (
-    <Layout $collapsed={sidebarCollapsed}>
-      <Sidebar $collapsed={sidebarCollapsed}>
+    <PanelGridLayout $cols={sidebarCollapsed ? '0px 1fr' : '300px 1fr'}>
+      <CollapsibleSidebar $collapsed={sidebarCollapsed}>
         <SidebarHeader>
           <TitleGroup>
             <SidebarTitle>Q note</SidebarTitle>
@@ -2041,13 +2044,13 @@ const QNotePage = () => {
             </SessDelDialog>
           </SessDelBackdrop>
         )}
-      </Sidebar>
+      </CollapsibleSidebar>
 
       {viewportNarrow && !sidebarCollapsed && (
         <SidebarBackdrop onClick={() => setSidebarCollapsed(true)} />
       )}
 
-      <Main>
+      <Panel $grow $last $relative data-panel-main>
         <CollapseToggle
           onClick={() => setSidebarCollapsed((v) => !v)}
           aria-label={sidebarCollapsed ? t('page.sidebarOpen') : t('page.sidebarCollapse')}
@@ -2519,7 +2522,7 @@ const QNotePage = () => {
             </ManualQuestionBar>
           </>
         )}
-      </Main>
+      </Panel>
 
       <StartMeetingModal
         open={showStartModal && !editingSession}
@@ -2737,7 +2740,7 @@ const QNotePage = () => {
           }}
         />
       )}
-    </Layout>
+    </PanelGridLayout>
   );
 };
 
@@ -3003,52 +3006,6 @@ const PopoverInputBtn = styled.button`
 // NEUTRAL: #FFFFFF #F8FAFC #F1F5F9 #E2E8F0 #CBD5E1 #94A3B8 #64748B #334155 #0F172A
 // ─────────────────────────────────────────────────────────
 
-const Layout = styled.div<{ $collapsed: boolean }>`
-  display: grid;
-  grid-template-columns: ${(p) => (p.$collapsed ? '0px 1fr' : '300px 1fr')};
-  /* 모바일/태블릿은 상단 56px 헤더, 데스크탑은 헤더 없음 */
-  height: 100vh;
-  @media (max-width: 1024px) { height: calc(100vh - 56px); }
-  background: #FFFFFF;
-  transition: grid-template-columns 200ms ease;
-  position: relative;
-  @media (max-width: 1024px) {
-    display: block;
-  }
-`;
-
-const Sidebar = styled.aside<{ $collapsed: boolean }>`
-  background: #ffffff;
-  border-right: 1px solid #e2e8f0;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  transform: translateX(${(p) => (p.$collapsed ? '-100%' : '0')});
-  transition: transform 200ms ease;
-  visibility: ${(p) => (p.$collapsed ? 'hidden' : 'visible')};
-  @media (max-width: 1024px) {
-    position: absolute;
-    top: 0;
-    left: 0;
-    bottom: 0;
-    width: 300px;
-    max-width: 85vw;
-    z-index: 30;
-    box-shadow: 4px 0 16px rgba(15, 23, 42, 0.12);
-  }
-`;
-
-const SidebarBackdrop = styled.div`
-  display: none;
-  @media (max-width: 1024px) {
-    display: block;
-    position: absolute;
-    inset: 0;
-    background: rgba(15, 23, 42, 0.35);
-    z-index: 25;
-  }
-`;
-
 const SidebarHeader = styled.div`
   padding: 14px 20px;
   min-height: 60px;
@@ -3229,17 +3186,6 @@ const SessionItemMeta = styled.div`
 
 const Dot = styled.span`
   color: #cbd5e1;
-`;
-
-const Main = styled.section`
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  background: #FFFFFF;
-  @media (max-width: 900px) {
-    height: 100%;
-  }
 `;
 
 /* Q Note 사이드바(세션 리스트) 접기 — Q Talk/Secondary 와 동일한 엣지 바 디자인 */
