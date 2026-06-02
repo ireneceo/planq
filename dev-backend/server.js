@@ -483,6 +483,9 @@ initCalendarReminderCron();
 // Q Mail M1 — IMAP fetch cron (5분 단위)
 const emailImapCron = require('./services/emailImapCron');
 emailImapCron.init();
+// N+80 Q Mail M4 — FAQ 자동 클러스터링 cron (매일 04:10 KST)
+const { initEmailFaqCron } = require('./services/emailFaqCluster');
+initEmailFaqCron();
 // N+36 옵션 D — 업무 후보 만료 cron (30일 hide / 90일 rejected delete / 60일 hidden delete)
 const { initCandidateCleanupCron } = require('./services/candidateCleanup');
 initCandidateCleanupCron();

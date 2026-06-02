@@ -712,4 +712,63 @@ router.delete('/:businessId/email-labels/:name',
   }
 );
 
+// ─────────────────────────────────────────────────────────
+// Q Mail M4 — FAQ 자동 클러스터링 제안 (사이클 N+80)
+//   cron(emailFaqCluster) 이 만든 EmailFaqSuggestion(pending) 을 노출 → 등록(KbDocument FAQ)/무시.
+// ─────────────────────────────────────────────────────────
+const { EmailFaqSuggestion, KbDocument } = require('../models');
+
+router.get('/:businessId/email-faq-suggestions',
+  authenticateToken, checkBusinessAccess, requireMenu('qmail', 'read'),
+  async (req, res, next) => {
+    try {
+      const businessId = Number(req.params.businessId);
+      const rows = await EmailFaqSuggestion.findAll({
+        where: { business_id: businessId, status: 'pending' },
+        order: [['occurrence_count', 'DESC'], ['updated_at', 'DESC']],
+        limit: 50,
+      });
+      return successResponse(res, rows.map((r) => r.toJSON()));
+    } catch (err) { next(err); }
+  }
+);
+
+router.post('/:businessId/email-faq-suggestions/:id/accept',
+  authenticateToken, checkBusinessAccess, requireMenu('qmail', 'write'),
+  async (req, res, next) => {
+    try {
+      const businessId = Number(req.params.businessId);
+      const sug = await EmailFaqSuggestion.findOne({ where: { id: Number(req.params.id), business_id: businessId } });
+      if (!sug) return errorResponse(res, 'not_found', 404);
+      if (sug.status === 'accepted' && sug.kb_document_id) return successResponse(res, sug.toJSON()); // 멱등
+      const doc = await KbDocument.create({
+        business_id: businessId,
+        title: String(sug.question).slice(0, 300),
+        body: `Q. ${sug.question}\n\nA. ${sug.answer}`,
+        source_type: 'faq',
+        category: 'faq',
+        vlevel: 'L3',
+        uploaded_by: req.user.id,
+        status: 'pending',
+      });
+      require('../services/kb_service').indexDocument(doc.id).catch((e) => console.error('[m4-faq] index', e.message));
+      await sug.update({ status: 'accepted', kb_document_id: doc.id, created_by: req.user.id });
+      return successResponse(res, { ...sug.toJSON(), status: 'accepted', kb_document_id: doc.id });
+    } catch (err) { next(err); }
+  }
+);
+
+router.post('/:businessId/email-faq-suggestions/:id/dismiss',
+  authenticateToken, checkBusinessAccess, requireMenu('qmail', 'write'),
+  async (req, res, next) => {
+    try {
+      const businessId = Number(req.params.businessId);
+      const sug = await EmailFaqSuggestion.findOne({ where: { id: Number(req.params.id), business_id: businessId } });
+      if (!sug) return errorResponse(res, 'not_found', 404);
+      await sug.update({ status: 'dismissed' });
+      return successResponse(res, sug.toJSON());
+    } catch (err) { next(err); }
+  }
+);
+
 module.exports = router;
