@@ -749,6 +749,19 @@ async function buildTeamTab(businessId, period) {
     else utilBuckets.under60 += 1;
   }
 
+  // Q Mail M4 — FAQ 자동 클러스터링 효과 (이번 기간 등록 수 + 응대 시간 절감 추정)
+  //   time_saved = 등록 FAQ 의 누적 반복 질문 수 × 회당 평균 작성 절감 5분 (보수적 추정).
+  let faqAccepted = 0; let faqTimeSaved = 0;
+  try {
+    const { EmailFaqSuggestion } = require('../models');
+    const accepted = await EmailFaqSuggestion.findAll({
+      where: { business_id: businessId, status: 'accepted', updated_at: { [Op.between]: [fromDt, toDt] } },
+      attributes: ['occurrence_count'],
+    });
+    faqAccepted = accepted.length;
+    faqTimeSaved = accepted.reduce((s, f) => s + Number(f.occurrence_count || 0), 0) * 5;
+  } catch { /* M4 미적용 워크스페이스 — 0 */ }
+
   return {
     period: { from: period.from, to: period.to, label: period.label },
     kpis: {
@@ -758,6 +771,8 @@ async function buildTeamTab(businessId, period) {
       top_accuracy: { value: sortedByAcc[0]?.accuracy_pct ?? null, prev: null, delta_pct: null },
       over_util_count: { value: overUtil.length, prev: null, delta_pct: null },
       total_completed: { value: rows.reduce((s, r) => s + r.completed_tasks, 0), prev: null, delta_pct: null },
+      faq_accepted: { value: faqAccepted, prev: null, delta_pct: null },
+      faq_time_saved: { value: faqTimeSaved, prev: null, delta_pct: null },
     },
     util_buckets: utilBuckets,
     table: rows.sort((a, b) => (b.utilization_pct || 0) - (a.utilization_pct || 0)),
