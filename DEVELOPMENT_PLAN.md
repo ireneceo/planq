@@ -1,6 +1,8 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-06-02 사이클 N+78 — v1.25.1 운영 라이브 (채팅 입력·대화 모바일 정밀 수정 + 자동읽음 차단)
+> **최종 업데이트:** 2026-06-02 사이클 N+79 — 채팅 "완벽화" 3기능 + IDOR 보안 fix (**dev 검증 완료 · 운영 미배포**)
+>
+> **이전 최종 업데이트:** 2026-06-02 사이클 N+78 — v1.25.1 운영 라이브 (채팅 입력·대화 모바일 정밀 수정 + 자동읽음 차단)
 >
 > **이전 최종 업데이트:** 2026-06-02 사이클 N+77 — **v1.25.0 운영 라이브** (commit `0a10099`, deploy 20260602_065750). 알림 숫자 실시간 회귀 근본 fix(socket business/conv room 서버 auto-join + health-check `realtime` 영구 가드) + 공개문서 넓은 표 가로스크롤 + Q Task 요청자=필수 컨펌자 + PanelLayout 통일(Q Talk/Task/Note)
 >
@@ -33,6 +35,37 @@
 > **이전 라이브:** v1.16.1 (commit `8947504`) — N+31 사이클 (Q Talk 모바일 viewport 회귀 fix)
 >
 > **이전 라이브:** v1.16.0 (commit `ab113a6`) — N+26~N+27 사이클 (업무 흐름 Focus MVP + 인박스 inline 모달 + Cue 주고받음)
+
+---
+
+## ✅ 완료: 사이클 N+79 — 채팅 "완벽화" 3기능 + IDOR 보안 fix (2026-06-02, **dev 검증 완료 · 운영 미배포**)
+
+> **계기:** 사용자 호소 "채팅 입력·대화가 틀어지고 이상하고 모바일에서 엉망. 완벽한 채팅서비스로 업그레이드". 30년차 3축 감사(입력기·메시지/스크롤·모바일/키보드) → 실코드 검증 후 N+78(모바일 정밀 수정) 이어, 사용자 요청 "셋 다 진행"으로 3기능 구현.
+
+### 완료된 작업
+
+| 작업 | 설명 | 상태 |
+|------|------|:----:|
+| 작성 중 메시지 임시저장 | 입력 즉시 대화별 localStorage 저장 → 대화 전환·재진입 복원, 전송 시 삭제, 대화 간 누수 차단. **브라우저 e2e 저장+복원 실증** | ✅ |
+| "여기까지 읽음" 구분선 | conv 리스트에 `my_last_read_at` 노출 → 진입 시점 freeze → 첫 안읽은 타인 메시지 앞 Coral 구분선 | ✅ |
+| 과거 메시지 무한 로드 | 백엔드 최신-N + `?before=<msgId>` 페이지네이션(+has_more) / 프론트 위로 스크롤 prepend + 스크롤 anchor 보존 + 로딩 인디케이터 + RO/MO yank 가드 | ✅ |
+| 오래된-200 버그 수정 | 옛 `ASC limit 200`(긴 대화에서 오래된 200개만) → 최신-N 페이지네이션 | ✅ |
+| 🔴 cross-tenant IDOR fix | 메시지 GET 라우트가 standalone 대화(project_id null)에 접근검사 없어 conv id 열거로 타 워크스페이스 메시지 조회 가능 → `canAccessConversation` 가드 추가. 검증으로 403 차단 확인 | ✅ |
+
+### 검증
+- 헬스 29/29 · 빌드 exit 0 · API 페이지네이션 PASS(2+2+1, has_more 정확) · my_last_read_at 반환 · IDOR 403 차단(정상 접근 200 무회귀) · **Puppeteer 모바일 e2e: 대화 열기·메시지 11렌더·임시저장 저장+복원·critical JS 에러 0** · 8-A 색상/8-E i18n/8-G 레이아웃 통과
+- DB 스키마 변경 없음 (last_read_at 기존 컬럼, before=쿼리) → 운영 ALTER 불필요
+
+### 수정된 파일
+- `dev-backend/routes/projects.js` (메시지 GET 페이지네이션 + standalone IDOR 가드)
+- `dev-backend/routes/conversations.js` (conv 리스트 my_last_read_at 노출)
+- `dev-frontend/src/pages/QTalk/ChatPanel.tsx` (임시저장·구분선·무한로드 스크롤 anchor·로딩 인디케이터)
+- `dev-frontend/src/pages/QTalk/QTalkPage.tsx` (loadOlder 상태/함수 + props 전달)
+- `dev-frontend/src/services/qtalk.ts` (loadOlderMessages API)
+- `dev-frontend/src/pages/QTalk/types.ts` (my_last_read_at)
+- `dev-frontend/public/locales/{ko,en}/qtalk.json` (loadingOlder·unreadDivider)
+
+> **다음 배포 시 운영 반영 필요:** IDOR 보안 fix 포함 — `/배포` 시 함께 나감.
 
 ---
 
