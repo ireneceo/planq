@@ -62,7 +62,7 @@ for (const arg of args) {
   node scripts/health-check.js [options]
 
 Options:
-  --category=NAME    특정 카테고리만 (infra|auth|security|qnote|voice|external|frontend)
+  --category=NAME    특정 카테고리만 (infra|auth|security|qnote|voice|external|frontend|realtime)
   --verbose          응답 본문까지 출력
   --quiet            통과 숨기고 실패만
   --host=URL         단일 호스트 (운영 검증: https://dev.planq.kr)
@@ -587,6 +587,48 @@ function defineFrontendTests() {
 }
 
 // ============================================
+// realtime — socket.io 실시간 동기화 가드 (숫자 뱃지 회귀 영구 차단)
+// ============================================
+// 회귀 사례: unread 뱃지 hook(useUnreadTotal) socket 이 business room 에 join 안 해
+//   message:new 를 영영 못 받음 → "소리만 나고 숫자 안 오름". 서버 connection 의
+//   autoJoinUserBusinesses 가 깨지면 이 테스트가 즉시 실패한다.
+//   memory: feedback_unread_badge_socket_room_join
+function defineRealtimeTests() {
+  test('realtime', '신규 socket 이 business room 에 auto-join (숫자 뱃지 실시간)', async () => {
+    let io;
+    try {
+      io = require(require.resolve('socket.io-client', { paths: ['/opt/planq/dev-frontend/node_modules'] })).io;
+    } catch {
+      try { io = require('socket.io-client').io; } catch {
+        throw new Error('socket.io-client 모듈 없음 — 실시간 가드 실행 불가 (dev-frontend/node_modules 확인)');
+      }
+    }
+    const s = io(BACKEND, { auth: { token: ctx.token }, transports: ['websocket'], reconnection: false });
+    try {
+      await new Promise((res, rej) => {
+        s.on('connect', res);
+        s.on('connect_error', (e) => rej(new Error('connect_error: ' + e.message)));
+        setTimeout(() => rej(new Error('connect timeout')), 5000);
+      });
+      // ★ join:business 를 일부러 emit 하지 않음 — 서버 auto-join 만으로 room 에 들어가야 한다.
+      await new Promise((r) => setTimeout(r, 700));
+      const rooms = await new Promise((res, rej) => {
+        const to = setTimeout(() => rej(new Error('debug:rooms ack 없음 — server debug:rooms 핸들러 확인')), 3000);
+        s.emit('debug:rooms', (list) => { clearTimeout(to); res(list || []); });
+      });
+      const want = `business:${ctx.businessId}`;
+      if (!rooms.includes(want)) {
+        throw new Error(`socket 이 ${want} 에 auto-join 안 됨 (rooms=${JSON.stringify(rooms)}). ` +
+          `server.js autoJoinUserBusinesses 회귀 → message:new 미수신 → 숫자 뱃지 실시간 깨짐`);
+      }
+      return true;
+    } finally {
+      s.close();
+    }
+  });
+}
+
+// ============================================
 // 러너
 // ============================================
 async function runTests(allTests, category) {
@@ -669,7 +711,7 @@ async function runTests(allTests, category) {
 
   // setup 은 auth 카테고리 테스트에서 lazy 실행 (infra/frontend 만 돌릴 때 불필요)
   // 단, security/qnote/voice 는 토큰이 필요하므로 auth 포함 여부 체크
-  const needsAuth = !opts.category || ['auth', 'security', 'qnote', 'voice'].includes(opts.category);
+  const needsAuth = !opts.category || ['auth', 'security', 'qnote', 'voice', 'realtime'].includes(opts.category);
   if (needsAuth) {
     try {
       await setup();
@@ -686,6 +728,7 @@ async function runTests(allTests, category) {
   defineVoiceTests();
   defineExternalTests();
   defineFrontendTests();
+  defineRealtimeTests();
 
   const allPass = await runTests(tests, opts.category);
   process.exit(allPass ? 0 : 1);

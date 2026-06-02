@@ -102,21 +102,42 @@ async function canJoinBusiness(userId, businessId) {
   return !!bm;
 }
 
-// connection 직후 — user 가 멤버인 '모든' 워크스페이스 business room 자동 join.
+// connection 직후 — user 의 실시간 room 자동 join (모든 역할 커버).
 //   ★ 회귀 근본 차단 (사용자 호소 "소리만 나고 숫자 안 오름"):
 //   unread 뱃지 hook(useUnreadTotal) 의 싱글톤 socket 이 join:business 를 emit 하지 않아
-//   message:new(business room emit)를 실시간으로 못 받던 회귀. client 가 join 을 '잊어버려도'
-//   서버가 connection 시점에 보장 → 모든 socket(뱃지/토스터/리스트/미래코드)이 자동 수신.
-//   범위는 canJoinBusiness 와 동일(BusinessMember) — client 는 conv room 으로 별도 수신(프라이버시).
+//   message:new 를 실시간으로 못 받던 회귀. client 가 join 을 '잊어버려도' 서버가 connection
+//   시점에 보장 → 모든 socket(뱃지/토스터/리스트/미래코드)이 자동 수신.
+//
+//   범위 (역할별 프라이버시 유지):
+//    (1) 멤버 워크스페이스 → business room (워크스페이스 전체 unread 실시간, canJoinBusiness 와 동일 범위)
+//    (2) 비멤버(고객) 대화 → conv room 만 (남의 대화 노출 차단 — business room 에 넣지 않음)
+//        → 멤버 워크스페이스의 conv 는 이미 business room 으로 커버되므로 제외(중복 전달 방지)
 async function autoJoinUserBusinesses(socket) {
   if (!socket.userId) return;
-  const { BusinessMember } = getModels();
-  const rows = await BusinessMember.findAll({
+  const { BusinessMember, ConversationParticipant, Conversation } = getModels();
+
+  // (1) 멤버 워크스페이스 business room
+  const bms = await BusinessMember.findAll({
     where: { user_id: socket.userId },
     attributes: ['business_id'],
   });
-  for (const r of rows) {
-    if (r.business_id) socket.join(`business:${r.business_id}`);
+  const memberBizIds = new Set(bms.map((b) => b.business_id).filter(Boolean));
+  for (const bid of memberBizIds) socket.join(`business:${bid}`);
+
+  // (2) 고객(비멤버) 대화 conv room — 멤버가 아닌 워크스페이스의 대화만
+  const parts = await ConversationParticipant.findAll({
+    where: { user_id: socket.userId },
+    attributes: ['conversation_id'],
+  });
+  const convIds = parts.map((p) => p.conversation_id).filter(Boolean);
+  if (convIds.length) {
+    const convs = await Conversation.findAll({
+      where: { id: convIds },
+      attributes: ['id', 'business_id'],
+    });
+    for (const cv of convs) {
+      if (!memberBizIds.has(cv.business_id)) socket.join(`conv:${cv.id}`);
+    }
   }
 }
 
@@ -208,6 +229,13 @@ io.on('connection', (socket) => {
   });
   socket.on('leave:business', (businessId) => {
     if (businessId) socket.leave(`business:${businessId}`);
+  });
+
+  // 실시간 가드용 — socket 자신이 들어가 있는 room 목록 ack 반환 (자기 정보만, read-only).
+  //   health-check 'realtime' 카테고리가 business room auto-join 회귀를 자동 검출하는 데 사용.
+  //   (숫자 뱃지 실시간 회귀 영구 차단 — memory feedback_unread_badge_socket_room_join)
+  socket.on('debug:rooms', (cb) => {
+    if (typeof cb === 'function') cb(Array.from(socket.rooms || []));
   });
 
   socket.on('disconnect', () => {
