@@ -1,4 +1,11 @@
 {
+  "faq": {
+    "title": "FAQ 후보",
+    "occurrence_one": "{{count}}건",
+    "occurrence_other": "{{count}}건",
+    "register": "등록",
+    "dismiss": "무시"
+  },
   "settings": {
     "title": "Q Mail 계정",
     "add": "계정 추가",

@@ -39,6 +39,9 @@ EmailMessage.init({
   ai_processed_at: { type: DataTypes.DATE, allowNull: true },
   // 메타
   sent_at: { type: DataTypes.DATE, allowNull: false },
+  // M4 FAQ 클러스터링 — inbound 질문 임베딩 캐시 (text-embedding-3-small 1536d BLOB).
+  // 메시지당 1회만 임베딩 → cron 재실행 시 재사용 (AI 최소 사용).
+  faq_embedding: { type: DataTypes.BLOB('medium'), allowNull: true },
 }, {
   sequelize, tableName: 'email_messages', timestamps: true, underscored: true,
   indexes: [

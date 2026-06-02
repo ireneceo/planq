@@ -114,6 +114,10 @@ const MailPage: React.FC = () => {
   const [accounts, setAccounts] = useState<MailAccount[]>([]);
   const [labelMaster, setLabelMaster] = useState<MailLabel[]>([]);
   const [members, setMembers] = useState<MailMember[]>([]);
+  // M4 — FAQ 자동 클러스터링 제안
+  const [faqSuggestions, setFaqSuggestions] = useState<Array<{ id: number; question: string; answer: string; occurrence_count: number }>>([]);
+  const [faqExpandId, setFaqExpandId] = useState<number | null>(null);
+  const [faqBusyId, setFaqBusyId] = useState<number | null>(null);
 
   const setFolder = (f: Folder) => {
     const nsp = new URLSearchParams(sp);
@@ -188,6 +192,30 @@ const MailPage: React.FC = () => {
       const j = await apiFetch(`/api/businesses/${businessId}/email-labels`).then(r => r.json());
       if (j.success) setLabelMaster(j.data || []);
     } catch { /* silent */ }
+  }, [businessId]);
+  // M4 — FAQ 제안 로드
+  const loadFaqSuggestions = useCallback(async () => {
+    if (!businessId) return;
+    try {
+      const j = await apiFetch(`/api/businesses/${businessId}/email-faq-suggestions`).then(r => r.json());
+      if (j.success) setFaqSuggestions(j.data || []);
+    } catch { /* silent */ }
+  }, [businessId]);
+  const acceptFaq = useCallback(async (id: number) => {
+    if (!businessId) return;
+    setFaqBusyId(id);
+    try {
+      const r = await apiFetch(`/api/businesses/${businessId}/email-faq-suggestions/${id}/accept`, { method: 'POST' });
+      if (r.ok) setFaqSuggestions(prev => prev.filter(s => s.id !== id));
+    } catch { /* silent */ } finally { setFaqBusyId(null); }
+  }, [businessId]);
+  const dismissFaq = useCallback(async (id: number) => {
+    if (!businessId) return;
+    setFaqBusyId(id);
+    try {
+      const r = await apiFetch(`/api/businesses/${businessId}/email-faq-suggestions/${id}/dismiss`, { method: 'POST' });
+      if (r.ok) setFaqSuggestions(prev => prev.filter(s => s.id !== id));
+    } catch { /* silent */ } finally { setFaqBusyId(null); }
   }, [businessId]);
   const loadMembers = useCallback(async () => {
     if (!businessId) return;
@@ -317,6 +345,7 @@ const MailPage: React.FC = () => {
   useEffect(() => { loadAccounts(); }, [loadAccounts]);
   useEffect(() => { loadLabels(); }, [loadLabels]);
   useEffect(() => { loadMembers(); }, [loadMembers]);
+  useEffect(() => { loadFaqSuggestions(); }, [loadFaqSuggestions]);
   useEffect(() => {
     if (activeId) loadDetail(activeId);
     else setDetail(null);
@@ -558,6 +587,32 @@ const MailPage: React.FC = () => {
             ))}
           </AcctFilterRow>
         )}
+          {faqSuggestions.length > 0 && (
+            <FaqSuggestBox>
+              <FaqSuggestHead>
+                <FaqSparkle>✨</FaqSparkle>
+                {t('faq.title', { defaultValue: 'FAQ 후보' }) as string}
+                <FaqCount>{faqSuggestions.length}</FaqCount>
+              </FaqSuggestHead>
+              {faqSuggestions.slice(0, 5).map(s => (
+                <FaqItem key={s.id}>
+                  <FaqQ onClick={() => setFaqExpandId(faqExpandId === s.id ? null : s.id)}>
+                    <FaqQText>{s.question}</FaqQText>
+                    <FaqOcc>{t('faq.occurrence', { count: s.occurrence_count, defaultValue: `${s.occurrence_count}건` }) as string}</FaqOcc>
+                  </FaqQ>
+                  {faqExpandId === s.id && <FaqAnswer>{s.answer}</FaqAnswer>}
+                  <FaqActions>
+                    <FaqRegisterBtn type="button" disabled={faqBusyId === s.id} onClick={() => acceptFaq(s.id)}>
+                      {t('faq.register', { defaultValue: '등록' }) as string}
+                    </FaqRegisterBtn>
+                    <FaqDismissBtn type="button" disabled={faqBusyId === s.id} onClick={() => dismissFaq(s.id)}>
+                      {t('faq.dismiss', { defaultValue: '무시' }) as string}
+                    </FaqDismissBtn>
+                  </FaqActions>
+                </FaqItem>
+              ))}
+            </FaqSuggestBox>
+          )}
           {errorMsg && <ErrorBar>{errorMsg}</ErrorBar>}
           {listLoading && threads.length === 0 ? (
             <Loading>
@@ -822,6 +877,52 @@ export default MailPage;
 // ─────────────────────────────────────────────
 // Q Talk 의 Layout 과 동일 — flex row, full-bleed (PageShell·카드 X)
 // 컨테이너·패널은 공통 components/Layout/PanelLayout 의 PanelLayout/Panel 사용 (통일)
+// M4 — FAQ 자동 클러스터링 제안 (좌측 패널, 폴더 아래)
+const FaqSuggestBox = styled.div`
+  border-bottom: 1px solid #E2E8F0; background: rgba(244, 63, 94, 0.04);
+  padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 8px;
+`;
+const FaqSuggestHead = styled.div`
+  display: flex; align-items: center; gap: 6px;
+  font-size: 12px; font-weight: 700; color: #F43F5E;
+`;
+const FaqSparkle = styled.span`font-size: 13px;`;
+const FaqCount = styled.span`
+  margin-left: auto; min-width: 18px; height: 18px; padding: 0 6px;
+  border-radius: 9px; background: rgba(244, 63, 94, 0.15); color: #F43F5E;
+  font-size: 11px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center;
+`;
+const FaqItem = styled.div`
+  background: #FFFFFF; border: 1px solid rgba(244, 63, 94, 0.22); border-radius: 10px;
+  padding: 8px 10px; display: flex; flex-direction: column; gap: 6px;
+`;
+const FaqQ = styled.button`
+  all: unset; cursor: pointer; display: flex; align-items: flex-start; gap: 6px;
+`;
+const FaqQText = styled.span`
+  flex: 1; min-width: 0; font-size: 12px; font-weight: 600; color: #0F172A;
+  line-height: 1.4; overflow: hidden; text-overflow: ellipsis; display: -webkit-box;
+  -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+`;
+const FaqOcc = styled.span`flex-shrink: 0; font-size: 11px; font-weight: 700; color: #F43F5E;`;
+const FaqAnswer = styled.div`
+  font-size: 12px; color: #475569; line-height: 1.5; white-space: pre-wrap;
+  overflow-wrap: anywhere; background: #F8FAFC; border-radius: 6px; padding: 8px 10px;
+  max-height: 160px; overflow-y: auto;
+`;
+const FaqActions = styled.div`display: flex; gap: 6px;`;
+const FaqRegisterBtn = styled.button`
+  flex: 1; height: 30px; border-radius: 6px; border: none; cursor: pointer;
+  background: #0D9488; color: #FFFFFF; font-size: 12px; font-weight: 600;
+  &:hover:not(:disabled) { background: #0F766E; }
+  &:disabled { opacity: 0.5; cursor: not-allowed; }
+`;
+const FaqDismissBtn = styled.button`
+  flex: 1; height: 30px; border-radius: 6px; cursor: pointer;
+  background: #FFFFFF; color: #64748B; border: 1px solid #E2E8F0; font-size: 12px; font-weight: 600;
+  &:hover:not(:disabled) { background: #F1F5F9; color: #0F172A; }
+  &:disabled { opacity: 0.5; cursor: not-allowed; }
+`;
 // 폴더 탭 (답변필요/인박스/내담당/팔로우/스팸/보관) — 좌측 상단 가로 탭
 const FolderTabs = styled.div`
   display: flex; gap: 2px;

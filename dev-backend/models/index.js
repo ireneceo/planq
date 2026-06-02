@@ -94,6 +94,7 @@ const EmailMessage = require('./EmailMessage');
 const EmailAttachment = require('./EmailAttachment');
 const EmailThreadParticipant = require('./EmailThreadParticipant');
 const EmailDraft = require('./EmailDraft');
+const EmailFaqSuggestion = require('./EmailFaqSuggestion'); // Q Mail M4
 // ─── 멤버 권한 + 상태 전이 히스토리 (사이클 N+21) ───
 const BusinessMemberPermission = require('./BusinessMemberPermission');
 const ProjectStatusHistory = require('./ProjectStatusHistory');
@@ -465,6 +466,7 @@ module.exports = {
   EmailAttachment,
   EmailThreadParticipant,
   EmailDraft,
+  EmailFaqSuggestion,
   // Q docs
   DocumentTemplate,
   Document,
@@ -710,6 +712,9 @@ EmailThread.hasMany(EmailThreadParticipant, { as: 'participantsLinks', foreignKe
 
 EmailDraft.belongsTo(EmailThread, { foreignKey: 'thread_id', onDelete: 'CASCADE' });
 EmailDraft.belongsTo(Business, { foreignKey: 'business_id' });
+// Q Mail M4 — FAQ 제안
+EmailFaqSuggestion.belongsTo(Business, { foreignKey: 'business_id', onDelete: 'CASCADE' });
+EmailFaqSuggestion.belongsTo(KbDocument, { foreignKey: 'kb_document_id', onDelete: 'SET NULL' });
 EmailDraft.belongsTo(User, { foreignKey: 'user_id', onDelete: 'CASCADE' });
 EmailDraft.belongsTo(EmailAccount, { foreignKey: 'account_id', onDelete: 'SET NULL' });
 EmailDraft.belongsTo(EmailMessage, { as: 'inReplyTo', foreignKey: 'in_reply_to_message_id', onDelete: 'SET NULL' });

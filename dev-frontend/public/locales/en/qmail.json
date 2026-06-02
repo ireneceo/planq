@@ -1,4 +1,11 @@
 {
+  "faq": {
+    "title": "FAQ candidates",
+    "occurrence_one": "{{count}}",
+    "occurrence_other": "{{count}}",
+    "register": "Add",
+    "dismiss": "Dismiss"
+  },
   "settings": {
     "title": "Q Mail Accounts",
     "add": "Add account",
