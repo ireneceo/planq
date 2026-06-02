@@ -61,8 +61,14 @@
     "title": "메일함",
     "reply_needed": "답변 필요",
     "inbox": "인박스",
+    "uncertain": "확인 권장",
     "spam": "스팸",
     "archived": "보관"
+  },
+  "uncertain": {
+    "billing": "청구/결제 관련",
+    "quote": "견적/계약 키워드",
+    "review": "검토 권장"
   },
   "actions": {
     "markSpam": "스팸으로",

@@ -66,7 +66,7 @@ function folderWhere(folder, userId) {
     case 'spam': return { status: 'spam' };
     case 'archived': return { status: 'archived' };
     case 'inbox':
-    default: return { status: { [Op.in]: ['open', 'uncertain'] } };  // 일반 인박스 = open + uncertain
+    default: return { status: 'open' };  // M5 — 인박스 = open 만. uncertain 은 별도 '확인 권장' 폴더로 분리
   }
 }
 
