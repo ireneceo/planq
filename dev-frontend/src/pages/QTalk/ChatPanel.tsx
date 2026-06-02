@@ -44,6 +44,10 @@ interface Props {
   onMobileBack?: () => void;
   /** 모바일에서 대화가 선택되지 않은 경우 ChatPanel 을 숨김 */
   mobileHidden?: boolean;
+  /** 위로 스크롤 시 과거 메시지 로드 (무한 스크롤 업) */
+  onLoadOlder?: () => void;
+  hasMoreOlder?: boolean;
+  loadingOlder?: boolean;
 }
 
 const ChatPanel: React.FC<Props> = ({
@@ -52,6 +56,7 @@ const ChatPanel: React.FC<Props> = ({
   onToggleAutoExtract, onRenameConversation, onOpenSettings,
   candidatesCount, extracting, leftCollapsed, rightCollapsed, onToggleLeft, onToggleRight,
   onOpenNewChat, onMobileBack, mobileHidden = false,
+  onLoadOlder, hasMoreOlder = false, loadingOlder = false,
 }) => {
   const { t } = useTranslation('qtalk');
   const { t: tErr } = useTranslation('errors');
@@ -145,6 +150,18 @@ const ChatPanel: React.FC<Props> = ({
   // distance > 240px 일 때 표시 (sticky threshold 와 일치). 새 메시지 +N 뱃지.
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
   const [pendingNewCount, setPendingNewCount] = useState(0);
+  // '여기까지 읽음' 구분선 — 대화 진입 시점의 last_read 를 freeze (markRead 로 갱신돼도 고정).
+  const [frozenLastRead, setFrozenLastRead] = useState<string | null>(null);
+  // 구분선을 그 '앞'에 표시할 메시지 id — 진입 시점 기준 첫 '안 읽은 타인 메시지'.
+  const unreadDividerBeforeId = React.useMemo(() => {
+    if (!frozenLastRead) return null;
+    const lr = new Date(frozenLastRead).getTime();
+    if (Number.isNaN(lr)) return null;
+    const myId = user?.id;
+    const first = convMessages.find((msg) =>
+      Number(msg.sender_id) !== Number(myId) && new Date(msg.created_at).getTime() > lr);
+    return first ? first.id : null;
+  }, [convMessages, frozenLastRead, user?.id]);
   const [input, setInput] = useState('');
   // textarea ref — 채팅방 진입 시 자동 포커스 + 입력 시 auto-resize (2줄 가려짐 방지)
   const textInputRef = React.useRef<HTMLTextAreaElement | null>(null);
@@ -193,6 +210,16 @@ const ChatPanel: React.FC<Props> = ({
     if (isMobile) return;
     const tm = window.setTimeout(() => textInputRef.current?.focus(), 80);
     return () => window.clearTimeout(tm);
+  }, [activeConversationId]);
+
+  // 작성 중 메시지 임시저장 — 대화 전환 시 해당 대화의 draft 복원 (localStorage, 대화별 분리).
+  //   다른 대화로 갔다 와도 입력 중이던 내용 유지. 대화 간 입력 누수도 차단(각 대화 자기 draft 만).
+  React.useEffect(() => {
+    if (!activeConversationId) { setInput(''); return; }
+    let d = '';
+    try { d = localStorage.getItem(`qtalk_draft_${activeConversationId}`) || ''; } catch { /* quota/unavailable */ }
+    setInput(d);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeConversationId]);
 
   // 모바일 키보드 가림 fix — 사이클 N+28 (점프 진동 회귀 fix):
@@ -478,6 +505,8 @@ const ChatPanel: React.FC<Props> = ({
       stagedPostIds.length > 0 ? stagedPostIds : undefined,
     );
     setInput('');
+    // 전송 완료 → 해당 대화 draft 제거
+    if (activeConversationId) { try { localStorage.removeItem(`qtalk_draft_${activeConversationId}`); } catch { /* */ } }
     setStagedExistingIds([]);
     setStagedExistingMeta({});
     setStagedPostIds([]);
@@ -561,6 +590,10 @@ const ChatPanel: React.FC<Props> = ({
 
   // 메시지 리스트 스크롤 컨테이너 + 위치 영속
   const messageListRef = React.useRef<HTMLDivElement | null>(null);
+  // 과거 메시지 prepend 시 스크롤 위치 보존용 — 로드 직전 scrollHeight/scrollTop 기록.
+  const prependPendingRef = React.useRef<{ h: number; t: number } | null>(null);
+  // 과거 로드 직후 ResizeObserver/MutationObserver 가 바닥으로 끌어내리는 경합 차단 (타임스탬프 가드).
+  const lastPrependAtRef = React.useRef(0);
   // 메시지 리스트 끝의 sentinel — scrollHeight 계산 없이 "마지막 메시지 다음 위치"로 정확히 스크롤.
   // 이미지 / 번역 / 카드 같은 비동기 콘텐츠가 나중에 추가되어 scrollHeight 가 변동해도 sentinel
   // 자체가 끝에 있어 항상 바닥을 가리킴.
@@ -606,6 +639,8 @@ const ChatPanel: React.FC<Props> = ({
       const grew = cur > lastSize;
       lastSize = cur;
       if (!grew) return;
+      // 과거 메시지 prepend 로 인한 높이 증가는 바닥 yank 금지 (위 읽던 위치 유지)
+      if (Date.now() - lastPrependAtRef.current < 800) return;
       // N+33 — 진입 후 2.5초 force-stick. 비동기 콘텐츠(이미지/번역/Cue 카드) 로딩으로
       // list height 폭증 시 distance > 240 라도 무조건 바닥. 사용자 호소 fix.
       const elapsedSinceEnter = Date.now() - enteredAtRef.current;
@@ -621,6 +656,7 @@ const ChatPanel: React.FC<Props> = ({
         const grew = cur > lastSize;
         lastSize = cur;
         if (grew) {
+          if (Date.now() - lastPrependAtRef.current < 800) return; // 과거 prepend 직후 바닥 yank 금지
           const elapsedSinceEnter = Date.now() - enteredAtRef.current;
           if (elapsedSinceEnter < 2500) { scrollToBottom(false); return; }
           const distance = list.scrollHeight - list.scrollTop - list.clientHeight;
@@ -662,6 +698,12 @@ const ChatPanel: React.FC<Props> = ({
       const key = scrollKey(activeConv.id);
       if (!key) return;
       try { localStorage.setItem(key, String(el.scrollTop)); } catch { /* quota */ }
+      // 위로 스크롤 → 과거 메시지 무한 로드. prepend 직전 scrollHeight/Top 기록(anchor 보존).
+      if (el.scrollTop < 120 && hasMoreOlder && !loadingOlder && onLoadOlder && !prependPendingRef.current) {
+        prependPendingRef.current = { h: el.scrollHeight, t: el.scrollTop };
+        lastPrependAtRef.current = Date.now();
+        onLoadOlder();
+      }
       // 사이클 N+15-E — 바닥 거리 측정 → floating 버튼 토글.
       const distance = el.scrollHeight - el.scrollTop - el.clientHeight;
       setShowScrollToBottom((cur) => {
@@ -671,7 +713,7 @@ const ChatPanel: React.FC<Props> = ({
         return next;
       });
     });
-  }, [activeConv?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [activeConv?.id, hasMoreOlder, loadingOlder, onLoadOlder]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 대화 전환 시 "초기 스크롤 미완료" 플래그 리셋
   // 사이클 N+27 회귀 fix — useEffect 였을 때 paint 이후 실행되어
@@ -689,7 +731,9 @@ const ChatPanel: React.FC<Props> = ({
     enteredAtRef.current = Date.now();
     setShowScrollToBottom(false);
     setPendingNewCount(0);
-  }, [activeConv?.id]);
+    // 진입 시점 last_read freeze — 이후 markRead 가 서버 값을 올려도 구분선 위치는 고정.
+    setFrozenLastRead(activeConv?.my_last_read_at || null);
+  }, [activeConv?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 메시지 렌더 시 스크롤 처리
   // - 초기 로드: localStorage 에 저장된 위치 복원 (없으면 바닥)
@@ -700,6 +744,16 @@ const ChatPanel: React.FC<Props> = ({
     prevMessageCount.current = next;
 
     if (next === 0) return;
+
+    // 과거 메시지 prepend 직후 — 바닥으로 스크롤하지 않고 사용자가 보던 위치 유지(anchor 보존).
+    //   list 가 (newHeight - oldHeight) 만큼 위로 커졌으므로 scrollTop 도 그만큼 더해 시야 고정.
+    if (prependPendingRef.current) {
+      const { h, t } = prependPendingRef.current;
+      prependPendingRef.current = null;
+      const list = messageListRef.current;
+      if (list) list.scrollTop = list.scrollHeight - h + t;
+      return;
+    }
 
     if (!initialScrolledRef.current) {
       initialScrolledRef.current = true;
@@ -1071,6 +1125,12 @@ const ChatPanel: React.FC<Props> = ({
 
       {/* 메시지 흐름 */}
       <MessageList ref={messageListRef} onScroll={handleScrollSave}>
+        {/* 과거 메시지 무한 로드 — 상단 로딩 인디케이터 */}
+        {loadingOlder && convMessages.length > 0 && (
+          <OlderLoadingRow aria-live="polite">
+            <OlderSpinner /> {t('chat.loadingOlder', { defaultValue: '이전 메시지 불러오는 중…' }) as string}
+          </OlderLoadingRow>
+        )}
         {/* 사이클 N+15-A — 메시지 lazy-load 중일 때 skeleton 3행. 빈 conv 와 분리. */}
         {messagesLoading && convMessages.length === 0 && (
           <SkeletonMessages aria-busy="true" aria-label="loading messages">
@@ -1103,8 +1163,11 @@ const ChatPanel: React.FC<Props> = ({
           const canEditThis = isSender && !isDeleted && m.sender_role !== 'cue' && !m.card;
           const canPinThis = canPinMessage && !isDeleted;
           return (
+          <React.Fragment key={m.id}>
+            {m.id === unreadDividerBeforeId && (
+              <UnreadDivider><span>{t('chat.unreadDivider', { defaultValue: '여기까지 읽음' }) as string}</span></UnreadDivider>
+            )}
           <MessageItem
-            key={m.id}
             data-msg-id={m.id}
             $continuation={continuation}
             $selected={selectionMode && isSelected}
@@ -1613,6 +1676,7 @@ const ChatPanel: React.FC<Props> = ({
               </MessageToolbar>
             )}
           </MessageItem>
+          </React.Fragment>
           );
         })}
         {/* 스크롤 sentinel — scrollHeight 계산 없이 안정적으로 마지막 위치로 점프 가능 */}
@@ -1731,7 +1795,14 @@ const ChatPanel: React.FC<Props> = ({
           <TextInput
             ref={textInputRef}
             value={input}
-            onChange={(e) => setInput(e.target.value)}
+            onChange={(e) => {
+              const v = e.target.value;
+              setInput(v);
+              // 임시저장 — 입력하는 즉시 현재 대화 draft 갱신 (비면 삭제)
+              if (activeConversationId) {
+                try { v ? localStorage.setItem(`qtalk_draft_${activeConversationId}`, v) : localStorage.removeItem(`qtalk_draft_${activeConversationId}`); } catch { /* quota */ }
+              }
+            }}
             onKeyDown={handleKeyDown}
             onFocus={handleInputFocus}
             onCompositionStart={handleCompositionStart}
@@ -2153,6 +2224,23 @@ const MessageList = styled.div`
 
 const NoMsgBox = styled.div`
   padding: 40px 20px; text-align: center; color: #94A3B8; font-size: 13px;
+`;
+const OlderLoadingRow = styled.div`
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 10px 0; color: #94A3B8; font-size: 12px;
+`;
+const OlderSpinner = styled.span`
+  width: 14px; height: 14px; border-radius: 50%;
+  border: 2px solid #E2E8F0; border-top-color: #14B8A6;
+  display: inline-block; animation: olderSpin 0.7s linear infinite;
+  @keyframes olderSpin { to { transform: rotate(360deg); } }
+`;
+// '여기까지 읽음' 구분선 — 진입 시점 기준 첫 안 읽은 메시지 앞. 가운데 라벨 + 양옆 라인(Coral).
+const UnreadDivider = styled.div`
+  display: flex; align-items: center; gap: 10px;
+  margin: 8px 4px; color: #F43F5E; font-size: 11px; font-weight: 700;
+  &::before, &::after { content: ''; flex: 1; height: 1px; background: rgba(244, 63, 94, 0.25); }
+  span { flex-shrink: 0; letter-spacing: 0.2px; }
 `;
 
 // 사이클 N+15-C — 읽음 표시 라벨.

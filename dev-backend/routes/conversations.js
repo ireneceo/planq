@@ -106,6 +106,8 @@ router.get('/:businessId', authenticateToken, attachWorkspaceScope(), async (req
       attributes: ['conversation_id', 'pinned_at', 'last_read_at'],
     });
     const pinMap = new Map(myParts.map(p => [p.conversation_id, p.pinned_at]));
+    // 진입 시점 '여기까지 읽음' 구분선용 — markRead 전 last_read_at (frontend 가 진입 시 freeze).
+    const lastReadMap = new Map(myParts.map(p => [p.conversation_id, p.last_read_at]));
 
     // unread_count — 단일 SQL 로 일괄 집계 (N+1 방지).
     // 본인이 보낸 메시지는 제외, last_read_at 이후 메시지만, 삭제 메시지 제외.
@@ -182,6 +184,7 @@ router.get('/:businessId', authenticateToken, attachWorkspaceScope(), async (req
     const enriched = conversations.map(c => {
       const obj = c.toJSON();
       obj.my_pinned_at = pinMap.get(c.id) || null;
+      obj.my_last_read_at = lastReadMap.get(c.id) || null;
       obj.unread_count = unreadMap.get(c.id) || 0;
       obj.last_message_preview = lastMsgMap.get(c.id) || null;
       return obj;
