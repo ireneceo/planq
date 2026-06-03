@@ -1,6 +1,8 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-06-02 사이클 N+82 — **v1.28.0 운영 라이브** (commit `ec493af`, deploy 20260602_182341). Q Mail 메일 검색(제목·미리보기·본문) + 무한스크롤 pagination. **Q Mail 핵심 완결** (인박스·읽기·답장·라벨·AI답변·FAQ·스팸분류·검색·페이지네이션)
+> **최종 업데이트:** 2026-06-03 사이클 N+83 — **v1.29.0 운영 라이브** (commit `bc6c947`, deploy 20260603_060501). 기능 4종: ① Q Mail inbound 트리아지(human/automated/marketing/spam — 자동·마케팅 폴더 분리 + reply_needed 자동 + AI 게이트) ② 모바일 채팅 입력란 사라짐 근본 fix(visualViewport.offsetTop 보정) ③ 고객 첫 응대 보완(담당자 자동배정 + 환영 대화방·메시지 + 초대 재발송) ④ 고객 정기 구독청구(ClientSubscription — 프로젝트 없이 client 단위 구독 자동 invoice). recurring_invoice 잠재버그 2건(sequelize import·created_by notNull) 동시 fix.
+>
+> **이전:** 2026-06-02 사이클 N+82 — **v1.28.0** (commit `ec493af`). Q Mail 메일 검색(제목·미리보기·본문) + 무한스크롤 pagination. **Q Mail 핵심 완결**
 >
 > **이전:** 2026-06-02 사이클 N+80~81 — **v1.27.0** (commit `92ae47f`). Q Mail M4(FAQ 클러스터링·자동답변·insights) + M5(스팸/Uncertain 분류). `email_messages.faq_embedding` 컬럼 + `email_faq_suggestions` 테이블
 >
