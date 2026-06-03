@@ -66,6 +66,7 @@
     "title": "Mailboxes",
     "reply_needed": "Reply needed",
     "inbox": "Inbox",
+    "marketing": "Automated · Marketing",
     "uncertain": "Review suggested",
     "spam": "Spam",
     "archived": "Archived"
@@ -87,6 +88,9 @@
   "messageCount": "{{n}} messages",
   "reply": {
     "faqUsed": "Reply based on registered FAQ",
+    "aiGated": "AI replies aren't suggested for automated · marketing mail",
+    "aiThinking": "Cue is writing…",
+    "aiSuggest": "✨ Suggest AI reply",
     "button": "Reply",
     "to": "To",
     "placeholder": "Write your reply…",

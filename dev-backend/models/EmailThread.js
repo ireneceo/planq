@@ -25,6 +25,9 @@ EmailThread.init({
   // Uncertain (★ 사용자 호소 #6)
   uncertain_reason: { type: DataTypes.STRING(200), allowNull: true },
   spam_score: { type: DataTypes.FLOAT, allowNull: true },
+  // Inbound 트리아지 (사이클 N+83) — human(답장필요) / automated(자동알림) / marketing(벌크) / spam / unknown(미분류)
+  //   인박스 노이즈 분리 + reply_needed 자동 판정 근거. emailTriage.js 가 IMAP 수집 시 계산.
+  triage: { type: DataTypes.STRING(20), allowNull: true, defaultValue: 'unknown' },
   // 핀
   is_starred: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
   // 라벨
@@ -48,6 +51,7 @@ EmailThread.init({
   indexes: [
     { fields: ['business_id', 'status', 'last_message_at'], name: 'email_threads_biz_status_time' },
     { fields: ['business_id', 'reply_needed', 'last_message_at'], name: 'email_threads_biz_reply' },
+    { fields: ['business_id', 'triage', 'last_message_at'], name: 'email_threads_biz_triage' },
     { fields: ['business_id', 'client_id'], name: 'email_threads_biz_client' },
     { fields: ['business_id', 'project_id'], name: 'email_threads_biz_project' },
     { fields: ['business_id', 'vlevel'], name: 'email_threads_biz_vlevel' },

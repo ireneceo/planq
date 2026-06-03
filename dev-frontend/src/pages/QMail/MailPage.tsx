@@ -25,7 +25,7 @@ import ActionButton from '../../components/Common/ActionButton';
 import PlanQSelect from '../../components/Common/PlanQSelect';
 import { uploadMyFile } from '../../services/files';
 
-type Folder = 'reply_needed' | 'inbox' | 'uncertain' | 'assigned' | 'following' | 'spam' | 'archived';
+type Folder = 'reply_needed' | 'inbox' | 'marketing' | 'uncertain' | 'assigned' | 'following' | 'spam' | 'archived';
 
 // 메일 계정 (회사 공용 / 개인) — 폴더트리 그룹 (외부 연동 Phase 3)
 interface MailAccount {
@@ -50,6 +50,7 @@ interface Thread {
   account: { id: number; email: string; display_name?: string | null } | null;
   client: { id: number; display_name?: string; company_name?: string } | null;
   uncertain_reason?: string | null;
+  triage?: string | null; // human / automated / marketing / spam / unknown (N+83)
 }
 
 interface Message {
@@ -79,6 +80,7 @@ interface MailMember { user_id: number; name: string }
 const FOLDERS: Array<{ key: Folder; defaultLabel: string }> = [
   { key: 'reply_needed', defaultLabel: '답변 필요' },
   { key: 'inbox', defaultLabel: '인박스' },
+  { key: 'marketing', defaultLabel: '자동·마케팅' },
   { key: 'uncertain', defaultLabel: '확인 권장' },
   { key: 'assigned', defaultLabel: '내 담당' },
   { key: 'following', defaultLabel: '팔로우' },
@@ -115,7 +117,7 @@ const MailPage: React.FC = () => {
   const [detailLoading, setDetailLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [folderCounts, setFolderCounts] = useState<Record<Folder, number>>({
-    reply_needed: 0, inbox: 0, uncertain: 0, assigned: 0, following: 0, spam: 0, archived: 0,
+    reply_needed: 0, inbox: 0, marketing: 0, uncertain: 0, assigned: 0, following: 0, spam: 0, archived: 0,
   });
   const [accounts, setAccounts] = useState<MailAccount[]>([]);
   const [labelMaster, setLabelMaster] = useState<MailLabel[]>([]);
@@ -867,11 +869,15 @@ const MailPage: React.FC = () => {
                       </FaqUsedBadge>
                     )}
                     <ComposerActions>
-                      <AiSuggestBtn type="button" onClick={aiSuggest} disabled={aiBusy || sending}>
-                        {aiBusy
-                          ? t('reply.aiThinking', { defaultValue: 'Cue 작성 중…' }) as string
-                          : t('reply.aiSuggest', { defaultValue: '✨ AI 답변 제안' }) as string}
-                      </AiSuggestBtn>
+                      {(!detail?.triage || detail.triage === 'human' || detail.triage === 'unknown') ? (
+                        <AiSuggestBtn type="button" onClick={aiSuggest} disabled={aiBusy || sending}>
+                          {aiBusy
+                            ? t('reply.aiThinking', { defaultValue: 'Cue 작성 중…' }) as string
+                            : t('reply.aiSuggest', { defaultValue: '✨ AI 답변 제안' }) as string}
+                        </AiSuggestBtn>
+                      ) : (
+                        <AiGatedHint>{t('reply.aiGated', { defaultValue: '자동·마케팅 메일에는 AI 답변을 제안하지 않아요' }) as string}</AiGatedHint>
+                      )}
                       <ComposerBtns>
                         <ActionButton tone="secondary" size="md" onClick={() => setReplyOpen(false)} disabled={sending}>
                           {t('reply.cancel', { defaultValue: '취소' }) as string}
@@ -1370,6 +1376,11 @@ const AiSuggestBtn = styled.button`
   &:hover:not(:disabled) { background: #FFE4E6; border-color: #FDA4AF; }
   &:disabled { opacity: 0.6; cursor: wait; }
   &:focus-visible { outline: 2px solid #F43F5E; outline-offset: 2px; }
+`;
+// 자동·마케팅 메일 — AI 답변 비노출 안내 (게이트)
+const AiGatedHint = styled.span`
+  font-size: 12px; color: #94A3B8;
+  display: inline-flex; align-items: center;
 `;
 
 const Loading = styled.div`

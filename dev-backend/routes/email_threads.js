@@ -65,8 +65,12 @@ function folderWhere(folder, userId) {
     case 'uncertain': return { status: 'uncertain' };
     case 'spam': return { status: 'spam' };
     case 'archived': return { status: 'archived' };
+    // N+83 — 자동·마케팅 폴더 (noreply 알림 + 뉴스레터 벌크). 인박스 노이즈 분리.
+    case 'marketing': return { status: 'open', triage: { [Op.in]: ['automated', 'marketing'] } };
     case 'inbox':
-    default: return { status: 'open' };  // M5 — 인박스 = open 만. uncertain 은 별도 '확인 권장' 폴더로 분리
+    default:
+      // 인박스 = open 이면서 자동/마케팅 아닌 것 (human·unknown). uncertain·spam 은 별도 폴더.
+      return { status: 'open', triage: { [Op.notIn]: ['automated', 'marketing'] } };
   }
 }
 
@@ -167,6 +171,7 @@ router.get('/:businessId/email-threads',
           project: obj.Project,
           uncertain_reason: obj.uncertain_reason,
           spam_score: obj.spam_score,
+          triage: obj.triage,
         };
       });
 
@@ -262,6 +267,7 @@ router.get('/:businessId/email-threads/:id',
         reply_needed_reason: tj.reply_needed_reason,
         uncertain_reason: tj.uncertain_reason,
         spam_score: tj.spam_score,
+        triage: tj.triage,
         is_starred: tj.is_starred,
         unread_count: tj.unread_count || 0,
         message_count: tj.message_count || 0,
