@@ -148,6 +148,7 @@ export default function ClientsPage() {
 
   // 드로어 상세 로드
   useEffect(() => {
+    setResendDone(false);
     if (!activeId) { setActiveDetail(null); setHistory([]); setHistoryLoaded(false); setHistoryOpen(false); return; }
     let cancelled = false;
     (async () => {
@@ -212,6 +213,19 @@ export default function ClientsPage() {
       setClients((prev) => prev.map((c) => c.id === id ? { ...c, ...patch } : c));
       setActiveDetail((prev) => prev && prev.id === id ? { ...prev, ...patch } : prev);
     }
+  };
+
+  // 초대 재발송 (invited 상태 고객) — 메일 다시 보내기
+  const [resendBusy, setResendBusy] = useState(false);
+  const [resendDone, setResendDone] = useState(false);
+  const resendInvite = async (id: number) => {
+    if (resendBusy) return;
+    setResendBusy(true); setResendDone(false);
+    try {
+      const res = await apiFetch(`/api/clients/${businessId}/${id}/resend-invite`, { method: 'POST' });
+      const j = await res.json();
+      if (j.success) setResendDone(true);
+    } finally { setResendBusy(false); }
   };
 
   const toggleStatus = async (id: number, next: 'active' | 'archived') => {
@@ -410,6 +424,18 @@ export default function ClientsPage() {
                 </SwitchWrap>
               </HeadSide>
             </HeadRow>
+
+            {activeDetail.status === 'invited' && (
+              <InviteBanner>
+                <InviteBannerText>
+                  <strong>{t('invitePending.title', '초대 수락 대기 중')}</strong>
+                  <span>{t('invitePending.desc', '아직 가입하지 않았어요. 메일을 못 받았다면 다시 보낼 수 있습니다.')}</span>
+                </InviteBannerText>
+                <ResendBtn type="button" onClick={() => resendInvite(activeDetail.id)} disabled={resendBusy || !isAdmin}>
+                  {resendBusy ? t('invitePending.resending', '보내는 중…') : resendDone ? t('invitePending.resent', '재발송 완료') : t('invitePending.resend', '초대 재발송')}
+                </ResendBtn>
+              </InviteBanner>
+            )}
 
             <Section>
               <SectionTitle>{t('section.contact')}</SectionTitle>
@@ -669,6 +695,24 @@ const SwitchTrack = styled.span`display:inline-block;width:38px;height:22px;back
 `;
 const SwitchLabel = styled.span`font-size:12px;font-weight:600;color:#475569;`;
 
+const InviteBanner = styled.div`
+  display:flex; align-items:center; gap:12px; justify-content:space-between;
+  padding:12px 14px; border-radius:10px;
+  background:#FEF3C7; border:1px solid #FDE68A;
+`;
+const InviteBannerText = styled.div`
+  display:flex; flex-direction:column; gap:2px; min-width:0;
+  strong { font-size:13px; font-weight:700; color:#92400E; }
+  span { font-size:12px; color:#A16207; line-height:1.4; }
+`;
+const ResendBtn = styled.button`
+  flex-shrink:0; height:32px; padding:0 12px; border-radius:8px;
+  font-size:12px; font-weight:600; cursor:pointer; white-space:nowrap;
+  color:#fff; background:#0D9488; border:1px solid #0D9488;
+  transition:background 0.12s;
+  &:hover:not(:disabled){ background:#0F766E; }
+  &:disabled{ opacity:0.55; cursor:default; }
+`;
 const Section = styled.section`display:flex;flex-direction:column;gap:8px;`;
 const SectionTitle = styled.h3`font-size:13px;font-weight:700;color:#0F172A;margin:0;`;
 const SectionTitleRow = styled.div`display:flex;align-items:center;justify-content:space-between;`;

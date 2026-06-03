@@ -105,5 +105,12 @@
     "deleted": "Deleted",
     "projectAdded": "Project linked",
     "projectRemoved": "Project unlinked"
+  },
+  "invitePending": {
+    "title": "Invitation pending",
+    "desc": "They haven't signed up yet. Resend the email if they didn't receive it.",
+    "resend": "Resend invite",
+    "resending": "Sending…",
+    "resent": "Invite resent"
   }
 }

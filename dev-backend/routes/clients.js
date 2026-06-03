@@ -249,6 +249,8 @@ router.post('/:businessId/invite', authenticateToken, checkBusinessAccess, async
       invited_at: new Date(),
       invite_token: token,
       invite_email: email.trim(),
+      // N+83 — 초대자를 기본 담당자로 자동 배정 (첫 응대 책임선 명확화). 이후 수동 변경 가능.
+      assigned_member_id: req.user.id,
     });
     await createAuditLog({
       userId: req.user.id, businessId: req.params.businessId,
@@ -272,6 +274,43 @@ router.post('/:businessId/invite', authenticateToken, checkBusinessAccess, async
     } catch (e) { console.warn('invite email send failed:', e.message); }
 
     successResponse(res, created, 'Client invited', 201);
+  } catch (error) { next(error); }
+});
+
+// 초대 재발송 — 아직 수락 안 한 (invited) 고객에게 초대 메일 다시 보내기.
+//   토큰은 유지하되 invited_at 갱신(만료 30일 연장). 이미 가입(active)한 고객은 불가.
+router.post('/:businessId/:id/resend-invite', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+  try {
+    const client = await Client.findOne({ where: { id: req.params.id, business_id: req.params.businessId } });
+    if (!client) return errorResponse(res, 'Client not found', 404);
+    if (client.status === 'active' || client.accepted_at) return errorResponse(res, 'already_accepted', 400);
+    if (!client.invite_email) return errorResponse(res, 'no_invite_email', 400);
+
+    const crypto = require('crypto');
+    // 토큰 없으면 신규 발급, 있으면 유지. invited_at 갱신으로 만료 연장.
+    const token = client.invite_token || crypto.randomBytes(24).toString('hex');
+    await client.update({ invite_token: token, invited_at: new Date(), status: 'invited' });
+
+    try {
+      const { sendInviteEmail } = require('../services/emailService');
+      const biz = await require('../models').Business.findByPk(req.params.businessId, { attributes: ['brand_name', 'name'] });
+      const inviter = await User.findByPk(req.user.id, { attributes: ['name'] });
+      await sendInviteEmail({
+        to: client.invite_email,
+        workspaceName: biz?.brand_name || biz?.name || 'PlanQ',
+        inviterName: inviter?.name || '',
+        targetName: client.display_name || '',
+        kind: 'workspace_client',
+        token,
+      });
+    } catch (e) { console.warn('resend invite email failed:', e.message); }
+
+    await createAuditLog({
+      userId: req.user.id, businessId: req.params.businessId,
+      action: 'client.reinvited', targetType: 'client', targetId: client.id,
+      newValue: { email: client.invite_email },
+    });
+    return successResponse(res, { id: client.id, status: 'invited' }, 'Invite resent');
   } catch (error) { next(error); }
 });
 
