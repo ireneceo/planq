@@ -360,6 +360,7 @@ app.use('/api/posts', require('./routes/posts'));
 app.use('/api/records', require('./routes/records'));
 app.use('/api/search', require('./routes/search'));
 app.use('/api/invoices', require('./routes/invoices'));
+app.use('/api/client-subscriptions', require('./routes/client_subscriptions'));
 app.use('/api/docs', require('./routes/docs'));
 // 서명 — /api/posts/:id/signatures, /api/signatures/:id, /api/sign/:token/* (공개)
 app.use('/api', require('./routes/signatures'));
@@ -445,6 +446,11 @@ function scheduleNextMidnight() {
       const r = await recurringInvoice.runDailyRecurringBilling();
       console.log('[recurring-invoice]', { ok: r.ok, skip: r.skip, fail: r.fail });
     } catch (e) { console.warn('[recurring-invoice] failed', e.message); }
+    try {
+      // N+83 — 고객 정기 구독청구 (프로젝트 무관). next_billing_at 도달분 Invoice 자동 발행.
+      const r = await require('./services/clientSubscriptionBilling').runClientSubscriptionBilling();
+      console.log('[client-subscription]', { due: r.due, billed: r.billed });
+    } catch (e) { console.warn('[client-subscription] failed', e.message); }
     try {
       // io 주입 — generator 가 새 인스턴스 broadcast (CLAUDE.md 16번)
       const r = await recurringTask.runDailyRecurringTaskGen(new Date(), io);

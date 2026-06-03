@@ -16,6 +16,7 @@ import SearchBox from '../../components/Common/SearchBox';
 import PageShell from '../../components/Layout/PageShell';
 import AutoSaveField from '../../components/Common/AutoSaveField';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
+import ClientSubscriptions from './ClientSubscriptions';
 import { useListKeyboardNav } from '../../hooks/useListKeyboardNav';
 
 type ClientStatus = 'invited' | 'active' | 'archived';
@@ -443,6 +444,12 @@ export default function ClientsPage() {
               <ContactRow><ContactLabel>{t('section.contactPhone')}</ContactLabel><ContactValue>{activeDetail.user?.phone || '—'}</ContactValue></ContactRow>
               <Helper>{t('section.contactHelper')}</Helper>
             </Section>
+
+            {activeDetail.status === 'active' && businessId && (
+              <Section>
+                <ClientSubscriptions businessId={businessId} clientId={activeDetail.id} canWrite={isAdmin} />
+              </Section>
+            )}
 
             <Section>
               <SectionTitle>{t('section.notes')}</SectionTitle>

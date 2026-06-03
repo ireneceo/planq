@@ -99,6 +99,7 @@ const EmailFaqSuggestion = require('./EmailFaqSuggestion'); // Q Mail M4
 const BusinessMemberPermission = require('./BusinessMemberPermission');
 const ProjectStatusHistory = require('./ProjectStatusHistory');
 const InvoiceStatusHistory = require('./InvoiceStatusHistory');
+const ClientSubscription = require('./ClientSubscription');
 // ─── Refresh Token (다중 디바이스 세션) ───
 const RefreshToken = require('./RefreshToken');
 const FocusSession = require('./FocusSession');
@@ -146,6 +147,11 @@ Client.belongsTo(User, { as: 'user', foreignKey: 'user_id' });
 Client.belongsTo(User, { as: 'inviter', foreignKey: 'invited_by' });
 Business.hasMany(Client, { as: 'clients', foreignKey: 'business_id' });
 User.hasMany(Client, { as: 'clientProfiles', foreignKey: 'user_id' });
+// ClientSubscription (사업자→고객 정기 구독청구)
+ClientSubscription.belongsTo(Business, { foreignKey: 'business_id' });
+ClientSubscription.belongsTo(Client, { foreignKey: 'client_id' });
+ClientSubscription.belongsTo(User, { as: 'creator', foreignKey: 'created_by' });
+Client.hasMany(ClientSubscription, { as: 'subscriptions', foreignKey: 'client_id' });
 
 // Conversation
 Conversation.belongsTo(Business, { foreignKey: 'business_id' });
@@ -398,6 +404,7 @@ module.exports = {
   Task,
   File,
   Invoice,
+  ClientSubscription,
   InvoiceItem,
   AuditLog,
   KbDocument,
