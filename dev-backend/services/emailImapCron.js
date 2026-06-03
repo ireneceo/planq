@@ -302,15 +302,26 @@ async function syncOne(account) {
         if (!existingPart && fromEmail) {
           participants.push({ email: fromEmail, name: fromName, is_internal: false });
         }
-        // M5 — 신규 inbound thread 만 자동 스팸/Uncertain 분류 (기존 thread 는 status 유지)
-        let spamFields = {};
-        if (isNew) {
-          try {
-            const { classify } = require('./emailSpamFilter');
-            const c = classify({ subject: parsed.subject, bodyText: parsed.text, fromEmail, headers: parsed.headers });
-            spamFields = { status: c.status, spam_score: c.spam_score, uncertain_reason: c.uncertain_reason };
-          } catch (e) { console.warn('[emailSpam] classify', e.message); }
-        }
+        // N+83 — Inbound 트리아지 (human/automated/marketing/spam). spam 판정은 classify 재사용.
+        //   신규 스레드: 전체 분류 박제 + human 이면 reply_needed 자동 ON ("답변 필요" 폴더 작동).
+        //   기존 스레드 후속 inbound: 사람 메일이면 reply_needed 복원 (status/triage 는 유지, spam/archived 제외).
+        let triageFields = {};
+        try {
+          const { triageInbound } = require('./emailTriage');
+          const tr = triageInbound({ subject: parsed.subject, bodyText: parsed.text, fromEmail, headers: parsed.headers });
+          if (isNew) {
+            triageFields = {
+              status: tr.status,
+              spam_score: tr.spam_score,
+              uncertain_reason: tr.uncertain_reason,
+              triage: tr.triage,
+              reply_needed: tr.reply_needed,
+              ...(tr.reply_needed ? { reply_needed_at: parsed.date || new Date(), reply_needed_reason: 'inbound' } : {}),
+            };
+          } else if (tr.reply_needed && thread.status !== 'spam' && thread.status !== 'archived') {
+            triageFields = { reply_needed: true, reply_needed_at: parsed.date || new Date(), reply_needed_reason: 'inbound' };
+          }
+        } catch (e) { console.warn('[emailTriage]', e.message); }
         await thread.update({
           message_count: thread.message_count + 1,
           unread_count: thread.unread_count + 1,
@@ -319,7 +330,7 @@ async function syncOne(account) {
           last_message_preview: preview,
           participants,
           client_id: clientId,
-          ...spamFields,
+          ...triageFields,
         });
 
         // socket emit
