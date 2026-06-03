@@ -132,6 +132,12 @@ router.post('/:token/accept', authenticateToken, async (req, res, next) => {
       await cl.update({ user_id: req.user.id, accepted_at: new Date(), status: 'active' }, { transaction: t });
       await t.commit();
       notifyInviterOnAccept(cl.invited_by, null, 'workspace_client', req.user.id, cl.business_id).catch((e) => console.warn('[notify invite workspace_client]', e.message));
+      // N+83 — 첫 응대 준비: 담당자 명의 customer 대화방 + 환영 메시지 자동 생성 (best-effort, 멱등).
+      //   실패해도 수락은 이미 커밋됨 → 고객 접속 자체는 정상.
+      try {
+        const { ensureWelcomeConversation } = require('../services/clientOnboarding');
+        await ensureWelcomeConversation(cl, { io: req.app.get('io') });
+      } catch (e) { console.warn('[onboarding welcome]', e.message); }
       return successResponse(res, { type: 'workspace_client', business_id: cl.business_id, redirect: '/talk' });
     }
 

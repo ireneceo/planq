@@ -32,6 +32,11 @@ if (typeof window !== 'undefined' && window.visualViewport) {
     if (isUp) document.body.setAttribute('data-keyboard-up', '1');
     else document.body.removeAttribute('data-keyboard-up');
     document.documentElement.style.setProperty('--vvh', `${vv.height}px`);
+    // N+83 — visual viewport 의 vertical scroll(offsetTop) 보정. iOS 가 입력 포커스 시
+    //   visual viewport 를 아래로 스크롤하면(offsetTop>0) position:fixed 앱이 layout viewport 에
+    //   고정돼 그만큼 위로 밀려 채팅 입력란이 화면 위로 사라지는 회귀. #root 를 offsetTop 만큼
+    //   translateY 해 visual viewport 를 따라가게 한다 (index.css, keyboard-up 시에만 적용).
+    document.documentElement.style.setProperty('--vv-offset', `${Math.max(0, vv.offsetTop)}px`);
   };
   update();
   vv.addEventListener('resize', update);

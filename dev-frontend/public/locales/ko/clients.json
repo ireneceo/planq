@@ -105,5 +105,12 @@
     "deleted": "삭제",
     "projectAdded": "프로젝트 연결",
     "projectRemoved": "프로젝트 연결 해제"
+  },
+  "invitePending": {
+    "title": "초대 수락 대기 중",
+    "desc": "아직 가입하지 않았어요. 메일을 못 받았다면 다시 보낼 수 있습니다.",
+    "resend": "초대 재발송",
+    "resending": "보내는 중…",
+    "resent": "재발송 완료"
   }
 }
