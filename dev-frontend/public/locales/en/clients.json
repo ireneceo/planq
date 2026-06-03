@@ -112,5 +112,36 @@
     "resend": "Resend invite",
     "resending": "Sending…",
     "resent": "Invite resent"
+  },
+  "subscription": {
+    "title": "Recurring subscription",
+    "start": "Start subscription",
+    "planName": "Plan name",
+    "planPh": "e.g., Monthly maintenance",
+    "amount": "Amount (net)",
+    "startDate": "Start date",
+    "mode": "Issue mode",
+    "modeDraft": "Review then send",
+    "modeAuto": "Send automatically",
+    "vatNote": "10% VAT is added automatically when billed.",
+    "create": "Start subscription",
+    "formCancel": "Cancel",
+    "errPlan": "Enter a plan name",
+    "errAmount": "Enter a valid amount",
+    "loading": "Loading…",
+    "empty": "No recurring subscriptions yet. Use \"Start subscription\" to set up monthly/weekly auto-billing.",
+    "next": "Next bill",
+    "paused": "Paused",
+    "billNow": "Bill now",
+    "pause": "Pause",
+    "resume": "Resume",
+    "cancel": "Cancel",
+    "interval": {
+      "label": "Interval",
+      "monthly": "Monthly",
+      "weekly": "Weekly",
+      "quarterly": "Quarterly",
+      "yearly": "Yearly"
+    }
   }
 }

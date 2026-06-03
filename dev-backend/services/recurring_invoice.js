@@ -13,7 +13,8 @@
 
 const { Op } = require('sequelize');
 const crypto = require('crypto');
-const { Project, Business, Client, Invoice, InvoiceItem, User, BusinessMember, sequelize } = require('../models');
+const { Project, Business, Client, Invoice, InvoiceItem, User, BusinessMember } = require('../models');
+const { sequelize } = require('../config/database');
 
 // invoice_number 생성 — 동시성 고려 (같은 트랜잭션 / 락 미적용. cron 단일 실행이라 충분)
 async function nextInvoiceNumber() {
@@ -67,6 +68,14 @@ async function billOneProject(project, today = new Date()) {
   const business = await Business.findByPk(project.business_id);
   if (!business) return { project_id: project.id, skipped: 'business_not_found' };
 
+  // Invoice.created_by(notNull) — 청구담당 > owner 멤버 (cron 은 user context 없음)
+  let creatorId = business.default_billing_owner_id || null;
+  if (!creatorId) {
+    const owner = await BusinessMember.findOne({ where: { business_id: business.id, role: 'owner', removed_at: null }, attributes: ['user_id'] });
+    creatorId = owner?.user_id || null;
+  }
+  if (!creatorId) return { project_id: project.id, skipped: 'no_creator' };
+
   const ym = today.toISOString().slice(0, 7); // YYYY-MM
   const dueDate = new Date(today);
   dueDate.setDate(today.getDate() + (business.default_due_days || 14));
@@ -95,7 +104,8 @@ async function billOneProject(project, today = new Date()) {
     title: `${project.name} ${ym} 월 사용료`,
     due_date: dueDate.toISOString().slice(0, 10),
     notes: '정기 자동 청구 (월정액)',
-    created_by: null,
+    created_by: creatorId,
+    owner_user_id: creatorId,
     installment_mode: 'single',
     bank_snapshot: bankSnapshot,
     vat_rate: vatRate,

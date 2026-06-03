@@ -112,5 +112,36 @@
     "resend": "초대 재발송",
     "resending": "보내는 중…",
     "resent": "재발송 완료"
+  },
+  "subscription": {
+    "title": "정기 구독",
+    "start": "구독 시작",
+    "planName": "구독명",
+    "planPh": "예: 월 유지보수",
+    "amount": "금액(공급가)",
+    "startDate": "시작일",
+    "mode": "발행 방식",
+    "modeDraft": "검토 후 발송",
+    "modeAuto": "자동 발송",
+    "vatNote": "부가세 10%가 자동으로 더해져 청구돼요.",
+    "create": "구독 시작",
+    "formCancel": "취소",
+    "errPlan": "구독명을 입력하세요",
+    "errAmount": "금액을 올바르게 입력하세요",
+    "loading": "불러오는 중…",
+    "empty": "아직 정기 구독이 없어요. \"구독 시작\"으로 월/주 단위 자동 청구를 걸 수 있어요.",
+    "next": "다음 청구",
+    "paused": "일시정지",
+    "billNow": "지금 청구",
+    "pause": "일시정지",
+    "resume": "재개",
+    "cancel": "해지",
+    "interval": {
+      "label": "주기",
+      "monthly": "매월",
+      "weekly": "매주",
+      "quarterly": "분기",
+      "yearly": "매년"
+    }
   }
 }
