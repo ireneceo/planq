@@ -118,24 +118,37 @@ export default function PushPromptBanner() {
 }
 
 const Banner = styled.div`
-  display: grid;
-  grid-template-columns: 36px 1fr auto auto auto;
-  gap: 8px;
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
+  gap: 8px 10px;
   padding: 12px 14px;
   background: #FFF7ED;
   border: 1px solid #FED7AA;
   border-radius: 10px;
   margin-bottom: 16px;
+  position: relative;
+  /* 데스크탑: 한 줄 (아이콘·본문·CTA·설정·닫기) */
+  @media (min-width: 641px) { flex-wrap: nowrap; }
+  /* 모바일: 아이콘+본문 첫 줄, CTA·설정 버튼 다음 줄로 wrap. 닫기는 우상단 고정. */
+  @media (max-width: 640px) {
+    padding: 12px;
+    padding-right: 40px;
+    & > a, & > button:not([aria-label]) { flex: 1 1 auto; justify-content: center; }
+  }
 `;
 const BellIcon = styled.div`
-  width: 36px; height: 36px;
+  width: 36px; height: 36px; flex-shrink: 0;
   display: flex; align-items: center; justify-content: center;
   background: #FFEDD5;
   color: #C2410C;
   border-radius: 8px;
 `;
-const Body = styled.div`min-width: 0; display: flex; flex-direction: column; gap: 2px;`;
+const Body = styled.div`
+  min-width: 0; flex: 1 1 auto;
+  display: flex; flex-direction: column; gap: 2px;
+  @media (max-width: 640px) { flex-basis: calc(100% - 46px); }
+`;
 const Title = styled.div`font-size: 13px; font-weight: 700; color: #9A3412; line-height: 1.3;`;
 const Desc = styled.div`font-size: 12px; color: #7C2D12; line-height: 1.4;`;
 const Err = styled.div`font-size: 11px; color: #B91C1C; margin-top: 4px;`;
@@ -157,10 +170,12 @@ const SettingsLink = styled(Link)`
   &:hover { background: #FFEDD5; }
 `;
 const CloseBtn = styled.button`
-  width: 28px; height: 28px;
+  width: 28px; height: 28px; flex-shrink: 0;
   background: transparent; border: none; cursor: pointer;
   color: #C2410C; font-size: 18px; line-height: 1;
   display: flex; align-items: center; justify-content: center;
   border-radius: 4px;
   &:hover { background: #FED7AA; }
+  /* 모바일: 우상단 고정 (본문/버튼 흐름에서 빠짐) */
+  @media (max-width: 640px) { position: absolute; top: 8px; right: 8px; }
 `;

@@ -27,14 +27,19 @@ const ViewportDebug: React.FC = () => {
   useEffect(() => {
     const vv = window.visualViewport;
     const upd = () => setLive(snap());
+    const post = (payload: object) => {
+      try { fetch('/api/diag/vv', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload), keepalive: true }).catch(() => {}); } catch { /* */ }
+    };
+    post({ ev: 'load', path: location.pathname, ...snap() }); // 진입 시점 1회 (대시보드/채팅 모두)
     const onFocusIn = () => {
-      // 포커스 직후 키보드가 올라오는 동안 0/150/400ms 스냅샷을 한 줄로 박제
+      // 포커스 직후 키보드가 올라오는 동안 0/150/400/800ms 스냅샷 — 화면 표시 + 서버 전송
       focusTimers.current.forEach((t) => window.clearTimeout(t));
       const grab: string[] = [];
       const take = (ms: number) => window.setTimeout(() => {
         const s = snap();
         grab.push(`${ms}: vvH${s.vvH} off${s.off} sY${s.sY} kb${s.kb} top${s.listTop}`);
         setFocusSnap(grab.join('  |  '));
+        post({ ev: 'focus', ms, path: location.pathname, ...s });
       }, ms);
       focusTimers.current = [take(0), take(150), take(400), take(800)];
     };

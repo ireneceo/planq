@@ -50,14 +50,6 @@ html, body {
     overflow: hidden;
   }
 
-  /* N+83 — 키보드 up 시에만 #root 를 visual viewport offsetTop 만큼 내려 따라가게 함.
-     iOS 입력 포커스 시 viewport 스크롤로 채팅 입력란이 위로 사라지던 회귀의 근본 fix.
-     keyboard-down(offsetTop=0) 에는 transform 미적용 → position:fixed 자식(모달·메뉴) 정상.
-     모달·토스터는 document.body 로 portal 되어 #root transform 영향 없음. */
-  body[data-keyboard-up="1"] #root {
-    transform: translateY(var(--vv-offset, 0px));
-  }
-
   * {
     max-width: 100vw;
     box-sizing: border-box;

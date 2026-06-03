@@ -18,7 +18,6 @@ import { fetchWorkspaceFiles, uploadMyFile, isImage as isRenderableImage } from 
 import { mediaTablet } from '../../theme/breakpoints';
 import { mapApiError } from '../../utils/apiError';
 import { useImageLightbox } from '../../components/Common/ImageLightbox';
-import ViewportDebug from '../../components/Common/ViewportDebug';
 
 interface Props {
   project: MockProject | null;
@@ -1125,7 +1124,6 @@ const ChatPanel: React.FC<Props> = ({
       )}
 
       {/* 메시지 흐름 */}
-      {user?.email === 'irene@irenewp.com' && <ViewportDebug />}
       <MessageList ref={messageListRef} onScroll={handleScrollSave} data-msglist>
         {/* 과거 메시지 무한 로드 — 상단 로딩 인디케이터 */}
         {loadingOlder && convMessages.length > 0 && (

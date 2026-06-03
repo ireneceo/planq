@@ -359,6 +359,11 @@ app.use('/api/admin', require('./routes/admin'));
 app.use('/api/posts', require('./routes/posts'));
 app.use('/api/records', require('./routes/records'));
 app.use('/api/search', require('./routes/search'));
+// [임시 진단] iOS PWA 채팅 입력 버그 — 클라이언트 viewport 실측 수집. 원인 파악 후 제거.
+app.post('/api/diag/vv', (req, res) => {
+  try { console.log('[VVDIAG]', JSON.stringify(req.body)); } catch { /* ignore */ }
+  res.json({ ok: true });
+});
 app.use('/api/invoices', require('./routes/invoices'));
 app.use('/api/client-subscriptions', require('./routes/client_subscriptions'));
 app.use('/api/docs', require('./routes/docs'));
