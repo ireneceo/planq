@@ -1130,7 +1130,7 @@ const ChatPanel: React.FC<Props> = ({
       )}
 
       {/* 메시지 흐름 */}
-      <MessageList ref={messageListRef} onScroll={handleScrollSave} data-msglist>
+      <MessageList ref={messageListRef} onScroll={handleScrollSave}>
         {/* 과거 메시지 무한 로드 — 상단 로딩 인디케이터 */}
         {loadingOlder && convMessages.length > 0 && (
           <OlderLoadingRow aria-live="polite">
