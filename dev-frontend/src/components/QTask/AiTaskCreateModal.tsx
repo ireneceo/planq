@@ -7,28 +7,14 @@ import { useTranslation } from 'react-i18next';
 import ModalActionButton from '../Common/ModalActionButton';
 import PlanQSelect from '../Common/PlanQSelect';
 import SingleDateField from '../Common/SingleDateField';
-import { CalendarIcon, ClockIcon } from '../Common/Icons';
 import { apiFetch } from '../../contexts/AuthContext';
 import { mapApiError } from '../../utils/apiError';
+import AiCandidateCard, { type AiCandidate } from './AiCandidateCard';
 
 interface Member { user_id: number; name: string; }
 interface Project { id: number; name: string; }
 
-interface Candidate {
-  idx: number;
-  title: string;
-  description?: string;
-  estimated_hours: number;
-  duration_days: number;
-  start_offset_days: number;
-  due_offset_days: number;
-  priority: string;
-  assignee_hint: string | null;
-  assignee_user_id: number | null;
-  depends_on_index: number | null;
-  vague: boolean;
-  selected: boolean;
-}
+type Candidate = AiCandidate;
 
 interface Props {
   open: boolean;
@@ -42,17 +28,6 @@ interface Props {
 }
 
 type Stage = 'input' | 'loading' | 'preview';
-
-// 날짜 헬퍼 (UTC 기준 — 표시용)
-function addDaysISO(baseISO: string, days: number): string {
-  const d = new Date(baseISO + 'T00:00:00Z');
-  d.setUTCDate(d.getUTCDate() + days);
-  return d.toISOString().slice(0, 10);
-}
-function fmtMd(iso: string): string {
-  const m = /^\d{4}-(\d{2})-(\d{2})$/.exec(iso);
-  return m ? `${Number(m[1])}/${Number(m[2])}` : iso;
-}
 
 export default function AiTaskCreateModal({ open, onClose, businessId, projectId, projectFixed, projects = [], members, onCreated }: Props) {
   const { t } = useTranslation('qtask');
@@ -233,63 +208,15 @@ export default function AiTaskCreateModal({ open, onClose, businessId, projectId
                 <BaseHint>{t('ai.baseHint', '시작일을 바꾸면 모든 일정이 자동 재계산돼요.')}</BaseHint>
               </PreviewBaseRow>
               <CardList>
-                {candidates.map(c => {
-                  const dur = Math.max(1, c.due_offset_days - c.start_offset_days);
-                  const startDateStr = addDaysISO(baseDate, c.start_offset_days);
-                  const dueDateStr = addDaysISO(baseDate, c.due_offset_days);
-                  return (
-                    <Card key={c.idx} $disabled={!c.selected}>
-                      <CardHeader>
-                        <Checkbox
-                          type="checkbox"
-                          checked={c.selected}
-                          onChange={e => updateCand(c.idx, { selected: e.target.checked })}
-                        />
-                        <TitleInput
-                          value={c.title}
-                          onChange={e => updateCand(c.idx, { title: e.target.value })}
-                          $vague={c.vague}
-                        />
-                        {c.vague && <VagueBadge title={t('ai.vagueHint', '결과물 명사가 빠진 것 같아요. 예: "디자인" → "메인 시안 작성"') as string}>⚠</VagueBadge>}
-                        <AssigneeInline>
-                          <PlanQSelect
-                            size="sm"
-                            isClearable
-                            placeholder={t('ai.assigneeUnassigned', '미배정') as string}
-                            value={c.assignee_user_id
-                              ? { value: String(c.assignee_user_id), label: members.find(m => m.user_id === c.assignee_user_id)?.name || `#${c.assignee_user_id}` }
-                              : null}
-                            onChange={(v) => {
-                              const val = (v as { value?: string })?.value;
-                              updateCand(c.idx, { assignee_user_id: val ? Number(val) : null });
-                            }}
-                            options={members.map(m => ({ value: String(m.user_id), label: m.name || `#${m.user_id}` }))}
-                          />
-                        </AssigneeInline>
-                      </CardHeader>
-                      <CardMetaRow>
-                        <MetaItem>
-                          <MetaIcon><CalendarIcon size={13} /></MetaIcon>
-                          <DateRange>{fmtMd(startDateStr)} → {fmtMd(dueDateStr)}</DateRange>
-                          <DurEdit>(
-                            <DurInput type="number" min={1} max={90} value={dur}
-                              onChange={e => {
-                                const newDur = Math.max(1, Number(e.target.value) || 1);
-                                updateCand(c.idx, { due_offset_days: c.start_offset_days + newDur });
-                              }} />
-                            {t('ai.itemDays', '일')})
-                          </DurEdit>
-                        </MetaItem>
-                        <MetaItem>
-                          <MetaIcon><ClockIcon size={13} /></MetaIcon>
-                          <DurInput type="number" min={1} max={80} value={c.estimated_hours}
-                            onChange={e => updateCand(c.idx, { estimated_hours: Number(e.target.value) || 1 })} />
-                          <Unit>h</Unit>
-                        </MetaItem>
-                      </CardMetaRow>
-                    </Card>
-                  );
-                })}
+                {candidates.map(c => (
+                  <AiCandidateCard
+                    key={c.idx}
+                    candidate={c}
+                    members={members}
+                    baseDate={baseDate}
+                    onChange={(patch) => updateCand(c.idx, patch)}
+                  />
+                ))}
               </CardList>
               {error && <ErrorMsg>{error}</ErrorMsg>}
             </AIForm>
@@ -422,54 +349,6 @@ const ReasoningBox = styled.div`
   border-left: 3px solid #14B8A6; border-radius: 6px; font-size: 12px; line-height: 1.5;
 `;
 const CardList = styled.div`display: flex; flex-direction: column; gap: 8px;`;
-const Card = styled.div<{ $disabled: boolean }>`
-  padding: 10px 12px;
-  background: ${p => p.$disabled ? '#F8FAFC' : '#FFFFFF'};
-  border: 1px solid ${p => p.$disabled ? '#E2E8F0' : '#CBD5E1'};
-  border-radius: 8px;
-  opacity: ${p => p.$disabled ? 0.6 : 1};
-  display: flex; flex-direction: column; gap: 8px;
-`;
-const CardHeader = styled.div`display: flex; align-items: center; gap: 8px;`;
-const Checkbox = styled.input`width: 16px; height: 16px; flex-shrink: 0; cursor: pointer;`;
-const TitleInput = styled.input<{ $vague: boolean }>`
-  flex: 1; min-width: 0;
-  padding: 4px 6px;
-  border: 1px solid transparent;
-  border-radius: 4px;
-  font-size: 14px; font-weight: 600; color: #0F172A;
-  background: transparent;
-  ${p => p.$vague && 'background: #FEF3C7; border-color: #FCD34D;'}
-  &:focus { outline: none; border-color: #14B8A6; background: #FFFFFF; }
-`;
-const VagueBadge = styled.span`flex-shrink: 0; font-size: 14px; color: #B45309; cursor: help;`;
-const AssigneeInline = styled.div`
-  flex-shrink: 0; min-width: 110px; max-width: 150px;
-  margin-left: auto;
-`;
-const CardMetaRow = styled.div`
-  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
-  padding-left: 24px;
-  font-size: 12px; color: #475569;
-`;
-const MetaItem = styled.div`
-  display: inline-flex; align-items: center; gap: 4px;
-`;
-const MetaIcon = styled.span`
-  display: inline-flex; align-items: center; color: #94A3B8; flex-shrink: 0;
-`;
-const DateRange = styled.span`color: #0F172A; font-weight: 600;`;
-const DurEdit = styled.span`
-  display: inline-flex; align-items: center; gap: 2px;
-  color: #94A3B8; font-size: 11px;
-`;
-const DurInput = styled.input`
-  width: 38px; padding: 1px 3px;
-  border: 1px solid #E2E8F0; border-radius: 4px;
-  font-size: 11px; text-align: right;
-  &:focus { outline: none; border-color: #14B8A6; }
-`;
-const Unit = styled.span`color: #94A3B8; font-size: 11px;`;
 const PreviewBaseRow = styled.div`
   display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
   padding: 8px 10px;

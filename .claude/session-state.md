@@ -1,7 +1,25 @@
 # PlanQ 세션 상태
 
-**마지막 업데이트:** 2026-06-03 (사이클 N+83 — v1.29.0 + 진단 배포)
-**작업 상태:** 진행 중 — iOS PWA 채팅 입력 버그 **진단 데이터 수집 단계**. 다음 세션에 로그 읽고 fix.
+**마지막 업데이트:** 2026-06-04 (사이클 N+84 작업 중 — dev 검증 완료, 운영 미배포)
+**작업 상태:** dev 에 2건 반영 — ① iOS 채팅 fix(데이터 기반, Irene 실기기 확인 대기) ② Q Task "Cue에게 말하기" 바(API 13/13 검증). **운영 미배포** — /배포 명령 대기.
+
+---
+
+## ★ 이번 세션 완료 (dev only, 미배포)
+
+### ① iOS PWA 채팅 입력 phantom-scroll fix — 데이터 기반
+- **원인 확정(VVDIAG 실측):** iOS 가 입력 focus 시 document 를 키보드 높이만큼 phantom scroll → `window.scrollY/visualViewport.offsetTop=376` (정상 focus 는 0). position:fixed body 가 못 되돌려 콘텐츠 위로 밀림+아래 여백.
+- **fix(`main.tsx`):** visualViewport resize/scroll/focus 마다 모바일에서 `scrollY≠0||offsetTop≠0` 이면 `window.scrollTo(0,0)` 강제 정렬. + 키보드 판정 stale innerHeight → 안정 기준 높이.
+- **진단 인프라 유지 중**(ViewportDebug + `/api/diag/vv`) — Irene dev PWA 테스트 → dev VVDIAG 로 `off/sY=0` 데이터 확인 후 제거 예정.
+- **다음:** Irene 아이폰에서 dev.planq.kr (홈화면추가 standalone) Q Talk 입력란 탭 → 정상 확인 → 진단 제거 → /배포.
+- 메모리 [[feedback_mobile_chat_input_offsettop]] 갱신 필요(offsetTop translate 가설 폐기, scrollTo(0,0) 가 정답).
+
+### ② Q Task "Cue에게 말하기" 바 (신규 기능)
+- 캐주얼 한마디 → Cue 가 업무로 정리 → 인라인 미리보기 → [추가]. 모달 아님(제자리). 상단 상시 바.
+- 신규: `components/QTask/CueTaskBar.tsx` + `AiCandidateCard.tsx`(모달과 공유 추출, DRY). QTaskPage 마운트(week/all/workspace-tasks 탭).
+- 백엔드 재사용: `/api/tasks/ai-create`(+/confirm). **신규 `mode:'quick'`** — 한마디=1업무 (나열 시만 다중). planner buildSystemPrompt + 라우트.
+- i18n ko/en `ai.bar.*` + `ai.itemDays`(기존 누락).
+- **검증 13/13** — quick 1개 / 나열 5개 / 빈 400 / DB저장·격리 / cleanup. socket task:new 로 실시간 반영(기존).
 
 ---
 

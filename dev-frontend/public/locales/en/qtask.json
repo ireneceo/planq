@@ -554,8 +554,13 @@
         "toSettings": "Settings"
       },
       "dow": {
-        "sun": "Sunday", "mon": "Monday", "tue": "Tuesday", "wed": "Wednesday",
-        "thu": "Thursday", "fri": "Friday", "sat": "Saturday"
+        "sun": "Sunday",
+        "mon": "Monday",
+        "tue": "Tuesday",
+        "wed": "Wednesday",
+        "thu": "Thursday",
+        "fri": "Friday",
+        "sat": "Saturday"
       },
       "exec": {
         "label": "Headline",
@@ -736,6 +741,21 @@
     "generating": "Generating...",
     "regenerate": "Regenerate",
     "confirm": "Add {{n}}",
-    "confirming": "Adding..."
+    "confirming": "Adding...",
+    "itemDays": "d",
+    "bar": {
+      "lead": "Ask Cue",
+      "send": "Send",
+      "added": "Added",
+      "thinking": "Cue is organizing...",
+      "organized": "Cue organized it like this",
+      "close": "Close",
+      "hintEnter": "Press Enter to send to Cue · Shift+Enter for a new line",
+      "examples": [
+        "Finish the main draft by tomorrow",
+        "Write a competitor comparison table this week",
+        "Presentation deck draft by next Monday"
+      ]
+    }
   }
 }
