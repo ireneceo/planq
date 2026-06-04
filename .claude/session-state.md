@@ -1,11 +1,22 @@
 # PlanQ 세션 상태
 
-**마지막 업데이트:** 2026-06-04 (사이클 N+85)
-**작업 상태:** **운영 라이브 v1.31.0** (deploy `20260604_100933`, commit `0dd7af3`). Q Bill 결제 자동화 검증 + "입금 확인 대기" 보강.
+**마지막 업데이트:** 2026-06-04 (사이클 N+86)
+**작업 상태:** **운영 라이브 v1.32.0** (deploy `20260604_111416`, commit `1d48770`). Q Bill 결제 독촉 보내기.
 
 ---
 
-## 완료된 작업 (이번 세션 — 운영 라이브 v1.31.0)
+## 완료된 작업 (이번 세션 — 운영 라이브 v1.32.0)
+
+### Q Bill 결제 독촉 보내기 (N+86)
+- "입금 확인 대기"의 반대쪽 — 은행계좌·수동 결제 운영 루프 완성. **입금 확인 대기**(고객 송금보고→확인) ↔ **결제 독촉**(미결제→운영자 리마인더).
+- **백엔드 신규** `POST /api/invoices/:biz/:id/send-reminder` — sent/partially_paid/overdue 만, `requireMenu('qbill','write')`+`checkBusinessAccess`. **per-user rate-limit 30/h + invoice별 6시간 쿨다운** + AuditLog(`invoice.send_reminder`) + `invoice:updated` broadcast + `meta.last_reminder_at`/`reminder_count`.
+- **메일** `emailService.sendPaymentReminderEmail` (emailWrap 레이아웃 일관, 연체 시 빨강 강조).
+- **프론트** `InvoiceDetailDrawer` "결제 독촉 보내기" 액션 + "최근 발송 N일 전" 툴팁 + ok/warn 인라인 피드백(토스트 금지). `ApiInvoice.meta` 타입 + `sendInvoiceReminder` 서비스.
+- DB 스키마 0(meta 기존). E2E 12/12. 검증: 헬스 29/29·빌드 EXIT 0·운영 smoke 401.
+
+---
+
+## 직전 세션 (v1.31.0, 사이클 N+85)
 
 ### Q Bill 결제 자동화 — 검증 + "입금 확인 대기" 보강
 - **요청 범위 확정:** 청구서 자동발행 + 은행계좌(계좌이체)만. 카드결제(PortOne)·오픈뱅킹 자동입금확인은 "운영 실제 시작 때"로 보류 (Irene 결정).
