@@ -554,8 +554,13 @@
         "toSettings": "설정 변경"
       },
       "dow": {
-        "sun": "일요일", "mon": "월요일", "tue": "화요일", "wed": "수요일",
-        "thu": "목요일", "fri": "금요일", "sat": "토요일"
+        "sun": "일요일",
+        "mon": "월요일",
+        "tue": "화요일",
+        "wed": "수요일",
+        "thu": "목요일",
+        "fri": "금요일",
+        "sat": "토요일"
       },
       "exec": {
         "label": "이번 주 한 마디",
@@ -736,6 +741,21 @@
     "generating": "생성 중...",
     "regenerate": "다시 생성",
     "confirm": "{{n}}개 추가",
-    "confirming": "추가 중..."
+    "confirming": "추가 중...",
+    "itemDays": "일",
+    "bar": {
+      "lead": "Cue에게 말하기",
+      "send": "보내기",
+      "added": "추가됐어요",
+      "thinking": "Cue가 정리하는 중...",
+      "organized": "Cue가 이렇게 정리했어요",
+      "close": "닫기",
+      "hintEnter": "Enter 로 Cue에게 보내기 · Shift+Enter 줄바꿈",
+      "examples": [
+        "내일까지 메인 시안 완성",
+        "이번 주 안에 경쟁사 비교표 작성",
+        "다음 주 월요일 발표자료 초안"
+      ]
+    }
   }
 }

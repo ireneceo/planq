@@ -17,6 +17,7 @@ import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import TaskRowActionMenu from '../../components/QTask/TaskRowActionMenu';
 import { responsiveDrawerWidth } from '../../utils/responsiveDrawer';
 import AiTaskCreateModal from '../../components/QTask/AiTaskCreateModal';
+import CueTaskBar from '../../components/QTask/CueTaskBar';
 import AiActionButton from '../../components/Common/AiActionButton';
 import EmptyState from '../../components/Common/EmptyState';
 import RichEditor from '../../components/Common/RichEditor';
@@ -1381,6 +1382,16 @@ const QTaskPage:React.FC=()=>{
         {/* 전체 주간 보고 탭 — workspace 두번째 */}
         {tab==='workspace-weekly' && bizId && (
           <WeeklyReviewTab businessId={bizId} userId={myId} reviewScope="workspace" />
+        )}
+
+        {/* Cue에게 말하기 바 — 캐주얼 한마디 → AI 업무 즉시 생성 (리스트 탭에서만, 요청하기 제외) */}
+        {bizId && ((scope==='mine'&&(tab==='week'||tab==='all')) || (scope==='workspace'&&tab!=='workspace-weekly')) && (
+          <CueTaskBar
+            businessId={bizId}
+            projectId={null}
+            members={members.map(m=>({user_id:m.user_id,name:m.name}))}
+            onCreated={()=>{ /* socket task:new 가 리스트 자동 반영 */ }}
+          />
         )}
 
         {/* 일반 탭 — 기존 리스트 (week/all/requested/workspace-tasks/scope=workspace 기본) */}

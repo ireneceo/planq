@@ -31,13 +31,27 @@ function detectVague(title, language) {
   return list.some(w => lower.includes(w.toLowerCase()));
 }
 
-function buildSystemPrompt(language, members, projectContext, targetDate, todayLocal) {
+function buildSystemPrompt(language, members, projectContext, targetDate, todayLocal, mode) {
   const lang = language === 'en' ? 'English' : 'Korean';
+  // quick 모드 — "Cue에게 말하기" 바의 캐주얼 한마디. 분해 최소화(보통 1개), 사용자가 명시적으로
+  // 여러 산출물을 나열했을 때만 다중. 일반 모달은 mode 없음(기존 분해 정책 유지).
+  const quickBlock = mode === 'quick' ? `
+
+═══ QUICK CAPTURE MODE (override decomposition) ═══
+
+This input came from a casual one-line "talk to me" bar. The user expects ONE task unless they clearly listed multiple distinct deliverables.
+- Default to exactly 1 task. Do NOT auto-expand a single deliverable into phases.
+- Only output multiple tasks if the user explicitly enumerated separate deliverables (예: "A 하고 B 하고 C") or asked to break it down.
+- Still apply the naming policy (outcome-named title) and respect any stated deadline.
+- This QUICK rule OVERRIDES the "minimum 3 tasks" / domain-expansion rules below.
+` : '';
+
   const memberLines = members && members.length > 0
     ? members.map(m => `  - ${m.name}${m.job_title ? ` (${m.job_title}` + (m.expertise ? `, ${m.expertise.slice(0, 60)}` : '') + ')' : ''}`).join('\n')
     : '  (no members)';
 
   return `You are a 30-year veteran project planning consultant with deep expertise across web/app development, marketing campaigns, sales pipelines, content production, event planning, and operations. You have personally launched hundreds of projects and know the standard professional workflow for any business domain.
+${quickBlock}
 
 ═══ EXPERT-LEVEL QUALITY BAR (zero-compromise) ═══
 
@@ -197,11 +211,11 @@ function matchMemberByHint(hint, members) {
 }
 
 // 메인 — 미리보기 후보 생성
-async function planTasksFromPrompt({ prompt, businessId, projectContext, members = [], targetDate = null, todayLocal, language = 'ko' }) {
+async function planTasksFromPrompt({ prompt, businessId, projectContext, members = [], targetDate = null, todayLocal, language = 'ko', mode = null }) {
   if (!prompt || !String(prompt).trim()) {
     return { candidates: [], reasoning: '', fallback: true, error: 'empty_prompt' };
   }
-  const systemPrompt = buildSystemPrompt(language, members, projectContext, targetDate, todayLocal);
+  const systemPrompt = buildSystemPrompt(language, members, projectContext, targetDate, todayLocal, mode);
   const result = await callOpenAi(systemPrompt, String(prompt).trim());
 
   let parsed;
