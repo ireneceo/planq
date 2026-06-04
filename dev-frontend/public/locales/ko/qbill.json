@@ -11,7 +11,6 @@
       "settings": "설정"
     }
   },
-
   "overview": {
     "title": "이번 달 한눈에 보기",
     "period": {
@@ -48,9 +47,19 @@
       "newInvoice": "새 청구서 발행",
       "sendReminder": "결제 독촉 발송",
       "issueTax": "세금계산서 발행"
+    },
+    "pendingDeposit": {
+      "title": "입금 확인 대기",
+      "hint": "고객이 송금완료를 알렸어요. 입금을 확인하고 처리하세요.",
+      "reportedBy": "{{name}} 송금 보고",
+      "unknownPayer": "입금자 미상",
+      "today": "오늘",
+      "daysAgo": "{{days}}일 전",
+      "confirm": "입금 확인",
+      "confirming": "처리 중…",
+      "review": "확인하기"
     }
   },
-
   "invoices": {
     "title": "청구서",
     "searchPh": "청구번호·고객·제목·프로젝트 검색",
@@ -95,7 +104,6 @@
       "overdueDays": "{{days}}일 경과"
     }
   },
-
   "detail": {
     "header": {
       "actions": {
@@ -154,7 +162,13 @@
       "milestone": "마일스톤",
       "due": "기한",
       "amount": "금액",
-      "status": "상태",
+      "status": {
+        "pending": "대기",
+        "sent": "발송됨",
+        "paid": "결제완료",
+        "overdue": "연체",
+        "canceled": "취소"
+      },
       "actions": "액션",
       "menu": {
         "markPaid": "결제 완료 마킹",
@@ -163,13 +177,6 @@
         "sendChat": "채팅 결제 요청",
         "sendReminder": "독촉 메일 발송",
         "cancel": "회차 취소"
-      },
-      "status": {
-        "pending": "대기",
-        "sent": "발송됨",
-        "paid": "결제완료",
-        "overdue": "연체",
-        "canceled": "취소"
       },
       "paidAt": "{{date}} 입금",
       "taxIssued": "세금계산서 발행됨",
@@ -216,7 +223,6 @@
       "empty": "활동이 없습니다"
     }
   },
-
   "newInvoice": {
     "title": "새 청구서",
     "sent": {
@@ -360,7 +366,6 @@
       "businessIncomplete": "발신 사업자 정보가 부족합니다"
     }
   },
-
   "payments": {
     "title": "결제 추적",
     "tabs": {
@@ -402,7 +407,6 @@
       "all": "결제 내역이 없습니다"
     }
   },
-
   "taxInvoices": {
     "title": "세금계산서",
     "tabs": {
@@ -445,7 +449,6 @@
       "all": "세금계산서 내역이 없습니다"
     }
   },
-
   "settings": {
     "title": "Q bill 설정",
     "issuer": {
@@ -511,7 +514,6 @@
       "graceDaysHint": "진행: 1일차 1차 알림 → 약 절반(또는 7일) 임박 알림 → 도달 시 프로젝트 자동 정지. 결제 마킹하면 즉시 재개됩니다."
     }
   },
-
   "common": {
     "save": "저장",
     "cancel": "취소",
