@@ -27,16 +27,30 @@ bindPermissionSync();
 // 100dvh 지연 회귀 + body(정적 layout viewport) 와 자식(동적 vvh) 불일치 차단.
 if (typeof window !== 'undefined' && window.visualViewport) {
   const vv = window.visualViewport;
+  const mq = window.matchMedia('(max-width: 768px)');
+  // 키보드 판정 안정 기준 높이. iOS PWA standalone 은 키보드 up 시 innerHeight 자체가
+  // 줄어드는 경우가 있어 (실측 VVDIAG: iH 793→417) live innerHeight 로 isUp 판정하면
+  // 오판. orientation/툴바 복귀로만 갱신되는 최대값을 기준으로 사용.
+  let fullH = window.innerHeight;
   const update = () => {
-    const isUp = vv.height < window.innerHeight * 0.70;
+    if (window.innerHeight > fullH) fullH = window.innerHeight;
+    const isUp = vv.height < fullH * 0.70;
     if (isUp) document.body.setAttribute('data-keyboard-up', '1');
     else document.body.removeAttribute('data-keyboard-up');
     document.documentElement.style.setProperty('--vvh', `${vv.height}px`);
+    // iOS PWA standalone phantom scroll 차단 (근본 fix). 입력란 focus 시 iOS 가
+    // document 를 키보드 높이만큼 스크롤 (실측 VVDIAG: 깨진 focus 는 window.scrollY/
+    // visualViewport.offsetTop=376, 정상 focus 는 0). position:fixed body 가 이를
+    // 못 되돌려 콘텐츠가 위로 밀리고 아래 흰 여백 → 강제로 0 정렬해 고정 레이아웃을
+    // visual viewport 에 맞춤. 모바일 고정 레이아웃에서만 (데스크탑 정상 스크롤 보호).
+    if (mq.matches && (window.scrollY !== 0 || vv.offsetTop !== 0)) {
+      window.scrollTo(0, 0);
+    }
   };
   update();
   vv.addEventListener('resize', update);
   vv.addEventListener('scroll', update);
-  window.addEventListener('orientationchange', update);
+  window.addEventListener('orientationchange', () => { fullH = window.innerHeight; requestAnimationFrame(update); });
   // focusin/focusout — textarea/input focus 가 visualViewport.resize 보다 늦게 fire 되는 iOS 케이스 보정
   window.addEventListener('focusin', () => requestAnimationFrame(update));
   window.addEventListener('focusout', () => requestAnimationFrame(update));
