@@ -29,6 +29,8 @@ export interface ApiInstallment {
   paid_at: string | null;
   paid_amount: number;
   payer_memo: string | null;
+  notify_paid_at: string | null;
+  notify_payer_name: string | null;
   tax_invoice_no: string | null;
   tax_invoice_at: string | null;
   milestone_ref: string | null;
@@ -84,6 +86,8 @@ export interface ApiInvoice {
   notes: string | null;
   share_token: string | null;
   viewed_at: string | null;
+  notify_paid_at: string | null;
+  notify_payer_name: string | null;
   source_post_id: number | null;
   project_id: number | null;
   bank_snapshot: { bank_name?: string; account_number?: string; account_holder?: string } | null;

@@ -1,20 +1,37 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
-import { listInvoices, formatMoney, type ApiInvoice } from '../../services/invoices';
+import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
+import {
+  listInvoices, formatMoney, updateInvoiceStatus, markInstallmentPaid,
+  type ApiInvoice, type ApiInstallment,
+} from '../../services/invoices';
 
 type Period = 'thisMonth' | 'last30' | 'ytd';
+
+// 고객이 송금완료를 알린(notify_paid_at) 미확인 청구서 — 운영자 입금확인 대기 1건
+interface PendingDeposit {
+  key: string;
+  inv: ApiInvoice;
+  installment: ApiInstallment | null;
+  amount: number;
+  payerName: string | null;
+  reportedAt: string | null;
+}
 
 export default function OverviewTab() {
   const { t } = useTranslation('qbill');
   const navigate = useNavigate();
   const { user } = useAuth();
   const businessId = user?.business_id ? Number(user.business_id) : null;
+  const isOwner = user?.business_role === 'owner';
   const [period, setPeriod] = useState<Period>('thisMonth');
   const [invoices, setInvoices] = useState<ApiInvoice[]>([]);
   const [loading, setLoading] = useState(true);
+  const [reloadKey, setReloadKey] = useState(0);
+  const [confirming, setConfirming] = useState<string | null>(null);
 
   useEffect(() => {
     if (!businessId) { setLoading(false); return; }
@@ -25,11 +42,67 @@ export default function OverviewTab() {
       .catch(() => { if (!cancelled) setInvoices([]); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [businessId]);
+  }, [businessId, reloadKey]);
+
+  const reload = useCallback(() => setReloadKey(k => k + 1), []);
+
+  // N+39 — PWA visibility 안전망
+  useVisibilityRefresh(reload);
+
+  // 실시간 동기화 (CLAUDE.md 운영 안정성 16번) — 고객 송금 보고(notify-paid 의 inbox:refresh)가 즉시 뜸
+  useEffect(() => {
+    if (!businessId) return;
+    let pending: number | null = null;
+    const debouncedReload = () => {
+      if (pending) return;
+      pending = window.setTimeout(() => { pending = null; reload(); }, 250);
+    };
+    let socket: { disconnect: () => void } | null = null;
+    import('socket.io-client').then(({ io }) => {
+      import('../../contexts/AuthContext').then(({ getAccessToken }) => {
+        if (!getAccessToken()) return;
+        const s = io({
+          auth: (cb: (a: { token: string | null }) => void) => cb({ token: getAccessToken() }),
+          transports: ['websocket', 'polling'],
+          reconnection: true,
+        });
+        socket = s;
+        s.on('connect', () => { s.emit('join:business', businessId); });
+        s.on('invoice:new', debouncedReload);
+        s.on('invoice:updated', debouncedReload);
+        s.on('invoice:deleted', debouncedReload);
+        s.on('inbox:refresh', debouncedReload);
+      });
+    });
+    return () => {
+      if (pending) window.clearTimeout(pending);
+      if (socket) socket.disconnect();
+    };
+  }, [businessId, reload]);
 
   const stats = useMemo(() => computeStats(invoices, period), [invoices, period]);
   const trend = useMemo(() => buildTrend(invoices), [invoices]);
   const topUnpaid = useMemo(() => buildTopUnpaid(invoices), [invoices]);
+  const pendingDeposits = useMemo(() => buildPendingDeposits(invoices), [invoices]);
+
+  const handleConfirm = async (item: PendingDeposit) => {
+    if (!businessId || confirming) return;
+    setConfirming(item.key);
+    try {
+      if (item.installment) {
+        await markInstallmentPaid(businessId, item.inv.id, item.installment.id,
+          item.payerName ? { payer_memo: item.payerName } : {});
+      } else {
+        await updateInvoiceStatus(businessId, item.inv.id, 'paid');
+      }
+      reload();
+    } catch {
+      // 실패 시 reload 로 최신 상태 재조회 (낙관적 제거 없음)
+      reload();
+    } finally {
+      setConfirming(null);
+    }
+  };
 
   return (
     <Wrap>
@@ -52,6 +125,61 @@ export default function OverviewTab() {
           ))}
         </PeriodToggle>
       </Head>
+
+      {/* 입금 확인 대기 — 고객이 송금완료를 알린 미확인 청구서 (있을 때만) */}
+      {pendingDeposits.length > 0 && (
+        <ActionPanel role="region" aria-label={t('overview.pendingDeposit.title')}>
+          <ActionHead>
+            <ActionTitle>
+              {t('overview.pendingDeposit.title')}
+              <ActionCount>{pendingDeposits.length}</ActionCount>
+            </ActionTitle>
+            <ActionHint>{t('overview.pendingDeposit.hint')}</ActionHint>
+          </ActionHead>
+          <PendingList>
+            {pendingDeposits.map(item => {
+              const client = item.inv.Client || item.inv.client;
+              const days = daysSince(item.reportedAt);
+              return (
+                <PendingRow key={item.key}>
+                  <PendingMain onClick={() => navigate(`/bills?tab=invoices&invoice=${item.inv.id}`)}>
+                    <PendingTop>
+                      <PendingNum>{item.inv.invoice_number}</PendingNum>
+                      {item.installment && <PendingTag>{item.installment.label}</PendingTag>}
+                      <PendingClient>{client?.display_name || client?.biz_name || client?.company_name || '—'}</PendingClient>
+                    </PendingTop>
+                    <PendingMeta>
+                      {t('overview.pendingDeposit.reportedBy', {
+                        name: item.payerName || t('overview.pendingDeposit.unknownPayer'),
+                      })}
+                      {' · '}
+                      {days <= 0 ? t('overview.pendingDeposit.today') : t('overview.pendingDeposit.daysAgo', { days })}
+                    </PendingMeta>
+                  </PendingMain>
+                  <PendingRight>
+                    <PendingAmt>{formatMoney(item.amount, item.inv.currency)}</PendingAmt>
+                    {isOwner ? (
+                      <ConfirmBtn
+                        type="button"
+                        disabled={confirming === item.key}
+                        onClick={() => handleConfirm(item)}
+                      >
+                        {confirming === item.key
+                          ? t('overview.pendingDeposit.confirming')
+                          : t('overview.pendingDeposit.confirm')}
+                      </ConfirmBtn>
+                    ) : (
+                      <ReviewBtn type="button" onClick={() => navigate(`/bills?tab=invoices&invoice=${item.inv.id}`)}>
+                        {t('overview.pendingDeposit.review')}
+                      </ReviewBtn>
+                    )}
+                  </PendingRight>
+                </PendingRow>
+              );
+            })}
+          </PendingList>
+        </ActionPanel>
+      )}
 
       {/* KPI 카드 4개 */}
       <KpiGrid>
@@ -250,6 +378,33 @@ function buildTopUnpaid(list: ApiInvoice[]): ApiInvoice[] {
     .sort((a, b) => (Number(b.grand_total || 0) - Number(b.paid_amount || 0)) - (Number(a.grand_total || 0) - Number(a.paid_amount || 0)));
 }
 
+// 입금 확인 대기: 고객이 송금완료를 알렸으나(notify_paid_at) 아직 paid 처리 안 된 것.
+// 단건 = invoice.notify_paid_at / 분할 = installment.notify_paid_at. 오래 기다린 순(오름차순).
+function buildPendingDeposits(list: ApiInvoice[]): PendingDeposit[] {
+  const items: PendingDeposit[] = [];
+  for (const inv of list) {
+    if (inv.status === 'canceled') continue;
+    const insts = inv.installments || [];
+    if (insts.length > 0) {
+      for (const ins of insts) {
+        if (ins.notify_paid_at && ins.status !== 'paid' && ins.status !== 'canceled') {
+          items.push({
+            key: `${inv.id}-${ins.id}`, inv, installment: ins,
+            amount: Number(ins.amount || 0), payerName: ins.notify_payer_name, reportedAt: ins.notify_paid_at,
+          });
+        }
+      }
+    } else if (inv.notify_paid_at && inv.status !== 'paid') {
+      items.push({
+        key: `${inv.id}`, inv, installment: null,
+        amount: Number(inv.grand_total || 0) - Number(inv.paid_amount || 0),
+        payerName: inv.notify_payer_name, reportedAt: inv.notify_paid_at,
+      });
+    }
+  }
+  return items.sort((a, b) => (a.reportedAt || '').localeCompare(b.reportedAt || ''));
+}
+
 function daysSince(dateStr: string | null): number {
   if (!dateStr) return 0;
   const target = new Date(dateStr);
@@ -329,6 +484,80 @@ const PeriodBtn = styled.button<{ $active: boolean }>`
   box-shadow: ${p => p.$active ? '0 1px 2px rgba(15,23,42,0.06)' : 'none'};
   transition: all 0.15s;
   &:hover { color: #0F172A; }
+`;
+// ─── 입금 확인 대기 (action panel) ───
+const ActionPanel = styled.div`
+  background: #FFF1F2; border: 1px solid #FECDD3; border-radius: 12px;
+  padding: 16px 18px; display: flex; flex-direction: column; gap: 12px;
+`;
+const ActionHead = styled.div`
+  display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
+`;
+const ActionTitle = styled.div`
+  display: inline-flex; align-items: center; gap: 8px;
+  font-size: 13px; font-weight: 700; color: #9F1239;
+`;
+const ActionCount = styled.span`
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 20px; height: 20px; padding: 0 6px;
+  background: #F43F5E; color: #fff; font-size: 11px; font-weight: 700;
+  border-radius: 999px;
+`;
+const ActionHint = styled.div`
+  font-size: 12px; color: #9F1239; opacity: 0.85;
+`;
+const PendingList = styled.div`
+  display: flex; flex-direction: column; gap: 8px;
+`;
+const PendingRow = styled.div`
+  display: flex; align-items: center; gap: 12px;
+  background: #fff; border: 1px solid #FECDD3; border-radius: 10px;
+  padding: 12px 14px;
+  @media (max-width: 640px) { flex-direction: column; align-items: stretch; }
+`;
+const PendingMain = styled.div`
+  flex: 1; min-width: 0; cursor: pointer;
+  display: flex; flex-direction: column; gap: 4px;
+`;
+const PendingTop = styled.div`
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0;
+`;
+const PendingNum = styled.span`
+  font-size: 12px; font-weight: 700; color: #0F172A;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+`;
+const PendingTag = styled.span`
+  font-size: 10px; font-weight: 700; color: #9F1239; background: #FFE4E6;
+  padding: 2px 6px; border-radius: 4px;
+`;
+const PendingClient = styled.span`
+  font-size: 12px; color: #64748B;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+`;
+const PendingMeta = styled.div`
+  font-size: 11px; color: #64748B;
+`;
+const PendingRight = styled.div`
+  display: flex; align-items: center; gap: 12px; flex-shrink: 0;
+  @media (max-width: 640px) { justify-content: space-between; }
+`;
+const PendingAmt = styled.div`
+  font-size: 14px; font-weight: 700; color: #0F172A;
+`;
+const ConfirmBtn = styled.button`
+  height: 36px; padding: 0 14px; border: none; border-radius: 8px;
+  background: #F43F5E; color: #fff; font-size: 13px; font-weight: 600;
+  cursor: pointer; transition: background 0.15s; white-space: nowrap;
+  &:hover:not(:disabled) { background: #E11D48; }
+  &:disabled { opacity: 0.5; cursor: default; }
+  &:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(244,63,94,0.3); }
+`;
+const ReviewBtn = styled.button`
+  height: 36px; padding: 0 14px; border: 1px solid #CBD5E1; border-radius: 8px;
+  background: #fff; color: #334155; font-size: 13px; font-weight: 600;
+  cursor: pointer; transition: background 0.15s; white-space: nowrap;
+  &:hover { background: #F8FAFC; }
+  &:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(20,184,166,0.3); }
 `;
 const KpiGrid = styled.div`
   display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px;

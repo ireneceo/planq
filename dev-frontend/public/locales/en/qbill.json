@@ -11,7 +11,6 @@
       "settings": "Settings"
     }
   },
-
   "overview": {
     "title": "This month at a glance",
     "period": {
@@ -48,9 +47,19 @@
       "newInvoice": "New invoice",
       "sendReminder": "Send reminder",
       "issueTax": "Issue tax invoice"
+    },
+    "pendingDeposit": {
+      "title": "Awaiting payment confirmation",
+      "hint": "A customer reported a transfer. Confirm the deposit to mark it paid.",
+      "reportedBy": "Reported by {{name}}",
+      "unknownPayer": "Unknown payer",
+      "today": "Today",
+      "daysAgo": "{{days}}d ago",
+      "confirm": "Confirm payment",
+      "confirming": "Processing…",
+      "review": "Review"
     }
   },
-
   "invoices": {
     "title": "Invoices",
     "searchPh": "Search by number, client, title, project",
@@ -95,7 +104,6 @@
       "overdueDays": "{{days}}d overdue"
     }
   },
-
   "detail": {
     "header": {
       "actions": {
@@ -154,7 +162,13 @@
       "milestone": "Milestone",
       "due": "Due",
       "amount": "Amount",
-      "status": "Status",
+      "status": {
+        "pending": "Pending",
+        "sent": "Sent",
+        "paid": "Paid",
+        "overdue": "Overdue",
+        "canceled": "Canceled"
+      },
       "actions": "Actions",
       "menu": {
         "markPaid": "Mark paid",
@@ -163,13 +177,6 @@
         "sendChat": "Request payment via chat",
         "sendReminder": "Send reminder",
         "cancel": "Cancel round"
-      },
-      "status": {
-        "pending": "Pending",
-        "sent": "Sent",
-        "paid": "Paid",
-        "overdue": "Overdue",
-        "canceled": "Canceled"
       },
       "paidAt": "Paid {{date}}",
       "taxIssued": "Tax invoice issued",
@@ -216,7 +223,6 @@
       "empty": "No activity"
     }
   },
-
   "newInvoice": {
     "title": "New invoice",
     "sent": {
@@ -360,7 +366,6 @@
       "businessIncomplete": "Sender business info is incomplete"
     }
   },
-
   "payments": {
     "title": "Payments",
     "tabs": {
@@ -402,7 +407,6 @@
       "all": "No payments yet"
     }
   },
-
   "taxInvoices": {
     "title": "Tax invoices",
     "tabs": {
@@ -445,7 +449,6 @@
       "all": "No tax invoices yet"
     }
   },
-
   "settings": {
     "title": "Q bill settings",
     "issuer": {
@@ -511,7 +514,6 @@
       "graceDaysHint": "Flow: 1st-day notice → halfway (or 7-day) reminder → on grace day, project auto-pauses. Marking the invoice paid resumes it instantly."
     }
   },
-
   "common": {
     "save": "Save",
     "cancel": "Cancel",
