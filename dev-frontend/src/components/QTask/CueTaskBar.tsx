@@ -288,7 +288,7 @@ const ErrorMsg = styled.div`
 const Drop = styled.div`
   margin-top: 8px;
   padding: 12px;
-  background: #FFF7F8;
+  background: #FFF1F2;
   border: 1px solid #FECDD3;
   border-radius: 10px;
   display: flex; flex-direction: column; gap: 10px;
