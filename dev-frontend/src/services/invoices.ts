@@ -88,6 +88,7 @@ export interface ApiInvoice {
   viewed_at: string | null;
   notify_paid_at: string | null;
   notify_payer_name: string | null;
+  meta: { last_reminder_at?: string; reminder_count?: number; last_overdue_notify_stage?: string } | null;
   source_post_id: number | null;
   project_id: number | null;
   bank_snapshot: { bank_name?: string; account_number?: string; account_holder?: string } | null;
@@ -244,6 +245,23 @@ export async function updateInvoiceStatus(
     body: JSON.stringify({ status }),
   });
   return expectOk<ApiInvoice>(r);
+}
+
+export interface SendReminderResult {
+  sent: true;
+  last_reminder_at: string;
+  reminder_count: number;
+}
+
+export async function sendInvoiceReminder(
+  businessId: number, invoiceId: number, message?: string
+): Promise<SendReminderResult> {
+  const r = await apiFetch(`/api/invoices/${businessId}/${invoiceId}/send-reminder`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(message ? { message } : {}),
+  });
+  return expectOk<SendReminderResult>(r);
 }
 
 export async function listSourceCandidates(

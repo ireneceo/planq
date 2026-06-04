@@ -23,6 +23,20 @@ const { attachWorkspaceScope, invoiceListWhere, canAccessInvoice, isMemberOrAbov
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const { sequelize } = require('../config/database');
 const { Op } = require('sequelize');
+const rateLimit = require('express-rate-limit');
+const { ipKeyGenerator } = require('express-rate-limit');
+
+// 결제 독촉(리마인더) — 외부 메일 발송 라우트. per-user rate-limit (운영 안정성 1번).
+//   IP 기준 X (NAT 뒤 여러 사용자 차단 방지). 같은 청구서 도배는 라우트 내 쿨다운으로 별도 차단.
+const reminderLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1시간
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => (req.user?.id ? `invoice-remind-u${req.user.id}` : `invoice-remind-ip${ipKeyGenerator(req)}`),
+  message: { success: false, message: 'too_many_reminders' },
+});
+const REMINDER_COOLDOWN_MS = 6 * 60 * 60 * 1000; // 같은 청구서 6시간 쿨다운
 
 // N+38 — 실시간 동기화 (CLAUDE.md 운영 안정성 16번 박제).
 function broadcastInvoice(req, invoice, event = 'invoice:updated') {
@@ -749,6 +763,82 @@ router.post('/:businessId/:id/send', authenticateToken, checkBusinessAccess, req
 });
 
 // (이동됨: source-candidates / find-conversation 은 라우트 매칭 순서를 위해 위(GET /:businessId 다음)로 이동)
+
+// ─── 결제 독촉(리마인더) 수동 발송 — 미결제 청구서에 운영자가 직접 발송 ───
+// overdue_handler 자동 단계 발송과 별개. qbill write 권한자(owner/admin/member) 사용.
+router.post('/:businessId/:id/send-reminder', authenticateToken, reminderLimiter, checkBusinessAccess, requireMenu('qbill', 'write'), async (req, res, next) => {
+  try {
+    const businessId = Number(req.params.businessId);
+    const invoice = await Invoice.findOne({ where: { id: req.params.id, business_id: businessId } });
+    if (!invoice) return errorResponse(res, 'Invoice not found', 404);
+    // 미결제 상태만 독촉 가능 (draft/paid/canceled 제외)
+    if (!['sent', 'partially_paid', 'overdue'].includes(invoice.status)) {
+      return errorResponse(res, 'not_remindable', 400);
+    }
+    if (!invoice.client_id) return errorResponse(res, 'no_client', 400);
+    const client = await Client.findByPk(invoice.client_id);
+    const recipient = client && (client.tax_invoice_email || client.billing_contact_email || client.invite_email);
+    if (!recipient) return errorResponse(res, 'no_recipient', 400);
+
+    // 같은 청구서 도배 방지 — 6시간 쿨다운
+    const meta = (invoice.meta && typeof invoice.meta === 'object') ? { ...invoice.meta } : {};
+    if (meta.last_reminder_at) {
+      const elapsed = Date.now() - new Date(meta.last_reminder_at).getTime();
+      if (elapsed < REMINDER_COOLDOWN_MS) {
+        const retryMin = Math.ceil((REMINDER_COOLDOWN_MS - elapsed) / 60000);
+        return res.status(429).json({ success: false, message: 'reminder_cooldown', retry_after_minutes: retryMin });
+      }
+    }
+
+    // share_token 보장 (없으면 발급)
+    let shareToken = invoice.share_token;
+    if (!shareToken) {
+      shareToken = require('crypto').randomBytes(32).toString('hex');
+    }
+
+    const business = await Business.findByPk(businessId);
+    const wsName = business?.brand_name || business?.name || 'PlanQ';
+    const daysOverdue = invoice.due_date
+      ? Math.max(0, Math.floor((Date.now() - new Date(invoice.due_date).getTime()) / 86400000))
+      : 0;
+    const shareUrl = `${process.env.APP_URL || 'https://dev.planq.kr'}/invoice/${shareToken}`;
+    const customMsg = req.body?.message ? String(req.body.message).slice(0, 1000) : '';
+
+    const { sendPaymentReminderEmail } = require('../services/emailService');
+    const sent = await sendPaymentReminderEmail({
+      to: recipient,
+      invoiceNumber: invoice.invoice_number,
+      title: invoice.title,
+      total: invoice.grand_total,
+      currency: invoice.currency || 'KRW',
+      dueDate: invoice.due_date,
+      daysOverdue,
+      workspaceName: wsName,
+      message: customMsg,
+      shareUrl,
+      fromName: business?.mail_from_name || business?.brand_name || business?.name || null,
+      replyTo: business?.mail_reply_to || null,
+      businessId,
+      invoiceId: invoice.id,
+    });
+    if (!sent) return errorResponse(res, 'email_send_failed', 502);
+
+    meta.last_reminder_at = new Date().toISOString();
+    meta.reminder_count = (Number(meta.reminder_count) || 0) + 1;
+    await invoice.update({ meta, share_token: shareToken });
+
+    require('../services/auditService').logAudit(req, {
+      action: 'invoice.send_reminder',
+      targetType: 'invoice',
+      targetId: invoice.id,
+      newValue: { invoice_number: invoice.invoice_number, recipient, days_overdue: daysOverdue, reminder_count: meta.reminder_count },
+    });
+    const io = req.app.get('io');
+    if (io) io.to(`business:${businessId}`).emit('invoice:updated', invoice.toJSON());
+
+    return successResponse(res, { sent: true, last_reminder_at: meta.last_reminder_at, reminder_count: meta.reminder_count }, 'reminder_sent');
+  } catch (error) { next(error); }
+});
 
 // ─── Installment: 결제 완료 마킹 ───
 router.post('/:businessId/:id/installments/:installId/mark-paid', authenticateToken, checkBusinessAccess, requireMenu('qbill','write'), async (req, res, next) => {

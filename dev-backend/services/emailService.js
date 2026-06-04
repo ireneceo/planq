@@ -485,6 +485,50 @@ async function sendInvoiceEmail({ to, invoiceNumber, title, total, currency, due
   });
 }
 
+// 결제 독촉(리마인더) — 운영자가 미결제 청구서에 수동으로 발송. overdue_handler 자동 단계와 별개.
+function paymentReminderEmailHtml({ invoiceNumber, title, total, currency, dueDate, daysOverdue, workspaceName, message, shareUrl }) {
+  const totalStr = currency === 'KRW'
+    ? `₩${Number(total).toLocaleString('ko-KR')}`
+    : `${currency} ${Number(total).toLocaleString('en-US')}`;
+  const dueStr = dueDate ? String(dueDate).slice(0, 10) : '';
+  const overdue = Number(daysOverdue) > 0;
+  const headline = overdue ? '결제 기한이 지났습니다' : '결제 안내드립니다';
+  const dueLine = dueStr
+    ? (overdue
+      ? `<div style="font-size:12px;color:#B91C1C;margin-top:6px;font-weight:600;">결제 기한 ${dueStr} · ${daysOverdue}일 경과</div>`
+      : `<div style="font-size:12px;color:#92400E;margin-top:6px;font-weight:500;">결제 기한 ${dueStr}</div>`)
+    : '';
+  const body = `
+    <div style="font-size:15px;font-weight:700;color:${overdue ? '#B91C1C' : '#0F172A'};margin-bottom:6px;">${headline}</div>
+    <div style="font-size:14px;color:#64748B;line-height:1.6;">${workspaceName ? escapeHtml(workspaceName) + ' 님이 ' : ''}아래 청구서의 결제를 안내드립니다.</div>
+    <div style="font-size:11px;font-weight:700;color:#64748B;letter-spacing:0.4px;font-family:ui-monospace,monospace;margin-top:12px;">${escapeHtml(invoiceNumber)}</div>
+    <div style="font-size:18px;font-weight:700;color:#0F172A;line-height:1.4;margin-top:4px;">${escapeHtml(title)}</div>
+    <div style="margin-top:16px;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:10px;padding:14px 16px;">
+      <div style="font-size:11px;color:#64748B;text-transform:uppercase;letter-spacing:0.4px;font-weight:700;">총액</div>
+      <div style="font-size:24px;font-weight:800;color:#0F172A;letter-spacing:-0.3px;margin-top:2px;">${totalStr}</div>
+      ${dueLine}
+    </div>
+    ${quoteBlock(message)}
+    <div style="margin-top:20px;text-align:center;">
+      ${ctaButton(shareUrl, '청구서 보기 · 입금하기')}
+    </div>
+    ${fallbackLink(shareUrl)}`;
+  return emailWrap({ title: `결제 안내 — ${title}`, body, footerOptions: { workspaceName } });
+}
+
+async function sendPaymentReminderEmail({ to, invoiceNumber, title, total, currency, dueDate, daysOverdue, workspaceName, message, shareUrl, fromName, replyTo, businessId, invoiceId }) {
+  if (!to) return false;
+  const overdue = Number(daysOverdue) > 0;
+  const subject = `[${PLATFORM.brand}] ${overdue ? '결제 기한 안내' : '결제 안내'} — ${invoiceNumber} ${title}`;
+  return sendEmail({
+    to, subject,
+    html: paymentReminderEmailHtml({ invoiceNumber, title, total, currency, dueDate, daysOverdue, workspaceName, message, shareUrl }),
+    fromName, replyTo,
+    template: 'payment_reminder', relatedEntityType: 'invoice', relatedEntityId: invoiceId,
+    businessId,
+  });
+}
+
 // ═══════════════════════════════════════════════════════════════
 // 6. 이메일 변경 OTP (보안 메일 — 매트릭스 무관)
 // ═══════════════════════════════════════════════════════════════
@@ -732,7 +776,7 @@ async function sendSignupVerifyEmail({ to, name, verifyToken, ttlHours = 72 }) {
 module.exports = {
   sendEmail,
   sendInviteEmail, sendPostShareEmail, sendEntityShareEmail, sendSignatureRequestEmail, sendSignatureOtpEmail,
-  sendInvoiceEmail, sendVerificationCodeEmail,
+  sendInvoiceEmail, sendPaymentReminderEmail, sendVerificationCodeEmail,
   sendBillingInstructionEmail,
   sendInquiryReceivedEmail,
   sendNotificationEmail,
