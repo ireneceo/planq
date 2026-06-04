@@ -1,6 +1,8 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-06-03 사이클 N+83 — **v1.29.0 + 진단 배포** (deploy 20260603_060501 / 후속 진단 d206f0b). 기능 4종: ① Q Mail inbound 트리아지 ② 모바일 채팅 입력 fix(**미해결 — iOS PWA 에선 무효, 진단 수집중**) ③ 고객 첫 응대 보완 ④ 고객 정기 구독청구(ClientSubscription). recurring_invoice 잠재버그 2건 fix. **후속:** 알림 배너 모바일 반응형 fix(PushPromptBanner flex-wrap) + iOS 채팅 버그 viewport 실측 진단(`/api/diag/vv` + ViewportDebug, Irene 한정) 배포 — **다음 세션에 VVDIAG 로그 읽고 채팅 데이터 기반 fix + 진단 제거** (session-state 참조).
+> **최종 업데이트:** 2026-06-04 사이클 N+84 — **Q Task "Cue에게 말하기" 바 + iOS 채팅 입력 fix(확정) + 키보드 스크롤 + Cue 고객전용 게이팅** (dev 검증 완료, **운영 미배포**). 4종: ① Q Task 상단 상시 "Cue에게 말하기" 바(캐주얼 한마디→AI 업무 즉시 생성, quick 모드, AiCandidateCard 공통화) ② iOS PWA 채팅 입력란 위로 사라짐 **확정 해결**(`interactive-widget=resizes-content` 제거 + main.tsx phantom scroll 가드, Irene 아이폰 확인) ③ 키보드 up 시 채팅 맨 아래 자동 스크롤(shrinkAmount 보정) ④ Cue 자동응답을 **고객(외부) 발화로 한정**(내부 스태프=business_member 발화 스킵). 검증: 헬스 29/29 · 빌드 0 · API 6/6(Cue 게이팅·quick·멀티테넌트 403). 진단 인프라(ViewportDebug+`/api/diag/vv`) dev 유지 — 다음 배포 시 제거.
+>
+> **이전:** 2026-06-03 사이클 N+83 — **v1.29.0 + 진단 배포** (deploy 20260603_060501 / 후속 진단 d206f0b). 기능 4종: ① Q Mail inbound 트리아지 ② 모바일 채팅 입력 fix(**미해결 — iOS PWA 에선 무효, 진단 수집중**) ③ 고객 첫 응대 보완 ④ 고객 정기 구독청구(ClientSubscription). recurring_invoice 잠재버그 2건 fix. **후속:** 알림 배너 모바일 반응형 fix(PushPromptBanner flex-wrap) + iOS 채팅 버그 viewport 실측 진단(`/api/diag/vv` + ViewportDebug, Irene 한정) 배포 — **다음 세션에 VVDIAG 로그 읽고 채팅 데이터 기반 fix + 진단 제거** (session-state 참조).
 >
 > **이전:** 2026-06-02 사이클 N+82 — **v1.28.0** (commit `ec493af`). Q Mail 메일 검색(제목·미리보기·본문) + 무한스크롤 pagination. **Q Mail 핵심 완결**
 >
@@ -41,6 +43,38 @@
 > **이전 라이브:** v1.16.1 (commit `8947504`) — N+31 사이클 (Q Talk 모바일 viewport 회귀 fix)
 >
 > **이전 라이브:** v1.16.0 (commit `ab113a6`) — N+26~N+27 사이클 (업무 흐름 Focus MVP + 인박스 inline 모달 + Cue 주고받음)
+
+---
+
+## ✅ 완료: 사이클 N+84 — Q Task "Cue에게 말하기" 바 + iOS 채팅 fix + Cue 고객전용 (2026-06-04, dev 검증 완료 · **운영 미배포**)
+
+> **계기:** ① Irene 요청 "Q task에서 그냥 AI에게 말하는 기능"(30년차 UI/UX 수준) ② iOS 채팅 입력란 버그 진단 로그(VVDIAG) 데이터 기반 fix ③ 모바일 실테스트 중 발견한 키보드 스크롤 + Cue 오작동.
+
+### 완료된 작업
+
+| 작업 | 설명 | 상태 |
+|------|------|:----:|
+| Q Task "Cue에게 말하기" 바 | 헤더/탭 아래 상시 입력 바. 캐주얼 한마디→Cue가 업무로 정리→인라인 미리보기(모달 아님)→[추가]. Coral Cue 브랜딩, Enter 전송, ⌘T 포커스, 모바일 풀폭 | ✅ |
+| quick 모드 (planner) | `mode:'quick'` — 한마디=1업무로 기울임(나열 시만 다중). buildSystemPrompt override + 라우트 분기 | ✅ |
+| AiCandidateCard 공통화 | 분해 모달 카드를 공통 컴포넌트로 추출 → 모달·바 공유(DRY). 모달 리팩터링 | ✅ |
+| iOS 입력란 위로 사라짐 fix | **확정 해결**. `interactive-widget=resizes-content` 메타 제거(근본) + main.tsx phantom scroll 가드(`scrollTo(0,0)`). VVDIAG 실측: 깨진 focus off/sY=376→0 | ✅ |
+| 키보드 up 시 채팅 맨 아래 스크롤 | ChatPanel 키보드 핸들러 `distance<240` 가드가 키보드 높이만큼 커진 distance에 걸려 스킵되던 것 → shrinkAmount 보정 + RAF | ✅ |
+| Cue 고객전용 게이팅 | Cue 자동응답이 sender 안 보고 customer 채널이면 다 응답 → **내부 스태프(business_member, owner 포함) 발화 스킵**, 고객(외부) 발화만 | ✅ |
+| 진단 오버레이 모바일 전용 | ViewportDebug 데스크탑 노출 제거(검정 박스) + dev hostname 게이트(dev 계정 이메일 다른 문제 보완) | ✅ |
+
+### 검증
+- 헬스 **29/29** · 빌드 **EXIT 0**(8GB) · 타입 0 · API **6/6**(Cue member→무응답 / quick=1 / 멀티테넌트 403×2 / confirm DB) · 서빙 200 · viewport 메타 interactive-widget 제거 확인 · i18n 신규 하드코딩 0 · 색상 토큰 정합(#FFF1F2 기수정)
+- **백엔드 무변경 재사용:** `/api/tasks/ai-create`(+/confirm) — confirm 이 task:new broadcast(실시간 §16)
+- DB 스키마 변경 없음 → 운영 ALTER 불필요
+
+### 수정된 파일
+- `dev-frontend/src/components/QTask/CueTaskBar.tsx` (신규), `AiCandidateCard.tsx` (신규), `AiTaskCreateModal.tsx` (공통 카드 리팩터링)
+- `dev-frontend/src/pages/QTask/QTaskPage.tsx` (바 마운트), `public/locales/{ko,en}/qtask.json` (ai.bar + itemDays)
+- `dev-frontend/index.html` (viewport 메타), `src/main.tsx` (scroll 가드), `src/pages/QTalk/ChatPanel.tsx` (키보드 스크롤)
+- `dev-frontend/src/components/Common/ViewportDebug.tsx` + `Layout/MainLayout.tsx` (진단 게이트)
+- `dev-backend/services/aiTaskPlanner.js` + `routes/tasks.js` (quick 모드), `routes/projects.js` (Cue 게이팅)
+
+> **다음 배포 시:** 위 전부 + 진단 인프라 제거(ViewportDebug + `/api/diag/vv` + ChatPanel `data-msglist`) 동반.
 
 ---
 

@@ -688,17 +688,28 @@ router.post('/conversations/:id/messages', authenticateToken, async (req, res, n
       });
     }
 
-    // Cue 자동 응답 트리거 (customer 채널 + 비 AI 메시지만, 비동기)
+    // Cue 자동 응답 트리거 — customer 채널 + 비 AI + **고객(외부) 발화일 때만**.
+    // Cue 는 고객 대응 팀원 → 내부 스태프(owner/admin/member) 발화엔 끼어들지 않는다.
+    // 내부 스태프는 business_members 에 있고(owner 포함), 고객(Client)은 없으므로 멤버 여부로 판별.
+    // (Client.user_id 링크 유무와 무관하게 견고. Cue 자신은 !is_ai 로 이미 제외.)
     if (conv.channel_type === 'customer' && !fullJson.is_ai) {
       setImmediate(async () => {
         try {
+          const senderIsStaff = await BusinessMember.findOne({
+            where: { business_id: conv.business_id, user_id: fullJson.sender_id },
+            attributes: ['id'],
+          });
+          if (senderIsStaff) return; // 내부 스태프 발화 → Cue 응답 안 함
+          const cueClient = conv.client_id
+            ? await Client.findByPk(conv.client_id, { attributes: ['id', 'user_id', 'business_id'] })
+            : null;
           const business = await Business.findByPk(conv.business_id);
           if (!business || !business.cue_user_id) return;
           const cueResult = await cueOrchestrator.respondToMessage({
             message: fullJson,
             conversation: conv,
             business,
-            client: null,
+            client: cueClient,
           });
           if (!cueResult.skipped && cueResult.message) {
             // Cue 응답 메시지에 sender 포함하여 브로드캐스트
