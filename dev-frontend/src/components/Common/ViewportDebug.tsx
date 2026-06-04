@@ -19,12 +19,16 @@ function snap() {
   };
 }
 
+// 모바일에서만 노출 — iOS 채팅 버그는 모바일 전용. 데스크탑엔 불필요한 오버레이/로그 차단.
+const isMobile = typeof window !== 'undefined' && window.matchMedia('(max-width: 768px)').matches;
+
 const ViewportDebug: React.FC = () => {
   const [live, setLive] = useState(snap());
   const [focusSnap, setFocusSnap] = useState<string>('(입력란 탭하면 기록)');
   const focusTimers = useRef<number[]>([]);
 
   useEffect(() => {
+    if (!isMobile) return;
     const vv = window.visualViewport;
     const upd = () => setLive(snap());
     const post = (payload: object) => {
@@ -60,6 +64,7 @@ const ViewportDebug: React.FC = () => {
     };
   }, []);
 
+  if (!isMobile) return null;
   return createPortal(
     <Box>
       <b>live</b> iH{live.iH} vvH{live.vvH} off{live.off} sY{live.sY} kb{live.kb} act:{live.act} top{live.listTop} vvh:{live.vvh}
