@@ -5,9 +5,12 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="alternate icon" type="image/png" sizes="192x192" href="/icon-192.png" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-    <!-- interactive-widget=resizes-content — 모바일 키보드 올라오면 viewport 자체가 줄어들어
-         하단 sticky 입력란이 자동으로 키보드 위에 위치 (Chrome 108+ / 점진적 enhancement). -->
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content" />
+    <!-- interactive-widget 기본값(resizes-visual) 사용 — 키보드 up 시 레이아웃 뷰포트(innerHeight)는
+         유지되고 visual viewport 만 줄어듦. iOS PWA standalone 에서 resizes-content 는 innerHeight 자체를
+         줄이고 document 를 키보드 높이만큼 phantom scroll 시켜(실측 VVDIAG: iH 793→417, off/sY=376)
+         position:fixed 레이아웃이 위로 밀리고 아래 흰 여백 → 입력란이 화면 위로 사라지는 회귀 유발.
+         #root/body 를 --vvh(visualViewport.height)로 사이징하므로 resizes-content 불필요. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover" />
     <link rel="manifest" href="/manifest.json" />
     <meta name="theme-color" content="#14B8A6" />
     <meta name="apple-mobile-web-app-capable" content="yes" />

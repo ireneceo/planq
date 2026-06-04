@@ -675,13 +675,19 @@ const ChatPanel: React.FC<Props> = ({
     const vv = window.visualViewport;
     let prevH = vv.height;
     const onResize = () => {
-      const shrank = vv.height < prevH - 60;
+      const shrinkAmount = prevH - vv.height;
       prevH = vv.height;
-      if (!shrank) return;
+      if (shrinkAmount < 60) return; // 키보드 up 만 (toolbar 흔들림 무시)
       const list = messageListRef.current;
       if (!list) return;
-      const distance = list.scrollHeight - list.scrollTop - list.clientHeight;
-      if (distance < 240) scrollToBottom(false);
+      // 키보드가 viewport 를 shrinkAmount 만큼 줄이면 바닥에 있던 콘텐츠도 그만큼 가려져
+      // distance 가 키보드 높이(~376)만큼 커진다. 그래서 near-bottom 판정에 shrinkAmount 를
+      // 더해 보정 — 안 그러면 distance>240 이라 키보드 열릴 때 바닥 스크롤이 스킵됨.
+      // (clientHeight 가 아직 안 줄었을 수도 있어 RAF 로 layout settle 후 측정.)
+      requestAnimationFrame(() => {
+        const distance = list.scrollHeight - list.scrollTop - list.clientHeight;
+        if (distance < 240 + shrinkAmount) scrollToBottom(false);
+      });
     };
     vv.addEventListener('resize', onResize);
     return () => vv.removeEventListener('resize', onResize);
