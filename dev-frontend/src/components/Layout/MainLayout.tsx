@@ -22,7 +22,6 @@ import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { mediaTablet } from '../../theme/breakpoints';
 import InstallPromptBanner from '../Common/InstallPromptBanner';
 import PushPromptBanner from '../Common/PushPromptBanner';
-import ViewportDebug from '../Common/ViewportDebug';
 import i18n from '../../i18n';
 
 // ─────────────────────────────────────────────────────────────
@@ -1472,8 +1471,6 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
         </SecondaryPanel>
       )}
 
-      {(typeof window !== 'undefined' && window.location.hostname === 'dev.planq.kr'
-        || user?.email === 'irene@irenewp.com' || user?.email === 'irene@irenecompany.com') && <ViewportDebug />}
       <MainContent $marginLeft={mainMarginLeft}>
         <WorkspaceBillingBanner />
         {/* N+72-6 — 알림 안내 모든 페이지 mount (옛: TodoPage 만). granted-off 자동 silent re-subscribe + iOS 비-PWA 안내 */}
