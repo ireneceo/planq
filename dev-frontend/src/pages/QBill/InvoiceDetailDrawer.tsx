@@ -10,7 +10,7 @@ import {
   formatMoney, invoiceStatusColor, installmentStatusColor,
   getInvoice, markInstallmentPaid, unmarkInstallmentPaid,
   markInstallmentTaxInvoice, cancelInstallment, updateInvoiceStatus,
-  findConversationForClient, deleteInvoice,
+  findConversationForClient, deleteInvoice, sendInvoiceReminder,
   type ApiInvoice, type ApiInstallment,
 } from '../../services/invoices';
 
@@ -31,6 +31,10 @@ interface Props {
 const KIND_LABEL: Record<string, string> = {
   contract: '계약서', quote: '견적서', sow: 'SOW', proposal: '제안서',
 };
+
+function daysSinceIso(iso: string): number {
+  return Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 86400000));
+}
 
 export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, onChanged }: Props) {
   const { t } = useTranslation('qbill');
@@ -67,6 +71,8 @@ export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, 
   };
   const [taxModal, setTaxModal] = useState<{ installmentId: number } | null>(null);
   const [taxNoInput, setTaxNoInput] = useState('');
+  const [remindBusy, setRemindBusy] = useState(false);
+  const [remindNote, setRemindNote] = useState<{ tone: 'ok' | 'warn'; text: string } | null>(null);
 
   // 외부에서 invoice prop 변경 시 동기화 + 최신 데이터 fetch
   useEffect(() => {
@@ -165,6 +171,27 @@ export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, 
       onConfirm: () => { setConfirm(null); doCancelInvoice(); },
     });
   };
+  const handleSendReminder = async () => {
+    if (!invoice || remindBusy) return;
+    setRemindBusy(true);
+    setRemindNote(null);
+    try {
+      await sendInvoiceReminder(invoice.business_id, invoice.id);
+      setRemindNote({ tone: 'ok', text: t('detail.reminder.sent', { defaultValue: '독촉 메일을 보냈습니다' }) as string });
+      await refresh();
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : '';
+      if (msg.includes('cooldown')) {
+        setRemindNote({ tone: 'warn', text: t('detail.reminder.cooldown', { defaultValue: '최근에 보냈어요. 잠시 후 다시 시도해 주세요' }) as string });
+      } else if (msg.includes('no_recipient')) {
+        setRemindNote({ tone: 'warn', text: t('detail.reminder.noRecipient', { defaultValue: '고객 이메일이 없어 보낼 수 없어요' }) as string });
+      } else {
+        setRemindNote({ tone: 'warn', text: t('detail.reminder.failed', { defaultValue: '발송에 실패했어요. 잠시 후 다시 시도해 주세요' }) as string });
+      }
+    } finally {
+      setRemindBusy(false);
+    }
+  };
 
   const APP_URL = window.location.origin;
   const shareUrl = invoice.share_token ? `${APP_URL}/public/invoices/${invoice.share_token}` : null;
@@ -224,6 +251,18 @@ export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, 
               {t('detail.header.actions.goChat', '채팅방 가기')}
             </ActionBtn>
           )}
+          {(invoice.status === 'sent' || invoice.status === 'partially_paid' || invoice.status === 'overdue') && invoice.client_id && (
+            <ActionBtn
+              onClick={handleSendReminder}
+              disabled={remindBusy}
+              title={invoice.meta?.last_reminder_at
+                ? t('detail.reminder.lastSent', { days: daysSinceIso(invoice.meta.last_reminder_at), defaultValue: '최근 발송함' }) as string
+                : t('detail.reminder.hint', { defaultValue: '고객에게 결제 안내 메일을 보냅니다' }) as string}
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+              {remindBusy ? t('detail.reminder.sending', { defaultValue: '보내는 중…' }) : t('detail.reminder.action', { defaultValue: '결제 독촉 보내기' })}
+            </ActionBtn>
+          )}
           {invoice.status !== 'canceled' && (
             <ActionBtn onClick={handleCancelInvoice} disabled={busy}>
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
@@ -231,6 +270,7 @@ export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, 
             </ActionBtn>
           )}
         </ActionRow>
+        {remindNote && <RemindNote $tone={remindNote.tone}>{remindNote.text}</RemindNote>}
       </DrawerHeader>
 
       {/* ─── 본문 (스크롤) ─── */}
@@ -681,10 +721,15 @@ const ActionBtn = styled.button<{ $primary?: boolean }>`
   border: 1px solid ${p => p.$primary ? '#14B8A6' : '#E2E8F0'};
   border-radius: 8px; cursor: pointer;
   transition: all 0.15s;
-  &:hover {
+  &:hover:not(:disabled) {
     background: ${p => p.$primary ? '#0D9488' : '#F8FAFC'};
     border-color: ${p => p.$primary ? '#0D9488' : '#CBD5E1'};
   }
+  &:disabled { opacity: 0.5; cursor: default; }
+`;
+const RemindNote = styled.div<{ $tone: 'ok' | 'warn' }>`
+  margin-top: 8px; font-size: 12px; font-weight: 600;
+  color: ${p => p.$tone === 'ok' ? '#0F766E' : '#B45309'};
 `;
 const Body = styled.div`
   flex: 1; overflow-y: auto; padding: 18px 22px 32px;

@@ -221,6 +221,16 @@
       },
       "by": "by {{actor}}",
       "empty": "No activity"
+    },
+    "reminder": {
+      "action": "Send payment reminder",
+      "sending": "Sending…",
+      "sent": "Reminder email sent",
+      "cooldown": "Sent recently. Please try again later",
+      "noRecipient": "No customer email on file — can't send",
+      "failed": "Failed to send. Please try again later",
+      "lastSent": "Last sent · {{days}}d ago",
+      "hint": "Send a payment reminder email to the customer"
     }
   },
   "newInvoice": {
