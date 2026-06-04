@@ -1,7 +1,26 @@
 # PlanQ 세션 상태
 
-**마지막 업데이트:** 2026-06-04 (사이클 N+84)
-**작업 상태:** **운영 라이브 v1.30.0** (deploy `20260604_081629`, commit `46a8e70`). 진단 인프라 제거 완료.
+**마지막 업데이트:** 2026-06-04 (사이클 N+85)
+**작업 상태:** **운영 라이브 v1.31.0** (deploy `20260604_100933`, commit `0dd7af3`). Q Bill 결제 자동화 검증 + "입금 확인 대기" 보강.
+
+---
+
+## 완료된 작업 (이번 세션 — 운영 라이브 v1.31.0)
+
+### Q Bill 결제 자동화 — 검증 + "입금 확인 대기" 보강
+- **요청 범위 확정:** 청구서 자동발행 + 은행계좌(계좌이체)만. 카드결제(PortOne)·오픈뱅킹 자동입금확인은 "운영 실제 시작 때"로 보류 (Irene 결정).
+- **(b) 기존 자동청구 흐름 E2E 22/22 검증** — 구독 생성 → 자동발행 엔진(bill-now) → VAT/금액 → 발행(send) → 은행계좌 공개 결제페이지(익명) → 입금확인(mark-paid). 이미 ~80% 구현되어 작동 중임 증명. (`recurring_invoice.js` 프로젝트 월정액 + `clientSubscriptionBilling.js` 고객 정기구독, 매일 자정 cron)
+- **(a) 신규 "입금 확인 대기" 섹션** — 고객 송금보고(`notify_paid_at`) 미확인 청구서를 Q Bill Overview 상단에 모아 표시 + owner 원클릭 확인(단건 PATCH status / 분할 mark-paid), 비owner는 drawer. 대기 0건이면 숨김.
+- **실시간 §16:** OverviewTab 에 socket(invoice:*+inbox:refresh) + useVisibilityRefresh 추가 (notify-paid 가 inbox:refresh emit → 즉시 뜸).
+- **백엔드 0 변경** (notify_paid_at 기존 컬럼). 프론트 3파일: `services/invoices.ts`(타입 2필드) · `pages/QBill/OverviewTab.tsx` · `qbill.json`(ko/en 9키).
+- 데이터흐름 E2E **12/12**. 검증: 헬스 29/29 · 빌드 EXIT 0 · 멀티테넌트/권한 가드 정합 · i18n 0 하드코딩.
+
+> **참고(다음 정리):** `OverviewTab.tsx` 기존 하드코딩 6건(`'어제'`, `${days}일 전`, `${month}월` — formatRelative/buildTrend 헬퍼, 이번 작업 아님) i18n 전환 후순위.
+
+---
+
+## 직전 세션 (v1.30.0, 사이클 N+84)
+**deploy `20260604_081629`, commit `46a8e70`.** Q Task "Cue에게 말하기" 바 + iOS 채팅 입력 fix(확정) + 키보드 스크롤 + Cue 고객전용 게이팅. 진단 인프라 제거 완료.
 
 ---
 
