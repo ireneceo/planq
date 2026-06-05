@@ -10,6 +10,9 @@ TaskCandidate.init({
   project_id: { type: DataTypes.BIGINT, allowNull: true },
   conversation_id: { type: DataTypes.INTEGER, allowNull: true },
   email_thread_id: { type: DataTypes.INTEGER, allowNull: true }, // N+87 — 메일 스레드 후보
+  // N+88 — Q Note 세션 후보 (cross-DB: qnote 는 SQLite). business_id 직접 저장 (tenant 격리 — 다른 스코프는 linked 엔티티로 해석하지만 qnote 는 MySQL 에 없음).
+  qnote_session_id: { type: DataTypes.INTEGER, allowNull: true },
+  business_id: { type: DataTypes.BIGINT, allowNull: true },
   extracted_at: { type: DataTypes.DATE, defaultValue: DataTypes.NOW },
   extracted_by_user_id: { type: DataTypes.INTEGER, allowNull: true },
   source_message_ids: { type: DataTypes.JSON, allowNull: true },  // 채팅 메시지 id (email 이면 null)

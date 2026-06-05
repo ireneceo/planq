@@ -557,6 +557,71 @@ async function extractEmailTaskCandidates({ emailThreadId, userId, businessId })
   } catch (err) { await tx.rollback(); throw err; }
 }
 
+// ─── Q Note 세션 → 업무 후보 (cross-DB 브릿지, N+88) ───
+// qnote 는 SQLite 라 Node 가 직접 못 읽음 → 프론트가 text(transcript/summary)+title+qnote_session_id 전달.
+// 개인 노트라 프로젝트 미연결 기본 (담당자는 등록 시 사용자 선택). business_id 후보에 직접 저장 (tenant 격리).
+async function extractNoteTaskCandidates({ text, title, qnoteSessionId, userId, businessId }) {
+  const BusinessMember = require('../models/BusinessMember');
+  const clean = String(text || '').replace(/\s+/g, ' ').trim();
+  if (!clean) return { candidates: [], reason: 'no_text' };
+
+  const bms = await BusinessMember.findAll({ where: { business_id: businessId, removed_at: null }, include: [{ model: User, as: 'user', attributes: ['id', 'name'] }] });
+  const memberNames = bms.map((m) => `- ${m.user?.name || 'unknown'} (role: ${m.role})`).join('\n');
+  const note = `Q Note session "${title || ''}" (personal meeting/memo notes). Extract concrete deliverable-based tasks the note-taker needs to act on. Assignee is one of OUR team members above; default to the note-taker when ambiguous.`;
+
+  const messagesText = clean.slice(0, 8000);
+  const language = /[가-힣]/.test(messagesText) ? 'ko' : 'en';
+  try { const usage = await checkUsageLimit(businessId); if (usage.over) return { candidates: [], skipped: 'usage_limit_exceeded' }; } catch { /* best-effort */ }
+
+  const prompt = buildExtractionPrompt(messagesText, memberNames, language, note);
+  const llmResult = await callLLMJson([{ role: 'system', content: prompt }], { temperature: 0.1, maxTokens: 1500 });
+  await recordUsage(businessId, 'task_extraction', MODEL, llmResult.input_tokens, llmResult.output_tokens);
+
+  let extracted = [];
+  try { const parsed = JSON.parse(llmResult.content); extracted = Array.isArray(parsed.tasks) ? parsed.tasks : []; } catch { extracted = []; }
+  extracted = extracted.filter((t) => String(t.title || '').trim());  // 빈 제목 후보 제거
+  if (extracted.length === 0) return { candidates: [], reason: 'no_tasks_found', fallback: llmResult.fallback };
+
+  // dedup — 같은 세션에서 이미 resolved 된 후보 제목 (qnote 는 source message id 없음 → title 기반)
+  const resolvedC = await TaskCandidate.findAll({ where: { qnote_session_id: qnoteSessionId, status: { [Op.in]: ['registered', 'merged', 'rejected'] } }, attributes: ['title'] });
+  const blockedTitles = new Set(resolvedC.map((c) => (c.title || '').trim().toLowerCase()));
+  extracted = extracted.filter((t) => !blockedTitles.has(String(t.title || '').trim().toLowerCase()));
+  if (extracted.length === 0) return { candidates: [], reason: 'all_duplicates' };
+
+  const tx = await sequelize.transaction();
+  try {
+    const created = [];
+    for (const c of extracted) {
+      const rawDate = c.guessed_due_date; let safeDate = null;
+      if (rawDate && typeof rawDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(rawDate.trim())) {
+        const d = new Date(rawDate.trim() + 'T00:00:00'); if (!isNaN(d.getTime())) safeDate = rawDate.trim();
+      }
+      const cand = await TaskCandidate.create({
+        project_id: null, conversation_id: null, email_thread_id: null,
+        qnote_session_id: qnoteSessionId, business_id: businessId,
+        extracted_at: new Date(), extracted_by_user_id: userId,
+        source_message_ids: null, source_email_message_ids: null,
+        title: String(c.title || '').slice(0, 300),
+        description: c.description ? String(c.description).slice(0, 2000) : null,
+        guessed_role: c.guessed_role ? String(c.guessed_role).slice(0, 50) : null,
+        guessed_assignee_user_id: null,
+        guessed_due_date: safeDate,
+        similar_task_id: null,
+        recurrence_hint: c.recurrence_hint || null,
+        status: 'pending',
+      }, { transaction: tx });
+      created.push(cand);
+    }
+    await tx.commit();
+    const result = [];
+    for (const c of created) {
+      const full = await TaskCandidate.findByPk(c.id, { include: [{ model: User, as: 'guessedAssignee', attributes: ['id', 'name'] }] });
+      result.push(full.toJSON());
+    }
+    return { candidates: result, fallback: llmResult.fallback };
+  } catch (err) { await tx.rollback(); throw err; }
+}
+
 // ─── 후보 → 정식 업무 등록 ───
 // overrides: 우측 패널에서 사용자가 인라인 편집한 값 (title/assignee_id/due_date) 우선 적용.
 // 30년차 시각: LLM 추측은 hint 일 뿐, 등록 시점에 사용자 결정이 source of truth.
@@ -582,6 +647,8 @@ async function registerCandidate(candidateId, userId, overrides = {}) {
       const conv = await Conversation.findByPk(candidate.conversation_id, { attributes: ['business_id'] });
       businessId = conv?.business_id;
     }
+    // N+88 — Q Note 후보는 candidate.business_id 직접 사용 (cross-DB, linked 엔티티 없음)
+    if (!businessId && candidate.qnote_session_id) businessId = candidate.business_id;
     if (!businessId) throw new Error('candidate_business_unresolved');
 
     // 사용자 편집값 우선. 미입력 시 LLM 추측, 그래도 없으면 fallback.
@@ -614,6 +681,8 @@ async function registerCandidate(candidateId, userId, overrides = {}) {
         source_email_message_id: candidate.source_email_message_ids?.[0] || null,
         client_id: emailClientId,
       } : {}),
+      // N+88 — Q Note 후보 → 업무에 세션 역참조 (Q Note ↔ Q Task 브릿지)
+      ...(candidate.qnote_session_id ? { qnote_session_id: candidate.qnote_session_id } : {}),
       title: finalTitle,
       description: finalDesc,
       assignee_id: finalAssignee,
@@ -696,6 +765,7 @@ async function rejectCandidate(candidateId, userId) {
 module.exports = {
   extractTaskCandidates,
   extractEmailTaskCandidates,
+  extractNoteTaskCandidates,
   registerCandidate,
   mergeCandidate,
   rejectCandidate,

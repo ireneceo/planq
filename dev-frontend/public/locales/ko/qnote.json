@@ -90,7 +90,14 @@
       "generate": "AI 요약 생성",
       "generating": "생성 중...",
       "emptyHint": "AI가 이 회의의 핵심을 요약합니다.",
-      "failed": "요약 생성 실패"
+      "failed": "요약 생성 실패",
+      "keyPointsLabel": "핵심 요점",
+      "fullLabel": "전체 요약",
+      "saveDoc": "문서로 저장",
+      "savingDoc": "저장 중...",
+      "savedDoc": "문서 저장됨",
+      "saveDocFailed": "문서 저장 실패",
+      "viewDoc": "보기"
     },
     "reviewEmpty": "기록된 문장이 없습니다.",
     "speaker": {
@@ -180,6 +187,13 @@
       "recorderLocked": "이 음성 노트는 다른 탭/기기에서 이미 녹음 중입니다. 그쪽에서 먼저 일시 정지하거나 종료해주세요.",
       "recorderLost": "다른 탭에서 녹음을 이어받아 현재 탭의 녹음이 중단되었습니다.",
       "recorderLockedBanner": "다른 탭/기기에서 이 음성 노트를 녹음 중입니다. 중복 녹음은 되지 않습니다."
+    },
+    "tasks": {
+      "title": "업무",
+      "extract": "업무 추출",
+      "extracting": "추출 중...",
+      "emptyHint": "회의에서 실행할 업무를 AI가 찾아 후보로 제안합니다.",
+      "extractFailed": "업무 추출 실패"
     }
   },
   "memoPopup": {
