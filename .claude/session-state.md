@@ -1,60 +1,45 @@
 # PlanQ 세션 상태
 
-**마지막 업데이트:** 2026-06-05 (사이클 N+87 — Q Mail 맥락통합 **Phase A 완료**)
-**작업 상태:** Phase A+B+C 완료·dev 검증 — Q Mail 맥락통합 전체 완성. **미배포** (확인 후 /배포).
+**마지막 업데이트:** 2026-06-05 (사이클 N+89 — **v1.33.0 운영 라이브**)
+**작업 상태:** 완료·배포 (deploy `20260605_183432`, commit 다음 개발완료 커밋)
 
 ---
 
-## ✅ Phase A 완료 — Q Mail 맥락통합 (dev 검증, 미배포)
-설계 `docs/QMAIL_CONTEXT_DESIGN.md`. memory `project_qmail_context_unified`.
+## ✅ N+89 완료·배포 — Q Note 종료후 재설계 + 상단 통일 + 공개뷰 fix
 
-- **Step 1 백엔드 척추:** `services/clientTimeline.js` + `routes/clients.js` GET `/:clientId/timeline`·`/channel-summary` (멤버전용 client 403, 메일 개인격리, before 페이지네이션). API 5/5. ※Sequelize underscored 타임스탬프=`createdAt` 버그 fix.
-- **Step 2 메일 우측 컨텍스트 패널:** `pages/QMail/MailContextPanel.tsx` — 프로젝트·고객 연결 picker(PUT email-threads) + "이 고객" cross-channel(channel-summary) + 타임라인 링크. MailPage 4번째 Panel($hideTablet). E2E 7/7.
-- **Step 3 Customer 360 페이지:** `pages/Clients/ClientTimelinePage.tsx` + 라우트 `/business/clients/:clientId/timeline` + ClientsPage 드로어 진입 버튼. 채널필터·무한스크롤·tz.
+### Q Note 재설계 (Phase 1~3, 전부 운영 반영)
+- **슬로우 종료:** `QNotePage.endMeeting` getSession 백그라운드 → review 즉시 전환.
+- **요약 영속(C):** qnote `sessions` +`summary_key_points`(JSON)/`summary_full`. `routers/llm.py /summary` 가 생성 후 본인 세션 영속(`summarized_at`). `JSON_COLUMNS` 에 등록. get_session 노출.
+- **메모 요약(B):** `MemoView.docToPlainText(body)` → 같은 엔드포인트. 메모 요약 밴드.
+- **요약→문서(D):** `utils/qnoteSummaryDoc.ts` saveSummaryAsDoc → createPost vlevel **L1**. 음성·메모 둘 다 "문서로 저장" + "보기".
+- **업무 브릿지(C-eng):** `routes/qnote_bridge.js`(extract-tasks/list/register/reject, mount `/api/businesses`). `task_extractor.extractNoteTaskCandidates`(빈제목 필터, title dedup). `task_candidates` +`qnote_session_id`/+`business_id`(tenant 격리), `tasks` +`qnote_session_id` 역참조. 공유 훅 `hooks/useNoteTaskExtraction.ts`(음성·메모 1구현). `TaskCandidateCard` 재사용.
+- **재요약 instruction:** `generate_summary(instruction)` 시스템프롬프트 최우선 주입. 음성·메모 재요약 버튼 → 요구사항 입력창("어떻게 다시 요약할까요").
+- **review 3블록:** 요약 / 업무 / 공유. 참여자·내발화 바를 업무 아래(녹음 transcript 위)로 이동.
 
-**검증:** 헬스 29/29 · 빌드 EXIT0 · 서빙200 · i18n ko/en 하드코딩0 · 멀티테넌트/권한(client403) · 레이아웃표준 준수. (Playwright MCP 미연결 → 브라우저 e2e 생략, API+TS빌드로 커버)
+### 상단 UI 통일 (Q docs 상세와)
+- `components/Common/VisibilityChip.tsx`(공개:팀 칩, 레벨색). Q Note 리뷰·메모 헤더 = VisChip + 공유 PrimaryBtn(아이콘) + IconBtn(설정/질문). "정리하기" 모달 + QNoteSummaryModal 제거. 메모에도 공개칩+공유(QNoteShareModal 재사용).
 
-### 확인 경로 (dev)
-- 메일 우측 맥락 패널: `dev.planq.kr/qmail` 스레드 열기 → 우측 "맥락" 패널(데스크탑)
-- 고객 타임라인: `dev.planq.kr/business/clients/{id}/timeline` (또는 고객 드로어 "통합 타임라인 보기")
+### 🔴 프록시 경로 회귀 fix (메모리 박제 `feedback_qnote_frontend_api_base`)
+- q-note 프론트 호출은 **`/qnote/api` base 필수**(nginx `/qnote/`→FastAPI). bare `/api`→Node HTML 404 = "Unexpected token '<'".
+- fix: `qnote.ts` generateSessionSummary/createSessionShareToken/revokeSessionShareToken/changeSessionVisibility + `PublicQNoteSessionPage`(공개 "웹에서 보기").
+- **검증 함정:** node test 가 localhost:8000 직접 호출하면 못 잡음 → 공개 URL `/qnote/api`로 인증호출해 content-type=json 확인.
 
-### 미배포 동봉 (다음 /배포에 함께)
-- Phase A 전체 + OverviewTab.tsx i18n(N+87 소)
+### KB fix
+- `middleware/security.js` SQLi 패턴 정밀화(마크다운 `---`·산문 "select from" 오탐 제거, 고신뢰 시그니처만). AI 자동추가/문서저장 복구.
+- `KnowledgePage.tsx` 상세패널 카테고리 셀렉트 legacy-only → 모달과 동일 union.
 
-## ✅ Phase B 완료 (dev 검증, 미배포) — 메일 업무 추출 → Q Task 통합
-- 스키마: `task_candidates`(conversation_id nullable + email_thread_id + source_email_message_ids), `tasks`(email_thread_id + source_email_message_id). sync 반영.
-- `task_extractor.extractEmailTaskCandidates` (기존 파이프라인·프롬프트 재사용, 메일 inbound=고객/outbound=우리팀 프레이밍) + `registerCandidate` email 확장(business+client_id 해석, task에 email_thread_id+client_id+source 연결).
-- `routes/email_threads.js`: extract-tasks / GET task-candidates / register / reject (qmail write, email_candidate:created+task:new broadcast).
-- `MailContextPanel` 업무후보 섹션: "✨업무 추출" 버튼(automated/marketing 숨김) + 후보카드(제목·담당자·마감 편집) + 등록/무시.
-- **E2E 9/9:** LLM 추출("웹사이트 리뉴얼 견적서 작성")→등록→task가 email_thread+client 연결→**고객 통합 타임라인 노출**(통합 증명)→dedup→reject→cross-biz 차단.
+### 공개 "웹에서 보기" 9종 전수 검증(실데이터) + 반응형
+- posts/docs/tasks/files/kb/calendar/invoice/qnote/sign 전부 200 json. qnote 공개뷰 경로 fix.
+- 반응형: 가로 오버플로우 유발 고정폭 0, 모든 공개페이지 @media 보유. KB 본문 nested-scroll(60vh) 제거.
 
-## ✅ Phase C 완료 (dev 검증, 미배포) — 요약·이슈·노트 (Q Talk 패리티 완성)
-- 스키마: `email_threads`(ai_summary/ai_summary_at/ai_summary_model), `project_issues`/`project_notes`(email_thread_id). sync 반영.
-- `cue_orchestrator.summarizeThread`(MODEL_MINI, on-demand, 사실요약·날조금지, usage='thread_summary').
-- `routes/email_threads.js`: summarize / issues GET·POST·DELETE / notes GET·POST·DELETE (qmail 권한, mail:updated broadcast, 노트 personal 격리·only_author 삭제).
-- `MailContextPanel` 요약(생성/재요약)·이슈(추가/삭제)·노트(visibility 토글 🔒나만/👥팀, 추가/삭제) 섹션.
-- **E2E 10/10:** 요약 생성(고객 요청·예산·일정 정확 포착)·detail 반영·이슈 CRUD·노트 visibility(타 멤버 personal 제외)·cross-biz.
+### N+87~88 동봉 배포
+- Q Mail 맥락통합 A·B·C(`clientTimeline.js`, `extractEmailTaskCandidates`, `summarizeThread`) + 우측패널 통일 + `TaskCandidateCard` 통일.
 
-## ⬜ 남은 하드닝 — §8.5 고객 공개 serializer (선택, 별도)
-client 가 공유 업무를 볼 때 예측/실제시간·내부댓글 차단하는 `serializeTaskForClient` + businesses 토글 3개(진행률/담당자/완료일). Q Mail 맥락은 내부 전용이라 급하지 않음 — client-facing task API 하드닝 시.
+## 환경: dev 3003 / prod planq.kr 3004 (v1.33.0, deploy 20260605_183432)
+## 운영 스키마 반영 확인: MySQL task_candidates(+qnote_session_id/+business_id)·tasks(+qnote_session_id) + qnote SQLite(summary_key_points/summary_full) 전부 OK.
 
-## 🎉 Q Mail 맥락통합 = Q Talk 패리티 달성
-요약·업무추출·이슈·노트·프로젝트연결·고객 cross-channel·Customer 360 타임라인 — 채널 통합.
+## 다음 후보 (미착수)
+- §8.5 client-facing serializer(serializeTaskForClient — 예측/실제시간·내부댓글 차단) — Q Mail 맥락은 내부전용이라 급하지 않음.
+- 공개뷰 폴리시(터치타겟 44px·로고 크기 통일·PostsPage VisChip→공통 VisibilityChip 마이그레이션) — 선택.
 
-
-## 직전 운영 라이브: v1.32.0 (N+86)
-## 환경: dev 3003 / prod planq.kr 3004 (v1.32.0)
-## 복구: `이전 세션 이어서. session-state 읽어줘. Q Mail Phase C 가자.`
-
----
-## N+88 진행 중 — UI 통일 + Q Note 재설계 (미배포)
-### ✅ Step 1 완료 — 업무 후보 카드 통일
-- 검증: 카드가 3벌이었음 (QTalk/CandidateEditCard · QTask/AiCandidateCard · QMail 인라인 CandCard=내 Phase B miss).
-- 조치: **`components/Common/TaskCandidateCard.tsx`** 신설(CandidateEditCard 일반화, generic 타입 + i18n `common.candidate.*`). Q Talk·Q Mail 둘 다 마이그레이션, 옛 CandidateEditCard 삭제. QTask AiCandidateCard는 일괄생성 용도라 별개 유지.
-- 빌드 EXIT0·헬스29/29·서빙200·common.candidate ko=en 10. Q Note도 이 카드 재사용 예정.
-
-### ⬜ 다음 — Q Note 종료 후 재설계 (검증된 진단 기반)
-**버그(먼저):** ① 슬로우 종료 — endMeeting이 getSession await 후 review 전환(QNotePage L1010-11) + 백엔드 get_session 4 SELECT 순차(sessions.py L815-43). fix: updateSession 직후 즉시 setPhase('review') + getSession 백그라운드 + 백엔드 asyncio.gather. ② 메모 요약 안뜸 — 요약 입력이 voice transcript만(L2454-57), 메모 body 제외 + generate_summary가 body 미수용(llm_service L937). ③ 요약 휘발 — DB 영속 안함(summarized_at만, sessions.py L481).
-**재설계:** "정리하기 4갈래 모달(원문 prefill 떠넘기기)" 폐기 → review를 [요약(자동·영속·편집→문서저장)] [업무(추출→TaskCandidateCard 재사용→등록)] [공유(단일·통합UX)] 3블록. "결정 정리하기"는 실재 안함(착오). 공유 이원화 제거.
-**브릿지:** task_candidates에 qnote_session_id 스코프 + Node `POST /api/qnote-bridge/:biz/extract-tasks`(task_extractor 재사용). 요약→Q docs post 생성. 사적 기본 유지.
-설계 근거: 3 Explore 에이전트 파일:라인 진단 완료.
+## 복구: `이전 세션 이어서. session-state 읽어줘.`

@@ -1,10 +1,15 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-06-05 사이클 N+87~88 — **Q Mail 맥락통합(A+B+C) + 우측패널 통일 + 업무후보카드 통일 (dev 검증, 미배포)**.
-> - **N+87 Q Mail 맥락통합:** Phase A(우측 컨텍스트 패널 + 프로젝트/고객 연결 + cross-channel + **Customer 360 타임라인** `services/clientTimeline.js`) · Phase B(메일 업무추출→Q Task, `task_candidates.email_thread_id`, `extractEmailTaskCandidates`) · Phase C(요약·이슈·노트, `email_threads.ai_summary`, `summarizeThread`). E2E 통과. 설계 `docs/QMAIL_CONTEXT_DESIGN.md`(§8.5 고객공개 serializer 포함).
-> - **N+88 통일:** 우측 패널 3개(Q Talk·Q Task·Q Mail) 리사이즈+접기+⌘/ 통일 / 업무 후보 카드 3벌→**`components/Common/TaskCandidateCard.tsx` 1개**(Q Talk·Q Mail 마이그레이션, 옛 CandidateEditCard 삭제).
-> - **다음(설계 완료, 구현 대기):** Q Note 종료후 재설계 — `docs/QNOTE_POSTSESSION_REDESIGN.md`(슬로우종료/메모요약/영속 버그 진단 + 요약→문서·업무→등록·공유 3블록 + Q Note↔Q Task 브릿지).
-> - **미배포 누적:** OverviewTab i18n + Q Mail A·B·C + 패널/카드 통일. `/배포` 시 한 번에.
+> **최종 업데이트:** 2026-06-05 사이클 N+89 — **v1.33.0 운영 라이브** (deploy `20260605_183432`). **Q Note 종료후 재설계 + 상단 UI 통일 + 공개뷰 경로 fix + KB fix.**
+> - **Q Note 재설계(Phase 1~3):** ① 슬로우 종료 fix(`getSession` 백그라운드, review 즉시 전환) ② 요약 DB 영속(qnote `sessions` +`summary_key_points`/`summary_full`, `/api/llm/summary` 영속) ③ 메모 body 요약(`docToPlainText`) ④ 요약→Q docs 문서저장(`utils/qnoteSummaryDoc.ts`, L1 사적) ⑤ **Q Note↔Q Task 브릿지**(`routes/qnote_bridge.js` extract/list/register/reject, `task_candidates` +`qnote_session_id`/+`business_id`, `tasks` +`qnote_session_id`, `extractNoteTaskCandidates` 재사용, tenant 격리) ⑥ **재요약 instruction**(`generate_summary(instruction)` 주입 — 불만족 시 "어떻게 고칠지") ⑦ review 3블록(요약/업무/공유) + 참여자바 이동(업무 아래) + 공유 훅 `hooks/useNoteTaskExtraction.ts`(음성·메모 1구현).
+> - **상단 UI 통일:** `components/Common/VisibilityChip.tsx`(공개:팀 칩) — Q Note 리뷰·메모를 Q docs 상세 상단과 통일 + 공유 PrimaryBtn(아이콘) + IconBtn 클러스터. "정리하기" 모달(raw-prefill) 제거. 메모에도 공개칩+공유(QNoteShareModal 재사용).
+> - **🔴 프록시 경로 회귀 fix(2건, 같은 계열):** `qnote.ts` 요약/공유/visibility + `PublicQNoteSessionPage` 공개뷰 — bare `/api`(Node→HTML 404 "Unexpected token '<'") → **`/qnote/api`**(FastAPI). 메모리 `feedback_qnote_frontend_api_base` 박제.
+> - **KB fix:** SQLi 미들웨어 산문 오탐(마크다운 `---`·"select from") 정밀화(`middleware/security.js`) + 상세패널 카테고리 셀렉트 union(`KnowledgePage.tsx`).
+> - **공개 "웹에서 보기" 9종 전수 검증**(posts/docs/tasks/files/kb/calendar/invoice/qnote/sign, 실데이터) + 반응형(KB nested-scroll 제거, 가로 오버플로우 0).
+> - **N+87~88(Q Mail 맥락통합 A·B·C + 우측패널/후보카드 통일)도 이번 배포에 동봉.**
+> - 검증: 헬스 29/29 · 빌드 EXIT 0 · API E2E(요약영속·instruction·브릿지·멀티테넌트403·공개뷰9종) · 운영 스키마 5컬럼 + `/qnote` 프록시 스모크 통과.
+>
+> **이전:** 2026-06-05 사이클 N+87~88 — Q Mail 맥락통합(A+B+C) + 우측패널 통일 + 업무후보카드 통일(`components/Common/TaskCandidateCard.tsx`). 설계 `docs/QMAIL_CONTEXT_DESIGN.md`. v1.33.0 에 동봉 배포.
 >
 > **이전:** 2026-06-04 사이클 N+86 — **v1.32.0 운영 라이브** (deploy `20260604_111416`, commit `1d48770`). **Q Bill 결제 독촉 보내기 — 미결제 청구서 수동 리마인더.** 방금 만든 "입금 확인 대기"의 반대쪽(은행계좌·수동 결제 운영 루프 완성). `POST /api/invoices/:biz/:id/send-reminder`(sent/partially_paid/overdue 만, qbill write) + **per-user rate-limit 30/h + invoice별 6시간 쿨다운**(운영안정성 1번) + AuditLog + `invoice:updated` broadcast + `meta.last_reminder_at/reminder_count`. `emailService.sendPaymentReminderEmail`(emailWrap 일관, 연체 강조). `InvoiceDetailDrawer` "결제 독촉 보내기" 액션 + 인라인 피드백(토스트 금지). **백엔드 메일 함수+라우트 / 프론트 3파일, DB 스키마 0**. 검증: 헬스 29/29 · 빌드 EXIT 0 · E2E 12/12(멀티테넌트 403·익명 401·쿨다운 429·draft/paid 400·EmailLog) · 운영 smoke 401.
 >
