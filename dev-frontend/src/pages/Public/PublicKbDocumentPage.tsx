@@ -148,7 +148,7 @@ const DocTitle = styled.h1`font-size: 22px; font-weight: 700; color: #0F172A; ma
 const MetaRow = styled.div`display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 20px;`;
 const SourcePill = styled.span`display: inline-flex; padding: 3px 10px; font-size: 11px; font-weight: 700; border-radius: 999px; background: #F0FDFA; color: #0F766E;`;
 const MetaItem = styled.span`font-size: 12px; color: #64748B;`;
-const BodyBox = styled.div`font-size: 14px; color: #334155; line-height: 1.7; padding: 16px 18px; background: #F8FAFC; border-radius: 10px; white-space: pre-wrap; word-break: break-word; max-height: 60vh; overflow-y: auto;`;
+const BodyBox = styled.div`font-size: 14px; color: #334155; line-height: 1.7; padding: 16px 18px; background: #F8FAFC; border-radius: 10px; white-space: pre-wrap; word-break: break-word;`;
 const CTAArea = styled.div`display: flex; gap: 8px; margin: 24px 0 12px; flex-wrap: wrap;`;
 const CTA = styled.a`
   display: inline-flex; align-items: center; padding: 10px 20px;
