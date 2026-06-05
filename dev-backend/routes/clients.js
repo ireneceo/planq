@@ -65,6 +65,38 @@ router.get('/:businessId/:clientId/removal-impact', authenticateToken, checkBusi
   } catch (error) { next(error); }
 });
 
+// 고객 통합 타임라인 (Customer 360, N+87 Phase A) — 채팅·메일·업무·청구 시간순 merge.
+//   ★ 내부 전용: client 역할은 403 (자기 360 타임라인 노출 X — docs §8.5).
+//   ?limit= ?before=<ISO> ?channels=chat,email,task,invoice
+router.get('/:businessId/:clientId/timeline', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+  try {
+    if (req.businessRole === 'client') return errorResponse(res, 'forbidden', 403);
+    const businessId = Number(req.params.businessId);
+    const clientId = Number(req.params.clientId);
+    const client = await Client.findOne({ where: { id: clientId, business_id: businessId }, attributes: ['id'] });
+    if (!client) return errorResponse(res, 'Client not found', 404);
+    const { getClientTimeline } = require('../services/clientTimeline');
+    const limit = Math.min(Math.max(Number(req.query.limit) || 40, 1), 100);
+    const channels = req.query.channels ? String(req.query.channels).split(',').map((s) => s.trim()).filter(Boolean) : null;
+    const out = await getClientTimeline(businessId, clientId, { userId: req.user.id, limit, before: req.query.before || null, channels });
+    return successResponse(res, out);
+  } catch (error) { next(error); }
+});
+
+// cross-channel 요약 (우측 패널 "이 고객" — 채널별 카운트 + 최근 1건). 내부 전용.
+router.get('/:businessId/:clientId/channel-summary', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+  try {
+    if (req.businessRole === 'client') return errorResponse(res, 'forbidden', 403);
+    const businessId = Number(req.params.businessId);
+    const clientId = Number(req.params.clientId);
+    const client = await Client.findOne({ where: { id: clientId, business_id: businessId }, attributes: ['id'] });
+    if (!client) return errorResponse(res, 'Client not found', 404);
+    const { getClientChannelSummary } = require('../services/clientTimeline');
+    const out = await getClientChannelSummary(businessId, clientId, { userId: req.user.id });
+    return successResponse(res, out);
+  } catch (error) { next(error); }
+});
+
 // Create client (invite)
 router.post('/:businessId', authenticateToken, checkBusinessAccess, async (req, res, next) => {
   try {
