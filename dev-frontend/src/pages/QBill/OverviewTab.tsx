@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
@@ -81,7 +82,7 @@ export default function OverviewTab() {
   }, [businessId, reload]);
 
   const stats = useMemo(() => computeStats(invoices, period), [invoices, period]);
-  const trend = useMemo(() => buildTrend(invoices), [invoices]);
+  const trend = useMemo(() => buildTrend(invoices, t), [invoices, t]);
   const topUnpaid = useMemo(() => buildTopUnpaid(invoices), [invoices]);
   const pendingDeposits = useMemo(() => buildPendingDeposits(invoices), [invoices]);
 
@@ -200,7 +201,7 @@ export default function OverviewTab() {
             <KpiHelp>{t('overview.kpi.outstandingHelp')}</KpiHelp>
           </KpiHead>
           <KpiValue>{formatMoney(stats.outstanding, 'KRW')}</KpiValue>
-          <KpiSub>{stats.outstandingCount}건 · 평균 {stats.outstandingAvgDays}일 대기</KpiSub>
+          <KpiSub>{t('overview.kpi.outstandingSub', { count: stats.outstandingCount, days: stats.outstandingAvgDays })}</KpiSub>
         </KpiCard>
 
         <KpiCard $accent="#0EA5E9">
@@ -208,7 +209,7 @@ export default function OverviewTab() {
             <KpiLabel>{t('overview.kpi.pendingIssue')}</KpiLabel>
             <KpiHelp>{t('overview.kpi.pendingIssueHelp')}</KpiHelp>
           </KpiHead>
-          <KpiValue>{stats.draftCount}<KpiUnit>건</KpiUnit></KpiValue>
+          <KpiValue>{stats.draftCount}<KpiUnit>{t('overview.unit.count')}</KpiUnit></KpiValue>
           <KpiSub>{formatMoney(stats.draftAmount, 'KRW')}</KpiSub>
         </KpiCard>
 
@@ -217,7 +218,7 @@ export default function OverviewTab() {
             <KpiLabel>{t('overview.kpi.pendingTax')}</KpiLabel>
             <KpiHelp>{t('overview.kpi.pendingTaxHelp')}</KpiHelp>
           </KpiHead>
-          <KpiValue>{stats.pendingTaxCount}<KpiUnit>건</KpiUnit></KpiValue>
+          <KpiValue>{stats.pendingTaxCount}<KpiUnit>{t('overview.unit.count')}</KpiUnit></KpiValue>
           <KpiSub>{formatMoney(stats.pendingTaxAmount, 'KRW')}</KpiSub>
         </KpiCard>
       </KpiGrid>
@@ -283,7 +284,7 @@ export default function OverviewTab() {
                       <EventDot $color={inv.status === 'paid' ? '#22C55E' : inv.status === 'partially_paid' ? '#F59E0B' : inv.status === 'overdue' ? '#DC2626' : '#0EA5E9'} />
                       <RecentBody>
                         <RecentTitle>{inv.invoice_number} · {inv.title}</RecentTitle>
-                        <RecentMeta>{t(`invoices.status.${inv.status}`)} · {formatRelative(inv.created_at)}</RecentMeta>
+                        <RecentMeta>{t(`invoices.status.${inv.status}`)} · {formatRelative(inv.created_at, t)}</RecentMeta>
                       </RecentBody>
                     </RecentRow>
                   ))}
@@ -351,14 +352,14 @@ function buildSparkFromInvoices(list: ApiInvoice[]): number[] {
   return buckets.length > 0 ? buckets : [0];
 }
 
-function buildTrend(list: ApiInvoice[]) {
+function buildTrend(list: ApiInvoice[], t: TFunction) {
   // 12개월 — 실 invoice 누적 매출
   const months = 12;
   const buckets: { month: string; value: number }[] = [];
   const now = new Date();
   for (let i = months - 1; i >= 0; i--) {
     const dt = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    buckets.push({ month: `${dt.getMonth() + 1}월`, value: 0 });
+    buckets.push({ month: t('overview.monthLabel', { month: dt.getMonth() + 1 }), value: 0 });
   }
   for (const inv of list) {
     if (inv.status !== 'paid' && inv.status !== 'partially_paid') continue;
@@ -411,19 +412,19 @@ function daysSince(dateStr: string | null): number {
   return Math.floor((Date.now() - target.getTime()) / (1000 * 60 * 60 * 24));
 }
 
-function formatRelative(iso: string): string {
+function formatRelative(iso: string, t: TFunction): string {
   const target = new Date(iso);
   const diffMs = Date.now() - target.getTime();
   const days = Math.floor(diffMs / (1000 * 60 * 60 * 24));
   if (days <= 0) {
     const hours = Math.floor(diffMs / (1000 * 60 * 60));
-    if (hours <= 0) return '방금';
-    return `${hours}시간 전`;
+    if (hours <= 0) return t('overview.relative.now');
+    return t('overview.relative.hoursAgo', { n: hours });
   }
-  if (days === 1) return '어제';
-  if (days < 30) return `${days}일 전`;
+  if (days === 1) return t('overview.relative.yesterday');
+  if (days < 30) return t('overview.relative.daysAgo', { n: days });
   const months = Math.floor(days / 30);
-  return `${months}달 전`;
+  return t('overview.relative.monthsAgo', { n: months });
 }
 
 // ─── 차트 컴포넌트 (간단 SVG) ───
