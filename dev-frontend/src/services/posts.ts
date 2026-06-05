@@ -143,6 +143,7 @@ export async function createPost(payload: {
   content_json?: TiptapDoc;
   category?: string | null;
   is_pinned?: boolean;
+  vlevel?: 'L1' | 'L2' | 'L3' | 'L4';
 }): Promise<PostDetail> {
   const r = await apiFetch('/api/posts', {
     method: 'POST',

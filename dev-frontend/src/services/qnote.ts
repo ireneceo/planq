@@ -153,6 +153,47 @@ export async function generateSessionSummary(
   return j.data;
 }
 
+// ─── N+88 Q Note ↔ Q Task 브릿지 (Node API — /api/businesses) ───
+export interface NoteTaskCandidate {
+  id: number;
+  title: string;
+  description?: string | null;
+  guessed_assignee_user_id?: number | null;
+  guessedAssignee?: { id: number; name: string } | null;
+  guessed_due_date?: string | null;
+  similar_task_id?: number | null;
+}
+
+export async function extractNoteTasks(businessId: number, sessionId: number, payload: { text: string; title?: string }): Promise<NoteTaskCandidate[]> {
+  const r = await apiFetch(`/api/businesses/${businessId}/qnote-sessions/${sessionId}/extract-tasks`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+  });
+  const j = await r.json();
+  if (!j.success) throw new Error(j.message || 'extract_failed');
+  return (j.data?.candidates || []) as NoteTaskCandidate[];
+}
+
+export async function listNoteCandidates(businessId: number, sessionId: number): Promise<NoteTaskCandidate[]> {
+  const r = await apiFetch(`/api/businesses/${businessId}/qnote-sessions/${sessionId}/task-candidates`);
+  const j = await r.json();
+  if (!j.success) throw new Error(j.message || 'list_failed');
+  return (j.data || []) as NoteTaskCandidate[];
+}
+
+export async function registerNoteCandidate(businessId: number, sessionId: number, candidateId: number, overrides: { title?: string; assignee_id?: number | null; start_date?: string | null; due_date?: string | null }): Promise<void> {
+  const r = await apiFetch(`/api/businesses/${businessId}/qnote-sessions/${sessionId}/task-candidates/${candidateId}/register`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(overrides),
+  });
+  const j = await r.json();
+  if (!j.success) throw new Error(j.message || 'register_failed');
+}
+
+export async function rejectNoteCandidate(businessId: number, sessionId: number, candidateId: number): Promise<void> {
+  const r = await apiFetch(`/api/businesses/${businessId}/qnote-sessions/${sessionId}/task-candidates/${candidateId}/reject`, { method: 'POST' });
+  const j = await r.json();
+  if (!j.success) throw new Error(j.message || 'reject_failed');
+}
+
 export async function revokeSessionShareToken(sessionId: number): Promise<void> {
   const res = await fetch(`/api/sessions/${sessionId}/share`, {
     method: 'DELETE',

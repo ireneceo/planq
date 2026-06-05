@@ -7,6 +7,9 @@ import VisibilityChangeModal from '../../components/Common/VisibilityChangeModal
 import { PanelGridLayout, CollapsibleSidebar, SidebarBackdrop, Panel } from '../../components/Layout/PanelLayout';
 import QNoteShareModal from '../../components/QNote/QNoteShareModal';
 import QNoteSummaryModal from '../../components/QNote/QNoteSummaryModal';
+import { saveSummaryAsDoc } from '../../utils/qnoteSummaryDoc';
+import TaskCandidateCard, { type CandidateData } from '../../components/Common/TaskCandidateCard';
+import { useNoteTaskExtraction } from '../../hooks/useNoteTaskExtraction';
 import styled from 'styled-components';
 import StartMeetingModal from './StartMeetingModal';
 import type { StartConfig } from './StartMeetingModal';
@@ -238,6 +241,8 @@ const QNotePage = () => {
   // N+88 — 인라인 영속 요약 (review 상시 표시). 생성/재요약 시 activeSession.summary_* 갱신.
   const [summarizing, setSummarizing] = useState(false);
   const [summaryError, setSummaryError] = useState<string | null>(null);
+  const [savingDoc, setSavingDoc] = useState(false);
+  const [docSaved, setDocSaved] = useState(false);
   const [questionsModal, setQuestionsModal] = useState(false);
   const [settingsViewOpen, setSettingsViewOpen] = useState(false);
   // 사이클 N+25 — 공유 모달 (visibility + share_token 통합)
@@ -1051,12 +1056,50 @@ const QNotePage = () => {
         ? { ...prev, summary_key_points: data.key_points, summary_full: data.full_summary, summarized_at: new Date().toISOString() }
         : prev));
       setSummaryModal({ open: false, loading: false, data, error: null });
+      setDocSaved(false);  // 새 요약 → 문서 저장 상태 리셋
     } catch (e) {
       setSummaryError((e as Error).message || (t('page.summary.failed') as string));
     } finally {
       setSummarizing(false);
     }
   };
+
+  // N+88 — 요약 → Q docs 문서 저장 (사적 L1). 저장 후 인라인 "보기" 링크.
+  const saveCurrentSummaryAsDoc = async () => {
+    if (!activeSession || !businessId || !activeSession.summary_full) return;
+    setSavingDoc(true);
+    setSummaryError(null);
+    try {
+      await saveSummaryAsDoc({
+        businessId: Number(businessId),
+        title: `${activeSession.title || 'Q Note'} — ${t('page.summary.title')}`,
+        keyPoints: activeSession.summary_key_points || [],
+        full: activeSession.summary_full || '',
+        labels: { keyPoints: t('page.summary.keyPointsLabel') as string, full: t('page.summary.fullLabel') as string },
+      });
+      setDocSaved(true);
+    } catch (e) {
+      setSummaryError((e as Error).message || (t('page.summary.saveDocFailed') as string));
+    } finally {
+      setSavingDoc(false);
+    }
+  };
+
+  // N+88 — 업무 추출 (Q Note ↔ Q Task 브릿지). 공유 훅 (메모와 동일 구현).
+  const noteTasks = useNoteTaskExtraction(
+    businessId ? Number(businessId) : null,
+    activeSession?.id ?? null,
+    {
+      enabled: phase === 'review' && !!activeSession && activeSession.input_type !== 'text',
+      getText: () => (renderBlocks
+        .filter((b) => b.kind === 'speech' || b.kind === 'question')
+        .map((b) => b.segments.map((s) => s.original).join(' '))
+        .join('\n').trim() || (activeSession?.summary_full || '')),
+      title: activeSession?.title || '',
+      emptyMsg: t('page.reviewBar.emptyTranscript') as string,
+      failMsg: t('page.tasks.extractFailed') as string,
+    },
+  );
 
   // ── 설정 편집 저장 ───────────────────────────────────
   const handleSaveSessionEdit = async (cfg: StartConfig) => {
@@ -2512,9 +2555,21 @@ const QNotePage = () => {
               <SummaryHead>
                 <SummaryHeadTitle>{t('page.summary.title', '요약')}</SummaryHeadTitle>
                 {activeSession.summary_full && (
-                  <SummaryRegenBtn type="button" onClick={() => runSummary()} disabled={summarizing}>
-                    {summarizing ? t('page.summary.generating', '생성 중...') : t('page.summary.regenerate', '재요약')}
-                  </SummaryRegenBtn>
+                  <SummaryActions>
+                    {docSaved ? (
+                      <SummarySavedRow>
+                        <SummarySavedText>{t('page.summary.savedDoc', '문서 저장됨')}</SummarySavedText>
+                        <SummaryLink type="button" onClick={() => navigate('/docs')}>{t('page.summary.viewDoc', '보기')}</SummaryLink>
+                      </SummarySavedRow>
+                    ) : (
+                      <SummaryDocBtn type="button" onClick={saveCurrentSummaryAsDoc} disabled={savingDoc}>
+                        {savingDoc ? t('page.summary.savingDoc', '저장 중...') : t('page.summary.saveDoc', '문서로 저장')}
+                      </SummaryDocBtn>
+                    )}
+                    <SummaryRegenBtn type="button" onClick={() => runSummary()} disabled={summarizing}>
+                      {summarizing ? t('page.summary.generating', '생성 중...') : t('page.summary.regenerate', '재요약')}
+                    </SummaryRegenBtn>
+                  </SummaryActions>
                 )}
               </SummaryHead>
               {summaryError && <SummaryError>{summaryError}</SummaryError>}
@@ -2536,6 +2591,44 @@ const QNotePage = () => {
                 </SummaryEmpty>
               )}
             </SummarySection>
+
+            {/* N+88 — 업무 추출 (transcript → 후보 → 등록). TaskCandidateCard 통일 재사용. */}
+            <TasksSection>
+              <SummaryHead>
+                <SummaryHeadTitle>{t('page.tasks.title', '업무')}</SummaryHeadTitle>
+                <SummaryRegenBtn type="button" onClick={noteTasks.extract} disabled={noteTasks.extracting}>
+                  {noteTasks.extracting ? t('page.tasks.extracting', '추출 중...') : t('page.tasks.extract', '업무 추출')}
+                </SummaryRegenBtn>
+              </SummaryHead>
+              {noteTasks.error && <SummaryError>{noteTasks.error}</SummaryError>}
+              {noteTasks.candidates.length > 0 ? (
+                <TaskCandidateList>
+                  {noteTasks.candidates.map((c) => {
+                    const cd: CandidateData = {
+                      id: c.id,
+                      title: c.title,
+                      description: c.description,
+                      guessed_assignee: c.guessedAssignee ? { user_id: c.guessedAssignee.id, name: c.guessedAssignee.name } : null,
+                      guessed_due_date: c.guessed_due_date,
+                      similar_task_id: c.similar_task_id,
+                    };
+                    return (
+                      <TaskCandidateCard
+                        key={c.id}
+                        candidate={cd}
+                        members={noteTasks.members}
+                        myUserId={user?.id ? Number(user.id) : undefined}
+                        onRegister={noteTasks.register}
+                        onReject={noteTasks.reject}
+                        busy={noteTasks.busy === c.id}
+                      />
+                    );
+                  })}
+                </TaskCandidateList>
+              ) : (
+                !noteTasks.extracting && <SummaryEmptyText>{t('page.tasks.emptyHint', '회의에서 실행할 업무를 AI가 찾아 후보로 제안합니다.')}</SummaryEmptyText>
+              )}
+            </TasksSection>
 
             <Transcript>
               {renderBlocks.length === 0 && <EmptyTranscript>{t('page.reviewEmpty')}</EmptyTranscript>}
@@ -2633,7 +2726,6 @@ const QNotePage = () => {
             .filter((b) => b.kind === 'speech' || b.kind === 'question')
             .map((b) => b.segments.map((s) => s.original).join(' '))
             .join('\n')}
-          onShare={() => setShareModalOpen(true)}
           qnoteApiBase="/qnote/api"
           qnoteToken={getAccessToken() || undefined}
         />
@@ -3757,6 +3849,45 @@ const SummaryRegenBtn = styled.button`
   &:hover:not(:disabled) { border-color: #CBD5E1; background: #F8FAFC; }
   &:disabled { opacity: 0.5; cursor: default; }
 `;
+const SummaryActions = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+`;
+const SummaryDocBtn = styled.button`
+  border: 1px solid #14B8A6;
+  background: #F0FDFA;
+  color: #0F766E;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  &:hover:not(:disabled) { background: #CCFBF1; }
+  &:disabled { opacity: 0.5; cursor: default; }
+`;
+const SummarySavedRow = styled.div`
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+`;
+const SummarySavedText = styled.span`
+  font-size: 12px;
+  font-weight: 600;
+  color: #0F766E;
+`;
+const SummaryLink = styled.button`
+  border: none;
+  background: transparent;
+  color: #0D9488;
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 0;
+`;
 const SummaryError = styled.div`
   font-size: 12px;
   color: #B91C1C;
@@ -3803,6 +3934,22 @@ const SummaryGenerateBtn = styled.button`
   &:hover:not(:disabled) { background: #0D9488; }
   &:active:not(:disabled) { background: #0F766E; }
   &:disabled { opacity: 0.6; cursor: default; }
+`;
+
+// N+88 — 업무 추출 섹션 (요약 밑 밴드)
+const TasksSection = styled.section`
+  flex-shrink: 0;
+  padding: 16px 32px;
+  border-bottom: 1px solid #E2E8F0;
+  background: #FFFFFF;
+  max-height: 320px;
+  overflow-y: auto;
+  @media (max-width: 640px) { padding: 14px 16px; }
+`;
+const TaskCandidateList = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 `;
 
 const Transcript = styled.div`

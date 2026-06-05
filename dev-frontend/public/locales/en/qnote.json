@@ -90,7 +90,14 @@
       "generate": "Generate AI summary",
       "generating": "Generating...",
       "emptyHint": "AI summarizes the key points of this session.",
-      "failed": "Failed to generate summary"
+      "failed": "Failed to generate summary",
+      "keyPointsLabel": "Key points",
+      "fullLabel": "Full summary",
+      "saveDoc": "Save as document",
+      "savingDoc": "Saving...",
+      "savedDoc": "Saved to docs",
+      "saveDocFailed": "Failed to save document",
+      "viewDoc": "View"
     },
     "reviewEmpty": "No utterances recorded.",
     "speaker": {
@@ -180,6 +187,13 @@
       "recorderLocked": "This note is already being recorded in another tab or device. Please pause or end it there first.",
       "recorderLost": "Another tab took over the recording, so this tab has stopped.",
       "recorderLockedBanner": "This note is being recorded in another tab or device. Duplicate recording is not allowed."
+    },
+    "tasks": {
+      "title": "Tasks",
+      "extract": "Extract tasks",
+      "extracting": "Extracting...",
+      "emptyHint": "AI finds actionable tasks from this session and suggests them as candidates.",
+      "extractFailed": "Failed to extract tasks"
     }
   },
   "memoPopup": {

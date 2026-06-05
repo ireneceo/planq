@@ -13,8 +13,12 @@
 import React, { useState, useEffect, useRef, useCallback, Suspense, lazy } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
 import { createSession, updateSession, generateSessionSummary } from '../../services/qnote';
 import type { QNoteSession } from '../../services/qnote';
+import { saveSummaryAsDoc } from '../../utils/qnoteSummaryDoc';
+import { useNoteTaskExtraction } from '../../hooks/useNoteTaskExtraction';
+import TaskCandidateCard, { type CandidateData } from '../../components/Common/TaskCandidateCard';
 import { parseBodyToDoc, deriveTitleFromDoc, isDocEmpty } from '../../utils/qnoteBody';
 import VisibilityBadge from '../../components/Common/VisibilityBadge';
 
@@ -74,8 +78,40 @@ const MemoView: React.FC<Props> = ({ session, businessId, prefillProjectId, pref
   const [tick, setTick] = useState(0);
   const [confirmDelete, setConfirmDelete] = useState(false);
   // N+88 — 메모 요약 (body 기반, 영속). session.summary_* 로 표시.
+  const navigate = useNavigate();
   const [summarizing, setSummarizing] = useState(false);
   const [summaryError, setSummaryError] = useState<string | null>(null);
+  const [savingDoc, setSavingDoc] = useState(false);
+  const [docSaved, setDocSaved] = useState(false);
+
+  // N+88 — 메모 업무 추출 (음성 review 와 동일 공유 훅, getText=body 평문)
+  const noteTasks = useNoteTaskExtraction(businessId || null, sessionId, {
+    enabled: !!sessionId,
+    getText: () => docToPlainText(doc),
+    title: deriveTitleFromDoc(doc) || '',
+    emptyMsg: t('page.summary.emptyHint') as string,
+    failMsg: t('page.tasks.extractFailed') as string,
+  });
+
+  const saveMemoSummaryAsDoc = async () => {
+    if (!session?.summary_full || !businessId) return;
+    setSavingDoc(true);
+    setSummaryError(null);
+    try {
+      await saveSummaryAsDoc({
+        businessId,
+        title: `${session.title || 'Q Note'} — ${t('page.summary.title')}`,
+        keyPoints: session.summary_key_points || [],
+        full: session.summary_full || '',
+        labels: { keyPoints: t('page.summary.keyPointsLabel') as string, full: t('page.summary.fullLabel') as string },
+      });
+      setDocSaved(true);
+    } catch (e) {
+      setSummaryError((e as Error).message || (t('page.summary.saveDocFailed') as string));
+    } finally {
+      setSavingDoc(false);
+    }
+  };
 
   const runMemoSummary = async () => {
     if (!sessionId) return;
@@ -88,6 +124,7 @@ const MemoView: React.FC<Props> = ({ session, businessId, prefillProjectId, pref
       if (session) {
         onUpdated({ ...session, summary_key_points: data.key_points, summary_full: data.full_summary, summarized_at: new Date().toISOString() });
       }
+      setDocSaved(false);  // 새 요약 → 문서 저장 상태 리셋
     } catch (e) {
       setSummaryError((e as Error).message || (t('page.summary.failed') as string));
     } finally {
@@ -209,9 +246,21 @@ const MemoView: React.FC<Props> = ({ session, businessId, prefillProjectId, pref
             <>
               <MemoSummaryTop>
                 <MemoSummaryTitle>{t('page.summary.title', '요약')}</MemoSummaryTitle>
-                <MemoSummaryRegen type="button" onClick={runMemoSummary} disabled={summarizing}>
-                  {summarizing ? t('page.summary.generating', '생성 중...') : t('page.summary.regenerate', '재요약')}
-                </MemoSummaryRegen>
+                <MemoSummaryActions>
+                  {docSaved ? (
+                    <MemoSummarySaved>
+                      <MemoSummarySavedText>{t('page.summary.savedDoc', '문서 저장됨')}</MemoSummarySavedText>
+                      <MemoSummaryLink type="button" onClick={() => navigate('/docs')}>{t('page.summary.viewDoc', '보기')}</MemoSummaryLink>
+                    </MemoSummarySaved>
+                  ) : (
+                    <MemoSummaryDocBtn type="button" onClick={saveMemoSummaryAsDoc} disabled={savingDoc}>
+                      {savingDoc ? t('page.summary.savingDoc', '저장 중...') : t('page.summary.saveDoc', '문서로 저장')}
+                    </MemoSummaryDocBtn>
+                  )}
+                  <MemoSummaryRegen type="button" onClick={runMemoSummary} disabled={summarizing}>
+                    {summarizing ? t('page.summary.generating', '생성 중...') : t('page.summary.regenerate', '재요약')}
+                  </MemoSummaryRegen>
+                </MemoSummaryActions>
               </MemoSummaryTop>
               {(session.summary_key_points || []).length > 0 && (
                 <MemoSummaryPoints>
@@ -231,6 +280,36 @@ const MemoView: React.FC<Props> = ({ session, businessId, prefillProjectId, pref
             </MemoSummaryEmpty>
           )}
         </MemoSummary>
+      )}
+
+      {/* N+88 — 메모 업무 추출 (음성 review 와 동일 TaskCandidateCard) */}
+      {sessionId && (
+        <MemoTasks>
+          <MemoSummaryTop>
+            <MemoSummaryTitle>{t('page.tasks.title', '업무')}</MemoSummaryTitle>
+            <MemoSummaryRegen type="button" onClick={noteTasks.extract} disabled={noteTasks.extracting}>
+              {noteTasks.extracting ? t('page.tasks.extracting', '추출 중...') : t('page.tasks.extract', '업무 추출')}
+            </MemoSummaryRegen>
+          </MemoSummaryTop>
+          {noteTasks.error && <MemoSummaryError>{noteTasks.error}</MemoSummaryError>}
+          {noteTasks.candidates.length > 0 ? (
+            <MemoTaskList>
+              {noteTasks.candidates.map((c) => {
+                const cd: CandidateData = {
+                  id: c.id, title: c.title, description: c.description,
+                  guessed_assignee: c.guessedAssignee ? { user_id: c.guessedAssignee.id, name: c.guessedAssignee.name } : null,
+                  guessed_due_date: c.guessed_due_date, similar_task_id: c.similar_task_id,
+                };
+                return (
+                  <TaskCandidateCard key={c.id} candidate={cd} members={noteTasks.members}
+                    onRegister={noteTasks.register} onReject={noteTasks.reject} busy={noteTasks.busy === c.id} />
+                );
+              })}
+            </MemoTaskList>
+          ) : (
+            !noteTasks.extracting && <MemoSummaryHint>{t('page.tasks.emptyHint', '회의에서 실행할 업무를 AI가 찾아 후보로 제안합니다.')}</MemoSummaryHint>
+          )}
+        </MemoTasks>
       )}
 
       <Body>
@@ -298,6 +377,38 @@ const MemoSummaryRegen = styled.button`
   transition: all 0.15s ease;
   &:hover:not(:disabled) { border-color: #CBD5E1; background: #F8FAFC; }
   &:disabled { opacity: 0.5; cursor: default; }
+`;
+const MemoTasks = styled.section`
+  flex-shrink: 0;
+  padding: 14px 20px;
+  border-bottom: 1px solid #E2E8F0;
+  background: #FFFFFF;
+  max-height: 300px;
+  overflow-y: auto;
+  @media (max-width: 768px) { padding: 12px 14px; }
+`;
+const MemoTaskList = styled.div`
+  display: flex; flex-direction: column; gap: 10px;
+`;
+const MemoSummaryActions = styled.div`
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+`;
+const MemoSummaryDocBtn = styled.button`
+  border: 1px solid #14B8A6; background: #F0FDFA; color: #0F766E;
+  font-size: 12px; font-weight: 600; padding: 6px 12px; border-radius: 8px; cursor: pointer;
+  transition: all 0.15s ease;
+  &:hover:not(:disabled) { background: #CCFBF1; }
+  &:disabled { opacity: 0.5; cursor: default; }
+`;
+const MemoSummarySaved = styled.div`
+  display: inline-flex; align-items: center; gap: 8px;
+`;
+const MemoSummarySavedText = styled.span`
+  font-size: 12px; font-weight: 600; color: #0F766E;
+`;
+const MemoSummaryLink = styled.button`
+  border: none; background: transparent; color: #0D9488;
+  font-size: 12px; font-weight: 600; text-decoration: underline; cursor: pointer; padding: 0;
 `;
 const MemoSummaryPoints = styled.ul`
   margin: 0 0 8px; padding-left: 18px; display: flex; flex-direction: column; gap: 4px;
