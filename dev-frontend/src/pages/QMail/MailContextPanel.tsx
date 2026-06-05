@@ -8,8 +8,7 @@ import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { apiFetch } from '../../contexts/AuthContext';
 import PlanQSelect from '../../components/Common/PlanQSelect';
-import SingleDateField from '../../components/Common/SingleDateField';
-import ActionButton from '../../components/Common/ActionButton';
+import TaskCandidateCard, { type RegisterOverrides } from '../../components/Common/TaskCandidateCard';
 
 interface ThreadLite {
   id: number;
@@ -49,7 +48,6 @@ const MailContextPanel: React.FC<Props> = ({ businessId, thread, members, onLink
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [extractBusy, setExtractBusy] = useState(false);
   const [extractMsg, setExtractMsg] = useState<string | null>(null);
-  const [edits, setEdits] = useState<Record<number, { title?: string; assignee_id?: number | null; due_date?: string }>>({});
   const [rowBusy, setRowBusy] = useState<number | null>(null);
   // 자동·마케팅·스팸 메일엔 추출 버튼 숨김 (실 요청만 — 설계 §4)
   const canExtract = !thread.triage || thread.triage === 'human' || thread.triage === 'unknown';
@@ -120,7 +118,7 @@ const MailContextPanel: React.FC<Props> = ({ businessId, thread, members, onLink
   // 기존 pending 업무 후보 로드 (스레드 전환 시)
   useEffect(() => {
     let alive = true;
-    setCandidates([]); setEdits({}); setExtractMsg(null);
+    setCandidates([]); setExtractMsg(null);
     (async () => {
       try {
         const r = await apiFetch(`/api/businesses/${businessId}/email-threads/${thread.id}/task-candidates`);
@@ -146,22 +144,16 @@ const MailContextPanel: React.FC<Props> = ({ businessId, thread, members, onLink
     } finally { setExtractBusy(false); }
   }, [extractBusy, businessId, thread.id, t]);
 
-  const register = useCallback(async (c: Candidate) => {
-    if (rowBusy) return; setRowBusy(c.id);
+  const register = useCallback(async (id: number, overrides: RegisterOverrides) => {
+    if (rowBusy) return; setRowBusy(id);
     try {
-      const e = edits[c.id] || {};
-      const body: Record<string, unknown> = {
-        title: (e.title ?? c.title),
-        assignee_id: e.assignee_id !== undefined ? e.assignee_id : (c.guessed_assignee_user_id ?? null),
-      };
-      if (e.due_date !== undefined) body.due_date = e.due_date || null;
-      else if (c.guessed_due_date) body.due_date = c.guessed_due_date;
-      const r = await apiFetch(`/api/businesses/${businessId}/email-threads/${thread.id}/task-candidates/${c.id}/register`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+      const r = await apiFetch(`/api/businesses/${businessId}/email-threads/${thread.id}/task-candidates/${id}/register`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: overrides.title, assignee_id: overrides.assignee_id, start_date: overrides.start_date, due_date: overrides.due_date }),
       });
-      if ((await r.json()).success) setCandidates((prev) => prev.filter(p => p.id !== c.id));
+      if ((await r.json()).success) setCandidates((prev) => prev.filter(p => p.id !== id));
     } finally { setRowBusy(null); }
-  }, [rowBusy, edits, businessId, thread.id]);
+  }, [rowBusy, businessId, thread.id]);
 
   const reject = useCallback(async (id: number) => {
     if (rowBusy) return; setRowBusy(id);
@@ -226,7 +218,6 @@ const MailContextPanel: React.FC<Props> = ({ businessId, thread, members, onLink
     if ((await r.json()).success) setNotes(p => p.filter(x => x.id !== id));
   }, [businessId, thread.id]);
 
-  const memberOptions = useMemo(() => [{ value: 0, label: t('context.unassigned', { defaultValue: '담당 미지정' }) as string }, ...members.map(m => ({ value: m.user_id, label: m.name }))], [members, t]);
 
   const clientOptions = useMemo(() => [{ value: 0, label: t('context.noClient', { defaultValue: '연결 안 함' }) as string }, ...clients.map(c => ({ value: c.id, label: c.label }))], [clients, t]);
   const projectOptions = useMemo(() => [{ value: 0, label: t('context.noProject', { defaultValue: '연결 안 함' }) as string }, ...projects.map(p => ({ value: p.id, label: p.label }))], [projects, t]);
@@ -282,28 +273,22 @@ const MailContextPanel: React.FC<Props> = ({ businessId, thread, members, onLink
             : t('context.tasksGated', { defaultValue: '자동·마케팅 메일에서는 업무를 추출하지 않아요.' }) as string}</Dim>
         ) : (
           <CandList>
-            {candidates.map((c) => {
-              const e = edits[c.id] || {};
-              const aid = e.assignee_id !== undefined ? (e.assignee_id || 0) : (c.guessed_assignee_user_id || 0);
-              return (
-                <CandCard key={c.id}>
-                  <CandTitle value={e.title ?? c.title} disabled={rowBusy === c.id}
-                    onChange={(ev) => setEdits(p => ({ ...p, [c.id]: { ...p[c.id], title: ev.target.value } }))} />
-                  <CandRow>
-                    <PlanQSelect size="sm" isSearchable menuPlacement="bottom"
-                      value={memberOptions.find(o => o.value === aid)}
-                      onChange={(opt: unknown) => { const v = (opt as { value?: number } | null)?.value || 0; setEdits(p => ({ ...p, [c.id]: { ...p[c.id], assignee_id: v > 0 ? v : null } })); }}
-                      options={memberOptions} />
-                    <SingleDateField value={e.due_date ?? (c.guessed_due_date || '')}
-                      onChange={(v) => setEdits(p => ({ ...p, [c.id]: { ...p[c.id], due_date: v } }))} />
-                  </CandRow>
-                  <CandActions>
-                    <MiniGhost type="button" onClick={() => reject(c.id)} disabled={rowBusy === c.id}>{t('context.reject', { defaultValue: '무시' }) as string}</MiniGhost>
-                    <ActionButton tone="primary" size="sm" loading={rowBusy === c.id} onClick={() => register(c)}>{t('context.register', { defaultValue: '업무 등록' }) as string}</ActionButton>
-                  </CandActions>
-                </CandCard>
-              );
-            })}
+            {candidates.map((c) => (
+              <TaskCandidateCard
+                key={c.id}
+                candidate={{
+                  id: c.id,
+                  title: c.title,
+                  description: c.description,
+                  guessed_assignee: c.guessedAssignee ? { user_id: c.guessedAssignee.id, name: c.guessedAssignee.name } : (c.guessed_assignee_user_id ? { user_id: c.guessed_assignee_user_id, name: members.find(m => m.user_id === c.guessed_assignee_user_id)?.name || '' } : null),
+                  guessed_due_date: c.guessed_due_date,
+                }}
+                members={members.map(m => ({ user_id: m.user_id, name: m.name }))}
+                busy={rowBusy === c.id}
+                onRegister={register}
+                onReject={reject}
+              />
+            ))}
           </CandList>
         )}
       </Section>
@@ -404,18 +389,6 @@ const ExtractBtn = styled.button`
   &:hover:not(:disabled){ background:#FFE4E6; } &:disabled{ opacity:0.6; cursor:wait; }
 `;
 const CandList = styled.div`display:flex; flex-direction:column; gap:8px;`;
-const CandCard = styled.div`display:flex; flex-direction:column; gap:8px; padding:10px; border:1px solid #E2E8F0; border-radius:10px; background:#fff;`;
-const CandTitle = styled.input`
-  height:32px; padding:0 8px; border:1px solid #CBD5E1; border-radius:6px; font-size:13px; font-weight:600; color:#0F172A;
-  &:focus{ outline:none; border-color:#14B8A6; box-shadow:0 0 0 3px rgba(20,184,166,0.15); }
-`;
-const CandRow = styled.div`display:grid; grid-template-columns:1fr 1fr; gap:6px;`;
-const CandActions = styled.div`display:flex; align-items:center; justify-content:flex-end; gap:6px;`;
-const MiniGhost = styled.button`
-  height:32px; padding:0 10px; border-radius:7px; cursor:pointer; font-size:12px; font-weight:600;
-  color:#64748B; background:#fff; border:1px solid #CBD5E1;
-  &:hover:not(:disabled){ background:#F1F5F9; } &:disabled{ opacity:0.5; }
-`;
 const SummaryBox = styled.div`font-size:12px; color:#334155; line-height:1.6; white-space:pre-wrap; background:#F8FAFC; border:1px solid #E2E8F0; border-radius:10px; padding:10px 12px;`;
 const NoteRow = styled.div`display:flex; align-items:flex-start; gap:6px; padding:6px 0; border-bottom:1px solid #F1F5F9; &:last-of-type{ border-bottom:none; }`;
 const NoteBody = styled.div`flex:1; min-width:0; font-size:12px; color:#334155; line-height:1.5; word-break:break-word;`;

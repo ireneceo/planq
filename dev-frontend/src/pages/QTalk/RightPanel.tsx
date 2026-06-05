@@ -12,7 +12,7 @@ import LetterAvatar from '../../components/Common/LetterAvatar';
 import FloatingPanelToggle, { PANEL_WIDTH_CSS } from '../../components/Common/FloatingPanelToggle';
 import { useIsNarrow } from '../../hooks/useMediaQuery';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
-import CandidateEditCard from '../../components/QTalk/CandidateEditCard';
+import TaskCandidateCard from '../../components/Common/TaskCandidateCard';
 import type { RegisterCandidateOverrides } from '../../services/qtalk';
 
 interface Props {
@@ -251,10 +251,10 @@ const RightPanel: React.FC<Props> = ({
               )}
             </CandidatesHeader>
             {candidates.map((c) => (
-              <CandidateEditCard
+              <TaskCandidateCard
                 key={c.id}
                 candidate={c}
-                members={project?.members || []}
+                members={(project?.members || []).map((m) => ({ user_id: m.user_id, name: m.name }))}
                 myUserId={myUserId}
                 onRegister={onRegisterCandidate}
                 onMerge={onMergeCandidate}

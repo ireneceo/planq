@@ -522,5 +522,17 @@
       "sendFail": "Failed to send",
       "network": "Network error"
     }
+  },
+  "candidate": {
+    "noAssignee": "Unassigned",
+    "assignee": "Assignee",
+    "period": "Period",
+    "datePlaceholder": "Pick a date",
+    "titlePlaceholder": "Task title",
+    "similar": "Similar task found",
+    "request": "Request",
+    "register": "Add",
+    "merge": "Append",
+    "reject": "Dismiss"
   }
 }
