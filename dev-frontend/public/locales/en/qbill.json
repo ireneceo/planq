@@ -26,7 +26,8 @@
       "pendingIssue": "Pending issue",
       "pendingIssueHelp": "Drafts to send",
       "pendingTax": "Tax pending",
-      "pendingTaxHelp": "Paid, awaiting tax invoice"
+      "pendingTaxHelp": "Paid, awaiting tax invoice",
+      "outstandingSub": "{{count}} · avg {{days}}d waiting"
     },
     "trend": {
       "title": "Monthly revenue (12 months)",
@@ -58,7 +59,18 @@
       "confirm": "Confirm payment",
       "confirming": "Processing…",
       "review": "Review"
-    }
+    },
+    "unit": {
+      "count": ""
+    },
+    "relative": {
+      "now": "just now",
+      "hoursAgo": "{{n}}h ago",
+      "yesterday": "yesterday",
+      "daysAgo": "{{n}}d ago",
+      "monthsAgo": "{{n}}mo ago"
+    },
+    "monthLabel": "{{month}}"
   },
   "invoices": {
     "title": "Invoices",

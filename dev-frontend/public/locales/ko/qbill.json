@@ -26,7 +26,8 @@
       "pendingIssue": "발행 대기",
       "pendingIssueHelp": "초안 + 미발송",
       "pendingTax": "세금계산서 대기",
-      "pendingTaxHelp": "결제 완료, 발행 대기"
+      "pendingTaxHelp": "결제 완료, 발행 대기",
+      "outstandingSub": "{{count}}건 · 평균 {{days}}일 대기"
     },
     "trend": {
       "title": "월별 매출 (12개월)",
@@ -58,7 +59,18 @@
       "confirm": "입금 확인",
       "confirming": "처리 중…",
       "review": "확인하기"
-    }
+    },
+    "unit": {
+      "count": "건"
+    },
+    "relative": {
+      "now": "방금",
+      "hoursAgo": "{{n}}시간 전",
+      "yesterday": "어제",
+      "daysAgo": "{{n}}일 전",
+      "monthsAgo": "{{n}}달 전"
+    },
+    "monthLabel": "{{month}}월"
   },
   "invoices": {
     "title": "청구서",
