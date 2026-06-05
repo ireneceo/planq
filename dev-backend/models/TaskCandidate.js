@@ -5,12 +5,15 @@ class TaskCandidate extends Model {}
 
 TaskCandidate.init({
   id: { type: DataTypes.BIGINT, primaryKey: true, autoIncrement: true },
-  // 독립 대화의 후보를 허용하기 위해 nullable. conversation_id 는 반드시 있어야 함.
+  // 독립 대화 + (N+87 Phase B) 메일 스레드 후보 지원 → conversation_id nullable.
+  //   스코프 = conversation_id OR email_thread_id (택일).
   project_id: { type: DataTypes.BIGINT, allowNull: true },
-  conversation_id: { type: DataTypes.INTEGER, allowNull: false },
+  conversation_id: { type: DataTypes.INTEGER, allowNull: true },
+  email_thread_id: { type: DataTypes.INTEGER, allowNull: true }, // N+87 — 메일 스레드 후보
   extracted_at: { type: DataTypes.DATE, defaultValue: DataTypes.NOW },
   extracted_by_user_id: { type: DataTypes.INTEGER, allowNull: true },
-  source_message_ids: { type: DataTypes.JSON, allowNull: false },
+  source_message_ids: { type: DataTypes.JSON, allowNull: true },  // 채팅 메시지 id (email 이면 null)
+  source_email_message_ids: { type: DataTypes.JSON, allowNull: true }, // N+87 — 메일 메시지 id
   title: { type: DataTypes.STRING(300), allowNull: false },
   description: { type: DataTypes.TEXT, allowNull: true },
   guessed_role: { type: DataTypes.STRING(50), allowNull: true },

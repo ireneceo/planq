@@ -14,7 +14,7 @@ import { io, type Socket } from 'socket.io-client';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';
 import PageShell from '../../components/Layout/PageShell';
-import PanelHeader, { PanelTitle, PanelSubTitle } from '../../components/Layout/PanelHeader';
+import PanelHeader, { PanelTitle, PanelSubTitle, PanelMetaTitle } from '../../components/Layout/PanelHeader';
 import { PanelLayout, Panel } from '../../components/Layout/PanelLayout';
 import { useAuth, apiFetch, getAccessToken } from '../../contexts/AuthContext';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
@@ -24,6 +24,7 @@ import AttachmentField from '../../components/Common/AttachmentField';
 import ActionButton from '../../components/Common/ActionButton';
 import PlanQSelect from '../../components/Common/PlanQSelect';
 import { uploadMyFile } from '../../services/files';
+import MailContextPanel from './MailContextPanel';
 
 type Folder = 'reply_needed' | 'inbox' | 'marketing' | 'uncertain' | 'assigned' | 'following' | 'spam' | 'archived';
 
@@ -49,6 +50,7 @@ interface Thread {
   labels: string[];
   account: { id: number; email: string; display_name?: string | null } | null;
   client: { id: number; display_name?: string; company_name?: string } | null;
+  project?: { id: number; name?: string; color?: string } | null;
   uncertain_reason?: string | null;
   triage?: string | null; // human / automated / marketing / spam / unknown (N+83)
 }
@@ -894,6 +896,13 @@ const MailPage: React.FC = () => {
             </>
           )}
         </Panel>
+
+        {detail && businessId && (
+          <Panel $width={300} $last $hideTablet>
+            <PanelHeader><PanelMetaTitle>{t('context.panelTitle', { defaultValue: '맥락' }) as string}</PanelMetaTitle></PanelHeader>
+            <MailContextPanel businessId={businessId} thread={detail} members={members} onLinked={() => loadDetail(detail.id)} />
+          </Panel>
+        )}
 
       {composeOpen && (
         <ComposeOverlay onMouseDown={closeCompose}>

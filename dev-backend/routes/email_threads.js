@@ -802,4 +802,94 @@ router.post('/:businessId/email-faq-suggestions/:id/dismiss',
   }
 );
 
+// ─────────────────────────────────────────────────────────
+// Q Mail Phase B (N+87) — 메일 스레드에서 업무 추출 → Q Task 통합
+//   task_extractor 파이프라인 재사용. 후보는 task_candidates(email_thread_id 스코프).
+// ─────────────────────────────────────────────────────────
+const { TaskCandidate } = require('../models');
+
+// 스레드 소유권(접근) 검증 헬퍼
+async function accessibleThread(req) {
+  const businessId = Number(req.params.businessId);
+  const acctIds = await accessibleAccountIds(businessId, req.user.id);
+  return EmailThread.findOne({ where: { id: Number(req.params.id), business_id: businessId, account_id: { [Op.in]: acctIds.length ? acctIds : [0] } } });
+}
+
+// POST extract-tasks — 이 스레드에서 업무 후보 추출
+router.post('/:businessId/email-threads/:id/extract-tasks',
+  authenticateToken, checkBusinessAccess, requireMenu('qmail', 'write'),
+  async (req, res, next) => {
+    try {
+      const businessId = Number(req.params.businessId);
+      const thread = await accessibleThread(req);
+      if (!thread) return errorResponse(res, 'thread_not_found', 404);
+      const extractor = require('../services/task_extractor');
+      const out = await extractor.extractEmailTaskCandidates({ emailThreadId: thread.id, userId: req.user.id, businessId });
+      if (out.skipped === 'usage_limit_exceeded') return errorResponse(res, 'cue_usage_limit_exceeded', 429);
+      if ((out.candidates || []).length) {
+        broadcastMail(req, businessId, 'email_candidate:created', { thread_id: thread.id, count: out.candidates.length });
+      }
+      return successResponse(res, { candidates: out.candidates || [], message_count: out.message_count || 0, reason: out.reason || null });
+    } catch (err) {
+      if (err.message === 'thread_not_found') return errorResponse(res, 'thread_not_found', 404);
+      next(err);
+    }
+  }
+);
+
+// GET task-candidates — 이 스레드의 pending 후보
+router.get('/:businessId/email-threads/:id/task-candidates',
+  authenticateToken, checkBusinessAccess, requireMenu('qmail', 'read'),
+  async (req, res, next) => {
+    try {
+      const thread = await accessibleThread(req);
+      if (!thread) return errorResponse(res, 'thread_not_found', 404);
+      const rows = await TaskCandidate.findAll({
+        where: { email_thread_id: thread.id, status: 'pending' },
+        include: [{ model: User, as: 'guessedAssignee', attributes: ['id', 'name'], required: false }],
+        order: [['id', 'DESC']],
+      });
+      return successResponse(res, rows.map((r) => r.toJSON()));
+    } catch (err) { next(err); }
+  }
+);
+
+// POST register — 후보 → 정식 업무 (overrides: title/assignee_id/due_date/description)
+router.post('/:businessId/email-threads/:id/task-candidates/:cid/register',
+  authenticateToken, checkBusinessAccess, requireMenu('qmail', 'write'),
+  async (req, res, next) => {
+    try {
+      const businessId = Number(req.params.businessId);
+      const thread = await accessibleThread(req);
+      if (!thread) return errorResponse(res, 'thread_not_found', 404);
+      const cand = await TaskCandidate.findOne({ where: { id: Number(req.params.cid), email_thread_id: thread.id } });
+      if (!cand) return errorResponse(res, 'candidate_not_found', 404);
+      const extractor = require('../services/task_extractor');
+      const out = await extractor.registerCandidate(cand.id, req.user.id, req.body || {});
+      // Q Task 실시간 — task:new 브로드캐스트 (CLAUDE.md §16)
+      broadcastMail(req, businessId, 'task:new', out.task);
+      return successResponse(res, out, 'registered', 201);
+    } catch (err) {
+      if (/candidate_(not_found|already_resolved)/.test(err.message)) return errorResponse(res, err.message, 400);
+      next(err);
+    }
+  }
+);
+
+// POST reject — 후보 무시
+router.post('/:businessId/email-threads/:id/task-candidates/:cid/reject',
+  authenticateToken, checkBusinessAccess, requireMenu('qmail', 'write'),
+  async (req, res, next) => {
+    try {
+      const thread = await accessibleThread(req);
+      if (!thread) return errorResponse(res, 'thread_not_found', 404);
+      const cand = await TaskCandidate.findOne({ where: { id: Number(req.params.cid), email_thread_id: thread.id } });
+      if (!cand) return errorResponse(res, 'candidate_not_found', 404);
+      const extractor = require('../services/task_extractor');
+      await extractor.rejectCandidate(cand.id, req.user.id);
+      return successResponse(res, { id: cand.id, status: 'rejected' });
+    } catch (err) { next(err); }
+  }
+);
+
 module.exports = router;
