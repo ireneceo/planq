@@ -1004,20 +1004,27 @@ const QNotePage = () => {
     liveRef.current = null;
     clearInterim();
     flushPending();
-    await releaseLockIfHeld();
-    if (activeSession) {
-      try {
-        await updateSession(activeSession.id, { status: 'completed' });
-        const refreshed = await getSession(activeSession.id);
-        setActiveSession(refreshed);
-        speakersRef.current = refreshed.speakers || [];
-      } catch (err) {
-        console.error('End meeting failed:', err);
-      }
-    }
+    const sid = activeSession?.id ?? null;
+    // ── 슬로우 종료 fix (N+88, docs/QNOTE_POSTSESSION_REDESIGN §1-A) ──
+    //   blocks(라이브 누적 transcript)가 이미 있어 review 가 즉시 렌더됨. DB 재조회(updateSession+getSession)를
+    //   기다리지 않고 바로 전환 → 체감 지연 제거. status 변경·세션 새로고침·락 해제는 백그라운드.
     setPhase('review');
     setPendingConfig(null);
+    void releaseLockIfHeld();
     loadSessions();
+    if (sid != null) {
+      void (async () => {
+        try {
+          await updateSession(sid, { status: 'completed' });
+          const refreshed = await getSession(sid);
+          // 종료 후 다른 세션으로 이동했으면 덮어쓰지 않음
+          setActiveSession((prev) => (prev && prev.id === sid ? refreshed : prev));
+          speakersRef.current = refreshed.speakers || [];
+        } catch (err) {
+          console.error('End meeting background refresh failed:', err);
+        }
+      })();
+    }
   };
 
   // ── 설정 편집 저장 ───────────────────────────────────

@@ -102,6 +102,7 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
   const [shareOpen, setShareOpen] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
+  const [catError, setCatError] = useState<string | null>(null);  // 상세 패널 카테고리 저장 에러 노출 (silent catch 제거)
 
   // ─── 새 지식 등록 모달 (사이클 P3 — 단일 폼) ───
   const [modalOpen, setModalOpen] = useState(false);
@@ -797,11 +798,14 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
                 <MetaGrid>
                   <MetaLabel>{t('drawer.category')}</MetaLabel>
                   <MetaEditWrap>
-                    <PlanQSelect size="sm" isMulti isSearchable={false}
-                      value={docCats(detail).map(c => ({ value: c, label: t(`cat.${c}`) as string }))}
+                    <PlanQSelect size="sm" isMulti isSearchable
+                      value={docCats(detail).map(c => ({
+                        value: c,
+                        label: LEGACY_KB_CATEGORIES.includes(c as typeof LEGACY_KB_CATEGORIES[number]) ? (t(`cat.${c}`) as string) : c,
+                      }))}
                       onChange={async (opts) => {
                         const arr = Array.isArray(opts) ? opts : [];
-                        const next = arr.map(o => (o as PlanQSelectOption).value as KbCategory);
+                        const next = arr.map(o => String((o as PlanQSelectOption).value));
                         const cur = docCats(detail);
                         if (next.length === cur.length && next.every((v, i) => v === cur[i])) return;
                         if (next.length === 0) return;  // 최소 1개 강제
@@ -809,9 +813,20 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
                           await updateKnowledge(businessId, detail.id, { categories: next });
                           setDocs(prev => prev.map(x => x.id === detail.id ? { ...x, categories: next, category: next[0] } : x));
                           setDetail(prev => prev ? { ...prev, categories: next, category: next[0] } : prev);
-                        } catch { /* skip */ }
+                          setCatError(null);
+                        } catch (e) { setCatError(t('drawer.catSaveErr') as string); }
                       }}
-                      options={CATEGORIES.map(c => ({ value: c, label: t(`cat.${c}`) as string }))} />
+                      options={(() => {
+                        // 모달(1166-1182)과 동일 union — LEGACY 6 + 마스터 + orphan + 현재 문서 카테고리.
+                        const seen = new Set<string>();
+                        const opts: { value: string; label: string }[] = [];
+                        for (const c of LEGACY_KB_CATEGORIES) { seen.add(c); opts.push({ value: c, label: t(`cat.${c}`) as string }); }
+                        for (const m of catMaster) if (!seen.has(m.name)) { seen.add(m.name); opts.push({ value: m.name, label: m.name }); }
+                        for (const o of catOrphan) if (!seen.has(o)) { seen.add(o); opts.push({ value: o, label: o }); }
+                        for (const c of docCats(detail)) if (!seen.has(c)) { seen.add(c); opts.push({ value: c, label: c }); }
+                        return opts;
+                      })()} />
+                    {catError && <span style={{ fontSize: 11, color: '#B91C1C' }}>{catError}</span>}
                   </MetaEditWrap>
                   {/* N+65 — 상세 패널 visibility 통합 (등록 모달과 동일 VisibilityField). 옛 scope/project/client/read_policy 4 row 폐지. */}
                   <MetaLabel>{t('drawer.visibility', { defaultValue: '공개' }) as string}</MetaLabel>

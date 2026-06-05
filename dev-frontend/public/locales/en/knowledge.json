@@ -82,7 +82,8 @@
     "delete": "Delete",
     "deleteConfirm": "Delete this entry? Index will also be removed.",
     "reindex": "Reindex",
-    "close": "Close"
+    "close": "Close",
+    "catSaveErr": "Failed to save category"
   },
   "row": {
     "delete": "Delete"
