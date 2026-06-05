@@ -134,9 +134,53 @@ email_threads     + ai_summary TEXT NULL
 
 ## 8. 권한 · Visibility · 멀티테넌트
 - 모든 신규 쿼리 `WHERE business_id = ?` 강제 (Sequelize 수동)
-- 노트 visibility L1~L4 동일 적용 (`vlevel` 동기 hook 재사용)
-- client 역할: 본인 고객 데이터만(타임라인·cross-channel), Q Note/KB 차단 (`project_client_permission_matrix`)
 - 메일 개인 격리(`accessibleAccountIds`)는 cross-channel·타임라인에도 적용 — 남의 개인메일 노출 X
+
+---
+
+## 8.5 고객 공개 범위 (Client Visibility) — ★ 핵심 안전장치
+
+> 예민한 내부 데이터(공수·원가·내부 소통)가 고객에게 새지 않게 명쾌히 분리. 신뢰 사고 0순위.
+
+### 3겹 분리
+| 겹 | 질문 | 기존/신규 |
+|----|------|-----------|
+| **1. 접근(메뉴)** | 고객이 이 메뉴를 보나? | 기존 — Client 권한 매트릭스 (Q Mail·Q Note·KB·Insights 차단, 자기 대화·공유파일·자기업무·자기청구만) |
+| **2. 엔티티 공유** | 이 업무/파일/노트를 고객과 공유했나? | 기존 — Visibility L1~L4 (L4=외부) |
+| **3. 필드 투영** | 공유한 엔티티 *안에서* 어떤 필드까지? | **신규 — 본 설계** |
+
+### 원칙: "고객 뷰 = 화이트리스트" (safe-by-default)
+내부 serializer에서 몇 개 빼는 blacklist 금지. **고객에게 보여줄 필드만 명시적으로 추리는 전용 serializer** `serializeTaskForClient()` / `serializeNoteForClient()` 등. → 새 내부 필드가 추가돼도 고객에게 자동 노출 안 됨.
+
+### 업무(Task) 필드 매트릭스 — 3구역
+| 필드 | 고객 노출 | 비고 |
+|------|:----:|------|
+| 제목 · 카테고리 · 의뢰 명세(description) | ✅ 항상 | 고객이 의뢰한 내용 |
+| 상태(고객 관점 라벨 `taskLabel.ts`) · 마감일 | ✅ 항상 | |
+| 결과물(body) — 완료/전달 시 | ✅ 항상 | |
+| 공유 첨부 · 공유 댓글(visibility=shared) | ✅ 항상 | |
+| **진행률 % · 담당자 이름 · 완료일** | ⚙️ 워크스페이스 토글, **기본 OFF** | 중간지대 — 안전하나 선택 |
+| 🔒 **예측시간 · 실제시간 · 시간 이력 · AI 추정** | ❌ **절대(설정 불가)** | 공수/원가 = 단가 리스크 |
+| 🔒 **내부 댓글(personal/internal) · 리뷰어 내부 메모** | ❌ **절대(설정 불가)** | 관계 리스크 |
+
+→ 안전 코어(항상) + 🔒 하드 차단 코어(설정조차 불가) + 작은 중간지대(토글). 예민한 건 코드 레벨 차단이라 실수로 켤 수 없음.
+
+### 댓글 — 기존 visibility + UI 명확화
+`task_comments`는 이미 `personal/internal/shared`. 추가: 작성창에 명확한 시각 토글 "🔒 내부만 / 👥 고객에게 보임", **기본 내부만** (`feedback_visibility_signal_required`).
+
+### 통합 타임라인 — **내부 전용 (확정)**
+Customer 360 통합 타임라인은 **운영자용**. 고객 노출 X. 고객은 자기 공유 표면(공유 업무·자기 대화·공유 파일·자기 청구)을 각각 보며 위 필드 투영 적용. (후속: 필요 시 별도 "고객 포털 타임라인"을 고객 투영만으로 신설 가능 — 1차 범위 외.)
+
+### 설정 위치
+- **워크스페이스 설정 > 고객 공개 범위**: 토글 3개(`client_show_progress` / `client_show_assignee` / `client_show_completed_date`) — businesses 컬럼 3개, **기본 false**
+- **건별**: 댓글·노트 visibility 선택자(기본 내부)
+
+### 데이터 모델 추가 (8.5)
+```
+businesses + client_show_progress       BOOLEAN DEFAULT false
+           + client_show_assignee       BOOLEAN DEFAULT false
+           + client_show_completed_date BOOLEAN DEFAULT false
+```
 
 ---
 
