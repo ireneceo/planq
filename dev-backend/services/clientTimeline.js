@@ -38,15 +38,16 @@ async function getClientTimeline(businessId, clientId, { userId, limit = 40, bef
     });
     const convMap = new Map(convs.map((c) => [c.id, c.title]));
     if (convMap.size) {
-      const where = { business_id: businessId, conversation_id: { [Op.in]: [...convMap.keys()] }, is_deleted: false };
-      if (beforeDate) where.created_at = { [Op.lt]: beforeDate };
+      // Message 는 business_id 없음 (Conversation 이 보유) — conversation_id IN 으로 이미 biz+client 스코프됨
+      const where = { conversation_id: { [Op.in]: [...convMap.keys()] }, is_deleted: false };
+      if (beforeDate) where.createdAt = { [Op.lt]: beforeDate };
       const msgs = await Message.findAll({
-        where, order: [['created_at', 'DESC']], limit: perSource,
-        attributes: ['id', 'conversation_id', 'content', 'sender_id', 'is_ai', 'created_at'],
+        where, order: [['createdAt', 'DESC']], limit: perSource,
+        attributes: ['id', 'conversation_id', 'content', 'sender_id', 'is_ai', 'createdAt'],
       });
       for (const m of msgs) {
         items.push({
-          type: 'chat', id: m.id, at: m.created_at,
+          type: 'chat', id: m.id, at: m.createdAt,
           conversation_id: m.conversation_id,
           title: convMap.get(m.conversation_id) || null,
           preview: (m.content || '').replace(/\s+/g, ' ').trim().slice(0, 140),
@@ -70,11 +71,11 @@ async function getClientTimeline(businessId, clientId, { userId, limit = 40, bef
         if (beforeDate) where.sent_at = { [Op.lt]: beforeDate };
         const ems = await EmailMessage.findAll({
           where, order: [['sent_at', 'DESC']], limit: perSource,
-          attributes: ['id', 'thread_id', 'subject', 'direction', 'from_email', 'body_text', 'sent_at'],
+          attributes: ['id', 'thread_id', 'subject', 'direction', 'from_email', 'body_text', 'sent_at', 'createdAt'],
         });
         for (const e of ems) {
           items.push({
-            type: 'email', id: e.id, at: e.sent_at,
+            type: 'email', id: e.id, at: e.sent_at || e.createdAt,
             thread_id: e.thread_id,
             title: e.subject || thMap.get(e.thread_id) || null,
             preview: (e.body_text || '').replace(/\s+/g, ' ').trim().slice(0, 140),
@@ -88,14 +89,14 @@ async function getClientTimeline(businessId, clientId, { userId, limit = 40, bef
   // 3) 업무 — tasks.client_id = X
   if (want.includes('task')) {
     const where = { business_id: businessId, client_id: clientId };
-    if (beforeDate) where.created_at = { [Op.lt]: beforeDate };
+    if (beforeDate) where.createdAt = { [Op.lt]: beforeDate };
     const tasks = await Task.findAll({
-      where, order: [['created_at', 'DESC']], limit: perSource,
-      attributes: ['id', 'title', 'status', 'due_date', 'created_at'],
+      where, order: [['createdAt', 'DESC']], limit: perSource,
+      attributes: ['id', 'title', 'status', 'due_date', 'createdAt'],
     });
     for (const tk of tasks) {
       items.push({
-        type: 'task', id: tk.id, at: tk.created_at,
+        type: 'task', id: tk.id, at: tk.createdAt,
         title: tk.title,
         meta: { status: tk.status, due_date: tk.due_date },
       });
@@ -105,14 +106,14 @@ async function getClientTimeline(businessId, clientId, { userId, limit = 40, bef
   // 4) 청구 — invoices.client_id = X
   if (want.includes('invoice')) {
     const where = { business_id: businessId, client_id: clientId };
-    if (beforeDate) where.created_at = { [Op.lt]: beforeDate };
+    if (beforeDate) where.createdAt = { [Op.lt]: beforeDate };
     const invs = await Invoice.findAll({
-      where, order: [['created_at', 'DESC']], limit: perSource,
-      attributes: ['id', 'invoice_number', 'title', 'status', 'grand_total', 'currency', 'created_at'],
+      where, order: [['createdAt', 'DESC']], limit: perSource,
+      attributes: ['id', 'invoice_number', 'title', 'status', 'grand_total', 'currency', 'issued_at', 'createdAt'],
     });
     for (const iv of invs) {
       items.push({
-        type: 'invoice', id: iv.id, at: iv.created_at,
+        type: 'invoice', id: iv.id, at: iv.issued_at || iv.createdAt,
         title: iv.title || iv.invoice_number,
         meta: { invoice_number: iv.invoice_number, status: iv.status, grand_total: Number(iv.grand_total), currency: iv.currency },
       });

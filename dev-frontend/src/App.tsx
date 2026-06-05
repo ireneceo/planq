@@ -47,6 +47,7 @@ const QTaskPage = lazy(() => import('./pages/QTask/QTaskPage'));
 const QProjectPage = lazy(() => import('./pages/QProject/QProjectPage'));
 const QProjectDetailPage = lazy(() => import('./pages/QProject/QProjectDetailPage'));
 const ClientsPage = lazy(() => import('./pages/Clients/ClientsPage'));
+const ClientTimelinePage = lazy(() => import('./pages/Clients/ClientTimelinePage'));
 const InvitePage = lazy(() => import('./pages/Invite/InvitePage'));
 const QCalendarPage = lazy(() => import('./pages/QCalendar/QCalendarPage'));
 const QDocsPage = lazy(() => import('./pages/QDocs/QDocsPage'));
@@ -193,6 +194,11 @@ function App() {
         <Route path="/business/clients" element={
           <ProtectedRoute requiredRole={['business_owner', 'business_member']}>
             <MainLayout><ClientsPage /></MainLayout>
+          </ProtectedRoute>
+        } />
+        <Route path="/business/clients/:clientId/timeline" element={
+          <ProtectedRoute requiredRole={['business_owner', 'business_member']}>
+            <MainLayout><ClientTimelinePage /></MainLayout>
           </ProtectedRoute>
         } />
         <Route path="/business/*" element={

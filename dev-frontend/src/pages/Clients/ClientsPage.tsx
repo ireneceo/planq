@@ -426,6 +426,11 @@ export default function ClientsPage() {
               </HeadSide>
             </HeadRow>
 
+            <TimelineBtn type="button" onClick={() => navigate(`/business/clients/${activeDetail.id}/timeline`)}>
+              {t('timeline.openCta', '통합 타임라인 보기 — 채팅·메일·업무·청구 한눈에')}
+              <span aria-hidden>›</span>
+            </TimelineBtn>
+
             {activeDetail.status === 'invited' && (
               <InviteBanner>
                 <InviteBannerText>
@@ -719,6 +724,15 @@ const ResendBtn = styled.button`
   transition:background 0.12s;
   &:hover:not(:disabled){ background:#0F766E; }
   &:disabled{ opacity:0.55; cursor:default; }
+`;
+const TimelineBtn = styled.button`
+  display:flex; align-items:center; justify-content:space-between; gap:8px; width:100%;
+  padding:12px 14px; border-radius:10px; cursor:pointer; text-align:left;
+  font-size:13px; font-weight:600; color:#0F766E;
+  background:#F0FDFA; border:1px solid #99F6E4;
+  transition:background 0.15s, border-color 0.15s;
+  &:hover{ background:#CCFBF1; border-color:#5EEAD4; }
+  span{ font-size:18px; line-height:1; color:#14B8A6; }
 `;
 const Section = styled.section`display:flex;flex-direction:column;gap:8px;`;
 const SectionTitle = styled.h3`font-size:13px;font-weight:700;color:#0F172A;margin:0;`;
