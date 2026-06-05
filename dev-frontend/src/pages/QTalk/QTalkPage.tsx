@@ -322,6 +322,30 @@ const QTalkPage: React.FC = () => {
   const [rightCollapsed, setRightCollapsed] = useState<boolean>(() => {
     try { return localStorage.getItem(STORAGE_RIGHT) === '1'; } catch { return false; }
   });
+  // 우측 패널 리사이즈 (Q Task/Q Mail 통일) — localStorage 저장 · clamp 280~560
+  const [rightWidth, setRightWidth] = useState<number>(() => {
+    try { const v = localStorage.getItem('qtalk_right_width'); return v ? Math.max(280, Math.min(560, Number(v))) : 320; } catch { return 320; }
+  });
+  const rightResizingRef = useRef(false);
+  const startRightResize = (e: React.MouseEvent) => {
+    e.preventDefault(); rightResizingRef.current = true;
+    document.body.style.userSelect = 'none'; document.body.style.cursor = 'col-resize';
+  };
+  useEffect(() => {
+    const onMove = (e: MouseEvent) => { if (rightResizingRef.current) setRightWidth(Math.max(280, Math.min(560, window.innerWidth - e.clientX))); };
+    const onUp = () => { if (rightResizingRef.current) { rightResizingRef.current = false; try { localStorage.setItem('qtalk_right_width', String(rightWidth)); } catch { /* quota */ } document.body.style.userSelect = ''; document.body.style.cursor = ''; } };
+    window.addEventListener('mousemove', onMove); window.addEventListener('mouseup', onUp);
+    return () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
+  }, [rightWidth]);
+  // 키보드 단축키: ⌘/ (mac) · Ctrl+\ (win) → 우측 패널 토글 (Q Task/Q Mail 통일)
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const mod = e.metaKey || e.ctrlKey; if (!mod) return;
+      if (e.key === '/' || e.key === '\\') { e.preventDefault(); setRightCollapsed((v) => { const next = !v; try { localStorage.setItem(STORAGE_RIGHT, next ? '1' : '0'); } catch { /* quota */ } return next; }); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   const [modalOpen, setModalOpen] = useState(false);
   const [chatModalOpen, setChatModalOpen] = useState(false);
@@ -1495,6 +1519,8 @@ const QTalkPage: React.FC = () => {
         onToggleHiddenCandidates={() => setShowHiddenCandidates(v => !v)}
         collapsed={rightCollapsed}
         onToggleCollapsed={toggleRight}
+        width={rightWidth}
+        onResizeStart={startRightResize}
         onRegisterCandidate={handleRegisterCandidate}
         onMergeCandidate={handleMergeCandidate}
         onRejectCandidate={handleRejectCandidate}
