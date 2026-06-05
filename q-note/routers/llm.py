@@ -20,6 +20,7 @@ class TranslateRequest(BaseModel):
 class SummaryRequest(BaseModel):
   transcript: str
   session_id: Optional[int] = None
+  instruction: Optional[str] = None  # N+88 재요약 요구사항
 
 
 async def _load_meeting_context(session_id: int, user_id: int) -> Optional[dict]:
@@ -62,7 +63,7 @@ async def summary(body: SummaryRequest, user: dict = Depends(get_current_user)):
   meeting_context = None
   if body.session_id is not None:
     meeting_context = await _load_meeting_context(body.session_id, user['user_id'])
-  result = await generate_summary(body.transcript, meeting_context=meeting_context)
+  result = await generate_summary(body.transcript, meeting_context=meeting_context, instruction=body.instruction)
   # N+88 — 요약 영속 (휘발 방지). 본인 세션일 때만 저장.
   if body.session_id is not None:
     async with db_connect() as db:

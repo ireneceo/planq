@@ -117,7 +117,7 @@ export async function changeSessionVisibility(
   sessionId: number,
   body: { visibility: 'L1' | 'L2' | 'L3' | 'L4'; project_id?: number; shared_consent?: boolean }
 ): Promise<QNoteSession> {
-  const res = await fetch(`/api/sessions/${sessionId}/visibility`, {
+  const res = await fetch(`${BASE}/sessions/${sessionId}/visibility`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getAccessToken()}` },
     body: JSON.stringify(body),
@@ -128,7 +128,7 @@ export async function changeSessionVisibility(
 }
 
 export async function createSessionShareToken(sessionId: number): Promise<{ share_token: string }> {
-  const res = await fetch(`/api/sessions/${sessionId}/share`, {
+  const res = await fetch(`${BASE}/sessions/${sessionId}/share`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${getAccessToken()}` },
   });
@@ -141,12 +141,13 @@ export async function createSessionShareToken(sessionId: number): Promise<{ shar
 //   transcript 는 review 모드에서 화면에 보이는 utterances 들을 합쳐서 전달.
 export async function generateSessionSummary(
   sessionId: number,
-  transcript: string
+  transcript: string,
+  instruction?: string
 ): Promise<{ key_points: string[]; full_summary: string }> {
-  const res = await fetch(`/api/llm/summary`, {
+  const res = await fetch(`${BASE}/llm/summary`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getAccessToken()}` },
-    body: JSON.stringify({ session_id: sessionId, transcript }),
+    body: JSON.stringify({ session_id: sessionId, transcript, instruction: instruction || undefined }),
   });
   const j = await res.json();
   if (!j.success) throw new Error(j.message || j.detail || 'summary_failed');
@@ -195,7 +196,7 @@ export async function rejectNoteCandidate(businessId: number, sessionId: number,
 }
 
 export async function revokeSessionShareToken(sessionId: number): Promise<void> {
-  const res = await fetch(`/api/sessions/${sessionId}/share`, {
+  const res = await fetch(`${BASE}/sessions/${sessionId}/share`, {
     method: 'DELETE',
     headers: { Authorization: `Bearer ${getAccessToken()}` },
   });

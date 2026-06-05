@@ -2,11 +2,11 @@ import React, { useState, useMemo, useEffect, useRef, useCallback, Suspense } fr
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import HelpDot from '../../components/Common/HelpDot';
-import VisibilityBadge, { type VLevel } from '../../components/Common/VisibilityBadge';
+import { type VLevel } from '../../components/Common/VisibilityBadge';
+import VisibilityChip from '../../components/Common/VisibilityChip';
 import VisibilityChangeModal from '../../components/Common/VisibilityChangeModal';
 import { PanelGridLayout, CollapsibleSidebar, SidebarBackdrop, Panel } from '../../components/Layout/PanelLayout';
 import QNoteShareModal from '../../components/QNote/QNoteShareModal';
-import QNoteSummaryModal from '../../components/QNote/QNoteSummaryModal';
 import { saveSummaryAsDoc } from '../../utils/qnoteSummaryDoc';
 import TaskCandidateCard, { type CandidateData } from '../../components/Common/TaskCandidateCard';
 import { useNoteTaskExtraction } from '../../hooks/useNoteTaskExtraction';
@@ -237,10 +237,11 @@ const QNotePage = () => {
   // 사이클 N+14 — visibility 변경 모달 + 에러 표시
   const [visibilityModalOpen, setVisibilityModalOpen] = useState(false);
   // 사이클 N+24 — review 모드 헤더 버튼 모달 state
-  const [summaryModal, setSummaryModal] = useState<{ open: boolean; loading: boolean; data: { key_points: string[]; full_summary: string } | null; error: string | null }>({ open: false, loading: false, data: null, error: null });
   // N+88 — 인라인 영속 요약 (review 상시 표시). 생성/재요약 시 activeSession.summary_* 갱신.
   const [summarizing, setSummarizing] = useState(false);
   const [summaryError, setSummaryError] = useState<string | null>(null);
+  const [reSummarizeOpen, setReSummarizeOpen] = useState(false);
+  const [reSummarizeInput, setReSummarizeInput] = useState('');
   const [savingDoc, setSavingDoc] = useState(false);
   const [docSaved, setDocSaved] = useState(false);
   const [questionsModal, setQuestionsModal] = useState(false);
@@ -248,7 +249,6 @@ const QNotePage = () => {
   // 사이클 N+25 — 공유 모달 (visibility + share_token 통합)
   const [shareModalOpen, setShareModalOpen] = useState(false);
   // N+42 — 정리하기 분기 모달 (4 액션: 업무/지식/문서/공유)
-  const [summaryModalOpen, setSummaryModalOpen] = useState(false);
   const [visibilityError, setVisibilityError] = useState<string | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
     if (typeof window !== 'undefined') return window.innerWidth < 900;
@@ -1037,7 +1037,7 @@ const QNotePage = () => {
 
   // N+88 — 요약 생성/재요약 (영속). textOverride 없으면 음성 transcript 사용 (메모는 body 전달).
   // 결과는 backend 가 sessions 에 영속 + activeSession.summary_* 즉시 갱신 → 인라인 섹션 반영.
-  const runSummary = async (textOverride?: string) => {
+  const runSummary = async (textOverride?: string, instruction?: string) => {
     if (!activeSession) return;
     const sid = activeSession.id;
     setSummaryError(null);
@@ -1051,11 +1051,10 @@ const QNotePage = () => {
         setSummaryError(t('page.reviewBar.emptyTranscript') as string);
         return;
       }
-      const data = await generateSessionSummary(sid, text);
+      const data = await generateSessionSummary(sid, text, instruction);
       setActiveSession((prev) => (prev && prev.id === sid
         ? { ...prev, summary_key_points: data.key_points, summary_full: data.full_summary, summarized_at: new Date().toISOString() }
         : prev));
-      setSummaryModal({ open: false, loading: false, data, error: null });
       setDocSaved(false);  // 새 요약 → 문서 저장 상태 리셋
     } catch (e) {
       setSummaryError((e as Error).message || (t('page.summary.failed') as string));
@@ -2485,70 +2484,35 @@ const QNotePage = () => {
                 <SessionMeta>
                   <Badge>{t('page.phase.review')}</Badge>
                   <Badge>{t('page.sessionUtteranceCount', { count: activeSession.utterance_count })}</Badge>
-                  {/* 사이클 N+14 — visibility 배지. owner 만 클릭 가능 (변경 모달 트리거). */}
-                  <VisibilityBadge
-                    level={(activeSession.visibility as VLevel) || 'L1'}
-                    size="sm"
-                    onClick={String(activeSession.user_id) === String(user?.id) ? () => setVisibilityModalOpen(true) : undefined}
-                  />
-                  {visibilityError && (
-                    <span style={{ fontSize: 11, color: '#B91C1C' }}>{visibilityError}</span>
-                  )}
                 </SessionMeta>
               </HeaderLeft>
               <HeaderRight>
-                {/* N+42 — 정리하기 분기 모달 (4 액션). owner 본인만 노출 */}
+                {/* N+88 — Q docs 문서 상세 상단과 통일: 공개 chip + 공유 Primary + IconBtn 클러스터 */}
                 {String(activeSession.user_id) === String(user?.id) && (
-                  <SecondaryBtn
-                    type="button"
-                    onClick={() => setSummaryModalOpen(true)}
-                    title={t('page.reviewBar.organizeTitle', '회의/메모를 업무/지식/문서/공유로 변환') as string}
-                  >
-                    {t('page.reviewBar.organize', '정리하기')}
-                  </SecondaryBtn>
+                  <VisibilityChip
+                    level={(activeSession.visibility as VLevel) || 'L1'}
+                    onClick={() => setVisibilityModalOpen(true)}
+                  />
                 )}
-                {/* 사이클 N+25 — 공유 버튼 (visibility + share_token 통합 모달) */}
+                {visibilityError && <span style={{ fontSize: 11, color: '#B91C1C' }}>{visibilityError}</span>}
+                {/* 공유 — Primary (Q docs PrimaryBtn 패턴) */}
                 {String(activeSession.user_id) === String(user?.id) && (
-                  <SecondaryBtn
-                    type="button"
-                    onClick={() => setShareModalOpen(true)}
-                    title={t('page.reviewBar.shareTitle', '회의록 공유') as string}
-                  >
+                  <ReviewPrimaryBtn type="button" onClick={() => setShareModalOpen(true)} title={t('page.reviewBar.shareTitle', '회의록 공유') as string}>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 4 }}><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
                     {t('page.reviewBar.share', '공유')}
-                  </SecondaryBtn>
+                  </ReviewPrimaryBtn>
                 )}
-                {/* 사이클 N+24 — 종료 후 설정 보기 (read-only StartMeetingModal) */}
-                <SecondaryBtn
-                  type="button"
-                  onClick={() => setSettingsViewOpen(true)}
-                  title={t('page.reviewBar.settingsTitle', '회의 설정 보기') as string}
-                >
-                  {t('page.reviewBar.settings', '설정 보기')}
-                </SecondaryBtn>
-                {/* N+88 — 요약은 본문 인라인 SummarySection 으로 이전 (헤더 버튼 중복 제거) */}
-                {/* 질문 보기 — detected_questions 모달 */}
-                <SecondaryBtn type="button" onClick={() => setQuestionsModal(true)}>
-                  {t('page.reviewBar.questions')} ({(activeSession.detected_questions || []).length})
-                </SecondaryBtn>
+                {/* 설정 보기 — IconBtn (가끔 쓰는 액션) */}
+                <IconBtn type="button" onClick={() => setSettingsViewOpen(true)} title={t('page.reviewBar.settings', '설정 보기') as string} aria-label={t('page.reviewBar.settings', '설정 보기') as string}>
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                </IconBtn>
+                {/* 질문 보기 — 아이콘 + 카운트 칩 */}
+                <QuestionChip type="button" onClick={() => setQuestionsModal(true)} title={t('page.reviewBar.questions') as string} aria-label={t('page.reviewBar.questions') as string}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                  <IconCount>{(activeSession.detected_questions || []).length}</IconCount>
+                </QuestionChip>
               </HeaderRight>
             </MainHeader>
-
-            <ParticipantBar>
-              <ParticipantBarLabel>{t('page.participantBar.label', { count: (activeSession.participants?.length ?? 0) + 1 })}</ParticipantBarLabel>
-              <ParticipantPill key="self">{t('page.participantBar.self')}</ParticipantPill>
-              {(activeSession.participants || []).map((p, i) => (
-                <ParticipantPill key={i}>
-                  {p.name}
-                  {p.role && <ParticipantPillRole>{p.role}</ParticipantPillRole>}
-                </ParticipantPill>
-              ))}
-              <SelfModeGroup>
-                <SelfModeLabel>{t('page.selfMode.label', '내 발화')}</SelfModeLabel>
-                <SelfModeBtn $active={selfMode === 'skip'} onClick={() => setSelfMode('skip')} title={t('page.selfMode.skipTitle', '내 발화는 아예 처리 안 함 (가장 빠름)')}>{t('page.selfMode.skip', '처리 안 함')}</SelfModeBtn>
-                <SelfModeBtn $active={selfMode === 'hide'} onClick={() => setSelfMode('hide')} title={t('page.selfMode.hideTitle', '내 발화는 녹음·저장하되 화면에서 숨김')}>{t('page.selfMode.hide', '숨김')}</SelfModeBtn>
-                <SelfModeBtn $active={selfMode === 'show'} onClick={() => setSelfMode('show')} title={t('page.selfMode.showTitle', '내 발화도 다 보여줌')}>{t('page.selfMode.show', '보기')}</SelfModeBtn>
-              </SelfModeGroup>
-            </ParticipantBar>
 
             {/* N+88 — 인라인 영속 요약. 항상 표시, 비었으면 생성 CTA. */}
             <SummarySection>
@@ -2566,12 +2530,28 @@ const QNotePage = () => {
                         {savingDoc ? t('page.summary.savingDoc', '저장 중...') : t('page.summary.saveDoc', '문서로 저장')}
                       </SummaryDocBtn>
                     )}
-                    <SummaryRegenBtn type="button" onClick={() => runSummary()} disabled={summarizing}>
-                      {summarizing ? t('page.summary.generating', '생성 중...') : t('page.summary.regenerate', '재요약')}
+                    <SummaryRegenBtn type="button" onClick={() => setReSummarizeOpen((v) => !v)} disabled={summarizing}>
+                      {t('page.summary.regenerate', '재요약')}
                     </SummaryRegenBtn>
                   </SummaryActions>
                 )}
               </SummaryHead>
+              {reSummarizeOpen && activeSession.summary_full && (
+                <ReSummarizeRow>
+                  <ReSummarizeInput
+                    value={reSummarizeInput}
+                    onChange={(e) => setReSummarizeInput(e.target.value)}
+                    placeholder={t('page.summary.reInstructionPh', '어떻게 다시 요약할까요? (예: 더 짧게 · 결정사항 위주 · 액션 아이템 강조)') as string}
+                    onKeyDown={(e) => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) { e.preventDefault(); if (!summarizing) { runSummary(undefined, reSummarizeInput); setReSummarizeOpen(false); setReSummarizeInput(''); } } }}
+                  />
+                  <SummaryDocBtn type="button" disabled={summarizing} onClick={() => { runSummary(undefined, reSummarizeInput); setReSummarizeOpen(false); setReSummarizeInput(''); }}>
+                    {summarizing ? t('page.summary.generating', '생성 중...') : t('page.summary.reSubmit', '다시 요약')}
+                  </SummaryDocBtn>
+                  <SummaryRegenBtn type="button" onClick={() => { setReSummarizeOpen(false); setReSummarizeInput(''); }}>
+                    {t('common.cancel', '취소') as string}
+                  </SummaryRegenBtn>
+                </ReSummarizeRow>
+              )}
               {summaryError && <SummaryError>{summaryError}</SummaryError>}
               {activeSession.summary_full ? (
                 <>
@@ -2629,6 +2609,24 @@ const QNotePage = () => {
                 !noteTasks.extracting && <SummaryEmptyText>{t('page.tasks.emptyHint', '회의에서 실행할 업무를 AI가 찾아 후보로 제안합니다.')}</SummaryEmptyText>
               )}
             </TasksSection>
+
+            {/* N+88 — 참여자/내 발화 모드: 녹음 transcript 바로 위 (요약·업무 아래) */}
+            <ParticipantBar>
+              <ParticipantBarLabel>{t('page.participantBar.label', { count: (activeSession.participants?.length ?? 0) + 1 })}</ParticipantBarLabel>
+              <ParticipantPill key="self">{t('page.participantBar.self')}</ParticipantPill>
+              {(activeSession.participants || []).map((p, i) => (
+                <ParticipantPill key={i}>
+                  {p.name}
+                  {p.role && <ParticipantPillRole>{p.role}</ParticipantPillRole>}
+                </ParticipantPill>
+              ))}
+              <SelfModeGroup>
+                <SelfModeLabel>{t('page.selfMode.label', '내 발화')}</SelfModeLabel>
+                <SelfModeBtn $active={selfMode === 'skip'} onClick={() => setSelfMode('skip')} title={t('page.selfMode.skipTitle', '내 발화는 아예 처리 안 함 (가장 빠름)')}>{t('page.selfMode.skip', '처리 안 함')}</SelfModeBtn>
+                <SelfModeBtn $active={selfMode === 'hide'} onClick={() => setSelfMode('hide')} title={t('page.selfMode.hideTitle', '내 발화는 녹음·저장하되 화면에서 숨김')}>{t('page.selfMode.hide', '숨김')}</SelfModeBtn>
+                <SelfModeBtn $active={selfMode === 'show'} onClick={() => setSelfMode('show')} title={t('page.selfMode.showTitle', '내 발화도 다 보여줌')}>{t('page.selfMode.show', '보기')}</SelfModeBtn>
+              </SelfModeGroup>
+            </ParticipantBar>
 
             <Transcript>
               {renderBlocks.length === 0 && <EmptyTranscript>{t('page.reviewEmpty')}</EmptyTranscript>}
@@ -2716,21 +2714,6 @@ const QNotePage = () => {
       )}
 
       {/* N+42 — 정리하기 분기 모달 (4 액션) */}
-      {summaryModalOpen && activeSession && (
-        <QNoteSummaryModal
-          open={summaryModalOpen}
-          onClose={() => setSummaryModalOpen(false)}
-          sessionId={activeSession.id}
-          sessionTitle={activeSession.title || ''}
-          transcriptText={renderBlocks
-            .filter((b) => b.kind === 'speech' || b.kind === 'question')
-            .map((b) => b.segments.map((s) => s.original).join(' '))
-            .join('\n')}
-          qnoteApiBase="/qnote/api"
-          qnoteToken={getAccessToken() || undefined}
-        />
-      )}
-
       {/* 사이클 N+25 — Q Note 공유 모달 (visibility + share_token 통합) */}
       {shareModalOpen && activeSession && (
         <QNoteShareModal
@@ -2746,40 +2729,6 @@ const QNotePage = () => {
             setSessions((prev) => prev.map((s) => (s.id === activeSession.id ? { ...s, visibility: next.visibility, share_token: next.share_token ?? null } : s)));
           }}
         />
-      )}
-
-      {/* 사이클 N+24 — 요약 결과 모달 */}
-      {summaryModal.open && (
-        <ModalBackdrop onClick={() => setSummaryModal({ open: false, loading: false, data: null, error: null })}>
-          <ModalCard onClick={(e) => e.stopPropagation()}>
-            <ModalHeader>
-              <ModalTitle>{t('page.summaryModal.title', '회의 요약')}</ModalTitle>
-              <ModalCloseBtn type="button" onClick={() => setSummaryModal({ open: false, loading: false, data: null, error: null })}>×</ModalCloseBtn>
-            </ModalHeader>
-            <ModalBody>
-              {summaryModal.loading && <ModalDim>{t('page.summaryModal.loading', 'AI 가 요약을 생성하고 있습니다...')}</ModalDim>}
-              {summaryModal.error && <ModalError>{summaryModal.error}</ModalError>}
-              {summaryModal.data && (
-                <>
-                  {summaryModal.data.key_points?.length > 0 && (
-                    <>
-                      <ModalSectionTitle>{t('page.summaryModal.keyPoints', '핵심 요점')}</ModalSectionTitle>
-                      <ul style={{ margin: '0 0 16px 18px', padding: 0 }}>
-                        {summaryModal.data.key_points.map((p, i) => (<li key={i} style={{ fontSize: 13, lineHeight: 1.6, color: '#0F172A', marginBottom: 4 }}>{p}</li>))}
-                      </ul>
-                    </>
-                  )}
-                  {summaryModal.data.full_summary && (
-                    <>
-                      <ModalSectionTitle>{t('page.summaryModal.fullSummary', '전체 요약')}</ModalSectionTitle>
-                      <ModalText>{summaryModal.data.full_summary}</ModalText>
-                    </>
-                  )}
-                </>
-              )}
-            </ModalBody>
-          </ModalCard>
-        </ModalBackdrop>
       )}
 
       {/* 사이클 N+24 — 질문 목록 모달 (detected_questions read-only) */}
@@ -2912,13 +2861,6 @@ const ModalBody = styled.div`
   padding: 20px; overflow-y: auto; flex: 1; min-height: 0;
 `;
 const ModalDim = styled.div`color: #64748B; font-size: 13px; padding: 8px 0;`;
-const ModalError = styled.div`color: #B91C1C; font-size: 13px; padding: 12px; background: #FEF2F2; border-radius: 6px; border: 1px solid #FECACA;`;
-const ModalSectionTitle = styled.h4`
-  margin: 0 0 8px; font-size: 13px; font-weight: 700; color: #334155;
-`;
-const ModalText = styled.div`
-  font-size: 13px; line-height: 1.7; color: #0F172A; white-space: pre-wrap;
-`;
 const SettingsViewRow = styled.div`
   display: grid; grid-template-columns: 110px 1fr; gap: 12px;
   padding: 10px 0; border-bottom: 1px solid #F1F5F9;
@@ -3447,6 +3389,29 @@ const IconBtn = styled.button<{ $primary?: boolean; $danger?: boolean }>`
   }
 `;
 
+// N+88 — 공유 Primary 버튼 (Q docs PrimaryBtn 패턴 통일)
+const ReviewPrimaryBtn = styled.button`
+  height: 32px; padding: 0 14px;
+  background: #14B8A6; color: #FFFFFF; border: none; border-radius: 8px;
+  font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap;
+  display: inline-flex; align-items: center;
+  transition: background 0.15s;
+  &:hover:not(:disabled) { background: #0D9488; }
+  &:disabled { opacity: 0.5; cursor: not-allowed; }
+`;
+// 질문 보기 칩 (아이콘 + 카운트, auto-width)
+const QuestionChip = styled.button`
+  height: 32px; padding: 0 10px;
+  display: inline-flex; align-items: center; gap: 5px;
+  background: #FFFFFF; color: #475569;
+  border: 1px solid #E2E8F0; border-radius: 8px;
+  cursor: pointer; transition: all 0.15s;
+  &:hover { border-color: #14B8A6; color: #0D9488; background: #F0FDFA; }
+`;
+const IconCount = styled.span`
+  font-size: 12px; font-weight: 700; color: #0F766E;
+`;
+
 const HeaderLeft = styled.div`
   display: flex;
   flex-direction: row;
@@ -3892,6 +3857,19 @@ const SummaryError = styled.div`
   font-size: 12px;
   color: #B91C1C;
   margin-bottom: 8px;
+`;
+// N+88 — 재요약 요구사항 입력 row
+const ReSummarizeRow = styled.div`
+  display: flex; align-items: center; gap: 8px; margin: 4px 0 10px;
+  flex-wrap: wrap;
+`;
+const ReSummarizeInput = styled.input`
+  flex: 1; min-width: 200px;
+  height: 32px; padding: 0 12px;
+  border: 1px solid #CBD5E1; border-radius: 8px;
+  font-size: 13px; color: #0F172A;
+  &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20,184,166,0.15); }
+  &::placeholder { color: #94A3B8; }
 `;
 const SummaryPoints = styled.ul`
   margin: 0 0 12px;

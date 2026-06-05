@@ -97,7 +97,9 @@
       "savingDoc": "저장 중...",
       "savedDoc": "문서 저장됨",
       "saveDocFailed": "문서 저장 실패",
-      "viewDoc": "보기"
+      "viewDoc": "보기",
+      "reInstructionPh": "어떻게 다시 요약할까요? (예: 더 짧게 · 결정사항 위주 · 액션 아이템 강조)",
+      "reSubmit": "다시 요약"
     },
     "reviewEmpty": "기록된 문장이 없습니다.",
     "speaker": {
@@ -214,7 +216,8 @@
     "errorRetry": "저장 실패 — 잠시 후 다시 시도",
     "delete": "삭제",
     "deleteConfirmTitle": "메모를 삭제할까요?",
-    "deleteConfirmDesc": "이 메모가 영구 삭제됩니다. 되돌릴 수 없어요."
+    "deleteConfirmDesc": "이 메모가 영구 삭제됩니다. 되돌릴 수 없어요.",
+    "share": "공유"
   },
   "startModal": {
     "header": "새 음성 노트 시작",
