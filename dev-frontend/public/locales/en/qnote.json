@@ -76,7 +76,7 @@
       "questions": "View Questions"
     },
     "summary": {
-      "title": "Organize",
+      "title": "Summary",
       "desc": "Convert this session into another form.",
       "actionTask": "Create task",
       "actionTaskHint": "Prefill Q Task new-task modal with the transcript",
@@ -85,7 +85,12 @@
       "actionDocs": "Promote to document",
       "actionDocsHint": "AI-organize into a Q docs Brief",
       "actionShare": "External share",
-      "actionShareHint": "Share with a link or PDF"
+      "actionShareHint": "Share with a link or PDF",
+      "regenerate": "Regenerate",
+      "generate": "Generate AI summary",
+      "generating": "Generating...",
+      "emptyHint": "AI summarizes the key points of this session.",
+      "failed": "Failed to generate summary"
     },
     "reviewEmpty": "No utterances recorded.",
     "speaker": {

@@ -181,6 +181,8 @@ async def _run_migrations(db):
     ('linked_voice_session_id', 'INTEGER'),            # text 메모가 음성 세션과 연결될 때
     ('summarized_at', 'TEXT'),                         # AI 요약 마지막 시각
     ('body', 'TEXT'),                                  # text 메모 본문 (TipTap JSON 또는 plain)
+    ('summary_key_points', 'TEXT'),                    # 영속 요약 — 핵심 포인트 (JSON 배열). N+88
+    ('summary_full', 'TEXT'),                          # 영속 요약 — 전문 (plain text). N+88
   ]
   for col, typ in session_memo_cols:
     if not await _column_exists(db, 'sessions', col):

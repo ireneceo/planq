@@ -235,6 +235,9 @@ const QNotePage = () => {
   const [visibilityModalOpen, setVisibilityModalOpen] = useState(false);
   // 사이클 N+24 — review 모드 헤더 버튼 모달 state
   const [summaryModal, setSummaryModal] = useState<{ open: boolean; loading: boolean; data: { key_points: string[]; full_summary: string } | null; error: string | null }>({ open: false, loading: false, data: null, error: null });
+  // N+88 — 인라인 영속 요약 (review 상시 표시). 생성/재요약 시 activeSession.summary_* 갱신.
+  const [summarizing, setSummarizing] = useState(false);
+  const [summaryError, setSummaryError] = useState<string | null>(null);
   const [questionsModal, setQuestionsModal] = useState(false);
   const [settingsViewOpen, setSettingsViewOpen] = useState(false);
   // 사이클 N+25 — 공유 모달 (visibility + share_token 통합)
@@ -1024,6 +1027,34 @@ const QNotePage = () => {
           console.error('End meeting background refresh failed:', err);
         }
       })();
+    }
+  };
+
+  // N+88 — 요약 생성/재요약 (영속). textOverride 없으면 음성 transcript 사용 (메모는 body 전달).
+  // 결과는 backend 가 sessions 에 영속 + activeSession.summary_* 즉시 갱신 → 인라인 섹션 반영.
+  const runSummary = async (textOverride?: string) => {
+    if (!activeSession) return;
+    const sid = activeSession.id;
+    setSummaryError(null);
+    setSummarizing(true);
+    try {
+      const text = (textOverride ?? renderBlocks
+        .filter((b) => b.kind === 'speech' || b.kind === 'question')
+        .map((b) => b.segments.map((s) => s.original).join(' '))
+        .join('\n')).trim();
+      if (!text) {
+        setSummaryError(t('page.reviewBar.emptyTranscript') as string);
+        return;
+      }
+      const data = await generateSessionSummary(sid, text);
+      setActiveSession((prev) => (prev && prev.id === sid
+        ? { ...prev, summary_key_points: data.key_points, summary_full: data.full_summary, summarized_at: new Date().toISOString() }
+        : prev));
+      setSummaryModal({ open: false, loading: false, data, error: null });
+    } catch (e) {
+      setSummaryError((e as Error).message || (t('page.summary.failed') as string));
+    } finally {
+      setSummarizing(false);
     }
   };
 
@@ -2451,30 +2482,7 @@ const QNotePage = () => {
                 >
                   {t('page.reviewBar.settings', '설정 보기')}
                 </SecondaryBtn>
-                {/* 요약 생성 — q-note /api/llm/summary 호출 */}
-                <SecondaryBtn
-                  type="button"
-                  disabled={summaryModal.loading}
-                  onClick={async () => {
-                    setSummaryModal({ open: true, loading: true, data: null, error: null });
-                    try {
-                      const transcript = renderBlocks
-                        .filter((b) => b.kind === 'speech' || b.kind === 'question')
-                        .map((b) => b.segments.map((s) => s.original).join(' '))
-                        .join('\n');
-                      if (!transcript.trim()) {
-                        setSummaryModal({ open: true, loading: false, data: null, error: t('page.reviewBar.emptyTranscript', '요약할 발화가 없습니다.') as string });
-                        return;
-                      }
-                      const data = await generateSessionSummary(activeSession.id, transcript);
-                      setSummaryModal({ open: true, loading: false, data, error: null });
-                    } catch (e) {
-                      setSummaryModal({ open: true, loading: false, data: null, error: (e as Error).message || 'summary_failed' });
-                    }
-                  }}
-                >
-                  {summaryModal.loading ? t('page.reviewBar.summarizing', '요약 생성 중...') : t('page.reviewBar.summary')}
-                </SecondaryBtn>
+                {/* N+88 — 요약은 본문 인라인 SummarySection 으로 이전 (헤더 버튼 중복 제거) */}
                 {/* 질문 보기 — detected_questions 모달 */}
                 <SecondaryBtn type="button" onClick={() => setQuestionsModal(true)}>
                   {t('page.reviewBar.questions')} ({(activeSession.detected_questions || []).length})
@@ -2498,6 +2506,36 @@ const QNotePage = () => {
                 <SelfModeBtn $active={selfMode === 'show'} onClick={() => setSelfMode('show')} title={t('page.selfMode.showTitle', '내 발화도 다 보여줌')}>{t('page.selfMode.show', '보기')}</SelfModeBtn>
               </SelfModeGroup>
             </ParticipantBar>
+
+            {/* N+88 — 인라인 영속 요약. 항상 표시, 비었으면 생성 CTA. */}
+            <SummarySection>
+              <SummaryHead>
+                <SummaryHeadTitle>{t('page.summary.title', '요약')}</SummaryHeadTitle>
+                {activeSession.summary_full && (
+                  <SummaryRegenBtn type="button" onClick={() => runSummary()} disabled={summarizing}>
+                    {summarizing ? t('page.summary.generating', '생성 중...') : t('page.summary.regenerate', '재요약')}
+                  </SummaryRegenBtn>
+                )}
+              </SummaryHead>
+              {summaryError && <SummaryError>{summaryError}</SummaryError>}
+              {activeSession.summary_full ? (
+                <>
+                  {(activeSession.summary_key_points || []).length > 0 && (
+                    <SummaryPoints>
+                      {(activeSession.summary_key_points || []).map((p, i) => <li key={i}>{p}</li>)}
+                    </SummaryPoints>
+                  )}
+                  <SummaryFull>{activeSession.summary_full}</SummaryFull>
+                </>
+              ) : (
+                <SummaryEmpty>
+                  <SummaryEmptyText>{t('page.summary.emptyHint', 'AI가 이 회의의 핵심을 요약합니다.')}</SummaryEmptyText>
+                  <SummaryGenerateBtn type="button" onClick={() => runSummary()} disabled={summarizing}>
+                    {summarizing ? t('page.summary.generating', '생성 중...') : t('page.summary.generate', 'AI 요약 생성')}
+                  </SummaryGenerateBtn>
+                </SummaryEmpty>
+              )}
+            </SummarySection>
 
             <Transcript>
               {renderBlocks.length === 0 && <EmptyTranscript>{t('page.reviewEmpty')}</EmptyTranscript>}
@@ -3672,6 +3710,99 @@ const NoticeBar = styled.div`
     0%, 70% { opacity: 1; }
     100% { opacity: 0; visibility: hidden; }
   }
+`;
+
+// N+88 — 인라인 영속 요약 섹션 (review 상단 밴드)
+const SummarySection = styled.section`
+  flex-shrink: 0;
+  padding: 16px 32px;
+  border-bottom: 1px solid #E2E8F0;
+  background: #F8FAFC;
+  @media (max-width: 640px) { padding: 14px 16px; }
+`;
+const SummaryHead = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+`;
+const SummaryHeadTitle = styled.h3`
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: #0F172A;
+  letter-spacing: -0.2px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  &::before {
+    content: '';
+    width: 3px;
+    height: 14px;
+    background: #14B8A6;
+    border-radius: 2px;
+  }
+`;
+const SummaryRegenBtn = styled.button`
+  border: 1px solid #E2E8F0;
+  background: #FFFFFF;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  &:hover:not(:disabled) { border-color: #CBD5E1; background: #F8FAFC; }
+  &:disabled { opacity: 0.5; cursor: default; }
+`;
+const SummaryError = styled.div`
+  font-size: 12px;
+  color: #B91C1C;
+  margin-bottom: 8px;
+`;
+const SummaryPoints = styled.ul`
+  margin: 0 0 12px;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  li { font-size: 13px; line-height: 1.6; color: #0F172A; }
+`;
+const SummaryFull = styled.div`
+  font-size: 13px;
+  line-height: 1.7;
+  color: #334155;
+  white-space: pre-wrap;
+  max-height: 180px;
+  overflow-y: auto;
+`;
+const SummaryEmpty = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+`;
+const SummaryEmptyText = styled.div`
+  font-size: 13px;
+  color: #64748B;
+`;
+const SummaryGenerateBtn = styled.button`
+  border: none;
+  background: #14B8A6;
+  color: #FFFFFF;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 16px;
+  border-radius: 8px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s ease;
+  &:hover:not(:disabled) { background: #0D9488; }
+  &:active:not(:disabled) { background: #0F766E; }
+  &:disabled { opacity: 0.6; cursor: default; }
 `;
 
 const Transcript = styled.div`
