@@ -135,14 +135,17 @@ const cspMiddleware = (req, res, next) => {
 // SQL Injection 패턴 감지 (추가 방어층)
 // ============================================
 
-// 주의: 단일 문자 `#`/`'` 는 hex 컬러·피드백 문구 등 정상 사용 빈도가 높아 차단에서 제외한다.
-// Parameterized query(Sequelize) 기준에서 SQL injection 의 실제 위험 패턴만 잡는다.
+// 주의: Sequelize parameterized query 가 실제 SQL injection 방어층이다. 이 문자열 패턴 검사는
+// 부가 방어일 뿐이라, 사용자가 정상 제출하는 산문/마크다운/AI 지식 콘텐츠를 오탐하지 않도록
+// "고신뢰 주입 시그니처"만 좁게 잡는다.
+//   ❌ 제거된 오탐원: `-- ` (마크다운 수평선 `---\n`·산문 하이픈), `select … from` 근접(영어 산문)
+//   ✅ 유지: union select / or 1=1 / 따옴표 인접 tautology / 스택 DDL / exec sp_·xp_
 const sqlInjectionPatterns = [
-  /(\%27)|(\-\-\s)/i,                                       // '-- ' (주석 직전 공백 동반) 또는 URL 인코딩 '
-  /(\%3D)|(=)[^\s]*((\%27)|(\'))\s*(or|and)\s+/i,           // = 'xxx' OR 형태
-  /\b(union|select|insert|update|delete|drop|exec)\b[\s\S]{0,10}\b(from|into|table|select)\b/i,
-  /\bor\s+1\s*=\s*1\b/i,
-  /exec(\s|\+)+(s|x)p\w+/i
+  /\bunion\s+(all\s+)?select\b/i,                          // UNION [ALL] SELECT — 산문 빈도 0
+  /\bor\s+1\s*=\s*1\b/i,                                    // OR 1=1 tautology
+  /(\%27|')\s*(or|and)\s+(\%27|'|\d)/i,                     // ' OR ' / ' AND 1 (따옴표 인접)
+  /(\%3B|;)\s*(drop|delete|truncate|alter)\s+\w/i,          // ; DROP/DELETE/… 스택 쿼리
+  /exec(\s|\+)+(s|x)p\w+/i                                  // exec sp_/xp_
 ];
 
 const sqlInjectionProtection = (req, res, next) => {
