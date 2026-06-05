@@ -522,5 +522,17 @@
       "sendFail": "발송 실패",
       "network": "네트워크 오류"
     }
+  },
+  "candidate": {
+    "noAssignee": "담당 미정",
+    "assignee": "담당",
+    "period": "기간",
+    "datePlaceholder": "날짜 선택",
+    "titlePlaceholder": "업무 제목",
+    "similar": "유사 업무 발견",
+    "request": "요청",
+    "register": "등록",
+    "merge": "내용 추가",
+    "reject": "거절"
   }
 }
