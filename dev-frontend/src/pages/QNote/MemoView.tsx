@@ -20,7 +20,9 @@ import { saveSummaryAsDoc } from '../../utils/qnoteSummaryDoc';
 import { useNoteTaskExtraction } from '../../hooks/useNoteTaskExtraction';
 import TaskCandidateCard, { type CandidateData } from '../../components/Common/TaskCandidateCard';
 import { parseBodyToDoc, deriveTitleFromDoc, isDocEmpty } from '../../utils/qnoteBody';
-import VisibilityBadge from '../../components/Common/VisibilityBadge';
+import VisibilityChip from '../../components/Common/VisibilityChip';
+import type { VLevel } from '../../components/Common/VisibilityBadge';
+import QNoteShareModal from '../../components/QNote/QNoteShareModal';
 
 const PostEditor = lazy(() => import('../../components/Docs/PostEditor'));
 
@@ -77,10 +79,13 @@ const MemoView: React.FC<Props> = ({ session, businessId, prefillProjectId, pref
   const [savedAt, setSavedAt] = useState<number | null>(session ? Date.now() : null);
   const [tick, setTick] = useState(0);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
   // N+88 — 메모 요약 (body 기반, 영속). session.summary_* 로 표시.
   const navigate = useNavigate();
   const [summarizing, setSummarizing] = useState(false);
   const [summaryError, setSummaryError] = useState<string | null>(null);
+  const [reSummarizeOpen, setReSummarizeOpen] = useState(false);
+  const [reSummarizeInput, setReSummarizeInput] = useState('');
   const [savingDoc, setSavingDoc] = useState(false);
   const [docSaved, setDocSaved] = useState(false);
 
@@ -113,14 +118,14 @@ const MemoView: React.FC<Props> = ({ session, businessId, prefillProjectId, pref
     }
   };
 
-  const runMemoSummary = async () => {
+  const runMemoSummary = async (instruction?: string) => {
     if (!sessionId) return;
     setSummaryError(null);
     setSummarizing(true);
     try {
       const text = docToPlainText(doc).trim();
       if (!text) { setSummaryError(t('page.summary.emptyHint') as string); return; }
-      const data = await generateSessionSummary(sessionId, text);
+      const data = await generateSessionSummary(sessionId, text, instruction);
       if (session) {
         onUpdated({ ...session, summary_key_points: data.key_points, summary_full: data.full_summary, summarized_at: new Date().toISOString() });
       }
@@ -206,7 +211,22 @@ const MemoView: React.FC<Props> = ({ session, businessId, prefillProjectId, pref
           </Status>
         </TitleArea>
         <HeaderActions>
-          <VisibilityBadge level={(session?.visibility as any) || 'L1'} compact />
+          {/* N+88 — 메모도 공개 chip + 공유 (음성 review·Q docs 와 통일) */}
+          {sessionId && session && (
+            <VisibilityChip level={(session.visibility as VLevel) || 'L1'} onClick={() => setShareOpen(true)} />
+          )}
+          {sessionId && (
+            <IconBtn
+              type="button"
+              onClick={() => setShareOpen(true)}
+              title={t('memoPopup.share', { defaultValue: '공유' }) as string}
+              aria-label={t('memoPopup.share', { defaultValue: '공유' }) as string}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+              </svg>
+            </IconBtn>
+          )}
           {sessionId && (
             <IconBtn
               type="button"
@@ -257,11 +277,24 @@ const MemoView: React.FC<Props> = ({ session, businessId, prefillProjectId, pref
                       {savingDoc ? t('page.summary.savingDoc', '저장 중...') : t('page.summary.saveDoc', '문서로 저장')}
                     </MemoSummaryDocBtn>
                   )}
-                  <MemoSummaryRegen type="button" onClick={runMemoSummary} disabled={summarizing}>
-                    {summarizing ? t('page.summary.generating', '생성 중...') : t('page.summary.regenerate', '재요약')}
+                  <MemoSummaryRegen type="button" onClick={() => setReSummarizeOpen((v) => !v)} disabled={summarizing}>
+                    {t('page.summary.regenerate', '재요약')}
                   </MemoSummaryRegen>
                 </MemoSummaryActions>
               </MemoSummaryTop>
+              {reSummarizeOpen && (
+                <MemoReRow>
+                  <MemoReInput
+                    value={reSummarizeInput}
+                    onChange={(e) => setReSummarizeInput(e.target.value)}
+                    placeholder={t('page.summary.reInstructionPh', '어떻게 다시 요약할까요?') as string}
+                    onKeyDown={(e) => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) { e.preventDefault(); if (!summarizing) { runMemoSummary(reSummarizeInput); setReSummarizeOpen(false); setReSummarizeInput(''); } } }}
+                  />
+                  <MemoSummaryDocBtn type="button" disabled={summarizing} onClick={() => { runMemoSummary(reSummarizeInput); setReSummarizeOpen(false); setReSummarizeInput(''); }}>
+                    {summarizing ? t('page.summary.generating', '생성 중...') : t('page.summary.reSubmit', '다시 요약')}
+                  </MemoSummaryDocBtn>
+                </MemoReRow>
+              )}
               {(session.summary_key_points || []).length > 0 && (
                 <MemoSummaryPoints>
                   {(session.summary_key_points || []).map((p, i) => <li key={i}>{p}</li>)}
@@ -273,7 +306,7 @@ const MemoView: React.FC<Props> = ({ session, businessId, prefillProjectId, pref
           ) : (
             <MemoSummaryEmpty>
               <MemoSummaryHint>{t('page.summary.emptyHint', 'AI가 이 회의의 핵심을 요약합니다.')}</MemoSummaryHint>
-              <MemoSummaryGenerate type="button" onClick={runMemoSummary} disabled={summarizing}>
+              <MemoSummaryGenerate type="button" onClick={() => runMemoSummary()} disabled={summarizing}>
                 {summarizing ? t('page.summary.generating', '생성 중...') : t('page.summary.generate', 'AI 요약 생성')}
               </MemoSummaryGenerate>
               {summaryError && <MemoSummaryError>{summaryError}</MemoSummaryError>}
@@ -342,6 +375,20 @@ const MemoView: React.FC<Props> = ({ session, businessId, prefillProjectId, pref
           </ConfirmDialog>
         </ConfirmBackdrop>
       )}
+
+      {/* N+88 — 메모 공유 (visibility + share_token 통합, 음성 review 와 동일 모달) */}
+      {shareOpen && sessionId && session && (
+        <QNoteShareModal
+          open={shareOpen}
+          sessionId={sessionId}
+          currentVisibility={(session.visibility as VLevel) || 'L1'}
+          hasProject={!!session.project_id}
+          shareToken={session.share_token || null}
+          sessionTitle={session.title}
+          onClose={() => setShareOpen(false)}
+          onChanged={(next) => onUpdated({ ...session, visibility: next.visibility, share_token: next.share_token ?? null } as QNoteSession)}
+        />
+      )}
     </Wrap>
   );
 };
@@ -392,6 +439,15 @@ const MemoTaskList = styled.div`
 `;
 const MemoSummaryActions = styled.div`
   display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+`;
+const MemoReRow = styled.div`
+  display: flex; align-items: center; gap: 8px; margin: 4px 0 10px; flex-wrap: wrap;
+`;
+const MemoReInput = styled.input`
+  flex: 1; min-width: 180px; height: 32px; padding: 0 12px;
+  border: 1px solid #CBD5E1; border-radius: 8px; font-size: 13px; color: #0F172A;
+  &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20,184,166,0.15); }
+  &::placeholder { color: #94A3B8; }
 `;
 const MemoSummaryDocBtn = styled.button`
   border: 1px solid #14B8A6; background: #F0FDFA; color: #0F766E;

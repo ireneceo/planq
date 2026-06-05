@@ -97,7 +97,9 @@
       "savingDoc": "Saving...",
       "savedDoc": "Saved to docs",
       "saveDocFailed": "Failed to save document",
-      "viewDoc": "View"
+      "viewDoc": "View",
+      "reInstructionPh": "How should it be re-summarized? (e.g., shorter · focus on decisions · highlight action items)",
+      "reSubmit": "Re-summarize"
     },
     "reviewEmpty": "No utterances recorded.",
     "speaker": {
@@ -214,7 +216,8 @@
     "errorRetry": "Save failed — will retry",
     "delete": "Delete",
     "deleteConfirmTitle": "Delete this memo?",
-    "deleteConfirmDesc": "This memo will be permanently deleted. This cannot be undone."
+    "deleteConfirmDesc": "This memo will be permanently deleted. This cannot be undone.",
+    "share": "Share"
   },
   "startModal": {
     "header": "Start New Note",

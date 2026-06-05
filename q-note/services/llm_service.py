@@ -934,13 +934,23 @@ Respond ONLY with strict JSON:
 """
 
 
-async def generate_summary(transcript: str, meeting_context: Optional[dict] = None) -> dict:
-  """Returns: {"key_points": list[str], "full_summary": str}"""
+async def generate_summary(transcript: str, meeting_context: Optional[dict] = None, instruction: Optional[str] = None) -> dict:
+  """Returns: {"key_points": list[str], "full_summary": str}
+
+  instruction: 재요약 시 사용자가 "어떻게 고쳐달라"는 요구사항 (예: "더 짧게", "결정사항 위주로").
+  """
   if not transcript.strip():
     return {'key_points': [], 'full_summary': ''}
 
   client = get_client()
   system_content = _build_context_prefix(meeting_context) + SUMMARY_SYSTEM
+  # N+88 — 재요약 요구사항 주입 (사용자 불만족 → 어떻게 고칠지). 가장 우선 반영.
+  if instruction and instruction.strip():
+    system_content += (
+      "\n\n## 사용자 재요약 요청 (최우선 반영)\n"
+      "아래 요청에 맞춰 요약을 다시 작성하라. 다른 규칙과 충돌하면 이 요청을 우선한다.\n"
+      f"요청: {instruction.strip()[:500]}"
+    )
   response = await client.chat.completions.create(
     model=LLM_MODEL_ANSWER,
     messages=[
