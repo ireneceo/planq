@@ -28,6 +28,10 @@ EmailThread.init({
   // Inbound 트리아지 (사이클 N+83) — human(답장필요) / automated(자동알림) / marketing(벌크) / spam / unknown(미분류)
   //   인박스 노이즈 분리 + reply_needed 자동 판정 근거. emailTriage.js 가 IMAP 수집 시 계산.
   triage: { type: DataTypes.STRING(20), allowNull: true, defaultValue: 'unknown' },
+  // AI 스레드 요약 (N+87 Phase C) — on-demand 생성. 긴 스레드 빠른 파악.
+  ai_summary: { type: DataTypes.TEXT, allowNull: true },
+  ai_summary_at: { type: DataTypes.DATE, allowNull: true },
+  ai_summary_model: { type: DataTypes.STRING(50), allowNull: true },
   // 핀
   is_starred: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
   // 라벨

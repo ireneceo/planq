@@ -412,11 +412,31 @@ async function generateEmailReplyDraft(businessId, { businessName, subject, late
   return { content: result.content, usage: await checkUsageLimit(businessId) };
 }
 
+// N+87 Phase C — 메일 스레드 AI 요약. on-demand. 긴 스레드를 3~5줄 핵심으로.
+//   사실만 요약(날조 금지), 결정·요청·다음 액션 위주. 워크스페이스 언어.
+async function summarizeThread(businessId, { subject, threadText, language = 'ko' }) {
+  const usage = await checkUsageLimit(businessId);
+  if (usage.over) return { error: 'usage_limit_exceeded', usage };
+  const lang = language === 'en' ? 'English' : 'Korean';
+  const systemPrompt = `You summarize an email thread for the team. Write in ${lang}, 3-5 short bullet lines. `
+    + `Capture only what's in the thread: the customer's request/situation, key decisions or commitments, and the next action needed. `
+    + `Do NOT invent facts, prices, or dates. No greeting, no preamble — just the bullets (each line starts with "- ").`;
+  const userPrompt = `Email thread${subject ? ` (subject: ${subject})` : ''}:\n\n${(threadText || '').slice(0, 6000)}\n\nSummarize.`;
+  const result = await callLLM(MODEL_MINI, [
+    { role: 'system', content: systemPrompt },
+    { role: 'user', content: userPrompt },
+  ], { temperature: 0.3, maxTokens: 400 });
+  if (result.fallback) return { error: 'llm_unavailable', fallback: true };
+  await recordUsage(businessId, 'thread_summary', MODEL_MINI, result.input_tokens, result.output_tokens);
+  return { content: (result.content || '').trim(), usage: await checkUsageLimit(businessId) };
+}
+
 module.exports = {
   respondToMessage,
   generateClientSummary,
   generateDocumentDraft,
   generateEmailReplyDraft,
+  summarizeThread,
   checkUsageLimit,
   recordUsage,
   isSensitive,

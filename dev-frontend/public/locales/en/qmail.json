@@ -131,6 +131,20 @@
     "noTasksFound": "No tasks found to extract.",
     "register": "Add task",
     "reject": "Dismiss",
-    "unassigned": "Unassigned"
+    "unassigned": "Unassigned",
+    "summaryTitle": "Summary",
+    "summarize": "✨ Summarize",
+    "resummarize": "Re-summarize",
+    "summarizing": "Summarizing…",
+    "summaryHint": "AI summarizes long threads into key points.",
+    "issuesTitle": "Issues",
+    "issuePh": "Add an issue…",
+    "notesTitle": "Notes",
+    "notePh": "Add a note…",
+    "add": "Add",
+    "delete": "Delete",
+    "visPersonal": "Private",
+    "noteVisMe": "🔒 Only me",
+    "noteVisTeam": "👥 Team"
   }
 }

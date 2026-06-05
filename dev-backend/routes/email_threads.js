@@ -268,6 +268,8 @@ router.get('/:businessId/email-threads/:id',
         uncertain_reason: tj.uncertain_reason,
         spam_score: tj.spam_score,
         triage: tj.triage,
+        ai_summary: tj.ai_summary,
+        ai_summary_at: tj.ai_summary_at,
         is_starred: tj.is_starred,
         unread_count: tj.unread_count || 0,
         message_count: tj.message_count || 0,
@@ -888,6 +890,138 @@ router.post('/:businessId/email-threads/:id/task-candidates/:cid/reject',
       const extractor = require('../services/task_extractor');
       await extractor.rejectCandidate(cand.id, req.user.id);
       return successResponse(res, { id: cand.id, status: 'rejected' });
+    } catch (err) { next(err); }
+  }
+);
+
+// ─────────────────────────────────────────────────────────
+// Q Mail Phase C (N+87) — 요약 / 이슈 / 노트 (Q Talk 우측 패널 패리티)
+// ─────────────────────────────────────────────────────────
+const { ProjectIssue, ProjectNote } = require('../models');
+
+// POST summarize — 스레드 AI 요약 (on-demand)
+router.post('/:businessId/email-threads/:id/summarize',
+  authenticateToken, checkBusinessAccess, requireMenu('qmail', 'write'),
+  async (req, res, next) => {
+    try {
+      const businessId = Number(req.params.businessId);
+      const thread = await accessibleThread(req);
+      if (!thread) return errorResponse(res, 'thread_not_found', 404);
+      const msgs = await EmailMessage.findAll({
+        where: { thread_id: thread.id, business_id: businessId },
+        order: [['sent_at', 'ASC'], ['id', 'ASC']],
+        attributes: ['from_name', 'from_email', 'direction', 'subject', 'body_text'],
+      });
+      if (!msgs.length) return errorResponse(res, 'no_messages', 400);
+      const threadText = msgs.map((m) => {
+        const who = m.direction === 'outbound' ? '우리 팀' : (m.from_name || m.from_email || '상대');
+        return `${who}: ${(m.body_text || m.subject || '').replace(/\s+/g, ' ').trim().slice(0, 2000)}`;
+      }).join('\n\n');
+      const biz = await Business.findByPk(businessId, { attributes: ['default_language'] });
+      const language = (req.body || {}).language || biz?.default_language || 'ko';
+      const cueOrch = require('../services/cue_orchestrator');
+      const out = await cueOrch.summarizeThread(businessId, { subject: thread.subject, threadText, language });
+      if (out.error === 'usage_limit_exceeded') return errorResponse(res, 'cue_usage_limit_exceeded', 429);
+      if (out.error === 'llm_unavailable') return errorResponse(res, 'ai_unavailable', 503);
+      const now = new Date();
+      await thread.update({ ai_summary: out.content, ai_summary_at: now, ai_summary_model: 'gpt-4o-mini' });
+      broadcastMail(req, businessId, 'mail:updated', { thread_id: thread.id, ai_summary: out.content, ai_summary_at: now });
+      return successResponse(res, { ai_summary: out.content, ai_summary_at: now });
+    } catch (err) { next(err); }
+  }
+);
+
+// ─── 이슈 (project_issues, email_thread_id 스코프) ───
+router.get('/:businessId/email-threads/:id/issues',
+  authenticateToken, checkBusinessAccess, requireMenu('qmail', 'read'),
+  async (req, res, next) => {
+    try {
+      const thread = await accessibleThread(req);
+      if (!thread) return errorResponse(res, 'thread_not_found', 404);
+      const rows = await ProjectIssue.findAll({ where: { email_thread_id: thread.id }, order: [['id', 'DESC']] });
+      return successResponse(res, rows.map((r) => r.toJSON()));
+    } catch (err) { next(err); }
+  }
+);
+router.post('/:businessId/email-threads/:id/issues',
+  authenticateToken, checkBusinessAccess, requireMenu('qmail', 'write'),
+  async (req, res, next) => {
+    try {
+      const businessId = Number(req.params.businessId);
+      const thread = await accessibleThread(req);
+      if (!thread) return errorResponse(res, 'thread_not_found', 404);
+      const body = String((req.body || {}).body || '').trim();
+      if (!body) return errorResponse(res, 'body_required', 400);
+      const issue = await ProjectIssue.create({
+        project_id: thread.project_id || null, conversation_id: null, email_thread_id: thread.id,
+        body: body.slice(0, 5000), author_user_id: req.user.id,
+      });
+      broadcastMail(req, businessId, 'mail:updated', { thread_id: thread.id, issue_added: true });
+      return successResponse(res, issue.toJSON(), 'created', 201);
+    } catch (err) { next(err); }
+  }
+);
+router.delete('/:businessId/email-threads/:id/issues/:issueId',
+  authenticateToken, checkBusinessAccess, requireMenu('qmail', 'write'),
+  async (req, res, next) => {
+    try {
+      const thread = await accessibleThread(req);
+      if (!thread) return errorResponse(res, 'thread_not_found', 404);
+      const issue = await ProjectIssue.findOne({ where: { id: Number(req.params.issueId), email_thread_id: thread.id } });
+      if (!issue) return errorResponse(res, 'not_found', 404);
+      await issue.destroy();
+      return successResponse(res, { id: issue.id, deleted: true });
+    } catch (err) { next(err); }
+  }
+);
+
+// ─── 노트 (project_notes, email_thread_id 스코프, visibility) ───
+router.get('/:businessId/email-threads/:id/notes',
+  authenticateToken, checkBusinessAccess, requireMenu('qmail', 'read'),
+  async (req, res, next) => {
+    try {
+      const thread = await accessibleThread(req);
+      if (!thread) return errorResponse(res, 'thread_not_found', 404);
+      // personal 은 본인 것만. internal/shared 는 멤버 모두.
+      const rows = await ProjectNote.findAll({
+        where: { email_thread_id: thread.id, [Op.or]: [{ visibility: { [Op.ne]: 'personal' } }, { author_user_id: req.user.id }] },
+        order: [['id', 'ASC']],
+      });
+      return successResponse(res, rows.map((r) => r.toJSON()));
+    } catch (err) { next(err); }
+  }
+);
+router.post('/:businessId/email-threads/:id/notes',
+  authenticateToken, checkBusinessAccess, requireMenu('qmail', 'write'),
+  async (req, res, next) => {
+    try {
+      const businessId = Number(req.params.businessId);
+      const thread = await accessibleThread(req);
+      if (!thread) return errorResponse(res, 'thread_not_found', 404);
+      const b = req.body || {};
+      const body = String(b.body || '').trim();
+      if (!body) return errorResponse(res, 'body_required', 400);
+      const visibility = ['personal', 'internal', 'shared'].includes(b.visibility) ? b.visibility : 'internal';
+      const note = await ProjectNote.create({
+        project_id: thread.project_id || null, conversation_id: null, email_thread_id: thread.id,
+        author_user_id: req.user.id, visibility, body: body.slice(0, 5000),
+      });
+      if (visibility !== 'personal') broadcastMail(req, businessId, 'mail:updated', { thread_id: thread.id, note_added: true });
+      return successResponse(res, note.toJSON(), 'created', 201);
+    } catch (err) { next(err); }
+  }
+);
+router.delete('/:businessId/email-threads/:id/notes/:noteId',
+  authenticateToken, checkBusinessAccess, requireMenu('qmail', 'write'),
+  async (req, res, next) => {
+    try {
+      const thread = await accessibleThread(req);
+      if (!thread) return errorResponse(res, 'thread_not_found', 404);
+      const note = await ProjectNote.findOne({ where: { id: Number(req.params.noteId), email_thread_id: thread.id } });
+      if (!note) return errorResponse(res, 'not_found', 404);
+      if (note.author_user_id !== req.user.id) return errorResponse(res, 'only_author', 403);
+      await note.destroy();
+      return successResponse(res, { id: note.id, deleted: true });
     } catch (err) { next(err); }
   }
 );

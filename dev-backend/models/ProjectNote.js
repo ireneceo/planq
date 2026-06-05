@@ -8,6 +8,7 @@ ProjectNote.init({
   // 프로젝트 혹은 conversation 둘 중 하나 이상은 반드시 세팅. 독립 대화는 project_id null + conversation_id.
   project_id: { type: DataTypes.BIGINT, allowNull: true },
   conversation_id: { type: DataTypes.INTEGER, allowNull: true },
+  email_thread_id: { type: DataTypes.INTEGER, allowNull: true }, // N+87 Phase C — 메일 스레드 노트
   author_user_id: { type: DataTypes.INTEGER, allowNull: false },
   visibility: {
     type: DataTypes.ENUM('personal', 'internal', 'shared'),
