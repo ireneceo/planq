@@ -131,6 +131,20 @@
     "noTasksFound": "추출할 업무를 찾지 못했어요.",
     "register": "업무 등록",
     "reject": "무시",
-    "unassigned": "담당 미지정"
+    "unassigned": "담당 미지정",
+    "summaryTitle": "요약",
+    "summarize": "✨ 요약 생성",
+    "resummarize": "다시 요약",
+    "summarizing": "요약 중…",
+    "summaryHint": "긴 스레드를 AI가 핵심만 요약해요.",
+    "issuesTitle": "이슈",
+    "issuePh": "이슈 추가…",
+    "notesTitle": "노트",
+    "notePh": "노트 추가…",
+    "add": "추가",
+    "delete": "삭제",
+    "visPersonal": "나만",
+    "noteVisMe": "🔒 나만 보임",
+    "noteVisTeam": "👥 팀 공유"
   }
 }

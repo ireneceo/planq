@@ -8,6 +8,7 @@ ProjectIssue.init({
   // 독립 대화(project 없음)도 이슈를 가질 수 있도록 nullable. 대신 conversation_id 로 연결.
   project_id: { type: DataTypes.BIGINT, allowNull: true },
   conversation_id: { type: DataTypes.INTEGER, allowNull: true },
+  email_thread_id: { type: DataTypes.INTEGER, allowNull: true }, // N+87 Phase C — 메일 스레드 이슈
   body: { type: DataTypes.TEXT, allowNull: false },
   author_user_id: { type: DataTypes.INTEGER, allowNull: false },
 }, {
