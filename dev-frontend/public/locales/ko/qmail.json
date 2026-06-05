@@ -145,6 +145,8 @@
     "delete": "삭제",
     "visPersonal": "나만",
     "noteVisMe": "🔒 나만 보임",
-    "noteVisTeam": "👥 팀 공유"
+    "noteVisTeam": "👥 팀 공유",
+    "collapse": "패널 접기",
+    "expand": "맥락 패널 펼치기"
   }
 }

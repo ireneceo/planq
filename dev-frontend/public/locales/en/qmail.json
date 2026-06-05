@@ -145,6 +145,8 @@
     "delete": "Delete",
     "visPersonal": "Private",
     "noteVisMe": "🔒 Only me",
-    "noteVisTeam": "👥 Team"
+    "noteVisTeam": "👥 Team",
+    "collapse": "Collapse panel",
+    "expand": "Expand context panel"
   }
 }

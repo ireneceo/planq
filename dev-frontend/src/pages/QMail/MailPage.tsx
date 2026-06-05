@@ -118,6 +118,34 @@ const MailPage: React.FC = () => {
   const [detail, setDetail] = useState<ThreadDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  // 우측 맥락 패널 — 리사이즈 + 접기 (Q Task 패턴 통일). localStorage 저장 · ⌘/ · Ctrl+\
+  const [rightWidth, setRightWidth] = useState<number>(() => {
+    try { const v = localStorage.getItem('qmail_right_width'); return v ? Math.max(280, Math.min(560, Number(v))) : 320; } catch { return 320; }
+  });
+  const rightResizingRef = useRef(false);
+  const [rightCollapsed, setRightCollapsed] = useState<boolean>(() => {
+    try { return localStorage.getItem('qmail_right_collapsed') === '1'; } catch { return false; }
+  });
+  const startRightResize = (e: React.MouseEvent) => {
+    e.preventDefault(); rightResizingRef.current = true;
+    document.body.style.userSelect = 'none'; document.body.style.cursor = 'col-resize';
+  };
+  useEffect(() => {
+    const onMove = (e: MouseEvent) => { if (rightResizingRef.current) setRightWidth(Math.max(280, Math.min(560, window.innerWidth - e.clientX))); };
+    const onUp = () => { if (rightResizingRef.current) { rightResizingRef.current = false; try { localStorage.setItem('qmail_right_width', String(rightWidth)); } catch { /* quota */ } document.body.style.userSelect = ''; document.body.style.cursor = ''; } };
+    window.addEventListener('mousemove', onMove); window.addEventListener('mouseup', onUp);
+    return () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
+  }, [rightWidth]);
+  const toggleRightCollapsed = useCallback(() => {
+    setRightCollapsed((v) => { const next = !v; try { localStorage.setItem('qmail_right_collapsed', next ? '1' : '0'); } catch { /* quota */ } return next; });
+  }, []);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey && e.key === '/') || (e.ctrlKey && e.key === '\\')) { e.preventDefault(); toggleRightCollapsed(); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [toggleRightCollapsed]);
   const [folderCounts, setFolderCounts] = useState<Record<Folder, number>>({
     reply_needed: 0, inbox: 0, marketing: 0, uncertain: 0, assigned: 0, following: 0, spam: 0, archived: 0,
   });
@@ -734,7 +762,7 @@ const MailPage: React.FC = () => {
         </Panel>
 
         {/* 우: 상세 */}
-        <Panel $grow $last $hideTablet>
+        <Panel $grow $hideTablet $last={!detail}>
           {detailLoading && !detail ? (
             <Loading><Spinner /></Loading>
           ) : !detail ? (
@@ -897,10 +925,27 @@ const MailPage: React.FC = () => {
           )}
         </Panel>
 
-        {detail && businessId && (
-          <Panel $width={300} $last $hideTablet>
-            <PanelHeader><PanelMetaTitle>{t('context.panelTitle', { defaultValue: '맥락' }) as string}</PanelMetaTitle></PanelHeader>
+        {detail && businessId && !rightCollapsed && (
+          <Panel $width={rightWidth} $last $hideTablet $relative>
+            <CtxResizeHandle onMouseDown={startRightResize} />
+            <PanelHeader>
+              <PanelMetaTitle>{t('context.panelTitle', { defaultValue: '맥락' }) as string}</PanelMetaTitle>
+              <CtxCollapseBtn type="button" onClick={toggleRightCollapsed}
+                aria-label={t('context.collapse', { defaultValue: '패널 접기' }) as string}
+                title={`${t('context.collapse', { defaultValue: '패널 접기' }) as string} (⌘/)`}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="9 18 15 12 9 6" /></svg>
+              </CtxCollapseBtn>
+            </PanelHeader>
             <MailContextPanel businessId={businessId} thread={detail} members={members} onLinked={() => loadDetail(detail.id)} />
+          </Panel>
+        )}
+        {detail && businessId && rightCollapsed && (
+          <Panel $width={16} $last $hideTablet $relative>
+            <CtxReopen type="button" onClick={toggleRightCollapsed}
+              aria-label={t('context.expand', { defaultValue: '맥락 패널 펼치기' }) as string}
+              title={`${t('context.expand', { defaultValue: '맥락 패널 펼치기' }) as string} (⌘/)`}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="15 18 9 12 15 6" /></svg>
+            </CtxReopen>
           </Panel>
         )}
 
@@ -1230,6 +1275,27 @@ const LabelChip = styled.span<{ $color: string; $clickable?: boolean }>`
 const DetailHeaderRight = styled.div`
   display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
   flex-shrink: 0;
+`;
+// 맥락 패널 좌측 리사이즈 핸들 (Q Task 패턴 통일)
+const CtxResizeHandle = styled.div`
+  position: absolute; top: 0; left: -3px; width: 6px; height: 100%;
+  cursor: col-resize; z-index: 5;
+  &:hover { background: rgba(20,184,166,0.2); }
+  &:active { background: rgba(20,184,166,0.4); }
+  @media (max-width: 1024px) { display: none; }
+`;
+// 맥락 패널 접기 버튼 (헤더 우측)
+const CtxCollapseBtn = styled.button`
+  margin-left: auto; flex-shrink: 0;
+  width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;
+  background: transparent; border: none; border-radius: 6px; color: #64748B; cursor: pointer;
+  &:hover { background: #F1F5F9; color: #0F172A; }
+`;
+// 접힌 상태 재오픈 레일 (얇은 컬럼 전체가 버튼)
+const CtxReopen = styled.button`
+  width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;
+  background: #fff; border: none; cursor: pointer; color: #94A3B8;
+  &:hover { background: #F8FAFC; color: #0F766E; }
 `;
 // 상세 부가 툴바 (컨트롤·라벨) — PanelHeader 아래 별도 줄
 const DetailToolbar = styled.div`
