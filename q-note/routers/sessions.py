@@ -39,7 +39,7 @@ ALLOWED_EXTENSIONS = {
 }
 
 # NOTE: 'urls' 컬럼은 deprecated — 이제 documents 테이블(source_type='url')이 source of truth
-JSON_COLUMNS = {'participants', 'meeting_languages', 'user_language_levels', 'keywords'}
+JSON_COLUMNS = {'participants', 'meeting_languages', 'user_language_levels', 'keywords', 'summary_key_points'}
 
 
 # ─────────────────────────────────────────────────────────

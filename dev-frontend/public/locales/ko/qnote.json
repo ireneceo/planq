@@ -76,7 +76,7 @@
       "questions": "질문 보기"
     },
     "summary": {
-      "title": "정리하기",
+      "title": "요약",
       "desc": "이 회의/메모를 다른 형태로 변환합니다.",
       "actionTask": "업무 생성",
       "actionTaskHint": "Q Task 신규 등록 모달에 본문 prefill",
@@ -85,7 +85,12 @@
       "actionDocs": "정식 문서 승격",
       "actionDocsHint": "Q docs 자료정리(Brief) 로 AI 가공",
       "actionShare": "외부 공유",
-      "actionShareHint": "링크/PDF 로 외부에 공유"
+      "actionShareHint": "링크/PDF 로 외부에 공유",
+      "regenerate": "재요약",
+      "generate": "AI 요약 생성",
+      "generating": "생성 중...",
+      "emptyHint": "AI가 이 회의의 핵심을 요약합니다.",
+      "failed": "요약 생성 실패"
     },
     "reviewEmpty": "기록된 문장이 없습니다.",
     "speaker": {

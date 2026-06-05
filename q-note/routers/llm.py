@@ -63,4 +63,15 @@ async def summary(body: SummaryRequest, user: dict = Depends(get_current_user)):
   if body.session_id is not None:
     meeting_context = await _load_meeting_context(body.session_id, user['user_id'])
   result = await generate_summary(body.transcript, meeting_context=meeting_context)
+  # N+88 — 요약 영속 (휘발 방지). 본인 세션일 때만 저장.
+  if body.session_id is not None:
+    async with db_connect() as db:
+      cur = await db.execute('SELECT user_id FROM sessions WHERE id = ?', (body.session_id,))
+      row = await cur.fetchone()
+      if row and row[0] == user['user_id']:
+        await db.execute(
+          "UPDATE sessions SET summary_key_points = ?, summary_full = ?, summarized_at = datetime('now') WHERE id = ?",
+          (json.dumps(result.get('key_points', []), ensure_ascii=False), result.get('full_summary', ''), body.session_id),
+        )
+        await db.commit()
   return {'success': True, 'data': result}

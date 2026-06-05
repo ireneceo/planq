@@ -108,6 +108,8 @@ export interface QNoteSession {
   linked_voice_session_id?: number | null;
   body?: string | null;
   summarized_at?: string | null;
+  summary_key_points?: string[] | null;  // N+88 — 영속 요약 핵심 포인트
+  summary_full?: string | null;          // N+88 — 영속 요약 전문
 }
 
 // visibility 변경 API — N+66: L4 도 type 으로 받음 (backend Q note 가 거부하면 별도 share 흐름 안내)

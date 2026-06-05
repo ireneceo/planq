@@ -13,7 +13,7 @@
 import React, { useState, useEffect, useRef, useCallback, Suspense, lazy } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
-import { createSession, updateSession } from '../../services/qnote';
+import { createSession, updateSession, generateSessionSummary } from '../../services/qnote';
 import type { QNoteSession } from '../../services/qnote';
 import { parseBodyToDoc, deriveTitleFromDoc, isDocEmpty } from '../../utils/qnoteBody';
 import VisibilityBadge from '../../components/Common/VisibilityBadge';
@@ -45,6 +45,24 @@ function timeAgo(t: (k: string, opts?: any) => string, savedAt: number | null): 
   return t('memoPopup.savedAt', { ago: `${Math.floor(min / 60)}h` }) as string;
 }
 
+// TipTap doc → plain text (요약 입력용). 블록 단위 줄바꿈.
+function docToPlainText(doc: unknown): string {
+  if (!doc || typeof doc !== 'object') return '';
+  const blockText = (node: any): string => {
+    if (!node) return '';
+    if (typeof node.text === 'string') return node.text;
+    if (Array.isArray(node.content)) return node.content.map(blockText).join('');
+    return '';
+  };
+  const content = Array.isArray((doc as any).content) ? (doc as any).content : [];
+  const lines: string[] = [];
+  for (const block of content) {
+    const txt = blockText(block).trim();
+    if (txt) lines.push(txt);
+  }
+  return lines.join('\n');
+}
+
 const MemoView: React.FC<Props> = ({ session, businessId, prefillProjectId, prefillClientId, onCreated, onUpdated, onDelete, onClose }) => {
   // prefillClientId — sessions 컬럼 X. 다음 사이클 source_meta 등에 보존 예정 (props interface 만 받아둠).
   void prefillClientId;
@@ -55,6 +73,27 @@ const MemoView: React.FC<Props> = ({ session, businessId, prefillProjectId, pref
   const [savedAt, setSavedAt] = useState<number | null>(session ? Date.now() : null);
   const [tick, setTick] = useState(0);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  // N+88 — 메모 요약 (body 기반, 영속). session.summary_* 로 표시.
+  const [summarizing, setSummarizing] = useState(false);
+  const [summaryError, setSummaryError] = useState<string | null>(null);
+
+  const runMemoSummary = async () => {
+    if (!sessionId) return;
+    setSummaryError(null);
+    setSummarizing(true);
+    try {
+      const text = docToPlainText(doc).trim();
+      if (!text) { setSummaryError(t('page.summary.emptyHint') as string); return; }
+      const data = await generateSessionSummary(sessionId, text);
+      if (session) {
+        onUpdated({ ...session, summary_key_points: data.key_points, summary_full: data.full_summary, summarized_at: new Date().toISOString() });
+      }
+    } catch (e) {
+      setSummaryError((e as Error).message || (t('page.summary.failed') as string));
+    } finally {
+      setSummarizing(false);
+    }
+  };
 
   const dirtyRef = useRef(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -163,6 +202,37 @@ const MemoView: React.FC<Props> = ({ session, businessId, prefillProjectId, pref
         </HeaderActions>
       </Header>
 
+      {/* N+88 — 메모 요약 (body 기반·영속). 저장된 메모일 때만. */}
+      {sessionId && (
+        <MemoSummary>
+          {session?.summary_full ? (
+            <>
+              <MemoSummaryTop>
+                <MemoSummaryTitle>{t('page.summary.title', '요약')}</MemoSummaryTitle>
+                <MemoSummaryRegen type="button" onClick={runMemoSummary} disabled={summarizing}>
+                  {summarizing ? t('page.summary.generating', '생성 중...') : t('page.summary.regenerate', '재요약')}
+                </MemoSummaryRegen>
+              </MemoSummaryTop>
+              {(session.summary_key_points || []).length > 0 && (
+                <MemoSummaryPoints>
+                  {(session.summary_key_points || []).map((p, i) => <li key={i}>{p}</li>)}
+                </MemoSummaryPoints>
+              )}
+              <MemoSummaryFull>{session.summary_full}</MemoSummaryFull>
+              {summaryError && <MemoSummaryError>{summaryError}</MemoSummaryError>}
+            </>
+          ) : (
+            <MemoSummaryEmpty>
+              <MemoSummaryHint>{t('page.summary.emptyHint', 'AI가 이 회의의 핵심을 요약합니다.')}</MemoSummaryHint>
+              <MemoSummaryGenerate type="button" onClick={runMemoSummary} disabled={summarizing}>
+                {summarizing ? t('page.summary.generating', '생성 중...') : t('page.summary.generate', 'AI 요약 생성')}
+              </MemoSummaryGenerate>
+              {summaryError && <MemoSummaryError>{summaryError}</MemoSummaryError>}
+            </MemoSummaryEmpty>
+          )}
+        </MemoSummary>
+      )}
+
       <Body>
         <Suspense fallback={<EditorLoading>{t('memoPopup.searchLoading') as string}</EditorLoading>}>
           {/* 사이클 N+17 hotfix — Q docs PostsPage 와 동일한 카드 스타일 (borderless 제거).
@@ -204,6 +274,55 @@ const Wrap = styled.div`
   flex: 1; min-height: 0;
   display: flex; flex-direction: column;
   background: #FFFFFF;
+`;
+// N+88 — 메모 요약 밴드 (Header 와 Body 사이)
+const MemoSummary = styled.section`
+  flex-shrink: 0;
+  padding: 14px 20px;
+  border-bottom: 1px solid #E2E8F0;
+  background: #F8FAFC;
+  @media (max-width: 768px) { padding: 12px 14px; }
+`;
+const MemoSummaryTop = styled.div`
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  margin-bottom: 8px;
+`;
+const MemoSummaryTitle = styled.h3`
+  margin: 0; font-size: 13px; font-weight: 700; color: #0F172A; letter-spacing: -0.2px;
+  display: flex; align-items: center; gap: 8px;
+  &::before { content: ''; width: 3px; height: 14px; background: #14B8A6; border-radius: 2px; }
+`;
+const MemoSummaryRegen = styled.button`
+  border: 1px solid #E2E8F0; background: #FFFFFF; color: #475569;
+  font-size: 12px; font-weight: 600; padding: 6px 12px; border-radius: 8px; cursor: pointer;
+  transition: all 0.15s ease;
+  &:hover:not(:disabled) { border-color: #CBD5E1; background: #F8FAFC; }
+  &:disabled { opacity: 0.5; cursor: default; }
+`;
+const MemoSummaryPoints = styled.ul`
+  margin: 0 0 8px; padding-left: 18px; display: flex; flex-direction: column; gap: 4px;
+  li { font-size: 13px; line-height: 1.6; color: #0F172A; }
+`;
+const MemoSummaryFull = styled.div`
+  font-size: 13px; line-height: 1.7; color: #334155; white-space: pre-wrap;
+  max-height: 140px; overflow-y: auto;
+`;
+const MemoSummaryEmpty = styled.div`
+  display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+`;
+const MemoSummaryHint = styled.div`
+  font-size: 13px; color: #64748B;
+`;
+const MemoSummaryGenerate = styled.button`
+  border: none; background: #14B8A6; color: #FFFFFF;
+  font-size: 13px; font-weight: 600; padding: 8px 16px; border-radius: 8px; cursor: pointer;
+  white-space: nowrap; transition: background 0.15s ease;
+  &:hover:not(:disabled) { background: #0D9488; }
+  &:active:not(:disabled) { background: #0F766E; }
+  &:disabled { opacity: 0.6; cursor: default; }
+`;
+const MemoSummaryError = styled.div`
+  font-size: 12px; color: #B91C1C; margin-top: 8px; flex-basis: 100%;
 `;
 const Header = styled.div`
   display: flex; align-items: flex-start; gap: 12px;
