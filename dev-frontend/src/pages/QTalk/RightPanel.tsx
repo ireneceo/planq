@@ -28,6 +28,8 @@ interface Props {
   onToggleHiddenCandidates?: () => void;
   collapsed: boolean;
   onToggleCollapsed: () => void;
+  width?: number; // 데스크탑 폭 (리사이즈 — Q Task/Q Mail 통일)
+  onResizeStart?: (e: React.MouseEvent) => void;
   onRegisterCandidate: (id: number, overrides?: RegisterCandidateOverrides) => void;
   onMergeCandidate: (id: number) => void;
   onRejectCandidate: (id: number) => void;
@@ -42,6 +44,7 @@ type Section = 'issues' | 'myTasks' | 'projectTasks' | 'notes' | 'info';
 
 const RightPanel: React.FC<Props> = ({
   project, activeConversationId, conversations, tasks, notes, issues, candidates, collapsed, onToggleCollapsed,
+  width, onResizeStart,
   showHiddenCandidates = false, onToggleHiddenCandidates,
   onRegisterCandidate, onMergeCandidate, onRejectCandidate,
   onAddIssue, onUpdateIssue, onDeleteIssue, onAddNote, onToggleTask,
@@ -214,23 +217,16 @@ const RightPanel: React.FC<Props> = ({
     <>
       <HeaderBar>
         <HeaderTitle>{project ? t('right.title', '프로젝트 작업대') : t('right.titleStandalone', '작업대')}</HeaderTitle>
-        {/* narrow(overlay) 모드에서만 헤더 X 유지. 데스크탑은 좌측 엣지 바로 접기 (통일) */}
-        {isNarrow && (
-          <IconBtn onClick={headerCloseHandler} title={t('right.collapse', '접기')}>
-            {headerCloseIcon}
-          </IconBtn>
-        )}
-      </HeaderBar>
-      {!isNarrow && (
-        <RightEdgeHandle
+        {/* 헤더 접기 버튼 (데스크탑·overlay 공통 — Q Task/Q Mail 통일). 데스크탑 좌측 엣지는 리사이즈 전용. */}
+        <IconBtn
           type="button"
-          onClick={onToggleCollapsed}
+          onClick={headerCloseHandler}
           aria-label={t('right.collapse', '접기') as string}
-          title={t('right.collapse', '접기') as string}
+          title={`${t('right.collapse', '접기') as string}${isNarrow ? '' : ' (⌘/)'}`}
         >
-          <EdgeChevron><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg></EdgeChevron>
-        </RightEdgeHandle>
-      )}
+          {headerCloseIcon}
+        </IconBtn>
+      </HeaderBar>
 
       <Scroll>
         {/* 업무 후보 (있을 때만) — N+36 옵션 D: 토글 시 hidden 도 포함 (있건 없건 토글은 보임) */}
@@ -603,20 +599,20 @@ const RightPanel: React.FC<Props> = ({
     );
   }
 
-  return <Container>{panelBody}</Container>;
+  return <Container $w={width}>{onResizeStart && <TalkResizeHandle onMouseDown={onResizeStart} />}{panelBody}</Container>;
 };
 
 export default RightPanel;
 
 // ─────────────────────────────────────────────
-const Container = styled.aside<{ $overlay?: boolean }>`
+const Container = styled.aside<{ $overlay?: boolean; $w?: number }>`
   background: #FFFFFF;
   border-left: 1px solid #E2E8F0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
   position: relative;
-  ${({ $overlay }) => $overlay
+  ${(p) => p.$overlay
     ? `
       position: fixed; top: 0; right: 0; bottom: 0;
       width: ${PANEL_WIDTH_CSS};
@@ -628,9 +624,17 @@ const Container = styled.aside<{ $overlay?: boolean }>`
       @media (prefers-reduced-motion: reduce) { animation: none; }
     `
     : `
-      width: 320px; flex-shrink: 0;
+      width: ${p.$w || 320}px; flex-shrink: 0;
       @media (max-width: 1200px) { display: none; }
     `}
+`;
+// 좌측 리사이즈 핸들 (Q Task/Q Mail 통일)
+const TalkResizeHandle = styled.div`
+  position: absolute; top: 0; left: -3px; width: 6px; height: 100%;
+  cursor: col-resize; z-index: 12;
+  &:hover { background: rgba(20,184,166,0.2); }
+  &:active { background: rgba(20,184,166,0.4); }
+  @media (max-width: 1200px) { display: none; }
 `;
 
 /* N+63 — 시인성·세련도 강화. 평소 12×72 진한 색, hover 18×84 teal + nudge animation. */

@@ -141,7 +141,8 @@ const MailPage: React.FC = () => {
   }, []);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if ((e.metaKey && e.key === '/') || (e.ctrlKey && e.key === '\\')) { e.preventDefault(); toggleRightCollapsed(); }
+      const mod = e.metaKey || e.ctrlKey; if (!mod) return;
+      if (e.key === '/' || e.key === '\\') { e.preventDefault(); toggleRightCollapsed(); }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
