@@ -143,5 +143,41 @@
       "quarterly": "Quarterly",
       "yearly": "Yearly"
     }
+  },
+  "timeline": {
+    "title": "Customer Timeline",
+    "titleNamed": "{{name}} · Timeline",
+    "back": "Clients",
+    "loading": "Loading…",
+    "error": "Couldn't load the timeline. Please try again shortly.",
+    "empty": "No activity yet",
+    "emptyDesc": "Chats, emails, tasks, and invoices with this customer will appear here in order.",
+    "received": "Received",
+    "sent": "Sent",
+    "filter": {
+      "all": "All"
+    },
+    "channel": {
+      "chat": "Chat",
+      "email": "Mail",
+      "task": "Task",
+      "invoice": "Invoice"
+    },
+    "untitled": {
+      "chat": "(message)",
+      "email": "(no subject)",
+      "task": "(untitled)",
+      "invoice": "(invoice)"
+    },
+    "taskStatus": {
+      "not_started": "Not started",
+      "waiting": "Waiting",
+      "in_progress": "In progress",
+      "reviewing": "Review requested",
+      "revision_requested": "Revision requested",
+      "completed": "Completed",
+      "canceled": "Canceled"
+    },
+    "openCta": "Open unified timeline — chat·mail·tasks·invoices"
   }
 }

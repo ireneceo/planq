@@ -143,5 +143,41 @@
       "quarterly": "분기",
       "yearly": "매년"
     }
+  },
+  "timeline": {
+    "title": "고객 통합 타임라인",
+    "titleNamed": "{{name}} · 통합 타임라인",
+    "back": "고객 목록",
+    "loading": "불러오는 중…",
+    "error": "타임라인을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.",
+    "empty": "아직 활동 기록이 없어요",
+    "emptyDesc": "이 고객과의 채팅·메일·업무·청구가 생기면 여기에 시간순으로 모입니다.",
+    "received": "받음",
+    "sent": "보냄",
+    "filter": {
+      "all": "전체"
+    },
+    "channel": {
+      "chat": "채팅",
+      "email": "메일",
+      "task": "업무",
+      "invoice": "청구"
+    },
+    "untitled": {
+      "chat": "(메시지)",
+      "email": "(제목 없음)",
+      "task": "(제목 없음)",
+      "invoice": "(청구서)"
+    },
+    "taskStatus": {
+      "not_started": "시작 전",
+      "waiting": "대기",
+      "in_progress": "진행 중",
+      "reviewing": "확인 요청",
+      "revision_requested": "수정 요청",
+      "completed": "완료",
+      "canceled": "취소"
+    },
+    "openCta": "통합 타임라인 보기 — 채팅·메일·업무·청구 한눈에"
   }
 }
