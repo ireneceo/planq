@@ -103,5 +103,34 @@
   },
   "errors": {
     "loadList": "Failed to load inbox"
+  },
+  "context": {
+    "panelTitle": "Context",
+    "linkTitle": "Links",
+    "client": "Customer",
+    "project": "Project",
+    "noClient": "None",
+    "noProject": "None",
+    "customerTitle": "This customer",
+    "loading": "Loading…",
+    "openTimeline": "Open unified timeline",
+    "noActivity": "No activity on other channels yet.",
+    "linkClientHint": "Link a customer to see their chats, tasks, and invoices here.",
+    "channel": {
+      "chat": "Chat",
+      "email": "Mail",
+      "task": "Task",
+      "invoice": "Invoice"
+    },
+    "tasksTitle": "Task candidates",
+    "extract": "✨ Extract tasks",
+    "extracting": "Extracting…",
+    "tasksHint": "Automatically pull action items from the email into Q Task.",
+    "tasksGated": "Tasks aren't extracted from automated · marketing mail.",
+    "usageLimit": "AI usage limit for this month reached.",
+    "noTasksFound": "No tasks found to extract.",
+    "register": "Add task",
+    "reject": "Dismiss",
+    "unassigned": "Unassigned"
   }
 }

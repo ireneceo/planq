@@ -103,5 +103,34 @@
   },
   "errors": {
     "loadList": "인박스 로딩 실패"
+  },
+  "context": {
+    "panelTitle": "맥락",
+    "linkTitle": "연결",
+    "client": "고객",
+    "project": "프로젝트",
+    "noClient": "연결 안 함",
+    "noProject": "연결 안 함",
+    "customerTitle": "이 고객",
+    "loading": "불러오는 중…",
+    "openTimeline": "통합 타임라인 보기",
+    "noActivity": "아직 다른 채널 활동이 없어요.",
+    "linkClientHint": "고객을 연결하면 그 고객의 채팅·업무·청구를 여기서 함께 봅니다.",
+    "channel": {
+      "chat": "채팅",
+      "email": "메일",
+      "task": "업무",
+      "invoice": "청구"
+    },
+    "tasksTitle": "업무 후보",
+    "extract": "✨ 업무 추출",
+    "extracting": "추출 중…",
+    "tasksHint": "메일 본문에서 할 일을 자동으로 뽑아 Q Task로 등록해요.",
+    "tasksGated": "자동·마케팅 메일에서는 업무를 추출하지 않아요.",
+    "usageLimit": "이번 달 AI 사용량을 초과했어요.",
+    "noTasksFound": "추출할 업무를 찾지 못했어요.",
+    "register": "업무 등록",
+    "reject": "무시",
+    "unassigned": "담당 미지정"
   }
 }

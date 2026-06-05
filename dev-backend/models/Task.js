@@ -24,6 +24,9 @@ Task.init({
     allowNull: true,
     references: { model: 'messages', key: 'id' }
   },
+  // N+87 Phase B — 메일 스레드에서 추출된 업무 (Q Mail ↔ Q Task 통합)
+  email_thread_id: { type: DataTypes.INTEGER, allowNull: true },
+  source_email_message_id: { type: DataTypes.INTEGER, allowNull: true },
   title: {
     type: DataTypes.STRING(300),
     allowNull: false
