@@ -55,7 +55,7 @@ const PublicQNoteSessionPage: React.FC = () => {
 
   useEffect(() => {
     if (!token) return;
-    fetch(`/api/sessions/public/by-token/${token}`)
+    fetch(`/qnote/api/sessions/public/by-token/${token}`)
       .then(r => r.json())
       .then(j => {
         if (!j.success) throw new Error(j.detail || j.message || 'load_failed');
