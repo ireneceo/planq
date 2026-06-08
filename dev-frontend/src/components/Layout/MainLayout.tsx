@@ -500,14 +500,14 @@ const UserMenuItemBtn = styled.button<{ $danger?: boolean }>`${UserMenuItemBase}
 const MainContent = styled.div<{ $marginLeft: number }>`
   margin-left: ${props => props.$marginLeft}px;
   /* N+29 — 자체 스크롤 영역. body 가 스크롤 안 받게 LayoutContainer overflow:hidden + 자식 MainContent flex:1 overflow-y:auto.
-     모바일 fixed MobileHeader (56px) 는 MobileContentPadding 으로 보정. */
+     모바일 fixed MobileHeader (56px) 는 padding-top 으로 보정. */
   flex: 1;
   min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
   transition: margin-left 0.25s ease;
-  ${mediaTablet} { margin-left: 0; }
+  ${mediaTablet} { margin-left: 0; padding-top: 56px; }
 `;
 
 const MobileHeader = styled.div`
@@ -532,7 +532,7 @@ const Overlay = styled.div<{ $show?: boolean }>`
 `;
 
 const MobileContentPadding = styled.div`
-  ${mediaTablet} { padding-top: 56px; }
+  /* 모바일 헤더 보정은 MainContent 에서 처리 — 여기선 제거 */
 `;
 
 // N+72-6 — PushPromptBanner 의 외부 wrap. 좌우 padding 정렬 + 페이지 콘텐츠 위 적정 간격
