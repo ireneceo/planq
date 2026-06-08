@@ -68,7 +68,10 @@
     "idleDetectedTitle": "자리 비움 감지",
     "disabledTitle": "포커스 꺼져 있어요",
     "disabledHint": "내 업무 설정에서 포커스를 켜면 진행중에 시간이 자동 측정돼요.",
-    "goToSettings": "설정으로 가기"
+    "goToSettings": "설정으로 가기",
+    "resumeTitle": "이 업무 진행 중",
+    "resumeHint": "다른 업무로 포커스가 이동했어요. 이어서 작업하면 시간 측정이 재개돼요.",
+    "resumeFocus": "이어서 작업"
   },
   "settings": {
     "sectionTitle": "내 업무 흐름",

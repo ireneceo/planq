@@ -442,6 +442,25 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
     } catch { setSaveStatusTemp('error'); }
   };
 
+  // N+93 (#10) — 업무 단계 되돌리기 (직전 상태로). 권한·이력은 backend 가 판정.
+  const [reverting, setReverting] = useState(false);
+  const revertStatus = async () => {
+    if (!detailTask || reverting) return;
+    setReverting(true);
+    try {
+      const r = await apiFetch(`/api/tasks/${detailTask.id}/revert-status`, { method: 'POST' });
+      const j = await r.json();
+      if (j.success) {
+        onPatch?.({ id: detailTask.id, status: j.data.status });
+        await loadDetail(detailTask.id);
+        setSaveStatusTemp('saved');
+      } else {
+        setSaveStatusTemp('error');  // nothing_to_revert / 권한 — 조용히(배지 점멸)
+      }
+    } catch { setSaveStatusTemp('error'); }
+    finally { setReverting(false); }
+  };
+
   // 워크플로우 액션 후 상세 + 워크플로우 리프레시.
   // 병렬 fetch → React 18 auto-batch 로 한 번의 리렌더에 두 state 모두 반영 → 액션 카드가
   // "사라졌다 나타나는" 깜빡임이 줄어든다.
@@ -744,6 +763,14 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                   {detailTask.review_round != null && detailTask.review_round > 0 &&
                     (detailTask.status === 'reviewing' || detailTask.status === 'revision_requested') &&
                     <RoundBadge title={t('detail.reviewers.roundTip', 'Review round') as string}>R{detailTask.review_round}</RoundBadge>}
+                  {/* N+93 (#10) — 단계 되돌리기 (직전 상태로). 초기상태(not_started) 외 노출 */}
+                  {detailTask.status !== 'not_started' && (
+                    <RevertBtn type="button" onClick={(e) => { e.stopPropagation(); revertStatus(); }} disabled={reverting}
+                      title={t('detail.revert.tip', '직전 단계로 되돌리기') as string} aria-label={t('detail.revert.tip', '직전 단계로 되돌리기') as string}>
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg>
+                      {t('detail.revert.label', '되돌리기')}
+                    </RevertBtn>
+                  )}
                   {statusOpen && (
                     <StatusDropdown data-dropdown="status-detail">
                       {/* reviewers 는 별도 로드된 state — detailTask.reviewers(stale/누락 가능) 대신 사용해야
@@ -1610,6 +1637,15 @@ const Meta = styled.div`display:flex;align-items:center;gap:6px;font-size:11px;c
 const StatusBadgeWrap = styled.span`position:relative;display:inline-flex;align-items:center;gap:4px;`;
 const StatusBadge = styled.span<{ $bg: string; $fg: string }>`display:inline-flex;align-items:center;gap:2px;padding:3px 10px;font-size:11px;font-weight:700;background:${p => p.$bg};color:${p => p.$fg};border:none;border-radius:10px;cursor:pointer;user-select:none;&:hover{filter:brightness(0.95);}`;
 const RoundBadge = styled.span`display:inline-flex;align-items:center;padding:2px 6px;font-size:10px;font-weight:800;color:#92400E;background:#FEF3C7;border-radius:6px;letter-spacing:0.3px;`;
+// N+93 (#10) — 되돌리기 버튼
+const RevertBtn = styled.button`
+  display:inline-flex; align-items:center; gap:4px; padding:3px 9px;
+  font-size:11px; font-weight:600; color:#64748B;
+  background:#FFFFFF; border:1px solid #E2E8F0; border-radius:8px; cursor:pointer;
+  transition:all 0.15s;
+  &:hover:not(:disabled){ border-color:#CBD5E1; color:#0F172A; background:#F8FAFC; }
+  &:disabled{ opacity:0.5; cursor:default; }
+`;
 const StatusDropdown = styled.div`
   position:absolute;top:100%;left:0;z-index:100;background:#FFF;border:1px solid #E2E8F0;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,0.12);padding:4px;min-width:140px;margin-top:4px;
 `;

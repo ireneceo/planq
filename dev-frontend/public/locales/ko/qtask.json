@@ -503,6 +503,10 @@
         "title_change": "업무명 변경",
         "project_change": "프로젝트 이관"
       }
+    },
+    "revert": {
+      "label": "되돌리기",
+      "tip": "직전 단계로 되돌리기"
     }
   },
   "weeklyReview": {
@@ -760,5 +764,10 @@
         "다음 주 월요일 발표자료 초안"
       ]
     }
+  },
+  "bar": {
+    "resumeTitle": "이 업무 진행 중",
+    "resumeHint": "다른 업무로 포커스가 이동했어요. 이어서 작업하면 시간 측정이 재개돼요.",
+    "resumeFocus": "이어서 작업"
   }
 }

@@ -39,7 +39,7 @@ interface Props {
   status?: string;
 }
 
-const TaskFocusBar: React.FC<Props> = ({ taskId, assigneeId, status }) => {
+const TaskFocusBar: React.FC<Props> = ({ taskId, businessId, assigneeId, status }) => {
   const { t } = useTranslation('focus');
   const { user } = useAuth();
   const myId = user?.id ? Number(user.id) : 0;
@@ -103,6 +103,8 @@ const TaskFocusBar: React.FC<Props> = ({ taskId, assigneeId, status }) => {
 
   const onPause = () => session && act('/api/focus/pause', { session_id: session.id, reason: 'manual' });
   const onResume = () => session && act('/api/focus/resume', { session_id: session.id });
+  // N+93 (#16#3) — 이 task 로 포커스 시작/재개 (다른 task 로 갔거나 세션 없을 때). 기존 active 세션은 backend 가 stop.
+  const onStartFocus = () => act('/api/focus/start', { task_id: taskId, business_id: businessId });
 
   // N+32 후속 (옵션 B 정합) — 표시 조건 단순화:
   //   1. 담당자 본인만 (비담당자는 시간 측정 / 일시정지·재개 의미 X)
@@ -132,9 +134,24 @@ const TaskFocusBar: React.FC<Props> = ({ taskId, assigneeId, status }) => {
     );
   }
 
-  // session 이 이 task 의 active/paused 가 아니면 안 보임
-  // (status 진입 직후 backend hook 이 session 만들기 전 race — polling 30s 마다 자동 회복)
-  if (!session || session.task_id !== taskId) return null;
+  // N+93 (#16#3) — 이 task 가 in_progress 인데 포커스가 다른 task 로 갔거나 세션이 아직 없음
+  //   → "이어서 작업" 으로 이 task 포커스 재개 (옛 코드는 return null 이라 재개 방법이 없었음).
+  if (!session || session.task_id !== taskId) {
+    return (
+      <Bar $tone="paused" aria-live="polite">
+        <ToneDot $tone="paused" />
+        <Body>
+          <Title>{t('bar.resumeTitle', '이 업무 진행 중')}</Title>
+          <Hint>{t('bar.resumeHint', '다른 업무로 포커스가 이동했어요. 이어서 작업하면 시간 측정이 재개돼요.')}</Hint>
+        </Body>
+        <Actions>
+          <PrimaryBtn type="button" onClick={onStartFocus} disabled={submitting}>
+            <SvgPlay /> {t('bar.resumeFocus', '이어서 작업')}
+          </PrimaryBtn>
+        </Actions>
+      </Bar>
+    );
+  }
 
   // 이 task 진행 중 — active / paused / idle_detected
   const liveSec = session.state === 'active' ? session.actual_seconds + tick : session.actual_seconds;

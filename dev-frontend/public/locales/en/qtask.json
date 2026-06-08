@@ -503,6 +503,10 @@
         "title_change": "renamed task",
         "project_change": "moved project"
       }
+    },
+    "revert": {
+      "label": "Revert",
+      "tip": "Revert to previous status"
     }
   },
   "weeklyReview": {
@@ -760,5 +764,10 @@
         "Presentation deck draft by next Monday"
       ]
     }
+  },
+  "bar": {
+    "resumeTitle": "In progress",
+    "resumeHint": "Focus moved to another task. Resume to continue tracking time.",
+    "resumeFocus": "Resume work"
   }
 }
