@@ -67,7 +67,12 @@
     "billing": "Billing",
     "email": "Email",
     "notifications": "Notifications",
-    "workFlow": "Work Management"
+    "workFlow": "Work Management",
+    "integrations": "Integrations",
+    "mailAccounts": "Q Mail Accounts",
+    "personalSettings": "Personal",
+    "workspaceGroup": "Workspace",
+    "myWorkSettings": "My Work Settings"
   },
   "user": {
     "profile": "My Profile",

@@ -68,7 +68,11 @@
     "billing": "청구 설정",
     "email": "이메일",
     "notifications": "알림",
-    "workFlow": "업무 관리"
+    "workFlow": "업무 관리",
+    "integrations": "외부 연동",
+    "mailAccounts": "Q Mail 계정",
+    "personalSettings": "개인 설정",
+    "workspaceGroup": "워크스페이스 설정"
   },
   "user": {
     "profile": "내 프로필",
