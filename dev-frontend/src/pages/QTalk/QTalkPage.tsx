@@ -235,7 +235,16 @@ function apiCandidateToMock(c: qtalkApi.ApiTaskCandidate): MockTaskCandidate {
   };
 }
 
-const QTalkPage: React.FC = () => {
+// N+93 (#9) — embedded 모드: RightDock 드로어 / 팝아웃 창에서 재사용.
+//   URL 싱크 효과를 끄고(호스트 페이지 URL 보존 + /talk 로 navigate 안 함), 초기 대화는 prop 으로 받는다.
+//   기본 우측 패널 접힘(좁은 폭에서 대화목록+채팅 우선). 일반 /talk 페이지는 prop 없이 동작 무변경.
+interface QTalkPageProps {
+  embedded?: boolean;
+  initialConvId?: number | null;
+  initialProjectId?: number | null;
+}
+
+const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId = null, initialProjectId = null }) => {
   const { t } = useTranslation('qtalk');
   const { t: tErr } = useTranslation('errors');
   const { user } = useAuth();
@@ -274,8 +283,9 @@ const QTalkPage: React.FC = () => {
   // URL: /talk/:conversationId 패스 파라미터 또는 ?project=:pid&conv=:cid 쿼리.
   // 패스 파라미터가 우선 — 다른 화면에서 navigate('/talk/123') 으로 진입하는 케이스.
   const initialParams = new URLSearchParams(location.search);
-  const initialProject = Number(initialParams.get('project')) || null;
-  const initialConv = Number(pathConvId) || Number(initialParams.get('conv')) || null;
+  // embedded 모드는 호스트 URL 을 읽지 않고 prop 으로 초기 컨텍스트 결정.
+  const initialProject = embedded ? initialProjectId : (Number(initialParams.get('project')) || null);
+  const initialConv = embedded ? initialConvId : (Number(pathConvId) || Number(initialParams.get('conv')) || null);
   // 인박스 candidate 클릭 진입 시 ?candidate=Y — 우측 candidate 섹션 강조용
   const initialCandidateId = Number(initialParams.get('candidate')) || null;
   const [activeProjectId, setActiveProjectId] = useState<number | null>(initialProject);
@@ -289,7 +299,9 @@ const QTalkPage: React.FC = () => {
   }, [highlightCandidateId]);
 
   // 선택 상태 → URL 싱크. 항상 /talk 베이스로 정규화 (path-param 진입은 1회만 의미 있음).
+  // embedded(드로어·팝아웃)에서는 navigate 금지 — 호스트 페이지 URL 보존 + /talk-popout 이 /talk 로 튕기는 회귀 차단.
   useEffect(() => {
+    if (embedded) return;
     const sp = new URLSearchParams();
     if (activeProjectId) sp.set('project', String(activeProjectId));
     if (activeConversationId) sp.set('conv', String(activeConversationId));
@@ -303,6 +315,7 @@ const QTalkPage: React.FC = () => {
 
   // URL 의 conv/project 가 외부 변경 시 (글로벌 검색·인박스 등에서 navigate) 동기화
   useEffect(() => {
+    if (embedded) return;
     const sp = new URLSearchParams(location.search);
     const c = Number(sp.get('conv')) || null;
     const p = Number(sp.get('project')) || null;
@@ -320,6 +333,7 @@ const QTalkPage: React.FC = () => {
     try { return localStorage.getItem(STORAGE_LEFT) === '1'; } catch { return false; }
   });
   const [rightCollapsed, setRightCollapsed] = useState<boolean>(() => {
+    if (embedded) return true; // 좁은 드로어/팝아웃 — 우측 패널 기본 접힘(대화목록+채팅 우선, 토글로 펼침)
     try { return localStorage.getItem(STORAGE_RIGHT) === '1'; } catch { return false; }
   });
   // 우측 패널 리사이즈 (Q Task/Q Mail 통일) — localStorage 저장 · clamp 280~560

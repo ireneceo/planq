@@ -35,6 +35,9 @@ const CueHelpDrawer: React.FC = () => {
   const location = useLocation();
   const { user } = useAuth();
   const isGuest = !user;
+  // N+93 — 비즈니스 멤버는 RightDock 통합 런처가 Q helper 진입을 제공 → 자체 floating FAB 숨김.
+  // 게스트/Client 는 런처가 없으므로 기존 floating FAB 유지.
+  const dockManaged = !!user?.business_id && ['owner', 'admin', 'member'].includes(user.business_role || '');
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<Mode>('qhelper');
   const [input, setInput] = useState('');
@@ -66,6 +69,15 @@ const CueHelpDrawer: React.FC = () => {
       setMode('qhelper');
     }
   }, [isGuest, mode]);
+
+  // N+93 — 통합 런처(RightDock)에서 Q helper 선택 시 오픈 (qhelper 모드로 진입)
+  useEffect(() => {
+    const onOpen = (e: Event) => {
+      if ((e as CustomEvent).detail?.tool === 'qhelper') { setMode('qhelper'); setOpen(true); }
+    };
+    window.addEventListener('planq:open-tool', onOpen as EventListener);
+    return () => window.removeEventListener('planq:open-tool', onOpen as EventListener);
+  }, []);
 
   // 로그인 사용자가 inquiry 모드 진입 시 이름·이메일 자동 prefill (한 번만)
   useEffect(() => {
@@ -275,7 +287,7 @@ const CueHelpDrawer: React.FC = () => {
 
   return (
     <>
-      {!open && !fabHidden && (
+      {!open && !fabHidden && !dockManaged && (
         <FloatingTrigger
           type="button"
           onClick={() => { setMode('qhelper'); setOpen(true); }}
@@ -304,40 +316,34 @@ const CueHelpDrawer: React.FC = () => {
             </span>
           </HeaderTitle>
           <HeaderActions>
-            {/* 피드백 진입은 로그인 사용자 전용 — 게스트는 안 보임 */}
-            {!isGuest && mode !== 'feedback' && (
-              <FeedbackEnter type="button" onClick={() => setMode('feedback')}>
-                {t('qhelper.openFeedbackBtn', '피드백 보내기')}
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-              </FeedbackEnter>
-            )}
-            {!isGuest && mode === 'feedback' && (
-              <BackToGuide type="button" onClick={() => setMode('qhelper')}>
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
-                {t('qhelper.backToGuide', '안내로 돌아가기')}
-              </BackToGuide>
-            )}
+            {/* N+93 — 피드백 진입은 탭으로 이동 (문의→피드백 순). 헤더 버튼 제거. */}
             <CloseBtn type="button" onClick={() => setOpen(false)} aria-label={t('cancel', '닫기') as string}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
             </CloseBtn>
           </HeaderActions>
         </Header>
-        {mode !== 'feedback' && !isGuest && (
+        {!isGuest && (
+          // N+93 — 순서: Cue·워크스페이스 → PlanQ 안내 → 문의 남기기 → 피드백 보내기 (Irene 지정)
           <ModeSwitch role="tablist">
-            <ModeBtn type="button" $active={mode === 'qhelper'} $variant="qhelper"
-              onClick={() => { setMode('qhelper'); setTurns([]); }} role="tab" aria-selected={mode === 'qhelper'}>
-              <ModeDot $variant="qhelper" />
-              {t('qhelper.modeQhelper', 'PlanQ 안내')}
-            </ModeBtn>
             <ModeBtn type="button" $active={mode === 'workspace'} $variant="workspace"
               onClick={() => { setMode('workspace'); setTurns([]); }} role="tab" aria-selected={mode === 'workspace'}>
               <ModeDot $variant="workspace" />
               {t('qhelper.modeWorkspace', 'Cue · 내 워크스페이스')}
             </ModeBtn>
+            <ModeBtn type="button" $active={mode === 'qhelper'} $variant="qhelper"
+              onClick={() => { setMode('qhelper'); setTurns([]); }} role="tab" aria-selected={mode === 'qhelper'}>
+              <ModeDot $variant="qhelper" />
+              {t('qhelper.modeQhelper', 'PlanQ 안내')}
+            </ModeBtn>
             <ModeBtn type="button" $active={mode === 'inquiry'} $variant="qhelper"
               onClick={() => setMode('inquiry')} role="tab" aria-selected={mode === 'inquiry'}>
               <ModeDot $variant="qhelper" />
               {t('qhelper.modeInquiry', '문의 남기기')}
+            </ModeBtn>
+            <ModeBtn type="button" $active={mode === 'feedback'} $variant="qhelper"
+              onClick={() => setMode('feedback')} role="tab" aria-selected={mode === 'feedback'}>
+              <ModeDot $variant="qhelper" />
+              {t('qhelper.openFeedbackBtn', '피드백 보내기')}
             </ModeBtn>
           </ModeSwitch>
         )}
@@ -734,30 +740,10 @@ const SendBtn = styled.button`
 const HeaderActions = styled.div`
   display: inline-flex; align-items: center; gap: 4px;
 `;
-const FeedbackEnter = styled.button`
-  all: unset; cursor: pointer;
-  display: inline-flex; align-items: center; gap: 4px;
-  padding: 6px 10px;
-  background: #FFF1F2; color: #9F1239;
-  border-radius: 999px;
-  font-size: 12px; font-weight: 600;
-  transition: all 0.15s;
-  &:hover { background: #FECDD3; }
-`;
-const BackToGuide = styled.button`
-  all: unset; cursor: pointer;
-  display: inline-flex; align-items: center; gap: 4px;
-  padding: 6px 10px;
-  background: #F1F5F9; color: #475569;
-  border-radius: 999px;
-  font-size: 12px; font-weight: 600;
-  transition: all 0.15s;
-  &:hover { background: #E2E8F0; }
-`;
 // ─── 모드 토글 (qhelper / workspace) ───
 const ModeSwitch = styled.div`
   flex-shrink: 0;
-  display: flex; gap: 4px;
+  display: flex; flex-wrap: wrap; gap: 4px 6px;   /* N+93 — 4탭: 좁은 폭에서 줄바꿈(클리핑 방지) */
   padding: 8px 12px;
   background: #F8FAFC;
   border-bottom: 1px solid #E2E8F0;
