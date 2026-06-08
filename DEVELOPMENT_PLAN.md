@@ -1,6 +1,8 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-06-08 사이클 N+90 — 모바일 UI/UX 개선 (Q Talk 채널 전환 버튼 + 결제 유예 배너 + 헤더 겹침 fix).
+> **최종 업데이트:** 2026-06-08 사이클 N+91 — **v1.33.1 운영 라이브** (deploy `20260608_075511`, commit `84c5d7a`). **§8.5 고객용 task 직렬화(내부 운영 데이터 격리, 보안) + 공개뷰 폴리시(로고 120px·터치타겟 44px 통일).** §8.5: `utils/taskClientView.js` 신규 — 고객(Client) 조회 시 공수 예측/실제 시간·AI 예측 출처·일별 진행 스냅샷·internal 댓글 차단(진행률은 유지, Irene 결정). `routes/tasks.js`(detail·list) + `routes/task_workflow.js`(reviewers·policy·workflow 3라우트) 적용. 실 API E2E 23/23. 공개뷰: 문서뷰어 5종 로고 88/120 혼재→120 통일, 모든 공개 CTA min-height 44px(인라인 마이크로 버튼 36px), SharePasswordPrompt 입력행 정렬, 10파일. 검증: dev 빌드 EXIT 0 · 운영 헬스 내부/외부 OK · PM2 prod 정상. N+90 모바일 UI/UX 동봉.
+>
+> **이전:** 2026-06-08 사이클 N+90 — 모바일 UI/UX 개선 (Q Talk 채널 전환 버튼 + 결제 유예 배너 + 헤더 겹침 fix).
 > - **Q Note 재설계(Phase 1~3):** ① 슬로우 종료 fix(`getSession` 백그라운드, review 즉시 전환) ② 요약 DB 영속(qnote `sessions` +`summary_key_points`/`summary_full`, `/api/llm/summary` 영속) ③ 메모 body 요약(`docToPlainText`) ④ 요약→Q docs 문서저장(`utils/qnoteSummaryDoc.ts`, L1 사적) ⑤ **Q Note↔Q Task 브릿지**(`routes/qnote_bridge.js` extract/list/register/reject, `task_candidates` +`qnote_session_id`/+`business_id`, `tasks` +`qnote_session_id`, `extractNoteTaskCandidates` 재사용, tenant 격리) ⑥ **재요약 instruction**(`generate_summary(instruction)` 주입 — 불만족 시 "어떻게 고칠지") ⑦ review 3블록(요약/업무/공유) + 참여자바 이동(업무 아래) + 공유 훅 `hooks/useNoteTaskExtraction.ts`(음성·메모 1구현).
 > - **상단 UI 통일:** `components/Common/VisibilityChip.tsx`(공개:팀 칩) — Q Note 리뷰·메모를 Q docs 상세 상단과 통일 + 공유 PrimaryBtn(아이콘) + IconBtn 클러스터. "정리하기" 모달(raw-prefill) 제거. 메모에도 공개칩+공유(QNoteShareModal 재사용).
 > - **🔴 프록시 경로 회귀 fix(2건, 같은 계열):** `qnote.ts` 요약/공유/visibility + `PublicQNoteSessionPage` 공개뷰 — bare `/api`(Node→HTML 404 "Unexpected token '<'") → **`/qnote/api`**(FastAPI). 메모리 `feedback_qnote_frontend_api_base` 박제.
