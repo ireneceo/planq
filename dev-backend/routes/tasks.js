@@ -10,6 +10,8 @@ const { todayInTz, mondayOfDateStr, addDaysStr, mondayOfIsoWeek } = require('../
 // N+34 — 워크스페이스 표시명 helper. BusinessMember.name 우선, User.name fallback.
 // 사용자 호소: "담당자 이름이 워크스페이스 프로필 이름이 아니야" — User.name 직접 사용 회귀 fix.
 const { applyMemberDisplayName, applyMemberDisplayNameOne } = require('../services/displayName');
+// §8.5 — 고객용 task 직렬화 (공수 시간·예측 출처·내부 메타·internal 댓글 차단)
+const { serializeTaskForClient, serializeTasksForClient } = require('../utils/taskClientView');
 
 // 업무의 "오늘/이번 주/마감 지연" 경계는 워크스페이스 타임존 기준.
 // 아래 헬퍼는 Asia/Seoul 워크스페이스에서 00:00~23:59 이 하루의 경계가 되도록 보장한다.
@@ -765,8 +767,10 @@ router.get('/by-business/:businessId', authenticateToken, async (req, res, next)
     res.set('X-Total-Count', String(count));
     res.set('X-Limit', String(limit));
     res.set('X-Offset', String(offset));
-    const plain = rows.map(t => t.toJSON());
+    let plain = rows.map(t => t.toJSON());
     await applyMemberDisplayName(plain, businessId, ['assignee', 'creator', 'requester']);
+    // §8.5 — 고객에겐 공수 시간·예측 출처 제거 (목록에서도 누수 차단)
+    if (scope.isClient) plain = serializeTasksForClient(plain);
     return successResponse(res, plain);
   } catch (err) { next(err); }
 });
@@ -1233,12 +1237,9 @@ router.get('/:id/detail', authenticateToken, async (req, res, next) => {
       return errorResponse(res, 'forbidden', 403);
     }
     // Client 는 internal/personal 댓글 제외
-    const json = task.toJSON();
+    let json = task.toJSON();
     // N+34 — assignee/creator/requester 이름 워크스페이스 표시명으로 덮어쓰기
     await applyMemberDisplayNameOne(json, task.business_id, ['assignee', 'creator', 'requester']);
-    if (scope.isClient && Array.isArray(json.comments)) {
-      json.comments = json.comments.filter((c) => c.visibility === 'shared');
-    }
     // latest_estimation_source 명시 노출 — drawer 가 회색 분기 표시하려면 필요 (사이클 N+6)
     try {
       const { TaskEstimation } = require('../models');
@@ -1252,6 +1253,9 @@ router.get('/:id/detail', authenticateToken, async (req, res, next) => {
     if (task.cue_kind) {
       json.cue_meta = await buildCueMeta(task);
     }
+
+    // §8.5 — 고객에겐 내부 운영 데이터(공수 시간·예측 출처·일별 스냅샷·Cue 메타) 제거 + shared 댓글만
+    if (scope.isClient) json = serializeTaskForClient(json);
 
     return successResponse(res, json);
   } catch (err) { next(err); }
