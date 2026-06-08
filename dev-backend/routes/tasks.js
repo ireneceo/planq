@@ -1089,7 +1089,8 @@ router.delete('/by-business/:businessId/:id', authenticateToken, async (req, res
     if (!isPlatformAdmin) {
       const bm = await BusinessMember.findOne({ where: { user_id: userId, business_id: businessId } });
       if (!bm) return errorResponse(res, 'forbidden', 403);
-      isOwner = bm.role === 'owner';
+      // N+93 — admin 도 삭제 가능 (CLAUDE.md §5.7 "DELETE task → owner/admin"). 옛 코드는 owner 만 봐서 admin 차단됨.
+      isOwner = bm.role === 'owner' || bm.role === 'admin';
     }
     if (!isPlatformAdmin && !isOwner) {
       // 작성자 본인이 만든 task — 댓글·이력·리뷰어 0건일 때만 삭제 허용

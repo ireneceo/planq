@@ -53,8 +53,9 @@ const kbUpload = multer({
   },
 });
 
+// N+93 — admin businessRole 포함 (옛 코드는 owner 만 봐서 워크스페이스 admin 이 삭제/reindex/pinned 차단됨).
 const isAdmin = (req) =>
-  req.user?.platform_role === 'platform_admin' || req.businessRole === 'owner';
+  req.user?.platform_role === 'platform_admin' || req.businessRole === 'owner' || req.businessRole === 'admin';
 
 // ─── N+64: 카테고리 + visibility 통합 헬퍼 ───────────────────
 // 카테고리: 자유 string (40자 cap). categories JSON 우선, category 컬럼은 ENUM 호환 위해 'manual' fallback 또는 ENUM-match.
@@ -743,11 +744,14 @@ router.put('/businesses/:businessId/kb/documents/:docId', authenticateToken, che
 
 router.delete('/businesses/:businessId/kb/documents/:docId', authenticateToken, checkBusinessAccess, async (req, res, next) => {
   try {
-    if (!isAdmin(req)) return errorResponse(res, 'Admin permission required', 403);
     const doc = await KbDocument.findOne({
       where: { id: req.params.docId, business_id: req.params.businessId }
     });
     if (!doc) return errorResponse(res, 'Document not found', 404);
+    // N+93 — owner/admin 은 항상, 일반 멤버는 본인이 올린 문서만 삭제 가능 (작성자 정정용).
+    if (!isAdmin(req) && doc.uploaded_by !== req.user.id) {
+      return errorResponse(res, 'forbidden_delete — owner/admin 또는 작성자만 삭제할 수 있습니다.', 403);
+    }
 
     await KbChunk.destroy({ where: { kb_document_id: doc.id } });
     const snapForBroadcast = { id: doc.id, business_id: doc.business_id, project_id: doc.project_id };

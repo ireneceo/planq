@@ -386,6 +386,17 @@ router.put('/:id', authenticateToken, async (req, res, next) => {
     }
     // 'active'로 복구 시 대화는 수동 복구 (의도치 않은 복원 방지)
     const detail = await loadProjectDetail(project.id);
+    // N+93 — 프로젝트 변경(특히 이름) 실시간 반영 (§16). Q Task 등 프로젝트명 live-join 페이지가
+    // 옛 이름 유지하던 회귀 fix. business + project room 에 broadcast → 리스너가 reload.
+    try {
+      const io = req.app.get('io');
+      if (io) {
+        const payload = { id: project.id, name: project.name, business_id: project.business_id };
+        io.to(`business:${project.business_id}`).emit('project:updated', payload);
+        io.to(`project:${project.id}`).emit('project:updated', payload);
+        io.to(`business:${project.business_id}`).emit('inbox:refresh', { reason: 'project_updated', project_id: project.id });
+      }
+    } catch (e) { console.warn('[projects] broadcast failed', e.message); }
     return successResponse(res, detail);
   } catch (err) { next(err); }
 });
