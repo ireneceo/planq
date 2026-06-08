@@ -1,29 +1,27 @@
 # PlanQ 세션 상태
 
-**마지막 업데이트:** 2026-06-08 — **v1.33.3 운영 라이브** (deploy `20260608_195139`, commit `55b5e23`)
-**작업 상태:** 완료 · 운영 배포 검증 3/3 OK + 빌링 갱신청구 fix (운영 grace 구독 백필 pending #4 생성, 실 API 노출 검증)
+**마지막 업데이트:** 2026-06-08 — **v1.33.3 운영 라이브** (deploy `20260608_195139`, commit `b714168`)
+**작업 상태:** 완료 · 운영 배포 검증 3/3 OK · 빌링 갱신청구 fix + 운영 백필 검증
 
 ---
 
-## ✅ N+93 완료 — 설정 메뉴 개인/워크스페이스 분리 + v1.33.2 배포
+## ✅ N+94 완료 — 빌링 갱신 청구 자동 생성 fix (v1.33.3)
 
-> "설정이 없다 / 못 찾겠다" 호소 해소 = **누락 진입로 노출 + 그룹 시각 분리**. 페이지는 이미 있었으나 메뉴에 안 걸려 있던 것을 노출.
+> 운영 호소: "유예 배너 '결제하러 가기' 가 결제 안 되고 플랜 선택으로만 감". 근본 원인 = cron 이 만료 구독을 past_due/grace 로 **상태만** 바꾸고 결제할 pending Payment 를 안 만들어, 배너가 띄울 청구 자체가 없었음.
 
 ### 완료된 작업 (이번 세션)
-- **설정 아코디언 2그룹 분리** — `AccordionGroupLabel` 신설로 **워크스페이스 설정 / 개인 설정** 구분 (MainLayout).
-- **개인 설정 진입로 노출** — 내 프로필 · 외부 연동(`/profile/integrations`) · 내 업무 설정(`/me/work-settings`). 아코디언 열림/active 조건에 `/me/work-settings` 추가, 프로필 active 는 exact match 로 분리.
-- **Q Mail 계정 노출** — `/business/settings/mail-accounts` 워크스페이스 그룹에 추가 (IconInbox). 개인/팀 구분은 **메뉴 위치**로 (EmailAccountSettings 물리 이동 X).
-- **i18n** — layout.json ko/en: integrations·mailAccounts·personalSettings·workspaceGroup, en myWorkSettings.
-- **v1.33.2 운영 배포** — N+92(Focus 배너·Q helper·미결제 결제) + 통합 런처·팝아웃·tap-to-reveal 동봉. 버전업 + 임시 테스트 파일(test-popout-auth.js) 제거 + 한/영 릴리즈노트.
+- **`ensureRenewalPayment(sub)` 멱등 헬퍼** — 같은 구독 pending 있으면 재사용, 없으면 sub.price(없으면 플랜표)로 bank_transfer pending 생성.
+- **cron 백필 sweep** — past_due/grace 전 구독에 갱신 청구 보장 (전이분 + 레거시 모두 멱등 커버).
+- **입금안내 메일 인증 owner 한정** — `notifyRenewalDue` 가 `email_verified_at` 있는 owner 에게만.
+- **운영 백필** — biz=1 sub#2(starter 9900) → pending #4 생성, 운영 실 API `/api/plan/1/status` 노출 검증.
+- **메뉴 위치 검증** — 워크스페이스 구독·결제·영수증 = 설정 → 구독 플랜(owner). 고객용 "청구 설정" 과 별개.
 
 ### 수정된 파일
-- `dev-frontend/src/components/Layout/MainLayout.tsx`
-- `dev-frontend/public/locales/{ko,en}/layout.json`
-- `dev-backend/package.json`, `dev-frontend/package.json` (1.33.1 → 1.33.2)
-- `dev-backend/test-popout-auth.js` (제거)
+- `dev-backend/services/billing.js`
+- `dev-backend/package.json`, `dev-frontend/package.json` (1.33.2 → 1.33.3)
 
 ### 검증
-- 헬스 29/29 · 빌드 EXIT 0 · 운영 배포 검증 3/3 OK · DB 스키마 변경 0
+- 헬스 29/29 · grace sub 갱신청구 6/6 · 운영 실 API pending #4 노출 · 배포 검증 3/3
 
 ---
 
@@ -31,12 +29,15 @@
 - 없음
 
 ## 다음 할 일
-- **운영 피드백 reviewing 10건 기획/개발** (N+92에서 답변 완료, 개발 대기):
+- **운영 피드백 reviewing 10건 기획/개발** (N+92 답변 완료, 개발 대기):
   ID 16#3 재개 버튼 · 14 업무 삭제 · 13 Q docs 리스트·Q info 수정삭제공유 · 12#2 Q Talk 입력란 흔들림 · 11 Q Task 실시간·프로젝트명 변경 · 10 단계 되돌리기 · 9 Q Talk 팝아웃 · 8 활성방 토스터·입장 스크롤 · 7 모바일 채팅 아이콘·간격 · 6 Q info 공유·다중전송·미리보기
 - (선택) ProfileIntegrationsPage 의 `window.location.href` full-reload 링크 → SPA navigate
 
 ## 환경
-- dev: 3003 (dev.planq.kr) / prod: planq.kr 3004 (**v1.33.2**)
+- dev: 3003 (dev.planq.kr) / prod: planq.kr 3004 (**v1.33.3**)
+
+## 참고 — 미푸시
+- 운영엔 배포됐으나 GitHub `git push origin main` 은 미실행 상태(로컬 커밋만). 필요 시 푸시.
 
 ---
 

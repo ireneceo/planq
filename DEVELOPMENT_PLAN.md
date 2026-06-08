@@ -69,6 +69,32 @@
 
 ---
 
+## ✅ 완료: 사이클 N+94 — 빌링 갱신 청구 자동 생성 fix + v1.33.3 운영 라이브 (2026-06-08)
+
+> deploy `20260608_195139`, commit `55b5e23`/`b714168`. 운영 고객 호소 "유예 배너 '결제하러 가기' 가 결제 안 되고 플랜 선택으로만 감" 근본 fix.
+
+### 근본 원인
+구독 갱신 cron(`runDailyBillingCron`)이 만료 구독을 `past_due → grace → demoted` 로 **상태만** 바꾸고, 정작 결제할 **pending Payment(갱신 청구)를 생성하지 않음**. pending Payment 는 사용자가 직접 플랜을 고를 때(`createPendingSubscription`)만 생성됨. → 유예 진입 시 `pending_payment = null` → 배너 `hasPending=false` → `?pay=1` 없이 플랜 선택으로 빠짐. N+92 에서 UI(배너→모달)는 붙였지만 모달이 띄울 청구 자체가 생성 안 되던 상태.
+
+### 완료된 작업
+
+| 작업 | 설명 | 상태 |
+|------|------|:----:|
+| `ensureRenewalPayment(sub)` 멱등 헬퍼 | 같은 구독 pending 있으면 재사용, 없으면 sub.price(없으면 플랜표)로 bank_transfer pending 생성 | ✅ 완료 |
+| cron 백필 sweep (4단계) | past_due/grace 전 구독에 갱신 청구 보장 — 이번 run 전이분 + 배포 이전 grace 레거시 모두 멱등 커버 | ✅ 완료 |
+| 입금안내 메일 인증 owner 한정 | `notifyRenewalDue` 가 `email_verified_at` 있는 owner 에게만 발송 (미인증/test 반송 방지) | ✅ 완료 |
+| 운영 grace 구독 백필 | biz=1 sub#2(starter 9900) → pending #4 생성, 운영 실 API `/api/plan/1/status` 노출 검증 | ✅ 완료 |
+| 메뉴 위치 확인(검증) | 워크스페이스 구독·결제·영수증 = **설정 → 구독 플랜**(owner). 고객용 "청구 설정" 과 별개 | ✅ 완료 |
+
+### 수정된 파일
+- `dev-backend/services/billing.js` (ensureRenewalPayment + notifyRenewalDue + cron 백필 sweep + export)
+- `dev-backend/package.json`, `dev-frontend/package.json` (1.33.2 → 1.33.3)
+
+### 검증
+- 헬스 29/29 · grace sub 갱신청구 생성→멱등→status 노출 6/6 · 운영 실 API pending #4 노출 · 배포 검증 3/3
+
+---
+
 ## ✅ 완료: 사이클 N+93 — 설정 메뉴 개인/워크스페이스 분리 + v1.33.2 운영 라이브 (2026-06-08)
 
 > deploy `20260608_190800`, commit `2227a01`. N+92(Focus 배너 실시간·Q helper 엔터·미결제 청구 결제 UI) + 통합 런처·팝아웃·tap-to-reveal 동봉 배포.
