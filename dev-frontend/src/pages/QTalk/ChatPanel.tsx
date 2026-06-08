@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import styled from 'styled-components';
+import styled, { css } from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';
 import {
@@ -48,6 +48,8 @@ interface Props {
   onLoadOlder?: () => void;
   hasMoreOlder?: boolean;
   loadingOlder?: boolean;
+  /** N+93 — 팝아웃/분리 창 embedded 모드: 헤더 1줄 유지, 모바일 전용 UI 숨김 */
+  embedded?: boolean;
 }
 
 const ChatPanel: React.FC<Props> = ({
@@ -56,7 +58,7 @@ const ChatPanel: React.FC<Props> = ({
   onToggleAutoExtract, onRenameConversation, onOpenSettings,
   candidatesCount, extracting, leftCollapsed, rightCollapsed, onToggleLeft, onToggleRight,
   onOpenNewChat, onMobileBack, mobileHidden = false,
-  onLoadOlder, hasMoreOlder = false, loadingOlder = false,
+  onLoadOlder, hasMoreOlder = false, loadingOlder = false, embedded = false,
 }) => {
   const { t } = useTranslation('qtalk');
   const { t: tErr } = useTranslation('errors');
@@ -900,7 +902,7 @@ const ChatPanel: React.FC<Props> = ({
                 </svg>
               </IconBtn>
             )}
-            <HeaderTitleBlock>
+            <HeaderTitleBlock $embedded={embedded}>
               <ChatNameRow>
                 <ChatName $editable={false}>{project.name}</ChatName>
               </ChatNameRow>
@@ -975,7 +977,7 @@ const ChatPanel: React.FC<Props> = ({
               </svg>
             </IconBtn>
           )}
-          <HeaderTitleBlock>
+          <HeaderTitleBlock $embedded={embedded}>
             {editingName ? (
               <ChatNameInput
                 autoFocus
@@ -1009,8 +1011,8 @@ const ChatPanel: React.FC<Props> = ({
                 <ProjectLink>{project.name}</ProjectLink>
               </ProjectSublabel>
             )}
-            {/* 모바일 전용 채널 빠른 전환 — 채팅방 이름 아래 */}
-            {channels.length > 1 && (
+            {/* 모바일 전용 채널 빠른 전환 — 채팅방 이름 아래 (embedded 팝아웃은 1줄 유지 위해 숨김) */}
+            {!embedded && channels.length > 1 && (
               <MobileChannelRow>
                 {channels.filter((c) => c.id !== activeConv.id).map((c) => (
                   <QuickSwitchBtn key={c.id} onClick={() => onSelectConversation(c.id)} title={c.name}>
@@ -2022,19 +2024,22 @@ const HeaderBar = styled.div`
   }
 `;
 
-const HeaderTitleBlock = styled.div`
+const HeaderTitleBlock = styled.div<{ $embedded?: boolean }>`
   display: flex;
   align-items: center;
   min-width: 0;
   flex: 1;
   gap: 10px;
   flex-wrap: nowrap;
-  /* 모바일에서는 정보 많을 때 줄바꿈 — 채팅 이름 / 고객·소속·메타 분리. */
-  @media (max-width: 640px) {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 2px;
-  }
+  /* 모바일에서는 정보 많을 때 줄바꿈 — 채팅 이름 / 고객·소속·메타 분리.
+     N+93 — embedded(팝아웃 좁은 폭)은 1줄 유지(이름 · 소속 인라인). 모바일 column 분기 끔. */
+  ${(p) => !p.$embedded && css`
+    @media (max-width: 640px) {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 2px;
+    }
+  `}
 `;
 
 const ChatNameRow = styled.div`
@@ -3168,8 +3173,9 @@ const InputBar = styled.div`
   padding: 10px 16px 14px;
   background: #FFFFFF;
   flex-shrink: 0;
-  /* iOS 노치/홈 인디케이터 영역 보호 + 키보드 위에 안전하게 떠 있게 */
-  padding-bottom: max(14px, env(safe-area-inset-bottom, 14px));
+  /* iOS 노치/홈 인디케이터 영역 보호 + 키보드 위에 안전하게 떠 있게.
+     N+93 — 데스크탑 입력란이 화면 하단에 너무 붙어 보인다는 호소 → 하단 여백 확대(14→20). */
+  padding-bottom: max(20px, env(safe-area-inset-bottom, 20px));
   @media (max-width: 640px) {
     padding: 8px 12px;
     padding-bottom: max(8px, env(safe-area-inset-bottom, 8px));

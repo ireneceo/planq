@@ -34,9 +34,11 @@ export const panelShellHeight = css`
   }
 `;
 
-export const PanelLayout = styled.div`
+export const PanelLayout = styled.div<{ $embedded?: boolean }>`
   display: flex;
-  ${panelShellHeight}
+  /* N+93 — embedded(팝아웃/분리 창): MainLayout 헤더가 없으므로 viewport 수학(-56px) 대신 부모 100% 채움.
+     팝아웃 좁은 폭이 ≤1024 분기를 타 56px 여백이 생기던 회귀 차단. */
+  ${(p) => (p.$embedded ? css`height: 100%; min-height: 0;` : panelShellHeight)}
   background: #F8FAFC;
   overflow: hidden;
   min-height: 0;
