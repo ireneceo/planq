@@ -18,6 +18,16 @@ const {
 } = require('../models');
 const { authenticateToken } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
+// §8.5 — 고객용 task 직렬화 (공수 시간·예측 출처·내부 메타 차단)
+const { serializeTaskForClient } = require('../utils/taskClientView');
+
+// 이 business 에서 멤버가 아니면 고객(요청자)으로 간주.
+// 워크플로 라우트는 isRequester/canAccessTask 로 고객 요청자도 통과시키므로,
+// task json 응답을 줄 때 §8.5 직렬화로 내부 운영 데이터를 제거해야 한다.
+async function isClientUser(task, userId) {
+  const bm = await BusinessMember.findOne({ where: { business_id: task.business_id, user_id: userId } });
+  return !bm;
+}
 
 // ─────────────────────────────────────────────
 // 헬퍼
@@ -550,7 +560,8 @@ router.post('/:id/reviewers', authenticateToken, async (req, res, next) => {
         },
       });
 
-      return successResponse(res, full.toJSON());
+      const fullJson = full.toJSON();
+      return successResponse(res, (await isClientUser(task, req.user.id)) ? serializeTaskForClient(fullJson) : fullJson);
     } catch (e) { await t.rollback(); throw e; }
   } catch (err) { next(err); }
 });
@@ -638,7 +649,8 @@ router.patch('/:id/policy', authenticateToken, async (req, res, next) => {
       oldValue: { review_policy: task._previousDataValues?.review_policy || null },
       newValue: { review_policy, task_title: task.title },
     });
-    return successResponse(res, task.toJSON());
+    const policyJson = task.toJSON();
+    return successResponse(res, (await isClientUser(task, req.user.id)) ? serializeTaskForClient(policyJson) : policyJson);
   } catch (err) { next(err); }
 });
 
@@ -667,8 +679,10 @@ router.get('/:id/workflow', authenticateToken, async (req, res, next) => {
       }),
     ]);
 
+    // §8.5 — 고객(요청자)에겐 공수 시간·예측 출처·내부 메타 제거
+    const wfTaskJson = task.toJSON();
     return successResponse(res, {
-      task: task.toJSON(),
+      task: (await isClientUser(task, req.user.id)) ? serializeTaskForClient(wfTaskJson) : wfTaskJson,
       reviewers: reviewers.map((r) => r.toJSON()),
       history: history.map((h) => h.toJSON()),
     });

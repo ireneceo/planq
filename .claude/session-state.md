@@ -1,7 +1,33 @@
 # PlanQ 세션 상태
 
-**마지막 업데이트:** 2026-06-08 (사이클 N+90)
-**작업 상태:** 완료
+**마지막 업데이트:** 2026-06-08 (사이클 N+91)
+**작업 상태:** 완료 (dev 검증 · 운영 미배포)
+
+---
+
+## ✅ N+91 완료 — §8.5 고객용 task 직렬화 (내부 운영 데이터 격리)
+
+> **계기:** session-state "다음 할 일" §8.5. 고객(Client)이 업무 조회 시 내부 운영 데이터(공수 예측/실제 시간·AI 예측 출처·일별 진행 스냅샷·내부 댓글)가 그대로 노출되던 멀티테넌트 정보 누수 차단.
+
+### 완료된 작업
+- **`utils/taskClientView.js` 신규** — `serializeTaskForClient(json)` 단일 헬퍼. 차단: `estimated_hours`/`actual_hours`/`actual_source`/`latest_estimation_source`/`daily_progress`/`cue_*` 메타 + internal·personal 댓글. 유지: progress_percent(진행률 — Irene 결정: 고객 신뢰·투명성), title/description/body/status/shared 댓글.
+- **`routes/tasks.js`** — `GET /:id/detail` + `GET /by-business` list 에 client 분기 적용 (기존 댓글 필터 흡수)
+- **`routes/task_workflow.js`** — client(요청자) 도달 가능한 3 라우트 sanitize: `POST /:id/reviewers`, `PATCH /:id/policy`, `GET /:id/workflow` (`isClientUser` 헬퍼)
+
+### 검증
+- 실 API E2E **23/23 PASS** (business 3, owner=3 / client=27, 통제 task 생성→검증→원복)
+  - owner 무회귀: 시간·양쪽 댓글 보임
+  - client: 시간/예측출처/daily_progress 제거, progress_percent(40)·shared 댓글(1)·title 유지
+  - list/workflow 동일 검증
+- 공개 share 뷰(`routes/share.js`)는 extraMeta 로 status/due_date 만 노출 — 누수 없음(이미 안전)
+- DB 스키마 변경 0, 프론트 변경 0 (drawer 가 `|| []` null-safe — 무회귀)
+
+### 수정/생성 파일
+- `dev-backend/utils/taskClientView.js` (신규)
+- `dev-backend/routes/tasks.js`, `dev-backend/routes/task_workflow.js`
+
+## 다음 할 일
+- 공개뷰 폴리시 (공개 페이지 터치타겟 44px 통일, 로고 크기 통일)
 
 ---
 
