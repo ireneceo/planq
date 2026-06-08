@@ -305,10 +305,74 @@ async function downgradeToFree({ businessId, userId, reason = 'expire' }) {
   }
 }
 
+// ─── 갱신 pending Payment 보장 (멱등) ───
+// 구독이 갱신일 도래/연체(past_due·grace)로 들어가면 "결제할 청구"가 있어야
+// 배너 → '결제가 필요한 청구' 카드 → 결제 모달 → mark-paid(연장) 흐름이 동작한다.
+// cron 은 상태만 바꾸고 결제 건을 안 만들던 회귀를 막는다. 같은 구독에 pending 이 이미 있으면 재사용.
+async function ensureRenewalPayment(sub) {
+  if (!sub || sub.plan_code === 'free') return { payment: null, created: false };
+
+  const existing = await Payment.findOne({
+    where: { subscription_id: sub.id, status: 'pending' },
+    order: [['created_at', 'DESC']],
+  });
+  if (existing) return { payment: existing, created: false };
+
+  // 금액은 구독에 박제된 price 우선, 없으면 플랜표에서 산출
+  const amount = (sub.price != null && Number(sub.price) > 0)
+    ? sub.price
+    : getPlanPrice(sub.plan_code, sub.cycle, sub.currency || 'KRW');
+  if (amount == null || Number(amount) <= 0) return { payment: null, created: false };
+
+  const pay = await Payment.create({
+    business_id: sub.business_id,
+    subscription_id: sub.id,
+    method: 'bank_transfer',
+    status: 'pending',
+    amount,
+    currency: sub.currency || 'KRW',
+    cycle: sub.cycle,
+    created_by: null, // 시스템(cron) 생성
+    tax_invoice_status: 'none',
+  });
+
+  // 입금 안내 이메일 — owner 들에게 (검증된 수신자만). 실패해도 cron 진행.
+  setImmediate(() => { notifyRenewalDue(sub, pay).catch(() => null); });
+  return { payment: pay, created: true };
+}
+
+// 갱신 청구 입금 안내 메일 (createPendingSubscription 의 메일 로직 재사용)
+async function notifyRenewalDue(sub, pay) {
+  const plan = PLANS.PLANS?.[sub.plan_code] || PLANS[sub.plan_code];
+  if (!plan) return;
+  const biz = await Business.findByPk(sub.business_id, { attributes: ['name', 'brand_name'] });
+  const owners = await BusinessMember.findAll({
+    where: { business_id: sub.business_id, role: 'owner', removed_at: null },
+    include: [{ model: User, as: 'user', attributes: ['email', 'name', 'email_verified_at'] }],
+  });
+  const wsName = biz?.brand_name || biz?.name || '';
+  for (const m of owners) {
+    // 자동(cron) 발송이므로 인증된 이메일에만 — 미인증/test 주소 반송 방지 ([[feedback_no_automail_unverified]])
+    if (m.user?.email && m.user?.email_verified_at) {
+      await sendBillingInstructionEmail({
+        to: m.user.email,
+        kind: 'plan',
+        workspaceName: wsName,
+        itemName: plan.name_ko || plan.name,
+        cycle: sub.cycle,
+        amount: pay.amount,
+        currency: pay.currency,
+        paymentId: pay.id,
+        businessId: sub.business_id,
+      }).catch(() => null);
+    }
+  }
+}
+
 // ─── 4. cron — 4단계 (active → past_due → grace → demoted) ───
 async function runDailyBillingCron() {
   const now = new Date();
-  const stats = { active_to_past_due: 0, past_due_to_grace: 0, grace_to_demoted: 0 };
+  const stats = { active_to_past_due: 0, past_due_to_grace: 0, grace_to_demoted: 0, renewal_payments_created: 0 };
 
   // 1) active 중 current_period_end 지나간 것 → past_due
   const expiringActive = await Subscription.findAll({
@@ -356,6 +420,16 @@ async function runDailyBillingCron() {
   for (const s of expiredGrace) {
     await downgradeToFree({ businessId: s.business_id, reason: 'expire' });
     stats.grace_to_demoted += 1;
+  }
+
+  // 4) 갱신 청구 백필 — 아직 강등 안 된 past_due/grace 구독 중 pending 결제가 없는 건에 갱신 청구 생성.
+  //    이번 run 에서 막 전이된 건 + 배포 이전부터 grace 였던 레거시 건 모두 멱등 커버.
+  const overdueSubs = await Subscription.findAll({
+    where: { status: { [Op.in]: ['past_due', 'grace'] } },
+  });
+  for (const s of overdueSubs) {
+    const { created } = await ensureRenewalPayment(s);
+    if (created) stats.renewal_payments_created += 1;
   }
 
   return stats;
@@ -428,6 +502,7 @@ module.exports = {
   markPaymentPaid,
   downgradeToFree,
   runDailyBillingCron,
+  ensureRenewalPayment,
   buildReceiptPdf,
   getCurrentSubscription,
   getPlanPrice,
