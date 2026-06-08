@@ -658,6 +658,8 @@ router.post('/conversations/:id/messages', authenticateToken, async (req, res, n
           title: `${senderName} 님이 ${convTitle} 에서 언급`,
           body: previewBody, link, ctaLabel: '대화 보기', workspaceName: wsName,
           tag: `conv:${conv.id}`,
+          // N+93 — entity 전달: 토스터 활성방 스킵 (#8a)
+          entityType: 'conversation', entityId: conv.id,
         }).catch((e) => console.warn('[notify mention]', e.message));
       }
       if (plainRecipients.length > 0) {
@@ -666,6 +668,7 @@ router.post('/conversations/:id/messages', authenticateToken, async (req, res, n
           title: `${senderName} · ${convTitle}`,
           body: previewBody, link, ctaLabel: '대화 보기', workspaceName: wsName,
           tag: `conv:${conv.id}`,
+          entityType: 'conversation', entityId: conv.id,
         }).catch((e) => console.warn('[notify message]', e.message));
       }
     } catch (e) { console.warn('[notify message outer]', e.message); }

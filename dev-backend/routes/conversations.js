@@ -636,6 +636,8 @@ router.post('/:businessId/:id/messages', authenticateToken, attachWorkspaceScope
           title: `${senderName} 님이 ${convTitle} 에서 언급`,
           body: previewBody, link, ctaLabel: '대화 보기', workspaceName: wsName,
           tag: `conv:${conversation.id}`,
+          // N+93 — entity 전달: 토스터가 contextKey 'conv:X' 로 활성방 스킵 (#8a). 옛 코드는 entity 누락 → 보고있는 방에도 토스터.
+          entityType: 'conversation', entityId: conversation.id,
         }).catch((e) => console.warn('[notify mention msg]', e.message));
       }
       if (messageRecipients.length > 0) {
@@ -644,6 +646,7 @@ router.post('/:businessId/:id/messages', authenticateToken, attachWorkspaceScope
           title: `${senderName} · ${convTitle}`,
           body: previewBody, link, ctaLabel: '대화 보기', workspaceName: wsName,
           tag: `conv:${conversation.id}`,
+          entityType: 'conversation', entityId: conversation.id,
         }).catch((e) => console.warn('[notify message msg]', e.message));
       }
     } catch (e) { console.warn('[notify msg outer]', e.message); }

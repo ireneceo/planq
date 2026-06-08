@@ -138,6 +138,19 @@ export async function deleteKnowledge(businessId: number, docId: number): Promis
   await handle(res);
 }
 
+// N+93 — 다건/카테고리 공유 번들 (#6)
+export async function createKbShareBundle(
+  businessId: number,
+  payload: { kind: 'selection' | 'category'; doc_ids?: number[]; category?: string; title?: string },
+): Promise<{ id: number; share_token: string; share_url: string; count: number | null }> {
+  const res = await apiFetch(`/api/businesses/${businessId}/kb/share-bundle`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+  });
+  const j = await res.json();
+  if (!j.success) throw new Error(j.message || 'bundle_failed');
+  return j.data;
+}
+
 // 사이클 P1 — 파일 직접 업로드 (multipart)
 export interface KbUploadInput {
   file: File;

@@ -3,7 +3,7 @@
 
 const express = require('express');
 const router = express.Router();
-const { KbDocument, KbChunk, KbPinnedFaq, KbCategory, File: FileModel, Post } = require('../models');
+const { KbDocument, KbChunk, KbPinnedFaq, KbCategory, File: FileModel, Post, KbShareBundle } = require('../models');
 const { authenticateToken, checkBusinessAccess } = require('../middleware/auth');
 const { isMemberOrAbove, getUserScope } = require('../middleware/access_scope');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
@@ -1355,6 +1355,115 @@ router.get('/kb-documents/public/by-token/:token/auth-check', authenticateToken,
     return successResponse(res, {
       canAccess,
       appUrl: canAccess ? `/talk?kb=${doc.id}` : null,
+    });
+  } catch (err) { next(err); }
+});
+
+// ─────────────────────────────────────────────────────────
+// KB 공유 번들 (#6, N+93) — 다건/카테고리 묶음 공유 + 문서식 공개 미리보기
+// ─────────────────────────────────────────────────────────
+
+// 공개 뷰용 KB doc serialize (단건 공개뷰와 동일 필드)
+function serializePublicKbDoc(doc) {
+  return {
+    id: doc.id,
+    title: doc.title,
+    body: doc.body,
+    source_type: doc.source_type,
+    file_name: doc.file_name,
+    mime_type: doc.mime_type,
+    categories: Array.isArray(doc.categories) ? doc.categories : (doc.category ? [doc.category] : []),
+    created_at: doc.created_at,
+  };
+}
+
+// POST 번들 생성 — kind='selection'(doc_ids) | 'category'(category)
+router.post('/businesses/:businessId/kb/share-bundle', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+  try {
+    if (req.businessRole === 'client') return errorResponse(res, 'forbidden', 403);
+    const businessId = parseInt(req.params.businessId, 10);
+    const scope = await getUserScope(req.user.id, businessId, req.user.platform_role);
+    if (!isMemberOrAbove(scope)) return errorResponse(res, 'forbidden', 403);
+
+    const { kind, doc_ids, category, title, expires_in_days } = req.body || {};
+    if (!['selection', 'category'].includes(kind)) return errorResponse(res, 'invalid_kind', 400);
+
+    let docIds = null;
+    if (kind === 'selection') {
+      docIds = Array.isArray(doc_ids) ? [...new Set(doc_ids.map(Number).filter(Boolean))] : [];
+      if (!docIds.length) return errorResponse(res, 'no_documents', 400);
+      // tenant 격리 — 전부 이 워크스페이스 문서인지 검증
+      const cnt = await KbDocument.count({ where: { id: docIds, business_id: businessId } });
+      if (cnt !== docIds.length) return errorResponse(res, 'invalid_documents', 400);
+    } else {
+      if (!category || !String(category).trim()) return errorResponse(res, 'category_required', 400);
+    }
+
+    const token = crypto.randomBytes(24).toString('hex');
+    const expiresAt = expires_in_days ? new Date(Date.now() + Number(expires_in_days) * 86400 * 1000) : null;
+    const bundle = await KbShareBundle.create({
+      business_id: businessId, token, kind,
+      doc_ids: kind === 'selection' ? docIds : null,
+      category: kind === 'category' ? String(category).trim().slice(0, 80) : null,
+      title: title ? String(title).slice(0, 200) : null,
+      created_by: req.user.id,
+      expires_at: expiresAt,
+    });
+    const url = `${process.env.APP_URL || 'https://dev.planq.kr'}/public/kb-bundle/${token}`;
+    return successResponse(res, { id: bundle.id, share_token: token, share_url: url, kind, count: kind === 'selection' ? docIds.length : null });
+  } catch (err) { next(err); }
+});
+
+// DELETE 번들 무효화
+router.delete('/businesses/:businessId/kb/share-bundle/:id', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+  try {
+    const businessId = parseInt(req.params.businessId, 10);
+    const b = await KbShareBundle.findOne({ where: { id: req.params.id, business_id: businessId } });
+    if (!b) return errorResponse(res, 'not_found', 404);
+    await b.destroy();
+    return successResponse(res, { revoked: true });
+  } catch (err) { next(err); }
+});
+
+// GET 공개 번들 뷰 — 인증 없음, token 기반. category 는 live 조회.
+router.get('/kb-bundle/public/by-token/:token', async (req, res, next) => {
+  try {
+    const bundle = await KbShareBundle.findOne({ where: { token: req.params.token } });
+    if (!bundle) return errorResponse(res, 'not_found', 404);
+    if (bundle.expires_at && new Date(bundle.expires_at) < new Date()) {
+      return res.status(410).json({ success: false, code: 'share_expired', message: 'This share link has expired.', expired_at: bundle.expires_at });
+    }
+    let docs = [];
+    if (bundle.kind === 'selection') {
+      const rows = await KbDocument.findAll({
+        where: { id: bundle.doc_ids || [], business_id: bundle.business_id },
+        attributes: ['id', 'title', 'body', 'source_type', 'file_name', 'mime_type', 'categories', 'category', 'created_at'],
+      });
+      // doc_ids 순서 유지
+      const map = new Map(rows.map((r) => [r.id, r]));
+      docs = (bundle.doc_ids || []).map((id) => map.get(id)).filter(Boolean).map(serializePublicKbDoc);
+    } else {
+      // 카테고리는 free(categories JSON 배열) + legacy(category 컬럼) 둘 다 매칭.
+      const rows = await KbDocument.findAll({
+        where: { business_id: bundle.business_id },
+        attributes: ['id', 'title', 'body', 'source_type', 'file_name', 'mime_type', 'categories', 'category', 'created_at'],
+        order: [['created_at', 'DESC']],
+        limit: 500,
+      });
+      docs = rows.filter((r) => {
+        const cats = Array.isArray(r.categories) ? r.categories : [];
+        return cats.includes(bundle.category) || r.category === bundle.category;
+      }).slice(0, 200).map(serializePublicKbDoc);
+    }
+    const biz = await Business.findByPk(bundle.business_id, { attributes: ['id', 'name', 'brand_name'] });
+    bundle.update({ viewed_count: (bundle.viewed_count || 0) + 1 }).catch(() => null);
+    return successResponse(res, {
+      kind: bundle.kind,
+      title: bundle.title || (bundle.kind === 'category' ? bundle.category : null),
+      category: bundle.category,
+      workspace: biz ? { id: biz.id, name: biz.brand_name || biz.name } : null,
+      count: docs.length,
+      documents: docs,
     });
   } catch (err) { next(err); }
 });
