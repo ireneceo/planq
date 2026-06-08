@@ -170,12 +170,14 @@ const Toolbar = styled.div`
 const Brand = styled.img`display:block;width:120px;height:auto;user-select:none;`;
 const ToolbarSpacer = styled.div`flex:1;`;
 const PrintBtn = styled.button`
-  padding: 7px 14px; font-size: 13px; font-weight: 600; color: #334155;
+  display: inline-flex; align-items: center; min-height: 44px;
+  padding: 8px 16px; font-size: 13px; font-weight: 600; color: #334155;
   border: 1px solid #E2E8F0; border-radius: 8px; background: #FFF; cursor: pointer;
   &:hover { border-color: #14B8A6; color: #0F766E; }
 `;
 const SignBtn = styled.button`
-  padding: 7px 14px; font-size: 13px; font-weight: 700; color: #FFF;
+  display: inline-flex; align-items: center; min-height: 44px;
+  padding: 8px 16px; font-size: 13px; font-weight: 700; color: #FFF;
   background: #14B8A6; border: none; border-radius: 8px; cursor: pointer;
   &:hover { background: #0D9488; }
 `;

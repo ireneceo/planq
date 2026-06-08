@@ -584,7 +584,7 @@ const CanvasPlaceholder = styled.div`
 `;
 const CanvasClear = styled.button`
   position: absolute; top: 8px; right: 8px;
-  height: 28px; padding: 0 12px;
+  height: 36px; padding: 0 14px;
   font-size: 11px; font-weight: 600; color: #64748B;
   background: rgba(255,255,255,0.95); border: 1px solid #E2E8F0; border-radius: 999px; cursor: pointer;
   transition: background 0.15s, color 0.15s;
@@ -612,7 +612,7 @@ const ActionRow = styled.div`
 `;
 const PrimaryBtn = styled.button`
   display: inline-flex; align-items: center; justify-content: center;
-  height: 40px; padding: 0 18px;
+  height: 44px; padding: 0 18px;
   font-size: 14px; font-weight: 700; color: #fff;
   background: #14B8A6; border: none; border-radius: 10px; cursor: pointer;
   transition: background 0.15s, transform 0.15s;
@@ -620,14 +620,14 @@ const PrimaryBtn = styled.button`
   &:disabled { background: #CBD5E1; cursor: not-allowed; }
 `;
 const SecondaryBtn = styled.button`
-  height: 40px; padding: 0 16px;
+  height: 44px; padding: 0 16px;
   font-size: 14px; font-weight: 600; color: #334155;
   background: #fff; border: 1px solid #E2E8F0; border-radius: 10px; cursor: pointer;
   &:hover:not(:disabled) { background: #F8FAFC; border-color: #CBD5E1; }
 `;
 const RejectBtn = styled.button`
   display: inline-flex; align-items: center; justify-content: center;
-  height: 40px; padding: 0 16px;
+  height: 44px; padding: 0 16px;
   font-size: 14px; font-weight: 600; color: #DC2626;
   background: #fff; border: 1px solid #EF4444; border-radius: 10px; cursor: pointer;
   &:hover:not(:disabled) { background: #FEF2F2; }

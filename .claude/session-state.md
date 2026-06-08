@@ -5,6 +5,28 @@
 
 ---
 
+## ✅ N+91-B 완료 — 공개뷰 폴리시 (로고·터치타겟 통일)
+
+> **계기:** session-state "다음 할 일" — 공개 페이지 일관성. 30년차 UI/UX 기준(memory `feedback_uiux_unified_master`).
+
+### 완료된 작업
+- **로고 크기 통일** — 문서뷰어형 공개 5종(`/planQ-slogan_color.svg`)이 120px/88px 혼재 → **120px 통일**. Post/QNote 88→120 (Doc/Invoice/Sign 은 이미 120).
+- **터치타겟 44px 통일** — 모든 공개 주요 CTA/버튼 `min-height:44px`:
+  - 카드형 4종 CTA/CTASecondary(`padding:10px 20px`→+44px): Task/File/Kb/Calendar
+  - 문서뷰어 PrintBtn/SignBtn(`7px 14px`→44px), Invoice NotifyBtn/Modal 버튼, Sign Primary/Secondary/Reject(40→44px)
+  - 인라인 마이크로 버튼(복사·Sm·X닫기·캔버스지우기)은 프로젝트 아이콘 기준 36px (CLAUDE.md 반응형 #2)
+  - SharePasswordPrompt 입력행(Input/Toggle/Submit) 44px 정렬
+- 카드형 4종(Task/File/Kb/Calendar)은 로고 이미지 없는 프리뷰 디자인 — 로고 통일 비대상(버튼만 적용).
+
+### 검증
+- 빌드 **EXIT 0** (tsc -b 타입 통과 + vite emit) · dev 공개 라우트 200 · i18n 신규 문자열 0(styled CSS만 변경, 하드코딩 무)
+- 수정 10 파일: `Public/{PublicTaskPage,PublicFilePage,PublicKbDocumentPage,PublicCalendarEventPage,SharePasswordPrompt}` + `QBill/PublicInvoicePage` + `QDocs/{PublicDocPage,PublicPostPage,PublicSignPage}` + `QNote/PublicQNoteSessionPage`
+
+## 다음 할 일
+- (공개뷰 폴리시 완료) — 다음 사이클 신규 기능 또는 운영 배포 대기
+
+---
+
 ## ✅ N+91 완료 — §8.5 고객용 task 직렬화 (내부 운영 데이터 격리)
 
 > **계기:** session-state "다음 할 일" §8.5. 고객(Client)이 업무 조회 시 내부 운영 데이터(공수 예측/실제 시간·AI 예측 출처·일별 진행 스냅샷·내부 댓글)가 그대로 노출되던 멀티테넌트 정보 누수 차단.

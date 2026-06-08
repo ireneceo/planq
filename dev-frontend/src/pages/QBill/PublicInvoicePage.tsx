@@ -471,7 +471,8 @@ const Toolbar = styled.div`
 const Brand = styled.img`display:block;width:120px;height:auto;user-select:none;`;
 const ToolbarSpacer = styled.div`flex:1;`;
 const PrintBtn = styled.button`
-  padding: 7px 14px; font-size: 13px; font-weight: 600; color: #334155;
+  display: inline-flex; align-items: center; min-height: 44px;
+  padding: 8px 16px; font-size: 13px; font-weight: 600; color: #334155;
   border: 1px solid #E2E8F0; border-radius: 8px; background: #FFF; cursor: pointer;
   &:hover { border-color: #14B8A6; color: #0F766E; }
 `;
@@ -544,7 +545,8 @@ const InstallStatus = styled.div<{ $paid: boolean; $notified: boolean; $canceled
   color: ${p => p.$paid ? '#15803D' : p.$canceled ? '#94A3B8' : p.$notified ? '#B45309' : '#64748B'};
 `;
 const NotifyBtnSm = styled.button`
-  padding: 5px 10px; font-size: 11px; font-weight: 600;
+  display: inline-flex; align-items: center; min-height: 36px;
+  padding: 6px 12px; font-size: 11px; font-weight: 600;
   background: #fff; border: 1px solid #E2E8F0; border-radius: 6px; color: #0F766E; cursor: pointer;
   &:hover:not(:disabled) { background: #F0FDFA; border-color: #14B8A6; }
   &:disabled { opacity: 0.5; cursor: not-allowed; }
@@ -570,7 +572,8 @@ const BankValueMono = styled.div`
   font-variant-numeric: tabular-nums;
 `;
 const CopyBtn = styled.button`
-  padding: 5px 10px; font-size: 11px; font-weight: 600; color: #0F766E;
+  display: inline-flex; align-items: center; min-height: 36px;
+  padding: 6px 12px; font-size: 11px; font-weight: 600; color: #0F766E;
   background: #fff; border: 1px solid #E2E8F0; border-radius: 6px; cursor: pointer;
   &:hover { background: #F0FDFA; border-color: #14B8A6; }
 `;
@@ -589,7 +592,7 @@ const NotifyArea = styled.div`
   display: flex; flex-direction: column; gap: 6px; align-items: stretch; margin-top: 4px;
 `;
 const NotifyBtn = styled.button`
-  width: 100%; padding: 14px 20px; font-size: 14px; font-weight: 700;
+  width: 100%; min-height: 44px; padding: 14px 20px; font-size: 14px; font-weight: 700;
   background: #0D9488; color: #FFF; border: none; border-radius: 10px; cursor: pointer;
   transition: background 0.15s;
   &:hover { background: #0F766E; }
@@ -638,6 +641,7 @@ const ModalHead = styled.div`
 `;
 const ModalTitle = styled.h3`font-size: 15px; font-weight: 700; color: #0F172A; margin: 0;`;
 const ModalClose = styled.button`
+  display: inline-flex; align-items: center; justify-content: center; min-width: 36px; min-height: 36px;
   background: none; border: none; font-size: 22px; line-height: 1; color: #94A3B8; cursor: pointer; padding: 0 4px;
   &:hover { color: #475569; }
 `;
@@ -665,11 +669,13 @@ const ModalFoot = styled.div`
   border-top: 1px solid #E2E8F0;
 `;
 const ModalCancelBtn = styled.button`
-  padding: 9px 14px; font-size: 13px; font-weight: 600; color: #334155;
+  display: inline-flex; align-items: center; min-height: 44px;
+  padding: 9px 16px; font-size: 13px; font-weight: 600; color: #334155;
   background: #fff; border: 1px solid #E2E8F0; border-radius: 8px; cursor: pointer;
   &:hover { background: #F8FAFC; border-color: #CBD5E1; }
 `;
 const ModalSendBtn = styled.button`
+  display: inline-flex; align-items: center; min-height: 44px;
   padding: 9px 16px; font-size: 13px; font-weight: 600; color: #FFF;
   background: #0D9488; border: none; border-radius: 8px; cursor: pointer;
   &:hover:not(:disabled) { background: #0F766E; }

@@ -82,18 +82,20 @@ const Sub = styled.p`font-size: 12px; color: #64748B; margin: 0 0 20px;`;
 const Form = styled.form`display: flex; flex-direction: column; gap: 8px; align-items: stretch;`;
 const InputRow = styled.div`display: flex; gap: 6px;`;
 const Input = styled.input`
-  flex: 1; padding: 10px 12px; font-size: 13px; color: #0F172A;
+  flex: 1; min-height: 44px; padding: 10px 12px; font-size: 13px; color: #0F172A;
   border: 1px solid #E2E8F0; border-radius: 8px;
   &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20,184,166,0.15); }
   &:disabled { opacity: 0.5; }
 `;
 const Toggle = styled.button`
-  padding: 8px 10px; font-size: 11px; font-weight: 600; color: #475569;
+  display: inline-flex; align-items: center; min-height: 44px;
+  padding: 8px 12px; font-size: 11px; font-weight: 600; color: #475569;
   background: #fff; border: 1px solid #E2E8F0; border-radius: 8px; cursor: pointer;
   &:hover:not(:disabled) { background: #F8FAFC; }
   &:disabled { opacity: 0.5; cursor: not-allowed; }
 `;
 const Submit = styled.button`
+  display: inline-flex; align-items: center; justify-content: center; min-height: 44px;
   padding: 10px 16px; font-size: 13px; font-weight: 700; color: #fff;
   background: #14B8A6; border: none; border-radius: 8px; cursor: pointer;
   &:hover:not(:disabled) { background: #0D9488; }
