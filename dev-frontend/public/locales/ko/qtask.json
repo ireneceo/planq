@@ -418,7 +418,10 @@
       "confirmTitle": "정말 삭제하시겠습니까?",
       "confirmBody": "삭제된 업무는 복구할 수 없습니다. 댓글·첨부·이력도 함께 사라집니다.",
       "confirm": "삭제",
-      "deleting": "삭제 중..."
+      "deleting": "삭제 중...",
+      "errActivity": "이 업무에는 댓글·이력·리뷰어가 있어 작성자가 삭제할 수 없습니다. 워크스페이스 관리자(owner/admin)에게 요청하세요.",
+      "errPermission": "삭제 권한이 없습니다. 워크스페이스 관리자(owner/admin)만 삭제할 수 있습니다.",
+      "errGeneric": "삭제하지 못했습니다. 잠시 후 다시 시도해주세요."
     },
     "cue": {
       "badge": "Cue가 자동 생성",

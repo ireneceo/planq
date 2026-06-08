@@ -280,6 +280,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
   const [pendingReviewerAdd, setPendingReviewerAdd] = useState<number | null>(null);
   const [actionBusy, setActionBusy] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [deleteErr, setDeleteErr] = useState<string | null>(null);  // N+93 — 삭제 실패 이유 표시 (조용한 실패 제거)
   const [deleting, setDeleting] = useState(false);
 
   const [saveStatus, setSaveStatus] = useState<'idle'|'saving'|'saved'|'error'>('idle');
@@ -520,18 +521,25 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
   const handleDelete = async () => {
     if (!detailTask || deleting) return;
     setDeleting(true);
+    setDeleteErr(null);
     try {
       const r = await apiFetch(`/api/tasks/by-business/${bizId}/${detailTask.id}`, { method: 'DELETE' });
       const j = await r.json();
       if (!j.success) {
-        setSaveStatusTemp('error');
-        setDeleteConfirmOpen(false);
+        // N+93 — 구체 이유 표시 (confirm 다이얼로그 안에 유지). 조용한 실패 제거.
+        const code = String(j.message || '');
+        const reason = /task has activity/.test(code)
+          ? t('detail.delete.errActivity', '이 업무에는 댓글·이력·리뷰어가 있어 작성자가 삭제할 수 없습니다. 워크스페이스 관리자(owner/admin)에게 요청하세요.')
+          : /only workspace owner|forbidden/.test(code)
+          ? t('detail.delete.errPermission', '삭제 권한이 없습니다. 워크스페이스 관리자(owner/admin)만 삭제할 수 있습니다.')
+          : t('detail.delete.errGeneric', '삭제하지 못했습니다. 잠시 후 다시 시도해주세요.');
+        setDeleteErr(reason as string);
         return;
       }
       onRefresh?.();
       onClose();
     } catch {
-      setSaveStatusTemp('error');
+      setDeleteErr(t('detail.delete.errGeneric', '삭제하지 못했습니다. 잠시 후 다시 시도해주세요.') as string);
     } finally {
       setDeleting(false);
     }
@@ -1515,10 +1523,10 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
         사용자 스크롤 위치에 따라 안 보이는 회귀. 가운데 modal 로 항상 노출 보장. */}
     <ConfirmDialog
       isOpen={deleteConfirmOpen}
-      onClose={() => { if (!deleting) setDeleteConfirmOpen(false); }}
+      onClose={() => { if (!deleting) { setDeleteConfirmOpen(false); setDeleteErr(null); } }}
       onConfirm={handleDelete}
       title={t('detail.delete.confirmTitle', '정말 삭제하시겠습니까?') as string}
-      message={t('detail.delete.confirmBody', '삭제된 업무는 복구할 수 없습니다. 댓글·첨부·이력도 함께 사라집니다.') as string}
+      message={deleteErr || (t('detail.delete.confirmBody', '삭제된 업무는 복구할 수 없습니다. 댓글·첨부·이력도 함께 사라집니다.') as string)}
       confirmText={(deleting ? t('detail.delete.deleting', '삭제 중...') : t('detail.delete.confirm', '삭제')) as string}
       cancelText={t('common.cancel', '취소') as string}
       variant="danger"

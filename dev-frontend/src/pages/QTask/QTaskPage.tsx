@@ -553,6 +553,9 @@ const QTaskPage:React.FC=()=>{
     s.on('task:deleted', (meta: { id: number }) => {
       setAllTasks((prev) => prev.filter((t) => t.id !== meta.id));
     });
+    // N+93 — 프로젝트명 변경 실시간 반영 (#11). 프로젝트는 task 에 live-join 이라 task:updated 가
+    // 안 뜨므로 별도 project:updated 수신 시 전체 reload (프로젝트명 갱신).
+    s.on('project:updated', () => { load(); });
     return () => {
       s.emit('leave:business', bizId);
       s.disconnect();
