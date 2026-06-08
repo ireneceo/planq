@@ -25,8 +25,17 @@
 
 ---
 
-## 진행 중인 작업
-- 없음
+## 진행 중인 작업 (다음 섹션 최우선)
+- **구독 결제 = "관리자 입금확인" 방식으로 변경 + 배포** (Irene 결정 2026-06-08)
+  - 현재: 고객(owner)이 `routes/plan.js:356` mark-paid 를 직접 눌러 활성화 → 증빙 없는 자가확인 (신뢰 공백 + 오활성화 사고 원인)
+  - 변경: 고객 화면은 "입금했어요(통보)" 까지 → 상태 "입금 확인 대기중". 실제 활성화는 **플랫폼 관리자**가 `routes/admin.js:498` 에서 입금 확인 후. (markPaymentPaid 시 이미 platform_admin 알림 발송 구조 있음)
+  - 가상계좌/오픈뱅킹/카드는 운영 본격화 때 ([[project_billing_automation_scope]] 로드맵)
+- **dev 미배포 커밋 같이 배포 예정:** `6c1ba83` 빌링 갱신청구 가드(현재 플랜≠stale 구독 skip). 관리자확인 변경 완료 후 `/배포` 로 한 번에.
+
+## 이번 섹션 운영 사고 + 정정 (완료)
+- N+94 빌링 백필이 biz1(워프로랩)의 **stale starter 구독**에 9,900 청구 생성 → 결제 시 basic→starter 오강등.
+- 정정 완료(운영): plan basic 복구(만료 6/10), starter sub#2 replaced, pay#4 canceled, plan_history admin_adjust 기록. 라이브 status 검증 OK.
+- 가드 코드로 재발 방지(위 6c1ba83, 미배포).
 
 ## 다음 할 일
 - **운영 피드백 reviewing 10건 기획/개발** (N+92 답변 완료, 개발 대기):
