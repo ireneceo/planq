@@ -42,6 +42,7 @@ const ProfileIntegrationsPage = lazy(() => import('./pages/Profile/ProfileIntegr
 const MyWorkSettingsPage = lazy(() => import('./pages/Profile/MyWorkSettingsPage'));
 const WorkspaceSettingsPage = lazy(() => import('./pages/Settings/WorkspaceSettingsPage'));
 const QTalkPage = lazy(() => import('./pages/QTalk/QTalkPage'));
+const QTalkStandalonePage = lazy(() => import('./pages/QTalk/QTalkStandalonePage'));
 const PersonalVaultPage = lazy(() => import('./pages/PersonalVault/PersonalVaultPage'));
 const QTaskPage = lazy(() => import('./pages/QTask/QTaskPage'));
 const QProjectPage = lazy(() => import('./pages/QProject/QProjectPage'));
@@ -278,6 +279,12 @@ function App() {
         <Route path="/memo/:id" element={
           <ProtectedRoute>
             <MemoStandalonePage />
+          </ProtectedRoute>
+        } />
+        {/* N+93 (#9) — Q Talk 분리 창 (window.open). MainLayout 우회 = 데스크탑앱 밖에서 채팅 */}
+        <Route path="/talk-popout" element={
+          <ProtectedRoute>
+            <QTalkStandalonePage />
           </ProtectedRoute>
         } />
 

@@ -339,7 +339,8 @@
       "thu": "목",
       "fri": "금",
       "sat": "토"
-    }
+    },
+    "popout": "새 창으로 분리"
   },
   "page": {
     "title": "Q talk",
@@ -468,5 +469,8 @@
     "phone": "전화",
     "noInfo": "추가 정보가 없습니다",
     "notFound": "정보를 불러올 수 없습니다"
+  },
+  "popout": {
+    "title": "PlanQ 채팅"
   }
 }
