@@ -210,13 +210,30 @@ const ChatPanel: React.FC<Props> = ({
       document.documentElement.style.setProperty('--vvh', `${vv.height}px`);
     }
     if (isMobile) return;
-    const tm = window.setTimeout(() => textInputRef.current?.focus(), 80);
-    return () => window.clearTimeout(tm);
+    // N+93 — 채팅방 진입 시 바로 타이핑 가능하게 입력란 자동 포커스 (클릭 불필요).
+    //   옛 코드: 80ms 1회 — 메시지 로딩으로 textarea 가 아직 mount 안 됐으면 ref null → no-op (포커스 실패).
+    //   새 코드: mount 될 때까지 50ms 간격 재시도(최대 ~600ms) 후 1회 포커스. 사용자가 이미 다른 곳을
+    //   의도적으로 focus(메시지 선택/검색 등) 중이면 뺏지 않음(body/null 일 때만 포커스).
+    let cancelled = false;
+    let attempts = 0;
+    const tryFocus = () => {
+      if (cancelled) return;
+      const el = textInputRef.current;
+      if (el) {
+        const ae = document.activeElement;
+        if (!ae || ae === document.body || ae === el) el.focus();
+        return;
+      }
+      if (attempts++ < 12) window.setTimeout(tryFocus, 50);
+    };
+    const tm = window.setTimeout(tryFocus, 60);
+    return () => { cancelled = true; window.clearTimeout(tm); };
   }, [activeConversationId]);
 
   // 작성 중 메시지 임시저장 — 대화 전환 시 해당 대화의 draft 복원 (localStorage, 대화별 분리).
   //   다른 대화로 갔다 와도 입력 중이던 내용 유지. 대화 간 입력 누수도 차단(각 대화 자기 draft 만).
   React.useEffect(() => {
+    setActiveToolbarMsgId(null); // N+93 — 대화 전환 시 tap-to-reveal 툴바 해제
     if (!activeConversationId) { setInput(''); return; }
     let d = '';
     try { d = localStorage.getItem(`qtalk_draft_${activeConversationId}`) || ''; } catch { /* quota/unavailable */ }
@@ -251,6 +268,10 @@ const ChatPanel: React.FC<Props> = ({
   const [editingMsgDraft, setEditingMsgDraft] = useState('');
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedMsgIds, setSelectedMsgIds] = useState<Set<number>>(new Set());
+  // N+93 — 터치(hover:none) tap-to-reveal: 탭한 메시지만 액션 툴바 노출 (평소엔 0개 → 글 안 가림).
+  //   데스크탑은 hover 동작이라 무관(이 state 미사용). 대화 전환·바깥 탭 시 해제.
+  const [activeToolbarMsgId, setActiveToolbarMsgId] = useState<number | null>(null);
+  const isTouchDevice = () => typeof window !== 'undefined' && window.matchMedia('(hover: none)').matches;
   // 사이클 N+16-F — 더보기 메뉴는 anchor 함께 저장 → portal 렌더 + fixed 좌표
   const [moreMenu, setMoreMenu] = useState<{ msgId: number; anchorEl: HTMLElement } | null>(null);
   const moreMenuMsgId = moreMenu?.msgId ?? null;
@@ -1208,7 +1229,14 @@ const ChatPanel: React.FC<Props> = ({
             $selected={selectionMode && isSelected}
             $flashing={isFlash}
             $pinned={isPinned}
-            onClick={selectionMode && !isDeleted ? () => toggleSelected(m.id) : undefined}
+            onClick={
+              selectionMode && !isDeleted
+                ? () => toggleSelected(m.id)
+                : (!isDeleted && m.sender_role !== 'cue')
+                  // N+93 — 터치에서만 탭으로 액션 툴바 토글 (데스크탑은 hover). 같은 메시지 재탭 시 해제.
+                  ? () => { if (isTouchDevice()) setActiveToolbarMsgId((cur) => (cur === m.id ? null : m.id)); }
+                  : undefined
+            }
             $clickable={selectionMode && !isDeleted}
           >
             {selectionMode && (
@@ -1668,7 +1696,7 @@ const ChatPanel: React.FC<Props> = ({
             {/* 사이클 N+16-E — hover toolbar (Slack 패턴). 데스크탑 hover / 모바일 long-press 패턴은 추후 추가.
                 선택 모드 / 편집 모드 / 삭제된 메시지 / Cue 메시지는 toolbar 숨김. */}
             {!selectionMode && !isEditing && !isDeleted && m.sender_role !== 'cue' && (
-              <MessageToolbar>
+              <MessageToolbar $touchActive={activeToolbarMsgId === m.id}>
                 <ToolBarBtn type="button" onClick={(e) => { e.stopPropagation(); handleCopyText(m.body || ''); }} title={t('chat.action.copy', '메시지 복사') as string} aria-label={t('chat.action.copy', '메시지 복사') as string}>
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
@@ -2557,7 +2585,8 @@ const EditHint = styled.span`
 `;
 
 // hover toolbar (Slack 패턴). MessageItem 우측 상단 absolute, hover 시 등장.
-const MessageToolbar = styled.div.attrs({ className: 'pq-msg-toolbar' })`
+// 터치(hover:none)는 tap-to-reveal — $touchActive(탭된 메시지)일 때만 노출.
+const MessageToolbar = styled.div.attrs({ className: 'pq-msg-toolbar' })<{ $touchActive?: boolean }>`
   position: absolute;
   top: 0;
   right: 8px;
@@ -2574,21 +2603,24 @@ const MessageToolbar = styled.div.attrs({ className: 'pq-msg-toolbar' })`
   pointer-events: none;
   transition: opacity 0.15s, transform 0.15s;
   z-index: 5;
-  @media (hover: none), (max-width: 640px) {
-    /* N+93 (#7) — 모바일/터치: 우측 하단 컴팩트 오버레이. 정적 row 가 세로 공간 차지하던 것 제거 → 채팅 더 많이 보이게. */
+  @media (hover: none) {
+    /* N+93 — 터치 기기(마우스 없음): tap-to-reveal. 평소엔 숨김(opacity 0)이라 글 안 가림,
+       메시지 탭 시 그 메시지만 우측 하단 컴팩트 오버레이로 노출. (max-width:640px) 제거 —
+       좁은 데스크탑 팝아웃 창은 마우스가 있어 hover 동작 유지. */
     position: absolute;
     top: auto;
     bottom: 2px;
     right: 4px;
     transform: none;
     margin-top: 0;
-    opacity: 1;
-    pointer-events: auto;
-    background: rgba(255, 255, 255, 0.92);
+    opacity: ${(p) => (p.$touchActive ? 1 : 0)};
+    pointer-events: ${(p) => (p.$touchActive ? 'auto' : 'none')};
+    background: rgba(255, 255, 255, 0.96);
     border: 1px solid #E2E8F0;
-    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.1);
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.16);
     padding: 1px;
     gap: 0;
+    transition: opacity 0.12s;
   }
 `;
 const ToolBarBtn = styled.button<{ $active?: boolean }>`
