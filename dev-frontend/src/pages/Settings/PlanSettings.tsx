@@ -679,7 +679,7 @@ const Wrap = styled.div`display:flex;flex-direction:column;gap:20px;`;
 
 // 미결제 청구 카드 — 결제 진행 진입점 (배너 → ?pay=1)
 const PayDueCard = styled.div`
-  background:#FEF2F2;border:1px solid #FCA5A5;border-radius:14px;padding:18px 22px;
+  background:#FEF2F2;border:1px solid #FCA5A5;border-radius:14px;padding:20px 24px;
   display:flex;flex-direction:column;gap:10px;
 `;
 const PayDueHead = styled.div`display:flex;align-items:center;gap:10px;`;

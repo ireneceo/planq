@@ -1,6 +1,8 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-06-08 사이클 N+91 — **v1.33.1 운영 라이브** (deploy `20260608_075511`, commit `84c5d7a`). **§8.5 고객용 task 직렬화(내부 운영 데이터 격리, 보안) + 공개뷰 폴리시(로고 120px·터치타겟 44px 통일).** §8.5: `utils/taskClientView.js` 신규 — 고객(Client) 조회 시 공수 예측/실제 시간·AI 예측 출처·일별 진행 스냅샷·internal 댓글 차단(진행률은 유지, Irene 결정). `routes/tasks.js`(detail·list) + `routes/task_workflow.js`(reviewers·policy·workflow 3라우트) 적용. 실 API E2E 23/23. 공개뷰: 문서뷰어 5종 로고 88/120 혼재→120 통일, 모든 공개 CTA min-height 44px(인라인 마이크로 버튼 36px), SharePasswordPrompt 입력행 정렬, 10파일. 검증: dev 빌드 EXIT 0 · 운영 헬스 내부/외부 OK · PM2 prod 정상. N+90 모바일 UI/UX 동봉.
+> **최종 업데이트:** 2026-06-08 사이클 N+92 — **운영 고객 피드백 처리 (dev 검증 완료 · 운영 미배포)**. 운영(planq.kr) 플랫폼 피드백 16건 중 미답변 11건(ID 6~16) 전수 검토 → 전부 답변 작성 + 상태 reviewing 운영 DB 반영(platform_admin). **이번 세션 실수정:** ① **Focus 좌측 [포커스 중] 배너 (ID 15·16#1·#2·#4)** — 핵심 원인 2개: (a) `task_workflow.js`(complete/submit-review/cancel-review)가 FocusSession 을 안 건드려 워크플로 완료해도 세션 잔존 → 신규 `services/focusSync.js syncFocusOnTaskStatus()` 로 단일화 (E2E 6/6). (b) `FocusWidget` 30s 폴링만 → `inbox:refresh`/`focus:refresh` window 이벤트 실시간 listen + `QTaskPage.saveField` dispatch. (c) `?task=` URL→state sync useEffect 로 배너 업무명 클릭 이동. ② **Q helper 엔터 통일 (ID 12#1)** — `CueHelpDrawer` 입력 Q Talk 과 동일(Enter 전송/Shift+Enter 줄바꿈/IME 가드). ③ **결제 배너 → 미결제 청구 결제 UI** — 배너 "결제하러 가기" 가 플랜 재선택만 되던 것 → grace/past_due 시 `?pay=1` 로 진입해 결제 모달 자동 오픈 + `PlanSettings` 상단 "결제가 필요한 청구" 카드(금액·결제 버튼). 검증: 헬스 29/29 · 빌드 EXIT 0 · focus E2E 6/6 · DB 스키마 변경 0. **답변+진행중(개발 예정):** 16#3 재개 / 14 업무삭제 / 13 Qdocs·Qinfo / 12#2 입력란 흔들림 / 11 Qtask 실시간·프로젝트명 / 10 단계되돌리기 / 9 Qtalk 팝아웃 / 8 토스터·스크롤 / 7 모바일채팅 / 6 인포 공유.
+>
+> **이전:** 2026-06-08 사이클 N+91 — **v1.33.1 운영 라이브** (deploy `20260608_075511`, commit `84c5d7a`). **§8.5 고객용 task 직렬화(내부 운영 데이터 격리, 보안) + 공개뷰 폴리시(로고 120px·터치타겟 44px 통일).** §8.5: `utils/taskClientView.js` 신규 — 고객(Client) 조회 시 공수 예측/실제 시간·AI 예측 출처·일별 진행 스냅샷·internal 댓글 차단(진행률은 유지, Irene 결정). `routes/tasks.js`(detail·list) + `routes/task_workflow.js`(reviewers·policy·workflow 3라우트) 적용. 실 API E2E 23/23. 공개뷰: 문서뷰어 5종 로고 88/120 혼재→120 통일, 모든 공개 CTA min-height 44px(인라인 마이크로 버튼 36px), SharePasswordPrompt 입력행 정렬, 10파일. 검증: dev 빌드 EXIT 0 · 운영 헬스 내부/외부 OK · PM2 prod 정상. N+90 모바일 UI/UX 동봉.
 >
 > **이전:** 2026-06-08 사이클 N+90 — 모바일 UI/UX 개선 (Q Talk 채널 전환 버튼 + 결제 유예 배너 + 헤더 겹침 fix).
 > - **Q Note 재설계(Phase 1~3):** ① 슬로우 종료 fix(`getSession` 백그라운드, review 즉시 전환) ② 요약 DB 영속(qnote `sessions` +`summary_key_points`/`summary_full`, `/api/llm/summary` 영속) ③ 메모 body 요약(`docToPlainText`) ④ 요약→Q docs 문서저장(`utils/qnoteSummaryDoc.ts`, L1 사적) ⑤ **Q Note↔Q Task 브릿지**(`routes/qnote_bridge.js` extract/list/register/reject, `task_candidates` +`qnote_session_id`/+`business_id`, `tasks` +`qnote_session_id`, `extractNoteTaskCandidates` 재사용, tenant 격리) ⑥ **재요약 instruction**(`generate_summary(instruction)` 주입 — 불만족 시 "어떻게 고칠지") ⑦ review 3블록(요약/업무/공유) + 참여자바 이동(업무 아래) + 공유 훅 `hooks/useNoteTaskExtraction.ts`(음성·메모 1구현).
@@ -60,6 +62,32 @@
 > **이전 라이브:** v1.16.1 (commit `8947504`) — N+31 사이클 (Q Talk 모바일 viewport 회귀 fix)
 >
 > **이전 라이브:** v1.16.0 (commit `ab113a6`) — N+26~N+27 사이클 (업무 흐름 Focus MVP + 인박스 inline 모달 + Cue 주고받음)
+
+---
+
+## ✅ 완료: 사이클 N+92 — 운영 고객 피드백 처리 (2026-06-08, dev 검증 완료 · **운영 미배포**)
+
+> **계기:** 운영(planq.kr) 플랫폼 피드백 16건 중 미답변 11건(ID 6~16) 검토. 답변 전부 작성 + 상태 reviewing 운영 DB 반영(platform_admin user 1). 고객이 자주 호소한 항목부터 실제 수정.
+
+### ✅ 이번 세션 실수정 (dev 검증 · 다음 배포 반영 예정)
+
+| 작업 | 설명 | 상태 |
+|------|------|:----:|
+| Focus 배너 완료 시 정리 (ID 16#1) | `task_workflow.js` 가 FocusSession 미처리 → 신규 `services/focusSync.js` 로 워크플로 완료/전환 시 담당자 세션 종료. E2E 6/6 | ✅ |
+| Focus 배너 실시간 전환 (ID 15·16#2) | `FocusWidget` 30s 폴링 → `inbox:refresh`/`focus:refresh` 이벤트 즉시 반영 + `QTaskPage.saveField` dispatch | ✅ |
+| Focus 배너 업무명 클릭 이동 (ID 16#4) | `QTaskPage` `?task=` URL→state sync useEffect 추가 (mount 1회만 읽던 회귀) | ✅ |
+| Q helper 엔터 통일 (ID 12#1) | `CueHelpDrawer` Q Talk 과 동일 (Enter 전송/Shift+Enter 줄바꿈/IME 가드) + 안내문 ko·en | ✅ |
+| 결제 배너 → 미결제 청구 결제 UI | 배너 "결제하러 가기" 플랜 재선택만 되던 것 → `?pay=1` 결제 모달 자동 오픈 + PlanSettings "결제가 필요한 청구" 카드 | ✅ |
+
+### 🚧 답변 완료 + 개발 예정 (운영 reviewing)
+ID 16#3 재개 버튼(설계) · 14 업무 삭제 안 됨 · 13 Q docs 리스트·Q info 수정삭제공유 · 12#2 Q Talk 입력란 흔들림 · 11 Q Task 실시간·프로젝트명 변경 · 10 단계 되돌리기 버튼 · 9 Q Talk 팝아웃 창 · 8 활성방 토스터·입장 스크롤 · 7 모바일 채팅 아이콘·간격 · 6 Q info 공유·다중전송·미리보기
+
+### 수정된 파일
+- backend: `services/focusSync.js` (신규), `routes/task_workflow.js`
+- frontend: `components/Focus/FocusWidget.tsx`, `pages/QTask/QTaskPage.tsx`, `components/Common/CueHelpDrawer.tsx`, `pages/Settings/PlanSettings.tsx`, `components/Layout/WorkspaceBillingBanner.tsx`, `public/locales/{ko,en}/{plan,common}.json`
+
+### 검증
+- 헬스 29/29 · 빌드 EXIT 0 · focus E2E 6/6 · 변경 3페이지 서빙 200 · i18n 하드코딩 0 · 8-A padding 22→24 교정 · DB 스키마 변경 0
 
 ---
 
