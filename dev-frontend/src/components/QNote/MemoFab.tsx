@@ -11,62 +11,29 @@
 //
 // MemoPopup 의 open state 보유.
 import React, { useState, useEffect } from 'react';
-import styled from 'styled-components';
-import { useLocation } from 'react-router-dom';
-import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../contexts/AuthContext';
 import MemoPopup from './MemoPopup';
 
-// /memo/:id 은 메모 팝업이 standalone 모드로 풀스크린 마운트되는 분리 창 — FAB 노출하면 자기 안에 자기 떠서 혼란
-// 사이클 N+29: /talk 재차단 — 모바일에서 우하단 16px 위치가 ChatPanel InputBar 의 SendBtn 영역을
-// 침범해 채팅 메시지 전송을 가림 (CueHelp FAB 는 bottom:80px 이라 InputBar 위로 비켜남, 메모 FAB 만 충돌).
-// N+23 에 노출 박제 → N+29 에 사용자 호소 "메시지 전송 방해" 로 reverse. 메모는 ⌘+Shift+M 단축키로 데스크탑 접근.
-const FAB_HIDDEN_PATHS = ['/memo', '/talk'];
-
-const FabBtn = styled.button`
-  position: fixed; right: 20px; bottom: 16px;
-  width: 52px; height: 52px;
-  display: inline-flex; align-items: center; justify-content: center;
-  background: #0F766E;   /* PlanQ teal — VisibilityBadge L2 와 동일 */
-  color: #FFFFFF;
-  border: none; border-radius: 50%;
-  box-shadow: 0 4px 16px rgba(15,118,110,0.30);
-  cursor: pointer;
-  z-index: 40;
-  transition: transform 0.15s, background 0.15s, opacity 0.15s;
-  &:hover { background: #115E59; transform: translateY(-1px); }
-  &:focus-visible { outline: 2px solid rgba(15,118,110,0.5); outline-offset: 4px; }
-  @media (max-width: 640px) {
-    right: 16px; bottom: 16px;
-    width: 48px; height: 48px;
-  }
-  body[data-overlay-open="true"] & {
-    opacity: 0;
-    pointer-events: none;
-    visibility: hidden;
-  }
-`;
-
-const IconNote = () => (
-  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-    <polyline points="14 2 14 8 20 8"/>
-    <line x1="9" y1="13" x2="15" y2="13"/>
-    <line x1="9" y1="17" x2="13" y2="17"/>
-  </svg>
-);
-
+// N+93 — 우하단 메모 FAB 는 RightDock 통합 런처로 흡수. 이 컴포넌트는 이제 팝업 보유 +
+// ⌘+Shift+M 글로벌 단축키 + 런처(planq:open-tool) 수신만 담당 (별도 FAB 미렌더).
 const MemoFab: React.FC = () => {
-  const { t } = useTranslation('qnote');
   const { user } = useAuth();
-  const location = useLocation();
   const [open, setOpen] = useState(false);
 
   // 권한 — 비즈니스 멤버 (owner/admin/member) 만. client / 로그인 안 한 상태 / 비즈니스 없음 → hide
   // 사이클 N+24: 'admin' role 추가 (N+21 에 신설됐는데 가드 누락 회귀 fix)
   const allowed = !!user?.business_id && ['owner', 'admin', 'member'].includes(user.business_role || '');
   const businessId = user?.business_id ? Number(user.business_id) : 0;
-  const pathHidden = FAB_HIDDEN_PATHS.some((p) => location.pathname === p || location.pathname.startsWith(`${p}/`));
+
+  // N+93 — 통합 런처(RightDock)에서 Q Note 선택 시 오픈. (자체 우하단 FAB 는 런처로 흡수)
+  useEffect(() => {
+    if (!allowed) return;
+    const onOpen = (e: Event) => {
+      if ((e as CustomEvent).detail?.tool === 'qnote') setOpen(true);
+    };
+    window.addEventListener('planq:open-tool', onOpen as EventListener);
+    return () => window.removeEventListener('planq:open-tool', onOpen as EventListener);
+  }, [allowed]);
 
   // 글로벌 단축키 — ⌘+Shift+M (mac) / Ctrl+Shift+M (win)
   useEffect(() => {
@@ -86,30 +53,13 @@ const MemoFab: React.FC = () => {
 
   if (!allowed) return null;
 
-  const label = t('memoPopup.title') as string;
-  // 단축키 안내는 desktop 만 의미 있음. tooltip 으로 표시.
-  const shortcutLabel = (typeof navigator !== 'undefined' && /Mac|iPhone|iPad/i.test(navigator.platform || navigator.userAgent))
-    ? '⌘+Shift+M'
-    : 'Ctrl+Shift+M';
-
+  // N+93 — 우하단 FAB 는 RightDock 통합 런처로 흡수. 여기서는 팝업 + 단축키 + 런처 이벤트만 담당.
   return (
-    <>
-      {!pathHidden && (
-        <FabBtn
-          type="button"
-          onClick={() => setOpen(true)}
-          aria-label={`${label} (${shortcutLabel})`}
-          title={`${label} (${shortcutLabel})`}
-        >
-          <IconNote />
-        </FabBtn>
-      )}
-      <MemoPopup
-        open={open}
-        onClose={() => setOpen(false)}
-        businessId={businessId}
-      />
-    </>
+    <MemoPopup
+      open={open}
+      onClose={() => setOpen(false)}
+      businessId={businessId}
+    />
   );
 };
 

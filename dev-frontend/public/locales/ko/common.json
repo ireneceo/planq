@@ -197,6 +197,15 @@
     "sending": "전송 중…"
   },
   "cancel": "취소",
+  "close": "닫기",
+  "dock": {
+    "toggle": "바로 열기 — Q Talk · Q Note · Q helper",
+    "menuLabel": "바로 열기",
+    "qtalk": "Q Talk",
+    "qnote": "Q Note",
+    "qhelper": "Q helper",
+    "popout": "새 창으로 분리"
+  },
   "saving": "처리 중…",
   "loading": "로딩 중…",
   "comingSoon": {

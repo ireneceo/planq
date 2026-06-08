@@ -197,6 +197,15 @@
     "sending": "Sending…"
   },
   "cancel": "Cancel",
+  "close": "Close",
+  "dock": {
+    "toggle": "Quick open — Q Talk · Q Note · Q helper",
+    "menuLabel": "Quick open",
+    "qtalk": "Q Talk",
+    "qnote": "Q Note",
+    "qhelper": "Q helper",
+    "popout": "Open in new window"
+  },
   "saving": "Saving…",
   "loading": "Loading…",
   "comingSoon": {

@@ -21,6 +21,7 @@ const TermsReacceptModal = lazy(() => import('./components/Common/TermsReacceptM
 const ImpersonateBanner = lazy(() => import('./components/Common/ImpersonateBanner'));
 const CueHelpDrawer = lazy(() => import('./components/Common/CueHelpDrawer'));
 const MemoFab = lazy(() => import('./components/QNote/MemoFab'));
+const RightDock = lazy(() => import('./components/Common/RightDock'));
 
 // Eager — 자주 진입하거나 첫 화면 (Login). 분리해도 의미 작음
 import LoginPage from './pages/Login/LoginPage';
@@ -471,6 +472,7 @@ function App() {
       <Suspense fallback={null}>
         <CueHelpDrawer />
         <MemoFab />
+        <RightDock />
         <NotificationToaster />
         <PwaInstallBanner />
         <OpenInAppBanner />
