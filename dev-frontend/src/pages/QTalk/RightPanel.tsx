@@ -217,15 +217,17 @@ const RightPanel: React.FC<Props> = ({
     <>
       <HeaderBar>
         <HeaderTitle>{project ? t('right.title', '프로젝트 작업대') : t('right.titleStandalone', '작업대')}</HeaderTitle>
-        {/* 헤더 접기 버튼 (데스크탑·overlay 공통 — Q Task/Q Mail 통일). 데스크탑 좌측 엣지는 리사이즈 전용. */}
-        <IconBtn
-          type="button"
-          onClick={headerCloseHandler}
-          aria-label={t('right.collapse', '접기') as string}
-          title={`${t('right.collapse', '접기') as string}${isNarrow ? '' : ' (⌘/)'}`}
-        >
-          {headerCloseIcon}
-        </IconBtn>
+        {/* N+93 — 데스크탑 접기는 좌측 divider EdgeHandle 로 통일(Q Task/Q docs). 헤더 버튼은 narrow 오버레이 닫기(X)만. */}
+        {isNarrow && (
+          <IconBtn
+            type="button"
+            onClick={headerCloseHandler}
+            aria-label={t('right.collapse', '접기') as string}
+            title={t('right.collapse', '접기') as string}
+          >
+            {headerCloseIcon}
+          </IconBtn>
+        )}
       </HeaderBar>
 
       <Scroll>
@@ -599,7 +601,22 @@ const RightPanel: React.FC<Props> = ({
     );
   }
 
-  return <Container $w={width}>{onResizeStart && <TalkResizeHandle onMouseDown={onResizeStart} />}{panelBody}</Container>;
+  // N+93 — 열림 상태에도 divider(좌측 엣지) 중앙에 접기 핸들 노출 (Q Task / Q docs 표준 통일).
+  //   리사이즈 핸들(전체 높이 strip)과 공존 — EdgeHandle(중앙 chevron)이 위에 떠 접기 담당. 헤더 접기 버튼과 병행.
+  return (
+    <Container $w={width}>
+      {onResizeStart && <TalkResizeHandle onMouseDown={onResizeStart} />}
+      <RightEdgeHandle
+        type="button"
+        onClick={onToggleCollapsed}
+        aria-label={t('right.collapse', '접기') as string}
+        title={`${t('right.collapse', '접기') as string} (⌘/)`}
+      >
+        <EdgeChevron><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg></EdgeChevron>
+      </RightEdgeHandle>
+      {panelBody}
+    </Container>
+  );
 };
 
 export default RightPanel;
