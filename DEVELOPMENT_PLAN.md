@@ -1,6 +1,6 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-06-05 사이클 N+89 — **v1.33.0 운영 라이브** (deploy `20260605_183432`). **Q Note 종료후 재설계 + 상단 UI 통일 + 공개뷰 경로 fix + KB fix.**
+> **최종 업데이트:** 2026-06-08 사이클 N+90 — 모바일 UI/UX 개선 (Q Talk 채널 전환 버튼 + 결제 유예 배너 + 헤더 겹침 fix).
 > - **Q Note 재설계(Phase 1~3):** ① 슬로우 종료 fix(`getSession` 백그라운드, review 즉시 전환) ② 요약 DB 영속(qnote `sessions` +`summary_key_points`/`summary_full`, `/api/llm/summary` 영속) ③ 메모 body 요약(`docToPlainText`) ④ 요약→Q docs 문서저장(`utils/qnoteSummaryDoc.ts`, L1 사적) ⑤ **Q Note↔Q Task 브릿지**(`routes/qnote_bridge.js` extract/list/register/reject, `task_candidates` +`qnote_session_id`/+`business_id`, `tasks` +`qnote_session_id`, `extractNoteTaskCandidates` 재사용, tenant 격리) ⑥ **재요약 instruction**(`generate_summary(instruction)` 주입 — 불만족 시 "어떻게 고칠지") ⑦ review 3블록(요약/업무/공유) + 참여자바 이동(업무 아래) + 공유 훅 `hooks/useNoteTaskExtraction.ts`(음성·메모 1구현).
 > - **상단 UI 통일:** `components/Common/VisibilityChip.tsx`(공개:팀 칩) — Q Note 리뷰·메모를 Q docs 상세 상단과 통일 + 공유 PrimaryBtn(아이콘) + IconBtn 클러스터. "정리하기" 모달(raw-prefill) 제거. 메모에도 공개칩+공유(QNoteShareModal 재사용).
 > - **🔴 프록시 경로 회귀 fix(2건, 같은 계열):** `qnote.ts` 요약/공유/visibility + `PublicQNoteSessionPage` 공개뷰 — bare `/api`(Node→HTML 404 "Unexpected token '<'") → **`/qnote/api`**(FastAPI). 메모리 `feedback_qnote_frontend_api_base` 박제.
@@ -58,6 +58,31 @@
 > **이전 라이브:** v1.16.1 (commit `8947504`) — N+31 사이클 (Q Talk 모바일 viewport 회귀 fix)
 >
 > **이전 라이브:** v1.16.0 (commit `ab113a6`) — N+26~N+27 사이클 (업무 흐름 Focus MVP + 인박스 inline 모달 + Cue 주고받음)
+
+---
+
+## ✅ 완료: 사이클 N+90 — 모바일 UI/UX 개선 (2026-06-08, dev 검증 완료)
+
+> **계기:** Irene 모바일 실테스트 중 발견한 UI 겹침/잘림 문제 수정.
+
+### 완료된 작업
+
+| 작업 | 설명 | 상태 |
+|------|------|:----:|
+| Q Talk 채널 빠른 전환 모바일 배치 | 데스크탑은 헤더 우측, 모바일은 채팅방 이름 아래 별도 줄로 배치 (겹침 방지) | ✅ |
+| 채널 버튼 이름 잘림 수정 | `max-width: 140px` 제거 → 채널명 전체 표시 | ✅ |
+| 모바일 소속 구분자 제거 | 모바일에서 소속 앞 `border-left` 구분선 제거 (간결) | ✅ |
+| 결제 유예 배너 헤더 아래 배치 | `MainContent`에 모바일 `padding-top: 56px` 추가 → 배너가 헤더에 안 가려짐 | ✅ |
+| 결제 유예 배너 1단 레이아웃 | 모바일에서 아이콘 숨기고 텍스트+CTA를 1단 세로 흐름으로 변경 | ✅ |
+
+### 수정된 파일
+- `dev-frontend/src/pages/QTalk/ChatPanel.tsx` — MobileChannelRow, QuickSwitchBtn, ProjectSublabel 모바일 스타일
+- `dev-frontend/src/components/Layout/MainLayout.tsx` — MainContent 모바일 패딩
+- `dev-frontend/src/components/Layout/WorkspaceBillingBanner.tsx` — 모바일 1단 레이아웃
+
+### 검증
+- 빌드 EXIT 0 (1.22s)
+- 헬스체크 27/29 (PM2 이름 설정 문제, API 정상)
 
 ---
 
