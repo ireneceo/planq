@@ -1,0 +1,64 @@
+'use strict';
+
+// ============================================================
+// Focus 세션 ↔ Task status 동기화 (피드백 ID 15/16)
+// ------------------------------------------------------------
+// N+32 옵션 A 박제: task status 가 Focus 의 진실 원천.
+//   - in_progress 진입 → 담당자의 기존 active/paused 세션 stop + 이 task active 세션 생성
+//   - in_progress 이탈(완료/검토/대기 등) → 이 task 의 active/paused 세션 stop
+//
+// 기존엔 routes/tasks.js PUT 에만 이 로직이 있어 워크플로(task_workflow.js: complete/approve/
+// submit-review/revision)로 status 가 바뀌면 Focus 세션이 안 끊겨 좌측 [포커스 중] 배너가
+// 완료 후에도 계속 남던 회귀. 이 헬퍼로 단일화하여 모든 status 전이 지점에서 호출한다.
+//
+// 주의: Focus 의 주인은 "담당자(assignee)" 다 (actor 아님). 컨펌 승인처럼 actor≠담당자인
+//       자동완료에서도 담당자의 세션이 종료돼야 한다.
+// ============================================================
+
+const { Op } = require('sequelize');
+
+async function syncFocusOnTaskStatus(task, prevStatus, newStatus, options = {}) {
+  if (!task || !task.assignee_id) return;
+  if (prevStatus === newStatus) return;
+
+  const enteringProgress = newStatus === 'in_progress' && prevStatus !== 'in_progress';
+  const leavingProgress = prevStatus === 'in_progress' && newStatus !== 'in_progress';
+  if (!enteringProgress && !leavingProgress) return;
+
+  const tx = options.transaction ? { transaction: options.transaction } : undefined;
+
+  try {
+    const { FocusSession, User } = require('../models');
+    const assigneeId = task.assignee_id;
+
+    if (leavingProgress) {
+      // in_progress 이탈 — focus_enabled 여부와 무관하게 떠도는 세션 정리 (배너 잔존 차단).
+      await FocusSession.update(
+        { state: 'stopped', ended_at: new Date(), end_reason: 'status_change' },
+        { where: { user_id: assigneeId, task_id: task.id, state: { [Op.in]: ['active', 'paused'] } }, ...tx }
+      );
+      return;
+    }
+
+    // enteringProgress — focus_enabled 인 담당자만 새 세션 시작.
+    const u = await User.findByPk(assigneeId, { attributes: ['focus_enabled'], ...tx });
+    if (!u || !u.focus_enabled) return;
+
+    await FocusSession.update(
+      { state: 'stopped', ended_at: new Date(), end_reason: 'switch' },
+      { where: { user_id: assigneeId, state: { [Op.in]: ['active', 'paused'] } }, ...tx }
+    );
+    await FocusSession.create({
+      user_id: assigneeId,
+      business_id: task.business_id,
+      task_id: task.id,
+      state: 'active',
+      started_at: new Date(),
+      last_activity_at: new Date(),
+    }, tx);
+  } catch (e) {
+    console.warn('[focusSync] sync failed:', e.message);
+  }
+}
+
+module.exports = { syncFocusOnTaskStatus };

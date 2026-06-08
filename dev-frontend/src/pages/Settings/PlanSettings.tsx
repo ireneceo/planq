@@ -1,7 +1,8 @@
 // 구독 플랜 페이지 — 현재 플랜 카드 + 사용량 바 + 비교표 + Enterprise 문의 + 이력
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
+import { useSearchParams } from 'react-router-dom';
 import {
   fetchCatalog, fetchStatus, changePlan, cancelScheduledChange, startTrial,
   formatPrice, formatLimit, formatBytes, formatMinutes, usageColor, receiptPdfUrl,
@@ -105,6 +106,31 @@ const PlanSettings: React.FC<Props> = ({ businessId }) => {
   const currentPlan = status?.plan;
   const usage = status?.usage;
 
+  // ─── 미결제 청구 결제 흐름 (피드백: 배너 "결제하러 가기" → 플랜 재선택이 아니라 청구 내역 보고 결제) ───
+  // 미결제 payment 가 있으면 그 구독 플랜으로 CheckoutModal(입금 안내 + mark-paid)을 직접 연다.
+  const openPayDue = useCallback(() => {
+    if (!status?.pending_payment) return;
+    const code = (status.subscription?.plan_code as PlanCode) || status.plan?.code;
+    if (!code || code === 'free' || code === 'enterprise') return;
+    if (status.pending_payment.cycle) setCycle(status.pending_payment.cycle as BillingCycle);
+    setActionPlan(code);
+    setPaymentOpen(true);
+  }, [status]);
+
+  // 배너 CTA → /business/settings/plan?pay=1 로 진입 시 미결제 결제 모달 자동 오픈 (한 번만).
+  const [searchParams, setSearchParams] = useSearchParams();
+  const payParamHandled = useRef(false);
+  useEffect(() => {
+    if (payParamHandled.current) return;
+    if (searchParams.get('pay') !== '1') return;
+    if (!status?.pending_payment) return;
+    payParamHandled.current = true;
+    openPayDue();
+    const sp = new URLSearchParams(searchParams);
+    sp.delete('pay');
+    setSearchParams(sp, { replace: true });
+  }, [searchParams, status, openPayDue, setSearchParams]);
+
   // 업그레이드 여부 판별용 순서
   const planOrder: PlanCode[] = ['free', 'starter', 'basic', 'pro', 'enterprise'];
   const isUpgrade = (target: PlanCode) => {
@@ -156,6 +182,30 @@ const PlanSettings: React.FC<Props> = ({ businessId }) => {
 
   return (
     <Wrap>
+      {/* 미결제 청구 — 결제 진행 (배너 "결제하러 가기" 진입점). 청구 내역(플랜·금액) 보고 바로 결제. */}
+      {status.pending_payment && (
+        <PayDueCard id="pay-due">
+          <PayDueHead>
+            <PayDueLabel>{t('payDue.title', '결제가 필요한 청구')}</PayDueLabel>
+            {status.in_grace && <StateBadge $kind="grace">{t('current.grace')}</StateBadge>}
+          </PayDueHead>
+          <PayDueRow>
+            <PayDueInfo>
+              <PayDuePlan>
+                {(catalog.find(p => p.code === (status.subscription?.plan_code || currentPlan.code))?.name_ko) || currentPlan.name_ko}
+                {' · '}
+                {status.pending_payment.cycle === 'yearly' ? t('comparison.yearly') : t('comparison.monthly')}
+              </PayDuePlan>
+              <PayDueAmount>
+                {formatPrice(Number(status.pending_payment.amount), (status.pending_payment.currency as Currency) || 'KRW')}
+              </PayDueAmount>
+              <PayDueHint>{t('payDue.hint', '계좌이체로 입금 후 입금 완료 처리하면 바로 활성화됩니다.')}</PayDueHint>
+            </PayDueInfo>
+            <PayDueBtn type="button" onClick={openPayDue}>{t('payDue.cta', '결제 진행하기')}</PayDueBtn>
+          </PayDueRow>
+        </PayDueCard>
+      )}
+
       {/* 현재 플랜 카드 */}
       <CurrentCard $plan={currentPlan.code}>
         <CardHead>
@@ -626,6 +676,28 @@ const SkCard = styled(SkBar)`height:140px;margin-bottom:16px;border-radius:12px;
 // ─── styled ───
 
 const Wrap = styled.div`display:flex;flex-direction:column;gap:20px;`;
+
+// 미결제 청구 카드 — 결제 진행 진입점 (배너 → ?pay=1)
+const PayDueCard = styled.div`
+  background:#FEF2F2;border:1px solid #FCA5A5;border-radius:14px;padding:18px 22px;
+  display:flex;flex-direction:column;gap:10px;
+`;
+const PayDueHead = styled.div`display:flex;align-items:center;gap:10px;`;
+const PayDueLabel = styled.div`font-size:13px;font-weight:700;color:#B91C1C;letter-spacing:-0.1px;`;
+const PayDueRow = styled.div`
+  display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;
+`;
+const PayDueInfo = styled.div`display:flex;flex-direction:column;gap:4px;min-width:0;`;
+const PayDuePlan = styled.div`font-size:14px;font-weight:600;color:#0F172A;`;
+const PayDueAmount = styled.div`font-size:24px;font-weight:800;color:#0F172A;letter-spacing:-0.5px;font-variant-numeric:tabular-nums;`;
+const PayDueHint = styled.div`font-size:12px;color:#64748B;line-height:1.45;`;
+const PayDueBtn = styled.button`
+  flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;min-height:44px;
+  padding:0 24px;background:#DC2626;color:#fff;border:none;border-radius:10px;
+  font-size:14px;font-weight:700;cursor:pointer;transition:background 0.15s;
+  &:hover{background:#B91C1C;}
+  &:active{transform:scale(0.98);}
+`;
 
 const CurrentCard = styled.div<{ $plan: PlanCode }>`
   background:#fff;border:1px solid #E2E8F0;border-radius:14px;padding:20px 24px;

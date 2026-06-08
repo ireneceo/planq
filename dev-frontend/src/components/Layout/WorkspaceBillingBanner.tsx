@@ -57,7 +57,12 @@ export default function WorkspaceBillingBanner() {
   const graceEndsIn = kind === 'grace' ? daysLeft(status?.subscription?.grace_ends_at || null) : null;
   const periodEndedAt = status?.subscription?.current_period_end || null;
 
-  const handleClick = () => navigate('/business/settings/plan');
+  // grace/past_due 는 미결제 청구가 있으므로 ?pay=1 로 진입 → 결제 모달(청구 내역+입금 안내) 자동 오픈.
+  // demoted(이미 free 강등) 는 미결제 건 없이 재구독이라 플랜 선택 화면 그대로.
+  const handleClick = () => {
+    const hasPending = !!status?.pending_payment;
+    navigate(hasPending && kind !== 'demoted' ? '/business/settings/plan?pay=1' : '/business/settings/plan');
+  };
 
   return (
     <Wrap $kind={kind}>
