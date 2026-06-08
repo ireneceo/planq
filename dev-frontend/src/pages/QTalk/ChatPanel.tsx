@@ -1053,6 +1053,19 @@ const ChatPanel: React.FC<Props> = ({
               <line x1="12" y1="17" x2="12.01" y2="17"/>
             </svg>
           </IconBtn>
+          {/* N+93 (#9) — 새 창으로 분리 (데스크탑앱 밖에서 채팅). 이미 팝아웃 창이면 숨김. */}
+          {window.location.pathname !== '/talk-popout' && (
+            <PopoutBtn
+              type="button"
+              onClick={() => window.open(`/talk-popout?conv=${activeConv.id}`, `pq-talk-${activeConv.id}`, 'width=480,height=760,menubar=no,toolbar=no,location=no,status=no')}
+              title={t('chat.popout', '새 창으로 분리') as string}
+              aria-label={t('chat.popout', '새 창으로 분리') as string}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M15 3h6v6"/><path d="M10 14L21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+              </svg>
+            </PopoutBtn>
+          )}
           {!isClient && onOpenSettings && (
             <IconBtn type="button" onClick={onOpenSettings} title={t('chat.openSettings', '채팅 설정') as string} aria-label={t('chat.openSettings', '채팅 설정') as string}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -2213,6 +2226,10 @@ const IconBtn = styled.button`
   color: #64748B;
   cursor: pointer;
   &:hover { background: #F1F5F9; color: #0F172A; }
+`;
+// N+93 (#9) — 새 창 분리 버튼. 데스크탑 전용 (모바일은 새창 의미 X → 숨김).
+const PopoutBtn = styled(IconBtn)`
+  @media (max-width: 768px) { display: none; }
 `;
 
 

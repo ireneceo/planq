@@ -367,7 +367,8 @@
       "thu": "Thu",
       "fri": "Fri",
       "sat": "Sat"
-    }
+    },
+    "popout": "Open in new window"
   },
   "page": {
     "title": "Q talk",
@@ -468,5 +469,8 @@
     "phone": "Phone",
     "noInfo": "No additional info",
     "notFound": "Could not load profile"
+  },
+  "popout": {
+    "title": "PlanQ Chat"
   }
 }
