@@ -536,5 +536,11 @@
     "register": "Add",
     "merge": "Append",
     "reject": "Dismiss"
+  },
+  "public": {
+    "kb": {
+      "bundleTitle": "Shared materials",
+      "bundleEmpty": "No shared materials."
+    }
   }
 }

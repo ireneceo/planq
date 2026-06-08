@@ -51,7 +51,14 @@
     "cancel": "선택 해제",
     "delete": "선택 삭제",
     "deleteTitle": "선택 항목 삭제",
-    "deleteConfirm": "{{n}}건을 삭제합니다. 되돌릴 수 없습니다."
+    "deleteConfirm": "{{n}}건을 삭제합니다. 되돌릴 수 없습니다.",
+    "sharing": "공유 링크 생성 중...",
+    "share": "선택 공유",
+    "shareCategory": "이 카테고리 공유",
+    "copied": "복사됨 ✓",
+    "copy": "복사",
+    "bundleShareTitle": "공유 링크가 생성됐어요",
+    "bundleOpen": "미리보기 열기 →"
   },
   "drawer.customColumns": "항목",
   "inline": {

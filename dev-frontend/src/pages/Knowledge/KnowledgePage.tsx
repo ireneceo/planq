@@ -29,7 +29,7 @@ import { SparkleIcon } from '../../components/Common/Icons';
 import {
   listKnowledge, fetchPersonalKb, createKnowledge, deleteKnowledge, updateKnowledge,
   uploadKnowledgeFile,
-  listKbCategories, createKbCategory,
+  listKbCategories, createKbCategory, createKbShareBundle,
   LEGACY_KB_CATEGORIES,
   type KbDocumentRow, type KbCategory, type KbScope, type KbVlevel, type KbCategoryRow,
 } from '../../services/knowledge';
@@ -100,6 +100,10 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
   const [detailId, setDetailId] = useState<number | null>(null);
   const [detail, setDetail] = useState<KbDetail | null>(null);
   const [shareOpen, setShareOpen] = useState(false);
+  // N+93 — 다건/카테고리 공유 번들 (#6)
+  const [bundleSharing, setBundleSharing] = useState(false);
+  const [bundleShare, setBundleShare] = useState<{ url: string; count: number | null; label: string } | null>(null);
+  const [bundleCopied, setBundleCopied] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
   const [catError, setCatError] = useState<string | null>(null);  // 상세 패널 카테고리 저장 에러 노출 (silent catch 제거)
@@ -432,6 +436,29 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
     finally { setConfirmDelete(null); }
   };
 
+  // N+93 — 다건 공유 (선택된 인포 묶음)
+  const shareSelected = async () => {
+    if (!businessId || selectedIds.size === 0) return;
+    setBundleSharing(true);
+    try {
+      const r = await createKbShareBundle(businessId, { kind: 'selection', doc_ids: [...selectedIds] });
+      setBundleShare({ url: r.share_url, count: r.count, label: t('select.bundleSelectionLabel', { n: selectedIds.size, defaultValue: `${selectedIds.size}개 선택` }) as string });
+      setBundleCopied(false);
+    } catch { setBundleShare(null); }
+    finally { setBundleSharing(false); }
+  };
+  // 카테고리 통째 공유
+  const shareCategory = async (category: string) => {
+    if (!businessId) return;
+    setBundleSharing(true);
+    try {
+      const r = await createKbShareBundle(businessId, { kind: 'category', category });
+      setBundleShare({ url: r.share_url, count: r.count, label: category });
+      setBundleCopied(false);
+    } catch { setBundleShare(null); }
+    finally { setBundleSharing(false); }
+  };
+
   // ─── CSV export (현재 필터 결과) ───
   const handleExportCsv = () => {
     if (!filtered.length) return;
@@ -606,9 +633,20 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
             : t('select.toggle', '선택')}
         </SelectToggle>
         {selectMode && selectedIds.size > 0 && (
-          <BulkDeleteBtn type="button" onClick={() => setBulkDeleteOpen(true)}>
-            {t('select.delete', '선택 삭제')} ({selectedIds.size})
-          </BulkDeleteBtn>
+          <>
+            <BulkShareBtn type="button" onClick={shareSelected} disabled={bundleSharing}>
+              {bundleSharing ? t('select.sharing', '공유 링크 생성 중...') : `${t('select.share', '선택 공유')} (${selectedIds.size})`}
+            </BulkShareBtn>
+            <BulkDeleteBtn type="button" onClick={() => setBulkDeleteOpen(true)}>
+              {t('select.delete', '선택 삭제')} ({selectedIds.size})
+            </BulkDeleteBtn>
+          </>
+        )}
+        {/* N+93 — 카테고리 통째 공유 (#6). 특정 카테고리 선택 시 노출. */}
+        {!selectMode && activeCat !== 'all' && (
+          <BulkShareBtn type="button" onClick={() => shareCategory(activeCat as string)} disabled={bundleSharing}>
+            {bundleSharing ? t('select.sharing', '공유 링크 생성 중...') : t('select.shareCategory', '이 카테고리 공유')}
+          </BulkShareBtn>
         )}
       </Toolbar>
 
@@ -1112,7 +1150,7 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
         </DetailDrawer.Footer>
       </DetailDrawer>
 
-      {/* 공유 모달 */}
+      {/* 공유 모달 (단건) */}
       {shareOpen && detail && (
         <ShareModal
           open={shareOpen}
@@ -1121,6 +1159,26 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
           entityTitle={detail.title}
           onClose={() => setShareOpen(false)}
         />
+      )}
+
+      {/* N+93 — 번들(다건/카테고리) 공유 결과 링크 모달 (#6) */}
+      {bundleShare && (
+        <BundleBackdrop onClick={() => setBundleShare(null)}>
+          <BundleCard onClick={(e) => e.stopPropagation()}>
+            <BundleHead>
+              <BundleTitle>{t('select.bundleShareTitle', '공유 링크가 생성됐어요') as string}</BundleTitle>
+              <BundleClose type="button" onClick={() => setBundleShare(null)} aria-label={t('modal.close', { defaultValue: '닫기' }) as string}>×</BundleClose>
+            </BundleHead>
+            <BundleDesc>{t('select.bundleShareDesc', { label: bundleShare.label, defaultValue: `${bundleShare.label} · 받는 사람은 문서처럼 미리볼 수 있어요.` }) as string}</BundleDesc>
+            <BundleLinkRow>
+              <BundleLinkInput readOnly value={bundleShare.url} onFocus={(e) => e.currentTarget.select()} />
+              <BundleCopyBtn type="button" onClick={async () => {
+                try { await navigator.clipboard.writeText(bundleShare.url); setBundleCopied(true); setTimeout(() => setBundleCopied(false), 2000); } catch { /* ignore */ }
+              }}>{bundleCopied ? t('select.copied', '복사됨 ✓') : t('select.copy', '복사')}</BundleCopyBtn>
+            </BundleLinkRow>
+            <BundleOpen href={bundleShare.url} target="_blank" rel="noreferrer">{t('select.bundleOpen', '미리보기 열기 →') as string}</BundleOpen>
+          </BundleCard>
+        </BundleBackdrop>
       )}
 
       {/* ─── 삭제 확인 ─── */}
@@ -1798,6 +1856,46 @@ const BulkDeleteBtn = styled.button`
   border: 1px solid #FECACA; border-radius: 8px;
   font-size: 12px; font-weight: 600; cursor: pointer;
   &:hover { background: #FEF2F2; border-color: #DC2626; }
+`;
+// N+93 — 번들 공유 (#6)
+const BulkShareBtn = styled.button`
+  height: 36px; padding: 0 14px;
+  background: #F0FDFA; color: #0F766E;
+  border: 1px solid #14B8A6; border-radius: 8px;
+  font-size: 12px; font-weight: 600; cursor: pointer;
+  transition: background 0.15s;
+  &:hover:not(:disabled) { background: #CCFBF1; }
+  &:disabled { opacity: 0.6; cursor: default; }
+`;
+const BundleBackdrop = styled.div`
+  position: fixed; inset: 0; z-index: 2200;
+  background: rgba(15,23,42,0.45);
+  display: flex; align-items: center; justify-content: center; padding: 20px;
+`;
+const BundleCard = styled.div`
+  width: 100%; max-width: 460px;
+  background: #FFFFFF; border-radius: 14px; padding: 24px;
+  box-shadow: 0 12px 32px rgba(15,23,42,0.18);
+`;
+const BundleHead = styled.div`display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;`;
+const BundleTitle = styled.h3`margin: 0; font-size: 16px; font-weight: 700; color: #0F172A;`;
+const BundleClose = styled.button`border: none; background: transparent; font-size: 22px; line-height: 1; color: #94A3B8; cursor: pointer; &:hover { color: #0F172A; }`;
+const BundleDesc = styled.div`font-size: 13px; color: #64748B; line-height: 1.6; margin-bottom: 16px;`;
+const BundleLinkRow = styled.div`display: flex; gap: 8px; margin-bottom: 12px;`;
+const BundleLinkInput = styled.input`
+  flex: 1; min-width: 0; height: 40px; padding: 0 12px;
+  border: 1px solid #E2E8F0; border-radius: 8px; font-size: 13px; color: #334155; background: #F8FAFC;
+  &:focus { outline: none; border-color: #14B8A6; }
+`;
+const BundleCopyBtn = styled.button`
+  height: 40px; padding: 0 16px; white-space: nowrap;
+  background: #14B8A6; color: #FFFFFF; border: none; border-radius: 8px;
+  font-size: 13px; font-weight: 600; cursor: pointer;
+  &:hover { background: #0D9488; }
+`;
+const BundleOpen = styled.a`
+  display: inline-block; font-size: 13px; font-weight: 600; color: #0D9488; text-decoration: none;
+  &:hover { text-decoration: underline; }
 `;
 const RowCheckbox = styled.input`
   width: 16px; height: 16px;

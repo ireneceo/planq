@@ -51,7 +51,14 @@
     "cancel": "Cancel selection",
     "delete": "Delete selected",
     "deleteTitle": "Delete selected items",
-    "deleteConfirm": "{{n}} item(s) will be deleted. This cannot be undone."
+    "deleteConfirm": "{{n}} item(s) will be deleted. This cannot be undone.",
+    "sharing": "Creating link...",
+    "share": "Share selected",
+    "shareCategory": "Share this category",
+    "copied": "Copied ✓",
+    "copy": "Copy",
+    "bundleShareTitle": "Share link created",
+    "bundleOpen": "Open preview →"
   },
   "drawer.customColumns": "Custom fields",
   "inline": {

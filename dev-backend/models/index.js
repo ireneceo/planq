@@ -12,6 +12,7 @@ const Invoice = require('./Invoice');
 const InvoiceItem = require('./InvoiceItem');
 const AuditLog = require('./AuditLog');
 const KbDocument = require('./KbDocument');
+const KbShareBundle = require('./KbShareBundle');
 const KbChunk = require('./KbChunk');
 const KbPinnedFaq = require('./KbPinnedFaq');
 const KbCategory = require('./KbCategory');
@@ -396,6 +397,7 @@ module.exports = {
   User,
   Business,
   BusinessMember,
+  KbShareBundle,
   Client,
   Conversation,
   ConversationParticipant,

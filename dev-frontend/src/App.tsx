@@ -58,6 +58,7 @@ const PublicPostPage = lazy(() => import('./pages/QDocs/PublicPostPage'));
 const PublicTaskPage = lazy(() => import('./pages/Public/PublicTaskPage'));
 const PublicFilePage = lazy(() => import('./pages/Public/PublicFilePage'));
 const PublicKbDocumentPage = lazy(() => import('./pages/Public/PublicKbDocumentPage'));
+const PublicKbBundlePage = lazy(() => import('./pages/Public/PublicKbBundlePage'));
 const PublicCalendarEventPage = lazy(() => import('./pages/Public/PublicCalendarEventPage'));
 const PublicSignPage = lazy(() => import('./pages/QDocs/PublicSignPage'));
 const PublicInvoicePage = lazy(() => import('./pages/QBill/PublicInvoicePage'));
@@ -437,6 +438,7 @@ function App() {
         <Route path="/public/tasks/:token" element={<PublicTaskPage />} />
         <Route path="/public/files/:token" element={<PublicFilePage />} />
         <Route path="/public/kb/:token" element={<PublicKbDocumentPage />} />
+        <Route path="/public/kb-bundle/:token" element={<PublicKbBundlePage />} />
         <Route path="/public/calendar/:token" element={<PublicCalendarEventPage />} />
         <Route path="/public/invoices/:token" element={<PublicInvoicePage />} />
         <Route path="/public/qnote-sessions/:token" element={<PublicQNoteSessionPage />} />
