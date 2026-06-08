@@ -568,6 +568,19 @@ const AccordionItem = styled(Link)<{ $active?: boolean }>`
   svg { width: 16px; height: 16px; flex-shrink: 0; opacity: 0.8; }
 `;
 
+// 아코디언 안 그룹 구분 라벨 (워크스페이스 설정 / 개인 설정)
+const AccordionGroupLabel = styled.div`
+  padding: 10px 16px 4px 48px;
+  color: rgba(204, 251, 241, 0.55);
+  font-size: 11px; font-weight: 700;
+  letter-spacing: 0.4px; text-transform: uppercase;
+  &:not(:first-child) {
+    margin-top: 6px;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    padding-top: 12px;
+  }
+`;
+
 // ─────────────────────────────────────────────────────────────
 // Icon set
 // ─────────────────────────────────────────────────────────────
@@ -594,6 +607,9 @@ const IconCreditCard = () => (<svg width="16" height="16" viewBox="0 0 24 24" fi
 const IconMembers = () => (<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>);
 const IconClients = () => (<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>);
 const IconUsers = () => (<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>);
+const IconPlug = () => (<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 11V5a2 2 0 0 1 2-2h0a2 2 0 0 1 2 2v6"/><path d="M5 11h14v3a7 7 0 0 1-14 0z"/><line x1="12" y1="21" x2="12" y2="18"/></svg>);
+const IconSliders = () => (<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>);
+const IconInbox = () => (<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>);
 const IconBusinesses = () => (<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/></svg>);
 const IconStatsTime = () => (<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>);
 const IconStatsProfit = () => (<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>);
@@ -1080,7 +1096,8 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                     $active={
                       location.pathname.startsWith('/business/settings') ||
                       location.pathname.startsWith('/settings') ||
-                      location.pathname.startsWith('/profile')
+                      location.pathname.startsWith('/profile') ||
+                      location.pathname.startsWith('/me/work-settings')
                     }
                     title={isCollapsed ? t('nav.settings') : undefined}
                   >
@@ -1090,10 +1107,14 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                   {(location.pathname.startsWith('/business/settings')
                     || location.pathname.startsWith('/settings')
                     || location.pathname.startsWith('/profile')
+                    || location.pathname.startsWith('/me/work-settings')
                     || isActive('/business/clients')
                     || isActive('/business/members')
                     || mobileExpandedSection === 'settings') && (
                     <AccordionWrap>
+                      {hasBiz('owner', 'member') && (
+                        <AccordionGroupLabel>{t('nav.workspaceGroup', '워크스페이스 설정')}</AccordionGroupLabel>
+                      )}
                       {hasBiz('owner', 'member') && (
                         <AccordionItem
                           to="/business/settings"
@@ -1129,6 +1150,14 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                           $active={location.pathname.includes('/email')}
                         >
                           <IconMail /> {t('nav.email', '이메일')}
+                        </AccordionItem>
+                      )}
+                      {hasBiz('owner', 'member') && (
+                        <AccordionItem
+                          to="/business/settings/mail-accounts"
+                          $active={location.pathname.includes('/mail-accounts')}
+                        >
+                          <IconInbox /> {t('nav.mailAccounts', 'Q Mail 계정')}
                         </AccordionItem>
                       )}
                       {hasBiz('owner', 'member') && (
@@ -1195,8 +1224,15 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                           <IconMembers /> {t('nav.members')}
                         </AccordionItem>
                       )}
-                      <AccordionItem to="/profile" $active={isActive('/profile')}>
+                      <AccordionGroupLabel>{t('nav.personalSettings', '개인 설정')}</AccordionGroupLabel>
+                      <AccordionItem to="/profile" $active={location.pathname === '/profile'}>
                         <IconUsers /> {t('user.profile')}
+                      </AccordionItem>
+                      <AccordionItem to="/profile/integrations" $active={location.pathname.startsWith('/profile/integrations')}>
+                        <IconPlug /> {t('nav.integrations', '외부 연동')}
+                      </AccordionItem>
+                      <AccordionItem to="/me/work-settings" $active={location.pathname.startsWith('/me/work-settings')}>
+                        <IconSliders /> {t('nav.myWorkSettings', '내 업무 설정')}
                       </AccordionItem>
                     </AccordionWrap>
                   )}
