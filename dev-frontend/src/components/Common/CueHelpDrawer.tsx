@@ -29,7 +29,8 @@ interface Turn {
   error?: string;
 }
 
-const CueHelpDrawer: React.FC = () => {
+// N+93 — standalone: /help-popout 분리 창에서 풀윈도우로 마운트 (FAB/백드롭 없음, 항상 open, 닫기=window.close).
+const CueHelpDrawer: React.FC<{ standalone?: boolean }> = ({ standalone = false }) => {
   const { t } = useTranslation('common');
   const { t: tErr } = useTranslation('errors');
   const location = useLocation();
@@ -38,7 +39,7 @@ const CueHelpDrawer: React.FC = () => {
   // N+93 — 비즈니스 멤버는 RightDock 통합 런처가 Q helper 진입을 제공 → 자체 floating FAB 숨김.
   // 게스트/Client 는 런처가 없으므로 기존 floating FAB 유지.
   const dockManaged = !!user?.business_id && ['owner', 'admin', 'member'].includes(user.business_role || '');
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(standalone); // standalone(/help-popout)은 항상 열림으로 시작
   const [mode, setMode] = useState<Mode>('qhelper');
   const [input, setInput] = useState('');
   const [turns, setTurns] = useState<Turn[]>([]);
@@ -78,6 +79,9 @@ const CueHelpDrawer: React.FC = () => {
     window.addEventListener('planq:open-tool', onOpen as EventListener);
     return () => window.removeEventListener('planq:open-tool', onOpen as EventListener);
   }, []);
+
+  // N+93 — standalone(/help-popout): 닫기는 창 닫기
+  const closeDrawer = () => { if (standalone) window.close(); else setOpen(false); };
 
   // 로그인 사용자가 inquiry 모드 진입 시 이름·이메일 자동 prefill (한 번만)
   useEffect(() => {
@@ -287,7 +291,7 @@ const CueHelpDrawer: React.FC = () => {
 
   return (
     <>
-      {!open && !fabHidden && !dockManaged && (
+      {!standalone && !open && !fabHidden && !dockManaged && (
         <FloatingTrigger
           type="button"
           onClick={() => { setMode('qhelper'); setOpen(true); }}
@@ -300,8 +304,8 @@ const CueHelpDrawer: React.FC = () => {
         </FloatingTrigger>
       )}
       {open && <>
-      <Backdrop onClick={() => setOpen(false)} />
-      <Drawer ref={drawerRef} role="dialog" aria-label={t('qhelper.title', 'Q helper') as string}>
+      {!standalone && <Backdrop onClick={() => setOpen(false)} />}
+      <Drawer ref={drawerRef} $standalone={standalone} role="dialog" aria-label={t('qhelper.title', 'Q helper') as string}>
         <Header>
           <HeaderTitle>
             <Sparkle aria-hidden $cue={mode === 'workspace'}>
@@ -316,19 +320,31 @@ const CueHelpDrawer: React.FC = () => {
             </span>
           </HeaderTitle>
           <HeaderActions>
-            {/* N+93 — 피드백 진입은 탭으로 이동 (문의→피드백 순). 헤더 버튼 제거. */}
-            <CloseBtn type="button" onClick={() => setOpen(false)} aria-label={t('cancel', '닫기') as string}>
+            {/* N+93 — 피드백 보내기는 상단 빨간 버튼으로 유지 (Irene). 탭은 3개(워크스페이스/PlanQ안내/문의). */}
+            {!isGuest && mode !== 'feedback' && (
+              <FeedbackEnter type="button" onClick={() => setMode('feedback')}>
+                {t('qhelper.openFeedbackBtn', '피드백 보내기')}
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+              </FeedbackEnter>
+            )}
+            {!isGuest && mode === 'feedback' && (
+              <BackToGuide type="button" onClick={() => setMode('qhelper')}>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+                {t('qhelper.backToGuide', '안내로 돌아가기')}
+              </BackToGuide>
+            )}
+            <CloseBtn type="button" onClick={closeDrawer} aria-label={t('close', '닫기') as string}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
             </CloseBtn>
           </HeaderActions>
         </Header>
-        {!isGuest && (
-          // N+93 — 순서: Cue·워크스페이스 → PlanQ 안내 → 문의 남기기 → 피드백 보내기 (Irene 지정)
+        {mode !== 'feedback' && !isGuest && (
+          // N+93 — 3탭: {워크스페이스명} 안내 → PlanQ 안내 → 문의 남기기 (피드백은 상단 빨간 버튼)
           <ModeSwitch role="tablist">
             <ModeBtn type="button" $active={mode === 'workspace'} $variant="workspace"
               onClick={() => { setMode('workspace'); setTurns([]); }} role="tab" aria-selected={mode === 'workspace'}>
               <ModeDot $variant="workspace" />
-              {t('qhelper.modeWorkspace', 'Cue · 내 워크스페이스')}
+              {t('qhelper.modeWorkspaceNamed', '{{name}} 안내', { name: user?.business_name || t('qhelper.workspaceFallback', '워크스페이스') })}
             </ModeBtn>
             <ModeBtn type="button" $active={mode === 'qhelper'} $variant="qhelper"
               onClick={() => { setMode('qhelper'); setTurns([]); }} role="tab" aria-selected={mode === 'qhelper'}>
@@ -339,11 +355,6 @@ const CueHelpDrawer: React.FC = () => {
               onClick={() => setMode('inquiry')} role="tab" aria-selected={mode === 'inquiry'}>
               <ModeDot $variant="qhelper" />
               {t('qhelper.modeInquiry', '문의 남기기')}
-            </ModeBtn>
-            <ModeBtn type="button" $active={mode === 'feedback'} $variant="qhelper"
-              onClick={() => setMode('feedback')} role="tab" aria-selected={mode === 'feedback'}>
-              <ModeDot $variant="qhelper" />
-              {t('qhelper.openFeedbackBtn', '피드백 보내기')}
             </ModeBtn>
           </ModeSwitch>
         )}
@@ -597,17 +608,18 @@ const Backdrop = styled.div`
   background: rgba(15, 23, 42, 0.30);
   z-index: 1000;
 `;
-const Drawer = styled.div`
+const Drawer = styled.div<{ $standalone?: boolean }>`
   position: fixed; top: 0; right: 0; bottom: 0;
-  width: 440px;
+  width: ${(p) => (p.$standalone ? '100vw' : '440px')};
+  ${(p) => p.$standalone && 'left: 0;'}
   background: #FFFFFF;
-  border-left: 1px solid #E2E8F0;
-  box-shadow: -8px 0 32px rgba(15, 23, 42, 0.10);
+  border-left: ${(p) => (p.$standalone ? 'none' : '1px solid #E2E8F0')};
+  box-shadow: ${(p) => (p.$standalone ? 'none' : '-8px 0 32px rgba(15, 23, 42, 0.10)')};
   z-index: 1001;
   display: flex; flex-direction: column;
-  animation: cueSlideIn 0.2s ease-out;
+  animation: ${(p) => (p.$standalone ? 'none' : 'cueSlideIn 0.2s ease-out')};
   @keyframes cueSlideIn { from { transform: translateX(100%); } to { transform: translateX(0); } }
-  @media (max-width: 1024px) { width: min(440px, 90vw); }
+  @media (max-width: 1024px) { width: ${(p) => (p.$standalone ? '100vw' : 'min(440px, 90vw)')}; }
   @media (max-width: 640px) {
     width: 100vw;
     border-left: none;
@@ -739,6 +751,26 @@ const SendBtn = styled.button`
 // ─── 헤더 액션 (피드백 진입 / 안내로 돌아가기) ───
 const HeaderActions = styled.div`
   display: inline-flex; align-items: center; gap: 4px;
+`;
+const FeedbackEnter = styled.button`
+  all: unset; cursor: pointer;
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 6px 10px;
+  background: #FFF1F2; color: #9F1239;
+  border-radius: 999px;
+  font-size: 12px; font-weight: 600;
+  transition: all 0.15s;
+  &:hover { background: #FECDD3; }
+`;
+const BackToGuide = styled.button`
+  all: unset; cursor: pointer;
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 6px 10px;
+  background: #F1F5F9; color: #475569;
+  border-radius: 999px;
+  font-size: 12px; font-weight: 600;
+  transition: all 0.15s;
+  &:hover { background: #E2E8F0; }
 `;
 // ─── 모드 토글 (qhelper / workspace) ───
 const ModeSwitch = styled.div`

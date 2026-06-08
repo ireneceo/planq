@@ -144,6 +144,8 @@
     "backToGuide": "안내로 돌아가기",
     "modeQhelper": "PlanQ 안내",
     "modeWorkspace": "Cue · 내 워크스페이스",
+    "modeWorkspaceNamed": "{{name}} 안내",
+    "workspaceFallback": "워크스페이스",
     "cueTitle": "Cue · 내 워크스페이스",
     "cueLabel": "Cue",
     "cueEmptyTitle": "내 워크스페이스에 대해 무엇이든",

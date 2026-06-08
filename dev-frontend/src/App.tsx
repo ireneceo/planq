@@ -38,6 +38,8 @@ const OauthConnectConfirmPage = lazy(() => import('./pages/Login/OauthConnectCon
 const QNotePage = lazy(() => import('./pages/QNote/QNotePage'));
 // 사이클 N+17 hotfix — 메모 분리 창 전용 minimal page (MainLayout 우회)
 const MemoStandalonePage = lazy(() => import('./pages/QNote/MemoStandalonePage'));
+const NoteCaptureStandalonePage = lazy(() => import('./pages/QNote/NoteCaptureStandalonePage'));
+const HelpStandalonePage = lazy(() => import('./pages/Help/HelpStandalonePage'));
 const ProfilePage = lazy(() => import('./pages/Profile/ProfilePage'));
 const ProfileIntegrationsPage = lazy(() => import('./pages/Profile/ProfileIntegrationsPage'));
 const MyWorkSettingsPage = lazy(() => import('./pages/Profile/MyWorkSettingsPage'));
@@ -282,10 +284,20 @@ function App() {
             <MemoStandalonePage />
           </ProtectedRoute>
         } />
-        {/* N+93 (#9) — Q Talk 분리 창 (window.open). MainLayout 우회 = 데스크탑앱 밖에서 채팅 */}
+        {/* N+93 (#9) — 통합 런처(RightDock) 분리 창. 모두 MainLayout 우회 = 도구를 자기 창으로 띄워 일하면서 사용 */}
         <Route path="/talk-popout" element={
           <ProtectedRoute>
             <QTalkStandalonePage />
+          </ProtectedRoute>
+        } />
+        <Route path="/note-popout" element={
+          <ProtectedRoute>
+            <NoteCaptureStandalonePage />
+          </ProtectedRoute>
+        } />
+        <Route path="/help-popout" element={
+          <ProtectedRoute>
+            <HelpStandalonePage />
           </ProtectedRoute>
         } />
 
