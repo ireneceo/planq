@@ -20,6 +20,8 @@ const { authenticateToken } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 // §8.5 — 고객용 task 직렬화 (공수 시간·예측 출처·내부 메타 차단)
 const { serializeTaskForClient } = require('../utils/taskClientView');
+// 피드백 ID 15/16 — Focus 세션 ↔ task status 동기화 (워크플로 전이에서도 배너 즉시 정리)
+const { syncFocusOnTaskStatus } = require('../services/focusSync');
 
 // 이 business 에서 멤버가 아니면 고객(요청자)으로 간주.
 // 워크플로 라우트는 isRequester/canAccessTask 로 고객 요청자도 통과시키므로,
@@ -220,6 +222,7 @@ router.post('/:id/submit-review', authenticateToken, async (req, res, next) => {
     const reviewers = await TaskReviewer.findAll({ where: { task_id: task.id } });
     if (reviewers.length === 0) return errorResponse(res, 'no_reviewers_add_first', 400);
 
+    const prevStatusSR = task.status;
     const t = await sequelize.transaction();
     try {
       // 모든 리뷰어 state 리셋 (새 라운드)
@@ -238,6 +241,9 @@ router.post('/:id/submit-review', authenticateToken, async (req, res, next) => {
       });
       await t.commit();
     } catch (e) { await t.rollback(); throw e; }
+
+    // in_progress → reviewing: 담당자 Focus 세션 정리 (좌측 배너 잔존 차단)
+    await syncFocusOnTaskStatus(task, prevStatusSR, task.status);
 
     broadcast(req, task);
 
@@ -283,6 +289,9 @@ router.post('/:id/cancel-review', authenticateToken, async (req, res, next) => {
       });
       await t.commit();
     } catch (e) { await t.rollback(); throw e; }
+
+    // reviewing → in_progress: 담당자 Focus 세션 재시작 (focus_enabled 시)
+    await syncFocusOnTaskStatus(task, 'reviewing', task.status);
 
     broadcast(req, task);
 
@@ -468,6 +477,7 @@ router.post('/:id/complete', authenticateToken, async (req, res, next) => {
       return errorResponse(res, 'not_ready_for_complete', 400);
     }
 
+    const prevStatusComplete = task.status;
     const t = await sequelize.transaction();
     try {
       const fromStatus = task.status;
@@ -479,6 +489,9 @@ router.post('/:id/complete', authenticateToken, async (req, res, next) => {
       });
       await t.commit();
     } catch (e) { await t.rollback(); throw e; }
+
+    // 완료 → 담당자 Focus 세션 종료 (ID 16#1: 완료해도 좌측 배너 "포커스 중" 잔존 회귀 fix)
+    await syncFocusOnTaskStatus(task, prevStatusComplete, 'completed');
 
     broadcast(req, task);
 

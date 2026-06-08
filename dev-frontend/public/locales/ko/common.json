@@ -148,7 +148,7 @@
     "cueLabel": "Cue",
     "cueEmptyTitle": "내 워크스페이스에 대해 무엇이든",
     "cueEmptyHint": "현재 워크스페이스의 고객·업무·일정·회의를 기반으로 답변합니다. 다른 워크스페이스 데이터는 보지 않습니다.",
-    "cueInputPh": "내 워크스페이스에 대해 묻기 (Cmd/Ctrl + Enter)",
+    "cueInputPh": "내 워크스페이스에 대해 묻기 (Enter 로 보내기, Shift+Enter 줄바꿈)",
     "cueQuickTasks": "내 업무",
     "cueQuickClients": "고객",
     "cueQuickSchedule": "일정",
@@ -181,7 +181,7 @@
     "you": "나",
     "guideLabel": "Q helper",
     "thinking": "생각 중…",
-    "inputPh": "질문을 입력하세요 (Cmd/Ctrl + Enter 로 보내기)",
+    "inputPh": "질문을 입력하세요 (Enter 로 보내기, Shift+Enter 줄바꿈)",
     "send": "보내기",
     "sending": "전송 중…"
   },
@@ -192,7 +192,7 @@
     "toggleHint": "로 언제든 열고 닫기",
     "you": "나",
     "thinking": "생각 중…",
-    "inputPh": "질문을 입력하세요 (Cmd/Ctrl + Enter 로 보내기)",
+    "inputPh": "질문을 입력하세요 (Enter 로 보내기, Shift+Enter 줄바꿈)",
     "send": "보내기",
     "sending": "전송 중…"
   },

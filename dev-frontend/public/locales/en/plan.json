@@ -3,6 +3,11 @@
     "title": "Subscription Plan",
     "desc": "Review your plan, usage, and upgrade options."
   },
+  "payDue": {
+    "title": "Payment due",
+    "hint": "Pay by bank transfer, then mark it as paid to reactivate instantly.",
+    "cta": "Proceed to payment"
+  },
   "current": {
     "title": "Current Plan",
     "active": "Active",

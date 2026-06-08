@@ -543,13 +543,16 @@ const CueHelpDrawer: React.FC = () => {
                 ref={inputRef}
                 value={input}
                 placeholder={mode === 'workspace'
-                  ? t('qhelper.cueInputPh', '내 워크스페이스에 대해 묻기 (Cmd/Ctrl + Enter)') as string
+                  ? t('qhelper.cueInputPh', '내 워크스페이스에 대해 묻기 (Enter 로 보내기, Shift+Enter 줄바꿈)') as string
                   : isGuest
-                    ? t('qhelper.guestInputPh', 'PlanQ 에 대해 무엇이든 물어보세요 (Cmd/Ctrl + Enter)') as string
-                    : t('qhelper.inputPh', '질문을 입력하세요 (Cmd/Ctrl + Enter 로 보내기)') as string}
+                    ? t('qhelper.guestInputPh', 'PlanQ 에 대해 무엇이든 물어보세요 (Enter 로 보내기)') as string
+                    : t('qhelper.inputPh', '질문을 입력하세요 (Enter 로 보내기, Shift+Enter 줄바꿈)') as string}
                 onChange={e => setInput(e.target.value)}
                 onKeyDown={e => {
-                  if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                  // 피드백 ID 12 — Q Talk 과 동일한 입력 동작으로 통일: Enter 전송 / Shift+Enter 줄바꿈.
+                  // IME 한글 조합 중 Enter 는 조합 확정이므로 전송 안 함 (isComposing / keyCode 229 가드).
+                  if (e.nativeEvent.isComposing || (e.nativeEvent as KeyboardEvent).keyCode === 229) return;
+                  if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault();
                     submit();
                   }

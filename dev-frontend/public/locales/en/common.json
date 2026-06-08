@@ -148,7 +148,7 @@
     "cueLabel": "Cue",
     "cueEmptyTitle": "Anything about my workspace",
     "cueEmptyHint": "Answers based on the current workspace's clients, tasks, schedule, and meetings. Other workspaces' data is not used.",
-    "cueInputPh": "Ask about my workspace (Cmd/Ctrl + Enter)",
+    "cueInputPh": "Ask about my workspace (Enter to send, Shift+Enter for newline)",
     "cueQuickTasks": "My tasks",
     "cueQuickClients": "Clients",
     "cueQuickSchedule": "Schedule",
@@ -181,7 +181,7 @@
     "you": "You",
     "guideLabel": "Q helper",
     "thinking": "Thinking…",
-    "inputPh": "Ask a question (Cmd/Ctrl + Enter to send)",
+    "inputPh": "Ask a question (Enter to send, Shift+Enter for newline)",
     "send": "Send",
     "sending": "Sending…"
   },
@@ -192,7 +192,7 @@
     "toggleHint": "to toggle anytime",
     "you": "You",
     "thinking": "Thinking…",
-    "inputPh": "Ask a question (Cmd/Ctrl + Enter to send)",
+    "inputPh": "Ask a question (Enter to send, Shift+Enter for newline)",
     "send": "Send",
     "sending": "Sending…"
   },

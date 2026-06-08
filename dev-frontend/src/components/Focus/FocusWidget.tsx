@@ -94,6 +94,27 @@ const FocusWidget: React.FC<Props> = ({ isCollapsed }) => {
     return () => window.clearInterval(id);
   }, [enabled, loadCurrent]);
 
+  // N+92 — 실시간 반영 (CLAUDE.md §16). 사용자 호소(피드백 ID 15/16):
+  //   "업무 완료/다른 업무 시작 시 좌측 [포커스 중] 배너가 즉시 안 바뀌고 앱을 껐다 켜야 바뀜".
+  //   원인: 30초 폴링만 있고 이벤트 listener 부재. task status 전이가 backend 에서 focus session 을
+  //   전환/종료하고 'inbox:refresh' (TaskDetailDrawer 워크플로 액션) + 'focus:refresh' 를 dispatch 하므로
+  //   여기서 받아 즉시 loadCurrent() → 완료 시 배너 사라짐 / 전환 시 새 업무로 즉시 갱신.
+  useEffect(() => {
+    if (!enabled) return;
+    let timer: number | undefined;
+    const onRefresh = () => {
+      if (timer) window.clearTimeout(timer);
+      timer = window.setTimeout(loadCurrent, 250);  // 250ms debounce (연속 이벤트 합치기)
+    };
+    window.addEventListener('inbox:refresh', onRefresh);
+    window.addEventListener('focus:refresh', onRefresh);
+    return () => {
+      if (timer) window.clearTimeout(timer);
+      window.removeEventListener('inbox:refresh', onRefresh);
+      window.removeEventListener('focus:refresh', onRefresh);
+    };
+  }, [enabled, loadCurrent]);
+
   // baseline 갱신 — session.actual_seconds 가 server fetch 로 바뀔 때마다 그 시점을 기록.
   // 카운터는 baseline.actualSec + (Date.now - baseline.at) 으로 계산 (정확한 단조 증가).
   useEffect(() => {

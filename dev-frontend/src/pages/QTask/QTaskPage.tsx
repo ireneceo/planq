@@ -642,6 +642,11 @@ const QTaskPage:React.FC=()=>{
         }
         return u;
       }));
+      // N+92 — status/progress 변경은 backend 에서 Focus session 을 전환/종료한다 (routes/tasks.js PATCH /time).
+      // 좌측 FocusWidget 이 즉시 반영하도록 focus:refresh dispatch (피드백 ID 15/16 — 30s 폴링 지연 호소 fix).
+      if(field==='status'||field==='progress_percent'){
+        try{window.dispatchEvent(new CustomEvent('focus:refresh'));}catch{/* noop */}
+      }
     }catch{}
   };
 
@@ -839,6 +844,16 @@ const QTaskPage:React.FC=()=>{
     const qs=sp.toString();
     navigate(qs?`${location.pathname}?${qs}`:location.pathname,{replace:true});
   };
+
+  // N+92 — URL ?task= → detailTaskId 동기화 (피드백 ID 16#4 fix).
+  //   detailTaskId 는 mount 시 1회만 URL 에서 초기화돼서, 이미 /tasks 에 있을 때 외부(좌측 FocusWidget
+  //   배너 업무명 클릭 등)에서 navigate(/tasks?task=N) 해도 드로어가 안 열리던 회귀.
+  //   URL→state 단방향 sync (openDetail 이 state+URL 둘 다 set 하므로 동일 값 set 은 no-op, 루프 없음).
+  useEffect(()=>{
+    const q=searchParams.get('task');
+    const next=q?Number(q):null;
+    setDetailTaskId(prev=>prev===next?prev:next);
+  },[searchParams]);
 
   // 리스트 타이틀/날짜 편집용 간단 저장 (드로어 내부에도 자체 saveField 존재)
   const saveTaskField=async(taskId:number,field:string,value:unknown)=>{

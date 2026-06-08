@@ -1,7 +1,35 @@
 # PlanQ 세션 상태
 
-**마지막 업데이트:** 2026-06-08 (사이클 N+91)
-**작업 상태:** ✅ 운영 라이브 — **v1.33.1** (deploy `20260608_075511`, commit `84c5d7a`)
+**마지막 업데이트:** 2026-06-08 (사이클 N+92)
+**작업 상태:** 진행 중 — 운영 고객 피드백 처리 (dev 검증 완료 · 운영 미배포)
+
+---
+
+## 🚧 N+92 진행 — 운영 고객 피드백 11건 처리 (dev 검증, 운영 미배포)
+
+> **계기:** 운영(planq.kr) 플랫폼 피드백 16건 중 미답변 11건(ID 6~16) 검토. 답변 전부 작성 + 상태 reviewing 으로 운영 DB 반영(platform_admin user 1). 고객이 자주 호소한 항목부터 실제 수정.
+
+### ✅ 이번 세션 수정 완료 (dev 검증 · 다음 배포 반영 예정)
+- **Focus 좌측 배너 실시간 + 완료 정리 (ID 15, 16#1·#2·#4)** — 핵심 원인 2개:
+  - **backend:** `task_workflow.js`(complete/submit-review/cancel-review)가 FocusSession 을 전혀 안 건드려, **워크플로로 완료해도 세션이 안 끊겨 배너 잔존**. 신규 `services/focusSync.js syncFocusOnTaskStatus()` 로 in_progress 진입/이탈 시 담당자 세션 시작/종료. routes/tasks.js 와 동일 로직 단일화. **E2E 6/6**(완료 시 세션 stopped + current null).
+  - **frontend:** `FocusWidget` 가 30s 폴링만 해서 즉시 반영 안 됨 → `inbox:refresh`/`focus:refresh` window 이벤트 listen(250ms debounce). `QTaskPage.saveField` status/progress 변경 시 `focus:refresh` dispatch.
+  - **업무명 클릭 이동(16#4):** `QTaskPage` 가 `?task=` 를 mount 1회만 읽어 이미 /tasks 일 때 배너 클릭 시 드로어 안 열림 → URL→state 단방향 sync useEffect 추가.
+- **Q helper 엔터 동작 통일 (ID 12#1)** — `CueHelpDrawer` 입력을 Q Talk 과 동일(Enter 전송, Shift+Enter 줄바꿈, IME 가드). 안내 문구 ko/en 갱신.
+- **결제 배너 → 미결제 청구 결제 UI (Irene 추가 요청)** — 배너 "결제하러 가기" 가 플랜 재선택 화면으로만 가던 것 → grace/past_due 면 `?pay=1` 로 진입해 **미결제 청구 결제 모달 자동 오픈**(CheckoutModal: 청구 내역+입금 안내+입금완료 처리). `PlanSettings` 상단에 **"결제가 필요한 청구" 카드**(플랜·금액·결제 버튼) 신설. i18n payDue.* ko/en. (demoted=free 강등은 재구독이라 플랜 선택 그대로)
+
+### 🚧 답변+진행중(개발 예정) — 운영 reviewing 처리됨
+- ID 16#3 A→B→A 포커스 재개 버튼(설계 필요) / ID 14 업무 삭제 안 됨 / ID 13 Q docs 리스트·Q info 수정삭제공유 / ID 12#2 Q Talk 입력란 흔들림 / ID 11 Q Task 실시간·프로젝트명변경 / ID 10 단계 되돌리기 버튼 / ID 9 Q Talk 팝아웃 새 창 / ID 8 활성 채팅방 토스터·입장 스크롤 고정 / ID 7 모바일 채팅 아이콘·간격 / ID 6 Q info 공유·다중전송·미리보기
+
+### 수정 파일 (dev)
+- backend: `services/focusSync.js`(신규), `routes/task_workflow.js`
+- frontend: `components/Focus/FocusWidget.tsx`, `pages/QTask/QTaskPage.tsx`, `components/Common/CueHelpDrawer.tsx`, `pages/Settings/PlanSettings.tsx`, `components/Layout/WorkspaceBillingBanner.tsx`, locales(plan/common ko·en)
+
+### 검증
+- 빌드 EXIT 0 · 백엔드 focus E2E 6/6 · dev 헬스 OK · i18n 신규 하드코딩 0
+
+---
+
+## ✅ N+91 — v1.33.1 운영 라이브 (deploy `20260608_075511`, commit `84c5d7a`)
 
 ---
 
