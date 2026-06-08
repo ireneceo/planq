@@ -151,14 +151,14 @@ const MetaItem = styled.span`font-size: 12px; color: #64748B;`;
 const BodyBox = styled.div`font-size: 14px; color: #334155; line-height: 1.7; padding: 16px 18px; background: #F8FAFC; border-radius: 10px; white-space: pre-wrap; word-break: break-word;`;
 const CTAArea = styled.div`display: flex; gap: 8px; margin: 24px 0 12px; flex-wrap: wrap;`;
 const CTA = styled.a`
-  display: inline-flex; align-items: center; padding: 10px 20px;
+  display: inline-flex; align-items: center; min-height: 44px; padding: 10px 20px;
   background: #14B8A6; color: #fff; font-size: 13px; font-weight: 700;
   border-radius: 8px; text-decoration: none;
   transition: background 0.15s;
   &:hover { background: #0D9488; }
 `;
 const CTASecondary = styled.a`
-  display: inline-flex; align-items: center; padding: 10px 20px;
+  display: inline-flex; align-items: center; min-height: 44px; padding: 10px 20px;
   background: #fff; color: #334155; font-size: 13px; font-weight: 600;
   border: 1px solid #E2E8F0; border-radius: 8px; text-decoration: none;
   &:hover { border-color: #CBD5E1; background: #F8FAFC; }
