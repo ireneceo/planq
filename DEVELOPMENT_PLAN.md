@@ -67,6 +67,29 @@
 
 ---
 
+## ✅ 완료: 사이클 N+93 — 설정 메뉴 개인/워크스페이스 분리 + v1.33.2 운영 라이브 (2026-06-08)
+
+> deploy `20260608_190800`, commit `2227a01`. N+92(Focus 배너 실시간·Q helper 엔터·미결제 청구 결제 UI) + 통합 런처·팝아웃·tap-to-reveal 동봉 배포.
+
+### 완료된 작업
+
+| 작업 | 설명 | 상태 |
+|------|------|:----:|
+| 설정 메뉴 그룹 분리 | 사이드바 설정 아코디언을 **워크스페이스 설정 / 개인 설정** 2그룹으로 시각 분리 (AccordionGroupLabel) | ✅ 완료 |
+| 개인 설정 진입로 노출 | 내 프로필 · 외부 연동(`/profile/integrations`) · 내 업무 설정(`/me/work-settings`) — 페이지는 있었으나 메뉴 없어 "찾을 수 없음" 이던 것 노출 | ✅ 완료 |
+| Q Mail 계정 노출 | `/business/settings/mail-accounts` 워크스페이스 그룹에 진입로 추가 (IconInbox) | ✅ 완료 |
+| 아코디언 열림/active 조건 보강 | `/me/work-settings` 경로 추가, 프로필 active 를 exact match 로 분리 | ✅ 완료 |
+| i18n 키 추가 | layout.json ko/en — integrations/mailAccounts/personalSettings/workspaceGroup, en myWorkSettings | ✅ 완료 |
+| v1.33.2 운영 배포 | 검증 3/3 (헬스·프론트·PM2) + 버전업 + 임시 테스트 파일 제거 | ✅ 완료 |
+
+### 수정된 파일
+- `dev-frontend/src/components/Layout/MainLayout.tsx` (그룹 라벨·아이콘·개인 그룹·Q Mail 항목)
+- `dev-frontend/public/locales/ko/layout.json`, `dev-frontend/public/locales/en/layout.json`
+- `dev-backend/package.json`, `dev-frontend/package.json` (1.33.1 → 1.33.2)
+- `dev-backend/test-popout-auth.js` (제거)
+
+---
+
 ## ✅ 완료: 사이클 N+92 — 운영 고객 피드백 처리 (2026-06-08, dev 검증 완료 · **운영 미배포**)
 
 > **계기:** 운영(planq.kr) 플랫폼 피드백 16건 중 미답변 11건(ID 6~16) 검토. 답변 전부 작성 + 상태 reviewing 운영 DB 반영(platform_admin user 1). 고객이 자주 호소한 항목부터 실제 수정.
