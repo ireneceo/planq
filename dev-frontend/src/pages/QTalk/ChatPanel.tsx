@@ -2411,6 +2411,12 @@ const MessageItem = styled.div<{ $continuation?: boolean; $selected?: boolean; $
   `}
   &:hover button.pq-msg-toolbar-btn { opacity: 1; }
   &:hover > .pq-msg-toolbar { opacity: 1; pointer-events: auto; transform: translateY(0); }
+  /* N+93 (#7) — 모바일: 간격 압축으로 채팅 더 많이 보이게 */
+  @media (max-width: 640px) {
+    gap: 8px;
+    margin-top: ${(p) => (p.$continuation ? '0' : '8px')};
+    padding: 2px 6px;
+  }
 `;
 
 // 그룹 연속 메시지에서 Avatar 자리 차지 (들여쓰기 정렬용 빈 박스)
@@ -2547,17 +2553,20 @@ const MessageToolbar = styled.div.attrs({ className: 'pq-msg-toolbar' })`
   transition: opacity 0.15s, transform 0.15s;
   z-index: 5;
   @media (hover: none), (max-width: 640px) {
-    /* 모바일/터치: 항상 노출 (hover 없음) */
-    position: static;
+    /* N+93 (#7) — 모바일/터치: 우측 하단 컴팩트 오버레이. 정적 row 가 세로 공간 차지하던 것 제거 → 채팅 더 많이 보이게. */
+    position: absolute;
+    top: auto;
+    bottom: 2px;
+    right: 4px;
     transform: none;
-    margin-top: 4px;
+    margin-top: 0;
     opacity: 1;
     pointer-events: auto;
-    box-shadow: none;
-    background: transparent;
-    border: none;
-    padding: 0;
-    justify-content: flex-end;
+    background: rgba(255, 255, 255, 0.92);
+    border: 1px solid #E2E8F0;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.1);
+    padding: 1px;
+    gap: 0;
   }
 `;
 const ToolBarBtn = styled.button<{ $active?: boolean }>`

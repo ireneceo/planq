@@ -464,6 +464,55 @@ router.post('/:id/reviewers/me/revert', authenticateToken, async (req, res, next
 });
 
 // ─────────────────────────────────────────────
+// POST /api/tasks/:id/revert-status — 업무 단계 되돌리기 (#10, N+93)
+//   직전 상태(가장 최근 status 전이의 from_status)로 복귀. 권한: 담당자 / admin / owner.
+//   reviewing/revision_requested 로 되돌릴 때 reviewer 0명이면 차단(일관).
+// ─────────────────────────────────────────────
+router.post('/:id/revert-status', authenticateToken, async (req, res, next) => {
+  try {
+    const task = await loadTaskOrFail(req.params.id, res);
+    if (!task) return;
+    const userId = req.user.id;
+    const isAssignee = task.assignee_id === userId;
+    const bm = await BusinessMember.findOne({ where: { business_id: task.business_id, user_id: userId } });
+    const isAdminOrOwner = bm?.role === 'owner' || bm?.role === 'admin' || req.user.platform_role === 'platform_admin';
+    if (!isAssignee && !isAdminOrOwner) return errorResponse(res, 'forbidden_revert — 담당자 또는 관리자만 되돌릴 수 있습니다.', 403);
+
+    // 직전 상태 — 가장 최근 status 전이(from_status 있음) history
+    const last = await TaskStatusHistory.findOne({
+      where: { task_id: task.id, from_status: { [Op.ne]: null } },
+      order: [['id', 'DESC']],
+    });
+    if (!last || !last.from_status || last.from_status === task.status) {
+      return errorResponse(res, 'nothing_to_revert', 400);
+    }
+    const prevStatus = task.status;
+    const target = last.from_status;
+    if (['reviewing', 'revision_requested'].includes(target)) {
+      const revCount = await TaskReviewer.count({ where: { task_id: task.id } });
+      if (revCount === 0) return errorResponse(res, 'no_reviewers_assigned', 400);
+    }
+
+    const t = await sequelize.transaction();
+    try {
+      await task.update({ status: target }, { transaction: t });
+      await logHistory({ taskId: task.id, eventType: 'revert', fromStatus: prevStatus, toStatus: target, actorUserId: userId, transaction: t });
+      await t.commit();
+    } catch (e) { await t.rollback(); throw e; }
+
+    // focus 동기화 (in_progress 진입/이탈 시 세션 정리)
+    try { await syncFocusOnTaskStatus(task, prevStatus, target); } catch (e) { console.warn('[revert focusSync]', e.message); }
+    await task.reload();
+    broadcast(req, task, 'task:updated');
+    // 알림 — 담당자 본인이 되돌린 게 아니면 담당자에게
+    if (task.assignee_id && task.assignee_id !== userId) {
+      notifyTask({ userId: task.assignee_id, task, title: '업무 단계가 되돌려졌어요', wsName: await workspaceName(task.business_id), excludeUserId: userId });
+    }
+    return successResponse(res, task.toJSON());
+  } catch (err) { next(err); }
+});
+
+// ─────────────────────────────────────────────
 // POST /api/tasks/:id/complete — 담당자 최종 완료
 // ─────────────────────────────────────────────
 router.post('/:id/complete', authenticateToken, async (req, res, next) => {

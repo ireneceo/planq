@@ -68,7 +68,10 @@
     "idleDetectedTitle": "Away detected",
     "disabledTitle": "Focus is off",
     "disabledHint": "Enable Focus in My Work Settings — time will track automatically when in progress.",
-    "goToSettings": "Go to settings"
+    "goToSettings": "Go to settings",
+    "resumeTitle": "In progress",
+    "resumeHint": "Focus moved to another task. Resume to continue tracking time.",
+    "resumeFocus": "Resume work"
   },
   "settings": {
     "sectionTitle": "My Work Flow",
