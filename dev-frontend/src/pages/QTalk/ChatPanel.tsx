@@ -2099,6 +2099,11 @@ const ProjectSublabel = styled.div`
   padding-left: 10px;
   border-left: 1px solid #E2E8F0;
   span { color: #94A3B8; }
+  /* 모바일에서 구분자 제거 */
+  @media (max-width: 640px) {
+    padding-left: 0;
+    border-left: none;
+  }
 `;
 
 const SublabelIcon = styled.svg`
@@ -2135,6 +2140,7 @@ const MobileChannelRow = styled.div`
     display: flex;
     gap: 6px;
     flex-wrap: wrap;
+    margin-top: 4px;
   }
 `;
 
