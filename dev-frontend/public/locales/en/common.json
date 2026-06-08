@@ -144,6 +144,8 @@
     "backToGuide": "Back to guide",
     "modeQhelper": "PlanQ guide",
     "modeWorkspace": "Cue · My workspace",
+    "modeWorkspaceNamed": "{{name}} guide",
+    "workspaceFallback": "Workspace",
     "cueTitle": "Cue · My workspace",
     "cueLabel": "Cue",
     "cueEmptyTitle": "Anything about my workspace",
