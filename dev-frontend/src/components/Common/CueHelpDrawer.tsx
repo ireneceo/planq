@@ -40,7 +40,7 @@ const CueHelpDrawer: React.FC<{ standalone?: boolean }> = ({ standalone = false 
   // 게스트/Client 는 런처가 없으므로 기존 floating FAB 유지.
   const dockManaged = !!user?.business_id && ['owner', 'admin', 'member'].includes(user.business_role || '');
   const [open, setOpen] = useState(standalone); // standalone(/help-popout)은 항상 열림으로 시작
-  const [mode, setMode] = useState<Mode>('qhelper');
+  const [mode, setMode] = useState<Mode>('workspace'); // N+93 — 첫 탭(워크스페이스 안내)이 디폴트 (Irene)
   const [input, setInput] = useState('');
   const [turns, setTurns] = useState<Turn[]>([]);
   const [submitting, setSubmitting] = useState(false);
@@ -74,7 +74,7 @@ const CueHelpDrawer: React.FC<{ standalone?: boolean }> = ({ standalone = false 
   // N+93 — 통합 런처(RightDock)에서 Q helper 선택 시 오픈 (qhelper 모드로 진입)
   useEffect(() => {
     const onOpen = (e: Event) => {
-      if ((e as CustomEvent).detail?.tool === 'qhelper') { setMode('qhelper'); setOpen(true); }
+      if ((e as CustomEvent).detail?.tool === 'qhelper') { setMode('workspace'); setOpen(true); }
     };
     window.addEventListener('planq:open-tool', onOpen as EventListener);
     return () => window.removeEventListener('planq:open-tool', onOpen as EventListener);
@@ -294,7 +294,7 @@ const CueHelpDrawer: React.FC<{ standalone?: boolean }> = ({ standalone = false 
       {!standalone && !open && !fabHidden && !dockManaged && (
         <FloatingTrigger
           type="button"
-          onClick={() => { setMode('qhelper'); setOpen(true); }}
+          onClick={() => { setMode(isGuest ? 'qhelper' : 'workspace'); setOpen(true); }}
           aria-label={t('qhelper.openFloating', 'Q helper — 사용 안내 + 피드백') as string}
           title={t('qhelper.openFloating', 'Q helper — 사용 안내 + 피드백') as string}
         >
@@ -308,15 +308,12 @@ const CueHelpDrawer: React.FC<{ standalone?: boolean }> = ({ standalone = false 
       <Drawer ref={drawerRef} $standalone={standalone} role="dialog" aria-label={t('qhelper.title', 'Q helper') as string}>
         <Header>
           <HeaderTitle>
-            <Sparkle aria-hidden $cue={mode === 'workspace'}>
+            {/* N+93 — 타이틀은 탭과 무관하게 항상 'Q helper' 고정 (Irene). Sparkle 도 항상 민트. */}
+            <Sparkle aria-hidden $cue={false}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 16.8 5.8 21.3l2.4-7.4L2 9.4h7.6L12 2z"/></svg>
             </Sparkle>
             <span>
-              {mode === 'feedback' ? t('qhelper.fbHeaderTitle', '피드백 보내기') :
-               mode === 'inquiry' ? t('qhelper.inqHeaderTitle', '문의 남기기') :
-               mode === 'workspace' ? t('qhelper.cueTitle', 'Cue · 내 워크스페이스') :
-               isGuest ? t('qhelper.guestTitle', 'PlanQ 안내') :
-               t('qhelper.title', 'Q helper')}
+              {isGuest ? t('qhelper.guestTitle', 'PlanQ 안내') : t('qhelper.title', 'Q helper')}
             </span>
           </HeaderTitle>
           <HeaderActions>
@@ -341,9 +338,9 @@ const CueHelpDrawer: React.FC<{ standalone?: boolean }> = ({ standalone = false 
         {mode !== 'feedback' && !isGuest && (
           // N+93 — 3탭: {워크스페이스명} 안내 → PlanQ 안내 → 문의 남기기 (피드백은 상단 빨간 버튼)
           <ModeSwitch role="tablist">
-            <ModeBtn type="button" $active={mode === 'workspace'} $variant="workspace"
+            <ModeBtn type="button" $active={mode === 'workspace'} $variant="qhelper"
               onClick={() => { setMode('workspace'); setTurns([]); }} role="tab" aria-selected={mode === 'workspace'}>
-              <ModeDot $variant="workspace" />
+              <ModeDot $variant="qhelper" />
               {t('qhelper.modeWorkspaceNamed', '{{name}} 안내', { name: user?.business_name || t('qhelper.workspaceFallback', '워크스페이스') })}
             </ModeBtn>
             <ModeBtn type="button" $active={mode === 'qhelper'} $variant="qhelper"
@@ -439,8 +436,8 @@ const CueHelpDrawer: React.FC<{ standalone?: boolean }> = ({ standalone = false 
                     <QuLabel>{t('qhelper.you', '나')}</QuLabel>
                     <QText>{tn.q}</QText>
                   </Q>
-                  <A $variant={mode === 'workspace' ? 'workspace' : 'qhelper'}>
-                    <ALabel $variant={mode === 'workspace' ? 'workspace' : 'qhelper'}>
+                  <A $variant="qhelper">
+                    <ALabel $variant="qhelper">
                       {mode === 'workspace' ? t('qhelper.cueLabel', 'Cue') : t('qhelper.guideLabel', 'Q helper')}
                     </ALabel>
                     {tn.loading
@@ -555,8 +552,9 @@ const CueHelpDrawer: React.FC<{ standalone?: boolean }> = ({ standalone = false 
         </Body>
         <Footer>
           {(mode === 'qhelper' || mode === 'workspace') && (
-            <>
-              <InputArea
+            // N+93 — Q Talk 컴포저와 동일: 전송 아이콘이 입력란 안. Enter 전송 / Shift+Enter 줄바꿈 (IME 가드).
+            <InputWrap>
+              <InputTextarea
                 ref={inputRef}
                 value={input}
                 placeholder={mode === 'workspace'
@@ -566,7 +564,7 @@ const CueHelpDrawer: React.FC<{ standalone?: boolean }> = ({ standalone = false 
                     : t('qhelper.inputPh', '질문을 입력하세요 (Enter 로 보내기, Shift+Enter 줄바꿈)') as string}
                 onChange={e => setInput(e.target.value)}
                 onKeyDown={e => {
-                  // 피드백 ID 12 — Q Talk 과 동일한 입력 동작으로 통일: Enter 전송 / Shift+Enter 줄바꿈.
+                  // Q Talk 과 동일한 입력 동작: Enter 전송 / Shift+Enter 줄바꿈.
                   // IME 한글 조합 중 Enter 는 조합 확정이므로 전송 안 함 (isComposing / keyCode 229 가드).
                   if (e.nativeEvent.isComposing || (e.nativeEvent as KeyboardEvent).keyCode === 229) return;
                   if (e.key === 'Enter' && !e.shiftKey) {
@@ -576,10 +574,13 @@ const CueHelpDrawer: React.FC<{ standalone?: boolean }> = ({ standalone = false 
                 }}
                 rows={2}
               />
-              <SendBtn type="button" onClick={submit} disabled={submitting || !input.trim()}>
-                {submitting ? t('qhelper.sending', '전송 중…') : t('qhelper.send', '보내기')}
+              <SendBtn type="button" onClick={submit} disabled={submitting || !input.trim()}
+                title={t('qhelper.send', '보내기') as string} aria-label={t('qhelper.send', '보내기') as string}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" />
+                </svg>
               </SendBtn>
-            </>
+            </InputWrap>
           )}
           {mode === 'feedback' && (
             <FbSendBtn type="button" onClick={submitFeedback} disabled={submitting || !fbBody.trim()}>
@@ -721,32 +722,43 @@ const Footer = styled.div`
   border-top: 1px solid #E2E8F0;
   display: flex; gap: 8px; align-items: flex-end;
 `;
-const InputArea = styled.textarea`
+// N+93 — Q Talk 컴포저(InputWrap)와 동일: 입력란 테두리 안에 아이콘 전송 버튼. focus-within 하이라이트.
+const InputWrap = styled.div`
   flex: 1;
-  resize: none;
-  border: 1px solid #E2E8F0;
-  border-radius: 8px;
+  display: flex; align-items: flex-end; gap: 8px;
   padding: 8px 10px;
-  font-size: 13px; font-family: inherit;
-  color: #0F172A;
-  &:focus {
-    outline: none;
+  background: #F8FAFC;
+  border: 1px solid #E2E8F0;
+  border-radius: 10px;
+  &:focus-within {
     border-color: #14B8A6;
-    box-shadow: 0 0 0 3px rgba(20,184,166,0.15);
+    background: #FFFFFF;
+    box-shadow: 0 0 0 3px rgba(20,184,166,0.1);
   }
+`;
+const InputTextarea = styled.textarea`
+  flex: 1;
+  border: none; background: transparent; resize: none;
+  font-size: 13px; font-family: inherit;
+  line-height: 1.45; color: #0F172A;
+  padding: 4px 0;
+  min-height: 40px; max-height: 120px;
+  &:focus { outline: none; }
+  &::placeholder { color: #94A3B8; }
+  @media (max-width: 1024px) { font-size: 16px; }
 `;
 const SendBtn = styled.button`
   flex-shrink: 0;
-  padding: 8px 14px;
-  background: #14B8A6;
-  color: #FFFFFF;
+  width: 36px; height: 36px;
+  display: flex; align-items: center; justify-content: center;
+  background: #0D9488; color: #FFFFFF;
   border: none; border-radius: 8px;
-  font-size: 13px; font-weight: 600;
   cursor: pointer;
-  height: 36px;
+  touch-action: manipulation;
   transition: background 0.15s;
-  &:hover { background: #0D9488; }
-  &:disabled { background: #CBD5E1; cursor: not-allowed; }
+  @media (max-width: 1024px) { width: 44px; height: 44px; }
+  &:hover:not(:disabled) { background: #0F766E; }
+  &:disabled { background: #E2E8F0; color: #94A3B8; cursor: not-allowed; }
 `;
 // ─── 헤더 액션 (피드백 진입 / 안내로 돌아가기) ───
 const HeaderActions = styled.div`

@@ -1443,7 +1443,7 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
   // 캐시(있으면) 즉시 표시 → 백그라운드 fresh → 사용자는 위치 점프/spinner 한 번도 안 봄.
 
   return (
-    <PanelLayout>
+    <PanelLayout $embedded={embedded}>
       <LeftPanel
         projects={projects}
         conversations={conversations}
@@ -1457,7 +1457,7 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
         canManage={canManageConversation}
         onArchive={(c) => setArchiveConv(c)}
         onUnlink={(c) => setUnlinkConv(c)}
-        onOpenArchive={canViewArchive ? () => setArchivedModalOpen(true) : undefined}
+        onOpenArchive={!embedded && canViewArchive ? () => setArchivedModalOpen(true) : undefined}
         onTogglePin={async (convId, pinned) => {
           // 옵티미스틱 — UI 즉시 반영
           const nowIso = pinned ? new Date().toISOString() : null;
@@ -1483,6 +1483,7 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
         mobileHidden={activeConversationId !== null}
       />
       <ChatPanel
+        embedded={embedded}
         project={activeProject}
         conversations={conversations}
         messages={messages}
