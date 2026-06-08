@@ -318,6 +318,25 @@ async function ensureRenewalPayment(sub) {
   });
   if (existing) return { payment: existing, created: false };
 
+  // 가드 1 — 현재 워크스페이스 플랜과 다른 구독이면 갱신 청구를 만들지 않는다.
+  // 옛/중복 구독(예: 업그레이드 후 남은 stale starter)에 청구를 만들면, 결제 시
+  // markPaymentPaid 가 Business.plan 을 그 옛 플랜으로 덮어써 의도치 않은 강등이 된다. (N+94 운영 사고)
+  const biz = await Business.findByPk(sub.business_id, { attributes: ['id', 'plan'] });
+  if (biz && biz.plan && biz.plan !== 'free' && biz.plan !== sub.plan_code) {
+    return { payment: null, created: false, skipped: 'plan_mismatch' };
+  }
+
+  // 가드 2 — 같은 워크스페이스에 더 뒤까지 유효한 다른 active 구독이 있으면 이 구독은 stale → 스킵.
+  const superseding = await Subscription.findOne({
+    where: {
+      business_id: sub.business_id,
+      status: 'active',
+      id: { [Op.ne]: sub.id },
+      current_period_end: { [Op.gt]: sub.current_period_end || new Date(0) },
+    },
+  });
+  if (superseding) return { payment: null, created: false, skipped: 'superseded' };
+
   // 금액은 구독에 박제된 price 우선, 없으면 플랜표에서 산출
   const amount = (sub.price != null && Number(sub.price) > 0)
     ? sub.price
