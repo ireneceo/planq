@@ -2157,14 +2157,8 @@ const QuickSwitchBtn = styled.button`
   color: #64748B;
   cursor: pointer;
   transition: all 0.1s;
-  max-width: 140px;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  /* 모바일: 전체 이름 표시 */
-  @media (max-width: 640px) {
-    max-width: none;
-  }
+  flex-shrink: 0;
   &:hover {
     background: #F0FDFA;
     border-color: #99F6E4;
