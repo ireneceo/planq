@@ -111,6 +111,7 @@ const KIND_FG: Record<Exclude<BannerKind, null>, string> = {
 };
 
 const Wrap = styled.div<{ $kind: Exclude<BannerKind, null> }>`
+  position: relative;
   display: flex; align-items: center;
   background: ${p => KIND_BG[p.$kind]};
   border-bottom: 1px solid ${p => KIND_BORDER[p.$kind]};
@@ -120,21 +121,58 @@ const Content = styled.div`
   flex: 1; display: flex; align-items: center; gap: 12px;
   padding: 10px 16px; cursor: pointer;
   &:hover { background: rgba(0,0,0,0.04); }
+  /* 모바일: 1단 흐름 */
+  @media (max-width: 640px) {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
 `;
 const Icon = styled.div<{ $kind: Exclude<BannerKind, null> }>`
   display: inline-flex; flex-shrink: 0; color: ${p => KIND_FG[p.$kind]};
+  /* 모바일: 아이콘 숨김 */
+  @media (max-width: 640px) { display: none; }
 `;
-const Body = styled.div`flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px;`;
-const Title = styled.div`font-size: 13px; font-weight: 700; line-height: 1.4;`;
-const Desc = styled.div`font-size: 12px; opacity: 0.9; line-height: 1.4;`;
-const CTA = styled.div`
+const Body = styled.div`
+  flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px;
+  /* 모바일: 인라인 흐름 */
+  @media (max-width: 640px) {
+    display: inline;
+  }
+`;
+const Title = styled.span`
+  font-size: 13px; font-weight: 700; line-height: 1.4;
+  display: block;
+  /* 모바일: 인라인 */
+  @media (max-width: 640px) { display: inline; }
+`;
+const Desc = styled.span`
+  font-size: 12px; opacity: 0.9; line-height: 1.4;
+  display: block;
+  /* 모바일: 인라인, 제목 뒤 줄바꿈 */
+  @media (max-width: 640px) { display: block; margin-top: 2px; }
+`;
+const CTA = styled.span`
   font-size: 12px; font-weight: 700;
   padding: 6px 12px; background: rgba(255,255,255,0.6);
   border-radius: 999px; flex-shrink: 0;
   text-decoration: underline;
+  /* 모바일: 인라인 링크 스타일 */
+  @media (max-width: 640px) {
+    padding: 0;
+    background: none;
+    margin-top: 4px;
+    &::after { content: ' →'; }
+  }
 `;
 const CloseBtn = styled.button`
   background: transparent; border: none; cursor: pointer; color: inherit;
   font-size: 18px; padding: 6px 14px;
   &:hover { opacity: 0.7; }
+  /* 모바일: 우상단 고정 */
+  @media (max-width: 640px) {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+  }
 `;
