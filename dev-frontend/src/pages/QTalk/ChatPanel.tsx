@@ -2108,6 +2108,10 @@ const ChannelQuickSwitch = styled.div`
   display: flex;
   gap: 4px;
   align-items: center;
+  /* 모바일에서는 좌측 패널로 채널 전환 — 헤더 겹침 방지 */
+  @media (max-width: 640px) {
+    display: none;
+  }
 `;
 
 const QuickSwitchBtn = styled.button`
