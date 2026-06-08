@@ -1009,6 +1009,20 @@ const ChatPanel: React.FC<Props> = ({
                 <ProjectLink>{project.name}</ProjectLink>
               </ProjectSublabel>
             )}
+            {/* 모바일 전용 채널 빠른 전환 — 채팅방 이름 아래 */}
+            {channels.length > 1 && (
+              <MobileChannelRow>
+                {channels.filter((c) => c.id !== activeConv.id).map((c) => (
+                  <QuickSwitchBtn key={c.id} onClick={() => onSelectConversation(c.id)} title={c.name}>
+                    <QuickHash $type={c.channel_type}>
+                      {c.channel_type === 'customer' ? '#' : '·'}
+                    </QuickHash>
+                    {c.name}
+                    {c.unread_count > 0 && <QuickBadge>{c.unread_count}</QuickBadge>}
+                  </QuickSwitchBtn>
+                ))}
+              </MobileChannelRow>
+            )}
           </HeaderTitleBlock>
         </HeaderLeft>
         <HeaderRight>
@@ -1056,21 +1070,6 @@ const ChatPanel: React.FC<Props> = ({
           )}
         </HeaderRight>
       </HeaderBar>
-
-      {/* 모바일 전용 채널 빠른 전환 — 헤더 아래 별도 줄 (데스크탑은 HeaderRight에 표시) */}
-      {channels.length > 1 && (
-        <MobileChannelBar>
-          {channels.filter((c) => c.id !== activeConv.id).map((c) => (
-            <QuickSwitchBtn key={c.id} onClick={() => onSelectConversation(c.id)} title={c.name}>
-              <QuickHash $type={c.channel_type}>
-                {c.channel_type === 'customer' ? '#' : '·'}
-              </QuickHash>
-              {c.name}
-              {c.unread_count > 0 && <QuickBadge>{c.unread_count}</QuickBadge>}
-            </QuickSwitchBtn>
-          ))}
-        </MobileChannelBar>
-      )}
 
       {/* 사이클 N+16-E — 핀 공지 영역 (Slack 패턴). 1개 이상 핀 시 헤더 아래 노란 액센트 바.
           접힘: "📌 공지 N개" 한 줄. 펴짐: 핀 메시지 리스트, 클릭 시 본문으로 스크롤 + 잠시 강조. */}
@@ -2129,18 +2128,13 @@ const ChannelQuickSwitch = styled.div`
   }
 `;
 
-/* 모바일 전용 채널 빠른 전환 바 — 헤더 아래 별도 줄 */
-const MobileChannelBar = styled.div`
+/* 모바일 전용 채널 빠른 전환 — 채팅방 이름 아래 인라인 */
+const MobileChannelRow = styled.div`
   display: none;
   @media (max-width: 640px) {
     display: flex;
     gap: 6px;
-    padding: 8px 12px;
-    background: #F8FAFC;
-    border-bottom: 1px solid #E2E8F0;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    &::-webkit-scrollbar { display: none; }
+    flex-wrap: wrap;
   }
 `;
 
