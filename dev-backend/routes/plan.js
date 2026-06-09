@@ -88,6 +88,8 @@ router.get('/:businessId/status', authenticateToken, checkBusinessAccess, async 
         currency: pendingPayment.currency,
         cycle: pendingPayment.cycle,
         created_at: pendingPayment.created_at,
+        // 고객이 입금 통보를 누른 시각 (있으면 "입금 확인 대기중")
+        notify_paid_at: pendingPayment.notify_paid_at,
       } : null,
       recent_payments: recentPayments.map(p => ({
         id: p.id, subscription_id: p.subscription_id,
@@ -351,9 +353,12 @@ router.post('/:businessId/checkout', authenticateToken, checkBusinessAccess, asy
   } catch (err) { next(err); }
 });
 
-// ─── admin mark-paid (워크스페이스 owner 가 입금 확인) ───
-// body: { payer_name?, payer_memo? }
-router.post('/:businessId/payments/:paymentId/mark-paid', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+// ─── owner 입금 통보 (notify-paid) ───
+// Irene 결정 2026-06-08: 워크스페이스 owner 의 자가 활성화(mark-paid) 완전 차단.
+// owner 는 "입금했어요" 통보만 → 상태 "입금 확인 대기중". 실제 활성화는 platform_admin 이
+// /api/admin/subscriptions/:id/mark-paid 에서 입금 확인 후 수행.
+// body: { payer_name?, payer_memo?, tax_invoice? }
+router.post('/:businessId/payments/:paymentId/notify-paid', authenticateToken, checkBusinessAccess, async (req, res, next) => {
   try {
     if (req.businessRole !== 'owner' && req.user.platform_role !== 'platform_admin') {
       return errorResponse(res, 'owner_only', 403);
@@ -362,32 +367,73 @@ router.post('/:businessId/payments/:paymentId/mark-paid', authenticateToken, che
     const paymentId = Number(req.params.paymentId);
     const pay = await Payment.findOne({ where: { id: paymentId, business_id: businessId } });
     if (!pay) return errorResponse(res, 'payment_not_found', 404);
+    if (pay.status === 'paid') return errorResponse(res, 'already_paid', 400);
+    if (pay.status !== 'pending') return errorResponse(res, 'invalid_state', 400);
 
-    const result = await billing.markPaymentPaid({
-      paymentId, markedByUserId: req.user.id,
-      payerName: req.body?.payer_name, payerMemo: req.body?.payer_memo,
-      taxInvoice: req.body?.tax_invoice && req.body.tax_invoice.biz_no ? req.body.tax_invoice : null,
-    });
-    // 사이클 N+51 — audit. 결제 완료 마킹 (재무 critical)
+    const payerName = req.body?.payer_name ? String(req.body.payer_name).slice(0, 80).trim() : null;
+    const payerMemo = req.body?.payer_memo ? String(req.body.payer_memo).slice(0, 255).trim() : null;
+    const taxInvoice = req.body?.tax_invoice && req.body.tax_invoice.biz_no ? req.body.tax_invoice : null;
+
+    // 세금계산서 입력 stash — admin 이 입금 확인(mark-paid) 시 그대로 발행됨
+    const taxFields = taxInvoice ? {
+      tax_invoice_requested: true,
+      tax_invoice_data: {
+        biz_no: String(taxInvoice.biz_no || '').slice(0, 20),
+        biz_name: String(taxInvoice.biz_name || '').slice(0, 200),
+        ceo_name: String(taxInvoice.ceo_name || '').slice(0, 80),
+        address: String(taxInvoice.address || '').slice(0, 500),
+        email: String(taxInvoice.email || '').slice(0, 200),
+      },
+      tax_invoice_status: 'requested',
+    } : {};
+
+    // 5분 내 중복 통보는 1회만 신규 기록 (멱등). 세금계산서 정보는 중복이어도 갱신 허용.
+    const recentMs = pay.notify_paid_at ? Date.now() - new Date(pay.notify_paid_at).getTime() : Infinity;
+    const isFresh = recentMs > 5 * 60 * 1000;
+    if (isFresh) {
+      await pay.update({
+        notify_paid_at: new Date(),
+        notify_payer_name: payerName,
+        payer_name: payerName || pay.payer_name,
+        payer_memo: payerMemo || pay.payer_memo,
+        ...taxFields,
+      });
+    } else if (taxInvoice || payerName) {
+      await pay.update({
+        notify_payer_name: payerName || pay.notify_payer_name,
+        payer_name: payerName || pay.payer_name,
+        ...taxFields,
+      });
+    }
+
+    // 감사 로그 (재무 critical)
     require('../services/auditService').logAudit(req, {
-      action: 'payment.mark_paid',
+      action: 'payment.notify_paid',
       targetType: 'payment',
       targetId: paymentId,
       businessId,
-      oldValue: { status: pay.status },
-      newValue: {
-        status: result.payment.status,
-        amount: result.payment.amount,
-        currency: result.payment.currency,
-        subscription_id: result.subscription.id,
-        plan_code: result.subscription.plan_code,
-        payer_name: req.body?.payer_name,
-      },
+      newValue: { notify_payer_name: payerName, amount: pay.amount, currency: pay.currency },
     });
-    return successResponse(res, {
-      payment: result.payment.toJSON(),
-      subscription: result.subscription.toJSON(),
-    });
+
+    // 플랫폼 관리자 알림 — 입금 통보 도착 (확인 필요). 신규 통보일 때만 발송.
+    if (isFresh) {
+      setImmediate(() => {
+        const { notifyPlatformAdmins, APP_URL } = require('../services/platformNotify');
+        const amountStr = pay.currency === 'KRW'
+          ? `${Number(pay.amount).toLocaleString()}원`
+          : `${pay.currency} ${Number(pay.amount).toLocaleString()}`;
+        notifyPlatformAdmins({
+          eventKind: 'payment',
+          title: `입금 통보 도착 — 확인 필요 (${amountStr})`,
+          body: `워크스페이스 ID ${businessId} 가 결제 #${pay.id} 입금을 통보했습니다.${payerName ? ` 입금자명 ${payerName}.` : ''} 관리자 확인 후 구독이 활성화됩니다.`,
+          link: `${APP_URL}/admin/subscriptions?status=pending`,
+          ctaLabel: '구독 확인',
+          relatedEntityId: pay.id,
+        }).catch(() => null);
+      });
+    }
+
+    return successResponse(res, { notified: true, payment_id: pay.id });
   } catch (err) { next(err); }
 });
 

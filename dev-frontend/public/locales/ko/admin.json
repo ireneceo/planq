@@ -95,7 +95,10 @@
       "demoted": "강등됨",
       "canceled": "취소",
       "replaced": "교체됨"
-    }
+    },
+    "notified": "입금 통보",
+    "notifiedAt": "입금 통보",
+    "payer": "입금자"
   },
   "platform": {
     "title": "플랫폼 설정",

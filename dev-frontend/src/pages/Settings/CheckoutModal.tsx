@@ -1,15 +1,16 @@
-// 결제 요청 모달 — P-2 자체 결제 흐름
+// 결제 요청 모달 — P-2 자체 결제 흐름 (관리자 입금확인 방식, Irene 결정 2026-06-08)
 //
-// step 1 (instructions): 입금 안내 (계좌·금액·결제 ID) + "입금 완료 처리" 버튼 (owner)
-// 사용자가 워크스페이스 계좌로 송금 → owner 가 같은 화면에서 "입금 완료 처리" → mark-paid → 활성화
+// step 1 (instructions): 입금 안내 (계좌·금액·결제 ID) + "입금했어요" 버튼 (owner)
+// 사용자가 워크스페이스 계좌로 송금 → owner 가 "입금했어요" 통보 → 상태 "입금 확인 대기중"
+// step 2 (notified): 통보 완료 안내. 실제 활성화는 플랫폼 관리자가 입금 확인 후.
 //
 // 자체 결제 정책 (CLAUDE.md):
-//   1순위 자체 결제 (계좌이체 mark-paid), 2순위 PortOne (P-7)
+//   1순위 자체 결제 (계좌이체 + 관리자 입금확인), 2순위 PortOne (P-7)
 
 import { useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
-import { checkout, markPaymentPaid, type PlanCode, type BillingCycle, type PlanDef, type TaxInvoiceInput } from '../../services/plan';
+import { checkout, notifyPaymentPaid, type PlanCode, type BillingCycle, type PlanDef, type TaxInvoiceInput } from '../../services/plan';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { useEscapeStack } from '../../hooks/useEscapeStack';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
@@ -27,7 +28,7 @@ interface Props {
   onPaid: () => void;
 }
 
-type Step = 'instructions' | 'completing';
+type Step = 'instructions' | 'notified';
 
 export default function CheckoutModal({
   open, businessId, plan, cycle, bankInfo, existingPaymentId, existingAmount, onClose, onPaid,
@@ -80,7 +81,7 @@ export default function CheckoutModal({
 
   if (!open) return null;
 
-  const handleMarkPaid = async () => {
+  const handleNotify = async () => {
     if (!paymentId || submitting) return;
     if (taxOpen && !taxValid) {
       setError(t('checkout.tax.requiredFields', '사업자번호·상호·대표자·이메일은 필수입니다.'));
@@ -88,21 +89,19 @@ export default function CheckoutModal({
     }
     setSubmitting(true);
     setError(null);
-    setStep('completing');
     const taxPayload: TaxInvoiceInput | null = taxOpen ? {
       biz_no: tax.biz_no.trim(), biz_name: tax.biz_name.trim(),
       ceo_name: tax.ceo_name.trim(), address: tax.address?.trim() || '',
       email: tax.email.trim(),
     } : null;
-    const ok = await markPaymentPaid(businessId, paymentId, payerName.trim() || undefined, undefined, taxPayload);
+    const ok = await notifyPaymentPaid(businessId, paymentId, payerName.trim() || undefined, undefined, taxPayload);
     setSubmitting(false);
     if (!ok) {
-      setError(t('checkout.errors.markPaidFailed'));
-      setStep('instructions');
+      setError(t('checkout.errors.notifyFailed', '입금 통보 실패. 잠시 후 다시 시도해 주세요.'));
       return;
     }
-    onPaid();
-    onClose();
+    // 통보 완료 — 상태 "입금 확인 대기중". 확인 패널 표시 (확인 누르면 부모 status 갱신 + 닫기).
+    setStep('notified');
   };
 
   const fmtAmount = `₩${Number(amount || 0).toLocaleString()}`;
@@ -117,6 +116,31 @@ export default function CheckoutModal({
           <CloseBtn type="button" onClick={onClose} aria-label="close">×</CloseBtn>
         </ModalHeader>
 
+        {step === 'notified' ? (
+          <>
+            <Body>
+              <NotifiedBox>
+                <NotifiedIcon aria-hidden>
+                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" />
+                  </svg>
+                </NotifiedIcon>
+                <NotifiedTitle>{t('checkout.notified.title', '입금 통보가 접수되었습니다')}</NotifiedTitle>
+                <NotifiedDesc>{t('checkout.notified.desc', '관리자가 입금을 확인하면 구독이 활성화됩니다. 확인까지 잠시 시간이 걸릴 수 있습니다.')}</NotifiedDesc>
+                <NotifiedMeta>
+                  <span>{plan.name_ko || plan.name} · {cycleLabel}</span>
+                  <strong>{fmtAmount}</strong>
+                </NotifiedMeta>
+              </NotifiedBox>
+            </Body>
+            <Footer>
+              <PrimaryBtn type="button" onClick={() => { onPaid(); onClose(); }}>
+                {t('checkout.notified.ok', '확인')}
+              </PrimaryBtn>
+            </Footer>
+          </>
+        ) : (
+        <>
         <Body>
           <Summary>
             <SummaryRow>
@@ -194,22 +218,42 @@ export default function CheckoutModal({
 
           {error && <ErrorBox>{error}</ErrorBox>}
 
-          <Notice>{t('checkout.notice')}</Notice>
+          <Notice>{t('checkout.notice', '계좌이체로 입금하신 뒤 "입금했어요" 를 눌러 통보해 주세요. 관리자가 입금을 확인하면 구독이 활성화됩니다. 24시간 내 미입금 시 자동 취소됩니다.')}</Notice>
         </Body>
 
         <Footer>
           <SecondaryBtn type="button" onClick={onClose} disabled={submitting}>
             {t('checkout.cancel')}
           </SecondaryBtn>
-          <PrimaryBtn type="button" onClick={handleMarkPaid} disabled={submitting || !paymentId}>
-            {step === 'completing' ? t('checkout.processing') : t('checkout.markPaid')}
+          <PrimaryBtn type="button" onClick={handleNotify} disabled={submitting || !paymentId}>
+            {submitting ? t('checkout.processing') : t('checkout.notify', '입금했어요')}
           </PrimaryBtn>
         </Footer>
+        </>
+        )}
       </Dialog>
     </Backdrop>
   );
 }
 
+const NotifiedBox = styled.div`
+  display: flex; flex-direction: column; align-items: center; text-align: center;
+  gap: 12px; padding: 24px 8px;
+`;
+const NotifiedIcon = styled.div`
+  width: 56px; height: 56px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background: #F0FDFA; color: #0D9488;
+`;
+const NotifiedTitle = styled.div`font-size: 16px; font-weight: 700; color: #0F172A;`;
+const NotifiedDesc = styled.div`font-size: 13px; color: #64748B; line-height: 1.6; max-width: 340px;`;
+const NotifiedMeta = styled.div`
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  width: 100%; margin-top: 4px; padding: 12px 16px;
+  background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 10px;
+  span { font-size: 13px; color: #475569; font-weight: 600; }
+  strong { font-size: 16px; color: #0F172A; font-weight: 700; }
+`;
 const TaxToggle = styled.div`
   display: flex; align-items: center; gap: 8px;
   padding: 10px 12px;

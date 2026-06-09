@@ -5,8 +5,12 @@
   },
   "payDue": {
     "title": "Payment due",
-    "hint": "Pay by bank transfer, then mark it as paid to reactivate instantly.",
-    "cta": "Proceed to payment"
+    "hint": "Pay by bank transfer, then click \"I have paid\". Your subscription activates once an admin confirms.",
+    "cta": "Proceed to payment",
+    "waitingTitle": "Awaiting payment confirmation",
+    "waitingBadge": "Pending",
+    "waitingHint": "Your payment notification was received. The subscription activates automatically once an admin confirms.",
+    "ctaNotified": "Notify again"
   },
   "current": {
     "title": "Current Plan",
@@ -142,13 +146,19 @@
       "placeholder": "John Doe",
       "hint": "Helps us match the deposit faster if it differs from your account."
     },
-    "notice": "Click \"Mark as paid\" after transfer. Activates immediately. Auto-canceled if not paid within 24h.",
-    "markPaid": "Mark as paid",
+    "notice": "After transferring, click \"I have paid\" to notify us. Your subscription activates once an admin confirms the deposit. Auto-canceled if not paid within 24h.",
     "processing": "Processing...",
     "cancel": "Cancel",
     "errors": {
       "checkoutFailed": "Checkout failed. Please try again.",
-      "markPaidFailed": "Failed to mark as paid. Please verify and retry."
+      "markPaidFailed": "Failed to mark as paid. Please verify and retry.",
+      "notifyFailed": "Failed to send notification. Please try again."
+    },
+    "notify": "I have paid",
+    "notified": {
+      "title": "Payment notification received",
+      "desc": "Your subscription will activate once an admin confirms the deposit. This may take a little while.",
+      "ok": "OK"
     }
   },
   "billing": {
