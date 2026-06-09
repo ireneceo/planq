@@ -95,7 +95,10 @@
       "demoted": "Demoted",
       "canceled": "Canceled",
       "replaced": "Replaced"
-    }
+    },
+    "notified": "Paid (notified)",
+    "notifiedAt": "Notified",
+    "payer": "Payer"
   },
   "platform": {
     "title": "Platform settings",

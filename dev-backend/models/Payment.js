@@ -62,6 +62,11 @@ Payment.init({
   },                                                               // mark-paid 한 admin (workspace owner)
   marked_at: { type: DataTypes.DATE, allowNull: true },
 
+  // 고객 송금 통보 트랙 (Irene 결정 2026-06-08)
+  // owner 가 "입금했어요" 통보 → 상태 "입금 확인 대기중". 실제 활성화(mark-paid)는 platform_admin 만.
+  notify_paid_at: { type: DataTypes.DATE, allowNull: true },       // owner 가 입금 통보 누른 시각
+  notify_payer_name: { type: DataTypes.STRING(80), allowNull: true }, // 통보 시 입금자명
+
   // PortOne 트랙 (P-7)
   portone_imp_uid: { type: DataTypes.STRING(64), allowNull: true },
   portone_merchant_uid: { type: DataTypes.STRING(64), allowNull: true },

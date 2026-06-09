@@ -430,7 +430,7 @@ router.get('/subscriptions', async (req, res, next) => {
     const pendingPayments = subIds.length > 0
       ? await Payment.findAll({
           where: { subscription_id: { [Op.in]: subIds }, status: 'pending' },
-          attributes: ['id', 'subscription_id', 'amount', 'currency', 'method', 'period_start', 'period_end', 'created_at'],
+          attributes: ['id', 'subscription_id', 'amount', 'currency', 'method', 'period_start', 'period_end', 'created_at', 'notify_paid_at', 'notify_payer_name', 'payer_name'],
           order: [['created_at', 'DESC']],
         })
       : [];
@@ -471,6 +471,9 @@ router.get('/subscriptions', async (req, res, next) => {
         period_start: pendingMap.get(s.id).period_start,
         period_end: pendingMap.get(s.id).period_end,
         created_at: pendingMap.get(s.id).created_at,
+        // 고객 입금 통보 — 관리자 확인 우선순위 표시용
+        notify_paid_at: pendingMap.get(s.id).notify_paid_at,
+        notify_payer_name: pendingMap.get(s.id).notify_payer_name || pendingMap.get(s.id).payer_name || null,
       } : null,
     })));
   } catch (err) { next(err); }

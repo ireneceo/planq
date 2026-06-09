@@ -20,6 +20,9 @@ interface PendingPayment {
   period_start: string | null;
   period_end: string | null;
   created_at: string;
+  // 고객 입금 통보 — 관리자 확인 우선순위 표시용
+  notify_paid_at: string | null;
+  notify_payer_name: string | null;
 }
 
 interface SubscriptionRow {
@@ -171,16 +174,24 @@ const AdminSubscriptionsPage = () => {
           <List>
             {items.map((s) => {
               const c = statusColor(s.status);
+              const notified = !!s.pending_payment?.notify_paid_at;
               return (
-                <Row key={s.id}>
+                <Row key={s.id} $notified={notified}>
                   <RowLeft>
                     <BizName>{s.business?.name || `(workspace ${s.business?.id})`}</BizName>
                     <RowMeta>
                       <PlanBadge>{s.plan_code} · {s.cycle === 'monthly' ? t('subs.monthly', '월간') : t('subs.yearly', '연간')}</PlanBadge>
                       <StatusBadge $bg={c.bg} $fg={c.fg}>{statusLabel(s.status)}</StatusBadge>
                       <Price>{s.currency} {fmtKRW(s.price)}</Price>
+                      {notified && <NotifyBadge>{t('subs.notified', '입금 통보')}</NotifyBadge>}
                     </RowMeta>
                     <RowDates>
+                      {notified && (
+                        <NotifyLine>
+                          {t('subs.notifiedAt', '입금 통보')}: {fmtDate(s.pending_payment!.notify_paid_at)}
+                          {s.pending_payment!.notify_payer_name ? ` · ${t('subs.payer', '입금자')} ${s.pending_payment!.notify_payer_name}` : ''}
+                        </NotifyLine>
+                      )}
                       {s.current_period_end && <span>{t('subs.periodEnd', '기간 종료')}: {fmtDate(s.current_period_end)}</span>}
                       {s.grace_ends_at && <span>{t('subs.graceEnd', '유예 종료')}: {fmtDate(s.grace_ends_at)}</span>}
                       {s.demoted_at && <span>{t('subs.demotedAt', '강등')}: {fmtDate(s.demoted_at)}</span>}
@@ -255,11 +266,20 @@ const ErrorBox = styled.div`
   font-size: 13px; border: 1px solid #FECACA;
 `;
 const List = styled.div`display: flex; flex-direction: column; gap: 8px;`;
-const Row = styled.article`
+const Row = styled.article<{ $notified?: boolean }>`
   display: flex; gap: 16px; align-items: center;
-  padding: 14px 16px; background: #FFFFFF;
-  border: 1px solid #E2E8F0; border-radius: 10px;
+  padding: 14px 16px;
+  background: ${p => p.$notified ? '#F0FDFA' : '#FFFFFF'};
+  border: 1px solid ${p => p.$notified ? '#5EEAD4' : '#E2E8F0'};
+  border-radius: 10px;
   @media (max-width: 768px) { flex-direction: column; align-items: stretch; }
+`;
+const NotifyBadge = styled.span`
+  padding: 2px 8px; font-size: 11px; font-weight: 700;
+  background: #0D9488; color: #FFFFFF; border-radius: 4px;
+`;
+const NotifyLine = styled.span`
+  color: #0F766E !important; font-weight: 600;
 `;
 const RowLeft = styled.div`flex: 1; display: flex; flex-direction: column; gap: 6px; min-width: 0;`;
 const BizName = styled.div`font-size: 14px; font-weight: 700; color: #0F172A;`;

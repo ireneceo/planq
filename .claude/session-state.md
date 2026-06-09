@@ -1,7 +1,33 @@
 # PlanQ 세션 상태
 
-**마지막 업데이트:** 2026-06-08 — **v1.33.3 운영 라이브** (deploy `20260608_195139`, commit `b714168`)
-**작업 상태:** 완료 · 운영 배포 검증 3/3 OK · 빌링 갱신청구 fix + 운영 백필 검증
+**마지막 업데이트:** 2026-06-09 — **구독 결제 "관리자 입금확인" 방식 변경 완료 (dev, 미배포)**
+**작업 상태:** dev 빌드+E2E 21/21 OK · 운영 배포 대기 (Irene `/배포` 명령 필요)
+
+---
+
+## ✅ 진행 작업 완료 — 구독 결제 관리자 입금확인 방식 (dev, 미커밋/미배포)
+
+> Irene 결정 2026-06-08: owner 자가 활성화 **완전 차단**. owner 는 "입금했어요" 통보만 → 상태 "입금 확인 대기중". 실제 활성화는 platform_admin 만.
+
+### 변경 내용
+- **DB:** `payments.notify_paid_at`, `notify_payer_name` 2컬럼 (dev ALTER 적용 완료. **운영 배포 시 ALTER 필요**)
+- **plan.js:** owner `mark-paid` 라우트 **제거** → `POST /:biz/payments/:id/notify-paid` 신설 (owner 통보만, 5분 멱등, 세금계산서 stash, platform_admin 알림, status 라우트에 notify_paid_at 노출)
+- **admin.js:** 구독 목록 pending_payment 에 notify_paid_at/notify_payer_name 노출
+- **Frontend:** plan.ts `markPaymentPaid`→`notifyPaymentPaid` / CheckoutModal "입금했어요"+통보완료 패널 / PlanSettings 배너 "입금 확인 대기중"(teal) 분기 / AdminSubscriptionsPage 통보건 하이라이트+입금자명 / i18n ko·en (plan·admin)
+- 활성화 경로는 admin (`/api/admin/subscriptions/:id/mark-paid`) 그대로. 세금계산서는 통보 시 stash → admin 확인 시 자동 발행.
+
+### 검증 — 자체 fixture E2E 21/21 pass
+owner notify(미활성) · status notify_paid_at 노출 · 멱등 재통보 · 옛 mark-paid 404 · admin 목록 통보표시 · admin mark-paid 활성화 · owner admin라우트 차단. 프론트 빌드 EXIT 0 + dist 갱신 + dev 서빙 200 + 서빙 json 새 키 확인.
+
+### 다음 — 배포 (Irene `/배포` 시)
+1. **운영 DB ALTER 먼저:** `ALTER TABLE payments ADD COLUMN notify_paid_at DATETIME NULL AFTER marked_at, ADD COLUMN notify_payer_name VARCHAR(80) NULL AFTER notify_paid_at;`
+2. 같이 배포: 이번 변경 + 미배포 `6c1ba83` 빌링 갱신청구 가드
+3. commit 먼저 필요 (현재 working tree 미커밋)
+
+---
+
+## (이전) N+94 — 빌링 갱신 청구 자동 생성 fix (v1.33.3, 운영 라이브)
+**마지막 업데이트:** 2026-06-08 — v1.33.3 운영 라이브 (deploy `20260608_195139`, commit `b714168`)
 
 ---
 

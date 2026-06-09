@@ -102,6 +102,8 @@ export interface PendingPayment {
   currency: Currency;
   cycle: BillingCycle;
   created_at: string;
+  // 고객이 입금 통보를 누른 시각 (있으면 "입금 확인 대기중")
+  notify_paid_at?: string | null;
 }
 
 export interface PaymentRecord {
@@ -195,7 +197,8 @@ export async function checkout(
   return j.success ? j.data : null;
 }
 
-// 입금 완료 처리 (owner) — 자체 결제 트랙. 사업자 정보 입력 시 세금계산서 발행 신청.
+// 입금 통보 (owner) — 자체 결제 트랙. owner 는 통보만, 실제 활성화는 platform_admin.
+// 사업자 정보 입력 시 세금계산서 발행 정보를 함께 stash (관리자 확인 시 발행).
 export interface TaxInvoiceInput {
   biz_no: string;       // 사업자등록번호 (예: 123-45-67890)
   biz_name: string;     // 상호
@@ -203,14 +206,14 @@ export interface TaxInvoiceInput {
   address?: string;     // 주소
   email: string;        // 세금계산서 수신 이메일
 }
-export async function markPaymentPaid(
+export async function notifyPaymentPaid(
   businessId: number,
   paymentId: number,
   payerName?: string,
   payerMemo?: string,
   taxInvoice?: TaxInvoiceInput | null
 ): Promise<boolean> {
-  const r = await apiFetch(`/api/plan/${businessId}/payments/${paymentId}/mark-paid`, {
+  const r = await apiFetch(`/api/plan/${businessId}/payments/${paymentId}/notify-paid`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ payer_name: payerName, payer_memo: payerMemo, tax_invoice: taxInvoice || undefined }),

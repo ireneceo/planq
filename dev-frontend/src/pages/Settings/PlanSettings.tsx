@@ -182,12 +182,18 @@ const PlanSettings: React.FC<Props> = ({ businessId }) => {
 
   return (
     <Wrap>
-      {/* 미결제 청구 — 결제 진행 (배너 "결제하러 가기" 진입점). 청구 내역(플랜·금액) 보고 바로 결제. */}
-      {status.pending_payment && (
-        <PayDueCard id="pay-due">
+      {/* 미결제 청구 — 입금 통보 진입점. 통보 후엔 "입금 확인 대기중" 상태로 전환 (관리자 확인 후 활성화). */}
+      {status.pending_payment && (() => {
+        const notified = !!status.pending_payment.notify_paid_at;
+        return (
+        <PayDueCard id="pay-due" $notified={notified}>
           <PayDueHead>
-            <PayDueLabel>{t('payDue.title', '결제가 필요한 청구')}</PayDueLabel>
-            {status.in_grace && <StateBadge $kind="grace">{t('current.grace')}</StateBadge>}
+            <PayDueLabel $notified={notified}>
+              {notified ? t('payDue.waitingTitle', '입금 확인 대기중') : t('payDue.title', '결제가 필요한 청구')}
+            </PayDueLabel>
+            {notified
+              ? <StateBadge $kind="grace">{t('payDue.waitingBadge', '확인 대기')}</StateBadge>
+              : (status.in_grace && <StateBadge $kind="grace">{t('current.grace')}</StateBadge>)}
           </PayDueHead>
           <PayDueRow>
             <PayDueInfo>
@@ -199,12 +205,19 @@ const PlanSettings: React.FC<Props> = ({ businessId }) => {
               <PayDueAmount>
                 {formatPrice(Number(status.pending_payment.amount), (status.pending_payment.currency as Currency) || 'KRW')}
               </PayDueAmount>
-              <PayDueHint>{t('payDue.hint', '계좌이체로 입금 후 입금 완료 처리하면 바로 활성화됩니다.')}</PayDueHint>
+              <PayDueHint>
+                {notified
+                  ? t('payDue.waitingHint', '입금 통보가 접수되었습니다. 관리자가 입금을 확인하면 자동으로 활성화됩니다.')
+                  : t('payDue.hint', '계좌이체로 입금하신 뒤 "입금했어요" 를 눌러주세요. 관리자가 입금을 확인하면 활성화됩니다.')}
+              </PayDueHint>
             </PayDueInfo>
-            <PayDueBtn type="button" onClick={openPayDue}>{t('payDue.cta', '결제 진행하기')}</PayDueBtn>
+            <PayDueBtn type="button" onClick={openPayDue} $notified={notified}>
+              {notified ? t('payDue.ctaNotified', '다시 통보하기') : t('payDue.cta', '결제 진행하기')}
+            </PayDueBtn>
           </PayDueRow>
         </PayDueCard>
-      )}
+        );
+      })()}
 
       {/* 현재 플랜 카드 */}
       <CurrentCard $plan={currentPlan.code}>
@@ -678,12 +691,14 @@ const SkCard = styled(SkBar)`height:140px;margin-bottom:16px;border-radius:12px;
 const Wrap = styled.div`display:flex;flex-direction:column;gap:20px;`;
 
 // 미결제 청구 카드 — 결제 진행 진입점 (배너 → ?pay=1)
-const PayDueCard = styled.div`
-  background:#FEF2F2;border:1px solid #FCA5A5;border-radius:14px;padding:20px 24px;
+const PayDueCard = styled.div<{ $notified?: boolean }>`
+  background:${p => p.$notified ? '#F0FDFA' : '#FEF2F2'};
+  border:1px solid ${p => p.$notified ? '#5EEAD4' : '#FCA5A5'};
+  border-radius:14px;padding:20px 24px;
   display:flex;flex-direction:column;gap:10px;
 `;
 const PayDueHead = styled.div`display:flex;align-items:center;gap:10px;`;
-const PayDueLabel = styled.div`font-size:13px;font-weight:700;color:#B91C1C;letter-spacing:-0.1px;`;
+const PayDueLabel = styled.div<{ $notified?: boolean }>`font-size:13px;font-weight:700;color:${p => p.$notified ? '#0F766E' : '#B91C1C'};letter-spacing:-0.1px;`;
 const PayDueRow = styled.div`
   display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;
 `;
@@ -691,11 +706,14 @@ const PayDueInfo = styled.div`display:flex;flex-direction:column;gap:4px;min-wid
 const PayDuePlan = styled.div`font-size:14px;font-weight:600;color:#0F172A;`;
 const PayDueAmount = styled.div`font-size:24px;font-weight:800;color:#0F172A;letter-spacing:-0.5px;font-variant-numeric:tabular-nums;`;
 const PayDueHint = styled.div`font-size:12px;color:#64748B;line-height:1.45;`;
-const PayDueBtn = styled.button`
+const PayDueBtn = styled.button<{ $notified?: boolean }>`
   flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;min-height:44px;
-  padding:0 24px;background:#DC2626;color:#fff;border:none;border-radius:10px;
+  padding:0 24px;border-radius:10px;
   font-size:14px;font-weight:700;cursor:pointer;transition:background 0.15s;
-  &:hover{background:#B91C1C;}
+  ${p => p.$notified
+    ? 'background:#fff;color:#0F766E;border:1px solid #5EEAD4;'
+    : 'background:#DC2626;color:#fff;border:none;'}
+  &:hover{background:${p => p.$notified ? '#F0FDFA' : '#B91C1C'};}
   &:active{transform:scale(0.98);}
 `;
 
