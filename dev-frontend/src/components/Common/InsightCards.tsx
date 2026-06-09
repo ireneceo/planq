@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { apiFetch } from '../../contexts/AuthContext';
 
 interface Insight {
@@ -20,6 +20,7 @@ const DISMISS_KEY = 'planq_insights_dismissed';
 const InsightCards: React.FC = () => {
   const { t } = useTranslation('common');
   const navigate = useNavigate();
+  const location = useLocation();
   const [items, setItems] = useState<Insight[]>([]);
   const [dismissed, setDismissed] = useState<Set<string>>(() => {
     try { return new Set(JSON.parse(sessionStorage.getItem(DISMISS_KEY) || '[]')); }
@@ -39,7 +40,10 @@ const InsightCards: React.FC = () => {
     try { sessionStorage.setItem(DISMISS_KEY, JSON.stringify([...next])); } catch { /* ignore */ }
   };
 
-  const visible = items.filter(it => !dismissed.has(it.id));
+  // 순환 CTA 차단 — 현재 페이지로 가는 "열기" 인사이트는 숨김.
+  // 예: 인박스(/inbox)에서 "컨펌 대기 N건 · 확인 필요 열기 →/inbox" 가 또 뜨던 회귀.
+  // 이미 그 화면을 보고 있으면 카드 자체가 군더더기 (목록이 바로 아래 있음).
+  const visible = items.filter(it => !dismissed.has(it.id) && it.action?.link !== location.pathname);
   if (visible.length === 0) return null;
 
   return (

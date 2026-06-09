@@ -14,10 +14,24 @@ const { getMemberNameMap } = require('../services/displayName');
 
 // 워크스페이스 표시명 우선 — BusinessMember.name → fallback User.name.
 // dashboard 의 actor/context 는 plain 객체로 빌드되므로 inline 으로 name 덮어쓴다.
+// 회귀 fix: name_localized 는 {en, ja, ...} 로케일 맵(JSON 객체)이라 문자열에 직접 끼우면
+// "[object Object]" 가 된다. 워크스페이스/계정 표시명(name)을 우선 쓰고, name_localized 는
+// 문자열일 때만(또는 객체면 첫 로케일 값) 보조 사용 — 절대 객체를 그대로 반환하지 않는다.
+function localizedToString(v) {
+  if (typeof v === 'string') return v.trim() || null;
+  if (v && typeof v === 'object') {
+    const first = Object.values(v).find((x) => typeof x === 'string' && x.trim());
+    return first || null;
+  }
+  return null;
+}
 function resolveName(user, nameMap) {
   if (!user) return null;
   const m = user.id ? nameMap.get(user.id) : null;
-  return m?.name_localized || m?.name || user.name_localized || user.name || null;
+  return (m && m.name) || user.name
+    || localizedToString(m && m.name_localized)
+    || localizedToString(user.name_localized)
+    || null;
 }
 
 /* ─────────────────────────────────────────────
