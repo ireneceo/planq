@@ -61,8 +61,17 @@ async function buildInsights({ userId, businessId, userRole, userEmail }) {
   }
 
   // 3) 컨펌 대기 (내가 reviewer 인 pending task)
+  // 회귀 fix: raw TaskReviewer.count 는 (a) business_id 미필터 → 타 워크스페이스 reviewer 까지 합산,
+  // (b) task 가 reviewing → in_progress 로 돌아가도 state='pending' 잔존분 합산 → 인박스 실제 건수와 불일치.
+  // dashboard 인박스 confirm 쿼리와 동일하게 Task join + business_id + status 필터로 카운트 정합.
   const pendingReviews = await TaskReviewer.count({
     where: { user_id: userId, state: 'pending' },
+    include: [{
+      model: Task,
+      required: true,
+      attributes: [],
+      where: { business_id: businessId, status: { [Op.in]: ['reviewing', 'revision_requested'] } },
+    }],
   });
   if (pendingReviews >= 5) {
     insights.push({
