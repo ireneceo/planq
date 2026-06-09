@@ -57,7 +57,7 @@ interface PublicInvoice {
 }
 
 function formatMoney(amount: number, currency: string = 'KRW'): string {
-  if (currency === 'KRW') return '₩' + Number(amount).toLocaleString('ko-KR');
+  if (currency === 'KRW') return Number(amount).toLocaleString('ko-KR') + '원';
   if (currency === 'USD') return '$' + Number(amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   if (currency === 'EUR') return '€' + Number(amount).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   return `${currency} ${Number(amount).toLocaleString()}`;

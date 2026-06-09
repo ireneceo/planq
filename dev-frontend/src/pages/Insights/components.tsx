@@ -140,9 +140,9 @@ export const DownloadIcon = () => (
 // helpers
 export const fmtKRW = (v: number | null | undefined): string => {
   if (v == null || isNaN(v)) return '—';
-  if (Math.abs(v) >= 100000000) return `₩${(v / 100000000).toFixed(1)}억`;
-  if (Math.abs(v) >= 10000) return `₩${(v / 10000).toFixed(0)}만`;
-  return `₩${v.toLocaleString()}`;
+  if (Math.abs(v) >= 100000000) return `${(v / 100000000).toFixed(1)}억원`;
+  if (Math.abs(v) >= 10000) return `${(v / 10000).toFixed(0)}만원`;
+  return `${v.toLocaleString()}원`;
 };
 
 export const fmtNum = (v: number | null | undefined, suffix = ''): string => {

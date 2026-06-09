@@ -1327,7 +1327,7 @@ const ChatPanel: React.FC<Props> = ({
                   const canceled = ic.status === 'canceled';
                   const notified = !!ic.last_notify_at && !paid;
                   const fmt = (n: number) =>
-                    ic.currency === 'KRW' ? '₩' + Number(n).toLocaleString('ko-KR') :
+                    ic.currency === 'KRW' ? Number(n).toLocaleString('ko-KR') + '원' :
                     `${ic.currency} ${Number(n).toLocaleString()}`;
                   return (
                     <InvoiceCard

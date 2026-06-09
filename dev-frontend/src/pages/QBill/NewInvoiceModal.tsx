@@ -9,6 +9,7 @@ import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import SingleDateField from '../../components/Common/SingleDateField';
+import { todayInTz } from '../../utils/timezones';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { useEscapeStack } from '../../hooks/useEscapeStack';
 import { useAuth } from '../../contexts/AuthContext';
@@ -36,13 +37,12 @@ const KIND_LABEL: Record<string, string> = {
 interface Item { id: number; description: string; quantity: number; unit_price: number; }
 interface Round { id: number; label: string; milestone: string; rate: number; due_date: string; }
 
-const todayStr = '2026-04-27';
 const addDays = (s: string, d: number) => {
   const dt = new Date(s); dt.setDate(dt.getDate() + d); return dt.toISOString().split('T')[0];
 };
 
 const CURRENCY_OPTIONS: PlanQSelectOption[] = [
-  { value: 'KRW', label: 'KRW (₩)' },
+  { value: 'KRW', label: 'KRW (원)' },
   { value: 'USD', label: 'USD ($)' },
   { value: 'EUR', label: 'EUR (€)' },
   { value: 'JPY', label: 'JPY (¥)' },
@@ -58,6 +58,8 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
   const { user } = useAuth();
   const navigate = useNavigate();
   const businessId = user?.business_id ? Number(user.business_id) : null;
+  // 발행일 기본값 = 워크스페이스 타임존 기준 실제 오늘 (옛 하드코딩 '2026-04-27' 버그 fix).
+  const todayStr = useMemo(() => todayInTz(user?.workspace_timezone || 'Asia/Seoul'), [user?.workspace_timezone]);
   useBodyScrollLock(open);
   useEscapeStack(open, onClose);
 

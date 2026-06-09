@@ -95,7 +95,7 @@ const AddonSection: React.FC<Props> = ({ businessId, isOwner }) => {
             <Card key={item.code}>
               <CardName>{item.name_ko}</CardName>
               <CardPrice>
-                ₩{(item.price_monthly?.KRW || 0).toLocaleString('ko-KR')}
+                {(item.price_monthly?.KRW || 0).toLocaleString('ko-KR')}원
                 <PriceUnit>{t('addon.perMonth', '/ 월')}</PriceUnit>
               </CardPrice>
               {isOwner && (
@@ -107,7 +107,7 @@ const AddonSection: React.FC<Props> = ({ businessId, isOwner }) => {
                   <BuyBtn type="button" disabled={!!requestingCode} onClick={() => handleRequest(item)}>
                     {requestingCode === item.code ? t('addon.requesting', '신청 중...') : t('addon.requestBuy', '신청하기')}
                   </BuyBtn>
-                  <TotalPrice>₩{totalKrw.toLocaleString('ko-KR')}</TotalPrice>
+                  <TotalPrice>{totalKrw.toLocaleString('ko-KR')}원</TotalPrice>
                 </BuyRow>
               )}
             </Card>

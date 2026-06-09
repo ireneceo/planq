@@ -399,7 +399,7 @@ export function countByStatus(list: ApiInvoice[]): Record<InvoiceStatus | 'all',
 // 헬퍼: 금액 포맷
 export function formatMoney(amount: number | string | null | undefined, currency: Currency = 'KRW'): string {
   const n = typeof amount === 'string' ? parseFloat(amount) : (amount || 0);
-  if (currency === 'KRW') return `₩${n.toLocaleString('ko-KR')}`;
+  if (currency === 'KRW') return `${n.toLocaleString('ko-KR')}원`;
   if (currency === 'USD') return `$${n.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
   return `${currency} ${n.toLocaleString('en-US')}`;
 }

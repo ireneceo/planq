@@ -9,7 +9,7 @@ function escapeHtml(s) {
 
 function formatMoney(n, currency = 'KRW') {
   const num = Number(n || 0);
-  if (currency === 'KRW') return '₩' + num.toLocaleString('ko-KR');
+  if (currency === 'KRW') return num.toLocaleString('ko-KR') + '원';
   if (currency === 'USD') return '$' + num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   if (currency === 'EUR') return '€' + num.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   if (currency === 'JPY') return '¥' + num.toLocaleString('ja-JP');
@@ -264,7 +264,7 @@ function reportPdfHtml({ period, business, generatedAt, tabs }) {
   const tm = tabs.team || {};
   const fn = tabs.finance || {};
 
-  const fmtKRW = (v) => v == null ? '—' : '₩' + Math.round(v).toLocaleString('ko-KR');
+  const fmtKRW = (v) => v == null ? '—' : Math.round(v).toLocaleString('ko-KR') + '원';
   const fmtPct = (v) => v == null ? '—' : `${Number(v).toFixed(1)}%`;
   const fmtNum = (v) => v == null ? '—' : Number(v).toLocaleString('ko-KR');
 
