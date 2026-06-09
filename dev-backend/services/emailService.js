@@ -452,7 +452,7 @@ async function sendSignatureOtpEmail({ to, docTitle, code }) {
 // ═══════════════════════════════════════════════════════════════
 function invoiceEmailHtml({ invoiceNumber, title, total, currency, dueDate, senderName, workspaceName, message, shareUrl }) {
   const totalStr = currency === 'KRW'
-    ? `₩${Number(total).toLocaleString('ko-KR')}`
+    ? `${Number(total).toLocaleString('ko-KR')}원`
     : `${currency} ${Number(total).toLocaleString('en-US')}`;
   const dueStr = dueDate ? String(dueDate).slice(0, 10) : '';
   const body = `
@@ -488,7 +488,7 @@ async function sendInvoiceEmail({ to, invoiceNumber, title, total, currency, due
 // 결제 독촉(리마인더) — 운영자가 미결제 청구서에 수동으로 발송. overdue_handler 자동 단계와 별개.
 function paymentReminderEmailHtml({ invoiceNumber, title, total, currency, dueDate, daysOverdue, workspaceName, message, shareUrl }) {
   const totalStr = currency === 'KRW'
-    ? `₩${Number(total).toLocaleString('ko-KR')}`
+    ? `${Number(total).toLocaleString('ko-KR')}원`
     : `${currency} ${Number(total).toLocaleString('en-US')}`;
   const dueStr = dueDate ? String(dueDate).slice(0, 10) : '';
   const overdue = Number(daysOverdue) > 0;

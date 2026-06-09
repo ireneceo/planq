@@ -231,7 +231,7 @@ export function receiptPdfUrl(businessId: number, paymentId: number): string {
 
 export function formatPrice(value: number | null, currency: Currency): string {
   if (value === null || value === undefined) return '문의';
-  if (currency === 'KRW') return `₩${value.toLocaleString()}`;
+  if (currency === 'KRW') return `${value.toLocaleString()}원`;
   return `$${value}`;
 }
 

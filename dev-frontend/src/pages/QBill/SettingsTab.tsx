@@ -14,7 +14,7 @@ import PlanQSelect, { type PlanQSelectOption } from '../../components/Common/Pla
 // 통화: 한국 계좌 1개로 외화 송금받으면 은행에서 자동 KRW 환전. 견적/청구서는 해당 통화로 표기.
 // 해외 고객 송금에는 SWIFT 코드 + 영문 계좌 정보 필요 (그 입력 필드는 입금 계좌 섹션에서 추가 예정).
 const CURRENCY_OPTIONS: PlanQSelectOption[] = [
-  { value: 'KRW', label: 'KRW (₩)' },
+  { value: 'KRW', label: 'KRW (원)' },
   { value: 'USD', label: 'USD ($)' },
   { value: 'EUR', label: 'EUR (€)' },
   { value: 'JPY', label: 'JPY (¥)' },

@@ -361,16 +361,7 @@ const ProjectPostsTab: React.FC<Props> = ({ businessId, projectId }) => {
           content_json: contentDraft as { type: 'doc'; content: unknown[] } | null,
           category: categoryVal,
         });
-        const fileIdsToAttach: number[] = [...pendingExistingIds];
-        if (pendingUploads.length > 0) {
-          for (const f of pendingUploads) {
-            const result = await uploadProjectFile(businessId, projectId, f);
-            if (result.success && result.file) {
-              const fid = Number(result.file.id.replace(/^direct-/, ''));
-              if (fid) fileIdsToAttach.push(fid);
-            }
-          }
-        }
+        const fileIdsToAttach = await uploadAndCollectFileIds(pendingExistingIds, pendingUploads);
         let final = created;
         if (fileIdsToAttach.length > 0) {
           await attachToPost(created.id, fileIdsToAttach);
@@ -388,7 +379,15 @@ const ProjectPostsTab: React.FC<Props> = ({ businessId, projectId }) => {
           content_json: contentDraft as { type: 'doc'; content: unknown[] } | null,
           category: categoryVal,
         });
-        setDetail(patched); setMode('view');
+        // 편집 모드에서도 첨부 저장 (옛 버그: edit 분기가 pendingUploads/pendingExistingIds 무시 → 첨부 유실).
+        const fileIdsToAttach = await uploadAndCollectFileIds(pendingExistingIds, pendingUploads);
+        let finalDetail = patched;
+        if (fileIdsToAttach.length > 0) {
+          await attachToPost(detail.id, fileIdsToAttach);
+          finalDetail = (await fetchPost(detail.id)) || patched;
+        }
+        setDetail(finalDetail); setMode('view');
+        setPendingUploads([]); setPendingExistingIds([]); setPendingExistingMeta({});
         draft.clear();
         setRestoredBanner(null);
         await load();
@@ -409,6 +408,39 @@ const ProjectPostsTab: React.FC<Props> = ({ businessId, projectId }) => {
     await detachFromPost(detail.id, attId);
     const fresh = await fetchPost(detail.id);
     if (fresh) setDetail(fresh);
+  };
+
+  // pendingUploads → File 테이블 업로드(uploadProjectFile: project_id + L2) → file id 수집.
+  // new/edit/view 공통. 옛 버그: project_id 없이 staging 만 하던 경로가 유실 + Q File/프로젝트 파일 미등록이었음.
+  const uploadAndCollectFileIds = useCallback(async (existingIds: number[], uploads: File[]): Promise<number[]> => {
+    const ids: number[] = [...existingIds];
+    for (const f of uploads) {
+      const result = await uploadProjectFile(businessId, projectId, f);
+      if (result.success && result.file) {
+        const fid = Number(result.file.id.replace(/^direct-/, ''));
+        if (fid) ids.push(fid);
+      }
+    }
+    return ids;
+  }, [businessId, projectId]);
+
+  // view 모드 첨부 — 저장 버튼이 없으므로 선택 즉시 업로드+attach (옛 버그: view 모드 staging 이 orphan 이라 유실).
+  const [viewAttaching, setViewAttaching] = useState(false);
+  const [viewAttachErr, setViewAttachErr] = useState<string | null>(null);
+  const attachToDetailNow = async (uploads: File[], existingIds: number[]) => {
+    if (!detail || (uploads.length === 0 && existingIds.length === 0)) return;
+    setViewAttaching(true); setViewAttachErr(null);
+    try {
+      const ids = await uploadAndCollectFileIds(existingIds, uploads);
+      if (ids.length > 0) {
+        await attachToPost(detail.id, ids);
+        const fresh = await fetchPost(detail.id);
+        if (fresh) setDetail(fresh);
+        await load();
+      }
+    } catch (e) {
+      setViewAttachErr((e as Error).message || (t('attach.failed', '첨부 실패') as string));
+    } finally { setViewAttaching(false); }
   };
 
   // ─── 렌더 ───
@@ -509,6 +541,7 @@ const ProjectPostsTab: React.FC<Props> = ({ businessId, projectId }) => {
             onGenerate={startFromAi}
             businessId={businessId}
             projectId={projectId}
+            intent="ai"
           />
         )}
 
@@ -631,13 +664,16 @@ const ProjectPostsTab: React.FC<Props> = ({ businessId, projectId }) => {
                 ))}
               </AttachList>
             )}
+            {/* view 모드 — 선택 즉시 업로드+attach (staging 안 함, 저장 버튼 없음) */}
             <AttachmentField
               businessId={businessId}
-              uploads={pendingUploads}
-              onUploadsChange={setPendingUploads}
-              existingFileIds={pendingExistingIds}
-              onExistingFileIdsChange={setPendingExistingIds}
+              uploads={[]}
+              onUploadsChange={(files) => { if (files.length) attachToDetailNow(files, []); }}
+              existingFileIds={[]}
+              onExistingFileIdsChange={(ids) => { if (ids.length) attachToDetailNow([], ids); }}
             />
+            {viewAttaching && <AttachHint>{t('attach.uploading', '첨부 업로드 중…')}</AttachHint>}
+            {viewAttachErr && <ErrorBar>{viewAttachErr}</ErrorBar>}
           </AttachSection>
         </DetailBody>
       )}
@@ -754,6 +790,8 @@ const ProjectPostsTab: React.FC<Props> = ({ businessId, projectId }) => {
           onClose={() => setAiOpen(false)}
           onGenerate={startFromAi}
           businessId={businessId}
+          projectId={projectId}
+          intent="ai"
         />
       )}
 
@@ -1163,6 +1201,7 @@ const AttachSection = styled.section`
   display: flex; flex-direction: column; gap: 12px;
 `;
 const AttachTitle = styled.div`font-size: 13px; font-weight: 700; color: #334155;`;
+const AttachHint = styled.div`font-size: 12px; color: #0F766E;`;
 const AttachList = styled.div`display:flex;flex-direction:column;`;
 const AttachRow = styled.div`
   display: flex; align-items: center; justify-content: space-between;

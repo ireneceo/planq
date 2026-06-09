@@ -74,7 +74,7 @@ interface TransactionsResponse {
 }
 
 function formatMoney(n: number, currency: string = 'KRW'): string {
-  if (currency === 'KRW') return '₩' + Number(n).toLocaleString('ko-KR');
+  if (currency === 'KRW') return Number(n).toLocaleString('ko-KR') + '원';
   if (currency === 'USD') return '$' + Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   return `${currency} ${Number(n).toLocaleString()}`;
 }
