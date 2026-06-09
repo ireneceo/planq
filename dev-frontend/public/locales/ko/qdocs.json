@@ -145,8 +145,9 @@
     "system": "기본"
   },
   "empty": {
-    "title": "아직 문서가 없습니다",
-    "desc": "템플릿에서 시작하거나 빈 문서를 만들어보세요"
+    "title": "문서를 시작하세요",
+    "line1": "매뉴얼 · 가이드 · 공지 · 회의록 — 팀이 함께 읽는 문서를 만들어 보세요.",
+    "line2": "왼쪽 목록에서 기존 문서를 선택하거나, 새로 작성할 수 있습니다."
   },
   "newModal": {
     "title": "새 문서 만들기",
@@ -495,23 +496,22 @@
     "project": "프로젝트",
     "upcoming": "예정 (D-4)",
     "upcomingPdf": "PDF 생성 · 공개 링크 · 서명 — 추후 활성화",
-    "bold": "굵게",
-    "italic": "기울임",
-    "strike": "취소선",
-    "code": "인라인 코드",
-    "h1": "제목 1",
-    "h2": "제목 2",
-    "h3": "제목 3",
-    "bullet": "글머리 기호",
-    "ordered": "번호 매기기",
-    "quote": "인용",
-    "codeBlock": "코드 블록",
-    "link": "링크",
-    "linkPrompt": "URL (비우면 링크 제거):",
-    "image": "이미지 삽입",
-    "table": "표 삽입",
-    "undo": "실행 취소",
-    "redo": "다시 실행"
+    "table": {
+      "addColLeft": "왼쪽에 열 추가",
+      "colLeft": "열←",
+      "addColRight": "오른쪽에 열 추가",
+      "colRight": "열→",
+      "addRowAbove": "위에 행 추가",
+      "rowAbove": "행↑",
+      "addRowBelow": "아래에 행 추가",
+      "rowBelow": "행↓",
+      "delCol": "열 삭제",
+      "col": "열",
+      "delRow": "행 삭제",
+      "row": "행",
+      "delTable": "표 삭제",
+      "table": "표"
+    }
   },
   "tab": {
     "title": "문서",
@@ -526,24 +526,6 @@
     "blankDesc": "빈 본문으로 즉시 시작",
     "tableLabel": "표",
     "tableDesc": "계정·자산 등 행/열 데이터"
-  },
-  "editor": {
-    "loading": "문서 로드 중...",
-    "notFound": "문서를 찾을 수 없습니다",
-    "back": "목록",
-    "saving": "저장 중...",
-    "saved": "저장됨",
-    "saveError": "저장 실패",
-    "title": "{{kind}} 편집",
-    "titlePlaceholder": "문서 제목",
-    "bodyPlaceholder": "본문을 작성하세요…",
-    "meta": "메타",
-    "kind": "유형",
-    "status": "상태",
-    "client": "고객",
-    "project": "프로젝트",
-    "upcoming": "예정 (D-4)",
-    "upcomingPdf": "PDF 생성 · 공개 링크 · 서명 — 추후 활성화"
   },
   "new": "새 문서",
   "edit": "편집",
@@ -560,11 +542,6 @@
   "tableDescCloseShort": "닫기",
   "tableDescTitle": "표 설명 에디터",
   "selectOrCreate": "왼쪽 목록에서 문서를 선택하거나 새 문서를 작성하세요",
-  "empty": {
-    "title": "문서를 시작하세요",
-    "line1": "매뉴얼 · 가이드 · 공지 · 회의록 — 팀이 함께 읽는 문서를 만들어 보세요.",
-    "line2": "왼쪽 목록에서 기존 문서를 선택하거나, 새로 작성할 수 있습니다."
-  },
   "attachments": "첨부 파일",
   "attachAdd": "첨부 추가",
   "attachFold": "접기",

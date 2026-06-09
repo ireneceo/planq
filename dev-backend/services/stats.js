@@ -416,7 +416,7 @@ async function buildOverviewTab(businessId, period) {
 
   const insights = [];
   if (overdue > 0) insights.push({
-    severity: 'urgent', title: '연체 청구', value: `₩${overdue.toLocaleString()}`,
+    severity: 'urgent', title: '연체 청구', value: `${overdue.toLocaleString()}원`,
     hint: '미수금 회수 우선', action_label: '청구서 보기', action_link: '/qbill',
   });
   if (utilization != null && utilization > 100) insights.push({
@@ -554,7 +554,7 @@ async function buildProfitTab(businessId, period) {
   }
   if (avgProfitPerHour != null) insights.push({
     severity: 'info', title: 'Profit per Hour 평균',
-    value: `₩${Math.round(avgProfitPerHour).toLocaleString()}/h`,
+    value: `${Math.round(avgProfitPerHour).toLocaleString()}원/h`,
     hint: avgProfitPerHour > 90000 ? '목표 달성' : '단가 인상 검토',
   });
   if (insights.length === 0) insights.push({
@@ -722,7 +722,7 @@ async function buildTeamTab(businessId, period) {
   const insights = [];
   if (sortedByRev.length > 0) insights.push({
     severity: 'info', title: '인당 매출 1위',
-    value: `${sortedByRev[0].name} ₩${sortedByRev[0].revenue_share.toLocaleString()}`,
+    value: `${sortedByRev[0].name} ${sortedByRev[0].revenue_share.toLocaleString()}원`,
     hint: '시간 비중 가중 분배',
   });
   if (overUtil.length > 0) insights.push({
@@ -853,13 +853,13 @@ async function buildFinanceTab(businessId, period) {
     hint: '비용 절감 또는 단가 인상 검토',
   });
   if (receivable > 0) insights.push({
-    severity: 'warning', title: '미수금', value: `₩${receivable.toLocaleString()}`,
+    severity: 'warning', title: '미수금', value: `${receivable.toLocaleString()}원`,
     hint: `${overdueInvoices.length}건 미결제`,
     action_label: '청구서 보기', action_link: '/qbill',
   });
   if (expensesByCategory.length > 0) insights.push({
     severity: 'info', title: '지출 1위',
-    value: `${expensesByCategory[0].category} ₩${expensesByCategory[0].amount.toLocaleString()}`,
+    value: `${expensesByCategory[0].category} ${expensesByCategory[0].amount.toLocaleString()}원`,
   });
   if (insights.length === 0) insights.push({
     severity: 'info', title: '데이터 누적 중', value: '청구서·비용 등록 후 분석 시작',

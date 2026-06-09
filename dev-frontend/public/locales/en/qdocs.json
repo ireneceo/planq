@@ -145,8 +145,9 @@
     "system": "Default"
   },
   "empty": {
-    "title": "No documents yet",
-    "desc": "Start from a template or create a blank document"
+    "title": "Start a document",
+    "line1": "Manuals · guides · announcements · meeting notes — write what your team needs to read together.",
+    "line2": "Pick an existing doc from the left, or create a new one."
   },
   "newModal": {
     "title": "New document",
@@ -478,55 +479,6 @@
     "error": "Save failed. Please try again."
   },
   "editor": {
-    "loading": "Loading...",
-    "notFound": "Document not found",
-    "back": "Back",
-    "saving": "Saving...",
-    "saved": "Saved",
-    "saveError": "Save failed",
-    "title": "Edit {{kind}}",
-    "titlePlaceholder": "Document title",
-    "bodyPlaceholder": "Write content…",
-    "meta": "Meta",
-    "kind": "Type",
-    "status": "Status",
-    "client": "Client",
-    "project": "Project",
-    "upcoming": "Upcoming",
-    "upcomingPdf": "PDF · public link · signing — coming soon",
-    "bold": "Bold",
-    "italic": "Italic",
-    "strike": "Strikethrough",
-    "code": "Inline code",
-    "h1": "Heading 1",
-    "h2": "Heading 2",
-    "h3": "Heading 3",
-    "bullet": "Bullet list",
-    "ordered": "Numbered list",
-    "quote": "Quote",
-    "codeBlock": "Code block",
-    "link": "Link",
-    "linkPrompt": "URL (empty to remove):",
-    "image": "Insert image",
-    "table": "Insert table",
-    "undo": "Undo",
-    "redo": "Redo"
-  },
-  "tab": {
-    "title": "Docs",
-    "docs": "Documents",
-    "posts": "Board"
-  },
-  "btn": {
-    "new": "New document"
-  },
-  "newDropdown": {
-    "blankLabel": "Blank doc",
-    "blankDesc": "Start with an empty body",
-    "tableLabel": "Table",
-    "tableDesc": "Rows & columns (accounts, assets, etc.)"
-  },
-  "editor": {
     "loading": "Loading document...",
     "notFound": "Document not found",
     "back": "Back",
@@ -542,7 +494,37 @@
     "client": "Client",
     "project": "Project",
     "upcoming": "Upcoming (D-4)",
-    "upcomingPdf": "PDF · Public link · Signing — coming soon"
+    "upcomingPdf": "PDF · Public link · Signing — coming soon",
+    "table": {
+      "addColLeft": "Add column left",
+      "colLeft": "Col←",
+      "addColRight": "Add column right",
+      "colRight": "Col→",
+      "addRowAbove": "Add row above",
+      "rowAbove": "Row↑",
+      "addRowBelow": "Add row below",
+      "rowBelow": "Row↓",
+      "delCol": "Delete column",
+      "col": "Col",
+      "delRow": "Delete row",
+      "row": "Row",
+      "delTable": "Delete table",
+      "table": "Table"
+    }
+  },
+  "tab": {
+    "title": "Docs",
+    "docs": "Documents",
+    "posts": "Board"
+  },
+  "btn": {
+    "new": "New document"
+  },
+  "newDropdown": {
+    "blankLabel": "Blank doc",
+    "blankDesc": "Start with an empty body",
+    "tableLabel": "Table",
+    "tableDesc": "Rows & columns (accounts, assets, etc.)"
   },
   "new": "New",
   "edit": "Edit",
@@ -559,11 +541,6 @@
   "tableDescCloseShort": "Close",
   "tableDescTitle": "Description editor",
   "selectOrCreate": "Select a document from the list or create a new one.",
-  "empty": {
-    "title": "Start a document",
-    "line1": "Manuals · guides · announcements · meeting notes — write what your team needs to read together.",
-    "line2": "Pick an existing doc from the left, or create a new one."
-  },
   "attachments": "Attachments",
   "attachAdd": "Add file",
   "attachFold": "Collapse",
