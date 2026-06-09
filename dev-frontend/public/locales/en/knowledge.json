@@ -1,4 +1,9 @@
 {
+  "errors": {
+    "deleteForbidden": "Only the author or an admin can delete this.",
+    "deleteFailed": "Could not delete. Please try again in a moment.",
+    "shareFailed": "Could not create the share link. Please try again."
+  },
   "page": {
     "title": "Q info",
     "searchPh": "Search by title...",

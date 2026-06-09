@@ -1,9 +1,9 @@
 // 공유 KB 문서 미리보기 — /public/kb/:token
 import { useCallback, useEffect, useState } from 'react';
 import styled from 'styled-components';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { apiFetch, getAccessToken } from '../../contexts/AuthContext';
+import { getAccessToken } from '../../contexts/AuthContext';
 import SharePasswordPrompt from './SharePasswordPrompt';
 import ExpiredShareLink from '../../components/Common/ExpiredShareLink';
 
@@ -33,7 +33,6 @@ const SOURCE_LABEL_DEFAULTS: Record<string, string> = {
 const PublicKbDocumentPage = () => {
   const { t } = useTranslation('common');
   const { token } = useParams<{ token: string }>();
-  const navigate = useNavigate();
   const [doc, setDoc] = useState<KbPreview | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -63,17 +62,9 @@ const PublicKbDocumentPage = () => {
 
   useEffect(() => { fetchDoc(); }, [fetchDoc]);
 
-  useEffect(() => {
-    if (!token || !doc) return;
-    if (!getAccessToken()) return;
-    apiFetch(`/api/kb-documents/public/by-token/${token}/auth-check`)
-      .then(r => r.json())
-      .then(j => {
-        if (j.success && j.data?.canAccess && j.data?.appUrl) {
-          setTimeout(() => navigate(j.data.appUrl), 300);
-        }
-      }).catch(() => { /* silent */ });
-  }, [token, doc, navigate]);
+  // N+95 fix — 옛 자동 redirect 제거 (PublicPostPage N+72-3 와 동일 정합).
+  // 로그인 상태에서 공유 링크 열면 워크스페이스로 튕기던 회귀 차단 — "로그인했어도 공유 뷰가 따로 보여야".
+  // authed 사용자는 아래 '워크스페이스에서 보기' CTA 로 명시 이동.
 
   if (loading) return <Wrap><Card><Hint>{t('public.loading', { defaultValue: '불러오는 중...' }) as string}</Hint></Card></Wrap>;
   if (expired) return <ExpiredShareLink expiredAt={expired.at} />;
