@@ -7,9 +7,9 @@
 // read-only 메타만 노출 (댓글/첨부/시간 X — 개인정보 보호)
 import { useCallback, useEffect, useState } from 'react';
 import styled from 'styled-components';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { apiFetch, getAccessToken } from '../../contexts/AuthContext';
+import { getAccessToken } from '../../contexts/AuthContext';
 import SharePasswordPrompt from './SharePasswordPrompt';
 import ExpiredShareLink from '../../components/Common/ExpiredShareLink';
 
@@ -48,7 +48,6 @@ const STATUS_LABEL_DEFAULTS: Record<string, string> = {
 const PublicTaskPage = () => {
   const { t } = useTranslation('common');
   const { token } = useParams<{ token: string }>();
-  const navigate = useNavigate();
   const [task, setTask] = useState<TaskPreview | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -87,18 +86,7 @@ const PublicTaskPage = () => {
 
   useEffect(() => { fetchTask(); }, [fetchTask]);
 
-  // Smart Routing — 인증된 PlanQ 사용자면 자동 redirect
-  useEffect(() => {
-    if (!token || !task) return;
-    if (!getAccessToken()) return;
-    apiFetch(`/api/tasks/public/by-token/${token}/auth-check`)
-      .then(r => r.json())
-      .then(j => {
-        if (j.success && j.data?.canAccess && j.data?.appUrl) {
-          setTimeout(() => navigate(j.data.appUrl), 300);
-        }
-      }).catch(() => { /* silent */ });
-  }, [token, task, navigate]);
+  // N+95 fix — 옛 자동 redirect 제거 (로그인해도 공유 뷰가 따로 보여야). authed 는 아래 CTA 로 명시 이동.
 
   if (loading) return <Wrap><Card><Hint>{t('public.loading', { defaultValue: '불러오는 중...' }) as string}</Hint></Card></Wrap>;
   if (expired) return <ExpiredShareLink expiredAt={expired.at} />;

@@ -107,6 +107,13 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
   const [detailLoading, setDetailLoading] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
   const [catError, setCatError] = useState<string | null>(null);  // 상세 패널 카테고리 저장 에러 노출 (silent catch 제거)
+  // 삭제·공유 등 액션 실패를 사용자에게 노출 (옛 silent catch 제거 — "안 됨" 무피드백 회귀 차단)
+  const [actionError, setActionError] = useState<string | null>(null);
+  useEffect(() => {
+    if (!actionError) return;
+    const timer = setTimeout(() => setActionError(null), 5000);
+    return () => clearTimeout(timer);
+  }, [actionError]);
 
   // ─── 새 지식 등록 모달 (사이클 P3 — 단일 폼) ───
   const [modalOpen, setModalOpen] = useState(false);
@@ -432,7 +439,11 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
       await deleteKnowledge(businessId, id);
       if (detailId === id) setDetailId(null);
       await load();
-    } catch { /* ignore */ }
+    } catch (e) {
+      setActionError(e instanceof Error && /forbidden/i.test(e.message)
+        ? (t('errors.deleteForbidden', '작성자 또는 관리자만 삭제할 수 있습니다.') as string)
+        : (t('errors.deleteFailed', '삭제하지 못했습니다. 잠시 후 다시 시도해 주세요.') as string));
+    }
     finally { setConfirmDelete(null); }
   };
 
@@ -444,7 +455,7 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
       const r = await createKbShareBundle(businessId, { kind: 'selection', doc_ids: [...selectedIds] });
       setBundleShare({ url: r.share_url, count: r.count, label: t('select.bundleSelectionLabel', { n: selectedIds.size, defaultValue: `${selectedIds.size}개 선택` }) as string });
       setBundleCopied(false);
-    } catch { setBundleShare(null); }
+    } catch { setBundleShare(null); setActionError(t('errors.shareFailed', '공유 링크를 만들지 못했습니다. 다시 시도해 주세요.') as string); }
     finally { setBundleSharing(false); }
   };
   // 카테고리 통째 공유
@@ -455,7 +466,7 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
       const r = await createKbShareBundle(businessId, { kind: 'category', category });
       setBundleShare({ url: r.share_url, count: r.count, label: category });
       setBundleCopied(false);
-    } catch { setBundleShare(null); }
+    } catch { setBundleShare(null); setActionError(t('errors.shareFailed', '공유 링크를 만들지 못했습니다. 다시 시도해 주세요.') as string); }
     finally { setBundleSharing(false); }
   };
 
@@ -538,6 +549,12 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
         </>
       }
     >
+
+      {actionError && (
+        <ActionErrorBanner role="alert" onClick={() => setActionError(null)}>
+          {actionError}
+        </ActionErrorBanner>
+      )}
 
       {/* ─── Toolbar — 검색 + 필터 통일 (Q file 패턴) ─── */}
       <Toolbar>
@@ -1833,6 +1850,12 @@ const AddColBtn = styled.button`
 `;
 
 // Toolbar — 박스 없이 (페이지 배경 위 inline 배치). 좌측 정렬, 검색·필터·정렬.
+const ActionErrorBanner = styled.div`
+  display: flex; align-items: center; gap: 8px;
+  margin-bottom: 12px; padding: 10px 14px;
+  background: #FEF2F2; border: 1px solid #FECACA; border-radius: 8px;
+  color: #B91C1C; font-size: 13px; font-weight: 500; cursor: pointer;
+`;
 const Toolbar = styled.div`
   display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
   padding: 0;

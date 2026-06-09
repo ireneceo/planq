@@ -50,6 +50,13 @@ Post.init({
     allowNull: true,
     defaultValue: null,
   },
+  // L2-members 분기 — 워크스페이스 안 특정 user 만 접근 (KbDocument/File 정합).
+  // [user_id1, user_id2, ...] 형식. access_scope.postListWhereByLevel / canAccessPostByLevel 가 참조.
+  target_member_ids: {
+    type: DataTypes.JSON,
+    allowNull: true,
+    defaultValue: null,
+  },
 }, {
   sequelize, tableName: 'posts', timestamps: true, underscored: true,
   indexes: [
