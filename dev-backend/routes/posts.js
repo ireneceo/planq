@@ -57,7 +57,7 @@ async function assertMember(userId, businessId, isPlatformAdmin) {
 // 워크스페이스 + client 통합 (조회 액션용)
 async function assertWorkspaceOrClient(userId, businessId, platformRole) {
   const scope = await getUserScope(userId, businessId, platformRole);
-  if (scope.isPlatformAdmin || scope.isOwner || scope.isMember || scope.isClient) return { ok: true, scope };
+  if (scope.isPlatformAdmin || scope.isOwner || scope.isMember || scope.isAdmin || scope.isClient) return { ok: true, scope };
   return { ok: false, scope: null };
 }
 

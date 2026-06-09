@@ -452,7 +452,7 @@ async function collectInvoices(businessId) {
       type: 'invoice',
       priority: overdue ? 'urgent' : (dueStr === todayStr ? 'today' : 'week'),
       verb: 'pay',
-      subject: `${inv.recipient_business_name || inv.invoice_number} — ${inv.currency === 'USD' ? '$' : '₩'}${Number(total - paid).toLocaleString('ko-KR')}`,
+      subject: `${inv.recipient_business_name || inv.invoice_number} — ${inv.currency === 'USD' ? '$' + Number(total - paid).toLocaleString('ko-KR') : Number(total - paid).toLocaleString('ko-KR') + '원'}`,
       context: dueStr ? (overdue ? `결제 기한: ${dueStr} (지남)` : `결제 기한: ${dueStr}`) : null,
       dueAt: safeToIso(dueAt),
       createdAt: safeToIso(inv.sent_at || inv.createdAt),
@@ -592,13 +592,13 @@ async function collectPaymentNotifies(businessId, userRole) {
     const paid = Number(inv.paid_amount || 0);
     if (total <= paid) continue;
     const clientName = inv.Client?.biz_name || inv.Client?.company_name || inv.Client?.display_name || '';
-    const cur = inv.currency === 'USD' ? '$' : '₩';
+    const fmtAmt = (n) => inv.currency === 'USD' ? '$' + Number(n).toLocaleString('ko-KR') : Number(n).toLocaleString('ko-KR') + '원';
     items.push({
       id: `paynotify-inv-${inv.id}`,
       type: 'payment_notify',
       priority: 'urgent',
       verb: 'mark_paid',
-      subject: `${inv.invoice_number} · ${cur}${(total - paid).toLocaleString('ko-KR')} ${clientName ? `· ${clientName}` : ''}`.trim(),
+      subject: `${inv.invoice_number} · ${fmtAmt(total - paid)} ${clientName ? `· ${clientName}` : ''}`.trim(),
       context: `송금 완료 알림 받음${inv.notify_payer_name ? ` · 입금자명: ${inv.notify_payer_name}` : ''}`,
       dueAt: safeToIso(inv.notify_paid_at),
       createdAt: safeToIso(inv.notify_paid_at),
@@ -629,13 +629,13 @@ async function collectPaymentNotifies(businessId, userRole) {
     if (!inst.Invoice) continue;
     const inv = inst.Invoice;
     const clientName = inv.Client?.biz_name || inv.Client?.company_name || inv.Client?.display_name || '';
-    const cur = inv.currency === 'USD' ? '$' : '₩';
+    const fmtAmt = (n) => inv.currency === 'USD' ? '$' + Number(n).toLocaleString('ko-KR') : Number(n).toLocaleString('ko-KR') + '원';
     items.push({
       id: `paynotify-inst-${inst.id}`,
       type: 'payment_notify',
       priority: 'urgent',
       verb: 'mark_paid',
-      subject: `${inv.invoice_number} · ${inst.label} · ${cur}${Number(inst.amount).toLocaleString('ko-KR')} ${clientName ? `· ${clientName}` : ''}`.trim(),
+      subject: `${inv.invoice_number} · ${inst.label} · ${fmtAmt(inst.amount)} ${clientName ? `· ${clientName}` : ''}`.trim(),
       context: `송금 완료 알림 받음${inst.notify_payer_name ? ` · 입금자명: ${inst.notify_payer_name}` : ''}`,
       dueAt: safeToIso(inst.notify_paid_at),
       createdAt: safeToIso(inst.notify_paid_at),
@@ -685,7 +685,7 @@ async function collectTaxInvoices(businessId, userRole) {
     if (!inst.Invoice) continue;
     const inv = inst.Invoice;
     const clientName = inv.Client?.biz_name || inv.Client?.company_name || inv.Client?.display_name || '';
-    const cur = inv.currency === 'USD' ? '$' : '₩';
+    const fmtAmt = (n) => inv.currency === 'USD' ? '$' + Number(n).toLocaleString('ko-KR') : Number(n).toLocaleString('ko-KR') + '원';
     // 마감 = paid_at + 30일 (한국 세금계산서 발행 마감 — 다음 달 10일 기준이지만 단순화)
     const paidAt = inst.paid_at ? new Date(inst.paid_at) : null;
     const dueAt = paidAt ? new Date(paidAt.getTime() + 30 * 86400 * 1000) : null;
@@ -697,7 +697,7 @@ async function collectTaxInvoices(businessId, userRole) {
       type: 'tax_invoice',
       priority,
       verb: 'issue_tax',
-      subject: `${inv.invoice_number} · ${inst.label} · ${cur}${Number(inst.amount).toLocaleString('ko-KR')} · ${clientName}`,
+      subject: `${inv.invoice_number} · ${inst.label} · ${fmtAmt(inst.amount)} · ${clientName}`,
       context: paidAt ? `결제일: ${formatDateShort(paidAt)}${overdue ? ' · 마감 지남' : ''}` : null,
       dueAt: safeToIso(dueAt),
       createdAt: safeToIso(paidAt),

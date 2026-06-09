@@ -3,6 +3,7 @@
 // 이미지: 툴바 버튼 / 드래그앤드롭 / 클립보드 붙여넣기 지원
 import React, { useCallback, useEffect, useRef } from 'react';
 import styled from 'styled-components';
+import { useTranslation } from 'react-i18next';
 import { useEditor, EditorContent } from '@tiptap/react';
 import { BubbleMenu } from '@tiptap/react/menus';
 import StarterKit from '@tiptap/starter-kit';
@@ -59,6 +60,7 @@ async function uploadEditorImage(file: File, businessId?: number): Promise<strin
 }
 
 const PostEditor: React.FC<Props> = ({ value, onChange, placeholder, editable = true, businessId, borderless = false, compact = false }) => {
+  const { t } = useTranslation('qdocs');
   const fileRef = useRef<HTMLInputElement>(null);
 
   const editor = useEditor({
@@ -242,6 +244,32 @@ const PostEditor: React.FC<Props> = ({ value, onChange, placeholder, editable = 
           </ImgSizeBubble>
         </BubbleMenu>
       )}
+      {/* 표 안에 커서가 있을 때 떠오르는 행/열 컨트롤 — 툴바 끝 버튼은 발견이 어려워 추가 (Notion 패턴) */}
+      {editable && (
+        <BubbleMenu editor={editor} shouldShow={({ editor: ed }) => ed.isActive('table')}>
+          <TableBubble>
+            <TableBubbleGroup>
+              <TableBubbleBtn type="button" title={t('editor.table.addColLeft', '왼쪽에 열 추가') as string}
+                onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().addColumnBefore().run(); }}>＋{t('editor.table.colLeft', '열←')}</TableBubbleBtn>
+              <TableBubbleBtn type="button" title={t('editor.table.addColRight', '오른쪽에 열 추가') as string}
+                onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().addColumnAfter().run(); }}>＋{t('editor.table.colRight', '열→')}</TableBubbleBtn>
+              <TableBubbleBtn type="button" title={t('editor.table.addRowAbove', '위에 행 추가') as string}
+                onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().addRowBefore().run(); }}>＋{t('editor.table.rowAbove', '행↑')}</TableBubbleBtn>
+              <TableBubbleBtn type="button" title={t('editor.table.addRowBelow', '아래에 행 추가') as string}
+                onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().addRowAfter().run(); }}>＋{t('editor.table.rowBelow', '행↓')}</TableBubbleBtn>
+            </TableBubbleGroup>
+            <TableBubbleSep />
+            <TableBubbleGroup>
+              <TableBubbleBtn type="button" title={t('editor.table.delCol', '열 삭제') as string}
+                onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().deleteColumn().run(); }}>−{t('editor.table.col', '열')}</TableBubbleBtn>
+              <TableBubbleBtn type="button" title={t('editor.table.delRow', '행 삭제') as string}
+                onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().deleteRow().run(); }}>−{t('editor.table.row', '행')}</TableBubbleBtn>
+              <TableBubbleBtn type="button" $danger title={t('editor.table.delTable', '표 삭제') as string}
+                onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().deleteTable().run(); }}>✕{t('editor.table.table', '표')}</TableBubbleBtn>
+            </TableBubbleGroup>
+          </TableBubble>
+        </BubbleMenu>
+      )}
       <Body $editable={editable} $borderless={borderless} $compact={compact}>
         <LightboxWrapper>
           <EditorContent editor={editor} />
@@ -318,6 +346,21 @@ const ImgSizeBtn = styled.button<{ $active?: boolean }>`
   padding: 4px 10px; border-radius: 5px;
   font-size: 11px; font-weight: 700; cursor: pointer; min-width: 28px;
   &:hover { background: #334155; color: #FFF; }
+`;
+// 표 행/열 플로팅 컨트롤 (표 안 커서일 때 노출)
+const TableBubble = styled.div`
+  display: inline-flex; align-items: center; gap: 4px; padding: 4px;
+  background: #0F172A; border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(15,23,42,0.25);
+`;
+const TableBubbleGroup = styled.div`display: inline-flex; align-items: center; gap: 2px;`;
+const TableBubbleSep = styled.div`width: 1px; height: 18px; background: #334155; margin: 0 2px;`;
+const TableBubbleBtn = styled.button<{ $danger?: boolean }>`
+  border: none; background: transparent;
+  color: ${p => p.$danger ? '#FCA5A5' : '#E2E8F0'};
+  padding: 4px 8px; border-radius: 5px;
+  font-size: 11px; font-weight: 700; cursor: pointer; white-space: nowrap;
+  &:hover { background: ${p => p.$danger ? '#7F1D1D' : '#334155'}; color: #FFF; }
 `;
 
 const Body = styled.div<{ $editable?: boolean; $borderless?: boolean; $compact?: boolean }>`

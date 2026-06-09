@@ -28,6 +28,7 @@ async function getUserScope(userId, businessId, platformRole) {
     isPlatformAdmin: platformRole === 'platform_admin',
     isOwner: false,
     isMember: false,
+    isAdmin: false,        // BusinessMember.role === 'admin' (N+21). 데이터 접근은 owner 급 전권, owner_only(재무)만 제외.
     isClient: false,
     isAi: false,
     businessRole: null,
@@ -50,6 +51,7 @@ async function getUserScope(userId, businessId, platformRole) {
     scope.businessRole = bm.role;
     scope.isOwner = bm.role === 'owner';
     scope.isMember = bm.role === 'member';
+    scope.isAdmin = bm.role === 'admin';
     scope.isAi = bm.role === 'ai';
   }
 
@@ -82,7 +84,7 @@ async function getUserScope(userId, businessId, platformRole) {
 
   // 4) ProjectMember — 옵션 A (사이클 N+9) L2 권한 검사용.
   //    내가 멤버 (owner/member) 일 때만 채움. client 는 ProjectClient 로 별도 권한.
-  if (bm && (bm.role === 'owner' || bm.role === 'member')) {
+  if (bm && (bm.role === 'owner' || bm.role === 'member' || bm.role === 'admin')) {
     const pmRows = await ProjectMember.findAll({
       where: { user_id: userId },
       include: [{ model: Project, attributes: ['id'], where: { business_id: businessId }, required: true }],
@@ -97,13 +99,13 @@ async function getUserScope(userId, businessId, platformRole) {
 // 워크스페이스 접근 가능 (member, client, platform_admin 모두 통과)
 async function assertWorkspaceAccess(userId, businessId, platformRole) {
   const scope = await getUserScope(userId, businessId, platformRole);
-  if (scope.isPlatformAdmin || scope.isOwner || scope.isMember || scope.isClient) return scope;
+  if (scope.isPlatformAdmin || scope.isOwner || scope.isMember || scope.isAdmin || scope.isClient) return scope;
   return null;
 }
 
-// member 이상만 (client 차단)
+// member 이상만 (client 차단). admin(N+21) 도 member 이상 — 데이터 접근 전권.
 function isMemberOrAbove(scope) {
-  return !!(scope?.isPlatformAdmin || scope?.isOwner || scope?.isMember);
+  return !!(scope?.isPlatformAdmin || scope?.isOwner || scope?.isMember || scope?.isAdmin);
 }
 
 // member 이상 boolean 가드 — 라우트의 인라인 BusinessMember.findOne 패턴 통일용.
@@ -359,42 +361,46 @@ async function canAccessPostByLevel(userId, post, scope) {
   if (v === 'L1') return false;
   // L4 — 외부 공개 = 워크스페이스 멤버 + share_token 으로 외부도 OK (raw 인증 사용자는 멤버여야)
   // N+72 fix: L4 면서 워크스페이스 멤버면 OK (옛 false 회귀 — "삭제됨" 표시 원인)
-  if (v === 'L4') return scope.isOwner || scope.isMember;
+  // admin(N+21) 은 owner 급 전권 — 모든 분기에서 owner 와 동일 취급
+  const fullView = scope.isOwner || scope.isAdmin;
+  if (v === 'L4') return fullView || scope.isMember;
   // L3 — 워크스페이스 전체
-  if (v === 'L3') return scope.isOwner || scope.isMember;
+  if (v === 'L3') return fullView || scope.isMember;
   // L2 — 프로젝트 (project_id 있음) 또는 specific members (target_member_ids)
   if (v === 'L2') {
     if (post.project_id) {
-      return (scope.projectMemberIds || []).includes(post.project_id) || scope.isOwner;
+      return (scope.projectMemberIds || []).includes(post.project_id) || fullView;
     }
     // L2-members 분기 — target_member_ids 검사
     const targetIds = Array.isArray(post.target_member_ids) ? post.target_member_ids : [];
     if (targetIds.length > 0) {
-      return targetIds.includes(userId) || scope.isOwner;
+      return targetIds.includes(userId) || fullView;
     }
     // 옛 L2 (target 없음) — workspace fallback
-    return scope.isOwner || scope.isMember;
+    return fullView || scope.isMember;
   }
   // vlevel NULL legacy fallback
-  return scope.isOwner || scope.isMember;
+  return fullView || scope.isMember;
 }
 
 function postListWhereByLevel(scope) {
   if (scope.isPlatformAdmin) return { business_id: scope.businessId };
   const conds = [];
   conds.push({ vlevel: 'L1', author_id: scope.userId });
-  if (scope.isOwner || scope.isMember) {
+  // admin(N+21) 은 owner 급 전권 — owner 와 동일 가시성
+  const fullView = scope.isOwner || scope.isAdmin;
+  if (fullView || scope.isMember) {
     conds.push({ vlevel: 'L3' });
     conds.push({ vlevel: 'L4' });  // N+72 fix — L4 도 워크스페이스 멤버 보여야
     conds.push({ vlevel: null });
   }
-  if (scope.isOwner) {
+  if (fullView) {
     conds.push({ vlevel: 'L2' });
   } else if ((scope.projectMemberIds || []).length > 0) {
     conds.push({ vlevel: 'L2', project_id: { [Op.in]: scope.projectMemberIds } });
   }
-  // N+74 — L2-members (target_member_ids JSON 에 본인 포함). owner 는 위에서 이미 통과
-  if (!scope.isOwner) {
+  // N+74 — L2-members (target_member_ids JSON 에 본인 포함). owner/admin 은 위에서 이미 통과
+  if (!fullView) {
     conds.push(sequelize.literal(`vlevel = 'L2' AND JSON_CONTAINS(target_member_ids, '${Number(scope.userId)}')`));
   }
   if (conds.length === 0) return { business_id: scope.businessId, id: { [Op.in]: [-1] } };
