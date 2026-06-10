@@ -156,6 +156,8 @@ export default function NotificationToaster() {
   const location = useLocation();
   const [toasts, setToasts] = useState<Toast[]>([]);
   const socketRef = useRef<Socket | null>(null);
+  // message:new 가 conv room + business room 양쪽으로 도착해 같은 메시지가 중복 토스트 되는 것 차단 (운영 #25)
+  const seenMsgRef = useRef<Map<number, number>>(new Map());
   const activeConvIdRef = useRef<number | null>(null);
   const activePathRef = useRef<string>(location.pathname);
 
@@ -352,6 +354,14 @@ export default function NotificationToaster() {
     // 채팅 메시지 — 본인이 보낸 건 제외 (sender_id !== userId)
     s.on('message:new', (msg: { id: number; conversation_id: number; sender_id: number; content?: string; sender?: { name?: string; display_name?: string | null } }) => {
       if (msg.sender_id === Number(user.id)) return;
+      // 중복 차단 — 같은 메시지가 conv room + business room 양쪽으로 도착 (백엔드 2회 emit). msg.id 로 1회만 처리.
+      if (msg.id) {
+        const now = Date.now();
+        const seen = seenMsgRef.current;
+        if (seen.has(msg.id) && now - (seen.get(msg.id) as number) < 10000) return;
+        seen.set(msg.id, now);
+        if (seen.size > 200) { for (const [k, ts] of seen) { if (now - ts > 30000) seen.delete(k); } }
+      }
       const senderName = msg.sender?.display_name || msg.sender?.name || t('toaster.someone', '누군가');
       const preview = (msg.content || '').replace(/<[^>]*>/g, '').slice(0, 60);
       add({

@@ -57,7 +57,10 @@ async function getBusinessPlan(businessId) {
   const result = {
     plan: getPlan(code),
     biz,
-    active: !expired && ['active', 'trialing'].includes(status),
+    // 유예(grace) 기간엔 유료 플랜 유지하며 정상 사용 — 결제 대기 버퍼이므로 업로드 등 차단 금지.
+    // 만료+유예 후 free 다운그레이드 시에도 free 한도로 사용 가능(code==='free').
+    // (옛: !expired 만 봐서 유예 기간에도 '구독 비활성'으로 업로드까지 막히던 운영 버그)
+    active: code === 'free' ? true : ((!expired || inGrace) && ['active', 'trialing'].includes(status)),
     inTrial,
     inGrace: expired && inGrace,
     trialEndsAt: biz.trial_ends_at,
