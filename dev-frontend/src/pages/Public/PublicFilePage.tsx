@@ -114,7 +114,7 @@ const PublicFilePage = () => {
             {t('public.file.download', { defaultValue: '다운로드' }) as string}
           </CTA>
           {isAuthed ? (
-            <CTASecondary href={`/file?file=${file.id}`} type="button">
+            <CTASecondary href={`/files?file=${file.id}`} type="button">
               {t('public.openInPlanQ', { defaultValue: 'PlanQ 에서 보기 →' }) as string}
             </CTASecondary>
           ) : (

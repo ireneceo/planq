@@ -212,6 +212,18 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
     prefillAppliedRef.current = true;
   }, [searchParams, setSearchParams]);
 
+  // 공유 페이지 "PlanQ 에서 보기" → /info?doc=:id 딥링크. 마운트 시 해당 문서 상세 열기.
+  const docParamAppliedRef = useRef(false);
+  useEffect(() => {
+    if (docParamAppliedRef.current) return;
+    const docParam = searchParams.get('doc');
+    if (!docParam) return;
+    const id = Number(docParam);
+    if (!id) return;
+    setDetailId(id);
+    docParamAppliedRef.current = true;
+  }, [searchParams]);
+
   // ─── 검색 디바운스 ───
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const debouncedSearch = useRef(search);
@@ -919,6 +931,7 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
                         setDocs(prev => prev.map(x => x.id === detail.id ? { ...x, tags } : x));
                         setDetail(prev => prev ? { ...prev, tags } : prev);
                       }}
+                      onError={() => setActionError(t('errors.saveFailed', '저장에 실패했습니다. 권한을 확인하거나 다시 시도해 주세요.') as string)}
                     />
                   </MetaEditWrap>
                   {/* N+65 — read_policy 옛 2 select 제거. visibility 에 통합됨. */}
@@ -940,6 +953,7 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
                     setDetail(prev => prev ? { ...prev, body: v } : prev);
                     setDocs(prev => prev.map(x => x.id === detail.id ? { ...x, body: v } : x));
                   }}
+                  onError={() => setActionError(t('errors.saveFailed', '저장에 실패했습니다. 권한을 확인하거나 다시 시도해 주세요.') as string)}
                 />
               </DrawerSection>
 
@@ -1547,14 +1561,21 @@ const DrawerBodyEdit: React.FC<{
   businessId: number;
   initialValue: string;
   onSaved: (newVal: string) => void;
-}> = ({ docId, businessId, initialValue, onSaved }) => {
+  onError?: () => void;
+}> = ({ docId, businessId, initialValue, onSaved, onError }) => {
   const [editing, setEditing] = React.useState(false);
   const [draft, setDraft] = React.useState(initialValue || '');
   React.useEffect(() => { if (!editing) setDraft(initialValue || ''); }, [initialValue, editing]);
   const commit = async () => {
-    setEditing(false);
-    if (draft === (initialValue || '')) return;
-    try { await updateKnowledge(businessId, docId, { body: draft }); onSaved(draft); } catch { /* skip */ }
+    if (draft === (initialValue || '')) { setEditing(false); return; }
+    // 옛 회귀: 실패를 silently 삼키고 editing 닫아 "수정 안 됨"으로 보였음. 실패 시 editing 유지 + 부모 배너 노출.
+    try {
+      await updateKnowledge(businessId, docId, { body: draft });
+      onSaved(draft);
+      setEditing(false);
+    } catch {
+      onError?.();
+    }
   };
   // N+72-5 — RichEditor (HTML) — 화면 표시도 dangerouslySetInnerHTML 으로 HTML 렌더
   if (!editing) {
@@ -1580,7 +1601,7 @@ const DrawerBodyEdit: React.FC<{
 
 const BodyClickable = styled.div`
   font-size: 13px; color: #334155; line-height: 1.6;
-  word-break: break-word;
+  word-break: break-word; overflow-wrap: anywhere;
   padding: 10px 12px; background: #F8FAFC; border-radius: 6px;
   cursor: text;
   &:hover { background: #F0FDFA; }
@@ -1588,6 +1609,7 @@ const BodyClickable = styled.div`
   & p:last-child { margin-bottom: 0; }
   & ul, & ol { padding-left: 20px; margin: 6px 0; }
   & img { max-width: 100%; height: auto; }
+  & a { overflow-wrap: anywhere; }
 `;
 const BodyEditWrap = styled.div`
   border: 1px solid #14B8A6; border-radius: 8px;
@@ -1601,16 +1623,22 @@ const TagsEdit: React.FC<{
   businessId: number;
   initialValue: string[];
   onSaved: (tags: string[]) => void;
-}> = ({ docId, businessId, initialValue, onSaved }) => {
+  onError?: () => void;
+}> = ({ docId, businessId, initialValue, onSaved, onError }) => {
   const [editing, setEditing] = React.useState(false);
   const [draft, setDraft] = React.useState((initialValue || []).join(', '));
   React.useEffect(() => { if (!editing) setDraft((initialValue || []).join(', ')); }, [initialValue, editing]);
   const commit = async () => {
-    setEditing(false);
     const next = draft.split(',').map(s => s.trim()).filter(Boolean).slice(0, 12);
     const cur = initialValue || [];
-    if (next.length === cur.length && next.every((v, i) => v === cur[i])) return;
-    try { await updateKnowledge(businessId, docId, { tags: next }); onSaved(next); } catch { /* skip */ }
+    if (next.length === cur.length && next.every((v, i) => v === cur[i])) { setEditing(false); return; }
+    try {
+      await updateKnowledge(businessId, docId, { tags: next });
+      onSaved(next);
+      setEditing(false);
+    } catch {
+      onError?.();
+    }
   };
   if (!editing) {
     if (!initialValue || initialValue.length === 0) {

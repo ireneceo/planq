@@ -101,7 +101,7 @@ const PublicKbDocumentPage = () => {
 
         <CTAArea>
           {isAuthed ? (
-            <CTA href={`/talk?kb=${doc.id}`} type="button">
+            <CTA href={`/info?doc=${doc.id}`} type="button">
               {t('public.openInPlanQ', { defaultValue: 'PlanQ 에서 보기 →' }) as string}
             </CTA>
           ) : (
