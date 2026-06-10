@@ -111,13 +111,19 @@ const Backdrop = styled.div`
   position: fixed; inset: 0; background: rgba(15,23,42,0.4);
   display: flex; align-items: center; justify-content: center; z-index: 1100;
   padding: 20px;
+  /* 모바일: 키보드가 올라오면 visual viewport(--vvh)로 줄여 하단 입력·버튼이 안 가리게 (운영 #23). */
+  @media (max-width: 640px) {
+    height: var(--vvh, 100vh); bottom: auto; align-items: stretch; padding: 0;
+  }
 `;
 const Dialog = styled.div<{ $maxWidth: string }>`
   background: #fff; border-radius: 14px;
   width: 100%; max-width: ${p => p.$maxWidth};
   max-height: 90vh; display: flex; flex-direction: column;
   box-shadow: 0 24px 48px rgba(15,23,42,0.18);
-  @media (max-width: 640px) { max-height: 100vh; height: 100vh; border-radius: 0; }
+  @media (max-width: 640px) {
+    max-height: var(--vvh, 100vh); height: var(--vvh, 100vh); border-radius: 0;
+  }
 `;
 const Header = styled.div`
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
