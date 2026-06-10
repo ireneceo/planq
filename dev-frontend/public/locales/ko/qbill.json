@@ -280,7 +280,14 @@
         "biz_address": "주소"
       },
       "saveOnClient": "고객 정보에 저장",
-      "skip": "다음에 입력"
+      "skip": "다음에 입력",
+      "modeClient": "기존 고객",
+      "modeExternal": "외부 직접 입력",
+      "extName": "받는 분 · 회사명",
+      "extNamePh": "예: 홍길동 / (주)예시",
+      "extEmail": "이메일",
+      "extBizNumber": "사업자번호 (선택)",
+      "extHint": "초대 없이 입력한 이메일로 청구서를 발송합니다. 공개 결제 링크로 결제·확인이 가능합니다."
     },
     "compose": {
       "title": "청구 내역",
@@ -385,7 +392,9 @@
       "titleRequired": "제목을 입력해주세요",
       "itemsRequired": "최소 1개 항목이 필요합니다",
       "splitSumWrong": "분할 합계가 총액과 일치하지 않습니다",
-      "businessIncomplete": "발신 사업자 정보가 부족합니다"
+      "businessIncomplete": "발신 사업자 정보가 부족합니다",
+      "extNameRequired": "받는 분/회사명을 입력하세요",
+      "extEmailRequired": "받는 분 이메일을 정확히 입력하세요"
     }
   },
   "payments": {

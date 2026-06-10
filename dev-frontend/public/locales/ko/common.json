@@ -87,7 +87,8 @@
     "bill": "Q bill",
     "users": "사용자",
     "businesses": "비즈니스",
-    "logout": "로그아웃"
+    "logout": "로그아웃",
+    "myFeedback": "내 문의·피드백"
   },
   "role": {
     "platform_admin": "플랫폼 관리자",
@@ -563,6 +564,24 @@
     "kb": {
       "bundleTitle": "공유 자료",
       "bundleEmpty": "공유된 자료가 없습니다."
+    }
+  },
+  "myFeedback": {
+    "title": "내 문의·피드백",
+    "loading": "불러오는 중…",
+    "empty": "아직 남긴 문의·피드백이 없어요. Q helper에서 문의나 피드백을 남겨보세요.",
+    "reply": "운영팀 답변",
+    "cat": {
+      "bug": "버그",
+      "improve": "개선",
+      "feature": "기능 요청",
+      "other": "기타"
+    },
+    "status": {
+      "pending": "접수됨",
+      "reviewing": "검토 중",
+      "done": "완료",
+      "wontfix": "보류"
     }
   }
 }

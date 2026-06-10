@@ -136,7 +136,7 @@ router.patch('/:id/respond', authenticateToken, requireRole('platform_admin'), a
           eventKind: 'feedback',
           title: `피드백 ${statusLabel} — ${item.title}`,
           body: item.admin_response ? String(item.admin_response).slice(0, 300) : '운영팀이 회신했습니다.',
-          link: '/',
+          link: '/me/feedback',
           ctaLabel: '내역 보기',
           actorUserId: req.user.id,
           ioApp: req.app,

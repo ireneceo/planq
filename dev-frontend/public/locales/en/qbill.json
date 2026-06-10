@@ -280,7 +280,14 @@
         "biz_address": "Address"
       },
       "saveOnClient": "Save on client",
-      "skip": "Skip for now"
+      "skip": "Skip for now",
+      "modeClient": "Existing client",
+      "modeExternal": "External (direct)",
+      "extName": "Recipient · Company",
+      "extNamePh": "e.g. John Doe / Acme Inc.",
+      "extEmail": "Email",
+      "extBizNumber": "Business no. (optional)",
+      "extHint": "Sends the invoice to the entered email without an invite. Payment & viewing via the public link."
     },
     "compose": {
       "title": "Invoice details",
@@ -385,7 +392,9 @@
       "titleRequired": "Enter a title",
       "itemsRequired": "At least one line item is required",
       "splitSumWrong": "Installment total must equal invoice total",
-      "businessIncomplete": "Sender business info is incomplete"
+      "businessIncomplete": "Sender business info is incomplete",
+      "extNameRequired": "Enter recipient/company name",
+      "extEmailRequired": "Enter a valid recipient email"
     }
   },
   "payments": {

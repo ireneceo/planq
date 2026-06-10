@@ -81,6 +81,11 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
   } | null>(null);
 
   const [clientId, setClientId] = useState<number | null>(null);
+  // 외부 고객 직접 입력 (초대 없이 청구) — 운영 #1. 'client'=기존 고객 선택, 'external'=이름+이메일 직접
+  const [recipientMode, setRecipientMode] = useState<'client' | 'external'>('client');
+  const [extName, setExtName] = useState('');
+  const [extEmail, setExtEmail] = useState('');
+  const [extBizNumber, setExtBizNumber] = useState('');
   const [sourcePostId, setSourcePostId] = useState<number | null>(null);
   const [title, setTitle] = useState('');
   const [issuedAt, setIssuedAt] = useState(todayStr);
@@ -218,6 +223,7 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
     if (!open) {
       // 닫힐 때 폼 초기화 (워크스페이스 기본값은 모달 open 시 다시 prefill 됨)
       setClientId(null); setSourcePostId(null); setTitle(''); setNotes('');
+      setRecipientMode('client'); setExtName(''); setExtEmail(''); setExtBizNumber('');
       setIssuedAt(todayStr);
       setItems([{ id: 1, description: '', quantity: 1, unit_price: 0 }]);
       setSplitOn(false);
@@ -285,7 +291,12 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
 
   const validate = (): string[] => {
     const errs: string[] = [];
-    if (!clientId) errs.push(t('newInvoice.validation.clientRequired') as string);
+    if (recipientMode === 'external') {
+      if (!extName.trim()) errs.push(t('newInvoice.validation.extNameRequired', { defaultValue: '받는 분/회사명을 입력하세요' }) as string);
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(extEmail.trim())) errs.push(t('newInvoice.validation.extEmailRequired', { defaultValue: '받는 분 이메일을 정확히 입력하세요' }) as string);
+    } else if (!clientId) {
+      errs.push(t('newInvoice.validation.clientRequired') as string);
+    }
     if (!title.trim()) errs.push(t('newInvoice.validation.titleRequired') as string);
     if (items.length === 0 || items.every(it => !it.description.trim())) {
       errs.push(t('newInvoice.validation.itemsRequired') as string);
@@ -306,14 +317,20 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
     try {
       const created = await createInvoice(businessId, {
         title: title.trim() || '(제목 없음)',
-        client_id: clientId,
-        source_post_id: sourcePostId,
+        client_id: recipientMode === 'external' ? null : clientId,
+        source_post_id: recipientMode === 'external' ? null : sourcePostId,
         currency,
         vat_rate: vatRate,
         due_date: dueDate || null,
-        recipient_email: client?.tax_invoice_email || client?.billing_contact_email || client?.invite_email || null,
-        recipient_business_name: overrideBiz.biz_name || client?.biz_name || null,
-        recipient_business_number: overrideBiz.biz_tax_id || client?.biz_tax_id || null,
+        recipient_email: recipientMode === 'external'
+          ? (extEmail.trim() || null)
+          : (client?.tax_invoice_email || client?.billing_contact_email || client?.invite_email || null),
+        recipient_business_name: recipientMode === 'external'
+          ? (extName.trim() || null)
+          : (overrideBiz.biz_name || client?.biz_name || null),
+        recipient_business_number: recipientMode === 'external'
+          ? (extBizNumber.trim() || null)
+          : (overrideBiz.biz_tax_id || client?.biz_tax_id || null),
         notes: notes.trim() || null,
         installment_mode: splitOn ? 'split' : 'single',
         installments: splitOn ? rounds.map(r => ({
@@ -392,7 +409,9 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
   }
 
   // 발송 요약 텍스트
-  const recipientEmail = client?.tax_invoice_email || client?.billing_contact_email || client?.invite_email;
+  const recipientEmail = recipientMode === 'external'
+    ? extEmail.trim()
+    : (client?.tax_invoice_email || client?.billing_contact_email || client?.invite_email);
   const deliverSummary: string[] = [];
   if (sendChat && conversation) deliverSummary.push(`채팅: ${conversation.title || '채팅방'}`);
   if (sendEmail && recipientEmail) deliverSummary.push(`이메일: ${recipientEmail}`);
@@ -427,16 +446,50 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
 
             <Section>
               <SectionLabel>{t('newInvoice.to.title')}</SectionLabel>
-              <PlanQSelect
-                options={clientOptions}
-                value={clientOptions.find(o => o.value === clientId) || null}
-                onChange={(opt) => { setClientId(opt ? Number((opt as PlanQSelectOption).value) : null); setSourcePostId(null); setOverrideBiz({}); }}
-                placeholder={t('newInvoice.to.selectPh') as string}
-                isClearable
-                isSearchable
-              />
+              <RecipientModeRow role="tablist">
+                <RecipientModeBtn type="button" $active={recipientMode === 'client'}
+                  onClick={() => setRecipientMode('client')} role="tab" aria-selected={recipientMode === 'client'}>
+                  {t('newInvoice.to.modeClient', { defaultValue: '기존 고객' }) as string}
+                </RecipientModeBtn>
+                <RecipientModeBtn type="button" $active={recipientMode === 'external'}
+                  onClick={() => setRecipientMode('external')} role="tab" aria-selected={recipientMode === 'external'}>
+                  {t('newInvoice.to.modeExternal', { defaultValue: '외부 직접 입력' }) as string}
+                </RecipientModeBtn>
+              </RecipientModeRow>
 
-              {client && (
+              {recipientMode === 'client' && (
+                <PlanQSelect
+                  options={clientOptions}
+                  value={clientOptions.find(o => o.value === clientId) || null}
+                  onChange={(opt) => { setClientId(opt ? Number((opt as PlanQSelectOption).value) : null); setSourcePostId(null); setOverrideBiz({}); }}
+                  placeholder={t('newInvoice.to.selectPh') as string}
+                  isClearable
+                  isSearchable
+                />
+              )}
+
+              {recipientMode === 'external' && (
+                <ExtRecipientCard>
+                  <ExtField>
+                    <ExtLabel>{t('newInvoice.to.extName', { defaultValue: '받는 분 · 회사명' }) as string}</ExtLabel>
+                    <MissingInput value={extName} onChange={e => setExtName(e.target.value)}
+                      placeholder={t('newInvoice.to.extNamePh', { defaultValue: '예: 홍길동 / (주)예시' }) as string} />
+                  </ExtField>
+                  <ExtField>
+                    <ExtLabel>{t('newInvoice.to.extEmail', { defaultValue: '이메일' }) as string}</ExtLabel>
+                    <MissingInput type="email" value={extEmail} onChange={e => setExtEmail(e.target.value)}
+                      placeholder="name@company.com" />
+                  </ExtField>
+                  <ExtField>
+                    <ExtLabel>{t('newInvoice.to.extBizNumber', { defaultValue: '사업자번호 (선택)' }) as string}</ExtLabel>
+                    <MissingInput value={extBizNumber} onChange={e => setExtBizNumber(e.target.value)}
+                      placeholder="000-00-00000" />
+                  </ExtField>
+                  <ExtHint>{t('newInvoice.to.extHint', { defaultValue: '초대 없이 입력한 이메일로 청구서를 발송합니다. 공개 결제 링크로 결제·확인이 가능합니다.' }) as string}</ExtHint>
+                </ExtRecipientCard>
+              )}
+
+              {recipientMode === 'client' && client && (
                 <ToCard>
                   {client.is_business ? (
                     <>
@@ -974,6 +1027,23 @@ const MissingInput = styled.input`
   background: #fff; border: 1px solid #FDE68A; border-radius: 6px;
   &:focus { outline: none; border-color: #F59E0B; }
 `;
+// 외부 수신자 직접 입력 (운영 #1)
+const RecipientModeRow = styled.div`display: inline-flex; gap: 4px; margin-bottom: 8px; background: #F1F5F9; border-radius: 8px; padding: 3px;`;
+const RecipientModeBtn = styled.button<{ $active: boolean }>`
+  padding: 6px 14px; border: none; border-radius: 6px; cursor: pointer;
+  font-size: 12px; font-weight: 600;
+  background: ${p => p.$active ? '#FFFFFF' : 'transparent'};
+  color: ${p => p.$active ? '#0F172A' : '#64748B'};
+  box-shadow: ${p => p.$active ? '0 1px 2px rgba(0,0,0,0.06)' : 'none'};
+  transition: all 0.15s;
+`;
+const ExtRecipientCard = styled.div`
+  display: flex; flex-direction: column; gap: 10px;
+  padding: 14px; border: 1px solid #E2E8F0; border-radius: 10px; background: #F8FAFC;
+`;
+const ExtField = styled.div`display: flex; flex-direction: column; gap: 4px;`;
+const ExtLabel = styled.label`font-size: 12px; font-weight: 600; color: #334155;`;
+const ExtHint = styled.div`font-size: 11px; color: #64748B; line-height: 1.5;`;
 const SaveOnClient = styled.label`
   display: flex; align-items: center; gap: 6px;
   font-size: 11px; color: #92400E; margin-top: 8px; cursor: pointer;

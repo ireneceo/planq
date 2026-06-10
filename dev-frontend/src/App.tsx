@@ -47,6 +47,7 @@ const WorkspaceSettingsPage = lazy(() => import('./pages/Settings/WorkspaceSetti
 const QTalkPage = lazy(() => import('./pages/QTalk/QTalkPage'));
 const QTalkStandalonePage = lazy(() => import('./pages/QTalk/QTalkStandalonePage'));
 const PersonalVaultPage = lazy(() => import('./pages/PersonalVault/PersonalVaultPage'));
+const MyFeedbackPage = lazy(() => import('./pages/MyFeedback/MyFeedbackPage'));
 const QTaskPage = lazy(() => import('./pages/QTask/QTaskPage'));
 const QProjectPage = lazy(() => import('./pages/QProject/QProjectPage'));
 const QProjectDetailPage = lazy(() => import('./pages/QProject/QProjectDetailPage'));
@@ -311,6 +312,12 @@ function App() {
         <Route path="/personal-vault" element={
           <ProtectedRoute>
             <MainLayout><PersonalVaultPage /></MainLayout>
+          </ProtectedRoute>
+        } />
+
+        <Route path="/me/feedback" element={
+          <ProtectedRoute>
+            <MainLayout><MyFeedbackPage /></MainLayout>
           </ProtectedRoute>
         } />
 
