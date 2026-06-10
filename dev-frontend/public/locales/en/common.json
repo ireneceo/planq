@@ -185,7 +185,18 @@
     "thinking": "Thinking…",
     "inputPh": "Ask a question (Enter to send, Shift+Enter for newline)",
     "send": "Send",
-    "sending": "Sending…"
+    "sending": "Sending…",
+    "fbStatus": {
+      "pending": "Received",
+      "reviewing": "Reviewing",
+      "done": "Done",
+      "wontfix": "Won’t fix"
+    },
+    "myHistoryEnter": "View my inquiries & feedback",
+    "myHistoryBack": "Back to inquiry",
+    "myHistoryEmpty": "No inquiries or feedback yet.",
+    "myHistoryLoading": "Loading…",
+    "myHistoryReply": "Team reply"
   },
   "cue": {
     "title": "Cue Help",

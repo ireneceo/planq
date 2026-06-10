@@ -12,6 +12,7 @@ import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useLocation } from 'react-router-dom';
 import { apiFetch, useAuth } from '../../contexts/AuthContext';
+import { formatDate } from '../../utils/dateFormat';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { mapApiError } from '../../utils/apiError';
 
@@ -19,7 +20,20 @@ import { mapApiError } from '../../utils/apiError';
 // 'feedback' / 'inquiry' 는 별도 view (채팅 아닌 폼)
 //   비로그인: qhelper(게스트 prompt) + inquiry(랜딩 문의 와 동일 백엔드)
 //   로그인:  qhelper + workspace + feedback
-type Mode = 'qhelper' | 'workspace' | 'feedback' | 'inquiry';
+type Mode = 'qhelper' | 'workspace' | 'feedback' | 'inquiry' | 'myhistory';
+
+// 내가 남긴 문의·피드백 (GET /api/feedback/mine) — 운영 #21
+interface MyFeedbackItem {
+  id: number;
+  category: string;
+  priority: string;
+  title: string;
+  body: string;
+  status: string;
+  admin_response: string | null;
+  responded_at: string | null;
+  created_at: string;
+}
 type FeedbackCategory = 'bug' | 'improve' | 'feature' | 'other';
 
 interface Turn {
@@ -36,6 +50,7 @@ const CueHelpDrawer: React.FC<{ standalone?: boolean }> = ({ standalone = false 
   const location = useLocation();
   const { user } = useAuth();
   const isGuest = !user;
+  const tz = (user as { workspace_timezone?: string } | null)?.workspace_timezone || 'Asia/Seoul';
   // N+93 — 비즈니스 멤버는 RightDock 통합 런처가 Q helper 진입을 제공 → 자체 floating FAB 숨김.
   // 게스트/Client 는 런처가 없으므로 기존 floating FAB 유지.
   const dockManaged = !!user?.business_id && ['owner', 'admin', 'member'].includes(user.business_role || '');
@@ -52,6 +67,9 @@ const CueHelpDrawer: React.FC<{ standalone?: boolean }> = ({ standalone = false 
   const [fbCategory, setFbCategory] = useState<FeedbackCategory>('improve');
   const [fbPriority, setFbPriority] = useState<'normal' | 'high'>('normal');
   const [fbBody, setFbBody] = useState('');
+  // 내 문의·피드백 내역 (운영 #21)
+  const [myItems, setMyItems] = useState<MyFeedbackItem[]>([]);
+  const [myLoading, setMyLoading] = useState(false);
   const [fbResultMsg, setFbResultMsg] = useState<string | null>(null);
   // N+63 — 피드백 이미지 첨부 (사용자 호소 #3c). base64 dataUrl 로 backend attachments JSON 에 직접 저장.
   // 1MB cap per file, 최대 3개. backend 의 attachments.slice(0, 5) 도 5건 cap 있음.
@@ -90,6 +108,19 @@ const CueHelpDrawer: React.FC<{ standalone?: boolean }> = ({ standalone = false 
       if (!inqEmail && user.email) setInqEmail(user.email);
     }
   }, [mode, isGuest, user, inqName, inqEmail]);
+
+  // 내 문의·피드백 내역 — myhistory 모드 진입 시 조회 (운영 #21)
+  useEffect(() => {
+    if (mode !== 'myhistory' || isGuest) return;
+    let cancelled = false;
+    setMyLoading(true);
+    apiFetch('/api/feedback/mine')
+      .then(r => r.json())
+      .then(j => { if (!cancelled && j?.success) setMyItems(Array.isArray(j.data) ? j.data : []); })
+      .catch(() => { if (!cancelled) setMyItems([]); })
+      .finally(() => { if (!cancelled) setMyLoading(false); });
+    return () => { cancelled = true; };
+  }, [mode, isGuest]);
 
   useBodyScrollLock(open);
 
@@ -518,6 +549,11 @@ const CueHelpDrawer: React.FC<{ standalone?: boolean }> = ({ standalone = false 
           )}
           {mode === 'inquiry' && (
             <FbForm>
+              {!isGuest && (
+                <MyHistoryLink type="button" onClick={() => setMode('myhistory')}>
+                  {t('qhelper.myHistoryEnter', { defaultValue: '내가 남긴 문의·피드백 보기' }) as string} →
+                </MyHistoryLink>
+              )}
               <FbField>
                 <FbLabel>{t('qhelper.inqName', '이름')}</FbLabel>
                 <FbInput
@@ -548,6 +584,37 @@ const CueHelpDrawer: React.FC<{ standalone?: boolean }> = ({ standalone = false 
               </FbField>
               {inqResultMsg && <FbResult>{inqResultMsg}</FbResult>}
             </FbForm>
+          )}
+          {mode === 'myhistory' && !isGuest && (
+            <MyHistoryWrap>
+              <MyHistoryBack type="button" onClick={() => setMode('inquiry')}>
+                ← {t('qhelper.myHistoryBack', { defaultValue: '문의 남기기로' }) as string}
+              </MyHistoryBack>
+              {myLoading ? (
+                <MyHistoryEmpty>{t('qhelper.myHistoryLoading', { defaultValue: '불러오는 중…' }) as string}</MyHistoryEmpty>
+              ) : myItems.length === 0 ? (
+                <MyHistoryEmpty>{t('qhelper.myHistoryEmpty', { defaultValue: '아직 남긴 문의·피드백이 없어요.' }) as string}</MyHistoryEmpty>
+              ) : (
+                myItems.map(it => (
+                  <MyHistoryCard key={it.id}>
+                    <MyHistoryTop>
+                      <MyHistCat>{t(`qhelper.fbCat.${it.category}`, { defaultValue: it.category }) as string}</MyHistCat>
+                      <MyHistStatus $s={it.status}>
+                        {t(`qhelper.fbStatus.${it.status}`, { defaultValue: it.status }) as string}
+                      </MyHistStatus>
+                      <MyHistDate>{formatDate(it.created_at, tz)}</MyHistDate>
+                    </MyHistoryTop>
+                    <MyHistBody>{it.body}</MyHistBody>
+                    {it.admin_response && (
+                      <MyHistReply>
+                        <MyHistReplyLabel>{t('qhelper.myHistoryReply', { defaultValue: '운영팀 답변' }) as string}</MyHistReplyLabel>
+                        <MyHistReplyText>{it.admin_response}</MyHistReplyText>
+                      </MyHistReply>
+                    )}
+                  </MyHistoryCard>
+                ))
+              )}
+            </MyHistoryWrap>
           )}
         </Body>
         <Footer>
@@ -890,6 +957,49 @@ const FbResult = styled.div`
   background: #F0FDFA; border: 1px solid #5EEAD4; border-radius: 8px;
   font-size: 13px; color: #0F766E;
 `;
+// 내 문의·피드백 내역 (운영 #21)
+const MyHistoryLink = styled.button`
+  align-self: flex-start; padding: 6px 0; background: none; border: none; cursor: pointer;
+  font-size: 13px; font-weight: 600; color: #0D9488;
+  &:hover { color: #0F766E; text-decoration: underline; }
+`;
+const MyHistoryWrap = styled.div`display: flex; flex-direction: column; gap: 12px;`;
+const MyHistoryBack = styled.button`
+  align-self: flex-start; padding: 4px 0; background: none; border: none; cursor: pointer;
+  font-size: 13px; font-weight: 600; color: #64748B;
+  &:hover { color: #0F172A; }
+`;
+const MyHistoryEmpty = styled.div`
+  padding: 28px 16px; text-align: center; font-size: 13px; color: #94A3B8;
+`;
+const MyHistoryCard = styled.div`
+  padding: 14px; border: 1px solid #E2E8F0; border-radius: 12px; background: #FFFFFF;
+  display: flex; flex-direction: column; gap: 8px;
+`;
+const MyHistoryTop = styled.div`display: flex; align-items: center; gap: 8px; flex-wrap: wrap;`;
+const MyHistCat = styled.span`
+  font-size: 11px; font-weight: 700; color: #0F766E;
+  background: #F0FDFA; border-radius: 999px; padding: 2px 10px;
+`;
+const STATUS_TONE: Record<string, { bg: string; fg: string }> = {
+  pending: { bg: '#FEF3C7', fg: '#92400E' },
+  reviewing: { bg: '#DBEAFE', fg: '#1E40AF' },
+  done: { bg: '#DCFCE7', fg: '#166534' },
+  wontfix: { bg: '#F1F5F9', fg: '#64748B' },
+};
+const MyHistStatus = styled.span<{ $s: string }>`
+  font-size: 11px; font-weight: 700; border-radius: 999px; padding: 2px 10px;
+  background: ${p => (STATUS_TONE[p.$s] || STATUS_TONE.pending).bg};
+  color: ${p => (STATUS_TONE[p.$s] || STATUS_TONE.pending).fg};
+`;
+const MyHistDate = styled.span`margin-left: auto; font-size: 11px; color: #94A3B8;`;
+const MyHistBody = styled.div`font-size: 13px; color: #334155; white-space: pre-wrap; word-break: break-word;`;
+const MyHistReply = styled.div`
+  margin-top: 4px; padding: 10px 12px; background: #F8FAFC; border-radius: 8px;
+  border-left: 3px solid #14B8A6;
+`;
+const MyHistReplyLabel = styled.div`font-size: 11px; font-weight: 700; color: #0F766E; margin-bottom: 4px;`;
+const MyHistReplyText = styled.div`font-size: 13px; color: #334155; white-space: pre-wrap; word-break: break-word;`;
 // N+63 — 피드백 이미지 첨부 (사용자 호소 #3c)
 const FbAttachRow = styled.div`
   display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
