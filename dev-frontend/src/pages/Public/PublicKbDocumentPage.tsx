@@ -95,20 +95,15 @@ const PublicKbDocumentPage = () => {
       <Toolbar className="no-print">
         <Brand src="/planQ-slogan_color.svg" alt="PlanQ" />
         <ToolbarSpacer />
-        {isAuthed ? (
+        {/* 문서 공개 페이지와 동일한 2버튼: (로그인 시) PlanQ 앱에서 열기 + PDF 다운로드 */}
+        {isAuthed && (
           <PrimaryBtn type="button" onClick={() => navigate(`/info?doc=${doc.id}`)}>
-            {t('public.openInPlanQ', { defaultValue: 'PlanQ 에서 보기' }) as string}
+            {t('public.openInApp', { defaultValue: 'PlanQ 앱에서 열기' }) as string}
           </PrimaryBtn>
-        ) : (
-          <>
-            <PlainBtn type="button" onClick={() => navigate(`/login?next=${encodeURIComponent(`/public/kb/${token}`)}`)}>
-              {t('public.login', { defaultValue: 'PlanQ 로그인' }) as string}
-            </PlainBtn>
-            <PrimaryBtn type="button" onClick={() => navigate('/')}>
-              {t('public.signup', { defaultValue: '무료로 시작하기' }) as string}
-            </PrimaryBtn>
-          </>
         )}
+        <PlainBtn type="button" onClick={() => window.open(`/api/kb-documents/public/by-token/${token}/pdf`, '_blank')}>
+          {t('public.downloadPdf', { defaultValue: 'PDF 다운로드' }) as string}
+        </PlainBtn>
       </Toolbar>
 
       <PromoBar className="no-print">

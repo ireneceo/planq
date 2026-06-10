@@ -1343,6 +1343,39 @@ router.get('/kb-documents/public/by-token/:token', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// PDF 다운로드 (익명 — share_token). 문서(post) PDF 템플릿 재사용 (KB body 는 HTML 문자열).
+router.get('/kb-documents/public/by-token/:token/pdf', async (req, res, next) => {
+  try {
+    const doc = await KbDocument.findOne({
+      where: { share_token: req.params.token },
+      include: [
+        { model: User, as: 'uploader', attributes: ['id', 'name'], required: false },
+        { model: Business, attributes: ['id', 'name', 'brand_name', 'legal_name'], required: false },
+      ],
+      attributes: ['id', 'title', 'body', 'source_type', 'shared_at', 'share_expires_at',
+        'share_password_hash', 'business_id', 'created_at'],
+    });
+    if (!doc) return errorResponse(res, 'not_found', 404);
+    const { checkShareExpiry } = require('../services/share_helper');
+    if (checkShareExpiry(doc, res)) return;
+    const { postPdfHtml } = require('../services/pdfTemplates');
+    const { renderPdfFromHtml } = require('../services/pdfService');
+    // KB body(HTML) → post 형태로 매핑해 동일 PDF 템플릿 재사용
+    const pseudoPost = {
+      title: doc.title, content_json: null, content_html: doc.body || '',
+      category: doc.source_type || 'INFO', shared_at: doc.shared_at, created_at: doc.created_at,
+    };
+    const author = doc.uploader ? { id: doc.uploader.id, name: doc.uploader.name } : null;
+    const html = postPdfHtml(pseudoPost, author, doc.Business ? doc.Business.toJSON() : {});
+    const pdf = await renderPdfFromHtml(html);
+    res.setHeader('Content-Type', 'application/pdf');
+    const asciiName = (doc.title || 'document').replace(/[^\w-]/g, '_').slice(0, 80) || 'document';
+    const utf8Name = encodeURIComponent(`${doc.title || 'document'}.pdf`);
+    res.setHeader('Content-Disposition', `attachment; filename="${asciiName}.pdf"; filename*=UTF-8''${utf8Name}`);
+    res.send(pdf);
+  } catch (err) { next(err); }
+});
+
 router.get('/kb-documents/public/by-token/:token/auth-check', authenticateToken, async (req, res, next) => {
   try {
     // N+44 — 410 통일
