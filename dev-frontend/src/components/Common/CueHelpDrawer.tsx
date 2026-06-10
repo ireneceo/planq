@@ -412,7 +412,7 @@ const CueHelpDrawer: React.FC<{ standalone?: boolean }> = ({ standalone = false 
             turns.length === 0 ? (
               <Empty>
                 <EmptyTitle>
-                  {mode === 'workspace' ? t('qhelper.cueEmptyTitle', '내 워크스페이스에 대해 무엇이든')
+                  {mode === 'workspace' ? t('qhelper.cueEmptyTitle', { ws: user?.business_name || (t('qhelper.workspaceFallback', '워크스페이스') as string), defaultValue: '{{ws}} 에 대해 무엇이든' })
                     : isGuest ? t('qhelper.guestEmptyTitle', 'PlanQ, 무엇이든 물어보세요')
                     : t('qhelper.emptyTitle', '무엇이 궁금한가요?')}
                 </EmptyTitle>
@@ -558,7 +558,7 @@ const CueHelpDrawer: React.FC<{ standalone?: boolean }> = ({ standalone = false 
                 ref={inputRef}
                 value={input}
                 placeholder={mode === 'workspace'
-                  ? t('qhelper.cueInputPh', '내 워크스페이스에 대해 묻기 (Enter 로 보내기, Shift+Enter 줄바꿈)') as string
+                  ? t('qhelper.cueInputPh', { ws: user?.business_name || (t('qhelper.workspaceFallback', '워크스페이스') as string), defaultValue: '{{ws}} 에 대해 묻기 (Enter 로 보내기, Shift+Enter 줄바꿈)' }) as string
                   : isGuest
                     ? t('qhelper.guestInputPh', 'PlanQ 에 대해 무엇이든 물어보세요 (Enter 로 보내기)') as string
                     : t('qhelper.inputPh', '질문을 입력하세요 (Enter 로 보내기, Shift+Enter 줄바꿈)') as string}
