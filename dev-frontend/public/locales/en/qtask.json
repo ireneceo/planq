@@ -372,7 +372,9 @@
       "actAuto": "Auto-tracked",
       "inProgressDot": "In progress",
       "timeHint": "Actual hours are auto-accumulated when you start/finish (enter to confirm)",
-      "reviewReminder": "Progress reached 100% — click \"Submit for review\" to ask {{count}} reviewer(s) to start the completion flow"
+      "reviewReminder": "Progress reached 100% — click \"Submit for review\" to ask {{count}} reviewer(s) to start the completion flow",
+      "createdOn": "Created",
+      "requestedOn": "Requested"
     },
     "description": "Description",
     "descriptionSelf": "My work notes",

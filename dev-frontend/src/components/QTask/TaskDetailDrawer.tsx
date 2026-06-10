@@ -5,6 +5,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { apiFetch, useAuth } from '../../contexts/AuthContext';
+import { formatDate } from '../../utils/dateFormat';
 import CalendarPicker from '../Common/CalendarPicker';
 import SingleDateField from '../Common/SingleDateField';
 import PlanQSelect from '../Common/PlanQSelect';
@@ -90,6 +91,7 @@ interface TaskDetail {
   latest_estimation_source?: 'ai' | 'user' | null;
   actual_source?: 'auto' | 'user' | null;
   source?: string; request_by_user_id?: number | null; request_ack_at?: string | null;
+  created_at?: string | null;
   review_round?: number | null; review_policy?: 'all'|'any';
   assignee_id: number | null; created_by: number; project_id: number | null;
   cue_kind?: CueKind | null;
@@ -694,6 +696,10 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
             || (user?.business_id === bizId ? user?.business_role : null);
           const isPlatformAdmin = user?.platform_role === 'platform_admin';
           const iAmWsOwner = myWsRole === 'owner' || isPlatformAdmin;
+          // 단계 직접 변경(드롭다운)은 owner/admin 만 — 일반 멤버는 워크플로 버튼(ack/제출/승인 등)으로만 전이.
+          // 단계를 마음대로 점프하면 컨펌·검토 우회됨 (운영 피드백 #10).
+          const canDirectStatus = myWsRole === 'owner' || myWsRole === 'admin' || isPlatformAdmin;
+          const tz = user?.workspace_timezone || 'Asia/Seoul';
           const canEditTitle = iAmCreator || iAmAssignee || iAmWsOwner;
           const canEditDescription = iAmCreator || iAmWsOwner;
           const canEditBody = iAmAssignee || isPlatformAdmin;
@@ -755,22 +761,19 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
               )}
               <Meta>
                 <StatusBadgeWrap>
-                  <StatusBadge as="button" $bg={sc.bg} $fg={sc.fg}
-                    onClick={e => { e.stopPropagation(); setStatusOpen(v => !v); }}
-                    title={t('list.statusHint', 'Click to change status') as string}>
-                    {statusLabel} ▾
-                  </StatusBadge>
+                  {/* 단계 badge — owner/admin 만 직접 변경(드롭다운), 그 외는 읽기전용. 전이는 하단 워크플로 버튼으로. */}
+                  {canDirectStatus ? (
+                    <StatusBadge as="button" $bg={sc.bg} $fg={sc.fg}
+                      onClick={e => { e.stopPropagation(); setStatusOpen(v => !v); }}
+                      title={t('list.statusHint', 'Click to change status') as string}>
+                      {statusLabel} ▾
+                    </StatusBadge>
+                  ) : (
+                    <StatusBadge as="span" $bg={sc.bg} $fg={sc.fg} title={statusLabel}>{statusLabel}</StatusBadge>
+                  )}
                   {detailTask.review_round != null && detailTask.review_round > 0 &&
                     (detailTask.status === 'reviewing' || detailTask.status === 'revision_requested') &&
                     <RoundBadge title={t('detail.reviewers.roundTip', 'Review round') as string}>R{detailTask.review_round}</RoundBadge>}
-                  {/* N+93 (#10) — 단계 되돌리기 (직전 상태로). 초기상태(not_started) 외 노출 */}
-                  {detailTask.status !== 'not_started' && (
-                    <RevertBtn type="button" onClick={(e) => { e.stopPropagation(); revertStatus(); }} disabled={reverting}
-                      title={t('detail.revert.tip', '직전 단계로 되돌리기') as string} aria-label={t('detail.revert.tip', '직전 단계로 되돌리기') as string}>
-                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg>
-                      {t('detail.revert.label', '되돌리기')}
-                    </RevertBtn>
-                  )}
                   {statusOpen && (
                     <StatusDropdown data-dropdown="status-detail">
                       {/* reviewers 는 별도 로드된 state — detailTask.reviewers(stale/누락 가능) 대신 사용해야
@@ -832,6 +835,15 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                   }
                   return null;
                 })()}
+                {/* 언제 등록한 업무인지 — 작성일(요청이면 요청일). 운영 피드백. */}
+                {detailTask.created_at && (
+                  <MetaDate title={formatDate(detailTask.created_at, tz)}>
+                    {((detailTask.source === 'internal_request' || detailTask.source === 'qtalk_extract')
+                      ? t('detail.meta.requestedOn', { defaultValue: '요청' })
+                      : t('detail.meta.createdOn', { defaultValue: '작성' })) as string}
+                    {' '}{formatDate(detailTask.created_at, tz)}
+                  </MetaDate>
+                )}
               </Meta>
               <MetaGrid>
                 <MetaCell>
@@ -1117,6 +1129,17 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
               </MetaRecurRow>
               )}
             </Section>
+
+            {/* 단계 되돌리기 — 하단 액션 영역 앞. 권한·이력은 backend 가 판정. (운영 피드백: 위 제목 옆 X → 액션 앞) */}
+            {detailTask.status !== 'not_started' && (
+              <RevertRow>
+                <RevertBtn type="button" onClick={() => revertStatus()} disabled={reverting}
+                  title={t('detail.revert.tip', '직전 단계로 되돌리기') as string} aria-label={t('detail.revert.tip', '직전 단계로 되돌리기') as string}>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg>
+                  {t('detail.revert.label', '되돌리기')}
+                </RevertBtn>
+              </RevertRow>
+            )}
 
             {/* 액션 섹션 — 항상 마운트 유지 (상태 전환 시 섹션 자체가 사라지며 생기는 깜빡임 방지) */}
             <Section style={{ display: (assigneeHasAction || reviewerCanAct) ? 'block' : 'none' }}>
@@ -1634,6 +1657,8 @@ const TitleText = styled.span`flex:1;min-width:0;`;
 const TitleEditIcon = styled.span`display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:6px;color:#94A3B8;opacity:0;transition:opacity 0.15s, background 0.12s;flex-shrink:0;`;
 const TitleInput = styled.input`font-size:19px;font-weight:700;color:#0F172A;line-height:1.35;width:100%;padding:4px 8px;margin-left:-6px;margin-bottom:8px;border:1px solid #14B8A6;border-radius:6px;background:#FFF;font-family:inherit;&:focus{outline:none;box-shadow:0 0 0 2px rgba(20,184,166,0.15);}`;
 const Meta = styled.div`display:flex;align-items:center;gap:6px;font-size:11px;color:#64748B;flex-wrap:wrap;`;
+const MetaDate = styled.span`font-size:11px;color:#94A3B8;white-space:nowrap;`;
+const RevertRow = styled.div`display:flex;justify-content:flex-end;padding:4px 0 2px;`;
 const StatusBadgeWrap = styled.span`position:relative;display:inline-flex;align-items:center;gap:4px;`;
 const StatusBadge = styled.span<{ $bg: string; $fg: string }>`display:inline-flex;align-items:center;gap:2px;padding:3px 10px;font-size:11px;font-weight:700;background:${p => p.$bg};color:${p => p.$fg};border:none;border-radius:10px;cursor:pointer;user-select:none;&:hover{filter:brightness(0.95);}`;
 const RoundBadge = styled.span`display:inline-flex;align-items:center;padding:2px 6px;font-size:10px;font-weight:800;color:#92400E;background:#FEF3C7;border-radius:6px;letter-spacing:0.3px;`;
