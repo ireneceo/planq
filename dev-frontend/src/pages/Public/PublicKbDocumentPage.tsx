@@ -19,6 +19,8 @@ interface KbPreview {
   workspace?: { id: number; name: string } | null;
   shared_at: string | null;
   created_at: string | null;
+  custom_columns?: Array<{ id: string; name: string; type: string; show_in_list?: boolean }>;
+  custom_values?: Record<string, string>;
 }
 
 const SOURCE_LABEL_DEFAULTS: Record<string, string> = {
@@ -123,9 +125,37 @@ const PublicKbDocumentPage = () => {
           {doc.file_name && <span>· {doc.file_name}</span>}
         </DocMeta>
 
-        {doc.body ? (
+        {doc.body && (
           <Body dangerouslySetInnerHTML={{ __html: toHtml(doc.body) }} />
-        ) : (
+        )}
+
+        {(() => {
+          const cols = (doc.custom_columns || []).filter(c => {
+            const val = (doc.custom_values || {})[c.id];
+            return val != null && String(val).trim() !== '';
+          });
+          if (cols.length === 0) return null;
+          return (
+            <CustomSection>
+              {cols.map(col => {
+                const val = String((doc.custom_values || {})[col.id]);
+                const isUrl = col.type === 'url' || /^https?:\/\//i.test(val);
+                return (
+                  <CustomRow key={col.id}>
+                    <CustomLabel>{col.name}</CustomLabel>
+                    {isUrl ? (
+                      <CustomLink href={val} target="_blank" rel="noreferrer">{val}</CustomLink>
+                    ) : (
+                      <CustomValue>{val}</CustomValue>
+                    )}
+                  </CustomRow>
+                );
+              })}
+            </CustomSection>
+          );
+        })()}
+
+        {!doc.body && (doc.custom_columns || []).length === 0 && (
           <Hint>{t('public.kb.noBody', { defaultValue: '본문이 비어 있습니다.' }) as string}</Hint>
         )}
       </DocFrame>
@@ -207,3 +237,19 @@ const Body = styled.div`
 const Hint = styled.div`font-size: 13px; color: #94A3B8; padding: 12px 0;`;
 const ErrorTitle = styled.div`font-size: 18px; font-weight: 700; color: #0F172A; margin-bottom: 8px;`;
 const Center = styled.div`min-height:60vh;display:flex;align-items:center;justify-content:center;color:#64748B;font-size:14px;`;
+// 사용자 정의 항목 (label + value/link) — 반응형: 넓으면 label|value 2열, 좁으면 세로 스택
+const CustomSection = styled.div`
+  margin-top: 24px; padding-top: 20px; border-top: 1px solid #EEF2F6;
+  display: flex; flex-direction: column; gap: 12px;
+`;
+const CustomRow = styled.div`
+  display: grid; grid-template-columns: minmax(140px, 220px) 1fr; gap: 8px 16px; align-items: baseline;
+  @media (max-width: 560px) { grid-template-columns: 1fr; gap: 2px; }
+`;
+const CustomLabel = styled.div`font-size: 13px; font-weight: 700; color: #334155; word-break: keep-all;`;
+const CustomValue = styled.div`font-size: 14px; color: #334155; line-height: 1.6; overflow-wrap: anywhere; word-break: break-word;`;
+const CustomLink = styled.a`
+  font-size: 14px; color: #0D9488; line-height: 1.6; text-decoration: underline;
+  overflow-wrap: anywhere; word-break: break-word;
+  &:hover { color: #0F766E; }
+`;
