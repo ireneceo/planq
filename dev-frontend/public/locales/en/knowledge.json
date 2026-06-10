@@ -2,7 +2,8 @@
   "errors": {
     "deleteForbidden": "Only the author or an admin can delete this.",
     "deleteFailed": "Could not delete. Please try again in a moment.",
-    "shareFailed": "Could not create the share link. Please try again."
+    "shareFailed": "Could not create the share link. Please try again.",
+    "saveFailed": "Failed to save. Check your permission or try again."
   },
   "page": {
     "title": "Q info",

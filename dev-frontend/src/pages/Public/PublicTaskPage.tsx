@@ -157,7 +157,7 @@ const PublicTaskPage = () => {
 
         <CTAArea>
           {isAuthed ? (
-            <CTA href={`/task?task=${task.id}`} type="button">
+            <CTA href={`/tasks?task=${task.id}`} type="button">
               {t('public.openInPlanQ', { defaultValue: 'PlanQ 에서 보기 →' }) as string}
             </CTA>
           ) : (

@@ -387,6 +387,8 @@ function postListWhereByLevel(scope) {
   if (scope.isPlatformAdmin) return { business_id: scope.businessId };
   const conds = [];
   conds.push({ vlevel: 'L1', author_id: scope.userId });
+  // 작성자 본인 글은 vlevel 무관 항상 노출 (KB uploaded_by 패턴) — member 가 프로젝트 멤버 아니어도 자기 L2 문서 보임 (운영 #13·#18 fix)
+  conds.push({ author_id: scope.userId });
   // admin(N+21) 은 owner 급 전권 — owner 와 동일 가시성
   const fullView = scope.isOwner || scope.isAdmin;
   if (fullView || scope.isMember) {

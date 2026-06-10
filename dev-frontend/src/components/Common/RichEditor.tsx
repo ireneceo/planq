@@ -198,6 +198,7 @@ const EditorShell = styled.div<{ $mh: number }>`
   border:1px solid #E2E8F0;border-radius:10px;background:#FFF;display:flex;flex-direction:column;
   & .pq-editor-body{
     outline:none;padding:14px 16px;min-height:${p => p.$mh}px;font-size:14px;line-height:1.65;color:#0F172A;
+    overflow-wrap:anywhere;word-break:break-word;
   }
   & .pq-editor-body > * + *{margin-top:8px;}
   & .pq-editor-body p{margin:0;}
