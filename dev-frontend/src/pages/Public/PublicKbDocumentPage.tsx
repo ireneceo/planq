@@ -19,19 +19,10 @@ interface KbPreview {
   workspace?: { id: number; name: string } | null;
   shared_at: string | null;
   created_at: string | null;
+  updated_at: string | null;
   custom_columns?: Array<{ id: string; name: string; type: string; show_in_list?: boolean }>;
   custom_values?: Record<string, string>;
 }
-
-const SOURCE_LABEL_DEFAULTS: Record<string, string> = {
-  manual: '직접 입력',
-  faq: 'FAQ',
-  policy: '정책',
-  pricing: '가격',
-  other: '기타',
-  file: '파일',
-  post: '문서',
-};
 
 // KB body 는 HTML 문자열. 옛 plain text 도 안 깨지게 <p> wrap.
 function toHtml(v: string): string {
@@ -87,10 +78,9 @@ const PublicKbDocumentPage = () => {
   );
 
   const isAuthed = !!getAccessToken();
-  const sourceLabel = doc.source_type
-    ? t(`public.kb.source.${doc.source_type}`, { defaultValue: SOURCE_LABEL_DEFAULTS[doc.source_type] || doc.source_type }) as string
-    : null;
-  const dateStr = doc.created_at ? new Date(doc.created_at).toLocaleDateString('ko-KR') : null;
+  // 공개 미리보기 메타 = 작성일 / 수정일 (개인 프로필명·source 타입은 외부 공개에 부적절 — 제거).
+  const createdStr = doc.created_at ? new Date(doc.created_at).toLocaleDateString('ko-KR') : null;
+  const updatedStr = doc.updated_at ? new Date(doc.updated_at).toLocaleDateString('ko-KR') : null;
 
   return (
     <Page>
@@ -119,9 +109,8 @@ const PublicKbDocumentPage = () => {
         {doc.workspace && <WorkspaceLabel>{doc.workspace.name}</WorkspaceLabel>}
         <DocTitle>{doc.title}</DocTitle>
         <DocMeta>
-          {sourceLabel && <SourcePill>{sourceLabel}</SourcePill>}
-          {doc.uploader && <span>{doc.uploader.name}</span>}
-          {dateStr && <span>· {dateStr}</span>}
+          {createdStr && <span>{t('public.kb.created', { defaultValue: '작성' }) as string} {createdStr}</span>}
+          {updatedStr && updatedStr !== createdStr && <span>· {t('public.kb.updated', { defaultValue: '수정' }) as string} {updatedStr}</span>}
           {doc.file_name && <span>· {doc.file_name}</span>}
         </DocMeta>
 
@@ -218,7 +207,6 @@ const DocMeta = styled.div`
   display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
   font-size: 12px; color: #64748B; margin: 0 0 24px 0;
 `;
-const SourcePill = styled.span`display: inline-flex; padding: 3px 10px; font-size: 11px; font-weight: 700; border-radius: 999px; background: #F0FDFA; color: #0F766E;`;
 const Body = styled.div`
   font-size: 14px; color: #334155; line-height: 1.7;
   overflow-wrap: anywhere; word-break: break-word;

@@ -23,6 +23,8 @@ interface FocusSession {
   paused_at: string | null;
   pause_total_sec: number;
   actual_seconds: number;
+  // 같은 task 의 종료된 세션 누적 (재개 시 이어서 표시 — 운영 #17-2)
+  task_accumulated_seconds?: number;
   auto_paused: boolean;
   task: { id: number; title: string; status: string; project_id: number | null } | null;
 }
@@ -119,8 +121,9 @@ const FocusWidget: React.FC<Props> = ({ isCollapsed }) => {
   // 카운터는 baseline.actualSec + (Date.now - baseline.at) 으로 계산 (정확한 단조 증가).
   useEffect(() => {
     if (!session) { baselineRef.current = null; return; }
-    baselineRef.current = { actualSec: session.actual_seconds, at: Date.now() };
-  }, [session?.id, session?.state, session?.actual_seconds]);
+    // 누적(이전 종료 세션 합) + 현재 세션 경과 — 재개 시 0 부터가 아니라 이어짐.
+    baselineRef.current = { actualSec: session.actual_seconds + (session.task_accumulated_seconds || 0), at: Date.now() };
+  }, [session?.id, session?.state, session?.actual_seconds, session?.task_accumulated_seconds]);
 
   // 1초마다 tick — 카운터 re-render 트리거 (active 일 때만). 값은 baselineRef + Date 차이로 계산.
   useEffect(() => {
@@ -228,11 +231,13 @@ const FocusWidget: React.FC<Props> = ({ isCollapsed }) => {
   // 카운터 실시간 계산 — baseline 시점 (server fetch) 부터 Date.now() 경과 ms 더해서 표시.
   // tick state 는 매초 re-render 만 트리거 (값 자체는 카운터에 더하지 않음 — 30s sync 시점 double-count 버그 차단).
   void tick;
+  const accumSec = session?.task_accumulated_seconds || 0;
   const liveSeconds = (() => {
     if (!session) return 0;
-    if (session.state !== 'active') return session.actual_seconds;
+    // baselineRef.actualSec 은 이미 누적 포함. paused/기타 상태는 누적 + 현재 세션.
+    if (session.state !== 'active') return session.actual_seconds + accumSec;
     const base = baselineRef.current;
-    if (!base) return session.actual_seconds;
+    if (!base) return session.actual_seconds + accumSec;
     return base.actualSec + Math.floor((Date.now() - base.at) / 1000);
   })();
 

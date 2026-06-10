@@ -44,7 +44,7 @@ async function requireFocusEnabled(req, res) {
 }
 
 /** session 응답 직렬화 — 계산된 actual_seconds 포함 */
-function serializeSession(session, taskInfo = null) {
+function serializeSession(session, taskInfo = null, taskAccumulatedSeconds = 0) {
   if (!session) return null;
   return {
     id: session.id,
@@ -57,10 +57,22 @@ function serializeSession(session, taskInfo = null) {
     paused_at: session.paused_at,
     pause_total_sec: session.pause_total_sec,
     actual_seconds: session.computeActualSeconds(),
+    // 같은 task 의 종료된(stopped) 세션 누적 — 위젯은 (task_accumulated_seconds + actual_seconds) 로 표시.
+    // 재개 시 0 부터가 아니라 이전 누적에서 이어짐 (운영 #17-2). null task 면 0.
+    task_accumulated_seconds: taskAccumulatedSeconds || 0,
     auto_paused: session.auto_paused,
     end_reason: session.end_reason,
     task: taskInfo,
   };
+}
+
+// 같은 task 의 종료된 focus_session 들의 actual_seconds 합 (현재 진행 세션 제외).
+async function sumStoppedFocusSeconds(taskId, userId, excludeSessionId = null) {
+  if (!taskId) return 0;
+  const where = { task_id: taskId, user_id: userId, state: 'stopped' };
+  if (excludeSessionId) where.id = { [Op.ne]: excludeSessionId };
+  const rows = await FocusSession.findAll({ where });
+  return rows.reduce((sum, r) => sum + r.computeActualSeconds(), 0);
 }
 
 /** task 정보 (응답에 포함) */
@@ -79,7 +91,8 @@ router.get('/current', authenticateToken, async (req, res, next) => {
     });
     if (!session) return successResponse(res, null);
     const taskInfo = await loadTaskInfo(session.task_id);
-    return successResponse(res, serializeSession(session, taskInfo));
+    const taskAccum = await sumStoppedFocusSeconds(session.task_id, req.user.id, session.id);
+    return successResponse(res, serializeSession(session, taskInfo, taskAccum));
   } catch (err) { next(err); }
 });
 
@@ -139,7 +152,8 @@ router.post('/start', authenticateToken, startStopLimiter, async (req, res, next
       }).catch(() => null);
 
       const taskInfo = await loadTaskInfo(session.task_id);
-      return successResponse(res, serializeSession(session, taskInfo));
+      const taskAccum = await sumStoppedFocusSeconds(session.task_id, req.user.id, session.id);
+      return successResponse(res, serializeSession(session, taskInfo, taskAccum));
     } catch (e) { await t.rollback(); throw e; }
   } catch (err) { next(err); }
 });
@@ -163,7 +177,8 @@ router.post('/pause', authenticateToken, startStopLimiter, async (req, res, next
       entity_type: 'focus_session', entity_id: session.id,
     }).catch(() => null);
     const taskInfo = await loadTaskInfo(session.task_id);
-    return successResponse(res, serializeSession(session, taskInfo));
+    const taskAccum = await sumStoppedFocusSeconds(session.task_id, req.user.id, session.id);
+    return successResponse(res, serializeSession(session, taskInfo, taskAccum));
   } catch (err) { next(err); }
 });
 
@@ -191,7 +206,8 @@ router.post('/resume', authenticateToken, startStopLimiter, async (req, res, nex
       new_value: { paused_for_sec: pausedFor },
     }).catch(() => null);
     const taskInfo = await loadTaskInfo(session.task_id);
-    return successResponse(res, serializeSession(session, taskInfo));
+    const taskAccum = await sumStoppedFocusSeconds(session.task_id, req.user.id, session.id);
+    return successResponse(res, serializeSession(session, taskInfo, taskAccum));
   } catch (err) { next(err); }
 });
 
@@ -224,7 +240,8 @@ router.post('/stop', authenticateToken, startStopLimiter, async (req, res, next)
       new_value: { actual_seconds: session.computeActualSeconds(), end_reason: session.end_reason },
     }).catch(() => null);
     const taskInfo = await loadTaskInfo(session.task_id);
-    return successResponse(res, serializeSession(session, taskInfo));
+    const taskAccum = await sumStoppedFocusSeconds(session.task_id, req.user.id, session.id);
+    return successResponse(res, serializeSession(session, taskInfo, taskAccum));
   } catch (err) { next(err); }
 });
 
@@ -259,7 +276,8 @@ router.post('/idle-discard', authenticateToken, async (req, res, next) => {
       new_value: { discarded_seconds: Math.floor(sec) },
     }).catch(() => null);
     const taskInfo = await loadTaskInfo(session.task_id);
-    return successResponse(res, serializeSession(session, taskInfo));
+    const taskAccum = await sumStoppedFocusSeconds(session.task_id, req.user.id, session.id);
+    return successResponse(res, serializeSession(session, taskInfo, taskAccum));
   } catch (err) { next(err); }
 });
 

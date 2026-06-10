@@ -1321,7 +1321,7 @@ router.get('/kb-documents/public/by-token/:token', async (req, res, next) => {
         { model: Business, attributes: ['id', 'name', 'brand_name'], required: false },
       ],
       attributes: ['id', 'title', 'body', 'source_type', 'shared_at', 'share_expires_at',
-        'share_password_hash', 'business_id', 'created_at', 'file_name', 'mime_type',
+        'share_password_hash', 'business_id', 'created_at', 'updated_at', 'file_name', 'mime_type',
         'custom_columns', 'custom_values'],
     });
     if (!doc) return errorResponse(res, 'not_found', 404);
@@ -1340,6 +1340,7 @@ router.get('/kb-documents/public/by-token/:token', async (req, res, next) => {
       workspace: doc.Business ? { id: doc.Business.id, name: doc.Business.brand_name || doc.Business.name } : null,
       shared_at: doc.shared_at,
       created_at: doc.created_at,
+      updated_at: doc.updated_at,
       custom_columns: Array.isArray(doc.custom_columns) ? doc.custom_columns : [],
       custom_values: doc.custom_values && typeof doc.custom_values === 'object' ? doc.custom_values : {},
     });
