@@ -1248,7 +1248,10 @@ router.get('/:id/tasks', authenticateToken, async (req, res, next) => {
       ],
       order: [['created_at', 'DESC']],
     });
-    return successResponse(res, tasks.map((t) => t.toJSON()));
+    // 워크스페이스 표시명(BusinessMember.name) 적용 — 타임라인 등에서 User.name(예: 한수정) 대신 표시명(예: 루아) 노출
+    const json = tasks.map((t) => t.toJSON());
+    await applyMemberDisplayName(json, project.business_id, ['assignee', 'requester']);
+    return successResponse(res, json);
   } catch (err) { next(err); }
 });
 

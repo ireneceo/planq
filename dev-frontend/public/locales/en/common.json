@@ -87,7 +87,8 @@
     "bill": "Q bill",
     "users": "Users",
     "businesses": "Businesses",
-    "logout": "Logout"
+    "logout": "Logout",
+    "myFeedback": "My Inquiries"
   },
   "role": {
     "platform_admin": "Platform Admin",
@@ -563,6 +564,24 @@
     "kb": {
       "bundleTitle": "Shared materials",
       "bundleEmpty": "No shared materials."
+    }
+  },
+  "myFeedback": {
+    "title": "My Inquiries & Feedback",
+    "loading": "Loading…",
+    "empty": "No inquiries or feedback yet. Leave one from Q helper.",
+    "reply": "Team reply",
+    "cat": {
+      "bug": "Bug",
+      "improve": "Improvement",
+      "feature": "Feature",
+      "other": "Other"
+    },
+    "status": {
+      "pending": "Received",
+      "reviewing": "Reviewing",
+      "done": "Done",
+      "wontfix": "Won’t fix"
     }
   }
 }
