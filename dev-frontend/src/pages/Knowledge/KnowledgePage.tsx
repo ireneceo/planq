@@ -2009,7 +2009,8 @@ const List = styled.div`
   overflow: hidden;
 `;
 // 행 컬럼 — Q file 동일 토큰 구조: title 가변 / custom 가변 / category 100px / status 70px / action 36px
-const KB_LIST_COLS = 'minmax(220px, 3fr) minmax(140px, 1.3fr) 100px 70px 36px';
+// 커스텀 항목이 많은 문서(url 여러 개)도 안 구겨지게 — 커스텀 영역에 충분한 폭 배분.
+const KB_LIST_COLS = 'minmax(160px, 1.6fr) minmax(220px, 2.6fr) auto minmax(90px, auto) 36px';
 const RowChk = styled.div`display:flex; align-items:center; justify-content:center;`;
 const RowAct = styled.div`display:flex; justify-content:flex-end;`;
 const RowTitleInput = styled.input`
@@ -2032,7 +2033,7 @@ const Row = styled.div<{ $active: boolean; $selectMode?: boolean }>`
   cursor: pointer;
   display: grid;
   grid-template-columns: ${p => p.$selectMode ? `36px ${KB_LIST_COLS}` : KB_LIST_COLS};
-  gap: 8px; align-items: center;
+  gap: 8px; align-items: start;
   padding: 10px 14px;
   background: ${p => p.$active ? '#F0FDFA' : 'transparent'};
   border-bottom: 1px solid #F1F5F9;
