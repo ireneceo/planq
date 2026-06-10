@@ -185,7 +185,18 @@
     "thinking": "생각 중…",
     "inputPh": "질문을 입력하세요 (Enter 로 보내기, Shift+Enter 줄바꿈)",
     "send": "보내기",
-    "sending": "전송 중…"
+    "sending": "전송 중…",
+    "fbStatus": {
+      "pending": "접수됨",
+      "reviewing": "검토 중",
+      "done": "완료",
+      "wontfix": "보류"
+    },
+    "myHistoryEnter": "내가 남긴 문의·피드백 보기",
+    "myHistoryBack": "문의 남기기로",
+    "myHistoryEmpty": "아직 남긴 문의·피드백이 없어요.",
+    "myHistoryLoading": "불러오는 중…",
+    "myHistoryReply": "운영팀 답변"
   },
   "cue": {
     "title": "Cue 도움말",
