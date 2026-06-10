@@ -366,6 +366,15 @@ router.patch('/:id/time', authenticateToken, async (req, res, next) => {
         await recordUserEstimate(task.id, updates.estimated_hours, req.user.id);
       } catch { /* ignore */ }
     }
+    // 실시간 — 시간/진행률/자동 status 전환이 다른 화면(리스트·드로어·다른 사용자)에 즉시 반영 (운영 #19 #11)
+    const io = req.app.get('io');
+    if (io) {
+      const payload = task.toJSON();
+      payload.actor_user_id = req.user.id;
+      if (task.project_id) io.to(`project:${task.project_id}`).emit('task:updated', payload);
+      io.to(`business:${task.business_id}`).emit('task:updated', payload);
+      broadcastInboxRefresh(io, task.business_id, task.project_id, 'task_time_updated', task.id);
+    }
     return successResponse(res, task.toJSON());
   } catch (err) { next(err); }
 });
