@@ -12,7 +12,7 @@
 //   이 task 의 active    → 큰 카운터 + 일시정지/완료
 //   이 task 의 paused    → "잠시 멈춤" + 재개/완료
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import styled, { keyframes, css } from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
@@ -25,6 +25,7 @@ interface FocusSession {
   started_at: string;
   pause_total_sec: number;
   actual_seconds: number;
+  task_accumulated_seconds?: number;
   auto_paused: boolean;
   task: { id: number; title: string } | null;
 }
@@ -48,6 +49,9 @@ const TaskFocusBar: React.FC<Props> = ({ taskId, businessId, assigneeId, status 
   const [session, setSession] = useState<FocusSession | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [tick, setTick] = useState(0);
+  // N+45 패턴(FocusWidget 통일) — baseline = (누적 + 현재세션 actual) 캡처 시점.
+  // liveSec = baseline.actualSec + (Date.now - baseline.at). 옛 actual_seconds+tick 은 30s sync 시 이중계산(운영 #17-1).
+  const baselineRef = useRef<{ actualSec: number; at: number } | null>(null);
 
   // 초기 fetch
   useEffect(() => {
@@ -90,6 +94,12 @@ const TaskFocusBar: React.FC<Props> = ({ taskId, businessId, assigneeId, status 
     const id = window.setInterval(() => setTick(t => t + 1), 1000);
     return () => window.clearInterval(id);
   }, [session, taskId]);
+
+  // baseline 갱신 — server fetch 로 actual_seconds/누적 이 바뀔 때마다 그 시점 기록.
+  useEffect(() => {
+    if (!session) { baselineRef.current = null; return; }
+    baselineRef.current = { actualSec: session.actual_seconds + (session.task_accumulated_seconds || 0), at: Date.now() };
+  }, [session?.id, session?.state, session?.actual_seconds, session?.task_accumulated_seconds]);
 
   const act = useCallback(async (path: string, body: Record<string, unknown>) => {
     if (submitting) return;
@@ -154,7 +164,14 @@ const TaskFocusBar: React.FC<Props> = ({ taskId, businessId, assigneeId, status 
   }
 
   // 이 task 진행 중 — active / paused / idle_detected
-  const liveSec = session.state === 'active' ? session.actual_seconds + tick : session.actual_seconds;
+  void tick; // 매초 re-render 트리거용 (값은 baseline + Date 차이로 계산 — 이중계산 차단)
+  const accumSec = session.task_accumulated_seconds || 0;
+  const liveSec = (() => {
+    if (session.state !== 'active') return session.actual_seconds + accumSec;
+    const base = baselineRef.current;
+    if (!base) return session.actual_seconds + accumSec;
+    return base.actualSec + Math.floor((Date.now() - base.at) / 1000);
+  })();
   const isPaused = session.state === 'paused';
   const isIdle = session.auto_paused;
 
