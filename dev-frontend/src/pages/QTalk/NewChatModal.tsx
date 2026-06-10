@@ -320,16 +320,16 @@ const Dialog = styled.div`
   animation:nmPop 0.18s ease-out;
   @keyframes nmPop{from{transform:translateY(8px);opacity:0.6;}to{transform:translateY(0);opacity:1;}}
 
-  /* mobile: top/bottom 고정으로 GNB 피하고 화면 안에 확실히 배치 */
+  /* mobile: top 고정 + 키보드 시 visual viewport(--vvh)로 높이 제한 → 하단 입력·버튼이 키보드에 안 가림 (운영 #23) */
   @media (max-width: 640px) {
     position: fixed;
     top: 70px;
-    bottom: 20px;
+    bottom: auto;
     left: 16px;
     right: 16px;
     width: auto;
     max-width: none;
-    max-height: none;
+    max-height: calc(var(--vvh, 100vh) - 90px);
   }
 `;
 const Header = styled.div`

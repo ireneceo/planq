@@ -122,6 +122,28 @@ router.patch('/:id/respond', authenticateToken, requireRole('platform_admin'), a
       updates.responded_at = new Date();
     }
     await item.update(updates);
+
+    // 보고자에게 회신 알림 — 상태 변경 또는 답변 시. myhistory(#21)에서 답변 확인 + 인박스 즉시 인지.
+    if (item.user_id && (updates.status || typeof updates.admin_response === 'string')) {
+      setImmediate(() => {
+        const { notify } = require('./notifications');
+        const statusLabel = item.status === 'done' ? '완료'
+          : item.status === 'wontfix' ? '보류'
+          : item.status === 'reviewing' ? '검토 중' : '접수';
+        notify({
+          userId: item.user_id,
+          businessId: item.business_id || null,
+          eventKind: 'feedback',
+          title: `피드백 ${statusLabel} — ${item.title}`,
+          body: item.admin_response ? String(item.admin_response).slice(0, 300) : '운영팀이 회신했습니다.',
+          link: '/',
+          ctaLabel: '내역 보기',
+          actorUserId: req.user.id,
+          ioApp: req.app,
+        }).catch(() => null);
+      });
+    }
+
     return successResponse(res, item, 'Updated');
   } catch (err) { next(err); }
 });
