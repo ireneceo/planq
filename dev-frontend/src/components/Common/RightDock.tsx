@@ -30,6 +30,45 @@ const POPOUT_FEATURES: Record<DockTool, string> = {
   qhelper: 'width=440,height=720,menubar=no,toolbar=no,location=no,status=no',
 };
 
+// 도구별 PiP 창 크기 (px)
+const PIP_SIZE: Record<DockTool, { width: number; height: number }> = {
+  qtalk: { width: 520, height: 780 },
+  qnote: { width: 480, height: 640 },
+  qhelper: { width: 440, height: 720 },
+};
+
+// 운영 #26 — Document Picture-in-Picture 로 "항상 위" 팝아웃.
+//   PiP 창은 URL 네비게이션이 불가 → 빈 PiP 문서에 같은 라우트를 iframe 으로 띄워 기존 팝아웃 코드 재사용.
+//   Chrome/Edge 116+ 데스크탑만 지원. 그 외(Safari/Firefox/모바일)는 호출부에서 window.open fallback.
+const supportsPip = (): boolean =>
+  typeof window !== 'undefined' && 'documentPictureInPicture' in window;
+
+let activePip: Window | null = null;
+
+const openPopoutPip = async (tool: DockTool): Promise<boolean> => {
+  try {
+    const { width, height } = PIP_SIZE[tool];
+    // documentPictureInPicture 는 아직 lib.dom 표준 타입 미포함 → any 캐스팅
+    const dpip = (window as unknown as { documentPictureInPicture?: { requestWindow: (o: { width: number; height: number }) => Promise<Window> } }).documentPictureInPicture;
+    if (!dpip) return false;
+    const pip: Window = await dpip.requestWindow({ width, height });
+    activePip = pip;
+    pip.document.title = 'PlanQ';
+    const body = pip.document.body;
+    body.style.margin = '0';
+    body.style.overflow = 'hidden';
+    const iframe = pip.document.createElement('iframe');
+    iframe.src = POPOUT_PATH[tool];
+    iframe.setAttribute('allow', 'microphone; camera; display-capture; autoplay; clipboard-write');
+    iframe.style.cssText = 'border:0;width:100%;height:100vh;display:block;';
+    body.appendChild(iframe);
+    pip.addEventListener('pagehide', () => { if (activePip === pip) activePip = null; });
+    return true;
+  } catch {
+    return false; // 사용자가 PiP 취소 / 미지원 → 호출부 fallback
+  }
+};
+
 const FAB_HIDDEN_PREFIXES = ['/memo', '/talk-popout', '/note-popout', '/help-popout'];
 
 const RightDock: React.FC = () => {
@@ -71,8 +110,15 @@ const RightDock: React.FC = () => {
       else openDockTool(tool);
       return;
     }
-    // 데스크탑 — 도구를 자기 창으로 팝아웃
-    window.open(POPOUT_PATH[tool], `pq-${tool}`, POPOUT_FEATURES[tool]);
+    // 데스크탑 — 도구를 자기 창으로 팝아웃.
+    //   운영 #26: Chrome/Edge 면 Document PiP("항상 위") 우선, 미지원/취소 시 일반 새 창 fallback.
+    if (supportsPip()) {
+      openPopoutPip(tool).then((ok) => {
+        if (!ok) window.open(POPOUT_PATH[tool], `pq-${tool}`, POPOUT_FEATURES[tool]);
+      });
+    } else {
+      window.open(POPOUT_PATH[tool], `pq-${tool}`, POPOUT_FEATURES[tool]);
+    }
   };
 
   return (
