@@ -286,7 +286,7 @@ const Dialog = styled.div`
   display: flex; flex-direction: column; overflow: hidden;
   @media (max-width: 640px) {
     max-width: none; max-height: none; border-radius: 0;
-    margin-top: 60px; height: calc(100vh - 60px); height: calc(100dvh - 60px);
+    margin-top: 60px; height: calc(var(--vvh, 100vh) - 60px);
   }
 `;
 const Header = styled.div`

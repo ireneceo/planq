@@ -523,12 +523,12 @@ const Modal = styled.div`
   @media (max-width: 640px) {
     position: fixed;
     top: 70px;
-    bottom: 20px;
+    bottom: auto;
     left: 16px;
     right: 16px;
     width: auto;
     max-width: none;
-    max-height: none;
+    max-height: calc(var(--vvh, 100vh) - 90px);
   }
 `;
 

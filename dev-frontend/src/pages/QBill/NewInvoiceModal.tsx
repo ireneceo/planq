@@ -918,8 +918,10 @@ const Dialog = styled.div`
   background: #fff; border-radius: 14px; box-shadow: 0 30px 60px -20px rgba(15, 23, 42, 0.25);
   display: flex; flex-direction: column; overflow: hidden;
   @media (max-width: 640px) {
-    top: 70px; bottom: 20px; left: 16px; right: 16px;
-    transform: none; width: auto; max-width: none; max-height: none;
+    top: 70px; bottom: auto; left: 16px; right: 16px;
+    transform: none; width: auto; max-width: none;
+    /* 키보드 시 visual viewport(--vvh)로 높이 제한 → 하단 입력·버튼 안 가림 (운영 #23) */
+    max-height: calc(var(--vvh, 100vh) - 90px);
   }
 `;
 const Head = styled.div`
