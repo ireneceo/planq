@@ -123,10 +123,12 @@ const PlaceholderPage = ({ title }: { title: string }) => (
 function App() {
   // 라우트 청크 prefetch — idle 시점 핵심 페이지 + 전역 hover/focus delegation
   useEffect(() => installRoutePrefetch(), []);
-  // 팝아웃/standalone 창에선 메인 chrome(토스터·FAB·Dock·헬프드로어) 숨김 — 알림 중복 차단 (운영 #31)
+  // 팝아웃/standalone 창(#31) + 공개 미리보기 페이지(#33)에선 메인 chrome(토스터·FAB·Dock·헬프드로어) 숨김.
+  //   공개 공유/미리보기는 외부 열람용 — 로그인 사용자의 인앱 알림이 뜨면 안 됨.
   const _loc = useLocation();
   const isPopout = /\/(talk-popout|note-popout|help-popout)(\/|$)/.test(_loc.pathname)
-    || _loc.pathname.startsWith('/memo/');
+    || _loc.pathname.startsWith('/memo/')
+    || _loc.pathname.startsWith('/public/');
   return (
     <ErrorBoundary>
     <AuthProvider>

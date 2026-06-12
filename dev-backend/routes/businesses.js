@@ -536,6 +536,7 @@ router.put('/:businessId/legal', authenticateToken, checkBusinessAccess, async (
     const fields = [
       'legal_name', 'legal_name_en', 'legal_entity_type', 'tax_id',
       'representative', 'representative_en', 'address', 'address_en',
+      'biz_type', 'biz_item',  // 세금계산서 공급자 업태/종목 (운영 #32)
       'phone', 'email', 'website'
     ];
 

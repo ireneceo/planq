@@ -92,6 +92,9 @@ Business.init({
     type: DataTypes.STRING(500),
     allowNull: true
   },
+  // 한국 세금계산서 공급자 필수 항목 (운영 #32)
+  biz_type: { type: DataTypes.STRING(100), allowNull: true, comment: '업태' },
+  biz_item: { type: DataTypes.STRING(100), allowNull: true, comment: '종목' },
   phone: {
     type: DataTypes.STRING(50),
     allowNull: true

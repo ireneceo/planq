@@ -119,6 +119,9 @@ function invoicePdfHtml(inv, sender, client) {
   const senderBizLine = sender?.tax_id ? `<div class="val" style="margin-top:2px;font-size:10px;color:#64748B;">${isForeign ? 'Business No.' : '사업자등록번호'}: ${escapeHtml(sender.tax_id)}</div>` : '';
   const senderRepLine = sender?.representative ? `<div class="val" style="font-size:10px;color:#64748B;">${isForeign ? 'Representative' : '대표자'}: ${escapeHtml(sender.representative)}</div>` : '';
   const senderAddrLine = sender?.address ? `<div class="val" style="font-size:10px;color:#64748B;">${escapeHtml(isForeign && sender.address_en ? sender.address_en : sender.address)}</div>` : '';
+  // 한국 세금계산서 공급자 업태/종목 (운영 #32)
+  const senderTypeLine = (!isForeign && sender?.biz_type) ? `<div class="val" style="font-size:10px;color:#64748B;">업태: ${escapeHtml(sender.biz_type)}</div>` : '';
+  const senderItemLine = (!isForeign && sender?.biz_item) ? `<div class="val" style="font-size:10px;color:#64748B;">종목: ${escapeHtml(sender.biz_item)}</div>` : '';
 
   return `<!DOCTYPE html>
 <html lang="${isForeign ? 'en' : 'ko'}">
@@ -143,6 +146,8 @@ function invoicePdfHtml(inv, sender, client) {
       <div class="val" style="font-weight:700;font-size:13px;">${escapeHtml(senderName)}</div>
       ${senderBizLine}
       ${senderRepLine}
+      ${senderTypeLine}
+      ${senderItemLine}
       ${senderAddrLine}
     </div>
     <div class="col">
