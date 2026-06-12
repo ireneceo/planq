@@ -11,6 +11,7 @@ export type Currency = 'KRW' | 'USD' | 'EUR';
 export interface ApiInvoiceItem {
   id: number;
   description: string;
+  detail?: string | null;
   quantity: number;
   unit_price: number;
   amount: number;
@@ -130,7 +131,7 @@ export interface CreateInvoicePayload {
   notes?: string | null;
   installment_mode?: InstallmentMode;
   installments?: { label: string; percent: number; due_date?: string | null; milestone_ref?: string | null }[];
-  items: { description: string; quantity: number; unit_price: number }[];
+  items: { description: string; detail?: string | null; quantity: number; unit_price: number }[];
 }
 
 export interface SendInvoicePayload {

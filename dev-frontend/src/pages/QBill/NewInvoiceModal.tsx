@@ -34,7 +34,7 @@ const KIND_LABEL: Record<string, string> = {
   contract: '계약서', quote: '견적서', sow: 'SOW', proposal: '제안서',
 };
 
-interface Item { id: number; description: string; quantity: number; unit_price: number; }
+interface Item { id: number; description: string; detail: string; quantity: number; unit_price: number; }
 interface Round { id: number; label: string; milestone: string; rate: number; due_date: string; }
 
 const addDays = (s: string, d: number) => {
@@ -95,7 +95,7 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
   const [notes, setNotes] = useState('');
 
   const [items, setItems] = useState<Item[]>([
-    { id: 1, description: '', quantity: 1, unit_price: 0 },
+    { id: 1, description: '', detail: '', quantity: 1, unit_price: 0 },
   ]);
 
   const [splitOn, setSplitOn] = useState(false);
@@ -225,7 +225,7 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
       setClientId(null); setSourcePostId(null); setTitle(''); setNotes('');
       setRecipientMode('client'); setExtName(''); setExtEmail(''); setExtBizNumber('');
       setIssuedAt(todayStr);
-      setItems([{ id: 1, description: '', quantity: 1, unit_price: 0 }]);
+      setItems([{ id: 1, description: '', detail: '', quantity: 1, unit_price: 0 }]);
       setSplitOn(false);
       setTaxOn(false);
       setOverrideBiz({});
@@ -257,7 +257,7 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
   })), [sourceCandidates]);
 
   // ─── 액션 ───
-  const addItem = () => setItems(arr => [...arr, { id: Date.now(), description: '', quantity: 1, unit_price: 0 }]);
+  const addItem = () => setItems(arr => [...arr, { id: Date.now(), description: '', detail: '', quantity: 1, unit_price: 0 }]);
   const updateItem = (id: number, patch: Partial<Item>) =>
     setItems(arr => arr.map(it => it.id === id ? { ...it, ...patch } : it));
   const removeItem = (id: number) => setItems(arr => arr.length === 1 ? arr : arr.filter(it => it.id !== id));
@@ -336,7 +336,7 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
         installments: splitOn ? rounds.map(r => ({
           label: r.label, percent: r.rate, due_date: r.due_date || null, milestone_ref: r.milestone || null,
         })) : undefined,
-        items: items.filter(it => it.description.trim()).map(it => ({ description: it.description, quantity: it.quantity, unit_price: it.unit_price })),
+        items: items.filter(it => it.description.trim()).map(it => ({ description: it.description, detail: it.detail.trim() || null, quantity: it.quantity, unit_price: it.unit_price })),
       });
       if (!asDraft) {
         const sent = await sendInvoice(businessId, created.id, {
@@ -649,8 +649,11 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
               {items.map((it, idx) => (
                 <ItemRow key={it.id}>
                   <ItemCell style={{ width: 28, color: '#94A3B8' }}>{idx + 1}</ItemCell>
-                  <ItemCell>
+                  <ItemCell style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                     <Input value={it.description} onChange={e => updateItem(it.id, { description: e.target.value })} placeholder={t('newInvoice.items.descriptionPh') as string} />
+                    <DetailInput value={it.detail} onChange={e => updateItem(it.id, { detail: e.target.value })}
+                      placeholder={t('newInvoice.items.detailPh', { defaultValue: '상세내용 (선택)' }) as string}
+                      rows={1} />
                   </ItemCell>
                   <ItemCell style={{ width: 70 }}>
                     <Input type="number" min={1} value={it.quantity} onChange={e => updateItem(it.id, { quantity: Number(e.target.value) || 0 })} />
@@ -1065,6 +1068,14 @@ const Input = styled.input`
   font-variant-numeric: tabular-nums;
   &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20,184,166,0.15); }
   &:disabled { background: #F8FAFC; color: #94A3B8; cursor: not-allowed; }
+`;
+// 항목 상세내용 (운영 #2) — 작은 회색 보조 입력, 자동 높이
+const DetailInput = styled.textarea`
+  width: 100%; padding: 5px 10px; font-size: 12px; color: #64748B;
+  background: #F8FAFC; border: 1px dashed #E2E8F0; border-radius: 6px;
+  resize: vertical; font-family: inherit; min-height: 30px; line-height: 1.4;
+  &::placeholder { color: #B6C0CD; }
+  &:focus { outline: none; border-color: #14B8A6; border-style: solid; background: #fff; color: #334155; }
 `;
 const Textarea = styled.textarea`
   width: 100%; padding: 8px 10px; font-size: 13px; color: #0F172A;

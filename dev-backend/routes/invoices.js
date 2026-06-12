@@ -180,7 +180,7 @@ router.get('/public/:token', async (req, res, next) => {
       notify_paid_at: invoice.notify_paid_at,
       notify_payer_name: invoice.notify_payer_name,
       items: (invoice.items || []).map(it => ({
-        id: it.id, name: it.name, description: it.description,
+        id: it.id, description: it.description, detail: it.detail,
         quantity: it.quantity, unit_price: it.unit_price, amount: it.amount,
       })),
       installments: (invoice.installments || []).map(i => ({
@@ -435,6 +435,7 @@ router.post('/:businessId', authenticateToken, checkBusinessAccess, requireMenu(
         itemRows.push({
           invoice_id: invoice.id,
           description: item.description,
+          detail: (item.detail && String(item.detail).trim()) || null,
           quantity: item.quantity || 1,
           unit_price: item.unit_price || 0,
           amount,

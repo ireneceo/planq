@@ -350,7 +350,10 @@ export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, 
             {items.map((it, idx) => (
               <ItemRow key={it.id}>
                 <ItemCell style={{ width: 28, color: '#94A3B8' }}>{idx + 1}</ItemCell>
-                <ItemCell>{it.description}</ItemCell>
+                <ItemCell>
+                  {it.description}
+                  {it.detail && <ItemDetailText>{it.detail}</ItemDetailText>}
+                </ItemCell>
                 <ItemCell style={{ width: 50, textAlign: 'right' }}>{it.quantity}</ItemCell>
                 <ItemCell style={{ width: 100, textAlign: 'right' }}>{formatMoney(it.unit_price, invoice.currency)}</ItemCell>
                 <ItemCell style={{ width: 110, textAlign: 'right', fontWeight: 700 }}>{formatMoney(it.amount, invoice.currency)}</ItemCell>
@@ -835,6 +838,10 @@ const ItemRow = styled.div`
 const ItemCell = styled.div`
   flex: 1; min-width: 0;
   font-variant-numeric: tabular-nums;
+`;
+// 항목 상세내용 (운영 #2)
+const ItemDetailText = styled.div`
+  margin-top: 2px; font-size: 11px; color: #94A3B8; line-height: 1.4; white-space: pre-wrap; word-break: break-word;
 `;
 const Summary = styled.div`
   display: flex; flex-direction: column; gap: 6px; padding-top: 12px; margin-top: 8px;
