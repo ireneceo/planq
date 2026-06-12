@@ -29,14 +29,22 @@ const StorageSettings: React.FC<Props> = ({ businessId }) => {
   const [loading, setLoading] = useState(true);
   const [connecting, setConnecting] = useState<'gdrive' | 'gcal' | null>(null);
   const [disconnectTarget, setDisconnectTarget] = useState<'gdrive' | 'gcal' | null>(null);
+  // 독립 서버(S3 호환) — 운영 #29
+  const [defaultProvider, setDefaultProvider] = useState<'planq' | 'gdrive' | 's3'>('planq');
+  const [s3, setS3] = useState<{ endpoint?: string; region?: string; bucket?: string; path_prefix?: string; public_base_url?: string; is_active?: boolean; verified_at?: string | null; has_credentials?: boolean } | null>(null);
+  const [s3Open, setS3Open] = useState(false);
+  const [s3f, setS3f] = useState({ endpoint: '', region: 'us-east-1', bucket: '', path_prefix: '', public_base_url: '', access_key: '', secret_key: '' });
+  const [s3busy, setS3busy] = useState(false);
+  const [s3msg, setS3msg] = useState<{ tone: 'ok' | 'err'; text: string } | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [pv, st, usage] = await Promise.all([
+      const [pv, st, usage, stg] = await Promise.all([
         apiFetch('/api/cloud/providers').then(r => r.json()).catch(() => null),
         apiFetch(`/api/cloud/status/${businessId}`).then(r => r.json()).catch(() => null),
-        fetchStorageStatus(businessId)
+        fetchStorageStatus(businessId),
+        apiFetch(`/api/businesses/${businessId}/storage`).then(r => r.json()).catch(() => null),
       ]);
       const next = {
         gdrive: { configured: !!pv?.data?.gdrive?.configured, connected: !!st?.data?.gdrive, ...st?.data?.gdrive },
@@ -44,8 +52,47 @@ const StorageSettings: React.FC<Props> = ({ businessId }) => {
       };
       setProviders(next);
       setPlanqStatus(usage);
+      if (stg?.success) {
+        setDefaultProvider(stg.data?.default_storage_provider || 'planq');
+        setS3(stg.data?.s3 || null);
+        if (stg.data?.s3) setS3f(f => ({ ...f, endpoint: stg.data.s3.endpoint || '', region: stg.data.s3.region || 'us-east-1', bucket: stg.data.s3.bucket || '', path_prefix: stg.data.s3.path_prefix || '', public_base_url: stg.data.s3.public_base_url || '' }));
+      }
     } finally { setLoading(false); }
   }, [businessId]);
+
+  const saveS3 = async () => {
+    setS3busy(true); setS3msg(null);
+    try {
+      const body: Record<string, unknown> = { endpoint: s3f.endpoint.trim(), region: s3f.region.trim() || 'us-east-1', bucket: s3f.bucket.trim(), path_prefix: s3f.path_prefix.trim() || null, public_base_url: s3f.public_base_url.trim() || null };
+      if (s3f.access_key.trim()) body.access_key = s3f.access_key.trim();
+      if (s3f.secret_key.trim()) body.secret_key = s3f.secret_key.trim();
+      const r = await apiFetch(`/api/businesses/${businessId}/storage`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ s3: body }) });
+      const j = await r.json();
+      if (r.ok && j.success) { setS3msg({ tone: 'ok', text: tr('storage.s3.saved', '저장됨 — 연결 테스트를 진행하세요') }); setS3f(f => ({ ...f, access_key: '', secret_key: '' })); await load(); }
+      else setS3msg({ tone: 'err', text: j.message || tr('storage.s3.saveFail', '저장 실패') });
+    } catch { setS3msg({ tone: 'err', text: tr('storage.s3.saveFail', '저장 실패') }); }
+    finally { setS3busy(false); }
+  };
+  const testS3 = async () => {
+    setS3busy(true); setS3msg(null);
+    try {
+      const r = await apiFetch(`/api/businesses/${businessId}/storage/test`, { method: 'POST' });
+      const j = await r.json();
+      if (r.ok && j.success) { setS3msg({ tone: 'ok', text: tr('storage.s3.verified', '연결 성공 — 이제 저장소로 선택할 수 있습니다') }); await load(); }
+      else setS3msg({ tone: 'err', text: j.message || tr('storage.s3.testFail', '연결 실패') });
+    } catch { setS3msg({ tone: 'err', text: tr('storage.s3.testFail', '연결 실패') }); }
+    finally { setS3busy(false); }
+  };
+  const selectProvider = async (p: 'planq' | 'gdrive' | 's3') => {
+    setS3busy(true); setS3msg(null);
+    try {
+      const r = await apiFetch(`/api/businesses/${businessId}/storage`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ default_storage_provider: p }) });
+      const j = await r.json();
+      if (r.ok && j.success) { setDefaultProvider(p); }
+      else setS3msg({ tone: 'err', text: j.message || tr('storage.s3.selectFail', '선택 실패') });
+    } catch { setS3msg({ tone: 'err', text: tr('storage.s3.selectFail', '선택 실패') }); }
+    finally { setS3busy(false); }
+  };
 
   useEffect(() => { load(); }, [load]);
 
@@ -197,6 +244,58 @@ const StorageSettings: React.FC<Props> = ({ businessId }) => {
         </CardActions>
       </ProviderCard>
 
+      {/* 독립 서버 (S3 호환) — 운영 #29 */}
+      <ProviderCard $active={defaultProvider === 's3'}>
+        <CardHead>
+          <CardIcon $bg="#EDE9FE" $fg="#6D28D9">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/>
+            </svg>
+          </CardIcon>
+          <CardTitleWrap>
+            <CardTitle>{tr('storage.s3.title', '독립 서버 (S3 호환)')}</CardTitle>
+            <CardSub>
+              {s3?.verified_at
+                ? `${tr('storage.connected', '연결됨')} · ${s3.bucket}`
+                : tr('storage.s3.desc', '내 서버/S3 호환 스토리지(MinIO·Cloudflare R2·Wasabi·AWS S3)를 파일 저장소로 사용합니다. 자격은 암호화 저장.')}
+            </CardSub>
+          </CardTitleWrap>
+          {defaultProvider === 's3' && <StatusBadge $kind="active">{tr('storage.active', '사용 중')}</StatusBadge>}
+        </CardHead>
+        <CardActions>
+          <LinkBtn type="button" onClick={() => setS3Open(o => !o)}>
+            {s3Open ? tr('storage.s3.collapse', '접기') : (s3?.has_credentials ? tr('storage.s3.edit', '설정 수정') : tr('storage.s3.setup', '설정하기'))}
+          </LinkBtn>
+          {s3?.verified_at && defaultProvider !== 's3' && (
+            <PrimaryBtn type="button" disabled={s3busy} onClick={() => selectProvider('s3')}>{tr('storage.s3.use', '이 저장소 사용')}</PrimaryBtn>
+          )}
+          {defaultProvider === 's3' && (
+            <DangerBtn type="button" disabled={s3busy} onClick={() => selectProvider('planq')}>{tr('storage.s3.revert', '자체로 되돌리기')}</DangerBtn>
+          )}
+        </CardActions>
+        {s3Open && (
+          <S3Form>
+            <S3Field><S3Label>Endpoint (https)</S3Label><S3Input value={s3f.endpoint} onChange={e => setS3f(f => ({ ...f, endpoint: e.target.value }))} placeholder="https://s3.example.com" /></S3Field>
+            <S3Row>
+              <S3Field><S3Label>Region</S3Label><S3Input value={s3f.region} onChange={e => setS3f(f => ({ ...f, region: e.target.value }))} placeholder="us-east-1" /></S3Field>
+              <S3Field><S3Label>Bucket</S3Label><S3Input value={s3f.bucket} onChange={e => setS3f(f => ({ ...f, bucket: e.target.value }))} placeholder="my-bucket" /></S3Field>
+            </S3Row>
+            <S3Row>
+              <S3Field><S3Label>Access Key</S3Label><S3Input type="password" value={s3f.access_key} onChange={e => setS3f(f => ({ ...f, access_key: e.target.value }))} placeholder={s3?.has_credentials ? tr('storage.s3.savedKey', '저장됨 (변경 시만 입력)') : ''} /></S3Field>
+              <S3Field><S3Label>Secret Key</S3Label><S3Input type="password" value={s3f.secret_key} onChange={e => setS3f(f => ({ ...f, secret_key: e.target.value }))} placeholder={s3?.has_credentials ? tr('storage.s3.savedKey', '저장됨 (변경 시만 입력)') : ''} /></S3Field>
+            </S3Row>
+            <S3Field><S3Label>{tr('storage.s3.prefix', '경로 접두 (선택)')}</S3Label><S3Input value={s3f.path_prefix} onChange={e => setS3f(f => ({ ...f, path_prefix: e.target.value }))} placeholder="planq" /></S3Field>
+            <S3Field><S3Label>{tr('storage.s3.publicUrl', 'Public Base URL (선택 · CDN)')}</S3Label><S3Input value={s3f.public_base_url} onChange={e => setS3f(f => ({ ...f, public_base_url: e.target.value }))} placeholder="https://cdn.example.com" /></S3Field>
+            {s3msg && <S3Msg $tone={s3msg.tone}>{s3msg.text}</S3Msg>}
+            <S3Actions>
+              <PrimaryBtn type="button" disabled={s3busy} onClick={saveS3}>{tr('common.save', '저장')}</PrimaryBtn>
+              <LinkBtn type="button" disabled={s3busy || !s3?.has_credentials} onClick={testS3}>{tr('storage.s3.test', '연결 테스트')}</LinkBtn>
+              {s3?.verified_at && <S3Verified>✓ {tr('storage.s3.verifiedBadge', '검증됨')}</S3Verified>}
+            </S3Actions>
+          </S3Form>
+        )}
+      </ProviderCard>
+
       {/* Google Calendar — 화상회의 자동 생성용 (사이클 N+13, Daily.co 완전 교체) */}
       <ProviderCard $active={providers.gcal.connected}>
         <CardHead>
@@ -341,6 +440,15 @@ const LinkBtn = styled.button`
   &:hover{background:#CCFBF1;}
 `;
 const InlineHint = styled.div`font-size:12px;color:#94A3B8;padding:8px 12px;background:#F8FAFC;border-radius:8px;`;
+// 독립 서버(S3) 설정 폼 (운영 #29)
+const S3Form = styled.div`margin-top:12px;padding:14px;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:10px;display:flex;flex-direction:column;gap:10px;`;
+const S3Row = styled.div`display:flex;gap:10px;@media (max-width:560px){flex-direction:column;}`;
+const S3Field = styled.div`flex:1;display:flex;flex-direction:column;gap:4px;min-width:0;`;
+const S3Label = styled.label`font-size:12px;font-weight:600;color:#334155;`;
+const S3Input = styled.input`width:100%;padding:7px 10px;font-size:13px;color:#0F172A;background:#fff;border:1px solid #E2E8F0;border-radius:6px;&:focus{outline:none;border-color:#14B8A6;box-shadow:0 0 0 3px rgba(20,184,166,0.15);}`;
+const S3Msg = styled.div<{ $tone:'ok'|'err' }>`font-size:12px;padding:8px 12px;border-radius:8px;background:${p=>p.$tone==='ok'?'#F0FDF4':'#FEF2F2'};color:${p=>p.$tone==='ok'?'#166534':'#B91C1C'};`;
+const S3Actions = styled.div`display:flex;align-items:center;gap:10px;`;
+const S3Verified = styled.span`font-size:12px;font-weight:700;color:#166534;`;
 
 const Modal = styled.div`
   position:fixed;inset:0;z-index:80;background:rgba(15,23,42,.24);
