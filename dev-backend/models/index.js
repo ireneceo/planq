@@ -88,6 +88,7 @@ const BusinessWeeklyReport = require('./BusinessWeeklyReport');
 const OauthConnection = require('./OauthConnection');
 // ─── External Connections Phase 1 (2026-05-26) — 통합 외부 연동 ───
 const ExternalConnection = require('./ExternalConnection');
+const WorkspaceStorageConfig = require('./WorkspaceStorageConfig');
 // ─── Q Mail (Phase 9 — M1) ───
 const EmailAccount = require('./EmailAccount');
 const EmailThread = require('./EmailThread');
@@ -468,6 +469,7 @@ module.exports = {
   OauthConnection,
   // External Connections Phase 1 (2026-05-26)
   ExternalConnection,
+  WorkspaceStorageConfig,
   // Q Mail (Phase 9 M1)
   EmailAccount,
   EmailThread,
@@ -737,3 +739,7 @@ ExternalConnection.belongsTo(Business, { foreignKey: 'business_id', onDelete: 'C
 ExternalConnection.belongsTo(User, { foreignKey: 'user_id', onDelete: 'CASCADE' });
 Business.hasMany(ExternalConnection, { as: 'externalConnections', foreignKey: 'business_id' });
 User.hasMany(ExternalConnection, { as: 'externalConnections', foreignKey: 'user_id' });
+
+// WorkspaceStorageConfig (운영 #29) — 독립 서버(S3) 파일 저장 설정
+WorkspaceStorageConfig.belongsTo(Business, { foreignKey: 'business_id', onDelete: 'CASCADE' });
+Business.hasOne(WorkspaceStorageConfig, { as: 'storageConfig', foreignKey: 'business_id' });
