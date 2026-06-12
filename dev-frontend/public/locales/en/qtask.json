@@ -538,7 +538,10 @@
       "summaryTitle": "Summary",
       "burndownTitle": "Weekly Progress",
       "noteTitle": "Weekly Note",
-      "addNote": "Add note"
+      "addNote": "Add note",
+      "chartEmptyTitle": "No progress data this week yet",
+      "chartEmptyHint": "The graph fills in once you run focus on tasks or enter actual hours in task detail.",
+      "chartNoActualHint": "No actual hours recorded, so only the estimate line is shown. Use focus or enter actual hours to draw the solid line."
     },
     "auto": {
       "title": "Auto Weekly Review",

@@ -538,7 +538,10 @@
       "summaryTitle": "요약",
       "burndownTitle": "주간 진척",
       "noteTitle": "한 주 메모",
-      "addNote": "메모 추가"
+      "addNote": "메모 추가",
+      "chartEmptyTitle": "이번 주 진척 데이터가 아직 없어요",
+      "chartEmptyHint": "업무를 진행(포커스)하거나 업무 상세에서 실제 시간을 입력하면 그래프가 채워집니다.",
+      "chartNoActualHint": "실제 누적 시간 기록이 없어 예측선만 표시됩니다. 포커스 사용 또는 실제 시간 입력 시 실선이 그려집니다."
     },
     "auto": {
       "title": "주간 보고 자동 확정",
