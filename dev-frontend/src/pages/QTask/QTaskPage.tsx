@@ -49,6 +49,7 @@ type SortDir = 'asc' | 'desc';
 
 interface TaskRow {
   id: number; title: string; description: string | null; status: string;
+  has_unread?: boolean;
   priority_order: number | null; start_date: string | null; due_date: string | null;
   estimated_hours: number | null; actual_hours: number; progress_percent: number;
   // 최신 estimation 출처 — 'ai' 면 시각 분기 (회색 + ✨), 'user' / null 은 일반
@@ -836,6 +837,8 @@ const QTaskPage:React.FC=()=>{
   const openDetail=(taskId:number)=>{
     if(detailTaskId===taskId){closeDetail();return;}
     setDetailTaskId(taskId);
+    // 열면 안 읽음 뱃지 옵티미스틱 해제 (backend GET /detail 이 알림 read 처리 — 운영 #5)
+    setAllTasks(prev=>prev.map(t=>t.id===taskId&&t.has_unread?{...t,has_unread:false}:t));
     const sp=new URLSearchParams(location.search);
     sp.set('task',String(taskId));
     navigate(`${location.pathname}?${sp.toString()}`,{replace:true});
@@ -1526,6 +1529,7 @@ const QTaskPage:React.FC=()=>{
                           onBlur={()=>{if(titleDraft.trim())saveTitle(task.id,titleDraft.trim());setEditingTitle(null);}}
                           onKeyDown={e=>{if(e.key==='Enter')(e.target as HTMLInputElement).blur();if(e.key==='Escape')setEditingTitle(null);}} />
                       ):(<>
+                        {task.has_unread && <UnreadDot title={t('list.hasUnread', { defaultValue: '새 활동(댓글·변경) — 열면 사라집니다' }) as string} />}
                         <TaskTitle role="button" $done={task.status==='completed'}
                           onClick={(e)=>{e.stopPropagation();setEditingTitle(task.id);setTitleDraft(task.title);}}
                           title={t('list.titleClickEdit','클릭하여 업무명 수정') as string}>
@@ -2808,6 +2812,8 @@ const QTaskInlineAddRow=styled.div`display:flex;align-items:center;gap:8px;paddi
 const QTaskInlineSpacer=styled.div`width:24px;flex-shrink:0;`;
 const QTaskInlineInput=styled.input`flex:1;min-width:0;padding:4px 8px;height:26px;font-size:13px;color:#0F172A;background:#FFFFFF;border:1px solid #14B8A6;border-radius:6px;font-family:inherit;&:focus{outline:none;box-shadow:0 0 0 2px rgba(20,184,166,0.15);}&::placeholder{color:#94A3B8;}`;
 const TaskTitle=styled.span<{$done?:boolean}>`font-size:14px;font-weight:500;color:#0F172A;cursor:text;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;${p=>p.$done&&'text-decoration:line-through;color:#94A3B8;'}&:hover{color:#0F766E;}`;
+// 안 읽은 업무 활동(댓글·변경) 점 (운영 #5)
+const UnreadDot=styled.span`flex-shrink:0;width:7px;height:7px;border-radius:50%;background:#F43F5E;margin-right:2px;align-self:center;`;
 const TitleInput=styled.input`flex:1;font-size:14px;font-weight:500;color:#0F172A;border:1px solid #14B8A6;background:#F0FDFA;padding:2px 8px;border-radius:6px;font-family:inherit;height:24px;box-sizing:border-box;&:focus{outline:none;box-shadow:0 0 0 2px rgba(20,184,166,0.15);}`;
 const StatusPill=styled.span<{$bg:string;$fg:string;$clickable?:boolean}>`
   padding:2px 8px;background:${p=>p.$bg};color:${p=>p.$fg};font-size:10px;font-weight:700;

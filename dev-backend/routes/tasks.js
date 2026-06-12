@@ -778,6 +778,18 @@ router.get('/by-business/:businessId', authenticateToken, async (req, res, next)
     res.set('X-Offset', String(offset));
     let plain = rows.map(t => t.toJSON());
     await applyMemberDisplayName(plain, businessId, ['assignee', 'creator', 'requester']);
+    // 업무 활동(댓글·상태변경 등) 안 읽음 뱃지 — 안 읽은 task 알림 기준 (운영 #5). 클라이언트 제외.
+    if (!scope.isClient) {
+      try {
+        const { Notification } = require('../models');
+        const unread = await Notification.findAll({
+          where: { user_id: req.user.id, entity_type: 'task', read_at: null },
+          attributes: ['entity_id'],
+        });
+        const unreadSet = new Set(unread.map(n => Number(n.entity_id)));
+        plain.forEach(t => { t.has_unread = unreadSet.has(t.id); });
+      } catch (e) { /* 뱃지는 부가정보 — 실패해도 목록은 정상 */ }
+    }
     // §8.5 — 고객에겐 공수 시간·예측 출처 제거 (목록에서도 누수 차단)
     if (scope.isClient) plain = serializeTasksForClient(plain);
     return successResponse(res, plain);
@@ -1266,6 +1278,19 @@ router.get('/:id/detail', authenticateToken, async (req, res, next) => {
 
     // §8.5 — 고객에겐 내부 운영 데이터(공수 시간·예측 출처·일별 스냅샷·Cue 메타) 제거 + shared 댓글만
     if (scope.isClient) json = serializeTaskForClient(json);
+
+    // 업무 열람 시 해당 업무의 안 읽은 알림 읽음 처리 → 리스트 뱃지 해제 + 좌측 종 동기화 (운영 #5)
+    try {
+      const { Notification } = require('../models');
+      const [n] = await Notification.update(
+        { read_at: new Date() },
+        { where: { user_id: req.user.id, entity_type: 'task', entity_id: task.id, read_at: null } },
+      );
+      if (n > 0) {
+        const io = req.app.get('io');
+        if (io) io.to(`user:${req.user.id}`).emit('notification:refresh');
+      }
+    } catch (e) { /* 부가 — 실패해도 상세는 정상 */ }
 
     return successResponse(res, json);
   } catch (err) { next(err); }
