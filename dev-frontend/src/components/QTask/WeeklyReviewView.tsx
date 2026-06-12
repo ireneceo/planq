@@ -140,29 +140,43 @@ const WeeklyReviewView: React.FC<Props> = ({ reviewId, onBack }) => {
         <Period>{String(review.week_start).slice(0, 10)} ~ {String(review.week_end).slice(0, 10)}</Period>
       </Header>
 
-      {/* 그래프 — 가장 위 (큰 LineChart 1개) */}
-      {burndown.length > 0 && (
-        <Section>
-          <SectionTitle>{t('weeklyReview.view.chartTitle', { defaultValue: '주간 진척 (실제 누적 시간)' }) as string}</SectionTitle>
-          <BigChartCard>
-            <ResponsiveContainer width="100%" height={280}>
-              <LineChart data={burndown.map(p => ({
-                date: p.date.slice(5).replace('-', '/'),
-                actual: p.actual_cumulative,
-                estimated: p.estimated_cumulative,
-              }))} margin={{ top: 16, right: 24, bottom: 8, left: 8 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
-                <XAxis dataKey="date" stroke="#64748B" fontSize={12} />
-                <YAxis stroke="#64748B" fontSize={12} unit="h" />
-                <Tooltip contentStyle={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 8, fontSize: 12 }} />
-                <Legend wrapperStyle={{ fontSize: 12 }} />
-                <Line type="monotone" dataKey="actual" stroke="#14B8A6" strokeWidth={2.5} dot={{ r: 4 }} name={t('weeklyReview.view.chartActual', { defaultValue: '실제 누적' }) as string} />
-                <Line type="monotone" dataKey="estimated" stroke="#94A3B8" strokeWidth={1.5} strokeDasharray="4 4" dot={{ r: 3 }} name={t('weeklyReview.view.chartEstimated', { defaultValue: '예측 누적' }) as string} />
-              </LineChart>
-            </ResponsiveContainer>
-          </BigChartCard>
-        </Section>
-      )}
+      {/* 그래프 — 가장 위 (큰 LineChart 1개). 데이터 없으면 빈 상태 안내 (운영 #27·#30) */}
+      <Section>
+        <SectionTitle>{t('weeklyReview.view.chartTitle', { defaultValue: '주간 진척 (실제 누적 시간)' }) as string}</SectionTitle>
+        {(() => {
+          const hasAnyActual = burndown.some(p => Number(p.actual_cumulative) > 0);
+          if (burndown.length === 0) {
+            return (
+              <ChartEmptyBox>
+                <ChartEmptyTitle>{t('weeklyReview.view.chartEmptyTitle', { defaultValue: '이번 주 진척 데이터가 아직 없어요' }) as string}</ChartEmptyTitle>
+                <ChartEmptyHint>{t('weeklyReview.view.chartEmptyHint', { defaultValue: '업무를 진행(포커스)하거나 업무 상세에서 실제 시간을 입력하면 그래프가 채워집니다.' }) as string}</ChartEmptyHint>
+              </ChartEmptyBox>
+            );
+          }
+          return (
+            <BigChartCard>
+              {!hasAnyActual && (
+                <ChartInlineHint>{t('weeklyReview.view.chartNoActualHint', { defaultValue: '실제 누적 시간 기록이 없어 예측선만 표시됩니다. 포커스 사용 또는 실제 시간 입력 시 실선이 그려집니다.' }) as string}</ChartInlineHint>
+              )}
+              <ResponsiveContainer width="100%" height={280}>
+                <LineChart data={burndown.map(p => ({
+                  date: p.date.slice(5).replace('-', '/'),
+                  actual: p.actual_cumulative,
+                  estimated: p.estimated_cumulative,
+                }))} margin={{ top: 16, right: 24, bottom: 8, left: 8 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
+                  <XAxis dataKey="date" stroke="#64748B" fontSize={12} />
+                  <YAxis stroke="#64748B" fontSize={12} unit="h" />
+                  <Tooltip contentStyle={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 8, fontSize: 12 }} />
+                  <Legend wrapperStyle={{ fontSize: 12 }} />
+                  <Line type="monotone" dataKey="actual" stroke="#14B8A6" strokeWidth={2.5} dot={{ r: 4 }} name={t('weeklyReview.view.chartActual', { defaultValue: '실제 누적' }) as string} />
+                  <Line type="monotone" dataKey="estimated" stroke="#94A3B8" strokeWidth={1.5} strokeDasharray="4 4" dot={{ r: 3 }} name={t('weeklyReview.view.chartEstimated', { defaultValue: '예측 누적' }) as string} />
+                </LineChart>
+              </ResponsiveContainer>
+            </BigChartCard>
+          );
+        })()}
+      </Section>
 
       {/* 요약 — 항목/값 list 형식 (3 col x 2 row) */}
       {summary && (
@@ -509,6 +523,17 @@ const BigChartCard = styled.div`
   border: 1px solid #E2E8F0;
   border-radius: 12px;
   padding: 16px 20px;
+`;
+// 그래프 빈 상태/힌트 (운영 #27·#30)
+const ChartEmptyBox = styled.div`
+  background: #F8FAFC; border: 1px dashed #CBD5E1; border-radius: 12px;
+  padding: 32px 20px; text-align: center; display: flex; flex-direction: column; gap: 6px;
+`;
+const ChartEmptyTitle = styled.div`font-size: 14px; font-weight: 600; color: #475569;`;
+const ChartEmptyHint = styled.div`font-size: 12px; color: #94A3B8; line-height: 1.5;`;
+const ChartInlineHint = styled.div`
+  font-size: 11px; color: #92400E; background: #FEF9C3; border-radius: 8px;
+  padding: 8px 12px; margin-bottom: 12px; line-height: 1.5;
 `;
 
 const SummaryList = styled.div`
