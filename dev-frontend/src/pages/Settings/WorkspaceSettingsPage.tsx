@@ -626,6 +626,8 @@ export default function WorkspaceSettingsPage() {
   const [taxId, setTaxId] = useState('');
   const [representative, setRepresentative] = useState('');
   const [representativeEn, setRepresentativeEn] = useState('');
+  const [bizType, setBizType] = useState('');  // 세금계산서 업태 (운영 #32)
+  const [bizItem, setBizItem] = useState('');  // 세금계산서 종목
   const [address, setAddress] = useState('');
   const [addressEn, setAddressEn] = useState('');
   const [phone, setPhone] = useState('');
@@ -664,6 +666,8 @@ export default function WorkspaceSettingsPage() {
         setTaxId(w.tax_id || '');
         setRepresentative(w.representative || '');
         setRepresentativeEn(w.representative_en || '');
+        setBizType(w.biz_type || '');
+        setBizItem(w.biz_item || '');
         setAddress(w.address || '');
         setAddressEn(w.address_en || '');
         setPhone(w.phone || '');
@@ -1009,6 +1013,20 @@ export default function WorkspaceSettingsPage() {
               <Label>{t('legal.representative')}</Label>
               <AutoSaveField type="input" onSave={async () => { await saveLegal({ representative: representative || null }); }}>
                 <TextInput value={representative} onChange={(e) => setRepresentative(e.target.value)} disabled={!isAdmin} />
+              </AutoSaveField>
+            </Field>
+
+            {/* 세금계산서 공급자 업태/종목 (운영 #32) */}
+            <Field>
+              <Label>{t('legal.bizType')}</Label>
+              <AutoSaveField type="input" onSave={async () => { await saveLegal({ biz_type: bizType || null }); }}>
+                <TextInput value={bizType} onChange={(e) => setBizType(e.target.value)} placeholder={t('legal.bizTypePh')} disabled={!isAdmin} />
+              </AutoSaveField>
+            </Field>
+            <Field>
+              <Label>{t('legal.bizItem')}</Label>
+              <AutoSaveField type="input" onSave={async () => { await saveLegal({ biz_item: bizItem || null }); }}>
+                <TextInput value={bizItem} onChange={(e) => setBizItem(e.target.value)} placeholder={t('legal.bizItemPh')} disabled={!isAdmin} />
               </AutoSaveField>
             </Field>
 

@@ -18,6 +18,8 @@ export interface Workspace {
   representative_en?: string | null;
   address?: string | null;
   address_en?: string | null;
+  biz_type?: string | null;
+  biz_item?: string | null;
   phone?: string | null;
   email?: string | null;
   website?: string | null;
