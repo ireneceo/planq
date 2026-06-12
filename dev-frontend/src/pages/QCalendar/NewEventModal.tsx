@@ -373,13 +373,13 @@ const Modal = styled.div`
   /* mobile: top/bottom 고정으로 GNB 피하고 화면 안에 확실히 배치 */
   @media (max-width: 640px) {
     top: 70px;
-    bottom: 20px;
+    bottom: auto;
     left: 16px;
     right: 16px;
     transform: none;
     width: auto;
     max-width: none;
-    max-height: none;
+    max-height: calc(var(--vvh, 100vh) - 90px);
   }
 `;
 const Header = styled.div`
