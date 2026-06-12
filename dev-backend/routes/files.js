@@ -16,6 +16,20 @@ const { authenticateToken, checkBusinessAccess } = require('../middleware/auth')
 const { attachWorkspaceScope, fileListWhereByLevel, canAccessFileByLevel, isMemberOrAbove, getUserScope } = require('../middleware/access_scope');
 const { successResponse, errorResponse, parsePagination, paginatedResponse } = require('../middleware/errorHandler');
 
+// s3 독립 서버 파일이면 presign(또는 public URL)로 redirect. 처리하면 true 반환 (운영 #29).
+async function _s3Redirect(file, res) {
+  if (file.storage_provider !== 's3' || !file.external_id) return false;
+  const { WorkspaceStorageConfig } = require('../models');
+  const cfg = await WorkspaceStorageConfig.findOne({ where: { business_id: file.business_id } });
+  if (!cfg) { errorResponse(res, 's3_config_missing', 502); return true; }
+  try {
+    const url = cfg.public_base_url
+      ? `${cfg.public_base_url.replace(/\/$/, '')}/${file.external_id}`
+      : await require('../services/s3Storage').presignGet(cfg, file.external_id, 300);
+    res.redirect(url); return true;
+  } catch (e) { errorResponse(res, 's3_presign_failed', 502); return true; }
+}
+
 // N+38 — 실시간 동기화 (CLAUDE.md 운영 안정성 16번 박제).
 function broadcastFile(req, file, event = 'file:updated') {
   const io = req.app.get('io');
@@ -131,6 +145,7 @@ router.get('/public/by-token/:token/download', async (req, res, next) => {
     if (checkShareExpiry(file, res)) return;
     const v = await verifySharePassword(file, req);
     if (!v.ok) return res.status(v.status).json({ success: false, message: v.error, requires_password: v.requires_password });
+    if (await _s3Redirect(file, res)) return;
     if (file.storage_provider !== 'planq') {
       if (file.external_url) return res.redirect(file.external_url);
       return errorResponse(res, 'external_file_no_url', 400);
@@ -184,6 +199,7 @@ router.get('/public/:token/download', async (req, res, next) => {
     if (file.share_expires_at && new Date(file.share_expires_at) < new Date()) {
       return errorResponse(res, 'link_expired', 410);
     }
+    if (await _s3Redirect(file, res)) return;
     if (file.storage_provider !== 'planq') {
       if (file.external_url) return res.redirect(file.external_url);
       return errorResponse(res, 'external_file_no_url', 400);
@@ -342,17 +358,64 @@ router.post('/:businessId', authenticateToken, checkBusinessAccess, upload.singl
     });
     const useGdrive = !!cloudToken && !!cloudToken.root_folder_id && (projectId || conversationId);
 
+    // S3 독립 서버 (운영 #29) — gdrive 미사용 + 워크스페이스 default 가 s3 + 검증된 설정.
+    let s3cfg = null;
+    if (!useGdrive) {
+      const biz = await Business.findByPk(businessId, { attributes: ['default_storage_provider'] });
+      if (biz && biz.default_storage_provider === 's3') {
+        const { WorkspaceStorageConfig } = require('../models');
+        const c = await WorkspaceStorageConfig.findOne({ where: { business_id: businessId } });
+        if (c && c.is_active && c.verified_at) s3cfg = c; // 미검증이면 자체 스토리지로 폴백
+      }
+    }
+    const useS3 = !!s3cfg;
+
     // plan engine 통합 체크 — 파일 크기 + 스토리지 쿼터 (외부 사용 시 쿼터 skip)
     // race condition 방지: 실제 usage 증가 트랜잭션은 아래에서 SELECT FOR UPDATE 로 원자화.
     // 여기서의 체크는 1차 early return (UX 개선). 최종 게이트는 트랜잭션 내 재검증.
     const canUpload = await planEngine.can(businessId, 'upload_file', {
       size: req.file.size,
-      external: useGdrive,
+      external: useGdrive || useS3,
     });
     if (!canUpload.ok) {
       fs.unlinkSync(tempPath);
       return res.status(canUpload.reason === 'file_size_exceeded' || canUpload.reason === 'storage_quota_exceeded' ? 413 : 403)
         .json(planEngine.buildQuotaError(canUpload, businessId));
+    }
+
+    // === S3 독립 서버 경로 (운영 #29) ===
+    if (useS3) {
+      try {
+        const s3svc = require('../services/s3Storage');
+        const ext = require('path').extname(req.file.originalname) || '';
+        const key = s3svc.buildKey(s3cfg, businessId, ext);
+        const buffer = fs.readFileSync(tempPath);
+        await s3svc.putObject(s3cfg, key, buffer, req.file.mimetype);
+        const file = await File.create({
+          business_id: businessId,
+          project_id: projectId,
+          folder_id: folderId,
+          client_id: req.body.client_id || null,
+          uploader_id: req.user.id,
+          file_name: decodeOriginalName(req.file.originalname),
+          file_path: key,
+          file_size: req.file.size,
+          mime_type: req.file.mimetype,
+          description: req.body.description || null,
+          storage_provider: 's3',
+          external_id: key,
+          external_url: null,  // private 버킷 — 다운로드 시 presign
+          visibility: projectId ? 'L2' : 'L1',
+        });
+        fs.unlinkSync(tempPath);
+        tempPath = null;
+        broadcastFile(req, file, 'file:new');
+        return successResponse(res, file, 'File uploaded to S3', 201);
+      } catch (e) {
+        console.error('[files] s3 upload failed:', e.message);
+        if (tempPath && fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
+        return errorResponse(res, 'S3 업로드 실패: ' + e.message, 502);
+      }
     }
 
     // === Drive 경로 ===
@@ -759,6 +822,7 @@ router.get('/:businessId/:id/download', authenticateToken, attachWorkspaceScope(
     } else if (!(await canAccessFileByLevel(req.user.id, file, req.scope))) {
       return errorResponse(res, 'forbidden', 403);
     }
+    if (await _s3Redirect(file, res)) return;
     if (file.storage_provider !== 'planq') {
       if (file.external_url) return res.redirect(file.external_url);
       return errorResponse(res, 'External file has no URL', 400);

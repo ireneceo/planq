@@ -199,6 +199,8 @@ Business.init({
   default_due_days: { type: DataTypes.INTEGER, defaultValue: 14, comment: '청구서 기본 결제 기한 (일)' },
   // 청구서 기본 통화
   default_currency: { type: DataTypes.STRING(3), defaultValue: 'KRW', comment: '청구서 기본 통화' },
+  // 신규 파일 업로드 저장 위치 (운영 #29) — planq 자체 / gdrive / s3 독립서버
+  default_storage_provider: { type: DataTypes.ENUM('planq', 'gdrive', 's3'), defaultValue: 'planq', comment: '신규 파일 저장소' },
   // ─── 정기 청구 기본값 (워크스페이스 단위 — 프로젝트가 override 가능) ───
   auto_invoice_default_mode: {
     type: DataTypes.ENUM('auto', 'draft_review'),

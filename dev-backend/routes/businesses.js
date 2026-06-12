@@ -319,6 +319,105 @@ router.put('/:businessId/mail', authenticateToken, checkBusinessAccess, async (r
   } catch (err) { next(err); }
 });
 
+// ─── 독립 서버(S3 호환) 파일 저장 설정 (운영 #29, owner 만) ───
+function serializeStorageConfig(business, cfg) {
+  return {
+    default_storage_provider: business.default_storage_provider || 'planq',
+    s3: cfg ? {
+      endpoint: cfg.endpoint, region: cfg.region, bucket: cfg.bucket,
+      path_prefix: cfg.path_prefix, public_base_url: cfg.public_base_url,
+      is_active: cfg.is_active, verified_at: cfg.verified_at,
+      has_credentials: !!(cfg.access_key_enc && cfg.secret_key_enc), // 시크릿 자체는 절대 반환 X
+    } : null,
+  };
+}
+
+// GET — 현재 저장소 설정 (시크릿 마스킹)
+router.get('/:businessId/storage', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+  try {
+    if (req.businessRole !== 'owner' && req.user.platform_role !== 'platform_admin') return errorResponse(res, 'owner_only', 403);
+    const { WorkspaceStorageConfig } = require('../models');
+    const business = await Business.findByPk(req.params.businessId);
+    if (!business) return errorResponse(res, 'Workspace not found', 404);
+    const cfg = await WorkspaceStorageConfig.findOne({ where: { business_id: business.id } });
+    return successResponse(res, serializeStorageConfig(business, cfg));
+  } catch (err) { next(err); }
+});
+
+// PUT — S3 설정 저장(암호화) + 저장소 선택. (provider 전환은 default_storage_provider 로)
+router.put('/:businessId/storage', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+  try {
+    if (req.businessRole !== 'owner' && req.user.platform_role !== 'platform_admin') return errorResponse(res, 'owner_only', 403);
+    const { WorkspaceStorageConfig } = require('../models');
+    const { encrypt } = require('../services/encryption');
+    const s3svc = require('../services/s3Storage');
+    const business = await Business.findByPk(req.params.businessId);
+    if (!business) return errorResponse(res, 'Workspace not found', 404);
+
+    const { default_storage_provider, s3 } = req.body || {};
+
+    // S3 설정 upsert
+    if (s3 && typeof s3 === 'object') {
+      const { endpoint, region, bucket, path_prefix, public_base_url, access_key, secret_key } = s3;
+      if (!endpoint || !bucket) return errorResponse(res, 'endpoint_and_bucket_required', 400);
+      try { s3svc.assertSafeEndpoint(endpoint); } catch (e) { return errorResponse(res, e.message, 400); }
+      let cfg = await WorkspaceStorageConfig.findOne({ where: { business_id: business.id } });
+      const patch = {
+        business_id: business.id, provider: 's3',
+        endpoint: String(endpoint).trim().slice(0, 300),
+        region: region ? String(region).trim().slice(0, 60) : 'us-east-1',
+        bucket: String(bucket).trim().slice(0, 200),
+        path_prefix: path_prefix ? String(path_prefix).trim().slice(0, 200) : null,
+        public_base_url: public_base_url ? String(public_base_url).trim().slice(0, 300) : null,
+        created_by: req.user.id,
+      };
+      if (access_key) patch.access_key_enc = encrypt(String(access_key));
+      if (secret_key) patch.secret_key_enc = encrypt(String(secret_key));
+      // 자격 변경 시 재검증 필요 → verified 해제
+      if (access_key || secret_key || (cfg && (cfg.endpoint !== patch.endpoint || cfg.bucket !== patch.bucket))) {
+        patch.verified_at = null; patch.is_active = false;
+      }
+      if (cfg) await cfg.update(patch);
+      else {
+        if (!patch.access_key_enc || !patch.secret_key_enc) return errorResponse(res, 'credentials_required', 400);
+        cfg = await WorkspaceStorageConfig.create(patch);
+      }
+    }
+
+    // 저장소 선택 — s3 선택 시 활성·검증된 설정 있어야 허용
+    if (default_storage_provider && ['planq', 'gdrive', 's3'].includes(default_storage_provider)) {
+      if (default_storage_provider === 's3') {
+        const cfg = await WorkspaceStorageConfig.findOne({ where: { business_id: business.id } });
+        if (!cfg || !cfg.is_active || !cfg.verified_at) return errorResponse(res, 's3_not_verified — 먼저 연결 테스트를 통과하세요', 400);
+      }
+      await business.update({ default_storage_provider });
+    }
+
+    const fresh = await Business.findByPk(business.id);
+    const cfg = await WorkspaceStorageConfig.findOne({ where: { business_id: business.id } });
+    return successResponse(res, serializeStorageConfig(fresh, cfg));
+  } catch (err) { next(err); }
+});
+
+// POST — 연결 테스트 (저장된 자격 또는 요청 자격으로 headBucket). 성공 시 verified.
+router.post('/:businessId/storage/test', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+  try {
+    if (req.businessRole !== 'owner' && req.user.platform_role !== 'platform_admin') return errorResponse(res, 'owner_only', 403);
+    const { WorkspaceStorageConfig } = require('../models');
+    const s3svc = require('../services/s3Storage');
+    const cfg = await WorkspaceStorageConfig.findOne({ where: { business_id: Number(req.params.businessId) } });
+    if (!cfg || !cfg.access_key_enc) return errorResponse(res, 'no_config — 먼저 S3 설정을 저장하세요', 400);
+    try {
+      await s3svc.testConnection(cfg);
+      await cfg.update({ verified_at: new Date(), is_active: true });
+      return successResponse(res, { ok: true, verified_at: cfg.verified_at });
+    } catch (e) {
+      await cfg.update({ verified_at: null, is_active: false });
+      return errorResponse(res, 'connection_failed: ' + String(e.message || e).slice(0, 120), 400);
+    }
+  } catch (err) { next(err); }
+});
+
 // ─── 주간 보고 자동 확정 설정 (사이클 N+26) ───
 // 워크스페이스 단위 — 매주 N요일 H시에 지난 주 보고서 자동 확정
 router.get('/:businessId/weekly-finalize', authenticateToken, checkBusinessAccess, async (req, res, next) => {
