@@ -1112,15 +1112,23 @@ router.delete('/by-business/:businessId/:id', authenticateToken, async (req, res
       if (!bm) return errorResponse(res, 'forbidden', 403);
       // N+93 — admin 도 삭제 가능 (CLAUDE.md §5.7 "DELETE task → owner/admin"). 옛 코드는 owner 만 봐서 admin 차단됨.
       isOwner = bm.role === 'owner' || bm.role === 'admin';
+      // 운영 #14 — BusinessMember.role 이 'owner' 로 안 박혀있어도 businesses.owner_id 본인이면 owner 로 인정.
+      if (!isOwner) {
+        const biz = await Business.findByPk(businessId, { attributes: ['owner_id'] });
+        if (biz && biz.owner_id === userId) isOwner = true;
+      }
     }
     if (!isPlatformAdmin && !isOwner) {
-      // 작성자 본인이 만든 task — 댓글·이력·리뷰어 0건일 때만 삭제 허용
+      // 작성자 본인이 만든 task — "타인의 관여" 가 없을 때만 삭제 허용 (실수 정정용 안전핀).
       const isCreator = task.created_by === userId;
       if (!isCreator) return errorResponse(res, 'forbidden_delete — only workspace owner or task creator (untouched task) can delete', 403);
+      // 운영 #14 — 작성자 본인이 만든 status_history(자동 누적)·본인 댓글은 잠금 사유에서 제외.
+      // 타인(다른 user)이 댓글·리뷰어·상태변경으로 관여한 경우에만 차단 → 책임선 보호는 유지하면서
+      // 본인만 만진 test task 정리 가능.
       const [cmtCnt, histCnt, revCnt] = await Promise.all([
-        TaskComment.count({ where: { task_id: task.id } }),
-        TaskStatusHistory.count({ where: { task_id: task.id } }),
-        TaskReviewer.count({ where: { task_id: task.id } }),
+        TaskComment.count({ where: { task_id: task.id, user_id: { [Op.ne]: userId } } }),
+        TaskStatusHistory.count({ where: { task_id: task.id, actor_user_id: { [Op.and]: [{ [Op.ne]: null }, { [Op.ne]: userId }] } } }),
+        TaskReviewer.count({ where: { task_id: task.id, user_id: { [Op.ne]: userId } } }),
       ]);
       if (cmtCnt > 0 || histCnt > 0 || revCnt > 0) {
         return errorResponse(res, 'forbidden_delete — task has activity (comments/history/reviewers). Ask workspace owner.', 403);
@@ -1147,6 +1155,10 @@ router.delete('/by-business/:businessId/:id', authenticateToken, async (req, res
           { where: { recurrence_parent_id: task.id }, transaction: t },
         );
       }
+      // 운영 #14 — documents.task_id 는 ON DELETE NO ACTION(RESTRICT). 연결 문서가 있으면 task.destroy 가
+      //   FK 제약으로 실패(500) → 사용자 "삭제 안 됨". task_id = null 로 detach 하여 문서는 독립 자료로 보존.
+      const { Document } = require('../models');
+      await Document.update({ task_id: null }, { where: { task_id: task.id }, transaction: t });
       await TaskComment.destroy({ where: { task_id: task.id }, transaction: t });
       await TaskDailyProgress.destroy({ where: { task_id: task.id }, transaction: t });
       await task.destroy({ transaction: t });
