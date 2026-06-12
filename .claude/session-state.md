@@ -1,43 +1,44 @@
 # PlanQ 세션 상태
 
-**마지막 업데이트:** 2026-06-10 — **운영 피드백 집중 사이클 (deploy11~13 운영 라이브).** 작업 상태: 완료.
+**마지막 업데이트:** 2026-06-12 — **운영 피드백 4건 (dev 검증·커밋 완료 · 운영 미배포, `/배포` 대기).**
 
 ---
 
-## ✅ 이번 세션 운영 라이브 (deploy11·12·13)
-- **포커스 측정시간 SSOT (#17)** — focus.js `task_accumulated_seconds`(종료세션 합)+현재, FocusWidget/TaskFocusBar baseline 통일, 재개 0리셋 차단. E2E 4/4
-- **Q task 실시간 (#19/#11)** — `PATCH /:id/time` task:updated broadcast 추가(진행률·시간 즉시 반영)
-- **채팅 토스터 중복 (#25)** — message:new conv+business 양쪽 도착 → msg.id 10s dedup (NotificationToaster). ChatPanel/unread는 이미 dedup
-- **유예 구독 비활성 오판정** — plan.js `active` 가 grace 무시 → 유예 중 업로드 차단. `code==='free'?true:(!expired||inGrace)&&[...]`. E2E 3/3. [[feedback_plan_active_honors_grace]]
-- **KB 미리보기 메타** — 프로필명·source 제거 → 작성/수정일(createdAt accessor fix) + 커스텀 url 항목 + 번들 리스트
-- **Q Task 상세** — 작성/요청일, 되돌리기 하단 이동, 단계 직접변경 owner/admin 한정
-- **외부 고객 청구서 (#1)** — NewInvoiceModal '외부 직접 입력' 모드(초대 없이 이름+이메일, recipient_email). E2E 5/5
-- **업무 타임라인 표시명** — projects `/:id/tasks` applyMemberDisplayName 누락 fix (한수정→루아). [[feedback_member_display_name_on_lists]]
-- **내 문의·피드백 (#21/#14)** — 좌측 개인 그룹 메뉴 + `/me/feedback` 페이지 + respond 시 보고자 알림(link /me/feedback). E2E 7/7·4/4
-- **모바일 키보드 가림 (#23)** — StandardModal·NewChatModal `100vh→var(--vvh)`
-- **피드백 12건 일괄 완료처리+답변+알림** (운영 feedback_items done 3→15)
+## 현재 작업 상태
+**작업 상태:** dev 검증·커밋 완료 · **운영 미배포 (`/배포` 대기)**
 
-## 📋 남은 운영 피드백 (pending/reviewing)
-- **신기능:** #9 Q talk 팝아웃 탭 · #26 팝아웃 Pin · #28 멀티탭 · #29 독립서버 파일저장
-- **버그/개선:** #5 댓글 알림+전체 알림페이지 · #7 모바일 채팅 우측아이콘 자리 · #27 주간그래프 캡처+수동보고
-- **부분 완료:** #6 인포 공유(번들·공유 됨, 카테고리 전송 남음) · #23 등록팝업(채팅개설 됨, 나머지 모달 점검 남음)
-- **추가 확인:** #1 프로젝트 생성 Q talk 옵션 · #8 같은 방 알림 · #12 Q helper 엔터 · #14 공유 task 링크
-- **PlanQ 정상(노션 이슈):** #24 캘린더 제목 — PlanQ는 Google summary 정상, 노션 캘린더 표시 문제
+### 진행 중인 작업
+- 없음 (이번 세션 4건 모두 dev 검증·커밋 완료, 운영 배포만 남음)
 
-## 📋 청구서 묶음 잔여
-- #2 항목별 상세내용(설명) 필드 · #11 청구서 공유·다운로드·미연동 표시 · #10 문서 PDF 다운로드 · #6 AI 재생성 통일(전 영역)
+### 완료된 작업 (이번 세션)
+- **#32 세금계산서 공급자 업태/종목** — `businesses.biz_type/biz_item` + `PUT /:id/legal` + 설정 법인정보 입력 + 청구서 PDF 표기(한국만, `pdfTemplates.js` senderTypeLine/senderItemLine). 커밋 `65067d9`
+- **#33 공개/팝아웃 미리보기 알림 숨김** — `App.tsx isPopout` 에 `/public/` 추가 (토스터·CueHelpDrawer·MemoFab·RightDock 게이팅). 커밋 `65067d9`
+- **#14 업무 삭제 안 됨 fix** — 작성자 삭제 조건을 "타인 관여 0건"으로 정교화(본인 자동 status_history 잠금 제외) + `businesses.owner_id` 본인 owner 인정 + `documents.task_id` NO ACTION FK → 트랜잭션 detach. 커밋 `fa2e95f`
+- **#26 팝아웃 항상-위 Pin** — Document PiP(Chrome/Edge 데스크탑) + 같은 라우트 iframe 재사용 + `window.open` fallback. 커밋 `b0558d5`
+- 헬스 29/29, 모든 빌드 EXIT 0
 
-## 환경 / 주의
-- dev 3003 / prod planq.kr 3004. 배포 `cd /opt/planq && ./scripts/deploy-planq.sh --auto` (**반드시 /opt/planq 에서 실행** — cwd 다르면 스크립트 못 찾음)
-- **배포 전 반드시 커밋** — 미커밋이면 "Changed files:0"으로 sync 스킵. [[feedback_deploy_requires_commit]]
-- ⚠️ 백그라운드 `pm2 restart` 자주 멈춤 → **포그라운드 `timeout 45 pm2 restart planq-dev-backend --update-env`**
-- 운영 PDF 라이브러리(Chromium) 미설치 — 문서·인포·청구서 PDF 다운로드는 Irene 의 `sudo apt-get` 1회 필요 (대기)
-- 운영 DB: `ssh irene@87.106.78.146 'cd /opt/planq/backend; node -e "..."'`
+### 다음 할 일 (다음 세션 시작점)
+1. **`/배포`** — 운영 반영. `sync-database` 가 `businesses.biz_type/biz_item` 컬럼 자동 추가(단순 컬럼, ENUM 아님 → 수동 ALTER 불필요). 배포 후 운영 헬스/PM2/프론트 검증.
+2. **운영 피드백 해결 회신 + lua 알림** (배포 후):
+   - #32, #33, #14, #26 → done 처리 + 맞춤 답변 + 보고자(lua) 알림 (feedback respond 엔드포인트, link `/me/feedback`)
+   - #28 탭 기능 → "네이티브 멀티탭 이미 가능(브라우저 탭 2개), 인앱 탭바는 네이티브 부족 시 별도 사이클" 회신 (Irene 결정: 네이티브 우선)
+3. 운영 피드백 큐 재확인 (배포 시점 신규 피드백 있을 수 있음)
+
+### 참고 — #14 추가 맥락
+- lua 의 실제 test 업무 #69(business 1)는 owner(Irene)가 직접 댓글 2 + 상태변경 2 → lua 관점엔 "타인 관여" 남음 → **Irene(owner) 계정에선 즉시 삭제 가능**. lua 회신 시 이 점 안내.
+
+### 미배포 커밋 (운영에 아직 없음 — git log 대조)
+- `b0558d5` #26 PiP
+- `fa2e95f` #14 삭제 fix
+- `65067d9` #32·#33
+- (#29 S3 `0695730`·`78c897f` 의 운영 배포 여부는 다음 배포 전 `git log`/운영 대조 확인)
 
 ---
 
 ## 복구 가이드
-새 Claude 세션 시작 시:
+
+새 Claude 세션 시작 시 아래 내용을 붙여넣으세요:
+
 ```
 이전 세션 이어서 작업하고 싶어.
 /opt/planq/.claude/session-state.md 읽어줘.
