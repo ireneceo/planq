@@ -114,7 +114,9 @@
       "vatIncluded": "incl. VAT",
       "progress": "{{done}}/{{total}}",
       "overdueDays": "{{days}}d overdue"
-    }
+    },
+    "external": "External",
+    "externalHint": "External invoice not linked to an internal client"
   },
   "detail": {
     "header": {
@@ -156,7 +158,10 @@
       "individual": "Individual",
       "missingInfo": "Business info is missing",
       "addInfo": "Add info",
-      "country": "Country"
+      "country": "Country",
+      "external": "External",
+      "externalHint": "External invoice not linked to an internal client",
+      "email": "Email"
     },
     "items": {
       "title": "Line items",

@@ -114,7 +114,9 @@
       "vatIncluded": "VAT 포함",
       "progress": "{{done}}/{{total}}",
       "overdueDays": "{{days}}일 경과"
-    }
+    },
+    "external": "외부",
+    "externalHint": "내부 고객과 연동되지 않은 외부 청구"
   },
   "detail": {
     "header": {
@@ -156,7 +158,10 @@
       "individual": "개인",
       "missingInfo": "사업자 정보가 없습니다",
       "addInfo": "정보 추가",
-      "country": "국가"
+      "country": "국가",
+      "external": "외부",
+      "externalHint": "내부 고객과 연동되지 않은 외부 청구",
+      "email": "이메일"
     },
     "items": {
       "title": "내역",

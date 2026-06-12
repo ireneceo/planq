@@ -232,7 +232,16 @@ export default function InvoicesTab() {
                 <Issued>{inv.issued_at ? inv.issued_at.split('T')[0] : '—'}</Issued>
               </ColNum>
               <ColClient>
-                <ClientName>{client?.display_name || client?.biz_name || client?.company_name || '—'}</ClientName>
+                {client ? (
+                  <ClientName>{client.display_name || client.biz_name || client.company_name || '—'}</ClientName>
+                ) : (
+                  <ClientName>
+                    {inv.recipient_business_name || inv.recipient_email || '—'}
+                    <ExternalBadge title={t('invoices.externalHint', { defaultValue: '내부 고객과 연동되지 않은 외부 청구' }) as string}>
+                      {t('invoices.external', { defaultValue: '외부' }) as string}
+                    </ExternalBadge>
+                  </ClientName>
+                )}
               </ColClient>
               <ColTitle>
                 <TitleText>{inv.title}</TitleText>
@@ -446,6 +455,12 @@ const Issued = styled.div`
 const ClientName = styled.div`
   font-size: 13px; font-weight: 600; color: #0F172A;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  display: flex; align-items: center; gap: 6px;
+`;
+// 외부(미연동) 청구 배지 (운영 #11)
+const ExternalBadge = styled.span`
+  flex-shrink: 0; font-size: 10px; font-weight: 700; color: #92400E;
+  background: #FEF3C7; border-radius: 999px; padding: 1px 7px; line-height: 1.5;
 `;
 const TitleText = styled.div`
   font-size: 13px; color: #0F172A; font-weight: 500;

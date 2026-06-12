@@ -311,9 +311,15 @@ export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, 
           </PartyCard>
           <PartyArrow>→</PartyArrow>
           <PartyCard>
-            <PartyLabel>{t('detail.parties.to')}</PartyLabel>
+            <PartyLabel>
+              {t('detail.parties.to')}
+              {!client && <ExtBadge title={t('detail.parties.externalHint', { defaultValue: '내부 고객과 연동되지 않은 외부 청구' }) as string}>{t('detail.parties.external', { defaultValue: '외부' }) as string}</ExtBadge>}
+            </PartyLabel>
             <PartyName>{client?.biz_name || client?.display_name || client?.company_name || invoice.recipient_business_name || '—'}</PartyName>
             <PartyMeta>
+              {!client && invoice.recipient_email && (
+                <MetaRow><MetaKey>{t('detail.parties.email', { defaultValue: '이메일' }) as string}</MetaKey><MetaVal>{invoice.recipient_email}</MetaVal></MetaRow>
+              )}
               {client?.is_business ? (
                 <>
                   <MetaRow>
@@ -784,7 +790,12 @@ const PartyCard = styled.div`
 `;
 const PartyLabel = styled.div`
   font-size: 10px; font-weight: 700; color: #94A3B8; text-transform: uppercase; letter-spacing: 0.4px;
-  margin-bottom: 6px;
+  margin-bottom: 6px; display: flex; align-items: center; gap: 6px;
+`;
+// 외부(미연동) 청구 배지 (운영 #11)
+const ExtBadge = styled.span`
+  font-size: 10px; font-weight: 700; color: #92400E; text-transform: none; letter-spacing: 0;
+  background: #FEF3C7; border-radius: 999px; padding: 1px 7px;
 `;
 const PartyName = styled.div`
   font-size: 14px; font-weight: 700; color: #0F172A; margin-bottom: 8px;
