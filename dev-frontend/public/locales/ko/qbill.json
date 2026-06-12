@@ -311,7 +311,8 @@
       "qty": "수량",
       "unitPrice": "단가",
       "subtotal": "소계",
-      "remove": "삭제"
+      "remove": "삭제",
+      "detailPh": "상세내용 (선택)"
     },
     "summary": {
       "subtotal": "공급가액",

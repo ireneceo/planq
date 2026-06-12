@@ -37,7 +37,7 @@ interface PublicInvoice {
   payment_terms: string | null;
   notify_paid_at: string | null;
   notify_payer_name: string | null;
-  items: Array<{ id: number; name: string; description?: string; quantity: number; unit_price: number; amount: number }>;
+  items: Array<{ id: number; description: string; detail?: string | null; quantity: number; unit_price: number; amount: number }>;
   installments: Installment[];
   client: { display_name?: string; company_name?: string; biz_name?: string } | null;
   sender: {

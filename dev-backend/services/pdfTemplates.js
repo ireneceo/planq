@@ -73,7 +73,7 @@ function invoicePdfHtml(inv, sender, client) {
 
   const itemsRows = (inv.items || []).map(it => `
     <tr>
-      <td>${escapeHtml(it.name || '')}${it.description ? `<br/><span style="color:#94A3B8;font-size:10px;">${escapeHtml(it.description)}</span>` : ''}</td>
+      <td>${escapeHtml(it.description || it.name || '')}${it.detail ? `<br/><span style="color:#94A3B8;font-size:10px;white-space:pre-wrap;">${escapeHtml(it.detail)}</span>` : ''}</td>
       <td class="num">${Number(it.quantity || 1).toLocaleString()}</td>
       <td class="num">${formatMoney(it.unit_price, inv.currency)}</td>
       <td class="num">${formatMoney(it.amount || (Number(it.quantity || 1) * Number(it.unit_price || 0)), inv.currency)}</td>

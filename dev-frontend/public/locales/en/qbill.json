@@ -311,7 +311,8 @@
       "qty": "Qty",
       "unitPrice": "Unit price",
       "subtotal": "Subtotal",
-      "remove": "Remove"
+      "remove": "Remove",
+      "detailPh": "Detail (optional)"
     },
     "summary": {
       "subtotal": "Subtotal",

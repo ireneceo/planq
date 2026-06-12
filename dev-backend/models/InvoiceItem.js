@@ -18,6 +18,11 @@ InvoiceItem.init({
     type: DataTypes.STRING(500),
     allowNull: false
   },
+  // 항목 상세내용(설명 보충) — 항목명 아래 회색 보조 텍스트로 표시 (운영 #2)
+  detail: {
+    type: DataTypes.TEXT,
+    allowNull: true
+  },
   quantity: {
     type: DataTypes.DECIMAL(10, 2),
     defaultValue: 1
