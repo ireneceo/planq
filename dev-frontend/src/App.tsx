@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect } from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { PwaInstallProvider } from './contexts/PwaInstallContext';
 // 첫 paint 에 반드시 필요한 eager — Auth/PWA context, Layout, ErrorBoundary, ProtectedRoute, prefetch
@@ -123,6 +123,10 @@ const PlaceholderPage = ({ title }: { title: string }) => (
 function App() {
   // 라우트 청크 prefetch — idle 시점 핵심 페이지 + 전역 hover/focus delegation
   useEffect(() => installRoutePrefetch(), []);
+  // 팝아웃/standalone 창에선 메인 chrome(토스터·FAB·Dock·헬프드로어) 숨김 — 알림 중복 차단 (운영 #31)
+  const _loc = useLocation();
+  const isPopout = /\/(talk-popout|note-popout|help-popout)(\/|$)/.test(_loc.pathname)
+    || _loc.pathname.startsWith('/memo/');
   return (
     <ErrorBoundary>
     <AuthProvider>
@@ -489,10 +493,10 @@ function App() {
         idle 시점 또는 조건 발동 시 chunk 받음 → entry preload 부담 감소.
       */}
       <Suspense fallback={null}>
-        <CueHelpDrawer />
-        <MemoFab />
-        <RightDock />
-        <NotificationToaster />
+        {!isPopout && <CueHelpDrawer />}
+        {!isPopout && <MemoFab />}
+        {!isPopout && <RightDock />}
+        {!isPopout && <NotificationToaster />}
         <PwaInstallBanner />
         <OpenInAppBanner />
         <BuildVersionGuard />
