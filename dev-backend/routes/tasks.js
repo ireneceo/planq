@@ -50,7 +50,8 @@ async function getMemberCapacity(userId, businessId) {
 async function assertBusinessAccess(userId, businessId, platformRole) {
   if (platformRole === 'platform_admin') return true;
   const scope = await getUserScope(userId, businessId, platformRole);
-  return scope.isOwner || scope.isMember || scope.isClient;
+  // isAdmin(워크스페이스 admin, N+21) 포함 — 옛 코드는 누락되어 admin 이 tasks 라우트 전체 403 이었음.
+  return scope.isOwner || scope.isMember || scope.isAdmin || scope.isClient;
 }
 
 // ============================================
@@ -915,13 +916,18 @@ router.put('/by-business/:businessId/:id', authenticateToken, async (req, res, n
     const isCreator = task.created_by === myId;
     const isAssignee = task.assignee_id === myId;
     const isPlatformAdmin = req.user.platform_role === 'platform_admin';
-    const isWsOwner = !!(await BusinessMember.findOne({ where: { user_id: myId, business_id: task.business_id, role: 'owner' } }));
-    const isOwnerOrAdmin = isPlatformAdmin || isWsOwner;
+    // 운영 #36 — owner 판정을 getUserScope 단일 경유로 통일.
+    //   - businesses.owner_id 본인(=BM 'owner' row 미존재) 도 owner 인정 (#14 와 동일 fallback, 이제 getUserScope 내장)
+    //   - 워크스페이스 admin(BusinessMember.role='admin') 도 owner 급 전권 (CLAUDE.md §5.7 — project_id 등 "owner OR admin").
+    //     옛 isWsOwner 는 BM role='owner' 만 봐서 admin·owner_id-only owner 가 전부 403 → 프로젝트 변경 등 "저장 실패".
+    const myScope = await getUserScope(myId, task.business_id, req.user.platform_role);
+    const isWsAdmin = myScope.isAdmin;
+    const isOwnerOrAdmin = isPlatformAdmin || myScope.isOwner || isWsAdmin;
 
     const FIELD_RULES = {
       title: () => isCreator || isAssignee || isOwnerOrAdmin,
       description: () => isCreator || isOwnerOrAdmin,                 // 담당자 빠짐 (의뢰자 영역)
-      body: () => isAssignee || isPlatformAdmin,                      // owner 빠짐, admin 백도어 (수행자 영역)
+      body: () => isAssignee || isPlatformAdmin || isWsAdmin,         // owner 빠짐, admin 백도어 (수행자 영역, §5.7)
       category: () => isCreator || isAssignee || isOwnerOrAdmin,
       status: () => isAssignee || isCreator || isOwnerOrAdmin,
       assignee_id: () => isCreator || isOwnerOrAdmin,
