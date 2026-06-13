@@ -239,6 +239,37 @@ router.get('/public/:token', async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
+// 고객 송금완료 알림 → 발행자(owner/admin/청구담당자)에게 실제 알림(OS push + 알림함) 발송.
+// feedback_notify_trigger_required — 옛 notify-paid 는 inbox:refresh socket 만 보내 알림이 영영 0 이던 회귀.
+async function notifyOwnerPaymentNotified(invoice, { label, payerName, ioApp }) {
+  try {
+    const { Op } = require('sequelize');
+    const { BusinessMember, Business } = require('../models');
+    const { notifyMany } = require('./notifications');
+    const biz = await Business.findByPk(invoice.business_id, { attributes: ['name', 'brand_name', 'default_billing_owner_id'] });
+    // 수신자: owner/admin 멤버 + 청구 담당자(owner_user_id) + 워크스페이스 기본 청구담당자
+    const members = await BusinessMember.findAll({
+      where: { business_id: invoice.business_id, removed_at: null, role: { [Op.in]: ['owner', 'admin'] } },
+      attributes: ['user_id'],
+    });
+    const ids = new Set(members.map((m) => m.user_id));
+    if (invoice.owner_user_id) ids.add(invoice.owner_user_id);
+    if (biz?.default_billing_owner_id) ids.add(biz.default_billing_owner_id);
+    if (ids.size === 0) return;
+    const who = payerName ? `${payerName} 님이` : '고객이';
+    await notifyMany({
+      userIds: [...ids],
+      businessId: invoice.business_id, eventKind: 'payment',
+      title: '송금 완료 알림 도착',
+      body: `${invoice.invoice_number}${label ? ` ${label}` : ''} — ${who} 송금 완료를 알렸습니다. 입금 확인 후 처리해주세요.`,
+      link: `${process.env.APP_URL || 'https://dev.planq.kr'}/bills?invoice=${invoice.id}`,
+      ctaLabel: '청구서 보기',
+      workspaceName: biz?.brand_name || biz?.name || null,
+      entityType: 'invoice', entityId: invoice.id, ioApp,
+    });
+  } catch (e) { console.warn('[notify-paid owner notify]', e.message); }
+}
+
 // POST /api/invoices/public/:token/notify-paid — 익명 송금 완료 알림
 // body: { installment_id?, payer_name?, payer_memo? }
 router.post('/public/:token/notify-paid', async (req, res, next) => {
@@ -280,6 +311,7 @@ router.post('/public/:token/notify-paid', async (req, res, next) => {
       // 확인필요 자동 갱신 (발행자 측)
       const io = req.app.get('io');
       if (io) io.to(`business:${invoice.business_id}`).emit('inbox:refresh', { reason: 'invoice_notify_paid', invoice_id: invoice.id, installment_id: inst.id });
+      await notifyOwnerPaymentNotified(invoice, { label: inst.label, payerName, ioApp: req.app });
       return successResponse(res, { notified: true, installment_id: inst.id }, 'Notified');
     }
 
@@ -298,6 +330,7 @@ router.post('/public/:token/notify-paid', async (req, res, next) => {
     });
     const io = req.app.get('io');
     if (io) io.to(`business:${invoice.business_id}`).emit('inbox:refresh', { reason: 'invoice_notify_paid', invoice_id: invoice.id });
+    await notifyOwnerPaymentNotified(invoice, { label: null, payerName, ioApp: req.app });
     return successResponse(res, { notified: true }, 'Notified');
   } catch (error) { next(error); }
 });

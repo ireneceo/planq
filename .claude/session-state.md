@@ -1,6 +1,24 @@
 # PlanQ 세션 상태
 
-**마지막 업데이트:** 2026-06-13 — **v1.33.4 운영 배포 + 청구서 철저 검증 + QBill i18n 정리.** 작업 상태: 완료.
+**마지막 업데이트:** 2026-06-13 — **v1.34.0 운영 배포** (deploy `20260613_133212`, commit `f8f547f`, 131초). 증빙(세금계산서+현금영수증) + 이메일 발신전용/문의 일원화 + 운영버그 #34·#35·#36. 작업 상태: 완료.
+
+### v1.34.0 (이번 세션) — 운영 라이브
+- **#36 업무 프로젝트 변경 저장 실패** — `getUserScope`에 `businesses.owner_id` fallback 중앙화(#14 전파 누락 회귀) + ws-admin 포함 + 프론트 셀렉트 게이팅. E2E 통과.
+- **증빙(세금계산서+현금영수증)** — invoices `payment_method`/`receipt_type`/`receipt_profile(JSON)`/`cash_receipt_*` 컬럼(운영 자동 반영 확인). 공개 결제 페이지에서 고객이 사업자/개인 증빙정보 **직접 입력·확인**(송금완료 알림과 같은 자리) → owner가 확인된 정보로 발행. 등록고객 Client prefill·재저장, 외부고객 invoice 보관. 단건 mark-tax-invoice/mark-cash-receipt(owner_only) + 드로어 표시·발행.
+- **이메일 발신전용/문의 일원화** — Gmail SMTP(help@irenewp.com)로 help@planq.kr 발송이라 회신 불가 → 모든 메일 푸터 "발신 전용·회신 불가" + "문의하기" CTA(/contact), mailto 제거. 공개 청구서 페이지 문의 링크.
+- **#35 포커스 실제시간+주간그래프** — 포커스 실측을 actual_hours SSOT로 우선 반영 + daily-progress 집계 Map 키 Date→문자열 정규화 + estimated fallback(요일별 누적 복구).
+- **#34 결제 배너 레이아웃 이탈** — MainLayout flex column 앱셸(배너 flex-shrink:0 + PageScroll flex:1) + PanelLayout viewport→height:100% (채팅입력란 넘침·점프 차단).
+- **검증** — 헬스 29/29 · 빌드 EXIT0 · 멀티테넌트 4/4 · 신규 i18n 하드코딩 0 · 실제 청구서 발행+이메일 발송(EmailLog #392 sent, irene@irenewp.com) · 운영 DB 컬럼 반영.
+
+### 정리 대기 (Irene 열람 후)
+- dev 예시 청구서: id 80(INV-2026-0021, biz5) + id 84(증빙·발신전용 검증, biz3, irene@irenewp.com 발송) — 열람 확인 후 삭제 가능.
+
+### 운영 과제 (코드 아님 — Irene DNS/메일)
+- planq.kr **SPF/DKIM/DMARC** + help@planq.kr **실수신함**(또는 Gmail "다른 주소에서 보내기" 별칭 인증). 그 전까지 발신전용 전제. 메모리 `project_email_planq_kr_deliverability`.
+
+---
+
+**이전:** 2026-06-13 — **v1.33.4 운영 배포 + 청구서 철저 검증 + QBill i18n 정리.** 작업 상태: 완료.
 
 ---
 
