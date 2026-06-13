@@ -10,6 +10,17 @@
 - **미배포 커밋:** `990c5cc` → 다음 `/배포`(운영 PDF 안정성 직결, 권장).
 - **기록(스코프밖):** InvoiceDetailDrawer 기존 하드코딩 3건(310/316/331 sourcePost·은행) + formatMoney `원` — 별도 i18n 정리 대상.
 
+## ✅ 정기업무(반복 업무) 점검·완성 (2026-06-13 18:20, dev 검증완료·운영 미배포)
+30년차 감사 — 전 계층(cron·모델·프론트 UI·recurrence utils) 이미 라이브였고, **2건 실제 버그/갭 발견·수정**:
+- **🔴 버그: 인스턴스 project_id 누락** — `recurringTaskGenerator` create에 `project_id` 빠져 프로젝트 정기업무 인스턴스가 project_id=NULL → 프로젝트 업무목록(`where project_id`)에서 사라짐. **dev 11건 고아 확인**. create에 `project_id: parent.project_id` 추가 + dev 백필 완료(고아 0).
+- **갭: reviewer 미복사** — review_policy만 복사되고 TaskReviewer 미복사 → reviewer 필요 정기업무 인스턴스가 완료 불가. parent reviewer를 인스턴스로 복사(state=pending 리셋) 추가.
+- **검증:** 헬스 29/29 · E2E **7/7**(project_id 복사·reviewer 복사·pending 리셋·멱등·next_occurrence 전진).
+- **운영 백필 SQL (배포 후 1회 실행 — memory G):** `UPDATE tasks t JOIN tasks p ON t.recurrence_parent_id=p.id SET t.project_id=p.project_id WHERE p.project_id IS NOT NULL AND t.project_id IS NULL;` (idempotent)
+- **미배포 커밋:** recurringTaskGenerator fix → 다음 `/배포` + 운영 백필.
+
+## ✅ 청구서 상세 드로어 증빙 정정 이력 (2026-06-13 18:00, commit `84210f8`, dev·미배포)
+정정 이력이 큐뿐 아니라 InvoiceDetailDrawer 증빙 섹션에도 표시(GET /corrections 재사용). 헬스29/29·빌드EXIT0·E2E 2/2.
+
 ## ✅ 수정세금계산서·증빙 취소 흐름 Phase 1 운영 라이브 (deploy `20260613_182837`, 133초, commit `0906a5c`)
 운영 헬스 200·프론트 200·PM2 2/2·**receipt_corrections 테이블 16컬럼 자동 생성 확인**·corrections 라우트 익명 401. dev: 헬스 29/29·빌드 EXIT0·E2E 13/13.
 

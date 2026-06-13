@@ -17,7 +17,7 @@
 
 const { Op } = require('sequelize');
 const { RRule } = require('rrule');
-const { Task } = require('../models');
+const { Task, TaskReviewer } = require('../models');
 
 // YYYY-MM-DD string → UTC midnight Date (DATEONLY 비교용)
 function dateOnlyToUTC(dateStr) {
@@ -87,6 +87,7 @@ async function generateOneSeries(parent, today = new Date(), io = null) {
   if (!existing) {
     const inst = await Task.create({
       business_id: parent.business_id,
+      project_id: parent.project_id, // ★ 누락 시 프로젝트 정기업무 인스턴스가 고아(목록서 사라짐)
       conversation_id: parent.conversation_id,
       source_message_id: null,
       title: parent.title,
@@ -121,6 +122,25 @@ async function generateOneSeries(parent, today = new Date(), io = null) {
       next_occurrence_at: null,
     });
     createdId = inst.id;
+
+    // 컨펌자(reviewer) 복사 — review_policy 만 복사되면 reviewer 0명이라 인스턴스가 완료 불가.
+    // 각 회차는 parent 와 같은 컨펌자를 갖되 상태는 pending 으로 리셋.
+    try {
+      const parentReviewers = await TaskReviewer.findAll({ where: { task_id: parent.id } });
+      if (parentReviewers.length) {
+        await TaskReviewer.bulkCreate(parentReviewers.map((rv) => ({
+          task_id: inst.id,
+          user_id: rv.user_id,
+          is_client: rv.is_client,
+          state: 'pending',
+          reverted_once: false,
+          action_at: null,
+          added_by_user_id: rv.added_by_user_id,
+        })));
+      }
+    } catch (e) {
+      console.warn('[recurringTask] reviewer copy failed', inst.id, e.message);
+    }
 
     // 실시간 동기화 — 새 인스턴스가 다른 사용자/디바이스에 즉시 보이도록.
     // CLAUDE.md "운영 안정성 16번" — 모든 task 생성 라우트는 broadcast 강제.
