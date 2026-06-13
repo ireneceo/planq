@@ -1,6 +1,20 @@
 # PlanQ 세션 상태
 
-**마지막 업데이트:** 2026-06-13 16:25 — **문서 PDF 다운로드 (dev 검증 완료, 운영 미배포 — `/배포` 대기).** 작업 상태: 완료.
+**마지막 업데이트:** 2026-06-13 16:45 — **청구서 PDF 401 + Puppeteer 자가복구 fix (dev 검증 완료, 운영 미배포 — `/배포` 대기).** 작업 상태: 완료. ⚠️ 운영 영향 큰 fix(권장 배포).
+
+## 🔖 직전 작업 — 청구서 PDF 401 + Puppeteer 죽은 브라우저 버그
+문서 PDF 검증 중 발견 → 진단 확대. commit `990c5cc`.
+- **버그1 (청구서 멤버 PDF 401):** InvoiceDetailDrawer가 `window.open(/api/.../pdf)`인데 authenticateToken은 Authorization 헤더만 받아 401(새 탭 에러 JSON). → `downloadInvoicePdf` 인증 blob fetch + busy/error.
+- **버그2 (★ 운영 전체 PDF 먹통):** `pdfService.getBrowser` 싱글톤이 chrome 크래시(--single-process 메모리압박/OOM) 후에도 **죽은 browser 영구 재사용** → newPage가 protocolTimeout(30s) 행 → 청구서·문서·포스트·보고서 **모든 PDF 500**. 방금 prod 올린 문서 PDF 포함 전체 해당. → disconnected 이벤트 싱글톤 리셋 + connected 체크 + render 1회 재launch 재시도 + protocolTimeout 60s.
+- **검증:** 헬스 29/29 · 빌드 EXIT0 · 청구서 PDF 인증 200 유효 90KB · **자가복구 실증**(chrome 3개 kill 후 렌더 200/2.5s, 기존 30s행→500) · qbill i18n 556/556.
+- **미배포 커밋:** `990c5cc` → 다음 `/배포`(운영 PDF 안정성 직결, 권장).
+- **기록(스코프밖):** InvoiceDetailDrawer 기존 하드코딩 3건(310/316/331 sourcePost·은행) + formatMoney `원` — 별도 i18n 정리 대상.
+
+다음 후보: 운영 피드백 #34/#35/#36 티켓 정리·회신, 또는 신규 개발(Qinfo 공유/단계 되돌리기/수정세금계산서).
+
+---
+
+**이전:** 2026-06-13 16:25 — **문서 PDF 다운로드 운영 라이브 (deploy `20260613_163008`, commit `e9cbc16`).**
 
 ## 🔖 직전 작업 — 문서 PDF 다운로드
 Document(계약/공식문서) PDF 라우트 신설 + posts 서버PDF 격상. 청구서 Puppeteer 엔진 재사용, DB 0.
