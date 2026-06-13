@@ -117,7 +117,7 @@ const getUserWithBusiness = async (userId) => {
   const memberships = await BusinessMember.findAll({
     where: { user_id: userId },
     attributes: ['business_id', 'role', 'name', 'name_localized', 'removed_at'],
-    include: [{ model: Business, attributes: ['id', 'name', 'slug', 'plan', 'brand_name', 'brand_logo_url', 'timezone', 'reference_timezones'] }]
+    include: [{ model: Business, attributes: ['id', 'name', 'slug', 'plan', 'brand_name', 'brand_logo_url', 'timezone', 'reference_timezones', 'owner_id'] }]
   });
 
   // 2) 고객 (client) — 활성 상태만. display_name 도 가져와 표시명 fallback
@@ -137,7 +137,9 @@ const getUserWithBusiness = async (userId) => {
       brand_logo_url: m.Business.brand_logo_url || null,
       slug: m.Business.slug,
       plan: m.Business.plan,
-      role: m.role,  // 'owner' | 'member' | 'ai'
+      // 운영 #14/#36 — businesses.owner_id 본인이면 BM role 이 'owner' 로 안 박혀있어도 owner 로 표시.
+      // 백엔드 getUserScope 와 동일 기준 → 프론트 canEdit(title/description/project 등) 플래그 정합.
+      role: (m.Business.owner_id === userId) ? 'owner' : m.role,  // 'owner' | 'admin' | 'member' | 'ai'
       timezone: m.Business.timezone || 'Asia/Seoul',
       reference_timezones: Array.isArray(m.Business.reference_timezones) ? m.Business.reference_timezones : [],
       // 워크스페이스별 표시명 (메모 project_account_workspace_profile_split)

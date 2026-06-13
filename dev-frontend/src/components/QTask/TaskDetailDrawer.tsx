@@ -704,6 +704,9 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
           const canEditDescription = iAmCreator || iAmWsOwner;
           const canEditBody = iAmAssignee || isPlatformAdmin;
           const canEditRecurrence = iAmCreator || iAmWsOwner;  // 백엔드 FIELD_RULES와 일치
+          // 프로젝트 이관 = owner OR admin (§5.7 "큰 결정"). 백엔드 FIELD_RULES.project_id 와 일치.
+          // 멤버에게 편집 가능한 셀렉트를 보여주면 클릭 시 403 → "저장 실패" 혼란 → 읽기 전용으로 게이팅.
+          const canEditProject = iAmWsOwner || myWsRole === 'admin';
           const myReviewer = reviewers.find(rv => rv.user_id === myId);
           const dStatus = displayStatus(detailTask, todayStr);
           const sc = STATUS_COLOR[dStatus];
@@ -847,8 +850,11 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
               </Meta>
               <MetaGrid>
                 <MetaCell>
-                  <MetaLabel>{t('detail.meta.project', '프로젝트')}</MetaLabel>
+                  <MetaLabel>{t('detail.meta.project', '프로젝트')}
+                    {!canEditProject && <ReadOnlyHint>{t('detail.readOnly', '읽기 전용')}</ReadOnlyHint>}
+                  </MetaLabel>
                   <PlanQSelect size="sm" isClearable
+                    isDisabled={!canEditProject}
                     placeholder={t('detail.meta.projectPh', '프로젝트 선택') as string}
                     value={detailTask.project_id == null ? null : {
                       value: String(detailTask.project_id),
@@ -857,6 +863,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                         || '-',
                     }}
                     onChange={(v) => {
+                      if (!canEditProject) return;
                       const pid = (v as { value?: string })?.value ? Number((v as { value: string }).value) : null;
                       setDetailTask(prev => {
                         if (!prev) return prev;

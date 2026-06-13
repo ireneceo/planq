@@ -15,7 +15,7 @@ const { Op } = require('sequelize');
 const { sequelize } = require('../config/database');
 const {
   BusinessMember, Client, ProjectClient, ConversationParticipant,
-  Conversation, Project, ProjectMember, TaskReviewer,
+  Conversation, Project, ProjectMember, TaskReviewer, Business,
 } = require('../models');
 
 // ─────────────────────────────────────────────
@@ -53,6 +53,19 @@ async function getUserScope(userId, businessId, platformRole) {
     scope.isMember = bm.role === 'member';
     scope.isAdmin = bm.role === 'admin';
     scope.isAi = bm.role === 'ai';
+  }
+
+  // 운영 #14/#36 — BusinessMember.role 이 'owner' 로 안 박혀있어도(또는 BM row 자체가 없어도)
+  // businesses.owner_id 본인이면 owner 로 인정. 운영 워크스페이스는 생성 경로에 따라
+  // owner 가 BM 'owner' row 없이 owner_id 로만 owner 인 경우가 있어, 이 fallback 이 없으면
+  // assertBusinessAccess(워크스페이스 접근) 부터 project_id 변경까지 전부 403 으로 막힘.
+  // owner_id 는 business 당 유일 → 실제 owner 에게만 owner 권한 부여(타인 오상승 불가).
+  if (!scope.isOwner) {
+    const biz = await Business.findOne({ where: { id: businessId, owner_id: userId }, attributes: ['id'] });
+    if (biz) {
+      scope.isOwner = true;
+      if (!scope.businessRole) scope.businessRole = 'owner';
+    }
   }
 
   // 2) Client (clients.user_id = me)
