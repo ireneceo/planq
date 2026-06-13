@@ -2,12 +2,12 @@
   "page": {
     "title": "Q bill",
     "titleClient": "받은 청구서",
-    "subtitle": "청구·결제·세금계산서를 한 곳에서",
+    "subtitle": "청구·결제·증빙을 한 곳에서",
     "tabs": {
       "overview": "개요",
       "invoices": "청구서",
       "payments": "결제 추적",
-      "taxInvoices": "세금계산서",
+      "taxInvoices": "증빙",
       "settings": "설정"
     }
   },
@@ -488,26 +488,38 @@
     }
   },
   "taxInvoices": {
-    "title": "세금계산서",
+    "title": "증빙",
     "tabs": {
       "pending": "발행 대기",
       "issued": "발행 완료",
       "all": "전체"
     },
     "info": {
-      "title": "세금계산서는 외부에서 발행하고 발행번호만 마킹합니다",
-      "desc": "홈택스/팝빌에서 직접 발행한 후 발행번호를 입력하면 활동 기록에 남습니다."
+      "title": "증빙은 외부(홈택스/팝빌)에서 발행하고 발행번호만 마킹합니다",
+      "desc": "입금 완료된 청구서의 세금계산서·현금영수증 발행 대기 목록입니다. 발행기한이 임박하거나 지난 건이 위로 정렬됩니다."
+    },
+    "overdueBanner": "발행기한이 지난 증빙이 {{count}}건 있습니다. 가산세가 발생할 수 있으니 우선 발행해주세요.",
+    "kind": {
+      "tax": "세금계산서",
+      "cash": "현금영수증"
     },
     "col": {
+      "kind": "구분",
       "invoice": "청구서",
       "round": "회차",
       "client": "고객",
-      "taxId": "사업자번호",
+      "recipient": "수취자",
+      "taxId": "식별번호",
       "amount": "금액",
       "paidAt": "결제일",
+      "dueAt": "발행기한",
       "issuedAt": "발행일",
       "issueNo": "발행번호",
       "actions": "액션"
+    },
+    "due": {
+      "overdue": "기한 지남",
+      "dday": "D-{{n}}"
     },
     "actions": {
       "issue": "발행 마킹",
@@ -516,20 +528,25 @@
     },
     "issueModal": {
       "title": "세금계산서 발행 마킹",
+      "titleCash": "현금영수증 발행 마킹",
       "desc": "외부에서 발행한 세금계산서 번호를 입력하세요",
+      "descCash": "외부에서 발행한 현금영수증 승인번호를 입력하세요",
       "no": "발행번호",
       "noPh": "예: 20260427-12345",
+      "noCash": "승인번호",
+      "noCashPh": "예: 8자리 승인번호",
       "date": "발행일",
       "submit": "마킹",
       "cancel": "취소"
     },
     "empty": {
-      "pending": "발행 대기 중인 세금계산서가 없습니다",
-      "issued": "발행된 세금계산서가 없습니다",
-      "all": "세금계산서 내역이 없습니다"
+      "pending": "발행 대기 중인 증빙이 없습니다",
+      "issued": "발행된 증빙이 없습니다",
+      "all": "증빙 내역이 없습니다"
     },
     "misc": {
       "roundSuffix": "{{n}}차",
+      "pending": "대기",
       "markFromDetail": "단일 청구서의 세금계산서 마킹은 청구서 상세에서 진행해주세요.",
       "issueFailed": "발행 실패"
     }

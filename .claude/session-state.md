@@ -1,22 +1,28 @@
 # PlanQ 세션 상태
 
-**마지막 업데이트:** 2026-06-13 13:55 — **작업 상태: 중단 (이어서 재개 예정).** v1.34.0 + 송금완료 알림 핫픽스 운영 배포 완료. 다음 개발(증빙 발행 큐 통합) 착수 직전 일시정지.
+**마지막 업데이트:** 2026-06-13 15:10 — **증빙 발행 큐 통합 완료 (dev 검증 18/18, 운영 미배포 — `/배포` 대기).** 작업 상태: 완료.
 
 ## ⚡ 빠른 재개 (새 세션)
 ```
 session-state.md 읽고 이어서 개발해.
 ```
 
-## 🔖 지금 중단 지점
-**마지막 작업:** v1.34.0(증빙+이메일+#34/35/36) + 송금완료 알림 핫픽스 운영 배포 완료. dev 예시 청구서 id 80·84 삭제 완료. 다음 개발 착수 직전.
+## 🔖 지금 상태 — 증빙 발행 큐 통합 (컴플라이언스 큐로 재정의)
+30년차 기획 검증 결과 기존 "UI 확장"은 핵심(법정 기한·단일원천)을 놓침 → **컴플라이언스 큐**로 재정의해 구현 완료.
 
-**바로 다음 작업:** **증빙 발행 큐 통합** — `dev-frontend/src/pages/QBill/TaxInvoicesTab.tsx`를 세금계산서 전용 큐 → **세금계산서+현금영수증 통합 증빙 큐**로 확장. (조사만 완료, 코드 변경 전 — 미완 없음)
+**완료된 작업 (이번 세션, dev only — 운영 미배포):**
+- **`services/receiptsDue.js` 단일 진실 원천** — `buildReceiptRows`/`fetchReceiptRows`. receipt_type 기반(세금계산서·현금영수증·단건·분할·외부수신자·레거시 fallback) + 법정기한(세금계산서 익월10일/현금영수증+7일) + urgency(overdue/soon/normal). `iso()` 로 날짜 정규화(Date.localeCompare sort 크래시 fix).
+- **`GET /api/invoices/:biz/receipts-due`** (invoices.js, /:id 앞 literal, invoiceListWhere 접근제어).
+- **대시보드 인박스 `collectTaxInvoices` 교체** — 같은 헬퍼 사용 → 큐와 숫자 일치 (과거 둘 다 `client.is_business` 따로 계산하던 갭 제거).
+- **사업자번호 체크섬** `isValidKrBizNo` — public receipt-request에 적용(형식 10자리만 → 체크섬).
+- **`TaxInvoicesTab.tsx` 통합 큐 재작성** — 구분(세금/현금) 배지 + 발행기한 임박/초과 뱃지·정렬 + overdueBanner + 단건/분할 인라인 발행 + 3-way IssueModal + socket/useVisibilityRefresh(§16). 서비스 `listReceiptsDue`+`ReceiptDueRow`.
+- **탭 라벨** 세금계산서→증빙 / Tax invoices→Receipts. qbill.json ko/en **554/554 키 정합**.
 
-**맥락 유지할 것:**
-- 현재 갭: `TaxInvoicesTab` line 136 `if (!client?.is_business) continue;` → 현금영수증·외부수신자(client 없음)·고객 제출 receipt_profile·단건 인라인 발행 모두 빠짐. `대기`(line 113) 하드코딩.
-- 백엔드 발행 라우트 3종 이미 존재: `markInstallmentTaxInvoice` / `markInvoiceTaxInvoice` / `markInvoiceCashReceipt`(`services/invoices.ts`, owner_only). buildRows에 cash 분기 + kind 배지 + receipt_profile 표시 + IssueModal 3-way 라우팅 + i18n(taxInvoices.kind.tax/cash 등 ko/en) 추가하면 됨.
-- 증빙 데이터 모델: `Invoice.receipt_type('none'|'tax_invoice'|'cash_receipt')`, `receipt_profile(JSON: biz_type/biz_tax_id/.../cr_purpose/cr_identifier)`, `cash_receipt_status/cash_receipt_no`, `tax_invoice_status/tax_invoice_external_id`.
-- 대안 우선순위(원하면 전환): 운영 백로그 — Qdocs·Qinfo 공유, 단계 되돌리기, 문서 PDF 다운로드 등.
+**검증:** 빌드 EXIT0 · E2E **18/18**(단일원천 산출·세금단건/현금단건/분할 3-way 발행·status 전이·owner_only 403·멀티테넌트 403·체크섬 400/200·미결제 제외) · 대시보드 todo 200 · i18n 하드코딩 0 · 테스트 부수효과로 오염된 seed client 10 복원 완료.
+
+**의도적 보류(다음 사이클) — memory `project_receipt_compliance_queue`:** 회차별 현금영수증(InvoiceInstallment cash 컬럼 필요)·수정세금계산서/취소·발행완료 고객 메일·팝빌 실발행(운영 실시작 때).
+
+**미배포 커밋(누적):** `454c54a`(QBill i18n 정리) + 이번 증빙 큐 작업 → 다음 `/배포` 시 함께.
 
 ---
 

@@ -263,6 +263,35 @@ export async function markInvoiceCashReceipt(
   return expectOk<ApiInvoice>(r);
 }
 
+// 증빙 발행 의무 큐 — 백엔드 단일 진실 원천 (services/receiptsDue)
+export interface ReceiptDueRow {
+  invoice_id: number;
+  business_id: number;
+  project_id: number | null;
+  invoice_number: string;
+  currency: Currency;
+  kind: 'tax' | 'cash';
+  recipient_name: string | null;
+  tax_id: string | null;
+  receipt_requested_at: string | null;
+  installment_id: number | null;
+  installment_no: number | null;
+  installment_label: string | null;
+  amount: number;
+  paid_at: string | null;
+  status: 'pending' | 'issued';
+  issued_no: string | null;
+  issued_at: string | null;
+  due_at: string | null;
+  due_kind: 'legal' | 'recommended';
+  urgency: 'overdue' | 'soon' | 'normal' | 'done';
+}
+
+export async function listReceiptsDue(businessId: number): Promise<ReceiptDueRow[]> {
+  const r = await apiFetch(`/api/invoices/${businessId}/receipts-due`);
+  return expectOk<ReceiptDueRow[]>(r);
+}
+
 export async function cancelInstallment(
   businessId: number, invoiceId: number, installmentId: number
 ): Promise<{ canceled: true }> {

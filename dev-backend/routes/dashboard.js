@@ -659,51 +659,30 @@ async function collectTaxInvoices(businessId, userRole) {
 
   const items = [];
 
-  // 분할 회차: paid + tax_invoice_no IS NULL + 한국 사업자 고객 (해외 영세율 거래는 제외)
-  const insts = await InvoiceInstallment.findAll({
-    where: {
-      status: 'paid',
-      tax_invoice_no: null,
-    },
-    attributes: ['id', 'invoice_id', 'installment_no', 'label', 'amount', 'paid_at'],
-    include: [{
-      model: Invoice,
-      where: { business_id: businessId },
-      attributes: ['id', 'invoice_number', 'currency'],
-      include: [{
-        model: Client,
-        where: { is_business: true, country: 'KR' },
-        attributes: ['biz_name', 'company_name', 'display_name'],
-        required: true,
-      }],
-      required: true,
-    }],
-    order: [['paid_at', 'ASC']],
-    limit: 30,
-  });
-  for (const inst of insts) {
-    if (!inst.Invoice) continue;
-    const inv = inst.Invoice;
-    const clientName = inv.Client?.biz_name || inv.Client?.company_name || inv.Client?.display_name || '';
-    const fmtAmt = (n) => inv.currency === 'USD' ? '$' + Number(n).toLocaleString('ko-KR') : Number(n).toLocaleString('ko-KR') + '원';
-    // 마감 = paid_at + 30일 (한국 세금계산서 발행 마감 — 다음 달 10일 기준이지만 단순화)
-    const paidAt = inst.paid_at ? new Date(inst.paid_at) : null;
-    const dueAt = paidAt ? new Date(paidAt.getTime() + 30 * 86400 * 1000) : null;
-    const overdue = dueAt && dueAt < new Date();
-    const ms = dueAt ? dueAt.getTime() - Date.now() : Infinity;
-    const priority = overdue ? 'urgent' : (ms < 7 * 86400 * 1000 ? 'today' : 'week');
+  // 증빙 발행 의무 — 증빙 큐(QBill 탭)와 동일 헬퍼(services/receiptsDue) 사용 → 숫자 일치.
+  //   세금계산서 + 현금영수증 + 단건 + 분할 + 외부수신자 + 레거시 fallback 모두 포함.
+  const { fetchReceiptRows } = require('../services/receiptsDue');
+  const rows = await fetchReceiptRows({ Invoice, Client, InvoiceInstallment }, { business_id: businessId });
+  for (const r of rows) {
+    if (r.status !== 'pending') continue;
+    const kindLabel = r.kind === 'cash' ? '현금영수증' : '세금계산서';
+    const fmtAmt = (n) => r.currency === 'USD' ? '$' + Number(n).toLocaleString('ko-KR') : Number(n).toLocaleString('ko-KR') + '원';
+    const paidAt = r.paid_at ? new Date(r.paid_at) : null;
+    const overdue = r.urgency === 'overdue';
+    const priority = overdue ? 'urgent' : (r.urgency === 'soon' ? 'today' : 'week');
+    const roundPart = r.installment_no ? ` · ${r.installment_label || `${r.installment_no}차`}` : '';
     items.push({
-      id: `tax-inst-${inst.id}`,
+      id: r.installment_id ? `tax-inst-${r.installment_id}` : `receipt-inv-${r.invoice_id}`,
       type: 'tax_invoice',
       priority,
       verb: 'issue_tax',
-      subject: `${inv.invoice_number} · ${inst.label} · ${fmtAmt(inst.amount)} · ${clientName}`,
-      context: paidAt ? `결제일: ${formatDateShort(paidAt)}${overdue ? ' · 마감 지남' : ''}` : null,
-      dueAt: safeToIso(dueAt),
+      subject: `${kindLabel} · ${r.invoice_number}${roundPart} · ${fmtAmt(r.amount)} · ${r.recipient_name || ''}`,
+      context: paidAt ? `결제일: ${formatDateShort(paidAt)}${overdue ? ' · 발행기한 지남' : ''}` : null,
+      dueAt: r.due_at,
       createdAt: safeToIso(paidAt),
-      amount: Number(inst.amount),
-      currency: inv.currency || 'KRW',
-      actor: { name: clientName || '사업자 고객' },
+      amount: Number(r.amount),
+      currency: r.currency || 'KRW',
+      actor: { name: r.recipient_name || '고객' },
       link: `/bills?tab=tax-invoices`,
     });
   }
