@@ -10,6 +10,15 @@
 - **미배포 커밋:** `990c5cc` → 다음 `/배포`(운영 PDF 안정성 직결, 권장).
 - **기록(스코프밖):** InvoiceDetailDrawer 기존 하드코딩 3건(310/316/331 sourcePost·은행) + formatMoney `원` — 별도 i18n 정리 대상.
 
+## ✅ 수정세금계산서·증빙 취소 흐름 Phase 1 (2026-06-13 17:55, commit `52b4d92`, dev 검증완료·운영 미배포)
+부가세법 §70 6 수정사유 마킹 추적(홈택스 자동발행 X). 설계: `docs/RECEIPT_CORRECTION_DESIGN.md`.
+- **DB:** `receipt_corrections` 테이블 신규(원 발행 보존 + 정정 참조 이벤트, 감사 이력). sync-database 생성 확인. 운영 deploy 시 sync_database 가 CREATE — `SHOW TABLES LIKE 'receipt_corrections'` 검증 필요.
+- **백엔드:** POST `/:biz/:id/corrections` + `/installments/:instId/corrections` + GET 이력. owner_only+audit(`invoice.receipt.correction`)+broadcast+멤버알림+고객통지(`sendReceiptCorrectionEmail`). `receiptsDue` 유효상태 파생(corrected/amended/canceled, 취소+발행+미정정→correction_pending) — 취소건도 fetch 포함하도록 변경(초안만 제외).
+- **프론트:** `markReceiptCorrection` + CorrectionModal(사유 PlanQSelect + 사유별 안내박스 + 증감액/고객메모) + 큐 유효상태 배지(수정필요/수정발행/취소발행) + 수정·취소 액션. qbill i18n 591/591.
+- **검증:** 헬스 29/29 · 빌드 EXIT0 · 백엔드 E2E **14/14**(6사유·correction_pending→canceled 전이·amended·고객통지 EmailLog·owner_only 403·멀티테넌트 403·잘못사유 400·회차 현금영수증).
+- **미배포:** `52b4d92` → 다음 `/배포`(신규 테이블 sync_database 자동).
+- **Phase 2(추후):** 정정 PDF · insights 정정 반영 · InvoiceDetailDrawer 정정 이력 표시 · 팝빌 자동발급.
+
 ## ✅ 운영 피드백 #34/#35/#36 정리·회신 완료 (2026-06-13 16:55, 코드 변경 0)
 v1.34.0에서 고쳐 배포됐으나 티켓이 'pending'·미회신이던 것 정리. 운영 코드 반영 grep 검증 후 close.
 - 운영 반영 확인: #36 `access_scope.js` owner_id fallback · #35 `focusSync.js`+`taskActualHours.js` · #34 빌드 flex-shrink.
