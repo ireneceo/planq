@@ -94,6 +94,25 @@ export async function getDocument(id: number): Promise<DocDetail> {
   return j.data;
 }
 
+// 문서 PDF 다운로드 — 인증 blob fetch (authenticateToken 은 Authorization 헤더만 받으므로 window.open 불가).
+export async function downloadDocumentPdf(id: number, title: string): Promise<void> {
+  const r = await apiFetch(`/api/docs/documents/${id}/pdf`);
+  if (!r.ok) {
+    let msg = `HTTP ${r.status}`;
+    try { const j = await r.json(); msg = j.message || msg; } catch { /* binary */ }
+    throw new Error(msg);
+  }
+  const blob = await r.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${title || 'document'}.pdf`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
 export async function createDocument(payload: {
   business_id: number;
   template_id?: number | null;

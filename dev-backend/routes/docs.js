@@ -585,6 +585,39 @@ router.get('/documents/:id', authenticateToken, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// 문서 PDF 다운로드 (Puppeteer — 청구서·포스트와 동일 엔진). attachment 헤더 + 한글 파일명(RFC 5987).
+function sendDocumentPdf(res, pdf, title) {
+  res.setHeader('Content-Type', 'application/pdf');
+  const asciiName = (title || 'document').replace(/[^\w-]/g, '_').slice(0, 80) || 'document';
+  const utf8Name = encodeURIComponent(`${title || 'document'}.pdf`);
+  res.setHeader('Content-Disposition', `attachment; filename="${asciiName}.pdf"; filename*=UTF-8''${utf8Name}`);
+  res.send(pdf);
+}
+async function buildDocumentPdf(doc) {
+  const { Business } = require('../models');
+  const { documentPdfHtml } = require('../services/pdfTemplates');
+  const { renderPdfFromHtml } = require('../services/pdfService');
+  const business = await Business.findByPk(doc.business_id, { attributes: ['name', 'brand_name', 'legal_name'] });
+  return renderPdfFromHtml(documentPdfHtml(doc.toJSON ? doc.toJSON() : doc, business?.toJSON() || {}));
+}
+
+// GET /api/docs/documents/:id/pdf — 멤버 (접근검사 동일)
+router.get('/documents/:id/pdf', authenticateToken, async (req, res, next) => {
+  try {
+    const doc = await Document.findByPk(req.params.id);
+    if (!doc) return errorResponse(res, 'not_found', 404);
+    const auth = await assertReadAccess(req.user.id, doc.business_id, req.user.platform_role);
+    if (!auth.ok) return errorResponse(res, 'forbidden', 403);
+    if (auth.scope?.isClient) {
+      const okClient = doc.client_id && auth.scope.clientIds.includes(doc.client_id);
+      const okProject = doc.project_id && auth.scope.projectClientProjectIds.includes(doc.project_id);
+      if (!okClient && !okProject) return errorResponse(res, 'forbidden', 403);
+    }
+    const pdf = await buildDocumentPdf(doc);
+    sendDocumentPdf(res, pdf, doc.title);
+  } catch (e) { next(e); }
+});
+
 // PUT /api/docs/documents/:id — 폼/본문 업데이트 + revision 기록
 router.put('/documents/:id', authenticateToken, async (req, res, next) => {
   try {
@@ -771,6 +804,19 @@ router.get('/public/:token', async (req, res, next) => {
     delete safe.created_by;
     delete safe.updated_by;
     return successResponse(res, safe);
+  } catch (e) { next(e); }
+});
+
+// GET /api/docs/public/:token/pdf — 공유 링크로 받은 사람 PDF 다운로드 (인증 없음)
+router.get('/public/:token/pdf', async (req, res, next) => {
+  try {
+    const doc = await Document.findOne({ where: { share_token: req.params.token, archived_at: null } });
+    if (!doc) return errorResponse(res, 'not_found', 404);
+    if (doc.share_expires_at && new Date(doc.share_expires_at) < new Date()) {
+      return res.status(410).json({ success: false, code: 'share_expired', message: 'This share link has expired.' });
+    }
+    const pdf = await buildDocumentPdf(doc);
+    sendDocumentPdf(res, pdf, doc.title);
   } catch (e) { next(e); }
 });
 

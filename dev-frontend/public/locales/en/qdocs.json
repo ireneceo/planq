@@ -198,6 +198,8 @@
   },
   "actions": {
     "print": "PDF / Print (choose 'Save as PDF' as destination to download)",
+    "downloadPdf": "Download PDF",
+    "pdfError": "Failed to generate PDF",
     "saveAsTemplate": "Save as template",
     "sendToKnowledge": "Send to Q info — Cue will reference it",
     "sendToKnowledgeOk": "Added to Q info — Cue will use it after indexing",
@@ -493,7 +495,10 @@
     "status": "Status",
     "client": "Client",
     "project": "Project",
-    "upcoming": "Upcoming (D-4)",
+    "downloadPdf": "Download PDF",
+    "pdfBusy": "Generating PDF…",
+    "upcoming": "Upcoming",
+    "upcomingNext": "Public link · Signing — coming soon",
     "upcomingPdf": "PDF · Public link · Signing — coming soon",
     "table": {
       "addColLeft": "Add column left",

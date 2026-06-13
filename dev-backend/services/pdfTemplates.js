@@ -250,6 +250,36 @@ function postPdfHtml(post, author, business) {
 </html>`;
 }
 
+// ─── 문서(Document — 계약/제안/공식문서) PDF ───
+// body_html 우선, 없으면 body_json(tiptap) 변환. postPdfHtml 과 동일 레이아웃.
+const DOC_KIND_LABEL = {
+  contract: 'CONTRACT', proposal: 'PROPOSAL', quote: 'QUOTE', sow: 'SOW',
+  invoice: 'INVOICE', report: 'REPORT', letter: 'LETTER', other: 'DOCUMENT',
+};
+function documentPdfHtml(doc, business) {
+  const bodyHtml = doc.body_html
+    ? doc.body_html
+    : (doc.body_json ? (typeof doc.body_json === 'string' ? doc.body_json : tiptapToHtml(doc.body_json)) : '');
+  const senderName = business?.legal_name || business?.brand_name || business?.name || '—';
+  const dateStr = doc.updated_at || doc.created_at;
+  const brand = DOC_KIND_LABEL[doc.kind] || (doc.kind ? String(doc.kind).toUpperCase() : 'DOCUMENT');
+  return `<!DOCTYPE html>
+<html lang="ko">
+<head><meta charset="utf-8"><title>${escapeHtml(doc.title || '문서')}</title>
+<style>${BASE_CSS}</style></head>
+<body>
+  <div class="header">
+    <div>
+      <div class="brand">${escapeHtml(brand)}</div>
+      <h1>${escapeHtml(doc.title || '문서')}</h1>
+      <div class="meta">${escapeHtml(senderName)} · ${fmtDate(dateStr)}</div>
+    </div>
+  </div>
+  <div class="body-content">${bodyHtml}</div>
+</body>
+</html>`;
+}
+
 // ─── 경영 보고서 PDF (월간/분기/연간/임의) ───
 //
 // 입력: { period:{from,to,kind,label}, business:{name,legal_name}, generatedAt, tabs:{overview,tasks,profit,team,finance} }
@@ -431,4 +461,4 @@ function reportPdfHtml({ period, business, generatedAt, tabs }) {
 </html>`;
 }
 
-module.exports = { invoicePdfHtml, postPdfHtml, reportPdfHtml };
+module.exports = { invoicePdfHtml, postPdfHtml, documentPdfHtml, reportPdfHtml };

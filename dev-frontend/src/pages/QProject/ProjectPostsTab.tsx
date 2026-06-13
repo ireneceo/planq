@@ -8,7 +8,7 @@ import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 import {
   fetchPosts, fetchPost, createPost, updatePost, deletePost,
-  attachToPost, detachFromPost,
+  attachToPost, detachFromPost, downloadPostPdf,
   type PostRow, type PostDetail,
 } from '../../services/posts';
 import PostEditor from '../../components/Docs/PostEditor';
@@ -604,7 +604,7 @@ const ProjectPostsTab: React.FC<Props> = ({ businessId, projectId }) => {
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
                 {t('share.button', '공유')}
               </ShareBtn>
-              <SecondaryBtn type="button" onClick={() => window.print()} title={t('actions.print', 'PDF / 인쇄') as string} aria-label={t('actions.print', 'PDF / 인쇄') as string}>
+              <SecondaryBtn type="button" onClick={() => { if (detail) downloadPostPdf(detail.id, detail.title).catch((e) => setError((e as Error).message || (t('actions.pdfError', 'PDF 생성 실패') as string))); }} title={t('actions.downloadPdf', 'PDF 다운로드') as string} aria-label={t('actions.downloadPdf', 'PDF 다운로드') as string}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
               </SecondaryBtn>
               <SecondaryBtn type="button" onClick={startEdit}>{t('edit', '편집')}</SecondaryBtn>
