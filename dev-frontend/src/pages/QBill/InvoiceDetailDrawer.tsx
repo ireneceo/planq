@@ -12,7 +12,8 @@ import {
   markInstallmentTaxInvoice, cancelInstallment, updateInvoiceStatus,
   markInvoiceTaxInvoice, markInvoiceCashReceipt,
   findConversationForClient, deleteInvoice, sendInvoiceReminder, downloadInvoicePdf,
-  type ApiInvoice, type ApiInstallment,
+  listInvoiceCorrections,
+  type ApiInvoice, type ApiInstallment, type ApiReceiptCorrection,
 } from '../../services/invoices';
 
 interface ConfirmState {
@@ -40,6 +41,7 @@ export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, 
   const [copiedAcct, setCopiedAcct] = useState(false);
   const [copiedMemo, setCopiedMemo] = useState(false);
   const [chatConvId, setChatConvId] = useState<number | null>(null);
+  const [corrections, setCorrections] = useState<ApiReceiptCorrection[]>([]);
   const [invoice, setInvoice] = useState<ApiInvoice | null>(initialInvoice);
   const [busy, setBusy] = useState(false);
   const [confirm, setConfirm] = useState<ConfirmState | null>(null);
@@ -90,11 +92,16 @@ export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, 
   useEffect(() => {
     setInvoice(initialInvoice);
     setChatConvId(null);
+    setCorrections([]);
     if (initialInvoice) {
       // 상세 fetch (include 풀세트)
       getInvoice(initialInvoice.business_id, initialInvoice.id)
         .then(fresh => setInvoice(fresh))
         .catch(() => {/* fallback to initial */});
+      // 증빙 정정 이력 (수정세금계산서/취소) — best-effort
+      listInvoiceCorrections(initialInvoice.business_id, initialInvoice.id)
+        .then(setCorrections)
+        .catch(() => setCorrections([]));
       // 발송된 청구서면 연결된 채팅방 자동 검색 (best-effort)
       if (initialInvoice.client_id && (initialInvoice.status === 'sent' || initialInvoice.status === 'partially_paid' || initialInvoice.status === 'paid' || initialInvoice.status === 'overdue')) {
         findConversationForClient(initialInvoice.business_id, initialInvoice.client_id, initialInvoice.project_id || undefined)
@@ -531,6 +538,25 @@ export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, 
                     {t('detail.tax.markCashBtn', { defaultValue: '현금영수증 번호 입력' })}
                   </ReceiptMarkBtn>
                 </ReceiptMarkRow>
+              )}
+              {/* 정정 이력 (수정세금계산서 / 현금영수증 취소) */}
+              {corrections.length > 0 && (
+                <CorrHistory>
+                  <CorrHistTitle>{t('detail.tax.correctionHistory', { defaultValue: '정정 이력' })}</CorrHistTitle>
+                  {corrections.map(c => (
+                    <CorrItem key={c.id}>
+                      <CorrTop>
+                        <CorrReason>{t(`taxInvoices.corrections.reason.${c.reason}`, { defaultValue: c.reason, ns: 'qbill' }) as string}</CorrReason>
+                        <CorrNo>{c.corrected_no}</CorrNo>
+                      </CorrTop>
+                      <CorrMeta>
+                        {c.written_at ? c.written_at.slice(0, 10) : '—'}
+                        {c.amount_delta != null && ` · ${formatMoney(Number(c.amount_delta), invoice.currency)}`}
+                        {c.original_no && ` · ${t('taxInvoices.corrections.original', { defaultValue: '원', ns: 'qbill' })} ${c.original_no}`}
+                      </CorrMeta>
+                    </CorrItem>
+                  ))}
+                </CorrHistory>
               )}
             </Section>
           );
@@ -1037,6 +1063,16 @@ const ReceiptMarkBtn = styled.button`
   background: #FFF; border: 1.5px solid #0D9488; border-radius: 8px; cursor: pointer;
   &:hover { background: #F0FDFA; }
 `;
+const CorrHistory = styled.div`
+  margin-top: 12px; padding: 12px; background: #FEF2F2; border: 1px solid #FECACA; border-radius: 10px;
+  display: flex; flex-direction: column; gap: 8px;
+`;
+const CorrHistTitle = styled.div`font-size: 11px; font-weight: 700; color: #991B1B; text-transform: uppercase; letter-spacing: 0.4px;`;
+const CorrItem = styled.div`display: flex; flex-direction: column; gap: 2px; padding-bottom: 8px; border-bottom: 1px solid #FECACA; &:last-child { border-bottom: none; padding-bottom: 0; }`;
+const CorrTop = styled.div`display: flex; justify-content: space-between; align-items: baseline; gap: 8px;`;
+const CorrReason = styled.span`font-size: 12px; font-weight: 600; color: #0F172A;`;
+const CorrNo = styled.span`font-size: 12px; font-weight: 700; color: #991B1B; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;`;
+const CorrMeta = styled.div`font-size: 11px; color: #B91C1C;`;
 const PayerHint = styled.div`
   margin-top: 8px; padding: 10px 12px;
   background: #FEF3C7; border-radius: 8px;

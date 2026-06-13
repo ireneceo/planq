@@ -232,6 +232,7 @@
       "issuedNo": "발행완료 · {{no}}",
       "markTaxBtn": "세금계산서 발행번호 입력",
       "markCashBtn": "현금영수증 번호 입력",
+      "correctionHistory": "정정 이력",
       "cashPromptTitle": "현금영수증 번호 입력"
     },
     "bank": {
