@@ -533,6 +533,40 @@ async function sendPaymentReminderEmail({ to, invoiceNumber, title, total, curre
   });
 }
 
+// 증빙(세금계산서/현금영수증) 발행 완료 — 고객 통지. 발행자가 외부 발행 후 마킹하면 고객에게 자동 안내.
+//   고객 신뢰 루프 완성 (이전에는 공개 링크 재방문해야만 확인 가능했음).
+function receiptIssuedEmailHtml({ kind, invoiceNumber, title, receiptNo, issuedAt, workspaceName, shareUrl }) {
+  const isCash = kind === 'cash';
+  const kindLabel = isCash ? '현금영수증' : '세금계산서';
+  const noLabel = isCash ? '승인번호' : '발행번호';
+  const issuedStr = issuedAt ? String(issuedAt).slice(0, 10) : '';
+  const body = `
+    <div style="font-size:15px;font-weight:700;color:#0F172A;margin-bottom:6px;">${kindLabel}가 발행되었습니다</div>
+    <div style="font-size:14px;color:#64748B;line-height:1.6;">${workspaceName ? escapeHtml(workspaceName) + ' 님이 ' : ''}요청하신 ${kindLabel}를 발행했습니다. 등록하신 정보로 발행 완료되었습니다.</div>
+    <div style="font-size:11px;font-weight:700;color:#64748B;letter-spacing:0.4px;font-family:ui-monospace,monospace;margin-top:12px;">${escapeHtml(invoiceNumber)}</div>
+    <div style="font-size:18px;font-weight:700;color:#0F172A;line-height:1.4;margin-top:4px;">${escapeHtml(title)}</div>
+    <div style="margin-top:16px;background:#F0FDFA;border:1px solid #99F6E4;border-radius:10px;padding:14px 16px;">
+      <div style="font-size:11px;color:#0F766E;text-transform:uppercase;letter-spacing:0.4px;font-weight:700;">${kindLabel} ${noLabel}</div>
+      <div style="font-size:20px;font-weight:800;color:#0F766E;letter-spacing:-0.3px;margin-top:2px;font-family:ui-monospace,monospace;">${escapeHtml(receiptNo || '')}</div>
+      ${issuedStr ? `<div style="font-size:12px;color:#0F766E;margin-top:6px;font-weight:500;">발행일 ${issuedStr}</div>` : ''}
+    </div>
+    ${shareUrl ? `<div style="margin-top:20px;text-align:center;">${ctaButton(shareUrl, '청구서·증빙 확인')}</div>${fallbackLink(shareUrl)}` : ''}`;
+  return emailWrap({ title: `${kindLabel} 발행 완료 — ${title}`, body, footerOptions: { workspaceName } });
+}
+
+async function sendReceiptIssuedEmail({ to, kind, invoiceNumber, title, receiptNo, issuedAt, workspaceName, shareUrl, fromName, replyTo, businessId, invoiceId }) {
+  if (!to) return false;
+  const kindLabel = kind === 'cash' ? '현금영수증' : '세금계산서';
+  const subject = `[${PLATFORM.brand}] ${kindLabel} 발행 완료 — ${invoiceNumber} ${title}`;
+  return sendEmail({
+    to, subject,
+    html: receiptIssuedEmailHtml({ kind, invoiceNumber, title, receiptNo, issuedAt, workspaceName, shareUrl }),
+    fromName, replyTo,
+    template: 'receipt_issued', relatedEntityType: 'invoice', relatedEntityId: invoiceId,
+    businessId,
+  });
+}
+
 // ═══════════════════════════════════════════════════════════════
 // 6. 이메일 변경 OTP (보안 메일 — 매트릭스 무관)
 // ═══════════════════════════════════════════════════════════════
@@ -780,7 +814,7 @@ async function sendSignupVerifyEmail({ to, name, verifyToken, ttlHours = 72 }) {
 module.exports = {
   sendEmail,
   sendInviteEmail, sendPostShareEmail, sendEntityShareEmail, sendSignatureRequestEmail, sendSignatureOtpEmail,
-  sendInvoiceEmail, sendPaymentReminderEmail, sendVerificationCodeEmail,
+  sendInvoiceEmail, sendPaymentReminderEmail, sendReceiptIssuedEmail, sendVerificationCodeEmail,
   sendBillingInstructionEmail,
   sendInquiryReceivedEmail,
   sendNotificationEmail,
