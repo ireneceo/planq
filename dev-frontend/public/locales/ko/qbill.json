@@ -150,9 +150,15 @@
       "paid": "수금",
       "outstanding": "미수금"
     },
+    "source": {
+      "note": "본 청구서는 위 문서에 따른 청구입니다",
+      "sharedPrefix": "공유",
+      "viewDoc": "문서 보기"
+    },
     "parties": {
       "from": "발신",
       "to": "수신",
+      "bank": "은행",
       "taxId": "사업자번호",
       "rep": "대표자",
       "address": "주소",

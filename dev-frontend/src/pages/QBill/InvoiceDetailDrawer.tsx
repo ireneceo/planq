@@ -307,13 +307,13 @@ export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, 
               <SourceText>
                 <SourceTitle>{sourcePost.title}</SourceTitle>
                 <SourceMeta>
-                  본 청구서는 위 문서에 따른 청구입니다
-                  {sourcePost.shared_at && ` · 공유 ${sourcePost.shared_at.split('T')[0]}`}
+                  {t('detail.source.note', { defaultValue: '본 청구서는 위 문서에 따른 청구입니다' })}
+                  {sourcePost.shared_at && ` · ${t('detail.source.sharedPrefix', { defaultValue: '공유' })} ${sourcePost.shared_at.split('T')[0]}`}
                 </SourceMeta>
               </SourceText>
             </SourceLeft>
             <SourceLink href={`/docs?post=${sourcePost.id}`}>
-              문서 보기
+              {t('detail.source.viewDoc', { defaultValue: '문서 보기' })}
               <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="7" y1="17" x2="17" y2="7"/><polyline points="7 7 17 7 17 17"/></svg>
             </SourceLink>
           </SourceCard>
@@ -328,7 +328,7 @@ export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, 
             <PartyLabel>{t('detail.parties.from')}</PartyLabel>
             <PartyName>{bank.account_holder || '—'}</PartyName>
             <PartyMeta>
-              <MetaRow><MetaKey>은행</MetaKey><MetaVal>{bank.bank_name || '—'}</MetaVal></MetaRow>
+              <MetaRow><MetaKey>{t('detail.parties.bank', { defaultValue: '은행' })}</MetaKey><MetaVal>{bank.bank_name || '—'}</MetaVal></MetaRow>
             </PartyMeta>
           </PartyCard>
           <PartyArrow>→</PartyArrow>

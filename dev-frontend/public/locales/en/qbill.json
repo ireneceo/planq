@@ -150,9 +150,15 @@
       "paid": "Paid",
       "outstanding": "Outstanding"
     },
+    "source": {
+      "note": "This invoice is billed per the document above",
+      "sharedPrefix": "Shared",
+      "viewDoc": "View document"
+    },
     "parties": {
       "from": "From",
       "to": "To",
+      "bank": "Bank",
       "taxId": "Tax ID",
       "rep": "Representative",
       "address": "Address",
