@@ -1,6 +1,26 @@
 # PlanQ 세션 상태
 
-**마지막 업데이트:** 2026-06-13 — **v1.34.0 운영 배포** (deploy `20260613_133212`, commit `f8f547f`, 131초) + **송금완료 알림 핫픽스 배포** (deploy `20260613_134730`, commit `c6b6093`, `--skip-build` 63초). 증빙(세금계산서+현금영수증) + 이메일 발신전용/문의 일원화 + 운영버그 #34·#35·#36 + 송금완료 알림 발송 fix. 작업 상태: 완료.
+**마지막 업데이트:** 2026-06-13 13:55 — **작업 상태: 중단 (이어서 재개 예정).** v1.34.0 + 송금완료 알림 핫픽스 운영 배포 완료. 다음 개발(증빙 발행 큐 통합) 착수 직전 일시정지.
+
+## ⚡ 빠른 재개 (새 세션)
+```
+session-state.md 읽고 이어서 개발해.
+```
+
+## 🔖 지금 중단 지점
+**마지막 작업:** v1.34.0(증빙+이메일+#34/35/36) + 송금완료 알림 핫픽스 운영 배포 완료. dev 예시 청구서 id 80·84 삭제 완료. 다음 개발 착수 직전.
+
+**바로 다음 작업:** **증빙 발행 큐 통합** — `dev-frontend/src/pages/QBill/TaxInvoicesTab.tsx`를 세금계산서 전용 큐 → **세금계산서+현금영수증 통합 증빙 큐**로 확장. (조사만 완료, 코드 변경 전 — 미완 없음)
+
+**맥락 유지할 것:**
+- 현재 갭: `TaxInvoicesTab` line 136 `if (!client?.is_business) continue;` → 현금영수증·외부수신자(client 없음)·고객 제출 receipt_profile·단건 인라인 발행 모두 빠짐. `대기`(line 113) 하드코딩.
+- 백엔드 발행 라우트 3종 이미 존재: `markInstallmentTaxInvoice` / `markInvoiceTaxInvoice` / `markInvoiceCashReceipt`(`services/invoices.ts`, owner_only). buildRows에 cash 분기 + kind 배지 + receipt_profile 표시 + IssueModal 3-way 라우팅 + i18n(taxInvoices.kind.tax/cash 등 ko/en) 추가하면 됨.
+- 증빙 데이터 모델: `Invoice.receipt_type('none'|'tax_invoice'|'cash_receipt')`, `receipt_profile(JSON: biz_type/biz_tax_id/.../cr_purpose/cr_identifier)`, `cash_receipt_status/cash_receipt_no`, `tax_invoice_status/tax_invoice_external_id`.
+- 대안 우선순위(원하면 전환): 운영 백로그 — Qdocs·Qinfo 공유, 단계 되돌리기, 문서 PDF 다운로드 등.
+
+---
+
+### (배포 완료) v1.34.0 + 송금완료 알림 핫픽스
 
 ### 송금완료 알림 핫픽스 (c6b6093) — 운영 라이브
 - 공개 결제 페이지 "송금 완료 알림 보내기"가 `inbox:refresh` 소켓만 보내고 `notify`를 안 불러 owner 알림이 0이던 기존 버그(`feedback_notify_trigger_required` 계열). → owner/admin/청구담당자에게 `payment` 알림(알림함+OS push+실시간 종) 발송 + 5분 중복 dedup. 분할·단건 양 분기. link normalizeLink path 정규화. E2E 7/7.
