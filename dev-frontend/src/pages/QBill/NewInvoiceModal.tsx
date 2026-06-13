@@ -30,10 +30,6 @@ interface Props {
   prefillPostId?: number | null;
 }
 
-const KIND_LABEL: Record<string, string> = {
-  contract: '계약서', quote: '견적서', sow: 'SOW', proposal: '제안서',
-};
-
 interface Item { id: number; description: string; detail: string; quantity: number; unit_price: number; }
 interface Round { id: number; label: string; milestone: string; rate: number; due_date: string; }
 
@@ -42,7 +38,7 @@ const addDays = (s: string, d: number) => {
 };
 
 const CURRENCY_OPTIONS: PlanQSelectOption[] = [
-  { value: 'KRW', label: 'KRW (원)' },
+  { value: 'KRW', label: 'KRW (₩)' },
   { value: 'USD', label: 'USD ($)' },
   { value: 'EUR', label: 'EUR (€)' },
   { value: 'JPY', label: 'JPY (¥)' },
@@ -100,9 +96,9 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
 
   const [splitOn, setSplitOn] = useState(false);
   const [rounds, setRounds] = useState<Round[]>([
-    { id: 1, label: '선금', milestone: '계약 체결', rate: 30, due_date: addDays(todayStr, 7) },
-    { id: 2, label: '중도금', milestone: '중간 검수', rate: 40, due_date: addDays(todayStr, 21) },
-    { id: 3, label: '잔금', milestone: '최종 검수', rate: 30, due_date: addDays(todayStr, 35) },
+    { id: 1, label: t('newInvoice.preset.deposit', { defaultValue: '선금' }) as string, milestone: t('newInvoice.preset.depositMs', { defaultValue: '계약 체결' }) as string, rate: 30, due_date: addDays(todayStr, 7) },
+    { id: 2, label: t('newInvoice.preset.interim', { defaultValue: '중도금' }) as string, milestone: t('newInvoice.preset.interimMs', { defaultValue: '중간 검수' }) as string, rate: 40, due_date: addDays(todayStr, 21) },
+    { id: 3, label: t('newInvoice.preset.balance', { defaultValue: '잔금' }) as string, milestone: t('newInvoice.preset.balanceMs', { defaultValue: '최종 검수' }) as string, rate: 30, due_date: addDays(todayStr, 35) },
   ]);
 
   const [taxOn, setTaxOn] = useState(false);
@@ -253,7 +249,7 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
 
   const sourceOptions: PlanQSelectOption[] = useMemo(() => sourceCandidates.map(p => ({
     value: p.id,
-    label: `[${KIND_LABEL[p.category || ''] || p.category || '문서'}] ${p.title}`,
+    label: `[${p.category ? t(`kind.${p.category}`, { defaultValue: p.category }) : t('kind.document', { defaultValue: '문서' })}] ${p.title}`,
   })), [sourceCandidates]);
 
   // ─── 액션 ───
@@ -265,7 +261,7 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
   const addRound = () => {
     const last = rounds[rounds.length - 1];
     setRounds(arr => [...arr, {
-      id: Date.now(), label: `${arr.length + 1}차`, milestone: '',
+      id: Date.now(), label: t('newInvoice.misc.roundSuffix', { n: arr.length + 1, defaultValue: '{{n}}차' }) as string, milestone: '',
       rate: 0, due_date: last ? addDays(last.due_date, 14) : addDays(todayStr, 14),
     }]);
   };
@@ -281,7 +277,7 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
         ...base,
         ...Array(preset.length - base.length).fill(null).map((_, i) => ({
           id: Date.now() + i,
-          label: `${base.length + i + 1}차`, milestone: '', rate: 0,
+          label: t('newInvoice.misc.roundSuffix', { n: base.length + i + 1, defaultValue: '{{n}}차' }) as string, milestone: '', rate: 0,
           due_date: addDays(todayStr, 14 * (base.length + i + 1)),
         })),
       ] : base;
@@ -307,7 +303,7 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
 
   const submit = async (asDraft: boolean) => {
     if (submitting) return;
-    if (!businessId) { setErrors(['워크스페이스를 먼저 선택하세요']); return; }
+    if (!businessId) { setErrors([t('newInvoice.misc.selectWorkspaceFirst', { defaultValue: '워크스페이스를 먼저 선택하세요' }) as string]); return; }
     if (!asDraft) {
       const errs = validate();
       if (errs.length > 0) { setErrors(errs); return; }
@@ -316,7 +312,7 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
     setSubmitting(true);
     try {
       const created = await createInvoice(businessId, {
-        title: title.trim() || '(제목 없음)',
+        title: title.trim() || (t('newInvoice.misc.noTitle', { defaultValue: '(제목 없음)' }) as string),
         client_id: recipientMode === 'external' ? null : clientId,
         source_post_id: recipientMode === 'external' ? null : sourcePostId,
         currency,
@@ -363,7 +359,7 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
       }
       onClose();
     } catch (err) {
-      setErrors([(err as Error).message || '발행 실패']);
+      setErrors([(err as Error).message || (t('newInvoice.misc.issueFailed', { defaultValue: '발행 실패' }) as string)]);
     } finally {
       setSubmitting(false);
     }
@@ -413,9 +409,9 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
     ? extEmail.trim()
     : (client?.tax_invoice_email || client?.billing_contact_email || client?.invite_email);
   const deliverSummary: string[] = [];
-  if (sendChat && conversation) deliverSummary.push(`채팅: ${conversation.title || '채팅방'}`);
-  if (sendEmail && recipientEmail) deliverSummary.push(`이메일: ${recipientEmail}`);
-  if (deliverSummary.length === 0 && client) deliverSummary.push('공개 링크만 생성 (수동 전달)');
+  if (sendChat && conversation) deliverSummary.push(t('newInvoice.misc.deliverChat', { name: conversation.title || (t('newInvoice.misc.chatRoom', { defaultValue: '채팅방' }) as string), defaultValue: '채팅: {{name}}' }) as string);
+  if (sendEmail && recipientEmail) deliverSummary.push(t('newInvoice.misc.deliverEmail', { email: recipientEmail, defaultValue: '이메일: {{email}}' }) as string);
+  if (deliverSummary.length === 0 && client) deliverSummary.push(t('newInvoice.misc.deliverPublicOnly', { defaultValue: '공개 링크만 생성 (수동 전달)' }) as string);
 
   return (
     <>
@@ -571,14 +567,14 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
                     options={sourceOptions}
                     value={sourceOptions.find(o => o.value === sourcePostId) || null}
                     onChange={(opt) => setSourcePostId(opt ? Number((opt as PlanQSelectOption).value) : null)}
-                    placeholder="— 선택 (없으면 비워둠) —"
+                    placeholder={t('newInvoice.misc.sourceNone', { defaultValue: '— 선택 (없으면 비워둠) —' }) as string}
                     isClearable
                     isSearchable
                   />
                   {sourcePost && (
                     <SourceBadge>
                       <SourceKindBadge $kind={sourcePost.category || ''}>
-                        {KIND_LABEL[sourcePost.category || ''] || sourcePost.category || '문서'}
+                        {sourcePost.category ? t(`kind.${sourcePost.category}`, { defaultValue: sourcePost.category }) : t('kind.document', { defaultValue: '문서' })}
                       </SourceKindBadge>
                       <SourceTitle>{sourcePost.title}</SourceTitle>
                       <SourceMeta>
@@ -835,7 +831,7 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
                     <DeliverTitle>채팅방으로 결제 요청 카드 보내기</DeliverTitle>
                     <DeliverTarget>
                       {conversation ? (
-                        <>→ <strong>{conversation.title || '채팅방'}</strong></>
+                        <>→ <strong>{conversation.title || (t('newInvoice.misc.chatRoom', { defaultValue: '채팅방' }) as string)}</strong></>
                       ) : (
                         <NoChannelHint>이 고객의 채팅방이 없습니다 · <NoChannelLink>채팅방 만들기 →</NoChannelLink></NoChannelHint>
                       )}
@@ -851,7 +847,7 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
                   </DeliverIcon>
                   <DeliverBody>
                     <DeliverTitle>이메일 발송</DeliverTitle>
-                    <DeliverTarget>→ <strong>{recipientEmail || '이메일 없음'}</strong></DeliverTarget>
+                    <DeliverTarget>→ <strong>{recipientEmail || (t('newInvoice.misc.noEmail', { defaultValue: '이메일 없음' }) as string)}</strong></DeliverTarget>
                     {sendEmail && (
                       <PdfToggle>
                         <input type="checkbox" checked={includePdf} onChange={e => setIncludePdf(e.target.checked)} />
