@@ -101,6 +101,7 @@ const EmailFaqSuggestion = require('./EmailFaqSuggestion'); // Q Mail M4
 const BusinessMemberPermission = require('./BusinessMemberPermission');
 const ProjectStatusHistory = require('./ProjectStatusHistory');
 const InvoiceStatusHistory = require('./InvoiceStatusHistory');
+const ReceiptCorrection = require('./ReceiptCorrection');
 const ClientSubscription = require('./ClientSubscription');
 // ─── Refresh Token (다중 디바이스 세션) ───
 const RefreshToken = require('./RefreshToken');
@@ -497,6 +498,7 @@ module.exports = {
   BusinessMemberPermission,
   ProjectStatusHistory,
   InvoiceStatusHistory,
+  ReceiptCorrection,
   RefreshToken,
   FocusSession,
 };
@@ -598,6 +600,9 @@ Project.hasMany(ProjectStatusHistory, { as: 'statusHistory', foreignKey: 'projec
 InvoiceStatusHistory.belongsTo(Invoice, { foreignKey: 'invoice_id' });
 InvoiceStatusHistory.belongsTo(User, { as: 'changer', foreignKey: 'changed_by' });
 Invoice.hasMany(InvoiceStatusHistory, { as: 'statusHistory', foreignKey: 'invoice_id' });
+Invoice.hasMany(ReceiptCorrection, { as: 'receiptCorrections', foreignKey: 'invoice_id' });
+ReceiptCorrection.belongsTo(Invoice, { foreignKey: 'invoice_id' });
+ReceiptCorrection.belongsTo(User, { as: 'marker', foreignKey: 'marked_by' });
 
 // RefreshToken — 다중 디바이스 세션
 RefreshToken.belongsTo(User, { foreignKey: 'user_id', onDelete: 'CASCADE' });

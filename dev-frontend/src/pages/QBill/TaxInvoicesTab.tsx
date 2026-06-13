@@ -9,9 +9,11 @@ import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import {
   listReceiptsDue, formatMoney,
   markInstallmentTaxInvoice, markInstallmentCashReceipt, markInvoiceTaxInvoice, markInvoiceCashReceipt,
-  type ReceiptDueRow,
+  markReceiptCorrection,
+  type ReceiptDueRow, type CorrectionReason,
 } from '../../services/invoices';
 import SingleDateField from '../../components/Common/SingleDateField';
+import PlanQSelect from '../../components/Common/PlanQSelect';
 
 type Tab = 'pending' | 'issued' | 'all';
 
@@ -21,6 +23,7 @@ export default function TaxInvoicesTab() {
   const businessId = user?.business_id ? Number(user.business_id) : null;
   const [tab, setTab] = useState<Tab>('pending');
   const [issuingFor, setIssuingFor] = useState<ReceiptDueRow | null>(null);
+  const [correctingFor, setCorrectingFor] = useState<ReceiptDueRow | null>(null);
   const [rows, setRows] = useState<ReceiptDueRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [reloadKey, setReloadKey] = useState(0);
@@ -145,11 +148,23 @@ export default function TaxInvoicesTab() {
               <Cell style={{ width: 100 }}>{r.paid_at ? r.paid_at.split('T')[0] : '—'}</Cell>
               <Cell style={{ width: 120 }}><DueCell row={r} t={t} /></Cell>
               <Cell style={{ width: 130 }}>
-                {r.issued_no ? <IssueNo>{r.issued_no}</IssueNo> : <Pending>{t('taxInvoices.misc.pending', '대기')}</Pending>}
+                {r.effective === 'correction_pending'
+                  ? <CorrPendingBadge>{t('taxInvoices.corrections.needed', '수정 필요')}</CorrPendingBadge>
+                  : r.correction
+                    ? <CorrBadge title={r.correction.corrected_no} $canceled={r.effective === 'canceled'}>
+                        {t(`taxInvoices.corrections.eff.${r.effective}`, { defaultValue: r.effective })} · {r.correction.corrected_no}
+                      </CorrBadge>
+                    : r.issued_no ? <IssueNo>{r.issued_no}</IssueNo> : <Pending>{t('taxInvoices.misc.pending', '대기')}</Pending>}
               </Cell>
               <Cell style={{ width: 92, textAlign: 'right' }}>
                 {r.status === 'pending' && (
                   <ActionBtn type="button" $primary onClick={() => setIssuingFor(r)}>{t('taxInvoices.actions.issue')}</ActionBtn>
+                )}
+                {r.effective === 'correction_pending' && (
+                  <ActionBtn type="button" $danger onClick={() => setCorrectingFor(r)}>{t('taxInvoices.corrections.action', '수정·취소')}</ActionBtn>
+                )}
+                {r.status === 'issued' && r.effective === 'issued' && (
+                  <ActionBtn type="button" onClick={() => setCorrectingFor(r)}>{t('taxInvoices.corrections.action', '수정·취소')}</ActionBtn>
                 )}
               </Cell>
             </Row>
@@ -158,6 +173,7 @@ export default function TaxInvoicesTab() {
       )}
 
       {issuingFor && <IssueModal row={issuingFor} onClose={() => setIssuingFor(null)} onIssued={onIssued} />}
+      {correctingFor && <CorrectionModal row={correctingFor} onClose={() => setCorrectingFor(null)} onDone={() => { setCorrectingFor(null); reload(); }} />}
     </Wrap>
   );
 }
@@ -263,7 +279,111 @@ function IssueModal({ row, onClose, onIssued }: { row: ReceiptDueRow; onClose: (
   );
 }
 
+// 수정·취소 발행 마킹 (수정세금계산서 / 현금영수증 취소) — 부가세법 §70 6 사유
+const REASONS: CorrectionReason[] = ['cancel', 'amount_change', 'return', 'clerical', 'duplicate', 'other'];
+
+function CorrectionModal({ row, onClose, onDone }: { row: ReceiptDueRow; onClose: () => void; onDone: () => void }) {
+  const { t } = useTranslation('qbill');
+  const isCash = row.kind === 'cash';
+  // 취소건(correction_pending)은 cancel 기본, 그 외는 amount_change 기본
+  const [reason, setReason] = useState<CorrectionReason>(row.effective === 'correction_pending' ? 'cancel' : 'amount_change');
+  const [no, setNo] = useState('');
+  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const [delta, setDelta] = useState('');
+  const [note, setNote] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  // 사유 변경 시 금액부호 기본값 prefill (전액취소/반품/중복=음수)
+  const fullNeg = -Math.abs(Number(row.amount || 0));
+  useEffect(() => {
+    if (reason === 'cancel' || reason === 'duplicate') setDelta(String(fullNeg));
+    else if (reason === 'return') setDelta(String(fullNeg));
+    else setDelta('');
+  }, [reason]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const reasonOptions = REASONS.map(r => ({ value: r, label: t(`taxInvoices.corrections.reason.${r}`) as string }));
+  const submit = async () => {
+    if (!no.trim() || busy) return;
+    setBusy(true); setErr(null);
+    try {
+      await markReceiptCorrection(row.business_id, row.invoice_id, row.installment_id, {
+        kind: row.kind, reason,
+        corrected_no: no.trim(), written_at: date,
+        amount_delta: delta !== '' ? Number(delta) : undefined,
+        customer_note: note.trim() || undefined,
+      });
+      onDone();
+    } catch (e) {
+      setErr((e as Error).message || (t('taxInvoices.corrections.failed', { defaultValue: '정정 실패' }) as string));
+    } finally { setBusy(false); }
+  };
+
+  const noLabel = isCash ? t('taxInvoices.corrections.cancelNo', '취소 승인번호') : t('taxInvoices.corrections.amendNo', '수정세금계산서 발행번호');
+
+  return (
+    <ModalBackdrop onClick={onClose}>
+      <ModalDialog onClick={e => e.stopPropagation()} role="dialog" aria-modal="true">
+        <ModalHead>
+          <ModalTitle>{isCash ? t('taxInvoices.corrections.titleCash', '현금영수증 취소 마킹') : t('taxInvoices.corrections.title', '수정세금계산서 발행 마킹')}</ModalTitle>
+          <ModalClose type="button" onClick={onClose}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+          </ModalClose>
+        </ModalHead>
+        <ModalBody>
+          <ModalField>
+            <ModalLabel>{t('taxInvoices.corrections.reasonLabel', '수정 사유')}</ModalLabel>
+            <PlanQSelect
+              options={reasonOptions}
+              value={reasonOptions.find(o => o.value === reason) || null}
+              onChange={(opt) => { const o = opt as { value: string } | null; if (o) setReason(o.value as CorrectionReason); }}
+              size="md"
+            />
+          </ModalField>
+          <GuideBox>{t(`taxInvoices.corrections.guide.${reason}`, { defaultValue: '외부(홈택스/팝빌)에서 발행 후 번호를 입력하세요.' }) as string}</GuideBox>
+          <ModalField>
+            <ModalLabel>{noLabel as string}</ModalLabel>
+            <ModalInput value={no} autoFocus onChange={e => setNo(e.target.value)} placeholder={t('taxInvoices.corrections.noPh', { defaultValue: '발행/승인 번호' }) as string} />
+          </ModalField>
+          <ModalField>
+            <ModalLabel>{t('taxInvoices.corrections.writtenAt', '작성일자')}</ModalLabel>
+            <SingleDateField value={date} onChange={setDate} size="md" />
+          </ModalField>
+          {!isCash && (
+            <ModalField>
+              <ModalLabel>{t('taxInvoices.corrections.delta', '증감액 (취소·반품은 음수)')}</ModalLabel>
+              <ModalInput value={delta} onChange={e => setDelta(e.target.value)} inputMode="numeric" placeholder="-1100000" />
+            </ModalField>
+          )}
+          <ModalField>
+            <ModalLabel>{t('taxInvoices.corrections.note', '고객 안내 메모 (선택)')}</ModalLabel>
+            <ModalInput value={note} onChange={e => setNote(e.target.value)} placeholder={t('taxInvoices.corrections.notePh', { defaultValue: '예: 계약 해지에 따른 취소' }) as string} />
+          </ModalField>
+          <Hint>
+            <KindBadge $cash={isCash} style={{ marginRight: 6 }}>
+              {isCash ? t('taxInvoices.kind.cash', '현금영수증') : t('taxInvoices.kind.tax', '세금계산서')}
+            </KindBadge>
+            {row.invoice_number}{row.installment_no ? ` · ${t('taxInvoices.misc.roundSuffix', { n: row.installment_no, defaultValue: '{{n}}차' })}` : ''} · {formatMoney(row.amount, row.currency)}
+            {row.issued_no ? ` · ${t('taxInvoices.corrections.original', { defaultValue: '원' })} ${row.issued_no}` : ''}
+          </Hint>
+          {err && <ErrLine>! {err}</ErrLine>}
+        </ModalBody>
+        <ModalFooter>
+          <SecondaryBtn type="button" onClick={onClose}>{t('taxInvoices.issueModal.cancel')}</SecondaryBtn>
+          <PrimaryBtn type="button" disabled={!no.trim() || busy} onClick={submit}>
+            {busy ? t('common.issuing') : t('taxInvoices.corrections.submit', '정정 마킹')}
+          </PrimaryBtn>
+        </ModalFooter>
+      </ModalDialog>
+    </ModalBackdrop>
+  );
+}
+
 const Wrap = styled.div`display: flex; flex-direction: column; gap: 14px;`;
+const GuideBox = styled.div`
+  font-size: 11px; color: #1E40AF; background: #EFF6FF; border: 1px solid #BFDBFE;
+  border-radius: 8px; padding: 8px 10px; line-height: 1.5;
+`;
 const ErrLine = styled.div`font-size: 12px; color: #991B1B; background: #FEF2F2; padding: 6px 10px; border-radius: 6px;`;
 const InfoBox = styled.div`
   display: flex; gap: 10px; align-items: flex-start;
@@ -339,13 +459,24 @@ const Pending = styled.span`
   font-size: 11px; font-weight: 700; color: #92400E; background: #FEF3C7;
   padding: 3px 8px; border-radius: 4px;
 `;
-const ActionBtn = styled.button<{ $primary?: boolean }>`
-  padding: 6px 12px; font-size: 12px; font-weight: 600;
+const ActionBtn = styled.button<{ $primary?: boolean; $danger?: boolean }>`
+  padding: 6px 12px; font-size: 12px; font-weight: 600; white-space: nowrap;
   background: ${p => p.$primary ? '#14B8A6' : '#fff'};
-  color: ${p => p.$primary ? '#fff' : '#334155'};
-  border: 1px solid ${p => p.$primary ? '#14B8A6' : '#E2E8F0'};
+  color: ${p => p.$danger ? '#B91C1C' : p.$primary ? '#fff' : '#334155'};
+  border: 1px solid ${p => p.$danger ? '#FCA5A5' : p.$primary ? '#14B8A6' : '#E2E8F0'};
   border-radius: 6px; cursor: pointer;
-  &:hover { background: ${p => p.$primary ? '#0D9488' : '#F8FAFC'}; }
+  &:hover { background: ${p => p.$primary ? '#0D9488' : p.$danger ? '#FEF2F2' : '#F8FAFC'}; }
+`;
+const CorrPendingBadge = styled.span`
+  font-size: 11px; font-weight: 700; color: #991B1B; background: #FEE2E2;
+  padding: 3px 8px; border-radius: 4px; white-space: nowrap;
+`;
+const CorrBadge = styled.span<{ $canceled?: boolean }>`
+  font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 4px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace; white-space: nowrap;
+  display: inline-block; max-width: 120px; overflow: hidden; text-overflow: ellipsis;
+  color: ${p => p.$canceled ? '#991B1B' : '#92400E'};
+  background: ${p => p.$canceled ? '#FEE2E2' : '#FEF3C7'};
 `;
 const ModalBackdrop = styled.div`
   position: fixed; inset: 0; background: rgba(15,23,42,0.5);
