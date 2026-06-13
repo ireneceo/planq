@@ -12,7 +12,7 @@ import PageShell from '../../components/Layout/PageShell';
 import RevisionPanel from '../../components/Docs/RevisionPanel';
 import { useAuth } from '../../contexts/AuthContext';
 import {
-  getDocument, updateDocument,
+  getDocument, updateDocument, downloadDocumentPdf,
   KIND_LABELS_KO, type DocDetail,
 } from '../../services/docs';
 
@@ -29,7 +29,21 @@ const DocumentEditorPage: React.FC = () => {
   const [err, setErr] = useState<string | null>(null);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [revisionReloadKey, setRevisionReloadKey] = useState(0);
+  const [pdfBusy, setPdfBusy] = useState(false);
+  const [pdfErr, setPdfErr] = useState<string | null>(null);
   const saveTimer = useRef<number | null>(null);
+
+  const onDownloadPdf = useCallback(async () => {
+    if (!docId || pdfBusy) return;
+    setPdfBusy(true); setPdfErr(null);
+    try {
+      await downloadDocumentPdf(docId, doc?.title || 'document');
+    } catch (e) {
+      setPdfErr((e as Error).message || (t('actions.pdfError', 'PDF 생성 실패') as string));
+    } finally {
+      setPdfBusy(false);
+    }
+  }, [docId, doc?.title, pdfBusy]);
 
   // 로드
   useEffect(() => {
@@ -93,6 +107,9 @@ const DocumentEditorPage: React.FC = () => {
       title={t('editor.title', { kind: kindLabel, defaultValue: '{{kind}} 편집' }) as string}
       actions={<>
         {saveLabel && <SaveBadge $kind={saveStatus}>{saveLabel}</SaveBadge>}
+        <PdfBtn type="button" onClick={onDownloadPdf} disabled={pdfBusy}>
+          {pdfBusy ? t('editor.pdfBusy', 'PDF 생성 중…') : t('editor.downloadPdf', 'PDF 다운로드')}
+        </PdfBtn>
         <BackBtn onClick={() => navigate('/docs')}>{t('editor.back', '목록')}</BackBtn>
       </>}
     >
@@ -129,9 +146,10 @@ const DocumentEditorPage: React.FC = () => {
               reloadKey={revisionReloadKey}
             />
           )}
+          {pdfErr && <SideCard><Hint style={{ color: '#B91C1C' }}>! {pdfErr}</Hint></SideCard>}
           <SideCard>
-            <SideTitle>{t('editor.upcoming', '예정 (D-4)')}</SideTitle>
-            <Hint>{t('editor.upcomingPdf', 'PDF 생성 · 공개 링크 · 서명 — 추후 활성화')}</Hint>
+            <SideTitle>{t('editor.upcoming', '예정')}</SideTitle>
+            <Hint>{t('editor.upcomingNext', '공개 링크 · 서명 — 추후 활성화')}</Hint>
           </SideCard>
         </SideCol>
       </Layout>
@@ -164,6 +182,12 @@ const Row = styled.div`display:flex;justify-content:space-between;padding:6px 0;
 const Label = styled.span`color:#64748B;`;
 const Value = styled.span`color:#0F172A;font-weight:500;`;
 const Hint = styled.p`margin:0;font-size:12px;color:#94A3B8;line-height:1.55;`;
+const PdfBtn = styled.button`
+  padding: 7px 14px; font-size: 13px; font-weight: 600; color: #fff; background: #14B8A6;
+  border: 1px solid #14B8A6; border-radius: 8px; cursor: pointer; transition: background .15s;
+  &:hover:not(:disabled) { background: #0D9488; }
+  &:disabled { background: #CBD5E1; border-color: #CBD5E1; cursor: not-allowed; }
+`;
 const SaveBadge = styled.span<{ $kind: 'idle' | 'saving' | 'saved' | 'error' }>`
   font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 999px;
   ${p => p.$kind === 'saved' && 'background:#F0FDFA;color:#0F766E;'}

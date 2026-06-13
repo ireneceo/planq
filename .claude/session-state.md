@@ -1,6 +1,20 @@
 # PlanQ 세션 상태
 
-**마지막 업데이트:** 2026-06-13 16:01 — **v1.36.0 회차별 현금영수증 운영 라이브 (deploy `20260613_155838`, 138초, commit `1478c7f`).** 버전 1.35.0→1.36.0. 작업 상태: 완료·배포됨. 운영 헬스 200·프론트 200·PM2 prod online·운영 DB cash_receipt 3컬럼 자동 추가 확인(sync_database). dev 검증: 헬스 29/29·빌드 EXIT0·E2E 9/9(회차별·멀티테넌트·owner_only·세금계산서 회귀없음). 다음: 운영 백로그 또는 수정세금계산서 흐름.
+**마지막 업데이트:** 2026-06-13 16:25 — **문서 PDF 다운로드 (dev 검증 완료, 운영 미배포 — `/배포` 대기).** 작업 상태: 완료.
+
+## 🔖 직전 작업 — 문서 PDF 다운로드
+Document(계약/공식문서) PDF 라우트 신설 + posts 서버PDF 격상. 청구서 Puppeteer 엔진 재사용, DB 0.
+- **백엔드:** `pdfTemplates.documentPdfHtml`(postPdfHtml 미러, body_html/body_json). `docs.js` GET `/documents/:id/pdf`(멤버 assertReadAccess+client scope) + GET `/public/:token/pdf`(공유, 만료검사). `renderPdfFromHtml` 재사용, attachment+RFC5987 한글파일명.
+- **프론트:** `docs.downloadDocumentPdf`/`posts.downloadPostPdf` — **인증 blob fetch**(authenticateToken은 Authorization 헤더만 받아 window.open 불가, 그래서 blob 방식). DocumentEditorPage "PDF 다운로드" 버튼+에러표시. ProjectPostsTab `window.print()`→서버 PDF 격상.
+- **검증:** 헬스 29/29 · 빌드 EXIT0 · E2E: 문서 PDF 7/7(멤버 200·유효 %PDF 바이너리 68KB·attachment헤더·멀티테넌트 403·익명 401·공개 200·404) + posts PDF 200 유효 · i18n 신규 하드코딩 0(추가한 'PDF 생성 실패' fallback→t() 교체). 
+- **함정 박제:** `authenticateToken`은 Authorization 헤더 전용 → 멤버 PDF는 `window.open` 불가, 인증 blob fetch 필수. (청구서 InvoiceDetailDrawer의 window.open 멤버 PDF는 잠재 미인증 — 별도 확인 필요).
+- **미배포 커밋:** 이번 문서 PDF → 다음 `/배포`(DB 변경 0).
+
+다음 후보: 운영 백로그(Qinfo 공유 / 단계 되돌리기) 또는 수정세금계산서.
+
+---
+
+**이전:** 2026-06-13 16:01 — **v1.36.0 회차별 현금영수증 운영 라이브 (deploy `20260613_155838`, commit `1478c7f`).** 운영 헬스 200·프론트 200·PM2 prod online·운영 DB cash_receipt 3컬럼 자동 추가 확인(sync_database). dev 검증: 헬스 29/29·빌드 EXIT0·E2E 9/9(회차별·멀티테넌트·owner_only·세금계산서 회귀없음). 다음: 운영 백로그 또는 수정세금계산서 흐름.
 
 ## 🔖 직전 작업 — 회차별 현금영수증
 분할 결제에서 회차마다 입금 시점 현금영수증 발급(거래 건별 원칙). 세금계산서 회차 패턴 미러링.

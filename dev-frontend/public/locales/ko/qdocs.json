@@ -198,6 +198,8 @@
   },
   "actions": {
     "print": "PDF / 인쇄 (저장하려면 ‘대상: PDF로 저장’ 선택)",
+    "downloadPdf": "PDF 다운로드",
+    "pdfError": "PDF 생성 실패",
     "saveAsTemplate": "템플릿으로 저장",
     "sendToKnowledge": "Q info 로 보내기 — Cue 가 답변 시 참조",
     "sendToKnowledgeOk": "Q info 에 추가됐습니다 — 인덱싱 후 Cue 답변에 활용됩니다",
@@ -494,7 +496,10 @@
     "status": "상태",
     "client": "고객",
     "project": "프로젝트",
-    "upcoming": "예정 (D-4)",
+    "downloadPdf": "PDF 다운로드",
+    "pdfBusy": "PDF 생성 중…",
+    "upcoming": "예정",
+    "upcomingNext": "공개 링크 · 서명 — 추후 활성화",
     "upcomingPdf": "PDF 생성 · 공개 링크 · 서명 — 추후 활성화",
     "table": {
       "addColLeft": "왼쪽에 열 추가",
