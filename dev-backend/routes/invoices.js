@@ -292,9 +292,10 @@ router.post('/public/:token/notify-paid', async (req, res, next) => {
       if (inst.status === 'paid' || inst.status === 'canceled') {
         return errorResponse(res, 'installment_not_available', 400);
       }
-      // 동일 5분 내 중복 클릭은 silently 성공 (1회만 기록)
+      // 동일 5분 내 중복 클릭은 silently 성공 (1회만 기록 + 1회만 알림)
       const recentMs = inst.notify_paid_at ? Date.now() - new Date(inst.notify_paid_at).getTime() : Infinity;
-      if (recentMs > 5 * 60 * 1000) {
+      const isFresh = recentMs > 5 * 60 * 1000;
+      if (isFresh) {
         await inst.update({
           notify_paid_at: new Date(),
           notify_payer_name: payerName,
@@ -311,13 +312,15 @@ router.post('/public/:token/notify-paid', async (req, res, next) => {
       // 확인필요 자동 갱신 (발행자 측)
       const io = req.app.get('io');
       if (io) io.to(`business:${invoice.business_id}`).emit('inbox:refresh', { reason: 'invoice_notify_paid', invoice_id: invoice.id, installment_id: inst.id });
-      await notifyOwnerPaymentNotified(invoice, { label: inst.label, payerName, ioApp: req.app });
+      // 발행자 알림 — 중복 클릭 spam 방지: 신규 알림일 때만 (recentMs 가드 안)
+      if (isFresh) await notifyOwnerPaymentNotified(invoice, { label: inst.label, payerName, ioApp: req.app });
       return successResponse(res, { notified: true, installment_id: inst.id }, 'Notified');
     }
 
     // 단일 발행 (또는 분할인데 회차 미지정 시 invoice 자체 마킹)
     const recentMs = invoice.notify_paid_at ? Date.now() - new Date(invoice.notify_paid_at).getTime() : Infinity;
-    if (recentMs > 5 * 60 * 1000) {
+    const isFresh = recentMs > 5 * 60 * 1000;
+    if (isFresh) {
       await invoice.update({
         notify_paid_at: new Date(),
         notify_payer_name: payerName,
@@ -330,7 +333,8 @@ router.post('/public/:token/notify-paid', async (req, res, next) => {
     });
     const io = req.app.get('io');
     if (io) io.to(`business:${invoice.business_id}`).emit('inbox:refresh', { reason: 'invoice_notify_paid', invoice_id: invoice.id });
-    await notifyOwnerPaymentNotified(invoice, { label: null, payerName, ioApp: req.app });
+    // 발행자 알림 — 중복 클릭 spam 방지: 신규 알림일 때만
+    if (isFresh) await notifyOwnerPaymentNotified(invoice, { label: null, payerName, ioApp: req.app });
     return successResponse(res, { notified: true }, 'Notified');
   } catch (error) { next(error); }
 });
