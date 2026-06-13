@@ -1,6 +1,12 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-06-13 — **문서 PDF 다운로드 (dev 검증 7/7 + 헬스 29/29 + 빌드 EXIT0, 운영 미배포 · `/배포` 대기).** Document(계약/공식문서) PDF 라우트 신설 + posts 서버PDF 격상(청구서 Puppeteer 엔진 재사용, DB 0). `documentPdfHtml` 템플릿 · docs.js GET `/documents/:id/pdf`(멤버 접근검사)+`/public/:token/pdf`(공유) · 프론트 인증 blob fetch(`downloadDocumentPdf`/`downloadPostPdf` — authenticateToken Authorization 헤더 전용이라 window.open 불가) · DocumentEditorPage PDF 버튼 + ProjectPostsTab window.print→서버PDF. E2E 문서 PDF 7/7(멤버·멀티테넌트 403·익명 401·공개·유효 바이너리). **미배포 → 다음 `/배포`.**
+> **최종 업데이트:** 2026-06-13 — **정기업무 점검·완성 + 드로어 정정이력 운영 라이브 (deploy `20260613_191904`, commit `3c3b735` · 운영 백필 prod 고아 16→0).** 30년차 감사로 정기업무(recurringTaskGenerator)에서 **인스턴스 project_id 누락 버그** 발견(프로젝트 정기업무 인스턴스가 project_id=NULL→프로젝트 목록서 사라짐, prod 16건·dev 11건) → `project_id: parent.project_id` 추가 + reviewer 복사(state=pending 리셋) + 양 환경 백필. 청구서 상세 드로어에 증빙 정정 이력 표시(GET /corrections 재사용)도 동봉. E2E 정기업무 4/4·드로어 2/2. **미배포 0.**
+>
+> **이전:** 2026-06-13 — **수정세금계산서·증빙 취소 흐름 Phase 1 운영 라이브 (deploy `20260613_182837`, commit `0906a5c` · receipt_corrections 테이블 16컬럼 자동생성).** 부가세법 §70 6수정사유 마킹추적(홈택스 자동발행 X). `receipt_corrections` 테이블(원발행 보존+정정 참조이벤트) · corrections 라우트(단건/회차/GET, owner_only+audit+broadcast+고객통지) · receiptsDue 유효상태 파생(corrected/amended/canceled, 취소+발행+미정정→correction_pending) · CorrectionModal(사유별 안내) + 큐/드로어 표시. E2E 13/13. 설계: docs/RECEIPT_CORRECTION_DESIGN.md.
+>
+> **이전:** 2026-06-13 — **청구서 PDF 401 + Puppeteer 자가복구 fix 운영 라이브 (deploy `20260613_165308`, commit `990c5cc`).** ① InvoiceDetailDrawer 멤버 PDF window.open(인증헤더 미전달)→401 → 인증 blob fetch. ② getBrowser 싱글톤이 chrome 크래시 후 죽은 browser 영구재사용→모든 PDF 30s 행→500. disconnected 리셋+connected 체크+1회 재launch 재시도. chrome kill 후 렌더 200/2.5s 실증.
+>
+> **이전:** 2026-06-13 — **문서 PDF 다운로드 운영 라이브 (deploy `20260613_163008`, commit `e9cbc16`).** Document(계약/공식문서) PDF 라우트 신설 + posts 서버PDF 격상(청구서 Puppeteer 엔진 재사용, DB 0). `documentPdfHtml` 템플릿 · docs.js GET `/documents/:id/pdf`(멤버 접근검사)+`/public/:token/pdf`(공유) · 프론트 인증 blob fetch(`downloadDocumentPdf`/`downloadPostPdf` — authenticateToken Authorization 헤더 전용이라 window.open 불가) · DocumentEditorPage PDF 버튼 + ProjectPostsTab window.print→서버PDF. E2E 문서 PDF 7/7(멤버·멀티테넌트 403·익명 401·공개·유효 바이너리). **미배포 → 다음 `/배포`.**
 >
 > **이전:** 2026-06-13 — **v1.36.0 회차별 현금영수증 운영 라이브 (deploy `20260613_155838`, 138초, commit `1478c7f` · 운영 DB cash_receipt 3컬럼 자동추가 확인).** 버전 1.35.0→1.36.0. 분할 결제 회차마다 입금 시점 현금영수증 발급(세금계산서 회차 패턴 미러). DB `invoice_installments` + cash_receipt_no/at/marked_by 3컬럼(sync 자동) · `POST /:biz/:id/installments/:instId/mark-cash-receipt`(owner_only+audit+broadcast+통지) · `receiptsDue` 분할 시 세금/현금 모두 회차별 산출 · 프론트 `markInstallmentCashReceipt`+IssueModal 4-way 라우팅. E2E 10/10(회차별 산출·발행·status 전이·고객메일·owner_only). **미배포 → 다음 `/배포`(sync_database 자동 컬럼).**
 >
@@ -82,6 +88,41 @@
 > **이전 라이브:** v1.16.1 (commit `8947504`) — N+31 사이클 (Q Talk 모바일 viewport 회귀 fix)
 >
 > **이전 라이브:** v1.16.0 (commit `ab113a6`) — N+26~N+27 사이클 (업무 흐름 Focus MVP + 인박스 inline 모달 + Cue 주고받음)
+
+---
+
+## ✅ 완료: 증빙·PDF·정기업무 대규모 사이클 (2026-06-13, 운영 라이브)
+
+> 하루 8+ 사이클 — Q Bill 증빙 컴플라이언스 완결 + PDF 인프라 + Q Task 정기업무 점검. 전부 운영 배포 완료.
+
+### 완료된 작업
+
+| # | 작업 | 핵심 | 상태 |
+|:-:|------|------|:----:|
+| 1 | 증빙 발행 큐 통합 (v1.35.0) | `receiptsDue` 단일원천 + 법정기한(익월10일) + 세금계산서/현금영수증 단건·분할 + 사업자번호 체크섬 | ✅ |
+| 2 | 증빙 루프 완성 | 발행완료 고객 통지 메일 + 취소 후 수정/취소 알림 | ✅ |
+| 3 | 회차별 현금영수증 (v1.36.0) | InvoiceInstallment cash 3컬럼 + 회차 mark 라우트 + IssueModal 4-way | ✅ |
+| 4 | 문서 PDF 다운로드 | Document PDF 라우트 + posts 서버PDF 격상 (인증 blob fetch) | ✅ |
+| 5 | 청구서 PDF 401 + Puppeteer 자가복구 | window.open→blob · 죽은 브라우저 재사용 전체 PDF 행 버그 fix | ✅ |
+| 6 | 운영 피드백 #34/#35/#36 | v1.34.0 fix 항목 티켓 close + 회신 (코드 0) | ✅ |
+| 7 | 수정세금계산서·증빙 취소 Phase 1 | `receipt_corrections` 테이블 + 부가세법 §70 6사유 + CorrectionModal + 정정이력(큐+드로어) | ✅ |
+| 8 | 정기업무 점검·완성 | 인스턴스 project_id 누락 버그 fix (prod 고아 16건 백필) + reviewer 복사 | ✅ |
+
+### 수정된 주요 파일
+- `dev-backend/services/receiptsDue.js` (신규) · `recurringTaskGenerator.js` · `pdfService.js`(자가복구) · `pdfTemplates.js`
+- `dev-backend/models/ReceiptCorrection.js`·`InvoiceInstallment.js`(cash 컬럼) · `routes/invoices.js`·`docs.js`·`dashboard.js`
+- `dev-backend/services/emailService.js` (sendReceiptIssuedEmail/CorrectionEmail)
+- `dev-frontend/src/pages/QBill/TaxInvoicesTab.tsx`(증빙 큐+CorrectionModal) · `InvoiceDetailDrawer.tsx` · `services/invoices.ts`·`docs.ts`·`posts.ts`
+- `docs/RECEIPT_CORRECTION_DESIGN.md` (신규 설계문서)
+
+### DB 변경 (운영 반영 완료)
+- `receipt_corrections` 테이블 신규 (sync_database 자동 생성, 운영 16컬럼 확인)
+- `invoice_installments` + cash_receipt_no/at/marked_by 3컬럼
+- 운영 백필: 정기업무 인스턴스 project_id (prod 고아 16→0, idempotent)
+
+### 다음 할 일
+- 증빙 Phase 2: 정정 PDF · insights 정정 반영 · 팝빌 자동발급 (운영 실시작 때)
+- 또는 새 영역 (Irene 지정)
 
 ---
 
