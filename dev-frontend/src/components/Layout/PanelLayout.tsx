@@ -23,15 +23,15 @@ import styled, { css } from 'styled-components';
  * 이 fragment 를 단일 원천으로 두어, 페이지마다 제각각이던 height 규칙(일부는 dvh/vvh 누락,
  * 일부는 56px 보정 누락)을 근절한다.
  */
+// 운영 #34 — 멀티컬럼 페이지는 viewport(var(--vvh)) 대신 부모(MainLayout 의 PageScroll) 100% 를 채운다.
+// 옛 코드는 viewport 높이를 직접 잡아, 위에 결제 안내 배너(WorkspaceBillingBanner)가 뜨면
+// 배너 높이만큼 화면을 넘쳐 레이아웃이 위아래로 튀고 채팅 입력란이 뷰포트 밖으로 밀려났다.
+// MainLayout 이 LayoutContainer(var(--vvh)) → MainContent(flex:1) → PageScroll(flex:1, 배너 제외) 로
+// 정확한 가용 높이를 내려주므로 여기선 100% 만 채우면 됨. iOS 키보드 --vvh sync 도 상위에서 전파됨.
+// 모바일 헤더(56px) 보정도 MainLayout(padding-top:56px)에서 처리하므로 -56px 불필요.
 export const panelShellHeight = css`
-  height: 100vh;
-  height: 100dvh;
-  height: var(--vvh, 100dvh);
-  @media (max-width: 1024px) {
-    height: calc(100vh - 56px);
-    height: calc(100dvh - 56px);
-    height: calc(var(--vvh, 100dvh) - 56px);
-  }
+  height: 100%;
+  min-height: 0;
 `;
 
 export const PanelLayout = styled.div<{ $embedded?: boolean }>`

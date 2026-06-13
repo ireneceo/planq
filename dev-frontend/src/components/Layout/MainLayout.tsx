@@ -499,15 +499,27 @@ const UserMenuItemBtn = styled.button<{ $danger?: boolean }>`${UserMenuItemBase}
 
 const MainContent = styled.div<{ $marginLeft: number }>`
   margin-left: ${props => props.$marginLeft}px;
-  /* N+29 — 자체 스크롤 영역. body 가 스크롤 안 받게 LayoutContainer overflow:hidden + 자식 MainContent flex:1 overflow-y:auto.
+  /* 운영 #34 — flex column 앱 셸: 배너(flex-shrink:0) + PageScroll(flex:1).
+     배너가 페이지 높이 컨텍스트 밖에 있어, 배너가 떠도 PageScroll(=뷰포트−배너)만큼만 페이지가 차지.
+     PanelLayout 페이지(height:100%)가 정확히 가용 높이를 채워 채팅입력란 넘침·레이아웃 점프 차단.
      모바일 fixed MobileHeader (56px) 는 padding-top 으로 보정. */
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transition: margin-left 0.25s ease;
+  ${mediaTablet} { margin-left: 0; padding-top: 56px; }
+`;
+
+/* 페이지 스크롤 영역 — 배너 아래 남은 공간(flex:1). 흐름형 페이지는 여기서 스크롤,
+   PanelLayout 형(height:100%) 페이지는 이 영역을 꽉 채움. */
+const PageScroll = styled.div`
   flex: 1;
   min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
-  transition: margin-left 0.25s ease;
-  ${mediaTablet} { margin-left: 0; padding-top: 56px; }
 `;
 
 const MobileHeader = styled.div`
@@ -532,11 +544,14 @@ const Overlay = styled.div<{ $show?: boolean }>`
 `;
 
 const MobileContentPadding = styled.div`
-  /* 모바일 헤더 보정은 MainContent 에서 처리 — 여기선 제거 */
+  /* 높이 체인 통과용 — 박스를 만들지 않아 PanelLayout(height:100%)이 PageScroll 기준으로 해석됨.
+     흐름형 페이지는 그대로 PageScroll 안에서 스크롤. */
+  display: contents;
 `;
 
 // N+72-6 — PushPromptBanner 의 외부 wrap. 좌우 padding 정렬 + 페이지 콘텐츠 위 적정 간격
 const PushPromptWrap = styled.div`
+  flex-shrink: 0;
   padding: 12px 20px 0;
   ${mediaTablet} { padding: 8px 12px 0; }
 `;
@@ -1522,7 +1537,9 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
             <PushPromptBanner />
           </PushPromptWrap>
         )}
-        <MobileContentPadding>{children}</MobileContentPadding>
+        <PageScroll>
+          <MobileContentPadding>{children}</MobileContentPadding>
+        </PageScroll>
       </MainContent>
       <InstallPromptBanner />
       {user?.business_id && (
