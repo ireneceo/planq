@@ -10,7 +10,13 @@
 - **미배포 커밋:** `990c5cc` → 다음 `/배포`(운영 PDF 안정성 직결, 권장).
 - **기록(스코프밖):** InvoiceDetailDrawer 기존 하드코딩 3건(310/316/331 sourcePost·은행) + formatMoney `원` — 별도 i18n 정리 대상.
 
-다음 후보: 운영 피드백 #34/#35/#36 티켓 정리·회신, 또는 신규 개발(Qinfo 공유/단계 되돌리기/수정세금계산서).
+## ✅ 운영 피드백 #34/#35/#36 정리·회신 완료 (2026-06-13 16:55, 코드 변경 0)
+v1.34.0에서 고쳐 배포됐으나 티켓이 'pending'·미회신이던 것 정리. 운영 코드 반영 grep 검증 후 close.
+- 운영 반영 확인: #36 `access_scope.js` owner_id fallback · #35 `focusSync.js`+`taskActualHours.js` · #34 빌드 flex-shrink.
+- #35/#36(lua=운영 user 3) → respond 라우트로 status='done'+회신+알림 발송(200). #34(Irene 본인) → DB 직접 close(자가 알림 생략).
+- 3건 모두 status='done', admin_response 작성, lua 알림 2건 생성 확인.
+
+다음 후보: 신규 개발(Qinfo 공유 / 단계 되돌리기 / 수정세금계산서) 또는 청구서 PDF 기존 i18n 정리.
 
 ---
 
