@@ -557,6 +557,45 @@
       "pending": "Pending",
       "markFromDetail": "Mark a single invoice as tax-invoiced from its detail view.",
       "issueFailed": "Failed to issue"
+    },
+    "corrections": {
+      "needed": "Correction needed",
+      "action": "Amend/Cancel",
+      "failed": "Correction failed",
+      "title": "Mark amended tax invoice",
+      "titleCash": "Mark cash receipt cancellation",
+      "reasonLabel": "Correction reason",
+      "cancelNo": "Cancellation approval no.",
+      "amendNo": "Amended tax invoice no.",
+      "noPh": "Issuance/approval no.",
+      "writtenAt": "Written date",
+      "delta": "Amount change (negative for cancel/return)",
+      "note": "Customer note (optional)",
+      "notePh": "e.g. Canceled due to contract termination",
+      "original": "orig.",
+      "submit": "Mark correction",
+      "reason": {
+        "clerical": "Clerical error",
+        "amount_change": "Supply value change",
+        "return": "Return of goods",
+        "cancel": "Contract cancellation",
+        "duplicate": "Duplicate issuance",
+        "other": "Other"
+      },
+      "guide": {
+        "clerical": "Clerical correction — cancel the original with a negative invoice and reissue with correct info. Written date = original date.",
+        "amount_change": "Supply value change — issue only the delta amount (±). Written date = date the change occurred.",
+        "return": "Return — issue a negative invoice for the returned amount. Written date = date of return.",
+        "cancel": "Contract cancellation — issue a full negative invoice. Written date = cancellation date; note the original date.",
+        "duplicate": "Duplicate issuance — cancel the wrongly issued one with a negative invoice.",
+        "other": "Other reason — issue externally (Hometax/Popbill) and enter the number."
+      },
+      "eff": {
+        "corrected": "Amended",
+        "amended": "Amended",
+        "canceled": "Canceled",
+        "correction_pending": "Correction needed"
+      }
     }
   },
   "settings": {

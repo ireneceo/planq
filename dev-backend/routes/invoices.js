@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { Invoice, InvoiceItem, InvoiceInstallment, Client, User, Business, Post, Conversation, Message } = require('../models');
+const { Invoice, InvoiceItem, InvoiceInstallment, Client, User, Business, Post, Conversation, Message, ReceiptCorrection } = require('../models');
 const { authenticateToken, checkBusinessAccess } = require('../middleware/auth');
 const { requireMenu } = require('../middleware/menu_permission');
 
@@ -1388,6 +1388,130 @@ router.post('/:businessId/:id/mark-cash-receipt', authenticateToken, checkBusine
     await notifyReceiptIssued(req, invoice, '현금영수증', no);
     await notifyCustomerReceiptIssued(req, invoice, 'cash', no, at);
     successResponse(res, invoice, 'Cash receipt marked');
+  } catch (error) { next(error); }
+});
+
+// ─── 증빙 수정·취소 마킹 (수정세금계산서 / 현금영수증 취소) — RECEIPT_CORRECTION_DESIGN ───
+//   외부(홈택스/팝빌) 수정발행/취소 후 결과 마킹. 재무 mutation → owner_only.
+const CORRECTION_REASONS = ['clerical', 'amount_change', 'return', 'cancel', 'duplicate', 'other'];
+
+// 고객에게 증빙 정정 통지 (발행 통지와 동일 수신자 우선순위 + 형식검증)
+async function notifyCustomerReceiptCorrected(req, invoice, corr) {
+  try {
+    const client = invoice.client_id ? await Client.findByPk(invoice.client_id, {
+      attributes: ['tax_invoice_email', 'billing_contact_email', 'invite_email'],
+    }) : null;
+    const profile = invoice.receipt_profile || null;
+    const to = (profile && profile.tax_email)
+      || (client && (client.tax_invoice_email || client.billing_contact_email || client.invite_email))
+      || invoice.recipient_email || null;
+    if (!to || !EMAIL_RE.test(String(to))) return;
+    const biz = await Business.findByPk(invoice.business_id, { attributes: ['name', 'brand_name', 'mail_from_name', 'mail_reply_to'] });
+    const APP_URL = process.env.APP_URL || 'https://dev.planq.kr';
+    const shareUrl = invoice.share_token ? `${APP_URL}/public/invoices/${invoice.share_token}` : null;
+    const { sendReceiptCorrectionEmail } = require('../services/emailService');
+    await sendReceiptCorrectionEmail({
+      to, kind: corr.kind, reason: corr.reason,
+      invoiceNumber: invoice.invoice_number, title: invoice.title || '',
+      correctedNo: corr.corrected_no, writtenAt: corr.written_at,
+      workspaceName: biz?.brand_name || biz?.name || null,
+      shareUrl, customerNote: corr.customer_note || null,
+      fromName: biz?.mail_from_name || undefined, replyTo: biz?.mail_reply_to || undefined,
+      businessId: invoice.business_id, invoiceId: invoice.id,
+    });
+    await corr.update({ customer_notified_at: new Date() }).catch(() => {});
+  } catch (e) { console.warn('[receipt correction customer mail]', e.message); }
+}
+
+// 멤버 알림 — 증빙 정정
+async function notifyMembersReceiptCorrected(req, invoice, corr) {
+  try {
+    const { Op } = require('sequelize');
+    const { BusinessMember, Business } = require('../models');
+    const { notifyMany } = require('./notifications');
+    const biz = await Business.findByPk(invoice.business_id, { attributes: ['name', 'brand_name'] });
+    const members = await BusinessMember.findAll({
+      where: { business_id: invoice.business_id, removed_at: null, role: { [Op.in]: ['owner', 'admin', 'member'] } },
+      attributes: ['user_id'],
+    });
+    const kindLabel = corr.kind === 'cash' ? '현금영수증' : '세금계산서';
+    const verb = (corr.reason === 'cancel' || corr.reason === 'duplicate') ? '취소' : '수정';
+    await notifyMany({
+      userIds: members.map((m) => m.user_id),
+      businessId: invoice.business_id, eventKind: 'tax_invoice',
+      title: `${kindLabel} ${verb} 발행`,
+      body: `${invoice.invoice_number} ${kindLabel} ${verb} — 번호 ${corr.corrected_no}`,
+      link: `${process.env.APP_URL || 'https://dev.planq.kr'}/bills?invoice=${invoice.id}`,
+      ctaLabel: '청구서 보기',
+      workspaceName: biz?.brand_name || biz?.name || null,
+      excludeUserId: req.user.id,
+    }).catch((e) => console.warn('[notify correction]', e.message));
+  } catch (e) { console.warn('[correction notify outer]', e.message); }
+}
+
+async function recordCorrection(req, res, { installmentId }) {
+  if (!assertInvoiceMutationOwner(req, res)) return;
+  const invoice = await Invoice.findOne({ where: { id: req.params.id, business_id: req.params.businessId } });
+  if (!invoice) return errorResponse(res, 'Invoice not found', 404);
+  let inst = null;
+  if (installmentId) {
+    inst = await InvoiceInstallment.findOne({ where: { id: installmentId, invoice_id: invoice.id } });
+    if (!inst) return errorResponse(res, 'Installment not found', 404);
+  }
+  const b = req.body || {};
+  const kind = b.kind === 'cash' ? 'cash' : 'tax';
+  const reason = CORRECTION_REASONS.includes(b.reason) ? b.reason : null;
+  if (!reason) return errorResponse(res, 'invalid_reason', 400);
+  const correctedNo = b.corrected_no ? String(b.corrected_no).slice(0, 50) : null;
+  if (!correctedNo) return errorResponse(res, 'corrected_no required', 400);
+  const writtenAt = b.written_at ? new Date(b.written_at) : new Date();
+  const amountDelta = (b.amount_delta != null && b.amount_delta !== '') ? Number(b.amount_delta) : null;
+  // 원 발행 번호 snapshot
+  const originalNo = inst
+    ? (kind === 'cash' ? inst.cash_receipt_no : inst.tax_invoice_no)
+    : (kind === 'cash' ? invoice.cash_receipt_no : invoice.tax_invoice_external_id);
+
+  const corr = await ReceiptCorrection.create({
+    business_id: invoice.business_id,
+    invoice_id: invoice.id,
+    installment_id: inst ? inst.id : null,
+    kind, reason,
+    original_no: originalNo || null,
+    corrected_no: correctedNo,
+    written_at: writtenAt,
+    amount_delta: amountDelta,
+    currency: invoice.currency || 'KRW',
+    customer_note: b.customer_note ? String(b.customer_note).slice(0, 300) : null,
+    marked_by: req.user.id,
+  });
+
+  require('../services/auditService').logAudit(req, {
+    action: inst ? 'invoice.installment.receipt.correction' : 'invoice.receipt.correction',
+    targetType: inst ? 'invoice_installment' : 'invoice',
+    targetId: inst ? inst.id : invoice.id,
+    newValue: { invoice_number: invoice.invoice_number, kind, reason, corrected_no: correctedNo, amount_delta: amountDelta },
+  });
+  const io = req.app.get('io');
+  if (io) io.to(`business:${invoice.business_id}`).emit('inbox:refresh', { reason: 'receipt_corrected', invoice_id: invoice.id });
+  await notifyMembersReceiptCorrected(req, invoice, corr);
+  await notifyCustomerReceiptCorrected(req, invoice, corr);
+  return successResponse(res, corr, 'Correction recorded');
+}
+
+router.post('/:businessId/:id/corrections', authenticateToken, checkBusinessAccess, requireMenu('qbill', 'write'), async (req, res, next) => {
+  try { await recordCorrection(req, res, { installmentId: null }); } catch (error) { next(error); }
+});
+router.post('/:businessId/:id/installments/:installId/corrections', authenticateToken, checkBusinessAccess, requireMenu('qbill', 'write'), async (req, res, next) => {
+  try { await recordCorrection(req, res, { installmentId: req.params.installId }); } catch (error) { next(error); }
+});
+// 정정 이력 조회 (read)
+router.get('/:businessId/:id/corrections', authenticateToken, attachWorkspaceScope(), async (req, res, next) => {
+  try {
+    const invoice = await Invoice.findOne({ where: { id: req.params.id, business_id: req.params.businessId } });
+    if (!invoice) return errorResponse(res, 'Invoice not found', 404);
+    if (!(await canAccessInvoice(req.user.id, invoice, req.scope))) return errorResponse(res, 'forbidden', 403);
+    const rows = await ReceiptCorrection.findAll({ where: { invoice_id: invoice.id }, order: [['created_at', 'DESC']] });
+    return successResponse(res, rows);
   } catch (error) { next(error); }
 });
 

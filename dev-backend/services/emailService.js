@@ -567,6 +567,43 @@ async function sendReceiptIssuedEmail({ to, kind, invoiceNumber, title, receiptN
   });
 }
 
+// 증빙 수정·취소 통지 (수정세금계산서 발행 / 현금영수증 취소) — 고객 통지.
+function receiptCorrectionEmailHtml({ kind, reason, invoiceNumber, title, correctedNo, writtenAt, workspaceName, shareUrl, customerNote }) {
+  const isCash = kind === 'cash';
+  const isCancel = reason === 'cancel' || reason === 'duplicate';
+  const headline = isCash
+    ? '현금영수증이 취소되었습니다'
+    : (isCancel ? '세금계산서가 취소(수정)되었습니다' : '수정세금계산서가 발행되었습니다');
+  const noLabel = isCash ? '취소 승인번호' : '수정세금계산서 발행번호';
+  const dateStr = writtenAt ? String(writtenAt).slice(0, 10) : '';
+  const body = `
+    <div style="font-size:15px;font-weight:700;color:#0F172A;margin-bottom:6px;">${headline}</div>
+    <div style="font-size:14px;color:#64748B;line-height:1.6;">${workspaceName ? escapeHtml(workspaceName) + ' 님이 ' : ''}거래 변경에 따라 증빙을 정정했습니다.</div>
+    <div style="font-size:11px;font-weight:700;color:#64748B;letter-spacing:0.4px;font-family:ui-monospace,monospace;margin-top:12px;">${escapeHtml(invoiceNumber)}</div>
+    <div style="font-size:18px;font-weight:700;color:#0F172A;line-height:1.4;margin-top:4px;">${escapeHtml(title)}</div>
+    <div style="margin-top:16px;background:#FEF2F2;border:1px solid #FECACA;border-radius:10px;padding:14px 16px;">
+      <div style="font-size:11px;color:#991B1B;text-transform:uppercase;letter-spacing:0.4px;font-weight:700;">${noLabel}</div>
+      <div style="font-size:20px;font-weight:800;color:#991B1B;letter-spacing:-0.3px;margin-top:2px;font-family:ui-monospace,monospace;">${escapeHtml(correctedNo || '')}</div>
+      ${dateStr ? `<div style="font-size:12px;color:#991B1B;margin-top:6px;font-weight:500;">작성일 ${dateStr}</div>` : ''}
+    </div>
+    ${customerNote ? quoteBlock(customerNote) : ''}
+    ${shareUrl ? `<div style="margin-top:20px;text-align:center;">${ctaButton(shareUrl, '청구서·증빙 확인')}</div>${fallbackLink(shareUrl)}` : ''}`;
+  return emailWrap({ title: `증빙 정정 — ${title}`, body, footerOptions: { workspaceName } });
+}
+
+async function sendReceiptCorrectionEmail({ to, kind, reason, invoiceNumber, title, correctedNo, writtenAt, workspaceName, shareUrl, customerNote, fromName, replyTo, businessId, invoiceId }) {
+  if (!to) return false;
+  const isCash = kind === 'cash';
+  const subject = `[${PLATFORM.brand}] ${isCash ? '현금영수증 취소' : '증빙 정정(수정세금계산서)'} — ${invoiceNumber} ${title}`;
+  return sendEmail({
+    to, subject,
+    html: receiptCorrectionEmailHtml({ kind, reason, invoiceNumber, title, correctedNo, writtenAt, workspaceName, shareUrl, customerNote }),
+    fromName, replyTo,
+    template: 'receipt_correction', relatedEntityType: 'invoice', relatedEntityId: invoiceId,
+    businessId,
+  });
+}
+
 // ═══════════════════════════════════════════════════════════════
 // 6. 이메일 변경 OTP (보안 메일 — 매트릭스 무관)
 // ═══════════════════════════════════════════════════════════════
@@ -814,7 +851,7 @@ async function sendSignupVerifyEmail({ to, name, verifyToken, ttlHours = 72 }) {
 module.exports = {
   sendEmail,
   sendInviteEmail, sendPostShareEmail, sendEntityShareEmail, sendSignatureRequestEmail, sendSignatureOtpEmail,
-  sendInvoiceEmail, sendPaymentReminderEmail, sendReceiptIssuedEmail, sendVerificationCodeEmail,
+  sendInvoiceEmail, sendPaymentReminderEmail, sendReceiptIssuedEmail, sendReceiptCorrectionEmail, sendVerificationCodeEmail,
   sendBillingInstructionEmail,
   sendInquiryReceivedEmail,
   sendNotificationEmail,

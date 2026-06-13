@@ -299,12 +299,39 @@ export interface ReceiptDueRow {
   issued_at: string | null;
   due_at: string | null;
   due_kind: 'legal' | 'recommended';
-  urgency: 'overdue' | 'soon' | 'normal' | 'done';
+  urgency: 'overdue' | 'soon' | 'normal' | 'done' | 'correction_pending';
+  // 정정(수정세금계산서/취소) 유효상태 — RECEIPT_CORRECTION_DESIGN
+  effective?: 'pending' | 'issued' | 'corrected' | 'amended' | 'canceled' | 'correction_pending';
+  correction?: { reason: CorrectionReason; corrected_no: string; written_at: string | null; amount_delta: number | null } | null;
+}
+
+export type CorrectionReason = 'clerical' | 'amount_change' | 'return' | 'cancel' | 'duplicate' | 'other';
+
+export interface CorrectionPayload {
+  kind: 'tax' | 'cash';
+  reason: CorrectionReason;
+  corrected_no: string;
+  written_at?: string;
+  amount_delta?: number | null;
+  customer_note?: string;
 }
 
 export async function listReceiptsDue(businessId: number): Promise<ReceiptDueRow[]> {
   const r = await apiFetch(`/api/invoices/${businessId}/receipts-due`);
   return expectOk<ReceiptDueRow[]>(r);
+}
+
+// 증빙 수정·취소 마킹 (수정세금계산서 발행 / 현금영수증 취소)
+export async function markReceiptCorrection(
+  businessId: number, invoiceId: number, installmentId: number | null, payload: CorrectionPayload,
+): Promise<void> {
+  const path = installmentId
+    ? `/api/invoices/${businessId}/${invoiceId}/installments/${installmentId}/corrections`
+    : `/api/invoices/${businessId}/${invoiceId}/corrections`;
+  const r = await apiFetch(path, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+  });
+  await expectOk(r);
 }
 
 // 청구서 PDF 다운로드 (멤버) — 인증 blob fetch. authenticateToken 은 Authorization 헤더만 받아
