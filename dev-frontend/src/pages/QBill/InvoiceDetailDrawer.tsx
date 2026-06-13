@@ -10,6 +10,7 @@ import {
   formatMoney, invoiceStatusColor, installmentStatusColor,
   getInvoice, markInstallmentPaid, unmarkInstallmentPaid,
   markInstallmentTaxInvoice, cancelInstallment, updateInvoiceStatus,
+  markInvoiceTaxInvoice, markInvoiceCashReceipt,
   findConversationForClient, deleteInvoice, sendInvoiceReminder,
   type ApiInvoice, type ApiInstallment,
 } from '../../services/invoices';
@@ -66,7 +67,7 @@ export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, 
       },
     });
   };
-  const [taxModal, setTaxModal] = useState<{ installmentId: number } | null>(null);
+  const [taxModal, setTaxModal] = useState<{ installmentId: number | null; kind?: 'tax' | 'cash' } | null>(null);
   const [taxNoInput, setTaxNoInput] = useState('');
   const [remindBusy, setRemindBusy] = useState(false);
   const [remindNote, setRemindNote] = useState<{ tone: 'ok' | 'warn'; text: string } | null>(null);
@@ -126,13 +127,23 @@ export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, 
   };
   const handleMarkTax = (installmentId: number) => {
     setTaxNoInput('');
-    setTaxModal({ installmentId });
+    setTaxModal({ installmentId, kind: 'tax' });
+  };
+  const handleMarkInvoiceReceipt = (kind: 'tax' | 'cash') => {
+    setTaxNoInput('');
+    setTaxModal({ installmentId: null, kind });
   };
   const submitTaxNo = async () => {
     if (!taxModal || !taxNoInput.trim() || busy) return;
     setBusy(true);
     try {
-      await markInstallmentTaxInvoice(invoice.business_id, invoice.id, taxModal.installmentId, { tax_invoice_no: taxNoInput.trim() });
+      if (taxModal.installmentId != null) {
+        await markInstallmentTaxInvoice(invoice.business_id, invoice.id, taxModal.installmentId, { tax_invoice_no: taxNoInput.trim() });
+      } else if (taxModal.kind === 'cash') {
+        await markInvoiceCashReceipt(invoice.business_id, invoice.id, { cash_receipt_no: taxNoInput.trim() });
+      } else {
+        await markInvoiceTaxInvoice(invoice.business_id, invoice.id, { tax_invoice_no: taxNoInput.trim() });
+      }
       setTaxModal(null);
       setTaxNoInput('');
       await refresh();
@@ -453,27 +464,63 @@ export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, 
           </BankCard>
         </Section>
 
-        {/* 세금계산서 */}
-        {client?.is_business && (
-          <Section>
-            <SectionTitle>{t('detail.tax.title')}</SectionTitle>
-            <TaxBox $status={invoice.tax_invoice_status}>
-              <TaxIcon $status={invoice.tax_invoice_status}>
-                {invoice.tax_invoice_status === 'issued' ? <CheckIcon size={14} /> : invoice.tax_invoice_status === 'pending' ? '!' : ''}
-              </TaxIcon>
-              <TaxBody>
-                <TaxLabel>
-                  {invoice.tax_invoice_status === 'issued' ? t('detail.tax.issued') :
-                   invoice.tax_invoice_status === 'pending' ? t('detail.tax.required') :
-                   t('detail.tax.notRequired')}
-                </TaxLabel>
-                {invoice.tax_invoice_status === 'pending' && (
-                  <TaxDesc>{t('detail.tax.issuePromptDesc')}</TaxDesc>
-                )}
-              </TaxBody>
-            </TaxBox>
-          </Section>
-        )}
+        {/* 증빙 — 세금계산서 / 현금영수증 */}
+        {(client?.is_business || (invoice.receipt_type && invoice.receipt_type !== 'none') || invoice.receipt_profile) && (() => {
+          const rp = invoice.receipt_profile;
+          const isCash = invoice.receipt_type === 'cash_receipt' || rp?.biz_type === 'individual';
+          const status = isCash ? (invoice.cash_receipt_status || 'none') : invoice.tax_invoice_status;
+          const issuedNo = isCash ? invoice.cash_receipt_no : invoice.tax_invoice_external_id;
+          return (
+            <Section>
+              <SectionTitle>{isCash ? t('detail.tax.titleCash', { defaultValue: '현금영수증' }) : t('detail.tax.title')}</SectionTitle>
+              {/* 고객이 공개 페이지에서 입력·확인한 증빙 정보 */}
+              {rp && (
+                <ReceiptInfoBox>
+                  <ReceiptInfoHead>{t('detail.tax.customerSubmitted', { defaultValue: '고객 확인 정보' })}</ReceiptInfoHead>
+                  {rp.biz_type === 'individual' ? (
+                    <>
+                      <ReceiptRow><span>{t('detail.tax.crPurpose', { defaultValue: '용도' })}</span><b>{rp.cr_purpose === 'expense_proof' ? t('detail.tax.crExpense', { defaultValue: '지출증빙' }) : t('detail.tax.crIncome', { defaultValue: '소득공제' })}</b></ReceiptRow>
+                      <ReceiptRow><span>{t('detail.tax.crIdentifier', { defaultValue: '번호' })}</span><b>{rp.cr_identifier || '—'}</b></ReceiptRow>
+                    </>
+                  ) : (
+                    <>
+                      <ReceiptRow><span>{t('detail.tax.bizTaxId', { defaultValue: '사업자등록번호' })}</span><b>{rp.biz_tax_id || '—'}</b></ReceiptRow>
+                      <ReceiptRow><span>{t('detail.tax.bizName', { defaultValue: '상호' })}</span><b>{rp.biz_name || '—'}</b></ReceiptRow>
+                      {rp.biz_ceo && <ReceiptRow><span>{t('detail.tax.bizCeo', { defaultValue: '대표자' })}</span><b>{rp.biz_ceo}</b></ReceiptRow>}
+                      {(rp.biz_category || rp.biz_item) && <ReceiptRow><span>{t('detail.tax.bizCatItem', { defaultValue: '업태/종목' })}</span><b>{[rp.biz_category, rp.biz_item].filter(Boolean).join(' / ') || '—'}</b></ReceiptRow>}
+                      {rp.biz_address && <ReceiptRow><span>{t('detail.tax.bizAddress', { defaultValue: '주소' })}</span><b>{rp.biz_address}</b></ReceiptRow>}
+                      {rp.tax_email && <ReceiptRow><span>{t('detail.tax.taxEmail', { defaultValue: '수취 이메일' })}</span><b>{rp.tax_email}</b></ReceiptRow>}
+                    </>
+                  )}
+                </ReceiptInfoBox>
+              )}
+              <TaxBox $status={status}>
+                <TaxIcon $status={status}>
+                  {status === 'issued' ? <CheckIcon size={14} /> : status === 'pending' ? '!' : ''}
+                </TaxIcon>
+                <TaxBody>
+                  <TaxLabel>
+                    {status === 'issued' ? (issuedNo ? t('detail.tax.issuedNo', { no: issuedNo, defaultValue: `발행완료 · ${issuedNo}` }) : t('detail.tax.issued')) :
+                     status === 'pending' ? t('detail.tax.required') :
+                     t('detail.tax.notRequired')}
+                  </TaxLabel>
+                  {status === 'pending' && <TaxDesc>{t('detail.tax.issuePromptDesc')}</TaxDesc>}
+                </TaxBody>
+              </TaxBox>
+              {/* 단건 청구서 발행 마킹 (분할은 회차별로) */}
+              {!isSplit && status !== 'issued' && (
+                <ReceiptMarkRow>
+                  <ReceiptMarkBtn type="button" onClick={() => handleMarkInvoiceReceipt('tax')}>
+                    {t('detail.tax.markTaxBtn', { defaultValue: '세금계산서 발행번호 입력' })}
+                  </ReceiptMarkBtn>
+                  <ReceiptMarkBtn type="button" onClick={() => handleMarkInvoiceReceipt('cash')}>
+                    {t('detail.tax.markCashBtn', { defaultValue: '현금영수증 번호 입력' })}
+                  </ReceiptMarkBtn>
+                </ReceiptMarkRow>
+              )}
+            </Section>
+          );
+        })()}
       </Body>
       {confirm?.open && (
         <ConfirmDialog
@@ -489,7 +536,7 @@ export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, 
         <TaxModalBackdrop onClick={() => setTaxModal(null)}>
           <TaxModalDialog onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={t('detail.tax.issuePromptTitle') as string}>
             <TaxModalHead>
-              <TaxModalTitle>{t('detail.tax.issuePromptTitle')}</TaxModalTitle>
+              <TaxModalTitle>{taxModal.kind === 'cash' ? t('detail.tax.cashPromptTitle', { defaultValue: '현금영수증 번호 입력' }) : t('detail.tax.issuePromptTitle')}</TaxModalTitle>
               <TaxModalClose type="button" onClick={() => setTaxModal(null)} aria-label={t('common.close') as string}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
               </TaxModalClose>
@@ -954,6 +1001,27 @@ const CopyChip = styled.button`
   background: #F0FDFA; border: 1px solid #14B8A6;
   padding: 2px 8px; border-radius: 999px; cursor: pointer; white-space: nowrap;
   &:hover { background: #14B8A6; color: #fff; }
+`;
+// ─── 증빙 — 고객 확인 정보 + 발행 마킹 ───
+const ReceiptInfoBox = styled.div`
+  margin-bottom: 8px; padding: 12px 14px; background: #F8FAFC;
+  border: 1px solid #E2E8F0; border-radius: 10px;
+`;
+const ReceiptInfoHead = styled.div`
+  font-size: 11px; font-weight: 700; color: #475569; margin-bottom: 8px;
+`;
+const ReceiptRow = styled.div`
+  display: flex; justify-content: space-between; gap: 12px; padding: 3px 0;
+  font-size: 12px;
+  span { color: #94A3B8; flex-shrink: 0; }
+  b { color: #334155; font-weight: 600; text-align: right; word-break: break-all; }
+`;
+const ReceiptMarkRow = styled.div`display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap;`;
+const ReceiptMarkBtn = styled.button`
+  flex: 1; min-width: 140px; min-height: 40px; padding: 9px 12px;
+  font-size: 12px; font-weight: 600; color: #0F766E;
+  background: #FFF; border: 1.5px solid #0D9488; border-radius: 8px; cursor: pointer;
+  &:hover { background: #F0FDFA; }
 `;
 const PayerHint = styled.div`
   margin-top: 8px; padding: 10px 12px;

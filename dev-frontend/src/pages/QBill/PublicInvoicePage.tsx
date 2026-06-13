@@ -54,6 +54,30 @@ interface PublicInvoice {
     bank_account_name_en?: string;
   } | null;
   source_post: { id: number; category: string; title: string; share_token: string | null } | null;
+  receipt?: {
+    payment_method: 'bank_transfer' | 'card' | 'other';
+    receipt_type: 'none' | 'tax_invoice' | 'cash_receipt';
+    tax_invoice_status: 'none' | 'pending' | 'issued' | 'failed' | 'canceled';
+    cash_receipt_status: 'none' | 'pending' | 'issued' | 'failed' | 'canceled';
+    requested_at: string | null;
+    profile: ReceiptProfile | null;
+    is_registered_client: boolean;
+    client_country: string | null;
+  };
+}
+
+interface ReceiptProfile {
+  biz_type?: 'business' | 'individual';
+  biz_name?: string | null;
+  biz_tax_id?: string | null;
+  biz_ceo?: string | null;
+  biz_category?: string | null;
+  biz_item?: string | null;
+  biz_address?: string | null;
+  tax_email?: string | null;
+  cr_purpose?: 'income_deduction' | 'expense_proof';
+  cr_identifier?: string | null;
+  requested_by_name?: string | null;
 }
 
 function formatMoney(amount: number, currency: string = 'KRW'): string {
@@ -85,6 +109,16 @@ const PublicInvoicePage: React.FC = () => {
   const [payerMemo, setPayerMemo] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [copyHit, setCopyHit] = useState<string | null>(null);
+
+  // 증빙(세금계산서/현금영수증) 신청 모달
+  const [receiptOpen, setReceiptOpen] = useState(false);
+  const [rcBizType, setRcBizType] = useState<'business' | 'individual'>('business');
+  const [rcForm, setRcForm] = useState({
+    biz_name: '', biz_tax_id: '', biz_ceo: '', biz_category: '', biz_item: '', biz_address: '', tax_email: '',
+    cr_purpose: 'income_deduction' as 'income_deduction' | 'expense_proof', cr_identifier: '', requested_by_name: '',
+  });
+  const [rcSubmitting, setRcSubmitting] = useState(false);
+  const [rcErr, setRcErr] = useState<string | null>(null);
 
   useEffect(() => {
     if (!token) return;
@@ -174,6 +208,55 @@ const PublicInvoicePage: React.FC = () => {
     setPayerName('');
     setPayerMemo('');
     setNotifyOpen(true);
+  };
+
+  const openReceipt = () => {
+    const p = invoice?.receipt?.profile;
+    setRcBizType(p?.biz_type === 'individual' ? 'individual' : 'business');
+    setRcForm({
+      biz_name: p?.biz_name || invoice?.receipt?.profile?.biz_name || '',
+      biz_tax_id: p?.biz_tax_id || '',
+      biz_ceo: p?.biz_ceo || '',
+      biz_category: p?.biz_category || '',
+      biz_item: p?.biz_item || '',
+      biz_address: p?.biz_address || '',
+      tax_email: p?.tax_email || '',
+      cr_purpose: p?.cr_purpose === 'expense_proof' ? 'expense_proof' : 'income_deduction',
+      cr_identifier: p?.cr_identifier || '',
+      requested_by_name: p?.requested_by_name || '',
+    });
+    setRcErr(null);
+    setReceiptOpen(true);
+  };
+
+  const submitReceipt = async () => {
+    if (!token || rcSubmitting) return;
+    setRcErr(null);
+    if (rcBizType === 'business') {
+      if (rcForm.biz_tax_id.replace(/[^0-9]/g, '').length !== 10) { setRcErr(t('public.receipt.errBizTaxId', '사업자등록번호 10자리를 정확히 입력해주세요') as string); return; }
+      if (!rcForm.biz_name.trim()) { setRcErr(t('public.receipt.errBizName', '상호를 입력해주세요') as string); return; }
+    } else {
+      if (rcForm.cr_identifier.replace(/[^0-9]/g, '').length < 8) { setRcErr(t('public.receipt.errCrId', '휴대폰번호 또는 사업자번호를 정확히 입력해주세요') as string); return; }
+    }
+    setRcSubmitting(true);
+    try {
+      const body = rcBizType === 'business'
+        ? { biz_type: 'business', biz_name: rcForm.biz_name, biz_tax_id: rcForm.biz_tax_id, biz_ceo: rcForm.biz_ceo, biz_category: rcForm.biz_category, biz_item: rcForm.biz_item, biz_address: rcForm.biz_address, tax_email: rcForm.tax_email, requested_by_name: rcForm.requested_by_name }
+        : { biz_type: 'individual', cr_purpose: rcForm.cr_purpose, cr_identifier: rcForm.cr_identifier, requested_by_name: rcForm.requested_by_name };
+      const r = await fetch(`/api/invoices/public/${token}/receipt-request`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+      });
+      const j = await r.json();
+      if (!j.success) throw new Error(j.message || 'receipt_failed');
+      const r2 = await fetch(`/api/invoices/public/${token}`);
+      const j2 = await r2.json();
+      if (j2.success) setInvoice(j2.data);
+      setReceiptOpen(false);
+    } catch (e) {
+      setRcErr((e as Error).message);
+    } finally {
+      setRcSubmitting(false);
+    }
   };
 
   const sendNotify = async () => {
@@ -376,6 +459,52 @@ const PublicInvoicePage: React.FC = () => {
           </NotifyArea>
         )}
 
+        {/* 증빙 신청 (세금계산서 / 현금영수증) — 고객이 직접 정보 입력·확인 */}
+        {!isCanceled && invoice.receipt && (() => {
+          const rc = invoice.receipt;
+          const taxIssued = rc.tax_invoice_status === 'issued';
+          const cashIssued = rc.cash_receipt_status === 'issued';
+          const pending = (rc.receipt_type === 'tax_invoice' && rc.tax_invoice_status === 'pending')
+            || (rc.receipt_type === 'cash_receipt' && rc.cash_receipt_status === 'pending');
+          const issuedLabel = taxIssued
+            ? t('public.receipt.taxIssued', '세금계산서가 발행되었습니다')
+            : t('public.receipt.cashIssued', '현금영수증이 발행되었습니다');
+          return (
+            <Section>
+              <SectionTitle>{t('public.receipt.title', '증빙 발행 (세금계산서 · 현금영수증)')}</SectionTitle>
+              {(taxIssued || cashIssued) ? (
+                <NotifyDoneBox>
+                  <DoneIcon>✓</DoneIcon>
+                  <NotifyDoneText>
+                    <NotifyDoneTitle>{issuedLabel as string}</NotifyDoneTitle>
+                    <NotifyDoneSub>{t('public.receipt.issuedSub', '등록하신 정보로 발행 완료되었습니다.')}</NotifyDoneSub>
+                  </NotifyDoneText>
+                </NotifyDoneBox>
+              ) : pending ? (
+                <>
+                  <NotifyDoneBox>
+                    <DoneIcon>✓</DoneIcon>
+                    <NotifyDoneText>
+                      <NotifyDoneTitle>{t('public.receipt.requested', '증빙 발행 정보를 제출했습니다')}</NotifyDoneTitle>
+                      <NotifyDoneSub>{t('public.receipt.requestedSub', '발행자가 확인 후 발행합니다.')}</NotifyDoneSub>
+                    </NotifyDoneText>
+                  </NotifyDoneBox>
+                  <NotifyHint as="button" type="button" onClick={openReceipt} style={{ cursor: 'pointer', background: 'none', border: 'none' }}>
+                    {t('public.receipt.editInfo', '입력 정보 수정하기')}
+                  </NotifyHint>
+                </>
+              ) : (
+                <>
+                  <SectionDesc>{t('public.receipt.desc', '세금계산서(사업자) 또는 현금영수증(개인) 발행을 원하시면 정보를 입력·확인해주세요. 발행자가 확인 후 발행합니다.')}</SectionDesc>
+                  <NotifyBtn type="button" onClick={openReceipt}>
+                    {t('public.receipt.button', '세금계산서 · 현금영수증 신청')}
+                  </NotifyBtn>
+                </>
+              )}
+            </Section>
+          );
+        })()}
+
         {isFullyPaid && (
           <PaidBanner>
             <DoneIcon>✓</DoneIcon>
@@ -393,6 +522,9 @@ const PublicInvoicePage: React.FC = () => {
 
         <Footer>
           <FooterText>{t('public.footer', '이 페이지는 PlanQ 를 통해 제공됩니다.')}</FooterText>
+          <FooterContact href="/contact" target="_blank" rel="noopener noreferrer">
+            {t('public.contact', '문의하기')}
+          </FooterContact>
         </Footer>
       </Frame>
 
@@ -450,6 +582,105 @@ const PublicInvoicePage: React.FC = () => {
       {targetable.length > 0 && !notifyOpen && (
         // 분할의 경우 카드 안에 회차별 버튼이 있으므로 페이지 하단에는 노출 X
         null
+      )}
+
+      {/* 증빙 신청 모달 */}
+      {receiptOpen && (
+        <ModalBackdrop onClick={() => setReceiptOpen(false)}>
+          <ModalBox role="dialog" aria-modal="true" aria-labelledby="receipt-title" onClick={e => e.stopPropagation()}>
+            <ModalHead>
+              <ModalTitle id="receipt-title">{t('public.receipt.modalTitle', '증빙 발행 신청')}</ModalTitle>
+              <ModalClose type="button" onClick={() => setReceiptOpen(false)} aria-label={t('common.close', '닫기') as string}>×</ModalClose>
+            </ModalHead>
+            <ModalBody>
+              <ModalLine $muted>{t('public.receipt.modalDesc', '발행 유형을 선택하고 정보를 정확히 입력해주세요. 입력하신 정보 그대로 발행됩니다.')}</ModalLine>
+              <RcToggleRow>
+                <RcToggleBtn type="button" $active={rcBizType === 'business'} onClick={() => setRcBizType('business')}>
+                  {t('public.receipt.typeBusiness', '사업자 · 세금계산서')}
+                </RcToggleBtn>
+                <RcToggleBtn type="button" $active={rcBizType === 'individual'} onClick={() => setRcBizType('individual')}>
+                  {t('public.receipt.typeIndividual', '개인 · 현금영수증')}
+                </RcToggleBtn>
+              </RcToggleRow>
+
+              {rcBizType === 'business' ? (
+                <>
+                  <FormField>
+                    <FormLabel>{t('public.receipt.bizTaxId', '사업자등록번호')}</FormLabel>
+                    <FormInput type="text" inputMode="numeric" value={rcForm.biz_tax_id} maxLength={12}
+                      onChange={e => setRcForm(f => ({ ...f, biz_tax_id: e.target.value }))} placeholder="123-45-67890" />
+                  </FormField>
+                  <FormField>
+                    <FormLabel>{t('public.receipt.bizName', '상호 (사업자명)')}</FormLabel>
+                    <FormInput type="text" value={rcForm.biz_name} maxLength={200}
+                      onChange={e => setRcForm(f => ({ ...f, biz_name: e.target.value }))} />
+                  </FormField>
+                  <FormField>
+                    <FormLabel>{t('public.receipt.bizCeo', '대표자')} <FormHint>({t('public.optional', '선택')})</FormHint></FormLabel>
+                    <FormInput type="text" value={rcForm.biz_ceo} maxLength={100}
+                      onChange={e => setRcForm(f => ({ ...f, biz_ceo: e.target.value }))} />
+                  </FormField>
+                  <RcTwoCol>
+                    <FormField>
+                      <FormLabel>{t('public.receipt.bizCategory', '업태')} <FormHint>({t('public.optional', '선택')})</FormHint></FormLabel>
+                      <FormInput type="text" value={rcForm.biz_category} maxLength={100}
+                        onChange={e => setRcForm(f => ({ ...f, biz_category: e.target.value }))} />
+                    </FormField>
+                    <FormField>
+                      <FormLabel>{t('public.receipt.bizItem', '종목')} <FormHint>({t('public.optional', '선택')})</FormHint></FormLabel>
+                      <FormInput type="text" value={rcForm.biz_item} maxLength={100}
+                        onChange={e => setRcForm(f => ({ ...f, biz_item: e.target.value }))} />
+                    </FormField>
+                  </RcTwoCol>
+                  <FormField>
+                    <FormLabel>{t('public.receipt.bizAddress', '사업장 주소')} <FormHint>({t('public.optional', '선택')})</FormHint></FormLabel>
+                    <FormInput type="text" value={rcForm.biz_address} maxLength={500}
+                      onChange={e => setRcForm(f => ({ ...f, biz_address: e.target.value }))} />
+                  </FormField>
+                  <FormField>
+                    <FormLabel>{t('public.receipt.taxEmail', '세금계산서 수취 이메일')} <FormHint>({t('public.optional', '선택')})</FormHint></FormLabel>
+                    <FormInput type="email" value={rcForm.tax_email} maxLength={200}
+                      onChange={e => setRcForm(f => ({ ...f, tax_email: e.target.value }))} placeholder="tax@company.com" />
+                  </FormField>
+                </>
+              ) : (
+                <>
+                  <FormField>
+                    <FormLabel>{t('public.receipt.crPurpose', '발급 용도')}</FormLabel>
+                    <RcToggleRow>
+                      <RcToggleBtn type="button" $active={rcForm.cr_purpose === 'income_deduction'} onClick={() => setRcForm(f => ({ ...f, cr_purpose: 'income_deduction' }))}>
+                        {t('public.receipt.crIncome', '소득공제')}
+                      </RcToggleBtn>
+                      <RcToggleBtn type="button" $active={rcForm.cr_purpose === 'expense_proof'} onClick={() => setRcForm(f => ({ ...f, cr_purpose: 'expense_proof' }))}>
+                        {t('public.receipt.crExpense', '지출증빙')}
+                      </RcToggleBtn>
+                    </RcToggleRow>
+                  </FormField>
+                  <FormField>
+                    <FormLabel>{rcForm.cr_purpose === 'expense_proof' ? t('public.receipt.crIdBiz', '사업자번호') : t('public.receipt.crIdPhone', '휴대폰번호')}</FormLabel>
+                    <FormInput type="text" inputMode="numeric" value={rcForm.cr_identifier} maxLength={20}
+                      onChange={e => setRcForm(f => ({ ...f, cr_identifier: e.target.value }))}
+                      placeholder={rcForm.cr_purpose === 'expense_proof' ? '123-45-67890' : '010-1234-5678'} />
+                  </FormField>
+                </>
+              )}
+
+              <FormField>
+                <FormLabel>{t('public.receipt.requesterName', '신청자명')} <FormHint>({t('public.optional', '선택')})</FormHint></FormLabel>
+                <FormInput type="text" value={rcForm.requested_by_name} maxLength={80}
+                  onChange={e => setRcForm(f => ({ ...f, requested_by_name: e.target.value }))} />
+              </FormField>
+
+              {rcErr && <RcErr>{rcErr}</RcErr>}
+            </ModalBody>
+            <ModalFoot>
+              <ModalCancelBtn type="button" onClick={() => setReceiptOpen(false)}>{t('common.cancel', '취소') as string}</ModalCancelBtn>
+              <ModalSendBtn type="button" disabled={rcSubmitting} onClick={submitReceipt}>
+                {rcSubmitting ? (t('public.sending', '전송 중...') as string) : (t('public.receipt.submit', '신청하기') as string)}
+              </ModalSendBtn>
+            </ModalFoot>
+          </ModalBox>
+        </ModalBackdrop>
       )}
     </Page>
   );
@@ -619,6 +850,11 @@ const Footer = styled.footer`
   text-align: center;
 `;
 const FooterText = styled.div`font-size: 11px; color: #94A3B8;`;
+const FooterContact = styled.a`
+  display: inline-block; margin-top: 8px; font-size: 12px; font-weight: 600;
+  color: #0D9488; text-decoration: none;
+  &:hover { text-decoration: underline; }
+`;
 
 const Center = styled.div`
   min-height: 60vh; display: flex; align-items: center; justify-content: center;
@@ -680,4 +916,20 @@ const ModalSendBtn = styled.button`
   background: #0D9488; border: none; border-radius: 8px; cursor: pointer;
   &:hover:not(:disabled) { background: #0F766E; }
   &:disabled { opacity: 0.6; cursor: not-allowed; }
+`;
+
+// ─── 증빙 신청 모달 — 사업자/개인 토글 + 레이아웃 ───
+const RcToggleRow = styled.div`display: flex; gap: 8px; margin-bottom: 4px;`;
+const RcToggleBtn = styled.button<{ $active: boolean }>`
+  flex: 1; min-height: 44px; padding: 10px 12px; font-size: 13px; font-weight: 600;
+  border-radius: 8px; cursor: pointer; transition: all .12s;
+  color: ${p => p.$active ? '#0F766E' : '#64748B'};
+  background: ${p => p.$active ? '#F0FDFA' : '#FFF'};
+  border: 1.5px solid ${p => p.$active ? '#0D9488' : '#E2E8F0'};
+  &:hover { border-color: ${p => p.$active ? '#0D9488' : '#CBD5E1'}; }
+`;
+const RcTwoCol = styled.div`display: grid; grid-template-columns: 1fr 1fr; gap: 10px;`;
+const RcErr = styled.div`
+  margin-top: 4px; padding: 9px 12px; font-size: 12px; font-weight: 500;
+  color: #B91C1C; background: #FEF2F2; border: 1px solid #FECACA; border-radius: 8px;
 `;

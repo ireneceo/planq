@@ -49,6 +49,33 @@ Invoice.init({
     defaultValue: 'single',
     allowNull: false,
   },
+  // ─── 결제수단 · 증빙(세금계산서/현금영수증) (2026-06-13) ───
+  // 결제수단 — 현재는 bank_transfer(계좌이체) 기본. card 는 운영 시작 시 PortOne. 발행 모달에서 선택.
+  payment_method: {
+    type: DataTypes.ENUM('bank_transfer', 'card', 'other'),
+    defaultValue: 'bank_transfer',
+    allowNull: false,
+  },
+  // 증빙 유형 — 사업자=세금계산서, 개인=현금영수증. 결제수단과 별개 축.
+  receipt_type: {
+    type: DataTypes.ENUM('none', 'tax_invoice', 'cash_receipt'),
+    defaultValue: 'none',
+    allowNull: false,
+  },
+  // 고객이 공개 결제 페이지에서 직접 입력·확인한 증빙 정보 (외부 고객 포함, 오타·세무 리스크 차단).
+  //   { biz_type:'business'|'individual',
+  //     biz_name, biz_tax_id, biz_ceo, biz_category(업태), biz_item(종목), biz_address, tax_email,   // 세금계산서
+  //     cr_purpose:'income_deduction'|'expense_proof', cr_identifier,                                  // 현금영수증
+  //     requested_by_name }
+  receipt_profile: { type: DataTypes.JSON, allowNull: true },
+  receipt_requested_at: { type: DataTypes.DATE, allowNull: true, comment: '고객이 증빙 신청·확인한 시각' },
+  // 현금영수증 발행 상태 (세금계산서 tax_invoice_status 와 대칭)
+  cash_receipt_status: {
+    type: DataTypes.ENUM('none', 'pending', 'issued', 'failed', 'canceled'),
+    defaultValue: 'none',
+  },
+  cash_receipt_no: { type: DataTypes.STRING(50), allowNull: true },
+  cash_receipt_issued_at: { type: DataTypes.DATE, allowNull: true },
   // 발행 시점 워크스페이스 계좌 정보 스냅샷 (사용자 계좌 변경되어도 발행 청구서는 보존)
   bank_snapshot: {
     type: DataTypes.JSON,
