@@ -132,7 +132,7 @@ router.get('/public/:token', async (req, res, next) => {
       include: [
         { model: InvoiceItem, as: 'items' },
         { model: InvoiceInstallment, as: 'installments', separate: true, order: [['installment_no', 'ASC']] },
-        { model: Client, attributes: ['id', 'display_name', 'company_name', 'biz_name'] },
+        { model: Client, attributes: ['id', 'display_name', 'company_name', 'biz_name', 'biz_ceo', 'biz_tax_id', 'biz_type', 'biz_item', 'biz_address', 'tax_invoice_email', 'is_business', 'country'] },
       ],
     });
     if (!invoice) return errorResponse(res, 'not_found', 404);
@@ -194,6 +194,32 @@ router.get('/public/:token', async (req, res, next) => {
         company_name: invoice.Client.company_name,
         biz_name: invoice.Client.biz_name,
       } : null,
+      // ─── 증빙(세금계산서/현금영수증) — 고객이 공개 페이지에서 직접 입력·확인 (송금완료 알림과 같은 자리) ───
+      // 등록 고객은 Client 값으로 prefill, 외부 고객은 invoice.receipt_profile 또는 빈 폼.
+      receipt: {
+        payment_method: invoice.payment_method,
+        receipt_type: invoice.receipt_type,
+        tax_invoice_status: invoice.tax_invoice_status,
+        cash_receipt_status: invoice.cash_receipt_status,
+        requested_at: invoice.receipt_requested_at,
+        // 고객이 이미 제출한 값(있으면) — 없으면 등록 고객 Client 값으로 prefill 힌트
+        profile: invoice.receipt_profile || (invoice.Client ? {
+          biz_type: invoice.Client.is_business ? 'business' : 'individual',
+          biz_name: invoice.Client.biz_name || invoice.Client.company_name || null,
+          biz_tax_id: invoice.Client.biz_tax_id || invoice.recipient_business_number || null,
+          biz_ceo: invoice.Client.biz_ceo || null,
+          biz_category: invoice.Client.biz_type || null,
+          biz_item: invoice.Client.biz_item || null,
+          biz_address: invoice.Client.biz_address || null,
+          tax_email: invoice.Client.tax_invoice_email || null,
+        } : (invoice.recipient_business_name || invoice.recipient_business_number ? {
+          biz_type: 'business',
+          biz_name: invoice.recipient_business_name || null,
+          biz_tax_id: invoice.recipient_business_number || null,
+        } : null)),
+        is_registered_client: !!invoice.client_id,
+        client_country: invoice.Client?.country || null,
+      },
       sender: business ? {
         name: business.brand_name || business.name,
         biz_name: business.legal_name,
@@ -273,6 +299,113 @@ router.post('/public/:token/notify-paid', async (req, res, next) => {
     const io = req.app.get('io');
     if (io) io.to(`business:${invoice.business_id}`).emit('inbox:refresh', { reason: 'invoice_notify_paid', invoice_id: invoice.id });
     return successResponse(res, { notified: true }, 'Notified');
+  } catch (error) { next(error); }
+});
+
+// POST /api/invoices/public/:token/receipt-request — 익명 증빙(세금계산서/현금영수증) 신청·확인
+// 고객이 공개 결제 페이지에서 자기 증빙정보를 직접 입력·확인 → owner 가 확인된 정보로 발행 (오타·세무 리스크 차단)
+// body: { biz_type:'business'|'individual',
+//         biz_name, biz_tax_id, biz_ceo, biz_category, biz_item, biz_address, tax_email,   // 사업자(세금계산서)
+//         cr_purpose:'income_deduction'|'expense_proof', cr_identifier,                     // 개인(현금영수증)
+//         requested_by_name }
+router.post('/public/:token/receipt-request', async (req, res, next) => {
+  try {
+    const invoice = await Invoice.findOne({ where: { share_token: req.params.token } });
+    if (!invoice) return errorResponse(res, 'not_found', 404);
+    if (invoice.status === 'draft' || invoice.status === 'canceled') {
+      return errorResponse(res, 'not_available', 400);
+    }
+    if (invoice.share_expires_at && new Date(invoice.share_expires_at) < new Date()) {
+      return res.status(410).json({ success: false, code: 'share_expired', message: 'This share link has expired.' });
+    }
+    const b = req.body || {};
+    const bizType = b.biz_type === 'individual' ? 'individual' : 'business';
+    const s = (v, n) => (v == null ? null : String(v).trim().slice(0, n) || null);
+    const digits = (v) => (v == null ? '' : String(v).replace(/[^0-9]/g, ''));
+
+    let profile, receiptType, statusPatch;
+    if (bizType === 'business') {
+      const taxId = digits(b.biz_tax_id);
+      if (taxId.length !== 10) return errorResponse(res, 'invalid_biz_tax_id', 400); // 사업자등록번호 10자리
+      if (!s(b.biz_name, 200)) return errorResponse(res, 'biz_name_required', 400);
+      const taxEmail = s(b.tax_email, 200);
+      if (taxEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(taxEmail)) return errorResponse(res, 'invalid_tax_email', 400);
+      profile = {
+        biz_type: 'business',
+        biz_name: s(b.biz_name, 200),
+        biz_tax_id: taxId,
+        biz_ceo: s(b.biz_ceo, 100),
+        biz_category: s(b.biz_category, 100), // 업태
+        biz_item: s(b.biz_item, 100),         // 종목
+        biz_address: s(b.biz_address, 500),
+        tax_email: taxEmail,
+        requested_by_name: s(b.requested_by_name, 80),
+      };
+      receiptType = 'tax_invoice';
+      statusPatch = { tax_invoice_status: 'pending' };
+    } else {
+      const ident = digits(b.cr_identifier);
+      if (ident.length < 8) return errorResponse(res, 'invalid_cr_identifier', 400); // 휴대폰/사업자번호
+      profile = {
+        biz_type: 'individual',
+        cr_purpose: b.cr_purpose === 'expense_proof' ? 'expense_proof' : 'income_deduction',
+        cr_identifier: ident,
+        requested_by_name: s(b.requested_by_name, 80),
+      };
+      receiptType = 'cash_receipt';
+      statusPatch = { cash_receipt_status: 'pending' };
+    }
+
+    await invoice.update({
+      receipt_type: receiptType,
+      receipt_profile: profile,
+      receipt_requested_at: new Date(),
+      ...statusPatch,
+    });
+
+    // 등록 고객이면 Client 레코드도 갱신 (다음 청구서 prefill) — 외부 고객은 invoice.receipt_profile 만.
+    if (invoice.client_id && bizType === 'business') {
+      try {
+        const { Client } = require('../models');
+        await Client.update({
+          is_business: true,
+          biz_name: profile.biz_name,
+          biz_tax_id: profile.biz_tax_id,
+          biz_ceo: profile.biz_ceo,
+          biz_type: profile.biz_category,
+          biz_item: profile.biz_item,
+          biz_address: profile.biz_address,
+          tax_invoice_email: profile.tax_email,
+        }, { where: { id: invoice.client_id } });
+      } catch (e) { console.warn('[receipt-request] client update', e.message); }
+    }
+
+    // owner/멤버 알림 — 증빙 신청 도착
+    try {
+      const { Op } = require('sequelize');
+      const { BusinessMember, Business } = require('../models');
+      const { notifyMany } = require('./notifications');
+      const biz = await Business.findByPk(invoice.business_id, { attributes: ['name', 'brand_name'] });
+      const members = await BusinessMember.findAll({
+        where: { business_id: invoice.business_id, removed_at: null, role: { [Op.in]: ['owner', 'admin', 'member'] } },
+        attributes: ['user_id'],
+      });
+      const kindLabel = receiptType === 'tax_invoice' ? '세금계산서' : '현금영수증';
+      notifyMany({
+        userIds: members.map((m) => m.user_id),
+        businessId: invoice.business_id, eventKind: 'tax_invoice',
+        title: `${kindLabel} 발행 요청 도착`,
+        body: `${invoice.invoice_number} — 고객이 ${kindLabel} 정보를 확인·제출했습니다`,
+        link: `${process.env.APP_URL || 'https://dev.planq.kr'}/bills?invoice=${invoice.id}`,
+        ctaLabel: '청구서 보기',
+        workspaceName: biz?.brand_name || biz?.name || null,
+      }).catch((e) => console.warn('[notify receipt]', e.message));
+    } catch (e) { console.warn('[receipt notify outer]', e.message); }
+
+    const io = req.app.get('io');
+    if (io) io.to(`business:${invoice.business_id}`).emit('inbox:refresh', { reason: 'receipt_requested', invoice_id: invoice.id });
+
+    return successResponse(res, { receipt_type: receiptType, requested: true }, 'Receipt requested');
   } catch (error) { next(error); }
 });
 
@@ -1005,6 +1138,72 @@ router.post('/:businessId/:id/installments/:installId/mark-tax-invoice', authent
     } catch (e) { console.warn('[tax_invoice notify outer]', e.message); }
 
     successResponse(res, inst, 'Tax invoice marked');
+  } catch (error) { next(error); }
+});
+
+// ─── 단건 청구서 증빙 발행 마킹 (분할 아님) — 세금계산서 / 현금영수증 ───
+// 외부 발행(홈택스/팝빌) 후 발행번호 수동 마킹. 재무 mutation → owner_only (assertInvoiceMutationOwner).
+async function notifyReceiptIssued(req, invoice, kindLabel, no) {
+  try {
+    const { Op } = require('sequelize');
+    const { BusinessMember, Business } = require('../models');
+    const { notifyMany } = require('./notifications');
+    const biz = await Business.findByPk(invoice.business_id, { attributes: ['name', 'brand_name'] });
+    const members = await BusinessMember.findAll({
+      where: { business_id: invoice.business_id, removed_at: null, role: { [Op.in]: ['owner', 'admin', 'member'] } },
+      attributes: ['user_id'],
+    });
+    notifyMany({
+      userIds: members.map((m) => m.user_id),
+      businessId: invoice.business_id, eventKind: 'tax_invoice',
+      title: `${kindLabel} 발행 완료`,
+      body: `${invoice.invoice_number} 발행번호 ${no}`,
+      link: `${process.env.APP_URL || 'https://dev.planq.kr'}/bills?invoice=${invoice.id}`,
+      ctaLabel: '청구서 보기',
+      workspaceName: biz?.brand_name || biz?.name || null,
+      excludeUserId: req.user.id,
+    }).catch((e) => console.warn('[notify receipt issued]', e.message));
+  } catch (e) { console.warn('[receipt issued notify outer]', e.message); }
+}
+
+router.post('/:businessId/:id/mark-tax-invoice', authenticateToken, checkBusinessAccess, requireMenu('qbill', 'write'), async (req, res, next) => {
+  if (!assertInvoiceMutationOwner(req, res)) return;
+  try {
+    const invoice = await Invoice.findOne({ where: { id: req.params.id, business_id: req.params.businessId } });
+    if (!invoice) return errorResponse(res, 'Invoice not found', 404);
+    const no = req.body?.tax_invoice_no ? String(req.body.tax_invoice_no).slice(0, 50) : null;
+    const at = req.body?.tax_invoice_at ? new Date(req.body.tax_invoice_at) : new Date();
+    if (!no) return errorResponse(res, 'tax_invoice_no required', 400);
+    await invoice.update({ tax_invoice_status: 'issued', tax_invoice_external_id: no, tax_invoice_issued_at: at });
+    require('../services/auditService').logAudit(req, {
+      action: 'invoice.mark_tax_invoice', targetType: 'invoice', targetId: invoice.id,
+      newValue: { invoice_number: invoice.invoice_number, tax_invoice_no: no, tax_invoice_at: at },
+    });
+    const io = req.app.get('io');
+    if (io) io.to(`business:${invoice.business_id}`).emit('inbox:refresh', { reason: 'tax_invoice_issued', invoice_id: invoice.id });
+    if (invoice?.project_id) require('../services/projectStageEngine').onInvoiceChanged(invoice.id).catch(() => null);
+    await notifyReceiptIssued(req, invoice, '세금계산서', no);
+    successResponse(res, invoice, 'Tax invoice marked');
+  } catch (error) { next(error); }
+});
+
+router.post('/:businessId/:id/mark-cash-receipt', authenticateToken, checkBusinessAccess, requireMenu('qbill', 'write'), async (req, res, next) => {
+  if (!assertInvoiceMutationOwner(req, res)) return;
+  try {
+    const invoice = await Invoice.findOne({ where: { id: req.params.id, business_id: req.params.businessId } });
+    if (!invoice) return errorResponse(res, 'Invoice not found', 404);
+    const no = req.body?.cash_receipt_no ? String(req.body.cash_receipt_no).slice(0, 50) : null;
+    const at = req.body?.cash_receipt_at ? new Date(req.body.cash_receipt_at) : new Date();
+    if (!no) return errorResponse(res, 'cash_receipt_no required', 400);
+    await invoice.update({ cash_receipt_status: 'issued', cash_receipt_no: no, cash_receipt_issued_at: at });
+    require('../services/auditService').logAudit(req, {
+      action: 'invoice.mark_cash_receipt', targetType: 'invoice', targetId: invoice.id,
+      newValue: { invoice_number: invoice.invoice_number, cash_receipt_no: no, cash_receipt_at: at },
+    });
+    const io = req.app.get('io');
+    if (io) io.to(`business:${invoice.business_id}`).emit('inbox:refresh', { reason: 'cash_receipt_issued', invoice_id: invoice.id });
+    await notifyReceiptIssued(req, invoice, '현금영수증', no);
+    successResponse(res, invoice, 'Cash receipt marked');
   } catch (error) { next(error); }
 });
 

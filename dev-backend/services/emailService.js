@@ -171,10 +171,14 @@ function emailFooter(options = {}) {
           알림은 워크스페이스 설정에 따라 발송됩니다 ·
           <a href="${APP_URL}/business/settings/notifications" style="color:#0D9488;text-decoration:underline;">알림 설정 변경</a>
         </td></tr>` : ''}
-        <tr><td align="center" style="padding-top:${workspaceName || notificationSettings ? '8' : '0'}px;border-top:${workspaceName || notificationSettings ? '1px solid #E2E8F0' : 'none'};">
+        <tr><td align="center" style="padding-top:${workspaceName || notificationSettings ? '8' : '0'}px;border-top:${workspaceName || notificationSettings ? '1px solid #E2E8F0' : 'none'};color:#94A3B8;">
+          이 메일은 발신 전용입니다 · 회신은 받지 못합니다
+        </td></tr>
+        <tr><td align="center" style="padding-top:10px;">
+          <a href="${PLATFORM.website}/contact" target="_blank" style="display:inline-block;padding:8px 18px;background:#0D9488;color:#FFFFFF;text-decoration:none;border-radius:8px;font-size:12px;font-weight:700;">문의하기</a>
+        </td></tr>
+        <tr><td align="center" style="padding-top:10px;">
           <a href="${PLATFORM.website}" target="_blank" style="color:#0D9488;text-decoration:none;font-weight:600;">${PLATFORM.website.replace(/^https?:\/\//, '')}</a>
-          &nbsp;·&nbsp;
-          <a href="mailto:${PLATFORM.supportEmail}" style="color:#0D9488;text-decoration:none;">${PLATFORM.supportEmail}</a>
           <span style="color:#CBD5E1;">&nbsp;·&nbsp;</span>
           <span style="color:#94A3B8;">PlanQ 운영팀</span>
         </td></tr>

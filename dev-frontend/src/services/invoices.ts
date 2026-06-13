@@ -100,6 +100,20 @@ export interface ApiInvoice {
   tax_invoice_external_id: string | null;
   tax_invoice_url: string | null;
   tax_invoice_issued_at: string | null;
+  // 결제수단 · 증빙 (2026-06-13)
+  payment_method?: 'bank_transfer' | 'card' | 'other';
+  receipt_type?: 'none' | 'tax_invoice' | 'cash_receipt';
+  receipt_profile?: {
+    biz_type?: 'business' | 'individual';
+    biz_name?: string | null; biz_tax_id?: string | null; biz_ceo?: string | null;
+    biz_category?: string | null; biz_item?: string | null; biz_address?: string | null; tax_email?: string | null;
+    cr_purpose?: 'income_deduction' | 'expense_proof'; cr_identifier?: string | null;
+    requested_by_name?: string | null;
+  } | null;
+  receipt_requested_at?: string | null;
+  cash_receipt_status?: 'none' | 'pending' | 'issued' | 'failed' | 'canceled';
+  cash_receipt_no?: string | null;
+  cash_receipt_issued_at?: string | null;
   created_by: number;
   created_at: string;
   updated_at: string;
@@ -226,6 +240,27 @@ export async function markInstallmentTaxInvoice(
     body: JSON.stringify(payload),
   });
   return expectOk<ApiInstallment>(r);
+}
+
+// 단건 청구서 증빙 발행 마킹 (분할 아님) — 세금계산서 / 현금영수증
+export async function markInvoiceTaxInvoice(
+  businessId: number, invoiceId: number,
+  payload: { tax_invoice_no: string; tax_invoice_at?: string }
+): Promise<ApiInvoice> {
+  const r = await apiFetch(`/api/invoices/${businessId}/${invoiceId}/mark-tax-invoice`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+  });
+  return expectOk<ApiInvoice>(r);
+}
+
+export async function markInvoiceCashReceipt(
+  businessId: number, invoiceId: number,
+  payload: { cash_receipt_no: string; cash_receipt_at?: string }
+): Promise<ApiInvoice> {
+  const r = await apiFetch(`/api/invoices/${businessId}/${invoiceId}/mark-cash-receipt`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+  });
+  return expectOk<ApiInvoice>(r);
 }
 
 export async function cancelInstallment(
