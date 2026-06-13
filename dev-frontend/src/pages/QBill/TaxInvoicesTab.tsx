@@ -8,7 +8,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import {
   listReceiptsDue, formatMoney,
-  markInstallmentTaxInvoice, markInvoiceTaxInvoice, markInvoiceCashReceipt,
+  markInstallmentTaxInvoice, markInstallmentCashReceipt, markInvoiceTaxInvoice, markInvoiceCashReceipt,
   type ReceiptDueRow,
 } from '../../services/invoices';
 import SingleDateField from '../../components/Common/SingleDateField';
@@ -192,7 +192,9 @@ function IssueModal({ row, onClose, onIssued }: { row: ReceiptDueRow; onClose: (
     setBusy(true);
     setErr(null);
     try {
-      if (isCash) {
+      if (isCash && row.installment_id) {
+        await markInstallmentCashReceipt(row.business_id, row.invoice_id, row.installment_id, { cash_receipt_no: no.trim(), cash_receipt_at: date });
+      } else if (isCash) {
         await markInvoiceCashReceipt(row.business_id, row.invoice_id, { cash_receipt_no: no.trim(), cash_receipt_at: date });
       } else if (row.installment_id) {
         await markInstallmentTaxInvoice(row.business_id, row.invoice_id, row.installment_id, { tax_invoice_no: no.trim(), issued_at: date });

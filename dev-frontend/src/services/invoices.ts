@@ -34,6 +34,8 @@ export interface ApiInstallment {
   notify_payer_name: string | null;
   tax_invoice_no: string | null;
   tax_invoice_at: string | null;
+  cash_receipt_no: string | null;
+  cash_receipt_at: string | null;
   milestone_ref: string | null;
 }
 
@@ -235,6 +237,19 @@ export async function markInstallmentTaxInvoice(
   payload: { tax_invoice_no: string; issued_at?: string }
 ): Promise<ApiInstallment> {
   const r = await apiFetch(`/api/invoices/${businessId}/${invoiceId}/installments/${installmentId}/mark-tax-invoice`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  return expectOk<ApiInstallment>(r);
+}
+
+// 회차별 현금영수증 발행 마킹 (분할 결제 — 회차마다 입금 시점 발급)
+export async function markInstallmentCashReceipt(
+  businessId: number, invoiceId: number, installmentId: number,
+  payload: { cash_receipt_no: string; cash_receipt_at?: string }
+): Promise<ApiInstallment> {
+  const r = await apiFetch(`/api/invoices/${businessId}/${invoiceId}/installments/${installmentId}/mark-cash-receipt`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
