@@ -28,9 +28,6 @@ interface Props {
   onChanged?: () => void;
 }
 
-const KIND_LABEL: Record<string, string> = {
-  contract: '계약서', quote: '견적서', sow: 'SOW', proposal: '제안서',
-};
 
 function daysSinceIso(iso: string): number {
   return Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 86400000));
@@ -150,8 +147,8 @@ export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, 
   const handleCancelInst = (installmentId: number) => {
     setConfirm({
       open: true,
-      title: '회차 취소',
-      message: '이 회차를 취소하시겠습니까? 결제 완료된 회차는 취소할 수 없습니다.',
+      title: t('detail.confirm.cancelInstallmentTitle', { defaultValue: '회차 취소' }) as string,
+      message: t('detail.confirm.cancelInstallmentMsg', { defaultValue: '이 회차를 취소하시겠습니까? 결제 완료된 회차는 취소할 수 없습니다.' }) as string,
       tone: 'danger',
       onConfirm: () => { setConfirm(null); doCancelInst(installmentId); },
     });
@@ -165,8 +162,8 @@ export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, 
   const handleCancelInvoice = () => {
     setConfirm({
       open: true,
-      title: '청구서 취소',
-      message: '이 청구서를 취소 상태로 변경하시겠습니까?',
+      title: t('detail.confirm.cancelInvoiceTitle', { defaultValue: '청구서 취소' }) as string,
+      message: t('detail.confirm.cancelInvoiceMsg', { defaultValue: '이 청구서를 취소 상태로 변경하시겠습니까?' }) as string,
       tone: 'danger',
       onConfirm: () => { setConfirm(null); doCancelInvoice(); },
     });
@@ -210,7 +207,7 @@ export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, 
       open={!!invoice}
       onClose={onClose}
       width={480}
-      ariaLabel={`청구서 ${invoice.invoice_number}`}
+      ariaLabel={t('detail.confirm.aria', { number: invoice.invoice_number, defaultValue: '청구서 {{number}}' }) as string}
     >
       {/* ─── 헤더 ─── */}
       <DrawerHeader>
@@ -280,7 +277,7 @@ export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, 
           <SourceCard>
             <SourceLeft>
               <SourceKindBadge $kind={sourcePost.category || ''}>
-                {KIND_LABEL[sourcePost.category || ''] || sourcePost.category || '문서'}
+                {sourcePost.category ? t(`kind.${sourcePost.category}`, { defaultValue: sourcePost.category }) : t('kind.document', { defaultValue: '문서' })}
               </SourceKindBadge>
               <SourceText>
                 <SourceTitle>{sourcePost.title}</SourceTitle>

@@ -97,7 +97,7 @@ export default function TaxInvoicesTab() {
                   <Num>{r.invoice.invoice_number}</Num>
                 </Cell>
                 <Cell style={{ width: 90 }}>
-                  {r.installment ? `${r.installment.installment_no}차` : '—'}
+                  {r.installment ? (t('taxInvoices.misc.roundSuffix', { n: r.installment.installment_no, defaultValue: '{{n}}차' }) as string) : '—'}
                 </Cell>
                 <Cell>
                   <ClientName>{client?.biz_name || client?.display_name || client?.company_name || '—'}</ClientName>
@@ -169,7 +169,7 @@ function IssueModal({ row, onClose, onIssued }: { row: TaxRow; onClose: () => vo
   const submit = async () => {
     if (!no.trim() || busy) return;
     if (!row.installment) {
-      setErr('단일 청구서의 세금계산서 마킹은 청구서 상세에서 진행해주세요.');
+      setErr(t('taxInvoices.misc.markFromDetail', { defaultValue: '단일 청구서의 세금계산서 마킹은 청구서 상세에서 진행해주세요.' }) as string);
       return;
     }
     setBusy(true);
@@ -181,7 +181,7 @@ function IssueModal({ row, onClose, onIssued }: { row: TaxRow; onClose: () => vo
       );
       onIssued();
     } catch (e) {
-      setErr((e as Error).message || '발행 실패');
+      setErr((e as Error).message || (t('taxInvoices.misc.issueFailed', { defaultValue: '발행 실패' }) as string));
     } finally {
       setBusy(false);
     }
@@ -207,7 +207,7 @@ function IssueModal({ row, onClose, onIssued }: { row: TaxRow; onClose: () => vo
             <SingleDateField value={date} onChange={setDate} size="md" />
           </ModalField>
           <Hint>
-            {row.invoice.invoice_number}{row.installment ? ` · ${row.installment.installment_no}차 · ${row.installment.label}` : ''} · {formatMoney(row.amount, row.invoice.currency)}
+            {row.invoice.invoice_number}{row.installment ? ` · ${t('taxInvoices.misc.roundSuffix', { n: row.installment.installment_no, defaultValue: '{{n}}차' })} · ${row.installment.label}` : ''} · {formatMoney(row.amount, row.invoice.currency)}
           </Hint>
           {err && <ErrLine>! {err}</ErrLine>}
         </ModalBody>

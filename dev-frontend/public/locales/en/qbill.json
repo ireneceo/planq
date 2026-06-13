@@ -248,6 +248,13 @@
       "failed": "Failed to send. Please try again later",
       "lastSent": "Last sent · {{days}}d ago",
       "hint": "Send a payment reminder email to the customer"
+    },
+    "confirm": {
+      "cancelInstallmentTitle": "Cancel installment",
+      "cancelInstallmentMsg": "Cancel this installment? Paid installments cannot be canceled.",
+      "cancelInvoiceTitle": "Cancel invoice",
+      "cancelInvoiceMsg": "Set this invoice to canceled status?",
+      "aria": "Invoice {{number}}"
     }
   },
   "newInvoice": {
@@ -401,6 +408,26 @@
       "businessIncomplete": "Sender business info is incomplete",
       "extNameRequired": "Enter recipient/company name",
       "extEmailRequired": "Enter a valid recipient email"
+    },
+    "preset": {
+      "deposit": "Deposit",
+      "depositMs": "Contract signed",
+      "interim": "Interim",
+      "interimMs": "Mid review",
+      "balance": "Balance",
+      "balanceMs": "Final review"
+    },
+    "misc": {
+      "roundSuffix": "#{{n}}",
+      "noTitle": "(Untitled)",
+      "issueFailed": "Failed to issue",
+      "selectWorkspaceFirst": "Select a workspace first",
+      "sourceNone": "— Select (leave empty if none) —",
+      "chatRoom": "Chat",
+      "noEmail": "No email",
+      "deliverChat": "Chat: {{name}}",
+      "deliverEmail": "Email: {{email}}",
+      "deliverPublicOnly": "Public link only (manual delivery)"
     }
   },
   "payments": {
@@ -484,6 +511,11 @@
       "pending": "No tax invoices pending",
       "issued": "No tax invoices issued",
       "all": "No tax invoices yet"
+    },
+    "misc": {
+      "roundSuffix": "#{{n}}",
+      "markFromDetail": "Mark a single invoice as tax-invoiced from its detail view.",
+      "issueFailed": "Failed to issue"
     }
   },
   "settings": {
@@ -549,6 +581,9 @@
       "desc": "How overdue invoices are escalated and when projects auto-pause.",
       "graceDays": "Days until auto-pause",
       "graceDaysHint": "Flow: 1st-day notice → halfway (or 7-day) reminder → on grace day, project auto-pauses. Marking the invoice paid resumes it instantly."
+    },
+    "misc": {
+      "bankPlaceholder": "e.g. Woori Bank"
     }
   },
   "common": {
@@ -604,5 +639,18 @@
     "statusCanceled": "Canceled",
     "statusNotified": "Notification received",
     "statusPending": "Pending"
+  },
+  "kind": {
+    "contract": "Contract",
+    "quote": "Quote",
+    "sow": "SOW",
+    "proposal": "Proposal",
+    "invoice": "Invoice",
+    "tax_invoice": "Tax Invoice",
+    "nda": "NDA",
+    "meeting_note": "Meeting Note",
+    "sop": "SOP",
+    "custom": "Document",
+    "document": "Document"
   }
 }
