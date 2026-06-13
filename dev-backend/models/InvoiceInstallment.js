@@ -52,6 +52,14 @@ InvoiceInstallment.init({
     references: { model: 'users', key: 'id' },
   },
 
+  // 현금영수증 (회차별 — 분할 결제는 회차마다 입금 시점 발급이 실무·법적 기준)
+  cash_receipt_no: { type: DataTypes.STRING(50), allowNull: true },
+  cash_receipt_at: { type: DataTypes.DATE, allowNull: true },
+  cash_receipt_marked_by: {
+    type: DataTypes.INTEGER, allowNull: true,
+    references: { model: 'users', key: 'id' },
+  },
+
   // (옵션) 마일스톤 ref — Phase D 통합에서 SOW 검수 통과 시 자동 활성
   milestone_ref: { type: DataTypes.STRING(100), allowNull: true },
 

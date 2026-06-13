@@ -1205,6 +1205,54 @@ router.post('/:businessId/:id/installments/:installId/mark-tax-invoice', authent
   } catch (error) { next(error); }
 });
 
+// 회차별 현금영수증 발행 마킹 — 분할 결제는 회차마다 입금 시점 발급(현금영수증 거래 건별 원칙).
+router.post('/:businessId/:id/installments/:installId/mark-cash-receipt', authenticateToken, checkBusinessAccess, requireMenu('qbill','write'), async (req, res, next) => {
+  if (!assertInvoiceMutationOwner(req, res)) return;
+  try {
+    const invoice = await Invoice.findOne({ where: { id: req.params.id, business_id: req.params.businessId } });
+    if (!invoice) return errorResponse(res, 'Invoice not found', 404);
+    const inst = await InvoiceInstallment.findOne({ where: { id: req.params.installId, invoice_id: invoice.id } });
+    if (!inst) return errorResponse(res, 'Installment not found', 404);
+    const no = req.body?.cash_receipt_no ? String(req.body.cash_receipt_no).slice(0, 50) : null;
+    const at = req.body?.cash_receipt_at ? new Date(req.body.cash_receipt_at) : new Date();
+    if (!no) return errorResponse(res, 'cash_receipt_no required', 400);
+    await inst.update({ cash_receipt_no: no, cash_receipt_at: at, cash_receipt_marked_by: req.user.id });
+    require('../services/auditService').logAudit(req, {
+      action: 'invoice.installment.mark_cash_receipt',
+      targetType: 'invoice_installment',
+      targetId: inst.id,
+      newValue: { invoice_id: invoice.id, invoice_number: invoice.invoice_number, installment_no: inst.installment_no, cash_receipt_no: no, cash_receipt_at: at },
+    });
+    const io = req.app.get('io');
+    if (io) io.to(`business:${invoice.business_id}`).emit('inbox:refresh', { reason: 'cash_receipt_issued', invoice_id: invoice.id });
+
+    // 멤버 알림 — 현금영수증 발행 마킹
+    try {
+      const { Op } = require('sequelize');
+      const { BusinessMember, Business } = require('../models');
+      const { notifyMany } = require('./notifications');
+      const biz = await Business.findByPk(invoice.business_id, { attributes: ['name', 'brand_name'] });
+      const members = await BusinessMember.findAll({
+        where: { business_id: invoice.business_id, removed_at: null, role: { [Op.in]: ['owner', 'admin', 'member'] } },
+        attributes: ['user_id'],
+      });
+      notifyMany({
+        userIds: members.map((m) => m.user_id),
+        businessId: invoice.business_id, eventKind: 'tax_invoice',
+        title: '현금영수증 발행 완료',
+        body: `${invoice.invoice_number} ${inst.label || ''} 회차 승인번호 ${no}`,
+        link: `${process.env.APP_URL || 'https://dev.planq.kr'}/bills?invoice=${invoice.id}`,
+        ctaLabel: '청구서 보기',
+        workspaceName: biz?.brand_name || biz?.name || null,
+        excludeUserId: req.user.id,
+      }).catch((e) => console.warn('[notify cash_receipt]', e.message));
+    } catch (e) { console.warn('[cash_receipt notify outer]', e.message); }
+
+    await notifyCustomerReceiptIssued(req, invoice, 'cash', no, at);
+    successResponse(res, inst, 'Cash receipt marked');
+  } catch (error) { next(error); }
+});
+
 // ─── 단건 청구서 증빙 발행 마킹 (분할 아님) — 세금계산서 / 현금영수증 ───
 // 외부 발행(홈택스/팝빌) 후 발행번호 수동 마킹. 재무 mutation → owner_only (assertInvoiceMutationOwner).
 async function notifyReceiptIssued(req, invoice, kindLabel, no) {

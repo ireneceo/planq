@@ -104,29 +104,38 @@ function buildReceiptRows(invoices) {
 
     const installments = inv.installments || [];
 
-    if (kind === 'tax' && installments.length > 0) {
-      // 세금계산서 — 회차별 (paid 회차만 발행 대상)
+    if (installments.length > 0) {
+      // 분할 — 회차별 (paid 회차만 발행 대상). 세금계산서/현금영수증 모두 회차 단위.
       for (const ins of installments) {
         if (ins.status !== 'paid') continue;
-        const dueAt = taxInvoiceDueDate(ins.paid_at);
-        const issued = !!ins.tax_invoice_no;
-        rows.push({
-          ...base,
-          installment_id: ins.id,
-          installment_no: ins.installment_no,
-          installment_label: ins.label || null,
-          amount: Number(ins.amount || 0),
-          paid_at: iso(ins.paid_at),
-          status: issued ? 'issued' : 'pending',
-          issued_no: ins.tax_invoice_no || null,
-          issued_at: iso(ins.tax_invoice_at),
-          due_at: dueAt ? dueAt.toISOString() : null,
-          due_kind: 'legal',
-          urgency: issued ? 'done' : urgencyOf(dueAt),
-        });
+        if (kind === 'tax') {
+          const dueAt = taxInvoiceDueDate(ins.paid_at);
+          const issued = !!ins.tax_invoice_no;
+          rows.push({
+            ...base,
+            installment_id: ins.id, installment_no: ins.installment_no, installment_label: ins.label || null,
+            amount: Number(ins.amount || 0), paid_at: iso(ins.paid_at),
+            status: issued ? 'issued' : 'pending',
+            issued_no: ins.tax_invoice_no || null, issued_at: iso(ins.tax_invoice_at),
+            due_at: dueAt ? dueAt.toISOString() : null, due_kind: 'legal',
+            urgency: issued ? 'done' : urgencyOf(dueAt),
+          });
+        } else {
+          const dueAt = cashReceiptDueDate(ins.paid_at);
+          const issued = !!ins.cash_receipt_no;
+          rows.push({
+            ...base,
+            installment_id: ins.id, installment_no: ins.installment_no, installment_label: ins.label || null,
+            amount: Number(ins.amount || 0), paid_at: iso(ins.paid_at),
+            status: issued ? 'issued' : 'pending',
+            issued_no: ins.cash_receipt_no || null, issued_at: iso(ins.cash_receipt_at),
+            due_at: dueAt ? dueAt.toISOString() : null, due_kind: 'recommended',
+            urgency: issued ? 'done' : urgencyOf(dueAt),
+          });
+        }
       }
     } else {
-      // invoice-level — 단건 세금계산서 또는 현금영수증(분할 포함). 완납(paid) 후에만 발행대상.
+      // invoice-level — 단건(분할 아님) 세금계산서/현금영수증. 완납(paid) 후에만 발행대상.
       if (inv.status !== 'paid') continue;
       const amount = Number(inv.grand_total || inv.total_amount || 0);
       if (kind === 'tax') {

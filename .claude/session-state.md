@@ -1,6 +1,20 @@
 # PlanQ 세션 상태
 
-**마지막 업데이트:** 2026-06-13 15:48 — **증빙 루프 완성 운영 라이브 (deploy `20260613_154506`, 131초, commit `cc6a4bf` · prod-backend v1.35.0).** 작업 상태: 완료·배포됨. 운영 헬스 200·프론트 200·PM2 prod online·receipts-due 익명 401. 다음: 회차별 현금영수증 또는 운영 백로그.
+**마지막 업데이트:** 2026-06-13 15:55 — **회차별 현금영수증 (dev 검증 완료, 운영 미배포 — `/배포` 대기).** 작업 상태: 완료.
+
+## 🔖 직전 작업 — 회차별 현금영수증
+분할 결제에서 회차마다 입금 시점 현금영수증 발급(거래 건별 원칙). 세금계산서 회차 패턴 미러링.
+- **DB:** `invoice_installments` + `cash_receipt_no`/`cash_receipt_at`/`cash_receipt_marked_by` (sync-database 자동 반영 확인 — ENUM 아님, 운영도 deploy sync_database 가 자동 추가).
+- **백엔드:** `POST /:biz/:id/installments/:instId/mark-cash-receipt` (owner_only+audit `invoice.installment.mark_cash_receipt`+broadcast+멤버/고객통지). `receiptsDue.buildReceiptRows` — 분할이면 세금계산서/현금영수증 **모두 회차별** 산출(기존 cash invoice-level only → 회차 분기 추가). 단건은 invoice-level 유지.
+- **프론트:** `markInstallmentCashReceipt` + `ApiInstallment` cash 필드. `TaxInvoicesTab` IssueModal **4-way** 라우팅(cash+installment→회차 / cash 단건 / tax+installment / tax 단건).
+- **검증:** 헬스 29/29 · 빌드 EXIT0 · E2E 10/10(분할 cash 회차별 산출·회차1 발행·status 전이·고객메일·owner_only 403) · DB 컬럼 반영 · i18n 신규 하드코딩 0.
+- **미배포 커밋:** 이번 회차별 현금영수증 → 다음 `/배포`(sync_database 가 3컬럼 자동 추가).
+
+다음 후보: 운영 백로그(Qdocs·Qinfo 공유, 단계 되돌리기, 문서 PDF 다운로드) 또는 증빙 잔여(수정세금계산서 흐름).
+
+---
+
+**이전:** 2026-06-13 15:48 — **증빙 루프 완성 운영 라이브 (deploy `20260613_154506`, 131초, commit `cc6a4bf` · prod-backend v1.35.0).**
 
 ## 🔖 직전 작업 — 증빙 루프 완성 (발행완료 고객 통지 + 취소 후 증빙 정리)
 방금 라이브한 증빙 큐(v1.35.0)의 끝단 마무리. 백엔드 2파일만(emailService.js + invoices.js), DB·프론트 변경 0.
