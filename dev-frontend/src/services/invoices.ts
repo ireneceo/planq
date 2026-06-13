@@ -321,6 +321,26 @@ export async function listReceiptsDue(businessId: number): Promise<ReceiptDueRow
   return expectOk<ReceiptDueRow[]>(r);
 }
 
+export interface ApiReceiptCorrection {
+  id: number;
+  invoice_id: number;
+  installment_id: number | null;
+  kind: 'tax' | 'cash';
+  reason: CorrectionReason;
+  original_no: string | null;
+  corrected_no: string;
+  written_at: string | null;
+  amount_delta: string | number | null;
+  currency: Currency;
+  customer_note: string | null;
+  created_at: string;
+}
+
+export async function listInvoiceCorrections(businessId: number, invoiceId: number): Promise<ApiReceiptCorrection[]> {
+  const r = await apiFetch(`/api/invoices/${businessId}/${invoiceId}/corrections`);
+  return expectOk<ApiReceiptCorrection[]>(r);
+}
+
 // 증빙 수정·취소 마킹 (수정세금계산서 발행 / 현금영수증 취소)
 export async function markReceiptCorrection(
   businessId: number, invoiceId: number, installmentId: number | null, payload: CorrectionPayload,

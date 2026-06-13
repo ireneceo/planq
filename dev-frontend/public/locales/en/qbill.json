@@ -232,6 +232,7 @@
       "issuedNo": "Issued · {{no}}",
       "markTaxBtn": "Enter tax invoice number",
       "markCashBtn": "Enter cash receipt number",
+      "correctionHistory": "Correction history",
       "cashPromptTitle": "Enter Cash Receipt Number"
     },
     "bank": {
