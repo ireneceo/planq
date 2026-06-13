@@ -307,6 +307,26 @@ export async function listReceiptsDue(businessId: number): Promise<ReceiptDueRow
   return expectOk<ReceiptDueRow[]>(r);
 }
 
+// 청구서 PDF 다운로드 (멤버) — 인증 blob fetch. authenticateToken 은 Authorization 헤더만 받아
+//   window.open 으로는 401 (헤더 미전달). 그래서 blob 방식 필수.
+export async function downloadInvoicePdf(businessId: number, invoiceId: number, filename: string): Promise<void> {
+  const r = await apiFetch(`/api/invoices/${businessId}/${invoiceId}/pdf`);
+  if (!r.ok) {
+    let msg = `HTTP ${r.status}`;
+    try { const j = await r.json(); msg = j.message || msg; } catch { /* binary */ }
+    throw new Error(msg);
+  }
+  const blob = await r.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${filename || 'invoice'}.pdf`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
 export async function cancelInstallment(
   businessId: number, invoiceId: number, installmentId: number
 ): Promise<{ canceled: true }> {

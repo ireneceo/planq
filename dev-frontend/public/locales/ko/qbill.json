@@ -128,6 +128,8 @@
         "goChat": "채팅방 가기",
         "goChatHint": "이 청구서가 공유된 채팅방으로",
         "downloadPdf": "PDF 다운로드",
+        "pdfBusy": "PDF 생성 중…",
+        "pdfError": "PDF 생성 실패",
         "edit": "수정",
         "duplicate": "복제",
         "cancel": "취소",

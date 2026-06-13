@@ -11,7 +11,7 @@ import {
   getInvoice, markInstallmentPaid, unmarkInstallmentPaid,
   markInstallmentTaxInvoice, cancelInstallment, updateInvoiceStatus,
   markInvoiceTaxInvoice, markInvoiceCashReceipt,
-  findConversationForClient, deleteInvoice, sendInvoiceReminder,
+  findConversationForClient, deleteInvoice, sendInvoiceReminder, downloadInvoicePdf,
   type ApiInvoice, type ApiInstallment,
 } from '../../services/invoices';
 
@@ -71,6 +71,20 @@ export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, 
   const [taxNoInput, setTaxNoInput] = useState('');
   const [remindBusy, setRemindBusy] = useState(false);
   const [remindNote, setRemindNote] = useState<{ tone: 'ok' | 'warn'; text: string } | null>(null);
+  const [pdfBusy, setPdfBusy] = useState(false);
+
+  const onDownloadPdf = async () => {
+    if (!invoice || pdfBusy) return;
+    setPdfBusy(true);
+    setRemindNote(null);
+    try {
+      await downloadInvoicePdf(invoice.business_id, invoice.id, invoice.invoice_number);
+    } catch (e) {
+      setRemindNote({ tone: 'warn', text: (e as Error).message || (t('detail.header.actions.pdfError', { defaultValue: 'PDF 생성 실패' }) as string) });
+    } finally {
+      setPdfBusy(false);
+    }
+  };
 
   // 외부에서 invoice prop 변경 시 동기화 + 최신 데이터 fetch
   useEffect(() => {
@@ -249,9 +263,9 @@ export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, 
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.72"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.72-1.72"/></svg>
             {copiedMemo ? t('detail.header.actions.linkCopied') : t('detail.header.actions.copyLink')}
           </ActionBtn>
-          <ActionBtn onClick={() => window.open(`/api/invoices/${invoice.business_id}/${invoice.id}/pdf`, '_blank')}>
+          <ActionBtn onClick={onDownloadPdf} disabled={pdfBusy}>
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><polyline points="9 15 12 12 15 15"/></svg>
-            {t('detail.header.actions.downloadPdf', 'PDF 다운로드')}
+            {pdfBusy ? t('detail.header.actions.pdfBusy', { defaultValue: 'PDF 생성 중…' }) : t('detail.header.actions.downloadPdf', 'PDF 다운로드')}
           </ActionBtn>
           {chatConvId && (
             <ActionBtn onClick={() => { onClose(); navigate(`/talk/${chatConvId}`); }} title={t('detail.header.actions.goChatHint', '이 청구서가 공유된 채팅방으로') as string}>
