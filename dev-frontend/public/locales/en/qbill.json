@@ -2,12 +2,12 @@
   "page": {
     "title": "Q bill",
     "titleClient": "My invoices",
-    "subtitle": "Invoicing, payments, and tax invoices in one place",
+    "subtitle": "Invoicing, payments, and receipts in one place",
     "tabs": {
       "overview": "Overview",
       "invoices": "Invoices",
       "payments": "Payments",
-      "taxInvoices": "Tax invoices",
+      "taxInvoices": "Receipts",
       "settings": "Settings"
     }
   },
@@ -488,26 +488,38 @@
     }
   },
   "taxInvoices": {
-    "title": "Tax invoices",
+    "title": "Receipts",
     "tabs": {
       "pending": "Pending",
       "issued": "Issued",
       "all": "All"
     },
     "info": {
-      "title": "Tax invoices are issued externally — only marked here",
-      "desc": "Issue at Hometax/Popbill, then enter the issuance number. Marking is logged."
+      "title": "Receipts are issued externally (Hometax/Popbill) — only marked here",
+      "desc": "Pending tax invoices and cash receipts for paid invoices. Items with approaching or passed deadlines are sorted to the top."
+    },
+    "overdueBanner": "{{count}} receipt(s) have passed their issuance deadline. Issue them first to avoid penalties.",
+    "kind": {
+      "tax": "Tax invoice",
+      "cash": "Cash receipt"
     },
     "col": {
+      "kind": "Type",
       "invoice": "Invoice",
       "round": "Round",
       "client": "Client",
-      "taxId": "Tax ID",
+      "recipient": "Recipient",
+      "taxId": "ID No.",
       "amount": "Amount",
       "paidAt": "Paid",
+      "dueAt": "Deadline",
       "issuedAt": "Issued",
       "issueNo": "Issue No.",
       "actions": "Actions"
+    },
+    "due": {
+      "overdue": "Overdue",
+      "dday": "D-{{n}}"
     },
     "actions": {
       "issue": "Mark issued",
@@ -516,20 +528,25 @@
     },
     "issueModal": {
       "title": "Mark tax invoice issued",
+      "titleCash": "Mark cash receipt issued",
       "desc": "Enter the issuance number from your external system",
+      "descCash": "Enter the cash receipt approval number from your external system",
       "no": "Issuance no.",
       "noPh": "e.g. 20260427-12345",
+      "noCash": "Approval no.",
+      "noCashPh": "e.g. 8-digit approval no.",
       "date": "Issue date",
       "submit": "Mark",
       "cancel": "Cancel"
     },
     "empty": {
-      "pending": "No tax invoices pending",
-      "issued": "No tax invoices issued",
-      "all": "No tax invoices yet"
+      "pending": "No receipts pending",
+      "issued": "No receipts issued",
+      "all": "No receipts yet"
     },
     "misc": {
       "roundSuffix": "#{{n}}",
+      "pending": "Pending",
       "markFromDetail": "Mark a single invoice as tax-invoiced from its detail view.",
       "issueFailed": "Failed to issue"
     }

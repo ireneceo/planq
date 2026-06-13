@@ -38,6 +38,19 @@ const reminderLimiter = rateLimit({
 });
 const REMINDER_COOLDOWN_MS = 6 * 60 * 60 * 1000; // 같은 청구서 6시간 쿨다운
 
+// 한국 사업자등록번호 체크섬 검증 — 형식(10자리)만으로는 오타를 못 잡아 owner 가 홈택스 헛걸음.
+// 가중치 [1,3,7,1,3,7,1,3,5] + 9번째 자리 보정. 발행 전 단계에서 오타 차단.
+function isValidKrBizNo(taxId) {
+  const d = String(taxId || '').replace(/[^0-9]/g, '');
+  if (d.length !== 10) return false;
+  const w = [1, 3, 7, 1, 3, 7, 1, 3, 5];
+  let sum = 0;
+  for (let i = 0; i < 9; i++) sum += Number(d[i]) * w[i];
+  sum += Math.floor((Number(d[8]) * 5) / 10);
+  const check = (10 - (sum % 10)) % 10;
+  return check === Number(d[9]);
+}
+
 // N+38 — 실시간 동기화 (CLAUDE.md 운영 안정성 16번 박제).
 function broadcastInvoice(req, invoice, event = 'invoice:updated') {
   const io = req.app.get('io');
@@ -363,7 +376,7 @@ router.post('/public/:token/receipt-request', async (req, res, next) => {
     let profile, receiptType, statusPatch;
     if (bizType === 'business') {
       const taxId = digits(b.biz_tax_id);
-      if (taxId.length !== 10) return errorResponse(res, 'invalid_biz_tax_id', 400); // 사업자등록번호 10자리
+      if (!isValidKrBizNo(taxId)) return errorResponse(res, 'invalid_biz_tax_id', 400); // 사업자등록번호 10자리 + 체크섬
       if (!s(b.biz_name, 200)) return errorResponse(res, 'biz_name_required', 400);
       const taxEmail = s(b.tax_email, 200);
       if (taxEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(taxEmail)) return errorResponse(res, 'invalid_tax_email', 400);
@@ -726,6 +739,19 @@ router.get('/:businessId/find-conversation', authenticateToken, checkBusinessAcc
       });
     }
     successResponse(res, { conversation: conv, suggest_create: !conv });
+  } catch (error) { next(error); }
+});
+
+// ─── 증빙(세금계산서·현금영수증) 발행 의무 큐 — 단일 진실 원천 ───
+//   대시보드 인박스(dashboard.js collectTaxInvoices)와 동일 헬퍼(services/receiptsDue)를 거쳐 숫자 일치.
+//   /:businessId/:id 보다 먼저 정의 (literal 우선, memory feedback_express_route_order).
+router.get('/:businessId/receipts-due', authenticateToken, attachWorkspaceScope(), async (req, res, next) => {
+  try {
+    const baseWhere = await invoiceListWhere(req.user.id, Number(req.params.businessId), req.scope);
+    if (!baseWhere) return errorResponse(res, 'forbidden', 403);
+    const { fetchReceiptRows } = require('../services/receiptsDue');
+    const rows = await fetchReceiptRows({ Invoice, Client, InvoiceInstallment }, baseWhere);
+    successResponse(res, rows);
   } catch (error) { next(error); }
 });
 
