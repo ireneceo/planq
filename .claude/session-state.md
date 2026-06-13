@@ -1,6 +1,19 @@
 # PlanQ 세션 상태
 
-**마지막 업데이트:** 2026-06-13 15:24 — **v1.35.0 증빙 발행 큐 통합 운영 라이브 (deploy `20260613_152008`, 134초, commit `3c40db0`).** 작업 상태: 완료·배포됨. 버전 1.34.0→1.35.0(package.json 커밋, 다음 deploy 시 prod 반영).
+**마지막 업데이트:** 2026-06-13 15:40 — **증빙 루프 완성 (dev 검증 완료, 운영 미배포 — `/배포` 대기).** 작업 상태: 완료.
+
+## 🔖 직전 작업 — 증빙 루프 완성 (발행완료 고객 통지 + 취소 후 증빙 정리)
+방금 라이브한 증빙 큐(v1.35.0)의 끝단 마무리. 백엔드 2파일만(emailService.js + invoices.js), DB·프론트 변경 0.
+- **① 발행완료 고객 메일** — `emailService.sendReceiptIssuedEmail`(emailWrap+발신전용 footer+공개링크 CTA, 세금/현금 분기, template='receipt_issued'). 3 mark 라우트(installment tax/invoice tax/cash)에서 발행 직후 고객 통지. 수신자 우선순위: `receipt_profile.tax_email` > Client `tax_invoice_email`/`billing_contact_email`/`invite_email` > `invoice.recipient_email`. 형식검증(EMAIL_RE)+명시적 수신자만(미인증 자동메일 금지). mail_from_name/reply_to 반영.
+- **② 취소 후 증빙 정리** — PATCH status→canceled 시 발행된 증빙(tax_invoice_status/cash_receipt_status=issued 또는 분할 tax_invoice_no) 있으면 owner/admin에 "세금계산서/현금영수증 취소·수정 필요" 알림 + AuditLog `invoice.receipt_correction_needed`. 자동발행/취소는 안 함(외부 수동). 미발행 취소는 noise 없음.
+- **검증:** 헬스 29/29 · E2E 9/9(고객메일 기록·수신자없음 skip·취소 audit+알림·미발행 noise차단). **함정:** `&&` 체인 안 `node -e`가 DB 연결로 안 끝나 pm2 restart 누락 → 구코드로 검증돼 처음 실패. 클린 재시작 후 통과(검증 시 재시작 확정 필요).
+- **미배포 커밋:** 이번 루프 완성 → 다음 `/배포`.
+
+다음 후보(memory `project_receipt_compliance_queue`): 회차별 현금영수증(DB 컬럼) · 운영 백로그(Qdocs·Qinfo 공유 등).
+
+---
+
+**이전:** 2026-06-13 15:24 — **v1.35.0 증빙 발행 큐 통합 운영 라이브 (deploy `20260613_152008`, 134초, commit `3c40db0`).** 버전 1.34.0→1.35.0.
 
 **배포 검증:** Changed files 9 · DB sync OK · PM2 prod-backend(1.34.0)+prod-qnote online · 운영 헬스 200(내부 3004+외부 HTTPS) · 프론트 200 · 신규 `/receipts-due` 익명 401 가드. dev: 헬스 29/29 · 빌드 EXIT0 · API E2E 17/17.
 

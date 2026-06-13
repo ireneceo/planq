@@ -1200,6 +1200,7 @@ router.post('/:businessId/:id/installments/:installId/mark-tax-invoice', authent
       }).catch((e) => console.warn('[notify tax_invoice]', e.message));
     } catch (e) { console.warn('[tax_invoice notify outer]', e.message); }
 
+    await notifyCustomerReceiptIssued(req, invoice, 'tax', no, at);
     successResponse(res, inst, 'Tax invoice marked');
   } catch (error) { next(error); }
 });
@@ -1229,6 +1230,76 @@ async function notifyReceiptIssued(req, invoice, kindLabel, no) {
   } catch (e) { console.warn('[receipt issued notify outer]', e.message); }
 }
 
+// 증빙 발행 완료 → 고객에게 메일 통지 (신뢰 루프 완성). kind: 'tax'|'cash'.
+//   수신자 우선순위: receipt_profile.tax_email > Client 세금/청구/초대 이메일 > invoice.recipient_email.
+//   형식 검증 통과 + 명시적 수신자만 발송 (미인증 자동메일 금지 — memory feedback_no_automail_unverified).
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+async function notifyCustomerReceiptIssued(req, invoice, kind, no, issuedAt) {
+  try {
+    const { Client, Business } = require('../models');
+    const client = invoice.client_id ? await Client.findByPk(invoice.client_id, {
+      attributes: ['tax_invoice_email', 'billing_contact_email', 'invite_email'],
+    }) : null;
+    const profile = invoice.receipt_profile || null;
+    const to = (profile && profile.tax_email)
+      || (client && (client.tax_invoice_email || client.billing_contact_email || client.invite_email))
+      || invoice.recipient_email || null;
+    if (!to || !EMAIL_RE.test(String(to))) return; // 명시적 수신자 + 형식 검증
+    const biz = await Business.findByPk(invoice.business_id, { attributes: ['name', 'brand_name', 'mail_from_name', 'mail_reply_to'] });
+    const APP_URL = process.env.APP_URL || 'https://dev.planq.kr';
+    const shareUrl = invoice.share_token ? `${APP_URL}/public/invoices/${invoice.share_token}` : null;
+    const { sendReceiptIssuedEmail } = require('../services/emailService');
+    await sendReceiptIssuedEmail({
+      to, kind,
+      invoiceNumber: invoice.invoice_number,
+      title: invoice.title || '',
+      receiptNo: no,
+      issuedAt: issuedAt || new Date(),
+      workspaceName: biz?.brand_name || biz?.name || null,
+      shareUrl,
+      fromName: biz?.mail_from_name || undefined,
+      replyTo: biz?.mail_reply_to || undefined,
+      businessId: invoice.business_id,
+      invoiceId: invoice.id,
+    });
+  } catch (e) { console.warn('[receipt issued customer mail]', e.message); }
+}
+
+// 청구서 취소 시, 이미 발행된 증빙이 있으면 owner/admin 에게 "수정세금계산서/현금영수증 취소 필요" 알림 + audit.
+//   자동 발행/취소는 하지 않음 — 외부(홈택스/팝빌) 수동 처리. 컴플라이언스 안전망(놓침 방지).
+async function notifyReceiptCorrectionNeeded(req, invoice) {
+  try {
+    const hadTax = invoice.tax_invoice_status === 'issued' || !!invoice.tax_invoice_external_id;
+    const hadCash = invoice.cash_receipt_status === 'issued' || !!invoice.cash_receipt_no;
+    const insts = await InvoiceInstallment.findAll({ where: { invoice_id: invoice.id }, attributes: ['tax_invoice_no'] });
+    const hadInstTax = insts.some((i) => !!i.tax_invoice_no);
+    if (!hadTax && !hadCash && !hadInstTax) return; // 발행된 증빙 없으면 안내 불필요
+
+    const kindLabel = (hadCash && !hadTax && !hadInstTax) ? '현금영수증' : '세금계산서';
+    require('../services/auditService').logAudit(req, {
+      action: 'invoice.receipt_correction_needed', targetType: 'invoice', targetId: invoice.id,
+      newValue: { invoice_number: invoice.invoice_number, had_tax: hadTax || hadInstTax, had_cash: hadCash },
+    });
+    const { Op } = require('sequelize');
+    const { BusinessMember, Business } = require('../models');
+    const { notifyMany } = require('./notifications');
+    const biz = await Business.findByPk(invoice.business_id, { attributes: ['name', 'brand_name'] });
+    const members = await BusinessMember.findAll({
+      where: { business_id: invoice.business_id, removed_at: null, role: { [Op.in]: ['owner', 'admin'] } },
+      attributes: ['user_id'],
+    });
+    await notifyMany({
+      userIds: members.map((m) => m.user_id),
+      businessId: invoice.business_id, eventKind: 'tax_invoice',
+      title: `${kindLabel} 취소·수정 필요`,
+      body: `${invoice.invoice_number} 청구서가 취소되었습니다. 이미 발행된 ${kindLabel}는 홈택스/팝빌에서 ${hadCash && !hadTax && !hadInstTax ? '취소' : '수정(수정세금계산서)'} 처리가 필요합니다.`,
+      link: `${process.env.APP_URL || 'https://dev.planq.kr'}/bills?invoice=${invoice.id}`,
+      ctaLabel: '청구서 보기',
+      workspaceName: biz?.brand_name || biz?.name || null,
+    }).catch((e) => console.warn('[receipt correction notify]', e.message));
+  } catch (e) { console.warn('[receipt correction outer]', e.message); }
+}
+
 router.post('/:businessId/:id/mark-tax-invoice', authenticateToken, checkBusinessAccess, requireMenu('qbill', 'write'), async (req, res, next) => {
   if (!assertInvoiceMutationOwner(req, res)) return;
   try {
@@ -1246,6 +1317,7 @@ router.post('/:businessId/:id/mark-tax-invoice', authenticateToken, checkBusines
     if (io) io.to(`business:${invoice.business_id}`).emit('inbox:refresh', { reason: 'tax_invoice_issued', invoice_id: invoice.id });
     if (invoice?.project_id) require('../services/projectStageEngine').onInvoiceChanged(invoice.id).catch(() => null);
     await notifyReceiptIssued(req, invoice, '세금계산서', no);
+    await notifyCustomerReceiptIssued(req, invoice, 'tax', no, at);
     successResponse(res, invoice, 'Tax invoice marked');
   } catch (error) { next(error); }
 });
@@ -1266,6 +1338,7 @@ router.post('/:businessId/:id/mark-cash-receipt', authenticateToken, checkBusine
     const io = req.app.get('io');
     if (io) io.to(`business:${invoice.business_id}`).emit('inbox:refresh', { reason: 'cash_receipt_issued', invoice_id: invoice.id });
     await notifyReceiptIssued(req, invoice, '현금영수증', no);
+    await notifyCustomerReceiptIssued(req, invoice, 'cash', no, at);
     successResponse(res, invoice, 'Cash receipt marked');
   } catch (error) { next(error); }
 });
@@ -1391,6 +1464,9 @@ router.patch('/:businessId/:id/status', authenticateToken, checkBusinessAccess, 
 
     if (status === 'paid') {
       require('../services/overdue_handler').unpauseProjectIfApplicable(invoice).catch(() => null);
+    }
+    if (status === 'canceled' && prevStatus !== 'canceled') {
+      await notifyReceiptCorrectionNeeded(req, invoice);
     }
 
     successResponse(res, invoice);
