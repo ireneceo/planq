@@ -1678,14 +1678,19 @@ router.get('/daily-progress', authenticateToken, async (req, res, next) => {
     // 일별 집계 — est_used = estimated × progress%, act_used = actual × progress%
     const byDate = new Map();
     for (const s of snaps) {
-      const d = s.snapshot_date;
+      // 운영 #35 — snapshot_date 가 Date 객체라 Map 키로 쓰면 참조 동일성 때문에 같은 날짜가
+      // 합쳐지지 않아 요일별 집계가 깨짐(매 행이 별도 버킷). 'YYYY-MM-DD' 문자열로 정규화해 정확히 누적.
+      const sd = s.snapshot_date;
+      const d = (sd instanceof Date) ? sd.toISOString().slice(0, 10) : String(sd).slice(0, 10);
       if (!byDate.has(d)) byDate.set(d, { date: d, est_used: 0, act_used: 0 });
       const bucket = byDate.get(d);
       const prog = (s.progress_percent || 0) / 100;
       const est = Number(s.estimated_hours) || 0;
       const act = Number(s.actual_hours) || 0;
       bucket.est_used += est * prog;
-      bucket.act_used += act * prog;
+      // 운영 #35 — actual_hours 미입력 스냅샷은 estimated × progress 로 추정 (프론트 liveActToday 와 동일).
+      // 이 fallback 이 없으면 과거 요일 act_used=0 → 주간 그래프가 "당일만 표시"되고 요일별 누적이 안 됨.
+      bucket.act_used += (act > 0 ? act : est) * prog;
     }
 
     return successResponse(res, { days: Array.from(byDate.values()) });

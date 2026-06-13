@@ -117,6 +117,7 @@ const KIND_FG: Record<Exclude<BannerKind, null>, string> = {
 
 const Wrap = styled.div<{ $kind: Exclude<BannerKind, null> }>`
   position: relative;
+  flex-shrink: 0;
   display: flex; align-items: center;
   background: ${p => KIND_BG[p.$kind]};
   border-bottom: 1px solid ${p => KIND_BORDER[p.$kind]};
