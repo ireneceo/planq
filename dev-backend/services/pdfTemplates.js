@@ -155,6 +155,8 @@ function invoicePdfHtml(inv, sender, client) {
       <div class="val" style="font-weight:700;font-size:13px;">${escapeHtml(clientName)}</div>
       ${client?.biz_tax_id ? `<div class="val" style="margin-top:2px;font-size:10px;color:#64748B;">${isForeign ? 'Business No.' : '사업자등록번호'}: ${escapeHtml(client.biz_tax_id)}</div>` : ''}
       ${client?.biz_ceo ? `<div class="val" style="font-size:10px;color:#64748B;">${isForeign ? 'Representative' : '대표자'}: ${escapeHtml(client.biz_ceo)}</div>` : ''}
+      ${(!isForeign && client?.biz_type) ? `<div class="val" style="font-size:10px;color:#64748B;">업태: ${escapeHtml(client.biz_type)}</div>` : ''}
+      ${(!isForeign && client?.biz_item) ? `<div class="val" style="font-size:10px;color:#64748B;">종목: ${escapeHtml(client.biz_item)}</div>` : ''}
       ${client?.biz_address ? `<div class="val" style="font-size:10px;color:#64748B;">${escapeHtml(isForeign && client.biz_address_en ? client.biz_address_en : client.biz_address)}</div>` : ''}
     </div>
   </div>
