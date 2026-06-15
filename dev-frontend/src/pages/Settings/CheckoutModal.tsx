@@ -50,7 +50,7 @@ export default function CheckoutModal({
   const [error, setError] = useState<string | null>(null);
   // 세금계산서 옵션 (한국 사업자) — 입력 시 mark-paid 와 함께 발행 신청
   const [taxOpen, setTaxOpen] = useState(false);
-  const [tax, setTax] = useState<TaxInvoiceInput>({ biz_no: '', biz_name: '', ceo_name: '', address: '', email: '' });
+  const [tax, setTax] = useState<TaxInvoiceInput>({ biz_no: '', biz_name: '', ceo_name: '', address: '', biz_type: '', biz_item: '', email: '', contact_name: '', contact_phone: '' });
   const taxValid = taxOpen ? !!(tax.biz_no.trim() && tax.biz_name.trim() && tax.ceo_name.trim() && tax.email.trim()) : true;
 
   // 모달 진입 시: pending payment 가 없으면 checkout 호출하여 신규 생성
@@ -92,7 +92,9 @@ export default function CheckoutModal({
     const taxPayload: TaxInvoiceInput | null = taxOpen ? {
       biz_no: tax.biz_no.trim(), biz_name: tax.biz_name.trim(),
       ceo_name: tax.ceo_name.trim(), address: tax.address?.trim() || '',
+      biz_type: tax.biz_type?.trim() || '', biz_item: tax.biz_item?.trim() || '',
       email: tax.email.trim(),
+      contact_name: tax.contact_name?.trim() || '', contact_phone: tax.contact_phone?.trim() || '',
     } : null;
     const ok = await notifyPaymentPaid(businessId, paymentId, payerName.trim() || undefined, undefined, taxPayload);
     setSubmitting(false);
@@ -205,13 +207,29 @@ export default function CheckoutModal({
                 <Input value={tax.ceo_name} onChange={e => setTax({ ...tax, ceo_name: e.target.value })} maxLength={80} />
               </Field>
               <Field>
-                <FieldLabel>{t('checkout.tax.address', '주소')}</FieldLabel>
+                <FieldLabel>{t('checkout.tax.address', '사업장 주소')}</FieldLabel>
                 <Input value={tax.address} onChange={e => setTax({ ...tax, address: e.target.value })} maxLength={500} />
+              </Field>
+              <Field>
+                <FieldLabel>{t('checkout.tax.bizType', '업태')}</FieldLabel>
+                <Input value={tax.biz_type} onChange={e => setTax({ ...tax, biz_type: e.target.value })} maxLength={100} placeholder={t('checkout.tax.bizTypePh', '예: 서비스업') as string} />
+              </Field>
+              <Field>
+                <FieldLabel>{t('checkout.tax.bizItem', '종목')}</FieldLabel>
+                <Input value={tax.biz_item} onChange={e => setTax({ ...tax, biz_item: e.target.value })} maxLength={100} placeholder={t('checkout.tax.bizItemPh', '예: 소프트웨어 개발') as string} />
               </Field>
               <Field>
                 <FieldLabel>{t('checkout.tax.email', '세금계산서 받을 이메일')} *</FieldLabel>
                 <Input type="email" value={tax.email} onChange={e => setTax({ ...tax, email: e.target.value })} maxLength={200} />
                 <FieldHint>{t('checkout.tax.emailHint', '세금계산서 PDF 가 발행 후 이 주소로 발송됩니다.')}</FieldHint>
+              </Field>
+              <Field>
+                <FieldLabel>{t('checkout.tax.contactName', '담당자명')}</FieldLabel>
+                <Input value={tax.contact_name} onChange={e => setTax({ ...tax, contact_name: e.target.value })} maxLength={80} />
+              </Field>
+              <Field>
+                <FieldLabel>{t('checkout.tax.contactPhone', '담당자 연락처')}</FieldLabel>
+                <Input type="tel" value={tax.contact_phone} onChange={e => setTax({ ...tax, contact_phone: e.target.value })} maxLength={40} placeholder="010-1234-5678" />
               </Field>
             </TaxFields>
           )}
