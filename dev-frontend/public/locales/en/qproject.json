@@ -156,10 +156,11 @@
     "files": "Files",
     "docs": "Docs",
     "transactions": "Transactions",
-    "info": "Details",
+    "info": "Info",
     "defaultProcess": "Table",
     "processEditHint": "Double-click to rename",
-    "renameHint": "Rename"
+    "renameHint": "Rename",
+    "details": "Details"
   },
   "tx": {
     "summary": {
