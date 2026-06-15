@@ -140,7 +140,13 @@
     "today": "오늘",
     "start": "시작",
     "end": "마감",
-    "sun": "일", "mon": "월", "tue": "화", "wed": "수", "thu": "목", "fri": "금", "sat": "토"
+    "sun": "일",
+    "mon": "월",
+    "tue": "화",
+    "wed": "수",
+    "thu": "목",
+    "fri": "금",
+    "sat": "토"
   },
   "tab": {
     "dashboard": "대시보드",
@@ -239,13 +245,17 @@
       "markPending": "대기로 변경",
       "markDone": "완료 처리",
       "skip": "건너뛰기",
-      "revert": "되돌리기"
+      "revert": "되돌리기",
+      "recurring": "반복",
+      "recurringTitle": "구독 주기마다 반복되는 단계",
+      "cycleSummary": "{{paid}}/{{total}}건 결제 완료"
     },
     "stageStatus": {
       "completed": "완료",
       "active": "진행 중",
       "pending": "대기",
-      "skipped": "건너뜀"
+      "skipped": "건너뜀",
+      "ongoing": "진행 중 (반복)"
     }
   },
   "section": {
@@ -450,8 +460,8 @@
       "moveDown": "아래로",
       "placeholder": "폴더 이름",
       "deleteTitle": "폴더를 삭제할까요?",
-      "deleteDesc": "폴더 안 파일은 \u201c직접 업로드 루트\u201d로 옮겨집니다",
-      "deleteWithFiles": "이 폴더 안 {{n}}개 파일은 \u201c직접 업로드 루트\u201d로 옮겨집니다",
+      "deleteDesc": "폴더 안 파일은 “직접 업로드 루트”로 옮겨집니다",
+      "deleteWithFiles": "이 폴더 안 {{n}}개 파일은 “직접 업로드 루트”로 옮겨집니다",
       "deleteEmpty": "이 폴더는 비어있습니다"
     }
   }
