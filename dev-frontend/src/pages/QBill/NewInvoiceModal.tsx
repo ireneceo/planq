@@ -136,14 +136,14 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
   const sumPercent = rounds.reduce((s, r) => s + r.rate, 0);
   const sumOk = sumPercent === 100;
 
-  // 세금계산서: 통화 KRW + 사업자번호 있으면 활성. 외화(USD/EUR/JPY/CNY)는 한국 세금계산서 발행 불가.
-  //  - 기존 고객(client): is_business + biz_tax_id (또는 override) 충족 시
-  //  - 외부 직접 입력(external): 사업자번호(extBizNumber) 입력 시 (외부 사업자도 발행 대상 — 운영 피드백)
-  const canTax = currency === 'KRW' && (
-    recipientMode === 'external'
-      ? !!extBizNumber.trim()
-      : ((client?.is_business ?? false) && (!!client?.biz_tax_id || !!overrideBiz.biz_tax_id))
-  );
+  // 세금계산서: 통화 KRW 면 항상 발행 가능. 외화(USD/EUR/JPY/CNY)는 한국 세금계산서 발행 불가.
+  //  - 사업자정보(상호·사업자번호)가 지금 없어도 OK → 결제 완료 후 고객이 공개 결제페이지에서 직접 제출.
+  //    (receiptsDue 큐 + 공개 페이지가 고객 입력 흐름을 이미 지원 — 운영 피드백 2026-06-15)
+  const canTax = currency === 'KRW';
+  // 발행 시점에 사업자정보가 이미 채워져 있는지 — 설명 문구 분기용 (없으면 "고객이 입력" 안내).
+  const taxHasBizInfo = recipientMode === 'external'
+    ? !!extBizNumber.trim()
+    : ((client?.is_business ?? false) && (!!client?.biz_tax_id || !!overrideBiz.biz_tax_id));
 
   // ─── 출처 선택 시 자동 흡수 (제목만) ───
   useEffect(() => {
@@ -793,11 +793,13 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
                 <ToggleText>
                   <ToggleTitle>{t('newInvoice.tax.toggle')}</ToggleTitle>
                   <ToggleDesc>
-                    {recipientMode === 'external'
-                      ? (canTax ? (taxOn ? t('newInvoice.tax.toggleDescOn') : '') : t('newInvoice.tax.toggleDescOff'))
-                      : !client?.is_business ? t('newInvoice.tax.individual') :
-                        canTax ? (taxOn ? t('newInvoice.tax.toggleDescOn') : '') :
-                        t('newInvoice.tax.toggleDescOff')}
+                    {currency !== 'KRW'
+                      ? t('newInvoice.tax.foreignBlocked', { defaultValue: '외화 청구서는 세금계산서 발행 대상이 아닙니다' }) as string
+                      : taxOn
+                        ? (taxHasBizInfo
+                            ? t('newInvoice.tax.toggleDescOn') as string
+                            : t('newInvoice.tax.toggleDescNeedClient', { defaultValue: '사업자정보(상호·사업자번호)는 결제 후 고객이 공개 결제페이지에서 입력합니다' }) as string)
+                        : t('newInvoice.tax.toggleDescHint', { defaultValue: '켜면 결제 완료 후 세금계산서 발행 대기 큐에 자동 추가됩니다' }) as string}
                   </ToggleDesc>
                 </ToggleText>
               </ToggleLeft>
