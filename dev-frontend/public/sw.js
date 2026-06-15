@@ -105,7 +105,14 @@ self.addEventListener('push', (event) => {
     requireInteraction: false,
   };
   event.waitUntil((async () => {
-    await self.registration.showNotification(title, options);
+    // 배너 2번 방지: 앱이 포커스(보고 있는) 상태면 in-app 토스터(socket)가 알림을 담당하므로
+    //   OS 배너는 skip. 백그라운드·앱 닫힘이면 OS 배너 표시 (push 의 핵심 — 안 보고 있을 때 알려줌).
+    //   모바일은 대개 background → OS push 정상 표시.
+    const _focusedClients = await self.clients.matchAll({ type: 'window', includeUncontrolled: false });
+    const _appFocused = _focusedClients.some((c) => c.focused || c.visibilityState === 'visible');
+    if (!_appFocused) {
+      await self.registration.showNotification(title, options);
+    }
     // App Badging API — 데스크탑 PWA 아이콘 / 모바일 홈스크린 숫자.
     // 진단 정보를 client 로 post 해 디바이스에서 콘솔로 확인 가능 (사이클 N+12 박제).
     const badgeDiag = {
@@ -147,6 +154,18 @@ self.addEventListener('push', (event) => {
         c.postMessage({ type: 'planq:push-received', payload, badgeDiag });
       }
     } catch { /* silent */ }
+  })());
+});
+
+// 구독 만료/교체 자동 감지 — 브라우저가 push 구독을 무효화/갱신할 때 발화.
+//   SW 는 인증 토큰이 없어 서버 등록 불가 → 살아있는 client(앱 탭)에 재구독 요청 postMessage.
+//   client 가 없으면 다음 앱 로드 시 push.ts 의 24h 자동 재구독이 처리 (이중 안전망).
+self.addEventListener('pushsubscriptionchange', (event) => {
+  event.waitUntil((async () => {
+    try {
+      const cs = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+      for (const c of cs) c.postMessage({ type: 'planq:resubscribe-needed' });
+    } catch (e) { /* silent */ }
   })());
 });
 

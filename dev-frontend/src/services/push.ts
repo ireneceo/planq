@@ -20,6 +20,21 @@ export async function isPushSupported(): Promise<boolean> {
   return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
 }
 
+// 구독 자동 신선도 유지 — web push 의 구조적 staleness 대응.
+//   browser 의 endpoint 가 backend 와 일치해도(겉으론 정상) push service 가 silent drop 하는 stale 구독이 누적된다.
+//   사용자에게 "껐다 켜기" 를 시키는 대신, 앱 사용 중 일정 주기(24h)마다 자동으로 구독을 재생성해 stale 을 청소.
+//   박제: feedback_push_auto_resubscribe.md (운영 알림 미수신 미팅 누락 사고)
+const RESUB_KEY = 'planq:push:lastResub';
+const RESUB_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24시간
+
+function shouldForceResub(): boolean {
+  try { return Date.now() - Number(localStorage.getItem(RESUB_KEY) || '0') > RESUB_INTERVAL_MS; }
+  catch { return false; }
+}
+function markResubNow(): void {
+  try { localStorage.setItem(RESUB_KEY, String(Date.now())); } catch { /* ignore */ }
+}
+
 export async function getPushStatus(): Promise<'granted' | 'denied' | 'default' | 'unsupported'> {
   if (!await isPushSupported()) return 'unsupported';
   return Notification.permission;
@@ -95,6 +110,7 @@ export async function subscribe(): Promise<{ ok: boolean; reason?: string }> {
     const j = await post.json();
     return { ok: false, reason: j.message || 'register_failed' };
   }
+  markResubNow();
   return { ok: true };
 }
 
@@ -170,8 +186,9 @@ export async function autoSubscribeIfPossible(): Promise<{ ok: boolean; reason?:
     // 박제: N+12 dev PushLog total=17, sent=0, skipped=12("no_subs") 회귀.
     if (await isSubscribed()) {
       const check = await backendHasMatchingSub();
-      if (check.matched) return { ok: true, reason: 'already_subscribed' };
-      // desync — browser sub 해제 후 subscribe() 가 깨끗하게 재등록
+      // matched 여도 24h 경과(shouldForceResub) 면 stale 청소 위해 강제 재구독.
+      if (check.matched && !shouldForceResub()) return { ok: true, reason: 'already_subscribed' };
+      // desync(미스매치) 또는 신선도 만료 — browser sub 해제 후 subscribe() 가 깨끗하게 재등록
       try {
         const reg = await navigator.serviceWorker.getRegistration();
         const s = reg ? await reg.pushManager.getSubscription() : null;
@@ -211,9 +228,9 @@ export async function syncPermissionOnFocus(): Promise<void> {
     return;
   }
   if (perm === 'granted') {
-    // browser 에 sub 가 있는데 backend 에 없을 경우 자동 복구. 사용자 액션 불필요.
+    // browser 에 sub 가 있는데 backend 에 없거나(desync), 신선도 만료(24h) 면 자동 재구독. 사용자 액션 불필요.
     const check = await backendHasMatchingSub().catch(() => ({ matched: true, browserEndpoint: null }));
-    if (!check.matched) {
+    if (!check.matched || shouldForceResub()) {
       try {
         const reg = await navigator.serviceWorker.getRegistration();
         const s = reg ? await reg.pushManager.getSubscription() : null;
@@ -234,6 +251,12 @@ export function bindPermissionSync(): void {
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') handler();
   });
+  // SW 가 구독 만료/교체 감지 시(pushsubscriptionchange) 재구독 요청 — 토큰 보유한 client 가 처리.
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.addEventListener('message', (e: MessageEvent) => {
+      if (e.data && e.data.type === 'planq:resubscribe-needed') void subscribe();
+    });
+  }
   // 첫 1회 — 앱 진입 시점
   setTimeout(handler, 2000);
 }
