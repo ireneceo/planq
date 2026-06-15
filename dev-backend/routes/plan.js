@@ -382,7 +382,11 @@ router.post('/:businessId/payments/:paymentId/notify-paid', authenticateToken, c
         biz_name: String(taxInvoice.biz_name || '').slice(0, 200),
         ceo_name: String(taxInvoice.ceo_name || '').slice(0, 80),
         address: String(taxInvoice.address || '').slice(0, 500),
+        biz_type: String(taxInvoice.biz_type || '').slice(0, 100),  // 업태
+        biz_item: String(taxInvoice.biz_item || '').slice(0, 100),  // 종목
         email: String(taxInvoice.email || '').slice(0, 200),
+        contact_name: String(taxInvoice.contact_name || '').slice(0, 80),   // 담당자명
+        contact_phone: String(taxInvoice.contact_phone || '').slice(0, 40), // 담당자 연락처
       },
       tax_invoice_status: 'requested',
     } : {};

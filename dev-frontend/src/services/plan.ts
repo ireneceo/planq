@@ -200,11 +200,15 @@ export async function checkout(
 // 입금 통보 (owner) — 자체 결제 트랙. owner 는 통보만, 실제 활성화는 platform_admin.
 // 사업자 정보 입력 시 세금계산서 발행 정보를 함께 stash (관리자 확인 시 발행).
 export interface TaxInvoiceInput {
-  biz_no: string;       // 사업자등록번호 (예: 123-45-67890)
-  biz_name: string;     // 상호
-  ceo_name: string;     // 대표자
-  address?: string;     // 주소
-  email: string;        // 세금계산서 수신 이메일
+  biz_no: string;        // 사업자등록번호 (예: 123-45-67890)
+  biz_name: string;      // 회사명(법인명)/상호
+  ceo_name: string;      // 대표자
+  address?: string;      // 사업장 주소
+  biz_type?: string;     // 업태
+  biz_item?: string;     // 종목
+  email: string;         // 세금계산서 수신 이메일
+  contact_name?: string;  // 담당자명
+  contact_phone?: string; // 담당자 연락처
 }
 export async function notifyPaymentPaid(
   businessId: number,
