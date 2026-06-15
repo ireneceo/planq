@@ -84,8 +84,9 @@ self.addEventListener('push', (event) => {
   if (!event.data) return;
   // push 도착 시 새 SW 자가 점검 — 옛 SW 가 활성인데 새 빌드가 떠 있으면 install + activate.
   // PWA wake-up 자체가 SW lifecycle 진행 트리거 (모바일에서 자동 update 안 도는 회귀 차단).
-  // 박제: 사이클 N+12 — 알림 클릭 시 옛 main bundle 메모리로 옛 chunk hash 404 회귀.
-  event.waitUntil(self.registration.update().catch(() => null));
+  // ★ 2026-06-15 회귀 fix: self.registration.update() 를 showNotification 완료 후로 이동.
+  //   먼저 호출하면 새 sw.js 가 있을 때 skipWaiting 으로 현재 SW 가 즉시 terminate 되어
+  //   showNotification 이 안 끝나고 알림이 안 뜸 (201 인데 배너 안 옴의 근본 원인).
   let payload;
   try { payload = event.data.json(); } catch { payload = { title: 'PlanQ', body: event.data.text() }; }
   const title = payload.title || 'PlanQ';
@@ -149,6 +150,8 @@ self.addEventListener('push', (event) => {
         c.postMessage({ type: 'planq:push-received', payload, badgeDiag });
       }
     } catch { /* silent */ }
+    // 알림을 띄운 뒤에야 SW 자가 갱신 (먼저 하면 현재 SW terminate 로 알림이 안 뜸)
+    self.registration.update().catch(() => null);
   })());
 });
 
@@ -166,8 +169,7 @@ self.addEventListener('pushsubscriptionchange', (event) => {
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  // 알림 클릭 시점에도 SW 자가 점검 — push 와 notificationclick 가 별개 wake-up 일 수 있음.
-  event.waitUntil(self.registration.update().catch(() => null));
+  // ★ 2026-06-15: update() 를 navigate 완료 후로 이동 (먼저 호출 시 SW terminate 로 navigate 실패 가능).
   const rawLink = event.notification.data?.link || '/';
   // same-origin URL 은 path 로 추출 (일부 브라우저의 c.navigate 가 절대 URL silent-fail).
   // cross-origin 은 그대로 openWindow 에 넘김 (브라우저가 새 탭으로 처리).
@@ -211,7 +213,9 @@ self.addEventListener('notificationclick', (event) => {
     // 2) 열린 창이 없거나 navigate 실패 → 새 창
     if (self.clients.openWindow) {
       const fullUrl = isSameOrigin ? `${self.location.origin}${targetUrl}` : targetUrl;
-      return self.clients.openWindow(fullUrl);
+      await self.clients.openWindow(fullUrl);
     }
+    // navigate/openWindow 끝난 뒤에야 SW 자가 갱신
+    self.registration.update().catch(() => null);
   })());
 });
