@@ -1977,10 +1977,18 @@ router.post('/invite/:token/accept', authenticateToken, async (req, res, next) =
     if (pc.contact_user_id) return errorResponse(res, 'already_accepted', 400);
     if (isInviteExpired(pc.invited_at)) return errorResponse(res, 'invalid_or_expired_invite', 410);
 
-    // 이메일 일치 검증 — 초대 시 이메일 지정된 경우에만
+    // 이메일 일치 검증 — 사용자의 인증된 모든 이메일(주+보조+OAuth)과 대조 (여러 이메일 한 곳 수신 대응)
     if (pc.contact_email) {
-      const me = await User.findByPk(req.user.id, { attributes: ['email'] });
-      if (!me || me.email?.toLowerCase().trim() !== pc.contact_email.toLowerCase().trim()) {
+      const me = await User.findByPk(req.user.id, { attributes: ['email', 'secondary_email', 'secondary_email_verified_at'] });
+      const emails = new Set();
+      if (me?.email) emails.add(me.email.toLowerCase().trim());
+      if (me?.secondary_email && me.secondary_email_verified_at) emails.add(me.secondary_email.toLowerCase().trim());
+      try {
+        const { OauthConnection } = require('../models');
+        const conns = await OauthConnection.findAll({ where: { user_id: req.user.id }, attributes: ['email'] });
+        conns.forEach((c) => { if (c.email) emails.add(c.email.toLowerCase().trim()); });
+      } catch { /* 무시 */ }
+      if (!emails.has(pc.contact_email.toLowerCase().trim())) {
         return errorResponse(res, 'email_mismatch', 403);
       }
     }

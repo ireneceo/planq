@@ -12,6 +12,26 @@ const { authenticateToken } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 
 const INVITE_EXPIRY_DAYS = 30;
+
+// 초대 이메일 대조용 — 사용자가 "인증을 통해 소유 증명한" 모든 이메일 집합 (소문자).
+//   주 이메일 + 인증된 보조 이메일 + OAuth 연결 이메일(provider 검증).
+//   여러 이메일을 한 곳에서 받는 사용자가, 초대받은 주소 ≠ 로그인 주소 라도 본인이 소유한
+//   인증 이메일 중 하나면 수락 가능하게 함 (email_mismatch 과도 거절 완화). 보안 유지(미인증 X).
+async function getUserVerifiedEmails(userId, transaction) {
+  const set = new Set();
+  const u = await User.findByPk(userId, {
+    attributes: ['email', 'secondary_email', 'secondary_email_verified_at'], transaction,
+  });
+  if (u?.email) set.add(u.email.toLowerCase().trim());
+  if (u?.secondary_email && u.secondary_email_verified_at) set.add(u.secondary_email.toLowerCase().trim());
+  try {
+    const { OauthConnection } = require('../models');
+    const conns = await OauthConnection.findAll({ where: { user_id: userId }, attributes: ['email'], transaction });
+    conns.forEach((c) => { if (c.email) set.add(c.email.toLowerCase().trim()); });
+  } catch { /* OauthConnection 없을 수 있음 — 무시 */ }
+  return set;
+}
+
 function isExpired(invitedAt) {
   if (!invitedAt) return false;
   return Date.now() - new Date(invitedAt).getTime() > INVITE_EXPIRY_DAYS * 86400000;
@@ -98,12 +118,11 @@ router.post('/:token/accept', authenticateToken, async (req, res, next) => {
     if (resolved.expired) { await t.rollback(); return errorResponse(res, 'invalid_or_expired_invite', 410); }
     if (resolved.alreadyLinked) { await t.rollback(); return errorResponse(res, 'already_accepted', 400); }
 
-    const me = await User.findByPk(req.user.id, { attributes: ['id', 'email'] });
-    const myEmail = me?.email?.toLowerCase().trim();
+    const myEmails = await getUserVerifiedEmails(req.user.id, t);
 
     if (resolved.type === 'project_client') {
       const pc = resolved.record;
-      if (pc.contact_email && pc.contact_email.toLowerCase().trim() !== myEmail) {
+      if (pc.contact_email && !myEmails.has(pc.contact_email.toLowerCase().trim())) {
         await t.rollback();
         return errorResponse(res, 'email_mismatch', 403);
       }
@@ -115,7 +134,7 @@ router.post('/:token/accept', authenticateToken, async (req, res, next) => {
 
     if (resolved.type === 'workspace_client') {
       const cl = resolved.record;
-      if (cl.invite_email && cl.invite_email.toLowerCase().trim() !== myEmail) {
+      if (cl.invite_email && !myEmails.has(cl.invite_email.toLowerCase().trim())) {
         await t.rollback();
         return errorResponse(res, 'email_mismatch', 403);
       }
@@ -143,7 +162,7 @@ router.post('/:token/accept', authenticateToken, async (req, res, next) => {
 
     if (resolved.type === 'workspace_member') {
       const bm = resolved.record;
-      if (bm.invite_email && bm.invite_email.toLowerCase().trim() !== myEmail) {
+      if (bm.invite_email && !myEmails.has(bm.invite_email.toLowerCase().trim())) {
         await t.rollback();
         return errorResponse(res, 'email_mismatch', 403);
       }
