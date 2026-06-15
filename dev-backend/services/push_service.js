@@ -22,6 +22,14 @@ const VAPID_SUBJECT = process.env.VAPID_SUBJECT || 'mailto:noreply@planq.kr';
 const DEFAULT_TTL_SECONDS = 86400;   // 1일
 const DEFAULT_URGENCY = 'high';      // immediate delivery
 
+// Declarative Web Push (Safari 18.4+ / iOS 18.4·iOS 26) — navigate 는 절대 URL 필수.
+const APP_URL = process.env.APP_URL || 'https://dev.planq.kr';
+function toAbsoluteUrl(link) {
+  if (!link) return APP_URL.replace(/\/$/, '') + '/';
+  if (/^https?:\/\//i.test(link)) return link;
+  return APP_URL.replace(/\/$/, '') + (link.startsWith('/') ? link : '/' + link);
+}
+
 let inited = false;
 function ensureInit() {
   if (inited) return VAPID_PUBLIC ? true : false;
@@ -97,7 +105,27 @@ async function sendPushToUser(userId, payload, opts = {}) {
     return { sent: 0, skipped: 'no_subs' };
   }
 
-  const json = JSON.stringify(payload);
+  // Declarative Web Push 형식 (Safari 18.4+/iOS 26) — 시스템이 payload 에서 직접 알림 표시.
+  //   SW 의 showNotification 이 실패해도 시스템이 declarative 로 fallback 표시 → 최신 iOS 안정성 ↑.
+  //   `web_push: 8030` 매직키 + `notification`(유효 NotificationOptions) + navigate(절대 URL).
+  //   구버전 iOS/Chrome 은 declarative 무시 → SW 가 notification 멤버 읽어 showNotification (하위호환).
+  //   하위호환 위해 옛 top-level 필드(title/body/link)도 같이 실어 옛 SW 캐시도 동작하게 함.
+  const json = JSON.stringify({
+    web_push: 8030,
+    notification: {
+      title: payload.title || 'PlanQ',
+      body: payload.body || '',
+      navigate: toAbsoluteUrl(payload.link),
+      ...(payload.tag ? { tag: payload.tag } : {}),
+      ...(typeof payload.badge === 'number' ? { app_badge: payload.badge } : {}),
+    },
+    // legacy (옛 SW 호환)
+    title: payload.title,
+    body: payload.body,
+    link: payload.link,
+    tag: payload.tag,
+    badge: payload.badge,
+  });
   // RFC 8030 옵션 — 모바일 도착률 안정성 (사이클 N+13)
   // TTL: 1일. urgency: 'high' — push service 가 즉시 전달 시도.
   // topic 은 의도적으로 비활성 — 짧은 시간 다건 메시지가 collapse 되지 않게.

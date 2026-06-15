@@ -144,6 +144,7 @@ export interface CreateInvoicePayload {
   recipient_email?: string | null;
   recipient_business_name?: string | null;
   recipient_business_number?: string | null;
+  receipt_type?: 'none' | 'tax_invoice' | 'cash_receipt';
   notes?: string | null;
   installment_mode?: InstallmentMode;
   installments?: { label: string; percent: number; due_date?: string | null; milestone_ref?: string | null }[];
