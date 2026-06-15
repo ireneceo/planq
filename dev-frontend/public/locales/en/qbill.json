@@ -402,7 +402,8 @@
       "saveDraft": "Save draft",
       "cancel": "Cancel",
       "issue": "Issue",
-      "issueAndSend": "Issue & send"
+      "issueAndSend": "Issue & send",
+      "saveChanges": "Save Changes"
     },
     "deliver": {
       "title": "How should the client receive this?",
@@ -458,7 +459,8 @@
       "deliverChat": "Chat: {{name}}",
       "deliverEmail": "Email: {{email}}",
       "deliverPublicOnly": "Public link only (manual delivery)"
-    }
+    },
+    "editTitle": "Edit Invoice"
   },
   "payments": {
     "title": "Payments",

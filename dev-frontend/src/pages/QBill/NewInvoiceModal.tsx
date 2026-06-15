@@ -16,7 +16,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import {
   formatMoney, missingClientBizFields,
   listClientsForBilling, listSourceCandidates, findConversationForClient,
-  getBusinessInfo, createInvoice, sendInvoice,
+  getBusinessInfo, createInvoice, updateInvoice, getInvoice, sendInvoice,
   type Currency, type ApiClientLite, type ApiSourcePost, type ApiBusinessInfo, type ApiConvFound,
 } from '../../services/invoices';
 import PlanQSelect, { type PlanQSelectOption } from '../../components/Common/PlanQSelect';
@@ -28,6 +28,8 @@ interface Props {
   prefillSplit?: boolean;
   /** 후속 액션 카드에서 진입 시 — 출처 문서 자동 연결 (post id) */
   prefillPostId?: number | null;
+  /** 임시저장(draft) 재편집 진입 시 — 해당 invoice id 를 로드해 폼 채움 (PUT 저장) */
+  editInvoiceId?: number | null;
 }
 
 interface Item { id: number; description: string; detail: string; quantity: number; unit_price: number; }
@@ -49,7 +51,8 @@ const VAT_OPTIONS: PlanQSelectOption[] = [
   { value: '0.1', label: '10%' },
 ];
 
-export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPostId }: Props) {
+export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPostId, editInvoiceId }: Props) {
+  const isEdit = !!editInvoiceId;
   const { t } = useTranslation('qbill');
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -162,7 +165,8 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
     ]).then(([info, list]) => {
       setBusinessInfo(info);
       setClients(list);
-      if (info) {
+      // 편집 모드에서는 워크스페이스 기본값으로 덮어쓰지 않음 (invoice 값이 진실 원천)
+      if (info && !editInvoiceId) {
         const days = info.default_due_days ?? 14;
         setDueDate(addDays(todayStr, days));
         setVatRate(Number(info.default_vat_rate ?? 0.1));
@@ -171,7 +175,66 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
     });
     // 후속 액션 카드에서 진입 시 분할 자동 활성
     if (prefillSplit) setSplitOn(true);
-  }, [open, businessId, prefillSplit]);
+  }, [open, businessId, prefillSplit, editInvoiceId]);
+
+  // ─── 임시저장(draft) 재편집 — invoice 로드해 폼 전체 채움 ───
+  useEffect(() => {
+    if (!open || !editInvoiceId || !businessId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const inv = await getInvoice(businessId, editInvoiceId);
+        if (cancelled || !inv) return;
+        setTitle(inv.title || '');
+        setNotes(inv.notes || '');
+        setCurrency((inv.currency || 'KRW') as Currency);
+        setVatRate(Number(inv.vat_rate ?? 0.1));
+        if (inv.issued_at) setIssuedAt(inv.issued_at.split('T')[0]);
+        if (inv.due_date) setDueDate(inv.due_date.split('T')[0]);
+        setSourcePostId(inv.source_post_id ?? null);
+        // 수신: client_id 있으면 기존 고객, 없으면 외부 직접 입력
+        if (inv.client_id) {
+          setRecipientMode('client');
+          setClientId(inv.client_id);
+        } else {
+          setRecipientMode('external');
+          setExtName(inv.recipient_business_name || '');
+          setExtEmail(inv.recipient_email || '');
+          setExtBizNumber(inv.recipient_business_number || '');
+        }
+        // 항목
+        if (inv.items && inv.items.length > 0) {
+          setItems(inv.items
+            .slice()
+            .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+            .map((it, i) => ({
+              id: it.id || i + 1,
+              description: it.description || '',
+              detail: it.detail || '',
+              quantity: Number(it.quantity) || 1,
+              unit_price: Number(it.unit_price) || 0,
+            })));
+        }
+        // 분할
+        if (inv.installment_mode === 'split' && inv.installments && inv.installments.length > 0) {
+          setSplitOn(true);
+          setRounds(inv.installments
+            .slice()
+            .sort((a, b) => a.installment_no - b.installment_no)
+            .map((ins) => ({
+              id: ins.id,
+              label: ins.label || '',
+              milestone: ins.milestone_ref || '',
+              rate: Number(ins.percent) || 0,
+              due_date: ins.due_date ? ins.due_date.split('T')[0] : '',
+            })));
+        }
+        // 세금계산서 의향
+        if (inv.receipt_type === 'tax_invoice') setTaxOn(true);
+      } catch { /* noop */ }
+    })();
+    return () => { cancelled = true; };
+  }, [open, editInvoiceId, businessId]);
 
   // ─── 출처 문서 자동 연결 — followup 카드에서 prefillPostId 전달 시 ───
   // 프로젝트 → client 자동 선택은 사용자가 직접 client 선택 후 sourceCandidates 가 로드되면
@@ -329,7 +392,7 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
     setErrors([]);
     setSubmitting(true);
     try {
-      const created = await createInvoice(businessId, {
+      const payload = {
         title: title.trim() || (t('newInvoice.misc.noTitle', { defaultValue: '(제목 없음)' }) as string),
         client_id: recipientMode === 'external' ? null : clientId,
         source_post_id: recipientMode === 'external' ? null : sourcePostId,
@@ -347,14 +410,18 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
           : (overrideBiz.biz_tax_id || client?.biz_tax_id || null),
         // 세금계산서 발행 의향 — 토글 ON + 발행 가능(canTax) 일 때만 'tax_invoice'.
         // 결제 완료 후 증빙 발행 큐(receiptsDue)에 자동 편입. 고객이 공개 페이지에서 증빙정보 제출/변경 가능.
-        receipt_type: (taxOn && canTax) ? 'tax_invoice' : 'none',
+        receipt_type: ((taxOn && canTax) ? 'tax_invoice' : 'none') as 'tax_invoice' | 'none',
         notes: notes.trim() || null,
-        installment_mode: splitOn ? 'split' : 'single',
+        installment_mode: (splitOn ? 'split' : 'single') as 'split' | 'single',
         installments: splitOn ? rounds.map(r => ({
           label: r.label, percent: r.rate, due_date: r.due_date || null, milestone_ref: r.milestone || null,
         })) : undefined,
         items: items.filter(it => it.description.trim()).map(it => ({ description: it.description, detail: it.detail.trim() || null, quantity: it.quantity, unit_price: it.unit_price })),
-      });
+      };
+      // 편집 모드 = draft 재저장(PUT), 신규 = 생성(POST)
+      const created = isEdit
+        ? await updateInvoice(businessId, editInvoiceId!, payload)
+        : await createInvoice(businessId, payload);
       if (!asDraft) {
         const sent = await sendInvoice(businessId, created.id, {
           send_chat: sendChat && !!conversation,
@@ -439,7 +506,7 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
       <Backdrop onClick={onClose} />
       <Dialog onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={t('newInvoice.title') as string}>
         <Head>
-          <Title>{t('newInvoice.title')}</Title>
+          <Title>{isEdit ? t('newInvoice.editTitle', { defaultValue: '청구서 편집' }) as string : t('newInvoice.title')}</Title>
           <CloseBtn onClick={onClose} aria-label={t('common.close') as string}>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><line x1="6" y1="6" x2="18" y2="18"/><line x1="6" y1="18" x2="18" y2="6"/></svg>
           </CloseBtn>
@@ -917,7 +984,7 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
               ) : null}
             </FooterSummary>
             <SecondaryBtn type="button" onClick={() => submit(true)} disabled={submitting}>
-              {t('newInvoice.actions.saveDraft')}
+              {isEdit ? t('newInvoice.actions.saveChanges', { defaultValue: '변경 저장' }) as string : t('newInvoice.actions.saveDraft')}
             </SecondaryBtn>
             <PrimaryBtn type="button" onClick={() => submit(false)} disabled={submitting}>
               {submitting ? '...' : (sendChat || sendEmail ? t('newInvoice.actions.issueAndSend') : t('newInvoice.actions.issue'))}

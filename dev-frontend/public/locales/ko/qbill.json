@@ -130,7 +130,7 @@
         "downloadPdf": "PDF 다운로드",
         "pdfBusy": "PDF 생성 중…",
         "pdfError": "PDF 생성 실패",
-        "edit": "수정",
+        "edit": "편집",
         "duplicate": "복제",
         "cancel": "취소",
         "delete": "삭제"
@@ -402,7 +402,8 @@
       "saveDraft": "임시 저장",
       "cancel": "취소",
       "issue": "발행",
-      "issueAndSend": "발행하고 보내기"
+      "issueAndSend": "발행하고 보내기",
+      "saveChanges": "변경 저장"
     },
     "deliver": {
       "title": "어떻게 받게 할까요?",
@@ -458,7 +459,8 @@
       "deliverChat": "채팅: {{name}}",
       "deliverEmail": "이메일: {{email}}",
       "deliverPublicOnly": "공개 링크만 생성 (수동 전달)"
-    }
+    },
+    "editTitle": "청구서 편집"
   },
   "payments": {
     "title": "결제 추적",
