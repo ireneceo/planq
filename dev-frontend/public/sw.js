@@ -105,14 +105,9 @@ self.addEventListener('push', (event) => {
     requireInteraction: false,
   };
   event.waitUntil((async () => {
-    // 배너 2번 방지: 앱이 포커스(보고 있는) 상태면 in-app 토스터(socket)가 알림을 담당하므로
-    //   OS 배너는 skip. 백그라운드·앱 닫힘이면 OS 배너 표시 (push 의 핵심 — 안 보고 있을 때 알려줌).
-    //   모바일은 대개 background → OS push 정상 표시.
-    const _focusedClients = await self.clients.matchAll({ type: 'window', includeUncontrolled: false });
-    const _appFocused = _focusedClients.some((c) => c.focused || c.visibilityState === 'visible');
-    if (!_appFocused) {
-      await self.registration.showNotification(title, options);
-    }
+    // OS 배너는 항상 표시 (안 오는 것보다 가끔 2번 보이는 게 낫다 — 운영 원칙).
+    //   배너 중복은 in-app 토스터 쪽에서 조율 (push 권한 granted 면 토스터 skip).
+    await self.registration.showNotification(title, options);
     // App Badging API — 데스크탑 PWA 아이콘 / 모바일 홈스크린 숫자.
     // 진단 정보를 client 로 post 해 디바이스에서 콘솔로 확인 가능 (사이클 N+12 박제).
     const badgeDiag = {
