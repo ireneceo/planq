@@ -90,16 +90,22 @@ self.addEventListener('push', (event) => {
   let payload;
   try { payload = event.data.json(); } catch { payload = { title: 'PlanQ', body: event.data.text() }; }
   const title = payload.title || 'PlanQ';
-  // ★ 2026-06-15: iOS Safari web push 호환 — 표준 옵션만 사용.
-  //   iOS 는 vibrate/badge(이미지)/renotify 같은 비표준 옵션을 만나면 push 를 받고도(ack 확인)
-  //   배너를 화면에 안 띄우는 제약이 있음. 데스크탑 Chrome 은 전부 지원하지만,
-  //   표준 옵션(body/icon/silent)만으로도 데스크탑 배너+소리 정상 → iOS 호환 위해 최소화.
-  //   tag 도 제거(iOS 가 같은 tag 두번째부터 collapse 해 배너 안 뜨는 회귀 회피).
-  // ★ 2026-06-15: iOS 가 icon 이미지를 못 받으면 count++ 되지만 배너 표시를 안 하는 케이스 대응.
-  //   icon 제거 — iOS 최소 옵션(title+body)으로. 데스크탑은 기본 아이콘으로 정상 표시.
+  // ★ 2026-06-15 복원: bfb5835(금요일 작동 버전)의 풀옵션 그대로.
+  //   오늘 "iOS 호환"이라며 옵션을 떼어낸 게 모바일 배너 미표시의 원인이었음.
+  //   iOS 는 silent:false + icon + vibrate 가 있어야 배너를 그림(옵션 제거 시 push 받고도 미표시).
+  //   이 옵션 세트는 데스크탑 Chrome + iOS Safari PWA 양쪽에서 검증된 조합.
   const options = {
     body: payload.body || '',
+    icon: payload.icon || '/icon-192.png',
+    badge: '/icon-72.png',
+    tag: payload.tag || undefined,
+    // 같은 tag 의 최신 알림으로 교체 — 기본 false(누적). Slack 패턴.
+    renotify: !!payload.tag,
+    // 사운드 + 진동 명시 — 일부 브라우저는 silent 미명시 시 무음 처리. iOS 배너 표시에도 필요.
+    silent: false,
+    vibrate: [200, 100, 200],
     data: { link: payload.link || '/' },
+    requireInteraction: false,
   };
   event.waitUntil((async () => {
     // [측정 2026-06-15] showNotification 결과 + 실제 알림 생성 여부를 ack 에 담아 iOS 표시 단계 확정.
