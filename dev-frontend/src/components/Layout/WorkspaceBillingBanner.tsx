@@ -7,8 +7,8 @@
 //
 // 클릭 → /business/settings/plan (결제 페이지)
 
-import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useState, useCallback } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../contexts/AuthContext';
@@ -36,23 +36,31 @@ export default function WorkspaceBillingBanner() {
   const { t } = useTranslation('plan');
   const { user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [status, setStatus] = useState<PlanStatus | null>(null);
   const [dismissed, setDismissed] = useState(false);
 
-  useEffect(() => {
-    if (!user?.business_id || user.business_role === 'client') {
-      setStatus(null);
-      return;
-    }
-    let alive = true;
-    fetchStatus(Number(user.business_id))
-      .then(s => { if (alive) setStatus(s); })
-      .catch(() => { if (alive) setStatus(null); });
-    return () => { alive = false; };
+  // #39 — 플랫폼 관리자 영역(/admin/*)에선 워크스페이스 빌링 배너 숨김 (다른 컨텍스트라 혼동 방지).
+  const onPlatformAdmin = location.pathname.startsWith('/admin');
+
+  const load = useCallback(() => {
+    if (!user?.business_id || user.business_role === 'client') { setStatus(null); return; }
+    fetchStatus(Number(user.business_id)).then(setStatus).catch(() => setStatus(null));
   }, [user?.business_id, user?.business_role]);
 
+  useEffect(() => { load(); }, [load]);
+
+  // #40 — 결제·입금확인이 페이지 열린 채 일어나면 mount 1회 조회론 stale. focus/visibility 복귀 시
+  //   재조회해 active 전환을 즉시 반영(배너 자동 소멸). 새로고침 불필요.
+  useEffect(() => {
+    const onFocus = () => load();
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') load(); });
+    return () => { window.removeEventListener('focus', onFocus); };
+  }, [load]);
+
   const kind = pickBanner(status);
-  if (!kind || dismissed) return null;
+  if (!kind || dismissed || onPlatformAdmin) return null;
 
   const graceEndsIn = kind === 'grace' ? daysLeft(status?.subscription?.grace_ends_at || null) : null;
   const periodEndedAt = status?.subscription?.current_period_end || null;
