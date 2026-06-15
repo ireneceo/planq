@@ -750,7 +750,11 @@
       "submit": "Submit",
       "errBizTaxId": "Please enter a valid 10-digit business registration number",
       "errBizName": "Please enter the company name",
-      "errCrId": "Please enter a valid mobile or business number"
+      "errCrId": "Please enter a valid mobile or business number",
+      "contactName": "Contact name",
+      "contactPhone": "Contact phone",
+      "requestAmount": "Requested amount",
+      "vatIncluded": "VAT included"
     },
     "contact": "Contact us"
   },
