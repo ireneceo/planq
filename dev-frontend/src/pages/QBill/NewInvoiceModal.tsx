@@ -136,10 +136,13 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
   const sumPercent = rounds.reduce((s, r) => s + r.rate, 0);
   const sumOk = sumPercent === 100;
 
-  // 세금계산서: 통화 KRW + 한국 사업자(client.is_business + biz_tax_id) 조건 모두 충족 시만 활성.
-  // 외화(USD/EUR/JPY/CNY) 청구는 한국 세금계산서 발행 불가.
-  const canTax = currency === 'KRW' && (client?.is_business ?? false) && (
-    !!client?.biz_tax_id || !!overrideBiz.biz_tax_id
+  // 세금계산서: 통화 KRW + 사업자번호 있으면 활성. 외화(USD/EUR/JPY/CNY)는 한국 세금계산서 발행 불가.
+  //  - 기존 고객(client): is_business + biz_tax_id (또는 override) 충족 시
+  //  - 외부 직접 입력(external): 사업자번호(extBizNumber) 입력 시 (외부 사업자도 발행 대상 — 운영 피드백)
+  const canTax = currency === 'KRW' && (
+    recipientMode === 'external'
+      ? !!extBizNumber.trim()
+      : ((client?.is_business ?? false) && (!!client?.biz_tax_id || !!overrideBiz.biz_tax_id))
   );
 
   // ─── 출처 선택 시 자동 흡수 (제목만) ───
@@ -327,6 +330,9 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
         recipient_business_number: recipientMode === 'external'
           ? (extBizNumber.trim() || null)
           : (overrideBiz.biz_tax_id || client?.biz_tax_id || null),
+        // 세금계산서 발행 의향 — 토글 ON + 발행 가능(canTax) 일 때만 'tax_invoice'.
+        // 결제 완료 후 증빙 발행 큐(receiptsDue)에 자동 편입. 고객이 공개 페이지에서 증빙정보 제출/변경 가능.
+        receipt_type: (taxOn && canTax) ? 'tax_invoice' : 'none',
         notes: notes.trim() || null,
         installment_mode: splitOn ? 'split' : 'single',
         installments: splitOn ? rounds.map(r => ({
@@ -787,9 +793,11 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
                 <ToggleText>
                   <ToggleTitle>{t('newInvoice.tax.toggle')}</ToggleTitle>
                   <ToggleDesc>
-                    {!client?.is_business ? t('newInvoice.tax.individual') :
-                     canTax ? (taxOn ? t('newInvoice.tax.toggleDescOn') : '') :
-                     t('newInvoice.tax.toggleDescOff')}
+                    {recipientMode === 'external'
+                      ? (canTax ? (taxOn ? t('newInvoice.tax.toggleDescOn') : '') : t('newInvoice.tax.toggleDescOff'))
+                      : !client?.is_business ? t('newInvoice.tax.individual') :
+                        canTax ? (taxOn ? t('newInvoice.tax.toggleDescOn') : '') :
+                        t('newInvoice.tax.toggleDescOff')}
                   </ToggleDesc>
                 </ToggleText>
               </ToggleLeft>

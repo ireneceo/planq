@@ -48,7 +48,7 @@ const CueHelpDrawer: React.FC<{ standalone?: boolean }> = ({ standalone = false 
   const { t } = useTranslation('common');
   const { t: tErr } = useTranslation('errors');
   const location = useLocation();
-  const { user } = useAuth();
+  const { user, isLoading } = useAuth();
   const isGuest = !user;
   const tz = (user as { workspace_timezone?: string } | null)?.workspace_timezone || 'Asia/Seoul';
   // N+93 — 비즈니스 멤버는 RightDock 통합 런처가 Q helper 진입을 제공 → 자체 floating FAB 숨김.
@@ -322,7 +322,7 @@ const CueHelpDrawer: React.FC<{ standalone?: boolean }> = ({ standalone = false 
 
   return (
     <>
-      {!standalone && !open && !fabHidden && !dockManaged && (
+      {!standalone && !open && !fabHidden && !dockManaged && !isLoading && (
         <FloatingTrigger
           type="button"
           onClick={() => { setMode(isGuest ? 'qhelper' : 'workspace'); setOpen(true); }}
@@ -1058,8 +1058,9 @@ const FbSendBtn = styled.button`
 // ─── 우측 하단 floating 진입 버튼 (전역) ───
 // 어떤 모달/드로어도 열려있지 않을 때만 보임 — useBodyScrollLock 가 body[data-overlay-open] 토글.
 const FloatingTrigger = styled.button`
-  /* 사이클 N+17: Memo FAB (bottom: 16px) 과 같이 사용되므로 위로 80px 이동 */
-  position: fixed; right: 20px; bottom: 80px;
+  /* 이 FAB 는 게스트/Client(!dockManaged) 에게만 노출. MemoFab 는 business member 전용이라
+     이 FAB 와 절대 공존하지 않음 → 우측 하단 코너에 배치 (80px 올릴 이유 없음). */
+  position: fixed; right: 20px; bottom: 20px;
   width: 52px; height: 52px;
   display: inline-flex; align-items: center; justify-content: center;
   background: #F43F5E;
@@ -1072,7 +1073,7 @@ const FloatingTrigger = styled.button`
   &:hover { background: #E11D48; transform: translateY(-1px); }
   &:focus-visible { outline: 2px solid rgba(244,63,94,0.5); outline-offset: 4px; }
   @media (max-width: 640px) {
-    right: 16px; bottom: 76px;
+    right: 16px; bottom: 16px;
     width: 48px; height: 48px;
   }
   /* 모달/드로어가 열려있는 동안에는 안 보이게 (Footer 버튼 가림 방지) */

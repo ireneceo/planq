@@ -545,9 +545,11 @@ router.post('/:businessId', authenticateToken, checkBusinessAccess, requireMenu(
     const {
       title, client_id, due_date, recipient_email, recipient_business_name, recipient_business_number,
       notes, items, vat_rate, installment_mode, installments,
-      source_post_id, project_id, currency,
+      source_post_id, project_id, currency, receipt_type,
     } = req.body;
     if (!title) { await t.rollback(); return errorResponse(res, 'Title required', 400); }
+    // 증빙 발행 의향 (선택) — 발행 모달 '세금계산서 발행' 토글. 결제 후 증빙 큐(receiptsDue) 편입.
+    const receiptType = ['tax_invoice', 'cash_receipt'].includes(receipt_type) ? receipt_type : 'none';
 
     // 출처 post 검증 — 같은 business 의 published 게시물만 허용 (category 는 자유 분류라 검증 X)
     let sourcePostId = null;
@@ -611,6 +613,10 @@ router.post('/:businessId', authenticateToken, checkBusinessAccess, requireMenu(
       source_post_id: sourcePostId,
       project_id: project_id || null,
       currency: currency || 'KRW',
+      receipt_type: receiptType,
+      // 발행 의향이 있으면 결제 후 큐에 'pending' 으로 잡히도록 상태 선설정 (고객 제출 시 갱신)
+      ...(receiptType === 'tax_invoice' ? { tax_invoice_status: 'pending' } : {}),
+      ...(receiptType === 'cash_receipt' ? { cash_receipt_status: 'pending' } : {}),
     }, { transaction: t });
 
     let grandTotal = 0;
