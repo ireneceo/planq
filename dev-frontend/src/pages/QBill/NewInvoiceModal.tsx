@@ -82,6 +82,9 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
   const [clientId, setClientId] = useState<number | null>(null);
   // 프로젝트 자동선택 보완 — ProjectClient.client_id 가 비어있는 초대중 고객을 clients 로드 후 매칭
   const [pendingContactUserId, setPendingContactUserId] = useState<number | null>(null);
+  // 프로젝트 연결 — 프로젝트에서 발행 시 invoice.project_id 로 저장 + 그 프로젝트 채팅방 탐색
+  const [projectId, setProjectId] = useState<number | null>(null);
+  const [projectName, setProjectName] = useState<string>('');
   // 외부 고객 직접 입력 (초대 없이 청구) — 운영 #1. 'client'=기존 고객 선택, 'external'=이름+이메일 직접
   const [recipientMode, setRecipientMode] = useState<'client' | 'external'>('client');
   const [extName, setExtName] = useState('');
@@ -192,6 +195,7 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
         if (inv.issued_at) setIssuedAt(inv.issued_at.split('T')[0]);
         if (inv.due_date) setDueDate(inv.due_date.split('T')[0]);
         setSourcePostId(inv.source_post_id ?? null);
+        setProjectId(inv.project_id ?? null);
         // 수신: client_id 있으면 기존 고객, 없으면 외부 직접 입력
         if (inv.client_id) {
           setRecipientMode('client');
@@ -250,10 +254,12 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
         if (post.title) setTitle(post.title);
         // 클라이언트가 있는 프로젝트라면 projectMembers/projectClients 에서 첫 client 자동 선택
         if (post.project_id) {
+          setProjectId(post.project_id);
           try {
             const { apiFetch } = await import('../../contexts/AuthContext');
             const r = await apiFetch(`/api/projects/${post.project_id}`);
             const j = await r.json();
+            if (j?.data?.name) setProjectName(j.data.name);
             const projClients = j?.data?.projectClients || [];
             const first = projClients[0];
             if (first) {
@@ -291,13 +297,14 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
       return;
     }
     listSourceCandidates(businessId, { client_id: clientId }).then(setSourceCandidates).catch(() => setSourceCandidates([]));
-    findConversationForClient(businessId, clientId).then(setConvFound).catch(() => setConvFound(null));
-  }, [businessId, clientId]);
+    // 프로젝트 컨텍스트가 있으면 그 프로젝트의 고객 채팅방을 우선 탐색 (프로젝트 발행 시 "채팅방 없음" 오표시 fix)
+    findConversationForClient(businessId, clientId, projectId).then(setConvFound).catch(() => setConvFound(null));
+  }, [businessId, clientId, projectId]);
 
   useEffect(() => {
     if (!open) {
       // 닫힐 때 폼 초기화 (워크스페이스 기본값은 모달 open 시 다시 prefill 됨)
-      setClientId(null); setPendingContactUserId(null); setSourcePostId(null); setTitle(''); setNotes('');
+      setClientId(null); setPendingContactUserId(null); setProjectId(null); setProjectName(''); setSourcePostId(null); setTitle(''); setNotes('');
       setRecipientMode('client'); setExtName(''); setExtEmail(''); setExtBizNumber('');
       setIssuedAt(todayStr);
       setItems([{ id: 1, description: '', detail: '', quantity: 1, unit_price: 0 }]);
@@ -395,6 +402,7 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
       const payload = {
         title: title.trim() || (t('newInvoice.misc.noTitle', { defaultValue: '(제목 없음)' }) as string),
         client_id: recipientMode === 'external' ? null : clientId,
+        project_id: projectId,   // 프로젝트에서 발행 시 연결 (거래 단계·프로젝트 청구 집계)
         source_post_id: recipientMode === 'external' ? null : sourcePostId,
         currency,
         vat_rate: vatRate,
@@ -639,6 +647,15 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
               )}
             </Section>
           </SectionGrid>
+
+          {/* 프로젝트 연결 표시 — 프로젝트에서 발행 시 */}
+          {projectId && (
+            <ProjectLink>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 17H7A5 5 0 0 1 7 7h2"/><path d="M15 7h2a5 5 0 0 1 0 10h-2"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+              {t('newInvoice.projectLinked', { defaultValue: '이 청구서는 프로젝트에 연결됩니다' }) as string}
+              {projectName && <ProjectName>{projectName}</ProjectName>}
+            </ProjectLink>
+          )}
 
           {/* ─── 출처 문서 ─── */}
           {client && (
@@ -1291,6 +1308,16 @@ const SourceEmpty = styled.div`
   font-size: 12px; color: #64748B; padding: 8px 10px; background: #F8FAFC; border-radius: 6px;
 `;
 const SourceHint = styled.div`font-size: 11px; color: #94A3B8;`;
+const ProjectLink = styled.div`
+  display: flex; align-items: center; gap: 8px;
+  margin-top: 12px; padding: 10px 12px;
+  background: #F0FDFA; border: 1px solid #99F6E4; border-radius: 8px;
+  font-size: 12px; font-weight: 600; color: #0F766E;
+`;
+const ProjectName = styled.span`
+  font-weight: 700; color: #0F172A;
+  &::before { content: '· '; color: #94A3B8; font-weight: 400; }
+`;
 const SourceBadge = styled.div`
   display: flex; align-items: center; gap: 8px; padding: 10px 12px;
   background: #F0FDFA; border: 1px solid #99F6E4; border-radius: 8px;

@@ -461,7 +461,8 @@
       "deliverEmail": "이메일: {{email}}",
       "deliverPublicOnly": "공개 링크만 생성 (수동 전달)"
     },
-    "editTitle": "청구서 편집"
+    "editTitle": "청구서 편집",
+    "projectLinked": "이 청구서는 프로젝트에 연결됩니다"
   },
   "payments": {
     "title": "결제 추적",
