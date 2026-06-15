@@ -296,7 +296,12 @@
     "joined": "참여 중",
     "pending": "초대 대기",
     "joinedTitle": "워크스페이스 사용자로 참여 중",
-    "pendingTitle": "초대 발송 — 수락 대기 중"
+    "pendingTitle": "초대 발송 — 수락 대기 중",
+    "invitedAt": "{{date}} 발송",
+    "invitedAtTitle": "초대 발송 시각",
+    "resend": "재발송",
+    "resending": "발송 중…",
+    "resent": "발송됨"
   },
   "edit": {
     "projectName": "프로젝트명",
