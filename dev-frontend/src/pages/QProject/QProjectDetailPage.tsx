@@ -246,6 +246,8 @@ const QProjectDetailPage: React.FC = () => {
         s.on('task:new', debouncedReload); s.on('task:updated', debouncedReload); s.on('task:deleted', debouncedReload);
         s.on('note:new', debouncedReload); s.on('issue:new', debouncedReload);
         s.on('post:new', debouncedReload); s.on('post:updated', debouncedReload); s.on('post:deleted', debouncedReload);
+        // 고객 초대 수락/변경 실시간 반영 (참여 고객 리스트 즉시 갱신)
+        s.on('client:updated', debouncedReload); s.on('project_client:updated', debouncedReload);
       });
     });
     return () => { if (pending) window.clearTimeout(pending); if (socket) socket.disconnect(); };

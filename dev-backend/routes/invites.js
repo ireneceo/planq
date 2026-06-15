@@ -13,6 +13,12 @@ const { successResponse, errorResponse } = require('../middleware/errorHandler')
 
 const INVITE_EXPIRY_DAYS = 30;
 
+// 초대 수락 시 실시간 broadcast — 초대한 쪽 화면(참여 고객/고객/멤버 리스트) 즉시 갱신.
+function broadcastAccept(req, bizId, event, data) {
+  try { const io = req.app.get('io'); if (io && bizId) io.to(`business:${bizId}`).emit(event, data); }
+  catch (e) { /* best-effort */ }
+}
+
 function isExpired(invitedAt) {
   if (!invitedAt) return false;
   return Date.now() - new Date(invitedAt).getTime() > INVITE_EXPIRY_DAYS * 86400000;
@@ -107,6 +113,7 @@ router.post('/:token/accept', authenticateToken, async (req, res, next) => {
       const pc = resolved.record;
       await pc.update({ contact_user_id: req.user.id, accepted_at: new Date() }, { transaction: t });
       await t.commit();
+      try { const prj = await Project.findByPk(pc.project_id, { attributes: ['business_id'] }); broadcastAccept(req, prj?.business_id, 'project_client:updated', { project_id: pc.project_id, id: pc.id }); } catch { /* noop */ }
       notifyInviterOnAccept(pc.invited_by, pc.project_id, 'project_client', req.user.id, null).catch((e) => console.warn('[notify invite project_client]', e.message));
       return successResponse(res, { type: 'project_client', project_id: pc.project_id, redirect: '/talk' });
     }
@@ -121,10 +128,12 @@ router.post('/:token/accept', authenticateToken, async (req, res, next) => {
       if (dup) {
         await cl.destroy({ transaction: t });
         await t.commit();
+        broadcastAccept(req, dup.business_id, 'client:updated', { id: dup.id });
         return successResponse(res, { type: 'workspace_client', business_id: dup.business_id, redirect: '/talk' });
       }
       await cl.update({ user_id: req.user.id, accepted_at: new Date(), status: 'active' }, { transaction: t });
       await t.commit();
+      broadcastAccept(req, cl.business_id, 'client:updated', { id: cl.id });
       notifyInviterOnAccept(cl.invited_by, null, 'workspace_client', req.user.id, cl.business_id).catch((e) => console.warn('[notify invite workspace_client]', e.message));
       // N+83 — 첫 응대 준비: 담당자 명의 customer 대화방 + 환영 메시지 자동 생성 (best-effort, 멱등).
       //   실패해도 수락은 이미 커밋됨 → 고객 접속 자체는 정상.
@@ -144,6 +153,7 @@ router.post('/:token/accept', authenticateToken, async (req, res, next) => {
       if (dup) {
         await bm.destroy({ transaction: t });
         await t.commit();
+        broadcastAccept(req, dup.business_id, 'member:updated', { id: dup.id });
         return successResponse(res, { type: 'workspace_member', business_id: dup.business_id, redirect: '/dashboard' });
       }
       // 플랜 쿼터 재확인 (race: 초대 발행 후 다른 멤버 추가로 한도 도달했을 수 있음)
@@ -155,6 +165,7 @@ router.post('/:token/accept', authenticateToken, async (req, res, next) => {
       }
       await bm.update({ user_id: req.user.id, joined_at: new Date() }, { transaction: t });
       await t.commit();
+      broadcastAccept(req, bm.business_id, 'member:updated', { id: bm.id });
       notifyInviterOnAccept(bm.invited_by, null, 'workspace_member', req.user.id, bm.business_id).catch((e) => console.warn('[notify invite workspace_member]', e.message));
       return successResponse(res, { type: 'workspace_member', business_id: bm.business_id, redirect: '/dashboard' });
     }
