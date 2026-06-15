@@ -168,7 +168,7 @@ async function billOneSubscription(sub, today = new Date()) {
           userIds: members.map((m) => m.user_id), businessId: sub.business_id, eventKind: 'invoice',
           title: '정기 구독 청구서 검토 요청',
           body: `${title} 초안이 생성되었습니다. 검토 후 발송해주세요.`,
-          link: `${process.env.APP_URL || 'https://dev.planq.kr'}/bills?invoice=${invoice.id}`,
+          link: `${process.env.APP_URL || 'https://dev.planq.kr'}/bills?tab=invoices&invoice=${invoice.id}`,
           ctaLabel: '검토하기', workspaceName: business.brand_name || business.name || null,
         });
       } catch (e) { console.warn('[clientSub notify async] sub', sub.id, e.message); }
