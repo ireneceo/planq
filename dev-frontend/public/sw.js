@@ -123,6 +123,13 @@ self.addEventListener('push', (event) => {
       const ns = await self.registration.getNotifications();
       diag += ',count=' + ns.length;
       if (self.Notification && typeof self.Notification.permission !== 'undefined') diag += ',perm=' + self.Notification.permission;
+      // 자가복구: 미닫은 알림이 과도하게 누적되면(>8) OS 가 그룹핑하며 새 배너를 억제함.
+      //   가장 오래된 것부터 닫아 최신 8개만 유지 → 배너 항상 노출 보장 (사용자 조치 불필요).
+      if (ns.length > 8) {
+        const sorted = ns.slice().sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+        for (let i = 0; i < sorted.length - 8; i++) { try { sorted[i].close(); } catch { /* noop */ } }
+        diag += ',trimmed=' + (sorted.length - 8);
+      }
     } catch (e) { diag += ',getNotif_err'; }
     // App Badging API — 데스크탑 PWA 아이콘 / 모바일 홈스크린 숫자.
     // 진단 정보를 client 로 post 해 디바이스에서 콘솔로 확인 가능 (사이클 N+12 박제).
