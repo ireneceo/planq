@@ -102,9 +102,16 @@ self.addEventListener('push', (event) => {
     data: { link: payload.link || '/' },
   };
   event.waitUntil((async () => {
-    // OS 배너는 항상 표시 (안 오는 것보다 가끔 2번 보이는 게 낫다 — 운영 원칙).
-    //   배너 중복은 in-app 토스터 쪽에서 조율 (push 권한 granted 면 토스터 skip).
-    await self.registration.showNotification(title, options);
+    // [측정 2026-06-15] showNotification 결과 + 실제 알림 생성 여부를 ack 에 담아 iOS 표시 단계 확정.
+    let diag = 'shown';
+    try {
+      await self.registration.showNotification(title, options);
+    } catch (e) { diag = 'throw:' + ((e && e.message) || String(e)); }
+    try {
+      const ns = await self.registration.getNotifications();
+      diag += ',count=' + ns.length;
+      if (self.Notification && typeof self.Notification.permission !== 'undefined') diag += ',perm=' + self.Notification.permission;
+    } catch (e) { diag += ',getNotif_err'; }
     // App Badging API — 데스크탑 PWA 아이콘 / 모바일 홈스크린 숫자.
     // 진단 정보를 client 로 post 해 디바이스에서 콘솔로 확인 가능 (사이클 N+12 박제).
     const badgeDiag = {
@@ -146,8 +153,8 @@ self.addEventListener('push', (event) => {
         c.postMessage({ type: 'planq:push-received', payload, badgeDiag });
       }
     } catch { /* silent */ }
-    // [진단] delivery 측정 — SW 가 push 를 실제 받았음을 서버에 알림 (도달 확정용)
-    try { await fetch('/api/push/ack?t=' + Date.now(), { method: 'POST', keepalive: true }); } catch { /* silent */ }
+    // [측정] SW 도달 + showNotification 결과(diag) 를 서버에 전달
+    try { await fetch('/api/push/ack?d=' + encodeURIComponent(diag), { method: 'POST', keepalive: true }); } catch { /* silent */ }
     // ★ self.registration.update() 제거 — push 처리 중 SW 전환으로 알림이 2번 뜨거나 안 뜨는 회귀 차단.
     //   SW 자가 갱신은 BuildVersionGuard(앱)의 reg.update() 가 담당.
   })());
