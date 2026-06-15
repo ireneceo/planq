@@ -1722,6 +1722,39 @@ router.post('/:id/clients', authenticateToken, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// POST /api/projects/:id/clients/:clientId/resend-invite — 초대 메일 재발송 (대기 중인 고객만)
+router.post('/:id/clients/:clientId/resend-invite', authenticateToken, async (req, res, next) => {
+  try {
+    const { project, role, error } = await loadProjectOrForbidden(Number(req.params.id), req.user.id);
+    if (error) return errorResponse(res, error.message, error.code);
+    if (role === 'client') return errorResponse(res, 'forbidden', 403);
+    const row = await ProjectClient.findOne({ where: { id: Number(req.params.clientId), project_id: project.id } });
+    if (!row) return errorResponse(res, 'not_found', 404);
+    if (row.invite_token_used_at || row.contact_user_id) return errorResponse(res, 'already_accepted', 400);
+    if (!row.contact_email) return errorResponse(res, 'no_email', 400);
+    // 기존 토큰 유지(옛 메일 링크도 유효) + 발송 시점 갱신.
+    await row.update({ invited_at: new Date() });
+    try {
+      const { sendInviteEmail } = require('../services/emailService');
+      const biz = await Business.findByPk(project.business_id, { attributes: ['brand_name', 'name'] });
+      const inviter = await User.findByPk(req.user.id, { attributes: ['name'] });
+      await sendInviteEmail({
+        to: row.contact_email,
+        workspaceName: biz?.brand_name || biz?.name || 'PlanQ',
+        inviterName: inviter?.name || '',
+        targetName: row.contact_name,
+        kind: 'project',
+        contextName: project.name,
+        token: row.invite_token,
+      });
+    } catch (e) {
+      console.warn('resend project invite email failed:', e.message);
+      return errorResponse(res, 'email_send_failed', 502);
+    }
+    return successResponse(res, { id: row.id, invited_at: row.invited_at, resent: true });
+  } catch (err) { next(err); }
+});
+
 // DELETE /api/projects/:id/clients/:clientId
 router.delete('/:id/clients/:clientId', authenticateToken, async (req, res, next) => {
   try {
@@ -1977,21 +2010,7 @@ router.post('/invite/:token/accept', authenticateToken, async (req, res, next) =
     if (pc.contact_user_id) return errorResponse(res, 'already_accepted', 400);
     if (isInviteExpired(pc.invited_at)) return errorResponse(res, 'invalid_or_expired_invite', 410);
 
-    // 이메일 일치 검증 — 사용자의 인증된 모든 이메일(주+보조+OAuth)과 대조 (여러 이메일 한 곳 수신 대응)
-    if (pc.contact_email) {
-      const me = await User.findByPk(req.user.id, { attributes: ['email', 'secondary_email', 'secondary_email_verified_at'] });
-      const emails = new Set();
-      if (me?.email) emails.add(me.email.toLowerCase().trim());
-      if (me?.secondary_email && me.secondary_email_verified_at) emails.add(me.secondary_email.toLowerCase().trim());
-      try {
-        const { OauthConnection } = require('../models');
-        const conns = await OauthConnection.findAll({ where: { user_id: req.user.id }, attributes: ['email'] });
-        conns.forEach((c) => { if (c.email) emails.add(c.email.toLowerCase().trim()); });
-      } catch { /* 무시 */ }
-      if (!emails.has(pc.contact_email.toLowerCase().trim())) {
-        return errorResponse(res, 'email_mismatch', 403);
-      }
-    }
+    // ★ 토큰=인증: 초대 토큰 소유 = 메일함 수신 증명 = 본인. 이메일 주소 대조 제거 (다중 이메일 대응).
 
     // 사용자 연결
     await pc.update({ contact_user_id: req.user.id, accepted_at: new Date() });

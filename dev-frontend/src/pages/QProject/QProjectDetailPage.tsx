@@ -48,7 +48,7 @@ interface ProjectDetail {
   owner_user_id: number;
   Business?: { id: number; name: string; brand_name?: string };
   projectMembers?: { user_id: number; role: string; is_pm?: boolean; User?: { id: number; name: string; display_name?: string | null }}[];
-  projectClients?: { id: number; contact_name: string; contact_email: string | null; contact_user_id?: number | null; invite_token?: string | null }[];
+  projectClients?: { id: number; contact_name: string; contact_email: string | null; contact_user_id?: number | null; invite_token?: string | null; invited_at?: string | null }[];
 }
 interface Conv {
   id: number;
@@ -130,6 +130,25 @@ const QProjectDetailPage: React.FC = () => {
   const [addMemberOpen, setAddMemberOpen] = useState(false);
   const [closeModalOpen, setCloseModalOpen] = useState(false);
   const [clientsToRemove, setClientsToRemove] = useState<Set<number>>(new Set());
+  const [resendingIds, setResendingIds] = useState<Set<number>>(new Set());
+  const [resentIds, setResentIds] = useState<Set<number>>(new Set());
+
+  // 프로젝트 고객 초대 재발송 (대기 중인 고객만)
+  const resendProjectInvite = async (clientId: number) => {
+    if (resendingIds.has(clientId)) return;
+    setResendingIds(prev => new Set(prev).add(clientId));
+    try {
+      const r = await apiFetch(`/api/projects/${projectId}/clients/${clientId}/resend-invite`, { method: 'POST' });
+      const j = await r.json();
+      if (j.success) {
+        setProject(prev => prev ? { ...prev, projectClients: (prev.projectClients || []).map(x => x.id === clientId ? { ...x, invited_at: j.data.invited_at } : x) } : prev);
+        setResentIds(prev => new Set(prev).add(clientId));
+        setTimeout(() => setResentIds(prev => { const n = new Set(prev); n.delete(clientId); return n; }), 3000);
+      }
+    } finally {
+      setResendingIds(prev => { const n = new Set(prev); n.delete(clientId); return n; });
+    }
+  };
   const [closing, setClosing] = useState(false);
   const [loading, setLoading] = useState(true);
   // 채팅방 ⋮ 메뉴 — 연결 끊기 / 삭제 (둘 다 ConfirmDialog 후 실행)
@@ -839,9 +858,24 @@ const QProjectDetailPage: React.FC = () => {
                     <ClientRow key={c.id}>
                       <strong>{c.contact_name}</strong>
                       <span>{c.contact_email || t('info.noValue', '—')}</span>
+                      {!joined && c.invited_at && (
+                        <InviteSentAt title={t('clients.invitedAtTitle', '초대 발송 시각') as string}>
+                          {t('clients.invitedAt', { defaultValue: '{{date}} 발송', date: formatDate(c.invited_at) })}
+                        </InviteSentAt>
+                      )}
                       <ClientStatusPill $joined={joined} title={joined ? t('clients.joinedTitle', '워크스페이스 사용자로 참여 중') as string : t('clients.pendingTitle', '초대 발송 — 수락 대기 중') as string}>
                         {joined ? t('clients.joined', '참여 중') : t('clients.pending', '초대 대기')}
                       </ClientStatusPill>
+                      {!joined && c.contact_email && (
+                        <ResendBtn type="button" disabled={resendingIds.has(c.id)}
+                          onClick={() => resendProjectInvite(c.id)}>
+                          {resentIds.has(c.id)
+                            ? t('clients.resent', '발송됨')
+                            : resendingIds.has(c.id)
+                              ? t('clients.resending', '발송 중…')
+                              : t('clients.resend', '재발송')}
+                        </ResendBtn>
+                      )}
                       <ClientDelBtn type="button" onClick={async () => {
                         const r = await apiFetch(`/api/projects/${projectId}/clients/${c.id}`, { method: 'DELETE' });
                         if ((await r.json()).success) {
@@ -1215,6 +1249,13 @@ const ClientStatusPill = styled.span<{ $joined: boolean }>`
   ${p=>p.$joined?'background:#CCFBF1;color:#0F766E;':'background:#FEF3C7;color:#92400E;'}
 `;
 const ClientDelBtn = styled.button`width:24px;height:24px;border:none;background:transparent;color:#94A3B8;cursor:pointer;border-radius:4px;font-size:14px;&:hover{background:#FEE2E2;color:#DC2626;}`;
+const InviteSentAt = styled.span`font-size:11px!important;color:#94A3B8!important;white-space:nowrap;`;
+const ResendBtn = styled.button`
+  height:26px;padding:0 10px;border:1px solid #CBD5E1;background:#fff;color:#0F766E;
+  border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;
+  &:hover:not(:disabled){background:#F0FDFA;border-color:#14B8A6;}
+  &:disabled{opacity:0.5;cursor:not-allowed;}
+`;
 // ── Close Project modal ──
 const CloseBackdrop = styled.div`position:fixed;inset:0;background:rgba(15,23,42,0.40);z-index:60;display:flex;align-items:center;justify-content:center;padding:20px;animation:cpfade 0.15s ease-out;@keyframes cpfade{from{opacity:0;}to{opacity:1;}}`;
 const CloseDialog = styled.div`width:100%;max-width:520px;background:#FFF;border-radius:14px;box-shadow:0 24px 48px rgba(15,23,42,0.20);display:flex;flex-direction:column;max-height:88vh;overflow:hidden;`;

@@ -296,7 +296,12 @@
     "joined": "Joined",
     "pending": "Invite pending",
     "joinedTitle": "Joined as workspace user",
-    "pendingTitle": "Invite sent — awaiting acceptance"
+    "pendingTitle": "Invite sent — awaiting acceptance",
+    "invitedAt": "Sent {{date}}",
+    "invitedAtTitle": "Invite sent at",
+    "resend": "Resend",
+    "resending": "Sending…",
+    "resent": "Sent"
   },
   "edit": {
     "projectName": "Project name",
