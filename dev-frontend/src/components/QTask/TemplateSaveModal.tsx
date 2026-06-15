@@ -28,7 +28,7 @@ export default function TemplateSaveModal({ open, onClose, businessId, projectId
 
   useEffect(() => {
     if (open) {
-      setName(projectName ? `${projectName} 템플릿` : '');
+      setName(projectName ? t('templateSave.defaultName', { defaultValue: '{{name}} 템플릿', name: projectName }) : '');
       setDescription('');
       setCategory('');
       setError(null);

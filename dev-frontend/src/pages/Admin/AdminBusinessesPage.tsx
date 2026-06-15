@@ -159,7 +159,7 @@ export default function AdminBusinessesPage() {
   const submitPlan = async () => {
     if (!detail || planModal.submitting) return;
     if (planModal.toPlan === detail.plan && dateToInput(detail.plan_expires_at) === planModal.expires) {
-      setPlanModal(p => ({ ...p, error: '변경 사항이 없습니다' }));
+      setPlanModal(p => ({ ...p, error: t('modal.changePlan.noChanges', '변경 사항이 없습니다') as string }));
       return;
     }
     setPlanModal(p => ({ ...p, submitting: true, error: null }));

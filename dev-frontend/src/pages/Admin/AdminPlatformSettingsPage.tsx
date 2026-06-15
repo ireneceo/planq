@@ -126,7 +126,7 @@ const AdminPlatformSettingsPage = () => {
             <Input
               value={data.tagline || ''}
               onChange={(e) => set('tagline', e.target.value)}
-              placeholder="일이 일이 되지 않게 플랜큐가 도와드립니다."
+              placeholder={t('platform.taglinePh', '일이 일이 되지 않게 플랜큐가 도와드립니다.') as string}
               maxLength={300}
             />
           </AutoSaveField>
@@ -163,7 +163,7 @@ const AdminPlatformSettingsPage = () => {
             <Input
               value={data.legal_entity || ''}
               onChange={(e) => set('legal_entity', e.target.value)}
-              placeholder="워프로랩"
+              placeholder={t('platform.legalEntityPh', '워프로랩') as string}
               maxLength={100}
             />
           </AutoSaveField>
@@ -273,7 +273,7 @@ const AdminPlatformSettingsPage = () => {
             <Input
               value={data.seo_title || ''}
               onChange={(e) => set('seo_title', e.target.value)}
-              placeholder="PlanQ — 일이 일이 되지 않게"
+              placeholder={t('platform.seoTitlePh', 'PlanQ — 일이 일이 되지 않게') as string}
               maxLength={255}
             />
           </AutoSaveField>
@@ -285,7 +285,7 @@ const AdminPlatformSettingsPage = () => {
             <Input
               value={data.seo_description || ''}
               onChange={(e) => set('seo_description', e.target.value)}
-              placeholder="업무·프로젝트·사람·시간·고객·청구를 하나로 연결해 시간을 돈으로 바꾸는 수익성 엔진."
+              placeholder={t('platform.seoDescPh', '업무·프로젝트·사람·시간·고객·청구를 하나로 연결해 시간을 돈으로 바꾸는 수익성 엔진.') as string}
               maxLength={500}
             />
           </AutoSaveField>
@@ -297,7 +297,7 @@ const AdminPlatformSettingsPage = () => {
             <Input
               value={data.seo_keywords || ''}
               onChange={(e) => set('seo_keywords', e.target.value)}
-              placeholder="업무관리, 프로젝트관리, 고객관리, B2B SaaS, 워크스페이스"
+              placeholder={t('platform.seoKeywordsPh', '업무관리, 프로젝트관리, 고객관리, B2B SaaS, 워크스페이스') as string}
               maxLength={500}
             />
           </AutoSaveField>

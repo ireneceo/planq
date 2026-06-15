@@ -587,8 +587,8 @@ const MailPage: React.FC = () => {
     if (composeOpen && cAccountId == null && accounts.length) setCAccountId(accounts[0].id);
   }, [composeOpen, cAccountId, accounts]);
   const composeAccountOptions = useMemo(
-    () => accounts.map(a => ({ value: a.id, label: `${a.display_name || a.email}${a.is_personal ? ' (개인)' : ''}` })),
-    [accounts],
+    () => accounts.map(a => ({ value: a.id, label: `${a.display_name || a.email}${a.is_personal ? ` (${t('account.personal', { defaultValue: '개인' })})` : ''}` })),
+    [accounts, t],
   );
   const closeCompose = () => {
     setComposeOpen(false); setCTo(''); setCSubject(''); setCBody(''); setCUploads([]); setCFileIds([]); setCError(null);

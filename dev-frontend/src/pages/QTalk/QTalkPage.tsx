@@ -73,7 +73,7 @@ function apiProjectToMock(p: qtalkApi.ApiProject): MockProject {
     id: p.id,
     name: p.name,
     description: p.description || undefined,
-    client_company: p.client_company || '(미지정)',
+    client_company: p.client_company || i18n.t('qtalk:fallback.unspecified', { defaultValue: '(미지정)' }),
     status: p.status,
     start_date: p.start_date || undefined,
     end_date: p.end_date || undefined,
@@ -88,8 +88,8 @@ function apiProjectToMock(p: qtalkApi.ApiProject): MockProject {
     })),
     clients: (p.projectClients || []).map((c) => ({
       user_id: c.contact_user_id || 0,
-      name: c.contact_name || '(이름 없음)',
-      company: p.client_company || '(고객사)',
+      name: c.contact_name || i18n.t('qtalk:fallback.noName', { defaultValue: '(이름 없음)' }),
+      company: p.client_company || i18n.t('qtalk:fallback.clientCompany', { defaultValue: '(고객사)' }),
       avatar_color: '#64748B',
     })),
     unread_count: 0,
@@ -113,7 +113,7 @@ function apiConversationToMock(c: qtalkApi.ApiConversation): MockConversation {
     id: c.id,
     project_id: c.project_id || 0,
     channel_type: c.channel_type,
-    name: c.display_name || c.title || '(이름 없음)',
+    name: c.display_name || c.title || i18n.t('qtalk:fallback.noName', { defaultValue: '(이름 없음)' }),
     auto_extract_enabled: c.auto_extract_enabled,
     unread_count: c.unread_count || 0,
     last_extracted_message_id: c.last_extracted_message_id,
@@ -438,7 +438,7 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
         const incrementUnread = !isMine && !viewing;
         // 사이클 N+15-D — 실시간 last_message_preview 갱신. 채팅 리스트의 한 줄도 즉시 따라옴.
         const previewContent = (mapped.body || '').trim()
-          || (mapped.card ? '[카드]' : (mapped.attachments && mapped.attachments.length > 0 ? `[첨부 ${mapped.attachments.length}개]` : ''));
+          || (mapped.card ? t('preview.card', '[카드]') : (mapped.attachments && mapped.attachments.length > 0 ? t('preview.attachments', { defaultValue: '[첨부 {{count}}개]', count: mapped.attachments.length }) : ''));
         return {
           ...c,
           last_message_at: mapped.created_at,

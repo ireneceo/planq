@@ -172,8 +172,8 @@ const AdminAuditLogsPage = () => {
           />
           <SmallInput type="number" placeholder={t('adminAudit.userIdPh', 'user ID') as string}
             value={filterUserId} onChange={e => setFilterUserId(e.target.value)} />
-          <SingleDateField value={filterFrom} onChange={setFilterFrom} placeholder="시작" size="sm" width={130} />
-          <SingleDateField value={filterTo} onChange={setFilterTo} placeholder="끝" size="sm" width={130} minDate={filterFrom || undefined} />
+          <SingleDateField value={filterFrom} onChange={setFilterFrom} placeholder={t('adminAudit.fromPh', '시작') as string} size="sm" width={130} />
+          <SingleDateField value={filterTo} onChange={setFilterTo} placeholder={t('adminAudit.toPh', '끝') as string} size="sm" width={130} minDate={filterFrom || undefined} />
         </FilterRow>
       }
     >
@@ -218,7 +218,7 @@ const AdminAuditLogsPage = () => {
             </DSection>
             <DSection>
               <DLabel>{t('adminAudit.col.user', '사용자')}</DLabel>
-              <DValue>{detail.User ? `${detail.User.name} (${detail.User.email})` : (detail.user_id ? `#${detail.user_id}` : '시스템')}</DValue>
+              <DValue>{detail.User ? `${detail.User.name} (${detail.User.email})` : (detail.user_id ? `#${detail.user_id}` : t('adminAudit.system', '시스템'))}</DValue>
             </DSection>
             <DSection>
               <DLabel>{t('adminAudit.col.target', '대상')}</DLabel>

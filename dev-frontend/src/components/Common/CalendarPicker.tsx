@@ -13,7 +13,8 @@ interface CalendarPickerProps {
   anchorRef?: React.RefObject<HTMLElement | null>;
 }
 
-const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
+const WEEKDAY_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] as const;
+const WEEKDAY_FALLBACK: Record<string, string> = { sun: '일', mon: '월', tue: '화', wed: '수', thu: '목', fri: '금', sat: '토' };
 
 const formatDate = (d: Date): string =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -34,7 +35,6 @@ const isBetween = (date: Date, start: Date, end: Date): boolean => {
 
 const getDaysInMonth = (y: number, m: number) => new Date(y, m + 1, 0).getDate();
 const getFirstDayOfMonth = (y: number, m: number) => new Date(y, m, 1).getDay();
-const getMonthLabel = (y: number, m: number) => `${y}년 ${m + 1}월`;
 
 const CalendarPicker: React.FC<CalendarPickerProps> = ({
   startDate, endDate, onRangeSelect, onClose, isOpen, singleMode = false, anchorRef,
@@ -147,8 +147,8 @@ const CalendarPicker: React.FC<CalendarPickerProps> = ({
     for (let d = 1; d <= daysIn; d++) days.push(new Date(y, m, d));
     return (
       <MonthBox>
-        <MonthLabel>{getMonthLabel(y, m)}</MonthLabel>
-        <WeekdayRow>{WEEKDAYS.map(w => <Weekday key={w}>{w}</Weekday>)}</WeekdayRow>
+        <MonthLabel>{t('calendar.monthLabel', { defaultValue: '{{year}}년 {{month}}월', year: y, month: m + 1 })}</MonthLabel>
+        <WeekdayRow>{WEEKDAY_KEYS.map(w => <Weekday key={w}>{t(`calendar.weekday.${w}`, { defaultValue: WEEKDAY_FALLBACK[w] })}</Weekday>)}</WeekdayRow>
         <DaysGrid>
           {days.map((date, i) => {
             if (!date) return <EmptyCell key={`e-${i}`} />;

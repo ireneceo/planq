@@ -237,7 +237,7 @@ const AdminInquiriesPage = () => {
           </DetailDrawer.Body>
           <DetailDrawer.Footer>
             <FooterRow>
-              <a href={`mailto:${detail.from_email}?subject=Re: PlanQ 문의 %23${detail.id}`} target="_blank" rel="noreferrer">
+              <a href={`mailto:${detail.from_email}?subject=Re: ${encodeURIComponent(t('adminInq.mailSubject', 'PlanQ 문의'))} %23${detail.id}`} target="_blank" rel="noreferrer">
                 <SecondaryBtn type="button">{t('adminInq.dReplyEmail', '메일로 회신')}</SecondaryBtn>
               </a>
               <PrimaryBtn type="button" onClick={submit} disabled={submitting}>

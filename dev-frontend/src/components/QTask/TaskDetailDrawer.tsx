@@ -886,7 +886,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                     value={detailTask.assignee_id == null ? null : {
                       value: String(detailTask.assignee_id),
                       label: (members.find(m => m.user_id === detailTask.assignee_id)?.name || detailTask.assignee?.name || '-')
-                        + (detailTask.assignee_id === myId ? ' (나)' : ''),
+                        + (detailTask.assignee_id === myId ? t('detail.meSuffix', ' (나)') : ''),
                     }}
                     onChange={(v) => {
                       const uid = (v as { value?: string })?.value ? Number((v as { value: string }).value) : null;
@@ -901,7 +901,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                       });
                       saveField('assignee_id', uid);
                     }}
-                    options={members.map(m => ({ value: String(m.user_id), label: m.name + (m.user_id === myId ? ' (나)' : '') }))} />
+                    options={members.map(m => ({ value: String(m.user_id), label: m.name + (m.user_id === myId ? t('detail.meSuffix', ' (나)') : '') }))} />
                 </MetaCell>
                 <MetaCell>
                   <MetaLabel>{t('detail.meta.period', '기간')}</MetaLabel>

@@ -99,7 +99,7 @@ const TimeGridView: React.FC<Props> = ({ today, days, events, onSelectEvent, onS
                     onClick={() => onSelectEvent(e.id, e.start_at?.slice(0, 10))}
                   >
                     {isTask && <CheckIcon size={11} style={{ marginRight: 3, verticalAlign: '-2px' }} />}{e.title}
-                    {(e as { _is_exception?: boolean })._is_exception && <ExceptionMark title="변경된 회차">✎</ExceptionMark>}
+                    {(e as { _is_exception?: boolean })._is_exception && <ExceptionMark title={t('exceptionMark', { defaultValue: '변경된 회차' })}>✎</ExceptionMark>}
                   </AllDayChip>
                 );
               })}
@@ -159,7 +159,7 @@ const TimeGridView: React.FC<Props> = ({ today, days, events, onSelectEvent, onS
                         <EventHeader>
                           <EventTitle>
                             {e.title}
-                            {(e as { _is_exception?: boolean })._is_exception && <ExceptionMark title="변경된 회차">✎</ExceptionMark>}
+                            {(e as { _is_exception?: boolean })._is_exception && <ExceptionMark title={t('exceptionMark', { defaultValue: '변경된 회차' })}>✎</ExceptionMark>}
                           </EventTitle>
                         </EventHeader>
                         <EventMeta>{formatTime(start)} – {formatTime(end)}</EventMeta>

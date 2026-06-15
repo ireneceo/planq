@@ -118,7 +118,7 @@ const InlineAttachPicker: React.FC<Props> = ({ businessId, excludeIds = [], onPi
                 <Size>{formatBytes(f.file_size)}</Size>
                 {already
                   ? <AddedMark>{t('inlineAttach.added', '추가됨') as string}</AddedMark>
-                  : <PlusBtn type="button" onClick={(e) => { e.stopPropagation(); handlePick(f.id); }} aria-label="추가">+</PlusBtn>}
+                  : <PlusBtn type="button" onClick={(e) => { e.stopPropagation(); handlePick(f.id); }} aria-label={t('inlineAttach.add', { defaultValue: '추가' })}>+</PlusBtn>}
               </Row>
             );
           })

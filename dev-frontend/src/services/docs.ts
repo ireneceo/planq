@@ -236,6 +236,20 @@ export const KIND_LABELS_KO: Record<DocKind, string> = {
   custom: '자유 문서',
 };
 
+// i18n 키 매핑 (qdocs 네임스페이스). t(KIND_LABEL_KEYS[kind], { defaultValue: KIND_LABELS_KO[kind] }) 로 사용.
+export const KIND_LABEL_KEYS: Record<DocKind, string> = {
+  quote: 'docKind.quote',
+  invoice: 'docKind.invoice',
+  tax_invoice: 'docKind.taxInvoice',
+  contract: 'docKind.contract',
+  nda: 'docKind.nda',
+  proposal: 'docKind.proposal',
+  sow: 'docKind.sow',
+  meeting_note: 'docKind.meetingNote',
+  sop: 'docKind.sop',
+  custom: 'docKind.custom',
+};
+
 // 라인 아이콘 (Lucide-style) — 이모지 사용 안 함.
 // 컴포넌트에서 KIND_ICON_PATH[kind] 를 svg children 으로 렌더.
 export const KIND_ICON_PATH: Record<DocKind, React.ReactElement> = {} as Record<DocKind, React.ReactElement>;

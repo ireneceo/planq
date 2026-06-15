@@ -48,10 +48,14 @@ interface ClientInput {
 }
 
 const ROLE_OPTIONS = ['기획', '디자인', '개발', '영업', '운영', '기타'];
-const ROLE_SELECT_OPTIONS = ROLE_OPTIONS.map((r) => ({ value: r, label: r }));
+const ROLE_KEY: Record<string, string> = {
+  '기획': 'planning', '디자인': 'design', '개발': 'dev', '영업': 'sales', '운영': 'ops', '기타': 'etc',
+};
 
 const NewProjectModal: React.FC<Props> = ({ businessId, open, onClose, onCreate }) => {
   const { t } = useTranslation('qtalk');
+  const roleLabel = (r: string) => t(`newProject.role.${ROLE_KEY[r] || 'etc'}`, { defaultValue: r });
+  const ROLE_SELECT_OPTIONS = ROLE_OPTIONS.map((r) => ({ value: r, label: roleLabel(r) }));
   const { user } = useAuth();
   const [availableMembers, setAvailableMembers] = useState<WorkspaceMemberRow[]>([]);
   const [name, setName] = useState('');
@@ -180,8 +184,8 @@ const NewProjectModal: React.FC<Props> = ({ businessId, open, onClose, onCreate 
         members,
         clients,
         channels: [
-          ...(createCustomerChannel ? [{ channel_type: 'customer' as const, name: customerChatName.trim() || `${name.trim()} 고객`, participant_user_ids: Array.from(customerParticipants) }] : []),
-          ...(createInternalChannel ? [{ channel_type: 'internal' as const, name: internalChatName.trim() || `${name.trim()} 내부`, participant_user_ids: Array.from(internalParticipants) }] : []),
+          ...(createCustomerChannel ? [{ channel_type: 'customer' as const, name: customerChatName.trim() || t('newProject.customerChannelName', { defaultValue: '{{name}} 고객', name: name.trim() }), participant_user_ids: Array.from(customerParticipants) }] : []),
+          ...(createInternalChannel ? [{ channel_type: 'internal' as const, name: internalChatName.trim() || t('newProject.internalChannelName', { defaultValue: '{{name}} 내부', name: name.trim() }), participant_user_ids: Array.from(internalParticipants) }] : []),
         ],
       });
     } finally {
@@ -460,7 +464,7 @@ const NewProjectModal: React.FC<Props> = ({ businessId, open, onClose, onCreate 
                                     if (checked) next.delete(m.user_id); else next.add(m.user_id);
                                     setParts(next);
                                   }} />
-                                <span>{m.name} · {m.role}{m.is_default ? ' ★' : ''}</span>
+                                <span>{m.name} · {roleLabel(m.role)}{m.is_default ? ' ★' : ''}</span>
                               </ChannelMemberChk>
                             );
                           })}

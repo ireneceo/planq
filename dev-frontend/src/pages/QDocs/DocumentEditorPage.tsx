@@ -13,7 +13,7 @@ import RevisionPanel from '../../components/Docs/RevisionPanel';
 import { useAuth } from '../../contexts/AuthContext';
 import {
   getDocument, updateDocument, downloadDocumentPdf,
-  KIND_LABELS_KO, type DocDetail,
+  KIND_LABELS_KO, KIND_LABEL_KEYS, type DocDetail,
 } from '../../services/docs';
 
 const DocumentEditorPage: React.FC = () => {
@@ -96,7 +96,7 @@ const DocumentEditorPage: React.FC = () => {
     );
   }
 
-  const kindLabel = KIND_LABELS_KO[doc.kind] || doc.kind;
+  const kindLabel = KIND_LABEL_KEYS[doc.kind] ? t(KIND_LABEL_KEYS[doc.kind], { defaultValue: KIND_LABELS_KO[doc.kind] }) : doc.kind;
   const saveLabel = saveStatus === 'saving' ? t('editor.saving', '저장 중...')
     : saveStatus === 'saved' ? t('editor.saved', '저장됨')
     : saveStatus === 'error' ? t('editor.saveError', '저장 실패')

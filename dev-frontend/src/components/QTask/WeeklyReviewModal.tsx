@@ -38,7 +38,10 @@ const WeeklyReviewModal: React.FC<Props> = ({ businessId, wsTz, onClose, onSaved
   };
   const dayOfWeek = (d: string) => {
     const dow = new Date(d).getDay();
-    const days = ['일', '월', '화', '수', '목', '금', '토'];
+    const days = [
+      t('weekdayShort.0', '일'), t('weekdayShort.1', '월'), t('weekdayShort.2', '화'),
+      t('weekdayShort.3', '수'), t('weekdayShort.4', '목'), t('weekdayShort.5', '금'), t('weekdayShort.6', '토'),
+    ];
     return days[dow];
   };
 

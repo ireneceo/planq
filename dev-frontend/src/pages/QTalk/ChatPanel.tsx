@@ -343,7 +343,7 @@ const ChatPanel: React.FC<Props> = ({
   const handleBulkCopy = async () => {
     const selected = convMessages
       .filter((m) => selectedMsgIds.has(m.id) && !m.is_deleted)
-      .map((m) => `[${m.sender_name} ${formatGroupTime(m.created_at)}] ${m.body || (m.attachments?.length ? `[첨부 ${m.attachments.length}개]` : '')}`)
+      .map((m) => `[${m.sender_name} ${formatGroupTime(m.created_at)}] ${m.body || (m.attachments?.length ? t('preview.attachments', { defaultValue: '[첨부 {{count}}개]', count: m.attachments.length }) : '')}`)
       .join('\n');
     await handleCopyText(selected);
     exitSelection();
@@ -1123,7 +1123,7 @@ const ChatPanel: React.FC<Props> = ({
               {pinnedMessages.map((m) => (
                 <PinnedItem key={m.id} type="button" onClick={() => scrollToMessage(m.id)}>
                   <PinnedSender>{m.sender_name}</PinnedSender>
-                  <PinnedBody>{m.body || (m.attachments?.length ? `[첨부 ${m.attachments.length}개]` : '')}</PinnedBody>
+                  <PinnedBody>{m.body || (m.attachments?.length ? t('preview.attachments', { defaultValue: '[첨부 {{count}}개]', count: m.attachments.length }) : '')}</PinnedBody>
                   <PinnedTime>{formatGroupTime(m.pinned_at || m.created_at)}</PinnedTime>
                   {canPinMessage && (
                     <PinnedUnpinBtn

@@ -101,12 +101,12 @@ const MonthView: React.FC<Props> = ({ anchor, today, events, onSelectEvent, onSe
                       {!isTask && !e.all_day && isStart && <Dot $color={c.fg} />}
                       <ChipTitle>
                         {!isTask && !e.all_day && isStart && (
-                          <ChipTime>{formatChipTime(e.start_at)}</ChipTime>
+                          <ChipTime>{formatChipTime(e.start_at, t)}</ChipTime>
                         )}
                         {e.title}
                         {/* N+63 P2a 후속 — child exception (정기 회차 중 변경된 것) 마커 */}
                         {(e as { _is_exception?: boolean })._is_exception && (
-                          <ExceptionMark title="변경된 회차">✎</ExceptionMark>
+                          <ExceptionMark title={t('exceptionMark', { defaultValue: '변경된 회차' })}>✎</ExceptionMark>
                         )}
                       </ChipTitle>
                     </EventChip>
@@ -152,7 +152,7 @@ const MonthView: React.FC<Props> = ({ anchor, today, events, onSelectEvent, onSe
                     onClick={() => { onSelectEvent(e.id, e.start_at?.slice(0, 10)); setPopoverDay(null); }}
                   >
                     <PopoverItemTime>
-                      {e.all_day ? t('allDay') : formatChipTime(e.start_at)}
+                      {e.all_day ? t('allDay') : formatChipTime(e.start_at, t)}
                     </PopoverItemTime>
                     <PopoverItemTitle>
                       {isTask && (
@@ -174,11 +174,11 @@ const MonthView: React.FC<Props> = ({ anchor, today, events, onSelectEvent, onSe
   );
 };
 
-const formatChipTime = (iso: string): string => {
+const formatChipTime = (iso: string, t: (key: string, opts?: Record<string, unknown>) => string): string => {
   const d = new Date(iso);
   const h = d.getHours();
   const m = d.getMinutes();
-  if (m === 0) return `${h}시`;
+  if (m === 0) return t('chipTimeHour', { defaultValue: '{{hour}}시', hour: h });
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 };
 

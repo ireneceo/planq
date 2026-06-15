@@ -20,6 +20,7 @@
  */
 import Select, { components } from 'react-select';
 import type { StylesConfig, Props as ReactSelectProps, GroupBase } from 'react-select';
+import { useTranslation } from 'react-i18next';
 
 // ─────────────────────────────────────────────────────────
 // PlanQ 컬러 토큰 (COLOR_GUIDE.md와 동기)
@@ -254,6 +255,7 @@ function PlanQSelect<IsMulti extends boolean = false>(
   props: PlanQSelectProps<IsMulti>
 ) {
   const { size = 'md', hasError = false, density = 'comfortable', ...rest } = props;
+  const { t } = useTranslation('common');
 
   return (
     <Select
@@ -261,9 +263,11 @@ function PlanQSelect<IsMulti extends boolean = false>(
       styles={buildStyles(size, hasError, density) as any}
       components={{ Option, SingleValue, ...(rest.components || {}) }}
       noOptionsMessage={({ inputValue }) =>
-        inputValue ? `'${inputValue}'에 대한 결과 없음` : '옵션 없음'
+        inputValue
+          ? t('select.noResultFor', { defaultValue: "'{{query}}'에 대한 결과 없음", query: inputValue })
+          : t('select.noOptions', { defaultValue: '옵션 없음' })
       }
-      placeholder={rest.placeholder ?? '선택하기'}
+      placeholder={rest.placeholder ?? t('select.placeholder', { defaultValue: '선택하기' })}
       isSearchable={rest.isSearchable ?? true}
       // 모달·드로어 내부에서 드롭다운이 푸터·컨테이너에 가려지는 문제 방지 —
       // document.body 로 포털 렌더. z-index 는 buildStyles.menuPortal 에서 처리.

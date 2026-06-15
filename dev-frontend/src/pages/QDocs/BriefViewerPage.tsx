@@ -24,9 +24,14 @@ interface BriefMeta {
   generated_at: string;
 }
 
-const KIND_LABEL_KO: Record<string, string> = {
-  meeting_note: '회의록', proposal: '제안서', quote: '견적서',
-  contract: '계약서', nda: 'NDA', sop: '운영 가이드(SOP)', custom: '기타 문서',
+const KIND_LABEL_KO: Record<string, { tk: string; ko: string }> = {
+  meeting_note: { tk: 'kind.meetingNote', ko: '회의록' },
+  proposal: { tk: 'kind.proposal', ko: '제안서' },
+  quote: { tk: 'kind.quote', ko: '견적서' },
+  contract: { tk: 'kind.contract', ko: '계약서' },
+  nda: { tk: 'kind.nda', ko: 'NDA' },
+  sop: { tk: 'kind.sop', ko: '운영 가이드(SOP)' },
+  custom: { tk: 'kind.custom', ko: '기타 문서' },
 };
 
 const BriefViewerPage = () => {
@@ -182,7 +187,7 @@ const BriefViewerPage = () => {
           <NextCta>
             <NextLabel>{t('brief.nextLabel', '추천 후속 문서')}</NextLabel>
             <NextBody>
-              <NextKindBadge>{KIND_LABEL_KO[meta.recommended_next_kind] || meta.recommended_next_kind}</NextKindBadge>
+              <NextKindBadge>{(() => { const k = KIND_LABEL_KO[meta.recommended_next_kind]; return k ? t(k.tk, { defaultValue: k.ko }) : meta.recommended_next_kind; })()}</NextKindBadge>
               <NextReason>{meta.recommended_next_reason || t('brief.nextDefaultReason', '이 자료를 바탕으로 후속 문서를 작성할 수 있어요.')}</NextReason>
             </NextBody>
             <NextActions>
@@ -210,7 +215,7 @@ const BriefViewerPage = () => {
             <ChildrenList>
               {children.map((c) => (
                 <ChildCard key={c.id} to={`/docs?post=${c.id}`}>
-                  <ChildKind>{KIND_LABEL_KO[c.category || 'custom'] || c.category}</ChildKind>
+                  <ChildKind>{(() => { const k = KIND_LABEL_KO[c.category || 'custom']; return k ? t(k.tk, { defaultValue: k.ko }) : c.category; })()}</ChildKind>
                   <ChildTitle>{c.title}</ChildTitle>
                   <ChildMeta>
                     {c.author?.name || ''} · {new Date(c.created_at).toLocaleDateString('ko-KR')}

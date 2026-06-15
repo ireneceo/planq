@@ -7,7 +7,7 @@ import styled from 'styled-components';
 import { useEscapeStack } from '../../hooks/useEscapeStack';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import {
-  createDocument, aiGenerateDoc, KIND_LABELS_KO, KIND_ICON,
+  createDocument, aiGenerateDoc, KIND_LABELS_KO, KIND_LABEL_KEYS, KIND_ICON,
   type DocTemplate, type DocSummary, type DocKind,
 } from '../../services/docs';
 import { createBrief } from '../../services/posts';
@@ -182,7 +182,7 @@ const NewDocumentModal: React.FC<Props> = ({ open, onClose, templates, businessI
         business_id: businessId,
         template_id: tpl?.id || null,
         kind: k,
-        title: tpl ? tpl.name : `새 ${KIND_LABELS_KO[k]}`,
+        title: tpl ? tpl.name : t('newDoc.untitled', { defaultValue: '새 {{kind}}', kind: t(KIND_LABEL_KEYS[k], { defaultValue: KIND_LABELS_KO[k] }) }),
       });
       onCreated(doc as unknown as DocSummary);
     } catch (e) {
@@ -236,7 +236,7 @@ const NewDocumentModal: React.FC<Props> = ({ open, onClose, templates, businessI
                 <KindGrid>
                   {(['proposal','quote','invoice','nda','contract','meeting_note','sop','custom'] as DocKind[]).map(k => (
                     <KindOpt key={k} type="button" $active={aiKind===k} onClick={() => setAiKind(k)}>
-                      <span>{KIND_ICON[k]}</span> {KIND_LABELS_KO[k]}
+                      <span>{KIND_ICON[k]}</span> {t(KIND_LABEL_KEYS[k], { defaultValue: KIND_LABELS_KO[k] })}
                     </KindOpt>
                   ))}
                 </KindGrid>
@@ -340,7 +340,7 @@ const NewDocumentModal: React.FC<Props> = ({ open, onClose, templates, businessI
               {(['quote', 'invoice', 'contract', 'nda', 'proposal', 'meeting_note', 'sop', 'custom'] as DocKind[]).map(k => (
                 <BlankCard key={k} onClick={() => start(null, k)} disabled={busy}>
                   <BlankIcon>{KIND_ICON[k]}</BlankIcon>
-                  <BlankName>{KIND_LABELS_KO[k]}</BlankName>
+                  <BlankName>{t(KIND_LABEL_KEYS[k], { defaultValue: KIND_LABELS_KO[k] })}</BlankName>
                 </BlankCard>
               ))}
             </BlankGrid>

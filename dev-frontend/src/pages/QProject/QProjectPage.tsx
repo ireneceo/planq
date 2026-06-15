@@ -292,15 +292,15 @@ const QProjectPage: React.FC = () => {
 export default QProjectPage;
 
 // ─── 상대 시간 포맷 (n분 전 / n시간 전 / n일 전) ───
-function formatRelativeTime(iso: string | Date): string {
+function formatRelativeTime(iso: string | Date, t: (k: string, o?: Record<string, unknown>) => string): string {
   try {
     const d = typeof iso === 'string' ? new Date(iso) : iso;
     const diff = Date.now() - d.getTime();
     if (isNaN(diff)) return '';
-    if (diff < 60_000) return '방금';
-    if (diff < 3600_000) return `${Math.floor(diff / 60_000)}분 전`;
-    if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}시간 전`;
-    if (diff < 7 * 86_400_000) return `${Math.floor(diff / 86_400_000)}일 전`;
+    if (diff < 60_000) return t('relTime.justNow', { defaultValue: '방금' });
+    if (diff < 3600_000) return t('relTime.minutesAgo', { count: Math.floor(diff / 60_000), defaultValue: '{{count}}분 전' });
+    if (diff < 86_400_000) return t('relTime.hoursAgo', { count: Math.floor(diff / 3_600_000), defaultValue: '{{count}}시간 전' });
+    if (diff < 7 * 86_400_000) return t('relTime.daysAgo', { count: Math.floor(diff / 86_400_000), defaultValue: '{{count}}일 전' });
     return d.toLocaleDateString();
   } catch { return ''; }
 }
@@ -410,7 +410,7 @@ const ListView: React.FC<{
                 <MetaIcon viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                   <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
                 </MetaIcon>
-                <span>{formatRelativeTime(p.updatedAt)}</span>
+                <span>{formatRelativeTime(p.updatedAt, t)}</span>
               </MetaItem>
             )}
           </MetaLine>

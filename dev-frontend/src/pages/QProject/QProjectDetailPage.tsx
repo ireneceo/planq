@@ -1005,6 +1005,7 @@ export default QProjectDetailPage;
 
 // ───────── 메뉴에 추가된 문서 탭 본문 (PostEditor read-only + 편집 액션) ─────────
 const PinnedDocBody: React.FC<{ postId: number; onEdit: (id: number) => void }> = ({ postId, onEdit }) => {
+  const { t } = useTranslation('qproject');
   const [detail, setDetail] = useState<PostDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -1019,20 +1020,20 @@ const PinnedDocBody: React.FC<{ postId: number; onEdit: (id: number) => void }> 
     return () => { cancelled = true; };
   }, [postId]);
 
-  if (loading) return <PinnedDocLoading>불러오는 중...</PinnedDocLoading>;
-  if (error || !detail) return <PinnedDocEmpty>문서를 찾을 수 없습니다. 메뉴에서 제거하세요.</PinnedDocEmpty>;
+  if (loading) return <PinnedDocLoading>{t('pinnedDoc.loading', '불러오는 중...')}</PinnedDocLoading>;
+  if (error || !detail) return <PinnedDocEmpty>{t('pinnedDoc.notFound', '문서를 찾을 수 없습니다. 메뉴에서 제거하세요.')}</PinnedDocEmpty>;
 
   return (
     <PinnedDocCard>
       <PinnedDocHeader>
         <PinnedDocTitle>{detail.title}</PinnedDocTitle>
         <PinnedDocActions>
-          <PinnedDocBtn type="button" onClick={() => onEdit(postId)} title="문서 탭에서 이 문서 편집">
+          <PinnedDocBtn type="button" onClick={() => onEdit(postId)} title={t('pinnedDoc.editHint', '문서 탭에서 이 문서 편집') as string}>
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
               <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
             </svg>
-            편집
+            {t('pinnedDoc.edit', '편집')}
           </PinnedDocBtn>
         </PinnedDocActions>
       </PinnedDocHeader>
