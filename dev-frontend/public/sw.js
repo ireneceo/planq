@@ -150,8 +150,10 @@ self.addEventListener('push', (event) => {
         c.postMessage({ type: 'planq:push-received', payload, badgeDiag });
       }
     } catch { /* silent */ }
-    // 알림을 띄운 뒤에야 SW 자가 갱신 (먼저 하면 현재 SW terminate 로 알림이 안 뜸)
-    self.registration.update().catch(() => null);
+    // [진단] delivery 측정 — SW 가 push 를 실제 받았음을 서버에 알림 (도달 확정용)
+    try { await fetch('/api/push/ack?t=' + Date.now(), { method: 'POST', keepalive: true }); } catch { /* silent */ }
+    // ★ self.registration.update() 제거 — push 처리 중 SW 전환으로 알림이 2번 뜨거나 안 뜨는 회귀 차단.
+    //   SW 자가 갱신은 BuildVersionGuard(앱)의 reg.update() 가 담당.
   })());
 });
 
@@ -215,7 +217,6 @@ self.addEventListener('notificationclick', (event) => {
       const fullUrl = isSameOrigin ? `${self.location.origin}${targetUrl}` : targetUrl;
       await self.clients.openWindow(fullUrl);
     }
-    // navigate/openWindow 끝난 뒤에야 SW 자가 갱신
-    self.registration.update().catch(() => null);
+    // ★ self.registration.update() 제거 — SW 전환 부작용 차단. 갱신은 BuildVersionGuard 담당.
   })());
 });
