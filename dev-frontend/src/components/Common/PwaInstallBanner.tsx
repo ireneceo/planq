@@ -76,6 +76,9 @@ const BannerRoot = styled.div`
     from { transform: translateY(20px); opacity: 0; }
     to { transform: translateY(0); opacity: 1; }
   }
+  /* 모바일은 InstallPromptBanner("앱처럼 사용하기") 하나만 노출 — 중복 배너 방지.
+     데스크탑(≥769px)에서만 이 배너 표시. */
+  @media (max-width: 768px) { display: none; }
 `;
 const Icon = styled.div`
   width: 36px; height: 36px;
