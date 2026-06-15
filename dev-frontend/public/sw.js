@@ -90,20 +90,16 @@ self.addEventListener('push', (event) => {
   let payload;
   try { payload = event.data.json(); } catch { payload = { title: 'PlanQ', body: event.data.text() }; }
   const title = payload.title || 'PlanQ';
+  // ★ 2026-06-15: iOS Safari web push 호환 — 표준 옵션만 사용.
+  //   iOS 는 vibrate/badge(이미지)/renotify 같은 비표준 옵션을 만나면 push 를 받고도(ack 확인)
+  //   배너를 화면에 안 띄우는 제약이 있음. 데스크탑 Chrome 은 전부 지원하지만,
+  //   표준 옵션(body/icon/silent)만으로도 데스크탑 배너+소리 정상 → iOS 호환 위해 최소화.
+  //   tag 도 제거(iOS 가 같은 tag 두번째부터 collapse 해 배너 안 뜨는 회귀 회피).
   const options = {
     body: payload.body || '',
     icon: payload.icon || '/icon-192.png',
-    badge: '/icon-72.png',
-    tag: payload.tag || undefined,
-    // 같은 tag 의 최신 알림으로 교체 — 기본은 false (true 면 누적 알림)
-    // Slack 패턴: 같은 대화방은 최신만. user 가 못 보고 누적되는 사고 방지.
-    renotify: !!payload.tag,
-    // 사운드 + 진동 명시 — OS 시스템 알림 사운드/진동 활성. silent:false 가 default 지만
-    // 일부 브라우저는 silent 미명시 시 무음으로 처리되는 경우 있어 명시.
-    silent: false,
-    vibrate: [200, 100, 200],  // 모바일 — 짧은 진동 패턴
+    silent: false,            // 소리 (데스크탑·모바일 공통)
     data: { link: payload.link || '/' },
-    requireInteraction: false,
   };
   event.waitUntil((async () => {
     // OS 배너는 항상 표시 (안 오는 것보다 가끔 2번 보이는 게 낫다 — 운영 원칙).
