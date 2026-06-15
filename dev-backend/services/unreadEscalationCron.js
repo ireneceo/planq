@@ -62,9 +62,10 @@ async function runUnreadEscalation() {
     }
     if (!fresh.length) continue;
 
-    const head = fresh[0];
-    const allowed = await isAllowed(userId, head.business_id, head.event_kind, 'email').catch(() => true);
-    if (allowed) {
+    // 에스컬레이션은 push silent-drop 백업이 목적 → 일반 email pref 와 무관하게 발송.
+    //   (활성 사용자는 대화/알림을 읽으면 read 처리되어 큐에서 빠지므로 스팸 아님)
+    //   push 가 기기/OS/PWA캐시 문제로 안 떠도 중요 알림(채팅·멘션·업무 등)을 이메일로 반드시 전달.
+    {
       const user = await User.findByPk(userId, { attributes: ['email', 'name'] });
       if (user && user.email) {
         const ok = await sendUnreadNotificationEmail({
