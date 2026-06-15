@@ -117,13 +117,13 @@ async function sendPushToUser(userId, payload, opts = {}) {
       });
     } catch (e) {
       const code = e.statusCode || null;
-      // 410 Gone / 404 Not Found — 만료 표시
+      // 410 Gone / 404 Not Found — 죽은 endpoint 즉시 DB 삭제 (RFC 8030 정석, 좀비 row 누적 차단)
       if (code === 410 || code === 404) {
-        await s.update({ expired_at: new Date() });
         await logPush({
           user_id: userId, subscription_id: s.id, endpoint_host: endpointHost(s.endpoint),
           status: 'expired', status_code: code, category, payload_title: payload.title,
         });
+        await s.destroy();
       } else {
         console.error('[push] sendNotification failed:', e.message);
         await logPush({
