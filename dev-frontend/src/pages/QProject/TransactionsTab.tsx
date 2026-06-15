@@ -289,6 +289,24 @@ const TransactionsTab: React.FC<Props> = ({ projectId }) => {
     }
   };
 
+  // 배너 내용(action_kind)에 맞춘 버튼 라벨 — "바로 가기" 대신 실제 할 일로
+  const actionCtaLabel = (kind: NextAction['action_kind']): string => {
+    const map: Record<string, string> = {
+      create_post: t('tx.nextAction.cta.create_post', { defaultValue: '문서 작성' }) as string,
+      publish_post: t('tx.nextAction.cta.publish_post', { defaultValue: '공유하기' }) as string,
+      request_signature: t('tx.nextAction.cta.request_signature', { defaultValue: '서명 요청' }) as string,
+      wait_signature: t('tx.nextAction.cta.wait_signature', { defaultValue: '서명 현황' }) as string,
+      review_signature: t('tx.nextAction.cta.review_signature', { defaultValue: '서명 확인' }) as string,
+      create_invoice: t('tx.nextAction.cta.create_invoice', { defaultValue: '청구서 발행' }) as string,
+      send_invoice: t('tx.nextAction.cta.send_invoice', { defaultValue: '청구서 보내기' }) as string,
+      mark_paid: t('tx.nextAction.cta.mark_paid', { defaultValue: '입금 확인' }) as string,
+      wait_payment: t('tx.nextAction.cta.wait_payment', { defaultValue: '결제 현황' }) as string,
+      mark_tax_invoice: t('tx.nextAction.cta.mark_tax_invoice', { defaultValue: '세금계산서 발행' }) as string,
+      wait_or_proceed: t('tx.nextAction.cta.wait_or_proceed', { defaultValue: '진행하기' }) as string,
+    };
+    return map[kind] || (t('tx.nextAction.go', { defaultValue: '바로 가기' }) as string);
+  };
+
   return (
     <Wrap>
       {/* ① 다음 할 일 — 가장 위 (지금 무얼 해야 하는지) */}
@@ -301,7 +319,7 @@ const TransactionsTab: React.FC<Props> = ({ projectId }) => {
           </NextActionLeft>
           {next_action.link && (
             <NextActionBtn type="button" onClick={handleAction}>
-              {t('tx.nextAction.go', '바로 가기')}
+              {actionCtaLabel(next_action.action_kind)}
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
             </NextActionBtn>
           )}

@@ -40,6 +40,7 @@ interface PublicInvoice {
   items: Array<{ id: number; description: string; detail?: string | null; quantity: number; unit_price: number; amount: number }>;
   installments: Installment[];
   client: { display_name?: string; company_name?: string; biz_name?: string } | null;
+  recipient_business_name?: string | null;
   sender: {
     name?: string;
     biz_name?: string;
@@ -90,7 +91,10 @@ function formatMoney(amount: number, currency: string = 'KRW'): string {
 
 function formatDate(iso: string | null): string {
   if (!iso) return '—';
-  return new Date(iso).toLocaleDateString();
+  // 한국어 표기 YYYY/M/D — locale/timezone 의존 없이 날짜 문자열 직접 파싱 (M/D/YYYY 역전 방지)
+  const ymd = String(iso).slice(0, 10).split('-');
+  if (ymd.length === 3 && ymd[0].length === 4) return `${ymd[0]}/${Number(ymd[1])}/${Number(ymd[2])}`;
+  return new Date(iso).toLocaleDateString('ko-KR');
 }
 
 const PublicInvoicePage: React.FC = () => {
@@ -178,8 +182,7 @@ const PublicInvoicePage: React.FC = () => {
 
   const recipientLine = useMemo(() => {
     const c = invoice?.client;
-    if (!c) return '';
-    return c.biz_name || c.company_name || c.display_name || '';
+    return (c && (c.biz_name || c.company_name || c.display_name)) || invoice?.recipient_business_name || '';
   }, [invoice]);
 
   const senderName = useMemo(() => {
@@ -308,7 +311,7 @@ const PublicInvoicePage: React.FC = () => {
         <Header>
           <Title>{t('public.headline', '결제 요청')}</Title>
           <Meta>
-            {senderName} <Arrow>›</Arrow> {recipientLine || '—'}
+            {senderName}{recipientLine && <> <Arrow>›</Arrow> {recipientLine}</>}
           </Meta>
         </Header>
 
@@ -466,8 +469,8 @@ const PublicInvoicePage: React.FC = () => {
           const rc = invoice.receipt;
           const taxIssued = rc.tax_invoice_status === 'issued';
           const cashIssued = rc.cash_receipt_status === 'issued';
-          const pending = (rc.receipt_type === 'tax_invoice' && rc.tax_invoice_status === 'pending')
-            || (rc.receipt_type === 'cash_receipt' && rc.cash_receipt_status === 'pending');
+          // 고객이 실제로 증빙정보를 제출했을 때만 "제출함" 표시 — 발행자가 토글만 켠 상태(status=pending)와 구분.
+          const submitted = !!rc.requested_at;
           const issuedLabel = taxIssued
             ? t('public.receipt.taxIssued', '세금계산서가 발행되었습니다')
             : t('public.receipt.cashIssued', '현금영수증이 발행되었습니다');
@@ -482,7 +485,7 @@ const PublicInvoicePage: React.FC = () => {
                     <NotifyDoneSub>{t('public.receipt.issuedSub', '등록하신 정보로 발행 완료되었습니다.')}</NotifyDoneSub>
                   </NotifyDoneText>
                 </NotifyDoneBox>
-              ) : pending ? (
+              ) : submitted ? (
                 <>
                   <NotifyDoneBox>
                     <DoneIcon>✓</DoneIcon>

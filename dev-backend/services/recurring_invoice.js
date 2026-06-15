@@ -185,7 +185,7 @@ async function billOneProject(project, today = new Date()) {
           eventKind: 'invoice',
           title: '정기 청구서 검토 요청',
           body: `${project.name} ${ym} 월 사용료 초안이 생성되었습니다. 검토 후 발송해주세요.`,
-          link: `${process.env.APP_URL || 'https://dev.planq.kr'}/bills?invoice=${invoice.id}`,
+          link: `${process.env.APP_URL || 'https://dev.planq.kr'}/bills?tab=invoices&invoice=${invoice.id}`,
           ctaLabel: '검토하기',
           workspaceName: business.brand_name || business.name || null,
         });

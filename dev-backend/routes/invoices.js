@@ -207,6 +207,8 @@ router.get('/public/:token', async (req, res, next) => {
         company_name: invoice.Client.company_name,
         biz_name: invoice.Client.biz_name,
       } : null,
+      // 외부 직접입력 수신(클라이언트 없음) 의 표시명 — 헤더 "발신 › 수신" 에서 사용
+      recipient_business_name: invoice.recipient_business_name || null,
       // ─── 증빙(세금계산서/현금영수증) — 고객이 공개 페이지에서 직접 입력·확인 (송금완료 알림과 같은 자리) ───
       // 등록 고객은 Client 값으로 prefill, 외부 고객은 invoice.receipt_profile 또는 빈 폼.
       receipt: {
@@ -277,7 +279,7 @@ async function notifyOwnerPaymentNotified(invoice, { label, payerName, ioApp }) 
       businessId: invoice.business_id, eventKind: 'payment',
       title: '송금 완료 알림 도착',
       body: `${invoice.invoice_number}${label ? ` ${label}` : ''} — ${who} 송금 완료를 알렸습니다. 입금 확인 후 처리해주세요.`,
-      link: `${process.env.APP_URL || 'https://dev.planq.kr'}/bills?invoice=${invoice.id}`,
+      link: `${process.env.APP_URL || 'https://dev.planq.kr'}/bills?tab=invoices&invoice=${invoice.id}`,
       ctaLabel: '청구서 보기',
       workspaceName: biz?.brand_name || biz?.name || null,
       entityType: 'invoice', entityId: invoice.id, ioApp,
@@ -452,7 +454,7 @@ router.post('/public/:token/receipt-request', async (req, res, next) => {
         businessId: invoice.business_id, eventKind: 'tax_invoice',
         title: `${kindLabel} 발행 요청 도착`,
         body: `${invoice.invoice_number} — 고객이 ${kindLabel} 정보를 확인·제출했습니다`,
-        link: `${process.env.APP_URL || 'https://dev.planq.kr'}/bills?invoice=${invoice.id}`,
+        link: `${process.env.APP_URL || 'https://dev.planq.kr'}/bills?tab=invoices&invoice=${invoice.id}`,
         ctaLabel: '청구서 보기',
         workspaceName: biz?.brand_name || biz?.name || null,
       }).catch((e) => console.warn('[notify receipt]', e.message));
@@ -813,7 +815,11 @@ router.put('/:businessId/:id', authenticateToken, checkBusinessAccess, requireMe
       transaction: t,
     });
     if (!invoice) { await t.rollback(); return errorResponse(res, 'Invoice not found', 404); }
-    if (invoice.status !== 'draft') { await t.rollback(); return errorResponse(res, 'only draft can be edited', 400); }
+    // draft 외에 canceled 도 재편집 허용 — 취소한 청구서를 고쳐 재발행. 편집 시 draft 로 되살림.
+    if (!['draft', 'canceled'].includes(invoice.status)) {
+      await t.rollback(); return errorResponse(res, 'only draft or canceled can be edited', 400);
+    }
+    const wasCanceled = invoice.status === 'canceled';
 
     const {
       title, client_id, due_date, recipient_email, recipient_business_name, recipient_business_number,
@@ -871,6 +877,8 @@ router.put('/:businessId/:id', authenticateToken, checkBusinessAccess, requireMe
       receipt_type: receiptType,
       tax_invoice_status: receiptType === 'tax_invoice' ? 'pending' : 'none',
       cash_receipt_status: receiptType === 'cash_receipt' ? 'pending' : 'none',
+      // 취소 청구서 재편집 → draft 로 되살림 (재발행 가능). 발송/조회 시점 초기화.
+      ...(wasCanceled ? { status: 'draft', sent_at: null, viewed_at: null } : {}),
     }, { transaction: t });
 
     // 항목 전체 교체 + 합계 재계산
@@ -1353,7 +1361,7 @@ router.post('/:businessId/:id/installments/:installId/mark-tax-invoice', authent
         businessId: invoice.business_id, eventKind: 'tax_invoice',
         title: '세금계산서 발행 완료',
         body: `${invoice.invoice_number} ${inst.label || ''} 회차 발행번호 ${no}`,
-        link: `${process.env.APP_URL || 'https://dev.planq.kr'}/bills?invoice=${invoice.id}`,
+        link: `${process.env.APP_URL || 'https://dev.planq.kr'}/bills?tab=invoices&invoice=${invoice.id}`,
         ctaLabel: '청구서 보기',
         workspaceName: biz?.brand_name || biz?.name || null,
         excludeUserId: req.user.id,
@@ -1401,7 +1409,7 @@ router.post('/:businessId/:id/installments/:installId/mark-cash-receipt', authen
         businessId: invoice.business_id, eventKind: 'tax_invoice',
         title: '현금영수증 발행 완료',
         body: `${invoice.invoice_number} ${inst.label || ''} 회차 승인번호 ${no}`,
-        link: `${process.env.APP_URL || 'https://dev.planq.kr'}/bills?invoice=${invoice.id}`,
+        link: `${process.env.APP_URL || 'https://dev.planq.kr'}/bills?tab=invoices&invoice=${invoice.id}`,
         ctaLabel: '청구서 보기',
         workspaceName: biz?.brand_name || biz?.name || null,
         excludeUserId: req.user.id,
@@ -1430,7 +1438,7 @@ async function notifyReceiptIssued(req, invoice, kindLabel, no) {
       businessId: invoice.business_id, eventKind: 'tax_invoice',
       title: `${kindLabel} 발행 완료`,
       body: `${invoice.invoice_number} 발행번호 ${no}`,
-      link: `${process.env.APP_URL || 'https://dev.planq.kr'}/bills?invoice=${invoice.id}`,
+      link: `${process.env.APP_URL || 'https://dev.planq.kr'}/bills?tab=invoices&invoice=${invoice.id}`,
       ctaLabel: '청구서 보기',
       workspaceName: biz?.brand_name || biz?.name || null,
       excludeUserId: req.user.id,
@@ -1501,7 +1509,7 @@ async function notifyReceiptCorrectionNeeded(req, invoice) {
       businessId: invoice.business_id, eventKind: 'tax_invoice',
       title: `${kindLabel} 취소·수정 필요`,
       body: `${invoice.invoice_number} 청구서가 취소되었습니다. 이미 발행된 ${kindLabel}는 홈택스/팝빌에서 ${hadCash && !hadTax && !hadInstTax ? '취소' : '수정(수정세금계산서)'} 처리가 필요합니다.`,
-      link: `${process.env.APP_URL || 'https://dev.planq.kr'}/bills?invoice=${invoice.id}`,
+      link: `${process.env.APP_URL || 'https://dev.planq.kr'}/bills?tab=invoices&invoice=${invoice.id}`,
       ctaLabel: '청구서 보기',
       workspaceName: biz?.brand_name || biz?.name || null,
     }).catch((e) => console.warn('[receipt correction notify]', e.message));
@@ -1601,7 +1609,7 @@ async function notifyMembersReceiptCorrected(req, invoice, corr) {
       businessId: invoice.business_id, eventKind: 'tax_invoice',
       title: `${kindLabel} ${verb} 발행`,
       body: `${invoice.invoice_number} ${kindLabel} ${verb} — 번호 ${corr.corrected_no}`,
-      link: `${process.env.APP_URL || 'https://dev.planq.kr'}/bills?invoice=${invoice.id}`,
+      link: `${process.env.APP_URL || 'https://dev.planq.kr'}/bills?tab=invoices&invoice=${invoice.id}`,
       ctaLabel: '청구서 보기',
       workspaceName: biz?.brand_name || biz?.name || null,
       excludeUserId: req.user.id,
@@ -1687,9 +1695,12 @@ router.delete('/:businessId/:id', authenticateToken, checkBusinessAccess, requir
       return errorResponse(res, 'only_draft_or_canceled_can_be_deleted', 400, { current_status: invoice.status });
     }
     // installments + items + invoice 삭제 (cascade 안 되어 있으면 명시)
-    // FK 정책: invoice_items / invoice_installments 모두 ON DELETE 미명시 → 명시 destroy 필요
+    // FK 정책: invoice_items / invoice_installments / invoice_status_history / receipt_corrections
+    //   모두 ON DELETE 미명시 → 명시 삭제 필요. (status_history 누락 시 발송/취소 청구서 삭제가 FK 로 막힘 — 운영 버그 fix)
     await InvoiceInstallment.destroy({ where: { invoice_id: invoice.id } });
     await InvoiceItem.destroy({ where: { invoice_id: invoice.id } });
+    await sequelize.query('DELETE FROM invoice_status_history WHERE invoice_id = ?', { replacements: [invoice.id] }).catch(() => {});
+    await sequelize.query('DELETE FROM receipt_corrections WHERE invoice_id = ?', { replacements: [invoice.id] }).catch(() => {});
     const snap = {
       id: invoice.id,
       business_id: invoice.business_id,

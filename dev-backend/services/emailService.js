@@ -70,10 +70,13 @@ async function recordLog(payload) {
 //   메모 feedback_prod_equals_dev.md 정책: 운영 정보는 DB+관리자 UI 로, .env 는 시크릿만.
 //   첫 배포 후엔 /admin/platform-settings UI 에서 변경, .env 는 fallback 으로만 의미.
 const APP_URL = process.env.APP_URL || 'https://dev.planq.kr';
+// 푸터에 표시되는 공개 웹사이트 — 환경(APP_URL: dev.planq.kr 등) 과 무관하게 항상 공개 도메인.
+//  기능 링크(초대/인증/공유)는 APP_URL(서버별) 을 쓰고, 표시용 website 만 공개 도메인 고정.
+const PUBLIC_SITE = process.env.PLATFORM_WEBSITE || 'https://planq.kr';
 const PLATFORM_DEFAULTS = {
   brand: 'PlanQ',
   tagline: '일이 일이 되지 않게 플랜큐가 도와드립니다.',
-  website: APP_URL,
+  website: PUBLIC_SITE,
   supportEmail: 'help@planq.kr',
   legalEntity: '워프로랩',
 };
@@ -934,8 +937,15 @@ function unreadNotificationEmailHtml({ name, items, count }) {
 
 async function sendUnreadNotificationEmail({ to, name, items, count }) {
   if (!to) return false;
+  // 제목만으로 무슨 알림인지 유추 가능하게 — 첫 알림 제목을 노출 (없으면 일반 문구 fallback)
+  const first = (items && items[0] && items[0].title) ? String(items[0].title).trim() : '';
+  const subject = first
+    ? (count > 1
+        ? `[${PLATFORM.brand}] ${first} 외 ${count - 1}건`
+        : `[${PLATFORM.brand}] ${first}`)
+    : `[${PLATFORM.brand}] 확인하지 않은 알림 ${count}건`;
   return sendEmail({
-    to, subject: `[${PLATFORM.brand}] 확인하지 않은 알림 ${count}건`,
+    to, subject,
     html: unreadNotificationEmailHtml({ name, items, count }),
     template: 'unread_escalation', relatedEntityType: 'notification',
   });

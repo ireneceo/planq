@@ -226,7 +226,20 @@
     },
     "nextAction": {
       "eyebrow": "다음 할 일",
-      "go": "바로 가기"
+      "go": "바로 가기",
+      "cta": {
+        "create_post": "문서 작성",
+        "publish_post": "공유하기",
+        "request_signature": "서명 요청",
+        "wait_signature": "서명 현황",
+        "review_signature": "서명 확인",
+        "create_invoice": "청구서 발행",
+        "send_invoice": "청구서 보내기",
+        "mark_paid": "입금 확인",
+        "wait_payment": "결제 현황",
+        "mark_tax_invoice": "세금계산서 발행",
+        "wait_or_proceed": "진행하기"
+      }
     },
     "stageBoard": {
       "title": "거래 진행 단계",

@@ -226,7 +226,20 @@
     },
     "nextAction": {
       "eyebrow": "Next action",
-      "go": "Go"
+      "go": "Go",
+      "cta": {
+        "create_post": "Write doc",
+        "publish_post": "Share",
+        "request_signature": "Request signature",
+        "wait_signature": "Signature status",
+        "review_signature": "Review signature",
+        "create_invoice": "Issue invoice",
+        "send_invoice": "Send invoice",
+        "mark_paid": "Confirm payment",
+        "wait_payment": "Payment status",
+        "mark_tax_invoice": "Issue tax invoice",
+        "wait_or_proceed": "Proceed"
+      }
     },
     "stageBoard": {
       "title": "Transaction stages",

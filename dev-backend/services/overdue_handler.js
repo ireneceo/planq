@@ -36,7 +36,7 @@ async function handleOverdueInvoice(invoice, today = new Date()) {
   const lastStage = meta.last_overdue_notify_stage || null;
 
   const wsName = business.brand_name || business.name || null;
-  const invLink = `${process.env.APP_URL || 'https://dev.planq.kr'}/bills?invoice=${invoice.id}`;
+  const invLink = `${process.env.APP_URL || 'https://dev.planq.kr'}/bills?tab=invoices&invoice=${invoice.id}`;
 
   // 워크스페이스 멤버 알림 — fan-out 은 setImmediate fire-and-forget.
   // overdue cron 메인 흐름이 한 invoice 의 알림 처리 시간만큼 막히지 않게.

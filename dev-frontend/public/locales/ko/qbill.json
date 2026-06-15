@@ -133,7 +133,8 @@
         "edit": "편집",
         "duplicate": "복제",
         "cancel": "취소",
-        "delete": "삭제"
+        "delete": "삭제",
+        "editReissue": "편집·재발행"
       }
     },
     "progress": {
