@@ -1001,7 +1001,7 @@ const InstMenuBtn = styled.button`
   &:hover { background: #fff; border-color: #E2E8F0; color: #0F172A; }
 `;
 const MenuBackdrop = styled.div`
-  position: fixed; inset: 0; z-index: 50;
+  position: fixed; inset: 0; z-index: 1000;
 `;
 const Menu = styled.div`
   position: absolute; right: 0; top: 32px; z-index: 51;

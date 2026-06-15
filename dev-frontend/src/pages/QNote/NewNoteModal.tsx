@@ -155,7 +155,7 @@ const Dialog = styled.div`
   display: flex; flex-direction: column;
   box-shadow: 0 20px 60px rgba(0,0,0,0.2);
   @media (max-width: 640px) {
-    position: fixed; top: 70px; bottom: auto; left: 16px; right: 16px;
+    position: fixed; z-index: 1000; top: 70px; bottom: auto; left: 16px; right: 16px;
     width: auto; max-width: none; max-height: calc(var(--vvh, 100vh) - 90px);
   }
 `;

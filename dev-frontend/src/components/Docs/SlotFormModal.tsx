@@ -184,14 +184,14 @@ const SlotFormModal: React.FC<Props> = ({ templateId, businessId, projectId, cli
 export default SlotFormModal;
 
 // ─── styled ───
-const Backdrop = styled.div`position: fixed; inset: 0; background: rgba(15,23,42,0.40); z-index: 50; display: flex; align-items: center; justify-content: center; padding: 20px;`;
+const Backdrop = styled.div`position: fixed; inset: 0; background: rgba(15,23,42,0.40); z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 20px;`;
 const Modal = styled.div`
   width: 100%; max-width: 880px; background: #FFFFFF; border-radius: 14px;
   box-shadow: 0 24px 48px rgba(15,23,42,0.18); display: flex; flex-direction: column;
   max-height: 90vh; overflow: hidden;
   /* mobile: top/bottom 고정으로 GNB 피하고 화면 안에 확실히 배치 */
   @media (max-width: 640px) {
-    position: fixed; top: 70px; bottom: 20px; left: 16px; right: 16px;
+    position: fixed; z-index: 1000; top: 70px; bottom: 20px; left: 16px; right: 16px;
     width: auto; max-width: none; max-height: none;
   }
 `;

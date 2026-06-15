@@ -1259,7 +1259,7 @@ const ResendBtn = styled.button`
   &:disabled{opacity:0.5;cursor:not-allowed;}
 `;
 // ── Close Project modal ──
-const CloseBackdrop = styled.div`position:fixed;inset:0;background:rgba(15,23,42,0.40);z-index:60;display:flex;align-items:center;justify-content:center;padding:20px;animation:cpfade 0.15s ease-out;@keyframes cpfade{from{opacity:0;}to{opacity:1;}}`;
+const CloseBackdrop = styled.div`position:fixed;inset:0;background:rgba(15,23,42,0.40);z-index: 1000;display:flex;align-items:center;justify-content:center;padding:20px;animation:cpfade 0.15s ease-out;@keyframes cpfade{from{opacity:0;}to{opacity:1;}}`;
 const CloseDialog = styled.div`width:100%;max-width:520px;background:#FFF;border-radius:14px;box-shadow:0 24px 48px rgba(15,23,42,0.20);display:flex;flex-direction:column;max-height:88vh;overflow:hidden;`;
 const CloseHeader = styled.h2`font-size:16px;font-weight:700;color:#0F172A;margin:0;padding:18px 22px;border-bottom:1px solid #E2E8F0;`;
 const CloseBody = styled.div`padding:18px 22px;font-size:13px;color:#334155;line-height:1.6;overflow-y:auto;& p{margin:0 0 8px;}& ul{margin:0 0 12px 18px;padding:0;}& li{margin-bottom:2px;}`;

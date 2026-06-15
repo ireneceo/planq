@@ -362,11 +362,11 @@ export default NewEventModal;
 // ── styled ──
 const Backdrop = styled.div`
   position: fixed; inset: 0; background: rgba(15, 23, 42, 0.08);
-  z-index: 60;
+  z-index: 1000;
 `;
 const Modal = styled.div`
   position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
-  z-index: 70; width: 540px; max-width: calc(100vw - 40px); max-height: calc(100vh - 48px);
+  z-index: 1000; width: 540px; max-width: calc(100vw - 40px); max-height: calc(100vh - 48px);
   background: #fff; border-radius: 14px; box-shadow: 0 30px 60px -20px rgba(15, 23, 42, 0.25);
   display: flex; flex-direction: column; overflow: hidden;
 
