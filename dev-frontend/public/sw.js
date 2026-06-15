@@ -113,18 +113,11 @@ self.addEventListener('push', (event) => {
     // [측정 2026-06-15] showNotification 결과 + 실제 알림 생성 여부를 ack 에 담아 iOS 표시 단계 확정.
     let diag = 'shown';
     try {
-      // declarative 지원 브라우저(iOS 18.4+)는 시스템이 이미 표시했을 수 있음 → 같은 제목 알림이
-      // 이미 떠 있으면 SW 가 중복 표시하지 않음. 안 떠 있으면(구버전/Chrome) SW 가 표시.
-      if (isDeclarative) {
-        const already = await self.registration.getNotifications().catch(() => []);
-        if (already.some((nt) => nt.title === title)) {
-          diag = 'declarative_system_shown';
-        } else {
-          await self.registration.showNotification(title, options);
-        }
-      } else {
-        await self.registration.showNotification(title, options);
-      }
+      // ★ 항상 showNotification 호출 (구버전·Chrome 검증된 동작). tag 로 collapse.
+      //   iOS 18.4+ declarative: 시스템이 먼저 표시 → SW 가 같은 tag 로 교체(렌더되면 1개,
+      //   SW 렌더 실패해도 시스템 표시분이 남음). dedup-by-title 은 옛 미닫은 알림을 잘못
+      //   집어 구버전까지 미표시시키는 회귀라 제거함.
+      await self.registration.showNotification(title, options);
     } catch (e) { diag = 'throw:' + ((e && e.message) || String(e)); }
     try {
       const ns = await self.registration.getNotifications();
