@@ -558,7 +558,8 @@
     "request": "Request",
     "register": "Add",
     "merge": "Append",
-    "reject": "Dismiss"
+    "reject": "Delete",
+    "rejectHint": "Removes this candidate for everyone (not a personal decline)"
   },
   "public": {
     "kb": {
