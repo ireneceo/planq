@@ -72,7 +72,11 @@ export async function subscribe(): Promise<{ ok: boolean; reason?: string }> {
   const perm = await Notification.requestPermission();
   if (perm !== 'granted') return { ok: false, reason: 'permission_denied' };
 
-  const reg = await registerServiceWorker();
+  // 최신 iOS 호환(점검 6) — pushManager.subscribe() 는 SW 가 ACTIVE 여야 안정 동작.
+  // register() 직후 reg 는 아직 installing/waiting 일 수 있어, navigator.serviceWorker.ready
+  // (활성화 완료된 registration)를 기다려 구독한다. register 는 idempotent (main.tsx 도 등록).
+  await registerServiceWorker();
+  const reg = await navigator.serviceWorker.ready.catch(() => null);
   if (!reg) return { ok: false, reason: 'sw_failed' };
 
   // VAPID 공개키
@@ -213,7 +217,12 @@ export async function autoSubscribeIfPossible(): Promise<{ ok: boolean; reason?:
     return await subscribe();
   }
 
-  // default — 7일 1회 prompt
+  // default — 권한 미결정.
+  // 최신 iOS 호환(점검 5): requestPermission() 은 사용자 제스처(클릭) 안에서만 동작.
+  //   autoSubscribe 는 mount 시 자동 호출(비-제스처)이라 iOS 에서 requestPermission 하면 무시/실패.
+  //   iOS 는 PushPromptBanner / InstallPromptBanner / NotificationSettings 의 '알림 받기' 버튼(클릭)이 처리.
+  if (isIOS()) return { ok: false, reason: 'ios_needs_gesture' };
+  // 비-iOS(데스크탑/안드로이드): 7일 1회 자동 prompt (Slack 패턴)
   try {
     const last = Number(localStorage.getItem(AUTO_PROMPT_KEY) || '0');
     if (Date.now() - last < PROMPT_INTERVAL_MS) {
