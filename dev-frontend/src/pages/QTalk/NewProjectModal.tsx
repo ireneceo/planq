@@ -525,7 +525,7 @@ const Modal = styled.div`
   }
   /* mobile: top/bottom 고정으로 GNB 피하고 화면 안에 확실히 배치 */
   @media (max-width: 640px) {
-    position: fixed;
+    position: fixed; z-index: 1000;
     top: 70px;
     bottom: auto;
     left: 16px;

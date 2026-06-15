@@ -366,7 +366,7 @@ const Dialog = styled.div`
   box-shadow: 0 20px 60px rgba(15,23,42,0.2);
   /* mobile: top/bottom 고정으로 GNB 피하고 화면 안에 확실히 배치 */
   @media (max-width: 640px) {
-    position: fixed;
+    position: fixed; z-index: 1000;
     top: 70px;
     bottom: 20px;
     left: 16px;

@@ -379,7 +379,7 @@ const Dialog = styled.div`
   display: flex; flex-direction: column;
   /* mobile: top/bottom 고정으로 GNB 피하고 화면 안에 확실히 배치 */
   @media (max-width: 640px) {
-    position: fixed; top: 70px; bottom: 20px; left: 16px; right: 16px;
+    position: fixed; z-index: 1000; top: 70px; bottom: 20px; left: 16px; right: 16px;
     width: auto; max-width: none; max-height: none;
   }
 `;

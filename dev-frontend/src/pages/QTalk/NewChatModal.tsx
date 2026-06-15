@@ -308,7 +308,7 @@ export default NewChatModal;
 
 // ─── styled (디자인 토큰 통일: EmptyState / AddDrawer 와 동일 팔레트) ───
 const Backdrop = styled.div`
-  position:fixed;inset:0;background:rgba(15,23,42,0.40);z-index:50;
+  position:fixed;inset:0;background:rgba(15,23,42,0.40);z-index: 1000;
   display:flex;align-items:center;justify-content:center;padding:20px;
   animation:nmFade 0.15s ease-out;
   @keyframes nmFade{from{opacity:0;}to{opacity:1;}}
@@ -322,7 +322,7 @@ const Dialog = styled.div`
 
   /* mobile: top 고정 + 키보드 시 visual viewport(--vvh)로 높이 제한 → 하단 입력·버튼이 키보드에 안 가림 (운영 #23) */
   @media (max-width: 640px) {
-    position: fixed;
+    position: fixed; z-index: 1000;
     top: 70px;
     bottom: auto;
     left: 16px;
