@@ -108,6 +108,13 @@ async function progressProject(projectId) {
   let prevCompleted = true;
 
   for (const stage of stages) {
+    // ① 수동 완료/건너뛰기(manual_locked)는 자동 평가 skip — 사용자 설정 존중(외부 체결 계약 등).
+    //    단, 다음 stage 활성화 판단(prevCompleted)에는 현재 status 반영.
+    if (stage.metadata && stage.metadata.manual_locked) {
+      results.push({ id: stage.id, kind: stage.kind, status: stage.status, manual_locked: true });
+      prevCompleted = stage.status === 'completed' || stage.status === 'skipped';
+      continue;
+    }
     const evaluation = evaluateStage(stage, posts, invoices, sigsByPost, prevCompleted);
     if (evaluation.changed) {
       await stage.update(evaluation.patch);

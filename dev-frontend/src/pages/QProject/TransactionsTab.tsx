@@ -168,15 +168,16 @@ const TransactionsTab: React.FC<Props> = ({ projectId }) => {
     } catch (e) { setErr((e as Error).message); setDeleteTarget(null); }
   };
 
-  const toggleCustomStatus = async (stage: Stage) => {
-    if (stage.kind !== 'custom') return; // template stage 는 entity 기반 자동 진행 — 수동 토글 차단
-    const next = stage.status === 'completed' ? 'pending' : 'completed';
+  // ① 단계 수동 상태 변경 — 모든 단계(템플릿 포함). 외부 체결 계약 등 PlanQ 밖 진행을 직접 반영.
+  //   백엔드가 manual_locked 로 잠가 자동 엔진이 덮어쓰지 않음. pending 으로 되돌리면 자동 진행 재개.
+  const setStageStatus = async (stage: Stage, status: 'completed' | 'skipped' | 'pending') => {
+    if (isClient || savingId === stage.id) return;
     setSavingId(stage.id);
     try {
       const r = await apiFetch(`/api/projects/${projectId}/stages/${stage.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: next }),
+        body: JSON.stringify({ status }),
       });
       const j = await r.json();
       if (!j.success) throw new Error(j.message || 'toggle_failed');
@@ -383,16 +384,12 @@ const TransactionsTab: React.FC<Props> = ({ projectId }) => {
           ) : (
             <StageList $count={stages.length}>
               {stages.map(s => {
-                const isCustom = s.kind === 'custom';
-                const dotClickable = isCustom && !isClient;
+                const done = s.status === 'completed' || s.status === 'skipped';
+                const canEdit = !isClient;
+                const busy = savingId === s.id;
                 return (
-                  <StageItem key={s.id} $completed={s.status === 'completed' || s.status === 'skipped'}>
-                    <StageDot
-                      $status={s.status}
-                      onClick={dotClickable ? () => toggleCustomStatus(s) : undefined}
-                      style={dotClickable ? { cursor: 'pointer' } : undefined}
-                      title={dotClickable ? (s.status === 'completed' ? t('tx.stageBoard.markPending', '대기로 변경') as string : t('tx.stageBoard.markCompleted', '완료로 변경') as string) : undefined}
-                    />
+                  <StageItem key={s.id} $completed={done}>
+                    <StageDot $status={s.status} />
                     <StageMeta>
                       <StageLabel $status={s.status}>{s.label}</StageLabel>
                       <StageStatus $status={s.status}>
@@ -401,6 +398,25 @@ const TransactionsTab: React.FC<Props> = ({ projectId }) => {
                         {s.status === 'pending' && t('tx.stageStatus.pending', '대기')}
                         {s.status === 'skipped' && t('tx.stageStatus.skipped', '건너뜀')}
                       </StageStatus>
+                      {/* ① 수동 완료/건너뛰기/되돌리기 — 외부 체결 등 PlanQ 밖 진행 직접 반영 */}
+                      {canEdit && (
+                        <StageActions>
+                          {!done ? (
+                            <>
+                              <StageActBtn type="button" disabled={busy} onClick={() => setStageStatus(s, 'completed')}>
+                                {t('tx.stageBoard.markDone', '완료 처리')}
+                              </StageActBtn>
+                              <StageActBtn type="button" $ghost disabled={busy} onClick={() => setStageStatus(s, 'skipped')}>
+                                {t('tx.stageBoard.skip', '건너뛰기')}
+                              </StageActBtn>
+                            </>
+                          ) : (
+                            <StageActBtn type="button" $ghost disabled={busy} onClick={() => setStageStatus(s, 'pending')}>
+                              {t('tx.stageBoard.revert', '되돌리기')}
+                            </StageActBtn>
+                          )}
+                        </StageActions>
+                      )}
                     </StageMeta>
                   </StageItem>
                 );
@@ -740,6 +756,15 @@ const StageStatus = styled.div<{ $status: string }>`
               : p.$status === 'completed' ? '#15803D'
               : p.$status === 'skipped' ? '#CBD5E1'
               : '#94A3B8'};
+`;
+const StageActions = styled.div`display:flex;gap:4px;margin-top:6px;flex-wrap:wrap;`;
+const StageActBtn = styled.button<{ $ghost?: boolean }>`
+  height:24px;padding:0 8px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;
+  border:1px solid ${p => p.$ghost ? '#E2E8F0' : '#14B8A6'};
+  background:${p => p.$ghost ? '#fff' : '#14B8A6'};
+  color:${p => p.$ghost ? '#64748B' : '#fff'};
+  &:hover:not(:disabled){ ${p => p.$ghost ? 'border-color:#CBD5E1;background:#F8FAFC;' : 'background:#0D9488;'} }
+  &:disabled{opacity:0.5;cursor:not-allowed;}
 `;
 const Loading = styled.div`text-align: center; padding: 40px; color: #94A3B8; font-size: 13px;`;
 const ErrorBanner = styled.div`padding: 10px 14px; background: #FEF2F2; border: 1px solid #FECACA; color: #991B1B; border-radius: 8px; font-size: 12px;`;

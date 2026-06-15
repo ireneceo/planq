@@ -236,7 +236,10 @@
       "deleteConfirmTitle": "Delete stage",
       "deleteConfirmMessage": "Delete \"{{label}}\" stage?",
       "markCompleted": "Mark completed",
-      "markPending": "Mark pending"
+      "markPending": "Mark pending",
+      "markDone": "Mark done",
+      "skip": "Skip",
+      "revert": "Revert"
     },
     "stageStatus": {
       "completed": "Done",
