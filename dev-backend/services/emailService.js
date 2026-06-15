@@ -268,6 +268,27 @@ function quoteBlock(message) {
 // ═══════════════════════════════════════════════════════════════
 // sendEmail — 핵심 발송 함수 + 매트릭스 가드 (옵션) + 로그
 // ═══════════════════════════════════════════════════════════════
+// 발송 차단 사유 판정 (사용자 피드백 2026-06-15) — 가짜/테스트 주소로의 발송을 막아 바운스·발신평판 훼손 방지.
+//  - RFC 2606/6761 예약 TLD (.invalid/.test/.example/.localhost/.local) 는 절대 라우팅되지 않음
+//  - example.com 류 예시 도메인
+//  - 형식 불량
+// 콤마 다중수신·배열 모두 검사. 차단되면 null 아닌 사유 문자열 반환.
+function emailBlockReason(to) {
+  const list = Array.isArray(to) ? to : String(to || '').split(',');
+  let any = false;
+  for (const raw of list) {
+    const addr = String(raw || '').trim().toLowerCase();
+    if (!addr) continue;
+    any = true;
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(addr)) return 'invalid_format';
+    const domain = addr.split('@')[1] || '';
+    const tld = domain.split('.').pop();
+    if (['invalid', 'test', 'example', 'localhost', 'local'].includes(tld)) return 'reserved_tld';
+    if (['example.com', 'example.org', 'example.net', 'test.com'].includes(domain)) return 'example_domain';
+  }
+  return any ? null : 'empty';
+}
+
 const sendEmail = async ({
   to, subject, html, attachments, fromName, replyTo,
   template, businessId, relatedEntityType, relatedEntityId, initiatedBy,
@@ -280,6 +301,22 @@ const sendEmail = async ({
     related_entity_id: relatedEntityId || null,
     initiated_by: initiatedBy || null,
   };
+
+  // ① dev 서버 발송 정지 — 운영서버만 실제 발송 (dev .env 에 EMAIL_SENDING_ENABLED=false).
+  //    미설정(운영) 이면 기본 발송 ON.
+  if (String(process.env.EMAIL_SENDING_ENABLED ?? 'true').toLowerCase() === 'false') {
+    console.warn(`Email suppressed (sending disabled on this server): to=${to}, subject=${subject}`);
+    await recordLog({ ...baseLog, status: 'skipped', error_message: 'sending disabled (non-prod)' });
+    return false;
+  }
+
+  // ② 가짜/테스트/형식불량 주소 차단 — 바운스·발신평판 보호
+  const blocked = emailBlockReason(to);
+  if (blocked) {
+    console.warn(`Email blocked (${blocked}): to=${to}, subject=${subject}`);
+    await recordLog({ ...baseLog, status: 'skipped', error_message: `blocked: ${blocked}` });
+    return false;
+  }
 
   const transport = getTransporter();
   if (!transport) {
