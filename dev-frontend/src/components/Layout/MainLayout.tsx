@@ -83,7 +83,7 @@ const Sidebar = styled.div<{ $isOpen?: boolean; $isCollapsed?: boolean }>`
 
 const SidebarHeader = styled.div<{ $isCollapsed?: boolean }>`
   padding: 14px 16px; border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  flex-shrink: 0; min-height: 60px;
+  flex-shrink: 0; height: 60px;   /* 2뎁스·콘텐츠 헤더와 픽셀 동일 — 회색 라인 정렬 */
   display: flex; align-items: center;
   justify-content: ${props => props.$isCollapsed ? 'center' : 'space-between'};
   gap: 8px;
@@ -91,7 +91,7 @@ const SidebarHeader = styled.div<{ $isCollapsed?: boolean }>`
 `;
 
 const Logo = styled.img`
-  width: 80px; height: auto;
+  width: 80px; height: auto; max-height: 32px; object-fit: contain;
   display: block; user-select: none; flex-shrink: 0;
 `;
 
