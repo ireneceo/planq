@@ -154,36 +154,60 @@ function emailHeader() {
 }
 
 // ─── 공통 푸터 ───
-//   [워크스페이스] 에서 발송된 메일이면 1줄: "이 메일은 [워크스페이스] 에서 발송되었습니다"
-//   PlanQ 플랫폼 정보 (운영회사, 운영문의 메일, 저작권) 는 항상 별도 줄에.
-//   notificationSettings: 알림설정 링크 표시 여부 (워크스페이스 멤버 알림에만)
+//   두 가지 모드 (사용자 피드백 2026-06-15):
+//    1) 워크스페이스 발송 (workspaceName 있음) — 청구서·문서공유 등.
+//       "보낸 주체 = 워크스페이스" 를 상단에 크게. PlanQ 는 '발송 플랫폼' 으로 작게 하단 분리.
+//       workspaceContact 있으면 회신처(워크스페이스 연락처) 노출.
+//    2) 플랫폼 발송 (workspaceName 없음) — 구독·계정·인증 등 PlanQ 가 직접 보내는 메일.
+//       PlanQ 운영팀 정보만.
+//   - 문의 버튼은 본문 액션버튼(teal)과 구분되는 작은 회색 "PlanQ에 문의하기" (플랫폼 문의처임을 명시).
+//   - notificationSettings: 알림설정 링크 표시 여부 (워크스페이스 멤버 알림에만)
 function emailFooter(options = {}) {
-  const { notificationSettings = false, workspaceName = null } = options;
+  const { notificationSettings = false, workspaceName = null, workspaceContact = null } = options;
+  const siteHost = PLATFORM.website.replace(/^https?:\/\//, '');
+
+  // 워크스페이스 발송 — 보낸 주체 블록 (상단, 강조)
+  const workspaceBlock = workspaceName ? `
+        <tr><td align="center" style="padding-bottom:4px;">
+          <span style="font-size:13px;color:#0F172A;font-weight:700;">${escapeHtml(workspaceName)}</span>
+          <span style="font-size:11px;color:#94A3B8;">&nbsp;에서 보낸 메일입니다</span>
+        </td></tr>
+        ${workspaceContact ? `
+        <tr><td align="center" style="padding-bottom:12px;">
+          <span style="font-size:11px;color:#64748B;">문의·회신: <a href="mailto:${escapeHtml(workspaceContact)}" style="color:#0D9488;text-decoration:none;">${escapeHtml(workspaceContact)}</a></span>
+        </td></tr>` : `
+        <tr><td align="center" style="padding-bottom:12px;color:#94A3B8;font-size:11px;">
+          이 메일은 발신 전용입니다 · 회신은 받지 못합니다
+        </td></tr>`}
+        <tr><td style="border-top:1px solid #E2E8F0;font-size:0;line-height:0;height:1px;">&nbsp;</td></tr>` : `
+        <tr><td align="center" style="padding-bottom:0;color:#94A3B8;font-size:11px;">
+          이 메일은 발신 전용입니다 · 회신은 받지 못합니다
+        </td></tr>`;
+
+  const notifRow = notificationSettings ? `
+        <tr><td align="center" style="padding-top:10px;color:#94A3B8;font-size:11px;">
+          알림은 워크스페이스 설정에 따라 발송됩니다 ·
+          <a href="${APP_URL}/business/settings/notifications" style="color:#0D9488;text-decoration:underline;">알림 설정 변경</a>
+        </td></tr>` : '';
+
+  // 플랫폼 strip — workspace 모드에선 'PlanQ 로 발송' 작게, 단독 모드에선 PlanQ 운영팀 강조
+  const platformLine = workspaceName
+    ? `<span style="font-size:10px;color:#94A3B8;">PlanQ 로 발송됨 · <a href="${PLATFORM.website}" target="_blank" style="color:#94A3B8;text-decoration:underline;">${siteHost}</a></span>`
+    : `<a href="${PLATFORM.website}" target="_blank" style="color:#0D9488;text-decoration:none;font-weight:600;">${siteHost}</a><span style="color:#CBD5E1;">&nbsp;·&nbsp;</span><span style="color:#94A3B8;">PlanQ 운영팀</span>`;
+
   return `
     <tr><td style="padding:24px 28px 28px;border-top:1px solid #E2E8F0;background:#F8FAFC;border-bottom-left-radius:14px;border-bottom-right-radius:14px;">
       <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="font-size:11px;color:#64748B;line-height:1.7;">
-        ${workspaceName ? `
-        <tr><td align="center" style="padding-bottom:10px;">
-          <span style="color:#475569;font-weight:600;">${escapeHtml(workspaceName)}</span> 에서 발송된 메일입니다
-        </td></tr>` : ''}
-        ${notificationSettings ? `
-        <tr><td align="center" style="padding-bottom:10px;color:#94A3B8;">
-          알림은 워크스페이스 설정에 따라 발송됩니다 ·
-          <a href="${APP_URL}/business/settings/notifications" style="color:#0D9488;text-decoration:underline;">알림 설정 변경</a>
-        </td></tr>` : ''}
-        <tr><td align="center" style="padding-top:${workspaceName || notificationSettings ? '8' : '0'}px;border-top:${workspaceName || notificationSettings ? '1px solid #E2E8F0' : 'none'};color:#94A3B8;">
-          이 메일은 발신 전용입니다 · 회신은 받지 못합니다
+        ${workspaceBlock}
+        ${notifRow}
+        <tr><td align="center" style="padding-top:${workspaceName ? '12' : '14'}px;">
+          ${platformLine}
         </td></tr>
         <tr><td align="center" style="padding-top:10px;">
-          <a href="${PLATFORM.website}/contact" target="_blank" style="display:inline-block;padding:8px 18px;background:#0D9488;color:#FFFFFF;text-decoration:none;border-radius:8px;font-size:12px;font-weight:700;">문의하기</a>
+          <a href="${PLATFORM.website}/contact" target="_blank" style="display:inline-block;padding:6px 14px;background:#EEF2F6;color:#475569;text-decoration:none;border:1px solid #E2E8F0;border-radius:6px;font-size:11px;font-weight:600;">PlanQ에 문의하기</a>
         </td></tr>
-        <tr><td align="center" style="padding-top:10px;">
-          <a href="${PLATFORM.website}" target="_blank" style="color:#0D9488;text-decoration:none;font-weight:600;">${PLATFORM.website.replace(/^https?:\/\//, '')}</a>
-          <span style="color:#CBD5E1;">&nbsp;·&nbsp;</span>
-          <span style="color:#94A3B8;">PlanQ 운영팀</span>
-        </td></tr>
-        <tr><td align="center" style="padding-top:6px;color:#94A3B8;font-size:10px;">
-          © ${PLATFORM.copyrightYear} ${escapeHtml(PLATFORM.legalEntity)} · ${escapeHtml(PLATFORM.brand)}. All rights reserved.
+        <tr><td align="center" style="padding-top:10px;color:#CBD5E1;font-size:10px;">
+          © ${PLATFORM.copyrightYear} ${escapeHtml(PLATFORM.brand)}. All rights reserved.
         </td></tr>
       </table>
     </td></tr>`;
@@ -454,7 +478,7 @@ async function sendSignatureOtpEmail({ to, docTitle, code }) {
 // ═══════════════════════════════════════════════════════════════
 // 5. 청구서 발송 (외부 client)
 // ═══════════════════════════════════════════════════════════════
-function invoiceEmailHtml({ invoiceNumber, title, total, currency, dueDate, senderName, workspaceName, message, shareUrl }) {
+function invoiceEmailHtml({ invoiceNumber, title, total, currency, dueDate, senderName, workspaceName, workspaceContact, message, shareUrl }) {
   const totalStr = currency === 'KRW'
     ? `${Number(total).toLocaleString('ko-KR')}원`
     : `${currency} ${Number(total).toLocaleString('en-US')}`;
@@ -475,15 +499,17 @@ function invoiceEmailHtml({ invoiceNumber, title, total, currency, dueDate, send
       ${ctaButton(shareUrl, '청구서 보기 · 입금 안내')}
     </div>
     ${fallbackLink(shareUrl)}`;
-  return emailWrap({ title: `청구서 — ${title}`, body, footerOptions: { workspaceName } });
+  return emailWrap({ title: `청구서 — ${title}`, body, footerOptions: { workspaceName, workspaceContact } });
 }
 
 async function sendInvoiceEmail({ to, invoiceNumber, title, total, currency, dueDate, senderName, workspaceName, message, shareUrl, attachments, fromName, replyTo }) {
   if (!to) return false;
   const subject = `[${PLATFORM.brand}] 청구서 — ${invoiceNumber} ${title}`;
+  // 워크스페이스 회신처(mail_reply_to) 가 있으면 푸터에 "문의·회신" 으로 노출 — 보낸 주체의 기본 연락처
+  const workspaceContact = replyTo && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(replyTo).trim()) ? String(replyTo).trim() : null;
   return sendEmail({
     to, subject,
-    html: invoiceEmailHtml({ invoiceNumber, title, total, currency, dueDate, senderName, workspaceName, message, shareUrl }),
+    html: invoiceEmailHtml({ invoiceNumber, title, total, currency, dueDate, senderName, workspaceName, workspaceContact, message, shareUrl }),
     attachments, fromName, replyTo,
     template: 'invoice', relatedEntityType: 'invoice',
   });
