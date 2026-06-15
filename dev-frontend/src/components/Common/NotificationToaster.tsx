@@ -299,6 +299,9 @@ export default function NotificationToaster() {
     //   → contextKey 또는 notificationId 로 dedup. notificationId 우선.
     //   장점: notification_id 가 있으면 닫기 시 mark-read 호출 가능 → 좌측 BellDropdown 즉시 동기화.
     s.on('notification:new', (row: NotificationFullRow) => {
+      // 배너 2번 방지: 채팅류(message/mention)는 message:new(socket) 가 토스트 담당.
+      //   notification:new 까지 토스트하면 같은 채팅이 2번 뜸 → 여기선 채팅류 skip (비채팅만 토스트).
+      if (row.event_kind === 'message' || row.event_kind === 'mention' || row.event_kind === 'comment_mention') return;
       const link = notificationRowToToastLink(row);
       const typeMap: Record<string, Toast['type']> = {
         message: 'message', mention: 'message', comment_mention: 'message',
