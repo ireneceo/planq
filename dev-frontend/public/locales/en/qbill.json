@@ -461,7 +461,8 @@
       "deliverEmail": "Email: {{email}}",
       "deliverPublicOnly": "Public link only (manual delivery)"
     },
-    "editTitle": "Edit Invoice"
+    "editTitle": "Edit Invoice",
+    "projectLinked": "This invoice will be linked to the project"
   },
   "payments": {
     "title": "Payments",

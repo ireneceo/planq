@@ -752,6 +752,15 @@ router.get('/:businessId/find-conversation', authenticateToken, checkBusinessAcc
         order: [['last_message_at', 'DESC']],
       });
     }
+    // 프로젝트 고객채팅 fallback — client_id 가 안 맞아도(고객 레코드 분리 등) 그 프로젝트의 고객 채널을 찾는다.
+    // 프로젝트에서 발행 시 "채팅방 없음" 오표시 차단.
+    if (!conv && projectId) {
+      conv = await Conversation.findOne({
+        where: { business_id: req.params.businessId, project_id: projectId, channel_type: 'customer' },
+        attributes: ['id', 'title', 'project_id', 'last_message_at'],
+        order: [['last_message_at', 'DESC']],
+      });
+    }
     successResponse(res, { conversation: conv, suggest_create: !conv });
   } catch (error) { next(error); }
 });

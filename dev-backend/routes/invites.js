@@ -7,7 +7,7 @@ const express = require('express');
 const router = express.Router();
 const { Op } = require('sequelize');
 const { sequelize } = require('../config/database');
-const { ProjectClient, Project, Business, Client, User, BusinessMember } = require('../models');
+const { ProjectClient, Project, Business, Client, User, BusinessMember, Conversation, ConversationParticipant } = require('../models');
 const { authenticateToken } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 
@@ -112,6 +112,33 @@ router.post('/:token/accept', authenticateToken, async (req, res, next) => {
     if (resolved.type === 'project_client') {
       const pc = resolved.record;
       await pc.update({ contact_user_id: req.user.id, accepted_at: new Date() }, { transaction: t });
+      // 프로젝트 고객은 그 프로젝트의 고객 채널에 당연히 참여 — 수락 시 자동 join + Client 활성화(user_id 연결).
+      try {
+        const prj = await Project.findByPk(pc.project_id, { attributes: ['id', 'business_id'], transaction: t });
+        if (prj) {
+          // Client 레코드 user_id 연결 + 활성화 (청구·대화 client_id 정합). unique(biz,user) 충돌 시 무시.
+          if (pc.client_id) {
+            await Client.update(
+              { user_id: req.user.id, status: 'active' },
+              { where: { id: pc.client_id, business_id: prj.business_id }, transaction: t }
+            ).catch(() => {});
+          }
+          // 프로젝트 고객 채널에 참여자 추가 (중복 방지)
+          const custConvs = await Conversation.findAll({
+            where: { project_id: pc.project_id, business_id: prj.business_id, channel_type: 'customer' },
+            attributes: ['id'], transaction: t,
+          });
+          for (const cv of custConvs) {
+            const exists = await ConversationParticipant.findOne({
+              where: { conversation_id: cv.id, user_id: req.user.id }, transaction: t,
+            });
+            if (!exists) {
+              await ConversationParticipant.create(
+                { conversation_id: cv.id, user_id: req.user.id, role: 'member' }, { transaction: t });
+            }
+          }
+        }
+      } catch (e) { console.warn('[invite accept auto-join]', e.message); }
       await t.commit();
       try { const prj = await Project.findByPk(pc.project_id, { attributes: ['business_id'] }); broadcastAccept(req, prj?.business_id, 'project_client:updated', { project_id: pc.project_id, id: pc.id }); } catch { /* noop */ }
       notifyInviterOnAccept(pc.invited_by, pc.project_id, 'project_client', req.user.id, null).catch((e) => console.warn('[notify invite project_client]', e.message));
