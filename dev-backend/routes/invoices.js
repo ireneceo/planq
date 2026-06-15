@@ -145,7 +145,7 @@ router.get('/public/:token', async (req, res, next) => {
       include: [
         { model: InvoiceItem, as: 'items' },
         { model: InvoiceInstallment, as: 'installments', separate: true, order: [['installment_no', 'ASC']] },
-        { model: Client, attributes: ['id', 'display_name', 'company_name', 'biz_name', 'biz_ceo', 'biz_tax_id', 'biz_type', 'biz_item', 'biz_address', 'tax_invoice_email', 'is_business', 'country'] },
+        { model: Client, attributes: ['id', 'display_name', 'company_name', 'biz_name', 'biz_ceo', 'biz_tax_id', 'biz_type', 'biz_item', 'biz_address', 'tax_invoice_email', 'billing_contact_name', 'billing_contact_email', 'billing_contact_phone', 'is_business', 'country'] },
       ],
     });
     if (!invoice) return errorResponse(res, 'not_found', 404);
@@ -224,7 +224,9 @@ router.get('/public/:token', async (req, res, next) => {
           biz_category: invoice.Client.biz_type || null,
           biz_item: invoice.Client.biz_item || null,
           biz_address: invoice.Client.biz_address || null,
-          tax_email: invoice.Client.tax_invoice_email || null,
+          tax_email: invoice.Client.tax_invoice_email || invoice.Client.billing_contact_email || null,
+          requested_by_name: invoice.Client.billing_contact_name || null,
+          contact_phone: invoice.Client.billing_contact_phone || null,
         } : (invoice.recipient_business_name || invoice.recipient_business_number ? {
           biz_type: 'business',
           biz_name: invoice.recipient_business_name || null,
@@ -389,7 +391,8 @@ router.post('/public/:token/receipt-request', async (req, res, next) => {
         biz_item: s(b.biz_item, 100),         // 종목
         biz_address: s(b.biz_address, 500),
         tax_email: taxEmail,
-        requested_by_name: s(b.requested_by_name, 80),
+        requested_by_name: s(b.requested_by_name, 80), // 담당자명
+        contact_phone: s(b.contact_phone, 40),          // 담당자 연락처
       };
       receiptType = 'tax_invoice';
       statusPatch = { tax_invoice_status: 'pending' };
@@ -426,6 +429,9 @@ router.post('/public/:token/receipt-request', async (req, res, next) => {
           biz_item: profile.biz_item,
           biz_address: profile.biz_address,
           tax_invoice_email: profile.tax_email,
+          // 담당자 정보도 저장 — 다음 청구서에서 prefill
+          ...(profile.requested_by_name ? { billing_contact_name: profile.requested_by_name } : {}),
+          ...(profile.contact_phone ? { billing_contact_phone: profile.contact_phone } : {}),
         }, { where: { id: invoice.client_id } });
       } catch (e) { console.warn('[receipt-request] client update', e.message); }
     }

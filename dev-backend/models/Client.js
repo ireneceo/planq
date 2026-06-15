@@ -99,7 +99,8 @@ Client.init({
   biz_address_en: { type: DataTypes.STRING(500), allowNull: true, comment: '해외 고객 영문 주소' },
   tax_invoice_email: { type: DataTypes.STRING(200), allowNull: true, comment: '세금계산서 수취 이메일' },
   billing_contact_name: { type: DataTypes.STRING(100), allowNull: true },
-  billing_contact_email: { type: DataTypes.STRING(200), allowNull: true }
+  billing_contact_email: { type: DataTypes.STRING(200), allowNull: true },
+  billing_contact_phone: { type: DataTypes.STRING(40), allowNull: true, comment: '세금계산서 담당자 연락처' }
 }, {
   sequelize,
   tableName: 'clients',
