@@ -236,7 +236,10 @@
       "deleteConfirmTitle": "단계 삭제",
       "deleteConfirmMessage": "\"{{label}}\" 단계를 삭제할까요?",
       "markCompleted": "완료로 변경",
-      "markPending": "대기로 변경"
+      "markPending": "대기로 변경",
+      "markDone": "완료 처리",
+      "skip": "건너뛰기",
+      "revert": "되돌리기"
     },
     "stageStatus": {
       "completed": "완료",

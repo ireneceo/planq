@@ -1014,6 +1014,12 @@ router.put('/:id/stages/:stageId', authenticateToken, async (req, res, next) => 
     if (req.body?.status !== undefined && ['pending','active','completed','skipped'].includes(req.body.status)) {
       patch.status = req.body.status;
       if (req.body.status === 'completed') patch.completed_at = new Date();
+      // ① 수동 설정 — 자동 엔진이 덮어쓰지 않도록 lock (외부 체결 계약 등 PlanQ 밖 진행 케이스).
+      //   pending 으로 되돌리면 lock 해제 → 자동 진행 재개.
+      const meta = { ...(stage.metadata || {}) };
+      if (req.body.status === 'pending') delete meta.manual_locked;
+      else meta.manual_locked = true;
+      patch.metadata = meta;
     }
     await stage.update(patch);
     return successResponse(res, stage);
