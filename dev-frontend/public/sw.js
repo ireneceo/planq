@@ -95,10 +95,10 @@ self.addEventListener('push', (event) => {
   //   배너를 화면에 안 띄우는 제약이 있음. 데스크탑 Chrome 은 전부 지원하지만,
   //   표준 옵션(body/icon/silent)만으로도 데스크탑 배너+소리 정상 → iOS 호환 위해 최소화.
   //   tag 도 제거(iOS 가 같은 tag 두번째부터 collapse 해 배너 안 뜨는 회귀 회피).
+  // ★ 2026-06-15: iOS 가 icon 이미지를 못 받으면 count++ 되지만 배너 표시를 안 하는 케이스 대응.
+  //   icon 제거 — iOS 최소 옵션(title+body)으로. 데스크탑은 기본 아이콘으로 정상 표시.
   const options = {
     body: payload.body || '',
-    icon: payload.icon || '/icon-192.png',
-    silent: false,            // 소리 (데스크탑·모바일 공통)
     data: { link: payload.link || '/' },
   };
   event.waitUntil((async () => {

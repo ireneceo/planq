@@ -20,6 +20,20 @@ export async function isPushSupported(): Promise<boolean> {
   return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
 }
 
+// self-healing #9 — iOS 는 홈화면에 추가한 standalone PWA 에서만 web push 가 동작.
+//   Safari 탭에서는 구독/표시가 안 되므로, iOS + 비-standalone 이면 '홈화면 추가' 안내가 필요.
+export function isStandalonePWA(): boolean {
+  try {
+    return window.matchMedia('(display-mode: standalone)').matches
+      || (navigator as unknown as { standalone?: boolean }).standalone === true;
+  } catch { return false; }
+}
+export function isIOS(): boolean {
+  return /iPad|iPhone|iPod/.test(navigator.userAgent)
+    || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1); // iPadOS
+}
+
+
 // 구독 자동 신선도 유지 — web push 의 구조적 staleness 대응.
 //   browser 의 endpoint 가 backend 와 일치해도(겉으론 정상) push service 가 silent drop 하는 stale 구독이 누적된다.
 //   사용자에게 "껐다 켜기" 를 시키는 대신, 앱 사용 중 일정 주기(24h)마다 자동으로 구독을 재생성해 stale 을 청소.
