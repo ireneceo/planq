@@ -174,6 +174,8 @@ function invalidateBuildId() {
 app.locals.invalidatePlanqBuildId = invalidateBuildId;
 
 io.on('connection', (socket) => {
+  // [진단 2026-06-15] 알림 미수신 회귀 — socket 연결/인증/room join 가시화
+  console.log(`[socket-diag] connection id=${socket.id} userId=${socket.userId || 'NONE(인증실패)'} transport=${socket.conn?.transport?.name}`);
   // 연결 직후 — 현재 빌드 ID 알림 (클라가 자기 build 와 다르면 reload 배너)
   const id = getBuildId();
   if (id) socket.emit('server:build', { build_id: id });
@@ -183,7 +185,9 @@ io.on('connection', (socket) => {
   if (socket.userId) {
     socket.join(`user:${socket.userId}`);
     // ★ 전 워크스페이스 business room 자동 join — 숫자 뱃지(useUnreadTotal) 실시간 회귀 근본 차단.
-    autoJoinUserBusinesses(socket).catch((e) => console.warn('[socket] autoJoinUserBusinesses', e.message));
+    autoJoinUserBusinesses(socket)
+      .then(() => console.log(`[socket-diag] user ${socket.userId} rooms=${JSON.stringify([...socket.rooms])}`))
+      .catch((e) => console.warn('[socket] autoJoinUserBusinesses', e.message));
   }
 
   // 대화방 room 참가 — 소유권 재검증 필수 (인증만으로는 부족)
