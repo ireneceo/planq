@@ -28,6 +28,8 @@ interface Props {
   invoice: ApiInvoice | null;
   onClose: () => void;
   onChanged?: () => void;
+  /** draft 재편집 — 발행 모달을 edit 모드로 연다 */
+  onEdit?: (invoiceId: number) => void;
 }
 
 
@@ -35,7 +37,7 @@ function daysSinceIso(iso: string): number {
   return Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 86400000));
 }
 
-export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, onChanged }: Props) {
+export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, onChanged, onEdit }: Props) {
   const { t } = useTranslation('qbill');
   const navigate = useNavigate();
   const [copiedAcct, setCopiedAcct] = useState(false);
@@ -260,6 +262,12 @@ export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, 
 
         {/* 액션 바 */}
         <ActionRow>
+          {invoice.status === 'draft' && onEdit && (
+            <ActionBtn onClick={() => { const id = invoice.id; onClose(); onEdit(id); }}>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+              {t('detail.header.actions.edit', { defaultValue: '편집' }) as string}
+            </ActionBtn>
+          )}
           {(invoice.status === 'draft' || invoice.status === 'canceled') && (
             <ActionBtn onClick={handleDelete} style={{ color: '#DC2626', borderColor: '#FECACA' }}>
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>

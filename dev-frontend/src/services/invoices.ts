@@ -197,6 +197,16 @@ export async function createInvoice(businessId: number, payload: CreateInvoicePa
   return expectOk<ApiInvoice>(r);
 }
 
+// 임시저장(draft) 청구서 재편집 — draft 상태만 가능 (PUT). 항목·분할·세금계산서 의향 전체 교체.
+export async function updateInvoice(businessId: number, invoiceId: number, payload: CreateInvoicePayload): Promise<ApiInvoice> {
+  const r = await apiFetch(`/api/invoices/${businessId}/${invoiceId}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  return expectOk<ApiInvoice>(r);
+}
+
 // draft / canceled 상태만 삭제 가능 (백엔드 정책)
 export async function deleteInvoice(businessId: number, invoiceId: number): Promise<void> {
   const r = await apiFetch(`/api/invoices/${businessId}/${invoiceId}`, { method: 'DELETE' });

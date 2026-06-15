@@ -26,6 +26,7 @@ export default function InvoicesTab() {
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<Filter>('all');
   const [showNew, setShowNew] = useState(false);
+  const [editInvoiceId, setEditInvoiceId] = useState<number | null>(null);  // draft 재편집 대상
   const [invoices, setInvoices] = useState<ApiInvoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -163,7 +164,7 @@ export default function InvoicesTab() {
           )}
         </SearchInputWrap>
         {!isClient && (
-          <NewBtn onClick={() => setShowNew(true)}>
+          <NewBtn onClick={() => { setEditInvoiceId(null); setShowNew(true); }}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             {t('invoices.newInvoice')}
           </NewBtn>
@@ -200,7 +201,7 @@ export default function InvoicesTab() {
           <EmptyTitle>{t('invoices.empty')}</EmptyTitle>
           <EmptyDesc>{t('invoices.emptyCta')}</EmptyDesc>
           {!isClient && (
-            <NewBtn onClick={() => setShowNew(true)}>
+            <NewBtn onClick={() => { setEditInvoiceId(null); setShowNew(true); }}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
               {t('invoices.newInvoice')}
             </NewBtn>
@@ -291,13 +292,15 @@ export default function InvoicesTab() {
         invoice={selectedInvoice}
         onClose={closeDetail}
         onChanged={reload}
+        onEdit={(id) => { closeDetail(); setEditInvoiceId(id); setShowNew(true); }}
       />
 
-      {/* 발행 모달 */}
+      {/* 발행 / 편집 모달 */}
       <NewInvoiceModal
         open={showNew}
         onClose={() => {
           setShowNew(false);
+          setEditInvoiceId(null);
           // followup 진입 query 정리
           const sp2 = new URLSearchParams(location.search);
           let dirty = false;
@@ -309,6 +312,7 @@ export default function InvoicesTab() {
         }}
         prefillSplit={prefillSplit}
         prefillPostId={prefillPostId}
+        editInvoiceId={editInvoiceId}
       />
     </Wrap>
   );
