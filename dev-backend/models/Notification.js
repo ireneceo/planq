@@ -36,6 +36,10 @@ Notification.init({
   entity_id: { type: DataTypes.BIGINT, allowNull: true },
   // 읽음 시점 (null = 미읽음)
   read_at: { type: DataTypes.DATE, allowNull: true },
+  // 미읽음 이메일 에스컬레이션 발송 시점 (null = 아직 안 보냄).
+  //   push 가 OS/브라우저/푸시중계 구간에서 silent drop 되어도 미팅·중요 알림을 놓치지 않게 하는 안전망.
+  //   unreadEscalationCron 이 일정 시간(기본 5분) 미읽음 알림을 이메일로 1회 발송 후 이 컬럼 마킹.
+  email_escalated_at: { type: DataTypes.DATE, allowNull: true },
 }, {
   sequelize,
   tableName: 'notifications',

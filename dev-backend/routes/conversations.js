@@ -262,6 +262,20 @@ router.put('/:businessId/:id/read', authenticateToken, checkBusinessAccess, asyn
       defaults: { conversation_id: convId, user_id: req.user.id, role: 'member' },
     });
     await part.update({ last_read_at: new Date() });
+    // 대화 진입 = 그 대화 관련 미읽음 알림도 읽은 것 → Notification.read_at 마킹.
+    //   목적: 미읽음 이메일 에스컬레이션(unreadEscalationCron)이 자리에 있는 사용자에게 안 가게.
+    //   (push 못 받아도 사용자가 대화를 직접 열어 봤으면 에스컬레이션 불필요)
+    try {
+      const { Notification } = require('../models');
+      await Notification.update(
+        { read_at: new Date() },
+        { where: {
+            user_id: req.user.id, read_at: null,
+            event_kind: { [Op.in]: ['message', 'mention', 'comment_mention'] },
+            entity_type: 'conversation', entity_id: convId,
+        } },
+      );
+    } catch (e) { /* best-effort — 읽음 처리 실패가 대화 진입을 막지 않음 */ }
     // 사이클 N+15-C — 같은 conv room 의 다른 참여자에게 "이 user 가 읽었음" broadcast.
     // 발송자는 자기 메시지의 read_by_count 를 실시간 +1.
     const io = req.app.get('io');
