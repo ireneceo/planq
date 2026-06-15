@@ -1699,37 +1699,56 @@ router.post('/:id/clients', authenticateToken, async (req, res, next) => {
     const { name, email } = req.body || {};
     if (!name || !String(name).trim()) return errorResponse(res, 'name is required', 400);
     const token = crypto.randomBytes(24).toString('hex');
-    // email 이 이미 User 존재하면 contact_user_id 매칭 (client role 권한 체크 기준)
+    // 프로젝트 고객 초대 = 워크스페이스 Client 로도 항상 편입.
+    //  - 옛 버그: 이미 가입한 User 일 때만 Client 행 생성 → 미가입 초대 고객은 청구서/고객목록에 안 떠서
+    //    "가입해야만 나옴" 호소. 이제 이메일만으로 초대해도 status='invited' Client 행을 즉시 만든다.
+    const { User: UserM, Client: ClientM } = require('../models');
     let contact_user_id = null;
-    if (email && email.trim()) {
-      const { User: UserM, Client: ClientM } = require('../models');
-      const existingUser = await UserM.findOne({ where: { email: email.trim() } });
+    let clientRow = null;
+    const emailTrim = email && email.trim() ? email.trim() : null;
+    if (emailTrim) {
+      const existingUser = await UserM.findOne({ where: { email: emailTrim } });
       if (existingUser) contact_user_id = existingUser.id;
-      // Client 테이블에도 없으면 자동 생성 (워크스페이스 고객으로 편입)
+      // 기존 Client 매칭: user_id(가입자) 우선, 없으면 같은 워크스페이스 invite_email
       if (existingUser) {
-        const exists = await ClientM.findOne({ where: { business_id: project.business_id, user_id: existingUser.id } });
-        if (!exists) {
-          await ClientM.create({
-            business_id: project.business_id, user_id: existingUser.id,
-            display_name: String(name).trim(),
-            status: 'invited',
-            invited_by: req.user.id, invited_at: new Date(),
-          });
-        }
+        clientRow = await ClientM.findOne({ where: { business_id: project.business_id, user_id: existingUser.id } });
       }
+      if (!clientRow) {
+        clientRow = await ClientM.findOne({ where: { business_id: project.business_id, invite_email: emailTrim } });
+      }
+      if (!clientRow) {
+        clientRow = await ClientM.create({
+          business_id: project.business_id,
+          user_id: existingUser ? existingUser.id : null,
+          invite_email: emailTrim,
+          display_name: String(name).trim(),
+          status: 'invited',
+          invited_by: req.user.id, invited_at: new Date(),
+        });
+      }
+    } else {
+      // 이메일 없이 이름만 — 워크스페이스 Client 로 편입 (수동 청구 대상으로 노출)
+      clientRow = await ClientM.create({
+        business_id: project.business_id,
+        user_id: null,
+        display_name: String(name).trim(),
+        status: 'invited',
+        invited_by: req.user.id, invited_at: new Date(),
+      });
     }
     const row = await ProjectClient.create({
       project_id: project.id,
+      client_id: clientRow ? clientRow.id : null,
       contact_user_id,
       contact_name: String(name).trim(),
-      contact_email: email?.trim() || null,
+      contact_email: emailTrim,
       invite_token: token,
       invited_by: req.user.id,
     });
     await createAuditLog({
       userId: req.user.id, businessId: project.business_id,
       action: 'project.client_added', targetType: 'project_client', targetId: row.id,
-      newValue: { project_id: project.id, project_name: project.name, client_id: contact_user_id ? (await require('../models').Client.findOne({ where: { business_id: project.business_id, user_id: contact_user_id } }))?.id : null, name: row.contact_name, email: row.contact_email },
+      newValue: { project_id: project.id, project_name: project.name, client_id: clientRow ? clientRow.id : null, name: row.contact_name, email: row.contact_email },
     });
 
     // 초대 이메일 발송 (실패해도 초대 자체는 성공 처리)
