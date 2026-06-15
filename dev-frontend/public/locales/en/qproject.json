@@ -256,6 +256,19 @@
       "pending": "Pending",
       "skipped": "Skipped",
       "ongoing": "Ongoing (recurring)"
+    },
+    "sub": {
+      "badge": "Subscription billing",
+      "autoOn": "Auto-issue on",
+      "autoOff": "Auto-issue off",
+      "monthly": "Monthly amount",
+      "day": "Billing day",
+      "dayVal": "Day {{d}} monthly",
+      "next": "Next billing",
+      "last": "Last billed",
+      "none": "None",
+      "won": "KRW",
+      "setupHint": "Recurring billing not set up — enable monthly amount, billing day, and auto-issue in project settings to bill automatically each month."
     }
   },
   "section": {

@@ -1171,8 +1171,34 @@ router.get('/:id/transactions', authenticateToken, async (req, res, next) => {
     });
     const nextAction = await computeNextAction(project.id);
 
+    // ② 구독형 — 다음 청구 예정/월 금액/자동발행 상태 (recurring_invoice.js 스케줄 규칙 동일).
+    //   엔진(recurring_invoice daily cron)이 invoice_billing_day 에 월 청구 자동 생성 — 그 스케줄을 표면화.
+    let subscription = null;
+    if (project.billing_type === 'subscription') {
+      const day = project.invoice_billing_day || null;
+      let nextDue = null;
+      if (day && project.auto_invoice_enabled) {
+        const today = new Date();
+        const lastAt = project.last_auto_invoice_at ? new Date(project.last_auto_invoice_at) : null;
+        const billedThisMonth = lastAt && lastAt.getFullYear() === today.getFullYear() && lastAt.getMonth() === today.getMonth();
+        const domOf = (yy, mm) => Math.min(day, new Date(yy, mm + 1, 0).getDate());
+        let y = today.getFullYear(), m = today.getMonth();
+        if (billedThisMonth || today.getDate() > domOf(y, m)) { m += 1; if (m > 11) { m = 0; y += 1; } }
+        nextDue = `${y}-${String(m + 1).padStart(2, '0')}-${String(domOf(y, m)).padStart(2, '0')}`;
+      }
+      subscription = {
+        monthly_fee: Number(project.monthly_fee || 0),
+        billing_day: day,
+        auto_enabled: !!project.auto_invoice_enabled,
+        last_billed_at: project.last_auto_invoice_at || null,
+        next_due_at: nextDue,
+        currency,
+      };
+    }
+
     return successResponse(res, {
       project: { id: project.id, name: project.name, status: project.status },
+      subscription,
       stages: stages.map(s => ({
         id: s.id, order: s.order_index, kind: s.kind, label: s.label, status: s.status,
         linked_entity_type: s.linked_entity_type, linked_entity_id: s.linked_entity_id,

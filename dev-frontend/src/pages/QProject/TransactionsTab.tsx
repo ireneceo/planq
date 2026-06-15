@@ -55,8 +55,17 @@ interface NextAction {
   hint: string | null;
   link: string | null;
 }
+interface SubscriptionInfo {
+  monthly_fee: number;
+  billing_day: number | null;
+  auto_enabled: boolean;
+  last_billed_at: string | null;
+  next_due_at: string | null;
+  currency: string;
+}
 interface TransactionsResponse {
   project: { id: number; name: string; status: string };
+  subscription?: SubscriptionInfo | null;
   stages: Stage[];
   next_action: NextAction | null;
   summary: {
@@ -266,8 +275,9 @@ const TransactionsTab: React.FC<Props> = ({ projectId }) => {
   if (err) return <ErrorBanner>{err}</ErrorBanner>;
   if (!data) return <Loading>{t('common.loading', '불러오는 중...')}</Loading>;
 
-  const { summary, posts, invoices, stages, next_action } = data;
+  const { summary, posts, invoices, stages, next_action, subscription } = data;
   const currencyDisp = summary.currency;
+  const fmtMoney = (n: number) => currencyDisp === 'KRW' ? `${n.toLocaleString()}${t('tx.sub.won', '원')}` : `${currencyDisp} ${n.toLocaleString()}`;
 
   const handleAction = () => {
     if (!next_action || !next_action.link) return;
@@ -296,6 +306,28 @@ const TransactionsTab: React.FC<Props> = ({ projectId }) => {
             </NextActionBtn>
           )}
         </NextActionCard>
+      )}
+
+      {/* ② 구독형 — 정기 청구 현황 (월 금액·다음 청구 예정·자동발행) */}
+      {subscription && (
+        <SubCard $active={subscription.auto_enabled && subscription.monthly_fee > 0}>
+          <SubHead>
+            <SubBadge>{t('tx.sub.badge', '구독 정기청구')}</SubBadge>
+            {subscription.auto_enabled && subscription.monthly_fee > 0
+              ? <SubAuto $on>{t('tx.sub.autoOn', '자동 발행 켜짐')}</SubAuto>
+              : <SubAuto>{t('tx.sub.autoOff', '자동 발행 꺼짐')}</SubAuto>}
+          </SubHead>
+          {subscription.monthly_fee > 0 ? (
+            <SubGrid>
+              <SubItem><SubK>{t('tx.sub.monthly', '월 청구액')}</SubK><SubV>{fmtMoney(subscription.monthly_fee)}</SubV></SubItem>
+              <SubItem><SubK>{t('tx.sub.day', '청구일')}</SubK><SubV>{subscription.billing_day ? t('tx.sub.dayVal', { defaultValue: '매월 {{d}}일', d: subscription.billing_day }) : '—'}</SubV></SubItem>
+              <SubItem><SubK>{t('tx.sub.next', '다음 청구 예정')}</SubK><SubV>{subscription.next_due_at ? formatDate(subscription.next_due_at) : '—'}</SubV></SubItem>
+              <SubItem><SubK>{t('tx.sub.last', '최근 청구')}</SubK><SubV>{subscription.last_billed_at ? formatDate(subscription.last_billed_at) : t('tx.sub.none', '없음')}</SubV></SubItem>
+            </SubGrid>
+          ) : (
+            <SubSetup>{t('tx.sub.setupHint', '구독 정기청구가 설정되지 않았습니다 — 프로젝트 설정에서 월 금액·청구일·자동 발행을 켜면 매월 자동 청구됩니다.')}</SubSetup>
+          )}
+        </SubCard>
       )}
 
       {/* ② 거래 진행 단계 보드 */}
@@ -604,6 +636,22 @@ export default TransactionsTab;
 const Wrap = styled.div`display: flex; flex-direction: column; gap: 20px;`;
 
 // ─── 다음 할 일 카드 (Phase D+1) ───
+const SubCard = styled.section<{ $active: boolean }>`
+  border: 1px solid ${p => p.$active ? '#99F6E4' : '#E2E8F0'};
+  background: ${p => p.$active ? '#F0FDFA' : '#F8FAFC'};
+  border-radius: 12px; padding: 14px 16px; margin-bottom: 16px;
+`;
+const SubHead = styled.div`display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;`;
+const SubBadge = styled.span`font-size:12px;font-weight:700;color:#0F766E;`;
+const SubAuto = styled.span<{ $on?: boolean }>`
+  font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px;
+  color:${p => p.$on ? '#15803D' : '#94A3B8'};background:${p => p.$on ? '#DCFCE7' : '#F1F5F9'};
+`;
+const SubGrid = styled.div`display:grid;grid-template-columns:repeat(4,1fr);gap:10px;@media (max-width:640px){grid-template-columns:repeat(2,1fr);}`;
+const SubItem = styled.div`display:flex;flex-direction:column;gap:3px;`;
+const SubK = styled.span`font-size:11px;color:#64748B;font-weight:500;`;
+const SubV = styled.span`font-size:14px;color:#0F172A;font-weight:700;`;
+const SubSetup = styled.p`margin:0;font-size:12px;color:#64748B;line-height:1.5;`;
 const NextActionCard = styled.div<{ $kind: string }>`
   display: flex; align-items: center; gap: 16px;
   padding: 20px 22px;
