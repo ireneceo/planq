@@ -87,31 +87,44 @@ self.addEventListener('push', (event) => {
   // ★ 2026-06-15 회귀 fix: self.registration.update() 를 showNotification 완료 후로 이동.
   //   먼저 호출하면 새 sw.js 가 있을 때 skipWaiting 으로 현재 SW 가 즉시 terminate 되어
   //   showNotification 이 안 끝나고 알림이 안 뜸 (201 인데 배너 안 옴의 근본 원인).
-  let payload;
-  try { payload = event.data.json(); } catch { payload = { title: 'PlanQ', body: event.data.text() }; }
-  const title = payload.title || 'PlanQ';
-  // ★ 2026-06-15 복원: bfb5835(금요일 작동 버전)의 풀옵션 그대로.
-  //   오늘 "iOS 호환"이라며 옵션을 떼어낸 게 모바일 배너 미표시의 원인이었음.
-  //   iOS 는 silent:false + icon + vibrate 가 있어야 배너를 그림(옵션 제거 시 push 받고도 미표시).
-  //   이 옵션 세트는 데스크탑 Chrome + iOS Safari PWA 양쪽에서 검증된 조합.
+  let raw;
+  try { raw = event.data.json(); } catch { raw = { title: 'PlanQ', body: event.data.text() }; }
+  // ★ 2026-06-15 Declarative Web Push (Safari 18.4+/iOS 26): payload 의 notification 멤버 우선.
+  //   서버가 { web_push:8030, notification:{...}, (legacy) title/body/link } 형식으로 보냄.
+  //   declarative 지원 iOS 는 시스템이 notification 멤버로 직접 표시(SW 미표시여도 fallback) → 안정성 ↑.
+  //   notification 없으면 옛 top-level 형식(payload.title 등) 사용 (하위호환).
+  const isDeclarative = raw && raw.web_push === 8030;
+  const n = (raw && raw.notification) || raw || {};
+  const title = n.title || raw.title || 'PlanQ';
+  const link = n.navigate || n.link || raw.link || '/';
+  const tag = n.tag || raw.tag || undefined;
   const options = {
-    body: payload.body || '',
-    icon: payload.icon || '/icon-192.png',
+    body: n.body || raw.body || '',
+    icon: n.icon || raw.icon || '/icon-192.png',
     badge: '/icon-72.png',
-    tag: payload.tag || undefined,
-    // 같은 tag 의 최신 알림으로 교체 — 기본 false(누적). Slack 패턴.
-    renotify: !!payload.tag,
-    // 사운드 + 진동 명시 — 일부 브라우저는 silent 미명시 시 무음 처리. iOS 배너 표시에도 필요.
+    tag,
+    renotify: !!tag,
     silent: false,
     vibrate: [200, 100, 200],
-    data: { link: payload.link || '/' },
+    data: { link },
     requireInteraction: false,
   };
   event.waitUntil((async () => {
     // [측정 2026-06-15] showNotification 결과 + 실제 알림 생성 여부를 ack 에 담아 iOS 표시 단계 확정.
     let diag = 'shown';
     try {
-      await self.registration.showNotification(title, options);
+      // declarative 지원 브라우저(iOS 18.4+)는 시스템이 이미 표시했을 수 있음 → 같은 제목 알림이
+      // 이미 떠 있으면 SW 가 중복 표시하지 않음. 안 떠 있으면(구버전/Chrome) SW 가 표시.
+      if (isDeclarative) {
+        const already = await self.registration.getNotifications().catch(() => []);
+        if (already.some((nt) => nt.title === title)) {
+          diag = 'declarative_system_shown';
+        } else {
+          await self.registration.showNotification(title, options);
+        }
+      } else {
+        await self.registration.showNotification(title, options);
+      }
     } catch (e) { diag = 'throw:' + ((e && e.message) || String(e)); }
     try {
       const ns = await self.registration.getNotifications();
@@ -120,11 +133,14 @@ self.addEventListener('push', (event) => {
     } catch (e) { diag += ',getNotif_err'; }
     // App Badging API — 데스크탑 PWA 아이콘 / 모바일 홈스크린 숫자.
     // 진단 정보를 client 로 post 해 디바이스에서 콘솔로 확인 가능 (사이클 N+12 박제).
+    // badge 숫자 — declarative(notification.app_badge) 우선, 없으면 legacy(raw.badge).
+    const badge = (typeof n.app_badge === 'number') ? n.app_badge
+      : (typeof raw.badge === 'number') ? raw.badge : undefined;
     const badgeDiag = {
       hasSetAppBadge: 'setAppBadge' in self.navigator,
       hasClearAppBadge: 'clearAppBadge' in self.navigator,
-      payloadBadge: payload.badge,
-      payloadBadgeType: typeof payload.badge,
+      payloadBadge: badge,
+      payloadBadgeType: typeof badge,
       result: 'skipped',
       error: null,
     };
@@ -137,10 +153,10 @@ self.addEventListener('push', (event) => {
       const hasFocusedClient = visibleClients.some(c => c.focused || c.visibilityState === 'visible');
       if (hasFocusedClient) {
         badgeDiag.result = 'skipped_active_client';
-      } else if ('setAppBadge' in self.navigator && typeof payload.badge === 'number') {
-        if (payload.badge > 0) {
-          await self.navigator.setAppBadge(payload.badge);
-          badgeDiag.result = 'set:' + payload.badge;
+      } else if ('setAppBadge' in self.navigator && typeof badge === 'number') {
+        if (badge > 0) {
+          await self.navigator.setAppBadge(badge);
+          badgeDiag.result = 'set:' + badge;
         } else if ('clearAppBadge' in self.navigator) {
           await self.navigator.clearAppBadge();
           badgeDiag.result = 'cleared';
@@ -156,7 +172,7 @@ self.addEventListener('push', (event) => {
     try {
       const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
       for (const c of clients) {
-        c.postMessage({ type: 'planq:push-received', payload, badgeDiag });
+        c.postMessage({ type: 'planq:push-received', payload: raw, badgeDiag });
       }
     } catch { /* silent */ }
     // [측정] SW 도달 + showNotification 결과(diag) 를 서버에 전달
