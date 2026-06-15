@@ -351,6 +351,7 @@ const SecondaryNavItem = styled(Link)<{ $active?: boolean; $collapsed?: boolean 
 /* N+63 — light bg 위 circle + hover scale/nudge. SidebarToggleButton 의 light variant. */
 const SecondaryCloseButton = styled.button`
   width: 32px; height: 32px;
+  flex-shrink: 0;
   background: #F8FAFC;
   border: 1px solid #E2E8F0;
   cursor: pointer; padding: 0;
@@ -554,6 +555,9 @@ const PushPromptWrap = styled.div`
   flex-shrink: 0;
   padding: 12px 20px 0;
   ${mediaTablet} { padding: 8px 12px 0; }
+  /* 내부 PushPromptBanner 가 null 일 때(이미 구독 등) 빈 div 가 12px 공백을 만들어
+     콘텐츠 헤더가 밀려 헤더 밑줄(회색 라인)이 사이드 패널과 안 맞던 회귀 → 비면 숨김. */
+  &:empty { display: none; padding: 0; }
 `;
 
 // 모바일 인라인 아코디언 — Stats / Settings 서브 메뉴

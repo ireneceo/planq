@@ -798,7 +798,7 @@ const DangerBtn = styled.button`height:40px;padding:0 16px;background:#FFF;color
 const Dim = styled.div`padding:12px;text-align:center;font-size:12px;color:#94A3B8;background:#F8FAFC;border-radius:8px;`;
 
 // Delete modal (reused)
-const ConfirmBackdrop = styled.div`position:fixed;inset:0;background:rgba(15,23,42,0.40);display:flex;align-items:center;justify-content:center;z-index:60;padding:20px;animation:cbfade 0.15s ease-out;@keyframes cbfade{from{opacity:0;}to{opacity:1;}}`;
+const ConfirmBackdrop = styled.div`position:fixed;inset:0;background:rgba(15,23,42,0.40);display:flex;align-items:center;justify-content:center;z-index:1000;padding:20px;animation:cbfade 0.15s ease-out;@keyframes cbfade{from{opacity:0;}to{opacity:1;}}`;
 const ConfirmDialog = styled.div`width:100%;max-width:440px;background:#fff;border-radius:14px;box-shadow:0 24px 48px rgba(15,23,42,0.20);display:flex;flex-direction:column;overflow:hidden;animation:cbpop 0.18s ease-out;@keyframes cbpop{from{transform:translateY(8px);opacity:0.6;}to{transform:translateY(0);opacity:1;}}`;
 const ConfirmTitle = styled.h2`font-size:16px;font-weight:700;color:#0f172a;margin:0;padding:18px 22px;border-bottom:1px solid #e2e8f0;`;
 const ConfirmBody = styled.div`padding:18px 22px;font-size:13px;color:#334155;line-height:1.6;display:flex;flex-direction:column;gap:10px;`;
