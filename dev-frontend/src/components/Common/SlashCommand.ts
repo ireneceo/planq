@@ -5,80 +5,83 @@ import Suggestion, { type SuggestionOptions, type SuggestionProps } from '@tipta
 import { ReactRenderer } from '@tiptap/react';
 
 export type SlashItem = {
-  title: string;
-  description?: string;
+  // i18n keys (resolved at render time in SlashCommandList) + Korean fallback text
+  titleKey: string;
+  title: string;       // Korean fallback (also used for query filtering)
+  descKey?: string;
+  description?: string; // Korean fallback
   icon?: string;
   command: (props: { editor: Editor; range: Range }) => void;
 };
 
 export const SLASH_ITEMS: SlashItem[] = [
   {
-    title: '제목 1',
-    description: '큰 제목',
+    titleKey: 'editor.slash.h1.title', title: '제목 1',
+    descKey: 'editor.slash.h1.desc', description: '큰 제목',
     icon: 'H1',
     command: ({ editor, range }) => {
       editor.chain().focus().deleteRange(range).setNode('heading', { level: 1 }).run();
     },
   },
   {
-    title: '제목 2',
-    description: '중간 제목',
+    titleKey: 'editor.slash.h2.title', title: '제목 2',
+    descKey: 'editor.slash.h2.desc', description: '중간 제목',
     icon: 'H2',
     command: ({ editor, range }) => {
       editor.chain().focus().deleteRange(range).setNode('heading', { level: 2 }).run();
     },
   },
   {
-    title: '제목 3',
-    description: '작은 제목',
+    titleKey: 'editor.slash.h3.title', title: '제목 3',
+    descKey: 'editor.slash.h3.desc', description: '작은 제목',
     icon: 'H3',
     command: ({ editor, range }) => {
       editor.chain().focus().deleteRange(range).setNode('heading', { level: 3 }).run();
     },
   },
   {
-    title: '글머리 기호',
-    description: '• 항목 목록',
+    titleKey: 'editor.slash.bullet.title', title: '글머리 기호',
+    descKey: 'editor.slash.bullet.desc', description: '• 항목 목록',
     icon: '•',
     command: ({ editor, range }) => {
       editor.chain().focus().deleteRange(range).toggleBulletList().run();
     },
   },
   {
-    title: '번호 목록',
-    description: '1. 번호 목록',
+    titleKey: 'editor.slash.ordered.title', title: '번호 목록',
+    descKey: 'editor.slash.ordered.desc', description: '1. 번호 목록',
     icon: '1.',
     command: ({ editor, range }) => {
       editor.chain().focus().deleteRange(range).toggleOrderedList().run();
     },
   },
   {
-    title: '체크리스트',
-    description: '☐ 체크 가능한 할 일',
+    titleKey: 'editor.slash.checklist.title', title: '체크리스트',
+    descKey: 'editor.slash.checklist.desc', description: '☐ 체크 가능한 할 일',
     icon: '☐',
     command: ({ editor, range }) => {
       editor.chain().focus().deleteRange(range).toggleTaskList().run();
     },
   },
   {
-    title: '인용',
-    description: '인용 블록',
+    titleKey: 'editor.slash.quote.title', title: '인용',
+    descKey: 'editor.slash.quote.desc', description: '인용 블록',
     icon: '❝',
     command: ({ editor, range }) => {
       editor.chain().focus().deleteRange(range).toggleBlockquote().run();
     },
   },
   {
-    title: '코드 블록',
-    description: '코드 블록',
+    titleKey: 'editor.slash.code.title', title: '코드 블록',
+    descKey: 'editor.slash.code.desc', description: '코드 블록',
     icon: '{ }',
     command: ({ editor, range }) => {
       editor.chain().focus().deleteRange(range).toggleCodeBlock().run();
     },
   },
   {
-    title: '구분선',
-    description: '수평 구분선',
+    titleKey: 'editor.slash.divider.title', title: '구분선',
+    descKey: 'editor.slash.divider.desc', description: '수평 구분선',
     icon: '—',
     command: ({ editor, range }) => {
       editor.chain().focus().deleteRange(range).setHorizontalRule().run();

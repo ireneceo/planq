@@ -19,24 +19,24 @@ import { fetchPosts, type PostRow } from '../../services/posts';
 import { apiFetch } from '../../contexts/AuthContext';
 import PostAiModal from './PostAiModal';
 
-const TYPES: { value: QRecordColumnType; label: string }[] = [
-  { value: 'text',         label: '텍스트' },
-  { value: 'longtext',     label: '긴 텍스트' },
-  { value: 'number',       label: '숫자' },
-  { value: 'date',         label: '날짜' },
-  { value: 'datetime',     label: '날짜·시간' },
-  { value: 'checkbox',     label: '체크' },
-  { value: 'url',          label: 'URL' },
-  { value: 'email',        label: '이메일' },
-  { value: 'phone',        label: '전화' },
-  { value: 'select',       label: '단일 선택' },
-  { value: 'multi_select', label: '다중 선택' },
-  { value: 'secret',       label: '시크릿' },
-  { value: 'attach',       label: '첨부' },
-  { value: 'row_sum',      label: '행 합계 (자동)' },
-  { value: 'row_avg',      label: '행 평균 (자동)' },
-  { value: 'row_min',      label: '행 최소 (자동)' },
-  { value: 'row_max',      label: '행 최대 (자동)' },
+const TYPES: { value: QRecordColumnType; tk: string; ko: string }[] = [
+  { value: 'text',         tk: 'colType.text',        ko: '텍스트' },
+  { value: 'longtext',     tk: 'colType.longtext',    ko: '긴 텍스트' },
+  { value: 'number',       tk: 'colType.number',      ko: '숫자' },
+  { value: 'date',         tk: 'colType.date',        ko: '날짜' },
+  { value: 'datetime',     tk: 'colType.datetime',    ko: '날짜·시간' },
+  { value: 'checkbox',     tk: 'colType.checkbox',    ko: '체크' },
+  { value: 'url',          tk: 'colType.url',         ko: 'URL' },
+  { value: 'email',        tk: 'colType.email',       ko: '이메일' },
+  { value: 'phone',        tk: 'colType.phone',       ko: '전화' },
+  { value: 'select',       tk: 'colType.select',      ko: '단일 선택' },
+  { value: 'multi_select', tk: 'colType.multiSelect', ko: '다중 선택' },
+  { value: 'secret',       tk: 'colType.secret',      ko: '시크릿' },
+  { value: 'attach',       tk: 'colType.attach',      ko: '첨부' },
+  { value: 'row_sum',      tk: 'colType.rowSum',      ko: '행 합계 (자동)' },
+  { value: 'row_avg',      tk: 'colType.rowAvg',      ko: '행 평균 (자동)' },
+  { value: 'row_min',      tk: 'colType.rowMin',      ko: '행 최소 (자동)' },
+  { value: 'row_max',      tk: 'colType.rowMax',      ko: '행 최대 (자동)' },
 ];
 
 const ROW_AGG_TYPES: QRecordColumnType[] = ['row_sum', 'row_avg', 'row_min', 'row_max'];
@@ -276,7 +276,7 @@ const PostTableGrid: React.FC<Props> = ({ recordId, businessId, readOnly = false
                         {c.name}
                       </ColNameLabel>
                     )}
-                    <ColType>{TYPES.find(tp => tp.value === c.type)?.label || c.type}</ColType>
+                    <ColType>{(() => { const tp = TYPES.find(tp => tp.value === c.type); return tp ? t(tp.tk, { defaultValue: tp.ko }) : c.type; })()}</ColType>
                   </ColHeadInner>
                 </ColHead>
               ))}
@@ -577,7 +577,7 @@ const ColumnSettingsPopover: React.FC<{
     onClose();
   };
 
-  const typeOptions: PlanQSelectOption[] = TYPES.map(t => ({ value: t.value, label: t.label }));
+  const typeOptions: PlanQSelectOption[] = TYPES.map(tp => ({ value: tp.value, label: t(tp.tk, { defaultValue: tp.ko }) as string }));
   const showOptions = type === 'select' || type === 'multi_select';
   const aggOpts: PlanQSelectOption[] = aggregateOptions(type).map(a => ({
     value: a,

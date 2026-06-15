@@ -16,10 +16,10 @@ interface PersonalRaw {
   html_link?: string | null;
   account_email?: string | null;
 }
-export const personalToEvent = (raw: PersonalRaw): PersonalCalendarEvent => ({
+export const personalToEvent = (raw: PersonalRaw, untitledLabel = '(제목 없음)'): PersonalCalendarEvent => ({
   id: raw.id,
   _source: 'personal_google',
-  title: raw.title || '(제목 없음)',
+  title: raw.title || untitledLabel,
   description: raw.description ?? null,
   location: raw.location ?? null,
   start_at: raw.start_at,

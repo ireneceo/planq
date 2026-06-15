@@ -1214,7 +1214,7 @@ const QTaskPage:React.FC=()=>{
   // 실제시간: 실제시간 x 진행율% 을 작업기간에 선형 분배 → 날짜별 누적
   const computedBurndown=useMemo(()=>{
     const days:{label:string;date:string;est:number;act:number}[]=[];
-    const dayNames=['일','월','화','수','목','금','토'];
+    const dayNames=[t('weekdayShort.0','일'),t('weekdayShort.1','월'),t('weekdayShort.2','화'),t('weekdayShort.3','수'),t('weekdayShort.4','목'),t('weekdayShort.5','금'),t('weekdayShort.6','토')];
     let cursor=periodFrom;
     while(cursor<=periodTo){
       const [y,m,d]=cursor.split('-').map(Number);
@@ -1610,7 +1610,7 @@ const QTaskPage:React.FC=()=>{
                                 body: JSON.stringify({ assignee_id: uid }),
                               }).catch(()=>{ /* TODO: 실패 시 원복 */ });
                             }}
-                            options={members.map(m=>({value:String(m.user_id),label:m.name+(m.user_id===myId?' (나)':'')}))} />
+                            options={members.map(m=>({value:String(m.user_id),label:m.name+(m.user_id===myId?t('detail.meSuffix',' (나)'):'')}))} />
                         </div>
                       </TCell>
                     )}
@@ -1809,11 +1809,11 @@ const QTaskPage:React.FC=()=>{
                     placeholder={tab==='requested'?t('add.assigneeRequiredHint','담당자 선택 (필수)'):t('add.assigneeDefault','담당자: 나')}
                     value={newAssignee==null?null:{
                       value:String(newAssignee),
-                      label:(members.find(m=>m.user_id===newAssignee)?.name||'-')+(newAssignee===myId?' (나)':''),
+                      label:(members.find(m=>m.user_id===newAssignee)?.name||'-')+(newAssignee===myId?t('detail.meSuffix',' (나)'):''),
                     }}
                     onChange={(v)=>setNewAssignee((v as {value?:string})?.value?Number((v as {value:string}).value):null)}
                     options={members.filter(m=>tab==='requested'?m.user_id!==myId:true)
-                      .map(m=>({value:String(m.user_id),label:m.name+(m.user_id===myId?' (나)':'')}))} />
+                      .map(m=>({value:String(m.user_id),label:m.name+(m.user_id===myId?t('detail.meSuffix',' (나)'):'')}))} />
                 </AddOptField>
                 <AddOptField style={{flex:'1 1 200px'}}>
                   <AddOptLabel>{t('add.dateRange','시작 ~ 마감')}</AddOptLabel>
@@ -2524,11 +2524,11 @@ const QTaskPage:React.FC=()=>{
                     placeholder={tab==='requested'?t('add.assigneeRequiredHint','담당자 선택 (필수)'):t('add.assigneeDefault','담당자: 나')}
                     value={newAssignee==null?null:{
                       value:String(newAssignee),
-                      label:(members.find(m=>m.user_id===newAssignee)?.name||'-')+(newAssignee===myId?' (나)':''),
+                      label:(members.find(m=>m.user_id===newAssignee)?.name||'-')+(newAssignee===myId?t('detail.meSuffix',' (나)'):''),
                     }}
                     onChange={(v)=>setNewAssignee((v as {value?:string})?.value?Number((v as {value:string}).value):null)}
                     options={members.filter(m=>tab==='requested'?m.user_id!==myId:true)
-                      .map(m=>({value:String(m.user_id),label:m.name+(m.user_id===myId?' (나)':'')}))} />
+                      .map(m=>({value:String(m.user_id),label:m.name+(m.user_id===myId?t('detail.meSuffix',' (나)'):'')}))} />
                 </AddOptField>
               </AddOptRow>
               <AddOptRow>

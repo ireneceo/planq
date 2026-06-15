@@ -44,7 +44,7 @@ import VisibilityField, { serializeVisibility, parseVisibility, type VisibilityV
 const CATEGORIES: KbCategory[] = [...LEGACY_KB_CATEGORIES];
 const SCOPES: KbScope[] = ['workspace', 'project', 'client'];
 // 사용자 정의 항목 타입
-const COL_TYPE_LABEL: Record<string, string> = {
+const COL_TYPE_DEFAULT_LABEL: Record<string, string> = {
   text: '텍스트', longtext: '긴 텍스트', number: '숫자', date: '날짜',
   url: 'URL', email: '이메일', phone: '전화', select: '단일 선택',
   checkbox: '체크', secret: '시크릿',
@@ -1339,13 +1339,13 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
                       />
                       <CustomColTypeSel>
                         <PlanQSelect size="sm" isSearchable={false}
-                          value={{ value: col.type, label: COL_TYPE_LABEL[col.type] || col.type }}
+                          value={{ value: col.type, label: COL_TYPE_DEFAULT_LABEL[col.type] ? t(`colType.${col.type}`, { defaultValue: COL_TYPE_DEFAULT_LABEL[col.type] }) : col.type }}
                           onChange={(opt) => {
                             const cols = [...draft.custom_columns];
                             cols[idx] = { ...col, type: (opt as PlanQSelectOption | null)?.value as string || 'text' };
                             setDraft(d => ({ ...d, custom_columns: cols }));
                           }}
-                          options={Object.entries(COL_TYPE_LABEL).map(([v, l]) => ({ value: v, label: l }))} />
+                          options={Object.entries(COL_TYPE_DEFAULT_LABEL).map(([v, l]) => ({ value: v, label: t(`colType.${v}`, { defaultValue: l }) }))} />
                       </CustomColTypeSel>
                       <CustomColInput
                         type={col.type === 'date' ? 'date' : col.type === 'number' ? 'number' : 'text'}
@@ -1625,6 +1625,7 @@ const TagsEdit: React.FC<{
   onSaved: (tags: string[]) => void;
   onError?: () => void;
 }> = ({ docId, businessId, initialValue, onSaved, onError }) => {
+  const { t } = useTranslation('knowledge');
   const [editing, setEditing] = React.useState(false);
   const [draft, setDraft] = React.useState((initialValue || []).join(', '));
   React.useEffect(() => { if (!editing) setDraft((initialValue || []).join(', ')); }, [initialValue, editing]);
@@ -1660,7 +1661,7 @@ const TagsEdit: React.FC<{
         if (e.key === 'Escape') { setDraft((initialValue || []).join(', ')); setEditing(false); }
         if (e.key === 'Enter') { (e.target as HTMLInputElement).blur(); }
       }}
-      placeholder="태그1, 태그2, 태그3"
+      placeholder={t('tags.placeholder', { defaultValue: '태그1, 태그2, 태그3' })}
     />
   );
 };

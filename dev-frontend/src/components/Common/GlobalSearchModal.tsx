@@ -37,15 +37,10 @@ interface SearchResult {
   projects?: Array<{ id: number; name: string; status?: string }>;
 }
 
-const CAT_LABEL: Record<Category, [string, string]> = {
-  tasks:         ['업무', 'Tasks'],
-  posts:         ['문서', 'Docs'],
-  records:       ['레코드', 'Records'],
-  files:         ['파일', 'Files'],
-  conversations: ['대화', 'Conversations'],
-  knowledge:     ['지식', 'Knowledge'],
-  clients:       ['고객', 'Clients'],
-  projects:      ['프로젝트', 'Projects'],
+// 카테고리 라벨 i18n fallback (ko) — 표시는 t('search.cat.<key>') 로
+const CAT_LABEL_KO: Record<Category, string> = {
+  tasks: '업무', posts: '문서', records: '레코드', files: '파일',
+  conversations: '대화', knowledge: '지식', clients: '고객', projects: '프로젝트',
 };
 
 const CAT_BADGE_COLOR: Record<Category, string> = {
@@ -54,9 +49,8 @@ const CAT_BADGE_COLOR: Record<Category, string> = {
 };
 
 const GlobalSearchModal: React.FC<Props> = ({ open, onClose, businessId }) => {
-  const { t, i18n } = useTranslation('common');
+  const { t } = useTranslation('common');
   const navigate = useNavigate();
-  const lang = i18n.language?.startsWith('ko') ? 0 : 1;
   const inputRef = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState('');
   const [result, setResult] = useState<SearchResult>({});
@@ -124,7 +118,7 @@ const GlobalSearchModal: React.FC<Props> = ({ open, onClose, businessId }) => {
           ) : (
             allHits.map(h => (
               <Hit key={`${h.type}-${h.id}`} type="button" onClick={() => goto(h.to)}>
-                <TypeBadge $color={CAT_BADGE_COLOR[h.type]}>{CAT_LABEL[h.type][lang]}</TypeBadge>
+                <TypeBadge $color={CAT_BADGE_COLOR[h.type]}>{t(`search.cat.${h.type}`, { defaultValue: CAT_LABEL_KO[h.type] })}</TypeBadge>
                 <HitMain>
                   <HitTitle>{h.title}</HitTitle>
                   {h.sub && <HitSub>{h.sub}</HitSub>}

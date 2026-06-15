@@ -9,7 +9,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
-import { aiGenerateDoc, KIND_LABELS_KO, type DocKind } from '../../services/docs';
+import { aiGenerateDoc, KIND_LABELS_KO, KIND_LABEL_KEYS, type DocKind } from '../../services/docs';
 import { createBrief } from '../../services/posts';
 import { listClientsForBilling, type ApiClientLite } from '../../services/invoices';
 import { listProjects, type ApiProject } from '../../services/qtalk';
@@ -39,21 +39,16 @@ interface Props {
   initialBriefText?: string;
 }
 
-const KIND_OPTIONS: PlanQSelectOption[] = [
-  { value: 'proposal', label: KIND_LABELS_KO.proposal },
-  { value: 'quote', label: KIND_LABELS_KO.quote },
-  { value: 'invoice', label: KIND_LABELS_KO.invoice },
-  { value: 'contract', label: KIND_LABELS_KO.contract },
-  { value: 'sow', label: KIND_LABELS_KO.sow },
-  { value: 'nda', label: KIND_LABELS_KO.nda },
-  { value: 'meeting_note', label: KIND_LABELS_KO.meeting_note },
-  { value: 'custom', label: KIND_LABELS_KO.custom },
-];
+const KIND_OPTION_VALUES: DocKind[] = ['proposal', 'quote', 'invoice', 'contract', 'sow', 'nda', 'meeting_note', 'custom'];
 
 type Mode = 'blank' | 'new' | 'brief' | 'table';
 
 const PostAiModal: React.FC<Props> = ({ open, onClose, businessId, projectId: pageProjectId, clientId: pageClientId, onGenerate, onBlank, intent = 'manual', defaultMode: defaultModeProp, initialBriefTitle, initialBriefText }) => {
   const { t } = useTranslation('qdocs');
+  const KIND_OPTIONS: PlanQSelectOption[] = useMemo(
+    () => KIND_OPTION_VALUES.map(v => ({ value: v, label: t(KIND_LABEL_KEYS[v], { defaultValue: KIND_LABELS_KO[v] }) as string })),
+    [t],
+  );
   const navigate = useNavigate();
   // intent 별 사용 가능 탭 — manual: 빈문서+표 / ai: AI 작성+자료정리
   const visibleModes: Mode[] = intent === 'ai' ? ['new', 'brief'] : ['blank', 'table'];

@@ -85,11 +85,11 @@ async function fetchAndResolve(businessId: number, userId: number): Promise<User
   if (client) {
     return {
       scope: 'client',
-      name: client.display_name || '(이름 없음)',
+      name: client.display_name || '',
       company_name: client.company_name || null,
     };
   }
-  return { scope: 'unknown', name: '(외부 사용자)' };
+  return { scope: 'unknown', name: '' };
 }
 
 interface Props {
@@ -160,11 +160,17 @@ const UserInfoPopover: React.FC<Props> = ({ open, userId, businessId, anchorEl, 
             </div>
           </LoadingRow>
         ) : info ? (
+          (() => {
+          const displayName = info.name
+            || (info.scope === 'unknown'
+              ? t('userInfo.externalUser', '(외부 사용자)')
+              : t('userInfo.noName', '(이름 없음)'));
+          return (
           <>
             <HeaderRow>
-              <LetterAvatar name={info.name} size={48} />
+              <LetterAvatar name={displayName} size={48} />
               <NameBlock>
-                <Name>{info.name}</Name>
+                <Name>{displayName}</Name>
                 {info.scope === 'member' && info.role && <RoleTag>{info.role === 'owner' ? t('userInfo.owner', '오너') : t('userInfo.member', '멤버')}</RoleTag>}
                 {info.scope === 'client' && <RoleTag $client>{t('userInfo.client', '고객')}</RoleTag>}
               </NameBlock>
@@ -205,6 +211,8 @@ const UserInfoPopover: React.FC<Props> = ({ open, userId, businessId, anchorEl, 
               )}
             </FieldList>
           </>
+          );
+          })()
         ) : (
           <NoInfo>{t('userInfo.notFound', '정보를 불러올 수 없습니다')}</NoInfo>
         )}

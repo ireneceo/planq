@@ -109,7 +109,7 @@ const AdminPaymentsPage = () => {
     try {
       const r = await apiFetch(`/api/admin/payments/${p.id}/refund`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reason: '관리자 환불' }),
+        body: JSON.stringify({ reason: t('payments.refundReason', '관리자 환불') }),
       });
       const j = await r.json();
       if (!j.success) throw new Error(j.message || 'failed');

@@ -1,11 +1,13 @@
 // SlashCommand 팝업 리스트 — 화살표/엔터로 선택
 import { forwardRef, useEffect, useImperativeHandle, useState } from 'react';
 import styled from 'styled-components';
+import { useTranslation } from 'react-i18next';
 import type { SuggestionProps } from '@tiptap/suggestion';
 import type { SlashItem } from './SlashCommand';
 
 const SlashCommandList = forwardRef<unknown, SuggestionProps<SlashItem>>((props, ref) => {
   const { items, command } = props;
+  const { t } = useTranslation('common');
   const [index, setIndex] = useState(0);
 
   useEffect(() => { setIndex(0); }, [items]);
@@ -33,18 +35,18 @@ const SlashCommandList = forwardRef<unknown, SuggestionProps<SlashItem>>((props,
     },
   }));
 
-  if (!items.length) return <Panel><Empty>명령 없음</Empty></Panel>;
+  if (!items.length) return <Panel><Empty>{t('editor.slash.empty', { defaultValue: '명령 없음' })}</Empty></Panel>;
 
   return (
     <Panel>
       {items.map((it, i) => (
-        <Item key={it.title} $active={i === index}
+        <Item key={it.titleKey} $active={i === index}
           onMouseEnter={() => setIndex(i)}
           onClick={() => selectItem(i)}>
           <Icon>{it.icon || '·'}</Icon>
           <Meta>
-            <Title>{it.title}</Title>
-            {it.description && <Desc>{it.description}</Desc>}
+            <Title>{t(it.titleKey, { defaultValue: it.title })}</Title>
+            {it.descKey && <Desc>{t(it.descKey, { defaultValue: it.description })}</Desc>}
           </Meta>
         </Item>
       ))}

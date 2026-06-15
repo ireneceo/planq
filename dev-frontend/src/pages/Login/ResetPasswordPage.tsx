@@ -51,12 +51,12 @@ const ResetPasswordPage: React.FC = () => {
             <Field>
               <Label>{t('reset.newPwd', '새 비밀번호')}</Label>
               <Input type="password" value={pwd} onChange={e => setPwd(e.target.value)}
-                placeholder="8자 이상" required autoFocus minLength={8} />
+                placeholder={t('reset.phMin', '8자 이상') as string} required autoFocus minLength={8} />
             </Field>
             <Field>
               <Label>{t('reset.confirm', '비밀번호 확인')}</Label>
               <Input type="password" value={pwd2} onChange={e => setPwd2(e.target.value)}
-                placeholder="다시 입력" required minLength={8} />
+                placeholder={t('reset.phConfirm', '다시 입력') as string} required minLength={8} />
             </Field>
             {err && <ErrorBox>{err}</ErrorBox>}
             <Submit type="submit" disabled={submitting || !pwd || !pwd2}>

@@ -14,17 +14,17 @@ import {
   type QRecordDetail, type QRecordColumn, type QRecordColumnType,
 } from '../../services/qrecord';
 
-const TYPES: { value: QRecordColumnType; label: string }[] = [
-  { value: 'text',     label: '텍스트' },
-  { value: 'longtext', label: '긴 텍스트' },
-  { value: 'number',   label: '숫자' },
-  { value: 'date',     label: '날짜' },
-  { value: 'url',      label: 'URL' },
-  { value: 'email',    label: '이메일' },
-  { value: 'phone',    label: '전화' },
-  { value: 'select',   label: '단일 선택' },
-  { value: 'checkbox', label: '체크' },
-  { value: 'secret',   label: '시크릿 (마스킹)' },
+const TYPES: { value: QRecordColumnType; defaultLabel: string }[] = [
+  { value: 'text',     defaultLabel: '텍스트' },
+  { value: 'longtext', defaultLabel: '긴 텍스트' },
+  { value: 'number',   defaultLabel: '숫자' },
+  { value: 'date',     defaultLabel: '날짜' },
+  { value: 'url',      defaultLabel: 'URL' },
+  { value: 'email',    defaultLabel: '이메일' },
+  { value: 'phone',    defaultLabel: '전화' },
+  { value: 'select',   defaultLabel: '단일 선택' },
+  { value: 'checkbox', defaultLabel: '체크' },
+  { value: 'secret',   defaultLabel: '시크릿 (마스킹)' },
 ];
 
 const QRecordDetailPage: React.FC = () => {
@@ -151,7 +151,7 @@ const QRecordDetailPage: React.FC = () => {
                       <ColNameLabel onClick={() => startHeaderEdit(c)}>{c.name}</ColNameLabel>
                     )}
                     <ColTypeBtn type="button" onClick={() => setColumnEdit(c)} title={t('column.typeHint', '타입 변경 / 삭제') as string}>
-                      {TYPES.find(t => t.value === c.type)?.label || c.type}
+                      {(() => { const ty = TYPES.find(x => x.value === c.type); return ty ? t(`columnType.${ty.value}`, ty.defaultLabel) : c.type; })()}
                     </ColTypeBtn>
                   </ColHead>
                 ))}
@@ -373,8 +373,8 @@ const ColumnEditModal: React.FC<{
         <Label>{t('column.typeLabel', '타입')}</Label>
         <PlanQSelect
           size="sm" isSearchable={false}
-          options={TYPES.map(t => ({ value: t.value, label: t.label }))}
-          value={{ value: type, label: TYPES.find(t => t.value === type)?.label || type }}
+          options={TYPES.map(ty => ({ value: ty.value, label: t(`columnType.${ty.value}`, ty.defaultLabel) }))}
+          value={{ value: type, label: (() => { const ty = TYPES.find(x => x.value === type); return ty ? t(`columnType.${ty.value}`, ty.defaultLabel) : type; })() }}
           onChange={(opt) => setType(((opt as PlanQSelectOption)?.value as QRecordColumnType) || 'text')}
         />
       </Field>

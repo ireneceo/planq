@@ -96,7 +96,7 @@ const WeeklyReviewView: React.FC<Props> = ({ reviewId, onBack }) => {
     const d = new Date(review.week_start);
     const month = d.getMonth() + 1;
     const weekOfMonth = Math.ceil(d.getDate() / 7);
-    return `${month}월 ${weekOfMonth}주차`;
+    return t('weeklyReview.weekLabel', { defaultValue: '{{month}}월 {{week}}주차', month, week: weekOfMonth });
   };
 
   return (

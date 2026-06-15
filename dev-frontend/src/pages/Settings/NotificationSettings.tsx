@@ -2,7 +2,7 @@
 // 이벤트 × 채널 × On/Off — 사용자 본인 (워크스페이스 컨텍스트)
 import React, { useEffect, useState } from 'react';
 import styled from 'styled-components';
-import { useTranslation } from 'react-i18next';
+import { useTranslation, Trans } from 'react-i18next';
 import { apiFetch } from '../../contexts/AuthContext';
 import { InboxIcon, ChatIcon, MailIcon } from '../../components/Common/Icons';
 import PwaInstallSection from './PwaInstallSection';
@@ -305,60 +305,61 @@ const PushSection: React.FC<{ businessId: number | null }> = () => {
 
 // 자동 진단 모달 — 발송 후 5초 안에 알림 안 도착 → OS 별 안내
 const PushDiagnoseModal: React.FC<{ os: ReturnType<typeof detectOS>; onClose: () => void; onRetry: () => void }> = ({ os, onClose, onRetry }) => {
+  const { t } = useTranslation('settings');
   return (
     <DiagBackdrop onClick={onClose}>
-      <DiagCard onClick={(e) => e.stopPropagation()} role="dialog" aria-label="알림 진단">
+      <DiagCard onClick={(e) => e.stopPropagation()} role="dialog" aria-label={t('pushDiag.aria', '알림 진단') as string}>
         <DiagHead>
-          <DiagTitle>알림이 도착하지 않았어요</DiagTitle>
-          <DiagClose onClick={onClose} aria-label="닫기">×</DiagClose>
+          <DiagTitle>{t('pushDiag.title', '알림이 도착하지 않았어요') as string}</DiagTitle>
+          <DiagClose onClick={onClose} aria-label={t('common:close', '닫기') as string}>×</DiagClose>
         </DiagHead>
         <DiagBody>
-          <DiagDesc>서버는 정상 발송했지만 시스템 단에서 차단된 것 같습니다. 아래 단계로 점검하면 해결됩니다.</DiagDesc>
+          <DiagDesc>{t('pushDiag.desc', '서버는 정상 발송했지만 시스템 단에서 차단된 것 같습니다. 아래 단계로 점검하면 해결됩니다.') as string}</DiagDesc>
           {os === 'mac' && (
             <DiagSteps>
-              <li><strong>macOS 시스템 환경설정</strong> → <strong>알림</strong> → <strong>Google Chrome</strong> → "알림 허용" + "사운드 재생" ON</li>
-              <li>화면 우상단 <strong>제어 센터</strong> → 집중 모드(방해 금지) <strong>OFF</strong></li>
-              <li>Chrome 주소창에 <code>chrome://settings/content/notifications</code> → planq.kr 이 <strong>"허용"</strong> 목록에 있는지 확인</li>
-              <li>Chrome → 설정 → 시스템 → <strong>"Chrome 종료 후에도 백그라운드 앱 실행" ON</strong></li>
+              <li><Trans i18nKey="pushDiag.mac.1" ns="settings" components={{ 1: <strong /> }} defaults='<1>macOS 시스템 환경설정</1> → <1>알림</1> → <1>Google Chrome</1> → "알림 허용" + "사운드 재생" ON' /></li>
+              <li><Trans i18nKey="pushDiag.mac.2" ns="settings" components={{ 1: <strong /> }} defaults='화면 우상단 <1>제어 센터</1> → 집중 모드(방해 금지) <1>OFF</1>' /></li>
+              <li><Trans i18nKey="pushDiag.mac.3" ns="settings" components={{ 1: <strong />, 2: <code /> }} defaults='Chrome 주소창에 <2>chrome://settings/content/notifications</2> → planq.kr 이 <1>"허용"</1> 목록에 있는지 확인' /></li>
+              <li><Trans i18nKey="pushDiag.mac.4" ns="settings" components={{ 1: <strong /> }} defaults='Chrome → 설정 → 시스템 → <1>"Chrome 종료 후에도 백그라운드 앱 실행" ON</1>' /></li>
             </DiagSteps>
           )}
           {os === 'windows' && (
             <DiagSteps>
-              <li><strong>Windows 설정</strong> → 시스템 → 알림 → "알림 받기" + Chrome 알림 허용 ON</li>
-              <li>집중 지원(Focus Assist) <strong>OFF</strong></li>
-              <li>Chrome 주소창 <code>chrome://settings/content/notifications</code> → planq.kr <strong>"허용"</strong></li>
+              <li><Trans i18nKey="pushDiag.windows.1" ns="settings" components={{ 1: <strong /> }} defaults='<1>Windows 설정</1> → 시스템 → 알림 → "알림 받기" + Chrome 알림 허용 ON' /></li>
+              <li><Trans i18nKey="pushDiag.windows.2" ns="settings" components={{ 1: <strong /> }} defaults='집중 지원(Focus Assist) <1>OFF</1>' /></li>
+              <li><Trans i18nKey="pushDiag.windows.3" ns="settings" components={{ 1: <strong />, 2: <code /> }} defaults='Chrome 주소창 <2>chrome://settings/content/notifications</2> → planq.kr <1>"허용"</1>' /></li>
             </DiagSteps>
           )}
           {os === 'ios' && (
             <DiagSteps>
-              <li>홈 화면에 PlanQ 추가했는지 확인 (Safari 공유 → "홈 화면에 추가")</li>
-              <li>iOS 설정 → 알림 → PlanQ → "알림 허용" + "사운드"·"배지" ON</li>
-              <li>방해 금지 모드 / 집중 모드 OFF</li>
+              <li>{t('pushDiag.ios.1', '홈 화면에 PlanQ 추가했는지 확인 (Safari 공유 → "홈 화면에 추가")') as string}</li>
+              <li>{t('pushDiag.ios.2', 'iOS 설정 → 알림 → PlanQ → "알림 허용" + "사운드"·"배지" ON') as string}</li>
+              <li>{t('pushDiag.ios.3', '방해 금지 모드 / 집중 모드 OFF') as string}</li>
             </DiagSteps>
           )}
           {os === 'android' && (
             <DiagSteps>
-              <li>Android 설정 → 앱 → Chrome 또는 PlanQ → 알림 ON</li>
-              <li>방해 금지 모드 OFF</li>
-              <li>배터리 최적화에서 Chrome 제외</li>
+              <li>{t('pushDiag.android.1', 'Android 설정 → 앱 → Chrome 또는 PlanQ → 알림 ON') as string}</li>
+              <li>{t('pushDiag.android.2', '방해 금지 모드 OFF') as string}</li>
+              <li>{t('pushDiag.android.3', '배터리 최적화에서 Chrome 제외') as string}</li>
             </DiagSteps>
           )}
           {os === 'other' && (
             <DiagSteps>
-              <li>브라우저 알림 권한이 "허용" 인지 확인</li>
-              <li>OS 시스템 알림 설정에서 브라우저 알림 ON</li>
-              <li>방해 금지 모드 OFF</li>
+              <li>{t('pushDiag.other.1', '브라우저 알림 권한이 "허용" 인지 확인') as string}</li>
+              <li>{t('pushDiag.other.2', 'OS 시스템 알림 설정에서 브라우저 알림 ON') as string}</li>
+              <li>{t('pushDiag.other.3', '방해 금지 모드 OFF') as string}</li>
             </DiagSteps>
           )}
           {os === 'mac' && (
             <DiagShortcut href="x-apple.systempreferences:com.apple.preference.notifications" target="_blank" rel="noreferrer">
-              macOS 알림 설정 직접 열기 →
+              {t('pushDiag.macOpenSettings', 'macOS 알림 설정 직접 열기 →') as string}
             </DiagShortcut>
           )}
         </DiagBody>
         <DiagFooter>
-          <DiagPrimary type="button" onClick={onRetry}>다시 테스트</DiagPrimary>
-          <DiagSecondary type="button" onClick={onClose}>닫기</DiagSecondary>
+          <DiagPrimary type="button" onClick={onRetry}>{t('pushDiag.retry', '다시 테스트') as string}</DiagPrimary>
+          <DiagSecondary type="button" onClick={onClose}>{t('common:close', '닫기') as string}</DiagSecondary>
         </DiagFooter>
       </DiagCard>
     </DiagBackdrop>

@@ -111,7 +111,7 @@ const NewChatModal: React.FC<Props> = ({ businessId, open, preselectedProjectId,
     [projects, t],
   );
   // 고객 옵션 — display_name → biz_name → company_name 순 fallback
-  const clientName = (c: WorkspaceClientRow) => c.display_name || c.biz_name || c.company_name || `고객 #${c.id}`;
+  const clientName = (c: WorkspaceClientRow) => c.display_name || c.biz_name || c.company_name || t('newChat.clientFallback', { defaultValue: '고객 #{{id}}', id: c.id });
   const clientOptions = useMemo(
     () => [
       { value: '__none__', label: t('newChat.noClient', '고객 없음 (내부)') },
@@ -158,7 +158,7 @@ const NewChatModal: React.FC<Props> = ({ businessId, open, preselectedProjectId,
       <Dialog role="dialog" aria-modal="true">
         <Header>
           <Title>{t('newChat.title', '새 대화 시작')}</Title>
-          <CloseBtn onClick={onClose} aria-label="닫기">
+          <CloseBtn onClick={onClose} aria-label={t('common:close', { defaultValue: '닫기' })}>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
           </CloseBtn>
         </Header>
@@ -265,8 +265,8 @@ const NewChatModal: React.FC<Props> = ({ businessId, open, preselectedProjectId,
             <Hint>{t('newChat.membersHint', '워크스페이스 팀원 중 이 대화에 참여할 사람을 추가하세요.')}</Hint>
             <Chips>
               <MeChip>
-                <LetterAvatar name={user?.name || '나'} size={20} />
-                <span>{user?.name || '나'} ({t('newChat.me', '나')})</span>
+                <LetterAvatar name={user?.name || t('newChat.me', '나')} size={20} />
+                <span>{user?.name || t('newChat.me', '나')} ({t('newChat.me', '나')})</span>
               </MeChip>
               {participantIds.map((uid) => {
                 const m = members.find((x) => x.user_id === uid);

@@ -157,7 +157,7 @@ const QCalendarPage: React.FC = () => {
             `/api/me/calendar/events?business_id=${bizId}&start=${rangeStart.toISOString()}&end=${rangeEnd.toISOString()}`
           );
           const j = await r.json();
-          if (j.success) setPersonalEvents((j.data?.events || []).map(personalToEvent));
+          if (j.success) setPersonalEvents((j.data?.events || []).map((raw: Parameters<typeof personalToEvent>[0]) => personalToEvent(raw, t('event.untitled', { defaultValue: '(제목 없음)' }))));
           else setPersonalEvents([]);
         } catch { setPersonalEvents([]); }
       } else {

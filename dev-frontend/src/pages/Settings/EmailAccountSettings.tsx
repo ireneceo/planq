@@ -182,7 +182,7 @@ const EmailAccountSettings: React.FC = () => {
         open={editing !== null}
         onClose={() => setEditing(null)}
         width={560}
-        ariaLabel={editing === 'new' ? '메일 계정 등록' : '메일 계정 편집'}
+        ariaLabel={editing === 'new' ? t('settings.addTitle', '메일 계정 등록') as string : t('settings.editTitle', '메일 계정 편집') as string}
       >
         {editing !== null && (
           <AccountEditForm
@@ -335,7 +335,7 @@ const AccountEditForm: React.FC<FormProps> = ({ initial, businessId, onSaved, on
             <Input
               type="email" value={form.email}
               onChange={e => setForm({ ...form, email: e.target.value, imap_username: form.imap_username || e.target.value, smtp_username: form.smtp_username || e.target.value })}
-              placeholder="contact@회사.com"
+              placeholder={t('settings.emailPh', 'contact@회사.com') as string}
               disabled={isEdit}
             />
           </Field>
@@ -356,7 +356,7 @@ const AccountEditForm: React.FC<FormProps> = ({ initial, businessId, onSaved, on
               <Input
                 type="text" value={form.imap_host}
                 onChange={e => setForm({ ...form, imap_host: e.target.value })}
-                placeholder="imap.회사.com"
+                placeholder={t('settings.imapHostPh', 'imap.회사.com') as string}
               />
             </Field>
             <Field>
@@ -396,7 +396,7 @@ const AccountEditForm: React.FC<FormProps> = ({ initial, businessId, onSaved, on
               <Input
                 type="text" value={form.smtp_host || ''}
                 onChange={e => setForm({ ...form, smtp_host: e.target.value })}
-                placeholder="smtp.회사.com"
+                placeholder={t('settings.smtpHostPh', 'smtp.회사.com') as string}
               />
             </Field>
             <Field>

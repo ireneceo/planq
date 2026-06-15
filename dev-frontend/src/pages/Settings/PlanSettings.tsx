@@ -523,7 +523,7 @@ const PlanSettings: React.FC<Props> = ({ businessId }) => {
             <DTitle>{t('confirm.downgradeTitle', { plan: catalog.find(p => p.code === actionPlan)?.name_ko || actionPlan })}</DTitle>
             <DBody>
               <p>{t('confirm.downgradeDesc', {
-                date: status.plan_expires_at ? formatDate(status.plan_expires_at) : '다음 결제일'
+                date: status.plan_expires_at ? formatDate(status.plan_expires_at) : t('confirm.nextBillingDate', '다음 결제일')
               })}</p>
               {(() => {
                 const target = catalog.find(p => p.code === actionPlan);

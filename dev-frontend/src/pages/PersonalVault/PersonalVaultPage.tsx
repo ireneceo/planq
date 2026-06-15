@@ -246,9 +246,13 @@ const PersonalVaultPage: React.FC = () => {
               <Card key={s.id} onClick={() => navigate(`/notes?session=${s.id}`)}>
                 <CardTitle>{s.title}</CardTitle>
                 <CardMeta>
-                  {s.status === 'recording' ? '녹음 중' : s.status === 'completed' ? '완료' : s.status}
-                  {s.utterance_count > 0 && ` · 발화 ${s.utterance_count}`}
-                  {s.duration_seconds > 0 && ` · ${Math.round(s.duration_seconds / 60)}분`}
+                  {s.status === 'recording'
+                    ? (t('common:vault.note.recording', { defaultValue: '녹음 중' }) as string)
+                    : s.status === 'completed'
+                      ? (t('common:vault.note.completed', { defaultValue: '완료' }) as string)
+                      : s.status}
+                  {s.utterance_count > 0 && ` · ${t('common:vault.note.utteranceCount', { defaultValue: '발화 {{n}}', n: s.utterance_count }) as string}`}
+                  {s.duration_seconds > 0 && ` · ${t('common:vault.note.minutes', { defaultValue: '{{min}}분', min: Math.round(s.duration_seconds / 60) }) as string}`}
                 </CardMeta>
               </Card>
             ))}

@@ -74,7 +74,7 @@ const PostEditor: React.FC<Props> = ({ value, onChange, placeholder, editable = 
         codeBlock: false,
       }),
       PqCodeBlock,
-      Placeholder.configure({ placeholder: placeholder || '본문을 작성하세요…' }),
+      Placeholder.configure({ placeholder: placeholder || t('editor.placeholder', { defaultValue: '본문을 작성하세요…' }) }),
       Link.configure({ openOnClick: false, HTMLAttributes: { rel: 'noopener noreferrer', target: '_blank' } }),
       ResizableImage.configure({ inline: false, allowBase64: false, HTMLAttributes: { class: 'editor-image' } }),
       Table.configure({ resizable: true, HTMLAttributes: { class: 'editor-table' } }),
@@ -161,34 +161,34 @@ const PostEditor: React.FC<Props> = ({ value, onChange, placeholder, editable = 
       {editable && (
         <Toolbar $compact={compact}>
           <Group>
-            <ToolBtn type="button" $active={isActive('bold')} onClick={() => editor.chain().focus().toggleBold().run()} title="굵게">B</ToolBtn>
-            <ToolBtn type="button" $active={isActive('italic')} onClick={() => editor.chain().focus().toggleItalic().run()} title="기울임" style={{ fontStyle: 'italic' }}>I</ToolBtn>
-            <ToolBtn type="button" $active={isActive('strike')} onClick={() => editor.chain().focus().toggleStrike().run()} title="취소선" style={{ textDecoration: 'line-through' }}>S</ToolBtn>
-            <ToolBtn type="button" $active={isActive('code')} onClick={() => editor.chain().focus().toggleCode().run()} title="인라인 코드" style={{ fontFamily: 'monospace' }}>code</ToolBtn>
+            <ToolBtn type="button" $active={isActive('bold')} onClick={() => editor.chain().focus().toggleBold().run()} title={t('editor.bold', { defaultValue: '굵게' })}>B</ToolBtn>
+            <ToolBtn type="button" $active={isActive('italic')} onClick={() => editor.chain().focus().toggleItalic().run()} title={t('editor.italic', { defaultValue: '기울임' })} style={{ fontStyle: 'italic' }}>I</ToolBtn>
+            <ToolBtn type="button" $active={isActive('strike')} onClick={() => editor.chain().focus().toggleStrike().run()} title={t('editor.strike', { defaultValue: '취소선' })} style={{ textDecoration: 'line-through' }}>S</ToolBtn>
+            <ToolBtn type="button" $active={isActive('code')} onClick={() => editor.chain().focus().toggleCode().run()} title={t('editor.inlineCode', { defaultValue: '인라인 코드' })} style={{ fontFamily: 'monospace' }}>code</ToolBtn>
           </Group>
           <Sep />
           <Group>
-            <ToolBtn type="button" $active={isActive('heading', { level: 1 })} onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()} title="제목 1">H1</ToolBtn>
-            <ToolBtn type="button" $active={isActive('heading', { level: 2 })} onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()} title="제목 2">H2</ToolBtn>
-            <ToolBtn type="button" $active={isActive('heading', { level: 3 })} onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()} title="제목 3">H3</ToolBtn>
+            <ToolBtn type="button" $active={isActive('heading', { level: 1 })} onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()} title={t('editor.heading1', { defaultValue: '제목 1' })}>H1</ToolBtn>
+            <ToolBtn type="button" $active={isActive('heading', { level: 2 })} onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()} title={t('editor.heading2', { defaultValue: '제목 2' })}>H2</ToolBtn>
+            <ToolBtn type="button" $active={isActive('heading', { level: 3 })} onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()} title={t('editor.heading3', { defaultValue: '제목 3' })}>H3</ToolBtn>
           </Group>
           <Sep />
           <Group>
-            <ToolBtn type="button" $active={isActive('bulletList')} onClick={() => editor.chain().focus().toggleBulletList().run()} title="글머리 기호">•</ToolBtn>
-            <ToolBtn type="button" $active={isActive('orderedList')} onClick={() => editor.chain().focus().toggleOrderedList().run()} title="번호 매기기">1.</ToolBtn>
-            <ToolBtn type="button" $active={isActive('blockquote')} onClick={() => editor.chain().focus().toggleBlockquote().run()} title="인용">❝</ToolBtn>
-            <ToolBtn type="button" $active={isActive('codeBlock')} onClick={() => editor.chain().focus().toggleCodeBlock().run()} title="코드 블록 (syntax 색상 + 복사 버튼)" style={{ fontFamily: 'monospace' }}>{ '</>' }</ToolBtn>
+            <ToolBtn type="button" $active={isActive('bulletList')} onClick={() => editor.chain().focus().toggleBulletList().run()} title={t('editor.bulletList', { defaultValue: '글머리 기호' })}>•</ToolBtn>
+            <ToolBtn type="button" $active={isActive('orderedList')} onClick={() => editor.chain().focus().toggleOrderedList().run()} title={t('editor.orderedList', { defaultValue: '번호 매기기' })}>1.</ToolBtn>
+            <ToolBtn type="button" $active={isActive('blockquote')} onClick={() => editor.chain().focus().toggleBlockquote().run()} title={t('editor.blockquote', { defaultValue: '인용' })}>❝</ToolBtn>
+            <ToolBtn type="button" $active={isActive('codeBlock')} onClick={() => editor.chain().focus().toggleCodeBlock().run()} title={t('editor.codeBlock', { defaultValue: '코드 블록 (syntax 색상 + 복사 버튼)' })} style={{ fontFamily: 'monospace' }}>{ '</>' }</ToolBtn>
           </Group>
           <Sep />
           <Group>
             <ToolBtn type="button" $active={isActive('link')} onClick={() => {
               const prev = editor.getAttributes('link').href;
-              const url = window.prompt('URL (비우면 링크 제거):', prev || '');
+              const url = window.prompt(t('editor.linkPrompt', { defaultValue: 'URL (비우면 링크 제거):' }), prev || '');
               if (url === null) return;
               if (url === '') editor.chain().focus().extendMarkRange('link').unsetLink().run();
               else editor.chain().focus().extendMarkRange('link').setLink({ href: url }).run();
-            }} title="링크">🔗</ToolBtn>
-            <ToolBtn type="button" onClick={onPickImage} title="이미지 삽입 (또는 붙여넣기/드래그)" aria-label="이미지 삽입">
+            }} title={t('editor.link', { defaultValue: '링크' })}>🔗</ToolBtn>
+            <ToolBtn type="button" onClick={onPickImage} title={t('editor.insertImage', { defaultValue: '이미지 삽입 (또는 붙여넣기/드래그)' })} aria-label={t('editor.insertImageAria', { defaultValue: '이미지 삽입' })}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
                 <circle cx="8.5" cy="8.5" r="1.5"/>
@@ -199,8 +199,8 @@ const PostEditor: React.FC<Props> = ({ value, onChange, placeholder, editable = 
             <ToolBtn
               type="button"
               onClick={() => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()}
-              title="표 삽입 (3x3, 헤더 포함)"
-              aria-label="표 삽입"
+              title={t('editor.insertTable', { defaultValue: '표 삽입 (3x3, 헤더 포함)' })}
+              aria-label={t('editor.insertTableAria', { defaultValue: '표 삽입' })}
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <rect x="3" y="3" width="18" height="18" rx="2"/>
@@ -215,20 +215,20 @@ const PostEditor: React.FC<Props> = ({ value, onChange, placeholder, editable = 
             <>
               <Sep />
               <Group>
-                <ToolBtn type="button" onClick={() => editor.chain().focus().addColumnBefore().run()} title="왼쪽에 열 추가">⫷ +열</ToolBtn>
-                <ToolBtn type="button" onClick={() => editor.chain().focus().addColumnAfter().run()} title="오른쪽에 열 추가">+열 ⫸</ToolBtn>
-                <ToolBtn type="button" onClick={() => editor.chain().focus().deleteColumn().run()} title="열 삭제">−열</ToolBtn>
-                <ToolBtn type="button" onClick={() => editor.chain().focus().addRowBefore().run()} title="위에 행 추가">⫶ +행</ToolBtn>
-                <ToolBtn type="button" onClick={() => editor.chain().focus().addRowAfter().run()} title="아래에 행 추가">+행 ⫶</ToolBtn>
-                <ToolBtn type="button" onClick={() => editor.chain().focus().deleteRow().run()} title="행 삭제">−행</ToolBtn>
-                <ToolBtn type="button" onClick={() => editor.chain().focus().deleteTable().run()} title="표 삭제" style={{ color: '#DC2626' }}>표✕</ToolBtn>
+                <ToolBtn type="button" onClick={() => editor.chain().focus().addColumnBefore().run()} title={t('editor.addColumnBefore', { defaultValue: '왼쪽에 열 추가' })}>⫷ {t('editor.colShort', { defaultValue: '열' })}</ToolBtn>
+                <ToolBtn type="button" onClick={() => editor.chain().focus().addColumnAfter().run()} title={t('editor.addColumnAfter', { defaultValue: '오른쪽에 열 추가' })}>{t('editor.colShort', { defaultValue: '열' })} ⫸</ToolBtn>
+                <ToolBtn type="button" onClick={() => editor.chain().focus().deleteColumn().run()} title={t('editor.deleteColumn', { defaultValue: '열 삭제' })}>−{t('editor.colShort', { defaultValue: '열' })}</ToolBtn>
+                <ToolBtn type="button" onClick={() => editor.chain().focus().addRowBefore().run()} title={t('editor.addRowBefore', { defaultValue: '위에 행 추가' })}>⫶ {t('editor.rowShort', { defaultValue: '행' })}</ToolBtn>
+                <ToolBtn type="button" onClick={() => editor.chain().focus().addRowAfter().run()} title={t('editor.addRowAfter', { defaultValue: '아래에 행 추가' })}>{t('editor.rowShort', { defaultValue: '행' })} ⫶</ToolBtn>
+                <ToolBtn type="button" onClick={() => editor.chain().focus().deleteRow().run()} title={t('editor.deleteRow', { defaultValue: '행 삭제' })}>−{t('editor.rowShort', { defaultValue: '행' })}</ToolBtn>
+                <ToolBtn type="button" onClick={() => editor.chain().focus().deleteTable().run()} title={t('editor.deleteTable', { defaultValue: '표 삭제' })} style={{ color: '#DC2626' }}>{t('editor.tableShort', { defaultValue: '표' })}✕</ToolBtn>
               </Group>
             </>
           )}
           <Sep />
           <Group>
-            <ToolBtn type="button" onClick={() => editor.chain().focus().undo().run()} title="실행 취소">↶</ToolBtn>
-            <ToolBtn type="button" onClick={() => editor.chain().focus().redo().run()} title="다시 실행">↷</ToolBtn>
+            <ToolBtn type="button" onClick={() => editor.chain().focus().undo().run()} title={t('editor.undo', { defaultValue: '실행 취소' })}>↶</ToolBtn>
+            <ToolBtn type="button" onClick={() => editor.chain().focus().redo().run()} title={t('editor.redo', { defaultValue: '다시 실행' })}>↷</ToolBtn>
           </Group>
         </Toolbar>
       )}
