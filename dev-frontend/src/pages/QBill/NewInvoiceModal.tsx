@@ -77,6 +77,8 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
   } | null>(null);
 
   const [clientId, setClientId] = useState<number | null>(null);
+  // 프로젝트 자동선택 보완 — ProjectClient.client_id 가 비어있는 초대중 고객을 clients 로드 후 매칭
+  const [pendingContactUserId, setPendingContactUserId] = useState<number | null>(null);
   // 외부 고객 직접 입력 (초대 없이 청구) — 운영 #1. 'client'=기존 고객 선택, 'external'=이름+이메일 직접
   const [recipientMode, setRecipientMode] = useState<'client' | 'external'>('client');
   const [extName, setExtName] = useState('');
@@ -190,8 +192,12 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
             const r = await apiFetch(`/api/projects/${post.project_id}`);
             const j = await r.json();
             const projClients = j?.data?.projectClients || [];
-            if (projClients.length > 0 && projClients[0].client_id) {
-              setClientId(projClients[0].client_id);
+            const first = projClients[0];
+            if (first) {
+              // client_id 우선. 초대중(invited) 고객은 ProjectClient.client_id 가 비어있고
+              // contact_user_id 만 있는 경우가 있어 → clients 로드 후 user_id 매칭으로 보완.
+              if (first.client_id) setClientId(first.client_id);
+              else if (first.contact_user_id) setPendingContactUserId(first.contact_user_id);
             }
           } catch { /* noop */ }
         }
@@ -199,6 +205,13 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
     })();
     return () => { cancelled = true; };
   }, [open, prefillPostId, businessId]);
+
+  // 초대중 고객(client_id 없음) — clients 로드되면 contact_user_id 로 매칭해 선택 보완
+  useEffect(() => {
+    if (!pendingContactUserId || clients.length === 0) return;
+    const match = clients.find(c => c.user_id === pendingContactUserId);
+    if (match) { setClientId(match.id); setPendingContactUserId(null); }
+  }, [pendingContactUserId, clients]);
 
   // sourceCandidates 로드 후 prefillPostId 자동 매칭
   useEffect(() => {
@@ -221,7 +234,7 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
   useEffect(() => {
     if (!open) {
       // 닫힐 때 폼 초기화 (워크스페이스 기본값은 모달 open 시 다시 prefill 됨)
-      setClientId(null); setSourcePostId(null); setTitle(''); setNotes('');
+      setClientId(null); setPendingContactUserId(null); setSourcePostId(null); setTitle(''); setNotes('');
       setRecipientMode('client'); setExtName(''); setExtEmail(''); setExtBizNumber('');
       setIssuedAt(todayStr);
       setItems([{ id: 1, description: '', detail: '', quantity: 1, unit_price: 0 }]);
@@ -243,12 +256,14 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
     if (!conversation && sendChat) setSendChat(false);
   }, [conversation, sendChat]);
 
-  const clientOptions: PlanQSelectOption[] = useMemo(() => clients.map(c => ({
-    value: c.id,
-    label: c.is_business
+  const clientOptions: PlanQSelectOption[] = useMemo(() => clients.map(c => {
+    const base = c.is_business
       ? `${c.display_name || c.company_name || ''}${c.biz_name ? ` (${c.biz_name})` : ''}`
-      : `${c.display_name || c.company_name || '—'} (개인)`,
-  })), [clients]);
+      : `${c.display_name || c.company_name || '—'} (${t('newInvoice.to.individual', { defaultValue: '개인' }) as string})`;
+    // 초대 수락 전 고객도 청구 가능 — 식별되도록 "초대중" 표시
+    const invited = c.status === 'invited' ? ` · ${t('newInvoice.to.invitedTag', { defaultValue: '초대중' }) as string}` : '';
+    return { value: c.id, label: `${base}${invited}` };
+  }), [clients, t]);
 
   const sourceOptions: PlanQSelectOption[] = useMemo(() => sourceCandidates.map(p => ({
     value: p.id,

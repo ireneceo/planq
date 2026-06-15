@@ -426,6 +426,8 @@ export async function listSourceCandidates(
 // 청구서 발행용 클라이언트 목록 (사업자 정보 포함)
 export interface ApiClientLite {
   id: number;
+  user_id: number | null;   // 초대 수락 전(invited)에는 null — 프로젝트 contact_user_id 매칭용
+  status?: 'invited' | 'active' | 'archived';
   display_name: string | null;
   company_name: string | null;
   biz_name: string | null;

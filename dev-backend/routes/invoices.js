@@ -802,6 +802,154 @@ router.get('/:businessId/:id', authenticateToken, attachWorkspaceScope(), async 
   }
 });
 
+// ─── Invoice 편집 (PUT) — draft 상태만 (임시저장 재편집) ───
+// 발송 전 draft 만 수정 가능. 발신/항목/분할/세금계산서 의향 전체 교체 + 합계 재계산.
+// member 도 허용 (draft 생성/편집은 권한 동일 — line 64 정책). 발송·결제 마킹만 owner only.
+router.put('/:businessId/:id', authenticateToken, checkBusinessAccess, requireMenu('qbill', 'write'), async (req, res, next) => {
+  const t = await sequelize.transaction();
+  try {
+    const invoice = await Invoice.findOne({
+      where: { id: req.params.id, business_id: req.params.businessId },
+      transaction: t,
+    });
+    if (!invoice) { await t.rollback(); return errorResponse(res, 'Invoice not found', 404); }
+    if (invoice.status !== 'draft') { await t.rollback(); return errorResponse(res, 'only draft can be edited', 400); }
+
+    const {
+      title, client_id, due_date, recipient_email, recipient_business_name, recipient_business_number,
+      notes, items, vat_rate, installment_mode, installments, source_post_id, currency, receipt_type,
+    } = req.body;
+    if (!title) { await t.rollback(); return errorResponse(res, 'Title required', 400); }
+    const receiptType = ['tax_invoice', 'cash_receipt'].includes(receipt_type) ? receipt_type : 'none';
+
+    // 출처 post 검증 (생성과 동일)
+    let sourcePostId = null;
+    if (source_post_id) {
+      const sp = await Post.findOne({
+        where: { id: Number(source_post_id), business_id: req.params.businessId },
+        transaction: t,
+      });
+      if (!sp) { await t.rollback(); return errorResponse(res, 'invalid source_post_id', 400); }
+      if (sp.status !== 'published') { await t.rollback(); return errorResponse(res, 'source post must be published', 400); }
+      sourcePostId = sp.id;
+    }
+
+    // 분할 검증 (생성과 동일)
+    const mode = installment_mode === 'split' ? 'split' : 'single';
+    if (mode === 'split') {
+      if (!Array.isArray(installments) || installments.length === 0) {
+        await t.rollback(); return errorResponse(res, 'installments required for split mode', 400);
+      }
+      const sum = installments.reduce((s, x) => s + Number(x.percent || 0), 0);
+      if (Math.abs(sum - 100) > 0.01) {
+        await t.rollback(); return errorResponse(res, `installment percent sum must be 100 (got ${sum})`, 400);
+      }
+      for (const inst of installments) {
+        if (!inst.label || !Number.isFinite(Number(inst.percent))) {
+          await t.rollback(); return errorResponse(res, 'each installment requires label and percent', 400);
+        }
+      }
+      if (installments.length > 12) {
+        await t.rollback(); return errorResponse(res, 'too many installments (max 12)', 400);
+      }
+    }
+
+    const vatRateNum = vat_rate !== undefined ? Number(vat_rate) : Number(invoice.vat_rate);
+
+    await invoice.update({
+      client_id: client_id || null,
+      title,
+      due_date: due_date || null,
+      recipient_email: recipient_email || null,
+      recipient_business_name: recipient_business_name || null,
+      recipient_business_number: recipient_business_number || null,
+      notes: notes || null,
+      installment_mode: mode,
+      vat_rate: vatRateNum,
+      source_post_id: sourcePostId,
+      currency: currency || invoice.currency,
+      receipt_type: receiptType,
+      tax_invoice_status: receiptType === 'tax_invoice' ? 'pending' : 'none',
+      cash_receipt_status: receiptType === 'cash_receipt' ? 'pending' : 'none',
+    }, { transaction: t });
+
+    // 항목 전체 교체 + 합계 재계산
+    await InvoiceItem.destroy({ where: { invoice_id: invoice.id }, transaction: t });
+    let subtotal = 0;
+    if (items && items.length > 0) {
+      const itemRows = [];
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        const amount = Number(item.quantity || 1) * Number(item.unit_price || 0);
+        subtotal += amount;
+        itemRows.push({
+          invoice_id: invoice.id,
+          description: item.description,
+          detail: (item.detail && String(item.detail).trim()) || null,
+          quantity: item.quantity || 1,
+          unit_price: item.unit_price || 0,
+          amount,
+          sort_order: i,
+        });
+      }
+      await InvoiceItem.bulkCreate(itemRows, { transaction: t });
+    }
+    const taxAmount = Math.round(subtotal * vatRateNum);
+    const grandTotal = subtotal + taxAmount;
+    await invoice.update({
+      total_amount: subtotal, subtotal, tax_amount: taxAmount, grand_total: grandTotal,
+    }, { transaction: t });
+
+    // 분할 일정 전체 교체 (생성과 동일 분배 로직)
+    await InvoiceInstallment.destroy({ where: { invoice_id: invoice.id }, transaction: t });
+    if (mode === 'split') {
+      const insts = installments.map((inst, idx) => ({
+        invoice_id: invoice.id,
+        installment_no: idx + 1,
+        label: String(inst.label).slice(0, 40),
+        percent: Number(inst.percent),
+        amount: 0,
+        due_date: inst.due_date || null,
+        milestone_ref: inst.milestone_ref ? String(inst.milestone_ref).slice(0, 100) : null,
+        status: 'pending',
+      }));
+      let allocated = 0;
+      for (let i = 0; i < insts.length; i++) {
+        if (i < insts.length - 1) {
+          const a = Math.round(grandTotal * (insts[i].percent / 100));
+          insts[i].amount = a; allocated += a;
+        } else {
+          insts[i].amount = grandTotal - allocated;
+        }
+      }
+      await InvoiceInstallment.bulkCreate(insts, { transaction: t });
+    }
+
+    await t.commit();
+
+    const result = await Invoice.findByPk(invoice.id, {
+      include: [
+        { model: InvoiceItem, as: 'items' },
+        { model: InvoiceInstallment, as: 'installments', separate: true, order: [['installment_no', 'ASC']] },
+        { model: Post, as: 'sourcePost', attributes: ['id', 'category', 'title', 'status', 'share_token', 'project_id'], required: false },
+        { model: Client, attributes: ['id', 'display_name', 'company_name', 'biz_name', 'biz_tax_id', 'biz_ceo', 'biz_address', 'is_business', 'country', 'tax_invoice_email', 'billing_contact_email', 'invite_email'] },
+      ],
+    });
+    if (result?.project_id) require('../services/projectStageEngine').onInvoiceChanged(result.id).catch(() => null);
+    broadcastInvoice(req, result, 'invoice:updated');
+    require('../services/auditService').logAudit(req, {
+      action: 'invoice.update',
+      targetType: 'invoice',
+      targetId: result.id,
+      newValue: { title: result.title, grand_total: result.grand_total, installment_mode: result.installment_mode },
+    });
+    successResponse(res, result, 'Invoice updated');
+  } catch (error) {
+    await t.rollback();
+    next(error);
+  }
+});
+
 // ─── Invoice 발송 (draft → sent) ───
 // 발송 시 invoice + installments status='sent' 동시
 // body: { send_chat?: boolean, send_email?: boolean, message?: string }

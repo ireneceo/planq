@@ -324,7 +324,9 @@
       "extNamePh": "e.g. John Doe / Acme Inc.",
       "extEmail": "Email",
       "extBizNumber": "Business no. (optional)",
-      "extHint": "Sends the invoice to the entered email without an invite. Payment & viewing via the public link."
+      "extHint": "Sends the invoice to the entered email without an invite. Payment & viewing via the public link.",
+      "individual": "Individual",
+      "invitedTag": "Invited"
     },
     "compose": {
       "title": "Invoice details",
@@ -383,7 +385,10 @@
       "toggle": "Issue a tax invoice for this invoice (mark after external issuance)",
       "toggleDescOn": "Will be queued for issuance once paid",
       "toggleDescOff": "Recipient has no tax ID — cannot issue",
-      "individual": "Individual clients are not eligible for tax invoices"
+      "individual": "Individual clients are not eligible for tax invoices",
+      "foreignBlocked": "Foreign-currency invoices are not eligible for tax invoices",
+      "toggleDescNeedClient": "Business details (name & tax ID) are entered by the client on the public payment page after payment",
+      "toggleDescHint": "When on, it's automatically queued for tax-invoice issuance after payment"
     },
     "bank": {
       "title": "Bank info",
