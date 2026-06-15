@@ -704,9 +704,10 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
           const canEditDescription = iAmCreator || iAmWsOwner;
           const canEditBody = iAmAssignee || isPlatformAdmin;
           const canEditRecurrence = iAmCreator || iAmWsOwner;  // 백엔드 FIELD_RULES와 일치
-          // 프로젝트 이관 = owner OR admin (§5.7 "큰 결정"). 백엔드 FIELD_RULES.project_id 와 일치.
-          // 멤버에게 편집 가능한 셀렉트를 보여주면 클릭 시 403 → "저장 실패" 혼란 → 읽기 전용으로 게이팅.
-          const canEditProject = iAmWsOwner || myWsRole === 'admin';
+          // 프로젝트 이관(이미 배정된 업무 옮기기/빼기) = owner OR admin (§5.7 "큰 결정").
+          // 단 프로젝트 없이(null) 만든 본인 업무의 첫 배정은 이관이 아니라 초기 분류 → 작성자 허용 (운영 #37).
+          // 백엔드 FIELD_RULES.project_id 와 일치.
+          const canEditProject = iAmWsOwner || myWsRole === 'admin' || (detailTask.project_id == null && iAmCreator);
           const myReviewer = reviewers.find(rv => rv.user_id === myId);
           const dStatus = displayStatus(detailTask, todayStr);
           const sc = STATUS_COLOR[dStatus];
