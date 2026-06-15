@@ -848,10 +848,41 @@ async function sendSignupVerifyEmail({ to, name, verifyToken, ttlHours = 72 }) {
   });
 }
 
+// ═══════════════════════════════════════════════════════════════
+// 11. 미읽음 알림 이메일 에스컬레이션 (push silent-drop 안전망)
+//   push 가 OS/브라우저/푸시중계 구간에서 201 받고도 기기에 안 뜨는 경우를 위한 백업.
+//   unreadEscalationCron 이 일정 시간 미읽음 알림을 모아 1통으로 발송.
+// ═══════════════════════════════════════════════════════════════
+function unreadNotificationEmailHtml({ name, items, count }) {
+  const rows = (items || []).map((it) => `
+    <div style="padding:12px 14px;border:1px solid #E2E8F0;border-radius:10px;margin-bottom:8px;text-align:left;">
+      <div style="font-weight:700;font-size:14px;color:#0F172A;line-height:1.4;">${escapeHtml(it.title || '')}</div>
+      ${it.body ? `<div style="margin-top:4px;font-size:13px;color:#475569;line-height:1.6;">${escapeHtml(String(it.body).slice(0, 160))}</div>` : ''}
+    </div>`).join('');
+  const more = Math.max(0, (count || 0) - (items || []).length);
+  const body = `
+    <div style="font-size:18px;font-weight:700;color:#0F172A;line-height:1.4;">${escapeHtml(name || '안녕하세요')}님, 확인하지 않은 알림이 ${count}건 있습니다</div>
+    <div style="margin-top:8px;font-size:13px;color:#64748B;line-height:1.7;">앱 알림을 못 받으셨을 수 있어 메일로도 알려드립니다.</div>
+    <div style="margin-top:16px;">${rows}</div>
+    ${more > 0 ? `<div style="font-size:13px;color:#64748B;">외 ${more}건</div>` : ''}
+    <div style="margin-top:20px;text-align:center;">${ctaButton(`${APP_URL}/talk`, 'PlanQ에서 확인')}</div>`;
+  return emailWrap({ title: '확인하지 않은 알림', body });
+}
+
+async function sendUnreadNotificationEmail({ to, name, items, count }) {
+  if (!to) return false;
+  return sendEmail({
+    to, subject: `[${PLATFORM.brand}] 확인하지 않은 알림 ${count}건`,
+    html: unreadNotificationEmailHtml({ name, items, count }),
+    template: 'unread_escalation', relatedEntityType: 'notification',
+  });
+}
+
 module.exports = {
   sendEmail,
   sendInviteEmail, sendPostShareEmail, sendEntityShareEmail, sendSignatureRequestEmail, sendSignatureOtpEmail,
   sendInvoiceEmail, sendPaymentReminderEmail, sendReceiptIssuedEmail, sendReceiptCorrectionEmail, sendVerificationCodeEmail,
+  sendUnreadNotificationEmail,
   sendBillingInstructionEmail,
   sendInquiryReceivedEmail,
   sendNotificationEmail,

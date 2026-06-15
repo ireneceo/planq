@@ -498,6 +498,10 @@ initEmailFaqCron();
 const { initCandidateCleanupCron } = require('./services/candidateCleanup');
 initCandidateCleanupCron();
 
+// 미읽음 알림 이메일 에스컬레이션 — push silent-drop 안전망 (운영: 알림 미수신 미팅 누락 사고)
+const { initUnreadEscalationCron } = require('./services/unreadEscalationCron');
+initUnreadEscalationCron();
+
 // 채팅 자동 업무 추출 디바운스 트리거 + cron fallback (사이클 N+27)
 const taskExtractorScheduler = require('./services/taskExtractorScheduler');
 taskExtractorScheduler.setIo(io);
