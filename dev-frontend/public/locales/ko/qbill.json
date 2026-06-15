@@ -750,7 +750,11 @@
       "submit": "신청하기",
       "errBizTaxId": "사업자등록번호 10자리를 정확히 입력해주세요",
       "errBizName": "상호를 입력해주세요",
-      "errCrId": "휴대폰번호 또는 사업자번호를 정확히 입력해주세요"
+      "errCrId": "휴대폰번호 또는 사업자번호를 정확히 입력해주세요",
+      "contactName": "담당자명",
+      "contactPhone": "담당자 연락처",
+      "requestAmount": "신청 금액",
+      "vatIncluded": "VAT 포함"
     },
     "contact": "문의하기"
   },

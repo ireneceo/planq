@@ -78,6 +78,7 @@ interface ReceiptProfile {
   cr_purpose?: 'income_deduction' | 'expense_proof';
   cr_identifier?: string | null;
   requested_by_name?: string | null;
+  contact_phone?: string | null;
 }
 
 function formatMoney(amount: number, currency: string = 'KRW'): string {
@@ -115,7 +116,7 @@ const PublicInvoicePage: React.FC = () => {
   const [rcBizType, setRcBizType] = useState<'business' | 'individual'>('business');
   const [rcForm, setRcForm] = useState({
     biz_name: '', biz_tax_id: '', biz_ceo: '', biz_category: '', biz_item: '', biz_address: '', tax_email: '',
-    cr_purpose: 'income_deduction' as 'income_deduction' | 'expense_proof', cr_identifier: '', requested_by_name: '',
+    cr_purpose: 'income_deduction' as 'income_deduction' | 'expense_proof', cr_identifier: '', requested_by_name: '', contact_phone: '',
   });
   const [rcSubmitting, setRcSubmitting] = useState(false);
   const [rcErr, setRcErr] = useState<string | null>(null);
@@ -224,6 +225,7 @@ const PublicInvoicePage: React.FC = () => {
       cr_purpose: p?.cr_purpose === 'expense_proof' ? 'expense_proof' : 'income_deduction',
       cr_identifier: p?.cr_identifier || '',
       requested_by_name: p?.requested_by_name || '',
+      contact_phone: p?.contact_phone || '',
     });
     setRcErr(null);
     setReceiptOpen(true);
@@ -241,8 +243,8 @@ const PublicInvoicePage: React.FC = () => {
     setRcSubmitting(true);
     try {
       const body = rcBizType === 'business'
-        ? { biz_type: 'business', biz_name: rcForm.biz_name, biz_tax_id: rcForm.biz_tax_id, biz_ceo: rcForm.biz_ceo, biz_category: rcForm.biz_category, biz_item: rcForm.biz_item, biz_address: rcForm.biz_address, tax_email: rcForm.tax_email, requested_by_name: rcForm.requested_by_name }
-        : { biz_type: 'individual', cr_purpose: rcForm.cr_purpose, cr_identifier: rcForm.cr_identifier, requested_by_name: rcForm.requested_by_name };
+        ? { biz_type: 'business', biz_name: rcForm.biz_name, biz_tax_id: rcForm.biz_tax_id, biz_ceo: rcForm.biz_ceo, biz_category: rcForm.biz_category, biz_item: rcForm.biz_item, biz_address: rcForm.biz_address, tax_email: rcForm.tax_email, requested_by_name: rcForm.requested_by_name, contact_phone: rcForm.contact_phone }
+        : { biz_type: 'individual', cr_purpose: rcForm.cr_purpose, cr_identifier: rcForm.cr_identifier, requested_by_name: rcForm.requested_by_name, contact_phone: rcForm.contact_phone };
       const r = await fetch(`/api/invoices/public/${token}/receipt-request`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
       });
@@ -594,6 +596,10 @@ const PublicInvoicePage: React.FC = () => {
             </ModalHead>
             <ModalBody>
               <ModalLine $muted>{t('public.receipt.modalDesc', '발행 유형을 선택하고 정보를 정확히 입력해주세요. 입력하신 정보 그대로 발행됩니다.')}</ModalLine>
+              <RcAmountBox>
+                <span>{t('public.receipt.requestAmount', '신청 금액')}</span>
+                <strong>{formatMoney(invoice.grand_total, invoice.currency)} <em>({t('public.receipt.vatIncluded', 'VAT 포함')})</em></strong>
+              </RcAmountBox>
               <RcToggleRow>
                 <RcToggleBtn type="button" $active={rcBizType === 'business'} onClick={() => setRcBizType('business')}>
                   {t('public.receipt.typeBusiness', '사업자 · 세금계산서')}
@@ -665,11 +671,18 @@ const PublicInvoicePage: React.FC = () => {
                 </>
               )}
 
-              <FormField>
-                <FormLabel>{t('public.receipt.requesterName', '신청자명')} <FormHint>({t('public.optional', '선택')})</FormHint></FormLabel>
-                <FormInput type="text" value={rcForm.requested_by_name} maxLength={80}
-                  onChange={e => setRcForm(f => ({ ...f, requested_by_name: e.target.value }))} />
-              </FormField>
+              <RcTwoCol>
+                <FormField>
+                  <FormLabel>{t('public.receipt.contactName', '담당자명')} <FormHint>({t('public.optional', '선택')})</FormHint></FormLabel>
+                  <FormInput type="text" value={rcForm.requested_by_name} maxLength={80}
+                    onChange={e => setRcForm(f => ({ ...f, requested_by_name: e.target.value }))} />
+                </FormField>
+                <FormField>
+                  <FormLabel>{t('public.receipt.contactPhone', '담당자 연락처')} <FormHint>({t('public.optional', '선택')})</FormHint></FormLabel>
+                  <FormInput type="tel" inputMode="tel" value={rcForm.contact_phone} maxLength={40}
+                    onChange={e => setRcForm(f => ({ ...f, contact_phone: e.target.value }))} placeholder="010-1234-5678" />
+                </FormField>
+              </RcTwoCol>
 
               {rcErr && <RcErr>{rcErr}</RcErr>}
             </ModalBody>
@@ -919,6 +932,14 @@ const ModalSendBtn = styled.button`
 `;
 
 // ─── 증빙 신청 모달 — 사업자/개인 토글 + 레이아웃 ───
+const RcAmountBox = styled.div`
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 14px; margin-bottom: 4px;
+  background: #F0FDFA; border: 1px solid #99F6E4; border-radius: 10px;
+  span { font-size: 13px; font-weight: 600; color: #0F766E; }
+  strong { font-size: 16px; font-weight: 700; color: #0F172A; }
+  em { font-size: 12px; font-weight: 500; color: #64748B; font-style: normal; }
+`;
 const RcToggleRow = styled.div`display: flex; gap: 8px; margin-bottom: 4px;`;
 const RcToggleBtn = styled.button<{ $active: boolean }>`
   flex: 1; min-height: 44px; padding: 10px 12px; font-size: 13px; font-weight: 600;
