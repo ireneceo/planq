@@ -186,7 +186,9 @@ router.delete('/subscribe', authenticateToken, async (req, res, next) => {
 // [진단 2026-06-15] delivery 측정 — SW 가 push 를 실제 받았는지 (익명, 토큰 없는 SW 호출).
 //   서버 발송(201) 후 ack 가 오면 기기 SW 까지 도달, 안 오면 푸시중계~기기 구간에서 끊김.
 router.post('/ack', (req, res) => {
-  console.log(`[push-ack] SW received push at ${new Date().toISOString()} ua=${(req.headers['user-agent'] || '').slice(0, 70)}`);
+  const diag = req.query.d ? decodeURIComponent(String(req.query.d)) : '';
+  const isMobile = /iPhone|Android|Mobile/i.test(req.headers['user-agent'] || '');
+  console.log(`[push-ack] ${isMobile ? '📱MOBILE' : '💻DESKTOP'} diag=[${diag}] at ${new Date().toISOString()}`);
   res.json({ ok: true });
 });
 
