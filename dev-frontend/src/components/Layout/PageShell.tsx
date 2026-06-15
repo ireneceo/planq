@@ -71,7 +71,7 @@ const Page = styled.div`
 `;
 
 const Header = styled.div`
-  min-height: 60px;
+  height: 60px;            /* 좌측메뉴·2뎁스 헤더와 픽셀 동일 — 헤더 밑줄(회색 라인) 정렬 */
   padding: 14px 20px;
   background: #ffffff;
   border-bottom: 1px solid #e2e8f0;
@@ -83,7 +83,8 @@ const Header = styled.div`
   @media (max-width: 640px) {
     flex-wrap: wrap;
     gap: 12px;
-    min-height: auto;
+    height: auto;
+    min-height: 56px;
     padding: 12px 16px;
   }
 `;
