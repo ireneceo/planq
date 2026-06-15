@@ -64,7 +64,7 @@ interface TaskRow {
 
 const QProjectDetailPage: React.FC = () => {
   const { t } = useTranslation('qproject');
-  const { formatDate } = useTimeFormat();
+  const { formatDate, formatDateTime } = useTimeFormat();
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const projectId = id ? Number(id) : 0;
@@ -860,7 +860,7 @@ const QProjectDetailPage: React.FC = () => {
                       <span>{c.contact_email || t('info.noValue', '—')}</span>
                       {!joined && c.invited_at && (
                         <InviteSentAt title={t('clients.invitedAtTitle', '초대 발송 시각') as string}>
-                          {t('clients.invitedAt', { defaultValue: '{{date}} 발송', date: formatDate(c.invited_at) })}
+                          {t('clients.invitedAt', { defaultValue: '{{date}} 발송', date: formatDateTime(c.invited_at) })}
                         </InviteSentAt>
                       )}
                       <ClientStatusPill $joined={joined} title={joined ? t('clients.joinedTitle', '워크스페이스 사용자로 참여 중') as string : t('clients.pendingTitle', '초대 발송 — 수락 대기 중') as string}>
