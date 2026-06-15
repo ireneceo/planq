@@ -936,7 +936,10 @@ router.put('/by-business/:businessId/:id', authenticateToken, async (req, res, n
       planned_week_start: () => isCreator || isAssignee || isOwnerOrAdmin,
       recurrence_rule: () => isCreator || isOwnerOrAdmin,
       next_occurrence_at: () => isCreator || isOwnerOrAdmin,
-      project_id: () => isOwnerOrAdmin,
+      // 운영 #37 — 프로젝트 이관(이미 배정된 업무를 옮기거나 빼기)은 owner/admin "큰 결정".
+      //   단 프로젝트 없이(null) 만든 본인 업무를 처음 배정하는 건 이관이 아니라 초기 분류 → 작성자 허용.
+      //   (task.project_id 가 이미 있으면 작성자라도 차단 = 이관 정책 유지)
+      project_id: () => isOwnerOrAdmin || (task.project_id == null && isCreator),
       estimated_hours: () => isAssignee || isOwnerOrAdmin,
       actual_hours: () => isAssignee || isOwnerOrAdmin,
       progress_percent: () => isAssignee || isOwnerOrAdmin,
