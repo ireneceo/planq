@@ -558,7 +558,8 @@
     "request": "요청",
     "register": "등록",
     "merge": "내용 추가",
-    "reject": "거절"
+    "reject": "삭제",
+    "rejectHint": "이 후보를 모두에게서 제거합니다 (개인 거절 아님)"
   },
   "public": {
     "kb": {

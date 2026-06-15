@@ -48,7 +48,7 @@ interface ProjectDetail {
   owner_user_id: number;
   Business?: { id: number; name: string; brand_name?: string };
   projectMembers?: { user_id: number; role: string; is_pm?: boolean; User?: { id: number; name: string; display_name?: string | null }}[];
-  projectClients?: { id: number; contact_name: string; contact_email: string | null; contact_user_id?: number | null; invite_token?: string | null; invited_at?: string | null }[];
+  projectClients?: { id: number; client_id?: number | null; contact_name: string; contact_email: string | null; contact_user_id?: number | null; invite_token?: string | null; invited_at?: string | null }[];
 }
 interface Conv {
   id: number;
@@ -126,7 +126,7 @@ const QProjectDetailPage: React.FC = () => {
   const [convs, setConvs] = useState<Conv[]>([]);
   const [tasks, setTasks] = useState<TaskRow[]>([]);
   const [bizMembers, setBizMembers] = useState<BizMember[]>([]);
-  const [bizClients, setBizClients] = useState<{ id: number; display_name: string | null; company_name: string | null; user?: { id: number; name: string; email: string } }[]>([]);
+  const [bizClients, setBizClients] = useState<{ id: number; display_name: string | null; company_name: string | null; invite_email?: string | null; user?: { id: number; name: string; email: string } }[]>([]);
   const [addMemberOpen, setAddMemberOpen] = useState(false);
   const [closeModalOpen, setCloseModalOpen] = useState(false);
   const [clientsToRemove, setClientsToRemove] = useState<Set<number>>(new Set());
@@ -891,10 +891,15 @@ const QProjectDetailPage: React.FC = () => {
             )}
             {/* 기존 워크스페이스 고객 연결 */}
             {(() => {
-              const joined = new Set((project.projectClients || []).map((c) => (c.contact_email || c.contact_name)));
+              // 이미 이 프로젝트에 참여 중인 고객은 제외 — client_id 우선(견고), 이메일 보조.
+              //  (옛 버그: contact_email vs display_name 키 불일치로 미가입 초대고객이 또 노출)
+              const joinedClientIds = new Set((project.projectClients || []).map((c) => c.client_id).filter(Boolean));
+              const joinedEmails = new Set((project.projectClients || []).map((c) => c.contact_email).filter(Boolean));
               const candidates = bizClients.filter((b) => {
-                const key = b.user?.email || b.display_name || b.user?.name;
-                return key && !joined.has(key);
+                if (joinedClientIds.has(b.id)) return false;
+                const email = b.user?.email || b.invite_email;
+                if (email && joinedEmails.has(email)) return false;
+                return true;
               });
               if (candidates.length === 0) return null;
               return (

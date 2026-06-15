@@ -114,7 +114,7 @@ const TaskCandidateCard: React.FC<Props> = ({ candidate, members, myUserId, onRe
         {candidate.similar_task_id && onMerge && (
           <SecondaryBtn type="button" onClick={() => onMerge(candidate.id)}>{t('candidate.merge', { defaultValue: '내용 추가' }) as string}</SecondaryBtn>
         )}
-        <GhostBtn type="button" onClick={() => onReject(candidate.id)}>{t('candidate.reject', { defaultValue: '거절' }) as string}</GhostBtn>
+        <GhostBtn type="button" onClick={() => onReject(candidate.id)} title={t('candidate.rejectHint', { defaultValue: '이 후보를 모두에게서 제거합니다 (개인 거절 아님)' }) as string}>{t('candidate.reject', { defaultValue: '삭제' }) as string}</GhostBtn>
       </Actions>
     </Card>
   );
