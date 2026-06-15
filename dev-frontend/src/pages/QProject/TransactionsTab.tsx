@@ -391,13 +391,29 @@ const TransactionsTab: React.FC<Props> = ({ projectId }) => {
                   <StageItem key={s.id} $completed={done}>
                     <StageDot $status={s.status} />
                     <StageMeta>
-                      <StageLabel $status={s.status}>{s.label}</StageLabel>
+                      <StageLabel $status={s.status}>
+                        {s.label}
+                        {s.metadata?.recurring && (
+                          <RecurBadge title={t('tx.stageBoard.recurringTitle', '구독 주기마다 반복되는 단계') as string}>
+                            {t('tx.stageBoard.recurring', '반복')}
+                          </RecurBadge>
+                        )}
+                      </StageLabel>
                       <StageStatus $status={s.status}>
-                        {s.status === 'completed' && t('tx.stageStatus.completed', '완료')}
-                        {s.status === 'active' && t('tx.stageStatus.active', '진행 중')}
-                        {s.status === 'pending' && t('tx.stageStatus.pending', '대기')}
-                        {s.status === 'skipped' && t('tx.stageStatus.skipped', '건너뜀')}
+                        {s.metadata?.recurring
+                          ? t('tx.stageStatus.ongoing', '진행 중 (반복)')
+                          : (<>
+                              {s.status === 'completed' && t('tx.stageStatus.completed', '완료')}
+                              {s.status === 'active' && t('tx.stageStatus.active', '진행 중')}
+                              {s.status === 'pending' && t('tx.stageStatus.pending', '대기')}
+                              {s.status === 'skipped' && t('tx.stageStatus.skipped', '건너뜀')}
+                            </>)}
                       </StageStatus>
+                      {s.metadata?.recurring && s.kind === 'invoice' && invoices.length > 0 && (
+                        <RecurCycle>
+                          {t('tx.stageBoard.cycleSummary', { defaultValue: '{{paid}}/{{total}}건 결제 완료', paid: invoices.filter(i => i.status === 'paid').length, total: invoices.length })}
+                        </RecurCycle>
+                      )}
                       {/* ① 수동 완료/건너뛰기/되돌리기 — 외부 체결 등 PlanQ 밖 진행 직접 반영 */}
                       {canEdit && (
                         <StageActions>
@@ -757,6 +773,11 @@ const StageStatus = styled.div<{ $status: string }>`
               : p.$status === 'skipped' ? '#CBD5E1'
               : '#94A3B8'};
 `;
+const RecurBadge = styled.span`
+  display:inline-block;margin-left:6px;padding:1px 6px;border-radius:999px;
+  font-size:9px;font-weight:700;color:#0D9488;background:#F0FDFA;border:1px solid #99F6E4;vertical-align:middle;
+`;
+const RecurCycle = styled.div`font-size:10px;font-weight:600;color:#0D9488;margin-top:2px;`;
 const StageActions = styled.div`display:flex;gap:4px;margin-top:6px;flex-wrap:wrap;`;
 const StageActBtn = styled.button<{ $ghost?: boolean }>`
   height:24px;padding:0 8px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;

@@ -140,7 +140,13 @@
     "today": "Today",
     "start": "Start",
     "end": "End",
-    "sun": "Sun", "mon": "Mon", "tue": "Tue", "wed": "Wed", "thu": "Thu", "fri": "Fri", "sat": "Sat"
+    "sun": "Sun",
+    "mon": "Mon",
+    "tue": "Tue",
+    "wed": "Wed",
+    "thu": "Thu",
+    "fri": "Fri",
+    "sat": "Sat"
   },
   "tab": {
     "dashboard": "Dashboard",
@@ -239,13 +245,17 @@
       "markPending": "Mark pending",
       "markDone": "Mark done",
       "skip": "Skip",
-      "revert": "Revert"
+      "revert": "Revert",
+      "recurring": "Recurring",
+      "recurringTitle": "Repeats every billing cycle",
+      "cycleSummary": "{{paid}}/{{total}} paid"
     },
     "stageStatus": {
       "completed": "Done",
       "active": "Active",
       "pending": "Pending",
-      "skipped": "Skipped"
+      "skipped": "Skipped",
+      "ongoing": "Ongoing (recurring)"
     }
   },
   "section": {
