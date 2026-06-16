@@ -1,0 +1,108 @@
+# HTTP 서버 (SSL은 DNS 전파 후 certbot으로 추가)
+server {
+    server_name dev.planq.kr;
+
+    # Let's Encrypt 인증서 발급용
+    location /.well-known/acme-challenge/ {
+        root /opt/planq/dev-frontend-build;
+    }
+
+    # 프론트엔드 정적 파일
+    root /opt/planq/dev-frontend-build;
+    index index.html;
+
+    # 백엔드 API 프록시
+    location /api/ {
+        proxy_pass http://localhost:3003;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
+        proxy_read_timeout 300s;
+        proxy_connect_timeout 75s;
+    }
+
+    # Socket.io
+    location /socket.io/ {
+        proxy_pass http://localhost:3003;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }
+
+    # Q Note (FastAPI) — HTTP + WebSocket
+    location /qnote/ {
+        proxy_pass http://localhost:8000/;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 3600s;
+        proxy_send_timeout 3600s;
+        proxy_buffering off;
+    }
+
+    # 정적 파일 캐싱
+    location /assets/ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+    }
+
+    # React Router (SPA) 지원
+    location / {
+        # 사이클 N+23: share bot 은 backend ogMetaMiddleware 로 (페이지별 OG)
+        if ($planq_share_bot) {
+            proxy_pass http://localhost:3003;
+            break;
+        }
+        add_header Cache-Control "no-cache, no-store, must-revalidate" always;
+        add_header Pragma "no-cache" always;
+        add_header Expires "0" always;
+        try_files $uri $uri/ /index.html;
+    }
+
+    # 파일 업로드 크기 제한
+    client_max_body_size 50M;
+
+    # Gzip 압축 (사이클 N+17 강화)
+    # gzip_static on: vite-plugin-compression 가 빌드 시 미리 만든 .gz 우선 서빙 (압축 레벨 9 = 최대)
+    #                 동적 압축 부담 없이 강한 압축. .gz 없으면 동적 gzip fallback.
+    gzip_static on;
+    gzip on;
+    gzip_vary on;
+    gzip_min_length 1024;
+    gzip_comp_level 6;
+    gzip_types text/plain text/css text/xml text/javascript application/json application/javascript application/xml+rss font/truetype font/opentype application/vnd.ms-fontobject image/svg+xml;
+
+    listen [::]:443 ssl ipv6only=on; # managed by Certbot
+    listen 443 ssl; # managed by Certbot
+    ssl_certificate /etc/letsencrypt/live/dev.planq.kr/fullchain.pem; # managed by Certbot
+    ssl_certificate_key /etc/letsencrypt/live/dev.planq.kr/privkey.pem; # managed by Certbot
+    include /etc/letsencrypt/options-ssl-nginx.conf; # managed by Certbot
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem; # managed by Certbot
+
+}
+
+server {
+    if ($host = dev.planq.kr) {
+        return 301 https://$host$request_uri;
+    } # managed by Certbot
+
+
+    listen 80;
+    listen [::]:80;
+    server_name dev.planq.kr;
+    return 404; # managed by Certbot
+
+
+}
