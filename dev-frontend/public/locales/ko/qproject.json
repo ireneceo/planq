@@ -71,7 +71,8 @@
   },
   "ai": {
     "btnShort": "AI",
-    "btnHint": "자연어 한 줄로 여러 업무 자동 생성"
+    "btnHint": "자연어 한 줄로 여러 업무 자동 생성",
+    "untitledDoc": "문서"
   },
   "tpl": {
     "btn": "템플릿",

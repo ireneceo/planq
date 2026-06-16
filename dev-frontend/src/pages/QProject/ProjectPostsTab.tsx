@@ -236,7 +236,7 @@ const ProjectPostsTab: React.FC<Props> = ({ businessId, projectId }) => {
     setRegenBusy(true); setError(null);
     try {
       const r = await aiGenerateDoc({
-        business_id: businessId, kind: aiCtx.kind as DocKind, title: titleDraft.trim() || '문서',
+        business_id: businessId, kind: aiCtx.kind as DocKind, title: titleDraft.trim() || (t('ai.untitledDoc', { defaultValue: '문서' }) as string),
         user_input: aiCtx.userInput, client_id: aiCtx.clientId, project_id: aiCtx.projectId ?? projectId,
         instruction: instruction || undefined,
       });

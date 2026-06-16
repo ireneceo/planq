@@ -71,7 +71,8 @@
   },
   "ai": {
     "btnShort": "AI",
-    "btnHint": "Describe in one line — AI breaks it into tasks"
+    "btnHint": "Describe in one line — AI breaks it into tasks",
+    "untitledDoc": "Document"
   },
   "tpl": {
     "btn": "Template",

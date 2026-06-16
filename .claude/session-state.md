@@ -60,7 +60,13 @@
 
 **✅ AI 생성물 재생성/재수정 UX 통일 운영 라이브 (v1.40.0, `0b50ed4`)** — 공유 AiRegenerateBar(지시 기반 인라인 재생성) + 백엔드 instruction(ai-create·docs ai-generate·Q Note요약). Q task·Cue·Q Note 통일. **Q docs 에디터 레벨 재생성 UI 만 남음(백엔드 ready) — 진행 중.**
 
-**다음 후보:** Q docs 에디터 재생성 · iOS Capacitor · lua reviewing 13건.
+**✅ Q docs 에디터 재생성 운영 라이브 (v1.40.1, `46280f4`)** — PostsPage·ProjectPostsTab 에 AI 생성 새문서 시 AiRegenerateBar(지시 기반 본문 교체). PostAiModal onGenerate 가 생성 컨텍스트 동봉. **→ AI 재생성 4영역(Q task·Cue·Q Note·Q docs) 통일 완성.**
+
+**이번 세션 누적 릴리스: v1.37.0 ~ v1.40.1 (~14 배포).** 운영 피드백 19건 + 구독청구 강화 + nextInvoiceNumber 3엔진 fix + AI 재생성 4영역 통일.
+
+**남은 백로그 (대형/의존):**
+- iOS OS push (Capacitor 네이티브앱) — memory project_native_app_capacitor_plan. Apple 개발자계정·인증서·TestFlight 는 Irene 필요. 코드 wrapper 는 가능.
+- lua reviewing 13건 — lua 항목 확인 필요.
 
 **#49 참고:** nginx 변경 불필요였음(N+23 $planq_share_bot 봇 라우팅 기존 존재). ogMetaMiddleware 가 posts/sign 만 처리하던 것을 전 타입으로 확장한 게 fix.
 - #53 개인 외부연동 정의 — 개인 vs 팀 연동 명확화 + 전수 검증.
