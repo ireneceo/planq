@@ -76,20 +76,29 @@ router.get('/my-week', authenticateToken, async (req, res, next) => {
       monday = mondayOfDateStr(todayInTz(tz));
     }
     const friday = fridayOf(monday);
+    const sunday = addDaysStr(monday, 6);
 
-    // 이번 주 업무 (assignee = 나, planned_week_start = 이번 주 OR due_date가 이번 주)
-    // + overdue 미완료: 마감일이 이번 주 이전이지만 아직 안 끝난 업무 (사용자: 그래프에 포함되어야 함)
+    // "이번 주 나의 업무" canonical 규칙 (docs/WORK_FLOW_DESIGN.md §5) — 프론트 week 필터와 동일.
+    //  - completed/canceled: completed_at 이 이번 주 (완료시점 기준)
+    //  - not_started: 이번 주 계획(planned_week_start) 또는 이번 주 마감(due) 일 때만 (옛 backlog 제외)
+    //  - in_progress/reviewing/revision_requested/waiting: 날짜 무관 전부 (착수한 업무는 끝까지 책임)
     const tasks = await Task.findAll({
       where: {
         business_id: businessId,
         assignee_id: userId,
         [Op.or]: [
-          { planned_week_start: monday },
-          { due_date: { [Op.between]: [monday, friday] } },
           {
-            due_date: { [Op.lt]: monday },
-            status: { [Op.notIn]: ['completed', 'canceled'] },
+            status: { [Op.in]: ['completed', 'canceled'] },
+            completed_at: { [Op.between]: [`${monday} 00:00:00`, `${sunday} 23:59:59`] },
           },
+          {
+            status: 'not_started',
+            [Op.or]: [
+              { planned_week_start: monday },
+              { due_date: { [Op.between]: [monday, sunday] } },
+            ],
+          },
+          { status: { [Op.in]: ['in_progress', 'reviewing', 'revision_requested', 'waiting'] } },
         ],
       },
       include: [
