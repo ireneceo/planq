@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth, apiFetch, type WorkspaceMembership } from '../../contexts/AuthContext';
 import { useUnreadByBusiness } from '../../hooks/useUnreadTotal';
+import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 
 /**
  * WorkspaceSwitcher (사이드바 전용)
@@ -56,6 +57,8 @@ const WorkspaceSwitcher: React.FC<Props> = ({ collapsed }) => {
   const [createName, setCreateName] = useState('');
   const [creating, setCreating] = useState(false);
   const [createErr, setCreateErr] = useState('');
+
+  useBodyScrollLock(createOpen);
 
   useEffect(() => {
     if (!open) return;
@@ -264,8 +267,8 @@ const WorkspaceSwitcher: React.FC<Props> = ({ collapsed }) => {
 
       {createOpen && (
         <CreateOverlay onMouseDown={(e) => { if (e.target === e.currentTarget && !creating) setCreateOpen(false); }}>
-          <CreateModal onMouseDown={(e) => e.stopPropagation()}>
-            <CreateTitle>{t('switcher.createWorkspace', '새 워크스페이스 만들기')}</CreateTitle>
+          <CreateModal role="dialog" aria-modal="true" aria-labelledby="ws-create-title" onMouseDown={(e) => e.stopPropagation()}>
+            <CreateTitle id="ws-create-title">{t('switcher.createWorkspace', '새 워크스페이스 만들기')}</CreateTitle>
             <CreateDesc>{t('switcher.createDesc', '내 소유의 새 워크스페이스를 만듭니다. 14일 무료 체험이 시작됩니다.')}</CreateDesc>
             <CreateInput
               autoFocus
