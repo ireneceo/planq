@@ -13,7 +13,8 @@ const { requireMenu } = require('../middleware/menu_permission');
 const { successResponse, errorResponse, parsePagination, paginatedResponse } = require('../middleware/errorHandler');
 const { createAuditLog } = require('../middleware/audit');
 
-const INTERVALS = ['weekly', 'monthly', 'quarterly', 'yearly'];
+const INTERVALS = ['weekly', 'biweekly', 'monthly', 'quarterly', 'semiannual', 'yearly'];
+const END_MODES = ['never', 'after_count', 'until_date'];
 
 function serialize(s) {
   const o = s.toJSON ? s.toJSON() : s;
@@ -23,8 +24,27 @@ function serialize(s) {
     vat_rate: Number(o.vat_rate), auto_mode: o.auto_mode, due_days: o.due_days,
     status: o.status, start_date: o.start_date, next_billing_at: o.next_billing_at,
     last_invoiced_at: o.last_invoiced_at, notes: o.notes,
+    // 운영 — 회차 자동 종료
+    end_mode: o.end_mode || 'never', max_occurrences: o.max_occurrences != null ? Number(o.max_occurrences) : null,
+    occurrences_count: Number(o.occurrences_count || 0), end_date: o.end_date,
     client: o.Client ? { id: o.Client.id, display_name: o.Client.display_name, company_name: o.Client.company_name } : null,
   };
+}
+
+// 운영 — 종료조건 입력 정규화 (create/update 공용). after_count→max_occurrences 필수, until_date→end_date 필수.
+function parseEndCondition(b) {
+  if (b.end_mode == null) return {};
+  if (!END_MODES.includes(b.end_mode)) return { _error: 'invalid_end_mode' };
+  if (b.end_mode === 'after_count') {
+    const n = Number(b.max_occurrences);
+    if (!Number.isInteger(n) || n < 1) return { _error: 'max_occurrences_required' };
+    return { end_mode: 'after_count', max_occurrences: n, end_date: null };
+  }
+  if (b.end_mode === 'until_date') {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(b.end_date || '')) return { _error: 'end_date_required' };
+    return { end_mode: 'until_date', end_date: b.end_date, max_occurrences: null };
+  }
+  return { end_mode: 'never', max_occurrences: null, end_date: null };
 }
 
 function broadcast(req, businessId, payload) {
@@ -68,6 +88,10 @@ router.post('/:businessId', authenticateToken, checkBusinessAccess, requireMenu(
     const biz = await Business.findByPk(businessId, { attributes: ['default_currency', 'default_due_days'] });
     const start = start_date && /^\d{4}-\d{2}-\d{2}$/.test(start_date) ? start_date : new Date().toISOString().slice(0, 10);
 
+    // 운영 — 회차 자동 종료 조건
+    const endCond = parseEndCondition(req.body || {});
+    if (endCond._error) return errorResponse(res, endCond._error, 400);
+
     const sub = await ClientSubscription.create({
       business_id: businessId,
       client_id: Number(client_id),
@@ -83,6 +107,9 @@ router.post('/:businessId', authenticateToken, checkBusinessAccess, requireMenu(
       next_billing_at: start,
       notes: notes ? String(notes).slice(0, 500) : null,
       created_by: req.user.id,
+      end_mode: endCond.end_mode || 'never',
+      max_occurrences: endCond.max_occurrences ?? null,
+      end_date: endCond.end_date ?? null,
     });
     await createAuditLog({
       userId: req.user.id, businessId, action: 'client_subscription.created',
@@ -112,6 +139,12 @@ router.put('/:businessId/:id', authenticateToken, checkBusinessAccess, requireMe
     if (b.next_billing_at && /^\d{4}-\d{2}-\d{2}$/.test(b.next_billing_at)) patch.next_billing_at = b.next_billing_at;
     if (b.status && ['active', 'paused'].includes(b.status)) {
       patch.status = b.status; // canceled 는 DELETE 로만
+    }
+    // 운영 — 회차 자동 종료 조건 변경
+    if (b.end_mode != null) {
+      const endCond = parseEndCondition(b);
+      if (endCond._error) return errorResponse(res, endCond._error, 400);
+      Object.assign(patch, endCond);
     }
     if (!Object.keys(patch).length) return errorResponse(res, 'no_fields', 400);
     await sub.update(patch);

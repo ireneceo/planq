@@ -8,11 +8,14 @@ import PlanQSelect from '../../components/Common/PlanQSelect';
 import SingleDateField from '../../components/Common/SingleDateField';
 import ActionButton from '../../components/Common/ActionButton';
 
+type Interval = 'weekly' | 'biweekly' | 'monthly' | 'quarterly' | 'semiannual' | 'yearly';
+type EndMode = 'never' | 'after_count' | 'until_date';
 interface Sub {
   id: number; plan_name: string; amount: number; currency: string;
-  interval: 'weekly' | 'monthly' | 'quarterly' | 'yearly'; vat_rate: number;
-  auto_mode: 'auto' | 'draft_review'; due_days: number; status: 'active' | 'paused' | 'canceled';
+  interval: Interval; vat_rate: number;
+  auto_mode: 'auto' | 'draft_review'; due_days: number; status: 'active' | 'paused' | 'canceled' | 'completed';
   start_date: string; next_billing_at: string; last_invoiced_at: string | null; notes: string | null;
+  end_mode?: EndMode; max_occurrences?: number | null; occurrences_count?: number; end_date?: string | null;
 }
 
 interface Props { businessId: number; clientId: number; canWrite: boolean }
@@ -30,9 +33,13 @@ const ClientSubscriptions: React.FC<Props> = ({ businessId, clientId, canWrite }
   // 폼 상태
   const [plan, setPlan] = useState('');
   const [amount, setAmount] = useState('');
-  const [interval, setIntervalV] = useState<Sub['interval']>('monthly');
+  const [interval, setIntervalV] = useState<Interval>('monthly');
   const [autoMode, setAutoMode] = useState<Sub['auto_mode']>('draft_review');
   const [startDate, setStartDate] = useState(todayStr());
+  // 회차 자동 종료
+  const [endMode, setEndMode] = useState<EndMode>('never');
+  const [maxOcc, setMaxOcc] = useState('');
+  const [endDate, setEndDate] = useState('');
   const [formErr, setFormErr] = useState('');
 
   const load = useCallback(async () => {
@@ -46,18 +53,21 @@ const ClientSubscriptions: React.FC<Props> = ({ businessId, clientId, canWrite }
 
   useEffect(() => { load(); }, [load]);
 
-  const resetForm = () => { setPlan(''); setAmount(''); setIntervalV('monthly'); setAutoMode('draft_review'); setStartDate(todayStr()); setFormErr(''); };
+  const resetForm = () => { setPlan(''); setAmount(''); setIntervalV('monthly'); setAutoMode('draft_review'); setStartDate(todayStr()); setEndMode('never'); setMaxOcc(''); setEndDate(''); setFormErr(''); };
 
   const submit = async () => {
     if (submitting) return;
     const amt = Number(amount);
     if (!plan.trim()) { setFormErr(t('subscription.errPlan', '구독명을 입력하세요') as string); return; }
     if (!(amt > 0)) { setFormErr(t('subscription.errAmount', '금액을 올바르게 입력하세요') as string); return; }
+    if (endMode === 'after_count' && !(Number(maxOcc) >= 1)) { setFormErr(t('subscription.errMaxOcc', '종료 회차를 1 이상 입력하세요') as string); return; }
+    if (endMode === 'until_date' && !/^\d{4}-\d{2}-\d{2}$/.test(endDate)) { setFormErr(t('subscription.errEndDate', '종료일을 선택하세요') as string); return; }
     setSubmitting(true); setFormErr('');
     try {
       const r = await apiFetch(`/api/client-subscriptions/${businessId}`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ client_id: clientId, plan_name: plan.trim(), amount: amt, interval, auto_mode: autoMode, start_date: startDate }),
+        body: JSON.stringify({ client_id: clientId, plan_name: plan.trim(), amount: amt, interval, auto_mode: autoMode, start_date: startDate,
+          end_mode: endMode, max_occurrences: endMode === 'after_count' ? Number(maxOcc) : null, end_date: endMode === 'until_date' ? endDate : null }),
       });
       const j = await r.json();
       if (j.success) { resetForm(); setFormOpen(false); await load(); }
@@ -94,7 +104,12 @@ const ClientSubscriptions: React.FC<Props> = ({ businessId, clientId, canWrite }
   const intervalLabel = (iv: Sub['interval']) => t(`subscription.interval.${iv}`, iv) as string;
   const fmtAmount = (a: number, cur: string) => `${Number(a).toLocaleString()} ${cur}`;
 
-  const intervalOptions = (['monthly', 'weekly', 'quarterly', 'yearly'] as const).map((v) => ({ value: v, label: intervalLabel(v) }));
+  const intervalOptions = (['weekly', 'biweekly', 'monthly', 'quarterly', 'semiannual', 'yearly'] as const).map((v) => ({ value: v, label: intervalLabel(v) }));
+  const endModeOptions = ([
+    { value: 'never', label: t('subscription.end.never', '무기한 (수동 종료 전까지)') as string },
+    { value: 'after_count', label: t('subscription.end.afterCount', '지정 회차 후 종료') as string },
+    { value: 'until_date', label: t('subscription.end.untilDate', '종료일까지') as string },
+  ]);
   const modeOptions = [
     { value: 'draft_review', label: t('subscription.modeDraft', '검토 후 발송') as string },
     { value: 'auto', label: t('subscription.modeAuto', '자동 발송') as string },
@@ -141,6 +156,24 @@ const ClientSubscriptions: React.FC<Props> = ({ businessId, clientId, canWrite }
                 onChange={(opt: unknown) => { const v = (opt as { value?: string } | null)?.value; if (v) setAutoMode(v as Sub['auto_mode']); }} />
             </Field>
           </Row2>
+          <Row2>
+            <Field>
+              <Lbl>{t('subscription.end.label', '종료 조건')}</Lbl>
+              <PlanQSelect options={endModeOptions} isSearchable={false}
+                value={endModeOptions.find((o) => o.value === endMode)}
+                onChange={(opt: unknown) => { const v = (opt as { value?: string } | null)?.value; if (v) setEndMode(v as EndMode); }} />
+            </Field>
+            <Field>
+              {endMode === 'after_count' && (<>
+                <Lbl>{t('subscription.end.countLabel', '총 발행 회차')}</Lbl>
+                <Inp type="number" inputMode="numeric" min={1} value={maxOcc} onChange={(e) => setMaxOcc(e.target.value)} placeholder="12" />
+              </>)}
+              {endMode === 'until_date' && (<>
+                <Lbl>{t('subscription.end.dateLabel', '종료일 (이 날까지)')}</Lbl>
+                <SingleDateField value={endDate} onChange={setEndDate} minDate={startDate} />
+              </>)}
+            </Field>
+          </Row2>
           <Helper>{t('subscription.vatNote', '부가세 10%가 자동으로 더해져 청구돼요.')}</Helper>
           {formErr && <Err>{formErr}</Err>}
           <FormActions>
@@ -166,9 +199,14 @@ const ClientSubscriptions: React.FC<Props> = ({ businessId, clientId, canWrite }
                 <CardName>{s.plan_name}</CardName>
                 <CardMeta>
                   <strong>{fmtAmount(s.amount, s.currency)}</strong> · {intervalLabel(s.interval)}
-                  {s.status === 'active'
-                    ? <NextBadge>{t('subscription.next', '다음 청구')} {s.next_billing_at}</NextBadge>
-                    : <PausedBadge>{t('subscription.paused', '일시정지')}</PausedBadge>}
+                  {s.status === 'active' && <NextBadge>{t('subscription.next', '다음 청구')} {s.next_billing_at}</NextBadge>}
+                  {s.status === 'paused' && <PausedBadge>{t('subscription.paused', '일시정지')}</PausedBadge>}
+                  {s.status === 'completed' && <PausedBadge>{t('subscription.completed', '종료됨')}</PausedBadge>}
+                  {/* 운영 — 회차 진행/종료 조건 표시 */}
+                  {s.end_mode === 'after_count' && s.max_occurrences
+                    ? <OccBadge>{t('subscription.occCount', { n: s.occurrences_count || 0, m: s.max_occurrences, defaultValue: `${s.occurrences_count || 0}/${s.max_occurrences}회` }) as string}</OccBadge>
+                    : (s.occurrences_count ? <OccBadge>{t('subscription.occDone', { n: s.occurrences_count, defaultValue: `${s.occurrences_count}회 발행` }) as string}</OccBadge> : null)}
+                  {s.end_mode === 'until_date' && s.end_date && <OccBadge>{t('subscription.untilBadge', { d: s.end_date, defaultValue: `${s.end_date}까지` }) as string}</OccBadge>}
                 </CardMeta>
               </CardMain>
               {canWrite && (
@@ -215,6 +253,7 @@ const CardName = styled.div`font-size:13px;font-weight:600;color:#0F172A;`;
 const CardMeta = styled.div`font-size:12px;color:#64748B;display:flex;align-items:center;gap:6px;flex-wrap:wrap;strong{color:#0F172A;font-weight:700;}`;
 const NextBadge = styled.span`font-size:11px;color:#0F766E;background:#F0FDFA;border-radius:999px;padding:1px 8px;`;
 const PausedBadge = styled.span`font-size:11px;color:#92400E;background:#FEF3C7;border-radius:999px;padding:1px 8px;`;
+const OccBadge = styled.span`font-size:11px;color:#475569;background:#F1F5F9;border-radius:999px;padding:1px 8px;`;
 const CardActions = styled.div`display:flex;align-items:center;gap:6px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end;`;
 const MiniBtn = styled.button<{ $danger?: boolean }>`height:30px;padding:0 10px;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;
   background:#fff;border:1px solid ${(p) => (p.$danger ? '#FCA5A5' : '#CBD5E1')};color:${(p) => (p.$danger ? '#DC2626' : '#334155')};

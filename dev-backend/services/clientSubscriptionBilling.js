@@ -7,15 +7,21 @@ const { ClientSubscription, Client, Business, Invoice, InvoiceItem, BusinessMemb
 const { sequelize } = require('../config/database');
 
 // invoice_number — recurring_invoice 와 동일 포맷 (INV-YYYY-NNNN)
+// 운영 — robust: INV-YYYY- prefix 전체에서 실제 최대 순번을 스캔(깨진/비표준 번호 skip).
+//   기존 "last by id" 방식은 다건 순차 발행/비표준 번호에서 NaN·중복 발생(memory recurring_billing_latent_bugs).
 async function nextInvoiceNumber() {
   const year = new Date().getFullYear();
-  const last = await Invoice.findOne({
-    where: sequelize.where(sequelize.fn('YEAR', sequelize.col('created_at')), year),
-    order: [['id', 'DESC']],
+  const prefix = `INV-${year}-`;
+  const rows = await Invoice.findAll({
+    where: { invoice_number: { [Op.like]: `${prefix}%` } },
     attributes: ['invoice_number'],
   });
-  const seq = last && last.invoice_number ? parseInt(last.invoice_number.split('-')[2]) + 1 : 1;
-  return `INV-${year}-${String(seq).padStart(4, '0')}`;
+  let max = 0;
+  for (const r of rows) {
+    const m = /-(\d+)$/.exec(r.invoice_number || '');
+    if (m) { const v = parseInt(m[1], 10); if (Number.isFinite(v) && v > max) max = v; }
+  }
+  return `${prefix}${String(max + 1).padStart(4, '0')}`;
 }
 
 // DATEONLY 값(Date | string) → 'YYYY-MM-DD' 문자열 정규화
@@ -31,8 +37,10 @@ function advanceDate(dateInput, interval) {
   const d = new Date(`${dateStr}T00:00:00Z`);
   if (interval === 'weekly') {
     d.setUTCDate(d.getUTCDate() + 7);
+  } else if (interval === 'biweekly') {
+    d.setUTCDate(d.getUTCDate() + 14);
   } else {
-    const months = interval === 'monthly' ? 1 : interval === 'quarterly' ? 3 : 12;
+    const months = interval === 'monthly' ? 1 : interval === 'quarterly' ? 3 : interval === 'semiannual' ? 6 : 12;
     const anchorDay = d.getUTCDate();
     d.setUTCDate(1);
     d.setUTCMonth(d.getUTCMonth() + months);
@@ -70,6 +78,12 @@ async function billOneSubscription(sub, today = new Date()) {
   const creatorId = await resolveCreator(sub, business);
   if (!creatorId) return { subscription_id: sub.id, skipped: 'no_creator' };
 
+  // 회차 자동 종료 — until_date 이고 이번 발행 예정일이 이미 종료일을 넘었으면 발행 없이 정상 만료.
+  if (sub.end_mode === 'until_date' && sub.end_date && toDateStr(sub.next_billing_at) > toDateStr(sub.end_date)) {
+    await sub.update({ status: 'completed', canceled_at: new Date() });
+    return { subscription_id: sub.id, skipped: 'past_end_date', completed: true };
+  }
+
   const isAuto = sub.auto_mode === 'auto';
   const fee = Number(sub.amount || 0);
   if (fee <= 0) return { subscription_id: sub.id, skipped: 'no_amount' };
@@ -78,7 +92,7 @@ async function billOneSubscription(sub, today = new Date()) {
   const subtotal = fee;
   const taxAmount = Math.round(subtotal * (vatRate / 100));
   const grandTotal = subtotal + taxAmount;
-  const invoiceNumber = await nextInvoiceNumber();
+  let invoiceNumber = await nextInvoiceNumber();
   const shareToken = crypto.randomBytes(24).toString('hex');
   const title = periodLabel(sub.plan_name, sub.next_billing_at, sub.interval);
 
@@ -91,7 +105,7 @@ async function billOneSubscription(sub, today = new Date()) {
     account_holder: business.bank_account_name || business.brand_name || business.name || null,
   };
 
-  const invoice = await Invoice.create({
+  const invoicePayload = () => ({
     business_id: sub.business_id,
     project_id: null,
     client_id: client.id,
@@ -113,6 +127,15 @@ async function billOneSubscription(sub, today = new Date()) {
     status: isAuto ? 'sent' : 'draft',
     sent_at: isAuto ? new Date() : null,
   });
+  // 운영 — invoice_number unique 충돌 시 번호 재생성 후 재시도 (다건/동시성 안전망).
+  let invoice;
+  for (let attempt = 0; attempt < 5; attempt++) {
+    try { invoice = await Invoice.create(invoicePayload()); break; }
+    catch (e) {
+      if (e?.name === 'SequelizeUniqueConstraintError' && attempt < 4) { invoiceNumber = await nextInvoiceNumber(); continue; }
+      throw e;
+    }
+  }
   await InvoiceItem.create({
     invoice_id: invoice.id,
     description: title,
@@ -127,7 +150,21 @@ async function billOneSubscription(sub, today = new Date()) {
   const t = todayStr(today);
   let guard = 0;
   while (next <= t && guard < 120) { next = advanceDate(next, sub.interval); guard++; }
-  await sub.update({ next_billing_at: next, last_invoiced_at: new Date() });
+
+  // 회차 자동 종료 (운영) — 이번 발행으로 누적 회차 +1 후 종료 조건 평가.
+  const occ = Number(sub.occurrences_count || 0) + 1;
+  let ended = false;
+  if (sub.end_mode === 'after_count' && sub.max_occurrences && occ >= Number(sub.max_occurrences)) {
+    ended = true;  // 목표 회차 도달
+  } else if (sub.end_mode === 'until_date' && sub.end_date && next > toDateStr(sub.end_date)) {
+    ended = true;  // 다음 발행일이 종료일을 넘김 → 더 이상 발행 안 함
+  }
+  await sub.update({
+    next_billing_at: next,
+    last_invoiced_at: new Date(),
+    occurrences_count: occ,
+    ...(ended ? { status: 'completed', canceled_at: new Date() } : {}),
+  });
 
   // 이메일(auto) / 멤버 검토 알림(draft) — cron 차단 방지 위해 setImmediate
   if (isAuto) {
