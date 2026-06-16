@@ -221,13 +221,25 @@ router.post('/register', async (req, res, next) => {
       // 약관 동의 (필수, 2026-05-05)
       terms_accepted,
       privacy_accepted,
+      // 초대 기반 가입 — 토큰 있으면 워크스페이스 생성 안 함 (초대된 워크스페이스에 고객으로 바로 합류)
+      invite_token,
     } = req.body;
 
     const brandName = workspace_name || business_name;
     const lang = default_language === 'en' ? 'en' : 'ko';
 
-    // Validation
-    if (!email || !password || !name || !brandName) {
+    // 초대 토큰 유효성 — ProjectClient/Client/BusinessMember invite_token 매칭 시 워크스페이스 미생성
+    let isInviteSignup = false;
+    if (invite_token) {
+      const { ProjectClient, Client: ClientM } = require('../models');
+      const pc = await ProjectClient.findOne({ where: { invite_token }, attributes: ['id'], transaction });
+      const cl = pc ? null : await ClientM.findOne({ where: { invite_token }, attributes: ['id'], transaction });
+      const bm = (pc || cl) ? null : await BusinessMember.findOne({ where: { invite_token }, attributes: ['id'], transaction });
+      isInviteSignup = !!(pc || cl || bm);
+    }
+
+    // Validation — 초대 가입은 워크스페이스명 불필요
+    if (!email || !password || !name || (!brandName && !isInviteSignup)) {
       await transaction.rollback();
       return errorResponse(res, 'Email, password, name, and workspace name are required', 400);
     }
@@ -334,12 +346,15 @@ router.post('/register', async (req, res, next) => {
       email_verify_expires: verifyExpires,
     }, { transaction });
 
-    // 2. Create Business (워크스페이스)
+    // 2. Create Business (워크스페이스) — 초대 가입은 skip (초대된 워크스페이스에 고객으로 합류)
+    let business = null;
+    let cueUser = null;
+    if (!isInviteSignup) {
     // 신규 가입 = Starter 14일 trial 자동 부여 (2026-05-05). Free 플랜 폐지.
     const TRIAL_DAYS = 14;
     const trialEndsAt = new Date(Date.now() + TRIAL_DAYS * 24 * 60 * 60 * 1000);
     const slug = generateSlug(brandName);
-    const business = await Business.create({
+    business = await Business.create({
       name: brandName,                // legacy 호환
       brand_name: brandName,
       brand_name_en: lang === 'ko' ? (brand_name_en || null) : null,
@@ -363,7 +378,7 @@ router.post('/register', async (req, res, next) => {
 
     // 4. Create Cue 시스템 계정 (AI 팀원)
     const cueRandomHash = await bcrypt.hash(Math.random().toString(36) + Date.now(), 12);
-    const cueUser = await User.create({
+    cueUser = await User.create({
       email: `cue+${business.id}@system.planq.kr`,
       password_hash: cueRandomHash,
       name: 'Cue',
@@ -384,6 +399,8 @@ router.post('/register', async (req, res, next) => {
       role: 'ai',
       joined_at: new Date()
     }, { transaction });
+    } // end if(!isInviteSignup) — 초대 가입은 워크스페이스 미생성
+    //  연결(초대 수락)은 가입 직후 프론트가 /invite/:token 로 redirect → 기존 자동수락이 처리.
 
     // 5. Generate tokens
     const clientKind = resolveClientKind(req);
@@ -415,23 +432,26 @@ router.post('/register', async (req, res, next) => {
         email: user.email,
         name: user.name,
         platform_role: user.platform_role,
-        business_id: business.id,
-        business_name: business.name,
-        business_role: 'owner'
+        business_id: business ? business.id : null,
+        business_name: business ? business.name : null,
+        business_role: business ? 'owner' : null,
       }
     }, 'Registration successful', 201);
 
     // 플랫폼 관리자 알림 + 회원가입 이메일 인증 메일 — fan-out 비동기 (응답 지연 X)
     setImmediate(() => {
       const { notifyPlatformAdmins, APP_URL } = require('../services/platformNotify');
-      notifyPlatformAdmins({
-        eventKind: 'signup',
-        title: `신규 가입 — ${business.brand_name || business.name}`,
-        body: `${user.name} (${user.email}) 가 워크스페이스 "${business.brand_name || business.name}" 으로 가입했습니다.`,
-        link: `${APP_URL}/admin/businesses?id=${business.id}`,
-        ctaLabel: '워크스페이스 보기',
-        relatedEntityId: business.id,
-      }).catch(() => null);
+      // 워크스페이스 생성 가입만 신규-워크스페이스 알림 (초대 가입은 워크스페이스 없음 → skip)
+      if (business) {
+        notifyPlatformAdmins({
+          eventKind: 'signup',
+          title: `신규 가입 — ${business.brand_name || business.name}`,
+          body: `${user.name} (${user.email}) 가 워크스페이스 "${business.brand_name || business.name}" 으로 가입했습니다.`,
+          link: `${APP_URL}/admin/businesses?id=${business.id}`,
+          ctaLabel: '워크스페이스 보기',
+          relatedEntityId: business.id,
+        }).catch(() => null);
+      }
       // 신규 가입자에게 이메일 인증 메일 자동 발송
       const emailService = require('../services/emailService');
       emailService.sendSignupVerifyEmail({

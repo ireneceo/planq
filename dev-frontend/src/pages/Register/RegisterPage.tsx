@@ -277,6 +277,13 @@ const RegisterPage: React.FC = () => {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(false);
 
+  // 초대 가입 모드 — redirect=/invite/:token 으로 도착하면 워크스페이스 생성 없이 초대된 곳으로 합류.
+  const inviteToken = (() => {
+    const rq = new URLSearchParams(location.search).get('redirect') || '';
+    const m = rq.match(/^\/invite\/([^/?#]+)/);
+    return m ? m[1] : null;
+  })();
+
   useEffect(() => {
     if (!authLoading && isAuthenticated) {
       const redirectQuery = new URLSearchParams(location.search).get('redirect');
@@ -305,7 +312,8 @@ const RegisterPage: React.FC = () => {
     } else if (!/[a-zA-Z]/.test(password) || !/[0-9]/.test(password)) {
       errors.password = t('register.validation.passwordComplexity');
     }
-    if (!businessName.trim()) errors.businessName = t('register.validation.businessNameRequired');
+    // 초대 가입은 워크스페이스명 불필요 (초대된 워크스페이스에 합류)
+    if (!inviteToken && !businessName.trim()) errors.businessName = t('register.validation.businessNameRequired');
 
     setFieldErrors(errors);
     return Object.keys(errors).length === 0;
@@ -325,7 +333,7 @@ const RegisterPage: React.FC = () => {
         return;
       }
       const success = await register(name.trim(), email.trim(), password, businessName.trim(),
-        { terms_accepted: termsAgreed, privacy_accepted: privacyAgreed });
+        { terms_accepted: termsAgreed, privacy_accepted: privacyAgreed, ...(inviteToken ? { invite_token: inviteToken } : {}) });
       if (!success) {
         setError(t('register.errorGeneric'));
       }
@@ -409,17 +417,20 @@ const RegisterPage: React.FC = () => {
               {fieldErrors.password && <FieldError>{fieldErrors.password}</FieldError>}
             </InputGroup>
 
-            <InputGroup>
-              <Input
-                type="text"
-                value={businessName}
-                onChange={(e) => { setBusinessName(e.target.value); setFieldErrors(prev => ({ ...prev, businessName: '' })); }}
-                placeholder={t('register.businessNamePlaceholder')}
-                $hasError={!!fieldErrors.businessName}
-                autoComplete="organization"
-              />
-              {fieldErrors.businessName && <FieldError>{fieldErrors.businessName}</FieldError>}
-            </InputGroup>
+            {/* 초대 가입은 워크스페이스명 입력 숨김 — 초대된 워크스페이스에 합류 */}
+            {!inviteToken && (
+              <InputGroup>
+                <Input
+                  type="text"
+                  value={businessName}
+                  onChange={(e) => { setBusinessName(e.target.value); setFieldErrors(prev => ({ ...prev, businessName: '' })); }}
+                  placeholder={t('register.businessNamePlaceholder')}
+                  $hasError={!!fieldErrors.businessName}
+                  autoComplete="organization"
+                />
+                {fieldErrors.businessName && <FieldError>{fieldErrors.businessName}</FieldError>}
+              </InputGroup>
+            )}
 
             {/* 약관 동의 (필수) — 한국 개인정보보호법 + GDPR */}
             <ConsentRow>
