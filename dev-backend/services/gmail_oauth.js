@@ -26,8 +26,9 @@ function newClient() {
   );
 }
 
-function encodeState({ businessId, userId, returnUrl }) {
-  const raw = JSON.stringify({ b: businessId, u: userId, r: returnUrl || null, n: crypto.randomBytes(8).toString('hex'), t: Date.now() });
+function encodeState({ businessId, userId, returnUrl, scope }) {
+  // scope: 'team'(회사 공용) | 'personal'(개인). 계정 소유 결정용.
+  const raw = JSON.stringify({ b: businessId, u: userId, r: returnUrl || null, s: scope || 'team', n: crypto.randomBytes(8).toString('hex'), t: Date.now() });
   return Buffer.from(raw).toString('base64url');
 }
 
@@ -37,17 +38,17 @@ function decodeState(state) {
     const parsed = JSON.parse(raw);
     // 10분 만료
     if (Date.now() - parsed.t > 10 * 60 * 1000) return null;
-    return { businessId: parsed.b, userId: parsed.u, returnUrl: parsed.r };
+    return { businessId: parsed.b, userId: parsed.u, returnUrl: parsed.r, scope: parsed.s === 'personal' ? 'personal' : 'team' };
   } catch { return null; }
 }
 
-function buildAuthUrl({ businessId, userId, returnUrl }) {
+function buildAuthUrl({ businessId, userId, returnUrl, scope }) {
   const client = newClient();
   return client.generateAuthUrl({
     access_type: 'offline',           // refresh_token 받음 (장기 IMAP fetch 위해 필수)
     scope: SCOPES,
     prompt: 'consent',                 // 항상 refresh_token 받게
-    state: encodeState({ businessId, userId, returnUrl }),
+    state: encodeState({ businessId, userId, returnUrl, scope }),
   });
 }
 

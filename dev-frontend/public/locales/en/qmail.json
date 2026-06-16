@@ -60,7 +60,16 @@
     "imapRequired": "Enter IMAP server and username",
     "passwordRequired": "Enter the password",
     "passwordEditHint": "(Leave empty to keep current)",
-    "optional": "Optional"
+    "optional": "Optional",
+    "scopeTeam": "Team",
+    "scopePersonal": "Personal",
+    "groupTeam": "Team mailboxes",
+    "groupPersonal": "My personal mailboxes",
+    "scopeToggleLabel": "Scope of the account to add",
+    "teamAdminOnly": "Only admins can add team mailboxes",
+    "hintScope": "Team mailboxes are shared in the inbox by all members; personal mailboxes are visible only to you. (Auto-sync every 5 minutes)",
+    "scopeNoteTeam": "Team mailbox — shared with all members in the inbox.",
+    "scopeNotePersonal": "Personal mailbox — visible only to you."
   },
   "folders": {
     "title": "Mailboxes",

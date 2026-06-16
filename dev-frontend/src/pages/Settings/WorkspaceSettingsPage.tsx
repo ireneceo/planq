@@ -769,7 +769,8 @@ export default function WorkspaceSettingsPage() {
   return (
     <PageShell title={pageTitle}>
       {error && <ErrorBanner>{error}</ErrorBanner>}
-      {!isAdmin && <InfoBanner>{t('messages.adminRequired')}</InfoBanner>}
+      {/* mail-accounts 탭은 멤버도 개인 메일을 관리할 수 있어 admin 안내 배너 숨김 */}
+      {!isAdmin && tab !== 'mail-accounts' && <InfoBanner>{t('messages.adminRequired')}</InfoBanner>}
 
       {/* 탭 UI 완전 제거 — 사이드바 설정 Secondary 에서 직접 섹션 접근.
          브랜드+법인정보는 `tab === 'brand'` OR `tab === 'legal'` 일 때 통합 렌더. */}

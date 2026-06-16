@@ -50,6 +50,13 @@ export default function InvoicesTab() {
     const n = Number(v);
     return Number.isFinite(n) ? n : null;
   })();
+  // 프로젝트에서 발행 진입: ?project=:id → invoice.project_id 자동 연결
+  const prefillProjectId = (() => {
+    const v = sp.get('project');
+    if (!v) return null;
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  })();
   useEffect(() => {
     if (autoNew) setShowNew(true);
   }, [autoNew]);
@@ -276,7 +283,7 @@ export default function InvoicesTab() {
                 </StatusBadge>
               </ColStatus>
               <ColDue>
-                <DueDate>{inv.due_date || '—'}</DueDate>
+                <DueDate>{inv.due_date ? inv.due_date.split('T')[0] : '—'}</DueDate>
                 {inv.status === 'overdue' && inv.due_date && (
                   <DueOverdue>{t('invoices.list.overdueDays', { days: Math.abs(daysSince(inv.due_date)) })}</DueOverdue>
                 )}
@@ -307,11 +314,13 @@ export default function InvoicesTab() {
           if (sp2.has('new')) { sp2.delete('new'); dirty = true; }
           if (sp2.has('split')) { sp2.delete('split'); dirty = true; }
           if (sp2.has('from_post')) { sp2.delete('from_post'); dirty = true; }
+          if (sp2.has('project')) { sp2.delete('project'); dirty = true; }
           if (dirty) navigate(`${location.pathname}${sp2.toString() ? `?${sp2.toString()}` : ''}`, { replace: true });
           reload();
         }}
         prefillSplit={prefillSplit}
         prefillPostId={prefillPostId}
+        prefillProjectId={prefillProjectId}
         editInvoiceId={editInvoiceId}
       />
     </Wrap>

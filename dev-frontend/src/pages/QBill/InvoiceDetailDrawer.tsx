@@ -645,7 +645,7 @@ function InstallmentRow({ ins, currency, busy, onMarkPaid, onUnmarkPaid, onMarkT
           </InstSubMeta>
         )}
       </InstInfo>
-      <InstDue>{ins.due_date || '—'}</InstDue>
+      <InstDue>{ins.due_date ? ins.due_date.split('T')[0] : '—'}</InstDue>
       <InstAmt>{formatMoney(ins.amount, currency)}</InstAmt>
       <InstStatus $bg={sc.bg} $fg={sc.fg}>
         <StatusDot $color={sc.dot} />

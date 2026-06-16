@@ -60,7 +60,16 @@
     "imapRequired": "IMAP 서버와 사용자명을 입력하세요",
     "passwordRequired": "비밀번호를 입력하세요",
     "passwordEditHint": "(비워두면 기존 유지)",
-    "optional": "선택"
+    "optional": "선택",
+    "scopeTeam": "회사 공용",
+    "scopePersonal": "개인",
+    "groupTeam": "회사 공용 메일",
+    "groupPersonal": "내 개인 메일",
+    "scopeToggleLabel": "추가할 계정 범위",
+    "teamAdminOnly": "회사 공용 메일은 관리자만 추가할 수 있어요",
+    "hintScope": "회사 공용 메일은 모든 팀원이 인박스에서 함께 보고, 개인 메일은 본인에게만 보입니다. (5분마다 자동 동기화)",
+    "scopeNoteTeam": "회사 공용 메일 — 모든 팀원이 인박스에서 함께 봅니다.",
+    "scopeNotePersonal": "개인 메일 — 나에게만 보입니다."
   },
   "folders": {
     "title": "메일함",

@@ -28,6 +28,8 @@ interface Props {
   prefillSplit?: boolean;
   /** 후속 액션 카드에서 진입 시 — 출처 문서 자동 연결 (post id) */
   prefillPostId?: number | null;
+  /** 프로젝트에서 발행 진입 시 — invoice.project_id 자동 연결 (post 없이) */
+  prefillProjectId?: number | null;
   /** 임시저장(draft) 재편집 진입 시 — 해당 invoice id 를 로드해 폼 채움 (PUT 저장) */
   editInvoiceId?: number | null;
 }
@@ -51,7 +53,7 @@ const VAT_OPTIONS: PlanQSelectOption[] = [
   { value: '0.1', label: '10%' },
 ];
 
-export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPostId, editInvoiceId }: Props) {
+export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPostId, prefillProjectId, editInvoiceId }: Props) {
   const isEdit = !!editInvoiceId;
   const { t } = useTranslation('qbill');
   const { user } = useAuth();
@@ -274,6 +276,30 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
     })();
     return () => { cancelled = true; };
   }, [open, prefillPostId, businessId]);
+
+  // ─── 프로젝트에서 발행 진입 (post 없이 ?project=:id) — project_id 자동 연결 + 첫 고객 선택 ───
+  useEffect(() => {
+    if (!open || isEdit || !prefillProjectId || !businessId) return;
+    if (prefillPostId) return;  // post 경유는 위 effect 가 처리
+    let cancelled = false;
+    setProjectId(prefillProjectId);
+    (async () => {
+      try {
+        const { apiFetch } = await import('../../contexts/AuthContext');
+        const r = await apiFetch(`/api/projects/${prefillProjectId}`);
+        const j = await r.json();
+        if (cancelled) return;
+        if (j?.data?.name) setProjectName(j.data.name);
+        const projClients = j?.data?.projectClients || [];
+        const first = projClients[0];
+        if (first) {
+          if (first.client_id) setClientId(first.client_id);
+          else if (first.contact_user_id) setPendingContactUserId(first.contact_user_id);
+        }
+      } catch { /* noop */ }
+    })();
+    return () => { cancelled = true; };
+  }, [open, isEdit, prefillProjectId, prefillPostId, businessId]);
 
   // 초대중 고객(client_id 없음) — clients 로드되면 contact_user_id 로 매칭해 선택 보완
   useEffect(() => {

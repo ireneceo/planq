@@ -17,6 +17,21 @@ function isAdmin(req) {
     || req.user?.platform_role === 'platform_admin';
 }
 
+// 이 사용자가 볼 수 있는 계정 where 조건:
+//   회사 공용 계정 (owner_user_id NULL, 모든 멤버) + 본인 개인 계정 (owner_user_id = 나).
+//   다른 사람의 개인 메일은 절대 노출 X (admin 도 차단 — email_threads.accessibleAccountIds 와 정합).
+function accessibleWhere(req) {
+  const { Op } = require('sequelize');
+  return { [Op.or]: [{ owner_user_id: null }, { owner_user_id: req.user.id }] };
+}
+
+// 이 계정을 관리(편집/삭제/동기화)할 수 있는가:
+//   회사 공용(owner null) → admin 만. 본인 개인(owner=나) → 본인. 그 외 → false.
+function canManageAccount(req, acc) {
+  if (acc.owner_user_id == null) return isAdmin(req);
+  return acc.owner_user_id === req.user.id;
+}
+
 // 응답 시 비밀번호 hash 제외 (frontend 노출 X)
 function serializeAccount(acc) {
   const j = acc.toJSON ? acc.toJSON() : acc;
@@ -37,6 +52,9 @@ function serializeAccount(acc) {
     smtp_tls: j.smtp_tls,
     is_active: j.is_active,
     is_default: j.is_default,
+    owner_user_id: j.owner_user_id ?? null,
+    is_personal: j.owner_user_id != null,
+    scope: j.owner_user_id != null ? 'personal' : 'team',
     last_sync_at: j.last_sync_at,
     last_sync_error: j.last_sync_error,
     fail_count: j.fail_count,
@@ -48,13 +66,12 @@ function serializeAccount(acc) {
   };
 }
 
-// GET — workspace 단위 계정 목록
+// GET — 계정 목록 (회사 공용 + 본인 개인. 멤버도 접근 가능 — 개인 메일 관리 위해)
 router.get('/:businessId/email-accounts', authenticateToken, checkBusinessAccess, async (req, res, next) => {
   try {
-    if (!isAdmin(req)) return errorResponse(res, 'admin_required', 403);
     const rows = await EmailAccount.findAll({
-      where: { business_id: req.params.businessId },
-      order: [['is_default', 'DESC'], ['created_at', 'ASC']],
+      where: { business_id: req.params.businessId, ...accessibleWhere(req) },
+      order: [['owner_user_id', 'ASC'], ['is_default', 'DESC'], ['created_at', 'ASC']],
     });
     successResponse(res, rows.map(serializeAccount));
   } catch (err) { next(err); }
@@ -63,22 +80,26 @@ router.get('/:businessId/email-accounts', authenticateToken, checkBusinessAccess
 // POST — 신규 등록 (자동 IMAP test)
 router.post('/:businessId/email-accounts', authenticateToken, checkBusinessAccess, async (req, res, next) => {
   try {
-    if (!isAdmin(req)) return errorResponse(res, 'admin_required', 403);
     const businessId = parseInt(req.params.businessId, 10);
     const b = req.body || {};
+    // scope: 'personal'(개인, 본인만) | 'team'(회사 공용, 모든 멤버). team 은 admin 만.
+    const scope = b.scope === 'personal' ? 'personal' : 'team';
+    if (scope === 'team' && !isAdmin(req)) return errorResponse(res, 'admin_required', 403);
+    const ownerUserId = scope === 'personal' ? req.user.id : null;
     // 필수 검증
     const email = String(b.email || '').trim().toLowerCase();
     if (!/^[^@]+@[^@]+\.[^@]+$/.test(email)) return errorResponse(res, 'invalid_email', 400);
     if (!b.imap_host || !b.imap_username || !b.imap_password) {
       return errorResponse(res, 'imap_required', 400);
     }
-    // 중복
+    // 중복 (워크스페이스 내 같은 email 1개만)
     const dup = await EmailAccount.findOne({ where: { business_id: businessId, email } });
     if (dup) return errorResponse(res, 'duplicate_email', 409);
-    // 첫 계정이면 is_default 자동
-    const count = await EmailAccount.count({ where: { business_id: businessId } });
+    // 첫 공용 계정이면 is_default 자동 (개인 계정은 공용 default 후보 아님)
+    const teamCount = await EmailAccount.count({ where: { business_id: businessId, owner_user_id: null } });
     const acc = await EmailAccount.create({
       business_id: businessId,
+      owner_user_id: ownerUserId,
       email,
       display_name: b.display_name || null,
       imap_host: b.imap_host,
@@ -93,7 +114,7 @@ router.post('/:businessId/email-accounts', authenticateToken, checkBusinessAcces
       smtp_password_encrypted: b.smtp_password ? encrypt(b.smtp_password) : null,
       smtp_tls: b.smtp_tls !== false,
       is_active: true,
-      is_default: count === 0,
+      is_default: scope === 'team' && teamCount === 0,
     });
     await createAuditLog({
       userId: req.user.id, businessId,
@@ -108,11 +129,11 @@ router.post('/:businessId/email-accounts', authenticateToken, checkBusinessAcces
 // PUT — 수정 (비밀번호 변경 가능)
 router.put('/:businessId/email-accounts/:id', authenticateToken, checkBusinessAccess, async (req, res, next) => {
   try {
-    if (!isAdmin(req)) return errorResponse(res, 'admin_required', 403);
     const acc = await EmailAccount.findOne({
-      where: { id: req.params.id, business_id: req.params.businessId },
+      where: { id: req.params.id, business_id: req.params.businessId, ...accessibleWhere(req) },
     });
     if (!acc) return errorResponse(res, 'not_found', 404);
+    if (!canManageAccount(req, acc)) return errorResponse(res, 'forbidden', 403);
     const b = req.body || {};
     const patch = {};
     if (b.display_name !== undefined) patch.display_name = b.display_name || null;
@@ -142,11 +163,11 @@ router.put('/:businessId/email-accounts/:id', authenticateToken, checkBusinessAc
 // DELETE — soft (is_active=false, data 보존)
 router.delete('/:businessId/email-accounts/:id', authenticateToken, checkBusinessAccess, async (req, res, next) => {
   try {
-    if (!isAdmin(req)) return errorResponse(res, 'admin_required', 403);
     const acc = await EmailAccount.findOne({
-      where: { id: req.params.id, business_id: req.params.businessId },
+      where: { id: req.params.id, business_id: req.params.businessId, ...accessibleWhere(req) },
     });
     if (!acc) return errorResponse(res, 'not_found', 404);
+    if (!canManageAccount(req, acc)) return errorResponse(res, 'forbidden', 403);
     await acc.update({ is_active: false });
     await createAuditLog({
       userId: req.user.id, businessId: req.params.businessId,
@@ -160,11 +181,11 @@ router.delete('/:businessId/email-accounts/:id', authenticateToken, checkBusines
 // POST /test — IMAP 연결 테스트
 router.post('/:businessId/email-accounts/:id/test', authenticateToken, checkBusinessAccess, async (req, res, next) => {
   try {
-    if (!isAdmin(req)) return errorResponse(res, 'admin_required', 403);
     const acc = await EmailAccount.findOne({
-      where: { id: req.params.id, business_id: req.params.businessId },
+      where: { id: req.params.id, business_id: req.params.businessId, ...accessibleWhere(req) },
     });
     if (!acc) return errorResponse(res, 'not_found', 404);
+    if (!canManageAccount(req, acc)) return errorResponse(res, 'forbidden', 403);
     const password = decrypt(acc.imap_password_encrypted);
     if (!password) return errorResponse(res, 'password_decrypt_failed', 500);
     // imap-simple 으로 1회 connect → disconnect (10초 timeout)
@@ -202,8 +223,10 @@ router.post('/:businessId/email-accounts/:id/set-default', authenticateToken, ch
       where: { id: req.params.id, business_id: businessId },
     });
     if (!acc) return errorResponse(res, 'not_found', 404);
-    // 모든 계정 default 해제 → 이 계정만 true
-    await EmailAccount.update({ is_default: false }, { where: { business_id: businessId } });
+    // 기본 계정은 워크스페이스 공용 발송 기본값 → 회사 공용 계정만 가능 (개인 계정 제외)
+    if (acc.owner_user_id != null) return errorResponse(res, 'personal_cannot_be_default', 400);
+    // 공용 계정 default 해제 → 이 계정만 true
+    await EmailAccount.update({ is_default: false }, { where: { business_id: businessId, owner_user_id: null } });
     await acc.update({ is_default: true });
     successResponse(res, serializeAccount(acc));
   } catch (err) { next(err); }
@@ -212,11 +235,11 @@ router.post('/:businessId/email-accounts/:id/set-default', authenticateToken, ch
 // POST /sync-now — 즉시 IMAP fetch 트리거 (cron 대기 없이)
 router.post('/:businessId/email-accounts/:id/sync-now', authenticateToken, checkBusinessAccess, async (req, res, next) => {
   try {
-    if (!isAdmin(req)) return errorResponse(res, 'admin_required', 403);
     const acc = await EmailAccount.findOne({
-      where: { id: req.params.id, business_id: req.params.businessId },
+      where: { id: req.params.id, business_id: req.params.businessId, ...accessibleWhere(req) },
     });
     if (!acc) return errorResponse(res, 'not_found', 404);
+    if (!canManageAccount(req, acc)) return errorResponse(res, 'forbidden', 403);
     // 백그라운드 fire-and-forget
     const emailImapCron = require('../services/emailImapCron');
     emailImapCron.syncOne(acc).catch(e => console.error('[sync-now]', e.message));
@@ -229,13 +252,16 @@ router.post('/:businessId/email-accounts/:id/sync-now', authenticateToken, check
 //   → Google OAuth URL 302 redirect (scope: https://mail.google.com/ + email + profile)
 router.get('/:businessId/email-accounts/oauth/gmail/initiate', authenticateToken, checkBusinessAccess, async (req, res) => {
   try {
-    if (!isAdmin(req)) return res.status(403).send('admin only');
+    // scope: 'personal'(개인, 본인만) | 'team'(회사 공용). team 은 admin 만.
+    const scope = req.query.scope === 'personal' ? 'personal' : 'team';
+    if (scope === 'team' && !isAdmin(req)) return res.status(403).send('admin only');
     if (!process.env.GOOGLE_CLIENT_ID) return res.status(500).send('GOOGLE_CLIENT_ID 미설정');
     const gmailOauth = require('../services/gmail_oauth');
     const url = gmailOauth.buildAuthUrl({
       businessId: Number(req.params.businessId),
       userId: req.user.id,
       returnUrl: req.query.return_to || '/business/settings/mail-accounts',
+      scope,
     });
     return res.redirect(302, url);
   } catch (e) {
@@ -269,14 +295,17 @@ router.get('/email-accounts/oauth/gmail/callback', async (req, res) => {
     const tokens = await gmailOauth.exchangeCodeForTokens(String(code));
     const { encrypt } = require('../services/encryption');
 
+    // scope: 'personal' → 본인 소유 / 'team' → 회사 공용 (owner null)
+    const ownerUserId = parsed.scope === 'personal' ? parsed.userId : null;
     // 같은 email 이미 등록돼 있으면 갱신 (OAuth 토큰 교체)
     let acc = await EmailAccount.findOne({
       where: { business_id: parsed.businessId, email: tokens.email },
     });
-    const count = await EmailAccount.count({ where: { business_id: parsed.businessId } });
-    const isFirst = count === 0;
+    const teamCount = await EmailAccount.count({ where: { business_id: parsed.businessId, owner_user_id: null } });
+    const isFirstTeam = parsed.scope !== 'personal' && teamCount === 0;
     const payload = {
       business_id: parsed.businessId,
+      owner_user_id: ownerUserId,
       email: tokens.email,
       display_name: tokens.name || null,
       auth_type: 'google_oauth',
@@ -298,9 +327,11 @@ router.get('/email-accounts/oauth/gmail/callback', async (req, res) => {
       is_active: true,
     };
     if (acc) {
+      // 재연결 — 소유(공용/개인)는 기존 값 보존 (token/연결정보만 갱신)
+      delete payload.owner_user_id;
       await acc.update(payload);
     } else {
-      payload.is_default = isFirst;
+      payload.is_default = isFirstTeam;
       acc = await EmailAccount.create(payload);
     }
     return res.redirect(302, buildSuccessRedirect(parsed.returnUrl, tokens.email));
