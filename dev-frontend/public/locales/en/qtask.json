@@ -665,7 +665,14 @@
     "addBelow": "Add task below",
     "copy": "Duplicate",
     "delete": "Delete",
-    "newTaskTitle": "New task"
+    "newTaskTitle": "New task",
+    "confirmDelete": "Delete this task?",
+    "confirmYes": "Delete",
+    "confirmNo": "Cancel",
+    "deleting": "Deleting…",
+    "errGeneric": "Couldn't delete this task.",
+    "errForbidden": "You don't have permission to delete. Only the workspace owner/admin or the creator can.",
+    "errHasActivity": "This task has activity from others and can't be deleted. Ask the workspace owner."
   },
   "tpl": {
     "title": "Add tasks from template",

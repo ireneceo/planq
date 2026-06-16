@@ -665,7 +665,14 @@
     "addBelow": "아래에 업무 추가",
     "copy": "복제",
     "delete": "삭제",
-    "newTaskTitle": "새 업무"
+    "newTaskTitle": "새 업무",
+    "confirmDelete": "이 업무를 삭제할까요?",
+    "confirmYes": "삭제",
+    "confirmNo": "취소",
+    "deleting": "삭제 중…",
+    "errGeneric": "삭제할 수 없습니다.",
+    "errForbidden": "삭제 권한이 없어요. 워크스페이스 소유자·관리자 또는 작성자만 삭제할 수 있어요.",
+    "errHasActivity": "다른 사람이 참여한 업무라 삭제할 수 없어요. 워크스페이스 소유자에게 요청하세요."
   },
   "tpl": {
     "title": "템플릿으로 업무 추가",
