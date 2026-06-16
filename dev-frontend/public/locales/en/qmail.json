@@ -148,5 +148,15 @@
     "noteVisTeam": "👥 Team",
     "collapse": "Collapse panel",
     "expand": "Expand context panel"
+  },
+  "accounts": {
+    "all": "All",
+    "manage": "Manage accounts",
+    "manageTitle": "Add / configure mail accounts"
+  },
+  "noAccount": {
+    "title": "No mail account connected yet",
+    "desc": "Connect a Gmail or IMAP account to read and reply to your mail inside Q Mail. Connect multiple accounts to view them by address.",
+    "cta": "Connect a mail account"
   }
 }
