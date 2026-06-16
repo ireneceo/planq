@@ -1691,9 +1691,9 @@ router.get('/daily-progress', authenticateToken, async (req, res, next) => {
       const est = Number(s.estimated_hours) || 0;
       const act = Number(s.actual_hours) || 0;
       bucket.est_used += est * prog;
-      // 실제시간: actual_hours 는 이미 실제 투입시간이므로 그대로 사용 (×progress 곱하면 과소표시 — 그래프 "실제시간 제대로 안 나옴" 버그).
-      //   actual 미입력 스냅샷만 estimated × progress 로 추정 (그래프 누적 유지).
-      bucket.act_used += (act > 0 ? act : est * prog);
+      // 실제시간 = 실제 입력시간(actual_hours)만. (예측×진행률 fallback 금지 — 예측 라인과 동일해지는 버그.
+      //  실제 미입력이면 actual 라인은 낮게 유지되어 "진척은 됐지만 시간 미입력"을 정직하게 보여줌. Irene 2026-06-16)
+      bucket.act_used += act;
     }
 
     return successResponse(res, { days: Array.from(byDate.values()) });

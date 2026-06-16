@@ -34,7 +34,10 @@ async function recomputeActualHoursFromHistory(taskId) {
   const focusSec = await sumTaskFocusSeconds(taskId);
   if (focusSec > 0) {
     const fHours = Math.round((focusSec / 3600) * 10) / 10;
-    if (fHours !== Number(task.actual_hours)) await task.update({ actual_hours: fHours });
+    // 자동 측정값 — actual_source='auto' 명시(프론트 연회색). 시작/멈춤/재개/완료 사이 시간 합.
+    if (fHours !== Number(task.actual_hours) || task.actual_source !== 'auto') {
+      await task.update({ actual_hours: fHours, actual_source: 'auto' });
+    }
     return fHours;
   }
 
@@ -67,9 +70,9 @@ async function recomputeActualHoursFromHistory(taskId) {
   }
 
   const hours = Math.round((totalMs / 1000 / 3600) * 10) / 10;  // 0.1h 단위
-  // 변경이 있을 때만 update
-  if (hours !== Number(task.actual_hours)) {
-    await task.update({ actual_hours: hours });
+  // 변경이 있을 때만 update — 자동 측정값이므로 actual_source='auto' (연회색 표시)
+  if (hours !== Number(task.actual_hours) || task.actual_source !== 'auto') {
+    await task.update({ actual_hours: hours, actual_source: 'auto' });
   }
   return hours;
 }

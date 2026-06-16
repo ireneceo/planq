@@ -953,15 +953,14 @@ const QTaskPage:React.FC=()=>{
           const dueStr=(t.due_date||'').slice(0,10);
           const completedStr=(t.completed_at||'').slice(0,10);
           const isDone=t.status==='completed'||t.status==='canceled';
+          // Irene 스펙 2026-06-16:
+          //  - 완료/취소: 이번 주에 완료한 것만 (completed_at 이 기간 안). completed_at 없으면 제외.
+          //  - 미완료: 기간(마감일) 무관 전부 표시 (overdue·미래·기간미정 모두 — 끝까지 담당자 책임).
           const inPeriod=(()=>{
             if(isDone) return completedStr ? (completedStr>=periodFrom&&completedStr<=periodTo) : false;
-            if(!startStr&&!dueStr) return true; // 기간 미정 task 는 포함 (사용자가 인지하도록)
-            const s=startStr||dueStr;
-            const e=dueStr||startStr;
-            // 미완료 업무: 마감일이 이미 지남 (overdue) 이면 항상 표시 + 기간 겹침 검사
-            const isOverdue = e && e < todayStr;
-            return isOverdue || !(e<periodFrom||s>periodTo);
+            return true;
           })();
+          void startStr; void dueStr;
           if(!inPeriod) return false;
 
           // 2) 내가 행동해야 하는 것 + 완료 옵션
@@ -1228,24 +1227,26 @@ const QTaskPage:React.FC=()=>{
     const chartTasks=filtered.filter(t=>t.assignee_id===myId&&t.status!=='canceled');
     // 오늘 라이브 값 (스냅샷은 아침 기준이라 당일 변동 반영 위해 라이브 계산)
     const liveEstDone=chartTasks.reduce((s,t)=>s+(Number(t.estimated_hours)||0)*((t.progress_percent||0)/100),0);
-    const liveAct=chartTasks.reduce((s,t)=>{
-      const a=Number(t.actual_hours)||0; const p=(t.progress_percent||0)/100;
-      return s + (a>0 ? a : (Number(t.estimated_hours)||0)*p);
-    },0);
+    // 실제 = 실제 입력시간(actual_hours)만. 예측×진행률 fallback 금지 (예측 라인과 동일해지는 버그).
+    const liveAct=chartTasks.reduce((s,t)=>s+(Number(t.actual_hours)||0),0);
     const snapMap=new Map(dailyProgress.map(d=>[d.date.slice(0,10),d]));
     const raw=days.map(d=>{
       let estV=0, actV=0;
+      const isFuture=d.date>todayStr;
       if(d.date===todayStr){ estV=liveEstDone; actV=liveAct; }
       else if(d.date<todayStr){ const s=snapMap.get(d.date); if(s){ estV=Number(s.est_used)||0; actV=Number(s.act_used)||0; } }
-      // 미래 = 0
-      return{label:d.label,est:Math.round(estV*10)/10,act:Math.round(actV*10)/10};
+      // 미래 = 라인 그리지 않음 (잘림). 주는 "가는 중" 이므로 오늘까지만.
+      return{label:d.label,date:d.date,isFuture,est:Math.round(estV*10)/10,act:Math.round(actV*10)/10};
     });
-    // 누적(단조증가) 강제 — 진척·실제는 줄지 않음. 0 인 날(데이터 없음)은 0 유지.
+    // 누적(단조증가) 강제 — 진척·실제는 줄지 않음. 미래는 null (라인 잘림).
     let mE=0,mA=0;
     return raw.map(p=>{
-      if(p.est>0)mE=Math.max(mE,p.est);
-      if(p.act>0)mA=Math.max(mA,p.act);
-      return{label:p.label,estimated_cumulative:p.est>0?mE:0,actual_cumulative:p.act>0?mA:0};
+      if(!p.isFuture){ if(p.est>0)mE=Math.max(mE,p.est); if(p.act>0)mA=Math.max(mA,p.act); }
+      return{
+        label:p.label, date:p.date, isFuture:p.isFuture,
+        estimated_cumulative: p.isFuture ? null : (p.est>0?mE:0),
+        actual_cumulative: p.isFuture ? null : (p.act>0?mA:0),
+      };
     });
   },[filtered,myId,periodFrom,periodTo,dailyProgress,todayStr]);
 
@@ -1255,7 +1256,7 @@ const QTaskPage:React.FC=()=>{
     return Math.round(ct.reduce((s,t)=>s+(Number(t.estimated_hours)||0),0)*10)/10;
   },[filtered,myId]);
 
-  const maxY=Math.max(...computedBurndown.map(p=>Math.max(p.estimated_cumulative,p.actual_cumulative)),weekTotalEst||1,1);
+  const maxY=Math.max(...computedBurndown.flatMap(p=>[p.estimated_cumulative,p.actual_cumulative].filter((v):v is number=>v!=null)),weekTotalEst||1,1);
 
   if(!bizId)return<EmptyFull>No workspace</EmptyFull>;
   if(loading)return<EmptyFull>Loading...</EmptyFull>;
@@ -2271,38 +2272,47 @@ const QTaskPage:React.FC=()=>{
                     const yMaxBase=Math.max(maxY, weekTotalEst||0);
                     const yMax=Math.ceil(yMaxBase/5)*5||5;
                     const yTicks=[0,yMax/2,yMax];
-                    const xy=(i:number,v:number)=>({x:PL+i*step,y:PT+ch-(v/yMax)*ch});
-                    const estPts=computedBurndown.map((p,i)=>xy(i,p.estimated_cumulative));
-                    const actPts=computedBurndown.map((p,i)=>xy(i,p.actual_cumulative));
-                    // 이상선(기준점) — 월요일 0h 에서 마지막 날 = 이번 주 예측시간 총합(weekTotalEst)까지 대각선
-                    const idealStart=xy(0, 0);
-                    const idealEnd=xy(n-1, weekTotalEst||0);
+                    const xPos=(i:number)=>PL+i*step;
+                    const yPos=(v:number)=>PT+ch-(v/yMax)*ch;
+                    // 실제·예측 라인/점/값은 오늘까지만 (미래=null → 잘림. 주는 "가는 중").
+                    type Pt={i:number;x:number;y:number;v:number};
+                    const estPts=computedBurndown.map((p,i)=>p.estimated_cumulative==null?null:{i,x:xPos(i),y:yPos(p.estimated_cumulative),v:p.estimated_cumulative}).filter((p):p is Pt=>!!p);
+                    const actPts=computedBurndown.map((p,i)=>p.actual_cumulative==null?null:{i,x:xPos(i),y:yPos(p.actual_cumulative),v:p.actual_cumulative}).filter((p):p is Pt=>!!p);
+                    // 이상선(기준점) — 월요일 0h 에서 마지막 날 = 이번 주 예측시간 총합(weekTotalEst)까지 대각선 (전체 폭)
                     return(
                       <ChartSVG viewBox={`0 0 ${W} ${H}`}>
                         {yTicks.map((v,i)=>(
                           <React.Fragment key={i}>
-                            <line x1={PL} y1={PT+ch-(v/yMax)*ch} x2={W-PR} y2={PT+ch-(v/yMax)*ch} stroke="#F1F5F9" strokeWidth="1" />
-                            <text x={PL-4} y={PT+ch-(v/yMax)*ch+3} fontSize="9" fill="#94A3B8" textAnchor="end">{v}h</text>
+                            <line x1={PL} y1={yPos(v)} x2={W-PR} y2={yPos(v)} stroke="#F1F5F9" strokeWidth="1" />
+                            <text x={PL-4} y={yPos(v)+3} fontSize="9" fill="#94A3B8" textAnchor="end">{v}h</text>
                           </React.Fragment>
                         ))}
-                        {/* 기준점(이상선) — 0 → 이번 주 예측시간 총합 까지 대각선 */}
+                        {/* 기준점(이상선) — 0 → 이번 주 예측시간 총합 까지 대각선 (미래까지 전체) */}
                         {weekTotalEst>0 && n>1 && (
-                          <line
-                            x1={idealStart.x} y1={idealStart.y}
-                            x2={idealEnd.x} y2={idealEnd.y}
-                            stroke="#94A3B8" strokeWidth="1.5" strokeDasharray="4,4"
-                          />
+                          <line x1={xPos(0)} y1={yPos(0)} x2={xPos(n-1)} y2={yPos(weekTotalEst)}
+                            stroke="#94A3B8" strokeWidth="1.5" strokeDasharray="4,4" />
                         )}
-                        <polyline fill="none" stroke="#14B8A6" strokeWidth="2" points={estPts.map(p=>`${p.x},${p.y}`).join(' ')}/>
-                        <polyline fill="none" stroke="#F43F5E" strokeWidth="2" strokeDasharray="4,3" points={actPts.map(p=>`${p.x},${p.y}`).join(' ')}/>
-                        {computedBurndown.map((p,i)=>(
-                          <React.Fragment key={i}>
-                            <circle cx={estPts[i].x} cy={estPts[i].y} r="3" fill="#14B8A6"/>
-                            <circle cx={actPts[i].x} cy={actPts[i].y} r="3" fill="#F43F5E"/>
-                            {p.estimated_cumulative>0&&<text x={estPts[i].x} y={estPts[i].y-6} fontSize="8" fill="#0F766E" textAnchor="middle" fontWeight="700">{p.estimated_cumulative}</text>}
-                            {p.actual_cumulative>0&&p.actual_cumulative!==p.estimated_cumulative&&<text x={actPts[i].x} y={actPts[i].y+12} fontSize="8" fill="#9F1239" textAnchor="middle" fontWeight="700">{p.actual_cumulative}</text>}
-                            <text x={estPts[i].x} y={H-6} fontSize="10" fill="#64748B" textAnchor="middle" fontWeight="600">{p.label}</text>
+                        {/* 예측 라인 (오늘까지) */}
+                        {estPts.length>1 && <polyline fill="none" stroke="#14B8A6" strokeWidth="2" points={estPts.map(p=>`${p.x},${p.y}`).join(' ')}/>}
+                        {/* 실제 라인 (오늘까지) */}
+                        {actPts.length>1 && <polyline fill="none" stroke="#F43F5E" strokeWidth="2" strokeDasharray="4,3" points={actPts.map(p=>`${p.x},${p.y}`).join(' ')}/>}
+                        {/* 예측 점·값 */}
+                        {estPts.map(p=>(
+                          <React.Fragment key={'e'+p.i}>
+                            <circle cx={p.x} cy={p.y} r="3" fill="#14B8A6"/>
+                            {p.v>0&&<text x={p.x} y={p.y-6} fontSize="8" fill="#0F766E" textAnchor="middle" fontWeight="700">{p.v}</text>}
                           </React.Fragment>
+                        ))}
+                        {/* 실제 점·값 */}
+                        {actPts.map(p=>(
+                          <React.Fragment key={'a'+p.i}>
+                            <circle cx={p.x} cy={p.y} r="3" fill="#F43F5E"/>
+                            {p.v>0&&<text x={p.x} y={p.y+12} fontSize="8" fill="#9F1239" textAnchor="middle" fontWeight="700">{p.v}</text>}
+                          </React.Fragment>
+                        ))}
+                        {/* 요일 라벨 — 전체 (미래 포함, 주 구조 표시) */}
+                        {computedBurndown.map((p,i)=>(
+                          <text key={'d'+i} x={xPos(i)} y={H-6} fontSize="10" fill={p.isFuture?'#CBD5E1':'#64748B'} textAnchor="middle" fontWeight="600">{p.label}</text>
                         ))}
                       </ChartSVG>
                     );
