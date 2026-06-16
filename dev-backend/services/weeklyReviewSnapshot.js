@@ -161,10 +161,13 @@ async function buildBurndownData(taskIds, monday) {
     where: { task_id: { [Op.in]: taskIds }, snapshot_date: { [Op.between]: [monday, sunday] } },
     order: [['snapshot_date', 'ASC']],
   });
+  // snapshot_date 가 Date 객체로 역직렬화돼 String() 비교가 항상 실패하던 버그 fix (저장 주간보고 그래프 빈화면 원인).
+  //   'YYYY-MM-DD' 로 정규화해 비교 (tasks.js /daily-progress 와 동일 처리).
+  const dayKey = (sd) => (sd instanceof Date) ? sd.toISOString().slice(0, 10) : String(sd).slice(0, 10);
   const result = [];
   for (let i = 0; i < 7; i++) {
     const date = addDaysStr(monday, i);
-    const dayProgs = progresses.filter(p => String(p.snapshot_date) === date);
+    const dayProgs = progresses.filter(p => dayKey(p.snapshot_date) === date);
     const estimated_cumulative = dayProgs.reduce((s, p) => s + (Number(p.estimated_hours) || 0), 0);
     const actual_cumulative = dayProgs.reduce((s, p) => s + (Number(p.actual_hours) || 0), 0);
     result.push({
