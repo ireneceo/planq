@@ -120,18 +120,21 @@ async function updateInvoiceChatCards(invoiceId, patches, transaction = null) {
 }
 
 // Generate invoice number
+// 운영 — robust: INV-YYYY- prefix 전체에서 실제 최대 순번 스캔 (깨진 번호 skip).
+//   기존 "last by id" 는 비표준/누락 번호에서 NaN, 동시 생성 시 중복 위험. max-scan 으로 안정화.
 const generateInvoiceNumber = async () => {
   const year = new Date().getFullYear();
-  const last = await Invoice.findOne({
-    where: sequelize.where(
-      sequelize.fn('YEAR', sequelize.col('created_at')),
-      year
-    ),
-    order: [['id', 'DESC']]
+  const prefix = `INV-${year}-`;
+  const rows = await Invoice.findAll({
+    where: { invoice_number: { [Op.like]: `${prefix}%` } },
+    attributes: ['invoice_number'],
   });
-
-  const seq = last ? parseInt(last.invoice_number.split('-')[2]) + 1 : 1;
-  return `INV-${year}-${String(seq).padStart(4, '0')}`;
+  let max = 0;
+  for (const r of rows) {
+    const m = /-(\d+)$/.exec(r.invoice_number || '');
+    if (m) { const v = parseInt(m[1], 10); if (Number.isFinite(v) && v > max) max = v; }
+  }
+  return `${prefix}${String(max + 1).padStart(4, '0')}`;
 };
 
 // ─── 공개 결제 페이지 (인증 없음 — share_token 기반) ───
