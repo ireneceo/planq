@@ -23,7 +23,19 @@
 
 **✅ 운영 라이브 (deploy `20260616_135924`, commit `f75b020`, v1.37.0, 138초).** 헬스 OK·PM2 prod online·last-deployed=f75b020. 8건 운영 반영 완료. (deploy 스크립트 EXIT=1은 요약 후 트레일링 비치명 — 기능 영향 없음 확인)
 
-**계속 개발 중 — 남은 그룹.** 명확한 것부터: #51(대시보드 타임라인 정렬) → #49(SNS OG) → #56(보고서 탭). 기획결정 필요: #41·#53·#55·#54·#52개선. #50 보류(Irene 노트북 겹침).
+**#51·#56 dev 완료+빌드 green (commit `fbe0a1f`, 미배포 — 다음 `/배포`):**
+- #51 프로젝트 대시보드 타임라인 마감일 내림차순(최신 먼저). QProjectDetailPage DashboardTimeline.
+- #56 워크스페이스 주간보고 서브탭 [통합보고서/멤버 주간보고] 분리 + 워크스페이스명 제목. WeeklyReviewTab.
+
+**남은 그룹 — 전부 기획설계 위임형(Irene이 "탁월하게 판단해줘"):**
+- #49 SNS OG 메타 — ⚠️ 크롤러용 **서버 OG 주입 + nginx 라우팅(운영 인프라)** 필요. 설계+승인 권장.
+- #41 Q Calendar 타임존 — 워크스페이스 tz 기본 + 개인 tz 보조표시 기획.
+- #53 개인 외부연동 정의 — 개인 vs 팀 연동 명확화 + 전수 검증.
+- #55 Q Mail 멀티계정 뷰 — All/이메일주소별 인박스.
+- #54 내 문의·QNote 리스트/카테고리 — Q docs 패턴 재사용.
+- #52 개선부분(초대일시 시간·재발송 이력·동기화·멤버초대 보완).
+- #50 보류(Irene 노트북 겹침).
+다음 미배포 커밋: f75b020(배포됨) 이후 fbe0a1f.
 
 **검증/배포:** 프론트 빌드 진행 중. 커밋·배포 안 함(Irene `/배포` 명령 대기). 수정 파일: focus.js·focusSync.js·tasks.js·projects.js(backend) / QTaskPage·ProjectTaskList·QProjectDetailPage·TaskDetailDrawer·TaskRowActionMenu·taskDeleteError.ts·qtask.json(ko/en)(frontend).
 
