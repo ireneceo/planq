@@ -9,6 +9,7 @@ import TaskRowActionMenu from '../../components/QTask/TaskRowActionMenu';
 import { GanttHeader, GanttRowTrack, GanttBar, useGanttScrollSync, type GanttRange } from '../../components/Common/GanttTrack';
 import { STATUS_COLOR, displayStatus, getStatusLabel, type StatusCode } from '../../utils/taskLabel';
 import { getRoles, primaryPerspective } from '../../utils/taskRoles';
+import { friendlyDeleteError } from '../../utils/taskDeleteError';
 
 export interface TaskRow {
   id: number; project_id: number | null; business_id: number;
@@ -183,8 +184,13 @@ const ProjectTaskList: React.FC<Props> = ({
                   onRefresh?.();
                 }}
                 onDelete={async () => {
-                  await apiFetch(`/api/tasks/by-business/${businessId}/${task.id}`, { method: 'DELETE' });
-                  onRefresh?.();
+                  const r = await apiFetch(`/api/tasks/by-business/${businessId}/${task.id}`, { method: 'DELETE' });
+                  if (!r.ok) {
+                    const j = await r.json().catch(() => ({}));
+                    return { ok: false, message: friendlyDeleteError(j?.message, t) };
+                  }
+                  // 성공: 부모가 socket task:deleted 로 즉시 제거 (전체 reload 안 함 — 리프레시 제거)
+                  return { ok: true };
                 }}
               />
               <TaskCheck type="checkbox" checked={task.status === 'completed'}

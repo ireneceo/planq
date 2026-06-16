@@ -31,6 +31,7 @@ import { formatHours, utilizationPercent, utilizationStatus, UTIL_COLOR } from '
 import HelpDot from '../../components/Common/HelpDot';
 import FirstVisitTour from '../../components/Common/FirstVisitTour';
 import { displayName } from '../../utils/displayName';
+import { friendlyDeleteError } from '../../utils/taskDeleteError';
 import i18nClient from '../../i18n';
 import {
   buildPresetRRule, buildCustomRRule, formatRRuleLabel,
@@ -1492,8 +1493,14 @@ const QTaskPage:React.FC=()=>{
                           // socket task:new 자동 반영
                         }}
                         onDelete={async () => {
-                          await apiFetch(`/api/tasks/by-business/${bizId}/${task.id}`, { method: 'DELETE' });
-                          // socket task:deleted 자동 반영
+                          const r = await apiFetch(`/api/tasks/by-business/${bizId}/${task.id}`, { method: 'DELETE' });
+                          if (!r.ok) {
+                            const j = await r.json().catch(() => ({}));
+                            return { ok: false, message: friendlyDeleteError(j?.message, t) };
+                          }
+                          // 성공: 즉시 제거(optimistic) — socket task:deleted 도 보정
+                          setAllTasks(prev => prev.filter(x => x.id !== task.id));
+                          return { ok: true };
                         }}
                       />
                       <TaskCheck type="checkbox" checked={task.status==='completed'} onChange={()=>toggleComplete(task)} />
