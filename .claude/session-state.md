@@ -56,7 +56,9 @@
 - DB: 운영 ENUM 확장(interval/status) + 4컬럼 배포 전 수동 선적용 완료.
 - 검증: 엔진 E2E(주기·자동종료·3건 동시발행 번호 distinct) + 헬스 29/29.
 
-**다음 후보(미착수):** AI 생성물 재수정/재생성 UX 통일(Irene이 골랐다가 청구로 전환) · recurring_invoice.js/invoices.js nextInvoiceNumber 동일 fix · iOS Capacitor · lua reviewing 13건.
+**✅ nextInvoiceNumber 3엔진 통일 fix 운영 라이브 (v1.39.1, `25e1356`)** — recurring_invoice.js(프로젝트 정기)·invoices.js(수동)도 clientSubscriptionBilling 과 동일 robust max-scan 적용. 운영 3파일 반영 확인. 운영 invoice 번호 정합(다음 INV-2026-0002).
+
+**다음 후보(미착수):** AI 생성물 재수정/재생성 UX 통일(Irene이 골랐다가 청구로 전환) · iOS Capacitor · lua reviewing 13건.
 
 **#49 참고:** nginx 변경 불필요였음(N+23 $planq_share_bot 봇 라우팅 기존 존재). ogMetaMiddleware 가 posts/sign 만 처리하던 것을 전 타입으로 확장한 게 fix.
 - #53 개인 외부연동 정의 — 개인 vs 팀 연동 명확화 + 전수 검증.

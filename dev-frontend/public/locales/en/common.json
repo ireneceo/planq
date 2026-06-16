@@ -584,5 +584,11 @@
       "done": "Done",
       "wontfix": "Won’t fix"
     }
+  },
+  "aiRegen": {
+    "btn": "Regenerate",
+    "placeholder": "How should it change? (empty = regenerate as-is)",
+    "go": "Regenerate",
+    "running": "Generating…"
   }
 }

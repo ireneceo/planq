@@ -594,7 +594,7 @@ router.post('/', authenticateToken, async (req, res, next) => {
 // ============================================
 router.post('/ai-create', authenticateToken, async (req, res, next) => {
   try {
-    const { business_id, project_id, prompt, target_date, language, mode } = req.body;
+    const { business_id, project_id, prompt, target_date, language, mode, instruction } = req.body;
     if (!business_id) return errorResponse(res, 'business_id required', 400);
     if (!prompt || !String(prompt).trim()) return errorResponse(res, 'prompt required', 400);
 
@@ -635,6 +635,7 @@ router.post('/ai-create', authenticateToken, async (req, res, next) => {
       todayLocal,
       language: language || (req.user.language === 'en' ? 'en' : 'ko'),
       mode: mode === 'quick' ? 'quick' : null,
+      instruction: instruction || null,  // 운영 — 재생성 지시
     });
 
     return successResponse(res, {
