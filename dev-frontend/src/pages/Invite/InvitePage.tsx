@@ -22,7 +22,7 @@ const InvitePage: React.FC = () => {
   const { token } = useParams<{ token: string }>();
   const { t } = useTranslation('common');
   const { t: tErr } = useTranslation('errors');
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
   const navigate = useNavigate();
 
   const [info, setInfo] = useState<InviteInfo | null>(null);
@@ -54,6 +54,8 @@ const InvitePage: React.FC = () => {
       const body = await r.json();
       // 이미 수락된 초대면 에러 대신 자연스럽게 진입 (자동 수락 경합 방어)
       if (!body.success && body.message !== 'already_accepted') throw new Error(body.message);
+      // 수락으로 새로 연결된 워크스페이스(고객)를 user 에 반영 — 무워크스페이스 가입 직후 진입 보장
+      try { await refreshUser(); } catch { /* noop */ }
       navigate(body.data?.redirect || (info?.type === 'workspace_member' ? '/dashboard' : '/talk'));
     } catch (err: unknown) {
       setError(mapApiError(err, tErr));
