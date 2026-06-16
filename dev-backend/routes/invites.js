@@ -227,9 +227,11 @@ async function notifyInviterOnAccept(inviterUserId, projectId, kind, accepterUse
     workspace_client: '초대한 고객이 가입했습니다',
     project_client: '프로젝트 고객이 초대를 수락했습니다',
   };
+  // 상대경로 사용 — notify() normalizeLink + 클릭 시 resolveNotificationLink 정합 (N+74-D 박제).
+  //   프로젝트 상세 실 라우트는 /projects/p/:id (옛 /q-project/:id 는 존재하지 않아 404 회귀였음).
   const link = projectId
-    ? `${process.env.APP_URL || 'https://dev.planq.kr'}/q-project/${projectId}`
-    : `${process.env.APP_URL || 'https://dev.planq.kr'}/business/clients`;
+    ? `/projects/p/${projectId}`
+    : `/business/clients`;
   await notify({
     userId: inviterUserId, businessId, eventKind: 'invite',
     title: titleMap[kind] || '초대 수락',
