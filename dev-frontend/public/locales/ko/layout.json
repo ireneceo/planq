@@ -118,6 +118,13 @@
       "member": "멤버",
       "client": "고객",
       "ai": "AI"
-    }
+    },
+    "createWorkspace": "새 워크스페이스 만들기",
+    "createDesc": "내 소유의 새 워크스페이스를 만듭니다. 14일 무료 체험이 시작됩니다.",
+    "createPlaceholder": "워크스페이스 이름 (예: 우리회사)",
+    "createError": "생성 실패",
+    "creating": "만드는 중…",
+    "create": "만들기",
+    "cancel": "취소"
   }
 }
