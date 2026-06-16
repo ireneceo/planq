@@ -18,6 +18,9 @@ export interface EmailAccountRow {
   smtp_tls: boolean | null;
   is_active: boolean;
   is_default: boolean;
+  owner_user_id: number | null;
+  is_personal: boolean;
+  scope: 'team' | 'personal';
   last_sync_at: string | null;
   last_sync_error: string | null;
   fail_count: number;
@@ -42,6 +45,7 @@ export interface EmailAccountInput {
   smtp_password?: string;
   smtp_tls?: boolean;
   is_active?: boolean;
+  scope?: 'team' | 'personal';   // POST 시 계정 범위 (회사 공용/개인). 편집 시 무시.
 }
 
 async function handle<T>(r: Response): Promise<T> {

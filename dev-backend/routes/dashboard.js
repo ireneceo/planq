@@ -422,15 +422,28 @@ async function collectCandidates(businessId, currentUserId, userRole) {
 }
 
 /* ─────────────────────────────────────────────
-   미수금 / 연체 청구서 — owner/admin 만 보도록 collectInvoices 호출 시 가드
+   결제 대기 청구서 — "결제"는 수신자(고객)의 할 일.
+   → 발행자(owner/admin/member) 인박스에는 노출 X (미수금/연체는 Q Bill Overview 에서 관리).
+   → 고객(client) 본인 인박스에만 본인에게 청구된 건 표시 (verb='pay').
+   (옛 버그: role/recipient 필터 없이 워크스페이스 전 청구서를 발행자·고객 모두에게 'pay' 로 노출 →
+    ① 발행자가 자기가 보낸 청구서를 "확인 필요"로 받음  ② 고객이 남의 청구서까지 봄)
    ──────────────────────────────────────────── */
-async function collectInvoices(businessId) {
+async function collectInvoices(businessId, userRole, userId) {
   if (!businessId) return [];
+  // 결제는 고객의 액션 — 발행자(merchant) 인박스에서는 제외
+  if (userRole !== 'client') return [];
+  // 이 사용자의 client row (이 워크스페이스 한정) — 본인에게 청구된 건만
+  const cli = await Client.findOne({
+    where: { user_id: userId, business_id: businessId, status: 'active' },
+    attributes: ['id'],
+  });
+  if (!cli) return [];
   const today = new Date();
   const todayStr = today.toISOString().slice(0, 10);
   const invoices = await Invoice.findAll({
     where: {
       business_id: businessId,
+      client_id: cli.id,
       status: { [Op.in]: ['sent', 'overdue'] },
       // notify_paid_at 이 있는 건은 collectPaymentNotifies 가 처리 (중복 방지)
       notify_paid_at: null,
@@ -811,7 +824,7 @@ router.get('/todo', authenticateToken, async (req, res, next) => {
         // dashboard 인박스에서 제거 (옛 N+26 박제 reverse) — "확인요청 (대기)" 그룹에 섞여 사용자 혼란 유발.
         // collectCandidates 함수 자체는 보존 (향후 별도 카테고리 또는 옵트인 활용 가능성).
         Promise.resolve([]),
-        collectInvoices(w.business_id),
+        collectInvoices(w.business_id, userRole, userId),
         collectSignatures(w.business_id, req.user.email, userRole),
         collectPaymentNotifies(w.business_id, userRole),
         collectTaxInvoices(w.business_id, userRole),

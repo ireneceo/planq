@@ -4,7 +4,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
-import PageShell from '../../components/Layout/PageShell';
 import DetailDrawer from '../../components/Common/DetailDrawer';
 import PlanQSelect, { type PlanQSelectOption } from '../../components/Common/PlanQSelect';
 import { useAuth } from '../../contexts/AuthContext';
@@ -19,6 +18,9 @@ const EmailAccountSettings: React.FC = () => {
   const { t } = useTranslation('qmail');
   const { user } = useAuth();
   const businessId = user?.business_id ? Number(user.business_id) : null;
+  const isAdmin = user?.business_role === 'owner' || user?.business_role === 'admin' || user?.platform_role === 'platform_admin';
+  // 추가할 계정의 범위: 회사 공용(team, admin 만) | 개인(personal). 멤버 기본 = 개인.
+  const [addScope, setAddScope] = useState<'team' | 'personal'>(isAdmin ? 'team' : 'personal');
 
   const [accounts, setAccounts] = useState<EmailAccountRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -41,11 +43,7 @@ const EmailAccountSettings: React.FC = () => {
   useEffect(() => { load(); }, [load]);
 
   if (!businessId) {
-    return (
-      <PageShell title={t('settings.title', 'Q Mail 계정') as string}>
-        <Empty>{t('settings.noWorkspace', '워크스페이스를 먼저 선택하세요') as string}</Empty>
-      </PageShell>
-    );
+    return <Empty>{t('settings.noWorkspace', '워크스페이스를 먼저 선택하세요') as string}</Empty>;
   }
 
   const handleTest = async (id: number) => {
@@ -92,15 +90,84 @@ const EmailAccountSettings: React.FC = () => {
     return d.toLocaleDateString();
   };
 
+  const connectGmail = () => {
+    const ret = encodeURIComponent('/business/settings/mail-accounts');
+    window.location.href = `/api/businesses/${businessId}/email-accounts/oauth/gmail/initiate?return_to=${ret}&scope=${addScope}`;
+  };
+
+  const renderCard = (acc: EmailAccountRow) => (
+    <AccountCard key={acc.id}>
+      <CardHeader>
+        <EmailInfo>
+          <EmailRow>
+            <Email>{acc.email}</Email>
+            {acc.is_personal
+              ? <PersonalBadge>{t('settings.scopePersonal', '개인') as string}</PersonalBadge>
+              : <TeamBadge>{t('settings.scopeTeam', '회사 공용') as string}</TeamBadge>}
+            {acc.is_default && <DefaultBadge>{t('settings.default', '기본') as string}</DefaultBadge>}
+            {!acc.is_active && <InactiveBadge>{t('settings.inactive', '비활성') as string}</InactiveBadge>}
+          </EmailRow>
+          {acc.display_name && <DisplayName>{acc.display_name}</DisplayName>}
+          <MetaRow>
+            <MetaItem>IMAP: {acc.imap_host}:{acc.imap_port}</MetaItem>
+            <MetaItem>•</MetaItem>
+            <MetaItem>{t('settings.lastSync', '마지막 동기화') as string}: {formatLastSync(acc.last_sync_at)}</MetaItem>
+            {acc.fail_count > 0 && <ErrorBadge>{t('settings.failCount', '{{n}}회 실패', { n: acc.fail_count }) as string}</ErrorBadge>}
+          </MetaRow>
+          {acc.last_sync_error && <ErrorMsg>⚠️ {acc.last_sync_error}</ErrorMsg>}
+          {testResult[acc.id] && (
+            testResult[acc.id].ok ? (
+              <TestSuccess>✓ {t('settings.testOk', '연결 성공') as string}</TestSuccess>
+            ) : (
+              <TestError>✗ {testResult[acc.id].error || t('settings.testFail', '연결 실패') as string}</TestError>
+            )
+          )}
+        </EmailInfo>
+        <CardActions>
+          <ActionBtn type="button" onClick={() => handleTest(acc.id)} disabled={testingId === acc.id}>
+            {testingId === acc.id ? t('settings.testing', '테스트 중...') as string : t('settings.test', '연결 테스트') as string}
+          </ActionBtn>
+          {!acc.is_default && !acc.is_personal && (
+            <ActionBtn type="button" onClick={() => handleSetDefault(acc.id)}>
+              {t('settings.setDefault', '기본으로') as string}
+            </ActionBtn>
+          )}
+          <ActionBtn type="button" onClick={() => handleSyncNow(acc.id)}>
+            {t('settings.syncNow', '지금 동기화') as string}
+          </ActionBtn>
+          <ActionBtn type="button" onClick={() => setEditing(acc)}>
+            {t('settings.edit', '편집') as string}
+          </ActionBtn>
+          <DangerActionBtn type="button" onClick={() => setDeletingId(acc.id)}>
+            {t('settings.deactivate', '비활성화') as string}
+          </DangerActionBtn>
+        </CardActions>
+      </CardHeader>
+    </AccountCard>
+  );
+
+  const teamAccounts = accounts.filter(a => !a.is_personal);
+  const personalAccounts = accounts.filter(a => a.is_personal);
+
   return (
-    <PageShell
-      title={t('settings.title', 'Q Mail 계정') as string}
-      actions={
+    <Wrap>
+      <Toolbar>
+        <ScopeToggle role="group" aria-label={t('settings.scopeToggleLabel', '추가할 계정 범위') as string}>
+          <ScopeOption
+            type="button"
+            $active={addScope === 'team'}
+            disabled={!isAdmin}
+            title={!isAdmin ? (t('settings.teamAdminOnly', '회사 공용 메일은 관리자만 추가할 수 있어요') as string) : undefined}
+            onClick={() => setAddScope('team')}
+          >
+            {t('settings.scopeTeam', '회사 공용') as string}
+          </ScopeOption>
+          <ScopeOption type="button" $active={addScope === 'personal'} onClick={() => setAddScope('personal')}>
+            {t('settings.scopePersonal', '개인') as string}
+          </ScopeOption>
+        </ScopeToggle>
         <ActionsRow>
-          <GoogleConnectBtn type="button" onClick={() => {
-            const ret = encodeURIComponent('/business/settings/mail-accounts');
-            window.location.href = `/api/businesses/${businessId}/email-accounts/oauth/gmail/initiate?return_to=${ret}`;
-          }}>
+          <GoogleConnectBtn type="button" onClick={connectGmail}>
             <GoogleIcon viewBox="0 0 24 24">
               <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
               <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
@@ -111,9 +178,9 @@ const EmailAccountSettings: React.FC = () => {
           </GoogleConnectBtn>
           <AddBtn type="button" onClick={() => setEditing('new')}>+ {t('settings.add', '계정 추가') as string}</AddBtn>
         </ActionsRow>
-      }
-    >
-      <Hint>{t('settings.hint', '회사 메일 계정을 등록하면 PlanQ 인박스에서 메일을 받고 답장할 수 있어요. (5분마다 자동 동기화)') as string}</Hint>
+      </Toolbar>
+
+      <Hint>{t('settings.hintScope', '회사 공용 메일은 모든 팀원이 인박스에서 함께 보고, 개인 메일은 본인에게만 보입니다. (5분마다 자동 동기화)') as string}</Hint>
       <Hint>{t('settings.hintOauth', '💡 Gmail 사용자라면 \"Gmail 로 연결\" 버튼이 가장 간편해요 — 앱 비밀번호 발급 불필요') as string}</Hint>
 
       {loading ? (
@@ -126,55 +193,20 @@ const EmailAccountSettings: React.FC = () => {
           <PrimaryBtn type="button" onClick={() => setEditing('new')}>{t('settings.addFirst', '첫 계정 등록') as string}</PrimaryBtn>
         </EmptyCard>
       ) : (
-        <AccountList>
-          {accounts.map(acc => (
-            <AccountCard key={acc.id}>
-              <CardHeader>
-                <EmailInfo>
-                  <EmailRow>
-                    <Email>{acc.email}</Email>
-                    {acc.is_default && <DefaultBadge>{t('settings.default', '기본') as string}</DefaultBadge>}
-                    {!acc.is_active && <InactiveBadge>{t('settings.inactive', '비활성') as string}</InactiveBadge>}
-                  </EmailRow>
-                  {acc.display_name && <DisplayName>{acc.display_name}</DisplayName>}
-                  <MetaRow>
-                    <MetaItem>IMAP: {acc.imap_host}:{acc.imap_port}</MetaItem>
-                    <MetaItem>•</MetaItem>
-                    <MetaItem>{t('settings.lastSync', '마지막 동기화') as string}: {formatLastSync(acc.last_sync_at)}</MetaItem>
-                    {acc.fail_count > 0 && <ErrorBadge>{t('settings.failCount', '{{n}}회 실패', { n: acc.fail_count }) as string}</ErrorBadge>}
-                  </MetaRow>
-                  {acc.last_sync_error && <ErrorMsg>⚠️ {acc.last_sync_error}</ErrorMsg>}
-                  {testResult[acc.id] && (
-                    testResult[acc.id].ok ? (
-                      <TestSuccess>✓ {t('settings.testOk', '연결 성공') as string}</TestSuccess>
-                    ) : (
-                      <TestError>✗ {testResult[acc.id].error || t('settings.testFail', '연결 실패') as string}</TestError>
-                    )
-                  )}
-                </EmailInfo>
-                <CardActions>
-                  <ActionBtn type="button" onClick={() => handleTest(acc.id)} disabled={testingId === acc.id}>
-                    {testingId === acc.id ? t('settings.testing', '테스트 중...') as string : t('settings.test', '연결 테스트') as string}
-                  </ActionBtn>
-                  {!acc.is_default && (
-                    <ActionBtn type="button" onClick={() => handleSetDefault(acc.id)}>
-                      {t('settings.setDefault', '기본으로') as string}
-                    </ActionBtn>
-                  )}
-                  <ActionBtn type="button" onClick={() => handleSyncNow(acc.id)}>
-                    {t('settings.syncNow', '지금 동기화') as string}
-                  </ActionBtn>
-                  <ActionBtn type="button" onClick={() => setEditing(acc)}>
-                    {t('settings.edit', '편집') as string}
-                  </ActionBtn>
-                  <DangerActionBtn type="button" onClick={() => setDeletingId(acc.id)}>
-                    {t('settings.deactivate', '비활성화') as string}
-                  </DangerActionBtn>
-                </CardActions>
-              </CardHeader>
-            </AccountCard>
-          ))}
-        </AccountList>
+        <>
+          {teamAccounts.length > 0 && (
+            <Group>
+              <GroupTitle>{t('settings.groupTeam', '회사 공용 메일') as string}</GroupTitle>
+              <AccountList>{teamAccounts.map(renderCard)}</AccountList>
+            </Group>
+          )}
+          {personalAccounts.length > 0 && (
+            <Group>
+              <GroupTitle>{t('settings.groupPersonal', '내 개인 메일') as string}</GroupTitle>
+              <AccountList>{personalAccounts.map(renderCard)}</AccountList>
+            </Group>
+          )}
+        </>
       )}
 
       {/* 등록/편집 모달 */}
@@ -188,6 +220,7 @@ const EmailAccountSettings: React.FC = () => {
           <AccountEditForm
             initial={editing === 'new' ? null : editing}
             businessId={businessId}
+            scope={editing === 'new' ? addScope : (editing.is_personal ? 'personal' : 'team')}
             onSaved={async () => { setEditing(null); await load(); }}
             onClose={() => setEditing(null)}
           />
@@ -207,7 +240,7 @@ const EmailAccountSettings: React.FC = () => {
           </ConfirmCard>
         </ConfirmBackdrop>
       )}
-    </PageShell>
+    </Wrap>
   );
 };
 
@@ -215,11 +248,12 @@ const EmailAccountSettings: React.FC = () => {
 interface FormProps {
   initial: EmailAccountRow | null;
   businessId: number;
+  scope: 'team' | 'personal';
   onSaved: () => void | Promise<void>;
   onClose: () => void;
 }
 
-const AccountEditForm: React.FC<FormProps> = ({ initial, businessId, onSaved, onClose }) => {
+const AccountEditForm: React.FC<FormProps> = ({ initial, businessId, scope, onSaved, onClose }) => {
   const { t } = useTranslation('qmail');
   const isEdit = !!initial;
   const [preset, setPreset] = useState<string>(isEdit ? 'custom' : 'gmail');
@@ -293,7 +327,7 @@ const AccountEditForm: React.FC<FormProps> = ({ initial, businessId, onSaved, on
       if (isEdit) {
         await updateEmailAccount(businessId, initial!.id, payload);
       } else {
-        await createEmailAccount(businessId, payload);
+        await createEmailAccount(businessId, { ...payload, scope });
       }
       await onSaved();
     } catch (e) {
@@ -312,6 +346,13 @@ const AccountEditForm: React.FC<FormProps> = ({ initial, businessId, onSaved, on
       </DetailDrawer.Header>
       <DetailDrawer.Body>
         <Form>
+          {!isEdit && (
+            <ScopeNote $personal={scope === 'personal'}>
+              {scope === 'personal'
+                ? t('settings.scopeNotePersonal', '개인 메일 — 나에게만 보입니다.') as string
+                : t('settings.scopeNoteTeam', '회사 공용 메일 — 모든 팀원이 인박스에서 함께 봅니다.') as string}
+            </ScopeNote>
+          )}
           {!isEdit && (
             <Field>
               <Label>{t('settings.preset', '서비스') as string}</Label>
@@ -441,6 +482,47 @@ const AccountEditForm: React.FC<FormProps> = ({ initial, businessId, onSaved, on
 export default EmailAccountSettings;
 
 // ─── styled ────────────────────────────────────
+const Wrap = styled.div`display: flex; flex-direction: column;`;
+const Toolbar = styled.div`
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; flex-wrap: wrap; margin-bottom: 16px;
+`;
+const ScopeToggle = styled.div`
+  display: inline-flex; padding: 3px;
+  background: #F1F5F9; border: 1px solid #E2E8F0; border-radius: 8px;
+`;
+const ScopeOption = styled.button<{ $active: boolean }>`
+  height: 30px; padding: 0 14px;
+  border: none; border-radius: 6px;
+  font-size: 13px; font-weight: 600; cursor: pointer;
+  background: ${p => p.$active ? '#FFFFFF' : 'transparent'};
+  color: ${p => p.$active ? '#0F172A' : '#64748B'};
+  box-shadow: ${p => p.$active ? '0 1px 2px rgba(0,0,0,0.05)' : 'none'};
+  transition: all 0.15s;
+  &:hover:not(:disabled):not([data-active="true"]) { color: #0F172A; }
+  &:disabled { opacity: 0.45; cursor: not-allowed; }
+  &:focus-visible { outline: 2px solid #5EEAD4; outline-offset: 2px; }
+`;
+const Group = styled.div`margin-bottom: 24px;`;
+const GroupTitle = styled.div`
+  font-size: 13px; font-weight: 700; color: #334155;
+  margin-bottom: 10px;
+`;
+const TeamBadge = styled.span`
+  font-size: 11px; font-weight: 700; padding: 2px 8px;
+  background: #E0F2FE; color: #075985; border-radius: 12px;
+`;
+const PersonalBadge = styled.span`
+  font-size: 11px; font-weight: 700; padding: 2px 8px;
+  background: #F1F5F9; color: #475569; border-radius: 12px;
+`;
+const ScopeNote = styled.div<{ $personal: boolean }>`
+  font-size: 12px; font-weight: 600; line-height: 1.5;
+  padding: 10px 12px; border-radius: 8px;
+  background: ${p => p.$personal ? '#F8FAFC' : '#EFF6FF'};
+  color: ${p => p.$personal ? '#475569' : '#1E40AF'};
+  border: 1px solid ${p => p.$personal ? '#E2E8F0' : '#BFDBFE'};
+`;
 const Hint = styled.p`font-size: 13px; color: #64748B; margin: 0 0 20px; line-height: 1.6;`;
 const Loading = styled.div`padding: 40px; text-align: center; color: #94A3B8;`;
 const EmptyCard = styled.div`

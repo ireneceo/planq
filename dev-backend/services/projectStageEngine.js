@@ -360,8 +360,8 @@ async function deriveActionForStage(stage, projectId) {
       if (invoices.length === 0) {
         // 청구서 없음 → 계약 기반 발행 유도 (D2 prefill 흐름 사용)
         const link = latestPostId
-          ? `/bills?tab=invoices&new=1&split=1&from_post=${latestPostId}`
-          : `/bills?tab=invoices&new=1`;
+          ? `/bills?tab=invoices&new=1&split=1&from_post=${latestPostId}&project=${projectId}`
+          : `/bills?tab=invoices&new=1&project=${projectId}`;
         return { ...base, action_kind: 'create_invoice', label: '청구서 발행하기', hint: '계약 기반으로 청구서를 만듭니다', link };
       }
       // 알림 받은 회차 우선
