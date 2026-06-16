@@ -12,7 +12,7 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import styled from 'styled-components';
 import { io, type Socket } from 'socket.io-client';
 import { useTranslation } from 'react-i18next';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import PageShell from '../../components/Layout/PageShell';
 import PanelHeader, { PanelTitle, PanelSubTitle, PanelMetaTitle } from '../../components/Layout/PanelHeader';
 import { PanelLayout, Panel } from '../../components/Layout/PanelLayout';
@@ -105,6 +105,7 @@ const MailPage: React.FC = () => {
   );
   const threadIdParam = sp.get('thread');
   const activeId = threadIdParam ? Number(threadIdParam) : null;
+  const navigate = useNavigate();
   // 계정(회사/개인) 필터 — null = 전체 (외부 연동 Phase 3)
   const accountParam = sp.get('account');
   const accountFilter = accountParam ? Number(accountParam) : null;
@@ -658,16 +659,24 @@ const MailPage: React.FC = () => {
             <SearchClear type="button" onClick={() => setSearchQ('')} aria-label={t('search.clear', { defaultValue: '검색 지우기' }) as string}>×</SearchClear>
           )}
         </SearchRow>
-        {accounts.length > 1 && (
+        {/* 운영 #55 — 계정이 1개 이상이면 All/주소별 선택 칩 노출 (여러 주소 가져오기 시 주소별 보기).
+            "전체"는 계정이 2개 이상일 때만 (1개면 굳이 불필요). 항상 "메일 계정 관리" 진입로 노출 → "어디서 설정". */}
+        {accounts.length >= 1 && (
           <AcctFilterRow>
-            <AcctChip type="button" $active={accountFilter === null} onClick={() => setAccount(null)}>
-              {t('accounts.all', { defaultValue: '전체' }) as string}
-            </AcctChip>
+            {accounts.length > 1 && (
+              <AcctChip type="button" $active={accountFilter === null} onClick={() => setAccount(null)}>
+                {t('accounts.all', { defaultValue: '전체' }) as string}
+              </AcctChip>
+            )}
             {accounts.map((a) => (
               <AcctChip key={a.id} type="button" $active={accountFilter === a.id} onClick={() => setAccount(a.id)} title={a.email}>
                 {a.display_name || a.email}{a.unread > 0 ? ` ${a.unread}` : ''}
               </AcctChip>
             ))}
+            <AcctManageChip type="button" onClick={() => navigate('/business/settings/mail-accounts')}
+              title={t('accounts.manageTitle', { defaultValue: '메일 계정 추가·설정' }) as string}>
+              {t('accounts.manage', { defaultValue: '계정 관리' }) as string}
+            </AcctManageChip>
           </AcctFilterRow>
         )}
           {faqSuggestions.length > 0 && (
@@ -702,6 +711,18 @@ const MailPage: React.FC = () => {
               <Spinner />
               {t('loading', { defaultValue: '불러오는 중…' }) as string}
             </Loading>
+          ) : (accounts.length === 0 && !qDebounced) ? (
+            /* 운영 #55 — 연결된 메일 계정이 없을 때: 어디서·어떻게 가져오는지 명확히 안내 + 연결 CTA */
+            <EmptyList>
+              <EmptyIcon viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <path d="M22 6l-10 7L2 6" /><rect x="2" y="4" width="20" height="16" rx="2" />
+              </EmptyIcon>
+              <EmptyText>{t('noAccount.title', { defaultValue: '아직 연결된 메일 계정이 없어요' }) as string}</EmptyText>
+              <NoAcctHint>{t('noAccount.desc', { defaultValue: 'Gmail 또는 IMAP 메일 계정을 연결하면 Q Mail에서 받은 메일을 함께 보고 답장할 수 있어요. 여러 계정을 연결하면 주소별로도 볼 수 있어요.' }) as string}</NoAcctHint>
+              <NoAcctBtn type="button" onClick={() => navigate('/business/settings/mail-accounts')}>
+                {t('noAccount.cta', { defaultValue: '메일 계정 연결하기' }) as string}
+              </NoAcctBtn>
+            </EmptyList>
           ) : threads.length === 0 ? (
             <EmptyList>
               <EmptyIcon viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
@@ -1123,6 +1144,25 @@ const AcctChip = styled.button<{ $active: boolean }>`
   color: ${p => p.$active ? '#0F766E' : '#64748B'};
   max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   &:hover { border-color: #5EEAD4; }
+`;
+// 운영 #55 — 계정 관리(설정) 진입 칩 (dashed, 보조 액션)
+const AcctManageChip = styled.button`
+  padding: 3px 10px; border-radius: 999px;
+  font-size: 11px; font-weight: 600; cursor: pointer;
+  border: 1px dashed #CBD5E1; background: transparent; color: #64748B;
+  margin-left: auto;
+  &:hover { border-color: #14B8A6; color: #0F766E; }
+`;
+// 운영 #55 — 계정 미연결 빈 상태
+const NoAcctHint = styled.div`
+  font-size: 12px; color: #64748B; line-height: 1.6;
+  max-width: 320px; text-align: center; margin-top: 6px;
+`;
+const NoAcctBtn = styled.button`
+  margin-top: 16px; padding: 0 18px; height: 40px;
+  background: #14B8A6; color: #FFFFFF; border: none; border-radius: 8px;
+  font-size: 13px; font-weight: 700; cursor: pointer;
+  &:hover { background: #0D9488; }
 `;
 
 // 새 메일 작성 버튼 — Q Talk NewChatBtn 과 동일값

@@ -148,5 +148,15 @@
     "noteVisTeam": "👥 팀 공유",
     "collapse": "패널 접기",
     "expand": "맥락 패널 펼치기"
+  },
+  "accounts": {
+    "all": "전체",
+    "manage": "계정 관리",
+    "manageTitle": "메일 계정 추가·설정"
+  },
+  "noAccount": {
+    "title": "아직 연결된 메일 계정이 없어요",
+    "desc": "Gmail 또는 IMAP 메일 계정을 연결하면 Q Mail에서 받은 메일을 함께 보고 답장할 수 있어요. 여러 계정을 연결하면 주소별로도 볼 수 있어요.",
+    "cta": "메일 계정 연결하기"
   }
 }
