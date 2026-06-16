@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
+import { useAuth } from '../../contexts/AuthContext';
 import type { CalendarEvent, EventCategory } from './types';
 import VisibilityField, { serializeVisibility, parseVisibility, type VisibilityValue } from '../../components/Common/VisibilityField';
 import { CATEGORY_OPTIONS, getEventColors } from './categoryColors';
@@ -69,6 +70,11 @@ const EventDrawer: React.FC<Props> = ({
   onClose, onUpdate, onDelete, onCreateMeetingRoom, gcalConnected,
 }) => {
   const { t, i18n } = useTranslation('qcalendar');
+  const { user } = useAuth();
+  // 운영 #41 — 워크스페이스 tz 기본 + 개인 tz 보조표시
+  const wsTz = user?.workspace_timezone || Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const personalTz = user?.timezone || null;
+  const showPersonalTz = !!personalTz && personalTz !== wsTz;
   // formatRRuleLabel 은 qtask 네임스페이스의 recur.* 키를 사용
   const { t: tQtask } = useTranslation('qtask');
   const [copied, setCopied] = useState(false);
@@ -313,8 +319,16 @@ const EventDrawer: React.FC<Props> = ({
               </ScheduleEditor>
             ) : (
               <>
-                <DateLine>{formatDateTimeReadOnly(start, i18n.language)}</DateLine>
-                <DateLine>→ {formatDateTimeReadOnly(end, i18n.language)}</DateLine>
+                <DateLine>{formatDateTimeInTz(start, i18n.language, wsTz)}</DateLine>
+                <DateLine>→ {formatDateTimeInTz(end, i18n.language, wsTz)}</DateLine>
+                {/* 운영 #41 — 기준 타임존(워크스페이스) 명시 */}
+                <TzNote>{t('tz.workspaceBasis', { tz: tzAbbr(start, wsTz, i18n.language), defaultValue: '{{tz}} · 워크스페이스 기준' }) as string}</TzNote>
+                {/* 개인 타임존이 다르면 보조 시간 표시 (같거나 미설정이면 숨김) */}
+                {showPersonalTz && personalTz && (
+                  <TzNote $alt>
+                    {t('tz.yourTime', { defaultValue: '내 시간대' }) as string} ({tzAbbr(start, personalTz, i18n.language)}): {formatDateTimeInTz(start, i18n.language, personalTz)} → {formatDateTimeInTz(end, i18n.language, personalTz)}
+                  </TzNote>
+                )}
                 {event.all_day && <MutedSmall>{t('allDay', '종일')}</MutedSmall>}
               </>
             )}
@@ -757,10 +771,29 @@ const EventDrawer: React.FC<Props> = ({
 };
 
 // ─── read-only 일 때 시간 표시 헬퍼 ───
-function formatDateTimeReadOnly(d: Date, lang: string): string {
+// 운영 #41 — 특정 타임존(워크스페이스/개인) 기준으로 날짜+시간 포맷.
+function formatDateTimeInTz(d: Date, lang: string, tz: string): string {
   const locale = lang === 'en' ? 'en-US' : 'ko-KR';
-  const dateFmt = new Intl.DateTimeFormat(locale, { year: 'numeric', month: 'short', day: 'numeric', weekday: 'short' });
-  return `${dateFmt.format(d)} ${formatTime(d)}`;
+  try {
+    return new Intl.DateTimeFormat(locale, {
+      year: 'numeric', month: 'short', day: 'numeric', weekday: 'short',
+      hour: '2-digit', minute: '2-digit', timeZone: tz,
+    }).format(d);
+  } catch {
+    // 잘못된 tz fallback — 브라우저 로컬
+    const dateFmt = new Intl.DateTimeFormat(locale, { year: 'numeric', month: 'short', day: 'numeric', weekday: 'short' });
+    return `${dateFmt.format(d)} ${formatTime(d)}`;
+  }
+}
+// 타임존 짧은 라벨 (예: KST, GMT+9). 실패 시 IANA 이름 끝부분.
+function tzAbbr(d: Date, tz: string, lang: string): string {
+  const locale = lang === 'en' ? 'en-US' : 'ko-KR';
+  try {
+    const parts = new Intl.DateTimeFormat(locale, { timeZone: tz, timeZoneName: 'short' }).formatToParts(d);
+    return parts.find((p) => p.type === 'timeZoneName')?.value || tz.split('/').pop() || tz;
+  } catch {
+    return tz.split('/').pop() || tz;
+  }
 }
 
 export default EventDrawer;
@@ -825,6 +858,11 @@ const DateLine = styled.div`
 `;
 const MutedSmall = styled.div`
   font-size: 11px; font-weight: 500; color: #94A3B8; text-transform: uppercase; letter-spacing: 0.4px;
+`;
+// 운영 #41 — 타임존 안내 (기준 tz / 개인 tz 보조)
+const TzNote = styled.div<{ $alt?: boolean }>`
+  font-size: 11px; font-weight: 500; margin-top: 2px;
+  color: ${p => p.$alt ? '#0F766E' : '#94A3B8'};
 `;
 const Plain = styled.div` font-size: 13px; color: #334155; `;
 const Muted = styled.span` font-size: 12px; color: #94A3B8; font-style: italic; `;

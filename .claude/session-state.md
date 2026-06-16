@@ -32,9 +32,13 @@
 **#54 Part 1 완료·커밋(`c9eff31`)·미배포** — MyFeedbackPage 검색+분류+상태 필터(PageShell actions). 빌드 green·i18n ok.
 **#54 Part 2 (미착수)** — Q Note 카테고리/태그(메모·음성 통합 분류+필터, Q docs 패턴). qnote `sessions`(MySQL)에 category/tags 컬럼 없음 → **Python qnote 스키마 ALTER + 모델/CRUD + 프론트 필터 UI** 필요한 별도 청크. routers/sessions.py.
 
+**✅ #54 Part1+2 운영 라이브 (v1.38.0, commit `d35110c`).** MyFeedback 필터 + Q Note 카테고리/태그(메모·음성 통합). 운영 qnote.db category/tags 컬럼 자동추가 확인. qnote E2E 6/6.
+
+**진행 중 — #41 Q Calendar 타임존.**
+
 **남은 그룹 — 전부 기획설계 위임형(Irene이 "탁월하게 판단해줘"):**
 - #49 SNS OG 메타 — ⚠️ 크롤러용 **서버 OG 주입 + nginx 라우팅(운영 인프라)** 필요. 설계+승인 권장.
-- #41 Q Calendar 타임존 — 워크스페이스 tz 기본 + 개인 tz 보조표시 기획.
+- #41 Q Calendar 타임존 — 워크스페이스 tz 기본 + 개인 tz 보조표시 기획. ← 진행 중
 - #53 개인 외부연동 정의 — 개인 vs 팀 연동 명확화 + 전수 검증.
 - #55 Q Mail 멀티계정 뷰 — All/이메일주소별 인박스.
 - #54 내 문의·QNote 리스트/카테고리 — Q docs 패턴 재사용.
