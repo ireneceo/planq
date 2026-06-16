@@ -142,8 +142,21 @@
       "monthly": "Monthly",
       "weekly": "Weekly",
       "quarterly": "Quarterly",
-      "yearly": "Yearly"
-    }
+      "yearly": "Yearly",
+      "biweekly": "Biweekly",
+      "semiannual": "Semiannual"
+    },
+    "end": {
+      "never": "Until manually stopped",
+      "afterCount": "After N invoices",
+      "untilDate": "Until end date",
+      "label": "End condition",
+      "countLabel": "Total invoices",
+      "dateLabel": "End date (inclusive)"
+    },
+    "completed": "Ended",
+    "errMaxOcc": "Enter end count (1+)",
+    "errEndDate": "Pick an end date"
   },
   "timeline": {
     "title": "Customer Timeline",

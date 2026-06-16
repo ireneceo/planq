@@ -142,8 +142,21 @@
       "monthly": "매월",
       "weekly": "매주",
       "quarterly": "분기",
-      "yearly": "매년"
-    }
+      "yearly": "매년",
+      "biweekly": "격주",
+      "semiannual": "반기"
+    },
+    "end": {
+      "never": "무기한 (수동 종료 전까지)",
+      "afterCount": "지정 회차 후 종료",
+      "untilDate": "종료일까지",
+      "label": "종료 조건",
+      "countLabel": "총 발행 회차",
+      "dateLabel": "종료일 (이 날까지)"
+    },
+    "completed": "종료됨",
+    "errMaxOcc": "종료 회차를 1 이상 입력하세요",
+    "errEndDate": "종료일을 선택하세요"
   },
   "timeline": {
     "title": "고객 통합 타임라인",
