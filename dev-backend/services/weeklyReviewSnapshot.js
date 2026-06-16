@@ -168,7 +168,9 @@ async function buildBurndownData(taskIds, monday) {
   for (let i = 0; i < 7; i++) {
     const date = addDaysStr(monday, i);
     const dayProgs = progresses.filter(p => dayKey(p.snapshot_date) === date);
-    const estimated_cumulative = dayProgs.reduce((s, p) => s + (Number(p.estimated_hours) || 0), 0);
+    // 예측 라인 = Σ(예측시간 × 진행률) — 진행률만큼 예측시간이 "완료"된 누적 (Irene 스펙 2026-06-16).
+    //   (옛: 예측시간 raw 합 → 진행률 무관 flat. 라이브 그래프 est_used 와 동일 정의로 통일.)
+    const estimated_cumulative = dayProgs.reduce((s, p) => s + (Number(p.estimated_hours) || 0) * ((p.progress_percent || 0) / 100), 0);
     const actual_cumulative = dayProgs.reduce((s, p) => s + (Number(p.actual_hours) || 0), 0);
     result.push({
       date,

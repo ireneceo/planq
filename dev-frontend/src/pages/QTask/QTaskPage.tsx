@@ -1209,84 +1209,53 @@ const QTaskPage:React.FC=()=>{
     }catch{}
   };
 
-  // 번다운 — 일별 스냅샷 API 우선 사용, fallback: 진행율 기반 선형 분배
-  // 예측시간: 진행율 % x 예측시간을 작업기간(start~due)에 선형 분배 → 날짜별 누적
-  // 실제시간: 실제시간 x 진행율% 을 작업기간에 선형 분배 → 날짜별 누적
+  // 주간 진척 그래프 (Irene 스펙 2026-06-16):
+  //  - 회색 점선(기준점/이상선): 0 → 이번 주 내 업무 예측시간 총합(weekTotalEst).
+  //  - 예측 라인: Σ(예측시간 × 진행률) 누적 — 진행률 오를수록 0부터 상승, 100% 완료 시 weekTotalEst 도달.
+  //  - 실제 라인: Σ(실제 입력시간) 누적 — 0부터 상승 (actual 미입력분만 예측×진행률 추정).
+  //  데이터: /daily-progress 의 est_used(=Σ예측×진행률)·act_used(=Σ실제) 일별 스냅샷 사용, 오늘은 라이브.
   const computedBurndown=useMemo(()=>{
-    const days:{label:string;date:string;est:number;act:number}[]=[];
+    const days:{label:string;date:string}[]=[];
     const dayNames=[t('weekdayShort.0','일'),t('weekdayShort.1','월'),t('weekdayShort.2','화'),t('weekdayShort.3','수'),t('weekdayShort.4','목'),t('weekdayShort.5','금'),t('weekdayShort.6','토')];
     let cursor=periodFrom;
     while(cursor<=periodTo){
       const [y,m,d]=cursor.split('-').map(Number);
       const dt=new Date(Date.UTC(y,m-1,d));
-      days.push({label:dayNames[dt.getUTCDay()],date:cursor,est:0,act:0});
+      days.push({label:dayNames[dt.getUTCDay()],date:cursor});
       cursor=addDaysStr(cursor,1);
     }
-    // chartTasks = filtered ⋂ 본인담당 ⋂ ¬canceled — 헤더(summary.myEst) 와 완전 동일 단일 출처.
-    // 갭 방지: 리스트에 보이는 본인 task = 그래프 task = 헤더 시간 합. 셋 다 항상 일치.
+    // chartTasks = filtered ⋂ 본인담당 ⋂ ¬canceled — 헤더(summary.myEst) 와 동일 단일 출처.
     const chartTasks=filtered.filter(t=>t.assignee_id===myId&&t.status!=='canceled');
-
-    // estimated_cumulative = horizontal baseline (= summary.myEst)
-    const totalEstimated=chartTasks.reduce((s,t)=>s+(Number(t.estimated_hours)||0),0);
-
-    // actual: per-day 누적 (기존 로직 유지)
-    for(const task of chartTasks){
-      const act=Number(task.actual_hours)||0;
-      const prog=(task.progress_percent||0)/100;
-      // 실제시간: actual_hours 는 이미 실제 투입시간 → 그대로 사용(×progress 곱하면 과소표시 버그).
-      //   actual 미입력 시에만 estimated × progress 로 추정 (100% 완료인데 actual 미입력 케이스 포함).
-      const actUsed = act > 0 ? act : (Number(task.estimated_hours) || 0) * prog;
-      if(actUsed===0)continue;
-      const taskStart=(task.start_date||task.due_date||task.planned_week_start||periodFrom).slice(0,10);
-      const taskEnd=(task.due_date||task.start_date||periodTo).slice(0,10);
-      if(taskEnd<periodFrom||taskStart>periodTo)continue;
-      const startDt=new Date(taskStart);
-      const endDt=new Date(taskEnd);
-      const durDays=Math.max(1,Math.round((endDt.getTime()-startDt.getTime())/86400000)+1);
-      for(let i=0;i<days.length;i++){
-        const curr=days[i].date;
-        if(curr<taskStart)continue;
-        if(curr>taskEnd&&curr>todayStr)break;
-        const isPast=curr<=todayStr;
-        const daysSoFar=Math.min(
-          Math.round((new Date(curr).getTime()-startDt.getTime())/86400000)+1,
-          durDays
-        );
-        const ratio=daysSoFar/durDays;
-        if(isPast)days[i].act+=actUsed*ratio;
-      }
-    }
-    // N+37 — liveActToday 도 actual 미입력 시 estimated*progress 로 추정 (위 actUsed 와 일관성)
-    const liveActToday=chartTasks.reduce((s,t)=>{
-      const a=Number(t.actual_hours)||0;
-      const p=(t.progress_percent||0)/100;
+    // 오늘 라이브 값 (스냅샷은 아침 기준이라 당일 변동 반영 위해 라이브 계산)
+    const liveEstDone=chartTasks.reduce((s,t)=>s+(Number(t.estimated_hours)||0)*((t.progress_percent||0)/100),0);
+    const liveAct=chartTasks.reduce((s,t)=>{
+      const a=Number(t.actual_hours)||0; const p=(t.progress_percent||0)/100;
       return s + (a>0 ? a : (Number(t.estimated_hours)||0)*p);
     },0);
-
-    // 과거: 스냅샷 우선, 오늘: 라이브
     const snapMap=new Map(dailyProgress.map(d=>[d.date.slice(0,10),d]));
     const raw=days.map(d=>{
-      let actVal=0;
-      if(d.date===todayStr){
-        actVal=Math.round(liveActToday*10)/10;
-      } else if(d.date<todayStr){
-        const s=snapMap.get(d.date);
-        if(s)actVal=Math.round(Number(s.act_used)*10)/10;
-        else actVal=Math.round(d.act*10)/10;
-      } else {
-        actVal=0; // 미래는 0
-      }
-      return{label:d.label,estimated_cumulative:Math.round(totalEstimated*10)/10,actual_cumulative:actVal};
+      let estV=0, actV=0;
+      if(d.date===todayStr){ estV=liveEstDone; actV=liveAct; }
+      else if(d.date<todayStr){ const s=snapMap.get(d.date); if(s){ estV=Number(s.est_used)||0; actV=Number(s.act_used)||0; } }
+      // 미래 = 0
+      return{label:d.label,est:Math.round(estV*10)/10,act:Math.round(actV*10)/10};
     });
-    // actual 단조증가 강제. estimated 는 horizontal 이라 그대로.
-    let maxAct=0;
+    // 누적(단조증가) 강제 — 진척·실제는 줄지 않음. 0 인 날(데이터 없음)은 0 유지.
+    let mE=0,mA=0;
     return raw.map(p=>{
-      if(p.actual_cumulative>0)maxAct=Math.max(maxAct,p.actual_cumulative);
-      return{label:p.label,estimated_cumulative:p.estimated_cumulative,actual_cumulative:p.actual_cumulative>0?maxAct:0};
+      if(p.est>0)mE=Math.max(mE,p.est);
+      if(p.act>0)mA=Math.max(mA,p.act);
+      return{label:p.label,estimated_cumulative:p.est>0?mE:0,actual_cumulative:p.act>0?mA:0};
     });
   },[filtered,myId,periodFrom,periodTo,dailyProgress,todayStr]);
 
-  const maxY=Math.max(...computedBurndown.map(p=>Math.max(p.estimated_cumulative,p.actual_cumulative)),effectiveCapacity||1,1);
+  // 이상선(기준점) 종점 = 이번 주 내 업무 예측시간 총합
+  const weekTotalEst=useMemo(()=>{
+    const ct=filtered.filter(t=>t.assignee_id===myId&&t.status!=='canceled');
+    return Math.round(ct.reduce((s,t)=>s+(Number(t.estimated_hours)||0),0)*10)/10;
+  },[filtered,myId]);
+
+  const maxY=Math.max(...computedBurndown.map(p=>Math.max(p.estimated_cumulative,p.actual_cumulative)),weekTotalEst||1,1);
 
   if(!bizId)return<EmptyFull>No workspace</EmptyFull>;
   if(loading)return<EmptyFull>Loading...</EmptyFull>;
@@ -2298,16 +2267,16 @@ const QTaskPage:React.FC=()=>{
                     const cw=W-PL-PR, ch=H-PT-PB;
                     const n=computedBurndown.length;
                     const step=n>1?cw/(n-1):0;
-                    // yMax 에 가용시간(effectiveCapacity)도 포함해야 이상선 끝점이 그래프 안에 표시됨
-                    const yMaxBase=Math.max(maxY, effectiveCapacity||0);
+                    // yMax 에 이상선 종점(weekTotalEst=이번주 예측시간 총합)도 포함해 끝점이 그래프 안에 표시됨
+                    const yMaxBase=Math.max(maxY, weekTotalEst||0);
                     const yMax=Math.ceil(yMaxBase/5)*5||5;
                     const yTicks=[0,yMax/2,yMax];
                     const xy=(i:number,v:number)=>({x:PL+i*step,y:PT+ch-(v/yMax)*ch});
                     const estPts=computedBurndown.map((p,i)=>xy(i,p.estimated_cumulative));
                     const actPts=computedBurndown.map((p,i)=>xy(i,p.actual_cumulative));
-                    // 이상선 — 월요일 0h 에서 마지막 날 가용시간(effectiveCapacity)까지 대각선
+                    // 이상선(기준점) — 월요일 0h 에서 마지막 날 = 이번 주 예측시간 총합(weekTotalEst)까지 대각선
                     const idealStart=xy(0, 0);
-                    const idealEnd=xy(n-1, effectiveCapacity||0);
+                    const idealEnd=xy(n-1, weekTotalEst||0);
                     return(
                       <ChartSVG viewBox={`0 0 ${W} ${H}`}>
                         {yTicks.map((v,i)=>(
@@ -2316,8 +2285,8 @@ const QTaskPage:React.FC=()=>{
                             <text x={PL-4} y={PT+ch-(v/yMax)*ch+3} fontSize="9" fill="#94A3B8" textAnchor="end">{v}h</text>
                           </React.Fragment>
                         ))}
-                        {/* 목표 진척선 — 이상적으로 이렇게 가야 하는 방향 */}
-                        {effectiveCapacity>0 && n>1 && (
+                        {/* 기준점(이상선) — 0 → 이번 주 예측시간 총합 까지 대각선 */}
+                        {weekTotalEst>0 && n>1 && (
                           <line
                             x1={idealStart.x} y1={idealStart.y}
                             x2={idealEnd.x} y2={idealEnd.y}
