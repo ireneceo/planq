@@ -546,3 +546,31 @@ if (session.task_id) {
 > - "근무 시작/종료" 표현은 의도적으로 피했다. PlanQ는 자율적 협업 도구 — "출퇴근 도장" 컨셉은 PlanQ의 자산 (Cue) 과 충돌. **포커스(Focus)** 로 통일하면 자유롭게 켰다 껐다 하며 사용 가능.
 > - 주간보고 자동 확정가 표준이고 수동 확정는 비상용 — 라벨도 그 위계를 반영해야 한다.
 > - default OFF — 회사관리 도구로 오해받지 않도록. 사용자가 명시 ON 했을 때만 위젯 노출.
+
+---
+
+## 5. "이번 주 나의 업무" 리스트 포함 규칙 (canonical) — 2026-06-16 확정
+
+> Q Task `?tab=week` (scope=mine) 리스트 + 우측 주간 진척 그래프가 **이 규칙 단일 출처**로 결정된다.
+> 프론트 `QTaskPage.tsx` week 필터 + 백엔드 `routes/tasks.js GET /my-week` 가 동일 규칙을 따른다.
+> (회귀 배경: 프론트가 "미완료 전부 표시"로 확장되며 옛 not_started backlog 수십 건이 이번 주로 쏟아져
+>  리스트 flood + 그래프 baseline 왜곡. 워프로랩 실사례 61건 중 옛 not_started 36건.)
+
+기준: **담당자 = 나** (또는 pending reviewer). 그 위에서 상태별로:
+
+| 상태 | 이번 주 표시 조건 | 근거 |
+|------|------------------|------|
+| **completed / canceled** | `completed_at` 이 이번 주 범위 안일 때만 | "완료시점이 이번 주"가 기준. 마감이 과거여도 이번 주에 끝냈으면 이번 주 성과. completed_at 없으면 제외(시점 불명) |
+| **not_started (미진행)** | 이번 주 계획(`planned_week_start`=이번주 월) **또는** 이번 주 마감(`due_date`가 이번 주) 일 때만 | 착수 안 한 backlog 가 무한정 쌓이지 않게. "이번 주 것"인 미진행만 노출 |
+| **in_progress / reviewing / revision_requested / waiting** | **날짜 무관 항상 표시** | 한 번 착수한 내 업무는 마감·날짜가 없어도 끝까지 이번 주 책임선. 요청받아 진행 중인 마감 없는 업무도 포함 |
+
+추가 규칙:
+- **pending reviewer**: 내가 컨펌 대기(state=pending) 인 `reviewing`/`revision_requested` 업무는 담당자가 아니어도 표시.
+- **완료 가리기 토글(hideCompletedInWeek)** OFF(기본): 내가 관여(담당/요청/작성/리뷰)한 **이번 주 완료**도 표시. ON 이면 완료 숨김.
+- **정렬**: 완료/취소는 항상 맨 아래.
+- **그래프 점선 종점(weekTotalEst)** = 위 규칙으로 추려진 이번 주 리스트의 예측시간 총합 → 옛 backlog 가 빠져 현실적 baseline.
+
+> **30년차 코멘트**: "이번 주"의 의미는 **"이번 주에 내가 손대야 / 손댄 일"** 이다.
+> not_started 는 아직 안 시작한 일이라 *이번 주로 계획·마감된 것만* 이번 주 일이고,
+> 한 번 시작한(in_progress~) 일은 끝낼 책임이 이번 주에 계속 살아있으니 날짜와 무관하게 남는다.
+> 완료는 *언제 끝냈나(completed_at)* 가 그 일이 어느 주의 성과인지를 결정한다.

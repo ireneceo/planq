@@ -948,19 +948,25 @@ const QTaskPage:React.FC=()=>{
         // 사용자: 기간(periodFrom~periodTo) 기준으로 업무 리스트 + 가용시간 매칭
         // 기간 안에 들어오는 task 중에서 내가 행동해야 하거나 기간 안에 완료한 것
         list=list.filter(t=>{
-          // 1) 기간 검사 — 미완료는 start/due 가 기간과 겹치면, 완료는 completed_at 이 기간 안
-          const startStr=(t.start_date||t.planned_week_start||'').slice(0,10);
-          const dueStr=(t.due_date||'').slice(0,10);
+          // 1) 기간/상태 검사 — "이번 주 나의 업무" canonical 규칙 (docs/WORK_FLOW_DESIGN.md §5).
+          //  - 완료/취소: "완료시점"이 이번 주인 것만 (completed_at 이 기간 안). 마감 과거여도 이번 주에
+          //    끝냈으면 이번 주 업무 (완료시점 기준). completed_at 없으면 제외(언제 끝났는지 모름).
+          //  - 미진행(not_started): "이번 주 것"만 — 이번 주 계획(planned_week_start) 또는 이번 주 마감(due).
+          //    옛/미래/날짜없는 미진행은 제외 (착수 안 한 backlog 가 이번 주로 쏟아지는 워프로랩 flood 차단).
+          //  - 진행중·검토중·수정요청·대기: 날짜 무관 전부 표시. 한 번 착수한 내 업무는 마감/날짜 없어도
+          //    끝까지 이번 주 책임선에 남는다 (요청받아 진행 중인 마감없는 업무 포함).
           const completedStr=(t.completed_at||'').slice(0,10);
+          const dueStr=(t.due_date||'').slice(0,10);
+          const plannedStr=(t.planned_week_start||'').slice(0,10);
           const isDone=t.status==='completed'||t.status==='canceled';
-          // Irene 스펙 2026-06-16:
-          //  - 완료/취소: 이번 주에 완료한 것만 (completed_at 이 기간 안). completed_at 없으면 제외.
-          //  - 미완료: 기간(마감일) 무관 전부 표시 (overdue·미래·기간미정 모두 — 끝까지 담당자 책임).
           const inPeriod=(()=>{
             if(isDone) return completedStr ? (completedStr>=periodFrom&&completedStr<=periodTo) : false;
-            return true;
+            if(t.status==='not_started'){
+              if(plannedStr===periodFrom) return true;
+              return dueStr ? (dueStr>=periodFrom&&dueStr<=periodTo) : false;
+            }
+            return true; // in_progress·reviewing·revision_requested·waiting
           })();
-          void startStr; void dueStr;
           if(!inPeriod) return false;
 
           // 2) 내가 행동해야 하는 것 + 완료 옵션
