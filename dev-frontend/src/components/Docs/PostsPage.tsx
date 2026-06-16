@@ -430,7 +430,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
     setRegenBusy(true); setError(null);
     try {
       const r = await aiGenerateDoc({
-        business_id: scope.businessId, kind: aiCtx.kind as DocKind, title: titleDraft.trim() || '문서',
+        business_id: scope.businessId, kind: aiCtx.kind as DocKind, title: titleDraft.trim() || (t('ai.untitledDoc', { defaultValue: '문서' }) as string),
         user_input: aiCtx.userInput, client_id: aiCtx.clientId, project_id: aiCtx.projectId,
         instruction: instruction || undefined,
       });

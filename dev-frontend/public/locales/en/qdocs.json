@@ -389,7 +389,8 @@
     "generating": "Creating…",
     "limitExceeded": "You've reached this month's AI quota. Upgrade your plan or wait until next month.",
     "unavailable": "AI service is temporarily unavailable. Please try again shortly.",
-    "failed": "AI draft failed."
+    "failed": "AI draft failed.",
+    "untitledDoc": "Document"
   },
   "vis": {
     "L1": "Private",
