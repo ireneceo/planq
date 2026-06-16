@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { useAuth, type WorkspaceMembership } from '../../contexts/AuthContext';
+import { useAuth, apiFetch, type WorkspaceMembership } from '../../contexts/AuthContext';
 import { useUnreadByBusiness } from '../../hooks/useUnreadTotal';
 
 /**
@@ -51,6 +51,11 @@ const WorkspaceSwitcher: React.FC<Props> = ({ collapsed }) => {
   const [open, setOpen] = useState(false);
   const [busyId, setBusyId] = useState<number | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
+  // 새 워크스페이스 만들기
+  const [createOpen, setCreateOpen] = useState(false);
+  const [createName, setCreateName] = useState('');
+  const [creating, setCreating] = useState(false);
+  const [createErr, setCreateErr] = useState('');
 
   useEffect(() => {
     if (!open) return;
@@ -122,15 +127,34 @@ const WorkspaceSwitcher: React.FC<Props> = ({ collapsed }) => {
     if (!isAdminMode) navigate('/admin/dashboard');
   };
 
+  const handleCreateWorkspace = async () => {
+    const nm = createName.trim();
+    if (!nm || creating) return;
+    setCreating(true); setCreateErr('');
+    try {
+      const r = await apiFetch('/api/businesses', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ brand_name: nm }),
+      });
+      const j = await r.json();
+      if (!r.ok || j?.success === false) throw new Error(j?.message || 'create_failed');
+      const newId = j.data?.id;
+      if (newId) { await switchWorkspace(newId); window.location.href = '/talk'; }
+    } catch (e) {
+      setCreateErr((e as Error).message || (t('switcher.createError', '생성 실패') as string));
+      setCreating(false);
+    }
+  };
+
   return (
     <Container ref={containerRef}>
       <Trigger
         type="button"
-        $multiple={multiple}
+        $multiple={!collapsed}
         $collapsed={!!collapsed}
         $admin={isAdminMode}
-        onClick={() => multiple && setOpen((v) => !v)}
-        title={multiple ? t('switcher.tooltip', '워크스페이스 전환') : currentName}
+        onClick={() => !collapsed && setOpen((v) => !v)}
+        title={t('switcher.tooltip', '워크스페이스 전환') as string}
       >
         {isAdminMode ? (
           <AdminBadge>
@@ -163,7 +187,7 @@ const WorkspaceSwitcher: React.FC<Props> = ({ collapsed }) => {
         )}
       </Trigger>
 
-      {open && multiple && !collapsed && (
+      {open && !collapsed && (
         <Menu role="listbox">
           {workspaces.length > 0 && (
             <>
@@ -204,6 +228,14 @@ const WorkspaceSwitcher: React.FC<Props> = ({ collapsed }) => {
             </>
           )}
 
+          <MenuDivider />
+          <MenuItem type="button" $current={false} onClick={() => { setOpen(false); setCreateErr(''); setCreateName(''); setCreateOpen(true); }}>
+            <PlusBadge>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            </PlusBadge>
+            <ItemBody><ItemName>{t('switcher.createWorkspace', '새 워크스페이스 만들기')}</ItemName></ItemBody>
+          </MenuItem>
+
           {isPlatformAdmin && (
             <>
               <MenuDivider />
@@ -228,6 +260,30 @@ const WorkspaceSwitcher: React.FC<Props> = ({ collapsed }) => {
             </>
           )}
         </Menu>
+      )}
+
+      {createOpen && (
+        <CreateOverlay onMouseDown={(e) => { if (e.target === e.currentTarget && !creating) setCreateOpen(false); }}>
+          <CreateModal onMouseDown={(e) => e.stopPropagation()}>
+            <CreateTitle>{t('switcher.createWorkspace', '새 워크스페이스 만들기')}</CreateTitle>
+            <CreateDesc>{t('switcher.createDesc', '내 소유의 새 워크스페이스를 만듭니다. 14일 무료 체험이 시작됩니다.')}</CreateDesc>
+            <CreateInput
+              autoFocus
+              value={createName}
+              maxLength={60}
+              placeholder={t('switcher.createPlaceholder', '워크스페이스 이름 (예: 우리회사)') as string}
+              onChange={(e) => { setCreateName(e.target.value); setCreateErr(''); }}
+              onKeyDown={(e) => { if (e.key === 'Enter') handleCreateWorkspace(); if (e.key === 'Escape' && !creating) setCreateOpen(false); }}
+            />
+            {createErr && <CreateErr>{createErr}</CreateErr>}
+            <CreateActions>
+              <CreateCancel type="button" disabled={creating} onClick={() => setCreateOpen(false)}>{t('switcher.cancel', '취소')}</CreateCancel>
+              <CreatePrimary type="button" disabled={creating || !createName.trim()} onClick={handleCreateWorkspace}>
+                {creating ? t('switcher.creating', '만드는 중…') : t('switcher.create', '만들기')}
+              </CreatePrimary>
+            </CreateActions>
+          </CreateModal>
+        </CreateOverlay>
       )}
     </Container>
   );
@@ -484,4 +540,39 @@ const Spinner = styled.div`
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
   @keyframes spin { to { transform: rotate(360deg); } }
+`;
+
+// 새 워크스페이스 만들기 — 메뉴 + 모달
+const PlusBadge = styled.span`
+  width: 24px; height: 24px; border-radius: 7px; flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: rgba(94,234,212,0.16); color: #5EEAD4;
+`;
+const CreateOverlay = styled.div`
+  position: fixed; inset: 0; z-index: 2000;
+  background: rgba(15,23,42,0.45);
+  display: flex; align-items: center; justify-content: center; padding: 16px;
+`;
+const CreateModal = styled.div`
+  width: 100%; max-width: 380px; background: #FFFFFF; border-radius: 14px;
+  padding: 22px 22px 18px; box-shadow: 0 24px 48px -16px rgba(15,23,42,0.4);
+`;
+const CreateTitle = styled.h3`font-size: 16px; font-weight: 800; color: #0F172A; margin: 0 0 6px;`;
+const CreateDesc = styled.p`font-size: 12px; color: #64748B; line-height: 1.6; margin: 0 0 16px;`;
+const CreateInput = styled.input`
+  width: 100%; box-sizing: border-box; padding: 11px 13px; font-size: 14px;
+  border: 1px solid #CBD5E1; border-radius: 8px; color: #0F172A; outline: none;
+  &:focus { border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20,184,166,0.18); }
+`;
+const CreateErr = styled.div`font-size: 12px; color: #EF4444; margin-top: 8px;`;
+const CreateActions = styled.div`display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px;`;
+const CreateCancel = styled.button`
+  padding: 9px 16px; font-size: 13px; font-weight: 600; color: #475569;
+  background: #fff; border: 1px solid #E2E8F0; border-radius: 8px; cursor: pointer;
+  &:hover:not(:disabled) { background: #F8FAFC; } &:disabled { opacity: 0.5; cursor: not-allowed; }
+`;
+const CreatePrimary = styled.button`
+  padding: 9px 18px; font-size: 13px; font-weight: 700; color: #fff;
+  background: #0D9488; border: none; border-radius: 8px; cursor: pointer;
+  &:hover:not(:disabled) { background: #0F766E; } &:disabled { background: #CBD5E1; cursor: not-allowed; }
 `;

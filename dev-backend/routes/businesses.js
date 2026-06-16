@@ -73,42 +73,63 @@ router.get('/', authenticateToken, async (req, res, next) => {
 
 // ─── Create business (platform admin 전용 or 수동 생성) ───
 router.post('/', authenticateToken, async (req, res, next) => {
+  const { sequelize } = require('../config/database');
+  const bcrypt = require('bcryptjs');
+  const transaction = await sequelize.transaction();
+  let committed = false;
   try {
-    const { brand_name, name, slug, default_language } = req.body;
-    const bName = brand_name || name;
-    if (!bName || !slug) {
-      return errorResponse(res, 'Brand name and slug required', 400);
-    }
+    const { brand_name, name, brand_name_en, default_language } = req.body;
+    const bName = (brand_name || name || '').trim();
+    if (!bName) { await transaction.rollback(); return errorResponse(res, 'Workspace name required', 400); }
+    const lang = default_language === 'en' ? 'en' : 'ko';
 
-    const existing = await Business.findOne({ where: { slug } });
-    if (existing) return errorResponse(res, 'Slug already taken', 409);
+    // slug 자동 생성 (한글 등 비ASCII 면 ws-랜덤). 충돌 시 -2, -3 …
+    const base = bName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40)
+      || ('ws-' + Math.random().toString(36).slice(2, 8));
+    let slug = base, n = 1;
+    while (await Business.findOne({ where: { slug }, transaction })) { n += 1; slug = base.slice(0, 38) + '-' + n; }
 
+    // 신규 워크스페이스 = Starter 14일 trial (register 와 동일 정책)
+    const trialEndsAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
     const business = await Business.create({
-      name: bName,
-      brand_name: bName,
-      slug,
-      owner_id: req.user.id,
-      default_language: default_language === 'en' ? 'en' : 'ko',
-      cue_mode: 'smart'
-    });
+      name: bName, brand_name: bName,
+      brand_name_en: lang === 'ko' ? (brand_name_en || null) : null,
+      slug, owner_id: req.user.id, default_language: lang,
+      cue_mode: 'smart', cue_paused: false,
+      plan: 'starter', subscription_status: 'trialing', trial_ends_at: trialEndsAt,
+    }, { transaction });
 
     await BusinessMember.create({
-      business_id: business.id,
-      user_id: req.user.id,
-      role: 'owner',
-      joined_at: new Date()
-    });
+      business_id: business.id, user_id: req.user.id, role: 'owner', joined_at: new Date(),
+    }, { transaction });
 
-    await createAuditLog({
-      userId: req.user.id,
-      businessId: business.id,
-      action: 'workspace.create',
-      targetType: 'business',
-      targetId: business.id
-    });
+    // Cue 시스템 계정 (AI 팀원) — register 와 동일. 워크스페이스 필수.
+    const cueHash = await bcrypt.hash(Math.random().toString(36) + Date.now(), 12);
+    const cueUser = await User.create({
+      email: `cue+${business.id}@system.planq.kr`, password_hash: cueHash,
+      name: 'Cue', avatar_url: '/static/cue.svg', is_ai: true, platform_role: 'user', status: 'active', language: lang,
+    }, { transaction });
+    await business.update({ cue_user_id: cueUser.id }, { transaction });
+    await BusinessMember.create({
+      business_id: business.id, user_id: cueUser.id, role: 'ai', joined_at: new Date(),
+    }, { transaction });
+
+    // 생성자의 active 워크스페이스를 새 워크스페이스로 전환
+    await User.update({ active_business_id: business.id }, { where: { id: req.user.id }, transaction });
+
+    await transaction.commit();
+    committed = true;
+
+    try {
+      await createAuditLog({
+        userId: req.user.id, businessId: business.id,
+        action: 'workspace.create', targetType: 'business', targetId: business.id,
+      });
+    } catch { /* audit 실패는 생성 성공에 영향 없음 */ }
 
     successResponse(res, business, 'Workspace created', 201);
   } catch (error) {
+    if (!committed) await transaction.rollback().catch(() => null);
     next(error);
   }
 });

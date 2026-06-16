@@ -118,6 +118,13 @@
       "member": "Member",
       "client": "Client",
       "ai": "AI"
-    }
+    },
+    "createWorkspace": "Create new workspace",
+    "createDesc": "Create a new workspace you own. A 14-day free trial starts.",
+    "createPlaceholder": "Workspace name (e.g. My Company)",
+    "createError": "Failed to create",
+    "creating": "Creating…",
+    "create": "Create",
+    "cancel": "Cancel"
   }
 }
