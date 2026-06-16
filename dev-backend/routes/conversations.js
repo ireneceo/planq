@@ -471,6 +471,61 @@ router.delete('/:businessId/:id/participants/:userId', authenticateToken, checkB
     successResponse(res, { removed: true });
   } catch (error) { next(error); }
 });
+
+// 참여자 패널 데이터 — 현재 참여자 + 추가 후보(멤버/고객) + 미수락 초대고객(안내).
+// 채팅 설정 모달이 prop 의존(빈 목록 오표시) 대신 이걸 fetch. 프로젝트 대화면 고객도 후보·참여자로.
+router.get('/:businessId/:id/participants', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+  try {
+    const businessId = Number(req.params.businessId);
+    const conv = await Conversation.findOne({ where: { id: req.params.id, business_id: businessId } });
+    if (!conv) return errorResponse(res, 'Conversation not found', 404);
+
+    const parts = await ConversationParticipant.findAll({
+      where: { conversation_id: conv.id },
+      include: [{ model: User, attributes: ['id', 'name', 'email', 'is_ai'] }],
+    });
+    const partRows = parts.map(p => p.toJSON());
+    await applyMemberDisplayName(partRows, businessId, ['User']);
+    const participants = partRows.map(p => ({
+      user_id: p.user_id, role: p.role,
+      name: p.User?.name || `user ${p.user_id}`, email: p.User?.email || '', is_ai: !!p.User?.is_ai,
+    }));
+    const partUserIds = new Set(participants.map(p => p.user_id));
+
+    // 멤버 후보 (AI·이미 참여자 제외)
+    const members = await BusinessMember.findAll({
+      where: { business_id: businessId, removed_at: null },
+      include: [{ model: User, as: 'user', attributes: ['id', 'name', 'email'] }],
+    });
+    const memberRows = members.map(m => m.toJSON());
+    await applyMemberDisplayName(memberRows, businessId, ['user']);
+    const member_candidates = memberRows
+      .filter(m => m.role !== 'ai' && m.user && !partUserIds.has(m.user_id))
+      .map(m => ({ user_id: m.user_id, name: m.user.name, email: m.user.email }));
+
+    // 고객 후보 — 프로젝트 대화만. 수락(contact_user_id 有)=추가 가능, 미수락=안내.
+    const client_candidates = [];
+    const pending_clients = [];
+    if (conv.project_id) {
+      const { ProjectClient } = require('../models');
+      const pcs = await ProjectClient.findAll({
+        where: { project_id: conv.project_id },
+        attributes: ['contact_user_id', 'contact_name', 'contact_email'],
+      });
+      for (const pc of pcs) {
+        if (pc.contact_user_id) {
+          if (!partUserIds.has(pc.contact_user_id)) {
+            client_candidates.push({ user_id: pc.contact_user_id, name: pc.contact_name || '고객', email: pc.contact_email || '' });
+          }
+        } else {
+          pending_clients.push({ name: pc.contact_name || '고객', email: pc.contact_email || '' });
+        }
+      }
+    }
+
+    return successResponse(res, { participants, member_candidates, client_candidates, pending_clients });
+  } catch (error) { next(error); }
+});
 ProjectMember; // silence unused import (future: project member pre-selection)
 
 // ─────────────────────────────────────────────────────────
