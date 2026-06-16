@@ -27,6 +27,11 @@
 - #51 프로젝트 대시보드 타임라인 마감일 내림차순(최신 먼저). QProjectDetailPage DashboardTimeline.
 - #56 워크스페이스 주간보고 서브탭 [통합보고서/멤버 주간보고] 분리 + 워크스페이스명 제목. WeeklyReviewTab.
 
+**✅ #51·#56 운영 라이브 (deploy `20260616_142?`, v1.37.1, commit `ba22a4c`).** health ok·PM2 prod 1.37.1.
+
+**#54 Part 1 완료·커밋(`c9eff31`)·미배포** — MyFeedbackPage 검색+분류+상태 필터(PageShell actions). 빌드 green·i18n ok.
+**#54 Part 2 (미착수)** — Q Note 카테고리/태그(메모·음성 통합 분류+필터, Q docs 패턴). qnote `sessions`(MySQL)에 category/tags 컬럼 없음 → **Python qnote 스키마 ALTER + 모델/CRUD + 프론트 필터 UI** 필요한 별도 청크. routers/sessions.py.
+
 **남은 그룹 — 전부 기획설계 위임형(Irene이 "탁월하게 판단해줘"):**
 - #49 SNS OG 메타 — ⚠️ 크롤러용 **서버 OG 주입 + nginx 라우팅(운영 인프라)** 필요. 설계+승인 권장.
 - #41 Q Calendar 타임존 — 워크스페이스 tz 기본 + 개인 tz 보조표시 기획.

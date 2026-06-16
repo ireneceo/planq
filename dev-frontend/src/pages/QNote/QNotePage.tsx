@@ -53,6 +53,7 @@ import SharedEmptyState from '../../components/Common/EmptyState';
 import SearchBoxCommon from '../../components/Common/SearchBox';
 import { useListKeyboardNav } from '../../hooks/useListKeyboardNav';
 import { deriveMemoPreview } from '../../utils/qnoteBody';
+import SessionTaxonomyBar from '../../components/QNote/SessionTaxonomyBar';
 // MemoView (PostEditor 풀모드 + 헤더) — 메모 신규/편집 시점에만 chunk fetch (vendor-tiptap lazy).
 const MemoView = React.lazy(() => import('./MemoView'));
 // NewNoteModal — Q docs PostAiModal manual mode 패턴 동일 (탭 메모/음성 + 옵션). 사이클 N+17 hotfix.
@@ -233,6 +234,7 @@ const QNotePage = () => {
     } finally { setSessionDeleting(false); }
   };
   const [sessionQuery, setSessionQuery] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState<string>('all');  // 운영 #54
   const [activeSession, setActiveSession] = useState<QNoteSession | null>(null);
   // 사이클 N+14 — visibility 변경 모달 + 에러 표시
   const [visibilityModalOpen, setVisibilityModalOpen] = useState(false);
@@ -626,11 +628,28 @@ const QNotePage = () => {
     openReview(sessionId);
   };
 
+  // 운영 #54 — 분류 필터 (메모·음성 공통). 세션들에서 실제 사용된 category 목록 도출.
+  const sessionCategories = useMemo(() => {
+    const set = new Set<string>();
+    sessions.forEach((s) => { if (s.category && s.category.trim()) set.add(s.category.trim()); });
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [sessions]);
+  // 운영 #54 — 분류/태그 변경 시 activeSession + 리스트 즉시 동기화 (필터 칩도 갱신)
+  const patchTaxonomy = (sessionId: number, patch: { category?: string | null; tags?: string[] }) => {
+    setActiveSession((prev) => prev && prev.id === sessionId ? { ...prev, ...patch } : prev);
+    setSessions((prev) => prev.map((s) => s.id === sessionId ? { ...s, ...patch } : s));
+  };
   const filteredSessions = useMemo(() => {
     const q = sessionQuery.trim().toLowerCase();
-    if (!q) return sessions;
-    return sessions.filter((s) => (s.title || '').toLowerCase().includes(q));
-  }, [sessions, sessionQuery]);
+    return sessions.filter((s) => {
+      if (categoryFilter !== 'all' && (s.category || '') !== categoryFilter) return false;
+      if (!q) return true;
+      // 제목 + 분류 + 태그 검색 (메모·음성 동일)
+      return (s.title || '').toLowerCase().includes(q)
+        || (s.category || '').toLowerCase().includes(q)
+        || (s.tags || []).some((tg) => tg.toLowerCase().includes(q));
+    });
+  }, [sessions, sessionQuery, categoryFilter]);
   const sessionItemIds = useMemo(() => filteredSessions.map((s) => s.id), [filteredSessions]);
   useListKeyboardNav<number>({
     itemIds: sessionItemIds,
@@ -2034,6 +2053,20 @@ const QNotePage = () => {
           />
         </SearchWrap>
 
+        {/* 운영 #54 — 분류 필터 칩 (메모·음성 공통). 분류가 하나라도 있을 때만 노출. */}
+        {sessionCategories.length > 0 && (
+          <CatFilterRow>
+            <CatChip type="button" $active={categoryFilter === 'all'} onClick={() => setCategoryFilter('all')}>
+              {t('page.catAll', { defaultValue: '전체' }) as string}
+            </CatChip>
+            {sessionCategories.map((c) => (
+              <CatChip key={c} type="button" $active={categoryFilter === c} onClick={() => setCategoryFilter(c)}>
+                {c}
+              </CatChip>
+            ))}
+          </CatFilterRow>
+        )}
+
         <SessionList>
           {sessions.length === 0 && <EmptySessionMsg>{t('page.emptySessionList')}</EmptySessionMsg>}
           {filteredSessions.map((session) => {
@@ -2485,6 +2518,13 @@ const QNotePage = () => {
                   <Badge>{t('page.phase.review')}</Badge>
                   <Badge>{t('page.sessionUtteranceCount', { count: activeSession.utterance_count })}</Badge>
                 </SessionMeta>
+                <SessionTaxonomyBar
+                  sessionId={activeSession.id}
+                  category={activeSession.category ?? null}
+                  tags={activeSession.tags ?? null}
+                  editable={String(activeSession.user_id) === String(user?.id)}
+                  onChange={(patch) => patchTaxonomy(activeSession.id, patch)}
+                />
               </HeaderLeft>
               <HeaderRight>
                 {/* N+88 — Q docs 문서 상세 상단과 통일: 공개 chip + 공유 Primary + IconBtn 클러스터 */}
@@ -3158,6 +3198,22 @@ const SearchWrap = styled.div`
   padding: 12px 20px 12px;
   border-bottom: 1px solid #F1F5F9;
   flex-shrink: 0;
+`;
+
+// 운영 #54 — 분류 필터 칩
+const CatFilterRow = styled.div`
+  display: flex; flex-wrap: wrap; gap: 6px;
+  padding: 0 20px 12px;
+  border-bottom: 1px solid #F1F5F9;
+  flex-shrink: 0;
+`;
+const CatChip = styled.button<{ $active: boolean }>`
+  padding: 4px 12px; border-radius: 999px; cursor: pointer;
+  font-size: 12px; font-weight: ${p => p.$active ? 700 : 500};
+  border: 1px solid ${p => p.$active ? '#14B8A6' : '#E2E8F0'};
+  background: ${p => p.$active ? '#F0FDFA' : '#FFFFFF'};
+  color: ${p => p.$active ? '#0F766E' : '#64748B'};
+  &:hover { border-color: #14B8A6; color: #0F766E; }
 `;
 
 const SessionList = styled.div`

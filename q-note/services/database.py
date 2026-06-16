@@ -188,6 +188,15 @@ async def _run_migrations(db):
     if not await _column_exists(db, 'sessions', col):
       await db.execute(f"ALTER TABLE sessions ADD COLUMN {col} {typ}")
 
+  # sessions: 카테고리/태그 (운영 #54) — 메모·음성 노트 공통 분류·필터 (Q docs 패턴)
+  session_taxonomy_cols = [
+    ('category', 'TEXT'),   # 자유 텍스트 분류 (단일). null = 미분류
+    ('tags', 'TEXT'),       # JSON 인코딩 문자열 배열 (예: '["회의","고객"]')
+  ]
+  for col, typ in session_taxonomy_cols:
+    if not await _column_exists(db, 'sessions', col):
+      await db.execute(f"ALTER TABLE sessions ADD COLUMN {col} {typ}")
+
   # voice_fingerprints: 단일 언어(user_id PK) → 다국어(UNIQUE user_id + language) 로 전환
   # 기존 Table 에 language 컬럼이 없으면 migration 수행
   if not await _column_exists(db, 'voice_fingerprints', 'language'):

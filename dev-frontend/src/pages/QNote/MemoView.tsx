@@ -22,6 +22,7 @@ import TaskCandidateCard, { type CandidateData } from '../../components/Common/T
 import { parseBodyToDoc, deriveTitleFromDoc, isDocEmpty } from '../../utils/qnoteBody';
 import VisibilityChip from '../../components/Common/VisibilityChip';
 import type { VLevel } from '../../components/Common/VisibilityBadge';
+import SessionTaxonomyBar from '../../components/QNote/SessionTaxonomyBar';
 import QNoteShareModal from '../../components/QNote/QNoteShareModal';
 
 const PostEditor = lazy(() => import('../../components/Docs/PostEditor'));
@@ -209,6 +210,16 @@ const MemoView: React.FC<Props> = ({ session, businessId, prefillProjectId, pref
             {saveState === 'error' && (t('memoPopup.errorRetry') as string)}
             {saveState === 'idle' && !sessionId && (t('memoPopup.idleNew') as string)}
           </Status>
+          {/* 운영 #54 — 메모 분류/태그 (음성 review 와 동일 컴포넌트) */}
+          {sessionId && session && (
+            <SessionTaxonomyBar
+              sessionId={sessionId}
+              category={session.category ?? null}
+              tags={session.tags ?? null}
+              editable
+              onChange={(patch) => onUpdated({ ...session, ...patch })}
+            />
+          )}
         </TitleArea>
         <HeaderActions>
           {/* N+88 — 메모도 공개 chip + 공유 (음성 review·Q docs 와 통일) */}

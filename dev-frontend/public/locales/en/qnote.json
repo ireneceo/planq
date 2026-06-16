@@ -196,7 +196,8 @@
       "extracting": "Extracting...",
       "emptyHint": "AI finds actionable tasks from this session and suggests them as candidates.",
       "extractFailed": "Failed to extract tasks"
-    }
+    },
+    "catAll": "All"
   },
   "memoPopup": {
     "title": "Memo",
@@ -377,5 +378,12 @@
     "cancel": "Cancel",
     "startMemo": "Write memo",
     "startVoice": "Start voice note"
+  },
+  "taxonomy": {
+    "categoryPh": "Category",
+    "addCategory": "Category",
+    "tagPh": "Tag",
+    "addTag": "Tag",
+    "removeTag": "Remove tag"
   }
 }

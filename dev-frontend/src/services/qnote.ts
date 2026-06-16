@@ -110,6 +110,9 @@ export interface QNoteSession {
   summarized_at?: string | null;
   summary_key_points?: string[] | null;  // N+88 — 영속 요약 핵심 포인트
   summary_full?: string | null;          // N+88 — 영속 요약 전문
+  // 운영 #54 — 분류/태그 (메모·음성 공통)
+  category?: string | null;
+  tags?: string[] | null;
 }
 
 // visibility 변경 API — N+66: L4 도 type 으로 받음 (backend Q note 가 거부하면 별도 share 흐름 안내)
@@ -285,6 +288,9 @@ export interface CreateSessionPayload {
   translate_enabled?: boolean;
   linked_voice_session_id?: number | null;
   body?: string;
+  // 운영 #54 — 분류/태그
+  category?: string | null;
+  tags?: string[];
 }
 
 export async function listSessions(businessId: number, page = 1, limit = 20) {
