@@ -18,6 +18,7 @@ import WeeklyReviewWorkspaceView from './WeeklyReviewWorkspaceView';
 import WorkspaceFinalizeBanner from './WorkspaceFinalizeBanner';
 import PlanQSelect, { type PlanQSelectOption } from '../Common/PlanQSelect';
 import SearchBox from '../Common/SearchBox';
+import { useAuth } from '../../contexts/AuthContext';
 
 interface Props {
   businessId: number;
@@ -28,6 +29,11 @@ interface Props {
 
 const WeeklyReviewTab: React.FC<Props> = ({ businessId, userId, reviewScope = 'mine' }) => {
   const { t } = useTranslation('qtask');
+  const { user } = useAuth();
+  // 운영 #56 — 통합 보고서 제목에 워크스페이스 이름 (예: "워프로랩 통합보고서")
+  const wsName = user?.business_name || '';
+  // 운영 #56 — workspace 모드는 [통합보고서]/[멤버 주간보고] 서브탭으로 분리 (맥락이 달라 위아래 stacking 정렬 혼란 해소)
+  const [wsSubTab, setWsSubTab] = useState<'integrated' | 'members'>('integrated');
   const [reviews, setReviews] = useState<WeeklyReviewListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [autoEnabled, setAutoEnabled] = useState(true);
@@ -129,9 +135,21 @@ const WeeklyReviewTab: React.FC<Props> = ({ businessId, userId, reviewScope = 'm
   return (
     <Container>
       {reviewScope === 'workspace' && <WorkspaceFinalizeBanner businessId={businessId} />}
+      {reviewScope === 'workspace' && (
+        <WsSubTabBar role="tablist">
+          <WsSubTabBtn type="button" role="tab" aria-selected={wsSubTab === 'integrated'}
+            $active={wsSubTab === 'integrated'} onClick={() => setWsSubTab('integrated')}>
+            {wsName ? t('weeklyReview.workspace.integratedTitle', { name: wsName, defaultValue: `${wsName} 통합보고서` }) : t('weeklyReview.workspace.tabTitle')}
+          </WsSubTabBtn>
+          <WsSubTabBtn type="button" role="tab" aria-selected={wsSubTab === 'members'}
+            $active={wsSubTab === 'members'} onClick={() => setWsSubTab('members')}>
+            {t('weeklyReview.workspace.membersTab', { defaultValue: '멤버 주간보고' })}
+          </WsSubTabBtn>
+        </WsSubTabBar>
+      )}
       <Header>
         <HeaderLeft>
-          {reviewScope === 'workspace' && (() => {
+          {reviewScope === 'workspace' && wsSubTab === 'members' && (() => {
             const memberOpts: PlanQSelectOption[] = [
               { value: 'all', label: t('weeklyReview.filter.allMembers', { defaultValue: '전체 멤버' }) as string },
               ...[...new Map(reviews.filter(r => r.user_id && r.user_name).map(r => [r.user_id, r.user_name])).entries()].map(([uid, name]) => ({
@@ -181,10 +199,14 @@ const WeeklyReviewTab: React.FC<Props> = ({ businessId, userId, reviewScope = 'm
       </Header>
 
 
-      {/* workspace 모드 — 통합본 카드 (워크스페이스 × 주차 = 1) */}
-      {reviewScope === 'workspace' && workspaceReports.length > 0 && (
-        <>
-          <SectionLabel>{t('weeklyReview.workspace.tabTitle')}</SectionLabel>
+      {/* workspace 모드 · 통합보고서 서브탭 — 통합본 카드 (워크스페이스 × 주차 = 1) */}
+      {reviewScope === 'workspace' && wsSubTab === 'integrated' && (
+        workspaceReports.length === 0 ? (
+          <Empty>
+            <EmptyTitle>{t('weeklyReview.workspace.empty', { defaultValue: '아직 통합 보고서가 없습니다' })}</EmptyTitle>
+            <EmptyHint>{t('weeklyReview.workspace.emptyHint', { defaultValue: '매주 일요일 자동으로 워크스페이스 통합 보고서가 박제됩니다.' })}</EmptyHint>
+          </Empty>
+        ) : (
           <WorkspaceCardList>
             {workspaceReports.map(r => (
               <WorkspaceCard key={r.id} onClick={() => setSelectedWorkspaceId(r.id)}>
@@ -213,11 +235,12 @@ const WeeklyReviewTab: React.FC<Props> = ({ businessId, userId, reviewScope = 'm
               </WorkspaceCard>
             ))}
           </WorkspaceCardList>
-          <SectionLabel>{t('tab.weeklyReview', '주간 보고')} · 멤버 개인본</SectionLabel>
-        </>
+        )
       )}
 
-      {loading ? (
+      {/* 멤버 주간보고 — mine 모드는 항상, workspace 모드는 '멤버 주간보고' 서브탭에서만 */}
+      {(reviewScope !== 'workspace' || wsSubTab === 'members') && (
+      loading ? (
         <Loading>{t('page.loading', '로드 중...')}</Loading>
       ) : reviews.length === 0 ? (
         <Empty>
@@ -271,7 +294,7 @@ const WeeklyReviewTab: React.FC<Props> = ({ businessId, userId, reviewScope = 'm
             </LoadMore>
           )}
         </>
-      )}
+      ))}
     </Container>
   );
 };
@@ -461,10 +484,19 @@ const LoadMore = styled.button`
 `;
 
 // ─── workspace 통합본 (사이클 N+18) ───
-const SectionLabel = styled.div`
-  font-size: 11px; font-weight: 700; color: #64748B;
-  text-transform: uppercase; letter-spacing: 0.6px;
-  margin: 12px 0 4px;
+// 운영 #56 — workspace 주간보고 서브탭 (통합보고서 / 멤버 주간보고)
+const WsSubTabBar = styled.div`
+  display: flex; gap: 4px;
+  border-bottom: 1px solid #E2E8F0;
+  margin-bottom: 12px;
+`;
+const WsSubTabBtn = styled.button<{ $active: boolean }>`
+  padding: 8px 14px; background: transparent; border: none; cursor: pointer;
+  font-size: 13px; font-weight: ${p => p.$active ? 700 : 500};
+  color: ${p => p.$active ? '#0F766E' : '#64748B'};
+  border-bottom: 2px solid ${p => p.$active ? '#14B8A6' : 'transparent'};
+  margin-bottom: -1px;
+  &:hover { color: #0F766E; }
 `;
 // N+38 — FinalizeBtn / ErrorMsg 제거. workspace 수동 박제 폐기 후속.
 const WorkspaceCardList = styled.div`

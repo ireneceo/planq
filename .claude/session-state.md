@@ -21,7 +21,9 @@
 
 **남은 그룹(미착수, 다수 기획결정 필요):** G6 #50(이번주 업무설정·그래프 — ⚠️Irene 노트북 작업과 겹침, 보류) · G7 #41(캘린더 타임존·기획) · G8 #52(개선부분·기획) · G9 #53(개인외부연동 정의·기획) · G10 #55(QMail멀티계정·기획) · G11 #56(통합보고서탭) · G12 #54(문의/QNote리스트·카테고리) · G13 #49(SNS OG메타) · G14 #51(대시보드타임라인+고객담당자표시).
 
-**체크포인트:** 8건 dev 수정+검증 완료, 미커밋·미배포. 다음 = (a) 검증된 8건 커밋+`/배포`, 또는 (b) 남은 그룹 중 지정 진행.
+**✅ 운영 라이브 (deploy `20260616_135924`, commit `f75b020`, v1.37.0, 138초).** 헬스 OK·PM2 prod online·last-deployed=f75b020. 8건 운영 반영 완료. (deploy 스크립트 EXIT=1은 요약 후 트레일링 비치명 — 기능 영향 없음 확인)
+
+**계속 개발 중 — 남은 그룹.** 명확한 것부터: #51(대시보드 타임라인 정렬) → #49(SNS OG) → #56(보고서 탭). 기획결정 필요: #41·#53·#55·#54·#52개선. #50 보류(Irene 노트북 겹침).
 
 **검증/배포:** 프론트 빌드 진행 중. 커밋·배포 안 함(Irene `/배포` 명령 대기). 수정 파일: focus.js·focusSync.js·tasks.js·projects.js(backend) / QTaskPage·ProjectTaskList·QProjectDetailPage·TaskDetailDrawer·TaskRowActionMenu·taskDeleteError.ts·qtask.json(ko/en)(frontend).
 

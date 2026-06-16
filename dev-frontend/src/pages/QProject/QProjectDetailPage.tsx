@@ -1148,8 +1148,15 @@ const DashTimeline: React.FC<{
   const from = dates.reduce((a, b) => (a < b ? a : b));
   const to = dates.reduce((a, b) => (a > b ? a : b));
   const range: GanttRange = { from, to };
-  const visible = withDates.slice(0, 10);
-  const rest = withDates.length - visible.length;
+  // 운영 #51 — 최신 업무가 먼저 보이도록 마감일(없으면 시작일) 내림차순. 과거 업무가 최신을 가리지 않게.
+  //   (Gantt 축 range 는 전체 기간 유지 — 표시 행 순서만 최신 우선)
+  const ordered = [...withDates].sort((a, b) => {
+    const ad = (a.due_date || a.start_date || '').slice(0, 10);
+    const bd = (b.due_date || b.start_date || '').slice(0, 10);
+    return bd.localeCompare(ad);
+  });
+  const visible = ordered.slice(0, 10);
+  const rest = ordered.length - visible.length;
   return (
     <DashTLWrap>
       <DashTLHead>

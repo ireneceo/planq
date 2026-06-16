@@ -657,7 +657,11 @@
         "down": "",
         "noChange": "—"
       },
-      "drillDown": "이 멤버 개인 보고서 보기"
+      "drillDown": "이 멤버 개인 보고서 보기",
+      "integratedTitle": "{{name}} 통합보고서",
+      "membersTab": "멤버 주간보고",
+      "empty": "아직 통합 보고서가 없습니다",
+      "emptyHint": "매주 일요일 자동으로 워크스페이스 통합 보고서가 박제됩니다."
     }
   },
   "rowAction": {

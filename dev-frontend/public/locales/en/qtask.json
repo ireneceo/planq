@@ -657,7 +657,11 @@
         "down": "",
         "noChange": "—"
       },
-      "drillDown": "Open this member's personal review"
+      "drillDown": "Open this member's personal review",
+      "integratedTitle": "{{name}} Integrated Report",
+      "membersTab": "Member weekly reports",
+      "empty": "No integrated report yet",
+      "emptyHint": "A workspace integrated report is auto-finalized every Sunday."
     }
   },
   "rowAction": {
