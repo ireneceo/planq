@@ -536,11 +536,16 @@ ${guidance}`;
     if (['quote', 'proposal', 'contract', 'sow'].includes(kind)) ctxLines.push(`유효일/완료 목표: ${ctx.valid_until}`);
 
     const aiPromptTpl = referenceTpl?.ai_prompt_template || '';
+    // 운영 — 재생성/재수정 지시 (AI 재생성 UX 통일). 결과를 보고 "이렇게 고쳐줘" 한 것.
+    const instruction = req.body.instruction;
+    const refineLine = (instruction && String(instruction).trim())
+      ? `\n\n[재생성 지시 — 아래 요구에 맞춰 다시 작성]\n${String(instruction).trim().slice(0, 1000)}`
+      : '';
     const userPrompt = `[컨텍스트]
 ${ctxLines.join('\n')}
 
 [사용자 추가 요구사항]
-${user_input || '(없음 — 가이드의 표준 양식으로 작성)'}` + (aiPromptTpl ? `\n\n[참고 프롬프트]\n${aiPromptTpl}` : '');
+${user_input || '(없음 — 가이드의 표준 양식으로 작성)'}` + (aiPromptTpl ? `\n\n[참고 프롬프트]\n${aiPromptTpl}` : '') + refineLine;
 
     // 무거운 종류는 더 많은 토큰
     const HEAVY_KINDS = ['proposal', 'contract', 'sow'];

@@ -10,6 +10,7 @@ import SingleDateField from '../Common/SingleDateField';
 import { apiFetch } from '../../contexts/AuthContext';
 import { mapApiError } from '../../utils/apiError';
 import AiCandidateCard, { type AiCandidate } from './AiCandidateCard';
+import AiRegenerateBar from '../Common/AiRegenerateBar';
 
 interface Member { user_id: number; name: string; }
 interface Project { id: number; name: string; }
@@ -57,7 +58,7 @@ export default function AiTaskCreateModal({ open, onClose, businessId, projectId
 
   if (!open) return null;
 
-  const generate = async () => {
+  const generate = async (instruction?: string) => {
     if (!prompt.trim() || submitting) return;
     setSubmitting(true);
     setError(null);
@@ -70,6 +71,7 @@ export default function AiTaskCreateModal({ open, onClose, businessId, projectId
           business_id: businessId,
           project_id: selectedProjectId,
           prompt: prompt.trim(),
+          instruction: instruction || undefined,  // 운영 — 재생성 지시
         }),
       });
       const j = await r.json();
@@ -226,7 +228,7 @@ export default function AiTaskCreateModal({ open, onClose, businessId, projectId
           {stage === 'input' && (
             <>
               <ModalActionButton variant="secondary" onClick={onClose}>{t('ai.cancel', '취소')}</ModalActionButton>
-              <ModalActionButton variant="ai" onClick={generate} disabled={!prompt.trim() || submitting}>
+              <ModalActionButton variant="ai" onClick={() => generate()} disabled={!prompt.trim() || submitting}>
                 {submitting ? t('ai.generating', '생성 중...') : t('ai.generate', 'AI 업무 추가')}
               </ModalActionButton>
             </>
@@ -236,7 +238,8 @@ export default function AiTaskCreateModal({ open, onClose, businessId, projectId
           )}
           {stage === 'preview' && (
             <>
-              <ModalActionButton variant="secondary" onClick={() => setStage('input')}>{t('ai.regenerate', '다시 생성')}</ModalActionButton>
+              {/* 운영 — AI 재생성 UX 통일: 지시 기반 재생성(인라인). 기존 '입력으로 되돌리기' 대체 */}
+              <AiRegenerateBar busy={submitting} onRegenerate={(ins) => generate(ins)} />
               <ModalActionButton variant="secondary" onClick={onClose}>{t('ai.cancel', '취소')}</ModalActionButton>
               <ModalActionButton variant="ai" onClick={confirm} disabled={selectedCount === 0 || submitting}>
                 {submitting

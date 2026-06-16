@@ -166,6 +166,7 @@ export async function aiGenerateDoc(payload: {
   client_id?: number | null;
   project_id?: number | null;
   template_id?: number | null;
+  instruction?: string;  // 운영 — AI 재생성/재수정 지시 (에디터 레벨 재생성 시 사용)
 }): Promise<AiGenerateResult> {
   const r = await apiFetch('/api/docs/ai-generate', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },

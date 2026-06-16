@@ -6,6 +6,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import styled, { keyframes } from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import ModalActionButton from '../Common/ModalActionButton';
+import AiRegenerateBar from '../Common/AiRegenerateBar';
 import { apiFetch } from '../../contexts/AuthContext';
 import { mapApiError } from '../../utils/apiError';
 import AiCandidateCard, { type AiCandidate, type AiCardMember } from './AiCandidateCard';
@@ -71,7 +72,7 @@ export default function CueTaskBar({ businessId, members, projectId = null, onCr
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
-  const send = async () => {
+  const send = async (instruction?: string) => {
     if (!prompt.trim() || submitting) return;
     setSubmitting(true);
     setError(null);
@@ -80,7 +81,7 @@ export default function CueTaskBar({ businessId, members, projectId = null, onCr
       const r = await apiFetch('/api/tasks/ai-create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ business_id: businessId, project_id: projectId, prompt: prompt.trim(), mode: 'quick' }),
+        body: JSON.stringify({ business_id: businessId, project_id: projectId, prompt: prompt.trim(), mode: 'quick', instruction: instruction || undefined }),
       });
       const j = await r.json();
       if (!j.success) throw new Error(j.message || 'failed');
@@ -165,7 +166,7 @@ export default function CueTaskBar({ businessId, members, projectId = null, onCr
           aria-label={t('ai.bar.lead', 'Cue에게 말하기') as string}
         />
         {prompt.trim() ? (
-          <SendBtn type="button" onClick={send} disabled={submitting} aria-label={t('ai.bar.send', '보내기') as string}>
+          <SendBtn type="button" onClick={() => send()} disabled={submitting} aria-label={t('ai.bar.send', '보내기') as string}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="19" x2="12" y2="5" /><polyline points="5 12 12 5 19 12" /></svg>
           </SendBtn>
         ) : justAdded ? (
@@ -215,7 +216,8 @@ export default function CueTaskBar({ businessId, members, projectId = null, onCr
                   ? t('ai.confirmOne', '추가')
                   : t('ai.confirm', '{{n}}개 추가', { n: selectedCount, defaultValue: `${selectedCount}개 추가` })}
             </ModalActionButton>
-            <ModalActionButton variant="secondary" onClick={send} disabled={submitting}>{t('ai.regenerate', '다시 생성')}</ModalActionButton>
+            {/* 운영 — AI 재생성 UX 통일: 지시 기반 재생성 (인라인) */}
+            <AiRegenerateBar busy={submitting} size="sm" onRegenerate={(ins) => send(ins)} />
             <ModalActionButton variant="secondary" onClick={reset} disabled={submitting}>{t('ai.bar.close', '닫기')}</ModalActionButton>
           </Actions>
         </Drop>

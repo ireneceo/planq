@@ -211,12 +211,18 @@ function matchMemberByHint(hint, members) {
 }
 
 // 메인 — 미리보기 후보 생성
-async function planTasksFromPrompt({ prompt, businessId, projectContext, members = [], targetDate = null, todayLocal, language = 'ko', mode = null }) {
+async function planTasksFromPrompt({ prompt, businessId, projectContext, members = [], targetDate = null, todayLocal, language = 'ko', mode = null, instruction = null }) {
   if (!prompt || !String(prompt).trim()) {
     return { candidates: [], reasoning: '', fallback: true, error: 'empty_prompt' };
   }
   const systemPrompt = buildSystemPrompt(language, members, projectContext, targetDate, todayLocal, mode);
-  const result = await callOpenAi(systemPrompt, String(prompt).trim());
+  // 운영 — 재생성/재수정 지시 (AI 재생성 UX 통일). 사용자가 결과를 보고 "이렇게 고쳐줘" 한 것.
+  let userPrompt = String(prompt).trim();
+  if (instruction && String(instruction).trim()) {
+    const label = language === 'en' ? '\n\n[Revision instruction — regenerate accordingly]\n' : '\n\n[재생성 지시 — 아래 요구에 맞춰 다시 분해]\n';
+    userPrompt += label + String(instruction).trim().slice(0, 1000);
+  }
+  const result = await callOpenAi(systemPrompt, userPrompt);
 
   let parsed;
   try { parsed = JSON.parse(result.content); }
