@@ -321,8 +321,6 @@ app.get('/api/health', async (req, res) => {
 require('./models');
 
 // Routes
-// 운영 #49 — 공개 공유 페이지 SNS OG 메타 서버 주입 (/public/*, /sign/*). nginx 가 이 경로를 백엔드로 proxy.
-app.use(require('./routes/og_public'));
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/projects', require('./routes/projects'));
 app.use('/api/projects', require('./routes/project_process'));
