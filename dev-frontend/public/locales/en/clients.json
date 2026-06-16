@@ -111,7 +111,8 @@
     "desc": "They haven't signed up yet. Resend the email if they didn't receive it.",
     "resend": "Resend invite",
     "resending": "Sending…",
-    "resent": "Invite resent"
+    "resent": "Invite resent",
+    "invitedAt": "Invited: {{when}}"
   },
   "subscription": {
     "title": "Recurring subscription",
@@ -179,5 +180,9 @@
       "canceled": "Canceled"
     },
     "openCta": "Open unified timeline — chat·mail·tasks·invoices"
+  },
+  "clients": {
+    "resentCount": "Resent {{count}}×",
+    "resentTitle": "Invite email resend count"
   }
 }

@@ -58,6 +58,12 @@ Client.init({
     type: DataTypes.DATE,
     allowNull: true
   },
+  // 운영 #52 — 재발송 횟수 (초대 메일 재발송 시 +1, invited_at 은 최근 발송시각). 0 = 최초 1회만.
+  reinvite_count: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    defaultValue: 0
+  },
   joined_at: {
     type: DataTypes.DATE,
     allowNull: true

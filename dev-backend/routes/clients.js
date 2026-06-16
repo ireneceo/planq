@@ -319,9 +319,9 @@ router.post('/:businessId/:id/resend-invite', authenticateToken, checkBusinessAc
     if (!client.invite_email) return errorResponse(res, 'no_invite_email', 400);
 
     const crypto = require('crypto');
-    // 토큰 없으면 신규 발급, 있으면 유지. invited_at 갱신으로 만료 연장.
+    // 토큰 없으면 신규 발급, 있으면 유지. invited_at 갱신으로 만료 연장. reinvite_count +1 (운영 #52 재발송 이력).
     const token = client.invite_token || crypto.randomBytes(24).toString('hex');
-    await client.update({ invite_token: token, invited_at: new Date(), status: 'invited' });
+    await client.update({ invite_token: token, invited_at: new Date(), status: 'invited', reinvite_count: (client.reinvite_count || 0) + 1 });
 
     try {
       const { sendInviteEmail } = require('../services/emailService');

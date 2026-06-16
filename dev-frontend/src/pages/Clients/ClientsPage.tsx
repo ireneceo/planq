@@ -32,6 +32,7 @@ interface ClientRow {
   project_count?: number;
   active_project_count?: number;
   invited_at: string | null;
+  reinvite_count?: number;  // 운영 #52
   created_at: string;
   user?: { id: number; name: string; email: string; phone: string | null; avatar_url?: string | null };
   linked_projects?: Array<{ id: number; name: string; status: string; color: string | null; project_type?: string; project_client_id: number }>;
@@ -60,7 +61,7 @@ const STATUS_STYLE: Record<ClientStatus, { bg: string; fg: string }> = {
 export default function ClientsPage() {
   const { t } = useTranslation('clients');
   const { user } = useAuth();
-  const { formatDate } = useTimeFormat();
+  const { formatDate, formatDateTime } = useTimeFormat();
   const navigate = useNavigate();
   const businessId = user?.business_id || 0;
   const isAdmin = user?.business_role === 'owner' || user?.platform_role === 'platform_admin';
@@ -225,7 +226,14 @@ export default function ClientsPage() {
     try {
       const res = await apiFetch(`/api/clients/${businessId}/${id}/resend-invite`, { method: 'POST' });
       const j = await res.json();
-      if (j.success) setResendDone(true);
+      if (j.success) {
+        setResendDone(true);
+        // 운영 #52 — 재발송 즉시 반영 (횟수 +1, 초대일시 갱신) — 새로고침 불필요
+        const now = new Date().toISOString();
+        const bump = (c: ClientRow) => c.id === id ? { ...c, reinvite_count: (c.reinvite_count ?? 0) + 1, invited_at: now } : c;
+        setClients((prev) => prev.map(bump));
+        setActiveDetail((prev) => prev ? bump(prev) : prev);
+      }
     } finally { setResendBusy(false); }
   };
 
@@ -387,7 +395,15 @@ export default function ClientsPage() {
                     <Td style={{ textAlign: 'center' }}>
                       {c.project_count && c.project_count > 0 ? <ProjCount>{c.project_count}</ProjCount> : <Muted>—</Muted>}
                     </Td>
-                    <Td>{formatDate(c.invited_at || c.created_at)}</Td>
+                    <Td>
+                      {/* 운영 #52 — 초대일시 시간 포함 + 재발송 횟수 */}
+                      <InviteWhen>{formatDateTime(c.invited_at || c.created_at)}</InviteWhen>
+                      {(c.reinvite_count ?? 0) > 0 && (
+                        <ResendTag title={t('clients.resentTitle', { defaultValue: '초대 메일 재발송 횟수' }) as string}>
+                          {t('clients.resentCount', { count: c.reinvite_count, defaultValue: `재발송 ${c.reinvite_count}회` }) as string}
+                        </ResendTag>
+                      )}
+                    </Td>
                   </Tr>
                 );
               })}
@@ -436,6 +452,11 @@ export default function ClientsPage() {
                 <InviteBannerText>
                   <strong>{t('invitePending.title', '초대 수락 대기 중')}</strong>
                   <span>{t('invitePending.desc', '아직 가입하지 않았어요. 메일을 못 받았다면 다시 보낼 수 있습니다.')}</span>
+                  {/* 운영 #52 — 초대일시(시간 포함) + 재발송 이력 */}
+                  <InviteMeta>
+                    {t('invitePending.invitedAt', { when: formatDateTime(activeDetail.invited_at || activeDetail.created_at), defaultValue: `초대: ${formatDateTime(activeDetail.invited_at || activeDetail.created_at)}` }) as string}
+                    {(activeDetail.reinvite_count ?? 0) > 0 && ` · ${t('clients.resentCount', { count: activeDetail.reinvite_count, defaultValue: `재발송 ${activeDetail.reinvite_count}회` }) as string}`}
+                  </InviteMeta>
                 </InviteBannerText>
                 <ResendBtn type="button" onClick={() => resendInvite(activeDetail.id)} disabled={resendBusy || !isAdmin}>
                   {resendBusy ? t('invitePending.resending', '보내는 중…') : resendDone ? t('invitePending.resent', '재발송 완료') : t('invitePending.resend', '초대 재발송')}
@@ -716,6 +737,13 @@ const InviteBannerText = styled.div`
   display:flex; flex-direction:column; gap:2px; min-width:0;
   strong { font-size:13px; font-weight:700; color:#92400E; }
   span { font-size:12px; color:#A16207; line-height:1.4; }
+`;
+// 운영 #52 — 초대일시·재발송 표시
+const InviteMeta = styled.div`font-size:11px; color:#A16207; opacity:0.85; margin-top:2px; font-variant-numeric:tabular-nums;`;
+const InviteWhen = styled.div`font-size:12px; color:#334155; font-variant-numeric:tabular-nums;`;
+const ResendTag = styled.span`
+  display:inline-block; margin-top:3px; font-size:10px; font-weight:700;
+  color:#92400E; background:#FEF3C7; border-radius:999px; padding:1px 7px;
 `;
 const ResendBtn = styled.button`
   flex-shrink:0; height:32px; padding:0 12px; border-radius:8px;
