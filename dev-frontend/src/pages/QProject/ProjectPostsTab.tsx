@@ -20,7 +20,8 @@ import KindIcon from '../../components/Docs/KindIcon';
 import type { DocKind } from '../../services/docs';
 import AttachmentField from '../../components/Common/AttachmentField';
 import { uploadProjectFile } from '../../services/files';
-import { listTemplates, type DocTemplate, KIND_LABELS_KO } from '../../services/docs';
+import { listTemplates, aiGenerateDoc, type DocTemplate, KIND_LABELS_KO } from '../../services/docs';
+import AiRegenerateBar from '../../components/Common/AiRegenerateBar';
 import { useAuth } from '../../contexts/AuthContext';
 import ConfirmDialog from '../../components/Common/ConfirmDialog';
 import EmptyState from '../../components/Common/EmptyState';
@@ -52,6 +53,9 @@ const ProjectPostsTab: React.FC<Props> = ({ businessId, projectId }) => {
 
   // AI / 템플릿 모달
   const [aiOpen, setAiOpen] = useState(false);
+  // 운영 — Q docs AI 재생성 컨텍스트
+  const [aiCtx, setAiCtx] = useState<{ kind: string; userInput: string; clientId?: number | null; projectId?: number | null } | null>(null);
+  const [regenBusy, setRegenBusy] = useState(false);
   const [tplModalOpen, setTplModalOpen] = useState(false);
   const [templates, setTemplates] = useState<DocTemplate[]>([]);
   const [tplSearch, setTplSearch] = useState('');
@@ -212,7 +216,7 @@ const ProjectPostsTab: React.FC<Props> = ({ businessId, projectId }) => {
     return html.replace(/\{\{\s*([\w.]+)\s*\}\}/g, (_, p) => ctx[p] ?? '');
   };
 
-  const startFromAi = ({ title, bodyHtml }: { title: string; bodyHtml: string }) => {
+  const startFromAi = ({ title, bodyHtml, aiContext }: { title: string; bodyHtml: string; aiContext?: { kind: string; userInput: string; clientId?: number | null; projectId?: number | null } }) => {
     setActiveId(null);
     setDetail(null);
     setMode('new');
@@ -221,8 +225,25 @@ const ProjectPostsTab: React.FC<Props> = ({ businessId, projectId }) => {
     // 카테고리는 현재 활성 필터가 있으면 따라가고, 없으면 빈 값
     setCategoryDraft(categoryFilter || '');
     setPendingUploads([]); setPendingExistingIds([]); setPendingExistingMeta({});
+    setAiCtx(aiContext || null);  // 운영 — 재생성용
     setError(null);
     setAiOpen(false);
+  };
+
+  // 운영 — Q docs AI 재생성 (지시 기반, 본문 교체)
+  const regenerateDoc = async (instruction: string) => {
+    if (!aiCtx || regenBusy) return;
+    setRegenBusy(true); setError(null);
+    try {
+      const r = await aiGenerateDoc({
+        business_id: businessId, kind: aiCtx.kind as DocKind, title: titleDraft.trim() || '문서',
+        user_input: aiCtx.userInput, client_id: aiCtx.clientId, project_id: aiCtx.projectId ?? projectId,
+        instruction: instruction || undefined,
+      });
+      setContentDraft(r.body_html as unknown);
+    } catch (e) {
+      setError((e as Error).message || (t('ai.regenFailed', '재생성 실패. 잠시 후 다시 시도해 주세요.') as string));
+    } finally { setRegenBusy(false); }
   };
 
   const startFromTemplate = (tpl: DocTemplate) => {
@@ -322,6 +343,7 @@ const ProjectPostsTab: React.FC<Props> = ({ businessId, projectId }) => {
     setTitleDraft(''); setContentDraft(null);
     setCategoryDraft(categoryFilter || '');
     setPendingUploads([]); setPendingExistingIds([]); setPendingExistingMeta({});
+    setAiCtx(null);  // 운영 — 빈 새 문서는 재생성 바 숨김
     setError(null);
     setMode('new');
   };
@@ -329,6 +351,7 @@ const ProjectPostsTab: React.FC<Props> = ({ businessId, projectId }) => {
   const startEdit = () => {
     if (!detail) return;
     setTitleDraft(detail.title); setContentDraft(detail.content_json); setCategoryDraft(detail.category || '');
+    setAiCtx(null);  // 운영 — 기존 문서 편집은 재생성 바 숨김
     setError(null);
     setMode('edit');
   };
@@ -709,6 +732,10 @@ const ProjectPostsTab: React.FC<Props> = ({ businessId, projectId }) => {
             maxLength={40}
           />
           {error && <ErrorBar>{error}</ErrorBar>}
+          {/* 운영 — AI 생성물 재생성 (AI 로 만든 새 문서일 때만) */}
+          {mode === 'new' && aiCtx && (
+            <AiRegenRow><AiRegenerateBar busy={regenBusy} onRegenerate={regenerateDoc} /></AiRegenRow>
+          )}
           <PostEditor value={contentDraft} onChange={setContentDraft} businessId={businessId} placeholder={t('contentPlaceholder', '본문을 작성하세요…') as string} />
           <AttachSection>
             <AttachTitle>{t('attachments', '첨부 파일')}</AttachTitle>
@@ -1191,6 +1218,8 @@ const ErrorBar = styled.div`
   font-size: 12px; color: #DC2626; background: #FEF2F2; padding: 8px 10px;
   border-radius: 6px;
 `;
+// 운영 — AI 재생성 바 행
+const AiRegenRow = styled.div`display: flex; margin: 8px 0;`;
 const PrintOnlyTitle = styled.h1`
   display: none;
   @media print { display: block; font-size: 24px; font-weight: 700; color: #0F172A; margin: 0 0 16px 0; }
