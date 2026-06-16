@@ -514,13 +514,25 @@ export async function createConversation(input: CreateConversationInput): Promis
   return handle<ApiConversation>(res);
 }
 
-export async function addConversationParticipant(businessId: number, conversationId: number, userId: number): Promise<void> {
+export async function addConversationParticipant(businessId: number, conversationId: number, userId: number, role: 'member' | 'client' = 'member'): Promise<void> {
   const res = await apiFetch(`/api/conversations/${businessId}/${conversationId}/participants`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ user_id: userId }),
+    body: JSON.stringify({ user_id: userId, role }),
   });
   await handle<unknown>(res);
+}
+
+// 참여자 패널 데이터 — 현재 참여자 + 추가 후보(멤버/고객) + 미수락 초대고객(안내)
+export interface ParticipantPanel {
+  participants: { user_id: number; role: string; name: string; email: string; is_ai: boolean }[];
+  member_candidates: { user_id: number; name: string; email: string }[];
+  client_candidates: { user_id: number; name: string; email: string }[];
+  pending_clients: { name: string; email: string }[];
+}
+export async function fetchParticipantPanel(businessId: number, conversationId: number): Promise<ParticipantPanel> {
+  const res = await apiFetch(`/api/conversations/${businessId}/${conversationId}/participants`);
+  return handle<ParticipantPanel>(res);
 }
 
 export async function removeConversationParticipant(businessId: number, conversationId: number, userId: number): Promise<void> {

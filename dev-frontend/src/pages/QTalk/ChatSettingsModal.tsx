@@ -8,15 +8,18 @@ import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import {
   updateConversation,
   addConversationParticipant, removeConversationParticipant,
-  listBusinessMembers,
-  type ApiConversation, type SupportedLang, type WorkspaceMemberRow,
+  fetchParticipantPanel,
+  type ApiConversation, type SupportedLang,
 } from '../../services/qtalk';
 
 interface Participant {
   user_id: number;
   name: string;
   email: string;
+  role?: string;
+  is_ai?: boolean;
 }
+interface Candidate { user_id: number; name: string; email: string; kind: 'member' | 'client'; }
 interface Props {
   open: boolean;
   onClose: () => void;
@@ -50,9 +53,10 @@ const ChatSettingsModal: React.FC<Props> = ({
   const [error, setError] = useState<string | null>(null);
   const [inviteId, setInviteId] = useState<number | null>(null);
 
-  // 참여자 — conversation.participants 를 로컬 state 로 관리 (추가/제거 시 즉시 반영)
+  // 참여자 — 서버에서 fetch (prop 의존 시 빈 목록 오표시 → #1 fix). 추가/제거 시 로컬 즉시 반영.
   const [participants, setParticipants] = useState<Participant[]>([]);
-  const [members, setMembers] = useState<WorkspaceMemberRow[]>([]);
+  const [candidates, setCandidates] = useState<Candidate[]>([]);   // 멤버 + 고객 후보
+  const [pendingClients, setPendingClients] = useState<{ name: string; email: string }[]>([]);
 
   useEffect(() => {
     if (!open) return;
@@ -63,15 +67,15 @@ const ChatSettingsModal: React.FC<Props> = ({
     setLangB(ll[1] || 'en');
     setError(null);
     setInviteId(null);
-    // 참여자 prefill — conversation.participants 에서 매핑
-    const ps = (conversation.participants || []).map(p => ({
-      user_id: p.user_id,
-      name: p.User?.name || `user ${p.user_id}`,
-      email: p.User?.email || '',
-    }));
-    setParticipants(ps);
-    // 워크스페이스 멤버 fetch (초대 옵션용)
-    listBusinessMembers(businessId).then(ms => setMembers(ms || [])).catch(() => setMembers([]));
+    // 참여자 패널 데이터 fetch — 현재 참여자 + 멤버/고객 후보 + 미수락 초대고객
+    fetchParticipantPanel(businessId, conversation.id).then(panel => {
+      setParticipants(panel.participants.map(p => ({ user_id: p.user_id, name: p.name, email: p.email, role: p.role, is_ai: p.is_ai })));
+      setCandidates([
+        ...panel.member_candidates.map(m => ({ ...m, kind: 'member' as const })),
+        ...panel.client_candidates.map(c => ({ ...c, kind: 'client' as const })),
+      ]);
+      setPendingClients(panel.pending_clients || []);
+    }).catch(() => { setParticipants([]); setCandidates([]); setPendingClients([]); });
   }, [open, conversation, businessId]);
 
   if (!open) return null;
@@ -105,17 +109,14 @@ const ChatSettingsModal: React.FC<Props> = ({
 
   const addMember = async () => {
     if (!inviteId || busy) return;
-    const m = members.find(x => x.user_id === inviteId);
-    if (!m) return;
+    const c = candidates.find(x => x.user_id === inviteId);
+    if (!c) return;
     setBusy(true); setError(null);
     try {
-      await addConversationParticipant(businessId, conversation.id, inviteId);
-      // 로컬 state 즉시 반영 (user 가 null 일 가능성 방어)
-      setParticipants(prev => [...prev, {
-        user_id: m.user_id,
-        name: m.user?.name || `user ${m.user_id}`,
-        email: m.user?.email || '',
-      }]);
+      await addConversationParticipant(businessId, conversation.id, inviteId, c.kind);
+      // 로컬 즉시 반영 + 후보에서 제거
+      setParticipants(prev => [...prev, { user_id: c.user_id, name: c.name, email: c.email, role: c.kind }]);
+      setCandidates(prev => prev.filter(x => x.user_id !== c.user_id));
       setInviteId(null);
     } catch (e) {
       setError((e as Error).message || (t('settings.errFailed', '저장 실패') as string));
@@ -133,12 +134,15 @@ const ChatSettingsModal: React.FC<Props> = ({
     } finally { setBusy(false); }
   };
 
-  // 초대 가능 후보 = workspace 멤버 - 이미 참여자 - AI (Cue role) - user 데이터 누락 행 제외
-  const memberOptions: PlanQSelectOption[] = members
-    .filter(m => !participants.find(p => p.user_id === m.user_id))
-    .filter(m => m.role !== 'ai')
-    .filter(m => !!m.user)
-    .map(m => ({ value: m.user_id, label: `${m.user!.name} (${m.user!.email})` }));
+  // 초대 가능 후보 = 멤버 + 프로젝트 고객 (이미 참여자 제외는 서버에서 처리). 고객은 라벨에 표시.
+  const memberOptions: PlanQSelectOption[] = candidates
+    .filter(c => !participants.find(p => p.user_id === c.user_id))
+    .map(c => ({
+      value: c.user_id,
+      label: c.kind === 'client'
+        ? `${c.name} · ${t('settings.participants.clientTag', { defaultValue: '고객' })}${c.email ? ` (${c.email})` : ''}`
+        : `${c.name}${c.email ? ` (${c.email})` : ''}`,
+    }));
 
   return (
     <Backdrop onClick={onClose}>
@@ -215,12 +219,21 @@ const ChatSettingsModal: React.FC<Props> = ({
               {participants.map(p => (
                 <MemberRow key={p.user_id}>
                   <MemberInfo>
-                    <MemberName>{p.name}</MemberName>
+                    <MemberName>
+                      {p.name}
+                      {p.is_ai
+                        ? <RoleTag $kind="ai">{t('settings.participants.aiTag', { defaultValue: 'AI' }) as string}</RoleTag>
+                        : p.role === 'client'
+                          ? <RoleTag $kind="client">{t('settings.participants.clientTag', { defaultValue: '고객' }) as string}</RoleTag>
+                          : null}
+                    </MemberName>
                     <MemberEmail>{p.email}</MemberEmail>
                   </MemberInfo>
-                  <DangerBtn type="button" onClick={() => removeMember(p.user_id)} disabled={busy}>
-                    {t('settings.participants.remove', '내보내기')}
-                  </DangerBtn>
+                  {!p.is_ai && (
+                    <DangerBtn type="button" onClick={() => removeMember(p.user_id)} disabled={busy}>
+                      {t('settings.participants.remove', '내보내기')}
+                    </DangerBtn>
+                  )}
                 </MemberRow>
               ))}
               {participants.length === 0 && <Empty>{t('settings.participants.empty', '참여자가 없습니다')}</Empty>}
@@ -231,13 +244,19 @@ const ChatSettingsModal: React.FC<Props> = ({
                   options={memberOptions}
                   value={memberOptions.find(o => o.value === inviteId) || null}
                   onChange={(opt) => setInviteId(opt ? Number((opt as PlanQSelectOption).value) : null)}
-                  placeholder={t('settings.participants.invitePh', '워크스페이스 멤버 선택') as string}
+                  placeholder={t('settings.participants.invitePh2', '멤버 · 고객 선택') as string}
                   isClearable isSearchable
                 />
                 <PrimaryBtn type="button" disabled={!inviteId || busy} onClick={addMember}>
                   {t('settings.participants.invite', '초대')}
                 </PrimaryBtn>
               </InviteRow>
+            )}
+            {pendingClients.length > 0 && (
+              <PendingNote>
+                {t('settings.participants.pendingNote', { defaultValue: '초대 수락 대기 중인 고객은 수락하면 자동으로 이 채팅에 참여합니다' }) as string}
+                <PendingList>{pendingClients.map((c, i) => <span key={i}>{c.name}{c.email ? ` (${c.email})` : ''}</span>)}</PendingList>
+              </PendingNote>
             )}
           </Section>
 
@@ -305,9 +324,22 @@ const MemberRow = styled.div`
   padding:8px 12px;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px;
 `;
 const MemberInfo = styled.div`display:flex;flex-direction:column;gap:2px;`;
-const MemberName = styled.div`font-size:13px;font-weight:600;color:#0F172A;`;
+const MemberName = styled.div`font-size:13px;font-weight:600;color:#0F172A;display:flex;align-items:center;gap:6px;`;
 const MemberEmail = styled.div`font-size:11px;color:#64748B;`;
 const Empty = styled.div`text-align:center;padding:14px;color:#94A3B8;font-size:12px;`;
+const RoleTag = styled.span<{ $kind: 'client' | 'ai' }>`
+  font-size:10px;font-weight:700;padding:1px 7px;border-radius:999px;
+  ${p => p.$kind === 'client'
+    ? 'background:#F0FDFA;color:#0F766E;'
+    : 'background:#FEF2F2;color:#B91C1C;'}
+`;
+const PendingNote = styled.div`
+  margin-top:10px;padding:10px 12px;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px;
+  font-size:11px;color:#64748B;line-height:1.6;
+`;
+const PendingList = styled.div`
+  display:flex;flex-direction:column;gap:2px;margin-top:6px;font-weight:600;color:#475569;
+`;
 const InviteRow = styled.div`display:flex;gap:6px;align-items:flex-start;`;
 const PrimaryBtn = styled.button`
   height:32px;padding:0 14px;background:#14B8A6;color:#fff;border:none;

@@ -52,6 +52,17 @@ interface Props {
   embedded?: boolean;
 }
 
+// 채널 표시명 — 제목이 "{프로젝트명} 고객/내부" 로 저장돼 헤더의 "소속: {프로젝트명}" 과 중복.
+// 프로젝트 컨텍스트가 있으면 채널명에서 프로젝트 prefix 를 떼어 "고객"/"내부" 만 간결히 표시.
+function channelLabel(name: string, projectName?: string | null): string {
+  if (!name || !projectName || name === projectName) return name;
+  if (name.startsWith(projectName)) {
+    const rest = name.slice(projectName.length).replace(/^[\s/·∙・–—-]+/, '').trim();
+    return rest || name;
+  }
+  return name;
+}
+
 const ChatPanel: React.FC<Props> = ({
   project, conversations, messages, activeConversationId, onSelectConversation,
   onOpenExtract, onSendMessage, onCueDraftSend, onCueDraftReject,
@@ -1017,7 +1028,7 @@ const ChatPanel: React.FC<Props> = ({
                   title={!isClient ? t('chat.rename', '클릭해서 이름 수정') : undefined}
                   $editable={!isClient}
                 >
-                  {activeConv.name}
+                  {channelLabel(activeConv.name, project?.name)}
                 </ChatName>
                 {/* '내부' 는 default 라 라벨 X — '고객' 만 강조 (B2B 시각 패턴) */}
                 {activeConv.channel_type === 'customer' && <CustomerTag>{t('channelBadge.customer', '고객')}</CustomerTag>}
@@ -1040,7 +1051,7 @@ const ChatPanel: React.FC<Props> = ({
                     <QuickHash $type={c.channel_type}>
                       {c.channel_type === 'customer' ? '#' : '·'}
                     </QuickHash>
-                    {c.name}
+                    {channelLabel(c.name, project?.name)}
                     {c.unread_count > 0 && <QuickBadge>{c.unread_count}</QuickBadge>}
                   </QuickSwitchBtn>
                 ))}
@@ -1057,25 +1068,13 @@ const ChatPanel: React.FC<Props> = ({
                   <QuickHash $type={c.channel_type}>
                     {c.channel_type === 'customer' ? '#' : '·'}
                   </QuickHash>
-                  {c.name}
+                  {channelLabel(c.name, project?.name)}
                   {c.unread_count > 0 && <QuickBadge>{c.unread_count}</QuickBadge>}
                 </QuickSwitchBtn>
               ))}
             </ChannelQuickSwitch>
           )}
-          {/* 도움말 — 우하단 FAB 가 채팅 입력란을 가려서 자동 숨김. 헤더에 인라인으로 노출. */}
-          <IconBtn
-            type="button"
-            onClick={() => window.dispatchEvent(new CustomEvent('cue:ask', { detail: {} }))}
-            title={t('chat.help', '도움말 / 피드백') as string}
-            aria-label={t('chat.help', '도움말 / 피드백') as string}
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="10"/>
-              <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
-              <line x1="12" y1="17" x2="12.01" y2="17"/>
-            </svg>
-          </IconBtn>
+          {/* (Q helper ? 헤더 버튼 제거 — 우하단 공통 위젯과 중복. Irene 요청 2026-06-16) */}
           {/* N+93 (#9) — 새 창으로 분리 (데스크탑앱 밖에서 채팅). 이미 팝아웃 창이면 숨김. */}
           {window.location.pathname !== '/talk-popout' && (
             <PopoutBtn

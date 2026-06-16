@@ -455,7 +455,11 @@
       "remove": "내보내기",
       "empty": "참여자가 없습니다",
       "invitePh": "워크스페이스 멤버 선택",
-      "invite": "초대"
+      "invite": "초대",
+      "clientTag": "고객",
+      "aiTag": "AI",
+      "invitePh2": "멤버 · 고객 선택",
+      "pendingNote": "초대 수락 대기 중인 고객은 수락하면 자동으로 이 채팅에 참여합니다"
     }
   },
   "userInfo": {
