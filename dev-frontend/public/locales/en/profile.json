@@ -103,7 +103,9 @@
     "loading": "Loading...",
     "on": "On",
     "off": "Off",
-    "col": { "event": "Event" },
+    "col": {
+      "event": "Event"
+    },
     "channel": {
       "inbox": "Inbox",
       "chat": "Chat",
@@ -222,5 +224,9 @@
     "successDeleteAll": "All voice registrations deleted",
     "successLanguageChanged": "Default language updated",
     "closeBtn": "Close"
+  },
+  "integrations": {
+    "defPersonal": "What you connect here is your own personal account, visible only to you — not to your workspace teammates. (e.g., connecting your personal Gmail shows that mail only to you in Q Mail, separate from company mail.)",
+    "defTeam": "Shared company connections (company Google Drive, shared calendar, main mailbox) are shared by all members and managed in workspace settings below."
   }
 }

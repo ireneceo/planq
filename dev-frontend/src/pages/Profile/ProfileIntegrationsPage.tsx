@@ -209,9 +209,17 @@ const ProfileIntegrationsPage: React.FC = () => {
 
   return (
     <PageShell title={t('integrations.title', '내 외부 연동') as string}>
-      <Hint>
-        {t('integrations.hint', '본인 계정에 연결된 외부 서비스예요. 워크스페이스 공용 연동은 회사 설정에서 별도로 관리합니다.') as string}
-      </Hint>
+      {/* 운영 #53 — 개인 vs 팀 연동 정의를 명확히 (사용자 "헷갈려: 개인만? 모두 연동 후 개인뷰?") */}
+      <IntroCard>
+        <IntroLine>
+          <IntroDot $tone="personal" />
+          <span>{t('integrations.defPersonal', { defaultValue: '여기서 연결하는 건 나만 보는 내 개인 계정이에요. 같은 워크스페이스 동료에게는 보이지 않아요. (예: 개인 Gmail 을 연결하면 그 메일은 Q Mail 에서 나에게만, 회사 메일과 분리 표시)' }) as string}</span>
+        </IntroLine>
+        <IntroLine>
+          <IntroDot $tone="team" />
+          <span>{t('integrations.defTeam', { defaultValue: '회사가 함께 쓰는 공용 연동(회사 Google Drive·공용 캘린더·대표 메일)은 모든 멤버가 공유하며, 아래 회사 설정에서 관리해요.' }) as string}</span>
+        </IntroLine>
+      </IntroCard>
       {errorMsg && <ErrorBanner>{errorMsg}</ErrorBanner>}
 
       {/* ─── 로그인 (OauthConnection) ─── */}
@@ -380,7 +388,20 @@ const ProfileIntegrationsPage: React.FC = () => {
 export default ProfileIntegrationsPage;
 
 // ─── styled ────────────────────────────────────
-const Hint = styled.p`font-size: 13px; color: #64748B; line-height: 1.6; margin: 0 0 20px;`;
+// 운영 #53 — 개인 vs 팀 연동 정의 카드
+const IntroCard = styled.div`
+  display: flex; flex-direction: column; gap: 10px;
+  background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 12px;
+  padding: 14px 16px; margin: 0 0 20px;
+`;
+const IntroLine = styled.div`
+  display: flex; align-items: flex-start; gap: 8px;
+  font-size: 13px; color: #334155; line-height: 1.55;
+`;
+const IntroDot = styled.span<{ $tone: 'personal' | 'team' }>`
+  flex-shrink: 0; width: 8px; height: 8px; border-radius: 50%; margin-top: 6px;
+  background: ${p => p.$tone === 'personal' ? '#14B8A6' : '#94A3B8'};
+`;
 const ErrorBanner = styled.div`
   padding: 10px 14px; margin-bottom: 16px;
   background: #FEF2F2; border: 1px solid #FECACA; border-radius: 8px;
