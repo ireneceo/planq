@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
+import { useAuth } from '../../contexts/AuthContext';
 import type { CalendarEvent, EventCategory, EventVisibility } from './types';
 import { CATEGORY_OPTIONS } from './categoryColors';
 import { toDateKey } from './dateUtils';
@@ -35,6 +36,16 @@ const TIME_OPTIONS = (() => {
 
 const NewEventModal: React.FC<Props> = ({ initialStart, projects, businessId, onClose, onCreate }) => {
   const { t, i18n } = useTranslation('qcalendar');
+  const { user } = useAuth();
+  // 운영 #41 — 입력 시간의 기준 타임존(워크스페이스) 안내
+  const wsTz = user?.workspace_timezone || Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const wsTzLabel = (() => {
+    try {
+      const locale = i18n.language === 'en' ? 'en-US' : 'ko-KR';
+      const parts = new Intl.DateTimeFormat(locale, { timeZone: wsTz, timeZoneName: 'short' }).formatToParts(new Date());
+      return parts.find((p) => p.type === 'timeZoneName')?.value || wsTz.split('/').pop() || wsTz;
+    } catch { return wsTz.split('/').pop() || wsTz; }
+  })();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [location, setLocation] = useState('');
@@ -225,6 +236,7 @@ const NewEventModal: React.FC<Props> = ({ initialStart, projects, businessId, on
                 </TimePair>
               )}
             </DateRow>
+            {!allDay && <TzHint>{t('tz.inputBasis', { tz: wsTzLabel, defaultValue: '{{tz}} (워크스페이스 시간대) 기준' }) as string}</TzHint>}
             <CalendarPicker
               isOpen={datePickerOpen}
               startDate={startDate}
@@ -415,6 +427,9 @@ const TitleInput = styled.input`
 
 const DateRow = styled.div`
   display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+`;
+const TzHint = styled.div`
+  font-size: 11px; font-weight: 500; color: #94A3B8; margin-top: 4px;
 `;
 const DateTrigger = styled.button`
   display: inline-flex; align-items: center; gap: 8px;

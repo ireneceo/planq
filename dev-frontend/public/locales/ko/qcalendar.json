@@ -131,5 +131,10 @@
   "more": "+ {{count}}개 더보기",
   "allDay": "종일",
   "personalCalendar": "내 캘린더",
-  "personalCalendarHint": "내 Google 캘린더 일정 표시/숨김"
+  "personalCalendarHint": "내 Google 캘린더 일정 표시/숨김",
+  "tz": {
+    "workspaceBasis": "{{tz}} · 워크스페이스 기준",
+    "yourTime": "내 시간대",
+    "inputBasis": "{{tz}} (워크스페이스 시간대) 기준"
+  }
 }
