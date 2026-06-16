@@ -47,8 +47,9 @@ const BuildVersionGuard: React.FC = () => {
           pendingReloadRef.current = true;
           // 새 빌드 → 옛 SW 잔존 차단 위해 강제 최신화 (sw.js no-cache + skipWaiting → 즉시 새 SW)
           await forceSwUpdate();
-          // 입력 중이 아니면 즉시 reload, 입력 중이면 다음 navigation 까지 보류
-          if (isReloadSafe()) window.location.reload();
+          // 화면을 안 보고 있을 때(hidden)만 즉시 reload — 보고 있으면 다음 navigation 때 조용히 적용.
+          // (잦은 배포 시 사용자가 보는 중에 화면이 튀는 것 방지. 다음 페이지 이동 effect 가 안전 적용)
+          if (document.visibilityState === 'hidden' && isReloadSafe()) window.location.reload();
         }
       } catch { /* network 일시 오류 무시 */ }
     };

@@ -1233,10 +1233,9 @@ const QTaskPage:React.FC=()=>{
     for(const task of chartTasks){
       const act=Number(task.actual_hours)||0;
       const prog=(task.progress_percent||0)/100;
-      // N+37 — actual_hours 미입력 + progress 있으면 estimated_hours * progress 로 추정.
-      // 사용자 호소 (운영 데이터): 100% 완료 task 4건 모두 actual_hours='-' (미입력) 라
-      // burndown 그래프에 안 잡히던 회귀. actual 그대로 입력된 경우는 옛 로직 유지.
-      const actUsed = act > 0 ? act * prog : (Number(task.estimated_hours) || 0) * prog;
+      // 실제시간: actual_hours 는 이미 실제 투입시간 → 그대로 사용(×progress 곱하면 과소표시 버그).
+      //   actual 미입력 시에만 estimated × progress 로 추정 (100% 완료인데 actual 미입력 케이스 포함).
+      const actUsed = act > 0 ? act : (Number(task.estimated_hours) || 0) * prog;
       if(actUsed===0)continue;
       const taskStart=(task.start_date||task.due_date||task.planned_week_start||periodFrom).slice(0,10);
       const taskEnd=(task.due_date||task.start_date||periodTo).slice(0,10);
@@ -1261,7 +1260,7 @@ const QTaskPage:React.FC=()=>{
     const liveActToday=chartTasks.reduce((s,t)=>{
       const a=Number(t.actual_hours)||0;
       const p=(t.progress_percent||0)/100;
-      return s + (a>0 ? a*p : (Number(t.estimated_hours)||0)*p);
+      return s + (a>0 ? a : (Number(t.estimated_hours)||0)*p);
     },0);
 
     // 과거: 스냅샷 우선, 오늘: 라이브

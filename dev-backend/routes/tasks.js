@@ -1691,9 +1691,9 @@ router.get('/daily-progress', authenticateToken, async (req, res, next) => {
       const est = Number(s.estimated_hours) || 0;
       const act = Number(s.actual_hours) || 0;
       bucket.est_used += est * prog;
-      // 운영 #35 — actual_hours 미입력 스냅샷은 estimated × progress 로 추정 (프론트 liveActToday 와 동일).
-      // 이 fallback 이 없으면 과거 요일 act_used=0 → 주간 그래프가 "당일만 표시"되고 요일별 누적이 안 됨.
-      bucket.act_used += (act > 0 ? act : est) * prog;
+      // 실제시간: actual_hours 는 이미 실제 투입시간이므로 그대로 사용 (×progress 곱하면 과소표시 — 그래프 "실제시간 제대로 안 나옴" 버그).
+      //   actual 미입력 스냅샷만 estimated × progress 로 추정 (그래프 누적 유지).
+      bucket.act_used += (act > 0 ? act : est * prog);
     }
 
     return successResponse(res, { days: Array.from(byDate.values()) });
