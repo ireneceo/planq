@@ -27,7 +27,8 @@ interface Props {
   // 페이지에서 이미 알고 있는 컨텍스트. 주어지면 모달의 selector 숨기고 그대로 전송.
   projectId?: number | null;
   clientId?: number | null;
-  onGenerate: (result: { title: string; bodyHtml: string }) => void;
+  // 운영 — aiContext: 에디터 레벨 재생성을 위해 생성 파라미터 동봉 (kind/userInput/client/project)
+  onGenerate: (result: { title: string; bodyHtml: string; aiContext?: { kind: string; userInput: string; clientId?: number | null; projectId?: number | null } }) => void;
   // 빈 에디터 진입 — 부모가 startNew 호출
   onBlank?: () => void;
   // 진입 의도 — 'manual'(빈 문서/표) 또는 'ai'(AI 작성/자료정리). default 'manual'
@@ -153,7 +154,8 @@ const PostAiModal: React.FC<Props> = ({ open, onClose, businessId, projectId: pa
         project_id: sendProjectId,
       });
       if (r.usage) setUsage({ total: r.usage.total, limit: r.usage.limit });
-      onGenerate({ title: title.trim(), bodyHtml: r.body_html });
+      onGenerate({ title: title.trim(), bodyHtml: r.body_html,
+        aiContext: { kind, userInput: userInput.trim(), clientId: sendClientId, projectId: sendProjectId } });
     } catch (e) {
       const msg = (e as Error).message || '';
       if (msg.includes('cue_limit_exceeded') || msg.includes('limit_exceeded')) {

@@ -37,7 +37,8 @@ import {
 } from '../../services/posts';
 import VisibilityChangeModal from '../Common/VisibilityChangeModal';
 import { listProjects, listWorkspaceClients, type ApiProject, type WorkspaceClientRow } from '../../services/qtalk';
-import { listTemplates, type DocTemplate, KIND_LABELS_KO } from '../../services/docs';
+import { listTemplates, aiGenerateDoc, type DocTemplate, type DocKind, KIND_LABELS_KO } from '../../services/docs';
+import AiRegenerateBar from '../Common/AiRegenerateBar';
 import KindIcon from './KindIcon';
 import PostShareModal from './PostShareModal';
 import PostAiModal from './PostAiModal';
@@ -176,6 +177,9 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
   const submittingRef = useRef(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [aiOpen, setAiOpen] = useState(false);
+  // 운영 — Q docs AI 재생성: 생성 컨텍스트 보관 + 재생성 busy
+  const [aiCtx, setAiCtx] = useState<{ kind: string; userInput: string; clientId?: number | null; projectId?: number | null } | null>(null);
+  const [regenBusy, setRegenBusy] = useState(false);
   const [aiIntent, setAiIntent] = useState<'manual' | 'ai'>('manual');
   // 사이클 N+22 — + 버튼 드롭다운 (빈 문서 즉시 / 표는 모달 default table) + 모달 default tab
   const [newDropdownOpen, setNewDropdownOpen] = useState(false);
@@ -343,6 +347,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
     setActiveId(null);
     setDetail(null);
     setMode('new');
+    setAiCtx(null);  // 운영 — 빈 새 문서는 AI 재생성 바 숨김
     setTitleDraft('');
     setContentDraft(null);
     // 현재 필터가 카테고리면 해당 카테고리로 프리필
@@ -403,7 +408,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
     return html.replace(/\{\{\s*([\w.]+)\s*\}\}/g, (_, p) => ctx[p] ?? '');
   };
 
-  const startFromAi = ({ title, bodyHtml }: { title: string; bodyHtml: string }) => {
+  const startFromAi = ({ title, bodyHtml, aiContext }: { title: string; bodyHtml: string; aiContext?: { kind: string; userInput: string; clientId?: number | null; projectId?: number | null } }) => {
     setActiveId(null);
     setDetail(null);
     setMode('new');
@@ -414,8 +419,25 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
     setPendingExistingIds([]);
     setPendingExistingMeta({});
     setPendingPostIds([]);
+    setAiCtx(aiContext || null);  // 운영 — 재생성용 컨텍스트
     setError(null);
     setAiOpen(false);
+  };
+
+  // 운영 — Q docs AI 재생성: 보관한 컨텍스트 + 지시로 본문 재생성 (제목 유지, 본문 교체)
+  const regenerateDoc = async (instruction: string) => {
+    if (!aiCtx || regenBusy) return;
+    setRegenBusy(true); setError(null);
+    try {
+      const r = await aiGenerateDoc({
+        business_id: scope.businessId, kind: aiCtx.kind as DocKind, title: titleDraft.trim() || '문서',
+        user_input: aiCtx.userInput, client_id: aiCtx.clientId, project_id: aiCtx.projectId,
+        instruction: instruction || undefined,
+      });
+      setContentDraft(r.body_html as unknown);
+    } catch (e) {
+      setError((e as Error).message || (t('ai.regenFailed', '재생성 실패. 잠시 후 다시 시도해 주세요.') as string));
+    } finally { setRegenBusy(false); }
   };
 
   const startFromTemplate = (tpl: DocTemplate) => {
@@ -461,6 +483,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
   const startEdit = () => {
     if (!detail) return;
     setMode('edit');
+    setAiCtx(null);  // 운영 — 기존 문서 편집은 AI 재생성 바 숨김
     setTitleDraft(detail.title);
     setContentDraft(detail.content_json);
     setCategoryDraft(detail.category || '');
@@ -946,7 +969,15 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
                   <PostTableGrid recordId={detail.q_record_id} businessId={scope.businessId} />
                 </>
               ) : (
-                <PostEditor value={contentDraft} onChange={setContentDraft} businessId={scope.businessId} placeholder={t('contentPlaceholder', '본문을 작성하세요…') as string} />
+                <>
+                  {/* 운영 — AI 생성물 재생성 (지시 기반). AI 로 만든 새 문서일 때만 노출 */}
+                  {mode === 'new' && aiCtx && (
+                    <AiRegenRow>
+                      <AiRegenerateBar busy={regenBusy} onRegenerate={regenerateDoc} />
+                    </AiRegenRow>
+                  )}
+                  <PostEditor value={contentDraft} onChange={setContentDraft} businessId={scope.businessId} placeholder={t('contentPlaceholder', '본문을 작성하세요…') as string} />
+                </>
               )}
 
               <AttachSection>
@@ -1630,6 +1661,10 @@ const RowVisChip = styled.span<{ $level: string }>`
 // N+72-7 — 본문↔표 사이 시각 간격 (사용자 호소 "들러붙어 보기 안좋아")
 const SectionGap = styled.div`
   height: 24px;
+`;
+// 운영 — AI 재생성 바 행 (에디터 상단)
+const AiRegenRow = styled.div`
+  display: flex; margin-bottom: 10px;
 `;
 // N+72-7 — 문서/표 kind toggle (편집 모드 MetaRow)
 const KindToggle = styled.div`
