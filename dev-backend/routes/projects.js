@@ -1620,9 +1620,18 @@ router.post('/task-candidates/:id/reject', authenticateToken, async (req, res, n
   try {
     const candidate = await TaskCandidate.findByPk(req.params.id);
     if (!candidate) return errorResponse(res, 'candidate_not_found', 404);
-    const { role, error } = await loadProjectOrForbidden(candidate.project_id, req.user.id);
-    if (error) return errorResponse(res, error.message, error.code);
-    if (role === 'client') return errorResponse(res, 'forbidden', 403);
+    // 운영 #47 — register 와 동일하게 프로젝트 후보 + 독립 대화(채팅) 후보 모두 처리.
+    //   기존엔 project_id 만 검사해 conversation_id 만 있는 채팅 추출 후보는 거절이 막혔다(등록만 됨).
+    if (candidate.project_id) {
+      const { role, error } = await loadProjectOrForbidden(candidate.project_id, req.user.id);
+      if (error) return errorResponse(res, error.message, error.code);
+      if (role === 'client') return errorResponse(res, 'forbidden', 403);
+    } else if (candidate.conversation_id) {
+      const { error } = await loadStandaloneConvOrForbidden(candidate.conversation_id, req.user.id);
+      if (error) return errorResponse(res, error.message, error.code);
+    } else {
+      return errorResponse(res, 'candidate_unowned', 400);
+    }
 
     const result = await taskExtractor.rejectCandidate(candidate.id, req.user.id);
     return successResponse(res, result);
