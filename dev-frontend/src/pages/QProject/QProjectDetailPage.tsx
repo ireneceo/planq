@@ -60,6 +60,7 @@ interface Conv {
 interface TaskRow {
   id: number; title: string; status: string; due_date: string | null; start_date: string | null;
   assignee_id: number | null; assignee?: { id: number; name: string } | null; progress_percent?: number;
+  project_id?: number | null;
 }
 
 const QProjectDetailPage: React.FC = () => {

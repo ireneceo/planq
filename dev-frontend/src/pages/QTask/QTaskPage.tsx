@@ -32,6 +32,7 @@ import HelpDot from '../../components/Common/HelpDot';
 import FirstVisitTour from '../../components/Common/FirstVisitTour';
 import { displayName } from '../../utils/displayName';
 import { friendlyDeleteError } from '../../utils/taskDeleteError';
+import TaskCandidateCard from '../../components/Common/TaskCandidateCard';
 import i18nClient from '../../i18n';
 import {
   buildPresetRRule, buildCustomRRule, formatRRuleLabel,
@@ -871,15 +872,26 @@ const QTaskPage:React.FC=()=>{
     }catch{}
   };
 
-  const registerCandidate=async(candId:number)=>{
+  const registerCandidate=async(candId:number,overrides?:{title?:string;assignee_id?:number|null;start_date?:string|null;due_date?:string|null})=>{
     try{
-      const r=await apiFetch(`/api/projects/task-candidates/${candId}/register`,{method:'POST'});
+      const r=await apiFetch(`/api/projects/task-candidates/${candId}/register`,{
+        method:'POST',
+        headers:overrides?{'Content-Type':'application/json'}:undefined,
+        body:overrides?JSON.stringify(overrides):undefined,
+      });
       const j=await r.json();
       setCandidates(prev=>prev.filter(c=>c.id!==candId));
       await load();
       if(j?.success&&j?.data?.task?.id){
         openDetail(j.data.task.id);
       }
+    }catch{}
+  };
+  // 운영 #46 — 채팅 후보 카드와 동일하게 거절도 지원 (공유 TaskCandidateCard 사용).
+  const rejectCandidate=async(candId:number)=>{
+    try{
+      const r=await apiFetch(`/api/projects/task-candidates/${candId}/reject`,{method:'POST'});
+      if(r.ok)setCandidates(prev=>prev.filter(c=>c.id!==candId));
     }catch{}
   };
 
@@ -2456,15 +2468,21 @@ const QTaskPage:React.FC=()=>{
               {candidates.length>0&&(
                 <RSection>
                   <RSTitle>{t('right.candidatesExtracted','추출된 업무')} ({candidates.length})</RSTitle>
+                  {/* 운영 #46 — 채팅 후보와 동일한 공유 카드(제목·담당·기간 인라인 편집 + 등록/거절) */}
                   {candidates.map(c=>(
-                    <CandCard key={c.id} data-candidate-id={c.id}>
-                      <CandTitle>{c.title}</CandTitle>
-                      <IMeta>
-                        {c.project_name&&<IProjTag>{c.project_name}</IProjTag>}
-                        {c.guessedAssignee?.name&&<span>{c.guessedAssignee.name}</span>}
-                      </IMeta>
-                      <CandAddBtn onClick={()=>registerCandidate(c.id)}>+ {t('right.addAsTask','Add as task')}</CandAddBtn>
-                    </CandCard>
+                    <div key={c.id} data-candidate-id={c.id}>
+                      <TaskCandidateCard
+                        candidate={{
+                          id:c.id, title:c.title, description:c.description,
+                          guessed_assignee:c.guessedAssignee?{user_id:c.guessedAssignee.id,name:c.guessedAssignee.name}:null,
+                          guessed_due_date:c.guessed_due_date,
+                        }}
+                        members={members.map(m=>({user_id:m.user_id,name:m.name}))}
+                        myUserId={myId}
+                        onRegister={(id,ov)=>registerCandidate(id,ov)}
+                        onReject={(id)=>rejectCandidate(id)}
+                      />
+                    </div>
                   ))}
                 </RSection>
               )}
@@ -3127,7 +3145,6 @@ const CommentBody=styled.div`font-size:12px;color:#1E293B;line-height:1.4;white-
 // Candidate card (전체업무 탭)
 const CandCard=styled.div`padding:8px 10px;background:#FFF1F2;border:1px solid #FECDD3;border-radius:8px;& + &{margin-top:6px;}`;
 const CandTitle=styled.div`font-size:12px;font-weight:600;color:#9F1239;margin-bottom:4px;`;
-const CandAddBtn=styled.button`margin-top:6px;padding:3px 10px;font-size:10px;font-weight:700;color:#FFF;background:#F43F5E;border:none;border-radius:6px;cursor:pointer;&:hover{background:#E11D48;}`;
 
 // Period row (right panel)
 

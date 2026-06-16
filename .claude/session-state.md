@@ -1,8 +1,31 @@
 # PlanQ 세션 상태
 
-**마지막 업데이트:** 2026-06-16 — Q Task "이번 주 나의 업무" 규칙 + 근본원인 정리 (노트북 이어서 진행 예정).
+**마지막 업데이트:** 2026-06-16 (오후) — 운영 피드백 19건 그룹핑 + Q Task 클러스터(#38·#42·#48·#47) dev 수정 진행 중.
 
-## 현재 작업 상태
+## 현재 작업 상태 (이번 세션 — dev 수정, 미커밋·미배포)
+**채팅 백필(기존 백로그):** 운영 스캔 결과 대상 0건 → 종결(자동참여가 커버).
+
+**운영 피드백 19건(#38~#56) 그룹핑 완료** → G1~G14. 1차 = Q Task 클러스터부터 처리 중:
+- **#38 포커스→실제시간 반영** ✅ dev 수정+E2E 7/7. focus.js `/pause`·`/stop`·`/start` recompute+broadcast, focusSync leavingProgress 에서 recompute+pause갭정산+task.reload(완료/검토/대기 전이 전부 커버). task:updated broadcast 추가(§16).
+- **#42 프로젝트 이관 권한** ✅ (Irene 결정: 담당자·작성자도 허용). FIELD_RULES.project_id + TaskDetailDrawer canEditProject = isAssignee||isCreator||owner||admin.
+- **#48 리스트 직접수정 리프레시·삭제** ✅ dev 수정. QProjectDetailPage socket task:* 를 debouncedReload→in-place merge(리프레시 제거, 이관 시 프로젝트 이동 실시간). TaskRowActionMenu 삭제 확인단계+403 사유 인라인 표시(errForbidden/errHasActivity). QTaskPage 낙관적 제거. utils/taskDeleteError.ts 신규.
+- **#47 채팅 추출 후보 거절 안 됨** ✅ dev 수정+E2E. projects.js reject 라우트가 project_id 만 처리 → register 처럼 conversation_id(독립대화) 분기 추가.
+
+**G3 #46 후보카드 통일** ✅ Q Task 우측 '추출된 업무'를 공유 TaskCandidateCard로 교체(담당·기간 인라인+등록/거절). registerCandidate overrides 지원, rejectCandidate 추가. 빌드 green. **→ Q Task 클러스터(#38·#42·#47·#46·#48) /검증 10단계 전부 통과(헬스29/29·HTTP E2E #42·#48·멀티테넌트 4/4).**
+
+**G5 #39·#40 구독배너** ✅ 조사결론: 이미 `ad35d24`로 수정·운영배포됨 + 운영 데이터 정리됨(grace 워크스페이스 0건, Irene active_business_id=null, biz1 active). 06-15 당시 basic결제 처리 전 starter sub가 grace였던 stale → **현재 재현 안 됨.** 비재현 버그라 추가 변경 안 함. Irene 재현여부 확인 대기.
+
+**G4 #43·#44·#45 팝아웃** ✅ (Irene 결정: window.open 일반창 전환, PiP 포기). RightDock PiP(supportsPip/openPopoutPip/activePip/PIP_SIZE) 제거 → window.open 통일. #43(셋 다 동시)·#45(화면공유 생존)·#44(커서 포커스) 한 번에 해소. ⚠️ #26(항상-위 PiP)는 의도적 되돌림.
+
+**G8 #52 고객초대 중복** — 운영 중복 Client 0건(dedup 이미 작동). "2~3개"는 재현 안 됨. 나머지(초대일시 시간·재발송 이력·설정↔프로젝트 동기화·멤버초대 보완)는 기획+개발 필요 → 보류.
+
+**남은 그룹(미착수, 다수 기획결정 필요):** G6 #50(이번주 업무설정·그래프 — ⚠️Irene 노트북 작업과 겹침, 보류) · G7 #41(캘린더 타임존·기획) · G8 #52(개선부분·기획) · G9 #53(개인외부연동 정의·기획) · G10 #55(QMail멀티계정·기획) · G11 #56(통합보고서탭) · G12 #54(문의/QNote리스트·카테고리) · G13 #49(SNS OG메타) · G14 #51(대시보드타임라인+고객담당자표시).
+
+**체크포인트:** 8건 dev 수정+검증 완료, 미커밋·미배포. 다음 = (a) 검증된 8건 커밋+`/배포`, 또는 (b) 남은 그룹 중 지정 진행.
+
+**검증/배포:** 프론트 빌드 진행 중. 커밋·배포 안 함(Irene `/배포` 명령 대기). 수정 파일: focus.js·focusSync.js·tasks.js·projects.js(backend) / QTaskPage·ProjectTaskList·QProjectDetailPage·TaskDetailDrawer·TaskRowActionMenu·taskDeleteError.ts·qtask.json(ko/en)(frontend).
+
+### (이전) 노트북으로 이어가던 작업
 **작업 상태:** 진행 중 (노트북으로 이어서)
 
 ### 오늘 운영 배포된 것 (그대로 둠 — 변경 금지)
