@@ -37,11 +37,12 @@ function broadcastInboxRefresh(io, businessId, projectId, reason, taskId) {
 // ─── 헬퍼: 멤버 가용시간 조회 ───
 async function getMemberCapacity(userId, businessId) {
   const bm = await BusinessMember.findOne({ where: { user_id: userId, business_id: businessId } });
-  if (!bm) return { daily: 8, days: 5, rate: 1, weekly: 40 };
+  if (!bm) return { daily: 8, days: 5, rate: 1, holidays: 0, weekly: 40 };
   const daily = Number(bm.daily_work_hours) || 8;
   const days = bm.weekly_work_days || 5;
   const rate = Number(bm.participation_rate) || 1;
-  return { daily, days, rate, weekly: Math.round(daily * days * rate * 10) / 10 };
+  const holidays = Number(bm.weekly_holidays) || 0;  // 운영 #50
+  return { daily, days, rate, holidays, weekly: Math.round(daily * days * rate * 10) / 10 };
 }
 
 // ─── 헬퍼: business 접근 권한 확인 (platform_admin/owner/member/client 통과) ───

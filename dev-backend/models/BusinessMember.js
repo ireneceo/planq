@@ -75,6 +75,11 @@ BusinessMember.init({
     type: DataTypes.DECIMAL(3, 2),
     defaultValue: 1.00,
   },
+  // 운영 #50 — 이번 주 휴일 일수 (가용시간 = daily × (days - holidays) × rate). 페이지 이탈 후에도 유지.
+  weekly_holidays: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0,
+  },
   invited_by: {
     type: DataTypes.INTEGER,
     allowNull: true,

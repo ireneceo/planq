@@ -478,6 +478,8 @@ const QTaskPage:React.FC=()=>{
           const wr=await(await apiFetch(`/api/tasks/my-week?business_id=${bizId}`)).json();
           if(wr.success){
             setCapacity(wr.data.capacity);
+            // 운영 #50 — 이번 주 휴일도 백엔드에서 복원 (페이지 이탈 후 0 리셋 버그 fix)
+            if(typeof wr.data.capacity?.holidays==='number')setHolidayDays(wr.data.capacity.holidays);
             _setBurndown((wr.data.burndown||[]).map((b:Record<string,unknown>)=>({label:b.label as string,estimated_cumulative:b.estimated_cumulative as number,actual_cumulative:b.actual_cumulative as number})));
           }
         }catch{/* ignore */}
@@ -1224,6 +1226,7 @@ const QTaskPage:React.FC=()=>{
       // Update local state
       if(field==='daily_work_hours')setCapacity(prev=>({...prev,daily:value,weekly:Math.round(value*(prev.days)*prev.rate*10)/10}));
       if(field==='weekly_work_days')setCapacity(prev=>({...prev,days:value,weekly:Math.round(prev.daily*value*prev.rate*10)/10}));
+      if(field==='weekly_holidays')setHolidayDays(value);  // 운영 #50 — 휴일도 백엔드 저장 + 로컬 반영
     }catch{}
   };
 
@@ -2281,8 +2284,9 @@ const QTaskPage:React.FC=()=>{
                     </CapSettingsField>
                     <CapSettingsField>
                       <CapFieldLabel>{t('capacity.holidays','휴일')}</CapFieldLabel>
-                      <CapFieldInput type="number" step="1" min="0" max="5" defaultValue={0}
-                        onChange={e=>setHolidayDays(Number(e.target.value)||0)} />
+                      <CapFieldInput key={`hol-${holidayDays}`} type="number" step="1" min="0" max="5" defaultValue={holidayDays}
+                        onBlur={e=>saveCapacity('weekly_holidays',Math.max(0,Number(e.target.value)||0))}
+                        onKeyDown={e=>{if(e.key==='Enter')(e.target as HTMLInputElement).blur();}} />
                     </CapSettingsField>
                   </CapSettingsRow>
                 </RSection>
@@ -2293,8 +2297,8 @@ const QTaskPage:React.FC=()=>{
                     const cw=W-PL-PR, ch=H-PT-PB;
                     const n=computedBurndown.length;
                     const step=n>1?cw/(n-1):0;
-                    // yMax 에 이상선 종점(weekTotalEst=이번주 예측시간 총합)도 포함해 끝점이 그래프 안에 표시됨
-                    const yMaxBase=Math.max(maxY, weekTotalEst||0);
+                    // yMax 에 이상선 종점(weekTotalEst)+가용시간(effectiveCapacity, 운영 #50)도 포함해 모두 그래프 안에 표시
+                    const yMaxBase=Math.max(maxY, weekTotalEst||0, effectiveCapacity||0);
                     const yMax=Math.ceil(yMaxBase/5)*5||5;
                     const yTicks=[0,yMax/2,yMax];
                     const xPos=(i:number)=>PL+i*step;
@@ -2312,6 +2316,16 @@ const QTaskPage:React.FC=()=>{
                             <text x={PL-4} y={yPos(v)+3} fontSize="9" fill="#94A3B8" textAnchor="end">{v}h</text>
                           </React.Fragment>
                         ))}
+                        {/* 운영 #50 — 가용시간 기준선 (가로): 1일 업무시간 × (업무일수 - 휴일) × 참여율 = effectiveCapacity */}
+                        {effectiveCapacity>0 && (
+                          <>
+                            <line x1={PL} y1={yPos(effectiveCapacity)} x2={W-PR} y2={yPos(effectiveCapacity)}
+                              stroke="#F59E0B" strokeWidth="1.5" strokeDasharray="2,3" />
+                            <text x={W-PR} y={yPos(effectiveCapacity)-4} fontSize="8" fill="#B45309" textAnchor="end" fontWeight="700">
+                              {t('chart.capacityLine', { h: effectiveCapacity, defaultValue: `가용 ${effectiveCapacity}h` }) as string}
+                            </text>
+                          </>
+                        )}
                         {/* 기준점(이상선) — 0 → 이번 주 예측시간 총합 까지 대각선 (미래까지 전체) */}
                         {weekTotalEst>0 && n>1 && (
                           <line x1={xPos(0)} y1={yPos(0)} x2={xPos(n-1)} y2={yPos(weekTotalEst)}
@@ -2346,6 +2360,7 @@ const QTaskPage:React.FC=()=>{
                     <LI><Dot $c="#14B8A6"/>{t('chart.est','Estimated')}</LI>
                     <LI><Dot $c="#F43F5E"/>{t('chart.act','Actual')}</LI>
                     <LI><DashDot $c="#94A3B8"/>{t('chart.ideal','Target')}</LI>
+                    <LI><DashDot $c="#F59E0B"/>{t('chart.capacity','가용시간')}</LI>
                   </Legend>
                   {computedBurndown.every(p=>p.estimated_cumulative===0&&p.actual_cumulative===0)&&<EmptyChart>{t('chart.noData','No data in this period')}</EmptyChart>}
                 </RSection>

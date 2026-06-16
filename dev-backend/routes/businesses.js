@@ -1023,6 +1023,7 @@ router.patch('/:id/members/:memberId/work-hours', authenticateToken, async (req,
     if (req.body.daily_work_hours !== undefined) updates.daily_work_hours = Math.max(0, Math.min(24, Number(req.body.daily_work_hours) || 0));
     if (req.body.weekly_work_days !== undefined) updates.weekly_work_days = Math.max(1, Math.min(7, Number(req.body.weekly_work_days) || 5));
     if (req.body.participation_rate !== undefined) updates.participation_rate = Math.max(0, Math.min(1, Number(req.body.participation_rate) || 1));
+    if (req.body.weekly_holidays !== undefined) updates.weekly_holidays = Math.max(0, Math.min(7, Number(req.body.weekly_holidays) || 0));  // 운영 #50
     await member.update(updates);
     return successResponse(res, member.toJSON());
   } catch (err) { next(err); }
