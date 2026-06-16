@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import styled from 'styled-components';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -52,14 +52,27 @@ const InvitePage: React.FC = () => {
     try {
       const r = await apiFetch(`/api/invites/${token}/accept`, { method: 'POST' });
       const body = await r.json();
-      if (!body.success) throw new Error(body.message);
-      navigate(body.data?.redirect || '/dashboard');
+      // 이미 수락된 초대면 에러 대신 자연스럽게 진입 (자동 수락 경합 방어)
+      if (!body.success && body.message !== 'already_accepted') throw new Error(body.message);
+      navigate(body.data?.redirect || (info?.type === 'workspace_member' ? '/dashboard' : '/talk'));
     } catch (err: unknown) {
       setError(mapApiError(err, tErr));
     } finally {
       setAccepting(false);
     }
   };
+
+  // 자동 수락 — 로그인 상태로 초대 링크 도착 시 (가입/로그인 후 redirect 포함) 버튼 클릭 없이 즉시 연결.
+  //  링크 토큰 자체가 자격증명(token-is-proof) 이라 안전. 이미 연결된 초대는 skip(아래 already_linked 화면).
+  const autoAcceptedRef = useRef(false);
+  useEffect(() => {
+    if (autoAcceptedRef.current) return;
+    if (!token || !user || !info || accepting || error) return;
+    if (info.already_linked) return;
+    autoAcceptedRef.current = true;
+    handleAccept();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token, user, info]);
 
   const errorLabel = (code: string) => {
     if (code === 'invalid_or_expired_invite') return t('invite.invalid', '유효하지 않거나 만료된 초대 링크입니다.');
