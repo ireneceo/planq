@@ -82,6 +82,22 @@ async function loadTaskInfo(taskId) {
   return t ? { id: t.id, title: t.title, status: t.status, project_id: t.project_id } : null;
 }
 
+// 운영 #38: 포커스 측정시간이 actual_hours 에 반영된 직후 task:updated broadcast.
+// focus 라우트는 세션만 응답하므로, '실제' 시간(task.actual_hours)이 Q Task 리스트·드로어에
+// 새로고침 없이 보이려면 §16 (b) broadcast 가 필요 (start/pause/stop recompute 직후 호출).
+async function broadcastTaskUpdate(req, taskId) {
+  if (!taskId) return;
+  try {
+    const io = req.app.get('io');
+    if (!io) return;
+    const t = await Task.findByPk(taskId);
+    if (!t) return;
+    const data = t.toJSON();
+    if (t.project_id) io.to(`project:${t.project_id}`).emit('task:updated', data);
+    io.to(`business:${t.business_id}`).emit('task:updated', data);
+  } catch (e) { console.warn('[focus broadcastTaskUpdate]', e.message); }
+}
+
 // ─── GET /current ────────────────────────────────────────────────
 router.get('/current', authenticateToken, async (req, res, next) => {
   try {
@@ -126,10 +142,6 @@ router.post('/start', authenticateToken, startStopLimiter, async (req, res, next
           paused_at: null,
           end_reason: 'switch',
         }, { transaction: t });
-        // 이전 task 의 actual_hours 재계산 (status_history 기반)
-        if (existing.task_id) {
-          await recomputeActualHoursFromHistory(existing.task_id).catch(() => null);
-        }
       }
       // 2) 신규 session
       const session = await FocusSession.create({
@@ -141,6 +153,12 @@ router.post('/start', authenticateToken, startStopLimiter, async (req, res, next
         last_activity_at: new Date(),
       }, { transaction: t });
       await t.commit();
+
+      // 이전 task 의 actual_hours 재계산 (커밋 후 — 세션 stop 이 보이는 상태에서) + 실시간 반영(#38)
+      if (existing?.task_id) {
+        await recomputeActualHoursFromHistory(existing.task_id).catch(() => null);
+        await broadcastTaskUpdate(req, existing.task_id);
+      }
 
       await AuditLog.create({
         user_id: req.user.id,
@@ -176,6 +194,10 @@ router.post('/pause', authenticateToken, startStopLimiter, async (req, res, next
       action: reason === 'auto_idle' ? 'focus.auto_pause' : 'focus.pause',
       entity_type: 'focus_session', entity_id: session.id,
     }).catch(() => null);
+    // 운영 #38: 일시중단 시점까지 측정된 시간도 '실제'(actual_hours) 에 즉시 반영.
+    // (paused 세션도 computeActualSeconds 가 그때까지 누적을 계산 — recompute 가 SSOT 로 합산)
+    await recomputeActualHoursFromHistory(session.task_id).catch(() => null);
+    await broadcastTaskUpdate(req, session.task_id);
     const taskInfo = await loadTaskInfo(session.task_id);
     const taskAccum = await sumStoppedFocusSeconds(session.task_id, req.user.id, session.id);
     return successResponse(res, serializeSession(session, taskInfo, taskAccum));
@@ -232,6 +254,7 @@ router.post('/stop', authenticateToken, startStopLimiter, async (req, res, next)
     });
     if (session.task_id) {
       await recomputeActualHoursFromHistory(session.task_id).catch(() => null);
+      await broadcastTaskUpdate(req, session.task_id);
     }
     await AuditLog.create({
       user_id: req.user.id, business_id: session.business_id,

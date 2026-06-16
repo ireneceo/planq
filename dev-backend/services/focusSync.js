@@ -33,10 +33,34 @@ async function syncFocusOnTaskStatus(task, prevStatus, newStatus, options = {}) 
 
     if (leavingProgress) {
       // in_progress 이탈 — focus_enabled 여부와 무관하게 떠도는 세션 정리 (배너 잔존 차단).
-      await FocusSession.update(
-        { state: 'stopped', ended_at: new Date(), end_reason: 'status_change' },
-        { where: { user_id: assigneeId, task_id: task.id, state: { [Op.in]: ['active', 'paused'] } }, ...tx }
-      );
+      // 운영 #38: paused 세션은 /stop 과 동일하게 진행 중이던 pause 갭을 먼저 정산해야
+      //           computeActualSeconds 가 과대계상되지 않는다 (완료를 일시정지 중에 한 경우).
+      const live = await FocusSession.findAll({
+        where: { user_id: assigneeId, task_id: task.id, state: { [Op.in]: ['active', 'paused'] } },
+        ...tx,
+      });
+      const now = new Date();
+      for (const s of live) {
+        let pauseTotal = s.pause_total_sec || 0;
+        if (s.state === 'paused' && s.paused_at) {
+          pauseTotal += Math.max(0, Math.floor((now.getTime() - new Date(s.paused_at).getTime()) / 1000));
+        }
+        await s.update(
+          { state: 'stopped', ended_at: now, end_reason: 'status_change', pause_total_sec: pauseTotal, paused_at: null },
+          tx
+        );
+      }
+      // 측정 시간을 '실제'(actual_hours) 에 반영 — 완료/검토/대기 전이 시 누락되던 회귀(#38) 단일 차단.
+      // 트랜잭션 안(미커밋)에서 호출되면 세션 stop 이 안 보여 부정확 → 커밋 후 호출 케이스만 즉시 반영.
+      if (!options.transaction) {
+        try {
+          const { recomputeActualHoursFromHistory } = require('./taskActualHours');
+          await recomputeActualHoursFromHistory(task.id);
+          // recompute 는 별도 인스턴스를 갱신 → 호출부 broadcast(task.toJSON()) 가 stale 하지 않도록
+          // 전달된 task 인스턴스도 새 actual_hours/actual_source 로 동기화 (§16 실시간 반영).
+          if (typeof task.reload === 'function') await task.reload();
+        } catch (e) { console.warn('[focusSync] recompute actual hours failed:', e.message); }
+      }
       return;
     }
 
