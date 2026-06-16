@@ -196,7 +196,8 @@
       "extracting": "추출 중...",
       "emptyHint": "회의에서 실행할 업무를 AI가 찾아 후보로 제안합니다.",
       "extractFailed": "업무 추출 실패"
-    }
+    },
+    "catAll": "전체"
   },
   "memoPopup": {
     "title": "메모",
@@ -377,5 +378,12 @@
     "cancel": "취소",
     "startMemo": "메모 작성",
     "startVoice": "음성 노트 시작"
+  },
+  "taxonomy": {
+    "categoryPh": "분류",
+    "addCategory": "분류",
+    "tagPh": "태그",
+    "addTag": "태그",
+    "removeTag": "태그 삭제"
   }
 }

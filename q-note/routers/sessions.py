@@ -39,7 +39,7 @@ ALLOWED_EXTENSIONS = {
 }
 
 # NOTE: 'urls' 컬럼은 deprecated — 이제 documents 테이블(source_type='url')이 source of truth
-JSON_COLUMNS = {'participants', 'meeting_languages', 'user_language_levels', 'keywords', 'summary_key_points'}
+JSON_COLUMNS = {'participants', 'meeting_languages', 'user_language_levels', 'keywords', 'summary_key_points', 'tags'}
 
 
 # ─────────────────────────────────────────────────────────
@@ -87,6 +87,8 @@ class CreateSessionRequest(BaseModel):
   meeting_answer_style: Optional[str] = Field(None, max_length=2000)
   meeting_answer_length: Optional[str] = Field(None, max_length=20)
   keywords: Optional[List[str]] = None  # STT 보정용 어휘 사전
+  category: Optional[str] = Field(None, max_length=100)  # 운영 #54 — 분류
+  tags: Optional[List[str]] = None                       # 운영 #54 — 태그
 
 
 class UpdateSessionRequest(BaseModel):
@@ -111,6 +113,8 @@ class UpdateSessionRequest(BaseModel):
   meeting_answer_style: Optional[str] = Field(None, max_length=2000)
   meeting_answer_length: Optional[str] = Field(None, max_length=20)
   keywords: Optional[List[str]] = None
+  category: Optional[str] = Field(None, max_length=100)  # 운영 #54 — 분류
+  tags: Optional[List[str]] = None                       # 운영 #54 — 태그
   # N+42 — 정리하기 모달이 트랜스크립트를 외부 자산(업무/지식/문서/공유) 으로 변환할 때 timestamp 기록
   mark_summarized: Optional[bool] = None
 
@@ -509,6 +513,12 @@ def _build_field_updates(body: UpdateSessionRequest):
   if body.keywords is not None:
     cleaned = _sanitize_keywords(body.keywords)
     fields.append('keywords = ?'); values.append(json.dumps(cleaned) if cleaned else None)
+  # 운영 #54 — 분류/태그
+  if body.category is not None:
+    fields.append('category = ?'); values.append(body.category.strip() or None)
+  if body.tags is not None:
+    cleaned_tags = _sanitize_tags(body.tags)
+    fields.append('tags = ?'); values.append(json.dumps(cleaned_tags) if cleaned_tags else None)
   return fields, values
 
 
@@ -529,6 +539,28 @@ def _sanitize_keywords(raw: Optional[List[str]]) -> List[str]:
     seen.add(k)
     out.append(w)
     if len(out) >= 200:
+      break
+  return out
+
+
+def _sanitize_tags(raw: Optional[List[str]]) -> List[str]:
+  """운영 #54 — 태그 정규화 (공백 정리·중복 제거·최대 20개·길이 1~40)."""
+  if not raw:
+    return []
+  seen: set[str] = set()
+  out: List[str] = []
+  for w in raw:
+    if not isinstance(w, str):
+      continue
+    w = ' '.join(w.split()).strip()
+    if not w or len(w) > 40:
+      continue
+    k = w.lower()
+    if k in seen:
+      continue
+    seen.add(k)
+    out.append(w)
+    if len(out) >= 20:
       break
   return out
 
@@ -630,6 +662,11 @@ async def create_session(body: CreateSessionRequest, user: dict = Depends(get_cu
       keywords_list = []
   keywords_json = json.dumps(keywords_list) if keywords_list else None
 
+  # 운영 #54 — 분류/태그 (생성 시 선택)
+  category_val = (body.category.strip() or None) if body.category else None
+  tags_list = _sanitize_tags(body.tags)
+  tags_json = json.dumps(tags_list) if tags_list else None
+
   # text 메모는 STT 단계 X → 'active' 로 바로 진입 (사용자 입력 중)
   # voice 는 기존 그대로 'prepared' → 사용자가 "녹음 시작" 누르면 'recording'
   initial_status = 'active' if is_text else 'prepared'
@@ -648,8 +685,8 @@ async def create_session(body: CreateSessionRequest, user: dict = Depends(get_cu
             meeting_languages, translation_language, answer_language, pasted_context, capture_mode,
             user_name, user_bio, user_expertise, user_organization, user_job_title,
             user_language_levels, user_expertise_level, meeting_answer_style, meeting_answer_length,
-            keywords, input_type, translate_enabled, linked_voice_session_id, body)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+            keywords, input_type, translate_enabled, linked_voice_session_id, body, category, tags)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
       (
         body.business_id, user['user_id'], body.title, language, initial_status,
         body.brief, participants_json, languages_json,
@@ -659,6 +696,7 @@ async def create_session(body: CreateSessionRequest, user: dict = Depends(get_cu
         body.meeting_answer_style, body.meeting_answer_length,
         keywords_json,
         input_type, translate_enabled_int, body.linked_voice_session_id, body.body,
+        category_val, tags_json,
       )
     )
     await db.commit()
