@@ -48,6 +48,16 @@
 
 **🎉 운영 피드백 19건(#38~#56) 전건 처리·운영 배포 완료 (9 릴리스 v1.37.0~v1.38.6).** 피드백 큐 0건.
 
+**✅ 구독 청구(ClientSubscription) 강화 운영 라이브 (v1.39.0, `8cb34c2`)** — Irene 요청:
+- 주기 추가: biweekly(격주)·semiannual(반기). advanceDate +14일/+6개월.
+- 회차 자동 종료: end_mode(never/after_count/until_date)+max_occurrences+occurrences_count+end_date+status 'completed'. 발행 후 조건 충족 시 자동 completed.
+- UI: 구독 폼 주기 6종 + 종료조건 입력, 카드 회차진행("N/M회")·종료일·상태 배지.
+- ★ **nextInvoiceNumber 다건 충돌 fix** — 기존 "last by id"가 같은 날 2건+ due 시 NaN·중복으로 2번째부터 발행 실패하던 실결함(memory recurring_billing_latent_bugs) → prefix max-scan + unique 재시도. **clientSubscriptionBilling 만 fix — recurring_invoice.js·invoices.js 도 같은 패턴이라 후속 점검 권장.**
+- DB: 운영 ENUM 확장(interval/status) + 4컬럼 배포 전 수동 선적용 완료.
+- 검증: 엔진 E2E(주기·자동종료·3건 동시발행 번호 distinct) + 헬스 29/29.
+
+**다음 후보(미착수):** AI 생성물 재수정/재생성 UX 통일(Irene이 골랐다가 청구로 전환) · recurring_invoice.js/invoices.js nextInvoiceNumber 동일 fix · iOS Capacitor · lua reviewing 13건.
+
 **#49 참고:** nginx 변경 불필요였음(N+23 $planq_share_bot 봇 라우팅 기존 존재). ogMetaMiddleware 가 posts/sign 만 처리하던 것을 전 타입으로 확장한 게 fix.
 - #53 개인 외부연동 정의 — 개인 vs 팀 연동 명확화 + 전수 검증.
 - #55 Q Mail 멀티계정 뷰 — All/이메일주소별 인박스.
