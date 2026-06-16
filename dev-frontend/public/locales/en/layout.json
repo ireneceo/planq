@@ -72,7 +72,8 @@
     "mailAccounts": "Q Mail Accounts",
     "personalSettings": "Personal",
     "workspaceGroup": "Workspace",
-    "myWorkSettings": "My Work Settings"
+    "myWorkSettings": "My Work Settings",
+    "myIntegrations": "My integrations"
   },
   "user": {
     "profile": "My Profile",

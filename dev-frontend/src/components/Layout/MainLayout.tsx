@@ -319,6 +319,16 @@ const SecondaryBody = styled.div`
   &::-webkit-scrollbar-thumb { background: rgba(15, 23, 42, 0.12); border-radius: 3px; }
 `;
 
+// SecondaryPanel(데스크탑 설정) 그룹 구분 라벨 — 워크스페이스 설정 / 개인 설정
+const SecondaryGroupLabel = styled.div`
+  display: flex; align-items: center; gap: 7px;
+  padding: 12px 16px 6px 20px;
+  font-size: 11px; font-weight: 800; letter-spacing: 0.5px; text-transform: uppercase;
+  color: #64748B;
+  &::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: #14B8A6; flex-shrink: 0; }
+  &:not(:first-child) { margin-top: 8px; border-top: 1px solid #F1F5F9; padding-top: 14px; }
+`;
+
 const SecondaryNavItem = styled(Link)<{ $active?: boolean; $collapsed?: boolean }>`
   display: flex; align-items: center; gap: 10px;
   padding: 9px 20px;
@@ -589,14 +599,19 @@ const AccordionItem = styled(Link)<{ $active?: boolean }>`
 
 // 아코디언 안 그룹 구분 라벨 (워크스페이스 설정 / 개인 설정)
 const AccordionGroupLabel = styled.div`
-  padding: 10px 16px 4px 48px;
-  color: rgba(204, 251, 241, 0.55);
-  font-size: 11px; font-weight: 700;
-  letter-spacing: 0.4px; text-transform: uppercase;
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 16px 6px 48px;
+  color: rgba(204, 251, 241, 0.92);
+  font-size: 11px; font-weight: 800;
+  letter-spacing: 0.5px; text-transform: uppercase;
+  &::before {
+    content: ''; width: 5px; height: 5px; border-radius: 50%;
+    background: #2DD4BF; flex-shrink: 0; margin-left: -12px;
+  }
   &:not(:first-child) {
-    margin-top: 6px;
-    border-top: 1px solid rgba(255, 255, 255, 0.06);
-    padding-top: 12px;
+    margin-top: 10px;
+    border-top: 1px solid rgba(255, 255, 255, 0.10);
+    padding-top: 14px;
   }
 `;
 
@@ -1255,7 +1270,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                         <IconUsers /> {t('user.profile')}
                       </AccordionItem>
                       <AccordionItem to="/profile/integrations" $active={location.pathname.startsWith('/profile/integrations')}>
-                        <IconPlug /> {t('nav.integrations', '외부 연동')}
+                        <IconPlug /> {t('nav.myIntegrations', '내 외부 연동')}
                       </AccordionItem>
                       <AccordionItem to="/me/work-settings" $active={location.pathname.startsWith('/me/work-settings')}>
                         <IconSliders /> {t('nav.myWorkSettings', '내 업무 설정')}
@@ -1427,6 +1442,9 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
             </SecondaryCloseButton>
           </PanelHeader>
           <SecondaryBody>
+            {!secondaryCollapsed && hasBiz('owner', 'member') && (
+              <SecondaryGroupLabel>{t('nav.workspaceGroup', '워크스페이스 설정')}</SecondaryGroupLabel>
+            )}
             {hasBiz('owner', 'member') && (
               <SecondaryNavItem $collapsed={secondaryCollapsed}
                 to="/business/settings"
@@ -1522,8 +1540,15 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                 <IconMembers /> {t('nav.members')}
               </SecondaryNavItem>
             )}
+            {!secondaryCollapsed && (
+              <SecondaryGroupLabel>{t('nav.personalSettings', '개인 설정')}</SecondaryGroupLabel>
+            )}
             <SecondaryNavItem $collapsed={secondaryCollapsed} to="/profile" $active={isActive('/profile')}>
               <IconUsers /> {t('user.profile')}
+            </SecondaryNavItem>
+            {/* 개인 외부 연동 — 내 Google Drive/Calendar (워크스페이스 파일·외부연동과 별개) */}
+            <SecondaryNavItem $collapsed={secondaryCollapsed} to="/profile/integrations" $active={location.pathname.startsWith('/profile/integrations')}>
+              <IconPlug /> {t('nav.myIntegrations', '내 외부 연동')}
             </SecondaryNavItem>
             {/* N+32 — 내 업무 설정 (타임존 + 업무 흐름). ProfilePage 와 분리. */}
             <SecondaryNavItem $collapsed={secondaryCollapsed} to="/me/work-settings" $active={isActive('/me/work-settings')}>
