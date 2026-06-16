@@ -292,7 +292,9 @@
     "weekly": "주간 업무 진척",
     "est": "예측",
     "act": "실제",
-    "ideal": "목표 진척"
+    "ideal": "목표 진척",
+    "capacity": "가용시간",
+    "capacityLine": "가용 {{h}}h"
   },
   "projects": {
     "title": "프로젝트 진척률"

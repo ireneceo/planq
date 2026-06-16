@@ -273,7 +273,9 @@
     "weekly": "Weekly Progress",
     "est": "Estimated",
     "act": "Actual",
-    "ideal": "Target"
+    "ideal": "Target",
+    "capacity": "Capacity",
+    "capacityLine": "Cap {{h}}h"
   },
   "projects": {
     "title": "Project Progress"
