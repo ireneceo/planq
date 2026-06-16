@@ -123,6 +123,66 @@ async function resolveSignShare(token, settings) {
   } catch { return null; }
 }
 
+// 운영 #49 — posts/sign 외 모든 공개 공유 타입에도 페이지별 OG (기존엔 그 외 전부 기본 OG → "다 같은 안내내용").
+function ogImage(settings) {
+  return settings?.og_image_url || `${process.env.APP_URL || 'https://planq.kr'}/og-default.png`;
+}
+function ogPack(baseTitle, entityTitle, typeLabel, desc, settings) {
+  const title = `${baseTitle} — ${entityTitle || typeLabel}`;
+  return {
+    title,
+    description: desc || settings?.seo_description || `PlanQ 에서 공유한 ${typeLabel} 입니다.`,
+    image: ogImage(settings),
+    siteName: settings?.brand || 'PlanQ',
+  };
+}
+// type → { label, resolve(token) => entityTitle|desc }. 자기 source 못 찾으면 null.
+async function resolveTypedShare(type, token, settings) {
+  const baseTitle = settings?.seo_title || settings?.brand || 'PlanQ';
+  const M = require('../models');
+  try {
+    switch (type) {
+      case 'docs': {
+        const r = await M.Document.findOne({ where: { share_token: token }, attributes: ['title'] });
+        return r ? ogPack(baseTitle, r.title, '문서', null, settings) : null;
+      }
+      case 'tasks': {
+        const r = await M.Task.findOne({ where: { share_token: token }, attributes: ['title', 'description'] });
+        if (!r) return null;
+        const preview = (r.description || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 200);
+        return ogPack(baseTitle, r.title, '업무', preview || `PlanQ 에서 공유한 업무: ${r.title}`, settings);
+      }
+      case 'files': {
+        const r = await M.File.findOne({ where: { share_token: token }, attributes: ['file_name'] });
+        return r ? ogPack(baseTitle, r.file_name, '파일', `PlanQ 에서 공유한 파일: ${r.file_name}`, settings) : null;
+      }
+      case 'kb': {
+        const r = await M.KbDocument.findOne({ where: { share_token: token }, attributes: ['title', 'file_name'] });
+        return r ? ogPack(baseTitle, r.title || r.file_name, '지식', null, settings) : null;
+      }
+      case 'kb-bundle': {
+        const r = await M.KbShareBundle.findOne({ where: { share_token: token }, attributes: ['title'] });
+        return r ? ogPack(baseTitle, r.title, '지식 모음', null, settings) : null;
+      }
+      case 'calendar': {
+        const r = await M.CalendarEvent.findOne({ where: { share_token: token }, attributes: ['title'] });
+        return r ? ogPack(baseTitle, r.title, '일정', `PlanQ 에서 공유한 일정: ${r.title}`, settings) : null;
+      }
+      case 'invoices': {
+        const r = await M.Invoice.findOne({ where: { share_token: token }, attributes: ['title', 'invoice_number'] });
+        if (!r) return null;
+        const label = r.title || (r.invoice_number ? `청구서 ${r.invoice_number}` : '청구서');
+        return ogPack(baseTitle, label, '청구서', `PlanQ 에서 발행한 청구서입니다.`, settings);
+      }
+      case 'qnote-sessions':
+        // Q Note 세션은 별도 FastAPI(SQLite) — Node 에서 직접 조회 불가. 타입 generic (기본보다 구체).
+        return ogPack(baseTitle, null, 'Q Note 회의록', 'PlanQ Q Note 에서 공유한 회의록입니다.', settings);
+      default:
+        return null;
+    }
+  } catch { return null; }
+}
+
 // Express middleware — 봇 + 알려진 share path 면 dynamic OG HTML 반환.
 // 일반 사용자 / 봇이지만 path 가 인식 안 되면 next() 로 통과 (SPA index.html 정적 응답으로 fallback).
 async function ogMetaMiddleware(req, res, next) {
@@ -146,6 +206,15 @@ async function ogMetaMiddleware(req, res, next) {
   m = pathOnly.match(/^\/sign\/([A-Za-z0-9_-]+)$/);
   if (m) {
     const data = await resolveSignShare(m[1], settings);
+    if (data) {
+      res.set('Content-Type', 'text/html; charset=utf-8');
+      return res.send(buildHtml({ url: `https://planq.kr${pathOnly}`, ...data }));
+    }
+  }
+  // 2b) 운영 #49 — 그 외 모든 공개 공유 타입 /public/:type/:token (docs·tasks·files·kb·kb-bundle·calendar·invoices·qnote-sessions)
+  m = pathOnly.match(/^\/public\/([a-z-]+)\/([A-Za-z0-9_-]+)$/);
+  if (m && m[1] !== 'posts') {
+    const data = await resolveTypedShare(m[1], m[2], settings);
     if (data) {
       res.set('Content-Type', 'text/html; charset=utf-8');
       return res.send(buildHtml({ url: `https://planq.kr${pathOnly}`, ...data }));
