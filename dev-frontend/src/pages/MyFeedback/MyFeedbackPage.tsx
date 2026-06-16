@@ -1,9 +1,12 @@
-// 내 문의·피드백 내역 (운영 #21) — 좌측 개인 그룹 메뉴. GET /api/feedback/mine.
-import { useEffect, useState } from 'react';
+// 내 문의·피드백 내역 (운영 #21·#54) — 좌측 개인 그룹 메뉴. GET /api/feedback/mine.
+//   #54: 다른 리스트 페이지처럼 검색 + 카테고리/상태 필터.
+import { useEffect, useMemo, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { apiFetch, useAuth } from '../../contexts/AuthContext';
 import PageShell from '../../components/Layout/PageShell';
+import SearchBox from '../../components/Common/SearchBox';
+import PlanQSelect, { type PlanQSelectOption } from '../../components/Common/PlanQSelect';
 import { formatDate } from '../../utils/dateFormat';
 
 interface MyFeedbackItem {
@@ -32,6 +35,9 @@ const MyFeedbackPage = () => {
   const tz = (user as { workspace_timezone?: string } | null)?.workspace_timezone || 'Asia/Seoul';
   const [items, setItems] = useState<MyFeedbackItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [catFilter, setCatFilter] = useState<string>('all');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
 
   useEffect(() => {
     let cancelled = false;
@@ -43,15 +49,64 @@ const MyFeedbackPage = () => {
     return () => { cancelled = true; };
   }, []);
 
+  const catOptions: PlanQSelectOption[] = [
+    { value: 'all', label: t('myFeedback.filter.allCat', { defaultValue: '전체 분류' }) as string },
+    { value: 'bug', label: t('myFeedback.cat.bug', { defaultValue: CAT_LABEL.bug }) as string },
+    { value: 'improve', label: t('myFeedback.cat.improve', { defaultValue: CAT_LABEL.improve }) as string },
+    { value: 'feature', label: t('myFeedback.cat.feature', { defaultValue: CAT_LABEL.feature }) as string },
+    { value: 'other', label: t('myFeedback.cat.other', { defaultValue: CAT_LABEL.other }) as string },
+  ];
+  const statusOptions: PlanQSelectOption[] = [
+    { value: 'all', label: t('myFeedback.filter.allStatus', { defaultValue: '전체 상태' }) as string },
+    ...['pending', 'reviewing', 'done', 'wontfix'].map(s => ({
+      value: s, label: t(`myFeedback.status.${s}`, { defaultValue: STATUS_TONE[s].label }) as string,
+    })),
+  ];
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return items.filter(it => {
+      if (catFilter !== 'all' && it.category !== catFilter) return false;
+      if (statusFilter !== 'all' && it.status !== statusFilter) return false;
+      if (q && !((it.title || '').toLowerCase().includes(q)
+        || (it.body || '').toLowerCase().includes(q)
+        || (it.admin_response || '').toLowerCase().includes(q))) return false;
+      return true;
+    });
+  }, [items, search, catFilter, statusFilter]);
+
   return (
-    <PageShell title={t('myFeedback.title', { defaultValue: '내 문의·피드백' }) as string} count={items.length}>
+    <PageShell
+      title={t('myFeedback.title', { defaultValue: '내 문의·피드백' }) as string}
+      count={filtered.length}
+      actions={items.length > 0 ? (
+        <Filters>
+          <SearchBox
+            placeholder={t('myFeedback.filter.search', { defaultValue: '제목·내용·답변 검색' }) as string}
+            value={search} onChange={setSearch} width={200} size="md"
+          />
+          <SelWrap>
+            <PlanQSelect size="sm" isClearable={false} isSearchable={false}
+              value={catOptions.find(o => o.value === catFilter)} options={catOptions}
+              onChange={(o) => setCatFilter(String((o as PlanQSelectOption)?.value ?? 'all'))} />
+          </SelWrap>
+          <SelWrap>
+            <PlanQSelect size="sm" isClearable={false} isSearchable={false}
+              value={statusOptions.find(o => o.value === statusFilter)} options={statusOptions}
+              onChange={(o) => setStatusFilter(String((o as PlanQSelectOption)?.value ?? 'all'))} />
+          </SelWrap>
+        </Filters>
+      ) : undefined}
+    >
       {loading ? (
         <Empty>{t('myFeedback.loading', { defaultValue: '불러오는 중…' }) as string}</Empty>
       ) : items.length === 0 ? (
         <Empty>{t('myFeedback.empty', { defaultValue: '아직 남긴 문의·피드백이 없어요. Q helper에서 문의나 피드백을 남겨보세요.' }) as string}</Empty>
+      ) : filtered.length === 0 ? (
+        <Empty>{t('myFeedback.noMatch', { defaultValue: '조건에 맞는 항목이 없어요.' }) as string}</Empty>
       ) : (
         <List>
-          {items.map(it => {
+          {filtered.map(it => {
             const tone = STATUS_TONE[it.status] || STATUS_TONE.pending;
             return (
               <Card key={it.id}>
@@ -81,6 +136,10 @@ const MyFeedbackPage = () => {
 
 export default MyFeedbackPage;
 
+const Filters = styled.div`
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+`;
+const SelWrap = styled.div`min-width: 130px;`;
 const List = styled.div`display: flex; flex-direction: column; gap: 12px; max-width: 760px;`;
 const Empty = styled.div`padding: 48px 16px; text-align: center; font-size: 14px; color: #94A3B8;`;
 const Card = styled.div`
