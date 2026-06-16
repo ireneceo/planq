@@ -17,15 +17,22 @@ const { Project, Business, Client, Invoice, InvoiceItem, User, BusinessMember } 
 const { sequelize } = require('../config/database');
 
 // invoice_number 생성 — 동시성 고려 (같은 트랜잭션 / 락 미적용. cron 단일 실행이라 충분)
+// 운영 — robust: INV-YYYY- prefix 전체에서 실제 최대 순번 스캔 (깨진 번호 skip).
+//   기존 "last by id" 는 같은 날 다건 발행/비표준 번호에서 NaN·중복 → 2번째부터 발행 실패
+//   (memory recurring_billing_latent_bugs). clientSubscriptionBilling 과 동일 fix.
 async function nextInvoiceNumber() {
   const year = new Date().getFullYear();
-  const last = await Invoice.findOne({
-    where: sequelize.where(sequelize.fn('YEAR', sequelize.col('created_at')), year),
-    order: [['id', 'DESC']],
+  const prefix = `INV-${year}-`;
+  const rows = await Invoice.findAll({
+    where: { invoice_number: { [Op.like]: `${prefix}%` } },
     attributes: ['invoice_number'],
   });
-  const seq = last ? parseInt(last.invoice_number.split('-')[2]) + 1 : 1;
-  return `INV-${year}-${String(seq).padStart(4, '0')}`;
+  let max = 0;
+  for (const r of rows) {
+    const m = /-(\d+)$/.exec(r.invoice_number || '');
+    if (m) { const v = parseInt(m[1], 10); if (Number.isFinite(v) && v > max) max = v; }
+  }
+  return `${prefix}${String(max + 1).padStart(4, '0')}`;
 }
 
 // 오늘이 billing_day 인지 (월 말일 보정 — 31 설정인데 그달은 30일 → 30일에 발행)
