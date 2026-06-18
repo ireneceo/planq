@@ -40,6 +40,8 @@ const QNotePage = lazy(() => import('./pages/QNote/QNotePage'));
 const MemoStandalonePage = lazy(() => import('./pages/QNote/MemoStandalonePage'));
 const NoteCaptureStandalonePage = lazy(() => import('./pages/QNote/NoteCaptureStandalonePage'));
 const HelpStandalonePage = lazy(() => import('./pages/Help/HelpStandalonePage'));
+const WikiPage = lazy(() => import('./pages/Wiki/WikiPage'));
+const WikiArticlePage = lazy(() => import('./pages/Wiki/WikiArticlePage'));
 const ProfilePage = lazy(() => import('./pages/Profile/ProfilePage'));
 const ProfileIntegrationsPage = lazy(() => import('./pages/Profile/ProfileIntegrationsPage'));
 const MyWorkSettingsPage = lazy(() => import('./pages/Profile/MyWorkSettingsPage'));
@@ -145,6 +147,9 @@ function App() {
         <Route path="/verify-email/:token" element={<VerifyEmailPage />} />
         <Route path="/privacy" element={<PrivacyPolicy />} />
         <Route path="/terms" element={<TermsOfService />} />
+        {/* Q위키 (Q Wiki) — 게스트 허용 공개 라우트 (public article) + 로그인 시 전체 */}
+        <Route path="/wiki" element={<WikiPage />} />
+        <Route path="/wiki/a/:slug" element={<WikiArticlePage />} />
 
         {/* Authenticated routes with MainLayout */}
         <Route path="/dashboard" element={

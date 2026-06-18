@@ -208,4 +208,27 @@ router.get('/articles/:slug', optionalAuth, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// ─── GET /image/:fileId — 위키 스크린샷 이미지 서빙 (공개) ───
+// IDOR 방지: 발행된 help_article body 의 image 블록에 file_id 가 실제 참조될 때만 서빙.
+const fs = require('fs');
+const path = require('path');
+const File = require('../models/File');
+router.get('/image/:fileId', async (req, res, next) => {
+  try {
+    const fid = Number(req.params.fileId);
+    if (!Number.isInteger(fid) || fid <= 0) return res.status(400).end();
+    const like = `%"file_id":${fid}%`;
+    const referenced = await HelpArticle.findOne({
+      where: { is_published: true, [Op.or]: [{ body_ko: { [Op.like]: like } }, { body_en: { [Op.like]: like } }] },
+      attributes: ['id'],
+    });
+    if (!referenced) return res.status(404).end();
+    const file = await File.findOne({ where: { id: fid, deleted_at: null } });
+    if (!file || !file.file_path || !fs.existsSync(file.file_path)) return res.status(404).end();
+    res.set('Cache-Control', 'public, max-age=86400');
+    if (file.mime_type) res.type(file.mime_type);
+    return res.sendFile(path.resolve(file.file_path));
+  } catch (err) { next(err); }
+});
+
 module.exports = router;
