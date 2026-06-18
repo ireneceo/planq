@@ -338,6 +338,8 @@ router.get('/', authenticateToken, async (req, res, next) => {
 
 **기타 (2):** kb_chunks, kb_documents, kb_pinned_faqs, cue_usage
 
+**Q위키 (2):** **help_categories**, **help_articles** (2026-06-18 신규 — PlanQ 제품 사용법 도움말. 플랫폼 공통 콘텐츠(business_id 없음), 격리 축은 article.visibility('public'/'authenticated')만. help_articles FULLTEXT(ngram) 한글검색 + body ko/en JSON 블록. 본문 임베딩은 **kb_chunks 재사용**(source_type ENUM 'kb'/'wiki' 추가 + source_id + business_id/kb_document_id nullable — wiki chunk는 플랫폼 공통이라 NULL, 워크스페이스 KB 검색 비오염). 스크린샷은 File 재사용(image 블록 file_id). 운영 적용 시 `dev-backend/setup-wiki-schema.js`(FULLTEXT+ALTER 멱등) + `seed-wiki-content.js`(콘텐츠) 실행. 설계 docs/Q_WIKI_DESIGN.md)
+
 > **Q Task 상태 ENUM:** `not_started`, `waiting`, `in_progress`, `reviewing`, `revision_requested`, `completed`, `canceled`. (2026-04-25: `done_feedback` 폐지 — 컨펌 정책 충족 시 `recalcStatusFromReviewers` 가 자동 `completed` 전환). 관점별 UI 라벨은 `dev-frontend/src/utils/taskLabel.ts` 참조 (i18n `status.{code}.{role}` 4차원 구조).
 >
 > **Q Task 시간/진행율 권한 (2026-04-25):** `estimated_hours / actual_hours / progress_percent` 는 **담당자만 입력 가능**. 비담당자가 PATCH/PUT 시 `only_assignee_can_edit_hours` 403. 프론트는 `assignee_id !== myId` 시 input disabled (회색·점선·spinner 숨김). 다른 역할은 read-only 참고.
