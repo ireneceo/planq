@@ -1,6 +1,8 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-06-16 — **워크스페이스 생성 드롭다운 + 초대 루트/그래프 시간계산 철저검증 운영 라이브 (deploy `20260616_081004` · commit `ad044e8` · 헬스 29/29).** ① **새 워크스페이스 만들기:** 좌측 상단 WorkspaceSwitcher 드롭다운에 생성 항목+모달(이름 입력, role=dialog/aria-modal/scroll lock). 백엔드 `POST /api/businesses` 전체 워크스페이스 생성 트랜잭션화(Business starter 14일 trial + owner BusinessMember + Cue user/member + cue_user_id + active_business_id 전환 + slug 자동) + commit-후-rollback/`undefined.catch` 버그 fix(committed 가드 + audit try/catch). E2E: 생성201·정합(cue/owner/ai/active)·목록포함·**cross-tenant 403**·경계400·미인증401. ② **고객 초대 루트 완벽검증:** 실데이터 E2E 7/7(초대생성 시 Client 즉시 invited 생성+client_id 연결·공개조회·토큰=인증 수락·Client active+프로젝트 고객채팅 자동참여·재수락400·무효404·만료410). **버그 fix:** 수락 알림 링크가 존재하지 않는 `/q-project/:id`(클릭 시 404) → 상대경로 `/projects/p/:id`로 수정(notify normalizeLink 정합). ③ **업무관리 그래프 시간계산 철저검증(코드 정확, 변경불필요):** 백엔드 daily-progress 값이 수동 대조와 정확 일치(예측=Σ예측×진행률, 실제=Σactual_hours만·fallback 없음), 프론트 computedBurndown 두 라인 독립출처+단조증가+미래 잘림+점선종점=weekTotalEst, 주간보고서 스냅샷 동일공식+dayKey 정규화(빈화면 fix 유지). 헬스 정리: 깨진 push 구독(test.example p256dh 3바이트) expired 마크 + E2E 인공물 push_log 제거.
+> **최종 업데이트:** 2026-06-18 — **포커스 주간그래프 운영 배포(v1.40.3) + 알림소리 톤다운(dev) + Q위키 설계확정 + AI 전수검사 문서화.** ① **운영피드백 #57·#58·#59(포커스/주간업무진척 그래프) 수정·배포완료**(deploy 134초, index.html 00:42 갱신, 헬스 OK). 근본원인: 그래프 actual 라인이 task_daily_progress 스냅샷(cron 아침)만 사용 → 진행중 업무 포커스 측정시간이 그날짜에 안잡힘(스냅샷 없으면 빈 그래프), 오늘도 actual_hours 합만 써 active 포커스 미반영. 수정: `routes/tasks.js` daily-progress가 `FocusSession.computeActualSeconds()` 일별귀속 누적 + act_used=max(스냅샷,포커스), 프론트 오늘 actual=max(라이브,포커스누적). E2E 6/6. ② **알림소리 톤다운(`NotificationToaster.tsx`):** 맥북 귀아픔 호소 — 원인은 mp3 에셋 부재로 항상 합성음(G5 784Hz+D6 1174Hz, gain0.45, lowpass無)→고역 날카로움. C5 523Hz+E5 659Hz(장3도)+lowpass 2kHz+볼륨 0.16으로 교체(dev만, 운영 미반영). ③ **Q위키 설계확정** `docs/Q_WIKI_DESIGN.md` — IA: "Q helper"=허브 버튼·타이틀 유지, 그 아래 Cue(내 워크스페이스)+Q위키(PlanQ 사용법)+문의. 변경 전수지도+DB 2테이블+API+검증 V1~V11. ④ **AI 전수검사 체크리스트** `docs/AI_FEATURE_AUDIT.md` — 22개 AI기능 A~E, 실 API 동작증명. → **둘 다 다음 섹션 구현/실행 예정** (유료고객 테스트 진입, 고급기능 우선).
+>
+> **이전:** 2026-06-16 — **워크스페이스 생성 드롭다운 + 초대 루트/그래프 시간계산 철저검증 운영 라이브 (deploy `20260616_081004` · commit `ad044e8` · 헬스 29/29).** ① **새 워크스페이스 만들기:** 좌측 상단 WorkspaceSwitcher 드롭다운에 생성 항목+모달(이름 입력, role=dialog/aria-modal/scroll lock). 백엔드 `POST /api/businesses` 전체 워크스페이스 생성 트랜잭션화(Business starter 14일 trial + owner BusinessMember + Cue user/member + cue_user_id + active_business_id 전환 + slug 자동) + commit-후-rollback/`undefined.catch` 버그 fix(committed 가드 + audit try/catch). E2E: 생성201·정합(cue/owner/ai/active)·목록포함·**cross-tenant 403**·경계400·미인증401. ② **고객 초대 루트 완벽검증:** 실데이터 E2E 7/7(초대생성 시 Client 즉시 invited 생성+client_id 연결·공개조회·토큰=인증 수락·Client active+프로젝트 고객채팅 자동참여·재수락400·무효404·만료410). **버그 fix:** 수락 알림 링크가 존재하지 않는 `/q-project/:id`(클릭 시 404) → 상대경로 `/projects/p/:id`로 수정(notify normalizeLink 정합). ③ **업무관리 그래프 시간계산 철저검증(코드 정확, 변경불필요):** 백엔드 daily-progress 값이 수동 대조와 정확 일치(예측=Σ예측×진행률, 실제=Σactual_hours만·fallback 없음), 프론트 computedBurndown 두 라인 독립출처+단조증가+미래 잘림+점선종점=weekTotalEst, 주간보고서 스냅샷 동일공식+dayKey 정규화(빈화면 fix 유지). 헬스 정리: 깨진 push 구독(test.example p256dh 3바이트) expired 마크 + E2E 인공물 push_log 제거.
 >
 > **이전:** 2026-06-16 — **청구·메일·프로젝트·채팅 대규모 운영 라이브 (deploy `20260616_041736`, 139초, 헬스 OK · commit `3aae6c3`).** 운영 사용자(Irene) 실시간 피드백 집중 사이클. 그룹별 정리:
 > - **[청구서]** 세금계산서 토글 KRW면 항상 활성(사업자정보는 결제 후 고객이 공개페이지 입력) · **임시저장(draft) 재편집**(PUT `/:biz/:id`, 모달 edit 모드, 드로어 "편집" 버튼) · **취소 청구서 편집·재발행**(canceled→draft 되살림) · **삭제 FK fix**(invoice_status_history/receipt_corrections 먼저 삭제 — 발송/취소 청구서 삭제가 막히던 것) · 거래 배너 버튼명 action_kind별 · 증빙 알림 링크 tab=invoices.
@@ -102,6 +104,29 @@
 > **이전 라이브:** v1.16.1 (commit `8947504`) — N+31 사이클 (Q Talk 모바일 viewport 회귀 fix)
 >
 > **이전 라이브:** v1.16.0 (commit `ab113a6`) — N+26~N+27 사이클 (업무 흐름 Focus MVP + 인박스 inline 모달 + Cue 주고받음)
+
+---
+
+## ✅ 완료: 포커스 주간그래프 배포 + 소리 톤다운 + Q위키/AI감사 설계 (2026-06-18)
+
+### 완료된 작업
+
+| 작업 | 설명 | 상태 |
+|------|------|:----:|
+| 운영 #57·#58·#59 그래프 수정 | daily-progress가 FocusSession 실측 일별귀속 누적 반영, act_used=max(스냅샷,포커스), 프론트 오늘 라이브. E2E 6/6 | ✅ 배포완료(v1.40.3) |
+| 알림소리 톤다운 | 합성음 C5+E5+lowpass 2kHz+볼륨0.16 (맥북 귀아픔 fix) | ✅ dev (운영 미반영) |
+| Q위키 설계 | `docs/Q_WIKI_DESIGN.md` — IA확정/전수지도/DB2/API/검증 | ✅ 문서 완결 |
+| AI 전수검사 체크리스트 | `docs/AI_FEATURE_AUDIT.md` — 22기능 A~E | ✅ 문서 완결 |
+
+### 수정된 파일
+- `dev-backend/routes/tasks.js` (daily-progress 포커스 실측 반영)
+- `dev-frontend/src/pages/QTask/QTaskPage.tsx` (오늘 actual max 처리)
+- `dev-frontend/src/components/Common/NotificationToaster.tsx` (소리 톤다운)
+- `docs/Q_WIKI_DESIGN.md` (신규), `docs/AI_FEATURE_AUDIT.md` (신규)
+
+### 다음 섹션
+- **Q위키 구현** (DB→Backend→Admin→콘텐츠→Frontend→검증)
+- **AI 기능 전수검사** (22기능 실 API 동작증명, 고급기능 우선)
 
 ---
 
