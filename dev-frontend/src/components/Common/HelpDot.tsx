@@ -14,8 +14,14 @@ import { useTranslation } from 'react-i18next';
 export interface HelpDotProps {
   /** popover 본문. \n 으로 줄바꿈 가능 */
   children: React.ReactNode;
-  /** Cue 자연어 질의 prefill 텍스트 */
+  /** "Q helper 에 묻기" prefill 텍스트 (Q위키/Cue 탭 입력란에 채워짐) */
   askCue?: string;
+  /**
+   * "Q helper 에 묻기" 클릭 시 진입 탭 (F6).
+   * 'wiki' = Q위키(PlanQ 사용법 매뉴얼, 기본값) / 'cue' = Cue(워크스페이스 데이터, 로그인 전용).
+   * HelpDot 은 "이 기능이 어떻게 작동하는지" 사용법 질의가 기본이므로 Q위키로 보낸다.
+   */
+  askTab?: 'wiki' | 'cue';
   /** 작은 화면 자동 정렬 — 'top'|'bottom' 강제 시 하단 잘림 방지 */
   placement?: 'top' | 'bottom' | 'auto';
   /** 호출 위치 식별 — 추후 분석/투어 연결 */
@@ -29,7 +35,7 @@ const POPOVER_WIDTH = 280;
 const POPOVER_GAP = 8;
 const VIEWPORT_PAD = 12;
 
-const HelpDot: React.FC<HelpDotProps> = ({ children, askCue, placement = 'auto', tourPageKey, className }) => {
+const HelpDot: React.FC<HelpDotProps> = ({ children, askCue, askTab = 'wiki', placement = 'auto', tourPageKey, className }) => {
   const { t } = useTranslation('common');
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState<{ top: number; left: number; placeAbove: boolean } | null>(null);
@@ -80,7 +86,8 @@ const HelpDot: React.FC<HelpDotProps> = ({ children, askCue, placement = 'auto',
 
   const handleAskCue = () => {
     if (!askCue) return;
-    window.dispatchEvent(new CustomEvent('cue:ask', { detail: { prefill: askCue } }));
+    // F6 — Q helper 드로어의 진입 탭 지정 (기본 Q위키). 드로어가 detail.tab 으로 분기.
+    window.dispatchEvent(new CustomEvent('cue:ask', { detail: { prefill: askCue, tab: askTab } }));
     setOpen(false);
   };
 
