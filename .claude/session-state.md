@@ -2,10 +2,22 @@
 
 ## 현재 작업 상태
 **마지막 업데이트:** 2026-06-18
-**작업 상태:** 완료
+**작업 상태:** Q위키 구현 진행 중 — 백엔드 완료(검증 10/10), 프론트엔드 남음
 
 ### 진행 중인 작업
-- 없음
+- **Q위키(Q Wiki) 구현** — `docs/Q_WIKI_DESIGN.md`. 6단계 중:
+  - ✅ 1단계 DB — `models/HelpCategory.js`·`HelpArticle.js` + index.js 등록/association. `sync-database.js` 생성. `setup-wiki-schema.js`(멱등): help_articles FULLTEXT(ngram) + kb_chunks 재사용(business_id/kb_document_id nullable + source_type 'kb'/'wiki' + source_id + 인덱스). KbChunk 모델도 동기화.
+  - ✅ 2단계 Backend — `routes/wiki.js`(공개+로그인 read: categories/articles/search/context, lang fallback, pagination, ETag/cache). `services/wikiSearch.js`(FULLTEXT+임베딩 하이브리드, SEM_THRESHOLD 0.30, indexArticle/removeArticleIndex). `middleware/auth.js`에 `optionalAuth` 추가. `routes/cue.js` qhelper→Q위키 RAG 승격(sources[] 반환, SYSTEM_PROMPT_QHELPER 근거 지시). `server.js` 등록(/api/wiki, /api/admin/wiki).
+  - ✅ 3단계 Admin 백엔드 — `routes/admin_wiki.js`(카테고리·article CRUD + published + capture + reembed, requireRole platform_admin). `services/wikiScreenshot.js`(pdfService getBrowser 재사용, 캡처계정 쿠키로그인→캡처→File dedup→image블록. **env WIKI_CAPTURE_EMAIL/PASSWORD/BUSINESS_ID 필요 — 미설정 시 비활성**). pdfService에 getBrowser export.
+  - ✅ 4단계 초기 콘텐츠 — `seed-wiki-content.js`(멱등): 카테고리 8 + article 20(실 사용법 ko/en, public 3·authenticated 17) + 임베딩 인덱싱. **dev DB 적재 완료**.
+  - ✅ 백엔드 E2E **V1~V9 10/10 통과** (게스트격리/검색ko·en/맥락/Cue sources/admin 403/lang fallback). test-wiki.js 삭제 완료.
+  - ⬜ **5단계 Frontend (다음)** — F1 CueHelpDrawer 재구성(타이틀 "Q helper" 유지, 탭 Cue/Q위키/문의), F2 WikiPage `/wiki`, F3 WikiArticlePage `/wiki/a/:slug`, F4 App.tsx lazy 라우트(게스트 허용), F6 HelpDot tab='wiki' 분기, F7 랜딩 도움말 링크, F8 진입점 9곳, F10 locales `wiki.json` ko/en + i18n.ts ns 등록 + AdminWikiPage(A1)+Admin 사이드바(A2).
+  - ⬜ **6단계 최종검증** — V8(캡처→File, env 필요), V10(첫접속 오버뷰 localStorage), V11(npm run build EXIT 0).
+
+### ⚠️ 미해결/결정 필요
+- **스크린샷 캡처 계정**: `wikiScreenshot.js`는 데모 데이터 보유 워크스페이스의 전용 계정(WIKI_CAPTURE_EMAIL/PASSWORD/BUSINESS_ID)이 .env에 있어야 동작. 미설정 시 캡처만 비활성(나머지 위키 정상). Irene 결정 필요.
+- **PM2 위치 정정**: `planq-dev-backend`는 **irene** pm2(id 2)에 등록됨(lua 아님 — 메모리 `feedback_pm2_multi_user_scope`는 이 케이스에 해당 안 됨). `pm2 restart planq-dev-backend`로 충분.
+- **운영 미반영**: 위 전부 dev만. 운영 배포 시 setup-wiki-schema.js + seed-wiki-content.js 순차 실행 필요.
 
 ### 완료된 작업 (이번 세션)
 - **운영 #57·#58·#59 (포커스/주간업무진척 그래프) 수정·운영배포 완료** (v1.40.3, deploy 134초, index.html 00:42, 헬스 OK). daily-progress가 `FocusSession.computeActualSeconds()` 일별귀속 누적 반영 + act_used=max(스냅샷,포커스), 프론트 오늘 actual=max(라이브,포커스누적). E2E 6/6.
