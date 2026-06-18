@@ -2,9 +2,14 @@
 
 ## 현재 작업 상태
 **마지막 업데이트:** 2026-06-18
-**작업 상태:** Q위키 구현 진행 중 — 백엔드 완료(검증 10/10), 프론트엔드 남음
+**작업 상태:** Q위키 핵심 운영 배포 완료 (v1.41.0)
 
-### 진행 중인 작업
+### 이번 배포 (운영 라이브)
+- **Q위키(Q Wiki) v1.41.0 운영 배포 완료** (commit 5a399f7, deploy 129s, https://planq.kr 헬스 OK). prod setup-wiki-schema(FULLTEXT+kb_chunks ALTER) + seed(8카테고리+20article+임베딩) 실행 완료. 검증: 헬스 29/29, 빌드 EXIT0, API 10/10(격리·검색·맥락·RAG·권한·KB비오염), 운영 /wiki·/wiki/a/:slug 200·게스트 격리 OK.
+- **남은 프론트(다음 사이클·미배포):** F6 HelpDot tab='wiki' 분기(드로어 이벤트 분기는 준비됨), F8 진입점 9곳, F7 랜딩 "도움말"→/wiki, A1/A2 AdminWikiPage(관리자 article 편집·캡처).
+- **결정 대기:** 스크린샷 자동캡처 — wikiScreenshot.js 코드 완성, env WIKI_CAPTURE_EMAIL/PASSWORD/BUSINESS_ID(데모데이터 계정) 미설정이라 비활성. 계정 정해지면 .env 설정 후 활성.
+
+### 진행 중인 작업 (이전 — 완료됨)
 - **Q위키(Q Wiki) 구현** — `docs/Q_WIKI_DESIGN.md`. 6단계 중:
   - ✅ 1단계 DB — `models/HelpCategory.js`·`HelpArticle.js` + index.js 등록/association. `sync-database.js` 생성. `setup-wiki-schema.js`(멱등): help_articles FULLTEXT(ngram) + kb_chunks 재사용(business_id/kb_document_id nullable + source_type 'kb'/'wiki' + source_id + 인덱스). KbChunk 모델도 동기화.
   - ✅ 2단계 Backend — `routes/wiki.js`(공개+로그인 read: categories/articles/search/context, lang fallback, pagination, ETag/cache). `services/wikiSearch.js`(FULLTEXT+임베딩 하이브리드, SEM_THRESHOLD 0.30, indexArticle/removeArticleIndex). `middleware/auth.js`에 `optionalAuth` 추가. `routes/cue.js` qhelper→Q위키 RAG 승격(sources[] 반환, SYSTEM_PROMPT_QHELPER 근거 지시). `server.js` 등록(/api/wiki, /api/admin/wiki).
