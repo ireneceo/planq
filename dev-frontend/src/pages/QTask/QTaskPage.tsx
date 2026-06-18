@@ -1255,7 +1255,8 @@ const QTaskPage:React.FC=()=>{
     const raw=days.map(d=>{
       let estV=0, actV=0;
       const isFuture=d.date>todayStr;
-      if(d.date===todayStr){ estV=liveEstDone; actV=liveAct; }
+      // 오늘 actual = max(라이브 actual_hours 합, 백엔드 포커스 누적 라이브) — 진행중 active 포커스도 즉시 반영(운영 #57/#58).
+      if(d.date===todayStr){ estV=liveEstDone; actV=Math.max(liveAct, Number(snapMap.get(todayStr)?.act_used||0)); }
       else if(d.date<todayStr){ const s=snapMap.get(d.date); if(s){ estV=Number(s.est_used)||0; actV=Number(s.act_used)||0; } }
       // 미래 = 라인 그리지 않음 (잘림). 주는 "가는 중" 이므로 오늘까지만.
       return{label:d.label,date:d.date,isFuture,est:Math.round(estV*10)/10,act:Math.round(actV*10)/10};
