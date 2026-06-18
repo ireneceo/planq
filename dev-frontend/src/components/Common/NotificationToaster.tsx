@@ -109,7 +109,10 @@ function playPing() {
   playSynth();
 }
 
-// Web Audio 합성 — G5 (783.99Hz) + D6 (1174.66Hz, perfect fifth) chord. 볼륨 0.45, decay 0.7s.
+// Web Audio 합성 — 부드러운 2음 차임 (C5 523Hz + E5 659Hz, major third).
+// 옛 버전(G5 784Hz + D6 1174Hz, gain 0.45, lowpass 없음)은 맥북 스피커가 고역을 날카롭게
+// 재생해 "귀아픔" 호소(운영). 모바일은 고역 roll-off 라 원래 부드러웠음.
+// → 저역대(<700Hz)로 낮춤 + lowpass 2kHz 로 날카로운 고역 제거 + 볼륨 0.45→0.16 으로 톤다운.
 function playSynth() {
   try {
     if (!unlockedCtx || unlockedCtx.state === 'closed') {
@@ -123,29 +126,37 @@ function playSynth() {
       return;
     }
     const now = ctx.currentTime;
+
+    // lowpass — 날카로운 고역 차단 (귀 통증의 핵심 원인). 2kHz 위 부드럽게 감쇠.
+    const lp = ctx.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.setValueAtTime(2000, now);
+    lp.Q.setValueAtTime(0.7, now);
+
     const master = ctx.createGain();
+    lp.connect(master);
     master.connect(ctx.destination);
     master.gain.setValueAtTime(0, now);
-    master.gain.linearRampToValueAtTime(0.45, now + 0.015);
-    master.gain.exponentialRampToValueAtTime(0.001, now + 0.7);
+    master.gain.linearRampToValueAtTime(0.16, now + 0.02);   // 0.45 → 0.16 (부드럽게)
+    master.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
 
-    // Fundamental — G5
+    // Fundamental — C5 (따뜻한 중역)
     const osc1 = ctx.createOscillator();
     osc1.type = 'sine';
-    osc1.frequency.setValueAtTime(783.99, now);
-    osc1.connect(master);
+    osc1.frequency.setValueAtTime(523.25, now);
+    osc1.connect(lp);
     osc1.start(now);
-    osc1.stop(now + 0.75);
+    osc1.stop(now + 0.65);
 
-    // Harmonic — D6 (perfect fifth above), 60ms 늦게 시작 → chime 느낌
+    // 화음 — E5 (장3도 위), 50ms 늦게 + 낮은 게인 → 날카롭지 않은 따뜻한 차임
     const osc2 = ctx.createOscillator();
     osc2.type = 'sine';
-    osc2.frequency.setValueAtTime(1174.66, now + 0.06);
+    osc2.frequency.setValueAtTime(659.25, now + 0.05);
     const g2 = ctx.createGain();
-    g2.gain.setValueAtTime(0.55, now);
-    osc2.connect(g2); g2.connect(master);
-    osc2.start(now + 0.06);
-    osc2.stop(now + 0.75);
+    g2.gain.setValueAtTime(0.35, now);
+    osc2.connect(g2); g2.connect(lp);
+    osc2.start(now + 0.05);
+    osc2.stop(now + 0.65);
   } catch { /* silent */ }
 }
 
