@@ -11,7 +11,18 @@
   - ✅ 3단계 Admin 백엔드 — `routes/admin_wiki.js`(카테고리·article CRUD + published + capture + reembed, requireRole platform_admin). `services/wikiScreenshot.js`(pdfService getBrowser 재사용, 캡처계정 쿠키로그인→캡처→File dedup→image블록. **env WIKI_CAPTURE_EMAIL/PASSWORD/BUSINESS_ID 필요 — 미설정 시 비활성**). pdfService에 getBrowser export.
   - ✅ 4단계 초기 콘텐츠 — `seed-wiki-content.js`(멱등): 카테고리 8 + article 20(실 사용법 ko/en, public 3·authenticated 17) + 임베딩 인덱싱. **dev DB 적재 완료**.
   - ✅ 백엔드 E2E **V1~V9 10/10 통과** (게스트격리/검색ko·en/맥락/Cue sources/admin 403/lang fallback). test-wiki.js 삭제 완료.
-  - ⬜ **5단계 Frontend (다음)** — F1 CueHelpDrawer 재구성(타이틀 "Q helper" 유지, 탭 Cue/Q위키/문의), F2 WikiPage `/wiki`, F3 WikiArticlePage `/wiki/a/:slug`, F4 App.tsx lazy 라우트(게스트 허용), F6 HelpDot tab='wiki' 분기, F7 랜딩 도움말 링크, F8 진입점 9곳, F10 locales `wiki.json` ko/en + i18n.ts ns 등록 + AdminWikiPage(A1)+Admin 사이드바(A2).
+  - 🔶 **5단계 Frontend (부분 완료)**:
+    - ✅ F2 WikiPage `/wiki` (오버뷰/검색/카테고리칩/카드, 첫접속 localStorage `planq_wiki_overview_seen`)
+    - ✅ F3 WikiArticlePage `/wiki/a/:slug` (블록렌더 heading/text/step/callout/image, "이 화면 열기", 관련글)
+    - ✅ F4 App.tsx 게스트 허용 lazy 라우트(`/wiki`, `/wiki/a/:slug` — public, ProtectedRoute 밖)
+    - ✅ F10 locales `wiki.json` ko/en + i18n.ts ns `wiki` 등록
+    - ✅ `services/wiki.ts` API 클라이언트 + `/api/wiki/image/:fileId` 공개 서빙(IDOR 가드)
+    - ✅ **빌드 EXIT 0** (WikiPage/WikiArticlePage/wiki 청크 04:41 생성, index.html 갱신). **dev 라이브: https://dev.planq.kr/wiki (게스트 접속 가능)**
+    - ✅ **F1 CueHelpDrawer 재구성 완료** — 타이틀 "Q helper" 유지. 탭 재라벨 Cue(workspace)/Q위키(qhelper)/문의(inquiry) + ModeDot 색(cue 코랄/wiki 틸/inquiry 회색). Q위키 탭: WikiPanel("이 화면에서" 맥락카드 GET /wiki/context + 카테고리칩→/wiki?category + "전체 Q위키 열기 →"/wiki) + 답변 아래 sources[] 칩(→/wiki/a/:slug). Turn.sources, cue:ask `detail.tab='wiki'|'cue'` 분기, openWikiPath(navigate+close). 빌드 EXIT 0, 데이터 흐름 스모크 OK(카테고리8/맥락3/Cue근거3).
+    - ⬜ F6 HelpDot `cue:ask` 에 `tab:'wiki'` 분기 + popover "Q위키에서 더 보기 →"
+    - ⬜ F8 진입점 9곳(QTask/QTalk/QNote/Knowledge/Docs/Todo/Dashboard) HelpDot → Q위키 탭 타겟
+    - ⬜ F7 랜딩 헤더/푸터 "도움말" → `/wiki`
+    - ⬜ A1 `pages/Admin/AdminWikiPage.tsx`(카테고리·article CRUD + RichEditor body + published + 1클릭 캡처 + 미리보기) + A2 Admin 사이드바 "Q위키 관리"
   - ⬜ **6단계 최종검증** — V8(캡처→File, env 필요), V10(첫접속 오버뷰 localStorage), V11(npm run build EXIT 0).
 
 ### ⚠️ 미해결/결정 필요
