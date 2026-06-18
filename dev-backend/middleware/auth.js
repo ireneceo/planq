@@ -77,6 +77,30 @@ const authenticateToken = async (req, res, next) => {
   }
 };
 
+// optionalAuth — 토큰이 있고 유효하면 req.user 세팅, 없거나 무효면 게스트(req.user=null)로 통과.
+// Q위키처럼 공개+로그인 모두 허용하는 read 라우트용. 인증 실패해도 401 안 냄.
+const optionalAuth = async (req, res, next) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+  req.user = null;
+  if (!token) return next();
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const user = await User.findByPk(decoded.userId || decoded.id);
+    if (user && user.status === 'active') {
+      req.user = {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        platform_role: user.platform_role,
+      };
+    }
+  } catch (_) {
+    // 무효 토큰 → 게스트로 계속
+  }
+  next();
+};
+
 const requireRole = (...allowedRoles) => {
   return (req, res, next) => {
     if (!req.user) {
@@ -103,4 +127,4 @@ const requireRole = (...allowedRoles) => {
 const { attachWorkspaceScope } = require('./access_scope');
 const checkBusinessAccess = attachWorkspaceScope({ memberOnly: true, platformAdminAs: 'owner' });
 
-module.exports = { authenticateToken, requireRole, checkBusinessAccess };
+module.exports = { authenticateToken, optionalAuth, requireRole, checkBusinessAccess };

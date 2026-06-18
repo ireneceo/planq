@@ -105,4 +105,4 @@ async function closeBrowser() {
   browserPromise = null; activeBrowser = null;
 }
 
-module.exports = { renderPdfFromHtml, closeBrowser };
+module.exports = { renderPdfFromHtml, closeBrowser, getBrowser };
