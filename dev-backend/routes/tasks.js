@@ -1676,38 +1676,80 @@ router.get('/daily-progress', authenticateToken, async (req, res, next) => {
       return errorResponse(res, 'forbidden', 403);
     }
 
+    const tz = await getWorkspaceTz(businessId);
+    const { dateStrInTz } = require('../utils/datetime');
+
     const myTasks = await Task.findAll({
       where: { business_id: businessId, assignee_id: req.user.id },
       attributes: ['id'],
     });
     const ids = myTasks.map(t => t.id);
-    if (ids.length === 0) return successResponse(res, { days: [] });
+    // 포커스 세션이 있으면 task 없이도(이미 삭제 등) 실측은 보여야 하나, 표준 경로상 ids 기준 충분.
 
-    const snaps = await TaskDailyProgress.findAll({
-      where: { task_id: ids, snapshot_date: { [require('sequelize').Op.between]: [from, to] } },
-      attributes: ['task_id', 'snapshot_date', 'progress_percent', 'actual_hours', 'estimated_hours'],
-      order: [['snapshot_date', 'ASC']],
-    });
-
-    // 일별 집계 — est_used = estimated × progress%, act_used = actual × progress%
+    // ── 모든 날짜 버킷 미리 생성 (스냅샷 없어도 구조 유지) ──
     const byDate = new Map();
-    for (const s of snaps) {
-      // 운영 #35 — snapshot_date 가 Date 객체라 Map 키로 쓰면 참조 동일성 때문에 같은 날짜가
-      // 합쳐지지 않아 요일별 집계가 깨짐(매 행이 별도 버킷). 'YYYY-MM-DD' 문자열로 정규화해 정확히 누적.
-      const sd = s.snapshot_date;
-      const d = (sd instanceof Date) ? sd.toISOString().slice(0, 10) : String(sd).slice(0, 10);
-      if (!byDate.has(d)) byDate.set(d, { date: d, est_used: 0, act_used: 0 });
-      const bucket = byDate.get(d);
-      const prog = (s.progress_percent || 0) / 100;
-      const est = Number(s.estimated_hours) || 0;
-      const act = Number(s.actual_hours) || 0;
-      bucket.est_used += est * prog;
-      // 실제시간 = 실제 입력시간(actual_hours)만. (예측×진행률 fallback 금지 — 예측 라인과 동일해지는 버그.
-      //  실제 미입력이면 actual 라인은 낮게 유지되어 "진척은 됐지만 시간 미입력"을 정직하게 보여줌. Irene 2026-06-16)
-      bucket.act_used += act;
+    let cur = from;
+    while (cur <= to) {
+      byDate.set(cur, { date: cur, est_used: 0, act_used: 0, focus_hours: 0 });
+      cur = addDaysStr(cur, 1);
     }
 
-    return successResponse(res, { days: Array.from(byDate.values()) });
+    // ── 1) 스냅샷 기반 est_used / 수동 actual (포커스 미사용자·완료업무) ──
+    if (ids.length > 0) {
+      const snaps = await TaskDailyProgress.findAll({
+        where: { task_id: ids, snapshot_date: { [require('sequelize').Op.between]: [from, to] } },
+        attributes: ['task_id', 'snapshot_date', 'progress_percent', 'actual_hours', 'estimated_hours'],
+        order: [['snapshot_date', 'ASC']],
+      });
+      for (const s of snaps) {
+        // 운영 #35 — snapshot_date 가 Date 객체라 Map 키로 쓰면 참조 동일성 때문에 같은 날짜가
+        // 합쳐지지 않아 요일별 집계가 깨짐(매 행이 별도 버킷). 'YYYY-MM-DD' 문자열로 정규화해 정확히 누적.
+        const sd = s.snapshot_date;
+        const d = (sd instanceof Date) ? sd.toISOString().slice(0, 10) : String(sd).slice(0, 10);
+        if (!byDate.has(d)) byDate.set(d, { date: d, est_used: 0, act_used: 0, focus_hours: 0 });
+        const bucket = byDate.get(d);
+        const prog = (s.progress_percent || 0) / 100;
+        const est = Number(s.estimated_hours) || 0;
+        const act = Number(s.actual_hours) || 0;
+        bucket.est_used += est * prog;
+        // 실제시간 = 실제 입력시간(actual_hours)만. (예측×진행률 fallback 금지 — 예측 라인과 동일해지는 버그.
+        //  실제 미입력이면 actual 라인은 낮게 유지되어 "진척은 됐지만 시간 미입력"을 정직하게 보여줌. Irene 2026-06-16)
+        bucket.act_used += act;
+      }
+    }
+
+    // ── 2) 포커스 실측 시간 (운영 #57/#58/#59) ──
+    // 그래프 actual 라인의 핵심 = "포커스타임으로 측정된 실제 업무시간".
+    // 스냅샷은 cron 아침 기준이라 진행중 업무에 그날 측정한 포커스 시간이 누락됨 →
+    // FocusSession 실측값을 시작일(워크스페이스 tz) 에 귀속해 일별 합산. active 세션은 라이브(지금까지).
+    // 누적(focusCum) 으로 만들어 프론트의 단조증가 actual 라인과 정합. snapshot actual 과 max → 포커스/수동 둘 다 보존.
+    const { FocusSession } = require('../models');
+    const focusSessions = await FocusSession.findAll({
+      where: { user_id: req.user.id, business_id: businessId },
+      attributes: ['started_at', 'ended_at', 'state', 'pause_total_sec', 'paused_at'],
+    });
+    for (const s of focusSessions) {
+      const wd = dateStrInTz(s.started_at, tz);
+      if (wd < from || wd > to) continue;
+      const sec = typeof s.computeActualSeconds === 'function' ? s.computeActualSeconds() : 0;
+      if (sec <= 0) continue;
+      if (!byDate.has(wd)) byDate.set(wd, { date: wd, est_used: 0, act_used: 0, focus_hours: 0 });
+      byDate.get(wd).focus_hours += sec / 3600;
+    }
+
+    // ── 3) 누적 포커스 → act_used 와 max 병합 (정렬된 날짜 순) ──
+    const sorted = Array.from(byDate.values()).sort((a, b) => (a.date < b.date ? -1 : 1));
+    let focusCum = 0;
+    for (const b of sorted) {
+      focusCum += b.focus_hours;
+      b.focus_cumulative = Math.round(focusCum * 10) / 10;
+      // actual 라인 = max(스냅샷 누적 actual, 포커스 누적). 포커스 미사용자는 스냅샷, 포커스 사용자는 실측.
+      b.act_used = Math.round(Math.max(b.act_used, focusCum) * 10) / 10;
+      b.est_used = Math.round(b.est_used * 10) / 10;
+      delete b.focus_hours;
+    }
+
+    return successResponse(res, { days: sorted });
   } catch (err) { next(err); }
 });
 
