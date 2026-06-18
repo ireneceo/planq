@@ -1,6 +1,8 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-06-18 — **Q위키(Q Wiki) 핵심 운영 배포 (v1.41.0 · deploy `20260618_053527` 129초 · commit `5a399f7` · planq.kr 헬스 OK).** PlanQ 제품 사용법 도움말 시스템. ① **DB:** `help_categories`/`help_articles` 2모델 + FULLTEXT(ngram, 한글검색) + **kb_chunks 재사용**(source_type 'kb'/'wiki' + source_id + business_id nullable — 플랫폼 공통이라 NULL, 워크스페이스 KB 검색에 비오염 검증됨). 운영은 sync-database가 FULLTEXT/ALTER 미처리 → `setup-wiki-schema.js`(멱등) 명시 실행. ② **Backend:** `routes/wiki.js`(공개+로그인 read, optionalAuth, lang fallback, pagination, `/image/:fileId` IDOR가드) · `services/wikiSearch.js`(FULLTEXT+임베딩 하이브리드, SEM_THRESHOLD 0.30) · `cue.js` qhelper→Q위키 article RAG 승격(sources[] 반환). ③ **Admin:** `routes/admin_wiki.js`(CRUD+캡처+재임베딩, platform_admin) · `services/wikiScreenshot.js`(Puppeteer 재사용, env-gated 비활성). ④ **콘텐츠:** 카테고리 8 + 실사용법 article 20(ko/en, public 3·authenticated 17) + 임베딩 — dev/운영 시드 완료(`seed-wiki-content.js` 멱등). ⑤ **Frontend:** `WikiPage`(/wiki, 오버뷰/검색/카테고리/카드) + `WikiArticlePage`(/wiki/a/:slug, 블록렌더+관련글) 게스트허용 · `services/wiki.ts` · locales wiki ko/en(28/28). ⑥ **드로어 F1:** 타이틀 "Q helper" 유지 + 탭 **Cue/Q위키/문의** 재라벨 + Q위키 탭("이 화면에서" 맥락카드 + 카테고리칩 + sources칩 + "전체 Q위키 열기"). **검증:** 헬스 29/29 · 빌드 EXIT0(8GB) · API 10/10(격리·검색·맥락·RAG·권한403·KB비오염) · 운영 /wiki·/wiki/a/:slug 200·게스트 격리. **남은 프론트(다음·미배포):** F6 HelpDot tab='wiki' 분기 · F8 진입점 9곳 · F7 랜딩 "도움말"→/wiki · A1/A2 AdminWikiPage. **결정대기:** 스크린샷 캡처 env 계정(WIKI_CAPTURE_*).
+> **최종 업데이트:** 2026-06-18 — **Q위키 진입점 연결 F6·F7·F8 + 운영 피드백 14건 정리 (dev 검증 완료 · 미배포).** Q위키 백엔드(v1.41.0)는 운영 라이브지만 사용자가 닿는 입구가 비어 있던 것을 연결. ① **F6** `HelpDot` 에 `askTab` prop(기본 `'wiki'`) 추가 → ⓘ "Q helper 에 묻기" 클릭 시 `cue:ask` detail.tab='wiki' 전달, 드로어가 **Q위키 탭**으로 진입(드로어는 이미 tab 분기 처리됨). ② **F8** 기존 진입점 6곳(QTask·QTalk·QNote·Knowledge·QDocs·Todo)은 askTab 미지정→기본 wiki 로 자동 라우팅 + **Dashboard `PageShell.helpDot` 신규 추가**(dashboard.help ko/en). ③ **F7** 랜딩 헤더 nav + 푸터 PRODUCT 에 "도움말"→`/wiki`(landing `nav.help` ko/en). 순수 프론트 배선(DB·API·실시간 변경 0). 검증: 헬스 **29/29** · 빌드 EXIT0(index 12:02) · dev `/`·`/wiki`·`/dashboard` 200 · i18n 하드코딩 0(t() 경유 ko/en 키 존재) · HelpDot 사용처 8곳 후방호환 · 레이아웃 표준 위반 0. **운영 피드백 14건(#57~#70) 정리** — A:이미수정(#57·#58·#59 v1.40.3, 상태정리만) · **B:Q helper 허브(F6·F7·F8 + #61 Cue답변범위 + #70 내문의·피드백)** · C:빠른버그(#69 Q bill 연체배너 오표시·#60 모바일 push) · D:대형재설계(#62~#67 조직/고객/프로젝트/보고서/보안·#68 @멘션). **다음 섹션:** #70(`feedback_items.parent_id` 추가문의 스레드 + master-detail) → #61(Cue 권한범위 전방위 검색, AI감사 중첩) → A1·A2(AdminWikiPage). **미배포:** F6·F7·F8 → 다음 `/배포`.
+>
+> **이전:** 2026-06-18 — **Q위키(Q Wiki) 핵심 운영 배포 (v1.41.0 · deploy `20260618_053527` 129초 · commit `5a399f7` · planq.kr 헬스 OK).** PlanQ 제품 사용법 도움말 시스템. ① **DB:** `help_categories`/`help_articles` 2모델 + FULLTEXT(ngram, 한글검색) + **kb_chunks 재사용**(source_type 'kb'/'wiki' + source_id + business_id nullable — 플랫폼 공통이라 NULL, 워크스페이스 KB 검색에 비오염 검증됨). 운영은 sync-database가 FULLTEXT/ALTER 미처리 → `setup-wiki-schema.js`(멱등) 명시 실행. ② **Backend:** `routes/wiki.js`(공개+로그인 read, optionalAuth, lang fallback, pagination, `/image/:fileId` IDOR가드) · `services/wikiSearch.js`(FULLTEXT+임베딩 하이브리드, SEM_THRESHOLD 0.30) · `cue.js` qhelper→Q위키 article RAG 승격(sources[] 반환). ③ **Admin:** `routes/admin_wiki.js`(CRUD+캡처+재임베딩, platform_admin) · `services/wikiScreenshot.js`(Puppeteer 재사용, env-gated 비활성). ④ **콘텐츠:** 카테고리 8 + 실사용법 article 20(ko/en, public 3·authenticated 17) + 임베딩 — dev/운영 시드 완료(`seed-wiki-content.js` 멱등). ⑤ **Frontend:** `WikiPage`(/wiki, 오버뷰/검색/카테고리/카드) + `WikiArticlePage`(/wiki/a/:slug, 블록렌더+관련글) 게스트허용 · `services/wiki.ts` · locales wiki ko/en(28/28). ⑥ **드로어 F1:** 타이틀 "Q helper" 유지 + 탭 **Cue/Q위키/문의** 재라벨 + Q위키 탭("이 화면에서" 맥락카드 + 카테고리칩 + sources칩 + "전체 Q위키 열기"). **검증:** 헬스 29/29 · 빌드 EXIT0(8GB) · API 10/10(격리·검색·맥락·RAG·권한403·KB비오염) · 운영 /wiki·/wiki/a/:slug 200·게스트 격리. **남은 프론트(다음·미배포):** F6 HelpDot tab='wiki' 분기 · F8 진입점 9곳 · F7 랜딩 "도움말"→/wiki · A1/A2 AdminWikiPage. **결정대기:** 스크린샷 캡처 env 계정(WIKI_CAPTURE_*).
 >
 > **이전:** 2026-06-18 — **포커스 주간그래프 운영 배포(v1.40.3) + 알림소리 톤다운(dev) + Q위키 설계확정 + AI 전수검사 문서화.** ① **운영피드백 #57·#58·#59(포커스/주간업무진척 그래프) 수정·배포완료**(deploy 134초, index.html 00:42 갱신, 헬스 OK). 근본원인: 그래프 actual 라인이 task_daily_progress 스냅샷(cron 아침)만 사용 → 진행중 업무 포커스 측정시간이 그날짜에 안잡힘(스냅샷 없으면 빈 그래프), 오늘도 actual_hours 합만 써 active 포커스 미반영. 수정: `routes/tasks.js` daily-progress가 `FocusSession.computeActualSeconds()` 일별귀속 누적 + act_used=max(스냅샷,포커스), 프론트 오늘 actual=max(라이브,포커스누적). E2E 6/6. ② **알림소리 톤다운(`NotificationToaster.tsx`):** 맥북 귀아픔 호소 — 원인은 mp3 에셋 부재로 항상 합성음(G5 784Hz+D6 1174Hz, gain0.45, lowpass無)→고역 날카로움. C5 523Hz+E5 659Hz(장3도)+lowpass 2kHz+볼륨 0.16으로 교체(dev만, 운영 미반영). ③ **Q위키 설계확정** `docs/Q_WIKI_DESIGN.md` — IA: "Q helper"=허브 버튼·타이틀 유지, 그 아래 Cue(내 워크스페이스)+Q위키(PlanQ 사용법)+문의. 변경 전수지도+DB 2테이블+API+검증 V1~V11. ④ **AI 전수검사 체크리스트** `docs/AI_FEATURE_AUDIT.md` — 22개 AI기능 A~E, 실 API 동작증명. → **둘 다 다음 섹션 구현/실행 예정** (유료고객 테스트 진입, 고급기능 우선).
 >
@@ -106,6 +108,35 @@
 > **이전 라이브:** v1.16.1 (commit `8947504`) — N+31 사이클 (Q Talk 모바일 viewport 회귀 fix)
 >
 > **이전 라이브:** v1.16.0 (commit `ab113a6`) — N+26~N+27 사이클 (업무 흐름 Focus MVP + 인박스 inline 모달 + Cue 주고받음)
+
+---
+
+## ✅ 완료: Q위키 진입점 연결 F6·F7·F8 + 운영 피드백 14건 정리 (2026-06-18)
+
+### 완료된 작업
+
+| 작업 | 설명 | 상태 |
+|------|------|:----:|
+| F6 HelpDot→Q위키 탭 | `HelpDot` `askTab` prop(기본 'wiki'). `cue:ask` detail.tab 전달 → 드로어 Q위키 탭 진입(드로어 분기 기구현) | ✅ |
+| F8 진입점 자동 라우팅 | 기존 6곳(QTask·QTalk·QNote·Knowledge·QDocs·Todo) 기본 wiki + Dashboard HelpDot 신규 | ✅ |
+| F7 랜딩 도움말 | 헤더 nav + 푸터 PRODUCT "도움말"→`/wiki` (landing `nav.help` ko/en) | ✅ |
+| 운영 피드백 14건 정리 | #57~#70 4클러스터 분류(A 기수정 / B Q helper허브 / C 빠른버그 / D 대형재설계) | ✅ |
+
+### 수정된 파일
+- `dev-frontend/src/components/Common/HelpDot.tsx` (askTab prop)
+- `dev-frontend/src/components/Landing/LandingLayout.tsx` (nav+footer 도움말)
+- `dev-frontend/src/pages/Dashboard/DashboardPage.tsx` (PageShell helpDot)
+- `dev-frontend/public/locales/{ko,en}/landing.json` (nav.help)
+- `dev-frontend/public/locales/{ko,en}/dashboard.json` (help.body/cuePrefill)
+
+### 검증
+- 헬스 29/29 (EXIT 0) · 빌드 EXIT 0 (index 12:02) · dev `/`·`/wiki`·`/dashboard` 200
+- i18n 하드코딩 0 (t() 경유, ko/en 키 존재) · HelpDot 8 사용처 후방호환 · 레이아웃 표준 위반 0
+- DB·API·실시간 변경 0 → 3·5·10단계(API/멀티테넌트/소켓/e2e) 해당 없음
+
+### 미배포 / 다음 섹션
+- **미배포:** F6·F7·F8 → 다음 `/배포`
+- **다음:** #70 내 문의·피드백(parent_id 추가문의 스레드 + master-detail) → #61 Cue 답변범위(권한 전방위 검색) → A1·A2 AdminWikiPage
 
 ---
 
