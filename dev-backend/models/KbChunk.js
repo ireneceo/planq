@@ -11,15 +11,27 @@ KbChunk.init({
     primaryKey: true,
     autoIncrement: true
   },
+  // Q위키(source_type='wiki') chunk 는 kb_document 없음 → nullable
   kb_document_id: {
     type: DataTypes.INTEGER,
-    allowNull: false,
+    allowNull: true,
     references: { model: 'kb_documents', key: 'id' }
   },
-  // denormalize — 검색 성능·격리용
+  // 'kb' = 대화 자료(워크스페이스) / 'wiki' = Q위키 article(플랫폼 공통)
+  source_type: {
+    type: DataTypes.ENUM('kb', 'wiki'),
+    allowNull: false,
+    defaultValue: 'kb',
+  },
+  // source_type='wiki' 일 때 help_articles.id
+  source_id: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+  },
+  // denormalize — 검색 성능·격리용. Q위키 chunk 는 플랫폼 공통이라 NULL.
   business_id: {
     type: DataTypes.INTEGER,
-    allowNull: false,
+    allowNull: true,
     references: { model: 'businesses', key: 'id' }
   },
   chunk_index: {
@@ -50,7 +62,8 @@ KbChunk.init({
   underscored: true,
   indexes: [
     { fields: ['kb_document_id'] },
-    { fields: ['business_id'] }
+    { fields: ['business_id'] },
+    { fields: ['source_type', 'source_id'], name: 'kb_chunks_source' }
   ]
 });
 

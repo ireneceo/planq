@@ -22,6 +22,7 @@ PlanQ 는 B2B SaaS — Q talk (대화) · Q task (할일) · Q note (음성·요
 - 전체 4문단 이내
 
 원칙:
+- [컨텍스트] 에 'Q위키 문서' 가 있으면 그 내용을 최우선 근거로 답한다 (추측·창작 금지). 없으면 일반 사용법 안내.
 - 사용자가 보고 있는 페이지의 작동 원리·기능·옵션 설명
 - "도와드릴게요" 군더더기 X — 본론부터
 - 영어 질문은 영어로, 한국어는 한국어로
@@ -245,6 +246,35 @@ router.post('/help', authenticateToken, async (req, res, next) => {
       }
     }
 
+    // qhelper 모드 — Q위키 article retrieval (FULLTEXT + 임베딩) → 근거 기반 RAG.
+    // 응답에 sources[] 반환. (Q_WIKI_DESIGN §3, B5)
+    let wikiSources = [];
+    if (finalMode === 'qhelper') {
+      try {
+        const { searchArticleIds, blocksToText } = require('../services/wikiSearch');
+        const HelpArticle = require('../models/HelpArticle');
+        const ids = await searchArticleIds(q, { onlyPublic: false, limit: 4 });
+        if (ids.length) {
+          const arts = await HelpArticle.findAll({ where: { id: ids, is_published: true } });
+          const orderMap = new Map(ids.map((id, i) => [id, i]));
+          arts.sort((a, b) => (orderMap.get(a.id) ?? 9) - (orderMap.get(b.id) ?? 9));
+          const docBlocks = [];
+          for (const a of arts.slice(0, 3)) {
+            const title = a.title_ko || a.title_en || '';
+            const summary = a.summary_ko || a.summary_en || '';
+            const body = blocksToText(a.body_ko, 'ko') || blocksToText(a.body_en, 'en') || '';
+            docBlocks.push(`## ${title}\n${summary}\n${body}`.slice(0, 1500));
+            wikiSources.push({ slug: a.slug, title });
+          }
+          if (docBlocks.length) {
+            ctxBlock += `\n\n# Q위키 문서 (이 내용만 근거로 답변)\n${docBlocks.join('\n\n')}`;
+          }
+        }
+      } catch (e) {
+        console.warn('[cue/help qhelper] wiki retrieval failed:', e.message);
+      }
+    }
+
     const messages = [
       { role: 'system', content: systemPrompt + (ctxBlock ? `\n\n[컨텍스트]\n${ctxBlock}` : '') },
       { role: 'user', content: q },
@@ -271,7 +301,7 @@ router.post('/help', authenticateToken, async (req, res, next) => {
     }
     const j = await r.json();
     const answer = (j.choices?.[0]?.message?.content || '').trim();
-    return successResponse(res, { answer, mode: finalMode });
+    return successResponse(res, { answer, mode: finalMode, sources: wikiSources });
   } catch (e) { next(e); }
 });
 
