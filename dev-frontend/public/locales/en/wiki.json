@@ -1,0 +1,36 @@
+{
+  "page": {
+    "title": "Q Wiki",
+    "subtitle": "Search and browse how to use PlanQ",
+    "searchPlaceholder": "What are you looking for? (e.g. issue an invoice)",
+    "overviewTitle": "Where would you like to start?",
+    "overviewDesc": "Pick a category to learn how to use PlanQ.",
+    "allCategories": "All",
+    "articleCount": "{{count}} articles",
+    "empty": "No help articles to show.",
+    "searchEmpty": "No results for ‘{{q}}’.",
+    "loading": "Loading…",
+    "error": "Couldn’t load help. Please try again shortly.",
+    "minutes": "{{count}} min"
+  },
+  "article": {
+    "back": "Back to Q Wiki",
+    "openScreen": "Open this screen",
+    "related": "Related articles",
+    "notFound": "Article not found.",
+    "loginRequired": "Please sign in to view this article.",
+    "updatedAt": "Updated: {{date}}"
+  },
+  "drawer": {
+    "title": "Q helper",
+    "tabCue": "Cue",
+    "tabCueSub": "My workspace",
+    "tabWiki": "Q Wiki",
+    "tabWikiSub": "How to use PlanQ",
+    "tabInquiry": "Contact",
+    "thisScreen": "On this screen",
+    "searchWiki": "Search Q Wiki",
+    "openFullWiki": "Open full Q Wiki",
+    "sources": "Referenced articles"
+  }
+}
