@@ -10,11 +10,12 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { apiFetch, useAuth } from '../../contexts/AuthContext';
 import { formatDate } from '../../utils/dateFormat';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { mapApiError } from '../../utils/apiError';
+import { fetchWikiContext, fetchWikiCategories, type WikiArticleSummary, type WikiCategory } from '../../services/wiki';
 
 // 사이클 P7d — 채팅 모드 분리: qhelper(PlanQ 매뉴얼) / workspace(Cue, 워크스페이스 데이터)
 // 'feedback' / 'inquiry' 는 별도 view (채팅 아닌 폼)
@@ -41,13 +42,16 @@ interface Turn {
   a: string;
   loading?: boolean;
   error?: string;
+  sources?: Array<{ slug: string; title: string }>;  // Q위키 RAG 근거 article
 }
 
 // N+93 — standalone: /help-popout 분리 창에서 풀윈도우로 마운트 (FAB/백드롭 없음, 항상 open, 닫기=window.close).
 const CueHelpDrawer: React.FC<{ standalone?: boolean }> = ({ standalone = false }) => {
   const { t } = useTranslation('common');
   const { t: tErr } = useTranslation('errors');
+  const { t: tw } = useTranslation('wiki');
   const location = useLocation();
+  const navigate = useNavigate();
   const { user, isLoading } = useAuth();
   const isGuest = !user;
   const tz = (user as { workspace_timezone?: string } | null)?.workspace_timezone || 'Asia/Seoul';
@@ -81,6 +85,16 @@ const CueHelpDrawer: React.FC<{ standalone?: boolean }> = ({ standalone = false 
   const [inqEmail, setInqEmail] = useState('');
   const [inqMessage, setInqMessage] = useState('');
   const [inqResultMsg, setInqResultMsg] = useState<string | null>(null);
+
+  // Q위키 탭 — 현재 화면 맥락 article + 카테고리 칩
+  const [wikiContext, setWikiContext] = useState<WikiArticleSummary[]>([]);
+  const [wikiCats, setWikiCats] = useState<WikiCategory[]>([]);
+
+  // Q위키 article / 전체 위키로 이동 (드로어 닫고 라우팅, standalone 은 그대로)
+  const openWikiPath = useCallback((path: string) => {
+    navigate(path);
+    if (!standalone) setOpen(false);
+  }, [navigate, standalone]);
 
   // 게스트가 잘못된 모드로 떨어지지 않게 보정
   useEffect(() => {
@@ -122,6 +136,24 @@ const CueHelpDrawer: React.FC<{ standalone?: boolean }> = ({ standalone = false 
     return () => { cancelled = true; };
   }, [mode, isGuest]);
 
+  // Q위키 탭 — 카테고리(공개) 1회 로드
+  useEffect(() => {
+    if (mode !== 'qhelper' || wikiCats.length) return;
+    let cancelled = false;
+    fetchWikiCategories().then((c) => { if (!cancelled) setWikiCats(c); }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [mode, wikiCats.length]);
+
+  // Q위키 탭 — 현재 화면 맥락 article (로그인 사용자만, path 바뀌면 갱신)
+  useEffect(() => {
+    if (mode !== 'qhelper' || isGuest || !open) { return; }
+    let cancelled = false;
+    fetchWikiContext(location.pathname)
+      .then((arts) => { if (!cancelled) setWikiContext(arts); })
+      .catch(() => { if (!cancelled) setWikiContext([]); });
+    return () => { cancelled = true; };
+  }, [mode, isGuest, open, location.pathname]);
+
   useBodyScrollLock(open);
 
   // 단축키 ⌘? / Ctrl+/
@@ -141,17 +173,20 @@ const CueHelpDrawer: React.FC<{ standalone?: boolean }> = ({ standalone = false 
     return () => document.removeEventListener('keydown', onKey);
   }, [open]);
 
-  // cue:ask 이벤트 listen
+  // cue:ask 이벤트 listen — detail.tab 으로 진입 탭 결정 ('wiki' → Q위키, 'cue' → Cue)
   useEffect(() => {
     const onAsk = (e: Event) => {
-      const ce = e as CustomEvent<{ prefill?: string }>;
+      const ce = e as CustomEvent<{ prefill?: string; tab?: 'wiki' | 'cue' }>;
       const prefill = ce.detail?.prefill || '';
+      const tab = ce.detail?.tab;
+      if (tab === 'wiki') setMode('qhelper');
+      else if (tab === 'cue' && !isGuest) setMode('workspace');
       setOpen(true);
       if (prefill) setInput(prefill);
     };
     window.addEventListener('cue:ask', onAsk as EventListener);
     return () => window.removeEventListener('cue:ask', onAsk as EventListener);
-  }, []);
+  }, [isGuest]);
 
   // 열린 후 input focus
   useEffect(() => {
@@ -197,7 +232,8 @@ const CueHelpDrawer: React.FC<{ standalone?: boolean }> = ({ standalone = false 
           : (j.message || 'Q helper error');
         throw new Error(msg as string);
       }
-      setTurns(prev => prev.map((tn, i) => i === prev.length - 1 ? { ...tn, a: j.data.answer || '', loading: false } : tn));
+      const srcs = Array.isArray(j.data?.sources) ? j.data.sources : [];
+      setTurns(prev => prev.map((tn, i) => i === prev.length - 1 ? { ...tn, a: j.data.answer || '', loading: false, sources: srcs } : tn));
     } catch (e) {
       setTurns(prev => prev.map((tn, i) => i === prev.length - 1
         ? { ...tn, error: mapApiError(e, tErr), loading: false }
@@ -369,20 +405,20 @@ const CueHelpDrawer: React.FC<{ standalone?: boolean }> = ({ standalone = false 
         {mode !== 'feedback' && !isGuest && (
           // N+93 — 3탭: {워크스페이스명} 안내 → PlanQ 안내 → 문의 남기기 (피드백은 상단 빨간 버튼)
           <ModeSwitch role="tablist">
-            <ModeBtn type="button" $active={mode === 'workspace'} $variant="qhelper"
+            <ModeBtn type="button" $active={mode === 'workspace'} $variant="workspace"
               onClick={() => { setMode('workspace'); setTurns([]); }} role="tab" aria-selected={mode === 'workspace'}>
-              <ModeDot $variant="qhelper" />
-              {t('qhelper.modeWorkspaceNamed', '{{name}} 안내', { name: user?.business_name || t('qhelper.workspaceFallback', '워크스페이스') })}
+              <ModeDot $variant="cue" />
+              {tw('drawer.tabCue')}
             </ModeBtn>
             <ModeBtn type="button" $active={mode === 'qhelper'} $variant="qhelper"
               onClick={() => { setMode('qhelper'); setTurns([]); }} role="tab" aria-selected={mode === 'qhelper'}>
-              <ModeDot $variant="qhelper" />
-              {t('qhelper.modeQhelper', 'PlanQ 안내')}
+              <ModeDot $variant="wiki" />
+              {tw('drawer.tabWiki')}
             </ModeBtn>
             <ModeBtn type="button" $active={mode === 'inquiry'} $variant="qhelper"
               onClick={() => setMode('inquiry')} role="tab" aria-selected={mode === 'inquiry'}>
-              <ModeDot $variant="qhelper" />
-              {t('qhelper.modeInquiry', '문의 남기기')}
+              <ModeDot $variant="inquiry" />
+              {tw('drawer.tabInquiry')}
             </ModeBtn>
           </ModeSwitch>
         )}
@@ -390,34 +426,42 @@ const CueHelpDrawer: React.FC<{ standalone?: boolean }> = ({ standalone = false 
           <ModeSwitch role="tablist">
             <ModeBtn type="button" $active={mode === 'qhelper'} $variant="qhelper"
               onClick={() => { setMode('qhelper'); setTurns([]); }} role="tab" aria-selected={mode === 'qhelper'}>
-              <ModeDot $variant="qhelper" />
-              {t('qhelper.modeGuestQhelper', 'PlanQ 안내')}
+              <ModeDot $variant="wiki" />
+              {tw('drawer.tabWiki')}
             </ModeBtn>
             <ModeBtn type="button" $active={mode === 'inquiry'} $variant="qhelper"
               onClick={() => setMode('inquiry')} role="tab" aria-selected={mode === 'inquiry'}>
-              <ModeDot $variant="qhelper" />
-              {t('qhelper.modeInquiry', '문의 남기기')}
+              <ModeDot $variant="inquiry" />
+              {tw('drawer.tabInquiry')}
             </ModeBtn>
           </ModeSwitch>
         )}
         {mode === 'qhelper' && turns.length === 0 && (
-          <QuickChips>
-            {(isGuest ? [
-              { v: 'g_what', label: t('qhelper.gQuickWhat', '뭐 하는 서비스?') },
-              { v: 'g_pricing', label: t('qhelper.gQuickPricing', '가격') },
-              { v: 'g_features', label: t('qhelper.gQuickFeatures', '기능') },
-              { v: 'g_trial', label: t('qhelper.gQuickTrial', '체험·시작') },
-            ] : [
-              { v: 'usage', label: t('qhelper.quickUsage', '사용법') },
-              { v: 'bug', label: t('qhelper.quickBug', '오류·버그') },
-              { v: 'plan', label: t('qhelper.quickPlan', '결제·플랜') },
-              { v: 'security', label: t('qhelper.quickSecurity', '보안·권한') },
-            ]).map(c => (
-              <QuickChip key={c.v} type="button" onClick={() => setInput(`[${c.label}] `)}>
-                {c.label}
-              </QuickChip>
-            ))}
-          </QuickChips>
+          <WikiPanel>
+            {!isGuest && wikiContext.length > 0 && (
+              <WikiSection>
+                <WikiSectionLabel>{tw('drawer.thisScreen')}</WikiSectionLabel>
+                {wikiContext.slice(0, 3).map((a) => (
+                  <WikiContextCard key={a.id} type="button" onClick={() => openWikiPath(`/wiki/a/${a.slug}`)}>
+                    <WikiCardTitle>{a.title}</WikiCardTitle>
+                    {a.summary && <WikiCardSummary>{a.summary}</WikiCardSummary>}
+                  </WikiContextCard>
+                ))}
+              </WikiSection>
+            )}
+            {wikiCats.length > 0 && (
+              <QuickChips>
+                {wikiCats.map((c) => (
+                  <QuickChip key={c.id} type="button" onClick={() => openWikiPath(`/wiki?category=${c.slug}`)}>
+                    {c.title}
+                  </QuickChip>
+                ))}
+              </QuickChips>
+            )}
+            <WikiFullLink type="button" onClick={() => openWikiPath('/wiki')}>
+              {tw('drawer.openFullWiki')} →
+            </WikiFullLink>
+          </WikiPanel>
         )}
         {mode === 'workspace' && turns.length === 0 && (
           <QuickChips>
@@ -476,6 +520,16 @@ const CueHelpDrawer: React.FC<{ standalone?: boolean }> = ({ standalone = false 
                       : tn.error
                         ? <ErrorText>{tn.error}</ErrorText>
                         : <Answer>{tn.a}</Answer>}
+                    {mode === 'qhelper' && !tn.loading && !tn.error && tn.sources && tn.sources.length > 0 && (
+                      <Sources>
+                        <SourcesLabel>{tw('drawer.sources')}</SourcesLabel>
+                        {tn.sources.map((s) => (
+                          <SourceLink key={s.slug} type="button" onClick={() => openWikiPath(`/wiki/a/${s.slug}`)}>
+                            {s.title}
+                          </SourceLink>
+                        ))}
+                      </Sources>
+                    )}
                   </A>
                 </TurnRow>
               ))
@@ -871,9 +925,10 @@ const ModeBtn = styled.button<{ $active: boolean; $variant: 'qhelper' | 'workspa
   ${p => !p.$active && 'background: transparent; color: #64748B;'}
   &:hover { background: ${p => p.$active ? '#FFFFFF' : '#FFFFFF99'}; }
 `;
-const ModeDot = styled.span<{ $variant: 'qhelper' | 'workspace' }>`
+const DOT_COLOR: Record<string, string> = { cue: '#F43F5E', wiki: '#14B8A6', inquiry: '#94A3B8' };
+const ModeDot = styled.span<{ $variant: 'cue' | 'wiki' | 'inquiry' }>`
   width: 6px; height: 6px; border-radius: 50%;
-  background: ${p => p.$variant === 'workspace' ? '#F43F5E' : '#14B8A6'};
+  background: ${p => DOT_COLOR[p.$variant] || '#14B8A6'};
   flex-shrink: 0;
 `;
 // ─── 빠른 분류 칩 (채팅 시작 전 의도 빠른 지정) ───
@@ -890,6 +945,56 @@ const QuickChip = styled.button`
   font-size: 12px; font-weight: 500; color: #475569;
   transition: all 0.15s;
   &:hover { background: #F0FDFA; border-color: #14B8A6; color: #0F766E; }
+`;
+// ─── Q위키 탭 패널 (맥락 카드 + 카테고리 칩 + 전체 위키 링크) ───
+const WikiPanel = styled.div`
+  flex-shrink: 0;
+  padding: 12px 16px;
+  display: flex; flex-direction: column; gap: 12px;
+  border-bottom: 1px solid #F1F5F9;
+`;
+const WikiSection = styled.div`
+  display: flex; flex-direction: column; gap: 6px;
+`;
+const WikiSectionLabel = styled.div`
+  font-size: 11px; font-weight: 700; color: #94A3B8;
+  text-transform: uppercase; letter-spacing: 0.4px;
+`;
+const WikiContextCard = styled.button`
+  all: unset; cursor: pointer; box-sizing: border-box;
+  display: flex; flex-direction: column; gap: 3px;
+  padding: 10px 12px; border-radius: 8px;
+  background: #F0FDFA; border: 1px solid #CCFBF1;
+  transition: border-color 0.15s, background 0.15s;
+  &:hover { border-color: #14B8A6; background: #ECFDF5; }
+`;
+const WikiCardTitle = styled.span`
+  font-size: 13px; font-weight: 700; color: #0F766E; line-height: 1.4;
+`;
+const WikiCardSummary = styled.span`
+  font-size: 12px; color: #64748B; line-height: 1.45;
+`;
+const WikiFullLink = styled.button`
+  all: unset; cursor: pointer;
+  align-self: flex-start;
+  font-size: 12px; font-weight: 700; color: #0D9488;
+  &:hover { color: #0F766E; text-decoration: underline; }
+`;
+// ─── Q위키 답변 근거(sources) ───
+const Sources = styled.div`
+  margin-top: 8px; padding-top: 8px; border-top: 1px dashed #CCFBF1;
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
+`;
+const SourcesLabel = styled.span`
+  font-size: 10px; font-weight: 700; color: #0D9488;
+  text-transform: uppercase; letter-spacing: 0.4px;
+`;
+const SourceLink = styled.button`
+  all: unset; cursor: pointer;
+  padding: 3px 8px; border-radius: 999px;
+  background: #FFFFFF; border: 1px solid #5EEAD4;
+  font-size: 11px; font-weight: 600; color: #0F766E;
+  &:hover { background: #F0FDFA; }
 `;
 const FeedbackPitch = styled.div`
   flex-shrink: 0;
