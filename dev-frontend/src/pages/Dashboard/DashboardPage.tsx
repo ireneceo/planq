@@ -8,6 +8,7 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import PageShell from '../../components/Layout/PageShell';
+import HelpDot from '../../components/Common/HelpDot';
 import TrialStatusBanner from '../../components/Common/TrialStatusBanner';
 import UsageWarningCard from '../../components/Common/UsageWarningCard';
 import { useAuth, apiFetch } from '../../contexts/AuthContext';
@@ -103,7 +104,14 @@ const DashboardPage: React.FC = () => {
   const navTo = useCallback((path: string) => () => navigate(path), [navigate]);
 
   return (
-    <PageShell title={t('title')}>
+    <PageShell
+      title={t('title')}
+      helpDot={
+        <HelpDot askCue={t('help.cuePrefill', '대시보드의 인박스, 오늘 일정, 확인 필요 카드가 어떻게 구성되는지 알려줘') as string} topic="dashboard">
+          {t('help.body', '대시보드는 인박스(확인 필요)·오늘 일정·진행 중 업무를 한눈에 모아 보여줍니다. 카드를 누르면 해당 메뉴로 이동해요.')}
+        </HelpDot>
+      }
+    >
       <TrialStatusBanner businessId={bizId} />
       <UsageWarningCard businessId={bizId} />
       {/* 1. 인박스 카드 + 4 액션 (한 행) */}

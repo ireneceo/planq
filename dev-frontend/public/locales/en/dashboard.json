@@ -1,5 +1,9 @@
 {
   "title": "Dashboard",
+  "help": {
+    "body": "The dashboard gathers your inbox (needs action), today's schedule, and in-progress work in one place. Tap a card to jump to that menu.",
+    "cuePrefill": "Explain how the dashboard's inbox, today's schedule, and needs-action cards are organized"
+  },
   "comingSoon": "Coming soon. Billing summary and analytics cards will appear here.",
   "greeting": {
     "hello": "Hello, {{name}}",
