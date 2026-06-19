@@ -397,6 +397,9 @@ TaskLink.belongsTo(User, { as: 'creator', foreignKey: 'created_by' });
 // FeedbackItem (P6 — 사용자 → 운영팀 피드백)
 FeedbackItem.belongsTo(User, { as: 'user', foreignKey: 'user_id' });
 FeedbackItem.belongsTo(User, { as: 'responder', foreignKey: 'responded_by' });
+// #70 — 추가 문의 스레드 (self-FK, 1단계)
+FeedbackItem.belongsTo(FeedbackItem, { as: 'parent', foreignKey: 'parent_id' });
+FeedbackItem.hasMany(FeedbackItem, { as: 'replies', foreignKey: 'parent_id' });
 
 module.exports = {
   User,

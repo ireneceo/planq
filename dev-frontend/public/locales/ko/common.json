@@ -571,7 +571,27 @@
     "title": "내 문의·피드백",
     "loading": "불러오는 중…",
     "empty": "아직 남긴 문의·피드백이 없어요. Q helper에서 문의나 피드백을 남겨보세요.",
+    "noMatch": "조건에 맞는 항목이 없어요.",
     "reply": "운영팀 답변",
+    "you": "나",
+    "selectPrompt": "왼쪽에서 문의를 선택하면 내용과 답변이 여기에 보여요.",
+    "awaiting": "답변 대기",
+    "answered": "답변 완료",
+    "back": "목록으로",
+    "filter": {
+      "search": "제목·내용·답변 검색",
+      "allCat": "전체 분류",
+      "allStatus": "전체 상태"
+    },
+    "followup": {
+      "title": "추가 문의",
+      "placeholder": "이 답변에 이어서 추가로 궁금한 점을 적어주세요.",
+      "send": "추가 문의 보내기",
+      "sending": "보내는 중…",
+      "hint": "Ctrl·⌘ + Enter 로 전송",
+      "locked": "운영팀 답변을 받은 뒤 추가 문의를 보낼 수 있어요.",
+      "success": "추가 문의가 접수됐어요. 곧 회신드릴게요."
+    },
     "cat": {
       "bug": "버그",
       "improve": "개선",

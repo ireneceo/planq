@@ -571,7 +571,27 @@
     "title": "My Inquiries & Feedback",
     "loading": "Loading…",
     "empty": "No inquiries or feedback yet. Leave one from Q helper.",
+    "noMatch": "No items match your filters.",
     "reply": "Team reply",
+    "you": "You",
+    "selectPrompt": "Select an inquiry on the left to see its content and reply here.",
+    "awaiting": "Awaiting reply",
+    "answered": "Answered",
+    "back": "Back to list",
+    "filter": {
+      "search": "Search title, body, reply",
+      "allCat": "All categories",
+      "allStatus": "All statuses"
+    },
+    "followup": {
+      "title": "Follow-up",
+      "placeholder": "Ask a follow-up question about this reply.",
+      "send": "Send follow-up",
+      "sending": "Sending…",
+      "hint": "Ctrl/⌘ + Enter to send",
+      "locked": "You can send a follow-up once the team has replied.",
+      "success": "Your follow-up was received. We'll reply soon."
+    },
     "cat": {
       "bug": "Bug",
       "improve": "Improvement",
