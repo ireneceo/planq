@@ -36,6 +36,7 @@
     "overdue": "Overdue",
     "byDepartment": "By department",
     "byMember": "By member",
-    "unassignedDept": "Unassigned"
+    "unassignedDept": "Unassigned",
+    "loadFail": "Couldn't load organization status."
   }
 }

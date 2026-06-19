@@ -9,6 +9,8 @@ import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import PageShell from '../../components/Layout/PageShell';
 import HelpDot from '../../components/Common/HelpDot';
+import OrgScopeOverview from '../../components/Dashboard/OrgScopeOverview';
+import { fetchOrgOverview } from '../../services/org';
 import TrialStatusBanner from '../../components/Common/TrialStatusBanner';
 import UsageWarningCard from '../../components/Common/UsageWarningCard';
 import { useAuth, apiFetch } from '../../contexts/AuthContext';
@@ -27,9 +29,23 @@ interface CalEventLite {
 
 const DashboardPage: React.FC = () => {
   const { t } = useTranslation('dashboard');
+  const { t: tOrg } = useTranslation('org');
   const navigate = useNavigate();
   const { user } = useAuth();
   const bizId = user?.business_id ? Number(user.business_id) : null;
+
+  // Q조직 D1 — 대시보드 3단(회사/내 부서/개인)
+  const [orgScope, setOrgScope] = useState<'personal' | 'department' | 'company'>('personal');
+  const [myDeptId, setMyDeptId] = useState<number | null>(null);
+  const canCompany = user?.business_role === 'owner' || user?.business_role === 'admin';
+  useEffect(() => {
+    if (!bizId) return;
+    let cancelled = false;
+    fetchOrgOverview(bizId, 'personal')
+      .then((ov) => { if (!cancelled) setMyDeptId(ov.byMember?.[0]?.department_id ?? null); })
+      .catch(() => { /* 조직 미설정 — 개인만 */ });
+    return () => { cancelled = true; };
+  }, [bizId]);
 
   const [todo, setTodo] = useState<TodoResponse | null>(null);
   const [todoLoading, setTodoLoading] = useState(true);
@@ -114,6 +130,28 @@ const DashboardPage: React.FC = () => {
     >
       <TrialStatusBanner businessId={bizId} />
       <UsageWarningCard businessId={bizId} />
+      {/* Q조직 D1 — 3단 스코프 토글 (회사/내 부서/개인) */}
+      {bizId && (canCompany || myDeptId) && (
+        <ScopeSwitch role="tablist">
+          {canCompany && (
+            <ScopeBtn type="button" role="tab" aria-selected={orgScope === 'company'} $active={orgScope === 'company'} onClick={() => setOrgScope('company')}>
+              {tOrg('dashboard.scopeCompany') as string}
+            </ScopeBtn>
+          )}
+          {myDeptId && (
+            <ScopeBtn type="button" role="tab" aria-selected={orgScope === 'department'} $active={orgScope === 'department'} onClick={() => setOrgScope('department')}>
+              {tOrg('dashboard.scopeDepartment') as string}
+            </ScopeBtn>
+          )}
+          <ScopeBtn type="button" role="tab" aria-selected={orgScope === 'personal'} $active={orgScope === 'personal'} onClick={() => setOrgScope('personal')}>
+            {tOrg('dashboard.scopePersonal') as string}
+          </ScopeBtn>
+        </ScopeSwitch>
+      )}
+      {bizId && orgScope !== 'personal' && (
+        <OrgScopeOverview bizId={bizId} scope={orgScope} departmentId={myDeptId} />
+      )}
+      {orgScope === 'personal' && (<>
       {/* 1. 인박스 카드 + 4 액션 (한 행) */}
       <TopRow>
         <InboxCard onClick={navTo('/inbox')} role="button" tabIndex={0}>
@@ -200,6 +238,7 @@ const DashboardPage: React.FC = () => {
           ))}
         </FlatList>
       )}
+      </>)}
     </PageShell>
   );
 };
@@ -279,6 +318,21 @@ const IconBill = () => (
 );
 
 // ─── styled ───
+// Q조직 D1 — 3단 스코프 세그먼트
+const ScopeSwitch = styled.div`
+  display: inline-flex; gap: 2px; padding: 3px; margin-bottom: 16px;
+  background: #f1f5f9; border-radius: 10px;
+`;
+const ScopeBtn = styled.button<{ $active: boolean }>`
+  all: unset; cursor: pointer; box-sizing: border-box;
+  padding: 6px 14px; border-radius: 8px;
+  font-size: 13px; font-weight: 600;
+  color: ${(p) => (p.$active ? '#0f172a' : '#64748b')};
+  background: ${(p) => (p.$active ? '#ffffff' : 'transparent')};
+  box-shadow: ${(p) => (p.$active ? '0 1px 2px rgba(15,23,42,0.08)' : 'none')};
+  transition: background 0.15s, color 0.15s;
+  &:hover { color: #0f172a; }
+`;
 const TopRow = styled.div`
   display: grid;
   grid-template-columns: minmax(0, 1.6fr) repeat(4, minmax(0, 1fr));
