@@ -13,6 +13,7 @@
     "inboxCount": "{{count}} pending",
     "settings": "Settings",
     "members": "Members",
+    "org": "Organization",
     "clients": "Clients",
     "talk": "Q talk",
     "task": "Q task",
