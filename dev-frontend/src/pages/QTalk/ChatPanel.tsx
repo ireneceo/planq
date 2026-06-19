@@ -118,6 +118,22 @@ const ChatPanel: React.FC<Props> = ({
   // 메시지 본문 안 URL 자동 링크 — 보안: target=_blank rel="noopener noreferrer"
   // 정규식: http(s):// + 공백 아닌 문자 (자주 보이는 끝 문자 . , ) ] 등은 trailing 으로 제외하고 링크에 포함 안 함)
   const LINK_RE = /(https?:\/\/[^\s<>"]+[^\s<>".,;:!?)\]'"])/g;
+  // #68 — 평문 세그먼트에서 @멘션(실제 멤버 이름) 강조
+  const highlightSeg = (seg: string, keyBase: string): React.ReactNode[] => {
+    if (!seg || !seg.includes('@')) return [seg];
+    const re = /@([A-Za-z0-9_가-힣.\-]{2,30})/g;
+    const out: React.ReactNode[] = [];
+    let last = 0; let mm: RegExpExecArray | null;
+    while ((mm = re.exec(seg)) !== null) {
+      if (!mentionNameSet.has(mm[1])) continue; // 실제 멤버만 강조
+      if (mm.index > last) out.push(seg.slice(last, mm.index));
+      out.push(<Mention key={`${keyBase}-${mm.index}`}>@{mm[1]}</Mention>);
+      last = mm.index + mm[0].length;
+    }
+    if (last < seg.length) out.push(seg.slice(last));
+    return out.length > 0 ? out : [seg];
+  };
+
   const renderTextWithLinks = (text: string): React.ReactNode[] => {
     if (!text) return [text];
     const parts: React.ReactNode[] = [];
@@ -125,7 +141,7 @@ const ChatPanel: React.FC<Props> = ({
     let m: RegExpExecArray | null;
     LINK_RE.lastIndex = 0;
     while ((m = LINK_RE.exec(text)) !== null) {
-      if (m.index > lastIdx) parts.push(text.slice(lastIdx, m.index));
+      if (m.index > lastIdx) parts.push(...highlightSeg(text.slice(lastIdx, m.index), `s-${lastIdx}`));
       parts.push(
         <MsgLink key={`l-${m.index}`} href={m[0]} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}>
           {m[0]}
@@ -133,9 +149,10 @@ const ChatPanel: React.FC<Props> = ({
       );
       lastIdx = m.index + m[0].length;
     }
-    if (lastIdx < text.length) parts.push(text.slice(lastIdx));
+    if (lastIdx < text.length) parts.push(...highlightSeg(text.slice(lastIdx), `s-${lastIdx}`));
     return parts.length > 0 ? parts : [text];
   };
+
 
   // candidatesCount 가 변할 때마다 dismiss 리셋 (새 후보가 들어왔으니)
   useEffect(() => {
@@ -176,8 +193,85 @@ const ChatPanel: React.FC<Props> = ({
     return first ? first.id : null;
   }, [convMessages, frozenLastRead, user?.id]);
   const [input, setInput] = useState('');
+  // #68 — @멘션 자동완성. 워크스페이스 멤버(User.name)로 후보 제시 → "@name" 삽입.
+  //   백엔드 resolveMentions(mention_parser) 가 본문에서 @name/@username 파싱 → 'mention' 알림.
+  const [mentionMembers, setMentionMembers] = useState<Array<{ user_id: number; name: string }>>([]);
+  const [mentionActive, setMentionActive] = useState(false);
+  const [mentionQuery, setMentionQuery] = useState('');
+  const [mentionStart, setMentionStart] = useState(-1);
+  const [mentionIdx, setMentionIdx] = useState(0);
   // textarea ref — 채팅방 진입 시 자동 포커스 + 입력 시 auto-resize (2줄 가려짐 방지)
   const textInputRef = React.useRef<HTMLTextAreaElement | null>(null);
+
+  // #68 — 워크스페이스 멤버 로드 (자동완성 후보 + 하이라이트 검증용). 1회.
+  const mentionBizId = (user as { business_id?: number } | null)?.business_id || null;
+  useEffect(() => {
+    if (!mentionBizId) return;
+    let cancelled = false;
+    import('../../services/workspace')
+      .then(({ listMembers }) => listMembers(mentionBizId))
+      .then((ms) => {
+        if (cancelled) return;
+        const arr = (ms || [])
+          .filter((m) => m.user_id && m.user?.name && !m.user?.is_ai)
+          .map((m) => ({ user_id: m.user!.id, name: m.user!.name }));
+        setMentionMembers(arr);
+      })
+      .catch(() => { /* best-effort */ });
+    return () => { cancelled = true; };
+  }, [mentionBizId]);
+
+  // 멤버 이름 set (하이라이트 — 실제 멤버 @name 만 강조). 백엔드 토큰 charset 과 일치.
+  const mentionNameSet = useMemo(() => new Set(mentionMembers.map((m) => m.name)), [mentionMembers]);
+
+  // 자동완성 후보 — 현재 query 로 필터 (최대 6)
+  const mentionCandidates = useMemo(() => {
+    if (!mentionActive) return [];
+    const q = mentionQuery.toLowerCase();
+    return mentionMembers
+      .filter((m) => !q || m.name.toLowerCase().includes(q))
+      .slice(0, 6);
+  }, [mentionActive, mentionQuery, mentionMembers]);
+
+  // 커서 직전 "@토큰" 컨텍스트 감지 — @ 앞이 공백/줄머리이고 토큰에 허용문자만.
+  const detectMention = (value: string, caret: number) => {
+    const upto = value.slice(0, caret);
+    const at = upto.lastIndexOf('@');
+    if (at < 0) return null;
+    const before = at === 0 ? '' : upto[at - 1];
+    if (before && !/\s/.test(before)) return null; // 이메일 등 단어 중간 @ 제외
+    const token = upto.slice(at + 1);
+    if (!/^[A-Za-z0-9_가-힣.\-]*$/.test(token) || token.length > 30) return null;
+    return { start: at, query: token };
+  };
+
+  const closeMention = () => { setMentionActive(false); setMentionStart(-1); setMentionQuery(''); setMentionIdx(0); };
+
+  const insertMention = (member: { name: string }) => {
+    const el = textInputRef.current;
+    const caret = el ? el.selectionStart : input.length;
+    const start = mentionStart >= 0 ? mentionStart : input.lastIndexOf('@');
+    if (start < 0) { closeMention(); return; }
+    const next = `${input.slice(0, start)}@${member.name} ${input.slice(caret)}`;
+    setInput(next);
+    if (activeConversationId) {
+      try { localStorage.setItem(`qtalk_draft_${activeConversationId}`, next); } catch { /* quota */ }
+    }
+    closeMention();
+    // 삽입 위치 뒤로 커서 이동 + 포커스 유지
+    const newCaret = start + member.name.length + 2;
+    window.setTimeout(() => {
+      const ta = textInputRef.current;
+      if (ta) { ta.focus(); try { ta.setSelectionRange(newCaret, newCaret); } catch { /* */ } }
+    }, 0);
+  };
+
+  // 입력 변경 시 멘션 컨텍스트 재계산
+  const refreshMention = (value: string, caret: number) => {
+    const d = detectMention(value, caret);
+    if (d) { setMentionActive(true); setMentionStart(d.start); setMentionQuery(d.query); setMentionIdx(0); }
+    else if (mentionActive) closeMention();
+  };
   // N+63 — auto-resize 정합. min-height 46px (CSS) 와 일치하는 floor 보장.
   // 빈 input + 긴 placeholder 시 scrollHeight 가 1줄로 측정되어 textarea 가 1줄 높이로
   // 고정되던 회귀 — Math.max(46, ...) 로 차단. placeholder wrap 도 안에서 다 보임.
@@ -845,6 +939,13 @@ const ChatPanel: React.FC<Props> = ({
     // composingRef 까지 병행 체크 (브라우저/OS 조합에 따라 isComposing 이 false 로 들어올 수 있음)
     if (e.nativeEvent.isComposing || (e.nativeEvent as KeyboardEvent).keyCode === 229 || composingRef.current) {
       return;
+    }
+    // #68 — 멘션 드롭다운 열림 시 키보드 우선 처리 (전송 가로채기)
+    if (mentionActive && mentionCandidates.length > 0) {
+      if (e.key === 'ArrowDown') { e.preventDefault(); setMentionIdx((i) => (i + 1) % mentionCandidates.length); return; }
+      if (e.key === 'ArrowUp') { e.preventDefault(); setMentionIdx((i) => (i - 1 + mentionCandidates.length) % mentionCandidates.length); return; }
+      if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); insertMention(mentionCandidates[mentionIdx] || mentionCandidates[0]); return; }
+      if (e.key === 'Escape') { e.preventDefault(); closeMention(); return; }
     }
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
@@ -1764,6 +1865,21 @@ const ChatPanel: React.FC<Props> = ({
 
       {/* 입력창 */}
       <InputBar>
+        {mentionActive && mentionCandidates.length > 0 && (
+          <MentionDropdown role="listbox" aria-label={t('chat.mention.aria', { defaultValue: '멤버 멘션' }) as string}>
+            {mentionCandidates.map((mc, i) => (
+              <MentionItem
+                key={mc.user_id} type="button" role="option" aria-selected={i === mentionIdx}
+                $active={i === mentionIdx}
+                onMouseDown={(e) => { e.preventDefault(); insertMention(mc); }}
+                onMouseEnter={() => setMentionIdx(i)}
+              >
+                <LetterAvatar name={mc.name} size={22} />
+                <span>{mc.name}</span>
+              </MentionItem>
+            ))}
+          </MentionDropdown>
+        )}
         {!isClient && (
           <InputToolbar>
             <ToggleLabel>
@@ -1860,6 +1976,8 @@ const ChatPanel: React.FC<Props> = ({
             onChange={(e) => {
               const v = e.target.value;
               setInput(v);
+              // #68 — @멘션 컨텍스트 감지 (커서 기준)
+              refreshMention(v, e.target.selectionStart ?? v.length);
               // 임시저장 — 입력하는 즉시 현재 대화 draft 갱신 (비면 삭제)
               if (activeConversationId) {
                 try { v ? localStorage.setItem(`qtalk_draft_${activeConversationId}`, v) : localStorage.removeItem(`qtalk_draft_${activeConversationId}`); } catch { /* quota */ }
@@ -3199,7 +3317,40 @@ const DraftBtn = styled.button<{ $primary?: boolean; $ghost?: boolean }>`
   &:disabled { opacity: 0.5; cursor: not-allowed; }
 `;
 
+// #68 — @멘션 강조 + 자동완성 드롭다운
+const Mention = styled.span`
+  color: #0D9488;
+  font-weight: 700;
+  background: #F0FDFA;
+  border-radius: 4px;
+  padding: 0 2px;
+`;
+const MentionDropdown = styled.div`
+  position: absolute;
+  left: 16px;
+  bottom: calc(100% + 6px);
+  z-index: 30;
+  min-width: 200px; max-width: 320px;
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: 12px;
+  box-shadow: 0 4px 16px rgba(15,23,42,0.12);
+  padding: 6px;
+  display: flex; flex-direction: column; gap: 2px;
+  max-height: 220px; overflow-y: auto;
+  @media (max-width: 640px) { left: 12px; right: 12px; max-width: none; }
+`;
+const MentionItem = styled.button<{ $active: boolean }>`
+  all: unset; box-sizing: border-box; cursor: pointer;
+  display: flex; align-items: center; gap: 8px;
+  padding: 7px 10px; border-radius: 8px;
+  font-size: 13px; color: #0F172A;
+  background: ${(p) => (p.$active ? '#F0FDFA' : 'transparent')};
+  &:hover { background: #F0FDFA; }
+  span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+`;
 const InputBar = styled.div`
+  position: relative;
   border-top: 1px solid #E2E8F0;
   padding: 10px 16px 14px;
   background: #FFFFFF;

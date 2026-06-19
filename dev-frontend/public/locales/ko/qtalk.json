@@ -317,6 +317,9 @@
       "up": "도움됨",
       "down": "아쉬움"
     },
+    "mention": {
+      "aria": "멤버 멘션"
+    },
     "input": {
       "aria": "메시지 입력",
       "cueWaiting_one": "Cue 답변 대기 1개",
