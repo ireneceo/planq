@@ -915,6 +915,13 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                     </InboxBadge>
                   )}
                 </NavItem>
+                <NavItem to="/admin/wiki" $isCollapsed={isCollapsed} $active={isActive('/admin/wiki')}
+                  title={isCollapsed ? t('nav.wiki', 'Q위키 관리') : undefined}>
+                  <NavIcon $isCollapsed={isCollapsed}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+                  </NavIcon>
+                  <NavLabel $isCollapsed={isCollapsed}>{t('nav.wiki', 'Q위키 관리')}</NavLabel>
+                </NavItem>
                 <NavItem to="/admin/email-logs" $isCollapsed={isCollapsed} $active={isActive('/admin/email-logs')}
                   title={isCollapsed ? t('nav.emailLogs', '메일 발송 모니터링') : undefined}>
                   <NavIcon $isCollapsed={isCollapsed}>

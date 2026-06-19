@@ -73,6 +73,7 @@ const PublicQNoteSessionPage = lazy(() => import('./pages/QNote/PublicQNoteSessi
 const QFilePage = lazy(() => import('./pages/QFile/QFilePage'));
 const AdminBusinessesPage = lazy(() => import('./pages/Admin/AdminBusinessesPage'));
 const AdminFeedbackPage = lazy(() => import('./pages/Admin/AdminFeedbackPage'));
+const AdminWikiPage = lazy(() => import('./pages/Admin/AdminWikiPage'));
 const AdminEmailLogsPage = lazy(() => import('./pages/Admin/AdminEmailLogsPage'));
 const AdminPushLogsPage = lazy(() => import('./pages/Admin/AdminPushLogsPage'));
 const AdminPlatformSettingsPage = lazy(() => import('./pages/Admin/AdminPlatformSettingsPage'));
@@ -411,6 +412,11 @@ function App() {
         <Route path="/admin/feedback" element={
           <ProtectedRoute requiredRole={['platform_admin']}>
             <MainLayout><AdminFeedbackPage /></MainLayout>
+          </ProtectedRoute>
+        } />
+        <Route path="/admin/wiki" element={
+          <ProtectedRoute requiredRole={['platform_admin']}>
+            <MainLayout><AdminWikiPage /></MainLayout>
           </ProtectedRoute>
         } />
         <Route path="/admin/email-logs" element={
