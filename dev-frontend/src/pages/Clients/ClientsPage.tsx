@@ -13,6 +13,7 @@ import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 import LetterAvatar from '../../components/Common/LetterAvatar';
 import SearchBox from '../../components/Common/SearchBox';
+import PlanQSelect from '../../components/Common/PlanQSelect';
 import PageShell from '../../components/Layout/PageShell';
 import AutoSaveField from '../../components/Common/AutoSaveField';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
@@ -28,6 +29,7 @@ interface ClientRow {
   display_name: string | null;
   company_name: string | null;
   notes: string | null;
+  kind?: 'customer' | 'vendor' | 'freelancer' | 'other';
   status?: ClientStatus;
   project_count?: number;
   active_project_count?: number;
@@ -62,6 +64,16 @@ export default function ClientsPage() {
   const { t } = useTranslation('clients');
   const { user } = useAuth();
   const { formatDate, formatDateTime } = useTimeFormat();
+
+  // D2 #66 — 외부 파트너 유형 (color: COLOR_GUIDE 토큰)
+  const KIND_META: Record<string, { bg: string; fg: string }> = {
+    customer: { bg: '#F0FDFA', fg: '#0F766E' },
+    vendor: { bg: '#DBEAFE', fg: '#1E40AF' },
+    freelancer: { bg: '#FEF3C7', fg: '#92400E' },
+    other: { bg: '#F1F5F9', fg: '#64748B' },
+  };
+  const kindLabel = (k?: string) => t(`kind.${k || 'customer'}`, { defaultValue: k || 'customer' }) as string;
+  const kindOptions = ['customer', 'vendor', 'freelancer', 'other'].map((k) => ({ value: k, label: kindLabel(k) }));
   const navigate = useNavigate();
   const businessId = user?.business_id || 0;
   const isAdmin = user?.business_role === 'owner' || user?.platform_role === 'platform_admin';
@@ -89,6 +101,7 @@ export default function ClientsPage() {
   const [inviteName, setInviteName] = useState('');
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteCompany, setInviteCompany] = useState('');
+  const [inviteKind, setInviteKind] = useState<'customer' | 'vendor' | 'freelancer' | 'other'>('customer');
   const [inviteSubmitting, setInviteSubmitting] = useState(false);
   const [inviteError, setInviteError] = useState<string | null>(null);
 
@@ -205,7 +218,7 @@ export default function ClientsPage() {
   };
 
   // 공용 필드 업데이트 (디바운스 없음 — 인라인/드로어 blur 시 호출)
-  const patchClient = async (id: number, patch: Partial<Pick<ClientRow, 'display_name' | 'company_name' | 'notes'>>) => {
+  const patchClient = async (id: number, patch: Partial<Pick<ClientRow, 'display_name' | 'company_name' | 'notes' | 'kind'>>) => {
     const res = await apiFetch(`/api/clients/${businessId}/${id}`, {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(patch),
@@ -279,11 +292,11 @@ export default function ClientsPage() {
     try {
       const res = await apiFetch(`/api/clients/${businessId}/invite`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: inviteName.trim(), email: inviteEmail.trim(), company_name: inviteCompany.trim() || null }),
+        body: JSON.stringify({ name: inviteName.trim(), email: inviteEmail.trim(), company_name: inviteCompany.trim() || null, kind: inviteKind }),
       });
       const j = await res.json();
       if (!res.ok || !j.success) throw new Error(j.message || t('inviteModal.errFailed'));
-      setInviteOpen(false); setInviteName(''); setInviteEmail(''); setInviteCompany('');
+      setInviteOpen(false); setInviteName(''); setInviteEmail(''); setInviteCompany(''); setInviteKind('customer');
       await load();
     } catch (e) {
       setInviteError((e as Error).message);
@@ -366,10 +379,15 @@ export default function ClientsPage() {
                           onMouseDown={(e) => e.stopPropagation()}
                           onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') setEditingCell(null); }} />
                       ) : (
-                        <NameCell role={isAdmin ? 'button' : undefined}
-                          onClick={(e) => { if (!isAdmin) return; e.stopPropagation(); setEditDraft(c.display_name || c.user?.name || ''); setEditingCell({ id: c.id, field: 'display_name' }); }}>
-                          {name}
-                        </NameCell>
+                        <NameWrap>
+                          <NameCell role={isAdmin ? 'button' : undefined}
+                            onClick={(e) => { if (!isAdmin) return; e.stopPropagation(); setEditDraft(c.display_name || c.user?.name || ''); setEditingCell({ id: c.id, field: 'display_name' }); }}>
+                            {name}
+                          </NameCell>
+                          {c.kind && c.kind !== 'customer' && (
+                            <KindBadge style={{ background: KIND_META[c.kind].bg, color: KIND_META[c.kind].fg }}>{kindLabel(c.kind)}</KindBadge>
+                          )}
+                        </NameWrap>
                       )}
                     </Td>
                     <Td>
@@ -441,6 +459,19 @@ export default function ClientsPage() {
                 </SwitchWrap>
               </HeadSide>
             </HeadRow>
+
+            <KindRow>
+              <KindRowLabel>{t('kind.label', { defaultValue: '유형' }) as string}</KindRowLabel>
+              {isAdmin ? (
+                <KindSelectWrap>
+                  <PlanQSelect size="sm" isClearable={false} isSearchable={false}
+                    value={kindOptions.find((o) => o.value === (activeDetail.kind || 'customer'))} options={kindOptions}
+                    onChange={(o) => patchClient(activeDetail.id, { kind: (((o as { value?: string })?.value) as 'customer' | 'vendor' | 'freelancer' | 'other') || 'customer' })} />
+                </KindSelectWrap>
+              ) : (
+                <KindBadge style={{ background: KIND_META[activeDetail.kind || 'customer'].bg, color: KIND_META[activeDetail.kind || 'customer'].fg }}>{kindLabel(activeDetail.kind)}</KindBadge>
+              )}
+            </KindRow>
 
             <TimelineBtn type="button" onClick={() => navigate(`/business/clients/${activeDetail.id}/timeline`)}>
               {t('timeline.openCta', '통합 타임라인 보기 — 채팅·메일·업무·청구 한눈에')}
@@ -580,6 +611,11 @@ export default function ClientsPage() {
               <Field><FieldLabel>{t('inviteModal.name')} <Req>*</Req></FieldLabel><FieldInput autoFocus value={inviteName} onChange={(e) => setInviteName(e.target.value)} placeholder={t('inviteModal.namePlaceholder') as string} /></Field>
               <Field><FieldLabel>{t('inviteModal.email')} <Req>*</Req></FieldLabel><FieldInput value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} placeholder="client@example.com" type="email" /></Field>
               <Field><FieldLabel>{t('inviteModal.company')}</FieldLabel><FieldInput value={inviteCompany} onChange={(e) => setInviteCompany(e.target.value)} placeholder={t('inviteModal.companyPlaceholder') as string} /></Field>
+              <Field><FieldLabel>{t('kind.label', { defaultValue: '유형' }) as string}</FieldLabel>
+                <PlanQSelect size="md" isClearable={false} isSearchable={false}
+                  value={kindOptions.find((o) => o.value === inviteKind)} options={kindOptions}
+                  onChange={(o) => setInviteKind(((o as { value?: string })?.value as 'customer' | 'vendor' | 'freelancer' | 'other') || 'customer')} />
+              </Field>
               <Helper>{t('inviteModal.helper')}</Helper>
               {inviteError && <WarnBlock>{inviteError}</WarnBlock>}
             </ConfirmBody>
@@ -675,6 +711,13 @@ const NameCell = styled.strong`
   cursor:pointer; transition:background 0.12s;
   &:hover{ background:#F1F5F9; }
   &:focus-visible{ outline:2px solid #14B8A6; outline-offset:-1px; }
+`;
+const NameWrap = styled.div`display:inline-flex; align-items:center; gap:8px; min-width:0;`;
+const KindRow = styled.div`display:flex; align-items:center; gap:12px; margin-bottom:14px;`;
+const KindRowLabel = styled.span`font-size:12px; font-weight:700; color:#475569; flex-shrink:0;`;
+const KindSelectWrap = styled.div`min-width:160px;`;
+const KindBadge = styled.span`
+  font-size:11px; font-weight:700; border-radius:999px; padding:2px 8px; flex-shrink:0;
 `;
 const CompanyCell = styled.span`
   display:inline-block; padding:2px 6px; margin:-2px -6px; border-radius:4px;

@@ -100,8 +100,9 @@ router.get('/:businessId/:clientId/channel-summary', authenticateToken, checkBus
 // Create client (invite)
 router.post('/:businessId', authenticateToken, checkBusinessAccess, async (req, res, next) => {
   try {
-    const { user_id, display_name, company_name, notes } = req.body;
+    const { user_id, display_name, company_name, notes, kind } = req.body;
     if (!user_id) return errorResponse(res, 'User ID required', 400);
+    const finalKind = ['customer', 'vendor', 'freelancer', 'other'].includes(kind) ? kind : 'customer';
 
     const existing = await Client.findOne({
       where: { business_id: req.params.businessId, user_id }
@@ -121,6 +122,7 @@ router.post('/:businessId', authenticateToken, checkBusinessAccess, async (req, 
       display_name,
       company_name,
       notes,
+      kind: finalKind,
       invited_by: req.user.id,
       invited_at: new Date()
     });
@@ -193,12 +195,13 @@ router.put('/:businessId/:id', authenticateToken, checkBusinessAccess, async (re
     const client = await Client.findOne({ where: { id: req.params.id, business_id: req.params.businessId } });
     if (!client) return errorResponse(res, 'Client not found', 404);
 
-    const { display_name, company_name, notes, status } = req.body;
+    const { display_name, company_name, notes, status, kind } = req.body;
     const patch = {};
     const before = {};
     if (display_name !== undefined && display_name !== client.display_name) { patch.display_name = display_name; before.display_name = client.display_name; }
     if (company_name !== undefined && company_name !== client.company_name) { patch.company_name = company_name; before.company_name = client.company_name; }
     if (notes !== undefined && notes !== client.notes) { patch.notes = notes; before.notes = client.notes; }
+    if (kind !== undefined && ['customer', 'vendor', 'freelancer', 'other'].includes(kind) && kind !== client.kind) { patch.kind = kind; before.kind = client.kind; }
     if (status !== undefined && ['invited','active','archived'].includes(status) && status !== client.status) {
       patch.status = status; before.status = client.status;
     }
@@ -242,8 +245,9 @@ router.get('/:businessId/:id/history', authenticateToken, checkBusinessAccess, a
 // accept 시 User 생성·연결
 router.post('/:businessId/invite', authenticateToken, checkBusinessAccess, async (req, res, next) => {
   try {
-    const { name, email, company_name, notes } = req.body || {};
+    const { name, email, company_name, notes, kind } = req.body || {};
     if (!name?.trim() || !email?.trim()) return errorResponse(res, 'name and email are required', 400);
+    const finalKind = ['customer', 'vendor', 'freelancer', 'other'].includes(kind) ? kind : 'customer';
     // 플랜 쿼터 — 고객 수 한도
     const planEngine = require('../services/plan');
     const planCan = await planEngine.can(req.params.businessId, 'add_client');
@@ -276,6 +280,7 @@ router.post('/:businessId/invite', authenticateToken, checkBusinessAccess, async
       display_name: name.trim(),
       company_name: company_name?.trim() || null,
       notes: notes?.trim() || null,
+      kind: finalKind,
       status: 'invited',
       invited_by: req.user.id,
       invited_at: new Date(),

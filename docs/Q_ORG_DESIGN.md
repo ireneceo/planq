@@ -93,4 +93,26 @@ associations: Department hasMany Team/BusinessMember; Team belongsTo Department;
 - **소속 표시** 공용 `components/Common/MemberAffiliation.tsx` (부서 dot+이름 · 직책 칩) → 프로필·업무 리스트 재사용.
 - i18n `org` 네임스페이스 ko/en. 색상 COLOR_GUIDE 토큰. 반응형(≤768 1열).
 
-### 5~6 구현/테스트 — 진행 중 (이 문서 하단에 결과 추가)
+### 5~6 구현/테스트 — D1 완료 (2026-06-19 운영 라이브: 골격+관리+대시보드3단+저장✓)
+
+---
+
+## D2 — 외부 파트너 (#66)
+
+### 결정
+- 담당자화 깊이: **B 중간** — user 계정 있는 외부 파트너를 task assignee/reviewer 지정 가능 + 인박스 표시, client 격리 유지(배정 업무만 접근). `taskListWhere`가 이미 `assignee_id=userId`·reviewer·project 기준 허용 → 모델 상당 부분 지원. `TaskReviewer.is_client` 기존 존재.
+- 유형: `clients.kind` ENUM **customer/vendor(협력사)/freelancer/other**, default customer. 메뉴명 "고객·파트너".
+
+### 증분
+- **D2-a (토대):** `clients.kind` 컬럼 + clients 라우트(POST/PUT/invite/list) + ClientsPage 유형 배지·선택·필터 + 메뉴 라벨. 안전·독립.
+- **D2-b (담당자 picker, 보안민감):** 업무 assignee/reviewer 선택에 프로젝트 참여 외부인 포함. 배정은 그 프로젝트 참여 client 로 제한(임의 내부 업무 배정 차단). taskClientView 로 내부데이터 격리 유지. 별도 검증(외부인 배정→격리 E2E).
+
+### D2-a DB
+`clients.kind` ENUM('customer','vendor','freelancer','other') NOT NULL default 'customer'. 기존 row 자동 customer.
+
+### D2-a API
+clients POST/PUT/invite 가 `kind` 수용·검증(화이트리스트), list 응답에 kind 포함. GET list `?kind=` 필터.
+
+### D2-a UI
+ClientsPage: 등록/편집 모달에 유형 PlanQSelect + 명단 행에 유형 배지(색) + 상단 유형 필터칩. 사이드바·헤더 "고객" → "고객·파트너"(i18n).
+
