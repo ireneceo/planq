@@ -1,6 +1,8 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-06-19 — **v1.42.0 운영 배포 (deploy `20260619_045541` · 144초 · commit `6e42ed4` · planq.kr 헬스 OK).** F6·F7·F8(Q위키 진입점) + #70(내 문의·피드백 master-detail+추가문의) + #69(미수금 배너 문구) 운영 라이브. ① **#70** `feedback_items.parent_id` self-FK(운영 DB 추가 확인) + `POST /` 추가문의(본인·답변완료·1단계 검증) + `GET /mine` 부모기준 스레드 그룹핑(replies[]·last_activity_at·awaiting_reply) + `MyFeedbackPage` 좌/우 master-detail(`?item` 싱크·재클릭 토글·≤1024 드릴다운) + 추가문의 컴포저(답변 후만·Ctrl/⌘+Enter·중복가드). 드로어 myhistory 후방호환. ② **#69** `services/insights.js` overdue 카드를 **미수금(고객 미입금) 관점**으로 재작성 — 운영 실데이터 검증 "최정우 님에게 청구한 429,000원이 결제 기한(2026-06-10)을 지났는데… (워크스페이스 구독료가 아니라 고객에게 청구한 금액이에요)". notify_paid_at·완납 제외, 고객명/금액/기한, DATEONLY 포맷 fix. owner/admin 전용. ③ **F6·F7·F8** HelpDot askTab(기본 wiki)→Q위키 탭, 진입점 6곳+Dashboard, 랜딩 도움말→/wiki. 검증: 헬스 29/29 · 빌드 EXIT0 · #70 API 18/18 · #69 E2E 9/9 · 운영 parent_id 컬럼·/me/feedback 200·실데이터 카드 확인. **다음:** #61(Cue 권한범위 전방위 검색, AI감사 중첩) → A1·A2(AdminWikiPage) → C #60 모바일 push → D 대형재설계(#62~#68).
+> **최종 업데이트:** 2026-06-19 (2) — **D 클러스터 착수: D1 Q조직 완성·운영 라이브 + D2-a 외부파트너 유형(dev).** 운영 피드백 #57~#70 전량 처리 후 대형 재설계 D 클러스터를 4페이즈 로드맵(`docs/Q_ORG_DESIGN.md`)으로 착수. **D1 #67 조직 골격(운영 배포 완료):** `departments`/`teams` 2테이블 + `business_members`(department_id·team_id) + `routes/org.js`(부서/팀 CRUD·멤버배정·3단 overview, owner/admin 가드·멀티테넌트·broadcast) + `OrgPage`(/business/org — 부서 카드·팀·멤버배정 AutoSave✓) + **대시보드 3단 토글**(회사/내부서/개인 + 부서별·멤버별 롤업 `OrgScopeOverview`) + 사이드바 "조직". 평면 부서+선택 팀(다단계 트리 비범위), 부서=표시·집계 단위(권한 4-Layer 무변경). E2E 11/11. **D2-a #66 외부파트너 유형(dev 검증, 미배포):** `clients.kind` ENUM(customer/vendor/freelancer/other) + clients 라우트 + ClientsPage 유형 배지·초대선택·드로어편집 + 메뉴/제목 "고객·파트너". kind E2E 5/5. **D2-b(외부인 담당자 picker)·D3(#65 프로젝트캔버스+#64 보고서뷰)·D4(#62 보안등급+#63 export) 미착수.** 결정박제: D2 담당자화=B중간(외부인 업무배정+client격리), 조직=평면+팀, kind 4종.
+>
+> **이전:** 2026-06-19 — **v1.42.0 운영 배포 (deploy `20260619_045541` · 144초 · commit `6e42ed4` · planq.kr 헬스 OK).** F6·F7·F8(Q위키 진입점) + #70(내 문의·피드백 master-detail+추가문의) + #69(미수금 배너 문구) 운영 라이브. ① **#70** `feedback_items.parent_id` self-FK(운영 DB 추가 확인) + `POST /` 추가문의(본인·답변완료·1단계 검증) + `GET /mine` 부모기준 스레드 그룹핑(replies[]·last_activity_at·awaiting_reply) + `MyFeedbackPage` 좌/우 master-detail(`?item` 싱크·재클릭 토글·≤1024 드릴다운) + 추가문의 컴포저(답변 후만·Ctrl/⌘+Enter·중복가드). 드로어 myhistory 후방호환. ② **#69** `services/insights.js` overdue 카드를 **미수금(고객 미입금) 관점**으로 재작성 — 운영 실데이터 검증 "최정우 님에게 청구한 429,000원이 결제 기한(2026-06-10)을 지났는데… (워크스페이스 구독료가 아니라 고객에게 청구한 금액이에요)". notify_paid_at·완납 제외, 고객명/금액/기한, DATEONLY 포맷 fix. owner/admin 전용. ③ **F6·F7·F8** HelpDot askTab(기본 wiki)→Q위키 탭, 진입점 6곳+Dashboard, 랜딩 도움말→/wiki. 검증: 헬스 29/29 · 빌드 EXIT0 · #70 API 18/18 · #69 E2E 9/9 · 운영 parent_id 컬럼·/me/feedback 200·실데이터 카드 확인. **다음:** #61(Cue 권한범위 전방위 검색, AI감사 중첩) → A1·A2(AdminWikiPage) → C #60 모바일 push → D 대형재설계(#62~#68).
 >
 > **이전:** 2026-06-18 — **Q위키 진입점 연결 F6·F7·F8 + 운영 피드백 14건 정리 (dev 검증 완료 · 미배포).** Q위키 백엔드(v1.41.0)는 운영 라이브지만 사용자가 닿는 입구가 비어 있던 것을 연결. ① **F6** `HelpDot` 에 `askTab` prop(기본 `'wiki'`) 추가 → ⓘ "Q helper 에 묻기" 클릭 시 `cue:ask` detail.tab='wiki' 전달, 드로어가 **Q위키 탭**으로 진입(드로어는 이미 tab 분기 처리됨). ② **F8** 기존 진입점 6곳(QTask·QTalk·QNote·Knowledge·QDocs·Todo)은 askTab 미지정→기본 wiki 로 자동 라우팅 + **Dashboard `PageShell.helpDot` 신규 추가**(dashboard.help ko/en). ③ **F7** 랜딩 헤더 nav + 푸터 PRODUCT 에 "도움말"→`/wiki`(landing `nav.help` ko/en). 순수 프론트 배선(DB·API·실시간 변경 0). 검증: 헬스 **29/29** · 빌드 EXIT0(index 12:02) · dev `/`·`/wiki`·`/dashboard` 200 · i18n 하드코딩 0(t() 경유 ko/en 키 존재) · HelpDot 사용처 8곳 후방호환 · 레이아웃 표준 위반 0. **운영 피드백 14건(#57~#70) 정리** — A:이미수정(#57·#58·#59 v1.40.3, 상태정리만) · **B:Q helper 허브(F6·F7·F8 + #61 Cue답변범위 + #70 내문의·피드백)** · C:빠른버그(#69 Q bill 연체배너 오표시·#60 모바일 push) · D:대형재설계(#62~#67 조직/고객/프로젝트/보고서/보안·#68 @멘션). **다음 섹션:** #70(`feedback_items.parent_id` 추가문의 스레드 + master-detail) → #61(Cue 권한범위 전방위 검색, AI감사 중첩) → A1·A2(AdminWikiPage). **미배포:** F6·F7·F8 → 다음 `/배포`.
 >
@@ -110,6 +112,32 @@
 > **이전 라이브:** v1.16.1 (commit `8947504`) — N+31 사이클 (Q Talk 모바일 viewport 회귀 fix)
 >
 > **이전 라이브:** v1.16.0 (commit `ab113a6`) — N+26~N+27 사이클 (업무 흐름 Focus MVP + 인박스 inline 모달 + Cue 주고받음)
+
+---
+
+## ✅ 완료: D 클러스터 착수 — D1 Q조직(운영) + D2-a 외부파트너 유형(dev) (2026-06-19)
+
+### 완료된 작업
+
+| 작업 | 설명 | 상태 |
+|------|------|:----:|
+| 운영 피드백 #57~#70 | F6·F7·F8/#70/#69/A1·A2/#61/#66/#68 운영 배포, #60 진단(기기측) | ✅ 배포 |
+| D 클러스터 설계 | 4페이즈 로드맵 + D1·D2 상세 `docs/Q_ORG_DESIGN.md` | ✅ |
+| **D1 #67 Q조직** | departments/teams + 멤버배정 + org API(E2E 11/11) + OrgPage + 대시보드 3단 | ✅ **운영 라이브** |
+| **D2-a #66 유형** | clients.kind(4종) + 라우트 + ClientsPage 배지·선택·드로어 + "고객·파트너"(E2E 5/5) | ✅ dev, 미배포 |
+
+### 수정/신규 파일
+- 백엔드: `models/Department.js`·`Team.js`(신규), `models/BusinessMember.js`(dept/team), `models/Client.js`(kind), `routes/org.js`(신규), `routes/clients.js`, `server.js`
+- 프론트: `pages/Settings/OrgPage.tsx`·`components/Dashboard/OrgScopeOverview.tsx`·`services/org.ts`(신규), `pages/Dashboard/DashboardPage.tsx`, `pages/Clients/ClientsPage.tsx`, `components/Layout/MainLayout.tsx`, `App.tsx`, i18n org·clients·layout ko/en
+- 설계: `docs/Q_ORG_DESIGN.md`
+
+### 검증
+- 헬스 29/29 · org E2E 11/11(보안403·교차배정400) · kind E2E 5/5(cross-tenant403) · 멘션 E2E 4/4 · 빌드 EXIT0 · i18n ko/en 일치 · hex 팔레트 정렬
+- 운영: departments/teams 테이블 + business_members 컬럼 생성 확인 · /business/org·/dashboard 200
+
+### 미배포 / 다음
+- **미배포:** D2-a(clients.kind — dev DB만, 운영 sync 시 ENUM 컬럼 자동) → 다음 `/배포`
+- **다음:** D2-b 외부인 담당자 picker(보안민감, B중간) → D3 #65 프로젝트 캔버스+#64 보고서뷰 → D4 #62 보안등급+#63 export. 그 외: AI 전수검사, Q위키 캡처 env, iOS Capacitor
 
 ---
 
