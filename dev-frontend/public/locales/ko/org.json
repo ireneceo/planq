@@ -36,6 +36,7 @@
     "overdue": "지연",
     "byDepartment": "부서별 현황",
     "byMember": "멤버별 현황",
-    "unassignedDept": "미배정"
+    "unassignedDept": "미배정",
+    "loadFail": "조직 현황을 불러오지 못했어요."
   }
 }
