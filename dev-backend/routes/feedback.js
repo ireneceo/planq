@@ -15,22 +15,45 @@ const ALLOWED_STATUS = ['pending', 'reviewing', 'done', 'wontfix'];
 const ALLOWED_PRIORITY = ['normal', 'high'];
 
 // POST — 사용자 제출 (자동 메타 page_url, user_agent 수집)
+//   parent_id 동봉 시 = 답변 받은 원 피드백에 대한 추가 문의(스레드 자식, #70)
 router.post('/', authenticateToken, async (req, res, next) => {
   try {
-    const { category, priority, title, body, page_url, attachments } = req.body || {};
-    if (!title || !String(title).trim()) return errorResponse(res, 'title_required', 400);
+    const { category, priority, title, body, page_url, attachments, parent_id } = req.body || {};
     if (!body || !String(body).trim()) return errorResponse(res, 'body_required', 400);
 
-    const finalCategory = ALLOWED_CATS.includes(category) ? category : 'other';
-    const finalPriority = ALLOWED_PRIORITY.includes(priority) ? priority : 'normal';
+    // 추가 문의(parent_id) 검증 — 본인 소유 + 답변 받은 최상위 부모만
+    let parent = null;
+    if (parent_id != null) {
+      parent = await FeedbackItem.findByPk(parent_id);
+      if (!parent || parent.user_id !== req.user.id) return errorResponse(res, 'parent_not_found', 404);
+      if (parent.parent_id) return errorResponse(res, 'cannot_nest_followup', 400); // 1단계만
+      if (!parent.admin_response) return errorResponse(res, 'parent_not_answered', 400); // 답변 후에만 추가문의
+    }
+
+    // 추가 문의는 제목 생략 가능 — 본문 첫 줄 또는 부모 제목 prefix 로 자동 생성
+    let finalTitle = title && String(title).trim() ? String(title).trim() : '';
+    if (!finalTitle) {
+      if (parent) {
+        const firstLine = (String(body).trim().split('\n')[0] || '').slice(0, 60);
+        finalTitle = firstLine || `추가 문의: ${parent.title}`.slice(0, 200);
+      } else {
+        return errorResponse(res, 'title_required', 400);
+      }
+    }
+
+    // 추가 문의는 부모의 분류/워크스페이스 상속, 신규는 사용자 선택값
+    const finalCategory = parent ? parent.category : (ALLOWED_CATS.includes(category) ? category : 'other');
+    const finalPriority = parent ? parent.priority : (ALLOWED_PRIORITY.includes(priority) ? priority : 'normal');
+    const finalBizId = parent ? parent.business_id : (req.user.business_id || null);
     const ua = String(req.headers['user-agent'] || '').slice(0, 500);
 
     const item = await FeedbackItem.create({
       user_id: req.user.id,
-      business_id: req.user.business_id || null,
+      business_id: finalBizId,
+      parent_id: parent ? parent.id : null,
       category: finalCategory,
       priority: finalPriority,
-      title: String(title).slice(0, 200),
+      title: finalTitle.slice(0, 200),
       body: String(body),
       attachments: Array.isArray(attachments) ? attachments.slice(0, 5) : null,
       page_url: page_url ? String(page_url).slice(0, 500) : null,
@@ -38,18 +61,19 @@ router.post('/', authenticateToken, async (req, res, next) => {
       status: 'pending',
     });
 
-    // 플랫폼 관리자 알림 — fan-out 비동기
+    // 플랫폼 관리자 알림 — fan-out 비동기 (추가 문의는 스레드 맥락 표기)
     setImmediate(() => {
       const { notifyPlatformAdmins, APP_URL } = require('../services/platformNotify');
       const catLabel = { bug: '버그', improve: '개선', feature: '기능 요청', other: '기타' }[finalCategory] || finalCategory;
       const prioMark = finalPriority === 'high' ? '⚠ 긴급 ' : '';
+      const titlePrefix = parent ? '추가 문의' : '새 피드백';
       notifyPlatformAdmins({
         eventKind: 'feedback',
-        title: `${prioMark}새 피드백 — [${catLabel}] ${item.title}`,
-        body: `${req.user.email || ''} 가 피드백을 제출했습니다.\n\n${String(body).slice(0, 400)}${String(body).length > 400 ? '…' : ''}`,
-        link: `${APP_URL}/admin/feedback?id=${item.id}`,
+        title: `${prioMark}${titlePrefix} — [${catLabel}] ${item.title}`,
+        body: `${req.user.email || ''} 가 ${parent ? `"${parent.title}" 에 추가 문의를` : '피드백을'} 제출했습니다.\n\n${String(body).slice(0, 400)}${String(body).length > 400 ? '…' : ''}`,
+        link: `${APP_URL}/admin/feedback?id=${parent ? parent.id : item.id}`,
         ctaLabel: '피드백 보기',
-        relatedEntityId: item.id,
+        relatedEntityId: parent ? parent.id : item.id,
       }).catch(() => null);
     });
 
@@ -57,15 +81,43 @@ router.post('/', authenticateToken, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// GET /mine — 내 제출 이력 (자기 추적)
+// GET /mine — 내 제출 이력 (자기 추적) — #70 스레드 그룹핑
+//   최상위 피드백(parent_id=null) 배열, 각 항목에 replies[](추가 문의, 시간순) + last_activity_at 동봉.
+//   하위호환: 각 부모 row 는 기존 필드 그대로 + replies 만 추가 (드로어 myhistory 는 replies 무시하고 동작).
 router.get('/mine', authenticateToken, async (req, res, next) => {
   try {
-    const items = await FeedbackItem.findAll({
+    const rows = await FeedbackItem.findAll({
       where: { user_id: req.user.id },
-      order: [['created_at', 'DESC']],
-      limit: 50,
+      order: [['created_at', 'ASC']],
+      limit: 400,
     });
-    return successResponse(res, items);
+
+    const byId = {};
+    const parents = [];
+    rows.forEach((r) => { const o = r.toJSON(); o.replies = []; byId[o.id] = o; });
+    rows.forEach((r) => {
+      const o = byId[r.id];
+      if (r.parent_id && byId[r.parent_id]) byId[r.parent_id].replies.push(o);
+      else parents.push(o); // parent_id 없음 또는 부모 유실 → 최상위 취급
+    });
+
+    // 스레드 최근 활동 시각 = 부모/자식 생성·답변 중 가장 늦은 것
+    const ts = (o) => {
+      let m = new Date(o.created_at).getTime();
+      if (o.responded_at) m = Math.max(m, new Date(o.responded_at).getTime());
+      return m;
+    };
+    parents.forEach((p) => {
+      let last = ts(p);
+      p.replies.forEach((c) => { last = Math.max(last, ts(c)); });
+      p.last_activity_at = new Date(last).toISOString();
+      // 스레드 마지막 항목이 미답변이면 대기 중 (추가문의 후 답변 전 등)
+      const lastItem = p.replies.length ? p.replies[p.replies.length - 1] : p;
+      p.awaiting_reply = !lastItem.admin_response;
+    });
+    parents.sort((a, b) => new Date(b.last_activity_at) - new Date(a.last_activity_at));
+
+    return successResponse(res, parents.slice(0, 50));
   } catch (err) { next(err); }
 });
 

@@ -16,6 +16,12 @@ FeedbackItem.init({
     type: DataTypes.INTEGER, allowNull: true,
     references: { model: 'businesses', key: 'id' },
   },
+  // #70 — 추가 문의(스레드). 답변 받은 원 피드백에 꼬리 질문을 달면 그 부모를 가리키는 자식 row.
+  // null = 최상위(원 피드백). 1단계만 허용(자식의 자식 금지 — 모든 추가문의는 root 에 붙음).
+  parent_id: {
+    type: DataTypes.INTEGER, allowNull: true,
+    references: { model: 'feedback_items', key: 'id' },
+  },
   // 분류 (사용자 선택)
   category: {
     type: DataTypes.ENUM('bug', 'improve', 'feature', 'other'),
@@ -61,6 +67,7 @@ FeedbackItem.init({
     { fields: ['user_id'] },
     { fields: ['business_id'] },
     { fields: ['category', 'status'] },
+    { fields: ['parent_id'] },
   ],
 });
 
