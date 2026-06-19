@@ -100,6 +100,9 @@ BusinessMember.init({
   expertise: { type: DataTypes.STRING(500), allowNull: true },
   organization: { type: DataTypes.STRING(200), allowNull: true },
   job_title: { type: DataTypes.STRING(100), allowNull: true },
+  // Q조직 D1 — 부서/팀 소속 (표시·집계 단위). organization 은 부서 미배정 시 legacy fallback.
+  department_id: { type: DataTypes.INTEGER, allowNull: true, references: { model: 'departments', key: 'id' } },
+  team_id: { type: DataTypes.INTEGER, allowNull: true, references: { model: 'teams', key: 'id' } },
   expertise_level: { type: DataTypes.STRING(20), allowNull: true, comment: 'novice/beginner/intermediate/advanced/expert (5단계)' },
   language_levels: { type: DataTypes.JSON, allowNull: true },
   answer_style_default: { type: DataTypes.STRING(2000), allowNull: true },

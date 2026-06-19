@@ -100,6 +100,9 @@ const EmailAttachment = require('./EmailAttachment');
 const EmailThreadParticipant = require('./EmailThreadParticipant');
 const EmailDraft = require('./EmailDraft');
 const EmailFaqSuggestion = require('./EmailFaqSuggestion'); // Q Mail M4
+// ─── Q조직 D1 — 부서/팀 ───
+const Department = require('./Department');
+const Team = require('./Team');
 // ─── 멤버 권한 + 상태 전이 히스토리 (사이클 N+21) ───
 const BusinessMemberPermission = require('./BusinessMemberPermission');
 const ProjectStatusHistory = require('./ProjectStatusHistory');
@@ -146,6 +149,16 @@ BusinessMember.belongsTo(User, { as: 'user', foreignKey: 'user_id' });
 BusinessMember.belongsTo(User, { as: 'inviter', foreignKey: 'invited_by' });
 Business.hasMany(BusinessMember, { as: 'members', foreignKey: 'business_id' });
 User.hasMany(BusinessMember, { as: 'memberships', foreignKey: 'user_id' });
+
+// ─── Q조직 D1 — 부서/팀 association ───
+Business.hasMany(Department, { as: 'departments', foreignKey: 'business_id' });
+Department.belongsTo(Business, { foreignKey: 'business_id' });
+Department.belongsTo(User, { as: 'lead', foreignKey: 'lead_user_id' });
+Department.hasMany(Team, { as: 'teams', foreignKey: 'department_id' });
+Team.belongsTo(Department, { as: 'department', foreignKey: 'department_id' });
+Department.hasMany(BusinessMember, { as: 'deptMembers', foreignKey: 'department_id' });
+BusinessMember.belongsTo(Department, { as: 'department', foreignKey: 'department_id' });
+BusinessMember.belongsTo(Team, { as: 'team', foreignKey: 'team_id' });
 
 // Client
 Client.belongsTo(Business, { foreignKey: 'business_id' });
@@ -405,6 +418,8 @@ module.exports = {
   User,
   Business,
   BusinessMember,
+  Department,
+  Team,
   KbShareBundle,
   Client,
   Conversation,

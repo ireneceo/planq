@@ -341,6 +341,7 @@ app.use('/api/feedback', require('./routes/feedback'));
 app.use('/api/cue', require('./routes/cue'));
 app.use('/api/wiki', require('./routes/wiki'));
 app.use('/api/admin/wiki', require('./routes/admin_wiki'));
+app.use('/api/org', require('./routes/org'));
 app.use('/api/insights', require('./routes/insights'));
 app.use('/api/stats', require('./routes/stats'));
 app.use('/api/reports', require('./routes/reports'));

@@ -1272,6 +1272,14 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                           <IconMembers /> {t('nav.members')}
                         </AccordionItem>
                       )}
+                      {hasBiz('owner') && (
+                        <AccordionItem
+                          to="/business/org"
+                          $active={isActive('/business/org')}
+                        >
+                          <IconMembers /> {t('nav.org', '조직')}
+                        </AccordionItem>
+                      )}
                       <AccordionGroupLabel>{t('nav.personalSettings', '개인 설정')}</AccordionGroupLabel>
                       <AccordionItem to="/profile" $active={location.pathname === '/profile'}>
                         <IconUsers /> {t('user.profile')}
