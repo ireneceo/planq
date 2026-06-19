@@ -349,6 +349,9 @@
       "up": "Helpful",
       "down": "Not helpful"
     },
+    "mention": {
+      "aria": "Mention a member"
+    },
     "input": {
       "aria": "Message input",
       "cueWaiting_one": "1 Cue draft pending",
