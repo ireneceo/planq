@@ -1,6 +1,13 @@
 {
   "page": {
-    "title": "Clients"
+    "title": "Clients & Partners"
+  },
+  "kind": {
+    "label": "Type",
+    "customer": "Customer",
+    "vendor": "Vendor",
+    "freelancer": "Freelancer",
+    "other": "Other"
   },
   "searchPlaceholder": "Search name, company, email",
   "invite": "Invite Client",

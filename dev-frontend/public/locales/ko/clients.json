@@ -1,6 +1,13 @@
 {
   "page": {
-    "title": "고객"
+    "title": "고객·파트너"
+  },
+  "kind": {
+    "label": "유형",
+    "customer": "고객",
+    "vendor": "협력사",
+    "freelancer": "프리랜서",
+    "other": "기타"
   },
   "searchPlaceholder": "이름·회사·이메일 검색",
   "invite": "고객 초대",

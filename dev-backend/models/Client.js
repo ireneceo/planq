@@ -96,6 +96,8 @@ Client.init({
   country: { type: DataTypes.STRING(2), allowNull: true, defaultValue: 'KR' },
   // 사업자 여부 — true: 국내 법인/개인사업자 (세금계산서 대상), false: 개인 (현금영수증)
   is_business: { type: DataTypes.BOOLEAN, defaultValue: false },
+  // D2 #66 — 외부 파트너 유형. customer(고객)/vendor(협력사)/freelancer(프리랜서)/other(기타).
+  kind: { type: DataTypes.ENUM('customer', 'vendor', 'freelancer', 'other'), allowNull: false, defaultValue: 'customer' },
   biz_name: { type: DataTypes.STRING(200), allowNull: true, comment: '사업자등록증상 상호' },
   biz_ceo: { type: DataTypes.STRING(100), allowNull: true, comment: '대표자' },
   biz_tax_id: { type: DataTypes.STRING(20), allowNull: true, comment: '사업자등록번호' },
