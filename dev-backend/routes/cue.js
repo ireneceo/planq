@@ -228,9 +228,12 @@ router.post('/help', authenticateToken, async (req, res, next) => {
         }
         if (businessId) {
           const { buildCueContext } = require('../services/cue_context');
+          const { getUserScope } = require('../middleware/access_scope');
           const path = page_context?.path || '';
           const projMatch = path.match(/\/projects\/p\/(\d+)/) || path.match(/\?project=(\d+)/);
           const clientMatch = path.match(/\?client=(\d+)/);
+          // #61 — 질문자 권한 scope 계산 → 전방위 검색을 권한 범위 내로 격리
+          const scope = await getUserScope(req.user.id, businessId, req.user.platform_role);
           const ctx = await buildCueContext({
             businessId,
             conversationId: null,
@@ -238,6 +241,7 @@ router.post('/help', authenticateToken, async (req, res, next) => {
             clientId: clientMatch ? Number(clientMatch[1]) : null,
             userId: req.user.id,
             query: q,
+            scope,
           });
           if (ctx.markdown) ctxBlock += `\n\n# 워크스페이스 현황\n${ctx.markdown}`;
         }
