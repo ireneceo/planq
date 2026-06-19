@@ -2021,6 +2021,32 @@ async function loadProjectDetail(projectId) {
       return m;
     });
   }
+  // 운영 #66 — projectClients 표시명·수락상태 enrichment.
+  //   client_id 로만 연결되고 contact_name/contact_email/contact_user_id 가 null 인 row(설정>고객에서
+  //   추가 후 프로젝트 연결된 케이스)는 명단에 이름 공백 + "초대 대기" 로 오표시됨.
+  //   연결된 Client(display_name·user_id·이메일·status)로 null 필드를 보완 → 이름 + "참여 중" 정상.
+  if (Array.isArray(json.projectClients) && json.projectClients.length > 0) {
+    const cids = [...new Set(json.projectClients.map(c => c.client_id).filter(Boolean))];
+    if (cids.length > 0) {
+      const clients = await Client.findAll({
+        where: { id: cids, business_id: project.business_id },
+        attributes: ['id', 'display_name', 'company_name', 'biz_name', 'user_id', 'status',
+          'invite_email', 'tax_invoice_email', 'billing_contact_email'],
+      });
+      const cMap = new Map(clients.map(c => [c.id, c]));
+      json.projectClients = json.projectClients.map(pc => {
+        const cli = pc.client_id ? cMap.get(pc.client_id) : null;
+        if (cli) {
+          pc.contact_name = pc.contact_name || cli.display_name || cli.company_name || cli.biz_name || pc.contact_name;
+          pc.contact_email = pc.contact_email || cli.tax_invoice_email || cli.billing_contact_email || cli.invite_email || null;
+          // 연결된 Client 가 실제 사용자(user_id)면 '참여 중'. (contact_user_id 가 명단의 joined 판정 기준)
+          if (!pc.contact_user_id && cli.user_id && cli.status === 'active') pc.contact_user_id = cli.user_id;
+          pc.client_status = cli.status;
+        }
+        return pc;
+      });
+    }
+  }
   return json;
 }
 
