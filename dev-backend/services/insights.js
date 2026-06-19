@@ -7,7 +7,7 @@
 //   4) overdue 청구서 (owner/admin 만)
 //   5) 받은 서명 요청 (만료 임박)
 const { Op } = require('sequelize');
-const { Task, TaskReviewer, CalendarEvent, Invoice, SignatureRequest } = require('../models');
+const { Task, TaskReviewer, CalendarEvent, Invoice, SignatureRequest, Client } = require('../models');
 
 async function buildInsights({ userId, businessId, userRole, userEmail }) {
   if (!userId || !businessId) return [];
@@ -84,22 +84,51 @@ async function buildInsights({ userId, businessId, userRole, userEmail }) {
     });
   }
 
-  // 4) overdue 청구서 (owner/admin)
+  // 4) 미수금 — 고객이 기한까지 결제하지 않은 청구서 (owner/admin)
+  //    #69: "연체 청구서"는 워크스페이스 구독료가 아니라 "내가 고객에게 청구한 금액의 미입금"임을 명확히.
+  //    입금확인 대기(notify_paid_at)·이미 완납 건은 제외 → 실제 독촉이 필요한 건만.
   if (userRole === 'owner' || userRole === 'admin') {
-    const overdueInvoices = await Invoice.count({
+    const overdueList = await Invoice.findAll({
       where: {
         business_id: businessId,
         status: 'overdue',
+        notify_paid_at: null,                       // 고객이 송금 알림한 건은 '입금 확인 대기'에서 별도 관리
       },
-    });
-    if (overdueInvoices > 0) {
+      attributes: ['id', 'invoice_number', 'recipient_business_name', 'client_id', 'grand_total', 'paid_amount', 'due_date', 'currency'],
+      order: [['due_date', 'ASC']],
+      limit: 50,
+    }).catch(() => []);
+    // 미수 잔액 > 0 인 건만 (부분 결제 후 잔액)
+    const unpaid = overdueList.filter(inv => Number(inv.grand_total || 0) > Number(inv.paid_amount || 0));
+    if (unpaid.length > 0) {
+      const fmtAmount = (amt, cur) => {
+        const n = Number(amt || 0);
+        const sym = { USD: '$', EUR: '€', JPY: '¥', CNY: '¥' }[cur];
+        return sym ? `${sym}${n.toLocaleString('en-US')}` : `${n.toLocaleString('ko-KR')}원`;
+      };
+      // 고객명 채우기 (recipient_business_name 없으면 Client 에서)
+      const first = unpaid[0];
+      let firstName = first.recipient_business_name || '';
+      if (!firstName && first.client_id) {
+        const cli = await Client.findOne({ where: { id: first.client_id, business_id: businessId }, attributes: ['company_name', 'display_name'] }).catch(() => null);
+        firstName = cli?.company_name || cli?.display_name || '';
+      }
+      // DATEONLY 는 string('2026-06-10') 또는 Date 객체로 올 수 있음 (memory 박제) — 둘 다 YYYY-MM-DD 로
+      const rawDue = first.due_date;
+      const firstDue = rawDue
+        ? (typeof rawDue === 'string' ? rawDue.slice(0, 10) : new Date(rawDue).toISOString().slice(0, 10))
+        : '';
+      const firstOwed = Number(first.grand_total || 0) - Number(first.paid_amount || 0);
+      const body = unpaid.length === 1
+        ? `${firstName ? `${firstName} 님에게 ` : '고객에게 '}청구한 ${fmtAmount(firstOwed, first.currency)}이 결제 기한(${firstDue})을 지났는데 아직 입금되지 않았어요. 입금을 확인했다면 입금 처리하고, 아니면 결제 독촉을 보내세요. (워크스페이스 구독료가 아니라 고객에게 청구한 금액이에요.)`
+        : `고객에게 청구한 금액 중 결제 기한이 지난 미입금 청구서가 ${unpaid.length}건 있어요. 입금 확인 또는 결제 독촉이 필요해요. (워크스페이스 구독료와는 별개예요.)`;
       insights.push({
-        id: `overdue_invoices_${overdueInvoices}`,
+        id: `overdue_invoices_${unpaid.length}`,
         kind: 'overdue_invoices',
         severity: 'urgent',
-        title: `연체 청구서 ${overdueInvoices}건`,
-        body: '결제 기한이 지난 청구서가 있어요. 입금 알림 또는 독촉 처리가 필요합니다.',
-        action: { label: 'Q Bill 열기', link: '/bills?tab=invoices' },
+        title: `미입금 청구서 ${unpaid.length}건 (미수금)`,
+        body,
+        action: { label: '미수금 관리', link: '/bills?tab=invoices' },
       });
     }
   }
