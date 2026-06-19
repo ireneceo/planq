@@ -94,12 +94,18 @@ const OrgPage = () => {
     catch (e) { setErr(mapApiError(e, tErr)); }
   };
 
-  // 멤버 배정 — 부서/팀 즉시 저장, 직책은 blur 저장
+  // 멤버 배정 — 부서/팀 즉시 저장, 직책은 blur 저장. 저장 성공 시 ✓ 2초 표시 (자동저장 원칙).
+  const [savedRows, setSavedRows] = useState<Record<number, boolean>>({});
+  const flashSaved = (userId: number) => {
+    setSavedRows((p) => ({ ...p, [userId]: true }));
+    window.setTimeout(() => setSavedRows((p) => { const n = { ...p }; delete n[userId]; return n; }), 2000);
+  };
   const changeAssign = async (userId: number, patch: { department_id?: number | null; team_id?: number | null; job_title?: string | null }) => {
     setErr(null);
     try {
       const r = await assignMember(bizId, userId, patch);
       setAssign((p) => ({ ...p, [userId]: { department_id: r.department_id, team_id: r.team_id, job_title: r.job_title } }));
+      flashSaved(userId);
     } catch (e) { setErr(mapApiError(e, tErr)); }
   };
 
@@ -201,7 +207,10 @@ const OrgPage = () => {
                 const c = cur(m.user_id!);
                 return (
                   <AssignRow key={m.user_id}>
-                    <MemberName>{m.user?.name || `#${m.user_id}`}</MemberName>
+                    <MemberName>
+                      {m.user?.name || `#${m.user_id}`}
+                      {savedRows[m.user_id!] && <SavedBadge aria-live="polite">✓</SavedBadge>}
+                    </MemberName>
                     <PlanQSelect size="sm" isClearable={false} isSearchable={false}
                       value={deptOptions.find((o) => o.value === String(c.department_id || ''))}
                       options={deptOptions}
@@ -297,7 +306,13 @@ const AssignRow = styled.div`
   border-bottom: 1px solid #f1f5f9; &:last-child { border-bottom: none; }
   @media (max-width: 768px) { grid-template-columns: 1fr; gap: 8px; padding: 12px 16px; }
 `;
-const MemberName = styled.div`font-size: 13px; font-weight: 600; color: #0f172a;`;
+const MemberName = styled.div`font-size: 13px; font-weight: 600; color: #0f172a; display: flex; align-items: center; gap: 6px;`;
+const SavedBadge = styled.span`
+  font-size: 11px; font-weight: 700; color: #0f766e; background: #f0fdfa;
+  border-radius: 999px; padding: 1px 7px;
+  animation: fadeBadge 2s ease forwards;
+  @keyframes fadeBadge { 0% { opacity: 0; } 12% { opacity: 1; } 75% { opacity: 1; } 100% { opacity: 0; } }
+`;
 const JobInput = styled.input`
   padding: 7px 10px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 13px; color: #0f172a; font-family: inherit;
   &:focus { outline: none; border-color: #14b8a6; box-shadow: 0 0 0 3px rgba(20,184,166,0.12); }
