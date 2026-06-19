@@ -24,6 +24,7 @@ const {
   SignatureRequest,
 } = require('../models');
 const kbService = require('./kb_service');
+const { taskListWhere, invoiceListWhere, isMemberOrAbove } = require('../middleware/access_scope');
 
 // 토큰 예산 — 대략 chars/4 ≈ tokens. 안전 margin.
 const HISTORY_TURN_LIMIT = 10;
@@ -161,8 +162,88 @@ async function getClientSnapshot(clientId, businessId) {
   return { client, recentInvoices, totalSent, totalPaid, totalSigs: recentSigs };
 }
 
+// ── #61 — 질문 기반 워크스페이스 전방위 검색 (질문자 권한 범위 내)
+//    "모든 곳을 확인하되 권한 기준으로" — access_scope 헬퍼로 격리 보장.
+//    재무(invoice)는 owner/admin 또는 본인 청구(client)만. 일반 member 는 제외(재무 누출 차단).
+function queryTerms(q) {
+  return String(q || '').toLowerCase()
+    .split(/[\s,.;:!?()[\]{}"'`/\\]+/)
+    .map((s) => s.trim())
+    .filter((s) => s.length >= 2)
+    .slice(0, 6);
+}
+function likeAny(fields, terms) {
+  return { [Op.or]: fields.flatMap((f) => terms.map((t) => ({ [f]: { [Op.like]: `%${t}%` } }))) };
+}
+
+async function getWorkspaceMatches({ businessId, scope, query }) {
+  const terms = queryTerms(query);
+  if (!businessId || !scope || terms.length === 0) return null;
+  const isStaff = isMemberOrAbove(scope);
+  const isClient = !!scope.isClient;
+  if (!isStaff && !isClient) return null;
+
+  const out = { tasks: [], projects: [], clients: [], invoices: [] };
+
+  // 업무 — 권한 scope 그대로 (member 이상=전체 / client=본인 관여분)
+  try {
+    const base = await taskListWhere(scope.userId, businessId, scope);
+    if (base) {
+      out.tasks = await Task.findAll({
+        where: { [Op.and]: [base, likeAny(['title', 'description'], terms)] },
+        attributes: ['id', 'title', 'status', 'progress_percent', 'due_date'],
+        include: [{ model: User, as: 'assignee', attributes: ['name'] }],
+        order: [['updated_at', 'DESC']], limit: 6,
+      });
+    }
+  } catch (e) { /* best-effort */ void e; }
+
+  // 프로젝트 — member 이상=전체 / client=관여 프로젝트
+  try {
+    const where = { business_id: businessId, ...likeAny(['name', 'description'], terms) };
+    if (!isStaff) {
+      const ids = [...new Set([...(scope.projectClientProjectIds || []), ...(scope.projectMemberIds || [])])];
+      if (ids.length === 0) throw new Error('no project scope');
+      where.id = { [Op.in]: ids };
+    }
+    out.projects = await Project.findAll({
+      where, attributes: ['id', 'name', 'description', 'status'],
+      order: [['updated_at', 'DESC']], limit: 4,
+    });
+  } catch (e) { void e; }
+
+  // 고객 — staff 만 (client 는 타 고객 검색 불가)
+  if (isStaff) {
+    try {
+      out.clients = await Client.findAll({
+        where: { business_id: businessId, ...likeAny(['display_name', 'company_name', 'biz_name'], terms) },
+        attributes: ['id', 'display_name', 'company_name', 'biz_name', 'status'],
+        order: [['updated_at', 'DESC']], limit: 4,
+      });
+    } catch (e) { void e; }
+  }
+
+  // 청구서(재무) — owner/admin/platform_admin 또는 본인 청구(client) 만
+  const canFinance = scope.isOwner || scope.isAdmin || scope.isPlatformAdmin || isClient;
+  if (canFinance) {
+    try {
+      const base = await invoiceListWhere(scope.userId, businessId, scope);
+      if (base) {
+        out.invoices = await Invoice.findAll({
+          where: { [Op.and]: [base, likeAny(['invoice_number', 'recipient_business_name'], terms)] },
+          attributes: ['id', 'invoice_number', 'recipient_business_name', 'status', 'grand_total', 'paid_amount', 'currency', 'due_date'],
+          order: [['created_at', 'DESC']], limit: 4,
+        });
+      }
+    } catch (e) { void e; }
+  }
+
+  const total = out.tasks.length + out.projects.length + out.clients.length + out.invoices.length;
+  return total > 0 ? out : null;
+}
+
 // ── 마크다운 합성 — system prompt 에 주입
-function composeMarkdown({ history, project, client, kb, userSnap, businessTimezone }) {
+function composeMarkdown({ history, project, client, kb, userSnap, matches, businessTimezone }) {
   const parts = [];
 
   if (userSnap) {
@@ -229,6 +310,32 @@ function composeMarkdown({ history, project, client, kb, userSnap, businessTimez
     });
   }
 
+  if (matches) {
+    parts.push('\n## 워크스페이스 검색 결과 (질문 관련 · 질문자 권한 내)');
+    if (matches.tasks?.length) {
+      parts.push(`- 업무 ${matches.tasks.length}건:`);
+      matches.tasks.forEach((t) => {
+        const due = t.due_date ? String(t.due_date).slice(0, 10) : '미정';
+        parts.push(`  · ${t.title} (${t.status}, 진행 ${t.progress_percent || 0}%, 마감 ${due}, 담당 ${t.assignee?.name || '-'})`);
+      });
+    }
+    if (matches.projects?.length) {
+      parts.push(`- 프로젝트 ${matches.projects.length}건:`);
+      matches.projects.forEach((p) => parts.push(`  · ${p.name} (${p.status || '-'})${p.description ? ` — ${snip(p.description, 80)}` : ''}`));
+    }
+    if (matches.clients?.length) {
+      parts.push(`- 고객 ${matches.clients.length}건:`);
+      matches.clients.forEach((c) => parts.push(`  · ${c.company_name || c.biz_name || c.display_name || `#${c.id}`} (${c.status || '-'})`));
+    }
+    if (matches.invoices?.length) {
+      parts.push(`- 청구서 ${matches.invoices.length}건:`);
+      matches.invoices.forEach((i) => {
+        const owed = Number(i.grand_total || 0) - Number(i.paid_amount || 0);
+        parts.push(`  · ${i.invoice_number}${i.recipient_business_name ? ` (${i.recipient_business_name})` : ''} — ${i.status}, 잔액 ${owed.toLocaleString('ko-KR')} ${i.currency || 'KRW'}`);
+      });
+    }
+  }
+
   if (kb?.has_results) {
     parts.push('\n## 회사 자료 (Q knowledge)');
     if (kb.pinned_faqs?.length) {
@@ -243,7 +350,7 @@ function composeMarkdown({ history, project, client, kb, userSnap, businessTimez
 }
 
 // ── 메인 빌더
-async function buildCueContext({ businessId, conversationId, projectId, clientId, userId, query, businessTimezone }) {
+async function buildCueContext({ businessId, conversationId, projectId, clientId, userId, query, businessTimezone, scope }) {
   // 1. 대화 히스토리
   const historyP = getConversationHistory(conversationId);
   // 2. 프로젝트 스냅샷
@@ -256,10 +363,14 @@ async function buildCueContext({ businessId, conversationId, projectId, clientId
   const kbP = query
     ? kbService.hybridSearch(businessId, query, { limit: 5, project_id: projectId, client_id: clientId })
     : Promise.resolve({ has_results: false });
+  // 6. #61 — 질문 기반 워크스페이스 전방위 검색 (권한 scope 있을 때만)
+  const matchesP = (query && scope)
+    ? getWorkspaceMatches({ businessId, scope, query }).catch(() => null)
+    : Promise.resolve(null);
 
-  const [history, project, client, userSnap, kb] = await Promise.all([historyP, projectP, clientP, userP, kbP]);
-  const markdown = composeMarkdown({ history, project, client, kb, userSnap, businessTimezone });
-  return { markdown, kb, history, project, client, userSnap };
+  const [history, project, client, userSnap, kb, matches] = await Promise.all([historyP, projectP, clientP, userP, kbP, matchesP]);
+  const markdown = composeMarkdown({ history, project, client, kb, userSnap, matches, businessTimezone });
+  return { markdown, kb, history, project, client, userSnap, matches };
 }
 
 module.exports = { buildCueContext };
