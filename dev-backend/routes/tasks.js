@@ -880,8 +880,9 @@ router.put('/by-business/:businessId/:id', authenticateToken, async (req, res, n
     const task = await Task.findOne({ where: { id: req.params.id, business_id: businessId } });
     if (!task) return errorResponse(res, 'task_not_found', 404);
 
-    const { title, description, body, assignee_id, status, priority, due_date, start_date, estimated_hours, actual_hours, progress_percent, category, planned_week_start, project_id, recurrence_rule, workstream_id } = req.body;
+    const { title, description, body, assignee_id, status, priority, due_date, start_date, estimated_hours, actual_hours, progress_percent, category, planned_week_start, project_id, recurrence_rule, workstream_id, is_milestone } = req.body;
     const updates = {};
+    if (is_milestone !== undefined) updates.is_milestone = !!is_milestone;
     if (title !== undefined) updates.title = title;
     if (description !== undefined) updates.description = description;
     if (body !== undefined) updates.body = body;
@@ -1036,6 +1037,7 @@ router.put('/by-business/:businessId/:id', authenticateToken, async (req, res, n
       //   이제 담당자/작성자/owner/admin 모두 이관 가능 (초기 분류·재분류 일관). §5.7 갱신.
       project_id: () => isAssignee || isCreator || isOwnerOrAdmin,
       workstream_id: () => isAssignee || isCreator || isOwnerOrAdmin,
+      is_milestone: () => isAssignee || isCreator || isOwnerOrAdmin,
       estimated_hours: () => isAssignee || isOwnerOrAdmin,
       actual_hours: () => isAssignee || isOwnerOrAdmin,
       progress_percent: () => isAssignee || isOwnerOrAdmin,

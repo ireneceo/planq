@@ -54,6 +54,8 @@ Project.init({
   strategy_approach: { type: DataTypes.TEXT, allowNull: true, comment: '추진 방식 (Approach)' },
   // 성공 지표 (정량 KR) — [{ id, label, target, current, unit }]
   success_metrics: { type: DataTypes.JSON, allowNull: true, comment: '성공 지표 리스트 (구조화)' },
+  // R1 — 일정 타임라인 "주요 업무만 보기" 기본값 (프로젝트별 설정)
+  timeline_key_only: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false, comment: '타임라인 주요 업무만 기본 표시' },
 }, {
   sequelize,
   tableName: 'projects',
