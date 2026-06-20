@@ -17,6 +17,13 @@ const { getUserScope } = require('../middleware/access_scope');
 const { logAudit } = require('../services/auditService');
 const { buildAutoSnapshot } = require('../services/reportUnitSnapshot');
 const { buildIntegratedRollup } = require('../services/integratedRollup');
+const { mondayOfDateStr } = require('../utils/datetime');
+
+// 리뷰 M5 — period_start 를 키 정규화(주=월요일/월=1일)해 비정규 입력의 중복 row·cron 불일치 차단.
+function normalizePeriodStart(periodType, periodStart) {
+  if (periodType === 'monthly') return `${periodStart.slice(0, 8)}01`;
+  return mondayOfDateStr(periodStart);
+}
 
 router.get('/share/:token', async (req, res, next) => {
   try {
@@ -105,26 +112,26 @@ router.get('/:biz/unit', authenticateToken, async (req, res, next) => {
     const scope = String(req.query.scope || '');
     const refId = Number(req.query.ref_id);
     const periodType = String(req.query.period_type || 'weekly');
-    const periodStart = String(req.query.period_start || '');
+    const periodStartRaw = String(req.query.period_start || '');
     if (!VALID_SCOPE.includes(scope)) return errorResponse(res, 'invalid_scope', 400);
     if (!refId) return errorResponse(res, 'ref_id_required', 400);
     if (!VALID_PERIOD.includes(periodType)) return errorResponse(res, 'invalid_period_type', 400);
-    if (!DATE_RE.test(periodStart)) return errorResponse(res, 'invalid_period_start', 400);
+    if (!DATE_RE.test(periodStartRaw)) return errorResponse(res, 'invalid_period_start', 400);
+    const periodStart = normalizePeriodStart(periodType, periodStartRaw);
 
     const responsible = await isResponsible(uScope, scope, refId, businessId, ownerOrAdmin);
 
-    let unit = await ReportUnit.findOne({ where: { business_id: businessId, scope, scope_ref_id: refId, period_type: periodType, period_start: periodStart } });
+    // 대상 유효성 먼저 — 미존재/타 워크스페이스는 row 생성 없이 404
+    const snap = await buildAutoSnapshot(businessId, scope, refId, periodType, periodStart);
+    if (snap === null) return errorResponse(res, 'invalid_ref', 404);
 
-    // 확정본은 박제 — 그대로 반환. draft / 미존재는 자동초안 live 재생성.
-    if (!unit || unit.status === 'draft') {
-      const snap = await buildAutoSnapshot(businessId, scope, refId, periodType, periodStart);
-      if (snap === null) return errorResponse(res, 'invalid_ref', 404);  // 대상 없음(타 워크스페이스 등)
-      if (!unit) {
-        unit = await ReportUnit.create({ business_id: businessId, scope, scope_ref_id: refId, period_type: periodType, period_start: periodStart, status: 'draft', auto_snapshot: snap });
-      } else {
-        await unit.update({ auto_snapshot: snap });
-      }
-    }
+    // 리뷰 LOW — 동시 첫 로드 race 방지: findOrCreate (uk_report_unit 충돌 시 500 차단)
+    const [unit] = await ReportUnit.findOrCreate({
+      where: { business_id: businessId, scope, scope_ref_id: refId, period_type: periodType, period_start: periodStart },
+      defaults: { status: 'draft', auto_snapshot: snap },
+    });
+    // 확정본은 박제 — 그대로. draft 는 자동초안 live 재생성.
+    if (unit.status === 'draft') await unit.update({ auto_snapshot: snap });
 
     return successResponse(res, mergedView(unit, responsible));
   } catch (err) { next(err); }
@@ -163,10 +170,11 @@ router.post('/:biz/unit/:id/confirm', authenticateToken, async (req, res, next) 
     if (!await isResponsible(uScope, unit.scope, unit.scope_ref_id, businessId, ownerOrAdmin)) return errorResponse(res, 'not_responsible', 403);
     if (unit.status === 'confirmed') return errorResponse(res, 'already_confirmed', 409);
 
-    // 확정 시점 fresh 스냅샷 박제 (이후 수치 변동 무관)
+    // 확정 시점 fresh 스냅샷 박제 (이후 수치 변동 무관). 리뷰 LOW — 대상이 삭제됐으면 확정 거부(404).
     const fresh = await buildAutoSnapshot(businessId, unit.scope, unit.scope_ref_id, unit.period_type, unit.period_start);
+    if (fresh === null) return errorResponse(res, 'invalid_ref', 404);
     await unit.update({
-      auto_snapshot: fresh || unit.auto_snapshot,
+      auto_snapshot: fresh,
       status: 'confirmed', confirmed_by: req.user.id, confirmed_at: new Date(), finalized_by: 'manual',
     });
     logAudit(req, { action: 'report_unit.confirm', targetType: 'report_unit', targetId: unit.id, businessId, newValue: { scope: unit.scope, ref_id: unit.scope_ref_id, period_type: unit.period_type, period_start: unit.period_start } });
@@ -206,9 +214,10 @@ router.get('/:biz/integrated', authenticateToken, async (req, res, next) => {
     if (!member) return errorResponse(res, 'member_only', 403);
 
     const periodType = String(req.query.period_type || 'weekly');
-    const periodStart = String(req.query.period_start || '');
+    const periodStartRaw = String(req.query.period_start || '');
     if (!VALID_PERIOD.includes(periodType)) return errorResponse(res, 'invalid_period_type', 400);
-    if (!DATE_RE.test(periodStart)) return errorResponse(res, 'invalid_period_start', 400);
+    if (!DATE_RE.test(periodStartRaw)) return errorResponse(res, 'invalid_period_start', 400);
+    const periodStart = normalizePeriodStart(periodType, periodStartRaw);
 
     const biz = await Business.findByPk(businessId, { attributes: ['report_integrated_confirm', 'monthly_finalize_enabled'] });
     const rollup = await buildIntegratedRollup(businessId, periodType, periodStart);
@@ -230,9 +239,10 @@ router.post('/:biz/integrated/confirm', authenticateToken, async (req, res, next
     if (!member) return errorResponse(res, 'member_only', 403);
     if (!ownerOrAdmin) return errorResponse(res, 'owner_or_admin_only', 403);
     const periodType = String(req.body?.period_type || 'weekly');
-    const periodStart = String(req.body?.period_start || '');
+    const periodStartRaw = String(req.body?.period_start || '');
     if (!VALID_PERIOD.includes(periodType)) return errorResponse(res, 'invalid_period_type', 400);
-    if (!DATE_RE.test(periodStart)) return errorResponse(res, 'invalid_period_start', 400);
+    if (!DATE_RE.test(periodStartRaw)) return errorResponse(res, 'invalid_period_start', 400);
+    const periodStart = normalizePeriodStart(periodType, periodStartRaw);
 
     const biz = await Business.findByPk(businessId, { attributes: ['report_integrated_confirm'] });
     if (!biz?.report_integrated_confirm) return errorResponse(res, 'integrated_confirm_disabled', 409);
@@ -262,7 +272,8 @@ router.post('/:biz/integrated/reopen', authenticateToken, async (req, res, next)
     if (!member) return errorResponse(res, 'member_only', 403);
     if (!ownerOrAdmin) return errorResponse(res, 'owner_or_admin_only', 403);
     const periodType = String(req.body?.period_type || 'weekly');
-    const periodStart = String(req.body?.period_start || '');
+    const periodStartRaw = String(req.body?.period_start || '');
+    const periodStart = DATE_RE.test(periodStartRaw) ? normalizePeriodStart(periodType, periodStartRaw) : periodStartRaw;
     const unit = await ReportUnit.findOne({ where: { business_id: businessId, scope: 'workspace', scope_ref_id: 0, period_type: periodType, period_start: periodStart } });
     if (!unit || unit.status !== 'confirmed') return errorResponse(res, 'not_confirmed', 409);
     await unit.update({ status: 'draft', confirmed_by: null, confirmed_at: null, finalized_by: null });

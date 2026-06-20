@@ -122,18 +122,16 @@ const ProjectTaskList: React.FC<Props> = ({
     setCollapsed(prev => { const n = new Set(prev); if (n.has(gid)) n.delete(gid); else n.add(gid); return n; });
   };
 
-  // 그룹 메뉴(행 이동·헤더 ⋯) 바깥 클릭/Esc 닫기 — data-dropdown 내부 클릭은 유지.
+  // 모든 인라인 드롭다운(그룹 이동·헤더 ⋯·상태·담당자) 바깥 클릭/Esc 닫기 — data-dropdown 내부 클릭은 유지.
   useEffect(() => {
-    if (groupMenuTaskId == null && headerMenuGroupId == null) return;
-    const onClick = (e: MouseEvent) => {
-      if ((e.target as HTMLElement)?.closest('[data-dropdown]')) return;
-      setGroupMenuTaskId(null); setHeaderMenuGroupId(null);
-    };
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { setGroupMenuTaskId(null); setHeaderMenuGroupId(null); } };
+    if (groupMenuTaskId == null && headerMenuGroupId == null && statusOpenId == null && assigneeOpenId == null) return;
+    const closeAll = () => { setGroupMenuTaskId(null); setHeaderMenuGroupId(null); setStatusOpenId(null); setAssigneeOpenId(null); };
+    const onClick = (e: MouseEvent) => { if ((e.target as HTMLElement)?.closest('[data-dropdown]')) return; closeAll(); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') closeAll(); };
     window.addEventListener('click', onClick);
     window.addEventListener('keydown', onKey);
     return () => { window.removeEventListener('click', onClick); window.removeEventListener('keydown', onKey); };
-  }, [groupMenuTaskId, headerMenuGroupId]);
+  }, [groupMenuTaskId, headerMenuGroupId, statusOpenId, assigneeOpenId]);
 
   // D2-b (#66) — 이 프로젝트에 참여한 외부 파트너(담당자 후보). 멤버와 합쳐 인라인 picker 에 노출.
   const [externals, setExternals] = useState<{ user_id: number; name: string; kind: string }[]>([]);
@@ -357,11 +355,11 @@ const ProjectTaskList: React.FC<Props> = ({
             </>)}
           </TCell>
           <TCell $w={showTimeline ? '90px' : '150px'} $center $hideBelow={900} style={{ position: 'relative', overflow: 'visible' }}>
-            <AssigneeLabel onClick={e => { e.stopPropagation(); setAssigneeOpenId(assigneeOpenId === task.id ? null : task.id); }}>
+            <AssigneeLabel data-dropdown onClick={e => { e.stopPropagation(); setAssigneeOpenId(assigneeOpenId === task.id ? null : task.id); }}>
               {task.assignee?.name || <span style={{ color: '#CBD5E1' }}>{t('listRow.assigneePlaceholder', '담당자')}</span>}
             </AssigneeLabel>
             {assigneeOpenId === task.id && (
-              <AssigneeDropdown onClick={e => e.stopPropagation()}>
+              <AssigneeDropdown data-dropdown onClick={e => e.stopPropagation()}>
                 {members.length === 0 && <AssigneeOpt>{t('listRow.noMembers', '멤버 없음')}</AssigneeOpt>}
                 <AssigneeOpt $active={!task.assignee_id} onClick={() => { saveField(task.id, 'assignee_id', null); onLocalUpdate(task.id, { assignee: null }); setAssigneeOpenId(null); }}>{t('listRow.noAssignee', '— 없음 —')}</AssigneeOpt>
                 {members.map(m => (
@@ -380,12 +378,12 @@ const ProjectTaskList: React.FC<Props> = ({
             )}
           </TCell>
           <TCell $w={showTimeline ? '60px' : '100px'} $center style={{ position: 'relative', overflow: 'visible' }}>
-            <StatusPill $bg={sc.bg} $fg={sc.fg} $clickable
+            <StatusPill data-dropdown $bg={sc.bg} $fg={sc.fg} $clickable
               onClick={e => { e.stopPropagation(); setStatusOpenId(statusOpenId === task.id ? null : task.id); }}>
               {statusLabel}
             </StatusPill>
             {statusOpenId === task.id && (
-              <StatusDropdown>
+              <StatusDropdown data-dropdown>
                 {statusOptionsFor(task).map(s => {
                   const c = STATUS_COLOR[s as StatusCode] || STATUS_COLOR.not_started;
                   return (

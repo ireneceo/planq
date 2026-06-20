@@ -175,7 +175,7 @@ const ReportUnitView: React.FC<Props> = ({ businessId, scope, refId }) => {
       {scope === 'project' && (snap.next?.length || 0) > 0 && (
         <Section>
           <SecTitle>{t('weeklyReview.unit.next', { defaultValue: '다음 기간 계획' })}</SecTitle>
-          <TaskChips>{(snap.next || []).map((tk) => <TaskChip key={tk.id} onClick={() => navigate(`/projects/p/${refId}?tab=tasks&task=${tk.id}`)}><StatusDot style={{ background: (STATUS_COLOR[tk.status as StatusCode] || STATUS_COLOR.not_started).fg }} />{tk.title}{tk.assignee_name && <ChipMeta>{tk.assignee_name}</ChipMeta>}</TaskChip>)}</TaskChips>
+          <TaskChips>{(snap.next || []).map((tk) => <TaskChip key={tk.id} type="button" onClick={() => navigate(`/projects/p/${refId}?tab=tasks&task=${tk.id}`)}><StatusDot style={{ background: (STATUS_COLOR[tk.status as StatusCode] || STATUS_COLOR.not_started).fg }} />{tk.title}{tk.assignee_name && <ChipMeta>{tk.assignee_name}</ChipMeta>}</TaskChip>)}</TaskChips>
         </Section>
       )}
       {scope === 'project' && (snap.team?.length || 0) > 0 && (
@@ -208,7 +208,7 @@ const TaskColumn: React.FC<{ title: string; tone: 'good' | 'bad'; tasks: TaskBri
     {tasks.length === 0 ? <Muted>{empty}</Muted> : (
       <TaskList>
         {tasks.map((tk) => (
-          <TaskItem key={tk.id} $tone={tone}
+          <TaskItem key={tk.id} type="button" $tone={tone}
             onClick={() => { if (scope === 'project') navigate(`/projects/p/${refId}?tab=tasks&task=${tk.id}`); }}>
             <StatusDot style={{ background: (STATUS_COLOR[tk.status as StatusCode] || STATUS_COLOR.not_started).fg }} />
             <TaskTitle>{tk.title}</TaskTitle>
@@ -251,19 +251,19 @@ const NarrativeRead = styled.div`font-size:13px;line-height:1.6;color:#334155;wh
 const Muted = styled.div`font-size:13px;color:#94A3B8;padding:6px 0;`;
 const Grid2 = styled.div`display:grid;grid-template-columns:1fr 1fr;gap:14px;@media (max-width:768px){grid-template-columns:1fr;}`;
 const TaskList = styled.div`display:flex;flex-direction:column;gap:6px;`;
-const TaskItem = styled.div<{ $tone: 'good' | 'bad' }>`display:flex;align-items:center;gap:8px;padding:8px 10px;background:#F8FAFC;border:1px solid #E2E8F0;border-left:3px solid ${p => p.$tone === 'bad' ? '#EF4444' : '#22C55E'};border-radius:8px;cursor:pointer;&:hover{background:#F0FDFA;}`;
+const TaskItem = styled.button<{ $tone: 'good' | 'bad' }>`display:flex;align-items:center;gap:8px;width:100%;text-align:left;padding:8px 10px;background:#F8FAFC;border:1px solid #E2E8F0;border-left:3px solid ${p => p.$tone === 'bad' ? '#EF4444' : '#22C55E'};border-radius:8px;cursor:pointer;font:inherit;&:hover{background:#F0FDFA;}&:focus-visible{outline:2px solid #14B8A6;outline-offset:2px;}`;
 const TaskTitle = styled.span`flex:1;font-size:13px;color:#0F172A;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`;
 const ChipMeta = styled.span`font-size:11px;color:#94A3B8;flex-shrink:0;`;
 const StatusDot = styled.span`width:7px;height:7px;border-radius:50%;flex-shrink:0;`;
 const TaskChips = styled.div`display:flex;flex-wrap:wrap;gap:8px;`;
-const TaskChip = styled.div`display:inline-flex;align-items:center;gap:7px;padding:6px 11px;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:999px;cursor:pointer;font-size:12px;color:#0F172A;&:hover{background:#F0FDFA;border-color:#99F6E4;}`;
+const TaskChip = styled.button`display:inline-flex;align-items:center;gap:7px;padding:6px 11px;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:999px;cursor:pointer;font-size:12px;color:#0F172A;font-family:inherit;&:hover{background:#F0FDFA;border-color:#99F6E4;}&:focus-visible{outline:2px solid #14B8A6;outline-offset:2px;}`;
 const People = styled.div`display:flex;flex-wrap:wrap;gap:10px;`;
 const Person = styled.div`display:flex;flex-direction:column;gap:2px;padding:8px 12px;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:10px;min-width:120px;`;
 const PName = styled.span`font-size:12px;font-weight:700;color:#0F172A;`;
 const PMeta = styled.span`font-size:11px;color:#64748B;`;
-const MemberTable = styled.div`display:flex;flex-direction:column;`;
-const MemberHead = styled.div`display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:8px;padding:6px 8px;font-size:11px;font-weight:700;color:#94A3B8;border-bottom:1px solid #E2E8F0;& > span:not(:first-child){text-align:center;}`;
-const MemberRow = styled.div`display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:8px;padding:8px;font-size:13px;color:#334155;border-bottom:1px solid #F1F5F9;align-items:center;& > span{text-align:center;}`;
+const MemberTable = styled.div`display:flex;flex-direction:column;overflow-x:auto;`;
+const MemberHead = styled.div`display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:8px;padding:6px 8px;min-width:340px;font-size:11px;font-weight:700;color:#94A3B8;border-bottom:1px solid #E2E8F0;& > span:not(:first-child){text-align:center;}`;
+const MemberRow = styled.div`display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:8px;padding:8px;min-width:340px;font-size:13px;color:#334155;border-bottom:1px solid #F1F5F9;align-items:center;& > span{text-align:center;}`;
 const MName = styled.span`font-weight:600;color:#0F172A;`;
 const MOverdue = styled.span<{ $n: number }>`text-align:center;font-weight:700;color:${p => p.$n > 0 ? '#B91C1C' : '#CBD5E1'};`;
 const Skel = styled.div`display:flex;flex-direction:column;gap:14px;`;

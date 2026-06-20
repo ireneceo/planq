@@ -14,12 +14,16 @@ async function buildIntegratedRollup(businessId, periodType, periodStart) {
   ]);
   const unitMap = new Map(units.map((u) => [`${u.scope}:${u.scope_ref_id}`, u]));
 
-  // 단위 1개 행 — 확정본은 frozen snapshot, 없으면 live 초안(미확정)
+  // 단위 1개 행 — 확정본은 frozen snapshot(+overrides), draft 는 live 재생성(+overrides).
+  //   리뷰 C1: draft 의 저장된 auto_snapshot 은 stale 일 수 있어 미확정은 항상 live 재계산.
+  //   리뷰 H2: 책임자 보정(edited_overrides)을 단위뷰와 동일하게(mergedView) 롤업에도 반영.
   async function rowFor(scope, ref, name) {
     const existing = unitMap.get(`${scope}:${ref}`);
-    let snap; let status;
-    if (existing) { snap = existing.auto_snapshot || {}; status = existing.status; }
-    else { snap = (await buildAutoSnapshot(businessId, scope, ref, periodType, periodStart)) || {}; status = 'draft'; }
+    const overrides = (existing && existing.edited_overrides) || {};
+    let base; let status;
+    if (existing && existing.status === 'confirmed') { base = existing.auto_snapshot || {}; status = 'confirmed'; }
+    else { base = (await buildAutoSnapshot(businessId, scope, ref, periodType, periodStart)) || {}; status = 'draft'; }
+    const snap = { ...base, ...overrides };  // mergedView 와 동일한 top-level 병합
     const kpi = snap.kpi || {};
     return {
       scope, ref_id: ref, name, unit_status: status,

@@ -113,15 +113,19 @@ const IntegratedReportView: React.FC<Props> = ({ businessId, canManage }) => {
       {data.projects.length > 0 && (
         <Section>
           <SecTitle>{t('weeklyReview.integrated.projects', { defaultValue: '프로젝트' })}<Cnt>{data.projects.length}</Cnt></SecTitle>
-          <MHead><span>{t('weeklyReview.integrated.name', { defaultValue: '이름' })}</span><span>{t('weeklyReview.integrated.status', { defaultValue: '상태' })}</span><span>{t('weeklyReview.unit.kpi.progress', { defaultValue: '진행률' })}</span><span>{t('weeklyReview.integrated.overdue', { defaultValue: '지연' })}</span><span>{t('weeklyReview.unit.kpi.health', { defaultValue: '상태' })}</span></MHead>
-          {data.projects.map(Row)}
+          <MatrixScroll>
+            <MHead><span>{t('weeklyReview.integrated.name', { defaultValue: '이름' })}</span><span>{t('weeklyReview.integrated.status', { defaultValue: '상태' })}</span><span>{t('weeklyReview.unit.kpi.progress', { defaultValue: '진행률' })}</span><span>{t('weeklyReview.integrated.overdue', { defaultValue: '지연' })}</span><span>{t('weeklyReview.unit.kpi.health', { defaultValue: '상태' })}</span></MHead>
+            {data.projects.map(Row)}
+          </MatrixScroll>
         </Section>
       )}
       {data.departments.length > 0 && (
         <Section>
           <SecTitle>{t('weeklyReview.integrated.departments', { defaultValue: '부서' })}<Cnt>{data.departments.length}</Cnt></SecTitle>
-          <MHead><span>{t('weeklyReview.integrated.name', { defaultValue: '이름' })}</span><span>{t('weeklyReview.integrated.status', { defaultValue: '상태' })}</span><span>{t('weeklyReview.unit.kpi.progress', { defaultValue: '진행률' })}</span><span>{t('weeklyReview.integrated.overdue', { defaultValue: '지연' })}</span><span>{t('weeklyReview.unit.kpi.health', { defaultValue: '상태' })}</span></MHead>
-          {data.departments.map(Row)}
+          <MatrixScroll>
+            <MHead><span>{t('weeklyReview.integrated.name', { defaultValue: '이름' })}</span><span>{t('weeklyReview.integrated.status', { defaultValue: '상태' })}</span><span>{t('weeklyReview.unit.kpi.progress', { defaultValue: '진행률' })}</span><span>{t('weeklyReview.integrated.overdue', { defaultValue: '지연' })}</span><span>{t('weeklyReview.unit.kpi.health', { defaultValue: '상태' })}</span></MHead>
+            {data.departments.map(Row)}
+          </MatrixScroll>
         </Section>
       )}
 
@@ -145,7 +149,7 @@ const IntegratedReportView: React.FC<Props> = ({ businessId, canManage }) => {
 export default IntegratedReportView;
 
 // ─── styles ───
-const Wrap = styled.div`display:flex;flex-direction:column;gap:16px;`;
+const Wrap = styled.div`display:flex;flex-direction:column;gap:16px;max-width:1100px;`;
 const TopBar = styled.div`display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;`;
 const PeriodToggle = styled.div`display:inline-flex;background:#F1F5F9;padding:3px;border-radius:8px;gap:2px;`;
 const PToggleBtn = styled.button<{ $on: boolean }>`padding:6px 14px;border:none;background:${p => p.$on ? '#fff' : 'transparent'};color:${p => p.$on ? '#0F766E' : '#64748B'};border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;box-shadow:${p => p.$on ? '0 1px 2px rgba(0,0,0,.06)' : 'none'};`;
@@ -164,8 +168,9 @@ const Spacer = styled.div`flex:1;`;
 const Section = styled.div`background:#fff;border:1px solid #E2E8F0;border-radius:12px;padding:16px 18px;`;
 const SecTitle = styled.div`font-size:14px;font-weight:700;color:#0F172A;margin-bottom:12px;display:flex;align-items:center;gap:8px;`;
 const Cnt = styled.span`display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:18px;padding:0 6px;background:#F1F5F9;color:#64748B;border-radius:999px;font-size:11px;font-weight:700;`;
-const MHead = styled.div`display:grid;grid-template-columns:2.4fr 1fr 1fr 0.8fr 1fr;gap:8px;padding:6px 8px;font-size:11px;font-weight:700;color:#94A3B8;border-bottom:1px solid #E2E8F0;& > span:not(:first-child){text-align:center;}`;
-const MRow = styled.div`display:grid;grid-template-columns:2.4fr 1fr 1fr 0.8fr 1fr;gap:8px;padding:9px 8px;font-size:13px;color:#334155;border-bottom:1px solid #F1F5F9;align-items:center;& > span{text-align:center;}`;
+const MatrixScroll = styled.div`overflow-x:auto;`;
+const MHead = styled.div`display:grid;grid-template-columns:2.4fr 1fr 1fr 0.8fr 1fr;gap:8px;padding:6px 8px;min-width:440px;font-size:11px;font-weight:700;color:#94A3B8;border-bottom:1px solid #E2E8F0;& > span:not(:first-child){text-align:center;}`;
+const MRow = styled.div`display:grid;grid-template-columns:2.4fr 1fr 1fr 0.8fr 1fr;gap:8px;padding:9px 8px;min-width:440px;font-size:13px;color:#334155;border-bottom:1px solid #F1F5F9;align-items:center;& > span{text-align:center;}`;
 const MName = styled.span`font-weight:600;color:#0F172A;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left !important;`;
 const UnitStatus = styled.span<{ $on: boolean }>`font-size:11px;font-weight:700;border-radius:999px;padding:2px 8px;justify-self:center;background:${p => p.$on ? '#CCFBF1' : '#FEF3C7'};color:${p => p.$on ? '#0F766E' : '#A16207'};`;
 const MOverdue = styled.span<{ $n: number }>`font-weight:700;color:${p => p.$n > 0 ? '#B91C1C' : '#CBD5E1'};`;
