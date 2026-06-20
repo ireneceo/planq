@@ -200,6 +200,9 @@ Business.init({
   default_vat_rate: { type: DataTypes.DECIMAL(4, 3), defaultValue: 0.100 },
   // 청구서 기본 결제 기한 (발행일 + N일)
   default_due_days: { type: DataTypes.INTEGER, defaultValue: 14, comment: '청구서 기본 결제 기한 (일)' },
+  // R3 단위 보고서 통합 — 통합확정 단계 사용 여부 / 월간 미확정 자동확정 ON/OFF (설계 §5.1)
+  report_integrated_confirm: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false, comment: 'ON: 대표가 통합 확정 1회' },
+  monthly_finalize_enabled: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true, comment: '월간 마감 시 미확정 자동확정' },
   // 청구서 기본 통화
   default_currency: { type: DataTypes.STRING(3), defaultValue: 'KRW', comment: '청구서 기본 통화' },
   // 신규 파일 업로드 저장 위치 (운영 #29) — planq 자체 / gdrive / s3 독립서버

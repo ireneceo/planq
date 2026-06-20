@@ -646,6 +646,20 @@ router.put('/:businessId/settings', authenticateToken, checkBusinessAccess, asyn
   }
 });
 
+// R3 — 단위 보고서 통합 설정 (통합확정 단계 / 월간 자동확정). owner/admin.
+router.put('/:businessId/report-settings', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+  try {
+    if (!isAdmin(req)) return errorResponse(res, 'Admin permission required', 403);
+    const business = await Business.findByPk(req.params.businessId);
+    if (!business) return errorResponse(res, 'Workspace not found', 404);
+    const updates = {};
+    if (req.body.report_integrated_confirm !== undefined) updates.report_integrated_confirm = !!req.body.report_integrated_confirm;
+    if (req.body.monthly_finalize_enabled !== undefined) updates.monthly_finalize_enabled = !!req.body.monthly_finalize_enabled;
+    await business.update(updates);
+    successResponse(res, { report_integrated_confirm: business.report_integrated_confirm, monthly_finalize_enabled: business.monthly_finalize_enabled });
+  } catch (error) { next(error); }
+});
+
 // ─── 멤버 초대 (이메일 기반) ───
 // owner 만 초대 가능. 초대 토큰 발급 + 이메일 발송. accept 시 user_id/joined_at 채움.
 router.post('/:businessId/members/invite', authenticateToken, checkBusinessAccess, async (req, res, next) => {

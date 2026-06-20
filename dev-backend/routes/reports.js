@@ -10,12 +10,13 @@
 const express = require('express');
 const fs = require('fs');
 const router = express.Router();
-const { Report, ReportUnit, Project, Department } = require('../models');
+const { Report, ReportUnit, Project, Department, Business } = require('../models');
 const { errorResponse, successResponse } = require('../middleware/errorHandler');
 const { authenticateToken } = require('../middleware/auth');
 const { getUserScope } = require('../middleware/access_scope');
 const { logAudit } = require('../services/auditService');
 const { buildAutoSnapshot } = require('../services/reportUnitSnapshot');
+const { buildIntegratedRollup } = require('../services/integratedRollup');
 
 router.get('/share/:token', async (req, res, next) => {
   try {
@@ -189,6 +190,85 @@ router.post('/:biz/unit/:id/reopen', authenticateToken, async (req, res, next) =
     logAudit(req, { action: 'report_unit.reopen', targetType: 'report_unit', targetId: unit.id, businessId });
     broadcastReport(req, businessId, unit, 'reopened');
     return successResponse(res, mergedView(unit, true));
+  } catch (err) { next(err); }
+});
+
+// ════════════════════════════════════════════════════════════════
+// 통합 보고서 롤업 (R3, 마스터설계 §4.4·§6.2) — 확정본 자동 취합 + 통합확정
+// ════════════════════════════════════════════════════════════════
+
+// GET /:biz/integrated?period_type=&period_start= — 통합 롤업 (member 이상 view)
+router.get('/:biz/integrated', authenticateToken, async (req, res, next) => {
+  try {
+    const businessId = Number(req.params.biz);
+    if (!businessId) return errorResponse(res, 'business_id_required', 400);
+    const { member } = await loadScope(req, businessId);
+    if (!member) return errorResponse(res, 'member_only', 403);
+
+    const periodType = String(req.query.period_type || 'weekly');
+    const periodStart = String(req.query.period_start || '');
+    if (!VALID_PERIOD.includes(periodType)) return errorResponse(res, 'invalid_period_type', 400);
+    if (!DATE_RE.test(periodStart)) return errorResponse(res, 'invalid_period_start', 400);
+
+    const biz = await Business.findByPk(businessId, { attributes: ['report_integrated_confirm', 'monthly_finalize_enabled'] });
+    const rollup = await buildIntegratedRollup(businessId, periodType, periodStart);
+    // 통합 확정 단위의 서술(executive summary) 첨부
+    const wsUnit = rollup.integrated.id ? await ReportUnit.findByPk(rollup.integrated.id, { attributes: ['narrative'] }) : null;
+    return successResponse(res, {
+      ...rollup,
+      settings: { integrated_confirm: !!biz?.report_integrated_confirm, monthly_finalize: !!biz?.monthly_finalize_enabled },
+      executive_summary: wsUnit?.narrative || '',
+    });
+  } catch (err) { next(err); }
+});
+
+// POST /:biz/integrated/confirm — 통합 확정 (owner/admin, report_integrated_confirm ON 일 때만)
+router.post('/:biz/integrated/confirm', authenticateToken, async (req, res, next) => {
+  try {
+    const businessId = Number(req.params.biz);
+    const { member, ownerOrAdmin } = await loadScope(req, businessId);
+    if (!member) return errorResponse(res, 'member_only', 403);
+    if (!ownerOrAdmin) return errorResponse(res, 'owner_or_admin_only', 403);
+    const periodType = String(req.body?.period_type || 'weekly');
+    const periodStart = String(req.body?.period_start || '');
+    if (!VALID_PERIOD.includes(periodType)) return errorResponse(res, 'invalid_period_type', 400);
+    if (!DATE_RE.test(periodStart)) return errorResponse(res, 'invalid_period_start', 400);
+
+    const biz = await Business.findByPk(businessId, { attributes: ['report_integrated_confirm'] });
+    if (!biz?.report_integrated_confirm) return errorResponse(res, 'integrated_confirm_disabled', 409);
+
+    const rollup = await buildIntegratedRollup(businessId, periodType, periodStart);
+    const [unit] = await ReportUnit.findOrCreate({
+      where: { business_id: businessId, scope: 'workspace', scope_ref_id: 0, period_type: periodType, period_start: periodStart },
+      defaults: { status: 'draft', auto_snapshot: rollup },
+    });
+    const patch = {
+      auto_snapshot: rollup, status: 'confirmed',
+      confirmed_by: req.user.id, confirmed_at: new Date(), finalized_by: 'manual',
+    };
+    if (typeof req.body?.executive_summary === 'string') patch.narrative = req.body.executive_summary.slice(0, 20000);
+    await unit.update(patch);
+    logAudit(req, { action: 'report_integrated.confirm', targetType: 'report_unit', targetId: unit.id, businessId, newValue: { period_type: periodType, period_start: periodStart } });
+    broadcastReport(req, businessId, unit, 'integrated_confirmed');
+    return successResponse(res, { id: unit.id, status: unit.status });
+  } catch (err) { next(err); }
+});
+
+// POST /:biz/integrated/reopen — 통합 확정 되돌리기 (owner/admin)
+router.post('/:biz/integrated/reopen', authenticateToken, async (req, res, next) => {
+  try {
+    const businessId = Number(req.params.biz);
+    const { member, ownerOrAdmin } = await loadScope(req, businessId);
+    if (!member) return errorResponse(res, 'member_only', 403);
+    if (!ownerOrAdmin) return errorResponse(res, 'owner_or_admin_only', 403);
+    const periodType = String(req.body?.period_type || 'weekly');
+    const periodStart = String(req.body?.period_start || '');
+    const unit = await ReportUnit.findOne({ where: { business_id: businessId, scope: 'workspace', scope_ref_id: 0, period_type: periodType, period_start: periodStart } });
+    if (!unit || unit.status !== 'confirmed') return errorResponse(res, 'not_confirmed', 409);
+    await unit.update({ status: 'draft', confirmed_by: null, confirmed_at: null, finalized_by: null });
+    logAudit(req, { action: 'report_integrated.reopen', targetType: 'report_unit', targetId: unit.id, businessId });
+    broadcastReport(req, businessId, unit, 'integrated_reopened');
+    return successResponse(res, { id: unit.id, status: unit.status });
   } catch (err) { next(err); }
 });
 

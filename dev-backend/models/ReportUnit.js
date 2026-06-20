@@ -21,12 +21,13 @@ ReportUnit.init({
     references: { model: 'businesses', key: 'id' },
   },
   scope: {
-    type: DataTypes.ENUM('member', 'project', 'department'),
+    // workspace = 통합 보고서 확정(R3, scope_ref_id=0)
+    type: DataTypes.ENUM('member', 'project', 'department', 'workspace'),
     allowNull: false,
   },
   scope_ref_id: {
     type: DataTypes.INTEGER, allowNull: false,
-    comment: 'user_id | project_id | department_id',
+    comment: 'user_id | project_id | department_id | 0(workspace)',
   },
   period_type: {
     type: DataTypes.ENUM('weekly', 'monthly'),
