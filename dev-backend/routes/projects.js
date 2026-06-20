@@ -11,7 +11,7 @@ const {
   BusinessMember, User, Business, Client,
   ProjectStatusOption, ProjectProcessColumn, ProjectProcessPart,
   File, FileFolder, MessageAttachment, TaskAttachment,
-  ProjectWorkstream, Post, Document, Department, Team, TaskLink,
+  ProjectWorkstream, Post, Document, Department, Team, TaskLink, ProjectStage,
 } = require('../models');
 const { successResponse, errorResponse, parsePagination, paginatedResponse } = require('../middleware/errorHandler');
 const { authenticateToken } = require('../middleware/auth');
@@ -20,6 +20,7 @@ const taskExtractor = require('../services/task_extractor');
 const cueOrchestrator = require('../services/cue_orchestrator');
 const { applyMemberDisplayName, applyMemberDisplayNameOne } = require('../services/displayName');
 const { todayInTz, mondayOfDateStr, addDaysStr } = require('../utils/datetime');
+const { fetchProjectStats } = require('../services/weeklyReviewSnapshot');
 
 // ============================================
 // 공통 미들웨어: 워크스페이스 접근 확인 (BusinessMember 기준)
@@ -1372,6 +1373,99 @@ router.post('/:id/workstreams/reorder', authenticateToken, async (req, res, next
       ProjectWorkstream.update({ order_index: idx }, { where: { id, project_id: project.id } })));
     broadcastCanvas(req, project, 'workstream_reordered');
     return successResponse(res, { reordered: true });
+  } catch (err) { next(err); }
+});
+
+// GET /:id/report — #64 프로젝트뷰 (Live 파생 상태 보고서). 멤버 전용.
+//   캔버스 직렬화(전략·지표·워크스트림) + fetchProjectStats(health·진행델타) + 금주/차주·이슈·산출물·팀.
+router.get('/:id/report', authenticateToken, async (req, res, next) => {
+  try {
+    const { project, role, error } = await loadProjectOrForbidden(Number(req.params.id), req.user.id);
+    if (error) return errorResponse(res, error.message, error.code);
+    if (role === 'client') return errorResponse(res, 'member_only', 403);
+    const bizId = project.business_id;
+
+    const today = todayInTz('Asia/Seoul');
+    const weekStart = req.query.week_start && /^\d{4}-\d{2}-\d{2}$/.test(req.query.week_start)
+      ? mondayOfDateStr(req.query.week_start) : mondayOfDateStr(today);
+    const weekEnd = addDaysStr(weekStart, 6);
+    const nextWeekStart = addDaysStr(weekStart, 7);
+
+    // 정규 health·진행델타 (주간보고와 동일 로직)
+    const stats = (await fetchProjectStats(bizId, [project.id], weekStart, true))[0] || {
+      progress_percent: 0, progress_delta: 0, completed_tasks: 0, total_tasks: 0,
+      overdue_count: 0, open_issues: 0, end_date: project.end_date, d_day: null, health: 'yellow',
+    };
+
+    // 프로젝트 전체 task (rollup·하이라이트·리스크·금주/차주·팀 파생)
+    const allTasks = await Task.findAll({
+      where: { project_id: project.id },
+      attributes: ['id', 'title', 'status', 'due_date', 'progress_percent', 'assignee_id', 'workstream_id', 'planned_week_start', 'completed_at'],
+      include: [{ model: User, as: 'assignee', attributes: ['id', 'name', 'name_localized'], required: false }],
+    });
+    const tp = allTasks.map((t) => t.toJSON());
+    await applyMemberDisplayName(tp, bizId, ['assignee']);
+
+    const workstreams = await ProjectWorkstream.findAll({ where: { project_id: project.id }, order: [['order_index', 'ASC'], ['id', 'ASC']] });
+    const inWeek = (d) => d && String(d).slice(0, 10) >= weekStart && String(d).slice(0, 10) <= weekEnd;
+    const briefOf = (t) => ({ id: t.id, title: t.title, status: t.status, due_date: t.due_date, assignee_name: t.assignee?.name || null, workstream_id: t.workstream_id });
+
+    const highlights = tp.filter((t) => t.status === 'completed' && inWeek(t.completed_at)).map(briefOf).slice(0, 12);
+    const risks = tp.filter((t) => t.due_date && String(t.due_date).slice(0, 10) < today && t.status !== 'completed' && t.status !== 'canceled').map(briefOf).slice(0, 12);
+    const nextWeek = tp.filter((t) => t.planned_week_start && String(t.planned_week_start).slice(0, 10) === nextWeekStart && t.status !== 'canceled').map(briefOf);
+    const thisWeekCompleted = highlights.length;
+
+    // 팀 — 프로젝트 멤버별 active/완료 task 수
+    const pms = await ProjectMember.findAll({ where: { project_id: project.id }, include: [{ model: User, attributes: ['id', 'name', 'name_localized'], required: false }] });
+    const bms = pms.length ? await BusinessMember.findAll({
+      where: { business_id: bizId, user_id: { [Op.in]: pms.map((p) => p.user_id).filter(Boolean) } },
+      include: [{ model: Department, as: 'department', attributes: ['name'], required: false }],
+    }) : [];
+    const deptByUser = new Map(bms.map((b) => [b.user_id, b.department?.name || null]));
+    const team = pms.map((pm) => {
+      const mine = tp.filter((t) => t.assignee_id === pm.user_id && t.status !== 'canceled');
+      return {
+        user_id: pm.user_id,
+        name: pm.User?.name_localized?.ko || pm.User?.name || `user ${pm.user_id}`,
+        dept: deptByUser.get(pm.user_id) || null,
+        active: mine.filter((t) => t.status !== 'completed').length,
+        completed: mine.filter((t) => t.status === 'completed').length,
+      };
+    });
+
+    // 산출물·이슈·단계
+    const [posts, documents, issues, stages] = await Promise.all([
+      Post.findAll({ where: { project_id: project.id, status: 'published' }, attributes: ['id', 'title', 'category', 'created_at'], order: [['created_at', 'DESC']], limit: 20 }),
+      Document.findAll({ where: { project_id: project.id }, attributes: ['id', 'title', 'kind', 'created_at'], order: [['created_at', 'DESC']], limit: 20 }),
+      ProjectIssue.findAll({ where: { project_id: project.id }, attributes: ['id', 'body', 'created_at'], order: [['created_at', 'DESC']], limit: 10 }),
+      ProjectStage.findAll({ where: { project_id: project.id }, attributes: ['id', 'kind', 'label', 'status', 'order_index'], order: [['order_index', 'ASC']] }),
+    ]);
+    const deliverables = [
+      ...posts.map((p) => ({ kind: 'post', id: p.id, title: p.title, category: p.category, created_at: p.created_at, link: `/projects/p/${project.id}?tab=docs&post=${p.id}` })),
+      ...documents.map((d) => ({ kind: 'document', id: d.id, title: d.title, category: d.kind, created_at: d.created_at, link: `/documents/${d.id}` })),
+    ].sort((a, b) => new Date(b.created_at) - new Date(a.created_at)).slice(0, 20);
+
+    return successResponse(res, {
+      project: { id: project.id, name: project.name, status: project.status, start_date: project.start_date, end_date: project.end_date, owner_user_id: project.owner_user_id },
+      period: { week_start: weekStart, week_end: weekEnd },
+      kpi: {
+        progress_percent: stats.progress_percent, progress_delta: stats.progress_delta,
+        completed_tasks: stats.completed_tasks, total_tasks: stats.total_tasks,
+        overdue_count: stats.overdue_count, open_issues: stats.open_issues,
+        d_day: stats.d_day, health: stats.health, this_week_completed: thisWeekCompleted,
+      },
+      strategy: {
+        context: project.strategy_context, key_question: project.strategy_key_question,
+        goal: project.strategy_goal, governing_thought: project.strategy_governing_thought, approach: project.strategy_approach,
+      },
+      success_metrics: Array.isArray(project.success_metrics) ? project.success_metrics : [],
+      workstreams: workstreams.map((ws) => serializeWorkstream(ws, tp)),
+      highlights, risks, next_week: nextWeek,
+      stages: stages.map((s) => ({ id: s.id, kind: s.kind, label: s.label, status: s.status })),
+      issues: issues.map((i) => ({ id: i.id, body: i.body, created_at: i.created_at })),
+      deliverables,
+      team,
+    });
   } catch (err) { next(err); }
 });
 

@@ -720,4 +720,5 @@ module.exports = {
   buildSnapshot,
   buildWorkspaceSnapshot,
   getUserCapacity,
+  fetchProjectStats,  // #64 프로젝트뷰 — health·진행델타 정규 로직 재사용
 };

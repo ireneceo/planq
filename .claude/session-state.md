@@ -1,8 +1,17 @@
 # PlanQ 세션 상태
 
 ## 현재 작업 상태
-**마지막 업데이트:** 2026-06-20 (3)
-**작업 상태:** ✅ 운영 배포 완료 — v1.43.0 (D2-a 유형 + D2-b 담당자 게이트 + D3 캔버스). deploy `20260620_052818` · commit `36c963c` · 137초 · 운영 헬스 200 · DB 스키마 전량 자동생성(project_workstreams·strategy 6컬럼·tasks.workstream_id·clients.kind ENUM).
+**마지막 업데이트:** 2026-06-20 (4)
+**작업 상태:** ✅ v1.43.0 운영 배포 완료 + **#64 프로젝트뷰(보고서) dev 검증·미배포**
+
+### 완료된 작업 (2026-06-20 — #64 프로젝트 보고서뷰)
+- **#64 보고서 3-렌즈 중 프로젝트뷰 — dev 검증, 미배포.** 결정: 프로젝트뷰=**Live 파생**(새 테이블/cron 0), 이번 사이클 프로젝트뷰만(부서뷰 다음, 통합뷰 기존 유지).
+  - **백엔드:** `GET /api/projects/:id/report?week_start=`(멤버전용 client 403) — `fetchProjectStats`(weeklyReviewSnapshot, health·진행델타 정규로직 export+재사용) + 캔버스 직렬화(전략·지표·워크스트림 rollup) + 금주완료/지연/차주·이슈·산출물·팀(부서)·stages 집계. 새 스키마 0.
+  - **프론트:** `WeeklyReviewTab` workspace 서브탭에 **`projects` 렌즈 추가**(integrated/members 옆) → 프로젝트 선택 + `ProjectReportView`(KPI+health배지+델타 → 전략요약 → 워크스트림 진행바 → 금주완료/지연 → 차주 → 산출물/팀). `services/projectReport.ts`. i18n qtask weeklyReview.project ko/en.
+  - **검증:** 헬스 29/29 · 빌드 EXIT0 · report 멤버 200(13키)·client 403·cross-tenant 403·익명 401 · i18n 0 · qtask ko/en 637/637 · /q-task 200. **미배포.**
+
+### 이전 배포 (2026-06-20 (3))
+- ✅ v1.43.0 운영 배포 — D2-a 유형 + D2-b 담당자 게이트 + D3 캔버스. deploy `20260620_052818` · commit `36c963c` · 137초 · DB 스키마 전량 자동생성.
 
 ### 진행 중인 작업
 - 없음
@@ -32,7 +41,8 @@
 - **D2-a #66 외부파트너 유형 — dev 검증(미배포)**: `clients.kind` ENUM(customer/vendor/freelancer/other) + clients 라우트 + ClientsPage 배지·초대선택·드로어편집 + 메뉴/제목 "고객·파트너". kind E2E 5/5.
 
 ### 다음 할 일
-1. **미배포 D2-a + D2-b + D3 캔버스 `/배포`** — clients.kind ENUM + 담당자 게이트/picker + 프로젝트 캔버스(project_workstreams 테이블·projects 6컬럼·tasks.workstream_id 전부 sync 자동). dev 검증 통과, 운영 push 대기(명시적 `/배포`).
+1. **미배포 #64 프로젝트뷰 `/배포`** — `GET /projects/:id/report` + WeeklyReviewTab projects 렌즈. 새 스키마 0(Live 파생) → sync 불필요. dev 검증 통과, 운영 push 대기. (D2·D3 는 v1.43.0 으로 이미 배포됨)
+1b. **#64 잔여 렌즈:** 부서뷰(D1 org /overview 패턴 — 부서별 멤버 가동률·완료·이슈 롤업). 통합뷰는 기존 유지.
 1b. **D3 #65 후속(선택):** 옛 dashboard 의 메모(ProjectNote) 카드가 캔버스에서 빠짐 — 필요 시 캔버스에 메모 섹션 추가. 업무연계도 인터랙티브 그래프(현재 레인+링크뱃지 v1)는 v2.
 2. **D2-b 후속(선택):** QTaskPage 전역 리스트 인라인 quick-picker 는 멤버만 노출(프로젝트가 행마다 달라 외부 후보 fetch 복잡) — 외부 배정은 업무 드로어로. 필요 시 확장.
 3. **D3:** #65 프로젝트 전략필드(목표·핵심메시지·추진배경·추진방식·실행방안)+종합 타임라인+금주/차주+산출물+업무연계도 / #64 통합보고서 통합뷰·프로젝트뷰 분리. (D1 조직 + D2 외부파트너 위에 얹힘)
