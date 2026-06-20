@@ -2,11 +2,31 @@
 //   자동초안 find-or-create → 책임자 수정(narrative/overrides) → 확정/되돌리기.
 import { apiFetch } from '../contexts/AuthContext';
 
-export type ReportScope = 'project' | 'department';
+export type ReportScope = 'project' | 'member';
 export type ReportPeriodType = 'weekly' | 'monthly';
 export type ReportStatus = 'draft' | 'confirmed';
 
-export interface TaskBrief { id: number; title: string; status: string; due_date: string | null; assignee_name: string | null; workstream_id: number | null; }
+export interface TaskBrief { id: number; title: string; status: string; due_date: string | null; assignee_name: string | null; progress_percent: number; project_name?: string | null; workstream_id?: number | null; }
+export interface WorkstreamBrief { id: number; title: string; color: string | null; total: number; progress_percent: number; }
+export interface IssueBrief { id: number; body: string; }
+export interface DeliverableBrief { kind: 'post' | 'document'; id: number; title: string; link: string; }
+export interface ReportSnapshot {
+  scope: ReportScope;
+  period?: { type: ReportPeriodType; start: string; end: string };
+  subject?: { id?: number; user_id?: number; name?: string; status?: string; department?: string | null; start_date?: string | null; end_date?: string | null; owner_user_id?: number };
+  strategy?: { context: string | null; key_question: string | null; goal: string | null; governing_thought: string | null; approach: string | null };
+  kpi?: Record<string, number>;
+  workstreams?: WorkstreamBrief[];
+  highlights?: TaskBrief[];
+  in_progress?: TaskBrief[];
+  risks?: TaskBrief[];
+  blockers?: TaskBrief[];
+  issues?: IssueBrief[];
+  deliverables?: DeliverableBrief[];
+  next?: TaskBrief[];
+  team?: { user_id: number; name: string; active: number; completed: number }[];
+  stakeholders?: { id: number; name: string }[];
+}
 export interface ReportUnitData {
   id: number;
   scope: ReportScope;
@@ -20,20 +40,7 @@ export interface ReportUnitData {
   narrative: string;
   has_overrides: boolean;
   can_edit: boolean;
-  // snapshot 은 scope 에 따라 형태가 다름 (project: kpi·highlights·risks·next·team / department: kpi·members·highlights·risks)
-  snapshot: {
-    scope: ReportScope;
-    period?: { type: ReportPeriodType; start: string; end: string };
-    subject?: Record<string, unknown>;
-    kpi?: Record<string, number>;
-    highlights?: TaskBrief[];
-    risks?: TaskBrief[];
-    next?: TaskBrief[];
-    team?: { user_id: number; name: string; active: number; completed: number }[];
-    members?: { user_id: number; name: string; active: number; completed: number; overdue: number; completed_in_period: number }[];
-    headline?: string;
-    [k: string]: unknown;
-  };
+  snapshot: ReportSnapshot;
 }
 
 async function jsonOf(r: Response) { const j = await r.json(); if (!j.success) throw new Error(j.message || 'failed'); return j.data; }
@@ -52,27 +59,25 @@ export async function reopenReportUnit(businessId: number, id: number): Promise<
   return jsonOf(await apiFetch(`/api/reports/${businessId}/unit/${id}/reopen`, { method: 'POST' }));
 }
 
-// ── 통합 롤업 (R3) ──
-export interface IntegratedUnitRow {
+// ── 통합 롤업 (재설계) — 프로젝트별/개인별 "내용까지" + 확정상태 ──
+export interface IntegratedUnitView {
   scope: ReportScope; ref_id: number; name: string;
   unit_status: ReportStatus; confirmed: boolean;
-  progress_percent: number; completed_tasks: number; total_tasks: number; overdue_count: number;
-  health: string | null; completed_in_period: number;
-}
-export interface IntegratedMemberRow {
-  user_id: number; name: string; total: number; active: number; completed: number; overdue: number; completed_in_period: number;
+  finalized_by: 'manual' | 'auto' | null; confirmed_at: string | null;
+  narrative: string;
+  department?: string | null;  // member 만
+  snap: ReportSnapshot;
 }
 export interface IntegratedRollup {
   period: { type: ReportPeriodType; start: string };
   summary: {
     projects_total: number; projects_confirmed: number;
-    departments_total: number; departments_confirmed: number;
-    completed_tasks: number; overdue_count: number; avg_progress: number; completed_in_period: number;
-    health_counts: { green: number; yellow: number; red: number };
+    members_total: number; members_confirmed: number;
+    completed_in_period: number; in_progress: number; open_issues: number; overdue: number; deliverables: number;
+    all_confirmed: boolean;
   };
-  projects: IntegratedUnitRow[];
-  departments: IntegratedUnitRow[];
-  members: IntegratedMemberRow[];
+  projects: IntegratedUnitView[];
+  members: IntegratedUnitView[];
   integrated: { id: number | null; status: ReportStatus; confirmed_by: number | null; confirmed_at: string | null; finalized_by: 'manual' | 'auto' | null };
   settings: { integrated_confirm: boolean; monthly_finalize: boolean };
   executive_summary: string;

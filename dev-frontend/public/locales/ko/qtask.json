@@ -551,7 +551,9 @@
       "emptyHint": "금요일·일요일에 \"이번 주 마무리\" 또는 자동 확정으로 누적해보세요.",
       "autoBadge": "자동",
       "manualBadge": "수동",
-      "weekLabel": "{{n}}월 {{w}}주차"
+      "weekLabel": "{{n}}월 {{w}}주차",
+      "weekly": "주간 보고서",
+      "monthly": "월간 보고서"
     },
     "view": {
       "back": "결산 목록",
@@ -686,9 +688,30 @@
       "projectsTab": "프로젝트별 보고",
       "departmentsTab": "부서별 보고"
     },
+    "content": {
+      "done": "완료한 업무",
+      "inProgress": "진행 중",
+      "issues": "이슈 · 리스크",
+      "blockers": "블로커",
+      "deliverables": "산출물",
+      "next": "다음 계획",
+      "people": "팀 · 이해관계자"
+    },
+    "ws": {
+      "integrated": "통합보고서",
+      "projects": "프로젝트별 보고서",
+      "members": "개별 보고서"
+    },
     "integrated": {
       "loadError": "통합 현황을 불러오지 못했습니다",
       "history": "통합 보고서 히스토리",
+      "monthLabelY": "{{y}}년 {{m}}월",
+      "reportSuffix": "통합보고서",
+      "allDone": "전체 확정 완료",
+      "confProgress": "확정 {{p}}/{{total}}",
+      "noUnits": "대상이 없습니다",
+      "detail": "자세히 ▾",
+      "collapse": "접기 ▴",
       "weekLabel": "{{m}}월 {{w}}주차",
       "live": "live",
       "reportTitle": "{{period}} 통합보고서",
@@ -729,9 +752,9 @@
       "weekly": "주간",
       "monthly": "월간",
       "prev": "이전",
-      "next": "다음",
+      "next": "다음 기간 계획",
       "monthLabel": "{{y}}년 {{m}}월",
-      "draft": "자동 초안",
+      "draft": "작성 중",
       "confirmed": "확정됨",
       "draftHint": "live 집계 — 책임자가 검토·확정하면 박제됩니다",
       "confirmedAt": "{{d}} 확정",
@@ -747,7 +770,6 @@
       "noHighlights": "완료된 업무가 없습니다",
       "risks": "지연·리스크",
       "noRisks": "지연된 업무가 없습니다",
-      "next": "다음 기간 계획",
       "team": "팀 기여",
       "members": "멤버별 기여",
       "member": "멤버",
@@ -766,7 +788,9 @@
         "overdue": "지연",
         "health": "상태",
         "completedInPeriod": "기간 내 완료"
-      }
+      },
+      "pmComment": "PM 업무보고",
+      "myComment": "내 코멘트"
     },
     "project": {
       "retry": "다시 시도",

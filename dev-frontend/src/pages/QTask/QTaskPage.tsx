@@ -1354,7 +1354,7 @@ const QTaskPage:React.FC=()=>{
               {badgeCounts.requested>0&&<TabBadge $active={tab==='requested'}>{badgeCounts.requested}</TabBadge>}
             </TabBtn>
             <TabBtn type="button" $active={tab==='weekly-review'} onClick={()=>setTab('weekly-review')}>
-              {t('tab.weeklyReviewMine', { defaultValue: '지난주 내 업무보고' }) as string}
+              {t('tab.weeklyReviewMine', { defaultValue: '나의 보고서' }) as string}
             </TabBtn>
           </TabBar>
         )}
@@ -1382,7 +1382,7 @@ const QTaskPage:React.FC=()=>{
               {t('tab.workspaceTasks', { defaultValue: '전체 업무' }) as string}
             </TabBtn>
             <TabBtn type="button" $active={tab==='workspace-weekly'} onClick={()=>setTab('workspace-weekly')}>
-              {t('tab.workspaceWeekly', { defaultValue: '전체 주간보고' }) as string}
+              {t('tab.workspaceWeekly', { defaultValue: '전체 보고서' }) as string}
             </TabBtn>
           </TabBar>
         )}

@@ -551,7 +551,9 @@
       "emptyHint": "Use \"Wrap Up Week\" button or enable auto-save to build your history.",
       "autoBadge": "Auto",
       "manualBadge": "Manual",
-      "weekLabel": "Week {{w}} of {{n}}"
+      "weekLabel": "Week {{w}} of {{n}}",
+      "weekly": "Weekly report",
+      "monthly": "Monthly report"
     },
     "view": {
       "back": "Back to list",
@@ -720,7 +722,14 @@
       "setIntegrated": "Use integrated confirm step",
       "setIntegratedHint": "On: the owner confirms the integrated report once. Off: auto-visible as units confirm.",
       "setMonthly": "Monthly auto-confirm",
-      "setMonthlyHint": "Auto-confirm unconfirmed unit reports at month close."
+      "setMonthlyHint": "Auto-confirm unconfirmed unit reports at month close.",
+      "monthLabelY": "{{m}}/{{y}}",
+      "reportSuffix": "Integrated report",
+      "allDone": "All confirmed",
+      "confProgress": "Confirmed {{p}}/{{total}}",
+      "noUnits": "No units",
+      "detail": "Details ▾",
+      "collapse": "Collapse ▴"
     },
     "unit": {
       "loadError": "Failed to load the report",
@@ -729,9 +738,9 @@
       "weekly": "Weekly",
       "monthly": "Monthly",
       "prev": "Previous",
-      "next": "Next",
+      "next": "Next period plan",
       "monthLabel": "{{m}}/{{y}}",
-      "draft": "Auto draft",
+      "draft": "Draft",
       "confirmed": "Confirmed",
       "draftHint": "Live aggregate — confirm to lock the snapshot",
       "confirmedAt": "Confirmed {{d}}",
@@ -747,7 +756,6 @@
       "noHighlights": "No completed tasks",
       "risks": "Overdue / Risks",
       "noRisks": "No overdue tasks",
-      "next": "Next period plan",
       "team": "Team contribution",
       "members": "By member",
       "member": "Member",
@@ -766,7 +774,9 @@
         "overdue": "Overdue",
         "health": "Health",
         "completedInPeriod": "Done in period"
-      }
+      },
+      "pmComment": "PM report",
+      "myComment": "My comment"
     },
     "project": {
       "retry": "Retry",
@@ -816,6 +826,20 @@
       "noMembers": "No department members",
       "name": "Name",
       "role": "Role"
+    },
+    "content": {
+      "done": "Completed",
+      "inProgress": "In progress",
+      "issues": "Issues · Risks",
+      "blockers": "Blockers",
+      "deliverables": "Deliverables",
+      "next": "Next plan",
+      "people": "Team · Stakeholders"
+    },
+    "ws": {
+      "integrated": "Integrated",
+      "projects": "By project",
+      "members": "By member"
     }
   },
   "rowAction": {
