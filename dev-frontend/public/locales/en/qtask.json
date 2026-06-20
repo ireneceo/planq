@@ -665,7 +665,8 @@
       "membersTab": "Member weekly reports",
       "empty": "No integrated report yet",
       "emptyHint": "A workspace integrated report is auto-finalized every Sunday.",
-      "projectsTab": "Projects"
+      "projectsTab": "Projects",
+      "departmentsTab": "Departments"
     },
     "project": {
       "retry": "Retry",
@@ -698,6 +699,23 @@
       "noDeliverables": "No deliverables",
       "team": "Team",
       "noTeam": "No participants"
+    },
+    "dept": {
+      "company": "Whole company",
+      "loadError": "Failed to load department status",
+      "members": "People",
+      "active": "Active tasks",
+      "doneWeek": "Done this week",
+      "overdue": "Overdue",
+      "byDepartment": "By department",
+      "noDepartments": "No departments registered",
+      "unassigned": "Unassigned",
+      "peopleSuffix": "",
+      "activeN": "Active {{n}}",
+      "byMember": "By member",
+      "noMembers": "No department members",
+      "name": "Name",
+      "role": "Role"
     }
   },
   "rowAction": {

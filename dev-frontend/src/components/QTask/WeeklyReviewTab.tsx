@@ -17,6 +17,7 @@ import WeeklyReviewView from './WeeklyReviewView';
 import WeeklyReviewWorkspaceView from './WeeklyReviewWorkspaceView';
 import WorkspaceFinalizeBanner from './WorkspaceFinalizeBanner';
 import ProjectReportView from './ProjectReportView';
+import DepartmentReportView from './DepartmentReportView';
 import { listActiveProjects, type ProjectLite } from '../../services/projectReport';
 import PlanQSelect, { type PlanQSelectOption } from '../Common/PlanQSelect';
 import SearchBox from '../Common/SearchBox';
@@ -35,7 +36,7 @@ const WeeklyReviewTab: React.FC<Props> = ({ businessId, userId, reviewScope = 'm
   // 운영 #56 — 통합 보고서 제목에 워크스페이스 이름 (예: "워프로랩 통합보고서")
   const wsName = user?.business_name || '';
   // 운영 #56 — workspace 모드는 [통합보고서]/[멤버 주간보고] 서브탭으로 분리 (맥락이 달라 위아래 stacking 정렬 혼란 해소)
-  const [wsSubTab, setWsSubTab] = useState<'integrated' | 'members' | 'projects'>('integrated');
+  const [wsSubTab, setWsSubTab] = useState<'integrated' | 'members' | 'projects' | 'departments'>('integrated');
   // #64 프로젝트뷰 — active 프로젝트 목록 + 선택
   const [projectsList, setProjectsList] = useState<ProjectLite[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null);
@@ -161,7 +162,14 @@ const WeeklyReviewTab: React.FC<Props> = ({ businessId, userId, reviewScope = 'm
             $active={wsSubTab === 'projects'} onClick={() => setWsSubTab('projects')}>
             {t('weeklyReview.workspace.projectsTab', { defaultValue: '프로젝트별 보고' })}
           </WsSubTabBtn>
+          <WsSubTabBtn type="button" role="tab" aria-selected={wsSubTab === 'departments'}
+            $active={wsSubTab === 'departments'} onClick={() => setWsSubTab('departments')}>
+            {t('weeklyReview.workspace.departmentsTab', { defaultValue: '부서별 보고' })}
+          </WsSubTabBtn>
         </WsSubTabBar>
+      )}
+      {reviewScope === 'workspace' && wsSubTab === 'departments' && (
+        <ProjectsLens><DepartmentReportView businessId={businessId} /></ProjectsLens>
       )}
       {reviewScope === 'workspace' && wsSubTab === 'projects' && (
         <ProjectsLens>
@@ -185,7 +193,7 @@ const WeeklyReviewTab: React.FC<Props> = ({ businessId, userId, reviewScope = 'm
           )}
         </ProjectsLens>
       )}
-      {!(reviewScope === 'workspace' && wsSubTab === 'projects') && (
+      {!(reviewScope === 'workspace' && (wsSubTab === 'projects' || wsSubTab === 'departments')) && (
       <Header>
         <HeaderLeft>
           {reviewScope === 'workspace' && wsSubTab === 'members' && (() => {

@@ -665,7 +665,8 @@
       "membersTab": "멤버 주간보고",
       "empty": "아직 통합 보고서가 없습니다",
       "emptyHint": "매주 일요일 자동으로 워크스페이스 통합 보고서가 박제됩니다.",
-      "projectsTab": "프로젝트별 보고"
+      "projectsTab": "프로젝트별 보고",
+      "departmentsTab": "부서별 보고"
     },
     "project": {
       "retry": "다시 시도",
@@ -698,6 +699,23 @@
       "noDeliverables": "산출물이 없습니다",
       "team": "팀",
       "noTeam": "참여자가 없습니다"
+    },
+    "dept": {
+      "company": "전체 회사",
+      "loadError": "부서 현황을 불러오지 못했습니다",
+      "members": "인원",
+      "active": "진행 업무",
+      "doneWeek": "금주 완료",
+      "overdue": "지연",
+      "byDepartment": "부서별 현황",
+      "noDepartments": "등록된 부서가 없습니다",
+      "unassigned": "미배정",
+      "peopleSuffix": "명",
+      "activeN": "진행 {{n}}",
+      "byMember": "멤버별 현황",
+      "noMembers": "부서 멤버가 없습니다",
+      "name": "이름",
+      "role": "직무"
     }
   },
   "rowAction": {
