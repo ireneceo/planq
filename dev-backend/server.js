@@ -492,6 +492,9 @@ scheduleNextMidnight();
 // 주간 보고 자동 박제 cron (매시간 0분)
 const { initWeeklyReviewCron } = require('./services/weeklyReviewCron');
 initWeeklyReviewCron();
+// R3 — 단위 보고서 주/월 경계 자동확정 (직전 기간, 멱등)
+const { initReportUnitCron } = require('./services/reportUnitCron');
+initReportUnitCron();
 // N+63 — 일정 임박 알림 cron (5분 단위)
 const { initCalendarReminderCron } = require('./services/calendarReminderCron');
 initCalendarReminderCron();
