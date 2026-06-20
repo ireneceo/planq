@@ -1,6 +1,6 @@
 // ScheduleTimeline — R1 전체 일정 진행 타임라인 (시그니처, 캔버스+보고서 공유)
 //   가로 축에 업무·마일스톤 배치 + "지금 여기" 마커 + 워크스트림 색 + 진행률·일정대비.
-import { Fragment, useMemo } from 'react';
+import { Fragment, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { WORKSTREAM_PALETTE } from '../../services/projectCanvas';
@@ -67,6 +67,31 @@ export default function ScheduleTimeline({ data, keyOnly, onToggleKeyOnly, onTas
     : sc === 'behind' ? { bg: '#FEE2E2', fg: '#B91C1C', key: 'behind' }
     : { bg: '#F0FDFA', fg: '#0F766E', key: 'ontrack' };
 
+  // 반응형 — 긴/조밀한 타임라인은 가로 스크롤. 트랙 최소 px 폭(월당 ~84px) 확보 → 좁은 화면·모바일에서 압축 대신 스크롤.
+  const contentPx = useMemo(() => {
+    if (!range) return 560;
+    const months = (range.to - range.from) / (DAY * 30.4);
+    return Math.max(560, Math.round(months * 84));
+  }, [range]);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [scrollable, setScrollable] = useState(false);
+  useLayoutEffect(() => {
+    const el = scrollRef.current; if (!el) return;
+    const measure = () => setScrollable(el.scrollWidth > el.clientWidth + 4);
+    measure();
+    // 진입 시 '오늘'이 보이도록 스크롤 (넘칠 때만) — 측정은 layout phase 에서 즉시 (RAF 지연 금지)
+    if (el.scrollWidth > el.clientWidth + 4 && todayPos != null) {
+      el.scrollLeft = Math.max(0, (todayPos / 100) * el.scrollWidth - el.clientWidth / 2);
+    }
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [contentPx, todayPos]);
+  const scrollToToday = () => {
+    const el = scrollRef.current; if (!el || todayPos == null) return;
+    el.scrollTo({ left: Math.max(0, (todayPos / 100) * el.scrollWidth - el.clientWidth / 2), behavior: 'smooth' });
+  };
+
   return (
     <Card>
       {/* 진행 요약 */}
@@ -79,6 +104,9 @@ export default function ScheduleTimeline({ data, keyOnly, onToggleKeyOnly, onTas
         {data.progress.d_day != null && <Chip>{data.progress.d_day >= 0 ? `D-${data.progress.d_day}` : `D+${-data.progress.d_day}`}</Chip>}
         {milestones.length > 0 && <Chip>{t('canvas.tl.milestonesN', { defaultValue: '주요 {{n}}', n: milestones.length })}</Chip>}
         <Spacer />
+        {scrollable && todayPos != null && (
+          <JumpBtn type="button" onClick={scrollToToday}>{t('canvas.tl.jumpToday', { defaultValue: '오늘로' })}</JumpBtn>
+        )}
         {onToggleKeyOnly && (
           <Toggle type="button" role="switch" aria-checked={keyOnly} $on={keyOnly} onClick={() => onToggleKeyOnly(!keyOnly)}>
             <Knob $on={keyOnly} /><ToggleLbl>{t('canvas.tl.keyOnly', { defaultValue: '주요만 보기' })}</ToggleLbl>
@@ -89,7 +117,8 @@ export default function ScheduleTimeline({ data, keyOnly, onToggleKeyOnly, onTas
       {!range || dated.length === 0 ? (
         <Empty>{t('canvas.tl.empty', { defaultValue: '일정(시작·마감)이 있는 업무가 없습니다' })}</Empty>
       ) : (
-        <Track>
+        <ScrollWrap ref={scrollRef}>
+        <Track style={{ minWidth: `${contentPx}px` }}>
           {/* 월 눈금 */}
           {monthTicks.map((m, i) => <Grid key={i} style={{ left: `${m.pos}%` }}><GridLabel>{m.label}</GridLabel></Grid>)}
           {/* 마일스톤 레인 (상단) */}
@@ -129,6 +158,7 @@ export default function ScheduleTimeline({ data, keyOnly, onToggleKeyOnly, onTas
             {todayPos != null && <Today style={{ left: `${todayPos}%` }}><TodayLbl>{t('canvas.tl.now', { defaultValue: '지금' })}</TodayLbl></Today>}
           </Axis>
         </Track>
+        </ScrollWrap>
       )}
 
       {/* 범례 */}
@@ -153,11 +183,17 @@ const Spacer = styled.div`flex:1;`;
 const Toggle = styled.button<{ $on: boolean }>`display:inline-flex;align-items:center;gap:8px;border:1px solid ${(p) => (p.$on ? '#14B8A6' : '#E2E8F0')};background:${(p) => (p.$on ? '#F0FDFA' : '#fff')};border-radius:999px;padding:5px 12px 5px 6px;cursor:pointer;`;
 const Knob = styled.span<{ $on: boolean }>`width:30px;height:18px;border-radius:999px;background:${(p) => (p.$on ? '#14B8A6' : '#CBD5E1')};position:relative;transition:background .15s;&::after{content:'';position:absolute;top:2px;left:${(p) => (p.$on ? '14px' : '2px')};width:14px;height:14px;border-radius:50%;background:#fff;transition:left .15s;}`;
 const ToggleLbl = styled.span`font-size:12px;font-weight:600;color:#475569;`;
+// 가로 스크롤 래퍼 — overflow-x:auto. 음수 top 라벨('지금'·마일스톤) 클리핑 방지 위해 상하 패딩 확보.
+const ScrollWrap = styled.div`overflow-x:auto;overflow-y:hidden;padding:12px 0 6px;
+  &::-webkit-scrollbar{height:6px;}
+  &::-webkit-scrollbar-thumb{background:#CBD5E1;border-radius:3px;}
+  &::-webkit-scrollbar-track{background:#F1F5F9;border-radius:3px;}`;
+const JumpBtn = styled.button`height:28px;padding:0 12px;border:1px solid #E2E8F0;background:#fff;border-radius:999px;font-size:12px;font-weight:600;color:#0F766E;cursor:pointer;white-space:nowrap;&:hover{background:#F0FDFA;border-color:#99F6E4;}&:focus-visible{outline:2px solid #14B8A6;outline-offset:2px;}`;
 const Track = styled.div`position:relative;padding:34px 0 8px;`;
 const Grid = styled.div`position:absolute;top:34px;bottom:8px;width:1px;background:#F1F5F9;`;
 const GridLabel = styled.span`position:absolute;top:-16px;left:0;transform:translateX(-50%);font-size:10px;color:#94A3B8;white-space:nowrap;`;
 const MsLane = styled.div`position:relative;height:0;`;
-const Ms = styled.button`position:absolute;top:-28px;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;cursor:pointer;z-index:3;background:none;border:none;padding:2px;font:inherit;border-radius:6px;&:focus-visible{outline:2px solid #14B8A6;outline-offset:2px;}`;
+const Ms = styled.button`position:absolute;top:-28px;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;cursor:pointer;z-index:3;background:none;border:none;padding:2px;font:inherit;border-radius:6px;&:focus-visible{outline:2px solid #14B8A6;outline-offset:2px;}@media (max-width:640px){padding:6px 8px;}`;
 const MsLabel = styled.span`font-size:10px;font-weight:700;color:#0F172A;white-space:nowrap;max-width:90px;overflow:hidden;text-overflow:ellipsis;margin-bottom:3px;`;
 const Diamond = styled.span`width:12px;height:12px;transform:rotate(45deg);border:2px solid;border-radius:2px;`;
 const Axis = styled.div`position:relative;height:10px;background:#E2E8F0;border-radius:999px;`;
@@ -167,7 +203,8 @@ const Bar = styled.div`position:absolute;top:3px;height:4px;border-radius:999px;
 const Dot = styled.button`position:absolute;top:50%;transform:translate(-50%,-50%);width:11px;height:11px;padding:0;border:2px solid;border-radius:50%;z-index:2;cursor:pointer;
   &::after{content:'';position:absolute;inset:-10px;border-radius:50%;}
   &:hover{transform:translate(-50%,-50%) scale(1.25);}
-  &:focus-visible{outline:2px solid #14B8A6;outline-offset:2px;}`;
+  &:focus-visible{outline:2px solid #14B8A6;outline-offset:2px;}
+  @media (max-width:640px){&::after{inset:-15px;}}`;
 const Today = styled.div`position:absolute;top:-30px;bottom:-6px;width:2px;background:#F43F5E;z-index:4;`;
 const TodayLbl = styled.span`position:absolute;top:-14px;left:50%;transform:translateX(-50%);font-size:10px;font-weight:700;color:#F43F5E;background:#fff;padding:0 4px;white-space:nowrap;`;
 const Empty = styled.div`font-size:13px;color:#94A3B8;padding:18px 0;text-align:center;`;

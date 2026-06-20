@@ -563,6 +563,7 @@
       "progress": "진행률",
       "monthSuffix": "월",
       "now": "지금",
+      "jumpToday": "오늘로",
       "keyOnly": "주요만 보기",
       "expected": "기대 {{n}}%",
       "milestonesN": "주요 {{n}}",
