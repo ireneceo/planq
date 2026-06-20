@@ -1,8 +1,8 @@
 # PlanQ 세션 상태
 
 ## 현재 작업 상태
-**마지막 업데이트:** 2026-06-20 (11)
-**작업 상태:** ✅ R1 전체 완료(+검증결함4 + 타임라인 반응형). 🔧 **R2 진행 — C1 백엔드(`e1a508b`,E2E18/18)+C2 프론트(`d23cdab`,렌더계약11/11) 완료.** 다음=R3(통합 롤업+주월간 cron). 미배포(/배포 대기).
+**마지막 업데이트:** 2026-06-20 (12)
+**작업 상태:** ✅ R1 전체 + ✅ R2 전체 + ✅ **R3 전체 완료**(통합 롤업+cron+프론트). 실행·보고 통합 마스터설계 R1~R3 전 구현 완료. 미배포(/배포 대기). 남은 선택: R4 폴리시(멤버 report_units 단일화·PDF·타임라인 박제).
 
 ### 🔧 진행 중: R1 — 캔버스 정돈 + 일정 타임라인 (마스터설계 `docs/EXECUTION_REPORTING_MASTER_DESIGN.md`)
 **마스터 설계 확정·커밋됨.** 핵심 결정(박제, 재논의 금지):
@@ -46,7 +46,11 @@
   - `routes/reports.js` 확장: GET unit(find-or-create, draft=live재생성·confirmed=박제)·PATCH(narrative/overrides)·confirm·reopen. 책임자판정(project owner_user_id/dept lead_user_id/owner·admin). report:updated broadcast. cross-tenant 404.
 - ✅ **R2-C2 프론트 — 완료·커밋(`d23cdab`)·렌더계약 11/11.** `ReportUnitView`(기간 네비 주간/월간+‹기간›·상태바 초안/확정칩+책임자/시각+[확정]/[되돌리기] 책임자만·KPI 카드·ScheduleTimeline readonly(project)·책임자 서술 AutoSave 확정시잠금·하이라이트/리스크·차주/팀·부서 멤버롤업·§16 report:updated). `services/reportUnit.ts`. WeeklyReviewTab projects/departments 렌즈 교체(옛 #64 ProjectReportView·DepartmentReportView 제거). i18n weeklyReview.unit ko/en.
   - **v1 한계(R4 후속):** 확정 보고서 타임라인은 live(스냅샷 미저장) — KPI는 박제·타임라인 보조. 기간 네비 과거 선택 시 타임라인은 현재 기준.
-- ⬜ **R3 통합 롤업 + 주월간 cron (다음):** 확정된 멤버/프로젝트/부서 보고서를 같은 주기·기간으로 취합한 통합보고서(대표). 확정/미확정 현황 매트릭스 + `businesses.report_integrated_confirm` 토글(ON시 대표 통합확정 1회). cron 주/월 경계 단위 초안 생성 + 미확정 자동확정(`finalized_by='auto'`). BusinessWeeklyReport 확장(주간)+월간 row. 설계 §4.4·§4.5·§6.2.
+- ✅ **R3 통합 롤업 — 완료·커밋(C1 `7ae453f`·C1b cron `e670dfd`·C2 `945acf7`).**
+  - **C1 백엔드(E2E 17/17):** `businesses.report_integrated_confirm/monthly_finalize_enabled` + `report_units.scope` ENUM 'workspace'(ref_id=0 통합확정 저장, 수동 ALTER). `services/integratedRollup`(활성 프로젝트+부서 취합·확정 박제/미확정 live·매트릭스·포트폴리오 롤업). routes/reports GET `/:biz/integrated`(member view)·POST integrated/confirm(owner·admin+설정 ON 필수 else 409)·reopen. routes/businesses PUT `/:biz/report-settings`.
+  - **C1b cron(E2E 8/8):** `services/reportUnitCron.finalizeUnitsForPeriod`(직전 기간 자동초안+미확정 자동확정 finalized_by='auto'·confirmed_by NULL·멱등). server.js 매시 :07. monthly는 monthly_finalize_enabled 게이팅.
+  - **C2 프론트:** `IntegratedReportView`(기간 네비·요약 KPI·확정현황 매트릭스·통합확정/되돌리기·설정 토글, owner/admin). WeeklyReviewTab 통합 서브탭 상단 + 기존 BusinessWeeklyReport는 히스토리. `services/reportUnit` 통합 함수. i18n weeklyReview.integrated.
+- ⬜ **R4 폴리시(선택):** 멤버 report_units 단일화(현재 멤버는 WeeklyReview) · PDF 내보내기 · 확정 보고서 타임라인 스냅샷 박제(현재 live) · 마일스톤 일괄·드래그. 설계 §8.
 
 ### 완료된 작업 (2026-06-20 — #64 부서뷰)
 - **#64 부서뷰 — dev 검증, 미배포. 순수 프론트(백엔드 0).** D1 조직 `/api/org/:biz/overview`(company/department scope) + `listDepartments` 재사용.
