@@ -9,7 +9,12 @@ const { fetchProjectStats } = require('./weeklyReviewSnapshot');
 const { todayInTz, mondayOfDateStr, addDaysStr } = require('../utils/datetime');
 
 const SCHEMA_VERSION = 1;
-const ymd = (d) => (d ? String(d).slice(0, 10) : null);
+// DATEONLY 는 Date 객체로 올 수 있음(memory feedback_recurring_billing_latent_bugs) — Date/문자열 모두 안전 처리.
+const ymd = (d) => {
+  if (!d) return null;
+  if (d instanceof Date) return d.toISOString().slice(0, 10);
+  return String(d).slice(0, 10);
+};
 
 // 기간 경계 — 주간(월~일) / 월간(1일~말일)
 function periodBounds(periodType, periodStart) {
@@ -80,7 +85,7 @@ async function buildDepartmentSnapshot(businessId, departmentId, periodType, per
 
   const members = await BusinessMember.findAll({
     where: { business_id: businessId, department_id: dept.id },
-    include: [{ model: User, attributes: ['id', 'name', 'name_localized'], required: false }],
+    include: [{ model: User, as: 'user', attributes: ['id', 'name', 'name_localized'], required: false }],
   });
   const memberIds = members.map((m) => m.user_id).filter(Boolean);
 
@@ -104,7 +109,7 @@ async function buildDepartmentSnapshot(businessId, departmentId, periodType, per
   const memberRollup = members.map((m) => {
     const mine = tp.filter((t) => t.assignee_id === m.user_id);
     return {
-      user_id: m.user_id, name: m.name || displayName(m.User, m.user_id),
+      user_id: m.user_id, name: m.name || displayName(m.user, m.user_id),
       active: mine.filter((t) => t.status !== 'completed').length,
       completed: mine.filter((t) => t.status === 'completed').length,
       overdue: mine.filter((t) => t.due_date && ymd(t.due_date) < today && t.status !== 'completed').length,
