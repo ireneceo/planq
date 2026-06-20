@@ -20,6 +20,8 @@ const { authenticateToken } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 // §8.5 — 고객용 task 직렬화 (공수 시간·예측 출처·내부 메타 차단)
 const { serializeTaskForClient } = require('../utils/taskClientView');
+// D2-b (#66) — 컨펌자 배정 게이트 (외부 파트너=프로젝트 참여자만)
+const { assertAssignable } = require('../middleware/access_scope');
 // 피드백 ID 15/16 — Focus 세션 ↔ task status 동기화 (워크플로 전이에서도 배너 즉시 정리)
 const { syncFocusOnTaskStatus } = require('../services/focusSync');
 
@@ -568,18 +570,24 @@ router.post('/:id/reviewers', authenticateToken, async (req, res, next) => {
     if (!(await isAssignee(task, req.user.id)) && !(await isRequester(task, req.user.id)) && !(await isOwner(task, req.user.id))) {
       return errorResponse(res, 'forbidden', 403);
     }
-    const { user_id, is_client } = req.body || {};
+    const { user_id } = req.body || {};
     if (!user_id) return errorResponse(res, 'user_id_required', 400);
     if (user_id === task.assignee_id) return errorResponse(res, 'assignee_cannot_be_reviewer', 400);
 
     const existing = await TaskReviewer.findOne({ where: { task_id: task.id, user_id } });
     if (existing) return errorResponse(res, 'already_reviewer', 409);
 
+    // D2-b (#66) — 컨펌자 배정 게이트. is_client 는 클라 입력을 믿지 않고 서버가 도출.
+    //   멤버=전체 / 외부 파트너=그 프로젝트 참여자만 / 그 외 user_id=차단(타 워크스페이스·유령).
+    const chk = await assertAssignable(user_id, task.business_id, task.project_id);
+    if (!chk.ok) return errorResponse(res, `cannot_assign:${chk.reason}`, 403);
+    const derivedIsClient = chk.kind === 'client';
+
     const t = await sequelize.transaction();
     try {
       const rev = await TaskReviewer.create({
         task_id: task.id, user_id,
-        is_client: !!is_client,
+        is_client: derivedIsClient,
         added_by_user_id: req.user.id,
       }, { transaction: t });
       // 진행 중인 라운드에 추가되면 전체 리셋 (아직 안 본 사람 생긴 것)
@@ -593,7 +601,7 @@ router.post('/:id/reviewers', authenticateToken, async (req, res, next) => {
       await logHistory({
         taskId: task.id, eventType: 'reviewer_add',
         actorUserId: req.user.id, actorRole: 'assignee', targetUserId: user_id,
-        note: is_client ? 'client' : 'internal', transaction: t,
+        note: derivedIsClient ? 'client' : 'internal', transaction: t,
       });
       await t.commit();
       const full = await TaskReviewer.findByPk(rev.id, { include: [{ model: User, as: 'user', attributes: ['id', 'name', 'name_localized'] }] });
@@ -618,7 +626,7 @@ router.post('/:id/reviewers', authenticateToken, async (req, res, next) => {
         newValue: {
           task_title: task.title,
           reviewer_user_id: user_id,
-          is_client: !!is_client,
+          is_client: derivedIsClient,
         },
       });
 

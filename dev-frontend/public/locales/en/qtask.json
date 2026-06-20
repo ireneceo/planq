@@ -484,7 +484,8 @@
       },
       "warnTitle": "Reset current review round?",
       "warnBody": "Adding a reviewer during an active round resets all reviewers to pending. Previous approvals will need to be re-confirmed.",
-      "warnConfirm": "Add and reset"
+      "warnConfirm": "Add and reset",
+      "external": "External"
     },
     "history": {
       "title": "History",

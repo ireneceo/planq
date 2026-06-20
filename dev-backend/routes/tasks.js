@@ -1,10 +1,10 @@
 const express = require('express');
 const { Op, fn, col, literal } = require('sequelize');
 const router = express.Router();
-const { Task, User, Project, BusinessMember, Business, TaskComment, TaskDailyProgress, TaskStatusHistory, TaskReviewer, TaskLink, Client, AuditLog } = require('../models');
+const { Task, User, Project, BusinessMember, Business, TaskComment, TaskDailyProgress, TaskStatusHistory, TaskReviewer, TaskLink, Client, ProjectClient, AuditLog } = require('../models');
 const taskSnapshot = require('../services/task_snapshot');
 const { authenticateToken, checkBusinessAccess } = require('../middleware/auth');
-const { getUserScope, taskListWhere, canAccessTask, isMemberOrAbove } = require('../middleware/access_scope');
+const { getUserScope, taskListWhere, canAccessTask, isMemberOrAbove, assertAssignable, assertMemberOrAbove } = require('../middleware/access_scope');
 const { successResponse, errorResponse, parsePagination, paginatedResponse } = require('../middleware/errorHandler');
 const { todayInTz, mondayOfDateStr, addDaysStr, mondayOfIsoWeek } = require('../utils/datetime');
 // N+34 — 워크스페이스 표시명 helper. BusinessMember.name 우선, User.name fallback.
@@ -421,6 +421,13 @@ router.post('/', authenticateToken, async (req, res, next) => {
       return errorResponse(res, 'Clients can only request tasks to members, not assign to themselves.', 403);
     }
 
+    // D2-b (#66) — 담당자 배정 게이트 (보안민감). 본인 외 다른 사람을 담당자로 지정할 때만 검증.
+    //   멤버=전체 / 외부 파트너=그 프로젝트 참여자만 / 그 외 user_id=차단(타 워크스페이스·유령).
+    if (finalAssignee !== req.user.id) {
+      const chk = await assertAssignable(finalAssignee, business_id, project_id || null);
+      if (!chk.ok) return errorResponse(res, `cannot_assign:${chk.reason}`, 403);
+    }
+
     // 사이클 N+19 — PERMISSION_MATRIX §5.7 정렬:
     // 요청 케이스 (담당자 ≠ 작성자) 에서는 예측시간/반복설정 작성 권한 없음.
     // 담당자가 ack 후 본인 캐파에 맞춰 정한다. 조용히 무시 (사용자 friction ↓).
@@ -481,7 +488,7 @@ router.post('/', authenticateToken, async (req, res, next) => {
       try {
         await TaskReviewer.findOrCreate({
           where: { task_id: task.id, user_id: req.user.id },
-          defaults: { task_id: task.id, user_id: req.user.id, is_client: false, added_by_user_id: req.user.id },
+          defaults: { task_id: task.id, user_id: req.user.id, is_client: isClient, added_by_user_id: req.user.id },
         });
       } catch (e) { console.warn('[task POST auto-reviewer]', e.message); }
     }
@@ -809,6 +816,59 @@ router.get('/by-business/:businessId', authenticateToken, async (req, res, next)
 });
 
 // ============================================
+// GET /by-business/:businessId/assignable-externals?project_id=X
+// D2-b (#66) — 담당자/컨펌자 picker 용 "프로젝트 참여 외부 파트너" 후보.
+//   user 계정이 연결된 active Client 중, 그 프로젝트(ProjectClient)에 참여한 대상만.
+//   멤버 전용 (picker 는 내부 화면). project_id 없으면 [] (외부인은 프로젝트 스코프 필수).
+// 반환: [{ user_id, client_id, kind, name }]
+// ============================================
+router.get('/by-business/:businessId/assignable-externals', authenticateToken, async (req, res, next) => {
+  try {
+    const businessId = Number(req.params.businessId);
+    if (!(await assertMemberOrAbove(req.user.id, businessId, req.user.platform_role))) {
+      return errorResponse(res, 'forbidden', 403);
+    }
+    const projectId = Number(req.query.project_id);
+    if (!projectId) return successResponse(res, []);
+    // 프로젝트가 이 워크스페이스 소속인지 확인 (cross-tenant 차단)
+    const project = await Project.findOne({ where: { id: projectId, business_id: businessId }, attributes: ['id'] });
+    if (!project) return successResponse(res, []);
+
+    // 이 워크스페이스의 active + user 계정 보유 Client 맵 (user_id / client_id 양쪽 색인)
+    const clients = await Client.findAll({
+      where: { business_id: businessId, status: 'active', user_id: { [Op.ne]: null } },
+      include: [{ model: User, as: 'user', attributes: ['id', 'name', 'name_localized'], required: false }],
+    });
+    const resolveName = (c) => {
+      const dl = c.display_name_localized;
+      if (dl && typeof dl === 'object') { const v = dl.ko || dl.en || Object.values(dl)[0]; if (v) return v; }
+      return c.display_name || c.user?.name || c.company_name || c.invite_email || `파트너 ${c.id}`;
+    };
+    const byUserId = new Map();
+    const byClientId = new Map();
+    for (const c of clients) {
+      const entry = { user_id: c.user_id, client_id: c.id, kind: c.kind || 'customer', name: resolveName(c) };
+      byUserId.set(c.user_id, entry);
+      byClientId.set(c.id, entry);
+    }
+
+    // 이 프로젝트의 ProjectClient → user 계정 보유 + active 인 것만 후보로
+    const pcs = await ProjectClient.findAll({
+      where: { project_id: projectId },
+      attributes: ['contact_user_id', 'client_id'],
+    });
+    const out = new Map();
+    for (const pc of pcs) {
+      let entry = null;
+      if (pc.contact_user_id && byUserId.has(pc.contact_user_id)) entry = byUserId.get(pc.contact_user_id);
+      else if (pc.client_id && byClientId.has(pc.client_id)) entry = byClientId.get(pc.client_id);
+      if (entry) out.set(entry.user_id, entry);
+    }
+    return successResponse(res, [...out.values()]);
+  } catch (err) { next(err); }
+});
+
+// ============================================
 // PUT /:businessId/:id — 업무 수정
 // ============================================
 router.put('/by-business/:businessId/:id', authenticateToken, async (req, res, next) => {
@@ -866,6 +926,16 @@ router.put('/by-business/:businessId/:id', authenticateToken, async (req, res, n
         if (!target) return errorResponse(res, 'invalid_project', 400);
         updates.project_id = project_id;
       }
+    }
+
+    // D2-b (#66) — 담당자 변경 게이트 (보안민감). 새 담당자가 바뀌고 null 이 아닐 때만 검증.
+    //   대상 project 는 이번 변경(project_id)이 있으면 그 값, 없으면 기존 task.project_id.
+    //   멤버=전체 / 외부 파트너=그 프로젝트 참여자만 / 그 외=차단.
+    if (updates.assignee_id !== undefined && updates.assignee_id !== null
+        && updates.assignee_id !== task.assignee_id) {
+      const targetProjectId = (updates.project_id !== undefined ? updates.project_id : task.project_id);
+      const chk = await assertAssignable(updates.assignee_id, businessId, targetProjectId);
+      if (!chk.ok) return errorResponse(res, `cannot_assign:${chk.reason}`, 403);
     }
 
     // 완료 전환 시 progress 자동 100 (양방향 일관) — sync with PATCH /api/tasks/:id/time 로직

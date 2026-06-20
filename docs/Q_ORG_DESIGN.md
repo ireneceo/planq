@@ -105,7 +105,12 @@ associations: Department hasMany Team/BusinessMember; Team belongsTo Department;
 
 ### 증분
 - **D2-a (토대):** `clients.kind` 컬럼 + clients 라우트(POST/PUT/invite/list) + ClientsPage 유형 배지·선택·필터 + 메뉴 라벨. 안전·독립.
-- **D2-b (담당자 picker, 보안민감):** 업무 assignee/reviewer 선택에 프로젝트 참여 외부인 포함. 배정은 그 프로젝트 참여 client 로 제한(임의 내부 업무 배정 차단). taskClientView 로 내부데이터 격리 유지. 별도 검증(외부인 배정→격리 E2E).
+- **D2-b (담당자 picker, 보안민감) — ✅ 2026-06-20 dev 검증:** 업무 assignee/reviewer 선택에 프로젝트 참여 외부인 포함. 배정은 그 프로젝트 참여 client 로 제한(임의 내부 업무 배정 차단). taskClientView 로 내부데이터 격리 유지.
+  - **게이트키퍼 `assertAssignable(targetUserId, businessId, projectId)`** (`middleware/access_scope.js` 단일 출처) — 멤버(AI Cue 포함)=전체 / 외부 파트너(active client+user 계정)=그 프로젝트 참여자만 / 그 외 user_id=차단(타 워크스페이스·유령). project 없는 업무는 외부인 배정 불가. **기존 검증 부재(임의 assignee_id) 취약점 동시 차단.**
+  - 적용 3곳: task POST(생성)·PUT(담당자 변경)·`POST /:id/reviewers`. reviewer `is_client` 는 **서버가 도출**(클라 입력 불신뢰).
+  - 후보 API: `GET /api/tasks/by-business/:biz/assignable-externals?project_id=` (멤버 전용, 프로젝트 참여 외부인 user 계정만, kind 포함).
+  - UI: 공통 `PartnerKindBadge`(ClientsPage 와 통일) — TaskDetailDrawer 담당자/컨펌자 picker + ProjectTaskList 인라인 picker 에 외부 파트너 유형 배지 노출, 컨펌자 행 `is_client` 배지 표시.
+  - E2E 23/23(게이트 7케이스·is_client 도출·격리 증명·후보 누수 차단). **미배포(D2-a 와 함께 다음 `/배포`).**
 
 ### D2-a DB
 `clients.kind` ENUM('customer','vendor','freelancer','other') NOT NULL default 'customer'. 기존 row 자동 customer.

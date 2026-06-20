@@ -230,6 +230,45 @@ async function taskListWhere(userId, businessId, scope) {
 }
 
 // ─────────────────────────────────────────────
+// assertAssignable — D2-b (#66) 외부 파트너 담당자/컨펌자 배정 게이트키퍼 (보안민감)
+//
+// 업무 assignee / reviewer 로 지정 가능한 대상인지 검증. 단일 진실 원천.
+//   - 워크스페이스 멤버(owner/member/admin + AI Cue) → 모든 업무 배정 가능 (기존 열린 문화 유지)
+//   - 외부 파트너(active Client + user 계정) → 그 업무의 project 에 참여 중일 때만 (B중간 결정)
+//   - 그 외 user_id (타 워크스페이스·유령 계정) → 차단 (기존 검증 부재 취약점 동시 차단)
+//   - project 없는 업무 → 외부인 배정 불가 (격리 스코프 근거 없음)
+//
+// 격리는 taskListWhere(배정 업무만 조회) + serializeTaskForClient(내부 공수·AI·internal 댓글 차단)
+// 가 그대로 책임. 이 함수는 "배정 시점" 게이트만 담당.
+//
+// 반환: { ok: boolean, kind?: 'member'|'client', clientIds?: number[], reason?: string }
+//   reason ∈ not_workspace_user | external_requires_project | external_not_in_project
+// ─────────────────────────────────────────────
+async function assertAssignable(targetUserId, businessId, projectId) {
+  if (!targetUserId || !businessId) return { ok: false, reason: 'not_workspace_user' };
+  const targetScope = await getUserScope(Number(targetUserId), Number(businessId));
+  // 멤버(AI Cue 포함) — 워크스페이스 전체 업무 배정 가능
+  if (isMemberOrAbove(targetScope) || targetScope.isAi) return { ok: true, kind: 'member' };
+  // 외부 파트너 — active client 이어야 하고, 그 프로젝트 참여자여야 함
+  if (!targetScope.isClient) return { ok: false, reason: 'not_workspace_user' };
+  const pid = Number(projectId);
+  if (!pid) return { ok: false, reason: 'external_requires_project' };
+  // (a) contact_user_id 로 프로젝트 참여 (getUserScope 가 이미 수집)
+  if (targetScope.projectClientProjectIds.includes(pid)) {
+    return { ok: true, kind: 'client', clientIds: targetScope.clientIds };
+  }
+  // (b) client_id 로 프로젝트 참여 (ProjectClient.client_id 링크 — contact_user_id 미설정 케이스)
+  if (targetScope.clientIds.length > 0) {
+    const pc = await ProjectClient.findOne({
+      where: { project_id: pid, client_id: { [Op.in]: targetScope.clientIds } },
+      attributes: ['id'],
+    });
+    if (pc) return { ok: true, kind: 'client', clientIds: targetScope.clientIds };
+  }
+  return { ok: false, reason: 'external_not_in_project' };
+}
+
+// ─────────────────────────────────────────────
 // Project
 // ─────────────────────────────────────────────
 async function canAccessProject(userId, project, scope) {
@@ -538,6 +577,7 @@ module.exports = {
   conversationListWhere,
   canAccessTask,
   taskListWhere,
+  assertAssignable,
   canAccessProject,
   fileListWhere,
   invoiceListWhere,

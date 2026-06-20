@@ -14,6 +14,7 @@ import { useTimeFormat } from '../../hooks/useTimeFormat';
 import LetterAvatar from '../../components/Common/LetterAvatar';
 import SearchBox from '../../components/Common/SearchBox';
 import PlanQSelect from '../../components/Common/PlanQSelect';
+import PartnerKindBadge, { usePartnerKindLabel } from '../../components/Common/PartnerKindBadge';
 import PageShell from '../../components/Layout/PageShell';
 import AutoSaveField from '../../components/Common/AutoSaveField';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
@@ -65,14 +66,8 @@ export default function ClientsPage() {
   const { user } = useAuth();
   const { formatDate, formatDateTime } = useTimeFormat();
 
-  // D2 #66 — 외부 파트너 유형 (color: COLOR_GUIDE 토큰)
-  const KIND_META: Record<string, { bg: string; fg: string }> = {
-    customer: { bg: '#F0FDFA', fg: '#0F766E' },
-    vendor: { bg: '#DBEAFE', fg: '#1E40AF' },
-    freelancer: { bg: '#FEF3C7', fg: '#92400E' },
-    other: { bg: '#F1F5F9', fg: '#64748B' },
-  };
-  const kindLabel = (k?: string) => t(`kind.${k || 'customer'}`, { defaultValue: k || 'customer' }) as string;
+  // D2 #66 — 외부 파트너 유형: 배지/라벨은 공통 PartnerKindBadge 단일 출처
+  const kindLabel = usePartnerKindLabel();
   const kindOptions = ['customer', 'vendor', 'freelancer', 'other'].map((k) => ({ value: k, label: kindLabel(k) }));
   const navigate = useNavigate();
   const businessId = user?.business_id || 0;
@@ -385,7 +380,7 @@ export default function ClientsPage() {
                             {name}
                           </NameCell>
                           {c.kind && c.kind !== 'customer' && (
-                            <KindBadge style={{ background: KIND_META[c.kind].bg, color: KIND_META[c.kind].fg }}>{kindLabel(c.kind)}</KindBadge>
+                            <PartnerKindBadge kind={c.kind} />
                           )}
                         </NameWrap>
                       )}
@@ -469,7 +464,7 @@ export default function ClientsPage() {
                     onChange={(o) => patchClient(activeDetail.id, { kind: (((o as { value?: string })?.value) as 'customer' | 'vendor' | 'freelancer' | 'other') || 'customer' })} />
                 </KindSelectWrap>
               ) : (
-                <KindBadge style={{ background: KIND_META[activeDetail.kind || 'customer'].bg, color: KIND_META[activeDetail.kind || 'customer'].fg }}>{kindLabel(activeDetail.kind)}</KindBadge>
+                <PartnerKindBadge kind={activeDetail.kind || 'customer'} />
               )}
             </KindRow>
 
@@ -716,9 +711,6 @@ const NameWrap = styled.div`display:inline-flex; align-items:center; gap:8px; mi
 const KindRow = styled.div`display:flex; align-items:center; gap:12px; margin-bottom:14px;`;
 const KindRowLabel = styled.span`font-size:12px; font-weight:700; color:#475569; flex-shrink:0;`;
 const KindSelectWrap = styled.div`min-width:160px;`;
-const KindBadge = styled.span`
-  font-size:11px; font-weight:700; border-radius:999px; padding:2px 8px; flex-shrink:0;
-`;
 const CompanyCell = styled.span`
   display:inline-block; padding:2px 6px; margin:-2px -6px; border-radius:4px;
   cursor:pointer; transition:background 0.12s;
