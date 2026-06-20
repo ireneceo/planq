@@ -122,6 +122,19 @@ const ProjectTaskList: React.FC<Props> = ({
     setCollapsed(prev => { const n = new Set(prev); if (n.has(gid)) n.delete(gid); else n.add(gid); return n; });
   };
 
+  // 그룹 메뉴(행 이동·헤더 ⋯) 바깥 클릭/Esc 닫기 — data-dropdown 내부 클릭은 유지.
+  useEffect(() => {
+    if (groupMenuTaskId == null && headerMenuGroupId == null) return;
+    const onClick = (e: MouseEvent) => {
+      if ((e.target as HTMLElement)?.closest('[data-dropdown]')) return;
+      setGroupMenuTaskId(null); setHeaderMenuGroupId(null);
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { setGroupMenuTaskId(null); setHeaderMenuGroupId(null); } };
+    window.addEventListener('click', onClick);
+    window.addEventListener('keydown', onKey);
+    return () => { window.removeEventListener('click', onClick); window.removeEventListener('keydown', onKey); };
+  }, [groupMenuTaskId, headerMenuGroupId]);
+
   // D2-b (#66) — 이 프로젝트에 참여한 외부 파트너(담당자 후보). 멤버와 합쳐 인라인 picker 에 노출.
   const [externals, setExternals] = useState<{ user_id: number; name: string; kind: string }[]>([]);
   useEffect(() => {
@@ -500,8 +513,8 @@ const ProjectTaskList: React.FC<Props> = ({
               onClick={() => moveGroup(gid as number, 1)}>
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="6 9 12 15 18 9"/></svg>
             </GroupIconBtn>
-            <GroupMoveWrap>
-              <GroupIconBtn aria-label={t('list.group.menu', '그룹 메뉴') as string} title={t('list.group.menu', '그룹 메뉴') as string}
+            <GroupMoveWrap data-dropdown>
+              <GroupIconBtn data-dropdown aria-label={t('list.group.menu', '그룹 메뉴') as string} title={t('list.group.menu', '그룹 메뉴') as string}
                 onClick={() => setHeaderMenuGroupId(headerMenuGroupId === gid ? null : (gid as number))}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>
               </GroupIconBtn>
@@ -543,7 +556,13 @@ const ProjectTaskList: React.FC<Props> = ({
       ...ordered.map((w, i) => ({ id: w.id, title: w.title, color: wsColor(w, i) })),
       { id: 'none' as const, title: t('list.group.none', '(그룹 없음)') as string, color: '#CBD5E1' },
     ];
-    const byGroup = (gid: number | 'none') => sortTasks(tasks.filter(tk => (tk.workstream_id ?? null) === (gid === 'none' ? null : gid)));
+    // 방어: 삭제된 그룹을 가리키는 stale workstream_id 도 미분류로 버킷 — 어느 그룹에도 안 잡혀 사라지는 회귀 차단.
+    const validIds = new Set(ordered.map(w => w.id));
+    const groupOf = (tk: TaskRow): number | 'none' => {
+      const w = tk.workstream_id ?? null;
+      return (w != null && validIds.has(w)) ? w : 'none';
+    };
+    const byGroup = (gid: number | 'none') => sortTasks(tasks.filter(tk => groupOf(tk) === gid));
     const noneTasks = byGroup('none');
 
     return (
@@ -553,8 +572,8 @@ const ProjectTaskList: React.FC<Props> = ({
           if (g.id === 'none' && noneTasks.length === 0) return null;  // 미분류 0건이면 헤더 숨김
           const gTasks = g.id === 'none' ? noneTasks : byGroup(g.id);
           const count = gTasks.length;
-          const completed = gTasks.filter(tk => tk.status === 'completed').length;
-          const pct = count > 0 ? Math.round((completed / count) * 100) : 0;
+          // 진행률 = 업무 progress_percent 평균 (백엔드 serializeWorkstream.progress_pct·캔버스와 동일 공식 — 단일 진실 원천).
+          const pct = count > 0 ? Math.round(gTasks.reduce((s, tk) => s + (tk.progress_percent || 0), 0) / count) : 0;
           const isCollapsed = collapsed.has(g.id);
           return (
             <Fragment key={String(g.id)}>

@@ -566,6 +566,7 @@
       "keyOnly": "Key items only",
       "expected": "Expected {{n}}%",
       "milestonesN": "{{n}} key",
+      "milestoneOf": "Milestone: {{title}}",
       "undated": "{{n}} undated",
       "empty": "No tasks with a start or due date yet",
       "sched": {

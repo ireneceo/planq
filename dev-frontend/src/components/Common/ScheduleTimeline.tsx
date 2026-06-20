@@ -1,6 +1,6 @@
 // ScheduleTimeline — R1 전체 일정 진행 타임라인 (시그니처, 캔버스+보고서 공유)
 //   가로 축에 업무·마일스톤 배치 + "지금 여기" 마커 + 워크스트림 색 + 진행률·일정대비.
-import { useMemo } from 'react';
+import { Fragment, useMemo } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { WORKSTREAM_PALETTE } from '../../services/projectCanvas';
@@ -98,7 +98,8 @@ export default function ScheduleTimeline({ data, keyOnly, onToggleKeyOnly, onTas
               const p = pos(tk.due_date || tk.start_date); if (p == null) return null;
               const done = tk.status === 'completed';
               return (
-                <Ms key={tk.id} style={{ left: `${p}%` }} onClick={() => onTaskClick?.(tk.id)}>
+                <Ms key={tk.id} type="button" aria-label={t('canvas.tl.milestoneOf', { defaultValue: '주요 업무: {{title}}', title: tk.title })} title={tk.title}
+                  style={{ left: `${p}%` }} onClick={() => onTaskClick?.(tk.id)}>
                   <MsLabel>{tk.title}</MsLabel>
                   <Diamond style={{ background: done ? wsColor(tk.workstream_id) : '#fff', borderColor: wsColor(tk.workstream_id) }} />
                 </Ms>
@@ -116,10 +117,12 @@ export default function ScheduleTimeline({ data, keyOnly, onToggleKeyOnly, onTas
               const c = wsColor(tk.workstream_id);
               const done = tk.status === 'completed';
               return (
-                <TaskMark key={tk.id} onClick={() => onTaskClick?.(tk.id)} title={tk.title}>
+                <Fragment key={tk.id}>
                   {sp != null && dp > sp && <Bar style={{ left: `${sp}%`, width: `${dp - sp}%`, background: c, opacity: 0.35 }} />}
-                  <Dot style={{ left: `${dp}%`, background: done ? c : '#fff', borderColor: c }} />
-                </TaskMark>
+                  <Dot type="button" aria-label={tk.title} title={tk.title}
+                    style={{ left: `${dp}%`, background: done ? c : '#fff', borderColor: c }}
+                    onClick={() => onTaskClick?.(tk.id)} />
+                </Fragment>
               );
             })}
             {/* 오늘 마커 */}
@@ -154,14 +157,17 @@ const Track = styled.div`position:relative;padding:34px 0 8px;`;
 const Grid = styled.div`position:absolute;top:34px;bottom:8px;width:1px;background:#F1F5F9;`;
 const GridLabel = styled.span`position:absolute;top:-16px;left:0;transform:translateX(-50%);font-size:10px;color:#94A3B8;white-space:nowrap;`;
 const MsLane = styled.div`position:relative;height:0;`;
-const Ms = styled.div`position:absolute;top:-28px;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;cursor:pointer;z-index:3;`;
+const Ms = styled.button`position:absolute;top:-28px;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;cursor:pointer;z-index:3;background:none;border:none;padding:2px;font:inherit;border-radius:6px;&:focus-visible{outline:2px solid #14B8A6;outline-offset:2px;}`;
 const MsLabel = styled.span`font-size:10px;font-weight:700;color:#0F172A;white-space:nowrap;max-width:90px;overflow:hidden;text-overflow:ellipsis;margin-bottom:3px;`;
 const Diamond = styled.span`width:12px;height:12px;transform:rotate(45deg);border:2px solid;border-radius:2px;`;
 const Axis = styled.div`position:relative;height:10px;background:#E2E8F0;border-radius:999px;`;
 const AxisProgress = styled.div`position:absolute;top:0;left:0;height:100%;background:linear-gradient(90deg,#99F6E4,#14B8A6);border-radius:999px;`;
-const TaskMark = styled.div`cursor:pointer;`;
 const Bar = styled.div`position:absolute;top:3px;height:4px;border-radius:999px;`;
-const Dot = styled.span`position:absolute;top:50%;transform:translate(-50%,-50%);width:11px;height:11px;border:2px solid;border-radius:50%;z-index:2;&:hover{transform:translate(-50%,-50%) scale(1.25);}`;
+// 클릭 포인트 = 시맨틱 button (키보드 포커스·aria-label). ::after 로 터치 히트영역 확대(약 31px).
+const Dot = styled.button`position:absolute;top:50%;transform:translate(-50%,-50%);width:11px;height:11px;padding:0;border:2px solid;border-radius:50%;z-index:2;cursor:pointer;
+  &::after{content:'';position:absolute;inset:-10px;border-radius:50%;}
+  &:hover{transform:translate(-50%,-50%) scale(1.25);}
+  &:focus-visible{outline:2px solid #14B8A6;outline-offset:2px;}`;
 const Today = styled.div`position:absolute;top:-30px;bottom:-6px;width:2px;background:#F43F5E;z-index:4;`;
 const TodayLbl = styled.span`position:absolute;top:-14px;left:50%;transform:translateX(-50%);font-size:10px;font-weight:700;color:#F43F5E;background:#fff;padding:0 4px;white-space:nowrap;`;
 const Empty = styled.div`font-size:13px;color:#94A3B8;padding:18px 0;text-align:center;`;

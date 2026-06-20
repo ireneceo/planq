@@ -566,6 +566,7 @@
       "keyOnly": "주요만 보기",
       "expected": "기대 {{n}}%",
       "milestonesN": "주요 {{n}}",
+      "milestoneOf": "주요 업무: {{title}}",
       "undated": "미일정 {{n}}",
       "empty": "일정(시작·마감)이 있는 업무가 없습니다",
       "sched": {

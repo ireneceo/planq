@@ -1351,9 +1351,21 @@ router.delete('/:id/workstreams/:wsId', authenticateToken, async (req, res, next
     if (role === 'client') return errorResponse(res, 'member_only', 403);
     const ws = await ProjectWorkstream.findOne({ where: { id: req.params.wsId, project_id: project.id } });
     if (!ws) return errorResponse(res, 'workstream_not_found', 404);
+    // 소속 업무는 미분류로 보존 — 영향받은 id 를 먼저 확보해 클라이언트 수렴용 broadcast 준비
+    const affected = await Task.findAll({ where: { workstream_id: ws.id }, attributes: ['id'] });
     await Task.update({ workstream_id: null }, { where: { workstream_id: ws.id } });
     await ws.destroy();
     broadcastCanvas(req, project, 'workstream_deleted');
+    // §16 — 각 업무 task:updated 로 workstream_id=null 수렴 (전체 reload 없이 미분류 그룹으로 이동).
+    //   누락 시 클라이언트 state 의 옛 workstream_id 가 stale → 삭제된 그룹에도 미분류에도 안 잡혀 리스트에서 사라짐.
+    const io = req.app.get('io');
+    if (io) {
+      for (const tk of affected) {
+        const payload = { id: tk.id, project_id: project.id, workstream_id: null, actor_user_id: req.user.id };
+        io.to(`project:${project.id}`).emit('task:updated', payload);
+        io.to(`business:${project.business_id}`).emit('task:updated', payload);
+      }
+    }
     return successResponse(res, { deleted: true });
   } catch (err) { next(err); }
 });
