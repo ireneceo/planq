@@ -86,6 +86,8 @@ const WeeklyReview = require('./WeeklyReview');
 const WeeklyReviewSetting = require('./WeeklyReviewSetting');
 // ─── 워크스페이스 통합 주간 보고서 (사이클 N+18) ───
 const BusinessWeeklyReport = require('./BusinessWeeklyReport');
+// ─── 책임 기반 단위 보고서 (R2 — 프로젝트/부서 자동초안→확정) ───
+const ReportUnit = require('./ReportUnit');
 // ─── OAuth Connections (N+70 Task 62) ───
 const OauthConnection = require('./OauthConnection');
 // ─── External Connections Phase 1 (2026-05-26) — 통합 외부 연동 ───
@@ -534,6 +536,7 @@ module.exports = {
   WeeklyReview,
   WeeklyReviewSetting,
   BusinessWeeklyReport,
+  ReportUnit,
   BusinessMemberPermission,
   ProjectStatusHistory,
   InvoiceStatusHistory,
@@ -623,6 +626,10 @@ User.hasMany(WeeklyReview, { as: 'weeklyReviews', foreignKey: 'user_id' });
 // BusinessWeeklyReport — 워크스페이스 통합 주간 보고서 (사이클 N+18)
 BusinessWeeklyReport.belongsTo(Business, { foreignKey: 'business_id' });
 BusinessWeeklyReport.belongsTo(User, { as: 'finalizer', foreignKey: 'finalized_by_user_id' });
+// 책임 기반 단위 보고서 (R2)
+ReportUnit.belongsTo(Business, { foreignKey: 'business_id' });
+ReportUnit.belongsTo(User, { as: 'confirmer', foreignKey: 'confirmed_by' });
+Business.hasMany(ReportUnit, { as: 'reportUnits', foreignKey: 'business_id' });
 Business.hasMany(BusinessWeeklyReport, { as: 'workspaceWeeklyReports', foreignKey: 'business_id' });
 
 // BusinessMemberPermission — 멤버 메뉴 권한 (사이클 N+21)

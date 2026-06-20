@@ -10,8 +10,12 @@
 const express = require('express');
 const fs = require('fs');
 const router = express.Router();
-const { Report } = require('../models');
-const { errorResponse } = require('../middleware/errorHandler');
+const { Report, ReportUnit, Project, Department } = require('../models');
+const { errorResponse, successResponse } = require('../middleware/errorHandler');
+const { authenticateToken } = require('../middleware/auth');
+const { getUserScope } = require('../middleware/access_scope');
+const { logAudit } = require('../services/auditService');
+const { buildAutoSnapshot } = require('../services/reportUnitSnapshot');
 
 router.get('/share/:token', async (req, res, next) => {
   try {
@@ -30,6 +34,161 @@ router.get('/share/:token', async (req, res, next) => {
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(report.title || `report-${report.id}`)}.pdf"`);
     return fs.createReadStream(report.pdf_url).pipe(res);
+  } catch (err) { next(err); }
+});
+
+// ════════════════════════════════════════════════════════════════
+// 책임 기반 단위 보고서 (R2, 마스터설계 §4·§6.2) — report_units
+//   scope = project / department. 자동초안(GET, find-or-create) → 수정(PATCH) → 확정/되돌리기.
+//   책임자: project owner_user_id / department lead_user_id / 워크스페이스 owner·admin.
+// ════════════════════════════════════════════════════════════════
+
+const VALID_SCOPE = ['project', 'department'];
+const VALID_PERIOD = ['weekly', 'monthly'];
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+// 멤버 이상 + client 차단
+async function loadScope(req, businessId) {
+  const scope = await getUserScope(req.user.id, businessId, req.user.platform_role);
+  const member = scope.isOwner || scope.isAdmin || scope.isMember || scope.isAi;
+  return { scope, member, ownerOrAdmin: scope.isOwner || scope.isAdmin };
+}
+
+// 책임자 판정 — owner/admin 은 oversight 로 전권, 그 외엔 단위 책임자 본인만
+async function isResponsible(scope, scopeStr, refId, businessId, ownerOrAdmin) {
+  if (ownerOrAdmin) return true;
+  if (scopeStr === 'project') {
+    const p = await Project.findOne({ where: { id: refId, business_id: businessId }, attributes: ['owner_user_id'] });
+    return !!p && Number(p.owner_user_id) === Number(scope.userId);
+  }
+  if (scopeStr === 'department') {
+    const d = await Department.findOne({ where: { id: refId, business_id: businessId }, attributes: ['lead_user_id'] });
+    return !!d && Number(d.lead_user_id) === Number(scope.userId);
+  }
+  return false;
+}
+
+// auto_snapshot + edited_overrides 병합 (overrides 가 top-level 키 교체) + 책임자 플래그
+function mergedView(unit, responsible) {
+  const auto = unit.auto_snapshot || {};
+  const ov = unit.edited_overrides || {};
+  return {
+    id: unit.id, scope: unit.scope, ref_id: unit.scope_ref_id,
+    period_type: unit.period_type, period_start: unit.period_start,
+    status: unit.status, confirmed_by: unit.confirmed_by, confirmed_at: unit.confirmed_at, finalized_by: unit.finalized_by,
+    narrative: unit.narrative || '',
+    snapshot: { ...auto, ...ov },
+    has_overrides: Object.keys(ov).length > 0,
+    can_edit: responsible,
+  };
+}
+
+function broadcastReport(req, businessId, unit, reason) {
+  const io = req.app.get('io');
+  if (!io) return;
+  io.to(`business:${businessId}`).emit('report:updated', {
+    id: unit.id, scope: unit.scope, ref_id: unit.scope_ref_id,
+    period_type: unit.period_type, period_start: unit.period_start,
+    status: unit.status, reason, actor_user_id: req.user.id,
+  });
+}
+
+// GET /:biz/unit?scope=&ref_id=&period_type=&period_start= — find-or-create 자동 초안
+router.get('/:biz/unit', authenticateToken, async (req, res, next) => {
+  try {
+    const businessId = Number(req.params.biz);
+    if (!businessId) return errorResponse(res, 'business_id_required', 400);
+    const { scope: uScope, member, ownerOrAdmin } = await loadScope(req, businessId);
+    if (!member) return errorResponse(res, 'member_only', 403);
+
+    const scope = String(req.query.scope || '');
+    const refId = Number(req.query.ref_id);
+    const periodType = String(req.query.period_type || 'weekly');
+    const periodStart = String(req.query.period_start || '');
+    if (!VALID_SCOPE.includes(scope)) return errorResponse(res, 'invalid_scope', 400);
+    if (!refId) return errorResponse(res, 'ref_id_required', 400);
+    if (!VALID_PERIOD.includes(periodType)) return errorResponse(res, 'invalid_period_type', 400);
+    if (!DATE_RE.test(periodStart)) return errorResponse(res, 'invalid_period_start', 400);
+
+    const responsible = await isResponsible(uScope, scope, refId, businessId, ownerOrAdmin);
+
+    let unit = await ReportUnit.findOne({ where: { business_id: businessId, scope, scope_ref_id: refId, period_type: periodType, period_start: periodStart } });
+
+    // 확정본은 박제 — 그대로 반환. draft / 미존재는 자동초안 live 재생성.
+    if (!unit || unit.status === 'draft') {
+      const snap = await buildAutoSnapshot(businessId, scope, refId, periodType, periodStart);
+      if (snap === null) return errorResponse(res, 'invalid_ref', 404);  // 대상 없음(타 워크스페이스 등)
+      if (!unit) {
+        unit = await ReportUnit.create({ business_id: businessId, scope, scope_ref_id: refId, period_type: periodType, period_start: periodStart, status: 'draft', auto_snapshot: snap });
+      } else {
+        await unit.update({ auto_snapshot: snap });
+      }
+    }
+
+    return successResponse(res, mergedView(unit, responsible));
+  } catch (err) { next(err); }
+});
+
+// PATCH /:biz/unit/:id — 책임자 수정 (narrative · edited_overrides). draft 만.
+router.patch('/:biz/unit/:id', authenticateToken, async (req, res, next) => {
+  try {
+    const businessId = Number(req.params.biz);
+    const { scope: uScope, member, ownerOrAdmin } = await loadScope(req, businessId);
+    if (!member) return errorResponse(res, 'member_only', 403);
+    const unit = await ReportUnit.findOne({ where: { id: Number(req.params.id), business_id: businessId } });
+    if (!unit) return errorResponse(res, 'report_not_found', 404);
+    if (!await isResponsible(uScope, unit.scope, unit.scope_ref_id, businessId, ownerOrAdmin)) return errorResponse(res, 'not_responsible', 403);
+    if (unit.status === 'confirmed') return errorResponse(res, 'confirmed_reopen_first', 409);
+
+    const patch = {};
+    if (typeof req.body?.narrative === 'string') patch.narrative = req.body.narrative.slice(0, 20000);
+    if (req.body?.edited_overrides && typeof req.body.edited_overrides === 'object') {
+      patch.edited_overrides = { ...(unit.edited_overrides || {}), ...req.body.edited_overrides };
+    }
+    await unit.update(patch);
+    broadcastReport(req, businessId, unit, 'edited');
+    return successResponse(res, mergedView(unit, true));
+  } catch (err) { next(err); }
+});
+
+// POST /:biz/unit/:id/confirm — 확정 (책임자). 현재 자동초안 fresh 재생성 후 박제.
+router.post('/:biz/unit/:id/confirm', authenticateToken, async (req, res, next) => {
+  try {
+    const businessId = Number(req.params.biz);
+    const { scope: uScope, member, ownerOrAdmin } = await loadScope(req, businessId);
+    if (!member) return errorResponse(res, 'member_only', 403);
+    const unit = await ReportUnit.findOne({ where: { id: Number(req.params.id), business_id: businessId } });
+    if (!unit) return errorResponse(res, 'report_not_found', 404);
+    if (!await isResponsible(uScope, unit.scope, unit.scope_ref_id, businessId, ownerOrAdmin)) return errorResponse(res, 'not_responsible', 403);
+    if (unit.status === 'confirmed') return errorResponse(res, 'already_confirmed', 409);
+
+    // 확정 시점 fresh 스냅샷 박제 (이후 수치 변동 무관)
+    const fresh = await buildAutoSnapshot(businessId, unit.scope, unit.scope_ref_id, unit.period_type, unit.period_start);
+    await unit.update({
+      auto_snapshot: fresh || unit.auto_snapshot,
+      status: 'confirmed', confirmed_by: req.user.id, confirmed_at: new Date(), finalized_by: 'manual',
+    });
+    logAudit(req, { action: 'report_unit.confirm', targetType: 'report_unit', targetId: unit.id, businessId, newValue: { scope: unit.scope, ref_id: unit.scope_ref_id, period_type: unit.period_type, period_start: unit.period_start } });
+    broadcastReport(req, businessId, unit, 'confirmed');
+    return successResponse(res, mergedView(unit, true));
+  } catch (err) { next(err); }
+});
+
+// POST /:biz/unit/:id/reopen — 되돌리기 (책임자). confirmed → draft.
+router.post('/:biz/unit/:id/reopen', authenticateToken, async (req, res, next) => {
+  try {
+    const businessId = Number(req.params.biz);
+    const { scope: uScope, member, ownerOrAdmin } = await loadScope(req, businessId);
+    if (!member) return errorResponse(res, 'member_only', 403);
+    const unit = await ReportUnit.findOne({ where: { id: Number(req.params.id), business_id: businessId } });
+    if (!unit) return errorResponse(res, 'report_not_found', 404);
+    if (!await isResponsible(uScope, unit.scope, unit.scope_ref_id, businessId, ownerOrAdmin)) return errorResponse(res, 'not_responsible', 403);
+    if (unit.status !== 'confirmed') return errorResponse(res, 'not_confirmed', 409);
+
+    await unit.update({ status: 'draft', confirmed_by: null, confirmed_at: null, finalized_by: null });
+    logAudit(req, { action: 'report_unit.reopen', targetType: 'report_unit', targetId: unit.id, businessId });
+    broadcastReport(req, businessId, unit, 'reopened');
+    return successResponse(res, mergedView(unit, true));
   } catch (err) { next(err); }
 });
 
