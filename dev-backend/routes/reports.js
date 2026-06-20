@@ -123,6 +123,10 @@ router.get('/:biz/unit', authenticateToken, async (req, res, next) => {
 
     const responsible = await isResponsible(uScope, scope, refId, businessId, ownerOrAdmin);
 
+    // 개인 보고서 프라이버시 — 본인/owner/admin 만 조회. 다른 멤버 직접 API 조회 차단.
+    // (project 보고서는 팀 공유물이라 멤버 누구나 열람 가능)
+    if (scope === 'member' && !responsible) return errorResponse(res, 'forbidden', 403);
+
     // 대상 유효성 먼저 — 미존재/타 워크스페이스는 row 생성 없이 404
     const snap = await buildAutoSnapshot(businessId, scope, refId, periodType, periodStart);
     if (snap === null) return errorResponse(res, 'invalid_ref', 404);
