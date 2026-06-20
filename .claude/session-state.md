@@ -1,8 +1,13 @@
 # PlanQ 세션 상태
 
 ## 현재 작업 상태
-**마지막 업데이트:** 2026-06-20 (4)
-**작업 상태:** ✅ v1.43.0 운영 배포 완료 + **#64 프로젝트뷰(보고서) dev 검증·미배포**
+**마지막 업데이트:** 2026-06-20 (5)
+**작업 상태:** ✅ v1.43.0 배포 + **#64 프로젝트뷰 + 부서뷰 dev 검증·미배포** (3-렌즈 중 통합뷰는 기존 유지)
+
+### 완료된 작업 (2026-06-20 — #64 부서뷰)
+- **#64 부서뷰 — dev 검증, 미배포. 순수 프론트(백엔드 0).** D1 조직 `/api/org/:biz/overview`(company/department scope) + `listDepartments` 재사용.
+  - `DepartmentReportView`(전체회사=부서별 비교 카드 / 특정부서=멤버별 active·overdue 테이블 + 부서 KPI) + WeeklyReviewTab `departments` 렌즈(4번째 서브탭). i18n qtask weeklyReview.dept ko/en.
+  - **검증:** 헬스 29/29 · 빌드 EXIT0 · company scope owner 200·member 403·익명 401 · **부서 drill E2E 6/6**(부서생성→배정→department scope byMember→company byDepartment→복원) · i18n 0 · raw-select 0 · qtask ko/en 653/653. **미배포.**
 
 ### 완료된 작업 (2026-06-20 — #64 프로젝트 보고서뷰)
 - **#64 보고서 3-렌즈 중 프로젝트뷰 — dev 검증, 미배포.** 결정: 프로젝트뷰=**Live 파생**(새 테이블/cron 0), 이번 사이클 프로젝트뷰만(부서뷰 다음, 통합뷰 기존 유지).
