@@ -46,6 +46,14 @@ Project.init({
   },
   last_auto_invoice_at: { type: DataTypes.DATE, allowNull: true, comment: '마지막 자동 청구 시각 (멱등성)' },
   paused_at: { type: DataTypes.DATE, allowNull: true, comment: '연체로 자동 정지된 시각' },
+  // ─── D3 #65 프로젝트 캔버스 — 전략 프레임 (컨설팅 SCQA + 피라미드 원칙) ───
+  strategy_context: { type: DataTypes.TEXT, allowNull: true, comment: '추진 배경 (Situation)' },
+  strategy_key_question: { type: DataTypes.TEXT, allowNull: true, comment: '핵심 과제 (Key Question)' },
+  strategy_goal: { type: DataTypes.TEXT, allowNull: true, comment: '목표 (Objective, 정성)' },
+  strategy_governing_thought: { type: DataTypes.TEXT, allowNull: true, comment: '핵심 메시지 (Governing Thought, 한 문장)' },
+  strategy_approach: { type: DataTypes.TEXT, allowNull: true, comment: '추진 방식 (Approach)' },
+  // 성공 지표 (정량 KR) — [{ id, label, target, current, unit }]
+  success_metrics: { type: DataTypes.JSON, allowNull: true, comment: '성공 지표 리스트 (구조화)' },
 }, {
   sequelize,
   tableName: 'projects',

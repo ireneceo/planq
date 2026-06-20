@@ -150,7 +150,7 @@
     "sat": "Sat"
   },
   "tab": {
-    "dashboard": "Dashboard",
+    "dashboard": "Canvas",
     "tasks": "Tasks",
     "process": "Table",
     "clients": "Clients",
@@ -492,5 +492,109 @@
       "deleteWithFiles": "{{n}} files inside will be moved to \"Direct root\"",
       "deleteEmpty": "This folder is empty"
     }
+  },
+  "canvas": {
+    "tabLabel": "Canvas",
+    "intro": "Strategy → Execution → Deliverables, at a glance",
+    "layer1": "Framing (Why)",
+    "layer2": "Strategy (How)",
+    "layer3": "Execution · Tracking",
+    "context": {
+      "label": "Context",
+      "hint": "Why now, in what situation",
+      "ph": "Describe the background of this project"
+    },
+    "keyQuestion": {
+      "label": "Key Question",
+      "hint": "The single question this project solves",
+      "ph": "State the core question in one sentence"
+    },
+    "goal": {
+      "label": "Objective",
+      "hint": "Target state (qualitative)",
+      "ph": "What this project aims to achieve"
+    },
+    "governing": {
+      "label": "Governing Thought",
+      "hint": "One-sentence strategic hypothesis",
+      "ph": "The one sentence that runs through the project"
+    },
+    "approach": {
+      "label": "Approach",
+      "hint": "How you'll solve it (method, principles)",
+      "ph": "Describe the approach and principles"
+    },
+    "metrics": {
+      "title": "Success Metrics",
+      "hint": "Measurable quantitative targets",
+      "add": "Add metric",
+      "label": "Metric",
+      "target": "Target",
+      "current": "Current",
+      "unit": "Unit",
+      "empty": "Add success metrics to quantify your goal",
+      "labelPh": "e.g. Conversion rate",
+      "targetPh": "18",
+      "currentPh": "12",
+      "unitPh": "%"
+    },
+    "workstreams": {
+      "title": "Workstreams",
+      "hint": "MECE work packages — the backbone above tasks",
+      "add": "Add workstream",
+      "empty": "Add workstreams and group tasks under them",
+      "titlePh": "Workstream name",
+      "descPh": "Scope & goal of this stream (optional)",
+      "tasks": "tasks",
+      "done": "done",
+      "inProgress": "active",
+      "overdue": "overdue",
+      "status": {
+        "active": "Active",
+        "done": "Done",
+        "dropped": "Dropped"
+      },
+      "del": "Delete",
+      "delConfirm": "Delete this workstream? Its tasks return to unassigned.",
+      "save": "Save"
+    },
+    "roadmap": {
+      "title": "Roadmap · Milestones",
+      "empty": "No transaction stages",
+      "openTx": "Open Transactions tab"
+    },
+    "weekFocus": {
+      "title": "This / Next Week Focus",
+      "thisWeek": "This week",
+      "nextWeek": "Next week",
+      "empty": "No tasks planned for this week",
+      "emptyNext": "No tasks planned next week"
+    },
+    "deliverables": {
+      "title": "Deliverables",
+      "empty": "No published documents or deliverables",
+      "post": "Doc",
+      "document": "Official",
+      "open": "Open"
+    },
+    "stakeholders": {
+      "title": "Stakeholders",
+      "members": "Team",
+      "clients": "External partners",
+      "empty": "No participants"
+    },
+    "risks": {
+      "title": "Risks · Issues",
+      "empty": "No issues logged"
+    },
+    "graph": {
+      "title": "Task Dependency Map",
+      "hint": "Tasks and links by workstream",
+      "unassigned": "Unassigned",
+      "empty": "No linked tasks",
+      "links": "links"
+    },
+    "loadError": "Failed to load the canvas",
+    "retry": "Retry"
   }
 }
