@@ -4,18 +4,21 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import { useAuth, apiFetch } from '../../../contexts/AuthContext';
+import { useAuth } from '../../../contexts/AuthContext';
 import { useVisibilityRefresh } from '../../../hooks/useVisibilityRefresh';
 import AutoSaveField from '../../../components/Common/AutoSaveField';
 import PartnerKindBadge from '../../../components/Common/PartnerKindBadge';
+import ScheduleTimeline from '../../../components/Common/ScheduleTimeline';
 import { STATUS_COLOR, type StatusCode } from '../../../utils/taskLabel';
 import { FileTextIcon, AlertTriangleIcon } from '../../../components/Common/Icons';
 import {
-  getCanvas, patchStrategy, wsColor,
+  getCanvas, patchStrategy,
   type CanvasData, type StrategyKey, type CanvasTaskBrief,
 } from '../../../services/projectCanvas';
+import { getTimeline, setTimelineKeyOnly, type TimelineData } from '../../../services/projectTimeline';
 import SuccessMetricsEditor from './SuccessMetricsEditor';
 import WorkstreamBoard from './WorkstreamBoard';
+import RelatedProjects from './RelatedProjects';
 
 interface Props { projectId: number; businessId: number; }
 
@@ -25,21 +28,40 @@ export default function ProjectCanvas({ projectId, businessId }: Props) {
   const { user } = useAuth();
   const myId = user?.id;
   const [data, setData] = useState<CanvasData | null>(null);
-  const [stages, setStages] = useState<{ id: number; kind: string; label: string; status: string }[]>([]);
+  const [timeline, setTimeline] = useState<TimelineData | null>(null);
+  const [keyOnly, setKeyOnly] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const [refreshSignal, setRefreshSignal] = useState(0);  // 관련 프로젝트 동기화 신호
+  const keyOnlyRef = useRef(false);
+  const keyOnlyInit = useRef(false);
 
   const silentLoad = useCallback(async () => {
     try {
-      const [d, txRes] = await Promise.all([
+      const [d, tl] = await Promise.all([
         getCanvas(projectId),
-        apiFetch(`/api/projects/${projectId}/transactions`).then((r) => r.json()).catch(() => null),
+        getTimeline(projectId, keyOnlyRef.current).catch(() => null),
       ]);
       setData(d);
-      setStages(txRes?.success && Array.isArray(txRes.data?.stages) ? txRes.data.stages : []);
+      if (tl) {
+        setTimeline(tl);
+        // 최초 1회만 프로젝트 기본값(timeline_key_only)으로 초기화 — 이후엔 사용자 토글 유지
+        if (!keyOnlyInit.current) { keyOnlyInit.current = true; keyOnlyRef.current = tl.key_only_default; setKeyOnly(tl.key_only_default); }
+      }
       setError(false);
+      setRefreshSignal((s) => s + 1);
     } catch { setError(true); }
     finally { setLoading(false); }
+  }, [projectId]);
+
+  // "주요만 보기" 토글 — 프로젝트 기본값 저장 + 타임라인 재조회(서버가 마일스톤만 반환)
+  const toggleKeyOnly = useCallback(async (next: boolean) => {
+    keyOnlyRef.current = next; setKeyOnly(next);
+    try {
+      const tl = await getTimeline(projectId, next);
+      setTimeline(tl);
+      setTimelineKeyOnly(projectId, next).catch(() => { /* 기본값 저장 실패는 무시 */ });
+    } catch { /* keep */ }
   }, [projectId]);
 
   useEffect(() => { setLoading(true); silentLoad(); }, [silentLoad]);
@@ -80,6 +102,17 @@ export default function ProjectCanvas({ projectId, businessId }: Props) {
 
   return (
     <Wrap>
+      {/* ───── 일정 진행 타임라인 ★ (시그니처) ───── */}
+      <SectionTitle>{t('canvas.tl.title')}</SectionTitle>
+      {timeline && (
+        <ScheduleTimeline
+          data={timeline}
+          keyOnly={keyOnly}
+          onToggleKeyOnly={toggleKeyOnly}
+          onTaskClick={(id) => navigate(`/projects/p/${projectId}?tab=tasks&task=${id}`)}
+        />
+      )}
+
       {/* ───── Layer 1 프레이밍 ───── */}
       <LayerLabel $tone="blue">{t('canvas.layer1')}</LayerLabel>
       <TwoCol>
@@ -105,20 +138,6 @@ export default function ProjectCanvas({ projectId, businessId }: Props) {
 
       {/* ───── Layer 3 실행 ───── */}
       <LayerLabel $tone="orange">{t('canvas.layer3')}</LayerLabel>
-
-      <SectionTitle>{t('canvas.roadmap.title')}</SectionTitle>
-      {stages.length === 0 ? (
-        <Card><EmptyRow><span>{t('canvas.roadmap.empty')}</span><LinkBtn type="button" onClick={() => navigate(`/projects/p/${projectId}?tab=transactions`)}>{t('canvas.roadmap.openTx')}</LinkBtn></EmptyRow></Card>
-      ) : (
-        <RoadStrip>
-          {stages.map((s, i) => (
-            <RoadStep key={s.id} onClick={() => navigate(`/projects/p/${projectId}?tab=transactions`)} $status={s.status}>
-              <RoadDot $status={s.status}>{s.status === 'completed' ? '✓' : i + 1}</RoadDot>
-              <RoadLabel>{s.label}</RoadLabel>
-            </RoadStep>
-          ))}
-        </RoadStrip>
-      )}
 
       <SectionTitle>{t('canvas.weekFocus.title')}</SectionTitle>
       <TwoCol>
@@ -172,9 +191,8 @@ export default function ProjectCanvas({ projectId, businessId }: Props) {
         )}
       </Card>
 
-      {/* ───── 업무 연계도 ───── */}
-      <SectionTitle>{t('canvas.graph.title')}<Hint>{t('canvas.graph.hint')}</Hint></SectionTitle>
-      <TaskGraph data={data} t={t} onOpen={(id) => navigate(`/projects/p/${projectId}?tab=tasks&task=${id}`)} />
+      {/* ───── 관련 프로젝트 (§3.5) ───── */}
+      <RelatedProjects projectId={projectId} businessId={businessId} refreshSignal={refreshSignal} />
     </Wrap>
   );
 }
@@ -229,43 +247,6 @@ function WeekCol({ title, tasks, emptyText, onOpen }: { title: string; tasks: Ca
   );
 }
 
-// 업무 연계도 — 추진과제 레인별 업무 + 연계(task_links) 표시
-function TaskGraph({ data, t, onOpen }: { data: CanvasData; t: (k: string) => string; onOpen: (id: number) => void }) {
-  const linkCount: Record<number, number> = {};
-  data.task_links.forEach((l) => { linkCount[l.a] = (linkCount[l.a] || 0) + 1; linkCount[l.b] = (linkCount[l.b] || 0) + 1; });
-  const lanes = [
-    ...data.workstreams.map((ws, idx) => ({ id: ws.id, title: ws.title, color: wsColor(ws, idx) })),
-    { id: null as number | null, title: t('canvas.graph.unassigned'), color: '#CBD5E1' },
-  ];
-  const tasksByWs = (wsId: number | null) => data.tasks.filter((tk) => (tk.workstream_id ?? null) === wsId);
-  if (data.tasks.length === 0) return <Empty>{t('canvas.graph.empty')}</Empty>;
-  return (
-    <GraphScroll>
-      {lanes.map((lane) => {
-        const ts = tasksByWs(lane.id);
-        if (ts.length === 0) return null;
-        return (
-          <Lane key={String(lane.id)}>
-            <LaneHead><LaneDot style={{ background: lane.color }} />{lane.title}<LaneCount>{ts.length}</LaneCount></LaneHead>
-            <LaneBody>
-              {ts.map((tk) => {
-                const sc = STATUS_COLOR[tk.status as StatusCode] || { bg: '#F1F5F9', fg: '#64748B' };
-                return (
-                  <Node key={tk.id} onClick={() => onOpen(tk.id)} style={{ borderLeftColor: lane.color }}>
-                    <NodeDot style={{ background: sc.fg }} />
-                    <NodeTitle>{tk.title}</NodeTitle>
-                    {linkCount[tk.id] > 0 && <LinkBadge>{linkCount[tk.id]} {t('canvas.graph.links')}</LinkBadge>}
-                  </Node>
-                );
-              })}
-            </LaneBody>
-          </Lane>
-        );
-      })}
-    </GraphScroll>
-  );
-}
-
 // ───────── styles ─────────
 const Wrap = styled.div`display:flex;flex-direction:column;gap:14px;max-width:1100px;`;
 const LayerLabel = styled.div<{ $tone: 'blue' | 'green' | 'orange' }>`
@@ -288,12 +269,6 @@ const GoverningWrap = styled.div`background:linear-gradient(135deg,#F0FDFA,#fff)
 const GoverningLabel = styled.div`font-size:12px;font-weight:700;color:#0F766E;margin-bottom:8px;`;
 const GoverningInput = styled.input`width:100%;border:none;background:transparent;font-size:18px;font-weight:700;color:#0F172A;line-height:1.5;&:focus{outline:none;}&::placeholder{color:#5EEAD4;font-weight:600;}`;
 const Empty = styled.div`font-size:13px;color:#94A3B8;padding:10px 0;`;
-const EmptyRow = styled.div`display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:13px;color:#94A3B8;`;
-const LinkBtn = styled.button`border:none;background:transparent;color:#0F766E;font-size:13px;font-weight:600;cursor:pointer;&:hover{text-decoration:underline;}`;
-const RoadStrip = styled.div`display:flex;align-items:center;gap:6px;overflow-x:auto;padding:4px 0;`;
-const RoadStep = styled.div<{ $status: string }>`display:flex;align-items:center;gap:8px;flex-shrink:0;padding:8px 14px 8px 8px;background:#fff;border:1px solid ${(p) => (p.$status === 'active' ? '#99F6E4' : '#E2E8F0')};border-radius:999px;cursor:pointer;&:hover{border-color:#14B8A6;}&:not(:last-child)::after{content:'→';margin-left:2px;color:#CBD5E1;}`;
-const RoadDot = styled.span<{ $status: string }>`display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;font-size:11px;font-weight:700;flex-shrink:0;color:#fff;background:${(p) => (p.$status === 'completed' ? '#22C55E' : p.$status === 'active' ? '#14B8A6' : '#CBD5E1')};`;
-const RoadLabel = styled.span`font-size:12px;font-weight:600;color:#334155;white-space:nowrap;`;
 const WeekHead = styled.div`display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;color:#0F172A;margin-bottom:10px;`;
 const WeekCount = styled.span`display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;padding:0 6px;background:#CCFBF1;color:#0F766E;border-radius:999px;font-size:11px;font-weight:700;`;
 const TaskChips = styled.div`display:flex;flex-direction:column;gap:6px;`;
@@ -311,16 +286,6 @@ const PName = styled.span`font-size:12px;font-weight:600;color:#334155;`;
 const DeptBadge = styled.span`font-size:10px;font-weight:700;color:#475569;background:#E2E8F0;border-radius:999px;padding:1px 7px;`;
 const RiskList = styled.div`display:flex;flex-direction:column;gap:6px;`;
 const RiskRow = styled.div`display:flex;align-items:flex-start;gap:8px;font-size:13px;color:#334155;line-height:1.5;color:#92400E;`;
-const GraphScroll = styled.div`display:flex;gap:14px;overflow-x:auto;padding-bottom:8px;`;
-const Lane = styled.div`flex:0 0 240px;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:12px;padding:12px;`;
-const LaneHead = styled.div`display:flex;align-items:center;gap:7px;font-size:13px;font-weight:700;color:#0F172A;margin-bottom:10px;`;
-const LaneDot = styled.span`width:9px;height:9px;border-radius:50%;flex-shrink:0;`;
-const LaneCount = styled.span`margin-left:auto;font-size:11px;color:#94A3B8;font-weight:600;`;
-const LaneBody = styled.div`display:flex;flex-direction:column;gap:6px;`;
-const Node = styled.div`display:flex;align-items:center;gap:7px;padding:8px 10px;background:#fff;border:1px solid #E2E8F0;border-left:3px solid #CBD5E1;border-radius:8px;cursor:pointer;&:hover{box-shadow:0 2px 8px rgba(15,23,42,.06);}`;
-const NodeDot = styled.span`width:7px;height:7px;border-radius:50%;flex-shrink:0;`;
-const NodeTitle = styled.span`flex:1;font-size:12px;color:#0F172A;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`;
-const LinkBadge = styled.span`font-size:10px;font-weight:700;color:#0F766E;background:#CCFBF1;border-radius:999px;padding:1px 7px;flex-shrink:0;`;
 const Skeleton = styled.div`display:flex;flex-direction:column;gap:14px;`;
 const SkelBar = styled.div`height:20px;background:#F1F5F9;border-radius:8px;`;
 const SkelBlock = styled.div`height:90px;background:#F1F5F9;border-radius:12px;`;

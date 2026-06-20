@@ -42,6 +42,7 @@ export interface DrawerTaskPatch {
   estimated_hours?: number | null;
   actual_hours?: number | null;
   progress_percent?: number;
+  is_milestone?: boolean;
 }
 
 export interface DrawerMemberOption { user_id: number; name: string; }
@@ -97,6 +98,7 @@ interface TaskDetail {
   created_at?: string | null;
   review_round?: number | null; review_policy?: 'all'|'any';
   assignee_id: number | null; created_by: number; project_id: number | null;
+  is_milestone?: boolean;
   cue_kind?: CueKind | null;
   cue_context_ref?: Record<string, unknown> | null;
   cue_meta?: CueMeta | null;
@@ -726,6 +728,8 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
           const canEditDescription = iAmCreator || iAmWsOwner;
           const canEditBody = iAmAssignee || isPlatformAdmin;
           const canEditRecurrence = iAmCreator || iAmWsOwner;  // 백엔드 FIELD_RULES와 일치
+          // 마일스톤(주요 업무) — 백엔드 FIELD_RULES.is_milestone(담당/작성/owner/admin)와 일치
+          const canMilestone = iAmCreator || iAmAssignee || canDirectStatus;
           // 프로젝트 이관 = '내 업무 정리' → 담당자·작성자·owner·admin 모두 허용 (운영 #42, 2026-06-16 정책 완화).
           // 백엔드 FIELD_RULES.project_id 와 일치.
           const canEditProject = iAmAssignee || iAmCreator || iAmWsOwner || myWsRole === 'admin';
@@ -946,6 +950,23 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                       saveField('due_date', d);
                     }} />
                 </MetaCell>
+                {detailTask.project_id != null && (
+                  <MetaCell>
+                    <MetaLabel>{t('detail.meta.milestone', '주요 업무')}</MetaLabel>
+                    <MilestoneToggle type="button" role="switch" aria-checked={!!detailTask.is_milestone}
+                      $on={!!detailTask.is_milestone} disabled={!canMilestone}
+                      title={t('detail.meta.milestoneHint', '일정 타임라인에 마일스톤(◆)으로 강조됩니다') as string}
+                      onClick={() => {
+                        if (!canMilestone) return;
+                        const next = !detailTask.is_milestone;
+                        setDetailTask(prev => prev ? { ...prev, is_milestone: next } as TaskDetail : prev);
+                        saveField('is_milestone', next);  // saveField 내부에서 onPatch 호출
+                      }}>
+                      <MsDiamond $on={!!detailTask.is_milestone} />
+                      <MsToggleLbl $on={!!detailTask.is_milestone}>{detailTask.is_milestone ? t('detail.meta.milestone', '주요 업무') : '—'}</MsToggleLbl>
+                    </MilestoneToggle>
+                  </MetaCell>
+                )}
                 {(() => {
                   const isAssignee = detailTask.assignee_id === myId;
                   const eHours = Number(detailTask.estimated_hours) || 0;
@@ -1750,6 +1771,21 @@ const MetaCell = styled.div`
   display: flex; flex-direction: column; gap: 3px;
 `;
 const MetaLabel = styled.label`font-size: 11px; color: #64748B; font-weight: 600;`;
+// 마일스톤(주요 업무) 토글 — 다이아몬드 + 라벨. 일정 타임라인 ◆ 와 시각 연동.
+const MilestoneToggle = styled.button<{ $on: boolean }>`
+  display: inline-flex; align-items: center; gap: 7px; min-height: 28px; align-self: flex-start;
+  padding: 4px 11px 4px 9px; border-radius: 999px; cursor: pointer; font-family: inherit;
+  border: 1px solid ${(p) => (p.$on ? '#F59E0B' : '#E2E8F0')};
+  background: ${(p) => (p.$on ? '#FFFBEB' : '#fff')};
+  &:disabled { cursor: default; opacity: .6; }
+  &:not(:disabled):hover { border-color: ${(p) => (p.$on ? '#F59E0B' : '#CBD5E1')}; }
+`;
+const MsDiamond = styled.span<{ $on: boolean }>`
+  width: 11px; height: 11px; transform: rotate(45deg); border-radius: 2px; flex-shrink: 0;
+  border: 2px solid ${(p) => (p.$on ? '#F59E0B' : '#CBD5E1')};
+  background: ${(p) => (p.$on ? '#F59E0B' : 'transparent')};
+`;
+const MsToggleLbl = styled.span<{ $on?: boolean }>`font-size: 12px; font-weight: 700; color: ${(p) => (p.$on ? '#92400E' : '#94A3B8')};`;
 const MetaLabelRow = styled.div`display: flex; align-items: center; gap: 6px; min-height: 14px;`;
 // 모든 셀 값 영역 height 통일 (28px) — progress range(8px) 와 hour input(28px) 시각 정렬 일치
 const MetaValueRow = styled.div`display: flex; align-items: center; gap: 6px; min-width: 0; min-height: 28px;`;

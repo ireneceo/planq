@@ -358,6 +358,8 @@
     "close": "Close",
     "meta": {
       "period": "Period",
+      "milestone": "Key task",
+      "milestoneHint": "Highlighted as a milestone (◆) on the schedule timeline",
       "est": "Est",
       "act": "Act",
       "progress": "Progress",
