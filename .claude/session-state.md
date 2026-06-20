@@ -1,8 +1,8 @@
 # PlanQ 세션 상태
 
 ## 현재 작업 상태
-**마지막 업데이트:** 2026-06-20 (9)
-**작업 상태:** ✅ **R1 (실행·보고 통합 재설계) 전체 완료 — C1~C4 커밋·E2E 통과. 미배포(/배포 대기).** 다음=R2(단위 보고서 컨펌)
+**마지막 업데이트:** 2026-06-20 (10)
+**작업 상태:** ✅ R1 전체 완료(+검증 결함 4건 수정 + 타임라인 반응형). 🔧 **R2 진행 중 — C1 백엔드 토대 완료·커밋(`e1a508b`)·E2E 18/18.** 다음=R2-C2(프론트 보고 화면). 미배포(/배포 대기).
 
 ### 🔧 진행 중: R1 — 캔버스 정돈 + 일정 타임라인 (마스터설계 `docs/EXECUTION_REPORTING_MASTER_DESIGN.md`)
 **마스터 설계 확정·커밋됨.** 핵심 결정(박제, 재논의 금지):
@@ -34,6 +34,18 @@
 - is_milestone 토글(TaskDetailDrawer) → 타임라인 다이아몬드
 - 워크스트림=업무그룹 양방향 동기화(캔버스↔업무리스트, 단일 진실 원천)
 - 다음 Phase: **R2 단위 보고서 컨펌**(report_units·자동초안→수정→확정→되돌리기·프로젝트/부서 보고화면) — 타임라인 readonly 재사용. 설계 docs/EXECUTION_REPORTING_MASTER_DESIGN.md §4·§8.
+
+### R1 검증 후속 (커밋 f3311ae·da3d405)
+- 검증 발견 결함 4건 수정: ① **그룹 삭제 시 업무 증발(심각)** — 백엔드 task:updated broadcast + 프론트 orphan→미분류 방어버킷(소켓E2E 9/9) ② 그룹 진행률 메트릭 캔버스와 불일치(P4) → 평균 progress 정렬 ③ 그룹 메뉴 outside-click/Esc ④ ScheduleTimeline 포인트 시맨틱 버튼+aria+키보드(§7.2)
+- ScheduleTimeline 반응형: 가로 스크롤 + '오늘로' 점프 + ResizeObserver + 모바일 터치타겟(::after)
+
+### 🔧 R2 진행 (마스터설계 §4·§5.3·§6.2)
+- ✅ **R2-C1 백엔드 토대 — 완료·커밋(`e1a508b`)·E2E 18/18.**
+  - `report_units` 테이블(scope project/department·period weekly/monthly·status draft/confirmed·auto_snapshot/edited_overrides/narrative·confirmed_by/at·finalized_by·UNIQUE). models 등록+association. 신규테이블만 sync.
+  - `services/reportUnitSnapshot.js` 자동초안 빌더(KPI=fetchProjectStats 단일원천 재사용). 프로젝트(kpi·하이라이트·리스크·차기·팀)/부서(멤버롤업·진행률). DATEONLY Date 안전.
+  - `routes/reports.js` 확장: GET unit(find-or-create, draft=live재생성·confirmed=박제)·PATCH(narrative/overrides)·confirm·reopen. 책임자판정(project owner_user_id/dept lead_user_id/owner·admin). report:updated broadcast. cross-tenant 404.
+- ⬜ **R2-C2 프론트 (다음):** WeeklyReviewTab/보고 화면에 프로젝트·부서 단위 보고서 — 자동초안 표시(KPI·ScheduleTimeline readonly 재사용·하이라이트/리스크) + 책임자 수정영역(narrative AutoSave·overrides) + [확정]/[되돌리기] 버튼(책임자만·중복가드) + draft/confirmed 상태칩. services/reportUnit.ts. i18n. §16 socket(report:updated) 실시간.
+- ⬜ **R3 통합 롤업 + 주월간 cron** (확정본 자동 롤업·통합확정 토글).
 
 ### 완료된 작업 (2026-06-20 — #64 부서뷰)
 - **#64 부서뷰 — dev 검증, 미배포. 순수 프론트(백엔드 0).** D1 조직 `/api/org/:biz/overview`(company/department scope) + `listDepartments` 재사용.
