@@ -1,9 +1,10 @@
 // 프로젝트 업무 탭용 리스트 — Q Task 테이블 디자인 그대로
 // (프로젝트 컬럼·예측·실제 컬럼 제외)
-import React, { Fragment, useMemo, useRef, useState } from 'react';
+import React, { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import CalendarPicker from '../../components/Common/CalendarPicker';
+import PartnerKindBadge from '../../components/Common/PartnerKindBadge';
 import { apiFetch } from '../../contexts/AuthContext';
 import TaskRowActionMenu from '../../components/QTask/TaskRowActionMenu';
 import { GanttHeader, GanttRowTrack, GanttBar, useGanttScrollSync, type GanttRange } from '../../components/Common/GanttTrack';
@@ -85,6 +86,29 @@ const ProjectTaskList: React.FC<Props> = ({
   const [dateOpenId, setDateOpenId] = useState<number | null>(null);
   const [assigneeOpenId, setAssigneeOpenId] = useState<number | null>(null);
   const dateRefs = useRef<Record<number, HTMLButtonElement | null>>({});
+
+  // D2-b (#66) — 이 프로젝트에 참여한 외부 파트너(담당자 후보). 멤버와 합쳐 인라인 picker 에 노출.
+  const projectId = useMemo(() => tasks.find(tk => tk.project_id != null)?.project_id ?? null, [tasks]);
+  const [externals, setExternals] = useState<{ user_id: number; name: string; kind: string }[]>([]);
+  useEffect(() => {
+    if (!projectId || !businessId) { setExternals([]); return; }
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await apiFetch(`/api/tasks/by-business/${businessId}/assignable-externals?project_id=${projectId}`);
+        const j = await r.json();
+        if (!cancelled && j.success && Array.isArray(j.data)) {
+          setExternals(j.data.map((e: { user_id: number; name: string; kind: string }) => ({ user_id: e.user_id, name: e.name, kind: e.kind })));
+        } else if (!cancelled) { setExternals([]); }
+      } catch { if (!cancelled) setExternals([]); }
+    })();
+    return () => { cancelled = true; };
+  }, [projectId, businessId]);
+  // 멤버와 중복 제거 (방어적)
+  const externalCandidates = useMemo(
+    () => externals.filter(e => !members.some(m => m.user_id === e.user_id)),
+    [externals, members],
+  );
 
   // 타임라인 가로 스크롤 동기화 — 공용 훅
   const gantt = useGanttScrollSync();
@@ -235,6 +259,12 @@ const ProjectTaskList: React.FC<Props> = ({
                     <AssigneeOpt key={m.user_id} $active={task.assignee_id === m.user_id}
                       onClick={() => { saveField(task.id, 'assignee_id', m.user_id); onLocalUpdate(task.id, { assignee: { id: m.user_id, name: m.name } }); setAssigneeOpenId(null); }}>
                       {m.name}{m.user_id === myId ? t('listRow.meSuffix', ' (나)') : ''}
+                    </AssigneeOpt>
+                  ))}
+                  {externalCandidates.map(e => (
+                    <AssigneeOpt key={`e-${e.user_id}`} $active={task.assignee_id === e.user_id}
+                      onClick={() => { saveField(task.id, 'assignee_id', e.user_id); onLocalUpdate(task.id, { assignee: { id: e.user_id, name: e.name } }); setAssigneeOpenId(null); }}>
+                      <AssigneeOptInner><PartnerKindBadge kind={e.kind} size="xs" />{e.name}</AssigneeOptInner>
                     </AssigneeOpt>
                   ))}
                 </AssigneeDropdown>
@@ -407,6 +437,7 @@ const DateTrigger = styled.button<{$color?:string;$empty?:boolean}>`
 const AssigneeLabel = styled.span`display:inline-block;font-size:12px;color:#0F172A;cursor:pointer;padding:2px 6px;border-radius:4px;&:hover{background:#F1F5F9;}`;
 const AssigneeDropdown = styled.div`position:absolute;top:100%;left:0;z-index:100;min-width:140px;max-height:220px;overflow-y:auto;background:#FFF;border:1px solid #E2E8F0;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,0.12);padding:4px;margin-top:4px;`;
 const AssigneeOpt = styled.button<{$active?:boolean}>`display:block;width:100%;padding:5px 10px;font-size:12px;text-align:left;border:none;border-radius:6px;cursor:pointer;background:${p=>p.$active?'#F0FDFA':'transparent'};color:${p=>p.$active?'#0F766E':'#0F172A'};font-weight:${p=>p.$active?600:500};&:hover{background:#F0FDFA;color:#0F766E;}`;
+const AssigneeOptInner = styled.span`display:inline-flex;align-items:center;gap:8px;`;
 const EmptyMsg = styled.div`padding:32px;text-align:center;color:#94A3B8;font-size:13px;`;
 const DescText = styled.span`font-size:12px;color:#64748B;line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;`;
 const DescEmpty = styled.span`color:#CBD5E1;`;

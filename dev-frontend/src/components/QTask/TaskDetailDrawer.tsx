@@ -9,6 +9,7 @@ import { formatDate } from '../../utils/dateFormat';
 import CalendarPicker from '../Common/CalendarPicker';
 import SingleDateField from '../Common/SingleDateField';
 import PlanQSelect from '../Common/PlanQSelect';
+import PartnerKindBadge from '../Common/PartnerKindBadge';
 import RichEditor from '../Common/RichEditor';
 import ShareModal from '../Common/ShareModal';
 import ConfirmDialog from '../Common/ConfirmDialog';
@@ -44,6 +45,8 @@ export interface DrawerTaskPatch {
 }
 
 export interface DrawerMemberOption { user_id: number; name: string; }
+// D2-b (#66) — 프로젝트 참여 외부 파트너(user 계정 client) 후보. picker 에서 멤버와 합쳐 노출 + 유형 배지.
+export interface DrawerExternalOption { user_id: number; name: string; kind: string; }
 
 interface CommentAttach {
   id: number;
@@ -171,6 +174,25 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
   const [reviewers, setReviewers] = useState<ReviewerRow[]>([]);
   const [history, setHistory] = useState<HistoryRow[]>([]);
   const [reviewPolicy, setReviewPolicy] = useState<'all'|'any'>('all');
+
+  // D2-b (#66) — 이 업무의 project 에 참여 중인 외부 파트너(담당자/컨펌자 후보).
+  //   project 없으면 빈 배열(외부인은 프로젝트 스코프 필수 — 백엔드 assertAssignable 와 일치).
+  const [externals, setExternals] = useState<DrawerExternalOption[]>([]);
+  React.useEffect(() => {
+    const pid = detailTask?.project_id;
+    if (!pid || !bizId) { setExternals([]); return; }
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await apiFetch(`/api/tasks/by-business/${bizId}/assignable-externals?project_id=${pid}`);
+        const j = await r.json();
+        if (!cancelled && j.success && Array.isArray(j.data)) {
+          setExternals(j.data.map((e: { user_id: number; name: string; kind: string }) => ({ user_id: e.user_id, name: e.name, kind: e.kind })));
+        } else if (!cancelled) { setExternals([]); }
+      } catch { if (!cancelled) setExternals([]); }
+    })();
+    return () => { cancelled = true; };
+  }, [detailTask?.project_id, bizId]);
 
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState('');
@@ -724,6 +746,23 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
           const approvedCount = reviewers.filter(rv => rv.state === 'approved').length;
           const canAddReviewer = iAmAssignee || iAmRequesterOrOwner;
           const memberOptions = members.filter(m => m.user_id !== detailTask.assignee_id && !reviewers.some(rv => rv.user_id === m.user_id));
+          // D2-b (#66) — 외부 파트너 후보 (멤버와 중복 제거). 담당자/컨펌자 picker 에 배지로 구분 노출.
+          const externalCandidates = externals.filter(e => !members.some(m => m.user_id === e.user_id));
+          const externalById = new Map(externalCandidates.map(e => [e.user_id, e]));
+          const externalReviewerOptions = externalCandidates.filter(e => e.user_id !== detailTask.assignee_id && !reviewers.some(rv => rv.user_id === e.user_id));
+          const meSuffix = (uid: number) => (uid === myId ? (t('detail.meSuffix', ' (나)') as string) : '');
+          // 담당자 셀렉트 옵션 — 멤버(배지 없음) + 외부 파트너(유형 배지 icon)
+          const assigneeOptions = [
+            ...members.map(m => ({ value: String(m.user_id), label: m.name + meSuffix(m.user_id) })),
+            ...externalCandidates.map(e => ({ value: String(e.user_id), label: e.name, icon: <PartnerKindBadge kind={e.kind} size="xs" /> })),
+          ];
+          const selectedAssigneeOption = detailTask.assignee_id == null ? null : (() => {
+            const uid = detailTask.assignee_id;
+            const ext = externalById.get(uid);
+            if (ext) return { value: String(uid), label: ext.name, icon: <PartnerKindBadge kind={ext.kind} size="xs" /> };
+            const m = members.find(mm => mm.user_id === uid);
+            return { value: String(uid), label: (m?.name || detailTask.assignee?.name || '-') + meSuffix(uid) };
+          })();
 
           return (<>
             {/* 업무 흐름 sticky 바 — N+32 옵션 B (단순화). 담당자 본인 + status='in_progress' 일 때만 일시정지/재개. */}
@@ -882,25 +921,22 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                   <MetaLabel>{t('detail.meta.assignee', '담당자')}</MetaLabel>
                   <PlanQSelect size="sm" isClearable
                     placeholder={t('detail.meta.assigneePh', '담당자 선택') as string}
-                    value={detailTask.assignee_id == null ? null : {
-                      value: String(detailTask.assignee_id),
-                      label: (members.find(m => m.user_id === detailTask.assignee_id)?.name || detailTask.assignee?.name || '-')
-                        + (detailTask.assignee_id === myId ? t('detail.meSuffix', ' (나)') : ''),
-                    }}
+                    value={selectedAssigneeOption}
                     onChange={(v) => {
                       const uid = (v as { value?: string })?.value ? Number((v as { value: string }).value) : null;
                       setDetailTask(prev => {
                         if (!prev) return prev;
                         const m = members.find(mm => mm.user_id === uid);
+                        const ext = uid != null ? externalById.get(uid) : undefined;
                         return {
                           ...prev,
                           assignee_id: uid,
-                          assignee: uid != null ? { id: uid, name: m?.name || prev.assignee?.name || '-' } : null,
+                          assignee: uid != null ? { id: uid, name: ext?.name || m?.name || prev.assignee?.name || '-' } : null,
                         } as TaskDetail;
                       });
                       saveField('assignee_id', uid);
                     }}
-                    options={members.map(m => ({ value: String(m.user_id), label: m.name + (m.user_id === myId ? t('detail.meSuffix', ' (나)') : '') }))} />
+                    options={assigneeOptions} />
                 </MetaCell>
                 <MetaCell>
                   <MetaLabel>{t('detail.meta.period', '기간')}</MetaLabel>
@@ -1450,6 +1486,8 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                     {reviewers.map(rv => (
                       <ReviewerRowE key={rv.id}>
                         <ReviewerName>{rv.user?.name || `user ${rv.user_id}`}</ReviewerName>
+                        {rv.is_client && <PartnerKindBadge kind={externalById.get(rv.user_id)?.kind} size="xs"
+                          label={externalById.get(rv.user_id) ? undefined : (t('detail.reviewers.external', '외부') as string)} />}
                         <ReviewerState $state={rv.state}>{t(`detail.reviewers.state.${rv.state}`, rv.state)}</ReviewerState>
                         {canAddReviewer && <ReviewerRemove onClick={() => removeReviewer(rv.user_id)} disabled={actionBusy} title={t('detail.reviewers.remove', 'Remove') as string}>×</ReviewerRemove>}
                       </ReviewerRowE>
@@ -1458,10 +1496,15 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                 )}
                 {canAddReviewer && (addReviewerOpen ? (
                   <AddReviewerBox>
-                    {memberOptions.length === 0 ? <MutedText>{t('detail.reviewers.noCandidates', 'No members to add')}</MutedText> : (
+                    {memberOptions.length === 0 && externalReviewerOptions.length === 0 ? <MutedText>{t('detail.reviewers.noCandidates', 'No members to add')}</MutedText> : (
                       <AddReviewerList>
                         {memberOptions.map(m => (
-                          <AddReviewerItem key={m.user_id} onClick={() => addReviewer(m.user_id)} disabled={actionBusy}>{m.name}</AddReviewerItem>
+                          <AddReviewerItem key={`m-${m.user_id}`} onClick={() => addReviewer(m.user_id)} disabled={actionBusy}>{m.name}</AddReviewerItem>
+                        ))}
+                        {externalReviewerOptions.map(e => (
+                          <AddReviewerItem key={`e-${e.user_id}`} onClick={() => addReviewer(e.user_id)} disabled={actionBusy}>
+                            <ReviewerOptInner><PartnerKindBadge kind={e.kind} size="xs" />{e.name}</ReviewerOptInner>
+                          </AddReviewerItem>
                         ))}
                       </AddReviewerList>
                     )}
@@ -1919,6 +1962,7 @@ const ReviewerRemove = styled.button`width:20px;height:20px;display:flex;align-i
 const AddReviewerBox = styled.div`display:flex;flex-direction:column;gap:6px;padding:8px;background:#FFF;border:1px solid #E2E8F0;border-radius:8px;margin-top:6px;`;
 const AddReviewerList = styled.div`display:flex;flex-direction:column;gap:2px;max-height:160px;overflow:auto;`;
 const AddReviewerItem = styled.button`padding:6px 8px;text-align:left;background:transparent;border:none;border-radius:4px;font-size:12px;color:#0F172A;cursor:pointer;&:hover:not(:disabled){background:#F0FDFA;color:#0F766E;}&:disabled{color:#CBD5E1;cursor:not-allowed;}`;
+const ReviewerOptInner = styled.span`display:inline-flex;align-items:center;gap:8px;`;
 const WarnDialog = styled.div`margin-top:8px;padding:10px;background:#FEF2F2;border:1px solid #FECACA;border-radius:8px;display:flex;flex-direction:column;gap:6px;`;
 const WarnTitle = styled.div`font-size:12px;font-weight:700;color:#991B1B;`;
 const WarnBody = styled.div`font-size:11px;color:#7F1D1D;line-height:1.5;`;
