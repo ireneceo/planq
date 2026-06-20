@@ -128,6 +128,36 @@ async function buildDepartmentSnapshot(businessId, departmentId, periodType, per
   };
 }
 
+// ── 워크스페이스 멤버 차원 롤업 (R3' 통합보고서 멤버별 섹션) ──
+async function buildWorkspaceMembers(businessId, periodType, periodStart) {
+  const { start, end } = periodBounds(periodType, periodStart);
+  const today = todayInTz('Asia/Seoul');
+  const members = await BusinessMember.findAll({
+    where: { business_id: businessId, role: { [Op.ne]: 'ai' } },
+    include: [{ model: User, as: 'user', attributes: ['id', 'name', 'name_localized'], required: false }],
+  });
+  const ids = members.map((m) => m.user_id).filter(Boolean);
+  let tp = [];
+  if (ids.length) {
+    const tasks = await Task.findAll({
+      where: { business_id: businessId, assignee_id: { [Op.in]: ids }, status: { [Op.ne]: 'canceled' } },
+      attributes: ['id', 'status', 'due_date', 'progress_percent', 'assignee_id', 'completed_at'],
+    });
+    tp = tasks.map((t) => t.toJSON());
+  }
+  return members.map((m) => {
+    const mine = tp.filter((t) => t.assignee_id === m.user_id);
+    return {
+      user_id: m.user_id, name: m.name || displayName(m.user, m.user_id),
+      total: mine.length,
+      active: mine.filter((t) => t.status !== 'completed').length,
+      completed: mine.filter((t) => t.status === 'completed').length,
+      overdue: mine.filter((t) => t.due_date && ymd(t.due_date) < today && t.status !== 'completed').length,
+      completed_in_period: mine.filter((t) => t.status === 'completed' && inRange(t.completed_at, start, end)).length,
+    };
+  });
+}
+
 // ── 디스패처 ──
 async function buildAutoSnapshot(businessId, scope, refId, periodType, periodStart) {
   if (scope === 'project') return buildProjectSnapshot(businessId, refId, periodType, periodStart);
@@ -135,4 +165,4 @@ async function buildAutoSnapshot(businessId, scope, refId, periodType, periodSta
   return null;  // member 는 v1 에서 WeeklyReview 유지
 }
 
-module.exports = { buildAutoSnapshot, buildProjectSnapshot, buildDepartmentSnapshot, periodBounds, SCHEMA_VERSION };
+module.exports = { buildAutoSnapshot, buildProjectSnapshot, buildDepartmentSnapshot, buildWorkspaceMembers, periodBounds, SCHEMA_VERSION };

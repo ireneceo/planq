@@ -17,7 +17,8 @@ const { getUserScope } = require('../middleware/access_scope');
 const { logAudit } = require('../services/auditService');
 const { buildAutoSnapshot } = require('../services/reportUnitSnapshot');
 const { buildIntegratedRollup } = require('../services/integratedRollup');
-const { mondayOfDateStr } = require('../utils/datetime');
+const { Op } = require('sequelize');
+const { mondayOfDateStr, addDaysStr, todayInTz } = require('../utils/datetime');
 
 // 리뷰 M5 — period_start 를 키 정규화(주=월요일/월=1일)해 비정규 입력의 중복 row·cron 불일치 차단.
 function normalizePeriodStart(periodType, periodStart) {
@@ -206,6 +207,45 @@ router.post('/:biz/unit/:id/reopen', authenticateToken, async (req, res, next) =
 // ════════════════════════════════════════════════════════════════
 // 통합 보고서 롤업 (R3, 마스터설계 §4.4·§6.2) — 확정본 자동 취합 + 통합확정
 // ════════════════════════════════════════════════════════════════
+
+// GET /:biz/integrated/periods?weeks=&months= — 기간별 보고서 목록(주간 N주 + 월간 N월) + 확정 상태
+router.get('/:biz/integrated/periods', authenticateToken, async (req, res, next) => {
+  try {
+    const businessId = Number(req.params.biz);
+    if (!businessId) return errorResponse(res, 'business_id_required', 400);
+    const { member } = await loadScope(req, businessId);
+    if (!member) return errorResponse(res, 'member_only', 403);
+
+    const weeks = Math.min(Math.max(Number(req.query.weeks) || 8, 1), 26);
+    const months = Math.min(Math.max(Number(req.query.months) || 6, 1), 24);
+    const today = todayInTz('Asia/Seoul');
+    const thisMonday = mondayOfDateStr(today);
+    const weekStarts = Array.from({ length: weeks }, (_, i) => addDaysStr(thisMonday, -7 * i));
+    const [y, m] = today.split('-').map(Number);
+    const monthStarts = Array.from({ length: months }, (_, i) => {
+      const d = new Date(Date.UTC(y, m - 1 - i, 1));
+      return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-01`;
+    });
+
+    const units = await ReportUnit.findAll({
+      where: {
+        business_id: businessId, scope: 'workspace', scope_ref_id: 0,
+        [Op.or]: [
+          { period_type: 'weekly', period_start: { [Op.in]: weekStarts } },
+          { period_type: 'monthly', period_start: { [Op.in]: monthStarts } },
+        ],
+      },
+      attributes: ['period_type', 'period_start', 'status', 'confirmed_at', 'finalized_by'],
+    });
+    const key = (t, s) => `${t}:${String(s).slice(0, 10)}`;
+    const map = new Map(units.map((u) => [key(u.period_type, u.period_start), u]));
+    const row = (period_type) => (s) => {
+      const u = map.get(key(period_type, s));
+      return { period_type, period_start: s, status: u?.status || 'draft', confirmed_at: u?.confirmed_at || null, finalized_by: u?.finalized_by || null };
+    };
+    return successResponse(res, { weekly: weekStarts.map(row('weekly')), monthly: monthStarts.map(row('monthly')) });
+  } catch (err) { next(err); }
+});
 
 // GET /:biz/integrated?period_type=&period_start= — 통합 롤업 (member 이상 view)
 router.get('/:biz/integrated', authenticateToken, async (req, res, next) => {

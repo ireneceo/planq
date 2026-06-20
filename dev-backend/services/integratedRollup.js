@@ -1,9 +1,8 @@
 // integratedRollup.js — 통합 보고서 롤업 (R3, 마스터설계 §4.4·§4.5)
 //   같은 주기·기간의 프로젝트/부서 단위 보고서를 취합. 확정본은 박제 snapshot, 미확정은 live 초안 + 뱃지.
 //   확정/미확정 현황 매트릭스 + 포트폴리오 롤업. 단위 보고서가 없으면 자동 초안으로 채움(빈 화면 0).
-const { Op } = require('sequelize');
 const { Project, Department, ReportUnit } = require('../models');
-const { buildAutoSnapshot } = require('./reportUnitSnapshot');
+const { buildAutoSnapshot, buildWorkspaceMembers } = require('./reportUnitSnapshot');
 
 async function buildIntegratedRollup(businessId, periodType, periodStart) {
   // 대상 단위 — 활성 프로젝트 + 전체 부서
@@ -39,6 +38,7 @@ async function buildIntegratedRollup(businessId, periodType, periodStart) {
 
   const projectRows = await Promise.all(projects.map((p) => rowFor('project', p.id, p.name)));
   const departmentRows = await Promise.all(departments.map((d) => rowFor('department', d.id, d.name)));
+  const memberRows = await buildWorkspaceMembers(businessId, periodType, periodStart);
 
   const sum = (arr, k) => arr.reduce((s, r) => s + (r[k] || 0), 0);
   const avg = (arr, k) => (arr.length ? Math.round(sum(arr, k) / arr.length) : 0);
@@ -63,6 +63,7 @@ async function buildIntegratedRollup(businessId, periodType, periodStart) {
     },
     projects: projectRows,
     departments: departmentRows,
+    members: memberRows,
     integrated: wsUnit
       ? { id: wsUnit.id, status: wsUnit.status, confirmed_by: wsUnit.confirmed_by, confirmed_at: wsUnit.confirmed_at, finalized_by: wsUnit.finalized_by }
       : { id: null, status: 'draft', confirmed_by: null, confirmed_at: null, finalized_by: null },

@@ -59,6 +59,9 @@ export interface IntegratedUnitRow {
   progress_percent: number; completed_tasks: number; total_tasks: number; overdue_count: number;
   health: string | null; completed_in_period: number;
 }
+export interface IntegratedMemberRow {
+  user_id: number; name: string; total: number; active: number; completed: number; overdue: number; completed_in_period: number;
+}
 export interface IntegratedRollup {
   period: { type: ReportPeriodType; start: string };
   summary: {
@@ -69,9 +72,16 @@ export interface IntegratedRollup {
   };
   projects: IntegratedUnitRow[];
   departments: IntegratedUnitRow[];
+  members: IntegratedMemberRow[];
   integrated: { id: number | null; status: ReportStatus; confirmed_by: number | null; confirmed_at: string | null; finalized_by: 'manual' | 'auto' | null };
   settings: { integrated_confirm: boolean; monthly_finalize: boolean };
   executive_summary: string;
+}
+export interface IntegratedPeriodItem {
+  period_type: ReportPeriodType; period_start: string; status: ReportStatus; confirmed_at: string | null; finalized_by: 'manual' | 'auto' | null;
+}
+export async function getIntegratedPeriods(businessId: number, weeks = 8, months = 6): Promise<{ weekly: IntegratedPeriodItem[]; monthly: IntegratedPeriodItem[] }> {
+  return jsonOf(await apiFetch(`/api/reports/${businessId}/integrated/periods?weeks=${weeks}&months=${months}`));
 }
 
 export async function getIntegrated(businessId: number, periodType: ReportPeriodType, periodStart: string): Promise<IntegratedRollup> {
