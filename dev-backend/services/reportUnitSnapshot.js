@@ -3,7 +3,7 @@
 //   주간/월간 period 경계 안에서 하이라이트·리스크·차기 계획·팀/멤버 롤업 집계.
 const { Op } = require('sequelize');
 const {
-  Project, Task, User, ProjectMember, BusinessMember, Department, ProjectIssue,
+  Project, Task, User, ProjectMember, BusinessMember, Department, ProjectIssue, Post, Document,
 } = require('../models');
 const { fetchProjectStats } = require('./weeklyReviewSnapshot');
 const { todayInTz, mondayOfDateStr, addDaysStr } = require('../utils/datetime');
