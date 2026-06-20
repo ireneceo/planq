@@ -52,7 +52,7 @@ router.get('/share/:token', async (req, res, next) => {
 //   책임자: project owner_user_id / department lead_user_id / 워크스페이스 owner·admin.
 // ════════════════════════════════════════════════════════════════
 
-const VALID_SCOPE = ['project', 'department'];
+const VALID_SCOPE = ['project', 'member'];
 const VALID_PERIOD = ['weekly', 'monthly'];
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -65,16 +65,15 @@ async function loadScope(req, businessId) {
   return { scope, member, ownerOrAdmin: scope.isPlatformAdmin || scope.isOwner || scope.isAdmin };
 }
 
-// 책임자 판정 — owner/admin 은 oversight 로 전권, 그 외엔 단위 책임자 본인만
+// 책임자 판정 — owner/admin 은 oversight 로 전권. 프로젝트=PM(owner_user_id) / 개인=본인.
 async function isResponsible(scope, scopeStr, refId, businessId, ownerOrAdmin) {
   if (ownerOrAdmin) return true;
   if (scopeStr === 'project') {
     const p = await Project.findOne({ where: { id: refId, business_id: businessId }, attributes: ['owner_user_id'] });
     return !!p && Number(p.owner_user_id) === Number(scope.userId);
   }
-  if (scopeStr === 'department') {
-    const d = await Department.findOne({ where: { id: refId, business_id: businessId }, attributes: ['lead_user_id'] });
-    return !!d && Number(d.lead_user_id) === Number(scope.userId);
+  if (scopeStr === 'member') {
+    return Number(refId) === Number(scope.userId);  // 본인 보고만 편집·확정
   }
   return false;
 }
