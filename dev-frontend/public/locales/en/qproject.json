@@ -157,6 +157,7 @@
     "files": "Files",
     "docs": "Docs",
     "transactions": "Transactions",
+    "report": "Report",
     "info": "Info",
     "defaultProcess": "Table",
     "processEditHint": "Double-click to rename",

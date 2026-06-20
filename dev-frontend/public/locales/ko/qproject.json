@@ -157,6 +157,7 @@
     "files": "파일",
     "docs": "문서",
     "transactions": "거래",
+    "report": "보고서",
     "info": "정보",
     "defaultProcess": "테이블",
     "processEditHint": "더블클릭하여 이름 변경",
