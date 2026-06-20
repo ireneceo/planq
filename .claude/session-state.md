@@ -1,8 +1,8 @@
 # PlanQ 세션 상태
 
 ## 현재 작업 상태
-**마지막 업데이트:** 2026-06-20 (8)
-**작업 상태:** 🔧 R1 진행 중 (실행·보고 통합 재설계) — C1 백엔드 완료, **C2 캔버스 재정돈 완료·커밋(`71aa130`)·E2E 20/20**, 다음=C3
+**마지막 업데이트:** 2026-06-20 (9)
+**작업 상태:** ✅ **R1 (실행·보고 통합 재설계) 전체 완료 — C1~C4 커밋·E2E 통과. 미배포(/배포 대기).** 다음=R2(단위 보고서 컨펌)
 
 ### 🔧 진행 중: R1 — 캔버스 정돈 + 일정 타임라인 (마스터설계 `docs/EXECUTION_REPORTING_MASTER_DESIGN.md`)
 **마스터 설계 확정·커밋됨.** 핵심 결정(박제, 재논의 금지):
@@ -23,9 +23,17 @@
   - **TaskDetailDrawer:** is_milestone 토글(다이아몬드, 프로젝트 업무만, FIELD_RULES 일치 작성자/담당자/owner/admin) + DrawerTaskPatch.is_milestone.
   - i18n qproject canvas.tl·canvas.related + qtask detail.meta.milestone ko/en (467/467·657/657). 옛 roadmap·graph 키 제거.
   - 검증: 빌드 EXIT0 · E2E 20/20(타임라인 형태·is_milestone 라운드트립·key_only 필터·timeline-settings·links 연결/해제·자기연결 400·중복 409·익명 401) · 데이터 원복(0/0/0) · 프론트 200.
-- ⬜ **C3 워크스트림=업무그룹 (다음):** 업무 리스트(ProjectTaskList/TodoPage)를 워크스트림 그룹화(인라인 추가/수정·드래그·실시간 동기화 §16). 백엔드 workstream CRUD(`/:id/workstreams[/:wsId]`·`/reorder`) + tasks PUT workstream_id 이미 존재(C1·D3). 설계 §3.5b.
-- ⬜ **C4 통합 /검증.**
-**미배포(dev):** R1-C1 백엔드 + C2 프론트. C3~C4 후 일괄. 직전 deploy `20260620_060545` · commit `12de4db` · 운영 헬스 200.
+- ✅ **C3 워크스트림=업무그룹 — 완료·커밋(`b335b90`)·E2E 17/17.** ProjectTaskList 그룹 모드(workstreams prop): 그룹 헤더(색·인라인 이름변경·카운트·진행바·▲▼·⋯삭제[업무 미분류 보존]) + "(그룹 없음)" + 인라인 "추진과제 추가". 업무→그룹 이동 2-way(행별 드롭다운 + 드래그핸들 ⠿, optimistic 복원, cross-project 400 차단). TasksTab listWorkstreams + project:updated/task:updated socket §16. renderTaskRow 추출(그룹/플랫 공용). services/projectCanvas listWorkstreams. i18n qtask list.group 14키.
+- ✅ **C4 통합 검증 — E2E 11/11.** canvas·timeline·workstreams/tasks **3 표면이 같은 project_workstreams·workstream_id·is_milestone 일관 반영**(단일 진실 원천 증명). is_milestone→타임라인 다이아몬드·key_only 필터 정합.
+**미배포(dev):** R1-C1 백엔드 + C2·C3 프론트. **R1 전체 dev 검증 완료, Irene `/배포` 명령 대기.** 직전 deploy `20260620_060545` · commit `12de4db` · 운영 헬스 200.
+
+### R1 완료 요약 (커밋 d416dab·71aa130·b335b90)
+- ScheduleTimeline ★(시그니처) 캔버스 최상단 — 진행률·일정대비(순항/주의/지연)·오늘마커·마일스톤◆·워크스트림색·주요만토글
+- 관련 프로젝트(project_links) — RelatedProjects 인라인 검색 연결/해제 카드
+- 캔버스 개념정정 — 옛 로드맵(거래)·업무연계도(task_links) 제거
+- is_milestone 토글(TaskDetailDrawer) → 타임라인 다이아몬드
+- 워크스트림=업무그룹 양방향 동기화(캔버스↔업무리스트, 단일 진실 원천)
+- 다음 Phase: **R2 단위 보고서 컨펌**(report_units·자동초안→수정→확정→되돌리기·프로젝트/부서 보고화면) — 타임라인 readonly 재사용. 설계 docs/EXECUTION_REPORTING_MASTER_DESIGN.md §4·§8.
 
 ### 완료된 작업 (2026-06-20 — #64 부서뷰)
 - **#64 부서뷰 — dev 검증, 미배포. 순수 프론트(백엔드 0).** D1 조직 `/api/org/:biz/overview`(company/department scope) + `listDepartments` 재사용.
