@@ -297,6 +297,9 @@ function deltaOrNull(curr, prev) {
 // ─────────────────────────────────────────────────────────────
 
 // 프로젝트 통계 (개인본·통합본 공용)
+// DATEONLY/Date 안전 정규화 — Date 객체면 toISOString, 문자열이면 slice (둘 다 YYYY-MM-DD)
+const toYmd = (d) => (d == null ? null : (d instanceof Date ? d.toISOString().slice(0, 10) : String(d).slice(0, 10)));
+
 async function fetchProjectStats(businessId, projectIds, monday, withHealth = false) {
   if (projectIds.length === 0) return [];
   const projects = await Project.findAll({
@@ -331,8 +334,10 @@ async function fetchProjectStats(businessId, projectIds, monday, withHealth = fa
     const active = tasks.filter(t => t.status !== 'canceled');
     const total_tasks = active.length;
     const completed_tasks = active.filter(t => t.status === 'completed').length;
+    // DATEONLY 는 Date 객체로 올 수 있음 — String(Date).slice 는 "Wed May 01" 깨진 값이라 비교 실패.
+    // toYmd 로 항상 YYYY-MM-DD 정규화 (overdue·d_day·health 정확도 근본 fix).
     const overdue_count = active.filter(t =>
-      t.due_date && String(t.due_date).slice(0, 10) < today && t.status !== 'completed'
+      t.due_date && toYmd(t.due_date) < today && t.status !== 'completed'
     ).length;
     const progress_percent = total_tasks === 0 ? 0 : Math.round(
       active.reduce((s, t) => s + (t.status === 'completed' ? 100 : (Number(t.progress_percent) || 0)), 0) / total_tasks
@@ -344,7 +349,7 @@ async function fetchProjectStats(businessId, projectIds, monday, withHealth = fa
     const progress_delta = progress_percent - prevAvg;
 
     const open_issues = issuesByProject.filter(i => i.project_id === p.id).length;
-    const end_date = p.end_date ? String(p.end_date).slice(0, 10) : null;
+    const end_date = p.end_date ? toYmd(p.end_date) : null;
     const d_day = end_date ? daysBetween(today, end_date) : null;
 
     let health = 'yellow';
