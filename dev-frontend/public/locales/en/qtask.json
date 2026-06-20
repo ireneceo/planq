@@ -297,7 +297,23 @@
     "aiEstimateHint": "Auto-estimated by AI — enter a value to confirm",
     "actHint": "Auto-accumulated when you start/finish — enter a value to confirm",
     "inProgressDot": "In progress",
-    "assigneePh": "Assignee"
+    "assigneePh": "Assignee",
+    "group": {
+      "none": "(No group)",
+      "addGroup": "Add workstream (group)",
+      "newGroupPh": "Group name (Enter to add / Esc to cancel)",
+      "rename": "Click to rename",
+      "moveTo": "Move to group",
+      "dragMove": "Drag to move between groups",
+      "moveUp": "Move up",
+      "moveDown": "Move down",
+      "menu": "Group menu",
+      "delete": "Delete group",
+      "deleteHint": "Tasks in this group move to unassigned",
+      "collapse": "Collapse",
+      "expand": "Expand",
+      "empty": "No tasks in this group — drag or use Move to group"
+    }
   },
   "empty": {
     "title": "Start your first task",

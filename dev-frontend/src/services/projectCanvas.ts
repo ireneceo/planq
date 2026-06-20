@@ -77,6 +77,10 @@ export async function putSuccessMetrics(projectId: number, metrics: SuccessMetri
   }));
 }
 
+export async function listWorkstreams(projectId: number): Promise<Workstream[]> {
+  return jsonOf(await apiFetch(`/api/projects/${projectId}/workstreams`));
+}
+
 export async function createWorkstream(projectId: number, body: { title: string; description?: string; color?: string }): Promise<Workstream> {
   return jsonOf(await apiFetch(`/api/projects/${projectId}/workstreams`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
