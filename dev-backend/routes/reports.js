@@ -55,11 +55,13 @@ const VALID_SCOPE = ['project', 'department'];
 const VALID_PERIOD = ['weekly', 'monthly'];
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
-// 멤버 이상 + client 차단
+// 멤버 이상 + client 차단. platform_admin 은 getUserScope 가 isPlatformAdmin 만 세팅하고
+//   isOwner/isMember 는 false 로 둔 채 early-return 하므로(다른 라우트는 checkBusinessAccess
+//   platformAdminAs:'owner' 로 처리) 여기서 isPlatformAdmin 을 명시 포함해야 403 회귀 차단.
 async function loadScope(req, businessId) {
   const scope = await getUserScope(req.user.id, businessId, req.user.platform_role);
-  const member = scope.isOwner || scope.isAdmin || scope.isMember || scope.isAi;
-  return { scope, member, ownerOrAdmin: scope.isOwner || scope.isAdmin };
+  const member = scope.isPlatformAdmin || scope.isOwner || scope.isAdmin || scope.isMember || scope.isAi;
+  return { scope, member, ownerOrAdmin: scope.isPlatformAdmin || scope.isOwner || scope.isAdmin };
 }
 
 // 책임자 판정 — owner/admin 은 oversight 로 전권, 그 외엔 단위 책임자 본인만
