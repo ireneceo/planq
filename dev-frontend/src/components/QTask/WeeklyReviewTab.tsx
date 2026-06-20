@@ -9,12 +9,9 @@ import {
   listWeeklyReviews,
   getWeeklyReviewSettings,
   updateWeeklyReviewSettings,
-  listWorkspaceWeeklyReports,
   type WeeklyReviewListItem,
-  type WorkspaceWeeklyReportListItem,
 } from '../../services/weeklyReview';
 import WeeklyReviewView from './WeeklyReviewView';
-import WeeklyReviewWorkspaceView from './WeeklyReviewWorkspaceView';
 import WorkspaceFinalizeBanner from './WorkspaceFinalizeBanner';
 import ReportUnitView from './ReportUnitView';
 import IntegratedReportView from './IntegratedReportView';
@@ -70,11 +67,7 @@ const WeeklyReviewTab: React.FC<Props> = ({ businessId, userId, reviewScope = 'm
   // workspace 모드 — 멤버 필터 + 검색
   const [memberFilter, setMemberFilter] = useState<number | 'all'>('all');
   const [search, setSearch] = useState('');
-  // workspace 모드 전용 — 통합본 리스트 + 선택된 통합본 (사이클 N+18)
-  const [workspaceReports, setWorkspaceReports] = useState<WorkspaceWeeklyReportListItem[]>([]);
-  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<number | null>(null);
-  // N+38 — finalizing/finalizeError state + finalizeWorkspace 함수 + FinalizeBtn styled
-  // workspace 탭의 수동 박제 버튼 제거로 unused. WorkspaceFinalizeBanner + 설정 페이지로 대체.
+  // R3' — 옛 BusinessWeeklyReport 통합본 리스트/뷰 제거(새 IntegratedReportView 로 대체).
 
   const load = useCallback(async (append = false) => {
     try {
@@ -98,20 +91,8 @@ const WeeklyReviewTab: React.FC<Props> = ({ businessId, userId, reviewScope = 'm
     }
   }, [businessId, userId, reviewScope, reviews]);
 
-  // 통합본 (workspace 모드 전용)
-  const loadWorkspaceReports = useCallback(async () => {
-    if (reviewScope !== 'workspace') return;
-    try {
-      const list = await listWorkspaceWeeklyReports({ business_id: businessId, limit: 24 });
-      setWorkspaceReports(list);
-    } catch (e) {
-      console.error('[WeeklyReviewTab] loadWorkspaceReports error:', e);
-    }
-  }, [businessId, reviewScope]);
-
   useEffect(() => {
     load();
-    loadWorkspaceReports();
     // 설정 조회
     (async () => {
       try {
@@ -151,18 +132,9 @@ const WeeklyReviewTab: React.FC<Props> = ({ businessId, userId, reviewScope = 'm
       />
     );
   }
-  if (selectedWorkspaceId !== null) {
-    return (
-      <WeeklyReviewWorkspaceView
-        reportId={selectedWorkspaceId}
-        onBack={() => { setSelectedWorkspaceId(null); loadWorkspaceReports(); }}
-      />
-    );
-  }
-
   return (
     <Container>
-      {reviewScope === 'workspace' && <WorkspaceFinalizeBanner businessId={businessId} />}
+      {reviewScope === 'workspace' && wsSubTab === 'members' && <WorkspaceFinalizeBanner businessId={businessId} />}
       {reviewScope === 'workspace' && (
         <WsSubTabBar role="tablist">
           <WsSubTabBtn type="button" role="tab" aria-selected={wsSubTab === 'integrated'}
@@ -281,44 +253,9 @@ const WeeklyReviewTab: React.FC<Props> = ({ businessId, userId, reviewScope = 'm
       )}
 
 
-      {/* workspace 모드 · 통합보고서 서브탭 — R3 통합 롤업(확정 매트릭스) + 통합본 히스토리 카드 */}
+      {/* workspace 모드 · 통합보고서 서브탭 — R3' 기간별 통합보고서 (옛 BusinessWeeklyReport 카드 대체) */}
       {reviewScope === 'workspace' && wsSubTab === 'integrated' && (
         <IntegratedReportView businessId={businessId} canManage={canManageReports} />
-      )}
-      {reviewScope === 'workspace' && wsSubTab === 'integrated' && workspaceReports.length > 0 && (
-        <HistoryTitle>{t('weeklyReview.integrated.history', { defaultValue: '통합 보고서 히스토리' })}</HistoryTitle>
-      )}
-      {reviewScope === 'workspace' && wsSubTab === 'integrated' && (
-        workspaceReports.length === 0 ? null : (
-          <WorkspaceCardList>
-            {workspaceReports.map(r => (
-              <WorkspaceCard key={r.id} onClick={() => setSelectedWorkspaceId(r.id)}>
-                <CardHeader>
-                  <WeekLabel>
-                    {weekLabel(r.week_start)}
-                    <WsChip>{t('weeklyReview.workspace.tabTitle')}</WsChip>
-                  </WeekLabel>
-                  <Badge $auto={r.finalized_by === 'auto'}>
-                    {r.finalized_by === 'auto' ? t('weeklyReview.tab.autoBadge', '자동') : t('weeklyReview.tab.manualBadge', '수동')}
-                  </Badge>
-                </CardHeader>
-                <CardPeriod>{String(r.week_start).slice(0, 10)} ~ {String(r.week_end).slice(0, 10)}</CardPeriod>
-                {r.executive_summary && <WsExec>{r.executive_summary}</WsExec>}
-                {r.kpi && (
-                  <WsKpiRow>
-                    <span>완료 {r.kpi.completed_tasks.value}</span>
-                    <span>·</span>
-                    <span>프로젝트 {r.kpi.active_projects.value}</span>
-                    <span>·</span>
-                    <span>가동률 {r.kpi.avg_utilization_pct.value}%</span>
-                    {r.kpi.overdue_tasks.value > 0 && <WsDanger>지연 {r.kpi.overdue_tasks.value}</WsDanger>}
-                  </WsKpiRow>
-                )}
-                {r.retro_note && <CardNote>{r.retro_note}</CardNote>}
-              </WorkspaceCard>
-            ))}
-          </WorkspaceCardList>
-        )
       )}
 
       {/* 멤버 주간보고 — mine 모드는 항상, workspace 모드는 '멤버 주간보고' 서브탭에서만 */}
@@ -574,7 +511,6 @@ const WsSubTabBar = styled.div`
   margin-bottom: 12px;
 `;
 const ProjectsLens = styled.div`display: flex; flex-direction: column; gap: 16px;`;
-const HistoryTitle = styled.div`font-size: 13px; font-weight: 700; color: #64748B; margin: 20px 0 4px;`;
 const ProjectPickerRow = styled.div`display: flex; align-items: center; gap: 12px;`;
 const WsSubTabBtn = styled.button<{ $active: boolean }>`
   padding: 8px 14px; background: transparent; border: none; cursor: pointer;
@@ -583,33 +519,4 @@ const WsSubTabBtn = styled.button<{ $active: boolean }>`
   border-bottom: 2px solid ${p => p.$active ? '#14B8A6' : 'transparent'};
   margin-bottom: -1px;
   &:hover { color: #0F766E; }
-`;
-// N+38 — FinalizeBtn / ErrorMsg 제거. workspace 수동 박제 폐기 후속.
-const WorkspaceCardList = styled.div`
-  display: flex; flex-direction: column; gap: 12px;
-`;
-const WorkspaceCard = styled.div`
-  background: linear-gradient(135deg, #F0FDFA 0%, #FFFFFF 100%);
-  border: 1px solid #14B8A6; border-left: 4px solid #14B8A6;
-  border-radius: 10px; padding: 16px;
-  cursor: pointer;
-  transition: box-shadow 0.15s, transform 0.05s;
-  &:hover { box-shadow: 0 4px 16px rgba(20,184,166,0.18); }
-  &:active { transform: translateY(1px); }
-`;
-const WsChip = styled.span`
-  font-size: 11px; font-weight: 700; color: #FFFFFF;
-  background: #0F766E; padding: 2px 8px; border-radius: 999px;
-`;
-const WsExec = styled.div`
-  font-size: 13px; color: #0F172A; font-weight: 600;
-  margin: 8px 0; line-height: 1.5;
-`;
-const WsKpiRow = styled.div`
-  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
-  font-size: 12px; color: #475569;
-`;
-const WsDanger = styled.span`
-  font-size: 11px; font-weight: 600; color: #991B1B;
-  background: #FEE2E2; padding: 1px 6px; border-radius: 3px;
 `;
