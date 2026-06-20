@@ -118,6 +118,10 @@ const QTaskPage:React.FC=()=>{
   const isClient = user?.business_role === 'client';
   const bizId=user?.business_id||null;
   const myId=user?Number(user.id):-1;
+  // 전체 보고서(통합) 는 owner/admin 전용 — 백엔드 /integrated 게이트와 일치. 멤버에겐 탭 자체 숨김.
+  const myWsRole=(user?.workspaces||[]).find((w)=>w.business_id===bizId)?.role
+    ||(user?.business_id===bizId?user?.business_role:null);
+  const canManageReports=myWsRole==='owner'||myWsRole==='admin'||user?.platform_role==='platform_admin';
 
   const location=useLocation();
   const navigate=useNavigate();
@@ -153,6 +157,8 @@ const QTaskPage:React.FC=()=>{
     sp.set('tab', nextTab);
     navigate({ pathname: s==='workspace'?'/tasks/workspace':'/tasks', search: '?' + sp.toString() });
   };
+  // 권한 없는 멤버가 URL 로 전체 보고서 탭 직접 진입 시 전체 업무로 폴백 (빈 화면 방지)
+  useEffect(()=>{ if(tab==='workspace-weekly'&&!canManageReports) setTab('workspace-tasks'); },[tab,canManageReports]);  // eslint-disable-line react-hooks/exhaustive-deps
   const[weeklyReviewModalOpen,setWeeklyReviewModalOpen]=useState(false);
   // 우선순위: URL (?view=) > localStorage > 기본값 'list'
   const[viewMode,setViewMode]=useState<ViewMode>(()=>{
@@ -1381,9 +1387,11 @@ const QTaskPage:React.FC=()=>{
             <TabBtn type="button" $active={tab!=='workspace-weekly'} onClick={()=>setTab('workspace-tasks')}>
               {t('tab.workspaceTasks', { defaultValue: '전체 업무' }) as string}
             </TabBtn>
-            <TabBtn type="button" $active={tab==='workspace-weekly'} onClick={()=>setTab('workspace-weekly')}>
-              {t('tab.workspaceWeekly', { defaultValue: '전체 보고서' }) as string}
-            </TabBtn>
+            {canManageReports && (
+              <TabBtn type="button" $active={tab==='workspace-weekly'} onClick={()=>setTab('workspace-weekly')}>
+                {t('tab.workspaceWeekly', { defaultValue: '전체 보고서' }) as string}
+              </TabBtn>
+            )}
           </TabBar>
         )}
 
@@ -1392,8 +1400,8 @@ const QTaskPage:React.FC=()=>{
           <WeeklyReviewTab businessId={bizId} userId={myId} reviewScope="mine" />
         )}
 
-        {/* 전체 주간 보고 탭 — workspace 두번째 */}
-        {tab==='workspace-weekly' && bizId && (
+        {/* 전체 주간 보고 탭 — workspace 두번째 (owner/admin 전용). 멤버가 URL 강제 시 빈 화면 대신 전체 업무로 폴백 */}
+        {tab==='workspace-weekly' && bizId && canManageReports && (
           <WeeklyReviewTab businessId={bizId} userId={myId} reviewScope="workspace" />
         )}
 
