@@ -563,6 +563,7 @@
       "progress": "Progress",
       "monthSuffix": "",
       "now": "Now",
+      "jumpToday": "Today",
       "keyOnly": "Key items only",
       "expected": "Expected {{n}}%",
       "milestonesN": "{{n}} key",
