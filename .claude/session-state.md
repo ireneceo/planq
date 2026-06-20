@@ -1,11 +1,20 @@
 # PlanQ 세션 상태
 
 ## 현재 작업 상태
-**마지막 업데이트:** 2026-06-20
-**작업 상태:** 완료 — D2-b 외부인 담당자/컨펌자 picker (dev 검증 E2E 23/23, 미배포)
+**마지막 업데이트:** 2026-06-20 (2)
+**작업 상태:** 완료 — D2-b + D3 #65 프로젝트 캔버스 (dev 검증, 미배포)
 
 ### 진행 중인 작업
 - 없음
+
+### 완료된 작업 (2026-06-20 — D3 #65 프로젝트 캔버스)
+- **D3 #65 프로젝트 캔버스 — dev 검증, 미배포.** 프로젝트 상세 `dashboard` 탭을 컨설팅 구조(SCQA·피라미드·MECE) "캔버스"로 격상.
+  - **콘텐츠 3레이어:** 🔵프레이밍(추진배경·핵심과제·목표·성공지표) → 🟢전략(핵심메시지 governing thought·추진방식·핵심추진과제=워크스트림) → 🟠실행(로드맵 stages·금주/차주 포커스·산출물·이해관계자·리스크) + 업무연계도.
+  - **DB:** `project_workstreams` 신규(MECE 추진과제) + `projects` 전략 6컬럼(strategy_context/key_question/goal/governing_thought/approach + success_metrics JSON) + `tasks.workstream_id`. sync 자동, 백필 불필요.
+  - **API(routes/projects.js, 멤버전용 client 403):** GET `/:id/canvas`(집계) · PATCH `/:id/strategy` · PUT `/:id/success-metrics` · GET/POST/PATCH/DELETE `/:id/workstreams[/:wsId]` + `/reorder`. tasks.js PUT `workstream_id` 수용+검증(같은 프로젝트만). 모든 mutation broadcast §16.
+  - **프론트:** `pages/QProject/canvas/`(ProjectCanvas·WorkstreamBoard·SuccessMetricsEditor) + `services/projectCanvas.ts`. AutoSaveField 전략필드, PartnerKindBadge(D2)·부서badge(D1) 재사용. dashboard 탭 교체(옛 dashboard 죽은코드 정리). i18n qproject canvas ko/en.
+  - **검증:** 헬스 29/29 · 빌드 EXIT0 · 백엔드 E2E 20/21(1건 테스트 복원 stale 인스턴스 버그→수동 복원, 기능 정상) · cross-tenant/client 격리 OK · canvas 10키 응답 · i18n 0 · qproject ko/en 452/452 · 프론트 200. **테스트 데이터(project 35 전략·워크스트림) 전량 복원.**
+  - **설계:** `docs/PROJECT_CANVAS_DESIGN.md`. **미배포.**
 
 ### 완료된 작업 (2026-06-20 — D2-b)
 - **D2-b 외부 파트너 담당자/컨펌자 picker (보안민감) — dev 검증 E2E 23/23, 미배포**
@@ -23,7 +32,8 @@
 - **D2-a #66 외부파트너 유형 — dev 검증(미배포)**: `clients.kind` ENUM(customer/vendor/freelancer/other) + clients 라우트 + ClientsPage 배지·초대선택·드로어편집 + 메뉴/제목 "고객·파트너". kind E2E 5/5.
 
 ### 다음 할 일
-1. **미배포 D2-a + D2-b `/배포`** — `clients.kind` ENUM(운영 sync 자동) + D2-b 담당자 게이트/picker. dev 검증 통과(E2E 23/23), 운영 push 대기(명시적 `/배포`).
+1. **미배포 D2-a + D2-b + D3 캔버스 `/배포`** — clients.kind ENUM + 담당자 게이트/picker + 프로젝트 캔버스(project_workstreams 테이블·projects 6컬럼·tasks.workstream_id 전부 sync 자동). dev 검증 통과, 운영 push 대기(명시적 `/배포`).
+1b. **D3 #65 후속(선택):** 옛 dashboard 의 메모(ProjectNote) 카드가 캔버스에서 빠짐 — 필요 시 캔버스에 메모 섹션 추가. 업무연계도 인터랙티브 그래프(현재 레인+링크뱃지 v1)는 v2.
 2. **D2-b 후속(선택):** QTaskPage 전역 리스트 인라인 quick-picker 는 멤버만 노출(프로젝트가 행마다 달라 외부 후보 fetch 복잡) — 외부 배정은 업무 드로어로. 필요 시 확장.
 3. **D3:** #65 프로젝트 전략필드(목표·핵심메시지·추진배경·추진방식·실행방안)+종합 타임라인+금주/차주+산출물+업무연계도 / #64 통합보고서 통합뷰·프로젝트뷰 분리. (D1 조직 + D2 외부파트너 위에 얹힘)
 4. **D4:** #62 자료 보안등급+외부공유/개인드라이브 제한 / #63 자료 일괄 export+워크스페이스 간 이동.

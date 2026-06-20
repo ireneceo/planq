@@ -150,7 +150,7 @@
     "sat": "토"
   },
   "tab": {
-    "dashboard": "대시보드",
+    "dashboard": "캔버스",
     "tasks": "업무",
     "process": "테이블",
     "clients": "고객",
@@ -492,5 +492,109 @@
       "deleteWithFiles": "이 폴더 안 {{n}}개 파일은 “직접 업로드 루트”로 옮겨집니다",
       "deleteEmpty": "이 폴더는 비어있습니다"
     }
+  },
+  "canvas": {
+    "tabLabel": "캔버스",
+    "intro": "전략 → 실행 → 산출물을 한 화면에",
+    "layer1": "프레이밍 (Why)",
+    "layer2": "전략 (How)",
+    "layer3": "실행 · 추적",
+    "context": {
+      "label": "추진 배경",
+      "hint": "왜 지금, 어떤 상황에서 (Situation)",
+      "ph": "이 프로젝트가 시작된 배경을 적어주세요"
+    },
+    "keyQuestion": {
+      "label": "핵심 과제",
+      "hint": "이 프로젝트가 푸는 단 하나의 질문",
+      "ph": "풀어야 할 핵심 질문을 한 문장으로"
+    },
+    "goal": {
+      "label": "목표",
+      "hint": "달성하려는 상태 (정성)",
+      "ph": "이 프로젝트가 달성할 목표"
+    },
+    "governing": {
+      "label": "핵심 메시지",
+      "hint": "한 문장 전략 가설 (Governing Thought)",
+      "ph": "프로젝트를 관통하는 한 문장"
+    },
+    "approach": {
+      "label": "추진 방식",
+      "hint": "어떻게 풀 것인가 (방법론·원칙)",
+      "ph": "추진 방식·원칙을 적어주세요"
+    },
+    "metrics": {
+      "title": "성공 지표",
+      "hint": "측정 가능한 정량 목표",
+      "add": "지표 추가",
+      "label": "지표명",
+      "target": "목표",
+      "current": "현재",
+      "unit": "단위",
+      "empty": "성공 지표를 추가해 목표를 정량화하세요",
+      "labelPh": "예: 전환율",
+      "targetPh": "18",
+      "currentPh": "12",
+      "unitPh": "%"
+    },
+    "workstreams": {
+      "title": "핵심 추진과제",
+      "hint": "MECE한 과제 묶음 — 업무의 상위 골격",
+      "add": "추진과제 추가",
+      "empty": "추진과제를 추가하고 업무를 묶어보세요",
+      "titlePh": "추진과제 이름",
+      "descPh": "이 과제의 범위·목표 (선택)",
+      "tasks": "업무",
+      "done": "완료",
+      "inProgress": "진행",
+      "overdue": "지연",
+      "status": {
+        "active": "진행 중",
+        "done": "완료",
+        "dropped": "중단"
+      },
+      "del": "삭제",
+      "delConfirm": "이 추진과제를 삭제할까요? 소속 업무는 미분류로 돌아갑니다.",
+      "save": "저장"
+    },
+    "roadmap": {
+      "title": "로드맵 · 마일스톤",
+      "empty": "거래 단계가 없습니다",
+      "openTx": "거래 탭 열기"
+    },
+    "weekFocus": {
+      "title": "금주 / 차주 포커스",
+      "thisWeek": "이번 주",
+      "nextWeek": "다음 주",
+      "empty": "이번 주로 계획된 업무가 없습니다",
+      "emptyNext": "다음 주 계획 업무 없음"
+    },
+    "deliverables": {
+      "title": "산출물",
+      "empty": "발행된 문서·산출물이 없습니다",
+      "post": "문서",
+      "document": "공식문서",
+      "open": "열기"
+    },
+    "stakeholders": {
+      "title": "이해관계자",
+      "members": "팀",
+      "clients": "외부 파트너",
+      "empty": "참여자가 없습니다"
+    },
+    "risks": {
+      "title": "리스크 · 이슈",
+      "empty": "등록된 이슈가 없습니다"
+    },
+    "graph": {
+      "title": "업무 연계도",
+      "hint": "추진과제별 업무와 연계 관계",
+      "unassigned": "미분류",
+      "empty": "연결된 업무가 없습니다",
+      "links": "연계"
+    },
+    "loadError": "캔버스를 불러오지 못했습니다",
+    "retry": "다시 시도"
   }
 }

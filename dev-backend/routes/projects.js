@@ -11,6 +11,7 @@ const {
   BusinessMember, User, Business, Client,
   ProjectStatusOption, ProjectProcessColumn, ProjectProcessPart,
   File, FileFolder, MessageAttachment, TaskAttachment,
+  ProjectWorkstream, Post, Document, Department, Team, TaskLink,
 } = require('../models');
 const { successResponse, errorResponse, parsePagination, paginatedResponse } = require('../middleware/errorHandler');
 const { authenticateToken } = require('../middleware/auth');
@@ -18,6 +19,7 @@ const { createAuditLog } = require('../middleware/audit');
 const taskExtractor = require('../services/task_extractor');
 const cueOrchestrator = require('../services/cue_orchestrator');
 const { applyMemberDisplayName, applyMemberDisplayNameOne } = require('../services/displayName');
+const { todayInTz, mondayOfDateStr, addDaysStr } = require('../utils/datetime');
 
 // ============================================
 // 공통 미들웨어: 워크스페이스 접근 확인 (BusinessMember 기준)
@@ -1084,6 +1086,292 @@ router.delete('/:id/stages/:stageId', authenticateToken, async (req, res, next) 
     if (stage.is_template_seeded) return errorResponse(res, 'cannot_delete_template_stage', 400);
     await stage.destroy();
     return successResponse(res, { deleted: true });
+  } catch (err) { next(err); }
+});
+
+// ============================================================
+// D3 #65 프로젝트 캔버스 — 전략 프레임 + 워크스트림 + 집계
+// 멤버 전용 (role==='client' 차단 — 전략은 내부 데이터)
+// ============================================================
+
+// 워크스트림 직렬화 + 업무 rollup
+function serializeWorkstream(ws, tasks) {
+  const mine = tasks.filter((t) => t.workstream_id === ws.id);
+  const total = mine.length;
+  const completed = mine.filter((t) => t.status === 'completed').length;
+  const inProgress = mine.filter((t) => t.status === 'in_progress').length;
+  const today = todayInTz('Asia/Seoul');
+  const overdue = mine.filter((t) =>
+    t.due_date && String(t.due_date).slice(0, 10) < today &&
+    t.status !== 'completed' && t.status !== 'canceled').length;
+  const progressPct = total > 0
+    ? Math.round(mine.reduce((s, t) => s + (Number(t.progress_percent) || 0), 0) / total)
+    : 0;
+  return {
+    id: ws.id, title: ws.title, description: ws.description,
+    order_index: ws.order_index, color: ws.color, status: ws.status,
+    rollup: { total, completed, in_progress: inProgress, overdue, progress_pct: progressPct },
+  };
+}
+
+// 캔버스 mutation 후 실시간 broadcast (canvas 페이지가 project:updated listen)
+function broadcastCanvas(req, project, reason) {
+  const io = req.app.get('io');
+  if (!io) return;
+  const payload = { id: project.id, business_id: project.business_id, actor_user_id: req.user.id };
+  io.to(`business:${project.business_id}`).emit('project:updated', payload);
+  io.to(`project:${project.id}`).emit('project:updated', payload);
+  io.to(`business:${project.business_id}`).emit('inbox:refresh', { reason, project_id: project.id });
+}
+
+// GET /:id/canvas — 캔버스 집계 (1콜)
+router.get('/:id/canvas', authenticateToken, async (req, res, next) => {
+  try {
+    const { project, role, error } = await loadProjectOrForbidden(Number(req.params.id), req.user.id);
+    if (error) return errorResponse(res, error.message, error.code);
+    if (role === 'client') return errorResponse(res, 'member_only', 403);
+    const bizId = project.business_id;
+
+    // 워크스트림 + 프로젝트 전체 task (rollup 용)
+    const [workstreams, allTasks] = await Promise.all([
+      ProjectWorkstream.findAll({ where: { project_id: project.id }, order: [['order_index', 'ASC'], ['id', 'ASC']] }),
+      Task.findAll({
+        where: { project_id: project.id },
+        attributes: ['id', 'title', 'status', 'due_date', 'progress_percent', 'assignee_id', 'workstream_id', 'planned_week_start'],
+        include: [{ model: User, as: 'assignee', attributes: ['id', 'name', 'name_localized'], required: false }],
+      }),
+    ]);
+    const tasksPlain = allTasks.map((t) => t.toJSON());
+    await applyMemberDisplayName(tasksPlain, bizId, ['assignee']);
+
+    // 금주/차주 포커스 (planned_week_start 기준)
+    const today = todayInTz('Asia/Seoul');
+    const weekStart = mondayOfDateStr(today);
+    const nextWeekStart = addDaysStr(weekStart, 7);
+    const briefOf = (t) => ({
+      id: t.id, title: t.title, status: t.status, due_date: t.due_date,
+      progress_percent: t.progress_percent, assignee_id: t.assignee_id,
+      assignee_name: t.assignee?.name || null, workstream_id: t.workstream_id,
+    });
+    const weekOf = (mon) => tasksPlain
+      .filter((t) => t.planned_week_start && String(t.planned_week_start).slice(0, 10) === mon && t.status !== 'canceled')
+      .map(briefOf);
+
+    // 산출물 (published Post + Document, 최신순 cap 30)
+    const [posts, documents] = await Promise.all([
+      Post.findAll({
+        where: { project_id: project.id, status: 'published' },
+        attributes: ['id', 'title', 'category', 'status', 'created_at', 'share_token'],
+        order: [['created_at', 'DESC']], limit: 30,
+      }),
+      Document.findAll({
+        where: { project_id: project.id },
+        attributes: ['id', 'title', 'kind', 'status', 'created_at'],
+        order: [['created_at', 'DESC']], limit: 30,
+      }),
+    ]);
+    const deliverables = [
+      ...posts.map((p) => ({ kind: 'post', id: p.id, title: p.title, category: p.category, status: p.status, created_at: p.created_at, link: `/projects/p/${project.id}?tab=docs&post=${p.id}` })),
+      ...documents.map((d) => ({ kind: 'document', id: d.id, title: d.title, category: d.kind, status: d.status, created_at: d.created_at, link: `/documents/${d.id}` })),
+    ].sort((a, b) => new Date(b.created_at) - new Date(a.created_at)).slice(0, 30);
+
+    // 이해관계자 (프로젝트 멤버 + 부서/팀 · 프로젝트 client + kind)
+    const [pms, pcs, risks] = await Promise.all([
+      ProjectMember.findAll({ where: { project_id: project.id }, include: [{ model: User, attributes: ['id', 'name', 'name_localized'], required: false }] }),
+      ProjectClient.findAll({ where: { project_id: project.id }, include: [{ model: Client, attributes: ['id', 'display_name', 'company_name', 'kind'], required: false }] }),
+      ProjectIssue.findAll({ where: { project_id: project.id }, attributes: ['id', 'body', 'created_at'], order: [['created_at', 'DESC']], limit: 8 }),
+    ]);
+    // 멤버 부서/팀 이름 매핑
+    const memberUserIds = pms.map((pm) => pm.user_id).filter(Boolean);
+    const bms = memberUserIds.length ? await BusinessMember.findAll({
+      where: { business_id: bizId, user_id: { [Op.in]: memberUserIds } },
+      include: [{ model: Department, as: 'department', attributes: ['id', 'name'], required: false }, { model: Team, as: 'team', attributes: ['id', 'name'], required: false }],
+    }) : [];
+    const bmByUser = new Map(bms.map((b) => [b.user_id, b]));
+    const members = pms.map((pm) => {
+      const bm = bmByUser.get(pm.user_id);
+      return {
+        user_id: pm.user_id,
+        name: pm.User?.name_localized?.ko || pm.User?.name || `user ${pm.user_id}`,
+        role: pm.role,
+        dept: bm?.department?.name || null,
+        team: bm?.team?.name || null,
+      };
+    });
+    const clients = pcs.filter((pc) => pc.Client).map((pc) => ({
+      id: pc.Client.id, name: pc.Client.display_name || pc.Client.company_name || pc.contact_name || '파트너', kind: pc.Client.kind || 'customer',
+    }));
+
+    // 업무연계도 — 이 프로젝트 task 간 task_links (양방향)
+    const taskIds = tasksPlain.map((t) => t.id);
+    const links = taskIds.length ? await TaskLink.findAll({
+      where: { task_a_id: { [Op.in]: taskIds }, task_b_id: { [Op.in]: taskIds } },
+      attributes: ['task_a_id', 'task_b_id'],
+    }) : [];
+
+    return successResponse(res, {
+      project: {
+        id: project.id, name: project.name, status: project.status,
+        start_date: project.start_date, end_date: project.end_date,
+        color: project.color, description: project.description, owner_user_id: project.owner_user_id,
+      },
+      strategy: {
+        context: project.strategy_context, key_question: project.strategy_key_question,
+        goal: project.strategy_goal, governing_thought: project.strategy_governing_thought,
+        approach: project.strategy_approach,
+      },
+      success_metrics: Array.isArray(project.success_metrics) ? project.success_metrics : [],
+      workstreams: workstreams.map((ws) => serializeWorkstream(ws, tasksPlain)),
+      tasks: tasksPlain.map((t) => ({ id: t.id, title: t.title, status: t.status, workstream_id: t.workstream_id, assignee_name: t.assignee?.name || null })),
+      task_links: links.map((l) => ({ a: l.task_a_id, b: l.task_b_id })),
+      week_focus: { week_start: weekStart, next_week_start: nextWeekStart, this_week: weekOf(weekStart), next_week: weekOf(nextWeekStart) },
+      deliverables,
+      stakeholders: { members, clients },
+      risks: risks.map((r) => ({ id: r.id, body: r.body, created_at: r.created_at })),
+    });
+  } catch (err) { next(err); }
+});
+
+// PATCH /:id/strategy — 전략 5필드 부분 갱신 (AutoSave)
+router.patch('/:id/strategy', authenticateToken, async (req, res, next) => {
+  try {
+    const { project, role, error } = await loadProjectOrForbidden(Number(req.params.id), req.user.id);
+    if (error) return errorResponse(res, error.message, error.code);
+    if (role === 'client') return errorResponse(res, 'member_only', 403);
+    const ALLOWED = ['context', 'key_question', 'goal', 'governing_thought', 'approach'];
+    const updates = {};
+    for (const k of ALLOWED) {
+      if (k in (req.body || {})) updates[`strategy_${k}`] = req.body[k] == null ? null : String(req.body[k]);
+    }
+    if (Object.keys(updates).length === 0) return errorResponse(res, 'no_fields', 400);
+    await project.update(updates);
+    broadcastCanvas(req, project, 'strategy_updated');
+    return successResponse(res, {
+      context: project.strategy_context, key_question: project.strategy_key_question,
+      goal: project.strategy_goal, governing_thought: project.strategy_governing_thought,
+      approach: project.strategy_approach,
+    });
+  } catch (err) { next(err); }
+});
+
+// PUT /:id/success-metrics — 성공 지표 리스트 전체 교체
+router.put('/:id/success-metrics', authenticateToken, async (req, res, next) => {
+  try {
+    const { project, role, error } = await loadProjectOrForbidden(Number(req.params.id), req.user.id);
+    if (error) return errorResponse(res, error.message, error.code);
+    if (role === 'client') return errorResponse(res, 'member_only', 403);
+    const raw = Array.isArray(req.body?.metrics) ? req.body.metrics : null;
+    if (!raw) return errorResponse(res, 'metrics_array_required', 400);
+    if (raw.length > 10) return errorResponse(res, 'too_many_metrics', 400);
+    const metrics = [];
+    for (let i = 0; i < raw.length; i++) {
+      const m = raw[i] || {};
+      if (!m.label || !String(m.label).trim()) return errorResponse(res, 'metric_label_required', 400);
+      metrics.push({
+        id: m.id || `m_${Date.now()}_${i}`,
+        label: String(m.label).trim().slice(0, 120),
+        target: m.target != null ? String(m.target).slice(0, 60) : '',
+        current: m.current != null ? String(m.current).slice(0, 60) : '',
+        unit: m.unit != null ? String(m.unit).slice(0, 20) : '',
+      });
+    }
+    await project.update({ success_metrics: metrics });
+    broadcastCanvas(req, project, 'metrics_updated');
+    return successResponse(res, metrics);
+  } catch (err) { next(err); }
+});
+
+// GET /:id/workstreams — 목록 + rollup
+router.get('/:id/workstreams', authenticateToken, async (req, res, next) => {
+  try {
+    const { project, role, error } = await loadProjectOrForbidden(Number(req.params.id), req.user.id);
+    if (error) return errorResponse(res, error.message, error.code);
+    if (role === 'client') return errorResponse(res, 'member_only', 403);
+    const [workstreams, tasks] = await Promise.all([
+      ProjectWorkstream.findAll({ where: { project_id: project.id }, order: [['order_index', 'ASC'], ['id', 'ASC']] }),
+      Task.findAll({ where: { project_id: project.id }, attributes: ['id', 'status', 'due_date', 'progress_percent', 'workstream_id'] }),
+    ]);
+    const tp = tasks.map((t) => t.toJSON());
+    return successResponse(res, workstreams.map((ws) => serializeWorkstream(ws, tp)));
+  } catch (err) { next(err); }
+});
+
+// POST /:id/workstreams — 생성
+router.post('/:id/workstreams', authenticateToken, async (req, res, next) => {
+  try {
+    const { project, role, error } = await loadProjectOrForbidden(Number(req.params.id), req.user.id);
+    if (error) return errorResponse(res, error.message, error.code);
+    if (role === 'client') return errorResponse(res, 'member_only', 403);
+    const { title, description, color } = req.body || {};
+    if (!title || !String(title).trim()) return errorResponse(res, 'title_required', 400);
+    const max = await ProjectWorkstream.max('order_index', { where: { project_id: project.id } });
+    const ws = await ProjectWorkstream.create({
+      business_id: project.business_id, project_id: project.id,
+      title: String(title).trim().slice(0, 200),
+      description: description ? String(description) : null,
+      color: color || null,
+      order_index: (Number.isFinite(max) ? max : -1) + 1,
+      created_by: req.user.id,
+    });
+    broadcastCanvas(req, project, 'workstream_new');
+    return successResponse(res, serializeWorkstream(ws, []));
+  } catch (err) { next(err); }
+});
+
+// PATCH /:id/workstreams/:wsId — 수정
+router.patch('/:id/workstreams/:wsId', authenticateToken, async (req, res, next) => {
+  try {
+    const { project, role, error } = await loadProjectOrForbidden(Number(req.params.id), req.user.id);
+    if (error) return errorResponse(res, error.message, error.code);
+    if (role === 'client') return errorResponse(res, 'member_only', 403);
+    const ws = await ProjectWorkstream.findOne({ where: { id: req.params.wsId, project_id: project.id } });
+    if (!ws) return errorResponse(res, 'workstream_not_found', 404);
+    const updates = {};
+    if ('title' in req.body) {
+      if (!String(req.body.title || '').trim()) return errorResponse(res, 'title_required', 400);
+      updates.title = String(req.body.title).trim().slice(0, 200);
+    }
+    if ('description' in req.body) updates.description = req.body.description ? String(req.body.description) : null;
+    if ('color' in req.body) updates.color = req.body.color || null;
+    if ('status' in req.body && ['active', 'done', 'dropped'].includes(req.body.status)) updates.status = req.body.status;
+    if ('order_index' in req.body && Number.isFinite(Number(req.body.order_index))) updates.order_index = Number(req.body.order_index);
+    await ws.update(updates);
+    const tasks = await Task.findAll({ where: { project_id: project.id }, attributes: ['id', 'status', 'due_date', 'progress_percent', 'workstream_id'] });
+    broadcastCanvas(req, project, 'workstream_updated');
+    return successResponse(res, serializeWorkstream(ws, tasks.map((t) => t.toJSON())));
+  } catch (err) { next(err); }
+});
+
+// DELETE /:id/workstreams/:wsId — 삭제 (task.workstream_id → NULL)
+router.delete('/:id/workstreams/:wsId', authenticateToken, async (req, res, next) => {
+  try {
+    const { project, role, error } = await loadProjectOrForbidden(Number(req.params.id), req.user.id);
+    if (error) return errorResponse(res, error.message, error.code);
+    if (role === 'client') return errorResponse(res, 'member_only', 403);
+    const ws = await ProjectWorkstream.findOne({ where: { id: req.params.wsId, project_id: project.id } });
+    if (!ws) return errorResponse(res, 'workstream_not_found', 404);
+    await Task.update({ workstream_id: null }, { where: { workstream_id: ws.id } });
+    await ws.destroy();
+    broadcastCanvas(req, project, 'workstream_deleted');
+    return successResponse(res, { deleted: true });
+  } catch (err) { next(err); }
+});
+
+// POST /:id/workstreams/reorder — 일괄 정렬
+router.post('/:id/workstreams/reorder', authenticateToken, async (req, res, next) => {
+  try {
+    const { project, role, error } = await loadProjectOrForbidden(Number(req.params.id), req.user.id);
+    if (error) return errorResponse(res, error.message, error.code);
+    if (role === 'client') return errorResponse(res, 'member_only', 403);
+    const ids = Array.isArray(req.body?.ordered_ids) ? req.body.ordered_ids.map(Number) : null;
+    if (!ids) return errorResponse(res, 'ordered_ids_required', 400);
+    // 이 프로젝트 소속 워크스트림만 (cross 차단)
+    const owned = await ProjectWorkstream.findAll({ where: { id: { [Op.in]: ids }, project_id: project.id }, attributes: ['id'] });
+    const ownedSet = new Set(owned.map((w) => w.id));
+    await Promise.all(ids.filter((id) => ownedSet.has(id)).map((id, idx) =>
+      ProjectWorkstream.update({ order_index: idx }, { where: { id, project_id: project.id } })));
+    broadcastCanvas(req, project, 'workstream_reordered');
+    return successResponse(res, { reordered: true });
   } catch (err) { next(err); }
 });
 

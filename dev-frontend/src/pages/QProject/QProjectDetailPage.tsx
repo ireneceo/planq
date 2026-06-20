@@ -12,14 +12,13 @@ import TasksTab from './TasksTab';
 import DocsTab from './DocsTab';
 import ProjectPostsTab from './ProjectPostsTab';
 import TransactionsTab from './TransactionsTab';
+import ProjectCanvas from './canvas/ProjectCanvas';
 import ProjectKnowledgeTab from './ProjectKnowledgeTab';
 import PostEditor from '../../components/Docs/PostEditor';
 import { fetchPost, type PostDetail } from '../../services/posts';
 import PlanQSelect from '../../components/Common/PlanQSelect';
 import CalendarPicker from '../../components/Common/CalendarPicker';
 import { PROJECT_COLOR_PALETTE } from '../../utils/projectColors';
-import { GanttHeader, GanttRowTrack, GanttBar, useGanttScrollSync, type GanttRange } from '../../components/Common/GanttTrack';
-import { STATUS_COLOR, displayStatus, type StatusCode } from '../../utils/taskLabel';
 import ConfirmDialog from '../../components/Common/ConfirmDialog';
 
 const PROJECT_COLORS = PROJECT_COLOR_PALETTE.map(p => p.value);
@@ -65,7 +64,7 @@ interface TaskRow {
 
 const QProjectDetailPage: React.FC = () => {
   const { t } = useTranslation('qproject');
-  const { formatDate, formatDateTime } = useTimeFormat();
+  const { formatDateTime } = useTimeFormat();
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const projectId = id ? Number(id) : 0;
@@ -268,14 +267,6 @@ const QProjectDetailPage: React.FC = () => {
     return () => { if (pending) window.clearTimeout(pending); if (socket) socket.disconnect(); };
   }, [projectBizId, projectId, load]);
 
-  const stats = useMemo(() => {
-    const total = tasks.length;
-    const completed = tasks.filter(t => t.status === 'completed').length;
-    const today = new Date().toISOString().slice(0, 10);
-    const overdue = tasks.filter(t => t.due_date && t.due_date.slice(0, 10) < today && t.status !== 'completed' && t.status !== 'canceled').length;
-    const progress = total === 0 ? 0 : Math.round(tasks.reduce((s, t) => s + (t.status === 'completed' ? 100 : (t.progress_percent || 0)), 0) / total);
-    return { total, completed, overdue, progress, inProgress: total - completed };
-  }, [tasks]);
 
   // ── 멤버 관리 (bulk PUT) ──
   const saveMembers = async (next: { user_id: number; role: string; is_pm?: boolean; User?: { id: number; name: string; display_name?: string | null }}[]) => {
@@ -314,7 +305,6 @@ const QProjectDetailPage: React.FC = () => {
     saveMembers(existing.map(m => m.user_id === userId ? { ...m, is_pm: !m.is_pm } : m));
   };
 
-  const todayStr = new Date().toISOString().slice(0, 10);
 
   const performCloseProject = async () => {
     if (!project) return;
@@ -359,7 +349,7 @@ const QProjectDetailPage: React.FC = () => {
     >
       <TabBar>
         {/* 탭 순서 (사이클 N+14): 문서 다음에 정보(Q info), 상세정보(메타)는 마지막 */}
-        {([['dashboard', '대시보드'], ['tasks', '업무'], ['clients', '고객'], ['files', '파일'], ['docs', '문서'], ['info', '정보'], ['transactions', '거래'], ['details', '상세정보']] as [TabKey, string][]).map(([k, lbl]) => (
+        {([['dashboard', '캔버스'], ['tasks', '업무'], ['clients', '고객'], ['files', '파일'], ['docs', '문서'], ['info', '정보'], ['transactions', '거래'], ['details', '상세정보']] as [TabKey, string][]).map(([k, lbl]) => (
           <Tab key={k} $active={tab === k} onClick={() => setTab(k)}>
             {t(`tab.${k}`, lbl)}
           </Tab>
@@ -376,176 +366,7 @@ const QProjectDetailPage: React.FC = () => {
       </TabBar>
 
       {tab === 'dashboard' && (
-        <DashboardBody>
-          {/* 기본 정보 카드 (순서 1) */}
-          <Card style={{ order: 1 }}>
-            <CardTitle>{t('section.info', '기본 정보')}</CardTitle>
-            <InfoGrid>
-              <InfoCell><InfoLabel>{t('info.type', '타입')}</InfoLabel><TypeBadge>{project.project_type === 'ongoing' ? t('info.typeOngoing', '지속 구독') : t('info.typeFixed', '일시 프로젝트')}</TypeBadge></InfoCell>
-              <InfoCell><InfoLabel>{t('info.client', '고객사')}</InfoLabel><InfoValue>{project.client_company || t('info.noValue', '—')}</InfoValue></InfoCell>
-              <InfoCell><InfoLabel>{t('info.period', '기간')}</InfoLabel><InfoValue>
-                {project.start_date ? formatDate(project.start_date) : t('info.noValue', '—')} {project.project_type === 'fixed' && <>~ {project.end_date ? formatDate(project.end_date) : t('info.noValue', '—')}</>}
-              </InfoValue></InfoCell>
-              <InfoCell><InfoLabel>{t('info.members', '멤버')}</InfoLabel><InfoValue>{t('info.memberCount', '{{n}}명', { n: (project.projectMembers || []).length })}</InfoValue></InfoCell>
-            </InfoGrid>
-            {project.description && <Description>{project.description}</Description>}
-          </Card>
-
-          {/* 진척 (순서 4) */}
-          <Card style={{ order: 4 }}>
-            <CardTitle>{t('section.progress', '진척')} <small>{stats.completed}/{stats.total}</small></CardTitle>
-            <ProgressRow>
-              <ProgressTrack><ProgressFill $w={stats.progress} /></ProgressTrack>
-              <ProgressPct>{stats.progress}%</ProgressPct>
-            </ProgressRow>
-            <StatRow>
-              <Stat><StatNum>{stats.total}</StatNum><StatLabel>{t('stats.total', '전체')}</StatLabel></Stat>
-              <Stat><StatNum style={{ color: '#14B8A6' }}>{stats.inProgress}</StatNum><StatLabel>{t('stats.inProgress', '진행')}</StatLabel></Stat>
-              <Stat><StatNum style={{ color: '#22C55E' }}>{stats.completed}</StatNum><StatLabel>{t('stats.completed', '완료')}</StatLabel></Stat>
-              <Stat><StatNum style={{ color: '#DC2626' }}>{stats.overdue}</StatNum><StatLabel>{t('stats.overdue', '지연')}</StatLabel></Stat>
-            </StatRow>
-          </Card>
-
-          {/* 업무 타임라인 요약 — 최하단 (공용 GanttTrack 사용, 스크롤·스타일 통일) */}
-          <Card style={{ gridColumn: '1 / -1', order: 99 }}>
-            <CardTitle>{t('section.taskTimeline', '업무 타임라인')} <small>{sortedTasks.length}</small></CardTitle>
-            <DashTimeline
-              tasks={sortedTasks}
-              todayStr={todayStr}
-              onOpen={(taskId) => {
-                const sp = new URLSearchParams(searchParams);
-                sp.set('tab', 'tasks');
-                sp.set('task', String(taskId));
-                setSearchParams(sp, { replace: true });
-                setTabState('tasks');
-              }}
-              onMore={() => setTab('tasks')}
-            />
-          </Card>
-
-          {/* 주요 이슈 (순서 5) */}
-          <Card style={{ order: 5 }}>
-            <CardTitle>{t('section.issues', '주요 이슈')} <small>{issues.length}</small></CardTitle>
-            {issues.length === 0 ? <Dim>{t('issues.empty', '이슈가 없습니다')}</Dim> : (
-              <IssueList>
-                {issues.slice(0, 5).map(i => (
-                  <IssueRow key={i.id}>
-                    <IssueBody>{i.body}</IssueBody>
-                    <IssueMeta>{i.author?.name || t('info.noValue', '—')} · {i.created_at?.slice(5, 10).replace('-', '/')}</IssueMeta>
-                  </IssueRow>
-                ))}
-              </IssueList>
-            )}
-            <AddIssueRow>
-              <IssueInput placeholder={t('issues.addPlaceholder', '이슈 추가...') as string} value={newIssue} onChange={e => setNewIssue(e.target.value)}
-                onKeyDown={async e => {
-                  if (e.key !== 'Enter' || (e.nativeEvent as unknown as { isComposing?: boolean }).isComposing || !newIssue.trim()) return;
-                  if (submittingRef.current) return;
-                  e.preventDefault();
-                  submittingRef.current = true;
-                  try {
-                    const r = await apiFetch(`/api/projects/${projectId}/issues`, {
-                      method: 'POST', headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ body: newIssue.trim() })
-                    });
-                    const j = await r.json();
-                    if (j.success) { setIssues(prev => [j.data, ...prev]); setNewIssue(''); }
-                  } finally { submittingRef.current = false; }
-                }} />
-            </AddIssueRow>
-          </Card>
-
-          {/* 프로젝트 메모 (순서 6) */}
-          <Card style={{ order: 6 }}>
-            <CardTitle>{t('section.notes', '프로젝트 메모')} <small>{notes.length}</small></CardTitle>
-            {notes.length === 0 ? <Dim>{t('notes.empty', '메모가 없습니다')}</Dim> : (
-              <IssueList>
-                {notes.slice(0, 5).map(n => (
-                  <IssueRow key={n.id}>
-                    <IssueBody>
-                      {n.visibility === 'personal' && <VisTag>{t('notes.visPersonal', '개인')}</VisTag>}
-                      {n.visibility === 'internal' && <VisTag $internal>{t('notes.visInternal', '내부')}</VisTag>}
-                      {n.body}
-                    </IssueBody>
-                    <IssueMeta>{n.author?.name || t('info.noValue', '—')} · {n.created_at?.slice(5, 10).replace('-', '/')}</IssueMeta>
-                  </IssueRow>
-                ))}
-              </IssueList>
-            )}
-            <AddIssueRow>
-              <div style={{ flex: '0 0 90px' }}>
-                <PlanQSelect size="sm" isSearchable={false}
-                  value={{ value: newNoteVis, label: newNoteVis === 'internal' ? t('notes.visInternal', '내부') : t('notes.visPersonal', '개인') }}
-                  onChange={v => setNewNoteVis(((v as { value?: 'personal' | 'internal' } | null)?.value) || 'internal')}
-                  options={[{ value: 'internal', label: t('notes.visInternal', '내부') }, { value: 'personal', label: t('notes.visPersonal', '개인') }]} />
-              </div>
-              <IssueInput placeholder={t('notes.addPlaceholder', '메모 추가...') as string} value={newNote} onChange={e => setNewNote(e.target.value)}
-                onKeyDown={async e => {
-                  if (e.key !== 'Enter' || (e.nativeEvent as unknown as { isComposing?: boolean }).isComposing || !newNote.trim()) return;
-                  if (submittingRef.current) return;
-                  e.preventDefault();
-                  submittingRef.current = true;
-                  try {
-                    const r = await apiFetch(`/api/projects/${projectId}/notes`, {
-                      method: 'POST', headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ body: newNote.trim(), visibility: newNoteVis })
-                    });
-                    const j = await r.json();
-                    if (j.success) { setNotes(prev => [j.data, ...prev]); setNewNote(''); }
-                  } finally { submittingRef.current = false; }
-                }} />
-            </AddIssueRow>
-          </Card>
-
-          {/* 고객 정보 요약 (순서 2) */}
-          <Card style={{ order: 2 }}>
-            <CardTitle>{t('section.clients', '고객 정보')} <small>{(project.projectClients || []).length}</small></CardTitle>
-            {(project.projectClients || []).length === 0 ? <Dim>{t('clients.emptySummary', '연결된 고객이 없습니다')}</Dim> : (
-              <IssueList>
-                {(project.projectClients || []).slice(0, 5).map(c => (
-                  <IssueRow key={c.id} onClick={() => setTab('clients')} style={{ cursor: 'pointer' }}>
-                    <IssueBody><strong>{c.contact_name}</strong></IssueBody>
-                    <IssueMeta>{c.contact_email || t('clients.noEmail', '이메일 없음')}</IssueMeta>
-                  </IssueRow>
-                ))}
-              </IssueList>
-            )}
-          </Card>
-
-          {/* 연결된 채팅방 (순서 3) */}
-          <Card style={{ order: 3 }}>
-            <CardTitle>{t('section.chats', '연결된 채팅방')} <small>{convs.length}</small></CardTitle>
-            {convs.length === 0 ? (
-              <Dim>{t('section.noChats', '채팅방이 없습니다')}</Dim>
-            ) : (
-              <ConvList>
-                {convs.map(c => (
-                  <ConvRow key={c.id} onClick={() => navigate(`/talk?project=${projectId}&conv=${c.id}`)}>
-                    <ConvChannel $type={c.channel_type}>{c.channel_type === 'customer' ? t('convs.channelCustomer', '고객') : c.channel_type === 'internal' ? t('convs.channelInternal', '내부') : t('convs.channelGroup', '그룹')}</ConvChannel>
-                    <ConvTitle>{c.title || `#${c.id}`}</ConvTitle>
-                    {(c.unread_count || 0) > 0 && <UnreadBadge>{c.unread_count}</UnreadBadge>}
-                    <ConvMoreBtn type="button"
-                      title={t('convs.moreHint', { defaultValue: '연결 끊기 / 삭제' }) as string}
-                      aria-label={t('convs.moreHint', { defaultValue: '연결 끊기 / 삭제' }) as string}
-                      onClick={(e) => { e.stopPropagation(); setConvMenuFor(convMenuFor === c.id ? null : c.id); }}>
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><circle cx="12" cy="6" r="0.5"/><circle cx="12" cy="12" r="0.5"/><circle cx="12" cy="18" r="0.5"/></svg>
-                    </ConvMoreBtn>
-                    {convMenuFor === c.id && (
-                      <ConvMenu onClick={(e) => e.stopPropagation()}>
-                        <ConvMenuBtn type="button" onClick={() => { setUnlinkConv(c); setConvMenuFor(null); }}>
-                          {t('convs.unlink', { defaultValue: '프로젝트 연결 끊기' }) as string}
-                        </ConvMenuBtn>
-                        <ConvMenuBtn type="button" $danger onClick={() => { setArchiveConv(c); setConvMenuFor(null); }}>
-                          {t('convs.archive', { defaultValue: '채팅방 삭제' }) as string}
-                        </ConvMenuBtn>
-                      </ConvMenu>
-                    )}
-                  </ConvRow>
-                ))}
-              </ConvList>
-            )}
-          </Card>
-        </DashboardBody>
+        <ProjectCanvas projectId={projectId} businessId={project.business_id} />
       )}
 
       {tab === 'tasks' && (
@@ -1134,55 +955,6 @@ const PinnedDocEmpty = styled.div`
 `;
 
 // ───────── Dashboard Timeline (공용 GanttTrack) ─────────
-const DashTimeline: React.FC<{
-  tasks: TaskRow[];
-  todayStr: string;
-  onOpen: (id: number) => void;
-  onMore: () => void;
-}> = ({ tasks, todayStr, onOpen, onMore }) => {
-  const { t } = useTranslation('qproject');
-  const gantt = useGanttScrollSync();
-  const withDates = tasks.filter(task => task.start_date || task.due_date);
-  if (withDates.length === 0) return <Dim>{t('timeline.empty', '기간이 설정된 업무가 없습니다')}</Dim>;
-  const dates = withDates.flatMap(task => [task.start_date, task.due_date].filter(Boolean) as string[]).map(d => d.slice(0, 10));
-  const from = dates.reduce((a, b) => (a < b ? a : b));
-  const to = dates.reduce((a, b) => (a > b ? a : b));
-  const range: GanttRange = { from, to };
-  // 운영 #51 — 최신 업무가 먼저 보이도록 마감일(없으면 시작일) 내림차순. 과거 업무가 최신을 가리지 않게.
-  //   (Gantt 축 range 는 전체 기간 유지 — 표시 행 순서만 최신 우선)
-  const ordered = [...withDates].sort((a, b) => {
-    const ad = (a.due_date || a.start_date || '').slice(0, 10);
-    const bd = (b.due_date || b.start_date || '').slice(0, 10);
-    return bd.localeCompare(ad);
-  });
-  const visible = ordered.slice(0, 10);
-  const rest = ordered.length - visible.length;
-  return (
-    <DashTLWrap>
-      <DashTLHead>
-        <DashTLLabelCol />
-        <GanttHeader registry={gantt} range={range} tickMode="auto" />
-      </DashTLHead>
-      {visible.map(task => {
-        const dStatus = displayStatus(task as unknown as { status: string; due_date?: string | null; request_ack_at?: string | null; source?: string }, todayStr);
-        const sc = STATUS_COLOR[dStatus as StatusCode] || STATUS_COLOR.not_started;
-        return (
-          <DashTLRow key={task.id}>
-            <DashTLLabelCol onClick={() => onOpen(task.id)}>{task.title}</DashTLLabelCol>
-            <GanttRowTrack registry={gantt} range={range} todayStr={todayStr} showGrid height={22}>
-              <GanttBar range={range} start={task.start_date} end={task.due_date}
-                bg={sc.bg} fg={sc.fg} label={task.assignee?.name || ''}
-                onClick={(e) => { e.stopPropagation(); onOpen(task.id); }}
-                title={`${task.start_date?.slice(0, 10) || ''} ~ ${task.due_date?.slice(0, 10) || ''}`} />
-            </GanttRowTrack>
-          </DashTLRow>
-        );
-      })}
-      {rest > 0 && <DashTLMore onClick={onMore}>{t('timeline.more', '+ 더 보기 ({{n}})', { n: rest })}</DashTLMore>}
-    </DashTLWrap>
-  );
-};
-
 // ───────── styled ─────────
 const BackBtn = styled.button`padding:6px 12px;background:#FFF;color:#334155;border:1px solid #CBD5E1;border-radius:8px;font-size:12px;cursor:pointer;&:hover{background:#F8FAFC;border-color:#94A3B8;}`;
 const TabBar = styled.div`display:flex;gap:4px;border-bottom:1px solid #E2E8F0;background:#FFF;padding:0 20px;margin:-20px -20px 20px;`;
@@ -1192,7 +964,6 @@ const Tab = styled.button<{$active:boolean}>`
   display:inline-flex;align-items:center;gap:6px;
   &:hover{color:#0F766E;}
 `;
-const DashboardBody = styled.div`display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px;`;
 const InfoBody = styled.div`display:grid;grid-template-columns:repeat(2, minmax(0, 1fr));gap:16px;@media (max-width:900px){grid-template-columns:1fr;}`;
 const EditGrid = styled.div`display:grid;grid-template-columns:1fr 1fr;gap:12px;`;
 const EditField = styled.div`display:flex;flex-direction:column;gap:4px;`;
@@ -1219,21 +990,7 @@ const HexInput = styled.input`
 const ClientsBody = styled.div``;
 const Card = styled.div`background:#FFF;border:1px solid #E2E8F0;border-radius:10px;padding:16px;`;
 const CardTitle = styled.h3`margin:0 0 12px;font-size:14px;font-weight:700;color:#0F172A;display:flex;align-items:center;gap:8px;small{font-size:11px;font-weight:600;color:#64748B;}`;
-const InfoGrid = styled.div`display:grid;grid-template-columns:repeat(2,1fr);gap:10px;`;
-const InfoCell = styled.div`display:flex;flex-direction:column;gap:4px;`;
-const InfoLabel = styled.span`font-size:10px;font-weight:700;color:#94A3B8;text-transform:uppercase;letter-spacing:0.3px;`;
-const InfoValue = styled.span`font-size:13px;color:#0F172A;`;
-const TypeBadge = styled.span`display:inline-flex;align-items:center;padding:2px 8px;background:#F0FDFA;color:#0F766E;border-radius:999px;font-size:11px;font-weight:600;width:fit-content;`;
-const Description = styled.p`margin:10px 0 0;font-size:12px;color:#475569;line-height:1.5;`;
 
-const ProgressRow = styled.div`display:flex;align-items:center;gap:10px;margin-bottom:14px;`;
-const ProgressTrack = styled.div`flex:1;height:8px;background:#F1F5F9;border-radius:4px;overflow:hidden;`;
-const ProgressFill = styled.div<{$w:number}>`width:${p=>p.$w}%;height:100%;background:#14B8A6;transition:width 0.3s;`;
-const ProgressPct = styled.span`font-size:12px;font-weight:700;color:#475569;min-width:38px;text-align:right;`;
-const StatRow = styled.div`display:flex;gap:8px;`;
-const Stat = styled.div`flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px;background:#F8FAFC;border-radius:6px;`;
-const StatNum = styled.div`font-size:18px;font-weight:700;color:#0F172A;`;
-const StatLabel = styled.div`font-size:10px;color:#64748B;`;
 
 const ConvList = styled.div`display:flex;flex-direction:column;gap:6px;`;
 const ConvRow = styled.div`
@@ -1268,7 +1025,6 @@ const ConvChannel = styled.span<{$type:string}>`
   color:${p=>p.$type==='customer'?'#9F1239':p.$type==='internal'?'#0F766E':'#475569'};
 `;
 const ConvTitle = styled.span`flex:1;font-size:13px;color:#0F172A;`;
-const UnreadBadge = styled.span`padding:1px 6px;border-radius:999px;background:#F43F5E;color:#FFF;font-size:10px;font-weight:700;`;
 
 
 const ClientList = styled.div`display:flex;flex-direction:column;gap:6px;margin-bottom:12px;`;
@@ -1330,11 +1086,6 @@ const MemberCandidateItem = styled.button`display:flex;flex-direction:column;gap
 const MemberEmail = styled.span`font-size:10px;color:#94A3B8;`;
 const AddMemberCancelBtn = styled.button`align-self:flex-start;padding:5px 10px;background:transparent;border:1px solid #E2E8F0;border-radius:6px;font-size:12px;color:#64748B;cursor:pointer;&:hover{background:#F8FAFC;color:#0F172A;}`;
 const AddMemberLink = styled.button`margin-top:8px;padding:6px 0;background:transparent;border:none;color:#94A3B8;font-size:12px;font-weight:500;cursor:pointer;text-align:left;font-family:inherit;&:hover{color:#0F766E;}`;
-const DashTLWrap = styled.div`display:flex;flex-direction:column;gap:4px;`;
-const DashTLHead = styled.div`display:flex;align-items:center;gap:8px;border-bottom:1px solid #E2E8F0;padding-bottom:6px;margin-bottom:4px;`;
-const DashTLLabelCol = styled.div`width:180px;flex-shrink:0;font-size:12px;font-weight:500;color:#0F172A;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;&:hover{color:#0F766E;}`;
-const DashTLRow = styled.div`display:flex;align-items:center;gap:8px;padding:3px 0;`;
-const DashTLMore = styled.div`font-size:11px;color:#0F766E;cursor:pointer;padding:6px;text-align:center;&:hover{text-decoration:underline;}`;
 const IssueList = styled.div`display:flex;flex-direction:column;gap:6px;margin-bottom:10px;`;
 const IssueRow = styled.div`padding:8px 10px;background:#F8FAFC;border-radius:6px;display:flex;flex-direction:column;gap:2px;`;
 const IssueBody = styled.div`font-size:12px;color:#0F172A;line-height:1.5;display:flex;align-items:center;gap:6px;strong{font-size:12px;}`;

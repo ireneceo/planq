@@ -167,6 +167,14 @@ Task.init({
     allowNull: true,
     comment: 'Monday of the week this task is planned for',
   },
+  // D3 #65 프로젝트 캔버스 — 핵심 추진과제(워크스트림) 귀속. 같은 프로젝트의 workstream 만.
+  workstream_id: {
+    type: DataTypes.BIGINT,
+    allowNull: true,
+    references: { model: 'project_workstreams', key: 'id' },
+    onDelete: 'SET NULL',
+    comment: 'project_workstreams.id (nullable)',
+  },
   category: {
     type: DataTypes.STRING(100),
     allowNull: true,

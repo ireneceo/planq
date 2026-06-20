@@ -38,6 +38,7 @@ const TaskAttachment = require('./TaskAttachment');
 const TaskLink = require('./TaskLink');
 const ProjectStatusOption = require('./ProjectStatusOption');
 const ProjectStage = require('./ProjectStage');
+const ProjectWorkstream = require('./ProjectWorkstream');
 const ProjectProcessColumn = require('./ProjectProcessColumn');
 const ProjectProcessPart = require('./ProjectProcessPart');
 const CalendarEvent = require('./CalendarEvent');
@@ -328,6 +329,13 @@ Project.hasMany(ProjectClient, { as: 'projectClients', foreignKey: 'project_id' 
 ProjectStage.belongsTo(Project, { foreignKey: 'project_id', onDelete: 'CASCADE' });
 Project.hasMany(ProjectStage, { as: 'stages', foreignKey: 'project_id' });
 
+// ProjectWorkstream — D3 #65 캔버스 핵심 추진과제. task 가 워크스트림에 귀속.
+ProjectWorkstream.belongsTo(Project, { foreignKey: 'project_id', onDelete: 'CASCADE' });
+ProjectWorkstream.belongsTo(User, { as: 'creator', foreignKey: 'created_by' });
+Project.hasMany(ProjectWorkstream, { as: 'workstreams', foreignKey: 'project_id' });
+ProjectWorkstream.hasMany(Task, { as: 'tasks', foreignKey: 'workstream_id' });
+Task.belongsTo(ProjectWorkstream, { as: 'workstream', foreignKey: 'workstream_id' });
+
 // ProjectNote / ProjectIssue / TaskCandidate
 ProjectNote.belongsTo(Project, { foreignKey: 'project_id', onDelete: 'CASCADE' });
 ProjectNote.belongsTo(User, { as: 'author', foreignKey: 'author_user_id' });
@@ -457,6 +465,7 @@ module.exports = {
   TaskLink,
   ProjectStatusOption,
   ProjectStage,
+  ProjectWorkstream,
   ProjectProcessColumn,
   ProjectProcessPart,
   CalendarEvent,

@@ -880,7 +880,7 @@ router.put('/by-business/:businessId/:id', authenticateToken, async (req, res, n
     const task = await Task.findOne({ where: { id: req.params.id, business_id: businessId } });
     if (!task) return errorResponse(res, 'task_not_found', 404);
 
-    const { title, description, body, assignee_id, status, priority, due_date, start_date, estimated_hours, actual_hours, progress_percent, category, planned_week_start, project_id, recurrence_rule } = req.body;
+    const { title, description, body, assignee_id, status, priority, due_date, start_date, estimated_hours, actual_hours, progress_percent, category, planned_week_start, project_id, recurrence_rule, workstream_id } = req.body;
     const updates = {};
     if (title !== undefined) updates.title = title;
     if (description !== undefined) updates.description = description;
@@ -925,6 +925,20 @@ router.put('/by-business/:businessId/:id', authenticateToken, async (req, res, n
         const target = await Project.findOne({ where: { id: project_id, business_id: task.business_id } });
         if (!target) return errorResponse(res, 'invalid_project', 400);
         updates.project_id = project_id;
+      }
+    }
+
+    // D3 #65 — 워크스트림 귀속. 이 업무가 속한(또는 이번에 이관될) 프로젝트의 workstream 만 허용.
+    if (workstream_id !== undefined) {
+      if (workstream_id === null) {
+        updates.workstream_id = null;
+      } else {
+        const { ProjectWorkstream } = require('../models');
+        const effectiveProjectId = (updates.project_id !== undefined ? updates.project_id : task.project_id);
+        if (!effectiveProjectId) return errorResponse(res, 'invalid_workstream', 400);
+        const ws = await ProjectWorkstream.findOne({ where: { id: workstream_id, project_id: effectiveProjectId } });
+        if (!ws) return errorResponse(res, 'invalid_workstream', 400);
+        updates.workstream_id = workstream_id;
       }
     }
 
@@ -1021,6 +1035,7 @@ router.put('/by-business/:businessId/:id', authenticateToken, async (req, res, n
       //   기존엔 owner/admin 전용(#37)이라 PM(member)이 본인 담당 업무도 못 옮겨 막힘 호소.
       //   이제 담당자/작성자/owner/admin 모두 이관 가능 (초기 분류·재분류 일관). §5.7 갱신.
       project_id: () => isAssignee || isCreator || isOwnerOrAdmin,
+      workstream_id: () => isAssignee || isCreator || isOwnerOrAdmin,
       estimated_hours: () => isAssignee || isOwnerOrAdmin,
       actual_hours: () => isAssignee || isOwnerOrAdmin,
       progress_percent: () => isAssignee || isOwnerOrAdmin,
