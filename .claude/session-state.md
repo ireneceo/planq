@@ -1,8 +1,8 @@
 # PlanQ 세션 상태
 
 ## 현재 작업 상태
-**마지막 업데이트:** 2026-06-20 (10)
-**작업 상태:** ✅ R1 전체 완료(+검증 결함 4건 수정 + 타임라인 반응형). 🔧 **R2 진행 중 — C1 백엔드 토대 완료·커밋(`e1a508b`)·E2E 18/18.** 다음=R2-C2(프론트 보고 화면). 미배포(/배포 대기).
+**마지막 업데이트:** 2026-06-20 (11)
+**작업 상태:** ✅ R1 전체 완료(+검증결함4 + 타임라인 반응형). 🔧 **R2 진행 — C1 백엔드(`e1a508b`,E2E18/18)+C2 프론트(`d23cdab`,렌더계약11/11) 완료.** 다음=R3(통합 롤업+주월간 cron). 미배포(/배포 대기).
 
 ### 🔧 진행 중: R1 — 캔버스 정돈 + 일정 타임라인 (마스터설계 `docs/EXECUTION_REPORTING_MASTER_DESIGN.md`)
 **마스터 설계 확정·커밋됨.** 핵심 결정(박제, 재논의 금지):
@@ -44,8 +44,9 @@
   - `report_units` 테이블(scope project/department·period weekly/monthly·status draft/confirmed·auto_snapshot/edited_overrides/narrative·confirmed_by/at·finalized_by·UNIQUE). models 등록+association. 신규테이블만 sync.
   - `services/reportUnitSnapshot.js` 자동초안 빌더(KPI=fetchProjectStats 단일원천 재사용). 프로젝트(kpi·하이라이트·리스크·차기·팀)/부서(멤버롤업·진행률). DATEONLY Date 안전.
   - `routes/reports.js` 확장: GET unit(find-or-create, draft=live재생성·confirmed=박제)·PATCH(narrative/overrides)·confirm·reopen. 책임자판정(project owner_user_id/dept lead_user_id/owner·admin). report:updated broadcast. cross-tenant 404.
-- ⬜ **R2-C2 프론트 (다음):** WeeklyReviewTab/보고 화면에 프로젝트·부서 단위 보고서 — 자동초안 표시(KPI·ScheduleTimeline readonly 재사용·하이라이트/리스크) + 책임자 수정영역(narrative AutoSave·overrides) + [확정]/[되돌리기] 버튼(책임자만·중복가드) + draft/confirmed 상태칩. services/reportUnit.ts. i18n. §16 socket(report:updated) 실시간.
-- ⬜ **R3 통합 롤업 + 주월간 cron** (확정본 자동 롤업·통합확정 토글).
+- ✅ **R2-C2 프론트 — 완료·커밋(`d23cdab`)·렌더계약 11/11.** `ReportUnitView`(기간 네비 주간/월간+‹기간›·상태바 초안/확정칩+책임자/시각+[확정]/[되돌리기] 책임자만·KPI 카드·ScheduleTimeline readonly(project)·책임자 서술 AutoSave 확정시잠금·하이라이트/리스크·차주/팀·부서 멤버롤업·§16 report:updated). `services/reportUnit.ts`. WeeklyReviewTab projects/departments 렌즈 교체(옛 #64 ProjectReportView·DepartmentReportView 제거). i18n weeklyReview.unit ko/en.
+  - **v1 한계(R4 후속):** 확정 보고서 타임라인은 live(스냅샷 미저장) — KPI는 박제·타임라인 보조. 기간 네비 과거 선택 시 타임라인은 현재 기준.
+- ⬜ **R3 통합 롤업 + 주월간 cron (다음):** 확정된 멤버/프로젝트/부서 보고서를 같은 주기·기간으로 취합한 통합보고서(대표). 확정/미확정 현황 매트릭스 + `businesses.report_integrated_confirm` 토글(ON시 대표 통합확정 1회). cron 주/월 경계 단위 초안 생성 + 미확정 자동확정(`finalized_by='auto'`). BusinessWeeklyReport 확장(주간)+월간 row. 설계 §4.4·§4.5·§6.2.
 
 ### 완료된 작업 (2026-06-20 — #64 부서뷰)
 - **#64 부서뷰 — dev 검증, 미배포. 순수 프론트(백엔드 0).** D1 조직 `/api/org/:biz/overview`(company/department scope) + `listDepartments` 재사용.
