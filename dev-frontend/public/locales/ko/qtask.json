@@ -137,7 +137,23 @@
     "aiEstimateHint": "AI 자동 예측 — 직접 입력하면 확정됩니다",
     "actHint": "진행 시작·완료 시 자동 누적 — 직접 입력하면 확정됩니다",
     "inProgressDot": "진행 중",
-    "assigneePh": "담당자"
+    "assigneePh": "담당자",
+    "group": {
+      "none": "(그룹 없음)",
+      "addGroup": "추진과제(그룹) 추가",
+      "newGroupPh": "그룹 이름 입력 (Enter 추가 / Esc 취소)",
+      "rename": "클릭하여 이름 변경",
+      "moveTo": "그룹 이동",
+      "dragMove": "드래그하여 그룹 이동",
+      "moveUp": "위로",
+      "moveDown": "아래로",
+      "menu": "그룹 메뉴",
+      "delete": "그룹 삭제",
+      "deleteHint": "소속 업무는 미분류로 이동됩니다",
+      "collapse": "접기",
+      "expand": "펼치기",
+      "empty": "이 그룹에 업무가 없습니다 — 드래그하거나 그룹 이동으로 추가"
+    }
   },
   "empty": {
     "title": "업무를 시작해 보세요",

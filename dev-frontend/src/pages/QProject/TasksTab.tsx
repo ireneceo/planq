@@ -1,5 +1,5 @@
 // 프로젝트 업무 탭 — 리스트 / 타임라인 / 캘린더 3뷰 + 추가
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { apiFetch, useAuth } from '../../contexts/AuthContext';
@@ -16,6 +16,7 @@ import { todayInTz, detectBrowserTz } from '../../utils/timezones';
 import { GanttHeader, GanttRowTrack, GanttBar, useGanttScrollSync } from '../../components/Common/GanttTrack';
 import { STATUS_COLOR, displayStatus, getStatusLabel, type StatusCode } from '../../utils/taskLabel';
 import { getRoles, primaryPerspective } from '../../utils/taskRoles';
+import { listWorkstreams, type Workstream } from '../../services/projectCanvas';
 import { useTranslation } from 'react-i18next';
 
 type ViewMode = 'split' | 'list' | 'timeline' | 'calendar';
@@ -28,6 +29,7 @@ export interface TaskRow {
   latest_estimation_source?: 'ai' | 'user' | null;
   // actual_hours 출처 — 'auto' (status 전환 자동 누적) vs 'user' (직접 입력). 사이클 N+6.
   actual_source?: 'auto' | 'user' | null;
+  workstream_id?: number | null;  // R1-C3 — 업무 그룹(워크스트림)
   assignee_id: number | null; assignee?: { id: number; name: string } | null;
 }
 
@@ -116,6 +118,33 @@ const TasksTab: React.FC<Props> = ({ projectId, businessId, projectName, tasks, 
       }
     });
   }, [projectId]);
+
+  // R1-C3 — 워크스트림(업무 그룹). 단일 진실 원천 project_workstreams 를 캔버스와 공유.
+  const [workstreams, setWorkstreams] = useState<Workstream[]>([]);
+  const reloadWorkstreams = useCallback(() => {
+    listWorkstreams(projectId).then(setWorkstreams).catch(() => { /* keep */ });
+  }, [projectId]);
+  useEffect(() => { reloadWorkstreams(); }, [reloadWorkstreams]);
+
+  // §16 실시간 — 다른 사용자의 워크스트림/업무 변경(project:updated·task:updated broadcast) 시 그룹 즉시 갱신.
+  const reloadWsRef = useRef(reloadWorkstreams);
+  reloadWsRef.current = reloadWorkstreams;
+  useEffect(() => {
+    let socket: { disconnect: () => void } | null = null;
+    let pending: ReturnType<typeof setTimeout> | null = null;
+    const debounced = () => { if (pending) clearTimeout(pending); pending = setTimeout(() => reloadWsRef.current(), 250); };
+    import('socket.io-client').then(({ io }) => {
+      import('../../contexts/AuthContext').then(({ getAccessToken }) => {
+        if (!getAccessToken()) return;
+        const s = io({ auth: (cb: (d: { token: string | null }) => void) => cb({ token: getAccessToken() }), transports: ['websocket', 'polling'], reconnection: true });
+        socket = s;
+        s.on('connect', () => { s.emit('join:business', Number(businessId)); s.emit('join:project', Number(projectId)); });
+        s.on('project:updated', debounced);
+        s.on('task:updated', debounced); s.on('task:new', debounced); s.on('task:deleted', debounced);
+      });
+    });
+    return () => { if (pending) clearTimeout(pending); if (socket) socket.disconnect(); };
+  }, [businessId, projectId]);
 
   const sorted = useMemo(() => [...localTasks].sort((a, b) => {
     const as = a.start_date || a.due_date || '9999-12-31';
@@ -221,13 +250,15 @@ const TasksTab: React.FC<Props> = ({ projectId, businessId, projectName, tasks, 
         <TableWrap>
           <ProjectTaskList tasks={sorted} members={members} businessId={businessId} myId={myId}
             onOpen={openDetail} onLocalUpdate={onLocalUpdate} onRefresh={onRefresh}
+            workstreams={workstreams} projectId={projectId} onWorkstreamsChanged={reloadWorkstreams}
             showTimeline />
         </TableWrap>
       )}
       {view === 'list' && (
         <TableWrap>
           <ProjectTaskList tasks={sorted} members={members} businessId={businessId} myId={myId}
-            onOpen={openDetail} onLocalUpdate={onLocalUpdate} onRefresh={onRefresh} />
+            onOpen={openDetail} onLocalUpdate={onLocalUpdate} onRefresh={onRefresh}
+            workstreams={workstreams} projectId={projectId} onWorkstreamsChanged={reloadWorkstreams} />
         </TableWrap>
       )}
       {view === 'timeline' && <TimelineView tasks={sorted} onOpen={openDetail} todayStr={todayStr} myId={myId} />}
