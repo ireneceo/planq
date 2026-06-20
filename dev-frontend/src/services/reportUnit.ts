@@ -52,6 +52,41 @@ export async function reopenReportUnit(businessId: number, id: number): Promise<
   return jsonOf(await apiFetch(`/api/reports/${businessId}/unit/${id}/reopen`, { method: 'POST' }));
 }
 
+// ── 통합 롤업 (R3) ──
+export interface IntegratedUnitRow {
+  scope: ReportScope; ref_id: number; name: string;
+  unit_status: ReportStatus; confirmed: boolean;
+  progress_percent: number; completed_tasks: number; total_tasks: number; overdue_count: number;
+  health: string | null; completed_in_period: number;
+}
+export interface IntegratedRollup {
+  period: { type: ReportPeriodType; start: string };
+  summary: {
+    projects_total: number; projects_confirmed: number;
+    departments_total: number; departments_confirmed: number;
+    completed_tasks: number; overdue_count: number; avg_progress: number; completed_in_period: number;
+    health_counts: { green: number; yellow: number; red: number };
+  };
+  projects: IntegratedUnitRow[];
+  departments: IntegratedUnitRow[];
+  integrated: { id: number | null; status: ReportStatus; confirmed_by: number | null; confirmed_at: string | null; finalized_by: 'manual' | 'auto' | null };
+  settings: { integrated_confirm: boolean; monthly_finalize: boolean };
+  executive_summary: string;
+}
+
+export async function getIntegrated(businessId: number, periodType: ReportPeriodType, periodStart: string): Promise<IntegratedRollup> {
+  return jsonOf(await apiFetch(`/api/reports/${businessId}/integrated?period_type=${periodType}&period_start=${periodStart}`));
+}
+export async function confirmIntegrated(businessId: number, periodType: ReportPeriodType, periodStart: string, executiveSummary?: string): Promise<{ id: number; status: ReportStatus }> {
+  return jsonOf(await apiFetch(`/api/reports/${businessId}/integrated/confirm`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ period_type: periodType, period_start: periodStart, executive_summary: executiveSummary }) }));
+}
+export async function reopenIntegrated(businessId: number, periodType: ReportPeriodType, periodStart: string): Promise<{ id: number; status: ReportStatus }> {
+  return jsonOf(await apiFetch(`/api/reports/${businessId}/integrated/reopen`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ period_type: periodType, period_start: periodStart }) }));
+}
+export async function updateReportSettings(businessId: number, patch: { report_integrated_confirm?: boolean; monthly_finalize_enabled?: boolean }): Promise<{ report_integrated_confirm: boolean; monthly_finalize_enabled: boolean }> {
+  return jsonOf(await apiFetch(`/api/businesses/${businessId}/report-settings`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch) }));
+}
+
 // 기간 헬퍼 — 주간(월요일) / 월간(1일). ws 로컬 기준 근사(백엔드가 주간은 monday 로 정규화).
 export function periodStartOf(type: ReportPeriodType, base = new Date()): string {
   const d = new Date(base.getFullYear(), base.getMonth(), base.getDate());
