@@ -664,7 +664,40 @@
       "integratedTitle": "{{name}} 통합보고서",
       "membersTab": "멤버 주간보고",
       "empty": "아직 통합 보고서가 없습니다",
-      "emptyHint": "매주 일요일 자동으로 워크스페이스 통합 보고서가 박제됩니다."
+      "emptyHint": "매주 일요일 자동으로 워크스페이스 통합 보고서가 박제됩니다.",
+      "projectsTab": "프로젝트별 보고"
+    },
+    "project": {
+      "retry": "다시 시도",
+      "loadError": "보고서를 불러오지 못했습니다",
+      "noProjects": "진행 중인 프로젝트가 없습니다",
+      "health": {
+        "green": "순항",
+        "yellow": "주의",
+        "red": "위험"
+      },
+      "kpi": {
+        "progress": "진행률",
+        "tasks": "완료/전체",
+        "overdue": "지연",
+        "issues": "이슈",
+        "thisWeek": "금주 완료",
+        "dday": "마감까지"
+      },
+      "goal": "목표",
+      "metrics": "성공 지표",
+      "workstreams": "추진과제 진행",
+      "overdueShort": " 지연",
+      "highlights": "금주 완료",
+      "noHighlights": "금주 완료한 업무가 없습니다",
+      "risks": "지연 업무",
+      "noRisks": "지연된 업무가 없습니다",
+      "nextWeek": "차주 계획",
+      "noNextWeek": "차주 계획 업무가 없습니다",
+      "deliverables": "산출물",
+      "noDeliverables": "산출물이 없습니다",
+      "team": "팀",
+      "noTeam": "참여자가 없습니다"
     }
   },
   "rowAction": {

@@ -664,7 +664,40 @@
       "integratedTitle": "{{name}} Integrated Report",
       "membersTab": "Member weekly reports",
       "empty": "No integrated report yet",
-      "emptyHint": "A workspace integrated report is auto-finalized every Sunday."
+      "emptyHint": "A workspace integrated report is auto-finalized every Sunday.",
+      "projectsTab": "Projects"
+    },
+    "project": {
+      "retry": "Retry",
+      "loadError": "Failed to load the report",
+      "noProjects": "No active projects",
+      "health": {
+        "green": "On track",
+        "yellow": "Caution",
+        "red": "At risk"
+      },
+      "kpi": {
+        "progress": "Progress",
+        "tasks": "Done/Total",
+        "overdue": "Overdue",
+        "issues": "Issues",
+        "thisWeek": "Done this week",
+        "dday": "To deadline"
+      },
+      "goal": "Objective",
+      "metrics": "Success Metrics",
+      "workstreams": "Workstream progress",
+      "overdueShort": " overdue",
+      "highlights": "Completed this week",
+      "noHighlights": "No tasks completed this week",
+      "risks": "Overdue tasks",
+      "noRisks": "No overdue tasks",
+      "nextWeek": "Next week plan",
+      "noNextWeek": "No tasks planned next week",
+      "deliverables": "Deliverables",
+      "noDeliverables": "No deliverables",
+      "team": "Team",
+      "noTeam": "No participants"
     }
   },
   "rowAction": {

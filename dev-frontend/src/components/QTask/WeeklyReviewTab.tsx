@@ -16,6 +16,8 @@ import {
 import WeeklyReviewView from './WeeklyReviewView';
 import WeeklyReviewWorkspaceView from './WeeklyReviewWorkspaceView';
 import WorkspaceFinalizeBanner from './WorkspaceFinalizeBanner';
+import ProjectReportView from './ProjectReportView';
+import { listActiveProjects, type ProjectLite } from '../../services/projectReport';
 import PlanQSelect, { type PlanQSelectOption } from '../Common/PlanQSelect';
 import SearchBox from '../Common/SearchBox';
 import { useAuth } from '../../contexts/AuthContext';
@@ -33,7 +35,17 @@ const WeeklyReviewTab: React.FC<Props> = ({ businessId, userId, reviewScope = 'm
   // 운영 #56 — 통합 보고서 제목에 워크스페이스 이름 (예: "워프로랩 통합보고서")
   const wsName = user?.business_name || '';
   // 운영 #56 — workspace 모드는 [통합보고서]/[멤버 주간보고] 서브탭으로 분리 (맥락이 달라 위아래 stacking 정렬 혼란 해소)
-  const [wsSubTab, setWsSubTab] = useState<'integrated' | 'members'>('integrated');
+  const [wsSubTab, setWsSubTab] = useState<'integrated' | 'members' | 'projects'>('integrated');
+  // #64 프로젝트뷰 — active 프로젝트 목록 + 선택
+  const [projectsList, setProjectsList] = useState<ProjectLite[]>([]);
+  const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null);
+  useEffect(() => {
+    if (reviewScope !== 'workspace' || wsSubTab !== 'projects' || projectsList.length > 0) return;
+    listActiveProjects(businessId).then((list) => {
+      setProjectsList(list);
+      if (list.length > 0) setSelectedProjectId((prev) => prev ?? list[0].id);
+    }).catch(() => { /* 빈 목록 — 안내 표시 */ });
+  }, [reviewScope, wsSubTab, businessId, projectsList.length]);
   const [reviews, setReviews] = useState<WeeklyReviewListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [autoEnabled, setAutoEnabled] = useState(true);
@@ -145,8 +157,35 @@ const WeeklyReviewTab: React.FC<Props> = ({ businessId, userId, reviewScope = 'm
             $active={wsSubTab === 'members'} onClick={() => setWsSubTab('members')}>
             {t('weeklyReview.workspace.membersTab', { defaultValue: '멤버 주간보고' })}
           </WsSubTabBtn>
+          <WsSubTabBtn type="button" role="tab" aria-selected={wsSubTab === 'projects'}
+            $active={wsSubTab === 'projects'} onClick={() => setWsSubTab('projects')}>
+            {t('weeklyReview.workspace.projectsTab', { defaultValue: '프로젝트별 보고' })}
+          </WsSubTabBtn>
         </WsSubTabBar>
       )}
+      {reviewScope === 'workspace' && wsSubTab === 'projects' && (
+        <ProjectsLens>
+          {projectsList.length === 0 ? (
+            <Empty>{t('weeklyReview.project.noProjects', { defaultValue: '진행 중인 프로젝트가 없습니다' })}</Empty>
+          ) : (
+            <>
+              <ProjectPickerRow>
+                <div style={{ minWidth: 240 }}>
+                  <PlanQSelect
+                    size="sm"
+                    isSearchable
+                    value={(() => { const p = projectsList.find((x) => x.id === selectedProjectId); return p ? { value: String(p.id), label: p.name } : null; })()}
+                    options={projectsList.map((p) => ({ value: String(p.id), label: p.name }))}
+                    onChange={(opt) => setSelectedProjectId(Number((opt as PlanQSelectOption)?.value))}
+                  />
+                </div>
+              </ProjectPickerRow>
+              {selectedProjectId && <ProjectReportView key={selectedProjectId} projectId={selectedProjectId} />}
+            </>
+          )}
+        </ProjectsLens>
+      )}
+      {!(reviewScope === 'workspace' && wsSubTab === 'projects') && (
       <Header>
         <HeaderLeft>
           {reviewScope === 'workspace' && wsSubTab === 'members' && (() => {
@@ -197,6 +236,7 @@ const WeeklyReviewTab: React.FC<Props> = ({ businessId, userId, reviewScope = 'm
         </AutoToggle>
         )}
       </Header>
+      )}
 
 
       {/* workspace 모드 · 통합보고서 서브탭 — 통합본 카드 (워크스페이스 × 주차 = 1) */}
@@ -490,6 +530,8 @@ const WsSubTabBar = styled.div`
   border-bottom: 1px solid #E2E8F0;
   margin-bottom: 12px;
 `;
+const ProjectsLens = styled.div`display: flex; flex-direction: column; gap: 16px;`;
+const ProjectPickerRow = styled.div`display: flex; align-items: center; gap: 12px;`;
 const WsSubTabBtn = styled.button<{ $active: boolean }>`
   padding: 8px 14px; background: transparent; border: none; cursor: pointer;
   font-size: 13px; font-weight: ${p => p.$active ? 700 : 500};
