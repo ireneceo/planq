@@ -1,8 +1,27 @@
 # PlanQ 세션 상태
 
 ## 현재 작업 상태
-**마지막 업데이트:** 2026-06-20 (6)
-**작업 상태:** ✅ v1.44.0 운영 배포 완료 — #64 보고서 3-렌즈(프로젝트뷰+부서뷰). deploy `20260620_060545` · commit `12de4db` · 138초 · 운영 헬스 200 · 새 스키마 0.
+**마지막 업데이트:** 2026-06-20 (7)
+**작업 상태:** 🔧 R1 진행 중 (실행·보고 통합 재설계) — C1 백엔드 완료, C2 프론트 진행 중 (WIP 저장)
+
+### 🔧 진행 중: R1 — 캔버스 정돈 + 일정 타임라인 (마스터설계 `docs/EXECUTION_REPORTING_MASTER_DESIGN.md`)
+**마스터 설계 확정·커밋됨.** 핵심 결정(박제, 재논의 금지):
+1. 실행추적=**업무** / 거래(계약·청구·세금)=거래 탭으로 **분리**(캔버스서 제거)
+2. 업무연계도(task_links) **제거** → **관련 프로젝트**(project_links)
+3. **일정 진행 타임라인 ★** = 시그니처 공유 컴포넌트(캔버스+보고서). "지금" 마커·마일스톤·"주요만 보기"
+4. **워크스트림 = 업무 그룹** (캔버스↔업무리스트 양방향 동기화, 단일 테이블)
+5. 워크스트림(묶음) ≠ 마일스톤(주요업무 시점) — 직교 2축
+6. 뷰별 목적 1문장 명확화 / 리포트급 비주얼 / 1·2·3열 그리드 정렬
+7. 보고: 자동초안→책임자 수정→확정→통합 자동롤업 (멤버=본인/프로젝트=owner/부서=lead/통합=대표·설정토글, 주간+월간) ← R2~R3
+
+**R1 빌드 4청크:**
+- ✅ **C1 DB+백엔드 — 완료·커밋(`d416dab`)·E2E 17/17.** `tasks.is_milestone`·`projects.timeline_key_only`·`project_links` 테이블 + `GET /:id/timeline`(진행률·일정대비·key_only)·`PATCH /:id/timeline-settings`·`GET/POST/DELETE /:id/links`(관련프로젝트)·tasks PUT is_milestone.
+- 🔧 **C2 타임라인+캔버스 재정돈 — 진행 중 (WIP):**
+  - ✅ 생성: `services/projectTimeline.ts` · `components/Common/ScheduleTimeline.tsx`(시그니처 그래프 — 진행요약·월눈금·오늘마커·마일스톤다이아·워크스트림색·주요만토글). i18n t() defaultValue 로 동작(키 미추가 상태).
+  - ⬜ **다음(이어서 할 일):** ① i18n `qproject` canvas.tl·canvas.related ko/en 키 추가(현재 defaultValue만) ② `RelatedProjects` 컴포넌트(관련 프로젝트 카드+연결/해제) ③ **ProjectCanvas 재배선**: 로드맵(거래 stages)·업무연계도(TaskGraph) **제거** → 맨 위 `<ScheduleTimeline>` 추가 + 관련프로젝트 섹션 + 1/2/3열 그리드 정렬 통일 + 마일스톤 표시(업무 상세에 is_milestone 토글) ④ 빌드·렌더 검증
+- ⬜ **C3 워크스트림=업무그룹:** 업무 리스트(ProjectTaskList/TodoPage)를 워크스트림 그룹화(인라인 추가/수정·드래그·실시간 동기화). 백엔드 workstream CRUD 이미 존재.
+- ⬜ **C4 통합 /검증.**
+**미배포(dev):** R1-C1 백엔드(프론트 미연결이라 무해). C2~C4 후 일괄. deploy `20260620_060545` · commit `12de4db` · 138초 · 운영 헬스 200 · 새 스키마 0.
 
 ### 완료된 작업 (2026-06-20 — #64 부서뷰)
 - **#64 부서뷰 — dev 검증, 미배포. 순수 프론트(백엔드 0).** D1 조직 `/api/org/:biz/overview`(company/department scope) + `listDepartments` 재사용.
