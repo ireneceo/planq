@@ -17,6 +17,7 @@ import WeeklyReviewView from './WeeklyReviewView';
 import WeeklyReviewWorkspaceView from './WeeklyReviewWorkspaceView';
 import WorkspaceFinalizeBanner from './WorkspaceFinalizeBanner';
 import ReportUnitView from './ReportUnitView';
+import IntegratedReportView from './IntegratedReportView';
 import { listActiveProjects, type ProjectLite } from '../../services/projectReport';
 import { listDepartments, type OrgDepartment } from '../../services/org';
 import PlanQSelect, { type PlanQSelectOption } from '../Common/PlanQSelect';
@@ -35,6 +36,10 @@ const WeeklyReviewTab: React.FC<Props> = ({ businessId, userId, reviewScope = 'm
   const { user } = useAuth();
   // 운영 #56 — 통합 보고서 제목에 워크스페이스 이름 (예: "워프로랩 통합보고서")
   const wsName = user?.business_name || '';
+  // R3 통합확정·설정 — owner/admin 만
+  const myWsRole = (user?.workspaces || []).find((w) => w.business_id === businessId)?.role
+    || (user?.business_id === businessId ? user?.business_role : null);
+  const canManageReports = myWsRole === 'owner' || myWsRole === 'admin' || user?.platform_role === 'platform_admin';
   // 운영 #56 — workspace 모드는 [통합보고서]/[멤버 주간보고] 서브탭으로 분리 (맥락이 달라 위아래 stacking 정렬 혼란 해소)
   const [wsSubTab, setWsSubTab] = useState<'integrated' | 'members' | 'projects' | 'departments'>('integrated');
   // #64 프로젝트뷰 — active 프로젝트 목록 + 선택
@@ -222,7 +227,7 @@ const WeeklyReviewTab: React.FC<Props> = ({ businessId, userId, reviewScope = 'm
           )}
         </ProjectsLens>
       )}
-      {!(reviewScope === 'workspace' && (wsSubTab === 'projects' || wsSubTab === 'departments')) && (
+      {!(reviewScope === 'workspace' && (wsSubTab === 'projects' || wsSubTab === 'departments' || wsSubTab === 'integrated')) && (
       <Header>
         <HeaderLeft>
           {reviewScope === 'workspace' && wsSubTab === 'members' && (() => {
@@ -276,14 +281,15 @@ const WeeklyReviewTab: React.FC<Props> = ({ businessId, userId, reviewScope = 'm
       )}
 
 
-      {/* workspace 모드 · 통합보고서 서브탭 — 통합본 카드 (워크스페이스 × 주차 = 1) */}
+      {/* workspace 모드 · 통합보고서 서브탭 — R3 통합 롤업(확정 매트릭스) + 통합본 히스토리 카드 */}
       {reviewScope === 'workspace' && wsSubTab === 'integrated' && (
-        workspaceReports.length === 0 ? (
-          <Empty>
-            <EmptyTitle>{t('weeklyReview.workspace.empty', { defaultValue: '아직 통합 보고서가 없습니다' })}</EmptyTitle>
-            <EmptyHint>{t('weeklyReview.workspace.emptyHint', { defaultValue: '매주 일요일 자동으로 워크스페이스 통합 보고서가 박제됩니다.' })}</EmptyHint>
-          </Empty>
-        ) : (
+        <IntegratedReportView businessId={businessId} canManage={canManageReports} />
+      )}
+      {reviewScope === 'workspace' && wsSubTab === 'integrated' && workspaceReports.length > 0 && (
+        <HistoryTitle>{t('weeklyReview.integrated.history', { defaultValue: '통합 보고서 히스토리' })}</HistoryTitle>
+      )}
+      {reviewScope === 'workspace' && wsSubTab === 'integrated' && (
+        workspaceReports.length === 0 ? null : (
           <WorkspaceCardList>
             {workspaceReports.map(r => (
               <WorkspaceCard key={r.id} onClick={() => setSelectedWorkspaceId(r.id)}>
@@ -568,6 +574,7 @@ const WsSubTabBar = styled.div`
   margin-bottom: 12px;
 `;
 const ProjectsLens = styled.div`display: flex; flex-direction: column; gap: 16px;`;
+const HistoryTitle = styled.div`font-size: 13px; font-weight: 700; color: #64748B; margin: 20px 0 4px;`;
 const ProjectPickerRow = styled.div`display: flex; align-items: center; gap: 12px;`;
 const WsSubTabBtn = styled.button<{ $active: boolean }>`
   padding: 8px 14px; background: transparent; border: none; cursor: pointer;
