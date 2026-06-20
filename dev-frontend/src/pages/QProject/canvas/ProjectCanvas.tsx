@@ -74,7 +74,7 @@ export default function ProjectCanvas({ projectId, businessId }: Props) {
   }, [projectId]);
 
   if (loading) return <Skeleton><SkelBar style={{ width: '40%' }} /><SkelBlock /><SkelBlock /></Skeleton>;
-  if (error || !data) return <ErrorBox><AlertTriangleIcon size={20} /><div>{t('canvas.loadError')}</div><Retry onClick={silentLoad}>{t('canvas.retry')}</Retry></ErrorBox>;
+  if (error || !data) return <ErrorBox><AlertTriangleIcon size={20} /><div>{t('canvas.loadError')}</div><Retry type="button" onClick={silentLoad}>{t('canvas.retry')}</Retry></ErrorBox>;
 
   const { strategy } = data;
 
@@ -108,7 +108,7 @@ export default function ProjectCanvas({ projectId, businessId }: Props) {
 
       <SectionTitle>{t('canvas.roadmap.title')}</SectionTitle>
       {stages.length === 0 ? (
-        <Card><EmptyRow><span>{t('canvas.roadmap.empty')}</span><LinkBtn onClick={() => navigate(`/projects/p/${projectId}?tab=transactions`)}>{t('canvas.roadmap.openTx')}</LinkBtn></EmptyRow></Card>
+        <Card><EmptyRow><span>{t('canvas.roadmap.empty')}</span><LinkBtn type="button" onClick={() => navigate(`/projects/p/${projectId}?tab=transactions`)}>{t('canvas.roadmap.openTx')}</LinkBtn></EmptyRow></Card>
       ) : (
         <RoadStrip>
           {stages.map((s, i) => (
