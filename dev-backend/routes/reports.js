@@ -29,15 +29,15 @@ function normalizePeriodStart(periodType, periodStart) {
 router.get('/share/:token', async (req, res, next) => {
   try {
     const token = String(req.params.token || '').trim();
-    if (!token || token.length < 32) return errorResponse(res, 400, 'invalid_token');
+    if (!token || token.length < 32) return errorResponse(res, 'invalid_token', 400);
 
     const report = await Report.findOne({ where: { share_token: token } });
-    if (!report) return errorResponse(res, 404, 'report_not_found');
+    if (!report) return errorResponse(res, 'report_not_found', 404);
     if (report.status !== 'ready' || !report.pdf_url) {
-      return errorResponse(res, 409, `report_not_ready (${report.status})`);
+      return errorResponse(res, `report_not_ready (${report.status})`, 409);
     }
     if (!fs.existsSync(report.pdf_url)) {
-      return errorResponse(res, 410, 'pdf_file_missing');
+      return errorResponse(res, 'pdf_file_missing', 410);
     }
 
     res.setHeader('Content-Type', 'application/pdf');
@@ -216,8 +216,9 @@ router.get('/:biz/integrated/periods', authenticateToken, async (req, res, next)
   try {
     const businessId = Number(req.params.biz);
     if (!businessId) return errorResponse(res, 'business_id_required', 400);
-    const { member } = await loadScope(req, businessId);
+    const { member, ownerOrAdmin } = await loadScope(req, businessId);
     if (!member) return errorResponse(res, 'member_only', 403);
+    if (!ownerOrAdmin) return errorResponse(res, 'owner_or_admin_only', 403);
 
     const weeks = Math.min(Math.max(Number(req.query.weeks) || 8, 1), 26);
     const months = Math.min(Math.max(Number(req.query.months) || 6, 1), 24);
@@ -250,13 +251,15 @@ router.get('/:biz/integrated/periods', authenticateToken, async (req, res, next)
   } catch (err) { next(err); }
 });
 
-// GET /:biz/integrated?period_type=&period_start= — 통합 롤업 (member 이상 view)
+// GET /:biz/integrated?period_type=&period_start= — 통합 롤업 (owner/admin 전용 view)
+//   members[] 가 전 멤버 개인 보고 narrative 를 노출하므로 개인 프라이버시 게이트와 동일하게 owner/admin 한정.
 router.get('/:biz/integrated', authenticateToken, async (req, res, next) => {
   try {
     const businessId = Number(req.params.biz);
     if (!businessId) return errorResponse(res, 'business_id_required', 400);
-    const { member } = await loadScope(req, businessId);
+    const { member, ownerOrAdmin } = await loadScope(req, businessId);
     if (!member) return errorResponse(res, 'member_only', 403);
+    if (!ownerOrAdmin) return errorResponse(res, 'owner_or_admin_only', 403);
 
     const periodType = String(req.query.period_type || 'weekly');
     const periodStartRaw = String(req.query.period_start || '');

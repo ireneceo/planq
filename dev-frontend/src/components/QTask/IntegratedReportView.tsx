@@ -72,9 +72,9 @@ const IntegratedReportView: React.FC<Props> = ({ businessId, canManage, periodTy
     <Wrap>
       <TopBar>
         <Nav>
-          <NavBtn type="button" aria-label="이전" onClick={() => setPeriodStart((x) => shiftPeriod(periodType, x, -1))}>‹</NavBtn>
+          <NavBtn type="button" aria-label={t('weeklyReview.unit.prev', { defaultValue: '이전' }) as string} onClick={() => setPeriodStart((x) => shiftPeriod(periodType, x, -1))}>‹</NavBtn>
           <PLabel>{label} {t('weeklyReview.integrated.reportSuffix', { defaultValue: '통합보고서' })}</PLabel>
-          <NavBtn type="button" aria-label="다음" onClick={() => setPeriodStart((x) => shiftPeriod(periodType, x, 1))}>›</NavBtn>
+          <NavBtn type="button" aria-label={t('weeklyReview.unit.next', { defaultValue: '다음' }) as string} onClick={() => setPeriodStart((x) => shiftPeriod(periodType, x, 1))}>›</NavBtn>
         </Nav>
         <Spacer />
         {s.all_confirmed && <DoneChip>✓ {t('weeklyReview.integrated.allDone', { defaultValue: '전체 확정 완료' })}</DoneChip>}
