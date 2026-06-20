@@ -1,6 +1,8 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-06-20 (7) — **🔧 R1 실행·보고 통합 재설계 착수 (마스터설계 완료 + R1-C1 백엔드 완료·검증 17/17, C2 프론트 WIP).** 마스터 설계 `docs/EXECUTION_REPORTING_MASTER_DESIGN.md`(10섹션): 개념정정(실행추적=업무·거래분리·업무연계도→관련프로젝트) · 일정 타임라인 ★(캔버스+보고서 공유) · 워크스트림=업무그룹 동기화 · 뷰별 목적·리포트급 비주얼 · 책임 기반 보고(자동초안→확정→통합롤업·주월간). **R1-C1 완료·커밋 `d416dab`:** tasks.is_milestone·projects.timeline_key_only·project_links + GET /:id/timeline·timeline-settings·관련프로젝트 CRUD·tasks PUT is_milestone. **R1-C2 WIP:** ScheduleTimeline 컴포넌트+서비스 생성(캔버스 재배선 전). **다음 섹션:** session-state.md "R1 C2 다음 할 일" 참조. 미배포.
+> **최종 업데이트:** 2026-06-20 (8) — **🔧 전체 보고서 영역 재구성 (Irene 확정 구조 + Insights 디자인 재사용). 미배포, 디자인 세부수정 추가요청 예정.** 상단 3탭 평면화: **전체 업무 / 전체 주간보고 / 전체 월간보고**. 주간·월간 각각 안에 **[통합보고서 · 프로젝트별 보고서 · 개별 보고서]** 3타입 유지. **통합보고서**=프로젝트뷰/멤버뷰 토글, 모든 프로젝트(또는 멤버)가 **한 페이지에 합쳐진 단일 보고서**(접기 제거·전부 펼침), Insights 공통 컴포넌트(KpiGrid·KpiCard·SectionLabel·ChartCard) 재사용해 웹페이지 형태 구성 + 전사 KPI·전사요약·단위카드(헤더+ReportContent 풀)·인쇄PDF. **프로젝트별/개별**=Insights TeamTab 리스트 패턴 재사용(`ReportsList.tsx` 신규 — 기간필터+테이블+행클릭 DetailDrawer). `WeeklyReviewTab` 서브탭화, `QTaskPage` workspace 3탭+canManage 게이트. **백엔드 보안 fix(검증 중 발견):** GET /integrated·/integrated/periods owner/admin 게이트 누락→추가(멤버가 전 멤버 개인보고 narrative 열람 차단), 개인보고 unit GET 프라이버시 게이트(본인/owner/admin), share/:token errorResponse 인자 뒤바뀜(res.status(문자열)→500) 4곳 정정. **검증:** 헬스 29/29·빌드 EXIT0·E2E 20/20(CRUD왕복·프라이버시·프로젝트·월간·통합·에러)·cross-tenant 4/4(biz6→biz3 전자원 403)·통합롤업 실내용(프로젝트4·멤버6·완료14·진행17·이슈11)·서빙 200·ko/en 패리티. **공유 링크(외부열람)는 미구현 — 다음 작업(현재 인쇄·PDF만).** **구조 박제:** memory `project_reporting_structure.md`.
+>
+> **이전:** 2026-06-20 (7) — **🔧 R1 실행·보고 통합 재설계 착수 (마스터설계 완료 + R1-C1 백엔드 완료·검증 17/17, C2 프론트 WIP).** 마스터 설계 `docs/EXECUTION_REPORTING_MASTER_DESIGN.md`(10섹션): 개념정정(실행추적=업무·거래분리·업무연계도→관련프로젝트) · 일정 타임라인 ★(캔버스+보고서 공유) · 워크스트림=업무그룹 동기화 · 뷰별 목적·리포트급 비주얼 · 책임 기반 보고(자동초안→확정→통합롤업·주월간). **R1-C1 완료·커밋 `d416dab`:** tasks.is_milestone·projects.timeline_key_only·project_links + GET /:id/timeline·timeline-settings·관련프로젝트 CRUD·tasks PUT is_milestone. **R1-C2 WIP:** ScheduleTimeline 컴포넌트+서비스 생성(캔버스 재배선 전). **다음 섹션:** session-state.md "R1 C2 다음 할 일" 참조. 미배포.
 >
 > **이전:** 2026-06-20 (6) — **✅ v1.44.0 운영 배포 (deploy `20260620_060545` · 138초 · commit `12de4db`).** #64 보고서 3-렌즈(프로젝트뷰+부서뷰) 운영 라이브.
 >
@@ -124,6 +126,36 @@
 > **이전 라이브:** v1.16.1 (commit `8947504`) — N+31 사이클 (Q Talk 모바일 viewport 회귀 fix)
 >
 > **이전 라이브:** v1.16.0 (commit `ab113a6`) — N+26~N+27 사이클 (업무 흐름 Focus MVP + 인박스 inline 모달 + Cue 주고받음)
+
+---
+
+## ✅ 완료: 전체 보고서 영역 재구성 (Irene 확정 구조 + Insights 디자인) (2026-06-20)
+
+### 완료된 작업
+
+| 작업 | 설명 | 상태 |
+|------|------|:----:|
+| 탭 3평면화 | QTaskPage workspace: 전체 업무 / 전체 주간보고 / 전체 월간보고 (canManage 게이트) | ✅ 완료 |
+| 통합보고서 재작성 | 프로젝트뷰/멤버뷰, 모든 단위 한 페이지 합본(접기 제거), Insights KpiGrid·SectionLabel·ChartCard 재사용 웹페이지 구성 + 전사요약 + 인쇄PDF | ✅ 완료 |
+| 프로젝트별·개별 보고서 | TeamTab 리스트 패턴 재사용 — 기간필터+테이블+행클릭 DetailDrawer (ReportsList.tsx 신규) | ✅ 완료 |
+| WeeklyReviewTab 서브탭화 | [통합보고서·프로젝트별·개별], 나의 보고서는 자체 주간/월간 토글 | ✅ 완료 |
+| 보안 fix (검증 발견) | /integrated·periods owner/admin 게이트, 개인보고 프라이버시 게이트, share errorResponse 인자정정 | ✅ 완료 |
+
+### 수정된 파일
+- `dev-frontend/src/components/QTask/IntegratedReportView.tsx` (전면 재작성)
+- `dev-frontend/src/components/QTask/ReportsList.tsx` (신규)
+- `dev-frontend/src/components/QTask/WeeklyReviewTab.tsx`
+- `dev-frontend/src/components/QTask/ReportUnitView.tsx` · `report/ReportContent.tsx`
+- `dev-frontend/src/pages/QTask/QTaskPage.tsx`
+- `dev-frontend/src/pages/QProject/ProjectReportTab.tsx` (신규) · `QProjectDetailPage.tsx`
+- `dev-frontend/src/services/reportUnit.ts`
+- `dev-backend/routes/reports.js` · `services/integratedRollup.js` · `reportUnitSnapshot.js` · `weeklyReviewSnapshot.js`
+- `dev-frontend/public/locales/{ko,en}/qtask.json` · `qproject.json`
+
+### 미완 / 다음
+- **공유 링크(외부 열람)** 미구현 — 현재 인쇄·PDF만. 다음 작업.
+- 디자인 세부 수정 — Irene 추가 요청 예정.
+- 미배포 (dev 검증 완료).
 
 ---
 
