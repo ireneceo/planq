@@ -16,9 +16,9 @@ import {
 import WeeklyReviewView from './WeeklyReviewView';
 import WeeklyReviewWorkspaceView from './WeeklyReviewWorkspaceView';
 import WorkspaceFinalizeBanner from './WorkspaceFinalizeBanner';
-import ProjectReportView from './ProjectReportView';
-import DepartmentReportView from './DepartmentReportView';
+import ReportUnitView from './ReportUnitView';
 import { listActiveProjects, type ProjectLite } from '../../services/projectReport';
+import { listDepartments, type OrgDepartment } from '../../services/org';
 import PlanQSelect, { type PlanQSelectOption } from '../Common/PlanQSelect';
 import SearchBox from '../Common/SearchBox';
 import { useAuth } from '../../contexts/AuthContext';
@@ -47,6 +47,16 @@ const WeeklyReviewTab: React.FC<Props> = ({ businessId, userId, reviewScope = 'm
       if (list.length > 0) setSelectedProjectId((prev) => prev ?? list[0].id);
     }).catch(() => { /* 빈 목록 — 안내 표시 */ });
   }, [reviewScope, wsSubTab, businessId, projectsList.length]);
+  // R2 부서별 보고 — 부서 목록 + 선택
+  const [deptList, setDeptList] = useState<OrgDepartment[]>([]);
+  const [selectedDeptId, setSelectedDeptId] = useState<number | null>(null);
+  useEffect(() => {
+    if (reviewScope !== 'workspace' || wsSubTab !== 'departments' || deptList.length > 0) return;
+    listDepartments(businessId).then((list) => {
+      setDeptList(list);
+      if (list.length > 0) setSelectedDeptId((prev) => prev ?? list[0].id);
+    }).catch(() => { /* 빈 목록 */ });
+  }, [reviewScope, wsSubTab, businessId, deptList.length]);
   const [reviews, setReviews] = useState<WeeklyReviewListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [autoEnabled, setAutoEnabled] = useState(true);
@@ -169,7 +179,26 @@ const WeeklyReviewTab: React.FC<Props> = ({ businessId, userId, reviewScope = 'm
         </WsSubTabBar>
       )}
       {reviewScope === 'workspace' && wsSubTab === 'departments' && (
-        <ProjectsLens><DepartmentReportView businessId={businessId} /></ProjectsLens>
+        <ProjectsLens>
+          {deptList.length === 0 ? (
+            <Empty>{t('weeklyReview.unit.noDepartments', { defaultValue: '등록된 부서가 없습니다' })}</Empty>
+          ) : (
+            <>
+              <ProjectPickerRow>
+                <div style={{ minWidth: 240 }}>
+                  <PlanQSelect
+                    size="sm"
+                    isSearchable
+                    value={(() => { const d = deptList.find((x) => x.id === selectedDeptId); return d ? { value: String(d.id), label: d.name } : null; })()}
+                    options={deptList.map((d) => ({ value: String(d.id), label: d.name }))}
+                    onChange={(opt) => setSelectedDeptId(Number((opt as PlanQSelectOption)?.value))}
+                  />
+                </div>
+              </ProjectPickerRow>
+              {selectedDeptId && <ReportUnitView key={`dept-${selectedDeptId}`} businessId={businessId} scope="department" refId={selectedDeptId} />}
+            </>
+          )}
+        </ProjectsLens>
       )}
       {reviewScope === 'workspace' && wsSubTab === 'projects' && (
         <ProjectsLens>
@@ -188,7 +217,7 @@ const WeeklyReviewTab: React.FC<Props> = ({ businessId, userId, reviewScope = 'm
                   />
                 </div>
               </ProjectPickerRow>
-              {selectedProjectId && <ProjectReportView key={selectedProjectId} projectId={selectedProjectId} />}
+              {selectedProjectId && <ReportUnitView key={`proj-${selectedProjectId}`} businessId={businessId} scope="project" refId={selectedProjectId} />}
             </>
           )}
         </ProjectsLens>
