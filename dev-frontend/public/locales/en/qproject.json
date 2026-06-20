@@ -558,10 +558,21 @@
       "delConfirm": "Delete this workstream? Its tasks return to unassigned.",
       "save": "Save"
     },
-    "roadmap": {
-      "title": "Roadmap · Milestones",
-      "empty": "No transaction stages",
-      "openTx": "Open Transactions tab"
+    "tl": {
+      "title": "Schedule Timeline",
+      "progress": "Progress",
+      "monthSuffix": "",
+      "now": "Now",
+      "keyOnly": "Key items only",
+      "expected": "Expected {{n}}%",
+      "milestonesN": "{{n}} key",
+      "undated": "{{n}} undated",
+      "empty": "No tasks with a start or due date yet",
+      "sched": {
+        "ahead": "Ahead",
+        "ontrack": "On track",
+        "behind": "Behind"
+      }
     },
     "weekFocus": {
       "title": "This / Next Week Focus",
@@ -587,12 +598,20 @@
       "title": "Risks · Issues",
       "empty": "No issues logged"
     },
-    "graph": {
-      "title": "Task Dependency Map",
-      "hint": "Tasks and links by workstream",
-      "unassigned": "Unassigned",
-      "empty": "No linked tasks",
-      "links": "links"
+    "related": {
+      "title": "Related Projects",
+      "hint": "Other projects linked to this one",
+      "empty": "No linked projects",
+      "link": "Link project",
+      "searchPh": "Search projects by name",
+      "noResults": "No matching projects",
+      "unlink": "Unlink",
+      "overdue": "{{n}} overdue",
+      "health": {
+        "green": "On track",
+        "yellow": "Caution",
+        "red": "Behind"
+      }
     },
     "loadError": "Failed to load the canvas",
     "retry": "Retry"

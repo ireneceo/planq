@@ -558,10 +558,21 @@
       "delConfirm": "이 추진과제를 삭제할까요? 소속 업무는 미분류로 돌아갑니다.",
       "save": "저장"
     },
-    "roadmap": {
-      "title": "로드맵 · 마일스톤",
-      "empty": "거래 단계가 없습니다",
-      "openTx": "거래 탭 열기"
+    "tl": {
+      "title": "일정 진행 타임라인",
+      "progress": "진행률",
+      "monthSuffix": "월",
+      "now": "지금",
+      "keyOnly": "주요만 보기",
+      "expected": "기대 {{n}}%",
+      "milestonesN": "주요 {{n}}",
+      "undated": "미일정 {{n}}",
+      "empty": "일정(시작·마감)이 있는 업무가 없습니다",
+      "sched": {
+        "ahead": "앞서감",
+        "ontrack": "순항",
+        "behind": "지연"
+      }
     },
     "weekFocus": {
       "title": "금주 / 차주 포커스",
@@ -587,12 +598,20 @@
       "title": "리스크 · 이슈",
       "empty": "등록된 이슈가 없습니다"
     },
-    "graph": {
-      "title": "업무 연계도",
-      "hint": "추진과제별 업무와 연계 관계",
-      "unassigned": "미분류",
-      "empty": "연결된 업무가 없습니다",
-      "links": "연계"
+    "related": {
+      "title": "관련 프로젝트",
+      "hint": "이 프로젝트와 연결된 다른 프로젝트",
+      "empty": "연결된 프로젝트가 없습니다",
+      "link": "프로젝트 연결",
+      "searchPh": "프로젝트 이름 검색",
+      "noResults": "검색 결과가 없습니다",
+      "unlink": "연결 해제",
+      "overdue": "지연 {{n}}",
+      "health": {
+        "green": "순항",
+        "yellow": "주의",
+        "red": "지연"
+      }
     },
     "loadError": "캔버스를 불러오지 못했습니다",
     "retry": "다시 시도"
