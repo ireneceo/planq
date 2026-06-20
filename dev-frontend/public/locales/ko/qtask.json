@@ -168,7 +168,8 @@
     "weeklyReview": "주간 보고",
     "weeklyReviewMine": "나의 주간보고",
     "workspaceTasks": "전체 업무",
-    "workspaceWeekly": "전체 주간보고"
+    "workspaceWeekly": "전체 주간보고",
+    "workspaceMonthly": "전체 월간보고"
   },
   "workspace": {
     "assignee": "담당자",
@@ -719,11 +720,11 @@
       "summary": "전사 요약",
       "completedInPeriod": "기간 내 완료",
       "health": "순항/주의/위험",
-      "byProject": "프로젝트별",
-      "noProjects": "활성 프로젝트가 없습니다",
+      "byProject": "프로젝트뷰",
+      "noProjects": "이 기간에 보고할 프로젝트가 없습니다.",
       "completedFull": "완료",
-      "byMember": "멤버별",
-      "noMembers": "멤버가 없습니다",
+      "byMember": "멤버뷰",
+      "noMembers": "이 기간에 보고할 멤버가 없습니다.",
       "byDept": "부서별",
       "avgProgress": "평균 진행률",
       "completed": "완료 업무",
@@ -743,7 +744,13 @@
       "setIntegrated": "통합 확정 단계 사용",
       "setIntegratedHint": "켜면 대표가 통합본을 한 번 확정합니다. 끄면 하위 확정 시 자동 노출.",
       "setMonthly": "월간 자동 확정",
-      "setMonthlyHint": "월 마감 시 미확정 단위 보고서를 자동 확정합니다."
+      "setMonthlyHint": "월 마감 시 미확정 단위 보고서를 자동 확정합니다.",
+      "projectsLabel": "프로젝트",
+      "thisPeriod": "이번 기간",
+      "print": "인쇄 · PDF",
+      "execSummary": "전사 요약",
+      "execPh": "이번 기간 전사 차원의 판단·성과·리스크를 요약해 주세요 (자동 저장)",
+      "execEmpty": "작성된 전사 요약이 없습니다."
     },
     "unit": {
       "loadError": "보고서를 불러오지 못했습니다",
@@ -840,6 +847,13 @@
       "noMembers": "부서 멤버가 없습니다",
       "name": "이름",
       "role": "직무"
+    },
+    "list": {
+      "project": "프로젝트",
+      "member": "멤버",
+      "progress": "진행률",
+      "status": "상태",
+      "openProject": "프로젝트 보고서 열기"
     }
   },
   "rowAction": {

@@ -133,7 +133,8 @@
     "weeklyReview": "Weekly Review",
     "weeklyReviewMine": "My Weekly Review",
     "workspaceTasks": "All Tasks",
-    "workspaceWeekly": "Workspace Weekly"
+    "workspaceWeekly": "Workspace Weekly",
+    "workspaceMonthly": "Monthly (all)"
   },
   "workspace": {
     "assignee": "Assignee",
@@ -698,11 +699,11 @@
       "summary": "Company summary",
       "completedInPeriod": "Done in period",
       "health": "On track/Caution/Risk",
-      "byProject": "By project",
-      "noProjects": "No active projects",
+      "byProject": "Project view",
+      "noProjects": "No projects to report this period.",
       "completedFull": "Done",
-      "byMember": "By member",
-      "noMembers": "No members",
+      "byMember": "Member view",
+      "noMembers": "No members to report this period.",
       "byDept": "By department",
       "avgProgress": "Avg progress",
       "completed": "Completed",
@@ -729,7 +730,13 @@
       "confProgress": "Confirmed {{p}}/{{total}}",
       "noUnits": "No units",
       "detail": "Details ▾",
-      "collapse": "Collapse ▴"
+      "collapse": "Collapse ▴",
+      "projectsLabel": "Projects",
+      "thisPeriod": "This period",
+      "print": "Print · PDF",
+      "execSummary": "Executive summary",
+      "execPh": "Summarize org-wide judgment, results, and risks for this period (auto-saved)",
+      "execEmpty": "No executive summary yet."
     },
     "unit": {
       "loadError": "Failed to load the report",
@@ -840,6 +847,13 @@
       "integrated": "Integrated",
       "projects": "By project",
       "members": "By member"
+    },
+    "list": {
+      "project": "Project",
+      "member": "Member",
+      "progress": "Progress",
+      "status": "Status",
+      "openProject": "Open project report"
     }
   },
   "rowAction": {

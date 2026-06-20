@@ -43,7 +43,7 @@ import WeeklyReviewTab from '../../components/QTask/WeeklyReviewTab';
 
 // ─── Types ───
 type Scope = 'mine' | 'workspace';
-type ListTab = 'week' | 'all' | 'requested' | 'weekly-review' | 'workspace-tasks' | 'workspace-weekly';
+type ListTab = 'week' | 'all' | 'requested' | 'weekly-review' | 'workspace-tasks' | 'workspace-weekly' | 'workspace-monthly';
 type ViewMode = 'list' | 'kanban';
 interface MemberOption { user_id: number; name: string; is_ai?: boolean; }
 type SortKey = 'priority_order' | 'title' | 'status' | 'estimated_hours' | 'actual_hours' | 'progress_percent' | 'due_date';
@@ -134,7 +134,7 @@ const QTaskPage:React.FC=()=>{
     const search = typeof window !== 'undefined' ? window.location.search : location.search;
     const v = new URLSearchParams(search).get('tab');
     const mineTabs: ListTab[] = ['week', 'all', 'requested', 'weekly-review'];
-    const wsTabs: ListTab[] = ['workspace-tasks', 'workspace-weekly'];
+    const wsTabs: ListTab[] = ['workspace-tasks', 'workspace-weekly', 'workspace-monthly'];
     const isWorkspace = (typeof window !== 'undefined' ? window.location.pathname : location.pathname).endsWith('/tasks/workspace');
     if (!isWorkspace && mineTabs.includes(v as ListTab)) return v as ListTab;
     if (isWorkspace && wsTabs.includes(v as ListTab)) return v as ListTab;
@@ -150,15 +150,15 @@ const QTaskPage:React.FC=()=>{
   const setScope=(s:Scope)=>{
     // scope 변경 시 적절한 default tab 으로 reset
     let nextTab = tab;
-    if(s==='workspace'&&!['workspace-tasks','workspace-weekly'].includes(tab))nextTab='workspace-tasks';
-    if(s==='mine'&&['workspace-tasks','workspace-weekly'].includes(tab))nextTab='week';
+    if(s==='workspace'&&!['workspace-tasks','workspace-weekly','workspace-monthly'].includes(tab))nextTab='workspace-tasks';
+    if(s==='mine'&&['workspace-tasks','workspace-weekly','workspace-monthly'].includes(tab))nextTab='week';
     _setTab(nextTab);
     const sp = new URLSearchParams(location.search);
     sp.set('tab', nextTab);
     navigate({ pathname: s==='workspace'?'/tasks/workspace':'/tasks', search: '?' + sp.toString() });
   };
   // 권한 없는 멤버가 URL 로 전체 보고서 탭 직접 진입 시 전체 업무로 폴백 (빈 화면 방지)
-  useEffect(()=>{ if(tab==='workspace-weekly'&&!canManageReports) setTab('workspace-tasks'); },[tab,canManageReports]);  // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(()=>{ if((tab==='workspace-weekly'||tab==='workspace-monthly')&&!canManageReports) setTab('workspace-tasks'); },[tab,canManageReports]);  // eslint-disable-line react-hooks/exhaustive-deps
   const[weeklyReviewModalOpen,setWeeklyReviewModalOpen]=useState(false);
   // 우선순위: URL (?view=) > localStorage > 기본값 'list'
   const[viewMode,setViewMode]=useState<ViewMode>(()=>{
@@ -1381,32 +1381,38 @@ const QTaskPage:React.FC=()=>{
           </CandMissingBar>
         )}
 
-        {/* Tabs — 전체 업무 모드 (전체 업무 / 전체 주간보고) */}
+        {/* Tabs — 전체 업무 모드 (전체 업무 / 전체 주간보고 / 전체 월간보고) */}
         {scope==='workspace'&&(
           <TabBar>
-            <TabBtn type="button" $active={tab!=='workspace-weekly'} onClick={()=>setTab('workspace-tasks')}>
+            <TabBtn type="button" $active={tab==='workspace-tasks'} onClick={()=>setTab('workspace-tasks')}>
               {t('tab.workspaceTasks', { defaultValue: '전체 업무' }) as string}
             </TabBtn>
-            {canManageReports && (
+            {canManageReports && (<>
               <TabBtn type="button" $active={tab==='workspace-weekly'} onClick={()=>setTab('workspace-weekly')}>
-                {t('tab.workspaceWeekly', { defaultValue: '전체 보고서' }) as string}
+                {t('tab.workspaceWeekly', { defaultValue: '전체 주간보고' }) as string}
               </TabBtn>
-            )}
+              <TabBtn type="button" $active={tab==='workspace-monthly'} onClick={()=>setTab('workspace-monthly')}>
+                {t('tab.workspaceMonthly', { defaultValue: '전체 월간보고' }) as string}
+              </TabBtn>
+            </>)}
           </TabBar>
         )}
 
-        {/* 주간 보고 탭 — 본인 (mine 4번째) */}
+        {/* 보고서 탭 — 본인 (mine 4번째) */}
         {tab==='weekly-review' && bizId && (
           <WeeklyReviewTab businessId={bizId} userId={myId} reviewScope="mine" />
         )}
 
-        {/* 전체 주간 보고 탭 — workspace 두번째 (owner/admin 전용). 멤버가 URL 강제 시 빈 화면 대신 전체 업무로 폴백 */}
+        {/* 전체 주간/월간 보고 탭 — workspace (owner/admin 전용). 멤버가 URL 강제 시 전체 업무로 폴백 */}
         {tab==='workspace-weekly' && bizId && canManageReports && (
-          <WeeklyReviewTab businessId={bizId} userId={myId} reviewScope="workspace" />
+          <WeeklyReviewTab businessId={bizId} userId={myId} reviewScope="workspace" periodType="weekly" canManage={canManageReports} />
+        )}
+        {tab==='workspace-monthly' && bizId && canManageReports && (
+          <WeeklyReviewTab businessId={bizId} userId={myId} reviewScope="workspace" periodType="monthly" canManage={canManageReports} />
         )}
 
         {/* Cue에게 말하기 바 — 캐주얼 한마디 → AI 업무 즉시 생성 (리스트 탭에서만, 요청하기 제외) */}
-        {bizId && ((scope==='mine'&&(tab==='week'||tab==='all')) || (scope==='workspace'&&tab!=='workspace-weekly')) && (
+        {bizId && ((scope==='mine'&&(tab==='week'||tab==='all')) || (scope==='workspace'&&tab==='workspace-tasks')) && (
           <CueTaskBar
             businessId={bizId}
             projectId={null}
@@ -1416,7 +1422,7 @@ const QTaskPage:React.FC=()=>{
         )}
 
         {/* 일반 탭 — 기존 리스트 (week/all/requested/workspace-tasks/scope=workspace 기본) */}
-        {tab!=='weekly-review' && tab!=='workspace-weekly' && (
+        {tab!=='weekly-review' && tab!=='workspace-weekly' && tab!=='workspace-monthly' && (
           <ListScroll>
           {/* Filter bar — 테이블과 함께 스크롤 */}
           <FilterBar>
