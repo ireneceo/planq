@@ -39,6 +39,7 @@ const TaskLink = require('./TaskLink');
 const ProjectStatusOption = require('./ProjectStatusOption');
 const ProjectStage = require('./ProjectStage');
 const ProjectWorkstream = require('./ProjectWorkstream');
+const ProjectLink = require('./ProjectLink');
 const ProjectProcessColumn = require('./ProjectProcessColumn');
 const ProjectProcessPart = require('./ProjectProcessPart');
 const CalendarEvent = require('./CalendarEvent');
@@ -336,6 +337,10 @@ Project.hasMany(ProjectWorkstream, { as: 'workstreams', foreignKey: 'project_id'
 ProjectWorkstream.hasMany(Task, { as: 'tasks', foreignKey: 'workstream_id' });
 Task.belongsTo(ProjectWorkstream, { as: 'workstream', foreignKey: 'workstream_id' });
 
+// ProjectLink — R1 관련 프로젝트 (양방향). a/b 양쪽 Project 조인.
+ProjectLink.belongsTo(Project, { as: 'projectA', foreignKey: 'project_a_id', onDelete: 'CASCADE' });
+ProjectLink.belongsTo(Project, { as: 'projectB', foreignKey: 'project_b_id', onDelete: 'CASCADE' });
+
 // ProjectNote / ProjectIssue / TaskCandidate
 ProjectNote.belongsTo(Project, { foreignKey: 'project_id', onDelete: 'CASCADE' });
 ProjectNote.belongsTo(User, { as: 'author', foreignKey: 'author_user_id' });
@@ -466,6 +471,7 @@ module.exports = {
   ProjectStatusOption,
   ProjectStage,
   ProjectWorkstream,
+  ProjectLink,
   ProjectProcessColumn,
   ProjectProcessPart,
   CalendarEvent,

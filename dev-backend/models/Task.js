@@ -175,6 +175,13 @@ Task.init({
     onDelete: 'SET NULL',
     comment: 'project_workstreams.id (nullable)',
   },
+  // R1 — 주요 업무(마일스톤) 표시. 일정 타임라인에서 강조 포인트로 노출.
+  is_milestone: {
+    type: DataTypes.BOOLEAN,
+    allowNull: false,
+    defaultValue: false,
+    comment: '주요 업무(마일스톤) — 타임라인 강조 + 주요만 보기 필터',
+  },
   category: {
     type: DataTypes.STRING(100),
     allowNull: true,
