@@ -101,7 +101,7 @@ export default function RelatedProjects({ projectId, businessId, refreshSignal }
             return (
               <PCard key={l.link_id}>
                 <CardTop>
-                  <PName onClick={() => navigate(`/projects/p/${p.id}`)}>{p.name}</PName>
+                  <PName type="button" onClick={() => navigate(`/projects/p/${p.id}`)}>{p.name}</PName>
                   <Unlink type="button" aria-label={t('canvas.related.unlink')} title={t('canvas.related.unlink')}
                     disabled={busy} onClick={() => doUnlink(p.id)}>×</Unlink>
                 </CardTop>
@@ -138,7 +138,7 @@ const Empty = styled.div`font-size:13px;color:#94A3B8;padding:10px 0;`;
 const Grid = styled.div`display:grid;grid-template-columns:repeat(3,1fr);gap:12px;@media (max-width:1024px){grid-template-columns:repeat(2,1fr);}@media (max-width:640px){grid-template-columns:1fr;}`;
 const PCard = styled.div`display:flex;flex-direction:column;gap:8px;background:#fff;border:1px solid #E2E8F0;border-radius:12px;padding:14px;`;
 const CardTop = styled.div`display:flex;align-items:flex-start;gap:8px;`;
-const PName = styled.span`flex:1;font-size:13px;font-weight:700;color:#0F172A;line-height:1.4;cursor:pointer;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;&:hover{color:#0F766E;}`;
+const PName = styled.button`flex:1;text-align:left;border:none;background:none;padding:0;font-family:inherit;font-size:13px;font-weight:700;color:#0F172A;line-height:1.4;cursor:pointer;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;&:hover{color:#0F766E;}&:focus-visible{outline:2px solid #14B8A6;outline-offset:2px;}`;
 const Unlink = styled.button`flex-shrink:0;width:22px;height:22px;border:none;background:transparent;border-radius:6px;font-size:17px;line-height:1;color:#CBD5E1;cursor:pointer;&:hover{background:#FEE2E2;color:#B91C1C;}&:disabled{opacity:.5;cursor:default;}`;
 const RelLabel = styled.span`font-size:11px;font-weight:600;color:#0F766E;background:#CCFBF1;border-radius:999px;padding:2px 8px;align-self:flex-start;`;
 const BarTrack = styled.div`height:6px;background:#F1F5F9;border-radius:999px;overflow:hidden;`;

@@ -646,10 +646,10 @@ router.put('/:businessId/settings', authenticateToken, checkBusinessAccess, asyn
   }
 });
 
-// R3 — 단위 보고서 통합 설정 (통합확정 단계 / 월간 자동확정). owner/admin.
+// R3 — 단위 보고서 통합 설정 (통합확정 단계 / 월간 자동확정). owner/admin (R3 ownerOrAdmin 모델 일관).
 router.put('/:businessId/report-settings', authenticateToken, checkBusinessAccess, async (req, res, next) => {
   try {
-    if (!isAdmin(req)) return errorResponse(res, 'Admin permission required', 403);
+    if (!isAdmin(req) && req.businessRole !== 'admin') return errorResponse(res, 'Admin permission required', 403);
     const business = await Business.findByPk(req.params.businessId);
     if (!business) return errorResponse(res, 'Workspace not found', 404);
     const updates = {};

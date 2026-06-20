@@ -53,7 +53,9 @@ async function buildProjectSnapshot(businessId, projectId, periodType, periodSta
 
   const highlights = tp.filter((t) => t.status === 'completed' && inRange(t.completed_at, start, end)).map(briefTask).slice(0, 15);
   const risks = tp.filter((t) => t.due_date && ymd(t.due_date) < today && t.status !== 'completed' && t.status !== 'canceled').map(briefTask).slice(0, 15);
-  const next = tp.filter((t) => t.planned_week_start && ymd(t.planned_week_start) === nextStart && t.status !== 'canceled').map(briefTask).slice(0, 15);
+  // 리뷰 M6 — 주간: 차주 정확 매치 / 월간: 익월(YYYY-MM) 내 계획 (planned_week_start 는 주 월요일이라 월 1일과 정확매치 불가)
+  const inNext = (d) => { const v = ymd(d); if (!v) return false; return periodType === 'monthly' ? v.slice(0, 7) === nextStart.slice(0, 7) : v === nextStart; };
+  const next = tp.filter((t) => inNext(t.planned_week_start) && t.status !== 'canceled').map(briefTask).slice(0, 15);
 
   // 팀 — 프로젝트 멤버별 active/완료
   const pms = await ProjectMember.findAll({ where: { project_id: project.id }, include: [{ model: User, attributes: ['id', 'name', 'name_localized'], required: false }] });
