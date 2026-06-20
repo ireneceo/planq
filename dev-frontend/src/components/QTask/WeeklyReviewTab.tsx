@@ -1,522 +1,105 @@
-// WeeklyReviewTab — 주간 보고 탭 (4번째 탭 본문)
-//
-// 누적 결산 카드 리스트 + 자동 박제 토글
-
-import React, { useState, useEffect, useCallback } from 'react';
+// WeeklyReviewTab — 업무 보고서 탭.
+//   reviewScope='mine'      → 나의 보고서 (본인 편집·확정) : 주간/월간 + ReportUnitView(member, self)
+//   reviewScope='workspace' → 전체 보고서 (owner/admin 보기) : 통합보고서(프로젝트뷰/개인뷰) · 프로젝트별 · 개별
+import React, { useEffect, useMemo, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
-import {
-  listWeeklyReviews,
-  getWeeklyReviewSettings,
-  updateWeeklyReviewSettings,
-  type WeeklyReviewListItem,
-} from '../../services/weeklyReview';
-import WeeklyReviewView from './WeeklyReviewView';
-import WorkspaceFinalizeBanner from './WorkspaceFinalizeBanner';
+import { useAuth, apiFetch } from '../../contexts/AuthContext';
+import PlanQSelect, { type PlanQSelectOption } from '../Common/PlanQSelect';
 import ReportUnitView from './ReportUnitView';
 import IntegratedReportView from './IntegratedReportView';
 import { listActiveProjects, type ProjectLite } from '../../services/projectReport';
-import { listDepartments, type OrgDepartment } from '../../services/org';
-import PlanQSelect, { type PlanQSelectOption } from '../Common/PlanQSelect';
-import SearchBox from '../Common/SearchBox';
-import { useAuth } from '../../contexts/AuthContext';
+import type { ReportPeriodType } from '../../services/reportUnit';
 
-interface Props {
-  businessId: number;
-  userId: number;
-  // 'workspace' 면 워크스페이스 전체 (owner 만), 카드에 user_name 표시
-  reviewScope?: 'mine' | 'workspace';
-}
+interface Props { businessId: number; userId: number; reviewScope?: 'mine' | 'workspace'; }
+type WsTab = 'integrated' | 'projects' | 'members';
+interface Member { user_id: number; name: string; }
 
 const WeeklyReviewTab: React.FC<Props> = ({ businessId, userId, reviewScope = 'mine' }) => {
   const { t } = useTranslation('qtask');
   const { user } = useAuth();
-  // 운영 #56 — 통합 보고서 제목에 워크스페이스 이름 (예: "워프로랩 통합보고서")
-  const wsName = user?.business_name || '';
-  // R3 통합확정·설정 — owner/admin 만
   const myWsRole = (user?.workspaces || []).find((w) => w.business_id === businessId)?.role
     || (user?.business_id === businessId ? user?.business_role : null);
-  const canManageReports = myWsRole === 'owner' || myWsRole === 'admin' || user?.platform_role === 'platform_admin';
-  // 운영 #56 — workspace 모드는 [통합보고서]/[멤버 주간보고] 서브탭으로 분리 (맥락이 달라 위아래 stacking 정렬 혼란 해소)
-  const [wsSubTab, setWsSubTab] = useState<'integrated' | 'members' | 'projects' | 'departments'>('integrated');
-  // #64 프로젝트뷰 — active 프로젝트 목록 + 선택
-  const [projectsList, setProjectsList] = useState<ProjectLite[]>([]);
-  const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null);
-  useEffect(() => {
-    if (reviewScope !== 'workspace' || wsSubTab !== 'projects' || projectsList.length > 0) return;
-    listActiveProjects(businessId).then((list) => {
-      setProjectsList(list);
-      if (list.length > 0) setSelectedProjectId((prev) => prev ?? list[0].id);
-    }).catch(() => { /* 빈 목록 — 안내 표시 */ });
-  }, [reviewScope, wsSubTab, businessId, projectsList.length]);
-  // R2 부서별 보고 — 부서 목록 + 선택
-  const [deptList, setDeptList] = useState<OrgDepartment[]>([]);
-  const [selectedDeptId, setSelectedDeptId] = useState<number | null>(null);
-  useEffect(() => {
-    if (reviewScope !== 'workspace' || wsSubTab !== 'departments' || deptList.length > 0) return;
-    listDepartments(businessId).then((list) => {
-      setDeptList(list);
-      if (list.length > 0) setSelectedDeptId((prev) => prev ?? list[0].id);
-    }).catch(() => { /* 빈 목록 */ });
-  }, [reviewScope, wsSubTab, businessId, deptList.length]);
-  const [reviews, setReviews] = useState<WeeklyReviewListItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [autoEnabled, setAutoEnabled] = useState(true);
-  const [selectedId, setSelectedId] = useState<number | null>(null);
-  const [hasMore, setHasMore] = useState(false);
-  // workspace 모드 — 멤버 필터 + 검색
-  const [memberFilter, setMemberFilter] = useState<number | 'all'>('all');
-  const [search, setSearch] = useState('');
-  // R3' — 옛 BusinessWeeklyReport 통합본 리스트/뷰 제거(새 IntegratedReportView 로 대체).
+  const canManage = myWsRole === 'owner' || myWsRole === 'admin' || user?.platform_role === 'platform_admin';
 
-  const load = useCallback(async (append = false) => {
-    try {
-      const before = append && reviews.length > 0 ? reviews[reviews.length - 1].week_start : undefined;
-      const list = await listWeeklyReviews({
-        business_id: businessId,
-        user_id: reviewScope === 'workspace' ? 'all' : userId,
-        limit: reviewScope === 'workspace' ? 50 : 12,
-        before,
-      });
-      if (append) {
-        setReviews(prev => [...prev, ...list]);
-      } else {
-        setReviews(list);
-      }
-      setHasMore(list.length >= 12);
-    } catch (e) {
-      console.error('[WeeklyReviewTab] load error:', e);
-    } finally {
-      setLoading(false);
+  const [periodType, setPeriodType] = useState<ReportPeriodType>('weekly');
+  const [wsTab, setWsTab] = useState<WsTab>('integrated');
+
+  // 전체 보고서 — 프로젝트/멤버 picker
+  const [projects, setProjects] = useState<ProjectLite[]>([]);
+  const [selProject, setSelProject] = useState<number | null>(null);
+  const [members, setMembers] = useState<Member[]>([]);
+  const [selMember, setSelMember] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (reviewScope !== 'workspace') return;
+    if (wsTab === 'projects' && projects.length === 0) {
+      listActiveProjects(businessId).then((l) => { setProjects(l); if (l[0]) setSelProject((p) => p ?? l[0].id); }).catch(() => { /* */ });
     }
-  }, [businessId, userId, reviewScope, reviews]);
-
-  useEffect(() => {
-    load();
-    // 설정 조회
-    (async () => {
-      try {
-        const settings = await getWeeklyReviewSettings(businessId);
-        setAutoEnabled(settings.auto_enabled);
-      } catch (e) {
-        // default ON
-      }
-    })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [businessId, userId, reviewScope]);
-
-  const toggleAuto = async () => {
-    const newVal = !autoEnabled;
-    setAutoEnabled(newVal);
-    try {
-      await updateWeeklyReviewSettings({ business_id: businessId, auto_enabled: newVal });
-    } catch (e) {
-      setAutoEnabled(!newVal); // 롤백
+    if (wsTab === 'members' && members.length === 0) {
+      apiFetch(`/api/businesses/${businessId}/members`).then((r) => r.json()).then((j) => {
+        const ms: Member[] = (j.data || j.members || []).map((m: { user_id: number; name?: string; User?: { name?: string; display_name?: string } }) => ({ user_id: m.user_id, name: m.name || m.User?.display_name || m.User?.name || `#${m.user_id}` }));
+        setMembers(ms); if (ms[0]) setSelMember((p) => p ?? ms[0].user_id);
+      }).catch(() => { /* */ });
     }
-  };
+  }, [reviewScope, wsTab, businessId, projects.length, members.length]);
 
-  // 주차 라벨 (5월 1주차 형식)
-  const weekLabel = (weekStart: string) => {
-    const d = new Date(weekStart);
-    const month = d.getMonth() + 1;
-    const weekOfMonth = Math.ceil(d.getDate() / 7);
-    return t('weeklyReview.tab.weekLabel', { n: month, w: weekOfMonth, defaultValue: `${month}월 ${weekOfMonth}주차` });
-  };
+  const PeriodTabs = useMemo(() => (
+    <PTabs role="tablist">
+      <PTab type="button" role="tab" aria-selected={periodType === 'weekly'} $on={periodType === 'weekly'} onClick={() => setPeriodType('weekly')}>{t('weeklyReview.tab.weekly', { defaultValue: '주간 보고서' })}</PTab>
+      <PTab type="button" role="tab" aria-selected={periodType === 'monthly'} $on={periodType === 'monthly'} onClick={() => setPeriodType('monthly')}>{t('weeklyReview.tab.monthly', { defaultValue: '월간 보고서' })}</PTab>
+    </PTabs>
+  ), [periodType, t]);
 
-  // 뷰 모드
-  if (selectedId !== null) {
+  // ── 나의 보고서 ──
+  if (reviewScope === 'mine') {
     return (
-      <WeeklyReviewView
-        reviewId={selectedId}
-        onBack={() => { setSelectedId(null); load(false); }}
-      />
+      <Container>
+        {PeriodTabs}
+        <ReportUnitView key={`mine-${periodType}`} businessId={businessId} scope="member" refId={userId} periodType={periodType} />
+      </Container>
     );
   }
+
+  // ── 전체 보고서 (owner/admin) ──
   return (
     <Container>
-      {reviewScope === 'workspace' && wsSubTab === 'members' && <WorkspaceFinalizeBanner businessId={businessId} />}
-      {reviewScope === 'workspace' && (
-        <WsSubTabBar role="tablist">
-          <WsSubTabBtn type="button" role="tab" aria-selected={wsSubTab === 'integrated'}
-            $active={wsSubTab === 'integrated'} onClick={() => setWsSubTab('integrated')}>
-            {wsName ? t('weeklyReview.workspace.integratedTitle', { name: wsName, defaultValue: `${wsName} 통합보고서` }) : t('weeklyReview.workspace.tabTitle')}
-          </WsSubTabBtn>
-          <WsSubTabBtn type="button" role="tab" aria-selected={wsSubTab === 'members'}
-            $active={wsSubTab === 'members'} onClick={() => setWsSubTab('members')}>
-            {t('weeklyReview.workspace.membersTab', { defaultValue: '멤버 주간보고' })}
-          </WsSubTabBtn>
-          <WsSubTabBtn type="button" role="tab" aria-selected={wsSubTab === 'projects'}
-            $active={wsSubTab === 'projects'} onClick={() => setWsSubTab('projects')}>
-            {t('weeklyReview.workspace.projectsTab', { defaultValue: '프로젝트별 보고' })}
-          </WsSubTabBtn>
-          <WsSubTabBtn type="button" role="tab" aria-selected={wsSubTab === 'departments'}
-            $active={wsSubTab === 'departments'} onClick={() => setWsSubTab('departments')}>
-            {t('weeklyReview.workspace.departmentsTab', { defaultValue: '부서별 보고' })}
-          </WsSubTabBtn>
-        </WsSubTabBar>
-      )}
-      {reviewScope === 'workspace' && wsSubTab === 'departments' && (
-        <ProjectsLens>
-          {deptList.length === 0 ? (
-            <Empty>{t('weeklyReview.unit.noDepartments', { defaultValue: '등록된 부서가 없습니다' })}</Empty>
-          ) : (
-            <>
-              <ProjectPickerRow>
-                <div style={{ minWidth: 240 }}>
-                  <PlanQSelect
-                    size="sm"
-                    isSearchable
-                    value={(() => { const d = deptList.find((x) => x.id === selectedDeptId); return d ? { value: String(d.id), label: d.name } : null; })()}
-                    options={deptList.map((d) => ({ value: String(d.id), label: d.name }))}
-                    onChange={(opt) => setSelectedDeptId(Number((opt as PlanQSelectOption)?.value))}
-                  />
-                </div>
-              </ProjectPickerRow>
-              {selectedDeptId && <ReportUnitView key={`dept-${selectedDeptId}`} businessId={businessId} scope="department" refId={selectedDeptId} />}
-            </>
-          )}
-        </ProjectsLens>
-      )}
-      {reviewScope === 'workspace' && wsSubTab === 'projects' && (
-        <ProjectsLens>
-          {projectsList.length === 0 ? (
-            <Empty>{t('weeklyReview.project.noProjects', { defaultValue: '진행 중인 프로젝트가 없습니다' })}</Empty>
-          ) : (
-            <>
-              <ProjectPickerRow>
-                <div style={{ minWidth: 240 }}>
-                  <PlanQSelect
-                    size="sm"
-                    isSearchable
-                    value={(() => { const p = projectsList.find((x) => x.id === selectedProjectId); return p ? { value: String(p.id), label: p.name } : null; })()}
-                    options={projectsList.map((p) => ({ value: String(p.id), label: p.name }))}
-                    onChange={(opt) => setSelectedProjectId(Number((opt as PlanQSelectOption)?.value))}
-                  />
-                </div>
-              </ProjectPickerRow>
-              {selectedProjectId && <ReportUnitView key={`proj-${selectedProjectId}`} businessId={businessId} scope="project" refId={selectedProjectId} />}
-            </>
-          )}
-        </ProjectsLens>
-      )}
-      {!(reviewScope === 'workspace' && (wsSubTab === 'projects' || wsSubTab === 'departments' || wsSubTab === 'integrated')) && (
-      <Header>
-        <HeaderLeft>
-          {reviewScope === 'workspace' && wsSubTab === 'members' && (() => {
-            const memberOpts: PlanQSelectOption[] = [
-              { value: 'all', label: t('weeklyReview.filter.allMembers', { defaultValue: '전체 멤버' }) as string },
-              ...[...new Map(reviews.filter(r => r.user_id && r.user_name).map(r => [r.user_id, r.user_name])).entries()].map(([uid, name]) => ({
-                value: String(uid), label: String(name || ''),
-              })),
-            ];
-            return (
-              <div style={{ minWidth: 160 }}>
-                <PlanQSelect
-                  size="sm"
-                  isClearable={false}
-                  isSearchable={false}
-                  value={memberOpts.find(o => o.value === String(memberFilter)) || memberOpts[0]}
-                  options={memberOpts}
-                  onChange={(opt) => {
-                    const v = (opt as PlanQSelectOption)?.value;
-                    setMemberFilter(v === 'all' ? 'all' : Number(v));
-                  }}
-                />
-              </div>
-            );
-          })()}
-          <SearchBox
-            placeholder={t('weeklyReview.filter.search', { defaultValue: '주차·메모 검색' }) as string}
-            value={search}
-            onChange={setSearch}
-            width={200}
-            size="md"
-          />
-          <Count>{reviews.length}</Count>
-        </HeaderLeft>
-        {/* N+38 — workspace 탭의 수동 "이번 주 마무리" 버튼 + AutoToggle 제거.
-            WorkspaceFinalizeBanner 가 자동 박제 안내 + [설정 변경 →] 링크 제공 — 중복 UI 차단.
-            사용자 호소: "이런 버튼 필요해? 자동 박제 default ON 이면 의미 없어".
-            mine 탭의 AutoToggle 은 본인 자동 박제 토글이라 유지. */}
-        {reviewScope !== 'workspace' && (
-        <AutoToggle>
-          <AutoLabel>{t('weeklyReview.auto.title', '자동 확정')}</AutoLabel>
-          <ToggleSwitch onClick={toggleAuto} $on={autoEnabled}>
-            <ToggleKnob $on={autoEnabled} />
-          </ToggleSwitch>
-          <AutoStatus $on={autoEnabled}>
-            {autoEnabled ? t('weeklyReview.auto.enabled', '켜짐') : t('weeklyReview.auto.disabled', '꺼짐')}
-          </AutoStatus>
-        </AutoToggle>
-        )}
-      </Header>
-      )}
+      {PeriodTabs}
+      <WsTabs role="tablist">
+        <WsBtn type="button" role="tab" aria-selected={wsTab === 'integrated'} $on={wsTab === 'integrated'} onClick={() => setWsTab('integrated')}>{t('weeklyReview.ws.integrated', { defaultValue: '통합보고서' })}</WsBtn>
+        <WsBtn type="button" role="tab" aria-selected={wsTab === 'projects'} $on={wsTab === 'projects'} onClick={() => setWsTab('projects')}>{t('weeklyReview.ws.projects', { defaultValue: '프로젝트별 보고서' })}</WsBtn>
+        <WsBtn type="button" role="tab" aria-selected={wsTab === 'members'} $on={wsTab === 'members'} onClick={() => setWsTab('members')}>{t('weeklyReview.ws.members', { defaultValue: '개별 보고서' })}</WsBtn>
+      </WsTabs>
 
-
-      {/* workspace 모드 · 통합보고서 서브탭 — R3' 기간별 통합보고서 (옛 BusinessWeeklyReport 카드 대체) */}
-      {reviewScope === 'workspace' && wsSubTab === 'integrated' && (
-        <IntegratedReportView businessId={businessId} canManage={canManageReports} />
+      {wsTab === 'integrated' && (
+        <IntegratedReportView key={`ig-${periodType}`} businessId={businessId} canManage={canManage} periodType={periodType} />
       )}
-
-      {/* 멤버 주간보고 — mine 모드는 항상, workspace 모드는 '멤버 주간보고' 서브탭에서만 */}
-      {(reviewScope !== 'workspace' || wsSubTab === 'members') && (
-      loading ? (
-        <Loading>{t('page.loading', '로드 중...')}</Loading>
-      ) : reviews.length === 0 ? (
-        <Empty>
-          <EmptyTitle>{t('weeklyReview.tab.empty', '아직 저장된 결산이 없습니다')}</EmptyTitle>
-          <EmptyHint>{t('weeklyReview.tab.emptyHint', '"이번 주 마무리" 버튼으로 결산을 저장해보세요.')}</EmptyHint>
-        </Empty>
-      ) : (
-        <>
-          <CardList>
-            {reviews
-              .filter(r => reviewScope !== 'workspace' || memberFilter === 'all' || r.user_id === memberFilter)
-              .filter(r => {
-                if (!search.trim()) return true;
-                const q = search.toLowerCase();
-                return String(r.week_start).includes(q)
-                  || String(r.week_end).includes(q)
-                  || (r.retro_note || '').toLowerCase().includes(q)
-                  || (r.user_name || '').toLowerCase().includes(q);
-              })
-              .map(r => (
-              <Card key={r.id} onClick={() => setSelectedId(r.id)}>
-                <CardHeader>
-                  <WeekLabel>
-                    {weekLabel(r.week_start)}
-                    {reviewScope === 'workspace' && r.user_name && <UserChip>{r.user_name}</UserChip>}
-                  </WeekLabel>
-                  <Badge $auto={r.finalized_by === 'auto'}>
-                    {r.finalized_by === 'auto'
-                      ? t('weeklyReview.tab.autoBadge', '자동')
-                      : t('weeklyReview.tab.manualBadge', '수동')}
-                  </Badge>
-                </CardHeader>
-                <CardPeriod>{String(r.week_start).slice(0, 10)} ~ {String(r.week_end).slice(0, 10)}</CardPeriod>
-                {r.summary && (
-                  <CardSummary>
-                    <SummaryItem>
-                      <span>{t('weeklyReview.modal.summary', { c: r.summary.completed, i: r.summary.incomplete, defaultValue: `완료 ${r.summary.completed}건 / 미완료 ${r.summary.incomplete}건` })}</span>
-                    </SummaryItem>
-                    <SummaryItem>
-                      <span>{t('weeklyReview.modal.hours', { a: r.summary.actual_total, e: r.summary.estimated_total, p: r.summary.utilization_pct, defaultValue: `사용 ${r.summary.actual_total}h / 예측 ${r.summary.estimated_total}h` })}</span>
-                    </SummaryItem>
-                  </CardSummary>
-                )}
-                {r.retro_note && <CardNote>{r.retro_note}</CardNote>}
-              </Card>
-            ))}
-          </CardList>
-          {hasMore && (
-            <LoadMore onClick={() => load(true)}>
-              {t('common.loadMore', '더 보기')}
-            </LoadMore>
-          )}
-        </>
-      ))}
+      {wsTab === 'projects' && (
+        projects.length === 0 ? <Empty>{t('weeklyReview.integrated.noProjects', { defaultValue: '활성 프로젝트가 없습니다' })}</Empty> : (<>
+          <Picker><div style={{ minWidth: 260 }}>
+            <PlanQSelect size="sm" isSearchable value={(() => { const p = projects.find((x) => x.id === selProject); return p ? { value: String(p.id), label: p.name } : null; })()} options={projects.map((p) => ({ value: String(p.id), label: p.name }))} onChange={(o) => setSelProject(Number((o as PlanQSelectOption)?.value))} />
+          </div></Picker>
+          {selProject && <ReportUnitView key={`proj-${selProject}-${periodType}`} businessId={businessId} scope="project" refId={selProject} periodType={periodType} />}
+        </>)
+      )}
+      {wsTab === 'members' && (
+        members.length === 0 ? <Empty>{t('weeklyReview.integrated.noMembers', { defaultValue: '멤버가 없습니다' })}</Empty> : (<>
+          <Picker><div style={{ minWidth: 220 }}>
+            <PlanQSelect size="sm" isSearchable value={(() => { const m = members.find((x) => x.user_id === selMember); return m ? { value: String(m.user_id), label: m.name } : null; })()} options={members.map((m) => ({ value: String(m.user_id), label: m.name }))} onChange={(o) => setSelMember(Number((o as PlanQSelectOption)?.value))} />
+          </div></Picker>
+          {selMember && <ReportUnitView key={`mem-${selMember}-${periodType}`} businessId={businessId} scope="member" refId={selMember} periodType={periodType} />}
+        </>)
+      )}
     </Container>
   );
 };
 
 export default WeeklyReviewTab;
 
-// ─── Styles ───
-const Container = styled.div`
-  padding: 20px;
-  height: 100%;
-  overflow-y: auto;
-`;
-
-const Header = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 20px;
-`;
-
-const HeaderLeft = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-`;
-
-
-const Count = styled.span`
-  background: #f1f5f9;
-  color: #64748b;
-  font-size: 12px;
-  font-weight: 600;
-  padding: 2px 8px;
-  border-radius: 10px;
-`;
-
-const AutoToggle = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 8px;
-`;
-
-const AutoLabel = styled.span`
-  font-size: 13px;
-  color: #64748b;
-`;
-
-const ToggleSwitch = styled.div<{ $on: boolean }>`
-  width: 36px;
-  height: 20px;
-  background: ${p => p.$on ? '#14b8a6' : '#cbd5e1'};
-  border-radius: 10px;
-  position: relative;
-  cursor: pointer;
-  transition: background 0.2s;
-`;
-
-const ToggleKnob = styled.div<{ $on: boolean }>`
-  width: 16px;
-  height: 16px;
-  background: #fff;
-  border-radius: 50%;
-  position: absolute;
-  top: 2px;
-  left: ${p => p.$on ? '18px' : '2px'};
-  transition: left 0.2s;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
-`;
-
-const AutoStatus = styled.span<{ $on: boolean }>`
-  font-size: 12px;
-  color: ${p => p.$on ? '#14b8a6' : '#94a3b8'};
-  font-weight: 500;
-`;
-
-const Loading = styled.div`
-  text-align: center;
-  color: #94a3b8;
-  padding: 40px;
-`;
-
-const Empty = styled.div`
-  text-align: center;
-  padding: 60px 20px;
-`;
-
-const EmptyTitle = styled.div`
-  font-size: 15px;
-  color: #64748b;
-  margin-bottom: 8px;
-`;
-
-const EmptyHint = styled.div`
-  font-size: 13px;
-  color: #94a3b8;
-`;
-
-const CardList = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-`;
-
-const Card = styled.div`
-  background: #fff;
-  border: 1px solid #e2e8f0;
-  border-radius: 10px;
-  padding: 16px;
-  cursor: pointer;
-  transition: border-color 0.15s, box-shadow 0.15s;
-  &:hover {
-    border-color: #14b8a6;
-    box-shadow: 0 2px 8px rgba(20,184,166,0.1);
-  }
-`;
-
-const CardHeader = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 6px;
-`;
-
-const WeekLabel = styled.span`
-  font-size: 15px;
-  font-weight: 600;
-  color: #1e293b;
-  display: inline-flex; align-items: center; gap: 8px;
-`;
-const UserChip = styled.span`
-  font-size: 11px; font-weight: 600; color: #0F766E;
-  background: #F0FDFA; padding: 2px 8px; border-radius: 999px;
-`;
-
-const Badge = styled.span<{ $auto: boolean }>`
-  font-size: 11px;
-  font-weight: 600;
-  padding: 2px 8px;
-  border-radius: 4px;
-  background: ${p => p.$auto ? '#dbeafe' : '#f0fdf4'};
-  color: ${p => p.$auto ? '#3b82f6' : '#22c55e'};
-`;
-
-const CardPeriod = styled.div`
-  font-size: 12px;
-  color: #94a3b8;
-  margin-bottom: 10px;
-`;
-
-const CardSummary = styled.div`
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  margin-bottom: 8px;
-`;
-
-const SummaryItem = styled.div`
-  font-size: 13px;
-  color: #475569;
-`;
-
-const CardNote = styled.div`
-  font-size: 13px;
-  color: #64748b;
-  background: #f8fafc;
-  padding: 8px 10px;
-  border-radius: 6px;
-  margin-top: 8px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-`;
-
-const LoadMore = styled.button`
-  display: block;
-  width: 100%;
-  margin-top: 16px;
-  padding: 10px;
-  border: 1px solid #e2e8f0;
-  background: #fff;
-  border-radius: 8px;
-  font-size: 13px;
-  color: #64748b;
-  cursor: pointer;
-  &:hover { background: #f8fafc; }
-`;
-
-// ─── workspace 통합본 (사이클 N+18) ───
-// 운영 #56 — workspace 주간보고 서브탭 (통합보고서 / 멤버 주간보고)
-const WsSubTabBar = styled.div`
-  display: flex; gap: 4px;
-  border-bottom: 1px solid #E2E8F0;
-  margin-bottom: 12px;
-`;
-const ProjectsLens = styled.div`display: flex; flex-direction: column; gap: 16px;`;
-const ProjectPickerRow = styled.div`display: flex; align-items: center; gap: 12px;`;
-const WsSubTabBtn = styled.button<{ $active: boolean }>`
-  padding: 8px 14px; background: transparent; border: none; cursor: pointer;
-  font-size: 13px; font-weight: ${p => p.$active ? 700 : 500};
-  color: ${p => p.$active ? '#0F766E' : '#64748B'};
-  border-bottom: 2px solid ${p => p.$active ? '#14B8A6' : 'transparent'};
-  margin-bottom: -1px;
-  &:hover { color: #0F766E; }
-`;
+const Container = styled.div`padding:20px;height:100%;overflow-y:auto;display:flex;flex-direction:column;gap:16px;`;
+const PTabs = styled.div`display:inline-flex;background:#F1F5F9;padding:3px;border-radius:8px;gap:2px;align-self:flex-start;`;
+const PTab = styled.button<{ $on: boolean }>`padding:7px 18px;border:none;background:${(p) => (p.$on ? '#fff' : 'transparent')};color:${(p) => (p.$on ? '#0F766E' : '#64748B')};border-radius:6px;font-size:13px;font-weight:700;cursor:pointer;box-shadow:${(p) => (p.$on ? '0 1px 2px rgba(0,0,0,.06)' : 'none')};`;
+const WsTabs = styled.div`display:flex;gap:4px;border-bottom:1px solid #E2E8F0;`;
+const WsBtn = styled.button<{ $on: boolean }>`padding:8px 14px;background:transparent;border:none;cursor:pointer;font-size:13px;font-weight:${(p) => (p.$on ? 700 : 500)};color:${(p) => (p.$on ? '#0F766E' : '#64748B')};border-bottom:2px solid ${(p) => (p.$on ? '#14B8A6' : 'transparent')};margin-bottom:-1px;&:hover{color:#0F766E;}`;
+const Picker = styled.div`display:flex;align-items:center;gap:12px;`;
+const Empty = styled.div`padding:60px 20px;text-align:center;color:#94A3B8;font-size:14px;`;
