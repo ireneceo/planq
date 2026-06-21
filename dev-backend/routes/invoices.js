@@ -71,6 +71,18 @@ function assertInvoiceMutationOwner(req, res) {
   return true;
 }
 
+// #77 — 발행 증빙 첨부 파일 검증. 워크스페이스 소유 + 미삭제 File 만 허용(cross-tenant 차단).
+// body.file_id 없으면 undefined 반환(update 미포함 → 재마킹 시 기존 파일 보존).
+async function resolveReceiptFileId(fileId, businessId) {
+  if (fileId === undefined || fileId === null || fileId === '') return undefined;
+  const { File } = require('../models');
+  const f = await File.findOne({
+    where: { id: Number(fileId), business_id: businessId, deleted_at: null },
+    attributes: ['id'],
+  });
+  return f ? f.id : undefined; // 유효치 않으면 무시(첨부 없이 발행 마킹은 정상)
+}
+
 // PDF 다운로드 helper — 공통
 async function buildInvoicePdf(invoiceId) {
   const invoice = await Invoice.findByPk(invoiceId, {
@@ -204,6 +216,8 @@ router.get('/public/:token', async (req, res, next) => {
         percent: i.percent, amount: i.amount, due_date: i.due_date,
         status: i.status, paid_at: i.paid_at,
         notify_paid_at: i.notify_paid_at, notify_payer_name: i.notify_payer_name,
+        // #77 — 발행된 증빙 파일 존재 여부 (다운로드 버튼 표시)
+        tax_invoice_file: !!i.tax_invoice_file_id, cash_receipt_file: !!i.cash_receipt_file_id,
       })),
       client: invoice.Client ? {
         display_name: invoice.Client.display_name,
@@ -239,6 +253,9 @@ router.get('/public/:token', async (req, res, next) => {
         } : null)),
         is_registered_client: !!invoice.client_id,
         client_country: invoice.Client?.country || null,
+        // #77 — 발행된 증빙 파일 존재 여부 (invoice 레벨, 다운로드 버튼 표시)
+        tax_invoice_file: !!invoice.tax_invoice_file_id,
+        cash_receipt_file: !!invoice.cash_receipt_file_id,
       },
       sender: business ? {
         name: business.brand_name || business.name,
@@ -256,6 +273,46 @@ router.get('/public/:token', async (req, res, next) => {
       source_post: sourcePost,
     };
     successResponse(res, safe);
+  } catch (error) { next(error); }
+});
+
+// #77 — 공개 청구서 페이지에서 발행된 증빙 파일(세금계산서/현금영수증) 다운로드.
+// 인증 = share_token (공개 청구서와 동일). kind=tax|cash, installId 있으면 회차별.
+router.get('/public/:token/receipt-file', async (req, res, next) => {
+  try {
+    const invoice = await Invoice.findOne({ where: { share_token: req.params.token } });
+    if (!invoice || invoice.status === 'draft' || invoice.status === 'canceled') {
+      return errorResponse(res, 'not_found', 404);
+    }
+    if (invoice.share_expires_at && new Date(invoice.share_expires_at) < new Date()) {
+      return errorResponse(res, 'share_expired', 410);
+    }
+    const kind = req.query.kind === 'cash' ? 'cash' : 'tax';
+    const installId = req.query.installId ? Number(req.query.installId) : null;
+    let fileId = null;
+    if (installId) {
+      const inst = await InvoiceInstallment.findOne({
+        where: { id: installId, invoice_id: invoice.id },
+        attributes: ['tax_invoice_file_id', 'cash_receipt_file_id'],
+      });
+      if (inst) fileId = kind === 'cash' ? inst.cash_receipt_file_id : inst.tax_invoice_file_id;
+    } else {
+      fileId = kind === 'cash' ? invoice.cash_receipt_file_id : invoice.tax_invoice_file_id;
+    }
+    if (!fileId) return errorResponse(res, 'receipt_file_not_found', 404);
+
+    const { File } = require('../models');
+    const file = await File.findOne({ where: { id: fileId, business_id: invoice.business_id, deleted_at: null } });
+    if (!file) return errorResponse(res, 'file_not_found', 404);
+
+    const fs = require('fs');
+    const path = require('path');
+    const abs = path.isAbsolute(file.file_path) ? file.file_path : path.join(__dirname, '..', file.file_path);
+    if (!fs.existsSync(abs)) return errorResponse(res, 'file_missing_on_disk', 410);
+    res.setHeader('Content-Type', file.mime_type || 'application/octet-stream');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(file.file_name)}`);
+    fs.createReadStream(abs).pipe(res);
   } catch (error) { next(error); }
 });
 
@@ -1340,7 +1397,8 @@ router.post('/:businessId/:id/installments/:installId/mark-tax-invoice', authent
     const no = req.body?.tax_invoice_no ? String(req.body.tax_invoice_no).slice(0, 50) : null;
     const at = req.body?.tax_invoice_at ? new Date(req.body.tax_invoice_at) : new Date();
     if (!no) return errorResponse(res, 'tax_invoice_no required', 400);
-    await inst.update({ tax_invoice_no: no, tax_invoice_at: at, tax_invoice_marked_by: req.user.id });
+    const taxFileId = await resolveReceiptFileId(req.body?.file_id, invoice.business_id);
+    await inst.update({ tax_invoice_no: no, tax_invoice_at: at, tax_invoice_marked_by: req.user.id, ...(taxFileId !== undefined ? { tax_invoice_file_id: taxFileId } : {}) });
     // 사이클 N+51 — audit. 세금계산서 발행 마킹 (한국 사업자 컴플라이언스)
     require('../services/auditService').logAudit(req, {
       action: 'invoice.installment.mark_tax_invoice',
@@ -1396,7 +1454,8 @@ router.post('/:businessId/:id/installments/:installId/mark-cash-receipt', authen
     const no = req.body?.cash_receipt_no ? String(req.body.cash_receipt_no).slice(0, 50) : null;
     const at = req.body?.cash_receipt_at ? new Date(req.body.cash_receipt_at) : new Date();
     if (!no) return errorResponse(res, 'cash_receipt_no required', 400);
-    await inst.update({ cash_receipt_no: no, cash_receipt_at: at, cash_receipt_marked_by: req.user.id });
+    const cashFileId = await resolveReceiptFileId(req.body?.file_id, invoice.business_id);
+    await inst.update({ cash_receipt_no: no, cash_receipt_at: at, cash_receipt_marked_by: req.user.id, ...(cashFileId !== undefined ? { cash_receipt_file_id: cashFileId } : {}) });
     require('../services/auditService').logAudit(req, {
       action: 'invoice.installment.mark_cash_receipt',
       targetType: 'invoice_installment',
@@ -1536,7 +1595,8 @@ router.post('/:businessId/:id/mark-tax-invoice', authenticateToken, checkBusines
     const no = req.body?.tax_invoice_no ? String(req.body.tax_invoice_no).slice(0, 50) : null;
     const at = req.body?.tax_invoice_at ? new Date(req.body.tax_invoice_at) : new Date();
     if (!no) return errorResponse(res, 'tax_invoice_no required', 400);
-    await invoice.update({ tax_invoice_status: 'issued', tax_invoice_external_id: no, tax_invoice_issued_at: at });
+    const taxFileId = await resolveReceiptFileId(req.body?.file_id, invoice.business_id);
+    await invoice.update({ tax_invoice_status: 'issued', tax_invoice_external_id: no, tax_invoice_issued_at: at, ...(taxFileId !== undefined ? { tax_invoice_file_id: taxFileId } : {}) });
     require('../services/auditService').logAudit(req, {
       action: 'invoice.mark_tax_invoice', targetType: 'invoice', targetId: invoice.id,
       newValue: { invoice_number: invoice.invoice_number, tax_invoice_no: no, tax_invoice_at: at },
@@ -1558,7 +1618,8 @@ router.post('/:businessId/:id/mark-cash-receipt', authenticateToken, checkBusine
     const no = req.body?.cash_receipt_no ? String(req.body.cash_receipt_no).slice(0, 50) : null;
     const at = req.body?.cash_receipt_at ? new Date(req.body.cash_receipt_at) : new Date();
     if (!no) return errorResponse(res, 'cash_receipt_no required', 400);
-    await invoice.update({ cash_receipt_status: 'issued', cash_receipt_no: no, cash_receipt_issued_at: at });
+    const cashFileId = await resolveReceiptFileId(req.body?.file_id, invoice.business_id);
+    await invoice.update({ cash_receipt_status: 'issued', cash_receipt_no: no, cash_receipt_issued_at: at, ...(cashFileId !== undefined ? { cash_receipt_file_id: cashFileId } : {}) });
     require('../services/auditService').logAudit(req, {
       action: 'invoice.mark_cash_receipt', targetType: 'invoice', targetId: invoice.id,
       newValue: { invoice_number: invoice.invoice_number, cash_receipt_no: no, cash_receipt_at: at },

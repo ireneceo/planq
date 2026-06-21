@@ -64,6 +64,8 @@ interface PublicInvoice {
     profile: ReceiptProfile | null;
     is_registered_client: boolean;
     client_country: string | null;
+    tax_invoice_file?: boolean;   // #77 — 발행 파일 첨부 여부
+    cash_receipt_file?: boolean;
   };
 }
 
@@ -478,13 +480,25 @@ const PublicInvoicePage: React.FC = () => {
             <Section>
               <SectionTitle>{t('public.receipt.title', '증빙 발행 (세금계산서 · 현금영수증)')}</SectionTitle>
               {(taxIssued || cashIssued) ? (
-                <NotifyDoneBox>
-                  <DoneIcon>✓</DoneIcon>
-                  <NotifyDoneText>
-                    <NotifyDoneTitle>{issuedLabel as string}</NotifyDoneTitle>
-                    <NotifyDoneSub>{t('public.receipt.issuedSub', '등록하신 정보로 발행 완료되었습니다.')}</NotifyDoneSub>
-                  </NotifyDoneText>
-                </NotifyDoneBox>
+                <>
+                  <NotifyDoneBox>
+                    <DoneIcon>✓</DoneIcon>
+                    <NotifyDoneText>
+                      <NotifyDoneTitle>{issuedLabel as string}</NotifyDoneTitle>
+                      <NotifyDoneSub>{t('public.receipt.issuedSub', '등록하신 정보로 발행 완료되었습니다.')}</NotifyDoneSub>
+                    </NotifyDoneText>
+                  </NotifyDoneBox>
+                  {/* #77 — 발행자가 첨부한 증빙 파일 다운로드 */}
+                  {((taxIssued && rc.tax_invoice_file) || (cashIssued && rc.cash_receipt_file)) && (
+                    <ReceiptDownloadBtn
+                      href={`/api/invoices/public/${token}/receipt-file?kind=${taxIssued && rc.tax_invoice_file ? 'tax' : 'cash'}`}
+                      target="_blank" rel="noopener noreferrer"
+                    >
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+                      {t('public.receipt.download', '발행 파일 다운로드') as string}
+                    </ReceiptDownloadBtn>
+                  )}
+                </>
               ) : submitted ? (
                 <>
                   <NotifyDoneBox>
@@ -853,6 +867,15 @@ const DoneIcon = styled.div`
   font-size: 18px; font-weight: 700; color: #B45309;
 `;
 const NotifyDoneText = styled.div`display: flex; flex-direction: column; gap: 2px;`;
+// #77 — 발행 파일 다운로드 (공개 페이지, 외부 고객용 — 터치 타겟 44px)
+const ReceiptDownloadBtn = styled.a`
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  margin-top: 10px; min-height: 44px; padding: 0 18px;
+  font-size: 13px; font-weight: 600; text-decoration: none;
+  color: #0F766E; background: #F0FDFA; border: 1px solid #99F6E4; border-radius: 8px;
+  transition: background 0.15s, border-color 0.15s;
+  &:hover { background: #CCFBF1; border-color: #14B8A6; }
+`;
 const NotifyDoneTitle = styled.div`font-size: 14px; font-weight: 600; color: #92400E;`;
 const NotifyDoneSub = styled.div`font-size: 12px; color: #78716C;`;
 const PaidBanner = styled.div`

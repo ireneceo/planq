@@ -555,7 +555,12 @@
       "noCashPh": "예: 8자리 승인번호",
       "date": "발행일",
       "submit": "마킹",
-      "cancel": "취소"
+      "cancel": "취소",
+      "fileLabel": "발행 파일 첨부 (선택)",
+      "filePick": "파일 선택",
+      "fileNone": "선택된 파일 없음",
+      "fileHint": "첨부하면 고객이 공개 청구서 페이지에서 다운로드할 수 있어요. (PDF·이미지)",
+      "fileUploadFailed": "파일 업로드 실패"
     },
     "empty": {
       "pending": "발행 대기 중인 증빙이 없습니다",
@@ -763,7 +768,8 @@
       "contactName": "담당자명",
       "contactPhone": "담당자 연락처",
       "requestAmount": "신청 금액",
-      "vatIncluded": "VAT 포함"
+      "vatIncluded": "VAT 포함",
+      "download": "발행 파일 다운로드"
     },
     "contact": "문의하기"
   },

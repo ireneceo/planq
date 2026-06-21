@@ -4,7 +4,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
-import { useAuth } from '../../contexts/AuthContext';
+import { useAuth, apiFetch } from '../../contexts/AuthContext';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import {
   listReceiptsDue, formatMoney,
@@ -200,6 +200,7 @@ function IssueModal({ row, onClose, onIssued }: { row: ReceiptDueRow; onClose: (
   const isCash = row.kind === 'cash';
   const [no, setNo] = useState('');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const [file, setFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -208,14 +209,24 @@ function IssueModal({ row, onClose, onIssued }: { row: ReceiptDueRow; onClose: (
     setBusy(true);
     setErr(null);
     try {
+      // #77 — 발행 파일(선택) 업로드 → file_id (고객이 공개 페이지에서 다운로드)
+      let fileId: number | undefined;
+      if (file) {
+        const fd = new FormData();
+        fd.append('file', file);
+        const ur = await apiFetch(`/api/files/${row.business_id}`, { method: 'POST', body: fd });
+        const uj = await ur.json();
+        if (!uj.success || !uj.data?.id) throw new Error(uj.message || (t('taxInvoices.issueModal.fileUploadFailed', { defaultValue: '파일 업로드 실패' }) as string));
+        fileId = Number(uj.data.id);
+      }
       if (isCash && row.installment_id) {
-        await markInstallmentCashReceipt(row.business_id, row.invoice_id, row.installment_id, { cash_receipt_no: no.trim(), cash_receipt_at: date });
+        await markInstallmentCashReceipt(row.business_id, row.invoice_id, row.installment_id, { cash_receipt_no: no.trim(), cash_receipt_at: date, file_id: fileId });
       } else if (isCash) {
-        await markInvoiceCashReceipt(row.business_id, row.invoice_id, { cash_receipt_no: no.trim(), cash_receipt_at: date });
+        await markInvoiceCashReceipt(row.business_id, row.invoice_id, { cash_receipt_no: no.trim(), cash_receipt_at: date, file_id: fileId });
       } else if (row.installment_id) {
-        await markInstallmentTaxInvoice(row.business_id, row.invoice_id, row.installment_id, { tax_invoice_no: no.trim(), issued_at: date });
+        await markInstallmentTaxInvoice(row.business_id, row.invoice_id, row.installment_id, { tax_invoice_no: no.trim(), issued_at: date, file_id: fileId });
       } else {
-        await markInvoiceTaxInvoice(row.business_id, row.invoice_id, { tax_invoice_no: no.trim(), tax_invoice_at: date });
+        await markInvoiceTaxInvoice(row.business_id, row.invoice_id, { tax_invoice_no: no.trim(), tax_invoice_at: date, file_id: fileId });
       }
       onIssued();
     } catch (e) {
@@ -256,6 +267,19 @@ function IssueModal({ row, onClose, onIssued }: { row: ReceiptDueRow; onClose: (
           <ModalField>
             <ModalLabel>{t('taxInvoices.issueModal.date')}</ModalLabel>
             <SingleDateField value={date} onChange={setDate} size="md" />
+          </ModalField>
+          <ModalField>
+            <ModalLabel>{t('taxInvoices.issueModal.fileLabel', { defaultValue: '발행 파일 첨부 (선택)' }) as string}</ModalLabel>
+            <FileRow>
+              <FileBtn type="button" onClick={() => document.getElementById('receipt-file-input')?.click()}>
+                {t('taxInvoices.issueModal.filePick', { defaultValue: '파일 선택' }) as string}
+              </FileBtn>
+              <FileName>{file ? file.name : (t('taxInvoices.issueModal.fileNone', { defaultValue: '선택된 파일 없음' }) as string)}</FileName>
+              {file && <FileClear type="button" onClick={() => setFile(null)} aria-label="clear">×</FileClear>}
+              <input id="receipt-file-input" type="file" accept=".pdf,.jpg,.jpeg,.png" style={{ display: 'none' }}
+                onChange={e => setFile(e.target.files?.[0] || null)} />
+            </FileRow>
+            <FileHint>{t('taxInvoices.issueModal.fileHint', { defaultValue: '첨부하면 고객이 공개 청구서 페이지에서 다운로드할 수 있어요. (PDF·이미지)' }) as string}</FileHint>
           </ModalField>
           <Hint>
             <KindBadge $cash={isCash} style={{ marginRight: 6 }}>
@@ -506,6 +530,20 @@ const ModalInput = styled.input`
   &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20,184,166,0.15); }
 `;
 const Hint = styled.div`font-size: 11px; color: #94A3B8; padding: 8px 10px; background: #F8FAFC; border-radius: 6px; line-height: 1.7;`;
+// #77 — 발행 파일 첨부
+const FileRow = styled.div`display: flex; align-items: center; gap: 8px;`;
+const FileBtn = styled.button`
+  flex-shrink: 0; padding: 7px 12px; font-size: 12px; font-weight: 600;
+  color: #334155; background: #fff; border: 1px solid #E2E8F0; border-radius: 6px; cursor: pointer;
+  &:hover { border-color: #14B8A6; color: #0F766E; }
+`;
+const FileName = styled.span`flex: 1; min-width: 0; font-size: 12px; color: #64748B; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;`;
+const FileClear = styled.button`
+  flex-shrink: 0; width: 22px; height: 22px; border: none; background: transparent;
+  color: #94A3B8; font-size: 16px; cursor: pointer; border-radius: 4px;
+  &:hover { background: #F1F5F9; color: #EF4444; }
+`;
+const FileHint = styled.div`font-size: 11px; color: #94A3B8; line-height: 1.5;`;
 const ModalFooter = styled.div`
   display: flex; justify-content: flex-end; gap: 8px; padding: 12px 20px;
   border-top: 1px solid #F1F5F9;
