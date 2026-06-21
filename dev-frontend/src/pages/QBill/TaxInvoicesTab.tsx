@@ -195,6 +195,14 @@ function DueCell({ row, t }: { row: ReceiptDueRow; t: (k: string, opts?: any) =>
   return <DueMuted>{dateStr}</DueMuted>;
 }
 
+interface TaxParty { name: string | null; tax_id: string | null; ceo: string | null; address: string | null; phone?: string | null; biz_type: string | null; biz_item: string | null; tax_email?: string | null; }
+interface TaxBreakdown {
+  invoice_number: string; currency: string; supply_date: string | null;
+  supplier: TaxParty; recipient: TaxParty;
+  items: { description: string; detail: string | null; quantity: number; unit_price: number; amount: number }[];
+  amounts: { supply: number; vat: number; vat_rate: number; total: number };
+}
+
 function IssueModal({ row, onClose, onIssued }: { row: ReceiptDueRow; onClose: () => void; onIssued: () => void }) {
   const { t } = useTranslation('qbill');
   const isCash = row.kind === 'cash';
@@ -203,6 +211,17 @@ function IssueModal({ row, onClose, onIssued }: { row: ReceiptDueRow; onClose: (
   const [file, setFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  // #75 — 세금계산서 발행 내역 (공급자·공급받는자·품목·금액). 홈택스/팝빌 옮겨적기용.
+  const [bd, setBd] = useState<TaxBreakdown | null>(null);
+  useEffect(() => {
+    if (isCash) return;
+    let cancelled = false;
+    apiFetch(`/api/invoices/${row.business_id}/${row.invoice_id}/tax-breakdown`)
+      .then(r => r.json())
+      .then(j => { if (!cancelled && j.success) setBd(j.data); })
+      .catch(() => { /* 내역 조회 실패 — 발행 자체는 가능 */ });
+    return () => { cancelled = true; };
+  }, [isCash, row.business_id, row.invoice_id]);
 
   const submit = async () => {
     if (!no.trim() || busy) return;
@@ -281,6 +300,41 @@ function IssueModal({ row, onClose, onIssued }: { row: ReceiptDueRow; onClose: (
             </FileRow>
             <FileHint>{t('taxInvoices.issueModal.fileHint', { defaultValue: '첨부하면 고객이 공개 청구서 페이지에서 다운로드할 수 있어요. (PDF·이미지)' }) as string}</FileHint>
           </ModalField>
+
+          {/* #75 — 발행 내역 (홈택스/팝빌 옮겨적기용, 세금계산서만) */}
+          {!isCash && bd && (
+            <BdBox>
+              <BdHead>{t('taxInvoices.issueModal.bdTitle', { defaultValue: '발행 내역 (아래 내용으로 홈택스/팝빌에서 발행하세요)' }) as string}</BdHead>
+              <BdGrid>
+                <BdParty>
+                  <BdPartyLabel>{t('taxInvoices.issueModal.supplier', { defaultValue: '공급자 (을)' }) as string}</BdPartyLabel>
+                  <BdRow><span>{t('taxInvoices.issueModal.bizName', { defaultValue: '상호' }) as string}</span><b>{bd.supplier.name || '—'}</b></BdRow>
+                  <BdRow><span>{t('taxInvoices.issueModal.bizNo', { defaultValue: '사업자번호' }) as string}</span><b>{bd.supplier.tax_id || '—'}</b></BdRow>
+                  <BdRow><span>{t('taxInvoices.issueModal.ceo', { defaultValue: '대표자' }) as string}</span><b>{bd.supplier.ceo || '—'}</b></BdRow>
+                  {bd.supplier.address && <BdRow><span>{t('taxInvoices.issueModal.addr', { defaultValue: '주소' }) as string}</span><b>{bd.supplier.address}</b></BdRow>
+                  {(bd.supplier.biz_type || bd.supplier.biz_item) && <BdRow><span>{t('taxInvoices.issueModal.typeItem', { defaultValue: '업태/종목' }) as string}</span><b>{[bd.supplier.biz_type, bd.supplier.biz_item].filter(Boolean).join(' / ')}</b></BdRow>}
+                </BdParty>
+                <BdParty>
+                  <BdPartyLabel>{t('taxInvoices.issueModal.recipient', { defaultValue: '공급받는자 (갑)' }) as string}</BdPartyLabel>
+                  <BdRow><span>{t('taxInvoices.issueModal.bizName', { defaultValue: '상호' }) as string}</span><b>{bd.recipient.name || '—'}</b></BdRow>
+                  <BdRow><span>{t('taxInvoices.issueModal.bizNo', { defaultValue: '사업자번호' }) as string}</span><b>{bd.recipient.tax_id || '—'}</b></BdRow>
+                  <BdRow><span>{t('taxInvoices.issueModal.ceo', { defaultValue: '대표자' }) as string}</span><b>{bd.recipient.ceo || '—'}</b></BdRow>
+                  {bd.recipient.address && <BdRow><span>{t('taxInvoices.issueModal.addr', { defaultValue: '주소' }) as string}</span><b>{bd.recipient.address}</b></BdRow>
+                  {(bd.recipient.biz_type || bd.recipient.biz_item) && <BdRow><span>{t('taxInvoices.issueModal.typeItem', { defaultValue: '업태/종목' }) as string}</span><b>{[bd.recipient.biz_type, bd.recipient.biz_item].filter(Boolean).join(' / ')}</b></BdRow>}
+                  {bd.recipient.tax_email && <BdRow><span>{t('taxInvoices.issueModal.taxEmail', { defaultValue: '계산서 이메일' }) as string}</span><b>{bd.recipient.tax_email}</b></BdRow>
+                </BdParty>
+              </BdGrid>
+              <BdItems>
+                <BdItemsHead><span>{t('taxInvoices.issueModal.item', { defaultValue: '품목' }) as string}</span><i>{t('taxInvoices.issueModal.qty', { defaultValue: '수량' }) as string}</i><i>{t('taxInvoices.issueModal.unit', { defaultValue: '단가' }) as string}</i><i>{t('taxInvoices.issueModal.amt', { defaultValue: '금액' }) as string}</i></BdItemsHead>
+                {bd.items.map((it, idx) => (
+                  <BdItemRow key={idx}><span>{it.description}</span><i>{it.quantity}</i><i>{formatMoney(it.unit_price, bd.currency)}</i><i>{formatMoney(it.amount, bd.currency)}</i></BdItemRow>
+                ))}
+              </BdItems>
+              <BdAmt><span>{t('taxInvoices.issueModal.supplyAmt', { defaultValue: '공급가액' }) as string}</span><b>{formatMoney(bd.amounts.supply, bd.currency)}</b></BdAmt>
+              <BdAmt><span>{t('taxInvoices.issueModal.vat', { defaultValue: '세액 (VAT)' }) as string}</span><b>{formatMoney(bd.amounts.vat, bd.currency)}</b></BdAmt>
+              <BdAmt $total><span>{t('taxInvoices.issueModal.total', { defaultValue: '합계' }) as string}</span><b>{formatMoney(bd.amounts.total, bd.currency)}</b></BdAmt>
+            </BdBox>
+          )}
           <Hint>
             <KindBadge $cash={isCash} style={{ marginRight: 6 }}>
               {isCash ? t('taxInvoices.kind.cash', '현금영수증') : t('taxInvoices.kind.tax', '세금계산서')}
@@ -544,6 +598,17 @@ const FileClear = styled.button`
   &:hover { background: #F1F5F9; color: #EF4444; }
 `;
 const FileHint = styled.div`font-size: 11px; color: #94A3B8; line-height: 1.5;`;
+// #75 — 발행 내역 패널 (read-only, 홈택스 복사용)
+const BdBox = styled.div`border: 1px solid #E2E8F0; border-radius: 10px; padding: 12px 14px; background: #F8FAFC; display: flex; flex-direction: column; gap: 10px;`;
+const BdHead = styled.div`font-size: 12px; font-weight: 700; color: #0F766E;`;
+const BdGrid = styled.div`display: grid; grid-template-columns: 1fr 1fr; gap: 12px; @media (max-width: 560px) { grid-template-columns: 1fr; }`;
+const BdParty = styled.div`display: flex; flex-direction: column; gap: 3px; background: #fff; border: 1px solid #E2E8F0; border-radius: 8px; padding: 8px 10px;`;
+const BdPartyLabel = styled.div`font-size: 11px; font-weight: 700; color: #475569; margin-bottom: 2px;`;
+const BdRow = styled.div`display: flex; gap: 6px; font-size: 11px; line-height: 1.5; span { color: #94A3B8; flex-shrink: 0; min-width: 56px; } b { color: #0F172A; font-weight: 600; word-break: break-all; }`;
+const BdItems = styled.div`display: flex; flex-direction: column; background: #fff; border: 1px solid #E2E8F0; border-radius: 8px; overflow: hidden;`;
+const BdItemsHead = styled.div`display: grid; grid-template-columns: 1fr 44px 88px 96px; gap: 6px; padding: 6px 10px; background: #F1F5F9; font-size: 10px; font-weight: 700; color: #64748B; i { text-align: right; font-style: normal; }`;
+const BdItemRow = styled.div`display: grid; grid-template-columns: 1fr 44px 88px 96px; gap: 6px; padding: 6px 10px; border-top: 1px solid #F1F5F9; font-size: 11px; color: #0F172A; span { word-break: break-all; } i { text-align: right; font-style: normal; }`;
+const BdAmt = styled.div<{ $total?: boolean }>`display: flex; justify-content: flex-end; gap: 12px; font-size: ${p => (p.$total ? '13px' : '11px')}; span { color: #64748B; } b { color: ${p => (p.$total ? '#0F766E' : '#0F172A')}; font-weight: ${p => (p.$total ? 700 : 600)}; min-width: 96px; text-align: right; }`;
 const ModalFooter = styled.div`
   display: flex; justify-content: flex-end; gap: 8px; padding: 12px 20px;
   border-top: 1px solid #F1F5F9;

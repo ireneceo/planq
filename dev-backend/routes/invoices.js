@@ -838,6 +838,64 @@ router.get('/:businessId/receipts-due', authenticateToken, attachWorkspaceScope(
   } catch (error) { next(error); }
 });
 
+// #75 — 세금계산서 발행 내역 (공급자·공급받는자·품목·금액 분해). 발행자가 홈택스/팝빌에 그대로 옮겨적게.
+router.get('/:businessId/:id/tax-breakdown', authenticateToken, attachWorkspaceScope(), async (req, res, next) => {
+  try {
+    const businessId = Number(req.params.businessId);
+    const inv = await Invoice.findOne({
+      where: { id: req.params.id, business_id: businessId },
+      include: [
+        { model: InvoiceItem, as: 'items' },
+        { model: Client, attributes: ['id', 'display_name', 'company_name', 'biz_name', 'biz_ceo', 'biz_tax_id', 'biz_type', 'biz_item', 'biz_address', 'tax_invoice_email', 'billing_contact_email'] },
+      ],
+    });
+    if (!inv) return errorResponse(res, 'not_found', 404);
+    if (!isMemberOrAbove(req.scope)) return errorResponse(res, 'forbidden', 403);
+
+    const biz = await Business.findByPk(businessId, {
+      attributes: ['legal_name', 'brand_name', 'name', 'tax_id', 'representative', 'address', 'phone', 'biz_type', 'biz_item'],
+    });
+    // 공급자(을) — 워크스페이스 법인정보
+    const supplier = {
+      name: biz?.legal_name || biz?.brand_name || biz?.name || null,
+      tax_id: biz?.tax_id || null,
+      ceo: biz?.representative || null,
+      address: biz?.address || null,
+      phone: biz?.phone || null,
+      biz_type: biz?.biz_type || null,
+      biz_item: biz?.biz_item || null,
+    };
+    // 공급받는자(갑) — receipt_profile 우선, 없으면 Client
+    const p = inv.receipt_profile || null;
+    const c = inv.Client || null;
+    const recipient = {
+      name: (p && p.biz_name) || c?.biz_name || c?.company_name || c?.display_name || inv.recipient_business_name || null,
+      tax_id: (p && p.biz_tax_id) || c?.biz_tax_id || inv.recipient_business_number || null,
+      ceo: (p && p.biz_ceo) || c?.biz_ceo || null,
+      address: (p && p.biz_address) || c?.biz_address || null,
+      biz_type: (p && p.biz_category) || c?.biz_type || null,
+      biz_item: (p && p.biz_item) || c?.biz_item || null,
+      tax_email: (p && p.tax_email) || c?.tax_invoice_email || c?.billing_contact_email || inv.recipient_email || null,
+    };
+    const items = (inv.items || []).map((it) => ({
+      description: it.description, detail: it.detail || null,
+      quantity: Number(it.quantity || 0), unit_price: Number(it.unit_price || 0), amount: Number(it.amount || 0),
+    }));
+    const grand = Number(inv.grand_total || 0);
+    const vatRate = Number(inv.vat_rate || 0.1);
+    // subtotal(공급가액) 우선 컬럼, 없으면 합계에서 역산
+    const supply = inv.subtotal != null ? Number(inv.subtotal) : Math.round(grand / (1 + vatRate));
+    const vat = inv.tax_amount != null ? Number(inv.tax_amount) : (grand - supply);
+    return successResponse(res, {
+      invoice_number: inv.invoice_number,
+      currency: inv.currency,
+      supply_date: inv.issued_at || inv.created_at,
+      supplier, recipient, items,
+      amounts: { supply, vat, vat_rate: vatRate, total: grand },
+    });
+  } catch (err) { next(err); }
+});
+
 // ─── PDF 다운로드 (멤버) ───
 router.get('/:businessId/:id/pdf', authenticateToken, attachWorkspaceScope(), async (req, res, next) => {
   try {
