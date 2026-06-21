@@ -605,6 +605,16 @@
       "wontfix": "보류"
     }
   },
+  "securityLevel": {
+    "label": "보안등급",
+    "general": "일반",
+    "internal": "내부",
+    "confidential": "기밀",
+    "generalHint": "외부 공유·드라이브 동기화 가능",
+    "internalHint": "외부 공유 차단 — 워크스페이스 내부만",
+    "confidentialHint": "외부 공유·개인 드라이브 차단, 내보내기는 관리자만",
+    "blockedShare": "보안등급(내부·기밀) 자료는 외부 공유할 수 없어요. 등급을 일반으로 낮추면 공유할 수 있어요."
+  },
   "adminWiki": {
     "title": "Q위키 관리",
     "searchPh": "제목·slug 검색",

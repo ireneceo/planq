@@ -688,6 +688,34 @@ router.put('/:businessId/:id/visibility', authenticateToken, attachWorkspaceScop
   } catch (err) { next(err); }
 });
 
+// ─── D4 #62 — 보안등급 변경 ───
+// PUT /api/files/:businessId/:id/security-level  body: { level: 'general'|'internal'|'confidential' }
+//   권한: uploader 본인 또는 owner/admin (visibility 변경과 동일 = 작성자+관리자).
+//   일반 외로 올리면 기존 외부 공유 링크 무효화(보안). 내림은 그대로.
+router.put('/:businessId/:id/security-level', authenticateToken, attachWorkspaceScope(), async (req, res, next) => {
+  try {
+    const level = String(req.body?.level || '');
+    if (!['general', 'internal', 'confidential'].includes(level)) return errorResponse(res, 'invalid_level', 400);
+    const file = await File.findOne({ where: { id: req.params.id, business_id: req.params.businessId, deleted_at: null } });
+    if (!file) return errorResponse(res, 'file_not_found', 404);
+    const isOwner = req.scope.isOwner || req.scope.isPlatformAdmin || req.businessRole === 'admin';
+    const isUploader = file.uploader_id === req.user.id;
+    if (!isOwner && !isUploader) return errorResponse(res, 'forbidden', 403);
+    const prev = file.security_level;
+    const patch = { security_level: level };
+    // 일반 외로 상향 시 기존 외부 공유 링크 즉시 무효화
+    let revokedShare = false;
+    if (level !== 'general' && file.share_token) { patch.share_token = null; patch.share_expires_at = null; revokedShare = true; }
+    await file.update(patch);
+    broadcastFile(req, file, 'file:updated');
+    require('../services/auditService').logAudit(req, {
+      action: 'file.security_level_change', targetType: 'file', targetId: file.id, businessId: file.business_id,
+      oldValue: { security_level: prev }, newValue: { security_level: level, revoked_share: revokedShare },
+    });
+    return successResponse(res, { id: file.id, security_level: level, revoked_share: revokedShare });
+  } catch (err) { next(err); }
+});
+
 // ─── Delete (soft) ───
 
 router.delete('/:businessId/:id', authenticateToken, checkBusinessAccess, async (req, res, next) => {
@@ -846,6 +874,11 @@ router.post('/:businessId/:id/share-link', authenticateToken, checkBusinessAcces
       where: { id: req.params.id, business_id: req.params.businessId, deleted_at: null }
     });
     if (!file) return errorResponse(res, 'File not found', 404);
+
+    // D4 #62 — 보안등급 게이트: 일반(general) 외 외부 공유 링크 발급 차단
+    if (file.security_level && file.security_level !== 'general') {
+      return errorResponse(res, 'security_level_blocks_share', 403, 'security_level_blocks_share');
+    }
 
     const expiresDays = [7, 14, 30, 90].includes(Number(req.body?.expires_days))
       ? Number(req.body.expires_days)

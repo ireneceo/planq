@@ -75,6 +75,10 @@ router.post('/email', authenticateToken, async (req, res, next) => {
     if (!entity) return errorResponse(res, 'not_found', 404);
     // soft-delete 체크 (file 만 deleted_at 컬럼)
     if (entity_type === 'file' && entity.deleted_at) return errorResponse(res, 'not_found', 404);
+    // D4 #62 — 파일 보안등급 게이트: 일반 외 외부 공유 차단
+    if (entity_type === 'file' && entity.security_level && entity.security_level !== 'general') {
+      return errorResponse(res, 'security_level_blocks_share', 403, 'security_level_blocks_share');
+    }
 
     const scope = await getUserScope(req.user.id, entity.business_id, req.user.platform_role);
     if (!isMemberOrAbove(scope) && entity.created_by !== req.user.id && entity.uploader_id !== req.user.id) {
