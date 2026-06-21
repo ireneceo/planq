@@ -45,7 +45,8 @@ import WeeklyReviewTab from '../../components/QTask/WeeklyReviewTab';
 type Scope = 'mine' | 'workspace';
 type ListTab = 'week' | 'all' | 'requested' | 'weekly-review' | 'workspace-tasks' | 'workspace-weekly' | 'workspace-monthly';
 type ViewMode = 'list' | 'kanban';
-interface MemberOption { user_id: number; name: string; is_ai?: boolean; }
+interface OrgUnitLite { id: number; name: string; name_en?: string | null }
+interface MemberOption { user_id: number; name: string; is_ai?: boolean; department?: OrgUnitLite | null; team?: OrgUnitLite | null; }
 type SortKey = 'priority_order' | 'title' | 'status' | 'estimated_hours' | 'actual_hours' | 'progress_percent' | 'due_date';
 type SortDir = 'asc' | 'desc';
 
@@ -454,11 +455,13 @@ const QTaskPage:React.FC=()=>{
           // 사이클 P8 — Cue (is_ai=true) 도 팀원으로 표시. 자동 실행 가능.
           const opts=(mr.data||[])
             .filter((m:{user_id:number|null})=>m.user_id!=null) // user_id null row (탈퇴/끊김) 제외
-            .map((m:{user_id:number;name?:string|null;user?:{name:string;is_ai?:boolean}})=>({
+            .map((m:{user_id:number;name?:string|null;user?:{name:string;is_ai?:boolean};department?:OrgUnitLite|null;team?:OrgUnitLite|null})=>({
               user_id:m.user_id,
               // 워크스페이스 표시명 (BusinessMember.name) 우선 — 계정명 fallback
               name:m.name||m.user?.name||`user ${m.user_id}`,
               is_ai:!!m.user?.is_ai,
+              department:m.department||null,
+              team:m.team||null,
             }));
           setMembers(opts);
         }
