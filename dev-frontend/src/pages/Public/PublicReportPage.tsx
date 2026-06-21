@@ -9,6 +9,7 @@ import {
   KpiGrid, KpiCard, KpiLabel, KpiValueBig, KpiHint, SectionLabel, ChartCard,
 } from '../Insights/components';
 import ReportContent from '../../components/QTask/report/ReportContent';
+import type { ReportSnapshot } from '../../services/reportUnit';
 
 interface UnitView {
   scope: 'project' | 'member';
@@ -17,7 +18,7 @@ interface UnitView {
   department?: string | null;
   confirmed?: boolean;
   narrative?: string | null;
-  snap?: Record<string, unknown> | null;
+  snap?: ReportSnapshot | null;
 }
 interface RollupData {
   stats?: Record<string, number>;
@@ -99,7 +100,7 @@ const PublicReportPage = () => {
               {u.department && <DeptTag>{u.department}</DeptTag>}
             </UnitHead>
             {u.narrative && <Commentary><ComBody>{u.narrative}</ComBody></Commentary>}
-            <ReportContent snap={u.snap || {}} />
+            {u.snap && <ReportContent snap={u.snap} />}
           </UnitCard>
         ))}
 
