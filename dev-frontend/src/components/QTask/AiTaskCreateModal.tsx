@@ -228,7 +228,9 @@ export default function AiTaskCreateModal({ open, onClose, businessId, projectId
               </FieldRow>
               {recMatch && onUseTemplate && (
                 <RecBanner>
-                  <RecIcon aria-hidden>💡</RecIcon>
+                  <RecIcon aria-hidden>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18h6M10 22h4M12 2a7 7 0 00-4 12.7c.6.5 1 1.3 1 2.1h6c0-.8.4-1.6 1-2.1A7 7 0 0012 2z"/></svg>
+                  </RecIcon>
                   <RecBody>
                     <RecTitle>
                       {t('ai.recommend.title', '저장된 \'{{name}}\' 템플릿과 거의 같아요', { name: recMatch.name, defaultValue: `저장된 '${recMatch.name}' 템플릿과 거의 같아요` })}
@@ -382,7 +384,10 @@ const RecBanner = styled.div`
   padding: 10px 12px;
   background: #F0FDFA; border: 1px solid #CCFBF1; border-radius: 8px;
 `;
-const RecIcon = styled.span`font-size: 16px; line-height: 1; flex-shrink: 0;`;
+const RecIcon = styled.span`
+  display: inline-flex; align-items: center; justify-content: center;
+  flex-shrink: 0; color: #0F766E;
+`;
 const RecBody = styled.div`flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px;`;
 const RecTitle = styled.div`
   font-size: 12px; font-weight: 600; color: #0F766E; line-height: 1.4;
