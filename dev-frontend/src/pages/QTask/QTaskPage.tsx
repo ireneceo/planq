@@ -17,6 +17,7 @@ import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import TaskRowActionMenu from '../../components/QTask/TaskRowActionMenu';
 import { responsiveDrawerWidth } from '../../utils/responsiveDrawer';
 import AiTaskCreateModal from '../../components/QTask/AiTaskCreateModal';
+import TemplateSelectModal from '../../components/QTask/TemplateSelectModal';
 import CueTaskBar from '../../components/QTask/CueTaskBar';
 import AiActionButton from '../../components/Common/AiActionButton';
 import EmptyState from '../../components/Common/EmptyState';
@@ -179,6 +180,8 @@ const QTaskPage:React.FC=()=>{
   const[allTasks,setAllTasks]=useState<TaskRow[]>([]);
   const[members,setMembers]=useState<MemberOption[]>([]);
   const[aiOpen,setAiOpen]=useState(false);
+  const[tplSelOpen,setTplSelOpen]=useState(false);
+  const[tplSelInitialId,setTplSelInitialId]=useState<number|null>(null);
   // 인라인 "아래에 업무 추가" — ProjectTaskList 와 동일 패턴
   const[addingBelowId,setAddingBelowId]=useState<number|null>(null);
   const[newBelowTitle,setNewBelowTitle]=useState('');
@@ -2748,6 +2751,18 @@ const QTaskPage:React.FC=()=>{
           projects={projects}
           members={members.map(m=>({user_id:m.user_id,name:m.name}))}
           onCreated={()=>{ /* socket task:new 가 자동 반영 */ }}
+          onUseTemplate={(id)=>{ setAiOpen(false); setTplSelInitialId(id); setTplSelOpen(true); }}
+        />
+      )}
+      {bizId && (
+        <TemplateSelectModal
+          open={tplSelOpen}
+          onClose={()=>{ setTplSelOpen(false); setTplSelInitialId(null); }}
+          businessId={bizId}
+          projectId={null}
+          members={members.map(m=>({user_id:m.user_id,name:m.name}))}
+          onApplied={()=>{ /* socket task:new 가 자동 반영 */ }}
+          initialTemplateId={tplSelInitialId}
         />
       )}
     </PanelLayout>

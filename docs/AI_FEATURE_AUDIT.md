@@ -104,10 +104,10 @@
 | E6 | 어휘사전 | ✅ | verbatim 복사, "DO NOT GUESS" empty list |
 | E7 | 회의안내 컨텍스트 | ✅ | meeting_context(brief/participants/profile) 전 LLM 함수 주입 |
 
-### 발견사항 (제품 결정 필요 — 버그 아님)
+### 발견사항
 
-1. **B4 AI 템플릿 추천(≥0.80) 미구현** — 템플릿 자체(preset·from-project·apply)는 라이브지만, 설계(`project_task_templates`)의 "AI 추천(매칭≥0.80)" 부분이 백엔드/프론트 어디에도 없음. 신규 기능 → 설계+승인 필요.
-2. **E5 화자식별 — 코드 vs 메모리 상이** — 현재 `voice_fingerprint` 임베딩 유사도 매칭 활성(routers/live.py, speaker_clustering.py). memory `feedback_qnote_speaker_simplify`(채널분리·핑거프린트 제거)와 충돌. 메모리가 오래됐거나(재도입) 정책 재확인 필요. memory `feedback_qnote_speaker_id`(사전등록+사후매칭)와는 정합.
+1. **B4 AI 템플릿 추천(≥0.80) 미구현** (제품 결정 필요) — 템플릿 자체(preset·from-project·apply)는 라이브지만, 설계(`project_task_templates`)의 "AI 추천(매칭≥0.80)" 부분이 백엔드/프론트 어디에도 없음. 신규 기능 → 설계+승인 필요.
+2. **E5 화자식별 — 규명 완료 (충돌 아님, 액션 불요)** — `voice_fingerprint` 는 `routers/live.py:_auto_match_self` 에서 **본인("나") 목소리 식별 전용**(등록 fingerprint max similarity, 세션당 is_self 1명 가드). memory `feedback_qnote_speaker_simplify` 가 금지한 것은 *임의 다화자 매칭*이고 self-식별은 별개 → 충돌 아님. 헬스체크 VOICE 3항목으로 라이브 검증. 70일 된 메모리를 현재 코드 기준으로 정정함.
 
 ### 공통 6기준 (작동/폴백/쿼터/격리/i18n/실시간) — 횡단 확인
 폴백: OPENAI 없음 시 fallback 응답·STT 503·번역 fallback. 쿼터: workspace Cue use_cue 차감+checkUsageLimit(task/brief/translate 공통). 격리: 전 기능 business_id where 필터·cross-tenant 차단. i18n: ko/en 응답. 실시간: message:translated/new broadcast.

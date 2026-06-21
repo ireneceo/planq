@@ -91,6 +91,7 @@ const TasksTab: React.FC<Props> = ({ projectId, businessId, projectName, tasks, 
   const [adding, setAdding] = useState<null | 'top' | 'bottom'>(null);
   const [aiOpen, setAiOpen] = useState(false);
   const [tplOpen, setTplOpen] = useState(false);
+  const [tplInitialId, setTplInitialId] = useState<number | null>(null);
   const [tplSaveOpen, setTplSaveOpen] = useState(false);
   const [newTitle, setNewTitle] = useState('');
   const [newAssignee, setNewAssignee] = useState<number | null>(null);
@@ -308,14 +309,16 @@ const TasksTab: React.FC<Props> = ({ projectId, businessId, projectName, tasks, 
         projectFixed
         members={members}
         onCreated={() => { onRefresh(); }}
+        onUseTemplate={(id) => { setAiOpen(false); setTplInitialId(id); setTplOpen(true); }}
       />
       <TemplateSelectModal
         open={tplOpen}
-        onClose={() => setTplOpen(false)}
+        onClose={() => { setTplOpen(false); setTplInitialId(null); }}
         businessId={businessId}
         projectId={projectId}
         members={members}
         onApplied={() => { onRefresh(); }}
+        initialTemplateId={tplInitialId}
       />
       <TemplateSaveModal
         open={tplSaveOpen}

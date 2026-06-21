@@ -26,11 +26,23 @@ interface Props {
   projects?: Project[];
   members: Member[];
   onCreated: (createdTasks: Array<{ id: number; title: string }>) => void;
+  // AI 분해 전 "이 템플릿이랑 거의 같아요" 추천 → 클릭 시 부모가 템플릿 적용 모달 열기.
+  // 미제공 시 추천 배너 자체를 숨김 (graceful).
+  onUseTemplate?: (templateId: number) => void;
+}
+
+interface TemplateMatch {
+  id: number;
+  name: string;
+  category: string | null;
+  task_count: number | null;
+  is_system: boolean;
+  role_hints: string[];
 }
 
 type Stage = 'input' | 'loading' | 'preview';
 
-export default function AiTaskCreateModal({ open, onClose, businessId, projectId, projectFixed, projects = [], members, onCreated }: Props) {
+export default function AiTaskCreateModal({ open, onClose, businessId, projectId, projectFixed, projects = [], members, onCreated, onUseTemplate }: Props) {
   const { t } = useTranslation('qtask');
   const { t: tErr } = useTranslation('errors');
   const [stage, setStage] = useState<Stage>('input');
@@ -41,6 +53,9 @@ export default function AiTaskCreateModal({ open, onClose, businessId, projectId
   const [submitting, setSubmitting] = useState(false);
   const [selectedProjectId, setSelectedProjectId] = useState<number | null>(projectId || null);
   const [baseDate, setBaseDate] = useState<string>(new Date().toISOString().slice(0, 10));
+  // AI 템플릿 추천 — input 단계에서 prompt debounce 매칭
+  const [recMatch, setRecMatch] = useState<TemplateMatch | null>(null);
+  const [recDismissed, setRecDismissed] = useState(false);
 
   useEffect(() => {
     if (open) {
@@ -52,9 +67,33 @@ export default function AiTaskCreateModal({ open, onClose, businessId, projectId
       setSubmitting(false);
       setSelectedProjectId(projectId || null);
       setBaseDate(new Date().toISOString().slice(0, 10));
+      setRecMatch(null);
+      setRecDismissed(false);
       // autoFocus 제거 — 모달이 길면 textarea 위치로 스크롤 점프해서 헤더/탭이 안 보임
     }
   }, [open, projectId]);
+
+  // 추천 매칭 — prompt 변경 시 600ms debounce + 이전 요청 취소(AbortController).
+  // onUseTemplate 미제공이면 호출 안 함(배너 못 띄우므로 비용 0).
+  useEffect(() => {
+    if (!open || !onUseTemplate || recDismissed) { setRecMatch(null); return; }
+    const q = prompt.trim();
+    if (q.length < 6) { setRecMatch(null); return; }
+    const ctrl = new AbortController();
+    const timer = setTimeout(async () => {
+      try {
+        const r = await apiFetch('/api/task-templates/recommend', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ business_id: businessId, prompt: q, project_id: selectedProjectId }),
+          signal: ctrl.signal,
+        });
+        const j = await r.json();
+        setRecMatch(j.success && j.data?.match ? j.data.match : null);
+      } catch { /* abort/네트워크 — 무시(추천은 보조 신호) */ }
+    }, 600);
+    return () => { clearTimeout(timer); ctrl.abort(); };
+  }, [open, prompt, businessId, selectedProjectId, onUseTemplate, recDismissed]);
 
   if (!open) return null;
 
@@ -187,6 +226,26 @@ export default function AiTaskCreateModal({ open, onClose, businessId, projectId
                   placeholder={t('ai.placeholder', '예: WordPress 블로그 사이트 한 달 안에 런칭. 디자인부터 컨텐츠 마이그레이션, SEO 까지.') as string}
                 />
               </FieldRow>
+              {recMatch && onUseTemplate && (
+                <RecBanner>
+                  <RecIcon aria-hidden>💡</RecIcon>
+                  <RecBody>
+                    <RecTitle>
+                      {t('ai.recommend.title', '저장된 \'{{name}}\' 템플릿과 거의 같아요', { name: recMatch.name, defaultValue: `저장된 '${recMatch.name}' 템플릿과 거의 같아요` })}
+                    </RecTitle>
+                    <RecMeta>
+                      {t('ai.recommend.meta', '업무 {{n}}개', { n: recMatch.task_count || 0, defaultValue: `업무 ${recMatch.task_count || 0}개` })}
+                      {recMatch.role_hints.length > 0 && ` · ${recMatch.role_hints.slice(0, 3).join('/')}`}
+                    </RecMeta>
+                  </RecBody>
+                  <RecUseBtn type="button" onClick={() => { onUseTemplate(recMatch.id); onClose(); }}>
+                    {t('ai.recommend.use', '이 템플릿 쓰기')}
+                  </RecUseBtn>
+                  <RecDismiss type="button" onClick={() => { setRecDismissed(true); setRecMatch(null); }} aria-label={t('ai.recommend.dismiss', '추천 닫기') as string} title={t('ai.recommend.dismiss', '추천 닫기') as string}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                  </RecDismiss>
+                </RecBanner>
+              )}
               {error && <ErrorMsg>{error}</ErrorMsg>}
             </AIForm>
           )}
@@ -316,6 +375,36 @@ const FieldTextarea = styled.textarea`
   &::placeholder{color:#CBD5E1;}
 `;
 const ErrorMsg = styled.div`font-size:12px;color:#DC2626;background:#FEF2F2;padding:8px 10px;border-radius:6px;`;
+
+// AI 템플릿 추천 배너 — subtle info 톤 (memory feedback_ai_recommendation_threshold). 강제 아님.
+const RecBanner = styled.div`
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px;
+  background: #F0FDFA; border: 1px solid #CCFBF1; border-radius: 8px;
+`;
+const RecIcon = styled.span`font-size: 16px; line-height: 1; flex-shrink: 0;`;
+const RecBody = styled.div`flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px;`;
+const RecTitle = styled.div`
+  font-size: 12px; font-weight: 600; color: #0F766E; line-height: 1.4;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+`;
+const RecMeta = styled.div`font-size: 11px; color: #64748B;`;
+const RecUseBtn = styled.button`
+  flex-shrink: 0;
+  padding: 6px 12px; font-size: 12px; font-weight: 600;
+  color: #FFFFFF; background: #14B8A6; border: none; border-radius: 6px;
+  cursor: pointer; transition: background 0.15s;
+  &:hover { background: #0D9488; }
+  &:focus-visible { outline: 2px solid rgba(20,184,166,0.3); outline-offset: 2px; }
+`;
+const RecDismiss = styled.button`
+  flex-shrink: 0;
+  width: 24px; height: 24px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: transparent; border: none; border-radius: 6px;
+  color: #64748B; cursor: pointer;
+  &:hover { background: #CCFBF1; color: #0F766E; }
+`;
 
 const LoadingBox = styled.div`
   display: flex; flex-direction: column; align-items: center; justify-content: center;

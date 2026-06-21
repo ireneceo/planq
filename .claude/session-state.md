@@ -1,16 +1,23 @@
 # PlanQ 세션 상태
 
 ## 현재 작업 상태
-**마지막 업데이트:** 2026-06-21 (3차)
-**작업 상태:** 완료 — **AI 기능 전수검사 실행** (코드/DB 변경 0, 검증만). 미배포 0.
+**마지막 업데이트:** 2026-06-21 (4차)
+**작업 상태:** 완료 — **AI 템플릿 추천 신규 기능 구현·검증** (dev). **미배포 1건.**
 
 ### 진행 중인 작업
-- 없음 (미배포 0)
+- 없음. **미배포: AI 템플릿 추천 (다음 `/배포`).** 운영 배포 시 `node backfill-template-embeddings.js`(컬럼추가+백필) 필요.
+
+### AI 템플릿 추천 — 신규 구현 (2026-06-21, B4 갭 해소)
+- AI 업무 추가 입력 시 저장 템플릿과 임베딩 매칭 → "이 템플릿과 거의 같아요" 배너 → 클릭 시 TemplateSelectModal detail 진입.
+- 백엔드: `task_templates.embedding` BLOB + `POST /recommend`(rate-limit·격리·graceful·임계 0.45 보정) + 생성/수정 임베딩 훅 + backfill.
+- 프론트: AiTaskCreateModal 배너(debounce 600ms) + TemplateSelectModal initialTemplateId + QTaskPage·TasksTab 배선 + qtask i18n ai.recommend ko/en.
+- 검증: 빌드 EXIT0 · 추천 API E2E 5/5(매칭·무관null·짧은입력·403격리·격리) · 임계보정(진짜0.42~0.57/무관0.26~0.43→0.45) · 헬스 29/29 · i18n 0 · /q-task 200.
+- 설계 docs/TASK_TEMPLATE_AI_RECOMMEND_DESIGN.md, 메모리 `project_task_templates` 갱신.
 
 ### AI 전수검사 결과 (2026-06-21, docs/AI_FEATURE_AUDIT.md 결과 섹션)
 - **구현된 16개 AI 기능 전부 실 LLM/임베딩/STT 왕복 PASS** (mock 0, dev biz3 user3). A1~A4 Cue·B1~B3 Q Task·C1~C2 Q Talk·D1~D3 docs/mail/brief·E1~E4·E6·E7 Q Note.
 - **발견 1 (B4):** AI 템플릿 추천(≥0.80) **미구현** — 템플릿 자체는 라이브, 설계 `project_task_templates` 의 "AI 추천" 부분 부재. 신규 기능(설계+승인 필요).
-- **발견 2 (E5):** 화자식별이 `voice_fingerprint` 임베딩 매칭 활성 — memory `feedback_qnote_speaker_simplify`(채널분리·핑거프린트 제거)와 상이. 제품 정책 재확인 필요(메모리가 오래됐을 수 있음).
+- **발견 2 (E5) — 규명 완료, 액션 불요:** `voice_fingerprint` 는 `live.py:_auto_match_self` 본인("나") 목소리 식별 전용(세션당 1명 가드). 메모리가 금지한 *임의 다화자 매칭*과 별개 → 충돌 아님. 헬스 VOICE 3항목 PASS. 70일 메모리 `feedback_qnote_speaker_simplify` 를 현재 코드 기준 정정함.
 - **부수 확인:** q-note/.env DEEPGRAM_API_KEY 이제 SET → STT 503 갭 해소 (memory `project_smtp_pending` 정정함). Node backend deepgram=false 는 무관(STT는 q-note 소관).
 - 테스트 데이터 전량 원복(candidate·brief post·test-*.js 0), 소스변경 0(문서만).
 

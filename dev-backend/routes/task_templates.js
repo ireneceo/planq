@@ -8,9 +8,16 @@
 const express = require('express');
 const router = express.Router();
 const { Op } = require('sequelize');
+const rateLimit = require('express-rate-limit');
 const { TaskTemplate, TaskTemplateItem, BusinessMember } = require('../models');
 const { authenticateToken } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
+const { embedText, blobToFloats, cosineSimilarity } = require('../services/kb_service');
+const { recomputeTemplateEmbedding } = require('../services/templateEmbedding');
+
+// AI 추천 매칭 임계값 — text-embedding-3-small 코사인 보정값.
+// 의미 유사 문장도 0.3~0.6 대라 0.80(raw)은 비현실적. 실 프롬프트로 보정 (docs/TASK_TEMPLATE_AI_RECOMMEND_DESIGN.md §4).
+const RECOMMEND_MIN_SIM = 0.45;
 
 // 워크스페이스 멤버 권한 확인
 async function ensureMember(userId, businessId, platformRole) {
@@ -18,6 +25,17 @@ async function ensureMember(userId, businessId, platformRole) {
   const bm = await BusinessMember.findOne({ where: { user_id: userId, business_id: businessId } });
   return !!bm;
 }
+
+// 추천 호출 per-user rate-limit — 외부 임베딩 비용 라우트 (CLAUDE.md 운영안정성 #1).
+// debounce(600ms) 입력이라 분당 수십 회 가능 → 사용자당 120/분 cap (IP NAT 우회 위해 user.id 키).
+const recommendLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 120,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => 'tpl-recommend-' + (req.user?.id || req.ip),
+  handler: (req, res) => errorResponse(res, 'rate_limited', 429),
+});
 
 // ==========================================
 // GET /api/task-templates?business_id=X[&category=Y]
@@ -46,6 +64,64 @@ router.get('/', authenticateToken, async (req, res, next) => {
     });
 
     return successResponse(res, templates.map(t => t.toJSON()));
+  } catch (err) { next(err); }
+});
+
+// ==========================================
+// POST /api/task-templates/recommend
+// body: { business_id, prompt, project_id? }
+// 자연어 프롬프트 ↔ 저장 템플릿 임베딩 코사인 매칭. 임계 이상 1순위 1개만 반환.
+// AI 업무 추가 모달에서 호출 — "이 템플릿과 거의 같아요" 보조 신호 (강제 아님).
+// ==========================================
+router.post('/recommend', authenticateToken, recommendLimiter, async (req, res, next) => {
+  try {
+    const businessId = Number(req.body?.business_id || req.user.active_business_id);
+    const prompt = String(req.body?.prompt || '').trim();
+    if (!businessId) return errorResponse(res, 'business_id required', 400);
+    if (!(await ensureMember(req.user.id, businessId, req.user.platform_role))) {
+      return errorResponse(res, 'forbidden — members only', 403);
+    }
+    // 너무 짧은 입력은 노이즈·비용 — 매칭 안 함 (배너 안 뜸)
+    if (prompt.length < 6) return successResponse(res, { match: null });
+
+    // 프롬프트 임베딩 (OPENAI 없거나 실패 시 graceful null → 배너 안 뜸)
+    const qBlob = await embedText(prompt);
+    if (!qBlob) return successResponse(res, { match: null });
+    const qVec = blobToFloats(qBlob);
+    if (!qVec) return successResponse(res, { match: null });
+
+    // 워크스페이스 가용 템플릿 (preset + 현재 WS만 — 멀티테넌트 격리)
+    const templates = await TaskTemplate.findAll({
+      where: { [Op.or]: [{ is_system: true, business_id: null }, { business_id: businessId }] },
+      include: [{ model: TaskTemplateItem, as: 'items', attributes: ['role_hint'] }],
+    });
+
+    let best = null;
+    for (const tpl of templates) {
+      if (!tpl.embedding) continue;                  // 임베딩 없는 옛 템플릿 skip (백필 전 안전)
+      const tVec = blobToFloats(tpl.embedding);
+      if (!tVec) continue;
+      const sim = cosineSimilarity(qVec, tVec);
+      if (!best || sim > best.sim) best = { tpl, sim };
+    }
+
+    if (!best || best.sim < RECOMMEND_MIN_SIM) {
+      return successResponse(res, { match: null });
+    }
+
+    const roleHints = Array.from(new Set((best.tpl.items || [])
+      .map(i => i.role_hint).filter(Boolean)));
+    return successResponse(res, {
+      match: {
+        id: best.tpl.id,
+        name: best.tpl.name,
+        category: best.tpl.category,
+        task_count: best.tpl.task_count,
+        is_system: best.tpl.is_system,
+        role_hints: roleHints,
+        score: Number(best.sim.toFixed(3)),
+      },
+    });
   } catch (err) { next(err); }
 });
 
@@ -152,6 +228,10 @@ router.put('/:id', authenticateToken, async (req, res, next) => {
     if (typeof is_default === 'boolean') updates.is_default = is_default;
     const prev = { name: tpl.name, category: tpl.category, is_default: tpl.is_default };
     await tpl.update(updates);
+    // name/description/category 가 매칭 텍스트 → 변경 시 임베딩 재계산 (background, best-effort)
+    if (updates.name || updates.description !== undefined || updates.category !== undefined) {
+      recomputeTemplateEmbedding(tpl.id).catch(() => null);
+    }
     // N+63 — audit. 메타 수정
     require('../services/auditService').logAudit(req, {
       action: 'task_template.update',
@@ -212,6 +292,8 @@ router.put('/:id/items', authenticateToken, async (req, res, next) => {
       });
     }
     await tpl.update({ task_count: items.length, total_duration_days: totalDur });
+    // item title 들이 매칭 텍스트 핵심 → 임베딩 재계산 (background, best-effort)
+    recomputeTemplateEmbedding(tpl.id).catch(() => null);
 
     const full = await TaskTemplate.findByPk(tpl.id, {
       include: [{ model: TaskTemplateItem, as: 'items' }],
@@ -337,6 +419,8 @@ router.post('/from-project/:projectId', authenticateToken, async (req, res, next
     }
 
     await tpl.update({ total_duration_days: totalDur });
+    // 신규 템플릿 → AI 추천 매칭용 임베딩 생성 (background, best-effort)
+    recomputeTemplateEmbedding(tpl.id).catch(() => null);
 
     const full = await TaskTemplate.findByPk(tpl.id, {
       include: [{ model: TaskTemplateItem, as: 'items' }],
