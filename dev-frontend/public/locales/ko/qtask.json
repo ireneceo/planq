@@ -748,6 +748,9 @@
       "projectsLabel": "프로젝트",
       "thisPeriod": "이번 기간",
       "print": "인쇄 · PDF",
+      "share": "공유 링크",
+      "shareCopied": "공유 링크 복사됨",
+      "shareFail": "공유 링크 발급 실패",
       "execSummary": "전사 요약",
       "execPh": "이번 기간 전사 차원의 판단·성과·리스크를 요약해 주세요 (자동 저장)",
       "execEmpty": "작성된 전사 요약이 없습니다."

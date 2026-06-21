@@ -92,6 +92,10 @@ export async function getIntegratedPeriods(businessId: number, weeks = 8, months
 export async function getIntegrated(businessId: number, periodType: ReportPeriodType, periodStart: string): Promise<IntegratedRollup> {
   return jsonOf(await apiFetch(`/api/reports/${businessId}/integrated?period_type=${periodType}&period_start=${periodStart}`));
 }
+// 통합보고서 공개 공유 링크 발급/재사용 (owner/admin)
+export async function shareIntegrated(businessId: number, periodType: ReportPeriodType, periodStart: string, dim: 'project' | 'member'): Promise<{ token: string; share_url: string }> {
+  return jsonOf(await apiFetch(`/api/reports/${businessId}/integrated/share`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ period_type: periodType, period_start: periodStart, dim }) }));
+}
 export async function confirmIntegrated(businessId: number, periodType: ReportPeriodType, periodStart: string, executiveSummary?: string): Promise<{ id: number; status: ReportStatus }> {
   return jsonOf(await apiFetch(`/api/reports/${businessId}/integrated/confirm`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ period_type: periodType, period_start: periodStart, executive_summary: executiveSummary }) }));
 }

@@ -38,5 +38,22 @@
     "byMember": "멤버별 현황",
     "unassignedDept": "미배정",
     "loadFail": "조직 현황을 불러오지 못했어요."
+  },
+  "publicReport": {
+    "loading": "불러오는 중…",
+    "notFound": "보고서를 찾을 수 없거나 공유가 해제되었습니다.",
+    "title": "통합 보고서",
+    "weekly": "주간",
+    "monthly": "월간",
+    "done": "완료",
+    "issues": "이슈",
+    "deliverables": "산출물",
+    "projects": "프로젝트",
+    "membersN": "멤버 {{n}}",
+    "execSummary": "전사 요약",
+    "byProject": "프로젝트뷰",
+    "byMember": "멤버뷰",
+    "noUnits": "이 기간에 보고할 대상이 없습니다.",
+    "footer": "PlanQ 로 작성된 보고서"
   }
 }

@@ -12,7 +12,7 @@ import {
   SectionLabel, ChartCard,
 } from '../../pages/Insights/components';
 import {
-  getIntegrated, confirmIntegrated, reopenIntegrated, updateReportSettings, patchReportUnit,
+  getIntegrated, confirmIntegrated, reopenIntegrated, updateReportSettings, patchReportUnit, shareIntegrated,
   periodStartOf, shiftPeriod,
   type ReportPeriodType, type IntegratedRollup, type IntegratedUnitView,
 } from '../../services/reportUnit';
@@ -65,6 +65,15 @@ const IntegratedReportView: React.FC<Props> = ({ businessId, canManage, periodTy
   const doConfirm = async () => { if (busy) return; setBusy(true); try { await confirmIntegrated(businessId, periodType, periodStart, execRef.current); await load(true); } catch { /* */ } finally { setBusy(false); } };
   const doReopen = async () => { if (busy) return; setBusy(true); try { await reopenIntegrated(businessId, periodType, periodStart); await load(true); } catch { /* */ } finally { setBusy(false); } };
   const doPrint = () => window.print();
+  const [shareMsg, setShareMsg] = useState<string | null>(null);
+  const doShare = async () => {
+    try {
+      const { share_url } = await shareIntegrated(businessId, periodType, periodStart, dim);
+      try { await navigator.clipboard.writeText(share_url); setShareMsg(t('weeklyReview.integrated.shareCopied', { defaultValue: '공유 링크 복사됨' }) as string); }
+      catch { setShareMsg(share_url); }
+      window.setTimeout(() => setShareMsg(null), 4000);
+    } catch { setShareMsg(t('weeklyReview.integrated.shareFail', { defaultValue: '공유 링크 발급 실패' }) as string); window.setTimeout(() => setShareMsg(null), 4000); }
+  };
 
   const label = (() => {
     const [y, m, d] = periodStart.split('-').map(Number);
@@ -94,6 +103,8 @@ const IntegratedReportView: React.FC<Props> = ({ businessId, canManage, periodTy
         {s.all_confirmed
           ? <DoneChip>✓ {t('weeklyReview.integrated.allDone', { defaultValue: '전체 확정 완료' })}</DoneChip>
           : <PendChip>{t('weeklyReview.integrated.confProgress', { p: confN, total: confTotal, defaultValue: `확정 ${confN}/${confTotal}` })}</PendChip>}
+        {canManage && <ActionButton tone="secondary" size="sm" onClick={doShare}>{t('weeklyReview.integrated.share', { defaultValue: '공유 링크' })}</ActionButton>}
+        {shareMsg && <ShareMsg>{shareMsg}</ShareMsg>}
         <ActionButton tone="secondary" size="sm" onClick={doPrint}>{t('weeklyReview.integrated.print', { defaultValue: '인쇄 · PDF' })}</ActionButton>
         {canManage && data.settings.integrated_confirm && (igConfirmed
           ? <ActionButton tone="secondary" size="sm" loading={busy} onClick={doReopen}>{t('weeklyReview.unit.reopen', { defaultValue: '되돌리기' })}</ActionButton>
@@ -176,6 +187,7 @@ const NavBtn = styled.button`width:30px;height:30px;border:1px solid #E2E8F0;bac
 const PeriodText = styled.span`font-size:15px;font-weight:700;color:#0F172A;min-width:104px;text-align:center;`;
 const Flex1 = styled.div`flex:1;`;
 const DoneChip = styled.span`font-size:12px;font-weight:700;color:#15803D;background:#DCFCE7;border-radius:999px;padding:4px 12px;`;
+const ShareMsg = styled.span`font-size:12px;font-weight:700;color:#0F766E;background:#F0FDFA;border-radius:999px;padding:4px 12px;`;
 const PendChip = styled.span`font-size:12px;font-weight:700;color:#A16207;background:#FEF9C3;border-radius:999px;padding:4px 12px;`;
 
 const ExecArea = styled.textarea`width:100%;min-height:84px;resize:vertical;border:1px solid #E2E8F0;border-radius:10px;padding:12px 14px;font-size:14px;line-height:1.7;color:#334155;font-family:inherit;&:focus{outline:none;border-color:#14B8A6;box-shadow:0 0 0 3px rgba(20,184,166,.15);}&::placeholder{color:#94A3B8;}`;
