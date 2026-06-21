@@ -47,17 +47,20 @@ export const InsightAction = styled.div`
 `;
 
 export const KpiGrid = styled.div<{ $cols?: number }>`
-  display: grid; grid-template-columns: repeat(${(p) => p.$cols || 6}, 1fr); gap: 12px; margin-bottom: 28px;
-  @media (max-width: 1024px) { grid-template-columns: repeat(2, 1fr); }
+  /* minmax(0,1fr): 트랙이 콘텐츠보다 못 줄어 가로 오버플로우 나던 것 차단 (긴 문구 대응) */
+  display: grid; grid-template-columns: repeat(${(p) => p.$cols || 6}, minmax(0, 1fr)); gap: 12px; margin-bottom: 28px;
+  @media (max-width: 1024px) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  @media (max-width: 560px) { grid-template-columns: 1fr; }
 `;
 
 export const KpiCard = styled.div`
   background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 12px;
   padding: 16px; display: flex; flex-direction: column; gap: 4px;
+  min-width: 0;  /* grid child 가 콘텐츠 min-size 밑으로 줄 수 있게 (오버플로우 차단) */
 `;
 
-export const KpiLabel = styled.div`font-size: 11px; font-weight: 700; color: #64748B; text-transform: uppercase; letter-spacing: 0.4px;`;
-export const KpiValueBig = styled.div`font-size: 24px; font-weight: 700; color: #0F172A; line-height: 1.1;`;
+export const KpiLabel = styled.div`font-size: 11px; font-weight: 700; color: #64748B; text-transform: uppercase; letter-spacing: 0.4px; word-break: keep-all;`;
+export const KpiValueBig = styled.div`font-size: 24px; font-weight: 700; color: #0F172A; line-height: 1.1; word-break: break-word;`;
 export const KpiHint = styled.div`font-size: 11px; color: #94A3B8;`;
 
 export const SectionLabel = styled.h2`
