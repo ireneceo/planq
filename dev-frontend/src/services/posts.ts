@@ -12,6 +12,7 @@ export interface PostRow {
   visibility: 'internal' | 'public';
   // N+67 — 통합 visibility (L1-L4). 옛 internal/public 와 hook 양방향 동기.
   vlevel?: 'L1' | 'L2' | 'L3' | 'L4' | null;
+  security_level?: 'general' | 'internal' | 'confidential';  // D4 #62
   is_pinned: boolean;
   view_count: number;
   author: { id: number; name: string } | null;
@@ -201,6 +202,19 @@ export async function updatePostVisibility(
   });
   const j = await r.json();
   if (!j.success) throw new Error(j.message || 'visibility_change_failed');
+  return j.data;
+}
+
+// D4 #62 — 문서 보안등급 변경. 일반 외로 상향 시 외부 공유 링크 무효화.
+export async function updatePostSecurityLevel(
+  postId: number,
+  level: 'general' | 'internal' | 'confidential',
+): Promise<{ id: number; security_level: 'general' | 'internal' | 'confidential'; revoked_share: boolean }> {
+  const r = await apiFetch(`/api/posts/${postId}/security-level`, {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ level }),
+  });
+  const j = await r.json();
+  if (!j.success) throw new Error(j.message || 'security_level_change_failed');
   return j.data;
 }
 

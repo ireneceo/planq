@@ -14,6 +14,7 @@ const { authenticateToken } = require('../middleware/auth');
 const { getUserScope, postListWhereByLevel, canAccessPostByLevel, isMemberOrAbove } = require('../middleware/access_scope');
 const { successResponse, errorResponse, parsePagination, paginatedResponse } = require('../middleware/errorHandler');
 const { sendPostShareEmail } = require('../services/emailService');
+const { isValidLevel, blocksExternalShare } = require('../services/securityLevel');
 
 const APP_URL = process.env.APP_URL || 'https://dev.planq.kr';
 
@@ -103,6 +104,7 @@ function serialize(p, withContent = false) {
     q_record_id: p.q_record_id || null,
     // N+72-7 — serialize 에 vlevel/target_member_ids 빠져 있어 PUT 응답에 안 실리는 회귀 fix
     vlevel: p.vlevel || (p.project_id ? 'L2' : 'L3'),
+    security_level: p.security_level || 'general',
     target_member_ids: Array.isArray(p.target_member_ids) ? p.target_member_ids : null,
     linked_post_ids: Array.isArray(p.linked_post_ids) ? p.linked_post_ids : [],
     created_at: p.createdAt,
@@ -749,6 +751,10 @@ router.put('/:id/visibility', authenticateToken, async (req, res, next) => {
     } else if (level === 'L1' || level === 'L3' || level === 'L4') {
       nextProjectId = null;
     }
+    // D4 #62 — 보안등급 게이트: 일반 외 문서는 L4(외부 공개) 전환 차단
+    if (level === 'L4' && blocksExternalShare(post)) {
+      return errorResponse(res, 'security_level_blocks_share', 403, 'security_level_blocks_share');
+    }
     const patch = { vlevel: level, project_id: nextProjectId };
     // N+67 — L4 선택 시 share_token 자동 발급 (없으면)
     if (level === 'L4' && !post.share_token) {
@@ -936,6 +942,10 @@ router.post('/:id/share', authenticateToken, async (req, res, next) => {
     if (!(await assertMember(req.user.id, post.business_id, req.user.platform_role === 'platform_admin'))) {
       return errorResponse(res, 'forbidden', 403);
     }
+    // D4 #62 — 보안등급 게이트
+    if (blocksExternalShare(post)) {
+      return errorResponse(res, 'security_level_blocks_share', 403, 'security_level_blocks_share');
+    }
     const days = Number(req.body?.expires_in_days);
     const expiresAt = Number.isFinite(days) && days > 0
       ? new Date(Date.now() + days * 86400 * 1000)
@@ -969,6 +979,37 @@ router.delete('/:id/share', authenticateToken, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// ─── D4 #62 — 보안등급 변경 ───
+// PUT /api/posts/:id/security-level  body: { level: 'general'|'internal'|'confidential' }
+//   권한: author 본인 또는 owner/admin (visibility 변경과 동일). 일반 외로 상향 시 외부 공유 링크 즉시 무효화.
+router.put('/:id/security-level', authenticateToken, async (req, res, next) => {
+  try {
+    const level = String(req.body?.level || '');
+    if (!isValidLevel(level)) return errorResponse(res, 'invalid_level', 400);
+    const post = await Post.findByPk(req.params.id);
+    if (!post) return errorResponse(res, 'not_found', 404);
+    const scope = await getUserScope(req.user.id, post.business_id, req.user.platform_role);
+    const isAuthor = post.author_id === req.user.id;
+    const isOwner = scope.isOwner || scope.isPlatformAdmin || scope.isAdmin;
+    if (!isAuthor && !isOwner) return errorResponse(res, 'forbidden', 403);
+    const prev = post.security_level;
+    const patch = { security_level: level };
+    let revokedShare = false;
+    if (level !== 'general' && post.share_token) {
+      patch.share_token = null; patch.shared_at = null; patch.share_expires_at = null;
+      if (post.vlevel === 'L4') patch.vlevel = 'L3'; // 외부 공개였으면 워크스페이스로 내림
+      revokedShare = true;
+    }
+    await post.update(patch);
+    broadcastPost(req, post, 'post:updated');
+    require('../services/auditService').logAudit(req, {
+      action: 'post.security_level_change', targetType: 'post', targetId: post.id, businessId: post.business_id,
+      oldValue: { security_level: prev }, newValue: { security_level: level, revoked_share: revokedShare },
+    });
+    return successResponse(res, { id: post.id, security_level: level, revoked_share: revokedShare });
+  } catch (err) { next(err); }
+});
+
 // ─── 공유: 이메일 발송 ───
 // POST /api/posts/:id/share/email  body: { to, message? }
 router.post('/:id/share/email', authenticateToken, async (req, res, next) => {
@@ -986,6 +1027,10 @@ router.post('/:id/share/email', authenticateToken, async (req, res, next) => {
     if (!post) return errorResponse(res, 'not_found', 404);
     if (!(await assertMember(req.user.id, post.business_id, req.user.platform_role === 'platform_admin'))) {
       return errorResponse(res, 'forbidden', 403);
+    }
+    // D4 #62 — 보안등급 게이트
+    if (blocksExternalShare(post)) {
+      return errorResponse(res, 'security_level_blocks_share', 403, 'security_level_blocks_share');
     }
     // share_token 자동 발급
     if (!post.share_token) {
@@ -1024,6 +1069,10 @@ router.post('/:id/share-to-chat', authenticateToken, async (req, res, next) => {
     }
     const conv = await Conversation.findOne({ where: { id: convId, business_id: post.business_id } });
     if (!conv) return errorResponse(res, 'invalid conversation_id', 400);
+    // D4 #62 — 보안등급 게이트
+    if (blocksExternalShare(post)) {
+      return errorResponse(res, 'security_level_blocks_share', 403, 'security_level_blocks_share');
+    }
     // share_token 자동 발급
     if (!post.share_token) {
       const token = crypto.randomBytes(32).toString('hex');

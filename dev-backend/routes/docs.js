@@ -18,6 +18,7 @@ const { successResponse, errorResponse } = require('../middleware/errorHandler')
 const { applyMemberDisplayName, applyMemberDisplayNameOne } = require('../services/displayName');
 const { authenticateToken } = require('../middleware/auth');
 const { getUserScope, isMemberOrAbove, assertMemberOrAbove } = require('../middleware/access_scope');
+const { isValidLevel, blocksExternalShare } = require('../services/securityLevel');
 const cue = require('../services/cue_orchestrator');
 
 // member 이상 (쓰기 액션) — 단일 모듈 (access_scope.assertMemberOrAbove) 위임.
@@ -699,6 +700,10 @@ router.post('/documents/:id/share', authenticateToken, async (req, res, next) =>
     if (!(await assertBusinessAccess(req.user.id, doc.business_id, req.user.platform_role))) {
       return errorResponse(res, 'forbidden', 403);
     }
+    // D4 #62 — 보안등급 게이트: 일반 외 문서는 외부 공유 차단
+    if (blocksExternalShare(doc)) {
+      return errorResponse(res, 'security_level_blocks_share', 403, 'security_level_blocks_share');
+    }
     const token = crypto.randomBytes(32).toString('hex');
     const expiresAt = expires_in_days
       ? new Date(Date.now() + Number(expires_in_days) * 86400 * 1000)
@@ -756,6 +761,34 @@ router.delete('/documents/:id/share', authenticateToken, async (req, res, next) 
       newValue: { share_token: null },
     });
     return successResponse(res, { revoked: true });
+  } catch (e) { next(e); }
+});
+
+// ─── D4 #62 — 보안등급 변경 ───
+// PUT /api/docs/documents/:id/security-level  body: { level: 'general'|'internal'|'confidential' }
+//   권한: member 이상 (문서 쓰기 권한과 동일). 일반 외로 상향 시 외부 공유 링크 즉시 무효화.
+router.put('/documents/:id/security-level', authenticateToken, async (req, res, next) => {
+  try {
+    const level = String(req.body?.level || '');
+    if (!isValidLevel(level)) return errorResponse(res, 'invalid_level', 400);
+    const doc = await Document.findByPk(req.params.id);
+    if (!doc) return errorResponse(res, 'not_found', 404);
+    if (!(await assertBusinessAccess(req.user.id, doc.business_id, req.user.platform_role))) {
+      return errorResponse(res, 'forbidden', 403);
+    }
+    const prev = doc.security_level;
+    const patch = { security_level: level };
+    let revokedShare = false;
+    if (level !== 'general' && doc.share_token) {
+      patch.share_token = null; patch.shared_at = null; patch.share_expires_at = null;
+      revokedShare = true;
+    }
+    await doc.update(patch);
+    require('../services/auditService').logAudit(req, {
+      action: 'document.security_level_change', targetType: 'document', targetId: doc.id, businessId: doc.business_id,
+      oldValue: { security_level: prev }, newValue: { security_level: level, revoked_share: revokedShare },
+    });
+    return successResponse(res, { id: doc.id, security_level: level, revoked_share: revokedShare });
   } catch (e) { next(e); }
 });
 

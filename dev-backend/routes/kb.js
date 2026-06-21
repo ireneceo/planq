@@ -7,6 +7,7 @@ const { KbDocument, KbChunk, KbPinnedFaq, KbCategory, File: FileModel, Post, KbS
 const { authenticateToken, checkBusinessAccess } = require('../middleware/auth');
 const { isMemberOrAbove, getUserScope } = require('../middleware/access_scope');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
+const { isValidLevel, blocksExternalShare } = require('../services/securityLevel');
 
 // N+38 — 실시간 동기화 (CLAUDE.md 운영 안정성 16번 박제).
 function broadcastKb(req, doc, event = 'kb:updated') {
@@ -186,7 +187,7 @@ router.get('/businesses/:businessId/kb/documents', authenticateToken, checkBusin
     const safeLimit = Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(rawLimit, 2000) : 1000;
     let docs = await KbDocument.findAll({
       where,
-      attributes: ['id', 'title', 'source_type', 'category', 'categories', 'scope', 'project_id', 'client_id', 'file_name', 'file_size', 'version', 'status', 'chunk_count', 'uploaded_by', 'tags', 'attached_file_ids', 'attached_post_ids', 'custom_columns', 'custom_values', 'read_policy', 'client_ids', 'vlevel', 'target_member_ids', 'created_at', 'updated_at'],
+      attributes: ['id', 'title', 'source_type', 'category', 'categories', 'scope', 'project_id', 'client_id', 'file_name', 'file_size', 'version', 'status', 'chunk_count', 'uploaded_by', 'tags', 'attached_file_ids', 'attached_post_ids', 'custom_columns', 'custom_values', 'read_policy', 'client_ids', 'vlevel', 'target_member_ids', 'security_level', 'created_at', 'updated_at'],
       order: [['updated_at', 'DESC']],
       limit: safeLimit,
     });
@@ -1281,6 +1282,10 @@ router.post('/kb-documents/:id/share', authenticateToken, async (req, res, next)
     if (!doc) return errorResponse(res, 'kb_document_not_found', 404);
     const scope = await getUserScope(req.user.id, doc.business_id, req.user.platform_role);
     if (!isMemberOrAbove(scope)) return errorResponse(res, 'forbidden', 403);
+    // D4 #62 — 보안등급 게이트: 일반 외 자료는 외부 공유 차단
+    if (blocksExternalShare(doc)) {
+      return errorResponse(res, 'security_level_blocks_share', 403, 'security_level_blocks_share');
+    }
 
     const { applyShareUpdate } = require('../services/share_helper');
     const r = await applyShareUpdate(doc, req.body || {});
@@ -1308,6 +1313,35 @@ router.delete('/kb-documents/:id/share', authenticateToken, async (req, res, nex
       share_expires_at: null,
     });
     return successResponse(res, { revoked: true });
+  } catch (err) { next(err); }
+});
+
+// ─── D4 #62 — 보안등급 변경 ───
+// PUT /api/kb-documents/:id/security-level  body: { level: 'general'|'internal'|'confidential' }
+//   권한: member 이상. 일반 외로 상향 시 외부 공유 링크 즉시 무효화.
+router.put('/kb-documents/:id/security-level', authenticateToken, async (req, res, next) => {
+  try {
+    const level = String(req.body?.level || '');
+    if (!isValidLevel(level)) return errorResponse(res, 'invalid_level', 400);
+    const doc = await KbDocument.findByPk(req.params.id);
+    if (!doc) return errorResponse(res, 'kb_document_not_found', 404);
+    const scope = await getUserScope(req.user.id, doc.business_id, req.user.platform_role);
+    if (!isMemberOrAbove(scope)) return errorResponse(res, 'forbidden', 403);
+    const prev = doc.security_level;
+    const patch = { security_level: level };
+    let revokedShare = false;
+    if (level !== 'general' && doc.share_token) {
+      patch.share_token = null; patch.shared_at = null; patch.share_password_hash = null; patch.share_expires_at = null;
+      revokedShare = true;
+    }
+    await doc.update(patch);
+    broadcastKb(req, doc, 'kb:updated');
+    await createAuditLog({
+      userId: req.user.id, businessId: doc.business_id,
+      action: 'kb.security_level_change', targetType: 'KbDocument', targetId: doc.id,
+      oldValue: { security_level: prev }, newValue: { security_level: level, revoked_share: revokedShare },
+    });
+    return successResponse(res, { id: doc.id, security_level: level, revoked_share: revokedShare });
   } catch (err) { next(err); }
 });
 
@@ -1432,6 +1466,9 @@ router.post('/businesses/:businessId/kb/share-bundle', authenticateToken, checkB
       // tenant 격리 — 전부 이 워크스페이스 문서인지 검증
       const cnt = await KbDocument.count({ where: { id: docIds, business_id: businessId } });
       if (cnt !== docIds.length) return errorResponse(res, 'invalid_documents', 400);
+      // D4 #62 — 보안등급 게이트: 일반 외 자료가 하나라도 있으면 번들 생성 차단
+      const blocked = await KbDocument.count({ where: { id: docIds, business_id: businessId, security_level: { [Op.ne]: 'general' } } });
+      if (blocked > 0) return errorResponse(res, 'security_level_blocks_share', 403, 'security_level_blocks_share');
     } else {
       if (!category || !String(category).trim()) return errorResponse(res, 'category_required', 400);
     }
@@ -1473,7 +1510,8 @@ router.get('/kb-bundle/public/by-token/:token', async (req, res, next) => {
     let docs = [];
     if (bundle.kind === 'selection') {
       const rows = await KbDocument.findAll({
-        where: { id: bundle.doc_ids || [], business_id: bundle.business_id },
+        // D4 #62 — 번들 생성 후 등급이 상향된 자료는 공개에서 즉시 제외 (general 만)
+        where: { id: bundle.doc_ids || [], business_id: bundle.business_id, security_level: 'general' },
         attributes: ['id', 'title', 'body', 'source_type', 'file_name', 'mime_type', 'categories', 'category', 'created_at'],
       });
       // doc_ids 순서 유지
@@ -1482,7 +1520,8 @@ router.get('/kb-bundle/public/by-token/:token', async (req, res, next) => {
     } else {
       // 카테고리는 free(categories JSON 배열) + legacy(category 컬럼) 둘 다 매칭.
       const rows = await KbDocument.findAll({
-        where: { business_id: bundle.business_id },
+        // D4 #62 — 카테고리 번들도 general 자료만 외부 노출
+        where: { business_id: bundle.business_id, security_level: 'general' },
         attributes: ['id', 'title', 'body', 'source_type', 'file_name', 'mime_type', 'categories', 'category', 'created_at'],
         order: [['created_at', 'DESC']],
         limit: 500,

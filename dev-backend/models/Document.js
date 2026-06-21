@@ -51,6 +51,13 @@ Document.init({
   ai_generated: { type: DataTypes.BOOLEAN, defaultValue: false },
   ai_model: { type: DataTypes.STRING(50), allowNull: true },
   ai_prompt: { type: DataTypes.TEXT, allowNull: true },
+  // D4 #62 — 보안등급 (general/internal/confidential). general 외 외부공유(share_token) 차단.
+  //   계약·NDA·제안서 등 민감 문서 외부 반출 게이트. 변경 = member 이상. 상향 시 share_token 무효화.
+  security_level: {
+    type: DataTypes.ENUM('general', 'internal', 'confidential'),
+    allowNull: false,
+    defaultValue: 'general',
+  },
   // 메타
   created_by: { type: DataTypes.INTEGER, allowNull: false, references: { model: 'users', key: 'id' } },
   updated_by: { type: DataTypes.INTEGER, allowNull: true, references: { model: 'users', key: 'id' } },

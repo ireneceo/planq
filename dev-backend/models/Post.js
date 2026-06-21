@@ -57,6 +57,13 @@ Post.init({
     allowNull: true,
     defaultValue: null,
   },
+  // D4 #62 — 보안등급 (visibility 와 직교 축). general=외부공유 OK / internal·confidential=외부공유 차단.
+  //   File 패턴 동일. 변경 권한 = author 본인 + owner/admin. 상향 시 share_token 무효화.
+  security_level: {
+    type: DataTypes.ENUM('general', 'internal', 'confidential'),
+    allowNull: false,
+    defaultValue: 'general',
+  },
 }, {
   sequelize, tableName: 'posts', timestamps: true, underscored: true,
   indexes: [

@@ -31,6 +31,8 @@ export interface KbDocumentRow {
   // N+64 — 통합 visibility
   vlevel?: KbVlevel | null;
   target_member_ids?: number[] | null;
+  security_level?: 'general' | 'internal' | 'confidential';  // D4 #62
+  share_token?: string | null;
   // 상세 GET 응답에만 포함되는 필드들
   body?: string | null;
   attached_files?: Array<{ id: number; file_name: string; file_size: number; mime_type: string | null; storage_provider: string; external_url: string | null }>;
@@ -136,6 +138,17 @@ export async function updateKnowledge(businessId: number, docId: number, patch: 
 export async function deleteKnowledge(businessId: number, docId: number): Promise<void> {
   const res = await apiFetch(`/api/businesses/${businessId}/kb/documents/${docId}`, { method: 'DELETE' });
   await handle(res);
+}
+
+// D4 #62 — 자료 보안등급 변경. 일반 외로 상향 시 외부 공유 링크 무효화.
+export async function updateKbSecurityLevel(
+  docId: number,
+  level: 'general' | 'internal' | 'confidential',
+): Promise<{ id: number; security_level: 'general' | 'internal' | 'confidential'; revoked_share: boolean }> {
+  const res = await apiFetch(`/api/kb-documents/${docId}/security-level`, {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ level }),
+  });
+  return handle(res);
 }
 
 // N+93 — 다건/카테고리 공유 번들 (#6)

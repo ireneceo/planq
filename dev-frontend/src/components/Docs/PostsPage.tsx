@@ -32,7 +32,7 @@ import { TableHeader } from '@tiptap/extension-table-header';
 import {
   fetchPosts, fetchPost, createPost, updatePost, deletePost,
   attachToPost, detachFromPost, fetchPostsMeta,
-  createCategory, updatePostVisibility,
+  createCategory, updatePostVisibility, updatePostSecurityLevel,
   type PostRow, type PostDetail, type PostsMeta,
 } from '../../services/posts';
 import VisibilityChangeModal from '../Common/VisibilityChangeModal';
@@ -45,6 +45,7 @@ import PostAiModal from './PostAiModal';
 import PostSignatureModal from './PostSignatureModal';
 import SignatureProgressSection from './SignatureProgressSection';
 import PlanQSelect, { type PlanQSelectOption } from '../Common/PlanQSelect';
+import SecurityLevelBadge, { useSecurityLevelLabel } from '../Common/SecurityLevelBadge';
 import { useAuth, apiFetch } from '../../contexts/AuthContext';
 
 // 좌측 필터: 전체(기본) / 프로젝트 그룹 / 카테고리
@@ -157,6 +158,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
     if (vl === 'L4') return t('vis.L4', '외부') as string;
     return t('vis.L3', '워크스페이스') as string;
   };
+  const secLabel = useSecurityLevelLabel();  // D4 #62 보안등급 라벨
   const [mode, setMode] = useState<'view' | 'edit' | 'new'>('view');
   const [titleDraft, setTitleDraft] = useState('');
   const [contentDraft, setContentDraft] = useState<unknown>(null);
@@ -871,6 +873,8 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
                     {visLabel(r.vlevel)}
                   </RowVisChip>
                   {r.share_token && <ShareMini title={t('share.publicHint', '공개 링크가 활성화됨') as string}>🔗</ShareMini>}
+                  {/* D4 #62 — 보안등급 배지 (일반은 자동 숨김) */}
+                  <SecurityLevelBadge level={r.security_level} />
                 </RowMeta>
               </RowItem>
             ))
@@ -1097,7 +1101,28 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
                     {t('share.publicBadge', '공유 중')}
                   </ShareTag>
                 )}
+                {/* D4 #62 — 보안등급 배지 (일반은 노이즈 0, 자동 숨김) */}
+                <SecurityLevelBadge level={detail.security_level} />
               </ViewMeta>
+              {/* D4 #62 — 보안등급 선택 (visibility 와 별개 축. 내부·기밀은 외부 공유 차단) */}
+              <SecurityRow>
+                <SecurityRowLabel>{t('securityLevel.label', { defaultValue: '보안등급' }) as string}</SecurityRowLabel>
+                <div style={{ minWidth: 160 }}>
+                  <PlanQSelect
+                    size="sm" isClearable={false} isSearchable={false}
+                    value={{ value: detail.security_level || 'general', label: secLabel(detail.security_level || 'general') }}
+                    options={(['general', 'internal', 'confidential'] as const).map((lv) => ({ value: lv, label: secLabel(lv) }))}
+                    onChange={async (o) => {
+                      const lv = (((o as { value?: string })?.value) || 'general') as 'general' | 'internal' | 'confidential';
+                      try {
+                        const r = await updatePostSecurityLevel(detail.id, lv);
+                        setDetail(prev => prev ? { ...prev, security_level: lv, ...(r.revoked_share ? { share_token: null, vlevel: prev.vlevel === 'L4' ? 'L3' : prev.vlevel } : {}) } : prev);
+                      } catch { /* keep current on error */ }
+                    }}
+                  />
+                </div>
+                <SecHint>{t(`securityLevel.${detail.security_level || 'general'}Hint`, { defaultValue: '' }) as string}</SecHint>
+              </SecurityRow>
               <div data-print-area>
                 <PrintOnlyTitle>{detail.title}</PrintOnlyTitle>
                 {detail.kind === 'table' && detail.q_record_id ? (
@@ -1744,6 +1769,17 @@ const EditActions = styled.div`
 const ViewMeta = styled.div`
   display: flex; align-items: center; gap: 8px;
   font-size: 12px; color: #94A3B8; flex-wrap: wrap;
+`;
+// D4 #62 — 보안등급 선택 행 (DocsTab files 패턴 정합)
+const SecurityRow = styled.div`
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  margin: 12px 0 4px;
+`;
+const SecurityRowLabel = styled.span`
+  font-size: 12px; font-weight: 600; color: #475569;
+`;
+const SecHint = styled.span`
+  font-size: 11px; color: #94A3B8; flex: 1; min-width: 0;
 `;
 
 // 태그

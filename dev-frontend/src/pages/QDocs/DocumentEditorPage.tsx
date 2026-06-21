@@ -10,14 +10,18 @@ import { useNavigate, useParams } from 'react-router-dom';
 import PostEditor from '../../components/Docs/PostEditor';
 import PageShell from '../../components/Layout/PageShell';
 import RevisionPanel from '../../components/Docs/RevisionPanel';
+import PlanQSelect from '../../components/Common/PlanQSelect';
+import SecurityLevelBadge, { useSecurityLevelLabel } from '../../components/Common/SecurityLevelBadge';
 import { useAuth } from '../../contexts/AuthContext';
 import {
-  getDocument, updateDocument, downloadDocumentPdf,
+  getDocument, updateDocument, downloadDocumentPdf, updateDocumentSecurityLevel,
   KIND_LABELS_KO, KIND_LABEL_KEYS, type DocDetail,
 } from '../../services/docs';
 
 const DocumentEditorPage: React.FC = () => {
   const { t } = useTranslation('qdocs');
+  const { t: tc } = useTranslation('common');
+  const secLabel = useSecurityLevelLabel();  // D4 #62
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
@@ -134,6 +138,27 @@ const DocumentEditorPage: React.FC = () => {
             <Row><Label>{t('editor.status', '상태')}</Label><Value>{doc.status}</Value></Row>
             {doc.client_id && <Row><Label>{t('editor.client', '고객')}</Label><Value>#{doc.client_id}</Value></Row>}
             {doc.project_id && <Row><Label>{t('editor.project', '프로젝트')}</Label><Value>#{doc.project_id}</Value></Row>}
+            {/* D4 #62 — 보안등급 (내부·기밀은 외부 공유 차단) */}
+            <SecRow>
+              <SecRowHead>
+                <Label>{tc('securityLevel.label', { defaultValue: '보안등급' }) as string}</Label>
+                <SecurityLevelBadge level={doc.security_level} />
+              </SecRowHead>
+              <PlanQSelect
+                size="sm" isClearable={false} isSearchable={false}
+                value={{ value: doc.security_level || 'general', label: secLabel(doc.security_level || 'general') }}
+                options={(['general', 'internal', 'confidential'] as const).map((lv) => ({ value: lv, label: secLabel(lv) }))}
+                onChange={async (o) => {
+                  const lv = (((o as { value?: string })?.value) || 'general') as 'general' | 'internal' | 'confidential';
+                  if (!docId) return;
+                  try {
+                    const r = await updateDocumentSecurityLevel(docId, lv);
+                    setDoc(prev => prev ? { ...prev, security_level: lv, ...(r.revoked_share ? { share_token: null } : {}) } : prev);
+                  } catch { /* keep current on error */ }
+                }}
+              />
+              <Hint>{tc(`securityLevel.${doc.security_level || 'general'}Hint`, { defaultValue: '' }) as string}</Hint>
+            </SecRow>
           </SideCard>
           {/* 사이클 I4 — 변경 이력 (revision diff) */}
           {docId && (
@@ -182,6 +207,9 @@ const Row = styled.div`display:flex;justify-content:space-between;padding:6px 0;
 const Label = styled.span`color:#64748B;`;
 const Value = styled.span`color:#0F172A;font-weight:500;`;
 const Hint = styled.p`margin:0;font-size:12px;color:#94A3B8;line-height:1.55;`;
+// D4 #62 — 보안등급 행
+const SecRow = styled.div`display:flex;flex-direction:column;gap:8px;padding:10px 0 2px;`;
+const SecRowHead = styled.div`display:flex;align-items:center;gap:8px;`;
 const PdfBtn = styled.button`
   padding: 7px 14px; font-size: 13px; font-weight: 600; color: #fff; background: #14B8A6;
   border: 1px solid #14B8A6; border-radius: 8px; cursor: pointer; transition: background .15s;
