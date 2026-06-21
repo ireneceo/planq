@@ -52,6 +52,11 @@ TaskTemplate.init({
     allowNull: true,
     references: { model: 'users', key: 'id' },
   },
+  embedding: {
+    type: DataTypes.BLOB,
+    allowNull: true,
+    comment: 'name+description+item titles 의 text-embedding-3-small 벡터 (AI 추천 매칭용)',
+  },
 }, {
   sequelize,
   tableName: 'task_templates',

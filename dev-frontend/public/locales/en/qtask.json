@@ -974,6 +974,12 @@
         "Write a competitor comparison table this week",
         "Presentation deck draft by next Monday"
       ]
+    },
+    "recommend": {
+      "title": "Almost the same as your saved '{{name}}' template",
+      "meta": "{{n}} tasks",
+      "use": "Use this template",
+      "dismiss": "Dismiss"
     }
   },
   "bar": {

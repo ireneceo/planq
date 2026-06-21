@@ -47,6 +47,8 @@ interface Props {
   projectId?: number | null;
   members: Member[];
   onApplied: (createdTasks: Array<{ id: number; title: string }>) => void;
+  // AI 추천 "이 템플릿 쓰기" → 이 id 의 템플릿 상세(detail)로 바로 진입.
+  initialTemplateId?: number | null;
 }
 
 type Stage = 'list' | 'detail' | 'edit';
@@ -59,7 +61,7 @@ const CATEGORY_LABELS: Record<string, string> = {
   custom: '기타',
 };
 
-export default function TemplateSelectModal({ open, onClose, businessId, projectId, members, onApplied }: Props) {
+export default function TemplateSelectModal({ open, onClose, businessId, projectId, members, onApplied, initialTemplateId }: Props) {
   const { t } = useTranslation('qtask');
   const { t: tErr } = useTranslation('errors');
   const [stage, setStage] = useState<Stage>('list');
@@ -92,12 +94,20 @@ export default function TemplateSelectModal({ open, onClose, businessId, project
     apiFetch(`/api/task-templates?business_id=${businessId}`)
       .then(r => r.json())
       .then(j => {
-        if (j.success) setTemplates(j.data || []);
-        else setError(j.message || 'failed');
+        if (j.success) {
+          const list: Template[] = j.data || [];
+          setTemplates(list);
+          // AI 추천 deep-link — 해당 템플릿 상세로 바로 진입
+          if (initialTemplateId) {
+            const hit = list.find(t => t.id === initialTemplateId);
+            if (hit) openDetail(hit);
+          }
+        } else setError(j.message || 'failed');
       })
       .catch(e => setError(e.message))
       .finally(() => setLoading(false));
-  }, [open, businessId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, businessId, initialTemplateId]);
 
   // 검색 필터 — 이름·설명·카테고리 모두 검색
   const filtered = useMemo(() => {
