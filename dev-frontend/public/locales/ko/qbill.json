@@ -234,7 +234,11 @@
       "markTaxBtn": "세금계산서 발행번호 입력",
       "markCashBtn": "현금영수증 번호 입력",
       "correctionHistory": "정정 이력",
-      "cashPromptTitle": "현금영수증 번호 입력"
+      "cashPromptTitle": "현금영수증 번호 입력",
+      "fileLabel": "발행 파일 첨부 (선택)",
+      "filePick": "파일 선택",
+      "fileNone": "선택된 파일 없음",
+      "fileHint": "첨부하면 고객이 공개 청구서 페이지에서 다운로드할 수 있어요."
     },
     "bank": {
       "title": "입금 안내",

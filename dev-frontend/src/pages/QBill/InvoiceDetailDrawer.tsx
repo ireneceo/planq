@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import DetailDrawer from '../../components/Common/DetailDrawer';
 import ConfirmDialog from '../../components/Common/ConfirmDialog';
+import { apiFetch } from '../../contexts/AuthContext';
 import { CheckIcon } from '../../components/Common/Icons';
 import {
   formatMoney, invoiceStatusColor, installmentStatusColor,
@@ -73,6 +74,7 @@ export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, 
   };
   const [taxModal, setTaxModal] = useState<{ installmentId: number | null; kind?: 'tax' | 'cash' } | null>(null);
   const [taxNoInput, setTaxNoInput] = useState('');
+  const [taxFile, setTaxFile] = useState<File | null>(null); // #77 — 발행 파일 첨부
   const [remindBusy, setRemindBusy] = useState(false);
   const [remindNote, setRemindNote] = useState<{ tone: 'ok' | 'warn'; text: string } | null>(null);
   const [pdfBusy, setPdfBusy] = useState(false);
@@ -149,26 +151,36 @@ export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, 
     finally { setBusy(false); }
   };
   const handleMarkTax = (installmentId: number) => {
-    setTaxNoInput('');
+    setTaxNoInput(''); setTaxFile(null);
     setTaxModal({ installmentId, kind: 'tax' });
   };
   const handleMarkInvoiceReceipt = (kind: 'tax' | 'cash') => {
-    setTaxNoInput('');
+    setTaxNoInput(''); setTaxFile(null);
     setTaxModal({ installmentId: null, kind });
   };
   const submitTaxNo = async () => {
     if (!taxModal || !taxNoInput.trim() || busy) return;
     setBusy(true);
     try {
+      // #77 — 발행 파일(선택) 업로드 → file_id
+      let fileId: number | undefined;
+      if (taxFile) {
+        const fd = new FormData();
+        fd.append('file', taxFile);
+        const ur = await apiFetch(`/api/files/${invoice.business_id}`, { method: 'POST', body: fd });
+        const uj = await ur.json();
+        if (!uj.success || !uj.data?.id) throw new Error(uj.message || 'file_upload_failed');
+        fileId = Number(uj.data.id);
+      }
       if (taxModal.installmentId != null) {
-        await markInstallmentTaxInvoice(invoice.business_id, invoice.id, taxModal.installmentId, { tax_invoice_no: taxNoInput.trim() });
+        await markInstallmentTaxInvoice(invoice.business_id, invoice.id, taxModal.installmentId, { tax_invoice_no: taxNoInput.trim(), file_id: fileId });
       } else if (taxModal.kind === 'cash') {
-        await markInvoiceCashReceipt(invoice.business_id, invoice.id, { cash_receipt_no: taxNoInput.trim() });
+        await markInvoiceCashReceipt(invoice.business_id, invoice.id, { cash_receipt_no: taxNoInput.trim(), file_id: fileId });
       } else {
-        await markInvoiceTaxInvoice(invoice.business_id, invoice.id, { tax_invoice_no: taxNoInput.trim() });
+        await markInvoiceTaxInvoice(invoice.business_id, invoice.id, { tax_invoice_no: taxNoInput.trim(), file_id: fileId });
       }
       setTaxModal(null);
-      setTaxNoInput('');
+      setTaxNoInput(''); setTaxFile(null);
       await refresh();
     } finally { setBusy(false); }
   };
@@ -603,6 +615,20 @@ export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, 
                 autoFocus
                 onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) submitTaxNo(); }}
               />
+              {/* #77 — 발행 파일 첨부 (선택) */}
+              <TaxModalLabel htmlFor="tax-file-input" style={{ marginTop: 12 }}>
+                {t('detail.tax.fileLabel', { defaultValue: '발행 파일 첨부 (선택)' }) as string}
+              </TaxModalLabel>
+              <TaxFileRow>
+                <TaxFileBtn type="button" onClick={() => document.getElementById('tax-file-input')?.click()}>
+                  {t('detail.tax.filePick', { defaultValue: '파일 선택' }) as string}
+                </TaxFileBtn>
+                <TaxFileName>{taxFile ? taxFile.name : (t('detail.tax.fileNone', { defaultValue: '선택된 파일 없음' }) as string)}</TaxFileName>
+                {taxFile && <TaxFileClear type="button" onClick={() => setTaxFile(null)} aria-label="clear">×</TaxFileClear>}
+                <input id="tax-file-input" type="file" accept=".pdf,.jpg,.jpeg,.png" style={{ display: 'none' }}
+                  onChange={e => setTaxFile(e.target.files?.[0] || null)} />
+              </TaxFileRow>
+              <TaxFileHint>{t('detail.tax.fileHint', { defaultValue: '첨부하면 고객이 공개 청구서 페이지에서 다운로드할 수 있어요.' }) as string}</TaxFileHint>
             </TaxModalBody>
             <TaxModalFooter>
               <TaxModalSecondary type="button" onClick={() => setTaxModal(null)}>{t('common.cancel')}</TaxModalSecondary>
@@ -763,6 +789,20 @@ const TaxModalInput = styled.input`
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20,184,166,0.15); }
 `;
+// #77 — 발행 파일 첨부
+const TaxFileRow = styled.div`display: flex; align-items: center; gap: 8px; margin-top: 4px;`;
+const TaxFileBtn = styled.button`
+  flex-shrink: 0; padding: 7px 12px; font-size: 12px; font-weight: 600;
+  color: #334155; background: #fff; border: 1px solid #E2E8F0; border-radius: 6px; cursor: pointer;
+  &:hover { border-color: #14B8A6; color: #0F766E; }
+`;
+const TaxFileName = styled.span`flex: 1; min-width: 0; font-size: 12px; color: #64748B; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;`;
+const TaxFileClear = styled.button`
+  flex-shrink: 0; width: 22px; height: 22px; border: none; background: transparent;
+  color: #94A3B8; font-size: 16px; cursor: pointer; border-radius: 4px;
+  &:hover { background: #F1F5F9; color: #EF4444; }
+`;
+const TaxFileHint = styled.div`font-size: 11px; color: #94A3B8; line-height: 1.5; margin-top: 4px;`;
 const TaxModalFooter = styled.div`
   display: flex; justify-content: flex-end; gap: 8px; padding: 12px 20px;
   border-top: 1px solid #F1F5F9;

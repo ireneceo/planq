@@ -234,7 +234,11 @@
       "markTaxBtn": "Enter tax invoice number",
       "markCashBtn": "Enter cash receipt number",
       "correctionHistory": "Correction history",
-      "cashPromptTitle": "Enter Cash Receipt Number"
+      "cashPromptTitle": "Enter Cash Receipt Number",
+      "fileLabel": "Attach issued file (optional)",
+      "filePick": "Choose file",
+      "fileNone": "No file selected",
+      "fileHint": "If attached, the customer can download it from the public invoice page."
     },
     "bank": {
       "title": "Bank info",
