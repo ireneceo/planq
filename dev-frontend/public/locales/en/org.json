@@ -38,5 +38,22 @@
     "byMember": "By member",
     "unassignedDept": "Unassigned",
     "loadFail": "Couldn't load organization status."
+  },
+  "publicReport": {
+    "loading": "Loading…",
+    "notFound": "Report not found or sharing was revoked.",
+    "title": "Integrated Report",
+    "weekly": "Weekly",
+    "monthly": "Monthly",
+    "done": "Done",
+    "issues": "Issues",
+    "deliverables": "Deliverables",
+    "projects": "Projects",
+    "membersN": "{{n}} members",
+    "execSummary": "Executive Summary",
+    "byProject": "By project",
+    "byMember": "By member",
+    "noUnits": "No items to report for this period.",
+    "footer": "Report created with PlanQ"
   }
 }

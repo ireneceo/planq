@@ -734,6 +734,9 @@
       "projectsLabel": "Projects",
       "thisPeriod": "This period",
       "print": "Print · PDF",
+      "share": "Share link",
+      "shareCopied": "Share link copied",
+      "shareFail": "Failed to create share link",
       "execSummary": "Executive summary",
       "execPh": "Summarize org-wide judgment, results, and risks for this period (auto-saved)",
       "execEmpty": "No executive summary yet."

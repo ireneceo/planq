@@ -71,6 +71,7 @@ const PublicCalendarEventPage = lazy(() => import('./pages/Public/PublicCalendar
 const PublicSignPage = lazy(() => import('./pages/QDocs/PublicSignPage'));
 const PublicInvoicePage = lazy(() => import('./pages/QBill/PublicInvoicePage'));
 const PublicQNoteSessionPage = lazy(() => import('./pages/QNote/PublicQNoteSessionPage'));
+const PublicReportPage = lazy(() => import('./pages/Public/PublicReportPage'));
 const QFilePage = lazy(() => import('./pages/QFile/QFilePage'));
 const AdminBusinessesPage = lazy(() => import('./pages/Admin/AdminBusinessesPage'));
 const AdminFeedbackPage = lazy(() => import('./pages/Admin/AdminFeedbackPage'));
@@ -492,6 +493,7 @@ function App() {
         <Route path="/public/calendar/:token" element={<PublicCalendarEventPage />} />
         <Route path="/public/invoices/:token" element={<PublicInvoicePage />} />
         <Route path="/public/qnote-sessions/:token" element={<PublicQNoteSessionPage />} />
+        <Route path="/public/report/:token" element={<PublicReportPage />} />
         <Route path="/sign/:token" element={<PublicSignPage />} />
 
         {/* Landing 라우트 — 비로그인 외부 트래픽 (PWA 사용자는 start_url=/inbox 라 안 봄) */}

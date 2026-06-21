@@ -10,7 +10,8 @@
 const express = require('express');
 const fs = require('fs');
 const router = express.Router();
-const { Report, ReportUnit, Project, Department, Business } = require('../models');
+const crypto = require('crypto');
+const { Report, ReportShare, ReportUnit, Project, Department, Business } = require('../models');
 const { errorResponse, successResponse } = require('../middleware/errorHandler');
 const { authenticateToken } = require('../middleware/auth');
 const { getUserScope } = require('../middleware/access_scope');
@@ -43,6 +44,29 @@ router.get('/share/:token', async (req, res, next) => {
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(report.title || `report-${report.id}`)}.pdf"`);
     return fs.createReadStream(report.pdf_url).pipe(res);
+  } catch (err) { next(err); }
+});
+
+// GET /public/integrated/:token — 통합보고서 공개 read-only (인증 불필요). 토큰→기간 매핑 후 롤업 재계산.
+router.get('/public/integrated/:token', async (req, res, next) => {
+  try {
+    const token = String(req.params.token || '').trim();
+    if (!token || token.length < 32) return errorResponse(res, 'invalid_token', 400);
+    const share = await ReportShare.findOne({ where: { token } });
+    if (!share) return errorResponse(res, 'share_not_found', 404);
+    const rollup = await buildIntegratedRollup(share.business_id, share.period_type, share.period_start);
+    const biz = await Business.findByPk(share.business_id, { attributes: ['name', 'brand_name'] });
+    const wsUnit = rollup.integrated?.id ? await ReportUnit.findByPk(rollup.integrated.id, { attributes: ['narrative'] }) : null;
+    share.update({ last_viewed_at: new Date() }).catch(() => {});
+    return successResponse(res, {
+      ...rollup,
+      workspace_name: biz?.brand_name || biz?.name || null,
+      period_type: share.period_type,
+      period_start: share.period_start,
+      dim: share.dim,
+      executive_summary: wsUnit?.narrative || '',
+      read_only: true,
+    });
   } catch (err) { next(err); }
 });
 
@@ -276,6 +300,64 @@ router.get('/:biz/integrated', authenticateToken, async (req, res, next) => {
       settings: { integrated_confirm: !!biz?.report_integrated_confirm, monthly_finalize: !!biz?.monthly_finalize_enabled },
       executive_summary: wsUnit?.narrative || '',
     });
+  } catch (err) { next(err); }
+});
+
+// POST /:biz/integrated/share — 통합보고서 공개 링크 발급/재사용 (owner/admin). Body {period_type, period_start, dim?}
+router.post('/:biz/integrated/share', authenticateToken, async (req, res, next) => {
+  try {
+    const businessId = Number(req.params.biz);
+    const { member, ownerOrAdmin } = await loadScope(req, businessId);
+    if (!member) return errorResponse(res, 'member_only', 403);
+    if (!ownerOrAdmin) return errorResponse(res, 'owner_or_admin_only', 403);
+    const periodType = String(req.body?.period_type || 'weekly');
+    const periodStartRaw = String(req.body?.period_start || '');
+    const dim = req.body?.dim === 'member' ? 'member' : 'project';
+    if (!VALID_PERIOD.includes(periodType)) return errorResponse(res, 'invalid_period_type', 400);
+    if (!DATE_RE.test(periodStartRaw)) return errorResponse(res, 'invalid_period_start', 400);
+    const periodStart = normalizePeriodStart(periodType, periodStartRaw);
+
+    const [share] = await ReportShare.findOrCreate({
+      where: { business_id: businessId, period_type: periodType, period_start: periodStart, dim },
+      defaults: { token: crypto.randomBytes(24).toString('hex'), created_by: req.user.id },
+    });
+    logAudit(req, { action: 'report_integrated.share', targetType: 'report_share', targetId: share.id, businessId, newValue: { period_type: periodType, period_start: periodStart, dim } });
+    const appUrl = process.env.APP_URL || 'https://dev.planq.kr';
+    return successResponse(res, { token: share.token, share_url: `${appUrl}/public/report/${share.token}` });
+  } catch (err) { next(err); }
+});
+
+// DELETE /:biz/integrated/share/:token — 공개 링크 취소 (owner/admin)
+router.delete('/:biz/integrated/share/:token', authenticateToken, async (req, res, next) => {
+  try {
+    const businessId = Number(req.params.biz);
+    const { member, ownerOrAdmin } = await loadScope(req, businessId);
+    if (!member) return errorResponse(res, 'member_only', 403);
+    if (!ownerOrAdmin) return errorResponse(res, 'owner_or_admin_only', 403);
+    const share = await ReportShare.findOne({ where: { token: String(req.params.token), business_id: businessId } });
+    if (!share) return errorResponse(res, 'share_not_found', 404);
+    await share.destroy();
+    logAudit(req, { action: 'report_integrated.unshare', targetType: 'report_share', targetId: share.id, businessId });
+    return successResponse(res, { revoked: true });
+  } catch (err) { next(err); }
+});
+
+// GET /:biz/integrated/share?period_type=&period_start=&dim= — 현재 발급된 공유 토큰 조회 (owner/admin)
+router.get('/:biz/integrated/share', authenticateToken, async (req, res, next) => {
+  try {
+    const businessId = Number(req.params.biz);
+    const { member, ownerOrAdmin } = await loadScope(req, businessId);
+    if (!member) return errorResponse(res, 'member_only', 403);
+    if (!ownerOrAdmin) return errorResponse(res, 'owner_or_admin_only', 403);
+    const periodType = String(req.query.period_type || 'weekly');
+    const periodStartRaw = String(req.query.period_start || '');
+    const dim = req.query.dim === 'member' ? 'member' : 'project';
+    if (!DATE_RE.test(periodStartRaw)) return errorResponse(res, 'invalid_period_start', 400);
+    const periodStart = normalizePeriodStart(periodType, periodStartRaw);
+    const share = await ReportShare.findOne({ where: { business_id: businessId, period_type: periodType, period_start: periodStart, dim } });
+    if (!share) return successResponse(res, { token: null });
+    const appUrl = process.env.APP_URL || 'https://dev.planq.kr';
+    return successResponse(res, { token: share.token, share_url: `${appUrl}/public/report/${share.token}` });
   } catch (err) { next(err); }
 });
 

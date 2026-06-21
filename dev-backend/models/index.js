@@ -65,6 +65,7 @@ const BillEvent = require('./BillEvent');
 const OverheadItem = require('./OverheadItem');
 const ProjectExpense = require('./ProjectExpense');
 const Report = require('./Report');
+const ReportShare = require('./ReportShare');
 // ─── 플랫폼 문의 ───
 const ContactInquiry = require('./ContactInquiry');
 const NotificationPref = require('./NotificationPref');
@@ -498,6 +499,7 @@ module.exports = {
   OverheadItem,
   ProjectExpense,
   Report,
+  ReportShare,
   // 플랫폼 문의
   ContactInquiry,
   NotificationPref,
