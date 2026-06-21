@@ -1,11 +1,18 @@
 # PlanQ 세션 상태
 
 ## 현재 작업 상태
-**마지막 업데이트:** 2026-06-21
-**작업 상태:** 완료 — 운영 배포 2회 (D4 보안등급 확장 + 닉네임 누락 수정·소속 표시)
+**마지막 업데이트:** 2026-06-21 (3차)
+**작업 상태:** 완료 — **AI 기능 전수검사 실행** (코드/DB 변경 0, 검증만). 미배포 0.
 
 ### 진행 중인 작업
 - 없음 (미배포 0)
+
+### AI 전수검사 결과 (2026-06-21, docs/AI_FEATURE_AUDIT.md 결과 섹션)
+- **구현된 16개 AI 기능 전부 실 LLM/임베딩/STT 왕복 PASS** (mock 0, dev biz3 user3). A1~A4 Cue·B1~B3 Q Task·C1~C2 Q Talk·D1~D3 docs/mail/brief·E1~E4·E6·E7 Q Note.
+- **발견 1 (B4):** AI 템플릿 추천(≥0.80) **미구현** — 템플릿 자체는 라이브, 설계 `project_task_templates` 의 "AI 추천" 부분 부재. 신규 기능(설계+승인 필요).
+- **발견 2 (E5):** 화자식별이 `voice_fingerprint` 임베딩 매칭 활성 — memory `feedback_qnote_speaker_simplify`(채널분리·핑거프린트 제거)와 상이. 제품 정책 재확인 필요(메모리가 오래됐을 수 있음).
+- **부수 확인:** q-note/.env DEEPGRAM_API_KEY 이제 SET → STT 503 갭 해소 (memory `project_smtp_pending` 정정함). Node backend deepgram=false 는 무관(STT는 q-note 소관).
+- 테스트 데이터 전량 원복(candidate·brief post·test-*.js 0), 소스변경 0(문서만).
 
 ### 완료된 작업 (이번 세션)
 1. **D4 보안등급 posts/kb/docs 확장 (#62)** — files 한정 `security_level`(general/internal/confidential)을 Post·Document·KbDocument 로 확장. 공통 `services/securityLevel.js`(blocksExternalShare). 외부공유 게이트(posts share/email/chat/L4전환·docs share·kb share+번들) + entity별 `PUT /security-level`(상향 시 토큰 무효화) + share.js 통합 게이트 일반화(옛 /chat 누락 갭 보완). 프론트 PostsPage·PostShareModal·KnowledgePage·DocumentEditorPage 배지·선택·hint·차단배너. 운영 DB ENUM 3테이블 확인. **commit cfb1abe·d679639 (v1.44.1), 배포 080734.**

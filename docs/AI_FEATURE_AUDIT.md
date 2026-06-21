@@ -74,3 +74,40 @@
 **1순위(고급·핵심):** A1·A2·A4(Cue), B1·B3(AI 업무), C1(번역), E1~E3(Q Note STT/요약/답변)
 **2순위:** B2·C2·D1·D2·D3
 **3순위:** A3·B4·E4~E8
+
+---
+
+## 감사 결과 (2026-06-21 실행 — 실 API 왕복 증명)
+
+> 검사자: Claude. 방법: dev 환경 실 LLM/임베딩/STT 호출 (mock 0). 토큰=app generateAccessToken, user3(biz3 워프로랩 owner).
+
+### 구현된 16개 AI 기능 — **전부 작동 (PASS)**
+
+| # | 기능 | 결과 | 증명 |
+|---|------|------|------|
+| A1 | Cue 워크스페이스 채팅 | ✅ | mode=workspace 200, biz3 실제 업무 답변. cue_context 전 쿼리 business_id 격리 |
+| A2 | qhelper Q위키 RAG | ✅ | sources[3] (create-task/create-workspace/auto-task-extract) 근거 답변 |
+| A3 | Cue 자동응답 (고객만) | ✅ | projects.js:715 senderIsStaff(BusinessMember owner포함)→스킵 |
+| A4 | Cue task 주고받기 | ✅ | feedbackBlock(revision/comment) 주입, reviewing 정지+usage limit→무한루프 0, 트리거 4곳 전부 사람 액션 |
+| B1 | AI 업무분해 | ✅ | 자연어→4업무, 전부 결과물 기반 네이밍 |
+| B2 | AI 시간예측 | ✅ | business_id few-shot 8h+reason, 없이도 graceful |
+| B3 | 업무 자동추출 | ✅ | 텍스트→2후보, business_id=3 격리, 정리 |
+| C1 | 메시지 번역 | ✅ | ko↔en 양방향 non-empty, 동일언어 fallback, retry |
+| C2 | KB 하이브리드 검색 | ✅ | '환불' 시맨틱 0.47 매칭, 쿼리레벨 격리 (wiki null 비오염) |
+| D1 | AI 문서작성 | ✅ | proposal body_html 4732자 |
+| D2 | 메일 AI (요약·추출) | ✅ | 요약 110자, 메일→업무후보 biz3 |
+| D3 | Brief 자료정리 | ✅ | summary+recommended_next_kind, text_blocks only |
+| E1 | STT (Deepgram) | ✅ | **q-note .env DEEPGRAM SET — 기존 503 갭 해소.** is_final 전부 누적+speech_final 경계 commit |
+| E2 | 회의 요약 | ✅ | key_points 3개 정확 추출 (gpt-4.1-nano/4o-mini 2단) |
+| E3 | 답변 RAG 6우선순위 | ✅ | priority>custom>session>generated>rag>general 구현 |
+| E4 | 질문 감지 | ✅ | is_question=true 라이브 |
+| E6 | 어휘사전 | ✅ | verbatim 복사, "DO NOT GUESS" empty list |
+| E7 | 회의안내 컨텍스트 | ✅ | meeting_context(brief/participants/profile) 전 LLM 함수 주입 |
+
+### 발견사항 (제품 결정 필요 — 버그 아님)
+
+1. **B4 AI 템플릿 추천(≥0.80) 미구현** — 템플릿 자체(preset·from-project·apply)는 라이브지만, 설계(`project_task_templates`)의 "AI 추천(매칭≥0.80)" 부분이 백엔드/프론트 어디에도 없음. 신규 기능 → 설계+승인 필요.
+2. **E5 화자식별 — 코드 vs 메모리 상이** — 현재 `voice_fingerprint` 임베딩 유사도 매칭 활성(routers/live.py, speaker_clustering.py). memory `feedback_qnote_speaker_simplify`(채널분리·핑거프린트 제거)와 충돌. 메모리가 오래됐거나(재도입) 정책 재확인 필요. memory `feedback_qnote_speaker_id`(사전등록+사후매칭)와는 정합.
+
+### 공통 6기준 (작동/폴백/쿼터/격리/i18n/실시간) — 횡단 확인
+폴백: OPENAI 없음 시 fallback 응답·STT 503·번역 fallback. 쿼터: workspace Cue use_cue 차감+checkUsageLimit(task/brief/translate 공통). 격리: 전 기능 business_id where 필터·cross-tenant 차단. i18n: ko/en 응답. 실시간: message:translated/new broadcast.
