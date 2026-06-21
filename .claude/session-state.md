@@ -5,7 +5,14 @@
 **작업 상태:** 완료 — **AI 템플릿 추천 운영 배포** (deploy `20260621_153721`, commit 315d4ed, 139초). **미배포 0.**
 
 ### 진행 중인 작업
-- 없음 (미배포 0). 운영 배포 검증: 헬스 내부/외부 200 · embedding 컬럼 자동추가 · **백필 9/9** · 운영 추천 API 200("신규 고객사 온보딩" 0.49 매칭 / 무관 null).
+- **미배포 2건(dev 검증 완료):** ① 워크스페이스 업무리스트 담당자 소속 tooltip ② 통합 정체성 컨텍스트 primitive(`IdentityContext`). 다음 `/배포`.
+
+### 통합 정체성 컨텍스트 (2026-06-21, "소속 표시" 재정의)
+- **핵심 정정:** "소속"은 대상별로 다름 — 직원=부서·팀(조직 D1) / 고객·파트너=회사+유형(kind). 고객의 소속은 회사이지 담당직원 아님.
+- **고객 소속은 이미 완비**(고객리스트 회사컬럼·상세 회사+유형+프로젝트·채팅hover 회사명). 빈틈은 업무리스트 client 담당자뿐이었음.
+- **신규 primitive** `components/Common/IdentityContext.tsx`(identityText + 인라인 컴포넌트) — 직원/고객 분기 단일 출처. `utils/orgLabel.ts`(affiliationLabel) 재사용.
+- 적용: TaskDetailDrawer 담당자(직원=부서·팀/외부=유형배지+회사) · QTaskPage 워크스페이스 tooltip · `assignable-externals` API company_name 추가.
+- 검증: 빌드 EXIT0·서빙 200·헬스 29/29·hex 토큰·이모지 0·i18n 0·외부API company_name 반환 확인(최고객/Acme Test Corp). commit b687fbf.
 
 ### AI 템플릿 추천 — 신규 구현 (2026-06-21, B4 갭 해소)
 - AI 업무 추가 입력 시 저장 템플릿과 임베딩 매칭 → "이 템플릿과 거의 같아요" 배너 → 클릭 시 TemplateSelectModal detail 진입.
