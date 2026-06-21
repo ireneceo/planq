@@ -8,6 +8,7 @@ const { Task, TaskAttachment, TaskComment, User, BusinessMember, BusinessCloudTo
 const { authenticateToken } = require('../middleware/auth');
 const { getUserScope, canAccessTask, isMemberOrAbove } = require('../middleware/access_scope');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
+const { applyMemberDisplayName } = require('../services/displayName');
 const gdrive = require('../services/gdrive');
 const { decodeOriginalName, buildContentDisposition } = require('../services/filename');
 
@@ -242,7 +243,7 @@ router.get('/:taskId/attachments', authenticateToken, async (req, res, next) => 
       include: [{ model: User, as: 'uploader', attributes: ['id', 'name'] }],
       order: [['created_at', 'DESC']],
     });
-    return successResponse(res, rows.map(r => ({
+    const items = rows.map(r => ({
       id: r.id,
       context: r.context,
       comment_id: r.comment_id,
@@ -253,7 +254,9 @@ router.get('/:taskId/attachments', authenticateToken, async (req, res, next) => 
       download_url: `/api/tasks/attachments/${r.id}/download`,
       preview_url: r.mime_type?.startsWith('image/') ? `/api/tasks/public/attach/${r.stored_name}` : null,
       created_at: r.created_at,
-    })));
+    }));
+    await applyMemberDisplayName(items, req._task.business_id, ['uploader']);
+    return successResponse(res, items);
   } catch (err) { next(err); }
 });
 

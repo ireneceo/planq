@@ -18,6 +18,7 @@ const {
 } = require('../models');
 const { authenticateToken } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
+const { applyMemberDisplayName, applyMemberDisplayNameOne } = require('../services/displayName');
 // §8.5 — 고객용 task 직렬화 (공수 시간·예측 출처·내부 메타 차단)
 const { serializeTaskForClient } = require('../utils/taskClientView');
 // D2-b (#66) — 컨펌자 배정 게이트 (외부 파트너=프로젝트 참여자만)
@@ -631,6 +632,7 @@ router.post('/:id/reviewers', authenticateToken, async (req, res, next) => {
       });
 
       const fullJson = full.toJSON();
+      await applyMemberDisplayNameOne(fullJson, task.business_id, ['user']);
       return successResponse(res, (await isClientUser(task, req.user.id)) ? serializeTaskForClient(fullJson) : fullJson);
     } catch (e) { await t.rollback(); throw e; }
   } catch (err) { next(err); }
@@ -751,10 +753,14 @@ router.get('/:id/workflow', authenticateToken, async (req, res, next) => {
 
     // §8.5 — 고객(요청자)에겐 공수 시간·예측 출처·내부 메타 제거
     const wfTaskJson = task.toJSON();
+    const reviewersJson = reviewers.map((r) => r.toJSON());
+    const historyJson = history.map((h) => h.toJSON());
+    await applyMemberDisplayName(reviewersJson, task.business_id, ['user']);
+    await applyMemberDisplayName(historyJson, task.business_id, ['actor', 'target']);
     return successResponse(res, {
       task: (await isClientUser(task, req.user.id)) ? serializeTaskForClient(wfTaskJson) : wfTaskJson,
-      reviewers: reviewers.map((r) => r.toJSON()),
-      history: history.map((h) => h.toJSON()),
+      reviewers: reviewersJson,
+      history: historyJson,
     });
   } catch (err) { next(err); }
 });

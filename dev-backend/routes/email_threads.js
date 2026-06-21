@@ -20,6 +20,7 @@ const { EmailThread, EmailMessage, EmailAttachment, EmailAccount, EmailThreadPar
 const { authenticateToken, checkBusinessAccess } = require('../middleware/auth');
 const { requireMenu } = require('../middleware/menu_permission');
 const { successResponse, errorResponse, parsePagination, paginatedResponse } = require('../middleware/errorHandler');
+const { applyMemberDisplayName } = require('../services/displayName');
 const { sendMail } = require('../services/emailSend');
 
 // HTML → 미리보기 텍스트 (480자) — 스레드 last_message_preview / body_text 용
@@ -851,7 +852,9 @@ router.get('/:businessId/email-threads/:id/task-candidates',
         include: [{ model: User, as: 'guessedAssignee', attributes: ['id', 'name'], required: false }],
         order: [['id', 'DESC']],
       });
-      return successResponse(res, rows.map((r) => r.toJSON()));
+      const items = rows.map((r) => r.toJSON());
+      await applyMemberDisplayName(items, thread.business_id, ['guessedAssignee']);
+      return successResponse(res, items);
     } catch (err) { next(err); }
   }
 );

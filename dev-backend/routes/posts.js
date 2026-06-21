@@ -15,6 +15,7 @@ const { getUserScope, postListWhereByLevel, canAccessPostByLevel, isMemberOrAbov
 const { successResponse, errorResponse, parsePagination, paginatedResponse } = require('../middleware/errorHandler');
 const { sendPostShareEmail } = require('../services/emailService');
 const { isValidLevel, blocksExternalShare } = require('../services/securityLevel');
+const { applyMemberDisplayName, applyMemberDisplayNameOne } = require('../services/displayName');
 
 const APP_URL = process.env.APP_URL || 'https://dev.planq.kr';
 
@@ -186,7 +187,10 @@ router.get('/', authenticateToken, async (req, res, next) => {
       limit, offset,
       distinct: true,
     });
-    return paginatedResponse(res, rows.map(r => serialize(r)), count, { limit, page, offset });
+    // 워크스페이스 표시명 우선 (author/editor) — 계정 이름 노출 방지
+    const items = rows.map(r => serialize(r));
+    await applyMemberDisplayName(items, businessId, ['author', 'editor']);
+    return paginatedResponse(res, items, count, { limit, page, offset });
   } catch (err) { next(err); }
 });
 
@@ -296,6 +300,7 @@ router.get('/:id', authenticateToken, async (req, res, next) => {
     } else {
       result.linked_posts = [];
     }
+    await applyMemberDisplayNameOne(result, post.business_id, ['author', 'editor']);
     successResponse(res, result);
   } catch (err) { next(err); }
 });
@@ -527,10 +532,12 @@ router.get('/:id/children', authenticateToken, async (req, res, next) => {
       include: [{ model: User, as: 'author', attributes: ['id', 'name', 'name_localized'] }],
       order: [['created_at', 'DESC']],
     });
-    return successResponse(res, children.map(c => ({
+    const items = children.map(c => ({
       id: c.id, title: c.title, category: c.category, created_at: c.created_at,
       author: c.author ? { id: c.author.id, name: c.author.name } : null,
-    })));
+    }));
+    await applyMemberDisplayName(items, parent.business_id, ['author']);
+    return successResponse(res, items);
   } catch (err) { next(err); }
 });
 
@@ -1106,7 +1113,13 @@ router.post('/:id/share-to-chat', authenticateToken, async (req, res, next) => {
 
 // ─── PDF 다운로드 (멤버) ───
 async function buildPostPdf(post) {
-  const author = post.author ? { id: post.author.id, name: post.author.name } : null;
+  let author = post.author ? { id: post.author.id, name: post.author.name } : null;
+  // 워크스페이스 표시명 우선 (PDF 작성자도 닉네임)
+  if (author?.id) {
+    const { getMemberDisplayName } = require('../services/displayName');
+    const d = await getMemberDisplayName(post.business_id, author.id, author.name);
+    if (d.name) author.name = d.name;
+  }
   const business = await require('../models').Business.findByPk(post.business_id, {
     attributes: ['name', 'brand_name', 'legal_name'],
   });
@@ -1190,6 +1203,7 @@ router.get('/public/:token', async (req, res, next) => {
       } : a);
     }
     delete safe.share_token;
+    await applyMemberDisplayNameOne(safe, post.business_id, ['author', 'editor']);
     return successResponse(res, safe);
   } catch (err) { next(err); }
 });

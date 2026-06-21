@@ -8,6 +8,7 @@ const { authenticateToken, checkBusinessAccess } = require('../middleware/auth')
 const { isMemberOrAbove, getUserScope } = require('../middleware/access_scope');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const { isValidLevel, blocksExternalShare } = require('../services/securityLevel');
+const { applyMemberDisplayNameOne, getMemberDisplayName } = require('../services/displayName');
 
 // N+38 — 실시간 동기화 (CLAUDE.md 운영 안정성 16번 박제).
 function broadcastKb(req, doc, event = 'kb:updated') {
@@ -1363,7 +1364,7 @@ router.get('/kb-documents/public/by-token/:token', async (req, res, next) => {
     if (checkShareExpiry(doc, res)) return;
     const v = await verifySharePassword(doc, req);
     if (!v.ok) return res.status(v.status).json({ success: false, message: v.error, requires_password: v.requires_password });
-    return successResponse(res, {
+    const payload = {
       id: doc.id,
       title: doc.title,
       body: doc.body,
@@ -1377,7 +1378,9 @@ router.get('/kb-documents/public/by-token/:token', async (req, res, next) => {
       updated_at: doc.updatedAt,
       custom_columns: Array.isArray(doc.custom_columns) ? doc.custom_columns : [],
       custom_values: doc.custom_values && typeof doc.custom_values === 'object' ? doc.custom_values : {},
-    });
+    };
+    await applyMemberDisplayNameOne(payload, doc.business_id, ['uploader']);
+    return successResponse(res, payload);
   } catch (err) { next(err); }
 });
 
@@ -1403,7 +1406,11 @@ router.get('/kb-documents/public/by-token/:token/pdf', async (req, res, next) =>
       title: doc.title, content_json: null, content_html: doc.body || '',
       category: doc.source_type || 'INFO', shared_at: doc.shared_at, created_at: doc.created_at,
     };
-    const author = doc.uploader ? { id: doc.uploader.id, name: doc.uploader.name } : null;
+    let author = doc.uploader ? { id: doc.uploader.id, name: doc.uploader.name } : null;
+    if (author) {
+      const dn = await getMemberDisplayName(doc.business_id, author.id, author.name);
+      author = { ...author, name: dn.name || author.name };
+    }
     const html = postPdfHtml(pseudoPost, author, doc.Business ? doc.Business.toJSON() : {});
     const pdf = await renderPdfFromHtml(html);
     res.setHeader('Content-Type', 'application/pdf');
