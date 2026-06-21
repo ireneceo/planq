@@ -242,9 +242,102 @@ async function getWorkspaceMatches({ businessId, scope, query }) {
   return total > 0 ? out : null;
 }
 
+// #61 — 권한 스코프 워크스페이스 현황 (쿼리 무관, 항상 주입).
+// Cue 가 "프로젝트 진행 어때?" "업무 얼마나 남았어?" 같은 일반 질문에 답하도록 전체 그림 제공.
+// 가시성은 질문자 권한 기준: member 이상=전체 / client=관여분 / 재무=owner·admin.
+const ACTIVE_TASK = ['not_started', 'waiting', 'in_progress', 'reviewing', 'revision_requested'];
+function todayStr(tz) {
+  try { return new Date().toLocaleDateString('en-CA', { timeZone: tz || 'Asia/Seoul' }); }
+  catch { return new Date().toISOString().slice(0, 10); }
+}
+async function getWorkspaceOverview({ businessId, scope, businessTimezone }) {
+  if (!businessId || !scope) return null;
+  const isStaff = isMemberOrAbove(scope);
+  const isClient = !!scope.isClient;
+  if (!isStaff && !isClient) return null;
+  const today = todayStr(businessTimezone);
+  const ov = { projects: [], taskCounts: {}, taskTotal: 0, overdue: 0, urgentTasks: [], finance: null };
+
+  // 활성 프로젝트 — member: 전체 / client: 관여 프로젝트
+  try {
+    const where = { business_id: businessId, status: { [Op.in]: ['active', 'paused'] } };
+    if (!isStaff) {
+      const ids = [...new Set([...(scope.projectClientProjectIds || []), ...(scope.projectMemberIds || [])])];
+      where.id = ids.length ? { [Op.in]: ids } : -1;
+    }
+    ov.projects = await Project.findAll({ where, attributes: ['id', 'name', 'status'], order: [['updated_at', 'DESC']], limit: 15 });
+  } catch (e) { void e; }
+
+  // 업무 — 권한 스코프(taskListWhere). 상태별 집계 + 지연 + 임박 활성업무
+  try {
+    const base = await taskListWhere(scope.userId, businessId, scope);
+    if (base) {
+      const all = await Task.findAll({ where: base, attributes: ['status', 'due_date'], limit: 800 });
+      ov.taskTotal = all.length;
+      for (const t of all) {
+        ov.taskCounts[t.status] = (ov.taskCounts[t.status] || 0) + 1;
+        if (t.due_date && ACTIVE_TASK.includes(t.status) && String(t.due_date).slice(0, 10) < today) ov.overdue++;
+      }
+      ov.urgentTasks = await Task.findAll({
+        where: { [Op.and]: [base, { status: { [Op.in]: ACTIVE_TASK }, due_date: { [Op.ne]: null } }] },
+        attributes: ['id', 'title', 'status', 'due_date', 'progress_percent'],
+        include: [{ model: User, as: 'assignee', attributes: ['name'], required: false }],
+        order: [['due_date', 'ASC']], limit: 10,
+      });
+    }
+  } catch (e) { void e; }
+
+  // 재무 요약 — owner/admin/platform_admin
+  if (scope.isOwner || scope.isAdmin || scope.isPlatformAdmin) {
+    try {
+      const base = await invoiceListWhere(scope.userId, businessId, scope);
+      if (base) {
+        const inv = await Invoice.findAll({ where: base, attributes: ['status', 'grand_total', 'paid_amount', 'currency', 'due_date'], limit: 500 });
+        let unpaid = 0, unpaidAmt = 0, overdueInv = 0, cur = 'KRW';
+        for (const i of inv) {
+          if (['sent', 'viewed', 'partially_paid', 'overdue'].includes(i.status)) {
+            unpaid++; unpaidAmt += Number(i.grand_total || 0) - Number(i.paid_amount || 0);
+            if (i.due_date && String(i.due_date).slice(0, 10) < today) overdueInv++;
+            cur = i.currency || cur;
+          }
+        }
+        if (unpaid > 0) ov.finance = { unpaid, unpaidAmt, overdueInv, currency: cur };
+      }
+    } catch (e) { void e; }
+  }
+  return ov;
+}
+
 // ── 마크다운 합성 — system prompt 에 주입
-function composeMarkdown({ history, project, client, kb, userSnap, matches, businessTimezone }) {
+function composeMarkdown({ history, project, client, kb, userSnap, matches, overview, businessTimezone }) {
   const parts = [];
+
+  // #61 — 워크스페이스 현황 (권한 스코프, 일반 질문 대응). 맨 위에 전체 그림.
+  if (overview) {
+    const o = overview;
+    const hasAny = (o.projects?.length || o.taskTotal || o.finance);
+    if (hasAny) {
+      parts.push('## 워크스페이스 현황 (질문자 권한 범위 내 — 이 데이터로 답하세요)');
+      if (o.projects?.length) {
+        parts.push(`- 활성 프로젝트 ${o.projects.length}개: ${o.projects.map(p => `${p.name}(${p.status})`).join(', ')}`);
+      }
+      if (o.taskTotal) {
+        const byStatus = Object.entries(o.taskCounts).map(([s, n]) => `${s} ${n}`).join(', ');
+        parts.push(`- 업무 총 ${o.taskTotal}건 (${byStatus})${o.overdue ? ` · ⚠ 마감 지난 활성 업무 ${o.overdue}건` : ''}`);
+      }
+      if (o.urgentTasks?.length) {
+        parts.push(`- 마감 임박/지난 활성 업무:`);
+        o.urgentTasks.forEach(t => {
+          const due = t.due_date ? String(t.due_date).slice(0, 10) : '미정';
+          const who = t.assignee?.name ? ` · ${t.assignee.name}` : '';
+          parts.push(`  · ${t.title} (${t.status}, 진행 ${t.progress_percent || 0}%, 마감 ${due}${who})`);
+        });
+      }
+      if (o.finance) {
+        parts.push(`- 미수금(미입금 청구) ${o.finance.unpaid}건, 합계 약 ${Math.round(o.finance.unpaidAmt).toLocaleString()} ${o.finance.currency}${o.finance.overdueInv ? ` · 결제기한 지난 ${o.finance.overdueInv}건` : ''}`);
+      }
+    }
+  }
 
   if (userSnap) {
     parts.push('## 내 현황 (본인)');
@@ -367,10 +460,14 @@ async function buildCueContext({ businessId, conversationId, projectId, clientId
   const matchesP = (query && scope)
     ? getWorkspaceMatches({ businessId, scope, query }).catch(() => null)
     : Promise.resolve(null);
+  // 7. #61 — 권한 스코프 워크스페이스 현황 (쿼리 무관, scope 있으면 항상)
+  const overviewP = scope
+    ? getWorkspaceOverview({ businessId, scope, businessTimezone }).catch(() => null)
+    : Promise.resolve(null);
 
-  const [history, project, client, userSnap, kb, matches] = await Promise.all([historyP, projectP, clientP, userP, kbP, matchesP]);
-  const markdown = composeMarkdown({ history, project, client, kb, userSnap, matches, businessTimezone });
-  return { markdown, kb, history, project, client, userSnap, matches };
+  const [history, project, client, userSnap, kb, matches, overview] = await Promise.all([historyP, projectP, clientP, userP, kbP, matchesP, overviewP]);
+  const markdown = composeMarkdown({ history, project, client, kb, userSnap, matches, overview, businessTimezone });
+  return { markdown, kb, history, project, client, userSnap, matches, overview };
 }
 
 module.exports = { buildCueContext };
