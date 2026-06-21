@@ -230,6 +230,22 @@ const ARTICLES = [
       p('개인 설정에서 구글 캘린더·드라이브 등을 연결해 일정·파일을 연동합니다.',
         'Connect Google Calendar, Drive, and more from personal settings to sync events and files.'),
     ] },
+  { cat: 'settings', slug: 'connect-mail', visibility: 'authenticated', linked_route: '/business/settings/mail-accounts', est: 3,
+    title: t('메일 계정 연결하기 (Gmail · IMAP)', 'Connect a mail account (Gmail · IMAP)'),
+    summary: t('Gmail 또는 IMAP 메일 계정을 연결해 Q Mail에서 메일을 함께 보고 답장', 'Connect a Gmail or IMAP account to read and reply to mail inside Q Mail'),
+    body: [
+      p('메일 계정을 연결하면 받은 메일을 Q Mail에서 함께 보고, 고객 대화·업무와 한 곳에서 답장할 수 있어요. 5분마다 자동으로 동기화됩니다.',
+        'Connect a mail account to read incoming mail inside Q Mail and reply alongside client chats and tasks. It syncs automatically every 5 minutes.'),
+      h('어디서 연결하나요?', 'Where do I connect?'),
+      s('설정 → 메일 계정 (또는 Q Mail 화면의 "메일 계정 연결")으로 들어갑니다.', 'Go to Settings → Mail accounts (or "Connect a mail account" on the Q Mail screen).'),
+      s('회사 공용 메일은 관리자가 연결하면 모든 팀원이 인박스에서 함께 봅니다. 개인 메일은 본인에게만 보입니다.', 'A shared company mailbox (connected by an admin) is visible to the whole team; a personal mailbox is visible only to you.'),
+      h('Gmail로 연결 (가장 간편)', 'Connect with Gmail (easiest)'),
+      s('"Gmail로 연결" 버튼을 누르면 구글 로그인 창이 열립니다. 권한을 허용하면 끝 — 앱 비밀번호가 필요 없습니다.', 'Click "Connect with Gmail" to open the Google sign-in window. Allow access and you are done — no app password needed.'),
+      h('IMAP로 직접 연결 (그 외 메일)', 'Connect via IMAP (other providers)'),
+      s('"계정 추가"에서 이메일 주소, IMAP 호스트·포트, 비밀번호(또는 앱 비밀번호)를 입력합니다.', 'In "Add account", enter your email address, IMAP host and port, and password (or app password).'),
+      note('Gmail·네이버 등 2단계 인증을 쓰는 메일은 일반 비밀번호 대신 "앱 비밀번호"를 발급해 입력해야 합니다. Gmail 사용자는 "Gmail로 연결" 버튼이 가장 간편합니다.',
+        'For mailboxes with 2-step verification (Gmail, Naver, etc.), generate and enter an "app password" instead of your normal password. Gmail users should prefer the "Connect with Gmail" button.'),
+    ] },
 ];
 
 async function run() {
