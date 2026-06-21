@@ -19,6 +19,7 @@ const { TaskCandidate, User } = require('../models');
 const { authenticateToken, checkBusinessAccess } = require('../middleware/auth');
 const { requireMenu } = require('../middleware/menu_permission');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
+const { applyMemberDisplayName } = require('../services/displayName');
 
 // 실시간 broadcast (CLAUDE.md §16 — 모든 mutation 라우트 필수)
 function broadcast(req, businessId, event, payload) {
@@ -61,7 +62,9 @@ router.get('/:businessId/qnote-sessions/:sid/task-candidates',
         include: [{ model: User, as: 'guessedAssignee', attributes: ['id', 'name'], required: false }],
         order: [['id', 'DESC']],
       });
-      return successResponse(res, rows.map((r) => r.toJSON()));
+      const items = rows.map((r) => r.toJSON());
+      await applyMemberDisplayName(items, businessId, ['guessedAssignee']);
+      return successResponse(res, items);
     } catch (err) { next(err); }
   }
 );

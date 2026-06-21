@@ -15,6 +15,7 @@ const { decodeOriginalName, buildContentDisposition } = require('../services/fil
 const { authenticateToken, checkBusinessAccess } = require('../middleware/auth');
 const { attachWorkspaceScope, fileListWhereByLevel, canAccessFileByLevel, isMemberOrAbove, getUserScope } = require('../middleware/access_scope');
 const { successResponse, errorResponse, parsePagination, paginatedResponse } = require('../middleware/errorHandler');
+const { applyMemberDisplayName, applyMemberDisplayNameOne } = require('../services/displayName');
 
 // s3 독립 서버 파일이면 presign(또는 public URL)로 redirect. 처리하면 true 반환 (운영 #29).
 async function _s3Redirect(file, res) {
@@ -106,7 +107,7 @@ router.get('/public/by-token/:token', async (req, res, next) => {
     if (checkShareExpiry(file, res)) return;
     const v = await verifySharePassword(file, req);
     if (!v.ok) return res.status(v.status).json({ success: false, message: v.error, requires_password: v.requires_password });
-    return successResponse(res, {
+    const payload = {
       id: file.id,
       file_name: file.file_name,
       mime_type: file.mime_type,
@@ -116,7 +117,9 @@ router.get('/public/by-token/:token', async (req, res, next) => {
       workspace: file.Business ? { id: file.Business.id, name: file.Business.brand_name || file.Business.name } : null,
       shared_at: file.shared_at,
       created_at: file.created_at,
-    });
+    };
+    await applyMemberDisplayNameOne(payload, file.business_id, ['uploader']);
+    return successResponse(res, payload);
   } catch (err) { next(err); }
 });
 
@@ -299,7 +302,9 @@ router.get('/:businessId', authenticateToken, attachWorkspaceScope(), async (req
       limit, offset,
       distinct: true,
     });
-    return paginatedResponse(res, rows, count, { limit, page, offset });
+    const items = rows.map(r => r.toJSON());
+    await applyMemberDisplayName(items, req.params.businessId, ['uploader']);
+    return paginatedResponse(res, items, count, { limit, page, offset });
   } catch (error) {
     next(error);
   }
