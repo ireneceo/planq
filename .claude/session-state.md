@@ -24,7 +24,8 @@
 - (직전 섹션 운영 라이브: D1 조직 + D2-a 유형 + D2-b 담당자 + D3 보고서 재구성)
 
 ### 다음 할 일
-0. **🚀 D4 보안등급 확장 운영 배포** — dev 검증 완료(E2E+빌드). Irene `/배포` 시 커밋 후 `./scripts/deploy-planq.sh --auto`. DB는 posts/documents/kb_documents 에 security_level ENUM 추가됨(운영 sync 자동 또는 ALTER).
+-1. **🚀 미배포 2건 운영 반영 대기** — (a) 멤버 닉네임 누락 전수 수정(04183bb, 백엔드) (b) 멤버 소속 채팅 표시(05b21b4). Irene `/배포` 대기.
+0. **D4 보안등급 확장** — ✅ 운영 배포 완료(v1.44.1, cfb1abe). Irene `/배포` 시 커밋 후 `./scripts/deploy-planq.sh --auto`. DB는 posts/documents/kb_documents 에 security_level ENUM 추가됨(운영 sync 자동 또는 ALTER).
 1. **#63 워크스페이스 간 이동 (대규모, `/기능설계` 필요):** 퇴사자 자료를 다른 워크스페이스로 이동. 소유권 재배정·데이터 무결성·보안등급 게이트. 제품 결정(이동 단위·권한·승인흐름) 필요.
 3. **보고서 디자인 세부 보완:** Irene 화면 검토 후 추가 요청 예정 ("자세한 수정은 다시 요청할게").
 4. **D1 후속 — 멤버 소속 표시:** ✅ 채팅 hover(UserInfoPopover) 완료(05b21b4, 미배포). 잔여 surface: 업무리스트 행·프로필 페이지(밀집 리스트 표시방식은 디자인 결정 필요).

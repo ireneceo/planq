@@ -45,7 +45,8 @@ export interface DrawerTaskPatch {
   is_milestone?: boolean;
 }
 
-export interface DrawerMemberOption { user_id: number; name: string; }
+interface DrawerOrgUnit { id: number; name: string; name_en?: string | null }
+export interface DrawerMemberOption { user_id: number; name: string; department?: DrawerOrgUnit | null; team?: DrawerOrgUnit | null; }
 // D2-b (#66) — 프로젝트 참여 외부 파트너(user 계정 client) 후보. picker 에서 멤버와 합쳐 노출 + 유형 배지.
 export interface DrawerExternalOption { user_id: number; name: string; kind: string; }
 
@@ -146,7 +147,10 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
   taskId, bizId, myId, todayStr, members, projects: projectsProp,
   width, onWidthChange, onClose, onPatch, onRefresh, onDuplicated,
 }) => {
-  const { t } = useTranslation('qtask');
+  const { t, i18n } = useTranslation('qtask');
+  // D1 후속 — 부서/팀 이름 현지화 (en 이면 name_en fallback name)
+  const orgUnitName = (u?: { name: string; name_en?: string | null } | null) =>
+    u ? ((i18n.language?.startsWith('en') && u.name_en) ? u.name_en : u.name) : '';
   // 댓글 첨부 이미지 라이트박스 — 한 댓글의 이미지들이 갤러리로 묶임
   const { open: openImageLightbox, lightbox: imageLightbox } = useImageLightbox();
   // 프로젝트 옵션 — props 우선, 없으면 자체 fetch (TodoPage / QCalendarPage 같은 호출 측 호환)
@@ -941,6 +945,12 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                       saveField('assignee_id', uid);
                     }}
                     options={assigneeOptions} />
+                  {/* D1 후속 — 담당자 소속(부서·팀) 표시 */}
+                  {(() => {
+                    const am = detailTask.assignee_id != null ? members.find(mm => mm.user_id === detailTask.assignee_id) : null;
+                    const aff = am ? [orgUnitName(am.department), orgUnitName(am.team)].filter(Boolean).join(' · ') : '';
+                    return aff ? <AssigneeAffiliation>{aff}</AssigneeAffiliation> : null;
+                  })()}
                 </MetaCell>
                 <MetaCell>
                   <MetaLabel>{t('detail.meta.period', '기간')}</MetaLabel>
@@ -1771,6 +1781,8 @@ const MetaCell = styled.div`
   display: flex; flex-direction: column; gap: 3px;
 `;
 const MetaLabel = styled.label`font-size: 11px; color: #64748B; font-weight: 600;`;
+// D1 후속 — 담당자 소속(부서·팀) 보조 텍스트
+const AssigneeAffiliation = styled.div`font-size: 11px; color: #94A3B8; margin-top: 4px; word-break: keep-all;`;
 // 마일스톤(주요 업무) 토글 — 다이아몬드 + 라벨. 일정 타임라인 ◆ 와 시각 연동.
 const MilestoneToggle = styled.button<{ $on: boolean }>`
   display: inline-flex; align-items: center; gap: 7px; min-height: 28px; align-self: flex-start;
