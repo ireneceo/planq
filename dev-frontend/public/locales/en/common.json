@@ -218,7 +218,12 @@
     "qtalk": "Q Talk",
     "qnote": "Q Note",
     "qhelper": "Q helper",
-    "popout": "Open in new window"
+    "popout": "Open in new window",
+    "createLabel": "Quick create",
+    "openLabel": "Open",
+    "newTask": "Task",
+    "newMail": "Mail",
+    "newEvent": "Event"
   },
   "saving": "Saving…",
   "loading": "Loading…",

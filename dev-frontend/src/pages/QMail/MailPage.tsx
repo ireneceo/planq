@@ -587,6 +587,13 @@ const MailPage: React.FC = () => {
   useEffect(() => {
     if (composeOpen && cAccountId == null && accounts.length) setCAccountId(accounts[0].id);
   }, [composeOpen, cAccountId, accounts]);
+  // #80 — 퀵메뉴 '+메일' 진입 시 작성 모달 자동 오픈
+  useEffect(() => {
+    if (sp.get('compose') === '1') {
+      setComposeOpen(true);
+      const next = new URLSearchParams(sp); next.delete('compose'); setSp(next, { replace: true });
+    }
+  }, [sp, setSp]);
   const composeAccountOptions = useMemo(
     () => accounts.map(a => ({ value: a.id, label: `${a.display_name || a.email}${a.is_personal ? ` (${t('account.personal', { defaultValue: '개인' })})` : ''}` })),
     [accounts, t],

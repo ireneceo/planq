@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import styled from 'styled-components';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import PageShell from '../../components/Layout/PageShell';
 import MonthView from './MonthView';
@@ -57,6 +57,15 @@ const QCalendarPage: React.FC = () => {
   const [selectedInstanceDate, setSelectedInstanceDate] = useState<string | null>(null);
   const [showNewModal, setShowNewModal] = useState(false);
   const [newModalInitial, setNewModalInitial] = useState<Date>(new Date());
+  const [calSp, setCalSp] = useSearchParams();
+  // #80 — 퀵메뉴 '+일정' 진입 시 새 일정 모달 자동 오픈
+  useEffect(() => {
+    if (calSp.get('create') === '1') {
+      setNewModalInitial(new Date());
+      setShowNewModal(true);
+      const next = new URLSearchParams(calSp); next.delete('create'); setCalSp(next, { replace: true });
+    }
+  }, [calSp, setCalSp]);
 
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [taskEvents, setTaskEvents] = useState<CalendarItem[]>([]);

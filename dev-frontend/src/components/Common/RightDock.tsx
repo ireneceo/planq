@@ -64,6 +64,14 @@ const RightDock: React.FC = () => {
 
   if (!isBusinessMember || pathHidden) return null;
 
+  // #80 — 빠른 만들기: 해당 페이지로 이동하며 생성 모달 자동 오픈(URL param). "진짜 퀵".
+  const handleCreate = (kind: 'task' | 'mail' | 'event') => {
+    setExpanded(false);
+    if (kind === 'task') navigate('/tasks?create=1');
+    else if (kind === 'mail') navigate('/mail?compose=1');
+    else navigate('/calendar?create=1');
+  };
+
   const handlePick = (tool: DockTool) => {
     setExpanded(false);
     const isMobile = typeof window !== 'undefined' && window.matchMedia('(max-width: 768px)').matches;
@@ -84,6 +92,19 @@ const RightDock: React.FC = () => {
     <FabWrap ref={fabRef}>
       {expanded && (
         <Menu role="menu" aria-label={t('dock.menuLabel', '바로 열기') as string}>
+          {/* #80 — 빠른 만들기 그룹 (열기 도구와 구분) */}
+          <GroupLabel>{t('dock.createLabel', '빠른 만들기') as string}</GroupLabel>
+          <MenuItem $create role="menuitem" type="button" onClick={() => handleCreate('task')}>
+            <PlusIcon /><span>{t('dock.newTask', '업무')}</span>
+          </MenuItem>
+          <MenuItem $create role="menuitem" type="button" onClick={() => handleCreate('mail')}>
+            <PlusIcon /><span>{t('dock.newMail', '메일')}</span>
+          </MenuItem>
+          <MenuItem $create role="menuitem" type="button" onClick={() => handleCreate('event')}>
+            <PlusIcon /><span>{t('dock.newEvent', '일정')}</span>
+          </MenuItem>
+          <MenuDivider />
+          <GroupLabel>{t('dock.openLabel', '열기') as string}</GroupLabel>
           <MenuItem role="menuitem" type="button" onClick={() => handlePick('qtalk')}>
             <ItemIcon $bg="#0F766E"><IconTalk /></ItemIcon>
             <span>{t('dock.qtalk', 'Q Talk')}</span>
@@ -164,10 +185,10 @@ const Menu = styled.div`
   @keyframes dockIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
 `;
 
-const MenuItem = styled.button`
+const MenuItem = styled.button<{ $create?: boolean }>`
   width: 100%;
   display: inline-flex; align-items: center; justify-content: flex-start; gap: 10px;
-  padding: 8px 14px 8px 8px;
+  padding: ${({ $create }) => ($create ? '8px 14px' : '8px 14px 8px 8px')};
   background: #FFFFFF;
   border: 1px solid #E2E8F0; border-radius: 12px;
   box-shadow: 0 4px 14px rgba(15,23,42,0.12);
@@ -175,7 +196,7 @@ const MenuItem = styled.button`
   font-size: 14px; font-weight: 600; color: #0F172A;
   text-align: left;
   transition: transform 0.12s, box-shadow 0.12s;
-  &:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(15,23,42,0.16); }
+  &:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(15,23,42,0.16); ${({ $create }) => $create && 'border-color: #14B8A6; color: #0F766E;'} }
   &:focus-visible { outline: 2px solid rgba(15,118,110,0.5); outline-offset: 2px; }
   span { white-space: nowrap; }
 `;
@@ -185,3 +206,12 @@ const ItemIcon = styled.span<{ $bg: string }>`
   display: inline-flex; align-items: center; justify-content: center;
   background: ${({ $bg }) => $bg}; color: #FFFFFF; flex-shrink: 0;
 `;
+// #80 — 빠른 만들기 그룹 라벨 · 구분선 · + 아이콘
+const GroupLabel = styled.div`
+  font-size: 10px; font-weight: 700; color: #94A3B8; text-transform: uppercase; letter-spacing: 0.5px;
+  padding: 2px 6px 0; align-self: flex-end; text-align: right; width: 100%;
+`;
+const MenuDivider = styled.div`height: 1px; background: #E2E8F0; margin: 2px 4px;`;
+const PlusIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#14B8A6" strokeWidth="2.4" strokeLinecap="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+);
