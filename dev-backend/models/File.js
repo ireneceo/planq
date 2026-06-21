@@ -107,6 +107,13 @@ File.init({
     allowNull: true,
     defaultValue: null,
   },
+  // D4 #62 — 보안등급 (visibility 와 직교 축). general=외부공유·드라이브 OK /
+  //   internal=외부공유 차단 / confidential=외부공유·개인드라이브 차단 + export 관리자만.
+  security_level: {
+    type: DataTypes.ENUM('general', 'internal', 'confidential'),
+    allowNull: false,
+    defaultValue: 'general',
+  },
   // N+74 — vlevel 신컬럼 (Post/KbDocument 와 정합). visibility 는 legacy 유지 + 동시 갱신.
   vlevel: {
     type: DataTypes.ENUM('L1', 'L2', 'L3', 'L4'),

@@ -32,6 +32,7 @@ export interface ProjectFile {
   external_url?: string | null;
   // N+67 — visibility 필드 (source='direct' 일 때만 변경 가능)
   visibility?: 'L1' | 'L2' | 'L3' | 'L4' | null;
+  security_level?: 'general' | 'internal' | 'confidential';  // D4 #62
   project_id?: number | null;
 }
 
@@ -48,6 +49,21 @@ export async function updateFileVisibility(
   });
   const j = await r.json();
   if (!j.success) throw new Error(j.message || 'visibility_change_failed');
+  return j.data;
+}
+
+// D4 #62 — 파일 보안등급 변경 (general/internal/confidential). 일반 외로 상향 시 외부 공유 링크 무효화.
+export type FileSecurityLevel = 'general' | 'internal' | 'confidential';
+export async function updateFileSecurityLevel(
+  businessId: number,
+  fileId: number,
+  level: FileSecurityLevel,
+): Promise<{ id: number; security_level: FileSecurityLevel; revoked_share: boolean }> {
+  const r = await apiFetch(`/api/files/${businessId}/${fileId}/security-level`, {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ level }),
+  });
+  const j = await r.json();
+  if (!j.success) throw new Error(j.message || 'security_level_change_failed');
   return j.data;
 }
 

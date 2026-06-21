@@ -10,13 +10,14 @@ import DetailDrawer from '../../components/Common/DetailDrawer';
 import ShareModal from '../../components/Common/ShareModal';
 import EmptyState from '../../components/Common/EmptyState';
 import PlanQSelect from '../../components/Common/PlanQSelect';
+import SecurityLevelBadge, { useSecurityLevelLabel } from '../../components/Common/SecurityLevelBadge';
 import SearchBox from '../../components/Common/SearchBox';
 import CloudConnectNotice from '../../components/Common/CloudConnectNotice';
 import { Link } from 'react-router-dom';
 import {
   fetchProjectFiles, fetchWorkspaceFiles, uploadProjectFile, uploadMyFile, deleteProjectFile, bulkDeleteFiles,
   fetchFolders, createFolder, renameFolder, deleteFolder, reorderFolder, moveFile,
-  createShareLink, bulkDownloadZip, updateFileVisibility,
+  createShareLink, bulkDownloadZip, updateFileVisibility, updateFileSecurityLevel,
   formatBytes, extOf, isImage,
   type ProjectFile, type FileSource, type FileFolder,
 } from '../../services/files';
@@ -73,6 +74,7 @@ const DocsTab: React.FC<Props> = (props) => {
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [moveTargetOpen, setMoveTargetOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const secLabel = useSecurityLevelLabel();  // D4 #62 보안등급 라벨
   // N+67 — visibility 변경 UI 용 (preview drawer 안)
   const [projects, setProjects] = useState<ApiProject[]>([]);
   const [clients, setClients] = useState<WorkspaceClientRow[]>([]);
@@ -640,6 +642,7 @@ const DocsTab: React.FC<Props> = (props) => {
                       );
                     })()}
                     <CardName title={f.file_name}>{f.file_name}</CardName>
+                    {f.security_level && f.security_level !== 'general' && <CardMeta><SecurityLevelBadge level={f.security_level} /></CardMeta>}
                     <CardMeta><span>{formatBytes(f.file_size)}</span><span>·</span><span>{f.uploader_name}</span></CardMeta>
                     <CardMeta><span>{formatDate(f.uploaded_at)}</span></CardMeta>
                   </Card>
@@ -793,6 +796,23 @@ const DocsTab: React.FC<Props> = (props) => {
                     members={members}
                     hide={{ L4: true }}  // file 외부 share 는 ShareModal 흐름이 표준
                   />
+                  {/* D4 #62 — 보안등급 (visibility 와 별개 축. 내부·기밀은 외부 공유 차단) */}
+                  <SectionLabel style={{ marginTop: 14 }}>{t('securityLevel.label', { defaultValue: '보안등급' }) as string}</SectionLabel>
+                  <PlanQSelect
+                    size="sm" isClearable={false} isSearchable={false}
+                    value={{ value: preview.security_level || 'general', label: secLabel(preview.security_level || 'general') }}
+                    options={(['general', 'internal', 'confidential'] as const).map((lv) => ({ value: lv, label: secLabel(lv) }))}
+                    onChange={async (o) => {
+                      const lv = (((o as { value?: string })?.value) || 'general') as 'general' | 'internal' | 'confidential';
+                      const fileIdNum = Number(String(preview.id).replace(/^direct-/, ''));
+                      if (!fileIdNum) return;
+                      try {
+                        const r = await updateFileSecurityLevel(scope.businessId, fileIdNum, lv);
+                        setPreview(prev => prev ? { ...prev, security_level: lv, ...(r.revoked_share ? { share_token: null } : {}) } : prev);
+                      } catch (_) { /* skip */ }
+                    }}
+                  />
+                  <SecHint>{t(`securityLevel.${preview.security_level || 'general'}Hint`, { defaultValue: '' }) as string}</SecHint>
                 </VisibilitySection>
               )}
             </DetailDrawer.Body>
@@ -1598,6 +1618,7 @@ const VisibilitySection = styled.div`
   display: flex; flex-direction: column; gap: 10px;
 `;
 const SectionLabel = styled.div`font-size: 11px; font-weight: 700; color: #64748B; text-transform: uppercase; letter-spacing: 0.4px;`;
+const SecHint = styled.div`font-size: 11px; color: #94A3B8; margin-top: 6px; line-height: 1.5;`;
 const MetaItem = styled.div`display:flex;align-items:flex-start;gap:10px;font-size:13px;`;
 const MetaKey = styled.div`flex:0 0 74px;font-size:11px;font-weight:700;color:#94A3B8;text-transform:uppercase;letter-spacing:.3px;padding-top:2px;`;
 const MetaVal = styled.div`color:#0F172A;word-break:break-all;`;

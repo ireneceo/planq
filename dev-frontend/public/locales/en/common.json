@@ -605,6 +605,16 @@
       "wontfix": "Won’t fix"
     }
   },
+  "securityLevel": {
+    "label": "Security level",
+    "general": "General",
+    "internal": "Internal",
+    "confidential": "Confidential",
+    "generalHint": "External sharing and drive sync allowed",
+    "internalHint": "No external sharing — workspace only",
+    "confidentialHint": "No external sharing or personal drive; export by admins only",
+    "blockedShare": "Internal/Confidential files can't be shared externally. Lower the level to General to share."
+  },
   "adminWiki": {
     "title": "Q Wiki Admin",
     "searchPh": "Search title or slug",
