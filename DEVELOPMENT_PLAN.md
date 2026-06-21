@@ -1,6 +1,8 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-06-20 (8) — **🔧 전체 보고서 영역 재구성 (Irene 확정 구조 + Insights 디자인 재사용). 미배포, 디자인 세부수정 추가요청 예정.** 상단 3탭 평면화: **전체 업무 / 전체 주간보고 / 전체 월간보고**. 주간·월간 각각 안에 **[통합보고서 · 프로젝트별 보고서 · 개별 보고서]** 3타입 유지. **통합보고서**=프로젝트뷰/멤버뷰 토글, 모든 프로젝트(또는 멤버)가 **한 페이지에 합쳐진 단일 보고서**(접기 제거·전부 펼침), Insights 공통 컴포넌트(KpiGrid·KpiCard·SectionLabel·ChartCard) 재사용해 웹페이지 형태 구성 + 전사 KPI·전사요약·단위카드(헤더+ReportContent 풀)·인쇄PDF. **프로젝트별/개별**=Insights TeamTab 리스트 패턴 재사용(`ReportsList.tsx` 신규 — 기간필터+테이블+행클릭 DetailDrawer). `WeeklyReviewTab` 서브탭화, `QTaskPage` workspace 3탭+canManage 게이트. **백엔드 보안 fix(검증 중 발견):** GET /integrated·/integrated/periods owner/admin 게이트 누락→추가(멤버가 전 멤버 개인보고 narrative 열람 차단), 개인보고 unit GET 프라이버시 게이트(본인/owner/admin), share/:token errorResponse 인자 뒤바뀜(res.status(문자열)→500) 4곳 정정. **검증:** 헬스 29/29·빌드 EXIT0·E2E 20/20(CRUD왕복·프라이버시·프로젝트·월간·통합·에러)·cross-tenant 4/4(biz6→biz3 전자원 403)·통합롤업 실내용(프로젝트4·멤버6·완료14·진행17·이슈11)·서빙 200·ko/en 패리티. **공유 링크(외부열람)는 미구현 — 다음 작업(현재 인쇄·PDF만).** **구조 박제:** memory `project_reporting_structure.md`.
+> **최종 업데이트:** 2026-06-21 — **D 클러스터 운영 배포 (보고서 라벨·반응형·공유 + D4 보안등급).** 누적 D2·D3 에 더해 이번 섹션: ① 탭 라벨 **'나의 주간보고'→'나의 업무보고'**. ② **보고서 전수 반응형** — KpiGrid `minmax(0,1fr)`+min-width:0+word-break+560px 1열, ReportContent Grid minmax·Sec/ITitle min-width:0, UnitName word-break, ReportsList FilterBar wrap (보고서 non-minmax 1fr 0건, 가로 오버플로우 근본 제거). ③ **보고서 외부 공유 링크** — `report_shares` 테이블(token→기간 멱등) + `GET /api/reports/public/integrated/:token`(무인증 read-only 롤업) + `/public/report/:token` 공개페이지(KpiGrid·ReportContent 재사용) + IntegratedReportView "공유 링크" 버튼. E2E 9/9. ④ **D4 보안등급(#62)** — `files.security_level` ENUM(general/internal/confidential), 외부 공유 링크 게이트(내부·기밀 차단+상향 시 토큰 무효화, files share-link+통합 share /email·/chat)·일괄 export 게이트(기밀=owner/admin), 공통 `SecurityLevelBadge`+DocsTab 배지·선택·hint·securityLevel i18n. 개인드라이브 push=N/A(읽기전용). E2E 8/9+3/3. **운영 배포 검증:** 헬스 200·files.security_level·report_shares 운영 스키마 확인. **잔여:** #63 워크스페이스 간 이동(대규모 별도 설계) · 보안등급 posts/kb/docs 확장 · 보고서 디자인 세부(Irene 화면 검토).
+>
+> **이전:** 2026-06-20 (8) — **🔧 전체 보고서 영역 재구성 (Irene 확정 구조 + Insights 디자인 재사용). 미배포, 디자인 세부수정 추가요청 예정.** 상단 3탭 평면화: **전체 업무 / 전체 주간보고 / 전체 월간보고**. 주간·월간 각각 안에 **[통합보고서 · 프로젝트별 보고서 · 개별 보고서]** 3타입 유지. **통합보고서**=프로젝트뷰/멤버뷰 토글, 모든 프로젝트(또는 멤버)가 **한 페이지에 합쳐진 단일 보고서**(접기 제거·전부 펼침), Insights 공통 컴포넌트(KpiGrid·KpiCard·SectionLabel·ChartCard) 재사용해 웹페이지 형태 구성 + 전사 KPI·전사요약·단위카드(헤더+ReportContent 풀)·인쇄PDF. **프로젝트별/개별**=Insights TeamTab 리스트 패턴 재사용(`ReportsList.tsx` 신규 — 기간필터+테이블+행클릭 DetailDrawer). `WeeklyReviewTab` 서브탭화, `QTaskPage` workspace 3탭+canManage 게이트. **백엔드 보안 fix(검증 중 발견):** GET /integrated·/integrated/periods owner/admin 게이트 누락→추가(멤버가 전 멤버 개인보고 narrative 열람 차단), 개인보고 unit GET 프라이버시 게이트(본인/owner/admin), share/:token errorResponse 인자 뒤바뀜(res.status(문자열)→500) 4곳 정정. **검증:** 헬스 29/29·빌드 EXIT0·E2E 20/20(CRUD왕복·프라이버시·프로젝트·월간·통합·에러)·cross-tenant 4/4(biz6→biz3 전자원 403)·통합롤업 실내용(프로젝트4·멤버6·완료14·진행17·이슈11)·서빙 200·ko/en 패리티. **공유 링크(외부열람)는 미구현 — 다음 작업(현재 인쇄·PDF만).** **구조 박제:** memory `project_reporting_structure.md`.
 >
 > **이전:** 2026-06-20 (7) — **🔧 R1 실행·보고 통합 재설계 착수 (마스터설계 완료 + R1-C1 백엔드 완료·검증 17/17, C2 프론트 WIP).** 마스터 설계 `docs/EXECUTION_REPORTING_MASTER_DESIGN.md`(10섹션): 개념정정(실행추적=업무·거래분리·업무연계도→관련프로젝트) · 일정 타임라인 ★(캔버스+보고서 공유) · 워크스트림=업무그룹 동기화 · 뷰별 목적·리포트급 비주얼 · 책임 기반 보고(자동초안→확정→통합롤업·주월간). **R1-C1 완료·커밋 `d416dab`:** tasks.is_milestone·projects.timeline_key_only·project_links + GET /:id/timeline·timeline-settings·관련프로젝트 CRUD·tasks PUT is_milestone. **R1-C2 WIP:** ScheduleTimeline 컴포넌트+서비스 생성(캔버스 재배선 전). **다음 섹션:** session-state.md "R1 C2 다음 할 일" 참조. 미배포.
 >
@@ -126,6 +128,33 @@
 > **이전 라이브:** v1.16.1 (commit `8947504`) — N+31 사이클 (Q Talk 모바일 viewport 회귀 fix)
 >
 > **이전 라이브:** v1.16.0 (commit `ab113a6`) — N+26~N+27 사이클 (업무 흐름 Focus MVP + 인박스 inline 모달 + Cue 주고받음)
+
+---
+
+## ✅ 완료: 보고서 라벨·반응형·공유 + D4 보안등급 (2026-06-21)
+
+### 완료된 작업
+
+| 작업 | 설명 | 상태 |
+|------|------|:----:|
+| 탭 라벨 | '나의 주간보고'→'나의 업무보고' (ko/en) | ✅ 배포 |
+| 보고서 전수 반응형 | KpiGrid minmax(0,1fr)·ReportContent·UnitName·FilterBar — 가로 오버플로우 근본 제거 | ✅ 배포 |
+| 보고서 외부 공유 링크 | report_shares + /public/report/:token read-only + 공유 버튼 (E2E 9/9) | ✅ 배포 |
+| D4 보안등급 #62 | files.security_level 3단계 + 외부공유 게이트 + export 게이트(기밀=관리자) + UI (E2E 8/9+3/3) | ✅ 배포 |
+
+### 수정/신규 파일
+- 백엔드: `models/ReportShare.js`·`File.js`(security_level) · `routes/reports.js`(공유)·`files.js`(게이트)·`share.js`(게이트)
+- 프론트: `pages/Public/PublicReportPage.tsx`·`components/Common/SecurityLevelBadge.tsx`(신규) · `IntegratedReportView`·`ReportContent`·`ReportsList`·`DocsTab`·`Insights/components.tsx`(KpiGrid) · `services/reportUnit.ts`·`files.ts` · i18n org·qtask·common ko/en
+
+### 검증
+- 헬스 29/29 · 빌드 EXIT0 · 보고서 non-minmax 1fr 0건 · i18n 0하드코딩
+- E2E: 공유 9/9 · 보안등급 8/9(유령user 401 강차단)+3/3 export
+- 운영: 헬스 200 · files.security_level·report_shares 스키마 확인
+
+### 잔여 (다음 섹션)
+- #63 워크스페이스 간 이동 (대규모 별도 `/기능설계`)
+- 보안등급 posts/kb/docs 확장 (중규모)
+- 보고서 디자인 세부 (Irene 화면 검토)
 
 ---
 
