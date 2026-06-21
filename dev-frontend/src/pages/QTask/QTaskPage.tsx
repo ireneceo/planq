@@ -16,6 +16,7 @@ import TaskDetailDrawer from '../../components/QTask/TaskDetailDrawer';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import TaskRowActionMenu from '../../components/QTask/TaskRowActionMenu';
 import { responsiveDrawerWidth } from '../../utils/responsiveDrawer';
+import { affiliationLabel } from '../../utils/orgLabel';
 import AiTaskCreateModal from '../../components/QTask/AiTaskCreateModal';
 import TemplateSelectModal from '../../components/QTask/TemplateSelectModal';
 import CueTaskBar from '../../components/QTask/CueTaskBar';
@@ -1610,7 +1611,8 @@ const QTaskPage:React.FC=()=>{
                     </TCell>
                     {scope==='workspace' && (
                       <TCell $w="140px" $hideBelow={768} style={{overflow:'visible'}}>
-                        <div onClick={e=>e.stopPropagation()}>
+                        {/* D1 후속 — 담당자 소속(부서·팀)은 hover tooltip 으로 (행 밀집 노이즈 0) */}
+                        <div onClick={e=>e.stopPropagation()} title={affiliationLabel(members.find(m=>m.user_id===task.assignee_id), i18nClient.language) || undefined}>
                           <PlanQSelect size="sm" isClearable
                             placeholder={t('list.assigneePh','담당자') as string}
                             value={task.assignee_id==null ? null : {
