@@ -4,7 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const { v4: uuidv4 } = require('uuid');
 const multer = require('multer');
-const { Business, BusinessMember, User, CueUsage, Client } = require('../models');
+const { Business, BusinessMember, User, CueUsage, Client, Department, Team } = require('../models');
 const { authenticateToken, checkBusinessAccess } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const { createAuditLog } = require('../middleware/audit');
@@ -733,12 +733,17 @@ router.get('/:businessId/members', authenticateToken, checkBusinessAccess, async
   try {
     const members = await BusinessMember.findAll({
       where: { business_id: req.params.businessId, removed_at: null },
-      include: [{
-        model: User,
-        as: 'user',
-        attributes: ['id', 'name', 'email', 'avatar_url', 'is_ai', 'last_login_at',
-          'phone', 'job_title', 'organization', 'bio', 'expertise', 'timezone']
-      }],
+      include: [
+        {
+          model: User,
+          as: 'user',
+          attributes: ['id', 'name', 'email', 'avatar_url', 'is_ai', 'last_login_at',
+            'phone', 'job_title', 'organization', 'bio', 'expertise', 'timezone']
+        },
+        // D1 후속 — 멤버 소속(부서/팀) 표시 확산 (UserInfoPopover 등 공통 표시)
+        { model: Department, as: 'department', attributes: ['id', 'name', 'name_en'], required: false },
+        { model: Team, as: 'team', attributes: ['id', 'name', 'name_en'], required: false },
+      ],
       order: [
         ['role', 'ASC'], // 'ai' → 'member' → 'owner' (역순정렬은 수동 처리)
         ['created_at', 'ASC']

@@ -472,6 +472,7 @@
     "email": "Email",
     "jobTitle": "Job title",
     "organization": "Org",
+    "affiliation": "Dept · Team",
     "company": "Company",
     "phone": "Phone",
     "noInfo": "No additional info",

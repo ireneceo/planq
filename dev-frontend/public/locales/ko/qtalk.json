@@ -472,6 +472,7 @@
     "email": "이메일",
     "jobTitle": "직책",
     "organization": "소속",
+    "affiliation": "부서·팀",
     "company": "회사",
     "phone": "전화",
     "noInfo": "추가 정보가 없습니다",

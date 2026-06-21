@@ -15,12 +15,16 @@ import { useTranslation } from 'react-i18next';
 import { apiFetch } from '../../contexts/AuthContext';
 import LetterAvatar from './LetterAvatar';
 
+interface OrgUnit { id: number; name: string; name_en?: string | null }
 interface MemberRow {
   user_id: number;
   role: string;
   name?: string | null;
   job_title?: string | null;
   organization?: string | null;
+  // D1 후속 — 멤버 소속(부서/팀)
+  department?: OrgUnit | null;
+  team?: OrgUnit | null;
   user: { id: number; name: string; email: string; phone?: string | null; job_title?: string | null; organization?: string | null; avatar_url?: string | null };
 }
 
@@ -41,6 +45,9 @@ interface UserInfo {
   role?: string | null;
   company_name?: string | null;
   avatar_url?: string | null;
+  // D1 후속 — 소속(부서/팀)
+  department?: OrgUnit | null;
+  team?: OrgUnit | null;
 }
 
 // 워크스페이스별 캐시 — 첫 열림 시 1회 fetch, 이후 popover 재오픈 빠름
@@ -79,6 +86,8 @@ async function fetchAndResolve(businessId: number, userId: number): Promise<User
       organization: member.organization || member.user.organization,
       role: member.role,
       avatar_url: member.user.avatar_url,
+      department: member.department || null,
+      team: member.team || null,
     };
   }
   const client = clients.find((c) => c.user_id === userId);
@@ -101,7 +110,9 @@ interface Props {
 }
 
 const UserInfoPopover: React.FC<Props> = ({ open, userId, businessId, anchorEl, onClose }) => {
-  const { t } = useTranslation('qtalk');
+  const { t, i18n } = useTranslation('qtalk');
+  // D1 후속 — 부서/팀 이름 현지화 (en 이면 name_en, 없으면 name fallback)
+  const orgName = (u?: OrgUnit | null) => u ? ((i18n.language?.startsWith('en') && u.name_en) ? u.name_en : u.name) : '';
   const [info, setInfo] = useState<UserInfo | null>(null);
   const [loading, setLoading] = useState(false);
   const popoverRef = useRef<HTMLDivElement | null>(null);
@@ -194,6 +205,13 @@ const UserInfoPopover: React.FC<Props> = ({ open, userId, businessId, anchorEl, 
                   <FieldValue>{info.organization}</FieldValue>
                 </Field>
               )}
+              {/* D1 후속 — 부서·팀 소속 (구조화된 조직) */}
+              {[orgName(info.department), orgName(info.team)].filter(Boolean).length > 0 && (
+                <Field>
+                  <FieldLabel>{t('userInfo.affiliation', '부서·팀')}</FieldLabel>
+                  <FieldValue>{[orgName(info.department), orgName(info.team)].filter(Boolean).join(' · ')}</FieldValue>
+                </Field>
+              )}
               {info.company_name && (
                 <Field>
                   <FieldLabel>{t('userInfo.company', '회사')}</FieldLabel>
@@ -206,7 +224,8 @@ const UserInfoPopover: React.FC<Props> = ({ open, userId, businessId, anchorEl, 
                   <FieldValue>{info.phone}</FieldValue>
                 </Field>
               )}
-              {!info.email && !info.job_title && !info.organization && !info.company_name && !info.phone && (
+              {!info.email && !info.job_title && !info.organization && !info.company_name && !info.phone
+                && !info.department && !info.team && (
                 <NoInfo>{t('userInfo.noInfo', '추가 정보가 없습니다')}</NoInfo>
               )}
             </FieldList>
