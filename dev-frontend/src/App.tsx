@@ -5,6 +5,7 @@ import { PwaInstallProvider } from './contexts/PwaInstallContext';
 // 첫 paint 에 반드시 필요한 eager — Auth/PWA context, Layout, ErrorBoundary, ProtectedRoute, prefetch
 import ProtectedRoute from './components/ProtectedRoute';
 import ErrorBoundary from './components/Common/ErrorBoundary';
+import { isPopoutWindow } from './utils/popout';
 import { installRoutePrefetch } from './lib/routePrefetch';
 import MainLayout from './components/Layout/MainLayout';
 
@@ -133,7 +134,12 @@ function App() {
   const _loc = useLocation();
   const isPopout = /\/(talk-popout|note-popout|help-popout)(\/|$)/.test(_loc.pathname)
     || _loc.pathname.startsWith('/memo/')
-    || _loc.pathname.startsWith('/public/');
+    || _loc.pathname.startsWith('/public/')
+    || isPopoutWindow(); // #84 — 팝아웃 창 안에서 /wiki 등으로 이동해도 chrome 숨김 유지
+  // #71 — 랜딩/마케팅 페이지(비로그인 외부 트래픽 영역). 로그인 상태로 방문해도 인앱 chrome 안 띄움.
+  const isMarketing = ['/', '/features', '/pricing', '/blog', '/about', '/contact'].includes(_loc.pathname)
+    || _loc.pathname.startsWith('/blog/');
+  const hideAppChrome = isPopout || isMarketing;
   return (
     <ErrorBoundary>
     <AuthProvider>
@@ -514,10 +520,10 @@ function App() {
         idle 시점 또는 조건 발동 시 chunk 받음 → entry preload 부담 감소.
       */}
       <Suspense fallback={null}>
-        {!isPopout && <CueHelpDrawer />}
-        {!isPopout && <MemoFab />}
-        {!isPopout && <RightDock />}
-        {!isPopout && <NotificationToaster />}
+        {!hideAppChrome && <CueHelpDrawer />}
+        {!hideAppChrome && <MemoFab />}
+        {!hideAppChrome && <RightDock />}
+        {!hideAppChrome && <NotificationToaster />}
         <PwaInstallBanner />
         <OpenInAppBanner />
         <BuildVersionGuard />

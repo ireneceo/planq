@@ -6,6 +6,7 @@ import React, { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import MemoPopup from '../../components/QNote/MemoPopup';
 import { useAuth } from '../../contexts/AuthContext';
+import { markPopoutWindow } from '../../utils/popout';
 
 const NoteCaptureStandalonePage: React.FC = () => {
   const { t } = useTranslation('qnote');
@@ -15,6 +16,7 @@ const NoteCaptureStandalonePage: React.FC = () => {
   useEffect(() => {
     document.title = t('memoPopup.title', 'Q Note') as string;
     document.body.dataset.popout = '1';
+    markPopoutWindow(); // #84
     return () => { delete document.body.dataset.popout; };
   }, [t]);
 

@@ -10,6 +10,7 @@ import styled from 'styled-components';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../contexts/AuthContext';
+import { isPopoutWindow } from '../../utils/popout';
 
 export type DockTool = 'qtalk' | 'qnote' | 'qhelper';
 
@@ -42,7 +43,8 @@ const RightDock: React.FC = () => {
 
   const isBusinessMember = !!user?.business_id && ['owner', 'admin', 'member'].includes(user.business_role || '');
   const pathHidden = FAB_HIDDEN_PREFIXES.some((p) => location.pathname === p || location.pathname.startsWith(`${p}/`))
-    || (typeof document !== 'undefined' && document.body.dataset.popout === '1');
+    || (typeof document !== 'undefined' && document.body.dataset.popout === '1')
+    || isPopoutWindow(); // #84 — 팝아웃 창 내부 이동에도 FAB 숨김 유지
 
   // 펼침 메뉴 — 외부 클릭/Esc 닫기
   useEffect(() => {
