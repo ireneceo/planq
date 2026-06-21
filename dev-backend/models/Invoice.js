@@ -76,6 +76,8 @@ Invoice.init({
   },
   cash_receipt_no: { type: DataTypes.STRING(50), allowNull: true },
   cash_receipt_issued_at: { type: DataTypes.DATE, allowNull: true },
+  // #77 — 발행한 현금영수증 파일 첨부
+  cash_receipt_file_id: { type: DataTypes.INTEGER, allowNull: true, references: { model: 'files', key: 'id' } },
   // 발행 시점 워크스페이스 계좌 정보 스냅샷 (사용자 계좌 변경되어도 발행 청구서는 보존)
   bank_snapshot: {
     type: DataTypes.JSON,
@@ -161,6 +163,8 @@ Invoice.init({
   tax_invoice_external_id: { type: DataTypes.STRING(100), allowNull: true },
   tax_invoice_url: { type: DataTypes.STRING(500), allowNull: true },
   tax_invoice_issued_at: { type: DataTypes.DATE, allowNull: true },
+  // #77 — 발행한 세금계산서 파일 첨부
+  tax_invoice_file_id: { type: DataTypes.INTEGER, allowNull: true, references: { model: 'files', key: 'id' } },
   // Phase C — 공개 결제 페이지 송금 완료 알림 (단일 발행용)
   notify_paid_at: { type: DataTypes.DATE, allowNull: true, comment: '고객이 송금 완료 알림 누른 시각' },
   notify_payer_name: { type: DataTypes.STRING(80), allowNull: true, comment: '입금자명 (고객 자기보고)' },

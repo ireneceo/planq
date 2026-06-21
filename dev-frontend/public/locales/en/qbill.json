@@ -555,7 +555,12 @@
       "noCashPh": "e.g. 8-digit approval no.",
       "date": "Issue date",
       "submit": "Mark",
-      "cancel": "Cancel"
+      "cancel": "Cancel",
+      "fileLabel": "Attach issued file (optional)",
+      "filePick": "Choose file",
+      "fileNone": "No file selected",
+      "fileHint": "If attached, the customer can download it from the public invoice page. (PDF/image)",
+      "fileUploadFailed": "File upload failed"
     },
     "empty": {
       "pending": "No receipts pending",
@@ -763,7 +768,8 @@
       "contactName": "Contact name",
       "contactPhone": "Contact phone",
       "requestAmount": "Requested amount",
-      "vatIncluded": "VAT included"
+      "vatIncluded": "VAT included",
+      "download": "Download issued file"
     },
     "contact": "Contact us"
   },

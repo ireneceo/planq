@@ -245,7 +245,7 @@ export async function unmarkInstallmentPaid(
 
 export async function markInstallmentTaxInvoice(
   businessId: number, invoiceId: number, installmentId: number,
-  payload: { tax_invoice_no: string; issued_at?: string }
+  payload: { tax_invoice_no: string; issued_at?: string; file_id?: number }
 ): Promise<ApiInstallment> {
   const r = await apiFetch(`/api/invoices/${businessId}/${invoiceId}/installments/${installmentId}/mark-tax-invoice`, {
     method: 'POST',
@@ -258,7 +258,7 @@ export async function markInstallmentTaxInvoice(
 // 회차별 현금영수증 발행 마킹 (분할 결제 — 회차마다 입금 시점 발급)
 export async function markInstallmentCashReceipt(
   businessId: number, invoiceId: number, installmentId: number,
-  payload: { cash_receipt_no: string; cash_receipt_at?: string }
+  payload: { cash_receipt_no: string; cash_receipt_at?: string; file_id?: number }
 ): Promise<ApiInstallment> {
   const r = await apiFetch(`/api/invoices/${businessId}/${invoiceId}/installments/${installmentId}/mark-cash-receipt`, {
     method: 'POST',
@@ -271,7 +271,7 @@ export async function markInstallmentCashReceipt(
 // 단건 청구서 증빙 발행 마킹 (분할 아님) — 세금계산서 / 현금영수증
 export async function markInvoiceTaxInvoice(
   businessId: number, invoiceId: number,
-  payload: { tax_invoice_no: string; tax_invoice_at?: string }
+  payload: { tax_invoice_no: string; tax_invoice_at?: string; file_id?: number }
 ): Promise<ApiInvoice> {
   const r = await apiFetch(`/api/invoices/${businessId}/${invoiceId}/mark-tax-invoice`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
@@ -281,7 +281,7 @@ export async function markInvoiceTaxInvoice(
 
 export async function markInvoiceCashReceipt(
   businessId: number, invoiceId: number,
-  payload: { cash_receipt_no: string; cash_receipt_at?: string }
+  payload: { cash_receipt_no: string; cash_receipt_at?: string; file_id?: number }
 ): Promise<ApiInvoice> {
   const r = await apiFetch(`/api/invoices/${businessId}/${invoiceId}/mark-cash-receipt`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),

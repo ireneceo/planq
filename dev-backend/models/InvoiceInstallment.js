@@ -51,10 +51,13 @@ InvoiceInstallment.init({
     type: DataTypes.INTEGER, allowNull: true,
     references: { model: 'users', key: 'id' },
   },
+  // #77 — 발행한 세금계산서 실제 파일(PDF 등) 첨부. 고객 통지·공개페이지에서 다운로드.
+  tax_invoice_file_id: { type: DataTypes.INTEGER, allowNull: true, references: { model: 'files', key: 'id' } },
 
   // 현금영수증 (회차별 — 분할 결제는 회차마다 입금 시점 발급이 실무·법적 기준)
   cash_receipt_no: { type: DataTypes.STRING(50), allowNull: true },
   cash_receipt_at: { type: DataTypes.DATE, allowNull: true },
+  cash_receipt_file_id: { type: DataTypes.INTEGER, allowNull: true, references: { model: 'files', key: 'id' } },
   cash_receipt_marked_by: {
     type: DataTypes.INTEGER, allowNull: true,
     references: { model: 'users', key: 'id' },
