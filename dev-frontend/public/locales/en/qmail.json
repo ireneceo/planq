@@ -69,7 +69,8 @@
     "teamAdminOnly": "Only admins can add team mailboxes",
     "hintScope": "Team mailboxes are shared in the inbox by all members; personal mailboxes are visible only to you. (Auto-sync every 5 minutes)",
     "scopeNoteTeam": "Team mailbox — shared with all members in the inbox.",
-    "scopeNotePersonal": "Personal mailbox — visible only to you."
+    "scopeNotePersonal": "Personal mailbox — visible only to you.",
+    "connectFailed": "Could not start Gmail connection. Please try again shortly."
   },
   "folders": {
     "title": "Mailboxes",

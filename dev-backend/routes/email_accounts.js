@@ -263,10 +263,13 @@ router.get('/:businessId/email-accounts/oauth/gmail/initiate', authenticateToken
       returnUrl: req.query.return_to || '/business/settings/mail-accounts',
       scope,
     });
-    return res.redirect(302, url);
+    // #82/#72 — auth_url 을 JSON 으로 반환. 프론트가 apiFetch(Bearer) 로 받아 window.location 이동.
+    // (옛 방식: window.location.href 로 이 라우트 직접 진입 → 브라우저 네비게이션이 Bearer 미전달 →
+    //  authenticateToken 401 "Access token required". connectPersonal 동일 패턴으로 통일.)
+    return res.json({ success: true, data: { auth_url: url } });
   } catch (e) {
     console.error('[gmail-oauth/initiate]', e);
-    return res.status(500).send(e.message);
+    return res.status(500).json({ success: false, message: e.message });
   }
 });
 

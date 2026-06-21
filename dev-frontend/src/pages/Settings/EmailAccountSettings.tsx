@@ -6,7 +6,7 @@ import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import DetailDrawer from '../../components/Common/DetailDrawer';
 import PlanQSelect, { type PlanQSelectOption } from '../../components/Common/PlanQSelect';
-import { useAuth } from '../../contexts/AuthContext';
+import { useAuth, apiFetch } from '../../contexts/AuthContext';
 import {
   listEmailAccounts, createEmailAccount, updateEmailAccount, deleteEmailAccount,
   testEmailAccount, setDefaultEmailAccount, syncNowEmailAccount,
@@ -90,9 +90,20 @@ const EmailAccountSettings: React.FC = () => {
     return d.toLocaleDateString();
   };
 
-  const connectGmail = () => {
+  const [connErr, setConnErr] = useState<string | null>(null);
+  const connectGmail = async () => {
+    // #82/#72 — apiFetch(Bearer) 로 auth_url 받아 이동. 옛 window.location 직접진입은
+    // 브라우저 네비게이션이 토큰 미전달 → 401 "Access token required".
+    setConnErr(null);
     const ret = encodeURIComponent('/business/settings/mail-accounts');
-    window.location.href = `/api/businesses/${businessId}/email-accounts/oauth/gmail/initiate?return_to=${ret}&scope=${addScope}`;
+    try {
+      const r = await apiFetch(`/api/businesses/${businessId}/email-accounts/oauth/gmail/initiate?return_to=${ret}&scope=${addScope}`);
+      const j = await r.json();
+      if (!j.success || !j.data?.auth_url) throw new Error(j.message || 'init_failed');
+      window.location.href = j.data.auth_url;
+    } catch (e) {
+      setConnErr((e as Error).message || (t('settings.connectFailed', { defaultValue: 'Gmail 연결을 시작하지 못했어요. 잠시 후 다시 시도해주세요.' }) as string));
+    }
   };
 
   const renderCard = (acc: EmailAccountRow) => (
@@ -182,6 +193,7 @@ const EmailAccountSettings: React.FC = () => {
 
       <Hint>{t('settings.hintScope', '회사 공용 메일은 모든 팀원이 인박스에서 함께 보고, 개인 메일은 본인에게만 보입니다. (5분마다 자동 동기화)') as string}</Hint>
       <Hint>{t('settings.hintOauth', '💡 Gmail 사용자라면 \"Gmail 로 연결\" 버튼이 가장 간편해요 — 앱 비밀번호 발급 불필요') as string}</Hint>
+      {connErr && <ConnErr>{connErr}</ConnErr>}
 
       {loading ? (
         <Loading>{t('settings.loading', '로드 중...') as string}</Loading>
@@ -524,6 +536,7 @@ const ScopeNote = styled.div<{ $personal: boolean }>`
   border: 1px solid ${p => p.$personal ? '#E2E8F0' : '#BFDBFE'};
 `;
 const Hint = styled.p`font-size: 13px; color: #64748B; margin: 0 0 20px; line-height: 1.6;`;
+const ConnErr = styled.p`font-size: 13px; color: #B91C1C; background: #FEF2F2; border: 1px solid #FECACA; border-radius: 8px; padding: 10px 12px; margin: 0 0 16px; line-height: 1.5;`;
 const Loading = styled.div`padding: 40px; text-align: center; color: #94A3B8;`;
 const EmptyCard = styled.div`
   padding: 40px 24px; text-align: center;

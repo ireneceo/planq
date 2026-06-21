@@ -69,7 +69,8 @@
     "teamAdminOnly": "회사 공용 메일은 관리자만 추가할 수 있어요",
     "hintScope": "회사 공용 메일은 모든 팀원이 인박스에서 함께 보고, 개인 메일은 본인에게만 보입니다. (5분마다 자동 동기화)",
     "scopeNoteTeam": "회사 공용 메일 — 모든 팀원이 인박스에서 함께 봅니다.",
-    "scopeNotePersonal": "개인 메일 — 나에게만 보입니다."
+    "scopeNotePersonal": "개인 메일 — 나에게만 보입니다.",
+    "connectFailed": "Gmail 연결을 시작하지 못했어요. 잠시 후 다시 시도해주세요."
   },
   "folders": {
     "title": "메일함",
