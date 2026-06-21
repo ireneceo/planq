@@ -267,6 +267,9 @@ function IssueModal({ row, onClose, onIssued }: { row: ReceiptDueRow; onClose: (
   const noPh = isCash
     ? t('taxInvoices.issueModal.noCashPh', '예: 8자리 승인번호')
     : t('taxInvoices.issueModal.noPh');
+  // #75 — 업태/종목 조립 (JSX 인라인 배열 회피)
+  const supTypeItem = bd ? [bd.supplier.biz_type, bd.supplier.biz_item].filter(Boolean).join(' / ') : '';
+  const recTypeItem = bd ? [bd.recipient.biz_type, bd.recipient.biz_item].filter(Boolean).join(' / ') : '';
 
   return (
     <ModalBackdrop onClick={onClose}>
@@ -311,28 +314,28 @@ function IssueModal({ row, onClose, onIssued }: { row: ReceiptDueRow; onClose: (
                   <BdRow><span>{t('taxInvoices.issueModal.bizName', { defaultValue: '상호' }) as string}</span><b>{bd.supplier.name || '—'}</b></BdRow>
                   <BdRow><span>{t('taxInvoices.issueModal.bizNo', { defaultValue: '사업자번호' }) as string}</span><b>{bd.supplier.tax_id || '—'}</b></BdRow>
                   <BdRow><span>{t('taxInvoices.issueModal.ceo', { defaultValue: '대표자' }) as string}</span><b>{bd.supplier.ceo || '—'}</b></BdRow>
-                  {bd.supplier.address && <BdRow><span>{t('taxInvoices.issueModal.addr', { defaultValue: '주소' }) as string}</span><b>{bd.supplier.address}</b></BdRow>
-                  {(bd.supplier.biz_type || bd.supplier.biz_item) && <BdRow><span>{t('taxInvoices.issueModal.typeItem', { defaultValue: '업태/종목' }) as string}</span><b>{[bd.supplier.biz_type, bd.supplier.biz_item].filter(Boolean).join(' / ')}</b></BdRow>}
+                  <BdRow><span>{t('taxInvoices.issueModal.addr', { defaultValue: '주소' }) as string}</span><b>{bd.supplier.address || '—'}</b></BdRow>
+                  <BdRow><span>{t('taxInvoices.issueModal.typeItem', { defaultValue: '업태/종목' }) as string}</span><b>{supTypeItem || '—'}</b></BdRow>
                 </BdParty>
                 <BdParty>
                   <BdPartyLabel>{t('taxInvoices.issueModal.recipient', { defaultValue: '공급받는자 (갑)' }) as string}</BdPartyLabel>
                   <BdRow><span>{t('taxInvoices.issueModal.bizName', { defaultValue: '상호' }) as string}</span><b>{bd.recipient.name || '—'}</b></BdRow>
                   <BdRow><span>{t('taxInvoices.issueModal.bizNo', { defaultValue: '사업자번호' }) as string}</span><b>{bd.recipient.tax_id || '—'}</b></BdRow>
                   <BdRow><span>{t('taxInvoices.issueModal.ceo', { defaultValue: '대표자' }) as string}</span><b>{bd.recipient.ceo || '—'}</b></BdRow>
-                  {bd.recipient.address && <BdRow><span>{t('taxInvoices.issueModal.addr', { defaultValue: '주소' }) as string}</span><b>{bd.recipient.address}</b></BdRow>
-                  {(bd.recipient.biz_type || bd.recipient.biz_item) && <BdRow><span>{t('taxInvoices.issueModal.typeItem', { defaultValue: '업태/종목' }) as string}</span><b>{[bd.recipient.biz_type, bd.recipient.biz_item].filter(Boolean).join(' / ')}</b></BdRow>}
-                  {bd.recipient.tax_email && <BdRow><span>{t('taxInvoices.issueModal.taxEmail', { defaultValue: '계산서 이메일' }) as string}</span><b>{bd.recipient.tax_email}</b></BdRow>
+                  <BdRow><span>{t('taxInvoices.issueModal.addr', { defaultValue: '주소' }) as string}</span><b>{bd.recipient.address || '—'}</b></BdRow>
+                  <BdRow><span>{t('taxInvoices.issueModal.typeItem', { defaultValue: '업태/종목' }) as string}</span><b>{recTypeItem || '—'}</b></BdRow>
+                  <BdRow><span>{t('taxInvoices.issueModal.taxEmail', { defaultValue: '계산서 이메일' }) as string}</span><b>{bd.recipient.tax_email || '—'}</b></BdRow>
                 </BdParty>
               </BdGrid>
               <BdItems>
                 <BdItemsHead><span>{t('taxInvoices.issueModal.item', { defaultValue: '품목' }) as string}</span><i>{t('taxInvoices.issueModal.qty', { defaultValue: '수량' }) as string}</i><i>{t('taxInvoices.issueModal.unit', { defaultValue: '단가' }) as string}</i><i>{t('taxInvoices.issueModal.amt', { defaultValue: '금액' }) as string}</i></BdItemsHead>
                 {bd.items.map((it, idx) => (
-                  <BdItemRow key={idx}><span>{it.description}</span><i>{it.quantity}</i><i>{formatMoney(it.unit_price, bd.currency)}</i><i>{formatMoney(it.amount, bd.currency)}</i></BdItemRow>
+                  <BdItemRow key={idx}><span>{it.description}</span><i>{it.quantity}</i><i>{formatMoney(it.unit_price, row.currency)}</i><i>{formatMoney(it.amount, row.currency)}</i></BdItemRow>
                 ))}
               </BdItems>
-              <BdAmt><span>{t('taxInvoices.issueModal.supplyAmt', { defaultValue: '공급가액' }) as string}</span><b>{formatMoney(bd.amounts.supply, bd.currency)}</b></BdAmt>
-              <BdAmt><span>{t('taxInvoices.issueModal.vat', { defaultValue: '세액 (VAT)' }) as string}</span><b>{formatMoney(bd.amounts.vat, bd.currency)}</b></BdAmt>
-              <BdAmt $total><span>{t('taxInvoices.issueModal.total', { defaultValue: '합계' }) as string}</span><b>{formatMoney(bd.amounts.total, bd.currency)}</b></BdAmt>
+              <BdAmt><span>{t('taxInvoices.issueModal.supplyAmt', { defaultValue: '공급가액' }) as string}</span><b>{formatMoney(bd.amounts.supply, row.currency)}</b></BdAmt>
+              <BdAmt><span>{t('taxInvoices.issueModal.vat', { defaultValue: '세액 (VAT)' }) as string}</span><b>{formatMoney(bd.amounts.vat, row.currency)}</b></BdAmt>
+              <BdAmt $total><span>{t('taxInvoices.issueModal.total', { defaultValue: '합계' }) as string}</span><b>{formatMoney(bd.amounts.total, row.currency)}</b></BdAmt>
             </BdBox>
           )}
           <Hint>
