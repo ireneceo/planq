@@ -1484,7 +1484,7 @@ const QTaskPage:React.FC=()=>{
             <Col $w="68px" $center onClick={()=>handleSort('status')}>{t('col.status','Status')} {sortIcon('status')}</Col>
             <Col $w="62px" $center $hideBelow={900} onClick={()=>handleSort('estimated_hours')}>{t('col.est','Est(h)')} {sortIcon('estimated_hours')}</Col>
             <Col $w="62px" $center $hideBelow={900} onClick={()=>handleSort('actual_hours')}>{t('col.act','Act(h)')} {sortIcon('actual_hours')}</Col>
-            <Col $w="130px" $center $hideBelow={1024} onClick={()=>handleSort('progress_percent')}>{t('col.progress','Progress')} {sortIcon('progress_percent')}</Col>
+            <Col $w="130px" $center $hideBelow={1024} $compactBelow={1280} $wCompact="52px" onClick={()=>handleSort('progress_percent')}>{t('col.progress','Progress')} {sortIcon('progress_percent')}</Col>
             <Col $w="100px" $center onClick={()=>handleSort('due_date')}>{t('col.dates','기간')} {sortIcon('due_date')}</Col>
           </ColRow>
 
@@ -1710,7 +1710,7 @@ const QTaskPage:React.FC=()=>{
                         </TCell>
                       </>);
                     })()}
-                    <TCell $w="130px" $hideBelow={1024}>
+                    <TCell $w="130px" $hideBelow={1024} $compactBelow={1280} $wCompact="52px">
                       {(() => {
                         const progEditable = task.assignee_id===myId;
                         return (
@@ -2816,7 +2816,7 @@ const BottomAddLink=styled.button`margin:10px 14px 20px;padding:6px 0;background
 const FilterBar=styled.div`display:flex;align-items:center;gap:10px;padding:8px 14px;border-bottom:1px solid #F1F5F9;background:#FFF;flex-wrap:wrap;`;
 
 const ColRow=styled.div`display:flex;align-items:center;gap:6px;padding:6px 14px;border-bottom:1px solid #E2E8F0;background:#F8FAFC;position:sticky;top:0;z-index:1;min-width:520px;`;
-const Col=styled.span<{$w?:string;$flex?:boolean;$center?:boolean;$hideBelow?:number}>`
+const Col=styled.span<{$w?:string;$flex?:boolean;$center?:boolean;$hideBelow?:number;$compactBelow?:number;$wCompact?:string}>`
   box-sizing:border-box;
   ${p=>p.$flex
     ? 'flex:1 1 0;min-width:180px;'
@@ -2826,17 +2826,19 @@ const Col=styled.span<{$w?:string;$flex?:boolean;$center?:boolean;$hideBelow?:nu
   ${p=>p.$center&&'display:inline-flex;justify-content:center;align-items:center;gap:4px;text-align:center;'}
   &:hover{color:#475569;}
   ${p=>p.$hideBelow?`@media (max-width: ${p.$hideBelow}px){display:none;}`:''}
+  ${p=>p.$compactBelow&&p.$wCompact?`@media (max-width: ${p.$compactBelow}px){flex:0 0 ${p.$wCompact};width:${p.$wCompact};}`:''}
 `;
 
 
 const TRow=styled.div<{$done?:boolean;$delayed?:boolean;$selected?:boolean}>`display:flex;align-items:center;gap:6px;padding:7px 14px;border-bottom:1px solid #F8FAFC;min-width:520px;opacity:${p=>p.$done?0.45:1};${p=>p.$selected?'background:#F0FDFA;box-shadow:inset 3px 0 0 #14B8A6;':p.$delayed&&!p.$done?'box-shadow:inset 3px 0 0 #DC2626;':''}&:hover{background:${p=>p.$selected?'#CCFBF1':p.$delayed&&!p.$done?'#FEF2F2':'#FAFBFC'};}`;
-const TCell=styled.div<{$w?:string;$flex?:boolean;$center?:boolean;$hideBelow?:number}>`
+const TCell=styled.div<{$w?:string;$flex?:boolean;$center?:boolean;$hideBelow?:number;$compactBelow?:number;$wCompact?:string}>`
   box-sizing:border-box;
   ${p=>p.$flex
     ? 'flex:1 1 0;min-width:180px;display:flex;align-items:center;gap:6px;overflow:hidden;'
     : `flex:0 0 ${p.$w||'auto'};width:${p.$w||'auto'};overflow:hidden;`}
   ${p=>p.$center&&'display:flex;justify-content:center;align-items:center;'}
   ${p=>p.$hideBelow?`@media (max-width: ${p.$hideBelow}px){display:none;}`:''}
+  ${p=>p.$compactBelow&&p.$wCompact?`@media (max-width: ${p.$compactBelow}px){flex:0 0 ${p.$wCompact};width:${p.$wCompact};}`:''}
 `;
 const ProjLabel=styled.span`font-size:11px;color:#94A3B8;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;`;
 const DelayBadge=styled.span<{$severe?:boolean}>`
@@ -2964,10 +2966,11 @@ const SliderWrap=styled.div<{$disabled?:boolean}>`
   display:flex;align-items:center;gap:6px;width:100%;position:relative;
   ${p=>p.$disabled && `opacity:0.5;cursor:not-allowed;`}
 `;
-const SliderTrack=styled.div`flex:1;height:6px;background:#F1F5F9;border-radius:3px;overflow:hidden;`;
+// #78 — 좁은 화면(≤1280px)에선 가로 라인그래프·슬라이더 숨기고 % 만 남겨 업무명 공간 확보
+const SliderTrack=styled.div`flex:1;height:6px;background:#F1F5F9;border-radius:3px;overflow:hidden;@media (max-width:1280px){display:none;}`;
 const SliderFill=styled.div<{$w:number;$color:string}>`height:100%;width:${p=>p.$w}%;background:${p=>p.$color};border-radius:3px;`;
-const SliderRange=styled.input`position:absolute;left:0;top:-4px;width:calc(100% - 40px);height:18px;opacity:0;cursor:pointer;&:disabled{cursor:not-allowed;}`;
-const SliderPct=styled.span`font-size:12px;font-weight:700;color:#475569;min-width:32px;text-align:right;`;
+const SliderRange=styled.input`position:absolute;left:0;top:-4px;width:calc(100% - 40px);height:18px;opacity:0;cursor:pointer;&:disabled{cursor:not-allowed;}@media (max-width:1280px){display:none;}`;
+const SliderPct=styled.span`font-size:12px;font-weight:700;color:#475569;min-width:32px;text-align:right;@media (max-width:1280px){min-width:0;width:100%;text-align:center;}`;
 
 const DateTrigger=styled.button<{$color?:string;$empty?:boolean}>`
   width:100%;padding:4px 6px;font-size:12px;font-weight:600;
