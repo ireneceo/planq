@@ -8,6 +8,7 @@ import styled from 'styled-components';
 import { useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import QTalkPage from './QTalkPage';
+import { markPopoutWindow } from '../../utils/popout';
 
 const QTalkStandalonePage: React.FC = () => {
   const { t } = useTranslation('qtalk');
@@ -18,6 +19,7 @@ const QTalkStandalonePage: React.FC = () => {
   useEffect(() => {
     document.title = t('popout.title', { defaultValue: 'PlanQ 채팅' }) as string;
     document.body.dataset.popout = '1';
+    markPopoutWindow(); // #84
     return () => { delete document.body.dataset.popout; };
   }, [t]);
 

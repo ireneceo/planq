@@ -5,12 +5,14 @@
 import React, { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import CueHelpDrawer from '../../components/Common/CueHelpDrawer';
+import { markPopoutWindow } from '../../utils/popout';
 
 const HelpStandalonePage: React.FC = () => {
   const { t } = useTranslation('common');
   useEffect(() => {
     document.title = t('qhelper.title', 'Q helper') as string;
     document.body.dataset.popout = '1';
+    markPopoutWindow(); // #84 — 창 단위 영속(내부 /wiki 이동에도 팝아웃 유지)
     return () => { delete document.body.dataset.popout; };
   }, [t]);
   return <CueHelpDrawer standalone />;
