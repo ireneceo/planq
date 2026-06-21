@@ -188,7 +188,7 @@ const ViewN = styled.span`font-size:10px;font-weight:700;color:#94A3B8;`;
 
 const UnitCard = styled.div`background:#fff;border:1px solid #E2E8F0;border-radius:14px;padding:20px 22px;box-shadow:0 1px 2px rgba(0,0,0,.04);@media (max-width:768px){padding:16px;}@media print{break-inside:avoid;box-shadow:none;}`;
 const UnitHead = styled.div`display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:14px;`;
-const UnitName = styled.h3<{ $link?: boolean }>`font-size:17px;font-weight:800;color:#0F172A;margin:0;${(p) => p.$link && 'cursor:pointer;&:hover{color:#0F766E;}'}`;
+const UnitName = styled.h3<{ $link?: boolean }>`font-size:17px;font-weight:800;color:#0F172A;margin:0;min-width:0;word-break:break-word;${(p) => p.$link && 'cursor:pointer;&:hover{color:#0F766E;}'}`;
 const DeptTag = styled.span`font-size:11px;font-weight:700;color:#475569;background:#E2E8F0;border-radius:999px;padding:2px 9px;`;
 const Pct = styled.span`font-size:15px;font-weight:800;color:#0F172A;`;
 const HBadge = styled.span`font-size:11px;font-weight:700;border-radius:999px;padding:3px 10px;`;

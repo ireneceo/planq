@@ -109,15 +109,15 @@ const SLabel = styled.span`flex:0 0 100px;font-size:12px;font-weight:600;color:#
 const SBar = styled.div`flex:1;height:6px;background:#F1F5F9;border-radius:999px;overflow:hidden;`;
 const SFill = styled.div`height:100%;border-radius:999px;`;
 const SPct = styled.span`flex:0 0 34px;text-align:right;font-size:11px;font-weight:700;color:#64748B;`;
-const Grid = styled.div<{ $compact?: boolean }>`display:grid;grid-template-columns:${(p) => (p.$compact ? '1fr' : '1fr 1fr')};gap:14px;@media (max-width:768px){grid-template-columns:1fr;}`;
-const Sec = styled.div``;
+const Grid = styled.div<{ $compact?: boolean }>`display:grid;grid-template-columns:${(p) => (p.$compact ? 'minmax(0,1fr)' : 'minmax(0,1fr) minmax(0,1fr)')};gap:14px;@media (max-width:768px){grid-template-columns:minmax(0,1fr);}`;
+const Sec = styled.div`min-width:0;`;
 const SecHead = styled.div`display:flex;align-items:center;gap:6px;font-size:13px;font-weight:700;color:#0F172A;margin-bottom:8px;`;
 const SecIcon = styled.span`font-size:13px;`;
 const Cnt = styled.span`display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:17px;padding:0 5px;background:#F1F5F9;color:#64748B;border-radius:999px;font-size:10px;font-weight:700;`;
 const List = styled.div`display:flex;flex-direction:column;gap:5px;`;
 const Item = styled.button<{ $tone: 'good' | 'bad' | 'wait' | 'plan' }>`display:flex;align-items:center;gap:8px;width:100%;text-align:left;padding:7px 9px;background:#F8FAFC;border:1px solid #E2E8F0;border-left:3px solid ${(p) => (p.$tone === 'bad' ? '#EF4444' : p.$tone === 'good' ? '#22C55E' : p.$tone === 'wait' ? '#14B8A6' : '#94A3B8')};border-radius:7px;cursor:pointer;font-family:inherit;&:hover{background:#F0FDFA;}&:focus-visible{outline:2px solid #14B8A6;outline-offset:1px;}`;
 const Dot = styled.span`width:6px;height:6px;border-radius:50%;flex-shrink:0;`;
-const ITitle = styled.span`flex:1;font-size:13px;color:#0F172A;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`;
+const ITitle = styled.span`flex:1;min-width:0;font-size:13px;color:#0F172A;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`;
 const Meta = styled.span`font-size:11px;color:#94A3B8;flex-shrink:0;`;
 const Tag = styled.span`font-size:10px;font-weight:600;color:#0F766E;background:#F0FDFA;border-radius:999px;padding:1px 7px;flex-shrink:0;`;
 const IssueRow = styled.div`font-size:13px;color:#92400E;background:#FFFBEB;border:1px solid #FDE68A;border-radius:7px;padding:7px 9px;line-height:1.5;`;
