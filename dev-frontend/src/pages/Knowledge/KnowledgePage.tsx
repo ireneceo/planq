@@ -16,6 +16,7 @@ import PageShell from '../../components/Layout/PageShell';
 import HelpDot from '../../components/Common/HelpDot';
 import EmptyState from '../../components/Common/EmptyState';
 import PlanQSelect, { type PlanQSelectOption } from '../../components/Common/PlanQSelect';
+import SecurityLevelBadge, { useSecurityLevelLabel } from '../../components/Common/SecurityLevelBadge';
 import SearchBox from '../../components/Common/SearchBox';
 import DetailDrawer from '../../components/Common/DetailDrawer';
 import ShareModal from '../../components/Common/ShareModal';
@@ -28,7 +29,7 @@ import KbCsvIngestModal from './KbCsvIngestModal';
 import { SparkleIcon } from '../../components/Common/Icons';
 import {
   listKnowledge, fetchPersonalKb, createKnowledge, deleteKnowledge, updateKnowledge,
-  uploadKnowledgeFile,
+  uploadKnowledgeFile, updateKbSecurityLevel,
   listKbCategories, createKbCategory, createKbShareBundle,
   LEGACY_KB_CATEGORIES,
   type KbDocumentRow, type KbCategory, type KbScope, type KbVlevel, type KbCategoryRow,
@@ -77,6 +78,7 @@ interface KnowledgePageProps {
 const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 'workspace' }) => {
   const { t } = useTranslation('knowledge');
   const { t: tErr } = useTranslation('errors');
+  const secLabel = useSecurityLevelLabel();  // D4 #62 보안등급 라벨
   const { user } = useAuth();
   const businessId = user?.business_id ? Number(user.business_id) : null;
 
@@ -467,7 +469,14 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
       const r = await createKbShareBundle(businessId, { kind: 'selection', doc_ids: [...selectedIds] });
       setBundleShare({ url: r.share_url, count: r.count, label: t('select.bundleSelectionLabel', { n: selectedIds.size, defaultValue: `${selectedIds.size}개 선택` }) as string });
       setBundleCopied(false);
-    } catch { setBundleShare(null); setActionError(t('errors.shareFailed', '공유 링크를 만들지 못했습니다. 다시 시도해 주세요.') as string); }
+    } catch (e) {
+      setBundleShare(null);
+      // D4 #62 — 내부·기밀 자료 포함 시 구체 안내
+      const blocked = e instanceof Error && e.message === 'security_level_blocks_share';
+      setActionError(blocked
+        ? t('securityLevel.blockedShare', { defaultValue: '보안등급(내부·기밀) 자료는 외부 공유할 수 없어요. 등급을 일반으로 낮추면 공유할 수 있어요.', ns: 'common' }) as string
+        : t('errors.shareFailed', '공유 링크를 만들지 못했습니다. 다시 시도해 주세요.') as string);
+    }
     finally { setBundleSharing(false); }
   };
   // 카테고리 통째 공유
@@ -794,6 +803,8 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
 
                    {/* 권한·상태 chip */}
                    <ColRight>
+                     {/* D4 #62 — 보안등급 배지 (일반은 자동 숨김) */}
+                     <SecurityLevelBadge level={d.security_level} />
                      {d.read_policy === 'owner' && (
                        <PolicyChip $kind="owner" title={t('policy.ownerOnly', '운영진만') as string}>
                          {t('policy.ownerShort', '운영진') as string}
@@ -920,6 +931,29 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
                       clients={clients.map(c => ({ id: c.id, display_name: c.display_name, biz_name: c.biz_name, company_name: c.company_name }))}
                       members={members}
                     />
+                  </MetaEditWrap>
+                  {/* D4 #62 — 보안등급 (visibility 와 별개 축. 내부·기밀은 외부 공유·번들 차단) */}
+                  <MetaLabel>
+                    {t('securityLevel.label', { defaultValue: '보안등급', ns: 'common' }) as string}
+                    {detail.security_level && detail.security_level !== 'general' && (
+                      <span style={{ marginLeft: 6 }}><SecurityLevelBadge level={detail.security_level} /></span>
+                    )}
+                  </MetaLabel>
+                  <MetaEditWrap style={{ gridColumn: '1 / -1' }}>
+                    <PlanQSelect
+                      size="sm" isClearable={false} isSearchable={false}
+                      value={{ value: detail.security_level || 'general', label: secLabel(detail.security_level || 'general') }}
+                      options={(['general', 'internal', 'confidential'] as const).map((lv) => ({ value: lv, label: secLabel(lv) }))}
+                      onChange={async (o) => {
+                        const lv = (((o as { value?: string })?.value) || 'general') as 'general' | 'internal' | 'confidential';
+                        try {
+                          const r = await updateKbSecurityLevel(detail.id, lv);
+                          setDocs(prev => prev.map(x => x.id === detail.id ? { ...x, security_level: lv } : x));
+                          setDetail(prev => prev ? { ...prev, security_level: lv, ...(r.revoked_share ? { share_token: null } : {}) } : prev);
+                        } catch { /* keep current on error */ }
+                      }}
+                    />
+                    <SecLevelHint>{t(`securityLevel.${detail.security_level || 'general'}Hint`, { defaultValue: '', ns: 'common' }) as string}</SecLevelHint>
                   </MetaEditWrap>
                   <MetaLabel>{t('drawer.tags', '태그')}</MetaLabel>
                   <MetaEditWrap>
@@ -2132,6 +2166,8 @@ const MetaGrid = styled.div`
 const MetaLabel = styled.div`color: #64748B; font-weight: 500;`;
 const MetaValue = styled.div`color: #0F172A; font-weight: 500;`;
 const MetaEditWrap = styled.div`min-width: 0;`;
+// D4 #62 — 보안등급 힌트
+const SecLevelHint = styled.div`margin-top: 6px; font-size: 11px; color: #94A3B8; line-height: 1.45;`;
 const AttachList = styled.div`display: flex; flex-direction: column; gap: 6px;`;
 const AttachRow = styled.div`
   display: grid; grid-template-columns: auto 1fr auto auto auto; gap: 10px;

@@ -40,6 +40,7 @@ export interface DocSummary {
   quote_id: number | null;
   invoice_id: number | null;
   share_token: string | null;
+  security_level?: 'general' | 'internal' | 'confidential';  // D4 #62
   ai_generated: boolean;
   created_at: string;
   updated_at: string;
@@ -221,6 +222,19 @@ export async function shareDocument(id: number, payload: {
   });
   const j = await r.json();
   if (!j.success) throw new Error(j.message || 'Failed');
+  return j.data;
+}
+
+// D4 #62 — 문서 보안등급 변경. 일반 외로 상향 시 외부 공유 링크 무효화.
+export async function updateDocumentSecurityLevel(
+  id: number,
+  level: 'general' | 'internal' | 'confidential',
+): Promise<{ id: number; security_level: 'general' | 'internal' | 'confidential'; revoked_share: boolean }> {
+  const r = await apiFetch(`/api/docs/documents/${id}/security-level`, {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ level }),
+  });
+  const j = await r.json();
+  if (!j.success) throw new Error(j.message || 'security_level_change_failed');
   return j.data;
 }
 

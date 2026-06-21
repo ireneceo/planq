@@ -215,6 +215,13 @@ KbDocument.init({
   shared_at: { type: DataTypes.DATE, allowNull: true },
   share_password_hash: { type: DataTypes.STRING(255), allowNull: true },
   share_expires_at: { type: DataTypes.DATE, allowNull: true },
+  // D4 #62 — 보안등급 (general/internal/confidential). general 외 외부공유·번들 차단.
+  //   변경 = member 이상. 상향 시 share_token 무효화.
+  security_level: {
+    type: DataTypes.ENUM('general', 'internal', 'confidential'),
+    allowNull: false,
+    defaultValue: 'general',
+  },
 }, {
   sequelize,
   tableName: 'kb_documents',

@@ -30,6 +30,8 @@ const PostShareModal: React.FC<Props> = ({ open, onClose, post, onChanged }) => 
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
   const [tab, setTab] = useState<Tab>('email');
+  // D4 #62 — 내부·기밀 등급 문서는 외부 공유 불가 (백엔드도 403 으로 강제)
+  const blocked = !!post.security_level && post.security_level !== 'general';
 
   // Email
   const [emailTo, setEmailTo] = useState('');
@@ -153,6 +155,12 @@ const PostShareModal: React.FC<Props> = ({ open, onClose, post, onChanged }) => 
           </CloseBtn>
         </Header>
 
+        {blocked && (
+          <BlockedBanner role="alert">
+            {t('securityLevel.blockedShare', { defaultValue: '보안등급(내부·기밀) 자료는 외부 공유할 수 없어요. 등급을 일반으로 낮추면 공유할 수 있어요.', ns: 'common' }) as string}
+          </BlockedBanner>
+        )}
+
         {/* 링크로 공유 — URL 카드 */}
         <Section>
           <SectionTitle>{t('share.link.title', '링크로 공유')}</SectionTitle>
@@ -162,7 +170,7 @@ const PostShareModal: React.FC<Props> = ({ open, onClose, post, onChanged }) => 
                 type="checkbox"
                 checked={isPublic}
                 onChange={togglePublic}
-                disabled={busy}
+                disabled={busy || blocked}
                 aria-describedby="share-link-desc"
               />
               <CheckTexts>
@@ -235,7 +243,7 @@ const PostShareModal: React.FC<Props> = ({ open, onClose, post, onChanged }) => 
                 </Field>
                 {emailError && <ErrorBox>{emailError}</ErrorBox>}
                 <Actions>
-                  <PrimaryBtn type="button" disabled={busy || !emailTo.trim()} onClick={sendEmail}>{busy ? '...' : t('share.email.send', '이메일 발송')}</PrimaryBtn>
+                  <PrimaryBtn type="button" disabled={busy || blocked || !emailTo.trim()} onClick={sendEmail}>{busy ? '...' : t('share.email.send', '이메일 발송')}</PrimaryBtn>
                 </Actions>
               </>
             )}
@@ -287,7 +295,7 @@ const PostShareModal: React.FC<Props> = ({ open, onClose, post, onChanged }) => 
                 </Field>
                 {chatError && <ErrorBox>{chatError}</ErrorBox>}
                 <Actions>
-                  <PrimaryBtn type="button" disabled={busy || !chatTarget} onClick={sendToChat}>{busy ? '...' : t('share.chat.send', '채팅방에 보내기')}</PrimaryBtn>
+                  <PrimaryBtn type="button" disabled={busy || blocked || !chatTarget} onClick={sendToChat}>{busy ? '...' : t('share.chat.send', '채팅방에 보내기')}</PrimaryBtn>
                 </Actions>
               </>
             )}
@@ -324,6 +332,12 @@ const CloseBtn = styled.button`
 `;
 const Section = styled.section`
   padding: 16px 22px; border-bottom: 1px solid #F1F5F9;
+`;
+// D4 #62 — 보안등급 차단 배너
+const BlockedBanner = styled.div`
+  margin: 14px 22px 0; padding: 10px 14px; border-radius: 10px;
+  background: #FEF3C7; color: #92400E; font-size: 12.5px; line-height: 1.5; font-weight: 600;
+  border: 1px solid #FDE68A;
 `;
 const SectionTitle = styled.h3`font-size:13px;font-weight:700;color:#0F172A;margin:0 0 10px 0;`;
 const CheckRow = styled.div`margin-bottom:8px;`;

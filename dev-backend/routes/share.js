@@ -14,6 +14,7 @@ const { authenticateToken } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const { getUserScope, isMemberOrAbove } = require('../middleware/access_scope');
 const { applyShareUpdate } = require('../services/share_helper');
+const { blocksExternalShare } = require('../services/securityLevel');
 const { sendEntityShareEmail } = require('../services/emailService');
 const APP_URL = process.env.APP_URL || 'https://dev.planq.kr';
 
@@ -75,8 +76,8 @@ router.post('/email', authenticateToken, async (req, res, next) => {
     if (!entity) return errorResponse(res, 'not_found', 404);
     // soft-delete 체크 (file 만 deleted_at 컬럼)
     if (entity_type === 'file' && entity.deleted_at) return errorResponse(res, 'not_found', 404);
-    // D4 #62 — 파일 보안등급 게이트: 일반 외 외부 공유 차단
-    if (entity_type === 'file' && entity.security_level && entity.security_level !== 'general') {
+    // D4 #62 — 보안등급 게이트: 일반 외 자료(file/kb_document) 외부 공유 차단
+    if (blocksExternalShare(entity)) {
       return errorResponse(res, 'security_level_blocks_share', 403, 'security_level_blocks_share');
     }
 
@@ -127,6 +128,10 @@ router.post('/chat', authenticateToken, async (req, res, next) => {
     const entity = await cfg.model.findByPk(entity_id);
     if (!entity) return errorResponse(res, 'not_found', 404);
     if (entity_type === 'file' && entity.deleted_at) return errorResponse(res, 'not_found', 404);
+    // D4 #62 — 보안등급 게이트: 일반 외 자료 채팅 공유 차단 (옛 /chat 누락 갭 보완)
+    if (blocksExternalShare(entity)) {
+      return errorResponse(res, 'security_level_blocks_share', 403, 'security_level_blocks_share');
+    }
 
     const scope = await getUserScope(req.user.id, entity.business_id, req.user.platform_role);
     if (!isMemberOrAbove(scope) && entity.created_by !== req.user.id && entity.uploader_id !== req.user.id) {
