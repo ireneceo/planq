@@ -218,7 +218,12 @@
     "qtalk": "Q Talk",
     "qnote": "Q Note",
     "qhelper": "Q helper",
-    "popout": "새 창으로 분리"
+    "popout": "새 창으로 분리",
+    "createLabel": "빠른 만들기",
+    "openLabel": "열기",
+    "newTask": "업무",
+    "newMail": "메일",
+    "newEvent": "일정"
   },
   "saving": "처리 중…",
   "loading": "로딩 중…",

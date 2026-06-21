@@ -340,6 +340,13 @@ const QTaskPage:React.FC=()=>{
   // PWA Share Target 등에서 ?prefill= 으로 본문 전달받음. 마운트 시 한 번만 적용.
   // 사이클 N+56 — ?attachFileIds=1,2,3 도 같이 받아 새 task 모달 첨부 prefill.
   const [searchParams, setSearchParams] = useSearchParams();
+  // #80 — 퀵메뉴 '+업무' 진입 시 AI 업무 추가 모달 자동 오픈
+  useEffect(() => {
+    if (searchParams.get('create') === '1') {
+      setAiOpen(true);
+      const next = new URLSearchParams(searchParams); next.delete('create'); setSearchParams(next, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
   const prefillAppliedRef = useRef(false);
   useEffect(() => {
     if (prefillAppliedRef.current) return;
