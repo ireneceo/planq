@@ -962,7 +962,12 @@ router.post('/:businessId/bulk-download', authenticateToken, checkBusinessAccess
     const chatIds = parsed.filter(p => p.source === 'chat').map(p => p.id);
     const taskIds = parsed.filter(p => p.source === 'task').map(p => p.id);
 
+    // D4 #62 — 기밀(confidential) 자료 일괄 내보내기는 관리자(owner/admin)만
+    const dlScope = await getUserScope(req.user.id, businessId, req.user.platform_role);
+    const canExportConfidential = !!(dlScope.isOwner || dlScope.isAdmin || dlScope.isPlatformAdmin);
+
     const items = []; // { name, path }
+    let confidentialSkipped = 0;
 
     // 1) direct = File 테이블, business_id 직접 검증
     if (directIds.length > 0) {
@@ -973,6 +978,7 @@ router.post('/:businessId/bulk-download', authenticateToken, checkBusinessAccess
         }
       });
       for (const f of direct) {
+        if (f.security_level === 'confidential' && !canExportConfidential) { confidentialSkipped++; continue; }
         if (f.file_path && fs.existsSync(f.file_path)) {
           items.push({ name: f.file_name, path: f.file_path });
         }
@@ -1015,7 +1021,10 @@ router.post('/:businessId/bulk-download', authenticateToken, checkBusinessAccess
       }
     }
 
+    // 기밀만 요청했는데 권한 없어 전부 제외된 경우 — 명시적 차단
+    if (items.length === 0 && confidentialSkipped > 0) return errorResponse(res, 'confidential_export_admin_only', 403, 'confidential_export_admin_only');
     if (items.length === 0) return errorResponse(res, 'no_files', 404);
+    if (confidentialSkipped > 0) res.setHeader('X-Confidential-Skipped', String(confidentialSkipped));
 
     const archiver = require('archiver');
     const archive = archiver('zip', { zlib: { level: 6 } });
