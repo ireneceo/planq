@@ -9,6 +9,7 @@ import { formatDate } from '../../utils/dateFormat';
 import CalendarPicker from '../Common/CalendarPicker';
 import SingleDateField from '../Common/SingleDateField';
 import PlanQSelect from '../Common/PlanQSelect';
+import IdentityContext from '../Common/IdentityContext';
 import PartnerKindBadge from '../Common/PartnerKindBadge';
 import RichEditor from '../Common/RichEditor';
 import ShareModal from '../Common/ShareModal';
@@ -48,7 +49,7 @@ export interface DrawerTaskPatch {
 interface DrawerOrgUnit { id: number; name: string; name_en?: string | null }
 export interface DrawerMemberOption { user_id: number; name: string; department?: DrawerOrgUnit | null; team?: DrawerOrgUnit | null; }
 // D2-b (#66) — 프로젝트 참여 외부 파트너(user 계정 client) 후보. picker 에서 멤버와 합쳐 노출 + 유형 배지.
-export interface DrawerExternalOption { user_id: number; name: string; kind: string; }
+export interface DrawerExternalOption { user_id: number; name: string; kind: string; company_name?: string | null; }
 
 interface CommentAttach {
   id: number;
@@ -148,9 +149,6 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
   width, onWidthChange, onClose, onPatch, onRefresh, onDuplicated,
 }) => {
   const { t, i18n } = useTranslation('qtask');
-  // D1 후속 — 부서/팀 이름 현지화 (en 이면 name_en fallback name)
-  const orgUnitName = (u?: { name: string; name_en?: string | null } | null) =>
-    u ? ((i18n.language?.startsWith('en') && u.name_en) ? u.name_en : u.name) : '';
   // 댓글 첨부 이미지 라이트박스 — 한 댓글의 이미지들이 갤러리로 묶임
   const { open: openImageLightbox, lightbox: imageLightbox } = useImageLightbox();
   // 프로젝트 옵션 — props 우선, 없으면 자체 fetch (TodoPage / QCalendarPage 같은 호출 측 호환)
@@ -193,7 +191,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
         const r = await apiFetch(`/api/tasks/by-business/${bizId}/assignable-externals?project_id=${pid}`);
         const j = await r.json();
         if (!cancelled && j.success && Array.isArray(j.data)) {
-          setExternals(j.data.map((e: { user_id: number; name: string; kind: string }) => ({ user_id: e.user_id, name: e.name, kind: e.kind })));
+          setExternals(j.data.map((e: { user_id: number; name: string; kind: string; company_name?: string | null }) => ({ user_id: e.user_id, name: e.name, kind: e.kind, company_name: e.company_name ?? null })));
         } else if (!cancelled) { setExternals([]); }
       } catch { if (!cancelled) setExternals([]); }
     })();
@@ -945,11 +943,14 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                       saveField('assignee_id', uid);
                     }}
                     options={assigneeOptions} />
-                  {/* D1 후속 — 담당자 소속(부서·팀) 표시 */}
+                  {/* 정체성 컨텍스트 — 담당자 소속: 직원=부서·팀 / 외부 파트너=유형+회사 (통합 primitive) */}
                   {(() => {
-                    const am = detailTask.assignee_id != null ? members.find(mm => mm.user_id === detailTask.assignee_id) : null;
-                    const aff = am ? [orgUnitName(am.department), orgUnitName(am.team)].filter(Boolean).join(' · ') : '';
-                    return aff ? <AssigneeAffiliation>{aff}</AssigneeAffiliation> : null;
+                    if (detailTask.assignee_id == null) return null;
+                    const am = members.find(mm => mm.user_id === detailTask.assignee_id);
+                    if (am) return <IdentityContext person={{ type: 'member', department: am.department, team: am.team }} lang={i18n.language} />;
+                    const ext = externalById.get(detailTask.assignee_id);
+                    if (ext) return <IdentityContext person={{ type: 'client', company_name: ext.company_name, kind: ext.kind }} lang={i18n.language} />;
+                    return null;
                   })()}
                 </MetaCell>
                 <MetaCell>
@@ -1781,8 +1782,6 @@ const MetaCell = styled.div`
   display: flex; flex-direction: column; gap: 3px;
 `;
 const MetaLabel = styled.label`font-size: 11px; color: #64748B; font-weight: 600;`;
-// D1 후속 — 담당자 소속(부서·팀) 보조 텍스트
-const AssigneeAffiliation = styled.div`font-size: 11px; color: #94A3B8; margin-top: 4px; word-break: keep-all;`;
 // 마일스톤(주요 업무) 토글 — 다이아몬드 + 라벨. 일정 타임라인 ◆ 와 시각 연동.
 const MilestoneToggle = styled.button<{ $on: boolean }>`
   display: inline-flex; align-items: center; gap: 7px; min-height: 28px; align-self: flex-start;

@@ -847,7 +847,7 @@ router.get('/by-business/:businessId/assignable-externals', authenticateToken, a
     const byUserId = new Map();
     const byClientId = new Map();
     for (const c of clients) {
-      const entry = { user_id: c.user_id, client_id: c.id, kind: c.kind || 'customer', name: resolveName(c) };
+      const entry = { user_id: c.user_id, client_id: c.id, kind: c.kind || 'customer', name: resolveName(c), company_name: c.company_name || null };
       byUserId.set(c.user_id, entry);
       byClientId.set(c.id, entry);
     }
