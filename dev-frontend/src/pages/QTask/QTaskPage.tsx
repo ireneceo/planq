@@ -16,7 +16,7 @@ import TaskDetailDrawer from '../../components/QTask/TaskDetailDrawer';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import TaskRowActionMenu from '../../components/QTask/TaskRowActionMenu';
 import { responsiveDrawerWidth } from '../../utils/responsiveDrawer';
-import { affiliationLabel } from '../../utils/orgLabel';
+import { identityText } from '../../components/Common/IdentityContext';
 import AiTaskCreateModal from '../../components/QTask/AiTaskCreateModal';
 import TemplateSelectModal from '../../components/QTask/TemplateSelectModal';
 import CueTaskBar from '../../components/QTask/CueTaskBar';
@@ -1612,7 +1612,7 @@ const QTaskPage:React.FC=()=>{
                     {scope==='workspace' && (
                       <TCell $w="140px" $hideBelow={768} style={{overflow:'visible'}}>
                         {/* D1 후속 — 담당자 소속(부서·팀)은 hover tooltip 으로 (행 밀집 노이즈 0) */}
-                        <div onClick={e=>e.stopPropagation()} title={affiliationLabel(members.find(m=>m.user_id===task.assignee_id), i18nClient.language) || undefined}>
+                        <div onClick={e=>e.stopPropagation()} title={(()=>{const am=members.find(m=>m.user_id===task.assignee_id);return am?identityText({type:'member',department:am.department,team:am.team},i18nClient.language)||undefined:undefined;})()}>
                           <PlanQSelect size="sm" isClearable
                             placeholder={t('list.assigneePh','담당자') as string}
                             value={task.assignee_id==null ? null : {
