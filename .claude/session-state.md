@@ -19,7 +19,7 @@
 - 검증: 헬스 29/29 · 빌드 EXIT0 · E2E 20/20 + cross-tenant 4/4 · 서빙 200 · ko/en 패리티
 
 ### 다음 할 일
-- **⚠ 보고서 반응형 — 미완 (완료 아님, 2026-06-21):** KpiGrid 가로 오버플로우 근본 fix(minmax(0,1fr)+min-width:0+word-break+560px 1열, Insights 공통)만 적용. **전체 보고서(통합/프로젝트별/개인, IntegratedReportView·ReportsList·ReportUnitView·WeeklyReviewTab) 전수 반응형 점검·세부 보완은 Irene 화면 검토 후 추가 요청 시 진행.** 긴 문구·테이블·헤더 등 잔여 오버플로우 가능. 라벨 '나의 주간보고'→'나의 업무보고' 변경 완료.
+- **✅ 보고서 반응형 — 전수 완료 (2026-06-21):** 가로 오버플로우 근본 제거 — KpiGrid `minmax(0,1fr)`+min-width:0+word-break+560px 1열(Insights 공통) · ReportContent Grid `minmax(0,1fr)`+Sec/ITitle min-width:0(줄임표 작동) · IntegratedReportView UnitName word-break · ReportsList FilterBar flex-wrap · 테이블은 TableWrap overflow-x:auto(기존). 보고서 컴포넌트 non-minmax 1fr 그리드 0건 검증. 라벨 '나의 주간보고'→'나의 업무보고'. **빌드/헬스/서빙 검증 완료, 시각 최종확인은 Irene 화면.** 세부 디자인 보완은 화면 보고 추가 요청 시.
 - **보고서 공유 링크 (외부 열람)** — 현재 인쇄·PDF만. 백엔드 share_token(이미 PDF용 존재) + 공개 read-only **웹페이지** 구현 (Irene "공유도 해야 해"). 기존 /public/* 공개뷰 패턴 재사용
 - **보고서 디자인 세부 수정** — Irene가 화면 보고 추가 요청 예정 ("자세한 수정은 다시 요청할게")
 - (미배포) Irene `/배포` 명령 시 운영 반영

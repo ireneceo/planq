@@ -139,7 +139,7 @@ const ReportsList: React.FC<Props> = ({ businessId, periodType, dim }) => {
 export default ReportsList;
 
 const Wrap = styled.div`display:flex;flex-direction:column;gap:14px;`;
-const FilterBar = styled.div`display:flex;align-items:center;gap:8px;`;
+const FilterBar = styled.div`display:flex;align-items:center;gap:8px;flex-wrap:wrap;`;
 const NavBtn = styled.button`width:30px;height:30px;border:1px solid #E2E8F0;background:#fff;border-radius:8px;font-size:16px;color:#475569;cursor:pointer;&:hover{background:#F0FDFA;border-color:#99F6E4;color:#0F766E;}`;
 const PeriodText = styled.span`font-size:14px;font-weight:700;color:#0F172A;min-width:104px;text-align:center;`;
 const ThisBtn = styled.button`height:30px;padding:0 12px;border:1px solid #E2E8F0;background:#fff;border-radius:8px;font-size:12px;font-weight:600;color:#475569;cursor:pointer;&:hover{background:#F0FDFA;border-color:#99F6E4;color:#0F766E;}`;
