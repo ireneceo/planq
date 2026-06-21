@@ -1,57 +1,32 @@
 # PlanQ 세션 상태
 
 ## 현재 작업 상태
-**마지막 업데이트:** 2026-06-21 (5차)
-**작업 상태:** 완료 — **AI 템플릿 추천 운영 배포** (deploy `20260621_153721`, commit 315d4ed, 139초). **미배포 0.**
+**마지막 업데이트:** 2026-06-21 (운영 피드백 대량 처리 세션)
+**작업 상태:** 완료 — **운영 피드백 28→5 pending** (23건 처리). 미배포 0.
 
-### 진행 중인 작업
-- **미배포 2건(dev 검증 완료):** ① 워크스페이스 업무리스트 담당자 소속 tooltip ② 통합 정체성 컨텍스트 primitive(`IdentityContext`). 다음 `/배포`.
+### 이번 세션 운영 배포 (전부 검증·라이브)
+- #82 Gmail 연결 'Access token required' fix (apiFetch 패턴, initiate JSON 반환)
+- #78 업무리스트 진행률 반응형 (≤1280px 라인그래프 숨김+%만, 컬럼 축소)
+- #80 우측하단 퀵메뉴 '빠른 만들기'(+업무/+메일/+일정, 2그룹)
+- #75 세금계산서 발행 화면 발행내역(공급자·공급받는자·품목·VAT) — GET /:biz/:id/tax-breakdown + IssueModal 패널
+- #83 메일 연결 위키 article(connect-mail) — Q helper '메일설정 모릅니다' 해소
+- #84/#71/#79(앞 배포) + 통합 정체성 컨텍스트 + AI 템플릿 추천(앞 배포)
 
-### 통합 정체성 컨텍스트 (2026-06-21, "소속 표시" 재정의)
-- **핵심 정정:** "소속"은 대상별로 다름 — 직원=부서·팀(조직 D1) / 고객·파트너=회사+유형(kind). 고객의 소속은 회사이지 담당직원 아님.
-- **고객 소속은 이미 완비**(고객리스트 회사컬럼·상세 회사+유형+프로젝트·채팅hover 회사명). 빈틈은 업무리스트 client 담당자뿐이었음.
-- **신규 primitive** `components/Common/IdentityContext.tsx`(identityText + 인라인 컴포넌트) — 직원/고객 분기 단일 출처. `utils/orgLabel.ts`(affiliationLabel) 재사용.
-- 적용: TaskDetailDrawer 담당자(직원=부서·팀/외부=유형배지+회사) · QTaskPage 워크스페이스 tooltip · `assignable-externals` API company_name 추가.
-- 검증: 빌드 EXIT0·서빙 200·헬스 29/29·hex 토큰·이모지 0·i18n 0·외부API company_name 반환 확인(최고객/Acme Test Corp). commit b687fbf.
+### 피드백 검증·정리
+- #57·58·59 포커스/주간그래프: **재검증 — 작동 확인**(#59 E2E: submit-review→포커스 stop+actual 0.5h 정산). done 처리.
+- #62·64·65·66·67·69·70·73·74·76·77 등 옛 배포완료 피드백 일괄 done.
 
-### AI 템플릿 추천 — 신규 구현 (2026-06-21, B4 갭 해소)
-- AI 업무 추가 입력 시 저장 템플릿과 임베딩 매칭 → "이 템플릿과 거의 같아요" 배너 → 클릭 시 TemplateSelectModal detail 진입.
-- 백엔드: `task_templates.embedding` BLOB + `POST /recommend`(rate-limit·격리·graceful·임계 0.45 보정) + 생성/수정 임베딩 훅 + backfill.
-- 프론트: AiTaskCreateModal 배너(debounce 600ms) + TemplateSelectModal initialTemplateId + QTaskPage·TasksTab 배선 + qtask i18n ai.recommend ko/en.
-- 검증: 빌드 EXIT0 · 추천 API E2E 5/5(매칭·무관null·짧은입력·403격리·격리) · 임계보정(진짜0.42~0.57/무관0.26~0.43→0.45) · 헬스 29/29 · i18n 0 · /q-task 200.
-- 설계 docs/TASK_TEMPLATE_AI_RECOMMEND_DESIGN.md, 메모리 `project_task_templates` 갱신.
+### 남은 pending 5건
+- **#61** Cue 답변범위(워크스페이스 전영역+질문자 권한) — 조사/디벨롭
+- **#68** Q Talk @멘션 — 기능(중규모)
+- **#60** iOS 모바일 푸시 — 기기/Capacitor (project_native_app_capacitor_plan)
+- **#63** 자료 일괄다운로드+워크스페이스 이동 — 대규모/제품결정 (/기능설계)
+- **#72** 구글 로그인 — Google OAuth 검증 콘솔 제출 (project_google_oauth_verification_pending)
 
-### AI 전수검사 결과 (2026-06-21, docs/AI_FEATURE_AUDIT.md 결과 섹션)
-- **구현된 16개 AI 기능 전부 실 LLM/임베딩/STT 왕복 PASS** (mock 0, dev biz3 user3). A1~A4 Cue·B1~B3 Q Task·C1~C2 Q Talk·D1~D3 docs/mail/brief·E1~E4·E6·E7 Q Note.
-- **발견 1 (B4):** AI 템플릿 추천(≥0.80) **미구현** — 템플릿 자체는 라이브, 설계 `project_task_templates` 의 "AI 추천" 부분 부재. 신규 기능(설계+승인 필요).
-- **발견 2 (E5) — 규명 완료, 액션 불요:** `voice_fingerprint` 는 `live.py:_auto_match_self` 본인("나") 목소리 식별 전용(세션당 1명 가드). 메모리가 금지한 *임의 다화자 매칭*과 별개 → 충돌 아님. 헬스 VOICE 3항목 PASS. 70일 메모리 `feedback_qnote_speaker_simplify` 를 현재 코드 기준 정정함.
-- **부수 확인:** q-note/.env DEEPGRAM_API_KEY 이제 SET → STT 503 갭 해소 (memory `project_smtp_pending` 정정함). Node backend deepgram=false 는 무관(STT는 q-note 소관).
-- 테스트 데이터 전량 원복(candidate·brief post·test-*.js 0), 소스변경 0(문서만).
+### 박제
+- 빌드 검증은 **실 exit code**로 (이번 #75에서 `| tail`이 npm 실패 가린 사고 — node build > log; echo $?).
+- 피드백 respond = platform_admin(irene) PATCH /api/feedback/:id/respond. 위키 운영반영 = 배포 후 node seed-wiki-content.js(멱등).
 
-### 완료된 작업 (이번 세션)
-1. **D4 보안등급 posts/kb/docs 확장 (#62)** — files 한정 `security_level`(general/internal/confidential)을 Post·Document·KbDocument 로 확장. 공통 `services/securityLevel.js`(blocksExternalShare). 외부공유 게이트(posts share/email/chat/L4전환·docs share·kb share+번들) + entity별 `PUT /security-level`(상향 시 토큰 무효화) + share.js 통합 게이트 일반화(옛 /chat 누락 갭 보완). 프론트 PostsPage·PostShareModal·KnowledgePage·DocumentEditorPage 배지·선택·hint·차단배너. 운영 DB ENUM 3테이블 확인. **commit cfb1abe·d679639 (v1.44.1), 배포 080734.**
-2. **워크스페이스 닉네임 누락 전수 수정** — 멤버 이름을 계정명(User.name)으로 노출하던 회귀 14곳을 `applyMemberDisplayName` 으로 일괄 수정(posts·files·task_attachments·task_workflow·kb·email_threads·qnote_bridge, 공개뷰·PDF 포함). 커버리지 6→15 라우트. **commit 04183bb.**
-3. **멤버 소속(부서·팀) 표시 확산** — `/members` Department/Team join + UserInfoPopover(채팅 hover) + TaskDetailDrawer(업무 상세 담당자) 표시(i18n 현지화). **commit 05b21b4·9f3b9cf.**
-   - 운영 배포 ec8b721 (091155). 실데이터 검증: user3 닉네임[루아]/계정[한수정] → posts author '루아' 노출.
-
-### 다음 할 일
-- **소속 표시 잔여(선택):** 업무 리스트 행(밀집 노이즈 검토)·고객 상세. 현재 채팅·업무상세·OrgPage 적용됨.
-- **AI 기능 전수검사** (`docs/AI_FEATURE_AUDIT.md`) — Cue·Q Note·자동분해 AI 호출 점검·최적화 (자율 착수 가능).
-- **#63 워크스페이스 간 이동** (대규모, `/기능설계` 필요) — 퇴사자 자료 이동. 이동단위·권한·승인흐름 제품 결정 선행.
-- **보고서 디자인 세부 보완** — Irene 화면 검토 후 추가 요청 대기.
-- **기타 backlog:** 도움말(Help) 센터(`project_help_center_plan`), Google OAuth 검증 제출, #60 iOS Capacitor.
-
-### 구조 박제 (절대 임의 변경 금지)
-- memory `feedback_member_display_name_on_lists` — 멤버 이름 반환 라우트는 applyMemberDisplayName 필수(공개뷰·PDF 포함). 전수 커버리지 기록됨.
-- memory `feedback_deploy_exit1_spurious` — 배포 exit 1 부수 신호, 운영 독립 검증으로 판정.
-- memory `project_d_cluster_org_design` / `project_reporting_structure` / `feedback_copy_existing_design_not_bespoke`.
-
-### 참고
-- `planq-dev-backend`·`planq-qnote` 는 **irene** pm2. 운영 `irene@87.106.78.146`(PROD_BE=/opt/planq/backend, port 3004).
-- 배포: 커밋 후 `./scripts/deploy-planq.sh --auto`. 빌드 8GB(`NODE_OPTIONS=--max-old-space-size=8192`). exit 1 떠도 운영 헬스/실데이터 통과면 성공.
-- 닉네임 검증용 실데이터: dev biz3 user3 = 아이린/김미정, 운영 user3 = 루아/한수정.
-
----
 
 ## 복구 가이드
 
