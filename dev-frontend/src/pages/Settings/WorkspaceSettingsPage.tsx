@@ -11,6 +11,7 @@ import PermissionsSettings from './PermissionsSettings';
 import BillingSettings from './BillingSettings';
 import EmailSettings from './EmailSettings';
 import EmailAccountSettings from './EmailAccountSettings';
+import DataExportSettings from './DataExportSettings';
 import NotificationSettings from './NotificationSettings';
 import WorkManagementSettings from '../../components/Settings/WorkManagementSettings';
 import { mapApiError } from '../../utils/apiError';
@@ -34,7 +35,7 @@ import {
   type CueInfo,
 } from '../../services/workspace';
 
-type TabKey = 'brand' | 'legal' | 'language' | 'storage' | 'plan' | 'permissions' | 'members' | 'cue' | 'billing' | 'email' | 'mail-accounts' | 'notifications' | 'work-flow';
+type TabKey = 'brand' | 'legal' | 'language' | 'storage' | 'plan' | 'permissions' | 'members' | 'cue' | 'billing' | 'email' | 'mail-accounts' | 'notifications' | 'work-flow' | 'data-export';
 
 // ─────────────────────────────────────────────
 // Styled
@@ -499,7 +500,7 @@ export default function WorkspaceSettingsPage() {
   // /business/settings/{language|timezone|storage|plan|cue} → 해당 섹션
   const isMembersMode = location.pathname.includes('/business/members');
   const visibleTabs = useMemo<TabKey[]>(() => (
-    isMembersMode ? ['members'] : ['brand', 'legal', 'language', 'billing', 'email', 'mail-accounts', 'notifications', 'storage', 'plan', 'permissions', 'cue']
+    isMembersMode ? ['members'] : ['brand', 'legal', 'language', 'billing', 'email', 'mail-accounts', 'notifications', 'storage', 'plan', 'permissions', 'cue', 'data-export']
   ), [isMembersMode]);
 
   const tabFromUrl = useMemo<TabKey>(() => {
@@ -744,6 +745,7 @@ export default function WorkspaceSettingsPage() {
       case 'mail-accounts': return t('tabs.mailAccounts', 'Q Mail 계정') as string;
       case 'notifications': return t('tabs.notificationSettings', '알림 설정') as string;
       case 'work-flow':   return t('tabs.workFlow', '업무 관리') as string;
+      case 'data-export': return t('tabs.dataExport', '데이터 내보내기') as string;
       case 'brand':
       case 'legal':
       default:          return t('page.title') as string;  // brand/legal = "워크스페이스"
@@ -1160,6 +1162,11 @@ export default function WorkspaceSettingsPage() {
       {/* ─── Q MAIL ACCOUNTS (Q Mail M1 — 메일 계정 IMAP/SMTP 등록) ─── */}
       {tab === 'mail-accounts' && businessId && (
         <EmailAccountSettings />
+      )}
+
+      {/* ─── DATA EXPORT (#63 개인 자료 / 워크스페이스 백업 내보내기) ─── */}
+      {tab === 'data-export' && businessId && (
+        <DataExportSettings businessId={businessId} isOwner={isAdmin} />
       )}
 
       {/* ─── NOTIFICATIONS (Phase E placeholder) ─── */}

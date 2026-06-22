@@ -19,7 +19,23 @@
     "permissions": "Permissions",
     "members": "Members",
     "cue": "Cue",
-    "workFlow": "Work Management"
+    "workFlow": "Work Management",
+    "dataExport": "Data Export"
+  },
+  "dataExport": {
+    "intro": "Export your personal data or workspace data as a ZIP file. Files are kept as-is and documents are saved as HTML.",
+    "myTitle": "Export My Data",
+    "myDesc": "Download the personal (private) files you uploaded and the documents you created.",
+    "wsTitle": "Workspace Data Backup",
+    "wsDesc": "Download shared workspace data (team, workspace, and external). Members' personal (private) data is not included.",
+    "files": "Files",
+    "documents": "Documents",
+    "size": "Size",
+    "download": "Download ZIP",
+    "downloadBackup": "Download Backup ZIP",
+    "confidentialNote": "{{n}} confidential item(s) included. Exported with admin permission and recorded in the audit log.",
+    "errEmpty": "Nothing to export.",
+    "errGeneric": "Something went wrong during download. Please try again shortly."
   },
   "workManagement": {
     "autoFinalize": {
