@@ -106,7 +106,7 @@
 
 ### 발견사항
 
-1. **B4 AI 템플릿 추천(≥0.80) 미구현** (제품 결정 필요) — 템플릿 자체(preset·from-project·apply)는 라이브지만, 설계(`project_task_templates`)의 "AI 추천(매칭≥0.80)" 부분이 백엔드/프론트 어디에도 없음. 신규 기능 → 설계+승인 필요.
+1. **B4 AI 템플릿 추천 — 구현·검증 완료 (2026-06-22).** 설계 `docs/TASK_TEMPLATE_AI_RECOMMEND_DESIGN.md` 대로 구현됨(직전 세션 wip 자동저장 커밋 `7cb3c00`에 묻혀 정식 검증 이력이 없던 것을 이번 세션 실 API로 끝단 검증). 구성: `task_templates.embedding` BLOB + `services/templateEmbedding.js`(KB `embedText` 재사용) + `POST /api/task-templates/recommend`(멤버 게이트·per-user rate-limit·`RECOMMEND_MIN_SIM=0.45`·코사인·graceful null) + 프론트 `AiTaskCreateModal` 추천 배너/닫기 + `TemplateSelectModal initialTemplateId` + 부모(QTaskPage·TasksTab) 형제 모달 배선(팝업 위 팝업 아님) + i18n `ai.recommend.*` ko/en. **검증:** recommend 5/5 매칭(온보딩 0.494·워드프레스 0.577·채용 0.583·쇼핑몰 0.479·무관 null) · cross-tenant 403 · 익명 401 · 짧은입력 null · 10/10 템플릿 embedding 백필 완료 · 빌드 번들 포함 · ko/en 패리티. **데이터 정리:** 옛 테스트가 남긴 template id 1 `'CHANGED'` 오염 → 원본 `'WordPress 블로그 사이트'` 복원 + embedding 재계산(memory `feedback_test_data_restore`).
 2. **E5 화자식별 — 규명 완료 (충돌 아님, 액션 불요)** — `voice_fingerprint` 는 `routers/live.py:_auto_match_self` 에서 **본인("나") 목소리 식별 전용**(등록 fingerprint max similarity, 세션당 is_self 1명 가드). memory `feedback_qnote_speaker_simplify` 가 금지한 것은 *임의 다화자 매칭*이고 self-식별은 별개 → 충돌 아님. 헬스체크 VOICE 3항목으로 라이브 검증. 70일 된 메모리를 현재 코드 기준으로 정정함.
 
 ### 공통 6기준 (작동/폴백/쿼터/격리/i18n/실시간) — 횡단 확인
