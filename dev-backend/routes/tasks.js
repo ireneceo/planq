@@ -622,6 +622,7 @@ router.post('/ai-create', authenticateToken, async (req, res, next) => {
     const members = memberRows.map(m => ({
       user_id: m.user_id,
       name: m.name || m.user?.name || '',
+      account_name: m.user?.name || '',   // #90 — 이름 지정 매칭(워크스페이스명/계정명 둘 다)
       job_title: m.job_title || '',
       expertise: m.expertise || '',
       role: m.role || '',
