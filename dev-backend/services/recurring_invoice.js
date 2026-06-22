@@ -15,6 +15,7 @@ const { Op } = require('sequelize');
 const crypto = require('crypto');
 const { Project, Business, Client, Invoice, InvoiceItem, User, BusinessMember } = require('../models');
 const { sequelize } = require('../config/database');
+const { recurringMetaForProject } = require('./invoiceRecurring');
 
 // invoice_number 생성 — 동시성 고려 (같은 트랜잭션 / 락 미적용. cron 단일 실행이라 충분)
 // 운영 — robust: INV-YYYY- prefix 전체에서 실제 최대 순번 스캔 (깨진 번호 skip).
@@ -115,6 +116,7 @@ async function billOneProject(project, today = new Date()) {
     owner_user_id: creatorId,
     installment_mode: 'single',
     bank_snapshot: bankSnapshot,
+    meta: recurringMetaForProject(project),   // #92 — 정기 발송 기준 표시용 스냅샷
     vat_rate: vatRate,
     currency: business.default_currency || 'KRW',
     subtotal,

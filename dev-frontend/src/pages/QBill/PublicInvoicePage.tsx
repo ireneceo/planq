@@ -6,6 +6,8 @@ import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useParams, useNavigate } from 'react-router-dom';
 import ExpiredShareLink from '../../components/Common/ExpiredShareLink';
+import RecurringBillingNote from '../../components/QBill/RecurringBillingNote';
+import type { InvoiceRecurring } from '../../services/invoices';
 import { apiFetch, getAccessToken } from '../../contexts/AuthContext';
 
 interface Installment {
@@ -35,6 +37,7 @@ interface PublicInvoice {
   paid_at: string | null;
   notes: string | null;
   payment_terms: string | null;
+  recurring?: InvoiceRecurring | null;
   notify_paid_at: string | null;
   notify_payer_name: string | null;
   items: Array<{ id: number; description: string; detail?: string | null; quantity: number; unit_price: number; amount: number }>;
@@ -321,6 +324,7 @@ const PublicInvoicePage: React.FC = () => {
         <Card>
           <CardTitle>{invoice.title}</CardTitle>
           <CardNumber>{invoice.invoice_number}</CardNumber>
+          <RecurringBillingNote recurring={invoice.recurring} />
           {!isSplit && (
             <Total>{formatMoney(Number(invoice.grand_total), invoice.currency)}</Total>
           )}

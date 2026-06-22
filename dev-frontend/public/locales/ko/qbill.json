@@ -811,5 +811,21 @@
     "sop": "업무지침",
     "custom": "문서",
     "document": "문서"
+  },
+  "recurring": {
+    "tag": "정기 구독 청구",
+    "interval": {
+      "weekly": "매주",
+      "biweekly": "격주",
+      "monthly": "매월",
+      "quarterly": "분기",
+      "semiannual": "반기",
+      "yearly": "매년"
+    },
+    "basisMonthlyDay": "매월 {{day}}일 발행",
+    "basis": "{{interval}} 발행",
+    "next": "다음 발송 {{date}}",
+    "paused": "정기 발송 일시중지",
+    "ended": "정기 발송 종료"
   }
 }

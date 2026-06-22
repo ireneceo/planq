@@ -16,6 +16,7 @@ import {
   listInvoiceCorrections,
   type ApiInvoice, type ApiInstallment, type ApiReceiptCorrection,
 } from '../../services/invoices';
+import RecurringBillingNote from '../../components/QBill/RecurringBillingNote';
 
 interface ConfirmState {
   open: boolean;
@@ -289,6 +290,7 @@ export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, 
         </HeaderTop>
         <HeaderTitle>{invoice.title}</HeaderTitle>
         {invoice.notes && <HeaderSub>{invoice.notes}</HeaderSub>}
+        <RecurringBillingNote recurring={invoice.recurring} />
 
         {/* 액션 바 */}
         <ActionRow>

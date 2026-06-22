@@ -67,9 +67,20 @@ export interface ApiClient {
   invite_email: string | null;
 }
 
+export interface InvoiceRecurring {
+  source: 'client_subscription' | 'project';
+  interval: 'weekly' | 'biweekly' | 'monthly' | 'quarterly' | 'semiannual' | 'yearly';
+  active: boolean | null;
+  status: string | null;
+  next_billing_at: string | null;
+  billing_day: number | null;
+  plan_name: string | null;
+}
+
 export interface ApiInvoice {
   id: number;
   business_id: number;
+  recurring?: InvoiceRecurring | null;
   client_id: number | null;
   invoice_number: string;
   title: string;

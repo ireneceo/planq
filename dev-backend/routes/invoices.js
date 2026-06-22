@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { Invoice, InvoiceItem, InvoiceInstallment, Client, User, Business, Post, Conversation, Message, ReceiptCorrection } = require('../models');
+const { resolveRecurringInfo } = require('../services/invoiceRecurring');
 const { authenticateToken, checkBusinessAccess } = require('../middleware/auth');
 const { requireMenu } = require('../middleware/menu_permission');
 
@@ -205,6 +206,7 @@ router.get('/public/:token', async (req, res, next) => {
       paid_at: invoice.paid_at,
       notes: invoice.notes,
       payment_terms: invoice.payment_terms,
+      recurring: await resolveRecurringInfo(invoice),   // #92 — 정기 발송 기준(구독)
       notify_paid_at: invoice.notify_paid_at,
       notify_payer_name: invoice.notify_payer_name,
       items: (invoice.items || []).map(it => ({
@@ -925,7 +927,9 @@ router.get('/:businessId/:id', authenticateToken, attachWorkspaceScope(), async 
     });
     if (!invoice) return errorResponse(res, 'Invoice not found', 404);
     if (!(await canAccessInvoice(req.user.id, invoice, req.scope))) return errorResponse(res, 'forbidden', 403);
-    successResponse(res, invoice);
+    const payload = invoice.toJSON();
+    payload.recurring = await resolveRecurringInfo(invoice);   // #92 — 정기 발송 기준
+    successResponse(res, payload);
   } catch (error) {
     next(error);
   }

@@ -811,5 +811,21 @@
     "sop": "SOP",
     "custom": "Document",
     "document": "Document"
+  },
+  "recurring": {
+    "tag": "Recurring subscription",
+    "interval": {
+      "weekly": "Weekly",
+      "biweekly": "Biweekly",
+      "monthly": "Monthly",
+      "quarterly": "Quarterly",
+      "semiannual": "Semiannual",
+      "yearly": "Yearly"
+    },
+    "basisMonthlyDay": "Issued on day {{day}} monthly",
+    "basis": "{{interval}} billing",
+    "next": "Next on {{date}}",
+    "paused": "Recurring paused",
+    "ended": "Recurring ended"
   }
 }
