@@ -125,6 +125,20 @@ async function execResearch(task, opts = {}) {
   return { ok: true, body: htmlWrap(`# 자료 조사\n\n${r.content}`), input_tokens: r.input_tokens, output_tokens: r.output_tokens };
 }
 
+// #81 — Cue 담당자인데 cue_kind 가 비어 있으면 제목/내용/연결자료로 종류 추론.
+//   대부분 사용자는 cue_kind 를 모르고 그냥 Cue 를 담당자로 지정 → 옛 코드는 아무것도 안 함.
+//   이제 어떤 업무를 맡겨도 Cue 가 실제로 진행(기본 research = KB 검색 + 초안 작성).
+function inferCueKind(task) {
+  const ref = (task.cue_context_ref && typeof task.cue_context_ref === 'object') ? task.cue_context_ref : {};
+  if (ref.meeting_id) return 'summarize';
+  if (ref.conversation_id) return 'draft_reply';
+  const text = `${task.title || ''} ${task.description || ''}`.toLowerCase();
+  if (/(요약|정리해|회의록|summar|minutes)/.test(text)) return 'summarize';
+  if (/(답장|회신|답변 초안|reply|respond|메시지 보내)/.test(text)) return 'draft_reply';
+  if (/(분류|카테고리|태그|classif|categor)/.test(text)) return 'categorize';
+  return 'research';   // 일반 업무 — KB 검색 + 결과물 초안
+}
+
 // ─── 메인 entrypoint ──────────────────────────────────────
 
 async function executeForTask(taskId, opts = {}) {
@@ -132,7 +146,12 @@ async function executeForTask(taskId, opts = {}) {
   // opts.commentNote — task 댓글에서 트리거된 경우 댓글 본문
   const task = await Task.findByPk(taskId);
   if (!task) return { ok: false, reason: 'task_not_found' };
-  if (!task.cue_kind) return { ok: false, reason: 'cue_kind_not_set' };
+  // #81 — cue_kind 미지정이면 추론해서 진행 (옛 코드는 'cue_kind_not_set' 으로 중단했음)
+  if (!task.cue_kind) {
+    const inferred = inferCueKind(task);
+    await task.update({ cue_kind: inferred });
+    task.cue_kind = inferred;
+  }
 
   // Cue user 검증 — 워크스페이스의 cue_user_id 와 assignee_id 일치
   const biz = await Business.findByPk(task.business_id, { attributes: ['id', 'cue_user_id'] });

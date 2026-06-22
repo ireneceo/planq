@@ -493,10 +493,10 @@ router.post('/', authenticateToken, async (req, res, next) => {
       } catch (e) { console.warn('[task POST auto-reviewer]', e.message); }
     }
 
-    // 사이클 P8 — assignee=Cue && cue_kind 면 비동기 자동 실행
+    // 사이클 P8 + #81 — assignee=Cue 면 비동기 자동 실행 (cue_kind 없으면 executor 가 추론)
     try {
       const biz = await Business.findByPk(business_id, { attributes: ['cue_user_id'] });
-      if (biz?.cue_user_id && finalAssignee === biz.cue_user_id && cue_kind) {
+      if (biz?.cue_user_id && finalAssignee === biz.cue_user_id) {
         const { executeForTask } = require('../services/cue_task_executor');
         executeForTask(task.id).then(r => {
           console.log('[cue_task_executor]', task.id, r.ok ? 'ok' : `skip: ${r.reason}`);
@@ -1124,6 +1124,19 @@ router.put('/by-business/:businessId/:id', authenticateToken, async (req, res, n
     } catch (e) {
       // history 기록 실패는 전체 PUT 을 깨뜨리지 않도록 silent (로그만)
       console.warn('[task PUT] history record failed:', e.message);
+    }
+
+    // #81 — 담당자를 Cue 로 변경하면 자동 실행 (cue_kind 없으면 executor 가 추론). 기존 업무를 Cue 에게 맡기는 경로.
+    if (updates.assignee_id !== undefined && updates.assignee_id && updates.assignee_id !== prev.assignee_id) {
+      try {
+        const cueBiz = await Business.findByPk(businessId, { attributes: ['cue_user_id'] });
+        if (cueBiz?.cue_user_id && updates.assignee_id === cueBiz.cue_user_id) {
+          const { executeForTask } = require('../services/cue_task_executor');
+          executeForTask(task.id)
+            .then((r) => console.log('[cue_task_executor] PUT', task.id, r.ok ? 'ok' : `skip: ${r.reason}`))
+            .catch((e) => console.error('[cue_task_executor] PUT crash', e.message));
+        }
+      } catch (e) { console.warn('[task PUT cue check]', e.message); }
     }
 
     // Socket.IO: project + business room 양쪽 broadcast
