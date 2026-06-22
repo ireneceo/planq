@@ -18,8 +18,19 @@ const { getUserScope } = require('../middleware/access_scope');
 const { logAudit } = require('../services/auditService');
 const { buildAutoSnapshot } = require('../services/reportUnitSnapshot');
 const { buildIntegratedRollup } = require('../services/integratedRollup');
+const { generateScrNarrative } = require('../services/reportNarrative');
+const rateLimit = require('express-rate-limit');
+const { ipKeyGenerator } = require('express-rate-limit');
 const { Op } = require('sequelize');
 const { mondayOfDateStr, addDaysStr, todayInTz } = require('../utils/datetime');
+
+// #85 — AI SCR 요약 생성은 외부 비용(LLM) → per-user rate-limit
+const narrativeLimiter = rateLimit({
+  windowMs: 60 * 1000, max: 8,
+  keyGenerator: (req) => req.user?.id ? `rpt-narr-u${req.user.id}` : `rpt-narr-ip${ipKeyGenerator(req)}`,
+  standardHeaders: true, legacyHeaders: false,
+  message: { success: false, message: 'AI 요약 생성을 너무 자주 호출했습니다. 잠시 후 다시 시도하세요.' },
+});
 
 // 리뷰 M5 — period_start 를 키 정규화(주=월요일/월=1일)해 비정규 입력의 중복 row·cron 불일치 차단.
 function normalizePeriodStart(periodType, periodStart) {
@@ -186,6 +197,32 @@ router.patch('/:biz/unit/:id', authenticateToken, async (req, res, next) => {
     await unit.update(patch);
     broadcastReport(req, businessId, unit, 'edited');
     return successResponse(res, mergedView(unit, true));
+  } catch (err) { next(err); }
+});
+
+// POST /:biz/unit/:id/generate-narrative — #85 SCR(상황·문제·해결) 경영진 요약 AI 초안.
+// 책임자만, draft 만. 저장 안 함 — 응답을 프론트 편집기에 채우고 사용자가 검토 후 PATCH 로 저장.
+router.post('/:biz/unit/:id/generate-narrative', authenticateToken, narrativeLimiter, async (req, res, next) => {
+  try {
+    const businessId = Number(req.params.biz);
+    const { scope: uScope, member, ownerOrAdmin } = await loadScope(req, businessId);
+    if (!member) return errorResponse(res, 'member_only', 403);
+    const unit = await ReportUnit.findOne({ where: { id: Number(req.params.id), business_id: businessId } });
+    if (!unit) return errorResponse(res, 'report_not_found', 404);
+    if (!await isResponsible(uScope, unit.scope, unit.scope_ref_id, businessId, ownerOrAdmin)) return errorResponse(res, 'not_responsible', 403);
+    if (unit.status === 'confirmed') return errorResponse(res, 'confirmed_reopen_first', 409);
+
+    const snapshot = { ...(unit.auto_snapshot || {}), ...(unit.edited_overrides || {}) };
+    const lang = (req.body?.lang === 'en') ? 'en' : 'ko';
+    const periodLabel = `${unit.period_type} ${unit.period_start}`;
+    let out;
+    try {
+      out = await generateScrNarrative({ snapshot, scopeLabel: unit.scope, periodLabel, lang });
+    } catch (e) {
+      console.error('[report narrative]', e.message);
+      return errorResponse(res, 'ai_failed', 502, 'ai_failed');
+    }
+    return successResponse(res, out);
   } catch (err) { next(err); }
 });
 

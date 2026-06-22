@@ -52,6 +52,10 @@ export async function getReportUnit(businessId: number, q: { scope: ReportScope;
 export async function patchReportUnit(businessId: number, id: number, patch: { narrative?: string; edited_overrides?: Record<string, unknown> }): Promise<ReportUnitData> {
   return jsonOf(await apiFetch(`/api/reports/${businessId}/unit/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch) }));
 }
+// #85 — SCR(상황·문제·해결) 경영진 요약 AI 초안 생성
+export async function generateReportNarrative(businessId: number, id: number, lang: 'ko' | 'en'): Promise<{ headline: string; situation: string; complication: string; resolution: string; narrative: string }> {
+  return jsonOf(await apiFetch(`/api/reports/${businessId}/unit/${id}/generate-narrative`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lang }) }));
+}
 export async function confirmReportUnit(businessId: number, id: number): Promise<ReportUnitData> {
   return jsonOf(await apiFetch(`/api/reports/${businessId}/unit/${id}/confirm`, { method: 'POST' }));
 }

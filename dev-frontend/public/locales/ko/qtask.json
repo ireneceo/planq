@@ -800,7 +800,11 @@
         "completedInPeriod": "기간 내 완료"
       },
       "pmComment": "PM 업무보고",
-      "myComment": "내 코멘트"
+      "myComment": "내 코멘트",
+      "genScr": "✨ AI 요약 생성 (SCR)",
+      "genScrLoading": "AI 작성 중…",
+      "genScrTitle": "보고 데이터로 상황·문제·해결(SCR) 구조 요약을 자동 작성합니다",
+      "genScrErr": "AI 요약 생성에 실패했습니다. 잠시 후 다시 시도해주세요."
     },
     "project": {
       "retry": "다시 시도",
