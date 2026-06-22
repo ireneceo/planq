@@ -528,7 +528,8 @@ function App() {
         <OpenInAppBanner />
         <BuildVersionGuard />
         <LimitReachedDialog />
-        <AnnouncementBanner />
+        {/* #71 — 공지 배너는 워크스페이스 작업 화면에서만. 랜딩·미리보기·팝아웃 제외 */}
+        {!hideAppChrome && <AnnouncementBanner />}
         <TermsReacceptModal />
         <ImpersonateBanner />
       </Suspense>
