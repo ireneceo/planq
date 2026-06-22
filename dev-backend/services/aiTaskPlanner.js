@@ -97,7 +97,8 @@ Rules:
 - priority: "low" | "normal" | "high" | "urgent". Critical-path tasks (런칭/배포 등) → "high".
 - depends_on_index: 0-based index of another task in the SAME response that must complete first. Use this aggressively — most tasks have at least one upstream.
 - assignee_hint: short role keyword (예: "디자이너" / "백엔드 개발자" / "마케터" / "기획자"). Match domain expertise.
-- description: 1-2 sentences explaining what the deliverable contains, not just rephrasing the title.
+- assignee_name: if the user EXPLICITLY named a specific person to handle this task (예: "루아에게 요청", "민수가 맡아"), set the EXACT member name copied from the Workspace members list below. Otherwise null. Names take priority over assignee_hint.
+- description: 1-2 sentences explaining what the deliverable contains. CRITICAL — if the user's input contains any URL/link or specific reference, PRESERVE it verbatim inside the description (never drop the link). Capture the user's actual request faithfully; do NOT replace it with a generic restatement.
 - Output ${lang} for titles and descriptions.
 
 ═══ DOMAIN-AWARE EXPANSION (apply when user input is brief) ═══
@@ -133,6 +134,7 @@ ${memberLines}
       "due_offset_days": <int>,
       "priority": "low" | "normal" | "high" | "urgent",
       "assignee_hint": "<short role keyword or null>",
+      "assignee_name": "<exact member name if user named a person, else null>",
       "depends_on_index": <int or null>
     }
   ],
@@ -193,6 +195,23 @@ function clampPriority(p) {
   return 'normal';
 }
 
+// #90 — 사용자가 명시한 이름 → 멤버 매칭. 워크스페이스 표시명(name) / 계정명(account_name) 둘 다.
+// 정확 일치 우선, 없으면 포함(부분) 일치. 1명 확정 시 user_id, 다수/0명이면 null.
+function matchMemberByName(name, members) {
+  if (!name || !members || members.length === 0) return null;
+  const n = String(name).toLowerCase().trim();
+  if (n.length < 2) return null;
+  const nameOf = (m) => [m.name, m.account_name, m.name_localized].filter(Boolean).map(s => String(s).toLowerCase());
+  // 1) 정확 일치
+  let hit = members.filter(m => nameOf(m).some(x => x === n));
+  if (hit.length === 1) return hit[0].user_id;
+  if (hit.length > 1) return null;
+  // 2) 포함 일치 (이름이 멤버명에 포함되거나 그 반대 — "루아에게" 같은 조사 흡수)
+  hit = members.filter(m => nameOf(m).some(x => x.length >= 2 && (n.includes(x) || x.includes(n))));
+  if (hit.length === 1) return hit[0].user_id;
+  return null;
+}
+
 // 멤버 fuzzy 매칭 — assignee_hint → BusinessMember
 // 일치 1명이면 user_id 반환, 다수/0명이면 null
 function matchMemberByHint(hint, members) {
@@ -238,9 +257,11 @@ async function planTasksFromPrompt({ prompt, businessId, projectContext, members
     const due_offset_days = clampInt(t.due_offset_days, start_offset_days, 365, start_offset_days + duration_days);
     const priority = clampPriority(t.priority);
     const assignee_hint = t.assignee_hint ? String(t.assignee_hint).slice(0, 80) : null;
+    const assignee_name = t.assignee_name ? String(t.assignee_name).slice(0, 80) : null;
     const depends_on_index = (Number.isInteger(t.depends_on_index) && t.depends_on_index !== idx && t.depends_on_index >= 0)
       ? t.depends_on_index : null;
-    const assignee_user_id = matchMemberByHint(assignee_hint, members);
+    // #90 — 이름 지정 우선, 없으면 역할 힌트
+    const assignee_user_id = matchMemberByName(assignee_name, members) ?? matchMemberByHint(assignee_hint, members);
     const vague = detectVague(title, language);
     return {
       idx,
@@ -252,11 +273,23 @@ async function planTasksFromPrompt({ prompt, businessId, projectContext, members
       due_offset_days,
       priority,
       assignee_hint,
+      assignee_name,
       assignee_user_id,
       depends_on_index,
       vague,
     };
   }).filter(c => c.title);
+
+  // #90 — 링크 유실 방지 안전망: 프롬프트의 URL 이 어떤 후보 description 에도 없으면 첫 후보에 보존.
+  const urls = (String(prompt).match(/https?:\/\/[^\s<>"')]+/g) || []).slice(0, 3);
+  if (urls.length && candidates.length) {
+    const allDesc = candidates.map(c => c.description || '').join(' ');
+    const missing = urls.filter(u => !allDesc.includes(u));
+    if (missing.length) {
+      const extra = (language === 'en' ? '\n\nReference: ' : '\n\n참고 링크: ') + missing.join(' ');
+      candidates[0].description = (candidates[0].description || '').slice(0, 1000 - extra.length) + extra;
+    }
+  }
 
   // recordUsage — cue_usage 카운터에 'ai_task_create' 액션으로 기록
   if (!result.fallback && businessId) {
@@ -274,4 +307,4 @@ async function planTasksFromPrompt({ prompt, businessId, projectContext, members
   };
 }
 
-module.exports = { planTasksFromPrompt, detectVague, matchMemberByHint };
+module.exports = { planTasksFromPrompt, detectVague, matchMemberByHint, matchMemberByName };
