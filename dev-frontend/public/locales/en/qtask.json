@@ -786,7 +786,11 @@
         "completedInPeriod": "Done in period"
       },
       "pmComment": "PM report",
-      "myComment": "My comment"
+      "myComment": "My comment",
+      "genScr": "✨ Generate AI Summary (SCR)",
+      "genScrLoading": "Generating…",
+      "genScrTitle": "Auto-writes a Situation-Complication-Resolution (SCR) summary from the report data",
+      "genScrErr": "Failed to generate the AI summary. Please try again shortly."
     },
     "project": {
       "retry": "Retry",
