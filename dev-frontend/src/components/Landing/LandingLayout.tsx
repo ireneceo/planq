@@ -102,7 +102,7 @@ const LandingLayout: React.FC<Props> = ({ children, transparentTop = true }) => 
           <FooterCols>
             <FooterCol>
               <FooterLogo src="/planQ_white_new.svg" alt="PlanQ" />
-              <FooterTagline>{t('footer.tagline', '일을 일답게 하다')}</FooterTagline>
+              <FooterTagline>{t('footer.tagline', '일이 일이되지 않게, 플랜큐')}</FooterTagline>
             </FooterCol>
             <FooterCol>
               <FooterTitle>{t('footer.product', 'PRODUCT')}</FooterTitle>
@@ -271,14 +271,15 @@ const FooterCols = styled.div`
 `;
 const FooterCol = styled.div`
   display: flex; flex-direction: column; gap: 10px;
+  align-items: flex-start;  /* #89 — 로고·태그라인 좌측 정렬 보장 */
 `;
 const FooterLogo = styled.img`
   height: 28px; width: auto; display: block;
-  margin-bottom: 4px;
+  margin-bottom: 4px; align-self: flex-start;
 `;
 const FooterTagline = styled.div`
   font-size: 13px; color: #94A3B8; line-height: 1.6; max-width: 280px;
-  letter-spacing: 2px;
+  letter-spacing: 0.2px; text-align: left;  /* #89 — 문장형 태그라인: 과도한 자간 제거 */
 `;
 const FooterTitle = styled.div`
   font-family: 'Outfit', sans-serif;
