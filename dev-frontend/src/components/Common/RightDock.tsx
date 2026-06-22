@@ -157,9 +157,11 @@ const IconHelp = () => (
 // ===== styled =====
 const FabWrap = styled.div`
   position: fixed; right: 20px; bottom: 16px;
-  z-index: 45;
+  /* 모바일 상단바(z-index 99)·사이드바(100) 위로 떠야 펼친 메뉴가 안 가림 (#86). 모달(1000+)보다는 아래. */
+  z-index: 120;
   display: flex; flex-direction: column; align-items: flex-end; gap: 10px;
-  @media (max-width: 640px) { right: 16px; bottom: 16px; }
+  /* iPhone 홈 인디케이터 회피 (#86) */
+  @media (max-width: 640px) { right: 16px; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); }
   body[data-overlay-open="true"] & { opacity: 0; pointer-events: none; visibility: hidden; }
 `;
 
@@ -181,6 +183,13 @@ const Menu = styled.div`
   /* N+93 — 버튼 가로폭 동일 + 아이콘 좌측 정렬: 고정폭 컬럼에 stretch */
   display: flex; flex-direction: column; align-items: stretch; gap: 8px;
   width: 188px;
+  /* #86 — 짧은 화면(키보드/가로모드)에서 위로 넘쳐 상단바 뒤로 잘리지 않게: 뷰포트 안에 가두고 스크롤 */
+  max-height: calc(100dvh - 96px);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 2px;            /* 스크롤 시 버튼 그림자 잘림 방지 */
+  scrollbar-width: none;
+  &::-webkit-scrollbar { display: none; }
   animation: dockIn 0.14s ease-out;
   @keyframes dockIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
 `;
