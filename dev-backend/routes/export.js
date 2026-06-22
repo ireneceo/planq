@@ -5,11 +5,14 @@ const express = require('express');
 const router = express.Router();
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
 const { Op } = require('sequelize');
-const { File, Document } = require('../models');
+const { File, Document, BusinessMember, Business, BusinessStorageUsage } = require('../models');
 const { authenticateToken, checkBusinessAccess } = require('../middleware/auth');
 const { getUserScope, isMemberOrAbove } = require('../middleware/access_scope');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
+
+const UPLOAD_DIR = path.join(__dirname, '..', 'uploads');
 
 function escapeHtml(s) {
   return String(s == null ? '' : s)
@@ -177,6 +180,109 @@ router.post('/:businessId/workspace', authenticateToken, checkBusinessAccess, as
       newValue: { files: files.length, documents: docs.length },
     });
     await streamExport(res, 'workspace', files, docs);
+  } catch (err) { next(err); }
+});
+
+// ── Phase 2 (#63) — 워크스페이스 간 이전 (복사, 원본 유지) ──
+
+// GET /api/export/:businessId/me/transfer-targets — 본인이 멤버인 다른 워크스페이스 목록
+router.get('/:businessId/me/transfer-targets', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+  try {
+    const businessId = Number(req.params.businessId);
+    const scope = await getUserScope(req.user.id, businessId, req.user.platform_role);
+    if (!isMemberOrAbove(scope)) return errorResponse(res, 'forbidden', 403);
+    const rows = await BusinessMember.findAll({
+      where: { user_id: req.user.id, business_id: { [Op.ne]: businessId }, removed_at: null },
+      include: [{ model: Business, attributes: ['id', 'name', 'brand_name'], required: true }],
+    });
+    const targets = rows.map((m) => ({
+      id: m.Business.id,
+      name: m.Business.brand_name || m.Business.name,
+    }));
+    return successResponse(res, targets);
+  } catch (err) { next(err); }
+});
+
+// POST /api/export/:businessId/me/transfer  body { target_business_id }
+// 본인 L1 파일 + 본인 작성 문서를 타겟 워크스페이스에 복사(원본 유지). 본인이 양쪽 멤버여야.
+router.post('/:businessId/me/transfer', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+  try {
+    const sourceBiz = Number(req.params.businessId);
+    const targetBiz = Number(req.body?.target_business_id);
+    if (!targetBiz || targetBiz === sourceBiz) return errorResponse(res, 'invalid_target', 400);
+
+    const srcScope = await getUserScope(req.user.id, sourceBiz, req.user.platform_role);
+    if (!isMemberOrAbove(srcScope)) return errorResponse(res, 'forbidden', 403);
+    const tgtScope = await getUserScope(req.user.id, targetBiz, req.user.platform_role);
+    if (!isMemberOrAbove(tgtScope)) return errorResponse(res, 'target_not_member', 403);
+
+    const { files, docs } = await collectSelf(sourceBiz, req.user.id);
+    let filesCopied = 0, docsCopied = 0, bytesAdded = 0, skipped = 0;
+
+    for (const f of files.slice(0, 1000)) {
+      if (!f.content_hash) { skipped++; continue; }
+      // 이미 본인이 타겟에 같은 파일 보유 → 중복 이전 방지
+      const mine = await File.findOne({
+        where: { business_id: targetBiz, content_hash: f.content_hash, uploader_id: req.user.id, deleted_at: null },
+      });
+      if (mine) { skipped++; continue; }
+      // 타겟 내 dedup — 같은 해시 물리파일 있으면 ref 공유
+      const existing = await File.findOne({
+        where: { business_id: targetBiz, content_hash: f.content_hash, deleted_at: null },
+      });
+      if (existing) {
+        await existing.increment('ref_count');
+        await File.create({
+          business_id: targetBiz, uploader_id: req.user.id,
+          file_name: f.file_name, file_path: existing.file_path, file_size: f.file_size,
+          mime_type: f.mime_type, storage_provider: 'planq', content_hash: f.content_hash,
+          ref_count: 1, visibility: 'L1', vlevel: 'L1', security_level: f.security_level,
+        });
+        filesCopied++;
+        continue;
+      }
+      // 물리 복사
+      if (!f.file_path || !fs.existsSync(f.file_path)) { skipped++; continue; }
+      const dir = path.join(UPLOAD_DIR, String(targetBiz), new Date().toISOString().slice(0, 7));
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+      const newPath = path.join(dir, crypto.randomUUID() + path.extname(f.file_path));
+      fs.copyFileSync(f.file_path, newPath);
+      await File.create({
+        business_id: targetBiz, uploader_id: req.user.id,
+        file_name: f.file_name, file_path: newPath, file_size: f.file_size,
+        mime_type: f.mime_type, storage_provider: 'planq', content_hash: f.content_hash,
+        ref_count: 1, visibility: 'L1', vlevel: 'L1', security_level: f.security_level,
+      });
+      filesCopied++;
+      bytesAdded += Number(f.file_size) || 0;
+    }
+
+    for (const d of docs.slice(0, 1000)) {
+      await Document.create({
+        business_id: targetBiz, created_by: req.user.id,
+        kind: d.kind, title: d.title, body_json: d.body_json, body_html: d.body_html,
+        security_level: d.security_level, status: 'draft',
+      });
+      docsCopied++;
+    }
+
+    if (bytesAdded > 0) {
+      const [usage] = await BusinessStorageUsage.findOrCreate({
+        where: { business_id: targetBiz, storage_provider: 'planq' },
+        defaults: { business_id: targetBiz, bytes_used: 0, file_count: 0, storage_provider: 'planq' },
+      });
+      await usage.update({
+        bytes_used: Number(usage.bytes_used) + bytesAdded,
+        file_count: usage.file_count + filesCopied,
+      });
+    }
+
+    require('../services/auditService').logAudit(req, {
+      action: 'data.transfer.self', targetType: 'business', targetId: targetBiz, businessId: sourceBiz,
+      newValue: { target_business_id: targetBiz, files_copied: filesCopied, documents_copied: docsCopied, skipped },
+    });
+
+    return successResponse(res, { files_copied: filesCopied, documents_copied: docsCopied, skipped });
   } catch (err) { next(err); }
 });
 
