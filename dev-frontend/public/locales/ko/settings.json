@@ -19,7 +19,23 @@
     "permissions": "권한",
     "members": "멤버",
     "cue": "Cue",
-    "workFlow": "업무 관리"
+    "workFlow": "업무 관리",
+    "dataExport": "데이터 내보내기"
+  },
+  "dataExport": {
+    "intro": "내 개인 자료 또는 워크스페이스 자료를 ZIP 파일로 내보냅니다. 파일은 원본 그대로, 문서는 HTML로 저장됩니다.",
+    "myTitle": "내 데이터 내보내기",
+    "myDesc": "내가 올린 개인(나만 보기) 파일과 내가 작성한 문서를 받습니다.",
+    "wsTitle": "워크스페이스 데이터 백업",
+    "wsDesc": "워크스페이스 공용 자료(팀·워크스페이스·외부 공개)를 받습니다. 멤버 개인(나만 보기) 자료는 포함되지 않습니다.",
+    "files": "파일",
+    "documents": "문서",
+    "size": "용량",
+    "download": "ZIP 다운로드",
+    "downloadBackup": "백업 ZIP 다운로드",
+    "confidentialNote": "기밀 자료 {{n}}건이 포함됩니다. 관리자 권한으로 내보내며 감사 로그에 기록됩니다.",
+    "errEmpty": "내보낼 자료가 없습니다.",
+    "errGeneric": "다운로드 중 문제가 발생했습니다. 잠시 후 다시 시도해주세요."
   },
   "workManagement": {
     "autoFinalize": {

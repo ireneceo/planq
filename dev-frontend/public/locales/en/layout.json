@@ -64,6 +64,7 @@
     "plan": "Subscription",
     "storage": "Storage & Integrations",
     "permissions": "Permissions",
+    "dataExport": "Data Export",
     "cue": "Cue",
     "language": "Language & Region",
     "billing": "Billing",
