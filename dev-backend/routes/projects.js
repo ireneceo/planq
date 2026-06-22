@@ -1926,7 +1926,9 @@ router.get('/conversations/:convId/task-candidates', authenticateToken, async (r
       include: [{ model: User, as: 'guessedAssignee', attributes: ['id', 'name', 'name_localized'], required: false }],
       order: [['extracted_at', 'DESC']],
     });
-    return successResponse(res, cands.map((c) => c.toJSON()));
+    const candsJson = cands.map((c) => c.toJSON());
+    await applyMemberDisplayName(candsJson, conversation.business_id, ['guessedAssignee']);
+    return successResponse(res, candsJson);
   } catch (err) { next(err); }
 });
 
@@ -1943,7 +1945,9 @@ router.get('/conversations/:convId/tasks', authenticateToken, async (req, res, n
       ],
       order: [['created_at', 'DESC']],
     });
-    return successResponse(res, tasks.map((t) => t.toJSON()));
+    const tasksJson = tasks.map((t) => t.toJSON());
+    await applyMemberDisplayName(tasksJson, conversation.business_id, ['assignee']);
+    return successResponse(res, tasksJson);
   } catch (err) { next(err); }
 });
 
@@ -2015,7 +2019,9 @@ router.get('/:id/task-candidates', authenticateToken, async (req, res, next) => 
       include: [{ model: User, as: 'guessedAssignee', attributes: ['id', 'name', 'name_localized'] }],
       order: [['extracted_at', 'DESC']],
     });
-    return successResponse(res, cands.map((c) => c.toJSON()));
+    const candsJson = cands.map((c) => c.toJSON());
+    await applyMemberDisplayName(candsJson, project.business_id, ['guessedAssignee']);
+    return successResponse(res, candsJson);
   } catch (err) { next(err); }
 });
 
@@ -2218,7 +2224,9 @@ router.get('/workspace/:businessId/all-tasks', authenticateToken, async (req, re
       limit, offset,
       distinct: true,
     });
-    return paginatedResponse(res, rows.map((t) => t.toJSON()), count, { limit, page, offset });
+    const rowsJson = rows.map((t) => t.toJSON());
+    await applyMemberDisplayName(rowsJson, businessId, ['assignee', 'requester']);
+    return paginatedResponse(res, rowsJson, count, { limit, page, offset });
   } catch (err) { next(err); }
 });
 

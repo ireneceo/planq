@@ -514,11 +514,15 @@ router.post('/', authenticateToken, async (req, res, next) => {
       ],
     });
 
+    // #87 — assignee/requester 이름 워크스페이스 표시명으로 (emit·return 모두 동일 적용)
+    const fullJson = full.toJSON();
+    await applyMemberDisplayName([fullJson], business_id, ['assignee', 'requester']);
+
     // Socket.IO: project room + business room 양쪽 emit (Q Task 페이지가 business 룸 구독)
     // actor_user_id — 토스터가 본인 액션 알림 자기에게 표시 차단용.
     const io = req.app.get('io');
     if (io) {
-      const newTaskPayload = { ...full.toJSON(), actor_user_id: req.user.id };
+      const newTaskPayload = { ...fullJson, actor_user_id: req.user.id };
       if (project_id) io.to(`project:${project_id}`).emit('task:new', newTaskPayload);
       if (business_id) io.to(`business:${business_id}`).emit('task:new', newTaskPayload);
       broadcastInboxRefresh(io, business_id, project_id, 'task_new', full.id);
@@ -590,7 +594,7 @@ router.post('/', authenticateToken, async (req, res, next) => {
       });
     }
 
-    return successResponse(res, full.toJSON());
+    return successResponse(res, fullJson);
   } catch (err) { next(err); }
 });
 
@@ -736,10 +740,13 @@ router.post('/ai-create/confirm', authenticateToken, async (req, res, next) => {
           { model: User, as: 'requester', attributes: ['id', 'name', 'name_localized'], required: false },
         ],
       });
-      created.push(full.toJSON());
+      // #87 — 워크스페이스 표시명 (push·return·broadcast 동일)
+      const fullJson = full.toJSON();
+      await applyMemberDisplayName([fullJson], business_id, ['assignee', 'requester']);
+      created.push(fullJson);
 
       if (io) {
-        const payload = { ...full.toJSON(), actor_user_id: req.user.id };
+        const payload = { ...fullJson, actor_user_id: req.user.id };
         if (project_id) io.to(`project:${project_id}`).emit('task:new', payload);
         io.to(`business:${business_id}`).emit('task:new', payload);
         broadcastInboxRefresh(io, business_id, project_id, 'task_new', full.id);
@@ -1381,6 +1388,10 @@ router.get('/:id/detail', authenticateToken, async (req, res, next) => {
     let json = task.toJSON();
     // N+34 — assignee/creator/requester 이름 워크스페이스 표시명으로 덮어쓰기
     await applyMemberDisplayNameOne(json, task.business_id, ['assignee', 'creator', 'requester']);
+    // #87 — 댓글 작성자도 워크스페이스 표시명으로 (업무 상세 본문)
+    if (Array.isArray(json.comments)) {
+      await applyMemberDisplayName(json.comments, task.business_id, ['author']);
+    }
     // latest_estimation_source 명시 노출 — drawer 가 회색 분기 표시하려면 필요 (사이클 N+6)
     try {
       const { TaskEstimation } = require('../models');
@@ -1523,11 +1534,14 @@ router.post('/:id/comments', authenticateToken, async (req, res, next) => {
       visibility: finalVis,
     });
     const full = await TaskComment.findByPk(comment.id, {
-      include: [{ model: User, as: 'author', attributes: ['id', 'name'] }],
+      include: [{ model: User, as: 'author', attributes: ['id', 'name', 'name_localized'] }],
     });
+    // #87 — 댓글 작성자 워크스페이스 표시명으로 (emit·return 동일)
+    const fullJson = full.toJSON();
+    await applyMemberDisplayName([fullJson], task.business_id, ['author']);
     // Socket.IO
     const io = req.app.get('io');
-    if (io) io.to(`task:${task.id}`).emit('comment:new', full.toJSON());
+    if (io) io.to(`task:${task.id}`).emit('comment:new', fullJson);
 
     // 멘션 알림 + N+63 일반 댓글 알림 (shared / internal 가시성만)
     let mentionedSet = new Set();
@@ -1599,9 +1613,13 @@ router.post('/:id/comments', authenticateToken, async (req, res, next) => {
                 visibility: 'shared',
               });
               const replyFull = await TaskComment.findByPk(replyComment.id, {
-                include: [{ model: User, as: 'author', attributes: ['id', 'name'] }],
+                include: [{ model: User, as: 'author', attributes: ['id', 'name', 'name_localized'] }],
               });
-              if (io && replyFull) io.to(`task:${task.id}`).emit('comment:new', replyFull.toJSON());
+              if (io && replyFull) {
+                const replyJson = replyFull.toJSON();
+                await applyMemberDisplayName([replyJson], task.business_id, ['author']);
+                io.to(`task:${task.id}`).emit('comment:new', replyJson);
+              }
               console.log('[cue_task_executor comment]', task.id, 'ok');
             } else {
               console.log('[cue_task_executor comment]', task.id, 'skip:', r.reason);
@@ -1611,7 +1629,7 @@ router.post('/:id/comments', authenticateToken, async (req, res, next) => {
       }
     } catch (e) { console.warn('[comment cue check]', e.message); }
 
-    return successResponse(res, full.toJSON());
+    return successResponse(res, fullJson);
   } catch (err) { next(err); }
 });
 
@@ -1632,11 +1650,14 @@ router.put('/:id/comments/:commentId', authenticateToken, async (req, res, next)
     if (!content || !String(content).trim()) return errorResponse(res, 'content_required', 400);
     await comment.update({ content: String(content).trim() });
     const full = await TaskComment.findByPk(comment.id, {
-      include: [{ model: User, as: 'author', attributes: ['id', 'name'] }],
+      include: [{ model: User, as: 'author', attributes: ['id', 'name', 'name_localized'] }],
     });
+    // #87 — 댓글 작성자 워크스페이스 표시명으로 (emit·return 동일)
+    const fullJson = full.toJSON();
+    await applyMemberDisplayName([fullJson], task.business_id, ['author']);
     const io = req.app.get('io');
-    if (io) io.to(`task:${task.id}`).emit('comment:updated', full.toJSON());
-    return successResponse(res, full.toJSON());
+    if (io) io.to(`task:${task.id}`).emit('comment:updated', fullJson);
+    return successResponse(res, fullJson);
   } catch (err) { next(err); }
 });
 
@@ -1713,13 +1734,15 @@ router.get('/requested-comments', authenticateToken, async (req, res, next) => {
     const comments = await TaskComment.findAll({
       where: { task_id: taskIds },
       include: [
-        { model: User, as: 'author', attributes: ['id', 'name'] },
+        { model: User, as: 'author', attributes: ['id', 'name', 'name_localized'] },
         { model: Task, attributes: ['id', 'title'] },
       ],
       order: [['createdAt', 'DESC']],
       limit: 20,
     });
-    return successResponse(res, comments.map(c => c.toJSON()));
+    const commentsJson = comments.map(c => c.toJSON());
+    await applyMemberDisplayName(commentsJson, businessId, ['author']);
+    return successResponse(res, commentsJson);
   } catch (err) { next(err); }
 });
 
