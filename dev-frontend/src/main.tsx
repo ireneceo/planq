@@ -52,7 +52,26 @@ if (typeof window !== 'undefined' && window.visualViewport) {
   vv.addEventListener('scroll', update);
   window.addEventListener('orientationchange', () => { fullH = window.innerHeight; requestAnimationFrame(update); });
   // focusin/focusout — textarea/input focus 가 visualViewport.resize 보다 늦게 fire 되는 iOS 케이스 보정
-  window.addEventListener('focusin', () => requestAnimationFrame(update));
+  // #79 — 모바일에서 focus 된 입력이 키보드에 가리지 않게, 스크롤 컨테이너(모달 body 등) 안에서
+  //   가운데로 올린다. 모달은 대부분 --vvh 로 바운드돼 있어(StandardModal/NewEventModal 등) scrollIntoView
+  //   가 window 가 아닌 그 컨테이너를 스크롤 → 입력이 키보드 위 가시영역으로. 키보드 애니메이션(~320ms)
+  //   + --vvh 갱신 후 실행. 편집 가능한 필드만, 모바일만 (데스크탑 불필요 스크롤 방지).
+  const ensureFocusedVisible = () => {
+    if (!mq.matches) return;
+    const el = document.activeElement as HTMLElement | null;
+    if (!el) return;
+    const tag = el.tagName;
+    const editable = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el.isContentEditable;
+    if (!editable) return;
+    setTimeout(() => {
+      try {
+        if (document.activeElement === el && typeof el.scrollIntoView === 'function') {
+          el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        }
+      } catch { /* noop */ }
+    }, 320);
+  };
+  window.addEventListener('focusin', () => { requestAnimationFrame(update); ensureFocusedVisible(); });
   window.addEventListener('focusout', () => requestAnimationFrame(update));
 }
 
