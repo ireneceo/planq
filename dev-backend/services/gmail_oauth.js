@@ -14,8 +14,13 @@ const SCOPES = [
 ];
 
 function getRedirectUri() {
-  return process.env.GMAIL_OAUTH_REDIRECT_URI
-    || `${process.env.APP_BASE_URL || 'https://dev.planq.kr'}/api/businesses/email-accounts/oauth/gmail/callback`;
+  // 로그인 OAuth 와 동일 패턴 — GOOGLE_REDIRECT_URI origin 재사용해 운영/dev 자동 정합 (#72/#88).
+  if (process.env.GMAIL_OAUTH_REDIRECT_URI) return process.env.GMAIL_OAUTH_REDIRECT_URI;
+  let origin = process.env.APP_BASE_URL;
+  if (!origin && process.env.GOOGLE_REDIRECT_URI) {
+    try { origin = new URL(process.env.GOOGLE_REDIRECT_URI).origin; } catch (_) { /* 무시 */ }
+  }
+  return `${origin || 'https://dev.planq.kr'}/api/businesses/email-accounts/oauth/gmail/callback`;
 }
 
 function newClient() {

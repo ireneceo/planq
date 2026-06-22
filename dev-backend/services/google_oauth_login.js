@@ -34,8 +34,16 @@ function consumeState(s) {
 }
 
 function getRedirectUri() {
-  return process.env.GOOGLE_LOGIN_REDIRECT_URI
-    || `${process.env.APP_BASE_URL || 'https://dev.planq.kr'}/api/auth/google/callback`;
+  // 우선순위: 명시 env > APP_BASE_URL > GOOGLE_REDIRECT_URI(gdrive/gcal 공유)의 origin > dev 폴백.
+  // 옛 코드는 두 env 가 없으면 무조건 dev.planq.kr 로 폴백 → 운영(planq.kr)에서 로그인 콜백이
+  // dev 로 가 세션이 끊겨 로그인 실패(#72). gcal/gdrive 와 동일하게 GOOGLE_REDIRECT_URI origin
+  // 을 재사용해 운영/dev 자동 정합 (env 추가 불필요).
+  if (process.env.GOOGLE_LOGIN_REDIRECT_URI) return process.env.GOOGLE_LOGIN_REDIRECT_URI;
+  let origin = process.env.APP_BASE_URL;
+  if (!origin && process.env.GOOGLE_REDIRECT_URI) {
+    try { origin = new URL(process.env.GOOGLE_REDIRECT_URI).origin; } catch (_) { /* 무시 */ }
+  }
+  return `${origin || 'https://dev.planq.kr'}/api/auth/google/callback`;
 }
 
 function newClient() {
