@@ -4,6 +4,7 @@
 const crypto = require('crypto');
 const { Op } = require('sequelize');
 const { ClientSubscription, Client, Business, Invoice, InvoiceItem, BusinessMember } = require('../models');
+const { recurringMetaForSub } = require('./invoiceRecurring');
 const { sequelize } = require('../config/database');
 
 // invoice_number — recurring_invoice 와 동일 포맷 (INV-YYYY-NNNN)
@@ -117,6 +118,7 @@ async function billOneSubscription(sub, today = new Date()) {
     owner_user_id: creatorId,
     installment_mode: 'single',
     bank_snapshot: bankSnapshot,
+    meta: recurringMetaForSub(sub),   // #92 — 정기 발송 기준 표시용 스냅샷
     vat_rate: vatRate / 100, // ClientSubscription 은 %(10), Invoice.vat_rate 는 분수(0.1)
     currency: sub.currency || business.default_currency || 'KRW',
     subtotal,
