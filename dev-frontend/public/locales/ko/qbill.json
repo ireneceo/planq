@@ -284,7 +284,13 @@
       "cancelInstallmentMsg": "이 회차를 취소하시겠습니까? 결제 완료된 회차는 취소할 수 없습니다.",
       "cancelInvoiceTitle": "청구서 취소",
       "cancelInvoiceMsg": "이 청구서를 취소 상태로 변경하시겠습니까?",
+      "markPaidTitle": "결제 완료 처리",
+      "markPaidMsg": "입금을 확인했다면 이 청구서를 결제 완료로 표시합니다. 계속할까요?",
       "aria": "청구서 {{number}}"
+    },
+    "markPaid": {
+      "action": "결제 완료",
+      "hint": "입금 확인 후 결제 완료로 표시"
     }
   },
   "newInvoice": {

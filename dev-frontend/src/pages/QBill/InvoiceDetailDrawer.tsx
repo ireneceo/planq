@@ -5,7 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import DetailDrawer from '../../components/Common/DetailDrawer';
 import ConfirmDialog from '../../components/Common/ConfirmDialog';
-import { apiFetch } from '../../contexts/AuthContext';
+import { apiFetch, useAuth } from '../../contexts/AuthContext';
 import { CheckIcon } from '../../components/Common/Icons';
 import {
   formatMoney, invoiceStatusColor, installmentStatusColor,
@@ -40,6 +40,9 @@ function daysSinceIso(iso: string): number {
 
 export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, onChanged, onEdit }: Props) {
   const { t } = useTranslation('qbill');
+  const { user } = useAuth();
+  // #91 — 결제 완료 마킹(상태 변경)은 백엔드에서 owner/platform_admin 전용
+  const isOwner = user?.business_role === 'owner' || user?.platform_role === 'platform_admin';
   const navigate = useNavigate();
   const [copiedAcct, setCopiedAcct] = useState(false);
   const [copiedMemo, setCopiedMemo] = useState(false);
@@ -214,6 +217,21 @@ export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, 
       onConfirm: () => { setConfirm(null); doCancelInvoice(); },
     });
   };
+  const doMarkInvoicePaid = async () => {
+    if (busy) return;
+    setBusy(true);
+    try { await updateInvoiceStatus(invoice.business_id, invoice.id, 'paid'); await refresh(); }
+    finally { setBusy(false); }
+  };
+  const handleMarkInvoicePaid = () => {
+    setConfirm({
+      open: true,
+      title: t('detail.confirm.markPaidTitle', { defaultValue: '결제 완료 처리' }) as string,
+      message: t('detail.confirm.markPaidMsg', { defaultValue: '입금을 확인했다면 이 청구서를 결제 완료로 표시합니다. 계속할까요?' }) as string,
+      tone: 'default',
+      onConfirm: () => { setConfirm(null); doMarkInvoicePaid(); },
+    });
+  };
   const handleSendReminder = async () => {
     if (!invoice || remindBusy) return;
     setRemindBusy(true);
@@ -300,6 +318,17 @@ export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, 
             <ActionBtn onClick={() => { onClose(); navigate(`/talk/${chatConvId}`); }} title={t('detail.header.actions.goChatHint', '이 청구서가 공유된 채팅방으로') as string}>
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
               {t('detail.header.actions.goChat', '채팅방 가기')}
+            </ActionBtn>
+          )}
+          {isOwner && !isSplit && (invoice.status === 'sent' || invoice.status === 'partially_paid' || invoice.status === 'overdue') && (
+            <ActionBtn
+              onClick={handleMarkInvoicePaid}
+              disabled={busy}
+              $primary
+              title={t('detail.markPaid.hint', { defaultValue: '입금 확인 후 결제 완료로 표시' }) as string}
+            >
+              <CheckIcon size={13} style={{ verticalAlign: '-1px' }} />
+              {t('detail.markPaid.action', { defaultValue: '결제 완료' })}
             </ActionBtn>
           )}
           {(invoice.status === 'sent' || invoice.status === 'partially_paid' || invoice.status === 'overdue') && invoice.client_id && (

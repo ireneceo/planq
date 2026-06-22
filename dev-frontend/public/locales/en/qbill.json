@@ -284,7 +284,13 @@
       "cancelInstallmentMsg": "Cancel this installment? Paid installments cannot be canceled.",
       "cancelInvoiceTitle": "Cancel invoice",
       "cancelInvoiceMsg": "Set this invoice to canceled status?",
+      "markPaidTitle": "Mark as paid",
+      "markPaidMsg": "If you've confirmed the payment, mark this invoice as paid. Continue?",
       "aria": "Invoice {{number}}"
+    },
+    "markPaid": {
+      "action": "Mark paid",
+      "hint": "Mark as paid after confirming the deposit"
     }
   },
   "newInvoice": {
