@@ -256,6 +256,64 @@ const EmailAccountSettings: React.FC = () => {
   );
 };
 
+// ─── 앱 비밀번호 연결 단계별 안내 (#72/#88 — OAuth 검증 전 작동 경로) ───
+interface GuideDef {
+  titleKey: string; titleDefault: string;
+  steps: { key: string; default: string }[];
+  link?: { url: string; labelKey: string; labelDefault: string };
+}
+const APP_PASSWORD_GUIDES: Record<string, GuideDef> = {
+  gmail: {
+    titleKey: 'settings.guide.gmail.title', titleDefault: 'Gmail 앱 비밀번호로 연결하기',
+    steps: [
+      { key: 'settings.guide.gmail.s1', default: '구글 계정에 2단계 인증(2-Step Verification)을 먼저 켜주세요. (앱 비밀번호는 2단계 인증이 켜져 있어야 발급됩니다)' },
+      { key: 'settings.guide.gmail.s2', default: '아래 "앱 비밀번호 만들기"를 눌러 새 비밀번호를 생성하세요. 앱 이름은 "PlanQ"로 입력하면 됩니다.' },
+      { key: 'settings.guide.gmail.s3', default: '생성된 16자리 비밀번호(공백 제외)를 아래 "비밀번호" 칸에 붙여넣고 저장하세요. 서버 정보는 자동 입력되어 있습니다.' },
+    ],
+    link: { url: 'https://myaccount.google.com/apppasswords', labelKey: 'settings.guide.gmail.link', labelDefault: '앱 비밀번호 만들기 →' },
+  },
+  naver: {
+    titleKey: 'settings.guide.naver.title', titleDefault: 'Naver 메일 앱 비밀번호로 연결하기',
+    steps: [
+      { key: 'settings.guide.naver.s1', default: '네이버 메일 → 환경설정 → POP3/IMAP 설정에서 "IMAP/SMTP 사용"을 ON으로 바꿔주세요.' },
+      { key: 'settings.guide.naver.s2', default: '네이버 2단계 인증을 사용 중이면 "애플리케이션 비밀번호"를 발급하세요. (내정보 → 보안설정)' },
+      { key: 'settings.guide.naver.s3', default: '발급된 비밀번호(2단계 인증 미사용 시 네이버 로그인 비밀번호)를 아래 "비밀번호" 칸에 입력하고 저장하세요.' },
+    ],
+    link: { url: 'https://mail.naver.com', labelKey: 'settings.guide.naver.link', labelDefault: '네이버 메일 설정 열기 →' },
+  },
+  icloud: {
+    titleKey: 'settings.guide.icloud.title', titleDefault: 'iCloud 앱 암호로 연결하기',
+    steps: [
+      { key: 'settings.guide.icloud.s1', default: 'Apple ID에 2단계 인증이 켜져 있어야 합니다.' },
+      { key: 'settings.guide.icloud.s2', default: '아래 "앱 암호 만들기"에서 새 앱 암호를 생성하세요. (로그인 및 보안 → 앱 암호)' },
+      { key: 'settings.guide.icloud.s3', default: '생성된 앱 암호를 아래 "비밀번호" 칸에 붙여넣고 저장하세요.' },
+    ],
+    link: { url: 'https://account.apple.com', labelKey: 'settings.guide.icloud.link', labelDefault: 'Apple ID 앱 암호 →' },
+  },
+};
+
+const ConnectGuide: React.FC<{ guide: GuideDef }> = ({ guide }) => {
+  const { t } = useTranslation('qmail');
+  return (
+  <GuideBox>
+    <GuideTitle>{t(guide.titleKey, guide.titleDefault)}</GuideTitle>
+    <GuideSteps>
+      {guide.steps.map((s, i) => (
+        <GuideStep key={s.key}>
+          <GuideNum>{i + 1}</GuideNum>
+          <GuideStepText>{t(s.key, s.default)}</GuideStepText>
+        </GuideStep>
+      ))}
+    </GuideSteps>
+    {guide.link && (
+      <GuideLink href={guide.link.url} target="_blank" rel="noopener noreferrer">
+        {t(guide.link.labelKey, guide.link.labelDefault)}
+      </GuideLink>
+    )}
+  </GuideBox>
+  );
+};
+
 // ─── 등록/편집 form ─────────────────────────────
 interface FormProps {
   initial: EmailAccountRow | null;
@@ -374,11 +432,8 @@ const AccountEditForm: React.FC<FormProps> = ({ initial, businessId, scope, onSa
                 onChange={(opt) => onPresetChange((opt as PlanQSelectOption | null)?.value as string || 'custom')}
                 options={MAIL_PRESETS.map(p => ({ value: p.key, label: p.label }))}
               />
-              {currentPreset?.hint && (
-                <PresetHint>
-                  {currentPreset.key === 'gmail' && t('settings.gmailHint', 'Gmail 2단계 인증 사용 시 "앱 비밀번호" 발급 필요 (Google 계정 → 보안 → 앱 비밀번호)') as string}
-                  {currentPreset.key === 'icloud' && t('settings.icloudHint', 'iCloud 는 "앱 전용 비밀번호" 발급 필요 (Apple ID → 보안)') as string}
-                </PresetHint>
+              {APP_PASSWORD_GUIDES[preset] && (
+                <ConnectGuide guide={APP_PASSWORD_GUIDES[preset]} />
               )}
             </Field>
           )}
@@ -638,7 +693,13 @@ const SectionTitle = styled.div`
   display: flex; align-items: center;
 `;
 const SmtpHint = styled.div`font-size: 11px; color: #64748B; line-height: 1.5; padding: 8px 10px; background: #F8FAFC; border-radius: 6px;`;
-const PresetHint = styled.div`font-size: 11px; color: #92400E; line-height: 1.5; padding: 8px 10px; background: #FEF3C7; border: 1px solid #FCD34D; border-radius: 6px; margin-top: 4px;`;
+const GuideBox = styled.div`margin-top: 8px; padding: 14px 16px; background: #F0FDFA; border: 1px solid #99F6E4; border-radius: 10px;`;
+const GuideTitle = styled.div`font-size: 13px; font-weight: 700; color: #0F766E; margin-bottom: 10px;`;
+const GuideSteps = styled.div`display: flex; flex-direction: column; gap: 8px;`;
+const GuideStep = styled.div`display: flex; gap: 10px; align-items: flex-start;`;
+const GuideNum = styled.span`flex-shrink: 0; width: 18px; height: 18px; border-radius: 50%; background: #14B8A6; color: #fff; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center; margin-top: 1px;`;
+const GuideStepText = styled.div`font-size: 12px; color: #334155; line-height: 1.55;`;
+const GuideLink = styled.a`display: inline-block; margin-top: 12px; font-size: 12px; font-weight: 600; color: #0F766E; text-decoration: none; padding: 7px 12px; background: #fff; border: 1px solid #14B8A6; border-radius: 8px; transition: background 0.15s; &:hover { background: #CCFBF1; }`;
 const ErrorBox = styled.div`
   padding: 10px 12px;
   background: #FEF2F2; border: 1px solid #FECACA; border-radius: 6px;
