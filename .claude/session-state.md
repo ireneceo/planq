@@ -20,6 +20,11 @@
 ### 1) 미배포 묶음 운영 배포 (다음 `/배포`)
 - `83737db` #63 Phase 2 워크스페이스 간 이전 + `c98bb50` #72/#88 앱 비번 연결 안내. 한 번에 반영.
 
+### 1.5) 랜딩페이지 재정비 (Irene 지시 — 다음 작업)
+- **현재 랜딩 Features 섹션에 빠진 기능 추가.** 현재 노출: Q Talk / Q Task / Q Note / Q File / Q Bill 5개만. **누락: Q Mail**(메일 통합) + 그 외 출시 기능(Q Calendar 일정, Q docs 문서/서명, Q Project, 보고서/Insights, Cue AI 팀원 등) 점검해 최신 제품 범위에 맞게 보강.
+- 대상: `pages/Landing/HomePage.tsx` features.q 섹션 + `public/locales/{ko,en}/landing.json` features.q. (워프로랩 솔루션 소개 HTML도 같은 내용 동기화 필요 시 재생성)
+- 범위: 단순 항목 추가가 아니라 "랜딩페이지 재정비"로 전체 카피·구성·최신성 검토.
+
 ### 2) 신규 피드백 #93 (자율 가능, 다음 사이클 우선)
 - **ⓐ Q helper 팝아웃 재로그인 버그** — 원인 파악됨: access token이 **메모리 변수**(`AuthContext.getAccessToken`)라 `window.open('/help-popout')` 새 창은 메모리 비어있음 → 부팅 `checkSession`→`tryRefresh`(refresh 쿠키) 완료 전 로그인 게이트 노출 추정. **수정 방향:** 팝아웃 부팅 시 `isLoading` 동안 로그인 화면 막고 refresh 완료 대기 / 또는 refresh 실패만 로그인. HelpStandalonePage 인증 게이트 점검.
 - **ⓑ "진행시작" 화면 깜빡임 → 전수 실시간 전환** — 업무 우측패널 status 전환 시 full reload/remount로 깜빡임. 고정 화면 + 인플레이스 setState 전환으로 전수검사 요청(대규모). CLAUDE.md 운영안정성 #16(실시간 반영) 기준.
