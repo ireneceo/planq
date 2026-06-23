@@ -49,3 +49,23 @@ export function exportWorkspaceData(businessId: number) {
   const today = new Date().toISOString().slice(0, 10);
   return downloadZip(`/api/export/${businessId}/workspace`, `planq-export-workspace-${today}.zip`);
 }
+
+// Phase 2 (#63) — 워크스페이스 간 이전 (복사, 원본 유지)
+export interface TransferTarget { id: number; name: string; }
+
+export async function fetchTransferTargets(businessId: number): Promise<TransferTarget[]> {
+  const r = await apiFetch(`/api/export/${businessId}/me/transfer-targets`);
+  const j = await r.json();
+  if (!j.success) throw new Error(j.message || 'failed');
+  return j.data as TransferTarget[];
+}
+
+export async function transferMyData(businessId: number, targetBusinessId: number): Promise<{ files_copied: number; documents_copied: number; skipped: number }> {
+  const r = await apiFetch(`/api/export/${businessId}/me/transfer`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ target_business_id: targetBusinessId }),
+  });
+  const j = await r.json();
+  if (!j.success) throw new Error(j.message || 'failed');
+  return j.data;
+}

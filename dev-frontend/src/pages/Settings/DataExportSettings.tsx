@@ -4,9 +4,12 @@ import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import ActionButton from '../../components/Common/ActionButton';
 import { formatBytes } from '../../services/files';
+import PlanQSelect from '../../components/Common/PlanQSelect';
+import ConfirmDialog from '../../components/Common/ConfirmDialog';
 import {
   fetchMyExportPreview, fetchWorkspaceExportPreview,
-  exportMyData, exportWorkspaceData, type ExportPreview,
+  exportMyData, exportWorkspaceData,
+  fetchTransferTargets, transferMyData, type ExportPreview, type TransferTarget,
 } from '../../services/export';
 
 interface Props {
@@ -36,6 +39,12 @@ const DataExportSettings: React.FC<Props> = ({ businessId, isOwner }) => {
   const [busyWs, setBusyWs] = useState(false);
   const [errMe, setErrMe] = useState('');
   const [errWs, setErrWs] = useState('');
+  // Phase 2 — 워크스페이스 간 이전
+  const [targets, setTargets] = useState<TransferTarget[]>([]);
+  const [targetId, setTargetId] = useState<number | null>(null);
+  const [busyTr, setBusyTr] = useState(false);
+  const [trMsg, setTrMsg] = useState<{ tone: 'ok' | 'err'; text: string } | null>(null);
+  const [trConfirm, setTrConfirm] = useState(false);
 
   const load = useCallback(async () => {
     if (!businessId) return;
@@ -53,6 +62,25 @@ const DataExportSettings: React.FC<Props> = ({ businessId, isOwner }) => {
   }, [businessId, isOwner]);
 
   useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    if (!businessId) return;
+    fetchTransferTargets(businessId).then(setTargets).catch(() => setTargets([]));
+  }, [businessId]);
+
+  const doTransfer = async () => {
+    if (!targetId || busyTr) return;
+    setBusyTr(true); setTrMsg(null);
+    try {
+      const res = await transferMyData(businessId, targetId);
+      const name = targets.find((x) => x.id === targetId)?.name || '';
+      setTrMsg({ tone: 'ok', text: tr('dataExport.trDone', '{{name}}(으)로 복사했습니다. 파일 {{f}}건, 문서 {{d}}건.').replace('{{name}}', name).replace('{{f}}', String(res.files_copied)).replace('{{d}}', String(res.documents_copied)) });
+    } catch {
+      setTrMsg({ tone: 'err', text: tr('dataExport.trErr', '이전 중 문제가 발생했습니다. 잠시 후 다시 시도해주세요.') });
+    } finally {
+      setBusyTr(false);
+    }
+  };
 
   const errMessage = (code?: string) => {
     if (code === 'nothing_to_export') return tr('dataExport.errEmpty', '내보낼 자료가 없습니다.');
@@ -164,6 +192,50 @@ const DataExportSettings: React.FC<Props> = ({ businessId, isOwner }) => {
           </CardActions>
         </Card>
       )}
+
+      {/* ── 워크스페이스 간 이전 (복사, 원본 유지) ── */}
+      {targets.length > 0 && (
+        <Card>
+          <CardHead>
+            <CardIcon $bg="#F0FDFA" $fg="#0F766E"><IconDownload /></CardIcon>
+            <CardTitleWrap>
+              <CardTitle>{tr('dataExport.trTitle', '다른 워크스페이스로 이전')}</CardTitle>
+              <CardSub>{tr('dataExport.trDesc', '내 개인(나만 보기) 자료를 내가 속한 다른 워크스페이스로 복사합니다. 원본은 그대로 유지됩니다.')}</CardSub>
+            </CardTitleWrap>
+          </CardHead>
+          <CardBody>
+            <TrRow>
+              <PlanQSelect
+                size="md"
+                placeholder={tr('dataExport.trPick', '대상 워크스페이스 선택')}
+                value={targetId ? { value: String(targetId), label: targets.find((x) => x.id === targetId)?.name || '' } : null}
+                onChange={(opt) => setTargetId(opt ? Number((opt as { value: string }).value) : null)}
+                options={targets.map((x) => ({ value: String(x.id), label: x.name }))}
+              />
+            </TrRow>
+            {trMsg && <TrNote $tone={trMsg.tone} role="alert">{trMsg.text}</TrNote>}
+          </CardBody>
+          <CardActions>
+            <ActionButton
+              tone="secondary" size="md" loading={busyTr}
+              onClick={() => setTrConfirm(true)}
+              disabled={!targetId || busyTr}
+              icon={<IconDownload />}
+            >
+              {tr('dataExport.trAction', '복사하기')}
+            </ActionButton>
+          </CardActions>
+        </Card>
+      )}
+
+      <ConfirmDialog
+        isOpen={trConfirm}
+        title={tr('dataExport.trConfirmTitle', '워크스페이스로 복사')}
+        message={tr('dataExport.trConfirmMsg', '선택한 워크스페이스로 내 개인 자료를 복사합니다. 원본은 그대로 유지됩니다. 계속할까요?')}
+        confirmText={tr('dataExport.trAction', '복사하기')}
+        onConfirm={() => { setTrConfirm(false); doTransfer(); }}
+        onClose={() => setTrConfirm(false)}
+      />
     </Wrap>
   );
 };
@@ -188,5 +260,7 @@ const Notice = styled.div`display:flex;gap:8px;align-items:flex-start;background
 const NoticeIcon = styled.span`color:#92400E;flex-shrink:0;display:flex;`;
 const NoticeText = styled.div`font-size:12px;color:#92400E;line-height:1.5;`;
 const ErrText = styled.div`font-size:12px;color:#EF4444;margin-top:10px;`;
+const TrRow = styled.div`max-width:360px;`;
+const TrNote = styled.div<{ $tone: 'ok' | 'err' }>`font-size:12px;margin-top:10px;color:${p => p.$tone === 'ok' ? '#0F766E' : '#EF4444'};`;
 const SkRow = styled.div`display:flex;gap:12px;`;
 const Sk = styled.div`flex:1;height:62px;border-radius:10px;background:linear-gradient(90deg,#F1F5F9 0px,#E2E8F0 40px,#F1F5F9 80px);background-size:200px 100%;animation:dxsk 1.2s linear infinite;@keyframes dxsk{0%{background-position:-200px 0}100%{background-position:200px 0}}`;

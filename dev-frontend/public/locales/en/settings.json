@@ -35,7 +35,15 @@
     "downloadBackup": "Download Backup ZIP",
     "confidentialNote": "{{n}} confidential item(s) included. Exported with admin permission and recorded in the audit log.",
     "errEmpty": "Nothing to export.",
-    "errGeneric": "Something went wrong during download. Please try again shortly."
+    "errGeneric": "Something went wrong during download. Please try again shortly.",
+    "trTitle": "Transfer to another workspace",
+    "trDesc": "Copy your personal (private) data to another workspace you belong to. The original stays intact.",
+    "trPick": "Select target workspace",
+    "trAction": "Copy",
+    "trConfirmTitle": "Copy to workspace",
+    "trConfirmMsg": "Copy your personal data to the selected workspace. The original stays intact. Continue?",
+    "trDone": "Copied to {{name}}. {{f}} file(s), {{d}} document(s).",
+    "trErr": "Something went wrong during transfer. Please try again shortly."
   },
   "workManagement": {
     "autoFinalize": {
