@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>PlanQ — 일이 일이 되지 않게</title>
+<meta name="description" content="업무, 프로젝트, 사람, 시간, 고객, 청구를 하나로 연결해 시간을 돈으로 바꾸는 수익성 엔진. 대화·할일·자료·회의·청구까지 한 곳에서." />
+<style>
+  :root{
+    --teal-50:#F0FDFA; --teal-400:#2DD4BF; --teal-500:#14B8A6; --teal-600:#0D9488; --teal-700:#0F766E;
+    --ink:#0F172A; --body:#334155; --sub:#64748B; --mute:#94A3B8;
+    --line:#E2E8F0; --bg:#F8FAFC; --white:#fff;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  html{scroll-behavior:smooth;}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Apple SD Gothic Neo','Malgun Gothic',Roboto,sans-serif;color:var(--body);line-height:1.6;-webkit-font-smoothing:antialiased;}
+  a{text-decoration:none;color:inherit;}
+  .wrap{max-width:1080px;margin:0 auto;padding:0 24px;}
+  .section{padding:96px 0;}
+  .tag{display:inline-block;font-size:13px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--teal-600);margin-bottom:18px;}
+  .tag.light{color:var(--teal-400);}
+  h2.title{font-size:34px;font-weight:800;line-height:1.3;color:var(--ink);letter-spacing:-0.5px;}
+  h2.title.light{color:#fff;}
+  .desc{font-size:17px;color:var(--sub);margin-top:18px;line-height:1.7;}
+  .desc.light{color:#CBD5E1;}
+  .center{text-align:center;}
+
+  /* HERO */
+  .hero{position:relative;overflow:hidden;background:radial-gradient(1200px 600px at 70% -10%,#134e4a 0%,transparent 60%),linear-gradient(160deg,#0B1220 0%,#0F172A 55%,#0c2a28 100%);color:#fff;text-align:center;padding:120px 24px 130px;}
+  .hero .slogan{font-size:15px;font-weight:600;letter-spacing:4px;color:var(--teal-400);text-transform:uppercase;margin-bottom:26px;}
+  .hero .logo{font-size:44px;font-weight:900;letter-spacing:-1px;color:#fff;margin-bottom:22px;}
+  .hero .logo b{color:var(--teal-400);}
+  .hero .pre{font-size:18px;color:#CBD5E1;margin-bottom:10px;}
+  .hero h1{font-size:46px;font-weight:800;line-height:1.25;letter-spacing:-1px;margin-bottom:14px;}
+  .hero h1 .hl{color:var(--teal-400);}
+  .hero .sub{font-size:17px;color:#94A3B8;margin:22px auto 0;max-width:560px;}
+  .cta{display:inline-block;background:var(--teal-500);color:#fff;font-size:17px;font-weight:700;padding:16px 38px;border-radius:12px;margin-top:38px;transition:transform .15s,background .15s;box-shadow:0 8px 30px rgba(20,184,166,.35);}
+  .cta:hover{background:var(--teal-600);transform:translateY(-2px);}
+  .cta.ghost{background:transparent;border:1.5px solid rgba(255,255,255,.3);box-shadow:none;margin-left:12px;}
+  .cta.ghost:hover{background:rgba(255,255,255,.08);}
+
+  /* PROBLEM */
+  .pgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-top:48px;}
+  .pitem{background:var(--bg);border:1px solid var(--line);border-radius:14px;padding:26px 18px;text-align:center;}
+  .picon{width:46px;height:46px;border-radius:12px;background:#fff;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;margin:0 auto 14px;font-size:22px;}
+  .plabel{font-size:16px;font-weight:700;color:var(--ink);}
+  .ptool{font-size:13px;color:var(--mute);margin-top:6px;}
+  .parrow{text-align:center;margin-top:40px;font-size:17px;color:var(--sub);line-height:1.8;}
+  .parrow strong{color:var(--teal-700);font-weight:800;}
+
+  /* VALUE */
+  .vcards{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-top:48px;}
+  .vcard{background:#fff;border:1px solid var(--line);border-radius:16px;padding:32px 26px;transition:box-shadow .2s,transform .2s;}
+  .vcard:hover{box-shadow:0 12px 36px rgba(15,23,42,.08);transform:translateY(-3px);}
+  .vnum{font-size:13px;font-weight:800;color:var(--teal-500);letter-spacing:1px;}
+  .vcard h3{font-size:19px;font-weight:800;color:var(--ink);margin:12px 0 10px;line-height:1.4;}
+  .vcard p{font-size:15px;color:var(--sub);line-height:1.7;}
+
+  /* FEATURES (dark) */
+  .dark{background:linear-gradient(170deg,#0F172A,#0c2522);color:#fff;}
+  .qlist{display:grid;grid-template-columns:repeat(2,1fr);gap:18px;margin-top:48px;}
+  .qitem{background:rgba(255,255,255,.04);border:1px solid rgba(45,212,191,.18);border-radius:16px;padding:28px;}
+  .qname{font-size:20px;font-weight:800;color:var(--teal-400);margin-bottom:10px;}
+  .qdesc{font-size:15px;color:#CBD5E1;line-height:1.7;}
+
+  /* ENGINE */
+  .engine{background:radial-gradient(900px 500px at 50% 0%,#0f3d39 0%,transparent 55%),#0a1512;color:#fff;text-align:center;}
+  .evisual{display:flex;align-items:center;justify-content:center;gap:24px;flex-wrap:wrap;margin:48px 0;}
+  .ecol{display:flex;flex-direction:column;gap:10px;min-width:180px;}
+  .epill{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);border-radius:999px;padding:11px 18px;font-size:14px;font-weight:600;color:#E2E8F0;}
+  .epill.active{background:rgba(20,184,166,.15);border-color:var(--teal-500);color:var(--teal-400);}
+  .eplus{font-size:34px;color:var(--teal-400);font-weight:300;}
+  .eresult{margin-top:18px;}
+  .eresult .em{color:var(--teal-400);font-weight:800;}
+  .eresult h3{font-size:28px;font-weight:800;line-height:1.4;color:#fff;}
+  .eresult p{font-size:16px;color:#94A3B8;margin-top:16px;line-height:1.7;}
+
+  /* COMPARE */
+  .ctable{margin-top:48px;border:1px solid var(--line);border-radius:16px;overflow:hidden;}
+  .crow{display:grid;grid-template-columns:1.1fr 1.4fr 1.4fr;border-bottom:1px solid var(--line);}
+  .crow:last-child{border-bottom:none;}
+  .crow.head{background:var(--ink);color:#fff;font-weight:700;}
+  .crow.head .planq{color:var(--teal-400);}
+  .ccell{padding:16px 20px;font-size:15px;}
+  .ccell.label{font-weight:700;color:var(--ink);background:var(--bg);}
+  .crow.head .ccell.label{background:transparent;color:#fff;}
+  .ccell.old{color:var(--mute);}
+  .ccell.planq{color:var(--teal-700);font-weight:600;}
+
+  /* TARGET */
+  .tgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:44px;}
+  .tcard{background:#fff;border:1px solid var(--line);border-radius:14px;padding:24px;text-align:center;font-size:17px;font-weight:700;color:var(--ink);}
+  .tcard:hover{border-color:var(--teal-500);color:var(--teal-700);}
+
+  /* FINAL CTA */
+  .final{background:linear-gradient(160deg,#0F172A,#0d2e2a);color:#fff;text-align:center;padding:110px 24px;}
+  .final h2{font-size:38px;font-weight:800;letter-spacing:-0.5px;}
+  .final p{font-size:18px;color:#94A3B8;margin-top:16px;}
+
+  /* footnote */
+  .foot{background:#0a0f1a;color:#64748B;text-align:center;padding:36px 24px;font-size:13px;}
+  .foot b{color:#94A3B8;}
+
+  @media (max-width:860px){
+    .section{padding:64px 0;}
+    h2.title{font-size:27px;} .hero h1{font-size:33px;} .hero .logo{font-size:36px;}
+    .pgrid,.vcards,.qlist,.tgrid{grid-template-columns:1fr;}
+    .final h2{font-size:28px;}
+    .crow{grid-template-columns:1fr;}
+    .ccell.label{background:var(--bg);}
+    .crow.head{display:none;}
+    .ccell.old::before{content:"기존 ";color:var(--mute);font-size:12px;}
+    .ccell.planq::before{content:"PlanQ ";color:var(--teal-500);font-weight:700;font-size:12px;}
+    .cta.ghost{margin-left:0;margin-top:12px;}
+  }
+</style>
+</head>
+<body>
+
+<!-- HERO -->
+<header class="hero">
+  <div class="slogan">일이 일이 되지 않게</div>
+  <div class="logo">Plan<b>Q</b></div>
+  <p class="pre">업무, 프로젝트, 사람, 시간, 고객, 청구를</p>
+  <h1>하나로 연결해<br /><span class="hl">시간을 돈으로 바꾸는</span><br />수익성 엔진</h1>
+  <p class="sub">대화, 할일, 자료, 회의, 청구까지 — 업무의 모든 흐름이 한 곳에서 실행됩니다.</p>
+  <div>
+    <a class="cta" href="https://planq.kr/register" target="_blank" rel="noopener">무료로 시작하기</a>
+    <a class="cta ghost" href="https://planq.kr/features" target="_blank" rel="noopener">기능 둘러보기</a>
+  </div>
+</header>
+
+<!-- PROBLEM -->
+<section class="section" style="background:#fff">
+  <div class="wrap center">
+    <div class="tag">Problem</div>
+    <h2 class="title">지금, 당신의 업무는<br />몇 개의 도구에 흩어져 있나요?</h2>
+    <p class="desc">도구가 많아질수록 정작 일은 느려집니다.<br />어디서 뭘 확인해야 하는지 찾는 것 자체가 업무가 됩니다.</p>
+    <div class="pgrid">
+      <div class="pitem"><div class="picon">💬</div><div class="plabel">대화</div><div class="ptool">카톡 · 슬랙</div></div>
+      <div class="pitem"><div class="picon">✅</div><div class="plabel">할일</div><div class="ptool">노션 · 스프레드시트</div></div>
+      <div class="pitem"><div class="picon">📁</div><div class="plabel">자료</div><div class="ptool">드라이브 · 메일</div></div>
+      <div class="pitem"><div class="picon">📝</div><div class="plabel">회의록</div><div class="ptool">문서 · 메모</div></div>
+    </div>
+    <p class="parrow">4개의 도구, 4번의 컨텍스트 전환, 4배의 시간 낭비.<br /><strong>일이 일이 되는 순간입니다.</strong></p>
+  </div>
+</section>
+
+<!-- VALUE -->
+<section class="section" style="background:var(--bg)">
+  <div class="wrap center">
+    <div class="tag">Solution</div>
+    <h2 class="title">PlanQ는 하나의 공간에서<br />업무 전체를 실행합니다.</h2>
+    <div class="vcards" style="text-align:left">
+      <div class="vcard"><div class="vnum">01</div><h3>대화가 곧 실행이 됩니다</h3><p>고객의 요청 메시지에서 클릭 한 번이면 할일이 만들어집니다. 누가 언제 무엇을 요청했는지, 원문이 그대로 연결됩니다.</p></div>
+      <div class="vcard"><div class="vnum">02</div><h3>흩어진 업무가 한 곳에 모입니다</h3><p>대화, 할일, 자료, 회의록, 청구서. 따로 돌아다니던 업무가 하나의 흐름 안에서 움직입니다. 도구를 오가며 낭비하던 시간이 사라집니다.</p></div>
+      <div class="vcard"><div class="vnum">03</div><h3>모든 합의가 자동으로 기록됩니다</h3><p>"그때 그렇게 말했잖아요"에 대한 답이 항상 있습니다. 대화 기록, 변경 이력, 합의 내용이 모두 남아 분쟁을 방지합니다.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- FEATURES -->
+<section class="section dark">
+  <div class="wrap center">
+    <div class="tag light">Features</div>
+    <h2 class="title light">필요한 건 전부 여기 있습니다.</h2>
+    <p class="desc light">각각의 Q는 독립된 기능이면서, 하나의 흐름으로 연결됩니다.</p>
+    <div class="qlist" style="text-align:left">
+      <div class="qitem"><div class="qname">Q Talk</div><div class="qdesc">고객과 업무 대화를 나누는 전용 채팅. 메시지에서 바로 할일을 만들고, 파일을 공유하고, 합의를 기록합니다. 카톡처럼 쉽지만, 업무에 필요한 구조를 갖추고 있습니다.</div></div>
+      <div class="qitem"><div class="qname">Q Task</div><div class="qdesc">대화에서 생긴 할일, 직접 만든 할일 모두 한 곳에서. 마감일, 담당자, 우선순위, 상태 관리까지. 오늘 할 일, 지연된 일이 한눈에 보입니다.</div></div>
+      <div class="qitem"><div class="qname">Q Note</div><div class="qdesc">회의 중 실시간으로 대화를 기록하고 번역합니다. 핵심 질문을 자동으로 감지하고, 미리 올려둔 자료에서 답변을 찾아줍니다. 회의가 끝나면 요약까지.</div></div>
+      <div class="qitem"><div class="qname">Q File</div><div class="qdesc">프로젝트별로 파일과 자료를 정리합니다. "그 파일 어디 있더라?"가 사라집니다.</div></div>
+      <div class="qitem"><div class="qname">Q Bill</div><div class="qdesc">청구서를 작성하고 이메일로 자동 발송합니다. 발송, 입금 확인, 연체 관리까지 한 곳에서.</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ENGINE -->
+<section class="section engine">
+  <div class="wrap">
+    <div class="tag" style="color:var(--teal-400)">Profitability Engine</div>
+    <h2 class="title light">단순 협업 도구가 아닙니다.<br />조직의 수익성 엔진입니다.</h2>
+    <p class="desc light">고객 채팅·업무·청구를 하나로 — Q Talk·Q Task·Q Bill 이 흩어진 일을 정리하고,<br />잃어버릴 뻔한 매출을 되찾습니다.</p>
+    <div class="evisual">
+      <div class="ecol">
+        <div class="epill">업무 Task</div><div class="epill">프로젝트 Project</div><div class="epill">사람 Member</div>
+        <div class="epill">시간 Hours</div><div class="epill">고객 Client</div><div class="epill">청구 Invoice</div>
+      </div>
+      <div class="eplus">+</div>
+      <div class="ecol">
+        <div class="epill active">매출 Revenue</div><div class="epill active">원가 Cost</div><div class="epill active">고정비 Overhead</div>
+      </div>
+    </div>
+    <div class="eresult center">
+      <h3><span class="em">시간을 돈으로 바꾸는</span><br />조직의 수익성 엔진</h3>
+      <p>누가, 어떤 프로젝트에, 몇 시간을 쓰고, 얼마를 벌었는지.<br />PlanQ 하나로 업무와 수익이 연결됩니다.</p>
+    </div>
+  </div>
+</section>
+
+<!-- COMPARE -->
+<section class="section" style="background:#fff">
+  <div class="wrap center">
+    <div class="tag">Why PlanQ</div>
+    <h2 class="title">왜 슬랙이나 노션이 아니라<br />PlanQ인가요?</h2>
+    <p class="desc">각각 훌륭한 도구들. 하지만 함께 쓰면 업무가 흩어집니다.</p>
+    <div class="ctable" style="text-align:left">
+      <div class="crow head"><div class="ccell label">&nbsp;</div><div class="ccell old">기존 방식</div><div class="ccell planq">PlanQ</div></div>
+      <div class="crow"><div class="ccell label">고객 요청</div><div class="ccell old">카톡 → 노션에 옮겨 적기</div><div class="ccell planq">대화에서 바로 할일 전환</div></div>
+      <div class="crow"><div class="ccell label">할일 관리</div><div class="ccell old">스프레드시트, 별도 앱</div><div class="ccell planq">대화방 옆 실시간 할일 패널</div></div>
+      <div class="crow"><div class="ccell label">자료 공유</div><div class="ccell old">드라이브 링크 주고받기</div><div class="ccell planq">프로젝트별 자료함</div></div>
+      <div class="crow"><div class="ccell label">합의 기록</div><div class="ccell old">카톡 캡처, 메일 보관</div><div class="ccell planq">자동 기록 + 감사 로그</div></div>
+      <div class="crow"><div class="ccell label">회의 정리</div><div class="ccell old">수기 메모, 별도 녹음</div><div class="ccell planq">실시간 기록 + AI 요약</div></div>
+      <div class="crow"><div class="ccell label">청구</div><div class="ccell old">엑셀 → 이메일</div><div class="ccell planq">클릭 한 번에 청구서 발송</div></div>
+      <div class="crow"><div class="ccell label">수익성 파악</div><div class="ccell old">별도 회계 정리</div><div class="ccell planq">업무 데이터에서 자동 연결</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- TARGET -->
+<section class="section" style="background:var(--bg)">
+  <div class="wrap center">
+    <div class="tag">For Teams</div>
+    <h2 class="title">이런 팀에게<br />PlanQ가 필요합니다.</h2>
+    <div class="tgrid">
+      <div class="tcard">광고대행사</div>
+      <div class="tcard">개발회사 · IT 외주</div>
+      <div class="tcard">브랜딩 스튜디오</div>
+      <div class="tcard">건설 · 인테리어</div>
+      <div class="tcard">컨설팅 · 회계</div>
+      <div class="tcard">법무 · 특허</div>
+    </div>
+  </div>
+</section>
+
+<!-- FINAL CTA -->
+<section class="final">
+  <h2>일이 일이되지 않게, PlanQ</h2>
+  <p>설치 없이 웹에서 바로 시작하세요.</p>
+  <div>
+    <a class="cta" href="https://planq.kr/register" target="_blank" rel="noopener">무료로 시작하기</a>
+    <a class="cta ghost" href="https://planq.kr/features" target="_blank" rel="noopener">기능 둘러보기</a>
+  </div>
+</section>
+
+<div class="foot">
+  <b>PlanQ</b> — 업무 전용 고객 채팅 + 실행 구조 통합 OS &nbsp;·&nbsp; <a href="https://planq.kr" target="_blank" rel="noopener" style="color:var(--teal-400)">planq.kr</a>
+</div>
+
+</body>
+</html>
