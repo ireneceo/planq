@@ -46,6 +46,29 @@
     "preset": "Service",
     "gmailHint": "If using Gmail 2FA, you'll need an \"App password\" (Google Account → Security → App passwords)",
     "icloudHint": "iCloud requires an \"App-specific password\" (Apple ID → Security)",
+    "guide": {
+      "gmail": {
+        "title": "Connect Gmail with an App Password",
+        "s1": "First, turn on 2-Step Verification for your Google account. (App passwords require 2-Step Verification to be enabled.)",
+        "s2": "Click \"Create app password\" below to generate a new password. Use \"PlanQ\" as the app name.",
+        "s3": "Paste the generated 16-character password (no spaces) into the \"Password\" field below and save. Server settings are already filled in.",
+        "link": "Create app password →"
+      },
+      "naver": {
+        "title": "Connect Naver Mail with an App Password",
+        "s1": "In Naver Mail → Settings → POP3/IMAP, turn \"IMAP/SMTP\" ON.",
+        "s2": "If you use Naver 2-Step Verification, issue an \"Application password\" (My Info → Security settings).",
+        "s3": "Enter the issued password (or your Naver login password if 2FA is off) into the \"Password\" field below and save.",
+        "link": "Open Naver Mail settings →"
+      },
+      "icloud": {
+        "title": "Connect iCloud with an App-Specific Password",
+        "s1": "Your Apple ID must have two-factor authentication enabled.",
+        "s2": "Generate a new app password under \"Create app password\" (Sign-In and Security → App-Specific Passwords).",
+        "s3": "Paste the generated app password into the \"Password\" field below and save.",
+        "link": "Apple ID app passwords →"
+      }
+    },
     "fieldEmail": "Email",
     "emailInvalid": "Enter a valid email",
     "fieldDisplayName": "Display name",
