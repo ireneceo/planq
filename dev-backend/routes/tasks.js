@@ -1858,7 +1858,19 @@ router.get('/daily-progress', authenticateToken, async (req, res, next) => {
       where: { business_id: businessId, assignee_id: req.user.id },
       attributes: ['id'],
     });
-    const ids = myTasks.map(t => t.id);
+    const myIdSet = new Set(myTasks.map(t => t.id));
+    // WORK_FLOW §6-C — task_ids 로 이번 주 업무 집합 스코핑 (없으면 전체 = 후방호환).
+    //   안 좁히면 est_used/act_used 가 그 사용자의 *전체* 업무를 합산해 진척선이 비현실값(153h)으로 박힘.
+    //   보안: 클라이언트가 보낸 id 도 본인 소유와 교집합만 인정.
+    let ids;
+    if (req.query.task_ids != null && String(req.query.task_ids).trim() !== '') {
+      const requested = String(req.query.task_ids).split(',').map(Number).filter(Boolean);
+      ids = requested.filter(id => myIdSet.has(id));
+    } else {
+      ids = [...myIdSet];
+    }
+    const scoped = req.query.task_ids != null && String(req.query.task_ids).trim() !== '';
+    const taskIdSet = new Set(ids);
     // 포커스 세션이 있으면 task 없이도(이미 삭제 등) 실측은 보여야 하나, 표준 경로상 ids 기준 충분.
 
     // ── 모든 날짜 버킷 미리 생성 (스냅샷 없어도 구조 유지) ──
@@ -1901,9 +1913,12 @@ router.get('/daily-progress', authenticateToken, async (req, res, next) => {
     const { FocusSession } = require('../models');
     const focusSessions = await FocusSession.findAll({
       where: { user_id: req.user.id, business_id: businessId },
-      attributes: ['started_at', 'ended_at', 'state', 'pause_total_sec', 'paused_at'],
+      // last_activity_at — #94 방치 캡(computeActualSeconds) 정확 적용 / task_id — §6-C 주별 스코핑.
+      attributes: ['task_id', 'started_at', 'ended_at', 'state', 'pause_total_sec', 'paused_at', 'last_activity_at'],
     });
     for (const s of focusSessions) {
+      // §6-C — 이번 주 업무 집합으로 스코핑된 경우, 그 집합의 task focus 만 계상 (무지정/타 업무 제외).
+      if (scoped && !taskIdSet.has(s.task_id)) continue;
       const wd = dateStrInTz(s.started_at, tz);
       if (wd < from || wd > to) continue;
       const sec = typeof s.computeActualSeconds === 'function' ? s.computeActualSeconds() : 0;

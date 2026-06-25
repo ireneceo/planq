@@ -617,16 +617,8 @@ const QTaskPage:React.FC=()=>{
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [addingTask, detailTaskId]);
 
-  // Period 변경 시 일별 스냅샷 로드
-  useEffect(()=>{
-    if(!bizId)return;
-    (async()=>{
-      try{
-        const r=await(await apiFetch(`/api/tasks/daily-progress?business_id=${bizId}&from=${periodFrom}&to=${periodTo}`)).json();
-        if(r.success)setDailyProgress(r.data?.days||[]);
-      }catch{}
-    })();
-  },[bizId,periodFrom,periodTo]);
+  // 일별 스냅샷 로드 — WORK_FLOW §6-C: 이번 주 업무 집합(chartTaskIds)으로 스코핑.
+  //   chartTaskIds 는 filtered 정의 이후라 아래(weekTotalEst 근처)에서 effect 로 실행.
 
   // 외부 클릭 시 드롭다운 닫기
   useEffect(()=>{
@@ -1329,6 +1321,23 @@ const QTaskPage:React.FC=()=>{
     const ct=filtered.filter(t=>t.assignee_id===myId&&t.status!=='canceled');
     return Math.round(ct.reduce((s,t)=>s+(Number(t.estimated_hours)||0),0)*10)/10;
   },[filtered,myId]);
+
+  // WORK_FLOW §6-C — 그래프 스코핑 키 = 이번 주 차트 대상 업무(내 담당·¬취소) ID 집합(정렬).
+  //   ID 집합이 바뀔 때만(주 진입/이탈) 재요청 — 진행률 편집은 같은 집합이라 재요청 안 함.
+  const chartTaskIdsKey=useMemo(()=>(
+    filtered.filter(t=>t.assignee_id===myId&&t.status!=='canceled').map(t=>t.id).sort((a,b)=>a-b).join(',')
+  ),[filtered,myId]);
+  useEffect(()=>{
+    if(!bizId)return;
+    (async()=>{
+      try{
+        // scope=mine·week 일 때만 이번 주 집합으로 스코핑. 그 외(workspace 등)는 전체(후방호환).
+        const idsParam=(scope==='mine'&&chartTaskIdsKey)?`&task_ids=${chartTaskIdsKey}`:'';
+        const r=await(await apiFetch(`/api/tasks/daily-progress?business_id=${bizId}&from=${periodFrom}&to=${periodTo}${idsParam}`)).json();
+        if(r.success)setDailyProgress(r.data?.days||[]);
+      }catch{/* ignore */}
+    })();
+  },[bizId,periodFrom,periodTo,chartTaskIdsKey,scope]);
 
   const maxY=Math.max(...computedBurndown.flatMap(p=>[p.estimated_cumulative,p.actual_cumulative].filter((v):v is number=>v!=null)),weekTotalEst||1,1);
 
