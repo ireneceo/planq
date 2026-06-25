@@ -52,7 +52,11 @@
       "talk": { "name": "Q Talk", "desc": "Customer-focused chat. Turn messages into tasks, share files, record agreements. As easy as Kakao, structured for work." },
       "task": { "name": "Q Task", "desc": "Tasks from chat or made by hand — all in one place. Due dates, assignees, priorities, statuses. Today's work and overdue items at a glance." },
       "note": { "name": "Q Note", "desc": "Live transcript and translation during meetings. Auto-detect key questions, suggest answers from materials you uploaded. Auto summary after." },
+      "mail": { "name": "Q Mail", "desc": "Customer email, brought into your workflow. Receive scattered mail in one workspace and see it alongside chats and client info — no more bouncing between inbox and work." },
+      "docs": { "name": "Q docs", "desc": "Create contracts, quotes, and proposals, then collect signatures with a single link. Customers open and sign without logging in, and every step is recorded automatically." },
+      "calendar": { "name": "Q Calendar", "desc": "Workspace and personal schedules at a glance. Task deadlines appear automatically, and booking a meeting creates a Google Meet link right with it." },
       "file": { "name": "Q File", "desc": "Files organized per project. \"Where is that file?\" goes away." },
+      "project": { "name": "Q Project", "desc": "Bring conversations, tasks, documents, and files into one workbench per project. Progress is calculated automatically, and deals flow from quote to invoice." },
       "bill": { "name": "Q Bill", "desc": "Create and email invoices. Send, payment confirmation, overdue management — all in one place." }
     }
   },

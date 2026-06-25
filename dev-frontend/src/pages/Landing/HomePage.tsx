@@ -7,7 +7,7 @@ import { useTranslation } from 'react-i18next';
 import LandingLayout from '../../components/Landing/LandingLayout';
 import { useReveal } from '../../hooks/useReveal';
 
-const Q_SERIES = ['talk', 'task', 'note', 'file', 'bill'] as const;
+const Q_SERIES = ['talk', 'task', 'note', 'mail', 'docs', 'calendar', 'file', 'project', 'bill'] as const;
 const PROBLEM_ITEMS = [
   { icon: 'chat', label: 'problem.items.0.label', tool: 'problem.items.0.tool' },
   { icon: 'check', label: 'problem.items.1.label', tool: 'problem.items.1.tool' },
