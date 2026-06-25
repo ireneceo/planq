@@ -18,6 +18,13 @@ const { sequelize } = require('../config/database');
 class FocusSession extends Model {
   /** 진행 중인 실제 누적 초 (paused 중인 경우 paused 진입 직전까지) */
   computeActualSeconds() {
+    // 운영 #94 — 방치 세션 누적 차단.
+    //   포커스를 멈추지 않고 PWA/탭을 닫으면 그 세션은 active 로 남아, 다음 /start 시점(며칠 뒤)에야
+    //   ended_at=now 로 종료된다. 그 결과 한 세션이 8일(190h) 을 기록 → 주간 진척 그래프 실제선이
+    //   168h(일주일) 을 초과하는 비현실값으로 오염되고, recompute 시 task.actual_hours 까지 부풀려졌다.
+    //   heartbeat(클라 30s) 가 멈춘 last_activity_at 이후는 "사용자 부재" 이므로 비계상한다.
+    const GRACE_SEC = 300;          // last_activity 후 유예 5분 (heartbeat 30s 의 충분한 여유)
+    const HARD_CAP_SEC = 12 * 3600; // 단일 세션 절대 상한 12h (last_activity 없을 때 backstop)
     const end = this.ended_at || new Date();
     const total = Math.max(0, Math.floor((end.getTime() - new Date(this.started_at).getTime()) / 1000));
     let pause = this.pause_total_sec || 0;
@@ -25,7 +32,14 @@ class FocusSession extends Model {
     if (this.state === 'paused' && this.paused_at) {
       pause += Math.max(0, Math.floor((Date.now() - new Date(this.paused_at).getTime()) / 1000));
     }
-    return Math.max(0, total - pause);
+    let actual = Math.max(0, total - pause);
+    // 방치 캡 — 마지막 활동(heartbeat)까지 + 유예. 정상 세션은 last_activity≈end 라 no-op,
+    //   정상 pause 세션도 (last_activity-start) 가 활성구간을 정확히 담아 망가지지 않는다.
+    if (this.last_activity_at) {
+      const activeSpan = Math.max(0, Math.floor((new Date(this.last_activity_at).getTime() - new Date(this.started_at).getTime()) / 1000)) + GRACE_SEC;
+      actual = Math.min(actual, activeSpan);
+    }
+    return Math.min(actual, HARD_CAP_SEC);
   }
 }
 
