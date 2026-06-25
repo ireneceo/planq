@@ -1,33 +1,29 @@
 # PlanQ 세션 상태
 
 ## 현재 작업 상태
-**마지막 업데이트:** 2026-06-23 (2차)
-**작업 상태:** 완료 — #72/#88 앱 비번 연결 안내 UX + 브랜드 컨설팅. **미배포 묶음 2건** + 신규 피드백 #93 발견(다음 사이클).
+**마지막 업데이트:** 2026-06-25
+**작업 상태:** 완료 — **v1.45.0 운영 배포 완료** (랜딩페이지 재정비 + 빌드 OOM fix + 미배포 묶음 #72/#88·#63 동봉). 미배포 0.
 
 ### 진행 중인 작업
 - 없음
 
 ### 완료된 작업 (이번 세션)
-- **#72/#88(ⓐ)** 메일 앱 비밀번호 연결 단계별 안내 UX — `EmailAccountSettings` ConnectGuide(Gmail/Naver/iCloud 번호 단계 + 발급 직링크). commit `c98bb50`. **미배포.**
-- **브랜드 아키텍처 컨설팅(코드 외)** — 제품=PlanQ / 서비스=**워프로랩 스튜디오** 분리, 끼워팔기 금지, 깔때기 연결 확정. 워프로랩용 솔루션 소개 HTML 생성·전달 후 dev 사본 삭제. memory `project_brand_architecture_planq_worpro`.
-- (직전) **#63 Phase 2** 워크스페이스 간 이전(복사, 원본 유지) commit `83737db`. **미배포.**
+- **랜딩페이지 재정비(Irene 지시)** — 홈 Features 섹션 Q 시리즈 5→9개 확장(Q Mail·Q docs·Q Calendar·Q Project 추가). `HomePage.tsx` Q_SERIES + `landing.json` ko/en. 노출 순서 Irene 확정.
+- **빌드 OOM 근본 fix** — `dev-frontend/package.json` build 스크립트 인라인 NODE_OPTIONS 4096→8192 (tsc+vite). deploy/dev 빌드 OOM 차단.
+- **버전 업 v1.44.1 → v1.45.0** (dev-backend/dev-frontend package.json).
+- **운영 배포** deploy `20260625_155601` · 152초 · commit `e8709a7` · planq.kr 헬스 200. 동봉: #72/#88 앱 비번 안내(`c98bb50`) + #63 Phase 2 자료 이전(`83737db`).
 
 ### 검증
-- 헬스 29/29 · 빌드 EXIT0(TS 0) · 변경 페이지 서빙 200.
+- 헬스 29/29 · 빌드 EXIT0(tsc+vite 8GB) · 서빙 200 · ko/en 패리티 9/9 · i18n 0 · 운영 landing.json 9개 라이브 · PM2 prod-backend/prod-qnote online.
 
 ## ▶ 다음 할 일
 
-### 1) 미배포 묶음 운영 배포 (다음 `/배포`)
-- `83737db` #63 Phase 2 워크스페이스 간 이전 + `c98bb50` #72/#88 앱 비번 연결 안내. 한 번에 반영.
+### 1) #93-ⓐ Q helper 팝아웃 재로그인 버그 (자율 가능 · 다음 우선 · 중 규모)
+- 원인 파악됨: access token이 **메모리 변수**(`AuthContext.getAccessToken`)라 `window.open('/help-popout')` 새 창은 메모리 비어있음 → 부팅 `checkSession`→`tryRefresh`(refresh 쿠키) 완료 전 로그인 게이트 노출 추정.
+- 수정 방향: `HelpStandalonePage` 인증 게이트에서 `isLoading` 동안 로그인 화면 막고 refresh 완료 대기 / refresh 실패만 로그인.
 
-### 1.5) 랜딩페이지 재정비 (Irene 지시 — 다음 작업)
-- **현재 랜딩 Features 섹션에 빠진 기능 추가.** 현재 노출: Q Talk / Q Task / Q Note / Q File / Q Bill 5개만. **누락: Q Mail**(메일 통합) + 그 외 출시 기능(Q Calendar 일정, Q docs 문서/서명, Q Project, 보고서/Insights, Cue AI 팀원 등) 점검해 최신 제품 범위에 맞게 보강.
-- 대상: `pages/Landing/HomePage.tsx` features.q 섹션 + `public/locales/{ko,en}/landing.json` features.q. (워프로랩 솔루션 소개 HTML도 같은 내용 동기화 필요 시 재생성)
-- 범위: 단순 항목 추가가 아니라 "랜딩페이지 재정비"로 전체 카피·구성·최신성 검토.
-
-### 2) 신규 피드백 #93 (자율 가능, 다음 사이클 우선)
-- **ⓐ Q helper 팝아웃 재로그인 버그** — 원인 파악됨: access token이 **메모리 변수**(`AuthContext.getAccessToken`)라 `window.open('/help-popout')` 새 창은 메모리 비어있음 → 부팅 `checkSession`→`tryRefresh`(refresh 쿠키) 완료 전 로그인 게이트 노출 추정. **수정 방향:** 팝아웃 부팅 시 `isLoading` 동안 로그인 화면 막고 refresh 완료 대기 / 또는 refresh 실패만 로그인. HelpStandalonePage 인증 게이트 점검.
-- **ⓑ "진행시작" 화면 깜빡임 → 전수 실시간 전환** — 업무 우측패널 status 전환 시 full reload/remount로 깜빡임. 고정 화면 + 인플레이스 setState 전환으로 전수검사 요청(대규모). CLAUDE.md 운영안정성 #16(실시간 반영) 기준.
+### 2) #93-ⓑ "진행시작" 화면 깜빡임 → 전수 실시간 전환 (자율 가능 · 대규모)
+- 업무 우측패널 status 전환 시 full reload/remount로 깜빡임. 고정 화면 + 인플레이스 setState 전환으로 전수검사 요청. CLAUDE.md 운영안정성 #16 기준.
 
 ### 3) 외부의존 (자율 불가)
 - **#60** iOS 푸시 — Capacitor 네이티브앱 결정 (Irene)
