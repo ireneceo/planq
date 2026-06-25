@@ -1215,9 +1215,8 @@ const QTaskPage:React.FC=()=>{
   }),[panelCounts,candidates.length]);
 
 
-  // 가용시간 사용 = 본인이 assignee 인 task 만 합산 (완료/미완료 포함, canceled 제외).
-  // 사용자: "요청한 task 는 다른 사람 가용시간이라 분리". summary.myEst 와 동일 값.
-  const totalMyEst=summary.myEst;
+  // WORK_FLOW §6 — 가용시간 비교는 잔여(remainingTotal) 기반으로 일원화 (전체 예측 totalMyEst 폐기).
+  //   "요청한 task 는 다른 사람 가용시간" 분리 유지(내 assignee 만). 잔여 = 예측×(1−진행률).
 
   // Project progress — mine=내가 담당한 업무만 집계, workspace=모든 업무 집계
   const projProg=useMemo(()=>{
@@ -1231,6 +1230,28 @@ const QTaskPage:React.FC=()=>{
   },[allTasks,myId,scope]);
 
   const effectiveCapacity=Math.round(capacity.daily*(capacity.days-holidayDays)*capacity.rate*10)/10;
+
+  // WORK_FLOW §6 — 잔여(remaining) 기반 부하 + 이월(carried) 도출.
+  //  잔여 = 예측 × (1 − 진행률) — 거의 끝난 carried-over 업무가 가용을 거짓으로 잡아먹는 왜곡 제거.
+  //  이월 = 활성 단계(in_progress~) 이면서 표시 주 시작(periodFrom) 이전에 생성됨 → 지난 주에서 넘어온 업무(derived, 복제 0).
+  const taskRemaining=useCallback((t:TaskRow)=>Math.max(0,(Number(t.estimated_hours)||0)*(1-(t.progress_percent||0)/100)),[]);
+  const isCarried=useCallback((t:TaskRow)=>(
+    (t.status==='in_progress'||t.status==='reviewing'||t.status==='revision_requested'||t.status==='waiting')
+    && (t.createdAt||'').slice(0,10) < periodFrom
+  ),[periodFrom]);
+  // 부하 구성 — 내 활성 업무의 잔여를 이월/이번주 신규로 분해 (가용시간 인지 핵심)
+  const loadBreakdown=useMemo(()=>{
+    let carried=0, fresh=0;
+    for(const t of filtered){
+      if(t.assignee_id!==myId) continue;
+      if(t.status==='canceled'||t.status==='completed') continue;
+      const rem=taskRemaining(t); if(rem<=0) continue;
+      if(isCarried(t)) carried+=rem; else fresh+=rem;
+    }
+    carried=Math.round(carried*10)/10; fresh=Math.round(fresh*10)/10;
+    return { carried, fresh, total:Math.round((carried+fresh)*10)/10 };
+  },[filtered,myId,taskRemaining,isCarried]);
+  const remainingTotal=loadBreakdown.total;
 
   const saveCapacity=async(field:string,value:number)=>{
     if(!bizId)return;
@@ -1462,10 +1483,10 @@ const QTaskPage:React.FC=()=>{
             {tab==='week' && <HideCheck><input type="checkbox" checked={hideCompletedInWeek} onChange={e=>setHideCompletedInWeek(e.target.checked)} />{t('filter.hideCompleted','Hide completed')}</HideCheck>}
             <ChipRow>
               <Chip>{summary.count}{t('summary.unit','개')}</Chip>
-              <Chip $teal title={t('summary.predictCapHint','내가 담당자인 task 의 예측시간 합 / 주간 가용시간') as string}>
+              <Chip $teal title={t('summary.remainCapHint','내가 담당자인 활성 업무의 남은 일(예측×미완료) / 주간 가용시간') as string}>
                 {scope==='workspace'
                   ? t('summary.workspacePredict', { est: formatHours(summary.myEst) })
-                  : t('summary.predictCap', { est: formatHours(summary.myEst), cap: formatHours(effectiveCapacity) })}
+                  : t('summary.remainCap', { rem: formatHours(remainingTotal), cap: formatHours(effectiveCapacity), defaultValue: '남은 {{rem}}h / 가용 {{cap}}h' })}
               </Chip>
               <Chip $coral>{t('summary.actual', { act: formatHours(summary.act) })}</Chip>
             </ChipRow>
@@ -1562,6 +1583,12 @@ const QTaskPage:React.FC=()=>{
                           title={t('list.titleClickEdit','클릭하여 업무명 수정') as string}>
                           {task.title}
                         </TaskTitle>
+                        {/* WORK_FLOW §6 — 이월 배지: 지난 주에서 넘어온 활성 업무. 과거 이력이 살아있음을 인지시킴. */}
+                        {scope==='mine' && tab==='week' && isCarried(task) && (
+                          <CarriedBadge title={t('list.carriedHint', { h: formatHours(task.actual_hours), defaultValue: '지난주에 시작한 업무예요. 이미 {{h}}h 투입 — 열면 이력·대화·메모 전부 볼 수 있어요.' }) as string}>
+                            {t('list.carried','이월')}
+                          </CarriedBadge>
+                        )}
                         {task.recurrence_rule && (
                           <RecurChip title={formatRRuleLabel(task.recurrence_rule, task.due_date, t, { short: true })}>
                             {/* "반복 ·" 접두 제거 — "매주 토" 자체로 반복 의미 충분 (Slack/Notion 패턴) */}
@@ -2275,15 +2302,17 @@ const QTaskPage:React.FC=()=>{
                 <RSection>
                   <RSTitle>{t('capacity.title','가용시간')}</RSTitle>
                   {(() => {
-                    const pct = utilizationPercent(totalMyEst, effectiveCapacity);
+                    // WORK_FLOW §6 — 잔여(남은 일) 기반. 활용률 = 남은 일 ÷ 가용.
+                    const pct = utilizationPercent(remainingTotal, effectiveCapacity);
                     const status = utilizationStatus(pct);
                     const color = UTIL_COLOR[status];
-                    const remaining = effectiveCapacity - totalMyEst;
+                    const headroom = effectiveCapacity - remainingTotal;
                     return (
                       <CapDashboard>
                         <CapHeadline>
                           <CapBigNum>
-                            <CapUsed style={{color: color.text}}>{formatHours(totalMyEst)}</CapUsed>
+                            <CapTinyLabel>{t('capacity.remainingWork', '남은 일')}</CapTinyLabel>
+                            <CapUsed style={{color: color.text}}>{formatHours(remainingTotal)}</CapUsed>
                             <CapSep>/</CapSep>
                             <CapTotal>{formatHours(effectiveCapacity)}h</CapTotal>
                           </CapBigNum>
@@ -2291,12 +2320,18 @@ const QTaskPage:React.FC=()=>{
                         </CapHeadline>
                         <CapBar><CapBarFill style={{background: color.bar, width: `${Math.min(100, pct)}%`}}/></CapBar>
                         <CapRemainingRow>
-                          <CapRemainingLabel>{t('capacity.remaining', '남은 가용시간')}</CapRemainingLabel>
+                          <CapRemainingLabel>{headroom < 0 ? t('capacity.over', '초과') : t('capacity.headroom', '여유')}</CapRemainingLabel>
                           <CapRemainingValue style={{color: color.text}}>
-                            {remaining < 0 ? '−' : ''}{formatHours(Math.abs(remaining))}h
-                            {status === 'over' && <CapOverHint>{t('capacity.overHint', '초과')}</CapOverHint>}
+                            {headroom < 0 ? '−' : ''}{formatHours(Math.abs(headroom))}h
+                            {status === 'over' && <CapOverHint>⚠</CapOverHint>}
                           </CapRemainingValue>
                         </CapRemainingRow>
+                        {remainingTotal > 0 && (
+                          <CapBreakdown>
+                            {loadBreakdown.carried > 0 && <CapBreakItem><CapBreakDot $carried/>{t('capacity.carriedLoad', { h: formatHours(loadBreakdown.carried), defaultValue: '이월 {{h}}h' })}</CapBreakItem>}
+                            <CapBreakItem><CapBreakDot/>{t('capacity.freshLoad', { h: formatHours(loadBreakdown.fresh), defaultValue: '이번 주 신규 {{h}}h' })}</CapBreakItem>
+                          </CapBreakdown>
+                        )}
                       </CapDashboard>
                     );
                   })()}
@@ -2899,6 +2934,8 @@ const QTaskInlineAddRow=styled.div`display:flex;align-items:center;gap:8px;paddi
 const QTaskInlineSpacer=styled.div`width:24px;flex-shrink:0;`;
 const QTaskInlineInput=styled.input`flex:1;min-width:0;padding:4px 8px;height:26px;font-size:13px;color:#0F172A;background:#FFFFFF;border:1px solid #14B8A6;border-radius:6px;font-family:inherit;&:focus{outline:none;box-shadow:0 0 0 2px rgba(20,184,166,0.15);}&::placeholder{color:#94A3B8;}`;
 const TaskTitle=styled.span<{$done?:boolean}>`font-size:14px;font-weight:500;color:#0F172A;cursor:text;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;${p=>p.$done&&'text-decoration:line-through;color:#94A3B8;'}&:hover{color:#0F766E;}`;
+// WORK_FLOW §6 — 이월 배지 (차분·비강조, slate)
+const CarriedBadge=styled.span`flex-shrink:0;display:inline-flex;align-items:center;padding:1px 7px;font-size:10px;font-weight:700;color:#475569;background:#F1F5F9;border-radius:10px;letter-spacing:-0.2px;cursor:help;`;
 // 안 읽은 업무 활동(댓글·변경) 점 (운영 #5)
 const UnreadDot=styled.span`flex-shrink:0;width:7px;height:7px;border-radius:50%;background:#F43F5E;margin-right:2px;align-self:center;`;
 const TitleInput=styled.input`flex:1;font-size:14px;font-weight:500;color:#0F172A;border:1px solid #14B8A6;background:#F0FDFA;padding:2px 8px;border-radius:6px;font-family:inherit;height:24px;box-sizing:border-box;&:focus{outline:none;box-shadow:0 0 0 2px rgba(20,184,166,0.15);}`;
@@ -3190,6 +3227,7 @@ const CapFieldInput=styled.input`width:100%;padding:4px 6px;border:1px solid #E2
 const CapDashboard=styled.div`display:flex;flex-direction:column;gap:10px;margin-bottom:12px;`;
 const CapHeadline=styled.div`display:flex;align-items:baseline;justify-content:space-between;gap:10px;`;
 const CapBigNum=styled.div`display:flex;align-items:baseline;gap:6px;`;
+const CapTinyLabel=styled.span`font-size:11px;color:#94A3B8;font-weight:600;`;
 const CapUsed=styled.span`font-size:24px;font-weight:800;letter-spacing:-0.4px;`;
 const CapSep=styled.span`font-size:18px;color:#CBD5E1;font-weight:600;`;
 const CapTotal=styled.span`font-size:15px;color:#64748B;font-weight:600;`;
@@ -3203,6 +3241,10 @@ const CapOverHint=styled.span`margin-left:6px;padding:1px 6px;font-size:10px;fon
 const CapSettingsRow=styled.div`display:flex;flex-wrap:wrap;gap:6px;`;
 const CapSettingsField=styled.div`flex:1;min-width:56px;`;
 const CapFormulaHint=styled.div`margin-top:8px;font-size:11px;color:#94A3B8;font-weight:500;text-align:center;letter-spacing:-0.2px;`;
+// WORK_FLOW §6 — 부하 구성(이월/신규) 표시
+const CapBreakdown=styled.div`display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:4px 12px;padding:6px 0 2px;`;
+const CapBreakItem=styled.span`display:inline-flex;align-items:center;gap:5px;font-size:11px;color:#64748B;font-weight:600;`;
+const CapBreakDot=styled.span<{$carried?:boolean}>`width:7px;height:7px;border-radius:2px;background:${p=>p.$carried?'#94A3B8':'#14B8A6'};`;
 const ChartSVG=styled.svg`width:100%;height:160px;display:block;`;
 const EmptyChart=styled.div`padding:16px;text-align:center;color:#CBD5E1;font-size:11px;`;
 const Legend=styled.div`display:flex;gap:12px;margin-top:6px;`;

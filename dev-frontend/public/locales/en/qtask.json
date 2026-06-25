@@ -146,6 +146,8 @@
     "act": "Act",
     "predictCap": "My {{est}}h/Cap {{cap}}h",
     "predictCapHint": "Sum of est-hours of tasks I'm assigned to / weekly capacity",
+    "remainCap": "Left {{rem}}h / Cap {{cap}}h",
+    "remainCapHint": "Remaining work (est × incomplete) of my active tasks / weekly capacity",
     "workspacePredict": "Est {{est}}h",
     "actual": "Act {{act}}h"
   },
@@ -271,6 +273,11 @@
     "participation": "Focus rate (%)",
     "participationHint": "Share of work hours actually spent on tasks (excl. meetings/overhead). e.g. 85 if many meetings",
     "formula": "{{daily}}h × {{days}}d × {{rate}}% = {{total}}h/wk",
+    "remainingWork": "Left",
+    "headroom": "Headroom",
+    "over": "Over",
+    "carriedLoad": "Carried {{h}}h",
+    "freshLoad": "New {{h}}h",
     "available": "Available this week"
   },
   "chart": {
@@ -294,6 +301,8 @@
     "empty": "No tasks found",
     "inlineAddPh": "Type task title (Enter to save / Esc to cancel)",
     "statusHint": "Click to change status",
+    "carried": "Carried",
+    "carriedHint": "Started last week. {{h}}h already logged — open it to see full history, chat and memos.",
     "titleClickEdit": "Click to edit task name",
     "notMyHours": "Only the assignee can edit (read-only)",
     "notMyProgress": "Only the assignee can edit (read-only)",
