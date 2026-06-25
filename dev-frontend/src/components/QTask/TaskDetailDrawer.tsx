@@ -492,12 +492,27 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
     finally { setReverting(false); }
   };
 
-  // 워크플로우 액션 후 상세 + 워크플로우 리프레시.
-  // 병렬 fetch → React 18 auto-batch 로 한 번의 리렌더에 두 state 모두 반영 → 액션 카드가
-  // "사라졌다 나타나는" 깜빡임이 줄어든다.
-  const refreshAfterAction = async () => {
+  // #93-ⓑ 전수 — 워크플로우 액션 후 인플레이스 갱신(전체 교체 금지).
+  //   기존 setDetailTask(detailR.data) 전체 교체는 본문/액션카드까지 리렌더해 "사라졌다 나타나는" 깜빡임.
+  //   (1) status·진행률 등 스칼라는 액션 응답에서 즉시 인플레이스 병합 → 액션카드 지연 점프 제거.
+  //   (2) 리뷰어·이력·댓글·첨부는 background 보강하되 body/description(RichEditor 바인딩)은 prev 레퍼런스 유지
+  //       → 값이 같아도 새 객체로 교체되며 생기던 에디터 리렌더/깜빡임 원천 차단(RichEditor value===ref 가드 정합).
+  const refreshAfterAction = async (taskData?: Record<string, unknown>) => {
     if (!detailTask) return;
     const id = detailTask.id;
+    // (1) 액션 응답의 status 등 스칼라 즉시 인플레이스 (네트워크 왕복 전에 액션카드 전환)
+    if (taskData && typeof taskData.status === 'string') {
+      const td = taskData;
+      setDetailTask(prev => prev ? {
+        ...prev,
+        status: td.status as string,
+        progress_percent: (td.progress_percent ?? prev.progress_percent) as number,
+        actual_hours: (td.actual_hours ?? prev.actual_hours) as number | null,
+        actual_source: (td.actual_source ?? prev.actual_source) as 'auto' | 'user' | null,
+      } as TaskDetail : prev);
+      onPatch?.({ id, status: td.status as string, progress_percent: td.progress_percent as number | undefined });
+    }
+    // (2) 리뷰어·이력·댓글·첨부 보강 — body/description 은 prev 유지(깜빡임 방지)
     try {
       const [wfR, detailR] = await Promise.all([
         apiFetch(`/api/tasks/${id}/workflow`).then(r => r.json()),
@@ -508,7 +523,14 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
         setHistory(wfR.data.history || []);
         setReviewPolicy(wfR.data.task?.review_policy || 'all');
       }
-      if (detailR.success) setDetailTask(detailR.data);
+      if (detailR.success) {
+        setDetailTask(prev => prev ? {
+          ...prev,
+          ...detailR.data,
+          body: prev.body,                 // RichEditor 바인딩 — 레퍼런스 유지
+          description: prev.description,    // RichEditor 바인딩 — 레퍼런스 유지
+        } as TaskDetail : detailR.data);
+      }
     } catch { /* ignore */ }
     onRefresh?.();
   };
@@ -532,10 +554,14 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
       if (body) { opts.headers = { 'Content-Type': 'application/json' }; opts.body = JSON.stringify(body); }
       const r = await (await apiFetch(`/api/tasks/${detailTask.id}${path}`, opts)).json();
       if (r.success) {
-        await refreshAfterAction();
+        // approve 는 { task, new_status }, 나머지 status 전이는 task.toJSON() — 둘 다에서 task 객체 추출.
+        const taskData = (r.data && typeof r.data === 'object' && 'task' in r.data) ? r.data.task : r.data;
+        await refreshAfterAction(taskData);
         // N+35 — 즉시 인박스 카드 동기화 안전망 (socket broadcast 와 별개로 같은 탭의 TodoPage 즉시 reload).
         // socket 지연/끊김 케이스에서도 카드 갱신 보장. 사용자 호소: "확인필요 카드 실시간 갱신 안 됨"
         try { window.dispatchEvent(new CustomEvent('inbox:refresh')); } catch { /* noop */ }
+        // status 전이(시작/취소/완료 등)는 Focus 위젯 상태에도 영향 → 좌측 위젯 즉시 동기화 (#93-ⓑ 정합).
+        try { window.dispatchEvent(new CustomEvent('focus:refresh')); } catch { /* noop */ }
       }
       return r;
     } finally { setActionBusy(false); }
