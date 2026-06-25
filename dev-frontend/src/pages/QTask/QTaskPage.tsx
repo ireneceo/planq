@@ -214,6 +214,8 @@ const QTaskPage:React.FC=()=>{
     return()=>window.removeEventListener('keydown',onKey);
   },[isNarrow]);
   const[holidayDays,setHolidayDays]=useState(0);
+  // WORK_FLOW §6 (U5) — 실측 참여율 자동 제안 (포커스 커버리지 충분할 때만 서버가 반환)
+  const[rateSuggestion,setRateSuggestion]=useState<{percent:number;focusHours:number;weeks:number}|null>(null);
 
   // 워크스페이스 tz 기준 오늘/월요일 — 모든 업무 경계 계산의 기준
   const wsTz=user?.workspace_timezone||detectBrowserTz();
@@ -502,6 +504,13 @@ const QTaskPage:React.FC=()=>{
             if(typeof wr.data.capacity?.holidays==='number')setHolidayDays(wr.data.capacity.holidays);
             _setBurndown((wr.data.burndown||[]).map((b:Record<string,unknown>)=>({label:b.label as string,estimated_cumulative:b.estimated_cumulative as number,actual_cumulative:b.actual_cumulative as number})));
           }
+        }catch{/* ignore */}
+        // WORK_FLOW §6 (U5) — 실측 참여율 제안 (서버가 커버리지 충분할 때만 suggested_rate 반환)
+        try{
+          const sr=await(await apiFetch(`/api/tasks/by-business/${bizId}/participation-suggestion`)).json();
+          if(sr.success&&sr.data?.suggested_rate!=null&&sr.data.suggested_percent!==sr.data.current_percent){
+            setRateSuggestion({percent:sr.data.suggested_percent,focusHours:sr.data.focus_hours,weeks:sr.data.weeks});
+          }else setRateSuggestion(null);
         }catch{/* ignore */}
         // 이슈/메모 (scope 에 따라 소스 달라짐: mine=내가 담당한 프로젝트, workspace=전체 프로젝트 상위 N)
         const projMap=new Map<number,string>();
@@ -2397,6 +2406,12 @@ const QTaskPage:React.FC=()=>{
                       defaultValue: '{{daily}}h × {{days}}일 × {{rate}}% = 주 {{total}}h',
                     })}
                   </CapFormulaHint>
+                  {rateSuggestion && (
+                    <CapSuggest title={t('capacity.suggestHint', { focus: formatHours(rateSuggestion.focusHours), weeks: rateSuggestion.weeks, defaultValue: '최근 {{weeks}}주 포커스 실측 {{focus}}h 기준. 포커스를 주 업무 추적에 쓸 때 정확합니다.' }) as string}>
+                      {t('capacity.suggest', { weeks: rateSuggestion.weeks, pct: rateSuggestion.percent, defaultValue: '최근 {{weeks}}주 실측 {{pct}}%' })}
+                      <CapSuggestBtn type="button" onClick={()=>{ saveCapacity('participation_rate', rateSuggestion.percent/100); setRateSuggestion(null); }}>{t('capacity.suggestApply','적용')}</CapSuggestBtn>
+                    </CapSuggest>
+                  )}
                 </RSection>
                 <RSection>
                   <RSTitle>{t('chart.weekly','Weekly Progress')}</RSTitle>
@@ -3272,6 +3287,9 @@ const CapOverHint=styled.span`margin-left:6px;padding:1px 6px;font-size:10px;fon
 const CapSettingsRow=styled.div`display:flex;flex-wrap:wrap;gap:6px;`;
 const CapSettingsField=styled.div`flex:1;min-width:56px;`;
 const CapFormulaHint=styled.div`margin-top:8px;font-size:11px;color:#94A3B8;font-weight:500;text-align:center;letter-spacing:-0.2px;`;
+// WORK_FLOW §6 (U5) — 실측 참여율 제안 (은은하게)
+const CapSuggest=styled.div`margin-top:6px;display:flex;align-items:center;justify-content:center;gap:8px;font-size:11px;color:#64748B;font-weight:600;cursor:help;`;
+const CapSuggestBtn=styled.button`padding:2px 10px;font-size:11px;font-weight:700;color:#0F766E;background:#F0FDFA;border:1px solid #99F6E4;border-radius:10px;cursor:pointer;transition:background 0.15s;&:hover{background:#CCFBF1;}`;
 // WORK_FLOW §6 (U1) — 판정 칩 (EVM→일상어). good/warn/bad 3톤.
 const VERDICT_TONE={good:{bg:'#F0FDFA',text:'#0F766E',dot:'#14B8A6'},warn:{bg:'#FFFBEB',text:'#B45309',dot:'#F59E0B'},bad:{bg:'#FEF2F2',text:'#B91C1C',dot:'#EF4444'}} as const;
 const VerdictChip=styled.div<{$tone:'good'|'warn'|'bad'}>`display:inline-flex;align-items:center;gap:6px;margin-bottom:8px;padding:4px 10px;font-size:12px;font-weight:700;border-radius:14px;letter-spacing:-0.2px;cursor:help;background:${p=>VERDICT_TONE[p.$tone].bg};color:${p=>VERDICT_TONE[p.$tone].text};`;

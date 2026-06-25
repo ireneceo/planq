@@ -877,6 +877,57 @@ router.get('/by-business/:businessId/assignable-externals', authenticateToken, a
 });
 
 // ============================================
+// GET /:businessId/participation-suggestion — 실작업률(participation_rate) 실측 제안 (WORK_FLOW §6 / U5)
+//   최근 28일 포커스 실측시간(캡 적용) ÷ 명목 근무시간(rate 제외) = 측정된 실작업률.
+//   추측(85%) 대신 데이터로 제안. 충분한 신호(누적 8h+) 있을 때만 반환, 아니면 null.
+// ============================================
+router.get('/by-business/:businessId/participation-suggestion', authenticateToken, async (req, res, next) => {
+  try {
+    const businessId = Number(req.params.businessId);
+    if (!businessId) return errorResponse(res, 'business_id required', 400);
+    if (!(await assertBusinessAccess(req.user.id, businessId, req.user.platform_role))) {
+      return errorResponse(res, 'forbidden', 403);
+    }
+    const cap = await getMemberCapacity(req.user.id, businessId);
+    const nominalPerWeek = cap.daily * Math.max(0, cap.days - cap.holidays); // rate 제외 — 측정 대상이 rate 자체
+    const WEEKS = 4;
+    if (nominalPerWeek <= 0) return successResponse(res, { suggested_rate: null });
+
+    const tz = await getWorkspaceTz(businessId);
+    const { dateStrInTz } = require('../utils/datetime');
+    const today = todayInTz(tz);
+    const from = addDaysStr(today, -28);
+    const { FocusSession } = require('../models');
+    const sessions = await FocusSession.findAll({
+      where: { user_id: req.user.id, business_id: businessId },
+      attributes: ['started_at', 'ended_at', 'state', 'pause_total_sec', 'paused_at', 'last_activity_at'],
+    });
+    let focusSec = 0;
+    for (const s of sessions) {
+      const wd = dateStrInTz(s.started_at, tz);
+      if (wd >= from && wd <= today) focusSec += (typeof s.computeActualSeconds === 'function' ? s.computeActualSeconds() : 0);
+    }
+    const focusHours = focusSec / 3600;
+    const nominal = nominalPerWeek * WEEKS;
+    // 신뢰성 게이트 — 포커스를 "주 업무 추적 도구"로 쓸 때만 focus/nominal 이 참여율의 신뢰 신호가 된다.
+    //   포커스가 명목의 40% 미만이면 그 비율은 '참여율'이 아니라 '포커스 사용률'(드문드문 사용) → 오안내 방지 위해 제안 안 함.
+    //   (예: 명목 120h 인데 포커스 8h=7% → 실제 참여율 85% 여도 7% 로 오안내될 위험 → null)
+    const COVERAGE_MIN = 0.4;
+    if (nominal <= 0 || focusHours < COVERAGE_MIN * nominal) {
+      return successResponse(res, { suggested_rate: null, focus_hours: Math.round(focusHours * 10) / 10 });
+    }
+    const rate = Math.min(1, Math.max(0.1, focusHours / nominal));
+    return successResponse(res, {
+      suggested_rate: Math.round(rate * 100) / 100,
+      suggested_percent: Math.round(rate * 100),
+      focus_hours: Math.round(focusHours * 10) / 10,
+      weeks: WEEKS,
+      current_percent: Math.round((cap.rate || 1) * 100),
+    });
+  } catch (err) { next(err); }
+});
+
+// ============================================
 // PUT /:businessId/:id — 업무 수정
 // ============================================
 router.put('/by-business/:businessId/:id', authenticateToken, async (req, res, next) => {

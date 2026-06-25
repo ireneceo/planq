@@ -278,6 +278,9 @@
     "over": "Over",
     "carriedLoad": "Carried {{h}}h",
     "freshLoad": "New {{h}}h",
+    "suggest": "Measured {{pct}}% (last {{weeks}}w)",
+    "suggestApply": "Apply",
+    "suggestHint": "Based on {{focus}}h of focus tracked over the last {{weeks}} weeks. Accurate when you track most work with focus.",
     "available": "Available this week"
   },
   "chart": {
