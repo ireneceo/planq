@@ -130,6 +130,8 @@
     "empty": "해당하는 업무가 없습니다",
     "inlineAddPh": "업무명 입력 (Enter 저장 / Esc 취소)",
     "statusHint": "클릭하면 단계 선택",
+    "carried": "이월",
+    "carriedHint": "지난주에 시작한 업무예요. 이미 {{h}}h 투입 — 열면 이력·대화·메모 전부 볼 수 있어요.",
     "titleClickEdit": "클릭하여 업무명 수정",
     "notMyHours": "담당자만 수정 가능 (참고용)",
     "notMyProgress": "담당자만 수정 가능 (참고용)",
@@ -181,6 +183,8 @@
     "act": "실제",
     "predictCap": "내 업무 {{est}}h/가용 {{cap}}h",
     "predictCapHint": "내가 담당자인 task 의 예측시간 합 / 주간 가용시간",
+    "remainCap": "남은 {{rem}}h / 가용 {{cap}}h",
+    "remainCapHint": "내가 담당자인 활성 업무의 남은 일(예측×미완료) / 주간 가용시간",
     "workspacePredict": "예측 {{est}}h",
     "actual": "실제 {{act}}h"
   },
@@ -306,6 +310,11 @@
     "participation": "실작업률(%)",
     "participationHint": "회의·잡무를 뺀, 근무시간 중 실제 업무에 쓰는 비율. 예: 회의가 많으면 85",
     "formula": "{{daily}}h × {{days}}일 × {{rate}}% = 주 {{total}}h",
+    "remainingWork": "남은 일",
+    "headroom": "여유",
+    "over": "초과",
+    "carriedLoad": "이월 {{h}}h",
+    "freshLoad": "이번 주 신규 {{h}}h",
     "available": "이번 주 가용"
   },
   "chart": {
