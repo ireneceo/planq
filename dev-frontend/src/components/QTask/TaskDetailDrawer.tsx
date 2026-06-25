@@ -466,6 +466,9 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
         return u;
       });
       onPatch?.({ id: detailTask.id, status: newStatus, progress_percent: newStatus === 'completed' ? 100 : undefined });
+      // #93-ⓑ — status 전이는 Focus 세션을 시작/종료/전환시킨다(N+32). 좌측 위젯·인박스 즉시 동기화(깜빡임 없이).
+      try { window.dispatchEvent(new CustomEvent('inbox:refresh')); } catch { /* noop */ }
+      try { window.dispatchEvent(new CustomEvent('focus:refresh')); } catch { /* noop */ }
       setSaveStatusTemp('saved');
     } catch { setSaveStatusTemp('error'); }
   };
@@ -509,6 +512,18 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
     } catch { /* ignore */ }
     onRefresh?.();
   };
+  // #93-ⓑ — 워크플로(이력·리뷰어)만 갱신. detailTask 전체 교체 없음 → 본문·설명 RichEditor 리렌더 X (깜빡임 제거).
+  //   status 같은 가벼운 필드 전이는 호출부가 setDetailTask 로 인플레이스 병합하고, 이력/리뷰어만 이걸로 보강.
+  const refreshWorkflowOnly = async (id: number) => {
+    try {
+      const wfR = await apiFetch(`/api/tasks/${id}/workflow`).then(r => r.json());
+      if (wfR.success) {
+        setReviewers(wfR.data.reviewers || []);
+        setHistory(wfR.data.history || []);
+        setReviewPolicy(wfR.data.task?.review_policy || 'all');
+      }
+    } catch { /* ignore */ }
+  };
   const callAction = async (path: string, method: 'POST'|'DELETE'|'PATCH' = 'POST', body?: unknown) => {
     if (!detailTask || actionBusy) return;
     setActionBusy(true);
@@ -533,13 +548,22 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
   const actRevert = () => callAction('/reviewers/me/revert');
   const actStart = async () => {
     if (!detailTask || actionBusy) return;
+    const id = detailTask.id;
     setActionBusy(true);
     try {
-      await apiFetch(`/api/tasks/by-business/${bizId}/${detailTask.id}`, {
+      await apiFetch(`/api/tasks/by-business/${bizId}/${id}`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: 'in_progress' }),
       });
-      await refreshAfterAction();
+      // #93-ⓑ — "진행 시작" 깜빡임 제거: 전체 refetch(refreshAfterAction) 대신 status 만 인플레이스 병합.
+      //   본문/설명 RichEditor·댓글 등 무관한 영역은 그대로 두고, 이력·리뷰어만 가볍게 보강.
+      setDetailTask(prev => prev ? { ...prev, status: 'in_progress' } as TaskDetail : prev);
+      onPatch?.({ id, status: 'in_progress' });
+      refreshWorkflowOnly(id);
+      // status 'in_progress' 진입 = Focus auto-start trigger (N+32 옵션 A). 좌측 위젯 즉시 동기화.
+      try { window.dispatchEvent(new CustomEvent('inbox:refresh')); } catch { /* noop */ }
+      try { window.dispatchEvent(new CustomEvent('focus:refresh')); } catch { /* noop */ }
+      onRefresh?.();
     } finally { setActionBusy(false); }
   };
   const submitRevision = async () => {
