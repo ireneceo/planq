@@ -823,6 +823,23 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
           return (<>
             {/* 업무 흐름 sticky 바 — N+32 옵션 B (단순화). 담당자 본인 + status='in_progress' 일 때만 일시정지/재개. */}
             <TaskFocusBar taskId={detailTask.id} businessId={bizId} assigneeId={detailTask.assignee_id} status={detailTask.status} />
+            {/* WORK_FLOW §6-B — 이월 연속성 배너: 지난 주부터 넘어온 활성 업무임을 알리고 과거 이력이 살아있음을 인지시킴. */}
+            {(() => {
+              const active = ['in_progress','reviewing','revision_requested','waiting'].includes(detailTask.status);
+              const created = (detailTask.created_at || '').slice(0,10);
+              const mon = (() => { const d = new Date(); const off = (d.getDay()+6)%7; d.setDate(d.getDate()-off); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })();
+              if (!active || !created || created >= mon) return null;
+              const spent = Number(detailTask.actual_hours || 0);
+              const spentStr = (Math.round(spent*10)/10).toString();
+              return (
+                <CarriedBanner>
+                  <CarriedTag>{t('detail.carried.tag','이월')}</CarriedTag>
+                  <span>{spent > 0
+                    ? t('detail.carried.bodySpent', { h: spentStr, defaultValue: '지난주부터 진행 중 · 누적 {{h}}h 투입 — 아래에 이력·대화·메모가 모두 남아 있어요' })
+                    : t('detail.carried.body', '지난주부터 진행 중 — 아래에 이력·대화·메모가 모두 남아 있어요')}</span>
+                </CarriedBanner>
+              );
+            })()}
             <Section>
               {editingTitle ? (
                 <TitleInput autoFocus value={titleDraft}
@@ -1764,6 +1781,9 @@ const ResizeHandle = styled.div`
   @media (max-width: 1024px) { display: none; }
 `;
 const DrawerHeader = styled.div`height:60px;padding:14px 20px;border-bottom:1px solid #E2E8F0;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;`;
+// WORK_FLOW §6-B — 이월 연속성 배너 (차분한 slate, 비강조)
+const CarriedBanner = styled.div`display:flex;align-items:center;gap:8px;margin:12px 20px 0;padding:8px 12px;background:#F1F5F9;border:1px solid #E2E8F0;border-radius:10px;font-size:12px;font-weight:600;color:#475569;line-height:1.4;`;
+const CarriedTag = styled.span`flex-shrink:0;padding:1px 8px;font-size:10px;font-weight:700;color:#FFFFFF;background:#64748B;border-radius:10px;letter-spacing:-0.2px;`;
 const BackBtn = styled.button`display:flex;align-items:center;gap:4px;background:transparent;border:none;color:#0F766E;font-size:12px;font-weight:600;cursor:pointer;padding:0;outline:none;&:hover{color:#134E4A;}&:focus{outline:none;}&:focus-visible{outline:2px solid #14B8A6;outline-offset:2px;border-radius:4px;}`;
 const CloseBtn = styled.button`width:28px;height:28px;display:flex;align-items:center;justify-content:center;background:transparent;border:none;border-radius:6px;color:#64748B;cursor:pointer;outline:none;&:hover{background:#F1F5F9;color:#0F172A;}&:focus{outline:none;}&:focus-visible{outline:2px solid #14B8A6;outline-offset:-2px;}`;
 const ShareIconBtn = styled.button`width:28px;height:28px;display:flex;align-items:center;justify-content:center;background:transparent;border:none;border-radius:6px;color:#0F766E;cursor:pointer;outline:none;transition:background 0.15s;&:hover{background:#F0FDFA;color:#134E4A;}&:focus-visible{outline:2px solid #14B8A6;outline-offset:-2px;}`;

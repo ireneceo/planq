@@ -394,6 +394,11 @@
   "detail": {
     "back": "Back",
     "close": "Close",
+    "carried": {
+      "tag": "Carried",
+      "body": "In progress since last week — full history, chat and memos are all kept below",
+      "bodySpent": "In progress since last week · {{h}}h logged so far — full history, chat and memos are all kept below"
+    },
     "meta": {
       "period": "Period",
       "milestone": "Key task",
