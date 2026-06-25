@@ -303,6 +303,9 @@
     "daily": "1일 업무시간",
     "days": "업무일수",
     "holidays": "이번 주 휴일",
+    "participation": "실작업률(%)",
+    "participationHint": "회의·잡무를 뺀, 근무시간 중 실제 업무에 쓰는 비율. 예: 회의가 많으면 85",
+    "formula": "{{daily}}h × {{days}}일 × {{rate}}% = 주 {{total}}h",
     "available": "이번 주 가용"
   },
   "chart": {
