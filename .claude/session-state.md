@@ -29,13 +29,21 @@
 
 ## ▶ 다음 할 일
 
-### 1) #93-ⓑ 전수 확대 운영 배포 (다음 `/배포`)
-- `cfaf5c3` 워크플로 전수 깜빡임 제거. 프론트 단독(DB 변경 0). 검증 통과 상태.
-- **참고:** #93-ⓐ(팝아웃 재로그인)는 데스크탑 window.open 을 robust 하게 해결(이미 운영 라이브). iPhone PWA 에서 window.open 이 Safari(별도 쿠키 jar)로 탈출하는 케이스라면 opener 상속이 안 되므로(별도 컨텍스트) 인앱 드로어 방식 전환 필요 — Irene 이 어느 환경에서 봤는지 확인 시 추가 대응.
+### 1) 미배포 묶음 운영 배포 (다음 `/배포`)
+- `cfaf5c3` #93-ⓑ 전수 확대(워크플로 전수 깜빡임 제거, 프론트 단독)
+- `403509d` **#94 주간 진척 그래프 비현실값 fix**(백엔드 모델 변경 → 배포 후 `pm2 restart` 자동)
+- **배포 후 필수:** 운영서버에서 백필 1회 실행 — `cd /opt/planq/backend && node scripts/backfill-focus-actual-hours.js` (focus 세션 보유 task 의 부풀린 actual_hours[task24=153.6h·task69=44.3h 등] 교정. idempotent, user 입력 보호).
+- **참고:** #93-ⓐ(팝아웃 재로그인)는 데스크탑 window.open 해결(라이브). iPhone PWA window.open Safari 탈출 케이스면 인앱 드로어 전환 필요 — Irene 환경 확인 시.
 
-### 2) 운영 미해결 피드백 (자율 가능 — 위 '피드백 큐 확인' 상세)
-- **#94 주간 진척 그래프 stale** (1순위 버그) → **#90 Cue 인식 품질** → #89/#91 코드 대조
-- 운영 feedback_items 17건 done 위생 마킹은 Irene 확인 후 일괄
+### 2) #94 — ✅ 해결(미배포). 근본원인·검증
+- **증상:** '이번주 나의업무' 주간 진척 그래프 실제선 187.4h 고정 + 리스트 실제시간 바꿔도 미반영.
+- **근본원인:** 포커스 안 멈추고 PWA/탭 닫으면 세션이 active 잔존 → 다음 start(며칠 뒤)에야 ended_at=now 종료 → 한 세션이 8일(190h) 기록 → daily-progress focusCum 이 주(168h) 초과. today 실제=max(liveAct, focusCum) 라 187h 잠김(리스트 편집 무시).
+- **fix:** `FocusSession.computeActualSeconds` 가 heartbeat 끊긴 `last_activity_at + grace5분` 까지만 계상(하드캡 12h). 운영 read-only 검증: 481.7h→8h(세션6 190.7→0.6 등). focusCum 정상화→liveAct 가 today 주도→리스트 편집 즉시 반영(2증상 동시 해소). 단위 7/7·헬스 29/29.
+- **별개 후속 버그(미수정):** focus 없는 task 가 in_progress 로 수주 방치 시 `recompute` status_history 경로의 live 누적이 1152h 류 inflation(task352/529 dev). #94(focus)와 다른 fallback 경로 — 작업시간 정의(영업시간/구간캡) product 결정 필요. **dev 주의:** 첫 백필이 과도하게 focus 없는 auto task 까지 recompute 해 일부 dev 테스트 actual_hours 변경됨(운영 무손상, 백필은 이후 focus-only 로 좁힘).
+
+### 3) 나머지 운영 미해결 피드백 (자율 가능)
+- **#90 Cue 인식 품질**(담당자 미배정·링크 누락) → #89/#91 코드 대조
+- 운영 feedback_items done 위생 마킹(이미 처리된 #71·#79·#86·#87·#92·#93 등)은 Irene 확인 후 일괄
 
 ### 3) [검토 예정] 피드백/문의 자동 트리아지·응답 시스템 (Irene 요청 — 기획설계 필요)
 - **요청:** 신규 피드백/문의 도착 시 ① 자동 분류 ② 자동 답변 ③ 코드로 고칠 수 있으면 자동 수정 ④ 기획설계 필요건은 "검토하겠습니다" 자동회신 + 다음할일 자동 적재.
