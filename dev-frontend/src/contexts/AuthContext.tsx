@@ -332,6 +332,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   // 초기 세션 확인 — refresh token cookie로 복원 시도
   useEffect(() => {
+    // #93-ⓐ 팝아웃 재로그인 방지 — 부모 창(window.opener)이 자기 access token getter 를 노출.
+    //   window.open 분리 창은 메모리 accessToken 이 비어 있어 부팅 refresh 라운드트립에 의존 →
+    //   느린 응답/컨텍스트 어긋남 시 로그인 게이트로 떨어짐. opener 의 in-memory 토큰을 즉시 상속해
+    //   round-trip/플래시 제거. 같은 origin 만 접근 가능(cross-origin opener 는 throw → catch).
+    (window as unknown as { __pqGetToken?: () => string | null }).__pqGetToken = getAccessToken;
+
     const checkSession = async () => {
       try {
         // 기존 localStorage 토큰 마이그레이션
@@ -341,7 +347,29 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           localStorage.removeItem('auth_token');
         }
 
-        // refresh 시도
+        // #93-ⓐ 팝아웃: 부모 창의 in-memory access token 즉시 상속 시도 (refresh 라운드트립 회피)
+        let seeded = false;
+        try {
+          const opener = window.opener as (Window & { __pqGetToken?: () => string | null }) | null;
+          const inherited = opener && typeof opener.__pqGetToken === 'function' ? opener.__pqGetToken() : null;
+          if (inherited) { setAccessToken(inherited); seeded = true; }
+        } catch { /* cross-origin opener — 무시하고 일반 refresh 경로로 */ }
+
+        if (seeded) {
+          // 상속 토큰으로 즉시 검증 (만료면 apiFetch 가 401→refresh 자동 복구)
+          const meRes = await apiFetch('/api/auth/me');
+          if (meRes.ok) {
+            const meResult = await meRes.json();
+            if (meResult.success && meResult.data) {
+              setUser(normalizeUser(meResult.data));
+              scheduleRefresh();
+              setIsLoading(false);
+              return;
+            }
+          }
+        }
+
+        // 일반 경로 (또는 상속 실패) — refresh cookie 로 세션 복원
         const refreshed = await tryRefresh();
         if (refreshed) {
           const res = await apiFetch('/api/auth/me');
