@@ -1323,6 +1323,30 @@ const QTaskPage:React.FC=()=>{
 
   const maxY=Math.max(...computedBurndown.flatMap(p=>[p.estimated_cumulative,p.actual_cumulative].filter((v):v is number=>v!=null)),weekTotalEst||1,1);
 
+  // WORK_FLOW §6 (U1) — EVM 신호를 일상어 판정으로 번역.
+  //  EV(진척)=오늘 estimated_cumulative, AC(투입)=오늘 actual_cumulative, PV(목표)=weekTotalEst × 경과영업일/총영업일.
+  //  SPI=EV/PV(일정), CPI=EV/AC(예산). 전문용어 비노출, 칩+탭설명으로만.
+  const chartVerdict=useMemo(()=>{
+    const pts=computedBurndown.filter(p=>!p.isFuture);
+    const today=pts.length?pts[pts.length-1]:null;
+    if(!today||weekTotalEst<=0) return null;
+    const ev=today.estimated_cumulative??0;
+    const ac=today.actual_cumulative??0;
+    if(ev<=0&&ac<=0) return null; // 아직 시작 전 — 칩 숨김
+    let elapsedBiz=0;
+    for(const p of pts){const[y,m,d]=p.date.split('-').map(Number);const wd=new Date(Date.UTC(y,m-1,d)).getUTCDay();if(wd>=1&&wd<=5)elapsedBiz++;}
+    const totalBiz=Math.max(1,(capacity.days||5)-holidayDays);
+    const pv=weekTotalEst*Math.min(1,elapsedBiz/totalBiz);
+    const spi=ev/Math.max(pv,0.1);
+    const cpi=ev/Math.max(ac,0.1);
+    let key:'onTrack'|'ahead'|'overBudget'|'behind', tone:'good'|'warn'|'bad';
+    if(spi<0.85){ key='behind'; tone=spi<0.6?'bad':'warn'; }
+    else if(cpi<0.85){ key='overBudget'; tone='warn'; }
+    else if(spi>1.15){ key='ahead'; tone='good'; }
+    else { key='onTrack'; tone='good'; }
+    return { key, tone, ev:Math.round(ev*10)/10, ac:Math.round(ac*10)/10 };
+  },[computedBurndown,weekTotalEst,capacity.days,holidayDays]);
+
   if(!bizId)return<EmptyFull>No workspace</EmptyFull>;
   if(loading)return<EmptyFull>Loading...</EmptyFull>;
 
@@ -2376,6 +2400,13 @@ const QTaskPage:React.FC=()=>{
                 </RSection>
                 <RSection>
                   <RSTitle>{t('chart.weekly','Weekly Progress')}</RSTitle>
+                  {chartVerdict && (
+                    <VerdictChip $tone={chartVerdict.tone}
+                      title={t(`chart.verdict.${chartVerdict.key}.detail`, { ev: formatHours(chartVerdict.ev), ac: formatHours(chartVerdict.ac), defaultValue: '' }) as string}>
+                      <VerdictDot $tone={chartVerdict.tone} />
+                      {t(`chart.verdict.${chartVerdict.key}.label`, { defaultValue: chartVerdict.key })}
+                    </VerdictChip>
+                  )}
                   {(()=>{
                     const W=290,H=160,PL=28,PR=8,PT=12,PB=24;
                     const cw=W-PL-PR, ch=H-PT-PB;
@@ -3241,6 +3272,10 @@ const CapOverHint=styled.span`margin-left:6px;padding:1px 6px;font-size:10px;fon
 const CapSettingsRow=styled.div`display:flex;flex-wrap:wrap;gap:6px;`;
 const CapSettingsField=styled.div`flex:1;min-width:56px;`;
 const CapFormulaHint=styled.div`margin-top:8px;font-size:11px;color:#94A3B8;font-weight:500;text-align:center;letter-spacing:-0.2px;`;
+// WORK_FLOW §6 (U1) — 판정 칩 (EVM→일상어). good/warn/bad 3톤.
+const VERDICT_TONE={good:{bg:'#F0FDFA',text:'#0F766E',dot:'#14B8A6'},warn:{bg:'#FFFBEB',text:'#B45309',dot:'#F59E0B'},bad:{bg:'#FEF2F2',text:'#B91C1C',dot:'#EF4444'}} as const;
+const VerdictChip=styled.div<{$tone:'good'|'warn'|'bad'}>`display:inline-flex;align-items:center;gap:6px;margin-bottom:8px;padding:4px 10px;font-size:12px;font-weight:700;border-radius:14px;letter-spacing:-0.2px;cursor:help;background:${p=>VERDICT_TONE[p.$tone].bg};color:${p=>VERDICT_TONE[p.$tone].text};`;
+const VerdictDot=styled.span<{$tone:'good'|'warn'|'bad'}>`width:7px;height:7px;border-radius:50%;background:${p=>VERDICT_TONE[p.$tone].dot};`;
 // WORK_FLOW §6 — 부하 구성(이월/신규) 표시
 const CapBreakdown=styled.div`display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:4px 12px;padding:6px 0 2px;`;
 const CapBreakItem=styled.span`display:inline-flex;align-items:center;gap:5px;font-size:11px;color:#64748B;font-weight:600;`;

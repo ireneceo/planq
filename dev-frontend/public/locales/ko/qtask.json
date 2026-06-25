@@ -323,7 +323,13 @@
     "act": "실제",
     "ideal": "목표 진척",
     "capacity": "가용시간",
-    "capacityLine": "가용 {{h}}h"
+    "capacityLine": "가용 {{h}}h",
+    "verdict": {
+      "onTrack": { "label": "순조롭게 진행 중", "detail": "계획대로 가고 있어요 (진척 {{ev}}h · 투입 {{ac}}h)" },
+      "ahead": { "label": "예정보다 앞서 있어요", "detail": "이번 주 목표보다 빨라요 (진척 {{ev}}h · 투입 {{ac}}h)" },
+      "overBudget": { "label": "시간 대비 진척이 더뎌요", "detail": "{{ac}}h 썼는데 {{ev}}h어치 진행 — 예상보다 오래 걸리는 중이에요" },
+      "behind": { "label": "목표보다 뒤처져 있어요", "detail": "이번 주 가야 할 선보다 아래예요 (진척 {{ev}}h · 투입 {{ac}}h)" }
+    }
   },
   "projects": {
     "title": "프로젝트 진척률"
