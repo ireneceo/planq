@@ -1246,6 +1246,7 @@ const QTaskPage:React.FC=()=>{
       // Update local state
       if(field==='daily_work_hours')setCapacity(prev=>({...prev,daily:value,weekly:Math.round(value*(prev.days)*prev.rate*10)/10}));
       if(field==='weekly_work_days')setCapacity(prev=>({...prev,days:value,weekly:Math.round(prev.daily*value*prev.rate*10)/10}));
+      if(field==='participation_rate')setCapacity(prev=>({...prev,rate:value,weekly:Math.round(prev.daily*prev.days*value*10)/10}));  // 실작업률(%) — 백엔드 participation_rate(0~1)
       if(field==='weekly_holidays')setHolidayDays(value);  // 운영 #50 — 휴일도 백엔드 저장 + 로컬 반영
     }catch{}
   };
@@ -2318,7 +2319,25 @@ const QTaskPage:React.FC=()=>{
                         onBlur={e=>saveCapacity('weekly_holidays',Math.max(0,Number(e.target.value)||0))}
                         onKeyDown={e=>{if(e.key==='Enter')(e.target as HTMLInputElement).blur();}} />
                     </CapSettingsField>
+                    {/* 실작업률 — 근무시간 중 회의·잡무 제외하고 실제 업무에 쓰는 비율(%). 백엔드 participation_rate(0~1). */}
+                    <CapSettingsField>
+                      <CapFieldLabel title={t('capacity.participationHint','회의·잡무를 뺀, 근무시간 중 실제 업무에 쓰는 비율. 예: 회의가 많으면 85') as string}>{t('capacity.participation','실작업률 %')}</CapFieldLabel>
+                      <CapFieldInput key={`rate-${capacity.rate}`} type="number" step="5" min="10" max="100"
+                        defaultValue={Math.round((capacity.rate||1)*100)}
+                        title={t('capacity.participationHint','회의·잡무를 뺀, 근무시간 중 실제 업무에 쓰는 비율. 예: 회의가 많으면 85') as string}
+                        onBlur={e=>{const v=Math.max(10,Math.min(100,Math.round(Number(e.target.value)||100)));saveCapacity('participation_rate',v/100);(e.target as HTMLInputElement).value=String(v);}}
+                        onKeyDown={e=>{if(e.key==='Enter')(e.target as HTMLInputElement).blur();}} />
+                    </CapSettingsField>
                   </CapSettingsRow>
+                  <CapFormulaHint>
+                    {t('capacity.formula', {
+                      daily: formatHours(capacity.daily||8),
+                      days: Math.max(0,(capacity.days||5)-holidayDays),
+                      rate: Math.round((capacity.rate||1)*100),
+                      total: formatHours(effectiveCapacity),
+                      defaultValue: '{{daily}}h × {{days}}일 × {{rate}}% = 주 {{total}}h',
+                    })}
+                  </CapFormulaHint>
                 </RSection>
                 <RSection>
                   <RSTitle>{t('chart.weekly','Weekly Progress')}</RSTitle>
@@ -3181,8 +3200,9 @@ const CapRemainingRow=styled.div`display:flex;align-items:center;justify-content
 const CapRemainingLabel=styled.span`font-size:11px;color:#64748B;font-weight:600;`;
 const CapRemainingValue=styled.span`font-size:15px;font-weight:700;letter-spacing:-0.2px;`;
 const CapOverHint=styled.span`margin-left:6px;padding:1px 6px;font-size:10px;font-weight:700;background:#FFE4E6;color:#9F1239;border-radius:6px;`;
-const CapSettingsRow=styled.div`display:flex;gap:6px;`;
-const CapSettingsField=styled.div`flex:1;`;
+const CapSettingsRow=styled.div`display:flex;flex-wrap:wrap;gap:6px;`;
+const CapSettingsField=styled.div`flex:1;min-width:56px;`;
+const CapFormulaHint=styled.div`margin-top:8px;font-size:11px;color:#94A3B8;font-weight:500;text-align:center;letter-spacing:-0.2px;`;
 const ChartSVG=styled.svg`width:100%;height:160px;display:block;`;
 const EmptyChart=styled.div`padding:16px;text-align:center;color:#CBD5E1;font-size:11px;`;
 const Legend=styled.div`display:flex;gap:12px;margin-top:6px;`;
