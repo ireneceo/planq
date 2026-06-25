@@ -386,6 +386,29 @@ router.get('/today-summary', authenticateToken, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// ─── GET /task-time?task_id=X ────────────────────────────────────
+// WORK_FLOW §6-B — 업무별 포커스 시간: 전체 / 이번 주. 드로어 연속성('이번주 X · 전체 N').
+//   본인 세션만 집계 → user 스코프로 자연 격리(남의 task 면 0). #94 캡(last_activity_at) 적용.
+router.get('/task-time', authenticateToken, async (req, res, next) => {
+  try {
+    const taskId = Number(req.query.task_id);
+    if (!taskId) return errorResponse(res, 'task_id required', 400);
+    const sessions = await FocusSession.findAll({
+      where: { user_id: req.user.id, task_id: taskId },
+      attributes: ['started_at', 'ended_at', 'state', 'pause_total_sec', 'paused_at', 'last_activity_at'],
+    });
+    // 이번 주 월요일 00:00 (로컬)
+    const mon = new Date(); const off = (mon.getDay() + 6) % 7; mon.setDate(mon.getDate() - off); mon.setHours(0, 0, 0, 0);
+    let total = 0, week = 0;
+    for (const s of sessions) {
+      const sec = s.computeActualSeconds();
+      total += sec;
+      if (new Date(s.started_at) >= mon) week += sec;
+    }
+    return successResponse(res, { total_seconds: total, week_seconds: week });
+  } catch (err) { next(err); }
+});
+
 // ─── GET /settings / PUT /settings ───────────────────────────────
 // 개인 설정 — 5컬럼
 router.get('/settings', authenticateToken, async (req, res, next) => {

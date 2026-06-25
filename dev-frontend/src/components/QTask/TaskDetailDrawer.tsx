@@ -175,6 +175,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
   useFocusTrap(drawerRef, !!taskId);
 
   const [detailTask, setDetailTask] = useState<TaskDetail | null>(null);
+  const [weekFocusH, setWeekFocusH] = useState(0);  // WORK_FLOW §6-B — 이번 주 포커스 시간(이월 배너)
   const [reviewers, setReviewers] = useState<ReviewerRow[]>([]);
   const [history, setHistory] = useState<HistoryRow[]>([]);
   const [reviewPolicy, setReviewPolicy] = useState<'all'|'any'>('all');
@@ -384,7 +385,15 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
     setRevisionOpen(false); setRevisionNote('');
     setAddReviewerOpen(false); setPendingReviewerAdd(null);
     setDeleteConfirmOpen(false); setDeleting(false);
+    setWeekFocusH(0);
     loadDetail(taskId);
+    // WORK_FLOW §6-B — 이번 주 포커스 시간(이월 배너용). 본인 세션만 집계.
+    (async () => {
+      try {
+        const r = await apiFetch(`/api/focus/task-time?task_id=${taskId}`).then(x => x.json());
+        if (r.success && r.data) setWeekFocusH(Math.round((Number(r.data.week_seconds || 0) / 3600) * 10) / 10);
+      } catch { /* ignore */ }
+    })();
   }, [taskId, loadDetail]);
 
   // Esc 닫기 + 상태 드롭다운 외부 클릭
@@ -831,12 +840,15 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
               if (!active || !created || created >= mon) return null;
               const spent = Number(detailTask.actual_hours || 0);
               const spentStr = (Math.round(spent*10)/10).toString();
+              const weekStr = weekFocusH.toString();
               return (
                 <CarriedBanner>
                   <CarriedTag>{t('detail.carried.tag','이월')}</CarriedTag>
-                  <span>{spent > 0
-                    ? t('detail.carried.bodySpent', { h: spentStr, defaultValue: '지난주부터 진행 중 · 누적 {{h}}h 투입 — 아래에 이력·대화·메모가 모두 남아 있어요' })
-                    : t('detail.carried.body', '지난주부터 진행 중 — 아래에 이력·대화·메모가 모두 남아 있어요')}</span>
+                  <span>{weekFocusH > 0
+                    ? t('detail.carried.bodyWeek', { week: weekStr, total: spentStr, defaultValue: '지난주부터 진행 중 · 이번주 {{week}}h · 누적 {{total}}h 투입 — 아래에 이력·대화·메모가 모두 남아 있어요' })
+                    : spent > 0
+                      ? t('detail.carried.bodySpent', { h: spentStr, defaultValue: '지난주부터 진행 중 · 누적 {{h}}h 투입 — 아래에 이력·대화·메모가 모두 남아 있어요' })
+                      : t('detail.carried.body', '지난주부터 진행 중 — 아래에 이력·대화·메모가 모두 남아 있어요')}</span>
                 </CarriedBanner>
               );
             })()}
