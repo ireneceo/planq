@@ -1,4 +1,38 @@
 {
+  "dashboard": {
+    "title": "플랫폼 대시보드",
+    "error": "데이터를 불러오지 못했습니다",
+    "empty": "데이터가 아직 없습니다",
+    "kpi": {
+      "businesses": "워크스페이스",
+      "users": "사용자",
+      "activeSubs": "활성 구독",
+      "grace": "유예 중",
+      "monthRevenue": "이번 달 수익",
+      "pendingAmount": "미수금",
+      "new30d": "최근 30일",
+      "ofTotal": "전체 {{n}}",
+      "pending": "결제 대기 {{n}}",
+      "paidOnly": "결제 완료 기준",
+      "pendingHint": "입금 대기 중"
+    },
+    "signups": {
+      "title": "워크스페이스 가입 추이",
+      "hint": "최근 6개월"
+    },
+    "plans": {
+      "title": "활성 구독 플랜 분포",
+      "hint": "플랜별 활성 구독 수"
+    },
+    "quick": {
+      "title": "관리 바로가기",
+      "businesses": "워크스페이스",
+      "users": "사용자",
+      "subscriptions": "구독",
+      "payments": "결제",
+      "audit": "감사 로그"
+    }
+  },
   "billing": {
     "title": "결제 설정",
     "bankSection": "자체 결제 (계좌이체)",

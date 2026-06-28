@@ -1,4 +1,38 @@
 {
+  "dashboard": {
+    "title": "Platform dashboard",
+    "error": "Failed to load data",
+    "empty": "No data yet",
+    "kpi": {
+      "businesses": "Workspaces",
+      "users": "Users",
+      "activeSubs": "Active subscriptions",
+      "grace": "In grace",
+      "monthRevenue": "This month's revenue",
+      "pendingAmount": "Outstanding",
+      "new30d": "last 30 days",
+      "ofTotal": "of {{n}} total",
+      "pending": "{{n}} awaiting payment",
+      "paidOnly": "Paid only",
+      "pendingHint": "Awaiting deposit"
+    },
+    "signups": {
+      "title": "Workspace signups",
+      "hint": "Last 6 months"
+    },
+    "plans": {
+      "title": "Active subscription plans",
+      "hint": "Active subscriptions by plan"
+    },
+    "quick": {
+      "title": "Quick links",
+      "businesses": "Workspaces",
+      "users": "Users",
+      "subscriptions": "Subscriptions",
+      "payments": "Payments",
+      "audit": "Audit log"
+    }
+  },
   "billing": {
     "title": "Billing settings",
     "bankSection": "Self-billing (bank transfer)",
