@@ -165,6 +165,13 @@
       "margin": "Margin", "receivable": "Receivable", "overhead": "Overhead"
     },
     "chart": {
+      "trend": {
+        "title": "12-month revenue · cost · profit trend",
+        "empty": "Appears once payment & cost data accumulate",
+        "revenue": "Revenue",
+        "cost": "Cost",
+        "profit": "Profit"
+      },
       "expenses": {
         "title": "Expenses by category",
         "empty": "Will appear once expenses & overhead are registered",

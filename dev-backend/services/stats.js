@@ -865,8 +865,38 @@ async function buildFinanceTab(businessId, period) {
     severity: 'info', title: '데이터 누적 중', value: '청구서·비용 등록 후 분석 시작',
   });
 
+  // 12개월 매출·비용·이익 추이 (Overview 매출추이와 상보 — Finance 는 비용 분해 강조)
+  const ym = (x) => new Date(x).toISOString().slice(0, 7);
+  const monthlyOverhead = overheads.reduce((s, o) => {
+    const a = Number(o.amount || 0);
+    return s + (o.cycle === 'yearly' ? a / 12 : o.cycle === 'quarterly' ? a / 3 : a);
+  }, 0);
+  const trendStart = new Date(toDt.getFullYear(), toDt.getMonth() - 11, 1);
+  const [trendPays, trendDirects] = await Promise.all([
+    InvoicePayment.findAll({
+      where: { paid_at: { [Op.gte]: trendStart } },
+      include: [{ model: Invoice, where: { business_id: businessId }, attributes: [] }],
+      attributes: ['amount', 'paid_at'],
+    }),
+    ProjectExpense.findAll({
+      include: [{ model: require('../models').Project, where: { business_id: businessId }, attributes: [] }],
+      where: { incurred_at: { [Op.gte]: trendStart.toISOString().slice(0, 10) } },
+      attributes: ['amount', 'incurred_at'],
+    }),
+  ]);
+  const costTrend = [];
+  for (let i = 11; i >= 0; i--) {
+    const m = new Date(toDt.getFullYear(), toDt.getMonth() - i, 1);
+    const key = m.toISOString().slice(0, 7);
+    const rev = trendPays.filter(p => ym(p.paid_at) === key).reduce((s, p) => s + Number(p.amount || 0), 0);
+    const dc = trendDirects.filter(e => ym(e.incurred_at) === key).reduce((s, e) => s + Number(e.amount || 0), 0);
+    const cost = monthlyOverhead + dc;
+    costTrend.push({ month: key, revenue: Math.round(rev), cost: Math.round(cost), profit: Math.round(rev - cost) });
+  }
+
   return {
     period: { from: period.from, to: period.to, label: period.label },
+    cost_trend: costTrend,
     kpis: {
       revenue: { value: Math.round(revenue), prev: null, delta_pct: null },
       total_cost: { value: Math.round(totalCost), prev: null, delta_pct: null },
