@@ -288,6 +288,8 @@
     }
   },
   "section": {
+    "statusHistory": "Status history",
+    "statusHistoryEmpty": "No status changes yet",
     "info": "Overview",
     "progress": "Progress",
     "taskTimeline": "Task timeline",

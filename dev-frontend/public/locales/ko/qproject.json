@@ -288,6 +288,8 @@
     }
   },
   "section": {
+    "statusHistory": "상태 이력",
+    "statusHistoryEmpty": "상태 변경 이력이 없습니다",
     "info": "기본 정보",
     "progress": "진척",
     "taskTimeline": "업무 타임라인",
