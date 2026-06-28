@@ -1223,6 +1223,7 @@ router.get('/:id/canvas', authenticateToken, async (req, res, next) => {
         user_id: pm.user_id,
         name: pm.User?.name_localized?.ko || pm.User?.name || `user ${pm.user_id}`,
         role: pm.role,
+        is_pm: !!pm.is_pm, // PM 배지 — 정식 project_members.is_pm (옛 default_assignee 임시 프록시 대체)
         dept: bm?.department?.name || null,
         team: bm?.team?.name || null,
       };

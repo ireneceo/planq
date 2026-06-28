@@ -85,6 +85,7 @@ function apiProjectToMock(p: qtalkApi.ApiProject): MockProject {
       role: m.role,
       avatar_color: '#64748B',
       is_default_assignee: m.user_id === p.default_assignee_user_id,
+      is_pm: !!(m as { is_pm?: boolean }).is_pm,
     })),
     clients: (p.projectClients || []).map((c) => ({
       user_id: c.contact_user_id || 0,

@@ -566,9 +566,8 @@ const RightPanel: React.FC<Props> = ({
                   <LetterAvatar name={m.name} size={22} />
                   <MemberName>{m.name}</MemberName>
                   <RoleTag>{m.role}</RoleTag>
-                  {/* PM 배지 — Phase 1.2 project_members.is_pm 대응. mock 에는 is_pm 없지만 default_assignee 를 임시 PM 표기 */}
+                  {/* PM 배지 — 정식 project_members.is_pm (백엔드 직렬화 + QTalkPage 매핑) */}
                   {(m as unknown as { is_pm?: boolean }).is_pm && <PmTag>{t('right.info.members.pm', 'PM')}</PmTag>}
-                  {m.is_default_assignee && !(m as unknown as { is_pm?: boolean }).is_pm && <PmTag>{t('right.info.members.pm', 'PM')}</PmTag>}
                 </MemberRow>
               ))}
               <DetailLink type="button" onClick={() => navigate(`/projects/p/${project.id}`)}>
