@@ -2,10 +2,10 @@
 
 ## 현재 작업 상태
 **마지막 업데이트:** 2026-06-28 (/개발시작 세션)
-**작업 상태:** **#90 Cue 자동추출 개선 — dev 완료·검증 통과·미배포.** (이전: 배포 7회 — #93·#94 + §6 6청크 운영 라이브.)
+**작업 상태:** **#90·#95·#96 운영 배포 완료** (deploy `20260628_090725` · commit `6b40ffe` · 145s · planq.kr 헬스 200 · PM2 prod online · exit1 부수신호). #96 표 기능 5/5 서브버그 전부 해결.
 
 ### 진행 중인 작업
-- 없음 (#90 dev 완료, 다음 `/배포` 대기)
+- 없음 (#90·#95·#96 운영 라이브)
 
 ### 이번 세션 완료 (#90 — 자동추출 개선, 미배포)
 Irene 선택 "#90 진행 — 자동추출 개선". 근본원인 3개 수정:
@@ -42,8 +42,8 @@ Irene 선택 "#90 진행 — 자동추출 개선". 근본원인 3개 수정:
 - **#96 (문서 테이블, 신규 6/27) — 진행 중·미배포.** 실제 기능 = **Q docs 표 kind 문서**(`PostsPage` + `PostTableGrid`), records 메뉴는 폐지(흡수). Explore 초기 매핑은 폐지된 `QRecordDetailPage` 오진 → 바로잡음. 5개 서브버그:
   - **② 기본테이블 없음 → ✅수정·검증** `routes/posts.js` kind=table 생성 시 빈 q_record(columns:0)였던 것을 **기본 컬럼 3개(제목 text/상태 select+옵션3/메모 longtext) + 빈 행 1개** 시드(언어별 ko/en). API E2E 6/6.
   - **① 생성 후 나가버림 → ✅수정** `PostAiModal.submitTable` navigate 에 `&new_table=1` + `PostsPage` 로드 effect 가 표면 edit 모드 진입(플래그 1회 소비). 빌드 EXIT0.
-  - **③④ [첨부] 적용안됨/에러 → ⏳미착수** `PostTableGrid` attach 는 구현돼 있음 → 진짜 버그는 **컬럼 추가 시 type='attach' 1차 적용 실패 + cell attach 런타임 에러**. 브라우저 재현 필요.
-  - **⑤ 프로젝트>문서 표 없음 → ⏳미착수(설계확정)** 프로젝트 'docs' 탭 = `ProjectPostsTab`(PostsPage 일부만 재사용, 표 미지원). **Irene 결정: PostsPage(scope=project) 로 교체.** PostsPage 는 이미 scope.type='project' 데이터 지원하나 **전체 2컬럼(사이드바+콘텐츠) 레이아웃**이라 탭 임베드 시 레이아웃 검증 필수. submitTable navigate 도 scope-aware(/docs 하드코딩 → onTableCreated 콜백) 필요.
+  - **③④ [첨부] 적용안됨/에러 → ✅수정·검증** 근본원인 = `PostTableGrid.ColumnSettingsPopover.commit` 이 이름·타입·옵션을 **각각 별도 updateColumn 호출** → 같은 stale rec.columns 스냅샷 동시저장 race(마지막만 반영). "type=attach 적용 안됨, 다시 설정하면 됨"의 원인. **단일 patch onCommit 으로 합침.** attach 셀은 Array.isArray 가드라 크래시 아님(④=③의 결과). API E2E 5/5(type=attach+이름 동시적용·attach 셀 배열 지속).
+  - **⑤ 프로젝트>문서 표 없음 → ✅수정** 프로젝트 'docs' 탭을 `ProjectPostsTab`(표 미지원) → **`PostsPage`(scope=project)** 로 교체. `ProjectDocsWrap` 경계높이 래퍼(calc(100vh-210px), margin -20). submitTable 은 `onTableCreated` 콜백으로 in-place(페이지 이탈 없음, 워크스페이스·프로젝트 공통). 핀 문서 편집 `?editPost`→`?post`. **레이아웃은 Irene dev 육안확인 권장**(2컬럼 임베드).
 - **#89(랜딩 푸터 카피·소) 미착수.**
 
 ### 다음 할 일
