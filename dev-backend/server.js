@@ -508,6 +508,10 @@ initEmailFaqCron();
 // N+36 옵션 D — 업무 후보 만료 cron (30일 hide / 90일 rejected delete / 60일 hidden delete)
 const { initCandidateCleanupCron } = require('./services/candidateCleanup');
 initCandidateCleanupCron();
+// #63 Phase 3 — 자료 이동/내보내기 job 드레인 cron (30초 단위) + 만료 export 정리(6시간)
+const exportJobWorker = require('./services/exportJobWorker');
+setInterval(() => { exportJobWorker.runExportJobTick().catch(e => console.warn('[exportJobWorker]', e.message)); }, 30 * 1000);
+setInterval(() => { exportJobWorker.cleanupExpiredExports().catch(() => {}); }, 6 * 60 * 60 * 1000);
 
 // 미읽음 알림 이메일 에스컬레이션 — push silent-drop 안전망 (운영: 알림 미수신 미팅 누락 사고)
 const { initUnreadEscalationCron } = require('./services/unreadEscalationCron');

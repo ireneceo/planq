@@ -7,7 +7,7 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const { Op } = require('sequelize');
-const { File, Document, BusinessMember, Business, BusinessStorageUsage } = require('../models');
+const { File, Document, BusinessMember, Business, BusinessStorageUsage, ExportJob } = require('../models');
 const { authenticateToken, checkBusinessAccess } = require('../middleware/auth');
 const { getUserScope, isMemberOrAbove } = require('../middleware/access_scope');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
@@ -286,4 +286,116 @@ router.post('/:businessId/me/transfer', authenticateToken, checkBusinessAccess, 
   } catch (err) { next(err); }
 });
 
+// ════════════════════════════════════════════════════════════════
+// #63 Phase 3 — 비동기 job (이동/복사 + Q Note + 대용량 export)
+// ════════════════════════════════════════════════════════════════
+
+// POST /:businessId/me/transfer-job — 본인 L1 자료를 다른 워크스페이스로 이동/복사 (비동기)
+router.post('/:businessId/me/transfer-job', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+  try {
+    const sourceBiz = Number(req.params.businessId);
+    const targetBiz = Number(req.body?.target_business_id);
+    const mode = req.body?.mode === 'move' ? 'move' : 'copy';
+    const includeQnote = !!req.body?.include_qnote;
+    if (!targetBiz || targetBiz === sourceBiz) return errorResponse(res, 'invalid_target', 400);
+
+    const srcScope = await getUserScope(req.user.id, sourceBiz, req.user.platform_role);
+    if (!isMemberOrAbove(srcScope)) return errorResponse(res, 'forbidden', 403);
+    const tgtScope = await getUserScope(req.user.id, targetBiz, req.user.platform_role);
+    if (!isMemberOrAbove(tgtScope)) return errorResponse(res, 'target_not_member', 403);
+
+    const job = await ExportJob.create({
+      user_id: req.user.id, business_id: sourceBiz, kind: 'transfer',
+      mode, target_business_id: targetBiz, include_qnote: includeQnote, status: 'queued',
+    });
+    require('../services/auditService').logAudit(req, {
+      action: 'data.transfer_job.create', targetType: 'export_job', targetId: job.id, businessId: sourceBiz,
+      newValue: { mode, target_business_id: targetBiz, include_qnote: includeQnote },
+    });
+    return successResponse(res, { job_id: job.id, status: job.status }, 'queued', 201);
+  } catch (err) { next(err); }
+});
+
+// POST /:businessId/me/export-job — 본인 L1 자료 다운로드 zip 생성 (비동기, 대용량)
+router.post('/:businessId/me/export-job', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+  try {
+    const businessId = Number(req.params.businessId);
+    const includeQnote = !!req.body?.include_qnote;
+    const scope = await getUserScope(req.user.id, businessId, req.user.platform_role);
+    if (!isMemberOrAbove(scope)) return errorResponse(res, 'forbidden', 403);
+    const job = await ExportJob.create({
+      user_id: req.user.id, business_id: businessId, kind: 'export',
+      include_qnote: includeQnote, status: 'queued',
+    });
+    return successResponse(res, { job_id: job.id, status: job.status }, 'queued', 201);
+  } catch (err) { next(err); }
+});
+
+// GET /:businessId/me/jobs — 본인 job 목록 (최근 20)
+router.get('/:businessId/me/jobs', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+  try {
+    const businessId = Number(req.params.businessId);
+    const jobs = await ExportJob.findAll({
+      where: { business_id: businessId, user_id: req.user.id },
+      order: [['id', 'DESC']], limit: 20,
+    });
+    return successResponse(res, jobs.map(j => {
+      const tj = j.toJSON();
+      return {
+        id: tj.id, kind: tj.kind, mode: tj.mode, status: tj.status,
+        target_business_id: tj.target_business_id, include_qnote: tj.include_qnote,
+        result: tj.result, error: tj.error,
+        has_download: tj.kind === 'export' && !!j.download_token && (!j.expires_at || new Date(j.expires_at) > new Date()),
+        download_token: j.download_token || null, // 본인 job 목록이라 토큰 노출 안전
+        created_at: tj.created_at, done_at: tj.done_at,
+      };
+    }));
+  } catch (err) { next(err); }
+});
+
+// GET /:businessId/me/jobs/:jobId — 본인 job 상세 (소유자만)
+router.get('/:businessId/me/jobs/:jobId', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+  try {
+    const job = await ExportJob.findOne({
+      where: { id: Number(req.params.jobId), business_id: Number(req.params.businessId) },
+    });
+    if (!job) return errorResponse(res, 'not_found', 404);
+    if (job.user_id !== req.user.id) return errorResponse(res, 'forbidden', 403);
+    const tj = job.toJSON();
+    return successResponse(res, {
+      id: tj.id, kind: tj.kind, mode: tj.mode, status: tj.status,
+      result: tj.result, error: tj.error,
+      has_download: tj.kind === 'export' && !!job.download_token && (!job.expires_at || new Date(job.expires_at) > new Date()),
+      download_token: job.download_token,
+      created_at: tj.created_at, done_at: tj.done_at,
+    });
+  } catch (err) { next(err); }
+});
+
+// GET /:businessId/me/jobs/:jobId/download?token= — export zip 다운로드 (본인 + 토큰)
+router.get('/:businessId/me/jobs/:jobId/download', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+  try {
+    const job = await ExportJob.findOne({
+      where: { id: Number(req.params.jobId), business_id: Number(req.params.businessId) },
+    });
+    if (!job) return errorResponse(res, 'not_found', 404);
+    if (job.user_id !== req.user.id) return errorResponse(res, 'forbidden', 403);
+    if (job.kind !== 'export' || !job.download_token) return errorResponse(res, 'not_ready', 404);
+    if (req.query.token !== job.download_token) return errorResponse(res, 'invalid_token', 403);
+    if (job.expires_at && new Date(job.expires_at) < new Date()) return errorResponse(res, 'expired', 410);
+    if (!job.download_path || !fs.existsSync(job.download_path)) return errorResponse(res, 'file_missing', 410);
+    let datePart = 'export';
+    try { const c = job.toJSON().created_at; if (c) datePart = new Date(c).toISOString().slice(0, 10); } catch { /* fallback */ }
+    const zipName = `planq-export-${datePart}.zip`;
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', `attachment; filename="${zipName}"; filename*=UTF-8''${encodeURIComponent(zipName)}`);
+    fs.createReadStream(job.download_path).pipe(res);
+  } catch (err) { next(err); }
+});
+
 module.exports = router;
+// #63 Phase 3 — 워커(services/exportJobWorker.js)가 재사용
+module.exports.collectSelf = collectSelf;
+module.exports.streamExport = streamExport;
+module.exports.renderDocHtml = renderDocHtml;
+module.exports.UPLOAD_DIR = UPLOAD_DIR;

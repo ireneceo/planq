@@ -10,7 +10,7 @@ from typing import Optional, List
 from urllib.parse import urlparse
 
 import aiosqlite
-from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Form, Header
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
@@ -26,6 +26,57 @@ from services.llm_service import generate_vocabulary_list
 from services.qa_generator import generate_qa_for_session, generate_qa_for_document, log_task_exception as qa_log_task_exception
 
 router = APIRouter(prefix='/api/sessions', tags=['sessions'])
+
+
+# ─── #63 Phase 3 — 내부 export (Node 워커가 자료 이동/내보내기에 본인 Q Note 세션 포함) ───
+# 인증: x-internal-api-key (INTERNAL_API_KEY, Node↔qnote 공유). 사적 공간 원칙 — user_id 본인 세션만.
+# session_id 가 int 타입이라 /internal/export 는 /{session_id} 와 충돌하지 않음.
+@router.get('/internal/export')
+async def internal_export_sessions(
+    business_id: int = Query(...),
+    user_id: int = Query(...),
+    x_internal_api_key: Optional[str] = Header(None),
+):
+  expected = os.environ.get('INTERNAL_API_KEY')
+  if not expected or x_internal_api_key != expected:
+    raise HTTPException(status_code=401, detail='invalid internal key')
+  async with db_connect() as db:
+    db.row_factory = aiosqlite.Row
+    cur = await db.execute(
+      "SELECT id, title, summary_full, summary_key_points, body, created_at "
+      "FROM sessions WHERE business_id = ? AND user_id = ? ORDER BY id ASC",
+      (business_id, user_id),
+    )
+    rows = await cur.fetchall()
+    out = []
+    for r in rows:
+      sid = r['id']
+      # 전사 — utterances original_text 를 화자와 함께 결합 (최대 500개)
+      ucur = await db.execute(
+        "SELECT speaker, original_text FROM utterances WHERE session_id = ? ORDER BY id ASC LIMIT 500",
+        (sid,),
+      )
+      utts = await ucur.fetchall()
+      transcript = "\n".join(
+        f"{(u['speaker'] or '?')}: {u['original_text']}" for u in utts if u['original_text']
+      )
+      key_points = None
+      if r['summary_key_points']:
+        try:
+          key_points = json.loads(r['summary_key_points'])
+        except (TypeError, ValueError):
+          key_points = None
+      out.append({
+        'id': sid,
+        'title': r['title'] or 'Untitled Session',
+        'summary_full': r['summary_full'],
+        'summary_key_points': key_points,
+        'body': r['body'],
+        'transcript_text': transcript,
+        'created_at': r['created_at'],
+      })
+  return success(out)
+
 
 UPLOADS_ROOT = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', 'uploads')
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB per file

@@ -33,6 +33,7 @@ const TaskTemplateItem = require('./TaskTemplateItem');
 const PushSubscription = require('./PushSubscription');
 const PushLog = require('./PushLog');
 const FeedbackItem = require('./FeedbackItem');
+const ExportJob = require('./ExportJob');
 const TaskStatusHistory = require('./TaskStatusHistory');
 const TaskAttachment = require('./TaskAttachment');
 const TaskLink = require('./TaskLink');
@@ -430,6 +431,11 @@ FeedbackItem.belongsTo(User, { as: 'responder', foreignKey: 'responded_by' });
 FeedbackItem.belongsTo(FeedbackItem, { as: 'parent', foreignKey: 'parent_id' });
 FeedbackItem.hasMany(FeedbackItem, { as: 'replies', foreignKey: 'parent_id' });
 
+// #63 Phase 3 — 자료 이동/내보내기 비동기 작업
+ExportJob.belongsTo(User, { as: 'user', foreignKey: 'user_id' });
+ExportJob.belongsTo(Business, { as: 'business', foreignKey: 'business_id' });
+ExportJob.belongsTo(Business, { as: 'targetBusiness', foreignKey: 'target_business_id' });
+
 module.exports = {
   User,
   Business,
@@ -534,6 +540,7 @@ module.exports = {
   QRecordAudit,
   // P6 — 사용자 피드백
   FeedbackItem,
+  ExportJob,
   // 주간 보고
   WeeklyReview,
   WeeklyReviewSetting,
