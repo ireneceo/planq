@@ -83,16 +83,30 @@ async function copyFileToTarget(f, targetBiz, userId) {
 }
 
 // ─── 원본 파일 soft delete (move 모드) — 복사 성공 후에만 호출 ───
+//   files.js softDeleteFile 과 동일 정책: deleted_at + ref_count 감소 + (0 도달·sibling 없음) 물리삭제
+//   + 출발 워크스페이스 쿼터 반환(bytes_used·file_count). 쿼터 차감 누락 시 출발지 용량 부풀려짐.
 async function softDeleteSourceFile(f) {
-  // ref_count 감소 — 0 도달 시 물리 파일 제거(다른 ref 없을 때)
   await f.update({ deleted_at: new Date() });
-  if (f.content_hash) {
-    const sibling = await File.findOne({
-      where: { content_hash: f.content_hash, deleted_at: null, id: { [Op.ne]: f.id } },
+  await f.decrement('ref_count');
+  await f.reload();
+  if (f.ref_count <= 0 && f.storage_provider === 'planq') {
+    const siblings = await File.count({
+      where: { file_path: f.file_path, deleted_at: null, id: { [Op.ne]: f.id } },
     });
-    if (!sibling && f.file_path && fs.existsSync(f.file_path)) {
+    if (siblings === 0 && f.file_path && fs.existsSync(f.file_path)) {
       try { fs.unlinkSync(f.file_path); } catch { /* best-effort */ }
     }
+  }
+  // 출발 워크스페이스 쿼터 반환 (자체 스토리지만)
+  if (f.storage_provider === 'planq') {
+    const [usage] = await BusinessStorageUsage.findOrCreate({
+      where: { business_id: f.business_id, storage_provider: 'planq' },
+      defaults: { business_id: f.business_id, bytes_used: 0, file_count: 0, storage_provider: 'planq' },
+    });
+    await usage.update({
+      bytes_used: Math.max(0, Number(usage.bytes_used) - (Number(f.file_size) || 0)),
+      file_count: Math.max(0, usage.file_count - 1),
+    });
   }
 }
 
