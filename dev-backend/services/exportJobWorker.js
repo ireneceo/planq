@@ -52,11 +52,11 @@ function qnoteSessionToHtml(s) {
 //  반환: 'copied' | 'skipped'(+reason). bytesAdded 는 caller 가 누적.
 //  quotaCtx={remaining} — 물리 신규 복사 시 타겟 쿼터 예산 차감/초과검사 (업로드 경로와 동일 정책).
 async function copyFileToTarget(f, targetBiz, userId, quotaCtx) {
-  if (!f.content_hash) return { status: 'skipped' };
+  if (!f.content_hash) return { status: 'skipped', reason: 'no_hash' };
   const mine = await File.findOne({
     where: { business_id: targetBiz, content_hash: f.content_hash, uploader_id: userId, deleted_at: null },
   });
-  if (mine) return { status: 'skipped' };
+  if (mine) return { status: 'skipped', reason: 'exists' };
   const existing = await File.findOne({
     where: { business_id: targetBiz, content_hash: f.content_hash, deleted_at: null },
   });
@@ -71,7 +71,7 @@ async function copyFileToTarget(f, targetBiz, userId, quotaCtx) {
     });
     return { status: 'copied', bytes: 0 };
   }
-  if (!f.file_path || !fs.existsSync(f.file_path)) return { status: 'skipped' };
+  if (!f.file_path || !fs.existsSync(f.file_path)) return { status: 'skipped', reason: 'no_file' };
   // 신규 물리 복사 — 타겟 쿼터 검사 (초과 시 복사 안 함, 우회 차단)
   const sz = Number(f.file_size) || 0;
   if (quotaCtx && quotaCtx.remaining !== Infinity && sz > quotaCtx.remaining) {
@@ -146,10 +146,13 @@ async function processTransfer(job) {
       if (job.mode === 'move') { await softDeleteSourceFile(f); filesRemoved++; }
     } else if (r.reason === 'quota') {
       skippedQuota++; // 타겟 쿼터 부족 → 복사 실패. move 라도 원본 유지(유실 방지).
+    } else if (r.reason === 'exists') {
+      skipped++;
+      // 이미 타겟에 본인 사본 존재 → move 시 원본 제거 (사용자 의도 = 출발지 비우기, 타겟에 사본 보존됨)
+      if (job.mode === 'move') { await softDeleteSourceFile(f); filesRemoved++; }
     } else {
       skipped++;
-      // 이미 타겟에 존재(중복)면 move 시 원본은 제거 (사용자 의도 = 출발지 비우기)
-      if (job.mode === 'move') { await softDeleteSourceFile(f); filesRemoved++; }
+      // no_hash / no_file 등 — 타겟에 사본 없음. move 라도 원본 보존 (유실 방지).
     }
   }
 
@@ -178,8 +181,8 @@ async function processTransfer(job) {
     }
   }
 
-  // 타겟 스토리지 사용량 갱신
-  if (bytesAdded > 0) {
+  // 타겟 스토리지 사용량 갱신 (dedup-share 만 복사돼 bytesAdded=0 이어도 File row 는 늘어 file_count 증가 필요)
+  if (filesCopied > 0) {
     const [usage] = await BusinessStorageUsage.findOrCreate({
       where: { business_id: targetBiz, storage_provider: 'planq' },
       defaults: { business_id: targetBiz, bytes_used: 0, file_count: 0, storage_provider: 'planq' },
