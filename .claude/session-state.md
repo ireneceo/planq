@@ -93,7 +93,10 @@ Irene 선택 "#90 진행 — 자동추출 개선". 근본원인 3개 수정:
   - ✅ **#2 Project 상태 이력** (`9920d9d`) — GET `/api/projects/:id/status-history` (loadProjectOrForbidden) + 상세정보(details)탭 "상태 이력" 카드(active/paused/closed 전이, status 변경 시 effect 자동갱신). E2E 6/6(멤버200/비멤버403/404·created_at·표시명"아이린"). 빌드 EXIT0/TS0.
   - 🔁 **#3 Bill 이벤트 타임라인 — 재분류.** 검증 결과 `bill_events` **0행 + 유일 writer(plan.js addon-apply)가 스키마 불일치로 silent 실패** = 사실상 죽은 기능. 빈 테이블에 타임라인 UI는 무의미. **(a) 깨진 writer 수정 완료** (`3e47769` — BillEvent.create→auditService.logAudit, addon.apply audit. E2E 4/4). **(b) 진짜 Bill 이벤트 타임라인(고객 열람/부분결제 등)은 lifecycle writer 신규 계측 필요한 대형 작업으로 별도 분류** — Invoice 상태이력(#1)이 sent/paid 핵심 전이는 이미 커버. 공개 결제페이지 view 추적·accept·partial 이벤트 계측은 향후 /기능설계.
 - **P0 통계 제대로 구성** ("파일로 말고"):
-  - ⬜ **#4 ReportsTab PDF다운로드→대화형 통합보고서** (`/api/reports/:biz/integrated` API 존재, UI만). 
+  - ⬜ **#4 ReportsTab PDF다운로드→대화형 통합보고서** (다음 집중 구현). **설계 확정:**
+    - API 이미 존재: `GET /:biz/integrated/periods?weeks=&months=` → `{weekly:[{period_type,period_start,status,confirmed_at,finalized_by}], monthly:[...]}` · `GET /:biz/integrated?period_type=&period_start=` → `{period, summary:{projects_total/confirmed, members_total/confirmed, completed_in_period, in_progress, open_issues, overdue, deliverables, all_confirmed}, projects:[{name,snap.kpi,confirmed}], members:[{name,department,snap.kpi,confirmed}], integrated:{id,status,confirmed_at,...}}` (owner/admin 전용, loadScope).
+    - UI: ReportsTab 에 대화형 뷰 — 기간 선택(주간/월간 토글 + 기간리스트 confirm 뱃지) → 선택 시 summary KPI 카드 + 프로젝트별/멤버별 롤업 테이블 + 통합 narrative. **Insights 기존 컴포넌트 재사용**(feedback_copy_existing_design_not_bespoke). PDF/공유 다운로드는 보조 액션 유지.
+    - service insights.ts +2 (getReportPeriods/getIntegratedReport), i18n, 빌드+백엔드 E2E(periods/integrated)+멀티테넌트 검증.
   - ⚠️ **#5 상단 3탭 IA(통합/프로젝트별/개별)** — `project_reporting_structure` Irene 확정구조라 임의변경 금지 → Irene 정렬 필요.
 - **P1 mock/완성도:** QProject/DocsTab MOCK_PROJECT_FILES(사용중 확인 필요)·`/signatures/received` 메뉴 진입로·QTask 담당자변경 실패 원복 TODO·`/admin/dashboard` 플랫폼 대시보드(stub).
 - **전체 실검증 (2026-06-28):** transfer 워커 실 E2E **39/39** — copy 11(타겟쿼터 거부/통과) + move 16(출발지쿼터 반환·소프트삭제·물리unlink + 타겟풀 유실방지) + 품질 12(no_hash/no_file 원본보존·exists 제거·dedup file_count). drainOnce 실 코드경로, 테스트워크스페이스(88→6)만 사용해 실 사용자 데이터(file78) 무손상·완전원복. 헬스 29/29.
