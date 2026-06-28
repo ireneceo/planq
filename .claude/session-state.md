@@ -1,11 +1,25 @@
 # PlanQ 세션 상태
 
 ## 현재 작업 상태
-**마지막 업데이트:** 2026-06-25 (마라톤 세션 — /개발완료)
-**작업 상태:** 완료. **배포 7회 — #93·#94 + Q Task 통계 재설계(§6) 6청크 전부 운영 라이브.**
+**마지막 업데이트:** 2026-06-28 (/개발시작 세션)
+**작업 상태:** **#90 Cue 자동추출 개선 — dev 완료·검증 통과·미배포.** (이전: 배포 7회 — #93·#94 + §6 6청크 운영 라이브.)
 
 ### 진행 중인 작업
-- 없음
+- 없음 (#90 dev 완료, 다음 `/배포` 대기)
+
+### 이번 세션 완료 (#90 — 자동추출 개선, 미배포)
+Irene 선택 "#90 진행 — 자동추출 개선". 근본원인 3개 수정:
+- **Part A 담당자 (backend `services/task_extractor.js`):**
+  - A1. **standalone 대화 담당자 해석** — 옛 버그: `resolveAssignees` 가 `project_id` 있을 때만 실행 → 1:1·다이렉트 채팅(project_id NULL)은 담당자 항상 null. 신규 `buildAssigneePool({businessId,projectId,conversationId})` 가 **프로젝트 멤버 ∪ 대화 참여자** 풀 빌드 → standalone 도 1:1 상대·@멘션·이름 매칭 해석.
+  - A2. **표시명(닉네임) 매칭** — 옛 매칭은 `User.name`(계정명)만 → 채팅에서 부르는 워크스페이스 닉네임 불일치 시 null. pool 이 `getMemberNameMap`(BusinessMember.name) 표시명 포함, 매칭은 표시명→계정명→role 순. 발신자명·멤버목록·메시지텍스트도 표시명으로 LLM 입력.
+  - email 경로도 동일 pool 시그니처로 정합. note 는 개인툴이라 null 유지(설계).
+- **Part B 원본 링크 (backend `routes/tasks.js` + frontend):**
+  - B1. `GET /:id/detail` 에 **`source_ref`** 추가 — `buildSourceRef(task)` 가 대화/메일/노트 출처를 라벨+상대경로로 resolve(business 격리). 대화→`/talk/:id`, 메일→`/mail?thread=:id`, 노트→라벨만. 고객(isClient)엔 미노출.
+  - `TaskDetailDrawer.tsx` — 이월 배너 아래 **"원본 대화/메일/노트 보기"** 링크(클릭→onClose+navigate). `SourceRefLink` styled + i18n `detail.source.*` ko/en.
+  - `TaskCandidateCard.tsx` — standalone 은 members 빈 배열이라 해석된 담당자 미표시 갭 → `guessed_assignee` 를 옵션에 보강(members 무관 표시·등록 가능).
+- **검증:** 담당자 E2E 9/9(standalone pool·닉네임 매칭"아이린"→user3·계정명 보조·보수적 null) / source_ref HTTP 통합 5/5(임시멤버 생성→직접토큰→/detail 200·route=/talk/74·정리완료) / 빌드 EXIT0·TS0 / i18n qtask ko/en 819/819 / dev /q-task 200.
+- **디버그 export:** task_extractor 에 `buildAssigneePool`·`resolveAssignees` 노출(buildExtractionPrompt 패턴).
+- **회귀주의:** dev DB `business_members.role` enum 은 `('owner','member','ai')` — **admin 미동기화**(CLAUDE.md 는 admin 박제). 운영엔 있음. 로그인은 `email`+password(username 아님), rate-limit 5회/15분.
 
 ### 완료된 작업 (이번 세션)
 - **#93-ⓐ/ⓑ** (`cfaf5c3`, 배포) — Q helper 팝아웃 재로그인 방지 + 업무 우측패널 워크플로 전수 깜빡임 제거(callAction 전체refetch→인플레이스, body/description prev 유지).

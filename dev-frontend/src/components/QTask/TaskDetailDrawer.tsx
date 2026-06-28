@@ -3,6 +3,7 @@
 // (리뷰어/히스토리/댓글/첨부/리치 본문) 를 자체 로드·편집.
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
+import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { apiFetch, useAuth } from '../../contexts/AuthContext';
 import { formatDate } from '../../utils/dateFormat';
@@ -78,6 +79,8 @@ interface HistoryRow {
 }
 type CueKind = 'summarize' | 'draft_reply' | 'categorize' | 'research';
 interface CueSource { type: 'conversation' | 'post' | 'kb_document' | 'meeting'; id: number; label: string; }
+// #90 — 자동추출 업무의 원본(출처) 링크 (대화/메일/노트)
+interface SourceRef { type: 'conversation' | 'email' | 'meeting'; id: number; label: string; route: string | null; }
 interface CueMeta {
   kind: CueKind;
   context_ref: Record<string, unknown> | null;
@@ -104,6 +107,7 @@ interface TaskDetail {
   cue_kind?: CueKind | null;
   cue_context_ref?: Record<string, unknown> | null;
   cue_meta?: CueMeta | null;
+  source_ref?: SourceRef | null;
   Project?: { id: number; name: string } | null;
   assignee?: { id: number; name: string } | null;
   requester?: { id: number; name: string } | null;
@@ -169,6 +173,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
   }, [projectsProp, bizId]);
   const projects = projectsProp ?? projectsFetched;
   const { user, hasRole } = useAuth();
+  const navigate = useNavigate();
   const drawerRef = useRef<HTMLElement>(null);
   useBodyScrollLock(!!taskId);
   useEscapeStack(!!taskId, onClose);
@@ -852,6 +857,28 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                 </CarriedBanner>
               );
             })()}
+            {/* #90 — 자동추출 업무의 원본(출처) 링크: 어느 대화·메일에서 왔는지 돌아가기 */}
+            {detailTask.source_ref && (
+              <SourceRefLink
+                as={detailTask.source_ref.route ? 'button' : 'div'}
+                $clickable={!!detailTask.source_ref.route}
+                onClick={detailTask.source_ref.route
+                  ? () => { const r = detailTask.source_ref!.route!; onClose(); navigate(r); }
+                  : undefined}
+                title={detailTask.source_ref.route
+                  ? (t('detail.source.open', '원본 보기') as string)
+                  : undefined}>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+                  <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+                </svg>
+                <span>{detailTask.source_ref.type === 'email'
+                  ? t('detail.source.fromMail', '원본 메일: {{label}}', { label: detailTask.source_ref.label })
+                  : detailTask.source_ref.type === 'meeting'
+                    ? t('detail.source.fromNote', '원본 노트: {{label}}', { label: detailTask.source_ref.label })
+                    : t('detail.source.fromChat', '원본 대화: {{label}}', { label: detailTask.source_ref.label })}</span>
+              </SourceRefLink>
+            )}
             <Section>
               {editingTitle ? (
                 <TitleInput autoFocus value={titleDraft}
@@ -1796,6 +1823,15 @@ const DrawerHeader = styled.div`height:60px;padding:14px 20px;border-bottom:1px 
 // WORK_FLOW §6-B — 이월 연속성 배너 (차분한 slate, 비강조)
 const CarriedBanner = styled.div`display:flex;align-items:center;gap:8px;margin:12px 20px 0;padding:8px 12px;background:#F1F5F9;border:1px solid #E2E8F0;border-radius:10px;font-size:12px;font-weight:600;color:#475569;line-height:1.4;`;
 const CarriedTag = styled.span`flex-shrink:0;padding:1px 8px;font-size:10px;font-weight:700;color:#FFFFFF;background:#64748B;border-radius:10px;letter-spacing:-0.2px;`;
+// #90 — 원본 출처 링크 (대화/메일/노트). route 있으면 button(클릭→이동), 없으면 div(라벨만).
+const SourceRefLink = styled.div<{ $clickable?: boolean }>`
+  display:flex;align-items:center;gap:7px;margin:12px 20px 0;padding:7px 11px;width:calc(100% - 40px);
+  background:#F8FAFC;border:1px solid #E2E8F0;border-radius:10px;
+  font-size:12px;font-weight:600;color:#475569;line-height:1.3;text-align:left;
+  ${(p) => p.$clickable ? `cursor:pointer;&:hover{background:#EEF2F7;border-color:#CBD5E1;color:#334155;}` : ''}
+  & > svg{flex-shrink:0;color:#94A3B8;}
+  & > span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+`;
 const BackBtn = styled.button`display:flex;align-items:center;gap:4px;background:transparent;border:none;color:#0F766E;font-size:12px;font-weight:600;cursor:pointer;padding:0;outline:none;&:hover{color:#134E4A;}&:focus{outline:none;}&:focus-visible{outline:2px solid #14B8A6;outline-offset:2px;border-radius:4px;}`;
 const CloseBtn = styled.button`width:28px;height:28px;display:flex;align-items:center;justify-content:center;background:transparent;border:none;border-radius:6px;color:#64748B;cursor:pointer;outline:none;&:hover{background:#F1F5F9;color:#0F172A;}&:focus{outline:none;}&:focus-visible{outline:2px solid #14B8A6;outline-offset:-2px;}`;
 const ShareIconBtn = styled.button`width:28px;height:28px;display:flex;align-items:center;justify-content:center;background:transparent;border:none;border-radius:6px;color:#0F766E;cursor:pointer;outline:none;transition:background 0.15s;&:hover{background:#F0FDFA;color:#134E4A;}&:focus-visible{outline:2px solid #14B8A6;outline-offset:-2px;}`;

@@ -400,6 +400,12 @@
       "bodySpent": "In progress since last week · {{h}}h logged so far — full history, chat and memos are all kept below",
       "bodyWeek": "In progress since last week · {{week}}h this week · {{total}}h total — full history, chat and memos are all kept below"
     },
+    "source": {
+      "open": "Open source",
+      "fromChat": "From chat: {{label}}",
+      "fromMail": "From email: {{label}}",
+      "fromNote": "From note: {{label}}"
+    },
     "meta": {
       "period": "Period",
       "milestone": "Key task",

@@ -400,6 +400,12 @@
       "bodySpent": "지난주부터 진행 중 · 누적 {{h}}h 투입 — 아래에 이력·대화·메모가 모두 남아 있어요",
       "bodyWeek": "지난주부터 진행 중 · 이번주 {{week}}h · 누적 {{total}}h 투입 — 아래에 이력·대화·메모가 모두 남아 있어요"
     },
+    "source": {
+      "open": "원본 보기",
+      "fromChat": "원본 대화: {{label}}",
+      "fromMail": "원본 메일: {{label}}",
+      "fromNote": "원본 노트: {{label}}"
+    },
     "meta": {
       "period": "기간",
       "milestone": "주요 업무",
