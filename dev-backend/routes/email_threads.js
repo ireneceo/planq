@@ -16,7 +16,7 @@ const fs = require('fs');
 const path = require('path');
 const { Op } = require('sequelize');
 const { sequelize } = require('../config/database');
-const { EmailThread, EmailMessage, EmailAttachment, EmailAccount, EmailThreadParticipant, Business, Client, Project, User, File } = require('../models');
+const { EmailThread, EmailMessage, EmailAttachment, EmailAccount, EmailThreadParticipant, Business, Client, Project, User, File, EmailDraft } = require('../models');
 const { authenticateToken, checkBusinessAccess } = require('../middleware/auth');
 const { requireMenu } = require('../middleware/menu_permission');
 const { successResponse, errorResponse, parsePagination, paginatedResponse } = require('../middleware/errorHandler');
@@ -626,6 +626,63 @@ router.post('/:businessId/email-threads/:id/forward',
       }
       broadcastMail(req, businessId, 'mail:new', { thread_id: thread.id });
       return successResponse(res, { id: thread.id, thread_id: thread.id, rejected: sendResult.rejected }, 'sent', 201);
+    } catch (err) { next(err); }
+  }
+);
+
+// ─────────────────────────────────────────────
+// 임시저장(Draft) — 본인 작성 중 메일 자동저장/복원. (business_id+user_id+thread_id) 키.
+//   thread_id 없음 = 새 메일(compose) 초안, thread_id 있음 = 해당 스레드 답장 초안.
+// GET    /:biz/email-drafts?thread_id=  → 본인 초안 1건(없으면 null)
+// PUT    /:biz/email-drafts             → upsert
+// DELETE /:biz/email-drafts?thread_id=  → 발송/취소 시 삭제
+// ─────────────────────────────────────────────
+function draftThreadKey(v) { const n = Number(v); return Number.isInteger(n) && n > 0 ? n : null; }
+router.get('/:businessId/email-drafts',
+  authenticateToken, checkBusinessAccess, requireMenu('qmail', 'write'),
+  async (req, res, next) => {
+    try {
+      const businessId = Number(req.params.businessId);
+      const threadId = draftThreadKey(req.query.thread_id);
+      const draft = await EmailDraft.findOne({ where: { business_id: businessId, user_id: req.user.id, thread_id: threadId } });
+      return successResponse(res, draft || null);
+    } catch (err) { next(err); }
+  }
+);
+router.put('/:businessId/email-drafts',
+  authenticateToken, checkBusinessAccess, requireMenu('qmail', 'write'),
+  async (req, res, next) => {
+    try {
+      const businessId = Number(req.params.businessId);
+      const { thread_id, account_id, in_reply_to_message_id, to_emails, cc_emails, bcc_emails, subject, body_html, attachment_file_ids } = req.body || {};
+      const threadId = draftThreadKey(thread_id);
+      const fields = {
+        account_id: account_id || null,
+        in_reply_to_message_id: in_reply_to_message_id || null,
+        to_emails: Array.isArray(to_emails) ? to_emails : null,
+        cc_emails: Array.isArray(cc_emails) ? cc_emails : null,
+        bcc_emails: Array.isArray(bcc_emails) ? bcc_emails : null,
+        subject: subject != null ? String(subject).slice(0, 500) : null,
+        body_html: body_html != null ? String(body_html) : null,
+        attachment_file_ids: Array.isArray(attachment_file_ids) ? attachment_file_ids : null,
+      };
+      const [draft, created] = await EmailDraft.findOrCreate({
+        where: { business_id: businessId, user_id: req.user.id, thread_id: threadId },
+        defaults: { business_id: businessId, user_id: req.user.id, thread_id: threadId, ...fields },
+      });
+      if (!created) await draft.update(fields);
+      return successResponse(res, draft);
+    } catch (err) { next(err); }
+  }
+);
+router.delete('/:businessId/email-drafts',
+  authenticateToken, checkBusinessAccess, requireMenu('qmail', 'write'),
+  async (req, res, next) => {
+    try {
+      const businessId = Number(req.params.businessId);
+      const threadId = draftThreadKey(req.query.thread_id);
+      const n = await EmailDraft.destroy({ where: { business_id: businessId, user_id: req.user.id, thread_id: threadId } });
+      return successResponse(res, { deleted: n });
     } catch (err) { next(err); }
   }
 );

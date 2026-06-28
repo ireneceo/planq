@@ -521,6 +521,31 @@ const MailPage: React.FC = () => {
     setReplyOpen(false); setReplyHtml(''); setReplyUploads([]); setReplyFileIds([]); setReplyError(null); setAiFaqSources([]);
   }, [activeId]);
 
+  // 임시저장(reply) — 답장 컴포저 열 때 해당 스레드 초안 복원 + 1.5s 디바운스 자동저장. 발송 시 삭제.
+  const replyDraftReady = useRef(false);
+  useEffect(() => {
+    if (!replyOpen || !businessId || !activeId) { replyDraftReady.current = false; return; }
+    replyDraftReady.current = false;
+    apiFetch(`/api/businesses/${businessId}/email-drafts?thread_id=${activeId}`).then(r => r.json()).then(j => {
+      const d = j?.data;
+      if (d) {
+        if (d.body_html) setReplyHtml(d.body_html);
+        if (Array.isArray(d.attachment_file_ids) && d.attachment_file_ids.length) setReplyFileIds(d.attachment_file_ids);
+      }
+    }).catch(() => {}).finally(() => { replyDraftReady.current = true; });
+  }, [replyOpen, businessId, activeId]);
+  useEffect(() => {
+    if (!replyOpen || !businessId || !activeId || !replyDraftReady.current) return;
+    if (isEmptyHtml(replyHtml) && !replyFileIds.length) return;
+    const tid = setTimeout(() => {
+      apiFetch(`/api/businesses/${businessId}/email-drafts`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ thread_id: activeId, body_html: replyHtml, attachment_file_ids: replyFileIds }),
+      }).catch(() => {});
+    }, 1500);
+    return () => clearTimeout(tid);
+  }, [replyOpen, businessId, activeId, replyHtml, replyFileIds]);
+
   // 답장 받는 사람 힌트 (마지막 inbound 발신자)
   const replyToHint = useMemo(() => {
     if (!detail) return '';
@@ -554,7 +579,8 @@ const MailPage: React.FC = () => {
       });
       const j = await r.json();
       if (!j.success) throw new Error(j.message || (t('reply.sendFailed', { defaultValue: '발송 실패' }) as string));
-      // 성공 — 컴포저 닫고 갱신 (성공 토스트 금지)
+      // 성공 — 답장 초안 삭제 + 컴포저 닫고 갱신 (성공 토스트 금지)
+      apiFetch(`/api/businesses/${businessId}/email-drafts?thread_id=${detail.id}`, { method: 'DELETE' }).catch(() => {});
       setReplyOpen(false); setReplyHtml(''); setReplyUploads([]); setReplyFileIds([]);
       await loadDetail(detail.id);
       loadList();
@@ -597,6 +623,35 @@ const MailPage: React.FC = () => {
       const next = new URLSearchParams(sp); next.delete('compose'); setSp(next, { replace: true });
     }
   }, [sp, setSp]);
+  // 임시저장(compose) — 새 메일 모달 열 때 본인 초안 복원 + 입력 시 1.5s 디바운스 자동저장.
+  //   forward 모드는 transient 라 제외. 발송 시 sendCompose 가 삭제.
+  const composeDraftReady = useRef(false);
+  useEffect(() => {
+    if (!composeOpen || fwdFromMsgId || !businessId) { composeDraftReady.current = false; return; }
+    composeDraftReady.current = false;
+    apiFetch(`/api/businesses/${businessId}/email-drafts`).then(r => r.json()).then(j => {
+      const d = j?.data;
+      if (d) {
+        if (Array.isArray(d.to_emails) && d.to_emails.length) setCTo(d.to_emails.join(', '));
+        if (d.subject) setCSubject(d.subject);
+        if (d.body_html) setCBody(d.body_html);
+        if (Array.isArray(d.attachment_file_ids) && d.attachment_file_ids.length) setCFileIds(d.attachment_file_ids);
+        if (d.account_id) setCAccountId(d.account_id);
+      }
+    }).catch(() => {}).finally(() => { composeDraftReady.current = true; });
+  }, [composeOpen, fwdFromMsgId, businessId]);
+  useEffect(() => {
+    if (!composeOpen || fwdFromMsgId || !businessId || !composeDraftReady.current) return;
+    if (!cTo.trim() && !cSubject.trim() && isEmptyHtml(cBody) && !cFileIds.length) return;
+    const tid = setTimeout(() => {
+      apiFetch(`/api/businesses/${businessId}/email-drafts`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ to_emails: cTo.split(/[,;\s]+/).map(s => s.trim()).filter(Boolean), subject: cSubject, body_html: cBody, attachment_file_ids: cFileIds, account_id: cAccountId }),
+      }).catch(() => {});
+    }, 1500);
+    return () => clearTimeout(tid);
+  }, [composeOpen, fwdFromMsgId, businessId, cTo, cSubject, cBody, cFileIds, cAccountId]);
+
   const composeAccountOptions = useMemo(
     () => accounts.map(a => ({ value: a.id, label: `${a.display_name || a.email}${a.is_personal ? ` (${t('account.personal', { defaultValue: '개인' })})` : ''}` })),
     [accounts, t],
@@ -651,6 +706,8 @@ const MailPage: React.FC = () => {
         });
       const j = await r.json();
       if (!j.success) throw new Error(j.message || (t('compose.sendFailed', { defaultValue: '발송 실패' }) as string));
+      // 발송 성공 — 새 메일 초안 삭제 (forward 는 초안 없음)
+      if (!fwdFromMsgId) apiFetch(`/api/businesses/${businessId}/email-drafts`, { method: 'DELETE' }).catch(() => {});
       closeCompose();
       loadList(); loadCounts(); loadAccounts();
       if (j.data?.thread_id) setActive(j.data.thread_id);
