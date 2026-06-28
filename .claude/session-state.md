@@ -84,7 +84,7 @@ Irene 선택 "#90 진행 — 자동추출 개선". 근본원인 3개 수정:
 - **★ #90 Cue 알림 누락 fix (`b65e5a4`, 미배포):** `registerCandidate`(후보→업무 승격, chat/email/qnote 공용)가 Task.create 후 **notify 미호출** → Cue 추출 업무 등록 시 담당자가 인박스/푸시/링크 알림 0. 수동 생성 라우트(tasks.js)와 동일하게 notify 추가 — 담당자≠등록자일 때만(self noise 방지), link `/tasks?task=:id`+entityType/entityId+ioApp, 중첩 try/catch(트랜잭션 무영향). E2E 7/7(타인배정→인박스알림·link·entity·actor / self→무알림). 담당자는 fallback(userId)로 항상 배정되므로 "미배정"의 실체는 알림부재였음.
 - **★ #90 계열 notify 공백 보강 (`6a3ea26`, 미배포):** #90 수정 후 task 배정 notify 전수 감사 → 공백 2건 추가 수정. ① **AI 일괄 생성**(POST /api/tasks/ai-create/confirm) — 여러 task 일괄 생성 시 담당자(≠생성자) notify 미호출(broadcast만). ② **정기업무 자동생성**(recurringTaskGenerator cron) — 새 회차 인스턴스 담당자 notify 미호출. 둘 다 수동/재배정 라우트와 동일 패턴(link/entity/ioApp) 추가. E2E 8/8(recurring 직접호출 + ai-create 실 HTTP 200 — 인스턴스/task 생성·담당자 인박스알림·link 검증). **감사로 확인된 이미-정상:** 재배정 PUT(tasks.js:1223)·후보등록(registerCandidate)·task_workflow 8라우트 ✅. **보류(noise 우려, 재량):** task_workflow 컨펌자제거(DELETE)·정책변경(PATCH) notify — Irene 판단 필요.
 - **★ 일정 수정 참석자 알림 fix (`112ae15`, 미배포):** notify 감사 확장 — 일정 생성(POST)은 참석자 초대 알림 보내나 수정(PUT)으로 참석자 추가 시 미발송(생성/수정 비대칭). destroy 전 기존 멤버 참석자 캡처 → commit 후 신규 추가분(이전없음·본인제외)만 초대 알림. E2E 6/6(실 HTTP — 신규 참석자 알림·link `/calendar?event=:id` / 동일 참석자 재수정 무알림). 리스케줄 기존참석자 알림은 noise 우려 보류. **감사로 확인된 이미-정상:** task 댓글 notify(assignee+creator+requester+reviewer+멘션·visibility게이팅)·일정 생성/참석응답·invoice notify-paid. notify link 는 normalizeLink 가 절대URL→상대경로 변환(notification_link.js:60)이라 `/tasks·/calendar` 라우트 정상 resolve(App.tsx 실재).
-- **미배포:** `b97db0d`+`f7d3cbb`+`f667308`(transfer) + `b65e5a4`+`6a3ea26`(#90 task 배정 알림) + `112ae15`(일정 수정 알림) + `3703ad7`+`da69a27`(Invoice 상태이력) + `9920d9d`(Project 상태이력) + `3e47769`(BillEvent writer fix) + `5345053`(ReportsTab 대화형 통계) **12건**(+`db18b25` P1 QTask원복·DocsTab주석). 다음 /배포 시 함께 반영.
+- **미배포:** `b97db0d`+`f7d3cbb`+`f667308`(transfer) + `b65e5a4`+`6a3ea26`(#90 task 배정 알림) + `112ae15`(일정 수정 알림) + `3703ad7`+`da69a27`(Invoice 상태이력) + `9920d9d`(Project 상태이력) + `3e47769`(BillEvent writer fix) + `5345053`(ReportsTab 대화형 통계) **13건**(+`db18b25` P1 + `93497d9` 관리자대시보드). 다음 /배포 시 함께 반영.
 
 ### 완성도 발굴 로드맵 (2026-06-28, Irene "빠진/부실 페이지 다 찾아 하나씩, 기본 히스토리·통계 제대로")
 4축 병렬 감사(라우트·완성도·히스토리·통계)로 갭 도출. **하나씩 구현 진행 중.**
@@ -98,7 +98,11 @@ Irene 선택 "#90 진행 — 자동추출 개선". 근본원인 3개 수정:
     - UI: ReportsTab 에 대화형 뷰 — 기간 선택(주간/월간 토글 + 기간리스트 confirm 뱃지) → 선택 시 summary KPI 카드 + 프로젝트별/멤버별 롤업 테이블 + 통합 narrative. **Insights 기존 컴포넌트 재사용**(feedback_copy_existing_design_not_bespoke). PDF/공유 다운로드는 보조 액션 유지.
     - service insights.ts +2 (getReportPeriods/getIntegratedReport), i18n, 빌드+백엔드 E2E(periods/integrated)+멀티테넌트 검증.
   - ⚠️ **#5 상단 3탭 IA(통합/프로젝트별/개별)** — `project_reporting_structure` Irene 확정구조라 임의변경 금지 → Irene 정렬 필요.
-- **P1 mock/완성도:** QProject/DocsTab MOCK_PROJECT_FILES(사용중 확인 필요)·`/signatures/received` 메뉴 진입로·QTask 담당자변경 실패 원복 TODO·`/admin/dashboard` 플랫폼 대시보드(stub).
+- **P1 mock/완성도 (진행):**
+  - ✅ DocsTab MOCK_PROJECT_FILES = **거짓양성**(옛 주석뿐, 실 API 사용) — 주석 제거 (`db18b25`)
+  - ✅ QTask 담당자변경 실패 원복 (`db18b25`)
+  - ✅ **플랫폼 관리자 대시보드** (`93497d9`) — stub("Coming soon")→실 대시보드. `GET /api/admin/overview`(platform_admin: 워크스페이스/사용자 총계+30일, 구독 상태별/플랜분포, 이번달수익+미수금, 6개월 가입추이) + AdminDashboardPage(KPI 6 + 가입추이 바차트 + 플랜분포바 + 바로가기). E2E 7/7(admin200 실데이터 biz21·user62·미수금152700 / 비관리자403). 빌드 EXIT0/TS0.
+  - ⚠️ `/signatures/received` 메뉴 진입로 — 고아(옛 URL redirect로만 도달). 배치가 `project_qdocs_restructure_brief_plan`("받은 서명 인박스 이전")과 교차 + QDocsPage 공용 PostsPage 위임 구조 → **Irene 정렬 필요**(사이드바 vs 인박스).
 - **전체 실검증 (2026-06-28):** transfer 워커 실 E2E **39/39** — copy 11(타겟쿼터 거부/통과) + move 16(출발지쿼터 반환·소프트삭제·물리unlink + 타겟풀 유실방지) + 품질 12(no_hash/no_file 원본보존·exists 제거·dedup file_count). drainOnce 실 코드경로, 테스트워크스페이스(88→6)만 사용해 실 사용자 데이터(file78) 무손상·완전원복. 헬스 29/29.
 
 ### 다음 할 일
