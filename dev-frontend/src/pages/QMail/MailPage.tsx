@@ -93,7 +93,7 @@ const FOLDERS: Array<{ key: Folder; defaultLabel: string }> = [
 const MailPage: React.FC = () => {
   const { t } = useTranslation('qmail');
   const { user } = useAuth();
-  const { formatTimeAgo } = useTimeFormat();
+  const { formatTimeAgo, formatDateTime } = useTimeFormat();
   const [sp, setSp] = useSearchParams();
   const businessId = user?.business_id ? Number(user.business_id) : null;
   const myUserId = user?.id ? Number(user.id) : null;
@@ -583,6 +583,9 @@ const MailPage: React.FC = () => {
   const [cFileIds, setCFileIds] = useState<number[]>([]);
   const [cSending, setCSending] = useState(false);
   const [cError, setCError] = useState<string | null>(null);
+  // 전달(forward) 모드 — set 이면 compose 모달이 전달용. message_id 로 서버가 원본 첨부 재유지.
+  const [fwdFromMsgId, setFwdFromMsgId] = useState<number | null>(null);
+  const [fwdAttachCount, setFwdAttachCount] = useState(0);
   // 열 때 발신 계정 기본값 = 첫 계정
   useEffect(() => {
     if (composeOpen && cAccountId == null && accounts.length) setCAccountId(accounts[0].id);
@@ -600,6 +603,27 @@ const MailPage: React.FC = () => {
   );
   const closeCompose = () => {
     setComposeOpen(false); setCTo(''); setCSubject(''); setCBody(''); setCUploads([]); setCFileIds([]); setCError(null);
+    setFwdFromMsgId(null); setFwdAttachCount(0);
+  };
+  // 전달 시작 — compose 모달을 전달 모드로 열고 제목/인용본문 prefill
+  const startForward = (m: Message) => {
+    const baseSubj = detail?.subject || '';
+    const subj = /^fwd:/i.test(baseSubj.trim()) ? baseSubj : `Fwd: ${baseSubj}`;
+    const fromLabel = m.direction === 'outbound'
+      ? `${t('me', { defaultValue: '나' })} <${detail?.account?.email || ''}>`
+      : `${m.from_name || ''} <${m.from_email || ''}>`;
+    const header = `<br><br><div style="border-top:1px solid #E2E8F0;padding-top:10px;color:#64748B;font-size:13px">`
+      + `---------- ${t('forward.quotedHeader', { defaultValue: '전달된 메시지' })} ----------<br>`
+      + `${t('forward.from', { defaultValue: '보낸사람' })}: ${fromLabel}<br>`
+      + `${t('forward.date', { defaultValue: '날짜' })}: ${formatDateTime(m.sent_at)}<br>`
+      + `${t('forward.to', { defaultValue: '받는사람' })}: ${(m.to_emails || []).join(', ')}<br>`
+      + `${t('forward.subject', { defaultValue: '제목' })}: ${baseSubj}</div><br>`;
+    setFwdFromMsgId(m.id);
+    setFwdAttachCount((m.attachments || []).length);
+    setCTo(''); setCError(null);
+    setCSubject(subj);
+    setCBody(header + (m.body_html || m.body_text || ''));
+    setComposeOpen(true);
   };
   const sendCompose = async () => {
     if (!businessId || cSending) return;
@@ -616,10 +640,15 @@ const MailPage: React.FC = () => {
         else throw new Error(up.message || (t('reply.uploadFailed', { defaultValue: '첨부 업로드 실패' }) as string));
       }
       const to = cTo.split(/[,;\s]+/).map(s => s.trim()).filter(Boolean);
-      const r = await apiFetch(`/api/businesses/${businessId}/email-compose`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ account_id: accId, to, subject: cSubject, body_html: cBody, attachment_file_ids: fileIds }),
-      });
+      const r = fwdFromMsgId && activeId
+        ? await apiFetch(`/api/businesses/${businessId}/email-threads/${activeId}/forward`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ account_id: accId, message_id: fwdFromMsgId, to, subject: cSubject, body_html: cBody, attachment_file_ids: fileIds }),
+        })
+        : await apiFetch(`/api/businesses/${businessId}/email-compose`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ account_id: accId, to, subject: cSubject, body_html: cBody, attachment_file_ids: fileIds }),
+        });
       const j = await r.json();
       if (!j.success) throw new Error(j.message || (t('compose.sendFailed', { defaultValue: '발송 실패' }) as string));
       closeCompose();
@@ -870,7 +899,14 @@ const MailPage: React.FC = () => {
                           ? `${t('me', { defaultValue: '나' }) as string} <${detail.account?.email || ''}>`
                           : `${m.from_name || ''} <${m.from_email || ''}>`}
                       </MessageFrom>
-                      <MessageTime>{formatTimeAgo(m.sent_at)}</MessageTime>
+                      <MsgHeaderRight>
+                        <MessageTime>{formatTimeAgo(m.sent_at)}</MessageTime>
+                        <MsgForwardBtn type="button" onClick={() => startForward(m)}
+                          title={t('forward.button', { defaultValue: '전달' }) as string}
+                          aria-label={t('forward.button', { defaultValue: '전달' }) as string}>
+                          {t('forward.button', { defaultValue: '전달' }) as string}
+                        </MsgForwardBtn>
+                      </MsgHeaderRight>
                     </MessageHeader>
                     {/* iframe sandbox — body_html 의 script/style 차단, 외부 리소스 only */}
                     {m.body_html ? (
@@ -1008,6 +1044,9 @@ const MailPage: React.FC = () => {
                 <ComposeInput value={cSubject} onChange={(e) => setCSubject(e.target.value)} placeholder={t('compose.subjectPh', { defaultValue: '제목을 입력하세요' }) as string} />
               </ComposeField>
               <RichEditor value={cBody} onChange={setCBody} placeholder={t('compose.bodyPh', { defaultValue: '메일 내용을 입력하세요…' }) as string} />
+              {fwdFromMsgId && fwdAttachCount > 0 && (
+                <FwdAttachHint>📎 {t('forward.origAttach', { defaultValue: '원본 첨부 {{n}}개 포함', n: fwdAttachCount }) as string}</FwdAttachHint>
+              )}
               <AttachmentField businessId={businessId} uploads={cUploads} onUploadsChange={setCUploads} existingFileIds={cFileIds} onExistingFileIdsChange={setCFileIds} />
               {cError && <ComposerError>{cError}</ComposerError>}
             </ComposeBody>
@@ -1211,6 +1250,7 @@ const CloseBtn = styled.button`
   color: #94A3B8; font-size: 16px; cursor: pointer; border-radius: 8px;
   &:hover { background: #F1F5F9; color: #0F172A; }
 `;
+const FwdAttachHint = styled.div`font-size: 12px; color: #0F766E; background: #F0FDFA; border: 1px solid #CCFBF1; border-radius: 8px; padding: 8px 12px;`;
 const ComposeBody = styled.div`
   padding: 16px 20px; overflow-y: auto;
   display: flex; flex-direction: column; gap: 12px;
@@ -1424,6 +1464,13 @@ const MessageHeader = styled.div`
   padding: 12px 16px;
   border-bottom: 1px solid #F1F5F9;
   background: #F8FAFC;
+`;
+const MsgHeaderRight = styled.div`display: flex; align-items: center; gap: 10px; flex-shrink: 0;`;
+const MsgForwardBtn = styled.button`
+  background: transparent; border: 1px solid #E2E8F0; color: #475569;
+  padding: 3px 10px; border-radius: 6px; font-size: 11px; font-weight: 600; cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+  &:hover { background: #F0FDFA; border-color: #99F6E4; color: #0F766E; }
 `;
 const MessageFrom = styled.div`
   font-size: 13px; font-weight: 600; color: #0F172A;

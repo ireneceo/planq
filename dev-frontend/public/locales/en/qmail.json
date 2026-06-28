@@ -118,6 +118,15 @@
   "emptyFolder": "No mail in this folder",
   "loading": "Loading…",
   "me": "Me",
+  "forward": {
+    "button": "Forward",
+    "quotedHeader": "Forwarded message",
+    "from": "From",
+    "to": "To",
+    "date": "Date",
+    "subject": "Subject",
+    "origAttach": "Includes {{n}} original attachment(s)"
+  },
   "messageCount": "{{n}} messages",
   "reply": {
     "faqUsed": "Reply based on registered FAQ",

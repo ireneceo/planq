@@ -109,11 +109,9 @@
       "replyTo": "Reply-To address (optional)",
       "replyToHint": "Customer replies land here. If blank, replies are not possible."
     },
-    "future": {
+    "send": {
       "title": "Send via your own mail",
-      "desc": "Send through your Gmail / company SMTP",
-      "preparingTitle": "Coming soon",
-      "preparingDesc": "Connecting your own Gmail or SMTP for direct delivery is on the way."
+      "desc": "Connect your Gmail / company SMTP to compose, reply, and forward directly in Q Mail."
     }
   },
   "notifications": {

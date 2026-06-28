@@ -126,14 +126,10 @@ const EmailSettings: React.FC<Props> = ({ businessId, isOwner }) => {
         </Field>
       </Section>
 
-      {/* 향후 기능 placeholder */}
+      {/* 직접 발송 — 이미 제공 중 (Q Mail) */}
       <Section>
-        <SectionTitle>{t('email.future.title', '본인 메일 직접 발송')}</SectionTitle>
-        <SectionDesc>{t('email.future.desc', 'Gmail / 회사 SMTP 로 직접 발송하는 기능')}</SectionDesc>
-        <PreparingBox>
-          <PreparingTitle>{t('email.future.preparingTitle', '준비 중')}</PreparingTitle>
-          <PreparingDesc>{t('email.future.preparingDesc', '본인 Gmail 또는 회사 SMTP 계정 연결로 직접 발송하는 기능은 곧 추가됩니다.')}</PreparingDesc>
-        </PreparingBox>
+        <SectionTitle>{t('email.send.title', '본인 메일 직접 발송')}</SectionTitle>
+        <SectionDesc>{t('email.send.desc', 'Gmail / 회사 SMTP 계정을 연결하면 Q Mail에서 직접 작성·답장·전달할 수 있습니다.')}</SectionDesc>
       </Section>
     </Wrap>
   );
@@ -176,8 +172,3 @@ const PreviewLabel = styled.div`font-size: 10px; font-weight: 700; color: #94A3B
 const PreviewBox = styled.div`background: #F8FAFC; border-radius: 8px; padding: 10px 12px; font-family: ui-monospace, monospace;`;
 const PreviewFrom = styled.div`font-size: 11px; color: #475569;`;
 const PreviewSubject = styled.div`font-size: 12px; color: #0F172A; margin-top: 2px;`;
-const PreparingBox = styled.div`
-  background: #F8FAFC; border: 1px dashed #CBD5E1; border-radius: 10px; padding: 14px 16px;
-`;
-const PreparingTitle = styled.div`font-size: 13px; font-weight: 700; color: #334155;`;
-const PreparingDesc = styled.div`font-size: 12px; color: #64748B; margin-top: 4px; line-height: 1.5;`;

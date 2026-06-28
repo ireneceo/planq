@@ -118,6 +118,15 @@
   "emptyFolder": "이 폴더에 메일이 없어요",
   "loading": "불러오는 중…",
   "me": "나",
+  "forward": {
+    "button": "전달",
+    "quotedHeader": "전달된 메시지",
+    "from": "보낸사람",
+    "to": "받는사람",
+    "date": "날짜",
+    "subject": "제목",
+    "origAttach": "원본 첨부 {{n}}개 포함"
+  },
   "messageCount": "{{n}}개 메시지",
   "reply": {
     "faqUsed": "등록된 FAQ 기반 답변",
