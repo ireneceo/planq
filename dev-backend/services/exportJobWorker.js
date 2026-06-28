@@ -8,6 +8,7 @@ const { Op } = require('sequelize');
 const { ExportJob, File, Document, BusinessStorageUsage } = require('../models');
 const exportRoutes = require('../routes/export');
 const notifications = require('../routes/notifications');
+const planEngine = require('./plan');
 
 const UPLOAD_DIR = exportRoutes.UPLOAD_DIR || path.join(__dirname, '..', 'uploads');
 const EXPORT_DIR = path.join(UPLOAD_DIR, 'exports');
@@ -48,8 +49,9 @@ function qnoteSessionToHtml(s) {
 }
 
 // ─── 파일 1건 타겟 복사 (Phase 2 dedup 로직 — content_hash 공유/물리복사) ───
-//  반환: 'copied' | 'skipped'. bytesAdded 는 caller 가 누적.
-async function copyFileToTarget(f, targetBiz, userId) {
+//  반환: 'copied' | 'skipped'(+reason). bytesAdded 는 caller 가 누적.
+//  quotaCtx={remaining} — 물리 신규 복사 시 타겟 쿼터 예산 차감/초과검사 (업로드 경로와 동일 정책).
+async function copyFileToTarget(f, targetBiz, userId, quotaCtx) {
   if (!f.content_hash) return { status: 'skipped' };
   const mine = await File.findOne({
     where: { business_id: targetBiz, content_hash: f.content_hash, uploader_id: userId, deleted_at: null },
@@ -59,6 +61,7 @@ async function copyFileToTarget(f, targetBiz, userId) {
     where: { business_id: targetBiz, content_hash: f.content_hash, deleted_at: null },
   });
   if (existing) {
+    // dedup-share — 물리 0바이트 추가라 쿼터 영향 없음
     await existing.increment('ref_count');
     await File.create({
       business_id: targetBiz, uploader_id: userId,
@@ -69,6 +72,11 @@ async function copyFileToTarget(f, targetBiz, userId) {
     return { status: 'copied', bytes: 0 };
   }
   if (!f.file_path || !fs.existsSync(f.file_path)) return { status: 'skipped' };
+  // 신규 물리 복사 — 타겟 쿼터 검사 (초과 시 복사 안 함, 우회 차단)
+  const sz = Number(f.file_size) || 0;
+  if (quotaCtx && quotaCtx.remaining !== Infinity && sz > quotaCtx.remaining) {
+    return { status: 'skipped', reason: 'quota' };
+  }
   const dir = path.join(UPLOAD_DIR, String(targetBiz), new Date().toISOString().slice(0, 7));
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
   const newPath = path.join(dir, crypto.randomUUID() + path.extname(f.file_path));
@@ -79,7 +87,8 @@ async function copyFileToTarget(f, targetBiz, userId) {
     mime_type: f.mime_type, storage_provider: 'planq', content_hash: f.content_hash,
     ref_count: 1, visibility: 'L1', vlevel: 'L1', security_level: f.security_level,
   });
-  return { status: 'copied', bytes: Number(f.file_size) || 0 };
+  if (quotaCtx && quotaCtx.remaining !== Infinity) quotaCtx.remaining -= sz;
+  return { status: 'copied', bytes: sz };
 }
 
 // ─── 원본 파일 soft delete (move 모드) — 복사 성공 후에만 호출 ───
@@ -114,14 +123,29 @@ async function softDeleteSourceFile(f) {
 async function processTransfer(job) {
   const { files, docs } = await exportRoutes.collectSelf(job.business_id, job.user_id);
   const targetBiz = job.target_business_id;
-  let filesCopied = 0, docsCopied = 0, qnoteCopied = 0, filesRemoved = 0, docsRemoved = 0, skipped = 0, bytesAdded = 0;
+  let filesCopied = 0, docsCopied = 0, qnoteCopied = 0, filesRemoved = 0, docsRemoved = 0, skipped = 0, skippedQuota = 0, bytesAdded = 0;
 
-  // 파일 복사 (+ move 면 원본 정리)
+  // 타겟 워크스페이스 쿼터 예산 (업로드 경로와 동일 정책 — 우회 차단)
+  let quotaCtx = { remaining: Infinity };
+  try {
+    const limit = await planEngine.getLimit(targetBiz, 'storage_bytes');
+    if (limit !== Infinity) {
+      const [tu] = await BusinessStorageUsage.findOrCreate({
+        where: { business_id: targetBiz, storage_provider: 'planq' },
+        defaults: { business_id: targetBiz, bytes_used: 0, file_count: 0, storage_provider: 'planq' },
+      });
+      quotaCtx.remaining = Math.max(0, limit - Number(tu.bytes_used));
+    }
+  } catch { /* best-effort — 실패 시 무제한 처리 */ }
+
+  // 파일 복사 (+ move 면 원본 정리). 쿼터 초과분은 복사 안 함(move 라도 원본 보존 — 데이터 유실 방지).
   for (const f of files.slice(0, MAX_ITEMS)) {
-    const r = await copyFileToTarget(f, targetBiz, job.user_id);
+    const r = await copyFileToTarget(f, targetBiz, job.user_id, quotaCtx);
     if (r.status === 'copied') {
       filesCopied++; bytesAdded += r.bytes || 0;
       if (job.mode === 'move') { await softDeleteSourceFile(f); filesRemoved++; }
+    } else if (r.reason === 'quota') {
+      skippedQuota++; // 타겟 쿼터 부족 → 복사 실패. move 라도 원본 유지(유실 방지).
     } else {
       skipped++;
       // 이미 타겟에 존재(중복)면 move 시 원본은 제거 (사용자 의도 = 출발지 비우기)
@@ -164,7 +188,7 @@ async function processTransfer(job) {
   }
 
   return { files_copied: filesCopied, documents_copied: docsCopied, qnote_copied: qnoteCopied,
-    files_removed: filesRemoved, documents_removed: docsRemoved, skipped, bytes: bytesAdded };
+    files_removed: filesRemoved, documents_removed: docsRemoved, skipped, skipped_quota: skippedQuota, bytes: bytesAdded };
 }
 
 // ─── export 처리 (다운로드 zip 생성 → 파일 저장 + 토큰) ───
