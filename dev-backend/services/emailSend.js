@@ -71,6 +71,14 @@ function joinAddrs(v) {
 // 메일 발송. 성공 시 { messageId, accepted, rejected }, 실패 시 throw.
 //   attachments: nodemailer 형식 [{ filename, path, contentType }]
 async function sendMail(account, { to, cc, bcc, subject, html, text, inReplyTo, references, attachments }) {
+  // 수신자 검증 — 가짜/예약TLD/형식불량 주소 차단 (바운스·평판 보호). emailService 게이트 재사용.
+  const { emailBlockReason } = require('./emailService');
+  const blocked = emailBlockReason([].concat(to || [], cc || [], bcc || []));
+  if (blocked && blocked !== 'empty') {
+    const e = new Error(`recipient_${blocked}`);
+    e.code = 'invalid_recipient';
+    throw e;
+  }
   const transport = await buildTransport(account);
   const fromName = account.display_name || '';
   const from = fromName
