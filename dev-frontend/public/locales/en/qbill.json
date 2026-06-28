@@ -119,6 +119,9 @@
     "externalHint": "External invoice not linked to an internal client"
   },
   "detail": {
+    "statusHistory": {
+      "title": "Status history"
+    },
     "header": {
       "actions": {
         "share": "Share",

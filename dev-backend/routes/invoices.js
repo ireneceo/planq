@@ -898,6 +898,36 @@ router.get('/:businessId/:id/tax-breakdown', authenticateToken, attachWorkspaceS
   } catch (err) { next(err); }
 });
 
+// ─── 상태 변경 이력 (기본 히스토리 — draft/sent/paid/void 전이 타임라인) ───
+router.get('/:businessId/:id/status-history', authenticateToken, attachWorkspaceScope(), async (req, res, next) => {
+  try {
+    const businessId = Number(req.params.businessId);
+    const inv = await Invoice.findOne({ where: { id: req.params.id, business_id: businessId }, attributes: ['id'] });
+    if (!inv) return errorResponse(res, 'not_found', 404);
+    if (!isMemberOrAbove(req.scope)) return errorResponse(res, 'forbidden', 403);
+    const { InvoiceStatusHistory } = require('../models');
+    const { applyMemberDisplayName } = require('../services/displayName');
+    const rows = await InvoiceStatusHistory.findAll({
+      where: { invoice_id: inv.id, business_id: businessId },
+      include: [{ model: User, as: 'changer', attributes: ['id', 'name', 'name_localized'] }],
+      order: [['created_at', 'ASC']],
+    });
+    const data = rows.map((r) => ({
+      id: r.id,
+      from_status: r.from_status,
+      to_status: r.to_status,
+      note: r.note || null,
+      created_at: r.created_at,
+      changer: r.changer ? { id: r.changer.id, name: r.changer.name, name_localized: r.changer.name_localized } : null,
+    }));
+    await applyMemberDisplayName(data, businessId, ['changer']);
+    return successResponse(res, data.map((d) => ({
+      id: d.id, from_status: d.from_status, to_status: d.to_status, note: d.note,
+      created_at: d.created_at, changed_by_name: d.changer ? (d.changer.name || null) : null,
+    })));
+  } catch (err) { next(err); }
+});
+
 // ─── PDF 다운로드 (멤버) ───
 router.get('/:businessId/:id/pdf', authenticateToken, attachWorkspaceScope(), async (req, res, next) => {
   try {

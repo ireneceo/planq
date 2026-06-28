@@ -363,6 +363,20 @@ export async function listInvoiceCorrections(businessId: number, invoiceId: numb
   return expectOk<ApiReceiptCorrection[]>(r);
 }
 
+// 청구서 상태 변경 이력 (기본 히스토리)
+export interface ApiInvoiceStatusEvent {
+  id: number;
+  from_status: string | null;
+  to_status: string;
+  note: string | null;
+  created_at: string;
+  changed_by_name: string | null;
+}
+export async function getInvoiceStatusHistory(businessId: number, invoiceId: number): Promise<ApiInvoiceStatusEvent[]> {
+  const r = await apiFetch(`/api/invoices/${businessId}/${invoiceId}/status-history`);
+  return expectOk<ApiInvoiceStatusEvent[]>(r);
+}
+
 // 증빙 수정·취소 마킹 (수정세금계산서 발행 / 현금영수증 취소)
 export async function markReceiptCorrection(
   businessId: number, invoiceId: number, installmentId: number | null, payload: CorrectionPayload,
