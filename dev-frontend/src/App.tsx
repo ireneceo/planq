@@ -74,6 +74,7 @@ const PublicInvoicePage = lazy(() => import('./pages/QBill/PublicInvoicePage'));
 const PublicQNoteSessionPage = lazy(() => import('./pages/QNote/PublicQNoteSessionPage'));
 const PublicReportPage = lazy(() => import('./pages/Public/PublicReportPage'));
 const QFilePage = lazy(() => import('./pages/QFile/QFilePage'));
+const AdminDashboardPage = lazy(() => import('./pages/Admin/AdminDashboardPage'));
 const AdminBusinessesPage = lazy(() => import('./pages/Admin/AdminBusinessesPage'));
 const AdminFeedbackPage = lazy(() => import('./pages/Admin/AdminFeedbackPage'));
 const AdminWikiPage = lazy(() => import('./pages/Admin/AdminWikiPage'));
@@ -414,7 +415,7 @@ function App() {
         <Route path="/admin" element={<Navigate to="/admin/dashboard" replace />} />
         <Route path="/admin/dashboard" element={
           <ProtectedRoute requiredRole={['platform_admin']}>
-            <MainLayout><PlaceholderPage title="Platform Dashboard" /></MainLayout>
+            <MainLayout><AdminDashboardPage /></MainLayout>
           </ProtectedRoute>
         } />
         <Route path="/admin/businesses" element={

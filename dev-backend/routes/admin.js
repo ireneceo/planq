@@ -11,6 +11,64 @@ const { PLANS, PLAN_ORDER, toPublicJson } = require('../config/plans');
 
 router.use(authenticateToken, requireRole('platform_admin'));
 
+// ─── 플랫폼 대시보드 집계 (overview) ───
+// GET /api/admin/overview — 워크스페이스·사용자·구독·수익 KPI + 플랜 분포 + 6개월 가입 추이
+router.get('/overview', async (req, res, next) => {
+  try {
+    const now = new Date();
+    const d30 = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    const [bizTotal, bizNew, userTotal, userNew] = await Promise.all([
+      Business.count(),
+      Business.count({ where: { createdAt: { [Op.gte]: d30 } } }),
+      User.count(),
+      User.count({ where: { createdAt: { [Op.gte]: d30 } } }),
+    ]);
+
+    // 구독 — 상태별 카운트 + 활성 구독의 플랜 분포
+    const subCounts = await Subscription.findAll({
+      attributes: ['status', [Subscription.sequelize.fn('COUNT', Subscription.sequelize.col('id')), 'count']],
+      group: ['status'], raw: true,
+    });
+    const subscriptions = { active: 0, grace: 0, pending: 0, past_due: 0, demoted: 0, canceled: 0, total: 0 };
+    for (const c of subCounts) {
+      const n = Number(c.count);
+      if (subscriptions[c.status] !== undefined) subscriptions[c.status] = n;
+      subscriptions.total += n;
+    }
+    const planRows = await Subscription.findAll({
+      attributes: ['plan_code', [Subscription.sequelize.fn('COUNT', Subscription.sequelize.col('id')), 'count']],
+      where: { status: 'active' }, group: ['plan_code'], raw: true,
+    });
+    const by_plan = {};
+    for (const r of planRows) by_plan[r.plan_code || 'unknown'] = Number(r.count);
+
+    // 수익 — 이번 달 결제완료 합계 + 미수금(pending)
+    const [monthRev, pendingAmt] = await Promise.all([
+      Payment.sum('amount', { where: { status: 'paid', paid_at: { [Op.gte]: monthStart } } }),
+      Payment.sum('amount', { where: { status: 'pending' } }),
+    ]);
+
+    // 가입 추이 — 최근 6개월 워크스페이스 생성 수
+    const signups = [];
+    for (let i = 5; i >= 0; i--) {
+      const s = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const e = new Date(now.getFullYear(), now.getMonth() - i + 1, 1);
+      const count = await Business.count({ where: { createdAt: { [Op.gte]: s, [Op.lt]: e } } });
+      signups.push({ month: `${s.getFullYear()}-${String(s.getMonth() + 1).padStart(2, '0')}`, count });
+    }
+
+    return successResponse(res, {
+      businesses: { total: bizTotal, new_30d: bizNew },
+      users: { total: userTotal, new_30d: userNew },
+      subscriptions: { ...subscriptions, by_plan },
+      revenue: { month_paid: Number(monthRev || 0), pending_amount: Number(pendingAmt || 0) },
+      signups,
+    });
+  } catch (err) { next(err); }
+});
+
 // ─── 워크스페이스 목록 ───
 // GET /api/admin/businesses?q=검색어
 router.get('/businesses', async (req, res, next) => {
