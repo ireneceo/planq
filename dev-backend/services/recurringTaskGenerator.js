@@ -164,6 +164,23 @@ async function generateOneSeries(parent, today = new Date(), io = null) {
         console.warn('[recurringTask] broadcast failed', inst.id, e.message);
       }
     }
+
+    // #90 계열 — 정기 업무 새 회차 생성 시 담당자 알림 (cron 자동 발생이라 actor 없음, self-noise 무관)
+    if (parent.assignee_id) {
+      try {
+        const { notify } = require('../routes/notifications');
+        const Business = require('../models/Business');
+        const bizR = await Business.findByPk(parent.business_id, { attributes: ['name', 'brand_name'] });
+        notify({
+          userId: parent.assignee_id, businessId: parent.business_id, eventKind: 'task',
+          title: '정기 업무가 생성되었습니다',
+          body: `"${parent.title}" · 마감 ${nextDateStr}`,
+          link: `${process.env.APP_URL || 'https://dev.planq.kr'}/tasks?task=${inst.id}`,
+          ctaLabel: '업무 보기', workspaceName: bizR?.brand_name || bizR?.name || null,
+          entityType: 'task', entityId: inst.id, ioApp: io || null,
+        }).catch((e) => console.warn('[notify recurring]', e.message));
+      } catch (e) { console.warn('[notify recurring outer]', e.message); }
+    }
   }
 
   // parent.next_occurrence_at advance

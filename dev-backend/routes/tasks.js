@@ -684,6 +684,10 @@ router.post('/ai-create/confirm', authenticateToken, async (req, res, next) => {
     const { TaskEstimation } = require('../models');
     const io = req.app.get('io');
     const created = [];
+    // #90 계열 — 일괄 생성 task 의 담당자(≠생성자) 알림. wsName/notify 는 loop 밖 1회 준비.
+    const { notify: notifyAssignee } = require('./notifications');
+    const bizForNotify = await Business.findByPk(business_id, { attributes: ['name', 'brand_name'] });
+    const wsNameForNotify = bizForNotify?.brand_name || bizForNotify?.name || null;
 
     for (const c of candidates) {
       const title = String(c.title || '').trim().slice(0, 200);
@@ -751,6 +755,18 @@ router.post('/ai-create/confirm', authenticateToken, async (req, res, next) => {
         if (project_id) io.to(`project:${project_id}`).emit('task:new', payload);
         io.to(`business:${business_id}`).emit('task:new', payload);
         broadcastInboxRefresh(io, business_id, project_id, 'task_new', full.id);
+      }
+
+      // #90 계열 — 담당자 ≠ 생성자 일 때 새 업무 배정 알림 (단일 생성·재배정 라우트와 동일)
+      if (isInternalRequest && finalAssignee) {
+        notifyAssignee({
+          userId: finalAssignee, businessId: business_id, eventKind: 'task',
+          title: '새 업무가 배정되었습니다',
+          body: `"${title}"${dueDate ? ` · 마감 ${String(dueDate).slice(0, 10)}` : ''}`,
+          link: `${process.env.APP_URL || 'https://dev.planq.kr'}/tasks?task=${task.id}`,
+          ctaLabel: '업무 보기', workspaceName: wsNameForNotify,
+          actorUserId: req.user.id, entityType: 'task', entityId: task.id, ioApp: io || null,
+        }).catch((e) => console.warn('[notify ai-create]', e.message));
       }
     }
 
