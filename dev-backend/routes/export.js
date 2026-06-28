@@ -393,6 +393,21 @@ router.get('/:businessId/me/jobs/:jobId/download', authenticateToken, checkBusin
   } catch (err) { next(err); }
 });
 
+// DELETE /:businessId/me/jobs/:jobId — 작업 내역에서 제거 (본인·running 제외). export zip 도 정리.
+router.delete('/:businessId/me/jobs/:jobId', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+  try {
+    const job = await ExportJob.findOne({
+      where: { id: Number(req.params.jobId), business_id: Number(req.params.businessId) },
+    });
+    if (!job) return errorResponse(res, 'not_found', 404);
+    if (job.user_id !== req.user.id) return errorResponse(res, 'forbidden', 403);
+    if (job.status === 'running') return errorResponse(res, 'job_running', 409); // 처리 중엔 삭제 불가
+    if (job.download_path && fs.existsSync(job.download_path)) { try { fs.unlinkSync(job.download_path); } catch { /* best-effort */ } }
+    await job.destroy();
+    return successResponse(res, { id: job.id }, 'deleted');
+  } catch (err) { next(err); }
+});
+
 module.exports = router;
 // #63 Phase 3 — 워커(services/exportJobWorker.js)가 재사용
 module.exports.collectSelf = collectSelf;

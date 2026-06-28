@@ -67,7 +67,8 @@
     "stFailed": "실패",
     "jobDownload": "다운로드",
     "moveConfirmTitle": "워크스페이스로 이동",
-    "moveConfirmMsg": "선택한 워크스페이스로 내 개인 자료를 옮기고 이 워크스페이스의 원본은 정리됩니다(파일 삭제·문서 보관처리). 계속할까요?"
+    "moveConfirmMsg": "선택한 워크스페이스로 내 개인 자료를 옮기고 이 워크스페이스의 원본은 정리됩니다(파일 삭제·문서 보관처리). 계속할까요?",
+    "jobDelete": "내역에서 삭제"
   },
   "workManagement": {
     "autoFinalize": {
