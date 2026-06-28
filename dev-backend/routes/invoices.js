@@ -917,7 +917,7 @@ router.get('/:businessId/:id/status-history', authenticateToken, attachWorkspace
       from_status: r.from_status,
       to_status: r.to_status,
       note: r.note || null,
-      created_at: r.created_at,
+      created_at: r.createdAt, // underscored 모델 — 인스턴스 접근자는 createdAt (created_at 컬럼 매핑)
       changer: r.changer ? { id: r.changer.id, name: r.changer.name, name_localized: r.changer.name_localized } : null,
     }));
     await applyMemberDisplayName(data, businessId, ['changer']);
